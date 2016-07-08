@@ -11,9 +11,7 @@ public class UElibPNG : ModuleRules
 		string libPNGPath = UEBuildConfiguration.UEThirdPartySourceDirectory + "libPNG/libPNG-1.5.2";
 		PublicIncludePaths.Add(libPNGPath);
 
-// @ATG_CHANGE : BEGIN  UWP support
-		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
-// @ATG_CHANGE : END
+		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			string LibPath = libPNGPath+ "/lib/Win64/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PublicLibraryPaths.Add(LibPath);
@@ -22,9 +20,6 @@ public class UElibPNG : ModuleRules
 			PublicAdditionalLibraries.Add(LibFileName);
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Win32 ||
-// @ATG_CHANGE : BEGIN UWP support
-                (Target.Platform == UnrealTargetPlatform.UWP32) ||
-// @ATG_CHANGE : END
                 (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32") // simulator
         )
 		{
@@ -34,6 +29,24 @@ public class UElibPNG : ModuleRules
 			string LibFileName = "libpng" + (Target.Configuration == UnrealTargetConfiguration.Debug && BuildConfiguration.bDebugBuildsActuallyUseDebugCRT ? "d" : "") + ".lib";
 			PublicAdditionalLibraries.Add(LibFileName);
 		}
+		// @ATG_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.UWP64)
+		{
+			string LibPath = libPNGPath + "/lib/UWP64/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PublicLibraryPaths.Add(LibPath);
+
+			string LibFileName = "libpng" + (Target.Configuration == UnrealTargetConfiguration.Debug && BuildConfiguration.bDebugBuildsActuallyUseDebugCRT ? "d" : "") + "_64.lib";
+			PublicAdditionalLibraries.Add(LibFileName);
+		}
+		else if (Target.Platform == UnrealTargetPlatform.UWP32)
+		{
+			libPNGPath = libPNGPath + "/lib/UWP32/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PublicLibraryPaths.Add(libPNGPath);
+
+			string LibFileName = "libpng" + (Target.Configuration == UnrealTargetConfiguration.Debug && BuildConfiguration.bDebugBuildsActuallyUseDebugCRT ? "d" : "") + ".lib";
+			PublicAdditionalLibraries.Add(LibFileName);
+		}
+		// @ATG_CHANGE : END
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			PublicAdditionalLibraries.Add(libPNGPath + "/lib/Mac/libpng.a");
