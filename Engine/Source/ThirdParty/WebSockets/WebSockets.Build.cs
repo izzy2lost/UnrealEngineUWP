@@ -8,10 +8,21 @@ public class WebSockets : ModuleRules
 	{
 		Type = ModuleType.External;
             string WebsocketPath = UEBuildConfiguration.UEThirdPartySourceDirectory + "WebSockets/libwebsockets/";
-		    if (Target.Platform == UnrealTargetPlatform.Win64)
+// @ATG_CHANGE : BEGIN UWP support
+		    if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
+// @ATG_CHANGE : END
             {
                 PublicIncludePaths.Add(WebsocketPath + "include/");
-			    PublicLibraryPaths.Add(WebsocketPath + "lib/x64/" + WindowsPlatform.GetVisualStudioCompilerVersionName() + "/");
+// @ATG_CHANGE : BEGIN UWP support
+				if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015)
+				{
+					PublicLibraryPaths.Add(WebsocketPath + "lib/x64/2015/");
+				}
+				else
+				{
+					PublicLibraryPaths.Add(WebsocketPath + "lib/x64/2013/");
+				}
+// @ATG_CHANGE : END
 			    PublicAdditionalLibraries.Add("websockets_static.lib");
 			    PublicAdditionalLibraries.Add("ZLIB.lib");
 		    }

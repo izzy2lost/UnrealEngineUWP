@@ -14,19 +14,31 @@ namespace UnrealBuildTool
 		/// True if we should only build against the app-local CRT and set the API-set flags
 		public readonly bool bWinApiFamilyApp = true;
 
-
-		public UWPPlatformContext(FileReference InProjectFile) : base(UnrealTargetPlatform.UWP, InProjectFile)
+		// @ATG_CHANGE : BEGIN UWP support
+		public UWPPlatformContext(UnrealTargetPlatform InPlatform, FileReference InProjectFile) : base(InPlatform, InProjectFile)
+		// @ATG_CHANGE : END
 		{
 		}
 
 		/// <summary>
-		/// Modify the rules for a newly created module, in a target that's being built for this platform.
-		/// This is not required - but allows for hiding details of a particular platform.
+		/// Get a list of extra modules the platform requires.
+		/// This is to allow undisclosed platforms to add modules they need without exposing information about the platfomr.
 		/// </summary>
-		/// <param name="ModuleName">The name of the module</param>
-		/// <param name="Rules">The module rules</param>
 		/// <param name="Target">The target being build</param>
-		public override void ModifyModuleRulesForActivePlatform(string ModuleName, ModuleRules Rules, TargetInfo Target)
+		/// <param name="ExtraModuleNames">List of extra modules the platform needs to add to the target</param>
+		public override void AddExtraModules(TargetInfo Target, List<string> ExtraModuleNames)
+        {
+            //ExtraModuleNames.Add("UWPPlatformFeatures");
+        }
+
+        /// <summary>
+        /// Modify the rules for a newly created module, in a target that's being built for this platform.
+        /// This is not required - but allows for hiding details of a particular platform.
+        /// </summary>
+        /// <param name="ModuleName">The name of the module</param>
+        /// <param name="Rules">The module rules</param>
+        /// <param name="Target">The target being build</param>
+        public override void ModifyModuleRulesForActivePlatform(string ModuleName, ModuleRules Rules, TargetInfo Target)
 		{
 			if (ModuleName == "Core")
 			{
@@ -39,7 +51,9 @@ namespace UnrealBuildTool
 				Rules.PublicDependencyModuleNames.Add("UEOgg");
 				Rules.PublicDependencyModuleNames.Add("Vorbis");
 			}
-			else if (ModuleName == "D3D11RHI")
+			// @ATG_CHANGE : BEGIN UWP support
+			else if (ModuleName == "D3D11RHI" || ModuleName == "D3D12RHI")
+			// @ATG_CHANGE : END
 			{
 				Rules.Definitions.Add("D3D11_WITH_DWMAPI=0");
 				Rules.Definitions.Add("WITH_DX_PERF=0");
@@ -62,7 +76,9 @@ namespace UnrealBuildTool
 				Rules.Definitions.Add("XAUDIO_SUPPORTS_XMA2WAVEFORMATEX=0");
 				Rules.Definitions.Add("XAUDIO_SUPPORTS_DEVICE_DETAILS=0");
 				Rules.Definitions.Add("XAUDIO2_SUPPORTS_MUSIC=0");
-				Rules.Definitions.Add("XAUDIO2_SUPPORTS_SENDLIST=0");
+				// @ATG_CHANGE : BEGIN
+				Rules.Definitions.Add("XAUDIO2_SUPPORTS_SENDLIST=1");
+				// @ATG_CHANGE : END
 				Rules.PublicAdditionalLibraries.Add("XAudio2.lib");
 			}
 			else if (ModuleName == "DX11Audio")
@@ -83,16 +99,17 @@ namespace UnrealBuildTool
 		/// <param name="InBuildTarget"> The target being built</param>
 		public override void SetUpEnvironment(UEBuildTarget InBuildTarget)
 		{
-
-			InBuildTarget.GlobalCompileEnvironment.Config.Definitions.Add("PLATFORM_DESKTOP=0");
-			InBuildTarget.GlobalCompileEnvironment.Config.Definitions.Add("PLATFORM_64BITS=1");
+			// @ATG_CHANGE : BEGIN UWP support
+			//InBuildTarget.GlobalCompileEnvironment.Config.Definitions.Add("PLATFORM_DESKTOP=0");
+			//InBuildTarget.GlobalCompileEnvironment.Config.Definitions.Add("PLATFORM_64BITS=1");
+			// @ATG_CHANGE : END
 			InBuildTarget.GlobalCompileEnvironment.Config.Definitions.Add("EXCEPTIONS_DISABLED=0");
 
 			InBuildTarget.GlobalCompileEnvironment.Config.Definitions.Add("_WIN32_WINNT=0x0A00");
 			InBuildTarget.GlobalCompileEnvironment.Config.Definitions.Add("WINVER=0x0A00");
 
 			InBuildTarget.GlobalCompileEnvironment.Config.Definitions.Add("PLATFORM_UWP=1");
-			InBuildTarget.GlobalCompileEnvironment.Config.Definitions.Add("UWP=1");	// @todo UWP: This used to be "WINUAP=1".  Need to verify that 'UWP' is the correct define that we want here.
+			InBuildTarget.GlobalCompileEnvironment.Config.Definitions.Add("UWP=1");	
 
 			if (bWinApiFamilyApp)
 			{
@@ -135,6 +152,7 @@ namespace UnrealBuildTool
 
 			InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("mincore.lib");
 			InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("dloadhelper.lib");
+            InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("ws2_32.lib");
 
 			// Disable Simplygon support if compiling against the NULL RHI.
 			if (InBuildTarget.GlobalCompileEnvironment.Config.Definitions.Contains("USE_NULL_RHI=1"))
@@ -142,6 +160,10 @@ namespace UnrealBuildTool
 				UEBuildConfiguration.bCompileSimplygon = false;
                 UEBuildConfiguration.bCompileSimplygonSSF = false;
 			}
+
+			// @ATG_CHANGE : BEGIN UWP packaging & F5 support
+			BuildConfiguration.bDeployAfterCompile = true;
+			// @ATG_CHANGE : END
 		}
 
 		/// <summary>
@@ -231,7 +253,9 @@ namespace UnrealBuildTool
 		/// <returns>New toolchain instance.</returns>
 		public override UEToolChain CreateToolChain(CPPTargetPlatform Platform)
 		{
-			return new UWPToolChain();
+			// @ATG_CHANGE : BEGIN UWP support
+			return new UniversalWindowsPlatformToolChain(Platform);
+			// @ATG_CHANGE : END
 		}
 
 		/// <summary>
@@ -243,8 +267,9 @@ namespace UnrealBuildTool
 			return new UWPDeploy();
 		}
 	}
-
-	public class UWPPlatform : UEBuildPlatform
+	// @ATG_CHANGE : BEGIN UWP support
+	public class UniversalWindowsPlatform : UEBuildPlatform
+	// @ATG_CHANGE : END
 	{
 		/// Property caching.
 		private static WindowsCompiler? CachedCompiler;
@@ -299,8 +324,10 @@ namespace UnrealBuildTool
 		}
 
 		UWPPlatformSDK SDK;
-
-		public UWPPlatform(UWPPlatformSDK InSDK) : base(UnrealTargetPlatform.UWP, CPPTargetPlatform.UWP)
+		
+		// @ATG_CHANGE : BEGIN UWP support
+		public UniversalWindowsPlatform(UnrealTargetPlatform InPlatform, CPPTargetPlatform InDefaultCppPlatform, UWPPlatformSDK InSDK) : base(InPlatform, InDefaultCppPlatform)
+		// @ATG_CHANGE : END
 		{
 			SDK = InSDK;
 		}
@@ -478,6 +505,31 @@ namespace UnrealBuildTool
 		/// <param name="Target">The target being build</param>
 		public override void ModifyModuleRulesForOtherPlatform(string ModuleName, ModuleRules Rules, TargetInfo Target)
 		{
+			// @ATG_CHANGE : BEGIN UWP packaging & F5 support
+			if (Target.Platform == UnrealTargetPlatform.Win64)
+			{
+				if (!UEBuildConfiguration.bBuildRequiresCookedData)
+				{
+					if (ModuleName == "Engine")
+					{
+						if (UEBuildConfiguration.bBuildDeveloperTools)
+						{
+							Rules.PlatformSpecificDynamicallyLoadedModuleNames.Add("UWPTargetPlatform");
+						}
+					}
+				}
+
+				// allow standalone tools to use targetplatform modules, without needing Engine
+				if (ModuleName == "TargetPlatform")
+				{
+					if (UEBuildConfiguration.bForceBuildTargetPlatforms)
+					{
+						Rules.PlatformSpecificDynamicallyLoadedModuleNames.Add("UWPTargetPlatform");
+					}
+				}
+
+			}
+			// @ATG_CHANGE : END
 		}
 
 		/// <summary>
@@ -496,7 +548,9 @@ namespace UnrealBuildTool
 		/// <returns>New platform context object</returns>
 		public override UEBuildPlatformContext CreateContext(FileReference ProjectFile)
 		{
-			return new UWPPlatformContext(ProjectFile);
+			// @ATG_CHANGE : BEGIN UWP32-x86 support
+			return new UWPPlatformContext(Platform, ProjectFile);
+			// @ATG_CHANGE : END
 		}
 	}
 
@@ -521,7 +575,9 @@ namespace UnrealBuildTool
 	{
 		protected override UnrealTargetPlatform TargetPlatform
 		{
-			get { return UnrealTargetPlatform.UWP; }
+			// @ATG_CHANGE :  BEGIN UWP support
+			get { return UnrealTargetPlatform.UWP64; }
+			// @ATG_CHANGE : END
 		}
 
 		/// <summary>
@@ -533,10 +589,18 @@ namespace UnrealBuildTool
 			SDK.ManageAndValidateSDK();
 
 			// Register this build platform for UWP
-			Log.TraceVerbose("        Registering for {0}", UnrealTargetPlatform.UWP.ToString());
-			UEBuildPlatform.RegisterBuildPlatform(new UWPPlatform(SDK));
-			UEBuildPlatform.RegisterPlatformWithGroup(UnrealTargetPlatform.UWP, UnrealPlatformGroup.Microsoft);
-		}
+			// @ATG_CHANGE : BEGIN UWP support
+			Log.TraceVerbose("        Registering for {0}", UnrealTargetPlatform.UWP64.ToString());			
+			UEBuildPlatform.RegisterBuildPlatform(new UniversalWindowsPlatform(UnrealTargetPlatform.UWP64, CPPTargetPlatform.UWP64, SDK));			
+			UEBuildPlatform.RegisterPlatformWithGroup(UnrealTargetPlatform.UWP64, UnrealPlatformGroup.Microsoft);
+			UEBuildPlatform.RegisterPlatformWithGroup(UnrealTargetPlatform.UWP64, UnrealPlatformGroup.UWP);
 
-	}
+            Log.TraceVerbose("        Registering for {0}", UnrealTargetPlatform.UWP32.ToString());
+            UEBuildPlatform.RegisterBuildPlatform(new UniversalWindowsPlatform(UnrealTargetPlatform.UWP32, CPPTargetPlatform.UWP32, SDK));
+            UEBuildPlatform.RegisterPlatformWithGroup(UnrealTargetPlatform.UWP32, UnrealPlatformGroup.Microsoft);
+            UEBuildPlatform.RegisterPlatformWithGroup(UnrealTargetPlatform.UWP32, UnrealPlatformGroup.UWP);
+            // @ATG_CHANGE : END
+        }
+
+    }
 }

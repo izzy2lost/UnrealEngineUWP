@@ -325,7 +325,13 @@ namespace UnrealBuildTool
 				InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("shell32.lib");
 				InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("ole32.lib");
 				InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("oleaut32.lib");
-				InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("uuid.lib");
+				// @ATG_CHANGE : BEGIN UWP support
+				// skip this if using the Win10 SDK, since uuid has IDs defined in guidlibs separately linked in
+				if (!WindowsPlatform.bUseWindowsSDK10)
+				{   
+					InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("uuid.lib");
+				}
+				// @ATG_CHANGE : END
 				InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("odbc32.lib");
 				InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("odbccp32.lib");
 				InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("netapi32.lib");
@@ -553,7 +559,33 @@ namespace UnrealBuildTool
 		/// Whether to compile against the Windows 10 SDK, instead of the Windows 8.1 SDK.  This requires the Visual Studio 2015
 		/// compiler or later, and the Windows 10 SDK must be installed.  The application will require at least Windows 8.x to run.
 		// @todo UWP: Expose this to be enabled more easily for building Windows 10 desktop apps
-		public static readonly bool bUseWindowsSDK10 = false;
+		// @ATG_CHANGE : BEGIN UWP support
+		private static bool? _bUseWindowsSDK10 = null;
+		public static bool bUseWindowsSDK10
+		{
+			get
+			{
+				if (_bUseWindowsSDK10.HasValue)
+				{
+					return _bUseWindowsSDK10.Value;
+				}
+
+				_bUseWindowsSDK10 = false;
+
+				// if the current compiler is 2015, and the Win10 SDK is there, use it, otherwise fall back to not using it
+				if (Compiler == WindowsCompiler.VisualStudio2015)
+				{
+					string PossibleWin10SDKdir = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0", false);
+					if (PossibleWin10SDKdir != null && Directory.Exists(PossibleWin10SDKdir))
+					{
+						_bUseWindowsSDK10 = true;
+					}
+				}
+				return _bUseWindowsSDK10.Value;
+			}
+		}
+		// @ATG_CHANGE : END
+
 
 		/// True if we allow using addresses larger than 2GB on 32 bit builds
 		public static bool bBuildLargeAddressAwareBinary = true;

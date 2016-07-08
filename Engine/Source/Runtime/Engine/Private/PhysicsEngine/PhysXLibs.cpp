@@ -12,7 +12,9 @@
 // PhysX library imports
 #include "PhysXSupport.h"
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE :END
 	HMODULE PhysX3CommonHandle = 0;
 	HMODULE	PhysX3Handle = 0;
 	#if WITH_PHYSICS_COOKING || WITH_RUNTIME_PHYSICS_COOKING
@@ -35,15 +37,35 @@
 void LoadPhysXModules()
 {
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
+
 	FString PhysXBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX/PhysX-3.3/");
 	FString APEXBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX/APEX-1.3/");
-
+	// @ATG_CHANGE : BEGIN UWP support
+	// UE relative paths appear to be relative to the base directory (the startup binary)
+	// but LoadPackagedLibrary needs a _package_ relativePath
+	#if PLATFORM_UWP && ((WINAPI_FAMILY==WINAPI_FAMILY_APP) || (WINAPI_FAMILY==WINAPI_FAMILY_ONECORE_APP))
+	#define LoadLibraryW(path) LoadPackagedLibrary((path), 0ul)
+		FPaths::MakePathRelativeTo(PhysXBinariesRoot, *(FPaths::RootDir() + TEXT("/")));
+		PhysXBinariesRoot += TEXT("/");
+		FPaths::MakePathRelativeTo(APEXBinariesRoot, *(FPaths::RootDir() + TEXT("/")));
+		APEXBinariesRoot += TEXT("/");
+	#endif
+	// @ATG_CHANGE : END
 	#if PLATFORM_64BITS
 
 		#if _MSC_VER >= 1900
-			FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win64/VS2015/"));
-			FString RootAPEXPath(APEXBinariesRoot + TEXT("Win64/VS2015/"));
+			// @ATG_CHANGE : BEGIN UWP support
+			#if PLATFORM_UWP
+				FString RootPhysXPath(PhysXBinariesRoot + TEXT("UWP64/VS2015/"));
+				FString RootAPEXPath(APEXBinariesRoot + TEXT("UWP64/VS2015/"));
+			#else
+				FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win64/VS2015/"));
+				FString RootAPEXPath(APEXBinariesRoot + TEXT("Win64/VS2015/"));
+			#endif
+			// @ATG_CHANGE : END
 		#else
 			FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win64/VS2013/"));
 			FString RootAPEXPath(APEXBinariesRoot + TEXT("Win64/VS2013/"));
@@ -122,8 +144,15 @@ void LoadPhysXModules()
 	#else	//PLATFORM_64BITS
 
 		#if _MSC_VER >= 1900
-			FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win32/VS2015/"));
-			FString RootAPEXPath(APEXBinariesRoot + TEXT("Win32/VS2015/"));
+			// @ATG_CHANGE : BEGIN UWP support
+			#if PLATFORM_UWP
+				FString RootPhysXPath(PhysXBinariesRoot + TEXT("UWP32/VS2015/"));
+				FString RootAPEXPath(APEXBinariesRoot + TEXT("UWP32/VS2015/"));
+			#else
+				FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win32/VS2015/"));
+				FString RootAPEXPath(APEXBinariesRoot + TEXT("Win32/VS2015/"));
+			#endif
+			// @ATG_CHANGE : END
 		#elif _MSC_VER >= 1800
 			FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win32/VS2013/"));
 			FString RootAPEXPath(APEXBinariesRoot + TEXT("Win32/VS2013/"));
@@ -202,7 +231,9 @@ void LoadPhysXModules()
 
 		#endif	//UE_BUILD_DEBUG
 	#endif	//PLATFORM_64BITS
-#endif	//PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#endif	//PLATFORM_WINDOWS  || PLATFORM_UWP
+// @ATG_CHANGE : END
 }
 
 /** 
@@ -210,7 +241,9 @@ void LoadPhysXModules()
  */
 void UnloadPhysXModules()
 {
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	FreeLibrary(PhysX3Handle);
 	#if WITH_PHYSICS_COOKING || WITH_RUNTIME_PHYSICS_COOKING
 		FreeLibrary(PhysX3CookingHandle);
@@ -224,7 +257,9 @@ void UnloadPhysXModules()
 			FreeLibrary(APEX_ClothingHandle);
 		#endif //WITH_APEX_CLOTHING
 	#endif	//WITH_APEX
-#endif
+// @ATG_CHANGE : BEGIN UWP support
+#endif // PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 }
 
 #endif // WITH_PHYSX

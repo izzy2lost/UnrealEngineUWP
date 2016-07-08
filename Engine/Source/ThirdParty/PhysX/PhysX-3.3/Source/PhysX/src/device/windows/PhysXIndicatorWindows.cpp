@@ -42,8 +42,14 @@ physx::PhysXIndicator::PhysXIndicator(bool isGpu)
 		Windows 2000			5.0
 	**/
 	
+	// @ATG_CHANGE : BEGIN UWP support (moving to wide strings, many ascii functions no longer present)
+#if defined(PX_WINMODERN)
+	wchar_t configName[128];
+#else
 	char configName[128];
+#endif
 
+#if !defined (PX_WINMODERN)
 #if _MSC_VER >= 1800
 	if (!IsWindowsVistaOrGreater())
 #else
@@ -55,6 +61,8 @@ physx::PhysXIndicator::PhysXIndicator(bool isGpu)
 #endif
 		NvPhysXToDrv_Build_SectionNameXP(GetCurrentProcessId(), configName);
 	else
+#endif
+// @ATG_CHANGE : END
 		NvPhysXToDrv_Build_SectionName(GetCurrentProcessId(), configName);
 	
 	mFileHandle = CreateFileMapping(INVALID_HANDLE_VALUE, NULL,

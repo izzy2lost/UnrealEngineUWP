@@ -16,7 +16,10 @@ namespace UnrealBuildTool
 	{
 		Win32,
 		Win64,
-		UWP,
+		// @ATG_CHANGE : BEGIN  UWP support
+		UWP32,				// Universal Windows Platform - x86-32
+		UWP64,				// Universal Windows Platform - x64
+		// @ATG_CHANGE : END
 		Mac,
 		XboxOne,
 		PS4,
@@ -363,6 +366,13 @@ namespace UnrealBuildTool
 		/// </summary>
 		public List<UEBuildFramework> AdditionalFrameworks = new List<UEBuildFramework>();
 
+		// @ATG_CHANGE : BEGIN winmd support
+		/// <summary>
+		/// List of winmd files that the source depends on
+		/// </summary>
+		public List<string> WinMDReferences = new List<string>();
+		// @ATG_CHANGE : END
+
 		/// <summary>
 		/// Default constructor.
 		/// </summary>
@@ -405,6 +415,9 @@ namespace UnrealBuildTool
 			Definitions.AddRange(InCopyEnvironment.Definitions);
 			AdditionalArguments = InCopyEnvironment.AdditionalArguments;
 			AdditionalFrameworks.AddRange(InCopyEnvironment.AdditionalFrameworks);
+			// @ATG_CHANGE : BEGIN winmd support
+			WinMDReferences.AddRange(InCopyEnvironment.WinMDReferences);
+			// @ATG_CHANGE : END
 		}
 	}
 

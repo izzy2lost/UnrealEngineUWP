@@ -163,7 +163,9 @@ bool FSocketBSDIPv6::SendTo(const uint8* Data, int32 Count, int32& BytesSent, co
 	if(BytesSent == SOCKET_ERROR)
 	{
 		ESocketErrors SockError = SocketSubsystem->GetLastErrorCode();
-		UE_LOG(LogSockets, Log, TEXT("sendto error: (ESocketErrors:%d)"), SockError);
+		// @ATG_CHANGE : BEGIN strict enum fix
+		UE_LOG(LogSockets, Log, TEXT("sendto error: (ESocketErrors:%d)"), static_cast<int32>(SockError));
+		// @ATG_CHANGE : END
 	}
 //	NETWORK_PROFILER(FSocket::SendTo(Data,Count,BytesSent,Destination));
 

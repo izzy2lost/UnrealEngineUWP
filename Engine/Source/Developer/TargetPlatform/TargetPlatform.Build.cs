@@ -30,6 +30,10 @@ public class TargetPlatform : ModuleRules
 
             if (Target.Platform == UnrealTargetPlatform.Win32 ||
                 Target.Platform == UnrealTargetPlatform.Win64 ||
+// @ATG_CHANGE : BEGIN UWP support
+                Target.Platform == UnrealTargetPlatform.UWP32 ||
+                Target.Platform == UnrealTargetPlatform.UWP64 ||
+// @ATG_CHANGE : END
 				(Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32"))
 			{
 

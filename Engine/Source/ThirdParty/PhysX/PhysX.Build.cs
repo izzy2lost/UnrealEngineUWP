@@ -130,11 +130,14 @@ public class PhysX : ModuleRules
 			);
 
 		// Libraries and DLLs for windows platform
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 		{
 			PublicSystemIncludePaths.Add(PhysXDir + "include/foundation/windows");
-
-			PhysXLibDir += "Win64/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			string PhysXBinariesDir;
+			PhysXLibDir += Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PhysXBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/{0}/{2}/VS{1}/", PhysXVersion, WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform .ToString());
+// @ATG_CHANGE : END
 			PublicLibraryPaths.Add(PhysXLibDir);
 
 			string[] StaticLibrariesX64 = new string[] {
@@ -169,22 +172,29 @@ public class PhysX : ModuleRules
 			{
 				PublicDelayLoadDLLs.Add(String.Format(DLL, LibrarySuffix));
 			}
-            PublicDelayLoadDLLs.Add("nvToolsExt64_1.dll");
-
-			string PhysXBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/{0}/Win64/VS{1}/", PhysXVersion, WindowsPlatform.GetVisualStudioCompilerVersionName());
+// @ATG_CHANGE : BEGIN UWP support
 			foreach(string DLL in RuntimeDependenciesX64)
 			{
 				string FileName = PhysXBinariesDir + String.Format(DLL, LibrarySuffix);
 				RuntimeDependencies.Add(new RuntimeDependency(FileName));
 				RuntimeDependencies.Add(new RuntimeDependency(Path.ChangeExtension(FileName, ".pdb"), true));
 			}
-			RuntimeDependencies.Add(new RuntimeDependency(PhysXBinariesDir + "nvToolsExt64_1.dll"));
+			if (LibraryMode != PhysXLibraryMode.Shipping)
+			{
+				PublicDelayLoadDLLs.Add("nvToolsExt64_1.dll");
+				RuntimeDependencies.Add(new RuntimeDependency(PhysXBinariesDir + "nvToolsExt64_1.dll"));
+			}
+// @ATG_CHANGE : END
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Win32 || (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32"))
+// @ATG_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.Win32 || 
+			(Target.Platform == UnrealTargetPlatform.UWP32) ||
+			(Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32"))
+// @ATG_CHANGE : END
 		{
 			PublicIncludePaths.Add(PhysXDir + "include/foundation/windows");
 
-			PhysXLibDir += "Win32/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PhysXLibDir += Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PublicLibraryPaths.Add(PhysXLibDir);
 
 			string[] StaticLibrariesX86 = new string[] {
@@ -219,16 +229,21 @@ public class PhysX : ModuleRules
 			{
 				PublicDelayLoadDLLs.Add(String.Format(DLL, LibrarySuffix));
 			}
-            PublicDelayLoadDLLs.Add("nvToolsExt32_1.dll");
 
-			string PhysXBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/{0}/Win32/VS{1}/", PhysXVersion, WindowsPlatform.GetVisualStudioCompilerVersionName());
+            string PhysXBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/{0}/{2}/VS{1}/", PhysXVersion, WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
+
+            if (LibraryMode != PhysXLibraryMode.Shipping)
+			{
+				PublicDelayLoadDLLs.Add("nvToolsExt32_1.dll");
+				RuntimeDependencies.Add(new RuntimeDependency(PhysXBinariesDir + "nvToolsExt32_1.dll"));
+			}
+
 			foreach(string DLL in RuntimeDependenciesX86)
 			{
 				string FileName = PhysXBinariesDir + String.Format(DLL, LibrarySuffix);
 				RuntimeDependencies.Add(new RuntimeDependency(FileName));
 				RuntimeDependencies.Add(new RuntimeDependency(Path.ChangeExtension(FileName, ".pdb"), true));
 			}
-			RuntimeDependencies.Add(new RuntimeDependency(PhysXBinariesDir + "nvToolsExt32_1.dll"));
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{

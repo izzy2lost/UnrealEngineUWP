@@ -29,12 +29,26 @@ void AgMMFile::create(char *name, unsigned int size, bool &alreadyExists)
 	alreadyExists = false;
 	mSize = size;
 
+// @ATG_CHANGE : BEGIN UWP support (non-wide variant removed from API set)
+#if defined (PX_WINMODERN)
+	wchar_t wideName[MAX_PATH];
+	MultiByteToWideChar(CP_ACP, 0, name, -1, wideName, sizeof(wideName) / sizeof(wideName[0]));
+	mFileH = CreateFileMapping(INVALID_HANDLE_VALUE,	// use paging file
+		NULL,											// default security
+		PAGE_READWRITE,									// read/write access
+		0,												// buffer size (upper 32bits)
+		mSize,											// buffer size (lower 32bits)
+		wideName);											// name of mapping object
+#else
 	mFileH = CreateFileMapping(INVALID_HANDLE_VALUE,	// use paging file
 		NULL,											// default security
 		PAGE_READWRITE,									// read/write access
 		0,												// buffer size (upper 32bits)
 		mSize,											// buffer size (lower 32bits)
 		name);											// name of mapping object
+#endif 
+// @ATG_CHANGE : END
+
 	if (mFileH == NULL || mFileH == INVALID_HANDLE_VALUE)
 	{
 		mSize=0;

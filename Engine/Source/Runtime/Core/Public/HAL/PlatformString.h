@@ -17,6 +17,10 @@
 #include "Android/AndroidString.h"
 #elif PLATFORM_WINRT
 #include "WinRT/WinRTString.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPString.h"
+// @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 #include "HTML5/HTML5PlatformString.h"
 #elif PLATFORM_LINUX

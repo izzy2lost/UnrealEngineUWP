@@ -942,6 +942,13 @@ RETRY_SETUPANDVALIDATE:
 					// since Desktop is just packaging, we don't need an SDK, and UBT will return INVALID, since it doesn't build for it
 					PlatformInfo::UpdatePlatformSDKStatus(PlatformName, PlatformInfo::EPlatformSDKStatus::Installed);
 				}
+				// @ATG_CHANGE : BEGIN UWP support
+				else if (PlatformName == TEXT("UWP64") || PlatformName == TEXT("UWP32"))
+				{
+					PlatformName = TEXT("UWP");
+					PlatformInfo::UpdatePlatformSDKStatus(PlatformName, Status);
+				}
+				// @ATG_CHANGE : END
 				else
 				{
 					PlatformInfo::UpdatePlatformSDKStatus(PlatformName, Status);

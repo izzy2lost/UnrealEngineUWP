@@ -17,6 +17,10 @@
 #include "Android/AndroidOutputDevices.h"
 #elif PLATFORM_WINRT
 #include "WinRT/WinRTOutputDevices.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPOutputDevices.h"
+// @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 #include "HTML5/HTML5PlatformOutputDevices.h"
 #elif PLATFORM_LINUX

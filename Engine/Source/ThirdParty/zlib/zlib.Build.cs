@@ -11,12 +11,17 @@ public class zlib : ModuleRules
 
 		PublicIncludePaths.Add(zlibPath + "Inc");
 
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
+// @ATG_CHANGE : END
 		{
 			PublicLibraryPaths.Add(zlibPath + "Lib/Win64");
 			PublicAdditionalLibraries.Add("zlib_64.lib");
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Win32 ||
+// @ATG_CHANGE : BEGIN UWP support
+                (Target.Platform == UnrealTargetPlatform.UWP32) ||
+// @ATG_CHANGE : END
                 (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32") // simulator
         )
 		{

@@ -673,7 +673,13 @@ const TCHAR* FGenericPlatformMisc::GameDir()
 				}
 				else
 				{
-#if !PLATFORM_DESKTOP
+// @ATG_CHANGE : BEGIN UWP support 
+// Original UWP port had a difference here, might still be some value in 
+// having UWP separated out from the "console" code path in case there's a change
+#if PLATFORM_UWP
+					GameDir = FString::Printf(TEXT("../../../%s/"), FApp::GetGameName());
+#elif !PLATFORM_DESKTOP
+// @ATG_CHANGE : END
 					GameDir = FString::Printf(TEXT("../../../%s/"), FApp::GetGameName());
 #else
 					// This assumes the game executable is in <GAME>/Binaries/<PLATFORM>

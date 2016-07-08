@@ -28,7 +28,9 @@ public:
 	 */
 	FMallocAnsi()
 	{
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support  (setting is not applicable to any modern version of Windows)
+#if PLATFORM_WINDOWS && (WINVER < 0x0600)
+// @ATG_CHANGE : END
 		// Enable low fragmentation heap - http://msdn2.microsoft.com/en-US/library/aa366750.aspx
 		intptr_t	CrtHeapHandle	= _get_heap_handle();
 		ULONG		EnableLFH		= 2;

@@ -72,7 +72,9 @@ public class UE4GameTarget : TargetRules
 				break;
 
 			case UnrealTargetPlatform.Win64:
-				Platforms = new List<UnrealTargetPlatform> { HostPlatform, UnrealTargetPlatform.Win32, UnrealTargetPlatform.IOS, UnrealTargetPlatform.XboxOne, UnrealTargetPlatform.PS4, UnrealTargetPlatform.Android, UnrealTargetPlatform.Linux, UnrealTargetPlatform.HTML5 };
+// @ATG_CHANGE : BEGIN UWP support
+				Platforms = new List<UnrealTargetPlatform> { HostPlatform, UnrealTargetPlatform.UWP64, UnrealTargetPlatform.Win32, UnrealTargetPlatform.UWP32, UnrealTargetPlatform.IOS, UnrealTargetPlatform.XboxOne, UnrealTargetPlatform.PS4, UnrealTargetPlatform.Android, UnrealTargetPlatform.Linux, UnrealTargetPlatform.HTML5 };
+// @ATG_CHANGE : END
 				break;
 
 			default:
@@ -99,7 +101,9 @@ public class UE4GameTarget : TargetRules
 		}
 		else if(HostPlatform == UnrealTargetPlatform.Win64)
 		{
-			if(Platform == UnrealTargetPlatform.Win32 || Platform == UnrealTargetPlatform.Win64 || Platform == UnrealTargetPlatform.Android || Platform == UnrealTargetPlatform.HTML5)
+// @ATG_CHANGE : BEGIN UWP support
+			if(Platform == UnrealTargetPlatform.Win32 || Platform == UnrealTargetPlatform.UWP64 || Platform == UnrealTargetPlatform.UWP32 || Platform == UnrealTargetPlatform.Win64 || Platform == UnrealTargetPlatform.Android || Platform == UnrealTargetPlatform.HTML5)
+// @ATG_CHANGE : END
 			{
 				Platforms.Add(UnrealTargetConfiguration.Development);
 				Platforms.Add(UnrealTargetConfiguration.Shipping);

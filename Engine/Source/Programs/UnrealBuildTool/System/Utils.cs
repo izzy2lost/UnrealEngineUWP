@@ -811,63 +811,67 @@ namespace UnrealBuildTool
 		/// <returns>true if the path could be collapsed, false otherwise.</returns>
 		public static bool CollapseRelativeDirectories(ref string InPath)
 		{
-			string LocalString = InPath;
-			bool bHadBackSlashes = false;
-			// look to see what kind of slashes we had
-			if (LocalString.IndexOf("\\") != -1)
+			// @ATG_CHANGE : BEGIN - bugfix
+			foreach (char invalidChar in Path.GetInvalidPathChars())
 			{
-				LocalString = LocalString.Replace("\\", "/");
-				bHadBackSlashes = true;
-			}
-
-			string ParentDir = "/..";
-			int ParentDirLength = ParentDir.Length;
-
-			for (; ; )
-			{
-				// An empty path is finished
-				if (string.IsNullOrEmpty(LocalString))
-					break;
-
-				// Consider empty paths or paths which start with .. or /.. as invalid
-				if (LocalString.StartsWith("..") || LocalString.StartsWith(ParentDir))
-					return false;
-
-				// If there are no "/.."s left then we're done
-				int Index = LocalString.IndexOf(ParentDir);
-				if (Index == -1)
-					break;
-
-				int PreviousSeparatorIndex = Index;
-				for (; ; )
+				if (InPath.Contains(invalidChar))
 				{
-					// Find the previous slash
-					PreviousSeparatorIndex = Math.Max(0, LocalString.LastIndexOf("/", PreviousSeparatorIndex - 1));
-
-					// Stop if we've hit the start of the string
-					if (PreviousSeparatorIndex == 0)
-						break;
-
-					// Stop if we've found a directory that isn't "/./"
-					if ((Index - PreviousSeparatorIndex) > 1 && (LocalString[PreviousSeparatorIndex + 1] != '.' || LocalString[PreviousSeparatorIndex + 2] != '/'))
-						break;
-				}
-
-				// If we're attempting to remove the drive letter, that's illegal
-				int Colon = LocalString.IndexOf(":", PreviousSeparatorIndex);
-				if (Colon >= 0 && Colon < Index)
 					return false;
-
-				LocalString = LocalString.Substring(0, PreviousSeparatorIndex) + LocalString.Substring(Index + ParentDirLength);
+				}
 			}
 
-			LocalString = LocalString.Replace("./", "");
+			string LocalString = InPath;
+			bool bHadForwardSlashes = LocalString.Contains('/');
+
+			List<string> pathElements = new List<string>(LocalString.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+			for (int element = 1; element < pathElements.Count;)
+			{
+				if (Path.IsPathRooted(pathElements[element]))
+				{
+					return false;
+				}
+				else if (pathElements[element].Equals("."))
+				{
+					pathElements.RemoveAt(element);
+				}
+				else if (pathElements[element].Equals("..") &&
+					!pathElements[element - 1].Equals(".."))
+				{
+					if (element - 1 == 0 && Path.IsPathRooted(pathElements[0]))  // the case of using c:\..
+					{
+						// technically it's valid to go up from the root, since it's parent is just defined as a pointer to self,
+						// but if this ever happens the caller probably didn't mean to do this, so we'll consider it invalid
+						return false;
+					}
+					else
+					{
+						pathElements.RemoveRange(element - 1, 2);
+						if (element > 1)
+						{
+							// because for the case where "element == 1", removal of the two items would otherwise leave us
+							// examining the root, which we never want to process even if it is ".."
+							--element;
+						}
+					}
+				}
+				else
+				{
+					++element;
+				}
+			}
+			// for some reason Path.Combine doesn't put the first separator back in, doing that manually.
+			if (Path.IsPathRooted(pathElements[0]))
+			{
+				pathElements[0] += Path.DirectorySeparatorChar;
+			}
+			LocalString = Path.Combine(pathElements.ToArray());	
 
 			// restore back slashes now
-			if (bHadBackSlashes)
+			if (bHadForwardSlashes)
 			{
-				LocalString = LocalString.Replace("/", "\\");
+				LocalString = LocalString.Replace("\\", "/");
 			}
+			// @ATG_CHANGE : END
 
 			// and pass back out
 			InPath = LocalString;

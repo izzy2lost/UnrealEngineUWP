@@ -108,10 +108,11 @@ public class APEX : ModuleRules
 			});
 		string LibraryFormatString = null;
 
+// @ATG_CHANGE : BEGIN UWP support
 		// Libraries and DLLs for windows platform
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 		{
-			APEXLibDir += "/Win64/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			APEXLibDir += "/" + Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PublicLibraryPaths.Add(APEXLibDir);
 
 			PublicAdditionalLibraries.Add(String.Format("APEXFramework{0}_x64.lib", LibrarySuffix));
@@ -125,7 +126,12 @@ public class APEX : ModuleRules
 				"ApexFramework{0}_x64.dll",
 			};
 
-			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/APEX-1.3/Win64/VS{0}/", WindowsPlatform.GetVisualStudioCompilerVersionName());
+			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/APEX-1.3/{1}/VS{0}/", WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
+			if (Target.Platform == UnrealTargetPlatform.UWP64)
+			{
+				Definitions.Add("WITH_APEX_LEGACY=0");
+			}
+
 			foreach(string RuntimeDependency in RuntimeDependenciesX64)
 			{
 				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix);
@@ -133,9 +139,9 @@ public class APEX : ModuleRules
 				RuntimeDependencies.Add(new RuntimeDependency(FileName + ".pdb", true));
 			}
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Win32)
+		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
 		{
-			APEXLibDir += "/Win32/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			APEXLibDir += "/" + Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PublicLibraryPaths.Add(APEXLibDir);
 
 			PublicAdditionalLibraries.Add(String.Format("APEXFramework{0}_x86.lib", LibrarySuffix));
@@ -149,7 +155,12 @@ public class APEX : ModuleRules
 				"ApexFramework{0}_x86.dll",
 			};
 
-			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/APEX-1.3/Win32/VS{0}/", WindowsPlatform.GetVisualStudioCompilerVersionName());
+			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/APEX-1.3/{1}/VS{0}/", WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
+			if (Target.Platform == UnrealTargetPlatform.UWP32)
+			{
+				Definitions.Add("WITH_APEX_LEGACY=0");
+			}
+// @ATG_CHANGE : END
 			foreach(string RuntimeDependency in RuntimeDependenciesX86)
 			{
 				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix);

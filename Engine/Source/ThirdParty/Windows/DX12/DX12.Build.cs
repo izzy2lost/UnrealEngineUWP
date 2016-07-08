@@ -7,7 +7,9 @@ public class DX12 : ModuleRules
 	{
 		Type = ModuleType.External;
 
-		string DirectXSDKDir = UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";
+// @ATG_CHANGE : BEGIN UWP support
+		string DirectXSDKDir = UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DX12";
+// @ATG_CHANGE : END
 		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
@@ -18,6 +20,9 @@ public class DX12 : ModuleRules
 		{
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
 		}
+// @ATG_CHANGE : BEGIN UWP support
+		PublicSystemIncludePaths.Add(UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy/Include");
+// @ATG_CHANGE : END
 
 		// Always delay-load D3D12
 		PublicDelayLoadDLLs.AddRange( new string[] {

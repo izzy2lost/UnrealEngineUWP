@@ -83,7 +83,9 @@ CORE_API extern class FFeedbackContext*				GWarn;
 #define VARARG_NONE
 #define VARARG_PURE =0
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 
 static inline uint32			CheckVA(uint32 dw)		{ return dw; }
 static inline uint8			CheckVA(uint8 b)			{ return b; }

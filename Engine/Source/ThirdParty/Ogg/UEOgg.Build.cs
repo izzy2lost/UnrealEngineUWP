@@ -14,28 +14,30 @@ public class UEOgg : ModuleRules
 
 		string OggLibPath = OggPath + "lib/";
 
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 		{
-			OggLibPath += "Win64/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			OggLibPath += Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PublicLibraryPaths.Add( OggLibPath );
 
 			PublicAdditionalLibraries.Add("libogg_64.lib");
 
 			PublicDelayLoadDLLs.Add("libogg_64.dll");
 
-			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Ogg/Win64/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libogg_64.dll"));
+			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Ogg/" + Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libogg_64.dll"));
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Win32 )
-		{
-			OggLibPath += "Win32/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
-			PublicLibraryPaths.Add( OggLibPath );
+        else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
+        {
+            OggLibPath += Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+            PublicLibraryPaths.Add( OggLibPath );
 
 			PublicAdditionalLibraries.Add("libogg.lib");
 
 			PublicDelayLoadDLLs.Add("libogg.dll");
 
-			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Ogg/Win32/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libogg.dll"));
+			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Ogg/" + Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libogg.dll"));
 		}
+// @ATG_CHANGE : END
         else if (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32") // simulator
         {
             OggLibPath += "HTML5Win32";

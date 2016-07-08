@@ -15,6 +15,10 @@ public class FreeType2 : ModuleRules
 
 		if (Target.Platform == UnrealTargetPlatform.Win32 ||
             Target.Platform == UnrealTargetPlatform.Win64 ||
+// @ATG_CHANGE : BEGIN UWP support
+            Target.Platform == UnrealTargetPlatform.UWP32 ||
+            Target.Platform == UnrealTargetPlatform.UWP64 ||
+// @ATG_CHANGE : END
             Target.Platform == UnrealTargetPlatform.Linux ||
 		    Target.Platform == UnrealTargetPlatform.HTML5)
 		{
@@ -31,11 +35,17 @@ public class FreeType2 : ModuleRules
 
         if (Target.Platform == UnrealTargetPlatform.Win32 ||
             Target.Platform == UnrealTargetPlatform.Win64 ||
+// @ATG_CHANGE : BEGIN  UWP support
+			Target.Platform == UnrealTargetPlatform.UWP32 ||
+			Target.Platform == UnrealTargetPlatform.UWP64 ||
+// @ATG_CHANGE : END
            (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32") // simulator
         )
 		{
 	
-            FreeType2LibPath += (Target.Platform == UnrealTargetPlatform.Win64) ? "Win64/" : "Win32/";
+// @ATG_CHANGE : BEGIN UWP support
+            FreeType2LibPath += (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64) ? "Win64/" : "Win32/";
+// @ATG_CHANGE : END
             FreeType2LibPath += "VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
 
 			PublicSystemIncludePaths.Add(FreeType2Path + "include");

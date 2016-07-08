@@ -573,7 +573,12 @@ void FMainFrameActionCallbacks::PackageProject( const FName InPlatformInfoName )
 			bTargetPlatformCanUseCrashReporter = false;
 		}
 	}
-
+// @ATG_CHANGE : BEGIN UWP packaging & F5 support
+	if (PlatformInfo->TargetPlatformName == FName("UWP"))
+	{
+		bTargetPlatformCanUseCrashReporter = false;
+	}
+// @ATG_CHANGE : END
 	// Append any extra UAT flags specified for this platform flavor
 	if (!PlatformInfo->UATCommandLine.IsEmpty())
 	{

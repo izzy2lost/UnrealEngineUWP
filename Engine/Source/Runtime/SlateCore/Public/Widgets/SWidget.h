@@ -36,7 +36,15 @@ struct FMotionEvent;
 struct FVirtualPointerPosition;
 struct FNavigationEvent;
 
+// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
+#if PLATFORM_UWP
+PACK_WINRT()
+#endif
 enum class EPopupMethod : uint8;
+#if PLATFORM_UWP
+PACK_WINRT_REVERT()
+#endif
+// @ATG_CHANGE : END
 
 class SLATECORE_API FSlateControlledConstruction
 {

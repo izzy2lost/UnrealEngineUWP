@@ -25,6 +25,11 @@ typedef FAndroidPlatformProperties FPlatformProperties;
 #elif PLATFORM_WINRT
 #include "WinRT/WinRTProperties.h"
 typedef FWinRTPlatformProperties FPlatformProperties;
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPProperties.h"
+typedef FUWPPlatformProperties FPlatformProperties;
+// @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 #include "HTML5/HTML5PlatformProperties.h"
 typedef FHTML5PlatformProperties FPlatformProperties;

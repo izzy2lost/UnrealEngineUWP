@@ -1143,7 +1143,9 @@ bool FDesktopPlatformBase::BuildUnrealBuildTool(const FString& RootDir, FOutputD
 	FString CompilerExecutableFilename;
 	FString CmdLineParams;
 
-	if (PLATFORM_WINDOWS)
+// @ATG_CHANGE : BEGIN UWP support
+	if (PLATFORM_WINDOWS || PLATFORM_UWP)
+// @ATG_CHANGE : END
 	{
 		// To build UBT for windows, we must assemble a batch file that first registers the environment variable necessary to run msbuild then run it
 		// This can not be done in a single invocation of CMD.exe because the environment variables do not transfer between subsequent commands when using the "&" syntax
@@ -1152,7 +1154,8 @@ bool FDesktopPlatformBase::BuildUnrealBuildTool(const FString& RootDir, FOutputD
 		// First determine the appropriate vcvars batch file to launch
 		FString VCVarsBat;
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
 	#if _MSC_VER >= 1900
 		FPlatformMisc::GetVSComnTools(14, VCVarsBat);
 	#elif _MSC_VER >= 1800
@@ -1160,7 +1163,8 @@ bool FDesktopPlatformBase::BuildUnrealBuildTool(const FString& RootDir, FOutputD
 	#else
 		FPlatformMisc::GetVSComnTools(11, VCVarsBat);
 	#endif
-#endif // PLATFORM_WINDOWS
+#endif // PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 
 		VCVarsBat = FPaths::Combine(*VCVarsBat, L"../../VC/bin/x86_amd64/vcvarsx86_amd64.bat");
 

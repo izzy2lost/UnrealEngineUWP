@@ -28,7 +28,9 @@
 #ifndef PX_WINMODERN
 #define _WIN32_WINNT 0x0501
 #else
-#define _WIN32_WINNT 0x0602 
+// @ATG_CHANGE : BEGIN UWP support (hard coding modern version to Win10)
+#define _WIN32_WINNT 0x0A00 
+// @ATG_CHANGE : END
 #endif
 
 //turn off as much as we can for windows. All we really need is the thread functions(critical sections/Interlocked* etc)

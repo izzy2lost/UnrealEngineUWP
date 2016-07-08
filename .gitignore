@@ -150,3 +150,7 @@ Saved/
 
 # Explcitly ignore Mac DS_Store files, regardless of where they are
 .DS_Store
+
+# Exception for third-party UWP binaries, since these are not obtained via Setup.bat
+!/Engine/Binaries/ThirdParty/**/UWP*/**
+!/Engine/Source/ThirdParty/**/UWP*/**

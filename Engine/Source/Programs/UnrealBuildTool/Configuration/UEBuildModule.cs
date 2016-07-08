@@ -272,6 +272,10 @@ namespace UnrealBuildTool
 		protected readonly HashSet<UEBuildFramework> PublicAdditionalFrameworks;
 		protected readonly HashSet<string> PublicAdditionalShadowFiles;
 		protected readonly HashSet<UEBuildBundleResource> PublicAdditionalBundleResources;
+		// @ATG_CHANGE : BEGIN winmd support
+		protected readonly HashSet<string> PublicWinMDReferences;
+		protected readonly HashSet<string> PrivateWinMDReferences;
+		// @ATG_CHANGE : END
 
 		/// <summary>
 		/// Names of modules with header files that this module's public interface needs access to.
@@ -345,6 +349,10 @@ namespace UnrealBuildTool
 			PublicDelayLoadDLLs = HashSetFromOptionalEnumerableStringParameter(InRules.PublicDelayLoadDLLs);
 			PrivateIncludePaths = HashSetFromOptionalEnumerableStringParameter(InRules.PrivateIncludePaths);
 			RuntimeDependencies = (InRules.RuntimeDependencies == null) ? new List<RuntimeDependency>() : new List<RuntimeDependency>(InRules.RuntimeDependencies);
+			// @ATG_CHANGE : BEGIN winmd support
+			PublicWinMDReferences = HashSetFromOptionalEnumerableStringParameter(InRules.PublicWinMDReferences);
+			PrivateWinMDReferences = HashSetFromOptionalEnumerableStringParameter(InRules.PrivateWinMDReferences);
+			// @ATG_CHANGE : END winmd support
 			IsRedistributableOverride = InRules.IsRedistributableOverride;
 
 			Target.RegisterModule(this);
@@ -416,19 +424,25 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Sets up the environment for compiling any module that includes the public interface of this module.
 		/// </summary>
+		// @ATG_CHANGE : BEGIN winmd support
 		public void AddModuleToCompileEnvironment(
 			UEBuildBinary SourceBinary,
 			bool bIncludePathsOnly,
 			HashSet<string> IncludePaths,
 			HashSet<string> SystemIncludePaths,
 			List<string> Definitions,
-			List<UEBuildFramework> AdditionalFrameworks
+			List<UEBuildFramework> AdditionalFrameworks,
+			List<string> WinMDFiles
 			)
+		// @ATG_CHANGE : END winmd support
 		{
 			// Add this module's public include paths and definitions.
 			AddIncludePathsWithChecks(IncludePaths, PublicIncludePaths);
 			AddIncludePathsWithChecks(SystemIncludePaths, PublicSystemIncludePaths);
 			Definitions.AddRange(PublicDefinitions);
+			// @ATG_CHANGE : BEGIN winmd support
+			WinMDFiles.AddRange(PublicWinMDReferences);
+			// @ATG_CHANGE : END winmd support
 
 			// If this module is being built into a DLL or EXE, set up an IMPORTS or EXPORTS definition for it.
 			if (Binary == null)
@@ -540,12 +554,15 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Sets up the environment for compiling this module.
 		/// </summary>
+		// @ATG_CHANGE : BEGIN winmd support
 		protected virtual void SetupPrivateCompileEnvironment(
 			HashSet<string> IncludePaths,
 			HashSet<string> SystemIncludePaths,
 			List<string> Definitions,
-			List<UEBuildFramework> AdditionalFrameworks
+			List<UEBuildFramework> AdditionalFrameworks,
+			List<string> WinMDFiles
 			)
+		// @ATG_CHANGE : END winmd support
 		{
 			HashSet<UEBuildModule> VisitedModules = new HashSet<UEBuildModule>();
 
@@ -557,6 +574,9 @@ namespace UnrealBuildTool
 			// Add this module's private include paths and definitions.
 			AddIncludePathsWithChecks(IncludePaths, PrivateIncludePaths);
 
+			// @ATG_CHANGE : BEGIN winmd support
+			WinMDFiles.AddRange(PrivateWinMDReferences);
+			// @ATG_CHANGE : END winmd support
 			// Find all the modules that are part of the public compile environment for this module.
 			List<UEBuildModule> Modules = new List<UEBuildModule>();
 			Dictionary<UEBuildModule, bool> ModuleToIncludePathsOnlyFlag = new Dictionary<UEBuildModule, bool>();
@@ -577,7 +597,9 @@ namespace UnrealBuildTool
 			// Now set up the compile environment for the modules in the original order that we encountered them
 			foreach (UEBuildModule Module in Modules)
 			{
-				Module.AddModuleToCompileEnvironment(Binary, ModuleToIncludePathsOnlyFlag[Module], IncludePaths, SystemIncludePaths, Definitions, AdditionalFrameworks);
+				// @ATG_CHANGE : BEGIN winmd support
+				Module.AddModuleToCompileEnvironment(Binary, ModuleToIncludePathsOnlyFlag[Module], IncludePaths, SystemIncludePaths, Definitions, AdditionalFrameworks, WinMDFiles);
+				// @ATG_CHANGE : END
 			}
 		}
 
@@ -1046,9 +1068,11 @@ namespace UnrealBuildTool
 				IntelliSenseGatherer.AddIntelliSensePreprocessorDefinitions(ModuleCompileEnvironment.Config.Definitions);
 				IntelliSenseGatherer.AddInteliiSenseIncludePaths(ModuleCompileEnvironment.Config.CPPIncludeInfo.SystemIncludePaths, bAddingSystemIncludes: true);
 				IntelliSenseGatherer.AddInteliiSenseIncludePaths(ModuleCompileEnvironment.Config.CPPIncludeInfo.IncludePaths, bAddingSystemIncludes: false);
-
-				// Bail out.  We don't need to actually compile anything while generating project files.
-				return LinkInputFiles;
+                // @ATG_CHANGE : BEGIN winmd support
+                IntelliSenseGatherer.AddIntelliSenseWinMDReferences(ModuleCompileEnvironment.Config.WinMDReferences);
+                // @ATG_CHANGE : END
+                // Bail out.  We don't need to actually compile anything while generating project files.
+                return LinkInputFiles;
 			}
 
 			// Throw an error if the module's source file list referenced any non-existent files.
@@ -1384,7 +1408,11 @@ namespace UnrealBuildTool
 										SharedPCHCompileEnvironment.Config.CPPIncludeInfo.IncludePaths,
 										SharedPCHCompileEnvironment.Config.CPPIncludeInfo.SystemIncludePaths,
 										SharedPCHCompileEnvironment.Config.Definitions,
-										SharedPCHCompileEnvironment.Config.AdditionalFrameworks);
+										SharedPCHCompileEnvironment.Config.AdditionalFrameworks,
+										// @ATG_CHANGE : BEGIN winmd support
+										SharedPCHCompileEnvironment.Config.WinMDReferences
+										// @ATG_CHANGE : END winmd support
+										);
 								}
 
 								PCHOutput = PrecompileHeaderEnvironment.GeneratePCHCreationAction(
@@ -1741,7 +1769,9 @@ namespace UnrealBuildTool
 			Result.Config.Definitions.AddRange(Definitions);
 
 			// Setup the compile environment for the module.
-			SetupPrivateCompileEnvironment(Result.Config.CPPIncludeInfo.IncludePaths, Result.Config.CPPIncludeInfo.SystemIncludePaths, Result.Config.Definitions, Result.Config.AdditionalFrameworks);
+			// @ATG_CHANGE : BEGIN winmd support
+			SetupPrivateCompileEnvironment(Result.Config.CPPIncludeInfo.IncludePaths, Result.Config.CPPIncludeInfo.SystemIncludePaths, Result.Config.Definitions, Result.Config.AdditionalFrameworks, Result.Config.WinMDReferences);
+			// @ATG_CHANGE : END winmd support
 
 			// @hack to skip adding definitions to compile environment, they will be baked into source code files
 			if (bSkipDefinitionsForCompileEnvironment)
@@ -1749,6 +1779,11 @@ namespace UnrealBuildTool
 				Result.Config.Definitions.Clear();
 				Result.Config.CPPIncludeInfo.IncludePaths = new HashSet<string>(BaseCompileEnvironment.Config.CPPIncludeInfo.IncludePaths);
 			}
+
+			// @ATG_CHANGE : BEGIN winmd support
+			// Add winmd files
+			Result.Config.WinMDReferences.AddRange(Rules.PrivateWinMDReferences);
+			// @ATG_CHANGE : END winmd support
 
 			return Result;
 		}

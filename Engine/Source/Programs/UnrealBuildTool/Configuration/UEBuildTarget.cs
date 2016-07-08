@@ -19,7 +19,10 @@ namespace UnrealBuildTool
 		Win64,
 		WinRT,
 		WinRT_ARM,
-		UWP,
+		// @ATG_CHANGE : BEGIN UWP support
+		UWP64,				// Universal Windows platform x64
+		UWP32,				// Universal Windows platform x86
+		// @ATG_CHANGE : END
 		Mac,
 		XboxOne,
 		PS4,
@@ -34,6 +37,9 @@ namespace UnrealBuildTool
 	public enum UnrealPlatformGroup
 	{
 		Windows,	// this group is just to lump Win32 and Win64 into Windows directories, removing the special Windows logic in MakeListOfUnsupportedPlatforms
+		// @ATG_CHANGE : BEGIN UWP support
+		UWP,    // this group is just to lump UWP32 and UWP64 into UWP directories
+		// @ATG_CHANGE : END
 		Microsoft,
 		Apple,
 		IOS, // making IOS a group allows TVOS to compile IOS code
@@ -234,7 +240,10 @@ namespace UnrealBuildTool
 			{
 				case CPPTargetPlatform.Win32:			return UnrealTargetPlatform.Win32;
 				case CPPTargetPlatform.Win64:			return UnrealTargetPlatform.Win64;
-				case CPPTargetPlatform.UWP:				return UnrealTargetPlatform.UWP;
+				// @ATG_CHANGE : BEGIN VS2015 & UWP support
+				case CPPTargetPlatform.UWP32:			return UnrealTargetPlatform.UWP32;
+				case CPPTargetPlatform.UWP64:			return UnrealTargetPlatform.UWP64;
+				// @ATG_CHANGE : END
 				case CPPTargetPlatform.Mac:				return UnrealTargetPlatform.Mac;
 				case CPPTargetPlatform.XboxOne:			return UnrealTargetPlatform.XboxOne;
 				case CPPTargetPlatform.PS4:				return UnrealTargetPlatform.PS4;
@@ -2088,8 +2097,9 @@ namespace UnrealBuildTool
 				}
 				else
 				{
-					IsCurrentPlatform = Platform == UnrealTargetPlatform.Win64 || Platform == UnrealTargetPlatform.Win32 || Platform == UnrealTargetPlatform.UWP;
-
+                    // @ATG_CHANGE : BEGIN UWP support
+                    IsCurrentPlatform = Platform == UnrealTargetPlatform.Win64 || Platform == UnrealTargetPlatform.Win32 || Platform == UnrealTargetPlatform.UWP64 || Platform == UnrealTargetPlatform.UWP32;
+                    // @ATG_CHANGE : END
 				}
 
 				if ((TargetRules.IsAGame(TargetType) || (TargetType == TargetRules.TargetType.Server))

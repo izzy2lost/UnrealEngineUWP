@@ -11,7 +11,9 @@ public class UElibPNG : ModuleRules
 		string libPNGPath = UEBuildConfiguration.UEThirdPartySourceDirectory + "libPNG/libPNG-1.5.2";
 		PublicIncludePaths.Add(libPNGPath);
 
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+// @ATG_CHANGE : BEGIN  UWP support
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
+// @ATG_CHANGE : END
 		{
 			string LibPath = libPNGPath+ "/lib/Win64/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PublicLibraryPaths.Add(LibPath);
@@ -20,6 +22,9 @@ public class UElibPNG : ModuleRules
 			PublicAdditionalLibraries.Add(LibFileName);
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Win32 ||
+// @ATG_CHANGE : BEGIN UWP support
+                (Target.Platform == UnrealTargetPlatform.UWP32) ||
+// @ATG_CHANGE : END
                 (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32") // simulator
         )
 		{

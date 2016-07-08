@@ -7,7 +7,8 @@ public class DX11Input : ModuleRules
 	{
 		Type = ModuleType.External;
 
-		string DirectXSDKDir = UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";
+// @ATG_CHANGE : BEGIN UWP support
+		string DirectXSDKDir = UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy";
 
 		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
 
@@ -19,7 +20,7 @@ public class DX11Input : ModuleRules
 		{
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
 		}
-
+// @ATG_CHANGE : END
 		PublicAdditionalLibraries.AddRange(
 			new string[] {
 				"dxguid.lib",

@@ -422,6 +422,13 @@ namespace AutomationTool
 			get { return false; }
 		}
 
+		// @ATG_CHANGE : BEGIN UWP packaging & F5 support
+		public virtual string UFEPlatformName
+		{
+			get { return PlatformType.ToString(); }
+		}
+		// @ATG_CHANGE : END
+
 		/// <summary>
 		/// True if this platform can write to the abslog path that's on the host desktop.
 		/// </summary>
@@ -563,6 +570,10 @@ namespace AutomationTool
 			{
 				case UnrealTargetPlatform.Win32:
 				case UnrealTargetPlatform.Win64:
+                // @ATG_CHANGE : BEGIN UWP packaging & F5 support
+                case UnrealTargetPlatform.UWP32:
+                case UnrealTargetPlatform.UWP64:
+				// @ATG_CHANGE : END
 				case UnrealTargetPlatform.WinRT:
 				case UnrealTargetPlatform.WinRT_ARM:
 				case UnrealTargetPlatform.XboxOne:

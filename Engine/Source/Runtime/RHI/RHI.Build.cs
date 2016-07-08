@@ -13,7 +13,12 @@ public class RHI : ModuleRules
 		{
             DynamicallyLoadedModuleNames.Add("NullDrv");
 
-			if ((Target.Platform == UnrealTargetPlatform.Win32) || (Target.Platform == UnrealTargetPlatform.Win64))
+// @ATG_CHANGE : BEGIN UWP support
+            if ((Target.Platform == UnrealTargetPlatform.Win32) || 
+                (Target.Platform == UnrealTargetPlatform.Win64) ||
+                (Target.Platform == UnrealTargetPlatform.UWP32) ||
+                (Target.Platform == UnrealTargetPlatform.UWP64))
+// @ATG_CHANGE : END
 			{
 				DynamicallyLoadedModuleNames.Add("D3D11RHI");
 

@@ -24,6 +24,16 @@ public class ICU : ModuleRules
 
 		string PlatformFolderName = Target.Platform.ToString();
 
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.UWP64)
+		{
+			PlatformFolderName = "UWP64";
+		}
+        if (Target.Platform == UnrealTargetPlatform.UWP32)
+        {
+            PlatformFolderName = "UWP32";
+        }
+// @ATG_CHANGE : END
         string TargetSpecificPath = ICURootPath + PlatformFolderName + "/";
         if (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32") // simulator
         {
@@ -32,6 +42,10 @@ public class ICU : ModuleRules
 
 		if ((Target.Platform == UnrealTargetPlatform.Win64) ||
 			(Target.Platform == UnrealTargetPlatform.Win32) ||
+// @ATG_CHANGE : BEGIN UWP support
+			(Target.Platform == UnrealTargetPlatform.UWP64) || 
+			(Target.Platform == UnrealTargetPlatform.UWP32) || 
+// @ATG_CHANGE : END
             (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32") // simulator
         )
 		{
@@ -76,7 +90,12 @@ public class ICU : ModuleRules
                     PublicDelayLoadDLLs.Add(LibraryName);
                 }
 
-				if(Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
+// @ATG_CHANGE : BEGIN UWP support
+				if(Target.Platform == UnrealTargetPlatform.Win64 || 
+					Target.Platform == UnrealTargetPlatform.Win32 ||
+                    Target.Platform == UnrealTargetPlatform.UWP32 ||
+                    Target.Platform == UnrealTargetPlatform.UWP64)
+// @ATG_CHANGE : END
 				{
 					string BinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/ICU/{0}/{1}/VS{2}/", ICUVersion, Target.Platform.ToString(), WindowsPlatform.GetVisualStudioCompilerVersionName());
 					foreach(string Stem in LibraryNameStems)
@@ -301,6 +320,10 @@ public class ICU : ModuleRules
 		// common defines
 		if ((Target.Platform == UnrealTargetPlatform.Win64) ||
             (Target.Platform == UnrealTargetPlatform.Win32) ||
+// @ATG_CHANGE : BEGIN UWP support
+            (Target.Platform == UnrealTargetPlatform.UWP64) ||
+            (Target.Platform == UnrealTargetPlatform.UWP32) ||
+// @ATG_CHANGE : END
             (Target.Platform == UnrealTargetPlatform.Linux) ||
             (Target.Platform == UnrealTargetPlatform.Android) ||
             (Target.Platform == UnrealTargetPlatform.Mac) ||

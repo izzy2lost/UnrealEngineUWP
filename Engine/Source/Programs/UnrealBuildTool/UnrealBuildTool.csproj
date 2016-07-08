@@ -98,8 +98,6 @@
         <Compile Include="XboxOne\XboxOneToolChain.cs" />
         <Compile Include="XboxOne\XboxOneDeploy.cs" />
         <Compile Include="XboxOne\XboxOneProjectGenerator.cs" />
-        <Compile Include="XboxOne\XboxOneResourceGenerator.cs" />
-        <Compile Include="XboxOne\XboxOneManifestGenerator.cs" />
       </ItemGroup>
     </When>
   </Choose>
@@ -138,12 +136,32 @@
     <Compile Include="UWP\UWPDeploy.cs" />
     <Compile Include="UWP\UWPProjectGenerator.cs" />
     <Compile Include="UWP\UWPToolChain.cs" />
+    <!-- ATG_CHANGE : BEGIN UWP support  -->
+    <Compile Include="UWP\ResourceGenerator.cs" />
+    <Compile Include="UWP\ManifestGenerator.cs" />
+    <Compile Include="UWP\WinMDRegistrationInfo.cs" />
+    <!-- ATG_CHANGE : END UWP support  -->
     <Compile Include="Windows\WindowsDeploy.cs" />
     <Compile Include="Windows\WinResources.cs" />
     <Compile Include="WinRT\UEBuildWinRT.cs" />
     <Compile Include="WinRT\WinRTToolChain.cs" />
     <Compile Include="WinRT\WinRTDeploy.cs" />
     <Compile Include="WinRT\WinRTProjectGenerator.cs" />
+  </ItemGroup>
+  <PropertyGroup>
+    <TargetPlatformVersion>8.0</TargetPlatformVersion>
+    <DefineConstants>VS140COMNTOOLS;$(DefineConstants)</DefineConstants>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System.Runtime.WindowsRuntime">
+      <HintPath>C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETCore\v4.5\System.Runtime.WindowsRuntime.dll</HintPath>
+      <HintPath>$(SystemDrive)\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETCore\$(TargetFrameworkVersion)\System.Runtime.WindowsRuntime.dll</HintPath>
+    </Reference>
+    <Reference Include="Windows">
+      <HintPath>C:\Program Files (x86)\Microsoft Visual Studio 14.0\XAML\WinMetadata\8.1\Unified\Windows.winmd</HintPath>
+      <HintPath>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v8.1@InstallationFolder)\References\CommonConfiguration\Neutral\Windows.winmd</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="IOS\IOSProjectGenerator.cs" />
@@ -308,7 +326,5 @@
     <PreBuildEvent>
     </PreBuildEvent>
   </PropertyGroup>
-  <ItemGroup>
-    <Folder Include="TVOS\" />
-  </ItemGroup>
+  <ItemGroup />
 </Project>

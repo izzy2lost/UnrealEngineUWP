@@ -14,6 +14,9 @@
 static_assert(WITH_PHYSX, "No point in compiling PhysX cooker, if we don't have PhysX.");
 
 static FName NAME_PhysXPC(TEXT("PhysXPC"));
+// @ATG_CHANGE : BEGIN UWP support
+static FName NAME_PhysXUWP(TEXT("PhysXUWP"));
+// @ATG_CHANGE : END
 static FName NAME_PhysXXboxOne(TEXT("PhysXXboxOne"));
 static FName NAME_PhysXPS4(TEXT("PhysXPS4"));
 
@@ -39,7 +42,9 @@ class FPhysXFormats : public IPhysXFormat
 	 */
 	bool GetPhysXFormat(FName InFormatName, PxPlatform::Enum& OutFormat) const
 	{
-		if ((InFormatName == NAME_PhysXPC) || (InFormatName == NAME_PhysXXboxOne) || (InFormatName == NAME_PhysXPS4))
+// @ATG_CHANGE : BEGIN UWP support
+		if ((InFormatName == NAME_PhysXPC) || (InFormatName == NAME_PhysXUWP) || (InFormatName == NAME_PhysXXboxOne) || (InFormatName == NAME_PhysXPS4))
+// @ATG_CHANGE : END
 		{
 			OutFormat = PxPlatform::ePC;
 		}
@@ -82,6 +87,9 @@ public:
 		OutFormats.Add(NAME_PhysXPC);
 		OutFormats.Add(NAME_PhysXXboxOne);
 		OutFormats.Add(NAME_PhysXPS4);
+		// @ATG_CHANGE : BEGIN UWP support
+		OutFormats.Add(NAME_PhysXUWP);
+		// @ATG_CHANGE : END
 	}
 
 	virtual bool CookConvex(FName Format, const TArray<FVector>& SrcBuffer, TArray<uint8>& OutBuffer, bool bDeformableMesh = false) const override

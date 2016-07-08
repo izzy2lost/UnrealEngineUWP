@@ -76,9 +76,10 @@ bool FXAudio2Device::InitializeHardware()
 
 	SampleRate = UE4_XAUDIO2_SAMPLERATE;
 
-#if PLATFORM_WINDOWS
-	bComInitialized = FWindowsPlatformMisc::CoInitialize();
-#if PLATFORM_64BITS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+	bComInitialized = FPlatformMisc::CoInitialize();
+#if PLATFORM_64BITS && !PLATFORM_UWP
 	// Work around the fact the x64 version of XAudio2_7.dll does not properly ref count
 	// by forcing it to be always loaded
 
@@ -93,8 +94,9 @@ bool FXAudio2Device::InitializeHardware()
 		UE_LOG(LogInit, Warning, TEXT("Failed to load XAudio2 dll"));
 		return false;
 	}
-#endif	//PLATFORM_64BITS
-#endif	//PLATFORM_WINDOWS
+#endif	//PLATFORM_64BITS && !PLATFORM_UWP
+#endif	//PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 
 #if DEBUG_XAUDIO2
 	uint32 Flags = XAUDIO2_DEBUG_ENGINE;
@@ -242,10 +244,12 @@ void FXAudio2Device::TeardownHardware()
 		DeviceProperties = nullptr;
 	}
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
 	if (bComInitialized)
 	{
-		FWindowsPlatformMisc::CoUninitialize();
+		FPlatformMisc::CoUninitialize();
+// @ATG_CHANGE : END
 	}
 #endif
 }

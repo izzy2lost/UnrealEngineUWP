@@ -61,7 +61,18 @@ DECLARE_ISBOUNDSHADER(ComputeShader)
 #define WITH_GPA 0//(!PLATFORM_XBOXONE)
 #if WITH_GPA
 #define GPA_WINDOWS 1
+// @ATG_CHANGE : BEGIN UWP support
+//  Remap LoadLibrary.  At first this might seem like a hack, but there are
+//  instances of LoadLibrary within third party headers, so defining this for the entire project
+//  so that future updates to third party components don't break the build
+#if PLATFORM_UWP && !defined(LoadLibraryA)
+#define LoadLibraryA(path) LoadPackagedLibrary(TEXT(path), 0ul)
 #include <GPUPerfAPI/Gpa.h>
+#undef LoadLibraryA
+#else
+#include <GPUPerfAPI/Gpa.h>
+#endif
+// @ATG_CHANGE : END
 #endif
 
 static int32 GD3D12AllowDrawClears = 0;

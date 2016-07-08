@@ -47,6 +47,11 @@
 #if !defined(PLATFORM_WINRT_ARM)
 	#define PLATFORM_WINRT_ARM	0
 #endif
+// @ATG_CHANGE : BEGIN UWP support
+#if !defined(PLATFORM_UWP)
+	#define PLATFORM_UWP	0
+#endif
+// @ATG_CHANGE : END
 #if !defined(PLATFORM_APPLE)
 	#define PLATFORM_APPLE 0
 #endif
@@ -58,7 +63,9 @@
 #endif
 
 // Platform specific compiler pre-setup.
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#include "Windows/WindowsPlatformCompilerPreSetup.h"
 #elif PLATFORM_PS4
 	#include "PS4/PS4PlatformCompilerPreSetup.h"
@@ -110,6 +117,10 @@
 	#include "WinRT/WinRTARMPlatform.h"
 #elif PLATFORM_WINRT
 	#include "WinRT/WinRTPlatform.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+	#include "UWP/UWPPlatform.h"
+// @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 	#include "HTML5/HTML5Platform.h"
 #elif PLATFORM_LINUX

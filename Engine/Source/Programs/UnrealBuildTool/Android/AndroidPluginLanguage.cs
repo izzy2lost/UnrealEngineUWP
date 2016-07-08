@@ -2866,7 +2866,9 @@ namespace UnrealBuildTool
 		/// </summary>
 		private static string GetIniPlatformName(UnrealTargetPlatform TargetPlatform)
 		{
-			if (TargetPlatform == UnrealTargetPlatform.Win32 || TargetPlatform == UnrealTargetPlatform.Win64 || TargetPlatform == UnrealTargetPlatform.UWP)
+			// @ATG_CHANGE : BEGIN UWP support
+			if (TargetPlatform == UnrealTargetPlatform.Win32 || TargetPlatform == UnrealTargetPlatform.Win64 || TargetPlatform == UnrealTargetPlatform.UWP64 || TargetPlatform == UnrealTargetPlatform.UWP32)
+			// @ATG_CHANGE : END
 			{
 				return "Windows";
 			}

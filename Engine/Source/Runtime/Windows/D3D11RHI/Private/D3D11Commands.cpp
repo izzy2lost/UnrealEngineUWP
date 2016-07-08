@@ -30,7 +30,9 @@
 #include "ShaderParameterUtils.h"
 #include "SceneUtils.h"
 
-#if PLATFORM_DESKTOP
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_DESKTOP && !PLATFORM_UWP
+// @ATG_CHANGE : END
 // For Depth Bounds Test interface
 #include "AllowWindowsPlatformTypes.h"
 	#include "nvapi.h"
@@ -2103,7 +2105,9 @@ void FD3D11DynamicRHI::RHIExecuteCommandList(FRHICommandList* CmdList)
 // NVIDIA Depth Bounds Test interface
 void FD3D11DynamicRHI::RHIEnableDepthBoundsTest(bool bEnable,float MinDepth,float MaxDepth)
 {
-#if PLATFORM_DESKTOP
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_DESKTOP && !PLATFORM_UWP
+// @ATG_CHANGE : END
 	if(!IsRHIDeviceNVIDIA()) return;
 
 	if(MinDepth > MaxDepth)

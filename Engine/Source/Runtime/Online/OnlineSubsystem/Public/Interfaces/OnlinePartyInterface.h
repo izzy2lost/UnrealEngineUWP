@@ -359,7 +359,10 @@ enum class EMemberExitedReason
 	Kicked
 };
 
-
+// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
+#if PLATFORM_UWP
+PACK_WINRT()
+#endif
 enum class ECreatePartyCompletionResult;
 enum class EJoinPartyCompletionResult;
 enum class ELeavePartyCompletionResult;
@@ -371,6 +374,10 @@ enum class ERejectPartyInvitationCompletionResult;
 enum class EKickMemberCompletionResult;
 enum class EPromoteMemberCompletionResult;
 enum class EInvitationResponse;
+#if PLATFORM_UWP
+PACK_WINRT_REVERT()
+#endif
+// @ATG_CHANGE : END
 
 ///////////////////////////////////////////////////////////////////
 // Completion delegates

@@ -78,6 +78,14 @@ public:
 	/** Removes references to any objects pending cleanup by deleting them. */
 	virtual void ClearPendingCleanupObjects() override;
 
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_UWP || PLATFORM_WINRT
+	void OnResuming(_In_ Platform::Object^ Sender, _In_ Platform::Object^ Args);
+	void OnSuspending(_In_ Platform::Object^ Sender, _In_ Windows::ApplicationModel::SuspendingEventArgs^ Args);
+#endif // PLATFORM_UWP || PLATFORM_WINRT
+
+// @ATG_CHANGE : END
+
 #endif // WITH_ENGINE
 
 	/** Pre-init HMD device (if necessary). */

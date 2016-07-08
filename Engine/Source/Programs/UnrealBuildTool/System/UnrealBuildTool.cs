@@ -298,7 +298,10 @@ namespace UnrealBuildTool
 		static public bool PlatformSupportsCrashReporter(UnrealTargetPlatform InPlatform)
 		{
 			return (
-				(InPlatform == UnrealTargetPlatform.UWP) ||
+				// @ATG_CHANGE : BEGIN UWP support
+				(InPlatform == UnrealTargetPlatform.UWP32) ||
+				(InPlatform == UnrealTargetPlatform.UWP64) ||
+				// @ATG_CHANGE : END
 				(InPlatform == UnrealTargetPlatform.Win64) ||
 				(InPlatform == UnrealTargetPlatform.Win32) ||
 				(InPlatform == UnrealTargetPlatform.Linux) ||
@@ -410,7 +413,10 @@ namespace UnrealBuildTool
 				case UnrealTargetPlatform.Mac:
 					return InPlatform == UnrealTargetPlatform.Mac;
 				case UnrealTargetPlatform.Win64:
-					return ((InPlatform == UnrealTargetPlatform.Win32) || (InPlatform == UnrealTargetPlatform.Win64));
+				// @ATG_CHANGE : BEGIN UWP support
+					return ((InPlatform == UnrealTargetPlatform.Win32) || (InPlatform == UnrealTargetPlatform.Win64) ||
+						(InPlatform == UnrealTargetPlatform.UWP32) || (InPlatform == UnrealTargetPlatform.UWP64));
+				// @ATG_CHANGE : END
 				default:
 					throw new BuildException("Invalid RuntimePlatform:" + BuildHostPlatform.Current.Platform);
 			}

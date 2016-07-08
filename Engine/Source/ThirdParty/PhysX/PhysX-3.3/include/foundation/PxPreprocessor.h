@@ -85,7 +85,9 @@ Platform define
 #	else
 #		error "Unknown platform"
 #	endif
-#	if defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_PARTITION_APP)
+// @ATG_CHANGE : BEGIN UWP support
+#	if defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
+// @ATG_CHANGE : END
 #		define PX_WINMODERN
 #	endif
 #elif defined PX_GNUC

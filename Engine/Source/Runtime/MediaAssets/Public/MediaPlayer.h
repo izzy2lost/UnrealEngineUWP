@@ -6,7 +6,15 @@
 
 
 class IMediaPlayer;
+// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
+#if PLATFORM_UWP
+PACK_WINRT()
+#endif
 enum class EMediaEvent;
+#if PLATFORM_UWP
+PACK_WINRT_REVERT()
+#endif
+// @ATG_CHANGE : END
 
 
 /** Multicast delegate that is invoked when a media event occurred in the player. */

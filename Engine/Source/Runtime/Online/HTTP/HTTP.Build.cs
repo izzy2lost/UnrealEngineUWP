@@ -26,6 +26,13 @@ public class HTTP : ModuleRules
             AddThirdPartyPrivateStaticDependencies(Target, "WinInet");
             AddThirdPartyPrivateStaticDependencies(Target, "libcurl");
         }
+// @ATG_CHANGE : BEGIN UWP support
+        if (Target.Platform == UnrealTargetPlatform.UWP32 || 
+            Target.Platform == UnrealTargetPlatform.UWP64)
+        {
+            AddThirdPartyPrivateStaticDependencies(Target, "libcurl");
+        }
+// @ATG_CHANGE : END
 
         if (Target.Platform == UnrealTargetPlatform.Linux ||
             Target.Platform == UnrealTargetPlatform.Android)

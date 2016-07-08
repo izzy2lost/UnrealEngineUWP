@@ -6,6 +6,12 @@ public class D3D11RHI : ModuleRules
 {
 	public D3D11RHI(TargetInfo Target)
 	{
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+		{
+			PrivateIncludePaths.Add("Runtime/Windows/D3D11RHI/Private/UWP");
+		}
+// @ATG_CHANGE : END
 		PrivateIncludePaths.Add("Runtime/Windows/D3D11RHI/Private");
 
 		PrivateDependencyModuleNames.AddRange(
@@ -20,7 +26,12 @@ public class D3D11RHI : ModuleRules
 			);
 
 		AddThirdPartyPrivateStaticDependencies(Target, "DX11");
-        AddThirdPartyPrivateStaticDependencies(Target, "NVAPI");
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform != UnrealTargetPlatform.UWP64 && Target.Platform != UnrealTargetPlatform.UWP32)
+		{ 
+			AddThirdPartyPrivateStaticDependencies(Target, "NVAPI");
+		}
+// @ATG_CHANGE : END
 
 		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
 		{

@@ -37,12 +37,19 @@ public class libcurl : ModuleRules
 //            PublicAdditionalLibraries.Add("dl");
         }
         else if (Target.Platform == UnrealTargetPlatform.Win32 ||
-				 Target.Platform == UnrealTargetPlatform.Win64 || (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32"))
+// @ATG_CHANGE : BEGIN UWP support
+            Target.Platform == UnrealTargetPlatform.Win64 ||
+            Target.Platform == UnrealTargetPlatform.UWP32 ||
+            Target.Platform == UnrealTargetPlatform.UWP64 || 
+            (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32"))
+// @ATG_CHANGE : END
 		{
 			PublicIncludePaths.Add(LibCurlPath + "include/Windows");
 
 			string LibCurlLibPath = LibCurlPath + "lib/";
-			LibCurlLibPath += (Target.Platform == UnrealTargetPlatform.Win64) ? "Win64/" : "Win32/";
+// @ATG_CHANGE : BEGIN UWP support
+			LibCurlLibPath += Target.Platform.ToString() + "/";
+// @ATG_CHANGE : END
 			LibCurlLibPath += "VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PublicLibraryPaths.Add(LibCurlLibPath);
 

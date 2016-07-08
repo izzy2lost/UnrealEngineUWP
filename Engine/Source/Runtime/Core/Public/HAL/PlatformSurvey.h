@@ -17,6 +17,10 @@
 #include "Android/AndroidSurvey.h"
 #elif PLATFORM_WINRT
 #include "WinRT/WinRTSurvey.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPSurvey.h"
+// @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 #include "HTML5/HTML5PlatformSurvey.h"
 #elif PLATFORM_LINUX

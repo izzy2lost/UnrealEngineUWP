@@ -59,7 +59,9 @@ void FHttpModule::ShutdownModule()
 		HttpManager->Flush(true);
 	}
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 
 	extern bool bUseCurl;
 	if (!bUseCurl)
@@ -72,7 +74,9 @@ void FHttpModule::ShutdownModule()
 		delete HttpManager;	// can be passed NULLs
 	}
 	else
-#endif	// PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#endif	// PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	{
 		// at least on Linux, the code in HTTP manager (e.g. request destructors) expects platform to be initialized yet
 		delete HttpManager;	// can be passed NULLs

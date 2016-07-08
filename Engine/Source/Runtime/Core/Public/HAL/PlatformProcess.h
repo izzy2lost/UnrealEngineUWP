@@ -17,6 +17,10 @@
 #include "Android/AndroidProcess.h"
 #elif PLATFORM_WINRT
 #include "WinRT/WinRTProcess.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPProcess.h"
+// @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 #include "HTML5/HTML5PlatformProcess.h"
 #elif PLATFORM_LINUX

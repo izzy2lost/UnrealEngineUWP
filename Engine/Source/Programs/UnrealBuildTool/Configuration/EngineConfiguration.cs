@@ -54,7 +54,9 @@ namespace UnrealBuildTool
 																	"/Script/BuildSettings.BuildSettings", "/Script/IOSRuntimeSettings.IOSRuntimeSettings", "/Script/WindowsTargetPlatform.WindowsTargetSettings",
 																	"/Script/UnrealEd.ProjectPackagingSettings", "/Script/PS4PlatformEditor.PS4TargetSettings", "/Script/XboxOneTargetPlatform.XboxOneTargetSettings",
 																	"/Script/HTML5PlatformEditor.HTML5TargetSettings","PS4SymbolServer","/Script/EngineSettings.GeneralProjectSettings","/Script/XboxOneTargetPlatform.XboxOneTargetSettings",
-                                                                    "/Script/UnrealEd.ProjectPackagingSettings", "InstalledPlatforms"};
+																	// @ATG_CHANGE : BEGIN UWP support
+                                                                    "/Script/UnrealEd.ProjectPackagingSettings", "InstalledPlatforms", "/Script/UWPTargetPlatform.UWPTargetSettings" };
+																	// @ATG_CHANGE : END
 
 		// static creation functions for ini files
 		public static ConfigCacheIni CreateConfigCacheIni(UnrealTargetPlatform Platform, string BaseIniName, DirectoryReference ProjectDirectory, DirectoryReference EngineDirectory = null)
@@ -839,10 +841,16 @@ namespace UnrealBuildTool
 		/// </summary>
 		private static string GetIniPlatformName(UnrealTargetPlatform TargetPlatform)
 		{
-			if (TargetPlatform == UnrealTargetPlatform.Win32 || TargetPlatform == UnrealTargetPlatform.Win64 || TargetPlatform == UnrealTargetPlatform.UWP)
+			if (TargetPlatform == UnrealTargetPlatform.Win32 || TargetPlatform == UnrealTargetPlatform.Win64 )
 			{
 				return "Windows";
 			}
+			// @ATG_CHANGE : BEGIN UWP support
+			else if (TargetPlatform == UnrealTargetPlatform.UWP32 || TargetPlatform == UnrealTargetPlatform.UWP64)
+			{
+				return "UWP";
+			}
+			// @ATG_CHANGE : END
 			else
 			{
 				return Enum.GetName(typeof(UnrealTargetPlatform), TargetPlatform);

@@ -1059,7 +1059,9 @@ FLinkerLoad::ELinkerStatus FLinkerLoad::SerializePackageFileSummary()
 			}
 		}
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 		if (!FPlatformProperties::RequiresCookedData())
 		{
 			// check if this package version stored the 4-byte magic post tag
@@ -1083,7 +1085,9 @@ FLinkerLoad::ELinkerStatus FLinkerLoad::SerializePackageFileSummary()
 			// seek back to the position after the package summary
 			Seek(OriginalOffset);
 		}
-#endif // PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#endif // PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 
 		// Check custom versions.
 		const FCustomVersionContainer& LatestCustomVersions  = FCustomVersionContainer::GetRegistered();

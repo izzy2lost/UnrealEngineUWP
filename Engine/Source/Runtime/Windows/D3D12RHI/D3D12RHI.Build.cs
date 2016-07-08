@@ -7,6 +7,12 @@ public class D3D12RHI : ModuleRules
 	public D3D12RHI(TargetInfo Target)
 	{
 		PrivateIncludePaths.Add("Runtime/Windows/D3D12RHI/Private");
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+		{
+			PrivateIncludePaths.Add("Runtime/Windows/D3D12RHI/Private/UWP");
+		}
+// @ATG_CHANGE : END
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
@@ -21,8 +27,13 @@ public class D3D12RHI : ModuleRules
 
         AddThirdPartyPrivateStaticDependencies(Target, "DX12");
 		AddThirdPartyPrivateStaticDependencies(Target, "DX11");
-        AddThirdPartyPrivateStaticDependencies(Target, "NVAPI");
-        
+		// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform != UnrealTargetPlatform.UWP64 && Target.Platform != UnrealTargetPlatform.UWP32)
+		{
+			AddThirdPartyPrivateStaticDependencies(Target, "NVAPI");
+		}
+		// @ATG_CHANGE : END
+
 		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
 		{
 			PrivateIncludePathModuleNames.AddRange(new string[] { "TaskGraph" });

@@ -1451,7 +1451,9 @@ namespace UnrealBuildTool
 						if (UnrealBuildTool.IsValidPlatform(Platform))
 						{
 							// @todo UWP: Why would we exclude UWP from project files based on SDK install status?  We don't do this with anything else, right?
-                            if (BuildPlatform is UWPPlatform && ((UWPPlatform)BuildPlatform).HasRequiredSDKsInstalled() != SDKStatus.Valid)
+							// @ATG_CHANGE : BEGIN UWP support
+                            if (BuildPlatform is UniversalWindowsPlatform && ((UniversalWindowsPlatform)BuildPlatform).HasRequiredSDKsInstalled() != SDKStatus.Valid)
+							// @ATG_CHANGE : END
                                 continue;
 
 							SupportedPlatforms.Add(Platform);

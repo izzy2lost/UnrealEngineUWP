@@ -814,8 +814,12 @@ void ClothingScene::destroy()
 #ifdef PX_WINDOWS
 		PX_ASSERT(mGpuFactory.factory == NULL);
 
+// @ATG_CHANGE : BEGIN UWP support (Probably accidental bug in SDK)
+#if defined(APEX_CUDA_SUPPORT)
 		NiApexSDK* apexSdk = NiGetApexSDK();
 		apexSdk->unregisterPhysXIndicatorGpuClient(mPhysXGpuIndicator);
+#endif
+// @ATG_CHANGE : END
 		mPhysXGpuIndicator = NULL;
 #endif
 	}
@@ -868,11 +872,15 @@ ClothFactory ClothingScene::getClothFactory(bool& useCuda)
 			if (contextManager != NULL)
 			{
 				mGpuFactory = mModule->createClothFactory(contextManager);
+// @ATG_CHANGE : BEGIN UWP support (possible SDK bug)
+#if defined(APEX_CUDA_SUPPORT)
 				if (mGpuFactory.factory != NULL)
 				{
 					NiApexSDK* apexSdk = NiGetApexSDK();
 					mPhysXGpuIndicator = apexSdk->registerPhysXIndicatorGpuClient();
 				}
+#endif
+// @ATG_CHANGE : END
 			}
 		}
 

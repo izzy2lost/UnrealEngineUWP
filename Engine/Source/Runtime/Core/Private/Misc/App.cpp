@@ -126,6 +126,12 @@ bool FApp::IsInstalled()
 {
 #if UE_BUILD_SHIPPING && PLATFORM_DESKTOP && !UE_SERVER
 	static bool bIsInstalled = !FParse::Param(FCommandLine::Get(), TEXT("NotInstalled"));
+// @ATG_CHANGE : BEGIN writeable locations to appdata for UWP
+#elif PLATFORM_UWP
+	// This primarily governs write access to the game's current folder.  In UWP this is blocked
+	// even in development mode, so makes sense to always run the 'installed' behavior.
+	static bool bIsInstalled = true;
+// @ATG_CHANGE : END	
 #else
 	static bool bIsInstalled = FParse::Param(FCommandLine::Get(), TEXT("Installed"));
 #endif

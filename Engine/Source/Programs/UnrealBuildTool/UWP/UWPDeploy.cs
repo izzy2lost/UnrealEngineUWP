@@ -13,7 +13,9 @@ namespace UnrealBuildTool
 	/// <summary>
 	///  Base class to handle deploy of a target for a given platform
 	/// </summary>
-	class UWPDeploy : UEBuildDeploy
+// @ATG_CHANGE : BEGIN UWP packaging & F5 support
+	public class UWPDeploy : UEBuildDeploy
+// @ATG_CHANGE : END
 	{
 		/// <summary>
 		/// Utility function to delete a file
@@ -119,19 +121,26 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Helper function for copying files
 		/// </summary>
+// @ATG_CHANGE : BEGIN UWP support
 		void CopyFile(string InSource, string InDest, bool bForce)
 		{
-			Log.TraceInformation("UWPDeploy.CopyFile({0}, {1}, {2},...)", InSource, InDest, bForce);
 			if (File.Exists(InSource) == true)
 			{
-				if (bForce == true)
+				if (File.Exists(InDest) == true)
 				{
-					if (File.Exists(InDest) == true)
+					if (File.GetLastWriteTime(InSource).CompareTo(File.GetLastWriteTime(InDest)) == 0)
+					{
+						//If the source and dest have the file and they have the same write times they are assumed to be equal and we don't need to copy.
+						return;
+					}
+					if (bForce == true)
 					{
 						DeployHelper_DeleteFile(InDest);
 					}
 				}
+				Log.TraceInformation("UWPDeploy.CopyFile({0}, {1}, {2})", InSource, InDest, bForce);
 				File.Copy(InSource, InDest, true);
+				File.SetAttributes(InDest, File.GetAttributes(InDest) & ~FileAttributes.ReadOnly);
 			}
 			else
 			{
@@ -142,66 +151,83 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Helper function for copying a tree files
 		/// </summary>
-		//void CopyDirectory(string InSource, string InDest, bool bForce, bool bRecurse)
-		//{
-		//    if (Directory.Exists(InSource))
-		//    {
-		//        if (!Directory.Exists(InDest))
-		//        {
-		//            Directory.CreateDirectory(InDest);
-		//        }
-
-		//        // Copy all files
-		//        string[] FilesInDir = Directory.GetFiles(InSource);
-		//        foreach (string FileSourcePath in FilesInDir)
-		//        {
-		//            string FileDestPath = Path.Combine(InDest, Path.GetFileName(FileSourcePath));
-		//            if (bForce == true)
-		//            {
-		//                if (File.Exists(FileDestPath) == true)
-		//                {
-		//                    DeployHelper_DeleteFile(FileDestPath);
-		//                }
-		//            }
-		//            File.Copy(FileSourcePath, FileDestPath, true);
-		//        }
-
-		//        // Recurse sub directories
-		//        string[] DirsInDir = Directory.GetDirectories(InSource);
-		//        foreach (string DirSourcePath in DirsInDir)
-		//        {
-		//            string DirName = Path.GetFileName(DirSourcePath);
-		//            string DirDestPath = Path.Combine(InDest, DirName);
-		//            CopyDirectory(DirSourcePath, DirDestPath, bForce, bRecurse);
-		//        }
-		//    }
-		//}
-
-
-		public bool PrepForUATPackageOrDeploy(string InProjectName, string InProjectDirectory, string InExecutablePath, string InEngineDir, bool bForDistribution, string CookFlavor)
+		void CopyDirectory(string InSource, string InDest, bool bForce, bool bRecurse)
 		{
-			// Much of the UWPProjectGenerator code assumes that the path will be set to Engine/Source
-			string PreviousDirectory = Directory.GetCurrentDirectory();
-			string PreviousRelativeEnginePath = BuildConfiguration.RelativeEnginePath;
+			if (Directory.Exists(InSource))
+			{
+				if (!Directory.Exists(InDest))
+				{
+					Directory.CreateDirectory(InDest);
+				}
 
-			Directory.SetCurrentDirectory(Path.Combine(InEngineDir, "Binaries"));
-			BuildConfiguration.RelativeEnginePath = "../../Engine";
+				// Copy all files
+				string[] FilesInDir = Directory.GetFiles(InSource);
+				foreach (string FileSourcePath in FilesInDir)
+				{
+					string FileDestPath = Path.Combine(InDest, Path.GetFileName(FileSourcePath));
+					CopyFile(FileSourcePath, FileDestPath, true);
+				}
 
-			string ProjectBinaryFolder = new FileInfo(InExecutablePath).DirectoryName;
-			string EngineSourceRelativeBinaryPath = Utils.MakePathRelativeTo(ProjectBinaryFolder, Path.Combine(InEngineDir, "Source"));
-			bool bIsUE4Game = new FileInfo(InExecutablePath).Name.StartsWith("UE4Game", StringComparison.InvariantCultureIgnoreCase);
-
-			UWPProjectGenerator ProjectGen = new UWPProjectGenerator();
-			ProjectGen.GenerateDeployFiles(InProjectName, ProjectBinaryFolder, bIsUE4Game, EngineSourceRelativeBinaryPath);
-
-			// back to root for UAT
-			Directory.SetCurrentDirectory(PreviousDirectory);
-			BuildConfiguration.RelativeEnginePath = PreviousRelativeEnginePath;
-
-			return true;
+				// Recurse sub directories
+				string[] DirsInDir = Directory.GetDirectories(InSource);
+				foreach (string DirSourcePath in DirsInDir)
+				{
+					string DirName = Path.GetFileName(DirSourcePath);
+					string DirDestPath = Path.Combine(InDest, DirName);
+					CopyDirectory(DirSourcePath, DirDestPath, bForce, bRecurse);
+				}
+			}
 		}
 
+		public override bool PrepForUATPackageOrDeploy(FileReference ProjectFile, string InProjectName, string InProjectDirectory, string InExecutablePath, string InEngineDir, bool bForDistribution, string CookFlavor, bool bIsDataDeploy)
+		{
+			string IntermediateDirectory = Path.Combine(InProjectDirectory, "Intermediate", "Deploy");
+			//@todo need to support dlc and other targets
+			string LocalizedContentDirectory = Path.Combine(InProjectDirectory, "Content", "Localization", "Game");
+			string ProjectBinaryFolder = new FileInfo(InExecutablePath).DirectoryName;
+            bool is32bit = Path.GetFileName(ProjectBinaryFolder).Equals("UWP32", StringComparison.OrdinalIgnoreCase);
+            UnrealTargetPlatform Platform = is32bit ? UnrealTargetPlatform.UWP32 : UnrealTargetPlatform.UWP64;
 
+            string AbsoluteExeDirectory = Path.GetDirectoryName(InExecutablePath);
+			string AppxManifestTargetPath = Path.Combine(AbsoluteExeDirectory, "AppxManifest.xml");
+			//@todo: It sure would be nice to have a more robust way of calculating this path, but it matches how the engine handles relative pathing off the exe at runtime
+			string RelativeExeFilePath = Utils.MakePathRelativeTo(InExecutablePath, Path.Combine(AbsoluteExeDirectory, "../../.."));
+
+            // Generate AppX manifest based on ini files and referenced winmd files.
+			PackageManifestGenerator ManifestGenerator = new PackageManifestGenerator(RelativeExeFilePath, InProjectDirectory, ProjectFile, Platform, new string[] { "uap", "mp" }, WinMDReferences);
+			ManifestGenerator.CreateManifest(AppxManifestTargetPath);
+
+            // Generate resources based on ini files.
+			PackageResourceGenerator ResourceGenerator = new PackageResourceGenerator(Platform, ProjectFile);
+			ResourceGenerator.GenerateResources(AbsoluteExeDirectory, IntermediateDirectory, LocalizedContentDirectory, InProjectDirectory, AppxManifestTargetPath);
+
+            // If using a secure networking manifest, copy it to the output directory.
+            string NetworkManifest = Path.Combine(InProjectDirectory, "Config", "UWP", "NetworkManifest.xml");
+            if (File.Exists(NetworkManifest))
+            {
+                CopyFile(NetworkManifest, Path.Combine(ProjectBinaryFolder, "NetworkManifest.xml"), false);
+            }
+
+            // If using Xbox Live generate the json config file expected by the SDK
+            ConfigCacheIni EngineIni = ConfigCacheIni.CreateConfigCacheIni(Platform, "Engine", new DirectoryReference(InProjectDirectory));
+            if (EngineIni != null)
+            {
+                string TitleId;
+                string Scid;
+                EngineIni.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "TitleId", out TitleId);
+                EngineIni.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "ServiceConfigId", out Scid);
+
+                using (JsonWriter XboxServicesConfig = new JsonWriter(Path.Combine(ProjectBinaryFolder, "xboxservices.config")))
+                {
+                    XboxServicesConfig.WriteObjectStart();
+                    XboxServicesConfig.WriteValue("TitleId", int.Parse(TitleId, System.Globalization.NumberStyles.HexNumber));
+                    XboxServicesConfig.WriteValue("PrimaryServiceConfigId", Scid);
+                    XboxServicesConfig.WriteObjectEnd();
+                }
+            }
+
+            return true;
+		}
 
 		public override bool PrepTargetForDeployment(UEBuildTarget InTarget)
 		{
@@ -209,53 +235,141 @@ namespace UnrealBuildTool
 			Log.TraceInformation("Prepping {0} for deployment to {1}", InAppName, InTarget.Platform.ToString());
 			System.DateTime PrepDeployStartTime = DateTime.UtcNow;
 
-			string TargetFilename = InTarget.RulesAssembly.GetTargetFileName(InAppName).FullName;
-			string ProjectSourceFolder = new FileInfo(TargetFilename).DirectoryName + "/";
+            TargetReceipt Receipt = TargetReceipt.Read(InTarget.BuildReceiptFileName);
+            AddWinMDReferencesFromReceipt(Receipt, InTarget.ProjectDirectory, string.Empty);
 
-			string RelativeTargetDirectory;
-			string EngineSourceRelativeBinaryPath;
-			UWPProjectGenerator.GetTargetUWPPaths(InTarget.RulesAssembly, InAppName, InTarget.Rules, out EngineSourceRelativeBinaryPath, out RelativeTargetDirectory);
+            PrepForUATPackageOrDeploy(InTarget.ProjectFile, InAppName, InTarget.ProjectDirectory.FullName, InTarget.OutputPath.FullName, BuildConfiguration.RelativeEnginePath, false, "", false);
 
-			PrepForUATPackageOrDeploy(InAppName, InTarget.ProjectDirectory.FullName, InTarget.OutputPath.FullName, BuildConfiguration.RelativeEnginePath, false, "");
+            DirectoryReference ProjectBinaryFolder = InTarget.OutputPath.Directory;
 
-			// TODO - richiem - restore this if we find that it's needed.
-			//Log.TraceInformation("...copying the CELL dll...");
-			//string CELLPath = "../../../Engine/Source/" + UEBuildConfiguration.UEThirdPartySourceDirectory + "CELL/lib/win64/";
-			//string CELLPathRelease = CELLPath + "Release/";
-			//string CELLDllRelease = "CommonEventLoggingLibrary.dll";
-			//string CELLPathDebug = CELLPath + "Debug/";
-			//string CELLDllDebug = "CommonEventLoggingLibraryd.dll";
+            string[] AdditionalAppXFiles = new string[] { "NetworkManifest.xml", "xboxservices.config", "UE4Commandline.txt" };
+            FileReference AppxRecipeDest = FileReference.Combine(ProjectBinaryFolder, InAppName + ".build.appxrecipe");
+            GeneratePackageAppXRecipe(AppxRecipeDest.FullName, InTarget, Receipt.RuntimeDependencies, AdditionalAppXFiles);
 
-			//CopyFile(EngineSourceRelativeBinaryPath + CELLPathRelease + CELLDllRelease, EngineSourceRelativeBinaryPath + CELLDllRelease, true);
-			//CopyFile(EngineSourceRelativeBinaryPath + CELLPathDebug + CELLDllDebug, EngineSourceRelativeBinaryPath + CELLDllDebug, true);
+            // Log out the time taken to deploy...
+            double PrepDeployDuration = (DateTime.UtcNow - PrepDeployStartTime).TotalSeconds;
+            Log.TraceInformation("UWP deployment preparation took {0:0.00} seconds", PrepDeployDuration);
 
-			//string XSAPIPath            = EngineSourceRelativeBinaryPath + "../../../Engine/Source/ThirdParty/XSAPI/lib/";
-			//string XboxServicesConfig   = "xboxservices.config";
-			//string DesktopLogin         = "DesktopLogin.exe";
-
-			//Log.TraceInformation("...copying xboxservices.config");
-			//CopyFile(XSAPIPath + XboxServicesConfig, EngineSourceRelativeBinaryPath + XboxServicesConfig, true);
-			//Log.TraceInformation("...copying DesktopLogin.exe...");
-			//CopyFile(XSAPIPath + DesktopLogin, EngineSourceRelativeBinaryPath + DesktopLogin, true);
-
-			// TODO - richiem - restore this if we find that it's needed.
-			//if (InTarget.Configuration == UnrealTargetConfiguration.Development)
-			//{
-			//    Log.TraceInformation("...copying AutoLogin...");
-			//    string AutoLoginPath    = EngineSourceRelativeBinaryPath + "../../../Engine/Source/Tools/AutoLogin/";
-			//    string AutoLoginDLL     = "AutoLogin.dll";
-			//    string AutoLoginBat     = "AutoLogin.bat";
-			//    CopyFile(AutoLoginPath + "bin/Debug/" + AutoLoginDLL, EngineSourceRelativeBinaryPath + AutoLoginDLL, true);
-			//    CopyFile(AutoLoginPath + AutoLoginBat, EngineSourceRelativeBinaryPath + AutoLoginBat, true);
-			//}
-
-
-
-			// Log out the time taken to deploy...
-			double PrepDeployDuration = (DateTime.UtcNow - PrepDeployStartTime).TotalSeconds;
-			Log.TraceInformation("UWP deployment preparation took {0:0.00} seconds", PrepDeployDuration);
-
-			return true;
+            return true;
 		}
-	}
+		// @ATG_CHANGE : END
+
+		// @ATG_CHANGE : BEGIN winmd type registration support
+		public void AddWinMDReferencesFromReceipt(TargetReceipt Receipt, DirectoryReference SourceProjectDir, string DestRelativeTo)
+		{
+			// Don't use Receipt.ExpandPathVariables because the variables are useful for both source and dest.
+
+			Dictionary<string, string> SourceVariables = new Dictionary<string, string>();
+			SourceVariables["EngineDir"] = UnrealBuildTool.EngineDirectory.FullName;
+			SourceVariables["ProjectDir"] = SourceProjectDir.FullName;
+
+			Dictionary<string, string> DestVariables = new Dictionary<string, string>();
+			DestVariables["EngineDir"] = Path.Combine(DestRelativeTo, "Engine");
+			DestVariables["ProjectDir"] = Path.Combine(DestRelativeTo, SourceProjectDir.GetDirectoryName());
+
+			foreach (var Dep in Receipt.RuntimeDependencies)
+			{
+				if (Path.GetExtension(Dep.Path) == ".dll")
+				{
+					string SourcePath = Utils.ExpandVariables(Dep.Path, SourceVariables);
+					string WinMDFile = Path.ChangeExtension(SourcePath, "winmd");
+					if (File.Exists(WinMDFile))
+					{
+						string DestPath = Dep.StagePath ?? Dep.Path;
+						DestPath = Utils.ExpandVariables(DestPath, DestVariables);
+						DestPath = Utils.MakePathRelativeTo(DestPath, DestRelativeTo);
+						WinMDReferences.Add(new WinMDRegistrationInfo(new FileReference(WinMDFile), DestPath));
+					}
+				}
+			}
+		}
+
+        private void GeneratePackageAppXRecipe(string InOutputFile, UEBuildTarget InTarget, List<RuntimeDependency> Dependencies, IEnumerable<string> AdditionalFiles)
+        {
+            var AppXRecipeProjectFileContent = new StringBuilder();
+            AppXRecipeProjectFileContent.Append(
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>" + ProjectFileGenerator.NewLine +
+                ProjectFileGenerator.NewLine +
+                "<Project DefaultTargets=\"Build\" ToolsVersion=\"" + VCProjectFileGenerator.ProjectFileToolVersionString + "\" xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">" + ProjectFileGenerator.NewLine);
+
+            DirectoryReference ProjectBinariesDirectory = new FileReference(InTarget.BuildReceiptFileName).Directory;
+
+            // This is not the full set of properties that a VS build would add, but it's enough that VS deployment will work
+            // both locally and on a remote machine.
+            AppXRecipeProjectFileContent.Append(@"   <PropertyGroup>" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"       <TargetOSVersion>10.0</TargetOSVersion>" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"       <WindowsUser>" + Environment.UserName + "</WindowsUser>" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"       <SolutionConfiguration>" + InTarget.Configuration + "|" + InTarget.Platform + "</SolutionConfiguration>" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"   </PropertyGroup>" + ProjectFileGenerator.NewLine);
+
+            // Add the manifest
+            AppXRecipeProjectFileContent.Append(@"   <ItemGroup>" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"       <AppxManifest Include=""" + FileReference.Combine(ProjectBinariesDirectory, "AppxManifest.xml") + @""">" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"          <PackagePath>AppxManifest.xml</PackagePath>" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"          <ReRegisterAppIfChanged>true</ReRegisterAppIfChanged>" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"       </AppxManifest>" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"   </ItemGroup>" + ProjectFileGenerator.NewLine);
+
+            // Add the actual package content
+            AppXRecipeProjectFileContent.Append(@"   <ItemGroup>" + ProjectFileGenerator.NewLine);
+
+            // Game exe
+            foreach (var BinaryOutput in InTarget.OutputPaths)
+            {
+                AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + BinaryOutput + @""">" + ProjectFileGenerator.NewLine);
+                AppXRecipeProjectFileContent.Append(@"          <PackagePath>" + Path.Combine(InTarget.AppName, BinaryOutput.MakeRelativeTo(InTarget.ProjectDirectory)) + @"</PackagePath>" + ProjectFileGenerator.NewLine);
+                AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+            }
+
+            // Game project file
+            AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + InTarget.ProjectFile + @""">" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"          <PackagePath>" + Path.Combine(InTarget.AppName, InTarget.ProjectFile.MakeRelativeTo(InTarget.ProjectDirectory)) + @"</PackagePath>" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+
+            // Runtime dependencies.
+            Dictionary<string, string> SourceVariables = new Dictionary<string, string>();
+            SourceVariables["EngineDir"] = UnrealBuildTool.EngineDirectory.FullName;
+            SourceVariables["ProjectDir"] = InTarget.ProjectDirectory.FullName;
+
+            Dictionary<string, string> DestVariables = new Dictionary<string, string>();
+            DestVariables["EngineDir"] = "Engine";
+            DestVariables["ProjectDir"] = InTarget.AppName;
+
+            foreach (var RuntimeDep in Dependencies)
+            {
+                string SourcePath = Utils.ExpandVariables(RuntimeDep.Path, SourceVariables);
+                string DeployPath = Utils.ExpandVariables(RuntimeDep.StagePath ?? RuntimeDep.Path, DestVariables);
+                AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + SourcePath + @""">" + ProjectFileGenerator.NewLine);
+                AppXRecipeProjectFileContent.Append(@"          <PackagePath>" + DeployPath + "</PackagePath>" + ProjectFileGenerator.NewLine);
+                AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+            }
+
+            //UWP resources
+            AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + FileReference.Combine(ProjectBinariesDirectory, "resources.pri") + @""">" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"          <PackagePath>resources.pri</PackagePath>" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + FileReference.Combine(ProjectBinariesDirectory, @"Resources\**\*.*") + @""">" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"          <PackagePath>Resources\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+
+            // Anything else added by the build system
+            foreach (var FileToPackage in AdditionalFiles)
+            {
+                FileReference FileRef = FileReference.Combine(ProjectBinariesDirectory, FileToPackage);
+                if (FileRef.Exists())
+                {
+                    AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + FileRef + @""">" + ProjectFileGenerator.NewLine);
+                    AppXRecipeProjectFileContent.Append(@"          <PackagePath>" + FileToPackage + @"</PackagePath>" + ProjectFileGenerator.NewLine);
+                    AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+                }
+            }
+
+            AppXRecipeProjectFileContent.Append(@"   </ItemGroup>" + ProjectFileGenerator.NewLine);
+            AppXRecipeProjectFileContent.Append(@"</Project>" + ProjectFileGenerator.NewLine);
+            File.WriteAllText(InOutputFile, AppXRecipeProjectFileContent.ToString(), Encoding.UTF8);
+        }
+
+        private List<WinMDRegistrationInfo> WinMDReferences = new List<WinMDRegistrationInfo>();
+        // @ATG_CHANGE : END
+    }
 }

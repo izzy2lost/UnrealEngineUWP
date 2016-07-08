@@ -3,11 +3,13 @@
 #pragma once
 
 #if WITH_LIBCURL
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
 #include "AllowWindowsPlatformTypes.h"
 #endif
 	#include "curl/curl.h"
-#if PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 #include "HideWindowsPlatformTypes.h"
 #endif
 #include "HttpManager.h"

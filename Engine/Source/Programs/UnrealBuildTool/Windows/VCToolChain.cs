@@ -20,7 +20,9 @@ namespace UnrealBuildTool
 			bSupportWindowsXP = bInSupportWindowsXP;
 		}
 
-		static void AddDefinition(StringBuilder String, string Definition)
+		// @ATG_CHANGE : BEGIN reusing in other toolchains
+		public static void AddDefinition(StringBuilder String, string Definition)
+		// @ATG_CHANGE : END
 		{
 			// Split the definition into name and value
 			int ValueIdx = Definition.IndexOf('=');
@@ -35,7 +37,9 @@ namespace UnrealBuildTool
 		}
 
 
-		static void AddDefinition(StringBuilder String, string Variable, string Value)
+		// @ATG_CHANGE : BEGIN reusing in other toolchains
+		public static void AddDefinition(StringBuilder String, string Variable, string Value)
+		// @ATG_CHANGE : END
 		{
 			// If the value has a space in it and isn't wrapped in quotes, do that now
 			if (Value != null && !Value.StartsWith("\"") && (Value.Contains(" ") || Value.Contains("$")))
@@ -68,7 +72,9 @@ namespace UnrealBuildTool
 		}
 
 
-		static void AddIncludePath(StringBuilder String, string IncludePath)
+		// @ATG_CHANGE :  BEGIN reusing in other toolchains
+		public static void AddIncludePath(StringBuilder String, string IncludePath)
+		// @ATG_CHANGE : END
 		{
 			// If the value has a space in it and isn't wrapped in quotes, do that now
 			if (!IncludePath.StartsWith("\"") && (IncludePath.Contains(" ") || IncludePath.Contains("$")))

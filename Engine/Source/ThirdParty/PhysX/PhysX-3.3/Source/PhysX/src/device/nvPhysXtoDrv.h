@@ -24,11 +24,23 @@
 namespace physx
 {
 
+// @ATG_CHANGE : BEGIN UWP support
+#if defined(PX_WINMODERN)
+#define NvPhysXToDrv_SectionName L"PH71828182845_" 
+
+	// Vista apps cannot create stuff in Global\\ namespace when NOT elevated, so use local scope
+
+#define ARRAY_SIZE(ARRAY)	sizeof(ARRAY) / sizeof(*(ARRAY))
+#define NvPhysXToDrv_Build_SectionName(PID, buf) swprintf(buf, ARRAY_SIZE(buf), NvPhysXToDrv_SectionName "%x", PID) 
+#define NvPhysXToDrv_Build_SectionNameXP(PID, buf) swprintf(buf, ARRAY_SIZE(buf), L"Global\\" NvPhysXToDrv_SectionName "%x", PID) 
+#else 
 #define NvPhysXToDrv_SectionName "PH71828182845_" 
 
 // Vista apps cannot create stuff in Global\\ namespace when NOT elevated, so use local scope
 #define NvPhysXToDrv_Build_SectionName(PID, buf) sprintf(buf, NvPhysXToDrv_SectionName "%x", PID) 
 #define NvPhysXToDrv_Build_SectionNameXP(PID, buf) sprintf(buf, "Global\\" NvPhysXToDrv_SectionName "%x", PID) 
+#endif //Px_winmodern
+// @ATG_CHANGE : END
 
 typedef struct NvPhysXToDrv_Header_ 
 { 

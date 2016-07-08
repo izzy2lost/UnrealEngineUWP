@@ -72,7 +72,13 @@ void* PhysXCpuIndicator::createIndicatorBlock(AgMMFile &mmfile, bool &alreadyExi
 #if _MSC_VER >= 1800
 	// Windows 8.1 SDK, which comes with VS2013, deprecated the GetVersionEx function
 	// Windows 8.1 SDK added the IsWindowsVistaOrGreater helper function which we use instead
+// @ATG_CHANGE : BEGIN UWP support (API doesn't exist, but always >=win8)
+#if defined(PX_WINMODERN)
+	BOOL bIsVistaOrGreater = TRUE;
+#else
 	BOOL bIsVistaOrGreater = IsWindowsVistaOrGreater();
+#endif
+// @ATG_CHANGE : END
 #else
 	OSVERSIONINFOEX windowsVersionInfo;
 

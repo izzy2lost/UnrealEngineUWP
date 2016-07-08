@@ -7,19 +7,24 @@ public class DX11Audio : ModuleRules
 	{
 		Type = ModuleType.External;
 
-		string DirectXSDKDir = UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";
+// @ATG_CHANGE : BEGIN UWP support
+		string DirectXSDKDir = UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy";            
 
 		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
+			PublicSystemIncludePaths.Add(DirectXSDKDir + "/include/Win7");
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x64");
+			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x64/Win7");
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Win32)
 		{
+			PublicSystemIncludePaths.Add(DirectXSDKDir + "/include/Win7");
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
+			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86/Win7");
 		}
-
+// @ATG_CHANGE : END
 		PublicAdditionalLibraries.AddRange(
 			new string[] {
 				"dxguid.lib",

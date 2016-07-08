@@ -25,7 +25,9 @@ public class OpenSSL : ModuleRules
 		}
 		else
 		{
-			if (Target.Platform == UnrealTargetPlatform.Win64)
+// @ATG_CHANGE : BEGIN UWP support
+			if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
+// @ATG_CHANGE : END
 			{
 				PublicIncludePaths.Add(OpenSSLPath + "include");
 				LibFolder += "Win64/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName() + "/";

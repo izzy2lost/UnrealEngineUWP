@@ -2,7 +2,9 @@
 #include "Core.h"
 #include "RHI.h"
 #include "Engine.h"
-#include "Windows/D3D12RHIBasePrivate.h"
+// @ATG_CHANGE : BEGIN UWP support (fixing include path bug that was latent till another DX12 platform existed)
+#include "D3D12RHIBasePrivate.h"
+// @ATG_CHANGE : END
 #define DEFAULT_MAIN_POOL_COMMAND_LISTS 3
 #define MAX_ALLOCATED_COMMAND_LISTS 256
 

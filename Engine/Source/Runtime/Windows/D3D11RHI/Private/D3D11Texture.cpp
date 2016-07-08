@@ -396,7 +396,10 @@ void ReturnPooledTexture2D(int32 MipCount, EPixelFormat PixelFormat, ID3D11Textu
 #endif // #if USE_TEXTURE_POOLING
 }
 
-#if WITH_D3DX_LIBS
+// @ATG_CHANGE : BEGIN UWP support 
+// (this shouldn't have been conditional on d3dx, causes a break when a windows platform exists that doesn't have d3dx)
+//#if WITH_D3DX_LIBS
+// @ATG_CHANGE : END
 DXGI_FORMAT FD3D11DynamicRHI::GetPlatformTextureResourceFormat(DXGI_FORMAT InFormat, uint32 InFlags)
 {
 	// DX 11 Shared textures must be B8G8R8A8_UNORM
@@ -406,7 +409,9 @@ DXGI_FORMAT FD3D11DynamicRHI::GetPlatformTextureResourceFormat(DXGI_FORMAT InFor
 	}
 	return InFormat;
 }
-#endif	//WITH_D3DX_LIBS
+// @ATG_CHANGE : BEGIN UWP support 
+//#endif	//WITH_D3DX_LIBS
+// @ATG_CHANGE : END
 
 /** If true, guard texture creates with SEH to log more information about a driver crash we are seeing during texture streaming. */
 #define GUARDED_TEXTURE_CREATES (PLATFORM_WINDOWS && !(UE_BUILD_SHIPPING || UE_BUILD_TEST))

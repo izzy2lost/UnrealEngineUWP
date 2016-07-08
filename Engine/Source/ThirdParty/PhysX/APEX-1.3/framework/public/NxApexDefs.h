@@ -51,14 +51,11 @@
 #define NX_APEX_SDK_VERSION 1
 #define NX_APEX_SDK_RELEASE 0x01030300
 
-#if defined(PX_WINDOWS)
-// CUDA does not currently have a VS2015 supported build.
-#if _MSC_VER >= 1900
-#define APEX_CUDA_SUPPORT 0
-#else
+// @ATG_CHANGE : BEGIN VS2015 & UWP support
+#if defined(PX_WINDOWS) && !defined(PX_WINMODERN) && !(_MSC_VER >= 1900)
 #define APEX_CUDA_SUPPORT 1
 #endif
-#endif
+// @ATG_CHANGE : END
 
 
 #if USE_RTTI

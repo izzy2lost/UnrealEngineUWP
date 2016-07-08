@@ -2984,6 +2984,8 @@ void FSlateApplication::ProcessCursorReply(const FCursorReply& CursorReply)
 	if (CursorReply.IsEventHandled())
 	{
 		CursorWidgetPtr = CursorReply.GetCursorWidget();
+// @ATG_CHANGE : BEGIN UWP support (temp change, UWP doesn't support custom cursors in this fashion)
+#if !PLATFORM_UWP
 		if (CursorReply.GetCursorWidget().IsValid())
 		{
 			CursorReply.GetCursorWidget()->SetVisibility(EVisibility::HitTestInvisible);
@@ -2991,6 +2993,8 @@ void FSlateApplication::ProcessCursorReply(const FCursorReply& CursorReply)
 			PlatformApplication->Cursor->SetType(EMouseCursor::Custom);
 		}
 		else
+#endif
+// @ATG_CHANGE : END
 		{
 			CursorWindowPtr.Reset();
 			PlatformApplication->Cursor->SetType(CursorReply.GetCursorType());

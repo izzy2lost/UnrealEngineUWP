@@ -23,7 +23,9 @@ public:
 	{
 #if PLATFORM_APPLE 
 		printf("%s", TCHAR_TO_ANSI(Str));
-#elif PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 		wprintf(TEXT("%ls"), Str);
 #else
 		printf("%ls", Str);

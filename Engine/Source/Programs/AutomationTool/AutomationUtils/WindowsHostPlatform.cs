@@ -48,7 +48,16 @@ namespace AutomationTool
 
 			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015)
 			{
-				WindowsSDKDir = FindWindowsSDKInstallationFolder( "v8.1" );
+				// @ATG_CHANGE : BEGIN UWP support
+				if (WindowsPlatform.bUseWindowsSDK10)
+				{
+					WindowsSDKDir = FindWindowsSDKInstallationFolder("v10.0");
+				}
+				else
+				{
+					WindowsSDKDir = FindWindowsSDKInstallationFolder("v8.1");
+				}
+				// @ATG_CHANGE : END
 
 				if (string.IsNullOrEmpty(BaseVSToolPath))
 				{

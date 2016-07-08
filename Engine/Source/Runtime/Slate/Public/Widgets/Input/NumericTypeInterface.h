@@ -61,7 +61,15 @@ inline bool TDefaultNumericTypeInterface<float>::IsCharacterValid(TCHAR InChar) 
 }
 
 /** Forward declaration of types defined in UnitConversion.h */
+// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
+#if PLATFORM_UWP
+PACK_WINRT()
+#endif
 enum class EUnit;
+#if PLATFORM_UWP
+PACK_WINRT_REVERT()
+#endif
+// @ATG_CHANGE : END
 template<typename> struct FNumericUnit;
 
 /**

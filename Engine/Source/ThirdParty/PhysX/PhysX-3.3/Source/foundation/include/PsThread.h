@@ -139,7 +139,11 @@ namespace shdfnd
 		be called in the context of the spawning thread.
 		*/
 
+// @ATG_CHANGE : BEGIN UWP support (TerminateThread isn't surfaced up to apps)
+#if !defined(PX_WINMODERN)
 		void kill();
+#endif
+// @ATG_CHANGE :  END
 
 		/**
 		Stop the thread. Signals the spawned thread that it should stop, so the 
@@ -205,8 +209,12 @@ namespace shdfnd
 		/** Yield the current thread's slot on the CPU */
 		static void yield();
 
+// @ATG_CHANGE : BEGIN UWP support  (getphysicalcore is not UWP compliant)
+#if !defined(PX_WINMODERN)
 		/** Return the number of physical cores (does not include hyper-threaded cores), returns 0 on failure */
 		static PxU32 getNbPhysicalCores();
+#endif
+// @ATG_CHANGE : END
 
 		 /**
         Size of this class.

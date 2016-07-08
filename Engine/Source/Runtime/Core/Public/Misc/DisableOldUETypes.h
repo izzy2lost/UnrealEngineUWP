@@ -30,8 +30,12 @@ namespace DoNotUseOldUE4Type
 	/// This type is aliased to FUnusableType - use ::uint32 instead.
 	typedef FUnusableType UINT;
 
+// @ATG_CHANGE : BEGIN UWP support (DWORD currently sneaking in, probably in /ZW code)
+#if !defined PLATFORM_UWP
 	/// This type is aliased to FUnusableType - use ::uint32 instead.
 	typedef FUnusableType DWORD;
+#endif
+// @ATG_CHANGE : END
 
 	/// This type is aliased to FUnusableType - use float instead.
 	typedef FUnusableType FLOAT;

@@ -6,7 +6,15 @@
 
 struct FVector2D;
 class FSlateRect;
+// @ATG_CHANGE : BEGIN VS2015 & UWP support (working around /ZW x86 pack value issue)
+#if PLATFORM_UWP
+PACK_WINRT()
+#endif
 enum class EPopupMethod : uint8;
+#if PLATFORM_UWP
+PACK_WINRT_REVERT()
+#endif
+// @ATG_CHANGE : END
 
 #define SLATE_PRE_MULTIPLY 1
 #define SLATE_USE_32BIT_INDICES !PLATFORM_USES_ES2

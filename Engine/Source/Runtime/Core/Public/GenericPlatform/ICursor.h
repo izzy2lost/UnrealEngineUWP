@@ -7,7 +7,9 @@
 
 struct FVector2D;
 
-#if PLATFORM_WINDOWS || PLATFORM_XBOXONE || PLATFORM_WINRT
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_XBOXONE || PLATFORM_WINRT || PLATFORM_UWP
+// @ATG_CHANGE : END
 	struct tagRECT;
 	typedef struct tagRECT RECT;
 #else
@@ -63,9 +65,12 @@ namespace EMouseCursor
 
 		/** Eye-dropper cursor for picking colors */
 		EyeDropper,
-
+// @ATG_CHANGE : BEGIN UWP support
+#if !PLATFORM_UWP
 		/** Custom cursor shape for platforms that support setting a native cursor shape. Same as specifying None if not set. */
 		Custom,
+#endif
+// @ATG_CHANGE : END
 
 		/** Number of cursors we support */
 		TotalCursorCount

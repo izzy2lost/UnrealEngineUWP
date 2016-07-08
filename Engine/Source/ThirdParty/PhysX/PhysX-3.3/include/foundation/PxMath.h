@@ -24,7 +24,13 @@
 #pragma warning(push)
 #pragma warning( disable : 4985 ) // 'symbol name': attributes not present on previous declaration
 #endif
-#include <math.h>
+// @ATG_CHANGE : BEGIN UWP support
+//       Switching to using cmath.  math.h doesn't contain the remapped float overloads.
+//       This worked before because old versions of the math.h header included those overloads when compiling C++.
+//       That header issue has been fixed to match the C++ spec, so this needs to be updated.  
+//       cmath works for older non-compliant headers as well.
+#include <cmath>
+// @ATG_CHANGE : END
 #ifdef PX_VC
 #pragma warning(pop)
 #endif

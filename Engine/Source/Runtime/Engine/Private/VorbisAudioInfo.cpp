@@ -345,7 +345,9 @@ void LoadVorbisLibraries()
 	if (!bIsIntialized)
 	{
 		bIsIntialized = true;
-#if PLATFORM_WINDOWS  && WITH_OGGVORBIS
+// @ATG_CHANGE : BEGIN UWP support
+#if (PLATFORM_WINDOWS || PLATFORM_UWP) && WITH_OGGVORBIS
+// @ATG_CHANGE : END
 		//@todo if ogg is every ported to another platform, then use the platform abstraction to load these DLLs
 		// Load the Ogg dlls
 		FString VSVersion = TEXT("VS2013/");
@@ -358,9 +360,21 @@ void LoadVorbisLibraries()
 		PlatformString = TEXT("Win64");
 		DLLNameStub = TEXT("_64.dll");
 #endif
-
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_UWP
+#define LoadLibraryW(path) LoadPackagedLibrary((path), 0ul) 
+#if PLATFORM_64BITS
+		PlatformString = TEXT("UWP64");
+#else
+		PlatformString = TEXT("UWP32");
+#endif
+		FString RootOggPath = TEXT("Engine/Binaries/ThirdParty/Ogg/") / PlatformString / VSVersion;
+		FString RootVorbisPath = TEXT("Engine/Binaries/ThirdParty/Vorbis/") / PlatformString / VSVersion;
+#else
 		FString RootOggPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Ogg/") / PlatformString / VSVersion;
 		FString RootVorbisPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Vorbis/") / PlatformString / VSVersion;
+#endif
+// @ATG_CHANGE :  END
 
 		FString DLLToLoad = RootOggPath + TEXT("libogg") + DLLNameStub;
 		verifyf(LoadLibraryW(*DLLToLoad), TEXT("Failed to load DLL %s"), *DLLToLoad);
@@ -369,7 +383,9 @@ void LoadVorbisLibraries()
 		verifyf(LoadLibraryW(*DLLToLoad), TEXT("Failed to load DLL %s"), *DLLToLoad);
 		DLLToLoad = RootVorbisPath + TEXT("libvorbisfile") + DLLNameStub;
 		verifyf(LoadLibraryW(*DLLToLoad), TEXT("Failed to load DLL %s"), *DLLToLoad);
-#endif	//PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#endif	//(PLATFORM_WINDOWS || PLATFORM_UWP) && WITH_OGGVORBIS
+// @ATG_CHANGE : END
 	}
 }
 

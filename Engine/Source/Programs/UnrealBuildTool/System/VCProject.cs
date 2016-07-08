@@ -333,9 +333,15 @@ namespace UnrealBuildTool
 				{
 					VCIncludeSearchPaths.Append(CurPath + ";");
 				}
-				if (InPlatforms.Contains(UnrealTargetPlatform.UWP))
+				// @ATG_CHANGE : BEGIN UWP support
+				if (InPlatforms.Contains(UnrealTargetPlatform.UWP32))
 				{
-					VCIncludeSearchPaths.Append(UWPToolChain.GetVCIncludePaths(CPPTargetPlatform.UWP) + ";");
+					VCIncludeSearchPaths.Append(UniversalWindowsPlatformToolChain.GetVCIncludePaths(CPPTargetPlatform.UWP32) + ";");
+				}
+				else if (InPlatforms.Contains(UnrealTargetPlatform.UWP64))
+				{
+					VCIncludeSearchPaths.Append(UniversalWindowsPlatformToolChain.GetVCIncludePaths(CPPTargetPlatform.UWP64) + ";");
+				// @ATG_CHANGE : END
 				}
 				else if (InPlatforms.Contains(UnrealTargetPlatform.Win64))
 				{
@@ -509,17 +515,14 @@ namespace UnrealBuildTool
 			}
 
 			// Write each project configuration PreDefaultProps section
-			foreach (var ConfigurationTuple in ProjectConfigurationNameAndConfigurations)
+			// @ATG_CHANGE : BEGIN UWP packaging & F5 support
+			// do this only for valid combinations, which conveniently provides access to the true UnrealTargetPlatform (i.e. accounts for
+			// UWP, WinRT, and any others that don't map to VS platforms).
+			foreach (var Combination in ProjectConfigAndTargetCombinations)
 			{
-				var ProjectConfigurationName = ConfigurationTuple.Item1;
-				var TargetConfiguration = ConfigurationTuple.Item2;
-				foreach (var PlatformTuple in ProjectPlatformNameAndPlatforms)
-				{
-					var ProjectPlatformName = PlatformTuple.Item1;
-					var TargetPlatform = PlatformTuple.Item2;
-					WritePreDefaultPropsConfiguration(TargetPlatform, TargetConfiguration, ProjectPlatformName, ProjectConfigurationName, VCProjectFileContent);
-				}
+				WritePreDefaultPropsConfiguration(Combination.Platform, Combination.Configuration, Combination.ProjectPlatformName, Combination.ProjectConfigurationName, VCProjectFileContent);
 			}
+			// @ATG_CHANGE : END
 
 			VCProjectFileContent.Append(
 				"	<Import Project=\"$(VCTargetsPath)\\Microsoft.Cpp.Default.props\" />" + ProjectFileGenerator.NewLine);
@@ -1142,7 +1145,9 @@ namespace UnrealBuildTool
 				{
 					TargetRules TargetRulesObject = Combination.ProjectTarget.TargetRules;
 
-					if ((Platform == UnrealTargetPlatform.Win32) || (Platform == UnrealTargetPlatform.Win64) || (Platform == UnrealTargetPlatform.UWP))
+					// @ATG_CHANGE : BEGIN UWP support
+					if ((Platform == UnrealTargetPlatform.Win32) || (Platform == UnrealTargetPlatform.Win64) || (Platform == UnrealTargetPlatform.UWP32) || (Platform == UnrealTargetPlatform.UWP64))
+					// @ATG_CHANGE : END
 					{
 						VCUserFileContent.Append(
 							"	<PropertyGroup " + ConditionString + ">" + ProjectFileGenerator.NewLine);

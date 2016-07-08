@@ -97,6 +97,8 @@ ThreadImpl::Id ThreadImpl::getId()
 // fwd GetLogicalProcessorInformation()
 typedef BOOL (WINAPI *LPFN_GLPI)(PSYSTEM_LOGICAL_PROCESSOR_INFORMATION, PDWORD);
 
+// @ATG_CHANGE : BEGIN VUWP support (unused, and not supported for UWP)
+#if !defined(PX_WINMODERN)
 PxU32 ThreadImpl::getNbPhysicalCores()
 {
 	if (!gPhysicalCoreCount)
@@ -164,6 +166,8 @@ PxU32 ThreadImpl::getNbPhysicalCores()
 
 	return gPhysicalCoreCount;
 }
+#endif //px_winmodern
+// @ATG_CHANGE : END
 
 ThreadImpl::ThreadImpl()
 {
@@ -191,7 +195,13 @@ ThreadImpl::ThreadImpl(ExecuteFn fn, void *arg)
 ThreadImpl::~ThreadImpl()
 {
 	if(getThread(this)->state == _ThreadImpl::Started)
+// @ATG_CHANGE : BEGIN UWP support (since we can't kill, just wait for exit)
+#if !defined(PX_WINMODERN)
 		kill();
+#else
+		waitForQuit();
+#endif
+// @ATG_CHANGE :  END
 	CloseHandle(getThread(this)->thread);
 }
 
@@ -239,12 +249,16 @@ void ThreadImpl::quit()
 	ExitThread(0);
 }
 
+// @ATG_CHANGE : BEGIN UWP support (TerminateThread is not available)
+#if !defined(PX_WINMODERN)
 void ThreadImpl::kill()
 {
 	if (getThread(this)->state==_ThreadImpl::Started)
 		TerminateThread(getThread(this)->thread, 0);
 	getThread(this)->state = _ThreadImpl::Stopped;
 }
+#endif
+// @ATG_CHANGE : END
 
 void ThreadImpl::sleep(PxU32 ms)
 {
@@ -266,8 +280,12 @@ PxU32 ThreadImpl::setAffinityMask(PxU32 mask)
 		// if thread already started apply immediately
 		if (getThread(this)->state == _ThreadImpl::Started)
 		{
+// @ATG_CHANGE : BEGIN UWP support (TODO: restore once the API is approved)
+#if !defined(PX_WINMODERN)
 			PxU32 err = PxU32(SetThreadAffinityMask(getThread(this)->thread, mask));
 			return err;
+#endif
+// @ATG_CHANGE : END
 		}
 	}
 	

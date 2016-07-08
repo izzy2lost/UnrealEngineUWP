@@ -253,6 +253,12 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 		{
 			Platforms += TEXT("+Mac");
 		}
+// @ATG_CHANGE : BEGIN UWP packaging & F5 support
+		else if (PlatformInfo->TargetPlatformName == FName("UWP"))
+		{
+			Platforms += TEXT("+UWP64");
+		}
+// @ATG_CHANGE : END
 		else
 		{
 			Platforms += TEXT("+");

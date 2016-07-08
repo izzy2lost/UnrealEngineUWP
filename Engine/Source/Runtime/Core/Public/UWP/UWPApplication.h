@@ -1,0 +1,47 @@
+// Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "GenericApplication.h"
+
+class FUWPApplication : public GenericApplication
+{
+public:
+
+	static FUWPApplication* CreateUWPApplication();
+
+	static FUWPApplication* GetUWPApplication();
+
+
+public:	
+
+	virtual ~FUWPApplication() {}
+
+	virtual void PollGameDeviceState( const float TimeDelta ) override;
+
+	virtual FPlatformRect GetWorkArea( const FPlatformRect& CurrentWindow ) const override;
+	virtual TSharedRef< FGenericWindow > MakeWindow();
+	virtual void InitializeWindow(const TSharedRef< FGenericWindow >& Window, const TSharedRef< FGenericWindowDefinition >& InDefinition, const TSharedPtr< FGenericWindow >& InParent, const bool bShowImmediately);
+
+	virtual IInputInterface* GetInputInterface() override;
+
+	TSharedRef< class FGenericApplicationMessageHandler > GetMessageHandler() const;
+
+	void SetMessageHandler( const TSharedRef< FGenericApplicationMessageHandler >& InMessageHandler ) override;
+	virtual void PumpMessages(const float TimeDelta) override;
+
+	TSharedRef< class FUWPCursor > GetCursor() const;
+	TSharedPtr< class FUWPInputInterface > GetUWPInputInterface() const { return InputInterface; }
+
+	TSharedPtr< class FUWPWindow > GetUWPWindow() const { return ApplicationWindow; }
+
+private:
+
+	FUWPApplication();
+
+private:
+
+	TSharedPtr< class FUWPInputInterface > InputInterface;
+
+	TSharedRef< class FUWPWindow > ApplicationWindow;
+};
