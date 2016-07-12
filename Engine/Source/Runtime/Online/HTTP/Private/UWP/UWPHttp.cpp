@@ -2,10 +2,7 @@
 
 #include "HttpPrivatePCH.h"
 #include "UWPHttp.h"
-#include "Curl/CurlHttp.h"
-#include "Curl/CurlHttpManager.h"
-
-bool bUseCurl = true;
+#include "IXML/HttpIXML.h"
 
 void FUWPHttp::Init()
 {
@@ -22,5 +19,5 @@ FHttpManager * FUWPHttp::CreatePlatformHttpManager()
 
 IHttpRequest* FUWPHttp::ConstructRequest()
 {
-	return FGenericPlatformHttp::ConstructRequest();
+	return new FHttpRequestIXML();
 }
