@@ -9,37 +9,18 @@ bool bUseCurl = true;
 
 void FUWPHttp::Init()
 {
-	if (GConfig)
-	{
-		bool bUseCurlConfigValue = false;
-		if (GConfig->GetBool(TEXT("Networking"), TEXT("UseLibCurl"), bUseCurlConfigValue, GEngineIni))
-		{
-			bUseCurl = bUseCurlConfigValue;
-		}
-	}
-
-	// allow override on command line
-	FString HttpMode;
-	if (FParse::Value(FCommandLine::Get(), TEXT("HTTP="), HttpMode) &&
-		(HttpMode.Equals(TEXT("WinInet"), ESearchCase::IgnoreCase)))
-	{
-		bUseCurl = false;
-	}
-
-	FCurlHttpManager::InitCurl();
 }
 
 void FUWPHttp::Shutdown()
 {
-	FCurlHttpManager::ShutdownCurl();
 }
 
 FHttpManager * FUWPHttp::CreatePlatformHttpManager()
 {
-	return new FCurlHttpManager();
+	return nullptr;
 }
 
 IHttpRequest* FUWPHttp::ConstructRequest()
 {
-	return new FCurlHttpRequest(FCurlHttpManager::GMultiHandle);
+	return FGenericPlatformHttp::ConstructRequest();
 }
