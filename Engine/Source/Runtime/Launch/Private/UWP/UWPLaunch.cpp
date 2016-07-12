@@ -258,8 +258,8 @@ uint32 TranslateWinRTKey(Windows::UI::Core::KeyEventArgs^ keyEventArgs)
 #pragma warning(pop)
 
 	default:
-		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Unrecognized keystroke VirtualKeyCode:%d  ScanCode:%d  Extended:%s  [%s]\n"),
-			WinRTKeyCode,
+		UE_LOG(LogLaunchUWP, Verbose, TEXT("Unrecognized keystroke VirtualKeyCode:%d  ScanCode:%d  Extended:%s  [%s]\n"),
+			TranslatedKeyCode,
 			keyEventArgs->KeyStatus.ScanCode,
 			keyEventArgs->KeyStatus.IsExtendedKey ? TEXT("yes") : TEXT("no"),
 			keyEventArgs->KeyStatus.WasKeyDown ? TEXT("up") : TEXT("down"));
@@ -382,7 +382,7 @@ void ViewProvider::OnWindowSizeChanged(Windows::UI::Core::CoreWindow^ sender, Wi
 	int32 Width = FUWPWindow::ConvertDipsToPixels(args->Size.Width, Dpi);
 	int32 Height = FUWPWindow::ConvertDipsToPixels(args->Size.Height, Dpi);
 
-	FPlatformMisc::LowLevelOutputDebugStringf(L"Window Size Changed to [%d, %d]\n", Width, Height);
+	UE_LOG(LogLaunchUWP, Log, TEXT("Window Size Changed to [%d, %d]"), Width, Height);
 
 	FUWPApplication* pApplication = FUWPApplication::GetUWPApplication();
 	if (pApplication)
@@ -502,7 +502,7 @@ void ViewProvider::OnActivated(_In_ Windows::ApplicationModel::Core::CoreApplica
 
 		existingSize = window->Bounds;
 		ApplicationExecutionState lastState = args->PreviousExecutionState;
-		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("OnActivated (%5.0fx%5.0f): Last application state: %d\n"), existingSize.Width, existingSize.Height, lastState);
+		UE_LOG(LogLaunchUWP, Log, TEXT("OnActivated (%5.0fx%5.0f): Last application state: %d"), existingSize.Width, existingSize.Height, static_cast<uint32>(lastState));
 	}
 }
 
@@ -568,7 +568,7 @@ const TCHAR* ViewProvider::GetPointerUpdateKindString(Windows::UI::Input::Pointe
 
 void ViewProvider::OnExtensionRevokedHandler(Platform::Object^ obj, ExtendedExecutionRevokedEventArgs^ args)
 {
-	FPlatformMisc::LowLevelOutputDebugStringf( TEXT("Extended execution revoked.  Reason: %d\n"), args->Reason );
+	UE_LOG(LogLaunchUWP, Warning, TEXT("Extended execution revoked.  Reason: %d"), static_cast<uint32>(args->Reason) );
 
 	// Only request extended exeuction when it is resumed
 	if (args->Reason == ExtendedExecutionRevokedReason::Resumed)
@@ -583,7 +583,7 @@ void ViewProvider::OnExtensionRevokedHandler(Platform::Object^ obj, ExtendedExec
 
 void ViewProvider::RequestExtendedExecution()
 {
-	FPlatformMisc::LowLevelOutputDebugStringf( TEXT("Requesting Extended Execution Session.\n") );
+	UE_LOG(LogLaunchUWP, Log, TEXT("Requesting Extended Execution Session.") );
 
 	if (ExecutionSession == nullptr)
 	{
@@ -604,11 +604,11 @@ void ViewProvider::RequestExtendedExecution()
 			// suspend for up to 10 minutes while minimized.
 
 			ExtendedExecutionResult result = t.get();
-			FPlatformMisc::LowLevelOutputDebugStringf( TEXT("Extended Execution Result: %d\n"), result );
+			UE_LOG(LogLaunchUWP, Log, TEXT("Extended Execution Result: %d"), static_cast<uint32>(result) );
 		}
 		catch (...)
 		{
-			FPlatformMisc::LowLevelOutputDebugStringf( TEXT("Extended Execution Denied (Exception).\n") );
+			UE_LOG(LogLaunchUWP, Warning, TEXT("Extended Execution Denied (Exception).") );
 		}
 	});
 }
@@ -662,7 +662,7 @@ bool ViewProvider::ProcessMouseEvent(Windows::UI::Core::PointerEventArgs^ args)
 	Windows::System::VirtualKeyModifiers KeyModifiers = args->KeyModifiers;
 	Windows::Foundation::Collections::IVector<Windows::UI::Input::PointerPoint^>^ intermediatePoints = args->GetIntermediatePoints();
 
-	FPlatformMisc::LowLevelOutputDebugStringf(TEXT("ProcessMouseEvent %d = %5.2f, %5.2f - %s\n"),
+	UE_LOG(LogLaunchUWP, Verbose, TEXT("ProcessMouseEvent %d = %5.2f, %5.2f - %s"),
 		intermediatePoints->Size, Point->Position.X, Point->Position.Y, GetPointerUpdateKindString(Kind));
 
 	FUWPApplication* const Application = FUWPApplication::GetUWPApplication();
@@ -749,7 +749,7 @@ void ViewProvider::Run()
 			{
 				// Deleting the directory does not appear to work.
 				// So delete the files one by one
-				FPlatformMisc::LowLevelOutputDebugStringf(TEXT("WARNING: Requested to clear base directory: %s\n"), BaseDirectory);
+				UE_LOG(LogLaunchUWP, Warning, TEXT("WARNING: Requested to clear base directory: %s"), BaseDirectory);
 				IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 				TArray<FString> DirectoriesToSkip;
 				TArray<FString> DirectoriesToNotRecurse;
@@ -809,7 +809,7 @@ int main(Platform::Array<Platform::String^>^)
 				DWORD Result = 0;
 				if (!ReadFile(Handle, AnsiCmdLine, DWORD(CmdLineFileSize), &Result, NULL) || (Result != DWORD(CmdLineFileSize)))
 				{
-					FPlatformMisc::LowLevelOutputDebugStringf(TEXT("WARNING: Failed to read %s file!\n"), fileName);
+					UE_LOG(LogLaunchUWP, Warning, TEXT("Failed to read %s file!"), fileName);
 				}
 				else
 				{
@@ -829,12 +829,12 @@ int main(Platform::Array<Platform::String^>^)
 				FString Args = FString::Printf(TEXT("%s"), *FString(CmdLine)); //FString::Printf(TEXT("%s %s"), FCommandLine::Get(), *FString(CmdLine));
 				Args = Args.Trim();
 				Args = Args.TrimTrailing();
-				FPlatformMisc::LowLevelOutputDebugString(*Args);
+				UE_LOG(LogLaunchUWP, Log, TEXT("%s"), *Args);
 				FCommandLine::Set(*Args);
 			}
 			else
 			{
-				FPlatformMisc::LowLevelOutputDebugString(TEXT("WARNING: Failed to open UE4CommandLine.txt file with CreateFile2!\n"));
+				UE_LOG(LogLaunchUWP, Warning, TEXT("Failed to open UE4CommandLine.txt file with CreateFile2!"));
 			}
 		}
 	});
@@ -933,15 +933,15 @@ void EngineExit( void )
 int32 GuardedMain( const TCHAR* CmdLine, HINSTANCE hInInstance, HINSTANCE hPrevInstance, int32 nCmdShow )
 {
 #if UE_BUILD_DEBUG
-	FPlatformMisc::LowLevelOutputDebugString(TEXT("--- Running a DEBUG build ---\n"));
+	UE_LOG(LogLaunchUWP, Log, TEXT("--- Running a DEBUG build ---"));
 #elif UE_BUILD_DEVELOPMENT
-	FPlatformMisc::LowLevelOutputDebugString(TEXT("--- Running a DEVELOPMENT build ---\n"));
+	UE_LOG(LogLaunchUWP, Log, TEXT("--- Running a DEVELOPMENT build ---"));
 #elif UE_BUILD_TEST
-	FPlatformMisc::LowLevelOutputDebugString(TEXT("--- Running a TEST build ---\n"));
+	UE_LOG(LogLaunchUWP, Log, TEXT("--- Running a TEST build ---"));
 #elif UE_BUILD_SHIPPING
-	FPlatformMisc::LowLevelOutputDebugString(TEXT("--- Running a SHIPPING build ---\n"));
+	UE_LOG(LogLaunchUWP, Log, TEXT("--- Running a SHIPPING build ---"));
 #else
-	FPlatformMisc::LowLevelOutputDebugString(TEXT("--- Running a ***UNKNOWN*** build ---\n"));
+	UE_LOG(LogLaunchUWP, Log, TEXT("--- Running a ***UNKNOWN*** build ---"));
 #endif
 
 	// make sure GEngineLoop::Exit() is always called.
