@@ -93,6 +93,18 @@ namespace UnrealBuildTool
 			UEBuildConfiguration.bCompileICU = true;
 		}
 
+		public override void ValidateBuildConfiguration(CPPTargetConfiguration Configuration, CPPTargetPlatform Platform, bool bCreateDebugInfo)
+		{
+			// Use shipping binaries to avoid dependency on nvToolsExt which fails WACK.
+			if (Platform == CPPTargetPlatform.UWP64 || Platform == CPPTargetPlatform.UWP32)
+			{
+				if (Configuration == CPPTargetConfiguration.Shipping)
+				{
+					BuildConfiguration.bUseShippingPhysXLibraries = true;
+				}
+			}
+		}
+
 		/// <summary>
 		/// Setup the target environment for building
 		/// </summary>
