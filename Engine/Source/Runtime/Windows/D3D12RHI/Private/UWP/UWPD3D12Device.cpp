@@ -112,7 +112,8 @@ static bool SafeTestD3D12CreateDevice(IDXGIAdapter* Adapter, D3D_FEATURE_LEVEL M
 {
 	ID3D12Device* D3DDevice = NULL;
 
-	// Use a debug device if specified on the command line.
+#if !UE_BUILD_SHIPPING
+	// Use a debug device if specified on the command line, but not in shipping since it fails WACK
 	if(D3D12RHI_ShouldCreateWithD3DDebug())
 	{
 		ID3D12Debug* DebugController = nullptr;
@@ -120,6 +121,7 @@ static bool SafeTestD3D12CreateDevice(IDXGIAdapter* Adapter, D3D_FEATURE_LEVEL M
 		DebugController->EnableDebugLayer();
 		DebugController->Release();
 	}
+#endif
 
 	D3D_FEATURE_LEVEL RequestedFeatureLevels[] =
 	{
@@ -565,7 +567,8 @@ void FD3D12Device::InitD3DDevice()
 		//		Software must be NULL. 
 		D3D_DRIVER_TYPE DriverType = D3D_DRIVER_TYPE_UNKNOWN;	
 
-		// Use a debug device if specified on the command line.
+#if !UE_BUILD_SHIPPING
+		// Use a debug device if specified on the command line, but not in shpping since it fails WACK
 		const bool bWithD3DDebug = D3D12RHI_ShouldCreateWithD3DDebug();
 
 		if (bWithD3DDebug)
@@ -576,7 +579,8 @@ void FD3D12Device::InitD3DDevice()
 
 			UE_LOG(LogD3D12RHI, Log, TEXT("InitD3DDevice: -D3DDebug = %s"), bWithD3DDebug ? TEXT("on") : TEXT("off"));
 		}
-        
+#endif
+
         TRefCountPtr<IDXGIAdapter> EnumAdapter;
 
         if (DXGIFactory->EnumAdapters(GetAdapterIndex(), EnumAdapter.GetInitReference()) != DXGI_ERROR_NOT_FOUND)
