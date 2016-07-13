@@ -20,6 +20,7 @@ enum class ETeleportType;
 PACK_WINRT_REVERT()
 #endif
 // @ATG_CHANGE : END
+class UBodySetup;
 
 class UBodySetup;
 

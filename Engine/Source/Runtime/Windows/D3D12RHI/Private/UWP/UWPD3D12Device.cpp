@@ -117,7 +117,7 @@ static bool SafeTestD3D12CreateDevice(IDXGIAdapter* Adapter, D3D_FEATURE_LEVEL M
 	if(D3D12RHI_ShouldCreateWithD3DDebug())
 	{
 		ID3D12Debug* DebugController = nullptr;
-		VERIFYD3D11RESULT(D3D12GetDebugInterface(IID_PPV_ARGS(&DebugController)));
+		VERIFYD3D12RESULT(D3D12GetDebugInterface(IID_PPV_ARGS(&DebugController)));
 		DebugController->EnableDebugLayer();
 		DebugController->Release();
 	}
@@ -273,7 +273,7 @@ void FD3D12DynamicRHIModule::FindAdapter()
 			{
 				// Log some information about the available D3D12 adapters.
 				DXGI_ADAPTER_DESC AdapterDesc;
-				VERIFYD3D11RESULT(TempAdapter->GetDesc(&AdapterDesc));
+				VERIFYD3D12RESULT(TempAdapter->GetDesc(&AdapterDesc));
 				uint32 OutputCount = CountAdapterOutputs(TempAdapter);
 
 				UE_LOG(LogD3D12RHI, Log,
@@ -428,7 +428,7 @@ void FD3D12DynamicRHI::PerRHISetup(FD3D12Device* MainDevice)
 		{
 			if (EnumAdapter)
 			{
-				VERIFYD3D11RESULT(DxgiAdapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &LocalVideoMemoryInfo));
+				VERIFYD3D12RESULT(DxgiAdapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &LocalVideoMemoryInfo));
 				FD3D12GlobalStats::GTotalGraphicsMemory = LocalVideoMemoryInfo.Budget;
 			}
 		}
@@ -463,7 +463,7 @@ void FD3D12DynamicRHI::PerRHISetup(FD3D12Device* MainDevice)
 
 	if (!bIsWARP)
 	{
-		VERIFYD3D11RESULT(DxgiAdapter3->SetVideoMemoryReservation(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, FMath::Min((int64)LocalVideoMemoryInfo.AvailableForReservation, FD3D12GlobalStats::GTotalGraphicsMemory)));
+		VERIFYD3D12RESULT(DxgiAdapter3->SetVideoMemoryReservation(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, FMath::Min((int64)LocalVideoMemoryInfo.AvailableForReservation, FD3D12GlobalStats::GTotalGraphicsMemory)));
 	}
 
 
@@ -574,7 +574,7 @@ void FD3D12Device::InitD3DDevice()
 		if (bWithD3DDebug)
 		{
 			TRefCountPtr<ID3D12Debug> DebugController;
-			VERIFYD3D11RESULT(D3D12GetDebugInterface(IID_PPV_ARGS(DebugController.GetInitReference())));
+			VERIFYD3D12RESULT(D3D12GetDebugInterface(IID_PPV_ARGS(DebugController.GetInitReference())));
 			DebugController->EnableDebugLayer();
 
 			UE_LOG(LogD3D12RHI, Log, TEXT("InitD3DDevice: -D3DDebug = %s"), bWithD3DDebug ? TEXT("on") : TEXT("off"));
@@ -598,7 +598,7 @@ void FD3D12Device::InitD3DDevice()
                         DriverType = D3D_DRIVER_TYPE_REFERENCE;
                     }
 
-                    VERIFYD3D11RESULT(EnumAdapter->QueryInterface(_uuidof(DxgiAdapter3), (void **)DxgiAdapter3.GetInitReference()));
+					VERIFYD3D12RESULT(EnumAdapter->QueryInterface(_uuidof(DxgiAdapter3), (void **)DxgiAdapter3.GetInitReference()));
                 }
                 else
                 {
@@ -616,10 +616,10 @@ void FD3D12Device::InitD3DDevice()
 		if (FParse::Param(FCommandLine::Get(), TEXT("warp")))
 		{
 			TRefCountPtr<IDXGIAdapter> WarpAdapter;
-			VERIFYD3D11RESULT(DXGIFactory->EnumWarpAdapter(IID_PPV_ARGS(WarpAdapter.GetInitReference())));
+			VERIFYD3D12RESULT(DXGIFactory->EnumWarpAdapter(IID_PPV_ARGS(WarpAdapter.GetInitReference())));
 
 			// Creating the Direct3D WARP device.
-			VERIFYD3D11RESULT(D3D12CreateDevice(
+			VERIFYD3D12RESULT(D3D12CreateDevice(
 				WarpAdapter,
 				GetFeatureLevel(),
 				IID_PPV_ARGS(Direct3DDevice.GetInitReference())
@@ -629,7 +629,7 @@ void FD3D12Device::InitD3DDevice()
 		else
 		{
 			// Creating the Direct3D device.
-			VERIFYD3D11RESULT(D3D12CreateDevice(
+			VERIFYD3D12RESULT(D3D12CreateDevice(
 				Adapter,
 				GetFeatureLevel(),
 				IID_PPV_ARGS(Direct3DDevice.GetInitReference())
@@ -641,8 +641,8 @@ void FD3D12Device::InitD3DDevice()
             CD3DX12_ROOT_SIGNATURE_DESC NullRSDesc;
             NullRSDesc.Init(0, nullptr, 0);
             TRefCountPtr<ID3DBlob> Blob;
-            VERIFYD3D11RESULT(D3D12SerializeRootSignature(&NullRSDesc, D3D_ROOT_SIGNATURE_VERSION_1, Blob.GetInitReference(), nullptr));
-            VERIFYD3D11RESULT(Direct3DDevice->CreateRootSignature(0, Blob->GetBufferPointer(), Blob->GetBufferSize(), IID_PPV_ARGS(NullRS.GetInitReference())));
+			VERIFYD3D12RESULT(D3D12SerializeRootSignature(&NullRSDesc, D3D_ROOT_SIGNATURE_VERSION_1, Blob.GetInitReference(), nullptr));
+			VERIFYD3D12RESULT(Direct3DDevice->CreateRootSignature(0, Blob->GetBufferPointer(), Blob->GetBufferSize(), IID_PPV_ARGS(NullRS.GetInitReference())));
         }
 
 #if UE_BUILD_DEBUG	
@@ -664,7 +664,7 @@ void FD3D12Device::InitD3DDevice()
 		check(ActualFeatureLevel == GetFeatureLevel());
 
 		D3D12_FEATURE_DATA_D3D12_OPTIONS D3D12Caps;
-		VERIFYD3D11RESULT(GetDevice()->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &D3D12Caps, sizeof(D3D12Caps)));
+		VERIFYD3D12RESULT(GetDevice()->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &D3D12Caps, sizeof(D3D12Caps)));
 		ResourceHeapTier = D3D12Caps.ResourceHeapTier;
 
 		// Init offline descriptor allocators
@@ -679,15 +679,16 @@ void FD3D12Device::InitD3DDevice()
 		OcclusionQueryHeap.Init();
 
 		// Create the main set of command lists used for rendering a frame
-		CommandListManager.Create();
-		CopyCommandListManager.Create();
+		CommandListManager.Create(L"3D Queue");
+		CopyCommandListManager.Create(L"Copy Queue");
+		AsyncCommandListManager.Create(L"Async Compute Queue");
 
 #if !(UE_BUILD_SHIPPING && WITH_EDITOR)
 		// Add some filter outs for known debug spew messages (that we don't care about)
 		if (D3D12RHI_ShouldCreateWithD3DDebug())
 		{
 			ID3D12InfoQueue *pd3dInfoQueue = NULL;
-            VERIFYD3D11RESULT(Direct3DDevice->QueryInterface(__uuidof(ID3D12InfoQueue), (void**)&pd3dInfoQueue));
+			VERIFYD3D12RESULT(Direct3DDevice->QueryInterface(__uuidof(ID3D12InfoQueue), (void**)&pd3dInfoQueue));
 			if (pd3dInfoQueue)
 			{
 				D3D12_INFO_QUEUE_FILTER NewFilter;
@@ -849,7 +850,7 @@ bool FD3D12DynamicRHI::RHIGetAvailableResolutions(FScreenResolutionArray& Resolu
 		checkf(NumModes > 0, TEXT("No display modes found for the standard format DXGI_FORMAT_R8G8B8A8_UNORM!"));
 
 		DXGI_MODE_DESC* ModeList = new DXGI_MODE_DESC[NumModes];
-		VERIFYD3D11RESULT(Output->GetDisplayModeList(Format, 0, &NumModes, ModeList));
+		VERIFYD3D12RESULT(Output->GetDisplayModeList(Format, 0, &NumModes, ModeList));
 
 		for (uint32 m = 0; m < NumModes; m++)
 		{

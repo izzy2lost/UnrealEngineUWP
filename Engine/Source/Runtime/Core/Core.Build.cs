@@ -79,7 +79,7 @@ public class Core : ModuleRules
 		{
 			PublicIncludePaths.Add("Runtime/Core/Public/UWP");
 
-			AddThirdPartyPrivateStaticDependencies(Target,
+			AddEngineThirdPartyPrivateStaticDependencies(Target,
 				"IntelTBB",
 				"XInput"
 				);

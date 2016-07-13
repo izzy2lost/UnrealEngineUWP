@@ -275,7 +275,7 @@ namespace UnrealBuildTool
 					string WinMDFile = Path.ChangeExtension(SourcePath, "winmd");
 					if (File.Exists(WinMDFile))
 					{
-						string DestPath = Dep.StagePath ?? Dep.Path;
+						string DestPath = Dep.Path;
 						DestPath = Utils.ExpandVariables(DestPath, DestVariables);
 						DestPath = Utils.MakePathRelativeTo(DestPath, DestRelativeTo);
 						WinMDReferences.Add(new WinMDRegistrationInfo(new FileReference(WinMDFile), DestPath));
@@ -338,7 +338,16 @@ namespace UnrealBuildTool
             foreach (var RuntimeDep in Dependencies)
             {
                 string SourcePath = Utils.ExpandVariables(RuntimeDep.Path, SourceVariables);
-                string DeployPath = Utils.ExpandVariables(RuntimeDep.StagePath ?? RuntimeDep.Path, DestVariables);
+                string DeployPath = Utils.ExpandVariables(RuntimeDep.Path, DestVariables);
+
+				// 4.12: Dependencies now support ... syntax for recursive directory traversal.
+				// Translate this to MSBuild syntax. 
+				if (SourcePath.Contains(@"..."))
+				{
+					SourcePath = SourcePath.Replace(@"...", @"**\*.*");
+					DeployPath = DeployPath.Replace(@"...", @"%(RecursiveDir)%(Filename)%(Extension)");
+				}
+
                 AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + SourcePath + @""">" + ProjectFileGenerator.NewLine);
                 AppXRecipeProjectFileContent.Append(@"          <PackagePath>" + DeployPath + "</PackagePath>" + ProjectFileGenerator.NewLine);
                 AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);

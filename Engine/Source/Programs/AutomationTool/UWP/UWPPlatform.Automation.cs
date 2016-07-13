@@ -76,7 +76,7 @@ namespace UWP.Automation
 			// Stage all the build products
 			foreach (StageTarget Target in SC.StageTargets)
 			{
-				SC.StageBuildProductsFromReceipt(Target.Receipt, Target.RequireFilesExist);
+				SC.StageBuildProductsFromReceipt(Target.Receipt, Target.RequireFilesExist, Params.bTreatNonShippingBinariesAsDebugFiles);
 				DeployHandler.AddWinMDReferencesFromReceipt(Target.Receipt, Params.RawProjectPath.Directory, SC.LocalRoot);
 			}
 

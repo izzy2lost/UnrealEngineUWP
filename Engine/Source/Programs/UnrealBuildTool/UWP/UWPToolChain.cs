@@ -207,7 +207,6 @@ namespace UnrealBuildTool
 			if (CompileEnvironment.Config.bCreateDebugInfo)
 			{
 				// Store debug info in .pdb files.
-				// @todo clang: PDB files are emited from Clang but do not fully work with Visual Studio yet (breakpoints won't hit due to "symbol read error")
 				if (BuildConfiguration.bUsePDBFiles)
 				{
 					// Create debug info suitable for E&C if wanted.

@@ -50,4 +50,6 @@ typedef FUWPProcess FPlatformProcess;
 
 #include "../UWP/UWPCriticalSection.h"
 typedef FUWPCriticalSection FCriticalSection;
+typedef FSystemWideCriticalSectionNotImplemented FSystemWideCriticalSection;
+
 

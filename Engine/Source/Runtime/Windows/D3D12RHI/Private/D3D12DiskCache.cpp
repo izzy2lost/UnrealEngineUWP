@@ -41,7 +41,9 @@ void FDiskCacheInterface::Init(FString &filename)
 	else
 	{
 		WIN32_FIND_DATA fileData;
-		FindFirstFile(mFileName.GetCharArray().GetData(), &fileData);
+		// @ATG_CHANGE : BEGIN UWP support
+		FindFirstFileEx(mFileName.GetCharArray().GetData(), FindExInfoBasic, &fileData, FindExSearchNameMatch, nullptr, 0ul);
+		// @ATG_CHANGE : END
 		if (GetLastError() == ERROR_FILE_NOT_FOUND)
 		{
 			mCacheExists = false;
@@ -104,7 +106,16 @@ void FDiskCacheInterface::GrowMapping(SIZE_T size, bool firstrun)
 
 	uint32 flag = (mCacheExists) ? OPEN_EXISTING : CREATE_NEW;
 	// open the shader cache file
+	// @ATG_CHANGE : BEGIN UWP support
+#if _WIN32_WINNT < 0x0602
+	// legacy fallback when building for windows versions that don't have CreateFile2
 	mFile = CreateFile(mFileName.GetCharArray().GetData(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, flag, FILE_ATTRIBUTE_NORMAL, NULL);
+#else
+	CREATEFILE2_EXTENDED_PARAMETERS exparams = { 0 };
+	exparams.dwFileAttributes = FILE_ATTRIBUTE_NORMAL;
+	mFile = CreateFile2(mFileName.GetCharArray().GetData(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, flag, &exparams);
+#endif
+	// @ATG_CHANGE : END
 	if (mFile == INVALID_HANDLE_VALUE)
 	{
 		//error state!
@@ -114,8 +125,11 @@ void FDiskCacheInterface::GrowMapping(SIZE_T size, bool firstrun)
 
 	mCacheExists = true;
 
-	uint32 fileSize = GetFileSize(mFile, NULL);
-	if (fileSize == 0)
+	// @ATG_CHANGE : BEGIN UWP support
+	LARGE_INTEGER fileSize;
+	GetFileSizeEx(mFile, &fileSize);
+	if (fileSize.QuadPart == 0)
+	// @ATG_CHANGE : END
 	{
 		byte data[64];
 		FMemory::Memset(data, NULL, _countof(data));
@@ -124,7 +138,9 @@ void FDiskCacheInterface::GrowMapping(SIZE_T size, bool firstrun)
 	}
 	else if (firstrun)
 	{
-		mCurrentFileMapSize = fileSize;
+		// @ATG_CHANGE : BEGIN UWP support
+		mCurrentFileMapSize = fileSize.QuadPart;
+		// @ATG_CHANGE : END
 	}
 
 	mMemoryMap = CreateFileMapping(mFile, NULL, PAGE_READWRITE, 0, (uint32)mCurrentFileMapSize, NULL);

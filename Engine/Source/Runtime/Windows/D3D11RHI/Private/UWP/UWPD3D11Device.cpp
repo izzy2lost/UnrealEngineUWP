@@ -292,7 +292,7 @@ FDynamicRHI* FD3D11DynamicRHIModule::CreateRHI()
 	SafeCreateDXGIFactory(DXGIFactory.GetInitReference());
 	check(DXGIFactory);
 
-	FDynamicRHI* DynamicRHI = new FD3D11DynamicRHI(DXGIFactory,D3D_FEATURE_LEVEL_11_0,ChosenAdapter.AdapterIndex);
+	FDynamicRHI* DynamicRHI = new FD3D11DynamicRHI(DXGIFactory,D3D_FEATURE_LEVEL_11_0,ChosenAdapter.AdapterIndex,ChosenDescription);
 	if (DynamicRHI)
 	{
 		// Initialize the RHI capabilities.
@@ -440,6 +440,43 @@ bool FD3D11DynamicRHI::RHIGetAvailableResolutions(FScreenResolutionArray& Resolu
 void FD3D11DynamicRHI::Init()
 {
 	InitD3DDevice();
+}
+
+void FD3D11DynamicRHI::FlushPendingLogs()
+{
+#if !UE_BUILD_SHIPPING
+	if (D3D11RHI_ShouldCreateWithD3DDebug())
+	{
+		TRefCountPtr<ID3D11InfoQueue> InfoQueue = nullptr;
+		VERIFYD3D11RESULT(Direct3DDevice->QueryInterface(IID_ID3D11InfoQueue, (void**)InfoQueue.GetInitReference()));
+		if (InfoQueue)
+		{
+			FString FullMessage;
+			uint64 NumMessages = InfoQueue->GetNumStoredMessagesAllowedByRetrievalFilter();
+			for (uint64 Index = 0; Index < NumMessages; ++Index)
+			{
+				SIZE_T Length = 0;
+				if (SUCCEEDED(InfoQueue->GetMessage(Index, nullptr, &Length)))
+				{
+					TArray<uint8> Bytes;
+					Bytes.AddUninitialized((int32)Length);
+					D3D11_MESSAGE* Message = (D3D11_MESSAGE*)Bytes.GetData();
+					if (SUCCEEDED(InfoQueue->GetMessage(Index, Message, &Length)))
+					{
+						FullMessage += TEXT("\n\t");
+						FullMessage += Message->pDescription;
+					}
+				}
+			}
+
+			if (FullMessage.Len() > 0)
+			{
+				UE_LOG(LogD3D11RHI, Warning, TEXT("d3debug warnings/errors found:%s"), *FullMessage);
+			}
+			InfoQueue->ClearStoredMessages();
+		}
+	}
+#endif
 }
 
 void FD3D11DynamicRHI::InitD3DDevice()

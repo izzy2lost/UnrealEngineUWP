@@ -67,7 +67,7 @@ void FD3D12Viewport::Init(IDXGIFactory4* Factory, bool AssociateWindow)
 		ID3D12CommandQueue* CommandQueue = GetParentDevice()->GetCommandListManager().GetD3DCommandQueue();
 
 		//VERIFYD3D11RESULT(Factory->CreateSwapChain(CommandQueue, &SwapChainDesc, SwapChain.GetInitReference()));
-        VERIFYD3D11RESULT(Factory->CreateSwapChainForCoreWindow(
+        VERIFYD3D12RESULT(Factory->CreateSwapChainForCoreWindow(
             CommandQueue,
             reinterpret_cast< IUnknown* >(CoreWindow::GetForCurrentThread()),
             &SwapChainDesc,
@@ -75,7 +75,7 @@ void FD3D12Viewport::Init(IDXGIFactory4* Factory, bool AssociateWindow)
             SwapChain.GetInitReference()
             ));
 
-		VERIFYD3D11RESULT(SwapChain->QueryInterface(IID_PPV_ARGS(SwapChain3.GetInitReference())));
+		VERIFYD3D12RESULT(SwapChain->QueryInterface(IID_PPV_ARGS(SwapChain3.GetInitReference())));
 	}
 
     if (AssociateWindow)
