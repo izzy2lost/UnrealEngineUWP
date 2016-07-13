@@ -66,9 +66,11 @@ void LoadPhysXModules()
 				FString RootAPEXPath(APEXBinariesRoot + TEXT("Win64/VS2015/"));
 			#endif
 			// @ATG_CHANGE : END
-		#else
+		#elif _MSC_VER >= 1800
 			FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win64/VS2013/"));
 			FString RootAPEXPath(APEXBinariesRoot + TEXT("Win64/VS2013/"));
+		#else
+			#error "Unrecognized Visual Studio version."
 		#endif
 
 		#if UE_BUILD_DEBUG && !defined(NDEBUG)	// Use !defined(NDEBUG) to check to see if we actually are linking with Debug third party libraries (bDebugBuildsActuallyUseDebugCRT)
@@ -141,7 +143,7 @@ void LoadPhysXModules()
 			#endif	//WITH_APEX
 
 		#endif	//UE_BUILD_DEBUG
-	#else	//PLATFORM_64BITS
+	#else	//!PLATFORM_64BITS
 
 		#if _MSC_VER >= 1900
 			// @ATG_CHANGE : BEGIN UWP support
@@ -157,8 +159,7 @@ void LoadPhysXModules()
 			FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win32/VS2013/"));
 			FString RootAPEXPath(APEXBinariesRoot + TEXT("Win32/VS2013/"));
 		#else
-			FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win32/VS2012/"));
-			FString RootAPEXPath(APEXBinariesRoot + TEXT("Win32/VS2012/"));
+			#error "Unrecognized Visual Studio version."
 		#endif
 
 		#if UE_BUILD_DEBUG && !defined(NDEBUG)	// Use !defined(NDEBUG) to check to see if we actually are linking with Debug third party libraries (bDebugBuildsActuallyUseDebugCRT)

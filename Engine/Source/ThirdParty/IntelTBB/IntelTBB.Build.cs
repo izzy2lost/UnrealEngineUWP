@@ -15,41 +15,39 @@ public class IntelTBB : ModuleRules
             (Target.Platform == UnrealTargetPlatform.UWP64))
 // @ATG_CHANGE : END
 		{
-			string IntelTBBPath = UEBuildConfiguration.UEThirdPartySourceDirectory + "IntelTBB/IntelTBB-4.0/";
+			string IntelTBBPath = UEBuildConfiguration.UEThirdPartySourceDirectory + "IntelTBB/";
+			switch (WindowsPlatform.Compiler)
+			{
+				case WindowsCompiler.VisualStudio2015: IntelTBBPath += "IntelTBB-4.4u3/"; break;
+				case WindowsCompiler.VisualStudio2013: IntelTBBPath += "IntelTBB-4.0/"; break;
+			}
+
 			PublicSystemIncludePaths.Add(IntelTBBPath + "Include");
 
 // @ATG_CHANGE : BEGIN UWP support
 			if ((Target.Platform == UnrealTargetPlatform.Win64) || (Target.Platform == UnrealTargetPlatform.UWP64))
 // @ATG_CHANGE : END
 			{
-				if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2013)
-				{
-					PublicLibraryPaths.Add(IntelTBBPath + "lib/Win64/vc12");
-				}
-				else if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2012)
-				{
-					PublicLibraryPaths.Add(IntelTBBPath + "lib/Win64/vc11");
-				}
-				else if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015)
+				if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015)
 				{
 					PublicLibraryPaths.Add(IntelTBBPath + "lib/Win64/vc14");
+				}
+				else if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2013)
+				{
+					PublicLibraryPaths.Add(IntelTBBPath + "lib/Win64/vc12");
 				}
 			}
 // @ATG_CHANGE : BEGIN  UWP support
 			else if ((Target.Platform == UnrealTargetPlatform.Win32) || (Target.Platform == UnrealTargetPlatform.UWP32))
 // @ATG_CHANGE : END
 			{
-				if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2013)
-				{
-					PublicLibraryPaths.Add(IntelTBBPath + "lib/Win32/vc12");
-				}
-				else if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2012)
-				{
-					PublicLibraryPaths.Add(IntelTBBPath + "lib/Win32/vc11");
-				}
-				else if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015)
+				if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015)
 				{
 					PublicLibraryPaths.Add(IntelTBBPath + "lib/Win32/vc14");
+				}
+				else if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2013)
+				{
+					PublicLibraryPaths.Add(IntelTBBPath + "lib/Win32/vc12");
 				}
 			}
 

@@ -116,6 +116,7 @@
     <Compile Include="Mac\UEBuildMac.cs" />
     <Compile Include="Mac\MacProjectGenerator.cs" />
     <Compile Include="Mac\UEDeployMac.cs" />
+    <Compile Include="System\CustomBuildSteps.cs" />
     <Compile Include="System\FileSystemReference.cs" />
     <Compile Include="System\InstalledPlatformInfo.cs" />
     <Compile Include="System\TargetReceipt.cs" />
@@ -132,6 +133,7 @@
     <Compile Include="Android\AndroidProjectGenerator.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Utilities\HashSetExtensions.cs" />
     <Compile Include="UWP\UEBuildUWP.cs" />
     <Compile Include="UWP\UWPDeploy.cs" />
     <Compile Include="UWP\UWPProjectGenerator.cs" />
@@ -259,7 +261,6 @@
     <Compile Include="ToolChain\RemoteToolChain.cs" />
     <Compile Include="ToolChain\UEToolChain.cs" />
     <Compile Include="System\XGE.cs" />
-    <Compile Include="Utilities\CopyrightVerify.cs" />
     <Compile Include="Utilities\DictionaryExtensions.cs" />
     <Compile Include="Utilities\GraphVisualization.cs">
       <SubType>Code</SubType>

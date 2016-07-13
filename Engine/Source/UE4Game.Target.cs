@@ -64,7 +64,7 @@ public class UE4GameTarget : TargetRules
 		switch(HostPlatform)
 		{
 			case UnrealTargetPlatform.Mac:
-				Platforms = new List<UnrealTargetPlatform> { HostPlatform, UnrealTargetPlatform.IOS };
+				Platforms = new List<UnrealTargetPlatform> { HostPlatform, UnrealTargetPlatform.IOS, UnrealTargetPlatform.TVOS };
 				break;
 
 			case UnrealTargetPlatform.Linux:
@@ -73,7 +73,7 @@ public class UE4GameTarget : TargetRules
 
 			case UnrealTargetPlatform.Win64:
 // @ATG_CHANGE : BEGIN UWP support
-				Platforms = new List<UnrealTargetPlatform> { HostPlatform, UnrealTargetPlatform.UWP64, UnrealTargetPlatform.Win32, UnrealTargetPlatform.UWP32, UnrealTargetPlatform.IOS, UnrealTargetPlatform.XboxOne, UnrealTargetPlatform.PS4, UnrealTargetPlatform.Android, UnrealTargetPlatform.Linux, UnrealTargetPlatform.HTML5 };
+				Platforms = new List<UnrealTargetPlatform> { HostPlatform, UnrealTargetPlatform.UWP64, UnrealTargetPlatform.Win32, UnrealTargetPlatform.UWP32, UnrealTargetPlatform.IOS, UnrealTargetPlatform.TVOS, UnrealTargetPlatform.XboxOne, UnrealTargetPlatform.PS4, UnrealTargetPlatform.Android, UnrealTargetPlatform.Linux, UnrealTargetPlatform.HTML5 };
 // @ATG_CHANGE : END
 				break;
 
@@ -93,7 +93,7 @@ public class UE4GameTarget : TargetRules
 		List<UnrealTargetConfiguration> Platforms = new List<UnrealTargetConfiguration>();
 		if(HostPlatform == UnrealTargetPlatform.Mac)
 		{
-			if(Platform == UnrealTargetPlatform.Mac || Platform == UnrealTargetPlatform.IOS)
+			if(Platform == UnrealTargetPlatform.Mac || Platform == UnrealTargetPlatform.IOS || Platform == UnrealTargetPlatform.TVOS)
 			{
 				Platforms.Add(UnrealTargetConfiguration.Development);
 				Platforms.Add(UnrealTargetConfiguration.Shipping);

@@ -13,6 +13,7 @@ public class RHI : ModuleRules
 		{
             DynamicallyLoadedModuleNames.Add("NullDrv");
 
+			// UEBuildAndroid.cs adds VulkanRHI for Android builds if it is enabled
 // @ATG_CHANGE : BEGIN UWP support
             if ((Target.Platform == UnrealTargetPlatform.Win32) || 
                 (Target.Platform == UnrealTargetPlatform.Win64) ||
@@ -24,14 +25,13 @@ public class RHI : ModuleRules
 
 				//#todo-rco: D3D12 requires different SDK headers not compatible with WinXP
 				DynamicallyLoadedModuleNames.Add("D3D12RHI");
+            }
 
-//#todo-rco: Remove when public
-/*				string VulkanSDKPath = Environment.GetEnvironmentVariable("VK_SDK_PATH");
-				if (!String.IsNullOrEmpty(VulkanSDKPath))
-				{
-					DynamicallyLoadedModuleNames.Add("VulkanRHI");
-				}
-*/			}
+			if ((Target.Platform == UnrealTargetPlatform.Win64) ||
+				(Target.Platform == UnrealTargetPlatform.Win32))
+            {
+				DynamicallyLoadedModuleNames.Add("VulkanRHI");
+			}
 
 			if ((Target.Platform == UnrealTargetPlatform.Win32) ||
 				(Target.Platform == UnrealTargetPlatform.Win64) ||
@@ -41,7 +41,7 @@ public class RHI : ModuleRules
 			{
 				DynamicallyLoadedModuleNames.Add("OpenGLDrv");
 			}
-		}
+        }
 
 		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
 		{

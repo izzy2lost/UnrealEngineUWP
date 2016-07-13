@@ -25,11 +25,11 @@ public class D3D11RHI : ModuleRules
 			}
 			);
 
-		AddThirdPartyPrivateStaticDependencies(Target, "DX11");
+		AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11");
 // @ATG_CHANGE : BEGIN UWP support
 		if (Target.Platform != UnrealTargetPlatform.UWP64 && Target.Platform != UnrealTargetPlatform.UWP32)
 		{ 
-			AddThirdPartyPrivateStaticDependencies(Target, "NVAPI");
+        	AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
 		}
 // @ATG_CHANGE : END
 

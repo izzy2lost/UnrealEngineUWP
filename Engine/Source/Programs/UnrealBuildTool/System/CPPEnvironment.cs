@@ -365,7 +365,7 @@ namespace UnrealBuildTool
 		/// A list of additional frameworks whose include paths are needed.
 		/// </summary>
 		public List<UEBuildFramework> AdditionalFrameworks = new List<UEBuildFramework>();
-
+		
 		// @ATG_CHANGE : BEGIN winmd support
 		/// <summary>
 		/// List of winmd files that the source depends on
@@ -373,10 +373,10 @@ namespace UnrealBuildTool
 		public List<string> WinMDReferences = new List<string>();
 		// @ATG_CHANGE : END
 
-		/// <summary>
-		/// Default constructor.
-		/// </summary>
-		public CPPEnvironmentConfiguration()
+        /// <summary>
+        /// Default constructor.
+        /// </summary>
+        public CPPEnvironmentConfiguration()
 		{
 		}
 

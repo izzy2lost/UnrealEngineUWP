@@ -21,16 +21,16 @@ public class D3D12RHI : ModuleRules
 				"RHI",
 				"RenderCore",
 				"ShaderCore",
-                "UtilityShaders",
+				"UtilityShaders",
 			}
 			);
 
-        AddThirdPartyPrivateStaticDependencies(Target, "DX12");
-		AddThirdPartyPrivateStaticDependencies(Target, "DX11");
+		AddEngineThirdPartyPrivateStaticDependencies(Target, "DX12");
+		AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11");
 		// @ATG_CHANGE : BEGIN UWP support
 		if (Target.Platform != UnrealTargetPlatform.UWP64 && Target.Platform != UnrealTargetPlatform.UWP32)
 		{
-			AddThirdPartyPrivateStaticDependencies(Target, "NVAPI");
+			AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
 		}
 		// @ATG_CHANGE : END
 
@@ -39,9 +39,22 @@ public class D3D12RHI : ModuleRules
 			PrivateIncludePathModuleNames.AddRange(new string[] { "TaskGraph" });
 		}
 
-        Definitions.Add("SUB_ALLOCATED_DEFAULT_ALLOCATIONS=1");
+		Definitions.Add("SUB_ALLOCATED_DEFAULT_ALLOCATIONS=1");
+		Definitions.Add("DEBUG_RESOURCE_STATES=0");
 
-		// Not fully implemented yet.
-        Definitions.Add("SUPPORTS_MEMORY_RESIDENCY=0");
+		Definitions.Add("ENABLE_RESIDENCY_MANAGEMENT=1");
+		// How many residency packets can be in flight before the rendering thread
+		// blocks for them to drain. Should be ~ NumBufferedFrames * AvgNumSubmissionsPerFrame i.e.
+		// enough to ensure that the GPU is rarely blocked by residency work
+		 Definitions.Add("RESIDENCY_PIPELINE_DEPTH=6");
+
+		// DX11 doesn't support higher MSAA count
+		Definitions.Add("DX_MAX_MSAA_COUNT=8");
+
+		// This is a value that should be tweaked to fit the app, lower numbers will have better performance
+		Definitions.Add("MAX_SRVS=22");
+		Definitions.Add("MAX_CBS=8");
+
+		Definitions.Add("ASYNC_DEFERRED_DELETION=1");
 	}
 }

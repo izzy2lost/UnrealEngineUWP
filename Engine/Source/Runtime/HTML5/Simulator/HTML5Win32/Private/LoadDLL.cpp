@@ -28,7 +28,7 @@ void LoadPhysXDLL(const char* EngineRoot)
 // @ATG_CHANGE : BEGIN UWP support
 #if _MSC_VER >= 1900
     std::string  DllRoot  =   std::string(EngineRoot)  +  std::string("/Binaries/ThirdParty/PhysX/PhysX-3.3/Win32/VS2015/");
-#else
+#elif _MSC_VER >= 1800
     std::string  DllRoot  =   std::string(EngineRoot)  +  std::string("/Binaries/ThirdParty/PhysX/PhysX-3.3/Win32/VS2013/");
 #endif
 // @ATG_CHANGE : END
