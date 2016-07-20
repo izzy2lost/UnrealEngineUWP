@@ -7,9 +7,8 @@
 ###Summary###
 Microsoft has developed Universal Windows Platform (UWP) support for Unreal Engine 4, and has released the source code on GitHub as a fork of Epic Games' UE4 repository.  This code is now available to all UE4 licensees under the terms of the UE4 license, which provide for source code redistribution and use.
 
-####**This code is provided by Microsoft “as is” with no warranty.**####
-
-This information and other FAQ updates will be published to the Readme.MD file inside the repository itself.  Follow the instructions below to get access.  
+ - **This code is provided by Microsoft “as is” with no warranty.**
+ - This information and other FAQ updates will be published to the Readme.MD file inside the repository itself.  Follow the instructions below to get access.  
 
 ###Instructions to share with others###
 Access the UE4 UWP fork here:  https://github.com/MICROSOFT-XBOX-ATG/MICROSOFT_UWP_UNREAL
