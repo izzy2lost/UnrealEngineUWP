@@ -24,10 +24,8 @@ If you see a 404 page, you need to complete the enrollment process:
 This project is community-supported, with periodic updates from Microsoft’s Xbox Advanced Technology Group (ATG) to help accelerate game development for UWP.  Feel free to join the discussion on the Unreal Engine forums at:  https://forums.unrealengine.com/forumdisplay.php?29-Engine-Source-amp-GitHub.  Xbox program partners can ask questions on the forums at https://developer.xboxlive.com.  
 
 ####Getting Started with UWP Game Development####
-/li
  - New to UWP?  A general overview of UWP development, tooling (packaging, debugging), and requirements (Store configuration, publishing, etc.) is here:  https://developer.microsoft.com/en-us/windows/games/getstarted.  
  - Ready to build UWP games?  More game-specific, end to end UWP development guidance - curated by game developers for game developers - is included in the link above, but you can go directly to that guide here:  https://msdn.microsoft.com/windows/uwp/gaming/e2e
-/li
 
 ####Xbox Live####
 Xbox program partners can also request an Xbox Live-ready UWP branch of the Unreal 4 Engine through their Microsoft Developer Account Manager (DAM).
