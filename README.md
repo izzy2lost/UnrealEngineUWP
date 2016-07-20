@@ -1,9 +1,7 @@
  
 ##Unreal 4 Engine for Universal Windows Platform##
-
-Readme Updated 2016.07.20 @ 1:46PM
-
-Original UE4 Readme.MD is here:  https://github.com/EpicGames/UnrealEngine/blob/release/README.md
+***Readme Updated 2016.07.20 @ 1:46PM***
+**Original UE4 Readme.MD is here:**  https://github.com/EpicGames/UnrealEngine/blob/release/README.md
 
 ####Summary####
 Microsoft has developed Universal Windows Platform (UWP) support for Unreal Engine 4, and has released the source code on GitHub as a fork of Epic Games' UE4 repository.  This code is now available to all UE4 licensees under the terms of the UE4 license, which provide for source code redistribution and use.
