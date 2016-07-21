@@ -16,13 +16,9 @@ Access the UE4 UWP fork here:  https://github.com/MICROSOFT-XBOX-ATG/MICROSOFT_U
 If you see a 404 page, you need to complete the enrollment process:
 
 1.	[Create a GitHub account.](http://www.github.com/)
-
 2.	[Sign up for the Epic program](https://github.com/EpicGames/Signup)
-
 3.	[Follow the instructions to associate your Epic Program account with your GitHub account.](https://www.unrealengine.com/ue4-on-github)
-
 4.	[Join the Epic GitHub Org (from the email invitation you receive after Step 3)](https://github.com/EpicGames/UnrealEngine)
-
 5.	[Done!  You should be able to access the Microsoft UWP Unreal fork on GitHub](https://github.com/MICROSOFT-XBOX-ATG/MICROSOFT_UWP_UNREAL) and the [Readme.MD](https://github.com/MICROSOFT-XBOX-ATG/MICROSOFT_UWP_UNREAL/blob/release_uwp/README.md) with more information.
 
 ###Community & Support###
