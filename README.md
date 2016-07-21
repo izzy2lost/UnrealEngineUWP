@@ -36,7 +36,7 @@ This project is community-supported, with periodic updates from Microsoft’s Xb
 Xbox program partners can also request an Xbox Live-ready UWP branch of the Unreal 4 Engine through their Microsoft Developer Account Manager (DAM).
 
 Revisions:
-- 7/21.  Corrected "Unreal 4 Engine" to "Unreal Engine 4" [Clint Woon]
+- 7/21.  Corrected "Unreal 4 Engine" to "Unreal Engine 4", restored hyperlinks to the Instructions to Share with Others section [Clint Woon]
 
 ________________________________________
 
