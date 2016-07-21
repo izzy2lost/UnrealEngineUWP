@@ -1,5 +1,5 @@
  
-##Unreal 4 Engine for Universal Windows Platform##
+##Unreal Engine 4 for Universal Windows Platform##
 ***Readme Updated 2016.07.20 @ 1:46PM***
 
 **Original UE4 Readme.MD is here:**  https://github.com/EpicGames/UnrealEngine/blob/release/README.md
@@ -30,6 +30,9 @@ This project is community-supported, with periodic updates from Microsoft’s Xb
 
 ###Xbox Live###
 Xbox program partners can also request an Xbox Live-ready UWP branch of the Unreal 4 Engine through their Microsoft Developer Account Manager (DAM).
+
+Revisions:
+- 7/21.  Corrected "Unreal 4 Engine" to "Unreal Engine 4" [Clint Woon]
 
 ________________________________________
 
