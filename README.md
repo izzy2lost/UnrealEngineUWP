@@ -22,7 +22,9 @@ If you see a 404 page, you need to complete the enrollment process:
 5.	[Done!  You should be able to access the Microsoft UWP Unreal fork on GitHub](https://github.com/MICROSOFT-XBOX-ATG/MICROSOFT_UWP_UNREAL) and the [Readme.MD](https://github.com/MICROSOFT-XBOX-ATG/MICROSOFT_UWP_UNREAL/blob/release_uwp/README.md) with more information.
 
 ###Community & Support###
-This project is community-supported, with periodic updates from Microsoft’s Xbox Advanced Technology Group (ATG) to help accelerate game development for UWP.  Feel free to join the discussion on the Unreal Engine forums at:  https://forums.unrealengine.com/forumdisplay.php?29-Engine-Source-amp-GitHub.  Xbox program partners can ask questions on the forums at https://developer.xboxlive.com.  
+This project is community-supported, with periodic updates from Microsoft’s Xbox Advanced Technology Group (ATG) to help accelerate game development for UWP.  
+ - Feel free to join the discussion on the Unreal Engine forums at:  https://forums.unrealengine.com/forumdisplay.php?29-Engine-Source-amp-GitHub.  
+ - Xbox program partners can ask questions on the forums at https://developer.xboxlive.com.  
 
 ###Getting Started with UWP Game Development###
  - New to UWP?  A general overview of UWP development, tooling (packaging, debugging), and requirements (Store configuration, publishing, etc.) is here:  https://developer.microsoft.com/en-us/windows/games/getstarted.  
