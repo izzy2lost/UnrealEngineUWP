@@ -154,3 +154,6 @@ Saved/
 # Exception for third-party UWP binaries, since these are not obtained via Setup.bat
 !/Engine/Binaries/ThirdParty/**/UWP*/**
 !/Engine/Source/ThirdParty/**/UWP*/**
+
+# Exception for DirectX libs involved in legacy refactor
+!/Engine/Source/ThirdParty/Windows/DirectXLegacy/Lib/**
