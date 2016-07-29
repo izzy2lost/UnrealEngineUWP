@@ -157,3 +157,6 @@ Saved/
 
 # Exception for DirectX libs involved in legacy refactor
 !/Engine/Source/ThirdParty/Windows/DirectXLegacy/Lib/**
+
+# Exception for VS2015 opus libs
+!/Engine/Source/ThirdParty/libOpus/opus-1.1/win32/vs2015/**
