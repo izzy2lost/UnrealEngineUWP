@@ -104,8 +104,17 @@ void FUWPTargetSettingsCustomization::AddWidgetForResourceImage(IDetailLayoutBui
 	IDetailCategoryBuilder& PackagingCategoryBuilder = DetailBuilder.EditCategory(FName(*PropertyHandle->GetMetaData("Category")));
 	DetailBuilder.HideProperty(PropertyHandle);
 
+	static const FString DefaultImageSubPath = TEXT(".png");
 	FString ImageSubPath;
-	PropertyHandle->GetValue(ImageSubPath);
+	if (PropertyHandle->GetValue(ImageSubPath) == FPropertyAccess::Fail)
+	{
+		ImageSubPath = DefaultImageSubPath;
+	}
+	if (ImageSubPath.IsEmpty())
+	{
+		ImageSubPath = DefaultImageSubPath;
+	}
+
 	FString ProjectLogoPath = FPaths::GameDir() / ImageSubPath;
 
 	PackagingCategoryBuilder.AddCustomRow(PropertyHandle->GetPropertyDisplayName())
