@@ -217,14 +217,31 @@ namespace UnrealBuildTool
                 EngineIni.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "TitleId", out TitleId);
                 EngineIni.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "ServiceConfigId", out Scid);
 
-                using (JsonWriter XboxServicesConfig = new JsonWriter(Path.Combine(ProjectBinaryFolder, "xboxservices.config")))
-                {
-                    XboxServicesConfig.WriteObjectStart();
-                    XboxServicesConfig.WriteValue("TitleId", int.Parse(TitleId, System.Globalization.NumberStyles.HexNumber));
-                    XboxServicesConfig.WriteValue("PrimaryServiceConfigId", Scid);
-                    XboxServicesConfig.WriteObjectEnd();
-                }
-            }
+				bool HasTitleId = !string.IsNullOrEmpty(TitleId);
+				bool HasScid = !string.IsNullOrEmpty(Scid);
+				if (HasTitleId && HasScid)
+				{
+					using (JsonWriter XboxServicesConfig = new JsonWriter(Path.Combine(ProjectBinaryFolder, "xboxservices.config")))
+					{
+						int TitleIdAsInt;
+						if (int.TryParse(TitleId, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out TitleIdAsInt))
+						{
+							XboxServicesConfig.WriteObjectStart();
+							XboxServicesConfig.WriteValue("TitleId", TitleIdAsInt);
+							XboxServicesConfig.WriteValue("PrimaryServiceConfigId", Scid);
+							XboxServicesConfig.WriteObjectEnd();
+						}
+						else
+						{
+							Log.TraceError("Xbox Live Title Id was not in a recognized format.  Specify a 32 bit hex number (without leading 0x)");
+						}
+					}
+				}
+				else if (HasTitleId != HasScid)
+				{
+					Log.TraceWarning("Only one of TitleId and Scid was provided.  This is probably a configuration error.  Either both should exist, or neither.");
+				}
+			}
 
             return true;
 		}

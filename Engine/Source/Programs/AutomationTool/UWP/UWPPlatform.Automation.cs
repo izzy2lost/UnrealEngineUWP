@@ -90,9 +90,17 @@ namespace UWP.Automation
 			SC.StageFile(StagedFileType.NonUFS, Path.Combine(Params.ProjectBinariesFolder, "AppxManifest.xml"), "AppxManifest.xml");
 			SC.StageFile(StagedFileType.NonUFS, Path.Combine(Params.ProjectBinariesFolder, "resources.pri"), "resources.pri");
 
-            SC.StageFile(StagedFileType.NonUFS, Path.Combine(Params.ProjectBinariesFolder, "NetworkManifest.xml"), "NetworkManifest.xml");
-            SC.StageFile(StagedFileType.NonUFS, Path.Combine(Params.ProjectBinariesFolder, "xboxservices.config"), "xboxservices.config");
-        }
+			string SourceNetworkManifestPath = Path.Combine(Params.ProjectBinariesFolder, "NetworkManifest.xml");
+			if (File.Exists(SourceNetworkManifestPath))
+			{
+				SC.StageFile(StagedFileType.NonUFS, SourceNetworkManifestPath, "NetworkManifest.xml");
+			}
+			string SourceXboxConfigPath = Path.Combine(Params.ProjectBinariesFolder, "xboxservices.config");
+			if (File.Exists(SourceXboxConfigPath))
+			{
+				SC.StageFile(StagedFileType.NonUFS, SourceXboxConfigPath, "xboxservices.config");
+			}
+		}
 
         public override string GetCookPlatform(bool bDedicatedServer, bool bIsClientOnly, string CookFlavor)
 		{
