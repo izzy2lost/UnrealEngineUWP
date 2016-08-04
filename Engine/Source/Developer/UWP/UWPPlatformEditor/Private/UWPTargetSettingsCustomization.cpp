@@ -52,8 +52,19 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	IDetailCategoryBuilder& PackagingCategoryBuilder = DetailBuilder.EditCategory(FName(*SigningProperty->GetMetaData("Category")));
 	DetailBuilder.HideProperty(SigningProperty);
 
+	FString DefaultSigningSubPath = FString::Printf(TEXT("Build\\UWP\\%s.pfx"), *SigningProperty->GetPropertyDisplayName().ToString());
 	FString SubPath;
-	SigningProperty->GetValue(SubPath);
+	if (SigningProperty->GetValue(SubPath) == FPropertyAccess::Fail)
+	{
+		SubPath = DefaultSigningSubPath;
+		SigningProperty->SetValue(SubPath);
+	}
+	if (SubPath.IsEmpty())
+	{
+		SubPath = DefaultSigningSubPath;
+		SigningProperty->SetValue(SubPath);
+	}
+
 	FString ProjectPath = FPaths::GameDir() / SubPath;
 
 	PackagingCategoryBuilder.AddCustomRow(SigningProperty->GetPropertyDisplayName())
