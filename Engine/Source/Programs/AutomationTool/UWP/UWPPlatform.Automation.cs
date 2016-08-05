@@ -125,7 +125,7 @@ namespace UWP.Automation
 			if (!string.IsNullOrEmpty(SigningCertificate))
 			{
 				string SignToolPath = Path.Combine(SDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "signtool.exe");
-				string SignToolCommandLine = string.Format(@"sign /a /f ""{0}"" /fd SHA256 {1}", Path.Combine(SC.ProjectRoot, SigningCertificate), OutputAppX);
+				string SignToolCommandLine = string.Format(@"sign /a /f ""{0}"" /fd SHA256 ""{1}""", Path.Combine(SC.ProjectRoot, SigningCertificate), OutputAppX);
 				RunAndLog(CmdEnv, SignToolPath, SignToolCommandLine, null, 0, null, ERunOptions.None);
 			}
 			else
