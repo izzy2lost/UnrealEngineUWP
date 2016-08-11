@@ -161,7 +161,18 @@ namespace UnrealBuildTool
 				InBuildTarget.GlobalLinkEnvironment.Config.ExcludedLibraries.Add("LIBCPD");
 			}
 
-			InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("mincore.lib");
+			InBuildTarget.GlobalLinkEnvironment.Config.ExcludedLibraries.Add("ole32");
+
+			InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("windowsapp.lib");
+
+			// In the 10586 SDK TLS APIs are not inlined, but they're also not in windowsapp.lib
+			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0", false);
+			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder);
+			if (SDKVersion.Build == 10586)
+			{
+				InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("kernel32.lib");
+			}
+
 			InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("dloadhelper.lib");
             InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("ws2_32.lib");
 
