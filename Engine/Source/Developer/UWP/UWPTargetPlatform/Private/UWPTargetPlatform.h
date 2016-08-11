@@ -55,7 +55,7 @@ public:
 
 	virtual void GetTextureFormats(const UTexture* InTexture, TArray<FName>& OutFormats) const override
 	{
-		FName TextureFormatName = GetDefaultTextureFormatName(InTexture, EngineSettings, true);
+		FName TextureFormatName = GetDefaultTextureFormatName(InTexture, EngineSettings, false);
 		OutFormats.Add(TextureFormatName);
 	}
 
@@ -69,8 +69,10 @@ public:
 	virtual void GetAllPossibleShaderFormats(TArray<FName>& OutFormats) const override
 	{
 		static FName NAME_PCD3D_SM5(TEXT("PCD3D_SM5"));
+		static FName NAME_PCD3D_SM4(TEXT("PCD3D_SM4"));
 
 		OutFormats.AddUnique(NAME_PCD3D_SM5);
+		OutFormats.AddUnique(NAME_PCD3D_SM4);
 	}
 
 	virtual void GetAllTargetedShaderFormats(TArray<FName>& OutFormats) const override 

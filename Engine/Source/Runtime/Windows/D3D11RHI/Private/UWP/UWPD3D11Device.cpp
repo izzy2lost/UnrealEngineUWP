@@ -292,16 +292,7 @@ FDynamicRHI* FD3D11DynamicRHIModule::CreateRHI()
 	SafeCreateDXGIFactory(DXGIFactory.GetInitReference());
 	check(DXGIFactory);
 
-	FDynamicRHI* DynamicRHI = new FD3D11DynamicRHI(DXGIFactory,D3D_FEATURE_LEVEL_11_0,ChosenAdapter.AdapterIndex,ChosenDescription);
-	if (DynamicRHI)
-	{
-		// Initialize the RHI capabilities.
-		GMaxRHIShaderPlatform = SP_PCD3D_SM5;
-
-		// This will be set in the D3D11DynamicRHI::Init call!
-		//	GIsRHIInitialized = true;
-	}
-	return DynamicRHI;
+	return new FD3D11DynamicRHI(DXGIFactory, ChosenAdapter.MaxSupportedFeatureLevel,ChosenAdapter.AdapterIndex,ChosenDescription);
 }
 
 /**
