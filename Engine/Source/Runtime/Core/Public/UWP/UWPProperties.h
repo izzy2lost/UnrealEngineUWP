@@ -51,6 +51,11 @@ struct FUWPPlatformProperties : public FGenericPlatformProperties
 	{
 		return false; // Requires expand from G8 to RGBA
 	}
+
+	static FORCEINLINE bool SupportsQuit()
+	{
+		return true;
+	}
 };
 
 

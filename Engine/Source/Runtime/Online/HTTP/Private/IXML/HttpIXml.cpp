@@ -343,6 +343,14 @@ const FHttpResponsePtr FHttpRequestIXML::GetResponse() const
 //-----------------------------------------------------------------------------
 void FHttpRequestIXML::Tick(float DeltaSeconds)
 {
+	// IXML requests may need the app message pump operational
+	// in order to progress.  If the core engine loop is not
+	// running then we'll just pump messages ourselves.
+	if (!GIsRunning)
+	{
+		FPlatformMisc::PumpMessages(true);
+	}
+
 	// keep track of elapsed seconds
 	ElapsedTime += DeltaSeconds;
 	const float HttpTimeout = FHttpModule::Get().GetHttpTimeout();
