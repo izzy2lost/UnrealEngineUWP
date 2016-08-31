@@ -85,6 +85,9 @@ namespace UnrealBuildTool
 			// @todo UWP: Disable "unreachable code" warning since auto-included vccorlib.h triggers it
 			Arguments.Append(" /wd4702");
 
+			// Disable "usage of ATL attributes is deprecated" since WRL headers generate this
+			Arguments.Append(" /wd4467");
+
 			// @todo UWP: Silence the hash_map deprecation errors for now. This should be replaced with unordered_map for the real fix.
 			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015)
 			{
