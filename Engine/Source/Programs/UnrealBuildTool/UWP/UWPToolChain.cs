@@ -139,10 +139,9 @@ namespace UnrealBuildTool
 					}
 				}
 
-				// Runtime stack checks are not allowed when compiling for CLR
-//				if (CompileEnvironment.Config.CLRMode == CPPCLRMode.CLRDisabled)
+				if (BuildConfiguration.bDebugBuildsActuallyUseDebugCRT)
 				{
-					Arguments.Append(" /RTCs");
+					Arguments.Append(" /RTC1");
 				}
 			}
 			//
