@@ -341,7 +341,10 @@ void SWindow::Construct(const FArguments& InArgs)
 		WindowPosition.Y = FMath::Max(WindowPosition.Y, (float)PrimaryDisplayRect.Top);
 	}
 
-#if PLATFORM_HTML5 
+// @ATG_CHANGE : BEGIN UWP support
+// UWP needs similar treatment to HTML5 here.  Also note comments in FDisplayMetrics::GetDisplayMetrics for UWP.
+#if PLATFORM_HTML5 || PLATFORM_UWP
+// @ATG_CHANGE : END
 	// UE expects mouse coordinates in screen space. SDL/HTML5 canvas provides in client space. 
 	// Anchor the window at the top/left corner to make sure client space coordinates and screen space coordinates match up. 
 	WindowPosition.X =  WindowPosition.Y = 0; 

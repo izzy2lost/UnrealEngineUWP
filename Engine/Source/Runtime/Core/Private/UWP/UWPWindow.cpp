@@ -54,13 +54,24 @@ void FUWPWindow::ReshapeWindow(int32 X, int32 Y, int32 Width, int32 Height)
 	}
 }
 
+FPlatformRect FUWPWindow::GetOSWindowBounds()
+{
+	auto LowLevelWindow = Windows::ApplicationModel::Core::CoreApplication::GetCurrentView()->CoreWindow;
+	float Dpi = static_cast<uint32_t>(Windows::Graphics::Display::DisplayInformation::GetForCurrentView()->LogicalDpi);
+	FPlatformRect Bounds;
+	Bounds.Top = ConvertDipsToPixels(LowLevelWindow->Bounds.Top, Dpi);
+	Bounds.Left = ConvertDipsToPixels(LowLevelWindow->Bounds.Left, Dpi);
+	Bounds.Bottom = ConvertDipsToPixels(LowLevelWindow->Bounds.Bottom, Dpi);
+	Bounds.Right = ConvertDipsToPixels(LowLevelWindow->Bounds.Right, Dpi);
+	return Bounds;
+}
+
 void FUWPWindow::AdjustCachedSize(FVector2D& Size) const
 {
 	// Force SWindow size to match the bounds of the OS window, which we are not entirely in control of.
-	auto LowLevelWindow = Windows::UI::Core::CoreWindow::GetForCurrentThread();
-	float Dpi = static_cast<uint32_t>(Windows::Graphics::Display::DisplayInformation::GetForCurrentView()->LogicalDpi);
-	Size.X = ConvertDipsToPixels(LowLevelWindow->Bounds.Width, Dpi);
-	Size.Y = ConvertDipsToPixels(LowLevelWindow->Bounds.Height, Dpi);
+	FPlatformRect OSBounds = GetOSWindowBounds();
+	Size.X = OSBounds.Right - OSBounds.Left;
+	Size.Y = OSBounds.Bottom - OSBounds.Top;
 }
 
 void FUWPWindow::SetWindowMode(EWindowMode::Type InNewWindowMode)

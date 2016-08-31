@@ -22,6 +22,8 @@ public:
 	/** Init a FUWPWindow. */
 	void Initialize(class FUWPApplication* const Application, const TSharedRef<FGenericWindowDefinition>& InDefinition);
 
+	static FPlatformRect GetOSWindowBounds();
+
 public:
 	virtual void ReshapeWindow(int32 X, int32 Y, int32 Width, int32 Height) override;
 

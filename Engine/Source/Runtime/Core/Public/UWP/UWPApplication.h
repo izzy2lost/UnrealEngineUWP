@@ -12,6 +12,9 @@ public:
 
 	static FUWPApplication* GetUWPApplication();
 
+	static void CacheDesktopSize();
+
+	static FVector2D GetDesktopSize();
 
 public:	
 
@@ -44,4 +47,6 @@ private:
 	TSharedPtr< class FUWPInputInterface > InputInterface;
 
 	TSharedRef< class FUWPWindow > ApplicationWindow;
+
+	static FVector2D DesktopSize;
 };

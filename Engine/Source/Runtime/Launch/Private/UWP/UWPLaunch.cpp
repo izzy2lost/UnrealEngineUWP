@@ -460,6 +460,9 @@ void ViewProvider::Initialize(Windows::ApplicationModel::Core::CoreApplicationVi
 
 void ViewProvider::OnActivated(_In_ Windows::ApplicationModel::Core::CoreApplicationView^ applicationView, _In_ Windows::ApplicationModel::Activation::IActivatedEventArgs^ args)
 {
+	// Take advantage of this opportunity to measure the desktop (based on view bounds before window activation).
+	FUWPApplication::CacheDesktopSize();
+
 	// Activate the window
 	CoreWindow^ window = CoreWindow::GetForCurrentThread();
 	window->Activate();
@@ -672,7 +675,11 @@ bool ViewProvider::ProcessMouseEvent(Windows::UI::Core::PointerEventArgs^ args)
 		// process a cursor move unless we're using raw mouse deltas and a virtual cursor
 		if (!Application->GetCursor()->IsUsingRawMouseNoCursor())
 		{
-			const FVector2D CurrentCursorPosition(Point->Position.X, Point->Position.Y);
+			FVector2D CurrentCursorPosition(Point->Position.X, Point->Position.Y);
+			float Dpi = static_cast<uint32_t>(Windows::Graphics::Display::DisplayInformation::GetForCurrentView()->LogicalDpi);
+			CurrentCursorPosition.X = FUWPWindow::ConvertDipsToPixels(CurrentCursorPosition.X, Dpi);
+			CurrentCursorPosition.Y = FUWPWindow::ConvertDipsToPixels(CurrentCursorPosition.Y, Dpi);
+
 			Application->GetCursor()->UpdatePosition(CurrentCursorPosition);
 			Application->GetMessageHandler()->OnMouseMove();
 			Application->GetMessageHandler()->OnCursorSet();
