@@ -31,6 +31,8 @@ void FUWPTargetSettingsCustomization::InitSupportedPlatformVersions()
 	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.10240.0")));
 	// Windows 10 November 2015 update
 	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.10586.0")));
+	// Windows 10 Anniversary update
+	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.14393.0")));
 }
 
 void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
@@ -97,6 +99,7 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	AddWidgetForResourceImage(DetailBuilder, DetailBuilder.GetProperty("SmallLogo"), FVector2D(44.0f, 44.0f));
 	AddWidgetForResourceImage(DetailBuilder, DetailBuilder.GetProperty("WideLogo"), FVector2D(310.0f, 150.0f));
 	AddWidgetForResourceImage(DetailBuilder, DetailBuilder.GetProperty("SplashScreen"), FVector2D(310.0f, 150.0f));
+	AddWidgetForResourceImage(DetailBuilder, DetailBuilder.GetProperty("StoreLogo"), FVector2D(50.0f, 50.0f));
 
 	// Add UI to select tile and splash colors.
 	TSharedRef<IPropertyHandle> HexProperty = DetailBuilder.GetProperty("TileBackgroundColorHex");

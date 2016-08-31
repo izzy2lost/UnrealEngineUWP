@@ -61,6 +61,7 @@ public:
 		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("SmallLogo"), TargetSettings->SmallLogo, GEngineIni);
 		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("WideLogo"), TargetSettings->WideLogo, GEngineIni);
 		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("SplashScreen"), TargetSettings->SplashScreen, GEngineIni);
+		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("StoreLogo"), TargetSettings->StoreLogo, GEngineIni);
 		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("SigningCertificate"), TargetSettings->SigningCertificate, GEngineIni);
 		if (GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("TileBackgroundColorHex"), TargetSettings->TileBackgroundColorHex, GEngineIni))
 		{

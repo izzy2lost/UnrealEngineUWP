@@ -49,6 +49,9 @@ public:
 	FString SplashScreen;
 
 	UPROPERTY(EditAnywhere, config, Category = Packaging)
+	FString StoreLogo;
+
+	UPROPERTY(EditAnywhere, config, Category = Packaging)
 	FString TileBackgroundColorHex;
 
 	UPROPERTY(EditAnywhere, config, Category = Packaging)
