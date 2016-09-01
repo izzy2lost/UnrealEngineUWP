@@ -6,7 +6,8 @@
 
 PACK_WINRT()
 
-FUWPWindow::FUWPWindow()
+FUWPWindow::FUWPWindow() :
+	WindowMode(EWindowMode::Windowed)
 {
 }
 
@@ -23,6 +24,9 @@ TSharedRef< FUWPWindow > FUWPWindow::Make()
 
 void FUWPWindow::Initialize(FUWPApplication* const Application, const TSharedRef< FGenericWindowDefinition >& InDefinition)
 {
+	// Only 2 options in UWP: windowed and windowed fullscreen.
+	auto View = Windows::UI::ViewManagement::ApplicationView::GetForCurrentView();
+	WindowMode = View->IsFullScreenMode ? EWindowMode::WindowedFullscreen : EWindowMode::Windowed;
 }
 
 static const float DipsPerInch = 96.0f;
@@ -97,13 +101,13 @@ void FUWPWindow::SetWindowMode(EWindowMode::Type InNewWindowMode)
 		// Note that the attempt to go full-screen might fail!
 		// @todo: who's responsible for checking this and handling it?
 	}
+
+	WindowMode = View->IsFullScreenMode ? EWindowMode::WindowedFullscreen : EWindowMode::Windowed;
 }
 
 EWindowMode::Type FUWPWindow::GetWindowMode() const
 {
-	// Only 2 options in UWP: windowed and windowed fullscreen.
-	auto view = Windows::UI::ViewManagement::ApplicationView::GetForCurrentView();
-	return view->IsFullScreenMode ? EWindowMode::WindowedFullscreen : EWindowMode::Windowed;
+	return WindowMode;
 }
 
 PACK_WINRT_REVERT()

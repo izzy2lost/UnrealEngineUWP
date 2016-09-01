@@ -41,4 +41,7 @@ private:
 
 	/** Protect the constructor; only TSharedRefs of this class can be made. */
 	FUWPWindow();
+
+	/** The mode that the window is in (windowed, fullscreen, windowedfullscreen ) */
+	EWindowMode::Type WindowMode;
 };
