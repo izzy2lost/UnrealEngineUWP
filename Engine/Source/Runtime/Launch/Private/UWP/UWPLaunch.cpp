@@ -103,6 +103,21 @@ private:
 
 	bool bVisible;
 	bool bWindowClosed;
+
+	struct QueuedPointerEvent
+	{
+		QueuedPointerEvent(Windows::UI::Core::PointerEventArgs^ Args) :
+			RawPosition(Args->CurrentPoint->Position.X, Args->CurrentPoint->Position.Y),
+			Kind(Args->CurrentPoint->Properties->PointerUpdateKind)
+		{
+		}
+
+		FVector2D RawPosition;
+		Windows::UI::Input::PointerUpdateKind Kind;
+	};
+	bool ProcessMouseEvent(const QueuedPointerEvent& Event);
+
+	TArray<QueuedPointerEvent> PointerEventQueue;
 };
 
 ViewProvider^ GViewProvider = nullptr;
@@ -440,7 +455,14 @@ void ViewProvider::ProcessEvents()
 		}
 	}
 
-	Dispatching.clear( std::memory_order_release );
+	TArray<QueuedPointerEvent> LocalPointerEvents = PointerEventQueue;
+	PointerEventQueue.Empty();
+	Dispatching.clear(std::memory_order_release);
+
+	for (const QueuedPointerEvent& Args : LocalPointerEvents)
+	{
+		ProcessMouseEvent(Args);
+	}
 }
 
 void appWinPumpMessages()
@@ -668,6 +690,13 @@ bool ViewProvider::ProcessMouseEvent(Windows::UI::Core::PointerEventArgs^ args)
 	UE_LOG(LogLaunchUWP, Verbose, TEXT("ProcessMouseEvent %d = %5.2f, %5.2f - %s"),
 		intermediatePoints->Size, Point->Position.X, Point->Position.Y, GetPointerUpdateKindString(Kind));
 
+	PointerEventQueue.Add(QueuedPointerEvent(args));
+
+	return true;
+}
+
+bool ViewProvider::ProcessMouseEvent(const QueuedPointerEvent& Event)
+{
 	FUWPApplication* const Application = FUWPApplication::GetUWPApplication();
 
 	if (Application != NULL)
@@ -675,7 +704,7 @@ bool ViewProvider::ProcessMouseEvent(Windows::UI::Core::PointerEventArgs^ args)
 		// process a cursor move unless we're using raw mouse deltas and a virtual cursor
 		if (!Application->GetCursor()->IsUsingRawMouseNoCursor())
 		{
-			FVector2D CurrentCursorPosition(Point->Position.X, Point->Position.Y);
+			FVector2D CurrentCursorPosition = Event.RawPosition;
 			float Dpi = static_cast<uint32_t>(Windows::Graphics::Display::DisplayInformation::GetForCurrentView()->LogicalDpi);
 			CurrentCursorPosition.X = FUWPWindow::ConvertDipsToPixels(CurrentCursorPosition.X, Dpi);
 			CurrentCursorPosition.Y = FUWPWindow::ConvertDipsToPixels(CurrentCursorPosition.Y, Dpi);
@@ -685,10 +714,10 @@ bool ViewProvider::ProcessMouseEvent(Windows::UI::Core::PointerEventArgs^ args)
 			Application->GetMessageHandler()->OnCursorSet();
 		}
 		// process a button event if we know this update isn't just for movement
-		if (Kind != Windows::UI::Input::PointerUpdateKind::Other)
+		if (Event.Kind != Windows::UI::Input::PointerUpdateKind::Other)
 		{
 			bool bPressed = false;
-			EMouseButtons::Type MouseButton = PointerUpdateKindToUEKey(Kind, bPressed);
+			EMouseButtons::Type MouseButton = PointerUpdateKindToUEKey(Event.Kind, bPressed);
 			if (MouseButton != EMouseButtons::Type::Invalid)
 			{
 				if (bPressed == true)
