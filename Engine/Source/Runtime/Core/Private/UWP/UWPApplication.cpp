@@ -78,6 +78,16 @@ FPlatformRect FUWPApplication::GetWorkArea(const FPlatformRect& CurrentWindow) c
 	return WorkArea;
 }
 
+void FUWPApplication::GetInitialDisplayMetrics(FDisplayMetrics& OutDisplayMetrics) const
+{
+	FDisplayMetrics::GetDisplayMetrics(OutDisplayMetrics);
+
+	// The initial virtual display rect is used to constrain maximum window size, and
+	// so should report the full desktop resolution.  Later calls will report window
+	// size in order to apply a tightly fitting hit test structure.
+	OutDisplayMetrics.VirtualDisplayRect = OutDisplayMetrics.PrimaryDisplayWorkAreaRect;
+}
+
 void FUWPApplication::CacheDesktopSize()
 {
 	// Note this only works *before* the CoreWindow has been activated and received its first resize event.

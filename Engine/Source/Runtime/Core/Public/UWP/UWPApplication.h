@@ -33,6 +33,8 @@ public:
 	void SetMessageHandler( const TSharedRef< FGenericApplicationMessageHandler >& InMessageHandler ) override;
 	virtual void PumpMessages(const float TimeDelta) override;
 
+	virtual void GetInitialDisplayMetrics(FDisplayMetrics& OutDisplayMetrics) const override;
+
 	TSharedRef< class FUWPCursor > GetCursor() const;
 	TSharedPtr< class FUWPInputInterface > GetUWPInputInterface() const { return InputInterface; }
 

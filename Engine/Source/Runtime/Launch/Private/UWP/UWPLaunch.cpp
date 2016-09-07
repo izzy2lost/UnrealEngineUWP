@@ -69,6 +69,7 @@ public:
 	void OnPointerPressed(Windows::UI::Core::CoreWindow^ sender, Windows::UI::Core::PointerEventArgs^ args);
 	void OnPointerReleased(Windows::UI::Core::CoreWindow^ sender, Windows::UI::Core::PointerEventArgs^ args);
 	void OnPointerMoved(Windows::UI::Core::CoreWindow^ sender, Windows::UI::Core::PointerEventArgs^ args);
+	void OnPointerWheelChanged(Windows::UI::Core::CoreWindow^ sender, Windows::UI::Core::PointerEventArgs^ args);
 
 	bool IsVisible()
 	{
@@ -108,11 +109,13 @@ private:
 	{
 		QueuedPointerEvent(Windows::UI::Core::PointerEventArgs^ Args) :
 			RawPosition(Args->CurrentPoint->Position.X, Args->CurrentPoint->Position.Y),
+			WheelDelta(Args->CurrentPoint->Properties->MouseWheelDelta),
 			Kind(Args->CurrentPoint->Properties->PointerUpdateKind)
 		{
 		}
 
 		FVector2D RawPosition;
+		int32 WheelDelta;
 		Windows::UI::Input::PointerUpdateKind Kind;
 	};
 	bool ProcessMouseEvent(const QueuedPointerEvent& Event);
@@ -402,6 +405,11 @@ void ViewProvider::OnWindowSizeChanged(Windows::UI::Core::CoreWindow^ sender, Wi
 	FUWPApplication* pApplication = FUWPApplication::GetUWPApplication();
 	if (pApplication)
 	{
+		// Since we use the window size to define the virtual desktop size, we need to report display metrics changed here.
+		FDisplayMetrics DisplayMetrics;
+		FDisplayMetrics::GetDisplayMetrics(DisplayMetrics);
+		pApplication->OnDisplayMetricsChanged().Broadcast(DisplayMetrics);
+
 		TSharedPtr< FUWPWindow > pNativeWindow = pApplication->GetUWPWindow();
 		if (pNativeWindow.IsValid())
 		{
@@ -434,6 +442,10 @@ void ViewProvider::OnPointerMoved(Windows::UI::Core::CoreWindow^ sender, Windows
 	ProcessMouseEvent(args);
 }
 
+void ViewProvider::OnPointerWheelChanged(Windows::UI::Core::CoreWindow^ sender, Windows::UI::Core::PointerEventArgs^ args)
+{
+	ProcessMouseEvent(args);
+}
 
 void ViewProvider::ProcessEvents()
 {
@@ -455,7 +467,7 @@ void ViewProvider::ProcessEvents()
 		}
 	}
 
-	TArray<QueuedPointerEvent> LocalPointerEvents = PointerEventQueue;
+	TArray<QueuedPointerEvent> LocalPointerEvents(MoveTemp(PointerEventQueue));
 	PointerEventQueue.Empty();
 	Dispatching.clear(std::memory_order_release);
 
@@ -730,6 +742,11 @@ bool ViewProvider::ProcessMouseEvent(const QueuedPointerEvent& Event)
 				}
 			}
 		}
+
+		if (Event.WheelDelta != 0)
+		{
+			Application->GetMessageHandler()->OnMouseWheel(Event.WheelDelta / static_cast<float>(WHEEL_DELTA));
+		}
 	}
 
 	return true;
@@ -749,6 +766,7 @@ void ViewProvider::SetWindow(Windows::UI::Core::CoreWindow^ window)
 	window->PointerPressed += ref new TypedEventHandler<CoreWindow^, PointerEventArgs^>(this, &ViewProvider::OnPointerPressed);
 	window->PointerReleased += ref new TypedEventHandler<CoreWindow^, PointerEventArgs^>(this, &ViewProvider::OnPointerReleased);
 	window->PointerMoved += ref new TypedEventHandler<CoreWindow^, PointerEventArgs^>(this, &ViewProvider::OnPointerMoved);
+	window->PointerWheelChanged += ref new TypedEventHandler<CoreWindow^, PointerEventArgs^>(this, &ViewProvider::OnPointerWheelChanged);
 	window->Dispatcher->AcceleratorKeyActivated += ref new TypedEventHandler<CoreDispatcher ^, AcceleratorKeyEventArgs ^>(this, &ViewProvider::OnAcceleratorKeyActivated);
 }
 
