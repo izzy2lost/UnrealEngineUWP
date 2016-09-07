@@ -48,16 +48,20 @@ public:
 
     void ProcessDeferredActions();
 
+	void OnRawMouseMove(const FIntVector& MouseDelta);
+
 private:
+
+	void SetUseRawMouse(bool bUse);
 
     EMouseCursor::Type                                CurrentCursor = (EMouseCursor::Type) - 1;
     FVector2D                                         CursorPosition;
     bool                                              bUsingRawMouseNoCursor;
     bool                                              bDeferredCursorTypeChange;
-    
+	TArray<FIntVector>                                DeferredMoveEvents;
+
     /** Cursors */
     Platform::Array<Windows::UI::Core::CoreCursor^>^  Cursors;
-    FUWPCursorMouseEventObj^                       MouseEventObj;
+    FUWPCursorMouseEventObj^                          MouseEventObj;
     Windows::Foundation::EventRegistrationToken       MouseEventRegistrationToken;
-    Platform::Agile<Windows::Devices::Input::MouseDevice>             MouseDevice;
 };

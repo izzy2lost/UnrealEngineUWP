@@ -3,6 +3,7 @@
 #include "CorePrivatePCH.h"
 #include "UWPCursor.h"
 #include "UWPApplication.h"
+#include "UWPWindow.h"
 
 using namespace Windows::ApplicationModel::Core;
 using namespace Windows::UI::Core;
@@ -20,12 +21,11 @@ Windows::Foundation::TypedEventHandler<Windows::Devices::Input::MouseDevice ^, W
 
 void FUWPCursorMouseEventObj::OnMouseMoved(Windows::Devices::Input::MouseDevice ^sender, Windows::Devices::Input::MouseEventArgs ^args)
 {
-    FUWPApplication* const Application = FUWPApplication::GetUWPApplication();
-    if (Application != NULL)
-    {
-        Application->GetMessageHandler()->OnRawMouseMove(args->MouseDelta.X, args->MouseDelta.Y);
-        Application->GetMessageHandler()->OnCursorSet();
-    }
+	FUWPApplication* Application = FUWPApplication::GetUWPApplication();
+	if (Application != NULL)
+	{
+		Application->GetCursor()->OnRawMouseMove(FIntVector(args->MouseDelta.X, args->MouseDelta.Y, 0));
+	}
 }
 
 
@@ -35,8 +35,6 @@ FUWPCursor::FUWPCursor()
     MouseEventObj = ref new FUWPCursorMouseEventObj();
     bUsingRawMouseNoCursor = false;
     bDeferredCursorTypeChange = false;
-    MouseDevice = Windows::Devices::Input::MouseDevice::GetForCurrentView();
-    MouseEventRegistrationToken = MouseDevice->MouseMoved += MouseEventObj->GetMouseMovedHandler();
 
 	// Load up cursors that we'll be using
 	for( int32 CurCursorIndex = 0; CurCursorIndex < EMouseCursor::TotalCursorCount; ++CurCursorIndex )
@@ -169,13 +167,32 @@ void FUWPCursor::ProcessDeferredActions()
             window->PointerCursor = Cursors[CurrentCursor];
             if (CurrentCursor == EMouseCursor::None)
             {
-                bUsingRawMouseNoCursor = true;
-            }
+				SetUseRawMouse(true);
+			}
             bDeferredCursorTypeChange = false;
         }
     }
+
+	if (DeferredMoveEvents.Num() > 0)
+	{
+		FUWPApplication* Application = FUWPApplication::GetUWPApplication();
+		if (Application != nullptr)
+		{
+			float Dpi = static_cast<uint32_t>(Windows::Graphics::Display::DisplayInformation::GetForCurrentView()->LogicalDpi);
+			for (const FIntVector& MouseDelta : DeferredMoveEvents)
+			{
+				Application->GetMessageHandler()->OnRawMouseMove(FUWPWindow::ConvertDipsToPixels(MouseDelta.X, Dpi), FUWPWindow::ConvertDipsToPixels(MouseDelta.Y, Dpi));
+			}
+			Application->GetMessageHandler()->OnCursorSet();
+		}
+		DeferredMoveEvents.Empty();
+	}
 }
 
+void FUWPCursor::OnRawMouseMove(const FIntVector& MouseDelta)
+{
+	DeferredMoveEvents.Add(MouseDelta);
+}
 
 void FUWPCursor::SetType( const EMouseCursor::Type InNewCursor )
 {
@@ -185,8 +202,8 @@ void FUWPCursor::SetType( const EMouseCursor::Type InNewCursor )
 	{
         if (CurrentCursor == EMouseCursor::None)
         {
-            bUsingRawMouseNoCursor = false;
-        }
+			SetUseRawMouse(false);
+		}
 
         // if we're on the UI thread, change the cursor, otherwise queue a deferred change
         CoreWindow^ window = CoreWindow::GetForCurrentThread();
@@ -200,8 +217,8 @@ void FUWPCursor::SetType( const EMouseCursor::Type InNewCursor )
             // if switching to view-look-capture mode...
             if (InNewCursor == EMouseCursor::None)
             {
-                bUsingRawMouseNoCursor = true;
-            }
+				SetUseRawMouse(true);
+			}
 		}
         CurrentCursor = InNewCursor;
     }
@@ -224,6 +241,34 @@ void FUWPCursor::Show( bool bShow )
 
 void FUWPCursor::Lock( const RECT* const Bounds )
 {
+}
+
+void FUWPCursor::SetUseRawMouse(bool bUse)
+{
+	if (bUsingRawMouseNoCursor != bUse)
+	{
+		bUsingRawMouseNoCursor = bUse;
+
+		try
+		{
+			Windows::Devices::Input::MouseDevice^ LowLevelMouse = Windows::Devices::Input::MouseDevice::GetForCurrentView();
+			if (bUsingRawMouseNoCursor)
+			{
+				check(MouseEventRegistrationToken.Value == 0);
+				MouseEventRegistrationToken = (LowLevelMouse->MouseMoved += MouseEventObj->GetMouseMovedHandler());
+			}
+			else
+			{
+				check(MouseEventRegistrationToken.Value != 0);
+				LowLevelMouse->MouseMoved -= MouseEventRegistrationToken;
+				MouseEventRegistrationToken.Value = 0;
+			}
+		}
+		catch (Platform::Exception^ Ex)
+		{
+			UE_LOG(LogCore, Warning, TEXT("Exception managing registration for low-level mouse events: %s"), Ex->Message->Data());
+		}
+	}
 }
 
 PACK_WINRT_REVERT()
