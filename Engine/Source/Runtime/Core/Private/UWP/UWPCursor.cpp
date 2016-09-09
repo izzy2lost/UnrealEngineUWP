@@ -164,6 +164,11 @@ void FUWPCursor::ProcessDeferredActions()
         CoreWindow^ window = CoreWindow::GetForCurrentThread();
         if (nullptr != window)
         {
+			if (CurrentCursor != EMouseCursor::None)
+			{
+				SetUseRawMouse(false);
+			}
+
             window->PointerCursor = Cursors[CurrentCursor];
             if (CurrentCursor == EMouseCursor::None)
             {
@@ -200,11 +205,6 @@ void FUWPCursor::SetType( const EMouseCursor::Type InNewCursor )
 
 	if (CurrentCursor != InNewCursor)
 	{
-        if (CurrentCursor == EMouseCursor::None)
-        {
-			SetUseRawMouse(false);
-		}
-
         // if we're on the UI thread, change the cursor, otherwise queue a deferred change
         CoreWindow^ window = CoreWindow::GetForCurrentThread();
 		if (nullptr == window)
@@ -213,6 +213,11 @@ void FUWPCursor::SetType( const EMouseCursor::Type InNewCursor )
 		}
 		else
 		{
+			if (CurrentCursor == EMouseCursor::None)
+			{
+				SetUseRawMouse(false);
+			}
+
             window->PointerCursor = Cursors[InNewCursor];
             // if switching to view-look-capture mode...
             if (InNewCursor == EMouseCursor::None)
