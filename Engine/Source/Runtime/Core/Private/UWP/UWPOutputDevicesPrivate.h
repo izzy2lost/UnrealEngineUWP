@@ -8,48 +8,48 @@
 #pragma once
 #include "Misc/OutputDeviceConsole.h"
 
-#ifndef WANTS_WINRT_EVENT_LOGGING
-	#define WANTS_WINRT_EVENT_LOGGING 0
-#endif
-
 DECLARE_LOG_CATEGORY_EXTERN(LogUWPOutputDevices, Log, All);
 
-#if WANTS_WINRT_EVENT_LOGGING
+PACK_WINRT()
+
 /**
- * Output device that writes to UWP Event Log
- */
+* Output device that writes to UWP Event Log
+*/
 class FOutputDeviceEventLog :
 	public FOutputDevice
 {
-	/** Handle to the event log object */
-	HANDLE EventLog;
+	Windows::Foundation::Diagnostics::LoggingChannel^ EtwLogChannel;
 
 public:
 	/**
-	 * Constructor, initializing member variables
-	 */
+	* Constructor, initializing member variables
+	*/
 	FOutputDeviceEventLog()
-		: EventLog(NULL)
 	{
-		FString InstanceName;
-		FString ServerName;
-		// Build a name to uniquely identify this instance
-		if (Parse(appCmdLine(),TEXT("-Login="),ServerName))
+#if !UE_BUILD_SHIPPING
+		// In normal startup flow InitializeSession is called later.  But it's useful to identify the provider using a GUID
+		// that can be controlled by an external application, and session id is ideal for this purpose.  Luckily it doesn't
+		// really hurt to call InitializeSession twice.
+		FApp::InitializeSession();
+#endif
+		Platform::Guid PlatformGuid;
+		if (FApp::IsStandalone())
 		{
-			InstanceName = appGetGameName();
-			InstanceName += ServerName;
+			static const Platform::Guid MicrosoftWindowsDiagnoticsLoggingChannelId(0x4bd2826e, 0x54a1, 0x4ba9, 0xbf, 0x63, 0x92, 0xb7, 0x3e, 0xa1, 0xac, 0x4a);
+			PlatformGuid = MicrosoftWindowsDiagnoticsLoggingChannelId;
 		}
 		else
 		{
-			uint32 ProcID = GetCurrentProcessId();
-			InstanceName = FString::Printf(TEXT("%s-PID%d"),appGetGameName(),ProcID);
+			FGuid ProviderId = FApp::GetSessionId();
+
+			// Memory layout of UE FGuid and Windows GUID is potentially different, so convert carefully to make sure that the
+			// provider GUID gets the value that the external driver expects.
+			PlatformGuid = Platform::Guid(ProviderId.A,
+				ProviderId.B >> 16, ProviderId.B & 0xffff,
+				ProviderId.C >> 24, (ProviderId.C >> 16) & 0xff, (ProviderId.C >> 8) & 0xff, ProviderId.C & 0xff,
+				ProviderId.D >> 24, (ProviderId.D >> 16) & 0xff, (ProviderId.D >> 8) & 0xff, ProviderId.D & 0xff);
 		}
-		// Open the event log using the name built above
-		EventLog = RegisterEventSource(NULL,*InstanceName);
-		if (EventLog == NULL)
-		{
-			UE_LOG(LogUWPOutputDevices, Error,TEXT("Failed to open the UWP Event Log for writing (%d)"),GetLastError());
-		}
+		EtwLogChannel = ref new Windows::Foundation::Diagnostics::LoggingChannel(ref new Platform::String(FApp::GetGameName()), nullptr, PlatformGuid);
 	}
 
 	/** Destructor that cleans up any remaining resources */
@@ -60,59 +60,56 @@ public:
 
 	virtual void Serialize(const TCHAR* Buffer, ELogVerbosity::Type Verbosity, const class FName& Category) override
 	{
-		if (EventLog != NULL)
+		if (EtwLogChannel != nullptr)
 		{
-			// Only forward errors and warnings to the event log
-			switch (Verbosity)
+			Windows::Foundation::Diagnostics::LoggingLevel LogWithLevel = GetWindowsLoggingLevelFromUEVerbosity(Verbosity);
+#if NO_LOGGING
+			if (LogWithLevel >= Windows::Foundation::Diagnostics::LoggingLevel::Warning)
+#endif
 			{
-			case ELogVerbosity::Error:
-				{
-					ReportEvent(EventLog,
-						EVENTLOG_ERROR_TYPE,
-						NULL,
-						0xC0000001L,
-						NULL,
-						1,
-						0,
-						&Buffer,
-						NULL);
-					break;
-				}
-			case ELogVerbosity::Warning:
-				{
-					ReportEvent(EventLog,
-						EVENTLOG_WARNING_TYPE,
-						NULL,
-						0x80000002L,
-						NULL,
-						1,
-						0,
-						&Buffer,
-						NULL);
-					break;
-				}
+				EtwLogChannel->LogMessage(ref new Platform::String(Buffer), LogWithLevel);
 			}
 		}
 	}
-	
+
+	Windows::Foundation::Diagnostics::LoggingLevel GetWindowsLoggingLevelFromUEVerbosity(ELogVerbosity::Type Verbosity)
+	{
+		switch (Verbosity)
+		{
+		case ELogVerbosity::Error:
+			return Windows::Foundation::Diagnostics::LoggingLevel::Error;
+
+		case ELogVerbosity::Warning:
+			return Windows::Foundation::Diagnostics::LoggingLevel::Warning;
+
+		case ELogVerbosity::Fatal:
+			return Windows::Foundation::Diagnostics::LoggingLevel::Critical;
+
+		case ELogVerbosity::Display:
+		case ELogVerbosity::Log:
+			return Windows::Foundation::Diagnostics::LoggingLevel::Information;
+
+		case ELogVerbosity::Verbose:
+		case ELogVerbosity::VeryVerbose:
+		default:
+			return Windows::Foundation::Diagnostics::LoggingLevel::Verbose;
+		}
+	}
+
 	/** Does nothing */
 	virtual void Flush(void)
 	{
 	}
 
 	/**
-	 * Closes any event log handles that are open
-	 */
+	* Closes any event log handles that are open
+	*/
 	virtual void TearDown(void)
 	{
-		if (EventLog != NULL)
-		{
-			DeregisterEventSource(EventLog);
-			EventLog = NULL;
-		}
 	}
 };
-#endif //WANTS_WINRT_EVENT_LOGGING
+
+PACK_WINRT_REVERT()
 
 class FOutputDeviceUWPError : public FOutputDeviceError
 {

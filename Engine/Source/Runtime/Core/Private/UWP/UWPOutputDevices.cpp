@@ -25,12 +25,8 @@ class FOutputDeviceError* FUWPOutputDevices::GetError()
 
 class FOutputDevice* FUWPOutputDevices::GetEventLog()
 {
-#if WANTS_UWP_EVENT_LOGGING
 	static FOutputDeviceEventLog Singleton;
 	return &Singleton;
-#else // no event logging
-	return NULL;
-#endif //WANTS_UWP_EVENT_LOGGING
 }
 
 class FOutputDeviceConsole* FUWPOutputDevices::GetLogConsole()
