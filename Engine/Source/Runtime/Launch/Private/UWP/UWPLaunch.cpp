@@ -471,9 +471,12 @@ void ViewProvider::ProcessEvents()
 	PointerEventQueue.Empty();
 	Dispatching.clear(std::memory_order_release);
 
-	for (const QueuedPointerEvent& Args : LocalPointerEvents)
+	if (!GIsRequestingExit)
 	{
-		ProcessMouseEvent(Args);
+		for (const QueuedPointerEvent& Args : LocalPointerEvents)
+		{
+			ProcessMouseEvent(Args);
+		}
 	}
 }
 
