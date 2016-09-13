@@ -30,8 +30,14 @@ namespace UnrealBuildTool
 
 			// Load up INI settings. We'll use engine settings to retrieve the manifest configuration, but these may reference
 			// values in either game or engine settings, so we'll keep both.
-			GameIni = ConfigCacheIni.CreateConfigCacheIni(Platform, "Game", DirectoryReference.FromFile(ProjectFile));
-			EngineIni = ConfigCacheIni.CreateConfigCacheIni(Platform, "Engine", DirectoryReference.FromFile(ProjectFile));
+			DirectoryReference DirRef = DirectoryReference.FromFile(ProjectFile);
+			if (DirRef == null && !string.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()))
+			{
+				DirRef = new DirectoryReference(UnrealBuildTool.GetRemoteIniPath());
+			}
+
+			GameIni = ConfigCacheIni.CreateConfigCacheIni(Platform, "Game", DirRef);
+			EngineIni = ConfigCacheIni.CreateConfigCacheIni(Platform, "Engine", DirRef);
 
 			// For additional namespaces, the prefixes are provided by the platform (maintains compatibility with original Xbox One manifest ini data)
 			// but the associated uris come from the ini files themselves.

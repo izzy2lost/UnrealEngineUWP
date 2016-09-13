@@ -50,7 +50,7 @@ const TCHAR* FUWPProcess::BaseDir()
 			Platform::String^ LocationPath = Windows::ApplicationModel::Package::Current->InstalledLocation->Path;
 			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("LocationPath = %s\n"), LocationPath->Data());
 			FString BaseDir = LocationPath->Data();
-			BaseDir = BaseDir / FApp::GetGameName() / TEXT("Binaries");
+			BaseDir = BaseDir / (GIsGameAgnosticExe ? TEXT("Engine") : FApp::GetGameName()) / TEXT("Binaries");
 			BaseDir = BaseDir / FPlatformProperties::PlatformName();
 // @ATG_CHANGE : BEGIN UWP packaging & F5 support
 			BaseDir += PLATFORM_64BITS ? TEXT("64") : TEXT("32");

@@ -338,13 +338,16 @@ namespace UnrealBuildTool
                 AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
             }
 
-            // Game project file
-            AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + InTarget.ProjectFile + @""">" + ProjectFileGenerator.NewLine);
-            AppXRecipeProjectFileContent.Append(@"          <PackagePath>" + Path.Combine(InTarget.AppName, InTarget.ProjectFile.MakeRelativeTo(InTarget.ProjectDirectory)) + @"</PackagePath>" + ProjectFileGenerator.NewLine);
-            AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+			if (InTarget.ProjectFile != null)
+			{
+				// Game project file
+				AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + InTarget.ProjectFile + @""">" + ProjectFileGenerator.NewLine);
+				AppXRecipeProjectFileContent.Append(@"          <PackagePath>" + Path.Combine(InTarget.AppName, InTarget.ProjectFile.MakeRelativeTo(InTarget.ProjectDirectory)) + @"</PackagePath>" + ProjectFileGenerator.NewLine);
+				AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+			}
 
-            // Runtime dependencies.
-            Dictionary<string, string> SourceVariables = new Dictionary<string, string>();
+			// Runtime dependencies.
+			Dictionary<string, string> SourceVariables = new Dictionary<string, string>();
             SourceVariables["EngineDir"] = UnrealBuildTool.EngineDirectory.FullName;
             SourceVariables["ProjectDir"] = InTarget.ProjectDirectory.FullName;
 
