@@ -279,32 +279,28 @@ namespace UnrealBuildTool
 				}
 			}
 
-			if (CompileEnvironment.Config.bIsBuildingLibrary == false) // will put in a config option, but for now...
+			// Enable Windows Runtime extensions.  Do this even for libs (plugins) so that these too can consume WinRT APIs
+			Arguments.Append(" /ZW");
+
+            // Don't automatically add metadata references.  We'll do that ourselves to avoid referencing windows.winmd directly:
+            // we've hit problems where types are somehow in windows.winmd on some installations but not others, leading to either
+            // missing or duplicated type references.
+            Arguments.Append(" /ZW:nostdlib");
+            VCToolChain.AddDefinition(Arguments, "USE_WINRT_MAIN", "1");
+
+			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 &&
+				Directory.Exists(Path.Combine(EnvVars.WindowsSDKExtensionDir, "References")))
 			{
-                // Enable Windows Runtime extensions
-                Arguments.Append(" /ZW");
+				Arguments.AppendFormat(@" /AI""{0}\References""", EnvVars.WindowsSDKExtensionDir);
 
-                // Don't automatically add metadata references.  We'll do that ourselves to avoid referencing windows.winmd directly:
-                // we've hit problems where types are somehow in windows.winmd on some installations but not others, leading to either
-                // missing or duplicated type references.
-                Arguments.Append(" /ZW:nostdlib");
-                VCToolChain.AddDefinition(Arguments, "USE_WINRT_MAIN", "1");
-
-				if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 &&
-					Directory.Exists(Path.Combine(EnvVars.WindowsSDKExtensionDir, "References")))
-				{
-					Arguments.AppendFormat(@" /AI""{0}\References""", EnvVars.WindowsSDKExtensionDir);
-
-                    // Use the latest version of contracts, consistent with our choice elsewhere to use the latest version of the SDK.
-                    // These metadata files should bring in everything available on the Universal family.  Extension SDKs should be
-                    // referenced directly by the modules that depend on them.
-                    Arguments.AppendFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract"));
-                    Arguments.AppendFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract"));
-                }
-                Arguments.AppendFormat(@" /AI""{0}\..\..\VC\vcpackages""", EnvVars.BaseVSToolPath);
-				Arguments.AppendFormat(@" /FU""{0}\..\..\VC\vcpackages\platform.winmd""", EnvVars.BaseVSToolPath);
-			}
-
+                // Use the latest version of contracts, consistent with our choice elsewhere to use the latest version of the SDK.
+                // These metadata files should bring in everything available on the Universal family.  Extension SDKs should be
+                // referenced directly by the modules that depend on them.
+                Arguments.AppendFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract"));
+                Arguments.AppendFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract"));
+            }
+            Arguments.AppendFormat(@" /AI""{0}\..\..\VC\vcpackages""", EnvVars.BaseVSToolPath);
+			Arguments.AppendFormat(@" /FU""{0}\..\..\VC\vcpackages\platform.winmd""", EnvVars.BaseVSToolPath);
 		}
 
 		static void AppendCLArguments_CPP(CPPEnvironment CompileEnvironment, StringBuilder Arguments)
@@ -529,6 +525,11 @@ namespace UnrealBuildTool
 				// Use link-time code generation.
 				Arguments.Append(" /LTCG");
 			}
+
+			// Ignore warning about /ZW in static libraries. It's not relevant since UE modules
+			// have no reason to export new WinRT types, and ignoring it quiets noise when using
+			// WinRT APIs from plugins.
+			Arguments.Append(" /ignore:4264");
 		}
 
 		public override CPPOutput CompileCPPFiles(UEBuildTarget Target, CPPEnvironment CompileEnvironment, List<FileItem> SourceFiles, string ModuleName)
