@@ -47,17 +47,15 @@ const TCHAR* FUWPProcess::BaseDir()
 
 		if (!overridden)
 		{
-			Platform::String^ LocationPath = Windows::ApplicationModel::Package::Current->InstalledLocation->Path;
-			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("LocationPath = %s\n"), LocationPath->Data());
-			FString BaseDir = LocationPath->Data();
-			BaseDir = BaseDir / (GIsGameAgnosticExe ? TEXT("Engine") : FApp::GetGameName()) / TEXT("Binaries");
-			BaseDir = BaseDir / FPlatformProperties::PlatformName();
-// @ATG_CHANGE : BEGIN UWP packaging & F5 support
-			BaseDir += PLATFORM_64BITS ? TEXT("64") : TEXT("32");
-			BaseDir += "/";
-			BaseDir.ReplaceInline(TEXT("/"), TEXT("\\"));
-// @ATG_CHANGE : END
-			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("BaseDir = %s\n"), *BaseDir);
+			DWORD ResultCode = GetModuleFileName(NULL, Result, _countof(Result));
+			verify(ResultCode != 0);
+			DWORD ErrorCode = ::GetLastError();
+			verify(ErrorCode != ERROR_INSUFFICIENT_BUFFER);
+
+			// Strip out the filename and add the trailing '\'
+			FString BaseDir;
+			BaseDir = FPaths::GetPath(FString(Result));
+			BaseDir += TEXT("\\");
 			FCString::Strcpy(Result, *BaseDir);
 		}
 		bFirstTime = false;
