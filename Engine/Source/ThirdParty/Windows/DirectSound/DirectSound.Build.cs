@@ -8,7 +8,9 @@ public class DirectSound : ModuleRules
 		Type = ModuleType.External;
 
 // @ATG_CHANGE : BEGIN UWP support
-		string DirectXSDKDir = UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy";       
+        string DirectXSDKDir = WindowsPlatform.bUseWindowsSDK10 ?
+            UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
+			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";   
 // @ATG_CHANGE : END		
 		PublicSystemIncludePaths.Add( DirectXSDKDir + "/include");
 

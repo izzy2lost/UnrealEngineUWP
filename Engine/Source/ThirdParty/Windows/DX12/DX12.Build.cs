@@ -8,7 +8,9 @@ public class DX12 : ModuleRules
 		Type = ModuleType.External;
 
 // @ATG_CHANGE : BEGIN UWP support
-		string DirectXSDKDir = UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DX12";
+		string DirectXSDKDir = WindowsPlatform.bUseWindowsSDK10 ?
+			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DX12" :
+			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";
 // @ATG_CHANGE : END
 		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
 
@@ -21,7 +23,10 @@ public class DX12 : ModuleRules
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
 		}
 // @ATG_CHANGE : BEGIN UWP support
-		PublicSystemIncludePaths.Add(UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy/Include");
+		if (WindowsPlatform.bUseWindowsSDK10)
+		{
+			PublicSystemIncludePaths.Add(UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy/Include");
+		}
 // @ATG_CHANGE : END
 
 		// Always delay-load D3D12

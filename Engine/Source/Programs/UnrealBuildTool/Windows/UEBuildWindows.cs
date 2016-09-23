@@ -321,7 +321,7 @@ namespace UnrealBuildTool
 				// @ATG_CHANGE : BEGIN UWP support
 				// skip this if using the Win10 SDK, since uuid has IDs defined in guidlibs separately linked in
 				if (!WindowsPlatform.bUseWindowsSDK10)
-				{   
+				{
 					InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("uuid.lib");
 				}
 				// @ATG_CHANGE : END
@@ -546,30 +546,45 @@ namespace UnrealBuildTool
 		/// compiler or later, and the Windows 10 SDK must be installed.  The application will require at least Windows 8.x to run.
 		// @todo UWP: Expose this to be enabled more easily for building Windows 10 desktop apps
 		// @ATG_CHANGE : BEGIN UWP support
-		private static bool? _bUseWindowsSDK10 = null;
 		public static bool bUseWindowsSDK10
+		{
+			// When Win10 SDK is available, use it for editor builds to support UWP tools.
+			get { return bCanUseWindowsSDK10 && (bForceWindowsSDK10 || UEBuildConfiguration.bBuildEditor || UEBuildConfiguration.bBuildDeveloperTools); }
+		}
+
+		private static bool? CachedCanUserWindowsSDK10;
+		public static bool bCanUseWindowsSDK10
 		{
 			get
 			{
-				if (_bUseWindowsSDK10.HasValue)
+				if (!CachedCanUserWindowsSDK10.HasValue)
 				{
-					return _bUseWindowsSDK10.Value;
-				}
-
-				_bUseWindowsSDK10 = false;
-
-				// if the current compiler is 2015, and the Win10 SDK is there, use it, otherwise fall back to not using it
-				if (Compiler == WindowsCompiler.VisualStudio2015)
-				{
-					string PossibleWin10SDKdir = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0", false);
-					if (PossibleWin10SDKdir != null && Directory.Exists(PossibleWin10SDKdir))
+					CachedCanUserWindowsSDK10 = false;
+					if (bAllowWindowsSDK10)
 					{
-						_bUseWindowsSDK10 = true;
+						// Check prereqs:
+						// - VS2015
+						// - SDK actually installed (!)
+						if (Compiler == WindowsCompiler.VisualStudio2015)
+						{
+							string PossibleWin10SDKdir = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0", false);
+							if (PossibleWin10SDKdir != null && Directory.Exists(PossibleWin10SDKdir))
+							{
+								CachedCanUserWindowsSDK10 = true;
+							}
+						}
 					}
 				}
-				return _bUseWindowsSDK10.Value;
+
+				return CachedCanUserWindowsSDK10.Value;
 			}
 		}
+
+		[XmlConfig]
+		public static bool bForceWindowsSDK10 = false;
+
+		[XmlConfig]
+		public static bool bAllowWindowsSDK10 = true;
 		// @ATG_CHANGE : END
 
 
