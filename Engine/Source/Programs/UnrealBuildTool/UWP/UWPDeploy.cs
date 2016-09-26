@@ -373,16 +373,21 @@ namespace UnrealBuildTool
                 AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
             }
 
-            //UWP resources
-            AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + FileReference.Combine(ProjectBinariesDirectory, "resources.pri") + @""">" + ProjectFileGenerator.NewLine);
-            AppXRecipeProjectFileContent.Append(@"          <PackagePath>resources.pri</PackagePath>" + ProjectFileGenerator.NewLine);
-            AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
-            AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + FileReference.Combine(ProjectBinariesDirectory, @"Resources\**\*.*") + @""">" + ProjectFileGenerator.NewLine);
-            AppXRecipeProjectFileContent.Append(@"          <PackagePath>Resources\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
-            AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+			//UWP resources
+			AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + FileReference.Combine(ProjectBinariesDirectory, "resources.pri") + @""">" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"          <PackagePath>resources.pri</PackagePath>" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + FileReference.Combine(ProjectBinariesDirectory, @"Resources\*.*") + @""">" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"          <PackagePath>Resources\%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"          <ReRegisterAppIfChanged>true</ReRegisterAppIfChanged>" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + FileReference.Combine(ProjectBinariesDirectory, @"Resources\**\*.*") + @""">" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"          <PackagePath>Resources\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"          <ReRegisterAppIfChanged>true</ReRegisterAppIfChanged>" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
 
-            // Anything else added by the build system
-            foreach (var FileToPackage in AdditionalFiles)
+			// Anything else added by the build system
+			foreach (var FileToPackage in AdditionalFiles)
             {
                 FileReference FileRef = FileReference.Combine(ProjectBinariesDirectory, FileToPackage);
                 if (FileRef.Exists())

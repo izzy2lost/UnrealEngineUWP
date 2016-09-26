@@ -261,48 +261,35 @@ namespace UnrealBuildTool
 							}
 
 							string DestPath = Path.Combine(OutputPath, "Resources", CulturesToStage[CultureIndex]);
-							string DestFile = Path.Combine(DestPath, SettingKey + ".png");
+							// @ATG_CHANGE : BEGIN resource qualifier support
+							string BaseImageSuffix = (Platform == UnrealTargetPlatform.XboxOne ? ".png" : ".scale-100.png");
+							string DestFile = Path.Combine(DestPath, SettingKey + BaseImageSuffix);
 
 							// Copy file into destination
-							if (File.Exists(DestFile))
+							if (CopySingleResourceFile(SourceFile, DestFile))
 							{
-								if (File.GetLastWriteTimeUtc(SourceFile) > File.GetLastWriteTimeUtc(DestFile))
-								{
-									try
-									{
-										File.Delete(DestFile);
-									}
-									catch (Exception)
-									{
-										Log.TraceError("Could not replace {0}.", DestFile);
-										continue;
-									}
-								}
-							}
-							if (!File.Exists(DestFile))
-							{
-								if (!Directory.Exists(DestPath))
-								{
-									try
-									{
-										Directory.CreateDirectory(DestPath);
-									}
-									catch (Exception)
-									{
-										Log.TraceError("Could not create output directory {0}.", DestPath);
-										continue;
-									}
-								}
-								try
-								{
-									File.Copy(SourceFile, DestFile);
-								}
-								catch (Exception)
-								{
-									Log.TraceError("Could not replace {0}.", DestFile);
-									continue;
-								}
 								UpdatedFilePaths.Add(DestFile);
+							}
+
+							// Qualified resources are only relevant on UWP
+							if (Platform != UnrealTargetPlatform.XboxOne)
+							{
+								string[] FileNamePartsToRemoveQualifiers = Path.GetFileName(SourceFile).Split('.');
+								if (FileNamePartsToRemoveQualifiers.Length >= 2)
+								{
+									string FilePatternAllowingQualifiers = string.Format("{0}.*.{1}", FileNamePartsToRemoveQualifiers[0], FileNamePartsToRemoveQualifiers[FileNamePartsToRemoveQualifiers.Length - 1]);
+									IEnumerable<string> VariantsWithQualifiers = Directory.EnumerateFiles(Path.GetDirectoryName(SourceFile), FilePatternAllowingQualifiers);
+									foreach (string VariantFile in VariantsWithQualifiers)
+									{
+										string[] VariantFileParts = VariantFile.Split('.');
+										string VariantTypePortion = VariantFileParts[VariantFileParts.Length - 2];
+										string VariantDestFile = Path.Combine(DestPath, SettingKey + "." + VariantTypePortion + ".png");
+										if (CopySingleResourceFile(VariantFile, VariantDestFile))
+										{
+											UpdatedFilePaths.Add(VariantDestFile);
+										}
+									}
+								}
 							}
 
 							// The default culture must also be copied into the root of the resources tree
@@ -310,47 +297,18 @@ namespace UnrealBuildTool
 							{
 								string DefaultDestPath = Path.Combine(OutputPath, "Resources");
 								string DefaultDestFile = Path.Combine(DefaultDestPath, SettingKey + ".png");
-								if (File.Exists(DefaultDestFile))
+								if (CopySingleResourceFile(SourceFile, DefaultDestFile))
 								{
-									if (File.GetLastWriteTimeUtc(DestFile) > File.GetLastWriteTimeUtc(DefaultDestFile))
-									{
-										try
-										{
-											File.Delete(DefaultDestFile);
-										}
-										catch (Exception)
-										{
-											Log.TraceError("Could not replace {0}.", DefaultDestFile);
-											continue;
-										}
-									}
-								}
-								if (!File.Exists(DefaultDestFile))
-								{
-									if (!Directory.Exists(DefaultDestPath))
-									{
-										try
-										{
-											Directory.CreateDirectory(DefaultDestPath);
-										}
-										catch (Exception)
-										{
-											Log.TraceError("Could not create output directory {0}.", DefaultDestPath);
-											continue;
-										}
-									}
-									try
-									{
-										File.Copy(DestFile, DefaultDestFile);
-									}
-									catch (Exception)
-									{
-										Log.TraceError("Could not replace {0}.", DefaultDestFile);
-										continue;
-									}
 									UpdatedFilePaths.Add(DefaultDestFile);
 								}
+
+								// Note we don't copy the qualified resources here.  If these are present
+								// the indexing process will put them in a separate pri file, which we
+								// don't use when packaging, so creates less mess to just leave them out.
+								// They're really just fallbacks anyway, since under normal operation the
+								// culture qualified versions will be used.
 							}
+							// @ATG_CHANGE : END resource qualifier support
 						}
 					}
 				}
@@ -441,24 +399,70 @@ namespace UnrealBuildTool
 			// Modify configuration to restrict indexing to the Resources directory (saves time and space)
 			XmlDocument PriConfig = new XmlDocument();
 			PriConfig.Load(ResourceConfigFile);
-			XmlNode PriIndexNode = PriConfig.SelectSingleNode("/resources/index");
-			XmlAttribute PriStartIndex = PriIndexNode.Attributes["startIndexAt"];
-			PriStartIndex.Value = "\\Resources\\";
+
+			// @ATG_CHANGE : The Xbox One approach to limiting the indexer causes files to have dodgy uris in the 
+			// generated pri e.g. ms-resource://PackageIdentityName/Files/Logo.png instead of ms-resource://PackageIdentityName/Files/Resources/Logo.png
+			// This appears to affect Windows's ability to locate a valid image in some scenarios such as a
+			// desktop shortcut.  So on UWP we start from the root and add exclusions.
+			if (Platform == UnrealTargetPlatform.XboxOne)
+			{
+				XmlNode PriIndexNode = PriConfig.SelectSingleNode("/resources/index");
+				XmlAttribute PriStartIndex = PriIndexNode.Attributes["startIndexAt"];
+				PriStartIndex.Value = "\\Resources\\";
+			}
+			else
+			{
+				XmlNodeList ConfigNodes = PriConfig.SelectNodes("/resources/index/indexer-config");
+				foreach (XmlNode ConfigNode in ConfigNodes)
+				{
+					if (ConfigNode.Attributes["type"].Value == "folder")
+					{
+						IEnumerable<string> AllSubItems = Directory.EnumerateFileSystemEntries(OutputPath);
+						foreach (string FileSystemEntry in AllSubItems)
+						{
+							if (Path.GetFileName(FileSystemEntry) != "Resources")
+							{
+								XmlElement ExcludeElement = PriConfig.CreateElement("exclude");
+								if (File.Exists(FileSystemEntry))
+								{
+									ExcludeElement.SetAttribute("type", "path");
+								}
+								else
+								{
+									ExcludeElement.SetAttribute("type", "tree");
+								}
+								ExcludeElement.SetAttribute("value", Path.GetFileName(FileSystemEntry));
+								ExcludeElement.SetAttribute("doNotTraverse", "true");
+								ExcludeElement.SetAttribute("doNotIndex", "true");
+								ConfigNode.AppendChild(ExcludeElement);
+							}
+						}
+					}
+				}
+			}
 			PriConfig.Save(ResourceConfigFile);
+			// @ATG_CHANGE : END
+
 
 			// Generate the resource index
 			// @ATG_CHANGE : BEGIN UWP Packaging support
 			string ResourceLogFile = Path.Combine(IntermediatePath, "ResIndexLog.xml");
+			string ResourceIndexStagingFile = Path.Combine(IntermediatePath, "resources.pri");
 			string ResourceIndexFile = Path.Combine(OutputPath, "resources.pri");
+			if (File.Exists(ResourceIndexFile))
+			{
+				File.Delete(ResourceIndexFile);
+			}
 			StartInfo = new ProcessStartInfo();
 			StartInfo.FileName = PriExecutable;
 			// @ATG_CHANGE : Win10 version puts output file in the wrong place without /of; no harm in specifying it on Xbox also.
-			StartInfo.Arguments = "new /pr \"" + Path.GetDirectoryName(ResourceIndexFile) + "\" /cf \"" + ResourceConfigFile + "\" /mn \"" + AppxManifestPath + "\" /il \"" + ResourceLogFile + "\" /o /of \"" + ResourceIndexFile + "\"";
+			StartInfo.Arguments = "new /pr \"" + Path.GetDirectoryName(ResourceIndexFile) + "\" /cf \"" + ResourceConfigFile + "\" /mn \"" + AppxManifestPath + "\" /il \"" + ResourceLogFile + "\" /o /of \"" + ResourceIndexStagingFile + "\"";
 			// @ATG_CHANGE : END
 			StartInfo.CreateNoWindow = true;
 			StartInfo.StandardErrorEncoding = System.Text.Encoding.Unicode;
 			StartInfo.StandardOutputEncoding = System.Text.Encoding.Unicode;
 			Utils.RunLocalProcessAndLogOutput(StartInfo);
+			File.Copy(ResourceIndexStagingFile, ResourceIndexFile);
 			// @ATG_CHANGE : END
 			UpdatedFilePaths.Add(ResourceIndexFile);
 
@@ -480,5 +484,58 @@ namespace UnrealBuildTool
 			return Path.Combine(SDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "makepri.exe");
 		}
 		// @ATG_CHANGE : END		
+
+		// @ATG_CHANGE : BEGIN Helper for target resource layout
+		bool CopySingleResourceFile(string InSource, string InDest)
+		{
+			if (File.Exists(InDest))
+			{
+				if (File.GetLastWriteTimeUtc(InSource) > File.GetLastWriteTimeUtc(InDest))
+				{
+					try
+					{
+						// Remove read-only flag
+						File.SetAttributes(InDest, File.GetAttributes(InDest) & ~FileAttributes.ReadOnly);
+						File.Delete(InDest);
+					}
+					catch (Exception)
+					{
+						Log.TraceError("Could not replace {0}.", InDest);
+						return false;
+					}
+				}
+			}
+			if (!File.Exists(InDest))
+			{
+				if (!Directory.Exists(Path.GetDirectoryName(InDest)))
+				{
+					try
+					{
+						Directory.CreateDirectory(Path.GetDirectoryName(InDest));
+					}
+					catch (Exception)
+					{
+						Log.TraceError("Could not create output directory {0}.", InDest);
+						return false;
+					}
+				}
+				try
+				{
+					File.Copy(InSource, InDest);
+					// Remove read-only flag
+					File.SetAttributes(InDest, File.GetAttributes(InDest) & ~FileAttributes.ReadOnly);
+				}
+				catch (Exception)
+				{
+					Log.TraceError("Could not replace {0}.", InDest);
+					return false;
+				}
+				return true;
+			}
+
+			return false;
+		}
+		// @ATG_CHANGE : END
+
 	}
 }
