@@ -37,10 +37,10 @@ namespace UnrealBuildTool
 		static Dictionary<string, ConfigCacheIni> BaseIniCache = new Dictionary<string, ConfigCacheIni>();
 		static List<string> RequiredSections = new List<string>(){"AppxManifest", "CommonSettings", "/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "/Script/AndroidPlatformEditor.AndroidSDKSettings",
 																	"/Script/BuildSettings.BuildSettings", "/Script/IOSRuntimeSettings.IOSRuntimeSettings", "/Script/WindowsTargetPlatform.WindowsTargetSettings",
-																	"/Script/UnrealEd.ProjectPackagingSettings", "/Script/PS4PlatformEditor.PS4TargetSettings", "/Script/XboxOneTargetPlatform.XboxOneTargetSettings",
-																	"/Script/HTML5PlatformEditor.HTML5TargetSettings","PS4SymbolServer","/Script/EngineSettings.GeneralProjectSettings","/Script/XboxOneTargetPlatform.XboxOneTargetSettings",
+																	"/Script/UnrealEd.ProjectPackagingSettings", "/Script/PS4PlatformEditor.PS4TargetSettings", "/Script/XboxOnePlatformEditor.XboxOneTargetSettings",
+																	"/Script/HTML5PlatformEditor.HTML5TargetSettings","PS4SymbolServer","/Script/EngineSettings.GeneralProjectSettings",
 																	// @ATG_CHANGE : BEGIN UWP support
-                                                                    "/Script/UnrealEd.ProjectPackagingSettings", "InstalledPlatforms", "XboxOne.ProjectSettings", "OnlineSubsystemGooglePlay.Store", "/Script/UWPTargetPlatform.UWPTargetSettings" };
+                                                                    "/Script/UnrealEd.ProjectPackagingSettings", "InstalledPlatforms", "OnlineSubsystemGooglePlay.Store", "/Script/UWPTargetPlatform.UWPTargetSettings" };
 																	// @ATG_CHANGE : END
 
 		// static creation functions for ini files
@@ -787,9 +787,11 @@ namespace UnrealBuildTool
 			}
 
 			DirectoryReference UserSettingsFolder = Utils.GetUserSettingDirectory(); // Match FPlatformProcess::UserSettingsDir()
-
-			// <AppData>/UE4/EngineConfig/User* ini
-			yield return FileReference.Combine(UserSettingsFolder, "Unreal Engine", "Engine", "Config", "User" + BaseIniName + ".ini");
+			if(UserSettingsFolder != null)
+			{
+				// <AppData>/UE4/EngineConfig/User* ini
+				yield return FileReference.Combine(UserSettingsFolder, "Unreal Engine", "Engine", "Config", "User" + BaseIniName + ".ini");
+			}
 
 			// Some user accounts (eg. SYSTEM on Windows) don't have a home directory. Ignore them if Environment.GetFolderPath() returns an empty string.
 			string PersonalFolder = Environment.GetFolderPath(Environment.SpecialFolder.Personal);

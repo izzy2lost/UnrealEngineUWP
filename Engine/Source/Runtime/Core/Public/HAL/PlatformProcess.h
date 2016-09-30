@@ -15,8 +15,6 @@
 #include "IOS/IOSPlatformProcess.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidProcess.h"
-#elif PLATFORM_WINRT
-#include "WinRT/WinRTProcess.h"
 // @ATG_CHANGE : BEGIN UWP support
 #elif PLATFORM_UWP
 #include "UWP/UWPProcess.h"

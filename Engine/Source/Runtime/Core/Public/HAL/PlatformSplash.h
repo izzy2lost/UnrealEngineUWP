@@ -15,8 +15,6 @@
 #include "IOS/IOSPlatformSplash.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidSplash.h"
-#elif PLATFORM_WINRT
-#include "WinRT/WinRTSplash.h"
 // @ATG_CHANGE : BEGIN UWP support
 #elif PLATFORM_UWP
 #include "UWP/UWPSplash.h"

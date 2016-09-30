@@ -14,8 +14,6 @@
 #include "Apple/ApplePlatformTime.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidTime.h"
-#elif PLATFORM_WINRT
-#include "WinRT/WinRTTime.h"
 // @ATG_CHANGE : BEGIN UWP support
 #elif PLATFORM_UWP
 #include "UWP/UWPTime.h"

@@ -15,8 +15,6 @@
 #include "Apple/ApplePlatformStackWalk.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidPlatformStackWalk.h"
-#elif PLATFORM_WINRT
-#include "WinRT/WinRTStackWalk.h"
 // @ATG_CHANGE : BEGIN UWP support
 #elif PLATFORM_UWP
 #include "UWP/UWPStackWalk.h"

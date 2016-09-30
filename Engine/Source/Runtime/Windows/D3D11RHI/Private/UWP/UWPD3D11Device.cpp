@@ -12,6 +12,39 @@
 extern bool D3D11RHI_ShouldCreateWithD3DDebug();
 extern bool D3D11RHI_ShouldAllowAsyncResourceCreation();
 
+static TAutoConsoleVariable<int32> CVarForceAMDToSM4(
+	TEXT("r.ForceAMDToSM4"),
+	0,
+	TEXT("Forces AMD devices to use SM4.0/D3D10.0 feature level."),
+	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarForceIntelToSM4(
+	TEXT("r.ForceIntelToSM4"),
+	0,
+	TEXT("Forces Intel devices to use SM4.0/D3D10.0 feature level."),
+	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarForceNvidiaToSM4(
+	TEXT("r.ForceNvidiaToSM4"),
+	0,
+	TEXT("Forces Nvidia devices to use SM4.0/D3D10.0 feature level."),
+	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarAMDUseMultiThreadedDevice(
+	TEXT("r.AMDD3D11MultiThreadedDevice"),
+	0,
+	TEXT("If true, creates a multithreaded D3D11 device on AMD hardware (workaround for driver bug)\n")
+	TEXT("Changes will only take effect in new game/editor instances - can't be changed at runtime.\n"),
+	ECVF_Default);
+
+static TAutoConsoleVariable<int32> CVarAMDDisableAsyncTextureCreation(
+	TEXT("r.AMDDisableAsyncTextureCreation"),
+	0,
+	TEXT("If true, uses synchronous texture creation on AMD hardware (workaround for driver bug)\n")
+	TEXT("Changes will only take effect in new game/editor instances - can't be changed at runtime.\n"),
+	ECVF_Default);
+
+
 bool FD3D11DynamicRHIModule::IsSupported()
 {
 	if (!ChosenAdapter.IsValid())
@@ -282,6 +315,27 @@ void FD3D11DynamicRHIModule::FindAdapter()
 	{
 		UE_LOG(LogD3D11RHI, Error, TEXT("Failed to choose a D3D11 Adapter."));
 	}
+
+	// Workaround to force specific IHVs to SM4.0
+	if (ChosenAdapter.IsValid() && ChosenAdapter.MaxSupportedFeatureLevel != D3D_FEATURE_LEVEL_10_0)
+	{
+		DXGI_ADAPTER_DESC AdapterDesc;
+		ZeroMemory(&AdapterDesc, sizeof(DXGI_ADAPTER_DESC));
+
+		DXGIFactory->EnumAdapters(ChosenAdapter.AdapterIndex, TempAdapter.GetInitReference());
+		VERIFYD3D11RESULT(TempAdapter->GetDesc(&AdapterDesc));
+
+		const bool bIsAMD = AdapterDesc.VendorId == 0x1002;
+		const bool bIsIntel = AdapterDesc.VendorId == 0x8086;
+		const bool bIsNVIDIA = AdapterDesc.VendorId == 0x10DE;
+
+		if ((bIsAMD && CVarForceAMDToSM4.GetValueOnGameThread() > 0) ||
+			(bIsIntel && CVarForceIntelToSM4.GetValueOnGameThread() > 0) ||
+			(bIsNVIDIA && CVarForceNvidiaToSM4.GetValueOnGameThread() > 0))
+		{
+			ChosenAdapter.MaxSupportedFeatureLevel = D3D_FEATURE_LEVEL_10_0;
+		}
+	}
 }
 
 
@@ -439,7 +493,7 @@ void FD3D11DynamicRHI::FlushPendingLogs()
 	if (D3D11RHI_ShouldCreateWithD3DDebug())
 	{
 		TRefCountPtr<ID3D11InfoQueue> InfoQueue = nullptr;
-		VERIFYD3D11RESULT(Direct3DDevice->QueryInterface(IID_ID3D11InfoQueue, (void**)InfoQueue.GetInitReference()));
+		VERIFYD3D11RESULT_EX(Direct3DDevice->QueryInterface(IID_ID3D11InfoQueue, (void**)InfoQueue.GetInitReference()), Direct3DDevice);
 		if (InfoQueue)
 		{
 			FString FullMessage;
@@ -476,33 +530,6 @@ void FD3D11DynamicRHI::InitD3DDevice()
 
 	// Wait for the rendering thread to go idle.
 	SCOPED_SUSPEND_RENDERING_THREAD(false);
-
-	// If the device we were using has been removed, release it and the resources we created for it.
-	if (bDeviceRemoved)
-	{
-		check(Direct3DDevice);
-
-		HRESULT hRes = Direct3DDevice->GetDeviceRemovedReason();
-
-		const TCHAR* Reason = TEXT("?");
-		switch (hRes)
-		{
-		case DXGI_ERROR_DEVICE_HUNG:			Reason = TEXT("HUNG"); break;
-		case DXGI_ERROR_DEVICE_REMOVED:			Reason = TEXT("REMOVED"); break;
-		case DXGI_ERROR_DEVICE_RESET:			Reason = TEXT("RESET"); break;
-		case DXGI_ERROR_DRIVER_INTERNAL_ERROR:	Reason = TEXT("INTERNAL_ERROR"); break;
-		case DXGI_ERROR_INVALID_CALL:			Reason = TEXT("INVALID_CALL"); break;
-		}
-
-		bDeviceRemoved = false;
-
-		// Cleanup the D3D device.
-		CleanupD3DDevice();
-
-		// We currently don't support removed devices because FTexture2DResource can't recreate its RHI resources from scratch.
-		// We would also need to recreate the viewport swap chains from scratch.
-		UE_LOG(LogD3D11RHI, Fatal, TEXT("The Direct3D 11 device that was being used has been removed (Error: %d '%s').  Please restart the game."), hRes, Reason);
-	}
 
 	// If we don't have a device yet, either because this is the first viewport, or the old device was removed, create a device.
 	if (!Direct3DDevice)
@@ -632,7 +659,7 @@ void FD3D11DynamicRHI::InitD3DDevice()
 
 		D3D_FEATURE_LEVEL ActualFeatureLevel = (D3D_FEATURE_LEVEL)0;
 
-		if (IsRHIDeviceAMD())
+		if (IsRHIDeviceAMD() && CVarAMDUseMultiThreadedDevice.GetValueOnAnyThread())
 		{
 			DeviceFlags &= ~D3D11_CREATE_DEVICE_SINGLETHREADED;
 		}
@@ -663,7 +690,7 @@ void FD3D11DynamicRHI::InitD3DDevice()
 
 		// Check for async texture creation support.
 		D3D11_FEATURE_DATA_THREADING ThreadingSupport = { 0 };
-		VERIFYD3D11RESULT(Direct3DDevice->CheckFeatureSupport(D3D11_FEATURE_THREADING, &ThreadingSupport, sizeof(ThreadingSupport)));
+		VERIFYD3D11RESULT_EX(Direct3DDevice->CheckFeatureSupport(D3D11_FEATURE_THREADING, &ThreadingSupport, sizeof(ThreadingSupport)), Direct3DDevice);
 		GRHISupportsAsyncTextureCreation = !!ThreadingSupport.DriverConcurrentCreates
 			&& (DeviceFlags & D3D11_CREATE_DEVICE_SINGLETHREADED) == 0;
 

@@ -1167,6 +1167,14 @@ namespace UnrealBuildTool
 						SharedPCHHeaderInfo LargestSharedPCHHeader = GlobalCompileEnvironment.SharedPCHHeaderFiles[LargestSharedPCHHeaderFileIndex];
 						++LargestSharedPCHHeader.NumModulesUsingThisPCH;
 
+						// Don't allow game modules to use engine PCHs in DebugGame - the optimization settings aren't correct. 
+						// @todo: we should be creating shared PCHs ahead of time, and only using them if our settings match. as it is, the first modules compiled
+						// (which are currently plugins) get to call the shots for how the shared PCH gets built, and that might be a game plugin built in debug...
+						if(Target.Configuration == UnrealTargetConfiguration.DebugGame && SharedPCHHeaderFile.Reference.IsUnderDirectory(UnrealBuildTool.EngineDirectory) && !RulesFile.IsUnderDirectory(UnrealBuildTool.EngineDirectory))
+						{
+							SharedPCHModuleName = null;
+							SharedPCHHeaderFile = null;
+						}
 					}
 					else
 					{
@@ -1274,7 +1282,7 @@ namespace UnrealBuildTool
 					{
 						if (SharedPCHHeaderFile != null || CPPFilesToBuild.Count >= MinFilesUsingPrecompiledHeader)
 						{
-							CPPOutput PCHOutput;
+                            CPPOutput PCHOutput;
 							if (SharedPCHHeaderFile == null)
 							{
 								PCHOutput = PrecompileHeaderEnvironment.GeneratePCHCreationAction(
@@ -1284,6 +1292,7 @@ namespace UnrealBuildTool
 									ModulePCHEnvironment.PrecompiledHeaderIncludeFilename,
 									ModuleCompileEnvironment,
 									ModuleCompileEnvironment.Config.OutputDirectory,
+									ModuleCompileEnvironment.Config.PCHOutputDirectory,
 									Name,
 									true);
 							}
@@ -1312,7 +1321,7 @@ namespace UnrealBuildTool
 										// @ATG_CHANGE : END winmd support
 										);
 								}
-
+                                
 								PCHOutput = PrecompileHeaderEnvironment.GeneratePCHCreationAction(
 									ToolChain,
 									Target,
@@ -1320,6 +1329,7 @@ namespace UnrealBuildTool
 									ModulePCHEnvironment.PrecompiledHeaderIncludeFilename,
 									SharedPCHCompileEnvironment,
 									DirectoryReference.Combine(CompileEnvironment.Config.OutputDirectory, "SharedPCHs"),
+									(CompileEnvironment.Config.PCHOutputDirectory == null)? null : DirectoryReference.Combine(CompileEnvironment.Config.PCHOutputDirectory, "SharedPCHs"),
 									"Shared",
 									false);
 							}
@@ -1955,7 +1965,7 @@ namespace UnrealBuildTool
 		/// <param name="ModuleName">Name of the module this PCH is being generated for</param>
 		/// <param name="bAllowDLLExports">True if we should allow DLLEXPORT definitions for this PCH</param>
 		/// <returns>the compilation output result of the created pch.</returns>
-		public static CPPOutput GeneratePCHCreationAction(UEToolChain ToolChain, UEBuildTarget Target, string PCHHeaderNameInCode, FileItem PrecompiledHeaderIncludeFilename, CPPEnvironment ProjectCPPEnvironment, DirectoryReference OutputDirectory, string ModuleName, bool bAllowDLLExports)
+		public static CPPOutput GeneratePCHCreationAction(UEToolChain ToolChain, UEBuildTarget Target, string PCHHeaderNameInCode, FileItem PrecompiledHeaderIncludeFilename, CPPEnvironment ProjectCPPEnvironment, DirectoryReference OutputDirectory, DirectoryReference PCHOutputDirectory, string ModuleName, bool bAllowDLLExports)
 		{
 			// Find the header file to be precompiled. Don't skip external headers
 			if (PrecompiledHeaderIncludeFilename.bExists)
@@ -1975,6 +1985,7 @@ namespace UnrealBuildTool
 				ProjectPCHEnvironment.Config.PrecompiledHeaderIncludeFilename = PrecompiledHeaderIncludeFilename.Reference;
 				ProjectPCHEnvironment.Config.PCHHeaderNameInCode = PCHHeaderNameInCode;
 				ProjectPCHEnvironment.Config.OutputDirectory = OutputDirectory;
+				ProjectPCHEnvironment.Config.PCHOutputDirectory = PCHOutputDirectory;
 
 				if (!bAllowDLLExports)
 				{

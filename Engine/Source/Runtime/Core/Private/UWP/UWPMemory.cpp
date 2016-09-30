@@ -166,10 +166,11 @@ void* FUWPPlatformMemory::BinnedAllocFromOS(SIZE_T Size)
 	return VirtualAlloc(NULL, Size, MEM_COMMIT, PAGE_READWRITE);
 }
 
-void FUWPPlatformMemory::BinnedFreeToOS(void* Ptr)
+void FUWPPlatformMemory::BinnedFreeToOS(void* Ptr, SIZE_T Size)
 {
 	CA_SUPPRESS(6001)
-		verify(VirtualFree(Ptr, 0, MEM_RELEASE) != 0);
+	// Windows maintains the size of allocation internally, so Size is unused
+	verify(VirtualFree(Ptr, 0, MEM_RELEASE) != 0);
 }
 
 FPlatformMemory::FSharedMemoryRegion* FUWPPlatformMemory::MapNamedSharedMemoryRegion(const FString& InName, bool bCreate, uint32 AccessMode, SIZE_T Size)

@@ -15,8 +15,6 @@
 #include "IOS/IOSPlatformMath.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidMath.h"
-#elif PLATFORM_WINRT
-#include "WinRT/WinRTMath.h"
 // @ATG_CHANGE : BEGIN UWP support
 #elif PLATFORM_UWP
 #include "UWP/UWPMath.h"

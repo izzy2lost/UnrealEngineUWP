@@ -36,6 +36,14 @@ struct FMotionEvent;
 struct FVirtualPointerPosition;
 struct FNavigationEvent;
 
+/** Delegate type for handling mouse events */
+DECLARE_DELEGATE_RetVal_TwoParams(
+	FReply, FPointerEventHandler,
+	/** The geometry of the widget*/
+	const FGeometry&,
+	/** The Mouse Event that we are processing */
+	const FPointerEvent&)
+
 // @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
 #if PLATFORM_UWP
 PACK_WINRT()
@@ -124,6 +132,7 @@ public:
 	
 	virtual TSharedRef<SWidget> GetHost() { return HostWidget; }
 	virtual TSharedRef<SWidget> GetContent() { return PopupContent; }
+	virtual FSlateRect GetAbsoluteClientRect() = 0;
 
 	virtual void Remove() = 0;
 
@@ -256,7 +265,11 @@ public:
 	virtual void OnFocusLost(const FFocusEvent& InFocusEvent);
 
 	/** Called whenever a focus path is changing on all the widgets within the old and new focus paths */
+	DEPRECATED(4.13, "Please use the newer version of OnFocusChanging that takes a FocusEvent")
 	virtual void OnFocusChanging(const FWeakWidgetPath& PreviousFocusPath, const FWidgetPath& NewWidgetPath);
+
+	/** Called whenever a focus path is changing on all the widgets within the old and new focus paths */
+	virtual void OnFocusChanging(const FWeakWidgetPath& PreviousFocusPath, const FWidgetPath& NewWidgetPath, const FFocusEvent& InFocusEvent);
 
 	/**
 	 * Called after a character is entered while this widget has keyboard focus
@@ -701,6 +714,13 @@ public:
 	 */
 	bool HasMouseCapture() const;
 
+	/**
+	 * Checks to see if this widget has mouse capture from the provided user.
+	 *
+	 * @return  True if this widget has captured the mouse
+	 */
+	bool HasMouseCaptureByUser(int32 UserIndex, TOptional<int32> PointerIndex = TOptional<int32>()) const;
+
 	/** Called when this widget had captured the mouse, but that capture has been revoked for some reason. */
 	virtual void OnMouseCaptureLost();
 
@@ -720,8 +740,11 @@ public:
 	 */
 	void SetEnabled( const TAttribute<bool>& InEnabledState )
 	{
-		EnabledState = InEnabledState;
-		Invalidate(EInvalidateWidget::LayoutAndVolatility);
+		if ( !EnabledState.IdenticalTo(InEnabledState) )
+		{
+			EnabledState = InEnabledState;
+			Invalidate(EInvalidateWidget::LayoutAndVolatility);
+		}
 	}
 
 	/** @return Whether or not this widget is enabled */
@@ -845,9 +868,10 @@ protected:
 	 */
 	FORCEINLINE void Advanced_ForceInvalidateLayout()
 	{
-		if ( LayoutCache )
+		TSharedPtr<ILayoutCache> SharedLayoutCache = LayoutCache.Pin();
+		if (SharedLayoutCache.IsValid() )
 		{
-			LayoutCache->InvalidateWidget(this);
+			SharedLayoutCache->InvalidateWidget(this);
 		}
 	}
 
@@ -948,6 +972,18 @@ public:
 	{
 		MetaData.Add(AddMe);
 	}
+
+	/** See OnMouseButtonDown event */
+	void SetOnMouseButtonDown(FPointerEventHandler EventHandler);
+
+	/** See OnMouseButtonUp event */
+	void SetOnMouseButtonUp(FPointerEventHandler EventHandler);
+
+	/** See OnMouseMove event */
+	void SetOnMouseMove(FPointerEventHandler EventHandler);
+
+	/** See OnMouseDoubleClick event */
+	void SetOnMouseDoubleClick(FPointerEventHandler EventHandler);
 
 public:
 
@@ -1091,7 +1127,7 @@ protected:
 	 * on invisible children that never get the opportunity to paint and receive the layout cache through the normal
 	 * means.  That way if an invisible widget becomes visible, we still properly invalidate the hierarchy.
 	 */
-	void CachePrepass(ILayoutCache* LayoutCache);
+	void CachePrepass(const TWeakPtr<ILayoutCache>& LayoutCache);
 
 protected:
 	/**
@@ -1176,7 +1212,7 @@ private:
 	TSharedPtr<IToolTip> ToolTip;
 
 	/** The current layout cache that may need to invalidated by changes to this widget. */
-	mutable ILayoutCache* LayoutCache;
+	mutable TWeakPtr<ILayoutCache> LayoutCache;
 
 protected:
 	/** Is this widget hovered? */
@@ -1210,6 +1246,11 @@ private:
 
 	/** If we're owned by a volatile widget, we need inherit that volatility and use as part of our volatility, but don't cache it. */
 	mutable bool bInheritedVolatility : 1;
+
+	FPointerEventHandler MouseButtonDownHandler;
+	FPointerEventHandler MouseButtonUpHandler;
+	FPointerEventHandler MouseMoveHandler;
+	FPointerEventHandler MouseDoubleClickHandler;
 };
 
 //=================================================================

@@ -59,7 +59,7 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <OutputPath>..\..\..\Binaries\DotNET\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>VS140COMNTOOLS;DEBUG;TRACE</DefineConstants>
     <Optimize>false</Optimize>
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -128,27 +128,24 @@
     <Compile Include="TVOS\UEDeployTVOS.cs" />
     <Compile Include="Android\UEBuildAndroid.cs" />
     <Compile Include="Android\UEDeployAndroid.cs" />
+    <Compile Include="Android\AndroidAARHandler.cs" />
     <Compile Include="Android\AndroidToolChain.cs" />
-    <Compile Include="Android\AndroidPluginLanguage.cs" />
     <Compile Include="Android\AndroidProjectGenerator.cs" />
+    <Compile Include="System\UnrealPluginLanguage.cs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Utilities\HashSetExtensions.cs" />
+    <!-- ATG_CHANGE : BEGIN UWP support  -->
     <Compile Include="UWP\UEBuildUWP.cs" />
     <Compile Include="UWP\UWPDeploy.cs" />
     <Compile Include="UWP\UWPProjectGenerator.cs" />
     <Compile Include="UWP\UWPToolChain.cs" />
-    <!-- ATG_CHANGE : BEGIN UWP support  -->
     <Compile Include="UWP\ResourceGenerator.cs" />
     <Compile Include="UWP\ManifestGenerator.cs" />
     <Compile Include="UWP\WinMDRegistrationInfo.cs" />
     <!-- ATG_CHANGE : END UWP support  -->
     <Compile Include="Windows\WindowsDeploy.cs" />
     <Compile Include="Windows\WinResources.cs" />
-    <Compile Include="WinRT\UEBuildWinRT.cs" />
-    <Compile Include="WinRT\WinRTToolChain.cs" />
-    <Compile Include="WinRT\WinRTDeploy.cs" />
-    <Compile Include="WinRT\WinRTProjectGenerator.cs" />
   </ItemGroup>
   <PropertyGroup>
     <TargetPlatformVersion>8.0</TargetPlatformVersion>
@@ -307,10 +304,6 @@
     <ProjectReference Include="..\DotNETCommon\DotNETUtilities\DotNETUtilities.csproj">
       <Project>{5d7d66e8-8c76-4af9-b3ec-2ef03421d730}</Project>
       <Name>DotNETUtilities</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\EnvVarsToXML\EnvVarsToXML\EnvVarsToXML.csproj">
-      <Project>{66e423eb-ffa3-4ce4-bca3-75bdb6a8318d}</Project>
-      <Name>EnvVarsToXML</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />

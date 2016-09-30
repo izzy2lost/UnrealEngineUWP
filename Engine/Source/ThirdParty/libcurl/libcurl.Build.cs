@@ -44,6 +44,7 @@ public class libcurl : ModuleRules
             (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32"))
 // @ATG_CHANGE : END
 		{
+            // @todo: If this pathing is changed, it must be updated to match in UEBuildWindows.cs so Windows XP can override.
 			PublicIncludePaths.Add(LibCurlPath + "include/Windows");
 
 			string LibCurlLibPath = LibCurlPath + "lib/";

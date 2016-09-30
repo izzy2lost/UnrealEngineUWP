@@ -15,8 +15,6 @@
 #include "Apple/ApplePlatformAtomics.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidAtomics.h"
-#elif PLATFORM_WINRT
-#include "WinRT/WinRTAtomics.h"
 // @ATG_CHANGE : BEGIN UWP support
 #elif PLATFORM_UWP
 #include "UWP/UWPAtomics.h"

@@ -152,7 +152,9 @@ const TCHAR* FUWPProcess::ExecutableName(bool bRemoveExtension)
 void* FUWPProcess::GetDllHandle(const TCHAR* Filename)
 {
 	check(Filename);
-	return ::LoadPackagedLibrary(Filename, 0ul);
+	FString PackageRelativePath(Filename);
+	FPaths::MakePathRelativeTo(PackageRelativePath, *(FPaths::RootDir() + TEXT("/")));
+	return ::LoadPackagedLibrary(*PackageRelativePath, 0ul);
 }
 
 void FUWPProcess::FreeDllHandle(void* DllHandle)

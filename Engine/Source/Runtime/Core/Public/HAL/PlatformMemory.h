@@ -15,8 +15,6 @@
 #include "IOS/IOSPlatformMemory.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidMemory.h"
-#elif PLATFORM_WINRT
-#include "WinRT/WinRTMemory.h"
 // @ATG_CHANGE : BEGIN UWP support
 #elif PLATFORM_UWP
 #include "UWP/UWPMemory.h"

@@ -70,7 +70,7 @@ namespace UnrealBuildTool
 			BaseVSToolPath = WindowsPlatform.GetVSComnToolsPath();
 			if (string.IsNullOrEmpty(BaseVSToolPath))
 			{
-				throw new BuildException("Visual Studio 2015 must be installed in order to build this target.");
+				throw new BuildException(WindowsPlatform.GetCompilerName(WindowsPlatform.Compiler) + " must be installed in order to build this target.");
 			}
 
 			// @ATG_CHANGE : BEGIN UWP support
@@ -128,26 +128,6 @@ namespace UnrealBuildTool
 				LibraryPaths.Add(InitialLibraryPaths);
 			}
             Environment.SetEnvironmentVariable("LIB", String.Join(";", LibraryPaths));
-		}
-
-		/// <summary>
-		/// Check that an environment variable is the same as one derived from keys in the registry, and send a telemetry event if it's not
-		/// </summary>
-		private void CompareEnvironmentVariable(string VariableName, string RegistryValue, bool bSupportWindowsXP)
-		{
-			string EnvironmentValue = Environment.GetEnvironmentVariable(VariableName);
-			Telemetry.SendEvent("CompareEnvironmentVariable",
-				"Name", VariableName,
-				"Match", (EnvironmentValue == RegistryValue).ToString(),
-				"EnvironmentValue", EnvironmentValue,
-				"RegistryValue", RegistryValue,
-				"Platform", Platform.ToString(),
-				// @ATG_CHANGE : BEGIN UWP support
-				"UWPBuildForStore", UniversalWindowsPlatform.bBuildForStore.ToString(),
-				// @ATG_CHANGE : END
-				"WinXP", bSupportWindowsXP.ToString(),
-				"Compiler", WindowsPlatform.Compiler.ToString(),
-				"UseWindowsSDK10", WindowsPlatform.bUseWindowsSDK10.ToString());
 		}
 
 		// @ATG_CHANGE : BEGIN UWP support
@@ -399,25 +379,25 @@ namespace UnrealBuildTool
 			// If we were asked to use Clang, then we'll redirect the path to the compiler to the LLVM installation directory
 			if (WindowsPlatform.bCompileWithClang)
 			{
+				string CompilerDriverName;
 				string Result;
 				if (WindowsPlatform.bUseVCCompilerArgs)
 				{
-					// Use regular Clang compiler on Windows
-					Result = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "LLVM", "msbuild-bin", "cl.exe");
-					if (!File.Exists(Result))
-					{
-						Result = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "LLVM", "msbuild-bin", "cl.exe");
-					}
+					// Use 'clang-cl', a wrapper around Clang that supports Visual C++ compiler command-line arguments
+					CompilerDriverName = "clang-cl.exe";
 				}
 				else
 				{
-					// Use 'clang-cl', a wrapper around Clang that supports Visual C++ compiler command-line arguments
-					Result = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "LLVM", "bin", "clang.exe");
-					if (!File.Exists(Result))
-					{
-						Result = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "LLVM", "bin", "clang.exe");
-					}
+					// Use regular Clang compiler on Windows
+					CompilerDriverName = "clang.exe";
 				}
+
+				Result = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "LLVM", "bin", CompilerDriverName);
+				if (!File.Exists(Result))
+				{
+					Result = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "LLVM", "bin", CompilerDriverName);
+				}
+
 				if (!File.Exists(Result))
 				{
 					throw new BuildException("Clang was selected as the Windows compiler, but LLVM/Clang does not appear to be installed.  Could not find: " + Result);
@@ -502,7 +482,6 @@ namespace UnrealBuildTool
 				}
 			}
 
-			// @todo UWP: Verify that Windows XP will compile using VS 2015 (it should be supported)
 			if (!bSupportWindowsXP)	// Windows XP requires use to force Windows SDK 7.1 even on the newer compiler, so we need the old path RC.exe
 			{
 				if (WindowsPlatform.bUseWindowsSDK10)

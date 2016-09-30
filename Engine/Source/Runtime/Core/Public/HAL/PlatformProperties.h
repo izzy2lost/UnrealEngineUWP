@@ -22,9 +22,6 @@ typedef FIOSPlatformProperties FPlatformProperties;
 #elif PLATFORM_ANDROID
 #include "Android/AndroidProperties.h"
 typedef FAndroidPlatformProperties FPlatformProperties;
-#elif PLATFORM_WINRT
-#include "WinRT/WinRTProperties.h"
-typedef FWinRTPlatformProperties FPlatformProperties;
 // @ATG_CHANGE : BEGIN UWP support
 #elif PLATFORM_UWP
 #include "UWP/UWPProperties.h"

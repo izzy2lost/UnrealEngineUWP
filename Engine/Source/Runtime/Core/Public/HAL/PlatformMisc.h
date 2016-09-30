@@ -14,8 +14,6 @@
 #include "IOS/IOSPlatformMisc.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidMisc.h"
-#elif PLATFORM_WINRT
-#include "WinRT/WinRTMisc.h"
 // @ATG_CHANGE : BEGIN UWP support
 #elif PLATFORM_UWP
 #include "UWP/UWPMisc.h"

@@ -145,6 +145,11 @@ public class APEX : ModuleRules
 				RuntimeDependencies.Add(FileName, StagedFileType.NonUFS);
 				RuntimeDependencies.Add(FileName + ".pdb", StagedFileType.DebugNonUFS);
 			}
+            if(LibrarySuffix != "")
+            {
+                Definitions.Add("UE_APEX_SUFFIX=" + LibrarySuffix);
+            }
+			
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
 		{
@@ -174,7 +179,11 @@ public class APEX : ModuleRules
 				RuntimeDependencies.Add(FileName, StagedFileType.NonUFS);
 				RuntimeDependencies.Add(FileName + ".pdb", StagedFileType.DebugNonUFS);
 			}
-		}
+            if (LibrarySuffix != "")
+            {
+                Definitions.Add("UE_APEX_SUFFIX=" + LibrarySuffix);
+            }
+        }
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			APEXLibDir += "/osx64";

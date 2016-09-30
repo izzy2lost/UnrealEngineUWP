@@ -15,8 +15,6 @@
 #include "Apple/ApplePlatformTLS.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidTLS.h"
-#elif PLATFORM_WINRT
-#include "WinRT/WinRTTLS.h"
 // @ATG_CHANGE : BEGIN UWP support
 #elif PLATFORM_UWP
 #include "UWP/UWPTLS.h"
