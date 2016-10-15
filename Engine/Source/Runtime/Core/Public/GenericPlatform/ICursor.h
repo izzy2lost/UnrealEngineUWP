@@ -65,12 +65,9 @@ namespace EMouseCursor
 
 		/** Eye-dropper cursor for picking colors */
 		EyeDropper,
-// @ATG_CHANGE : BEGIN UWP support
-#if !PLATFORM_UWP
+
 		/** Custom cursor shape for platforms that support setting a native cursor shape. Same as specifying None if not set. */
 		Custom,
-#endif
-// @ATG_CHANGE : END
 
 		/** Number of cursors we support */
 		TotalCursorCount

@@ -50,6 +50,15 @@ public:
 
 	void OnRawMouseMove(const FIntVector& MouseDelta);
 
+public:
+
+	/**
+	* Defines a custom cursor shape for the EMouseCursor::Custom type.
+	*
+	* @param CursorResourceId	The resource id of the cursor to show when EMouseCursor::Custom is selected.
+	*/
+	void SetCustomShape(uint32 CursorResourceId);
+
 private:
 
 	void SetUseRawMouse(bool bUse);

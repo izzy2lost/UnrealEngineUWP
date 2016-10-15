@@ -43,6 +43,7 @@ FUWPCursor::FUWPCursor()
 		switch( CurCursorIndex )
 		{
 		case EMouseCursor::None:
+		case EMouseCursor::Custom:
 			// The mouse cursor will not be visible when None is used
 			break;
 
@@ -134,6 +135,7 @@ FUWPCursor::~FUWPCursor()
 		case EMouseCursor::GrabHandClosed:
 		case EMouseCursor::SlashedCircle:
 		case EMouseCursor::EyeDropper:
+		case EMouseCursor::Custom:
 			// Standard shared cursors don't need to be destroyed
 			break;
 
@@ -161,21 +163,7 @@ void FUWPCursor::ProcessDeferredActions()
 {
     if (bDeferredCursorTypeChange)
     {
-        CoreWindow^ window = CoreWindow::GetForCurrentThread();
-        if (nullptr != window)
-        {
-			if (CurrentCursor != EMouseCursor::None)
-			{
-				SetUseRawMouse(false);
-			}
-
-            window->PointerCursor = Cursors[CurrentCursor];
-            if (CurrentCursor == EMouseCursor::None)
-            {
-				SetUseRawMouse(true);
-			}
-            bDeferredCursorTypeChange = false;
-        }
+		SetType(CurrentCursor);
     }
 
 	if (DeferredMoveEvents.Num() > 0)
@@ -203,30 +191,37 @@ void FUWPCursor::SetType( const EMouseCursor::Type InNewCursor )
 {
     checkf(InNewCursor < EMouseCursor::TotalCursorCount, TEXT("Invalid cursor(%d) supplied"), InNewCursor);
 
-	if (CurrentCursor != InNewCursor)
+	if (CurrentCursor != InNewCursor || bDeferredCursorTypeChange)
 	{
-        // if we're on the UI thread, change the cursor, otherwise queue a deferred change
-        CoreWindow^ window = CoreWindow::GetForCurrentThread();
+		CurrentCursor = InNewCursor;
+		// if we're on the UI thread, change the cursor, otherwise queue a deferred change
+		CoreWindow^ window = CoreWindow::GetForCurrentThread();
 		if (nullptr == window)
 		{
-            bDeferredCursorTypeChange = true;
+			bDeferredCursorTypeChange = true;
 		}
 		else
 		{
-			if (CurrentCursor == EMouseCursor::None)
-			{
-				SetUseRawMouse(false);
-			}
+			bDeferredCursorTypeChange = false;
+			SetUseRawMouse(CurrentCursor == EMouseCursor::None);
 
-            window->PointerCursor = Cursors[InNewCursor];
-            // if switching to view-look-capture mode...
-            if (InNewCursor == EMouseCursor::None)
-            {
-				SetUseRawMouse(true);
+			try
+			{
+				window->PointerCursor = Cursors[CurrentCursor];
+			}
+			catch (Platform::Exception^ Ex)
+			{
+				if (CurrentCursor == EMouseCursor::Custom && Cursors[CurrentCursor] != nullptr)
+				{
+					UE_LOG(LogCore, Error, TEXT("Failed to set custom cursor with resource id %u.  Either id was invalid or cursor was not compiled in.  OS error message : %s"), Cursors[CurrentCursor]->Id, Ex->Message->Data());
+				}
+				else
+				{
+					UE_LOG(LogCore, Error, TEXT("Failed to set cursor to type %d : %s"), static_cast<int32>(CurrentCursor), Ex->Message->Data());
+				}
 			}
 		}
-        CurrentCursor = InNewCursor;
-    }
+	}
 }
 
 void FUWPCursor::GetSize( int32& Width, int32& Height ) const
@@ -273,6 +268,20 @@ void FUWPCursor::SetUseRawMouse(bool bUse)
 		{
 			UE_LOG(LogCore, Warning, TEXT("Exception managing registration for low-level mouse events: %s"), Ex->Message->Data());
 		}
+	}
+}
+
+void FUWPCursor::SetCustomShape(uint32 CursorResourceId)
+{
+	if (CursorResourceId != 0)
+	{
+		// This will succeed even if CursorResourceId is invalid.  The point of failure if
+		// someone supplied a bad value will be when we actually try to set the window cursor.
+		Cursors[EMouseCursor::Custom] = ref new CoreCursor(CoreCursorType::Custom, CursorResourceId);
+	}
+	else
+	{
+		Cursors[EMouseCursor::Custom] = nullptr;
 	}
 }
 
