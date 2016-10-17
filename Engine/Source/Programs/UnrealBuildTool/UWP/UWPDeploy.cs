@@ -191,9 +191,9 @@ namespace UnrealBuildTool
             string AbsoluteExeDirectory = Path.GetDirectoryName(InExecutablePath);
 			string AppxManifestTargetPath = Path.Combine(AbsoluteExeDirectory, "AppxManifest.xml");
 			//@todo: It sure would be nice to have a more robust way of calculating this path, but it matches how the engine handles relative pathing off the exe at runtime
-			string RelativeExeFilePath = Utils.MakePathRelativeTo(InExecutablePath, Path.Combine(AbsoluteExeDirectory, "../../.."));
+			string RelativeExeFilePath = Path.Combine(InProjectName, Utils.MakePathRelativeTo(InExecutablePath, InProjectDirectory));
 
-            // Generate AppX manifest based on ini files and referenced winmd files.
+			// Generate AppX manifest based on ini files and referenced winmd files.
 			PackageManifestGenerator ManifestGenerator = new PackageManifestGenerator(RelativeExeFilePath, InProjectDirectory, ProjectFile, Platform, new string[] { "uap", "mp" }, WinMDReferences);
 			ManifestGenerator.CreateManifest(AppxManifestTargetPath);
 
