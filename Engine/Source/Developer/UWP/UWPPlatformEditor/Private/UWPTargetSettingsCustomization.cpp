@@ -54,7 +54,7 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	IDetailCategoryBuilder& PackagingCategoryBuilder = DetailBuilder.EditCategory(FName(*SigningProperty->GetMetaData("Category")));
 	DetailBuilder.HideProperty(SigningProperty);
 
-	FString DefaultSigningSubPath = FString::Printf(TEXT("Build\\UWP\\%s.pfx"), *SigningProperty->GetPropertyDisplayName().ToString());
+	FString DefaultSigningSubPath = FString::Printf(TEXT("Build\\UWP\\%s.pfx"), *SigningProperty->GetProperty()->GetName());
 	FString SubPath;
 	if (SigningProperty->GetValue(SubPath) == FPropertyAccess::Fail)
 	{
@@ -118,7 +118,7 @@ void FUWPTargetSettingsCustomization::AddWidgetForResourceImage(IDetailLayoutBui
 	IDetailCategoryBuilder& PackagingCategoryBuilder = DetailBuilder.EditCategory(FName(*PropertyHandle->GetMetaData("Category")));
 	DetailBuilder.HideProperty(PropertyHandle);
 
-	FString DefaultImageSubPath = FString::Printf(TEXT("Build\\UWP\\Resources\\%s.png"), *PropertyHandle->GetPropertyDisplayName().ToString());
+	FString DefaultImageSubPath = FString::Printf(TEXT("Build\\UWP\\Resources\\%s.png"), *PropertyHandle->GetProperty()->GetName());
 	FString ImageSubPath;
 	if (PropertyHandle->GetValue(ImageSubPath) == FPropertyAccess::Fail)
 	{

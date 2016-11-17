@@ -262,18 +262,12 @@ namespace UnrealBuildTool
 							// Look up $Section:Key$ in Game INIs
 							string SettingSection = SectionKeyPair.Substring(0, SectionKeyPair.IndexOf(':'));
 							string SettingKey = SectionKeyPair.Substring(SectionKeyPair.IndexOf(':') + 1);
-							String SettingValue = null;
-							GameIni.GetString(SettingSection, SettingKey, out SettingValue);
-							// If not found in Game INIs, search for the same Key in Engine INIs
-							if (SettingValue == null || SettingValue.Length == 0)
-							{
-								EngineIni.GetString(SettingSection, SettingKey, out SettingValue);
-							}
-							// Replace operator with value recovered
-							if (SettingValue != null && SettingValue.Length > 0)
-							{
-								InterprettedSetting += "Resources\\" + SettingKey + ".png";
-							}
+							// @ATG_CHANGE : BEGIN 
+							// Write the manifest entry even if we don't find the setting.  We should
+							// have appropriate fallbacks elsewhere, and if those fail the resource
+							// generator should flag the issue.
+							InterprettedSetting += "Resources\\" + SettingKey + ".png";
+							// @ATG_CHANGE : END 
 						}
 						else if (VariableName.StartsWith("Array:"))
 						{
@@ -805,7 +799,7 @@ namespace UnrealBuildTool
 		private static void SchemaCallback(object ValidationSender, ValidationEventArgs ValidationArgs)
 		{
 			// @ATG_CHANGE : BEGIN UWP Packaging support
-			Log.TraceError("Validation error reading XML schema from XDK. {0}", ValidationArgs.Message);
+			Log.TraceError("Error validating AppxManifest.xml against schema: {0}", ValidationArgs.Message);
 			// @ATG_CHANGE : END
 		}
 

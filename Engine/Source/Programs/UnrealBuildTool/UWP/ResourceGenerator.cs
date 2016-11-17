@@ -212,6 +212,14 @@ namespace UnrealBuildTool
 						if (SettingValue == null || SettingValue.Length == 0)
 						{
 							EngineIni.GetString(SettingSection, SettingKey, out SettingValue);
+							// @ATG_CHANGE : BEGIN 
+							if (SettingValue == null || SettingValue.Length == 0)
+							{
+								// Still empty?  Warn and fill in a default
+								Log.TraceWarning("Config string {0} referenced as resource is not set", SectionKeyPair);
+								SettingValue = "MISSING STRING " + SectionKeyPair;
+							}
+							// @ATG_CHANGE : END 
 						}
 
 						if (SettingValue != null && SettingValue.Length > 0)
@@ -242,6 +250,16 @@ namespace UnrealBuildTool
 						{
 							EngineIni.GetString(SettingSection, SettingKey, out SettingValue);
 						}
+
+						// @ATG_CHANGE : BEGIN 
+						// If we still don't find a customized value, use the default source resources folder with the key
+						// as the file name.
+						if (SettingValue == null || SettingValue.Length == 0)
+						{
+							string PlatformDir = (Platform == UnrealTargetPlatform.XboxOne ? "XboxOne" : "UWP");
+							SettingValue = Path.Combine("Build", PlatformDir, "Resources", SettingKey) + ".png";
+						}
+						// @ATG_CHANGE : END 
 
 						if (SettingValue != null && SettingValue.Length > 0)
 						{
