@@ -184,14 +184,12 @@ namespace UnrealBuildTool
 			string IntermediateDirectory = Path.Combine(InProjectDirectory, "Intermediate", "Deploy");
 			//@todo need to support dlc and other targets
 			string LocalizedContentDirectory = Path.Combine(InProjectDirectory, "Content", "Localization", "Game");
-			string ProjectBinaryFolder = new FileInfo(InExecutablePath).DirectoryName;
-            bool is32bit = Path.GetFileName(ProjectBinaryFolder).Equals("UWP32", StringComparison.OrdinalIgnoreCase);
-            UnrealTargetPlatform Platform = is32bit ? UnrealTargetPlatform.UWP32 : UnrealTargetPlatform.UWP64;
-
-            string AbsoluteExeDirectory = Path.GetDirectoryName(InExecutablePath);
+			string AbsoluteExeDirectory = Path.GetDirectoryName(InExecutablePath);
+			bool Is32bit = Path.GetFileName(AbsoluteExeDirectory).Equals("UWP32", StringComparison.OrdinalIgnoreCase);
+            UnrealTargetPlatform Platform = Is32bit ? UnrealTargetPlatform.UWP32 : UnrealTargetPlatform.UWP64;
+			bool IsGameSpecificExe = AbsoluteExeDirectory.StartsWith(InProjectDirectory);
+			string RelativeExeFilePath = Path.Combine(IsGameSpecificExe ? InProjectName : "Engine", "Binaries", Is32bit ? "UWP32" : "UWP64", Path.GetFileName(InExecutablePath));
 			string AppxManifestTargetPath = Path.Combine(AbsoluteExeDirectory, "AppxManifest.xml");
-			//@todo: It sure would be nice to have a more robust way of calculating this path, but it matches how the engine handles relative pathing off the exe at runtime
-			string RelativeExeFilePath = Path.Combine(InProjectName, Utils.MakePathRelativeTo(InExecutablePath, InProjectDirectory));
 
 			// Generate AppX manifest based on ini files and referenced winmd files.
 			PackageManifestGenerator ManifestGenerator = new PackageManifestGenerator(RelativeExeFilePath, InProjectDirectory, ProjectFile, Platform, new string[] { "uap", "mp" }, WinMDReferences);
@@ -205,11 +203,17 @@ namespace UnrealBuildTool
             string NetworkManifest = Path.Combine(InProjectDirectory, "Config", "UWP", "NetworkManifest.xml");
             if (File.Exists(NetworkManifest))
             {
-                CopyFile(NetworkManifest, Path.Combine(ProjectBinaryFolder, "NetworkManifest.xml"), false);
+                CopyFile(NetworkManifest, Path.Combine(AbsoluteExeDirectory, "NetworkManifest.xml"), false);
             }
 
-            // If using Xbox Live generate the json config file expected by the SDK
-            ConfigCacheIni EngineIni = ConfigCacheIni.CreateConfigCacheIni(Platform, "Engine", new DirectoryReference(InProjectDirectory));
+			// If using Xbox Live generate the json config file expected by the SDK
+			DirectoryReference ConfigDirRef = DirectoryReference.FromFile(ProjectFile);
+			if (ConfigDirRef == null && !string.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()))
+			{
+				ConfigDirRef = new DirectoryReference(UnrealBuildTool.GetRemoteIniPath());
+			}
+
+			ConfigCacheIni EngineIni = ConfigCacheIni.CreateConfigCacheIni(Platform, "Engine", ConfigDirRef);
             if (EngineIni != null)
             {
                 string TitleId;
@@ -221,7 +225,7 @@ namespace UnrealBuildTool
 				bool HasScid = !string.IsNullOrEmpty(Scid);
 				if (HasTitleId && HasScid)
 				{
-					using (JsonWriter XboxServicesConfig = new JsonWriter(Path.Combine(ProjectBinaryFolder, "xboxservices.config")))
+					using (JsonWriter XboxServicesConfig = new JsonWriter(Path.Combine(AbsoluteExeDirectory, "xboxservices.config")))
 					{
 						int TitleIdAsInt;
 						if (int.TryParse(TitleId, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out TitleIdAsInt))
