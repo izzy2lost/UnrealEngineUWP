@@ -26,11 +26,6 @@ using namespace Windows::Foundation;
 using namespace Windows::System;
 using namespace Windows::UI::Core;
 
-#if UE_BUILD_SHIPPING && PLATFORM_FOR_WINDOWS_STORE
-using CurrentStoreApp = Windows::ApplicationModel::Store::CurrentApp;
-#else
-using CurrentStoreApp = Windows::ApplicationModel::Store::CurrentAppSimulator;
-#endif
 DEFINE_LOG_CATEGORY_STATIC(LogLaunchUWP, Log, All);
 
 void appUWPEarlyInit();
@@ -490,9 +485,6 @@ void ViewProvider::Initialize(Windows::ApplicationModel::Core::CoreApplicationVi
 	applicationView->Activated += ref new Windows::Foundation::TypedEventHandler< CoreApplicationView^, IActivatedEventArgs^ >( this, &ViewProvider::OnActivated );
 	CoreApplication::Suspending += ref new Windows::Foundation::EventHandler< Windows::ApplicationModel::SuspendingEventArgs^ >( this, &ViewProvider::OnSuspending );
 	CoreApplication::Resuming += ref new Windows::Foundation::EventHandler< Platform::Object^>( this, & ViewProvider::OnResuming );
-
-	CurrentStoreApp::LicenseInformation->LicenseChanged += ref new Windows::ApplicationModel::Store::LicenseChangedEventHandler(this, &ViewProvider::OnLicenseChanged);
-
 }
 
 void ViewProvider::OnActivated(_In_ Windows::ApplicationModel::Core::CoreApplicationView^ applicationView, _In_ Windows::ApplicationModel::Activation::IActivatedEventArgs^ args)

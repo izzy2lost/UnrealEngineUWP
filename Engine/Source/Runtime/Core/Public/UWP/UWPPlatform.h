@@ -113,5 +113,17 @@ typedef FUWPTypes FPlatformTypes;
 #define DLLEXPORT __declspec(dllexport)
 #define DLLIMPORT __declspec(dllimport)
 
+#if PLATFORM_64BITS
+#define UNSUPPORTED_API_FOR_WACK "D3D12GetDebugInterface"
+#else
+#define UNSUPPORTED_API_FOR_WACK "_D3D12GetDebugInterface@8"
+#endif
+
+#define FORCE_WACK_FAILURE(LogCategory, LogMessage) \
+		__pragma(message("WARNING: " LogMessage)) \
+		__pragma(message("WARNING: Deliberately inserting reference to " UNSUPPORTED_API_FOR_WACK " in order to force WACK failure.")) \
+		__pragma(comment(linker, "/include:" UNSUPPORTED_API_FOR_WACK)) \
+		UE_LOG(LogCategory, Warning, TEXT(LogMessage))
+
 // disable this now as it is annoying for generic platform implementations
 #pragma warning(disable : 4100) // unreferenced formal parameter

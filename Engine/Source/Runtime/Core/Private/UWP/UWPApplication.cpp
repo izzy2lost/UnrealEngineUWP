@@ -10,6 +10,20 @@
 
 PACK_WINRT()
 
+// Flip this on to make license checks operate against the retail Windows Store environment.
+// We default to simulator which is only permitted when the OS is in developer mode.  Titles
+// will need to manually flip this switch to use retail before ship.  Note that retail license
+// checks will not function until the title has been ingested into the retail store catalog.
+//#define USING_RETAIL_WINDOWS_STORE 1
+#ifndef USING_RETAIL_WINDOWS_STORE
+#define USING_RETAIL_WINDOWS_STORE 0
+#endif
+#if USING_RETAIL_WINDOWS_STORE
+using CurrentStoreApp = Windows::ApplicationModel::Store::CurrentApp;
+#else
+using CurrentStoreApp = Windows::ApplicationModel::Store::CurrentAppSimulator;
+#endif
+
 
 static FUWPApplication* UWPApplication = NULL;
 FVector2D FUWPApplication::DesktopSize;
@@ -18,6 +32,9 @@ FUWPApplication* FUWPApplication::CreateUWPApplication()
 {
 	check( UWPApplication == NULL );
 	UWPApplication = new FUWPApplication();
+
+	UWPApplication->InitLicensing();
+
 	return UWPApplication;
 }
 
@@ -143,6 +160,50 @@ void FUWPApplication::PumpMessages(const float TimeDelta)
 TSharedRef< class FUWPCursor > FUWPApplication::GetCursor() const
 {
 	return StaticCastSharedPtr<FUWPCursor>( Cursor ).ToSharedRef();
+}
+
+bool FUWPApplication::ApplicationLicenseValid(FPlatformUserId PlatformUser)
+{
+	try
+	{
+		return CurrentStoreApp::LicenseInformation->IsActive;
+	}
+	catch (...)
+	{
+		UE_LOG(LogCore, Warning, TEXT("Error retrieving license information.  This typically indicates that the incorrect version of CurrentStoreApp is being used.  The currently selected version is Windows::ApplicationModel::Store::%s.  Check USING_RETAIL_WINDOWS_STORE."), USING_RETAIL_WINDOWS_STORE != 0 ? TEXT("CurrentApp") : TEXT("CurrentAppSimulator"));
+		return false;
+	}
+}
+
+void FUWPApplication::InitLicensing()
+{
+#if !USING_RETAIL_WINDOWS_STORE
+	FORCE_WACK_FAILURE(LogCore, "This build uses the Store Simulator for license checks.  It will run only in Developer Mode and is not appropriate for sideloading or Store submission.");
+#endif
+	try
+	{
+		CurrentStoreApp::LicenseInformation->LicenseChanged += ref new Windows::ApplicationModel::Store::LicenseChangedEventHandler(LicenseChangedHandler);
+	}
+	catch (...)
+	{
+		UE_LOG(LogCore, Warning, TEXT("Error registering for LicenseChanged event.  This typically indicates that the incorrect version of CurrentStoreApp is being used.  The currently selected version is Windows::ApplicationModel::Store::%s.  Check USING_RETAIL_WINDOWS_STORE."), USING_RETAIL_WINDOWS_STORE != 0 ? TEXT("CurrentApp") : TEXT("CurrentAppSimulator"));
+#if UE_BUILD_SHIPPING
+		// In shipping builds we treat this as fatal to reduce the chance of a build with misconfigured licensing being accidentally released.
+		throw;
+#endif
+	}
+}
+
+void FUWPApplication::LicenseChangedHandler()
+{
+	Windows::ApplicationModel::Core::CoreApplication::MainView->Dispatcher->RunAsync(
+		Windows::UI::Core::CoreDispatcherPriority::Normal,
+		ref new Windows::UI::Core::DispatchedHandler(BroadcastUELicenseChangeEvent));
+}
+
+void FUWPApplication::BroadcastUELicenseChangeEvent()
+{
+	FCoreDelegates::ApplicationLicenseChange.Broadcast();
 }
 
 PACK_WINRT_REVERT()

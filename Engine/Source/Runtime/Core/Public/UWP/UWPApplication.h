@@ -40,9 +40,15 @@ public:
 
 	TSharedPtr< class FUWPWindow > GetUWPWindow() const { return ApplicationWindow; }
 
+	virtual bool ApplicationLicenseValid(FPlatformUserId PlatformUser = PLATFORMUSERID_NONE);
+
 private:
 
 	FUWPApplication();
+
+	static void InitLicensing();
+	static void LicenseChangedHandler();
+	static void BroadcastUELicenseChangeEvent();
 
 private:
 
