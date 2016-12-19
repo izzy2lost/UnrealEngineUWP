@@ -6,7 +6,7 @@
 #if PLATFORM_UWP
 PACK_WINRT()
 #endif
-enum class EMessageScope;
+enum class EMessageScope : uint8;
 #if PLATFORM_UWP
 PACK_WINRT_REVERT()
 #endif

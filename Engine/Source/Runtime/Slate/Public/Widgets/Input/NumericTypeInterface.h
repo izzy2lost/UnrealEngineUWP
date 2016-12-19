@@ -55,7 +55,7 @@ struct TDefaultNumericTypeInterface : INumericTypeInterface<NumericType>
 #if PLATFORM_UWP
 PACK_WINRT()
 #endif
-enum class EUnit;
+enum class EUnit : uint8;
 #if PLATFORM_UWP
 PACK_WINRT_REVERT()
 #endif

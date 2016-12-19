@@ -30,5 +30,7 @@ public class AudioFormatOpus : ModuleRules
 				"libOpus"
 				);
 		}
+
+		Definitions.Add("WITH_OGGVORBIS=1");
 	}
 }

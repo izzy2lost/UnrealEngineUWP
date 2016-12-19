@@ -23,4 +23,6 @@
 #include "HTML5/HTML5PlatformProcess.h"
 #elif PLATFORM_LINUX
 #include "Linux/LinuxPlatformProcess.h"
+#elif PLATFORM_WOLF
+#include "WolfPlat/WolfPlatformProcess.h"
 #endif

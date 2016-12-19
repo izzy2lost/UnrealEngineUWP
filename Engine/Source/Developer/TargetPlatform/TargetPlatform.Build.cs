@@ -39,6 +39,7 @@ public class TargetPlatform : ModuleRules
 
                 // these are needed by multiple platform specific target platforms, so we make sure they are built with the base editor
                 DynamicallyLoadedModuleNames.Add("ShaderFormatD3D");
+				DynamicallyLoadedModuleNames.Add("MetalShaderFormat");
 
                 if (UEBuildConfiguration.bCompileLeanAndMeanUE == false)
 				{
@@ -69,6 +70,10 @@ public class TargetPlatform : ModuleRules
                     DynamicallyLoadedModuleNames.Add("IOSTargetPlatform");
 					DynamicallyLoadedModuleNames.Add("TVOSTargetPlatform");
                     DynamicallyLoadedModuleNames.Add("HTML5TargetPlatform");
+					DynamicallyLoadedModuleNames.Add("MacTargetPlatform");
+					DynamicallyLoadedModuleNames.Add("MacNoEditorTargetPlatform");
+					DynamicallyLoadedModuleNames.Add("MacServerTargetPlatform");
+					DynamicallyLoadedModuleNames.Add("MacClientTargetPlatform");
 				}
 			}
 			else if (Target.Platform == UnrealTargetPlatform.Mac)
@@ -97,6 +102,7 @@ public class TargetPlatform : ModuleRules
 					DynamicallyLoadedModuleNames.Add("Android_DXTTargetPlatform");
 					DynamicallyLoadedModuleNames.Add("Android_ETC1TargetPlatform");
 					DynamicallyLoadedModuleNames.Add("Android_ETC2TargetPlatform");
+					DynamicallyLoadedModuleNames.Add("Android_ASTCTargetPlatform");
 					DynamicallyLoadedModuleNames.Add("IOSTargetPlatform");
 					DynamicallyLoadedModuleNames.Add("TVOSTargetPlatform");
 					DynamicallyLoadedModuleNames.Add("HTML5TargetPlatform");
@@ -111,13 +117,25 @@ public class TargetPlatform : ModuleRules
 					DynamicallyLoadedModuleNames.Add("TextureFormatASTC");
                 }
 
-                DynamicallyLoadedModuleNames.Add("TextureFormatUncompressed");
+				DynamicallyLoadedModuleNames.Add("TextureFormatUncompressed");
 
-                if (UEBuildConfiguration.bCompileAgainstEngine)
-                {
-                    DynamicallyLoadedModuleNames.Add("AudioFormatOgg");
-                    DynamicallyLoadedModuleNames.Add("AudioFormatOpus");
-                }
+				if (UEBuildConfiguration.bCompileAgainstEngine)
+				{
+					DynamicallyLoadedModuleNames.Add("AudioFormatOgg");
+					DynamicallyLoadedModuleNames.Add("AudioFormatOpus");
+				}
+
+				if (Target.Type == TargetRules.TargetType.Editor || Target.Type == TargetRules.TargetType.Program)
+				{
+					DynamicallyLoadedModuleNames.Add("AndroidTargetPlatform");
+					DynamicallyLoadedModuleNames.Add("Android_MultiTargetPlatform");
+					DynamicallyLoadedModuleNames.Add("Android_PVRTCTargetPlatform");
+					DynamicallyLoadedModuleNames.Add("Android_ATCTargetPlatform");
+					DynamicallyLoadedModuleNames.Add("Android_DXTTargetPlatform");
+					DynamicallyLoadedModuleNames.Add("Android_ETC1TargetPlatform");
+					DynamicallyLoadedModuleNames.Add("Android_ETC2TargetPlatform");
+					DynamicallyLoadedModuleNames.Add("Android_ASTCTargetPlatform");
+				}
             }
 		}
         

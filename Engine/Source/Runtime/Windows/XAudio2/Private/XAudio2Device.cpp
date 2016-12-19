@@ -11,6 +11,7 @@
 	Audio includes.
 ------------------------------------------------------------------------------------*/
 
+#include "XAudio2PrivatePCH.h"
 #include "XAudio2Device.h"
 #include "AudioEffect.h"
 #include "OpusAudioInfo.h"
@@ -40,6 +41,7 @@ public:
 };
 
 IMPLEMENT_MODULE(FXAudio2DeviceModule, XAudio2);
+
 
 /*------------------------------------------------------------------------------------
 Static variables from the early init
@@ -198,7 +200,7 @@ bool FXAudio2Device::InitializeHardware()
 	}
 
 #if XAUDIO_SUPPORTS_DEVICE_DETAILS
-	UE_LOG(LogInit, Log, TEXT("XAudio2 using '%s' : %d channels at %g kHz using %d bits per sample (channel mask 0x%x)"),
+	UE_LOG(LogInit, Log, TEXT( "XAudio2 using '%s' : %d channels at %g kHz using %d bits per sample (channel mask 0x%x)" ), 
 		FXAudioDeviceProperties::DeviceDetails.DisplayName,
 		FXAudioDeviceProperties::NumSpeakers, 
 		( float )SampleRate / 1000.0f, 
@@ -250,6 +252,9 @@ bool FXAudio2Device::InitializeHardware()
 		CommonAudioPoolFreeBytes = 0;
 	}
 
+	// Now initialize the audio clock voice after xaudio2 is initialized
+	DeviceProperties->InitAudioClockVoice();
+
 	return true;
 }
 
@@ -273,9 +278,13 @@ void FXAudio2Device::TeardownHardware()
 
 void FXAudio2Device::UpdateHardware()
 {
+}
+
+void FXAudio2Device::CheckDeviceStateChange()
+{
+#if PLATFORM_WINDOWS
 	if (DeviceProperties)
 	{
-#if PLATFORM_WINDOWS
 		if (DeviceProperties->DidAudioDeviceChange())
 		{
 			// Stop any sounds that are playing
@@ -290,8 +299,11 @@ void FXAudio2Device::UpdateHardware()
 			// And switch to no-audio mode.
 			bIsAudioDeviceHardwareInitialized = false;
 		}
-#endif
 	}
+#endif
+
+	// Update the audio clock time
+	AudioClock = DeviceProperties->GetAudioClockTime();
 }
 
 FAudioEffectsManager* FXAudio2Device::CreateEffectsManager()
