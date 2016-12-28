@@ -68,6 +68,7 @@ struct CORE_API FUWPMisc : public FGenericPlatformMisc
 	static const TCHAR* GetSystemErrorMessage(TCHAR* OutBuffer, int32 BufferCount, int32 Error);
 	static void CreateGuid(struct FGuid& Result);
 	static int32 NumberOfCores();
+	static EAppReturnType::Type MessageBoxExt(EAppMsgType::Type MsgType, const TCHAR* Text, const TCHAR* Caption);
 
 	static bool CoInitialize();
 	static void CoUninitialize();

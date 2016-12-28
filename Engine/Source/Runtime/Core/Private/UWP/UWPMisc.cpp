@@ -9,6 +9,7 @@
 #include "SecureHash.h"
 #include <time.h>
 #include "UWPApplication.h"
+#include <agile.h>
 
 /** 
  * Whether support for integrating into the firewall is there
@@ -327,4 +328,149 @@ void FUWPMisc::SetProtocolActivationUri(const FString& NewUriString)
 const FString& FUWPMisc::GetProtocolActivationUri()
 {
 	return ProtocolActivationUri;
+}
+
+EAppReturnType::Type FUWPMisc::MessageBoxExt(EAppMsgType::Type MsgType, const TCHAR* Text, const TCHAR* Caption)
+{
+	using namespace Windows::UI::Core;
+	using namespace Windows::UI::Popups;
+	using namespace Windows::Foundation;
+
+	Platform::Agile<MessageDialog> UWPMessageBox = Platform::Agile<MessageDialog>(ref new MessageDialog(ref new Platform::String(Text), ref new Platform::String(Caption)));
+
+	Platform::String^ CancelString;
+	Platform::String^ NoToAllString;
+	Platform::String^ NoString;
+	Platform::String^ YesToAllString;
+	Platform::String^ YesString;
+	Platform::String^ OkString;
+	Platform::String^ RetryString;
+	Platform::String^ ContinueString;
+
+	// The Localize* functions will return the Key if a dialog is presented before the config system is initialized.
+	// Instead, we use hard-coded strings if config is not yet initialized.
+	if (!GConfig)
+	{
+		CancelString = TEXT("Cancel");
+		NoToAllString = TEXT("No to All");
+		NoString = TEXT("No");
+		YesToAllString = TEXT("Yes to All");
+		YesString = TEXT("Yes");
+		OkString = TEXT("OK");
+		RetryString = TEXT("Retry");
+		ContinueString = TEXT("Continue");
+	}
+	else
+	{
+		CancelString = ref new Platform::String(*NSLOCTEXT("Core", "Cancel", "Cancel").ToString());
+		NoToAllString = ref new Platform::String(*NSLOCTEXT("Core", "NoToAll", "No to All").ToString());
+		NoString = ref new Platform::String(*NSLOCTEXT("Core", "No", "No").ToString());
+		YesToAllString = ref new Platform::String(*NSLOCTEXT("Core", "YesToAll", "Yes to All").ToString());
+		YesString = ref new Platform::String(*NSLOCTEXT("Core", "Yes", "Yes").ToString());
+		OkString = ref new Platform::String(*NSLOCTEXT("Core", "OK", "OK").ToString());
+		RetryString = ref new Platform::String(*NSLOCTEXT("Core", "Retry", "Retry").ToString());
+		ContinueString = ref new Platform::String(*NSLOCTEXT("Core", "Continue", "Continue").ToString());
+	}
+
+	switch (MsgType)
+	{
+	case EAppMsgType::YesNo:
+	{
+		UWPMessageBox->Commands->Append(ref new UICommand(YesString, nullptr, (Platform::Object^)(int)EAppReturnType::Yes));
+		UWPMessageBox->Commands->Append(ref new UICommand(NoString, nullptr, (Platform::Object^)(int)EAppReturnType::No));
+		UWPMessageBox->CancelCommandIndex = 1;
+		break;
+	}
+	case EAppMsgType::OkCancel:
+	{
+		UWPMessageBox->Commands->Append(ref new UICommand(OkString, nullptr, (Platform::Object^)(int)EAppReturnType::Ok));
+		UWPMessageBox->Commands->Append(ref new UICommand(CancelString, nullptr, (Platform::Object^)(int)EAppReturnType::Cancel));
+		UWPMessageBox->CancelCommandIndex = 1;
+		break;
+	}
+	case EAppMsgType::YesNoYesAllNoAllCancel:
+		UE_LOG(LogCore, Warning, TEXT("MessageBox type requires more buttons than can be displayed on this platform.  Using fallback."));
+	case EAppMsgType::YesNoCancel:
+	{
+		UWPMessageBox->Commands->Append(ref new UICommand(YesString, nullptr, (Platform::Object^)(int)EAppReturnType::Yes));
+		UWPMessageBox->Commands->Append(ref new UICommand(NoString, nullptr, (Platform::Object^)(int)EAppReturnType::No));
+		UWPMessageBox->Commands->Append(ref new UICommand(CancelString, nullptr, (Platform::Object^)(int)EAppReturnType::Cancel));
+		UWPMessageBox->CancelCommandIndex = 2;
+		break;
+	}
+	case EAppMsgType::CancelRetryContinue:
+	{
+		UWPMessageBox->Commands->Append(ref new UICommand(CancelString, nullptr, (Platform::Object^)(int)EAppReturnType::Cancel));
+		UWPMessageBox->Commands->Append(ref new UICommand(RetryString, nullptr, (Platform::Object^)(int)EAppReturnType::Retry));
+		UWPMessageBox->Commands->Append(ref new UICommand(ContinueString, nullptr, (Platform::Object^)(int)EAppReturnType::Continue));
+		UWPMessageBox->CancelCommandIndex = 0;
+		break;
+	}
+	case EAppMsgType::YesNoYesAllNoAll:
+		UE_LOG(LogCore, Warning, TEXT("MessageBox type requires more buttons than can be displayed on this platform.  Using fallback."));
+	case EAppMsgType::YesNoYesAll:
+	{
+		UWPMessageBox->Commands->Append(ref new UICommand(YesString, nullptr, (Platform::Object^)(int)EAppReturnType::Yes));
+		UWPMessageBox->Commands->Append(ref new UICommand(YesToAllString, nullptr, (Platform::Object^)(int)EAppReturnType::YesAll));
+		UWPMessageBox->Commands->Append(ref new UICommand(NoString, nullptr, (Platform::Object^)(int)EAppReturnType::No));
+		UWPMessageBox->CancelCommandIndex = 2;
+		break;
+	}
+	case EAppMsgType::Ok:
+	default:
+	{
+		UWPMessageBox->Commands->Append(ref new UICommand(OkString, nullptr, (Platform::Object^)(int)EAppReturnType::Ok));
+		break;
+	}
+	}
+
+	IAsyncOperation<IUICommand^>^ UIOperation;
+	bool IsUIThread = CoreWindow::GetForCurrentThread() != nullptr;
+	if (IsUIThread)
+	{
+		UIOperation = UWPMessageBox->ShowAsync();
+	}
+	else
+	{
+		// Must invoke the box from the UI thread, so dispatch to that
+		IAsyncAction^ RunAction = Windows::ApplicationModel::Core::CoreApplication::MainView->Dispatcher->RunAsync(
+			Windows::UI::Core::CoreDispatcherPriority::Normal,
+			ref new Windows::UI::Core::DispatchedHandler([&UIOperation, UWPMessageBox]()
+		{
+			UIOperation = UWPMessageBox->ShowAsync();
+		}));
+
+		// Wait for the UI thread to invoke the box.  Note this completes when the
+		// box is shown, not when it is closed.
+		while (RunAction->Status == AsyncStatus::Started)
+		{
+			PumpMessages(false);
+
+			// Yield to make sure UI thread can kick in and pop the UI.
+			FUWPProcess::Sleep(0.f);
+		}
+
+		if (!UIOperation)
+		{
+			// Error in the dispatched call.  Default to cancel.
+			return EAppReturnType::Cancel;
+		}
+	}
+
+	// Pump the core window messages until the dialog has been dismissed.
+	while (UIOperation->Status == AsyncStatus::Started)
+	{
+		PumpMessages(IsUIThread);
+
+		// Yield - possibly needed if we're not the UI thread, and won't hurt if we are.
+		FUWPProcess::Sleep(0.f);
+	}
+
+	// Return the command type pressed (or cancel for error).
+	EAppReturnType::Type ReturnValue = EAppReturnType::Cancel;
+	if (UIOperation->Status == AsyncStatus::Completed)
+	{
+		ReturnValue = static_cast<EAppReturnType::Type>((int)UIOperation->GetResults()->Id);
+	}
+	return ReturnValue;
 }
