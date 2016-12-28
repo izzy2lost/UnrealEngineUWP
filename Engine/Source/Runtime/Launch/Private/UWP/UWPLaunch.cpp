@@ -409,6 +409,7 @@ void ViewProvider::OnWindowSizeChanged(Windows::UI::Core::CoreWindow^ sender, Wi
 		if (pNativeWindow.IsValid())
 		{
 			pApplication->GetMessageHandler()->OnResizingWindow(pNativeWindow.ToSharedRef());
+			pApplication->GetMessageHandler()->OnMovedWindow(pNativeWindow.ToSharedRef(), 0, 0);
 			pApplication->GetMessageHandler()->OnSizeChanged(pNativeWindow.ToSharedRef(), Width, Height);
 			pApplication->GetMessageHandler()->OnResizingWindow(pNativeWindow.ToSharedRef());
 		}
