@@ -17,6 +17,14 @@
 #include <concurrent_queue.h>
 #include "HideWindowsPlatformTypes.h"
 
+// http://developer.download.nvidia.com/devzone/devcenter/gamegraphics/files/OptimusRenderingPolicies.pdf
+// The following line is to favor the high performance NVIDIA GPU if there are multiple GPUs
+// Has to be .exe module to be correctly detected.
+extern "C" { _declspec(dllexport) uint32 NvOptimusEnablement = 0x00000001; }
+
+// Similar for AMD GPU
+extern "C" {__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1; }
+
 #pragma warning(disable : 4946)	// reinterpret_cast used between related classes: 'Platform::Object' and ...
 
 using namespace Windows::ApplicationModel::Activation;
