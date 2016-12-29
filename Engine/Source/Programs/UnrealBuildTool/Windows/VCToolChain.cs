@@ -628,8 +628,41 @@ namespace UnrealBuildTool
 				Arguments.Append(" /wd4463"); // 4463 - overflow; assigning 1 to bit-field that can only hold values from -1 to 0
 
 				Arguments.Append(" /wd4838"); // 4838: conversion from 'type1' to 'type2' requires a narrowing conversion
-			}
 
+				// @ATG_CHANGE : BEGIN winmd support
+				// Enable /ZW if the module requests it
+				if (CompileEnvironment.Config.bEnableWinRTComponentExtensions)
+				{
+					if (WindowsPlatform.bUseWindowsSDK10)
+					{
+						// Enable Windows Runtime extensions.
+						Arguments.Append(" /ZW");
+
+						// Don't automatically add metadata references.  We'll do that ourselves to avoid referencing windows.winmd directly:
+						// we've hit problems where types are somehow in windows.winmd on some installations but not others, leading to either
+						// missing or duplicated type references.
+						Arguments.Append(" /ZW:nostdlib");
+
+						if (Directory.Exists(Path.Combine(EnvVars.WindowsSDKExtensionDir, "References")))
+						{
+							Arguments.AppendFormat(@" /AI""{0}\References""", EnvVars.WindowsSDKExtensionDir);
+
+							// Use the latest version of contracts, consistent with our choice elsewhere to use the latest version of the SDK.
+							// These metadata files should bring in everything available on the Universal family.  Extension SDKs should be
+							// referenced directly by the modules that depend on them.
+							Arguments.AppendFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract"));
+							Arguments.AppendFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract"));
+						}
+						Arguments.AppendFormat(@" /AI""{0}\..\..\VC\vcpackages""", EnvVars.BaseVSToolPath);
+						Arguments.AppendFormat(@" /FU""{0}\..\..\VC\vcpackages\platform.winmd""", EnvVars.BaseVSToolPath);
+					}
+					else
+					{
+						Log.TraceWarning("C++/CX is only supported when using the Windows 10 SDK.  Verify that the correct SDK is installed, and set bForceWindowsSDK10 for non-editor builds.");
+					}
+				}
+				// @ATG_CHANGE : END winmd support
+			}
 		}
 
 		static void AppendCLArguments_CPP(CPPEnvironment CompileEnvironment, StringBuilder Arguments)
@@ -1123,6 +1156,17 @@ namespace UnrealBuildTool
 				// Force MSVC
 				SharedArguments.Append(" /Bt+");
 			}
+
+			// @ATG_CHANGE : BEGIN winmd support
+			// Add winmd references			
+			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 && WindowsPlatform.bUseWindowsSDK10)
+			{
+				foreach (string CurAssemblyInfo in CompileEnvironment.Config.WinMDReferences)
+				{
+					SharedArguments.AppendFormat(" /FU \"{0}\"", CurAssemblyInfo);
+				}
+			}
+			// @ATG_CHANGE : END winmd support
 
 			// Add preprocessor definitions to the argument list.
 			foreach (string Definition in CompileEnvironment.Config.Definitions)

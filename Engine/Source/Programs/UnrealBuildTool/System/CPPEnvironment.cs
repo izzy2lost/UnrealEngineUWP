@@ -374,12 +374,17 @@ namespace UnrealBuildTool
 		/// List of winmd files that the source depends on
 		/// </summary>
 		public List<string> WinMDReferences = new List<string>();
+
+		/// <summary>
+		/// Enables WinRT C++/CX support (/ZW)
+		/// </summary>
+		public bool bEnableWinRTComponentExtensions = false;
 		// @ATG_CHANGE : END
 
-        /// <summary>
-        /// Default constructor.
-        /// </summary>
-        public CPPEnvironmentConfiguration()
+		/// <summary>
+		/// Default constructor.
+		/// </summary>
+		public CPPEnvironmentConfiguration()
 		{
 		}
 
@@ -421,6 +426,7 @@ namespace UnrealBuildTool
 			AdditionalFrameworks.AddRange(InCopyEnvironment.AdditionalFrameworks);
 			// @ATG_CHANGE : BEGIN winmd support
 			WinMDReferences.AddRange(InCopyEnvironment.WinMDReferences);
+			bEnableWinRTComponentExtensions = InCopyEnvironment.bEnableWinRTComponentExtensions;
 			// @ATG_CHANGE : END
 		}
 	}

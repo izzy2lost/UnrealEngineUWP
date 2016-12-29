@@ -1698,6 +1698,9 @@ namespace UnrealBuildTool
 			// @ATG_CHANGE : BEGIN winmd support
 			// Add winmd files
 			Result.Config.WinMDReferences.AddRange(Rules.PrivateWinMDReferences);
+
+			// Enable WinRT if requested, or auto-enable if WinMDs have been added to the environment
+			Result.Config.bEnableWinRTComponentExtensions = Rules.bEnableWinRTComponentExtensions || Result.Config.WinMDReferences.Count > 0;
 			// @ATG_CHANGE : END winmd support
 
 			return Result;
