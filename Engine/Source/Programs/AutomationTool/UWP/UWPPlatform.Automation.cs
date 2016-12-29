@@ -102,7 +102,7 @@ namespace UWP.Automation
 			}
 		}
 
-        public override string GetCookPlatform(bool bDedicatedServer, bool bIsClientOnly)
+		public override string GetCookPlatform(bool bDedicatedServer, bool bIsClientOnly)
 		{
 			return "UWP";
 		}
@@ -115,7 +115,7 @@ namespace UWP.Automation
 			string MakeAppXCommandLine = string.Format(@"pack /o /d ""{0}"" /p ""{1}""", SC.StageDirectory, OutputAppX);
 			RunAndLog(CmdEnv, MakeAppXPath, MakeAppXCommandLine, null, 0, null, ERunOptions.None);
 
-			string SigningCertificate = null;
+			string SigningCertificate = @"Build\UWP\SigningCertificate.pfx";
 			ConfigCacheIni PlatformEngineConfig = null;
 			if (Params.EngineConfigs.TryGetValue(SC.StageTargetPlatform.PlatformType, out PlatformEngineConfig))
 			{
@@ -124,6 +124,33 @@ namespace UWP.Automation
 
 			if (!string.IsNullOrEmpty(SigningCertificate))
 			{
+				string SigningCertificatePath = Path.Combine(SC.ProjectRoot, SigningCertificate);
+				if (!File.Exists(SigningCertificatePath))
+				{
+					if (!IsBuildMachine && !Params.Unattended)
+					{
+						// Extract the publisher name from the AppXManifest
+						string AppxManifestPath = Path.Combine(SC.StageDirectory, "AppxManifest.xml");
+						System.Xml.Linq.XDocument doc = System.Xml.Linq.XDocument.Load(AppxManifestPath);
+						System.Xml.Linq.XElement package = doc.Root;
+						System.Xml.Linq.XElement identity = package.Element(System.Xml.Linq.XName.Get("Identity", package.Name.NamespaceName));
+						string Publisher = identity.Attribute("Publisher").Value;
+						if (!string.IsNullOrEmpty(Publisher))
+						{
+							LogWarning("No certificate found at {0}.  Generating temporary self-signed certificate for {1}.", SigningCertificatePath, Publisher);
+							GenerateSigningCertificate(SDKFolder, SigningCertificatePath, Publisher);
+						}
+						else
+						{
+							LogWarning("No certificate found at {0} and temporary certificate cannot be generated (missing publisher name).  Check your Company Distinguished Name setting.  Signing will probably fail.", SigningCertificatePath);
+						}
+					}
+					else
+					{
+						LogWarning("No certificate found at {0} and temporary certificate cannot be generated (running unattended).", SigningCertificatePath);
+					}
+				}
+
 				string SignToolPath = Path.Combine(SDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "signtool.exe");
 				string SignToolCommandLine = string.Format(@"sign /a /f ""{0}"" /fd SHA256 ""{1}""", Path.Combine(SC.ProjectRoot, SigningCertificate), OutputAppX);
 				RunAndLog(CmdEnv, SignToolPath, SignToolCommandLine, null, 0, null, ERunOptions.None);
@@ -152,6 +179,22 @@ namespace UWP.Automation
 		public override List<string> GetDebugFileExtentions()
 		{
 			return new List<string> { ".pdb", ".map" };
+		}
+
+		private void GenerateSigningCertificate(string InSDKFolder, string InCertificatePath, string InPublisher)
+		{
+			// MakeCert.exe -r -h 0 -n "CN=No Publisher, O=No Publisher" -eku 1.3.6.1.5.5.7.3.3 -pe -sv "Signing Certificate.pvk" "Signing Certificate.cer"
+			// pvk2pfx -pvk "Signing Certificate.pvk" -spc "Signing Certificate.cer" -pfx "Signing Certificate.pfx"
+			string MakeCertPath = Path.Combine(InSDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "makecert.exe");
+			string Pvk2PfxPath = Path.Combine(InSDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "pvk2pfx.exe");
+			string CerFile = Path.ChangeExtension(InCertificatePath, ".cer");
+			string PvkFile = Path.ChangeExtension(InCertificatePath, ".pvk");
+
+			string MakeCertCommandLine = string.Format(@"-r -h 0 -n ""{0}"" -eku 1.3.6.1.5.5.7.3.3 -pe -sv ""{1}"" ""{2}""", InPublisher, PvkFile, CerFile);
+			RunAndLog(CmdEnv, MakeCertPath, MakeCertCommandLine, null, 0, null, ERunOptions.None);
+
+			string Pvk2PfxCommandLine = string.Format(@"-pvk ""{0}"" -spc ""{1}"" -pfx ""{2}""", PvkFile, CerFile, InCertificatePath);
+			RunAndLog(CmdEnv, Pvk2PfxPath, Pvk2PfxCommandLine, null, 0, null, ERunOptions.None);
 		}
 	}
 
