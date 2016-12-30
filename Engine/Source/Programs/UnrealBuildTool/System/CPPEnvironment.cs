@@ -28,6 +28,7 @@ namespace UnrealBuildTool
 		HTML5,
 		Linux,
 		TVOS,
+		Wolf,
 	}
 
 	/// <summary>

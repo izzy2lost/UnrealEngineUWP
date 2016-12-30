@@ -18,6 +18,7 @@ public class IntelTBB : ModuleRules
 			string IntelTBBPath = UEBuildConfiguration.UEThirdPartySourceDirectory + "IntelTBB/";
 			switch (WindowsPlatform.Compiler)
 			{
+				case WindowsCompiler.VisualStudio2017:
 				case WindowsCompiler.VisualStudio2015: IntelTBBPath += "IntelTBB-4.4u3/"; break;
 				case WindowsCompiler.VisualStudio2013: IntelTBBPath += "IntelTBB-4.0/"; break;
 			}
@@ -28,7 +29,7 @@ public class IntelTBB : ModuleRules
 			if ((Target.Platform == UnrealTargetPlatform.Win64) || (Target.Platform == UnrealTargetPlatform.UWP64))
 // @ATG_CHANGE : END
 			{
-				if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015)
+				if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 || WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2017)
 				{
 					PublicLibraryPaths.Add(IntelTBBPath + "lib/Win64/vc14");
 				}
@@ -41,7 +42,7 @@ public class IntelTBB : ModuleRules
 			else if ((Target.Platform == UnrealTargetPlatform.Win32) || (Target.Platform == UnrealTargetPlatform.UWP32))
 // @ATG_CHANGE : END
 			{
-				if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015)
+				if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 || WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2017)
 				{
 					PublicLibraryPaths.Add(IntelTBBPath + "lib/Win32/vc14");
 				}

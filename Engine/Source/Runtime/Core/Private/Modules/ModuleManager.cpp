@@ -48,27 +48,32 @@ FModuleManager& FModuleManager::Get()
 
 	if( ModuleManager == NULL )
 	{
-		// FModuleManager is not thread-safe
-		ensure(IsInGameThread());
+		static FCriticalSection FModuleManagerSingletonConstructor;
+		FScopeLock Guard(&FModuleManagerSingletonConstructor);
+		if (ModuleManager == NULL)
+		{
+			// FModuleManager is not thread-safe
+			ensure(IsInGameThread());
 
-		ModuleManager = new FModuleManager();
+			ModuleManager = new FModuleManager();
 
-		//temp workaround for IPlatformFile being used for FPaths::DirectoryExists before main() sets up the commandline.
+			//temp workaround for IPlatformFile being used for FPaths::DirectoryExists before main() sets up the commandline.
 // @ATG_CHANGE : BEGIN UWP packaging & F5 support
 #if PLATFORM_DESKTOP && !PLATFORM_UWP
 // @ATG_CHANGE : END
 		// Ensure that dependency dlls can be found in restricted sub directories
-		const TCHAR* RestrictedFolderNames[] = { TEXT("NoRedist"), TEXT("NotForLicensees"), TEXT("CarefullyRedist") };
-		FString ModuleDir = FPlatformProcess::GetModulesDirectory();
-		for (const TCHAR* RestrictedFolderName : RestrictedFolderNames)
-		{
-			FString RestrictedFolder = ModuleDir / RestrictedFolderName;
-			if (FPaths::DirectoryExists(RestrictedFolder))
+			const TCHAR* RestrictedFolderNames[] = { TEXT("NoRedist"), TEXT("NotForLicensees"), TEXT("CarefullyRedist") };
+			FString ModuleDir = FPlatformProcess::GetModulesDirectory();
+			for (const TCHAR* RestrictedFolderName : RestrictedFolderNames)
 			{
-				ModuleManager->AddBinariesDirectory(*RestrictedFolder, false);
+				FString RestrictedFolder = ModuleDir / RestrictedFolderName;
+				if (FPaths::DirectoryExists(RestrictedFolder))
+				{
+					ModuleManager->AddBinariesDirectory(*RestrictedFolder, false);
+				}
 			}
-		}
 #endif
+		}
 	}
 
 	return *ModuleManager;
@@ -333,7 +338,7 @@ TSharedPtr<IModuleInterface> FModuleManager::LoadModule( const FName InModuleNam
 TSharedPtr<IModuleInterface> FModuleManager::LoadModuleChecked( const FName InModuleName, const bool bWasReloaded )
 {
 	TSharedPtr<IModuleInterface> Module = LoadModule(InModuleName, bWasReloaded);
-	check(Module.IsValid());
+	checkf(Module.IsValid(), *InModuleName.ToString());
 
 	return Module;
 }

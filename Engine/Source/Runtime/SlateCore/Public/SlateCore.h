@@ -10,34 +10,10 @@
 #include "InputCore.h"
 #include "ModuleManager.h"
 
-
 /* Globals
  *****************************************************************************/
 
-SLATECORE_API DECLARE_LOG_CATEGORY_EXTERN(LogSlate, Log, All);
-SLATECORE_API DECLARE_LOG_CATEGORY_EXTERN(LogSlateStyles, Log, All);
-
-DECLARE_STATS_GROUP(TEXT("Slate Memory"), STATGROUP_SlateMemory, STATCAT_Advanced);
-DECLARE_STATS_GROUP(TEXT("Slate"), STATGROUP_Slate, STATCAT_Advanced);
-DECLARE_STATS_GROUP_VERBOSE(TEXT("SlateVerbose"), STATGROUP_SlateVerbose, STATCAT_Advanced);
-
-
-// Compile all the RichText and MultiLine editable text?
-#define WITH_FANCY_TEXT 1
-
-/* Forward declarations
- *****************************************************************************/
-class FActiveTimerHandle;
-// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
-#if PLATFORM_UWP
-PACK_WINRT()
-#endif
-enum class EActiveTimerReturnType : uint8;
-#if PLATFORM_UWP
-PACK_WINRT_REVERT()
-#endif
-// @ATG_CHANGE : END
-
+#include "SlateGlobals.h"
 
 /* Delegates
  *****************************************************************************/
@@ -65,7 +41,6 @@ PACK_WINRT_REVERT()
 #include "ArrangedChildren.h"
 #include "SNullWidget.h"
 #include "Children.h"
-#include "WidgetPath.h"
 #include "LayoutUtils.h"
 
 // Animation
@@ -76,6 +51,7 @@ PACK_WINRT_REVERT()
 // Sound
 #include "SlateSound.h"
 #include "ISlateSoundDevice.h"
+#include "NullSlateSoundDevice.h"
 
 // Styling
 #include "WidgetStyle.h"
@@ -140,7 +116,7 @@ PACK_WINRT_REVERT()
 #include "SUserWidget.h"
 #include "SLeafWidget.h"
 #include "SPanel.h"
-#include "WidgetPath.inl"
+#include "WidgetPath.h"
 ////
 #include "SBoxPanel.h"
 #include "SOverlay.h"

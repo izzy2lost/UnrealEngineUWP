@@ -9,7 +9,7 @@ public class FreeType2 : ModuleRules
 		Type = ModuleType.External;
 
         Definitions.Add("WITH_FREETYPE=1");
-      
+
 		string FreeType2Path;
 		string FreeType2LibPath;
 
@@ -42,7 +42,7 @@ public class FreeType2 : ModuleRules
            (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32") // simulator
         )
 		{
-	
+
 // @ATG_CHANGE : BEGIN UWP support
             FreeType2LibPath += (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64) ? "Win64/" : "Win32/";
 // @ATG_CHANGE : END
@@ -116,7 +116,7 @@ public class FreeType2 : ModuleRules
             {
                 PublicAdditionalLibraries.Add(FreeType2LibPath + "Linux/" + Target.Architecture + "/libfreetype_fPIC.a");
             }
-       }
+        }
        else if (Target.Platform == UnrealTargetPlatform.HTML5)
         {
             PublicLibraryPaths.Add(FreeType2Path + "Lib/HTML5");
@@ -137,11 +137,26 @@ public class FreeType2 : ModuleRules
                 }
             }
             PublicAdditionalLibraries.Add(FreeType2Path + "Lib/HTML5/libfreetype260" + OpimizationSuffix + ".bc");
-        }
+        } 
         else if (Target.Platform == UnrealTargetPlatform.PS4)
         {
             PublicLibraryPaths.Add(FreeType2LibPath + "PS4");
             PublicAdditionalLibraries.Add("freetype2412");
         }
-	}
+        else if (Target.Platform == UnrealTargetPlatform.XboxOne)
+        {
+            // Use reflection to allow type not to exist if console code is not present
+            System.Type XboxOnePlatformType = System.Type.GetType("UnrealBuildTool.XboxOnePlatform,UnrealBuildTool");
+            if (XboxOnePlatformType != null)
+            {
+                System.Object VersionName = XboxOnePlatformType.GetMethod("GetVisualStudioCompilerVersionName").Invoke(null, null);
+                PublicLibraryPaths.Add(FreeType2LibPath + "XboxOne/VS" + VersionName.ToString());
+                PublicAdditionalLibraries.Add("freetype2412.lib");
+            }
+        }
+		else if (Target.Platform == UnrealTargetPlatform.WolfPlat)
+		{
+			PublicAdditionalLibraries.Add(System.IO.Path.Combine(FreeType2LibPath, "WolfPlat/libFreetype.a"));
+		}
+    }
 }
