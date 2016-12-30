@@ -1667,8 +1667,10 @@ EWindowZone::Type SWindow::GetCurrentWindowZone(FVector2D LocalMousePosition)
 
 	const FMargin DPIScaledResizeBorder = UserResizeBorder * WindowDPIScale;
 
+	const bool bIsCursorVisible = FSlateApplicationBase::Get().GetPlatformCursor()->GetType() != EMouseCursor::None;
+
 	// Don't allow position/resizing of window while in fullscreen mode by ignoring Title Bar/Border Zones
-	if ( bIsFullscreenMode && !bIsBorderlessGameWindow )
+	if ((bIsFullscreenMode && !bIsBorderlessGameWindow) || !bIsCursorVisible)
 	{
 		return EWindowZone::ClientArea;
 	}
@@ -1677,7 +1679,7 @@ EWindowZone::Type SWindow::GetCurrentWindowZone(FVector2D LocalMousePosition)
 	{
 		int32 Row = 1;
 		int32 Col = 1;
-		if (SizingRule == ESizingRule::UserSized && !bIsFullscreenMode)
+		if (SizingRule == ESizingRule::UserSized && !bIsFullscreenMode && !NativeWindow->IsMaximized())
 		{
 			if (LocalMousePosition.X < (DPIScaledResizeBorder.Left + 5))
 			{

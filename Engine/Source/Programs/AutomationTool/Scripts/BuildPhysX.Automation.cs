@@ -1367,7 +1367,6 @@ class BuildPhysX : BuildCommand
 				case UnrealTargetPlatform.PS4:
 				case UnrealTargetPlatform.XboxOne:
 				case UnrealTargetPlatform.Mac:
-				case UnrealTargetPlatform.HTML5:
 				// @ATG_CHANGE: BEGIN UWP support
 				case UnrealTargetPlatform.UWP32:
 				case UnrealTargetPlatform.UWP64:
