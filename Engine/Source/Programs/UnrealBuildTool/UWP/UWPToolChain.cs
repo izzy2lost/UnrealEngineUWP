@@ -45,18 +45,18 @@ namespace UnrealBuildTool
 			// Enable intrinsic functions.
 			Arguments.Append(" /Oi");
 
-            if (CompileEnvironment.Config.Target.Platform == CPPTargetPlatform.UWP64)
-            {
-                // Pack struct members on 8-byte boundaries.
-                Arguments.Append(" /Zp8");
-            }
-            else
-            {
-                // Pack struct members on 4-byte boundaries.
-                Arguments.Append(" /Zp4");
-                // Allow the compiler to generate SSE2 instructions.
-                Arguments.Append(" /arch:SSE2");
-            }
+			if (CompileEnvironment.Config.Target.Platform == CPPTargetPlatform.UWP64)
+			{
+				// Pack struct members on 8-byte boundaries.
+				Arguments.Append(" /Zp8");
+			}
+			else
+			{
+				// Pack struct members on 4-byte boundaries.
+				Arguments.Append(" /Zp4");
+				// Allow the compiler to generate SSE2 instructions.
+				Arguments.Append(" /arch:SSE2");
+			}
 
 			// Separate functions for linker.
 			Arguments.Append(" /Gy");
@@ -78,8 +78,8 @@ namespace UnrealBuildTool
 
 			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015)
 			{
-                VCToolChain.AddDefinition(Arguments, "_CRT_STDIO_LEGACY_WIDE_SPECIFIERS", "1");
-                //VCToolChain.AddDefinition(Arguments, "USE_SECURE_CRT", "1");
+				VCToolChain.AddDefinition(Arguments, "_CRT_STDIO_LEGACY_WIDE_SPECIFIERS", "1");
+				//VCToolChain.AddDefinition(Arguments, "USE_SECURE_CRT", "1");
 			}
 
 			// @todo UWP: Disable "unreachable code" warning since auto-included vccorlib.h triggers it
@@ -109,7 +109,7 @@ namespace UnrealBuildTool
 			// If compiling as a DLL, set the relevant defines
 			if (CompileEnvironment.Config.bIsBuildingDLL)
 			{
-                VCToolChain.AddDefinition(Arguments, "_WINDLL");
+				VCToolChain.AddDefinition(Arguments, "_WINDLL");
 			}
 
 			// Handle Common Language Runtime support (C++/CLI)
@@ -264,7 +264,7 @@ namespace UnrealBuildTool
 			
 			if (UniversalWindowsPlatform.bBuildForStore)
 			{
-                VCToolChain.AddDefinition(Arguments, "_BUILD_FOR_STORE", "1");
+				VCToolChain.AddDefinition(Arguments, "_BUILD_FOR_STORE", "1");
 			}
 
 			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015)
@@ -282,25 +282,25 @@ namespace UnrealBuildTool
 			// Enable Windows Runtime extensions.  Do this even for libs (plugins) so that these too can consume WinRT APIs
 			Arguments.Append(" /ZW");
 
-            // Don't automatically add metadata references.  We'll do that ourselves to avoid referencing windows.winmd directly:
-            // we've hit problems where types are somehow in windows.winmd on some installations but not others, leading to either
-            // missing or duplicated type references.
-            Arguments.Append(" /ZW:nostdlib");
-            VCToolChain.AddDefinition(Arguments, "USE_WINRT_MAIN", "1");
+			// Don't automatically add metadata references.  We'll do that ourselves to avoid referencing windows.winmd directly:
+			// we've hit problems where types are somehow in windows.winmd on some installations but not others, leading to either
+			// missing or duplicated type references.
+			Arguments.Append(" /ZW:nostdlib");
+			VCToolChain.AddDefinition(Arguments, "USE_WINRT_MAIN", "1");
 
 			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 &&
 				Directory.Exists(Path.Combine(EnvVars.WindowsSDKExtensionDir, "References")))
 			{
 				Arguments.AppendFormat(@" /AI""{0}\References""", EnvVars.WindowsSDKExtensionDir);
 
-                // Use the latest version of contracts, consistent with our choice elsewhere to use the latest version of the SDK.
-                // These metadata files should bring in everything available on the Universal family.  Extension SDKs should be
-                // referenced directly by the modules that depend on them.
-                Arguments.AppendFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract"));
-                Arguments.AppendFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract"));
-            }
-            Arguments.AppendFormat(@" /AI""{0}\..\..\VC\vcpackages""", EnvVars.BaseVSToolPath);
-			Arguments.AppendFormat(@" /FU""{0}\..\..\VC\vcpackages\platform.winmd""", EnvVars.BaseVSToolPath);
+				// Use the latest version of contracts, consistent with our choice elsewhere to use the latest version of the SDK.
+				// These metadata files should bring in everything available on the Universal family.  Extension SDKs should be
+				// referenced directly by the modules that depend on them.
+				Arguments.AppendFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract"));
+				Arguments.AppendFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract"));
+			}
+			Arguments.AppendFormat(@" /AI""{0}\vcpackages""", EnvVars.VCInstallDir);
+			Arguments.AppendFormat(@" /FU""{0}\vcpackages\platform.winmd""", EnvVars.VCInstallDir);
 		}
 
 		static void AppendCLArguments_CPP(CPPEnvironment CompileEnvironment, StringBuilder Arguments)
@@ -367,14 +367,14 @@ namespace UnrealBuildTool
 			// Prompt the user before reporting internal errors to Microsoft.
 			Arguments.Append(" /errorReport:prompt");
 
-            //
-            //	PC
-            //
-            // Set machine type/ architecture to be 64 bit, and set as a store app
-            if (LinkEnvironment.Config.Target.Platform == CPPTargetPlatform.UWP64)
-            {
-                Arguments.Append(" /MACHINE:x64");
-            }
+			//
+			//	PC
+			//
+			// Set machine type/ architecture to be 64 bit, and set as a store app
+			if (LinkEnvironment.Config.Target.Platform == CPPTargetPlatform.UWP64)
+			{
+				Arguments.Append(" /MACHINE:x64");
+			}
 			Arguments.Append(" /APPCONTAINER");
 			// this helps with store API compliance validation tools, adding additional pdb info
 			Arguments.Append(" /PROFILE");
@@ -498,15 +498,15 @@ namespace UnrealBuildTool
 			// Prompt the user before reporting internal errors to Microsoft.
 			Arguments.Append(" /errorReport:prompt");
 
-            //
-            //	PC
-            //
-            // Set machine type/ architecture to be 64 bit.
+			//
+			//	PC
+			//
+			// Set machine type/ architecture to be 64 bit.
 
-            if (LinkEnvironment.Config.Target.Platform == CPPTargetPlatform.UWP64)
-            {
-                Arguments.Append(" /MACHINE:x64");
-            }
+			if (LinkEnvironment.Config.Target.Platform == CPPTargetPlatform.UWP64)
+			{
+				Arguments.Append(" /MACHINE:x64");
+			}
 
 			if (LinkEnvironment.Config.bIsBuildingConsoleApplication)
 			{
@@ -680,7 +680,7 @@ namespace UnrealBuildTool
 							// Force include the precompiled header file.  This is needed because we may have selected a
 							// precompiled header that is different than the first direct include in the C++ source file, but
 							// we still need to make sure that our precompiled header is the first thing included!
-    						FileArguments.AppendFormat(" /FI\"{0}\"", CompileEnvironment.Config.PCHHeaderNameInCode);
+							FileArguments.AppendFormat(" /FI\"{0}\"", CompileEnvironment.Config.PCHHeaderNameInCode);
 						}
 					}
 
@@ -770,7 +770,7 @@ namespace UnrealBuildTool
 				}
 
 				CompileAction.WorkingDirectory = UnrealBuildTool.EngineSourceDirectory.FullName;
-				CompileAction.CommandPath = EnvVars.CompilerPath;
+				CompileAction.CommandPath = EnvVars.CompilerPath.FullName;
 
 				CompileAction.CommandArguments = Arguments.ToString() + FileArguments.ToString() + CompileEnvironment.Config.AdditionalArguments;
 
@@ -816,18 +816,18 @@ namespace UnrealBuildTool
 				Action CompileAction = new Action(ActionType.Compile);
 				CompileAction.CommandDescription = "Resource";
 				CompileAction.WorkingDirectory = UnrealBuildTool.EngineSourceDirectory.FullName;
-				CompileAction.CommandPath = EnvVars.ResourceCompilerPath;
+				CompileAction.CommandPath = EnvVars.ResourceCompilerPath.FullName;
 				CompileAction.StatusDescription = Path.GetFileName(RCFile.AbsolutePath);
 
 				// Suppress header spew
 				CompileAction.CommandArguments += " /nologo";
 
-                // If we're compiling for 64-bit Windows, also add the _WIN64 definition to the resource
-                // compiler so that we can switch on that in the .rc file using #ifdef.
-                if (Target.Platform == UnrealTargetPlatform.UWP64)
-                {
-                    CompileAction.CommandArguments += " /D_WIN64";
-                }
+				// If we're compiling for 64-bit Windows, also add the _WIN64 definition to the resource
+				// compiler so that we can switch on that in the .rc file using #ifdef.
+				if (Target.Platform == UnrealTargetPlatform.UWP64)
+				{
+					CompileAction.CommandArguments += " /D_WIN64";
+				}
 
 				// Language
 				CompileAction.CommandArguments += " /l 0x409";
@@ -1057,7 +1057,7 @@ namespace UnrealBuildTool
 			Action LinkAction = new Action(ActionType.Link);
 			LinkAction.CommandDescription = "Link";
 			LinkAction.WorkingDirectory = UnrealBuildTool.EngineSourceDirectory.FullName;
-			LinkAction.CommandPath = bIsBuildingLibrary ? EnvVars.LibraryLinkerPath : EnvVars.LinkerPath;
+			LinkAction.CommandPath = (bIsBuildingLibrary ? EnvVars.LibraryManagerPath : EnvVars.LinkerPath).FullName;
 			LinkAction.CommandArguments = Arguments.ToString();
 			LinkAction.ProducedItems.AddRange(ProducedItems);
 			LinkAction.PrerequisiteItems.AddRange(PrerequisiteItems);

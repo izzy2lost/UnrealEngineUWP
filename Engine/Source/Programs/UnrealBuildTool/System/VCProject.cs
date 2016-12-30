@@ -353,6 +353,22 @@ namespace UnrealBuildTool
 				VCPreprocessorDefinitions.Append(CurDef);
 			}
 
+			// @ATG_CHANGE : BEGIN winmd support
+			// Ensure custom winmds are pulled in for Intellisense purposes.  Needs to be here because
+			// the list is owned by the VCProjectFile instance (same as other Intellisense collections).
+			// Also note that file locations may be platform-specific, but the list was formed based
+			// on Win64 only.
+			StringBuilder VCWinMDReferences = new StringBuilder();
+			foreach (var CurDef in IntelliSenseWinMDReferences)
+			{
+				if (VCWinMDReferences.Length > 0)
+				{
+					VCWinMDReferences.Append(';');
+				}
+				VCWinMDReferences.Append(CurDef.Replace(UnrealTargetPlatform.Win64.ToString(), UnrealTargetPlatform.UWP64.ToString()));
+			}
+			// @ATG_CHANGE : END
+
 			// Setup VC project file content
 			StringBuilder VCProjectFileContent = new StringBuilder();
 			StringBuilder VCFiltersFileContent = new StringBuilder();
@@ -498,10 +514,10 @@ namespace UnrealBuildTool
 					"		<ProjectGuid>" + ProjectGUID.ToString("B").ToUpperInvariant() + "</ProjectGuid>" + ProjectFileGenerator.NewLine +
 					"		<Keyword>MakeFileProj</Keyword>" + ProjectFileGenerator.NewLine +
 					"		<RootNamespace>" + ProjectName + "</RootNamespace>" + ProjectFileGenerator.NewLine +
-                    "       <PlatformToolset>" + VCProjectFileGenerator.GetProjectFilePlatformToolsetVersionString(ProjectFileFormat) + "</PlatformToolset>" + ProjectFileGenerator.NewLine +
-                    "       <MinimumVisualStudioVersion>" + VCProjectFileGenerator.GetProjectFileToolVersionString(ProjectFileFormat) + "</MinimumVisualStudioVersion>" + ProjectFileGenerator.NewLine +
-                    "       <TargetRuntime>Native</TargetRuntime>" + ProjectFileGenerator.NewLine +
-                    "	</PropertyGroup>" + ProjectFileGenerator.NewLine);
+					"       <PlatformToolset>" + VCProjectFileGenerator.GetProjectFilePlatformToolsetVersionString(ProjectFileFormat) + "</PlatformToolset>" + ProjectFileGenerator.NewLine +
+					"       <MinimumVisualStudioVersion>" + VCProjectFileGenerator.GetProjectFileToolVersionString(ProjectFileFormat) + "</MinimumVisualStudioVersion>" + ProjectFileGenerator.NewLine +
+					"       <TargetRuntime>Native</TargetRuntime>" + ProjectFileGenerator.NewLine +
+					"	</PropertyGroup>" + ProjectFileGenerator.NewLine);
 			}
 
 			// Write each project configuration PreDefaultProps section
@@ -690,7 +706,9 @@ namespace UnrealBuildTool
 					"		<NMakeIncludeSearchPath>$(NMakeIncludeSearchPath)" + (VCIncludeSearchPaths.Length > 0 ? (";" + VCIncludeSearchPaths) : "") + "</NMakeIncludeSearchPath>" + ProjectFileGenerator.NewLine +
 					"		<NMakeForcedIncludes>$(NMakeForcedIncludes)</NMakeForcedIncludes>" + ProjectFileGenerator.NewLine +
 					"		<NMakeAssemblySearchPath>$(NMakeAssemblySearchPath)</NMakeAssemblySearchPath>" + ProjectFileGenerator.NewLine +
-					"		<NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies)</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine +
+					// @ATG_CHANGE : BEGIN winmd support
+					"		<NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies)" + (VCWinMDReferences.Length > 0 ? (";" + VCWinMDReferences) : "") + "</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine +
+					// @ATG_CHANGE : END
 					"	</PropertyGroup>" + ProjectFileGenerator.NewLine);
 			}
 
@@ -902,32 +920,32 @@ namespace UnrealBuildTool
 			}
 		}
 
-        // Anonymous function that writes pre-Default.props configuration data
-        private void WritePreDefaultPropsConfiguration(UnrealTargetPlatform TargetPlatform, UnrealTargetConfiguration TargetConfiguration, string ProjectPlatformName, string ProjectConfigurationName, StringBuilder VCProjectFileContent)
-        {
-            UEPlatformProjectGenerator ProjGenerator = UEPlatformProjectGenerator.GetPlatformProjectGenerator(TargetPlatform, true);
-            if (((ProjGenerator == null) && (TargetPlatform != UnrealTargetPlatform.Unknown)))
-            {
-                return;
-            }
+		// Anonymous function that writes pre-Default.props configuration data
+		private void WritePreDefaultPropsConfiguration(UnrealTargetPlatform TargetPlatform, UnrealTargetConfiguration TargetConfiguration, string ProjectPlatformName, string ProjectConfigurationName, StringBuilder VCProjectFileContent)
+		{
+			UEPlatformProjectGenerator ProjGenerator = UEPlatformProjectGenerator.GetPlatformProjectGenerator(TargetPlatform, true);
+			if (((ProjGenerator == null) && (TargetPlatform != UnrealTargetPlatform.Unknown)))
+			{
+				return;
+			}
 
-            string ProjectConfigurationAndPlatformName = ProjectConfigurationName + "|" + ProjectPlatformName;
-            string ConditionString = "Condition=\"'$(Configuration)|$(Platform)'=='" + ProjectConfigurationAndPlatformName + "'\"";
+			string ProjectConfigurationAndPlatformName = ProjectConfigurationName + "|" + ProjectPlatformName;
+			string ConditionString = "Condition=\"'$(Configuration)|$(Platform)'=='" + ProjectConfigurationAndPlatformName + "'\"";
 
-            string PlatformToolsetString = (ProjGenerator != null) ? ProjGenerator.GetVisualStudioPreDefaultString(TargetPlatform, TargetConfiguration) : "";
+			string PlatformToolsetString = (ProjGenerator != null) ? ProjGenerator.GetVisualStudioPreDefaultString(TargetPlatform, TargetConfiguration) : "";
 
-            if (!String.IsNullOrEmpty(PlatformToolsetString))
-            {
-                VCProjectFileContent.Append(
-                    "	<PropertyGroup " + ConditionString + " Label=\"Configuration\">" + ProjectFileGenerator.NewLine +
-                            PlatformToolsetString +
-                    "	</PropertyGroup>" + ProjectFileGenerator.NewLine
-                );
-            }
-        }
+			if (!String.IsNullOrEmpty(PlatformToolsetString))
+			{
+				VCProjectFileContent.Append(
+					"	<PropertyGroup " + ConditionString + " Label=\"Configuration\">" + ProjectFileGenerator.NewLine +
+							PlatformToolsetString +
+					"	</PropertyGroup>" + ProjectFileGenerator.NewLine
+				);
+			}
+		}
 
-        // Anonymous function that writes post-Default.props configuration data
-        private void WritePostDefaultPropsConfiguration(UnrealTargetPlatform TargetPlatform, UnrealTargetConfiguration TargetConfiguration, string ProjectPlatformName, string ProjectConfigurationName, StringBuilder VCProjectFileContent)
+		// Anonymous function that writes post-Default.props configuration data
+		private void WritePostDefaultPropsConfiguration(UnrealTargetPlatform TargetPlatform, UnrealTargetConfiguration TargetConfiguration, string ProjectPlatformName, string ProjectConfigurationName, StringBuilder VCProjectFileContent)
 		{
 			UEPlatformProjectGenerator ProjGenerator = UEPlatformProjectGenerator.GetPlatformProjectGenerator(TargetPlatform, true);
 			if (((ProjGenerator == null) && (TargetPlatform != UnrealTargetPlatform.Unknown)))
@@ -1137,7 +1155,7 @@ namespace UnrealBuildTool
 					if (UnrealBuildTool.CommandLineContains("-2015"))
 					{
 						BuildToolOverride = " -2015";
- 					}
+					}
 					if (UnrealBuildTool.CommandLineContains("-2017"))
 					{
 						BuildToolOverride = " -2017";

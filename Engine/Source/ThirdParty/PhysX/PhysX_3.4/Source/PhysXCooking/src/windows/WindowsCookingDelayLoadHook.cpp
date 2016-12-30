@@ -45,7 +45,11 @@ void physx::PxSetPhysXCookingDelayLoadHook(const physx::PxDelayLoadHook* hook)
 
 using namespace physx;
 
+// @ATG_CHANGE : BEGIN UWP support
+#if !PX_UWP
 #pragma comment(lib, "delayimp")
+#endif
+// @ATG_CHANGE : END
 
 FARPROC WINAPI delayHook(unsigned dliNotify, PDelayLoadInfo pdli)
 {

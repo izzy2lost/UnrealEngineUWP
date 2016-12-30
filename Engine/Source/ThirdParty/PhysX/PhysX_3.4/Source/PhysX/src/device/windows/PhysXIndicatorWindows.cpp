@@ -61,7 +61,12 @@ physx::PhysXIndicator::PhysXIndicator(bool isGpu)
 	
 	char configName[128];
 
-#if _MSC_VER >= 1800
+// @ATG_CHANGE : BEGIN UWP support
+// API not available in UWP, but we're guaranteed > Vista
+#if PX_UWP
+	if (false)
+#elif _MSC_VER >= 1800
+// @ATG_CHANGE : END
 	if (!IsWindowsVistaOrGreater())
 #else
 	OSVERSIONINFOEX windowsVersionInfo;
@@ -73,10 +78,20 @@ physx::PhysXIndicator::PhysXIndicator(bool isGpu)
 		NvPhysXToDrv_Build_SectionNameXP(GetCurrentProcessId(), configName);
 	else
 		NvPhysXToDrv_Build_SectionName(GetCurrentProcessId(), configName);
-	
+// @ATG_CHANGE : BEGIN UWP support
+// Only CreateFileMappingW availabledel
+#if PX_UWP
+	WCHAR configNameWide[_countof(configName)];
+	if (MultiByteToWideChar(CP_ACP, 0, configName, -1, configNameWide, _countof(configNameWide)) > 0)
+	{
+		mFileHandle = CreateFileMapping(INVALID_HANDLE_VALUE, NULL,
+			PAGE_READWRITE, 0, sizeof(NvPhysXToDrv_Data_V1), configNameWide);
+	}
+#else
 	mFileHandle = CreateFileMapping(INVALID_HANDLE_VALUE, NULL,
 		PAGE_READWRITE, 0, sizeof(NvPhysXToDrv_Data_V1), configName);
-
+#endif
+// @ATG_CHANGE : END
 	if (!mFileHandle || mFileHandle == INVALID_HANDLE_VALUE)
 		return;
 

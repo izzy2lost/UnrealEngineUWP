@@ -637,16 +637,13 @@ namespace UnrealBuildTool
 					CachedCanUserWindowsSDK10 = false;
 					if (bAllowWindowsSDK10)
 					{
-						// Check prereqs:
-						// - VS2015
-						// - SDK actually installed (!)
-						if (Compiler == WindowsCompiler.VisualStudio2015)
+						// Note: earlier versions checked we were using VS2015, but this is not set when
+						// calling from AutomationTool and it's the minimum supported version in any case,
+						// so not really necessary.
+						string PossibleWin10SDKdir = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0", false);
+						if (PossibleWin10SDKdir != null && Directory.Exists(PossibleWin10SDKdir))
 						{
-							string PossibleWin10SDKdir = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0", false);
-							if (PossibleWin10SDKdir != null && Directory.Exists(PossibleWin10SDKdir))
-							{
-								CachedCanUserWindowsSDK10 = true;
-							}
+							CachedCanUserWindowsSDK10 = true;
 						}
 					}
 				}

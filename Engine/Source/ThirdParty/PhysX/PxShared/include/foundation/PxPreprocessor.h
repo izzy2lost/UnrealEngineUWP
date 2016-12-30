@@ -121,6 +121,13 @@ SIMD defines
 #endif
 #endif
 
+
+// @ATG_CHANGE : BEGIN UWP support
+#if WINAPI_FAMILY == WINAPI_FAMILY_APP
+#define PX_UWP 1
+#endif
+// @ATG_CHANGE : END
+
 /**
 define anything not defined on this platform to 0
 */
@@ -181,6 +188,11 @@ define anything not defined on this platform to 0
 #ifndef PX_VMX
 #define PX_VMX 0
 #endif
+// @ATG_CHANGE : BEGIN UWP support
+#ifndef PX_UWP
+#define PX_UWP 0
+#endif
+// @ATG_CHANGE : END
 
 /*
 define anything not defined through the command line to 0

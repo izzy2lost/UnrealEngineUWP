@@ -663,8 +663,8 @@ namespace UnrealBuildTool
 							Arguments.AppendFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract"));
 							Arguments.AppendFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract"));
 						}
-						Arguments.AppendFormat(@" /AI""{0}\..\..\VC\vcpackages""", EnvVars.BaseVSToolPath);
-						Arguments.AppendFormat(@" /FU""{0}\..\..\VC\vcpackages\platform.winmd""", EnvVars.BaseVSToolPath);
+						Arguments.AppendFormat(@" /AI""{0}\vcpackages""", EnvVars.VCInstallDir);
+						Arguments.AppendFormat(@" /FU""{0}\vcpackages\platform.winmd""", EnvVars.VCInstallDir);
 					}
 					else
 					{

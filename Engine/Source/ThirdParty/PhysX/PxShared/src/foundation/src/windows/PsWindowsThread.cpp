@@ -122,6 +122,12 @@ uint32_t ThreadImpl::getNbPhysicalCores()
 {
 	if(!gPhysicalCoreCount)
 	{
+		// @ATG_CHANGE : BEGIN UWP support
+		// Report not implemented for now.  Consider reimplementing in terms of GetSystemCpuSetInformation?
+#if PX_UWP
+		DWORD processorCoreCount = 0;
+#else
+		// @ATG_CHANGE : END
 		// modified example code from: http://msdn.microsoft.com/en-us/library/ms683194
 		LPFN_GLPI glpi;
 		PSYSTEM_LOGICAL_PROCESSOR_INFORMATION buffer = NULL;
@@ -179,7 +185,9 @@ uint32_t ThreadImpl::getNbPhysicalCores()
 			byteOffset += sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
 			ptr++;
 		}
-
+		// @ATG_CHANGE : BEGIN UWP support
+#endif
+		// @ATG_CHANGE : END
 		gPhysicalCoreCount = processorCoreCount;
 	}
 
@@ -275,8 +283,12 @@ void ThreadImpl::quit()
 
 void ThreadImpl::kill()
 {
+	// @ATG_CHANGE : BEGIN UWP support - no equivalent is available
+#if !PX_UWP
 	if(getThread(this)->state == _ThreadImpl::Started)
 		TerminateThread(getThread(this)->thread, 0);
+#endif
+	// @ATG_CHANGE : END
 	getThread(this)->state = _ThreadImpl::Stopped;
 }
 
@@ -300,8 +312,13 @@ uint32_t ThreadImpl::setAffinityMask(uint32_t mask)
 		// if thread already started apply immediately
 		if(getThread(this)->state == _ThreadImpl::Started)
 		{
+			// @ATG_CHANGE : BEGIN UWP support
+			// No-op for now.  Consider reimplementing in terms of SetThreadSelectedCpuSets?
+#if !PX_UWP
 			uint32_t err = uint32_t(SetThreadAffinityMask(getThread(this)->thread, mask));
 			return err;
+#endif
+			// @ATG_CHANGE : BEGIN UWP support
 		}
 	}
 

@@ -8,7 +8,14 @@ public class D3D12RHI : ModuleRules
 	{
 		PrivateIncludePaths.Add("Runtime/D3D12RHI/Private");
 
-		PrivateDependencyModuleNames.AddRange(
+        // @ATG_CHANGE : BEGIN UWP support
+        if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+        {
+            PrivateIncludePaths.Add("Runtime/D3D12RHI/Private/UWP");
+        }
+        // @ATG_CHANGE : END
+
+        PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
 				"Engine",
@@ -59,11 +66,19 @@ public class D3D12RHI : ModuleRules
             PrecompileForTargets = PrecompileTargetsType.None;
         }
 
-        if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
+        // @ATG_CHANGE : BEGIN UWP support
+        if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32 ||
+            Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+        // @ATG_CHANGE : END
 		{
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "DX12");
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
+            // @ATG_CHANGE : BEGIN UWP support
+            if (Target.Platform != UnrealTargetPlatform.UWP64 && Target.Platform != UnrealTargetPlatform.UWP32)
+            {
+                AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
+            }
+            // @ATG_CHANGE : END
 
 			Definitions.Add("ENABLE_RESIDENCY_MANAGEMENT=1");
 

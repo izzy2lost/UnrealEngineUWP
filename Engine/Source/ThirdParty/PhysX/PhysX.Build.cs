@@ -137,7 +137,6 @@ public class PhysX : ModuleRules
 // @ATG_CHANGE : BEGIN UWP support
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 		{
-			string PhysXBinariesDir;
 			PhysXLibDir += Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PxSharedLibDir += Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
 // @ATG_CHANGE : END
@@ -193,7 +192,9 @@ public class PhysX : ModuleRules
 				Definitions.Add("UE_PHYSX_SUFFIX=" + LibrarySuffix);
 			}
 
-			string PxSharedBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/Win64/VS{0}/", WindowsPlatform.GetVisualStudioCompilerVersionName());
+			// @ATG_CHANGE : BEGIN UWP support
+			string PxSharedBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/{1}/VS{0}/", WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
+			// @ATG_CHANGE : END
 			foreach (string DLL in PxSharedRuntimeDependenciesX64)
 			{
 				RuntimeDependencies.Add(new RuntimeDependency(PxSharedBinariesDir + String.Format(DLL, LibrarySuffix)));

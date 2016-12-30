@@ -12,7 +12,15 @@ namespace physx
 	class PxRigidActor;
 }
 
+// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
+#if PLATFORM_UWP
+PACK_WINRT()
+#endif
 enum class EPhysXMeshCookFlags : uint8;
+#if PLATFORM_UWP
+PACK_WINRT_REVERT()
+#endif
+// @ATG_CHANGE : END
 
 /** UV information for BodySetup, only created if UPhysicsSettings::bSupportUVFromHitResults */
 struct FBodySetupUVInfo

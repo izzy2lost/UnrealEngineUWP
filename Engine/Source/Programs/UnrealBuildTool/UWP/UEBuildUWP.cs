@@ -6,6 +6,7 @@ using System.Text;
 using System.Diagnostics;
 using System.IO;
 using Microsoft.Win32;
+using System.Linq;
 
 namespace UnrealBuildTool
 {
@@ -295,43 +296,85 @@ namespace UnrealBuildTool
 	public class UniversalWindowsPlatform : UEBuildPlatform
 	// @ATG_CHANGE : END
 	{
-		/// Property caching.
-		private static WindowsCompiler? CachedCompiler;
+        /// <summary>
+        /// Version of the compiler toolchain to use on Windows platform. A value of "default" will be changed to a specific version at UBT startup.
+        /// </summary>
+        [XmlConfig]
+        public static WindowsCompiler Compiler = WindowsCompiler.Default;
 
-		/// Version of the compiler toolchain to use for Universal Windows Platform apps (UWP)
-		public static WindowsCompiler Compiler
-		{
-			get
-			{
-				// Cache the result because Compiler is often used.
-				if (CachedCompiler.HasValue)
-				{
-					return CachedCompiler.Value;
-				}
+        /// <summary>
+        /// Gets the default compiler which should be used
+        /// </summary>
+        /// <returns>The default compiler version</returns>
+        public static WindowsCompiler GetDefaultCompiler(string[] Arguments, FileReference ProjectFile)
+        {
+            // First, default based on whether there is a command line override...
+            if (Arguments.Contains("-2015"))
+            {
+                return WindowsCompiler.VisualStudio2015;
+            }
+            if (Arguments.Contains("-2017"))
+            {
+                return WindowsCompiler.VisualStudio2017;
+            }
 
-				// First, default based on whether there is a command line override.
-				// Allows build chain to partially progress even in the absence of installed tools
-				if (UnrealBuildTool.CommandLineContains("-2015"))
-				{
-					CachedCompiler = WindowsCompiler.VisualStudio2015;
-				}
-				// Second, default based on what's installed
-				else if (!String.IsNullOrEmpty(WindowsPlatform.GetVSComnToolsPath(WindowsCompiler.VisualStudio2015)))
-				{
-					CachedCompiler = WindowsCompiler.VisualStudio2015;
-				}
-				else
-				{
-					CachedCompiler = null;
-				}
+            // Read the project setting
+            ConfigCacheIni Ini = ConfigCacheIni.CreateConfigCacheIni(UnrealTargetPlatform.Win64, "Engine", DirectoryReference.FromFile(ProjectFile));
 
-				return CachedCompiler.Value;
-			}
-		}
+            string CompilerVersionString;
+            if (Ini.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "CompilerVersion", out CompilerVersionString))
+            {
+                WindowsCompiler Compiler;
+                if (Enum.TryParse(CompilerVersionString, out Compiler))
+                {
+                    return Compiler;
+                }
+            }
 
-		// Enables the UWP platform and project file support in Unreal Build Tool
-		// @todo UWP: Remove this variable when UWP support is fully implemented
-		public static readonly bool bEnableUWPSupport = UnrealBuildTool.CommandLineContains("-uwp");
+            // If there's no specific compiler set, try to pick the matching compiler for the selected IDE
+            if (VCProjectFileGenerator.Version == VCProjectFileFormat.VisualStudio2017)
+            {
+                return WindowsCompiler.VisualStudio2017;
+            }
+            else if (VCProjectFileGenerator.Version == VCProjectFileFormat.VisualStudio2015)
+            {
+                return WindowsCompiler.VisualStudio2015;
+            }
+
+            // Second, default based on what's installed, test for 2015 first
+            DirectoryReference VCInstallDir;
+            if (WindowsPlatform.TryGetVCInstallDir(WindowsCompiler.VisualStudio2015, out VCInstallDir))
+            {
+                return WindowsCompiler.VisualStudio2015;
+            }
+            if (WindowsPlatform.TryGetVCInstallDir(WindowsCompiler.VisualStudio2017, out VCInstallDir))
+            {
+                return WindowsCompiler.VisualStudio2017;
+            }
+
+            // If we do have a Visual Studio installation, but we're missing just the C++ parts, warn about that.
+            DirectoryReference VSInstallDir;
+            if (WindowsPlatform.TryGetVSInstallDir(WindowsCompiler.VisualStudio2015, out VSInstallDir))
+            {
+                Log.TraceWarning("Visual Studio 2015 is installed, but is missing the C++ toolchain. Please verify that \"Common Tools for Visual C++ 2015\" are selected from the Visual Studio 2015 installation options.");
+            }
+            else if (WindowsPlatform.TryGetVSInstallDir(WindowsCompiler.VisualStudio2017, out VSInstallDir))
+            {
+                Log.TraceWarning("Visual Studio 2017 is installed, but is missing the C++ toolchain. Please verify that \"Common Tools for Visual C++ 2015\" are selected from the Visual Studio 2015 installation options.");
+            }
+            else
+            {
+                Log.TraceWarning("No Visual C++ installation was found. Please download and install Visual Studio 2015 with C++ components.");
+            }
+
+            // Finally, default to VS2015 anyway
+            return WindowsCompiler.VisualStudio2015;
+        }
+
+
+        // Enables the UWP platform and project file support in Unreal Build Tool
+        // @todo UWP: Remove this variable when UWP support is fully implemented
+        public static readonly bool bEnableUWPSupport = UnrealBuildTool.CommandLineContains("-uwp");
 
 		/// True if we should only build against the app-local CRT and /APPCONTAINER linker flag
 		public static readonly bool bBuildForStore = true;

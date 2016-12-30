@@ -340,12 +340,11 @@ void FD3D11DynamicRHIModule::FindAdapter()
 
 
 
-FDynamicRHI* FD3D11DynamicRHIModule::CreateRHI()
+FDynamicRHI* FD3D11DynamicRHIModule::CreateRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 {
 	TRefCountPtr<IDXGIFactory2> DXGIFactory;
 	SafeCreateDXGIFactory(DXGIFactory.GetInitReference());
 	check(DXGIFactory);
-
 	return new FD3D11DynamicRHI(DXGIFactory, ChosenAdapter.MaxSupportedFeatureLevel,ChosenAdapter.AdapterIndex,ChosenDescription);
 }
 

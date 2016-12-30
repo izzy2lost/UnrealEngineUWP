@@ -158,8 +158,14 @@ Saved/
 # But some third-party UWP output file types are not consumed by the engine and should still be ignored.
 /Engine/Binaries/ThirdParty/**/UWP*/VS2015/*.map
 /Engine/Binaries/ThirdParty/**/UWP*/VS2015/*.pri
+/Engine/Binaries/ThirdParty/**/UWP*/VS2015/*.manifest
+/Engine/Binaries/ThirdParty/**/UWP*/VS2015/*.ilk
 /Engine/Source/ThirdParty/**/UWP*/VS2015/*.exp
 /Engine/Source/ThirdParty/**/UWP*/VS2015/*.pri
+
+# ThirdParty pdbs typically won't fit in GitHub
+/Engine/Binaries/ThirdParty/**/UWP*/VS2015/*.pdb
+/Engine/Source/ThirdParty/**/UWP*/VS2015/*.pdb
 
 # Exception for DirectX libs involved in legacy refactor
 !/Engine/Source/ThirdParty/Windows/DirectXLegacy/Lib/**
@@ -173,3 +179,6 @@ Saved/
 # Exclude xml doc build output arising from use of WinRT APIs in UBT for UWP
 /Engine/Binaries/DotNET/System.Runtime.WindowsRuntime.xml
 /Engine/Binaries/DotNET/Windows.xml
+
+# Some included file types (e.g. png, xml) can land in the UWP engine binaries directories
+/Engine/Binaries/UWP*/**

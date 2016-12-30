@@ -27,9 +27,9 @@ namespace UnrealBuildTool
 			// Register this project generator for UWP
 			Log.TraceVerbose("		Registering for {0}", UnrealTargetPlatform.UWP64.ToString());
 			UEPlatformProjectGenerator.RegisterPlatformProjectGenerator(UnrealTargetPlatform.UWP64, this);
-            Log.TraceVerbose("		Registering for {0}", UnrealTargetPlatform.UWP32.ToString());
-            UEPlatformProjectGenerator.RegisterPlatformProjectGenerator(UnrealTargetPlatform.UWP32, this);
-        }
+			Log.TraceVerbose("		Registering for {0}", UnrealTargetPlatform.UWP32.ToString());
+			UEPlatformProjectGenerator.RegisterPlatformProjectGenerator(UnrealTargetPlatform.UWP32, this);
+		}
 
 		///
 		///	VisualStudio project generation functions
@@ -40,7 +40,7 @@ namespace UnrealBuildTool
 		/// <param name="InPlatform">  The UnrealTargetPlatform being built</param>
 		/// <param name="InConfiguration"> The UnrealTargetConfiguration being built</param>
 		/// <returns>bool    true if native VisualStudio support (or custom VSI) is available</returns>
-		public override bool HasVisualStudioSupport(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration)
+		public override bool HasVisualStudioSupport(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, VCProjectFileFormat ProjectFileFormat)
 		{
 			return false;
 		}
@@ -55,39 +55,30 @@ namespace UnrealBuildTool
 		}
 
 		public override void GenerateGameProperties(UnrealTargetConfiguration Configuration, StringBuilder VCProjectFileContent, TargetRules.TargetType TargetType, DirectoryReference RootDirectory, FileReference TargetFilePath)
-		{     
-            string WindowsWinMDLocation = Path.Combine(VCEnvironment.FindWindowsSDKInstallationFolder("v10.0", false), "UnionMetadata");
-            string PlatformWinMDLocation = Path.Combine(UniversalWindowsPlatform.GetVSComnToolsPath(), "..", "..", "VC", "vcpackages");
-            VCProjectFileContent.Append("		<AdditionalOptions>/ZW</AdditionalOptions>" + ProjectFileGenerator.NewLine);
-            VCProjectFileContent.Append("		<NMakeAssemblySearchPath>$(NMakeAssemblySearchPath);" + WindowsWinMDLocation + ";" + PlatformWinMDLocation + "</NMakeAssemblySearchPath>" + ProjectFileGenerator.NewLine);
-            VCProjectFileContent.Append("		<NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions);PLATFORM_UWP=1;UWP=1;</NMakePreprocessorDefinitions>" + ProjectFileGenerator.NewLine);
-        }
-
-        public override string GetVisualStudioPreDefaultString(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, VCProjectFile InProjectFile)
 		{
-            // Ensure custom winmds are pulled in for Intellisense purposes.  Needs to be here because
-            // the list is owned by the VCProjectFile instance (same as other Intellisense collections).
-            // Also note that file locations may be platform-specific, but the list was formed based
-            // on Win64 only.
-            var VCWinMDReferences = new StringBuilder();
-            foreach (var CurDef in InProjectFile.IntelliSenseWinMDReferences)
-            {
-                if (VCWinMDReferences.Length > 0)
-                {
-                    VCWinMDReferences.Append(';');
-                }
-                VCWinMDReferences.Append(CurDef.Replace(UnrealTargetPlatform.Win64.ToString(), InPlatform.ToString()));
-            }
+			string FoundationWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract");
+			string UniversalWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract");
+			string PlatformWinMDPath = string.Empty;
+			DirectoryReference VCInstallPath;
+			if (WindowsPlatform.TryGetVCInstallDir(WindowsPlatform.Compiler, out VCInstallPath))
+			{
+				PlatformWinMDPath = DirectoryReference.Combine(VCInstallPath, "vcpackages", "platform.winmd").FullName;
+			}
+			VCProjectFileContent.Append("		<AdditionalOptions>/ZW</AdditionalOptions>" + ProjectFileGenerator.NewLine);
+			VCProjectFileContent.Append("		<NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions);PLATFORM_UWP=1;UWP=1;</NMakePreprocessorDefinitions>" + ProjectFileGenerator.NewLine);
+			VCProjectFileContent.Append("       <NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies);" + FoundationWinMDPath + ";" + UniversalWinMDPath + ";" + PlatformWinMDPath + "</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine);
+		}
 
-            return "		<AppContainerApplication>true</AppContainerApplication>" + ProjectFileGenerator.NewLine +
-                    "		<ApplicationType>Windows Store</ApplicationType>" + ProjectFileGenerator.NewLine +
-                    "		<ApplicationTypeRevision>10.0</ApplicationTypeRevision>" + ProjectFileGenerator.NewLine +
-                    "		<WindowsAppContainer>true</WindowsAppContainer>" + ProjectFileGenerator.NewLine +
-                    "		<AppxPackage>true</AppxPackage>" + ProjectFileGenerator.NewLine +
-                    "		<NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies)" + (VCWinMDReferences.Length > 0 ? (";" + VCWinMDReferences) : "") + "</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine;
-        }
+		public override string GetVisualStudioPreDefaultString(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration)
+		{
+			return "		<AppContainerApplication>true</AppContainerApplication>" + ProjectFileGenerator.NewLine +
+					"		<ApplicationType>Windows Store</ApplicationType>" + ProjectFileGenerator.NewLine +
+					"		<ApplicationTypeRevision>10.0</ApplicationTypeRevision>" + ProjectFileGenerator.NewLine +
+					"		<WindowsAppContainer>true</WindowsAppContainer>" + ProjectFileGenerator.NewLine +
+					"		<AppxPackage>true</AppxPackage>" + ProjectFileGenerator.NewLine;
+		}
 
-        public override string GetVisualStudioLayoutDirSection(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InConditionString, TargetRules.TargetType TargetType, FileReference TargetRulesPath, FileReference ProjectFilePath, FileReference NMakeOutputPath)
+		public override string GetVisualStudioLayoutDirSection(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InConditionString, TargetRules.TargetType TargetType, FileReference TargetRulesPath, FileReference ProjectFilePath, FileReference NMakeOutputPath, VCProjectFileFormat InProjectFileFormat)
 		{
 			string LayoutDirString = "";
 

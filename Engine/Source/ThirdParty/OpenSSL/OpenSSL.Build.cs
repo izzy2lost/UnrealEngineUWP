@@ -34,8 +34,6 @@ public class OpenSSL : ModuleRules
 			PublicAdditionalLibraries.Add(LibraryPath + "/" + "libssl.a");
 			PublicAdditionalLibraries.Add(LibraryPath + "/" + "libcrypto.a");
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32 ||
-				(Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32"))
 // @ATG_CHANGE : BEGIN UWP support
 		else if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32 ||
 				(Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32") ||

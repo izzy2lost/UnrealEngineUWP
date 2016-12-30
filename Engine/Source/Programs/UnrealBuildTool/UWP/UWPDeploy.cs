@@ -308,10 +308,12 @@ namespace UnrealBuildTool
         private void GeneratePackageAppXRecipe(string InOutputFile, UEBuildTarget InTarget, List<RuntimeDependency> Dependencies, IEnumerable<string> AdditionalFiles)
         {
             var AppXRecipeProjectFileContent = new StringBuilder();
+
+            // @TODO: Address hardcoded VS2015 tools version
             AppXRecipeProjectFileContent.Append(
                 "<?xml version=\"1.0\" encoding=\"utf-8\"?>" + ProjectFileGenerator.NewLine +
                 ProjectFileGenerator.NewLine +
-                "<Project DefaultTargets=\"Build\" ToolsVersion=\"" + VCProjectFileGenerator.ProjectFileToolVersionString + "\" xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">" + ProjectFileGenerator.NewLine);
+                "<Project DefaultTargets=\"Build\" ToolsVersion=\"14.0\" xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">" + ProjectFileGenerator.NewLine);
 
             DirectoryReference ProjectBinariesDirectory = new FileReference(InTarget.BuildReceiptFileName).Directory;
 

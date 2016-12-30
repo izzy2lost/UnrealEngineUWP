@@ -71,6 +71,8 @@ void LoadPhysXModules()
 	PhysXBinariesRoot += TEXT("/");
 	FPaths::MakePathRelativeTo(APEXBinariesRoot, *(FPaths::RootDir() + TEXT("/")));
 	APEXBinariesRoot += TEXT("/");
+	FPaths::MakePathRelativeTo(SharedBinariesRoot, *(FPaths::RootDir() + TEXT("/")));
+	SharedBinariesRoot += TEXT("/");
 #endif
 	// @ATG_CHANGE : END
 	#if _MSC_VER >= 1900
@@ -85,22 +87,24 @@ void LoadPhysXModules()
 		#if PLATFORM_UWP
 			FString RootPhysXPath(PhysXBinariesRoot + TEXT("UWP64/") + VSDirectory);
 			FString RootAPEXPath(APEXBinariesRoot + TEXT("UWP64/") + VSDirectory);
+			FString RootSharedPath(SharedBinariesRoot + TEXT("UWP64/") + VSDirectory);
 		#else
 			FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win64/") + VSDirectory);
 			FString RootAPEXPath(APEXBinariesRoot + TEXT("Win64/") + VSDirectory);
+			FString RootSharedPath(SharedBinariesRoot + TEXT("Win64/") + VSDirectory);
 		#endif
-		FString RootSharedPath(SharedBinariesRoot + TEXT("Win64/") + VSDirectory);
 		FString ArchName(TEXT("_x64"));
 		FString ArchBits(TEXT("64"));
 	#else
 		#if PLATFORM_UWP
 			FString RootPhysXPath(PhysXBinariesRoot + TEXT("UWP32/") + VSDirectory);
 			FString RootAPEXPath(APEXBinariesRoot + TEXT("UWP32/") + VSDirectory);
+			FString RootSharedPath(SharedBinariesRoot + TEXT("UWP32/") + VSDirectory);
 		#else
 			FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win32/") + VSDirectory);
 			FString RootAPEXPath(APEXBinariesRoot + TEXT("Win32/") + VSDirectory);
+			FString RootSharedPath(SharedBinariesRoot + TEXT("Win32/") + VSDirectory);
 		#endif
-		FString RootSharedPath(SharedBinariesRoot + TEXT("Win32/") + VSDirectory);
 		FString ArchName(TEXT("_x86"));
 		FString ArchBits(TEXT("32"));
 	#endif

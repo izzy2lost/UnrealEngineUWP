@@ -18,7 +18,7 @@ ModuleUpdateLoader::ModuleUpdateLoader(const char* updateLoaderDllName)
 	: mGetUpdatedModuleFunc(NULL)
 {
 // @ATG_CHANGE : BEGIN UWP support
-#if defined(PX_WINMODERN)
+#if defined(PX_UWP)
 	WCHAR updateLoaderDllNameW[MAX_PATH];
 	if (0 != MultiByteToWideChar(CP_ACP, 0, updateLoaderDllName, -1, updateLoaderDllNameW, MAX_PATH))
 	{
@@ -57,7 +57,7 @@ HMODULE ModuleUpdateLoader::loadModule(const char* moduleName, const char* appGu
 	{
 		// If no PhysXUpdateLoader, just load the DLL directly
 // @ATG_CHANGE : BEGIN UWP support
-#if defined(PX_WINMODERN)
+#if defined(PX_UWP)
 		WCHAR updateLoaderDllNameW[MAX_PATH];
 		if (0 != MultiByteToWideChar(CP_ACP, 0, moduleName, -1, updateLoaderDllNameW, MAX_PATH))
 		{

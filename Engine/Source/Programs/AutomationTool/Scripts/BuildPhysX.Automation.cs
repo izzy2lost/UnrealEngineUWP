@@ -21,7 +21,6 @@ using UnrealBuildTool;
 [Help("SkipDeploySource", "Do not perform source deployment to the engine. If this argument is not supplied source will be copied into the engine.")]
 [Help("SkipCreateChangelist", "Do not create a P4 changelist for source or libs. If this argument is not supplied source and libs will be added to a Perforce changelist.")]
 [Help("SkipSubmit", "Do not perform P4 submit of source or libs. If this argument is not supplied source and libs will be automatically submitted to Perforce. If SkipCreateChangelist is specified, this argument applies by default.")]
-[RequireP4]
 class BuildPhysX : BuildCommand
 {
 	const int InvalidChangeList = -1;
@@ -127,6 +126,12 @@ class BuildPhysX : BuildCommand
 				return "Win32/" + VisualStudioDirectoryName;
 			case UnrealTargetPlatform.Win64:
 				return "Win64/" + VisualStudioDirectoryName;
+			// @ATG_CHANGE: BEGIN UWP support
+			case UnrealTargetPlatform.UWP32:
+				return "UWP32/" + VisualStudioDirectoryName;
+			case UnrealTargetPlatform.UWP64:
+				return "UWP64/" + VisualStudioDirectoryName;
+			// @ATG_CHANGE: END
 			case UnrealTargetPlatform.Android:
 				switch (TargetData.Architecture)
 				{
@@ -213,7 +218,13 @@ class BuildPhysX : BuildCommand
 						return DirectoryReference.Combine(PhysXCMakeFiles, "Windows").ToString() + " -G \"" + VisualStudioName + "\" -AWin32 -DTARGET_BUILD_PLATFORM=Windows" + OutputFlags;
 					case UnrealTargetPlatform.Win64:
 						return DirectoryReference.Combine(PhysXCMakeFiles, "Windows").ToString() + " -G \"" + VisualStudioName + "\" -Ax64 -DTARGET_BUILD_PLATFORM=Windows" + OutputFlags;
-					 case UnrealTargetPlatform.PS4:
+					// @ATG_CHANGE: BEGIN UWP support
+					case UnrealTargetPlatform.UWP32:
+						return DirectoryReference.Combine(PhysXCMakeFiles, "Windows").ToString() + " -G \"" + VisualStudioName + "\" -AWin32 -DTARGET_BUILD_PLATFORM=Windows -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0" + OutputFlags;
+					case UnrealTargetPlatform.UWP64:
+						return DirectoryReference.Combine(PhysXCMakeFiles, "Windows").ToString() + " -G \"" + VisualStudioName + "\" -Ax64 -DTARGET_BUILD_PLATFORM=Windows -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0" + OutputFlags;
+					// @ATG_CHANGE: END
+					case UnrealTargetPlatform.PS4:
 						return DirectoryReference.Combine(PhysXCMakeFiles, "PS4").ToString() + " -G \"Unix Makefiles\" -DTARGET_BUILD_PLATFORM=PS4 -DCMAKE_BUILD_TYPE=" + BuildConfig + " -DCMAKE_TOOLCHAIN_FILE=\"" + PhysXSourceRootDirectory + "\\Externals\\CMakeModules\\PS4\\PS4Toolchain.txt\"" + OutputFlags;
 					case UnrealTargetPlatform.XboxOne:
 						return DirectoryReference.Combine(PhysXCMakeFiles, "XboxOne").ToString() + " -G \"Visual Studio 14 2015\" -DTARGET_BUILD_PLATFORM=XboxOne -DCMAKE_TOOLCHAIN_FILE=\"" + PhysXSourceRootDirectory + "\\Externals\\CMakeModules\\XboxOne\\XboxOneToolchain.txt\" -DCMAKE_GENERATOR_PLATFORM=DURANGO" + OutputFlags;
@@ -267,6 +278,12 @@ class BuildPhysX : BuildCommand
 						return DirectoryReference.Combine(ApexCMakeFiles, "Windows").ToString() + " -G \"" + VisualStudioName + "\" -AWin32 -DTARGET_BUILD_PLATFORM=Windows" + OutputFlags + CustomFlags;
 					case UnrealTargetPlatform.Win64:
 						return DirectoryReference.Combine(ApexCMakeFiles, "Windows").ToString() + " -G \"" + VisualStudioName + "\" -Ax64 -DTARGET_BUILD_PLATFORM=Windows" + OutputFlags + CustomFlags;
+					// @ATG_CHANGE: BEGIN UWP support
+					case UnrealTargetPlatform.UWP32:
+						return DirectoryReference.Combine(ApexCMakeFiles, "UWP").ToString() + " -G \"" + VisualStudioName + "\" -AWin32 -DTARGET_BUILD_PLATFORM=Windows -DTARGET_BUILD_PLATFORM=Windows -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0" + OutputFlags + CustomFlags;
+					case UnrealTargetPlatform.UWP64:
+						return DirectoryReference.Combine(ApexCMakeFiles, "UWP").ToString() + " -G \"" + VisualStudioName + "\" -Ax64 -DTARGET_BUILD_PLATFORM=Windows -DTARGET_BUILD_PLATFORM=Windows -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0" + OutputFlags + CustomFlags;
+					// @ATG_CHANGE: END
 					case UnrealTargetPlatform.PS4:
 						return DirectoryReference.Combine(ApexCMakeFiles, "PS4").ToString() + " -G \"Unix Makefiles\" -DTARGET_BUILD_PLATFORM=PS4 -DCMAKE_BUILD_TYPE=" + BuildConfig + " -DCMAKE_TOOLCHAIN_FILE=\"" + PhysXSourceRootDirectory + "\\Externals\\CMakeModules\\PS4\\PS4Toolchain.txt\"" + OutputFlags + CustomFlags;
 					case UnrealTargetPlatform.XboxOne:
@@ -293,6 +310,12 @@ class BuildPhysX : BuildCommand
 				return MsDev14Exe.ToString();
 			case UnrealTargetPlatform.XboxOne:
 				return MsDev14Exe.ToString();
+			// @ATG_CHANGE: BEGIN UWP support
+			case UnrealTargetPlatform.UWP32:
+				return MsDev14Exe.ToString();
+			case UnrealTargetPlatform.UWP64:
+				return MsDev14Exe.ToString();
+			// @ATG_CHANGE: END
 			default:
 				throw new AutomationException(String.Format("Non-MSBuild or unsupported platform '{0}' supplied to GetMsDevExe", TargetData.ToString()));
 		}
@@ -305,6 +328,10 @@ class BuildPhysX : BuildCommand
 			case UnrealTargetPlatform.Win32:
 			case UnrealTargetPlatform.Win64:
 			case UnrealTargetPlatform.XboxOne:
+			// @ATG_CHANGE: BEGIN UWP support
+			case UnrealTargetPlatform.UWP32:
+			case UnrealTargetPlatform.UWP64:
+			// @ATG_CHANGE: END
 				return MsBuildExe.ToString();
 			default:
 				throw new AutomationException(String.Format("Non-MSBuild or unsupported platform '{0}' supplied to GetMsBuildExe", TargetData.ToString()));
@@ -337,6 +364,10 @@ class BuildPhysX : BuildCommand
 			case UnrealTargetPlatform.Win32:
 			case UnrealTargetPlatform.Win64:
 			case UnrealTargetPlatform.XboxOne:
+			// @ATG_CHANGE: BEGIN UWP support
+			case UnrealTargetPlatform.UWP32:
+			case UnrealTargetPlatform.UWP64:
+			// @ATG_CHANGE: END
 				return true;
 			default:
 				return false;
@@ -1026,6 +1057,14 @@ class BuildPhysX : BuildCommand
 			case UnrealTargetPlatform.Win64:
 				ArchName = "Win64";
 				break;
+			// @ATG_CHANGE: BEGIN UWP support
+			case UnrealTargetPlatform.UWP32:
+				ArchName = "UWP32";
+				break;
+			case UnrealTargetPlatform.UWP64:
+				ArchName = "UWP64";
+				break;
+			// @ATG_CHANGE: END
 			case UnrealTargetPlatform.Mac:
 				ArchName = "Mac";
 				break;
@@ -1064,6 +1103,14 @@ class BuildPhysX : BuildCommand
 			case UnrealTargetPlatform.Win64:
 				ArchName = "Win64";
 				break;
+			// @ATG_CHANGE: BEGIN UWP support
+			case UnrealTargetPlatform.UWP32:
+				ArchName = "UWP32";
+				break;
+			case UnrealTargetPlatform.UWP64:
+				ArchName = "UWP64";
+				break;
+			// @ATG_CHANGE: END
 			case UnrealTargetPlatform.XboxOne:
 				ArchName = "XboxOne";
 				break;
@@ -1108,6 +1155,10 @@ class BuildPhysX : BuildCommand
 		{
 			case UnrealTargetPlatform.Win32:
 			case UnrealTargetPlatform.Win64:
+			// @ATG_CHANGE: BEGIN UWP support
+			case UnrealTargetPlatform.UWP32:
+			case UnrealTargetPlatform.UWP64:
+			// @ATG_CHANGE: END
 			case UnrealTargetPlatform.Mac:
 				return true;
 		}
@@ -1121,6 +1172,10 @@ class BuildPhysX : BuildCommand
 			case UnrealTargetPlatform.Win64:
 //			case UnrealTargetPlatform.Mac:
 			case UnrealTargetPlatform.XboxOne:
+			// @ATG_CHANGE: BEGIN UWP support
+			case UnrealTargetPlatform.UWP32:
+			case UnrealTargetPlatform.UWP64:
+			// @ATG_CHANGE: END
 				return true;
 		}
 		return false;
@@ -1132,6 +1187,10 @@ class BuildPhysX : BuildCommand
 			case UnrealTargetPlatform.Win32:
 			case UnrealTargetPlatform.Win64:
 			case UnrealTargetPlatform.XboxOne:
+			// @ATG_CHANGE: BEGIN UWP support
+			case UnrealTargetPlatform.UWP32:
+			case UnrealTargetPlatform.UWP64:
+			// @ATG_CHANGE: END
 				return "pdb";
 			case UnrealTargetPlatform.Mac:
 				return "dSYM";
@@ -1145,6 +1204,10 @@ class BuildPhysX : BuildCommand
 		{
 			case UnrealTargetPlatform.Win32:
 			case UnrealTargetPlatform.Win64:
+			// @ATG_CHANGE: BEGIN UWP support
+			case UnrealTargetPlatform.UWP32:
+			case UnrealTargetPlatform.UWP64:
+			// @ATG_CHANGE: END
 				return "dll";
 			case UnrealTargetPlatform.Mac:
 				return "dylib";
@@ -1159,6 +1222,10 @@ class BuildPhysX : BuildCommand
 			case UnrealTargetPlatform.Win32:
 			case UnrealTargetPlatform.Win64:
 			case UnrealTargetPlatform.XboxOne:
+			// @ATG_CHANGE: BEGIN UWP support
+			case UnrealTargetPlatform.UWP32:
+			case UnrealTargetPlatform.UWP64:
+			// @ATG_CHANGE: END
 				return "lib";
 			case UnrealTargetPlatform.PS4:
 			case UnrealTargetPlatform.Android:
@@ -1253,10 +1320,16 @@ class BuildPhysX : BuildCommand
 		switch (TargetData.Platform)
 		{
 			case UnrealTargetPlatform.Win32:
+			// @ATG_CHANGE: BEGIN UWP support
+			case UnrealTargetPlatform.UWP32:
+			// @ATG_CHANGE: END
 				SearchSuffix += "_x86";
 				break;
 			case UnrealTargetPlatform.Win64:
-				SearchSuffix += "_x64";
+			// @ATG_CHANGE: BEGIN UWP support
+			case UnrealTargetPlatform.UWP64:
+			// @ATG_CHANGE: END
+			SearchSuffix += "_x64";
 				break;
 		}
 		string SearchPrefix = "*" + SearchSuffix + ".";
@@ -1295,6 +1368,10 @@ class BuildPhysX : BuildCommand
 				case UnrealTargetPlatform.XboxOne:
 				case UnrealTargetPlatform.Mac:
 				case UnrealTargetPlatform.HTML5:
+				// @ATG_CHANGE: BEGIN UWP support
+				case UnrealTargetPlatform.UWP32:
+				case UnrealTargetPlatform.UWP64:
+				// @ATG_CHANGE: END
 					return true;
 				case UnrealTargetPlatform.Linux:
 					// only x86_64 Linux supports it.

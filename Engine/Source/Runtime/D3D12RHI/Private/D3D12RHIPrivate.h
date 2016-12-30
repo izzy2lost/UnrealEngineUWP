@@ -28,7 +28,9 @@ DECLARE_LOG_CATEGORY_EXTERN(LogD3D12RHI, Log, All);
 #include "D3D12RHI.h"
 #include "D3D12RHICommon.h"
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 #include "Windows/D3D12RHIBasePrivate.h"
 #else
 #include "XboxOne/D3D12RHIBasePrivate.h"
