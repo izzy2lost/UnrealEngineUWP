@@ -227,6 +227,111 @@ const TCHAR* FUWPProcess::ApplicationSettingsDir()
 	return UserSettingsDir();
 }
 
+// @ATG_CHANGE : BEGIN thread affinity addition
+// This is a drop in equivelent to the deprecated thread affinity APIs that most legacy code is based on.
+// As with those older APIs, it's functionality may be unexpected on machines with more than 64 cores.
+DWORD_PTR WINAPI SetThreadAffinityMask(
+	_In_ HANDLE    hThread,
+	_In_ DWORD_PTR dwThreadAffinityMask
+)
+{
+	static struct CPU_INFO {
+		int Count;
+		ULONG CpuInfoBytes;
+		uint8_t* CpuInfoBuffer;
+		PSYSTEM_CPU_SET_INFORMATION* CpuInfoPtrs;
+
+		CPU_INFO() {
+			Count = 0;
+			CpuInfoBytes = 0;
+			GetSystemCpuSetInformation(nullptr, 0, &CpuInfoBytes, GetCurrentProcess(), 0);
+
+			CpuInfoBuffer = reinterpret_cast<uint8_t*>(malloc(CpuInfoBytes));
+			if (CpuInfoBuffer)
+			{
+				GetSystemCpuSetInformation(reinterpret_cast<PSYSTEM_CPU_SET_INFORMATION>(CpuInfoBuffer),
+					CpuInfoBytes, &CpuInfoBytes, GetCurrentProcess(), 0);
+
+				BYTE* firstCpu = CpuInfoBuffer;
+				for (BYTE* currentCpu = firstCpu; currentCpu < firstCpu + CpuInfoBytes; currentCpu += reinterpret_cast<PSYSTEM_CPU_SET_INFORMATION>(currentCpu)->Size)
+				{
+					Count++;
+				}
+
+				CpuInfoPtrs = reinterpret_cast<PSYSTEM_CPU_SET_INFORMATION*>(calloc(Count, sizeof(PSYSTEM_CPU_SET_INFORMATION)));
+
+				if (CpuInfoPtrs)
+				{
+					firstCpu = CpuInfoBuffer;
+					int currentCpuNum = 0;
+					for (BYTE* currentCpu = firstCpu; currentCpu < firstCpu + CpuInfoBytes; currentCpu += reinterpret_cast<PSYSTEM_CPU_SET_INFORMATION>(currentCpu)->Size)
+					{
+						CpuInfoPtrs[currentCpuNum] = reinterpret_cast<PSYSTEM_CPU_SET_INFORMATION>(currentCpu);
+						currentCpuNum++;
+					}
+				}
+			}
+		}
+	} Cpu_Info;
+
+	// if static initialization got Cpu info....
+	if (Cpu_Info.Count > 0 && Cpu_Info.CpuInfoBytes && Cpu_Info.CpuInfoBuffer && Cpu_Info.CpuInfoPtrs)
+	{
+		DWORD_PTR priorMask = 0xffffffffffffffffull;
+		ULONG priorCoreCount = 0;
+		ULONG coreIds[64];
+
+		// this is simplified, assuming that not other setter will be setting affinity
+		if (GetThreadSelectedCpuSets(hThread, coreIds, 64, &priorCoreCount))
+		{
+			if (priorCoreCount > 0 && priorCoreCount <= 64)
+			{
+				priorMask = 0;
+				for (unsigned int currentCoreEntry = 0; currentCoreEntry < priorCoreCount; currentCoreEntry++)
+				{
+					for (int i = 0; i < Cpu_Info.Count; i++)
+					{
+						if (coreIds[currentCoreEntry] == Cpu_Info.CpuInfoPtrs[i]->CpuSet.Id)
+						{
+							priorMask |= (1ull << i);
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		int markedCount = 0;
+		for (int coreNum = 0; coreNum < 64 && coreNum < Cpu_Info.Count; coreNum++)
+		{
+			if (dwThreadAffinityMask & (1ull << coreNum))
+			{
+				coreIds[markedCount] = Cpu_Info.CpuInfoPtrs[coreNum]->CpuSet.Id;
+				markedCount++;
+			}
+		}
+
+		if (SetThreadSelectedCpuSets(hThread, coreIds, markedCount))
+		{
+			return priorMask;
+		}
+		else
+		{
+			return 0;
+		}
+	}
+	else
+	{
+		return E_FAIL;
+	}
+}
+
+void FUWPProcess::SetThreadAffinityMask(uint64 AffinityMask)
+{
+	::SetThreadAffinityMask(::GetCurrentThread(), (DWORD_PTR)AffinityMask);
+}
+// @ATG_CHANGE : END thread affinity addition
+
 PACK_WINRT_REVERT()
 
 #include "HideWindowsPlatformTypes.h"

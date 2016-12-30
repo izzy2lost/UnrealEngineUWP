@@ -40,6 +40,9 @@ struct CORE_API FUWPProcess : public FGenericPlatformProcess
 	static void SetCurrentWorkingDirectoryToBaseDir();
 	// @ATG_CHANGE : END
 
+	// @ATG_CHANGE : BEGIN thread affinity addition
+	static void SetThreadAffinityMask(uint64 AffinityMask);
+	// @ATG_CHANGE : END 
 	static const TCHAR* UserDir();
 	static const TCHAR* UserSettingsDir();
 	static const TCHAR* UserTempDir();
