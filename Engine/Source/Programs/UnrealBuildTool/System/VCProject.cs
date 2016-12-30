@@ -1210,9 +1210,16 @@ namespace UnrealBuildTool
 								"		<LocalDebuggerCommandArguments>" + DebugOptions + "</LocalDebuggerCommandArguments>" + ProjectFileGenerator.NewLine
 								);
 						}
+						// @ATG_CHANGE : BEGIN UWP support
+						string DebuggerFlavor = "WindowsLocalDebugger";
+						if (Platform == UnrealTargetPlatform.UWP32 || Platform == UnrealTargetPlatform.UWP64)
+						{
+							DebuggerFlavor = "LocalWindowsDebugger";
+						}
 						VCUserFileContent.Append(
-							"		<DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>" + ProjectFileGenerator.NewLine
-							);
+						"		<DebuggerFlavor>" + DebuggerFlavor + "</DebuggerFlavor>" + ProjectFileGenerator.NewLine
+						);
+						// @ATG_CHANGE : END
 						VCUserFileContent.Append(
 							"	</PropertyGroup>" + ProjectFileGenerator.NewLine
 							);
