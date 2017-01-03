@@ -277,7 +277,7 @@ DWORD_PTR WINAPI SetThreadAffinityMask(
 	// if static initialization got Cpu info....
 	if (Cpu_Info.Count > 0 && Cpu_Info.CpuInfoBytes && Cpu_Info.CpuInfoBuffer && Cpu_Info.CpuInfoPtrs)
 	{
-		DWORD_PTR priorMask = 0xffffffffffffffffull;
+		ULONGLONG priorMask = 0xffffffffffffffffull;
 		ULONG priorCoreCount = 0;
 		ULONG coreIds[64];
 
