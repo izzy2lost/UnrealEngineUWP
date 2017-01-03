@@ -498,7 +498,7 @@ namespace UnrealBuildTool
 				// @ATG_CHANGE : END
 			}
 
-			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0", false);
+			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
 			return Path.Combine(SDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "makepri.exe");
 		}
 		// @ATG_CHANGE : END		

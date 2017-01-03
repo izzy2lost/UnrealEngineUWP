@@ -98,7 +98,7 @@ namespace UnrealBuildTool
 		{
 			// @todo UWP: Why do we ever need WinRT headers when building regular Win32?  Is this just needed for the Windows 10 SDK?
 			// @todo UWP: These include paths should be added in SetUpEnvironment(), not here.  Do they need to be the last includes or something?
-			if (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.bUseWindowsSDK10)
+			if (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.ShouldUseWindowsSDK10(CompileEnvironment.Config.Target.Platform))
 			{
 				if (Directory.Exists(EnvVars.WindowsSDKExtensionDir))
 				{
@@ -643,7 +643,7 @@ namespace UnrealBuildTool
 				// Enable /ZW if the module requests it
 				if (CompileEnvironment.Config.bEnableWinRTComponentExtensions)
 				{
-					if (WindowsPlatform.bUseWindowsSDK10)
+					if (WindowsPlatform.bCanUseWindowsSDK10)
 					{
 						// Enable Windows Runtime extensions.
 						Arguments.Append(" /ZW");
@@ -1177,7 +1177,7 @@ namespace UnrealBuildTool
 
 			// @ATG_CHANGE : BEGIN winmd support
 			// Add winmd references			
-			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 && WindowsPlatform.bUseWindowsSDK10)
+			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 && WindowsPlatform.ShouldUseWindowsSDK10(Target.Platform))
 			{
 				foreach (string CurAssemblyInfo in CompileEnvironment.Config.WinMDReferences)
 				{
@@ -1600,7 +1600,7 @@ namespace UnrealBuildTool
 			VCEnvironment EnvVars = VCEnvironment.SetEnvironment(LinkEnvironment.Config.Target.Platform, bSupportWindowsXP);
 
 			// @todo UWP: These paths should be added in SetUpEnvironment(), not here.  Also is this actually needed for classic desktop targets or only UWP?
-			if (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.bUseWindowsSDK10)
+			if (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.ShouldUseWindowsSDK10(LinkEnvironment.Config.Target.Platform))
 			{
 				if (LinkEnvironment.Config.Target.Platform == CPPTargetPlatform.Win64)
 				{
