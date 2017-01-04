@@ -109,7 +109,7 @@ namespace UWP.Automation
 
 		public override void Package(ProjectParams Params, DeploymentContext SC, int WorkingCL)
 		{
-			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0", false);
+			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
 			string MakeAppXPath = Path.Combine(SDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "makeappx.exe");
 			string OutputAppX = Path.Combine(SC.StageDirectory, Params.ShortProjectName + ".appx");
 			string MakeAppXCommandLine = string.Format(@"pack /o /d ""{0}"" /p ""{1}""", SC.StageDirectory, OutputAppX);
