@@ -8,7 +8,7 @@ public class XInput : ModuleRules
 		Type = ModuleType.External;
 
 // @ATG_CHANGE : BEGIN UWP support
-        string DirectXSDKDir = WindowsPlatform.bUseWindowsSDK10 ?
+        string DirectXSDKDir = WindowsPlatform.ShouldUseWindowsSDK10(Target.Platform) ?
             UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
 			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";
 

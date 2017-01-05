@@ -809,8 +809,8 @@ namespace UnrealBuildTool
 			AppxSchema = new XmlSchemaSet();
 			AppxSchema.ValidationEventHandler += SchemaCallback;
 
-			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0", false);
-            Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder);
+			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
+            Version SDKVersion = VCEnvironment.FindWindowsSDK10ExtensionLatestVersion(SDKFolder);
             string UWPSchemaFolder = Path.Combine(SDKFolder, "Include", SDKVersion.ToString(), "winrt");
 
 			// UWP allows the PhoneIdentity element to reference a Windows Phone package for cross-store entitlement

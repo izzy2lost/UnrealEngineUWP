@@ -8,7 +8,7 @@ public class DX12 : ModuleRules
 		Type = ModuleType.External;
 
 // @ATG_CHANGE : BEGIN UWP support
-		string DirectXSDKDir = WindowsPlatform.bUseWindowsSDK10 ?
+		string DirectXSDKDir = WindowsPlatform.ShouldUseWindowsSDK10(Target.Platform) ?
 			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DX12" :
 			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";
 // @ATG_CHANGE : END
@@ -23,7 +23,7 @@ public class DX12 : ModuleRules
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
 		}
 // @ATG_CHANGE : BEGIN UWP support
-		if (WindowsPlatform.bUseWindowsSDK10)
+		if (WindowsPlatform.ShouldUseWindowsSDK10(Target.Platform))
 		{
 			PublicSystemIncludePaths.Add(UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy/Include");
 		}

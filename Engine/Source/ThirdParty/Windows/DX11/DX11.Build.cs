@@ -11,7 +11,7 @@ public class DX11 : ModuleRules
 
 // @ATG_CHANGE : BEGIN UWP support
 
-        string DirectXSDKDir = WindowsPlatform.bUseWindowsSDK10 ?
+        string DirectXSDKDir = WindowsPlatform.ShouldUseWindowsSDK10(Target.Platform) ?
             UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
 			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";
  
@@ -40,7 +40,7 @@ public class DX11 : ModuleRules
 			);
 
 		// Preserved for consistency with original version, but definitely not needed when using Win10 SDK
-		if (!WindowsPlatform.bUseWindowsSDK10)
+		if (!WindowsPlatform.ShouldUseWindowsSDK10(Target.Platform))
 		{
 			PublicAdditionalLibraries.AddRange(
 				new string[]

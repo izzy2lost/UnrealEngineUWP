@@ -228,7 +228,7 @@ namespace UnrealBuildTool
 				SupportWindowsXP = true;
 			}
 
-			if (WindowsPlatform.bUseWindowsSDK10)
+			if (WindowsPlatform.ShouldUseWindowsSDK10(Platform))
 			{
 				if (SupportWindowsXP)
 				{
@@ -350,7 +350,7 @@ namespace UnrealBuildTool
 				InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("oleaut32.lib");
 				// @ATG_CHANGE : BEGIN UWP support
 				// skip this if using the Win10 SDK, since uuid has IDs defined in guidlibs separately linked in
-				if (!WindowsPlatform.bUseWindowsSDK10)
+				if (!WindowsPlatform.ShouldUseWindowsSDK10(Platform))
 				{
 					InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("uuid.lib");
 				}
@@ -621,13 +621,45 @@ namespace UnrealBuildTool
 		/// compiler or later, and the Windows 10 SDK must be installed.  The application will require at least Windows 8.x to run.
 		// @todo UWP: Expose this to be enabled more easily for building Windows 10 desktop apps
 		// @ATG_CHANGE : BEGIN UWP support
-		public static bool bUseWindowsSDK10
-		{
-			// When Win10 SDK is available, use it for editor builds to support UWP tools.
-			get { return bCanUseWindowsSDK10 && (bForceWindowsSDK10 || UEBuildConfiguration.bBuildEditor || UEBuildConfiguration.bBuildDeveloperTools); }
-		}
+        public static bool ShouldUseWindowsSDK10(bool bIsUWP)
+        {
+            if (bIsUWP)
+            {
+                if (!bCanUseWindowsSDK10)
+                {
+                    throw new BuildException("UWPs require the Windows 10 SDK but it cannot be found.");
+                }
+                return true;
+            }
+            else
+            {
+                return bCanUseWindowsSDK10 && (bForceWindowsSDK10 || UEBuildConfiguration.bBuildEditor || UEBuildConfiguration.bBuildDeveloperTools);
+            }
+        }
+        public static bool ShouldUseWindowsSDK10(UnrealTargetPlatform InPlatform)
+        {
+            switch (InPlatform)
+            {
+                case UnrealTargetPlatform.UWP32:
+                case UnrealTargetPlatform.UWP64:
+                    return ShouldUseWindowsSDK10(true);
+                default:
+                    return ShouldUseWindowsSDK10(false);
+            }
+        }
+        public static bool ShouldUseWindowsSDK10(CPPTargetPlatform InPlatform)
+        {
+            switch (InPlatform)
+            {
+                case CPPTargetPlatform.UWP32:
+                case CPPTargetPlatform.UWP64:
+                    return ShouldUseWindowsSDK10(true);
+                default:
+                    return ShouldUseWindowsSDK10(false);
+            }
+        }
 
-		private static bool? CachedCanUserWindowsSDK10;
+        private static bool? CachedCanUserWindowsSDK10;
 		public static bool bCanUseWindowsSDK10
 		{
 			get
@@ -640,7 +672,7 @@ namespace UnrealBuildTool
 						// Note: earlier versions checked we were using VS2015, but this is not set when
 						// calling from AutomationTool and it's the minimum supported version in any case,
 						// so not really necessary.
-						string PossibleWin10SDKdir = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0", false);
+						string PossibleWin10SDKdir = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
 						if (PossibleWin10SDKdir != null && Directory.Exists(PossibleWin10SDKdir))
 						{
 							CachedCanUserWindowsSDK10 = true;
