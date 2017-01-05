@@ -44,6 +44,11 @@ static TAutoConsoleVariable<int32> CVarAMDDisableAsyncTextureCreation(
 	TEXT("Changes will only take effect in new game/editor instances - can't be changed at runtime.\n"),
 	ECVF_Default);
 
+static TAutoConsoleVariable<int32> CVarNVidiaTimestampWorkaround(
+	TEXT("r.NVIDIATimestampWorkaround"),
+	1,
+	TEXT("If true we disable timestamps on pre-maxwell hardware (workaround for driver bug)\n"),
+	ECVF_Default);
 
 bool FD3D11DynamicRHIModule::IsSupported()
 {
@@ -573,6 +578,8 @@ void FD3D11DynamicRHI::InitD3DDevice()
 
                     GRHIAdapterName = AdapterDesc.Description;
                     GRHIVendorId = AdapterDesc.VendorId;
+					GRHIDeviceId = AdapterDesc.DeviceId;
+					GRHIDeviceRevision = AdapterDesc.Revision;
 
                     // Issue: 32bit windows doesn't report 64bit value, we take what we get.
                     FD3D11GlobalStats::GDedicatedVideoMemory = int64(AdapterDesc.DedicatedVideoMemory);
@@ -694,13 +701,25 @@ void FD3D11DynamicRHI::InitD3DDevice()
 			&& (DeviceFlags & D3D11_CREATE_DEVICE_SINGLETHREADED) == 0;
 
 		GShaderPlatformForFeatureLevel[ERHIFeatureLevel::ES2] = SP_PCD3D_ES2;
-		GShaderPlatformForFeatureLevel[ERHIFeatureLevel::ES3_1] = SP_NumPlatforms;
+		GShaderPlatformForFeatureLevel[ERHIFeatureLevel::ES3_1] = SP_PCD3D_ES3_1;
 		GShaderPlatformForFeatureLevel[ERHIFeatureLevel::SM4] = SP_PCD3D_SM4;
 		GShaderPlatformForFeatureLevel[ERHIFeatureLevel::SM5] = SP_PCD3D_SM5;
 
-		if (IsRHIDeviceAMD())
+		if (IsRHIDeviceAMD() && CVarAMDDisableAsyncTextureCreation.GetValueOnAnyThread())
 		{
 			GRHISupportsAsyncTextureCreation = false;
+		}
+
+		if (IsRHIDeviceNVIDIA() && CVarNVidiaTimestampWorkaround.GetValueOnAnyThread())
+		{
+			// Workaround for pre-maxwell TDRs with realtime GPU stats (timestamp queries)
+			// @TODO remove this when these issues are fixed
+			// Note: 0x1300 corresponds to Maxwell hardware or above
+			if (GRHIDeviceId < 0x1300)
+			{
+				UE_LOG(LogD3D11RHI, Warning, TEXT("Timestamp queries are currently disabled on this hardware due to instability. Realtime GPU stats will not be available. You can override this behaviour by setting r.NVIDIATimestampWorkaround to 0"));
+				GSupportsTimestampRenderQueries = false;
+			}
 		}
 
 #if PLATFORM_DESKTOP
