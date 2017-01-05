@@ -264,7 +264,11 @@ namespace UnrealBuildTool
             DirectoryReference ProjectBinaryFolder = InTarget.OutputPath.Directory;
 
             string[] AdditionalAppXFiles = new string[] { "NetworkManifest.xml", "xboxservices.config", "UE4Commandline.txt" };
-            FileReference AppxRecipeDest = FileReference.Combine(ProjectBinaryFolder, InAppName + ".build.appxrecipe");
+			bool IsGameSpecificExe = ProjectBinaryFolder.IsUnderDirectory(InTarget.ProjectDirectory);
+
+			string RecipeFileName = (IsGameSpecificExe ? InAppName : "UE4") + ".build.appxrecipe";
+
+			FileReference AppxRecipeDest = FileReference.Combine(ProjectBinaryFolder, InAppName + ".build.appxrecipe");
             GeneratePackageAppXRecipe(AppxRecipeDest.FullName, InTarget, Receipt.RuntimeDependencies, AdditionalAppXFiles);
 
             // Log out the time taken to deploy...
@@ -368,16 +372,40 @@ namespace UnrealBuildTool
 
 				// 4.12: Dependencies now support ... syntax for recursive directory traversal.
 				// Translate this to MSBuild syntax. 
+				bool IncludeDependencyInRecipe = true;
 				if (SourcePath.Contains(@"..."))
 				{
 					SourcePath = SourcePath.Replace(@"...", @"**\*.*");
 					DeployPath = DeployPath.Replace(@"...", @"%(RecursiveDir)%(Filename)%(Extension)");
 				}
+				else if (!File.Exists(SourcePath))
+				{
+					LogEventType TraceVerbosity;
+					switch (Path.GetExtension(SourcePath))
+					{
+						case ".pdb":
+							TraceVerbosity = LogEventType.Verbose;
+							break;
 
-                AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + SourcePath + @""">" + ProjectFileGenerator.NewLine);
-                AppXRecipeProjectFileContent.Append(@"          <PackagePath>" + DeployPath + "</PackagePath>" + ProjectFileGenerator.NewLine);
-                AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
-            }
+						case ".dll":
+							TraceVerbosity = LogEventType.Error;
+							break;
+
+						default:
+							TraceVerbosity = LogEventType.Warning;
+							break;
+					}
+					IncludeDependencyInRecipe = false;
+					Log.WriteLine(TraceVerbosity, "Could not find source file for runtime dependency {0}.  Excluding from appxrecipe.", RuntimeDep.Path);
+				}
+
+				if (IncludeDependencyInRecipe)
+				{
+					AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + SourcePath + @""">" + ProjectFileGenerator.NewLine);
+					AppXRecipeProjectFileContent.Append(@"          <PackagePath>" + DeployPath + "</PackagePath>" + ProjectFileGenerator.NewLine);
+					AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+				}
+			}
 
 			//UWP resources
 			AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + FileReference.Combine(ProjectBinariesDirectory, "resources.pri") + @""">" + ProjectFileGenerator.NewLine);
@@ -404,7 +432,50 @@ namespace UnrealBuildTool
                 }
             }
 
-            AppXRecipeProjectFileContent.Append(@"   </ItemGroup>" + ProjectFileGenerator.NewLine);
+			DirectoryReference ConfigDirRef = DirectoryReference.FromFile(InTarget.ProjectFile);
+			if (ConfigDirRef == null && !string.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()))
+			{
+				ConfigDirRef = new DirectoryReference(UnrealBuildTool.GetRemoteIniPath());
+			}
+
+			// Copy pre-cooked content into the package.  This is optional since it could be enormous.
+			ConfigCacheIni EngineIni = ConfigCacheIni.CreateConfigCacheIni(InTarget.Platform, "Engine", ConfigDirRef);
+			if (EngineIni != null)
+			{
+				bool bCopyCookedContentForF5Deployment = false;
+				EngineIni.GetBool("/Script/UWPTargetPlatform.UWPTargetSettings", "bCopyCookedContentForF5Deployment", out bCopyCookedContentForF5Deployment);
+				if (bCopyCookedContentForF5Deployment)
+				{
+					DirectoryReference BaseCookedDir = DirectoryReference.Combine(InTarget.ProjectDirectory, "Saved", "Cooked", "UWP");
+
+					AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + DirectoryReference.Combine(BaseCookedDir, "Engine", "**", "*.*").FullName + @""">" + ProjectFileGenerator.NewLine);
+					AppXRecipeProjectFileContent.Append(@"          <PackagePath>Engine\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
+					AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+
+					AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + DirectoryReference.Combine(BaseCookedDir, InTarget.AppName, "**", "*.*").FullName + @""">" + ProjectFileGenerator.NewLine);
+					AppXRecipeProjectFileContent.Append(@"          <PackagePath>" + InTarget.AppName + @"\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
+					AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+				}
+			}
+
+			// Copy internationalization files that are required to init the localization system and are consumed in source format
+			AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + DirectoryReference.Combine(UnrealBuildTool.EngineDirectory, "Content", "Internationalization", "**", "*.*") + @""" >" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"          <PackagePath>Engine\Content\Internationalization\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+
+			// Copy config files
+			AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + DirectoryReference.Combine(UnrealBuildTool.EngineDirectory, "Config", "**", "*.*") + @""" >" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"          <PackagePath>Engine\Config\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+
+			if (ConfigDirRef != null)
+			{
+				AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + DirectoryReference.Combine(ConfigDirRef, "Config", "**", "*.*") + @""" >" + ProjectFileGenerator.NewLine);
+				AppXRecipeProjectFileContent.Append(@"          <PackagePath>" + InTarget.AppName + @"\Config\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
+				AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+			}
+
+			AppXRecipeProjectFileContent.Append(@"   </ItemGroup>" + ProjectFileGenerator.NewLine);
             AppXRecipeProjectFileContent.Append(@"</Project>" + ProjectFileGenerator.NewLine);
             File.WriteAllText(InOutputFile, AppXRecipeProjectFileContent.ToString(), Encoding.UTF8);
         }
