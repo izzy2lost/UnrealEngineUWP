@@ -82,12 +82,12 @@ namespace UnrealBuildTool
 				VCToolChainDir = DirectoryReference.Combine(VCInstallDir, "Tools", "MSVC", Version);
 			}
 			// @ATG_CHANGE : BEGIN UWP support
-			WindowsSDKDir = FindWindowsSDKInstallationFolder(null, bSupportWindowsXP);
+			WindowsSDKDir = FindWindowsSDKInstallationFolder(InPlatform, bSupportWindowsXP);
 			// @ATG_CHANGE : END
-			WindowsSDKLibVersion = FindWindowsSDKLibVersion(WindowsSDKDir, bSupportWindowsXP);
-			WindowsSDKExtensionDir = bSupportWindowsXP ? "" : FindWindowsSDKExtensionInstallationFolder();
+			WindowsSDKLibVersion = FindWindowsSDKLibVersion(InPlatform, WindowsSDKDir, bSupportWindowsXP);
+			WindowsSDKExtensionDir = bSupportWindowsXP ? "" : FindWindowsSDKExtensionInstallationFolder(InPlatform);
 			NetFxSDKExtensionDir = bSupportWindowsXP ? "" : FindNetFxSDKExtensionInstallationFolder();
-			WindowsSDKExtensionHeaderLibVersion = bSupportWindowsXP ? new Version(0, 0, 0, 0) : FindWindowsSDKExtensionLatestVersion(WindowsSDKExtensionDir);
+			WindowsSDKExtensionHeaderLibVersion = bSupportWindowsXP ? new Version(0, 0, 0, 0) : FindWindowsSDKExtensionLatestVersion(InPlatform, WindowsSDKExtensionDir);
 			UniversalCRTDir = bSupportWindowsXP ? "" : FindUniversalCRTInstallationFolder();
 			UniversalCRTVersion = bSupportWindowsXP ? "0.0.0.0" : FindUniversalCRTVersion(UniversalCRTDir);
 
@@ -133,77 +133,86 @@ namespace UnrealBuildTool
             Environment.SetEnvironmentVariable("LIB", String.Join(";", LibraryPaths));
 		}
 
-		// @ATG_CHANGE : BEGIN UWP support
-		/// <returns>The path to Windows SDK directory for the specified version.</returns>
-		public static string FindWindowsSDKInstallationFolder(string specificVersion, bool bSupportWindowsXP)
-		{
-			string VersionToQuery;
-			if (!string.IsNullOrEmpty(specificVersion))
-			{
-				VersionToQuery = specificVersion;
-			}
-			else
-			{
-				// When targeting Windows XP on Visual Studio 2012+, we need to point at the older Windows SDK 7.1A that comes
-				// installed with Visual Studio 2012 Update 1. (http://blogs.msdn.com/b/vcblog/archive/2012/10/08/10357555.aspx)
-				if (bSupportWindowsXP)
-				{
-					VersionToQuery = "v7.1A";
-				}
-				else
-					switch (WindowsPlatform.Compiler)
-					{
-						case WindowsCompiler.VisualStudio2017:
-						case WindowsCompiler.VisualStudio2015:
-							if (WindowsPlatform.bUseWindowsSDK10)
-							{
-								VersionToQuery = "v10.0";
-							}
-							else
-							{
-								VersionToQuery = "v8.1";
-							}
-							break;
+        // @ATG_CHANGE : BEGIN Request a specific SDK installation folder
+        /// <returns>The path to Windows SDK directory for the specified version.</returns>
+        public static string FindWindowsSDKInstallationFolder(string specificVersion)
+        {
+            Debug.Assert(!string.IsNullOrEmpty(specificVersion));
 
-						case WindowsCompiler.VisualStudio2013:
-							VersionToQuery = "v8.1";
-							break;
+            // Based on VCVarsQueryRegistry
+            string FinalResult = null;
+            foreach (string IndividualVersion in specificVersion.Split('|'))
+            {
+                object Result = Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Microsoft SDKs\Windows\" + IndividualVersion, "InstallationFolder", null)
+                    ?? Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\" + IndividualVersion, "InstallationFolder", null)
+                    ?? Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\" + IndividualVersion, "InstallationFolder", null);
 
-						default:
-							throw new BuildException("Unexpected compiler setting when trying to determine default Windows SDK folder");
-					}
-			}
-			// Based on VCVarsQueryRegistry
-			string FinalResult = null;
-			foreach (string IndividualVersion in VersionToQuery.Split('|'))
-			{
-				object Result = Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Microsoft SDKs\Windows\" + IndividualVersion, "InstallationFolder", null)
-					?? Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\" + IndividualVersion, "InstallationFolder", null)
-					?? Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\" + IndividualVersion, "InstallationFolder", null);
+                if (Result != null)
+                {
+                    FinalResult = (string)Result;
+                    break;
+                }
+            }
 
-				if (Result != null)
-				{
-					FinalResult = (string)Result;
-					break;
-				}
-			}
-			// allow specific version queries to fall through and return null
-			if (FinalResult == null && string.IsNullOrEmpty(specificVersion))
-			{
-				throw new BuildException("Windows SDK {0} must be installed in order to build this target.", VersionToQuery);
-			}
+            // allow specific version queries to fall through and return null
+            if (FinalResult == null)
+            {
+                throw new BuildException("Windows SDK {0} must be installed in order to build this target.", specificVersion);
+            }
 
-			return FinalResult;
-		}
-		// @ATG_CHANGE : END
+            return FinalResult;
+        }
+        // @ATG_CHANGE : END
 
-		/// <summary>
-		/// Gets the version of the Windows SDK libraries to use. As per VCVarsQueryRegistry.bat, this is the directory name that sorts last.
-		/// </summary>
-		static string FindWindowsSDKLibVersion(string WindowsSDKDir, bool bSupportWindowsXP)
+        // @ATG_CHANGE : BEGIN Request the most appropriate SDK installation folder for a specific platform
+        /// <returns>The path to Windows SDK directory for the specified version and platform.</returns>
+        public static string FindWindowsSDKInstallationFolder(CPPTargetPlatform InPlatform, bool bSupportWindowsXP)
+        {
+            string VersionToQuery;
+
+            // When targeting Windows XP on Visual Studio 2012+, we need to point at the older Windows SDK 7.1A that comes
+            // installed with Visual Studio 2012 Update 1. (http://blogs.msdn.com/b/vcblog/archive/2012/10/08/10357555.aspx)
+            if (bSupportWindowsXP)
+            {
+                VersionToQuery = "v7.1A";
+            }
+            else
+            { 
+                switch (WindowsPlatform.Compiler)
+                {
+                    case WindowsCompiler.VisualStudio2017:
+                    case WindowsCompiler.VisualStudio2015:
+                        if (WindowsPlatform.ShouldUseWindowsSDK10(InPlatform))
+                        {
+                            VersionToQuery = "v10.0";
+                        }
+                        else
+                        {
+                            VersionToQuery = "v8.1";
+                        }
+                        break;
+
+                    case WindowsCompiler.VisualStudio2013:
+                        VersionToQuery = "v8.1";
+                        break;
+
+                    default:
+                        throw new BuildException("Unexpected compiler setting when trying to determine default Windows SDK folder");
+                }
+            }
+
+            // Find the possible path for this version
+            return FindWindowsSDKInstallationFolder(VersionToQuery);
+        }
+        // @ATG_CHANGE : END
+
+        /// <summary>
+        /// Gets the version of the Windows SDK libraries to use. As per VCVarsQueryRegistry.bat, this is the directory name that sorts last.
+        /// </summary>
+        static string FindWindowsSDKLibVersion(CPPTargetPlatform InPlatform, string WindowsSDKDir, bool bSupportWindowsXP)
 		{
 			string WindowsSDKLibVersion;
-			if (WindowsPlatform.bUseWindowsSDK10 && !bSupportWindowsXP)
+			if (WindowsPlatform.ShouldUseWindowsSDK10(InPlatform) && !bSupportWindowsXP)
 			{
 				DirectoryInfo IncludeDir = new DirectoryInfo(Path.Combine(WindowsSDKDir, "include"));
 				if (!IncludeDir.Exists)
@@ -253,14 +262,51 @@ namespace UnrealBuildTool
 			return string.Empty;
 		}
 
-		private static string FindWindowsSDKExtensionInstallationFolder()
+        // @ATG_CHANGE : BEGIN Request the SDK extension folder for a specific SDK version
+        /// <summary>
+        /// Returns the path to the Windows SDK extensions folder. 
+        /// </summary>
+        /// <returns></returns>
+        private static string FindWindowsSDKExtensionInstallationFolder(string Version)
+        {
+            // Based on VCVarsQueryRegistry
+            string FinalResult = null;
+            {
+                object Result = Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows SDKs\" + Version, "InstallationFolder", null)
+                          ?? Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows SDKs\" + Version, "InstallationFolder", null);
+                if (Result == null)
+                {
+                    Result = Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\" + Version, "InstallationFolder", null)
+                          ?? Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\" + Version, "InstallationFolder", null);
+                }
+                if (Result != null)
+                {
+                    FinalResult = ((string)Result).TrimEnd('\\');
+                }
+
+            }
+            if (FinalResult == null)
+            {
+                FinalResult = string.Empty;
+            }
+
+            return FinalResult;
+        }
+        // @ATG_CHANGE : END
+
+        // @ATG_CHANGE : BEGIN Request the most appropriate SDK extensions folder for a specific platform
+        /// <summary>
+        /// Returns the path to the Windows SDK extensions folder. It defaults to v10.0, if it is installed.
+        /// </summary>
+        /// <returns></returns>
+        private static string FindWindowsSDKExtensionInstallationFolder(CPPTargetPlatform InPlatform)
 		{
 			string Version;
 			switch (WindowsPlatform.Compiler)
 			{
 				case WindowsCompiler.VisualStudio2017:
 				case WindowsCompiler.VisualStudio2015:
-					if (WindowsPlatform.bUseWindowsSDK10)
+					if (WindowsPlatform.ShouldUseWindowsSDK10(InPlatform))
 					{
 						Version = "v10.0";
 					}
@@ -274,37 +320,17 @@ namespace UnrealBuildTool
 					return string.Empty;
 			}
 
-			// Based on VCVarsQueryRegistry
-			string FinalResult = null;
-			{
-				object Result = Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows SDKs\" + Version, "InstallationFolder", null)
-						  ?? Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows SDKs\" + Version, "InstallationFolder", null);
-				if (Result == null)
-				{
-					Result = Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\" + Version, "InstallationFolder", null)
-						  ?? Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\" + Version, "InstallationFolder", null);
-				}
-				if (Result != null)
-				{
-					FinalResult = ((string)Result).TrimEnd('\\');
-				}
+            return FindWindowsSDKExtensionInstallationFolder(Version);
+        }
+        // @ATG_CHANGE : END
 
-			}
-			if (FinalResult == null)
-			{
-				FinalResult = string.Empty;
-			}
-
-			return FinalResult;
-		}
-
-		// @ATG_CHANGE : BEGIN updated manifest generation requires schema knowledge, which comes from the SDK
-		public static Version FindWindowsSDKExtensionLatestVersion(string WindowsSDKExtensionDir)
+        // @ATG_CHANGE : BEGIN updated manifest generation requires schema knowledge, which comes from the SDK
+        public static Version FindWindowsSDK10ExtensionLatestVersion(string WindowsSDKExtensionDir)
 		// @ATG_CHANGE : END
 		{
 			Version LatestVersion = new Version(0, 0, 0, 0);
 
-			if (WindowsPlatform.bUseWindowsSDK10 &&
+			if (WindowsPlatform.bCanUseWindowsSDK10 &&
 				!string.IsNullOrEmpty(WindowsSDKExtensionDir) &&
 				Directory.Exists(WindowsSDKExtensionDir))
 			{
@@ -318,6 +344,20 @@ namespace UnrealBuildTool
             }
 			return LatestVersion;
 		}
+
+        // @ATG_CHANGE : BEGIN updated manifest generation requires schema knowledge, which comes from the SDK
+        public static Version FindWindowsSDKExtensionLatestVersion(CPPTargetPlatform InPlatform, string WindowsSDKExtensionDir)
+        // @ATG_CHANGE : END
+        {
+            if (WindowsPlatform.ShouldUseWindowsSDK10(InPlatform))
+            {
+                return FindWindowsSDK10ExtensionLatestVersion(WindowsSDKExtensionDir);
+            }
+            else
+            {
+                return new Version(0, 0, 0, 0);
+            }
+        }
 
         // @ATG_CHANGE : BEGIN UWP contract version support
         public static Version FindLatestVersionDirectory(string InDirectory)
@@ -347,7 +387,7 @@ namespace UnrealBuildTool
             }
             else
             {
-                SDKDir = FindWindowsSDKExtensionInstallationFolder();
+                SDKDir = FindWindowsSDKExtensionInstallationFolder("v10.0");
             }
             string ContractDir = Path.Combine(SDKDir, "References", ApiContract);
             Version ContractLatestVersion = VCEnvironment.FindLatestVersionDirectory(ContractDir);
@@ -569,7 +609,7 @@ namespace UnrealBuildTool
 			if (Platform == CPPTargetPlatform.Win64 || Platform == CPPTargetPlatform.UWP64)
 			// @ATG_CHANGE : END
 			{
-				if (WindowsPlatform.bUseWindowsSDK10)
+				if (WindowsPlatform.ShouldUseWindowsSDK10(Platform))
 				{
 					return Path.Combine(WindowsSDKExtensionDir, "bin/x64/rc.exe");
 				}
@@ -581,7 +621,7 @@ namespace UnrealBuildTool
 
 			if (!bSupportWindowsXP)	// Windows XP requires use to force Windows SDK 7.1 even on the newer compiler, so we need the old path RC.exe
 			{
-				if (WindowsPlatform.bUseWindowsSDK10)
+				if (WindowsPlatform.ShouldUseWindowsSDK10(Platform))
 				{
 					return Path.Combine(WindowsSDKExtensionDir, "bin/x86/rc.exe");
 				}
@@ -756,11 +796,21 @@ namespace UnrealBuildTool
 			{
 				IncludePaths.Add(Path.Combine(WindowsSDKDir, "include"));
 			}
-			else if (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.bUseWindowsSDK10)
+			else if (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015)
 			{
-				IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", WindowsSDKLibVersion, "shared"));
-				IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", WindowsSDKLibVersion, "um"));
-				IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", WindowsSDKLibVersion, "winrt"));
+                string WindowsSDKIncludeDir = Path.Combine(WindowsSDKDir, "include", WindowsSDKLibVersion);
+                if (Directory.Exists(WindowsSDKIncludeDir))
+                {
+                    IncludePaths.Add(Path.Combine(WindowsSDKIncludeDir, "shared"));
+                    IncludePaths.Add(Path.Combine(WindowsSDKIncludeDir, "um"));
+                    IncludePaths.Add(Path.Combine(WindowsSDKIncludeDir, "winrt"));
+                }
+                else
+                {
+                    IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", "shared"));
+                    IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", "um"));
+                    IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", "winrt"));
+                }
 			}
 			else
 			{

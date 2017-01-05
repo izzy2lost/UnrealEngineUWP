@@ -2640,7 +2640,7 @@ namespace AutomationTool
 			if (Compiler >= WindowsCompiler.VisualStudio2015)
 			{
 				//@todo: Get these paths from the registry
-				if (WindowsPlatform.bUseWindowsSDK10)
+				if (WindowsPlatform.bCanUseWindowsSDK10)
 				{
 					SignToolName = "C:/Program Files (x86)/Windows Kits/10/bin/x86/SignTool.exe";
 				}
@@ -2828,7 +2828,7 @@ namespace AutomationTool
 			if (Compiler == WindowsCompiler.VisualStudio2015)
 			{
 				//@todo: Get these paths from the registry
-				if (WindowsPlatform.bUseWindowsSDK10)
+				if (WindowsPlatform.bCanUseWindowsSDK10)
 				{
 					SignToolName = "C:/Program Files (x86)/Windows Kits/10/bin/x86/SignTool.exe";
 				}

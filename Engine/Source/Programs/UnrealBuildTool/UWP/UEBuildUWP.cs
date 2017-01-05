@@ -169,8 +169,8 @@ namespace UnrealBuildTool
 			InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("windowsapp.lib");
 
 			// In the 10586 SDK TLS APIs are not inlined, but they're also not in windowsapp.lib
-			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0", false);
-			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder);
+			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
+			Version SDKVersion = VCEnvironment.FindWindowsSDK10ExtensionLatestVersion(SDKFolder);
 			if (SDKVersion.Build == 10586)
 			{
 				InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("kernel32.lib");
