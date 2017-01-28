@@ -35,8 +35,11 @@ void FDiskCacheInterface::Init(FString &filename)
 	}
 	else
 	{
-		WIN32_FIND_DATA fileData;
-		FindFirstFile(mFileName.GetCharArray().GetData(), &fileData);
+		// @ATG_CHANGE : BEGIN UWP support
+		// FindFirstFileEx should be available everywhere, so use that in preference to FindFirstFile (which is not in UWP prior to 14393)
+		WIN32_FIND_DATAW fileData;
+		FindFirstFileEx(mFileName.GetCharArray().GetData(), FINDEX_INFO_LEVELS::FindExInfoStandard, &fileData, FINDEX_SEARCH_OPS::FindExSearchNameMatch, nullptr, 0);
+		// @ATG_CHANGE : END
 		if (GetLastError() == ERROR_FILE_NOT_FOUND)
 		{
 			mCacheExists = false;
