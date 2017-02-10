@@ -86,6 +86,11 @@ struct CORE_API FUWPMisc : public FGenericPlatformMisc
 	*/
 	static const FString& GetProtocolActivationUri();
 
+	static bool SupportsLocalCaching()
+	{
+		return false;
+	}
+
 private:
 
 	/** character buffer containing the last protocol activation URI */
