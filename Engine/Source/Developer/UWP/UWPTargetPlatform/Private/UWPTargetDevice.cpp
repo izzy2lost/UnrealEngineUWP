@@ -92,6 +92,21 @@ bool FUWPTargetDevice::Run(const FString& ExecutablePath, const FString& Params,
 		return false;
 	}
 
+	TComPtr<IPackageDebugSettings> PackageDebugSettings;
+	if (SUCCEEDED(CoCreateInstance(CLSID_PackageDebugSettings, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&PackageDebugSettings))))
+	{
+		TComPtr<IAppxManifestPackageId> ManifestPackageId;
+		if (SUCCEEDED(ManifestReader->GetPackageId(&ManifestPackageId)))
+		{
+			LPWSTR PackageFullName = nullptr;
+			if (SUCCEEDED(ManifestPackageId->GetPackageFullName(&PackageFullName)))
+			{
+				PackageDebugSettings->EnableDebugging(PackageFullName, nullptr, nullptr);
+				CoTaskMemFree(PackageFullName);
+			}
+		}
+	}
+
 	LPWSTR Aumid = nullptr;
 	if (FAILED(ApplicationMetadata->GetAppUserModelId(&Aumid)))
 	{
