@@ -187,7 +187,7 @@ namespace UnrealBuildTool
 			string AbsoluteExeDirectory = Path.GetDirectoryName(InExecutablePath);
 			bool Is32bit = Path.GetFileName(AbsoluteExeDirectory).Equals("UWP32", StringComparison.OrdinalIgnoreCase);
             UnrealTargetPlatform Platform = Is32bit ? UnrealTargetPlatform.UWP32 : UnrealTargetPlatform.UWP64;
-			bool IsGameSpecificExe = AbsoluteExeDirectory.StartsWith(InProjectDirectory);
+			bool IsGameSpecificExe = ProjectFile != null && AbsoluteExeDirectory.StartsWith(InProjectDirectory);
 			string RelativeExeFilePath = Path.Combine(IsGameSpecificExe ? InProjectName : "Engine", "Binaries", Is32bit ? "UWP32" : "UWP64", Path.GetFileName(InExecutablePath));
 			string AppxManifestTargetPath = Path.Combine(AbsoluteExeDirectory, "AppxManifest.xml");
 
@@ -264,11 +264,11 @@ namespace UnrealBuildTool
             DirectoryReference ProjectBinaryFolder = InTarget.OutputPath.Directory;
 
             string[] AdditionalAppXFiles = new string[] { "NetworkManifest.xml", "xboxservices.config", "UE4Commandline.txt" };
-			bool IsGameSpecificExe = ProjectBinaryFolder.IsUnderDirectory(InTarget.ProjectDirectory);
-
+			bool IsGameSpecificExe = InTarget.ProjectFile != null && ProjectBinaryFolder.IsUnderDirectory(InTarget.ProjectDirectory);
+			
 			string RecipeFileName = (IsGameSpecificExe ? InAppName : "UE4") + ".build.appxrecipe";
 
-			FileReference AppxRecipeDest = FileReference.Combine(ProjectBinaryFolder, InAppName + ".build.appxrecipe");
+			FileReference AppxRecipeDest = FileReference.Combine(ProjectBinaryFolder, RecipeFileName);
             GeneratePackageAppXRecipe(AppxRecipeDest.FullName, InTarget, Receipt.RuntimeDependencies, AdditionalAppXFiles);
 
             // Log out the time taken to deploy...
@@ -340,12 +340,20 @@ namespace UnrealBuildTool
             // Add the actual package content
             AppXRecipeProjectFileContent.Append(@"   <ItemGroup>" + ProjectFileGenerator.NewLine);
 
-            // Game exe
-            foreach (var BinaryOutput in InTarget.OutputPaths)
+			// Game exe
+			foreach (var BinaryOutput in InTarget.OutputPaths)
             {
-                AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + BinaryOutput + @""">" + ProjectFileGenerator.NewLine);
-                AppXRecipeProjectFileContent.Append(@"          <PackagePath>" + Path.Combine(InTarget.AppName, BinaryOutput.MakeRelativeTo(InTarget.ProjectDirectory)) + @"</PackagePath>" + ProjectFileGenerator.NewLine);
-                AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
+				AppXRecipeProjectFileContent.Append(@"      <AppxPackagedFile Include=""" + BinaryOutput + @""">" + ProjectFileGenerator.NewLine);
+				bool IsGameSpecificExe = InTarget.ProjectFile != null && BinaryOutput.IsUnderDirectory(InTarget.ProjectDirectory);
+				if (IsGameSpecificExe)
+				{
+					AppXRecipeProjectFileContent.Append(@"          <PackagePath>" + Path.Combine(InTarget.AppName, BinaryOutput.MakeRelativeTo(InTarget.ProjectDirectory)) + @"</PackagePath>" + ProjectFileGenerator.NewLine);
+				}
+				else
+				{
+					AppXRecipeProjectFileContent.Append(@"          <PackagePath>" + Path.Combine("Engine", BinaryOutput.MakeRelativeTo(UnrealBuildTool.EngineDirectory)) + @"</PackagePath>" + ProjectFileGenerator.NewLine);
+				}
+				AppXRecipeProjectFileContent.Append(@"      </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
             }
 
 			if (InTarget.ProjectFile != null)
@@ -367,8 +375,8 @@ namespace UnrealBuildTool
 
             foreach (var RuntimeDep in Dependencies)
             {
-                string SourcePath = Utils.ExpandVariables(RuntimeDep.Path, SourceVariables);
-                string DeployPath = Utils.ExpandVariables(RuntimeDep.Path, DestVariables);
+                string SourcePath = Utils.ExpandVariables(RuntimeDep.Path, SourceVariables).Replace(@"/", @"\");
+                string DeployPath = Utils.ExpandVariables(RuntimeDep.Path, DestVariables).Replace(@"/", @"\");
 
 				// 4.12: Dependencies now support ... syntax for recursive directory traversal.
 				// Translate this to MSBuild syntax. 
