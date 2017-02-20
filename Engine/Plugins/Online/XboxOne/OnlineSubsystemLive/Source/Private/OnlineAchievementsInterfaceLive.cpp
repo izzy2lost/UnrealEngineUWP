@@ -1,0 +1,464 @@
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+
+#include "OnlineSubsystemLivePrivatePCH.h"
+#include "OnlineAchievementsInterfaceLive.h"
+#include "OnlineEventsInterfaceLive.h"
+#include "OnlineSubsystemLiveTypes.h"
+#include "OnlineSubsystemLive.h"
+#include "OnlineIdentityInterfaceLive.h"
+#include "OnlineAsyncTaskManagerLive.h"
+
+#define TEST_ACHIEVEMENTS			0
+#define USE_EVENTS_HEADER_TEST		0
+
+#if USE_EVENTS_HEADER_TEST
+	#include "Events-EPCC.1-45783947.h"
+#endif
+
+// @ATG_CHANGE : UWP LIVE support: Xbox headers to pch
+
+using namespace Microsoft::Xbox::Services::Achievements;
+using namespace Microsoft::Xbox::Services::RealTimeActivity;
+using namespace Microsoft::Xbox::Services;
+using namespace Microsoft::Xbox::Services::UserStatistics;
+using namespace Windows::Foundation;
+
+FOnlineAchievementsLive::FOnlineAchievementsLive( class FOnlineSubsystemLive* InSubsystem ) : LiveSubsystem( InSubsystem )
+{
+	LoadAndInitFromJsonConfig( TEXT( "Achievements.json" ) );
+
+#if TEST_ACHIEVEMENTS		// Enable this to test achievements and events
+	TestEventsAndAchievements();
+#endif
+}
+
+FOnlineAchievementsLive::~FOnlineAchievementsLive()
+{
+}
+
+bool FOnlineAchievementsLive::LoadAndInitFromJsonConfig( const TCHAR* JsonConfigName )
+{
+	const FString BaseDir = FPaths::GameDir() + TEXT( "Config/OSS/Live/" );
+	const FString JSonConfigFilename = BaseDir + JsonConfigName;;
+
+	FString JSonText;
+
+	if ( !FFileHelper::LoadFileToString( JSonText, *JSonConfigFilename ) )
+	{
+		UE_LOG_ONLINE( Warning, TEXT( "FOnlineAchievementsLive: Failed to find json OSS achievements config: %s"), *JSonConfigFilename );
+		return false;
+	}
+
+	if ( !AchievementsConfig.FromJson( JSonText ) )
+	{
+		UE_LOG_ONLINE( Warning, TEXT( "FOnlineAchievementsLive: Failed to parse json OSS achievements config: %s"), *JSonConfigFilename );
+		return false;
+	}
+
+	return true;
+}
+
+void FOnlineAchievementsLive::TestEventsAndAchievements()
+{
+	// @ATG_CHANGE : BEGIN UWP LIVE support
+	Windows::Xbox::System::User ^ TestUser = LiveSubsystem->GetIdentityLive()->GetUserForControllerIndex(0);
+	// @ATG_CHANGE : END
+
+	if ( TestUser == nullptr )
+	{
+		return;
+	}
+	
+	Microsoft::Xbox::Services::XboxLiveContext ^ xboxLiveContext = LiveSubsystem->GetLiveContext( TestUser );
+	
+	if ( xboxLiveContext == nullptr )
+	{
+		return;
+	}
+
+	// Turn on debug logging to Output debug window for Xbox Services
+	xboxLiveContext->Settings->DiagnosticsTraceLevel = XboxServicesDiagnosticsTraceLevel::Verbose;
+
+	// Show service calls from Xbox Services on the UI for easy debugging
+	xboxLiveContext->Settings->EnableServiceCallRoutedEvents = true;
+	xboxLiveContext->Settings->ServiceCallRouted += ref new Windows::Foundation::EventHandler<Microsoft::Xbox::Services::XboxServiceCallRoutedEventArgs^>( 
+		[=]( Platform::Object^, Microsoft::Xbox::Services::XboxServiceCallRoutedEventArgs^ args )
+	{
+		//if( args->HttpStatus != 200 )
+		{
+			UE_LOG_ONLINE( Warning, TEXT( "[URL]: %s %s"), args->HttpMethod->Data(), args->Url->AbsoluteUri->Data() );
+			if( !args->RequestBody->RequestMessageString->IsEmpty() )
+			{
+				UE_LOG_ONLINE( Warning, TEXT( "[RequestBody]: %s"), args->RequestBody->RequestMessageString->Data() );
+			}
+			UE_LOG_ONLINE( Warning, TEXT( "") );
+			UE_LOG_ONLINE( Warning, TEXT( "[Response]: %s %s"), args->HttpStatus.ToString()->Data(), args->ResponseBody->Data() );
+			UE_LOG_ONLINE( Warning, TEXT( "") );
+		}
+	});
+
+	xboxLiveContext->UserStatisticsService->StatisticChanged += ref new Windows::Foundation::EventHandler<StatisticChangeEventArgs^>(
+		[]( Platform::Object^, StatisticChangeEventArgs^ args )
+	{
+		UE_LOG_ONLINE( Warning, TEXT( "Stat User: %s"), args->XboxUserId->Data() );
+		UE_LOG_ONLINE( Warning, TEXT( "Stat Name: %s"), args->LatestStatistic->StatisticName->Data() );
+		UE_LOG_ONLINE( Warning, TEXT( "Stat Value: %s"), args->LatestStatistic->Value->Data() );
+	});
+
+#if USE_EVENTS_HEADER_TEST
+	if ( EventRegisterEPCC_45783947() != ERROR_SUCCESS )
+	{
+		return;
+	}
+
+	FString XBoxLiveId( TestUser->XboxUserId->Data() );
+
+	GUID PlayerSessionId = { 1 };
+
+	uint32 Result = 0;
+
+	Result = EventWritePlayerSessionStart( *XBoxLiveId, &PlayerSessionId, NULL, 0, 0 );
+
+	if ( Result != ERROR_SUCCESS )
+	{
+		return;
+	}
+
+	Result = EventWriteTempActivateAchiement( *XBoxLiveId, &PlayerSessionId, 10 );
+
+	if ( Result != ERROR_SUCCESS )
+	{
+		return;
+	}
+
+	Result = EventWritePlayerSessionEnd( *XBoxLiveId, &PlayerSessionId, NULL, 0, 0, 0 );
+
+	if ( Result != ERROR_SUCCESS )
+	{
+		return;
+	}
+
+	EventUnregisterEPCC_45783947();
+#else
+	FOnlineEventsLive * EventInterface = (FOnlineEventsLive*)LiveSubsystem->GetEventsInterface().Get();
+
+	FString PlayerXUIDStr( TestUser->XboxUserId->Data() );
+	FUniqueNetIdLive PlayerId( PlayerXUIDStr );
+
+	// Start player session
+	{
+		FOnlineEventParms Parms;
+
+		Parms.Add( TEXT( "GameplayModeId" ), FVariantData( (int32)1 ) );
+		Parms.Add( TEXT( "DifficultyLevelId" ), FVariantData( (int32)1 ) );
+		Parms.Add( TEXT( "MapName" ), FVariantData( FString("Highrise") ) );
+
+		EventInterface->TriggerEvent( PlayerId, TEXT( "PlayerSessionStart" ), Parms );
+	}
+
+	// Test a stat change event
+	{
+		FOnlineEventParms Parms;
+
+		Parms.Add( TEXT( "SectionId" ), FVariantData( (int32)0 ) );
+		Parms.Add( TEXT( "GameplayModeId" ), FVariantData( (int32)0 ) );
+		Parms.Add( TEXT( "DifficultyLevelId" ), FVariantData( (int32)0 ) );
+		Parms.Add( TEXT( "PlayerRoleId" ), FVariantData( (int32)0 ) );
+		Parms.Add( TEXT( "PlayerWeaponId" ), FVariantData( (int32)0 ) );
+		Parms.Add( TEXT( "EnemyRoleId" ), FVariantData( (int32)0 ) );
+		Parms.Add( TEXT( "KillTypeId" ), FVariantData( (int32)0 ) );
+		Parms.Add( TEXT( "LocationX" ), FVariantData( (float)0 ) );
+		Parms.Add( TEXT( "LocationY" ), FVariantData( (float)0 ) );
+		Parms.Add( TEXT( "LocationZ" ), FVariantData( (float)0 ) );
+		Parms.Add( TEXT( "EnemyWeaponId" ), FVariantData( (int32)0 ) );
+
+		EventInterface->TriggerEvent( PlayerId, TEXT( "KillOponent" ), Parms );
+	}
+
+	// Give test achievement
+	{
+		FOnlineEventParms Parms;
+		Parms.Add( TEXT( "AchievementIndex" ), FVariantData( (int32)9 ) );
+		//Parms.Add( TEXT( "AchievementIndex" ), FVariantData( (uint64)0xFFFFFFFFF ) );				// This should trigger loss of data error
+		//Parms.Add( TEXT( "AchievementIndex" ), FVariantData( FString( TEXT( "Test") ) ) );		// This should trigger conversion error
+
+		EventInterface->TriggerEvent( PlayerId, TEXT( "TempActivateAchiement" ), Parms );
+	}
+
+	// End player session
+	{
+		FOnlineEventParms Parms;
+
+		Parms.Add( TEXT( "GameplayModeId" ), FVariantData( (int32)1 ) );
+		Parms.Add( TEXT( "DifficultyLevelId" ), FVariantData( (int32)1 ) );
+		Parms.Add( TEXT( "ExitStatusId" ), FVariantData( (int32)0 ) );
+		Parms.Add( TEXT( "MapName" ), FVariantData( FString("Highrise") ) );
+		Parms.Add( TEXT( "PlayerScore" ), FVariantData( (int32)0 ) );
+		Parms.Add( TEXT( "PlayerWon" ), FVariantData( (bool)false ) );
+
+		EventInterface->TriggerEvent( PlayerId, TEXT( "PlayerSessionEnd" ), Parms );
+	}
+#endif
+}
+
+void FOnlineAchievementsLive::WriteAchievements(const FUniqueNetId& PlayerId, FOnlineAchievementsWriteRef& WriteObject, const FOnAchievementsWrittenDelegate& Delegate)
+{
+	FOnlineEventsLive * EventInterface = (FOnlineEventsLive*)LiveSubsystem->GetEventsInterface().Get();
+
+	FUniqueNetIdLive LiveId( PlayerId );
+
+	if ( LiveId.UniqueNetIdStr.Len() <= 1 )
+	{
+		Delegate.ExecuteIfBound(PlayerId, false);
+		return;
+	}
+
+	bool bResult = true;
+
+	for ( FStatPropertyArray::TConstIterator It( WriteObject->Properties ); It; ++It )
+	{
+		float Percent = 0.0f;
+		It.Value().GetValue( Percent );
+
+		if ( Percent < 100.0f )
+		{
+			continue;
+		}
+
+		FName Name = It.Key();
+
+		int32* Index = AchievementsConfig.AchievementMap.Find( Name.ToString() );
+
+		if ( Index == NULL )
+		{
+			UE_LOG_ONLINE( Warning, TEXT( "FOnlineAchievementsLive::WriteAchievements: No mapping for achievement %s"), *Name.ToString() );
+			bResult = false;
+			continue;
+		}
+
+		FOnlineEventParms Parms;
+		Parms.Add( TEXT( "AchievementIndex" ), FVariantData( (int32)*Index ) );
+
+		if ( !EventInterface->TriggerEvent( PlayerId, *AchievementsConfig.AchievementEventName, Parms ) )
+		{
+			bResult = false;
+		}
+	}
+
+	//@TODO: This is probably too soon, and should be pushed thru to happen once the event has finished processing
+	Delegate.ExecuteIfBound(PlayerId, bResult);
+};
+
+void FOnlineAchievementsLive::QueryAchievements( const FUniqueNetId& PlayerId, const FOnQueryAchievementsCompleteDelegate& Delegate )
+{
+	if ( !LiveSubsystem )
+	{
+		Delegate.ExecuteIfBound( PlayerId, false );
+		return;
+	}
+
+	const auto Identity = LiveSubsystem->GetIdentityLive();
+
+	if ( !Identity.IsValid() )
+	{
+		Delegate.ExecuteIfBound( PlayerId, false );
+		return;
+	}
+
+	const FUniqueNetIdLive UserLive( PlayerId );
+
+	Windows::Xbox::System::User^ XBoxUser = Identity->GetUserForUniqueNetId( UserLive );
+
+	if ( !XBoxUser )
+	{
+		Delegate.ExecuteIfBound( PlayerId, false );
+		return;
+	}
+
+	try
+	{
+		Microsoft::Xbox::Services::XboxLiveContext ^ LiveContext = LiveSubsystem->GetLiveContext( XBoxUser );
+		
+		// @ATG_CHANGE : BEGIN UWP LIVE support
+		const uint32 TitleId = LiveContext->AppConfig->TitleId;
+		// @ATG_CHANGE : END
+
+		auto pAsyncOp = LiveContext->AchievementService->GetAchievementsForTitleIdAsync(
+			XBoxUser->XboxUserId,						// Xbox LIVE user Id
+			TitleId,									// Title Id to get achievement data for
+			AchievementType::All,						// AchievementType filter: All mean to get Persistent and Challenge achievements
+			false,										// All possible achievements including accurate unlocked data
+			AchievementOrderBy::TitleId,				// AchievementOrderBy filter: Default means no particular order
+			0,											// The number of achievement items to skip
+			0											// The maximum number of achievement items to return in the response
+		);
+
+		concurrency::create_task( pAsyncOp ).then( [this, UserLive, Delegate]( concurrency::task<AchievementsResult ^> Task )
+		{
+			try
+			{
+				auto Results = Task.get();
+
+				if ( LiveSubsystem->GetAsyncTaskManager() && Results != nullptr && Results->Items != nullptr )
+				{
+					auto NewEvent = new FAsyncEventQueryCompleted( LiveSubsystem, UserLive, Results, true, Delegate );
+					LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue( NewEvent );
+				}
+			}
+			catch( Platform::COMException^ Ex )
+			{
+				UE_LOG( LogOnlineSubsystemLive, Warning, TEXT( "Getting achievements failed. Exception: %s." ), Ex->ToString()->Data() );
+				if ( LiveSubsystem->GetAsyncTaskManager() )
+				{
+					LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([Delegate, UserLive]()
+					{
+						Delegate.ExecuteIfBound( UserLive, false );
+					});
+				}
+			}
+		});
+	}
+	catch ( Platform::Exception ^ Ex )
+	{
+		if ( Ex->HResult != INET_E_DATA_NOT_AVAILABLE )
+		{
+			UE_LOG( LogOnlineSubsystemLive, Warning, TEXT( "Getting achievements failed. Exception: %s." ), Ex->ToString()->Data() );
+			Delegate.ExecuteIfBound( PlayerId, false );
+		}
+	}
+}
+
+
+void FOnlineAchievementsLive::QueryAchievementDescriptions( const FUniqueNetId& PlayerId, const FOnQueryAchievementsCompleteDelegate& Delegate )
+{
+	// Just query achievements to get descriptions
+	// FIXME: This feels a little redundant, but we can see how platforms evolve, and make a decision then
+	QueryAchievements( PlayerId, Delegate );
+}
+
+EOnlineCachedResult::Type FOnlineAchievementsLive::GetCachedAchievement(const FUniqueNetId& PlayerId, const FString& AchievementId, FOnlineAchievement& OutAchievement)
+{
+	TArray< FOnlineAchievement > * Achievements = PlayerAchievements.Find( FUniqueNetIdLive( PlayerId ) );
+
+	if ( Achievements == NULL )
+	{
+		UE_LOG_ONLINE( Warning, TEXT( "XBoxOne achievements have not been read for player %s"), *PlayerId.ToString() );
+		return EOnlineCachedResult::NotFound;
+	}
+
+	for ( int32 i = 0; i < Achievements->Num(); i++ )
+	{
+		if ( (*Achievements)[ i ].Id == AchievementId )
+		{
+			OutAchievement = (*Achievements)[ i ];
+			return EOnlineCachedResult::Success;
+		}
+	}
+
+	return EOnlineCachedResult::NotFound;
+};
+
+EOnlineCachedResult::Type FOnlineAchievementsLive::GetCachedAchievements(const FUniqueNetId& PlayerId, TArray<FOnlineAchievement> & OutAchievements)
+{
+	TArray< FOnlineAchievement > * Achievements = PlayerAchievements.Find( FUniqueNetIdLive( PlayerId ) );
+
+	if ( Achievements == NULL )
+	{
+		UE_LOG_ONLINE( Warning, TEXT( "XBoxOne achievements have not been read for player %s"), *PlayerId.ToString() );
+		return EOnlineCachedResult::NotFound;
+	}
+
+	OutAchievements = *Achievements;
+
+	return EOnlineCachedResult::Success;
+};
+
+EOnlineCachedResult::Type FOnlineAchievementsLive::GetCachedAchievementDescription(const FString& AchievementId, FOnlineAchievementDesc& OutAchievementDesc)
+{
+	FOnlineAchievementDesc * AchievementDesc = AchievementDescriptions.Find( AchievementId );
+
+	if ( AchievementDesc == NULL )
+	{
+		UE_LOG_ONLINE( Warning, TEXT( "XBoxOne achievements have not been read for id: %s"), *AchievementId );
+		return EOnlineCachedResult::NotFound;
+	}
+
+	OutAchievementDesc = *AchievementDesc;
+	return EOnlineCachedResult::Success;
+};
+
+#if !UE_BUILD_SHIPPING
+bool FOnlineAchievementsLive::ResetAchievements(const FUniqueNetId& PlayerId)
+{
+	return false;
+};
+#endif // !UE_BUILD_SHIPPING
+
+
+FString FOnlineAchievementsLive::FAsyncEventQueryCompleted::ToString() const 
+{
+	return TEXT( "Query achievements complete." );
+}
+
+void FOnlineAchievementsLive::FAsyncEventQueryCompleted::TriggerDelegates()
+{
+	FOnlineAsyncEvent::TriggerDelegates();
+	Delegate.ExecuteIfBound( PlayerId, bWasSuccessful );
+}
+
+void FOnlineAchievementsLive::FAsyncEventQueryCompleted::Finalize()
+{
+	FOnlineAsyncEvent::Finalize();
+
+	if ( !Subsystem )
+	{
+		bWasSuccessful = false;
+		return;
+	}
+
+	FOnlineAchievementsLivePtr SubSystemAchievements = StaticCastSharedPtr< FOnlineAchievementsLive >( Subsystem->GetAchievementsInterface() );
+
+	if ( !SubSystemAchievements.IsValid() )
+	{
+		bWasSuccessful = false;
+		return;
+	}
+
+	if ( Results == nullptr )
+	{
+		bWasSuccessful = false;
+		return;
+	}
+
+	TArray< FOnlineAchievement > AchievementsForPlayer;
+
+	for ( int32 i = 0; i < (int32)Results->Items->Size; ++i )
+	{
+		Achievement ^ XBoxAchievement = Results->Items->GetAt( i );
+
+		FOnlineAchievement OnlineAchievement; 
+
+		// Copy over id
+		OnlineAchievement.Id = XBoxAchievement->Id->Data();
+
+		// FIXME: We can get analog progress here
+		OnlineAchievement.Progress = ( XBoxAchievement->ProgressState == AchievementProgressState::Achieved ) ? 100 : 0;
+
+		AchievementsForPlayer.Add( OnlineAchievement );
+
+		FOnlineAchievementDesc Desc;
+
+		// Fill in description
+		Desc.Title			= FText::FromString( XBoxAchievement->Name->Data() );
+		Desc.LockedDesc		= FText::FromString( XBoxAchievement->LockedDescription->Data() );
+		Desc.UnlockedDesc	= FText::FromString( XBoxAchievement->UnlockedDescription->Data() );
+		Desc.bIsHidden		= XBoxAchievement->IsSecret;
+		Desc.UnlockTime		= FDateTime( 1601, 1, 1 ) + FTimespan( (int64)XBoxAchievement->Progression->TimeUnlocked.UniversalTime );
+
+		// Should replace any already existing values
+		SubSystemAchievements->AchievementDescriptions.Add( OnlineAchievement.Id, Desc );
+	}
+
+	// Should replace any already existing values
+	SubSystemAchievements->PlayerAchievements.Add( PlayerId, AchievementsForPlayer );
+}
