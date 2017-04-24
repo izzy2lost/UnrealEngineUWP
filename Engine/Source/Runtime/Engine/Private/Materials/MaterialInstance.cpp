@@ -1,6 +1,17 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
-#include "EnginePrivate.h"
+#include "Materials/MaterialInstance.h"
+#include "Stats/StatsMisc.h"
+#include "EngineGlobals.h"
+#include "BatchedElements.h"
+#include "Engine/Font.h"
+#include "UObject/UObjectHash.h"
+#include "UObject/UObjectIterator.h"
+#include "UObject/LinkerLoad.h"
+#include "Engine/Texture.h"
+#include "Engine/Texture2D.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "UnrealEngine.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Materials/MaterialExpressionTextureSampleParameter.h"
@@ -8,14 +19,13 @@
 #include "Materials/MaterialExpressionStaticBoolParameter.h"
 #include "Materials/MaterialExpressionStaticComponentMaskParameter.h"
 #include "Materials/MaterialInstanceConstant.h"
-#include "Materials/MaterialInstanceBasePropertyOverrides.h"
-#include "MaterialUniformExpressions.h"
-#include "MaterialInstanceSupport.h"
-#include "MaterialShaderType.h"
-#include "TargetPlatform.h"
-#include "Engine/Font.h"
+#include "Materials/MaterialUniformExpressions.h"
+#include "Materials/MaterialInstanceSupport.h"
 #include "Engine/SubsurfaceProfile.h"
-#include "LoadTimeTracker.h"
+#include "ProfilingDebugging/LoadTimeTracker.h"
+#include "Interfaces/ITargetPlatform.h"
+#include "Interfaces/ITargetPlatformManagerModule.h"
+#include "Components.h"
 
 /**
  * Cache uniform expressions for the given material.
@@ -143,6 +153,11 @@ FMaterial* FMaterialInstanceResource::GetMaterialNoFallback(ERHIFeatureLevel::Ty
 		}
 	}
 	return NULL;
+}
+
+UMaterialInterface* FMaterialInstanceResource::GetMaterialInterface() const
+{
+	return Owner;
 }
 
 bool FMaterialInstanceResource::GetScalarValue(
@@ -701,56 +716,59 @@ void UMaterialInstance::GetUsedTextures(TArray<UTexture*>& OutTextures, EMateria
 	// Do not care if we're running dedicated server
 	if (!FPlatformProperties::IsServerOnly())
 	{
-		if (QualityLevel == EMaterialQualityLevel::Num)
+		FInt32Range QualityLevelRange(0, EMaterialQualityLevel::Num - 1);
+		if (!bAllQualityLevels)
 		{
-			QualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
-		}
-
-		const UMaterialInstance* MaterialInstanceToUse = this;
-		// Walk up the material instance chain to the first parent that has static parameters
-		while (MaterialInstanceToUse && !MaterialInstanceToUse->bHasStaticPermutationResource)
-		{
-			MaterialInstanceToUse = Cast<const UMaterialInstance>(MaterialInstanceToUse->Parent);
-		}
-
-		// Use the uniform expressions from the lowest material instance with static parameters in the chain, if one exists
-		if (MaterialInstanceToUse
-			&& MaterialInstanceToUse->bHasStaticPermutationResource)
-		{
-			for (int32 QualityLevelIndex = 0; QualityLevelIndex < EMaterialQualityLevel::Num; QualityLevelIndex++)
+			if (QualityLevel == EMaterialQualityLevel::Num)
 			{
-				for (int32 FeatureLevelIndex = 0; FeatureLevelIndex < ERHIFeatureLevel::Num; FeatureLevelIndex++)
-				{
-					const FMaterialResource* CurrentResource = MaterialInstanceToUse->StaticPermutationMaterialResources[QualityLevelIndex][FeatureLevelIndex];
-					if (CurrentResource == nullptr || (FeatureLevelIndex != FeatureLevel && !bAllFeatureLevels))
-						continue;
+				QualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
+			}
+			QualityLevelRange = FInt32Range(QualityLevel, QualityLevel);
+		}
 
+		FInt32Range FeatureLevelRange(0, ERHIFeatureLevel::Num - 1);
+		if (!bAllFeatureLevels)
+		{
+			if (FeatureLevel == ERHIFeatureLevel::Num)
+			{
+				FeatureLevel = GMaxRHIFeatureLevel;
+			}
+			FeatureLevelRange = FInt32Range(FeatureLevel, FeatureLevel);
+		}
+
+		const UMaterial* BaseMaterial = GetMaterial();
+		const UMaterialInstance* MaterialInstanceToUse = this;
+
+		if (BaseMaterial && !BaseMaterial->IsDefaultMaterial())
+		{
+			// Walk up the material instance chain to the first parent that has static parameters
+			while (MaterialInstanceToUse && !MaterialInstanceToUse->bHasStaticPermutationResource)
+			{
+				MaterialInstanceToUse = Cast<const UMaterialInstance>(MaterialInstanceToUse->Parent);
+			}
+
+			// Use the uniform expressions from the lowest material instance with static parameters in the chain, if one exists
+			// Otherwise, use the uniform expressions from the base material
+			const UMaterialInterface* MaterialToUse = (MaterialInstanceToUse && MaterialInstanceToUse->bHasStaticPermutationResource) ? (const UMaterialInterface*)MaterialInstanceToUse : (const UMaterialInterface*)BaseMaterial;
+
+			// Parse all relevant quality and feature levels.
+			for (int32 QualityLevelIndex = QualityLevelRange.GetLowerBoundValue(); QualityLevelIndex <= QualityLevelRange.GetUpperBoundValue(); ++QualityLevelIndex)
+			{
+				for (int32 FeatureLevelIndex = FeatureLevelRange.GetLowerBoundValue(); FeatureLevelIndex <= FeatureLevelRange.GetUpperBoundValue(); ++FeatureLevelIndex)
+				{
 					//@todo - GetUsedTextures is incorrect during cooking since we don't cache shaders for the current platform during cooking
-					if (QualityLevelIndex == QualityLevel || bAllQualityLevels)
+					const FMaterialResource* MaterialResource = MaterialToUse->GetMaterialResource((ERHIFeatureLevel::Type)FeatureLevelIndex, (EMaterialQualityLevel::Type)QualityLevelIndex);
+					if (MaterialResource)
 					{
-						GetTextureExpressionValues(CurrentResource, OutTextures);
+						GetTextureExpressionValues(MaterialResource, OutTextures);
 					}
 				}
 			}
 		}
 		else
 		{
-			// Use the uniform expressions from the base material
-			const UMaterial* Material = GetMaterial();
-
-			if (Material)
-			{
-				const FMaterialResource* MaterialResource = Material->GetMaterialResource(FeatureLevel, QualityLevel);
-				if( MaterialResource )
-				{
-					GetTextureExpressionValues(MaterialResource, OutTextures);
-				}
-			}
-			else
-			{
-				// If the material instance has no material, use the default material.
-				UMaterial::GetDefaultMaterial(MD_Surface)->GetUsedTextures(OutTextures, QualityLevel, bAllQualityLevels, FeatureLevel, bAllFeatureLevels);
-			}
+			// If the material instance has no material, use the default material.
+			UMaterial::GetDefaultMaterial(MD_Surface)->GetUsedTextures(OutTextures, QualityLevel, bAllQualityLevels, FeatureLevel, bAllFeatureLevels);
 		}
 	}
 }
@@ -1009,6 +1027,38 @@ void UMaterialInstance::OverrideScalarParameterDefault(FName ParameterName, floa
 		RecacheMaterialInstanceUniformExpressions(this);
 	}
 #endif // #if WITH_EDITOR
+}
+
+float UMaterialInstance::GetScalarParameterDefault(FName ParameterName, ERHIFeatureLevel::Type InFeatureLevel)
+{
+	if (bHasStaticPermutationResource )
+	{
+		if (FApp::CanEverRender())
+		{
+			const FMaterialResource* SourceMaterialResource = GetMaterialResource(InFeatureLevel);
+			check(SourceMaterialResource);
+			const TArray<TRefCountPtr<FMaterialUniformExpression> >& UniformExpressions = SourceMaterialResource->GetUniformScalarParameterExpressions();
+
+			// Iterate over each of the material's texture expressions.
+			for (int32 ExpressionIndex = 0; ExpressionIndex < UniformExpressions.Num(); ExpressionIndex++)
+			{
+				FMaterialUniformExpression* UniformExpression = UniformExpressions[ExpressionIndex];
+				if (UniformExpression->GetType() == &FMaterialUniformExpressionScalarParameter::StaticType)
+				{
+					FMaterialUniformExpressionScalarParameter* ScalarExpression = static_cast<FMaterialUniformExpressionScalarParameter*>(UniformExpression);
+
+					if (ScalarExpression->GetParameterName() == ParameterName)
+					{
+						float Value = 0.f;
+						ScalarExpression->GetDefaultValue(Value);
+						return Value;
+					}
+				}
+			}
+		}
+	}
+
+	return 0.f;
 }
 
 bool UMaterialInstance::CheckMaterialUsage(const EMaterialUsage Usage, const bool bSkipPrim)
@@ -1985,7 +2035,7 @@ void UMaterialInstance::PostLoad()
 	if(Parent)
 	{
 #if !WITH_EDITORONLY_DATA
-		check(!Parent->HasAnyFlags(RF_NeedLoad));
+		check(!GEventDrivenLoaderEnabled || !Parent->HasAnyFlags(RF_NeedLoad));
 #endif
 		Parent->ConditionalPostLoad();
 	}
@@ -2371,7 +2421,7 @@ void UMaterialInstance::UpdateStaticPermutation(const FStaticParameterSet& NewPa
 
 	const bool bWantsStaticPermutationResource = Parent && (!CompareParameters.IsEmpty() || bHasBasePropertyOverrides);
 
-	if (bHasStaticPermutationResource != bWantsStaticPermutationResource || bParamsHaveChanged || (bBasePropertyOverridesHaveChanged && bHasBasePropertyOverrides))
+	if (bHasStaticPermutationResource != bWantsStaticPermutationResource || bParamsHaveChanged || (bBasePropertyOverridesHaveChanged && bWantsStaticPermutationResource))
 	{
 		// This will flush the rendering thread which is necessary before changing bHasStaticPermutationResource, since the RT is reading from that directly
 		// The update context will also make sure any dependent MI's with static parameters get recompiled
@@ -2817,6 +2867,25 @@ void UMaterialInstance::GetLightingGuidChain(bool bIncludeTextures, TArray<FGuid
 #endif
 }
 
+void UMaterialInstance::PreSave(const class ITargetPlatform* TargetPlatform)
+{
+	// @TODO : Remove any duplicate data from parent? Aims at improving change propagation (if controlled by parent)
+	Super::PreSave(TargetPlatform);
+}
+
+float UMaterialInstance::GetTextureDensity(FName TextureName, const struct FMeshUVChannelInfo& UVChannelData) const
+{
+	ensure(UVChannelData.bInitialized);
+
+	const float Density = Super::GetTextureDensity(TextureName, UVChannelData);
+	
+	// If it is not handled by this instance, try the parent
+	if (!Density && Parent)
+	{
+		return Parent->GetTextureDensity(TextureName, UVChannelData);
+	}
+	return Density;
+}
 
 UMaterialInstance::FCustomStaticParametersGetterDelegate UMaterialInstance::CustomStaticParametersGetters;
 TArray<UMaterialInstance::FCustomParameterSetUpdaterDelegate> UMaterialInstance::CustomParameterSetUpdaters;

@@ -1,4 +1,4 @@
-/* Copyright 2016 Google Inc. All rights reserved.
+/* Copyright 2016 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,23 @@
  */
 
 
-#include "GoogleVRController.h"
 #include "Classes/GoogleVRControllerEventManager.h"
+#include "GoogleVRController.h"
+#include "GoogleVRControllerPrivate.h"
+
+static UGoogleVRControllerEventManager* Singleton = nullptr;
 
 UGoogleVRControllerEventManager::UGoogleVRControllerEventManager(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+}
 
+UGoogleVRControllerEventManager* UGoogleVRControllerEventManager::GetInstance()
+{
+	if (!Singleton)
+	{
+		Singleton = NewObject<UGoogleVRControllerEventManager>();
+		Singleton->AddToRoot();
+	}
+	return Singleton;
 }

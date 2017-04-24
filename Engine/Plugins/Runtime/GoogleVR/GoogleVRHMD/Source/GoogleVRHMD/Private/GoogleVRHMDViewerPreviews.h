@@ -1,4 +1,4 @@
-/* Copyright 2016 Google Inc. All rights reserved.
+/* Copyright 2016 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,13 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
+#include "IHeadMountedDisplay.h"
+#include "IGoogleVRHMDPlugin.h"
+
 #if !GOOGLEVRHMD_SUPPORTED_PLATFORMS
+
+struct FDistortionVertex;
 
 namespace GoogleCardboardViewerPreviews
 {

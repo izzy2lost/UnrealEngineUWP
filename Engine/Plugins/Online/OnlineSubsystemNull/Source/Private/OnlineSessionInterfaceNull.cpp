@@ -1,16 +1,15 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
-#include "OnlineSubsystemNullPrivatePCH.h"
 #include "OnlineSessionInterfaceNull.h"
-#include "OnlineIdentityInterface.h"
+#include "Misc/Guid.h"
+#include "OnlineSubsystem.h"
 #include "OnlineSubsystemNull.h"
+#include "OnlineSubsystemNullTypes.h"
 #include "OnlineSubsystemUtils.h"
-#include "OnlineAsyncTaskManagerNull.h"
+#include "OnlineAsyncTaskManager.h"
 #include "SocketSubsystem.h"
-#include "LANBeacon.h"
 #include "NboSerializerNull.h"
 
-#include "VoiceInterface.h"
 
 
 FOnlineSessionInfoNull::FOnlineSessionInfoNull() :
@@ -291,6 +290,23 @@ bool FOnlineSessionNull::NeedsToAdvertise( FNamedOnlineSession& Session )
 				Session.SessionSettings.bAllowJoinViaPresence || Session.SessionSettings.bAllowJoinViaPresenceFriendsOnly
 			)
 		);		
+}
+
+bool FOnlineSessionNull::IsSessionJoinable(const FNamedOnlineSession& Session) const
+{
+	const FOnlineSessionSettings& Settings = Session.SessionSettings;
+
+	// LAN beacons are implicitly advertised.
+	const bool bIsAdvertised = Settings.bShouldAdvertise || Settings.bIsLANMatch;
+	const bool bIsMatchInProgress = Session.SessionState == EOnlineSessionState::InProgress;
+
+	const bool bJoinableFromProgress = (!bIsMatchInProgress || Settings.bAllowJoinInProgress);
+
+	const bool bAreSpacesAvailable = Session.NumOpenPublicConnections > 0;
+
+	// LAN matches don't care about private connections / invites.
+	// LAN matches don't care about presence information.
+	return bIsAdvertised && bJoinableFromProgress && bAreSpacesAvailable;
 }
 
 uint32 FOnlineSessionNull::UpdateLANStatus()
@@ -736,7 +752,7 @@ bool FOnlineSessionNull::GetResolvedConnectString(FName SessionName, FString& Co
 	return bSuccess;
 }
 
-bool FOnlineSessionNull::GetResolvedConnectString(const class FOnlineSessionSearchResult& SearchResult, FName PortType, FString& ConnectInfo)
+bool FOnlineSessionNull::GetResolvedConnectString(const FOnlineSessionSearchResult& SearchResult, FName PortType, FString& ConnectInfo)
 {
 	bool bSuccess = false;
 	if (SearchResult.Session.SessionInfo.IsValid())
@@ -745,11 +761,11 @@ bool FOnlineSessionNull::GetResolvedConnectString(const class FOnlineSessionSear
 
 		if (PortType == BeaconPort)
 		{
-			int32 BeaconListenPort = 15000;
+			int32 BeaconListenPort = DEFAULT_BEACON_PORT;
 			if (!SearchResult.Session.SessionSettings.Get(SETTING_BEACONPORT, BeaconListenPort) || BeaconListenPort <= 0)
 			{
-				// Reset the default BeaconListenPort back to 15000 because the SessionSettings value does not exist or was not valid
-				BeaconListenPort = 15000;
+				// Reset the default BeaconListenPort back to DEFAULT_BEACON_PORT because the SessionSettings value does not exist or was not valid
+				BeaconListenPort = DEFAULT_BEACON_PORT;
 			}
 			bSuccess = GetConnectStringFromSessionInfo(SessionInfo, ConnectInfo, BeaconListenPort);
 
@@ -1013,30 +1029,24 @@ void FOnlineSessionNull::OnValidQueryPacketReceived(uint8* PacketData, int32 Pac
 	{
 		FNamedOnlineSession* Session = &Sessions[SessionIndex];
 
-		if (Session)
+		// Don't respond to query if the session is not a joinable LAN match.
+		if (Session && IsSessionJoinable(*Session))
 		{
-			bool bAdvertiseSession = ( ( Session->SessionSettings.bIsLANMatch || Session->SessionSettings.bAllowJoinInProgress ) && Session->NumOpenPublicConnections > 0 ) ||
-				Session->SessionSettings.bAllowJoinViaPresence || 
-				Session->SessionSettings.bAllowJoinViaPresenceFriendsOnly;
+			FNboSerializeToBufferNull Packet(LAN_BEACON_MAX_PACKET_SIZE);
+			// Create the basic header before appending additional information
+			LANSessionManager.CreateHostResponsePacket(Packet, ClientNonce);
 
-			if ( bAdvertiseSession )
+			// Add all the session details
+			AppendSessionToPacket(Packet, Session);
+
+			// Broadcast this response so the client can see us
+			if (!Packet.HasOverflow())
 			{
-				FNboSerializeToBufferNull Packet(LAN_BEACON_MAX_PACKET_SIZE);
-				// Create the basic header before appending additional information
-				LANSessionManager.CreateHostResponsePacket(Packet, ClientNonce);
-
-				// Add all the session details
-				AppendSessionToPacket(Packet, Session);
-
-				// Broadcast this response so the client can see us
-				if (!Packet.HasOverflow())
-				{
-					LANSessionManager.BroadcastPacket(Packet, Packet.GetByteCount());
-				}
-				else
-				{
-					UE_LOG_ONLINE(Warning, TEXT("LAN broadcast packet overflow, cannot broadcast on LAN"));
-				}
+				LANSessionManager.BroadcastPacket(Packet, Packet.GetByteCount());
+			}
+			else
+			{
+				UE_LOG_ONLINE(Warning, TEXT("LAN broadcast packet overflow, cannot broadcast on LAN"));
 			}
 		}
 	}

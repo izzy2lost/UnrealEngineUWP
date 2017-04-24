@@ -1,7 +1,12 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 //
-#include "OculusRiftPrivatePCH.h"
+#include "CoreMinimal.h"
+#include "IOculusRiftPlugin.h"
 #include "OculusRiftHMD.h"
+#include "Engine/Canvas.h"
+#include "CanvasItem.h"
+#include "Widgets/SViewport.h"
+#include "Framework/Application/SlateApplication.h"
 
 #if !PLATFORM_MAC // Mac uses 0.5/OculusRiftRender_05.cpp
 
@@ -11,8 +16,6 @@
 #include "ScenePrivate.h"
 #include "PostProcess/PostProcessHMD.h"
 #include "ScreenRendering.h"
-
-#include "SlateBasics.h"
 
 #if !UE_BUILD_SHIPPING
 #include "OculusStressTests.h"
@@ -207,8 +210,7 @@ bool FOculusRiftHMD::AllocateRenderTargetTexture(uint32 Index, uint32 SizeX, uin
 	{
 		LayerFlags |= FCustomPresent::HighQuality;
 	}
-	pCustomPresent->AllocateRenderTargetTexture(SizeX, SizeY, Format, InTexFlags, LayerFlags, OutTargetableTexture, OutShaderResourceTexture);
-	return true;
+	return pCustomPresent->AllocateRenderTargetTexture(SizeX, SizeY, Format, InTexFlags, LayerFlags, OutTargetableTexture, OutShaderResourceTexture);
 }
 
 void FCustomPresent::CopyTexture_RenderThread(FRHICommandListImmediate& RHICmdList, FTexture2DRHIParamRef DstTexture, FTexture2DRHIParamRef SrcTexture, int SrcSizeX, int SrcSizeY,
@@ -1129,6 +1131,8 @@ void FCustomPresent::Reset_RenderThread()
 		RenderContext->bFrameBegun = false;
 		SetRenderContext(nullptr);
 	}
+
+	bReady = false;
 }
 
 void FCustomPresent::Reset()

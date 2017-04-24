@@ -1,6 +1,22 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
+#include "CoreMinimal.h"
+#include "Misc/Attribute.h"
+#include "Widgets/SWidget.h"
+#include "Engine/Engine.h"
+#include "EngineGlobals.h"
+#include "Toolkits/AssetEditorManager.h"
+#include "Toolkits/AssetEditorToolkit.h"
+#include "WorkflowOrientedApp/WorkflowTabFactory.h"
+#include "WorkflowOrientedApp/WorkflowTabManager.h"
+#include "EdGraph/EdGraph.h"
+#include "GraphEditor.h"
+#include "BlueprintEditor.h"
+#include "EdGraph/EdGraphSchema.h"
+#include "WorkflowOrientedApp/WorkflowUObjectDocuments.h"
+#include "Widgets/Docking/SDockTab.h"
 #include "Engine/TimelineTemplate.h"
 
 #define LOCTEXT_NAMESPACE "BlueprintEditor"
@@ -17,10 +33,25 @@ struct FLocalKismetCallbacks
 
 	static FText GetGraphDisplayName(UEdGraph* Graph)
 	{
-		FGraphDisplayInfo Info;
-		Graph->GetSchema()->GetGraphDisplayInformation(*Graph, /*out*/ Info);
+		if (Graph)
+		{
+			if (const UEdGraphSchema* Schema = Graph->GetSchema())
+			{
+				FGraphDisplayInfo Info;
+				Schema->GetGraphDisplayInformation(*Graph, /*out*/ Info);
 
-		return Info.DisplayName;
+				return Info.DisplayName;
+			}
+			else
+			{
+				// if we don't have a schema, we're dealing with a malformed (or incomplete graph)...
+				// possibly in the midst of some transaction - here we return the object's outer path 
+				// so we can at least get some context as to which graph we're referring
+				return FText::FromString(Graph->GetPathName());
+			}
+		}
+
+		return LOCTEXT("UnknownGraphName", "UNKNOWN");
 	}
 
 	static void RecompileGraphEditor_OnClicked()

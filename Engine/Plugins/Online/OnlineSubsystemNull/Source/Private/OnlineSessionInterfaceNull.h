@@ -1,11 +1,16 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
-#include "OnlineSessionInterface.h"
-#include "OnlineSubsystemNullTypes.h"
+#include "CoreMinimal.h"
+#include "UObject/CoreOnline.h"
+#include "Misc/ScopeLock.h"
+#include "OnlineSessionSettings.h"
+#include "Interfaces/OnlineSessionInterface.h"
 #include "OnlineSubsystemNullPackage.h"
 #include "LANBeacon.h"
+
+class FOnlineSubsystemNull;
 
 /**
  * Interface definition for the online services session services 
@@ -48,6 +53,13 @@ private:
 	 * @return true if yes
 	 */
 	bool NeedsToAdvertise( FNamedOnlineSession& Session );
+
+	/**
+	* Determines whether this particular session is joinable.
+	*
+	* @return true if yes
+	*/
+	bool IsSessionJoinable(const FNamedOnlineSession& Session) const;
 
 	/**
 	 * Updates the status of LAN session (creates it if needed, shuts down if not)
