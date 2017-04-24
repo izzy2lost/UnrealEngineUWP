@@ -1,6 +1,12 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
-#include "EnginePrivate.h"
+#include "Components/MeshComponent.h"
+#include "Materials/Material.h"
+#include "Engine/Texture2D.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "ContentStreaming.h"
+#include "Streaming/TextureStreamingHelpers.h"
+#include "Engine/World.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMaterialParameter, Warning, All);
 
@@ -136,7 +142,7 @@ int32 UMeshComponent::GetNumMaterials() const
 	return 0;
 }
 
-void UMeshComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials) const
+void UMeshComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials) const
 {
 	for (int32 ElementIndex = 0; ElementIndex < GetNumMaterials(); ElementIndex++)
 	{
@@ -301,6 +307,12 @@ void UMeshComponent::CacheMaterialParameterNameIndices()
 	ScalarParameterMaterialIndices.Reset();
 	VectorParameterMaterialIndices.Reset();
 
+	// not sure if this is the best way to do this
+	const UWorld* World = GetWorld();
+	// to set the default value for scalar params, we use a FMaterialResource, which means the world has to be rendering
+	const bool bHasMaterialResource = (World && World->WorldType != EWorldType::Inactive);
+	const ERHIFeatureLevel::Type FeatureLevel = bHasMaterialResource ? World->FeatureLevel : ERHIFeatureLevel::Num;
+	
 	// Retrieve all used materials
 	TArray<UMaterialInterface*> MaterialInterfaces = GetMaterials();
 	int32 MaterialIndex = 0;
@@ -321,6 +333,14 @@ void UMeshComponent::CacheMaterialParameterNameIndices()
 				TArray<int32>& MaterialIndices = ScalarParameterMaterialIndices.FindOrAdd(ParameterName);
 				// Add the corresponding material index
 				MaterialIndices.Add(MaterialIndex);
+				
+				// GetScalarParameterDefault() expects to use a FMaterialResource, which means the world has to be rendering
+				if (bHasMaterialResource)
+				{
+					// set default value to it
+					float& DefaultValue = ScalarParameterDefaultValues.FindOrAdd(ParameterName);
+					DefaultValue = Material->GetScalarParameterDefault(ParameterName, FeatureLevel);
+				}
 			}
 
 			// Empty parameter names and ids
@@ -337,11 +357,25 @@ void UMeshComponent::CacheMaterialParameterNameIndices()
 				MaterialIndices.Add(MaterialIndex);
 			}
 		}
-
 		++MaterialIndex;
 	}
 
 	bCachedMaterialParameterIndicesAreDirty = false;
+}
+
+void UMeshComponent::GetStreamingTextureInfoInner(FStreamingTextureLevelContext& LevelContext, const TArray<FStreamingTextureBuildInfo>* PreBuiltData, float ComponentScaling, TArray<FStreamingTexturePrimitiveInfo>& OutStreamingTextures) const
+{
+	LevelContext.BindBuildData(PreBuiltData);
+
+	const int32 NumMaterials = GetNumMaterials();
+	for (int32 MaterialIndex = 0; MaterialIndex < NumMaterials; ++MaterialIndex)
+	{
+		FPrimitiveMaterialInfo MaterialData;
+		if (GetMaterialStreamingData(MaterialIndex, MaterialData))
+		{
+			LevelContext.ProcessMaterial(Bounds, MaterialData, ComponentScaling, OutStreamingTextures);
+		}
+	}
 }
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)

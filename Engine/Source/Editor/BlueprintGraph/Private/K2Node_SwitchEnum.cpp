@@ -1,8 +1,8 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
-#include "BlueprintGraphPrivatePCH.h"
-#include "Kismet/KismetMathLibrary.h"
 #include "K2Node_SwitchEnum.h"
+#include "EdGraphSchema_K2.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "BlueprintFieldNodeSpawner.h"
 #include "BlueprintActionDatabaseRegistrar.h"
 
@@ -29,6 +29,8 @@ void UK2Node_SwitchEnum::SetEnum(UEnum* InEnum)
 	if (Enum)
 	{
 		PreloadObject(Enum);
+		Enum->ConditionalPostLoad();
+
 		for (int32 EnumIndex = 0; EnumIndex < Enum->NumEnums() - 1; ++EnumIndex)
 		{
 			bool const bShouldBeHidden = Enum->HasMetaData(TEXT("Hidden"), EnumIndex ) || Enum->HasMetaData(TEXT("Spacer"), EnumIndex );

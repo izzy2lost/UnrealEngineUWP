@@ -1,18 +1,29 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 MobileSceneCaptureRendering.cpp - Mobile specific scene capture code.
 =============================================================================*/
 
-#include "RendererPrivate.h"
-#include "ScenePrivate.h"
-#include "SceneFilterRendering.h"
-#include "UniformBuffer.h"
+#include "MobileSceneCaptureRendering.h"
+#include "Misc/MemStack.h"
+#include "RHIDefinitions.h"
+#include "RHI.h"
+#include "UnrealClient.h"
+#include "SceneInterface.h"
 #include "ShaderParameters.h"
-#include "ScreenRendering.h"
-#include "PostProcessAmbient.h"
-#include "PostProcessing.h"
+#include "RHIStaticStates.h"
+#include "RendererInterface.h"
+#include "Shader.h"
+#include "TextureResource.h"
+#include "StaticBoundShaderState.h"
 #include "SceneUtils.h"
+#include "GlobalShader.h"
+#include "SceneRenderTargetParameters.h"
+#include "PostProcess/SceneRenderTargets.h"
+#include "SceneRendering.h"
+#include "PostProcess/RenderTargetPool.h"
+#include "PostProcess/SceneFilterRendering.h"
+#include "ScreenRendering.h"
 
 
 /**
@@ -172,10 +183,13 @@ static void CopyCaptureToTarget(
 	const FIntPoint& TargetSize, 
 	FViewInfo& View, 
 	const FIntRect& ViewRect, 
-	FTextureRHIParamRef SourceTextureRHI, 
+	FTexture2DRHIParamRef SourceTextureRHI, 
 	bool bNeedsFlippedRenderTarget,
 	FSceneRenderer* SceneRenderer)
 {
+	check(SourceTextureRHI);
+
+	FDrawingPolicyRenderState DrawRenderState(&RHICmdList, View);
 	ESceneCaptureSource CaptureSource = View.Family->SceneCaptureSource;
 	ESceneCaptureCompositeMode CaptureCompositeMode = View.Family->SceneCaptureCompositeMode;
 
@@ -189,23 +203,23 @@ static void CopyCaptureToTarget(
 	if (CaptureSource == SCS_SceneColorHDR && CaptureCompositeMode == SCCM_Composite)
 	{
 		// Blend with existing render target color. Scene capture color is already pre-multiplied by alpha.
-		RHICmdList.SetBlendState(TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI());
+		DrawRenderState.SetBlendState(RHICmdList, TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI());
 		RTLoadAction = ERenderTargetLoadAction::ELoad;
 	}
 	else if (CaptureSource == SCS_SceneColorHDR && CaptureCompositeMode == SCCM_Additive)
 	{
 		// Add to existing render target color. Scene capture color is already pre-multiplied by alpha.
-		RHICmdList.SetBlendState(TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_One, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI());
+		DrawRenderState.SetBlendState(RHICmdList, TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_One, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI());
 		RTLoadAction = ERenderTargetLoadAction::ELoad;
 	}
 	else
 	{
 		RTLoadAction = ERenderTargetLoadAction::ENoAction;
-		RHICmdList.SetBlendState(TStaticBlendState<>::GetRHI());
+		DrawRenderState.SetBlendState(RHICmdList, TStaticBlendState<>::GetRHI());
 	}
 
 	RHICmdList.SetRasterizerState(TStaticRasterizerState<FM_Solid, CM_None>::GetRHI());
-	RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
+	DrawRenderState.SetDepthStencilState(RHICmdList, TStaticDepthStencilState<false, CF_Always>::GetRHI());
 
 	FRHIRenderTargetView ColorView(Target->GetRenderTargetTexture(), 0, -1, RTLoadAction, ERenderTargetStoreAction::EStore);
 	FRHISetRenderTargetsInfo Info(1, &ColorView, FRHIDepthRenderTargetView());
@@ -213,7 +227,7 @@ static void CopyCaptureToTarget(
 
 	const bool bUsingDemosaic = IsMobileHDRMosaic();
 	FShader* VertexShader;
-	FIntPoint SourceTexSize = bNeedsFlippedRenderTarget ? TargetSize : FSceneRenderTargets::Get(RHICmdList).GetBufferSizeXY();
+	FIntPoint SourceTexSize(SourceTextureRHI->GetSizeX(), SourceTextureRHI->GetSizeY());
 	if (bUsingDemosaic)
 	{
 		VertexShader = SetCaptureToTargetShaders<true>(RHICmdList, CaptureSource, View, SourceTexSize, SourceTextureRHI);
@@ -258,7 +272,7 @@ static void CopyCaptureToTarget(
 		FMobileSceneRenderer* MobileSceneRenderer = (FMobileSceneRenderer*)SceneRenderer;
 		FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 		SceneContext.BeginRenderingSceneColor(RHICmdList, ESimpleRenderTargetMode::EClearColorExistingDepth);
-		MobileSceneRenderer->RenderInverseOpacity(RHICmdList, View);
+		MobileSceneRenderer->RenderInverseOpacity(RHICmdList, View, DrawRenderState);
 
 		// Set capture target.
 		FRHIRenderTargetView OpacityView(Target->GetRenderTargetTexture(), 0, -1, ERenderTargetLoadAction::ELoad, ERenderTargetStoreAction::EStore);
@@ -266,9 +280,9 @@ static void CopyCaptureToTarget(
 		RHICmdList.SetRenderTargetsAndClear(OpacityInfo);
 
 		RHICmdList.SetRasterizerState(TStaticRasterizerState<FM_Solid, CM_None>::GetRHI());
-		RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
+		DrawRenderState.SetDepthStencilState(RHICmdList, TStaticDepthStencilState<false, CF_Always>::GetRHI());
 		// Note lack of inverse, both the target and source images are already inverted.
-		RHICmdList.SetBlendState(TStaticBlendState<CW_ALPHA, BO_Add, BF_DestColor, BF_Zero, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI());
+		DrawRenderState.SetBlendState(RHICmdList, TStaticBlendState<CW_ALPHA, BO_Add, BF_DestColor, BF_Zero, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI());
 
 		// Combine translucent opacity pass to earlier opaque pass to build final inverse opacity.
 		TShaderMapRef<FScreenVS> ScreenVertexShader(View.ShaderMap);
@@ -317,14 +331,18 @@ void UpdateSceneCaptureContentMobile_RenderThread(
 
 		const bool bIsMobileHDR = IsMobileHDR();
 		const bool bRHINeedsFlip = RHINeedsToSwitchVerticalAxis(GMaxRHIShaderPlatform);
-		// note that GLES will flip the image during post processing. this needs flipping again so it is correct for texture addressing.
-		const bool bNeedsFlippedRenderTarget = (!bIsMobileHDR || !bUseSceneTextures) && bRHINeedsFlip;
+		// note that GLES code will flip the image when:
+		//	bIsMobileHDR && SceneCaptureSource == SCS_FinalColorLDR (flip performed during post processing)
+		//	!bIsMobileHDR (rendering is flipped by vertex shader)
+		// they need flipping again so it is correct for texture addressing.
+		const bool bNeedsFlippedCopy = (!bIsMobileHDR || !bUseSceneTextures) && bRHINeedsFlip;
+		const bool bNeedsFlippedFinalColor = bNeedsFlippedCopy && !bUseSceneTextures;
 
 		// Intermediate render target that will need to be flipped (needed on !IsMobileHDR())
 		TRefCountPtr<IPooledRenderTarget> FlippedPooledRenderTarget;
 
 		const FRenderTarget* Target = SceneRenderer->ViewFamily.RenderTarget;
-		if (bNeedsFlippedRenderTarget)
+		if (bNeedsFlippedFinalColor)
 		{
 			// We need to use an intermediate render target since the result will be flipped
 			auto& RenderTargetRHI = Target->GetRenderTargetTexture();
@@ -363,7 +381,7 @@ void UpdateSceneCaptureContentMobile_RenderThread(
 		{
 			SCOPED_DRAW_EVENT(RHICmdList, RenderScene);
 
-			if (bNeedsFlippedRenderTarget)
+			if (bNeedsFlippedFinalColor)
 			{
 				// Hijack the render target
 				SceneRenderer->ViewFamily.RenderTarget = &FlippedRenderTarget; //-V506
@@ -371,7 +389,7 @@ void UpdateSceneCaptureContentMobile_RenderThread(
 
 			SceneRenderer->Render(RHICmdList);
 
-			if (bNeedsFlippedRenderTarget)
+			if (bNeedsFlippedFinalColor)
 			{
 				// And restore it
 				SceneRenderer->ViewFamily.RenderTarget = Target;
@@ -379,17 +397,17 @@ void UpdateSceneCaptureContentMobile_RenderThread(
 		}
 
 		const FIntPoint TargetSize(UnconstrainedViewRect.Width(), UnconstrainedViewRect.Height());
-		if (bNeedsFlippedRenderTarget)
+		if (bNeedsFlippedFinalColor)
 		{
 			// We need to flip this texture upside down (since we depended on tonemapping to fix this on the hdr path)
 			SCOPED_DRAW_EVENT(RHICmdList, FlipCapture);
-			CopyCaptureToTarget(RHICmdList, Target, TargetSize, View, ViewRect, FlippedRenderTarget.GetTextureParamRef(), true, SceneRenderer);
+			CopyCaptureToTarget(RHICmdList, Target, TargetSize, View, ViewRect, FlippedRenderTarget.GetTextureParamRef(), bNeedsFlippedCopy, SceneRenderer);
 		}
 		else if(bUseSceneTextures)
 		{
 			// Copy the captured scene into the destination texture
 			SCOPED_DRAW_EVENT(RHICmdList, CaptureSceneColor);
-			CopyCaptureToTarget(RHICmdList, Target, TargetSize, View, ViewRect, FSceneRenderTargets::Get(RHICmdList).GetSceneColorTexture(), false, SceneRenderer);
+			CopyCaptureToTarget(RHICmdList, Target, TargetSize, View, ViewRect, FSceneRenderTargets::Get(RHICmdList).GetSceneColorTexture()->GetTexture2D(), bNeedsFlippedCopy, SceneRenderer);
 		}
 
 		RHICmdList.CopyToResolveTarget(RenderTarget->GetRenderTargetTexture(), RenderTargetTexture->TextureRHI, false, ResolveParams);

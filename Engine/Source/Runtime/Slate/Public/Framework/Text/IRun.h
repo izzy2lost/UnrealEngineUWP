@@ -1,13 +1,20 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "ShapedTextCacheFwd.h"
+#include "CoreMinimal.h"
+#include "Framework/Text/ShapedTextCacheFwd.h"
+#include "Misc/EnumClassFlags.h"
+#include "Framework/Text/TextRange.h"
+
+class ILayoutBlock;
+class IRunRenderer;
 
 // @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
 #if PLATFORM_UWP
 PACK_WINRT()
 #endif
 enum class ETextHitPoint : uint8;
+enum class ETextShapingMethod : uint8;
 #if PLATFORM_UWP
 PACK_WINRT_REVERT()
 #endif

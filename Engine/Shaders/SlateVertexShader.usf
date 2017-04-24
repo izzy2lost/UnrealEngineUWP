@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 
 #include "Common.usf"
@@ -27,7 +27,7 @@ VertexToPixelInterpolants Main(
 	// save off the original input position value, Line AA will require this
 	VOut.OriginalPosition = WorldPosition;
 
-#if (!(ES2_PROFILE || ES3_1_PROFILE)) || USE_MATERIALS
+#if (!(ES2_PROFILE || ES3_1_PROFILE)) || USE_MATERIALS || METAL_PROFILE
 	InColor.rgb = sRGBToLinear(InColor.rgb);
 #endif
 

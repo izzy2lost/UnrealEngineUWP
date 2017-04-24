@@ -1,7 +1,9 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "HAL/Platform.h"
+
+#include "CoreTypes.h"
+#include "GenericPlatform/GenericPlatformAtomics.h"
 
 #if PLATFORM_WINDOWS
 #include "Windows/WindowsPlatformAtomics.h"
@@ -23,6 +25,6 @@
 #include "HTML5/HTML5PlatformAtomics.h"
 #elif PLATFORM_LINUX
 #include "Linux/LinuxPlatformAtomics.h"
-#elif PLATFORM_WOLF
-#include "WolfPlat/WolfPlatformAtomics.h"
+#elif PLATFORM_SWITCH
+#include "Switch/SwitchPlatformAtomics.h"
 #endif

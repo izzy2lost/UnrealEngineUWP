@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -34,7 +34,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// The version number for binary serialization
 		/// </summary>
-		const int FileVersion = 1;
+		const int FileVersion = 2;
 
 		/// <summary>
 		/// The file signature for binary serialization

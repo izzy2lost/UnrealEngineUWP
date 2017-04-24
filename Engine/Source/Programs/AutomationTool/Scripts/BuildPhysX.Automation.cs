@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -257,6 +257,8 @@ class BuildPhysX : BuildCommand
 						return DirectoryReference.Combine(PhysXCMakeFiles, "IOS").ToString() + " -G \"Xcode\" -DTARGET_BUILD_PLATFORM=IOS" + OutputFlags;
 					case UnrealTargetPlatform.TVOS:
 						return DirectoryReference.Combine(PhysXCMakeFiles, "TVOS").ToString() + " -G \"Xcode\" -DTARGET_BUILD_PLATFORM=TVOS" + OutputFlags;
+					case UnrealTargetPlatform.Switch:
+						return DirectoryReference.Combine(PhysXCMakeFiles, "Switch").ToString() + " -G \"Unix Makefiles\" -DTARGET_BUILD_PLATFORM=Switch -DCMAKE_BUILD_TYPE=" + BuildConfig + " -DCMAKE_TOOLCHAIN_FILE=\"" + PhysXSourceRootDirectory + "\\Externals\\CMakeModules\\Switch\\SwitchToolchain.cmake\"" + OutputFlags;
 					case UnrealTargetPlatform.HTML5:
 						string CmakeToolchainFile = FileReference.Combine(PhysXSourceRootDirectory, "Externals", "CMakeModules", "HTML5", "Emscripten." + BuildConfig + ".cmake").ToString();
 						return DirectoryReference.Combine(PhysXCMakeFiles, "HTML5").ToString() +
@@ -382,6 +384,7 @@ class BuildPhysX : BuildCommand
 			case UnrealTargetPlatform.Linux:
 			case UnrealTargetPlatform.HTML5:
 			case UnrealTargetPlatform.PS4:
+			case UnrealTargetPlatform.Switch:
 				return true;
 			default:
 				return false;
@@ -603,7 +606,8 @@ class BuildPhysX : BuildCommand
 			case UnrealTargetPlatform.PS4:
 			case UnrealTargetPlatform.Android:
 			case UnrealTargetPlatform.Linux:
-				foreach(string BuildConfig in TargetConfigurations)
+			case UnrealTargetPlatform.Switch:
+				foreach (string BuildConfig in TargetConfigurations)
 				{
 					UnrealBuildTool.DirectoryReference CMakeTargetDirectory = GetProjectDirectory(TargetLib, TargetData);
 					CMakeTargetDirectory = UnrealBuildTool.DirectoryReference.Combine(CMakeTargetDirectory, BuildConfig);
@@ -1117,6 +1121,9 @@ class BuildPhysX : BuildCommand
 			case UnrealTargetPlatform.PS4:
 				ArchName = "PS4";
 				break;
+			case UnrealTargetPlatform.Switch:
+				ArchName = "Switch";
+				break;
 			case UnrealTargetPlatform.Android:
 				switch (TargetData.Architecture)
 				{
@@ -1233,6 +1240,7 @@ class BuildPhysX : BuildCommand
 			case UnrealTargetPlatform.Mac:
 			case UnrealTargetPlatform.IOS:
 			case UnrealTargetPlatform.TVOS:
+			case UnrealTargetPlatform.Switch:
 				return "a";
 			case UnrealTargetPlatform.HTML5:
 				return "bc";

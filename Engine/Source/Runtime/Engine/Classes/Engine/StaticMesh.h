@@ -1,16 +1,30 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "Interfaces/Interface_CollisionDataProvider.h"
+
+#include "CoreMinimal.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/UObjectGlobals.h"
+#include "UObject/Object.h"
+#include "Misc/Guid.h"
+#include "Templates/SubclassOf.h"
+#include "Engine/EngineTypes.h"
+#include "UObject/ScriptMacros.h"
 #include "Interfaces/Interface_AssetUserData.h"
-#include "MeshMerging.h"
+#include "RenderCommandFence.h"
+#include "Templates/ScopedPointer.h"
+#include "Components.h"
+#include "Interfaces/Interface_CollisionDataProvider.h"
+#include "Engine/MeshMerging.h"
+#include "UniquePtr.h"
 #include "StaticMesh.generated.h"
 
 /** The maximum number of static mesh LODs allowed. */
 #define MAX_STATIC_MESH_LODS 8
 
-// Forward declarations
-class UFoliageType_InstancedStaticMesh;
+class FSpeedTreeWind;
+class UAssetUserData;
+class UMaterialInterface;
 struct FStaticMeshLODResources;
 
 /*-----------------------------------------------------------------------------
@@ -154,7 +168,11 @@ struct FStaticMeshSourceModel
 	UPROPERTY()
 	float LODDistance_DEPRECATED;
 
-	/** ScreenSize to display this LOD */
+	/** 
+	 * ScreenSize to display this LOD.
+	 * The screen size is based around the projected diameter of the bounding
+	 * sphere of the model. i.e. 0.5 means half the screen's maximum dimension.
+	 */
 	UPROPERTY(EditAnywhere, Category=ReductionSettings)
 	float ScreenSize;
 
@@ -220,6 +238,7 @@ struct FMeshSectionInfoMap
 	GENERATED_USTRUCT_BODY()
 
 	/** Maps an LOD+Section to the material it should render with. */
+	UPROPERTY()
 	TMap<uint32,FMeshSectionInfo> Map;
 
 	/** Serialize. */
@@ -380,6 +399,16 @@ struct FMaterialRemapIndex
 };
 
 
+#if WITH_EDITOR
+/**
+ * Returns true if LODs of this static mesh may share texture lightmaps.
+ * Removed from UStaticMesh for 4.15.1 to avoid changing API
+ *
+ * WARNING this function will be removed in 4.16.
+ */
+bool StaticMesh_CanLODsShareStaticLighting(UStaticMesh* Mesh);
+#endif
+
 /**
  * A StaticMesh is a piece of geometry that consists of a static set of polygons.
  * Static Meshes can be translated, rotated, and scaled, but they cannot have their vertices animated in any way. As such, they are more efficient
@@ -394,7 +423,7 @@ class UStaticMesh : public UObject, public IInterface_CollisionDataProvider, pub
 	GENERATED_UCLASS_BODY()
 
 	/** Pointer to the data used to render this static mesh. */
-	TScopedPointer<class FStaticMeshRenderData> RenderData;
+	TUniquePtr<class FStaticMeshRenderData> RenderData;
 
 #if WITH_EDITORONLY_DATA
 	static const float MinimumAutoLODPixelError;
@@ -404,13 +433,14 @@ class UStaticMesh : public UObject, public IInterface_CollisionDataProvider, pub
 	TArray<FStaticMeshSourceModel> SourceModels;
 
 	/** Map of LOD+Section index to per-section info. */
+	UPROPERTY()
 	FMeshSectionInfoMap SectionInfoMap;
 
 	/** The LOD group to which this mesh belongs. */
-	UPROPERTY()
+	UPROPERTY(AssetRegistrySearchable)
 	FName LODGroup;
 
-	/** If true, the distances at which LODs swap are computed automatically. */
+	/** If true, the screen sizees at which LODs swap are computed automatically. */
 	UPROPERTY()
 	uint32 bAutoComputeLODScreenSize:1;
 
@@ -427,7 +457,11 @@ class UStaticMesh : public UObject, public IInterface_CollisionDataProvider, pub
 	*/
 	bool bRequiresLODDistanceConversion : 1;
 
-
+	/**
+	 * If true on post load we need to calculate resolution independent Display Factors from the
+	 * loaded LOD screen sizes.
+	 */
+	bool bRequiresLODScreenSizeConversion : 1;
 
 #endif // #if WITH_EDITORONLY_DATA
 
@@ -445,12 +479,19 @@ class UStaticMesh : public UObject, public IInterface_CollisionDataProvider, pub
 	UPROPERTY()
 	float LightmapUVDensity;
 
-	UPROPERTY(EditAnywhere, Category=StaticMesh, meta=(ToolTip="The light map resolution", FixedIncrement="4.0"))
+	UPROPERTY(EditAnywhere, Category=StaticMesh, meta=(ClampMax = 4096, ToolTip="The light map resolution", FixedIncrement="4.0"))
 	int32 LightMapResolution;
 
 	/** The light map coordinate index */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category=StaticMesh, meta=(ToolTip="The light map coordinate index"))
 	int32 LightMapCoordinateIndex;
+
+	/** 
+	 * Whether to generate a distance field for this mesh, which can be used by DistanceField Indirect Shadows.
+	 * This is ignored if the project's 'Generate Mesh Distance Fields' setting is enabled.
+	 */
+	UPROPERTY(EditAnywhere, Category=StaticMesh)
+	uint32 bGenerateMeshDistanceField : 1;
 
 	// Physics data.
 	UPROPERTY(EditAnywhere, transient, duplicatetransient, Instanced, Category = StaticMesh)
@@ -473,6 +514,10 @@ class UStaticMesh : public UObject, public IInterface_CollisionDataProvider, pub
 	    Set to false for distant meshes (always outside navigation bounds) to save memory on collision data. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category=Navigation)
 	uint32 bHasNavigationData:1;
+
+	/** TEMPORARY for 4.15.1. True if LODs share static lighting data */
+	UPROPERTY()
+	uint32 bLODsShareStaticLighting:1;
 
 	/** Bias multiplier for Light Propagation Volume lighting */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=StaticMesh, meta=(UIMin = "0.0", UIMax = "3.0"))
@@ -575,6 +620,7 @@ public:
 	ENGINE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	ENGINE_API virtual void GetAssetRegistryTagMetadata(TMap<FName, FAssetRegistryTagMetadata>& OutMetadata) const override;
 	ENGINE_API void SetLODGroup(FName NewGroup);
+	ENGINE_API void BroadcastNavCollisionChange();
 #endif // WITH_EDITOR
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
 	ENGINE_API virtual void PostInitProperties() override;
@@ -720,7 +766,9 @@ public:
 	/**
 	 * Calculates navigation collision for caching
 	 */
-	ENGINE_API void CreateNavCollision();
+	ENGINE_API void CreateNavCollision(const bool bIsUpdate = false);
+
+	FORCEINLINE const UNavCollision* GetNavCollision() const { return NavCollision; }
 
 	const FGuid& GetLightingGuid() const
 	{
@@ -767,12 +815,6 @@ public:
 	ENGINE_API void CalculateExtendedBounds();
 
 #if WITH_EDITOR
-
-	/**
-	 * Returns true if LODs of this static mesh may share texture lightmaps.
-	 */
-	bool CanLODsShareStaticLighting() const;
-
 	/**
 	 * Retrieves the names of all LOD groups.
 	 */
@@ -796,6 +838,11 @@ private:
 	 * Converts legacy LODDistance in the source models to Display Factor
 	 */
 	void ConvertLegacyLODDistance();
+
+	/**
+	 * Converts legacy LOD screen area in the source models to resolution-independent screen size
+	 */
+	void ConvertLegacyLODScreenArea();
 
 	/**
 	 * Fixes up static meshes that were imported with sections that had zero triangles.

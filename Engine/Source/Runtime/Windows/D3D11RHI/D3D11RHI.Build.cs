@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
 
@@ -30,6 +30,7 @@ public class D3D11RHI : ModuleRules
 		if (Target.Platform != UnrealTargetPlatform.UWP64 && Target.Platform != UnrealTargetPlatform.UWP32)
 		{ 
         	AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
+			AddEngineThirdPartyPrivateStaticDependencies(Target, "AMD_AGS");
 		}
 // @ATG_CHANGE : END
 

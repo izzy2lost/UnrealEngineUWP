@@ -1,9 +1,11 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
-#include "Json.h"
+#include "CoreMinimal.h"
+#include "Serialization/JsonWriter.h"
 
+class FJsonObject;
 // @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
 #if PLATFORM_UWP
 PACK_WINRT()

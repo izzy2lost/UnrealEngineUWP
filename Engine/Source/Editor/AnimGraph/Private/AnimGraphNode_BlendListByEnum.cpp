@@ -1,12 +1,13 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
-#include "AnimGraphPrivatePCH.h"
-
-#include "GraphEditorActions.h"
-#include "ScopedTransaction.h"
-#include "CompilerResultsLog.h"
 #include "AnimGraphNode_BlendListByEnum.h"
-#include "AnimationGraphSchema.h"
+#include "Textures/SlateIcon.h"
+#include "Framework/Commands/UIAction.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+
+#include "ScopedTransaction.h"
+#include "Kismet2/CompilerResultsLog.h"
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "BlueprintNodeSpawner.h"
 
@@ -269,6 +270,7 @@ void UAnimGraphNode_BlendListByEnum::Serialize(FArchive& Ar)
 		if (BoundEnum != NULL)
 		{
 			PreloadObject(BoundEnum);
+			BoundEnum->ConditionalPostLoad();
 
 			for (auto ExposedIt = VisibleEnumEntries.CreateIterator(); ExposedIt; ++ExposedIt)
 			{
@@ -310,6 +312,7 @@ void UAnimGraphNode_BlendListByEnum::BakeDataDuringCompilation(class FCompilerRe
 	if (BoundEnum != NULL)
 	{
 		PreloadObject(BoundEnum);
+		BoundEnum->ConditionalPostLoad();
 
 		// Zero the array out so it looks up the default value, and stat counting at index 1
 		Node.EnumToPoseIndex.Empty();
