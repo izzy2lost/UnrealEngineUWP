@@ -115,6 +115,9 @@ static bool SafeTestD3D12CreateDevice(IDXGIAdapter* Adapter, D3D_FEATURE_LEVEL M
 {
 	ID3D12Device* D3DDevice = nullptr;
 
+	// @ATG_CHANGE : BEGIN UWP support
+	// Prevent use of D3D12GetDebugInterface in UWP shipping - it fails WACK
+#if !PLATFORM_UWP || !UE_BUILD_SHIPPING
 	// Use a debug device if specified on the command line.
 	if (D3D12RHI_ShouldCreateWithD3DDebug())
 	{
@@ -123,6 +126,8 @@ static bool SafeTestD3D12CreateDevice(IDXGIAdapter* Adapter, D3D_FEATURE_LEVEL M
 		DebugController->EnableDebugLayer();
 		DebugController->Release();
 	}
+#endif 
+	// @ATG_CHANGE : END UWP support
 
 	D3D_FEATURE_LEVEL RequestedFeatureLevels[] =
 	{
