@@ -10,6 +10,7 @@
 #include <time.h>
 #include "UWPApplication.h"
 #include <agile.h>
+#include "ModuleManager.h"
 
 /** 
  * Whether support for integrating into the firewall is there
@@ -116,8 +117,13 @@ void FUWPMisc::GetEnvironmentVariable(const TCHAR* VariableName, TCHAR* Result, 
 
 const TCHAR* FUWPMisc::GetPlatformFeaturesModuleName()
 {
-	//return TEXT("UWPPlatformFeatures");
-	return nullptr;
+	// Expectation is that if we hand back a non-null name then it's guaranteed to load.
+	// Since the platform features supported on UWP are strictly optional and enabled via
+	// plug-in we'll do a quick pre-check here.
+	static const TCHAR* PlatformFeaturesModuleName = TEXT("UWPPlatformFeatures");
+	IModuleInterface* CustomModule = FModuleManager::LoadModulePtr<IModuleInterface>(PlatformFeaturesModuleName);
+	return CustomModule ? PlatformFeaturesModuleName : nullptr;
+
 }
 
 // Defined in UWPLaunch.cpp
