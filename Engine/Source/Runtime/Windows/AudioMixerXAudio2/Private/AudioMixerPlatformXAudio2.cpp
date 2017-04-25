@@ -577,23 +577,31 @@ namespace Audio
 		XAUDIO2_RETURN_ON_FAIL(XAudio2Create(&XAudio2System, 0, (XAUDIO2_PROCESSOR)FPlatformAffinity::GetAudioThreadMask()));
 
 		uint32 NumDevices = 0;
-		XAUDIO2_RETURN_ON_FAIL(XAudio2System->GetDeviceCount(&NumDevices));
+		// @ATG_CHANGE : BEGIN UWP support
+		// XAudio2 for UWP doesn't have GetDeviceCount, use local wrapper instead
+		if (!GetNumOutputDevices(NumDevices))
+		{
+			return false;
+		}
+		// @ATG_CHANGE : END UWP support
 
 		// Now get info on the new audio device we're trying to reset to
 		uint32 DeviceIndex = 0;
 		if (!InNewDeviceId.IsEmpty())
 		{
-
-			XAUDIO2_DEVICE_DETAILS DeviceDetails;
+			// @ATG_CHANGE : BEGIN UWP support
+			// XAudio2 for UWP doesn't have GetDeviceDetails, use local wrapper instead
+			FAudioPlatformDeviceInfo DeviceDetails;
 			for (uint32 i = 0; i < NumDevices; ++i)
 			{
-				XAudio2System->GetDeviceDetails(i, &DeviceDetails);
-				if (DeviceDetails.DeviceID == InNewDeviceId)
+				GetOutputDeviceInfo(i, DeviceDetails);
+				if (DeviceDetails.DeviceId == InNewDeviceId)
 				{
 					DeviceIndex = i;
 					break;
 				}
 			}
+			// @ATG_CHANGE : END UWP support
 		}
 
 		// Update the audio stream info to the new device info
@@ -605,8 +613,15 @@ namespace Audio
 		// Update the num samples param based on results
 		AudioStreamInfo.DeviceInfo.NumSamples = AudioStreamInfo.DeviceInfo.NumFrames * AudioStreamInfo.DeviceInfo.NumChannels;
 
-		// Create a new master voice
-		XAUDIO2_RETURN_ON_FAIL(XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, AudioStreamInfo.OutputDeviceIndex, nullptr));
+		// @ATG_CHANGE : BEGIN UWP support
+		// XAudio2 for UWP has different parameters to CreateMasteringVoice
+		// See https://blogs.msdn.microsoft.com/chuckw/2012/04/02/xaudio2-and-windows-8/
+#if PLATFORM_UWP
+		XAUDIO2_RETURN_ON_FAIL(XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.RequestedSampleRate, 0, AllAudioDevices->GetAt(AudioStreamInfo.OutputDeviceIndex)->Id->Data(), nullptr));
+#else
+		XAUDIO2_RETURN_ON_FAIL(XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.RequestedSampleRate, 0, AudioStreamInfo.OutputDeviceIndex, nullptr));
+#endif
+		// @ATG_CHANGE : END
 
 		// Setup the format of the output source voice
 		WAVEFORMATEX Format = { 0 };

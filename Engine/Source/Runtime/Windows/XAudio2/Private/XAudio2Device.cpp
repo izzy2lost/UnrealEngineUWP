@@ -282,6 +282,25 @@ void FXAudio2Device::TeardownHardware()
 
 void FXAudio2Device::UpdateHardware()
 {
+	if (DeviceProperties)
+	{
+#if PLATFORM_WINDOWS
+		if (DeviceProperties->DidAudioDeviceChange())
+		{
+			// Stop any sounds that are playing
+			StopAllSounds(true);
+
+			// Set all sound sources to virtual mode so they don't play audio
+			for (FSoundSource* Source : Sources)
+			{
+				Source->SetVirtual();
+			}
+
+			// And switch to no-audio mode.
+			bIsAudioDeviceHardwareInitialized = false;
+		}
+#endif
+	}
 }
 
 void FXAudio2Device::UpdateAudioClock()
