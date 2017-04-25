@@ -1,7 +1,7 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 
-#include "SocketsPrivatePCH.h"
 #include "SocketSubsystemUWP.h"
+#include "SocketSubsystemModule.h"
 #include "ModuleManager.h"
 
 #include "AllowWindowsPlatformTypes.h"
