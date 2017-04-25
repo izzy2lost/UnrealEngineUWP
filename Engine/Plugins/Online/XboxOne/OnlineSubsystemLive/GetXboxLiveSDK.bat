@@ -8,5 +8,5 @@ if ERRORLEVEL 1 (
 
 nuget install microsoft.xbox.live.sdk.winrt.uwp -version 2016.12.20170107.1 -outputdirectory ThirdParty\XSAPI
 nuget install microsoft.xbox.live.sdk.winrt.XboxOneXDK -version 2016.12.20170126.1 -outputdirectory ThirdParty\XSAPI
-exit
+
 
