@@ -83,13 +83,12 @@ namespace UnrealBuildTool
 				string Version = File.ReadAllText(FileReference.Combine(VCInstallDir, "Auxiliary", "Build", "Microsoft.VCToolsVersion.default.txt").FullName).Trim();
 				VCToolChainDir = DirectoryReference.Combine(VCInstallDir, "Tools", "MSVC", Version);
 			}
-			// @ATG_CHANGE : BEGIN UWP support
-			WindowsSDKDir = FindWindowsSDKInstallationFolder(InPlatform, Compiler, bSupportWindowsXP);
-			// @ATG_CHANGE : END
-			WindowsSDKLibVersion = FindWindowsSDKLibVersion(InPlatform, WindowsSDKDir, bSupportWindowsXP);
-			WindowsSDKExtensionDir = bSupportWindowsXP ? "" : FindWindowsSDKExtensionInstallationFolder();
+
+			WindowsSDKDir = FindWindowsSDKInstallationFolder(Platform, Compiler, bSupportWindowsXP);
+			WindowsSDKLibVersion = FindWindowsSDKLibVersion(Platform, WindowsSDKDir, bSupportWindowsXP);
+			WindowsSDKExtensionDir = bSupportWindowsXP ? "" : FindWindowsSDKExtensionInstallationFolder(Compiler, InPlatform);
 			NetFxSDKExtensionDir = bSupportWindowsXP ? "" : FindNetFxSDKExtensionInstallationFolder(Compiler);
-			WindowsSDKExtensionHeaderLibVersion = bSupportWindowsXP ? new Version(0, 0, 0, 0) : FindWindowsSDKExtensionLatestVersion(InPlatform, WindowsSDKExtensionDir);
+			WindowsSDKExtensionHeaderLibVersion = bSupportWindowsXP ? new Version(0, 0, 0, 0) : FindWindowsSDKExtensionLatestVersion(WindowsSDKExtensionDir);
 			if(bSupportWindowsXP)
 			{
 				UniversalCRTDir = "";
@@ -308,11 +307,10 @@ namespace UnrealBuildTool
         /// Returns the path to the Windows SDK extensions folder. It defaults to v10.0, if it is installed.
         /// </summary>
         /// <returns></returns>
-		private static string FindWindowsSDKExtensionInstallationFolder(WindowsCompiler Compiler)
+		private static string FindWindowsSDKExtensionInstallationFolder(WindowsCompiler Compiler, CPPTargetPlatform InPlatform)
 		{
 			string Version;
 			switch (Compiler)
-
 			{
 				case WindowsCompiler.VisualStudio2017:
 				case WindowsCompiler.VisualStudio2015:
@@ -335,7 +333,7 @@ namespace UnrealBuildTool
         // @ATG_CHANGE : END
 
         // @ATG_CHANGE : BEGIN updated manifest generation requires schema knowledge, which comes from the SDK
-        public static Version FindWindowsSDK10ExtensionLatestVersion(string WindowsSDKExtensionDir)
+		public static Version FindWindowsSDKExtensionLatestVersion(string WindowsSDKExtensionDir)
 		// @ATG_CHANGE : END
 		{
 			Version LatestVersion = new Version(0, 0, 0, 0);
@@ -354,20 +352,6 @@ namespace UnrealBuildTool
             }
 			return LatestVersion;
 		}
-
-        // @ATG_CHANGE : BEGIN updated manifest generation requires schema knowledge, which comes from the SDK
-        public static Version FindWindowsSDKExtensionLatestVersion(CPPTargetPlatform InPlatform, string WindowsSDKExtensionDir)
-        // @ATG_CHANGE : END
-        {
-            if (WindowsPlatform.ShouldUseWindowsSDK10(InPlatform))
-            {
-                return FindWindowsSDK10ExtensionLatestVersion(WindowsSDKExtensionDir);
-            }
-            else
-            {
-                return new Version(0, 0, 0, 0);
-            }
-        }
 
         // @ATG_CHANGE : BEGIN UWP contract version support
         public static Version FindLatestVersionDirectory(string InDirectory)
@@ -405,14 +389,15 @@ namespace UnrealBuildTool
         }
         // @ATG_CHANGE : END
 
-		/// <summary>
-		/// Gets the path to the 32bit tool binaries.
-		/// </summary>
-		/// <param name="VCInstallDir">Base install directory for the VC toolchain</param>
-		/// <returns>Directory containing the 32-bit toolchain binaries</returns>
-		static DirectoryReference GetVCToolPath32(WindowsCompiler Compiler, DirectoryReference VCInstallDir, DirectoryReference VCToolChainDir)
-		{
-			if (Compiler == WindowsCompiler.VisualStudio2017)
+
+        /// <summary>
+        /// Gets the path to the 32bit tool binaries.
+        /// </summary>
+        /// <param name="VCInstallDir">Base install directory for the VC toolchain</param>
+        /// <returns>Directory containing the 32-bit toolchain binaries</returns>
+        public static DirectoryReference GetVCToolPath32(WindowsCompiler Compiler, DirectoryReference VCInstallDir, DirectoryReference VCToolChainDir)
+        {
+            if (Compiler == WindowsCompiler.VisualStudio2017)
 			{
 				FileReference NativeCompilerPath = FileReference.Combine(VCToolChainDir, "bin", "HostX64", "x86", "cl.exe");
 				if (NativeCompilerPath.Exists())
@@ -439,15 +424,17 @@ namespace UnrealBuildTool
 			}
 		}
 
-		/// <summary>
-		/// Gets the path to the 64bit tool binaries.
-		/// </summary>
-		/// <param name="Compiler">The version of the compiler being used</param>
-		/// <param name="VCInstallDir">Base install directory for the VC toolchain</param>
-		/// <returns>Directory containing the 64-bit toolchain binaries</returns>
-		static DirectoryReference GetVCToolPath64(WindowsCompiler Compiler, DirectoryReference VCInstallDir, DirectoryReference VCToolChainDir)
-		{
-			if (Compiler == WindowsCompiler.VisualStudio2017)
+        /// <summary>
+        /// Gets the path to the 64bit tool binaries.
+        /// </summary>
+        /// <param name="Compiler">The version of the compiler being used</param>
+        /// <param name="VCInstallDir">Base install directory for the VC toolchain</param>
+        /// <returns>Directory containing the 64-bit toolchain binaries</returns>
+		// @ATG_CHANGE : BEGIN making helper public for use in UWP packaging
+        public static DirectoryReference GetVCToolPath64(WindowsCompiler Compiler, DirectoryReference VCInstallDir, DirectoryReference VCToolChainDir)
+        // @ATG_CHANGE : END making helper public for use in UWP packaging
+        {
+            if (Compiler == WindowsCompiler.VisualStudio2017)
 			{
 				// Use the native 64-bit compiler if present
 				FileReference NativeCompilerPath = FileReference.Combine(VCToolChainDir, "bin", "HostX64", "x64", "cl.exe");
@@ -814,7 +801,7 @@ namespace UnrealBuildTool
 			{
 				IncludePaths.Add(Path.Combine(WindowsSDKDir, "include"));
 			}
-			else if (Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.bUseWindowsSDK10)
+			else if (Compiler >= WindowsCompiler.VisualStudio2015)
 			{
                 string WindowsSDKIncludeDir = Path.Combine(WindowsSDKDir, "include", WindowsSDKLibVersion);
                 if (Directory.Exists(WindowsSDKIncludeDir))

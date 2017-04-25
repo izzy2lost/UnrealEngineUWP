@@ -105,12 +105,11 @@ namespace UnrealBuildTool
 		private bool IsValidUWPTarget(UnrealTargetPlatform InPlatform, TargetRules.TargetType InTargetType, FileReference InTargetFilePath)
 		{
 			if ((InPlatform == UnrealTargetPlatform.UWP64 || InPlatform == UnrealTargetPlatform.UWP32) &&
-				(TargetRules.IsGameType(InTargetType)) &&
-				(TargetRules.IsEditorType(InTargetType) == false) &&
-				(InTargetType != TargetRules.TargetType.Server) &&
-				(InTargetType != TargetRules.TargetType.Client)
-				)
-			{
+				(InTargetType == TargetRules.TargetType.Client || InTargetType == TargetRules.TargetType.Game ) &&
+				InTargetType != TargetRules.TargetType.Editor &&
+                InTargetType != TargetRules.TargetType.Server
+                )
+            {
 				// We do not want to include any Templates targets
 				// Not a huge fan of doing it via path name comparisons... but it works
 				string TempTargetFilePath = InTargetFilePath.FullName.Replace("\\", "/");

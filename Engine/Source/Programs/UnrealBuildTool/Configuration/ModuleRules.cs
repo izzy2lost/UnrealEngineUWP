@@ -311,10 +311,27 @@ namespace UnrealBuildTool
 		/// </summary>
 		public List<string> PrivateAssemblyReferences = new List<string>();
 
-		/// <summary>
-		/// Addition modules this module may require at run-time 
-		/// </summary>
-		public List<string> DynamicallyLoadedModuleNames = new List<string>();
+        // @ATG_CHANGE : BEGIN winmd support
+        /// <summary>
+        /// Force enable /ZW for this module
+        /// </summary>
+        public bool bEnableWinRTComponentExtensions = false;
+
+        /// <summary>
+        /// /ZW modules only: The winmds referenced by the module and exposed over its interface.
+        /// </summary>
+        public List<string> PublicWinMDReferences = new List<string>();
+
+        /// <summary>
+        /// /ZW modules only: The winmds referenced by the module's private implementation.
+        /// </summary>
+        public List<string> PrivateWinMDReferences = new List<string>();
+        // @ATG_CHANGE : END
+        
+        /// <summary>
+        /// Addition modules this module may require at run-time 
+        /// </summary>
+        public List<string> DynamicallyLoadedModuleNames = new List<string>();
 
 		/// <summary>
 		/// Extra modules this module may require at run time, that are on behalf of another platform (i.e. shader formats and the like)

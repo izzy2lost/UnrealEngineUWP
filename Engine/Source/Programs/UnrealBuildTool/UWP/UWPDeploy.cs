@@ -179,7 +179,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		public override bool PrepForUATPackageOrDeploy(FileReference ProjectFile, string InProjectName, string InProjectDirectory, string InExecutablePath, string InEngineDir, bool bForDistribution, string CookFlavor, bool bIsDataDeploy)
+		public bool PrepForUATPackageOrDeploy(FileReference ProjectFile, string InProjectName, string InProjectDirectory, string InExecutablePath, string InEngineDir, bool bForDistribution, string CookFlavor, bool bIsDataDeploy)
 		{
 			string IntermediateDirectory = Path.Combine(InProjectDirectory, "Intermediate", "Deploy");
 			//@todo need to support dlc and other targets
@@ -213,8 +213,8 @@ namespace UnrealBuildTool
 				ConfigDirRef = new DirectoryReference(UnrealBuildTool.GetRemoteIniPath());
 			}
 
-			ConfigCacheIni EngineIni = ConfigCacheIni.CreateConfigCacheIni(Platform, "Engine", ConfigDirRef);
-            if (EngineIni != null)
+			ConfigHierarchy EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(ProjectFile), Platform);
+			if (EngineIni != null)
             {
                 string TitleId;
                 string Scid;
@@ -250,7 +250,7 @@ namespace UnrealBuildTool
             return true;
 		}
 
-		public override bool PrepTargetForDeployment(UEBuildTarget InTarget)
+		public override bool PrepTargetForDeployment(UEBuildDeployTarget InTarget)
 		{
 			string InAppName = InTarget.AppName;
 			Log.TraceInformation("Prepping {0} for deployment to {1}", InAppName, InTarget.Platform.ToString());
@@ -309,15 +309,24 @@ namespace UnrealBuildTool
 			}
 		}
 
-        private void GeneratePackageAppXRecipe(string InOutputFile, UEBuildTarget InTarget, List<RuntimeDependency> Dependencies, IEnumerable<string> AdditionalFiles)
-        {
-            var AppXRecipeProjectFileContent = new StringBuilder();
+		private void GeneratePackageAppXRecipe(string InOutputFile, UEBuildDeployTarget InTarget, List<RuntimeDependency> Dependencies, IEnumerable<string> AdditionalFiles)
+		{
+			var AppXRecipeProjectFileContent = new StringBuilder();
+            string VcProjectToolVersion;
+            switch (UniversalWindowsPlatform.Compiler)
+            {
+                case WindowsCompiler.VisualStudio2017:
+                    VcProjectToolVersion = VCProjectFileGenerator.GetProjectFileToolVersionString(VCProjectFileFormat.VisualStudio2017);
+                    break;
+                default:
+                    VcProjectToolVersion = VCProjectFileGenerator.GetProjectFileToolVersionString(VCProjectFileFormat.VisualStudio2015);
+                    break;
+            }
 
-            // @TODO: Address hardcoded VS2015 tools version
             AppXRecipeProjectFileContent.Append(
-                "<?xml version=\"1.0\" encoding=\"utf-8\"?>" + ProjectFileGenerator.NewLine +
-                ProjectFileGenerator.NewLine +
-                "<Project DefaultTargets=\"Build\" ToolsVersion=\"14.0\" xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">" + ProjectFileGenerator.NewLine);
+				"<?xml version=\"1.0\" encoding=\"utf-8\"?>" + ProjectFileGenerator.NewLine +
+				ProjectFileGenerator.NewLine +
+				"<Project DefaultTargets=\"Build\" ToolsVersion=\"" + VcProjectToolVersion + "\" xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">" + ProjectFileGenerator.NewLine);
 
             DirectoryReference ProjectBinariesDirectory = new FileReference(InTarget.BuildReceiptFileName).Directory;
 
@@ -447,7 +456,7 @@ namespace UnrealBuildTool
 			}
 
 			// Copy pre-cooked content into the package.  This is optional since it could be enormous.
-			ConfigCacheIni EngineIni = ConfigCacheIni.CreateConfigCacheIni(InTarget.Platform, "Engine", ConfigDirRef);
+			ConfigHierarchy EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, ConfigDirRef, InTarget.Platform);
 			if (EngineIni != null)
 			{
 				bool bCopyCookedContentForF5Deployment = false;

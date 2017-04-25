@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -36,8 +36,8 @@ namespace UnrealBuildTool
 				DirRef = new DirectoryReference(UnrealBuildTool.GetRemoteIniPath());
 			}
 
-			GameIni = ConfigCacheIni.CreateConfigCacheIni(Platform, "Game", DirRef);
-			EngineIni = ConfigCacheIni.CreateConfigCacheIni(Platform, "Engine", DirRef);
+            GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, DirectoryReference.FromFile(ProjectFile), InPlatform);
+            EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(ProjectFile), InPlatform);
 
 			// For additional namespaces, the prefixes are provided by the platform (maintains compatibility with original Xbox One manifest ini data)
 			// but the associated uris come from the ini files themselves.
@@ -64,9 +64,9 @@ namespace UnrealBuildTool
 		// @ATG_CHANGE : BEGIN UWP Packaging support
 		private UnrealTargetPlatform Platform;
 		private Dictionary<string, string> AdditionalNamespaces;
-		private ConfigCacheIni EngineIni;
-		private ConfigCacheIni GameIni;
-		private XmlSchemaSet AppxSchema;
+        private ConfigHierarchy EngineIni;
+        private ConfigHierarchy GameIni;
+        private XmlSchemaSet AppxSchema;
 
 		/// <summary>
 		/// Exe path relative to image root
@@ -810,7 +810,7 @@ namespace UnrealBuildTool
 			AppxSchema.ValidationEventHandler += SchemaCallback;
 
 			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
-            Version SDKVersion = VCEnvironment.FindWindowsSDK10ExtensionLatestVersion(SDKFolder);
+            Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder);
             string UWPSchemaFolder = Path.Combine(SDKFolder, "Include", SDKVersion.ToString(), "winrt");
 
 			// UWP allows the PhoneIdentity element to reference a Windows Phone package for cross-store entitlement

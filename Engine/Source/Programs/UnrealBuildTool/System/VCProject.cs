@@ -1235,7 +1235,7 @@ namespace UnrealBuildTool
 					TargetRules TargetRulesObject = Combination.ProjectTarget.TargetRules;
 
 					// @ATG_CHANGE : BEGIN UWP support
-					if ((Platform == UnrealTargetPlatform.Win32) || (Platform == UnrealTargetPlatform.Win64) || (Platform == UnrealTargetPlatform.UWP64) || (Platform == UnrealTargetPlatform.UWP32))
+					if ((Platform == UnrealTargetPlatform.Win32) || (Platform == UnrealTargetPlatform.Win64) || (Platform == UnrealTargetPlatform.UWP32) || (Platform == UnrealTargetPlatform.UWP64))
 					// @ATG_CHANGE : END
 					{
 						VCUserFileContent.Append(

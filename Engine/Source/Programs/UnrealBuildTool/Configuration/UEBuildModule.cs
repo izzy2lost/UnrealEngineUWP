@@ -1953,7 +1953,7 @@ namespace UnrealBuildTool
 			// Now set up the compile environment for the modules in the original order that we encountered them
 			foreach (UEBuildModule Module in Modules)
 			{
-				Module.AddModuleToCompileEnvironment(null, ModuleToIncludePathsOnlyFlag[Module], Result.Config.CPPIncludeInfo.IncludePaths, Result.Config.CPPIncludeInfo.SystemIncludePaths, Result.Config.Definitions, Result.Config.AdditionalFrameworks);
+				Module.AddModuleToCompileEnvironment(null, ModuleToIncludePathsOnlyFlag[Module], Result.Config.CPPIncludeInfo.IncludePaths, Result.Config.CPPIncludeInfo.SystemIncludePaths, Result.Config.Definitions, Result.Config.AdditionalFrameworks, Result.Config.WinMDReferences);
 			}
 			return Result;
 		}

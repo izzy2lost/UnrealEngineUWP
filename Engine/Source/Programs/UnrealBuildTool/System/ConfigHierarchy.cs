@@ -254,14 +254,28 @@ namespace UnrealBuildTool
 			return TryGetValue(SectionName, KeyName, out Value);
 		}
 
-		/// <summary>
-		/// Gets a single string value associated with the specified key.
-		/// </summary>
-		/// <param name="SectionName">Section name</param>
-		/// <param name="KeyName">Key name</param>
-		/// <param name="Value">Value associated with the specified key. If the key has more than one value, only the first one is returned</param>
-		/// <returns>True if the key exists</returns>
-		public bool TryGetValue(string SectionName, string KeyName, out string Value)
+        // @ATG_CHANGE : BEGIN - adding this helper back in, used by new manifest generator
+        /// <summary>
+        /// Legacy function for ease of transition from ConfigCacheIni to ConfigHierarchy. Gets a Guid with the given key name.
+        /// </summary>
+        /// <param name="SectionName">Section name</param>
+        /// <param name="KeyName">Key name</param>
+        /// <param name="Value">Value associated with the specified key. If the key has more than one value, only the first one is returned</param>
+        /// <returns>True if the key exists</returns>
+        public bool GetGUID(string SectionName, string KeyName, out Guid Value)
+        {
+            return TryGetValue(SectionName, KeyName, out Value);
+        }
+        // @ATG_CHANGE : END - adding this helper back in, used by new manifest generator
+
+        /// <summary>
+        /// Gets a single string value associated with the specified key.
+        /// </summary>
+        /// <param name="SectionName">Section name</param>
+        /// <param name="KeyName">Key name</param>
+        /// <param name="Value">Value associated with the specified key. If the key has more than one value, only the first one is returned</param>
+        /// <returns>True if the key exists</returns>
+        public bool TryGetValue(string SectionName, string KeyName, out string Value)
 		{
 			return FindSection(SectionName).TryGetValue(KeyName, out Value);
 		}
@@ -580,8 +594,14 @@ namespace UnrealBuildTool
 			{
 				return "Windows";
 			}
-			else
-			{
+            // @ATG_CHANGE : BEGIN UWP support
+            else if (TargetPlatform == UnrealTargetPlatform.UWP32 || TargetPlatform == UnrealTargetPlatform.UWP64)
+            {
+                return "UWP";
+            }
+            // @ATG_CHANGE : END
+            else
+            {
 				return Enum.GetName(typeof(UnrealTargetPlatform), TargetPlatform);
 			}
 		}

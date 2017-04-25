@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -22,9 +22,9 @@ namespace UnrealBuildTool
 	{
 		// @ATG_CHANGE : BEGIN UWP Packaging support
 		private FileReference ProjectFile;
-		private ConfigCacheIni EngineIni;
-		private ConfigCacheIni GameIni;
-		private UnrealTargetPlatform Platform;
+        private ConfigHierarchy EngineIni;
+        private ConfigHierarchy GameIni;
+        private UnrealTargetPlatform Platform;
 		// @ATG_CHANGE : END
 
 		// @ATG_CHANGE : BEGIN UWP Packaging support
@@ -125,11 +125,11 @@ namespace UnrealBuildTool
 				}
 			}
 
-			// Load up INI settings. We'll use engine settings to retrieve the manifest configuration and most other resource
-			// settings from the game settings.
-			// @ATG_CHANGE : BEGIN UWP Packaging support
-			GameIni = ConfigCacheIni.CreateConfigCacheIni(Platform, "Game", DirectoryReference.FromFile(ProjectFile));
-			EngineIni = ConfigCacheIni.CreateConfigCacheIni(Platform, "Engine", DirectoryReference.FromFile(ProjectFile));
+            // Load up INI settings. We'll use engine settings to retrieve the manifest configuration and most other resource
+            // settings from the game settings.
+            // @ATG_CHANGE : BEGIN UWP Packaging support
+            GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, DirectoryReference.FromFile(ProjectFile), Platform);
+            EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(ProjectFile), Platform);
 			// @ATG_CHANGE : END
 
 			List<string> CulturesToStageWithDuplicates = null;
@@ -182,17 +182,20 @@ namespace UnrealBuildTool
 				ResXWriters.Add(new ResXResourceWriter(IntermediateStringResourceFile));
 			}
 
-			ConfigCacheIni.IniSection AppxManifestIniSection = EngineIni.FindSection("AppxManifest");
-			foreach (KeyValuePair<string, ConfigCacheIni.IniValues> AppxManifestIniSetting in AppxManifestIniSection)
-			{
-				if (AppxManifestIniSetting.Value.Count > 1)
-				{
-					Log.TraceWarning("Ini setting {0} contains multiple values. This is not supported for this value type.", AppxManifestIniSetting.Key);
-				}
+            ConfigHierarchySection AppxManifestIniSection = EngineIni.FindSection("AppxManifest");
+            foreach (string AppxManifestIniSettingKeyName in AppxManifestIniSection.KeyNames)
+            {
+                IEnumerable<string> AppxManifestIniSettingValues;
+                AppxManifestIniSection.TryGetValues(AppxManifestIniSettingKeyName, out AppxManifestIniSettingValues);
 
-				string AppxManifestIniSettingValue = AppxManifestIniSetting.Value[0];
+                if (AppxManifestIniSettingValues.Count() > 1)
+                {
+                    Log.TraceWarning("Ini setting {0} contains multiple values. This is not supported for this value type.", AppxManifestIniSettingKeyName);
+                }
 
-				const string ResourceStringTag = "%ResourceString:";
+                string AppxManifestIniSettingValue = AppxManifestIniSettingValues.First();
+
+                const string ResourceStringTag = "%ResourceString:";
 				if (AppxManifestIniSettingValue.Contains(ResourceStringTag))
 				{
 					// Parse manifest value to find key name

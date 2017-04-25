@@ -22,7 +22,7 @@ namespace UnrealBuildTool
 		}
 
 		// @ATG_CHANGE : BEGIN reusing in other toolchains
-		static void AddDefinition(StringBuilder String, string Definition)
+		public static void AddDefinition(List<string> Arguments, string Definition)
 		// @ATG_CHANGE : END
 		{
 			// Split the definition into name and value
@@ -39,7 +39,7 @@ namespace UnrealBuildTool
 
 
 		// @ATG_CHANGE : BEGIN reusing in other toolchains
-		static void AddDefinition(StringBuilder String, string Variable, string Value)
+		public static void AddDefinition(List<string> Arguments, string Variable, string Value)
 		// @ATG_CHANGE : END
 		{
 			// If the value has a space in it and isn't wrapped in quotes, do that now
@@ -74,7 +74,7 @@ namespace UnrealBuildTool
 
 
 		// @ATG_CHANGE :  BEGIN reusing in other toolchains
-		static void AddIncludePath(StringBuilder String, string IncludePath)
+		public static void AddIncludePath(List<string> Arguments, string IncludePath)
 		// @ATG_CHANGE : END
 		{
 			// Need to convert to full paths to get full paths in error messages when debug info is disabled. I don't know why.
@@ -104,7 +104,7 @@ namespace UnrealBuildTool
 		{
 			// @todo UWP: Why do we ever need WinRT headers when building regular Win32?  Is this just needed for the Windows 10 SDK?
 			// @todo UWP: These include paths should be added in SetUpEnvironment(), not here.  Do they need to be the last includes or something?
-			if (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.ShouldUseWindowsSDK10(CompileEnvironment.Config.Target.Platform))
+			if (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.ShouldUseWindowsSDK10(CompileEnvironment.Config.Platform))
 			{
 				if (Directory.Exists(EnvVars.WindowsSDKExtensionDir))
 				{
@@ -125,7 +125,7 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				// Arguments.Append( " /showIncludes" );
+				 //Arguments.Add( " /showIncludes" );
 			}
 
 			// Suppress generation of object code for unreferenced inline functions. Enabling this option is more standards compliant, and causes a big reduction
@@ -1108,7 +1108,7 @@ namespace UnrealBuildTool
 
 			// @ATG_CHANGE : BEGIN winmd support
 			// Add winmd references			
-			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 && WindowsPlatform.ShouldUseWindowsSDK10(Target.Platform))
+			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 && WindowsPlatform.ShouldUseWindowsSDK10(CompileEnvironment.Config.Platform))
 			{
 				foreach (string CurAssemblyInfo in CompileEnvironment.Config.WinMDReferences)
 				{
@@ -1509,7 +1509,7 @@ namespace UnrealBuildTool
 			VCEnvironment EnvVars = VCEnvironment.SetEnvironment(LinkEnvironment.Config.Platform, bSupportWindowsXP);
 
 			// @todo UWP: These paths should be added in SetUpEnvironment(), not here.  Also is this actually needed for classic desktop targets or only UWP?
-			if (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.ShouldUseWindowsSDK10(LinkEnvironment.Config.Target.Platform))
+			if (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.ShouldUseWindowsSDK10(LinkEnvironment.Config.Platform))
 			{
 				if (LinkEnvironment.Config.Platform == CPPTargetPlatform.Win64)
 				{
@@ -1744,10 +1744,13 @@ namespace UnrealBuildTool
 			return OutputFile;
 		}
 
-		private void ExportObjectFilePaths(LinkEnvironment LinkEnvironment, string FileName)
-		{
-			// Write the list of object file directories
-			HashSet<DirectoryReference> ObjectFileDirectories = new HashSet<DirectoryReference>();
+
+        // @ATG_CHANGE : BEGIN making public for reuse in UWP toolchain
+        public static void ExportObjectFilePaths(LinkEnvironment LinkEnvironment, string FileName)
+        // @ATG_CHANGE : END making public for reuse in UWP toolchain
+        {
+            // Write the list of object file directories
+            HashSet<DirectoryReference> ObjectFileDirectories = new HashSet<DirectoryReference>();
 			foreach(FileItem InputFile in LinkEnvironment.InputFiles)
 			{
 				ObjectFileDirectories.Add(InputFile.Reference.Directory);

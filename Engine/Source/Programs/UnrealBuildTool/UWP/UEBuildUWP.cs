@@ -5,8 +5,8 @@ using System.Collections.Generic;
 using System.Text;
 using System.Diagnostics;
 using System.IO;
-using Microsoft.Win32;
 using System.Linq;
+using Microsoft.Win32;
 
 namespace UnrealBuildTool
 {
@@ -29,7 +29,6 @@ namespace UnrealBuildTool
 		/// <param name="ExtraModuleNames">List of extra modules the platform needs to add to the target</param>
 		public override void AddExtraModules(TargetInfo Target, List<string> ExtraModuleNames)
 		{
-			//ExtraModuleNames.Add("UWPPlatformFeatures");
 		}
 
 		/// <summary>
@@ -170,7 +169,7 @@ namespace UnrealBuildTool
 
 			// In the 10586 SDK TLS APIs are not inlined, but they're also not in windowsapp.lib
 			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
-			Version SDKVersion = VCEnvironment.FindWindowsSDK10ExtensionLatestVersion(SDKFolder);
+			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder);
 			if (SDKVersion.Build == 10586)
 			{
 				InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("kernel32.lib");
@@ -235,8 +234,8 @@ namespace UnrealBuildTool
 			}
 
 			// Set up the global C++ compilation and link environment.
-			GlobalCompileEnvironment.Config.Target.Configuration = CompileConfiguration;
-			GlobalLinkEnvironment.Config.Target.Configuration = CompileConfiguration;
+			GlobalCompileEnvironment.Config.Configuration = CompileConfiguration;
+			GlobalLinkEnvironment.Config.Configuration = CompileConfiguration;
 
 			// Create debug info based on the heuristics specified by the user.
 			GlobalCompileEnvironment.Config.bCreateDebugInfo =
@@ -283,14 +282,6 @@ namespace UnrealBuildTool
 			// @ATG_CHANGE : END
 		}
 
-		/// <summary>
-		/// Create a build deployment handler
-		/// </summary>
-		/// <returns>True if the platform requires a deployment handler, false otherwise</returns>
-		public override UEBuildDeploy CreateDeploymentHandler()
-		{
-			return new UWPDeploy();
-		}
 	}
 	// @ATG_CHANGE : BEGIN UWP support
 	public class UniversalWindowsPlatform : UEBuildPlatform
@@ -318,8 +309,8 @@ namespace UnrealBuildTool
                 return WindowsCompiler.VisualStudio2017;
             }
 
-            // Read the project setting
-            ConfigCacheIni Ini = ConfigCacheIni.CreateConfigCacheIni(UnrealTargetPlatform.Win64, "Engine", DirectoryReference.FromFile(ProjectFile));
+			// Read the project setting
+			ConfigHierarchy Ini = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(ProjectFile), UnrealTargetPlatform.UWP64);
 
             string CompilerVersionString;
             if (Ini.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "CompilerVersion", out CompilerVersionString))
@@ -352,32 +343,24 @@ namespace UnrealBuildTool
                 return WindowsCompiler.VisualStudio2017;
             }
 
-            // If we do have a Visual Studio installation, but we're missing just the C++ parts, warn about that.
-            DirectoryReference VSInstallDir;
-            if (WindowsPlatform.TryGetVSInstallDir(WindowsCompiler.VisualStudio2015, out VSInstallDir))
-            {
-                Log.TraceWarning("Visual Studio 2015 is installed, but is missing the C++ toolchain. Please verify that \"Common Tools for Visual C++ 2015\" are selected from the Visual Studio 2015 installation options.");
-            }
-            else if (WindowsPlatform.TryGetVSInstallDir(WindowsCompiler.VisualStudio2017, out VSInstallDir))
-            {
-                Log.TraceWarning("Visual Studio 2017 is installed, but is missing the C++ toolchain. Please verify that \"Common Tools for Visual C++ 2015\" are selected from the Visual Studio 2015 installation options.");
-            }
-            else
-            {
-                Log.TraceWarning("No Visual C++ installation was found. Please download and install Visual Studio 2015 with C++ components.");
-            }
-
-            // Finally, default to VS2015 anyway
-            return WindowsCompiler.VisualStudio2015;
-        }
-
-
-        // Enables the UWP platform and project file support in Unreal Build Tool
-        // @todo UWP: Remove this variable when UWP support is fully implemented
-        public static readonly bool bEnableUWPSupport = UnrealBuildTool.CommandLineContains("-uwp");
-
-		/// True if we should only build against the app-local CRT and /APPCONTAINER linker flag
-		public static readonly bool bBuildForStore = true;
+			// If we do have a Visual Studio installation, but we're missing just the C++ parts, warn about that.
+			DirectoryReference VSInstallDir;
+			if(WindowsPlatform.TryGetVSInstallDir(WindowsCompiler.VisualStudio2015, out VSInstallDir))
+			{
+				Log.TraceWarning("Visual Studio 2015 is installed, but is missing the C++ toolchain. Please verify that \"Common Tools for Visual C++ 2015\" are selected from the Visual Studio 2015 installation options.");
+			}
+			else if(WindowsPlatform.TryGetVSInstallDir(WindowsCompiler.VisualStudio2017, out VSInstallDir))
+			{
+				Log.TraceWarning("Visual Studio 2017 is installed, but is missing the C++ toolchain. Please verify that \"Common Tools for Visual C++ 2015\" are selected from the Visual Studio 2015 installation options.");
+			}
+			else
+			{
+				Log.TraceWarning("No Visual C++ installation was found. Please download and install Visual Studio 2015 with C++ components.");
+			}
+			
+			// Finally, default to VS2015 anyway
+			return WindowsCompiler.VisualStudio2015;
+		}
 
 		/// <summary>
 		/// True if VS EnvDTE is available (false when building using Visual Studio Express)
@@ -595,6 +578,15 @@ namespace UnrealBuildTool
 					}
 				}
 
+				// This forces OSSLive to be enumerated for Intellisense data when generating project 
+				// files, so long as the project has any kind of dependency on online features.
+				if (ProjectFileGenerator.bGenerateProjectFiles)
+				{
+					if (ModuleName == "OnlineSubsystem")
+					{
+						Rules.PlatformSpecificDynamicallyLoadedModuleNames.Add("OnlineSubsystemLive");
+					}
+				}
 			}
 			// @ATG_CHANGE : END
 		}
@@ -613,13 +605,20 @@ namespace UnrealBuildTool
 		/// </summary>
 		/// <param name="ProjectFile">The project file for the current target</param>
 		/// <returns>New platform context object</returns>
-		public override UEBuildPlatformContext CreateContext(FileReference ProjectFile)
-		{
-			// @ATG_CHANGE : BEGIN UWP32-x86 support
+		public override UEBuildPlatformContext CreateContext(FileReference ProjectFile, TargetRules Target)
+        {
 			return new UWPPlatformContext(Platform, ProjectFile);
-			// @ATG_CHANGE : END
 		}
-	}
+
+        /// <summary>
+        /// Deploys the given target
+        /// </summary>
+        /// <param name="Target">Information about the target being deployed</param>
+        public override void Deploy(UEBuildDeployTarget Target)
+        {
+            new UWPDeploy().PrepTargetForDeployment(Target);
+        }
+    }
 
 	public class UWPPlatformSDK : UEBuildPlatformSDK
 	{
