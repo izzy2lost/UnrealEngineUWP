@@ -43,10 +43,14 @@ public class OnlineSubsystemLive : ModuleRules
 				PlatformArchAndCompilerPathChunk = Path.Combine("references", "Durango", "v110");
 				break;
 
+			case UnrealTargetPlatform.Win32:
+				// This case is currently used for intellisense generation.  Fall-through to UWP32 so it can find the winmd
 			case UnrealTargetPlatform.UWP32:
 				PlatformArchAndCompilerPathChunk = Path.Combine("lib", "Win32", "v140");
 				break;
 
+			case UnrealTargetPlatform.Win64:
+				// This case is currently used for intellisense generation.  Fall-through to UWP64 so it can find the winmd
 			case UnrealTargetPlatform.UWP64:
 				PlatformArchAndCompilerPathChunk = Path.Combine("lib", "x64", "v140");
 				break;
