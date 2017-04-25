@@ -10,7 +10,9 @@
 #include "Modules/ModuleManager.h"
 #include "AllowWindowsPlatformTypes.h"
 	#include <delayimp.h>
+	#if !PLATFORM_UWP
 	#include "amd_ags.h"
+	#endif
 #include "HideWindowsPlatformTypes.h"
 
 
@@ -226,6 +228,7 @@ void FD3D11DynamicRHI::Shutdown()
 	// Cleanup the D3D device.
 	CleanupD3DDevice();
 
+#if !PLATFORM_UWP
 	// Shut down the AMD AGS utility library
 	if (AmdAgsContext != NULL)
 	{
@@ -233,6 +236,7 @@ void FD3D11DynamicRHI::Shutdown()
 		GRHIDeviceIsAMDPreGCNArchitecture = false;
 		AmdAgsContext = NULL;
 	}
+#endif
 
 	// Release buffered timestamp queries
 	GPUProfilingData.FrameTiming.ReleaseResource();
@@ -453,7 +457,7 @@ void FD3D11DynamicRHI::CleanupD3DDevice()
 
 		check(!GIsCriticalError);
 
-#if PLATFORM_DESKTOP
+#if PLATFORM_DESKTOP && !PLATFORM_UWP
 		// Clean up the extensions
 		if (AmdAgsContext != NULL)
 		{

@@ -6,7 +6,7 @@
 
 #include "D3D11RHIPrivate.h"
 
-#if PLATFORM_DESKTOP
+#if PLATFORM_DESKTOP && !PLATFORM_UWP
 // For Depth Bounds Test interface
 #include "AllowWindowsPlatformTypes.h"
 #include "nvapi.h"
@@ -864,6 +864,7 @@ TD3D11Texture2D<BaseResourceType>* FD3D11DynamicRHI::CreateD3D11Texture2D(uint32
 
 	D3D11TextureAllocated(*Texture2D);
 	
+#if !PLATFORM_UWP
 	if (IsRHIDeviceNVIDIA() && (Flags & TexCreate_AFRManual))
 	{
 		// get a resource handle for this texture
@@ -875,6 +876,7 @@ TD3D11Texture2D<BaseResourceType>* FD3D11DynamicRHI::CreateD3D11Texture2D(uint32
 		NvU32 ManualAFR = 1;
 		NvAPI_D3D_SetResourceHint(Direct3DDevice, (NVDX_ObjectHandle)IHVHandle, NVAPI_D3D_SRH_CATEGORY_SLI, NVAPI_D3D_SRH_SLI_APP_CONTROLLED_INTERFRAME_CONTENT_SYNC, &ManualAFR);
 	}
+#endif
 	return Texture2D;
 }
 
@@ -1002,7 +1004,7 @@ FD3D11Texture3D* FD3D11DynamicRHI::CreateD3D11Texture3D(uint32 SizeX,uint32 Size
 	}
 
 	D3D11TextureAllocated(*Texture3D);
-
+#if !PLATFORM_UWP
 	if (IsRHIDeviceNVIDIA() && (Flags & TexCreate_AFRManual))
 	{
 		// get a resource handle for this texture
@@ -1014,6 +1016,7 @@ FD3D11Texture3D* FD3D11DynamicRHI::CreateD3D11Texture3D(uint32 SizeX,uint32 Size
 		NvU32 ManualAFR = 1;
 		NvAPI_D3D_SetResourceHint(Direct3DDevice, (NVDX_ObjectHandle)IHVHandle, NVAPI_D3D_SRH_CATEGORY_SLI, NVAPI_D3D_SRH_SLI_APP_CONTROLLED_INTERFRAME_CONTENT_SYNC, &ManualAFR);
 	}
+#endif
 	return Texture3D;
 }
 

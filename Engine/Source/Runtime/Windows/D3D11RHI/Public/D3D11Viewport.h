@@ -10,6 +10,14 @@
 #include "RenderResource.h"
 #include "RenderUtils.h"
 
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_UWP
+#include "AllowWindowsPlatformTypes.h"
+#include <dxgi1_2.h>
+#include "HideWindowsPlatformTypes.h"
+#endif
+// @ATG_CHANGE : END
+
 /** A D3D event query resource. */
 class FD3D11EventQuery : public FRenderResource
 {

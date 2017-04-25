@@ -108,6 +108,10 @@ FD3D11Viewport::FD3D11Viewport(FD3D11DynamicRHI* InD3DRHI,HWND InWindowHandle,ui
 	// Create a RHI surface to represent the viewport's back buffer.
 	BackBuffer = GetSwapChainSurface(D3DRHI, PixelFormat, SwapChain);
 
+	GRHISupportsHDROutput =
+		(swapChainDesc.Format == DXGI_FORMAT_R10G10B10A2_TYPELESS) ||
+		(swapChainDesc.Format == DXGI_FORMAT_R16G16B16A16_FLOAT);
+
 	BeginInitResource(&FrameSyncEvent);
 }
 

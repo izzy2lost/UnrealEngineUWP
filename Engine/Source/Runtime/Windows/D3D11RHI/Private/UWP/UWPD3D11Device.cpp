@@ -807,12 +807,35 @@ void FD3D11DynamicRHI::InitD3DDevice()
 		}
 #endif
 
+		{
+			GRHISupportsHDROutput = false;
+			GRHIHDRDisplayOutputFormat = PF_FloatRGBA;
+		}
+
 		FHardwareInfo::RegisterHardwareInfo(NAME_RHI, TEXT("D3D11"));
 
 		GRHISupportsTextureStreaming = true;
 
 		// Set the RHI initialized flag.
 		GIsRHIInitialized = true;
+	}
+}
+
+/** Enable HDR meta data transmission */
+void FD3D11DynamicRHI::EnableHDR()
+{
+	static const auto CVarHDROutputEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.HDR.EnableHDROutput"));
+
+	if (GRHISupportsHDROutput && CVarHDROutputEnabled->GetValueOnAnyThread() != 0)
+	{
+	}
+}
+
+/** Disable HDR meta data transmission */
+void FD3D11DynamicRHI::ShutdownHDR()
+{
+	if (GRHISupportsHDROutput)
+	{
 	}
 }
 

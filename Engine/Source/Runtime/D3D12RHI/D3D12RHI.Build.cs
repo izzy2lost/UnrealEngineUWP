@@ -8,13 +8,6 @@ public class D3D12RHI : ModuleRules
 	{
 		PrivateIncludePaths.Add("Runtime/D3D12RHI/Private");
 
-        // @ATG_CHANGE : BEGIN UWP support
-        if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
-        {
-            PrivateIncludePaths.Add("Runtime/D3D12RHI/Private/UWP");
-        }
-        // @ATG_CHANGE : END
-
         PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
