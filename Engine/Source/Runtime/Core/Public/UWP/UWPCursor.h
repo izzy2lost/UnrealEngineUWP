@@ -57,7 +57,7 @@ public:
 	*
 	* @param CursorResourceId	The resource id of the cursor to show when EMouseCursor::Custom is selected.
 	*/
-	void SetCustomShape(uint32 CursorResourceId);
+	void SetCustomShape(void* InCursorHandle);
 
 private:
 

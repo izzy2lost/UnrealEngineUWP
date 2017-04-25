@@ -16,13 +16,15 @@ extern CORE_API bool GIgnoreDebugger;
 extern CORE_API TCHAR MiniDumpFilenameW[1024];
 
 // #CrashReport: 2014-09-11 Move to PlatformExceptionHandling
-// @ATG_CHANGE : BEGIN UWP support
-#if PLATFORM_WINDOWS || PLATFORM_UWP
+#if PLATFORM_WINDOWS
 #include "Windows/WindowsSystemIncludes.h"
 #include <excpt.h>
 // #CrashReport: 2014-10-09 These methods are specific to windows, remove from here.
 extern CORE_API int32 ReportCrash( Windows::LPEXCEPTION_POINTERS ExceptionInfo );
 extern CORE_API void NewReportEnsure( const TCHAR* ErrorMessage );
+#elif PLATFORM_UWP
+extern CORE_API int32 ReportCrash(LPEXCEPTION_POINTERS ExceptionInfo);
+extern CORE_API void NewReportEnsure(const TCHAR* ErrorMessage);
 #elif PLATFORM_XBOXONE
 #include "XboxOne/XboxOneSystemIncludes.h"
 // #CrashReport: 2014-10-09 Should be move to another file

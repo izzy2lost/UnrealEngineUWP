@@ -37,6 +37,10 @@ struct FUWPPlatformProperties : public FGenericPlatformProperties
 	{
 		return true;
 	}
+	static FORCEINLINE bool SupportsGrayscaleSRGB()
+	{
+		return false; // Requires expand from G8 to RGBA
+	}
 	static FORCEINLINE const char* GetPhysicsFormat()
 	{
 		return "PhysXUWP";
@@ -46,12 +50,7 @@ struct FUWPPlatformProperties : public FGenericPlatformProperties
 	{
 		return false;
 	}
-
-	static FORCEINLINE bool SupportsGrayscaleSRGB()
-	{
-		return false; // Requires expand from G8 to RGBA
-	}
-
+	
 	static FORCEINLINE bool SupportsQuit()
 	{
 		return true;

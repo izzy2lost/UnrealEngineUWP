@@ -6,7 +6,6 @@
 
 #pragma once
 #include "GenericPlatform/GenericPlatformProcess.h"
-#include "GenericPlatform/GenericPlatformCriticalSection.h"
 
 /** Dummy process handle for platforms that use generic implementation. */
 struct FProcHandle : public TProcHandle<void*, nullptr>
@@ -51,9 +50,4 @@ struct CORE_API FUWPProcess : public FGenericPlatformProcess
 };
 
 typedef FUWPProcess FPlatformProcess;
-
-#include "../UWP/UWPCriticalSection.h"
-typedef FUWPCriticalSection FCriticalSection;
-typedef FSystemWideCriticalSectionNotImplemented FSystemWideCriticalSection;
-
 

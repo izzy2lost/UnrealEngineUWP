@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "GenericPlatform/GenericPlatformCriticalSection.h"
+
 /**
  * This is the UWP version of a critical section. It uses an aggregate
  * CRITICAL_SECTION to implement its locking.
@@ -67,3 +69,6 @@ public:
 		LeaveCriticalSection(&CriticalSection);
 	}
 };
+
+typedef FUWPCriticalSection FCriticalSection;
+typedef FSystemWideCriticalSectionNotImplemented FSystemWideCriticalSection;

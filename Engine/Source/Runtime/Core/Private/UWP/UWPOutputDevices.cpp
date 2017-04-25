@@ -4,8 +4,9 @@
 	UWPOutputDevices.cpp: UWP implementations of OutputDevices functions
 =============================================================================*/
 
-#include "CorePrivatePCH.h"
+#include "UWPOutputDevices.h"
 #include "Misc/App.h"
+#include "Misc/CoreDelegates.h"
 
 #include "FeedbackContextAnsi.h"
 #include "UWPOutputDevicesPrivate.h"

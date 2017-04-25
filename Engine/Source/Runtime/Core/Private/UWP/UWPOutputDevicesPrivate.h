@@ -5,7 +5,7 @@
 =============================================================================*/
 
 #pragma once
-#pragma once
+#include "Misc/OutputDeviceError.h"
 #include "Misc/OutputDeviceConsole.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogUWPOutputDevices, Log, All);

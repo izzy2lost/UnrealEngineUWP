@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "IInputInterface.h"
+#include "GenericPlatform/IInputInterface.h"
+#include "GenericPlatform/GenericApplicationMessageHandler.h"
 
 /**
  * Interface class for input devices.

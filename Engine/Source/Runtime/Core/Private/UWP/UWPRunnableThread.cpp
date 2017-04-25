@@ -1,8 +1,8 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 
-#include "CorePrivatePCH.h"
 #include "UWPRunnableThread.h"
-#include "ExceptionHandling.h"
+#include "Misc/OutputDeviceError.h"
+#include "HAL/ExceptionHandling.h"
 
 
 DEFINE_LOG_CATEGORY_STATIC(LogThreadingWindows, Log, All);

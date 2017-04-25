@@ -6,6 +6,8 @@
 
 #if PLATFORM_WINDOWS
 	#include "Windows/WindowsCriticalSection.h"
+#elif PLATFORM_UWP
+	#include "UWP/UWPCriticalSection.h"
 #elif PLATFORM_PS4
 	#include "PS4/PS4CriticalSection.h"
 #elif PLATFORM_XBOXONE

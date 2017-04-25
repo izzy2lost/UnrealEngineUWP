@@ -4,7 +4,8 @@
 	UWPMisc.cpp: UWP implementations of misc functions
 =============================================================================*/
 
-#include "CorePrivatePCH.h"
+#include "UWPMisc.h"
+#include "Misc/MessageDialog.h"
 #include "ExceptionHandling.h"
 #include "SecureHash.h"
 #include <time.h>

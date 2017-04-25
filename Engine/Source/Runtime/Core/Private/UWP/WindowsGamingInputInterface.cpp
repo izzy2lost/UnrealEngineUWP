@@ -1,8 +1,7 @@
 // Copyright Microsoft Inc. All Rights Reserved.
 
-#include "CorePrivatePCH.h"
-#include <unordered_map>
 #include "WindowsGamingInputInterface.h"
+#include <unordered_map>
 
 PACK_WINRT()
 

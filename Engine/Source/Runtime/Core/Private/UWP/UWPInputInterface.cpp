@@ -1,7 +1,8 @@
 // Copyright Microsoft. All Rights Reserved.
 
-#include "CorePrivatePCH.h"
 #include "UWPInputInterface.h"
+#include "Misc/CoreDelegates.h"
+#include "GenericPlatform/GenericApplication.h"
 #include "WindowsGamingInputInterface.h"
 
 const uint32 UWPKeyCount = 256;

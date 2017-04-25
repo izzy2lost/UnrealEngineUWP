@@ -5,8 +5,10 @@
 ==============================================================================================*/
 
 #pragma once
+#include "CoreTypes.h"
 #include "GenericPlatform/GenericPlatformAtomics.h"
-#include "UWP/UWPSystemIncludes.h"
+#include "UWPSystemIncludes.h"
+#include <intrin.h>
 
 /**
  * UWP implementation of the Atomics OS functions
@@ -18,7 +20,7 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 	 */
 	static FORCEINLINE int32 InterlockedIncrement(volatile int32* Value)
 	{
-		return (int32)::InterlockedIncrement((LPLONG)Value);
+		return (int32)::_InterlockedIncrement((LPLONG)Value);
 	}
 	
 	/**
@@ -26,7 +28,19 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 	 */
 	static FORCEINLINE int64 InterlockedIncrement (volatile int64* Value)
 	{
-		return (int64)::InterlockedIncrement64((LONGLONG*)Value);
+#if PLATFORM_64BITS
+		return (int64)::_InterlockedIncrement64((int64*)Value);
+#else
+		// No explicit instruction for 64-bit atomic increment on 32-bit processors; has to be implemented in terms of CMPXCHG8B
+		for (;;)
+		{
+			int64 OldValue = *Value;
+			if (_InterlockedCompareExchange64(Value, OldValue + 1, OldValue) == OldValue)
+			{
+				return OldValue + 1;
+			}
+		}
+#endif
 	}
 
 	/**
@@ -34,7 +48,7 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 	 */
 	static FORCEINLINE int32 InterlockedDecrement(volatile int32* Value)
 	{
-		return (int32)::InterlockedDecrement((LPLONG)Value);
+		return (int32)::_InterlockedDecrement((LPLONG)Value);
 	}
 
 	/**
@@ -42,7 +56,19 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 	 */
 	static FORCEINLINE int64 InterlockedDecrement (volatile int64* Value)
 	{
-		return (int64)::InterlockedDecrement64((LONGLONG*)Value);
+#if PLATFORM_64BITS
+		return (int64)::_InterlockedDecrement64((int64*)Value);
+#else
+		// No explicit instruction for 64-bit atomic decrement on 32-bit processors; has to be implemented in terms of CMPXCHG8B
+		for (;;)
+		{
+			int64 OldValue = *Value;
+			if (_InterlockedCompareExchange64(Value, OldValue - 1, OldValue) == OldValue)
+			{
+				return OldValue - 1;
+			}
+		}
+#endif
 	}
 
 	/**
@@ -51,7 +77,7 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 	 */
 	static FORCEINLINE int32 InterlockedAdd(volatile int32* Value,int32 Amount)
 	{
-		return (int32)::InterlockedExchangeAdd((LPLONG)Value, (LONG)Amount);
+		return (int32)::_InterlockedExchangeAdd((LPLONG)Value, (LONG)Amount);
 	}
 
 	/**
@@ -60,7 +86,19 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 	 */
 	static FORCEINLINE int64 InterlockedAdd (volatile int64* Value, int64 Amount)
 	{
-		return (int64)::InterlockedExchangeAdd64((LONGLONG*)Value, (LONGLONG)Amount);
+#if PLATFORM_64BITS
+		return (int64)::_InterlockedExchangeAdd64((int64*)Value, (int64)Amount);
+#else
+		// No explicit instruction for 64-bit atomic add on 32-bit processors; has to be implemented in terms of CMPXCHG8B
+		for (;;)
+		{
+			int64 OldValue = *Value;
+			if (_InterlockedCompareExchange64(Value, OldValue + Amount, OldValue) == OldValue)
+			{
+				return OldValue + Amount;
+			}
+		}
+#endif
 	}
 
 	/**
@@ -68,7 +106,7 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 	 */
 	static FORCEINLINE int32 InterlockedExchange(volatile int32* Value,int32 Exchange)
 	{
-		return (int32)::InterlockedExchange((LPLONG)Value, (LONG)Exchange);
+		return (int32)::_InterlockedExchange((LPLONG)Value, (LONG)Exchange);
 	}
 
 	/**
@@ -76,7 +114,19 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 	 */
 	static FORCEINLINE int64 InterlockedExchange (volatile int64* Value, int64 Exchange)
 	{
-		return (int64)::InterlockedExchange64((LONGLONG*)Value, (LONGLONG)Exchange);
+#if PLATFORM_64BITS
+		return ::_InterlockedExchange64(Value, Exchange);
+#else
+		// No explicit instruction for 64-bit atomic exchange on 32-bit processors; has to be implemented in terms of CMPXCHG8B
+		for (;;)
+		{
+			int64 OldValue = *Value;
+			if (_InterlockedCompareExchange64(Value, Exchange, OldValue) == OldValue)
+			{
+				return OldValue;
+			}
+		}
+#endif
 	}
 
 	static FORCEINLINE void* InterlockedExchangePtr( void** Dest, void* Exchange )
@@ -88,7 +138,7 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 		}
 #endif
 
-		return ::InterlockedExchangePointer(Dest, Exchange);
+		return ::_InterlockedExchangePointer(Dest, Exchange);
 	}
 
 	/**
@@ -97,19 +147,17 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 	 */
 	static FORCEINLINE int32 InterlockedCompareExchange(volatile int32* Dest,int32 Exchange,int32 Comparand)
 	{
-		return (int32)::InterlockedCompareExchange((LPLONG)Dest,(LONG)Exchange,(LONG)Comparand);
+		return (int32)::_InterlockedCompareExchange((LPLONG)Dest,(LONG)Exchange,(LONG)Comparand);
 	}
 
-#if PLATFORM_64BITS
 	/**
 	 * Atomically compares the value to comparand and replaces with the exchange
 	 * value if they are equal and returns the original value
 	 */
 	static FORCEINLINE int64 InterlockedCompareExchange (volatile int64* Dest, int64 Exchange, int64 Comparand)
 	{
-		return (int64)::InterlockedCompareExchange64((LONGLONG*)Dest, (LONGLONG)Exchange, (LONGLONG)Comparand);
+		return (int64)::_InterlockedCompareExchange64((LONGLONG*)Dest, (LONGLONG)Exchange, (LONGLONG)Comparand);
 	}
-#endif
 
 	/**
 	 * Atomically compares the pointer to comparand and replaces with the exchange
@@ -124,7 +172,7 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 			HandleAtomicsFailure( TEXT( "InterlockedCompareExchangePointer requires Dest pointer to be aligned to %d bytes" ), sizeof(void*) );
 		}
 #endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		return ::InterlockedCompareExchangePointer(Dest,Exchange,Comparand);
+		return ::_InterlockedCompareExchangePointer(Dest,Exchange,Comparand);
 	}
 
 private:

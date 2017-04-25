@@ -1,12 +1,12 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 
-#include "CorePrivatePCH.h"
 #include "UWPApplication.h"
 #include "UWPWindow.h"
 #include "UWPCursor.h"
 #include "UWPInputInterface.h"
 #include "UWPMisc.h"
 #include "GenericApplication.h"
+#include "CoreDelegates.h"
 
 PACK_WINRT()
 

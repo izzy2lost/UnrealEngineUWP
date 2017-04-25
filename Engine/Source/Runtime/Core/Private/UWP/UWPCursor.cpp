@@ -1,6 +1,5 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 
-#include "CorePrivatePCH.h"
 #include "UWPCursor.h"
 #include "UWPApplication.h"
 #include "UWPWindow.h"
@@ -271,13 +270,13 @@ void FUWPCursor::SetUseRawMouse(bool bUse)
 	}
 }
 
-void FUWPCursor::SetCustomShape(uint32 CursorResourceId)
+void FUWPCursor::SetCustomShape(void* InCursorHandle)
 {
-	if (CursorResourceId != 0)
+	if (InCursorHandle != nullptr)
 	{
 		// This will succeed even if CursorResourceId is invalid.  The point of failure if
 		// someone supplied a bad value will be when we actually try to set the window cursor.
-		Cursors[EMouseCursor::Custom] = ref new CoreCursor(CoreCursorType::Custom, CursorResourceId);
+		Cursors[EMouseCursor::Custom] = ref new CoreCursor(CoreCursorType::Custom, static_cast<uint32>(reinterpret_cast<uint64>(InCursorHandle)));
 	}
 	else
 	{

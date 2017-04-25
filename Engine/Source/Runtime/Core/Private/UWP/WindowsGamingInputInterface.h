@@ -1,7 +1,7 @@
 // Copyright Microsoft Inc. All Rights Reserved.
 
 #pragma once
-
+#include "GenericPlatform/GenericApplicationMessageHandler.h"
 
 class WindowsGamingInputInterface
 {

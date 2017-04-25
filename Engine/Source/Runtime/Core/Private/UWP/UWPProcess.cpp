@@ -4,7 +4,8 @@
 UWPProcess.cpp: UWP implementations of Process functions
 =============================================================================*/
 
-#include "CorePrivatePCH.h"
+#include "UWPProcess.h"
+#include "Misc/SingleThreadEvent.h"
 #include "UWPRunnableThread.h"
 
 #include "AllowWindowsPlatformTypes.h"
@@ -153,7 +154,10 @@ void* FUWPProcess::GetDllHandle(const TCHAR* Filename)
 {
 	check(Filename);
 	FString PackageRelativePath(Filename);
-	FPaths::MakePathRelativeTo(PackageRelativePath, *(FPaths::RootDir() + TEXT("/")));
+	if (!FPaths::IsRelative(Filename))
+	{
+		FPaths::MakePathRelativeTo(PackageRelativePath, *(FPaths::RootDir() + TEXT("/")));
+	}
 	return ::LoadPackagedLibrary(*PackageRelativePath, 0ul);
 }
 
@@ -277,14 +281,19 @@ DWORD_PTR WINAPI SetThreadAffinityMask(
 	// if static initialization got Cpu info....
 	if (Cpu_Info.Count > 0 && Cpu_Info.CpuInfoBytes && Cpu_Info.CpuInfoBuffer && Cpu_Info.CpuInfoPtrs)
 	{
-		ULONGLONG priorMask = 0xffffffffffffffffull;
-		ULONG priorCoreCount = 0;
+#ifdef _WIN64
+		DWORD_PTR priorMask = 0xffffffffffffffffull;
 		ULONG coreIds[64];
+#else
+		DWORD_PTR priorMask = 0xfffffffful;
+		ULONG coreIds[32];
+#endif
+		ULONG priorCoreCount = 0;
 
 		// this is simplified, assuming that not other setter will be setting affinity
-		if (GetThreadSelectedCpuSets(hThread, coreIds, 64, &priorCoreCount))
+		if (GetThreadSelectedCpuSets(hThread, coreIds, ARRAYSIZE(coreIds), &priorCoreCount))
 		{
-			if (priorCoreCount > 0 && priorCoreCount <= 64)
+			if (priorCoreCount > 0 && priorCoreCount <= ARRAYSIZE(coreIds))
 			{
 				priorMask = 0;
 				for (unsigned int currentCoreEntry = 0; currentCoreEntry < priorCoreCount; currentCoreEntry++)
@@ -302,7 +311,7 @@ DWORD_PTR WINAPI SetThreadAffinityMask(
 		}
 
 		int markedCount = 0;
-		for (int coreNum = 0; coreNum < 64 && coreNum < Cpu_Info.Count; coreNum++)
+		for (int coreNum = 0; coreNum < ARRAYSIZE(coreIds) && coreNum < Cpu_Info.Count; coreNum++)
 		{
 			if (dwThreadAffinityMask & (1ull << coreNum))
 			{
@@ -317,12 +326,14 @@ DWORD_PTR WINAPI SetThreadAffinityMask(
 		}
 		else
 		{
+			SetLastError(ERROR_BAD_ARGUMENTS);
 			return 0;
 		}
 	}
 	else
 	{
-		return E_FAIL;
+		SetLastError(ERROR_DEVICE_ENUMERATION_ERROR);
+		return 0;
 	}
 }
 

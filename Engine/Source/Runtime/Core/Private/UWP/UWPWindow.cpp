@@ -1,8 +1,9 @@
 // Copyright (C) Microsoft. All rights reserved.
 
-#include "CorePrivatePCH.h"
+
 #include "UWPWindow.h"
 #include "UWPApplication.h"
+#include "CoreTypes.h"
 
 PACK_WINRT()
 

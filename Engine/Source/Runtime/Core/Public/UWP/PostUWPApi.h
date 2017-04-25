@@ -29,3 +29,16 @@
 #define CDECL	    __cdecl					/* Standard C function */
 // Redefine CDECL to our version of the #define.
 #define CDECL	    __cdecl					/* Standard C function */
+
+#undef InterlockedIncrement
+#undef InterlockedDecrement
+#undef InterlockedAdd
+#undef InterlockedExchange
+#undef InterlockedExchangeAdd
+#undef InterlockedCompareExchange
+#undef InterlockedCompareExchangePointer
+#undef InterlockedExchange64
+#undef InterlockedExchangeAdd64
+#undef InterlockedCompareExchange64
+#undef InterlockedIncrement64
+#undef InterlockedDecrement64
