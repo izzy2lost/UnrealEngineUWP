@@ -171,99 +171,48 @@ namespace UnrealBuildTool
 
             return FinalResult;
         }
-        // @ATG_CHANGE : END
+		// @ATG_CHANGE : END
 
-        // @ATG_CHANGE : BEGIN Request the most appropriate SDK installation folder for a specific platform
-        /// <returns>The path to Windows SDK directory for the specified version and platform.</returns>
+		// @ATG_CHANGE : BEGIN Request the most appropriate SDK installation folder for a specific platform
+		/// <returns>The path to Windows SDK directory for the specified version and platform.</returns>
 		public static string FindWindowsSDKInstallationFolder(CPPTargetPlatform InPlatform, WindowsCompiler InCompiler, bool bSupportWindowsXP)
 		{
+			string VersionToQuery;
+
 			// When targeting Windows XP on Visual Studio 2012+, we need to point at the older Windows SDK 7.1A that comes
 			// installed with Visual Studio 2012 Update 1. (http://blogs.msdn.com/b/vcblog/archive/2012/10/08/10357555.aspx)
-			string Version;
 			if (bSupportWindowsXP)
 			{
-				Version = "v7.1A";
+				VersionToQuery = "v7.1A";
 			}
-			else switch (InCompiler)
+			else
+			{
+				switch (WindowsPlatform.Compiler)
 				{
 					case WindowsCompiler.VisualStudio2017:
 					case WindowsCompiler.VisualStudio2015:
-						if (WindowsPlatform.bUseWindowsSDK10)
+						if (WindowsPlatform.ShouldUseWindowsSDK10(InPlatform))
 						{
-							Version = "v10.0";
+							VersionToQuery = "v10.0";
 						}
 						else
 						{
-							Version = "v8.1";
+							VersionToQuery = "v8.1";
 						}
 						break;
 
 					case WindowsCompiler.VisualStudio2013:
-						Version = "v8.1";
+						VersionToQuery = "v8.1";
 						break;
 
 					default:
-						throw new BuildException("Unexpected compiler setting when trying to determine Windows SDK folder");
-				}
-
-			// Based on VCVarsQueryRegistry
-			string FinalResult = null;
-			foreach (string IndividualVersion in Version.Split('|'))
-			{
-				object Result = Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Microsoft SDKs\Windows\" + IndividualVersion, "InstallationFolder", null)
-					?? Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\" + IndividualVersion, "InstallationFolder", null)
-					?? Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\" + IndividualVersion, "InstallationFolder", null);
-
-				if (Result != null)
-				{
-					FinalResult = (string)Result;
-					break;
+						throw new BuildException("Unexpected compiler setting when trying to determine default Windows SDK folder");
 				}
 			}
-			if (FinalResult == null)
-			{
-				throw new BuildException("Windows SDK {0} must be installed in order to build this target.", Version);
-			}
 
-			return FinalResult;
+			// Find the possible path for this version
+			return FindWindowsSDKInstallationFolder(VersionToQuery);
 		}
-
-        {
-            string VersionToQuery;
-
-            // When targeting Windows XP on Visual Studio 2012+, we need to point at the older Windows SDK 7.1A that comes
-            // installed with Visual Studio 2012 Update 1. (http://blogs.msdn.com/b/vcblog/archive/2012/10/08/10357555.aspx)
-            if (bSupportWindowsXP)
-            {
-                VersionToQuery = "v7.1A";
-            }
-            else
-            { 
-                switch (WindowsPlatform.Compiler)
-                {
-                    case WindowsCompiler.VisualStudio2017:
-                    case WindowsCompiler.VisualStudio2015:
-                        if (WindowsPlatform.ShouldUseWindowsSDK10(InPlatform))
-                        {
-                            VersionToQuery = "v10.0";
-                        }
-                        else
-                        {
-                            VersionToQuery = "v8.1";
-                        }
-                        break;
-
-                    case WindowsCompiler.VisualStudio2013:
-                        VersionToQuery = "v8.1";
-                        break;
-
-                    default:
-                        throw new BuildException("Unexpected compiler setting when trying to determine default Windows SDK folder");
-                }
-            }
-
-            // Find the possible path for this version
-            return FindWindowsSDKInstallationFolder(VersionToQuery);
         // @ATG_CHANGE : END
 
         /// <summary>
