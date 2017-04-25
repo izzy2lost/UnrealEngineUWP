@@ -1,6 +1,6 @@
 // Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
 
-#include "HttpPrivatePCH.h"
+#include "HttpIXMLSupport.h"
 
 #if PLATFORM_UWP
 
@@ -423,7 +423,7 @@ STDMETHODIMP RequestStream::QueryInterface( REFIID InRIID, void **OutObj )
 //--------------------------------------------------------------------------------------
 STDMETHODIMP_(ULONG) RequestStream::AddRef()
 { 
-	return ::InterlockedIncrement(&RefCount);
+	return ::_InterlockedIncrement(&RefCount);
 } 
 
 //--------------------------------------------------------------------------------------
@@ -432,7 +432,7 @@ STDMETHODIMP_(ULONG) RequestStream::AddRef()
 //--------------------------------------------------------------------------------------
 STDMETHODIMP_(ULONG) RequestStream::Release()
 {
-	ULONG ulRefCount = ::InterlockedDecrement( &RefCount );
+	ULONG ulRefCount = ::_InterlockedDecrement( &RefCount );
 
 	if ( 0 == ulRefCount )
 	{

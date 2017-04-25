@@ -1,6 +1,5 @@
 // Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
 
-#include "HttpPrivatePCH.h"
 #include "HttpIXML.h"
 
 #if PLATFORM_UWP
