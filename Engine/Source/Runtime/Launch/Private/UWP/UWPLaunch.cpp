@@ -2,8 +2,18 @@
 
 #if PLATFORM_UWP
 
-#include "LaunchPrivatePCH.h"
+#include "CoreMinimal.h"
+
+#include "HAL/PlatformFilemanager.h"
+#include "Misc/LocalTimestampDirectoryVisitor.h"
+
+#include "Misc/App.h"
+#include "Misc/CoreDelegates.h"
+
+#include "LaunchEngineLoop.h"
+//#include "CoreTypes.h"
 #include "ExceptionHandling.h"
+#include "RHI.h"
 
 #include "UWPApplication.h"
 #include "UWPCursor.h"
@@ -90,7 +100,7 @@ protected:
 	// Extended execution handlers.
 	void OnExtensionRevokedHandler(Platform::Object^ obj, ExtendedExecutionRevokedEventArgs^ args);
 private:
-	Rect existingSize;
+	Windows::Foundation::Rect existingSize;
 
 	// If the ExtendedExecutionSession goes out of scope any pending request will be nullified
 	ExtendedExecutionSession^ ExecutionSession;
