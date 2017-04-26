@@ -84,7 +84,7 @@ public:
 	virtual void ClearPendingCleanupObjects() override;
 
 // @ATG_CHANGE : BEGIN UWP support
-#if PLATFORM_UWP || PLATFORM_WINRT
+#if PLATFORM_UWP
 	void OnResuming(_In_ Platform::Object^ Sender, _In_ Platform::Object^ Args);
 	void OnSuspending(_In_ Platform::Object^ Sender, _In_ Windows::ApplicationModel::SuspendingEventArgs^ Args);
 #endif // PLATFORM_UWP || PLATFORM_WINRT
