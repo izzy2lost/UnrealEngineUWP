@@ -1,4 +1,3 @@
-#include "UWPPlatformEditorPrivatePCH.h"
 
 #include "UWPTargetSettingsCustomization.h"
 #include "SExternalImageReference.h"

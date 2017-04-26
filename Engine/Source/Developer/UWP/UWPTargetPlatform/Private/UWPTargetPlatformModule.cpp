@@ -1,5 +1,4 @@
-
-#include "UWPTargetPlatformPrivatePCH.h"
+#include "ITargetPlatformModule.h"
 #include "AllowWindowsPlatformTypes.h"
 #include "ISettingsModule.h"
 #include "ModuleManager.h"

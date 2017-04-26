@@ -1,5 +1,3 @@
-
-#include "UWPPlatformEditorPrivatePCH.h"
 #include "PropertyEditorModule.h"
 #include "UWPTargetSettingsCustomization.h"
 #include "ISettingsModule.h"

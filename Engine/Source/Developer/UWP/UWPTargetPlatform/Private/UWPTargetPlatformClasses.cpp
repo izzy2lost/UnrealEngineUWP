@@ -2,7 +2,7 @@
 	UWPTargetPlatformClasses.cpp: Implements the module's UClasses.
 =============================================================================*/
 
-#include "UWPTargetPlatformPrivatePCH.h"
+#include "UWPTargetSettings.h"
 
 
 

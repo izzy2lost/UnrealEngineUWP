@@ -2,6 +2,8 @@
 
 #include "EditorStyle.h"
 #include "PropertyEditorModule.h"
+#include "IDetailCustomization.h"
+#include "DetailLayoutBuilder.h"
 
 class FUWPTargetSettingsCustomization : public IDetailCustomization
 {

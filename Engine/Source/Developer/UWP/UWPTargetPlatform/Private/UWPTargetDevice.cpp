@@ -1,7 +1,5 @@
 // Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
-#include "UWPTargetPlatformPrivatePCH.h"
-
 #include "UWPTargetDevice.h"
 
 #include "AllowWindowsPlatformTypes.h"

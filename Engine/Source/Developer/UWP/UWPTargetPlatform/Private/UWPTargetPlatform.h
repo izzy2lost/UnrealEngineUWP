@@ -4,6 +4,9 @@
 
 #pragma once
 
+#include "TargetPlatformBase.h"
+#include "UWP/UWPProperties.h"
+
 #include "AllowWindowsPlatformTypes.h"
 
 #if WITH_ENGINE
@@ -55,7 +58,7 @@ public:
 
 	virtual void GetTextureFormats(const UTexture* InTexture, TArray<FName>& OutFormats) const override
 	{
-		FName TextureFormatName = GetDefaultTextureFormatName(InTexture, EngineSettings, false);
+		FName TextureFormatName = GetDefaultTextureFormatName(this, InTexture, EngineSettings, false);
 		OutFormats.Add(TextureFormatName);
 	}
 

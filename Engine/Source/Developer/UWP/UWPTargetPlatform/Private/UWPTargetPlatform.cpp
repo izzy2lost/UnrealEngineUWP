@@ -3,7 +3,7 @@
 	UWPTargetPlatform.cpp: Implements the FUWPTargetPlatform class.
 =============================================================================*/
 
-#include "UWPTargetPlatformPrivatePCH.h"
+#include "UWPTargetPlatform.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUWPTargetPlatform, Log, All);
 
