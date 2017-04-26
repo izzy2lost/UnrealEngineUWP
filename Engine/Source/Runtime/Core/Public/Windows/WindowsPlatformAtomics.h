@@ -168,7 +168,7 @@ struct CORE_API FWindowsPlatformAtomics
 		}
 #endif
 
-		return ::InterlockedCompareExchange128((int64 volatile *)Dest, Exchange.High, Exchange.Low, (int64*)Comparand) == 1;
+		return ::_InterlockedCompareExchange128((int64 volatile *)Dest, Exchange.High, Exchange.Low, (int64*)Comparand) == 1;
 	}
 #endif // PLATFORM_HAS_128BIT_ATOMICS
 
