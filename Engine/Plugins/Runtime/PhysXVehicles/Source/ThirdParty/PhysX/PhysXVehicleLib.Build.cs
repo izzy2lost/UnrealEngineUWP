@@ -88,6 +88,8 @@ public class PhysXVehicleLib : ModuleRules
 		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32 || (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32"))
 		{
 			PublicLibraryPaths.Add(PhysXLibDir + (Target.Platform == UnrealTargetPlatform.HTML5 ? "Win32" : Target.Platform.ToString()) + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName());
+
+			PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}_x86.lib", LibrarySuffix));
 		}
 		// @ATG_CHANGE: END UWP support
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
