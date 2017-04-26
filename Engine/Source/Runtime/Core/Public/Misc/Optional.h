@@ -158,6 +158,22 @@ public:
 	const OptionalType& Get(const OptionalType& DefaultValue) const { return IsSet() ? *(OptionalType*)&Value : DefaultValue; }
 
 private:
+
+	// @ATG_CHANGE : BEGIN UWP support
+	// The approach of adjusting the packing mode around enum class forward declarations (because
+	// the compiler interprets these as WinRT types) is getting unwieldly, especially with IWYU 
+	// driving up the number of such declarations.  So instead we've just upped the default packing
+	// to 8 bytes on UWP32.  As a result, we need a different definition of TTypeCompatibleBytes to avoid 
+	// C2719: 'parameter': formal parameter with __declspec(align('#')) won't be aligned.
+	// Need to check whether this is still necessary on VS2017
+#if PLATFORM_UWP && !PLATFORM_64BITS
+	struct 
+	{
+		uint8 Pad[sizeof(OptionalType)];
+	} Value;
+	bool bIsSet;
+#else
 	bool bIsSet;
 	TTypeCompatibleBytes<OptionalType> Value;
+#endif
 };

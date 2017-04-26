@@ -57,16 +57,16 @@ namespace UnrealBuildTool
 			// Enable intrinsic functions.
 			Arguments.Add("/Oi");
 
-			if (CompileEnvironment.Config.Platform == CPPTargetPlatform.UWP64)
+			// Pack struct members on 8-byte boundaries.
+			// Note: we do this even for 32bit builds because it's the required packing mode
+			// for WinRT types, and currently enum class forward declarations (which are everywhere)
+			// are interpreted as WinRT.
+			// Need to check whether this is still necessary with VS2017
+			Arguments.Add("/Zp8");
+
+			if (CompileEnvironment.Config.Platform != CPPTargetPlatform.UWP64)
 			{
-				// Pack struct members on 8-byte boundaries.
-				Arguments.Add("/Zp8");
-			}
-			else
-			{
-				// Pack struct members on 4-byte boundaries.
-				Arguments.Add("/Zp4");
-				// Allow the compiler to generate SSE2 instructions.
+				// Allow the compiler to generate SSE2 instructions. (On by default in 64bit)
 				Arguments.Add("/arch:SSE2");
 			}
 
