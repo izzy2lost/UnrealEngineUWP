@@ -337,6 +337,8 @@ const FString& FUWPMisc::GetProtocolActivationUri()
 	return ProtocolActivationUri;
 }
 
+PACK_WINRT()
+
 EAppReturnType::Type FUWPMisc::MessageBoxExt(EAppMsgType::Type MsgType, const TCHAR* Text, const TCHAR* Caption)
 {
 	using namespace Windows::UI::Core;
@@ -481,3 +483,5 @@ EAppReturnType::Type FUWPMisc::MessageBoxExt(EAppMsgType::Type MsgType, const TC
 	}
 	return ReturnValue;
 }
+
+PACK_WINRT_REVERT()
