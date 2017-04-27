@@ -116,7 +116,7 @@ namespace UWP.Automation
 			RunAndLog(CmdEnv, MakeAppXPath, MakeAppXCommandLine, null, 0, null, ERunOptions.None);
 
 			string SigningCertificate = @"Build\UWP\SigningCertificate.pfx";
-			ConfigCacheIni PlatformEngineConfig = null;
+			ConfigHierarchy PlatformEngineConfig = null;
 			if (Params.EngineConfigs.TryGetValue(SC.StageTargetPlatform.PlatformType, out PlatformEngineConfig))
 			{
 				PlatformEngineConfig.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "SigningCertificate", out SigningCertificate);
