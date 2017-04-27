@@ -2,6 +2,7 @@
 #include "AllowWindowsPlatformTypes.h"
 #include "ISettingsModule.h"
 #include "ModuleManager.h"
+#include "Package.h"
 
 
 #define LOCTEXT_NAMESPACE "FUWPTargetPlatformModule"
