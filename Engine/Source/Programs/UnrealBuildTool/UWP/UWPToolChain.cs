@@ -61,7 +61,6 @@ namespace UnrealBuildTool
 			// Note: we do this even for 32bit builds because it's the required packing mode
 			// for WinRT types, and currently enum class forward declarations (which are everywhere)
 			// are interpreted as WinRT.
-			// Need to check whether this is still necessary with VS2017
 			Arguments.Add("/Zp8");
 
 			if (CompileEnvironment.Config.Platform != CPPTargetPlatform.UWP64)
@@ -297,8 +296,12 @@ namespace UnrealBuildTool
 				Arguments.AddFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract"));
 				Arguments.AddFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract"));
 			}
-			Arguments.AddFormat(@" /AI""{0}\vcpackages""", EnvVars.VCInstallDir);
-			Arguments.AddFormat(@" /FU""{0}\vcpackages\platform.winmd""", EnvVars.VCInstallDir);
+			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(WindowsPlatform.Compiler);
+			if (PlatformWinMDLocation != null)
+			{
+				Arguments.AddFormat(@" /AI""{0}""", PlatformWinMDLocation);
+				Arguments.AddFormat(@" /FU""{0}\platform.winmd""", PlatformWinMDLocation);
+			}
 		}
 
 		static void AppendCLArguments_CPP(CPPEnvironment CompileEnvironment, List<string> Arguments)

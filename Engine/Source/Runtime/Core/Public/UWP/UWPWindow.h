@@ -36,8 +36,8 @@ public:
 	virtual EWindowMode::Type GetWindowMode() const override;
 
 public:
-	static int32 FUWPWindow::ConvertDipsToPixels(int32 Dips, float Dpi);
-	static int32 FUWPWindow::ConvertPixelsToDips(int32 Pixels, float Dpi);
+	static int32 ConvertDipsToPixels(int32 Dips, float Dpi);
+	static int32 ConvertPixelsToDips(int32 Pixels, float Dpi);
 
 private:
 

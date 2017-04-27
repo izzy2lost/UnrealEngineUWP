@@ -56,26 +56,42 @@ namespace UnrealBuildTool
 
 		public override void GenerateGameProperties(UnrealTargetConfiguration Configuration, StringBuilder VCProjectFileContent, TargetRules.TargetType TargetType, DirectoryReference RootDirectory, FileReference TargetFilePath)
 		{
+			string MinVersion = string.Empty;
+			string MaxTestedVersion = string.Empty;
+			ConfigHierarchy EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, RootDirectory, UnrealTargetPlatform.UWP64);
+			if (EngineIni != null)
+			{
+				EngineIni.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "MinimumPlatformVersion", out MinVersion);
+				EngineIni.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "MaximumPlatformVersionTested", out MaxTestedVersion);
+			}
+			VCProjectFileContent.Append("		<WindowsTargetPlatformMinVersion>" + MinVersion + "</WindowsTargetPlatformMinVersion>" + ProjectFileGenerator.NewLine);
+			VCProjectFileContent.Append("		<WindowsTargetPlatformVersion>" + MaxTestedVersion + "</WindowsTargetPlatformVersion>" + ProjectFileGenerator.NewLine);
+
 			string FoundationWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract");
 			string UniversalWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract");
-			string PlatformWinMDPath = string.Empty;
-			DirectoryReference VCInstallPath;
-			if (WindowsPlatform.TryGetVCInstallDir(WindowsPlatform.Compiler, out VCInstallPath))
-			{
-				PlatformWinMDPath = DirectoryReference.Combine(VCInstallPath, "vcpackages", "platform.winmd").FullName;
-			}
 			VCProjectFileContent.Append("		<AdditionalOptions>/ZW</AdditionalOptions>" + ProjectFileGenerator.NewLine);
 			VCProjectFileContent.Append("		<NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions);PLATFORM_UWP=1;UWP=1;</NMakePreprocessorDefinitions>" + ProjectFileGenerator.NewLine);
-			VCProjectFileContent.Append("       <NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies);" + FoundationWinMDPath + ";" + UniversalWinMDPath + ";" + PlatformWinMDPath + "</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine);
+			VCProjectFileContent.Append("       <NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies);" + FoundationWinMDPath + ";" + UniversalWinMDPath + ";" + "</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine);
+			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(WindowsPlatform.Compiler);
+			if (PlatformWinMDLocation != null)
+			{
+				VCProjectFileContent.Append("       <NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies);" + PlatformWinMDLocation.FullName + "\\platform.winmd</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine);
+			}
 		}
 
 		public override string GetVisualStudioPreDefaultString(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration)
 		{
+			// VS2017 expects WindowsTargetPlatformVersion to be set in conjunction with these other properties, otherwise the projects
+			// will fail to load when the solution is in a UWP configuration.
+			// Default to latest supported version.  Game projects can override this later.
+			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
+			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder);
 			return "		<AppContainerApplication>true</AppContainerApplication>" + ProjectFileGenerator.NewLine +
 					"		<ApplicationType>Windows Store</ApplicationType>" + ProjectFileGenerator.NewLine +
 					"		<ApplicationTypeRevision>10.0</ApplicationTypeRevision>" + ProjectFileGenerator.NewLine +
 					"		<WindowsAppContainer>true</WindowsAppContainer>" + ProjectFileGenerator.NewLine +
-					"		<AppxPackage>true</AppxPackage>" + ProjectFileGenerator.NewLine;
+					"		<AppxPackage>true</AppxPackage>" + ProjectFileGenerator.NewLine +
+					"		<WindowsTargetPlatformVersion>" + SDKVersion.ToString() + "</WindowsTargetPlatformVersion>" + ProjectFileGenerator.NewLine;
 		}
 
 		public override string GetVisualStudioLayoutDirSection(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InConditionString, TargetRules.TargetType TargetType, FileReference TargetRulesPath, FileReference ProjectFilePath, FileReference NMakeOutputPath, VCProjectFileFormat InProjectFileFormat)

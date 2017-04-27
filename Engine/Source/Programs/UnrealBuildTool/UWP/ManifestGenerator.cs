@@ -110,7 +110,7 @@ namespace UnrealBuildTool
 
 			foreach (XmlSchemaElement Element in AppxSchema.GlobalElements.Values)
 			{
-				if (Element.SubstitutionGroup != null && TargetElement.QualifiedName.Name.Equals(Element.SubstitutionGroup.Name))
+				if (Element.SubstitutionGroup != null && TargetElement.QualifiedName.Equals(Element.SubstitutionGroup))
 				{
 					SubstitutionFound |= PrintElement(Element, SettingID, Indent, OutputContents, TargetElement.MaxOccurs);
 					// Note: substitution groups are often used in place of choice elements, there could be multiple substitution
@@ -809,20 +809,42 @@ namespace UnrealBuildTool
 			AppxSchema = new XmlSchemaSet();
 			AppxSchema.ValidationEventHandler += SchemaCallback;
 
-			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
-            Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder);
-            string UWPSchemaFolder = Path.Combine(SDKFolder, "Include", SDKVersion.ToString(), "winrt");
+			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2017)
+			{
+				DirectoryReference VSInstallDir;
+				WindowsPlatform.TryGetVSInstallDir(WindowsPlatform.Compiler, out VSInstallDir);
+				DirectoryReference VSSchemaFolder = DirectoryReference.Combine(VSInstallDir, "Xml", "Schemas");
 
-			// UWP allows the PhoneIdentity element to reference a Windows Phone package for cross-store entitlement
-			// @todo: I think this creates a dependency on including the (optional) phone SDK in the Windows SD install?  That seens unfortunate.
-			string PhoneSchemaFolder = Path.Combine(SDKFolder, "Extension SDKs", "WindowsMobile", SDKVersion.ToString(), "Include", "WinRT");
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v2.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v3.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v4.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "FoundationManifestSchema.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestTypes.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2010_v3.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2013_v2.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2014.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxPhoneManifestSchema2014.xsd").FullName));
+				//AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "DesktopManifestSchema.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "DesktopManifestSchema_v2.xsd").FullName));
+			}
+			else
+			{
+				string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
+				Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder);
+				string UWPSchemaFolder = Path.Combine(SDKFolder, "Include", SDKVersion.ToString(), "winrt");
 
-			AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "UapManifestSchema.xsd")));
-			AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "FoundationManifestSchema.xsd")));
-			AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestTypes.xsd")));
-			AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestSchema2010_v2.xsd")));
-			AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestSchema2013.xsd")));
-			AppxSchema.Add(null, XmlReader.Create(Path.Combine(PhoneSchemaFolder, "AppxPhoneManifestSchema2014.xsd")));
+				// UWP allows the PhoneIdentity element to reference a Windows Phone package for cross-store entitlement
+				// @todo: I think this creates a dependency on including the (optional) phone SDK in the Windows SD install?  That seens unfortunate.
+				string PhoneSchemaFolder = Path.Combine(SDKFolder, "Extension SDKs", "WindowsMobile", SDKVersion.ToString(), "Include", "WinRT");
+
+				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "UapManifestSchema.xsd")));
+				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "FoundationManifestSchema.xsd")));
+				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestTypes.xsd")));
+				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestSchema2010_v2.xsd")));
+				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestSchema2013.xsd")));
+				AppxSchema.Add(null, XmlReader.Create(Path.Combine(PhoneSchemaFolder, "AppxPhoneManifestSchema2014.xsd")));
+			}
 
 			AppxSchema.Compile();
 		}

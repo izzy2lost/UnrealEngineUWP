@@ -165,7 +165,6 @@ private:
 	// driving up the number of such declarations.  So instead we've just upped the default packing
 	// to 8 bytes on UWP32.  As a result, we need a different definition of TTypeCompatibleBytes to avoid 
 	// C2719: 'parameter': formal parameter with __declspec(align('#')) won't be aligned.
-	// Need to check whether this is still necessary on VS2017
 #if PLATFORM_UWP && !PLATFORM_64BITS
 	struct 
 	{
