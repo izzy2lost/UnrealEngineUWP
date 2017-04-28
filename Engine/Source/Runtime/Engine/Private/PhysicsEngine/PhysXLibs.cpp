@@ -50,18 +50,7 @@ ENGINE_API void LoadPhysXModules()
 	FString PhysXBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX/");
 	FString APEXBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX/");
 	FString SharedBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX/");
-	// @ATG_CHANGE : BEGIN UWP support
-	// UE relative paths appear to be relative to the base directory (the startup binary)
-	// but LoadPackagedLibrary needs a _package_ relativePath
-#if PLATFORM_UWP
-	FPaths::MakePathRelativeTo(PhysXBinariesRoot, *(FPaths::RootDir() + TEXT("/")));
-	PhysXBinariesRoot += TEXT("/");
-	FPaths::MakePathRelativeTo(APEXBinariesRoot, *(FPaths::RootDir() + TEXT("/")));
-	APEXBinariesRoot += TEXT("/");
-	FPaths::MakePathRelativeTo(SharedBinariesRoot, *(FPaths::RootDir() + TEXT("/")));
-	SharedBinariesRoot += TEXT("/");
-#endif
-	// @ATG_CHANGE : END
+
 	#if _MSC_VER >= 1900
 		FString VSDirectory(TEXT("VS2015/"));
 	#elif _MSC_VER >= 1800

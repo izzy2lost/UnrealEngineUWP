@@ -154,10 +154,10 @@ void* FUWPProcess::GetDllHandle(const TCHAR* Filename)
 {
 	check(Filename);
 	FString PackageRelativePath(Filename);
-	if (!FPaths::IsRelative(Filename))
-	{
-		FPaths::MakePathRelativeTo(PackageRelativePath, *(FPaths::RootDir() + TEXT("/")));
-	}
+
+	// Incoming paths are relative to the BaseDir, but LoadPackagedLibrary wants package relative
+	// which in UE terms is the RootDir.
+	FPaths::MakePathRelativeTo(PackageRelativePath, *(FPaths::RootDir() + TEXT("/")));
 	return ::LoadPackagedLibrary(*PackageRelativePath, 0ul);
 }
 

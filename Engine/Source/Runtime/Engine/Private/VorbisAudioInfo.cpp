@@ -403,13 +403,12 @@ void LoadVorbisLibraries()
 #else
 		PlatformString = TEXT("UWP32");
 #endif
-		FString RootOggPath = TEXT("Engine/Binaries/ThirdParty/Ogg/") / PlatformString / VSVersion;
-		FString RootVorbisPath = TEXT("Engine/Binaries/ThirdParty/Vorbis/") / PlatformString / VSVersion;
-#else
-		FString RootOggPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Ogg/") / PlatformString / VSVersion;
-		FString RootVorbisPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Vorbis/") / PlatformString / VSVersion;
 #endif
 // @ATG_CHANGE :  END
+
+		FString RootOggPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Ogg/") / PlatformString / VSVersion;
+		FString RootVorbisPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Vorbis/") / PlatformString / VSVersion;
+
 
 		FString DLLToLoad = RootOggPath + TEXT("libogg") + DLLNameStub;
 		verifyf(FPlatformProcess::GetDllHandle(*DLLToLoad), TEXT("Failed to load DLL %s"), *DLLToLoad);
