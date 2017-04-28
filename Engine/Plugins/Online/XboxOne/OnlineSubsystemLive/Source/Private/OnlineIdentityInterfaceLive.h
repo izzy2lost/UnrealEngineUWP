@@ -1,12 +1,13 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "OnlineIdentityInterface.h"
 #include "OnlineSubsystemLivePackage.h"
 #include "OnlineSubsystemLiveTypes.h"
-#include "OnlineSubsystemLive.h"
 #include "OnlineAsyncTaskManager.h"
+
+class FUserOnlineAccountLive;
 
 class FOnlineIdentityLive :
 	public IOnlineIdentity
@@ -46,6 +47,11 @@ public:
 	virtual FPlatformUserId GetPlatformUserIdFromUniqueNetId(const FUniqueNetId& UniqueNetId) override;
 	virtual FString GetAuthType() const override;
 
+	/**
+	* Sets a user's XSTS token (adding the user to the internal map if they're not already in it)
+	*/
+	void SetUserXSTSToken(Windows::Xbox::System::User^ User, const FString& AuthToken);
+
 private:
 
 	/**
@@ -60,7 +66,7 @@ private:
 	void UnhookLiveEvents();
 
 	/**
-	 * Delegate called when app resumes from suspend. 
+	 * Delegate called when app resumes from suspend.
 	 */
 	void HandleAppResume();
 
@@ -80,27 +86,27 @@ PACKAGE_SCOPE:
 
 	/**
 	 * Helper method to translate Xbox One Controller Index request to User
-	 * 
+	 *
 	 * @param ControllerIndex the controller index to use
-	 * 
+	 *
 	 * @return The User^ associated with the controller index, or nullptr if no users are found
 	 */
 	Windows::Xbox::System::User^ GetUserForControllerIndex(int32 ControllerIndex) const;
 
 	/**
 	 * Helper method to translate a User into a ControllerIndex.
-	 * 
+	 *
 	 * @param User the user to look up
-	 * 
+	 *
 	 * @return The controller index associated with the user, or -1 if not found.
 	 */
 	int32 GetControllerIndexForUser(Windows::Xbox::System::User^ InUser) const;
 
 	/**
 	 * Helper method to translate an ID into a ControllerIndex.
-	 * 
+	 *
 	 * @param PlayerId the user to look up
-	 * 
+	 *
 	 * @return The controller index associated with the user, or -1 if not found.
 	 */
 	int32 GetControllerIndexForId(const FUniqueNetId& PlayerId) const;
@@ -140,7 +146,9 @@ private:
 		virtual void TriggerDelegates() override;
 	};
 
-#if !PLATFORM_UWP
+// @ATG_CHANGE : BEGIN - UWP LIVE support - Compatible wrapper needs implementation here
+#if PLATFORM_XBOXONE
+// @ATG_CHANGE : END - UWP LIVE support
 	/**
 	 * Async event that notifies when a user has been added. Using a task for this because
 	 * we need the delegates to be executed on the game thread.
@@ -157,12 +165,15 @@ private:
 		virtual FString ToString() const override;
 		virtual void TriggerDelegates() override;
 	};
-// @ATG_CHANGE : BEGIN UWP LIVE support
-#endif
+// @ATG_CHANGE : BEGIN - UWP LIVE support
+#endif // PLATFORM_XBOXONE
+// @ATG_CHANGE : END - UWP LIVE support
+
 	/** Cached list of users */
 	mutable Windows::Foundation::Collections::IVectorView<Windows::Xbox::System::User^>^ CachedUsers;
 
-// @ATG_CHANGE : END
+	/** Lock for updating/reading CachedUsers vector */
+	mutable FCriticalSection CachedUsersLock;
 
 	/** Stored token used to remove the task later */
 	Windows::Foundation::EventRegistrationToken TaskTokenUserRemoved;
@@ -172,6 +183,68 @@ private:
 
 	/** Stored token used to remove the task later */
 	Windows::Foundation::EventRegistrationToken TaskTokenControllerPairingChanged;
+
+PACKAGE_SCOPE:
+	FString LoginXSTSEndpoint;
+
+private:
+	/** Map of online user accounts (using user id as key) */
+	TMap<FUniqueNetIdLive, TSharedPtr<FUserOnlineAccount> > OnlineUsers;
+
 };
 
-typedef TSharedPtr<FOnlineIdentityLive> FOnlineIdenityLivePtr;
+class FUserOnlineAccountLive :
+	public FUserOnlineAccount
+{
+public:
+
+	// FUserOnlineAccount
+	/**
+	* @return Access token which is provided to user once authenticated by the online service
+	*/
+	virtual FString GetAccessToken() const override;
+	/**
+	* @return Any additional auth data associated with a registered user
+	*/
+	virtual bool GetAuthAttribute(const FString& AttrName, FString& OutAttrValue) const override;
+	/**
+	* @return True, if the data has been changed
+	*/
+	virtual bool SetUserAttribute(const FString& AttrName, const FString& AttrValue) override;
+
+	// FOnlineUser
+	/** Id associated with the user account provided by the online service during registration */
+	virtual TSharedRef<const FUniqueNetId> GetUserId() const override;
+	/** Real name for the user if known */
+	virtual FString GetRealName() const override;
+	/** Nickname of the user if known */
+	virtual FString GetDisplayName(const FString& Platform = FString()) const override;
+	/** Additional user data associated with a registered user */
+	virtual bool GetUserAttribute(const FString& AttrName, FString& OutAttrValue) const override;
+	/** Sets the user's access token, used to verify their authentication */
+	void SetAccessToken(const FString& AuthToken);
+
+	/**
+	 * Init/default constructor
+	 */
+	FUserOnlineAccountLive(Windows::Xbox::System::User^ InUser)
+		: UserData(InUser)
+		, UserId(new FUniqueNetIdLive(InUser->XboxUserId))
+	{
+		// Store our XUID as 'id' for Epic login code puposes
+		// On other platforms, this isn't always just our FUniqueNetId.ToString(), so
+		// we just follow convention
+		UserAttributes.Emplace(TEXT("id"), UserId->ToString());
+	}
+
+	/**
+	 * Destructor
+	 */
+	virtual ~FUserOnlineAccountLive() = default;
+
+private:
+	Windows::Xbox::System::User^ UserData;
+	TMap<FString, FString> UserAttributes;
+	TSharedRef<const FUniqueNetIdLive> UserId;
+	FString UserXSTSToken;
+};

@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -23,8 +23,8 @@ public:
 		int32 RetryCount,
 		int32 InQosTimeoutMs,
 		int32 InQosProbeCount);
-	
-	virtual void Start() override;
+
+	virtual void Initialize() override;
 
 	virtual FString ToString() const override { return TEXT("MeasureAndUploadQosAsync");}
 	virtual void Finalize() override;
@@ -55,7 +55,7 @@ private:
 	TMap<FString, FString> AddressDeviceTokenMap;
 	Platform::Collections::Vector<Microsoft::Xbox::Services::Multiplayer::MultiplayerQualityOfServiceMeasurements^>^ MeasurementResults;
 	Platform::Collections::Vector<Windows::Xbox::System::User^>^ LocalUsersInSession;
-	
+
 	int32 InitialRetryCount;
 	int32 QosTimeoutMs;
 	int32 QosProbeCount;

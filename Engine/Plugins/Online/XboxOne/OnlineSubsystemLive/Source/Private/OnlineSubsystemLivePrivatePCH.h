@@ -1,18 +1,15 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
-
-#include "Engine.h"
+#include "CoreMinimal.h"
 #include "OnlineSubsystemLiveModule.h"
 #include "OnlineSubsystemModule.h"
 #include "OnlineSubsystem.h"
-#include "ModuleManager.h"
+#include "OnlineSubsystemSessionSettings.h"
 #include "OnlineSubsystemLive.h"
-
-// @ATG_CHANGE :  BEGIN UWP LIVE support
-#include <collection.h>
-// @ATG_CHANGE :  END
+#include "ModuleManager.h"
+#include "PixelFormat.h"
 
 #define INVALID_INDEX -1
 
@@ -23,12 +20,17 @@
 #undef ONLINE_LOG_PREFIX
 #define ONLINE_LOG_PREFIX TEXT("LIVE: ")
 
+/** global SCID used for non-title-specific queries (e.g. user reputation) */
+#define LIVE_GLOBAL_SCID TEXT("7492baca-c1b4-440d-a391-b7ef364a8d40")
+
 // @ATG_CHANGE :  BEGIN UWP LIVE support
+#include "OnlineError.h"
 #if PLATFORM_XBOXONE
 #include "XboxOneAllowPlatformTypes.h"
 #define _UITHREADCTXT_SUPPORT   0
 #include <ppltasks.h>
 #include <ws2tcpip.h>
+#include <collection.h>
 #include "XboxOneHidePlatformTypes.h"
 
 #include "Runtime/Core/Private/XboxOne/XboxOneInputInterface.h"
@@ -54,8 +56,8 @@ inline Windows::Xbox::System::User ^SystemUserFromControllerUser(Windows::Xbox::
 #define _UITHREADCTXT_SUPPORT   0
 #include <ppltasks.h>
 #include <ws2tcpip.h>
+#include <collection.h>
 #include "HideWindowsPlatformTypes.h"
-
 #include "Runtime/Core/Private/UWP/UWPInputInterface.h"
 
 // @ATG_CHANGE : sspiller@microsoft.com - BEGIN disable warning caused by build reference mismatch
@@ -117,6 +119,11 @@ namespace Windows
 		{
 			//using Controller = ::ERAToUWPShims::Controller;
 			//using ControllerPairingChangedEventArgs = ::ERAToUWPShims::ControllerPairingChangedEventArgs;
+		}
+
+		namespace Services
+		{
+			using XboxLiveConfiguration = ::Microsoft::Xbox::Services::XboxLiveAppConfiguration;
 		}
 	}
 }
@@ -186,7 +193,3 @@ PACK_WINRT_REVERT()
 
 #endif
 // @ATG_CHANGE :  END
-
-
-
-

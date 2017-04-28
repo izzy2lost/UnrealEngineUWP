@@ -1,13 +1,16 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineIdentityInterfaceLive.h"
 #include "OnlineSubsystemLive.h"
 #include "OnlineSubsystemLiveTypes.h"
 #include "OnlineAsyncTaskManagerLive.h"
-// @ATG_CHANGE : BEGIN UWP LIVE support
-#include "SlateBasics.h" // For SlateApplication, SlateApplication.h is not self-sufficient :(
-// @ATG_CHANGE : END
+// @ATG_CHANGE : UWP Live Support - platform headers moved to pch
+#include "Framework/Application/SlateApplication.h"
+#include "Misc/CoreDelegates.h"
+#include "AsyncTasks/OnlineAsyncTaskLiveGetXSTSToken.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/ScopeLock.h"
 
 using namespace Microsoft;
 using namespace Windows::Foundation;
@@ -62,6 +65,10 @@ FOnlineIdentityLive::FOnlineIdentityLive(class FOnlineSubsystemLive* InSubsystem
 	LiveSubsystem(InSubsystem)
 {
 	check(LiveSubsystem);
+
+	// Store the Login XSTS endpoint for later XSTS generation
+	GConfig->GetString(TEXT("OnlineSubsystemLive"), TEXT("LoginXSTSEndpoint"), LoginXSTSEndpoint, GEngineIni);
+
 	HookLiveEvents();
 	RefreshGamepadsAndUsers();
 }
@@ -73,30 +80,78 @@ FOnlineIdentityLive::~FOnlineIdentityLive()
 
 TSharedPtr<FUserOnlineAccount> FOnlineIdentityLive::GetUserAccount(const FUniqueNetId& UserId) const
 {
-	//@todo - not implemented
-	return NULL;
+	const FUniqueNetIdLive& LiveUserId = static_cast<const FUniqueNetIdLive&>(UserId);
+
+	const TSharedPtr<FUserOnlineAccount>* FoundUserPtr = OnlineUsers.Find(LiveUserId);
+	if (FoundUserPtr != nullptr)
+	{
+		return *FoundUserPtr;
+	}
+
+	return nullptr;
 }
 
 TArray<TSharedPtr<FUserOnlineAccount> > FOnlineIdentityLive::GetAllUserAccounts() const 
 {
-	//@todo - not implemented
-	return TArray<TSharedPtr<FUserOnlineAccount> >();
+	TArray<TSharedPtr<FUserOnlineAccount> > UserAccounts;
+	OnlineUsers.GenerateValueArray(UserAccounts);
+
+	return UserAccounts;
 }
 
 bool FOnlineIdentityLive::Login(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials)
 {
-	TSharedPtr<const FUniqueNetId> UserId = FOnlineIdentityLive::GetUniquePlayerId(LocalUserNum);
-	if (UserId.IsValid())
+	if (LocalUserNum < 0 || LocalUserNum > MAX_LOCAL_PLAYERS)
 	{
-		TriggerOnLoginCompleteDelegates(LocalUserNum, true, *UserId, TEXT(""));
-		return true;
-	}
-	else
-	{
-		TriggerOnLoginCompleteDelegates(LocalUserNum, false, FUniqueNetIdLive(FString()), 
-			FString::Printf(TEXT("No user logged in for controller=%d"), LocalUserNum));
+		TriggerOnLoginCompleteDelegates(LocalUserNum, false, FUniqueNetIdLive(), FString::Printf(TEXT("Invalid controller index %d"), LocalUserNum));
 		return false;
 	}
+
+	TSharedPtr<const FUniqueNetId> UserId = FOnlineIdentityLive::GetUniquePlayerId(LocalUserNum);
+	if (!UserId.IsValid())
+	{
+		TriggerOnLoginCompleteDelegates(LocalUserNum, false, FUniqueNetIdLive(), FString::Printf(TEXT("No user logged in for controller=%d"), LocalUserNum));
+		return false;
+	}
+
+	// If there is no configured Endpoint, we do not need to fetch a XSTS token
+	if (LoginXSTSEndpoint.IsEmpty())
+	{
+		TriggerOnLoginCompleteDelegates(LocalUserNum, true, *UserId, FString());
+		return true;
+	}
+
+	Windows::Xbox::System::User^ XboxUser = GetUserForUniqueNetId(static_cast<const FUniqueNetIdLive&>(*UserId));
+	if (!XboxUser)
+	{
+		TriggerOnLoginCompleteDelegates(LocalUserNum, false, *UserId, FString::Printf(TEXT("No user logged in for controller=%d"), LocalUserNum));
+		return false;
+	}
+
+	FOnlineAsyncTaskManagerLive* MyTaskManager = LiveSubsystem->GetAsyncTaskManager();
+	if (MyTaskManager == nullptr)
+	{
+		TriggerOnLoginCompleteDelegates(LocalUserNum, false, *UserId, FString(TEXT("Could not queue Login Token fetch task")));
+		return false;
+	}
+
+// @ATG_CHANGE : BEGIN - UWP LIVE support
+#if PLATFORM_XBOXONE
+// @ATG_CHANGE : END - UWP LIVE support
+	const auto OnLoginCompleteDelegate = FOnXSTSTokenCompleteDelegate::CreateLambda(
+	[this](FOnlineError Result, int32 LocalUserNum, const FUniqueNetId& UserId, const FString& ResultSignature, const FString& ResultToken)
+	{
+		// At this point, if we were successful, our auth token is saved on this user for using in listening delegates
+		TriggerOnLoginCompleteDelegates(LocalUserNum, Result.bSucceeded, UserId, Result.ErrorMessage.ToString());
+	});
+
+	FOnlineAsyncTaskLiveGetXSTSToken* const GetXSTSTokenTask = new FOnlineAsyncTaskLiveGetXSTSToken(LiveSubsystem, XboxUser, LocalUserNum, LoginXSTSEndpoint, MoveTemp(OnLoginCompleteDelegate));
+	MyTaskManager->AddToParallelTasks(GetXSTSTokenTask);
+// @ATG_CHANGE : BEGIN - UWP LIVE support
+#endif // PLATFORM_XBOXONE
+// @ATG_CHANGE : END - UWP LIVE support
+
+	return true;
 }
 
 bool FOnlineIdentityLive::Logout(int32 LocalUserNum)
@@ -168,7 +223,8 @@ FString FOnlineIdentityLive::GetPlayerNickname(int32 ControllerIndex) const
 	User^ RequestedUser = GetUserForControllerIndex(ControllerIndex);
 	if( RequestedUser )
 	{
-		PlayerNickname = FString(RequestedUser->DisplayInfo->GameDisplayName->Data());
+		PlayerNickname = FOnlineUserLive::FilterPlayerName(RequestedUser->DisplayInfo->GameDisplayName);
+		UE_LOG_ONLINE(VeryVerbose, TEXT("[FOnlineIdentityLive LocalPlayer Info] XUID: [%s] Nickname: [%s]"), RequestedUser->XboxUserId->Data(), *PlayerNickname);
 	}
 
 	return PlayerNickname;
@@ -180,7 +236,8 @@ FString FOnlineIdentityLive::GetPlayerNickname(const FUniqueNetId& UserId) const
 	User^ RequestedUser = GetUserForUniqueNetId(FUniqueNetIdLive(UserId));
 	if( RequestedUser )
 	{
-		PlayerNickname = FString(RequestedUser->DisplayInfo->GameDisplayName->Data());
+		PlayerNickname = FOnlineUserLive::FilterPlayerName(RequestedUser->DisplayInfo->GameDisplayName);
+		UE_LOG_ONLINE(VeryVerbose, TEXT("[FOnlineIdentityLive LocalPlayer Info] XUID: [%s] Nickname: [%s]"), RequestedUser->XboxUserId->Data(), *PlayerNickname);
 	}
 
 	return PlayerNickname;
@@ -189,10 +246,20 @@ FString FOnlineIdentityLive::GetPlayerNickname(const FUniqueNetId& UserId) const
 FString FOnlineIdentityLive::GetAuthToken(int32 ControllerIndex) const
 {
 	FString AuthToken;
-	User^ RequestedUser = GetUserForControllerIndex(ControllerIndex);
-	if( RequestedUser )
+
+	TSharedPtr<const FUniqueNetId> UserId = GetUniquePlayerId(ControllerIndex);
+	if (UserId.IsValid())
 	{
-		AuthToken = FString(RequestedUser->XboxUserHash->Data());
+		TSharedPtr<FUserOnlineAccountLive> UserAccount = StaticCastSharedPtr<FUserOnlineAccountLive>(GetUserAccount(*UserId));
+		if (UserAccount.IsValid())
+		{
+			AuthToken = UserAccount->GetAccessToken();
+		}
+	}
+
+	if (AuthToken.IsEmpty())
+	{
+		UE_LOG_ONLINE(Warning, TEXT("There was no AuthToken stored for ControllerId %d"), ControllerIndex);
 	}
 
 	return AuthToken;
@@ -200,6 +267,9 @@ FString FOnlineIdentityLive::GetAuthToken(int32 ControllerIndex) const
 
 User^ FOnlineIdentityLive::GetUserForControllerIndex(int32 ControllerIndex) const
 {
+	// This isn't thread safe
+	check(IsInGameThread());
+
 	const auto InputInterface = GetInputInterface();
 	// @ATG_CHANGE : BEGIN UWP LIVE support
 	if(InputInterface == nullptr)
@@ -217,21 +287,30 @@ User^ FOnlineIdentityLive::GetUserForControllerIndex(int32 ControllerIndex) cons
 	}
 
 	{
+		// Lock CachedUsers while we access it
+		const FScopeLock CachedUsersScopeLock(&CachedUsersLock);
+
 		// Seems like there might be a bug in LIVE that Controller binding might not properly be set; i.e. the Gamepad->User might be nullptr.
 		// Forum link: https://forums.xboxlive.com/AnswerPage.aspx?qid=9e7f9bb1-74a3-4a03-a449-cbc6a8cb22de&tgt=1
 		// Because of this, go through each user's Controller array to try to find the user.
-		for(int CachedUserIndex = 0; CachedUserIndex < int(CachedUsers->Size); ++CachedUserIndex)
+		const int32 CachedUsersSize = static_cast<int32>(CachedUsers->Size);
+		for(int32 CachedUserIndex = 0; CachedUserIndex < CachedUsersSize; ++CachedUserIndex)
 		{
 			User^ CurrentUser = CachedUsers->GetAt(CachedUserIndex);
-			for(int UserControllerIndex = 0; UserControllerIndex < int(CurrentUser->Controllers->Size); ++UserControllerIndex)
+			if (CurrentUser != nullptr)
 			{
-				if(CurrentUser->Controllers->GetAt(UserControllerIndex) == RequestedGamepad)
+				const int32 CurrentUserControllerSize = static_cast<int32>(CurrentUser->Controllers->Size);
+				for (int32 UserControllerIndex = 0; UserControllerIndex < CurrentUserControllerSize; ++UserControllerIndex)
 				{
-					return CurrentUser;
+					if (CurrentUser->Controllers->GetAt(UserControllerIndex) == RequestedGamepad)
+					{
+						return CurrentUser;
+					}
 				}
 			}
 		}
 	}
+
 	return nullptr;
 }
 
@@ -268,14 +347,54 @@ int32 FOnlineIdentityLive::GetControllerIndexForId( const FUniqueNetId& PlayerId
 
 void FOnlineIdentityLive::RefreshGamepadsAndUsers()
 {
-	// Cache User::Users since they can take few ms (cross VM call)
+	// Lock CachedUsers while we access it
+	const FScopeLock CachedUsersScopeLock(&CachedUsersLock);
+
+	// @ATG_CHANGE : BEGIN UWP LIVE support
 	Platform::Collections::Vector<Windows::Xbox::System::User^> ^UsersCopy = ref new Platform::Collections::Vector<Windows::Xbox::System::User^>(Windows::Xbox::System::User::Users->Size);
 	for (int i = 0; i < static_cast<int>(Windows::Xbox::System::User::Users->Size); ++i)
 	{
 		UsersCopy->SetAt(i, Windows::Xbox::System::User::Users->GetAt(i));
 	}
 
-	CachedUsers = UsersCopy->GetView();		
+	CachedUsers = UsersCopy->GetView();
+	// @ATG_CHANGE : END UWP LIVE support
+
+	// cache the online user account info
+	const int32 VectorSize = static_cast<int32>(CachedUsers->Size);
+	for (int32 Index = 0; Index < VectorSize; ++Index)
+	{
+		Windows::Xbox::System::User^ User = CachedUsers->GetAt(Index);
+		if (User != nullptr)
+		{
+			FUniqueNetIdLive UserXboxId(User->XboxUserId);
+			if (!OnlineUsers.Contains(UserXboxId))
+			{
+				TSharedPtr<FUserOnlineAccountLive> OnlineUser(new FUserOnlineAccountLive(User));
+				OnlineUsers.Add(MoveTemp(UserXboxId), MoveTemp(OnlineUser));
+			}
+		}
+	}
+}
+
+void FOnlineIdentityLive::SetUserXSTSToken(Windows::Xbox::System::User^ User, const FString& AuthToken)
+{
+	check(User);
+
+	FUniqueNetIdLive UserId(User->XboxUserId);
+
+	const TSharedPtr<FUserOnlineAccount>* const FoundUser = OnlineUsers.Find(UserId);
+	if (FoundUser == nullptr || !FoundUser->IsValid())
+	{
+		TSharedPtr<FUserOnlineAccountLive> OnlineUser(new FUserOnlineAccountLive(User));
+		OnlineUser->SetAccessToken(AuthToken);
+		OnlineUsers.Add(MoveTemp(UserId), MoveTemp(OnlineUser));
+	}
+	else
+	{
+		TSharedPtr<FUserOnlineAccountLive> OnlineUserLive = StaticCastSharedPtr<FUserOnlineAccountLive>(*FoundUser);
+		OnlineUserLive->SetAccessToken(AuthToken);
+	}
 }
 
 void FOnlineIdentityLive::HookLiveEvents()
@@ -304,6 +423,7 @@ void FOnlineIdentityLive::HookLiveEvents()
 		}
 	});
 
+// @ATG_CHANGE : BEGIN - Skipping for UWP
 #if !PLATFORM_UWP
 	// Listen to Controller Pairing events
 	EventHandler<ControllerPairingChangedEventArgs^>^ controllerPairingEvent = ref new EventHandler<ControllerPairingChangedEventArgs^>(
@@ -316,44 +436,54 @@ void FOnlineIdentityLive::HookLiveEvents()
 			LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue(NewEvent);
 		}
 	});
-#endif
+#endif // !PLATFORM_UWP
+// @ATG_CHANGE : END - Skipping for UWP
 
 	TaskTokenUserAdded					= User::UserAdded	+= userAddedEvent;
 	TaskTokenUserRemoved				= User::UserRemoved += userRemovedEvent;
+// @ATG_CHANGE : BEGIN - Skipping for UWP
 #if !PLATFORM_UWP
 	TaskTokenControllerPairingChanged	= Controller::ControllerPairingChanged += controllerPairingEvent;
-#endif
+#endif // !PLATFORM_UWP
+// @ATG_CHANGE : END - Skipping for UWP
 
 	FCoreDelegates::ApplicationHasEnteredForegroundDelegate.AddRaw(this, &FOnlineIdentityLive::HandleAppResume);
 }
 
 void FOnlineIdentityLive::HandleAppResume()
 {
-	UE_LOG( LogOnlineSubsystemLive, Log, TEXT( "FOnlineIdentityLive::HandleAppResume" ) );
+	UE_LOG_ONLINE(Log, TEXT( "FOnlineIdentityLive::HandleAppResume" ) );
 	RefreshGamepadsAndUsers();
 }
 
 void FOnlineIdentityLive::UnhookLiveEvents()
 {
+// @ATG_CHANGE : BEGIN - Skipping for UWP
 #if !PLATFORM_UWP
 	Controller::ControllerPairingChanged	-= TaskTokenControllerPairingChanged;
-#endif
+#endif // !PLATFORM_UWP
+// @ATG_CHANGE : END - Skipping for UWP
 	User::UserAdded							-= TaskTokenUserAdded;
 	User::UserRemoved						-= TaskTokenUserRemoved;
 }
 
 Windows::Xbox::System::User^ FOnlineIdentityLive::GetUserForUniqueNetId( const FUniqueNetIdLive& UniqueId ) const
 {
+	// Lock CachedUsers while we access it
+	const FScopeLock CachedUsersScopeLock(&CachedUsersLock);
+
 	if(!CachedUsers)
 	{
 		return nullptr;
 	}
 
-	for(int i = 0; i < static_cast<int>(CachedUsers->Size); ++i)
+	const int32 CachedUserSize = CachedUsers->Size;
+	for(int32 i = 0; i < CachedUserSize; ++i)
 	{
 		User^ CurrentUser = CachedUsers->GetAt(i);
 		if(CurrentUser)
 		{
+			UE_LOG_ONLINE(VeryVerbose, TEXT("FOnlineIdentityLive::GetUserForUniqueNetId UniqueId: %s, CurrentUser Id: %s ."), *UniqueId.ToString(), CurrentUser->XboxUserId->Data());
 			if(UniqueId.ToString() == CurrentUser->XboxUserId->Data())
 			{
 				return CurrentUser;
@@ -371,19 +501,20 @@ void FOnlineIdentityLive::GetUserPrivilege(const FUniqueNetId& UserId, EUserPriv
 
 	if (LiveUser == nullptr)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineIdentityLive::GetUserPrivilege couldn't find Live user for unique id %s."), *UserId.ToString());
-		Delegate.ExecuteIfBound(UserId, Privilege, (uint32)EPrivilegeResults::GenericFailure);
+		UE_LOG_ONLINE(Log, TEXT("FOnlineIdentityLive::GetUserPrivilege couldn't find Live user for unique id %s."), *UserId.ToString());
+		Delegate.ExecuteIfBound(UserId, Privilege, (uint32)EPrivilegeResults::UserNotFound);
 		return;
 	}
 
 	// Docs warn to not call CheckPrivilegeAsync if the user isn't signed in.
 	if (!LiveUser->IsSignedIn)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineIdentityLive::GetUserPrivilege Live user %s is not signed in."), LiveUser->DisplayInfo->GameDisplayName->Data());
-		Delegate.ExecuteIfBound(UserId, Privilege, (uint32)EPrivilegeResults::GenericFailure);
+		UE_LOG_ONLINE(Log, TEXT("FOnlineIdentityLive::GetUserPrivilege Live user %s is not signed in."), LiveUser->DisplayInfo->GameDisplayName->Data());
+		Delegate.ExecuteIfBound(UserId, Privilege, (uint32)EPrivilegeResults::UserNotLoggedIn);
 		return;
 	}
 
+// @ATG_CHANGE : BEGIN UWP LIVE support
 #if PLATFORM_XBOXONE
 	using namespace Windows::Xbox::ApplicationModel::Store;
 
@@ -432,7 +563,7 @@ void FOnlineIdentityLive::GetUserPrivilege(const FUniqueNetId& UserId, EUserPriv
 		}
 		catch (Platform::Exception^ Ex)
 		{
-			UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineIdentityLive::GetUserPrivilege failed with code %d."), Ex->HResult);
+			UE_LOG_ONLINE(Log, TEXT("FOnlineIdentityLive::GetUserPrivilege failed with code %d."), Ex->HResult);
 
 			LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([LiveId, Privilege, Delegate]()
 			{
@@ -440,7 +571,7 @@ void FOnlineIdentityLive::GetUserPrivilege(const FUniqueNetId& UserId, EUserPriv
 			});
 		}
 	});
-#else
+#elif PLATFORM_UWP
 	Microsoft::Xbox::Services::System::GamingPrivilege KnownPrivilege = Microsoft::Xbox::Services::System::GamingPrivilege::MultiplayerSessions;
 
 	switch (Privilege)
@@ -487,7 +618,7 @@ void FOnlineIdentityLive::GetUserPrivilege(const FUniqueNetId& UserId, EUserPriv
 			}
 			catch (Platform::Exception^ Ex)
 			{
-				UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineIdentityLive::GetUserPrivilege failed with code %d."), Ex->HResult);
+				UE_LOG_ONLINE(Log, TEXT("FOnlineIdentityLive::GetUserPrivilege failed with code %d."), Ex->HResult);
 
 				LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([LiveId, Privilege, Delegate]()
 				{
@@ -498,14 +629,17 @@ void FOnlineIdentityLive::GetUserPrivilege(const FUniqueNetId& UserId, EUserPriv
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineIdentityLive::GetUserPrivilege failed with code %d."), Ex->HResult);
+		UE_LOG_ONLINE(Log, TEXT("FOnlineIdentityLive::GetUserPrivilege failed with code %d."), Ex->HResult);
 
 		LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([LiveId, Privilege, Delegate]()
 		{
 			Delegate.ExecuteIfBound(LiveId, Privilege, (uint32)EPrivilegeResults::GenericFailure);
 		});
 	}
-#endif
+#else // not XboxOne or UWP
+#error "Unsupported platform"
+#endif // PLATFORM_*
+// @ATG_CHANGE : END UWP LIVE support
 }
 
 FPlatformUserId FOnlineIdentityLive::GetPlatformUserIdFromUniqueNetId(const FUniqueNetId& UniqueNetId)
@@ -523,7 +657,7 @@ FPlatformUserId FOnlineIdentityLive::GetPlatformUserIdFromUniqueNetId(const FUni
 
 FString FOnlineIdentityLive::GetAuthType() const
 {
-	return TEXT("");
+	return TEXT("xbl");
 }
 
 FOnlineIdentityLive::FAsyncEventUserAdded::FAsyncEventUserAdded( FOnlineSubsystemLive* InLiveSubsystem, Windows::Xbox::System::UserAddedEventArgs^ InArgs ) :
@@ -547,7 +681,7 @@ void FOnlineIdentityLive::FAsyncEventUserAdded::TriggerDelegates()
 {
 	const int ControllerIndex = Subsystem->GetIdentityLive()->GetControllerIndexForUser(Args->User);
 
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FAsyncEventUserAdded::TriggerDelegates ControllerIndex %d"), ControllerIndex);
+	UE_LOG_ONLINE(Log, TEXT("FAsyncEventUserAdded::TriggerDelegates ControllerIndex %d"), ControllerIndex);
 
 	ELoginStatus::Type LoginStatus = GetLoginStatusForUser(Args->User);
 
@@ -577,13 +711,14 @@ void FOnlineIdentityLive::FAsyncEventUserRemoved::TriggerDelegates()
 {
 	const int ControllerIndex = Subsystem->GetIdentityLive()->GetControllerIndexForUser(Args->User);
 
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FAsyncEventUserRemoved::TriggerDelegates ControllerIndex %d"), ControllerIndex);
+	UE_LOG_ONLINE(Log, TEXT("FAsyncEventUserRemoved::TriggerDelegates ControllerIndex %d"), ControllerIndex);
 
 	/* HACK -- Assume the previous state could not be UsingLocalProfile */
 	Subsystem->GetIdentityLive()->TriggerOnLoginStatusChangedDelegates(0, ELoginStatus::LoggedIn,
 		ELoginStatus::NotLoggedIn, FUniqueNetIdLive(Args->User->XboxUserId));
 }
 
+// @ATG_CHANGE : BEGIN - Skipping for UWP
 #if !PLATFORM_UWP
 FOnlineIdentityLive::FAsyncEventControllerPairingChanged::FAsyncEventControllerPairingChanged( FOnlineSubsystemLive* InLiveSubsystem, Windows::Xbox::Input::ControllerPairingChangedEventArgs^ InArgs ) :
 	FOnlineAsyncEvent(InLiveSubsystem),
@@ -617,7 +752,7 @@ void FOnlineIdentityLive::FAsyncEventControllerPairingChanged::TriggerDelegates(
 		FUniqueNetIdLive PreviousUserId(Args->PreviousUser ? Args->PreviousUser->XboxUserId : nullptr);
 		FUniqueNetIdLive NewUserId(Args->User ? Args->User->XboxUserId : nullptr);
 
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("Triggering OnControllerPairingChanged with UserId %d, PreviousUser '%s', NewUser '%s'"),
+		UE_LOG_ONLINE(Log, TEXT("Triggering OnControllerPairingChanged with UserId %d, PreviousUser '%s', NewUser '%s'"),
 			UserId, *PreviousUserId.ToString(), *NewUserId.ToString());
 
 		if(UserId != -1)
@@ -626,4 +761,62 @@ void FOnlineIdentityLive::FAsyncEventControllerPairingChanged::TriggerDelegates(
 		}
 	}
 }
-#endif
+#endif // !PLATFORM_UWP
+// @ATG_CHANGE : END - Skipping for UWP
+
+
+/** FUserOnlineAccountLive */
+
+FString FUserOnlineAccountLive::GetAccessToken() const
+{
+	return UserXSTSToken;
+}
+
+void FUserOnlineAccountLive::SetAccessToken(const FString& AuthToken)
+{
+	UserXSTSToken = AuthToken;
+}
+
+bool FUserOnlineAccountLive::GetAuthAttribute(const FString& AttrName, FString& OutAttrValue) const
+{
+	return GetUserAttribute(AttrName, OutAttrValue);
+}
+
+bool FUserOnlineAccountLive::SetUserAttribute(const FString& AttrName, const FString& AttrValue)
+{
+	if (UserAttributes.Contains(AttrName))
+	{
+		if (UserAttributes[AttrName].Equals(AttrValue))
+		{
+			return false;
+		}
+	}
+	UserAttributes[AttrName] = AttrValue;
+	return true;
+}
+
+TSharedRef<const FUniqueNetId> FUserOnlineAccountLive::GetUserId() const
+{
+	return UserId;
+}
+
+FString FUserOnlineAccountLive::GetRealName() const
+{
+	return FOnlineUserLive::FilterPlayerName(UserData->DisplayInfo->GameDisplayName);
+}
+
+FString FUserOnlineAccountLive::GetDisplayName(const FString& Platform /*= FString()*/) const
+{
+	return FOnlineUserLive::FilterPlayerName(UserData->DisplayInfo->GameDisplayName);
+}
+
+bool FUserOnlineAccountLive::GetUserAttribute(const FString& AttrName, FString& OutAttrValue) const
+{
+	if (UserAttributes.Contains(AttrName))
+	{
+		OutAttrValue = UserAttributes[AttrName];
+		return true;
+	}
+
+	return false;
+}

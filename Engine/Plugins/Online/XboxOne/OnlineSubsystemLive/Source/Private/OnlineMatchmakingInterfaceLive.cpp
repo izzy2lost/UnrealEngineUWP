@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineMatchmakingInterfaceLive.h"	
@@ -9,6 +9,7 @@
 #include "OnlineIdentityInterfaceLive.h"
 #include "SessionMessageRouter.h"
 #include "OnlineSessionInterfaceLive.h"
+#include "Misc/ScopeLock.h"
 
 #include "AsyncTasks/OnlineAsyncTaskLiveCreateSession.h"
 #include "AsyncTasks/OnlineAsyncTaskLiveFindSessions.h"
@@ -56,7 +57,7 @@ void FOnlineMatchmakingInterfaceLive::OnMultiplayerSubscriptionsLost()
 //////////////////////////////////////////////////////////////////////////
 void FOnlineMatchmakingInterfaceLive::OnSessionChanged(FName SessionName, MultiplayerSessionChangeTypes Diff)
 {
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineMatchmakingInterfaceLive::OnSessionChanged"));
+	UE_LOG_ONLINE(Log, TEXT("FOnlineMatchmakingInterfaceLive::OnSessionChanged"));
 
 	if ((Diff & MultiplayerSessionChangeTypes::MatchmakingStatusChange) == MultiplayerSessionChangeTypes::MatchmakingStatusChange)
 	{
@@ -73,7 +74,7 @@ bool FOnlineMatchmakingInterfaceLive::StartMatchmaking(const TArray< TSharedRef<
 {
 	if (LocalPlayers.Num() == 0)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Error, TEXT("LocalPlayers was empty. At least one player is required for matchmaking."));
+		UE_LOG_ONLINE(Error, TEXT("LocalPlayers was empty. At least one player is required for matchmaking."));
 		TriggerOnMatchmakingCompleteDelegates(SessionName, false);
 		return false;
 	}
@@ -113,7 +114,7 @@ bool FOnlineMatchmakingInterfaceLive::StartMatchmaking(const TArray< TSharedRef<
 	}
 	else
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FOnlineMatchmakingInterfaceLive::StartMatchmaking: session settings are invalid."));
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineMatchmakingInterfaceLive::StartMatchmaking: session settings are invalid."));
 		TriggerOnMatchmakingCompleteDelegates(SessionName, false);
 		delete StartMatchTask;
 	}
@@ -202,7 +203,7 @@ bool FOnlineMatchmakingInterfaceLive::CancelMatchmaking(const FUniqueNetId& Sear
 			}
 	}
 
-	XboxLiveContext^ UserContext = LiveSubsystem->GetLiveContext(SearchingPlayerId);
+	XboxLiveContext^ UserContext = LiveSubsystem->GetLiveContext(static_cast<const FUniqueNetIdLive&>(SearchingPlayerId));
 
 	FOnlineAsyncTaskLiveCancelMatchmaking* CancelMatchTask = 
 		new FOnlineAsyncTaskLiveCancelMatchmaking(
@@ -274,7 +275,7 @@ void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(FName SessionNa
 
 	if (MatchmakingTicket.IsValid() == false)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged - ticket doesn't exist or was destroyed before task ran"));
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged - ticket doesn't exist or was destroyed before task ran"));
 		return;
 	}
 
@@ -285,19 +286,19 @@ void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(FName SessionNa
 	switch (MatchStatus)
 	{
 	case MatchmakingStatus::Unknown:
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  MatchStatus = Unknown"));
+		UE_LOG_ONLINE(Log, TEXT("  MatchStatus = Unknown"));
 		break;
 
 	case MatchmakingStatus::None:
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  MatchStatus = None"));
+		UE_LOG_ONLINE(Log, TEXT("  MatchStatus = None"));
 		break;
 
 	case MatchmakingStatus::Searching:
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  MatchStatus = Searching"));
+		UE_LOG_ONLINE(Log, TEXT("  MatchStatus = Searching"));
 		break;
 
 	case MatchmakingStatus::Expired:
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  MatchStatus = Expired"));
+		UE_LOG_ONLINE(Log, TEXT("  MatchStatus = Expired"));
 
 		SubmitMatchingTicket(
 			LiveSession->SessionReference,
@@ -307,7 +308,7 @@ void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(FName SessionNa
 
 	case MatchmakingStatus::Found:
 		{
-			UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  MatchStatus = Found"));
+			UE_LOG_ONLINE(Log, TEXT("  MatchStatus = Found"));
 
 			// Join the target session so we can do QoS. If this isn't a match session (we're
 			// advertising an existing game session), we've already joined.
@@ -351,7 +352,7 @@ void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(FName SessionNa
 				
 				LiveSubsystem->GetSessionMessageRouter()->AddOnSessionChangedDelegate(SessionInterface->OnSessionChangedDelegate, TargetSessionReference);
 
-				UE_LOG(LogOnlineSubsystemLive, Log, TEXT("Session Found: %s %s"), TargetSessionReference->SessionTemplateName->Data(), TargetSessionReference->SessionName->Data());
+				UE_LOG_ONLINE(Log, TEXT("Session Found: %s %s"), TargetSessionReference->SessionTemplateName->Data(), TargetSessionReference->SessionName->Data());
 
 				FOnlineAsyncTaskLiveJoinSession* Task =
 					new FOnlineAsyncTaskLiveJoinSession( SessionInterface.Get(),
@@ -377,11 +378,11 @@ void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(FName SessionNa
 				false);
 		}
 
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  MatchStatus = Canceled"));
+		UE_LOG_ONLINE(Log, TEXT("  MatchStatus = Canceled"));
 		break;
 
 	default:
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged - Got unexpected MatchmakingStatus: %u"), static_cast<uint32>(MatchStatus));
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged - Got unexpected MatchmakingStatus: %u"), static_cast<uint32>(MatchStatus));
 		break;
 	}
 }
@@ -433,7 +434,7 @@ void FOnlineMatchmakingInterfaceLive::SubmitMatchingTicket(
 		uint32 CurrentSessionSize = LiveInfo->GetLiveMultiplayerSession()->Members->Size;
 		if( CurrentSessionSize >= (uint32) NamedSession->SessionSettings.NumPublicConnections )
 		{
-			UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineSessionLive::SubmitMatchingTicket: Maximum players reached for this session. No longer matchmaking. Size: %d"), CurrentSessionSize);
+			UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::SubmitMatchingTicket: Maximum players reached for this session. No longer matchmaking. Size: %d"), CurrentSessionSize);
 			return;
 		}
 	}
@@ -492,7 +493,7 @@ void FOnlineMatchmakingInterfaceLive::OnMemberListChanged(FName SessionName)
 
 	if (MatchmakingTicket.IsValid() == false)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged - session doesn't exist or was destroyed before task ran"));
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged - session doesn't exist or was destroyed before task ran"));
 		return;
 	}
 

@@ -1,8 +1,11 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
+#include "CoreMinimal.h"
 #include "../OnlineAsyncTaskManagerLive.h"
+#include "IPAddress.h"
+
 
 class FOnlineSubsystemLive;
 
@@ -18,7 +21,7 @@ public:
 		FName InSessionName,
 		Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ InGameSessionRef);
 
-	virtual void Start() override;
+	virtual void Initialize() override;
 
 	virtual FString ToString() const override { return TEXT("GameSessionReady"); }
 	virtual void Finalize() override;

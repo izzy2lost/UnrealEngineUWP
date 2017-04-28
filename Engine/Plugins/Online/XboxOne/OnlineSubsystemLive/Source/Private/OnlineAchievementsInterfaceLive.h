@@ -7,6 +7,7 @@
 #include "OnlineSubsystemLiveTypes.h"
 #include "OnlineAsyncTaskManager.h"
 #include "OnlineSubsystemLivePackage.h"
+#include "OnlineJsonSerializer.h"
 
 using namespace Microsoft::Xbox::Services::Achievements;
 

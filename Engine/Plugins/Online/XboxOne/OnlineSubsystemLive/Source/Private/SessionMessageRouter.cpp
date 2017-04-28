@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "SessionMessageRouter.h"	
@@ -6,6 +6,7 @@
 #include "OnlineAsyncTaskmanagerLive.h"
 #include "OnlineSubsystemLive.h"
 #include "AsyncTasks/OnlineAsyncTaskLiveSessionChanged.h"
+#include "Misc/ScopeLock.h"
 
 // @ATG_CHANGE :  UWP LIVE support: Xbox headers to pch
 
@@ -101,7 +102,9 @@ FSessionMessageRouter::FSessionMessageRouter(FOnlineSubsystemLive* InSubsystem)
 	EventHandler<SignOutStartedEventArgs^>^ SignOutStartedEvent = ref new EventHandler<SignOutStartedEventArgs^>(
 		[this] (Platform::Object^, SignOutStartedEventArgs^ EventArgs)
 	{
+		// @ATG_CHANGE : UWP Live Support - BEGIN
 		UnsubscribeFromMultiplayerEvents(FUniqueNetIdLive(EventArgs->User->XboxUserId->Data()));
+		// @ATG_CHANGE : UWP Live Support - END
 	});
 	SignOutStartedToken = Windows::Xbox::System::User::SignOutStarted += SignOutStartedEvent;
 
@@ -124,7 +127,7 @@ FSessionMessageRouter::~FSessionMessageRouter()
 	}
 	catch (Platform::Exception^ )
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("User Exception during shutdown"));
+		UE_LOG_ONLINE(Warning, TEXT("User Exception during shutdown"));
 	}
 
 	// @ATG_CHANGE :  BEGIN UWP LIVE support
@@ -145,7 +148,7 @@ void FSessionMessageRouter::SubscribeToMultiplayerEvents(Windows::Xbox::System::
 
 	if (UserContext == nullptr)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FSessionMessageRouter::SubscribeToMultiplayerEvents failed - couldn't get XboxLiveContext for user %s."), SubscribingUser->XboxUserId->Data());
+		UE_LOG_ONLINE(Warning, TEXT("FSessionMessageRouter::SubscribeToMultiplayerEvents failed - couldn't get XboxLiveContext for user %s."), SubscribingUser->XboxUserId->Data());
 		return;
 	}
 
@@ -162,7 +165,7 @@ void FSessionMessageRouter::SubscribeToMultiplayerEvents(Windows::Xbox::System::
 			ref new Windows::Foundation::EventHandler<MultiplayerSubscriptionLostEventArgs^>(
 			[this, SubscribingUser](Platform::Object^ Object, MultiplayerSubscriptionLostEventArgs^ EventArgs)
 		{
-			UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FSessionMessageRouter: MultiplayerSubscriptionsLost - event thread, adding async task"));
+			UE_LOG_ONLINE(Log, TEXT("FSessionMessageRouter: MultiplayerSubscriptionsLost - event thread, adding async task"));
 			
 			LiveSubsystem->GetAsyncTaskManager()->AddGenericToInQueue([this, SubscribingUser]()
 			{
@@ -180,7 +183,7 @@ void FSessionMessageRouter::SubscribeToMultiplayerEvents(Windows::Xbox::System::
 
 		UserContext->MultiplayerService->EnableMultiplayerSubscriptions();
 
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FSessionMessageRouter::SubscribeToMultiplayerEvents created subscription for user %s."), SubscribingUser->XboxUserId->Data());
+		UE_LOG_ONLINE(Log, TEXT("FSessionMessageRouter::SubscribeToMultiplayerEvents created subscription for user %s."), SubscribingUser->XboxUserId->Data());
 	}
 }
 
@@ -193,7 +196,7 @@ void FSessionMessageRouter::UnsubscribeFromMultiplayerEvents(const FUniqueNetId&
 
 	if (UserContext == nullptr)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FSessionMessageRouter::UnsubscribeFromMultiplayerEvents failed - couldn't get XboxLiveContext for user %s."), *SubscribedUser.ToString());
+		UE_LOG_ONLINE(Warning, TEXT("FSessionMessageRouter::UnsubscribeFromMultiplayerEvents failed - couldn't get XboxLiveContext for user %s."), *SubscribedUser.ToString());
 		return;
 	}
 
@@ -207,7 +210,7 @@ void FSessionMessageRouter::UnsubscribeFromMultiplayerEvents(const FUniqueNetId&
 	}
 	else
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FSessionMessageRouter::UnsubscribeFromMultiplayerEvents - couldn't find event tokens for user %s."), *SubscribedUser.ToString());
+		UE_LOG_ONLINE(Warning, TEXT("FSessionMessageRouter::UnsubscribeFromMultiplayerEvents - couldn't find event tokens for user %s."), *SubscribedUser.ToString());
 	}
 
 	if (UserContext->MultiplayerService->MultiplayerSubscriptionsEnabled)
@@ -215,7 +218,7 @@ void FSessionMessageRouter::UnsubscribeFromMultiplayerEvents(const FUniqueNetId&
 		UserContext->MultiplayerService->DisableMultiplayerSubscriptions();
 	}
 
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineSessionLive::UnsubscribeFromMultiplayerEvents succeeded for user %s."), *SubscribedUser.ToString());
+	UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::UnsubscribeFromMultiplayerEvents succeeded for user %s."), *SubscribedUser.ToString());
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -224,8 +227,8 @@ void FSessionMessageRouter::OnMultiplayerSubscriptionsLost(Windows::Xbox::System
 {	
 	check(IsInGameThread());
 
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FSessionMessageRouter::OnMultiplayerSubscriptionsLost - game thread"));
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  Connection to multiplayer service lost. Destroying session objects."));
+	UE_LOG_ONLINE(Log, TEXT("FSessionMessageRouter::OnMultiplayerSubscriptionsLost - game thread"));
+	UE_LOG_ONLINE(Log, TEXT("  Connection to multiplayer service lost. Destroying session objects."));
 
 	//Dispatch event so individual systems can figure out what to do.
 	TriggerOnSubscriptionLostDelegates();
@@ -234,7 +237,7 @@ void FSessionMessageRouter::OnMultiplayerSubscriptionsLost(Windows::Xbox::System
 	XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(User);
 	if (LiveContext == nullptr)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FSessionMessageRouter::OnMultiplayerSubscriptionsLost - couldn't get XboxLiveContext for user %s."), User->XboxUserId->Data());
+		UE_LOG_ONLINE(Warning, TEXT("FSessionMessageRouter::OnMultiplayerSubscriptionsLost - couldn't get XboxLiveContext for user %s."), User->XboxUserId->Data());
 		return;
 	}
 
@@ -244,7 +247,7 @@ void FSessionMessageRouter::OnMultiplayerSubscriptionsLost(Windows::Xbox::System
 //////////////////////////////////////////////////////////////////////////
 void FSessionMessageRouter::OnMultiplayerSessionChanged(MultiplayerSessionChangeEventArgs^ EventArgs)
 {
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FSessionMessageRouter::OnMultiplayerSessionChanged - Branch: %s, ChangeNumber: %u"), EventArgs->Branch->Data(), EventArgs->ChangeNumber);
+	UE_LOG_ONLINE(Log, TEXT("FSessionMessageRouter::OnMultiplayerSessionChanged - Branch: %s, ChangeNumber: %u"), EventArgs->Branch->Data(), EventArgs->ChangeNumber);
 
 	// If there are multiple local users, we'll get multiple events for each session change. Only process the
 	// event if we haven't seen this change yet.
@@ -256,7 +259,7 @@ void FSessionMessageRouter::OnMultiplayerSessionChanged(MultiplayerSessionChange
 	if (lastSeenChangeNumber == nullptr || *lastSeenChangeNumber < EventArgs->ChangeNumber)
 	{
 		LastSeenChangeNumberMap.Add(BranchString, EventArgs->ChangeNumber);
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FSessionMessageRouter::OnMultiplayerSessionChanged - adding async task"));
+		UE_LOG_ONLINE(Log, TEXT("FSessionMessageRouter::OnMultiplayerSessionChanged - adding async task"));
 		
 		//Task needs to be constructed from game thread
 		LiveSubsystem->GetAsyncTaskManager()->AddGenericToInQueue([this, EventArgs]()
@@ -272,7 +275,7 @@ void FSessionMessageRouter::OnMultiplayerSessionChanged(MultiplayerSessionChange
 	}
 	else
 	{
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FSessionMessageRouter: MultiplayerSessionChanged - duplicate event, ignoring"));
+		UE_LOG_ONLINE(Log, TEXT("FSessionMessageRouter: MultiplayerSessionChanged - duplicate event, ignoring"));
 	}
 }
 

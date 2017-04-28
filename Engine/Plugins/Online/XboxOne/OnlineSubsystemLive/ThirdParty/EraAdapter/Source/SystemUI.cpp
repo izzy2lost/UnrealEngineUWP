@@ -90,3 +90,13 @@ SystemUI::ShowProfileCardAsync(
 {
 	return ::Microsoft::Xbox::Services::System::TitleCallableUI::ShowProfileCardUIAsync(targetXuid);
 }
+
+IAsyncAction^
+SystemUI::LaunchAchievementsAsync(
+	User^ user,
+	uint32 titleId)
+{
+	::Windows::System::User^ winUser = User::XSAPIUserFromShimUser(user)->WindowsSystemUser;
+
+	return ::Microsoft::Xbox::Services::System::TitleCallableUI::ShowTitleAchievementsUIForUserAsync(titleId, winUser);
+}

@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "../OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineAsyncTaskLiveSessionChanged.h"
@@ -33,12 +33,12 @@ FOnlineAsyncTaskLiveSessionChanged::FOnlineAsyncTaskLiveSessionChanged(
 	SessionName = GetSessionNameForLiveSessionRef(LiveSessionReference);
 	if (SessionName.IsNone())
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FOnlineAsyncTaskLiveSessionChanged::Start: couldn't find the existing session or match ticket."));
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineAsyncTaskLiveSessionChanged::Start: couldn't find the existing session or match ticket."));
 		OnFailed();
 		return;
 	}
 
-	CachedLiveSession = LiveSubsystem->GetLastDiffedSession(SessionName);
+	CachedLiveSession = Subsystem->GetLastDiffedSession(SessionName);
 	if (!CachedLiveSession)
 	{
 		UE_LOG(LogOnline, Error, TEXT("FOnlineAsyncTaskLiveSessionChanged::Start: Couldn't get last diffed session."));
@@ -46,7 +46,7 @@ FOnlineAsyncTaskLiveSessionChanged::FOnlineAsyncTaskLiveSessionChanged(
 		return;
 	}
 
-	LiveContext = LiveSubsystem->GetLiveContext(CachedLiveSession);
+	LiveContext = Subsystem->GetLiveContext(CachedLiveSession);
 	if (!LiveContext)
 	{
 		UE_LOG(LogOnline, Error, TEXT("FOnlineAsyncTaskLiveSessionChanged::Start: Couldn't get XboxLiveContext for session."));
@@ -73,24 +73,24 @@ void FOnlineAsyncTaskLiveSessionChanged::OnFailed()
 //
 //-----------------------------------------------------------------------------
 
-void FOnlineAsyncTaskLiveSessionChanged::Start() 
+void FOnlineAsyncTaskLiveSessionChanged::Initialize() 
 {
 	if (bIsComplete)
 	{
 		return;		// something failed in the constructor
 	}
 
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineAsyncTaskLiveSessionChanged::Start - Branch: %s, ChangeNumber: %u"), *ChangeBranch, ChangeNumber);
+	UE_LOG_ONLINE(Log, TEXT("FOnlineAsyncTaskLiveSessionChanged::Start - Branch: %s, ChangeNumber: %u"), *ChangeBranch, ChangeNumber);
 
-	if (LiveSubsystem->GetSessionMessageRouter()->GetLastProcessedChangeNumber(ChangeBranch) >= ChangeNumber)
+	if (Subsystem->GetSessionMessageRouter()->GetLastProcessedChangeNumber(ChangeBranch) >= ChangeNumber)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  Change was already handled, skipping session update"));
+		UE_LOG_ONLINE(Log, TEXT("  Change was already handled, skipping session update"));
 		bWasSuccessful = true;
 		bIsComplete = true;
 		return;
 	}
 
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  Getting updated session from Live"));
+	UE_LOG_ONLINE(Log, TEXT("  Getting updated session from Live"));
 
 	create_task(LiveContext->MultiplayerService->GetCurrentSessionAsync(LiveSessionReference))
 		.then([this](concurrency::task<MultiplayerSession^> Task)
@@ -98,9 +98,9 @@ void FOnlineAsyncTaskLiveSessionChanged::Start()
 		try
 		{
 			UpdatedLiveSession = Task.get();
-			LiveSubsystem->GetSessionMessageRouter()->SetLastProcessedChangeNumber(UpdatedLiveSession->Branch->Data(), UpdatedLiveSession->ChangeNumber);
+			Subsystem->GetSessionMessageRouter()->SetLastProcessedChangeNumber(UpdatedLiveSession->Branch->Data(), UpdatedLiveSession->ChangeNumber);
 
-			UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineAsyncTaskLiveSessionChanged::Start - Got session at: Branch: %s, ChangeNumber: %u"), UpdatedLiveSession->Branch->Data(), UpdatedLiveSession->ChangeNumber);
+			UE_LOG_ONLINE(Log, TEXT("FOnlineAsyncTaskLiveSessionChanged::Start - Got session at: Branch: %s, ChangeNumber: %u"), UpdatedLiveSession->Branch->Data(), UpdatedLiveSession->ChangeNumber);
 
 			bWasSuccessful = true;
 			bIsComplete = true;
@@ -126,12 +126,12 @@ void FOnlineAsyncTaskLiveSessionChanged::Finalize()
 		{
 			if (FOnlineSubsystemLive::AreSessionReferencesEqual(LiveSessionReference, UpdatedLiveSession->SessionReference))
 			{				
-				CachedLiveSession = LiveSubsystem->GetLastDiffedSession(SessionName);
+				CachedLiveSession = Subsystem->GetLastDiffedSession(SessionName);
 
 				Diff = MultiplayerSession::CompareMultiplayerSessions(UpdatedLiveSession, CachedLiveSession);
 
-				LiveSubsystem->RefreshLiveInfo(SessionName, UpdatedLiveSession);
-				LiveSubsystem->SetLastDiffedSession(SessionName, UpdatedLiveSession);
+				Subsystem->RefreshLiveInfo(SessionName, UpdatedLiveSession);
+				Subsystem->SetLastDiffedSession(SessionName, UpdatedLiveSession);
 
 				bShouldTriggerDelegates = true;
 			}
@@ -147,7 +147,7 @@ void FOnlineAsyncTaskLiveSessionChanged::TriggerDelegates()
 {				
 	if (bShouldTriggerDelegates)
 	{
-		LiveSubsystem->GetSessionMessageRouter()->TriggerOnSessionChangedDelegates(LiveSessionReference, SessionName, Diff);
+		Subsystem->GetSessionMessageRouter()->TriggerOnSessionChangedDelegates(LiveSessionReference, SessionName, Diff);
 	}
 }
 

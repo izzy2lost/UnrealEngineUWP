@@ -1,10 +1,10 @@
-//-----------------------------------------------------------------------------
-//				Copyright (C) Microsoft. All rights reserved.
-//-----------------------------------------------------------------------------
+// Copyright 1998-2016 Epic Games, Inc. All R//ights Reserved.
+
 #pragma once
 
-#include "OnlineSubsystemLivePackage.h"
 #include "OnlineFriendsInterface.h"
+#include "OnlineSubsystemLivePackage.h"
+#include "OnlinePresenceInterfaceLive.h"
 #include "OnlineSubsystemLiveTypes.h"
 
 namespace FriendsListsNames
@@ -60,7 +60,7 @@ public:
 	*/
 	virtual const FOnlineUserPresence& GetPresence() const override { return *Presence; }
 
-private:
+PACKAGE_SCOPE:
 	TSharedRef<const FUniqueNetIdLive> UserId;
 	FString RealName;
 	FString DisplayName;
@@ -69,180 +69,58 @@ private:
 	TSharedRef<FOnlineUserPresence> Presence;
 };
 
-DECLARE_MULTICAST_DELEGATE_FourParams(FOnReadFriendsListCompleteMulticast, int32, bool, const FString&, const FString&);
-
-const FString CUSTOM_USER_LIST_NAME = TEXT("Custom");
-
-class FOnlineFriendsLive : public IOnlineFriends
+class FOnlineBlockedPlayerLive :
+	public FOnlineBlockedPlayer
 {
 public:
+	// FOnlineFriendLive
+	FOnlineBlockedPlayerLive(Platform::String^ InXUID);
+	virtual ~FOnlineBlockedPlayerLive() = default;
 
-	//IOnlineFriends
-	/**
-	* Starts an async task that reads the named friends list for the player
-	*
-	* @param LocalUserNum the user to read the friends list of
-	* @param ListName name of the friends list to read
-	*
-	* @return true if the read request was started successfully, false otherwise
-	*/
-	virtual bool ReadFriendsList(int32 LocalUserNum, const FString& ListName, const FOnReadFriendsListComplete& Delegate);
-
-	/**
-	* Starts an async task that deletes the named friends list for the player
-	*
-	* @param LocalUserNum the user to delete the friends list for
-	* @param ListName name of the friends list to delete
-	*
-	* @return true if the delete request was started successfully, false otherwise
-	*/
-	virtual bool DeleteFriendsList(int32 LocalUserNum, const FString& ListName, const FOnDeleteFriendsListComplete& Delegate) { return false; }
-
-	/**
-	* Starts an async task that sends an invite to another player.
-	*
-	* @param LocalUserNum the user that is sending the invite
-	* @param FriendId player that is receiving the invite
-	* @param ListName name of the friends list to invite to
-	*
-	* @return true if the request was started successfully, false otherwise
-	*/
-	virtual bool SendInvite(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName, const FOnSendInviteComplete& Delegate) { return false; }
-
-	/**
-	* Starts an async task that accepts an invite from another player.
-	*
-	* @param LocalUserNum the user that is accepting the invite
-	* @param FriendId player that had sent the pending invite
-	* @param ListName name of the friends list to operate on
-	*
-	* @return true if the request was started successfully, false otherwise
-	*/
-	virtual bool AcceptInvite(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName, const FOnAcceptInviteComplete& Delegate) { return false; }
-
-	/**
-	* Starts an async task that rejects an invite from another player.
-	*
-	* @param LocalUserNum the user that is rejecting the invite
-	* @param FriendId player that had sent the pending invite
-	* @param ListName name of the friends list to operate on
-	*
-	* @return true if the request was started successfully, false otherwise
-	*/
-	virtual bool RejectInvite(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName) { return false; }
-
-	/**
-	* Starts an async task that deletes a friend from the named friends list
-	*
-	* @param LocalUserNum the user that is making the request
-	* @param FriendId player that will be deleted
-	* @param ListName name of the friends list to operate on
-	*
-	* @return true if the request was started successfully, false otherwise
-	*/
-	virtual bool DeleteFriend(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName) { return false; }
-
-	/**
-	* Copies the list of friends for the player previously retrieved from the online service
-	*
-	* @param LocalUserNum the user to read the friends list of
-	* @param ListName name of the friends list to read
-	* @param OutFriends [out] array that receives the copied data
-	*
-	* @return true if friends list was found
-	*/
-	virtual bool GetFriendsList(int32 LocalUserNum, const FString& ListName, TArray< TSharedRef<FOnlineFriend> >& OutFriends);
-
-	/**
-	* Get the cached friend entry if found
-	*
-	* @param LocalUserNum the user to read the friends list of
-	* @param ListName name of the friends list to read
-	* @param OutFriends [out] array that receives the copied data
-	*
-	* @return null ptr if not found
-	*/
-	virtual TSharedPtr<FOnlineFriend> GetFriend(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName);
-
-	/**
-	* Checks that a unique player id is part of the specified user's friends list
-	*
-	* @param LocalUserNum the controller number of the associated user that made the request
-	* @param FriendId the id of the player being checked for friendship
-	* @param ListName name of the friends list to read
-	*
-	* @return true if friends list was found and the friend was valid
-	*/
-	virtual bool IsFriend(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName);
-
-	/**
-	* Query for recent players of the current user
-	*
-	* @param UserId user to query recent players for
-	* @param Namespace the recent players namespace to retrieve
-	*
-	* @return true if query was started
-	*/
-	virtual bool QueryRecentPlayers(const FUniqueNetId& UserId, const FString& Namespace) { return false; }
-
-	/**
-	* Copies the cached list of recent players for a given user
-	*
-	* @param UserId user to retrieve recent players for
-	* @param Namespace the recent players namespace to retrieve (if empty retrieve all namespaces)
-	* @param OutRecentPlayers [out] array that receives the copied data
-	*
-	* @return true if recent players list was found for the given user
-	*/
-	virtual bool GetRecentPlayers(const FUniqueNetId& UserId, const FString& Namespace, TArray< TSharedRef<FOnlineRecentPlayer> >& OutRecentPlayers) { return false; }
-
-	/**
-	* Block a player
-	*
-	* @param LocalUserNum The user to check for
-	* @param PlayerId The player to block
-	*
-	* @return true if query was started
-	*/
-	virtual bool BlockPlayer(int32 LocalUserNum, const FUniqueNetId& PlayerId) { return false; }
-
-	/**
-	* Unblock a player
-	*
-	* @param LocalUserNum The user to check for
-	* @param PlayerId The player to unblock
-	*
-	* @return true if query was started
-	*/
-	virtual bool UnblockPlayer(int32 LocalUserNum, const FUniqueNetId& PlayerId) { return false; }
-
-	/**
-	* Query for blocked players
-	*
-	* @param UserId user to query blocked players for
-	*
-	* @return true if query was started
-	*/
-	virtual bool QueryBlockedPlayers(const FUniqueNetId& UserId) { return false; }
-
-	/**
-	* Get the list of blocked players
-	*
-	* @param UserId user to retrieve blocked players for
-	* @param OuBlockedPlayers [out] array that receives the copied data
-	*
-	* @return true if blocked players list was found for the given user
-	*/
-	virtual bool GetBlockedPlayers(const FUniqueNetId& UserId, TArray< TSharedRef<FOnlineBlockedPlayer> >& OutBlockedPlayers) { return false; }
-
-	/**
-	* Dump state information about blocked players
-	*/
-	virtual void DumpBlockedPlayers() const { }
-
+	virtual TSharedRef<const FUniqueNetId> GetUserId() const override;
+	virtual FString GetRealName() const override;
+	virtual FString GetDisplayName(const FString& Platform = FString()) const override;
+	virtual bool GetUserAttribute(const FString& AttrName, FString& OutAttrValue) const override;
 
 PACKAGE_SCOPE:
-	FOnlineFriendsLive(class FOnlineSubsystemLive* InSubsystem);
+	TSharedRef<const FUniqueNetIdLive> UniqueNetIdLive;
+};
+
+
+DECLARE_MULTICAST_DELEGATE_FourParams(FOnReadFriendsListCompleteMulticast, int32, bool, const FString&, const FString&);
+
+/**
+ * Implements the XBox Live specific interface for friends
+ */
+class FOnlineFriendsLive :
+	public IOnlineFriends
+{
+	/** The async task classes require friendship */
+	friend class FOnlineAsyncTaskLiveQueryFriends;
+	friend class FOnlineAsyncTaskLiveQueryFriendManagerTask;
+	friend class FOnlineAsyncTaskLiveQueryAvoidList;
+
+public:
+	// IOnlineFriends
+	virtual bool ReadFriendsList(int32 LocalUserNum, const FString& ListName, const FOnReadFriendsListComplete& Delegate = FOnReadFriendsListComplete()) override;
+	virtual bool DeleteFriendsList(int32 LocalUserNum, const FString& ListName, const FOnDeleteFriendsListComplete& Delegate = FOnDeleteFriendsListComplete()) override;
+	virtual bool SendInvite(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName,  const FOnSendInviteComplete& Delegate = FOnSendInviteComplete()) override;
+	virtual bool AcceptInvite(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName, const FOnAcceptInviteComplete& Delegate = FOnAcceptInviteComplete()) override;
+ 	virtual bool RejectInvite(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName) override;
+ 	virtual bool DeleteFriend(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName) override;
+	virtual bool GetFriendsList(int32 LocalUserNum, const FString& ListName, TArray< TSharedRef<FOnlineFriend> >& OutFriends) override;
+	virtual TSharedPtr<FOnlineFriend> GetFriend(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName) override;
+	virtual bool IsFriend(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName) override;
+	virtual bool QueryRecentPlayers(const FUniqueNetId& UserId, const FString& Namespace) override;
+	virtual bool GetRecentPlayers(const FUniqueNetId& UserId, const FString& Namespace, TArray< TSharedRef<FOnlineRecentPlayer> >& OutRecentPlayers) override;
+	virtual bool BlockPlayer(int32 LocalUserNum, const FUniqueNetId& PlayerId) override;
+	virtual bool UnblockPlayer(int32 LocalUserNum, const FUniqueNetId& PlayerId) override;
+	virtual bool QueryBlockedPlayers(const FUniqueNetId& UserId) override;
+	virtual bool GetBlockedPlayers(const FUniqueNetId& UserId, TArray< TSharedRef<FOnlineBlockedPlayer> >& OutBlockedPlayers) override;
+	virtual void DumpBlockedPlayers() const override;
+
+	// FOnlineFriendsLive
+	explicit FOnlineFriendsLive(class FOnlineSubsystemLive* const InLiveSubsystem);
 
 	/**
 	* Friends tick (pumps social manager)
@@ -252,8 +130,16 @@ PACKAGE_SCOPE:
 	bool ReadUserListInternal(int32 LocalUserNum, const FString& ListName, const TArray<TSharedRef<const FUniqueNetId> >* UserIds, const FOnReadFriendsListComplete& Delegate);
 
 	/** Reference to the owning subsystem */
-	class FOnlineSubsystemLive* LiveSubsystem;
+	virtual ~FOnlineFriendsLive()
+	{
 
+	}
+
+private:
+	/** Reference to the main Live subsystem */
+	class FOnlineSubsystemLive* const LiveSubsystem;
+
+#if USE_SOCIAL_MANAGER
 	struct FUserListFromXboxSocialGroup
 	{
 		Microsoft::Xbox::Services::Social::Manager::XboxSocialUserGroup^ SocialGroup;
@@ -288,4 +174,12 @@ PACKAGE_SCOPE:
 
 	Microsoft::Xbox::Services::Social::Manager::SocialManager^ XblSocialManager;
 	TMap<FUniqueNetIdLive, FLiveFriendsLists> FriendsByUser;
+#else
+	/** Map of local users to map of their friends */
+	FOnlineUserFriendsListLiveMap FriendsMap;
+#endif
+	/** These are users we have asked not to play with (similar to a blocklist) */
+	TMap<FUniqueNetIdLive, TArray<TSharedRef<FOnlineBlockedPlayerLive>>> AvoidListMap;
 };
+
+typedef TSharedPtr<FOnlineFriendsLive, ESPMode::ThreadSafe> FOnlineFriendsLivePtr;

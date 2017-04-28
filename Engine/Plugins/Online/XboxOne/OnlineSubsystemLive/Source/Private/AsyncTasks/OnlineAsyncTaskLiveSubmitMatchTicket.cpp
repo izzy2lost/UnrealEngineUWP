@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "../OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineAsyncTaskLiveSubmitMatchTicket.h"
@@ -25,7 +25,6 @@ using namespace Windows::Foundation::Collections;
 using namespace Windows::Xbox::Networking;
 using namespace Windows::Xbox::System;
 
-
 FOnlineAsyncTaskLiveSubmitMatchTicket::FOnlineAsyncTaskLiveSubmitMatchTicket(
 	FOnlineSubsystemLive* InSubsystem,
 	Windows::Xbox::System::User^ InSearchingUser,
@@ -35,7 +34,8 @@ FOnlineAsyncTaskLiveSubmitMatchTicket::FOnlineAsyncTaskLiveSubmitMatchTicket(
 	Platform::String^ InTicketAttributes,
 	TimeSpan InTicketTimeout,
 	Microsoft::Xbox::Services::Matchmaking::PreserveSessionMode InTicketPreservation,
-	bool InCancelExistingTicket)
+	bool InCancelExistingTicket
+)
 	: FOnlineAsyncTaskLive(InSubsystem, 0)
 	, SearchingUser(InSearchingUser)
 	, SessionName(InSessionName)
@@ -59,7 +59,7 @@ FOnlineAsyncTaskLiveSubmitMatchTicket::FOnlineAsyncTaskLiveSubmitMatchTicket(
 	}
 }
 
-void FOnlineAsyncTaskLiveSubmitMatchTicket::Start()
+void FOnlineAsyncTaskLiveSubmitMatchTicket::Initialize()
 {
 	if (CancelExistingTicket)
 	{
@@ -81,11 +81,11 @@ void FOnlineAsyncTaskLiveSubmitMatchTicket::Start()
 			{
 				Task.get();
 
-				UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineAsyncTaskLiveSubmitMatchTicket: successfully deleted ticket %s."), TicketIdHat->Data());
+				UE_LOG_ONLINE(Log, TEXT("FOnlineAsyncTaskLiveSubmitMatchTicket: successfully deleted ticket %s."), TicketIdHat->Data());
 			}
 			catch(Platform::COMException^ Ex)
 			{
-				UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FOnlineAsyncTaskLiveSubmitMatchTicket: failed to cancel existing ticket."));
+				UE_LOG_ONLINE(Warning, TEXT("FOnlineAsyncTaskLiveSubmitMatchTicket: failed to cancel existing ticket."));
 			}
 
 			CreateMatchmakingTicket();
@@ -124,12 +124,12 @@ void FOnlineAsyncTaskLiveSubmitMatchTicket::CreateMatchmakingTicket()
 
 			// Matchmaking is now running. When a match is found, the title will be notified via the session change
 			// subscription, which will trigger OnSessionChanged.
-			UE_LOG(LogOnline, Log, TEXT("\nMatchmaking ticket created... (%s)"), Response->MatchTicketId->Data() );
+			UE_LOG(LogOnline, Log, TEXT("Matchmaking ticket created... (%s)"), Response->MatchTicketId->Data() );
 		}
 		catch (Platform::Exception^ ex)
 		{
-			UE_LOG(LogOnline, Error, TEXT("\nCreateMatchTicketAsync failed with 0x%0.8X"), ex->HResult);
-			
+			UE_LOG(LogOnline, Error, TEXT("CreateMatchTicketAsync failed with 0x%0.8X"), ex->HResult);
+
 			bWasSuccessful = false;
 		}
 
@@ -144,12 +144,12 @@ void FOnlineAsyncTaskLiveSubmitMatchTicket::Finalize()
 	FOnlineMatchTicketInfoPtr Ticket;
 	// If the named session is null, it may have already been destroyed
 
-	LiveSubsystem->GetMatchmakingInterfaceLive()->GetMatchmakingTicket(SessionName, Ticket);
+	Subsystem->GetMatchmakingInterfaceLive()->GetMatchmakingTicket(SessionName, Ticket);
 
 
 	//. Store the TicketID
 
-	// Abort if matchmaking was cancelled
+	// Abort if matchmaking was canceled
 	if (Ticket.IsValid() == false || Ticket->MatchmakingState == EOnlineLiveMatchmakingState::UserCancelled)
 	{
 		bWasSuccessful = false;
@@ -157,12 +157,11 @@ void FOnlineAsyncTaskLiveSubmitMatchTicket::Finalize()
 		// Queue the task here since queued tasks can start ticking before the previous task has run Finalize().
 		// @todo: fix so that Finalize() is guaranteed to finish first?
 		XboxLiveContext^ UserContext = Subsystem->GetLiveContext(SearchingUser);
-		FOnlineAsyncTaskLiveCancelMatchmaking* CancelMatchTask = 
-			new FOnlineAsyncTaskLiveCancelMatchmaking(
+		FOnlineAsyncTaskLiveCancelMatchmaking* CancelMatchTask = new FOnlineAsyncTaskLiveCancelMatchmaking(
 				Subsystem,
 				UserContext,
 				SessionName,
-			Ticket);
+				Ticket);
 		Subsystem->QueueAsyncTask(CancelMatchTask);
 		return;
 	}
@@ -185,7 +184,7 @@ void FOnlineAsyncTaskLiveSubmitMatchTicket::TriggerDelegates()
 		// Only fire delegates on failure. It's unfortunate to break up the logic like this,
 		// but on success the delegates will be fired when the session interface completes
 		// the initialization flow in OnSessionChanged.
-		auto MatchmakingInterface = LiveSubsystem->GetMatchmakingInterfaceLive();
+		auto MatchmakingInterface = Subsystem->GetMatchmakingInterfaceLive();
 		check(MatchmakingInterface.IsValid());
 
 		MatchmakingInterface->TriggerOnMatchmakingCompleteDelegates(SessionName, bWasSuccessful);

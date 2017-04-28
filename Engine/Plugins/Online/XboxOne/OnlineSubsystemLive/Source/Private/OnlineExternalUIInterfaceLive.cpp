@@ -1,16 +1,18 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
-
 #include "OnlineExternalUIInterfaceLive.h"
 #include "OnlineSessionInterfaceLive.h"
 #include "OnlineSubsystemLive.h"
 #include "OnlineIdentityInterfaceLive.h"
 #include "OnlineAsyncTaskManagerLive.h"
 #include "Online.h"
-#include "SlateBasics.h"
-
-// @ATG_CHANGE : UWP LIVE support: Xbox header to pch
+#include "Framework/Application/SlateApplication.h"
+#include "Engine/World.h"
+#include "Engine/LocalPlayer.h"
+#include "GameFramework/PlayerController.h"
+#include "Misc/CoreDelegates.h"
+#include "Misc/ConfigCacheIni.h"
 
 using namespace Windows::Foundation;
 using namespace Windows::Foundation::Collections;
@@ -38,7 +40,9 @@ bool FOnlineExternalUILive::ShowLoginUI(const int ControllerIndex, bool bShowOnl
 	auto RequestedGamepad = PlatformInput->GetGamepadForUser(ControllerIndex);
 	// @ATG_CHANGE : END
 
-	auto asyncOp = SystemUI::ShowAccountPickerAsync(RequestedGamepad, AccountPickerOptions::AllowGuests);
+	AccountPickerOptions LoginOption = bAllowGuestLogin ? AccountPickerOptions::AllowGuests : AccountPickerOptions::None;
+
+	auto asyncOp = SystemUI::ShowAccountPickerAsync(RequestedGamepad, LoginOption);
 	asyncOp->Completed = ref new AsyncOperationCompletedHandler<AccountPickerResult^>(
 		[=,this](IAsyncOperation<AccountPickerResult^>^ operation, AsyncStatus status)
 	{
@@ -55,7 +59,7 @@ bool FOnlineExternalUILive::ShowLoginUI(const int ControllerIndex, bool bShowOnl
 		else
 		{
 			// There was an error during the async operation.
-			UE_LOG(LogOnlineSubsystemLive, Log, TEXT("Error in SystemUI::ShowAccountPickerAsync: 0x%x"), operation->ErrorCode.Value);
+			UE_LOG_ONLINE(Log, TEXT("Error in SystemUI::ShowAccountPickerAsync: 0x%x"), operation->ErrorCode.Value);
 		}
 
 		if(LiveSubsystem && LiveSubsystem->GetAsyncTaskManager())
@@ -83,12 +87,12 @@ bool FOnlineExternalUILive::ShowInviteUI(int32 LocalUserNum, FName SessionName)
 
 	if(!LiveUser)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("ShowInviteUI: Couldn't find Live user for LocalUserNum %d."), LocalUserNum);
+		UE_LOG_ONLINE(Warning, TEXT("ShowInviteUI: Couldn't find Live user for LocalUserNum %d."), LocalUserNum);
 		return false;
 	}
-		
+
 	auto LiveContext = LiveSubsystem->GetLiveContext(LiveUser);
-		
+
 	Platform::Collections::Vector<Platform::String^>^ UserVector = ref new Platform::Collections::Vector<Platform::String^>;
 	UserVector->Append(LiveUser->XboxUserId);
 
@@ -161,12 +165,12 @@ bool FOnlineExternalUILive::ShowInviteUI(int32 LocalUserNum, FName SessionName)
 					});
 					break;
 				}
-			}					
+			}
 		}
 		catch(Platform::Exception^ ex)
 		{
 			UE_LOG(LogOnline, Warning, TEXT("ShowInviteUI: Failed to get current session with 0x%0.8X"), ex->HResult);
-			
+
 			LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this]()
 			{
 				TriggerOnExternalUIChangeDelegates(false);
@@ -179,7 +183,29 @@ bool FOnlineExternalUILive::ShowInviteUI(int32 LocalUserNum, FName SessionName)
 
 bool FOnlineExternalUILive::ShowAchievementsUI(int32 LocalUserNum)
 {
-	return false;
+	const FOnlineIdentityLivePtr Identity = LiveSubsystem->GetIdentityLive();
+	check(Identity.IsValid());
+
+	Windows::Xbox::System::User^ LiveUser = Identity->GetUserForControllerIndex(LocalUserNum);
+
+	if (!LiveUser)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("ShowAchievementsUI: Couldn't find Live user for LocalUserNum %d."), LocalUserNum);
+		return false;
+	}
+
+	// @ATG_CHANGE : BEGIN - UWP LIVE Support
+	uint32 TitleId = Microsoft::Xbox::Services::XboxLiveAppConfiguration::SingletonInstance->TitleId;
+	// @ATG_CHANGE : END - UWP LIVE Support
+
+	auto LaunchAchievementsTask = SystemUI::LaunchAchievementsAsync(LiveUser, TitleId);
+
+	concurrency::create_task(LaunchAchievementsTask).then([this, LiveUser](concurrency::task<void> task)
+	{
+		UE_LOG_ONLINE(Log, TEXT("ShowAchievementsUI: Achievement task UI displaying."));
+	});
+
+	return true;
 }
 
 bool FOnlineExternalUILive::ShowLeaderboardUI( const FString& LeaderboardName )
@@ -189,7 +215,44 @@ bool FOnlineExternalUILive::ShowLeaderboardUI( const FString& LeaderboardName )
 
 bool FOnlineExternalUILive::ShowWebURL(const FString& Url, const FShowWebUrlParams& ShowParams, const FOnShowWebUrlClosedDelegate& Delegate)
 {
-	return false;
+	WebUrlBeingOpened = Url;
+	WebUrlClosedDelegate = Delegate;
+
+	FCoreDelegates::ApplicationHasReactivatedDelegate.AddRaw(this, &FOnlineExternalUILive::HandleApplicationHasReactivated_WebUrl);
+
+	auto LaunchUriTask = Windows::System::Launcher::LaunchUriAsync(ref new Uri(ref new Platform::String(*Url)));
+
+	concurrency::create_task(LaunchUriTask).then([this, Url, Delegate](concurrency::task<bool> task)
+	{
+		bool Result = false;
+		try
+		{
+			Result = task.get();
+		}
+		catch (Platform::Exception^ ex)
+		{
+			UE_LOG_ONLINE(Warning, TEXT("ShowWebURL: URL launch result error: 0x%0.8x"), ex->HResult);
+		}
+		UE_LOG_ONLINE(Log, TEXT("ShowWebURL: URL launch completed, success: %d"), Result);
+	});
+
+	return true;
+}
+
+void FOnlineExternalUILive::HandleApplicationHasReactivated_WebUrl()
+{
+	FCoreDelegates::ApplicationHasReactivatedDelegate.RemoveAll(this);
+
+	FAsyncEventWebUrlUIClosed* NewEvent = new FAsyncEventWebUrlUIClosed(LiveSubsystem, WebUrlClosedDelegate, WebUrlBeingOpened);
+	LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue(NewEvent);
+}
+
+FOnlineExternalUILive::FOnlineExternalUILive(FOnlineSubsystemLive* InSubsystem)
+	: LiveSubsystem(InSubsystem)
+	, bAllowGuestLogin(true)
+	, ShouldCallUIDelegate(false)
+{
+	GConfig->GetBool(TEXT("OnlineSubsystemLive"), TEXT("bAllowGuestLogin"), bAllowGuestLogin, GEngineIni);
 }
 
 bool FOnlineExternalUILive::CloseWebURL()
@@ -222,7 +285,8 @@ bool FOnlineExternalUILive::ShowProfileUI(const FUniqueNetId& Requestor, const F
 	Windows::Xbox::System::IUser^ RequestingUser = LiveSubsystem->GetIdentityLive()->GetUserForUniqueNetId(FUniqueNetIdLive(Requestor));
 
 	// The string version of an FUniqueNetIdLive is the actual XUID, so we can just use ToString for the requestee here.
-	auto AsyncOp = SystemUI::ShowProfileCardAsync(RequestingUser, ref new Platform::String(Requestee.ToString().GetCharArray().GetData()));
+	auto AsyncOp = SystemUI::ShowProfileCardAsync(RequestingUser, ref new Platform::String(*Requestee.ToString()));
+
 	concurrency::create_task(AsyncOp).then([=,this](concurrency::task<void> Task)
 	{
 		if(LiveSubsystem && LiveSubsystem->GetAsyncTaskManager())
@@ -235,7 +299,7 @@ bool FOnlineExternalUILive::ShowProfileUI(const FUniqueNetId& Requestor, const F
 	return true;
 }
 
-FString FOnlineExternalUILive::FAsyncEventAccountPickerClosed::ToString() const 
+FString FOnlineExternalUILive::FAsyncEventAccountPickerClosed::ToString() const
 {
 	return TEXT("Account picker closed.");
 }
@@ -243,7 +307,7 @@ FString FOnlineExternalUILive::FAsyncEventAccountPickerClosed::ToString() const
 void FOnlineExternalUILive::FAsyncEventAccountPickerClosed::TriggerDelegates()
 {
 	FOnlineAsyncEvent::TriggerDelegates();
-	
+
 	if(SignedInUser)
 	{
 		TSharedPtr<const FUniqueNetId> UniqueId(MakeShareable(new FUniqueNetIdLive(SignedInUser->XboxUserId->Data())));
@@ -281,8 +345,8 @@ static void	TestProfileCard( const TArray<FString>& Args, UWorld* InWorld )
 	TSharedPtr<const FUniqueNetId> Requestee;
 	for( auto Iterator = InWorld->GetPlayerControllerIterator(); Iterator; ++Iterator )
 	{
-		APlayerController* PlayerController = *Iterator;
-	
+		APlayerController* PlayerController = Iterator->Get();
+
 		if( PlayerController )
 		{
 			auto Identity = Online::GetIdentityInterface();
@@ -316,3 +380,13 @@ FAutoConsoleCommandWithWorldAndArgs TestProfileCardCommand(
 	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(TestProfileCard)
 	);
 #endif
+FString FOnlineExternalUILive::FAsyncEventWebUrlUIClosed::ToString() const
+{
+	return TEXT("WebURL closed");
+}
+
+void FOnlineExternalUILive::FAsyncEventWebUrlUIClosed::TriggerDelegates()
+{
+	FOnlineAsyncEvent::TriggerDelegates();
+	Delegate.ExecuteIfBound(WebUrl);
+}

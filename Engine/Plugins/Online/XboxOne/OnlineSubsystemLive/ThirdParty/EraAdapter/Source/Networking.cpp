@@ -1,4 +1,7 @@
-﻿#include "pch.h"
+﻿//-----------------------------------------------------------------------------
+//				Copyright (C) Microsoft. All rights reserved.
+//-----------------------------------------------------------------------------
+#include "pch.h"
 #include "Networking.h"
 
 using namespace Platform;

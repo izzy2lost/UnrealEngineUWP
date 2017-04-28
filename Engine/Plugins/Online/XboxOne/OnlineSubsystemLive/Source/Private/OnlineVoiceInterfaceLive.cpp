@@ -7,10 +7,11 @@
 #include "OnlineSessionInterfaceLive.h"
 #include "Voice.h"
 #include "OnlineAsyncTaskManager.h"
+#include "Misc/ScopeLock.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Engine/Engine.h"
 
 #include "Crc.h"
-
-#include "Engine.h"
 
 #include <collection.h>
 #include <Robuffer.h>
@@ -533,7 +534,7 @@ bool FOnlineVoiceLive::IsRemotePlayerTalking(const FUniqueNetId& UniqueId)
  * @param LocalUserNum the controller number of the associated user
  * @param UniqueId the id of the player being checked
  *
- * @return true if a member of their friends list, false otherwise
+ * @return true if the specified user is muted, false otherwise
  */
 bool FOnlineVoiceLive::IsMuted(uint32 LocalUserNum, const FUniqueNetId& UniqueId) const
 {
@@ -964,7 +965,9 @@ void FOnlineVoiceLive::HookLiveEvents()
 		return CompareUniqueConsoleIdentifiers(obj1, obj2); 
 	});
 
-#if !PLATFORM_UWP
+// @ATG_CHANGE : BEGIN - UWP LIVE support - Compatible wrapper needs implementation here
+#if PLATFORM_XBOXONE
+// @ATG_CHANGE : END - UWP LIVE support
 	Windows::Xbox::System::User::AudioDeviceAdded +=
 		ref new Windows::Foundation::EventHandler<Windows::Xbox::System::AudioDeviceAddedEventArgs^>(
 		[this]( Platform::Object^, Windows::Xbox::System::AudioDeviceAddedEventArgs^ args)
@@ -978,7 +981,9 @@ void FOnlineVoiceLive::HookLiveEvents()
 	{
 		OnControllerPairingChanged(args);
 	});
-#endif
+// @ATG_CHANGE : BEGIN - UWP LIVE support
+#endif // PLATFORM_XBOXONE
+// @ATG_CHANGE : END - UWP LIVE support
 }
 
 void FOnlineVoiceLive::UnhookLiveEvents()
@@ -1181,8 +1186,9 @@ Windows::Xbox::Chat::IChatUser^ FOnlineVoiceLive::GetChatUserFromLocalUser(Windo
 }
 // @ATG_CHANGE : END
 
-
-#if !PLATFORM_UWP
+// @ATG_CHANGE : BEGIN - UWP LIVE support - Compatible wrapper needs implementation here
+#if PLATFORM_XBOXONE
+// @ATG_CHANGE : END - UWP LIVE support
 void FOnlineVoiceLive::OnUserAudioDeviceAdded(__in Windows::Xbox::System::AudioDeviceAddedEventArgs^ args)
 {
 	UE_LOG(LogVoice, Log, TEXT("User audio device added"));
@@ -1212,7 +1218,9 @@ void FOnlineVoiceLive::OnControllerPairingChanged( __in Windows::Xbox::Input::Co
 		}
 	}
 }
-#endif
+// @ATG_CHANGE : BEGIN - UWP LIVE support
+#endif // PLATFORM_XBOXONE
+// @ATG_CHANGE : END - UWP LIVE support
 
 // @ATG_CHANGE : BEGIN UWP LIVE support
 #endif // WITH_GAME_CHAT

@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -64,7 +64,7 @@ private:
 	* @param FromType - The Windows PropertyType that is being converted from
 	* @param ToType - The EOnlineKeyValuePairDataType that is being converted to
 	*/
-	void FOnlineAsyncTaskLiveGetLeaderboard::ReportTypeMismatchWarning(Windows::Foundation::PropertyType FromType, EOnlineKeyValuePairDataType::Type ToType);
+	void ReportTypeMismatchWarning(Windows::Foundation::PropertyType FromType, EOnlineKeyValuePairDataType::Type ToType);
 };
 
 /**

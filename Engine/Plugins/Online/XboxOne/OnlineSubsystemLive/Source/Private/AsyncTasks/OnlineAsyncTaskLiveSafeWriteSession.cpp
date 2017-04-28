@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "../OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineAsyncTaskLiveSafeWriteSession.h"
@@ -99,7 +99,7 @@ void FOnlineAsyncTaskLiveSafeWriteSession::Retry(bool bGetSession)
 				}
 				else
 				{
-					UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Failed to get session from session reference."));
+					UE_LOG_ONLINE(Warning, TEXT("Failed to get session from session reference."));
 					OnFailed();
 				}
 			}
@@ -120,7 +120,7 @@ void FOnlineAsyncTaskLiveSafeWriteSession::TryWriteSession()
 	}
 
 	bUpdatedSession = UpdateSession(LiveSession);
-	
+
 	if (!bUpdatedSession)
 	{
 		// Subclass decided not to change the session, we're done here.
@@ -160,10 +160,10 @@ void FOnlineAsyncTaskLiveSafeWriteSession::TryWriteSession()
 
 void FOnlineAsyncTaskLiveSafeWriteSession::Finalize()
 {
-	LiveSubsystem->RefreshLiveInfo(SessionName, LiveSession);
+	Subsystem->RefreshLiveInfo(SessionName, LiveSession);
 }
 
-void FOnlineAsyncTaskLiveSafeWriteSession::Start()
+void FOnlineAsyncTaskLiveSafeWriteSession::Initialize()
 {
 	Retry(true);
 }

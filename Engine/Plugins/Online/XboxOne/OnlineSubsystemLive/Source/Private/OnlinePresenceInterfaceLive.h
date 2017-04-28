@@ -44,11 +44,7 @@ private:
 	class FAsyncEventSetPresenceCompleted : public FOnlineAsyncEvent<FOnlineSubsystemLive>
 	{
 		/** Hidden on purpose */
-		FAsyncEventSetPresenceCompleted() :
-			FOnlineAsyncEvent(NULL),
-			User(nullptr)
-		{
-		}
+		FAsyncEventSetPresenceCompleted() = delete;
 
 		/** The user whose presence was set. */
 		FUniqueNetIdLive User;
@@ -85,10 +81,7 @@ private:
 	class FAsyncEventQueryCompleted : public FOnlineAsyncEvent<FOnlineSubsystemLive>
 	{
 		/** Hidden on purpose */
-		FAsyncEventQueryCompleted() :
-			FOnlineAsyncEvent(nullptr)
-		{
-		}
+		FAsyncEventQueryCompleted() = delete;
 
 		/** The collection of user ids requested */
 		FUniqueNetIdLive User;

@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineSessionInterfaceLive.h"
@@ -6,10 +6,16 @@
 #include "OnlineIdentityInterfaceLive.h"
 #include "OnlineMatchmakingInterfaceLive.h"
 #include "VoiceInterface.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/ScopeLock.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 
+// @ATG_CHANGE : UWP Live Support - BEGIN
 #if PLATFORM_XBOXONE
 #include "XboxOnePostApi.h"
 #endif
+// @ATG_CHANGE : UWP Live Support - END
 #include "SocketSubsystem.h"
 #include "IPAddress.h"
 
@@ -84,17 +90,17 @@ namespace
 	{
 		if (Session == nullptr)
 		{
-			UE_LOG(LogOnlineSubsystemLive, Log, TEXT("DebugLogLiveSession: Session is null."));
+			UE_LOG_ONLINE(Log, TEXT("DebugLogLiveSession: Session is null."));
 			return;
 		}
 
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("DebugLogLiveSession:\n"));
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  MaxMembersInSession: %d\n"), Session->SessionConstants->MaxMembersInSession);
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  Members->Size: %d. Members:\n"), Session->Members->Size);
+		UE_LOG_ONLINE(Log, TEXT("DebugLogLiveSession:\n"));
+		UE_LOG_ONLINE(Log, TEXT("  MaxMembersInSession: %d\n"), Session->SessionConstants->MaxMembersInSession);
+		UE_LOG_ONLINE(Log, TEXT("  Members->Size: %d. Members:\n"), Session->Members->Size);
 
 		for (auto Member : Session->Members)
 		{
-			UE_LOG(LogOnlineSubsystemLive, Log,
+			UE_LOG_ONLINE(Log,
 				TEXT( "    Gamertag: %s, Live ID: %s, status: %s" ),
 				Member->Gamertag->Data(), Member->XboxUserId->Data(), GetSessionMemberStatusString(Member->Status));
 		}
@@ -122,9 +128,9 @@ FOnlineSessionLive::~FOnlineSessionLive()
 	}
 	catch(Platform::Exception^ )
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("User Exception during shutdown"));
+		UE_LOG_ONLINE(Warning, TEXT("User Exception during shutdown"));
 	}
-
+	
 	// Replaced old party events with session subscriptions and activation handler for invites
 	CoreApplication::GetCurrentView()->Activated -= ActivatedToken;
 	LiveSubsystem->GetSessionMessageRouter()->ClearOnSubscriptionLostDelegate_Handle(OnSubscriptionLostDelegateHandle);
@@ -151,7 +157,7 @@ void FOnlineSessionLive::Initialize()
 			{
 				if(EventArgs->Association)
 				{
-					UE_LOG(LogOnlineSubsystemLive, Log, TEXT("Received association, state is %d."), (int)EventArgs->Association->State);
+					UE_LOG_ONLINE(Log, TEXT("Received association, state is %d."), (int)EventArgs->Association->State);
 
 					auto StateChangedEvent = ref new TypedEventHandler<SecureDeviceAssociation^, SecureDeviceAssociationStateChangedEventArgs^>(&LogAssociationStateChange);
 					EventArgs->Association->StateChanged += StateChangedEvent;
@@ -162,12 +168,12 @@ void FOnlineSessionLive::Initialize()
 		}
 		catch(Platform::COMException^ Ex)
 		{
-			UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Couldn't find secure device association template named %s. Check the app manifest."), *TemplateName);
+			UE_LOG_ONLINE(Warning, TEXT("Couldn't find secure device association template named %s. Check the app manifest."), *TemplateName);
 		}
 	}
 	else
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("No SecureDeviceAssociationTemplateName specified in the engine ini file."));
+		UE_LOG_ONLINE(Warning, TEXT("No SecureDeviceAssociationTemplateName specified in the engine ini file."));
 	}
 
 	// Clean up orphaned sessions.
@@ -194,6 +200,7 @@ void FOnlineSessionLive::Initialize()
 		CleanUpOrphanedSessions( EventArgs->User );
 	});
 	SignInCompletedToken = Windows::Xbox::System::User::SignInCompleted += SignInCompletedEvent;
+
 
 	OnSubscriptionLostDestroyCompleteDelegate = FOnEndSessionCompleteDelegate::CreateRaw(this, &FOnlineSessionLive::OnSubscriptionLostDestroyComplete);
 	
@@ -249,14 +256,14 @@ void FOnlineSessionLive::CleanUpOrphanedSessions(Windows::Xbox::System::User^ Us
 			{
 				auto Results = Task.get();
 
-				UE_LOG(LogOnlineSubsystemLive, Log, TEXT("Found %d potentially orphaned sessions."), Results->Size);
+				UE_LOG_ONLINE(Log, TEXT("Found %d potentially orphaned sessions."), Results->Size);
 
 				for(auto SessionState : Results)
 				{
-					UE_LOG(LogOnlineSubsystemLive, Log, TEXT("Potentially orphaned session:"));
-					UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  Template name: %s"), SessionState->SessionReference->SessionTemplateName->Data());
-					UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  Id: %s"), SessionState->SessionReference->SessionName->Data());
-					UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  State: %s"), SessionState->Status.ToString()->Data());
+					UE_LOG_ONLINE(Log, TEXT("Potentially orphaned session:"));
+					UE_LOG_ONLINE(Log, TEXT("  Template name: %s"), SessionState->SessionReference->SessionTemplateName->Data());
+					UE_LOG_ONLINE(Log, TEXT("  Id: %s"), SessionState->SessionReference->SessionName->Data());
+					UE_LOG_ONLINE(Log, TEXT("  State: %s"), SessionState->Status.ToString()->Data());
 					
 					auto GetSessionOp = LiveContext->MultiplayerService->GetCurrentSessionAsync(SessionState->SessionReference);
 					
@@ -292,7 +299,7 @@ void FOnlineSessionLive::CleanUpOrphanedSessions(Windows::Xbox::System::User^ Us
 										}
 										catch(Platform::Exception^ Ex)
 										{
-											UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Failed to write leave to orphaned session. Id: %s"), Session->SessionReference->SessionName->Data());
+											UE_LOG_ONLINE(Warning, TEXT("Failed to write leave to orphaned session. Id: %s"), Session->SessionReference->SessionName->Data());
 										}
 									});
 									return;
@@ -301,20 +308,20 @@ void FOnlineSessionLive::CleanUpOrphanedSessions(Windows::Xbox::System::User^ Us
 						}
 						catch(Platform::Exception^ Ex)
 						{
-							UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Failed to get session from session reference. Id: %s"), SessionState->SessionReference->SessionName->Data());
+							UE_LOG_ONLINE(Warning, TEXT("Failed to get session from session reference. Id: %s"), SessionState->SessionReference->SessionName->Data());
 						}
 					});
 				}
 			}
 			catch(Platform::Exception^ Ex)
 			{
-				UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Failed to get sessions for orphaned session cleanup."));
+				UE_LOG_ONLINE(Warning, TEXT("Failed to get sessions for orphaned session cleanup."));
 			}
 		});
 	}
 	catch(Platform::Exception^ Ex)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Could not clean up orphaned sessions for local user."));
+		UE_LOG_ONLINE(Warning, TEXT("Could not clean up orphaned sessions for local user."));
 	}
 }
 
@@ -377,14 +384,15 @@ bool FOnlineSessionLive::CreateSession(const FUniqueNetId& HostingPlayerId, FNam
 		create_task(writeSessionOp).then([this,CreatingUser,SessionName,NewSessionSettings](task<MultiplayerSession^> CreateTask)
 		// @ATG_CHANGE :  END
 		{    
+			Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession = nullptr;
 			try 
 			{
-				auto Session = CreateTask.get(); // if t.get() didn't throw, it succeeded
+				LiveSession = CreateTask.get(); // if t.get() didn't throw, it succeeded
 
-				LiveSubsystem->GetSessionMessageRouter()->AddOnSessionChangedDelegate(OnSessionChangedDelegate, Session->SessionReference);
+				LiveSubsystem->GetSessionMessageRouter()->AddOnSessionChangedDelegate(OnSessionChangedDelegate, LiveSession->SessionReference);
 				// Now that the session is created, we can get the device token and set this console as the host.
 				MultiplayerSessionMember^ HostMember = nullptr;
-				for(auto Member : Session->Members)
+				for (auto Member : LiveSession->Members)
 				{
 					if(Member->XboxUserId == CreatingUser->XboxUserId)
 					{
@@ -396,37 +404,37 @@ bool FOnlineSessionLive::CreateSession(const FUniqueNetId& HostingPlayerId, FNam
 
 				if(HostMember == nullptr)
 				{
-					UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Could not find creator in session members. Not setting host."));
+					UE_LOG_ONLINE(Warning, TEXT("Could not find creator in session members. Not setting host."));
 					
 					auto NewTask = new FOnlineAsyncTaskLiveCreateSession(
 						this,
 						CreatingUserUniqueId,
 						SessionName,
-						Session);
+						LiveSession);
 					LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue(NewTask);
 					return;
 				}
 
 
 				// Simple host selection - the user that creates the session is the host.
-				Session->SetHostDeviceToken( HostMember->DeviceToken );
+				LiveSession->SetHostDeviceToken(HostMember->DeviceToken);
 
 				// @ATG_CHANGE :  BEGIN Allow modifying session visibility/joinability
 				// Now that the session is created its constants should be fully initialized - as such
 				// it's now safe to rely on constants to help determine joinability.
-				WriteSessionPrivacySettingsToLiveJson(NewSessionSettings, Session);
+				WriteSessionPrivacySettingsToLiveJson(NewSessionSettings, LiveSession);
 				// @ATG_CHANGE :  END
 
 				XboxLiveContext^ Context = LiveSubsystem->GetLiveContext(CreatingUser);
 				
 				// This will be the session used for invites/join in progress if supported.
-				Context->MultiplayerService->SetActivityAsync(Session->SessionReference);
+				Context->MultiplayerService->SetActivityAsync(LiveSession->SessionReference);
 
 				auto WriteSessionOp = Context->MultiplayerService->WriteSessionAsync(
-					Session, 
+					LiveSession,
 					MultiplayerSessionWriteMode::UpdateExisting);
 
-				create_task(WriteSessionOp).then([this,CreatingUserUniqueId,SessionName](task<MultiplayerSession^> WriteTask)
+				create_task(WriteSessionOp).then([this, CreatingUserUniqueId,SessionName, LiveSession](task<MultiplayerSession^> WriteTask)
 				{
 					try
 					{
@@ -441,10 +449,15 @@ bool FOnlineSessionLive::CreateSession(const FUniqueNetId& HostingPlayerId, FNam
 					}
 					catch ( Platform::COMException^ ex )
 					{
-						UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("WriteSessionAsync failed attempting to write host device token."));
+						UE_LOG_ONLINE(Warning, TEXT("WriteSessionAsync failed attempting to write host device token."));
 						
-						LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this,SessionName]()
+						LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this, SessionName, LiveSession]()
 						{
+							if (LiveSession)
+							{
+								LiveSession->Leave();
+							}
+							RemoveNamedSession(SessionName);
 							TriggerOnCreateSessionCompleteDelegates(SessionName, false);
 						});
 					}
@@ -454,8 +467,13 @@ bool FOnlineSessionLive::CreateSession(const FUniqueNetId& HostingPlayerId, FNam
 			{
 				UE_LOG(LogOnline, Log, TEXT("Create Session Task failed with 0x%0.8X"), ex->HResult);
 	
-				LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this,SessionName]()
+				LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this, SessionName, LiveSession]()
 				{
+					if (LiveSession)
+					{
+						LiveSession->Leave();
+					}
+					RemoveNamedSession(SessionName);
 					TriggerOnCreateSessionCompleteDelegates(SessionName, false);
 				});
 			}
@@ -464,6 +482,7 @@ bool FOnlineSessionLive::CreateSession(const FUniqueNetId& HostingPlayerId, FNam
 	catch(Platform::Exception^ ex)
 	{
 		UE_LOG(LogOnline, Log, L"Create Session Task failed with 0x%0.8X", ex->HResult);
+		RemoveNamedSession(SessionName);
 		TriggerOnCreateSessionCompleteDelegates(SessionName, false);
 		return false;
 	}
@@ -560,12 +579,14 @@ bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, con
 
 					if (ExpectedResults == 0)
 					{
-						SearchSettings->SearchState = EOnlineAsyncTaskState::Done;
-						CurrentSessionSearch = nullptr;
-						LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this,SearchSettings]()
+						// Finish on the Game thread
+						LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this, SearchSettings]()
 						{
+							SearchSettings->SearchState = EOnlineAsyncTaskState::Done;
+							CurrentSessionSearch = nullptr;
 							TriggerOnFindSessionsCompleteDelegates(true);  
 						});
+						return;
 					}
 			
 					for(auto SessionState : SearchResults)
@@ -576,6 +597,8 @@ bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, con
 							create_task(GetSessionOp)
 								.then( [this,SearchSettings,LiveContext] (task<MultiplayerSession^> t)
 							{
+								// Lock for the entirety of this scope to protect safe access to SearchSettings' SearchResults and ExpectedResults
+								FScopeLock Lock(&SessionResultLock);
 								try 
 								{
 									MultiplayerSession^ SearchResult = t.get();
@@ -597,8 +620,6 @@ bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, con
 									UE_LOG(LogOnline, Log,TEXT("A MultiplayerService::GetCurrentSessionAsync call failed with 0x%0.8X"), ex->HResult);
 								}
 
-								//Lock for the rest of the lambda so ExpectedResults is valid for it.
-								FScopeLock Lock(&SessionResultLock);
 								ExpectedResults--;
 
 								if (ExpectedResults == 0)
@@ -626,6 +647,7 @@ bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, con
 					
 					LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this,SearchSettings]()
 					{
+						CurrentSessionSearch = nullptr;
 						SearchSettings->SearchState = EOnlineAsyncTaskState::Failed;
 						TriggerOnFindSessionsCompleteDelegates(false); 
 					});
@@ -691,7 +713,7 @@ void FOnlineSessionLive::PingResultsAndTriggerDelegates(const TSharedRef<FOnline
 		{
 			continue;
 		}
-	
+		
 		auto SDA = SecureDeviceAddress::FromBase64String(HostSDABase64);
 		if (nullptr == SDA) //Non Thunderhead dedicated servers need to manually ping the result here...
 		{
@@ -731,7 +753,7 @@ void FOnlineSessionLive::PingResultsAndTriggerDelegates(const TSharedRef<FOnline
 			}
 			catch(Platform::COMException^ Ex)
 			{
-				UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("MeasureQualityOfServiceAsync failed: 0x%0.8X"), Ex->HResult);
+				UE_LOG_ONLINE(Warning, TEXT("MeasureQualityOfServiceAsync failed: 0x%0.8X"), Ex->HResult);
 			}
 
 			LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this,SearchSettings]()
@@ -790,7 +812,7 @@ bool FOnlineSessionLive::JoinSession(const FUniqueNetId& UserId, FName SessionNa
 
 	if(NamedSession)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Session (%s) already exists, can't join twice"), *SessionName.ToString());
+		UE_LOG_ONLINE(Warning, TEXT("Session (%s) already exists, can't join twice"), *SessionName.ToString());
 		TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::AlreadyInSession);
 		return false;
 	}
@@ -798,7 +820,7 @@ bool FOnlineSessionLive::JoinSession(const FUniqueNetId& UserId, FName SessionNa
 	// If there's no secure device association template, we can't get the host's address.
 	if(!PeerTemplate)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("No secure device association template, unable to join host."));
+		UE_LOG_ONLINE(Warning, TEXT("No secure device association template, unable to join host."));
 		TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::CouldNotRetrieveAddress);
 		return false;
 	}
@@ -848,7 +870,7 @@ bool FOnlineSessionLive::JoinSession(const FUniqueNetId& UserId, FName SessionNa
 
 	if(!DesiredSession.Session.SessionInfo.IsValid())
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Invalid session info on search result"));
+		UE_LOG_ONLINE(Warning, TEXT("Invalid session info on search result"));
 		RemoveNamedSession(SessionName);
 		TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::UnknownError);
 		return false;
@@ -861,7 +883,7 @@ bool FOnlineSessionLive::JoinSession(const FUniqueNetId& UserId, FName SessionNa
 	//Protect against signout
 	if (LiveContext == nullptr)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Invalid session info on search result"));
+		UE_LOG_ONLINE(Warning, TEXT("Invalid session info on search result"));
 		RemoveNamedSession(SessionName);
 		TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::UnknownError);
 		return false;
@@ -934,7 +956,7 @@ bool FOnlineSessionLive::FindFriendSession(int32 LocalUserNum, const FUniqueNetI
 			}
 			catch(Platform::Exception^ ex)
 			{
-				UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FindFriendSession: Failed to retrieve Friend's multiplayer activity with 0x%0.8X"), ex->HResult);
+				UE_LOG_ONLINE(Warning, TEXT("FindFriendSession: Failed to retrieve Friend's multiplayer activity with 0x%0.8X"), ex->HResult);
 				throw;
 			}
 		})
@@ -953,7 +975,7 @@ bool FOnlineSessionLive::FindFriendSession(int32 LocalUserNum, const FUniqueNetI
 			}
 			catch (Platform::Exception^ ex)
 			{
-				UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FindFriendSession: Failed to retrieve MultiplayerSession with 0x%0.8X"), ex->HResult);
+				UE_LOG_ONLINE(Warning, TEXT("FindFriendSession: Failed to retrieve MultiplayerSession with 0x%0.8X"), ex->HResult);
 				LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this, LocalUserNum]()
 				{
 					FOnlineSessionSearchResult FriendSession;
@@ -996,38 +1018,85 @@ void FOnlineSessionLive::SetCurrentUserActive(int32 UserNum, MultiplayerSession^
 	MultiplayerSessionMemberStatus::Inactive );
 }
 
-bool FOnlineSessionLive::GetResolvedConnectString(FName SessionName, FString& ConnectInfo)
+/** Get a resolved connection string from a session info */
+static bool GetConnectStringFromSessionInfo(TSharedPtr<FOnlineSessionInfoLive>& SessionInfo, FString& ConnectInfo, int32 PortOverride = 0)
 {
-	auto Session = GetNamedSession(SessionName);
-	if(Session == nullptr)
+	bool bSuccess = false;
+
+	if (SessionInfo.IsValid())
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FOnlineSessionLive::GetResolvedConnectString: couldn't find session '%s'"), *SessionName.ToString());
-		return false;
+		TSharedPtr<FInternetAddr> IpAddr = SessionInfo->GetHostAddr();
+		if (IpAddr.IsValid() && IpAddr->IsValid())
+		{
+			if (PortOverride != 0)
+			{
+				ConnectInfo = FString::Printf(TEXT("%s:%d"), *IpAddr->ToString(false), PortOverride);
+			}
+			else
+			{
+				ConnectInfo = FString::Printf(TEXT("%s"), *IpAddr->ToString(true));
+			}
+
+			bSuccess = true;
+		}
 	}
 
-	auto LiveSessionInfo = (FOnlineSessionInfoLive*)Session->SessionInfo.Get();
-	if(!LiveSessionInfo || !LiveSessionInfo->GetHostAddr().IsValid())
-	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FOnlineSessionLive::GetResolvedConnectString: session info or host address invalid for session '%s'"), *SessionName.ToString());
-		return false;
-	}
-
-	ConnectInfo = LiveSessionInfo->GetHostAddr()->ToString(true);
-
-	return true;
+	return bSuccess;
 }
 
-bool FOnlineSessionLive::GetResolvedConnectString(const class FOnlineSessionSearchResult& SearchResult, FName PortType, FString& ConnectInfo)
+bool FOnlineSessionLive::GetResolvedConnectString(FName SessionName, FString& ConnectInfo)
 {
-	auto LiveSessionInfo = (FOnlineSessionInfoLive*)SearchResult.Session.SessionInfo.Get();
-	if(!LiveSessionInfo || !LiveSessionInfo->GetHostAddr().IsValid())
+	bool bSuccess = false;
+	// Find the session
+	FNamedOnlineSession* Session = GetNamedSession(SessionName);
+	if (Session != NULL)
 	{
-		return false;
+		TSharedPtr<FOnlineSessionInfoLive> SessionInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(Session->SessionInfo);
+		bSuccess = GetConnectStringFromSessionInfo(SessionInfo, ConnectInfo);
+		if (!bSuccess)
+		{
+			UE_LOG_ONLINE(Warning, TEXT("Invalid session info for session %s in GetResolvedConnectString()"), *SessionName.ToString());
+		}
+	}
+	else
+	{
+		UE_LOG_ONLINE(Warning,
+			TEXT("Unknown session name (%s) specified to GetResolvedConnectString()"),
+			*SessionName.ToString());
 	}
 
-	ConnectInfo = LiveSessionInfo->GetHostAddr()->ToString(true);
+	return bSuccess;
+}
 
-	return true;
+bool FOnlineSessionLive::GetResolvedConnectString(const FOnlineSessionSearchResult& SearchResult, FName PortType, FString& ConnectInfo)
+{
+	bool bSuccess = false;
+	if (SearchResult.Session.SessionInfo.IsValid())
+	{
+		TSharedPtr<FOnlineSessionInfoLive> SessionInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(SearchResult.Session.SessionInfo);
+
+		if (PortType == BeaconPort)
+		{
+			int32 BeaconListenPort = DEFAULT_BEACON_PORT;
+			if (!SearchResult.Session.SessionSettings.Get(SETTING_BEACONPORT, BeaconListenPort) || BeaconListenPort <= 0)
+			{
+				// Reset the default BeaconListenPort back to DEFAULT_BEACON_PORT because the SessionSettings value does not exist or was not valid
+				BeaconListenPort = DEFAULT_BEACON_PORT;
+			}
+			bSuccess = GetConnectStringFromSessionInfo(SessionInfo, ConnectInfo, BeaconListenPort);
+		}
+		else if (PortType == GamePort)
+		{
+			bSuccess = GetConnectStringFromSessionInfo(SessionInfo, ConnectInfo);
+		}
+	}
+
+	if (!bSuccess || ConnectInfo.IsEmpty())
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Invalid session info in search result to GetResolvedConnectString()"));
+	}
+
+	return bSuccess;
 }
 
 // @ATG_CHANGE :  BEGIN Allow modifying session visibility/joinability
@@ -1036,7 +1105,7 @@ FOnlineSessionSettings* FOnlineSessionLive::GetSessionSettings(FName SessionName
 	auto Session = GetNamedSession(SessionName);
 	if (Session == nullptr)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FOnlineSessionLive::GetSessionSettings: couldn't find session '%s'"), *SessionName.ToString());
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::GetSessionSettings: couldn't find session '%s'"), *SessionName.ToString());
 		return nullptr;
 	}
 
@@ -1070,7 +1139,7 @@ bool FOnlineSessionLive::RegisterPlayers(FName SessionName, const TArray< TShare
 				}
 				else
 				{
-					UE_LOG(LogOnlineSubsystemLive, Log, TEXT("Player %s already registered in session %s"), *Players[PlayerIdx]->ToDebugString(), *SessionName.ToString());
+					UE_LOG_ONLINE(Log, TEXT("Player %s already registered in session %s"), *Players[PlayerIdx]->ToDebugString(), *SessionName.ToString());
 				}
 
 				RegisterVoice(*PlayerId);
@@ -1080,12 +1149,12 @@ bool FOnlineSessionLive::RegisterPlayers(FName SessionName, const TArray< TShare
 		}
 		else
 		{
-			UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("No session info to join for session (%s)"), *SessionName.ToString());
+			UE_LOG_ONLINE(Warning, TEXT("No session info to join for session (%s)"), *SessionName.ToString());
 		}
 	}
 	else
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("No game present to join for session (%s)"), *SessionName.ToString());
+		UE_LOG_ONLINE(Warning, TEXT("No game present to join for session (%s)"), *SessionName.ToString());
 	}
 
 	TriggerOnRegisterPlayersCompleteDelegates(SessionName, Players, bSuccess);
@@ -1121,7 +1190,7 @@ bool FOnlineSessionLive::UnregisterPlayers(FName SessionName, const TArray< TSha
 				}
 				else
 				{
-					UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Player %s is not part of session (%s)"), *PlayerId->ToDebugString(), *SessionName.ToString());
+					UE_LOG_ONLINE(Warning, TEXT("Player %s is not part of session (%s)"), *PlayerId->ToDebugString(), *SessionName.ToString());
 				}
 			}
 
@@ -1129,12 +1198,12 @@ bool FOnlineSessionLive::UnregisterPlayers(FName SessionName, const TArray< TSha
 		}
 		else
 		{
-			UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("No session info to leave for session (%s)"), *SessionName.ToString());
+			UE_LOG_ONLINE(Warning, TEXT("No session info to leave for session (%s)"), *SessionName.ToString());
 		}
 	}
 	else
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("No game present to leave for session (%s)"), *SessionName.ToString());
+		UE_LOG_ONLINE(Warning, TEXT("No game present to leave for session (%s)"), *SessionName.ToString());
 	}
 
 	TriggerOnUnregisterPlayersCompleteDelegates(SessionName, Players, bSuccess);
@@ -1380,7 +1449,7 @@ bool FOnlineSessionLive::StartSession( FName SessionName )
 	auto Session = GetNamedSession(SessionName);
 	if(!Session)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Can't start an online game for session (%s) that hasn't been created"),
+		UE_LOG_ONLINE(Warning, TEXT("Can't start an online game for session (%s) that hasn't been created"),
 			*SessionName.ToString());
 		TriggerOnStartSessionCompleteDelegates(SessionName, false);
 		return false;
@@ -1390,7 +1459,7 @@ bool FOnlineSessionLive::StartSession( FName SessionName )
 	if (Session->SessionState != EOnlineSessionState::Pending &&
 		Session->SessionState != EOnlineSessionState::Ended)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Can't start an online session (%s) in state %s"),
+		UE_LOG_ONLINE(Warning, TEXT("Can't start an online session (%s) in state %s"),
 			*SessionName.ToString(),
 			EOnlineSessionState::ToString(Session->SessionState));
 		TriggerOnStartSessionCompleteDelegates(SessionName, false);
@@ -1416,7 +1485,7 @@ bool FOnlineSessionLive::EndSession(FName SessionName)
 	auto Session = GetNamedSession(SessionName);
 	if(!Session)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Can't end an online game for session (%s) that hasn't been created"),
+		UE_LOG_ONLINE(Warning, TEXT("Can't end an online game for session (%s) that hasn't been created"),
 			*SessionName.ToString());
 		TriggerOnEndSessionCompleteDelegates(SessionName, false);
 		return false;
@@ -1424,7 +1493,7 @@ bool FOnlineSessionLive::EndSession(FName SessionName)
 
 	if(Session->SessionState != EOnlineSessionState::InProgress)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Can't end session (%s) in state %s"),
+		UE_LOG_ONLINE(Warning, TEXT("Can't end session (%s) in state %s"),
 			*SessionName.ToString(),
 			EOnlineSessionState::ToString(Session->SessionState));
 		TriggerOnEndSessionCompleteDelegates(SessionName, false);
@@ -1444,7 +1513,7 @@ bool FOnlineSessionLive::DestroySession(FName SessionName, const FOnDestroySessi
 	auto Session = GetNamedSession(SessionName);
 	if(!Session)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Can't destroy a null online session (%s)"), *SessionName.ToString());
+		UE_LOG_ONLINE(Warning, TEXT("Can't destroy a null online session (%s)"), *SessionName.ToString());
 		CompletionDelegate.ExecuteIfBound(SessionName, false);
 		TriggerOnDestroySessionCompleteDelegates(SessionName, false);
 		return false;
@@ -1453,7 +1522,7 @@ bool FOnlineSessionLive::DestroySession(FName SessionName, const FOnDestroySessi
 	if (Session->SessionState == EOnlineSessionState::Destroying)
 	{
 		// Purposefully skip the delegate call as one should already be in flight
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Already in process of destroying session (%s)"), *SessionName.ToString());
+		UE_LOG_ONLINE(Warning, TEXT("Already in process of destroying session (%s)"), *SessionName.ToString());
 		return false;
 	}
 
@@ -1463,7 +1532,7 @@ bool FOnlineSessionLive::DestroySession(FName SessionName, const FOnDestroySessi
 	
 	if(!LiveSessionInfo.IsValid())
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Destroying an online session (%s) will null Live info. No writes to the MPSD will occur."), *SessionName.ToString());
+		UE_LOG_ONLINE(Warning, TEXT("Destroying an online session (%s) will null Live info. No writes to the MPSD will occur."), *SessionName.ToString());
 		RemoveNamedSession(SessionName);
 		CompletionDelegate.ExecuteIfBound(SessionName, true);
 		TriggerOnDestroySessionCompleteDelegates(SessionName, true);
@@ -1474,7 +1543,7 @@ bool FOnlineSessionLive::DestroySession(FName SessionName, const FOnDestroySessi
 
 	if(!LiveSession)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Destroying a session with a null Live MultiplayerSession (%s)"), *SessionName.ToString());
+		UE_LOG_ONLINE(Warning, TEXT("Destroying a session with a null Live MultiplayerSession (%s)"), *SessionName.ToString());
 		RemoveNamedSession(SessionName);
 		CompletionDelegate.ExecuteIfBound(SessionName, true);
 		TriggerOnDestroySessionCompleteDelegates(SessionName, true);
@@ -1955,12 +2024,12 @@ void FOnlineSessionLive::SaveInviteFromActivation(Windows::Foundation::Uri^ Acti
 
 	if (SessionHandle != nullptr && UserXuid != nullptr)
 	{
-		Windows::Xbox::System::User^ JoiningUser = nullptr;
-
 		// Find the user the invite is for.
 		// This is an uncommon call so I'm OK with making the slow User::Users query
 		// here
 		const auto CachedUsers = User::Users;
+		User^ JoiningUser = nullptr;
+
 		for ( const auto CurrentUser : CachedUsers )
 		{
 			if ( CurrentUser->XboxUserId == UserXuid )
@@ -1972,7 +2041,7 @@ void FOnlineSessionLive::SaveInviteFromActivation(Windows::Foundation::Uri^ Acti
 
 		if ( !JoiningUser )
 		{
-			UE_LOG( LogOnlineSubsystemLive, Warning, TEXT( "FOnlineSessionLive::SaveInviteFromActivation: couldn't find a local user to accept the invite." ) );
+			UE_LOG_ONLINE(Warning, TEXT( "FOnlineSessionLive::SaveInviteFromActivation: couldn't find a local user to accept the invite." ) );
 			return;
 		}
 
@@ -1992,7 +2061,7 @@ void FOnlineSessionLive::OnActivated(Windows::ApplicationModel::Activation::IAct
 		ProtocolActivatedEventArgs^ ProtocolArgs = (ProtocolActivatedEventArgs^)EventArgs;				
 		Windows::Foundation::Uri^ ActivationUri = ref new Windows::Foundation::Uri(ProtocolArgs->Uri->RawUri);
 
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("----- Got activation URI: %s"), ActivationUri->ToString()->Data());
+		UE_LOG_ONLINE(Log, TEXT("----- Got activation URI: %s"), ActivationUri->ToString()->Data());
 
 		// See if this activation was in response to a session invite or gamercard join
 		SaveInviteFromActivation(ActivationUri);
@@ -2039,7 +2108,7 @@ void FOnlineSessionLive::TickPendingInvites( float DeltaTime )
 
 	if (PendingInvite.AcceptingUser == nullptr)
 	{
-		UE_LOG( LogOnlineSubsystemLive, Warning,
+		UE_LOG_ONLINE(Warning,
 			TEXT( "FOnlineSessionLive::TickPendingInvites: bHaveInvite is true but AcceptingUser is null." ) );
 		PendingInvite.bHaveInvite = false;
 		return;
@@ -2047,7 +2116,7 @@ void FOnlineSessionLive::TickPendingInvites( float DeltaTime )
 
 	if (PendingInvite.SessionHandle == nullptr)
 	{
-		UE_LOG( LogOnlineSubsystemLive, Warning,
+		UE_LOG_ONLINE(Warning,
 			TEXT( "FOnlineSessionLive::TickPendingInvites: bHaveInvite is true but SessionHandle is null." ) );
 	
 		PendingInvite.bHaveInvite = false;
@@ -2064,7 +2133,7 @@ void FOnlineSessionLive::TickPendingInvites( float DeltaTime )
 	
 	if ( !Context )
 	{
-		UE_LOG( LogOnlineSubsystemLive, Warning,
+		UE_LOG_ONLINE(Warning,
 			TEXT( "FOnlineSessionLive::TickPendingInvites: couldn't create an XboxLiveContext for the AcceptingUser." ) );
 		return;
 	}
@@ -2174,7 +2243,7 @@ void FOnlineSessionLive::LogAssociationStateChange(SecureDeviceAssociation^ Asso
 		return;
 	}
 
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("SecureDeviceAssociation with remote host %s changed from state %s to %s"),
+	UE_LOG_ONLINE(Log, TEXT("SecureDeviceAssociation with remote host %s changed from state %s to %s"),
 		Association->RemoteHostName->DisplayName->Data(),
 		AssociationStateToString(EventArgs->OldState),
 		AssociationStateToString(EventArgs->NewState));
@@ -2309,12 +2378,12 @@ void FOnlineSessionLive::OnInitializationStateChanged(const FName& SessionName)
 {
 	check(IsInGameThread());
 
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineSessionLive::OnInitializationStateChanged - game thread"));
+	UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::OnInitializationStateChanged - game thread"));
 
 	const auto NamedSession = GetNamedSession(SessionName);
 	if (NamedSession == nullptr)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FOnlineSessionLive::OnInitializationStateChanged - session doesn't exist or was destroyed before task ran"));
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::OnInitializationStateChanged - session doesn't exist or was destroyed before task ran"));
 		return;
 	}
 
@@ -2336,13 +2405,13 @@ void FOnlineSessionLive::OnInitializationStateChanged(const FName& SessionName)
 
 	if (!SessionMember->InitializeRequested)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  QoS not requested for this member, skipping"));
+		UE_LOG_ONLINE(Log, TEXT("  QoS not requested for this member, skipping"));
 		return;
 	}
 
 	if (SessionMember->InitializationFailureCause != MultiplayerMeasurementFailure::None)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  Qos failed for this member, failure case: %u"), static_cast<uint32>(SessionMember->InitializationFailureCause));
+		UE_LOG_ONLINE(Log, TEXT("  Qos failed for this member, failure case: %u"), static_cast<uint32>(SessionMember->InitializationFailureCause));
 		FOnlineMatchmakingInterfaceLivePtr MatchmakingInterface = LiveSubsystem->GetMatchmakingInterfaceLive();
 		MatchmakingInterface->SetTicketState(SessionName, EOnlineLiveMatchmakingState::None);
 		MatchmakingInterface->TriggerOnMatchmakingCompleteDelegates(NamedSession->SessionName, false);
@@ -2351,7 +2420,7 @@ void FOnlineSessionLive::OnInitializationStateChanged(const FName& SessionName)
 
 	if (SessionMember->InitializationEpisode == 0)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  QoS succeeded"));
+		UE_LOG_ONLINE(Log, TEXT("  QoS succeeded"));
 
 		auto LiveContext = LiveSubsystem->GetLiveContext(LiveInfo->GetLiveMultiplayerSession());
 		auto SessionReadyTask = new FOnlineAsyncTaskLiveGameSessionReady(
@@ -2372,22 +2441,22 @@ void FOnlineSessionLive::OnInitializationStateChanged(const FName& SessionName)
 		switch (Stage)
 		{
 			case Microsoft::Xbox::Services::Multiplayer::MultiplayerInitializationStage::None:
-				UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  InitializationStage = None"));
+				UE_LOG_ONLINE(Log, TEXT("  InitializationStage = None"));
 				break;
 
 			case Microsoft::Xbox::Services::Multiplayer::MultiplayerInitializationStage::Unknown:
-				UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  InitializationStage = Unknown"));
+				UE_LOG_ONLINE(Log, TEXT("  InitializationStage = Unknown"));
 				break;
 
 			case Microsoft::Xbox::Services::Multiplayer::MultiplayerInitializationStage::Joining:
 				// Nothing to be done here, just wait for the other devices to finish joining the session
-				UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  InitializationStage = Joining"));
+				UE_LOG_ONLINE(Log, TEXT("  InitializationStage = Joining"));
 				break;
 
 			case Microsoft::Xbox::Services::Multiplayer::MultiplayerInitializationStage::Measuring:
 			{
 				// Title will measure and upload QoS result, service will do the evaluation.
-				UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  InitializationStage = Measuring"));
+				UE_LOG_ONLINE(Log, TEXT("  InitializationStage = Measuring"));
 
 				auto LiveContext = LiveSubsystem->GetLiveContext(LiveInfo->GetLiveMultiplayerSession());
 
@@ -2404,7 +2473,7 @@ void FOnlineSessionLive::OnInitializationStateChanged(const FName& SessionName)
 			}
 
 			case Microsoft::Xbox::Services::Multiplayer::MultiplayerInitializationStage::Evaluating:
-				UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  InitializationStage = Evaluating"));
+				UE_LOG_ONLINE(Log, TEXT("  InitializationStage = Evaluating"));
 				// @todo Currently the engine supports system-evaluated QoS. Code for title-evaluated
 				// QoS would go here.
 				break;
@@ -2412,14 +2481,14 @@ void FOnlineSessionLive::OnInitializationStateChanged(const FName& SessionName)
 			case Microsoft::Xbox::Services::Multiplayer::MultiplayerInitializationStage::Failed:
 				{
 					// QoS failed for the session overall
-					UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  InitializationStage = Failed"));
+					UE_LOG_ONLINE(Log, TEXT("  InitializationStage = Failed"));
 					FOnlineMatchmakingInterfaceLivePtr MatchmakingInterface = LiveSubsystem->GetMatchmakingInterfaceLive();
 					MatchmakingInterface->SetTicketState(SessionName, EOnlineLiveMatchmakingState::None);
 					MatchmakingInterface->TriggerOnMatchmakingCompleteDelegates(NamedSession->SessionName, false);	
 					break;
 				}
 			default:
-				UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FOnlineSessionLive::OnInitializationStateChanged - Got unexpected InitializationStage: %u"), static_cast<uint32>(Stage));
+				UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::OnInitializationStateChanged - Got unexpected InitializationStage: %u"), static_cast<uint32>(Stage));
 				break;
 		}
 	}
@@ -2429,12 +2498,12 @@ void FOnlineSessionLive::OnMemberListChanged(Microsoft::Xbox::Services::Multipla
 {
 	check(IsInGameThread());
 
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineSessionLive::OnMemberListChanged - game thread"));
+	UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::OnMemberListChanged - game thread"));
 
 	const auto NamedSession = GetNamedSession(SessionName);
 	if (NamedSession == nullptr)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FOnlineSessionLive::OnMatchmakingStatusChanged - session doesn't exist or was destroyed before task ran"));
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::OnMatchmakingStatusChanged - session doesn't exist or was destroyed before task ran"));
 		return;
 	}
 
@@ -2465,7 +2534,7 @@ void FOnlineSessionLive::OnMemberListChanged(Microsoft::Xbox::Services::Multipla
 	// @v2live Should this go inside the MatchmakingState check below?
 	if ( !NamedSession->OwningUserId.IsValid() )
 	{
-		UE_LOG(LogOnlineSubsystemLive, Verbose, TEXT("FOnlineSessionLive::OnMemberListChanged: NamedSession->OwningUserId is not set, but the host should be handling this event."));
+		UE_LOG_ONLINE(Verbose, TEXT("FOnlineSessionLive::OnMemberListChanged: NamedSession->OwningUserId is not set, but the host should be handling this event."));
 		return;
 	}
 
@@ -2483,7 +2552,7 @@ void FOnlineSessionLive::OnMemberListChanged(Microsoft::Xbox::Services::Multipla
 	//   Idea 2: Maybe the engine can detect when the session switches to Pending. Maybe games want more control though
 	if ( !NamedSession->SessionSettings.bAllowJoinInProgress )
 	{
-		UE_LOG(LogOnlineSubsystemLive, Verbose, TEXT( "FOnlineSessionLive::OnMemberListChanged: Game is not join in progress, not resubmitting match ticket." ) );
+		UE_LOG_ONLINE(Verbose, TEXT( "FOnlineSessionLive::OnMemberListChanged: Game is not join in progress, not resubmitting match ticket." ) );
 		return;
 	}
 
@@ -2534,7 +2603,7 @@ void FOnlineSessionLive::OnHostInvalid(const FName& SessionName)
 
 void FOnlineSessionLive::OnSessionNeedsInitialState(FName SessionName)
 {
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineSessionLive::OnSessionNeedsInitialState"));
+	UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::OnSessionNeedsInitialState"));
 
 	// Sync with the MultiplayerSession's initialization state. Any other processing needed immediately
 	// after creating/joining a session can be added here.
@@ -2546,8 +2615,8 @@ void FOnlineSessionLive::OnMultiplayerSubscriptionsLost()
 {	
 	check(IsInGameThread());
 
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineSessionLive::OnMultiplayerSubscriptionsLost - game thread"));
-	UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  Connection to multiplayer service lost. Destroying session objects."));
+	UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::OnMultiplayerSubscriptionsLost - game thread"));
+	UE_LOG_ONLINE(Log, TEXT("  Connection to multiplayer service lost. Destroying session objects."));
 
 	// We were automatically removed from any Live sessions, so clean them up.
 	if(!bIsDestroyingSessions && Sessions.Num() > 0)
@@ -2573,12 +2642,12 @@ void FOnlineSessionLive::OnSubscriptionLostDestroyComplete(FName SessionName, bo
 	{
 		if (Sessions.Num() == 0)
 		{
-			UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineSessionLive::OnSubscriptionLostDestroyComplete - all sessions destroyed."));
+			UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::OnSubscriptionLostDestroyComplete - all sessions destroyed."));
 		}
 		else if (!bWasSuccessful)
 		{
 			// @v2live: We currently give up when this occurs. Is this right?
-			UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FOnlineSessionLive::OnSubscriptionLostDestroyComplete - couldn't destroy session %s."), *SessionName.ToString());
+			UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::OnSubscriptionLostDestroyComplete - couldn't destroy session %s."), *SessionName.ToString());
 		}
 		
 		ClearOnDestroySessionCompleteDelegate_Handle(OnSubscriptionLostDestroyCompleteDelegateHandle);

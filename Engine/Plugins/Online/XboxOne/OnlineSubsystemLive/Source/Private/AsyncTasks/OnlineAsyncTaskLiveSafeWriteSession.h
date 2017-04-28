@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -6,7 +6,7 @@
 
 class FOnlineSessionLive;
 
-/** 
+/**
  * Async item used to marshal a join request from the system callback thread to the game thread.
  */
 class FOnlineAsyncTaskLiveSafeWriteSession : public FOnlineAsyncTaskLive
@@ -27,7 +27,7 @@ public:
 			Microsoft::Xbox::Services::XboxLiveContext^ InContext,
 			FOnlineSubsystemLive* InSubsystem,
 			int RetryCount);
-			
+
 	/**
 	 * This constructor takes the Live SessionReference directly and is safe to call
 	 * in non-game threads.
@@ -44,13 +44,11 @@ public:
 			Microsoft::Xbox::Services::XboxLiveContext^ InContext,
 			FOnlineSubsystemLive* InSubsystem,
 			int RetryCount);
-			
+
 	// FOnlineAsyncItem
 	virtual FString ToString() const override { return TEXT("SafeWriteSession"); }
 	virtual void Finalize() override;
-
-	// FOnlineAsyncTaskLive
-	virtual void Start() override;
+	virtual void Initialize() override;
 
 	static const int DefaultRetryCount = 5;
 
@@ -60,7 +58,7 @@ protected:
 	bool GetDidUpdateSession() const { return bUpdatedSession; }
 	Microsoft::Xbox::Services::XboxLiveContext^ GetLiveContext() const { return LiveContext; }
 	Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ GetSessionReference() const { return SessionReference; }
-	
+
 private:
 	void OnFailed();
 	void Retry(bool bGetSession);
@@ -82,7 +80,7 @@ private:
 	FName SessionName;
 
 	int RetryCount;
-	
+
 	/** Store whether a subclass modified the session, so it can be referred to in Finalize() */
 	bool bUpdatedSession;
 };

@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineAchievementsInterfaceLive.h"
@@ -7,6 +7,8 @@
 #include "OnlineSubsystemLive.h"
 #include "OnlineIdentityInterfaceLive.h"
 #include "OnlineAsyncTaskManagerLive.h"
+#include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
 
 #define TEST_ACHIEVEMENTS			0
 #define USE_EVENTS_HEADER_TEST		0
@@ -307,7 +309,7 @@ void FOnlineAchievementsLive::QueryAchievements( const FUniqueNetId& PlayerId, c
 			}
 			catch( Platform::COMException^ Ex )
 			{
-				UE_LOG( LogOnlineSubsystemLive, Warning, TEXT( "Getting achievements failed. Exception: %s." ), Ex->ToString()->Data() );
+				UE_LOG_ONLINE(Warning, TEXT( "Getting achievements failed. Exception: %s." ), Ex->ToString()->Data() );
 				if ( LiveSubsystem->GetAsyncTaskManager() )
 				{
 					LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([Delegate, UserLive]()
@@ -322,7 +324,7 @@ void FOnlineAchievementsLive::QueryAchievements( const FUniqueNetId& PlayerId, c
 	{
 		if ( Ex->HResult != INET_E_DATA_NOT_AVAILABLE )
 		{
-			UE_LOG( LogOnlineSubsystemLive, Warning, TEXT( "Getting achievements failed. Exception: %s." ), Ex->ToString()->Data() );
+			UE_LOG_ONLINE(Warning, TEXT( "Getting achievements failed. Exception: %s." ), Ex->ToString()->Data() );
 			Delegate.ExecuteIfBound( PlayerId, false );
 		}
 	}

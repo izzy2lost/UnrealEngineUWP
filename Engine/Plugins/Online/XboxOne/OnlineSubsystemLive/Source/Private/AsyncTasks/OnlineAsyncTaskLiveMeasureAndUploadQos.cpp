@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 // Task to do title-measured QoS and upload it as part of matchmaking
 
@@ -48,7 +48,7 @@ void FOnlineAsyncTaskLiveMeasureAndUploadQos::OnFailed()
 	bIsComplete = true;
 }
 
-void FOnlineAsyncTaskLiveMeasureAndUploadQos::Start()
+void FOnlineAsyncTaskLiveMeasureAndUploadQos::Initialize()
 {
 	LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
 	check(LiveInfo.IsValid());
@@ -84,7 +84,7 @@ void FOnlineAsyncTaskLiveMeasureAndUploadQos::Start()
 
 	if(LocalUsersInSession->Size <= 0)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Error, TEXT("FOnlineSessionLive::MeasureQualityOfService - didn't find any local session members for upload"));
+		UE_LOG_ONLINE(Error, TEXT("FOnlineSessionLive::MeasureQualityOfService - didn't find any local session members for upload"));
 		OnFailed();
 		return;
 	}
@@ -115,7 +115,7 @@ void FOnlineAsyncTaskLiveMeasureAndUploadQos::Start()
 				// Extract all the measurements and put them in the right format for upload
 				auto Result = Task.get();
 
-				UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineSessionLive::MeasureQualityOfService - got %d QoS measurements"), Result->Measurements->Size);
+				UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::MeasureQualityOfService - got %d QoS measurements"), Result->Measurements->Size);
 
 				if (Result->Measurements->Size > 0)
 				{
@@ -123,16 +123,15 @@ void FOnlineAsyncTaskLiveMeasureAndUploadQos::Start()
 
 					for (auto Measurement : Result->Measurements)
 					{
-						UE_LOG(LogOnlineSubsystemLive, Log, TEXT("  Measurement result for address: %s"), Measurement->SecureDeviceAddress->GetBase64String()->Data());
+						UE_LOG_ONLINE(Log, TEXT("  Measurement result for address: %s"), Measurement->SecureDeviceAddress->GetBase64String()->Data());
 						Platform::String^ Address = Measurement->SecureDeviceAddress->GetBase64String();
 						FString DeviceToken = AddressDeviceTokenMap[Address->Data()];
 
 						auto Status = Measurement->Status;
-						UE_LOG(LogOnlineSubsystemLive, Log, TEXT("    Result status: %s"), Status.ToString()->Data());
+						UE_LOG_ONLINE(Log, TEXT("    Result status: %s"), Status.ToString()->Data());
 						if (Status == Windows::Xbox::Networking::QualityOfServiceMeasurementStatus::PartialResults || Status == Windows::Xbox::Networking::QualityOfServiceMeasurementStatus::Success)
 						{
-							UE_LOG(LogOnlineSubsystemLive,
-								Log,
+							UE_LOG_ONLINE(Log,
 								TEXT("    Metric: %s / Value: %s"),
 								Measurement->Metric.ToString()->Data(),
 								Measurement->MetricValue->ToString()->Data());
@@ -170,13 +169,13 @@ void FOnlineAsyncTaskLiveMeasureAndUploadQos::Start()
 				}
 				else
 				{
-					UE_LOG(LogOnlineSubsystemLive, Error, TEXT("FOnlineSessionLive::MeasureQualityOfService - failed to get QoS measurements"));
+					UE_LOG_ONLINE(Error, TEXT("FOnlineSessionLive::MeasureQualityOfService - failed to get QoS measurements"));
 					OnFailed();
 				}
 			}
 			catch(Platform::Exception^ Ex)
 			{
-				UE_LOG(LogOnlineSubsystemLive, Error, TEXT("FOnlineSessionLive::MeasureQualityOfService - measuring QoS failed with 0x%0.8X"), Ex->HResult);
+				UE_LOG_ONLINE(Error, TEXT("FOnlineSessionLive::MeasureQualityOfService - measuring QoS failed with 0x%0.8X"), Ex->HResult);
 				OnFailed();
 			}
 		});
@@ -184,7 +183,7 @@ void FOnlineAsyncTaskLiveMeasureAndUploadQos::Start()
 	else
 	{
 		// QoS request with no other members is valid
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineSessionLive::MeasureQualityOfService - didn't find any other session members, will upload empty results"));
+		UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::MeasureQualityOfService - didn't find any other session members, will upload empty results"));
 		
 		MeasurementResults = ref new Vector<Microsoft::Xbox::Services::Multiplayer::MultiplayerQualityOfServiceMeasurements^>();
 		RetryUpload(LocalUsersInSession, nullptr, InitialRetryCount);
@@ -198,7 +197,7 @@ void FOnlineAsyncTaskLiveMeasureAndUploadQos::RetryUpload(
 {
 	if ( LocalUsers->Size == 0)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineSessionLive::RetryUpload - QoS results uploaded for all users"));
+		UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::RetryUpload - QoS results uploaded for all users"));
 
 		bWasSuccessful = true;
 		bIsComplete = true;
@@ -233,7 +232,7 @@ void FOnlineAsyncTaskLiveMeasureAndUploadQos::RetryUpload(
 				}
 				else
 				{
-					UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("FOnlineSessionLive::RetryUpload - Failed to get session with 0x%0.8X"), Ex->HResult);
+					UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::RetryUpload - Failed to get session with 0x%0.8X"), Ex->HResult);
 					OnFailed();
 				}
 			}
@@ -271,7 +270,7 @@ void FOnlineAsyncTaskLiveMeasureAndUploadQos::TryWriteSession(
 
 			if (Result->Succeeded)
 			{
-				UE_LOG(LogOnlineSubsystemLive, Log, TEXT("FOnlineSessionLive::RetryUpload - QoS results uploaded for user"));
+				UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::RetryUpload - QoS results uploaded for user"));
 					
 				if (LatestSession->CurrentUser->XboxUserId == LiveSession->CurrentUser->XboxUserId)
 				{
@@ -290,13 +289,13 @@ void FOnlineAsyncTaskLiveMeasureAndUploadQos::TryWriteSession(
 			}
 			else
 			{
-				UE_LOG(LogOnlineSubsystemLive, Error, TEXT("FOnlineSessionLive::RetryUpload - failed to write session: %s"), Result->Session->MultiplayerCorrelationId->Data());
+				UE_LOG_ONLINE(Error, TEXT("FOnlineSessionLive::RetryUpload - failed to write session: %s"), Result->Session->MultiplayerCorrelationId->Data());
 				OnFailed();
 			}
 		}
 		catch(Platform::Exception^ Ex)
 		{
-			UE_LOG(LogOnlineSubsystemLive, Error, TEXT("FOnlineSessionLive::RetryUpload - failed to write session with 0x%0.8X"), Ex->HResult);
+			UE_LOG_ONLINE(Error, TEXT("FOnlineSessionLive::RetryUpload - failed to write session with 0x%0.8X"), Ex->HResult);
 			OnFailed();
 		}
 	});

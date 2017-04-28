@@ -1,0 +1,62 @@
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+
+#include "../OnlineSubsystemLivePrivatePCH.h"
+#include "OnlineAsyncTaskLiveQueryAvoidList.h"
+
+FOnlineAsyncTaskLiveQueryAvoidList::FOnlineAsyncTaskLiveQueryAvoidList(FOnlineSubsystemLive* const InLiveInterface, Microsoft::Xbox::Services::XboxLiveContext^ InLiveContext, const FUniqueNetIdLive& InUserIdLive)
+	: FOnlineAsyncTaskConcurrencyLive(InLiveInterface, InLiveContext)
+	, UserIdLive(InUserIdLive)
+{
+}
+
+Windows::Foundation::IAsyncOperation<IVectorView<Platform::String^>^>^ FOnlineAsyncTaskLiveQueryAvoidList::CreateOperation()
+{
+	try
+	{
+		auto AsyncTask = LiveContext->PrivacyService->GetAvoidListAsync();
+		return AsyncTask;
+	}
+	catch (Platform::COMException^ Ex)
+	{
+		OutError = FString::Printf(TEXT("Error querying block list, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, *OutError);
+	}
+
+	return nullptr;
+}
+
+bool FOnlineAsyncTaskLiveQueryAvoidList::ProcessResult(const Concurrency::task<IVectorView<Platform::String^>^>& CompletedTask)
+{
+	try
+	{
+		IVectorView<Platform::String^>^ XUIDVector = CompletedTask.get();
+
+		const int32 VectorSize = XUIDVector->Size;
+		for (int32 Index = 0; Index < VectorSize; ++Index)
+		{
+			Platform::String^ XUID = XUIDVector->GetAt(Index);
+			AvoidList.Emplace(MakeShareable(new FOnlineBlockedPlayerLive(XUID)));
+		}
+	}
+	catch (Platform::Exception^ Ex)
+	{
+		OutError = FString::Printf(TEXT("Error querying block list, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, *OutError);
+		return false;
+	}
+
+	return true;
+}
+
+void FOnlineAsyncTaskLiveQueryAvoidList::Finalize()
+{
+	if (bWasSuccessful)
+	{
+		Subsystem->GetFriendsLive()->AvoidListMap.Emplace(UserIdLive, MoveTemp(AvoidList));
+	}
+}
+
+void FOnlineAsyncTaskLiveQueryAvoidList::TriggerDelegates()
+{
+	Subsystem->GetFriendsLive()->TriggerOnQueryBlockedPlayersCompleteDelegates(UserIdLive, bWasSuccessful, OutError);
+}

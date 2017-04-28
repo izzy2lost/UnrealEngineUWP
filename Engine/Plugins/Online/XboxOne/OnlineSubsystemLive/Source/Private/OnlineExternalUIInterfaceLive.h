@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -89,19 +89,59 @@ private:
 		virtual void TriggerDelegates() override;
 	};
 
+	void HandleApplicationHasReactivated_WebUrl();
+	FString WebUrlBeingOpened;
+	/**
+	*	Async event that notifies when the Web Url has closed
+	*/
+	class FAsyncEventWebUrlUIClosed : public FOnlineAsyncEvent<FOnlineSubsystemLive>
+	{
+		/** Hidden on purpose */
+		FAsyncEventWebUrlUIClosed() :
+			FOnlineAsyncEvent(NULL)
+		{
+		}
+
+		/** The delegate to execute when the WebUrl UI is closed. */
+		FOnShowWebUrlClosedDelegate Delegate;
+
+		FString WebUrl;
+
+	public:
+
+		/**
+		* Constructor.
+		*
+		* @param InLiveSubsystem The owner of the external UI interface that triggered this event.
+		* @param InDelegate The delegate to execute on the game thread.
+		* @param InWebUrl The URL that was opened
+		*/
+		FAsyncEventWebUrlUIClosed(FOnlineSubsystemLive* InLiveSubsystem, const FOnShowWebUrlClosedDelegate& InDelegate, FString& InWebUrl) :
+			FOnlineAsyncEvent(InLiveSubsystem),
+			Delegate(InDelegate),
+			WebUrl(InWebUrl)
+		{
+		}
+
+		virtual FString ToString() const override;
+		virtual void TriggerDelegates() override;
+	};
+	FCriticalSection CallbackLock;
 PACKAGE_SCOPE:
 
 	/** Constructor
 	 *
 	 * @param InSubsystem The owner of this external UI interface.
 	 */
-	explicit FOnlineExternalUILive(FOnlineSubsystemLive* InSubsystem) :
-		LiveSubsystem(InSubsystem)
-	{
-	}
+	explicit FOnlineExternalUILive(FOnlineSubsystemLive* InSubsystem);
 
 	/** Reference to the owning subsystem */
 	class FOnlineSubsystemLive* LiveSubsystem;
+	/** Allow guests to login */
+	bool bAllowGuestLogin;
+	/** delegates to hold onto for particular callbacks */
+	bool ShouldCallUIDelegate;
+	FOnShowWebUrlClosedDelegate WebUrlClosedDelegate;
 
 public:
 
@@ -115,7 +155,7 @@ public:
 	// IOnlineExternalUI
 	virtual bool ShowLoginUI(const int ControllerIndex, bool bShowOnlineOnly, const FOnLoginUIClosedDelegate& Delegate = FOnLoginUIClosedDelegate()) override;
 	virtual bool ShowFriendsUI(int32 LocalUserNum) override;
-	virtual bool ShowInviteUI(int32 LocalUserNum, FName SessionMame = GameSessionName) override;
+	virtual bool ShowInviteUI(int32 LocalUserNum, FName SessionName = GameSessionName) override;
 	virtual bool ShowAchievementsUI(int32 LocalUserNum) override;
 	virtual bool ShowLeaderboardUI(const FString& LeaderboardName) override;
 	virtual bool ShowWebURL(const FString& Url, const FShowWebUrlParams& ShowParams, const FOnShowWebUrlClosedDelegate& Delegate = FOnShowWebUrlClosedDelegate()) override;

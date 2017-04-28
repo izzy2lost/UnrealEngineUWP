@@ -69,10 +69,16 @@ public:
 			Platform::String ^inviteDisplayTextId,
 			Platform::String ^customActivationContext);
 
-	static::Windows::Foundation::IAsyncAction^
+	static ::Windows::Foundation::IAsyncAction^
 		ShowProfileCardAsync(
 			EraAdapter::Windows::Xbox::System::User^ user,
 			Platform::String ^targetXuid
+		);
+
+	static ::Windows::Foundation::IAsyncAction^
+		LaunchAchievementsAsync(
+			EraAdapter::Windows::Xbox::System::User^ user,
+			uint32 titleId
 		);
 };
 

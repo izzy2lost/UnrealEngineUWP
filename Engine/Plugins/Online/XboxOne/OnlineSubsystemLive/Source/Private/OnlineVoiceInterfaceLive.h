@@ -1,7 +1,8 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
+#include "CoreMinimal.h"
 #include "VoiceInterface.h"
 #include "VoicePacketLive.h"
 #include "OnlineSubsystemLiveTypes.h"
@@ -156,7 +157,9 @@ class FOnlineVoiceLive : public IOnlineVoice
 	 */
 	bool CompareUniqueConsoleIdentifiers( __in Platform::Object^ uniqueRemoteConsoleIdentifier1, __in Platform::Object^ uniqueRemoteConsoleIdentifier2 ) const;
 	
-#if !PLATFORM_UWP
+// @ATG_CHANGE : BEGIN - UWP LIVE support - Compatible wrapper needs implementation here
+#if PLATFORM_XBOXONE
+// @ATG_CHANGE : END - UWP LIVE support
 	/**
 	 * Deal with headsets being added or removed
 	 */
@@ -166,7 +169,9 @@ class FOnlineVoiceLive : public IOnlineVoice
 	 * Deal with internal User changes, e.g. pad disconnect/reconnect
 	 */
 	void OnControllerPairingChanged( __in Windows::Xbox::Input::ControllerPairingChangedEventArgs^ args );
-#endif
+// @ATG_CHANGE : BEGIN - UWP LIVE support
+#endif // PLATFORM_XBOXONE
+// @ATG_CHANGE : END - UWP LIVE support
 
 	void RemoveRemoteConsole(Platform::Object^ uniqueIdentifier);
 
@@ -258,13 +263,13 @@ public:
 	virtual void StopNetworkedVoice(uint8 LocalUserNum) override;
 	virtual bool RegisterLocalTalker(uint32 LocalUserNum) override;
 	virtual void RegisterLocalTalkers() override;
-    virtual bool UnregisterLocalTalker(uint32 LocalUserNum) override;
+	virtual bool UnregisterLocalTalker(uint32 LocalUserNum) override;
 	virtual void UnregisterLocalTalkers() override;
-    virtual bool RegisterRemoteTalker(const FUniqueNetId& UniqueId) override;
-    virtual bool UnregisterRemoteTalker(const FUniqueNetId& UniqueId) override;
+	virtual bool RegisterRemoteTalker(const FUniqueNetId& UniqueId) override;
+	virtual bool UnregisterRemoteTalker(const FUniqueNetId& UniqueId) override;
 	virtual void RemoveAllRemoteTalkers() override;
-    virtual bool IsHeadsetPresent(uint32 LocalUserNum) override;
-    virtual bool IsLocalPlayerTalking(uint32 LocalUserNum) override;
+	virtual bool IsHeadsetPresent(uint32 LocalUserNum) override;
+	virtual bool IsLocalPlayerTalking(uint32 LocalUserNum) override;
 	virtual bool IsRemotePlayerTalking(const FUniqueNetId& UniqueId) override;
 	bool IsMuted(uint32 LocalUserNum, const FUniqueNetId& UniqueId) const override;
 	bool MuteRemoteTalker(uint8 LocalUserNum, const FUniqueNetId& PlayerId, bool bIsSystemWide) override;
@@ -282,4 +287,3 @@ typedef TSharedPtr<FOnlineVoiceLive, ESPMode::ThreadSafe> FOnlineVoiceLivePtr;
 // @ATG_CHANGE : BEGIN UWP LIVE support
 #endif // WITH_GAME_CHAT
 // @ATG_CHANGE : END
-

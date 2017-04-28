@@ -7,7 +7,7 @@
 /**
  *	Interface class for obtaining online User info
  */
-class FOnlineUserLive : public IOnlineUser
+class FOnlineUserInterfaceLive : public IOnlineUser
 {
 
 public:
@@ -83,7 +83,7 @@ public:
 	virtual TSharedPtr<const FUniqueNetId> GetExternalIdMapping(const FExternalIdQueryOptions& QueryOptions, const FString& ExternalId) override { return nullptr; }
 
 PACKAGE_SCOPE:
-	FOnlineUserLive(class FOnlineSubsystemLive* InSubsystem);
+	FOnlineUserInterfaceLive(class FOnlineSubsystemLive* InSubsystem);
 
 	/** Reference to the owning subsystem */
 	class FOnlineSubsystemLive* LiveSubsystem;

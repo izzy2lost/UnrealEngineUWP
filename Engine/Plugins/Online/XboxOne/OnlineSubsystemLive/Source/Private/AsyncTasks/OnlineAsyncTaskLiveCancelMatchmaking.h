@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -14,16 +14,16 @@ class FOnlineAsyncTaskLiveCancelMatchmaking : public FOnlineAsyncTaskLive
 public:
 	FOnlineAsyncTaskLiveCancelMatchmaking(
 	class FOnlineSubsystemLive* InLiveSubsystem,
-		Microsoft::Xbox::Services::XboxLiveContext^	InUserContext,
-		FName		InSessionName,
+		Microsoft::Xbox::Services::XboxLiveContext^ InUserContext,
+		FName InSessionName,
 		FOnlineMatchTicketInfoPtr InTicketInfo);
 
 	virtual ~FOnlineAsyncTaskLiveCancelMatchmaking();
 
-	virtual void	Start() override;
+	virtual void Initialize() override;
 
 	virtual FString ToString() const override { return TEXT("CancelMatchmaking");}
-	virtual void	TriggerDelegates() override;
+	virtual void TriggerDelegates() override;
 
 
 private:

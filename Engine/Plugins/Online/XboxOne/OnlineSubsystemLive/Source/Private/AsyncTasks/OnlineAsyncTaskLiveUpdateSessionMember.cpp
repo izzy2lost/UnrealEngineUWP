@@ -1,9 +1,11 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "../OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineAsyncTaskLiveUpdateSessionMember.h"
 #include "OnlineSubsystemLive.h"
 #include "../OnlineSessionInterfaceLive.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 
 
 FOnlineAsyncTaskLiveUpdateSessionMember::FOnlineAsyncTaskLiveUpdateSessionMember(

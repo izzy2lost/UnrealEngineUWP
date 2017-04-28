@@ -1,7 +1,8 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "../OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineAsyncTaskLiveSessionBase.h"
+#include "OnlineSubsystemSessionSettings.h"
 #include "OnlineSubsystemLive.h"
 #include "../OnlineSessionInterfaceLive.h"
 
@@ -46,7 +47,7 @@ class FOnlineSubsystemLive* InLiveSubsystem,
 //-----------------------------------------------------------------------------
 
 FOnlineAsyncTaskLiveSessionBase::FOnlineAsyncTaskLiveSessionBase( FOnlineAsyncTaskLiveSessionBase* PreviousTask )
-	: FOnlineAsyncTaskLive( PreviousTask->LiveSubsystem, PreviousTask->UserIndex )
+	: FOnlineAsyncTaskLive( PreviousTask->Subsystem, PreviousTask->UserIndex )
 {
 	// Copy entire previous task data
 	*this = *PreviousTask;

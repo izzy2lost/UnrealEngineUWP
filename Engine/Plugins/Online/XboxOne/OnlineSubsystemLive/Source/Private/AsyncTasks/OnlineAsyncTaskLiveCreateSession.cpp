@@ -60,7 +60,7 @@ void FOnlineAsyncTaskLiveCreateSession::Finalize()
 	FOnlineSubsystemLive* Subsystem = static_cast<FOnlineSubsystemLive*>(IOnlineSubsystem::Get(LIVE_SUBSYSTEM));
 	if (!Subsystem)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Error, TEXT("FOnlineAsyncTaskLiveCreateSession::Finalize - Couldn't get Live subsystem"));
+		UE_LOG_ONLINE(Error, TEXT("FOnlineAsyncTaskLiveCreateSession::Finalize - Couldn't get Live subsystem"));
 	}
 
 	// @ATG_CHANGE : BEGIN Allow modifying session visibility/joinability

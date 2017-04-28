@@ -1,14 +1,17 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineSubsystemLive.h"
 #include "ModuleManager.h"
+#include "HAL/RunnableThread.h"
+#include "Misc/ScopeLock.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/CommandLine.h"
 
-// #include "OnlineSessionInterfaceLive.h"
 // @ATG_CHANGE : BEGIN Adding social features
-#include "OnlineFriendsInterfaceLive.h"
 #include "OnlineUserInterfaceLive.h"
 // @ATG_CHANGE : END
+#include "OnlineFriendsInterfaceLive.h"
 // #include "OnlineUserCloudInterfaceLive.h"
 #include "OnlineLeaderboardInterfaceLive.h"
 #include "OnlineExternalUIInterfaceLive.h"
@@ -39,64 +42,65 @@ using namespace Windows::Networking::Connectivity;
 
 IMPLEMENT_MODULE(FOnlineSubsystemLiveModule, OnlineSubsystemLive);
 
-DEFINE_LOG_CATEGORY(LogOnlineSubsystemLive);
-
 /**
  * Class responsible for creating instance(s) of the subsystem
  */
 class FOnlineFactoryLive : public IOnlineFactory
 {
-
 private:
-
 	/** Single instantiation of the LIVE interface */
-	static FOnlineSubsystemLivePtr LiveSingleton;
+	FOnlineSubsystemLivePtr& GetSingleton() const
+	{
+		static FOnlineSubsystemLivePtr LiveSingleton;
+		return LiveSingleton;
+	}
 
 	virtual void DestroySubsystem()
 	{
+		FOnlineSubsystemLivePtr& LiveSingleton = GetSingleton();
 		if (LiveSingleton.IsValid())
 		{
 			LiveSingleton->Shutdown();
-			LiveSingleton = nullptr;
+			LiveSingleton.Reset();
 		}
 	}
 
 public:
-
 	FOnlineFactoryLive() {}
-	virtual ~FOnlineFactoryLive() 
+	virtual ~FOnlineFactoryLive()
 	{
 		DestroySubsystem();
 	}
 
-	virtual IOnlineSubsystemPtr CreateSubsystem(FName InstanceName)
+	virtual IOnlineSubsystemPtr CreateSubsystem(FName InstanceName) override
 	{
-		if (!LiveSingleton.IsValid())
+		FOnlineSubsystemLivePtr& LiveSingleton = GetSingleton();
+		if (LiveSingleton.IsValid())
 		{
-			LiveSingleton = MakeShareable(new FOnlineSubsystemLive());
-			if (LiveSingleton->IsEnabled())
-			{
-				if(!LiveSingleton->Init())
-				{
-					UE_LOG_ONLINE(Warning, TEXT("Live API failed to initialize!"));
-					DestroySubsystem();
-				}
-			}
-			else
-			{
-				UE_LOG_ONLINE(Warning, TEXT("Live API disabled!"));
-				DestroySubsystem();
-			}
-
-			return LiveSingleton;
+			UE_LOG_ONLINE(Warning, TEXT("Can't create more than one instance of Live online subsystem!"));
+			return nullptr;
 		}
 
-		UE_LOG_ONLINE(Warning, TEXT("Can't create more than one instance of Live online subsystem!"));
-		return nullptr;
+		LiveSingleton = MakeShareable(new FOnlineSubsystemLive());
+		if (LiveSingleton->IsEnabled())
+		{
+			if(!LiveSingleton->Init())
+			{
+				UE_LOG_ONLINE(Warning, TEXT("Live API failed to initialize!"));
+				DestroySubsystem();
+				return nullptr;
+			}
+		}
+		else
+		{
+			UE_LOG_ONLINE(Warning, TEXT("Live API disabled!"));
+			DestroySubsystem();
+			return nullptr;
+		}
+
+		return LiveSingleton;
 	}
 };
-
-FOnlineSubsystemLivePtr FOnlineFactoryLive::LiveSingleton = nullptr;
 
 /**
  * Called right after the module DLL has been loaded and the module object has been created
@@ -104,11 +108,11 @@ FOnlineSubsystemLivePtr FOnlineFactoryLive::LiveSingleton = nullptr;
  */
 void FOnlineSubsystemLiveModule::StartupModule()
 {
-	LiveFactory = new FOnlineFactoryLive();
+	LiveFactory = MakeUnique<FOnlineFactoryLive>();
 
 	// Create and register our singleton factory with the main online subsystem for easy access
 	FOnlineSubsystemModule& OSS = FModuleManager::GetModuleChecked<FOnlineSubsystemModule>("OnlineSubsystem");
-	OSS.RegisterPlatformService(LIVE_SUBSYSTEM, LiveFactory);
+	OSS.RegisterPlatformService(LIVE_SUBSYSTEM, LiveFactory.Get());
 }
 
 /**
@@ -119,21 +123,18 @@ void FOnlineSubsystemLiveModule::ShutdownModule()
 {
 	FOnlineSubsystemModule& OSS = FModuleManager::GetModuleChecked<FOnlineSubsystemModule>("OnlineSubsystem");
 	OSS.UnregisterPlatformService(LIVE_SUBSYSTEM);
-	
-	delete LiveFactory;
-	LiveFactory = nullptr;
+
+	LiveFactory.Reset();
 }
 
-IOnlineSessionPtr FOnlineSubsystemLive::GetSessionInterface() const 
+IOnlineSessionPtr FOnlineSubsystemLive::GetSessionInterface() const
 {
 	return SessionInterface;
 }
 
-IOnlineFriendsPtr FOnlineSubsystemLive::GetFriendsInterface() const 
+IOnlineFriendsPtr FOnlineSubsystemLive::GetFriendsInterface() const
 {
-	// @ATG_CHANGE : BEGIN Adding social features
 	return FriendInterface;
-	// @ATG_CHANGE : END
 }
 
 IOnlinePartyPtr FOnlineSubsystemLive::GetPartyInterface() const
@@ -147,12 +148,12 @@ IOnlineGroupsPtr FOnlineSubsystemLive::GetGroupsInterface() const
 	return nullptr;
 }
 
-IOnlineSharedCloudPtr FOnlineSubsystemLive::GetSharedCloudInterface() const 
+IOnlineSharedCloudPtr FOnlineSubsystemLive::GetSharedCloudInterface() const
 {
 	return nullptr;
 }
 
-IOnlineUserCloudPtr FOnlineSubsystemLive::GetUserCloudInterface() const 
+IOnlineUserCloudPtr FOnlineSubsystemLive::GetUserCloudInterface() const
 {
 	return nullptr;
 }
@@ -162,39 +163,53 @@ IOnlineEntitlementsPtr FOnlineSubsystemLive::GetEntitlementsInterface() const
 	return nullptr;
 }
 
-IOnlineLeaderboardsPtr FOnlineSubsystemLive::GetLeaderboardsInterface() const 
+IOnlineLeaderboardsPtr FOnlineSubsystemLive::GetLeaderboardsInterface() const
 {
 	return LeaderboardsInterface;
 }
 
-IOnlineVoicePtr FOnlineSubsystemLive::GetVoiceInterface() const 
+IOnlineVoicePtr FOnlineSubsystemLive::GetVoiceInterface() const
 {
 	return VoiceInterface;
 }
 
-IOnlineExternalUIPtr FOnlineSubsystemLive::GetExternalUIInterface() const 
+IOnlineExternalUIPtr FOnlineSubsystemLive::GetExternalUIInterface() const
 {
 	return ExternalUIInterface;
 }
 
-IOnlineTimePtr FOnlineSubsystemLive::GetTimeInterface() const 
+IOnlineTimePtr FOnlineSubsystemLive::GetTimeInterface() const
 {
 	return nullptr;
 }
 
-IOnlineIdentityPtr FOnlineSubsystemLive::GetIdentityInterface() const 
+IOnlineIdentityPtr FOnlineSubsystemLive::GetIdentityInterface() const
 {
 	return IdentityInterface;
 }
 
-IOnlineTitleFilePtr FOnlineSubsystemLive::GetTitleFileInterface() const 
+IOnlineTitleFilePtr FOnlineSubsystemLive::GetTitleFileInterface() const
 {
 	return nullptr;
 }
 
-IOnlineStorePtr FOnlineSubsystemLive::GetStoreInterface() const 
+IOnlineStorePtr FOnlineSubsystemLive::GetStoreInterface() const
 {
 	return nullptr;
+}
+
+IOnlineStoreV2Ptr FOnlineSubsystemLive::GetStoreV2Interface() const
+{
+// @ATG_CHANGE : UWP Live Support - BEGIN
+	return nullptr;
+// @ATG_CHANGE : UWP Live Support - END
+}
+
+IOnlinePurchasePtr FOnlineSubsystemLive::GetPurchaseInterface() const
+{
+// @ATG_CHANGE : UWP Live Support - BEGIN
+	return nullptr;
+// @ATG_CHANGE : UWP Live Support - END
 }
 
 IOnlineEventsPtr FOnlineSubsystemLive::GetEventsInterface() const
@@ -308,31 +323,33 @@ public:
 	{
 		switch ( ConnectivityLevel )
 		{
-			case NetworkConnectivityLevel::None: UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("NetworkStatusChangedEvent: None") ); break;
-			case NetworkConnectivityLevel::ConstrainedInternetAccess: UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("NetworkStatusChangedEvent: ConstrainedInternetAccess") ); break;
-			case NetworkConnectivityLevel::InternetAccess: UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("NetworkStatusChangedEvent: InternetAccess") ); break;
-			case NetworkConnectivityLevel::LocalAccess: UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("NetworkStatusChangedEvent: LocalAccess") ); break;
-#if !PLATFORM_UWP
-			case NetworkConnectivityLevel::XboxLiveAccess: UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("NetworkStatusChangedEvent: XboxLiveAccess") ); break;
+			case NetworkConnectivityLevel::None: UE_LOG_ONLINE(Warning, TEXT("NetworkStatusChangedEvent: None") ); break;
+			case NetworkConnectivityLevel::ConstrainedInternetAccess: UE_LOG_ONLINE(Warning, TEXT("NetworkStatusChangedEvent: ConstrainedInternetAccess") ); break;
+			case NetworkConnectivityLevel::InternetAccess: UE_LOG_ONLINE(Warning, TEXT("NetworkStatusChangedEvent: InternetAccess") ); break;
+			case NetworkConnectivityLevel::LocalAccess: UE_LOG_ONLINE(Warning, TEXT("NetworkStatusChangedEvent: LocalAccess") ); break;
+// @ATG_CHANGE : UWP Live Support - BEGIN
+#if PLATFORM_XBOXONE
+			case NetworkConnectivityLevel::XboxLiveAccess: UE_LOG_ONLINE(Warning, TEXT("NetworkStatusChangedEvent: XboxLiveAccess") ); break;
 #endif
-			default: UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("NetworkStatusChangedEvent: Invalid") ); break;
+			default: UE_LOG_ONLINE(Warning, TEXT("NetworkStatusChangedEvent: Invalid") ); break;
 		}
 
 		EOnlineServerConnectionStatus::Type	ConvertedNetworkConnectivityLevelOnStack = EOnlineServerConnectionStatus::ServiceUnavailable;
 
-#if !PLATFORM_UWP
+#if PLATFORM_XBOXONE
 		if ( ConnectivityLevel == NetworkConnectivityLevel::XboxLiveAccess )
 		{
 			ConvertedNetworkConnectivityLevelOnStack = EOnlineServerConnectionStatus::Connected;
 		}
-#else
+#elif PLATFORM_UWP
 		if (ConnectivityLevel == NetworkConnectivityLevel::InternetAccess)
 		{
 			ConvertedNetworkConnectivityLevelOnStack = EOnlineServerConnectionStatus::Connected;
 		}
 #endif
+// @ATG_CHANGE : UWP Live Support - END
 
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("NetworkStatusChangedEvent: OldConverted: %s, Converted: %s"), EOnlineServerConnectionStatus::ToString( Subsystem->ConvertedNetworkConnectivityLevel ), EOnlineServerConnectionStatus::ToString( ConvertedNetworkConnectivityLevelOnStack ) );
+		UE_LOG_ONLINE(Warning, TEXT("NetworkStatusChangedEvent: OldConverted: %s, Converted: %s"), EOnlineServerConnectionStatus::ToString( Subsystem->ConvertedNetworkConnectivityLevel ), EOnlineServerConnectionStatus::ToString( ConvertedNetworkConnectivityLevelOnStack ) );
 
 		if ( !Subsystem->bHasCalledNetworkStatusChangedAtLeastOnce || ConvertedNetworkConnectivityLevelOnStack != Subsystem->ConvertedNetworkConnectivityLevel )
 		{
@@ -412,7 +429,7 @@ bool FOnlineSubsystemLive::Init()
 		AchievementInterface = MakeShareable(new FOnlineAchievementsLive(this));
 		PresenceInterface = MakeShareable(new FOnlinePresenceLive(this));
  		// @ATG_CHANGE : BEGIN Adding social features
-		UserInterface = MakeShareable(new FOnlineUserLive(this));
+		UserInterface = MakeShareable(new FOnlineUserInterfaceLive(this));
 		// @ATG_CHANGE : END		
 		
 		bHasCalledNetworkStatusChangedAtLeastOnce = false;
@@ -439,12 +456,12 @@ bool FOnlineSubsystemLive::Init()
 		{
 			FScopeLock ScopeLock(&LiveContextsLock);
 
+			// @ATG_CHANGE : UWP Live Support - BEGIN
 			XboxLiveContext^* RemoveContext = CachedXboxLiveContexts.Find(Args->User->XboxUserId->Data());
 			(*RemoveContext)->RealTimeActivityService->Deactivate();
 			CachedXboxLiveContexts.Remove(Args->User->XboxUserId->Data());
+			// @ATG_CHANGE : UWP Live Support - END
 		});
-
-		FCoreDelegates::ApplicationHasEnteredForegroundDelegate.AddRaw(this, &FOnlineSubsystemLive::HandleAppResume);
 	}
 	else
 	{
@@ -479,14 +496,15 @@ bool FOnlineSubsystemLive::Shutdown()
 		ensure(Interface.IsUnique()); \
 		Interface = nullptr; \
 	}
- 
-	// Destruct the interfaces
+
+	// Destruct the interfaces (in opposite order they were created)
 	DESTRUCT_INTERFACE(PresenceInterface);
 	DESTRUCT_INTERFACE(AchievementInterface);
 	DESTRUCT_INTERFACE(EventsInterface);
 	DESTRUCT_INTERFACE(ExternalUIInterface);
 	DESTRUCT_INTERFACE(VoiceInterface);
 	DESTRUCT_INTERFACE(LeaderboardsInterface);
+	DESTRUCT_INTERFACE(FriendInterface);
 	DESTRUCT_INTERFACE(SessionInterface);
 	DESTRUCT_INTERFACE(IdentityInterface);
 	DESTRUCT_INTERFACE(MatchmakingInterfaceLive);
@@ -498,7 +516,7 @@ bool FOnlineSubsystemLive::Shutdown()
 
 
 	#undef DESTRUCT_INTERFACE
-	
+
 	// Clear cached XboxLiveContext when user is removed
 	if (UserRemovedToken.Value != 0)
 	{
@@ -541,7 +559,7 @@ bool FOnlineSubsystemLive::IsEnabled()
 	return bEnableLive;
 }
 
-void FOnlineSubsystemLive::QueueAsyncTask(FOnlineAsyncTask* AsyncTask, bool bCanRunInParallel)
+void FOnlineSubsystemLive::QueueAsyncTask(FOnlineAsyncTask* const AsyncTask, const bool bCanRunInParallel)
 {
 	check(OnlineAsyncTaskThreadRunnable);
 
@@ -555,17 +573,24 @@ void FOnlineSubsystemLive::QueueAsyncTask(FOnlineAsyncTask* AsyncTask, bool bCan
 	}
 }
 
+void FOnlineSubsystemLive::QueueAsyncEvent(FOnlineAsyncEvent<FOnlineSubsystemLive>* const AsyncEvent)
+{
+	check(OnlineAsyncTaskThreadRunnable);
+
+	OnlineAsyncTaskThreadRunnable->AddToOutQueue(AsyncEvent);
+}
+
 Platform::String^ FOnlineSubsystemLive::RemoveBracesFromGuidString( __in Platform::String^ guid )
 {
 	std::wstring strGuid = guid->ToString()->Data();
 
 	if(strGuid.length() > 0 && strGuid[0] == L'{')
-	{        
-		// Remove the {        
-		strGuid.erase(0, 1);    
-	}    
+	{
+		// Remove the {
+		strGuid.erase(0, 1);
+	}
 	if(strGuid.length() > 0 && strGuid[strGuid.length() - 1] == L'}')
-	{        
+	{
 		// Remove the }
 		strGuid.erase(strGuid.end() - 1, strGuid.end());
 	}
@@ -583,7 +608,7 @@ XboxLiveContext^ FOnlineSubsystemLive::GetDefaultLiveContext() const
 }
 // @ATG_CHANGE : END
 
-XboxLiveContext^ FOnlineSubsystemLive::GetLiveContext(int32 LocalUserNum)
+Microsoft::Xbox::Services::XboxLiveContext^ FOnlineSubsystemLive::GetLiveContext(int32 LocalUserNum)
 {
 	if(!IdentityInterface.IsValid())
 	{
@@ -601,17 +626,17 @@ XboxLiveContext^ FOnlineSubsystemLive::GetLiveContext(int32 LocalUserNum)
 
 Microsoft::Xbox::Services::XboxLiveContext^ FOnlineSubsystemLive::GetLiveContext(const FUniqueNetId& UserId)
 {
-	if(!IdentityInterface.IsValid())
+	if (!IdentityInterface.IsValid())
 	{
 		return nullptr;
 	}
 
-	auto LiveUser = IdentityInterface->GetUserForUniqueNetId(FUniqueNetIdLive(UserId));
-	if(!LiveUser)
+	auto LiveUser = IdentityInterface->GetUserForUniqueNetId(static_cast<const FUniqueNetIdLive&>(UserId));
+	if (!LiveUser)
 	{
 		return nullptr;
 	}
-	
+
 	return GetLiveContext(LiveUser);
 }
 
@@ -623,7 +648,7 @@ Microsoft::Xbox::Services::XboxLiveContext^ FOnlineSubsystemLive::GetLiveContext
 	}
 
 	Platform::String^ SessionMemberXuid = Session->CurrentUser->XboxUserId;
-	
+
 	return GetLiveContext(FUniqueNetIdLive(SessionMemberXuid->Data()));
 }
 
@@ -649,7 +674,7 @@ Microsoft::Xbox::Services::XboxLiveContext^ FOnlineSubsystemLive::GetLiveContext
 		}
 		catch(Platform::Exception^ Ex)
 		{
-			UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("XboxLiveContext creation failed. Exception: %s."), Ex->ToString()->Data());
+			UE_LOG_ONLINE(Warning, TEXT("XboxLiveContext creation failed. Exception: %s."), Ex->ToString()->Data());
 			return nullptr;
 		}
 	}

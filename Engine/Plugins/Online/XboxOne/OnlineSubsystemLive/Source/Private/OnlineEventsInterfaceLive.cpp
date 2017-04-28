@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineEventsInterfaceLive.h"
@@ -6,6 +6,9 @@
 #include "OnlineSessionInterfaceLive.h"
 #include "OnlineSubsystemLiveTypes.h"
 #include "SimpleTokenParser.h"
+#include "OnlineJsonSerializer.h"
+#include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
 
 // @ATG_CHANGE : BEGIN UWP LIVE support
 #if PLATFORM_XBOXONE

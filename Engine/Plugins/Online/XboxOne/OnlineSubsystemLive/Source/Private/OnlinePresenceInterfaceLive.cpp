@@ -7,6 +7,7 @@
 #include "OnlineAsyncTaskManagerLive.h"
 
 // @ATG_CHANGE : UWP LIVE support: Xbox headers to pch
+#include "OnlineEventsInterface.h"
 
 using namespace Microsoft::Xbox::Services::Presence;
 using namespace Microsoft::Xbox::Services::Social::Manager;
@@ -33,10 +34,19 @@ void FOnlinePresenceLive::SetPresence(const FUniqueNetId& User, const FOnlineUse
 		return;
 	}
 
+	FString GameStatusStr = Status.StatusStr;
+
 	// Only support the default key for now, as a string.
 	const FVariantData* PresenceId = Status.Properties.Find(DefaultPresenceKey);
-	if(!PresenceId || PresenceId->GetType() != EOnlineKeyValuePairDataType::String)
+	if (!PresenceId || PresenceId->GetType() != EOnlineKeyValuePairDataType::String)
 	{
+		PresenceId = nullptr;
+	}
+
+	// if we have no current status to set, return
+	if (!PresenceId && GameStatusStr.IsEmpty())
+	{
+		UE_LOG_ONLINE(Warning, TEXT("SetPresence failed. No presence value was set."));
 		return;
 	}
 	
@@ -44,9 +54,39 @@ void FOnlinePresenceLive::SetPresence(const FUniqueNetId& User, const FOnlineUse
 	{
 		Microsoft::Xbox::Services::XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(PresenceUser);
 		
+		// before setting the presence queue up the stat events to trigger
+		IOnlineEventsPtr EventsInterface = LiveSubsystem->GetEventsInterface();
+		TArray<FString> PropertyKeys;
+		int NumPropertyKeys = Status.Properties.GetKeys(PropertyKeys);
+
+		for (int i = 0; i < NumPropertyKeys; ++i)
+		{
+			FString Key = PropertyKeys[i];
+
+			if (Key.StartsWith("Event_"))
+			{
+				const FVariantData* StatData = Status.Properties.Find(Key);
+				FString DataString;
+				StatData->GetValue(DataString);
+
+				FOnlineEventParms Parms;
+				Parms.Add(TEXT("Value"), DataString);
+
+				EventsInterface->TriggerEvent(UserLive, Key.GetCharArray().GetData(), Parms);
+			}
+		}
+
 		FString PresenceIdString;
-		PresenceId->GetValue(PresenceIdString);
-		// @ATG_CHANGE : BEGIN UWP LIVE support
+		if (PresenceId)
+		{
+			PresenceId->GetValue(PresenceIdString);
+		}
+		else
+		{
+			PresenceIdString = GameStatusStr;
+		}
+
+		// @ATG_CHANGE : jamesya@microsoft.com - BEGIN UWP LIVE support
 		PresenceData^ Data = ref new PresenceData(LiveContext->AppConfig->ServiceConfigurationId,
 												  ref new Platform::String(PresenceIdString.GetCharArray().GetData()));
 		// @ATG_CHANGE : END
@@ -61,9 +101,12 @@ void FOnlinePresenceLive::SetPresence(const FUniqueNetId& User, const FOnlineUse
 			{
 				Task.get();
 				// Success if get() didn't throw.
+
+				UE_LOG_ONLINE(Display, TEXT("SetPresenceAsync succeeded."));
 			}
-			catch(Platform::Exception^)
+			catch(Platform::Exception^ Ex)
 			{
+				UE_LOG_ONLINE(Warning, TEXT("SetPresenceAsync failed at Task.get(). Exception: %s."), Ex->ToString()->Data());
 				bSuccess = false;
 			}
 
@@ -77,7 +120,7 @@ void FOnlinePresenceLive::SetPresence(const FUniqueNetId& User, const FOnlineUse
 	}
 	catch(Platform::Exception^ Ex)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("SetPresenceAsync failed. Exception: %s."), Ex->ToString()->Data());
+		UE_LOG_ONLINE(Warning, TEXT("SetPresenceAsync failed. Exception: %s."), Ex->ToString()->Data());
 	}
 }
 
@@ -119,7 +162,7 @@ void FOnlinePresenceLive::QueryPresence(const FUniqueNetId& User, const FOnPrese
 			}
 			catch(Platform::COMException^ Ex)
 			{
-				UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("The get presence task failed. Exception: %s."), Ex->ToString()->Data());
+				UE_LOG_ONLINE(Warning, TEXT("The get presence task failed. Exception: %s."), Ex->ToString()->Data());
 			}
 
 			// Queue up an event in the async task manager so that the delegate can safely trigger in the game thread.
@@ -132,7 +175,7 @@ void FOnlinePresenceLive::QueryPresence(const FUniqueNetId& User, const FOnPrese
 	}
 	catch(Platform::Exception^ Ex)
 	{
-		UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Getting presence failed. Exception: %s."), Ex->ToString()->Data());
+		UE_LOG_ONLINE(Warning, TEXT("Getting presence failed. Exception: %s."), Ex->ToString()->Data());
 	}
 }
 

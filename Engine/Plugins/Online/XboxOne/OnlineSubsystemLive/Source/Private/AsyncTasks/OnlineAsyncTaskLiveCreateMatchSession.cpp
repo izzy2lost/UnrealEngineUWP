@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "../OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineAsyncTaskLiveCreateMatchSession.h"
@@ -32,10 +32,10 @@ using namespace Windows::Xbox::System;
 //-----------------------------------------------------------------------------
 
 FOnlineAsyncTaskLiveCreateMatchSession::FOnlineAsyncTaskLiveCreateMatchSession(class FOnlineSubsystemLive* InLiveSubsystem,
-																		   const TArray< TSharedRef<const FUniqueNetId> >& InSearchingUserIds,
-																		   FName InSessionName,
-																		   const FOnlineSessionSettings& InSessionSettings,
-																		   TSharedPtr<FOnlineSessionSearch>& InSearchSettings)
+																			   const TArray< TSharedRef<const FUniqueNetId> >& InSearchingUserIds,
+																			   FName InSessionName,
+																			   const FOnlineSessionSettings& InSessionSettings,
+																			   TSharedPtr<FOnlineSessionSearch>& InSearchSettings)
 	: FOnlineAsyncTaskLiveSessionBase(InLiveSubsystem, INDEX_NONE, InSessionName, InSessionSettings)
 	, SearchingUserIds(InSearchingUserIds)
 	, SearchSettings(InSearchSettings)
@@ -43,13 +43,13 @@ FOnlineAsyncTaskLiveCreateMatchSession::FOnlineAsyncTaskLiveCreateMatchSession(c
 	, Association(nullptr)
 	, bSessionCreated(false)
 	, NumOtherLocalPlayersToAdd(0)
-{	
+{
 	check(SearchingUserIds.Num() > 0);
 
 	FUniqueNetIdLive FirstUserNetId(SearchingUserIds[0].Get());
-	UserIndex = LiveSubsystem->GetIdentityLive()->GetControllerIndexForId(FirstUserNetId);
-	SearchingUser = LiveSubsystem->GetIdentityLive()->GetUserForUniqueNetId(FirstUserNetId);
-	
+	UserIndex = Subsystem->GetIdentityLive()->GetControllerIndexForId(FirstUserNetId);
+	SearchingUser = Subsystem->GetIdentityLive()->GetUserForUniqueNetId(FirstUserNetId);
+
 	ParseSearchSettings(InSearchSettings.Get());
 }
 
@@ -65,15 +65,15 @@ FOnlineAsyncTaskLiveCreateMatchSession::~FOnlineAsyncTaskLiveCreateMatchSession(
 //
 //-----------------------------------------------------------------------------
 
-void FOnlineAsyncTaskLiveCreateMatchSession::Start()
+void FOnlineAsyncTaskLiveCreateMatchSession::Initialize()
 {
 	// This task will make other local users join the match session after the first has created it.
 	IAsyncOperation<MultiplayerSession^>^ WriteSessionOp =
-		LiveSubsystem->GetSessionInterfaceLive()->CreateSessionOperation(SearchingUserIds[0].Get(), SessionSettings, FString(), SessionTemplateName);
+		Subsystem->GetSessionInterfaceLive()->CreateSessionOperation(SearchingUserIds[0].Get(), SessionSettings, FString(), SessionTemplateName);
 
 	create_task( WriteSessionOp )
 		.then([this](task<MultiplayerSession^> t)
-	{    
+	{
 		try
 		{
 			LiveSession = t.get(); // if t.get() didn't throw, it succeeded
@@ -82,7 +82,7 @@ void FOnlineAsyncTaskLiveCreateMatchSession::Start()
 			if (SearchingUserIds.Num() > 1)
 			{
 				// There are other local users that need to be added to the match session before submitting it.
-				auto MatchmakingInterface = LiveSubsystem->GetMatchmakingInterfaceLive();
+				auto MatchmakingInterface = Subsystem->GetMatchmakingInterfaceLive();
 				check(MatchmakingInterface.IsValid());
 
 				FOnlineMatchTicketInfoPtr MatchmakingTicket;
@@ -99,15 +99,15 @@ void FOnlineAsyncTaskLiveCreateMatchSession::Start()
 				for (int32 i = 1; i < SearchingUserIds.Num(); ++i)
 				{
 					FUniqueNetIdLive UserNetId(SearchingUserIds[i].Get());
-					auto LiveContext = LiveSubsystem->GetLiveContext(UserNetId);
+					auto LiveContext = Subsystem->GetLiveContext(UserNetId);
 
 					auto RegisterTask = new FOnlineAsyncTaskLiveRegisterLocalUser(
 						SessionName,
 						LiveContext,
-						LiveSubsystem,
+						Subsystem,
 						UserNetId,
 						FOnRegisterLocalPlayerCompleteDelegate::CreateRaw(this, &FOnlineAsyncTaskLiveCreateMatchSession::OnAddLocalPlayerComplete));
-					LiveSubsystem->GetAsyncTaskManager()->AddToParallelTasks(RegisterTask);
+					Subsystem->GetAsyncTaskManager()->AddToParallelTasks(RegisterTask);
 				}
 			}
 			else
@@ -120,7 +120,7 @@ void FOnlineAsyncTaskLiveCreateMatchSession::Start()
 		}
 		catch (Platform::Exception^ ex)
 		{
-			UE_LOG(LogOnline, Error, L"FOnlineAsyncTaskLiveStartMatchmaking::Start: matching session creation failed with 0x%0.8X", ex->HResult);
+			UE_LOG(LogOnline, Error, TEXT("FOnlineAsyncTaskLiveStartMatchmaking::Start: matching session creation failed with 0x%0.8X"), ex->HResult);
 			bSessionCreated = false;
 			bWasSuccessful = false;
 			bIsComplete = true;
@@ -146,7 +146,7 @@ void FOnlineAsyncTaskLiveCreateMatchSession::OnAddLocalPlayerComplete(const FUni
 
 void FOnlineAsyncTaskLiveCreateMatchSession::Finalize()
 {
-	auto SessionInterface = LiveSubsystem->GetSessionInterfaceLive();
+	auto SessionInterface = Subsystem->GetSessionInterfaceLive();
 	check(SessionInterface.IsValid());
 
 	if (!bWasSuccessful)
@@ -156,13 +156,13 @@ void FOnlineAsyncTaskLiveCreateMatchSession::Finalize()
 		{
 			// The session was created, but another member failed to join. The session needs to be destroyed
 			// to clean up.
-			CreateDestroyMatchmakingCompleteTask(SessionName, LiveSession, LiveSubsystem, false);
+			CreateDestroyMatchmakingCompleteTask(SessionName, LiveSession, Subsystem, false);
 		}
 		else
 		{
 			// this indicates a failure to create the Live match session. Remove the OSS named session
 			// and trigger the delegate.
-			auto MatchmakingInterface = LiveSubsystem->GetMatchmakingInterfaceLive();
+			auto MatchmakingInterface = Subsystem->GetMatchmakingInterfaceLive();
 			check(MatchmakingInterface.IsValid());
 			MatchmakingInterface->RemoveMatchmakingTicket(SessionName);
 		}
@@ -173,12 +173,12 @@ void FOnlineAsyncTaskLiveCreateMatchSession::Finalize()
 	// Live match session creation succeeded. Update the SessionInfo and register & submit the matching ticket.
 	check(LiveSession != nullptr);
 
-	auto MatchmakingInterface = LiveSubsystem->GetMatchmakingInterfaceLive();
+	auto MatchmakingInterface = Subsystem->GetMatchmakingInterfaceLive();
 	check(MatchmakingInterface.IsValid());
 
 	FOnlineMatchTicketInfoPtr MatchmakingTicket;
 	MatchmakingInterface->GetMatchmakingTicket(SessionName, MatchmakingTicket);
-	// Abort if matchmaking was cancelled
+	// Abort if matchmaking was canceled
 	if (MatchmakingTicket.IsValid() == false || MatchmakingTicket->MatchmakingState == EOnlineLiveMatchmakingState::UserCancelled)
 	{
 		bWasSuccessful = false;
@@ -191,10 +191,10 @@ void FOnlineAsyncTaskLiveCreateMatchSession::Finalize()
 	MatchmakingTicket->MatchmakingState = EOnlineLiveMatchmakingState::SubmittingInitialTicket;
 	MatchmakingTicket->SetHostUser(SearchingUser);
 
-	LiveSubsystem->GetMatchmakingInterfaceLive()->SubmitMatchingTicket(LiveSession->SessionReference, SessionName, false);
+	Subsystem->GetMatchmakingInterfaceLive()->SubmitMatchingTicket(LiveSession->SessionReference, SessionName, false);
 
 	// Initialize session state after create/join
-	LiveSubsystem->GetSessionMessageRouter()->SyncInitialSessionState(SessionName, LiveSession);
+	Subsystem->GetSessionMessageRouter()->SyncInitialSessionState(SessionName, LiveSession);
 }
 
 void FOnlineAsyncTaskLiveCreateMatchSession::TriggerDelegates()
@@ -206,7 +206,7 @@ void FOnlineAsyncTaskLiveCreateMatchSession::TriggerDelegates()
 		// the logic like this, but on success the delegates will be fired in the GameSessionReady
 		// task. If the session was created but a member join failed, the delegates will be fired
 		// by the DestroySession task.
-		auto MatchmakingInterface = LiveSubsystem->GetMatchmakingInterfaceLive();
+		auto MatchmakingInterface = Subsystem->GetMatchmakingInterfaceLive();
 		check(MatchmakingInterface.IsValid());
 
 		MatchmakingInterface->TriggerOnMatchmakingCompleteDelegates(SessionName, bWasSuccessful);

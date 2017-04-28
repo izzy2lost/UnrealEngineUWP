@@ -1,9 +1,10 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
-#include "Core.h"
+#include "CoreMinimal.h"
 #include "ModuleInterface.h"
+#include "OnlineSubsystem.h"
 
 /**
  * Online subsystem module class  (Live Implementation)
@@ -12,17 +13,13 @@
 class FOnlineSubsystemLiveModule : public IModuleInterface
 {
 private:
-
 	/** Class responsible for creating instance(s) of the subsystem */
-	class FOnlineFactoryLive* LiveFactory;
+	TUniquePtr<IOnlineFactory> LiveFactory;
 
 public:
-
-	FOnlineSubsystemLiveModule() :
-		LiveFactory(NULL)
-	{}
-
-	virtual ~FOnlineSubsystemLiveModule() {}
+	FOnlineSubsystemLiveModule() = default;
+	virtual ~FOnlineSubsystemLiveModule() = default;
+	FOnlineSubsystemLiveModule(const FOnlineSubsystemLiveModule& Other) = delete;
 
 	// IModuleInterface
 

@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "../OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineSubsystemLive.h"
@@ -37,8 +37,7 @@ FOnlineAsyncTaskLiveGameSessionReady::FOnlineAsyncTaskLiveGameSessionReady(
 {
 }
 
-
-void FOnlineAsyncTaskLiveGameSessionReady::Start()
+void FOnlineAsyncTaskLiveGameSessionReady::Initialize()
 {
 	check(LiveContext != nullptr);
 
@@ -59,7 +58,7 @@ void FOnlineAsyncTaskLiveGameSessionReady::Start()
 
 				const int UserIndex = 0;
 
-				auto SessionInterface = StaticCastSharedPtr<FOnlineSessionLive>(LiveSubsystem->GetSessionInterface());
+				auto SessionInterface = StaticCastSharedPtr<FOnlineSessionLive>(Subsystem->GetSessionInterface());
 
 				//. Mark the current user as active, or they will time out and be removed from the session
 				SessionInterface->SetCurrentUserActive( UserIndex, LiveSession, true ); // @todo: remove user index param
@@ -75,7 +74,7 @@ void FOnlineAsyncTaskLiveGameSessionReady::Start()
 
 					if (auto NamedSession = SessionInterface->GetNamedSession(SessionName))
 					{
-						NamedSession->HostingPlayerNum = UserIndex; 
+						NamedSession->HostingPlayerNum = UserIndex;
 						NamedSession->bHosting = true;
 						if (LiveSession->CurrentUser)
 						{
@@ -85,7 +84,7 @@ void FOnlineAsyncTaskLiveGameSessionReady::Start()
 					
 					if(!LiveSession)
 					{
-						UE_LOG(LogOnlineSubsystemLive, Log, TEXT("Failed to set host device token."));
+						UE_LOG_ONLINE(Log, TEXT("Failed to set host device token."));
 						bWasSuccessful = false;
 						bIsComplete = true;
 						return;
@@ -100,7 +99,7 @@ void FOnlineAsyncTaskLiveGameSessionReady::Start()
 					{
 						// If this console is the host, it will wait for SecureDeviceAssociatons from the clients,
 						// so we're done here.
-						UE_LOG(LogOnlineSubsystemLive, Log, TEXT("This console is the session host."));
+						UE_LOG_ONLINE(Log, TEXT("This console is the session host."));
 
 						bWasSuccessful = (LiveSession != nullptr);
 						bIsComplete = true;
@@ -114,10 +113,11 @@ void FOnlineAsyncTaskLiveGameSessionReady::Start()
 				try
 				{
 					auto SDA = SecureDeviceAddress::FromBase64String(HostSDABase64);
-					auto SDATemplate = LiveSubsystem->GetSessionInterfaceLive()->GetSDATemplate();
+
+					auto SDATemplate = Subsystem->GetSessionInterfaceLive()->GetSDATemplate();
 					if(!SDATemplate)
 					{
-						UE_LOG(LogOnlineSubsystemLive, Log, TEXT("Invalid secure device association template."));
+						UE_LOG_ONLINE(Log, TEXT("Invalid secure device association template."));
 						bWasSuccessful = false;
 						bIsComplete = true;
 						return;
@@ -129,7 +129,7 @@ void FOnlineAsyncTaskLiveGameSessionReady::Start()
 						try
 						{
 							Association = InAssociationTask.get();
-							UE_LOG(LogOnlineSubsystemLive, Log, TEXT("Created association in matchmaking, now in state %s"),
+							UE_LOG_ONLINE(Log, TEXT("Created association in matchmaking, now in state %s"),
 								Association->State.ToString()->Data());
 
 							auto StateChangedEvent = ref new TypedEventHandler<SecureDeviceAssociation^, SecureDeviceAssociationStateChangedEventArgs^>(&FOnlineSessionLive::LogAssociationStateChange);
@@ -147,7 +147,7 @@ void FOnlineAsyncTaskLiveGameSessionReady::Start()
 						}
 						catch(Platform::Exception^ Ex)
 						{
-							UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Invalid host secure device address."));
+							UE_LOG_ONLINE(Warning, TEXT("Invalid host secure device address."));
 
 							bWasSuccessful = false;
 							bIsComplete = true;
@@ -157,8 +157,8 @@ void FOnlineAsyncTaskLiveGameSessionReady::Start()
 				}
 				catch(Platform::Exception^ Ex)
 				{
-					UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Invalid host secure device address."));
-				
+					UE_LOG_ONLINE(Warning, TEXT("Invalid host secure device address."));
+
 					bWasSuccessful = false;
 					bIsComplete = true;
 				}
@@ -175,7 +175,10 @@ void FOnlineAsyncTaskLiveGameSessionReady::Start()
 			bIsComplete = true;
 			bWasSuccessful = false;
 		}
-	} );
+	// @ATG_CHANGE : BEGIN -Synchronous wait in Epic code requires different continuation semantics for UWP
+	}, task_continuation_context::use_arbitrary());
+	// @ATG_CHANGE : END
+
 }
 
 void FOnlineAsyncTaskLiveGameSessionReady::Finalize()

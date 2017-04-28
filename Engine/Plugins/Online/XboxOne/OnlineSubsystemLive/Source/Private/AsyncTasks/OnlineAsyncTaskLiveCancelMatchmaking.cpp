@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "../OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineAsyncTaskLiveCancelMatchmaking.h"
@@ -43,7 +43,7 @@ FOnlineAsyncTaskLiveCancelMatchmaking::~FOnlineAsyncTaskLiveCancelMatchmaking()
 //
 //-----------------------------------------------------------------------------
 
-void FOnlineAsyncTaskLiveCancelMatchmaking::Start() 
+void FOnlineAsyncTaskLiveCancelMatchmaking::Initialize()
 {
 	if (TicketInfo.IsValid() == false)
 	{
@@ -67,7 +67,7 @@ void FOnlineAsyncTaskLiveCancelMatchmaking::Start()
 			{
 				t.get(); // if t.get() didn't throw, it succeeded
 
-				LiveSubsystem->GetMatchmakingInterfaceLive()->RemoveMatchmakingTicket(SessionName);
+				Subsystem->GetMatchmakingInterfaceLive()->RemoveMatchmakingTicket(SessionName);
 
 				UE_LOG(LogOnline, Log, TEXT("\nMatchmaking ticket cancelled. (%s:%s)"), *SessionName.ToString(), *TicketInfo->TicketId);
 				bWasSuccessful = true;
@@ -95,7 +95,7 @@ void FOnlineAsyncTaskLiveCancelMatchmaking::Start()
 
 void FOnlineAsyncTaskLiveCancelMatchmaking::TriggerDelegates()
 {
-	LiveSubsystem->GetMatchmakingInterfaceLive()->TriggerOnCancelMatchmakingCompleteDelegates(SessionName, bWasSuccessful);
+	Subsystem->GetMatchmakingInterfaceLive()->TriggerOnCancelMatchmakingCompleteDelegates(SessionName, bWasSuccessful);
 }
 
 //------------------------------- End of file ---------------------------------

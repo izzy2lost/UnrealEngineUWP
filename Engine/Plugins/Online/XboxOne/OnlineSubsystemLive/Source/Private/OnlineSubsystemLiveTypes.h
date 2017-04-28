@@ -3,32 +3,45 @@
 #pragma once
 
 #include "OnlineSubsystemTypes.h"
+#include "Misc/Guid.h"
 
 // @ATG_CHANGE :  UWP LIVE support: Xbox headers to pch
+#include "OnlineSubsystemLivePrivatePCH.h"
 
 #include "OnlineSubsystemLivePackage.h"
 #include "OnlineSessionSettings.h"
-#include "OnlineSubsystemLive.h"
 
+// @ATG_CHANGE : BEGIN
+using namespace Windows::Foundation::Collections;
+// @ATG_CHANGE : END
 
 class FOnlineSessionSearch;
 
 // This is token used for LIVE delegates.  Please make sure to properly remove LIVE callbacks on cleanups
 typedef Windows::Foundation::EventRegistrationToken LiveEventToken;
 
+const TCHAR* const INVALID_NETID = TEXT("INVALID");
+
 /** 
  * LIVE Unique Id implementation - wrapping XUID
  */
-class FUniqueNetIdLive :
-	public FUniqueNetIdString
+class FUniqueNetIdLive
+	: public FUniqueNetIdString
 {
 PACKAGE_SCOPE:
 	/** Hidden on purpose */
 	FUniqueNetIdLive()
+		: FUniqueNetIdString(INVALID_NETID)
 	{
 	}
 
 public:
+	virtual ~FUniqueNetIdLive() = default;
+	FUniqueNetIdLive(const FUniqueNetIdLive&) = default;
+	FUniqueNetIdLive(FUniqueNetIdLive&&) = default;
+	FUniqueNetIdLive& operator=(const FUniqueNetIdLive&) = default;
+	FUniqueNetIdLive& operator=(FUniqueNetIdLive&&) = default;
+
 	/**
 	 * Constructs this object with the specified net id
 	 *
@@ -40,22 +53,22 @@ public:
 	}
 
 	/**
-	 * Copy Constructor
+	 * Constructs this object with the specified net id
 	 *
-	 * @param Src the id to copy
+	 * @param InUniqueNetId the id to set ours to
 	 */
-	explicit FUniqueNetIdLive(const FUniqueNetId& Src) 
-		: FUniqueNetIdString(Src)
+	explicit FUniqueNetIdLive(FString&& InUniqueNetId)
+		: FUniqueNetIdString(MoveTemp(InUniqueNetId))
 	{
 	}
 
 	/**
-	 * Copy Constructor
+	 * Constructs this object with a FUniqueNetId
 	 *
 	 * @param Src the id to copy
 	 */
-	explicit FUniqueNetIdLive(const FUniqueNetIdLive& Src) 
-		: FUniqueNetIdString(Src)
+	explicit FUniqueNetIdLive(const FUniqueNetId& Src)
+		: FUniqueNetIdString(Src.ToString())
 	{
 	}
 
@@ -65,8 +78,15 @@ public:
 	 * @param Src the id as a platform string
 	 */
 	explicit FUniqueNetIdLive(Platform::String^ Src) 
-		: FUniqueNetIdString(FString(Src == nullptr ? TEXT("") : Src->Data()))
+		: FUniqueNetIdString(FString(Src == nullptr ? INVALID_NETID : Src->Data()))
 	{
+	}
+
+	/** Is our structure currently pointing to a valid XUID? */
+	virtual bool IsValid() const override
+	{
+		static const FString InvalidId(INVALID_NETID);
+		return !UniqueNetIdStr.Equals(InvalidId, ESearchCase::CaseSensitive);
 	}
 };
 
@@ -230,7 +250,7 @@ public:
 	 *
 	 * @param InLiveSessionRef The session reference corresponding to this object
 	 */
-	FOnlineSessionInfoLive::FOnlineSessionInfoLive(	Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^	InLiveSession ) 
+	FOnlineSessionInfoLive(	Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^	InLiveSession ) 
 		: FOnlineSessionInfo()
 		, LiveSession( InLiveSession )
 		, LastDiffedGameSession( InLiveSession )
@@ -403,4 +423,73 @@ private:
 
 	/** Stored RoundId, used when triggering Xbox events */
 	FGuid RoundId;
+};
+
+static const int32 XBOX_MAX_PLAYER_NAME_LENGTH = 16;
+
+class FOnlineUserLive
+	: public FOnlineUser
+{
+public:
+	virtual TSharedRef<const FUniqueNetId> GetUserId() const override
+	{
+		return UserId;
+	}
+
+	virtual FString GetRealName() const override
+	{
+		return FilterPlayerName(UserProfile->GameDisplayName);
+	}
+
+	virtual FString GetDisplayName(const FString& Platform = FString()) const override
+	{
+		return FilterPlayerName(UserProfile->GameDisplayName);
+	}
+
+	virtual bool GetUserAttribute(const FString& AttrName, FString& OutAttrValue) const override
+	{
+		const FString* const FoundUserAttribute = UserAttributes.Find(AttrName);
+		if (FoundUserAttribute == nullptr)
+		{
+			OutAttrValue.Empty();
+			return false;
+		}
+
+		OutAttrValue = *FoundUserAttribute;
+		return true;
+	}
+
+PACKAGE_SCOPE:
+	FOnlineUserLive(Microsoft::Xbox::Services::Social::XboxUserProfile^ InUserProfile)
+		: UserProfile(InUserProfile)
+		, UserId(MakeShareable(new FUniqueNetIdLive(InUserProfile->XboxUserId)))
+	{
+		check(UserProfile);
+	}
+
+	virtual ~FOnlineUserLive() = default;
+
+	static FString FilterPlayerName(Platform::String^ InPlayerName)
+	{
+		FString OutName = InPlayerName->Data();
+
+		// If our name exceeds the max length, we want to truncate it
+		const int32 SizeOverage = OutName.Len() - XBOX_MAX_PLAYER_NAME_LENGTH;
+		if (SizeOverage > 0)
+		{
+			// Truncate in-place to max name length
+			OutName.RemoveAt(XBOX_MAX_PLAYER_NAME_LENGTH, SizeOverage, false);
+			// Append ellipsis character to show the name goes on
+			OutName.AppendChar(L'\u2026');
+		}
+
+		return OutName;
+	}
+
+PACKAGE_SCOPE:
+	Microsoft::Xbox::Services::Social::XboxUserProfile^ UserProfile;
+
+	TSharedRef<const FUniqueNetIdLive> UserId;
+
+	TMap<FString, FString> UserAttributes;
 };

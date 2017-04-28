@@ -16,27 +16,27 @@ public:
 	FOnlineAsyncTaskLiveCreateMatchSession(
 		class FOnlineSubsystemLive* InLiveSubsystem,
 		const TArray< TSharedRef<const FUniqueNetId> >& InSearchingUserIds,
-		FName InSessionName, 
-		const FOnlineSessionSettings& InSessionSettings, 
-		TSharedPtr<FOnlineSessionSearch>& InSearchSettings 
+		FName InSessionName,
+		const FOnlineSessionSettings& InSessionSettings,
+		TSharedPtr<FOnlineSessionSearch>& InSearchSettings
 		);
 
 	virtual ~FOnlineAsyncTaskLiveCreateMatchSession();
 
-	virtual void	Start() override;
+	virtual void Initialize() override;
 
 	virtual FString ToString() const override { return TEXT("CreateMatchSession"); }
-	virtual void	Finalize() override;
-	virtual void	TriggerDelegates() override;
-		
+	virtual void Finalize() override;
+	virtual void TriggerDelegates() override;
+
 private:
 	// Store array of users
 	TArray< TSharedRef<const FUniqueNetId> > SearchingUserIds;
-	
+
 	TSharedPtr<FOnlineSessionSearch> SearchSettings;
 
 	Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ CurrentMatchSessionRef;
-	
+
 	Windows::Xbox::Networking::SecureDeviceAssociation^ Association;
 	Windows::Xbox::System::User^ SearchingUser;
 	TSharedPtr<FInternetAddr> HostAddr;

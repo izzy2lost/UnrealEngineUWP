@@ -3,14 +3,14 @@
 #include "OnlineSubsystemLive.h"
 #include "OnlineUserInterfaceLive.h"
 #include "OnlineFriendsInterfaceLive.h"
-
-FOnlineUserLive::FOnlineUserLive(FOnlineSubsystemLive* InSubsystem) :
+                  
+FOnlineUserInterfaceLive::FOnlineUserInterfaceLive(class FOnlineSubsystemLive* InSubsystem) :
 	LiveSubsystem(InSubsystem)
 {
 
 }
 
-bool FOnlineUserLive::QueryUserInfo(int32 LocalUserNum, const TArray<TSharedRef<const FUniqueNetId> >& UserIds)
+bool FOnlineUserInterfaceLive::QueryUserInfo(int32 LocalUserNum, const TArray<TSharedRef<const FUniqueNetId> >& UserIds)
 {
 	if (!LiveSubsystem)
 	{
@@ -28,7 +28,7 @@ bool FOnlineUserLive::QueryUserInfo(int32 LocalUserNum, const TArray<TSharedRef<
 	return FriendsInterface->ReadUserListInternal(LocalUserNum, TEXT("custom"), &UserIds, ListReadyDelegate);
 }
 
-bool FOnlineUserLive::GetAllUserInfo(int32 LocalUserNum, TArray< TSharedRef<class FOnlineUser> >& OutUsers)
+bool FOnlineUserInterfaceLive::GetAllUserInfo(int32 LocalUserNum, TArray< TSharedRef<class FOnlineUser> >& OutUsers)
 {
 	if (!LiveSubsystem)
 	{
@@ -39,7 +39,7 @@ bool FOnlineUserLive::GetAllUserInfo(int32 LocalUserNum, TArray< TSharedRef<clas
 	return FriendsInterface->GetFriendsList(LocalUserNum, TEXT("custom"), reinterpret_cast<TArray<TSharedRef<FOnlineFriend>>&>(OutUsers));
 }
 
-TSharedPtr<FOnlineUser> FOnlineUserLive::GetUserInfo(int32 LocalUserNum, const class FUniqueNetId& UserId)
+TSharedPtr<FOnlineUser> FOnlineUserInterfaceLive::GetUserInfo(int32 LocalUserNum, const class FUniqueNetId& UserId)
 {
 	if (!LiveSubsystem)
 	{

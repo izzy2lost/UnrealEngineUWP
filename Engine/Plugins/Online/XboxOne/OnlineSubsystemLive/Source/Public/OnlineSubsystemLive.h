@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -46,27 +46,22 @@ typedef TSharedPtr<class FOnlinePresenceLive, ESPMode::ThreadSafe> FOnlinePresen
 typedef TSharedPtr<class FOnlineMatchmakingInterfaceLive, ESPMode::ThreadSafe> FOnlineMatchmakingInterfaceLivePtr;
 typedef TSharedPtr<class FSessionMessageRouter, ESPMode::ThreadSafe> FSessionMessageRouterPtr;
 // @ATG_CHANGE : BEGIN Adding social features
-typedef TSharedPtr<class FOnlineUserLive, ESPMode::ThreadSafe> FOnlineUserLivePtr;
+typedef TSharedPtr<class FOnlineUserInterfaceLive, ESPMode::ThreadSafe> FOnlineUserLivePtr;
 // @ATG_CHANGE : END
 
 class FOnlineAsyncTask;
-
-/** Log category for Live */
-DECLARE_LOG_CATEGORY_EXTERN(LogOnlineSubsystemLive, Log, All);
+class FOnlineAsyncTaskManagerLive;
+class FRunnableThread;
+template<class FOnlineSubsystemClass> class FOnlineAsyncEvent;
 
 /**
  *	OnlineSubsystemLive - Implementation of the online subsystem for Live services
  */
-class ONLINESUBSYSTEMLIVE_API FOnlineSubsystemLive : 
-	public FOnlineSubsystemImpl
+class ONLINESUBSYSTEMLIVE_API FOnlineSubsystemLive
+	: public FOnlineSubsystemImpl
 {
 
 public:
-
-	virtual ~FOnlineSubsystemLive()
-	{
-	}
-
 	/**
 	 * Forwards the invite check to the session interface. This is here because this is already
 	 * a public header and I don't want to make OnlineSessionInterfaceLive a public header.
@@ -84,13 +79,13 @@ public:
 	virtual IOnlineEntitlementsPtr GetEntitlementsInterface() const override;
 	virtual IOnlineLeaderboardsPtr GetLeaderboardsInterface() const override;
 	virtual IOnlineVoicePtr GetVoiceInterface() const override;
-	virtual IOnlineExternalUIPtr GetExternalUIInterface() const override;	
+	virtual IOnlineExternalUIPtr GetExternalUIInterface() const override;
 	virtual IOnlineTimePtr GetTimeInterface() const override;
 	virtual IOnlineIdentityPtr GetIdentityInterface() const override;
 	virtual IOnlineTitleFilePtr GetTitleFileInterface() const override;
 	virtual IOnlineStorePtr GetStoreInterface() const override;
-	virtual IOnlineStoreV2Ptr GetStoreV2Interface() const override { return nullptr; }
-	virtual IOnlinePurchasePtr GetPurchaseInterface() const override { return nullptr; }
+	virtual IOnlineStoreV2Ptr GetStoreV2Interface() const override;
+	virtual IOnlinePurchasePtr GetPurchaseInterface() const override;
 	virtual IOnlineEventsPtr GetEventsInterface() const override;
 	virtual IOnlineAchievementsPtr GetAchievementsInterface() const override;
 	virtual IOnlineSharingPtr GetSharingInterface() const override;
@@ -107,10 +102,7 @@ public:
 	virtual bool Exec(class UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar) override;
 
 	// FTickerObjectBase
-
 	virtual bool Tick(float DeltaTime) override;
-
-	// FOnlineSubsystemLive
 
 	/**
 	 * Is the Live API available for use
@@ -121,9 +113,87 @@ public:
 PACKAGE_SCOPE:
 
 	/** Only the factory makes instances */
-	FOnlineSubsystemLive() :
-		OnlineAsyncTaskThread(NULL)
-	{}
+	FOnlineSubsystemLive()
+		: ConvertedNetworkConnectivityLevel(EOnlineServerConnectionStatus::Normal)
+		, bHasCalledNetworkStatusChangedAtLeastOnce(false)
+		, OnlineAsyncTaskThreadRunnable(nullptr)
+		, OnlineAsyncTaskThread(nullptr)
+	{
+	}
+
+	virtual ~FOnlineSubsystemLive() = default;
+	/** Helpers to get typed Interface shared pointers */
+	FOnlineSessionLivePtr GetSessionInterfaceLive();
+	FOnlineIdentityLivePtr GetIdentityLive() const { return IdentityInterface; }
+	FOnlinePresenceLivePtr GetPresenceLive() const { return PresenceInterface; }
+	FOnlineLeaderboardsLivePtr GetLeaderboardsInterfaceLive() const { return LeaderboardsInterface; }
+	FOnlineMatchmakingInterfaceLivePtr GetMatchmakingInterfaceLive() const { return MatchmakingInterfaceLive; }
+	FSessionMessageRouterPtr GetSessionMessageRouter() const { return SessionMessageRouterInterface; }
+	FOnlineFriendsLivePtr GetFriendsLive() const { return FriendInterface; }
+
+	FOnlineAsyncTaskManagerLive* GetAsyncTaskManager() { check(OnlineAsyncTaskThreadRunnable != nullptr); return OnlineAsyncTaskThreadRunnable; }
+
+	/** Helpers to manage queuing already created FOnlineAsyncItem */
+	void QueueAsyncTask(FOnlineAsyncTask* const AsyncTask, const bool bCanRunInParallel = false);
+	void QueueAsyncEvent(FOnlineAsyncEvent<FOnlineSubsystemLive>* const AsyncEvent);
+
+	/** Create a new async task with the provided arguments and queue it to be processed in parallel with other tasks */
+	template <typename TOnlineAsyncTask, typename... TArguments>
+	FORCEINLINE void CreateAndDispatchAsyncTaskParallel(TArguments&&... Arguments)
+	{
+		check(OnlineAsyncTaskThreadRunnable);
+
+		TOnlineAsyncTask* NewTask = new TOnlineAsyncTask(Forward<TArguments>(Arguments)...);
+		OnlineAsyncTaskThreadRunnable->AddToParallelTasks(NewTask);
+	}
+
+	/** Create a new async task with the provided arguments and add it to the serial processing queue*/
+	template <typename TOnlineAsyncTask, typename... TArguments>
+	FORCEINLINE void CreateAndDispatchAsyncTaskSerial(TArguments&&... Arguments)
+	{
+		check(OnlineAsyncTaskThreadRunnable);
+
+		TOnlineAsyncTask* NewTask = new TOnlineAsyncTask(Forward<TArguments>(Arguments)...);
+		OnlineAsyncTaskThreadRunnable->AddToInQueue(NewTask);
+	}
+
+	/** Create a new async event with the provided arguments and queue it to be processed in the OutQueue */
+	template <typename TOnlineAsyncEvent, typename... TArguments>
+	FORCEINLINE void CreateAndDispatchAsyncEvent(TArguments&&... Arguments)
+	{
+		check(OnlineAsyncTaskThreadRunnable);
+
+		TOnlineAsyncEvent* NewEvent = new TOnlineAsyncEvent(Forward<TArguments>(Arguments)...);
+		OnlineAsyncTaskThreadRunnable->AddToOutQueue(NewEvent);
+	}
+
+	/** Returns the Live context for the given user, or null if the input could not be found/was invalid. */
+	Microsoft::Xbox::Services::XboxLiveContext^ GetLiveContext(int32 LocalUserNum);
+	Microsoft::Xbox::Services::XboxLiveContext^ GetLiveContext(const FUniqueNetId& UserId);
+	Microsoft::Xbox::Services::XboxLiveContext^ GetLiveContext(Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ Session);
+
+	/** Returns the cached Live context for the given user. Creates and caches a new one if necessary. Session subscriptions require that you preserve the context. */
+	Microsoft::Xbox::Services::XboxLiveContext^ GetLiveContext(Windows::Xbox::System::User^ LiveUser);
+
+	/** Removes one leading and one trailing curly brace from the input string and returns a new string */
+	Platform::String^ RemoveBracesFromGuidString( __in Platform::String^ guid );
+
+	/** Updates our local caches with updated session info*/
+	void RefreshLiveInfo(const FName& SessionName, Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LatestSession);
+
+	/** Updates our local caches to specify this session was the latest seen */
+	void SetLastDiffedSession(const FName& SessionName, Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LatestSession);
+
+	/** Return the last seen session by a provided Name */
+	Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ GetLastDiffedSession(const FName& SessionName);
+
+	/** Helper to compare two sessions to see if they're the same underlying session */
+	static bool AreSessionReferencesEqual(Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ First, Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ Second);
+
+PACKAGE_SCOPE:
+	EOnlineServerConnectionStatus::Type ConvertedNetworkConnectivityLevel;
+
+	bool bHasCalledNetworkStatusChangedAtLeastOnce;
 
 private:
 
@@ -152,6 +222,7 @@ private:
 	/** Interface to the rich presence services */
 	FOnlinePresenceLivePtr PresenceInterface;
 
+	/** Interface to the leaderboard services */
 	FOnlineLeaderboardsLivePtr LeaderboardsInterface;
 
 	/** Interface to the matchmaking services */
@@ -169,7 +240,7 @@ private:
 	// @ATG_CHANGE : END
 
 	/** Online async task runnable */
-	class FOnlineAsyncTaskManagerLive* OnlineAsyncTaskThreadRunnable;
+	FOnlineAsyncTaskManagerLive* OnlineAsyncTaskThreadRunnable;
 
 	/** Online async task thread */
 	class FRunnableThread* OnlineAsyncTaskThread;
@@ -177,40 +248,11 @@ private:
 PACKAGE_SCOPE:
 	FOnlineIdentityLivePtr GetIdentityLive() { return IdentityInterface; }
 	FOnlinePresenceLivePtr GetPresenceLive() { return PresenceInterface; }
-	// @ATG_CHANGE : BEGIN 
-	FOnlineSessionLivePtr GetSessionInterfaceLive();
-	// @ATG_CHANGE : END
-
-	FOnlineLeaderboardsLivePtr GetLeaderboardsInterfaceLive() { return LeaderboardsInterface; }
-	FSessionMessageRouterPtr GetSessionMessageRouter() { return SessionMessageRouterInterface; }
-
-	FOnlineMatchmakingInterfaceLivePtr GetMatchmakingInterfaceLive() { return MatchmakingInterfaceLive; }
-	// @ATG_CHANGE : BEGIN Adding social features
-	FOnlineFriendsLivePtr GetFriendsLive() { return FriendInterface; }
-	// @ATG_CHANGE : END
-
-	class FOnlineAsyncTaskManagerLive* GetAsyncTaskManager() { return OnlineAsyncTaskThreadRunnable; }
-
-	void QueueAsyncTask(FOnlineAsyncTask* AsyncTask, bool bCanRunInParallel = false);
-
-	Platform::String^		RemoveBracesFromGuidString( __in Platform::String^ guid );
 
 	// @ATG_CHANGE : BEGIN Adding social features
 	/** Returns the first available Live context, or null if none available.  Useful when user context is not available. */
 	Microsoft::Xbox::Services::XboxLiveContext^		GetDefaultLiveContext() const;
 	// @ATG_CHANGE : END
-
-	/** Returns the Live context for the given user, or null if the user could not be found. */
-	Microsoft::Xbox::Services::XboxLiveContext^		GetLiveContext(int32 LocalUserNum);
-
-	/** Returns the Live context for the given user, or null if the user could not be found. */
-	Microsoft::Xbox::Services::XboxLiveContext^		GetLiveContext(const FUniqueNetId& UserId);
-		
-	/** Returns the Live context for the current user of the given session, or null if the session is invalid. */
-	Microsoft::Xbox::Services::XboxLiveContext^		GetLiveContext(Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ Session);
-
-	/** Returns the cached Live context for the given user. Creates and caches a new one if necessary. Session subscriptions require that you preserve the context. */
-	Microsoft::Xbox::Services::XboxLiveContext^		GetLiveContext(Windows::Xbox::System::User^ LiveUser);
 
 	// @ATG_CHANGE : BEGIN 
 	Microsoft::Xbox::Services::XboxLiveAppConfiguration^ GetApplicationConfig() { return ApplicationConfig; }
@@ -226,9 +268,6 @@ PACKAGE_SCOPE:
 		});
 	}
 
-	EOnlineServerConnectionStatus::Type	ConvertedNetworkConnectivityLevel;
-	bool bHasCalledNetworkStatusChangedAtLeastOnce;
-
 	// @ATG_CHANGE : BEGIN UWP LIVE support
 	// Store single XboxLiveContext per user
 	TMap<FString, Microsoft::Xbox::Services::XboxLiveContext^> CachedXboxLiveContexts;
@@ -241,10 +280,6 @@ PACKAGE_SCOPE:
 	mutable FCriticalSection LiveContextsLock;
 	Windows::Foundation::EventRegistrationToken UserRemovedToken;
 	FCriticalSection RefreshLock;
-	void RefreshLiveInfo(const FName& SessionName, Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LatestSession);
-	void SetLastDiffedSession(const FName& SessionName, Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LatestSession);
-	Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ GetLastDiffedSession(const FName& SessionName);
-	static bool AreSessionReferencesEqual(Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ First, Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ Second);
 };
 
 typedef TSharedPtr<FOnlineSubsystemLive, ESPMode::ThreadSafe> FOnlineSubsystemLivePtr;

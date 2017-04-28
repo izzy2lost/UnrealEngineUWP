@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -245,7 +245,7 @@ PACKAGE_SCOPE:
 		Microsoft::Xbox::Services::XboxLiveContext^ LiveContext = nullptr);
 
 	/** Returns the host of a session, or null if there is no host. */
-	static Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionMember^ FOnlineSessionLive::GetLiveSessionHost(
+	static Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionMember^ GetLiveSessionHost(
 		Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession );
 
 	/** Returns true if the local console is the host of the session */

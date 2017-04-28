@@ -106,7 +106,7 @@ void FOnlineAsyncTaskLiveJoinSession::Retry(bool bGetSession)
 				}
 				else
 				{
-					UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Failed to get session from session reference."));
+					UE_LOG_ONLINE(Warning, TEXT("Failed to get session from session reference."));
 					OnFailed(EOnJoinSessionCompleteResult::SessionDoesNotExist);
 				}
 			}
@@ -258,7 +258,7 @@ void FOnlineAsyncTaskLiveJoinSession::TryJoinSession()
 							{
 								Association = AssociationTask.get();
 
-								UE_LOG(LogOnlineSubsystemLive, Log, TEXT("Created association, now in state %s"),
+								UE_LOG_ONLINE(Log, TEXT("Created association, now in state %s"),
 								FOnlineSessionLive::AssociationStateToString(Association->State));
 
 								auto StateChangedEvent = ref new TypedEventHandler<SecureDeviceAssociation^, SecureDeviceAssociationStateChangedEventArgs^>(&FOnlineSessionLive::LogAssociationStateChange);
@@ -273,14 +273,14 @@ void FOnlineAsyncTaskLiveJoinSession::TryJoinSession()
 							}
 							catch(Platform::Exception^ Ex)
 							{
-								UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Failed to create secure device associtaion with host."));
+								UE_LOG_ONLINE(Warning, TEXT("Failed to create secure device associtaion with host."));
 								OnFailed(EOnJoinSessionCompleteResult::CouldNotRetrieveAddress);
 							}
 						});
 					}
 					catch(Platform::Exception^ Ex)
 					{
-						UE_LOG(LogOnlineSubsystemLive, Warning, TEXT("Invalid host secure device address."));
+						UE_LOG_ONLINE(Warning, TEXT("Invalid host secure device address."));
 						OnFailed(EOnJoinSessionCompleteResult::CouldNotRetrieveAddress);
 						return;
 					}

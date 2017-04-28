@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 // Can't be #pragma once because other modules may define PACKAGE_SCOPE
 
@@ -10,4 +10,8 @@
 #define PACKAGE_SCOPE public
 #else
 #define PACKAGE_SCOPE protected
+#endif
+
+#ifndef ONLINESUBSYSTEMLIVE_API
+#define ONLINESUBSYSTEMLIVE_API
 #endif

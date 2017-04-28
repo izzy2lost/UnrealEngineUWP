@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -23,7 +23,7 @@ public:
 		Microsoft::Xbox::Services::Matchmaking::PreserveSessionMode InTicketPreservation,
 		bool InCancelExistingTicket);
 
-	virtual void Start() override;
+	virtual void Initialize() override;
 
 	virtual FString ToString() const override { return TEXT("SubmitMatchTicket"); }
 	virtual void Finalize() override;
