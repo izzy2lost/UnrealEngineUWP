@@ -1,6 +1,5 @@
 // Copyright Microsoft Inc. All Rights Reserved.
 
-#include "Engine.h"
 #include "UWPSaveGameSystem.h"
 #include "AllowWindowsPlatformTypes.h"
 #include <collection.h>
