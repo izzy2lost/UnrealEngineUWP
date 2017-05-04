@@ -71,12 +71,12 @@ namespace UnrealBuildTool
 			string UniversalWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract");
 			VCProjectFileContent.Append("		<AdditionalOptions>/ZW</AdditionalOptions>" + ProjectFileGenerator.NewLine);
 			VCProjectFileContent.Append("		<NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions);PLATFORM_UWP=1;UWP=1;</NMakePreprocessorDefinitions>" + ProjectFileGenerator.NewLine);
-			VCProjectFileContent.Append("       <NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies);" + FoundationWinMDPath + ";" + UniversalWinMDPath + ";" + "</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine);
 			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(WindowsPlatform.Compiler);
 			if (PlatformWinMDLocation != null)
 			{
-				VCProjectFileContent.Append("       <NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies);" + PlatformWinMDLocation.FullName + "\\platform.winmd</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine);
+				VCProjectFileContent.Append("       <NMakeAssemblySearchPath>$(NMakeAssemblySearchPath);" + PlatformWinMDLocation + "</NMakeAssemblySearchPath>" + ProjectFileGenerator.NewLine);
 			}
+			VCProjectFileContent.Append("       <NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies);" + FoundationWinMDPath + ";" + UniversalWinMDPath + ";platform.winmd</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine);
 		}
 
 		public override string GetVisualStudioPreDefaultString(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration)
