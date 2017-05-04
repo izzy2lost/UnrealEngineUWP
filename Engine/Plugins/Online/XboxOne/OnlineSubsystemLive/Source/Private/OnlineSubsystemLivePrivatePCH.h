@@ -117,8 +117,8 @@ namespace Windows
 
 		namespace Input
 		{
-			//using Controller = ::ERAToUWPShims::Controller;
-			//using ControllerPairingChangedEventArgs = ::ERAToUWPShims::ControllerPairingChangedEventArgs;
+			using Controller = EraAdapter::Windows::Xbox::Input::Controller;
+			using ControllerPairingChangedEventArgs = EraAdapter::Windows::Xbox::Input::ControllerPairingChangedEventArgs;
 		}
 
 		namespace Services

@@ -137,6 +137,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Controller.h" />
     <ClInclude Include="MultiplayerSessionReference.h" />
     <ClInclude Include="Networking.h" />
     <ClInclude Include="pch.h" />
@@ -144,6 +145,7 @@
     <ClInclude Include="User.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Controller.cpp" />
     <ClCompile Include="MultiplayerSessionReference.cpp" />
     <ClCompile Include="Networking.cpp" />
     <ClCompile Include="pch.cpp">

@@ -6,7 +6,6 @@
 #include "OnlineSubsystemLive.h"
 
 // @ATG_CHANGE : UWP LIVE support: Xbox headers to pch
-#if !PLATFORM_UWP
 
 FOnlineAsyncTaskLiveGetXSTSToken::FOnlineAsyncTaskLiveGetXSTSToken(
 	FOnlineSubsystemLive* const InLiveSubsystem,
@@ -82,5 +81,3 @@ void FOnlineAsyncTaskLiveGetXSTSToken::TriggerDelegates()
 {
 	TaskCompletionDelegate.ExecuteIfBound(FOnlineError(bWasSuccessful), LocalUserNum, LiveUserId, ResultSignature, ResultToken);
 }
-#endif // ~PLATFORM_UWP
-// @ATG_CHANGE : UWP Live Support - END

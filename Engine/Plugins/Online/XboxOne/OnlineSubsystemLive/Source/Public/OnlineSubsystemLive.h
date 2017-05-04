@@ -25,6 +25,7 @@ namespace Windows
 		{
 			using User = EraAdapter::Windows::Xbox::System::User;
 			using IUser = EraAdapter::Windows::Xbox::System::User;
+			using GetTokenAndSignatureResult = Microsoft::Xbox::Services::System::GetTokenAndSignatureResult;
 		}
 	}
 }

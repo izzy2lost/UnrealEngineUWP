@@ -3,16 +3,22 @@
 rem   Check we are elevated and re-launch if not.
 rem   Pass in the nuget path if found, since the spawned environment might not match the current one exactly.
 
+where nuget.exe >nul 2>&1
+if NOT errorlevel 1 for /F "usebackq" %%i in (`where nuget.exe`) do set nuget=%%i
+
 net file 1>nul 2>nul
 if errorlevel 1 (
-	for /F "usebackq" %%i in (`where nuget.exe`) do set nuget=%%i
-	powershell "Start-Process -filepath %0 '%nuget%' -verb runas" >nul 2>&1
+	if "%nuget%" == "" (
+		powershell "Start-Process -filepath %0 -verb runas" >nul 2>&1
+	)
+	if NOT "%nuget%" == "" (
+		powershell "Start-Process -filepath %0 '%nuget%' -verb runas" >nul 2>&1
+	)
 	exit /b 2
 )
 
 rem   Fetch nuget path from parent or path...
 
-if "%1" == "" for /F "usebackq" %%i in (`where nuget.exe`) do set nuget=%%i
 if NOT "%1" == "" set nuget=%1
 
 if "%nuget%" == "" (

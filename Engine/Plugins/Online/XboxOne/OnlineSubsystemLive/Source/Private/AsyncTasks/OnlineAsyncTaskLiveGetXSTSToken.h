@@ -6,8 +6,6 @@
 #include "../OnlineSubsystemLiveTypes.h"
 #include "OnlineError.h"
 
-// @ATG_CHANGE : UWP Live Support - BEGIN
-#if !PLATFORM_UWP
 using Windows::Xbox::System::GetTokenAndSignatureResult;
 using Windows::Xbox::System::User;
 
@@ -46,6 +44,3 @@ private:
 	FString ResultToken;
 	FString ResultSignature;
 };
-
-#endif // ~PLATFORM_UWP
-// @ATG_CHANGE : UWP Live Support - END

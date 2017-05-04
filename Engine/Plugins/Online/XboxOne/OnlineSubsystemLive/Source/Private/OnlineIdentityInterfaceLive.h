@@ -146,9 +146,6 @@ private:
 		virtual void TriggerDelegates() override;
 	};
 
-// @ATG_CHANGE : BEGIN - UWP LIVE support - Compatible wrapper needs implementation here
-#if PLATFORM_XBOXONE
-// @ATG_CHANGE : END - UWP LIVE support
 	/**
 	 * Async event that notifies when a user has been added. Using a task for this because
 	 * we need the delegates to be executed on the game thread.
@@ -165,9 +162,6 @@ private:
 		virtual FString ToString() const override;
 		virtual void TriggerDelegates() override;
 	};
-// @ATG_CHANGE : BEGIN - UWP LIVE support
-#endif // PLATFORM_XBOXONE
-// @ATG_CHANGE : END - UWP LIVE support
 
 	/** Cached list of users */
 	mutable Windows::Foundation::Collections::IVectorView<Windows::Xbox::System::User^>^ CachedUsers;

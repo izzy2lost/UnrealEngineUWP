@@ -135,9 +135,6 @@ bool FOnlineIdentityLive::Login(int32 LocalUserNum, const FOnlineAccountCredenti
 		return false;
 	}
 
-// @ATG_CHANGE : BEGIN - UWP LIVE support
-#if PLATFORM_XBOXONE
-// @ATG_CHANGE : END - UWP LIVE support
 	const auto OnLoginCompleteDelegate = FOnXSTSTokenCompleteDelegate::CreateLambda(
 	[this](FOnlineError Result, int32 LocalUserNum, const FUniqueNetId& UserId, const FString& ResultSignature, const FString& ResultToken)
 	{
@@ -147,9 +144,6 @@ bool FOnlineIdentityLive::Login(int32 LocalUserNum, const FOnlineAccountCredenti
 
 	FOnlineAsyncTaskLiveGetXSTSToken* const GetXSTSTokenTask = new FOnlineAsyncTaskLiveGetXSTSToken(LiveSubsystem, XboxUser, LocalUserNum, LoginXSTSEndpoint, MoveTemp(OnLoginCompleteDelegate));
 	MyTaskManager->AddToParallelTasks(GetXSTSTokenTask);
-// @ATG_CHANGE : BEGIN - UWP LIVE support
-#endif // PLATFORM_XBOXONE
-// @ATG_CHANGE : END - UWP LIVE support
 
 	return true;
 }
@@ -423,8 +417,6 @@ void FOnlineIdentityLive::HookLiveEvents()
 		}
 	});
 
-// @ATG_CHANGE : BEGIN - Skipping for UWP
-#if !PLATFORM_UWP
 	// Listen to Controller Pairing events
 	EventHandler<ControllerPairingChangedEventArgs^>^ controllerPairingEvent = ref new EventHandler<ControllerPairingChangedEventArgs^>(
 		[this] (Platform::Object^, ControllerPairingChangedEventArgs^ Args)
@@ -436,16 +428,10 @@ void FOnlineIdentityLive::HookLiveEvents()
 			LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue(NewEvent);
 		}
 	});
-#endif // !PLATFORM_UWP
-// @ATG_CHANGE : END - Skipping for UWP
 
 	TaskTokenUserAdded					= User::UserAdded	+= userAddedEvent;
 	TaskTokenUserRemoved				= User::UserRemoved += userRemovedEvent;
-// @ATG_CHANGE : BEGIN - Skipping for UWP
-#if !PLATFORM_UWP
 	TaskTokenControllerPairingChanged	= Controller::ControllerPairingChanged += controllerPairingEvent;
-#endif // !PLATFORM_UWP
-// @ATG_CHANGE : END - Skipping for UWP
 
 	FCoreDelegates::ApplicationHasEnteredForegroundDelegate.AddRaw(this, &FOnlineIdentityLive::HandleAppResume);
 }
@@ -458,11 +444,7 @@ void FOnlineIdentityLive::HandleAppResume()
 
 void FOnlineIdentityLive::UnhookLiveEvents()
 {
-// @ATG_CHANGE : BEGIN - Skipping for UWP
-#if !PLATFORM_UWP
 	Controller::ControllerPairingChanged	-= TaskTokenControllerPairingChanged;
-#endif // !PLATFORM_UWP
-// @ATG_CHANGE : END - Skipping for UWP
 	User::UserAdded							-= TaskTokenUserAdded;
 	User::UserRemoved						-= TaskTokenUserRemoved;
 }
@@ -718,8 +700,6 @@ void FOnlineIdentityLive::FAsyncEventUserRemoved::TriggerDelegates()
 		ELoginStatus::NotLoggedIn, FUniqueNetIdLive(Args->User->XboxUserId));
 }
 
-// @ATG_CHANGE : BEGIN - Skipping for UWP
-#if !PLATFORM_UWP
 FOnlineIdentityLive::FAsyncEventControllerPairingChanged::FAsyncEventControllerPairingChanged( FOnlineSubsystemLive* InLiveSubsystem, Windows::Xbox::Input::ControllerPairingChangedEventArgs^ InArgs ) :
 	FOnlineAsyncEvent(InLiveSubsystem),
 	Args(InArgs)
@@ -761,8 +741,6 @@ void FOnlineIdentityLive::FAsyncEventControllerPairingChanged::TriggerDelegates(
 		}
 	}
 }
-#endif // !PLATFORM_UWP
-// @ATG_CHANGE : END - Skipping for UWP
 
 
 /** FUserOnlineAccountLive */
