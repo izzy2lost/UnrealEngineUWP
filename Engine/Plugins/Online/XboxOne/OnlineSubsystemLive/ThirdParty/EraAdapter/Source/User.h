@@ -248,6 +248,12 @@ public:
 		Platform::String^ get();
 	}
 
+	::Windows::Foundation::IAsyncOperation<Microsoft::Xbox::Services::System::GetTokenAndSignatureResult^>^
+		GetTokenAndSignatureAsync(Platform::String^ httpMethod, Platform::String^ url, Platform::String^ headers) 
+	{
+		return _user->GetTokenAndSignatureAsync(httpMethod, url, headers);
+	}
+
 	static event ::Windows::Foundation::EventHandler<UserAddedEventArgs^>^ UserAdded;
 	static event ::Windows::Foundation::EventHandler<SignInCompletedEventArgs^>^ SignInCompleted;
 	static event ::Windows::Foundation::EventHandler<SignOutCompletedEventArgs^>^ SignOutCompleted;

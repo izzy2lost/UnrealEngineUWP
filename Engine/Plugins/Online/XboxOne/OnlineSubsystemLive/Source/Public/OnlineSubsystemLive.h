@@ -6,15 +6,18 @@
 #include "OnlineSubsystemImpl.h"
 #include "OnlineSubsystemLivePackage.h"
 
-// @ATG_CHANGE : BEGIN UWP LIVE support
+// @ATG_CHANGE : jamesya@microsoft.com - BEGIN UWP LIVE support
 #if PLATFORM_XBOXONE
 #include "XboxOneAllowPlatformTypes.h"
 #define _UITHREADCTXT_SUPPORT   0
 #include <ppltasks.h>
+//#include "Microsoft.Xbox.Services.h"
 #include "XboxOneHidePlatformTypes.h"
 #elif PLATFORM_UWP
+//#include "WindowsHWrapper.h"
 #include "AllowWindowsPlatformTypes.h"
 #include <ppltasks.h>
+//#include "Microsoft.Xbox.Services.h"
 #include "HideWindowsPlatformTypes.h"
 
 namespace Windows
@@ -25,11 +28,12 @@ namespace Windows
 		{
 			using User = EraAdapter::Windows::Xbox::System::User;
 			using IUser = EraAdapter::Windows::Xbox::System::User;
+			using GetTokenAndSignatureResult = Microsoft::Xbox::Services::System::GetTokenAndSignatureResult;
 		}
 	}
 }
 #endif
-// @ATG_CHANGE : END
+// @ATG_CHANGE : jamesya@microsoft.com - END
 
 /** Forward declarations of all interface classes */
 typedef TSharedPtr<class FOnlineSessionLive, ESPMode::ThreadSafe> FOnlineSessionLivePtr;
@@ -40,14 +44,23 @@ typedef TSharedPtr<class FOnlineLeaderboardsLive, ESPMode::ThreadSafe> FOnlineLe
 typedef TSharedPtr<class FOnlineVoiceLive, ESPMode::ThreadSafe> FOnlineVoiceLivePtr;
 typedef TSharedPtr<class FOnlineExternalUILive, ESPMode::ThreadSafe> FOnlineExternalUILivePtr;
 typedef TSharedPtr<class FOnlineIdentityLive, ESPMode::ThreadSafe> FOnlineIdentityLivePtr;
+#if PLATFORM_XBOXONE
+typedef TSharedPtr<class FOnlinePurchaseLive, ESPMode::ThreadSafe> FOnlinePurchaseLivePtr;
+typedef TSharedPtr<class FOnlineStoreLive, ESPMode::ThreadSafe> FOnlineStoreLivePtr;
+#endif // PLATFORM_XBOXONE
 typedef TSharedPtr<class FOnlineAchievementsLive, ESPMode::ThreadSafe> FOnlineAchievementsLivePtr;
 typedef TSharedPtr<class FOnlineEventsLive, ESPMode::ThreadSafe> FOnlineEventsLivePtr;
 typedef TSharedPtr<class FOnlinePresenceLive, ESPMode::ThreadSafe> FOnlinePresenceLivePtr;
 typedef TSharedPtr<class FOnlineMatchmakingInterfaceLive, ESPMode::ThreadSafe> FOnlineMatchmakingInterfaceLivePtr;
 typedef TSharedPtr<class FSessionMessageRouter, ESPMode::ThreadSafe> FSessionMessageRouterPtr;
-// @ATG_CHANGE : BEGIN Adding social features
-typedef TSharedPtr<class FOnlineUserInterfaceLive, ESPMode::ThreadSafe> FOnlineUserLivePtr;
-// @ATG_CHANGE : END
+// @ATG_CHANGE : jamesya@microsoft.com - BEGIN Adding social features
+typedef TSharedPtr<class FOnlineUserLive2, ESPMode::ThreadSafe> FOnlineUserLivePtr;
+// @ATG_CHANGE : jamesya@microsoft.com - END
+// @ATG_CHANGE : jamesya@microsoft.com - BEGIN Adding XIM
+typedef TSharedPtr<class FOnlineSessionXim, ESPMode::ThreadSafe> FOnlineSessionXimPtr;
+typedef TSharedPtr<class FOnlineVoiceXim, ESPMode::ThreadSafe> FOnlineVoiceXimPtr;
+typedef TSharedPtr<class FXimMessageRouter, ESPMode::ThreadSafe> FXimMessageRouterPtr;
+// @ATG_CHANGE : jamesya@microsoft.com - END
 
 class FOnlineAsyncTask;
 class FOnlineAsyncTaskManagerLive;
@@ -60,7 +73,6 @@ template<class FOnlineSubsystemClass> class FOnlineAsyncEvent;
 class ONLINESUBSYSTEMLIVE_API FOnlineSubsystemLive
 	: public FOnlineSubsystemImpl
 {
-
 public:
 	/**
 	 * Forwards the invite check to the session interface. This is here because this is already
@@ -69,7 +81,6 @@ public:
 	void CheckPendingSessionInvite();
 
 	// IOnlineSubsystem
-
 	virtual IOnlineSessionPtr GetSessionInterface() const override;
 	virtual IOnlineFriendsPtr GetFriendsInterface() const override;
 	virtual IOnlinePartyPtr GetPartyInterface() const override;
@@ -111,7 +122,6 @@ public:
 	bool IsEnabled();
 
 PACKAGE_SCOPE:
-
 	/** Only the factory makes instances */
 	FOnlineSubsystemLive()
 		: ConvertedNetworkConnectivityLevel(EOnlineServerConnectionStatus::Normal)
@@ -122,9 +132,17 @@ PACKAGE_SCOPE:
 	}
 
 	virtual ~FOnlineSubsystemLive() = default;
+
 	/** Helpers to get typed Interface shared pointers */
+	// @ATG_CHANGE : jamesya@microsoft.com - BEGIN Adding XIM
+	FOnlineSessionXimPtr GetSessionInterfaceXim();
 	FOnlineSessionLivePtr GetSessionInterfaceLive();
+	// @ATG_CHANGE : jamesya@microsoft.com - END
 	FOnlineIdentityLivePtr GetIdentityLive() const { return IdentityInterface; }
+#if PLATFORM_XBOXONE
+	FOnlineStoreLivePtr GetStoreLive() const { return StoreInterface; }
+	FOnlinePurchaseLivePtr GetPurchaseLive() const { return PurchaseInterface; }
+#endif // PLATFORM_XBOXONE
 	FOnlinePresenceLivePtr GetPresenceLive() const { return PresenceInterface; }
 	FOnlineLeaderboardsLivePtr GetLeaderboardsInterfaceLive() const { return LeaderboardsInterface; }
 	FOnlineMatchmakingInterfaceLivePtr GetMatchmakingInterfaceLive() const { return MatchmakingInterfaceLive; }
@@ -196,11 +214,10 @@ PACKAGE_SCOPE:
 	bool bHasCalledNetworkStatusChangedAtLeastOnce;
 
 private:
-
-	// @ATG_CHANGE : BEGIN 
+// @ATG_CHANGE : jamesya@microsoft.com - BEGIN Adding XIM
 	/** Interface to the session services */
 	IOnlineSessionPtr SessionInterface;
-	// @ATG_CHANGE : END
+// @ATG_CHANGE : jamesya@microsoft.com - END
 
 	/** Interface to the external UI services */
 	FOnlineExternalUILivePtr ExternalUIInterface;
@@ -208,10 +225,18 @@ private:
 	/** Interface to the identity registration/auth services */
 	FOnlineIdentityLivePtr IdentityInterface;
 
-	// @ATG_CHANGE : BEGIN
+#if PLATFORM_XBOXONE
+	/** Interface to the store services */
+	FOnlineStoreLivePtr StoreInterface;
+
+	/** Interface to the purchase services */
+	FOnlinePurchaseLivePtr PurchaseInterface;
+#endif // PLATFORM_XBOXONE
+
+	// @ATG_CHANGE : jamesya@microsoft.com - BEGIN Adding XIM
 	/** Interface to the voice chat services */
 	IOnlineVoicePtr VoiceInterface;
-	// @ATG_CHANGE : END
+	// @ATG_CHANGE : jamesya@microsoft.com - END
 
 	/** Interface to the events services */
 	FOnlineEventsLivePtr EventsInterface;
@@ -231,13 +256,17 @@ private:
 	/** Interface to the mpsd shouldertap services */
 	FSessionMessageRouterPtr SessionMessageRouterInterface;
 
-	// @ATG_CHANGE : BEGIN Adding social features
+	// @ATG_CHANGE : jamesya@microsoft.com - BEGIN Adding XIM
+	FXimMessageRouterPtr XimMessageRouter;
+	// @ATG_CHANGE : jamesya@microsoft.com - END
+
+	// @ATG_CHANGE : jamesya@microsoft.com - BEGIN Adding social features
 	/** Interface to the user info service */
 	FOnlineUserLivePtr UserInterface;
 
 	/** Interface to the social service */
 	FOnlineFriendsLivePtr FriendInterface;
-	// @ATG_CHANGE : END
+	// @ATG_CHANGE : jamesya@microsoft.com - END
 
 	/** Online async task runnable */
 	FOnlineAsyncTaskManagerLive* OnlineAsyncTaskThreadRunnable;
@@ -248,11 +277,14 @@ private:
 PACKAGE_SCOPE:
 	FOnlineIdentityLivePtr GetIdentityLive() { return IdentityInterface; }
 	FOnlinePresenceLivePtr GetPresenceLive() { return PresenceInterface; }
+	// @ATG_CHANGE : jamesya@microsoft.com - BEGIN Adding XIM
+	FXimMessageRouterPtr GetXimMessageRouter() { return XimMessageRouter; }
+	// @ATG_CHANGE : jamesya@microsoft.com - END
 
-	// @ATG_CHANGE : BEGIN Adding social features
+	// @ATG_CHANGE : jamesya@microsoft.com - BEGIN Adding social features
 	/** Returns the first available Live context, or null if none available.  Useful when user context is not available. */
 	Microsoft::Xbox::Services::XboxLiveContext^		GetDefaultLiveContext() const;
-	// @ATG_CHANGE : END
+	// @ATG_CHANGE : jamesya@microsoft.com - END
 
 	// @ATG_CHANGE : BEGIN 
 	Microsoft::Xbox::Services::XboxLiveAppConfiguration^ GetApplicationConfig() { return ApplicationConfig; }
@@ -268,19 +300,17 @@ PACKAGE_SCOPE:
 		});
 	}
 
-	// @ATG_CHANGE : BEGIN UWP LIVE support
+	// @ATG_CHANGE : jamesya@microsoft.com - BEGIN UWP LIVE support
 	// Store single XboxLiveContext per user
 	TMap<FString, Microsoft::Xbox::Services::XboxLiveContext^> CachedXboxLiveContexts;
-
-	void HandleAppResume();
-
 	// Store the singleton application config object because calling the static WinRT property every time is expensive.
 	Microsoft::Xbox::Services::XboxLiveAppConfiguration^ ApplicationConfig;
-	// @ATG_CHANGE : END
+	// @ATG_CHANGE : jamesya@microsoft.com - END
 	mutable FCriticalSection LiveContextsLock;
+
 	Windows::Foundation::EventRegistrationToken UserRemovedToken;
+
 	FCriticalSection RefreshLock;
 };
 
 typedef TSharedPtr<FOnlineSubsystemLive, ESPMode::ThreadSafe> FOnlineSubsystemLivePtr;
-

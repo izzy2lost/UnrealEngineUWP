@@ -3,6 +3,7 @@
 //-----------------------------------------------------------------------------
 #include "pch.h"
 #include "User.h"
+#include "Controller.h"
 
 using namespace EraAdapter::Windows::Xbox::System;
 using namespace Platform;
@@ -175,7 +176,16 @@ User::User(
 ::Windows::Foundation::Collections::IVectorView<::Windows::Gaming::Input::Gamepad^>^
 User::Controllers::get()
 {
-	return ::Windows::Gaming::Input::Gamepad::Gamepads;
+	Platform::Collections::Vector<::Windows::Gaming::Input::Gamepad^>^ controllers =
+		ref new Platform::Collections::Vector<::Windows::Gaming::Input::Gamepad^>();
+	for each (auto controller in EraAdapter::Windows::Xbox::Input::Controller::Controllers)
+	{
+		if (controller->User == this)
+		{
+			controllers->Append(controller->Gamepad);
+		}
+	}
+	return controllers->GetView();;
 }
 
 UserDisplayInfo^ 
