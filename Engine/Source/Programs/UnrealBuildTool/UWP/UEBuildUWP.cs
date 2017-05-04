@@ -586,6 +586,11 @@ namespace UnrealBuildTool
 					{
 						Rules.PlatformSpecificDynamicallyLoadedModuleNames.Add("OnlineSubsystemLive");
 					}
+
+					if (ModuleName == "Engine")
+					{
+						Rules.PlatformSpecificDynamicallyLoadedModuleNames.Add("UWPPlatformFeatures");
+					}
 				}
 			}
 			// @ATG_CHANGE : END
