@@ -32,6 +32,8 @@ void FUWPTargetSettingsCustomization::InitSupportedPlatformVersions()
 	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.10586.0")));
 	// Windows 10 Anniversary update
 	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.14393.0")));
+	// Windows 10 Creators update
+	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.15063.0")));
 }
 
 void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
