@@ -839,3 +839,7 @@ void FD3D11DynamicRHI::ShutdownHDR()
 	}
 }
 
+void FD3D11DynamicRHIModule::StartupModule()
+{
+}
+

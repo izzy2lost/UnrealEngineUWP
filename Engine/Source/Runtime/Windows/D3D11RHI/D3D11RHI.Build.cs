@@ -31,10 +31,12 @@ public class D3D11RHI : ModuleRules
 		{ 
         	AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "AMD_AGS");
+        	AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAftermath");
 		}
 // @ATG_CHANGE : END
 
-		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+
+        if (Target.Configuration != UnrealTargetConfiguration.Shipping)
 		{
 			PrivateIncludePathModuleNames.AddRange(new string[] { "TaskGraph" });
 		}
