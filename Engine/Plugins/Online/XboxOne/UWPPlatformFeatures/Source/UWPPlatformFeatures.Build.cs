@@ -14,6 +14,10 @@ public class UWPPlatformFeatures : ModuleRules
 				});
 
 		// This module requires installation of the Xbox Platform Extensions SDK for UWP
-		PrivateWinMDReferences.Add(VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Gaming.XboxLive.StorageApiContract"));
+		string StorageApiMetadata = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Gaming.XboxLive.StorageApiContract");
+		if (!string.IsNullOrEmpty(StorageApiMetadata))
+		{
+			PrivateWinMDReferences.Add(StorageApiMetadata);
+		}
 	}
 }

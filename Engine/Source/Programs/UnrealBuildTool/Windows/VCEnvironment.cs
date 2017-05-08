@@ -374,19 +374,22 @@ namespace UnrealBuildTool
         public static Version FindLatestVersionDirectory(string InDirectory, Version NoLaterThan)
         {
             Version LatestVersion = new Version(0, 0, 0, 0);
-            string[] VersionDirectories = Directory.GetDirectories(InDirectory);
-            foreach (string Dir in VersionDirectories)
-            {
-                string VersionString = Path.GetFileName(Dir);
-                Version FoundVersion;
-                if (Version.TryParse(VersionString, out FoundVersion) && FoundVersion > LatestVersion)
-                {
-					if (NoLaterThan == null || FoundVersion <= NoLaterThan)
+			if (Directory.Exists(InDirectory))
+			{
+				string[] VersionDirectories = Directory.GetDirectories(InDirectory);
+				foreach (string Dir in VersionDirectories)
+				{
+					string VersionString = Path.GetFileName(Dir);
+					Version FoundVersion;
+					if (Version.TryParse(VersionString, out FoundVersion) && FoundVersion > LatestVersion)
 					{
-						LatestVersion = FoundVersion;
+						if (NoLaterThan == null || FoundVersion <= NoLaterThan)
+						{
+							LatestVersion = FoundVersion;
+						}
 					}
 				}
-            }
+			}
             return LatestVersion;
         }
 
@@ -395,6 +398,7 @@ namespace UnrealBuildTool
             // Useful to be able to call this from module build.cs files where
             // SetEnvironment hasn't been called.
             string SDKDir;
+			string MetadataPath = string.Empty;
             if (EnvVars != null)
             {
                 SDKDir = EnvVars.WindowsSDKExtensionDir;
@@ -403,11 +407,40 @@ namespace UnrealBuildTool
             {
                 SDKDir = FindWindowsSDKExtensionInstallationFolder("v10.0");
             }
-            string ContractDir = Path.Combine(SDKDir, "References", ApiContract);
-			Version WindowsSDKVersionMaxForToolchain = WindowsPlatform.Compiler < WindowsCompiler.VisualStudio2017 ? new Version(10, 0, 14393, 0) : null;
-			Version ContractLatestVersion = VCEnvironment.FindLatestVersionDirectory(ContractDir, WindowsSDKVersionMaxForToolchain);
-            return Path.Combine(ContractDir, ContractLatestVersion.ToString(), ApiContract + ".winmd");
-        }
+			DirectoryReference ReferenceDir = DirectoryReference.Combine(new DirectoryReference(SDKDir), "References");
+			if (ReferenceDir.Exists())
+			{
+				// Prefer a contract from a suitable SDK-versioned subdir of the references folder when available (starts with 15063 SDK)
+				Version WindowsSDKVersionMaxForToolchain = WindowsPlatform.Compiler < WindowsCompiler.VisualStudio2017 ? new Version(10, 0, 14393, 0) : null;
+				DirectoryReference SDKVersionedReferenceDir = DirectoryReference.Combine(ReferenceDir, FindLatestVersionDirectory(ReferenceDir.FullName, WindowsSDKVersionMaxForToolchain).ToString());
+				DirectoryReference ContractDir = DirectoryReference.Combine(SDKVersionedReferenceDir, ApiContract);
+				Version ContractLatestVersion = null;
+				FileReference MetadataFileRef = null;
+				if (ContractDir.Exists())
+				{
+					// Note: contract versions don't line up with Windows SDK versions (they're numbered independently as 1.0.0.0, 2.0.0.0, etc.)
+					ContractLatestVersion = FindLatestVersionDirectory(ContractDir.FullName, null);
+					MetadataFileRef = FileReference.Combine(ContractDir, ContractLatestVersion.ToString(), ApiContract + ".winmd");
+				}
+
+				// Retry in unversioned references dir if we failed above.
+				if (MetadataFileRef == null || !MetadataFileRef.Exists())
+				{
+					ContractDir = DirectoryReference.Combine(ReferenceDir, ApiContract);
+					if (ContractDir.Exists())
+					{
+						ContractLatestVersion = VCEnvironment.FindLatestVersionDirectory(ContractDir.FullName, null);
+						MetadataFileRef = FileReference.Combine(ContractDir, ContractLatestVersion.ToString(), ApiContract + ".winmd");
+					}
+				}
+				if (MetadataFileRef != null && MetadataFileRef.Exists())
+				{
+					MetadataPath = MetadataFileRef.FullName;
+				}
+			}
+
+			return MetadataPath;
+		}
         // @ATG_CHANGE : END
 
 
