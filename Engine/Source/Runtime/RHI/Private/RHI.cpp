@@ -513,14 +513,22 @@ EShaderPlatform ShaderFormatToLegacyShaderPlatform(FName ShaderFormat)
 
 RHI_API bool IsRHIDeviceAMD()
 {
-	check(GRHIVendorId != 0);
+	// @ATG_CHANGE : BEGIN UWP support 
+	// Vendor Id of 0 is valid on UWP for Xbox One
+	check(PLATFORM_UWP || GRHIVendorId != 0);
+	// @ATG_CHANGE : END UWP support 
+
 	// AMD's drivers tested on July 11 2013 have hitching problems with async resource streaming, setting single threaded for now until fixed.
 	return GRHIVendorId == 0x1002;
 }
 
 RHI_API bool IsRHIDeviceIntel()
 {
-	check(GRHIVendorId != 0);
+	// @ATG_CHANGE : BEGIN UWP support 
+	// Vendor Id of 0 is valid on UWP for Xbox One
+	check(PLATFORM_UWP || GRHIVendorId != 0);
+	// @ATG_CHANGE : END UWP support 
+
 	// Intel GPUs are integrated and use both DedicatedVideoMemory and SharedSystemMemory.
 	// The hardware has fast clears so we disable exclude rects (see r.ClearWithExcludeRects)
 	return GRHIVendorId == 0x8086;
@@ -528,7 +536,11 @@ RHI_API bool IsRHIDeviceIntel()
 
 RHI_API bool IsRHIDeviceNVIDIA()
 {
-	check(GRHIVendorId != 0);
+	// @ATG_CHANGE : BEGIN UWP support 
+	// Vendor Id of 0 is valid on UWP for Xbox One
+	check(PLATFORM_UWP || GRHIVendorId != 0);
+	// @ATG_CHANGE : END UWP support 
+
 	// NVIDIA GPUs are discrete and use DedicatedVideoMemory only.
 	return GRHIVendorId == 0x10DE;
 }
