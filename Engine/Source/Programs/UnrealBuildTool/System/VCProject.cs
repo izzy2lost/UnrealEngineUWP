@@ -313,7 +313,21 @@ namespace UnrealBuildTool
 				// a project configuration that has the platform name in that configuration as a suffix,
 				// and then using "Win32" as the actual VS platform name
 				ProjectConfigurationName = ProjectConfigurationNameOverride == "" ? Platform.ToString() + "_" + Configuration.ToString() : ProjectConfigurationNameOverride;
-				ProjectPlatformName = ProjectPlatformNameOverride == "" ? VCProjectFileGenerator.DefaultPlatformName : ProjectPlatformNameOverride;
+				// @ATG_CHANGE : BEGIN UWP support - VS remote debugging needs our fake platform to have the right processor architecture
+				if (!string.IsNullOrEmpty(ProjectPlatformNameOverride))
+				{
+					ProjectPlatformName = ProjectPlatformNameOverride;
+				}
+				else if (Platform == UnrealTargetPlatform.UWP64)
+				{
+					// Needed so that VS understands that we're 64bit for remote debugger purposes.
+					ProjectPlatformName = "x64";
+				}
+				else
+				{
+					ProjectPlatformName =  VCProjectFileGenerator.DefaultPlatformName;
+				}
+				// @ATG_CHANGE : END UWP support
 			}
 
 			if (!String.IsNullOrEmpty(TargetConfigurationName))
