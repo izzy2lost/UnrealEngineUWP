@@ -684,7 +684,13 @@ namespace UnrealBuildTool
 			{
 				if (WindowsPlatform.ShouldUseWindowsSDK10(Platform))
 				{
-					return Path.Combine(WindowsSDKExtensionDir, "bin/x64/rc.exe");
+					Version SDKVersion = FindWindowsSDKExtensionLatestVersion(WindowsSDKExtensionDir);
+					string RCPath = Path.Combine(WindowsSDKExtensionDir, "bin", SDKVersion.ToString(), "x64", "rc.exe");
+					if (!File.Exists(RCPath))
+					{
+						RCPath = Path.Combine(WindowsSDKExtensionDir, "bin", "x64", "rc.exe");
+					}
+					return RCPath;
 				}
 				else
 				{
@@ -696,7 +702,13 @@ namespace UnrealBuildTool
 			{
 				if (WindowsPlatform.ShouldUseWindowsSDK10(Platform))
 				{
-					return Path.Combine(WindowsSDKExtensionDir, "bin/x86/rc.exe");
+					Version SDKVersion = FindWindowsSDKExtensionLatestVersion(WindowsSDKExtensionDir);
+					string RCPath = Path.Combine(WindowsSDKExtensionDir, "bin", SDKVersion.ToString(), "x86", "rc.exe");
+					if (!File.Exists(RCPath))
+					{
+						RCPath = Path.Combine(WindowsSDKExtensionDir, "bin", "x86", "rc.exe");
+					}
+					return RCPath;
 				}
 				else
 				{

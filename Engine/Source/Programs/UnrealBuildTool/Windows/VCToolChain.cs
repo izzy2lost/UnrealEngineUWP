@@ -619,7 +619,9 @@ namespace UnrealBuildTool
 
 						if (Directory.Exists(Path.Combine(EnvVars.WindowsSDKExtensionDir, "References")))
 						{
+							Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(EnvVars.WindowsSDKExtensionDir);
 							Arguments.Add(String.Format(@" /AI""{0}\References""", EnvVars.WindowsSDKExtensionDir));
+							Arguments.Add(String.Format(@" /AI""{0}\References\{1}""", EnvVars.WindowsSDKExtensionDir, SDKVersion));
 
 							// Use the latest version of contracts, consistent with our choice elsewhere to use the latest version of the SDK.
 							// These metadata files should bring in everything available on the Universal family.  Extension SDKs should be

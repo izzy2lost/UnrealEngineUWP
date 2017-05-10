@@ -110,7 +110,13 @@ namespace UWP.Automation
 		public override void Package(ProjectParams Params, DeploymentContext SC, int WorkingCL)
 		{
 			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
-			string MakeAppXPath = Path.Combine(SDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "makeappx.exe");
+			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder);
+
+			string MakeAppXPath = Path.Combine(SDKFolder, "bin", SDKVersion.ToString(), Environment.Is64BitProcess ? "x64" : "x86", "makeappx.exe");
+			if (!File.Exists(MakeAppXPath))
+			{
+				MakeAppXPath = Path.Combine(SDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "makeappx.exe");
+			}
 			string OutputAppX = Path.Combine(SC.StageDirectory, Params.ShortProjectName + ".appx");
 			string MakeAppXCommandLine = string.Format(@"pack /o /d ""{0}"" /p ""{1}""", SC.StageDirectory, OutputAppX);
 			RunAndLog(CmdEnv, MakeAppXPath, MakeAppXCommandLine, null, 0, null, ERunOptions.None);
@@ -151,7 +157,12 @@ namespace UWP.Automation
 					}
 				}
 
-				string SignToolPath = Path.Combine(SDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "signtool.exe");
+				string SignToolPath = Path.Combine(SDKFolder, "bin", SDKVersion.ToString(), Environment.Is64BitProcess ? "x64" : "x86", "signtool.exe");
+				if (!File.Exists(SignToolPath))
+				{
+					SignToolPath = Path.Combine(SDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "signtool.exe");
+				}
+
 				string SignToolCommandLine = string.Format(@"sign /a /f ""{0}"" /fd SHA256 ""{1}""", Path.Combine(SC.ProjectRoot, SigningCertificate), OutputAppX);
 				RunAndLog(CmdEnv, SignToolPath, SignToolCommandLine, null, 0, null, ERunOptions.None);
 			}
@@ -185,8 +196,19 @@ namespace UWP.Automation
 		{
 			// MakeCert.exe -r -h 0 -n "CN=No Publisher, O=No Publisher" -eku 1.3.6.1.5.5.7.3.3 -pe -sv "Signing Certificate.pvk" "Signing Certificate.cer"
 			// pvk2pfx -pvk "Signing Certificate.pvk" -spc "Signing Certificate.cer" -pfx "Signing Certificate.pfx"
-			string MakeCertPath = Path.Combine(InSDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "makecert.exe");
-			string Pvk2PfxPath = Path.Combine(InSDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "pvk2pfx.exe");
+			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(InSDKFolder);
+			string MakeCertPath = Path.Combine(InSDKFolder, "bin", SDKVersion.ToString(), Environment.Is64BitProcess ? "x64" : "x86", "makecert.exe");
+			if (!File.Exists(MakeCertPath))
+			{
+				MakeCertPath = Path.Combine(InSDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "makecert.exe");
+			}
+
+			string Pvk2PfxPath = Path.Combine(InSDKFolder, "bin", SDKVersion.ToString(), Environment.Is64BitProcess ? "x64" : "x86", "pvk2pfx.exe");
+			if (!File.Exists(Pvk2PfxPath))
+			{
+				Pvk2PfxPath = Path.Combine(InSDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "pvk2pfx.exe");
+			}
+
 			string CerFile = Path.ChangeExtension(InCertificatePath, ".cer");
 			string PvkFile = Path.ChangeExtension(InCertificatePath, ".pvk");
 
