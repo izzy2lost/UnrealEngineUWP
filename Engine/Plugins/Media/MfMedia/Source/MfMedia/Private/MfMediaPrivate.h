@@ -11,7 +11,9 @@
 //   InBuildTarget.GlobalCompileEnvironment.Config.Definitions.Add("WINVER=0x0601");
 
 //#define MFMEDIA_SUPPORTED_PLATFORM (PLATFORM_XBOXONE || (PLATFORM_WINDOWS && WINVER >= 0x0601))
-#define MFMEDIA_SUPPORTED_PLATFORM PLATFORM_XBOXONE // Windows disabled until 4.16, because broken
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#define MFMEDIA_SUPPORTED_PLATFORM PLATFORM_XBOXONE || PLATFORM_UWP // Windows disabled until 4.16, because broken
+// @ATG_CHANGE : END
 
 
 #include "Runtime/Core/Public/CoreMinimal.h"

@@ -144,6 +144,9 @@ public:
 
 		// supported platforms
 		SupportedPlatforms.Add(TEXT("XboxOne"));
+		// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+		SupportedPlatforms.Add(TEXT("UWP"));
+		// @ATG_CHANGE : END
 #if defined(WINVER) && WINVER >= 0x0601
 //		SupportedPlatforms.Add(TEXT("Windows")); // disabled until 4.16, because it's currently broken on Windows
 #endif

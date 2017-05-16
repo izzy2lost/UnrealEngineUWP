@@ -5,7 +5,9 @@
 #include "IMfMediaResolverCallbacks.h"
 #include "Misc/ScopeLock.h"
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#include "AllowWindowsPlatformTypes.h"
 #else
 	#include "XboxOneAllowPlatformTypes.h"
@@ -142,7 +144,9 @@ private:
 };
 
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#include "HideWindowsPlatformTypes.h"
 #else
 	#include "XboxOneHidePlatformTypes.h"

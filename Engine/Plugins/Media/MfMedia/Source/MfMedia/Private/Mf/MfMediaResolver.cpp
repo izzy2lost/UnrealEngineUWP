@@ -7,7 +7,9 @@
 #include "MfMediaByteStream.h"
 #include "MfMediaResolveState.h"
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#include "AllowWindowsPlatformTypes.h"
 #else
 	#include "XboxOneAllowPlatformTypes.h"
@@ -204,7 +206,9 @@ STDMETHODIMP_(ULONG) FMfMediaResolver::Release()
 }
 
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#include "HideWindowsPlatformTypes.h"
 #else
 	#include "XboxOneHidePlatformTypes.h"

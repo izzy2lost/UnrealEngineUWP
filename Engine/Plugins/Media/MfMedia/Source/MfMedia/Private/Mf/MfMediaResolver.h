@@ -6,7 +6,7 @@
 
 #if MFMEDIA_SUPPORTED_PLATFORM
 
-#if PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS || PLATFORM_UWP
 	#include "WindowsHWrapper.h"
 	#include "AllowWindowsPlatformTypes.h"
 #else
@@ -99,7 +99,7 @@ private:
 };
 
 
-#if PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS || PLATFORM_UWP
 	#include "HideWindowsPlatformTypes.h"
 #else
 	#include "XboxOneHidePlatformTypes.h"

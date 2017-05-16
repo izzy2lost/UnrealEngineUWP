@@ -6,7 +6,9 @@
 
 #include "MfMediaUtils.h"
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#include "WindowsHWrapper.h"
 	#include "AllowWindowsPlatformTypes.h"
 #else
@@ -1018,10 +1020,14 @@ void FMfMediaTracks::AddStreamToTracks(uint32 StreamIndex, IMFPresentationDescri
 			{
 				long SampleStride = ::MFGetAttributeUINT32(MediaType, MF_MT_DEFAULT_STRIDE, 0);
 
+// @ATG_CHANGE : BEGIN - MFGetStrideForBitmapInfoHeader not available in UWP
+#if !PLATFORM_UWP
 				if (SampleStride == 0)
 				{
 					::MFGetStrideForBitmapInfoHeader(SubType.Data1, VideoTrack.OutputDim.X, &SampleStride);
 				}
+#endif
+// @ATG_CHANGE : END
 
 				if (SampleStride == 0)
 				{
@@ -1106,7 +1112,9 @@ void FMfMediaTracks::InitializeVideoSink()
 
 #undef LOCTEXT_NAMESPACE
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#include "HideWindowsPlatformTypes.h"
 #else
 	#include "XboxOneHidePlatformTypes.h"

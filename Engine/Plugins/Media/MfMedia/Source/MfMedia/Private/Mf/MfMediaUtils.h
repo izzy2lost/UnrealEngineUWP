@@ -6,7 +6,9 @@
 
 #if MFMEDIA_SUPPORTED_PLATFORM
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#include "WindowsHWrapper.h"
 	#include "AllowWindowsPlatformTypes.h"
 #else
@@ -58,7 +60,9 @@ namespace MfMedia
 }
 
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#include "HideWindowsPlatformTypes.h"
 #else
 	#include "XboxOneHidePlatformTypes.h"
