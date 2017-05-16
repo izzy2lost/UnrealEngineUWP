@@ -157,9 +157,30 @@ namespace UnrealBuildTool
 			// De-duplicate any cultures. We only stage once for each.
 			CulturesToStage = CulturesToStageWithDuplicates.Distinct().ToList();
 
+			// @ATG_CHANGE : BEGIN - Allow authoring packaging-related localized strings in resw files
+			List<Dictionary<string,string>> SourceStringResources = new List<Dictionary<string, string>>();
+			List<bool> UpdateSourceResourceStrings = new List<bool>();
+			// @ATG_CHANGE : END
 			List<ResXResourceWriter> ResXWriters = new List<ResXResourceWriter>();
 			foreach (string Culture in CulturesToStage)
 			{
+				// @ATG_CHANGE : BEGIN - Allow authoring packaging-related localized strings in resw files
+				string PlatformDir = (Platform == UnrealTargetPlatform.XboxOne ? "XboxOne" : "UWP");
+				string SourceStringResourcePath = Path.Combine(ProjectPathParam, "Build", PlatformDir, "Resources", Culture, "resources.resw");
+				Dictionary<string, string> SourceStringResourcesForCulture = new Dictionary<string, string>();
+				if (File.Exists(SourceStringResourcePath))
+				{
+					ResXResourceReader reader = new ResXResourceReader(SourceStringResourcePath);
+					System.Collections.IDictionaryEnumerator enumerator = reader.GetEnumerator();
+					while (enumerator.MoveNext())
+					{
+						SourceStringResourcesForCulture.Add(enumerator.Key.ToString(), enumerator.Value.ToString());
+					}
+				}
+				UpdateSourceResourceStrings.Add(false);
+				SourceStringResources.Add(SourceStringResourcesForCulture);
+				// @ATG_CHANGE : END
+
 				string IntermediateStringResourcePath = Path.Combine(IntermediatePath, Culture);
 				string IntermediateStringResourceFile = Path.Combine(IntermediateStringResourcePath, "resources.resw");
 				if (!Directory.Exists(IntermediateStringResourcePath))
@@ -209,21 +230,33 @@ namespace UnrealBuildTool
 					// Output for each culture
 					for (int CultureIndex = 0; CultureIndex < CulturesToStage.Count; CultureIndex++)
 					{
-						//@todo get from localized strings, not INIs
-						GameIni.GetString(SettingSection, SettingKey, out SettingValue);
+						// @ATG_CHANGE : BEGIN - Allow authoring packaging-related localized strings in resw files
+						if (SourceStringResources[CultureIndex] != null)
+						{
+							SourceStringResources[CultureIndex].TryGetValue(SettingKey, out SettingValue);
+						}
+
+						if (SettingValue == null || SettingValue.Length == 0)
+						{
+							UpdateSourceResourceStrings[CultureIndex] = true;
+							string PlatformDir = (Platform == UnrealTargetPlatform.XboxOne ? "XboxOne" : "UWP");
+							string SourceStringResourcePath = Path.Combine(ProjectPathParam, "Build", PlatformDir, "Resources", CulturesToStage[CultureIndex], "resources.resw");
+							Log.TraceWarning(@"Localized string for {0} not found.  Attempting to use default (non-localized) from ini file. Please update {1}", SettingKey, SourceStringResourcePath);
+							GameIni.GetString(SettingSection, SettingKey, out SettingValue);
+						}
 						// If not found in Game INIs, search for the same Key in Engine INIs
 						if (SettingValue == null || SettingValue.Length == 0)
 						{
 							EngineIni.GetString(SettingSection, SettingKey, out SettingValue);
-							// @ATG_CHANGE : BEGIN 
-							if (SettingValue == null || SettingValue.Length == 0)
-							{
-								// Still empty?  Warn and fill in a default
-								Log.TraceWarning("Config string {0} referenced as resource is not set", SectionKeyPair);
-								SettingValue = "MISSING STRING " + SectionKeyPair;
-							}
-							// @ATG_CHANGE : END 
 						}
+
+						if (SettingValue == null || SettingValue.Length == 0)
+						{
+							// Still empty?  Warn and fill in a default
+							Log.TraceWarning("Config string {0} referenced as resource is not set", SectionKeyPair);
+							SettingValue = "MISSING STRING " + SectionKeyPair;
+						}
+						// @ATG_CHANGE : END 
 
 						if (SettingValue != null && SettingValue.Length > 0)
 						{
@@ -373,6 +406,30 @@ namespace UnrealBuildTool
 						return UpdatedFilePaths;
 					}
 				}
+
+				// @ATG_CHANGE : BEGIN - Allow authoring packaging-related localized strings in resw files
+				if (UpdateSourceResourceStrings[CultureIndex])
+				{
+					string PlatformDir = (Platform == UnrealTargetPlatform.XboxOne ? "XboxOne" : "UWP");
+					string SourceStringResourcePath = Path.Combine(ProjectPathParam, "Build", PlatformDir, "Resources", CulturesToStage[CultureIndex]);
+					try
+					{
+						if (!Directory.Exists(SourceStringResourcePath))
+						{
+							Directory.CreateDirectory(SourceStringResourcePath);
+						}
+						SourceStringResourcePath = Path.Combine(SourceStringResourcePath, "resources.resw");
+						File.Copy(IntermediateStringResourcePath, SourceStringResourcePath);
+						UpdatedFilePaths.Add(SourceStringResourcePath);
+					}
+					catch
+					{
+						Log.TraceWarning("New resource strings detected, but entries could not be added to source {0}.  Check file is writable and retry, or add entries manually.", Path.Combine(SourceStringResourcePath, "resources.resw"));
+					}
+
+				}
+				// @ATG_CHANGE : END
+
 				File.Copy(IntermediateStringResourcePath, FinalStringResourceFile);
 				UpdatedFilePaths.Add(FinalStringResourceFile);
 
