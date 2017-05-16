@@ -281,7 +281,7 @@ bool FOnlineExternalUILive::ShowProfileUI(const FUniqueNetId& Requestor, const F
 	{
 		return false;
 	}
-	
+
 	Windows::Xbox::System::IUser^ RequestingUser = LiveSubsystem->GetIdentityLive()->GetUserForUniqueNetId(FUniqueNetIdLive(Requestor));
 
 	// The string version of an FUniqueNetIdLive is the actual XUID, so we can just use ToString for the requestee here.

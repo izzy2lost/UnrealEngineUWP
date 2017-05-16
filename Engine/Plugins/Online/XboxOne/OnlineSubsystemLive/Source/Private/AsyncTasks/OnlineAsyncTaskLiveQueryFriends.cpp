@@ -2,7 +2,9 @@
 
 #include "../OnlineSubsystemLivePrivatePCH.h"
 
-#if !USE_SOCIAL_MANAGER
+// @ATG_CHANGE :  BEGIN - Alternative Social implementation using Manager 
+#if !USE_SOCIAL_MANAGER	
+// @ATG_CHANGE :  END
 
 #include "OnlineAsyncTaskLiveQueryFriends.h"
 #include "OnlineSubsystemLive.h"
@@ -313,4 +315,6 @@ bool FOnlineAsyncTaskLiveQueryFriendPresenceDetails::ProcessResult(const Concurr
 	return false;
 }
 
+// @ATG_CHANGE :  BEGIN - Alternative Social implementation using Manager 
 #endif
+// @ATG_CHANGE :  END

@@ -1,15 +1,14 @@
-//-----------------------------------------------------------------------------
-//				Copyright (C) Microsoft. All rights reserved.
-//-----------------------------------------------------------------------------
-#include "OnlineSubsystemLivePrivatePCH.h"
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
+#include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineSubsystemLive.h"
 #include "OnlineFriendsInterfaceLive.h"
 #include "OnlineIdentityInterfaceLive.h"
-#include "OnlinePresenceInterfaceLive.h"
 #include "OnlineAsyncTaskManagerLive.h"
 #include "AsyncTasks/OnlineAsyncTaskLiveQueryFriends.h"
 #include "AsyncTasks/OnlineAsyncTaskLiveQueryAvoidList.h"
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
+#include "OnlinePresenceInterfaceLive.h"
 
 using namespace Microsoft::Xbox::Services::Social::Manager;
 
@@ -26,14 +25,17 @@ namespace FriendUserAttributes
 	const FString DisplayPicUrlRaw = TEXT("DisplayPicUrlRaw");
 }
 
+#if USE_SOCIAL_MANAGER
 
-FOnlineFriendLive::FOnlineFriendLive(FOnlineSubsystemLive* Subsystem, XboxSocialUser^ User) :
-	UserId(MakeShareable(new FUniqueNetIdLive(User->XboxUserId))),
-	Presence(Subsystem->GetPresenceLive()->CachePresenceFromLive(FUniqueNetIdLive(User->XboxUserId), User->PresenceRecord))
+FOnlineFriendLive::FOnlineFriendLive(FOnlineSubsystemLive* Subsystem, XboxSocialUser^ User)
+	: UniqueNetIdLive(MakeShareable(new FUniqueNetIdLive(User->XboxUserId)))
+	, Presence(Subsystem->GetPresenceLive()->CachePresenceFromLive(FUniqueNetIdLive(User->XboxUserId), User->PresenceRecord))
+	, bIsFavorite(User->IsFavorite)
+
 {
 	RealName = User->RealName->Data();
 	DisplayName = User->DisplayName->Data();
-	DisplayPicUrlRaw = User->DisplayPicUrlRaw->Data();
+	UserAttributes.Add(FriendUserAttributes::DisplayPicUrlRaw, User->DisplayPicUrlRaw->Data());
 
 	if (User->IsFollowedByCaller && User->IsFollowingUser)
 	{
@@ -51,6 +53,86 @@ FOnlineFriendLive::FOnlineFriendLive(FOnlineSubsystemLive* Subsystem, XboxSocial
 	{
 		InviteStatus = EInviteStatus::Unknown;
 	}
+}
+
+#else // USE_SOCIAL_MANAGER
+// @ATG_CHANGE : END
+
+FOnlineFriendLive::FOnlineFriendLive(Microsoft::Xbox::Services::Social::XboxSocialRelationship^ InSocialRelationship)
+	: SocialRelationship(InSocialRelationship)
+	, UniqueNetIdLive(MakeShareable(new FUniqueNetIdLive(InSocialRelationship->XboxUserId->Data())))
+{
+	// We don't set DisplayName here since we don't know it yet; it gets set later
+}
+
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
+#endif // USE_SOCIAL_MANAGER
+// @ATG_CHANGE : END
+
+EInviteStatus::Type FOnlineFriendLive::GetInviteStatus() const
+{
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
+#if USE_SOCIAL_MANAGER
+	return InviteStatus;
+#else
+	// Not currently supported
+	return EInviteStatus::Unknown;
+#endif
+// @ATG_CHANGE : END
+}
+
+const FOnlineUserPresence& FOnlineFriendLive::GetPresence() const
+{
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
+#if USE_SOCIAL_MANAGER
+	return *Presence;
+#else
+	return Presence;
+#endif
+// @ATG_CHANGE : END
+}
+
+TSharedRef<const FUniqueNetId> FOnlineFriendLive::GetUserId() const
+{
+	return UniqueNetIdLive;
+}
+
+FString FOnlineFriendLive::GetRealName() const
+{
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
+#if USE_SOCIAL_MANAGER
+	return RealName;
+#else
+	return DisplayName;
+#endif
+// @ATG_CHANGE : END
+}
+
+FString FOnlineFriendLive::GetDisplayName(const FString& Platform /*= FString()*/) const
+{
+	return DisplayName;
+}
+
+bool FOnlineFriendLive::GetUserAttribute(const FString& AttrName, FString& OutAttrValue) const
+{
+	const FString* FoundAttribute = UserAttributes.Find(AttrName);
+	if (FoundAttribute != nullptr)
+	{
+		OutAttrValue = *FoundAttribute;
+	}
+
+	return FoundAttribute != nullptr;
+}
+
+bool FOnlineFriendLive::IsFavorite() const
+{
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
+#if USE_SOCIAL_MANAGER
+	return bIsFavorite;
+#else
+	return SocialRelationship->IsFavorite;
+#endif
+// @ATG_CHANGE : END
 }
 
 FOnlineBlockedPlayerLive::FOnlineBlockedPlayerLive(Platform::String^ InXUID)
@@ -81,20 +163,24 @@ bool FOnlineBlockedPlayerLive::GetUserAttribute(const FString& AttrName, FString
 	return false;
 }
 
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
 FOnlineFriendsLive::FOnlineFriendsLive(FOnlineSubsystemLive* InSubsystem) :
 	LiveSubsystem(InSubsystem)
 {
+#if USE_SOCIAL_MANAGER
 	// Cache this because calling WinRT statics is non-trivial
 	XblSocialManager = SocialManager::SingletonInstance;
+#endif
 }
-
-
+// @ATG_CHANGE : END
 
 bool FOnlineFriendsLive::ReadFriendsList(int32 LocalUserNum, const FString& ListName, const FOnReadFriendsListComplete& Delegate /*= FOnReadFriendsListComplete()*/)
 {
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
 #if USE_SOCIAL_MANAGER
 	return ReadUserListInternal(LocalUserNum, ListName, nullptr, Delegate);
 #else
+// @ATG_CHANGE : END
 	Microsoft::Xbox::Services::XboxLiveContext^ UserLiveContext = LiveSubsystem->GetLiveContext(LocalUserNum);
 	if (!UserLiveContext)
 	{
@@ -110,7 +196,9 @@ bool FOnlineFriendsLive::ReadFriendsList(int32 LocalUserNum, const FString& List
 	MyTaskManager->AddToParallelTasks(NewTask);
 
 	return true;
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 	
 #endif
+// @ATG_CHANGE : END
 }
 
 bool FOnlineFriendsLive::DeleteFriendsList(int32 LocalUserNum, const FString& ListName, const FOnDeleteFriendsListComplete& Delegate /*= FOnDeleteFriendsListComplete()*/)
@@ -174,6 +262,7 @@ bool FOnlineFriendsLive::DeleteFriend(int32 LocalUserNum, const FUniqueNetId& Fr
 
 bool FOnlineFriendsLive::GetFriendsList(int32 LocalUserNum, const FString& ListName, TArray< TSharedRef<FOnlineFriend> >& OutFriends)
 {
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 	
 #if USE_SOCIAL_MANAGER
 	FOnlineIdentityLivePtr Identity = LiveSubsystem->GetIdentityLive();
 	TSharedPtr<const FUniqueNetId> UserId = Identity->GetUniquePlayerId(LocalUserNum);
@@ -201,6 +290,7 @@ bool FOnlineFriendsLive::GetFriendsList(int32 LocalUserNum, const FString& ListN
 
 	return true;
 #else
+// @ATG_CHANGE : END
 	TSharedPtr<const FUniqueNetIdLive> LiveUserId = StaticCastSharedPtr<const FUniqueNetIdLive>(LiveSubsystem->GetIdentityLive()->GetUniquePlayerId(LocalUserNum));
 	if (!LiveUserId.IsValid())
 	{
@@ -225,7 +315,9 @@ bool FOnlineFriendsLive::GetFriendsList(int32 LocalUserNum, const FString& ListN
 	}
 
 	return true;
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 	
 #endif
+// @ATG_CHANGE : END
 }
 
 TSharedPtr<FOnlineFriend> FOnlineFriendsLive::GetFriend(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName)
@@ -237,6 +329,7 @@ TSharedPtr<FOnlineFriend> FOnlineFriendsLive::GetFriend(int32 LocalUserNum, cons
 		return nullptr;
 	}
 
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 	
 #if USE_SOCIAL_MANAGER
 	FLiveFriendsLists* ListCollection = FriendsByUser.Find(FUniqueNetIdLive(*LiveUserId));
 	if (ListCollection == nullptr)
@@ -262,6 +355,7 @@ TSharedPtr<FOnlineFriend> FOnlineFriendsLive::GetFriend(int32 LocalUserNum, cons
 
 	return nullptr;
 #else
+// @ATG_CHANGE : END
 	FOnlineFriendsListLiveMap* UserFriendsList = FriendsMap.Find(*LiveUserId);
 	if (UserFriendsList == nullptr)
 	{
@@ -276,7 +370,9 @@ TSharedPtr<FOnlineFriend> FOnlineFriendsLive::GetFriend(int32 LocalUserNum, cons
 	}
 
 	return *FoundFriendPtr;
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
 #endif
+// @ATG_CHANGE : END
 }
 
 bool FOnlineFriendsLive::IsFriend(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName)
@@ -288,6 +384,7 @@ bool FOnlineFriendsLive::IsFriend(int32 LocalUserNum, const FUniqueNetId& Friend
 		return false;
 	}
 
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
 #if USE_SOCIAL_MANAGER
 	FLiveFriendsLists* ListCollection = FriendsByUser.Find(FUniqueNetIdLive(*LiveUserId));
 	if (ListCollection == nullptr)
@@ -313,6 +410,7 @@ bool FOnlineFriendsLive::IsFriend(int32 LocalUserNum, const FUniqueNetId& Friend
 
 	return false;
 #else
+// @ATG_CHANGE : END
 	FOnlineFriendsListLiveMap* UserFriendsList = FriendsMap.Find(*LiveUserId);
 	if (UserFriendsList == nullptr)
 	{
@@ -321,7 +419,9 @@ bool FOnlineFriendsLive::IsFriend(int32 LocalUserNum, const FUniqueNetId& Friend
 	}
 
 	return UserFriendsList->Contains(static_cast<const FUniqueNetIdLive&>(FriendId));
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
 #endif
+// @ATG_CHANGE : END
 }
 
 bool FOnlineFriendsLive::QueryRecentPlayers(const FUniqueNetId& UserId, const FString& Namespace)
@@ -423,9 +523,10 @@ void FOnlineFriendsLive::DumpBlockedPlayers() const
 	}
 }
 
-#if USE_SOCIAL_MANAGER
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
 void FOnlineFriendsLive::Tick(float DeltaTime)
 {
+#if USE_SOCIAL_MANAGER
 	auto EventList = XblSocialManager->DoWork();
 	for (auto Event : EventList)
 	{
@@ -449,81 +550,12 @@ void FOnlineFriendsLive::Tick(float DeltaTime)
 			FriendsListCollection.CustomList.TriggerDelegate(LocalUserNum, FriendsListsNames::Custom, TEXT(""));
 		}
 	}
-}
-
-void FOnlineFriendsLive::UpdateFromSocialEvent(SocialEvent^ Event)
-{
-	FUniqueNetIdLive UniqueId(Event->User->XboxUserId);
-	FLiveFriendsLists* FriendsListCollection = FriendsByUser.Find(UniqueId);
-	if (!FriendsListCollection)
-	{
-		UE_LOG_ONLINE(Warning, TEXT("Received social event for unknown user %s"), *UniqueId.ToString());
-		return;
-	}
-	const auto Identity = LiveSubsystem->GetIdentityLive();
-	auto LocalUserNum = Identity->GetControllerIndexForId(UniqueId);
-
-	switch (Event->EventType)
-	{
-	case SocialEventType::LocalUserAdded:
-		if (Event->ErrorCode == 0)
-		{
-			// We should have UserAdded events immediately following this to populate
-			// the friends lists in time to trigger delegates correctly.
-			FriendsListCollection->SocialGraphLoaded = true;
-		}
-		else
-		{
-			// Something went wrong.  Throw the user graph out so we can try again later.
-			FString ErrorMessage = Event->ErrorMessage->Data();
-			UE_LOG_ONLINE(Warning, TEXT("Error updating friends for %s: %s"), *UniqueId.ToString(), *ErrorMessage);
-			FriendsListCollection->DefaultFriendsList.TriggerDelegate(LocalUserNum, FriendsListsNames::Default, ErrorMessage);
-			FriendsListCollection->OnlineFriendsList.TriggerDelegate(LocalUserNum, FriendsListsNames::OnlinePlayers, ErrorMessage);
-			FriendsListCollection->InGameFriendsList.TriggerDelegate(LocalUserNum, FriendsListsNames::InGamePlayers, ErrorMessage);
-			FriendsListCollection->CustomList.TriggerDelegate(LocalUserNum, FriendsListsNames::Custom, ErrorMessage);
-			FriendsByUser.Remove(UniqueId);
-			SocialManager::SingletonInstance->RemoveLocalUser(Event->User);
-		}
-		break;
-
-	case SocialEventType::SocialUserGroupLoaded:
-		// Custom list
-		FriendsListCollection->CustomList.UpdateFromSocialGroup(LiveSubsystem);
-		FriendsListCollection->CustomListLoaded = true;
-		break;
-
-	default:
-		// Something changed.  For now we just rebuild all the lists.  In the future
-		// consider inspecting the event in detail and making more surgical changes.
-		FriendsListCollection->DefaultFriendsList.UpdateFromSocialGroup(LiveSubsystem);
-		FriendsListCollection->OnlineFriendsList.UpdateFromSocialGroup(LiveSubsystem);
-		FriendsListCollection->InGameFriendsList.UpdateFromSocialGroup(LiveSubsystem);
-		FriendsListCollection->CustomList.UpdateFromSocialGroup(LiveSubsystem);
-		TriggerOnFriendsChangeDelegates(LocalUserNum);
-		break;
-	}
-}
-
-void FOnlineFriendsLive::FUserListFromXboxSocialGroup::TriggerDelegate(int32 LocalUserNum, const FString& ListName, const FString& ErrorMessage)
-{
-	ListReadyDelegate.Broadcast(LocalUserNum, ErrorMessage.IsEmpty(), ListName, ErrorMessage);
-	ListReadyDelegate.Clear();
-}
-
-void FOnlineFriendsLive::FUserListFromXboxSocialGroup::UpdateFromSocialGroup(FOnlineSubsystemLive* LiveSubsystem)
-{
-	if (SocialGroup != nullptr)
-	{
-		Users.Empty();
-		for (auto SocialUser : SocialGroup->Users)
-		{
-			Users.Add(MakeShareable(new FOnlineFriendLive(LiveSubsystem, SocialUser)));
-		}
-	}
+#endif
 }
 
 bool FOnlineFriendsLive::ReadUserListInternal(int32 LocalUserNum, const FString& ListName, const TArray<TSharedRef<const FUniqueNetId> >* UserIds, const FOnReadFriendsListComplete& Delegate)
 {
+#if USE_SOCIAL_MANAGER
 	if (!LiveSubsystem)
 	{
 		return false;
@@ -622,7 +654,81 @@ bool FOnlineFriendsLive::ReadUserListInternal(int32 LocalUserNum, const FString&
 		UE_LOG_ONLINE(Warning, TEXT("Getting friends list failed. Exception: %s."), Ex->ToString()->Data());
 		return false;
 	}
+#else // USE_SOCIAL_MANAGER
+	return false;
+#endif // USE_SOCIAL_MANAGER
+}
 
+#if USE_SOCIAL_MANAGER
+void FOnlineFriendsLive::UpdateFromSocialEvent(SocialEvent^ Event)
+{
+	FUniqueNetIdLive UniqueId(Event->User->XboxUserId);
+	FLiveFriendsLists* FriendsListCollection = FriendsByUser.Find(UniqueId);
+	if (!FriendsListCollection)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Received social event for unknown user %s"), *UniqueId.ToString());
+		return;
+	}
+	const auto Identity = LiveSubsystem->GetIdentityLive();
+	auto LocalUserNum = Identity->GetControllerIndexForId(UniqueId);
+
+	switch (Event->EventType)
+	{
+	case SocialEventType::LocalUserAdded:
+		if (Event->ErrorCode == 0)
+		{
+			// We should have UserAdded events immediately following this to populate
+			// the friends lists in time to trigger delegates correctly.
+			FriendsListCollection->SocialGraphLoaded = true;
+		}
+		else
+		{
+			// Something went wrong.  Throw the user graph out so we can try again later.
+			FString ErrorMessage = Event->ErrorMessage->Data();
+			UE_LOG_ONLINE(Warning, TEXT("Error updating friends for %s: %s"), *UniqueId.ToString(), *ErrorMessage);
+			FriendsListCollection->DefaultFriendsList.TriggerDelegate(LocalUserNum, FriendsListsNames::Default, ErrorMessage);
+			FriendsListCollection->OnlineFriendsList.TriggerDelegate(LocalUserNum, FriendsListsNames::OnlinePlayers, ErrorMessage);
+			FriendsListCollection->InGameFriendsList.TriggerDelegate(LocalUserNum, FriendsListsNames::InGamePlayers, ErrorMessage);
+			FriendsListCollection->CustomList.TriggerDelegate(LocalUserNum, FriendsListsNames::Custom, ErrorMessage);
+			FriendsByUser.Remove(UniqueId);
+			SocialManager::SingletonInstance->RemoveLocalUser(Event->User);
+		}
+		break;
+
+	case SocialEventType::SocialUserGroupLoaded:
+		// Custom list
+		FriendsListCollection->CustomList.UpdateFromSocialGroup(LiveSubsystem);
+		FriendsListCollection->CustomListLoaded = true;
+		break;
+
+	default:
+		// Something changed.  For now we just rebuild all the lists.  In the future
+		// consider inspecting the event in detail and making more surgical changes.
+		FriendsListCollection->DefaultFriendsList.UpdateFromSocialGroup(LiveSubsystem);
+		FriendsListCollection->OnlineFriendsList.UpdateFromSocialGroup(LiveSubsystem);
+		FriendsListCollection->InGameFriendsList.UpdateFromSocialGroup(LiveSubsystem);
+		FriendsListCollection->CustomList.UpdateFromSocialGroup(LiveSubsystem);
+		TriggerOnFriendsChangeDelegates(LocalUserNum);
+		break;
+	}
+}
+
+void FOnlineFriendsLive::FUserListFromXboxSocialGroup::TriggerDelegate(int32 LocalUserNum, const FString& ListName, const FString& ErrorMessage)
+{
+	ListReadyDelegate.Broadcast(LocalUserNum, ErrorMessage.IsEmpty(), ListName, ErrorMessage);
+	ListReadyDelegate.Clear();
+}
+
+void FOnlineFriendsLive::FUserListFromXboxSocialGroup::UpdateFromSocialGroup(FOnlineSubsystemLive* LiveSubsystem)
+{
+	if (SocialGroup != nullptr)
+	{
+		Users.Empty();
+		for (auto SocialUser : SocialGroup->Users)
+		{
+			Users.Add(MakeShareable(new FOnlineFriendLive(LiveSubsystem, SocialUser)));
+		}
+	}
 }
 
 FOnlineFriendsLive::FUserListFromXboxSocialGroup* FOnlineFriendsLive::FLiveFriendsLists::UserListFromListName(const FString &ListName)
@@ -649,3 +755,4 @@ FOnlineFriendsLive::FUserListFromXboxSocialGroup* FOnlineFriendsLive::FLiveFrien
 	}
 }
 #endif
+// @ATG_CHANGE : END

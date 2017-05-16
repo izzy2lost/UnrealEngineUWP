@@ -12,7 +12,8 @@ using namespace Microsoft::Xbox::Services::Multiplayer;
 
 using namespace Microsoft::Xbox::Services::Matchmaking;
 using namespace Windows::Foundation;
-// @ATG_CHANGE : UWP LIVE support: Xbox headers to pch
+// @ATG_CHANGE : UWP LIVE support: Xbox header to pch
+
 //-----------------------------------------------------------------------------
 //
 //-----------------------------------------------------------------------------
@@ -51,6 +52,7 @@ void FOnlineAsyncTaskLiveCancelMatchmaking::Initialize()
 		bIsComplete = true;
 		return;
 	}
+
 	try
 	{
 		// @ATG_CHANGE : BEGIN UWP LIVE support

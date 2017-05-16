@@ -1,11 +1,11 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "OnlineSubsystemTypes.h"
 #include "Misc/Guid.h"
 
-// @ATG_CHANGE :  UWP LIVE support: Xbox headers to pch
+// @ATG_CHANGE : UWP LIVE support - moved platform specific includes to pch
 #include "OnlineSubsystemLivePrivatePCH.h"
 
 #include "OnlineSubsystemLivePackage.h"
@@ -250,7 +250,9 @@ public:
 	 *
 	 * @param InLiveSessionRef The session reference corresponding to this object
 	 */
+	// @ATG_CHANGE :  BEGIN - VS 2017 fix
 	FOnlineSessionInfoLive(	Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^	InLiveSession ) 
+	// @ATG_CHANGE :  END
 		: FOnlineSessionInfo()
 		, LiveSession( InLiveSession )
 		, LastDiffedGameSession( InLiveSession )
@@ -398,6 +400,13 @@ public:
 	{
 		IsReady = true;
 	}
+
+	// @ATG_CHANGE : BEGIN Adding XIM
+	const WCHAR* GetMultiplayerCorrelationId()
+	{
+		return LiveSession != nullptr ? LiveSession->MultiplayerCorrelationId->Data() : nullptr;
+	}
+	// @ATG_CHANGE : END
 
 private:
 

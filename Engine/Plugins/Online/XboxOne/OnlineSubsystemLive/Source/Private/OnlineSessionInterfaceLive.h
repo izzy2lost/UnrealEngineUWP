@@ -245,8 +245,10 @@ PACKAGE_SCOPE:
 		Microsoft::Xbox::Services::XboxLiveContext^ LiveContext = nullptr);
 
 	/** Returns the host of a session, or null if there is no host. */
+	// @ATG_CHANGE :  BEGIN - VS 2017 fix
 	static Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionMember^ GetLiveSessionHost(
 		Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession );
+	// @ATG_CHANGE :  END
 
 	/** Returns true if the local console is the host of the session */
 	static bool IsConsoleHost( Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession );

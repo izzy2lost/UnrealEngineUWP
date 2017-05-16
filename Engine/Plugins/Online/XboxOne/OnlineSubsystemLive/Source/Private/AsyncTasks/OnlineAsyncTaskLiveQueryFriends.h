@@ -2,7 +2,9 @@
 
 #pragma once
 
+// @ATG_CHANGE :  BEGIN - Alternative Social implementation using Manager 
 #if !USE_SOCIAL_MANAGER
+// @ATG_CHANGE :  END
 
 #include "../OnlineAsyncTaskManagerLive.h"
 #include "../OnlineSubsystemLiveTypes.h"
@@ -130,4 +132,6 @@ protected:
 	FOnlineAsyncTaskLiveQueryFriendManagerTask& ManagerTask;
 };
 
+// @ATG_CHANGE :  BEGIN - Alternative Social implementation using Manager 
 #endif // USE_SOCIAL_MANAGER
+// @ATG_CHANGE :  END

@@ -99,6 +99,8 @@ TArray<TSharedPtr<FUserOnlineAccount> > FOnlineIdentityLive::GetAllUserAccounts(
 	return UserAccounts;
 }
 
+
+
 bool FOnlineIdentityLive::Login(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials)
 {
 	if (LocalUserNum < 0 || LocalUserNum > MAX_LOCAL_PLAYERS)
@@ -214,6 +216,7 @@ TSharedPtr<const FUniqueNetId> FOnlineIdentityLive::CreateUniquePlayerId(const F
 FString FOnlineIdentityLive::GetPlayerNickname(int32 ControllerIndex) const
 {
 	FString PlayerNickname;
+
 	User^ RequestedUser = GetUserForControllerIndex(ControllerIndex);
 	if( RequestedUser )
 	{
@@ -227,6 +230,7 @@ FString FOnlineIdentityLive::GetPlayerNickname(int32 ControllerIndex) const
 FString FOnlineIdentityLive::GetPlayerNickname(const FUniqueNetId& UserId) const
 {
 	FString PlayerNickname;
+
 	User^ RequestedUser = GetUserForUniqueNetId(FUniqueNetIdLive(UserId));
 	if( RequestedUser )
 	{
@@ -308,9 +312,9 @@ User^ FOnlineIdentityLive::GetUserForControllerIndex(int32 ControllerIndex) cons
 	return nullptr;
 }
 
-int32 FOnlineIdentityLive::GetControllerIndexForUser(Windows::Xbox::System::User^ InUser) const
+int32 FOnlineIdentityLive::GetControllerIndexForUser( Windows::Xbox::System::User^ InUser ) const
 {
-	if (!InUser)
+	if(!InUser)
 	{
 		return -1;
 	}
@@ -318,14 +322,14 @@ int32 FOnlineIdentityLive::GetControllerIndexForUser(Windows::Xbox::System::User
 	const auto InputInterface = GetInputInterface();
 	// @ATG_CHANGE : BEGIN UWP LIVE support
 	if (InputInterface == nullptr)
-		// @ATG_CHANGE : END
+	// @ATG_CHANGE : END
 	{
 		return -1;
 	}
 
 	// Go through the user's controllers until we find one that the input interface has bound, or until we hit the end of the list.
 	int UserId = -1;
-	for (int i = 0; (UserId == -1) && (i < int(InUser->Controllers->Size)); ++i)
+	for(int i = 0; (UserId == -1) && (i < int(InUser->Controllers->Size)); ++i)
 	{
 		auto CurrentController = InUser->Controllers->GetAt(i);
 		UserId = InputInterface->GetUserIdForController(CurrentController);

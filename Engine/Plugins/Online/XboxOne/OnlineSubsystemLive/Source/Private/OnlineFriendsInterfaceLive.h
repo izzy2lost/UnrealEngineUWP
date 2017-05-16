@@ -7,6 +7,7 @@
 #include "OnlinePresenceInterfaceLive.h"
 #include "OnlineSubsystemLiveTypes.h"
 
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
 namespace FriendsListsNames
 {
 	extern const FString Default;
@@ -19,54 +20,70 @@ namespace FriendUserAttributes
 {
 	extern const FString DisplayPicUrlRaw;
 }
+// @ATG_CHANGE : END
 
-class FOnlineFriendLive : public FOnlineFriend
+class FOnlineSubsystemLive;
+
+using FOnlineFriendsListLiveMap = TMap<FUniqueNetIdLive, TSharedRef<class FOnlineFriendLive>>;
+using FOnlineUserFriendsListLiveMap = TMap<FUniqueNetIdLive, FOnlineFriendsListLiveMap>;
+
+/**
+ * Info associated with an online friend on the XBox Live service
+ */
+class FOnlineFriendLive :
+	public FOnlineFriend
 {
 public:
+	// FOnlineFriendLive
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 	
+#if USE_SOCIAL_MANAGER
 	FOnlineFriendLive(class FOnlineSubsystemLive* Subsystem, Microsoft::Xbox::Services::Social::Manager::XboxSocialUser^ User);
+#else
+	FOnlineFriendLive(Microsoft::Xbox::Services::Social::XboxSocialRelationship^ InSocialRelationship);
+#endif
+// @ATG_CHANGE : END
+	virtual ~FOnlineFriendLive() = default;
 
-	/**
-	* @return Id associated with the user account provided by the online service during registration
-	*/
-	virtual TSharedRef<const FUniqueNetId> GetUserId() const override { return UserId; }
-	/**
-	* @return the real name for the user if known
-	*/
-	virtual FString GetRealName() const override { return RealName; }
-	/**
-	* @return the nickname of the user if known
-	*/
-	virtual FString GetDisplayName(const FString& Platform = FString()) const override { return DisplayName; }
-	/**
-	* @return Any additional user data associated with a registered user
-	*/
-	virtual bool GetUserAttribute(const FString& AttrName, FString& OutAttrValue) const override
-	{
-		if (AttrName.Equals(FriendUserAttributes::DisplayPicUrlRaw, ESearchCase::IgnoreCase))
-		{
-			OutAttrValue = DisplayPicUrlRaw;
-			return true;
-		}
-		return false;
-	}
+	// FOnlineFriend
+	virtual EInviteStatus::Type GetInviteStatus() const override;
+	virtual const FOnlineUserPresence& GetPresence() const override;
 
-	/**
-	* @return the current invite status of a friend wrt to user that queried
-	*/
-	virtual EInviteStatus::Type GetInviteStatus() const override { return InviteStatus; }
+	// FOnlineUser
+	virtual TSharedRef<const FUniqueNetId> GetUserId() const override;
+	virtual FString GetRealName() const override;
+	virtual FString GetDisplayName(const FString& Platform = FString()) const override;
+	virtual bool GetUserAttribute(const FString& AttrName, FString& OutAttrValue) const override;
 
-	/**
-	* @return presence info for an online friend
-	*/
-	virtual const FOnlineUserPresence& GetPresence() const override { return *Presence; }
+	/** Helper to tell if this person has been been Favourited by the user; Favourite users should come first in a friendslist */
+	bool IsFavorite() const;
 
 PACKAGE_SCOPE:
-	TSharedRef<const FUniqueNetIdLive> UserId;
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
+#if USE_SOCIAL_MANAGER
+	TSharedRef<const FUniqueNetIdLive> UniqueNetIdLive;
 	FString RealName;
-	FString DisplayName;
-	FString DisplayPicUrlRaw;
 	EInviteStatus::Type InviteStatus;
 	TSharedRef<FOnlineUserPresence> Presence;
+	bool bIsFavorite;
+#else // USE_SOCIAL_MANAGER
+// @ATG_CHANGE : END
+	/** The friend profile data */
+	Microsoft::Xbox::Services::Social::XboxSocialRelationship^ SocialRelationship;
+
+	/** Unique Live Id for the friend */
+	TSharedRef<const FUniqueNetIdLive> UniqueNetIdLive;
+
+	/** Presence info  */
+	FOnlineUserPresenceLive Presence;
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 	
+#endif // USE_SOCIAL_MANAGER
+// @ATG_CHANGE : END
+
+	/** The Name XBox Live tells us to call this user (May be GamerTag, may be Real Name)*/
+	FString DisplayName;
+
+	/** Custom attributes store on this user */
+	TMap<FString, FString> UserAttributes;
 };
 
 class FOnlineBlockedPlayerLive :
@@ -86,8 +103,9 @@ PACKAGE_SCOPE:
 	TSharedRef<const FUniqueNetIdLive> UniqueNetIdLive;
 };
 
-
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
 DECLARE_MULTICAST_DELEGATE_FourParams(FOnReadFriendsListCompleteMulticast, int32, bool, const FString&, const FString&);
+// @ATG_CHANGE : END
 
 /**
  * Implements the XBox Live specific interface for friends
@@ -120,6 +138,7 @@ public:
 	virtual void DumpBlockedPlayers() const override;
 
 	// FOnlineFriendsLive
+	// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
 	explicit FOnlineFriendsLive(class FOnlineSubsystemLive* const InLiveSubsystem);
 
 	/**
@@ -128,8 +147,7 @@ public:
 	void Tick(float DeltaTime);
 
 	bool ReadUserListInternal(int32 LocalUserNum, const FString& ListName, const TArray<TSharedRef<const FUniqueNetId> >* UserIds, const FOnReadFriendsListComplete& Delegate);
-
-	/** Reference to the owning subsystem */
+	// @ATG_CHANGE : END
 	virtual ~FOnlineFriendsLive()
 	{
 
@@ -139,6 +157,7 @@ private:
 	/** Reference to the main Live subsystem */
 	class FOnlineSubsystemLive* const LiveSubsystem;
 
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
 #if USE_SOCIAL_MANAGER
 	struct FUserListFromXboxSocialGroup
 	{
@@ -178,6 +197,7 @@ private:
 	/** Map of local users to map of their friends */
 	FOnlineUserFriendsListLiveMap FriendsMap;
 #endif
+// @ATG_CHANGE : END
 	/** These are users we have asked not to play with (similar to a blocklist) */
 	TMap<FUniqueNetIdLive, TArray<TSharedRef<FOnlineBlockedPlayerLive>>> AvoidListMap;
 };

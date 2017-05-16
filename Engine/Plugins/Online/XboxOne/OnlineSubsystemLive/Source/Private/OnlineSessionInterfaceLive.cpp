@@ -415,7 +415,6 @@ bool FOnlineSessionLive::CreateSession(const FUniqueNetId& HostingPlayerId, FNam
 					return;
 				}
 
-
 				// Simple host selection - the user that creates the session is the host.
 				LiveSession->SetHostDeviceToken(HostMember->DeviceToken);
 

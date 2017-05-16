@@ -34,7 +34,6 @@ typedef FOnlineVoiceLive FOnlineVoiceImpl;
 typedef FOnlineVoiceLivePtr FOnlineVoiceImplPtr;
 // @ATG_CHANGE : END
 
-
 using namespace Microsoft::Xbox::Services;
 using namespace Windows::Networking::Connectivity;
 
@@ -239,7 +238,7 @@ IOnlineMessagePtr FOnlineSubsystemLive::GetMessageInterface() const
 	return nullptr;
 }
 
-IOnlinePresencePtr FOnlineSubsystemLive::GetPresenceInterface() const 
+IOnlinePresencePtr FOnlineSubsystemLive::GetPresenceInterface() const
 {
 	return PresenceInterface;
 }
@@ -282,10 +281,10 @@ bool FOnlineSubsystemLive::Tick(float DeltaTime)
  	}
 	// @ATG_CHANGE : END
 
- 	if (VoiceInterface.IsValid())
- 	{
+	if (VoiceInterface.IsValid())
+	{
 		VoiceInterface->Tick(DeltaTime);
- 	}
+	}
 
 	// @ATG_CHANGE : BEGIN Adding social features
 	if (FriendInterface.IsValid())
@@ -433,7 +432,7 @@ bool FOnlineSubsystemLive::Init()
 		// @ATG_CHANGE : END		
 		
 		bHasCalledNetworkStatusChangedAtLeastOnce = false;
-		
+
 		Windows::Networking::Connectivity::NetworkInformation::NetworkStatusChanged += ref new Windows::Networking::Connectivity::NetworkStatusChangedEventHandler( 
 			[this] (Platform::Object^)
 		{
@@ -489,7 +488,7 @@ bool FOnlineSubsystemLive::Shutdown()
 		delete OnlineAsyncTaskThreadRunnable;
 		OnlineAsyncTaskThreadRunnable = nullptr;
 	}
-	
+
 	#define DESTRUCT_INTERFACE(Interface) \
 	if (Interface.IsValid()) \
 	{ \
@@ -522,7 +521,7 @@ bool FOnlineSubsystemLive::Shutdown()
 	{
 		Windows::Xbox::System::User::UserRemoved -= UserRemovedToken;
 	}
-	
+
 	return true;
 }
 
@@ -664,9 +663,9 @@ Microsoft::Xbox::Services::XboxLiveContext^ FOnlineSubsystemLive::GetLiveContext
 	{
 		try
 		{
+			// @ATG_CHANGE : BEGIN UWP LIVE support
 			auto LiveContext = ref new XboxLiveContext(XSAPIUserFromSystemUser(LiveUser));
 			LiveContext->RealTimeActivityService->Activate();
-			// @ATG_CHANGE : BEGIN UWP LIVE support
 			CachedXboxLiveContexts.Add(LiveUser->XboxUserId->Data(), LiveContext);
 			// @ATG_CHANGE : END
 
@@ -788,6 +787,7 @@ void FOnlineSubsystemLive::HandleAppResume()
 	}
 }
 // @ATG_CHANGE : END
+
 
 // @ATG_CHANGE : BEGIN 
 FOnlineSessionLivePtr FOnlineSubsystemLive::GetSessionInterfaceLive()
