@@ -4,6 +4,7 @@
 =============================================================================*/
 
 #include "UWPTargetPlatform.h"
+#include "UWPTargetDevice.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUWPTargetPlatform, Log, All);
 

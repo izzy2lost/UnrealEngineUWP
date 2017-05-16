@@ -1,4 +1,6 @@
 #include "ITargetPlatformModule.h"
+#include "UWPTargetSettings.h"
+#include "UWPTargetPlatform.h"
 #include "AllowWindowsPlatformTypes.h"
 #include "ISettingsModule.h"
 #include "ModuleManager.h"
