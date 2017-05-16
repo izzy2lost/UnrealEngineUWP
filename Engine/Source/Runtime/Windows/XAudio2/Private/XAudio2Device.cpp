@@ -275,6 +275,7 @@ void FXAudio2Device::TeardownHardware()
 	if (bComInitialized)
 	{
 		FPlatformMisc::CoUninitialize();
+		bComInitialized = false;
 // @ATG_CHANGE : END
 	}
 #endif
