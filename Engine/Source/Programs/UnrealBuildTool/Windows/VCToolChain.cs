@@ -1115,7 +1115,7 @@ namespace UnrealBuildTool
 
 			// @ATG_CHANGE : BEGIN winmd support
 			// Add winmd references			
-			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 && WindowsPlatform.ShouldUseWindowsSDK10(CompileEnvironment.Config.Platform))
+			if (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.ShouldUseWindowsSDK10(CompileEnvironment.Config.Platform))
 			{
 				foreach (string CurAssemblyInfo in CompileEnvironment.Config.WinMDReferences)
 				{
