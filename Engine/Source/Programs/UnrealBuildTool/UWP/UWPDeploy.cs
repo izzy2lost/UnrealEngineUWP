@@ -216,10 +216,12 @@ namespace UnrealBuildTool
 			ConfigHierarchy EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(ProjectFile), Platform);
 			if (EngineIni != null)
             {
-                string TitleId;
-                string Scid;
-                EngineIni.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "TitleId", out TitleId);
-                EngineIni.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "ServiceConfigId", out Scid);
+				string TitleId;
+				string Scid;
+				bool IsCreatorsProgram = false;
+				EngineIni.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "TitleId", out TitleId);
+				EngineIni.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "ServiceConfigId", out Scid);
+				EngineIni.GetBool("/Script/UWPTargetPlatform.UWPTargetSettings", "bIsCreatorsProgramTitle", out IsCreatorsProgram);
 
 				bool HasTitleId = !string.IsNullOrEmpty(TitleId);
 				bool HasScid = !string.IsNullOrEmpty(Scid);
@@ -233,6 +235,11 @@ namespace UnrealBuildTool
 							XboxServicesConfig.WriteObjectStart();
 							XboxServicesConfig.WriteValue("TitleId", TitleIdAsInt);
 							XboxServicesConfig.WriteValue("PrimaryServiceConfigId", Scid);
+							if (IsCreatorsProgram)
+							{
+								XboxServicesConfig.WriteValue("XboxLiveCreatorsTitle", true);
+							}
+
 							XboxServicesConfig.WriteObjectEnd();
 						}
 						else

@@ -13,6 +13,7 @@ public class UWPTargetPlatform : ModuleRules
 				"Settings",
 				"TargetPlatform",
 				"DesktopPlatform",
+				"WindowsTargetPlatform", // For ECompilerVersion
 			}
 		);
 

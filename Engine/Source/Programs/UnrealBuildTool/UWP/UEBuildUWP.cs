@@ -174,6 +174,7 @@ namespace UnrealBuildTool
 			{
 				InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("kernel32.lib");
 			}
+			InBuildTarget.GlobalCompileEnvironment.Config.Definitions.Add(string.Format("WIN10_SDK_VERSION={0}", SDKVersion.Build));
 
 			InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("dloadhelper.lib");
 			InBuildTarget.GlobalLinkEnvironment.Config.AdditionalLibraries.Add("ws2_32.lib");
@@ -318,8 +319,15 @@ namespace UnrealBuildTool
                 WindowsCompiler Compiler;
                 if (Enum.TryParse(CompilerVersionString, out Compiler))
                 {
-                    return Compiler;
-                }
+					if (Compiler >= WindowsCompiler.VisualStudio2015)
+					{
+						return Compiler;
+					}
+					else
+					{
+						Log.TraceWarning("Selected compiler ({0}) requested by config is not supported.  Setting will be ignored.", Compiler);
+					}
+				}
             }
 
             // If there's no specific compiler set, try to pick the matching compiler for the selected IDE
@@ -480,6 +488,8 @@ namespace UnrealBuildTool
 			{
 				case WindowsCompiler.VisualStudio2015:
 					return "2015";
+				case WindowsCompiler.VisualStudio2017:
+					return "2017";
 				default:
 					throw new BuildException("Unexpected WindowsCompiler version for GetVisualStudioCompilerVersionName().  Either not using a Visual Studio compiler or switch block needs to be updated");
 			}
@@ -612,6 +622,8 @@ namespace UnrealBuildTool
 		/// <returns>New platform context object</returns>
 		public override UEBuildPlatformContext CreateContext(FileReference ProjectFile, TargetRules Target)
         {
+			// WindowsPlatform.Compiler is checked everywhere, so override it here.
+			WindowsPlatform.Compiler = UniversalWindowsPlatform.Compiler;
 			return new UWPPlatformContext(Platform, ProjectFile);
 		}
 
