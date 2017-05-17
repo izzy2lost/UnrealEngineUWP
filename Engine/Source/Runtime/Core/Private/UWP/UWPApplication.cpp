@@ -107,13 +107,24 @@ void FUWPApplication::GetInitialDisplayMetrics(FDisplayMetrics& OutDisplayMetric
 
 void FUWPApplication::CacheDesktopSize()
 {
-	// Note this only works *before* the CoreWindow has been activated and received its first resize event.
-	Windows::UI::ViewManagement::ApplicationView^ ViewManagementView = Windows::UI::ViewManagement::ApplicationView::GetForCurrentView();
-	float Dpi = static_cast<uint32_t>(Windows::Graphics::Display::DisplayInformation::GetForCurrentView()->LogicalDpi);
-	FVector2D Size;
-	Size.X = FUWPWindow::ConvertDipsToPixels(ViewManagementView->VisibleBounds.Width, Dpi);
-	Size.Y = FUWPWindow::ConvertDipsToPixels(ViewManagementView->VisibleBounds.Height, Dpi);
-	DesktopSize = Size;
+#if WIN10_SDK_VERSION >= 14393
+	if (Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent("Windows.Graphics.Display.DisplayInformation", "ScreenHeightInRawPixels"))
+	{
+		Windows::Graphics::Display::DisplayInformation^ DisplayInfo = Windows::Graphics::Display::DisplayInformation::GetForCurrentView();
+		DesktopSize.X = DisplayInfo->ScreenWidthInRawPixels;
+		DesktopSize.Y = DisplayInfo->ScreenHeightInRawPixels;
+	}
+	else
+#endif
+	{
+		// Note this only works *before* the CoreWindow has been activated and received its first resize event.
+		Windows::UI::ViewManagement::ApplicationView^ ViewManagementView = Windows::UI::ViewManagement::ApplicationView::GetForCurrentView();
+		float Dpi = static_cast<uint32_t>(Windows::Graphics::Display::DisplayInformation::GetForCurrentView()->LogicalDpi);
+		FVector2D Size;
+		Size.X = FUWPWindow::ConvertDipsToPixels(ViewManagementView->VisibleBounds.Width, Dpi);
+		Size.Y = FUWPWindow::ConvertDipsToPixels(ViewManagementView->VisibleBounds.Height, Dpi);
+		DesktopSize = Size;
+	}
 }
 
 void FDisplayMetrics::GetDisplayMetrics(FDisplayMetrics& OutDisplayMetrics)
