@@ -19,5 +19,9 @@ public class UWPPlatformFeatures : ModuleRules
 		{
 			PrivateWinMDReferences.Add(StorageApiMetadata);
 		}
+		else
+		{
+			Log.TraceWarning("Xbox Live Platform Extensions SDK not found.  Run Engine/Plugins/Online/XboxOne/OnlineSubsystemLive/GetXboxLiveSDK.ps1 and re-generate project files.");
+		}
 	}
 }
