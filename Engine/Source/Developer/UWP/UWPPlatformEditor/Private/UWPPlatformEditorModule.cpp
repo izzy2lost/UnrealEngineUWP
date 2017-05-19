@@ -51,7 +51,12 @@ public:
 
 	virtual void ShutdownModule() override
 	{
+		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
 
+		if (SettingsModule != nullptr)
+		{
+			SettingsModule->UnregisterSettings("Project", "Platforms", "UWP");
+		}
 	}
 
 private:
