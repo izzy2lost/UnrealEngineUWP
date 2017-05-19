@@ -82,6 +82,15 @@ public class D3D12RHI : ModuleRules
 			Definitions.Add("PLATFORM_SUPPORTS_MGPU=1");
 
 			Definitions.Add("PIPELINE_STATE_FILE_LOCATION=FPaths::GameSavedDir()");
+
+			// @ATG_CHANGE : BEGIN UWP support
+			if ((Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32) &&
+				(Target.Configuration != UnrealTargetConfiguration.Shipping && Target.Configuration != UnrealTargetConfiguration.Test))
+			{
+				Definitions.Add("D3D12_PROFILING_ENABLED=1");
+				Definitions.Add("PROFILE");
+			}
+			// @ATG_CHANGE : END
 		}
 		else if (Target.Platform == UnrealTargetPlatform.XboxOne)
 		{

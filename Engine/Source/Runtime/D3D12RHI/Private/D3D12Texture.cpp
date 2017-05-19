@@ -335,7 +335,9 @@ void FD3D12DynamicRHI::RHIGetTextureMemoryStats(FTextureMemoryStats& OutStats)
 	OutStats.TexturePoolSize = GTexturePoolSize;
 	OutStats.PendingMemoryAdjustment = 0;
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	if (GAdjustTexturePoolSizeBasedOnBudget)
 	{
 		DXGI_QUERY_VIDEO_MEMORY_INFO LocalVideoMemoryInfo;
@@ -404,7 +406,7 @@ void FD3D12DynamicRHI::RHIGetTextureMemoryStats(FTextureMemoryStats& OutStats)
 
 	// Cache the last requested texture pool size.
 	RequestedTexturePoolSize = OutStats.TexturePoolSize;
-#endif // PLATFORM_WINDOWS
+#endif // PLATFORM_WINDOWS || PLATFORM_UWP
 }
 
 /**
@@ -523,7 +525,9 @@ template<typename BaseResourceType>
 TD3D12Texture2D<BaseResourceType>* FD3D12DynamicRHI::CreateD3D12Texture2D(uint32 SizeX, uint32 SizeY, uint32 SizeZ, bool bTextureArray, bool bCubeTexture, uint8 Format,
 	uint32 NumMips, uint32 NumSamples, uint32 Flags, FRHIResourceCreateInfo& CreateInfo)
 {
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	check(SizeX > 0 && SizeY > 0 && NumMips > 0);
 
 	if (bCubeTexture)
@@ -913,12 +917,14 @@ TD3D12Texture2D<BaseResourceType>* FD3D12DynamicRHI::CreateD3D12Texture2D(uint32
 #else
 	checkf(false, TEXT("XBOX_CODE_MERGE : Removed. The Xbox platform version should be used."));
 	return nullptr;
-#endif // PLATFORM_WINDOWS
+#endif // PLATFORM_WINDOWS || PLATFORM_UWP
 }
 
 FD3D12Texture3D* FD3D12DynamicRHI::CreateD3D12Texture3D(uint32 SizeX, uint32 SizeY, uint32 SizeZ, uint8 Format, uint32 NumMips, uint32 Flags, FRHIResourceCreateInfo& CreateInfo)
 {
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	SCOPE_CYCLE_COUNTER(STAT_D3D12CreateTextureTime);
 
 	const bool bSRGB = (Flags & TexCreate_SRGB) != 0;
@@ -1058,7 +1064,7 @@ FD3D12Texture3D* FD3D12DynamicRHI::CreateD3D12Texture3D(uint32 SizeX, uint32 Siz
 #else
 	checkf(false, TEXT("XBOX_CODE_MERGE : Removed. The Xbox platform version should be used."));
 	return nullptr;
-#endif // PLATFORM_WINDOWS
+#endif // PLATFORM_WINDOWS || PLATFORM_UWP
 }
 
 /*-----------------------------------------------------------------------------
@@ -1327,12 +1333,14 @@ FTexture3DRHIRef FD3D12DynamicRHI::RHICreateTexture3D_RenderThread(class FRHICom
 FTexture3DRHIRef FD3D12DynamicRHI::RHICreateTexture3D(uint32 SizeX, uint32 SizeY, uint32 SizeZ, uint8 Format, uint32 NumMips, uint32 Flags, FRHIResourceCreateInfo& CreateInfo)
 {
 	check(SizeZ >= 1);
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	return CreateD3D12Texture3D(SizeX, SizeY, SizeZ, Format, NumMips, Flags, CreateInfo);
 #else
 	checkf(false, TEXT("XBOX_CODE_MERGE : Removed. The Xbox platform version should be used."));
 	return nullptr;
-#endif // PLATFORM_WINDOWS
+#endif // PLATFORM_WINDOWS || PLATFORM_UWP
 }
 
 void FD3D12DynamicRHI::RHIGetResourceInfo(FTextureRHIParamRef Ref, FRHIResourceInfo& OutInfo)

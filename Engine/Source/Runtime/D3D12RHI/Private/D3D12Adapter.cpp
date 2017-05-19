@@ -58,6 +58,10 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 {
 #if PLATFORM_WINDOWS
 	CreateDXGIFactory(IID_PPV_ARGS(DxgiFactory.GetInitReference()));
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+	CreateDXGIFactory1(IID_PPV_ARGS(DxgiFactory.GetInitReference()));
+// @ATG_CHANGE : END
 #endif
 
 	// QI for the Adapter
@@ -72,7 +76,9 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 
 	if (bWithDebug)
 	{
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || (PLATFORM_UWP && !UE_BUILD_SHIPPING)
+// @ATG_CHANGE : END
 		TRefCountPtr<ID3D12Debug> DebugController;
 		VERIFYD3D12RESULT(D3D12GetDebugInterface(IID_PPV_ARGS(DebugController.GetInitReference())));
 		DebugController->EnableDebugLayer();
@@ -126,7 +132,9 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 		}
 	}
 
-#if UE_BUILD_DEBUG	&& PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if UE_BUILD_DEBUG	&& (PLATFORM_WINDOWS || PLATFORM_UWP)
+// @ATG_CHANGE : END
 	//break on debug
 	TRefCountPtr<ID3D12Debug> d3dDebug;
 	if (SUCCEEDED(RootDevice->QueryInterface(__uuidof(ID3D12Debug), (void**)d3dDebug.GetInitReference())))
@@ -141,7 +149,9 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 	}
 #endif
 
-#if !(UE_BUILD_SHIPPING && WITH_EDITOR) && PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if !(UE_BUILD_SHIPPING && WITH_EDITOR) && (PLATFORM_WINDOWS || PLATFORM_UWP)
+// @ATG_CHANGE : END
 	// Add some filter outs for known debug spew messages (that we don't care about)
 	if (bWithDebug)
 	{
