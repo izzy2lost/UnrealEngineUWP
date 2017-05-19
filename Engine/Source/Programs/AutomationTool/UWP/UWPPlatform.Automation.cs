@@ -125,7 +125,7 @@ namespace UWP.Automation
 			ConfigHierarchy PlatformEngineConfig = null;
 			if (Params.EngineConfigs.TryGetValue(SC.StageTargetPlatform.PlatformType, out PlatformEngineConfig))
 			{
-				PlatformEngineConfig.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "SigningCertificate", out SigningCertificate);
+				PlatformEngineConfig.GetString("/Script/UWPPlatformEditor.UWPTargetSettings", "SigningCertificate", out SigningCertificate);
 			}
 
 			if (!string.IsNullOrEmpty(SigningCertificate))

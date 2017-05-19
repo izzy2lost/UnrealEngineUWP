@@ -2,6 +2,7 @@
 #include "UWPTargetSettingsCustomization.h"
 #include "ISettingsModule.h"
 #include "ModuleManager.h"
+#include "UWPTargetSettings.h"
 
 
 #define LOCTEXT_NAMESPACE "FUWPPlatformEditorModule"
@@ -29,6 +30,17 @@ public:
 
 	virtual void StartupModule() override
 	{
+		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
+
+		if (SettingsModule != nullptr)
+		{
+			SettingsModule->RegisterSettings("Project", "Platforms", "UWP",
+				LOCTEXT("TargetSettingsName", "UWP"),
+				LOCTEXT("TargetSettingsDescription", "Settings for Universal Windows Platform"),
+				GetMutableDefault<UUWPTargetSettings>()
+			);
+		}
+
 		// register settings detail panel customization
 		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		PropertyModule.RegisterCustomClassLayout(

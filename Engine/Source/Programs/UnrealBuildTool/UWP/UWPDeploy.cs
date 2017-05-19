@@ -219,9 +219,9 @@ namespace UnrealBuildTool
 				string TitleId;
 				string Scid;
 				bool IsCreatorsProgram = false;
-				EngineIni.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "TitleId", out TitleId);
-				EngineIni.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "ServiceConfigId", out Scid);
-				EngineIni.GetBool("/Script/UWPTargetPlatform.UWPTargetSettings", "bIsCreatorsProgramTitle", out IsCreatorsProgram);
+				EngineIni.GetString("/Script/UWPPlatformEditor.UWPTargetSettings", "TitleId", out TitleId);
+				EngineIni.GetString("/Script/UWPPlatformEditor.UWPTargetSettings", "ServiceConfigId", out Scid);
+				EngineIni.GetBool("/Script/UWPPlatformEditor.UWPTargetSettings", "bIsCreatorsProgramTitle", out IsCreatorsProgram);
 
 				bool HasTitleId = !string.IsNullOrEmpty(TitleId);
 				bool HasScid = !string.IsNullOrEmpty(Scid);
@@ -467,7 +467,7 @@ namespace UnrealBuildTool
 			if (EngineIni != null)
 			{
 				bool bCopyCookedContentForF5Deployment = false;
-				EngineIni.GetBool("/Script/UWPTargetPlatform.UWPTargetSettings", "bCopyCookedContentForF5Deployment", out bCopyCookedContentForF5Deployment);
+				EngineIni.GetBool("/Script/UWPPlatformEditor.UWPTargetSettings", "bCopyCookedContentForF5Deployment", out bCopyCookedContentForF5Deployment);
 				if (bCopyCookedContentForF5Deployment)
 				{
 					DirectoryReference BaseCookedDir = DirectoryReference.Combine(InTarget.ProjectDirectory, "Saved", "Cooked", "UWP");

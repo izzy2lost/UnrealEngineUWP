@@ -61,8 +61,8 @@ namespace UnrealBuildTool
 			ConfigHierarchy EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, RootDirectory, UnrealTargetPlatform.UWP64);
 			if (EngineIni != null)
 			{
-				EngineIni.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "MinimumPlatformVersion", out MinVersion);
-				EngineIni.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "MaximumPlatformVersionTested", out MaxTestedVersion);
+				EngineIni.GetString("/Script/UWPPlatformEditor.UWPTargetSettings", "MinimumPlatformVersion", out MinVersion);
+				EngineIni.GetString("/Script/UWPPlatformEditor.UWPTargetSettings", "MaximumPlatformVersionTested", out MaxTestedVersion);
 			}
 			VCProjectFileContent.Append("		<WindowsTargetPlatformMinVersion>" + MinVersion + "</WindowsTargetPlatformMinVersion>" + ProjectFileGenerator.NewLine);
 			VCProjectFileContent.Append("		<WindowsTargetPlatformVersion>" + MaxTestedVersion + "</WindowsTargetPlatformVersion>" + ProjectFileGenerator.NewLine);

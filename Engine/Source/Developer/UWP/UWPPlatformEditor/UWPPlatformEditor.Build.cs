@@ -21,7 +21,8 @@ public class UWPPlatformEditor : ModuleRules
 				"AppFramework",
 				"DesktopWidgets",
 				"UnrealEd",
-				"SourceControl"
+				"SourceControl",
+				"WindowsTargetPlatform", // For ECompilerVersion
 			}
 		);
 

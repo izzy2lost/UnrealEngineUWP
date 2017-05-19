@@ -65,19 +65,9 @@ public:
 		TextureLODSettings = InTextureLODSettings;
 	}
 
-	virtual void GetAllPossibleShaderFormats(TArray<FName>& OutFormats) const override
-	{
-		static FName NAME_PCD3D_SM5(TEXT("PCD3D_SM5"));
-		static FName NAME_PCD3D_SM4(TEXT("PCD3D_SM4"));
+	virtual void GetAllPossibleShaderFormats(TArray<FName>& OutFormats) const override;
 
-		OutFormats.AddUnique(NAME_PCD3D_SM5);
-		OutFormats.AddUnique(NAME_PCD3D_SM4);
-	}
-
-	virtual void GetAllTargetedShaderFormats(TArray<FName>& OutFormats) const override 
-	{
-		GetAllPossibleShaderFormats(OutFormats);
-	}
+	virtual void GetAllTargetedShaderFormats(TArray<FName>& OutFormats) const override;
 	
 	virtual void GetAllCachedShaderFormats( TArray<FName>& OutFormats ) const override {}
 

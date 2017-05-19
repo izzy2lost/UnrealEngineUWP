@@ -1,5 +1,4 @@
 #include "ITargetPlatformModule.h"
-#include "UWPTargetSettings.h"
 #include "UWPTargetPlatform.h"
 #include "AllowWindowsPlatformTypes.h"
 #include "ISettingsModule.h"
@@ -48,66 +47,6 @@ public:
 		
 		return UWPTargetSingleton;
 	}
-
-public:
-
-	// IModuleInterface interface
-
-	virtual void StartupModule() override
-	{
-		TargetSettings = NewObject<UUWPTargetSettings>(GetTransientPackage(), "UWPTargetSettings", RF_Standalone);
-
-		// We need to manually load the config properties here, as this module is loaded before the UObject system is setup to do this
-		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("Logo"), TargetSettings->Logo, GEngineIni);
-		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("SmallLogo"), TargetSettings->SmallLogo, GEngineIni);
-		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("WideLogo"), TargetSettings->WideLogo, GEngineIni);
-		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("SplashScreen"), TargetSettings->SplashScreen, GEngineIni);
-		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("StoreLogo"), TargetSettings->StoreLogo, GEngineIni);
-		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("SigningCertificate"), TargetSettings->SigningCertificate, GEngineIni);
-		if (GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("TileBackgroundColorHex"), TargetSettings->TileBackgroundColorHex, GEngineIni))
-		{
-			TargetSettings->TileBackgroundColor = FColor::FromHex(TargetSettings->TileBackgroundColorHex);
-		}
-		if (GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("SplashScreenBackgroundColorHex"), TargetSettings->SplashScreenBackgroundColorHex, GEngineIni))
-		{
-			TargetSettings->SplashScreenBackgroundColor = FColor::FromHex(TargetSettings->SplashScreenBackgroundColorHex);
-		}
-		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("TitleId"), TargetSettings->TitleId, GEngineIni);
-		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("ServiceConfigId"), TargetSettings->ServiceConfigId, GEngineIni);
-		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("MinimumPlatformVersion"), TargetSettings->MinimumPlatformVersion, GEngineIni);
-		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("MaximumPlatformVersionTested"), TargetSettings->MaximumPlatformVersionTested, GEngineIni);
-		//GConfig->GetBool(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("bIsCreatorsProgramTitle"), bIsCreatorsProgramTitle, GEngineIni);
-		//GConfig->GetBool(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("bExcludeShaderModel4Support"), TargetSettings->bExcludeShaderModel4Support, GEngineIni);
-		//GConfig->GetBool(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("bUseD3D12RHI"), TargetSettings->bUseD3D12RHI, GEngineIni);
-
-		TargetSettings->AddToRoot();
-
-		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
-
-		if (SettingsModule != nullptr)
-		{
-			SettingsModule->RegisterSettings("Project", "Platforms", "UWP",
-				LOCTEXT("TargetSettingsName", "UWP"),
-				LOCTEXT("TargetSettingsDescription", "Settings for Universal Windows Platform"),
-				TargetSettings
-				);
-		}
-	}
-
-	virtual void ShutdownModule() override
-	{
-		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
-
-		if (SettingsModule != nullptr)
-		{
-			SettingsModule->UnregisterSettings("Project", "Platforms", "UWP");
-		}
-	}
-
-private:
-
-	// Holds the target settings.
-	UUWPTargetSettings* TargetSettings;
 };
 
 

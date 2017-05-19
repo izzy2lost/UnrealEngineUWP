@@ -314,7 +314,7 @@ namespace UnrealBuildTool
 			ConfigHierarchy Ini = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(ProjectFile), UnrealTargetPlatform.UWP64);
 
             string CompilerVersionString;
-            if (Ini.GetString("/Script/UWPTargetPlatform.UWPTargetSettings", "CompilerVersion", out CompilerVersionString))
+            if (Ini.GetString("/Script/UWPPlatformEditor.UWPTargetSettings", "CompilerVersion", out CompilerVersionString))
             {
                 WindowsCompiler Compiler;
                 if (Enum.TryParse(CompilerVersionString, out Compiler))
