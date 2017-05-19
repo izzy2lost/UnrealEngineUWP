@@ -58,7 +58,6 @@ public:
 		TargetSettings = NewObject<UUWPTargetSettings>(GetTransientPackage(), "UWPTargetSettings", RF_Standalone);
 
 		// We need to manually load the config properties here, as this module is loaded before the UObject system is setup to do this
-		GConfig->GetArray(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("TargetedRHIs"), TargetSettings->TargetedRHIs, GEngineIni);
 		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("Logo"), TargetSettings->Logo, GEngineIni);
 		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("SmallLogo"), TargetSettings->SmallLogo, GEngineIni);
 		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("WideLogo"), TargetSettings->WideLogo, GEngineIni);
@@ -77,6 +76,9 @@ public:
 		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("ServiceConfigId"), TargetSettings->ServiceConfigId, GEngineIni);
 		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("MinimumPlatformVersion"), TargetSettings->MinimumPlatformVersion, GEngineIni);
 		GConfig->GetString(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("MaximumPlatformVersionTested"), TargetSettings->MaximumPlatformVersionTested, GEngineIni);
+		//GConfig->GetBool(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("bIsCreatorsProgramTitle"), bIsCreatorsProgramTitle, GEngineIni);
+		//GConfig->GetBool(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("bExcludeShaderModel4Support"), TargetSettings->bExcludeShaderModel4Support, GEngineIni);
+		//GConfig->GetBool(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("bUseD3D12RHI"), TargetSettings->bUseD3D12RHI, GEngineIni);
 
 		TargetSettings->AddToRoot();
 

@@ -56,11 +56,7 @@ public:
 #if WITH_ENGINE
 	virtual const class FStaticMeshLODSettings& GetStaticMeshLODSettings() const override { return StaticMeshLODSettings; }
 
-	virtual void GetTextureFormats(const UTexture* InTexture, TArray<FName>& OutFormats) const override
-	{
-		FName TextureFormatName = GetDefaultTextureFormatName(this, InTexture, EngineSettings, false);
-		OutFormats.Add(TextureFormatName);
-	}
+	virtual void GetTextureFormats(const UTexture* InTexture, TArray<FName>& OutFormats) const override;
 
 	virtual const UTextureLODSettings& GetTextureLODSettings() const override { return *TextureLODSettings; }
 

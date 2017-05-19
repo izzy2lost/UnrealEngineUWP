@@ -5,6 +5,7 @@
 
 #include "UWPTargetPlatform.h"
 #include "UWPTargetDevice.h"
+#include "Misc/ConfigCacheIni.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUWPTargetPlatform, Log, All);
 
@@ -50,6 +51,14 @@ bool FUWPTargetPlatform::SupportsFeature(ETargetPlatformFeatures Feature) const
 	}
 
 	return TTargetPlatformBase<FUWPPlatformProperties>::SupportsFeature(Feature);
+}
+
+void FUWPTargetPlatform::GetTextureFormats(const UTexture* InTexture, TArray<FName>& OutFormats) const
+{
+	bool bExcludeShaderModel4Support = false;
+	GConfig->GetBool(TEXT("/Script/UWPTargetPlatform.UWPTargetSettings"), TEXT("bExcludeShaderModel4Support"), bExcludeShaderModel4Support, GEngineIni);
+	FName TextureFormatName = GetDefaultTextureFormatName(this, InTexture, EngineSettings, bExcludeShaderModel4Support);
+	OutFormats.Add(TextureFormatName);
 }
 
 #include "HideWindowsPlatformTypes.h"
