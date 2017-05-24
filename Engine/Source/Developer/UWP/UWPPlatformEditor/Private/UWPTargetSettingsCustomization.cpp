@@ -10,6 +10,7 @@
 #include "SFilePathPicker.h"
 #include "STextComboBox.h"
 #include "ISourceControlModule.h"
+#include "SourceControlHelpers.h"
 #include "SNotificationList.h"
 #include "NotificationManager.h"
 #include "AllowWindowsPlatformTypes.h"
@@ -36,10 +37,27 @@ void FUWPTargetSettingsCustomization::InitSupportedPlatformVersions()
 	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.15063.0")));
 }
 
+void FUWPTargetSettingsCustomization::InitTargetDeviceFamilyOptions()
+{
+	TargetDeviceFamilyOptions.Empty();
+
+	TargetDeviceFamilyOptions.Add(MakeShareable(new FString("Windows.Universal")));
+	TargetDeviceFamilyOptions.Add(MakeShareable(new FString("Windows.Holographic")));
+	TargetDeviceFamilyOptions.Add(MakeShareable(new FString("Windows.Desktop")));
+	TargetDeviceFamilyOptions.Add(MakeShareable(new FString("Windows.Xbox")));
+	TargetDeviceFamilyOptions.Add(MakeShareable(new FString("Windows.Mobile")));
+}
+
 void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
+	InitTargetDeviceFamilyOptions();
 	InitSupportedPlatformVersions();
 
+	// Add UI for selecting the TargetDeviceFamily.
+	TSharedRef<IPropertyHandle> TargetDeviceFamilyProperty = DetailBuilder.GetProperty("TargetDeviceFamily");
+	AddWidgetForTargetDeviceFamily(DetailBuilder, TargetDeviceFamilyProperty);
+
+	// Add UI for select min/max platform version.
 	TSharedRef<IPropertyHandle> MinVersionProperty = DetailBuilder.GetProperty("MinimumPlatformVersion");
 	AddWidgetForPlatformVersion(DetailBuilder, MinVersionProperty);
 	TSharedRef<IPropertyHandle> MaxVersionProperty = DetailBuilder.GetProperty("MaximumPlatformVersionTested");
@@ -54,8 +72,9 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	TSharedRef<IPropertyHandle> SigningProperty = DetailBuilder.GetProperty("SigningCertificate");
 	IDetailCategoryBuilder& PackagingCategoryBuilder = DetailBuilder.EditCategory(FName(*SigningProperty->GetMetaData("Category")));
 	DetailBuilder.HideProperty(SigningProperty);
+	SigningProperty->NotifyPreChange();
 
-	FString DefaultSigningSubPath = FString::Printf(TEXT("Build\\UWP\\%s.pfx"), *SigningProperty->GetProperty()->GetName());
+	FString DefaultSigningSubPath = FString::Printf(TEXT("Build/UWP/%s.pfx"), *SigningProperty->GetProperty()->GetName());
 	FString SubPath;
 	if (SigningProperty->GetValue(SubPath) == FPropertyAccess::Fail)
 	{
@@ -95,6 +114,8 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 		]
 	];
 
+	SigningProperty->NotifyPostChange();
+
 	// Add the packaging images customization
 	AddWidgetForResourceImage(DetailBuilder, DetailBuilder.GetProperty("Logo"), FVector2D(150.0f, 150.0f));
 	AddWidgetForResourceImage(DetailBuilder, DetailBuilder.GetProperty("SmallLogo"), FVector2D(44.0f, 44.0f));
@@ -103,23 +124,64 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	AddWidgetForResourceImage(DetailBuilder, DetailBuilder.GetProperty("StoreLogo"), FVector2D(50.0f, 50.0f));
 
 	// Add UI to select tile and splash colors.
-	TSharedRef<IPropertyHandle> HexProperty = DetailBuilder.GetProperty("TileBackgroundColorHex");
-	DetailBuilder.HideProperty(HexProperty);
+	TSharedRef<IPropertyHandle> TileHexProperty = DetailBuilder.GetProperty("TileBackgroundColorHex");
+	DetailBuilder.HideProperty(TileHexProperty);
+	TileHexProperty->NotifyPreChange();
 	TSharedRef<IPropertyHandle> ColorProperty = DetailBuilder.GetProperty("TileBackgroundColor");
-	ColorProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([HexProperty, ColorProperty] { TransferColorToHexProperty(ColorProperty, HexProperty); }));
+	ColorProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([TileHexProperty, ColorProperty] { TransferColorToHexProperty(ColorProperty, TileHexProperty); }));
+	TileHexProperty->NotifyPostChange();
 
-	HexProperty = DetailBuilder.GetProperty("SplashScreenBackgroundColorHex");
-	DetailBuilder.HideProperty(HexProperty);
+	TSharedRef<IPropertyHandle> SplashHexProperty = DetailBuilder.GetProperty("SplashScreenBackgroundColorHex");
+	DetailBuilder.HideProperty(SplashHexProperty);
+	SplashHexProperty->NotifyPreChange();
 	ColorProperty = DetailBuilder.GetProperty("SplashScreenBackgroundColor");
-	ColorProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([HexProperty, ColorProperty] { TransferColorToHexProperty(ColorProperty, HexProperty); }));
+	ColorProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([SplashHexProperty, ColorProperty] { TransferColorToHexProperty(ColorProperty, SplashHexProperty); }));
+	SplashHexProperty->NotifyPostChange();
+
+	// Add capability support.
+	TSharedRef<IPropertyHandle> CapabilityList = DetailBuilder.GetProperty("CapabilityList");
+	DetailBuilder.HideProperty(CapabilityList);
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bInternetClient"), CapabilityList, TEXT("internetClient"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bInternetClientServer"), CapabilityList, TEXT("internetClientServer"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bPrivateNetworkClientServer"), CapabilityList, TEXT("privateNetworkClientServer"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bAllJoyn"), CapabilityList, TEXT("allJoyn"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bCodeGeneration"), CapabilityList, TEXT("codeGeneration"));
+
+	TSharedRef<IPropertyHandle> DeviceCapabilityList = DetailBuilder.GetProperty("DeviceCapabilityList");
+	DetailBuilder.HideProperty(DeviceCapabilityList);
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bMicrophone"), DeviceCapabilityList, TEXT("microphone"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bWebcam"), DeviceCapabilityList, TEXT("webcam"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bProximity"), DeviceCapabilityList, TEXT("proximity"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bLocation"), DeviceCapabilityList, TEXT("location"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bBluetooth"), DeviceCapabilityList, TEXT("bluetooth"));
+
+	TSharedRef<IPropertyHandle> UapCapabilityList = DetailBuilder.GetProperty("UapCapabilityList");
+	DetailBuilder.HideProperty(UapCapabilityList);
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bMusicLibrary"), UapCapabilityList, TEXT("musicLibrary"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bPicturesLibrary"), UapCapabilityList, TEXT("picturesLibrary"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bVideosLibrary"), UapCapabilityList, TEXT("videosLibrary"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bBlockedChatMessages"), UapCapabilityList, TEXT("blockedChatMessages"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bChat"), UapCapabilityList, TEXT("chat"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bEnterpriseAuthentication"), UapCapabilityList, TEXT("enterpriseAuthentication"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bObjects3D"), UapCapabilityList, TEXT("objects3D"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bPhoneCall"), UapCapabilityList, TEXT("phoneCall"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bRemovableStorage"), UapCapabilityList, TEXT("removableStorage"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bSharedUserCertificates"), UapCapabilityList, TEXT("sharedUserCertificates"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bUserAccountInformation"), UapCapabilityList, TEXT("userAccountInformation"));
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bVoipCall"), UapCapabilityList, TEXT("voipCall"));
+
+	TSharedRef<IPropertyHandle> Uap2CapabilityList = DetailBuilder.GetProperty("Uap2CapabilityList");
+	DetailBuilder.HideProperty(Uap2CapabilityList);
+	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bSpatialPerception"), Uap2CapabilityList, TEXT("spatialPerception"));
 }
 
 void FUWPTargetSettingsCustomization::AddWidgetForResourceImage(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle, const FVector2D& ImageDimensions)
 {
+	PropertyHandle->NotifyPreChange();
 	IDetailCategoryBuilder& PackagingCategoryBuilder = DetailBuilder.EditCategory(FName(*PropertyHandle->GetMetaData("Category")));
 	DetailBuilder.HideProperty(PropertyHandle);
 
-	FString DefaultImageSubPath = FString::Printf(TEXT("Build\\UWP\\Resources\\%s.png"), *PropertyHandle->GetProperty()->GetName());
+	const FString DefaultImageSubPath = FString::Printf(TEXT("Build/UWP/Resources/%s.png"), *PropertyHandle->GetProperty()->GetName());
 	FString ImageSubPath;
 	if (PropertyHandle->GetValue(ImageSubPath) == FPropertyAccess::Fail)
 	{
@@ -132,29 +194,40 @@ void FUWPTargetSettingsCustomization::AddWidgetForResourceImage(IDetailLayoutBui
 		PropertyHandle->SetValue(ImageSubPath);
 	}
 
-	FString ProjectLogoPath = FPaths::GameDir() / ImageSubPath;
+	const FString EngineImagePath = FPaths::EngineDir() / DefaultImageSubPath;
+	const FString ProjectImagePath = FPaths::GameDir() / ImageSubPath;
+
+	// If the project image does not exist, copy the default image over from the engine directory so we have something to display in the UI.
+	if (!FPaths::FileExists(ProjectImagePath))
+	{
+		FText ErrorMessage;
+		SourceControlHelpers::CopyFileUnderSourceControl(ProjectImagePath, EngineImagePath, PropertyHandle->GetPropertyDisplayName(), ErrorMessage);
+		PropertyHandle->SetValue(ImageSubPath);
+	}
 
 	PackagingCategoryBuilder.AddCustomRow(PropertyHandle->GetPropertyDisplayName())
-	.NameContent()
-	[
-		PropertyHandle->CreatePropertyNameWidget()
-	]
+		.NameContent()
+		[
+			PropertyHandle->CreatePropertyNameWidget()
+		]
 	.ValueContent()
-	.MaxDesiredWidth(500.0f)
-	.MinDesiredWidth(100.0f)
-	[
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
+		.MaxDesiredWidth(500.0f)
+		.MinDesiredWidth(100.0f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
 		.VAlign(VAlign_Center)
 		[
-			SNew(SExternalImageReference, FString(), ProjectLogoPath)
+			SNew(SExternalImageReference, FString(), ProjectImagePath)
 			.FileDescription(PropertyHandle->GetPropertyDisplayName())
-			.MaxDisplaySize(ImageDimensions)
-			.OnGetPickerPath(FOnGetPickerPath::CreateSP(this, &FUWPTargetSettingsCustomization::GetPickerPath))
-			.OnPostExternalImageCopy(FOnPostExternalImageCopy::CreateSP(this, &FUWPTargetSettingsCustomization::HandlePostExternalIconCopy))
+		.MaxDisplaySize(ImageDimensions)
+		.OnGetPickerPath(FOnGetPickerPath::CreateSP(this, &FUWPTargetSettingsCustomization::GetPickerPath))
+		.OnPostExternalImageCopy(FOnPostExternalImageCopy::CreateSP(this, &FUWPTargetSettingsCustomization::HandlePostExternalIconCopy))
 		]
-	];
+		];
+
+	PropertyHandle->NotifyPostChange();
 }
 
 FString FUWPTargetSettingsCustomization::GetPickerPath()
@@ -239,45 +312,165 @@ void FUWPTargetSettingsCustomization::AddWidgetForPlatformVersion(IDetailLayoutB
 
 	FString CurrentSelectedVersion;
 	PropertyHandle->GetValue(CurrentSelectedVersion);
+
 	// Default to latest version when not set explicitly.  With Windows 10 automatic updates
 	// it's a reasonably safe choice for users, and much more developer friendly than defaulting
 	// to the oldest version.
 	int32 CurrentSelectedIndex = PlatformVersionOptions.Num() - 1;
-	for (int32 i = 0; i < PlatformVersionOptions.Num(); ++i)
+	if (CurrentSelectedVersion.IsEmpty())
 	{
-		if (*PlatformVersionOptions[i] == CurrentSelectedVersion)
+		OnSelectedItemChanged(PlatformVersionOptions[CurrentSelectedIndex], ESelectInfo::Direct, PropertyHandle);
+	}
+	else
+	{
+		for (int32 i = 0; i < PlatformVersionOptions.Num(); ++i)
 		{
-			CurrentSelectedIndex = i;
-			break;
+			if (*PlatformVersionOptions[i] == CurrentSelectedVersion)
+			{
+				CurrentSelectedIndex = i;
+				break;
+			}
 		}
 	}
 
 	VersionCategoryBuilder.AddCustomRow(PropertyHandle->GetPropertyDisplayName())
-	.NameContent()
-	[
-		PropertyHandle->CreatePropertyNameWidget()
-	]
+		.NameContent()
+		[
+			PropertyHandle->CreatePropertyNameWidget()
+		]
 	.ValueContent()
-	.MaxDesiredWidth(500.0f)
-	.MinDesiredWidth(100.0f)
-	[
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
+		.MaxDesiredWidth(500.0f)
+		.MinDesiredWidth(100.0f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
 		.VAlign(VAlign_Center)
 		[
 			SNew(STextComboBox)
 			.Font(IDetailLayoutBuilder::GetDetailFont())
-			.OptionsSource(&PlatformVersionOptions)
-			.InitiallySelectedItem(PlatformVersionOptions[CurrentSelectedIndex])
-			.OnSelectionChanged(this, &FUWPTargetSettingsCustomization::OnPlatformVersionChanged, PropertyHandle)
+		.OptionsSource(&PlatformVersionOptions)
+		.InitiallySelectedItem(PlatformVersionOptions[CurrentSelectedIndex])
+		.OnSelectionChanged(this, &FUWPTargetSettingsCustomization::OnSelectedItemChanged, PropertyHandle)
 		]
-	];
+		];
 }
 
-void FUWPTargetSettingsCustomization::OnPlatformVersionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> Handle)
+void FUWPTargetSettingsCustomization::AddWidgetForTargetDeviceFamily(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle)
+{
+	IDetailCategoryBuilder& TargetCategoryBuilder = DetailBuilder.EditCategory(FName(*PropertyHandle->GetMetaData("Category")));
+	DetailBuilder.HideProperty(PropertyHandle);
+
+	FString CurrentSelectedDeviceFamily;
+	PropertyHandle->GetValue(CurrentSelectedDeviceFamily);
+
+	// Default to first option when not set explicitly.
+	int32 CurrentSelectedIndex = 0;
+	if (CurrentSelectedDeviceFamily.IsEmpty())
+	{
+		OnSelectedItemChanged(TargetDeviceFamilyOptions[CurrentSelectedIndex], ESelectInfo::Direct, PropertyHandle);
+	}
+	else
+	{
+		for (int32 i = 0; i < TargetDeviceFamilyOptions.Num(); i++)
+		{
+			if (*TargetDeviceFamilyOptions[i] == CurrentSelectedDeviceFamily)
+			{
+				CurrentSelectedIndex = i;
+				break;
+			}
+		}
+	}
+
+	TargetCategoryBuilder.AddCustomRow(PropertyHandle->GetPropertyDisplayName())
+		.NameContent()
+		[
+			PropertyHandle->CreatePropertyNameWidget()
+		]
+	.ValueContent()
+		.MaxDesiredWidth(500.0f)
+		.MinDesiredWidth(100.0f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+		.FillWidth(1.0f)
+		.VAlign(VAlign_Center)
+		[
+			SNew(STextComboBox)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		.OptionsSource(&TargetDeviceFamilyOptions)
+		.InitiallySelectedItem(TargetDeviceFamilyOptions[CurrentSelectedIndex])
+		.OnSelectionChanged(this, &FUWPTargetSettingsCustomization::OnSelectedItemChanged, PropertyHandle)
+		]
+		];
+}
+
+void FUWPTargetSettingsCustomization::OnSelectedItemChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> Handle)
 {
 	Handle->SetValue(*NewValue);
+}
+
+void FUWPTargetSettingsCustomization::AddWidgetForCapability(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> CapabilityProperty, TSharedRef<IPropertyHandle> CapabilityList, const FString& CapabilityName)
+{
+	IDetailCategoryBuilder& CapabilityBuilder = DetailBuilder.EditCategory(FName(*CapabilityProperty->GetMetaData("Category")));
+	DetailBuilder.HideProperty(CapabilityProperty);
+
+	// Initialize checkbox state based on whether or not the capability currently exists in the CapabilityList.
+	ECheckBoxState currentState = IsCapabilityChecked(CapabilityList, CapabilityName);
+	if (currentState == ECheckBoxState::Checked)
+	{
+		OnCapabilityStateChanged(currentState, CapabilityList, CapabilityName);
+	}
+
+	CapabilityBuilder.AddCustomRow(CapabilityProperty->GetPropertyDisplayName())
+		.NameContent()
+		[
+			CapabilityProperty->CreatePropertyNameWidget()
+		]
+	.ValueContent()
+		.VAlign(VAlign_Center)
+		[
+			SNew(SCheckBox)
+			.IsChecked(this, &FUWPTargetSettingsCustomization::IsCapabilityChecked, CapabilityList, CapabilityName)
+		.OnCheckStateChanged(this, &FUWPTargetSettingsCustomization::OnCapabilityStateChanged, CapabilityList, CapabilityName)
+		];
+}
+
+ECheckBoxState FUWPTargetSettingsCustomization::IsCapabilityChecked(TSharedRef<IPropertyHandle> CapabilityList, const FString CapabilityName) const
+{
+	TArray<void*> RawData;
+	CapabilityList->AccessRawData(RawData);
+	TArray<FString>* RawCapabilityStringArray = reinterpret_cast<TArray<FString>*>(RawData[0]);
+
+	int32 Index;
+	bool Found = RawCapabilityStringArray->Find(CapabilityName, Index);
+	return (Found ? ECheckBoxState::Checked : ECheckBoxState::Unchecked);
+}
+
+void FUWPTargetSettingsCustomization::OnCapabilityStateChanged(ECheckBoxState CheckState, TSharedRef<IPropertyHandle> CapabilityList, const FString CapabilityName)
+{
+	bool IsEnabled = (CheckState == ECheckBoxState::Checked);
+	TArray<void*> RawData;
+	CapabilityList->AccessRawData(RawData);
+	TArray<FString>* RawCapabilityStringArray = reinterpret_cast<TArray<FString>*>(RawData[0]);
+
+	CapabilityList->NotifyPreChange();
+	int32 Index;
+	bool Found = RawCapabilityStringArray->Find(CapabilityName, Index);
+
+	if (Found && !IsEnabled)
+	{
+		// Remove existing capability from the list
+		RawCapabilityStringArray->RemoveAt(Index);
+	}
+	else if (!Found && IsEnabled)
+	{
+		//Add new capability to the list
+		RawCapabilityStringArray->AddUnique(*CapabilityName);
+	}
+
+	// Save settings to Ini
+	CapabilityList->NotifyPostChange();
 }
 
 #undef LOCTEXT_NAMESPACE

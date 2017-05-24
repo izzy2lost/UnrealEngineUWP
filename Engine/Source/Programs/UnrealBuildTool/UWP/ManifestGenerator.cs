@@ -77,12 +77,19 @@ namespace UnrealBuildTool
 		/// Path to project root (real project path if we have it, Engine path if we're building content only and don't know for what)
 		/// </summary>
 		private string ProjectPath;
-		// @ATG_CHANGE : END
+        // @ATG_CHANGE : END
 
-		/// <summary>
-		/// Helper function that inserts a tab character for each indent level.
-		/// </summary>
-		private static string GetIndentString(int Indent)
+        // @ATG_CHANGE : BEGIN UWP Capability support
+        private bool IncludeDeviceCapabilityType;
+        private bool IncludeUap2CapabilityType;
+        private bool OnlyUap2CapabilityElements;
+        private string CapabilitySection = "/Script/UWPPlatformEditor.UWPTargetSettings";
+        // @ATG_CHANGE : END UWP Capability support
+
+        /// <summary>
+        /// Helper function that inserts a tab character for each indent level.
+        /// </summary>
+        private static string GetIndentString(int Indent)
 		{
 			string Line = null;
 			for (; Indent > 0; Indent--)
@@ -654,8 +661,31 @@ namespace UnrealBuildTool
 				MaxOccurs = Element.MaxOccurs;
 			}
 
-			// Basically keep track of if we found reason to keep any output and should return true from this function
-			bool AnyElementFound = false;
+            // @ATG_CHANGE : BEGIN UWP Capability support
+            if (ElementName.Equals("Capabilities"))
+            {
+                // Capabilites are spread across multiple arrays based on capability type.
+                // Determine if there are any valid elements within the array before printing.
+                if (!CheckForValidCapabilityElements())
+                {
+                    return false;
+                }
+                else if (OnlyUap2CapabilityElements)
+                {
+                    // <uap2:Capability> elements will not be found, so we must add them directly.
+                    PrintUap2Capabilities(Indent, OutputContents);
+                    return false;
+                }
+            }
+            else if (ElementName.Equals("DeviceCapability") && !IncludeDeviceCapabilityType)
+            {
+                // Return early to avoid invalid DeviceCapability elements written to file.
+                return false;
+            }
+            // @ATG_CHANGE : END UWP Capability support
+
+            // Basically keep track of if we found reason to keep any output and should return true from this function
+            bool AnyElementFound = false;
 			// Loop for multiple instances if needed
 			bool SearchArraySettings = false;
 			int SettingArrayIndex = -1;
@@ -711,7 +741,18 @@ namespace UnrealBuildTool
 					StringBuilder TreeContents = new StringBuilder();
 					
 					TreeContents.AppendLine(">");
-					if (LocalSettingID == "Package.Extensions")
+
+                    // @ATG_CHANGE : BEGIN UWP Capability support
+                    // Add <uap2:Capability> elements to manifest file
+                    if (ElementName.Equals("Capabilities") && IncludeUap2CapabilityType)
+                    {
+                        // <uap2:Capability> elements must be added to the top of the <Capabilities> section,
+                        // else, the AppxManifest file will fail validation.
+                        PrintUap2Capabilities(Indent, TreeContents);
+                    }
+                    // @ATG_CHANGE : END UWP Capability support
+
+                    if (LocalSettingID == "Package.Extensions")
 					{
 						AnyChildrenDefined = AddActivatableTypesExtensions(TreeContents, Indent + 1);
 					}
@@ -909,7 +950,7 @@ namespace UnrealBuildTool
 			}
 			if (!string.IsNullOrEmpty(PackageIgnorableNS))
 			{
-				OutputContents.Append(" IgnorableNamespaces =\"" + PackageIgnorableNS + "\"");
+				OutputContents.Append(" IgnorableNamespaces=\"" + PackageIgnorableNS + "\"");
 			}
 			OutputContents.AppendLine(">");
 			// @ATG_CHANGE : END
@@ -1014,5 +1055,73 @@ namespace UnrealBuildTool
 
 			return FileUpdated;
 		}
-	};
+
+        // @ATG_CHANGE : BEGIN UWP Capability support
+        private bool CheckForValidCapabilityElements()
+        {
+            bool isValid = true;
+            bool includeCapabilityType = false;
+            bool includeUapCapabilityType = false;
+
+            // Capabilites are contained in multiple arrays based on type.
+            // Determine if any of the capability arrays contain valid elements before printing.
+            List<string> CapabilityList = new List<string>();
+            List<string> DeviceCapabilityList = new List<string>();
+            List<string> UapCapabilityList = new List<string>();
+            List<string> Uap2CapabilityList = new List<string>();
+
+            EngineIni.GetArray(CapabilitySection, "CapabilityList", out CapabilityList);
+            EngineIni.GetArray(CapabilitySection, "DeviceCapabilityList", out DeviceCapabilityList);
+            EngineIni.GetArray(CapabilitySection, "UapCapabilityList", out UapCapabilityList);
+            EngineIni.GetArray(CapabilitySection, "Uap2CapabilityList", out Uap2CapabilityList);
+
+            includeCapabilityType = (CapabilityList != null && CapabilityList.Count > 0) ? true : false;
+            includeUapCapabilityType = (UapCapabilityList != null && UapCapabilityList.Count > 0) ? true : false;
+            IncludeUap2CapabilityType = (Uap2CapabilityList != null && Uap2CapabilityList.Count > 0) ? true : false;
+            IncludeDeviceCapabilityType = (DeviceCapabilityList != null && DeviceCapabilityList.Count > 0) ? true : false;
+
+            if (!includeCapabilityType && !includeUapCapabilityType && !IncludeUap2CapabilityType && !IncludeDeviceCapabilityType)
+            {
+                // None of the capability arrays contain valid elements, so skip them.
+                isValid = false;
+            }
+            else if (IncludeUap2CapabilityType && !IncludeDeviceCapabilityType && !includeUapCapabilityType && !includeCapabilityType)
+            {
+                // <uap2:Capability> types are special and must be handled separately from other capability elements.
+                OnlyUap2CapabilityElements = true;
+            }
+
+            return isValid;
+        }
+        // @ATG_CHANGE : END UWP Capability support
+
+        // @ATG_CHANGE : BEGIN UWP Capability support
+        private void PrintUap2Capabilities(int Indent, StringBuilder LocalContents)
+        {
+            List<string> Uap2CapabilityList = new List<string>();
+            EngineIni.GetArray(CapabilitySection, "Uap2CapabilityList", out Uap2CapabilityList);
+
+            if (OnlyUap2CapabilityElements)
+            {
+                LocalContents.AppendLine(GetIndentString(Indent) + "<Capabilities>");
+            }
+
+            if (Uap2CapabilityList != null && Uap2CapabilityList.Count > 0)
+            {
+                foreach (string name in Uap2CapabilityList)
+                {
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        LocalContents.AppendLine(GetIndentString(Indent + 1) + "<uap2:Capability Name=\"" + name + "\" />");
+                    }
+                }
+            }
+
+            if (OnlyUap2CapabilityElements)
+            {
+                LocalContents.AppendLine(GetIndentString(Indent) + "</Capabilities>");
+            }
+        }
+        // @ATG_CHANGE : END UWP Capability support
+    };
 }
