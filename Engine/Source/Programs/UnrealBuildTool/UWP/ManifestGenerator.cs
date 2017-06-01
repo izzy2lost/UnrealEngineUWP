@@ -662,25 +662,28 @@ namespace UnrealBuildTool
 			}
 
             // @ATG_CHANGE : BEGIN UWP Capability support
-            if (ElementName.Equals("Capabilities"))
+            if (Platform == UnrealTargetPlatform.UWP32 || Platform == UnrealTargetPlatform.UWP64)
             {
-                // Capabilites are spread across multiple arrays based on capability type.
-                // Determine if there are any valid elements within the array before printing.
-                if (!CheckForValidCapabilityElements())
+                if (ElementName.Equals("Capabilities"))
                 {
+                    // Capabilites are spread across multiple arrays based on capability type.
+                    // Determine if there are any valid elements within the array before printing.
+                    if (!CheckForValidCapabilityElements())
+                    {
+                        return false;
+                    }
+                    else if (OnlyUap2CapabilityElements)
+                    {
+                        // <uap2:Capability> elements will not be found, so we must add them directly.
+                        PrintUap2Capabilities(Indent, OutputContents);
+                        return false;
+                    }
+                }
+                else if (ElementName.Equals("DeviceCapability") && !IncludeDeviceCapabilityType)
+                {
+                    // Return early to avoid invalid DeviceCapability elements written to file.
                     return false;
                 }
-                else if (OnlyUap2CapabilityElements)
-                {
-                    // <uap2:Capability> elements will not be found, so we must add them directly.
-                    PrintUap2Capabilities(Indent, OutputContents);
-                    return false;
-                }
-            }
-            else if (ElementName.Equals("DeviceCapability") && !IncludeDeviceCapabilityType)
-            {
-                // Return early to avoid invalid DeviceCapability elements written to file.
-                return false;
             }
             // @ATG_CHANGE : END UWP Capability support
 

@@ -45,7 +45,6 @@ void FUWPTargetSettingsCustomization::InitTargetDeviceFamilyOptions()
 	TargetDeviceFamilyOptions.Add(MakeShareable(new FString("Windows.Holographic")));
 	TargetDeviceFamilyOptions.Add(MakeShareable(new FString("Windows.Desktop")));
 	TargetDeviceFamilyOptions.Add(MakeShareable(new FString("Windows.Xbox")));
-	TargetDeviceFamilyOptions.Add(MakeShareable(new FString("Windows.Mobile")));
 }
 
 void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
@@ -173,6 +172,20 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	TSharedRef<IPropertyHandle> Uap2CapabilityList = DetailBuilder.GetProperty("Uap2CapabilityList");
 	DetailBuilder.HideProperty(Uap2CapabilityList);
 	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bSpatialPerception"), Uap2CapabilityList, TEXT("spatialPerception"));
+
+	// If this is the first time capabilities are being accessed for the project, enable defaults.
+	TSharedRef<IPropertyHandle> SetDefaultCapabilitiesProperty = DetailBuilder.GetProperty("bSetDefaultCapabilities");
+	DetailBuilder.HideProperty(SetDefaultCapabilitiesProperty);
+	bool bSetDefaults;
+	SetDefaultCapabilitiesProperty->GetValue(bSetDefaults);
+	if (bSetDefaults)
+	{
+		OnCapabilityStateChanged(ECheckBoxState::Checked, CapabilityList, TEXT("internetClientServer"));
+		OnCapabilityStateChanged(ECheckBoxState::Checked, CapabilityList, TEXT("privateNetworkClientServer"));
+		SetDefaultCapabilitiesProperty->NotifyPreChange();
+		SetDefaultCapabilitiesProperty->SetValue(false);
+		SetDefaultCapabilitiesProperty->NotifyPostChange();
+	}
 }
 
 void FUWPTargetSettingsCustomization::AddWidgetForResourceImage(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle, const FVector2D& ImageDimensions)
@@ -206,26 +219,26 @@ void FUWPTargetSettingsCustomization::AddWidgetForResourceImage(IDetailLayoutBui
 	}
 
 	PackagingCategoryBuilder.AddCustomRow(PropertyHandle->GetPropertyDisplayName())
-		.NameContent()
-		[
-			PropertyHandle->CreatePropertyNameWidget()
-		]
+	.NameContent()
+	[
+		PropertyHandle->CreatePropertyNameWidget()
+	]
 	.ValueContent()
-		.MaxDesiredWidth(500.0f)
-		.MinDesiredWidth(100.0f)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
+	.MaxDesiredWidth(500.0f)
+	.MinDesiredWidth(100.0f)
+	[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
 		.VAlign(VAlign_Center)
 		[
 			SNew(SExternalImageReference, FString(), ProjectImagePath)
 			.FileDescription(PropertyHandle->GetPropertyDisplayName())
-		.MaxDisplaySize(ImageDimensions)
-		.OnGetPickerPath(FOnGetPickerPath::CreateSP(this, &FUWPTargetSettingsCustomization::GetPickerPath))
-		.OnPostExternalImageCopy(FOnPostExternalImageCopy::CreateSP(this, &FUWPTargetSettingsCustomization::HandlePostExternalIconCopy))
+			.MaxDisplaySize(ImageDimensions)
+			.OnGetPickerPath(FOnGetPickerPath::CreateSP(this, &FUWPTargetSettingsCustomization::GetPickerPath))
+			.OnPostExternalImageCopy(FOnPostExternalImageCopy::CreateSP(this, &FUWPTargetSettingsCustomization::HandlePostExternalIconCopy))
 		]
-		];
+	];
 
 	PropertyHandle->NotifyPostChange();
 }
@@ -334,26 +347,26 @@ void FUWPTargetSettingsCustomization::AddWidgetForPlatformVersion(IDetailLayoutB
 	}
 
 	VersionCategoryBuilder.AddCustomRow(PropertyHandle->GetPropertyDisplayName())
-		.NameContent()
-		[
-			PropertyHandle->CreatePropertyNameWidget()
-		]
+	.NameContent()
+	[
+		PropertyHandle->CreatePropertyNameWidget()
+	]
 	.ValueContent()
-		.MaxDesiredWidth(500.0f)
-		.MinDesiredWidth(100.0f)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
+	.MaxDesiredWidth(500.0f)
+	.MinDesiredWidth(100.0f)
+	[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
 		.VAlign(VAlign_Center)
 		[
 			SNew(STextComboBox)
 			.Font(IDetailLayoutBuilder::GetDetailFont())
-		.OptionsSource(&PlatformVersionOptions)
-		.InitiallySelectedItem(PlatformVersionOptions[CurrentSelectedIndex])
-		.OnSelectionChanged(this, &FUWPTargetSettingsCustomization::OnSelectedItemChanged, PropertyHandle)
+			.OptionsSource(&PlatformVersionOptions)
+			.InitiallySelectedItem(PlatformVersionOptions[CurrentSelectedIndex])
+			.OnSelectionChanged(this, &FUWPTargetSettingsCustomization::OnSelectedItemChanged, PropertyHandle)
 		]
-		];
+	];
 }
 
 void FUWPTargetSettingsCustomization::AddWidgetForTargetDeviceFamily(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle)
@@ -383,26 +396,26 @@ void FUWPTargetSettingsCustomization::AddWidgetForTargetDeviceFamily(IDetailLayo
 	}
 
 	TargetCategoryBuilder.AddCustomRow(PropertyHandle->GetPropertyDisplayName())
-		.NameContent()
-		[
-			PropertyHandle->CreatePropertyNameWidget()
-		]
+	.NameContent()
+	[
+		PropertyHandle->CreatePropertyNameWidget()
+	]
 	.ValueContent()
-		.MaxDesiredWidth(500.0f)
-		.MinDesiredWidth(100.0f)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
+	.MaxDesiredWidth(500.0f)
+	.MinDesiredWidth(100.0f)
+	[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
 		.VAlign(VAlign_Center)
 		[
 			SNew(STextComboBox)
 			.Font(IDetailLayoutBuilder::GetDetailFont())
-		.OptionsSource(&TargetDeviceFamilyOptions)
-		.InitiallySelectedItem(TargetDeviceFamilyOptions[CurrentSelectedIndex])
-		.OnSelectionChanged(this, &FUWPTargetSettingsCustomization::OnSelectedItemChanged, PropertyHandle)
+			.OptionsSource(&TargetDeviceFamilyOptions)
+			.InitiallySelectedItem(TargetDeviceFamilyOptions[CurrentSelectedIndex])
+			.OnSelectionChanged(this, &FUWPTargetSettingsCustomization::OnSelectedItemChanged, PropertyHandle)
 		]
-		];
+	];
 }
 
 void FUWPTargetSettingsCustomization::OnSelectedItemChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> Handle)
@@ -423,17 +436,17 @@ void FUWPTargetSettingsCustomization::AddWidgetForCapability(IDetailLayoutBuilde
 	}
 
 	CapabilityBuilder.AddCustomRow(CapabilityProperty->GetPropertyDisplayName())
-		.NameContent()
-		[
-			CapabilityProperty->CreatePropertyNameWidget()
-		]
+	.NameContent()
+	[
+		CapabilityProperty->CreatePropertyNameWidget()
+	]
 	.ValueContent()
-		.VAlign(VAlign_Center)
-		[
-			SNew(SCheckBox)
-			.IsChecked(this, &FUWPTargetSettingsCustomization::IsCapabilityChecked, CapabilityList, CapabilityName)
+	.VAlign(VAlign_Center)
+	[
+		SNew(SCheckBox)
+		.IsChecked(this, &FUWPTargetSettingsCustomization::IsCapabilityChecked, CapabilityList, CapabilityName)
 		.OnCheckStateChanged(this, &FUWPTargetSettingsCustomization::OnCapabilityStateChanged, CapabilityList, CapabilityName)
-		];
+	];
 }
 
 ECheckBoxState FUWPTargetSettingsCustomization::IsCapabilityChecked(TSharedRef<IPropertyHandle> CapabilityList, const FString CapabilityName) const

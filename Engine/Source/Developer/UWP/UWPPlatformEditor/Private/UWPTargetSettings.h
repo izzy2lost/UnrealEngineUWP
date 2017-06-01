@@ -139,6 +139,12 @@ public:
 	TArray<FString> Uap2CapabilityList;
 
 	/**
+	* Set default capabilities (InternetClientServer and PrivateNetworkClientServer) for the application.
+	*/
+	UPROPERTY(EditAnywhere, config, Category = Capabilities)
+	bool bSetDefaultCapabilities = true;
+
+	/**
 	* Provides outbound access to the Internet and networks in public places like airports and cofee shops.
 	*/
 	UPROPERTY(EditAnywhere, Category = Capabilities)

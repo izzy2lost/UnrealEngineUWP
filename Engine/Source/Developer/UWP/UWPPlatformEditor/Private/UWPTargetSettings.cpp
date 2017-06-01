@@ -45,4 +45,7 @@ void UUWPTargetSettings::PostInitProperties()
 
 	TileBackgroundColor = FColor::FromHex(TileBackgroundColorHex);
 	SplashScreenBackgroundColor = FColor::FromHex(SplashScreenBackgroundColorHex);
+
+	// Determine if we need to set default capabilities for this project.
+	GConfig->GetBool(TEXT("/Script/UWPPlatformEditor.UWPTargetSettings"), TEXT("bSetDefaultCapabilities"), bSetDefaultCapabilities, DefaultConfigFile);
 }
