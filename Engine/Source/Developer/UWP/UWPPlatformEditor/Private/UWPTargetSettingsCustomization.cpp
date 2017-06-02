@@ -140,38 +140,38 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	// Add capability support.
 	TSharedRef<IPropertyHandle> CapabilityList = DetailBuilder.GetProperty("CapabilityList");
 	DetailBuilder.HideProperty(CapabilityList);
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bInternetClient"), CapabilityList, TEXT("internetClient"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bInternetClientServer"), CapabilityList, TEXT("internetClientServer"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bPrivateNetworkClientServer"), CapabilityList, TEXT("privateNetworkClientServer"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bAllJoyn"), CapabilityList, TEXT("allJoyn"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bCodeGeneration"), CapabilityList, TEXT("codeGeneration"));
+	AddWidgetForCapability(DetailBuilder, CapabilityList, TEXT("internetClient"), LOCTEXT("InternetClientCaption", "Internet Client"), LOCTEXT("InternetClientTooltip", "Provides outbound access to the Internet and networks in public places like airports and cofee shops."));
+	AddWidgetForCapability(DetailBuilder, CapabilityList, TEXT("internetClientServer"), LOCTEXT("InternetClientServerCaption", "Internet Client Server"), LOCTEXT("InternetClientServerTooltip", "Provides inbound and outbound access to the Internet and networks in public places like airports and cofee shops"));
+	AddWidgetForCapability(DetailBuilder, CapabilityList, TEXT("privateNetworkClientServer"), LOCTEXT("PrivateNetworkCaption", "Private Network Client Server"), LOCTEXT("PrivateNetworkTooltip", "Provides inbound and outbound access to the Internet and networks that have an authenticated domain controller, or that the user has designated as either home or work networks.Inbound access to critical ports is always blocked."));
+	AddWidgetForCapability(DetailBuilder, CapabilityList, TEXT("allJoyn"), LOCTEXT("AllJoynCaption", "AllJoyn"), LOCTEXT("AllJoynTooltip", "Allows AllJoyn-enabled apps and devices on a network to discover and interact with each other."));
+	AddWidgetForCapability(DetailBuilder, CapabilityList, TEXT("codeGeneration"), LOCTEXT("CodeGenCaption", "Code Generation"), LOCTEXT("CodeGenTooltip", "Allows apps to generate code dynamically."));
 
 	TSharedRef<IPropertyHandle> DeviceCapabilityList = DetailBuilder.GetProperty("DeviceCapabilityList");
 	DetailBuilder.HideProperty(DeviceCapabilityList);
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bMicrophone"), DeviceCapabilityList, TEXT("microphone"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bWebcam"), DeviceCapabilityList, TEXT("webcam"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bProximity"), DeviceCapabilityList, TEXT("proximity"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bLocation"), DeviceCapabilityList, TEXT("location"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bBluetooth"), DeviceCapabilityList, TEXT("bluetooth"));
+	AddWidgetForCapability(DetailBuilder, DeviceCapabilityList, TEXT("microphone"), LOCTEXT("MicrophoneCaption", "Microphone"), LOCTEXT("MicrophoneTooltip", "Provides access to the microphone's audio feed, which allows the app to record audio from connected microphones. Required for Windows.Media.SpeechRecognition APIs."));
+	AddWidgetForCapability(DetailBuilder, DeviceCapabilityList, TEXT("webcam"), LOCTEXT("WebcamCaption", "Webcam"), LOCTEXT("WebcamTooltip", "Provides access to the webcam's video feed, which allows the app to capture snapshots and movies from connected webcams."));
+	AddWidgetForCapability(DetailBuilder, DeviceCapabilityList, TEXT("proximity"), LOCTEXT("ProximityCaption", "Proximity"), LOCTEXT("ProximityTooltip", "Provides capability to connect devices in close proximity to the PC via near field proximity radio or Wi-FI Direct."));
+	AddWidgetForCapability(DetailBuilder, DeviceCapabilityList, TEXT("location"), LOCTEXT("LocationCaption", "Location"), LOCTEXT("LocationTooltip", "Provides access to the current location, which is obtained from dedicated hardware like a GPS sensor in the PC or derived from available network information."));
+	AddWidgetForCapability(DetailBuilder, DeviceCapabilityList, TEXT("bluetooth"), LOCTEXT("BluetoothCaption", "Bluetooth"), LOCTEXT("BluetoothTooltip", "Allows communication with paired Bluetooth devices over the Generic Attribute (GATT) or Classic Basic Rate (RFCOMM) protocols."));
 
 	TSharedRef<IPropertyHandle> UapCapabilityList = DetailBuilder.GetProperty("UapCapabilityList");
 	DetailBuilder.HideProperty(UapCapabilityList);
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bMusicLibrary"), UapCapabilityList, TEXT("musicLibrary"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bPicturesLibrary"), UapCapabilityList, TEXT("picturesLibrary"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bVideosLibrary"), UapCapabilityList, TEXT("videosLibrary"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bBlockedChatMessages"), UapCapabilityList, TEXT("blockedChatMessages"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bChat"), UapCapabilityList, TEXT("chat"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bEnterpriseAuthentication"), UapCapabilityList, TEXT("enterpriseAuthentication"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bObjects3D"), UapCapabilityList, TEXT("objects3D"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bPhoneCall"), UapCapabilityList, TEXT("phoneCall"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bRemovableStorage"), UapCapabilityList, TEXT("removableStorage"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bSharedUserCertificates"), UapCapabilityList, TEXT("sharedUserCertificates"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bUserAccountInformation"), UapCapabilityList, TEXT("userAccountInformation"));
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bVoipCall"), UapCapabilityList, TEXT("voipCall"));
+	AddWidgetForCapability(DetailBuilder, UapCapabilityList, TEXT("musicLibrary"), LOCTEXT("MusicLibCaption", "Music Library"), LOCTEXT("MusicLibTooltip", "Provides capability to add, change, or delete files in the Music Library for the local PC and HomeGroup PCs."));
+	AddWidgetForCapability(DetailBuilder, UapCapabilityList, TEXT("picturesLibrary"), LOCTEXT("PicturesLibCaption", "Pictures Library"), LOCTEXT("PicturesLibTooltip", "Provides capability to add, change, or delete files in the Pictures Library for the local PC and HomeGroup PCs."));
+	AddWidgetForCapability(DetailBuilder, UapCapabilityList, TEXT("videosLibrary"), LOCTEXT("VideosLibCaption", "Videos Library"), LOCTEXT("VideosLibTooltip", "Provides capability to add, change, or delete files in the Videos Library for the local PC and HomeGroup PCs."));
+	AddWidgetForCapability(DetailBuilder, UapCapabilityList, TEXT("blockedChatMessages"), LOCTEXT("BlockedChatCaption", "Blocked Chat Messages"), LOCTEXT("BlockedChatTooltip", "Allows apps to read SMS and MMS messages that have been blocked by the Spam Filter app."));
+	AddWidgetForCapability(DetailBuilder, UapCapabilityList, TEXT("chat"), LOCTEXT("ChatCaption", "Chat"), LOCTEXT("ChatTooltip", "Allows apps to read and delete Text Messages. It also allows apps to store chat messages in the system data store."));
+	AddWidgetForCapability(DetailBuilder, UapCapabilityList, TEXT("enterpriseAuthentication"), LOCTEXT("EnterpriseAuthCaption", "Enterprise Authentication"), LOCTEXT("EnterpriseAuthTooltip", "Subject to Store policy. Provides ability to connect to enterprise intranet resources that require domain credentials.This capability is typically not needed for most apps."));
+	AddWidgetForCapability(DetailBuilder, UapCapabilityList, TEXT("objects3D"), LOCTEXT("Objects3DCaption", "Objects 3D"), LOCTEXT("Objects3DTooltip", "Provides access to the user's 3D Objects, allowing the app to enumerate and access all files in the library without user interaction."));
+	AddWidgetForCapability(DetailBuilder, UapCapabilityList, TEXT("phoneCall"), LOCTEXT("PhoneCallCaption", "Phone Call"), LOCTEXT("PhoneCallTooltip", "Allows apps to access all phone lines on the device and perform the following functions: place a call, access line-related metadata, access line-related triggers, set and check block list and call origination information."));
+	AddWidgetForCapability(DetailBuilder, UapCapabilityList, TEXT("removableStorage"), LOCTEXT("RemovableStorageCaption", "Removable Storage"), LOCTEXT("RemovableStorageTooltip", "Provides capability to add, change, or delete files on removable storage devices."));
+	AddWidgetForCapability(DetailBuilder, UapCapabilityList, TEXT("sharedUserCertificates"), LOCTEXT("ShareCertsCaption", "Shared User Certificates"), LOCTEXT("SharedCertsTooltip", "Subject to Store policy. Provides capability to access software and hardware certificates for validating a user's identity."));
+	AddWidgetForCapability(DetailBuilder, UapCapabilityList, TEXT("userAccountInformation"), LOCTEXT("UserAccountCaption", "User Account Information"), LOCTEXT("UserAccountTooltip", "Gives apps the ability to access user's name and picture. Required to access Windows.System.UserProfile APIs."));
+	AddWidgetForCapability(DetailBuilder, UapCapabilityList, TEXT("voipCall"), LOCTEXT("VoipCallCaption", "VOIP Call"), LOCTEXT("VoipCallTooltip", "Allows access to the VOIP calling APIs in Windows.ApplicationModel.Calls."));
 
 	TSharedRef<IPropertyHandle> Uap2CapabilityList = DetailBuilder.GetProperty("Uap2CapabilityList");
 	DetailBuilder.HideProperty(Uap2CapabilityList);
-	AddWidgetForCapability(DetailBuilder, DetailBuilder.GetProperty("bSpatialPerception"), Uap2CapabilityList, TEXT("spatialPerception"));
+	AddWidgetForCapability(DetailBuilder, Uap2CapabilityList, TEXT("spatialPerception"), LOCTEXT("SpatialPerceptionCaption", "Spatial Perception"), LOCTEXT("SpatialPerceptionTooltip", "Provides access to environment data, which will be used to generate spatial maps or stages. Required to access Windows.Perception.Spatial APIs."));
 
 	// If this is the first time capabilities are being accessed for the project, enable defaults.
 	TSharedRef<IPropertyHandle> SetDefaultCapabilitiesProperty = DetailBuilder.GetProperty("bSetDefaultCapabilities");
@@ -423,10 +423,9 @@ void FUWPTargetSettingsCustomization::OnSelectedItemChanged(TSharedPtr<FString> 
 	Handle->SetValue(*NewValue);
 }
 
-void FUWPTargetSettingsCustomization::AddWidgetForCapability(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> CapabilityProperty, TSharedRef<IPropertyHandle> CapabilityList, const FString& CapabilityName)
+void FUWPTargetSettingsCustomization::AddWidgetForCapability(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> CapabilityList, const FString& CapabilityName, const FText& CapabilityCaption, const FText& CapabilityTooltip)
 {
-	IDetailCategoryBuilder& CapabilityBuilder = DetailBuilder.EditCategory(FName(*CapabilityProperty->GetMetaData("Category")));
-	DetailBuilder.HideProperty(CapabilityProperty);
+	IDetailCategoryBuilder& CapabilityBuilder = DetailBuilder.EditCategory(FName("Capabilities"));
 
 	// Initialize checkbox state based on whether or not the capability currently exists in the CapabilityList.
 	ECheckBoxState currentState = IsCapabilityChecked(CapabilityList, CapabilityName);
@@ -435,10 +434,13 @@ void FUWPTargetSettingsCustomization::AddWidgetForCapability(IDetailLayoutBuilde
 		OnCapabilityStateChanged(currentState, CapabilityList, CapabilityName);
 	}
 
-	CapabilityBuilder.AddCustomRow(CapabilityProperty->GetPropertyDisplayName())
+	CapabilityBuilder.AddCustomRow(CapabilityCaption)
 	.NameContent()
 	[
-		CapabilityProperty->CreatePropertyNameWidget()
+		SNew(STextBlock)
+		.Text(CapabilityCaption)
+		.ToolTipText(CapabilityTooltip)
+		.Font(IDetailLayoutBuilder::GetDetailFont())
 	]
 	.ValueContent()
 	.VAlign(VAlign_Center)
