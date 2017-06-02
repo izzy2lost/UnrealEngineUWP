@@ -189,3 +189,6 @@ Saved/
 
 # Some included file types (e.g. png, xml) can land in the UWP engine binaries directories
 /Engine/Binaries/UWP*/**
+Engine/Binaries/DotNET/AutomationScripts/UWP/System.Runtime.WindowsRuntime.xml
+Engine/Binaries/DotNET/AutomationScripts/UWP/Windows.xml
+Engine/Build/UWP/Resources/en/resources.resw

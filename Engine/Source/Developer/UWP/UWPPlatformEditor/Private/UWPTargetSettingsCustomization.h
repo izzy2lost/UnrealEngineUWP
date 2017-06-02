@@ -17,15 +17,21 @@ public:
 	// End of IDetailCustomization interface
 private:
 
+	void AddWidgetForCapability(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> CapabilityList, const FString& CapabilityName, const FText& CapabilityCaption, const FText& CapabilityTooltip);
+	void AddWidgetForPlatformVersion(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle);
 	void AddWidgetForResourceImage(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle, const FVector2D& ImageDimensions);
+	void AddWidgetForTargetDeviceFamily(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle);
+	static FString GetNameForSigningCertificate(const FString &CertificatePath);
 	FString GetPickerPath();
 	bool HandlePostExternalIconCopy(const FString & InChosenImage);
-	static void OnCertificatePicked(const FString& PickedPath, const FString &TargetPath);
-	static FString GetNameForSigningCertificate(const FString &CertificatePath);
-	static void TransferColorToHexProperty(TSharedRef<IPropertyHandle> ColorProperty, TSharedRef<IPropertyHandle> HexProperty);
-	void OnPlatformVersionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> HandlePtr);
-	void AddWidgetForPlatformVersion(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle);
 	void InitSupportedPlatformVersions();
+	void InitTargetDeviceFamilyOptions();
+	ECheckBoxState IsCapabilityChecked(TSharedRef<IPropertyHandle> CapabilityList, const FString CapabilityName) const;
+	void OnCapabilityStateChanged(ECheckBoxState CheckState, TSharedRef<IPropertyHandle> CapabilityList, const FString CapabilityName);
+	static void OnCertificatePicked(const FString& PickedPath, const FString &TargetPath);
+	void OnSelectedItemChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> HandlePtr);
+	static void TransferColorToHexProperty(TSharedRef<IPropertyHandle> ColorProperty, TSharedRef<IPropertyHandle> HexProperty);
 
 	TArray<TSharedPtr<FString>> PlatformVersionOptions;
+	TArray<TSharedPtr<FString>> TargetDeviceFamilyOptions;
 };

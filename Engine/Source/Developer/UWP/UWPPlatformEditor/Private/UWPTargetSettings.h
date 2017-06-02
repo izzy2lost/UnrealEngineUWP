@@ -59,35 +59,41 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "Toolchain", Meta = (DisplayName = "Copy Cooked Content for F5 Deployment"))
 	uint32 bCopyCookedContentForF5Deployment : 1;
 
-	UPROPERTY(EditAnywhere, config, Category=Packaging)
+	UPROPERTY(EditAnywhere, config, Category = Packaging)
 	FString SigningCertificate;
 
-	UPROPERTY(EditAnywhere, config, Category=Packaging)
+	UPROPERTY(EditAnywhere, config, Category = Packaging)
 	FString Logo;
 
-	UPROPERTY(EditAnywhere, config, Category=Packaging)
+	UPROPERTY(EditAnywhere, config, Category = Packaging)
 	FString SmallLogo;
 
-	UPROPERTY(EditAnywhere, config, Category=Packaging)
+	UPROPERTY(EditAnywhere, config, Category = Packaging)
 	FString WideLogo;
 
-	UPROPERTY(EditAnywhere, config, Category=Packaging)
+	UPROPERTY(EditAnywhere, config, Category = Packaging)
 	FString SplashScreen;
 
 	UPROPERTY(EditAnywhere, config, Category = Packaging)
 	FString StoreLogo;
 
-	UPROPERTY(EditAnywhere, config, Category = Packaging)
-	FString TileBackgroundColorHex;
-
-	UPROPERTY(EditAnywhere, config, Category = Packaging)
-	FString SplashScreenBackgroundColorHex;
+	UPROPERTY(EditAnywhere, Category = Packaging, meta=(HideAlphaChannel))
+	FColor TileBackgroundColor = FColor::FromHex(FString("#000040"));
 
 	UPROPERTY(EditAnywhere, Category = Packaging, meta=(HideAlphaChannel))
-	FColor TileBackgroundColor;
+	FColor SplashScreenBackgroundColor = FColor::FromHex(FString("#000040"));
 
-	UPROPERTY(EditAnywhere, Category = Packaging, meta=(HideAlphaChannel))
-	FColor SplashScreenBackgroundColor;
+	UPROPERTY(EditAnywhere, config, Category = Packaging)
+	FString TileBackgroundColorHex = FString::Printf(TEXT("#%02X%02X%02X"), TileBackgroundColor.R, TileBackgroundColor.G, TileBackgroundColor.B);
+
+	UPROPERTY(EditAnywhere, config, Category = Packaging)
+	FString SplashScreenBackgroundColorHex = FString::Printf(TEXT("#%02X%02X%02X"), SplashScreenBackgroundColor.R, SplashScreenBackgroundColor.G, SplashScreenBackgroundColor.B);
+
+	/**
+	* Identifies the device family that your package will target.
+	*/
+	UPROPERTY(EditAnywhere, config, Category = "OS Info")
+	FString TargetDeviceFamily;
 
 	/**
 	* Minimum version of the universal platform required to run this title.
@@ -107,4 +113,34 @@ public:
 	/** The compiler version to use for this project. May be different to the chosen IDE. */
 	UPROPERTY(EditAnywhere, config, Category = "Toolchain", Meta = (DisplayName = "Compiler Version"))
 	ECompilerVersion CompilerVersion;
+
+	/**
+	* List of supported <Capability><Capability> elements for the application.
+	*/
+	UPROPERTY(EditAnywhere, config, Category = Capabilities)
+	TArray<FString> CapabilityList;
+
+	/**
+	* List of supported <Capability><DeviceCapability> elements for the application.
+	*/
+	UPROPERTY(EditAnywhere, config, Category = Capabilities)
+	TArray<FString> DeviceCapabilityList;
+
+	/**
+	* List of supported <Capability><uap:Capability> elements for the application.
+	*/
+	UPROPERTY(EditAnywhere, config, Category = Capabilities)
+	TArray<FString> UapCapabilityList;
+
+	/**
+	* List of supported <Capability><uap2:Capability> elements for the application.
+	*/
+	UPROPERTY(EditAnywhere, config, Category = Capabilities)
+	TArray<FString> Uap2CapabilityList;
+
+	/**
+	* Set default capabilities (InternetClientServer and PrivateNetworkClientServer) for the application.
+	*/
+	UPROPERTY(EditAnywhere, config, Category = Capabilities)
+	bool bSetDefaultCapabilities = true;
 };

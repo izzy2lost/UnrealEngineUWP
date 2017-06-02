@@ -192,7 +192,7 @@ namespace UnrealBuildTool
 			string AppxManifestTargetPath = Path.Combine(AbsoluteExeDirectory, "AppxManifest.xml");
 
 			// Generate AppX manifest based on ini files and referenced winmd files.
-			PackageManifestGenerator ManifestGenerator = new PackageManifestGenerator(RelativeExeFilePath, InProjectDirectory, ProjectFile, Platform, new string[] { "uap", "mp" }, WinMDReferences);
+			PackageManifestGenerator ManifestGenerator = new PackageManifestGenerator(RelativeExeFilePath, InProjectDirectory, ProjectFile, Platform, new string[] { "uap", "mp", "uap2" }, WinMDReferences);
 			ManifestGenerator.CreateManifest(AppxManifestTargetPath);
 
             // Generate resources based on ini files.
