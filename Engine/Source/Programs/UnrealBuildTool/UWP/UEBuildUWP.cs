@@ -323,7 +323,7 @@ namespace UnrealBuildTool
 					{
 						return Compiler;
 					}
-					else
+					else if (Compiler != WindowsCompiler.Default)
 					{
 						Log.TraceWarning("Selected compiler ({0}) requested by config is not supported.  Setting will be ignored.", Compiler);
 					}

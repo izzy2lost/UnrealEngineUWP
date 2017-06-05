@@ -16,6 +16,16 @@ namespace UWP.Automation
         {
         }
 
+		public override void PlatformSetupParams(ref ProjectParams ProjParams)
+		{
+			base.PlatformSetupParams(ref ProjParams);
+
+			if (UniversalWindowsPlatform.Compiler == WindowsCompiler.Default)
+			{
+				UniversalWindowsPlatform.Compiler = UniversalWindowsPlatform.GetDefaultCompiler(new string[] { }, ProjParams.RawProjectPath);
+			}
+		}
+
 		public override void Deploy(ProjectParams Params, DeploymentContext SC)
 		{
 			string AppxManifestPath = Path.Combine(SC.StageDirectory, "AppxManifest.xml");

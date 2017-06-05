@@ -71,7 +71,7 @@ namespace UnrealBuildTool
 			string UniversalWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract");
 			VCProjectFileContent.Append("		<AdditionalOptions>/ZW</AdditionalOptions>" + ProjectFileGenerator.NewLine);
 			VCProjectFileContent.Append("		<NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions);PLATFORM_UWP=1;UWP=1;</NMakePreprocessorDefinitions>" + ProjectFileGenerator.NewLine);
-			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(WindowsPlatform.Compiler);
+			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(UniversalWindowsPlatform.Compiler);
 			if (PlatformWinMDLocation != null)
 			{
 				VCProjectFileContent.Append("       <NMakeAssemblySearchPath>$(NMakeAssemblySearchPath);" + PlatformWinMDLocation + "</NMakeAssemblySearchPath>" + ProjectFileGenerator.NewLine);

@@ -853,7 +853,7 @@ namespace UnrealBuildTool
 			AppxSchema = new XmlSchemaSet();
 			AppxSchema.ValidationEventHandler += SchemaCallback;
 
-			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2017)
+			if (UniversalWindowsPlatform.Compiler == WindowsCompiler.VisualStudio2017)
 			{
 				DirectoryReference VSInstallDir;
 				WindowsPlatform.TryGetVSInstallDir(WindowsPlatform.Compiler, out VSInstallDir);
