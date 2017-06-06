@@ -53,6 +53,8 @@ bool FUWPTargetPlatform::SupportsFeature(ETargetPlatformFeatures Feature) const
 	return TTargetPlatformBase<FUWPPlatformProperties>::SupportsFeature(Feature);
 }
 
+#if WITH_ENGINE
+
 void FUWPTargetPlatform::GetTextureFormats(const UTexture* InTexture, TArray<FName>& OutFormats) const
 {
 	bool bExcludeShaderModel4Support = false;
@@ -81,6 +83,7 @@ void FUWPTargetPlatform::GetAllTargetedShaderFormats(TArray<FName>& OutFormats) 
 	}
 }
 
+#endif
 
 
 #include "HideWindowsPlatformTypes.h"
