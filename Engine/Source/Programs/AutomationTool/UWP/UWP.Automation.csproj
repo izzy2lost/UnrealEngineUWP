@@ -45,25 +45,22 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
   </ItemGroup>
-  <Choose>
-    <When Condition=" '$(VS140COMNTOOLS)' != '' ">
-      <PropertyGroup>
-        <TargetPlatformVersion>8.0</TargetPlatformVersion>
-        <DefineConstants>VS140COMNTOOLS;$(DefineConstants)</DefineConstants>
-        <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-      </PropertyGroup>
-      <ItemGroup>
-        <Reference Include="System.Runtime.WindowsRuntime">
-          <HintPath>C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETCore\v4.5\System.Runtime.WindowsRuntime.dll</HintPath>
-          <HintPath>$(SystemDrive)\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETCore\$(TargetFrameworkVersion)\System.Runtime.WindowsRuntime.dll</HintPath>
-        </Reference>
-        <Reference Include="Windows">
-          <HintPath>C:\Program Files (x86)\Microsoft Visual Studio 14.0\XAML\WinMetadata\8.1\Unified\Windows.winmd</HintPath>
-          <HintPath>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v8.1@InstallationFolder)\References\CommonConfiguration\Neutral\Windows.winmd</HintPath>
-        </Reference>
-      </ItemGroup>
-    </When>
-  </Choose>
+  <PropertyGroup>
+    <Windows10SdkPath>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0@InstallationFolder)</Windows10SdkPath>
+    <Windows10SdkLatestVersion>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0@ProductVersion)</Windows10SdkLatestVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System.Runtime.WindowsRuntime">
+      <HintPath>C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETCore\v4.5\System.Runtime.WindowsRuntime.dll</HintPath>
+      <HintPath>$(SystemDrive)\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETCore\$(TargetFrameworkVersion)\System.Runtime.WindowsRuntime.dll</HintPath>
+    </Reference>
+    <Reference Include="Windows">
+      <HintPath>$(Windows10SdkPath)\UnionMetadata\$(Windows10SdkLatestVersion)\Windows.winmd</HintPath>
+      <HintPath>$(Windows10SdkPath)\UnionMetadata\Windows.winmd</HintPath>
+      <HintPath>C:\Program Files (x86)\Microsoft Visual Studio 14.0\XAML\WinMetadata\8.1\Unified\Windows.winmd</HintPath>
+      <HintPath>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v8.1@InstallationFolder)\References\CommonConfiguration\Neutral\Windows.winmd</HintPath>
+    </Reference>
+  </ItemGroup>
   <ItemGroup>
     <Compile Include="..\..\DotNETCommon\MetaData.cs">
       <Link>Properties\MetaData.cs</Link>
