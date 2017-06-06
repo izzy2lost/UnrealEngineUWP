@@ -6,6 +6,7 @@ function Install-LivePackage($pathToNuget, $packageName, $packageVersion, $insta
 	$tempFolder = [System.IO.Path]::GetTempPath()
 	[string] $tempLinkName = [System.Guid]::NewGuid()
 	$tempLinkName = Join-Path $tempFolder $tempLinkName
+	New-Item -Path $installLocation -ItemType Directory -ErrorAction Ignore
 	New-Item -Path $tempLinkName -ItemType SymbolicLink -Value $installLocation
 
 	&$pathToNuget install $packageName -version $packageVersion -outputdirectory $tempLinkName
