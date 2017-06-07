@@ -47,6 +47,11 @@ struct CORE_API FUWPProcess : public FGenericPlatformProcess
 	static const TCHAR* UserSettingsDir();
 	static const TCHAR* UserTempDir();
 	static const TCHAR* ApplicationSettingsDir();
+
+	static const TCHAR* GetLocalAppDataLowLevelPath();
+	static const TCHAR* GetTempAppDataLowLevelPath();
+	static const TCHAR* GetLocalAppDataRedirectPath();
+	static const TCHAR* GetTempAppDataRedirectPath();
 };
 
 typedef FUWPProcess FPlatformProcess;

@@ -176,24 +176,7 @@ void FUWPProcess::SetCurrentWorkingDirectoryToBaseDir()
 
 const TCHAR* FUWPProcess::UserDir()
 {
-	static TCHAR Result[PLATFORM_MAX_FILEPATH_LENGTH] = TEXT("");
-
-	if (!Result[0])
-	{
-		Windows::Storage::StorageFolder ^ LocalFolder = Windows::Storage::ApplicationData::Current->LocalFolder;
-		if (nullptr != LocalFolder)
-		{
-			Platform::String^ LocalPath = LocalFolder->Path;
-			if (nullptr != LocalPath)
-			{
-				FCString::Strncpy(Result, LocalPath->Data(), PLATFORM_MAX_FILEPATH_LENGTH);
-			}
-		}
-
-		check(Result[0]);
-	}
-
-	return Result;
+	return UE_BUILD_SHIPPING ? GetLocalAppDataLowLevelPath() : GetLocalAppDataRedirectPath();
 }
 
 const TCHAR* FUWPProcess::UserSettingsDir()
@@ -204,24 +187,7 @@ const TCHAR* FUWPProcess::UserSettingsDir()
 
 const TCHAR* FUWPProcess::UserTempDir()
 {
-	static TCHAR Result[PLATFORM_MAX_FILEPATH_LENGTH] = TEXT("");
-
-	if (!Result[0])
-	{
-		Windows::Storage::StorageFolder ^ TempFolder = Windows::Storage::ApplicationData::Current->TemporaryFolder;
-		if (nullptr != TempFolder)
-		{
-			Platform::String^ TempPath = TempFolder->Path;
-			if (nullptr != TempPath)
-			{
-				FCString::Strncpy(Result, TempPath->Data(), PLATFORM_MAX_FILEPATH_LENGTH);
-			}
-		}
-
-		check(Result[0]);
-	}
-
-	return Result;
+	return UE_BUILD_SHIPPING ? GetTempAppDataLowLevelPath() : GetTempAppDataRedirectPath();
 }
 
 const TCHAR* FUWPProcess::ApplicationSettingsDir()
@@ -342,6 +308,58 @@ void FUWPProcess::SetThreadAffinityMask(uint64 AffinityMask)
 	::SetThreadAffinityMask(::GetCurrentThread(), (DWORD_PTR)AffinityMask);
 }
 // @ATG_CHANGE : END thread affinity addition
+
+const TCHAR* FUWPProcess::GetLocalAppDataLowLevelPath()
+{
+	static TCHAR Result[PLATFORM_MAX_FILEPATH_LENGTH] = TEXT("");
+	if (!Result[0])
+	{
+		Windows::Storage::StorageFolder ^ TempFolder = Windows::Storage::ApplicationData::Current->LocalFolder;
+		if (nullptr != TempFolder)
+		{
+			Platform::String^ TempPath = TempFolder->Path;
+			if (nullptr != TempPath)
+			{
+				FCString::Strncpy(Result, TempPath->Data(), PLATFORM_MAX_FILEPATH_LENGTH);
+			}
+		}
+
+		check(Result[0]);
+	}
+
+	return Result;
+}
+
+const TCHAR* FUWPProcess::GetTempAppDataLowLevelPath()
+{
+	static TCHAR Result[PLATFORM_MAX_FILEPATH_LENGTH] = TEXT("");
+	if (!Result[0])
+	{
+		Windows::Storage::StorageFolder ^ TempFolder = Windows::Storage::ApplicationData::Current->TemporaryFolder;
+		if (nullptr != TempFolder)
+		{
+			Platform::String^ TempPath = TempFolder->Path;
+			if (nullptr != TempPath)
+			{
+				FCString::Strncpy(Result, TempPath->Data(), PLATFORM_MAX_FILEPATH_LENGTH);
+			}
+		}
+
+		check(Result[0]);
+	}
+
+	return Result;
+}
+
+const TCHAR* FUWPProcess::GetLocalAppDataRedirectPath()
+{
+	return TEXT("..\\..\\UWPLocalAppData");
+}
+
+const TCHAR* FUWPProcess::GetTempAppDataRedirectPath()
+{
+	return TEXT("..\\..\\UWPTempAppData");
+}
 
 PACK_WINRT_REVERT()
 

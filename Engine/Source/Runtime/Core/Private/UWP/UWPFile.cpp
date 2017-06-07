@@ -1,6 +1,7 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 
 #include "UWPFile.h"
+#include "UWPProcess.h"
 #include <sys/utime.h>
 
 
@@ -174,16 +175,41 @@ protected:
 	virtual FString NormalizeFilename(const TCHAR* Filename)
 	{
 		FString Result(Filename);
+
+#if !UE_BUILD_SHIPPING
+		if (Result.StartsWith(FUWPProcess::GetLocalAppDataRedirectPath()))
+		{
+			Result = Result.Replace(FUWPProcess::GetLocalAppDataRedirectPath(), FUWPProcess::GetLocalAppDataLowLevelPath());
+		}
+		if (Result.StartsWith(FUWPProcess::GetTempAppDataRedirectPath()))
+		{
+			Result = Result.Replace(FUWPProcess::GetTempAppDataRedirectPath(), FUWPProcess::GetTempAppDataLowLevelPath());
+		}
+#endif
+
 		FPaths::NormalizeFilename(Result);
 		if (Result.StartsWith(TEXT("//")))
 		{
 			Result = FString(TEXT("\\\\")) + Result.RightChop(2);
 		}
+
 		return FPaths::ConvertRelativePathToFull(Result);
 	}
 	virtual FString NormalizeDirectory(const TCHAR* Directory)
 	{
 		FString Result(Directory);
+
+#if !UE_BUILD_SHIPPING
+		if (Result.StartsWith(FUWPProcess::GetLocalAppDataRedirectPath()))
+		{
+			Result = Result.Replace(FUWPProcess::GetLocalAppDataRedirectPath(), FUWPProcess::GetLocalAppDataLowLevelPath());
+		}
+		if (Result.StartsWith(FUWPProcess::GetTempAppDataRedirectPath()))
+		{
+			Result = Result.Replace(FUWPProcess::GetTempAppDataRedirectPath(), FUWPProcess::GetTempAppDataLowLevelPath());
+		}
+#endif
+
 		FPaths::NormalizeDirectoryName(Result);
 		if (Result.StartsWith(TEXT("//")))
 		{
@@ -451,6 +477,12 @@ public:
 		}
 		return Result;
 	}
+
+	virtual bool CreateDirectoryTree(const TCHAR* Directory) override
+	{
+		return IPlatformFile::CreateDirectoryTree(*NormalizeDirectory(Directory));
+	}
+
 };
 
 IPlatformFile& IPlatformFile::GetPlatformPhysical()
