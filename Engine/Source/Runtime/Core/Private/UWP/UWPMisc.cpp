@@ -81,6 +81,8 @@ void FUWPMisc::PlatformPreInit()
 
 	// initialize the file SHA hash mapping
 	InitSHAHashes();
+
+	PumpMessages(true);
 }
 
 void FUWPMisc::PlatformInit()
@@ -91,6 +93,13 @@ void FUWPMisc::PlatformInit()
 
 	// Timer resolution.
 	UE_LOG(LogInit, Log, TEXT("High frequency timer resolution =%f MHz"), 0.000001 / FPlatformTime::GetSecondsPerCycle());
+
+	PumpMessages(true);
+}
+
+void FUWPMisc::PlatformPostInit(bool ShowSplashScreen)
+{
+	PumpMessages(true);
 }
 
 GenericApplication* FUWPMisc::CreateApplication()

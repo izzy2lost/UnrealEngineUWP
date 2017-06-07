@@ -1027,12 +1027,16 @@ int32 GuardedMain( const TCHAR* CmdLine, HINSTANCE hInInstance, HINSTANCE hPrevI
 	// That will also use the user folder for installed builds so we don't write into program files or whatever.
 	FCString::Strcpy(MiniDumpFilenameW, *FString::Printf( TEXT("unreal-v%i-%s.dmp"), FEngineVersion::Current().GetChangelist(), *FDateTime::Now().ToString()));
 
+	GViewProvider->ProcessEvents();
+
 	// Call PreInit and exit if failed.
 	int32 ErrorLevel = EnginePreInit(CmdLine);
 	if ((ErrorLevel != 0) || GIsRequestingExit)
 	{
 		return ErrorLevel;
 	}
+
+	GViewProvider->ProcessEvents();
 
 	// Game without wxWindows.
 	ErrorLevel = EngineInit();

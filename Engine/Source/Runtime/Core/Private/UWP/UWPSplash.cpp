@@ -5,11 +5,13 @@
 void FUWPSplash::Show()
 {
 	//@todo.UWP: Implement me
+	FUWPMisc::PumpMessages(true);
 }
 
 void FUWPSplash::Hide()
 {
 	//@todo.UWP: Implement me
+	FUWPMisc::PumpMessages(true);
 }
 
 void FUWPSplash::SetSplashText( const SplashTextType::Type InType, const TCHAR* InText )
