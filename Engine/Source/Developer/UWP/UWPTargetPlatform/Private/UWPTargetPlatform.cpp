@@ -6,41 +6,68 @@
 #include "UWPTargetPlatform.h"
 #include "UWPTargetDevice.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/ScopeLock.h"
+#include "HttpModule.h"
+#include "PlatformHttp.h"
+#include "IHttpResponse.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUWPTargetPlatform, Log, All);
 
-#include "AllowWindowsPlatformTypes.h"
-
 FUWPTargetPlatform::FUWPTargetPlatform()
 {
-	LocalDevice = MakeShareable(new FUWPTargetDevice(*this));
-
 #if WITH_ENGINE
 	FConfigCacheIni::LoadLocalIniFile(EngineSettings, TEXT("Engine"), true, *PlatformName());
 	TextureLODSettings = nullptr; // These are registered by the device profile system.
 	StaticMeshLODSettings.Initialize(EngineSettings);
 #endif
+
+	DeviceDetectedRegistration = IUWPDeviceDetectorModule::Get().OnDeviceDetected().AddRaw(this, &FUWPTargetPlatform::OnDeviceDetected);
+
+	IUWPDeviceDetectorModule::Get().StartDeviceDetection();
+}
+
+FUWPTargetPlatform::~FUWPTargetPlatform()
+{
+	IUWPDeviceDetectorModule::Get().OnDeviceDetected().Remove(DeviceDetectedRegistration);
 }
 
 void FUWPTargetPlatform::GetAllDevices(TArray<ITargetDevicePtr>& OutDevices) const
 {
 	OutDevices.Reset();
-	OutDevices.Add(LocalDevice);
+	FScopeLock Lock(&DevicesLock);
+	OutDevices = Devices;
 }
 
 ITargetDevicePtr FUWPTargetPlatform::GetDevice(const FTargetDeviceId& DeviceId)
 {
-	if (LocalDevice.IsValid() && (DeviceId == LocalDevice->GetId()))
+	if (PlatformName() == DeviceId.GetPlatformName())
 	{
-		return LocalDevice;
+		FScopeLock Lock(&DevicesLock);
+		for (ITargetDevicePtr Device : Devices)
+		{
+			if (DeviceId == Device->GetId())
+			{
+				return Device;
+			}
+		}
 	}
+
 
 	return nullptr;
 }
 
 ITargetDevicePtr FUWPTargetPlatform::GetDefaultDevice() const
 {
-	return LocalDevice;
+	FScopeLock Lock(&DevicesLock);
+	for (ITargetDevicePtr RemoteDevice : Devices)
+	{
+		if (RemoteDevice->IsDefault())
+		{
+			return RemoteDevice;
+		}
+	}
+
+	return nullptr;
 }
 
 bool FUWPTargetPlatform::SupportsFeature(ETargetPlatformFeatures Feature) const
@@ -85,5 +112,20 @@ void FUWPTargetPlatform::GetAllTargetedShaderFormats(TArray<FName>& OutFormats) 
 
 #endif
 
-
-#include "HideWindowsPlatformTypes.h"
+void FUWPTargetPlatform::OnDeviceDetected(const FUWPDeviceInfo& Info)
+{
+	if (SupportsDevice(Info.DeviceTypeName, Info.Is64Bit != 0))
+	{
+		// Don't automatically add remote devices that require credentials.  They
+		// must be manually added by the user so that we can collect those credentials.
+		if (Info.IsLocal() || !Info.RequiresCredentials)
+		{
+			FUWPDevicePtr NewDevice = MakeShared<FUWPTargetDevice, ESPMode::ThreadSafe>(*this, Info);
+			{
+				FScopeLock Lock(&DevicesLock);
+				Devices.Add(NewDevice);
+			}
+			DeviceDiscoveredEvent.Broadcast(NewDevice.ToSharedRef());
+		}
+	}
+}

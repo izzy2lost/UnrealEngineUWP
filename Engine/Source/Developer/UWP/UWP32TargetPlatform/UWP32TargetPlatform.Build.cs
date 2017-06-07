@@ -2,31 +2,31 @@
 
 using UnrealBuildTool;
 
-public class UWPTargetPlatform : ModuleRules
+public class UWP32TargetPlatform : ModuleRules
 {
-	public UWPTargetPlatform(TargetInfo Target)
+	public UWP32TargetPlatform(TargetInfo Target)
 	{
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
 				"CoreUObject",
-				"Settings",
 				"TargetPlatform",
-				"DesktopPlatform",
+				"UWPTargetPlatform",
 				"UWPDeviceDetector",
-				"HTTP",
+				"DesktopPlatform",
 			}
 		);
 
-		PrivateIncludePathModuleNames.Add("Settings");
-
-		// compile withEngine
 		if (UEBuildConfiguration.bCompileAgainstEngine)
 		{
 			PrivateDependencyModuleNames.Add("Engine");
 			PrivateIncludePathModuleNames.Add("TextureCompressor");
 		}
 
-		PublicAdditionalLibraries.Add("shlwapi.lib");
+		PrivateIncludePaths.AddRange(
+			new string[] {
+				"Developer/UWP/UWPTargetPlatform/Private"
+			}
+		);
 	}
 }

@@ -1,10 +1,10 @@
+#include "UWPTargetDevice.h"
 #include "ITargetPlatformModule.h"
 #include "UWPTargetPlatform.h"
 #include "AllowWindowsPlatformTypes.h"
 #include "ISettingsModule.h"
 #include "ModuleManager.h"
 #include "Package.h"
-
 
 #define LOCTEXT_NAMESPACE "FUWPTargetPlatformModule"
 
@@ -42,7 +42,7 @@ public:
 		{
 			//@todo UWP: Check for SDK?
 
-			UWPTargetSingleton = new FUWPTargetPlatform();
+			UWPTargetSingleton = new TUWPTargetPlatform<true>();
 		}
 		
 		return UWPTargetSingleton;

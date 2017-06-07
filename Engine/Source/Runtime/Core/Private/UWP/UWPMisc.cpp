@@ -484,4 +484,18 @@ EAppReturnType::Type FUWPMisc::MessageBoxExt(EAppMsgType::Type MsgType, const TC
 	return ReturnValue;
 }
 
+void FUWPMisc::GetValidTargetPlatforms(class TArray<class FString>& TargetPlatformNames)
+{
+	// FPlatformProperties::PlatformName just reports generic UWP.  But now 
+	// that the editor supports remote devices, we have full-fledged platforms for
+	// both UWP64 and UWP32.  We must therefore report these as valid in the runtime
+	// or the toolchain will become confused.
+	TargetPlatformNames.Add(FPlatformProperties::PlatformName());
+	if (PLATFORM_64BITS)
+	{
+		TargetPlatformNames.Add(TEXT("UWP64"));
+	}
+	TargetPlatformNames.Add(TEXT("UWP32"));
+}
+
 PACK_WINRT_REVERT()

@@ -5,10 +5,13 @@
 
 #pragma once
 
-#include "ITargetDevice.h"
-#include "ITargetPlatform.h"
-#include "AllowWindowsPlatformTypes.h"
+#include "CoreMinimal.h"
+#include "HAL/PlatformProcess.h"
+#include "Interfaces/ITargetDevice.h"
+#include "Interfaces/ITargetPlatform.h"
+#include "IUWPDeviceDetectorModule.h"
 
+#include "AllowWindowsPlatformTypes.h"
 
 /**
  * Implements a UWP target device.
@@ -23,8 +26,9 @@ public:
 	*
 	* @param InTargetPlatform - The target platform.
 	*/
-	FUWPTargetDevice(const ITargetPlatform& InTargetPlatform)
+	FUWPTargetDevice(const ITargetPlatform& InTargetPlatform, const FUWPDeviceInfo& InInfo)
 		: TargetPlatform(InTargetPlatform)
+		, Info(InInfo)
 	{ }
 
 
@@ -40,22 +44,42 @@ public:
 
 	virtual ETargetDeviceTypes GetDeviceType() const override
 	{
-		return ETargetDeviceTypes::Indeterminate;
+		if (Info.DeviceTypeName == UWPDeviceTypes::Desktop)
+		{
+			return ETargetDeviceTypes::Desktop;
+		}
+		else if (Info.DeviceTypeName == UWPDeviceTypes::Xbox)
+		{
+			return ETargetDeviceTypes::Console;
+		}
+		else
+		{
+			return ETargetDeviceTypes::Indeterminate;
+		}
 	}
 
 	virtual FTargetDeviceId GetId() const override
 	{
-		return FTargetDeviceId(TargetPlatform.PlatformName(), GetName());
+		if (Info.IsLocal())
+		{
+			return FTargetDeviceId(TargetPlatform.PlatformName(), Info.HostName);
+		}
+		else
+		{
+			// This is what gets handed off to UAT, so we need to supply the
+			// actual Device Portal url instead of just the host name
+			return FTargetDeviceId(TargetPlatform.PlatformName(), Info.WdpUrl);
+		}
 	}
 
 	virtual FString GetName() const override
 	{
-		return FString(FPlatformProcess::ComputerName()) + TEXT("_UWP");
+		return Info.HostName + TEXT(" (UWP)");
 	}
 
 	virtual FString GetOperatingSystemName() override
 	{
-		return TEXT("UWP");
+		return FString::Printf(TEXT("UWP (%s)"), *Info.DeviceTypeName.ToString());
 	}
 
 	virtual int32 GetProcessSnapshot(TArray<FTargetDeviceProcessInfo>& OutProcessInfos) override
@@ -80,7 +104,7 @@ public:
 
 	virtual bool IsDefault() const override
 	{
-		return true;
+		return Info.HostName == FPlatformProcess::ComputerName();
 	}
 
 	virtual bool Launch(const FString& AppId, EBuildConfigurations::Type BuildConfiguration, EBuildTargets::Type BuildTarget, const FString& Params, uint32* OutProcessId) override;
@@ -122,6 +146,10 @@ public:
 private:
 	// Holds a reference to the device's target platform.
 	const ITargetPlatform& TargetPlatform;
+
+	FUWPDeviceInfo Info;
 };
+
+typedef TSharedPtr<FUWPTargetDevice, ESPMode::ThreadSafe> FUWPDevicePtr;
 
 #include "HideWindowsPlatformTypes.h"

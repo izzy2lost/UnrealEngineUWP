@@ -192,10 +192,6 @@ namespace UWP.Automation
 		public override bool IsSupported { get { return true; } }
 		public override bool UseAbsLog { get { return false; } }
 		public override bool LaunchViaUFE { get { return true; } }
-		public override string UFEPlatformName
-		{
-			get { return "UWP"; }
-		}
 
 		public override List<string> GetDebugFileExtentions()
 		{

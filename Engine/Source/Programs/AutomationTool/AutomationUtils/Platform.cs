@@ -440,13 +440,6 @@ namespace AutomationTool
 			get { return false; }
 		}
 
-		// @ATG_CHANGE : BEGIN UWP packaging & F5 support
-		public virtual string UFEPlatformName
-		{
-			get { return PlatformType.ToString(); }
-		}
-		// @ATG_CHANGE : END
-
 		/// <summary>
 		/// True if this platform can write to the abslog path that's on the host desktop.
 		/// </summary>

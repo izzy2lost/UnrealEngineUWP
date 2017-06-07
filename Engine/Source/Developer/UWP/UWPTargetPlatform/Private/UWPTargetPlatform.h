@@ -5,7 +5,11 @@
 #pragma once
 
 #include "TargetPlatformBase.h"
-#include "UWP/UWPProperties.h"
+#include "Runtime/Core/Public/UWP/UWPProperties.h"
+#include "Misc/ConfigCacheIni.h"
+#include "UWPTargetDevice.h"
+#include "Misc/ScopeLock.h"
+#include "IUWPDeviceDetectorModule.h"
 
 #include "AllowWindowsPlatformTypes.h"
 
@@ -13,10 +17,12 @@
 #include "StaticMeshResources.h"
 #endif // WITH_ENGINE
 
+#define LOCTEXT_NAMESPACE "UWPTargetPlatform"
+
 /**
  * FUWPTargetPlatform, abstraction for cooking UWP platforms
  */
-class FUWPTargetPlatform
+class UWPTARGETPLATFORM_API FUWPTargetPlatform
 	: public TTargetPlatformBase<FUWPPlatformProperties>
 {
 public:
@@ -29,7 +35,7 @@ public:
 	/**
 	 * Destructor.
 	 */
-	virtual ~FUWPTargetPlatform() {}
+	virtual ~FUWPTargetPlatform();
 
 public:
 
@@ -92,12 +98,35 @@ public:
 		return DeviceLostEvent;
 	}
 
+	virtual bool RequiresUserCredentials() const override
+	{
+		return true;
+	}
+
+	virtual bool SupportsVariants() const override
+	{
+		return true;
+	}
+
+	virtual FText GetVariantTitle() const override
+	{
+		return LOCTEXT("UWPVariantTitle", "Build Type");
+	}
+
 	//~ End ITargetPlatform Interface
+
+protected:
+
+	virtual bool SupportsDevice(FName DeviceType, bool DeviceIs64Bits) = 0;
 
 private:
 
-	// Holds the local device.
-	ITargetDevicePtr LocalDevice;
+	void OnDeviceDetected(const FUWPDeviceInfo& Info);
+
+	mutable FCriticalSection DevicesLock;
+	TArray<ITargetDevicePtr> Devices;
+
+	FDelegateHandle DeviceDetectedRegistration;
 
 #if WITH_ENGINE
 	// Holds the Engine INI settings (for quick access).
@@ -119,5 +148,43 @@ private:
 	FOnTargetDeviceLost DeviceLostEvent;
 };
 
+template <bool Is64Bit>
+class TUWPTargetPlatform : public FUWPTargetPlatform
+{
+	virtual FText GetVariantTitle() const override
+	{
+		return LOCTEXT("UWPVariantTitle", "Build Type");
+	}
+
+	virtual FString PlatformName() const override
+	{
+		return Is64Bit ? TEXT("UWP64") : TEXT("UWP32");
+	}
+
+	virtual FText GetVariantDisplayName() const override
+	{
+		return Is64Bit ? LOCTEXT("UWP64VariantDisplayName", "UWP (64 bit)") : LOCTEXT("UWP32VariantDisplayName", "UWP (32 bit)");
+	}
+
+	virtual float GetVariantPriority() const override
+	{
+		return Is64Bit ? 1.0f : 0.0f;
+	}
+
+protected:
+	virtual bool SupportsDevice(FName DeviceType, bool DeviceIs64Bits)
+	{
+		if (DeviceIs64Bits)
+		{
+			return Is64Bit || DeviceType != UWPDeviceTypes::Xbox;
+		}
+		else
+		{
+			return !Is64Bit;
+		}
+	}
+};
+
+#undef LOCTEXT_NAMESPACE
 
 #include "HideWindowsPlatformTypes.h"

@@ -91,6 +91,8 @@ struct CORE_API FUWPMisc : public FGenericPlatformMisc
 		return false;
 	}
 
+	static void GetValidTargetPlatforms(TArray<FString>& TargetPlatformNames);
+
 private:
 
 	/** character buffer containing the last protocol activation URI */

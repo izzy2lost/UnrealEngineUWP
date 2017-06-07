@@ -575,6 +575,7 @@ namespace UnrealBuildTool
 						if (UEBuildConfiguration.bBuildDeveloperTools)
 						{
 							Rules.PlatformSpecificDynamicallyLoadedModuleNames.Add("UWPTargetPlatform");
+							Rules.PlatformSpecificDynamicallyLoadedModuleNames.Add("UWP32TargetPlatform");
 						}
 					}
 				}
@@ -585,6 +586,7 @@ namespace UnrealBuildTool
 					if (UEBuildConfiguration.bForceBuildTargetPlatforms)
 					{
 						Rules.PlatformSpecificDynamicallyLoadedModuleNames.Add("UWPTargetPlatform");
+						Rules.PlatformSpecificDynamicallyLoadedModuleNames.Add("UWP32TargetPlatform");
 					}
 				}
 
