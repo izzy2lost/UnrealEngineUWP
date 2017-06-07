@@ -114,7 +114,7 @@ namespace UWP.Automation
 
 		public override string GetCookPlatform(bool bDedicatedServer, bool bIsClientOnly)
 		{
-			return "UWP";
+			return PlatformType.ToString();
 		}
 
 		public override void Package(ProjectParams Params, DeploymentContext SC, int WorkingCL)
