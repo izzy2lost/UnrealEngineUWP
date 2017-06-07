@@ -26,30 +26,10 @@ public:
 	*/
 	FOutputDeviceEventLog()
 	{
-#if !UE_BUILD_SHIPPING
-		// In normal startup flow InitializeSession is called later.  But it's useful to identify the provider using a GUID
-		// that can be controlled by an external application, and session id is ideal for this purpose.  Luckily it doesn't
-		// really hurt to call InitializeSession twice.
-		FApp::InitializeSession();
-#endif
-		Platform::Guid PlatformGuid;
-		if (FApp::IsStandalone())
-		{
-			static const Platform::Guid MicrosoftWindowsDiagnoticsLoggingChannelId(0x4bd2826e, 0x54a1, 0x4ba9, 0xbf, 0x63, 0x92, 0xb7, 0x3e, 0xa1, 0xac, 0x4a);
-			PlatformGuid = MicrosoftWindowsDiagnoticsLoggingChannelId;
-		}
-		else
-		{
-			FGuid ProviderId = FApp::GetSessionId();
-
-			// Memory layout of UE FGuid and Windows GUID is potentially different, so convert carefully to make sure that the
-			// provider GUID gets the value that the external driver expects.
-			PlatformGuid = Platform::Guid(ProviderId.A,
-				ProviderId.B >> 16, ProviderId.B & 0xffff,
-				ProviderId.C >> 24, (ProviderId.C >> 16) & 0xff, (ProviderId.C >> 8) & 0xff, ProviderId.C & 0xff,
-				ProviderId.D >> 24, (ProviderId.D >> 16) & 0xff, (ProviderId.D >> 8) & 0xff, ProviderId.D & 0xff);
-		}
-		EtwLogChannel = ref new Windows::Foundation::Diagnostics::LoggingChannel(ref new Platform::String(FApp::GetGameName()), nullptr, PlatformGuid);
+		// Always use the default logging channel GUID here.  This is simpler than the prior approach of sometimes
+		// using the session id, and UAT can still filter on the provider name.
+		static const Platform::Guid MicrosoftWindowsDiagnoticsLoggingChannelId(0x4bd2826e, 0x54a1, 0x4ba9, 0xbf, 0x63, 0x92, 0xb7, 0x3e, 0xa1, 0xac, 0x4a);
+		EtwLogChannel = ref new Windows::Foundation::Diagnostics::LoggingChannel(ref new Platform::String(FApp::GetGameName()), nullptr, MicrosoftWindowsDiagnoticsLoggingChannelId);
 	}
 
 	/** Destructor that cleans up any remaining resources */
