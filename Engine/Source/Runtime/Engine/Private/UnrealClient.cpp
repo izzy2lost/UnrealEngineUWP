@@ -19,6 +19,7 @@
 #include "Matinee/MatineeActor.h"
 #include "EditorSupportDelegates.h"
 #include "HighResScreenshot.h"
+#include "GameFramework/GameUserSettings.h"
 
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
@@ -271,6 +272,10 @@ const FTexture2DRHIRef& FRenderTarget::GetRenderTargetTexture() const
 	return RenderTargetTextureRHI;
 }
 
+FUnorderedAccessViewRHIRef FRenderTarget::GetRenderTargetUAV() const
+{
+	return FUnorderedAccessViewRHIRef();
+}
 
 void FScreenshotRequest::RequestScreenshot(bool bInShowUI)
 {
@@ -795,7 +800,7 @@ FViewport::FViewport(FViewportClient* InViewportClient):
 	ViewportClient(InViewportClient),
 	SizeX(0),
 	SizeY(0),
-	WindowMode(EWindowMode::Windowed),
+	WindowMode(IsRunningGame() ? GEngine->GetGameUserSettings()->GetDefaultWindowMode() : EWindowMode::Windowed),
 	bHitProxiesCached(false),
 	bHasRequestedToggleFreeze(false),
 	bIsSlateViewport(false),
