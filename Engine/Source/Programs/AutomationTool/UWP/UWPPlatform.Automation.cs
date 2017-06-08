@@ -691,7 +691,15 @@ namespace UWP.Automation
 			string LauncherPath = Path.Combine(SDKFolder, "App Certification Kit", "microsoft.windows.softwarelogo.appxlauncher.exe");
 			IProcessResult LauncherProc = Run(LauncherPath, Aumid);
 			LauncherProc.WaitForExit();
-			string LogFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages", InstalledPackage.Id.FamilyName, "LocalState", Params.ShortProjectName, "Saved", "Logs", Params.ShortProjectName + ".log");
+			string LogFile;
+			if (Params.CookOnTheFly)
+			{
+				LogFile = Path.Combine(Params.RawProjectPath.Directory.FullName, "Saved", "Cooked", PlatformType.ToString(), Params.ShortProjectName, "UWPLocalAppData", Params.ShortProjectName, "Saved", "Logs", Params.ShortProjectName + ".log");
+			}
+			else
+			{
+				LogFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages", InstalledPackage.Id.FamilyName, "LocalState", Params.ShortProjectName, "Saved", "Logs", Params.ShortProjectName + ".log");
+			}
 			System.Diagnostics.Process Proc = System.Diagnostics.Process.GetProcessById(LauncherProc.ExitCode);
 			bool AllowSpew = ClientRunFlags.HasFlag(ERunOptions.AllowSpew);
 			UnrealBuildTool.LogEventType SpewVerbosity = ClientRunFlags.HasFlag(ERunOptions.SpewIsVerbose) ? UnrealBuildTool.LogEventType.Verbose : UnrealBuildTool.LogEventType.Console;
