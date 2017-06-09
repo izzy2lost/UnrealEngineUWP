@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 using UnrealBuildTool;
 using System;
 using System.IO;
@@ -12,7 +12,7 @@ public class ICU : ModuleRules
         Dynamic
     }
 
-	public ICU(TargetInfo Target)
+	public ICU(ReadOnlyTargetRules Target) : base(Target)
 	{
 		Type = ModuleType.External;
 
@@ -69,7 +69,7 @@ public class ICU : ModuleRules
             // Library Paths
             PublicLibraryPaths.Add(TargetSpecificPath + "lib" + "/");
 
-			EICULinkType ICULinkType = Target.IsMonolithic ? EICULinkType.Static : EICULinkType.Dynamic;
+			EICULinkType ICULinkType = (Target.LinkType == TargetLinkType.Monolithic)? EICULinkType.Static : EICULinkType.Dynamic;
             switch(ICULinkType)
             {
             case EICULinkType.Static:
@@ -201,7 +201,7 @@ public class ICU : ModuleRules
             string LibraryNamePostfix = (Target.Configuration == UnrealTargetConfiguration.Debug && BuildConfiguration.bDebugBuildsActuallyUseDebugCRT) ?
                 "d" : string.Empty;
 
-			EICULinkType ICULinkType = (Target.Platform == UnrealTargetPlatform.IOS || Target.IsMonolithic) ? EICULinkType.Static : EICULinkType.Dynamic;
+			EICULinkType ICULinkType = (Target.Platform == UnrealTargetPlatform.IOS || (Target.LinkType == TargetLinkType.Monolithic)) ? EICULinkType.Static : EICULinkType.Dynamic;
             // Library Paths
             switch (ICULinkType)
             {

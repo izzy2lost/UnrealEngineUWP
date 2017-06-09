@@ -11,7 +11,7 @@ using System.Text;
 
 namespace UnrealBuildTool
 {
-	public interface IntelliSenseGatherer
+	interface IntelliSenseGatherer
 	{
 		/// <summary>
 		/// Adds all of the specified preprocessor definitions to this VCProject's list of preprocessor definitions for all modules in the project
@@ -40,13 +40,18 @@ namespace UnrealBuildTool
 	/// A single target within a project.  A project may have any number of targets within it, which are basically compilable projects
 	/// in themselves that the project wraps up.
 	/// </summary>
-	public class ProjectTarget
+	class ProjectTarget
 	{
 		/// The target rules file path on disk, if we have one
 		public FileReference TargetFilePath;
 
 		/// The project file path on disk
 		public FileReference ProjectFilePath;
+
+		/// <summary>
+		/// Path to the .uproject file on disk
+		/// </summary>
+		public FileReference UnrealProjectFilePath;
 
 		/// Optional target rules for this target.  If the target came from a *.Target.cs file on disk, then it will have one of these.
 		/// For targets that are synthetic (like UnrealBuildTool or other manually added project files) we won't have a rules object for those.
@@ -79,7 +84,7 @@ namespace UnrealBuildTool
 	/// <summary>
 	/// Class that stores info about aliased file.
 	/// </summary>
-	public struct AliasedFile
+	struct AliasedFile
 	{
 		public AliasedFile(string FileSystemPath, string ProjectPath)
 		{
@@ -94,7 +99,7 @@ namespace UnrealBuildTool
 		public readonly string ProjectPath;
 	}
 
-	public abstract class ProjectFile : IntelliSenseGatherer
+	abstract class ProjectFile : IntelliSenseGatherer
 	{
 		/// <summary>
 		/// Represents a single source file (or other type of file) in a project
@@ -104,8 +109,8 @@ namespace UnrealBuildTool
 			/// <summary>
 			/// Constructor
 			/// </summary>
-			/// <param name="InitFilePath">Path to the source file on disk</param>
-			/// <param name="InitRelativeBaseFolder">The directory on this the path within the project will be relative to</param>
+			/// <param name="InReference">Path to the source file on disk</param>
+			/// <param name="InBaseFolder">The directory on this the path within the project will be relative to</param>
 			public SourceFile(FileReference InReference, DirectoryReference InBaseFolder)
 			{
 				Reference = InReference;
@@ -139,7 +144,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Constructs a new project file object
 		/// </summary>
-		/// <param name="InitFilePath">The path to the project file, relative to the master project file</param>
+		/// <param name="InProjectFilePath">The path to the project file, relative to the master project file</param>
 		protected ProjectFile(FileReference InProjectFilePath)
 		{
 			ProjectFilePath = InProjectFilePath;
@@ -179,6 +184,15 @@ namespace UnrealBuildTool
 			set;
 		}
 
+		/// <summary>
+		/// For mod projects, contains the path to the plugin file
+		/// </summary>
+		public FileReference PluginFilePath
+		{
+			get;
+			set;
+		}
+
 		/// Whether this project should be built for all solution targets
 		public bool ShouldBuildForAllSolutionTargets
 		{
@@ -204,7 +218,7 @@ namespace UnrealBuildTool
 		/// Adds a list of files to this project, ignoring dupes
 		/// </summary>
 		/// <param name="FilesToAdd">Files to add</param>
-		/// <param name="RelativeBaseFolder">The directory the path within the project will be relative to</param>
+		/// <param name="BaseFolder">The directory the path within the project will be relative to</param>
 		public void AddFilesToProject(List<FileReference> FilesToAdd, DirectoryReference BaseFolder)
 		{
 			foreach (FileReference CurFile in FilesToAdd)
@@ -319,6 +333,7 @@ namespace UnrealBuildTool
 		/// Adds all of the specified include paths to this VCProject's list of include paths for all modules in the project
 		/// </summary>
 		/// <param name="NewIncludePaths">List of include paths to add</param>
+		/// <param name="bAddingSystemIncludes"></param>
 		public void AddInteliiSenseIncludePaths(HashSet<string> NewIncludePaths, bool bAddingSystemIncludes)
 		{
 			if (ProjectFileGenerator.OnlyGenerateIntelliSenseDataForProject == null ||
@@ -453,6 +468,18 @@ namespace UnrealBuildTool
 		{
 			throw new BuildException("UnrealBuildTool cannot automatically generate this project type because WriteProjectFile() was not overridden.");
 		}
+
+		/// <summary>
+		/// If found writes a debug project file to disk
+		/// </summary>
+		/// <param name="InPlatforms">The platforms to write the project files for</param>
+		/// <param name="InConfigurations">The configurations to add to the project files</param>
+		/// <returns>List of project files written</returns>
+		public virtual List<Tuple<ProjectFile, string>> WriteDebugProjectFiles(List<UnrealTargetPlatform> InPlatforms, List<UnrealTargetConfiguration> InConfigurations)
+		{
+			return null;
+		}
+
 
 		public virtual void LoadGUIDFromExistingProject()
 		{

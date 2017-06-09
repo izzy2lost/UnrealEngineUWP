@@ -220,9 +220,9 @@ void FD3D11Viewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 		check(SizeY > 0);
 
 		// Resize the swap chain.
-		// @ATG_CHANGE : BEGIN UWP resize support
+		DXGI_FORMAT RenderTargetFormat = GetRenderTargetFormat(PixelFormat);
 		// Resize all existing buffers, don't change count
-		VERIFYD3D11RESULT_EX(SwapChain->ResizeBuffers(0,SizeX,SizeY,GetRenderTargetFormat(PixelFormat),DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH), D3DRHI->GetDevice());
+		VERIFYD3D11RESIZEVIEWPORTRESULT(SwapChain->ResizeBuffers(0,SizeX,SizeY,RenderTargetFormat,DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH),SizeX,SizeY,RenderTargetFormat, D3DRHI->GetDevice());
 		// @ATG_CHANGE : END UWP resize support
 
 		if(bInIsFullscreen)
@@ -247,7 +247,7 @@ void FD3D11Viewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 	}
 
 	// Float RGBA backbuffers are requested whenever HDR mode is desired
-	if (PixelFormat == PF_FloatRGBA && bIsFullscreen)
+	if (PixelFormat == GRHIHDRDisplayOutputFormat && bIsFullscreen)
 	{
 		D3DRHI->EnableHDR();
 	}
@@ -552,7 +552,7 @@ void FD3D11DynamicRHI::RHIBeginDrawingViewport(FViewportRHIParamRef ViewportRHI,
 		RenderTarget = Viewport->GetBackBuffer();
 		RHITransitionResources(EResourceTransitionAccess::EWritable, &RenderTarget, 1);
 	}
-	FRHIRenderTargetView View(RenderTarget);
+	FRHIRenderTargetView View(RenderTarget, ERenderTargetLoadAction::ELoad);
 	RHISetRenderTargets(1,&View,nullptr,0,NULL);
 
 	// Set an initially disabled scissor rect.

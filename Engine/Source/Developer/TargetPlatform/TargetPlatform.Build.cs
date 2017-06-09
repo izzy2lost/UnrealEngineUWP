@@ -5,7 +5,7 @@ using System.IO;
 
 public class TargetPlatform : ModuleRules
 {
-	public TargetPlatform(TargetInfo Target)
+	public TargetPlatform(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PrivateDependencyModuleNames.Add("Core");		
         PublicDependencyModuleNames.Add("DesktopPlatform");
@@ -57,7 +57,7 @@ public class TargetPlatform : ModuleRules
 					DynamicallyLoadedModuleNames.Add("AudioFormatOpus"); 
 				}
 
-				if (Target.Type == TargetRules.TargetType.Editor || Target.Type == TargetRules.TargetType.Program)
+				if (Target.Type == TargetType.Editor || Target.Type == TargetType.Program)
 				{
 					DynamicallyLoadedModuleNames.Add("AndroidTargetPlatform");
 					DynamicallyLoadedModuleNames.Add("Android_PVRTCTargetPlatform");
@@ -93,7 +93,7 @@ public class TargetPlatform : ModuleRules
 					DynamicallyLoadedModuleNames.Add("AudioFormatOpus");
 				}
 
-				if (Target.Type == TargetRules.TargetType.Editor || Target.Type == TargetRules.TargetType.Program)
+				if (Target.Type == TargetType.Editor || Target.Type == TargetType.Program)
 				{
 					DynamicallyLoadedModuleNames.Add("AndroidTargetPlatform");
 					DynamicallyLoadedModuleNames.Add("Android_MultiTargetPlatform");
@@ -125,7 +125,7 @@ public class TargetPlatform : ModuleRules
 					DynamicallyLoadedModuleNames.Add("AudioFormatOpus");
 				}
 
-				if (Target.Type == TargetRules.TargetType.Editor || Target.Type == TargetRules.TargetType.Program)
+				if (Target.Type == TargetType.Editor || Target.Type == TargetType.Program)
 				{
 					DynamicallyLoadedModuleNames.Add("AndroidTargetPlatform");
 					DynamicallyLoadedModuleNames.Add("Android_MultiTargetPlatform");
@@ -135,6 +135,7 @@ public class TargetPlatform : ModuleRules
 					DynamicallyLoadedModuleNames.Add("Android_ETC1TargetPlatform");
 					DynamicallyLoadedModuleNames.Add("Android_ETC2TargetPlatform");
 					DynamicallyLoadedModuleNames.Add("Android_ASTCTargetPlatform");
+					DynamicallyLoadedModuleNames.Add("HTML5TargetPlatform");
 				}
             }
 		}

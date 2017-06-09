@@ -4,7 +4,7 @@ using UnrealBuildTool;
 
 public class D3D11RHI : ModuleRules
 {
-	public D3D11RHI(TargetInfo Target)
+	public D3D11RHI(ReadOnlyTargetRules Target) : base(Target)
 	{
 // @ATG_CHANGE : BEGIN UWP support
 		if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)

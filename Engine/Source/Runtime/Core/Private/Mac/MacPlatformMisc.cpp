@@ -28,6 +28,7 @@
 #include "Misc/FeedbackContext.h"
 #include "Internationalization/Internationalization.h"
 #include "Internationalization/Culture.h"
+#include "Apple/ApplePlatformDebugEvents.h"
 
 #include <dlfcn.h>
 #include <IOKit/IOKitLib.h>
@@ -115,10 +116,32 @@ struct FMacApplicationInfo
 
 		RunningOnMavericks = OSXVersion.majorVersion == 10 && OSXVersion.minorVersion == 9;
 
+		XcodeVersion.majorVersion = XcodeVersion.minorVersion = XcodeVersion.patchVersion = 0;
+
 		FPlatformProcess::ExecProcess(TEXT("/usr/bin/xcode-select"), TEXT("--print-path"), nullptr, &XcodePath, nullptr);
 		if (XcodePath.Len() > 0)
 		{
 			XcodePath.RemoveAt(XcodePath.Len() - 1); // Remove \n at the end of the string
+			if (IFileManager::Get().DirectoryExists(*XcodePath))
+			{
+				FString XcodeAppPath = XcodePath.Left(XcodePath.Find(TEXT(".app/")) + 4);
+				NSBundle* XcodeBundle = [NSBundle bundleWithPath:XcodeAppPath.GetNSString()];
+				if (XcodeBundle)
+				{
+					NSString* XcodeVersionString = (NSString*)[XcodeBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+					if (XcodeVersionString)
+					{
+						NSArray<NSString*>* VersionComponents = [XcodeVersionString componentsSeparatedByString:@"."];
+						XcodeVersion.majorVersion = [[VersionComponents objectAtIndex:0] integerValue];
+						XcodeVersion.minorVersion = VersionComponents.count > 1 ? [[VersionComponents objectAtIndex:1] integerValue] : 0;
+						XcodeVersion.patchVersion = VersionComponents.count > 2 ? [[VersionComponents objectAtIndex:2] integerValue] : 0;
+					}
+				}
+			}
+			else
+			{
+				XcodePath.Empty();
+			}
 		}
 
 		char TempSysCtlBuffer[PATH_MAX] = {};
@@ -350,6 +373,7 @@ struct FMacApplicationInfo
 	NSOperatingSystemVersion OSXVersion;
 	FGuid RunUUID;
 	FString XcodePath;
+	NSOperatingSystemVersion XcodeVersion;
 	NSPipe* StdErrPipe;
 	static PLCrashReporter* CrashReporter;
 	static FMacMallocCrashHandler* CrashMalloc;
@@ -421,9 +445,20 @@ void FMacPlatformMisc::PlatformInit()
 	UE_LOG(LogInit, Log, TEXT("High frequency timer resolution =%f MHz"), 0.000001 / FPlatformTime::GetSecondsPerCycle() );
 	
 	UE_LOG(LogInit, Log, TEXT("Power Source: %s"), GMacAppInfo.RunningOnBattery ? TEXT(kIOPSBatteryPowerValue) : TEXT(kIOPSACPowerValue) );
+
+#if WITH_EDITOR
+	if (GMacAppInfo.XcodePath.Len())
+	{
+		UE_LOG(LogInit, Log, TEXT("Xcode developer folder path: %s, version %d.%d.%d"), *GMacAppInfo.XcodePath, GMacAppInfo.XcodeVersion.majorVersion, GMacAppInfo.XcodeVersion.minorVersion, GMacAppInfo.XcodeVersion.patchVersion);
+	}
+	else
+	{
+		UE_LOG(LogInit, Log, TEXT("No Xcode installed"));
+	}
+#endif
 }
 
-void FMacPlatformMisc::PlatformPostInit(bool ShowSplashScreen)
+void FMacPlatformMisc::PlatformPostInit()
 {
 	// Setup the app menu in menu bar
 	const bool bIsBundledApp = [[[NSBundle mainBundle] bundlePath] hasSuffix:@".app"];
@@ -1630,6 +1665,11 @@ void FMacPlatformMisc::GetOSVersions( FString& out_OSVersionLabel, FString& out_
 	out_OSSubVersionLabel = GMacAppInfo.OSBuild;
 }
 
+FString FMacPlatformMisc::GetOSVersion()
+{
+	return GMacAppInfo.OSVersion;
+}
+
 bool FMacPlatformMisc::GetDiskTotalAndFreeSpace(const FString& InPath, uint64& TotalNumberOfBytes, uint64& NumberOfFreeBytes)
 {
 	struct statfs FSStat = { 0 };
@@ -1652,8 +1692,18 @@ bool FMacPlatformMisc::HasSeparateChannelForDebugOutput()
 
 void FMacPlatformMisc::LoadPreInitModules()
 {
-	FModuleManager::Get().LoadModule(TEXT("OpenGLDrv"));
 	FModuleManager::Get().LoadModule(TEXT("CoreAudio"));
+	FModuleManager::Get().LoadModule(TEXT("AudioMixerCoreAudio"));
+}
+
+void* FMacPlatformMisc::CreateAutoreleasePool()
+{
+	return [[NSAutoreleasePool alloc] init];
+}
+
+void FMacPlatformMisc::ReleaseAutoreleasePool(void *Pool)
+{
+	[(NSAutoreleasePool*)Pool release];
 }
 
 FLinearColor FMacPlatformMisc::GetScreenPixelColor(const FVector2D& InScreenPos, float /*InGamma*/)
@@ -1708,20 +1758,26 @@ uint32 FMacPlatformMisc::GetCPUInfo()
 	return Args[0];
 }
 
-FString FMacPlatformMisc::GetDefaultLocale()
+FString FMacPlatformMisc::GetDefaultLanguage()
 {
-
 	CFArrayRef Languages = CFLocaleCopyPreferredLanguages();
 	CFStringRef LangCodeStr = (CFStringRef)CFArrayGetValueAtIndex(Languages, 0);
 	FString LangCode((__bridge NSString*)LangCodeStr);
 	CFRelease(Languages);
 
+	return LangCode;
+}
+
+FString FMacPlatformMisc::GetDefaultLocale()
+{
 	CFLocaleRef Locale = CFLocaleCopyCurrent();
+	CFStringRef LangCodeStr = (CFStringRef)CFLocaleGetValue(Locale, kCFLocaleLanguageCode);
+	FString LangCode((__bridge NSString*)LangCodeStr);
 	CFStringRef CountryCodeStr = (CFStringRef)CFLocaleGetValue(Locale, kCFLocaleCountryCode);
 	FString CountryCode((__bridge NSString*)CountryCodeStr);
 	CFRelease(Locale);
 
-	return FString::Printf(TEXT("%s_%s"), *LangCode, *CountryCode);
+	return CountryCode.IsEmpty() ? LangCode : FString::Printf(TEXT("%s-%s"), *LangCode, *CountryCode);
 }
 
 FText FMacPlatformMisc::GetFileManagerName()
@@ -1780,6 +1836,13 @@ FString FMacPlatformMisc::GetOperatingSystemId()
 FString FMacPlatformMisc::GetXcodePath()
 {
 	return GMacAppInfo.XcodePath;
+}
+
+// @todo: It's not a member of FMacPlatformMisc to avoid changing public headers in 4.16.1, but ideally we should add FMacPlatformMisc::XcodeVersionCompare that will replace this
+bool IsSupportedXcodeVersionInstalled()
+{
+	// We need Xcode 8.2 or newer to be able to compile Metal shaders correctly
+	return GMacAppInfo.XcodeVersion.majorVersion > 8 || (GMacAppInfo.XcodeVersion.majorVersion == 8 && GMacAppInfo.XcodeVersion.minorVersion >= 2);
 }
 
 float FMacPlatformMisc::GetDPIScaleFactorAtPoint(float X, float Y)
@@ -2875,3 +2938,20 @@ void FMacPlatformMisc::UpdateDriverMonitorStatistics(int32 DeviceIndex)
 		}
 	}
 }
+
+#if MAC_PROFILING_ENABLED
+void FMacPlatformMisc::BeginNamedEvent(const struct FColor& Color,const TCHAR* Text)
+{
+	FApplePlatformDebugEvents::BeginNamedEvent(Color, Text);
+}
+
+void FMacPlatformMisc::BeginNamedEvent(const struct FColor& Color,const ANSICHAR* Text)
+{
+	FApplePlatformDebugEvents::BeginNamedEvent(Color, Text);
+}
+
+void FMacPlatformMisc::EndNamedEvent()
+{
+	FApplePlatformDebugEvents::EndNamedEvent();
+}
+#endif
