@@ -7,12 +7,13 @@ public class DX11Audio : ModuleRules
 	{
 		Type = ModuleType.External;
 
-// @ATG_CHANGE : BEGIN UWP support
-		string DirectXSDKDir = WindowsPlatform.ShouldUseWindowsSDK10(Target.Platform) ?
+        // @ATG_CHANGE : BEGIN UWP Support
+		string DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
 			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
 			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";        
+        // @ATG_CHANGE : END
 
-		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
+        PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
@@ -26,7 +27,6 @@ public class DX11Audio : ModuleRules
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86/Win7");
 		}
-// @ATG_CHANGE : END
 		if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			PublicAdditionalLibraries.AddRange(

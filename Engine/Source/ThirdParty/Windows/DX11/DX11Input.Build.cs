@@ -7,12 +7,12 @@ public class DX11Input : ModuleRules
 	{
 		Type = ModuleType.External;
 
-// @ATG_CHANGE : BEGIN UWP support
-        string DirectXSDKDir = WindowsPlatform.ShouldUseWindowsSDK10(Target.Platform) ?
+        // @ATG_CHANGE : BEGIN UWP support
+        string DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
             UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
 			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";
 
-		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
+        PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
@@ -22,7 +22,7 @@ public class DX11Input : ModuleRules
 		{
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
 		}
-// @ATG_CHANGE : END
+		// @ATG_CHANGE : END
 		PublicAdditionalLibraries.AddRange(
 			new string[] {
 				"dxguid.lib",

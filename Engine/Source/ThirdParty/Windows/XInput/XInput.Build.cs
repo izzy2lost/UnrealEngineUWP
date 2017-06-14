@@ -7,12 +7,12 @@ public class XInput : ModuleRules
 	{
 		Type = ModuleType.External;
 
-// @ATG_CHANGE : BEGIN UWP support
-        string DirectXSDKDir = WindowsPlatform.ShouldUseWindowsSDK10(Target.Platform) ?
+		// @ATG_CHANGE : BEGIN UWP support
+        string DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
             UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
 			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";
 
-		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
+        PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
 		if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.Win64)
 		{ 
 			// Ensure correct include and link paths for xinput so the correct dll is loaded (xinput1_3.dll)
@@ -32,7 +32,7 @@ public class XInput : ModuleRules
 		{
 			PublicAdditionalLibraries.Add("xinputuap.lib");
 		}
-// @ATG_CHANGE : END
+		// @ATG_CHANGE : END
 	}
 }
 

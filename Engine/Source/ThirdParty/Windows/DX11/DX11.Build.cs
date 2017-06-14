@@ -7,13 +7,12 @@ public class DX11 : ModuleRules
 	{
 		Type = ModuleType.External;
 
-// @ATG_CHANGE : BEGIN UWP support
-
-        string DirectXSDKDir = WindowsPlatform.ShouldUseWindowsSDK10(Target.Platform) ?
+        // @ATG_CHANGE : BEGIN UWP support
+        string DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
             UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
 			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";
- 
-		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
+		// @ATG_CHANGE : END 
+        PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
 
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
 		{
@@ -27,7 +26,6 @@ public class DX11 : ModuleRules
 			{
 				PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
 			}
-// @ATG_CHANGE : END
 
 			PublicAdditionalLibraries.AddRange(
 				new string[] {
@@ -38,21 +36,22 @@ public class DX11 : ModuleRules
 				"d3dcompiler.lib",
 				(Target.Configuration == UnrealTargetConfiguration.Debug && BuildConfiguration.bDebugBuildsActuallyUseDebugCRT) ? "d3dx11d.lib" : "d3dx11.lib",
 				"dinput8.lib",
-			}
-			);
-
-		// Preserved for consistency with original version, but definitely not needed when using Win10 SDK
-		if (!WindowsPlatform.ShouldUseWindowsSDK10(Target.Platform))
-		{
-			PublicAdditionalLibraries.AddRange(
-				new string[]
-				{
-					"X3DAudio.lib",
-					"xapobase.lib",
-					"XAPOFX.lib"
 				}
 				);
-		}
+	        // @ATG_CHANGE : BEGIN DX SDK lib isolation clean up
+			// Preserved for consistency with original version, but definitely not needed when using Win10 SDK
+			if (!Target.WindowsPlatform.bUseWindowsSDK10)
+			{
+				PublicAdditionalLibraries.AddRange(
+					new string[]
+					{
+						"X3DAudio.lib",
+						"xapobase.lib",
+						"XAPOFX.lib"
+					}
+					);
+			}
+			// @ATG_CHANGE : END
 		}
 		else if (Target.Platform == UnrealTargetPlatform.XboxOne)
 		{
