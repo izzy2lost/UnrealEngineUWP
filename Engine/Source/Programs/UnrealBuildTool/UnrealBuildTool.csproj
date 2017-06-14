@@ -51,7 +51,7 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <OutputPath>..\..\..\Binaries\DotNET\</OutputPath>
-    <DefineConstants>VS140COMNTOOLS;DEBUG;TRACE</DefineConstants>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
     <Optimize>false</Optimize>
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -211,9 +211,9 @@
     <!-- ATG_CHANGE : BEGIN UWP support  -->
     <Compile Include="UWP\UEBuildUWP.cs" />
     <Compile Include="UWP\UWPDeploy.cs" />
+    <Compile Include="UWP\UWPExports.cs" />
     <Compile Include="UWP\UWPProjectGenerator.cs" />
     <Compile Include="UWP\UWPToolChain.cs" />
-    <Compile Include="UWP\ResourceGenerator.cs" />
     <Compile Include="UWP\ManifestGenerator.cs" />
     <Compile Include="UWP\WinMDRegistrationInfo.cs" />
     <!-- ATG_CHANGE : END UWP support  -->
@@ -225,7 +225,7 @@
     <DefineConstants>VS140COMNTOOLS;$(DefineConstants)</DefineConstants>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <Windows10SdkPath>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0@InstallationFolder)</Windows10SdkPath>
-    <Windows10SdkLatestVersion>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0@ProductVersion)</Windows10SdkLatestVersion>  
+    <Windows10SdkLatestVersion>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0@ProductVersion)</Windows10SdkLatestVersion>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System.Runtime.WindowsRuntime">

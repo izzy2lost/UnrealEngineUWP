@@ -32,19 +32,19 @@ namespace UnrealBuildTool
 		/// 64-bit Windows
 		/// </summary>
 		Win64,
-		
+
 		// @ATG_CHANGE : BEGIN UWP support
 		/// <summary>
 		/// UWP (x64)
 		/// </summary>
 		UWP64,
-		
+
 		/// <summary>
 		/// UWP (x86)
-		/// </summary>		
+		/// </summary>
 		UWP32,
 		// @ATG_CHANGE : END
-		
+
 		/// <summary>
 		/// Mac
 		/// </summary>
@@ -105,7 +105,16 @@ namespace UnrealBuildTool
 		/// this group is just to lump Win32 and Win64 into Windows directories, removing the special Windows logic in MakeListOfUnsupportedPlatforms
 		/// </summary>
 		Windows,
-		UWP,    // this group is just to lump UWP32 and UWP64 into UWP directories
+
+		// @ATG_CHANGE : BEGIN UWP support
+		/// <summary>
+		/// this group is just to lump UWP32 and UWP64 into UWP directories
+		/// </summary>
+		UWP,
+		// @ATG_CHANGE : END
+
+		/// <summary>
+		/// Microsoft platforms
 		/// </summary>
 		Microsoft,
 
@@ -389,10 +398,6 @@ namespace UnrealBuildTool
 			return TargetName;
 		}
 
-				// @ATG_CHANGE : BEGIN UWP support
-				case CPPTargetPlatform.UWP32:			return UnrealTargetPlatform.UWP32;
-				case CPPTargetPlatform.UWP64:			return UnrealTargetPlatform.UWP64;
-				// @ATG_CHANGE : END
 		public static List<TargetDescriptor> ParseTargetCommandLine(string[] Arguments, ref FileReference ProjectFile)
 		{
 			UnrealTargetPlatform Platform = UnrealTargetPlatform.Unknown;
@@ -2433,9 +2438,9 @@ namespace UnrealBuildTool
 				}
 				else
 				{
-                    // @ATG_CHANGE : BEGIN UWP support
-                    IsCurrentPlatform = Platform == UnrealTargetPlatform.Win64 || Platform == UnrealTargetPlatform.Win32 || Platform == UnrealTargetPlatform.UWP64 || Platform == UnrealTargetPlatform.UWP32;
-                    // @ATG_CHANGE : END
+					// @ATG_CHANGE : BEGIN UWP support
+					IsCurrentPlatform = Platform == UnrealTargetPlatform.Win64 || Platform == UnrealTargetPlatform.Win32 || Platform == UnrealTargetPlatform.UWP64 || Platform == UnrealTargetPlatform.UWP32;
+					// @ATG_CHANGE : END
 				}
 
 				if ((TargetType == TargetType.Game || TargetType == TargetType.Client || TargetType == TargetType.Server)

@@ -57,6 +57,14 @@ namespace UnrealBuildTool
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bEnablePIXProfiling")]
 		public bool bPixProfilingEnabled = true;
 
+		// @ATG_CHANGE : BEGIN UWP support
+        /// <summary>
+        /// Enable building the editor with the Win10 SDK instead of the older Win8.1 SDK (enables UWP deployment features)
+        /// </summary>
+        [ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bUseWindowsSDK10")]
+        public bool bUseWindowsSDK10 = WindowsPlatform.bUseWindowsSDK10;
+		// @ATG_CHANGE : END UWP support
+
 		/// <summary>
 		/// The name of the company (author, provider) that created the project.
 		/// </summary>
@@ -138,6 +146,13 @@ namespace UnrealBuildTool
 			get { return Inner.bPixProfilingEnabled; }
 		}
 
+		// @ATG_CHANGE : BEGIN UWP support
+		public bool bUseWindowsSDK10
+		{
+			get { return Inner.bUseWindowsSDK10; }
+		}
+		// @ATG_CHANGE : END UWP support
+
 		public string CompanyName
 		{
 			get { return Inner.CompanyName; }
@@ -196,17 +211,29 @@ namespace UnrealBuildTool
 		/// </summary>
 		public static readonly bool bAllowICLLinker = bCompileWithICL && true;
 
+		// @ATG_CHANGE : BEGIN UWP support
+		// Remove read-only since we modify this depending on build target.
 		/// <summary>
 		/// Whether to compile against the Windows 10 SDK, instead of the Windows 8.1 SDK.  This requires the Visual Studio 2015
 		/// compiler or later, and the Windows 10 SDK must be installed.  The application will require at least Windows 8.x to run.
 		/// @todo UWP: Expose this to be enabled more easily for building Windows 10 desktop apps
 		/// </summary>
-		public static readonly bool bUseWindowsSDK10 = false;
+		public static bool bUseWindowsSDK10 = false;
+		// @ATG_CHANGE : END UWP support
 
 		/// <summary>
 		/// True if we allow using addresses larger than 2GB on 32 bit builds
 		/// </summary>
 		public static readonly bool bBuildLargeAddressAwareBinary = true;
+
+		// @ATG_CHANGE : BEGIN UWP support
+		/// <summary>
+		/// True to compile toolchain (but not game targets, which require the standard bUseWindows10SDL) against the Windows 10 SDK.
+		/// We default to true to enable UWP support.  Turning this off will allow the Editor etc. to run on older versions of Windows,
+		/// but will exclude UWP support
+		/// </summary>
+		public static readonly bool bUseWindowsSDK10ForEditor = true;
+		// @ATG_CHANGE : END UWP support
 
 		WindowsPlatformSDK SDK;
 
@@ -777,7 +804,6 @@ namespace UnrealBuildTool
 			LinkEnvironment.AdditionalLibraries.Add("shell32.lib");
 			LinkEnvironment.AdditionalLibraries.Add("ole32.lib");
 			LinkEnvironment.AdditionalLibraries.Add("oleaut32.lib");
-			LinkEnvironment.AdditionalLibraries.Add("uuid.lib");
 			LinkEnvironment.AdditionalLibraries.Add("odbc32.lib");
 			LinkEnvironment.AdditionalLibraries.Add("odbccp32.lib");
 			LinkEnvironment.AdditionalLibraries.Add("netapi32.lib");
@@ -935,6 +961,19 @@ namespace UnrealBuildTool
 		/// <returns>New toolchain instance.</returns>
 		public override UEToolChain CreateToolChain(CppPlatform CppPlatform, ReadOnlyTargetRules Target)
 		{
+			// @ATG_CHANGE : BEGIN UWP support
+			// Using the Win10 SDK in the editor allows additional features for use with UWP, but should
+			// be kept seaparate from the game setting since it affects the minimum Windows version required
+			// to run the built exe.
+			if (Target.Type == TargetType.Editor || Target.Type == TargetType.Program)
+			{
+				if (bUseWindowsSDK10ForEditor)
+				{
+					bUseWindowsSDK10 = true;
+				}
+			}
+			// @ATG_CHANGE : END
+
 			return new VCToolChain(CppPlatform, Target.WindowsPlatform.Compiler);
 		}
 

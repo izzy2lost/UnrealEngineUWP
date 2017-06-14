@@ -1097,7 +1097,9 @@ namespace UnrealBuildTool
 			Result.Definitions.AddRange(Definitions);
 
 			// Setup the compile environment for the module.
-			SetupPrivateCompileEnvironment(Result.IncludePaths.UserIncludePaths, Result.IncludePaths.SystemIncludePaths, Result.Definitions, Result.AdditionalFrameworks);
+			// @ATG_CHANGE : BEGIN winmd support
+			SetupPrivateCompileEnvironment(Result.IncludePaths.UserIncludePaths, Result.IncludePaths.SystemIncludePaths, Result.Definitions, Result.AdditionalFrameworks, Result.WinMDReferences);
+			// @ATG_CHANGE : END winmd support
 
 			// @hack to skip adding definitions to compile environment, they will be baked into source code files
 			if (bSkipDefinitionsForCompileEnvironment)
@@ -1122,6 +1124,11 @@ namespace UnrealBuildTool
 			// Use the default optimization setting for 
 			bool bIsEngineModule = IsEngineModule();
 			CompileEnvironment.bOptimizeCode = ShouldEnableOptimization(ModuleRules.CodeOptimization.Default, Target.Configuration, bIsEngineModule);
+
+			// @ATG_CHANGE : BEGIN winmd support
+			List<string> WinMDFiles = new List<string>(BaseCompileEnvironment.WinMDReferences);
+			WinMDFiles.AddRange(PrivateWinMDReferences);
+			// @ATG_CHANGE : END winmd support
 
 			// Override compile environment
 			CompileEnvironment.bIsBuildingDLL = !Target.ShouldCompileMonolithic();
@@ -1164,7 +1171,9 @@ namespace UnrealBuildTool
 			// Now set up the compile environment for the modules in the original order that we encountered them
 			foreach (UEBuildModule Module in Modules)
 			{
-				Module.AddModuleToCompileEnvironment(null, ModuleToIncludePathsOnlyFlag[Module], CompileEnvironment.IncludePaths.UserIncludePaths, CompileEnvironment.IncludePaths.SystemIncludePaths, CompileEnvironment.Definitions, CompileEnvironment.AdditionalFrameworks);
+				// @ATG_CHANGE : BEGIN - winmd support
+				Module.AddModuleToCompileEnvironment(null, ModuleToIncludePathsOnlyFlag[Module], CompileEnvironment.IncludePaths.UserIncludePaths, CompileEnvironment.IncludePaths.SystemIncludePaths, CompileEnvironment.Definitions, CompileEnvironment.AdditionalFrameworks, WinMDFiles);
+				// @ATG_CHANGE : END - winmd support
 			}
 			return CompileEnvironment;
 		}

@@ -2,162 +2,80 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Resources;
 using System.Xml;
-using System.Xml.Schema;
-using Microsoft.Win32;
 
 namespace UnrealBuildTool
 {
 	/// <summary>
 	///  Class to handle generating an AppxManifest.xml file
 	/// </summary>
-	// @ATG_CHANGE : BEGIN rename to match generic nature, but undid the file move\rename for merge convenience
-	public class PackageManifestGenerator
-	// @ATG_CHANGE : END
+	public class UWPManifestGenerator
 	{
-		// @ATG_CHANGE : BEGIN UWP Packaging support
-		public PackageManifestGenerator(string RelativeExePathParam, string ProjectPathParam, FileReference ProjectFile, UnrealTargetPlatform InPlatform, IEnumerable<string> InAdditionalNamespacePrefixes, IEnumerable<WinMDRegistrationInfo> InWinMDReferences) 
-		{
-			Platform = InPlatform;
+		// Global path configuration
+		private const string BuildResourceSubPath = "Resources";
+		private const string EngineResourceSubPath = "DefaultImages";
 
-			// Store values for use by the settings interpretation function
-			ReletiveExePath = RelativeExePathParam;
-			ProjectPath = ProjectPathParam;
+		// Manifest compliance values
+		private const int MaxResourceEntries = 200;
 
-			CreateAppxSchema();
+		// INI configuration cache
+		private ConfigHierarchy EngineIni;
+		private ConfigHierarchy GameIni;
 
-			// Load up INI settings. We'll use engine settings to retrieve the manifest configuration, but these may reference
-			// values in either game or engine settings, so we'll keep both.
-			DirectoryReference DirRef = DirectoryReference.FromFile(ProjectFile);
-			if (DirRef == null && !string.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()))
-			{
-				DirRef = new DirectoryReference(UnrealBuildTool.GetRemoteIniPath());
-			}
-
-            GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, DirectoryReference.FromFile(ProjectFile), InPlatform);
-            EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(ProjectFile), InPlatform);
-
-			// For additional namespaces, the prefixes are provided by the platform (maintains compatibility with original Xbox One manifest ini data)
-			// but the associated uris come from the ini files themselves.
-			AdditionalNamespaces = new Dictionary<string, string>();
-			foreach (string NamespacePrefix in InAdditionalNamespacePrefixes)
-			{
-				string XmlNSSource;
-				if (EngineIni.GetString("AppxManifest", string.Format("Package.xmlns:{0}", NamespacePrefix), out XmlNSSource))
-				{
-					AdditionalNamespaces.Add(XmlNSSource, NamespacePrefix);
-				}
-			}
-			// @ATG_CHANGE : BEGIN winmd type registration support
-			WinMDReferences = new List<WinMDRegistrationInfo>(InWinMDReferences);
-			// @ATG_CHANGE : END		
-
-		}
-		// @ATG_CHANGE : END
-
-		// @ATG_CHANGE : BEGIN winmd type registration support
+		// Manifest configuration values/paths
 		private List<WinMDRegistrationInfo> WinMDReferences;
-		// @ATG_CHANGE : END
-
-		// @ATG_CHANGE : BEGIN UWP Packaging support
 		private UnrealTargetPlatform Platform;
-		private Dictionary<string, string> AdditionalNamespaces;
-        private ConfigHierarchy EngineIni;
-        private ConfigHierarchy GameIni;
-        private XmlSchemaSet AppxSchema;
-
-		/// <summary>
-		/// Exe path relative to image root
-		/// </summary>
-		private string ReletiveExePath;
-
-		/// <summary>
-		/// Path to project root (real project path if we have it, Engine path if we're building content only and don't know for what)
-		/// </summary>
+		private string TargetSettings;
+		private string BuildResourceProjectRelativePath;
 		private string ProjectPath;
-        // @ATG_CHANGE : END
+		private string OutputPath;
+		private string IntermediatePath;
+		private string DefaultCulture;
+		private List<string> CulturesToStage;
 
-        // @ATG_CHANGE : BEGIN UWP Capability support
-        private bool IncludeDeviceCapabilityType;
-        private bool IncludeUap2CapabilityType;
-        private bool OnlyUap2CapabilityElements;
-        private string CapabilitySection = "/Script/UWPPlatformEditor.UWPTargetSettings";
-        // @ATG_CHANGE : END UWP Capability support
+		// Manifest generation state
+		private ResXResourceWriter DefaultResourceWriter;
+		private List<ResXResourceWriter> PerCultureResourceWriters;
+		private XmlDocument AppxManifestXmlDocument;
+		private List<string> UpdatedFilePaths;
 
-        /// <summary>
-        /// Helper function that inserts a tab character for each indent level.
-        /// </summary>
-        private static string GetIndentString(int Indent)
-		{
-			string Line = null;
-			for (; Indent > 0; Indent--)
-			{
-				Line += "\t";
-			}
-
-			return Line;
-		}
-
-		// @ATG_CHANGE : BEGIN UWP Packaging support
 		/// <summary>
-		/// Search the root of the schema for any substitution groups that can override the TargetElement and insert them into
-		/// OutputContents via the PrintElement function.
-		/// </summary>
-		/// <param name="TargetElement"> Element to search for substitutions of</param>
-		/// <param name="SettingID">  The INI key value for the current element (full tree)</param>
-		/// <param name="Indent">         Indent level of current element</param>
-		/// <param name="OutputContents"> StringBuilder to contain text output of operation</param>
-		/// <returns>bool    true if any elements were successfully written</returns>
-		private bool FixRefForSubstitution(XmlSchemaElement TargetElement, string SettingID, int Indent, StringBuilder OutputContents)
-		// @ATG_CHANGE : END
-		{
-			bool SubstitutionFound = false;
-
-			foreach (XmlSchemaElement Element in AppxSchema.GlobalElements.Values)
-			{
-				if (Element.SubstitutionGroup != null && TargetElement.QualifiedName.Equals(Element.SubstitutionGroup))
-				{
-					SubstitutionFound |= PrintElement(Element, SettingID, Indent, OutputContents, TargetElement.MaxOccurs);
-					// Note: substitution groups are often used in place of choice elements, there could be multiple substitution
-					// options per TargetElement, so do not stop when one is found.
-				}
-			}
-
-			return SubstitutionFound;
-		}
-
-		// @ATG_CHANGE : BEGIN UWP Packaging support
-		/// <summary>
-		/// Retrieve a setting value from INIs. Settings are stored in AppxManifest section of Engine INIs. The setting key
-		/// is the dot delimited XML tree to the element value. Array specifiers allow definition of multiple entries of the
-		/// same element. Interpret any operators and fill values into the final result.
+		/// Retrieve a package configuration option from the deprecated [AppxManifest] INI settings and return the value.
+		/// NOTE: Do not use this method for storing values, it is left in purely for compatibility. All package configuration
+		/// should be done using the target settings in the editor or in the [/Script/UWPPlatformEditor.UWPTargetSettings] INI section.
+		/// Values are stored in the following format.
 		/// Sample INI setting: Package.Capabilities.mx:Capability[0].Name=kinectAudio
 		/// Corresponding XML output:
-		/// <Package>
-		/// <Capabilities>
-		/// <mx:Capability Name="kinectAudio">
+		///		&lt;Package&gt;
+		///		&lt;Capabilities&gt;
+		///		&lt;mx:Capability Name="kinectAudio"&gt;
 		/// Symbol Key:
-		/// $Section:Key$       Look up Key in Section in INI files (Game first then fall back to Engine).
-		/// Replace symbol with INI setting value.
-		/// %RelativeExePath%   Replace value with path to exe from package root.
-		/// %Insert:Path%       Insert contents of file at Path based off of project root path. Will indent all lines in the file
-		/// by the current value of Indent. File should contain valid XML (this is not verified).
+		/// $Section:Key$		Look up Key in Section in INI files (Game first then fall back to Engine).
+		/// 					Replace symbol with INI setting value.
+		/// %RelativeExePath%	Replace value with path to exe from package root.
+		/// %Insert:Path%		Insert contents of file at Path based off of project root path. Will indent all lines in the file
+		/// 					by the current value of Indent. File should contain valid XML (this is not verified).
 		/// </summary>
 		/// <param name="LookupString"> INI key to locate</param>
-		/// <param name="">Index               Optional index of setting for [n] type LookupStrings</param>
-		/// <param name="Indent">      Optional current indent count (used when writing %Insert:Path% values</param>
-		/// <returns>string    INI value for key LookupString post interpretation</returns>
+		/// <param name="Index">Optional index of setting for [n] type LookupStrings</param>
+		/// <param name="Indent">Optional current indent count (used when writing %Insert:Path% values</param>
+		/// <returns>INI value for key LookupString post interpretation</returns>
 		private string GetInterprettedSettingValue(string LookupString, int Index = 0, int Indent = 0)
-		// @ATG_CHANGE : END
 		{
 			char[] VariableMarkers = { '$', '%' };
 			string BaseSetting;
 			string InterprettedSetting = "";
 
 			// Manifest settings are only (validly) located in Engine INI files
-			EngineIni.GetString("AppxManifest", LookupString, out BaseSetting);
+			if (!EngineIni.GetString("AppxManifest", LookupString, out BaseSetting))
+			{
+				return "";
+			}
 
 			// Parse results for any operators
 			int NextSetting = BaseSetting.IndexOfAny(VariableMarkers);
@@ -167,9 +85,7 @@ namespace UnrealBuildTool
 				if (NextSetting > 0)
 				{
 					// Copy any leading text (non-operator) to our output
-					// @ATG_CHANGE : BEGIN UWP Packaging support
 					InterprettedSetting += BaseSetting.Substring(0, NextSetting);
-					// @ATG_CHANGE : END
 				}
 				int LenOfSetting = BaseSetting.Substring(NextSetting + 1).IndexOfAny(VariableMarkers);
 				if (LenOfSetting < 0)
@@ -214,17 +130,7 @@ namespace UnrealBuildTool
 						}
 						break;
 					case '%':
-						if (VariableName.Equals("RelativeExePath"))
-						{
-							InterprettedSetting += ReletiveExePath;
-						}
-						// @ATG_CHANGE : BEGIN UWP Packaging support
-						else if (VariableName.Equals("ExeFlavor"))
-						{
-							InterprettedSetting += ExeFlavor;
-						}
-						// @ATG_CHANGE : END
-						else if (VariableName.StartsWith("Insert:"))
+						if (VariableName.StartsWith("Insert:"))
 						{
 							// Attempt to open path provided based off of the current project path
 							string InsertSource = Path.Combine(ProjectPath, VariableName.Substring(VariableName.IndexOf(':') + 1));
@@ -252,29 +158,27 @@ namespace UnrealBuildTool
 							// Insert file contents one line at a time so that we can add indentation as needed.
 							foreach (string InsertLine in InsertContents)
 							{
-								InterprettedSetting += GetIndentString(Indent) + InsertLine + "\n";
+								InterprettedSetting += InsertLine + "\n";
 							}
 						}
-						else if (VariableName.StartsWith("ResourceString:"))
-						{
-							string SectionKeyPair = VariableName.Substring(VariableName.IndexOf(':') + 1);
-							// Look up $Section:Key$ in Game INIs
-							string SettingKey = SectionKeyPair.Substring(SectionKeyPair.IndexOf(':') + 1);
-							// Replace operator with value recovered
-							InterprettedSetting += "ms-resource:" + SettingKey;
-						}
-						else if (VariableName.StartsWith("ResourceBinary:"))
+						else if (VariableName.StartsWith("ResourceString:") || VariableName.StartsWith("ResourceBinary:"))
 						{
 							string SectionKeyPair = VariableName.Substring(VariableName.IndexOf(':') + 1);
 							// Look up $Section:Key$ in Game INIs
 							string SettingSection = SectionKeyPair.Substring(0, SectionKeyPair.IndexOf(':'));
 							string SettingKey = SectionKeyPair.Substring(SectionKeyPair.IndexOf(':') + 1);
-							// @ATG_CHANGE : BEGIN 
-							// Write the manifest entry even if we don't find the setting.  We should
-							// have appropriate fallbacks elsewhere, and if those fail the resource
-							// generator should flag the issue.
-							InterprettedSetting += "Resources\\" + SettingKey + ".png";
-							// @ATG_CHANGE : END 
+							String SettingValue = null;
+							GameIni.GetString(SettingSection, SettingKey, out SettingValue);
+							// If not found in Game INIs, search for the same Key in Engine INIs
+							if (SettingValue == null || SettingValue.Length == 0)
+							{
+								EngineIni.GetString(SettingSection, SettingKey, out SettingValue);
+							}
+							// Replace operator with value recovered
+							if (SettingValue != null && SettingValue.Length > 0)
+							{
+								InterprettedSetting += SettingValue;
+							}
 						}
 						else if (VariableName.StartsWith("Array:"))
 						{
@@ -297,9 +201,13 @@ namespace UnrealBuildTool
 								// users back here.
 								InterprettedSetting += "InvalidIniValue";
 							}
-							else if (ArraySettingValue.Count > Index)
+							else
 							{
-								InterprettedSetting += ArraySettingValue[Index];
+								List<string> ArraySettingValueDeduplicated = ArraySettingValue.Distinct().ToList();
+								if (ArraySettingValueDeduplicated.Count > Index)
+								{
+									InterprettedSetting += ArraySettingValueDeduplicated[Index];
+								}
 							}
 						}
 						else if (VariableName.StartsWith("AlphaNumericDot:"))
@@ -358,7 +266,7 @@ namespace UnrealBuildTool
 							else if (ValueType.Equals("GUID", StringComparison.InvariantCultureIgnoreCase))
 							{
 								Guid GuidSettingValue;
-								GameIni.GetGUID(SettingSection, SettingKey, out GuidSettingValue);
+								GameIni.TryGetValue(SettingSection, SettingKey, out GuidSettingValue);
 								SettingValue = GuidSettingValue.ToString("N");
 							}
 							else
@@ -377,7 +285,7 @@ namespace UnrealBuildTool
 								else if (ValueType.Equals("GUID", StringComparison.InvariantCultureIgnoreCase))
 								{
 									Guid GuidSettingValue;
-									EngineIni.GetGUID(SettingSection, SettingKey, out GuidSettingValue);
+									EngineIni.TryGetValue(SettingSection, SettingKey, out GuidSettingValue);
 									SettingValue = GuidSettingValue.ToString("N");
 								}
 								else
@@ -417,714 +325,1520 @@ namespace UnrealBuildTool
 			return InterprettedSetting;
 		}
 
-		// @ATG_CHANGE : BEGIN UWP Packaging support
 		/// <summary>
-		/// Print all attributes with setting data for a single XML element to OutputContents.
+		/// Checks that path is a directory and tries to create it if it doesn't exist.
 		/// </summary>
-		/// <param name="Element">         XML element to output attributes of</param>
-		/// <param name="SettingID">  The INI key for the element (base for attribute settings keys)</param>
-		/// <param name="Index">      The index of an array stored parent element [n]</param>
-		/// <param name="OutputContents"> Attribute string output</param>
-		/// <returns>bool    true if any valid attributes were written and no invalid or missing required attributes were present</returns>
-		private bool PrintAttributes(XmlSchemaElement Element, string SettingID, int Index, StringBuilder OutputContents)
-		// @ATG_CHANGE : END
+		/// <returns>true if the directory is present and usable</returns>
+		private bool CreateCheckDirectory(string TargetDirectory)
 		{
-			bool AnyAttributesSet = false;
-			// @ATG_CHANGE : BEGIN UWP Packaging support
-			List<string> MissingOrInvalidAttributes = new List<string>();
-			// @ATG_CHANGE : END
-
-			// Only complex types can contain attributes
-			if (Element.ElementSchemaType is XmlSchemaComplexType)
+			if (!Directory.Exists(TargetDirectory))
 			{
-				XmlSchemaComplexType ComplexType = Element.ElementSchemaType as XmlSchemaComplexType;
-
-				// Cycle through each attribute in the schema
-				foreach (XmlSchemaAttribute Attribute in ComplexType.AttributeUses.Values)
+				try
 				{
-					// Get the INI value that would correspond with this attribute
-					string AttributeLookup = SettingID + "." + Attribute.QualifiedName.Name;
-					string AttributeSetting = GetInterprettedSettingValue(AttributeLookup, Index);
-					if (AttributeSetting.Length > 0)
-					{
-						// True since if it there are no restrictions we're valid by default
-						bool AttributeValid = true;
-						// Check for any restrictions
-						if (Attribute.AttributeSchemaType.Content is XmlSchemaSimpleTypeRestriction)
-						{
-							XmlSchemaSimpleTypeRestriction Restriction = Attribute.AttributeSchemaType.Content as XmlSchemaSimpleTypeRestriction;
-							foreach (XmlSchemaFacet Facet in Restriction.Facets)
-							{
-								if (Facet is XmlSchemaEnumerationFacet)
-								{
-									XmlSchemaEnumerationFacet EnumerationValue = Facet as XmlSchemaEnumerationFacet;
-									if (EnumerationValue.Value.Equals(AttributeSetting))
-									{
-										// Once we match an enumeration facet, we're valid and don't need to search any farther
-										AttributeValid = true;
-										break;
-									}
-									// There was an unmatching enumeration facet, we now know there is an enumeration that we must
-									// match but this entry isn't the match. Attribute is now invalid until we find an enumeration
-									// match.
-									AttributeValid = false;
-								}
-								// @todo: handle other restriction facets
-							}
-						}
-						if (AttributeValid)
-						{
-							AnyAttributesSet = true;
-							OutputContents.Append(" " + Attribute.QualifiedName.Name + "=\"" + AttributeSetting + "\"");
-							continue;
-						}
-						// Invalid attributes fall through to check if they were required
-					}
-
-					// Attribute value does not exist in INIs or was invalid, but was it required to be there?
-					if (!Attribute.Use.ToString().Equals("optional", StringComparison.InvariantCultureIgnoreCase))
-					{
-						// @ATG_CHANGE : BEGIN UWP Packaging support
-						MissingOrInvalidAttributes.Add(Attribute.Name);
-						// @ATG_CHANGE : END
-					}
+					Directory.CreateDirectory(TargetDirectory);
+				}
+				catch (Exception)
+				{
+					Log.TraceError("Could not create directory {0}.", TargetDirectory);
+					return false;
+				}
+				if (!Directory.Exists(TargetDirectory))
+				{
+					Log.TraceError("Path {0} does not exist or is not a directory.", TargetDirectory);
+					return false;
 				}
 			}
-
-			// @ATG_CHANGE : BEGIN UWP Packaging support
-			if (AnyAttributesSet && MissingOrInvalidAttributes.Count > 0)
-			{
-				foreach (var BadAttribute in MissingOrInvalidAttributes)
-				{
-					Log.TraceError("Empty or invalid value provided for required attribute {0} on partially specified element {1}", BadAttribute, SettingID);
-				}
-				return false;
-			}
-			// @ATG_CHANGE : END
-
-			return AnyAttributesSet;
+			return true;
 		}
-
-		// @ATG_CHANGE : BEGIN UWP Packaging support
-		/// <summary>
-		/// Process an XML particle, following the tree structure down and forwarding to other functions as needed to print out elements.
-		/// </summary>
-		/// <param name="Particle">     XML particle to parse</param>
-		/// <param name="SettingID">  The INI key for the most recent parent element (base for any child settings keys)</param>
-		/// <param name="Indent">      Indent count for any child elements or output</param>
-		/// <param name="OutputContents"> Output for entire tree down from this particle</param>
-		/// <param name="">MaxOccurs           Optional value of parent MaxOccurs to allow cases where an intermediate particle governs</param>
-		/// the MaxOccurs value of child elements.
-		/// <returns>bool    true if any valid output was written from this particle and any descendants</returns>
-		private bool ProcessSchemaTreeElement(XmlSchemaParticle Particle, string SettingID, int Indent, StringBuilder OutputContents, decimal MaxOccurs = -1)
-		// @ATG_CHANGE : END
-		{
-			bool AnyChildrenDefined = false;
-
-			if (Particle is XmlSchemaGroupBase)
-			{
-				// For group types, iterate through every sub particle and recursively process
-				XmlSchemaGroupBase ElementGroup = Particle as XmlSchemaGroupBase;
-				foreach (XmlSchemaParticle SubParticle in ElementGroup.Items)
-				{
-					// Make sure to pass on MaxOccurs if needed. Everything else stays the same for particles.
-					AnyChildrenDefined |= ProcessSchemaTreeElement(SubParticle, SettingID, Indent, OutputContents, (MaxOccurs < Particle.MaxOccurs) ? Particle.MaxOccurs : MaxOccurs);
-				}
-			}
-			else if (Particle is XmlSchemaElement)
-			{
-				// Elements will be processed into tags, attempt to print them and any descendants.
-				XmlSchemaElement Element = Particle as XmlSchemaElement;
-				AnyChildrenDefined = PrintElement(Element, SettingID, Indent, OutputContents, (MaxOccurs < Particle.MaxOccurs) ? Particle.MaxOccurs : MaxOccurs);
-			}
-			else if (Particle is XmlSchemaAny)
-			{
-				// Any particles are a special case and may require array processing.
-				XmlSchemaAny Any = Particle as XmlSchemaAny;
-				AnyChildrenDefined = PrintAny(Any, SettingID, Indent, OutputContents, (MaxOccurs < Particle.MaxOccurs) ? Particle.MaxOccurs : MaxOccurs);
-			}
-
-			return AnyChildrenDefined;
-		}
-
-		// @ATG_CHANGE : BEGIN UWP Packaging support
-		/// <summary>
-		/// Process an XML any particle, printing any related settings.
-		/// </summary>
-		/// <param name="Any">             XML any particle to parse</param>
-		/// <param name="SettingID">  The INI key for the any particle (minus any array indexing)</param>
-		/// <param name="Indent">      Indent count for any element</param>
-		/// <param name="OutputContents"> Output for settings based on the any particle</param>
-		/// <param name="">MaxOccurs           Optional value of parent MaxOccurs to allow cases where an intermediate particle governs</param>
-		/// the MaxOccurs value of child elements.
-		/// <returns>bool    true if any valid output was written from this particle</returns>
-		private bool PrintAny(XmlSchemaAny Any, string SettingID, int Indent, StringBuilder OutputContents, decimal MaxOccurs = -1)
-		// @ATG_CHANGE : END
-		{
-			// Use the particle MaxOccurs value if no parent value was passed in
-			if (MaxOccurs < 0)
-			{
-				MaxOccurs = Any.MaxOccurs;
-			}
-
-			// Loop through possibly multiple instances of this particle in the settings
-			bool AnySettingFound = false;
-			bool SearchArraySettings = false;
-			int SettingArrayIndex = -1;
-			for (int SettingIndex = 0; SettingIndex < MaxOccurs; SettingIndex++)
-			{
-				// Add array indexing for particles that can have multiple instances
-				string LocalSettingID = SettingID;
-				if (MaxOccurs > 1)
-				{
-					if (SearchArraySettings == true)
-					{
-						LocalSettingID += "[n]";
-						SettingArrayIndex++;
-					}
-					else
-					{
-						LocalSettingID += "[" + SettingIndex + "]";
-					}
-				}
-				// Get INI value and append if present
-				string SimpleTypeValue = GetInterprettedSettingValue(LocalSettingID, SettingArrayIndex, Indent);
-				if (SimpleTypeValue.Length > 0)
-				{
-					AnySettingFound = true;
-					OutputContents.Append(SimpleTypeValue);
-				}
-				else
-				{
-					if (SearchArraySettings == false)
-					{
-						// Switch to searching array values
-						SearchArraySettings = true;
-					}
-					else
-					{
-						// We early out if we find an instance with no setting applied
-						break;
-					}
-				}
-			}
-
-			return AnySettingFound;
-		}
-
-		// @ATG_CHANGE : BEGIN UWP Packaging support
-		private string AddNamespacePrefix(string Namespace, string ElementName)
-		{
-			string Prefix;
-			if (AdditionalNamespaces.TryGetValue(Namespace, out Prefix))
-			{
-				return Prefix + ":" + ElementName;
-			}
-
-			return ElementName;
-		}
-		// @ATG_CHANGE : END
-
-		// @ATG_CHANGE : BEGIN UWP Packaging support
-		/// <summary>
-		/// Process an XML element, it's attributes, and any descendant particles. Print if any valid settings are found.
-		/// </summary>
-		/// <param name="Element">         XML element to parse</param>
-		/// <param name="SettingID">  The INI key for the element parent</param>
-		/// <param name="Indent">      Indent count for element</param>
-		/// <param name="OutputContents"> Output for settings based on the any particle</param>
-		/// <param name="">MaxOccurs           Optional value of parent MaxOccurs to allow cases where an intermediate particle governs</param>
-		/// the MaxOccurs value of child elements.
-		/// <returns>bool    true if any valid output was written from this element</returns>
-		private bool PrintElement(XmlSchemaElement Element, string SettingID, int Indent, StringBuilder OutputContents, decimal MaxOccurs = -1)
-		// @ATG_CHANGE : END
-		{
-			string ElementName = Element.Name;
-
-			// A null element name usually means it's a reference that will be substituted. If not, pull from the qualified name.
-			if (ElementName == null)
-			{
-				if (FixRefForSubstitution(Element, SettingID, Indent, OutputContents))
-				{
-					return true;
-				}
-				ElementName = Element.QualifiedName.Name;
-			}
-
-			// @ATG_CHANGE : BEGIN UWP Packaging support
-			ElementName = AddNamespacePrefix(Element.QualifiedName.Namespace, ElementName);
-			// @ATG_CHANGE : END
-
-			// If an override wasn't specified, use the MaxOccurs value from the element itself
-			if (MaxOccurs < 0)
-			{
-				MaxOccurs = Element.MaxOccurs;
-			}
-
-            // @ATG_CHANGE : BEGIN UWP Capability support
-            if (Platform == UnrealTargetPlatform.UWP32 || Platform == UnrealTargetPlatform.UWP64)
-            {
-                if (ElementName.Equals("Capabilities"))
-                {
-                    // Capabilites are spread across multiple arrays based on capability type.
-                    // Determine if there are any valid elements within the array before printing.
-                    if (!CheckForValidCapabilityElements())
-                    {
-                        return false;
-                    }
-                    else if (OnlyUap2CapabilityElements)
-                    {
-                        // <uap2:Capability> elements will not be found, so we must add them directly.
-                        PrintUap2Capabilities(Indent, OutputContents);
-                        return false;
-                    }
-                }
-                else if (ElementName.Equals("DeviceCapability") && !IncludeDeviceCapabilityType)
-                {
-                    // Return early to avoid invalid DeviceCapability elements written to file.
-                    return false;
-                }
-            }
-            // @ATG_CHANGE : END UWP Capability support
-
-            // Basically keep track of if we found reason to keep any output and should return true from this function
-            bool AnyElementFound = false;
-			// Loop for multiple instances if needed
-			bool SearchArraySettings = false;
-			int SettingArrayIndex = -1;
-			for (int ElementIndex = 0; ElementIndex < MaxOccurs; ElementIndex++)
-			{
-				// We store generated content in a temporary buffer in case we end up needing to discard it all
-				StringBuilder LocalContents = new StringBuilder();
-				// Keep track of any valid output so we know if we should keep the element
-				bool AnyAttributesSet = false;
-				bool AnyChildrenDefined = false;
-				bool IsSimpleTypeWithValue = false;
-
-				// Add element name and indexing as needed to the INI key
-				string LocalSettingID = SettingID + "." + ElementName;
-				if (MaxOccurs > 1)
-				{
-					if (SearchArraySettings == true)
-					{
-						LocalSettingID += "[n]";
-						SettingArrayIndex++;
-					}
-					else
-					{
-						LocalSettingID += "[" + ElementIndex + "]";
-					}
-				}
-
-				// Create Element lead in
-				LocalContents.Append(GetIndentString(Indent) + "<" + ElementName);
-
-				// Print any attributes for this element that have valid settings
-				AnyAttributesSet = PrintAttributes(Element, LocalSettingID, SettingArrayIndex, LocalContents);
-
-				// Print any data or descendants that are enclosed by this element and in any case close out the element
-				if (Element.ElementSchemaType is XmlSchemaSimpleType)
-				{
-					XmlSchemaSimpleType SimpleType = Element.ElementSchemaType as XmlSchemaSimpleType;
-					string SimpleTypeValue = GetInterprettedSettingValue(LocalSettingID, SettingArrayIndex);
-					if (SimpleTypeValue.Length != 0)
-					{
-						IsSimpleTypeWithValue = true;
-						LocalContents.AppendLine(">" + SimpleTypeValue + "</" + ElementName + ">");
-					}
-					else
-					{
-						LocalContents.AppendLine(" />");
-					}
-				}
-				else if (Element.ElementSchemaType is XmlSchemaComplexType)
-				{
-					// @ATG_CHANGE : BEGIN winmd type registration support
-					XmlSchemaComplexType ComplexType = Element.ElementSchemaType as XmlSchemaComplexType;
-					StringBuilder TreeContents = new StringBuilder();
-					
-					TreeContents.AppendLine(">");
-
-                    // @ATG_CHANGE : BEGIN UWP Capability support
-                    // Add <uap2:Capability> elements to manifest file
-                    if (ElementName.Equals("Capabilities") && IncludeUap2CapabilityType)
-                    {
-                        // <uap2:Capability> elements must be added to the top of the <Capabilities> section,
-                        // else, the AppxManifest file will fail validation.
-                        PrintUap2Capabilities(Indent, TreeContents);
-                    }
-                    // @ATG_CHANGE : END UWP Capability support
-
-                    if (LocalSettingID == "Package.Extensions")
-					{
-						AnyChildrenDefined = AddActivatableTypesExtensions(TreeContents, Indent + 1);
-					}
-					AnyChildrenDefined |= ProcessSchemaTreeElement(ComplexType.ContentTypeParticle, LocalSettingID, Indent + 1, TreeContents);
-
-					if (AnyChildrenDefined)
-					{
-						LocalContents.Append(TreeContents.ToString());
-						LocalContents.AppendLine(GetIndentString(Indent) + "</" + ElementName + ">");
-					}
-					else
-					{
-						LocalContents.AppendLine(" />");
-					}
-					// @ATG_CHANGE : END		
-				}
-				else
-				{
-					LocalContents.AppendLine(" />");
-				}
-
-				// We only include an element if any of the following are true:
-				//   1. it has all required attributes set and at least one attribute set (in the case of elements with no required attributes),
-				//   2. it is a simple type and it has a value set,
-				//   3. it has children that meet any of the above conditions.
-				if (AnyAttributesSet || IsSimpleTypeWithValue || AnyChildrenDefined)
-				{
-					OutputContents.Append(LocalContents.ToString());
-					AnyElementFound = true;
-				}
-				else
-				{
-					if (SearchArraySettings == false)
-					{
-						// Switch to searching array values
-						SearchArraySettings = true;
-					}
-					else
-					{
-						// If any instance of an element has no valid settings, we can early out of the loop
-						break;
-					}
-				}
-			}
-
-			return AnyElementFound;
-		}
-
-		// @ATG_CHANGE : BEGIN winmd type registration support
-		private bool AddActivatableTypesExtensions(StringBuilder TreeContents, int Indent)
-		{
-			bool AnyAdded = false;
-			foreach (var WinMD in WinMDReferences)
-			{
-				TreeContents.Append(GetIndentString(Indent));
-				TreeContents.AppendLine(@"<Extension Category=""windows.activatableClass.inProcessServer"">");
-				++Indent;
-				TreeContents.Append(GetIndentString(Indent));
-				TreeContents.AppendLine(@"<InProcessServer>");
-				++Indent;
-				TreeContents.Append(GetIndentString(Indent));
-				TreeContents.AppendFormat(@"<Path>{0}</Path>", WinMD.PackageRelativeDllPath);
-				TreeContents.AppendLine();
-				foreach (var WinMDType in WinMD.ActivatableTypes)
-				{
-					TreeContents.Append(GetIndentString(Indent));
-					TreeContents.AppendFormat(@"<ActivatableClass ActivatableClassId=""{0}"" ThreadingModel=""{1}"" />", WinMDType.TypeName, WinMDType.ThreadingModelName);
-					TreeContents.AppendLine();
-					AnyAdded = true;
-				}
-				--Indent;
-				TreeContents.Append(GetIndentString(Indent));
-				TreeContents.AppendLine(@"</InProcessServer>");
-				--Indent;
-				TreeContents.Append(GetIndentString(Indent));
-				TreeContents.AppendLine(@"</Extension>");
-			}
-			return AnyAdded;
-		}
-		// @ATG_CHANGE : END
 
 		/// <summary>
-		/// Callback for any XML schema validation errors.
+		/// Checks if an intermediate file has any modifications from the current target. Replaces the target file
+		/// if there are changes.
 		/// </summary>
-		private static void SchemaCallback(object ValidationSender, ValidationEventArgs ValidationArgs)
+		private void CompareAndReplaceModifiedTarget(string IntermediatePath, string TargetPath)
 		{
-			// @ATG_CHANGE : BEGIN UWP Packaging support
-			Log.TraceError("Error validating AppxManifest.xml against schema: {0}", ValidationArgs.Message);
-			// @ATG_CHANGE : END
-		}
-
-		// @ATG_CHANGE : BEGIN UWP Packaging support
-		private void CreateAppxSchema()
-		{
-			AppxSchema = new XmlSchemaSet();
-			AppxSchema.ValidationEventHandler += SchemaCallback;
-
-			if (UniversalWindowsPlatform.Compiler == WindowsCompiler.VisualStudio2017)
+			if (!File.Exists(IntermediatePath))
 			{
-				DirectoryReference VSInstallDir;
-				WindowsPlatform.TryGetVSInstallDir(WindowsPlatform.Compiler, out VSInstallDir);
-				DirectoryReference VSSchemaFolder = DirectoryReference.Combine(VSInstallDir, "Xml", "Schemas");
-
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v2.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v3.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v4.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "FoundationManifestSchema.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestTypes.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2010_v3.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2013_v2.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2014.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxPhoneManifestSchema2014.xsd").FullName));
-				//AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "DesktopManifestSchema.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "DesktopManifestSchema_v2.xsd").FullName));
-			}
-			else
-			{
-				string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
-				Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder);
-				string UWPSchemaFolder = Path.Combine(SDKFolder, "Include", SDKVersion.ToString(), "winrt");
-
-				// UWP allows the PhoneIdentity element to reference a Windows Phone package for cross-store entitlement
-				// @todo: I think this creates a dependency on including the (optional) phone SDK in the Windows SD install?  That seens unfortunate.
-				string PhoneSchemaFolder = Path.Combine(SDKFolder, "Extension SDKs", "WindowsMobile", SDKVersion.ToString(), "Include", "WinRT");
-
-				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "UapManifestSchema.xsd")));
-				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "FoundationManifestSchema.xsd")));
-				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestTypes.xsd")));
-				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestSchema2010_v2.xsd")));
-				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestSchema2013.xsd")));
-				AppxSchema.Add(null, XmlReader.Create(Path.Combine(PhoneSchemaFolder, "AppxPhoneManifestSchema2014.xsd")));
+				Log.TraceError("Tried to copy non-existant intermediate file {0}.", IntermediatePath);
+				return;
 			}
 
-			AppxSchema.Compile();
-		}
+			CreateCheckDirectory(Path.GetDirectoryName(TargetPath));
 
-		private string ExeFlavor
-		{
-			get
+			// Check for differences in file contents
+			if (File.Exists(TargetPath))
 			{
-				switch (Platform)
+				byte[] OriginalContents = File.ReadAllBytes(TargetPath);
+				byte[] NewContents = File.ReadAllBytes(IntermediatePath);
+				if (!OriginalContents.Equals(NewContents))
 				{
-                    case UnrealTargetPlatform.UWP32:
-                        return "x86";
-
-					case UnrealTargetPlatform.UWP64:
-						return "x64";
-
-					case UnrealTargetPlatform.XboxOne:
-						return string.Empty;
-
-					default:
-						return "x64";
-				}
-			}
-		}
-		// @ATG_CHANGE : END
-			
-		// @ATG_CHANGE : BEGIN UWP Packaging support
-		/// <summary>
-		/// Kicks off manifest generation. Will always attempt to fully calculate a new manifest but will not update the output
-		/// file unless there are changes (to avoid unnecessary updates).
-		/// </summary>
-		/// <param name="OutputPath">     Path to write AppxManifest.xml file to.</param>
-		/// <param name="RelativeExePathParam">Path to the exe relative to the package root</param>
-		/// <param name="ProjectPathParam">Path to the project</param>
-		/// <returns>bool    true any changes have been written to disk</returns>
-		public bool CreateManifest(string OutputPath)
-		{
-			// Attempt to correct for directory only being sent in
-			if (!OutputPath.EndsWith("AppxManifest.xml", StringComparison.CurrentCultureIgnoreCase))
-			{
-				OutputPath = Path.Combine(OutputPath, "AppxManifest.xml");
-			}
-
-			// Final file output
-			StringBuilder OutputContents = new StringBuilder();
-
-			// Output XML header
-			// @todo: header to be determined by settings as well
-			string XmlVersion;
-			string XmlEncoding;
-			string PackageXmlNS;
-			string PackageIgnorableNS;
-			EngineIni.GetString("AppxManifest", "?xml.version", out XmlVersion);
-			EngineIni.GetString("AppxManifest", "?xml.encoding", out XmlEncoding);
-			EngineIni.GetString("AppxManifest", "Package.xmlns", out PackageXmlNS);
-			EngineIni.GetString("AppxManifest", "Package.IgnorableNamespaces", out PackageIgnorableNS);
-			OutputContents.AppendLine("<?xml version=\"" + XmlVersion + "\" encoding=\"" + XmlEncoding + "\"?>");
-			OutputContents.Append("<Package xmlns=\"" + PackageXmlNS + "\"");
-			foreach (var Namespace in AdditionalNamespaces)
-			{
-				OutputContents.AppendFormat(" xmlns:{0}=\"{1}\"", Namespace.Value, Namespace.Key);
-			}
-			if (!string.IsNullOrEmpty(PackageIgnorableNS))
-			{
-				OutputContents.Append(" IgnorableNamespaces=\"" + PackageIgnorableNS + "\"");
-			}
-			OutputContents.AppendLine(">");
-			// @ATG_CHANGE : END
-
-			foreach (XmlSchemaElement Element in AppxSchema.GlobalElements.Values)
-			{
-				// We basically only include a single package entry, everything else we want sits below this
-				// The root of the schema though may include many other elements
-				// @todo: retrieve the package element directly
-				if (Element.Name.Equals("Package", StringComparison.InvariantCultureIgnoreCase))
-				{
-					// Kick off the export of every particle that is a child of the package element
-					XmlSchemaComplexType ComplexType = Element.ElementSchemaType as XmlSchemaComplexType;
-					XmlSchemaGroupBase ElementGroup = ComplexType.ContentTypeParticle as XmlSchemaGroupBase;
-					foreach (XmlSchemaParticle Particle in ElementGroup.Items)
-					{
-						ProcessSchemaTreeElement(Particle, "Package", 1, OutputContents);
-					}
-
-					break;
-				}
-			}
-
-			// Finish file output with the closing package tag
-			OutputContents.AppendLine("</Package>");
-
-			// Check if the contents was updated and write out new contents if needed
-			bool FileUpdated = false;
-			if (OutputContents.Length > 0)
-			{
-				// @ATG_CHANGE : BEGIN UWP Packaging support
-				// Validate the XML we generated
-				XmlReaderSettings ReaderSettings = new XmlReaderSettings();
-				ReaderSettings.ValidationType = ValidationType.Schema;
-				ReaderSettings.Schemas = AppxSchema;
-				ReaderSettings.ValidationEventHandler += SchemaCallback;
-				using (var ContentsStream = new StringReader(OutputContents.ToString()))
-				{
-					using (var Reader = XmlReader.Create(ContentsStream, ReaderSettings))
-					{
-						while (Reader.Read())
-						{
-							// No-op, just reading to end to force validation.
-						}
-					}
-				}
-				// @ATG_CHANGE : END
-				
-				bool bFileNeedsSave = true;
-
-				if (File.Exists(OutputPath))
-				{
-					// Read in the original file completely
-					string LoadedFileContent = null;
-					var FileAlreadyExists = File.Exists(OutputPath);
-					if (FileAlreadyExists)
-					{
-						try
-						{
-							LoadedFileContent = File.ReadAllText(OutputPath);
-						}
-						catch (Exception)
-						{
-							Log.TraceInformation("Error while trying to load existing file {0}.  Ignored.", OutputPath);
-						}
-					}
-
-					// Don't bother saving anything out if the new file content is the same as the old file's content
-					if (LoadedFileContent != null)
-					{
-						var bIgnoreProjectFileWhitespaces = true;
-						if (ProjectFileComparer.CompareOrdinalIgnoreCase(LoadedFileContent, OutputPath.ToString(), bIgnoreProjectFileWhitespaces) == 0)
-						{
-							// Exact match!
-							bFileNeedsSave = false;
-						}
-
-						if (!bFileNeedsSave)
-						{
-							Log.TraceVerbose("Skipped saving {0} because contents haven't changed.", Path.GetFileName(OutputPath));
-						}
-					}
-				}
-
-				if (bFileNeedsSave)
-				{
-					// Save the file
 					try
 					{
-						Directory.CreateDirectory(Path.GetDirectoryName(OutputPath));
-						File.WriteAllText(OutputPath, OutputContents.ToString(), Encoding.UTF8);
-						Log.TraceVerbose("Saved {0}", Path.GetFileName(OutputPath));
-						FileUpdated = true;
+						FileAttributes attributes = File.GetAttributes(TargetPath);
+						if ((attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+						{
+							attributes &= ~FileAttributes.ReadOnly;
+							File.SetAttributes(TargetPath, attributes);
+						}
+						File.Delete(TargetPath);
 					}
 					catch (Exception)
 					{
-						// Unable to write to the project file.
-						Log.TraceInformation("Error while trying to write file {0}.  The file is probably read-only.", OutputPath);
+						Log.TraceError("Could not replace file {0}.", TargetPath);
+						return;
 					}
 				}
 			}
 
-			return FileUpdated;
+			// If the file is present it is unmodified and should not be overwritten
+			if (!File.Exists(TargetPath))
+			{
+				try
+				{
+					File.Copy(IntermediatePath, TargetPath);
+				}
+				catch (Exception)
+				{
+					Log.TraceError("Unable to copy file {0}.", TargetPath);
+					return;
+				}
+				UpdatedFilePaths.Add(TargetPath);
+			}
 		}
 
-        // @ATG_CHANGE : BEGIN UWP Capability support
-        private bool CheckForValidCapabilityElements()
-        {
-            bool isValid = true;
-            bool includeCapabilityType = false;
-            bool includeUapCapabilityType = false;
+		/// <summary>
+		/// Copies all cultures of a source resource to the intermediate directory.
+		/// <returns>true on success, false if the operation fails (i.e. the default source file doesn't exist)</returns>
+		/// </summary>
+		private bool CopyAndReplaceBinaryIntermediate(string ResourceFileName, bool AllowEngineFallback = true)
+		{
+			string TargetPath = Path.Combine(IntermediatePath, BuildResourceSubPath);
+			string SourcePath = Path.Combine(ProjectPath, BuildResourceProjectRelativePath, BuildResourceSubPath);
 
-            // Capabilites are contained in multiple arrays based on type.
-            // Determine if any of the capability arrays contain valid elements before printing.
+			// Try falling back to the engine defaults if requested
+			bool bFileExists = File.Exists(Path.Combine(SourcePath, ResourceFileName));
+			if (!bFileExists)
+			{
+				if (AllowEngineFallback)
+				{
+					SourcePath = Path.Combine(UnrealBuildTool.EngineDirectory.FullName, BuildResourceProjectRelativePath, EngineResourceSubPath);
+					bFileExists = File.Exists(Path.Combine(SourcePath, ResourceFileName));
+				}
+			}
+
+			// At least the default culture entry for any resource binary must always exist
+			if (!bFileExists)
+			{
+				return false;
+			}
+
+			// If the target resource folder doesn't exist yet, create it
+			if (!CreateCheckDirectory(TargetPath))
+			{
+				return false;
+			}
+
+			// Find all copies of the resource file in the source directory (could be up to one for each culture and the default).
+			IEnumerable<string> SourceResourceInstances = Directory.EnumerateFiles(SourcePath, ResourceFileName, SearchOption.AllDirectories);
+
+			// Copy new resource files
+			foreach (string SourceResourceFile in SourceResourceInstances)
+			{
+				//@todo only copy files for cultures we are staging
+				string TargetResourcePath = Path.Combine(TargetPath, SourceResourceFile.Substring(SourcePath.Length + 1));
+				if (!CreateCheckDirectory(Path.GetDirectoryName(TargetResourcePath)))
+				{
+					Log.TraceError("Unable to create intermediate directory {0}.", Path.GetDirectoryName(TargetResourcePath));
+					continue;
+				}
+				if (!File.Exists(TargetResourcePath))
+				{
+					try
+					{
+						File.Copy(SourceResourceFile, TargetResourcePath);
+					}
+					catch (Exception)
+					{
+						Log.TraceError("Unable to copy file {0} to {1}.", SourceResourceFile, TargetResourcePath);
+						return false;
+					}
+				}
+			}
+
+			return true;
+		}
+
+		/// <summary>
+		/// Copies modified intermediate resource binaries to the output path and deletes any stale resources in the
+		/// output path that do not exist in the intermediate directory.
+		/// <returns>A list of updated files.</returns>
+		/// </summary>
+		private void CopyResourcesToTargetDir()
+		{
+			string TargetPath = Path.Combine(OutputPath, BuildResourceSubPath);
+			string SourcePath = Path.Combine(IntermediatePath, BuildResourceSubPath);
+
+			// If the target resource folder doesn't exist yet, create it
+			if (!CreateCheckDirectory(TargetPath))
+			{
+				return;
+			}
+
+			// Find all copies of the resource file in both target and source directories (could be up to one for each culture and the default, but must have at least the default).
+			IEnumerable<string> TargetResourceInstances = Directory.EnumerateFiles(TargetPath, "*.*", SearchOption.AllDirectories);
+			IEnumerable<string> SourceResourceInstances = Directory.EnumerateFiles(SourcePath, "*.*", SearchOption.AllDirectories);
+
+			// Remove any target files that aren't part of the source file list
+			foreach (string TargetResourceFile in TargetResourceInstances)
+			{
+				// Ignore string tables (the only non-binary resources that will be present
+				if (!TargetResourceFile.Contains(".resw"))
+				{
+					//@todo always delete for cultures we aren't staging
+					bool bRelativeSourceFileFound = false;
+					foreach (string SourceResourceFile in SourceResourceInstances)
+					{
+						string SourceRelativeFile = SourceResourceFile.Substring(SourcePath.Length + 1);
+						string TargetRelativeFile = TargetResourceFile.Substring(TargetPath.Length + 1);
+						if (SourceRelativeFile.Equals(TargetRelativeFile))
+						{
+							bRelativeSourceFileFound = true;
+							break;
+						}
+					}
+					if (!bRelativeSourceFileFound)
+					{
+						try
+						{
+							File.Delete(TargetResourceFile);
+						}
+						catch (Exception)
+						{
+							Log.TraceError("Could not remove stale resource file {0}.", TargetResourceFile);
+						}
+					}
+				}
+			}
+
+			// Copy new resource files only if they differ from the destination
+			foreach (string SourceResourceFile in SourceResourceInstances)
+			{
+				//@todo only copy files for cultures we are staging
+				string TargetResourcePath = Path.Combine(TargetPath, SourceResourceFile.Substring(SourcePath.Length + 1));
+				CompareAndReplaceModifiedTarget(SourceResourceFile, TargetResourcePath);
+			}
+		}
+
+		/// <summary>
+		/// Deletes a directory and everything it contains.
+		/// </summary>
+		/// <param name="InDirectoryToDelete">Directory to delete</param>
+		private void RecursivelyForceDeleteDirectory(string InDirectoryToDelete)
+		{
+			if (Directory.Exists(InDirectoryToDelete))
+			{
+				try
+				{
+					List<string> SubDirectories = new List<string>(Directory.GetDirectories(InDirectoryToDelete, "*.*", SearchOption.AllDirectories));
+					foreach (string DirectoryToRemove in SubDirectories)
+					{
+						RecursivelyForceDeleteDirectory(DirectoryToRemove);
+					}
+					List<string> FilesInDirectory = new List<string>(Directory.GetFiles(InDirectoryToDelete));
+					foreach (string FileToRemove in FilesInDirectory)
+					{
+						try
+						{
+							FileAttributes Attributes = File.GetAttributes(FileToRemove);
+							if ((Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+							{
+								Attributes &= ~FileAttributes.ReadOnly;
+								File.SetAttributes(FileToRemove, Attributes);
+							}
+							File.Delete(FileToRemove);
+						}
+						catch (Exception)
+						{
+							Log.TraceWarning("Could not remove file {0} to remove directory {1}.", FileToRemove, InDirectoryToDelete);
+						}
+					}
+					Directory.Delete(InDirectoryToDelete, true);
+				}
+				catch (Exception)
+				{
+					Log.TraceWarning("Could not remove directory {0}.", InDirectoryToDelete);
+				}
+			}
+
+		}
+
+		/// <summary>
+		/// Kicks off manifest generation. Will always attempt to fully calculate a new manifest but will not update the output
+		/// file unless there are changes (to avoid unnecessary copies when deploying).
+		/// </summary>
+		/// <param name="TargetPlatform">The platform we're generating a manifest for.</param>
+		/// <param name="InOutputPath">Path to write manifest files to.</param>
+		/// <param name="InIntermediatePath">Path to store temporary intermediate data (e.g. XML resource file).</param>
+		/// <param name="InProjectFile">Path to the uproject file</param>
+		/// <param name="InProjectDirectory">Directory containing the uproject file or the base engine path if no project file is specified (for content only builds).</param>
+		/// <param name="InTargetConfigs">Configurations to build manifest data for. Each configuration will generate it's own application entry.</param>
+		/// <param name="InExecutables">The launch executable for each configuration. Must match the length and order of InTargetConfigs.</param>
+		/// <param name="InWinMDReferences">The WinMD references that should be added as activatable types</param>
+		/// <returns>A list of all updated target files</returns>
+		public List<string> CreateManifest(UnrealTargetPlatform TargetPlatform, string InOutputPath, string InIntermediatePath, FileReference InProjectFile, string InProjectDirectory, List<UnrealTargetConfiguration> InTargetConfigs, List<string> InExecutables, IEnumerable<WinMDRegistrationInfo> InWinMDReferences)
+		{
+			// Check parameter values are valid
+			if (InTargetConfigs.Count != InExecutables.Count)
+			{
+				Log.TraceError("The number of target configurations ({0}) and executables ({1}) passed to manifest generation do not match.", InTargetConfigs.Count, InExecutables.Count);
+				return null;
+			}
+			if (File.Exists(InOutputPath))
+			{
+				Log.TraceWarning("InOutputPath {0} is a file. Should be a directory. Continuing using parent directory.", InOutputPath);
+				InOutputPath = Path.GetDirectoryName(InOutputPath);
+			}
+			if (File.Exists(InIntermediatePath))
+			{
+				Log.TraceWarning("InIntermediatePath {0} is a file. Should be a directory. Continuing using parent directory.", InIntermediatePath);
+				InIntermediatePath = Path.GetDirectoryName(InIntermediatePath);
+			}
+			if (!CreateCheckDirectory(InOutputPath))
+			{
+				return null;
+			}
+			if (!CreateCheckDirectory(InIntermediatePath))
+			{
+				return null;
+			}
+
+			OutputPath = InOutputPath;
+			IntermediatePath = InIntermediatePath;
+
+			UpdatedFilePaths = new List<string>();
+
+			WinMDReferences = ((InWinMDReferences == null) ? new List<WinMDRegistrationInfo>() : new List<WinMDRegistrationInfo>(InWinMDReferences));
+			Platform = TargetPlatform;
+			TargetSettings = "/Script/UWPPlatformEditor.UWPTargetSettings";
+			BuildResourceProjectRelativePath = "Build\\UWP";
+
+			// Clean out the resources intermediate path so that we know there are no stale binary files.
+			string IntermediateResourceDirectory = Path.Combine(IntermediatePath, BuildResourceSubPath);
+			RecursivelyForceDeleteDirectory(IntermediateResourceDirectory);
+			if (!Directory.Exists(IntermediateResourceDirectory))
+			{
+				try
+				{
+					Directory.CreateDirectory(IntermediateResourceDirectory);
+				}
+				catch (Exception)
+				{
+					Log.TraceError("Could not create directory {0}.", IntermediateResourceDirectory);
+					return null;
+				}
+			}
+
+			// Load up INI settings. We'll use engine settings to retrieve the manifest configuration, but these may reference
+			// values in either game or engine settings, so we'll keep both.
+			GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, DirectoryReference.FromFile(InProjectFile), TargetPlatform);
+			EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(InProjectFile), TargetPlatform);
+
+			ProjectPath = InProjectDirectory;
+
+			// Load and verify/clean culture list
+			List<string> CulturesToStageWithDuplicates = null;
+			GameIni.GetArray("/Script/UnrealEd.ProjectPackagingSettings", "CulturesToStage", out CulturesToStageWithDuplicates);
+			GameIni.GetString("/Script/UnrealEd.ProjectPackagingSettings", "DefaultCulture", out DefaultCulture);
+			if (CulturesToStageWithDuplicates == null || CulturesToStageWithDuplicates.Count < 1)
+			{
+				Log.TraceError("At least one culture must be selected to stage.");
+				return null;
+			}
+			if (DefaultCulture == null || DefaultCulture.Length < 1)
+			{
+				DefaultCulture = CulturesToStageWithDuplicates[0];
+				Log.TraceWarning("A default culture must be selected to stage. Using {0}.", DefaultCulture);
+			}
+			if (!CulturesToStageWithDuplicates.Contains(DefaultCulture))
+			{
+				DefaultCulture = CulturesToStageWithDuplicates[0];
+				Log.TraceWarning("The default culture must be one of the staged cultures. Using {0}.", DefaultCulture);
+				return null;
+			}
+
+			CulturesToStage = CulturesToStageWithDuplicates.Distinct().ToList();
+			List<string> PerCultureValues;
+			if (EngineIni.GetArray(TargetSettings, "PerCultureResources", out PerCultureValues))
+			{
+				foreach (string CultureCombinedValues in PerCultureValues)
+				{
+					Dictionary<string, string> SeparatedCultureValues;
+					InterpretINIStruct(CultureCombinedValues, out SeparatedCultureValues);
+					string StageId = SeparatedCultureValues["StageId"];
+					int CultureIndex = CulturesToStage.FindIndex(x => x.Equals(StageId));
+					if (CultureIndex >= 0)
+					{
+						CulturesToStage[CultureIndex] = SeparatedCultureValues["CultureId"];
+						if (DefaultCulture.Equals(StageId))
+						{
+							DefaultCulture = SeparatedCultureValues["CultureId"];
+						}
+					}
+				}
+			}
+			// Only warn if shipping, we can run without translated cultures they're just needed for cert
+			else if (InTargetConfigs.Contains(UnrealTargetConfiguration.Shipping))
+			{
+				Log.TraceWarning("Staged culture mappings not setup in the editor. See Per Culture Resources in the Target Settings.");
+			}
+
+			// Construct a single resource writer for the default (no-culture) values
+			string DefaultResourceIntermediatePath = Path.Combine(IntermediateResourceDirectory, "resources.resw");
+			DefaultResourceWriter = new ResXResourceWriter(DefaultResourceIntermediatePath);
+
+			// Construct the ResXWriters for each culture
+			PerCultureResourceWriters = new List<ResXResourceWriter>();
+			foreach (string Culture in CulturesToStage)
+			{
+				string IntermediateStringResourcePath = Path.Combine(IntermediateResourceDirectory, Culture);
+				string IntermediateStringResourceFile = Path.Combine(IntermediateStringResourcePath, "resources.resw");
+				if (!CreateCheckDirectory(IntermediateStringResourcePath))
+				{
+					Log.TraceWarning("Culture {0} resources not staged.", Culture);
+					CulturesToStage.Remove(Culture);
+					if (Culture.Equals(DefaultCulture))
+					{
+						DefaultCulture = CulturesToStage[0];
+						Log.TraceWarning("Default culture skipped. Using {0} as default culture.", DefaultCulture);
+					}
+					continue;
+				}
+				PerCultureResourceWriters.Add(new ResXResourceWriter(IntermediateStringResourceFile));
+			}
+
+			// Create the appxmanifest document
+			AppxManifestXmlDocument = new XmlDocument();
+			XmlDeclaration Declaration = AppxManifestXmlDocument.CreateXmlDeclaration("1.0", Encoding.UTF8.BodyName, null);
+			AppxManifestXmlDocument.AppendChild(Declaration);
+			
+			// Begin document content construction. Resources entries will be setup as required to support the manifest generation.
+			XmlNode Package = GetPackage(InTargetConfigs, InExecutables);
+			AppxManifestXmlDocument.AppendChild(Package);
+
+			// Export appxmanifest.xml to the intermediate directory then compare the contents to any existing target manifest
+			// and replace if there are differences.
+			string ManifestIntermediatePath = Path.Combine(IntermediatePath, "AppxManifest.xml");
+			string ManifestTargetPath = Path.Combine(OutputPath, "AppxManifest.xml");
+			AppxManifestXmlDocument.Save(ManifestIntermediatePath);
+			CompareAndReplaceModifiedTarget(ManifestIntermediatePath, ManifestTargetPath);
+
+			// Clean out any resource directories that we aren't staging
+			string TargetResourcePath = Path.Combine(OutputPath, BuildResourceSubPath);
+			if (Directory.Exists(TargetResourcePath))
+			{
+				List<string> TargetResourceDirectories = new List<string>(Directory.GetDirectories(TargetResourcePath, "*.*", SearchOption.AllDirectories));
+				foreach (string ResourceDirectory in TargetResourceDirectories)
+				{
+					if (!CulturesToStage.Contains(Path.GetFileName(ResourceDirectory)))
+					{
+						RecursivelyForceDeleteDirectory(ResourceDirectory);
+					}
+				}
+			}
+
+			// MS staging code requires an AppxManifest to convert
+			//@todo remove if possible
+			string ManifestBinaryPath = Path.Combine(Path.GetDirectoryName(InExecutables[0]), "AppxManifest.xml");
+			CompareAndReplaceModifiedTarget(ManifestIntermediatePath, ManifestBinaryPath);
+
+			// Export the resource tables starting with the default culture
+			string DefaultResourceTargetPath = Path.Combine(OutputPath, BuildResourceSubPath, "resources.resw");
+			DefaultResourceWriter.Close();
+			CompareAndReplaceModifiedTarget(DefaultResourceIntermediatePath, DefaultResourceTargetPath);
+
+			for (int CultureIndex = 0; CultureIndex < CulturesToStage.Count; CultureIndex++)
+			{
+				string Culture = CulturesToStage[CultureIndex];
+				string IntermediateStringResourceFile = Path.Combine(IntermediateResourceDirectory, Culture, "resources.resw");
+				string TargetStringResourceFile = Path.Combine(OutputPath, BuildResourceSubPath, Culture, "resources.resw");
+				PerCultureResourceWriters[CultureIndex].Close();
+				CompareAndReplaceModifiedTarget(IntermediateStringResourceFile, TargetStringResourceFile);
+			}
+
+			// Copy all the binary resources into the target directory.
+			CopyResourcesToTargetDir();
+
+			// The resource database is dependent on everything else calculated here (manifest, resource string tables, binary resources).
+			// So if any file has been updated we'll need to run the config.
+			if (UpdatedFilePaths.Count > 0)
+			{
+				// Create resource index configuration
+				DirectoryReference WindowsSdkDir = new DirectoryReference(VCEnvironment.FindWindowsSDKInstallationFolder(CppPlatform.UWP64, WindowsCompiler.VisualStudio2017));
+				Version WindowsSdkLatestVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(WindowsSdkDir.FullName, WindowsCompiler.Default);
+				DirectoryReference WindowsSdkBinDir = DirectoryReference.Combine(WindowsSdkDir, WindowsSdkLatestVersion.ToString(), "bin");
+				if (!DirectoryReference.Exists(WindowsSdkBinDir))
+				{
+					WindowsSdkBinDir = DirectoryReference.Combine(WindowsSdkDir, "bin");
+				}
+
+				string PriExecutable = FileReference.Combine(WindowsSdkBinDir, Environment.Is64BitProcess ? "x64" : "x86", "makepri.exe").FullName;
+
+				string ResourceConfigFile = Path.Combine(IntermediatePath, "priconfig.xml");
+				Utils.RunLocalProcessAndReturnStdOut(PriExecutable, "createconfig /cf \"" + ResourceConfigFile + "\" /dq " + DefaultCulture + " /o");
+
+				// Modify configuration to restrict indexing to the Resources directory (saves time and space)
+				XmlDocument PriConfig = new XmlDocument();
+				PriConfig.Load(ResourceConfigFile);
+				XmlNode PriIndexNode = PriConfig.SelectSingleNode("/resources/index");
+				XmlAttribute PriStartIndex = PriIndexNode.Attributes["startIndexAt"];
+				PriStartIndex.Value = "\\Resources\\";
+				PriConfig.Save(ResourceConfigFile);
+
+				// Remove previous pri files so we can enumerate which ones are new since the resource generator could produce a file for each staged language.
+				IEnumerable<string> OldPriFiles = Directory.EnumerateFiles(IntermediatePath, "*.pri");
+				foreach (string OldPri in OldPriFiles)
+				{
+					try
+					{
+						File.Delete(OldPri);
+					}
+					catch (Exception)
+					{
+						Log.TraceError("Could not delete file {0}.", OldPri);
+					}
+				}
+
+				// Generate the resource index
+				string ResourceLogFile = Path.Combine(IntermediatePath, "ResIndexLog.xml");
+				string ResourceIndexFile = Path.Combine(IntermediatePath, "resources.pri");
+				Utils.RunLocalProcessAndReturnStdOut(PriExecutable, "new /pr \"" + OutputPath + "\" /cf \"" + ResourceConfigFile + "\" /mn \"" + ManifestTargetPath + "\" /il \"" + ResourceLogFile + "\" /of \"" + ResourceIndexFile + "\" /o");
+
+				// Remove any existing pri target files that were not generated by this latest update
+				IEnumerable<string> NewPriFiles = Directory.EnumerateFiles(IntermediatePath, "*.pri");
+				IEnumerable<string> TargetPriFiles = Directory.EnumerateFiles(OutputPath, "*.pri");
+				foreach (string TargetPri in TargetPriFiles)
+				{
+					if (!NewPriFiles.Contains(TargetPri))
+					{
+						try
+						{
+							File.Delete(TargetPri);
+						}
+						catch (Exception)
+						{
+							Log.TraceError("Could not remove stale file {0}.", TargetPri);
+						}
+					}
+				}
+
+				// Stage all the modified pri files to the output directory
+				foreach (string NewPri in NewPriFiles)
+				{
+					string FinalResourceIndexFile = Path.Combine(OutputPath, Path.GetFileName(NewPri));
+					CompareAndReplaceModifiedTarget(ResourceIndexFile, FinalResourceIndexFile);
+				}
+			}
+
+			return UpdatedFilePaths;
+		}
+
+		/// <summary>
+		/// Interpret a struct stored within a single INI entry into key-value pairs.
+		/// Note: Will parse all nested structs.
+		/// </summary>
+		private void InterpretINIStruct(string INIStruct, out Dictionary<string, string> StructDictionary)
+		{
+			StructDictionary = new Dictionary<string, string>();
+			char[] EntryEndChars = { '(', ')', ',' };
+			string[] StructEntries = INIStruct.Split(EntryEndChars, StringSplitOptions.RemoveEmptyEntries);
+			foreach (string CurrentEntry in StructEntries)
+			{
+				int AssignmentIndex = CurrentEntry.IndexOf('=');
+				if (AssignmentIndex > 0)
+				{
+					string EntryKey = CurrentEntry.Substring(0, AssignmentIndex);
+					string EntryValue = CurrentEntry.Substring(AssignmentIndex + 1);
+					char[] EntryTrimChars = { '"' };
+					EntryValue = EntryValue.Trim(EntryTrimChars);
+					StructDictionary.Add(EntryKey, EntryValue);
+				}
+			}
+		}
+		
+		/// <summary>
+		/// Calculate a manifest string value based on a system of fallback possibilities and return it.
+		/// Selection priorities:
+		/// 1. PlatformINIKey under section [/Script/UWPPlatformEditor.UWPTargetSettings]
+		/// 2. Deprecated [AppxManifest] setting where the key equals ManifestFullPath
+		/// 3. Engine INI value with section equal to GenericINISection and key equal to GenericINIKey
+		/// 4. Game INI value with section equal to GenericINISection and key equal to GenericINIKey
+		/// 5. The DefaultValue passed in
+		/// </summary>
+		private string CreateStringValue(string PlatformINIKey, string ManifestFullPath, string GenericINISection, string GenericINIKey, string DefaultValue, Func<string, string> ValueValidationDelegate = null)
+		{
+			string ConfigScratchValue = "";
+			if (!EngineIni.GetString(TargetSettings, PlatformINIKey, out ConfigScratchValue) || ConfigScratchValue.Length <= 0)
+			{
+				if (ManifestFullPath != null)
+				{
+					ConfigScratchValue = GetInterprettedSettingValue(ManifestFullPath);
+				}
+				if (ConfigScratchValue == null || ConfigScratchValue.Length <= 0)
+				{
+					// If a config value wasn't specified, don't try to read from the configs and just go with the default value
+					if (GenericINISection != null && GenericINIKey != null)
+					{
+						bool EngineConfigReadSuccess = EngineIni.GetString(GenericINISection, GenericINIKey, out ConfigScratchValue);
+						// If the engine config read failed or the returned value was empty/null, keep searching, otherwise use the value we already retrieved in ConfigScratchValue
+						if (!EngineConfigReadSuccess || ConfigScratchValue == null || ConfigScratchValue.Length <= 0)
+						{
+							bool GameConfigReadSuccess = GameIni.GetString(GenericINISection, GenericINIKey, out ConfigScratchValue);
+							// If the game config read failed or the returned value was empty/null, use the default value, otherwise use the value we already retrieved in ConfigScratchValue
+							if (!GameConfigReadSuccess || ConfigScratchValue == null || ConfigScratchValue.Length <= 0)
+							{
+								ConfigScratchValue = DefaultValue;
+							}
+						}
+					}
+					else
+					{
+						ConfigScratchValue = DefaultValue;
+					}
+				}
+			}
+			if (ValueValidationDelegate != null)
+			{
+				return ValueValidationDelegate(ConfigScratchValue);
+			}
+			else
+			{
+				return ConfigScratchValue;
+			}
+		}
+
+		/// <summary>
+		/// Calculate a manifest string value using CreateStringValue and compare that value to TrueValue, return the result.
+		/// </summary>
+		private bool CreateBoolValue(string PlatformINIKey, string ManifestFullPath, string GenericINISection, string GenericINIKey, string DefaultValue, string TrueValue = "True")
+		{
+			string ConfigScratchValue = CreateStringValue(PlatformINIKey, ManifestFullPath, GenericINISection, GenericINIKey, DefaultValue);
+			return ConfigScratchValue.Equals(TrueValue, StringComparison.InvariantCultureIgnoreCase);
+		}
+
+		/// <summary>
+		/// Calculate a manifest string value using CreateStringValue and return the result as an integer.
+		/// </summary>
+		private int CreateIntValue(string PlatformINIKey, string ManifestFullPath, string GenericINISection, string GenericINIKey, string DefaultValue)
+		{
+			string ConfigScratchValue = CreateStringValue(PlatformINIKey, ManifestFullPath, GenericINISection, GenericINIKey, DefaultValue);
+			return Int32.Parse(ConfigScratchValue);
+		}
+
+		/// <summary>
+		/// Calculate a manifest array value based on a system of fallback possibilities and return it.
+		/// Selection priorities:
+		/// 1. PlatformINIKey under section [/Script/UWPPlatformEditor.UWPTargetSettings]
+		/// 2. Deprecated [AppxManifest] setting where the key equals ManifestFullPath
+		/// 3. Engine INI value with section equal to GenericINISection and key equal to GenericINIKey
+		/// 4. Game INI value with section equal to GenericINISection and key equal to GenericINIKey
+		/// 5. The DefaultValue passed in
+		/// </summary>
+		private List<string> CreateArrayValue(string PlatformINIKey, string ManifestPath, string ManifestSubKey, string GenericINISection, string GenericINIKey, List<string> DefaultValue)
+		{
+			List<string> ConfigScratchValue = null;
+			if (!EngineIni.GetArray(TargetSettings, PlatformINIKey, out ConfigScratchValue))
+			{
+				if (ManifestPath != null)
+				{
+					// Retrieve the deprecated [AppxManifest] value, but it's an array so we will have to pull from multiple entries
+					int ArrayIndex = 0;
+					while (true)
+					{
+						string FullManifestPath = ManifestPath + "[" + ArrayIndex + "]";
+						if (ManifestSubKey != null && ManifestSubKey.Length <= 0)
+						{
+							FullManifestPath += "." + ManifestSubKey;
+						}
+						string ArrayElement = GetInterprettedSettingValue(FullManifestPath);
+						if (ArrayElement == null || ArrayElement.Length <= 0)
+						{
+							break;
+						}
+						if (ConfigScratchValue == null)
+						{
+							ConfigScratchValue = new List<string>(1);
+						}
+						ConfigScratchValue.Add(ArrayElement);
+						ArrayIndex++;
+					}
+				}
+				if (ConfigScratchValue == null || ConfigScratchValue.Count <= 0)
+				{
+					if (GenericINISection == null || GenericINIKey == null || (!EngineIni.GetArray(GenericINISection, GenericINIKey, out ConfigScratchValue) && !GameIni.GetArray(GenericINISection, GenericINIKey, out ConfigScratchValue)))
+					{
+						ConfigScratchValue = DefaultValue;
+					}
+				}
+			}
+			return ConfigScratchValue;
+		}
+
+		/// <summary>
+		/// Calculate a manifest string value using CreateStringValue and return it as an XmlElement.
+		/// </summary>
+		private XmlElement CreateStringElement(string ElementName, string PlatformINIKey, string ManifestFullPath, string GenericINISection, string GenericINIKey, string DefaultValue)
+		{
+			XmlElement TargetElement = AppxManifestXmlDocument.CreateElement(ElementName);
+			string ConfigScratchValue = CreateStringValue(PlatformINIKey, ManifestFullPath, GenericINISection, GenericINIKey, DefaultValue);
+			TargetElement.InnerText = ConfigScratchValue;
+			return TargetElement;
+		}
+
+		/// <summary>
+		/// Calculate a manifest string value using CreateStringValue and return it as an XmlAttribute.
+		/// </summary>
+		private XmlAttribute CreateStringAttribute(string ElementName, string PlatformINIKey, string ManifestFullPath, string GenericINISection, string GenericINIKey, string DefaultValue, Func<string, string> ValueValidationDelegate = null)
+		{
+			XmlAttribute TargetAttribute = AppxManifestXmlDocument.CreateAttribute(ElementName);
+			string ConfigScratchValue = CreateStringValue(PlatformINIKey, ManifestFullPath, GenericINISection, GenericINIKey, DefaultValue, ValueValidationDelegate);
+			TargetAttribute.Value = ConfigScratchValue;
+			return TargetAttribute;
+		}
+
+		/// <summary>
+		/// Calculate a manifest hex color value based on a system of fallback possibilities and return an attribute containing it.
+		/// Selection priorities:
+		/// 1. PlatformINIKey under section [/Script/UWPPlatformEditor.UWPTargetSettings]
+		/// 2. Deprecated [AppxManifest] setting where the key equals ManifestFullPath
+		/// 3. The DefaultValue passed in
+		/// </summary>
+		private XmlAttribute CreateColorAttribute(string ElementName, string PlatformINIKey, string ManifestFullPath, string DefaultValue)
+		{
+			string ColorValue = "";
+			if (EngineIni.GetString(TargetSettings, PlatformINIKey, out ColorValue))
+			{
+				// Break the setting down by color
+				Dictionary<string, string> StructValues;
+				InterpretINIStruct(ColorValue, out StructValues);
+				int Red = 0;
+				string RedText = StructValues["R"];
+				Int32.TryParse(RedText, out Red);
+				int Green = 0;
+				string GreenText = StructValues["G"];
+				Int32.TryParse(GreenText, out Green);
+				int Blue = 0;
+				string BlueText = StructValues["B"];
+				Int32.TryParse(BlueText, out Blue);
+				ColorValue = "#" + Red.ToString("X2") + Green.ToString("X2") + Blue.ToString("X2");
+			}
+			else
+			{
+				ColorValue = GetInterprettedSettingValue(ManifestFullPath);
+				if (ColorValue == null || ColorValue.Length <= 0)
+				{
+					ColorValue = DefaultValue;
+				}
+			}
+
+			XmlAttribute ColorAttribute = AppxManifestXmlDocument.CreateAttribute("BackgroundColor");
+			ColorAttribute.Value = ColorValue;
+			return ColorAttribute;
+		}
+
+		/// <summary>
+		/// Using the old style manifest settings, loop through all elements in an array looking for a subkey that matches the specified value.
+		/// </summary>
+		/// <returns>The index of the first matching array element. -1 if no match is found.</returns>
+		private int FindIndexOfArrayValue(string ManifestArrayKey, string ManifestTestElement, string ManifestTestValue)
+		{
+			int ArrayIndex = 0;
+			while (true)
+			{
+				string ManifestValue = GetInterprettedSettingValue(ManifestArrayKey + "[" + ArrayIndex + "]." + ManifestTestElement);
+				if (ManifestValue == null || ManifestValue.Length == 0)
+				{
+					return -1;
+				}
+				if (ManifestValue.Equals(ManifestTestValue, StringComparison.InvariantCultureIgnoreCase))
+				{
+					return ArrayIndex;
+				}
+				ArrayIndex++;
+			}
+		}
+
+		/// <summary>
+		/// Calculate the per culture manifest string value and add a resource table entry encompassing the values.
+		/// </summary>
+		private void AddResourceEntry(string ResourceEntryName, string ConfigKey, string ManifestFullPath, string GenericINISection, string GenericINIKey, string DefaultValue, string ValuePostfix = "")
+		{
+			// Enter the default (no-culture) value
+			string ConfigScratchValue = "";
+			string DefaultCultureScratchValue = "";
+			if (EngineIni.GetString(TargetSettings, "CultureStringResources", out DefaultCultureScratchValue))
+			{
+				Dictionary<string, string> DefaultCultureStringValues;
+				InterpretINIStruct(DefaultCultureScratchValue, out DefaultCultureStringValues);
+				ConfigScratchValue = DefaultCultureStringValues[ConfigKey];
+			}
+			if (ConfigScratchValue == null || ConfigScratchValue.Length <= 0)
+			{
+				if (ManifestFullPath != null)
+				{
+					ConfigScratchValue = GetInterprettedSettingValue(ManifestFullPath);
+				}
+				if (ConfigScratchValue == null || ConfigScratchValue.Length <= 0)
+				{
+					if (GenericINISection == null || GenericINIKey == null || (!EngineIni.GetString(GenericINISection, GenericINIKey, out ConfigScratchValue) && !GameIni.GetString(GenericINISection, GenericINIKey, out ConfigScratchValue)))
+					{
+						ConfigScratchValue = DefaultValue;
+					}
+				}
+			}
+			DefaultResourceWriter.AddResource(ResourceEntryName, ConfigScratchValue + ValuePostfix);
+
+			// Find the default value
+			List<string> PerCultureValues;
+			if (EngineIni.GetArray(TargetSettings, "PerCultureResources", out PerCultureValues))
+			{
+				foreach (string CultureCombinedValues in PerCultureValues)
+				{
+					Dictionary<string, string> SeparatedCultureValues;
+					InterpretINIStruct(CultureCombinedValues, out SeparatedCultureValues);
+					string CultureToFind = SeparatedCultureValues["CultureId"];
+					int CultureIndex = CulturesToStage.IndexOf(CultureToFind/*SeparatedCultureValues["CultureId"]*/);
+					if (CultureIndex >= 0 && SeparatedCultureValues[ConfigKey] != null && SeparatedCultureValues[ConfigKey].Length > 0)
+					{
+						PerCultureResourceWriters[CultureIndex].AddResource(ResourceEntryName, SeparatedCultureValues[ConfigKey] + ValuePostfix);
+					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// Add a child XML node to a parent node if the child node is valid.
+		/// <param name="Parent">Parent node to add child to.</param>
+		/// <param name="Child">Child node to be evaluated and added.</param>
+		/// <param name="bNodeRequired">Display an error if the node is invalid and won't be added to the parent.</param>
+		/// <param name="bNodeMustNotBeEmpty">The child node must contain child nodes of it's own to be considered valid.</param>
+		/// </summary>
+		private void AddElementIfValid(XmlNode Parent, XmlNode Child, bool bNodeRequired, bool bNodeMustNotBeEmpty = false)
+		{
+			if (Child != null)
+			{
+				if (!bNodeMustNotBeEmpty || Child.HasChildNodes)
+				{
+					Parent.AppendChild(Child);
+				}
+				else if (bNodeRequired)
+				{
+					Log.TraceError("Node {0} that requires a value is empty.", Child.Name);
+				}
+			}
+			else if (bNodeRequired)
+			{
+				Log.TraceError("Unable to create required manifest entry {0}.", Child.Name);
+			}
+		}
+
+		/// <summary>
+		/// Gather all information for the Package element of the manifest.
+		/// </summary>
+		private XmlNode GetPackage(List<UnrealTargetConfiguration> TargetConfigs, List<string> Executables)
+		{
+			XmlElement Package = AppxManifestXmlDocument.CreateElement("Package");
+
+			XmlAttribute ManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns");
+			ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/foundation/windows10";
+			Package.Attributes.Append(ManifestNamespace);
+
+			XmlAttribute UapManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:uap");
+			UapManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10";
+			Package.Attributes.Append(UapManifestNamespace);
+
+            XmlAttribute Uap2ManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:uap2");
+            Uap2ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10/2";
+            Package.Attributes.Append(Uap2ManifestNamespace);
+
+            XmlAttribute MpManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:mp");
+			MpManifestNamespace.Value = "http://schemas.microsoft.com/appx/2014/phone/manifest";
+			Package.Attributes.Append(MpManifestNamespace);
+
+            XmlAttribute IgnorableNamespaces = AppxManifestXmlDocument.CreateAttribute("IgnorableNamespaces");
+            IgnorableNamespaces.Value = "mp uap uap2";
+            Package.Attributes.Append(IgnorableNamespaces);
+
+
+            XmlNode Identity = GetIdentity();
+			AddElementIfValid(Package, Identity, true);
+
+			XmlNode Properties = GetProperties();
+			AddElementIfValid(Package, Properties, true);
+
+			XmlNode Dependencies = GetDependencies();
+			AddElementIfValid(Package, Dependencies, true);
+
+			XmlNode Resources = GetResources();
+			AddElementIfValid(Package, Resources, true);
+
+			XmlNode Applications = GetApplications(TargetConfigs, Executables);
+			AddElementIfValid(Package, Applications, true);
+
+			XmlNode Capabilities = GetCapabilities();
+			AddElementIfValid(Package, Capabilities, true);
+
+			XmlNode Extensions = GetPackageExtensions();
+			AddElementIfValid(Package, Extensions, false, true);
+
+			return Package;
+		}
+
+		/// <summary>
+		/// Validate a package name. Must contain only characters [-.A-Za-z0-9].
+		/// </summary>
+		private string ValidatePackageName(string InPackageName)
+		{
+			string ReturnVal = Regex.Replace(InPackageName, "[^-.A-Za-z0-9]", "");
+			if (ReturnVal == null || ReturnVal.Length <= 0)
+			{
+				Log.TraceError("Invalid package name {0}. Package names must only contain letters, numbers, dash, and period and must be at least one character long.", InPackageName);
+				Log.TraceError("Consider using the setting [/Script/UWPPlatformEditor.UWPTargetSettings]:PackageName to provide an Xbox specific value.");
+			}
+			return ReturnVal;
+		}
+
+		/// <summary>
+		/// Gather all information for the Identity element of the manifest.
+		/// </summary>
+		private XmlNode GetIdentity()
+		{
+			XmlElement Identity = AppxManifestXmlDocument.CreateElement("Identity");
+
+			XmlAttribute PackageName = CreateStringAttribute("Name", "PackageName", "Package.Identity.Name", "/Script/EngineSettings.GeneralProjectSettings", "ProjectName", "DefaultUE4Project", ValidatePackageName);
+			Identity.Attributes.Append(PackageName);
+
+			XmlAttribute ProcessorArchitecture = AppxManifestXmlDocument.CreateAttribute("ProcessorArchitecture");
+			ProcessorArchitecture.Value = Platform == UnrealTargetPlatform.UWP64 ? "x64" : "x86";
+			Identity.Attributes.Append(ProcessorArchitecture);
+
+			XmlAttribute PublisherName = CreateStringAttribute("Publisher", "PublisherName", "Package.Identity.Publisher", "/Script/EngineSettings.GeneralProjectSettings", "CompanyDistinguishedName", "CN=NoPublisher");
+			Identity.Attributes.Append(PublisherName);
+
+			XmlAttribute VersionNumber = CreateStringAttribute("Version", "PackageVersion", "Package.Identity.Version", "/Script/EngineSettings.GeneralProjectSettings", "ProjectVersion", "1.0.0.0");
+			Identity.Attributes.Append(VersionNumber);
+
+			return Identity;
+		}
+
+		/// <summary>
+		/// Gather all information for the Properties element of the manifest.
+		/// </summary>
+		private XmlNode GetProperties()
+		{
+			XmlElement Properties = AppxManifestXmlDocument.CreateElement("Properties");
+
+			XmlElement DisplayName = AppxManifestXmlDocument.CreateElement("DisplayName");
+			DisplayName.InnerText = "ms-resource:PackageDisplayName";
+			Properties.AppendChild(DisplayName);
+			AddResourceEntry("PackageDisplayName", "PackageDisplayName", "Package.Properties.DisplayName", "/Script/EngineSettings.GeneralProjectSettings", "ProjectDisplayedTitle", "DefaultUE4Project");
+
+			XmlElement PublisherDisplayName = AppxManifestXmlDocument.CreateElement("PublisherDisplayName");
+			PublisherDisplayName.InnerText = "ms-resource:PublisherDisplayName";
+			Properties.AppendChild(PublisherDisplayName);
+			AddResourceEntry("PublisherDisplayName", "PublisherDisplayName", "Package.Properties.PublisherDisplayName", "/Script/EngineSettings.GeneralProjectSettings", "CompanyName", "NoPublisher");
+
+			XmlElement PackageDescription = AppxManifestXmlDocument.CreateElement("Description");
+			PackageDescription.InnerText = "ms-resource:PackageDescription";
+			Properties.AppendChild(PackageDescription);
+			AddResourceEntry("PackageDescription", "PackageDescription", "Package.Properties.Description", "/Script/EngineSettings.GeneralProjectSettings", "Description", "");
+
+			XmlElement PackageLogo = AppxManifestXmlDocument.CreateElement("Logo");
+			// Some applications may not have a package logo and use the application logo instead.
+			// Try logos in the following order:
+			//   1. Project package logo
+			//   2. Project application logo
+			//   3. Engine application logo (the engine always uses a single logo for package and application)
+			if (CopyAndReplaceBinaryIntermediate("PackageLogo.png", false))
+			{
+				PackageLogo.InnerText = BuildResourceSubPath + "\\PackageLogo.png";
+				Properties.AppendChild(PackageLogo);
+			}
+			else if (CopyAndReplaceBinaryIntermediate("Logo.png"))
+			{
+				PackageLogo.InnerText = BuildResourceSubPath + "\\Logo.png";
+				Properties.AppendChild(PackageLogo);
+			}
+			else
+			{
+				Log.TraceError("Unable to stage package logo.");
+			}
+
+			return Properties;
+		}
+
+		/// <summary>
+		/// Gather all information for the Dependencies element of the manifest.
+		/// </summary>
+		private XmlNode GetDependencies()
+		{
+			XmlElement Dependencies = AppxManifestXmlDocument.CreateElement("Dependencies");
+
+			{
+				XmlElement TargetDeviceFamily = AppxManifestXmlDocument.CreateElement("TargetDeviceFamily");
+				Dependencies.AppendChild(TargetDeviceFamily);
+
+				XmlAttribute NameAttribute = AppxManifestXmlDocument.CreateAttribute("Name");
+				NameAttribute.Value = "Windows.Universal";
+				TargetDeviceFamily.Attributes.Append(NameAttribute);
+
+				XmlAttribute MinVersionAttribute = AppxManifestXmlDocument.CreateAttribute("MinVersion");
+				MinVersionAttribute.Value = CreateStringValue("MinVersion", "Package.Dependencies.TargetDeviceFamily[0].MinVersion", "MinVersion", "MinVersion", "10.0.10240.0");
+				TargetDeviceFamily.Attributes.Append(MinVersionAttribute);
+
+				XmlAttribute MaxVersionTestedAttribute = AppxManifestXmlDocument.CreateAttribute("MaxVersionTested");
+				MaxVersionTestedAttribute.Value = CreateStringValue("MaxVersionTested", "Package.Dependencies.TargetDeviceFamily[0].MaxVersionTested", "MaxVersionTested", "MaxVersionTested", "10.0.10586.0");
+				TargetDeviceFamily.Attributes.Append(MaxVersionTestedAttribute);
+			}
+
+			{
+				XmlElement PackageDependency = AppxManifestXmlDocument.CreateElement("PackageDependency");
+				Dependencies.AppendChild(PackageDependency);
+
+				XmlAttribute NameAttribute = AppxManifestXmlDocument.CreateAttribute("Name");
+				NameAttribute.Value = "Microsoft.VCLibs.140.00";
+				PackageDependency.Attributes.Append(NameAttribute);
+
+				XmlAttribute PublisherAttribute = AppxManifestXmlDocument.CreateAttribute("Publisher");
+				PublisherAttribute.Value = "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US";
+				PackageDependency.Attributes.Append(PublisherAttribute);
+
+				XmlAttribute MinVersionAttribute = AppxManifestXmlDocument.CreateAttribute("MinVersion");
+				MinVersionAttribute.Value = "14.0.0.0";
+				PackageDependency.Attributes.Append(MinVersionAttribute);
+			}
+
+			return Dependencies;
+		}
+ 
+
+		/// <summary>
+		/// Gather all information for the Prerequisites element of the manifest.
+		/// </summary>
+		private XmlNode GetPrerequisites()
+		{
+			XmlElement Prerequisites = AppxManifestXmlDocument.CreateElement("Prerequisites");
+			XmlElement OSMinVersion = CreateStringElement("OSMinVersion", "MinimumOSVersion", "Package.Prerequisites.OSMinVersion", TargetSettings, "MinimumOSVersion", "6.2");
+			Prerequisites.AppendChild(OSMinVersion);
+
+			XmlElement OSMaxVersionTested = CreateStringElement("OSMaxVersionTested", "MaximumOSVersion", "Package.Prerequisites.OSMaxVersionTested", TargetSettings, "MaximumOSVersion", "6.2");
+			Prerequisites.AppendChild(OSMaxVersionTested);
+
+			return Prerequisites;
+		}
+
+		/// <summary>
+		/// Gather all information for the Resources element of the manifest.
+		/// </summary>
+		private XmlNode GetResources()
+		{
+			XmlElement Resources = AppxManifestXmlDocument.CreateElement("Resources");
+
+			List<string> ResourceCulturesList = CulturesToStage.ToList();
+			// Move the default culture to the front of the list
+			ResourceCulturesList.Remove(DefaultCulture);
+			ResourceCulturesList.Insert(0, DefaultCulture);
+
+			// Check that we have a valid number of cultures
+			if (CulturesToStage.Count < 1 || CulturesToStage.Count >= MaxResourceEntries)
+			{
+				Log.TraceWarning("Incorrect number of cultures to stage. There must be between 1 and {0} cultures selected.", MaxResourceEntries);
+			}
+
+			// Create the culture list. This list is unordered except that the default language must be first which we already took care of above.
+			for (int ResourceIndex = 0; ResourceIndex < CulturesToStage.Count; ResourceIndex++)
+			{
+				XmlNode Resource = AppxManifestXmlDocument.CreateElement("Resource");
+
+				XmlAttribute LanguageAttribute = AppxManifestXmlDocument.CreateAttribute("Language");
+				LanguageAttribute.Value = CulturesToStage[ResourceIndex];
+				Resource.Attributes.Append(LanguageAttribute);
+
+				Resources.AppendChild(Resource);
+			}
+
+			return Resources;
+		}
+
+		/// <summary>
+		/// Create an Application manifest entry for each target configuration
+		/// </summary>
+		private XmlNode GetApplications(List<UnrealTargetConfiguration> TargetConfigs, List<string> Executables)
+		{
+			XmlElement Applications = AppxManifestXmlDocument.CreateElement("Applications");
+
+			if (TargetConfigs.Count < 1)
+			{
+				Log.TraceError("No configurations to deploy");
+				return Applications;
+			}
+			if (TargetConfigs.Count != Executables.Count)
+			{
+				Log.TraceError("The number of executables does not match the number of configurations.");
+				return Applications;
+			}
+
+			for (int ApplicationIndex = 0; ApplicationIndex < TargetConfigs.Count; ApplicationIndex++)
+			{
+				bool bIncludeConfigPostfix = TargetConfigs.Count > 1 && TargetConfigs[ApplicationIndex] != UnrealTargetConfiguration.Development;
+				XmlNode Application = GetApplication(ApplicationIndex, TargetConfigs[ApplicationIndex], Executables[ApplicationIndex], bIncludeConfigPostfix);
+				AddElementIfValid(Applications, Application, true, true);
+			}
+
+			return Applications;
+		}
+
+		/// <summary>
+		/// Validate the base name we use to construct the application id and entry point. Must match [A-Za-z][A-Za-z0-9]*.
+		/// </summary>
+		private string ValidateProjectBaseName(string InApplicationId)
+		{
+			string ReturnVal = Regex.Replace(InApplicationId, "[^A-Za-z0-9]", "");
+			if (ReturnVal != null)
+			{
+				// Remove any leading numbers (must start with a letter)
+				ReturnVal = Regex.Replace(ReturnVal, "^[0-9]*", "");
+			}
+			if (ReturnVal == null || ReturnVal.Length <= 0)
+			{
+				Log.TraceError("Invalid application ID {0}. Application IDs must only contain letters and numbers. And they must begin with a letter.", InApplicationId);
+				Log.TraceError("Consider using the setting [/Script/UWPPlatformEditor.UWPTargetSettings]:PackageName to provide a UWP specific value.");
+			}
+			return ReturnVal;
+		}
+
+		/// <summary>
+		/// Create an Application manifest entry for a specific target configuration
+		/// </summary>
+		private XmlNode GetApplication(int ApplicationIndex, UnrealTargetConfiguration TargetConfig, string ExecutablePath, bool bIncludeConfigPostfix)
+		{
+			XmlElement Application = AppxManifestXmlDocument.CreateElement("Application");
+
+			string PackageBaseName = CreateStringValue("PackageName", "Package.Applications.Application[" + ApplicationIndex + "].Id", "/Script/EngineSettings.GeneralProjectSettings", "ProjectName", "UE4Game", ValidateProjectBaseName);
+
+			string ConfigPostfix = "";
+			if (bIncludeConfigPostfix)
+			{
+				ConfigPostfix = TargetConfig.ToString();
+			}
+
+			string RelativeExePath = Utils.MakePathRelativeTo(ExecutablePath, Path.Combine(ExecutablePath, "../../../.."));
+
+			XmlAttribute Id = AppxManifestXmlDocument.CreateAttribute("Id");
+			Id.Value = "App" + PackageBaseName + ConfigPostfix;
+			Application.Attributes.Append(Id);
+
+			XmlAttribute Executable = AppxManifestXmlDocument.CreateAttribute("Executable");
+			Executable.Value = RelativeExePath;
+			Application.Attributes.Append(Executable);
+
+			XmlAttribute EntryPoint = AppxManifestXmlDocument.CreateAttribute("EntryPoint");
+			EntryPoint.Value = PackageBaseName + ".app";
+			Application.Attributes.Append(EntryPoint);
+
+			XmlNode VisualElements = GetVisualElements(/*Document, */ApplicationIndex, ConfigPostfix);
+			AddElementIfValid(Application, VisualElements, true, true);
+
+			XmlNode Extensions = GetApplicationExtensions(/*Document, */ApplicationIndex, TargetConfig);
+			AddElementIfValid(Application, Extensions, false, true);
+
+			return Application;
+		}
+
+		/// <summary>
+		/// Gather all information for the VisualElements element of the manifest.
+		/// </summary>
+		private XmlNode GetVisualElements(int ApplicationIndex, string ConfigPostfix)
+		{
+			XmlElement VisualElements = AppxManifestXmlDocument.CreateElement("uap:VisualElements", "http://schemas.microsoft.com/appx/manifest/uap/windows10");
+
+			XmlAttribute DisplayName = AppxManifestXmlDocument.CreateAttribute("DisplayName");
+			if (ConfigPostfix != null && ConfigPostfix.Length > 0)
+			{
+				DisplayName.Value = "ms-resource:AppDisplayName" + ConfigPostfix;
+				AddResourceEntry("AppDisplayName" + ConfigPostfix, "ApplicationDisplayName", "Package.Applications.Application[" + ApplicationIndex + "].VisualElements.DisplayName", "/Script/EngineSettings.GeneralProjectSettings", "ProjectName", "UE4Game", " - " + ConfigPostfix);
+			}
+			else
+			{
+				DisplayName.Value = "ms-resource:AppDisplayName";
+				AddResourceEntry("AppDisplayName" + ConfigPostfix, "ApplicationDisplayName", "Package.Applications.Application[" + ApplicationIndex + "].VisualElements.DisplayName", "/Script/EngineSettings.GeneralProjectSettings", "ProjectName", "UE4Game");
+			}
+			VisualElements.Attributes.Append(DisplayName);
+
+			XmlAttribute Description = AppxManifestXmlDocument.CreateAttribute("Description");
+			Description.Value = "ms-resource:AppDescription";
+			VisualElements.Attributes.Append(Description);
+			AddResourceEntry("AppDescription", "ApplicationDescription", "Package.Applications.Application[" + ApplicationIndex + "].VisualElements.Description", "/Script/EngineSettings.GeneralProjectSettings", "Description", "");
+
+			XmlAttribute BackgroundColor = CreateColorAttribute("BackgroundColor", "ApplicationBackgroundColor", "Package.Applications.Application[" + ApplicationIndex + "].VisualElements.BackgroundColor", "#000040");
+			VisualElements.Attributes.Append(BackgroundColor);
+
+			XmlAttribute Logo = AppxManifestXmlDocument.CreateAttribute("Square150x150Logo");
+			if (CopyAndReplaceBinaryIntermediate("Logo.png"))
+			{
+				Logo.Value = BuildResourceSubPath + "\\Logo.png";
+				VisualElements.Attributes.Append(Logo);
+			}
+			else
+			{
+				Log.TraceError("Unable to stage application logo.");
+			}
+
+			XmlAttribute SmallLogo = AppxManifestXmlDocument.CreateAttribute("Square44x44Logo");
+			if (CopyAndReplaceBinaryIntermediate("SmallLogo.png"))
+			{
+				SmallLogo.Value = BuildResourceSubPath + "\\SmallLogo.png";
+				VisualElements.Attributes.Append(SmallLogo);
+			}
+			else
+			{
+				Log.TraceError("Unable to stage application small logo.");
+			}
+
+			XmlNode SplashScreen = GetSplashScreen(ApplicationIndex);
+			VisualElements.AppendChild(SplashScreen);
+
+			//@todo application support
+			// 			XmlNode ViewStates = GetViewStates(Document, ApplicationIndex);
+			// 			VisualElements.AppendChild(ViewStates);
+
+			return VisualElements;
+		}
+
+		/// <summary>
+		/// Gather all information for the DefaultTile element of the manifest.
+		/// </summary>
+		private XmlNode GetDefaultTile(int ApplicationIndex)
+		{
+			XmlElement DefaultTile = AppxManifestXmlDocument.CreateElement("DefaultTile");
+
+			XmlAttribute WideLogo = AppxManifestXmlDocument.CreateAttribute("WideLogo");
+			if (CopyAndReplaceBinaryIntermediate("WideLogo.png"))
+			{
+				WideLogo.Value = BuildResourceSubPath + "\\WideLogo.png";
+				DefaultTile.Attributes.Append(WideLogo);
+			}
+			else
+			{
+				Log.TraceError("Unable to stage application wide logo.");
+			}
+
+			// Calculate the short name display conditions and the short name if it will be used
+			XmlAttribute ShowName = AppxManifestXmlDocument.CreateAttribute("ShowName");
+			ShowName.Value = "noLogos";
+			bool bUseShortNameForLogo = false;
+			bool bUseShortNameForWideLogo = false;
+			bool bShortNameForLogoValueRead = EngineIni.GetBool(TargetSettings, "bUseShortNameForLogo", out bUseShortNameForLogo);
+			bool bShortNameForWideLogoValueRead = EngineIni.GetBool(TargetSettings, "bUseShortNameForWideLogo", out bUseShortNameForWideLogo);
+			if (bShortNameForLogoValueRead || bShortNameForWideLogoValueRead)
+			{
+				if (bUseShortNameForLogo && bUseShortNameForWideLogo)
+				{
+					ShowName.Value = "allLogos";
+				}
+				else if (bUseShortNameForLogo)
+				{
+					ShowName.Value = "logoOnly";
+				}
+				else if (bUseShortNameForWideLogo)
+				{
+					ShowName.Value = "wideLogoOnly";
+				}
+			}
+			else
+			{
+				ShowName.Value = GetInterprettedSettingValue("Package.Applications.Application[" + ApplicationIndex + "].VisualElements.DefaultTile.ShowName");
+			}
+			if (ShowName.Value != null && ShowName.Value.Length > 0 && !ShowName.Value.Equals("noLogos"))
+
+			{
+				XmlAttribute ShortName = AppxManifestXmlDocument.CreateAttribute("ShortName");// CreateStringAttribute("ShortName", "ApplicationShortName", "Package.Applications.Application[" + ApplicationIndex + "].VisualElements.DefaultTile.ShortName", null, null, "");
+				ShortName.Value = "ms-resource:AppShortName";
+				AddResourceEntry("AppShortName", "ApplicationShortName", "Package.Applications.Application[" + ApplicationIndex + "].VisualElements.DefaultTile.ShortName", null, null, "UE4Game");
+
+				DefaultTile.Attributes.Append(ShortName);
+				DefaultTile.Attributes.Append(ShowName);
+			}
+
+			return DefaultTile;
+		}
+
+		/// <summary>
+		/// Gather all information for the SplashScreen element of the manifest.
+		/// </summary>
+		private XmlNode GetSplashScreen(int ApplicationIndex)
+		{
+			XmlElement SplashScreen = AppxManifestXmlDocument.CreateElement("uap:SplashScreen", "http://schemas.microsoft.com/appx/manifest/uap/windows10");
+
+			XmlAttribute BackgroundColor = CreateColorAttribute("BackgroundColor", "SplashScreenBackgroundColor", "Package.Applications.Application[" + ApplicationIndex + "].VisualElements.SplashScreen.BackgroundColor", "#000040");
+			SplashScreen.Attributes.Append(BackgroundColor);
+
+			XmlAttribute Image = AppxManifestXmlDocument.CreateAttribute("Image");
+			if (CopyAndReplaceBinaryIntermediate("SplashScreen.png"))
+			{
+				Image.Value = BuildResourceSubPath + "\\SplashScreen.png";
+				SplashScreen.Attributes.Append(Image);
+			}
+			else
+			{
+				Log.TraceError("Unable to stage splash screen image.");
+			}
+
+			return SplashScreen;
+		}
+
+		//@todo application support
+		// 		private static XmlNode GetViewStates(XmlDocument Document, int ApplicationIndex)
+		// 		{
+		// 			XmlElement ViewStates = Document.CreateElement("mx:ViewStates");
+		// 
+		// 			for (int ViewStateIndex = 0; ViewStateIndex < /*ViewStates.Length*/1; ViewStateIndex++)
+		// 			{
+		// 				XmlNode ViewState = Document.CreateElement("mx:ViewState");
+		// 
+		// 				XmlAttribute NameAttribute = Document.CreateAttribute("Name");
+		// 				NameAttribute.Value = "";
+		// 				ViewState.Attributes.Append(NameAttribute);
+		// 
+		// 				ViewStates.AppendChild(ViewState);
+		// 			}
+		// 
+		// 			return ViewStates;
+		// 		}
+
+		/// <summary>
+		/// Special attribute creation to handle background task items using boolean values in the new setup, but more complex setup in the old AppxManifest INI settings
+		/// </summary>
+		private XmlNode ProcessBackgroundTaskExtensions(string TaskType, string PlatformINIKey, string ManifestBasePath)
+		{
+			string BackgroundTaskManifestPath = null;
+			int BackgroundTaskIndex = FindIndexOfArrayValue(ManifestBasePath, "Type", TaskType);
+			if (BackgroundTaskIndex >= 0)
+			{
+				BackgroundTaskManifestPath = ManifestBasePath + "[" + BackgroundTaskIndex + "].Type";
+			}
+			if (CreateBoolValue(PlatformINIKey, BackgroundTaskManifestPath, null, null, "False", TaskType))
+			{
+				XmlElement Task = AppxManifestXmlDocument.CreateElement("Task");
+				XmlAttribute Type = AppxManifestXmlDocument.CreateAttribute("Type");
+				Type.Value = TaskType;
+				Task.Attributes.Append(Type);
+				return Task;
+			}
+			return null;
+		}
+
+		/// <summary>
+		/// Special attribute creation to handle extension indexes in the old appxmanifest INI setup
+		/// </summary>
+		private XmlAttribute ProcessApplicationExtensionStringAttribute(string ExtensionManifestId, string AttributeManifestId, string PlatformINIKey, string GlobalINISection, string GlobalINIKey, string DefaultValue, int ApplicationIndex, int ExtensionIndex, bool RequireLowerCase = false)
+		{
+			string ManifestPath = null;
+			if (ExtensionIndex >= 0)
+			{
+				ManifestPath = "Package.Applications.Application[" + ApplicationIndex + "].Extensions.mx:Extension[" + ExtensionIndex + "]." + ExtensionManifestId + "." + AttributeManifestId;
+			}
+			string Value = CreateStringValue(PlatformINIKey, ManifestPath, GlobalINISection, GlobalINIKey, DefaultValue);
+			if (Value != null && Value.Length > 0)
+			{
+				XmlAttribute Attribute = AppxManifestXmlDocument.CreateAttribute(AttributeManifestId);
+				if (RequireLowerCase)
+				{
+					Attribute.Value = Value.ToLower();
+				}
+				else
+				{
+					Attribute.Value = Value;
+				}
+				return Attribute;
+			}
+			return null;
+		}
+
+		/// <summary>
+		/// Gather and create manifest for the application extension entries. There are multiple possible extension types
+		/// that can occur in any order and may individually be present or absent. A great deal of the complexity of this
+		/// function deals with correlating the old and new style INI entries across these order differences.
+		/// </summary>
+		private XmlNode GetApplicationExtensions(int ApplicationIndex, UnrealTargetConfiguration TargetConfig)
+		{
+			XmlElement Extensions = AppxManifestXmlDocument.CreateElement("Extensions");
+
+			// windows.backgroundTasks
+			{
+				// Get extension index in old settings
+				int ExtensionIndex = FindIndexOfArrayValue("Package.Applications.Application[" + ApplicationIndex + "].Extensions.Extension", "Category", "windows.backgroundTasks");
+				string ManifestBasePath = "Package.Applications.Application[" + ApplicationIndex + "].Extensions.Extension[" + ExtensionIndex + "].BackgroundTasks.Task";
+
+				XmlElement BackgroundTasks = AppxManifestXmlDocument.CreateElement("BackgroundTasks");
+
+				XmlNode AudioBackgroundTask = ProcessBackgroundTaskExtensions("audio", "bRequiresAudioBackgroundTask", ManifestBasePath);
+				if (AudioBackgroundTask != null)
+				{
+					BackgroundTasks.AppendChild(AudioBackgroundTask);
+				}
+
+				XmlNode ControlChannelBackgroundTask = ProcessBackgroundTaskExtensions("controlChannel", "bRequiresControlChannelBackgroundTask", ManifestBasePath);
+				if (ControlChannelBackgroundTask != null)
+				{
+					BackgroundTasks.AppendChild(ControlChannelBackgroundTask);
+				}
+
+				XmlNode SystemEventBackgroundTask = ProcessBackgroundTaskExtensions("systemEvent", "bRequiresSystemEventBackgroundTask", ManifestBasePath);
+				if (SystemEventBackgroundTask != null)
+				{
+					BackgroundTasks.AppendChild(SystemEventBackgroundTask);
+				}
+
+				XmlNode TimerBackgroundTask = ProcessBackgroundTaskExtensions("timer", "bRequiresTimerBackgroundTask", ManifestBasePath);
+				if (TimerBackgroundTask != null)
+				{
+					BackgroundTasks.AppendChild(TimerBackgroundTask);
+				}
+
+				XmlNode PushNotificationBackgroundTask = ProcessBackgroundTaskExtensions("pushNotification", "bRequiresPushNotificationBackgroundTask", ManifestBasePath);
+				if (PushNotificationBackgroundTask != null)
+				{
+					BackgroundTasks.AppendChild(PushNotificationBackgroundTask);
+				}
+
+				if (BackgroundTasks.HasChildNodes)
+				{
+					XmlElement BackgroundExtention = AppxManifestXmlDocument.CreateElement("Extension");
+					XmlAttribute BackgroundCategory = AppxManifestXmlDocument.CreateAttribute("Category");
+					BackgroundCategory.Value = "windows.backgroundTasks";
+					BackgroundExtention.Attributes.Append(BackgroundCategory);
+					XmlAttribute BackgroundEntryPoint = AppxManifestXmlDocument.CreateAttribute("EntryPoint");
+					BackgroundEntryPoint.Value = "Tasks.BackgroundTask";
+					BackgroundExtention.Attributes.Append(BackgroundEntryPoint);
+					BackgroundExtention.AppendChild(BackgroundTasks);
+					Extensions.AppendChild(BackgroundExtention);
+				}
+			}
+
+			return Extensions;
+		}
+
+        // for ease of integration with mainlain, allow Epic's implementation for XboxOne to flow through unchanged
+        private XmlNode GetCapabilities()
+        {
+            XmlElement Capabilities = AppxManifestXmlDocument.CreateElement("Capabilities");
+
             List<string> CapabilityList = new List<string>();
             List<string> DeviceCapabilityList = new List<string>();
             List<string> UapCapabilityList = new List<string>();
             List<string> Uap2CapabilityList = new List<string>();
 
-            EngineIni.GetArray(CapabilitySection, "CapabilityList", out CapabilityList);
-            EngineIni.GetArray(CapabilitySection, "DeviceCapabilityList", out DeviceCapabilityList);
-            EngineIni.GetArray(CapabilitySection, "UapCapabilityList", out UapCapabilityList);
-            EngineIni.GetArray(CapabilitySection, "Uap2CapabilityList", out Uap2CapabilityList);
-
-            includeCapabilityType = (CapabilityList != null && CapabilityList.Count > 0) ? true : false;
-            includeUapCapabilityType = (UapCapabilityList != null && UapCapabilityList.Count > 0) ? true : false;
-            IncludeUap2CapabilityType = (Uap2CapabilityList != null && Uap2CapabilityList.Count > 0) ? true : false;
-            IncludeDeviceCapabilityType = (DeviceCapabilityList != null && DeviceCapabilityList.Count > 0) ? true : false;
-
-            if (!includeCapabilityType && !includeUapCapabilityType && !IncludeUap2CapabilityType && !IncludeDeviceCapabilityType)
+            if (EngineIni.GetArray(TargetSettings, "CapabilityList", out CapabilityList))
             {
-                // None of the capability arrays contain valid elements, so skip them.
-                isValid = false;
-            }
-            else if (IncludeUap2CapabilityType && !IncludeDeviceCapabilityType && !includeUapCapabilityType && !includeCapabilityType)
-            {
-                // <uap2:Capability> types are special and must be handled separately from other capability elements.
-                OnlyUap2CapabilityElements = true;
-            }
-
-            return isValid;
-        }
-        // @ATG_CHANGE : END UWP Capability support
-
-        // @ATG_CHANGE : BEGIN UWP Capability support
-        private void PrintUap2Capabilities(int Indent, StringBuilder LocalContents)
-        {
-            List<string> Uap2CapabilityList = new List<string>();
-            EngineIni.GetArray(CapabilitySection, "Uap2CapabilityList", out Uap2CapabilityList);
-
-            if (OnlyUap2CapabilityElements)
-            {
-                LocalContents.AppendLine(GetIndentString(Indent) + "<Capabilities>");
-            }
-
-            if (Uap2CapabilityList != null && Uap2CapabilityList.Count > 0)
-            {
-                foreach (string name in Uap2CapabilityList)
+                foreach (string capName in CapabilityList)
                 {
-                    if (!string.IsNullOrEmpty(name))
-                    {
-                        LocalContents.AppendLine(GetIndentString(Indent + 1) + "<uap2:Capability Name=\"" + name + "\" />");
-                    }
+                    XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("Capability");
+                    XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
+                    Name.Value = capName;
+                    CapabilityElement.Attributes.Append(Name);
+                    Capabilities.AppendChild(CapabilityElement);
                 }
             }
 
-            if (OnlyUap2CapabilityElements)
+            if (EngineIni.GetArray(TargetSettings, "DeviceCapabilityList", out DeviceCapabilityList))
             {
-                LocalContents.AppendLine(GetIndentString(Indent) + "</Capabilities>");
+                foreach (string capName in CapabilityList)
+                {
+                    XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("DeviceCapability");
+                    XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
+                    Name.Value = capName;
+                    CapabilityElement.Attributes.Append(Name);
+                    Capabilities.AppendChild(CapabilityElement);
+                }
             }
+
+            if (EngineIni.GetArray(TargetSettings, "UapCapabilityList", out UapCapabilityList))
+            {
+                foreach (string capName in CapabilityList)
+                {
+                    XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("uap:Capability");
+                    XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
+                    Name.Value = capName;
+                    CapabilityElement.Attributes.Append(Name);
+                    Capabilities.AppendChild(CapabilityElement);
+                }
+            }
+
+            if (EngineIni.GetArray(TargetSettings, "Uap2CapabilityList", out Uap2CapabilityList))
+            {
+                foreach (string capName in CapabilityList)
+                {
+                    XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("uap2:Capability");
+                    XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
+                    Name.Value = capName;
+                    CapabilityElement.Attributes.Append(Name);
+                    Capabilities.AppendChild(CapabilityElement);
+                }
+            }
+
+            return Capabilities;
         }
-        // @ATG_CHANGE : END UWP Capability support
-    };
+
+		/// <summary>
+		/// Gather and create manifest for the package extension entries. There are multiple possible extension types
+		/// that can occur in any order and may individually be present or absent. A great deal of the complexity of this
+		/// function deals with correlating the old and new style INI entries across these order differences.
+		/// </summary>
+		private XmlNode GetPackageExtensions()
+		{
+			XmlElement Extensions = AppxManifestXmlDocument.CreateElement("Extensions");
+
+			foreach (var WinMD in WinMDReferences)
+			{
+				XmlElement ExtensionElement = AppxManifestXmlDocument.CreateElement("Extension");
+				Extensions.AppendChild(ExtensionElement);
+
+				XmlAttribute CategoryAttribute = AppxManifestXmlDocument.CreateAttribute("Category");
+				CategoryAttribute.Value = "windows.activatableClass.inProcessServer";
+				ExtensionElement.Attributes.Append(CategoryAttribute);
+
+				XmlElement InProcessServerElement = AppxManifestXmlDocument.CreateElement("InProcessServer");
+				ExtensionElement.AppendChild(InProcessServerElement);
+
+				XmlElement PathElement = AppxManifestXmlDocument.CreateElement("Path");
+				InProcessServerElement.AppendChild(PathElement);
+				PathElement.InnerText = WinMD.PackageRelativeDllPath;
+
+				foreach (var WinMDType in WinMD.ActivatableTypes)
+				{
+					XmlElement ActivatableClassElement = AppxManifestXmlDocument.CreateElement("ActivatableClass");
+					InProcessServerElement.AppendChild(ActivatableClassElement);
+
+					XmlAttribute ActivatableClassIdAttribute = AppxManifestXmlDocument.CreateAttribute("ActivatableClassId");
+					ActivatableClassIdAttribute.Value = WinMDType.TypeName;
+					ActivatableClassElement.Attributes.Append(ActivatableClassIdAttribute);
+
+					XmlAttribute ThreadingModelAttribute = AppxManifestXmlDocument.CreateAttribute("ThreadingModel");
+					ThreadingModelAttribute.Value = WinMDType.ThreadingModelName;
+					ActivatableClassElement.Attributes.Append(ThreadingModelAttribute);
+				}
+			}
+
+			//@todo outOfProcessServer
+			//@todo proxyStub
+			//@todo windows.certificates
+
+			if (!Extensions.HasChildNodes)
+			{
+				return null;
+			}
+
+			return Extensions;
+		}
+	};
 }

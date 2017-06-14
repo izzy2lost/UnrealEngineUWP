@@ -21,7 +21,7 @@ namespace UnrealBuildTool
 			this.Compiler = Compiler;
 		}
 
-		// @ATG_CHANGE : BEGIN reusing in other toolchains
+		// @ATG_CHANGE : BEGIN making public for reuse in UWP toolchain
 		public static void AddDefinition(List<string> Arguments, string Definition)
 		// @ATG_CHANGE : END
 		{
@@ -38,7 +38,7 @@ namespace UnrealBuildTool
 		}
 
 
-		// @ATG_CHANGE : BEGIN reusing in other toolchains
+		// @ATG_CHANGE : BEGIN making public for reuse in UWP toolchain
 		public static void AddDefinition(List<string> Arguments, string Variable, string Value)
 		// @ATG_CHANGE : END
 		{
@@ -73,9 +73,9 @@ namespace UnrealBuildTool
 		}
 
 
-		// @ATG_CHANGE :  BEGIN reusing in other toolchains
+		// @ATG_CHANGE : BEGIN making helper public for use in UWP toolchain
 		public static void AddIncludePath(List<string> Arguments, string IncludePath)
-		// @ATG_CHANGE : END
+		// @ATG_CHANGE : END 
 		{
 			// Need to convert to full paths to get full paths in error messages when debug info is disabled. I don't know why.
 			if(!IncludePath.Contains("$"))
@@ -104,7 +104,7 @@ namespace UnrealBuildTool
 		{
 			// @todo UWP: Why do we ever need WinRT headers when building regular Win32?  Is this just needed for the Windows 10 SDK?
 			// @todo UWP: These include paths should be added in SetUpEnvironment(), not here.  Do they need to be the last includes or something?
-			if (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.bUseWindowsSDK10)
+			if (Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.bUseWindowsSDK10)
 			{
 				if (Directory.Exists(EnvVars.WindowsSDKExtensionDir))
 				{
@@ -125,7 +125,7 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				// Arguments.Append( " /showIncludes" );
+				//Arguments.Add("/showIncludes");
 			}
 
 			// Suppress generation of object code for unreferenced inline functions. Enabling this option is more standards compliant, and causes a big reduction
@@ -580,9 +580,9 @@ namespace UnrealBuildTool
 
 				// @ATG_CHANGE : BEGIN winmd support
 				// Enable /ZW if the module requests it
-				if (CompileEnvironment.bEnableWinRTComponentExtensions)
+				if (CompileEnvironment.bEnableWinRTComponentExtensions || CompileEnvironment.WinMDReferences.Count > 0)
 				{
-					if (WindowsPlatform.bCanUseWindowsSDK10)
+					if (WindowsPlatform.bUseWindowsSDK10)
 					{
 						// Enable Windows Runtime extensions.
 						Arguments.Add(" /ZW");
@@ -594,18 +594,17 @@ namespace UnrealBuildTool
 
 						if (Directory.Exists(Path.Combine(EnvVars.WindowsSDKExtensionDir, "References")))
 						{
-							Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(EnvVars.WindowsSDKExtensionDir);
 							Arguments.Add(String.Format(@" /AI""{0}\References""", EnvVars.WindowsSDKExtensionDir));
-							Arguments.Add(String.Format(@" /AI""{0}\References\{1}""", EnvVars.WindowsSDKExtensionDir, SDKVersion));
+							Arguments.Add(String.Format(@" /AI""{0}\References\{1}""", EnvVars.WindowsSDKExtensionDir, EnvVars.WindowsSDKExtensionHeaderLibVersion));
 
 							// Use the latest version of contracts, consistent with our choice elsewhere to use the latest version of the SDK.
 							// These metadata files should bring in everything available on the Universal family.  Extension SDKs should be
 							// referenced directly by the modules that depend on them.
-							Arguments.Add(String.Format(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract")));
-							Arguments.Add(String.Format(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract")));
+							Arguments.Add(String.Format(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Compiler)));
+							Arguments.Add(String.Format(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Compiler)));
 						}
 
-						DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(WindowsPlatform.Compiler);
+						DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler);
 						if (PlatformWinMDLocation != null)
 						{
 							Arguments.Add(String.Format(@" /AI""{0}""", PlatformWinMDLocation));
@@ -1083,7 +1082,7 @@ namespace UnrealBuildTool
 
 			// @ATG_CHANGE : BEGIN winmd support
 			// Add winmd references			
-			if (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.ShouldUseWindowsSDK10(CompileEnvironment.Config.Platform))
+			if (Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.bUseWindowsSDK10)
 			{
 				foreach (string CurAssemblyInfo in CompileEnvironment.WinMDReferences)
 				{
@@ -1444,7 +1443,7 @@ namespace UnrealBuildTool
 			VCEnvironment EnvVars = VCEnvironment.SetEnvironment(LinkEnvironment.Platform, Compiler);
 
 			// @todo UWP: These paths should be added in SetUpEnvironment(), not here.  Also is this actually needed for classic desktop targets or only UWP?
-			if (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.bUseWindowsSDK10)
+			if (Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.bUseWindowsSDK10)
 			{
 				if (LinkEnvironment.Platform == CppPlatform.Win64)
 				{
@@ -1686,13 +1685,12 @@ namespace UnrealBuildTool
 			return OutputFile;
 		}
 
-
-        // @ATG_CHANGE : BEGIN making public for reuse in UWP toolchain
-        public static void ExportObjectFilePaths(LinkEnvironment LinkEnvironment, string FileName)
-        // @ATG_CHANGE : END making public for reuse in UWP toolchain
-        {
-            // Write the list of object file directories
-            HashSet<DirectoryReference> ObjectFileDirectories = new HashSet<DirectoryReference>();
+		// @ATG_CHANGE : BEGIN making public for reuse in UWP toolchain
+		public static void ExportObjectFilePaths(LinkEnvironment LinkEnvironment, string FileName)
+		// @ATG_CHANGE : END making public for reuse in UWP toolchain
+		{
+			// Write the list of object file directories
+			HashSet<DirectoryReference> ObjectFileDirectories = new HashSet<DirectoryReference>();
 			foreach(FileItem InputFile in LinkEnvironment.InputFiles)
 			{
 				ObjectFileDirectories.Add(InputFile.Reference.Directory);

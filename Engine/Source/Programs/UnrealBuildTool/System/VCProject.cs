@@ -517,14 +517,14 @@ namespace UnrealBuildTool
 				// @ATG_CHANGE : BEGIN UWP support
 				if (InPlatforms.Contains(UnrealTargetPlatform.UWP32))
 				{
-					VCIncludeSearchPaths.Append(UniversalWindowsPlatformToolChain.GetVCIncludePaths(CPPTargetPlatform.UWP32) + ";");
+					VCIncludeSearchPaths.Append(UniversalWindowsPlatformToolChain.GetVCIncludePaths(CppPlatform.UWP32, GetCompilerForIntellisense()) + ";");
 				}
 				else if (InPlatforms.Contains(UnrealTargetPlatform.UWP64))
 				{
-					VCIncludeSearchPaths.Append(UniversalWindowsPlatformToolChain.GetVCIncludePaths(CPPTargetPlatform.UWP64) + ";");
-				// @ATG_CHANGE : END
+					VCIncludeSearchPaths.Append(UniversalWindowsPlatformToolChain.GetVCIncludePaths(CppPlatform.UWP64, GetCompilerForIntellisense()) + ";");
 				}
 				else if (InPlatforms.Contains(UnrealTargetPlatform.Win64))
+				// @ATG_CHANGE : END
 				{
 					VCIncludeSearchPaths.Append(VCToolChain.GetVCIncludePaths(CppPlatform.Win64, GetCompilerForIntellisense()) + ";");
 				}
@@ -656,10 +656,10 @@ namespace UnrealBuildTool
 					"		<ProjectGuid>" + ProjectGUID.ToString("B").ToUpperInvariant() + "</ProjectGuid>" + ProjectFileGenerator.NewLine +
 					"		<Keyword>MakeFileProj</Keyword>" + ProjectFileGenerator.NewLine +
 					"		<RootNamespace>" + ProjectName + "</RootNamespace>" + ProjectFileGenerator.NewLine +
-					"       <PlatformToolset>" + VCProjectFileGenerator.GetProjectFilePlatformToolsetVersionString(ProjectFileFormat) + "</PlatformToolset>" + ProjectFileGenerator.NewLine +
-					"       <MinimumVisualStudioVersion>" + VCProjectFileGenerator.GetProjectFileToolVersionString(ProjectFileFormat) + "</MinimumVisualStudioVersion>" + ProjectFileGenerator.NewLine +
-					"       <TargetRuntime>Native</TargetRuntime>" + ProjectFileGenerator.NewLine +
-					"	</PropertyGroup>" + ProjectFileGenerator.NewLine);
+                    "       <PlatformToolset>" + VCProjectFileGenerator.GetProjectFilePlatformToolsetVersionString(ProjectFileFormat) + "</PlatformToolset>" + ProjectFileGenerator.NewLine +
+                    "       <MinimumVisualStudioVersion>" + VCProjectFileGenerator.GetProjectFileToolVersionString(ProjectFileFormat) + "</MinimumVisualStudioVersion>" + ProjectFileGenerator.NewLine +
+                    "       <TargetRuntime>Native</TargetRuntime>" + ProjectFileGenerator.NewLine +
+                    "	</PropertyGroup>" + ProjectFileGenerator.NewLine);
 			}
 
 			// look for additional import lines for all platforms for non stub projects
@@ -676,7 +676,7 @@ namespace UnrealBuildTool
 			}
 
 			// Write each project configuration PreDefaultProps section
-			// @ATG_CHANGE : BEGIN UWP packaging & F5 support
+			// @ATG_CHANGE : BEGIN - UWP packaging & F5 support
 			// do this only for valid combinations, which conveniently provides access to the true UnrealTargetPlatform (i.e. accounts for
 			// UWP, WinRT, and any others that don't map to VS platforms).
 			foreach (ProjectConfigAndTargetCombination Combination in ProjectConfigAndTargetCombinations)
@@ -861,7 +861,7 @@ namespace UnrealBuildTool
 					"		<NMakeIncludeSearchPath>$(NMakeIncludeSearchPath)" + (VCIncludeSearchPaths.Length > 0 ? (";" + VCIncludeSearchPaths) : "") + "</NMakeIncludeSearchPath>" + ProjectFileGenerator.NewLine +
 					"		<NMakeForcedIncludes>$(NMakeForcedIncludes)</NMakeForcedIncludes>" + ProjectFileGenerator.NewLine +
 					"		<NMakeAssemblySearchPath>$(NMakeAssemblySearchPath)</NMakeAssemblySearchPath>" + ProjectFileGenerator.NewLine +
-					// @ATG_CHANGE : BEGIN winmd support
+					// @ATG_CHANGE : BEGIN - winmd support
 					"		<NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies)" + (VCWinMDReferences.Length > 0 ? (";" + VCWinMDReferences) : "") + "</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine +
 					// @ATG_CHANGE : END
 					"	</PropertyGroup>" + ProjectFileGenerator.NewLine);
@@ -1075,32 +1075,32 @@ namespace UnrealBuildTool
 			}
 		}
 
-		// Anonymous function that writes pre-Default.props configuration data
-		private void WritePreDefaultPropsConfiguration(UnrealTargetPlatform TargetPlatform, UnrealTargetConfiguration TargetConfiguration, string ProjectPlatformName, string ProjectConfigurationName, StringBuilder VCProjectFileContent)
-		{
-			UEPlatformProjectGenerator ProjGenerator = UEPlatformProjectGenerator.GetPlatformProjectGenerator(TargetPlatform, true);
-			if (((ProjGenerator == null) && (TargetPlatform != UnrealTargetPlatform.Unknown)))
-			{
-				return;
-			}
+        // Anonymous function that writes pre-Default.props configuration data
+        private void WritePreDefaultPropsConfiguration(UnrealTargetPlatform TargetPlatform, UnrealTargetConfiguration TargetConfiguration, string ProjectPlatformName, string ProjectConfigurationName, StringBuilder VCProjectFileContent)
+        {
+            UEPlatformProjectGenerator ProjGenerator = UEPlatformProjectGenerator.GetPlatformProjectGenerator(TargetPlatform, true);
+            if (((ProjGenerator == null) && (TargetPlatform != UnrealTargetPlatform.Unknown)))
+            {
+                return;
+            }
 
-			string ProjectConfigurationAndPlatformName = ProjectConfigurationName + "|" + ProjectPlatformName;
-			string ConditionString = "Condition=\"'$(Configuration)|$(Platform)'=='" + ProjectConfigurationAndPlatformName + "'\"";
+            string ProjectConfigurationAndPlatformName = ProjectConfigurationName + "|" + ProjectPlatformName;
+            string ConditionString = "Condition=\"'$(Configuration)|$(Platform)'=='" + ProjectConfigurationAndPlatformName + "'\"";
 
-			string PlatformToolsetString = (ProjGenerator != null) ? ProjGenerator.GetVisualStudioPreDefaultString(TargetPlatform, TargetConfiguration) : "";
+            string PlatformToolsetString = (ProjGenerator != null) ? ProjGenerator.GetVisualStudioPreDefaultString(TargetPlatform, TargetConfiguration) : "";
 
-			if (!String.IsNullOrEmpty(PlatformToolsetString))
-			{
-				VCProjectFileContent.Append(
-					"	<PropertyGroup " + ConditionString + " Label=\"Configuration\">" + ProjectFileGenerator.NewLine +
-							PlatformToolsetString +
-					"	</PropertyGroup>" + ProjectFileGenerator.NewLine
-				);
-			}
-		}
+            if (!String.IsNullOrEmpty(PlatformToolsetString))
+            {
+                VCProjectFileContent.Append(
+                    "	<PropertyGroup " + ConditionString + " Label=\"Configuration\">" + ProjectFileGenerator.NewLine +
+                            PlatformToolsetString +
+                    "	</PropertyGroup>" + ProjectFileGenerator.NewLine
+                );
+            }
+        }
 
-		// Anonymous function that writes post-Default.props configuration data
-		private void WritePostDefaultPropsConfiguration(UnrealTargetPlatform TargetPlatform, UnrealTargetConfiguration TargetConfiguration, string ProjectPlatformName, string ProjectConfigurationName, StringBuilder VCProjectFileContent)
+        // Anonymous function that writes post-Default.props configuration data
+        private void WritePostDefaultPropsConfiguration(UnrealTargetPlatform TargetPlatform, UnrealTargetConfiguration TargetConfiguration, string ProjectPlatformName, string ProjectConfigurationName, StringBuilder VCProjectFileContent)
 		{
 			UEPlatformProjectGenerator ProjGenerator = UEPlatformProjectGenerator.GetPlatformProjectGenerator(TargetPlatform, true);
 			if (((ProjGenerator == null) && (TargetPlatform != UnrealTargetPlatform.Unknown)))
@@ -1332,7 +1332,7 @@ namespace UnrealBuildTool
 				{
 					TargetRules TargetRulesObject = Combination.ProjectTarget.TargetRules;
 
-					// @ATG_CHANGE : BEGIN UWP support
+					// @ATG_CHANGE : BEGIN - UWP support
 					if ((Platform == UnrealTargetPlatform.Win32) || (Platform == UnrealTargetPlatform.Win64) || (Platform == UnrealTargetPlatform.UWP32) || (Platform == UnrealTargetPlatform.UWP64))
 					// @ATG_CHANGE : END
 					{
@@ -1361,7 +1361,7 @@ namespace UnrealBuildTool
 								"		<LocalDebuggerCommandArguments>" + DebugOptions + "</LocalDebuggerCommandArguments>" + ProjectFileGenerator.NewLine
 								);
 						}
-						// @ATG_CHANGE : BEGIN UWP support
+						// @ATG_CHANGE : BEGIN - UWP support
 						string DebuggerFlavor = "WindowsLocalDebugger";
 						if (Platform == UnrealTargetPlatform.UWP32 || Platform == UnrealTargetPlatform.UWP64)
 						{

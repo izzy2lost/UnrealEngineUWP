@@ -116,7 +116,7 @@ namespace UnrealBuildTool
 		/// 
 		/// </summary>
 		protected readonly HashSet<UEBuildBundleResource> PublicAdditionalBundleResources;
-		// @ATG_CHANGE : BEGIN winmd support
+		// @ATG_CHANGE : BEGIN - winmd support
 		protected readonly HashSet<string> PublicWinMDReferences;
 		protected readonly HashSet<string> PrivateWinMDReferences;
 		// @ATG_CHANGE : END
@@ -198,10 +198,10 @@ namespace UnrealBuildTool
 			PublicDelayLoadDLLs = HashSetFromOptionalEnumerableStringParameter(InRules.PublicDelayLoadDLLs);
 			PrivateIncludePaths = HashSetFromOptionalEnumerableStringParameter(InRules.PrivateIncludePaths);
 			RuntimeDependencies = (InRules.RuntimeDependencies == null) ? new RuntimeDependencyList() : new RuntimeDependencyList(InRules.RuntimeDependencies);
-			// @ATG_CHANGE : BEGIN winmd support
+			// @ATG_CHANGE : BEGIN - winmd support
 			PublicWinMDReferences = HashSetFromOptionalEnumerableStringParameter(InRules.PublicWinMDReferences);
 			PrivateWinMDReferences = HashSetFromOptionalEnumerableStringParameter(InRules.PrivateWinMDReferences);
-			// @ATG_CHANGE : END winmd support
+			// @ATG_CHANGE : END - winmd support
 			IsRedistributableOverride = InRules.IsRedistributableOverride;
 
 			WhitelistRestrictedFolders = new HashSet<DirectoryReference>(InRules.WhitelistRestrictedFolders.Select(x => DirectoryReference.Combine(ModuleDirectory, x)));
@@ -399,25 +399,25 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Sets up the environment for compiling any module that includes the public interface of this module.
 		/// </summary>
-		// @ATG_CHANGE : BEGIN winmd support
 		public void AddModuleToCompileEnvironment(
 			UEBuildBinary SourceBinary,
 			bool bIncludePathsOnly,
 			HashSet<string> IncludePaths,
 			HashSet<string> SystemIncludePaths,
 			List<string> Definitions,
+			// @ATG_CHANGE : BEGIN - winmd support
 			List<UEBuildFramework> AdditionalFrameworks,
 			List<string> WinMDFiles
+			// @ATG_CHANGE : END - winmd support
 			)
-		// @ATG_CHANGE : END winmd support
 		{
 			// Add this module's public include paths and definitions.
 			AddIncludePathsWithChecks(IncludePaths, PublicIncludePaths);
 			AddIncludePathsWithChecks(SystemIncludePaths, PublicSystemIncludePaths);
 			Definitions.AddRange(PublicDefinitions);
-			// @ATG_CHANGE : BEGIN winmd support
+			// @ATG_CHANGE : BEGIN - winmd support
 			WinMDFiles.AddRange(PublicWinMDReferences);
-			// @ATG_CHANGE : END winmd support
+			// @ATG_CHANGE : END - winmd support
 
 			// If this module is being built into a DLL or EXE, set up an IMPORTS or EXPORTS definition for it.
 			if(SourceBinary == null)
@@ -544,15 +544,15 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Sets up the environment for compiling this module.
 		/// </summary>
-		// @ATG_CHANGE : BEGIN winmd support
 		protected virtual void SetupPrivateCompileEnvironment(
 			HashSet<string> IncludePaths,
 			HashSet<string> SystemIncludePaths,
 			List<string> Definitions,
+			// @ATG_CHANGE : BEGIN - winmd support
 			List<UEBuildFramework> AdditionalFrameworks,
 			List<string> WinMDFiles
+			// @ATG_CHANGE : END - winmd support
 			)
-		// @ATG_CHANGE : END winmd support
 		{
 			HashSet<UEBuildModule> VisitedModules = new HashSet<UEBuildModule>();
 
@@ -564,9 +564,9 @@ namespace UnrealBuildTool
 			// Add this module's private include paths and definitions.
 			AddIncludePathsWithChecks(IncludePaths, PrivateIncludePaths);
 
-			// @ATG_CHANGE : BEGIN winmd support
+			// @ATG_CHANGE : BEGIN - winmd support
 			WinMDFiles.AddRange(PrivateWinMDReferences);
-			// @ATG_CHANGE : END winmd support
+			// @ATG_CHANGE : END - winmd support
 			// Find all the modules that are part of the public compile environment for this module.
 			List<UEBuildModule> Modules = new List<UEBuildModule>();
 			Dictionary<UEBuildModule, bool> ModuleToIncludePathsOnlyFlag = new Dictionary<UEBuildModule, bool>();
@@ -587,7 +587,7 @@ namespace UnrealBuildTool
 			// Now set up the compile environment for the modules in the original order that we encountered them
 			foreach (UEBuildModule Module in Modules)
 			{
-				// @ATG_CHANGE : BEGIN winmd support
+				// @ATG_CHANGE : BEGIN - winmd support
 				Module.AddModuleToCompileEnvironment(Binary, ModuleToIncludePathsOnlyFlag[Module], IncludePaths, SystemIncludePaths, Definitions, AdditionalFrameworks, WinMDFiles);
 				// @ATG_CHANGE : END
 			}

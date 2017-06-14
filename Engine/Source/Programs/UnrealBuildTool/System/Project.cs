@@ -26,14 +26,14 @@ namespace UnrealBuildTool
 		/// <param name="bAddingSystemIncludes">Are the include paths to add system include paths</param>
 		void AddInteliiSenseIncludePaths(HashSet<string> NewIncludePaths, bool bAddingSystemIncludes);
 
-        // @ATG_CHANGE : BEGIN winmd support
-        /// <summary>
-        /// Adds all of the specified winmds to this VCProject's list of winmds for all modules in the project
-        /// </summary>
-        /// <param name="NewWinMDReferences">List of winmds paths to add</param>
-        void AddIntelliSenseWinMDReferences(List<string> NewWinMDReferences);
-        // @ATG_CHANGE : END
-    }
+		// @ATG_CHANGE : BEGIN - winmd support
+		/// <summary>
+		/// Adds all of the specified winmds to this VCProject's list of winmds for all modules in the project
+		/// </summary>
+		/// <param name="NewWinMDReferences">List of winmds paths to add</param>
+		void AddIntelliSenseWinMDReferences(List<string> NewWinMDReferences);
+		// @ATG_CHANGE : END
+	}
 
 
 	/// <summary>
@@ -382,64 +382,64 @@ namespace UnrealBuildTool
 			}
 		}
 
-        // @ATG_CHANGE : BEGIN winmd support
-        /// <summary>
-        /// Adds all of the specified winmds to this VCProject's list of winmds for all modules in the project
-        /// </summary>
-        /// <param name="NewWinMDReferences">List of winmds paths to add</param>
-        public void AddIntelliSenseWinMDReferences(List<string> NewWinMDReferences)
-        {
-            if (ProjectFileGenerator.OnlyGenerateIntelliSenseDataForProject == null ||
-                ProjectFileGenerator.OnlyGenerateIntelliSenseDataForProject == this)
-            {
-                foreach (var CurPath in NewWinMDReferences)
-                {
-                    if (KnownIntelliSenseWinMDReferences.Add(CurPath))
-                    {
-                        string PathRelativeToProjectFile;
+		// @ATG_CHANGE : BEGIN - winmd support
+		/// <summary>
+		/// Adds all of the specified winmds to this VCProject's list of winmds for all modules in the project
+		/// </summary>
+		/// <param name="NewWinMDReferences">List of winmds paths to add</param>
+		public void AddIntelliSenseWinMDReferences(List<string> NewWinMDReferences)
+		{
+			if (ProjectFileGenerator.OnlyGenerateIntelliSenseDataForProject == null ||
+				ProjectFileGenerator.OnlyGenerateIntelliSenseDataForProject == this)
+			{
+				foreach (var CurPath in NewWinMDReferences)
+				{
+					if (KnownIntelliSenseWinMDReferences.Add(CurPath))
+					{
+						string PathRelativeToProjectFile;
 
-                        // If the include string is an environment variable (e.g. $(DXSDK_DIR)), then we never want to
-                        // give it a relative path
-                        if (CurPath.StartsWith("$("))
-                        {
-                            PathRelativeToProjectFile = CurPath;
-                        }
-                        else
-                        {
-                            // Incoming include paths are relative to the solution directory, but we need these paths to be
-                            // relative to the project file's directory
-                            PathRelativeToProjectFile = NormalizeProjectPath(CurPath);
-                        }
+						// If the include string is an environment variable (e.g. $(DXSDK_DIR)), then we never want to
+						// give it a relative path
+						if (CurPath.StartsWith("$("))
+						{
+							PathRelativeToProjectFile = CurPath;
+						}
+						else
+						{
+							// Incoming include paths are relative to the solution directory, but we need these paths to be
+							// relative to the project file's directory
+							PathRelativeToProjectFile = NormalizeProjectPath(CurPath);
+						}
 
-                        // Trim any trailing slash
-                        PathRelativeToProjectFile = PathRelativeToProjectFile.TrimEnd('/', '\\');
+						// Trim any trailing slash
+						PathRelativeToProjectFile = PathRelativeToProjectFile.TrimEnd('/', '\\');
 
-                        // Make sure that it doesn't exist already
-                        var AlreadyExists = false;
-                        foreach (var ExistingPath in IntelliSenseWinMDReferences)
-                        {
-                            if (PathRelativeToProjectFile == ExistingPath)
-                            {
-                                AlreadyExists = true;
-                                break;
-                            }
-                        }
+						// Make sure that it doesn't exist already
+						var AlreadyExists = false;
+						foreach (var ExistingPath in IntelliSenseWinMDReferences)
+						{
+							if (PathRelativeToProjectFile == ExistingPath)
+							{
+								AlreadyExists = true;
+								break;
+							}
+						}
 
-                        if (!AlreadyExists)
-                        {
-                            IntelliSenseWinMDReferences.Add(PathRelativeToProjectFile);
-                        }
-                    }
-                }
-            }
-        }
-        // @ATG_CHANGE : END
+						if (!AlreadyExists)
+						{
+							IntelliSenseWinMDReferences.Add(PathRelativeToProjectFile);
+						}
+					}
+				}
+			}
+		}
+		// @ATG_CHANGE : END
 
-        /// <summary>
-        /// Add the given project to the DepondsOn project list.
-        /// </summary>
-        /// <param name="InProjectFile">The project this project is dependent on</param>
-        public void AddDependsOnProject(ProjectFile InProjectFile)
+		/// <summary>
+		/// Add the given project to the DepondsOn project list.
+		/// </summary>
+		/// <param name="InProjectFile">The project this project is dependent on</param>
+		public void AddDependsOnProject(ProjectFile InProjectFile)
 		{
 			// Make sure that it doesn't exist already
 			bool AlreadyExists = false;
@@ -569,14 +569,14 @@ namespace UnrealBuildTool
 		public readonly List<string> IntelliSensePreprocessorDefinitions = new List<string>();
 		public readonly HashSet<string> KnownIntelliSensePreprocessorDefinitions = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
 
-        // @ATG_CHANGE : BEGIN winmd support
-     	/// WinMD references for every single module in the project file, merged together
-        public readonly List<string> IntelliSenseWinMDReferences = new List<string>();
-        public readonly HashSet<string> KnownIntelliSenseWinMDReferences = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
-        // @ATG_CHANGE : END
+		// @ATG_CHANGE : BEGIN - winmd support
+		/// WinMD references for every single module in the project file, merged together
+		public readonly List<string> IntelliSenseWinMDReferences = new List<string>();
+		public readonly HashSet<string> KnownIntelliSenseWinMDReferences = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+		// @ATG_CHANGE : END
 
-        /// Projects that this project is dependent on
-        public readonly List<ProjectFile> DependsOnProjects = new List<ProjectFile>();
+		/// Projects that this project is dependent on
+		public readonly List<ProjectFile> DependsOnProjects = new List<ProjectFile>();
 	}
 
 }

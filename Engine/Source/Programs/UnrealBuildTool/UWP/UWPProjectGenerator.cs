@@ -1,6 +1,5 @@
 // Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
-// @ATG_CHANGE : BEGIN UWP support
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -8,14 +7,12 @@ using System.Diagnostics;
 using System.IO;
 using System.Xml.Linq;
 
-// @todo UWP: this file is a work in progress and is not yet complete for the F5 scenario for UWP
-
 namespace UnrealBuildTool
 {
 	/// <summary>
 	/// Base class for platform-specific project generators
 	/// </summary>
-	public class UWPProjectGenerator : UEPlatformProjectGenerator
+	class UWPProjectGenerator : UEPlatformProjectGenerator
 	{
 		const string PlatformString = "UWP";
 
@@ -39,6 +36,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		/// <param name="InPlatform">  The UnrealTargetPlatform being built</param>
 		/// <param name="InConfiguration"> The UnrealTargetConfiguration being built</param>
+		/// <param name="ProjectFileFormat"></param>
 		/// <returns>bool    true if native VisualStudio support (or custom VSI) is available</returns>
 		public override bool HasVisualStudioSupport(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, VCProjectFileFormat ProjectFileFormat)
 		{
@@ -54,7 +52,7 @@ namespace UnrealBuildTool
 			return true;
 		}
 
-		public override void GenerateGameProperties(UnrealTargetConfiguration Configuration, StringBuilder VCProjectFileContent, TargetRules.TargetType TargetType, DirectoryReference RootDirectory, FileReference TargetFilePath)
+		public override void GenerateGameProperties(UnrealTargetConfiguration Configuration, StringBuilder VCProjectFileContent, TargetType TargetType, DirectoryReference RootDirectory, FileReference TargetFilePath)
 		{
 			string MinVersion = string.Empty;
 			string MaxTestedVersion = string.Empty;
@@ -67,11 +65,12 @@ namespace UnrealBuildTool
 			VCProjectFileContent.Append("		<WindowsTargetPlatformMinVersion>" + MinVersion + "</WindowsTargetPlatformMinVersion>" + ProjectFileGenerator.NewLine);
 			VCProjectFileContent.Append("		<WindowsTargetPlatformVersion>" + MaxTestedVersion + "</WindowsTargetPlatformVersion>" + ProjectFileGenerator.NewLine);
 
-			string FoundationWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract");
-			string UniversalWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract");
+			WindowsCompiler Compiler = WindowsCompiler.Default;
+			string FoundationWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Compiler);
+			string UniversalWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Compiler);
 			VCProjectFileContent.Append("		<AdditionalOptions>/ZW</AdditionalOptions>" + ProjectFileGenerator.NewLine);
 			VCProjectFileContent.Append("		<NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions);PLATFORM_UWP=1;UWP=1;</NMakePreprocessorDefinitions>" + ProjectFileGenerator.NewLine);
-			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(UniversalWindowsPlatform.Compiler);
+			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler);
 			if (PlatformWinMDLocation != null)
 			{
 				VCProjectFileContent.Append("       <NMakeAssemblySearchPath>$(NMakeAssemblySearchPath);" + PlatformWinMDLocation + "</NMakeAssemblySearchPath>" + ProjectFileGenerator.NewLine);
@@ -84,8 +83,11 @@ namespace UnrealBuildTool
 			// VS2017 expects WindowsTargetPlatformVersion to be set in conjunction with these other properties, otherwise the projects
 			// will fail to load when the solution is in a UWP configuration.
 			// Default to latest supported version.  Game projects can override this later.
-			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
-			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder);
+			// Because this property is only required for VS2017 we can safely say that's the compiler version (whether that's actually true
+			// or not)
+			WindowsCompiler Compiler = WindowsCompiler.VisualStudio2017;  
+			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(UEBuildPlatform.GetBuildPlatform(InPlatform).DefaultCppPlatform, Compiler);
+			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, Compiler);
 			return "		<AppContainerApplication>true</AppContainerApplication>" + ProjectFileGenerator.NewLine +
 					"		<ApplicationType>Windows Store</ApplicationType>" + ProjectFileGenerator.NewLine +
 					"		<ApplicationTypeRevision>10.0</ApplicationTypeRevision>" + ProjectFileGenerator.NewLine +
@@ -94,7 +96,7 @@ namespace UnrealBuildTool
 					"		<WindowsTargetPlatformVersion>" + SDKVersion.ToString() + "</WindowsTargetPlatformVersion>" + ProjectFileGenerator.NewLine;
 		}
 
-		public override string GetVisualStudioLayoutDirSection(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InConditionString, TargetRules.TargetType TargetType, FileReference TargetRulesPath, FileReference ProjectFilePath, FileReference NMakeOutputPath, VCProjectFileFormat InProjectFileFormat)
+		public override string GetVisualStudioLayoutDirSection(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InConditionString, TargetType TargetType, FileReference TargetRulesPath, FileReference ProjectFilePath, FileReference NMakeOutputPath, VCProjectFileFormat InProjectFileFormat)
 		{
 			string LayoutDirString = "";
 
@@ -118,20 +120,20 @@ namespace UnrealBuildTool
 			return LayoutDirString;
 		}
 
-		private bool IsValidUWPTarget(UnrealTargetPlatform InPlatform, TargetRules.TargetType InTargetType, FileReference InTargetFilePath)
+		private bool IsValidUWPTarget(UnrealTargetPlatform InPlatform, TargetType InTargetType, FileReference InTargetFilePath)
 		{
 			if ((InPlatform == UnrealTargetPlatform.UWP64 || InPlatform == UnrealTargetPlatform.UWP32) &&
 				(InTargetType == TargetRules.TargetType.Client || InTargetType == TargetRules.TargetType.Game ) &&
 				InTargetType != TargetRules.TargetType.Editor &&
-                InTargetType != TargetRules.TargetType.Server
-                )
-            {
+				InTargetType != TargetRules.TargetType.Server
+				)
+			{
 				// We do not want to include any Templates targets
 				// Not a huge fan of doing it via path name comparisons... but it works
 				string TempTargetFilePath = InTargetFilePath.FullName.Replace("\\", "/");
 				if (TempTargetFilePath.Contains("/Templates/"))
 				{
-					string AbsoluteEnginePath = Path.GetFullPath(ProjectFileGenerator.EngineRelativePath);
+					string AbsoluteEnginePath = UnrealBuildTool.EngineDirectory.CanonicalName;
 					AbsoluteEnginePath = AbsoluteEnginePath.Replace("\\", "/");
 					if (AbsoluteEnginePath.EndsWith("/") == false)
 					{
@@ -168,4 +170,4 @@ namespace UnrealBuildTool
 		}
 	}
 }
-// @ATG_CHANGE : END
+
