@@ -65,6 +65,16 @@ namespace UnrealBuildTool
         public bool bUseWindowsSDK10 = WindowsPlatform.bUseWindowsSDK10;
 		// @ATG_CHANGE : END UWP support
 
+		// @ATG_CHANGE : BEGIN UWP support
+		/// <summary>
+		/// True to compile toolchain (but not game targets, which require the standard bUseWindows10SDK) against the Windows 10 SDK.
+		/// We default to true to enable UWP support.  Turning this off will allow the Editor etc. to run on older versions of Windows,
+		/// but will exclude UWP support
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bUseWindowsSDK10ForEditor")]
+		public bool bUseWindowsSDK10ForEditor = true;
+		// @ATG_CHANGE : END UWP support
+
 		/// <summary>
 		/// The name of the company (author, provider) that created the project.
 		/// </summary>
@@ -226,15 +236,6 @@ namespace UnrealBuildTool
 		/// </summary>
 		public static readonly bool bBuildLargeAddressAwareBinary = true;
 
-		// @ATG_CHANGE : BEGIN UWP support
-		/// <summary>
-		/// True to compile toolchain (but not game targets, which require the standard bUseWindows10SDL) against the Windows 10 SDK.
-		/// We default to true to enable UWP support.  Turning this off will allow the Editor etc. to run on older versions of Windows,
-		/// but will exclude UWP support
-		/// </summary>
-		public static readonly bool bUseWindowsSDK10ForEditor = true;
-		// @ATG_CHANGE : END UWP support
-
 		WindowsPlatformSDK SDK;
 
 		/// <summary>
@@ -311,6 +312,16 @@ namespace UnrealBuildTool
 			{
 				Target.bUsePDBFiles = true;
 			}
+
+			// @ATG_CHANGE : BEGIN UWP support
+			// Using the Win10 SDK in the editor allows additional features for use with UWP, but should
+			// be kept seaparate from the game setting since it affects the minimum Windows version required
+			// to run the built exe.
+			if (Target.Type == TargetType.Editor || Target.Type == TargetType.Program)
+			{
+				Target.WindowsPlatform.bUseWindowsSDK10 = Target.WindowsPlatform.bUseWindowsSDK10ForEditor;
+			}
+			// @ATG_CHANGE : END
 		}
 
 		/// <summary>
@@ -965,13 +976,7 @@ namespace UnrealBuildTool
 			// Using the Win10 SDK in the editor allows additional features for use with UWP, but should
 			// be kept seaparate from the game setting since it affects the minimum Windows version required
 			// to run the built exe.
-			if (Target.Type == TargetType.Editor || Target.Type == TargetType.Program)
-			{
-				if (bUseWindowsSDK10ForEditor)
-				{
-					bUseWindowsSDK10 = true;
-				}
-			}
+			bUseWindowsSDK10 = Target.WindowsPlatform.bUseWindowsSDK10;
 			// @ATG_CHANGE : END
 
 			return new VCToolChain(CppPlatform, Target.WindowsPlatform.Compiler);
