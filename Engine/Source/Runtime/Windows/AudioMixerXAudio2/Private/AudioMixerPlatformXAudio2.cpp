@@ -607,9 +607,9 @@ namespace Audio
 		// XAudio2 for UWP has different parameters to CreateMasteringVoice
 		// See https://blogs.msdn.microsoft.com/chuckw/2012/04/02/xaudio2-and-windows-8/
 #if PLATFORM_UWP
-		XAUDIO2_RETURN_ON_FAIL(XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.RequestedSampleRate, 0, AllAudioDevices->GetAt(AudioStreamInfo.OutputDeviceIndex)->Id->Data(), nullptr));
+		XAUDIO2_RETURN_ON_FAIL(XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, AllAudioDevices->GetAt(AudioStreamInfo.OutputDeviceIndex)->Id->Data(), nullptr));
 #else
-		XAUDIO2_RETURN_ON_FAIL(XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.RequestedSampleRate, 0, AudioStreamInfo.OutputDeviceIndex, nullptr));
+		XAUDIO2_RETURN_ON_FAIL(XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, AudioStreamInfo.OutputDeviceIndex, nullptr));
 #endif
 		// @ATG_CHANGE : END
 
