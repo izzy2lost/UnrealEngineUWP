@@ -387,6 +387,7 @@ namespace UnrealBuildTool
 			bHackHeaderGenerator = Other.bHackHeaderGenerator;
 			// @ATG_CHANGE : BEGIN - winmd support
 			WinMDReferences.AddRange(Other.WinMDReferences);
+			bEnableWinRTComponentExtensions = Other.bEnableWinRTComponentExtensions;
 			// @ATG_CHANGE : END
 		}
 	}

@@ -1108,6 +1108,14 @@ namespace UnrealBuildTool
 				Result.IncludePaths.UserIncludePaths = new HashSet<string>(BaseCompileEnvironment.IncludePaths.UserIncludePaths);
 			}
 
+			// @ATG_CHANGE : BEGIN winmd support
+			// Add winmd files
+			Result.WinMDReferences.AddRange(Rules.PrivateWinMDReferences);
+
+			// Enable WinRT if requested, or auto-enable if WinMDs have been added to the environment
+			Result.bEnableWinRTComponentExtensions = Rules.bEnableWinRTComponentExtensions || Result.WinMDReferences.Count > 0;
+			// @ATG_CHANGE : END winmd support
+
 			return Result;
 		}
 
