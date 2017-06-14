@@ -90,6 +90,13 @@ void FUWPTargetPlatform::GetTextureFormats(const UTexture* InTexture, TArray<FNa
 	OutFormats.Add(TextureFormatName);
 }
 
+void FUWPTargetPlatform::GetAllTextureFormats(TArray<FName>& OutFormats) const
+{
+	bool bExcludeShaderModel4Support = false;
+	GConfig->GetBool(TEXT("/Script/UWPPlatformEditor.UWPTargetSettings"), TEXT("bExcludeShaderModel4Support"), bExcludeShaderModel4Support, GEngineIni);
+	GetAllDefaultTextureFormats(this, OutFormats, bExcludeShaderModel4Support);
+}
+
 static FName NAME_PCD3D_SM4(TEXT("PCD3D_SM4"));
 static FName NAME_PCD3D_SM5(TEXT("PCD3D_SM5"));
 

@@ -66,6 +66,8 @@ public:
 
 	virtual const UTextureLODSettings& GetTextureLODSettings() const override { return *TextureLODSettings; }
 
+	virtual void GetAllTextureFormats(TArray<FName>& OutFormats) const override;
+
 	virtual void RegisterTextureLODSettings(const UTextureLODSettings* InTextureLODSettings) override
 	{
 		TextureLODSettings = InTextureLODSettings;
@@ -75,13 +77,21 @@ public:
 
 	virtual void GetAllTargetedShaderFormats(TArray<FName>& OutFormats) const override;
 	
-	virtual void GetAllCachedShaderFormats( TArray<FName>& OutFormats ) const override {}
+	//virtual void GetAllCachedShaderFormats( TArray<FName>& OutFormats ) const override {}
 
 	virtual FName GetWaveFormat( const class USoundWave* Wave ) const override
 	{
 		static FName NAME_OGG(TEXT("OGG"));
 
 		return NAME_OGG;
+	}
+
+	virtual void GetAllWaveFormats(TArray<FName>& OutFormats) const override
+	{
+		static FName NAME_OGG(TEXT("OGG"));
+		static FName NAME_OPUS(TEXT("OPUS"));
+		OutFormats.Add(NAME_OGG);
+		OutFormats.Add(NAME_OPUS);
 	}
 
 #endif //WITH_ENGINE
