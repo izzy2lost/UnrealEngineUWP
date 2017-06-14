@@ -40,7 +40,15 @@ public class MeshUtilities : ModuleRules
             }
 		);
 
-        AddEngineThirdPartyPrivateStaticDependencies(Target, "nvTriStrip");
+		// @ATG_CHANGE : BEGIN UWP support - this module wants to link X3DAudio.lib so we need this extra dependency
+		// to make sure it's in the library path. 
+		if (Target.WindowsPlatform.bUseWindowsSDK10)
+		{
+			PrivateDependencyModuleNames.Add("DX11Audio");
+		}
+		// @ATG_CHANGE : END
+
+		AddEngineThirdPartyPrivateStaticDependencies(Target, "nvTriStrip");
         AddEngineThirdPartyPrivateStaticDependencies(Target, "ForsythTriOptimizer");
         AddEngineThirdPartyPrivateStaticDependencies(Target, "QuadricMeshReduction");
         AddEngineThirdPartyPrivateStaticDependencies(Target, "MikkTSpace");

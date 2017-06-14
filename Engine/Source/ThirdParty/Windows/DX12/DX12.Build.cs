@@ -9,7 +9,7 @@ public class DX12 : ModuleRules
 
 		// @ATG_CHANGE : BEGIN UWP support
 		string DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
-			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DX12" :
+			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
 			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";
 		// @ATG_CHANGE : END
 
@@ -20,11 +20,10 @@ public class DX12 : ModuleRules
 // @ATG_CHANGE : BEGIN UWP support
 		if (Target.WindowsPlatform.bUseWindowsSDK10)
 		{
-			//PublicSystemIncludePaths.Add(UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy/Include");
-
-			// Don't add library folders.  Get these from the SDK now that it has caught up.
+			PublicSystemIncludePaths.Add(UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DX12/Include");
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Win64)
+
+		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x64");
 

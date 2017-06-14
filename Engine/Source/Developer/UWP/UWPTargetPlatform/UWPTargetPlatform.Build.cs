@@ -4,8 +4,8 @@ using UnrealBuildTool;
 
 public class UWPTargetPlatform : ModuleRules
 {
-	public UWPTargetPlatform(TargetInfo Target)
-	{
+	public UWPTargetPlatform(ReadOnlyTargetRules Target) : base(Target)
+    {
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",

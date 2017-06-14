@@ -4,7 +4,7 @@ using UnrealBuildTool;
 
 public class UWPPlatformEditor : ModuleRules
 {
-	public UWPPlatformEditor(TargetInfo Target)
+	public UWPPlatformEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {

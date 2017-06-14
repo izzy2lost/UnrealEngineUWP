@@ -4,7 +4,7 @@ using UnrealBuildTool;
 
 public class UWPPlatformFeatures : ModuleRules
 {
-	public UWPPlatformFeatures(TargetInfo Target)
+	public UWPPlatformFeatures(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PrivateDependencyModuleNames.AddRange(
 			new string[] { 
@@ -14,14 +14,6 @@ public class UWPPlatformFeatures : ModuleRules
 				});
 
 		// This module requires installation of the Xbox Platform Extensions SDK for UWP
-		string StorageApiMetadata = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Gaming.XboxLive.StorageApiContract");
-		if (!string.IsNullOrEmpty(StorageApiMetadata))
-		{
-			PrivateWinMDReferences.Add(StorageApiMetadata);
-		}
-		else
-		{
-			Log.TraceWarning("Xbox Live Platform Extensions SDK not found.  Run Engine/Plugins/Online/XboxOne/OnlineSubsystemLive/GetXboxLiveSDK.ps1 and re-generate project files.");
-		}
+		PrivateWinMDReferences.Add("Windows.Gaming.XboxLive.StorageApiContract");
 	}
 }

@@ -5,7 +5,7 @@ using System.IO;
 
 public class OnlineSubsystemLive : ModuleRules
 {
-	public OnlineSubsystemLive(TargetInfo Target)
+	public OnlineSubsystemLive(ReadOnlyTargetRules Target) : base(Target)
 	{
 		// @ATG_CHANGE : BEGIN XSAPI (decoupled from XDK) lives inside the OSSLive plugin.
 		Definitions.Add("ONLINESUBSYSTEMLIVE_PACKAGE=1");

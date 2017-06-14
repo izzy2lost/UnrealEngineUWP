@@ -2,7 +2,7 @@ using UnrealBuildTool;
 
 public class UWPDeviceDetector : ModuleRules
 {
-	public UWPDeviceDetector(TargetInfo Target)
+	public UWPDeviceDetector(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
@@ -27,9 +27,16 @@ public class UWPDeviceDetector : ModuleRules
 			}
 		);
 
-		bEnableWinRTComponentExtensions = true;
-		bEnableExceptions = true;
-		PCHUsage = PCHUsageMode.NoSharedPCHs;
-		PrivatePCHHeaderFile = "Public/IUWPDeviceDetectorModule.h";
+		if (WindowsPlatform.bUseWindowsSDK10)
+		{
+			bEnableWinRTComponentExtensions = true;
+			bEnableExceptions = true;
+			PCHUsage = PCHUsageMode.NoSharedPCHs;
+			PrivatePCHHeaderFile = "Public/IUWPDeviceDetectorModule.h";
+		}
+		else
+		{
+			Definitions.Add("UWPTARGETPLATFORM_NULLDEVICEDETECTOR=1");
+		}
 	}
 }
