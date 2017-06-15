@@ -5,8 +5,6 @@
 #include "UWPApplication.h"
 #include "CoreTypes.h"
 
-PACK_WINRT()
-
 FUWPWindow::FUWPWindow() :
 	WindowMode(EWindowMode::Windowed)
 {
@@ -110,5 +108,3 @@ EWindowMode::Type FUWPWindow::GetWindowMode() const
 {
 	return WindowMode;
 }
-
-PACK_WINRT_REVERT()

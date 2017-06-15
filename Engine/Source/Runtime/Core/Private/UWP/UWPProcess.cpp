@@ -7,10 +7,11 @@ UWPProcess.cpp: UWP implementations of Process functions
 #include "UWPProcess.h"
 #include "Misc/SingleThreadEvent.h"
 #include "UWPRunnableThread.h"
+#include "Misc/CommandLine.h"
+#include "Misc/CoreStats.h"
+#include "Misc/Paths.h"
 
 #include "AllowWindowsPlatformTypes.h"
-
-PACK_WINRT()
 
 const TCHAR* FUWPProcess::BaseDir()
 {
@@ -24,11 +25,11 @@ const TCHAR* FUWPProcess::BaseDir()
 		{
 			CmdLine = FCommandLine::Get();
 		}
-		// @ATG_CHANGE : code path that was hitting BaseDir in static initializers was removed
-		//               and command line parsing was moved to earlier in launch to help avoid having 
-		//               to have command line parsing code in multiple location.
-		//               There's still potential for error here until Epic allows platform-subclassing the
-		//               command line with an overridable Initialize() or BeginInitialize().
+		// @ATG_CHANGE :  - code path that was hitting BaseDir in static initializers was removed
+		//                  and command line parsing was moved to earlier in launch to help avoid having 
+		//                  to have command line parsing code in multiple location.
+		//                  There's still potential for error here until Epic allows platform-subclassing the
+		//                  command line with an overridable Initialize() or BeginInitialize().
 		bool overridden = false;
 		if (CmdLine != NULL)
 		{
@@ -115,7 +116,6 @@ bool FEventUWP::Wait(uint32 WaitTime, const bool bIgnoreThreadIdleStats /*= fals
 	FThreadIdleStats::FScopeIdle Scope(bIgnoreThreadIdleStats);
 	check(Event);
 
-	//		return (WaitForSingleObject(Event, WaitTime) == WAIT_OBJECT_0);
 	return WaitForSingleObjectEx(Event, WaitTime, FALSE) == WAIT_OBJECT_0;
 }
 
@@ -167,11 +167,10 @@ void FUWPProcess::FreeDllHandle(void* DllHandle)
 	::FreeLibrary((HMODULE)DllHandle);
 }
 
-// @ATG_CHANGE : BEGIN UWP packaging & F5 support
 void FUWPProcess::SetCurrentWorkingDirectoryToBaseDir()
 {
 	FPlatformMisc::CacheLaunchDir();
-	verify(SetCurrentDirectoryW(BaseDir()));
+	verify(SetCurrentDirectoryW(BaseDir()));	// failure here usually means the ACLs got messed up, reregister the app
 }
 
 const TCHAR* FUWPProcess::UserDir()
@@ -197,7 +196,6 @@ const TCHAR* FUWPProcess::ApplicationSettingsDir()
 	return UserSettingsDir();
 }
 
-// @ATG_CHANGE : BEGIN thread affinity addition
 // This is a drop in equivelent to the deprecated thread affinity APIs that most legacy code is based on.
 // As with those older APIs, it's functionality may be unexpected on machines with more than 64 cores.
 DWORD_PTR WINAPI SetThreadAffinityMask(
@@ -307,7 +305,6 @@ void FUWPProcess::SetThreadAffinityMask(uint64 AffinityMask)
 {
 	::SetThreadAffinityMask(::GetCurrentThread(), (DWORD_PTR)AffinityMask);
 }
-// @ATG_CHANGE : END thread affinity addition
 
 const TCHAR* FUWPProcess::GetLocalAppDataLowLevelPath()
 {
@@ -361,7 +358,9 @@ const TCHAR* FUWPProcess::GetTempAppDataRedirectPath()
 	return TEXT("..\\..\\UWPTempAppData");
 }
 
-PACK_WINRT_REVERT()
+bool FUWPProcess::ShouldSaveToUserDir()
+{
+	return true;
+}
 
 #include "HideWindowsPlatformTypes.h"
-// @ATG_CHANGE : END

@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+#include "Misc/Timespan.h"
+#include "HAL/PlatformMemory.h"
 #include "GenericPlatform/GenericPlatformCriticalSection.h"
 
 /**

@@ -3,9 +3,10 @@
 #pragma once
 
 #include "ICursor.h"
+#include "Math/IntVector.h"
 #include "agile.h"
 
-PACK_WINRT()
+
 ref class FUWPCursorMouseEventObj sealed
 {
 public:
@@ -15,7 +16,7 @@ public:
 
     Windows::Foundation::TypedEventHandler<Windows::Devices::Input::MouseDevice ^, Windows::Devices::Input::MouseEventArgs ^>^ GetMouseMovedHandler();
 };
-PACK_WINRT_REVERT()
+
 
 class FUWPCursor : public ICursor
 {
@@ -50,25 +51,23 @@ public:
 
 	void OnRawMouseMove(const FIntVector& MouseDelta);
 
-public:
-
 	/**
-	* Defines a custom cursor shape for the EMouseCursor::Custom type.
-	*
-	* @param CursorResourceId	The resource id of the cursor to show when EMouseCursor::Custom is selected.
+	* Allows overriding the shape of a particular cursor.
 	*/
-	void SetCustomShape(void* InCursorHandle);
+	void SetTypeShape(EMouseCursor::Type InCursorType, void* CursorHandle);
 
 private:
 
 	void SetUseRawMouse(bool bUse);
+
+	Windows::UI::Core::CoreCursor^ GetDefaultCursorForType(EMouseCursor::Type InCursorType);
 
     EMouseCursor::Type                                CurrentCursor = (EMouseCursor::Type) - 1;
     FVector2D                                         CursorPosition;
     bool                                              bUsingRawMouseNoCursor;
     bool                                              bDeferredCursorTypeChange;
 	TArray<FIntVector>                                DeferredMoveEvents;
-
+    
     /** Cursors */
     Platform::Array<Windows::UI::Core::CoreCursor^>^  Cursors;
     FUWPCursorMouseEventObj^                          MouseEventObj;

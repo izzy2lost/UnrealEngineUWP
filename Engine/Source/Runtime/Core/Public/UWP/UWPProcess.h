@@ -36,13 +36,11 @@ struct CORE_API FUWPProcess : public FGenericPlatformProcess
 	static const TCHAR* ExecutableName(bool bRemoveExtension = true);
 	static void* GetDllHandle(const TCHAR* Filename);
 	static void FreeDllHandle(void* DllHandle);
-	// @ATG_CHANGE : BEGIN UWP packaging & F5 support
 	static void SetCurrentWorkingDirectoryToBaseDir();
-	// @ATG_CHANGE : END
+	/** Content saved to the game or engine directories should be rerouted to user directories instead **/
+	static bool ShouldSaveToUserDir();
 
-	// @ATG_CHANGE : BEGIN thread affinity addition
-	static void SetThreadAffinityMask(uint64 AffinityMask);
-	// @ATG_CHANGE : END 
+	static void SetThreadAffinityMask( uint64 AffinityMask );
 	static const TCHAR* UserDir();
 	static const TCHAR* UserSettingsDir();
 	static const TCHAR* UserTempDir();

@@ -49,7 +49,6 @@ private:
 	static void InitLicensing();
 	static void LicenseChangedHandler();
 	static void BroadcastUELicenseChangeEvent();
-
 private:
 
 	TSharedPtr< class FUWPInputInterface > InputInterface;

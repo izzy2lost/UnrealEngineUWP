@@ -1,7 +1,7 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================================
-	UWPTime.h: UWP platform Time functions
+UWPTime.h: UWP platform Time functions
 ==============================================================================================*/
 
 #pragma once
@@ -9,8 +9,8 @@
 #include "UWP/UWPSystemIncludes.h"
 
 /**
- * UWP implementation of the Time OS functions
- */
+* UWP implementation of the Time OS functions
+*/
 struct CORE_API FUWPTime : public FGenericPlatformTime
 {
 	static double InitTiming();
@@ -32,8 +32,8 @@ struct CORE_API FUWPTime : public FGenericPlatformTime
 		return Cycles.LowPart;
 	}
 
-	static void SystemTime( int32& Year, int32& Month, int32& DayOfWeek, int32& Day, int32& Hour, int32& Min, int32& Sec, int32& MSec );
-	static void UtcTime( int32& Year, int32& Month, int32& DayOfWeek, int32& Day, int32& Hour, int32& Min, int32& Sec, int32& MSec );
+	static void SystemTime(int32& Year, int32& Month, int32& DayOfWeek, int32& Day, int32& Hour, int32& Min, int32& Sec, int32& MSec);
+	static void UtcTime(int32& Year, int32& Month, int32& DayOfWeek, int32& Day, int32& Hour, int32& Min, int32& Sec, int32& MSec);
 };
 
 typedef FUWPTime FPlatformTime;

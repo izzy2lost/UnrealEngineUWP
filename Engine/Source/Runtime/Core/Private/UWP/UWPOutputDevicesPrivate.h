@@ -10,8 +10,6 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogUWPOutputDevices, Log, All);
 
-PACK_WINRT()
-
 /**
 * Output device that writes to UWP Event Log
 */
@@ -89,7 +87,6 @@ public:
 	}
 };
 
-PACK_WINRT_REVERT()
 
 class FOutputDeviceUWPError : public FOutputDeviceError
 {

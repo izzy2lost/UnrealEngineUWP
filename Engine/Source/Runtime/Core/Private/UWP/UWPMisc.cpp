@@ -5,7 +5,9 @@
 =============================================================================*/
 
 #include "UWPMisc.h"
+#include "Internationalization/Internationalization.h"
 #include "Misc/MessageDialog.h"
+#include "Misc/App.h"
 #include "ExceptionHandling.h"
 #include "SecureHash.h"
 #include <time.h>
@@ -133,7 +135,6 @@ const TCHAR* FUWPMisc::GetPlatformFeaturesModuleName()
 	static const TCHAR* PlatformFeaturesModuleName = TEXT("UWPPlatformFeatures");
 	IModuleInterface* CustomModule = FModuleManager::LoadModulePtr<IModuleInterface>(PlatformFeaturesModuleName);
 	return CustomModule ? PlatformFeaturesModuleName : nullptr;
-
 }
 
 // Defined in UWPLaunch.cpp
@@ -323,6 +324,13 @@ int32 FUWPMisc::NumberOfCores()
 	return cpus;
 }
 
+#if !UE_BUILD_SHIPPING
+bool FUWPMisc::IsDebuggerPresent()
+{
+	return !!::IsDebuggerPresent(); 
+}
+#endif // UE_BUILD_SHIPPING
+
 /** Get the application root directory. */
 const TCHAR* FUWPMisc::RootDir()
 {
@@ -345,8 +353,6 @@ const FString& FUWPMisc::GetProtocolActivationUri()
 {
 	return ProtocolActivationUri;
 }
-
-PACK_WINRT()
 
 EAppReturnType::Type FUWPMisc::MessageBoxExt(EAppMsgType::Type MsgType, const TCHAR* Text, const TCHAR* Caption)
 {
@@ -507,4 +513,3 @@ void FUWPMisc::GetValidTargetPlatforms(class TArray<class FString>& TargetPlatfo
 	TargetPlatformNames.Add(TEXT("UWP32"));
 }
 
-PACK_WINRT_REVERT()

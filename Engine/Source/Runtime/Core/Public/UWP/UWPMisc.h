@@ -25,10 +25,7 @@ struct CORE_API FUWPMisc : public FGenericPlatformMisc
 	static const TCHAR* GetPlatformFeaturesModuleName();
 
 #if !UE_BUILD_SHIPPING
-	FORCEINLINE static bool IsDebuggerPresent()
-	{
-		return !!::IsDebuggerPresent(); 
-	}
+	static bool IsDebuggerPresent();
 	FORCEINLINE static void DebugBreak()
 	{
 		if (IsDebuggerPresent())

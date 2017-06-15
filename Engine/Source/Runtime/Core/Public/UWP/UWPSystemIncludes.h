@@ -1,6 +1,7 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+
 // Pre-system API include
 #include "UWP/PreUWPApi.h"
 
@@ -19,7 +20,6 @@
 
 // Macro for releasing COM objects
 #define SAFE_RELEASE(p) { if(p) { (p)->Release(); (p)=NULL; } }
-#define WAIT_ABANDONED (0x00000080ul)
 // SIMD intrinsics
 #include <intrin.h>
 
@@ -29,3 +29,4 @@
 
 #include <stdint.h>
 #include <concrt.h>
+

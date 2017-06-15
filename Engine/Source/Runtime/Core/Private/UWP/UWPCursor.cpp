@@ -7,8 +7,6 @@
 using namespace Windows::ApplicationModel::Core;
 using namespace Windows::UI::Core;
 
-PACK_WINRT()
-
 FUWPCursorMouseEventObj::FUWPCursorMouseEventObj()
 {
 }
@@ -20,13 +18,12 @@ Windows::Foundation::TypedEventHandler<Windows::Devices::Input::MouseDevice ^, W
 
 void FUWPCursorMouseEventObj::OnMouseMoved(Windows::Devices::Input::MouseDevice ^sender, Windows::Devices::Input::MouseEventArgs ^args)
 {
-	FUWPApplication* Application = FUWPApplication::GetUWPApplication();
-	if (Application != NULL)
-	{
+    FUWPApplication* Application = FUWPApplication::GetUWPApplication();
+    if (Application != NULL)
+    {
 		Application->GetCursor()->OnRawMouseMove(FIntVector(args->MouseDelta.X, args->MouseDelta.Y, 0));
-	}
+    }
 }
-
 
 FUWPCursor::FUWPCursor()
 {
@@ -38,76 +35,7 @@ FUWPCursor::FUWPCursor()
 	// Load up cursors that we'll be using
 	for( int32 CurCursorIndex = 0; CurCursorIndex < EMouseCursor::TotalCursorCount; ++CurCursorIndex )
 	{
-		CoreCursor^ Cursor = nullptr;
-		switch( CurCursorIndex )
-		{
-		case EMouseCursor::None:
-		case EMouseCursor::Custom:
-			// The mouse cursor will not be visible when None is used
-			break;
-
-		case EMouseCursor::Default:
-            Cursor = ref new CoreCursor(CoreCursorType::Arrow, 0); 
-			break;
-
-		case EMouseCursor::TextEditBeam:
-            Cursor = ref new CoreCursor(CoreCursorType::IBeam, 0); 
-			break;
-
-		case EMouseCursor::ResizeLeftRight:
-            Cursor = ref new CoreCursor(CoreCursorType::SizeWestEast, 0); 
-			break;
-
-		case EMouseCursor::ResizeUpDown:
-            Cursor = ref new CoreCursor(CoreCursorType::SizeNorthSouth, 0); 
-			break;
-
-		case EMouseCursor::ResizeSouthEast:
-            Cursor = ref new CoreCursor(CoreCursorType::SizeNorthwestSoutheast, 0); 
-			break;
-
-		case EMouseCursor::ResizeSouthWest:
-            Cursor = ref new CoreCursor(CoreCursorType::SizeNortheastSouthwest, 0); 
-			break;
-
-		case EMouseCursor::CardinalCross:
-            Cursor = ref new CoreCursor(CoreCursorType::SizeAll, 0); 
-			break;
-
-		case EMouseCursor::Crosshairs:
-            Cursor = ref new CoreCursor(CoreCursorType::Cross, 0); 
-			break;
-
-		case EMouseCursor::Hand:
-            Cursor = ref new CoreCursor(CoreCursorType::Hand, 0); 
-			break;
-
-		case EMouseCursor::GrabHand:
-            Cursor = ref new CoreCursor(CoreCursorType::Hand, 0); 
-			break;
-
-		case EMouseCursor::GrabHandClosed:
-            Cursor = ref new CoreCursor(CoreCursorType::Hand, 0); 
-			break;
-
-		case EMouseCursor::SlashedCircle:
-            Cursor = ref new CoreCursor(CoreCursorType::UniversalNo, 0); 
-			break;
-
-		case EMouseCursor::EyeDropper:
-            Cursor = ref new CoreCursor(CoreCursorType::Arrow, 0);  
-			break;
-
-			// NOTE: For custom app cursors, use:
-			//		Cursor = ref new CoreCursor(CoreCursorType::Custom, MY_RESOURCE_ID );
-
-		default:
-			// Unrecognized cursor type!
-			check( 0 );
-			break;
-		}
-
-		Cursors[ CurCursorIndex ] = Cursor;
+		Cursors[ CurCursorIndex ] = GetDefaultCursorForType(static_cast<EMouseCursor::Type>(CurCursorIndex));
 	}
 }
 
@@ -194,10 +122,10 @@ void FUWPCursor::SetType( const EMouseCursor::Type InNewCursor )
 	{
 		CurrentCursor = InNewCursor;
 		// if we're on the UI thread, change the cursor, otherwise queue a deferred change
-		CoreWindow^ window = CoreWindow::GetForCurrentThread();
+        CoreWindow^ window = CoreWindow::GetForCurrentThread();
 		if (nullptr == window)
 		{
-			bDeferredCursorTypeChange = true;
+            bDeferredCursorTypeChange = true;
 		}
 		else
 		{
@@ -220,7 +148,7 @@ void FUWPCursor::SetType( const EMouseCursor::Type InNewCursor )
 				}
 			}
 		}
-	}
+    }
 }
 
 void FUWPCursor::GetSize( int32& Width, int32& Height ) const
@@ -270,18 +198,77 @@ void FUWPCursor::SetUseRawMouse(bool bUse)
 	}
 }
 
-void FUWPCursor::SetCustomShape(void* InCursorHandle)
+void FUWPCursor::SetTypeShape(EMouseCursor::Type InCursorType, void* CursorHandle)
 {
-	if (InCursorHandle != nullptr)
+	if (CursorHandle != nullptr)
 	{
 		// This will succeed even if CursorResourceId is invalid.  The point of failure if
 		// someone supplied a bad value will be when we actually try to set the window cursor.
-		Cursors[EMouseCursor::Custom] = ref new CoreCursor(CoreCursorType::Custom, static_cast<uint32>(reinterpret_cast<uint64>(InCursorHandle)));
+		Cursors[InCursorType] = ref new CoreCursor(CoreCursorType::Custom, static_cast<uint32>(reinterpret_cast<uint64>(CursorHandle)));
 	}
 	else
 	{
-		Cursors[EMouseCursor::Custom] = nullptr;
+		Cursors[InCursorType] = GetDefaultCursorForType(InCursorType);
+	}
+
+	if (CurrentCursor == InCursorType)
+	{
+		SetType(InCursorType);
 	}
 }
 
-PACK_WINRT_REVERT()
+Windows::UI::Core::CoreCursor^ FUWPCursor::GetDefaultCursorForType(EMouseCursor::Type InCursorType)
+{
+	switch (InCursorType)
+	{
+	case EMouseCursor::None:
+	case EMouseCursor::Custom:
+		return nullptr;
+
+	case EMouseCursor::Default:
+		return ref new CoreCursor(CoreCursorType::Arrow, 0);
+
+	case EMouseCursor::TextEditBeam:
+		return ref new CoreCursor(CoreCursorType::IBeam, 0);
+
+	case EMouseCursor::ResizeLeftRight:
+		return ref new CoreCursor(CoreCursorType::SizeWestEast, 0);
+
+	case EMouseCursor::ResizeUpDown:
+		return ref new CoreCursor(CoreCursorType::SizeNorthSouth, 0);
+
+	case EMouseCursor::ResizeSouthEast:
+		return ref new CoreCursor(CoreCursorType::SizeNorthwestSoutheast, 0);
+
+	case EMouseCursor::ResizeSouthWest:
+		return ref new CoreCursor(CoreCursorType::SizeNortheastSouthwest, 0);
+
+	case EMouseCursor::CardinalCross:
+		return ref new CoreCursor(CoreCursorType::SizeAll, 0);
+
+	case EMouseCursor::Crosshairs:
+		return ref new CoreCursor(CoreCursorType::Cross, 0);
+
+	case EMouseCursor::Hand:
+		return ref new CoreCursor(CoreCursorType::Hand, 0);
+
+	case EMouseCursor::GrabHand:
+		return ref new CoreCursor(CoreCursorType::Hand, 0);
+
+	case EMouseCursor::GrabHandClosed:
+		return ref new CoreCursor(CoreCursorType::Hand, 0);
+
+	case EMouseCursor::SlashedCircle:
+		return ref new CoreCursor(CoreCursorType::UniversalNo, 0);
+
+	case EMouseCursor::EyeDropper:
+		return ref new CoreCursor(CoreCursorType::Arrow, 0);
+
+	default:
+		// Unrecognized cursor type!
+		check(0);
+		return nullptr;
+	}
+
+}
+

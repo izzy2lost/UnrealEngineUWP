@@ -33,12 +33,9 @@ typedef FUWPTypes FPlatformTypes;
 #define PLATFORM_DESKTOP				1
 #if defined( _WIN64 )
 #define PLATFORM_64BITS					1
-#define PACK_WINRT() __pragma(pack(push, 16))
 #else
 #define PLATFORM_64BITS					0
-#define PACK_WINRT() __pragma(pack(push, 8))
 #endif
-#define PACK_WINRT_REVERT() __pragma(pack(pop))
 
 #define PLATFORM_CAN_SUPPORT_EDITORONLY_DATA	0
 
@@ -62,9 +59,10 @@ typedef FUWPTypes FPlatformTypes;
 #define PLATFORM_HAS_BSD_SOCKET_FEATURE_WINSOCKETS			1
 #define PLATFORM_USES_MICROSOFT_LIBC_FUNCTIONS				1
 //#define PLATFORM_SUPPORTS_NAMED_PIPES						1
-#define PLATFORM_COMPILER_HAS_DEFAULTED_FUNCTIONS			0
 #define PLATFORM_COMPILER_HAS_VARIADIC_TEMPLATES			1
 #define PLATFORM_COMPILER_HAS_EXPLICIT_OPERATORS			1
+//#define EXCEPTION_EXECUTE_HANDLER                           1
+#define WINDOWS_PF_COMPARE_EXCHANGE128                      PF_COMPARE_EXCHANGE128
 //#define PLATFORM_COMPILER_HAS_DEFAULT_FUNCTION_TEMPLATE_ARGUMENTS	1
 
 //@todo.UWP: Fixup once sockets are supported

@@ -2,9 +2,10 @@
 
 #pragma once
 
-// @ATG_CHANGE : BEGIN UWP packaging & F5 support
+#include "HAL/RunnableThread.h"
+#include "HAL/Runnable.h"
+#include "Containers/StringConv.h"
 #include "AllowWindowsPlatformTypes.h"
-// @ATG_CHANGE : END
 
 /**
 * This is the base interface for all runnable thread classes. It specifies the
@@ -72,9 +73,7 @@ class FRunnableThreadUWP
 	* The thread entry point. Simply forwards the call on to the right
 	* thread main function
 	*/
-	// @ATG_CHANGE : BEGIN UWP packaging & F5 support
 	static DWORD STDCALL _ThreadProc(LPVOID pThis)
-	// @ATG_CHANGE : END
 	{
 		check(pThis);
 		return ((FRunnableThreadUWP*)pThis)->GuardedRun();
@@ -182,9 +181,7 @@ protected:
 		ThreadInitSyncEvent = FPlatformProcess::CreateSynchEvent(true);
 
 		// Create the new thread
-		// @ATG_CHANGE : BEGIN UWP packaging & F5 support
 		Thread = CreateThread(NULL, InStackSize, _ThreadProc, this, STACK_SIZE_PARAM_IS_A_RESERVATION, (DWORD *)&ThreadID);
-		// @ATG_CHANGE : END
 
 		// If it fails, clear all the vars
 		if (Thread == NULL)
@@ -206,6 +203,4 @@ protected:
 		return Thread != NULL;
 	}
 };
-// @ATG_CHANGE : BEGIN UWP packaging & F5 support
 #include "HideWindowsPlatformTypes.h"
-// @ATG_CHANGE : END

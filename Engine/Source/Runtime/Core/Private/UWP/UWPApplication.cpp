@@ -8,8 +8,6 @@
 #include "GenericApplication.h"
 #include "CoreDelegates.h"
 
-PACK_WINRT()
-
 // Flip this on to make license checks operate against the retail Windows Store environment.
 // We default to simulator which is only permitted when the OS is in developer mode.  Titles
 // will need to manually flip this switch to use retail before ship.  Note that retail license
@@ -219,4 +217,4 @@ void FUWPApplication::BroadcastUELicenseChangeEvent()
 	FCoreDelegates::ApplicationLicenseChange.Broadcast();
 }
 
-PACK_WINRT_REVERT()
+

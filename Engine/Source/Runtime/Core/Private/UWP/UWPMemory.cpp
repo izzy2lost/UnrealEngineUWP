@@ -6,6 +6,9 @@
 #include "MallocAnsi.h"
 #include "GenericPlatformMemoryPoolStats.h"
 #include "MemoryMisc.h"
+#include "CoreGlobals.h"
+#include "Misc/OutputDeviceRedirector.h"
+
 
 #if !FORCE_ANSI_ALLOCATOR
 #include "MallocBinned.h"

@@ -1,9 +1,8 @@
 // Copyright Microsoft Inc. All Rights Reserved.
 
 #include "WindowsGamingInputInterface.h"
+#include "HAL/PlatformTime.h"
 #include <unordered_map>
-
-PACK_WINRT()
 
 DECLARE_LOG_CATEGORY_EXTERN(GamepadSystem, Log, All);
 DEFINE_LOG_CATEGORY(GamepadSystem);
@@ -457,5 +456,3 @@ void WindowsGamingInputInterface::UpdateGamepads()
 		}
 	}
 }
-
-PACK_WINRT_REVERT()

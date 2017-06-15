@@ -14,4 +14,3 @@
 #undef UINT
 #undef DWORD
 #undef FLOAT
-
