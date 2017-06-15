@@ -134,10 +134,7 @@ public class APEX : ModuleRules
 			};
 
 			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/{1}/VS{0}/", WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
-			if (Target.Platform == UnrealTargetPlatform.UWP64)
-			{
-				Definitions.Add("WITH_APEX_LEGACY=0");
-			}
+			bHasApexLegacy = Target.Platform != UnrealTargetPlatform.UWP64;
 
 			foreach(string RuntimeDependency in RuntimeDependenciesX64)
 			{
@@ -168,12 +165,10 @@ public class APEX : ModuleRules
 			};
 
 			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/{1}/VS{0}/", WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
-			if (Target.Platform == UnrealTargetPlatform.UWP32)
-			{
-				Definitions.Add("WITH_APEX_LEGACY=0");
-			}
+			bHasApexLegacy = Target.Platform != UnrealTargetPlatform.UWP32;
+
 // @ATG_CHANGE : END
-			foreach(string RuntimeDependency in RuntimeDependenciesX86)
+			foreach (string RuntimeDependency in RuntimeDependenciesX86)
 			{
 				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix);
 				RuntimeDependencies.Add(FileName, StagedFileType.NonUFS);
