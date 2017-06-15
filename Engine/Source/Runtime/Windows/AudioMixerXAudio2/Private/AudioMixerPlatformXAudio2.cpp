@@ -33,23 +33,10 @@
 		return false;										\
 	}
 
-// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
-#if PLATFORM_UWP
-PACK_WINRT()
-#endif
-// @ATG_CHANGE : END
-
 namespace Audio
 {
 #if PLATFORM_UWP
 	static Windows::Devices::Enumeration::DeviceInformationCollection^ AllAudioDevices = nullptr;
-
-	// Force an instantiation of required event handler types inside the PACK_WINRT block, otherwise
-	// they'll be first encountered in generated code outside the pack block and will generate errors in 32 bit
-	inline void ForceImportOfWinRTTypesInsidePackBlock()
-	{
-		ref new Windows::Foundation::TypedEventHandler<Windows::Devices::Enumeration::DeviceWatcher^, Windows::Devices::Enumeration::DeviceInformation^>(nullptr, nullptr);
-	}
 #endif
 
 	void FXAudio2VoiceCallback::OnBufferEnd(void* BufferContext)
@@ -391,7 +378,7 @@ namespace Audio
 		// XAudio2 for UWP has different parameters to CreateMasteringVoice
 		// See https://blogs.msdn.microsoft.com/chuckw/2012/04/02/xaudio2-and-windows-8/
 #if PLATFORM_UWP
-		HRESULT Result = XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.RequestedSampleRate, 0, AllAudioDevices->GetAt(AudioStreamInfo.OutputDeviceIndex)->Id->Data(), nullptr);
+		HRESULT Result = XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, AllAudioDevices->GetAt(AudioStreamInfo.OutputDeviceIndex)->Id->Data(), nullptr);
 #else
 		HRESULT Result = XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, AudioStreamInfo.OutputDeviceIndex, nullptr);
 #endif
@@ -703,9 +690,3 @@ namespace Audio
 	}
 
 }
-
-// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
-#if PLATFORM_UWP
-PACK_WINRT_REVERT()
-#endif
-// @ATG_CHANGE : END
