@@ -258,15 +258,7 @@ private:
 	FGuid PinId;
 };
 
-// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
-#if PLATFORM_UWP
-PACK_WINRT()
-#endif
 enum class EPinResolveType : uint8;
-// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
-#if PLATFORM_UWP
-PACK_WINRT_REVERT()
-#endif
 
 class UEdGraphPin
 {

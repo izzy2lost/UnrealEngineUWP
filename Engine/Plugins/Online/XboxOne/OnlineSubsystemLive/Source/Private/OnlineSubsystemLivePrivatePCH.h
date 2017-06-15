@@ -130,8 +130,6 @@ namespace Windows
 
 typedef FUWPInputInterface FPlatformInputInterface;
 
-PACK_WINRT()
-
 inline Windows::Xbox::System::User ^SystemUserFromXSAPIUser(Microsoft::Xbox::Services::System::XboxLiveUser ^user)
 {
 	return Windows::Xbox::System::User::ShimUserFromXSAPIUser(user);
@@ -146,50 +144,6 @@ inline Windows::Xbox::System::User ^SystemUserFromControllerUser(Windows::System
 {
 	return Windows::Xbox::System::User::ShimUserFromControllerUser(user);
 }
-
-#if !PLATFORM_64BITS
-inline void ForceImportOfWinRTTypesInsidePackBlock()
-{
-	ref new Windows::Networking::Connectivity::NetworkStatusChangedEventHandler(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Microsoft::Xbox::Services::System::SignOutCompletedEventArgs^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Microsoft::Xbox::Services::RealTimeActivity::RealTimeActivityResyncEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Microsoft::Xbox::Services::RealTimeActivity::RealTimeActivitySubscriptionErrorEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Microsoft::Xbox::Services::RealTimeActivity::RealTimeActivityConnectionState>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Microsoft::Xbox::Services::Multiplayer::MultiplayerSubscriptionLostEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionChangeEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::TypedEventHandler<Windows::Xbox::Networking::SecureDeviceAssociationTemplate ^, Windows::Xbox::Networking::SecureDeviceAssociationIncomingEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Microsoft::Xbox::Services::XboxServiceCallRoutedEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Microsoft::Xbox::Services::UserStatistics::StatisticChangeEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::Collections::MapChangedEventHandler<Platform::String ^, Platform::Object ^>(nullptr, nullptr);
-	ref new Windows::Foundation::AsyncOperationCompletedHandler<Windows::Xbox::UI::AccountPickerResult ^>(nullptr, nullptr);
-	ref new Windows::Foundation::TypedEventHandler<Windows::Gaming::Input::IGameController ^, Windows::Gaming::Input::Headset ^>(nullptr, nullptr);
-	ref new Windows::Foundation::TypedEventHandler<Windows::Gaming::Input::IGameController ^, Windows::System::UserChangedEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Windows::Gaming::Input::Gamepad ^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Microsoft::Xbox::Services::Presence::TitlePresenceChangeEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Microsoft::Xbox::Services::Presence::DevicePresenceChangeEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Windows::ApplicationModel::Core::UnhandledErrorDetectedEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Platform::Object ^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Windows::ApplicationModel::SuspendingEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::TypedEventHandler<Windows::ApplicationModel::Core::CoreApplicationView ^, Windows::ApplicationModel::Activation::IActivatedEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::TypedEventHandler<Windows::ApplicationModel::Core::CoreApplicationView ^, Windows::ApplicationModel::Core::HostedViewClosingEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::TypedEventHandler<Windows::System::UserWatcher ^, Windows::System::UserChangedEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::TypedEventHandler<Windows::System::UserWatcher ^, Windows::System::UserAuthenticationStatusChangingEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::TypedEventHandler<Windows::System::UserWatcher ^, Platform::Object ^>(nullptr, nullptr);
-#if WITH_GAME_CHAT
-	ref new Microsoft::Xbox::GameChat::ProcessAudioBufferHandler(nullptr, nullptr);
-	ref new Microsoft::Xbox::GameChat::CompareUniqueConsoleIdentifiersHandler(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Microsoft::Xbox::GameChat::ChatPacketEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Microsoft::Xbox::GameChat::DebugMessageEventArgs ^>(nullptr, nullptr);
-#endif
-	ref new Windows::Foundation::EventHandler<Windows::ApplicationModel::Activation::BackgroundActivatedEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Windows::ApplicationModel::EnteredBackgroundEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::EventHandler<Windows::ApplicationModel::LeavingBackgroundEventArgs ^>(nullptr, nullptr);
-	ref new Windows::Foundation::TypedEventHandler<Windows::Xbox::Networking::SecureDeviceAddress ^, Platform::Object ^>(nullptr, nullptr);
-
-}
-#endif
-
-PACK_WINRT_REVERT()
 
 #endif
 // @ATG_CHANGE :  END

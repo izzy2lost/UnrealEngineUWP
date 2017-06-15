@@ -30,8 +30,6 @@ FOnlineAsyncTaskLiveQueryFriends::FOnlineAsyncTaskLiveQueryFriends(FOnlineSubsys
 {
 }
 
-// @ATG_CHANGE : BEGIN - UWP support
-PACK_WINRT()
 IAsyncOperation<XboxSocialRelationshipResult^>^ FOnlineAsyncTaskLiveQueryFriends::CreateOperation()
 {
 	try
@@ -47,8 +45,6 @@ IAsyncOperation<XboxSocialRelationshipResult^>^ FOnlineAsyncTaskLiveQueryFriends
 
 	return nullptr;
 }
-PACK_WINRT_REVERT()
-// @ATG_CHANGE : END - UWP support
 
 bool FOnlineAsyncTaskLiveQueryFriends::ProcessResult(const Concurrency::task<XboxSocialRelationshipResult^>& CompletedTask)
 {

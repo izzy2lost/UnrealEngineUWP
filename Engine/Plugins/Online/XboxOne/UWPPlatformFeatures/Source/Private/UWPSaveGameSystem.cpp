@@ -10,20 +10,6 @@
 
 DEFINE_LOG_CATEGORY(LogUWPSaveGame);
 
-PACK_WINRT()
-
-#if !PLATFORM_64BITS
-// Use of User methods below leads to instantiations of TypedEventHandler in the /ZW generated code.  On x86
-// conflict with the 4 byte structure member packing expected by non-WinRT parts of the engine.  And since it's
-// generated code we can't reliably wrap it with PACK_WINRT/PACK_WINRT_REVERT.  This unused function forces the
-// problem types to be brought in earlier where we do have control over the current packing mode.
-inline void ForceImportOfWinRTTypesInsidePackBlock()
-{
-
-	ref new Windows::Foundation::TypedEventHandler<Windows::System::UserWatcher^, Windows::System::UserChangedEventArgs^>(nullptr, nullptr);
-}
-#endif
-
 //! GameSaveContainer.SubmitUpdatesAsync() - Only 16MB of data may be written per call. 
 enum { kMaxBlobSizeInBytes = (16 * 1024 * 1024) };
 
@@ -527,5 +513,3 @@ bool FUWPSaveGameSystem::DeleteGame(bool			 /* bAttemptToUseUI */,
 
 	return Result;
 }
-
-PACK_WINRT_REVERT()

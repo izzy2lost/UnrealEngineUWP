@@ -17,8 +17,6 @@ using namespace Windows::UI::Core;
 
 extern FD3D12Texture2D* GetSwapChainSurface(FD3D12Device* Parent, EPixelFormat PixelFormat, IDXGISwapChain* SwapChain, const uint32 &backBufferIndex);
 
-PACK_WINRT()
-
 FD3D12Viewport::FD3D12Viewport(class FD3D12Adapter* InParent, HWND InWindowHandle, uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen, EPixelFormat InPreferredPixelFormat) :
 	LastFlipTime(0),
 	LastFrameComplete(0),
@@ -61,7 +59,7 @@ void FD3D12Viewport::Init(IDXGIFactory* Factory, bool AssociateWindow)
 {
 	FD3D12Adapter* Adapter = GetParentAdapter();
 
-	Fence.CreateFence(0);
+	Fence.CreateFence();
 
 	CalculateSwapChainDepth();
 
@@ -117,7 +115,5 @@ HRESULT FD3D12Viewport::PresentInternal(int32 SyncInterval)
 {
 	return SwapChain1->Present(SyncInterval, 0);
 }
-
-PACK_WINRT_REVERT()
 
 #include "HideWindowsPlatformTypes.h"

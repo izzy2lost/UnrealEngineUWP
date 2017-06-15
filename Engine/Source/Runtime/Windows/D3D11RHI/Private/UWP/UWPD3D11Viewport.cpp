@@ -10,10 +10,6 @@
 
 #pragma warning(disable : 4946)	// reinterpret_cast used between related classes: 'Platform::Object' and ...
 
-// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
-PACK_WINRT()
-// @ATG_CHANGE : END
-
 using namespace Windows::Foundation;
 using namespace Windows::ApplicationModel::Core;
 using namespace Windows::UI::Core;
@@ -138,7 +134,3 @@ void FD3D11Viewport::ConditionalResetSwapChain(bool bIgnoreFocus)
 		}
 	}
 }
-
-// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
-PACK_WINRT_REVERT()
-// @ATG_CHANGE : END

@@ -49,9 +49,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogLaunchUWP, Log, All);
 void appUWPEarlyInit();
 int32 GuardedMain( const TCHAR* CmdLine, HINSTANCE hInInstance, HINSTANCE hPrevInstance, int32 nCmdShow );
 
-// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
-PACK_WINRT()
-// @ATG_CHANGE : END
 ref class ViewProvider sealed : public Windows::ApplicationModel::Core::IFrameworkView
 {
 public:
@@ -1056,9 +1053,5 @@ int32 GuardedMain( const TCHAR* CmdLine, HINSTANCE hInInstance, HINSTANCE hPrevI
 	}
 	return ErrorLevel;
 }
-
-// @ATG_CHANGE : BEGIN VS2015 & UWP support (working around /ZW x86 pack value issue)
-PACK_WINRT_REVERT()
-// @ATG_CHANGE : END
 
 #endif

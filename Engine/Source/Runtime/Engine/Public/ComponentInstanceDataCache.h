@@ -9,15 +9,7 @@ class AActor;
 class UActorComponent;
 class USceneComponent;
 
-// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
-#if PLATFORM_UWP
-PACK_WINRT()
-#endif
 enum class EComponentCreationMethod : uint8;
-#if PLATFORM_UWP
-PACK_WINRT_REVERT()
-#endif
-// @ATG_CHANGE : END
 
 /** At what point in the rerun construction script process is ApplyToActor being called for */
 enum class ECacheApplyPhase

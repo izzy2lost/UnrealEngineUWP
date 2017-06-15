@@ -39,12 +39,4 @@ DECLARE_STATS_GROUP_MAYBE_COMPILED_OUT(TEXT("SlateVeryVerbose"), STATGROUP_Slate
 /* Forward declarations
 *****************************************************************************/
 class FActiveTimerHandle;
-// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
-#if PLATFORM_UWP
-PACK_WINRT()
-#endif
 enum class EActiveTimerReturnType : uint8;
-#if PLATFORM_UWP
-PACK_WINRT_REVERT()
-#endif
-// @ATG_CHANGE : END

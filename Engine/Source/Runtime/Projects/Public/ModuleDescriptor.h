@@ -6,15 +6,7 @@
 #include "Serialization/JsonWriter.h"
 
 class FJsonObject;
-// @ATG_CHANGE : BEGIN UWP support (working around /ZW x86 pack value issue)
-#if PLATFORM_UWP
-PACK_WINRT()
-#endif
 enum class EModuleLoadResult;
-#if PLATFORM_UWP
-PACK_WINRT_REVERT()
-#endif
-// @ATG_CHANGE : END
 
 /**
  * Phase at which this module should be loaded during startup.

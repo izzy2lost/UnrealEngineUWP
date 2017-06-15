@@ -5,14 +5,7 @@
 #include "CoreMinimal.h"
 
 class IMessageReceiver;
-#if PLATFORM_UWP
-PACK_WINRT()
-#endif
 enum class EMessageScope : uint8;
-#if PLATFORM_UWP
-PACK_WINRT_REVERT()
-#endif
-// @ATG_CHANGE : END
 
 /**
  * Interface for message subscriptions.
