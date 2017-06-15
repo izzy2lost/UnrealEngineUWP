@@ -7,44 +7,45 @@ public class DX12 : ModuleRules
 	{
 		Type = ModuleType.External;
 
-		// @ATG_CHANGE : BEGIN UWP support
-		string DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
-			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
-			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";
-		// @ATG_CHANGE : END
-
-		// For d3dx12, which is not part of the SDK distribution
-		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
-
-
-// @ATG_CHANGE : BEGIN UWP support
-		if (Target.WindowsPlatform.bUseWindowsSDK10)
+		// @ATG_CHANGE : BEGIN UWP support - using the flattened "DirectX" folder that has some conflicting legacy items is an issue when consuming W10 SDK
+		string DirectXSDKDir = UEBuildConfiguration.UEThirdPartySourceDirectory + (WindowsPlatform.bUseWindowsSDK10 ? "Windows/DX12" : "Windows/DirectX");
+		if (WindowsPlatform.bUseWindowsSDK10 && (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64))
 		{
-			PublicSystemIncludePaths.Add(UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DX12/Include");
+			PublicSystemIncludePaths.Add(UEBuildConfiguration.UEThirdPartySourceDirectory + "/Windows/Pix/Include");
+			PublicLibraryPaths.Add(UEBuildConfiguration.UEThirdPartySourceDirectory + "/Windows/Pix/Lib/x64");
 		}
+		// @ATG_CHANGE : END
+		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x64");
 
-            PublicDelayLoadDLLs.Add("WinPixEventRuntime.dll");
-            PublicAdditionalLibraries.Add("WinPixEventRuntime.lib");
-            RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Windows/DirectX/x64/WinPixEventRuntime.dll"));
-        }
+			PublicDelayLoadDLLs.Add("WinPixEventRuntime.dll");
+			PublicAdditionalLibraries.Add("WinPixEventRuntime.lib");
+			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Windows/DirectX/x64/WinPixEventRuntime.dll"));
+		}
 		else if (Target.Platform == UnrealTargetPlatform.Win32)
 		{
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
 		}
-// @ATG_CHANGE : END
+		// @ATG_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.UWP64)
+		{
+			PublicDelayLoadDLLs.Add("WinPixEventRuntime.dll");
+			PublicAdditionalLibraries.Add("WinPixEventRuntime.lib");
+			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Windows/DirectX/x64/WinPixEventRuntime.dll"));
+		}
+		// @ATG_CHANGE : END
 
 		// Always delay-load D3D12
-		PublicDelayLoadDLLs.AddRange( new string[] {
+		PublicDelayLoadDLLs.AddRange(new string[] {
 			"d3d12.dll"
-			} );
+			});
 
 		PublicAdditionalLibraries.AddRange(
 			new string[] {
-                "d3d12.lib"
+				"d3d12.lib"
 			}
 			);
 	}

@@ -57,6 +57,18 @@ public class DX11 : ModuleRules
 		{
 			Definitions.Add("WITH_D3DX_LIBS=0");
 		}
-	}
+		// @ATG_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+		{
+			Definitions.Add("WITH_D3DX_LIBS=0");
+			PublicAdditionalLibraries.AddRange(
+				new string[] {
+				"dxguid.lib",
+				}
+				);
+		}
+		// @ATG_CHANGE : END 
+
+		}
 }
 

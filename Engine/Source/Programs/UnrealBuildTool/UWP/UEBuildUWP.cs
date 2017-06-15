@@ -238,7 +238,7 @@ namespace UnrealBuildTool
 		{
 			if (ModuleName == "Core")
 			{
-				Rules.PrivateDependencyModuleNames.Add("UWPSDK");
+				//Rules.PrivateDependencyModuleNames.Add("UWPSDK");
 			}
 			else if (ModuleName == "Engine")
 			{

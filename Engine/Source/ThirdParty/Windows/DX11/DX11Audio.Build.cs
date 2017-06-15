@@ -27,17 +27,26 @@ public class DX11Audio : ModuleRules
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86/Win7");
 		}
+
+		// @ATG_CHANGE : BEGIN UWP Support
+		PublicAdditionalLibraries.AddRange(
+			new string[]
+			{
+				"dxguid.lib",
+				"xapobase.lib"
+			}
+			);
+
 		if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			PublicAdditionalLibraries.AddRange(
 				new string[] {
-				"dxguid.lib",
 				"X3DAudio.lib",
-				"xapobase.lib",
 				"XAPOFX.lib"
 				}
 				);
 		}
+		// @ATG_CHANGE : END
 	}
 }
 
