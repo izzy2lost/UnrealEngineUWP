@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -159,12 +159,13 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Microsoft.Xbox.Services">
-      <HintPath>..\..\XSAPI\$(XSAPIArchitecture)\build\native\lib\$(Platform)\$(PlatformToolset)\$(Configuration)\Microsoft.Xbox.Services.winmd</HintPath>
+      <HintPath>..\..\XSAPI\UWP\build\native\lib\$(Platform)\$(PlatformToolset)\Release\Microsoft.Xbox.Services.winmd</HintPath>
       <IsWinMDFile>true</IsWinMDFile>
     </Reference>
-  </ItemGroup>
-  <ItemGroup>
-    <SDKReference Include="XboxLive, Version=1.0" />
+    <Reference Include="Windows.Networking.XboxLive.XboxLiveSecureSocketsContract">
+      <HintPath>C:\Program Files (x86)\Windows Kits\10\References\Windows.Networking.XboxLive.XboxLiveSecureSocketsContract\1.0.0.0\Windows.Networking.XboxLive.XboxLiveSecureSocketsContract.winmd</HintPath>
+      <IsWinMDFile>true</IsWinMDFile>
+    </Reference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

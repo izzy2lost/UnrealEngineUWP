@@ -47,26 +47,30 @@ public class OnlineSubsystemLive : ModuleRules
 
 		// XSAPI package names are long enough that a shortened symbolic link is set up in GetXboxLiveSDK.bat
 		string PackageFolder = string.Empty;
+		string PackageArch = string.Empty;
 		string PlatformArchAndCompilerPathChunk = string.Empty;
 		switch (Target.Platform)
 		{
 			case UnrealTargetPlatform.XboxOne:
 				PackageFolder = "XboxOne";
-				PlatformArchAndCompilerPathChunk = Path.Combine("references", "Durango", "v110");
+				PackageArch = "Durango";
+				PlatformArchAndCompilerPathChunk = Path.Combine("references", PackageArch, "v110");
 				break;
 
 			case UnrealTargetPlatform.Win32:
 				// This case is currently used for intellisense generation.  Fall-through to UWP32 so it can find the winmd
 			case UnrealTargetPlatform.UWP32:
 				PackageFolder = "UWP";
-				PlatformArchAndCompilerPathChunk = Path.Combine("lib", "Win32", "v140");
+				PackageArch = "Win32";
+				PlatformArchAndCompilerPathChunk = Path.Combine("lib", PackageArch, "v140");
 				break;
 
 			case UnrealTargetPlatform.Win64:
 				// This case is currently used for intellisense generation.  Fall-through to UWP64 so it can find the winmd
 			case UnrealTargetPlatform.UWP64:
 				PackageFolder = "UWP";
-				PlatformArchAndCompilerPathChunk = Path.Combine("lib", "x64", "v140");
+				PackageArch = "x64";
+				PlatformArchAndCompilerPathChunk = Path.Combine("lib", PackageArch, "v140");
 				break;
 		}
 		string NugetPathChunk = Path.Combine(PackageFolder, "build", "native", PlatformArchAndCompilerPathChunk, "release");
@@ -74,7 +78,7 @@ public class OnlineSubsystemLive : ModuleRules
 		string XSAPISubDir = Path.Combine("XSAPI", NugetPathChunk);
 		if (!AddWinRTDllReference(XSAPISubDir, "Microsoft.Xbox.Services"))
 		{
-			Log.TraceError("Error: Xbox Live SDK not found.  Run Engine/Plugins/Online/XboxOne/OnlineSubsystemLive/GetXboxLiveSDK.bat");
+			Log.TraceError("Error: Xbox Live SDK not found.  Run Engine/Plugins/Online/XboxOne/OnlineSubsystemLive/GetXboxLiveSDK.ps1");
 		}
 
 		if (Target.Platform != UnrealTargetPlatform.XboxOne)
@@ -106,7 +110,7 @@ public class OnlineSubsystemLive : ModuleRules
 			AddWinRTDllReference(EraAdapterSubDir, "EraAdapter");
 
 			// CppRest a little different - it's not a WinRT component, and it will need to be loaded explicitly
-			const string CppRestVersion = "2_8";
+			const string CppRestVersion = "2_9";
 			string CppRestDll = Path.Combine("ThirdParty", XSAPISubDir, string.Format("cpprest140_uwp_{0}.dll", CppRestVersion));
 			RuntimeDependencies.Add(new RuntimeDependency(Path.Combine("$(PluginDir)", CppRestDll)));
 			Definitions.Add(string.Format(@"CPP_REST_DLL=TEXT(""{0}"")", CppRestDll.Replace(@"\", "/")));

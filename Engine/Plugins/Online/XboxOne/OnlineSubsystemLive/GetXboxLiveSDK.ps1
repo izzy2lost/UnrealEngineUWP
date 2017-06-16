@@ -12,7 +12,15 @@ function Install-LivePackage($pathToNuget, $packageName, $packageVersion, $insta
 	&$pathToNuget install $packageName -version $packageVersion -outputdirectory $tempLinkName
 
 	$aliasPath = $installLocation + "\" + $alias
-	$actualPath = $installLocation + "\" + $packageName + "." + $packageVersion
+	$nativeReleasePackage = $installLocation + "\" + $packageName + ".Native.Release." + $packageVersion
+	if (Test-Path $nativeReleasePackage)
+	{
+		$actualPath = $nativeReleasePackage
+	}
+	else
+	{
+		$actualPath = $installLocation + "\" + $packageName + "." + $packageVersion
+	}
 
 	New-Item -Path $aliasPath -ItemType SymbolicLink -Value $actualPath -Force
 
@@ -21,8 +29,8 @@ function Install-LivePackage($pathToNuget, $packageName, $packageVersion, $insta
 }
 
 # Package versions
-$xsapiVersionUwp = "2016.12.20170107.01"
-$xsapiVersionXdk = "2016.12.20170126.001"
+$xsapiVersionUwp = "2017.05.20170517.001"
+$xsapiVersionXdk = "2017.05.20170517.001"
 
 
 # Elevate if necessary (needed for new-item)

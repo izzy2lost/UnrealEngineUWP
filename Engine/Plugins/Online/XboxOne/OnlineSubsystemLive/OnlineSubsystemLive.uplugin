@@ -4,7 +4,6 @@
 	"FriendlyName" : "Online Subsystem Live",
 	"Version" : 1,
 	"VersionName" : "1.0",
-	"EngineVersion" : "4.2.0",
 	"Description" : "Access to Live platform",
 	"Category" : "Online Platform",
 	"CreatedBy" : "Epic Games, Inc.",
@@ -21,5 +20,11 @@
 				"XboxOne", "UWP64", "UWP32"
 			]
         }
-    ]
+    ],
+	"LocalizationTargets": [
+		{
+			"Name": "OnlineSubsystemLive",
+			"LoadingPolicy": "Always"
+		}
+	]
 }
