@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "../OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineAsyncTaskLiveJoinSession.h"
@@ -10,6 +10,7 @@
 #include "SocketSubsystem.h"
 #include "IPAddress.h"
 #include "../OnlineMatchmakingInterfaceLive.h"
+#include "OnlineAsyncTaskLiveSetSessionActivity.h"
 
 #include "OnlineAsyncTaskLiveJoinSession.h"
 
@@ -21,6 +22,9 @@ using namespace Windows::Xbox::Networking;
 using namespace Microsoft::Xbox::Services::Multiplayer;
 using namespace concurrency;
 
+using Windows::Xbox::System::User;
+using Microsoft::Xbox::Services::XboxLiveContext;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionMember;
 
 FOnlineAsyncTaskLiveJoinSession::FOnlineAsyncTaskLiveJoinSession(
 	FOnlineSessionLive* InLiveInterface,
@@ -95,7 +99,7 @@ void FOnlineAsyncTaskLiveJoinSession::Retry(bool bGetSession)
 			try
 			{
 				LiveSession = SessionTask.get();
-			
+
 				TryJoinSession();
 			}
 			catch(Platform::COMException^ Ex)
@@ -128,33 +132,35 @@ void FOnlineAsyncTaskLiveJoinSession::TryJoinSession()
 	}
 
 	// Don't join if the session is full.
-	if (!Subsystem->GetSessionInterfaceLive()->CanUserJoinSession(SystemUserFromXSAPIUser(LiveContext->User), LiveSession))
+	// @ATG_CHANGE : UWP Live Support - BEGIN
+	// was: Subsystem->GetSessionInterfaceLive()->
+	if (!FOnlineSessionLive::CanUserJoinSession(SystemUserFromXSAPIUser(LiveContext->User), LiveSession))
+	// @ATG_CHANGE : UWP Live Support - END
 	{
 		OnFailed(EOnJoinSessionCompleteResult::SessionIsFull);
 		return;
 	}
-	
+
 	// For matchmaking, identify local users for proper join and QoS handling
 	Platform::Collections::Vector<MultiplayerSessionMember^>^ LocalMembers =
 		ref new Platform::Collections::Vector<MultiplayerSessionMember^>();
 
+// TODO:richiem - test this merge
 	if (bIsMatchmakingResult)
 	{
-		for (auto Member : LiveSession->Members)
-		{
-			// @ATG_CHANGE : BEGIN UWP LIVE support
-			if (LiveSession->CurrentUser == nullptr || Member->XboxUserId != LiveSession->CurrentUser->XboxUserId)
-			{
-				FUniqueNetIdLive MemberId(Member->XboxUserId);
-				auto MemberUser = Subsystem->GetIdentityLive()->GetUserForUniqueNetId(MemberId);
+		FOnlineIdentityLivePtr IdentityInt(Subsystem->GetIdentityLive());
+		check(IdentityInt.IsValid());
 
-				if (MemberUser != nullptr && MemberUser)
-				{
-					// Found a local member
-					LocalMembers->Append(Member);
-				}
+		for (MultiplayerSessionMember^ Member : LiveSession->Members)
+		{
+			FUniqueNetIdLive MemberId(Member->XboxUserId);
+
+			User^ MemberUser = IdentityInt->GetUserForUniqueNetId(MemberId);
+			if (MemberUser != nullptr)
+			{
+				// Found a local member
+				LocalMembers->Append(Member);
 			}
-			// @ATG_CHANGE : END
 		}
 
 		// Ensure all local members pass or fail QoS together by putting them in an initialization group.
@@ -165,36 +171,33 @@ void FOnlineAsyncTaskLiveJoinSession::TryJoinSession()
 	}
 	else
 	{
-		LiveSession->Join(nullptr);
+		LiveSession->Join();
 	}
 
-	LiveSession->SetCurrentUserStatus( MultiplayerSessionMemberStatus::Active );
+	LiveSession->SetCurrentUserStatus(MultiplayerSessionMemberStatus::Active);
 	LiveSession->SetCurrentUserSecureDeviceAddressBase64(SecureDeviceAddress::GetLocal()->GetBase64String());
-	
+
 	// Indicate what events to subscribe to. Also handle joining matchmaking target session prior to QoS.
 	// Also use TryWriteSessionAsync when committing changes
 
 	LiveSession->SetSessionChangeSubscription(MultiplayerSessionChangeTypes::Everything);
-						
-	FOnlineSessionInfoLive* LiveInfo;
 
-	if(bIsMatchmakingResult && NamedSession->SessionInfo.IsValid())
+	if (bIsMatchmakingResult && NamedSession->SessionInfo.IsValid())
 	{
 		// In matchmaking, the session info already exists, so just update it.
 		// @v2live Should this branch off bIsMatchmakingResult, or should we just check if SessionInfo exists?
-		LiveInfo = static_cast<FOnlineSessionInfoLive*>(NamedSession->SessionInfo.Get());
+		TSharedPtr<FOnlineSessionInfoLive> LiveInfo(StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo));
 		LiveInfo->RefreshLiveInfo(LiveSession);
 	}
 	else
 	{
-		LiveInfo = new FOnlineSessionInfoLive(LiveSession);
-		NamedSession->SessionInfo = MakeShareable(LiveInfo);
+		NamedSession->SessionInfo = MakeShared<FOnlineSessionInfoLive>(LiveSession);
 	}
 
 	NamedSession->SessionState = EOnlineSessionState::Pending;
 
 	auto JoinOp = LiveContext->MultiplayerService->TryWriteSessionAsync(LiveSession, MultiplayerSessionWriteMode::SynchronizedUpdate);
-	create_task(JoinOp).then([this, LiveInfo, LocalMembers](task<WriteSessionResult^> Task)
+	create_task(JoinOp).then([this, LocalMembers](task<WriteSessionResult^> Task)
 	{
 		try
 		{
@@ -203,7 +206,7 @@ void FOnlineAsyncTaskLiveJoinSession::TryJoinSession()
 
 			if (Result->Succeeded)
 			{
-				//Register for shouldertaps.
+				// Register for shouldertaps (push-notifications from xbox about session changes)
 				Subsystem->GetSessionMessageRouter()->AddOnSessionChangedDelegate(Subsystem->GetSessionInterfaceLive()->OnSessionChangedDelegate, LiveSession->SessionReference);
 
 				if (bIsMatchmakingResult)
@@ -215,28 +218,27 @@ void FOnlineAsyncTaskLiveJoinSession::TryJoinSession()
 					bWasSuccessful = true;	// assume success unless a RegisterLocalPlayer delegate changes this
 
 					Subsystem->RefreshLiveInfo(NamedSession->SessionName, LiveSession);
-						
-					for (auto Member : LocalMembers)
+
+					for (MultiplayerSessionMember^ Member : LocalMembers)
 					{
 						if (Member->XboxUserId != LiveSession->CurrentUser->XboxUserId)
 						{
 							OtherLocalPlayersToAdd++;
 
 							FUniqueNetIdLive MemberId(Member->XboxUserId);
-							auto MemberContext = Subsystem->GetLiveContext(MemberId);
+							XboxLiveContext^ MemberContext = Subsystem->GetLiveContext(MemberId);
 
-							FOnlineAsyncTaskLiveRegisterLocalUser* RegisterTask = new FOnlineAsyncTaskLiveRegisterLocalUser(
+							Subsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveRegisterLocalUser>(
 								NamedSession->SessionName,
 								MemberContext,
 								Subsystem,
-								MemberId,
+								MoveTemp(MemberId),
 								FOnRegisterLocalPlayerCompleteDelegate::CreateRaw(this, &FOnlineAsyncTaskLiveJoinSession::OnAddLocalPlayerComplete),
 								LocalMembers->GetView());
-							Subsystem->GetAsyncTaskManager()->AddToParallelTasks(RegisterTask);
 						}
 					}
 
-					bIsComplete = (OtherLocalPlayersToAdd == 0);		
+					bIsComplete = (OtherLocalPlayersToAdd == 0);
 
 					// Connecting to the host, etc., will happen in the GameSessionReady task after
 					// QoS is complete.
@@ -244,47 +246,63 @@ void FOnlineAsyncTaskLiveJoinSession::TryJoinSession()
 				else	// !bIsMatchmakingResult
 				{
 					// Get the host token.
-					MultiplayerSessionMember^ Host = FOnlineSessionLive::GetLiveSessionHost(LiveSession);
-
-					auto HostSDABase64 = Host->SecureDeviceAddressBase64;
-
-					try
+					if (MultiplayerSessionMember^ Host = FOnlineSessionLive::GetLiveSessionHost(LiveSession))
 					{
-						auto SDA = SecureDeviceAddress::FromBase64String(HostSDABase64);
-						IAsyncOperation<SecureDeviceAssociation^ >^ SDAOp = PeerTemplate->CreateAssociationAsync(SDA, CreateSecureDeviceAssociationBehavior::Default);
-						create_task(SDAOp).then([this](task<SecureDeviceAssociation^> AssociationTask)
+						auto HostSDABase64 = Host->SecureDeviceAddressBase64;
+
+						try
 						{
-							try
+							auto SDA = SecureDeviceAddress::FromBase64String(HostSDABase64);
+
+							IAsyncOperation<SecureDeviceAssociation^ >^ SDAOp = PeerTemplate->CreateAssociationAsync(SDA, CreateSecureDeviceAssociationBehavior::Default);
+							create_task(SDAOp).then([this](task<SecureDeviceAssociation^> AssociationTask)
 							{
-								Association = AssociationTask.get();
+								try
+								{
+									Association = AssociationTask.get();
 
-								UE_LOG_ONLINE(Log, TEXT("Created association, now in state %s"),
-								FOnlineSessionLive::AssociationStateToString(Association->State));
+									UE_LOG_ONLINE(Log, TEXT("Created association, now in state %s"),
+									FOnlineSessionLive::AssociationStateToString(Association->State));
 
-								auto StateChangedEvent = ref new TypedEventHandler<SecureDeviceAssociation^, SecureDeviceAssociationStateChangedEventArgs^>(&FOnlineSessionLive::LogAssociationStateChange);
-								Association->StateChanged += StateChangedEvent;
-								
-								// This will be the session used for invites/join in progress if supported.
-								LiveContext->MultiplayerService->SetActivityAsync(LiveSession->SessionReference);
+									auto StateChangedEvent = ref new TypedEventHandler<SecureDeviceAssociation^, SecureDeviceAssociationStateChangedEventArgs^>(&FOnlineSessionLive::LogAssociationStateChange);
+									Association->StateChanged += StateChangedEvent;
 
-								JoinResult = EOnJoinSessionCompleteResult::Success;
-								bWasSuccessful = true;
-								bIsComplete = true;
-							}
-							catch(Platform::Exception^ Ex)
-							{
-								UE_LOG_ONLINE(Warning, TEXT("Failed to create secure device associtaion with host."));
-								OnFailed(EOnJoinSessionCompleteResult::CouldNotRetrieveAddress);
-							}
-						});
+									// This will be the session used for invites/join in progress if supported.
+									Subsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveSetSessionActivity>(Subsystem, LiveContext, LiveSession->SessionReference);
+
+									JoinResult = EOnJoinSessionCompleteResult::Success;
+									bWasSuccessful = true;
+									bIsComplete = true;
+								}
+								catch (Platform::Exception^ Ex)
+								{
+									UE_LOG_ONLINE(Warning, TEXT("Failed to create secure device associtaion with host."));
+									OnFailed(EOnJoinSessionCompleteResult::CouldNotRetrieveAddress);
+								}
+							});
+						}
+						catch (Platform::Exception^ Ex)
+						{
+							UE_LOG_ONLINE(Warning, TEXT("Invalid host secure device address."));
+							OnFailed(EOnJoinSessionCompleteResult::CouldNotRetrieveAddress);
+							return;
+						}
 					}
-					catch(Platform::Exception^ Ex)
+					else
 					{
-						UE_LOG_ONLINE(Warning, TEXT("Invalid host secure device address."));
-						OnFailed(EOnJoinSessionCompleteResult::CouldNotRetrieveAddress);
-						return;
+						// We don't have a host set
+
+						// If we're not a dedicated server, fail since we don't have a host to connect to
+						if (!NamedSession->SessionSettings.bIsDedicated)
+						{
+							UE_LOG_ONLINE(Warning, TEXT("Invalid host secure device address."));
+							OnFailed(EOnJoinSessionCompleteResult::CouldNotRetrieveAddress);
+							return;
+						}
+
+						// Success, we're in the session, but it's still up to the game to get onto the server
 					}
-				}				
+				}
 			}	// if (Result->Succeeded)
 			else if (Result->Status == WriteSessionStatus::OutOfSync)
 			{
@@ -306,13 +324,13 @@ void FOnlineAsyncTaskLiveJoinSession::OnAddLocalPlayerComplete(const FUniqueNetI
 {
 	FPlatformAtomics::InterlockedDecrement(&OtherLocalPlayersToAdd);
 
-	if(Result != EOnJoinSessionCompleteResult::Success)
+	if (Result != EOnJoinSessionCompleteResult::Success)
 	{
-		UE_LOG(LogOnline, Error, TEXT("FOnlineAsyncTaskLiveJoinSession::OnAddLocalPlayerComplete: failed to add local player to game session with result %u"), static_cast<uint32>(Result));
+		UE_LOG(LogOnline, Error, TEXT("FOnlineAsyncTaskLiveJoinSession::OnAddLocalPlayerComplete: failed to add local player to game session with result %u"), Result);
 		bWasSuccessful = false;
 	}
 
-	if(OtherLocalPlayersToAdd <= 0)
+	if (OtherLocalPlayersToAdd <= 0)
 	{
 		bIsComplete = true;
 	}
@@ -320,30 +338,30 @@ void FOnlineAsyncTaskLiveJoinSession::OnAddLocalPlayerComplete(const FUniqueNetI
 
 void FOnlineAsyncTaskLiveJoinSession::Finalize()
 {
-	if (!WasSuccessful() && NamedSession != nullptr)
+	if (!bWasSuccessful && NamedSession != nullptr)
 	{
 		// Clean up partial create/join
 		SessionInterface->RemoveNamedSession(NamedSession->SessionName);
 		return;
 	}
 
-	if(NamedSession && NamedSession->SessionInfo.IsValid() && !bIsMatchmakingResult)
+	if (NamedSession && NamedSession->SessionInfo.IsValid() && !bIsMatchmakingResult)
 	{
 		if (Association)
 		{
-			auto LiveInfo = static_cast<FOnlineSessionInfoLive*>(NamedSession->SessionInfo.Get());
-			auto Addr = FOnlineSessionLive::GetAddrFromDeviceAssociation(Association);
+			TSharedPtr<FOnlineSessionInfoLive> LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
+			TSharedRef<FInternetAddr> Addr = FOnlineSessionLive::GetAddrFromDeviceAssociation(Association);
 			LiveInfo->SetHostAddr(Addr);
 			LiveInfo->SetAssociation(Association);
 		}
-			
+
 		// Update with the new session since we wrote to it
 		// For the matchmaking case, this has already been done
 		Subsystem->RefreshLiveInfo(NamedSession->SessionName, LiveSession);
 	}
 
 	// Initialize session state after create/join
-	if(WasSuccessful())
+	if (bWasSuccessful)
 	{
 		Subsystem->GetSessionMessageRouter()->SyncInitialSessionState(NamedSession->SessionName, LiveSession);
 	}
@@ -351,7 +369,7 @@ void FOnlineAsyncTaskLiveJoinSession::Finalize()
 
 void FOnlineAsyncTaskLiveJoinSession::TriggerDelegates()
 {
-	if (!WasSuccessful() && bIsMatchmakingResult)
+	if (!bWasSuccessful && bIsMatchmakingResult)
 	{
 		// This join was part of session initialization during matchmaking, and it failed. Matchmaking
 		// needs to fail as well.

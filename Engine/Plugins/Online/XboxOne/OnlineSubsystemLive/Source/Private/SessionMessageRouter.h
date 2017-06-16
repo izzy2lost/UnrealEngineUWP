@@ -13,8 +13,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnSessionNeedsInitialState, FName);
 typedef FOnSessionNeedsInitialState::FDelegate FOnSessionNeedsInitialStateDelegate;
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnSessionChanged, FName, Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionChangeTypes);
-typedef FOnSessionChanged::FDelegate FOnSessionChangedDelegate;																																						
-
+typedef FOnSessionChanged::FDelegate FOnSessionChangedDelegate;
 
 class FSessionMessageRouter
 {
@@ -23,11 +22,12 @@ class FSessionMessageRouter
 		Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ SessionReference;
 		const FOnSessionChangedDelegate& Delegate;
 
-		FSessionChangedDelegatePair(
-			const FOnSessionChangedDelegate& InDelegate,
-			Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ InSessionReference) 
+		FSessionChangedDelegatePair(const FOnSessionChangedDelegate& InDelegate,
+									Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ InSessionReference)
 			: SessionReference(InSessionReference)
-			, Delegate(InDelegate) {}
+			, Delegate(InDelegate)
+		{
+		}
 
 		bool BoundTo(Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ SessionReference) const;
 
@@ -36,7 +36,7 @@ class FSessionMessageRouter
 		bool operator== (const FSessionChangedDelegatePair& Other) const
 		{
 			return Equals(Other);
-		}	
+		}
 	};
 
 	typedef TDoubleLinkedList<FSessionChangedDelegatePair> DelegateList;
@@ -44,53 +44,50 @@ class FSessionMessageRouter
 	mutable FCriticalSection DelegateLock;
 
 public:
+	FSessionMessageRouter(class FOnlineSubsystemLive* InSubsystem);
+	~FSessionMessageRouter();
 
 	void TriggerOnSessionChangedDelegates(
 		Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ SessionReference,
 		FName SessionName,
 		Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionChangeTypes Diff) const;
-	
+
 	void AddOnSessionChangedDelegate(const FOnSessionChangedDelegate& Delegate, Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ SessionReference);
 	void ClearOnSessionChangedDelegate(const FOnSessionChangedDelegate& Delegate, Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ SessionReference);
 
-
-	FSessionMessageRouter(class FOnlineSubsystemLive* InSubsystem);
-	~FSessionMessageRouter();
 
 	//Delegates
 	DEFINE_ONLINE_DELEGATE(OnSubscriptionLost);
 	DEFINE_ONLINE_DELEGATE_ONE_PARAM(OnSessionNeedsInitialState, FName);
 
 	void SyncInitialSessionState(FName SessionName, Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ Session);
-	
+
 PACKAGE_SCOPE:
 	uint64 GetLastProcessedChangeNumber(const FString& Branch);
 	void SetLastProcessedChangeNumber(const FString& Branch, uint64 ChangeNumber);
 
 private:
-
 	//Prevent copies
-	FSessionMessageRouter(const FSessionMessageRouter&);
-	void operator=(const FSessionMessageRouter&);
+	FSessionMessageRouter(const FSessionMessageRouter&) = delete;
+	FSessionMessageRouter& operator=(const FSessionMessageRouter&) = delete;
 
 	/** Start listening to XBL session change events as the specified user. */
 	void SubscribeToMultiplayerEvents(Windows::Xbox::System::User^ SubscribingUser);
 
-	// @ATG_CHANGE :  BEGIN UWP LIVE support
 	/** Stop listening to XBL session change events as the specified user. */
+	// @ATG_CHANGE : BEGIN - UWP LIVE support
 	void UnsubscribeFromMultiplayerEvents(const FUniqueNetId& SubscribedUser);
-	// @ATG_CHANGE :  END
+	// @ATG_CHANGE : END
 
-	//////////////////////////////////////////////////////////////////////////
 	/** Detect a loss of connection to the subscription service and exit multiplayer. */
 	void OnMultiplayerSubscriptionsLost(Windows::Xbox::System::User^ User);
 
 	/** Handle changes to the game session */
 	void OnMultiplayerSessionChanged(Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionChangeEventArgs^ EventArgs);
 
-	//////////////////////////////////////////////////////////////////////////
+private:
 	class FOnlineSubsystemLive* LiveSubsystem;
-	
+
 	TMap<FString, uint64> LastSeenChangeNumberMap, LastProcessedChangeNumberMap;
 	FCriticalSection LastSeenChangeNumberMapLock, LastProcessedChangeNumberMapLock;
 
@@ -100,9 +97,9 @@ private:
 		Windows::Foundation::EventRegistrationToken SessionChangedToken;
 		Windows::Foundation::EventRegistrationToken SubscriptionsLostToken;
 	};
-	// @ATG_CHANGE :  BEGIN UWP LIVE support
+	// @ATG_CHANGE : BEGIN - UWP LIVE support
 	TMap<FString, MultiplayerSubscriptionTokenPair> MultiplayerSubscriptionTokens;
-	// @ATG_CHANGE :  END
+	// @ATG_CHANGE : END
 
 	/** Token for un-registering the signin callback */
 	Windows::Foundation::EventRegistrationToken SignInCompletedToken;

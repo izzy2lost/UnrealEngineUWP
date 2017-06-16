@@ -141,6 +141,9 @@ private:
 	/** Starts QoS against the search results */
 	void PingResultsAndTriggerDelegates(const TSharedRef<FOnlineSessionSearch>& SearchSettings);
 
+	/** Get LocalPlayerNum/ControllerId for a Host's netid and -1 on failure */
+	int32 GetHostingPlayerNum(const FUniqueNetId& HostNetId) const;
+
 PACKAGE_SCOPE:
 
 	static const int QOS_TIMEOUT_MILLISECONDS = 5000;
@@ -198,9 +201,9 @@ PACKAGE_SCOPE:
 	 */
 	static void WriteSettingsToLiveJson(const FOnlineSessionSettings& UpdatedSessionSettings, Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession, Windows::Xbox::System::User^ HostUser);
 
-	// @ATG_CHANGE :  BEGIN Allow modifying session visibility/joinability
+	// @ATG_CHANGE : BEGIN Allow modifying session visibility/joinability
 	static void WriteSessionPrivacySettingsToLiveJson(const FOnlineSessionSettings& SessionSettings, Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession);
-	// @ATG_CHANGE :  END
+	// @ATG_CHANGE : END
 
 	/**
 	 * Extract one FString that contains all the members settings
@@ -236,7 +239,7 @@ PACKAGE_SCOPE:
 	Windows::Xbox::Networking::SecureDeviceAssociationTemplate^ GetSDATemplate() const { return PeerTemplate; }
 
 	/** Turns a secure device association into an FInternetAddr */
-	static TSharedPtr<FInternetAddr> GetAddrFromDeviceAssociation(Windows::Xbox::Networking::ISecureDeviceAssociation^ SDA);
+	static TSharedRef<FInternetAddr> GetAddrFromDeviceAssociation(Windows::Xbox::Networking::ISecureDeviceAssociation^ SDA);
 
 	/** Uses data from a MultiplayerSession to initialize an FOnlineSessionSearchResult. */
 	static FOnlineSessionSearchResult CreateSearchResultFromSession(
@@ -266,6 +269,9 @@ PACKAGE_SCOPE:
 		Windows::Xbox::System::User^ JoiningUser,
 		Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession);
 
+	/** Returns what the Multiplayer Session restriction should be based on session settings */
+	static Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionRestriction GetLiveSessionRestrictionFromSettings(const FOnlineSessionSettings& SessionSettings);
+
 	/** Critical sections for thread safe operation of session lists */
 	mutable FCriticalSection SessionLock;
 
@@ -274,7 +280,7 @@ PACKAGE_SCOPE:
 
 	/** Current session settings */
 	TArray<FNamedOnlineSession> Sessions;
-	
+
 	FCriticalSection SessionResultLock;
 	int ExpectedResults;
 	// Synchronization for session changes handlers and destruction on subscription loss
@@ -302,7 +308,7 @@ public:
 	// IOnlineSession interface
 	virtual FNamedOnlineSession* GetNamedSession(FName SessionName) override;
 	virtual void RemoveNamedSession(FName SessionName) override;
-	virtual bool HasPresenceSession() override {return false;}
+	virtual bool HasPresenceSession() override;
 	virtual EOnlineSessionState::Type GetSessionState(FName SessionName) const override;
 	virtual bool CreateSession(int32 HostingPlayerControllerIndex, FName SessionName, const FOnlineSessionSettings& NewSessionSettings) override;
 	virtual bool CreateSession(const FUniqueNetId& HostingPlayerId, FName SessionName, const FOnlineSessionSettings& NewSessionSettings) override;
@@ -317,28 +323,27 @@ public:
 	virtual bool FindSessions(int32 SearchingPlayerNum, const TSharedRef<FOnlineSessionSearch>& SearchSettings) override;
 	virtual bool FindSessions(const FUniqueNetId& SearchingPlayerId, const TSharedRef<FOnlineSessionSearch>& SearchSettings) override;
 	virtual bool FindSessionById(const FUniqueNetId& SearchingUserId, const FUniqueNetId& SessionId, const FUniqueNetId& FriendId, const FOnSingleSessionResultCompleteDelegate& CompletionDelegate) override;
-	virtual bool CancelFindSessions() override {return false;}
+	virtual bool CancelFindSessions() override;
 	virtual bool PingSearchResults(const FOnlineSessionSearchResult& SearchResult) override {return false;}
 	virtual bool JoinSession(int32 ControllerIndex, FName SessionName, const FOnlineSessionSearchResult& DesiredSession) override;
 	virtual bool JoinSession(const FUniqueNetId& UserId, FName SessionName, const FOnlineSessionSearchResult& DesiredSession) override;
 	virtual bool FindFriendSession(int32 LocalUserNum, const FUniqueNetId& Friend) override;
 	virtual bool FindFriendSession(const FUniqueNetId& LocalUserId, const FUniqueNetId& Friend) override;
-	virtual bool SendSessionInviteToFriend(int32 LocalUserNum, FName SessionName, const FUniqueNetId& Friend) override {return false;}
-	virtual bool SendSessionInviteToFriend(const FUniqueNetId& LocalUserId, FName SessionName, const FUniqueNetId& Friend) override {return false;}
-	virtual bool SendSessionInviteToFriends(int32 LocalUserNum, FName SessionName, const TArray< TSharedRef<const FUniqueNetId> >& Friends) override {return false;}
-	virtual bool SendSessionInviteToFriends(const FUniqueNetId& LocalUserId, FName SessionName, const TArray< TSharedRef<const FUniqueNetId> >& Friends) override {return false;}
-	virtual bool GetResolvedConnectString(FName SessionName, FString& ConnectInfo)  override;
+	virtual bool FindFriendSession(const FUniqueNetId& LocalUserId, const TArray<TSharedRef<const FUniqueNetId>>& FriendList) override;
+	virtual bool SendSessionInviteToFriend(int32 LocalUserNum, FName SessionName, const FUniqueNetId& Friend) override;
+	virtual bool SendSessionInviteToFriend(const FUniqueNetId& LocalUserId, FName SessionName, const FUniqueNetId& Friend) override;
+	virtual bool SendSessionInviteToFriends(int32 LocalUserNum, FName SessionName, const TArray< TSharedRef<const FUniqueNetId> >& Friends) override;
+	virtual bool SendSessionInviteToFriends(const FUniqueNetId& LocalUserId, FName SessionName, const TArray< TSharedRef<const FUniqueNetId> >& Friends) override;
+	virtual bool GetResolvedConnectString(FName SessionName, FString& ConnectInfo, FName PortType)  override;
 	virtual bool GetResolvedConnectString(const class FOnlineSessionSearchResult& SearchResult, FName PortType, FString& ConnectInfo)  override;
-	// @ATG_CHANGE :  BEGIN Allow modifying session visibility/joinability
 	virtual FOnlineSessionSettings* GetSessionSettings(FName SessionName) override;
-	// @ATG_CHANGE :  END
 	virtual bool RegisterPlayer(FName SessionName, const FUniqueNetId& PlayerId, bool bWasInvited)  override;
 	virtual bool RegisterPlayers(FName SessionName, const TArray< TSharedRef<const FUniqueNetId> >& Players, bool bWasInvited = false)  override;
 	virtual bool UnregisterPlayer(FName SessionName, const FUniqueNetId& PlayerId)  override;
 	virtual bool UnregisterPlayers(FName SessionName, const TArray< TSharedRef<const FUniqueNetId> >& Players)  override;
 	virtual void RegisterLocalPlayer(const FUniqueNetId& PlayerId, FName SessionName, const FOnRegisterLocalPlayerCompleteDelegate& Delegate) override;
 	virtual void UnregisterLocalPlayer(const FUniqueNetId& PlayerId, FName SessionName, const FOnUnregisterLocalPlayerCompleteDelegate& Delegate) override;
-	virtual int32 GetNumSessions() override {return 0;}
+	virtual int32 GetNumSessions() override { return Sessions.Num(); }
 	virtual void DumpSessionState() override {}
 
 	// Use task to get session in response to notification
@@ -346,13 +351,35 @@ public:
 
 	void OnHostInvalid(const FName& SessionName);
 
+	/** Handle sending a session invite to friends */
+	bool SendSessionInviteToFriends_Internal(Microsoft::Xbox::Services::XboxLiveContext^ LiveContext,
+		FName SessionName,
+		Windows::Foundation::Collections::IVectorView<Platform::String^>^ FriendXuidVectorView);
+
+	/** Update the SessionUpdateStatName stat for all active players */
+	void UpdateSessionChangedStats();
+
+	/** Have we already subscribed to the PlayerId for session update stats? */
+	bool IsSubscribedToSessionStatUpdates(const FUniqueNetIdLive& PlayerId) const;
+	/** Add the PlayerId to the list of subscribed session update stats list */
+	void AddSessionUpdateStatSubscription(const FUniqueNetIdLive& PlayerId);
+
+PACKAGE_SCOPE:
 	FDelegateHandle OnSubscriptionLostDelegateHandle;
-	
+
 	// Initialize session state after create/join
 	FOnSessionNeedsInitialStateDelegate OnSessionNeedsInitialStateDelegate;
-	
+
 	FOnSessionChangedDelegate OnSessionChangedDelegate;
+
+	/** Event to be called when our session updates */
+	FString SessionUpdateEventName;
+	/** Stat to subscribe to when we want to listen for a friend's session change event */
+	FString SessionUpdateStatName;
+	/** List of players that we are subscribed to for session stat updates */
+	TSet<FUniqueNetIdLive> SessionUpdateStatSubsriptions;
 
 	static const int MAX_RETRIES = 20;
 };
 
+typedef TSharedPtr<FOnlineSessionLive, ESPMode::ThreadSafe> FOnlineSessionLivePtr;

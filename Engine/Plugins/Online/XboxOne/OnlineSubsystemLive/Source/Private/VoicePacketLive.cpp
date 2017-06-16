@@ -59,10 +59,10 @@ void FVoicePacketLive::Serialize(class FArchive& Ar)
 		Ar << Broadcast;
 		FString SenderUID;
 		Ar << SenderUID;
-		Sender = MakeShareable(new FUniqueNetIdLive(SenderUID));
+		Sender = MakeShared<FUniqueNetIdLive>(SenderUID);
 		FString TargetUID;
 		Ar << TargetUID;
-		Target = MakeShareable(new FUniqueNetIdLive(TargetUID));
+		Target = MakeShared<FUniqueNetIdLive>(TargetUID);
 		Ar << Length;
 		// Verify the packet is a valid size
 		if (Length <= MAX_VOICE_DATA_SIZE)

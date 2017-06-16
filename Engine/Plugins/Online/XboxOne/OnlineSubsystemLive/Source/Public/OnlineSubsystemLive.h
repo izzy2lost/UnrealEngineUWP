@@ -2,21 +2,8 @@
 
 #pragma once
 
-#include "OnlineSubsystem.h"
-#include "OnlineSubsystemImpl.h"
-#include "OnlineSubsystemLivePackage.h"
-
 // @ATG_CHANGE : BEGIN UWP LIVE support
-#if PLATFORM_XBOXONE
-#include "XboxOneAllowPlatformTypes.h"
-#define _UITHREADCTXT_SUPPORT   0
-#include <ppltasks.h>
-#include "XboxOneHidePlatformTypes.h"
-#elif PLATFORM_UWP
-#include "AllowWindowsPlatformTypes.h"
-#include <ppltasks.h>
-#include "HideWindowsPlatformTypes.h"
-
+#if PLATFORM_UWP
 namespace Windows
 {
 	namespace Xbox
@@ -32,6 +19,25 @@ namespace Windows
 #endif
 // @ATG_CHANGE : END
 
+#include "OnlineSubsystem.h"
+#include "OnlineSubsystemImpl.h"
+#include "OnlineSubsystemLivePackage.h"
+#include "../Private/OnlineAsyncTaskManagerLive.h"
+#include "HAL/RunnableThread.h"
+
+// @ATG_CHANGE : BEGIN UWP LIVE support
+#include "HAL/ThreadSafeBool.h"
+#if PLATFORM_XBOXONE
+#include "XboxOneAllowPlatformTypes.h"
+#define _UITHREADCTXT_SUPPORT   0
+#include <ppltasks.h>
+#include "XboxOneHidePlatformTypes.h"
+#include "Runtime/Core/Public/XboxOne/XboxOneApplication.h"
+#elif PLATFORM_UWP
+#include "Runtime/Core/Public/UWP/UWPApplication.h"
+#endif
+// @ATG_CHANGE : END
+
 /** Forward declarations of all interface classes */
 typedef TSharedPtr<class FOnlineSessionLive, ESPMode::ThreadSafe> FOnlineSessionLivePtr;
 typedef TSharedPtr<class FOnlineProfileLive, ESPMode::ThreadSafe> FOnlineProfileLivePtr;
@@ -41,18 +47,20 @@ typedef TSharedPtr<class FOnlineLeaderboardsLive, ESPMode::ThreadSafe> FOnlineLe
 typedef TSharedPtr<class FOnlineVoiceLive, ESPMode::ThreadSafe> FOnlineVoiceLivePtr;
 typedef TSharedPtr<class FOnlineExternalUILive, ESPMode::ThreadSafe> FOnlineExternalUILivePtr;
 typedef TSharedPtr<class FOnlineIdentityLive, ESPMode::ThreadSafe> FOnlineIdentityLivePtr;
+#if PLATFORM_XBOXONE
+typedef TSharedPtr<class FOnlinePurchaseLive, ESPMode::ThreadSafe> FOnlinePurchaseLivePtr;
+typedef TSharedPtr<class FOnlineStoreLive, ESPMode::ThreadSafe> FOnlineStoreLivePtr;
+#endif // PLATFORM_XBOXONE
 typedef TSharedPtr<class FOnlineAchievementsLive, ESPMode::ThreadSafe> FOnlineAchievementsLivePtr;
 typedef TSharedPtr<class FOnlineEventsLive, ESPMode::ThreadSafe> FOnlineEventsLivePtr;
 typedef TSharedPtr<class FOnlinePresenceLive, ESPMode::ThreadSafe> FOnlinePresenceLivePtr;
+typedef TSharedPtr<class FOnlineUserLive, ESPMode::ThreadSafe> FOnlineUserLivePtr;
 typedef TSharedPtr<class FOnlineMatchmakingInterfaceLive, ESPMode::ThreadSafe> FOnlineMatchmakingInterfaceLivePtr;
 typedef TSharedPtr<class FSessionMessageRouter, ESPMode::ThreadSafe> FSessionMessageRouterPtr;
-// @ATG_CHANGE : BEGIN Adding social features
-typedef TSharedPtr<class FOnlineUserInterfaceLive, ESPMode::ThreadSafe> FOnlineUserLivePtr;
-// @ATG_CHANGE : END
+
 
 class FOnlineAsyncTask;
 class FOnlineAsyncTaskManagerLive;
-class FRunnableThread;
 template<class FOnlineSubsystemClass> class FOnlineAsyncEvent;
 
 /**
@@ -61,7 +69,6 @@ template<class FOnlineSubsystemClass> class FOnlineAsyncEvent;
 class ONLINESUBSYSTEMLIVE_API FOnlineSubsystemLive
 	: public FOnlineSubsystemImpl
 {
-
 public:
 	/**
 	 * Forwards the invite check to the session interface. This is here because this is already
@@ -70,7 +77,6 @@ public:
 	void CheckPendingSessionInvite();
 
 	// IOnlineSubsystem
-
 	virtual IOnlineSessionPtr GetSessionInterface() const override;
 	virtual IOnlineFriendsPtr GetFriendsInterface() const override;
 	virtual IOnlinePartyPtr GetPartyInterface() const override;
@@ -97,6 +103,8 @@ public:
 	virtual IOnlineTurnBasedPtr GetTurnBasedInterface() const override;
 	virtual FOnlineMatchmakingInterfaceLivePtr GetMatchmakingInterface() const;
 
+	virtual EOnlineEnvironment::Type GetOnlineEnvironment() const override;
+
 	virtual bool Init() override;
 	virtual bool Shutdown() override;
 	virtual FString GetAppId() const override;
@@ -112,27 +120,31 @@ public:
 	bool IsEnabled();
 
 PACKAGE_SCOPE:
-
 	/** Only the factory makes instances */
 	FOnlineSubsystemLive()
 		: ConvertedNetworkConnectivityLevel(EOnlineServerConnectionStatus::Normal)
 		, bHasCalledNetworkStatusChangedAtLeastOnce(false)
-		, OnlineAsyncTaskThreadRunnable(nullptr)
-		, OnlineAsyncTaskThread(nullptr)
+		, TitleId(0)
 	{
 	}
 
 	virtual ~FOnlineSubsystemLive() = default;
+
 	/** Helpers to get typed Interface shared pointers */
 	FOnlineSessionLivePtr GetSessionInterfaceLive();
 	FOnlineIdentityLivePtr GetIdentityLive() const { return IdentityInterface; }
+#if PLATFORM_XBOXONE
+	FOnlineStoreLivePtr GetStoreLive() const { return StoreInterface; }
+	FOnlinePurchaseLivePtr GetPurchaseLive() const { return PurchaseInterface; }
+#endif // PLATFORM_XBOXONE
 	FOnlinePresenceLivePtr GetPresenceLive() const { return PresenceInterface; }
 	FOnlineLeaderboardsLivePtr GetLeaderboardsInterfaceLive() const { return LeaderboardsInterface; }
 	FOnlineMatchmakingInterfaceLivePtr GetMatchmakingInterfaceLive() const { return MatchmakingInterfaceLive; }
 	FSessionMessageRouterPtr GetSessionMessageRouter() const { return SessionMessageRouterInterface; }
 	FOnlineFriendsLivePtr GetFriendsLive() const { return FriendInterface; }
+	FOnlineUserLivePtr GetUsersLive() const { return UserInterface; }
 
-	FOnlineAsyncTaskManagerLive* GetAsyncTaskManager() { check(OnlineAsyncTaskThreadRunnable != nullptr); return OnlineAsyncTaskThreadRunnable; }
+	FOnlineAsyncTaskManagerLive* GetAsyncTaskManager();
 
 	/** Helpers to manage queuing already created FOnlineAsyncItem */
 	void QueueAsyncTask(FOnlineAsyncTask* const AsyncTask, const bool bCanRunInParallel = false);
@@ -142,7 +154,7 @@ PACKAGE_SCOPE:
 	template <typename TOnlineAsyncTask, typename... TArguments>
 	FORCEINLINE void CreateAndDispatchAsyncTaskParallel(TArguments&&... Arguments)
 	{
-		check(OnlineAsyncTaskThreadRunnable);
+		check(OnlineAsyncTaskThreadRunnable.IsValid());
 
 		TOnlineAsyncTask* NewTask = new TOnlineAsyncTask(Forward<TArguments>(Arguments)...);
 		OnlineAsyncTaskThreadRunnable->AddToParallelTasks(NewTask);
@@ -152,7 +164,7 @@ PACKAGE_SCOPE:
 	template <typename TOnlineAsyncTask, typename... TArguments>
 	FORCEINLINE void CreateAndDispatchAsyncTaskSerial(TArguments&&... Arguments)
 	{
-		check(OnlineAsyncTaskThreadRunnable);
+		check(OnlineAsyncTaskThreadRunnable.IsValid());
 
 		TOnlineAsyncTask* NewTask = new TOnlineAsyncTask(Forward<TArguments>(Arguments)...);
 		OnlineAsyncTaskThreadRunnable->AddToInQueue(NewTask);
@@ -162,7 +174,7 @@ PACKAGE_SCOPE:
 	template <typename TOnlineAsyncEvent, typename... TArguments>
 	FORCEINLINE void CreateAndDispatchAsyncEvent(TArguments&&... Arguments)
 	{
-		check(OnlineAsyncTaskThreadRunnable);
+		check(OnlineAsyncTaskThreadRunnable.IsValid());
 
 		TOnlineAsyncEvent* NewEvent = new TOnlineAsyncEvent(Forward<TArguments>(Arguments)...);
 		OnlineAsyncTaskThreadRunnable->AddToOutQueue(NewEvent);
@@ -191,10 +203,15 @@ PACKAGE_SCOPE:
 	/** Helper to compare two sessions to see if they're the same underlying session */
 	static bool AreSessionReferencesEqual(Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ First, Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ Second);
 
+	void RefreshNetworkConnectivityLevel();
+
 PACKAGE_SCOPE:
 	EOnlineServerConnectionStatus::Type ConvertedNetworkConnectivityLevel;
 
 	bool bHasCalledNetworkStatusChangedAtLeastOnce;
+
+	/** Title Id for our current application */
+	uint32 TitleId;
 
 private:
 
@@ -208,6 +225,14 @@ private:
 
 	/** Interface to the identity registration/auth services */
 	FOnlineIdentityLivePtr IdentityInterface;
+
+#if PLATFORM_XBOXONE
+	/** Interface to the store services */
+	FOnlineStoreLivePtr StoreInterface;
+
+	/** Interface to the purchase services */
+	FOnlinePurchaseLivePtr PurchaseInterface;
+#endif // PLATFORM_XBOXONE
 
 	// @ATG_CHANGE : BEGIN
 	/** Interface to the voice chat services */
@@ -233,18 +258,17 @@ private:
 	FSessionMessageRouterPtr SessionMessageRouterInterface;
 
 	// @ATG_CHANGE : BEGIN Adding social features
-	/** Interface to the user info service */
-	FOnlineUserLivePtr UserInterface;
-
 	/** Interface to the social service */
 	FOnlineFriendsLivePtr FriendInterface;
-	// @ATG_CHANGE : END
+
+	/** Interface to the Users services */
+	FOnlineUserLivePtr UserInterface;
 
 	/** Online async task runnable */
-	FOnlineAsyncTaskManagerLive* OnlineAsyncTaskThreadRunnable;
+	TUniquePtr<FOnlineAsyncTaskManagerLive> OnlineAsyncTaskThreadRunnable;
 
 	/** Online async task thread */
-	class FRunnableThread* OnlineAsyncTaskThread;
+	TUniquePtr<FRunnableThread> OnlineAsyncTaskThread;
 
 PACKAGE_SCOPE:
 	FOnlineIdentityLivePtr GetIdentityLive() { return IdentityInterface; }
@@ -260,14 +284,14 @@ PACKAGE_SCOPE:
 	// @ATG_CHANGE : END
 
 	/** Utility function which makes it easy to run task continuations on the game thread. */
-	template<class ResultType, class ContinuationType>
-	void GameThreadContinuation(Windows::Foundation::IAsyncOperation<ResultType>^ Op, ContinuationType Continuation)
-	{
-		create_task(Op).then( [this,Continuation](concurrency::task<ResultType> Task )
-		{
-			GetAsyncTaskManager()->AddGenericToOutQueue( [Task,Continuation]() { Continuation(Task); } );
-		});
-	}
+	//template<class ResultType, class ContinuationType>
+	//void GameThreadContinuation(Windows::Foundation::IAsyncOperation<ResultType>^ Op, ContinuationType Continuation)
+	//{
+	//	create_task(Op).then( [this,Continuation](concurrency::task<ResultType> Task )
+	//	{
+	//		GetAsyncTaskManager()->AddGenericToOutQueue( [Task,Continuation]() { Continuation(Task); } );
+	//	});
+	//}
 
 	// @ATG_CHANGE : BEGIN UWP LIVE support
 	// Store single XboxLiveContext per user
@@ -279,9 +303,12 @@ PACKAGE_SCOPE:
 	Microsoft::Xbox::Services::XboxLiveAppConfiguration^ ApplicationConfig;
 	// @ATG_CHANGE : END
 	mutable FCriticalSection LiveContextsLock;
+
 	Windows::Foundation::EventRegistrationToken UserRemovedToken;
+
 	FCriticalSection RefreshLock;
+
+	FThreadSafeBool bIgnoreNetworkStatusChanged;
 };
 
 typedef TSharedPtr<FOnlineSubsystemLive, ESPMode::ThreadSafe> FOnlineSubsystemLivePtr;
-

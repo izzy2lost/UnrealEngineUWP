@@ -9,6 +9,7 @@
 #include "../OnlineMatchmakingInterfaceLive.h"
 #include "SocketSubsystem.h"
 #include "IPAddress.h"
+#include "OnlineAsyncTaskLiveSetSessionActivity.h"
 
 #include <collection.h>
 
@@ -64,11 +65,11 @@ void FOnlineAsyncTaskLiveSubmitMatchTicket::Initialize()
 	if (CancelExistingTicket)
 	{
 		XboxLiveContext^ Context = Subsystem->GetLiveContext(SearchingUser);
-		
+
 		check(Context != nullptr);
 
 		Platform::String^ TicketIdHat = ref new Platform::String(*TicketIdToCancel);
-		// @ATG_CHANGE : BEGIN UWP LIVE support
+		// @ATG_CHANGE : BEGIN - UWP LIVE support
 		auto DeleteTicketOp = Context->MatchmakingService->DeleteMatchTicketAsync(
 			Context->AppConfig->ServiceConfigurationId,
 			HopperName,
@@ -102,15 +103,15 @@ void FOnlineAsyncTaskLiveSubmitMatchTicket::CreateMatchmakingTicket()
 	check(SearchingUser != nullptr);
 
 	XboxLiveContext^ Context = Subsystem->GetLiveContext(SearchingUser);
-	Context->MultiplayerService->SetActivityAsync(MatchSessionRef);
+	Subsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveSetSessionActivity>(Subsystem, Context, MatchSessionRef);
 	
-	// @ATG_CHANGE : BEGIN UWP LIVE support
+	// @ATG_CHANGE : BEGIN - UWP LIVE support
 	auto createMatchTicketOperation = Context->MatchmakingService->CreateMatchTicketAsync(
-		MatchSessionRef, 
+		MatchSessionRef,
 		Context->AppConfig->ServiceConfigurationId,
-		HopperName, 
+		HopperName,
 		TicketTimeout,
-		TicketPreservation, 
+		TicketPreservation,
 		TicketAttributes);
 	// @ATG_CHANGE : END
 	create_task( createMatchTicketOperation )

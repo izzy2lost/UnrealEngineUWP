@@ -62,9 +62,11 @@ bool FOnlineAchievementsLive::LoadAndInitFromJsonConfig( const TCHAR* JsonConfig
 
 void FOnlineAchievementsLive::TestEventsAndAchievements()
 {
-	// @ATG_CHANGE : BEGIN UWP LIVE support
-	Windows::Xbox::System::User ^ TestUser = LiveSubsystem->GetIdentityLive()->GetUserForControllerIndex(0);
-	// @ATG_CHANGE : END
+	FOnlineIdentityLivePtr Identity = LiveSubsystem->GetIdentityLive();
+
+	check(Identity.IsValid());
+
+	Windows::Xbox::System::User ^ TestUser = Identity->GetCachedUsers()->GetAt(0);
 
 	if ( TestUser == nullptr )
 	{
@@ -280,14 +282,10 @@ void FOnlineAchievementsLive::QueryAchievements( const FUniqueNetId& PlayerId, c
 	try
 	{
 		Microsoft::Xbox::Services::XboxLiveContext ^ LiveContext = LiveSubsystem->GetLiveContext( XBoxUser );
-		
-		// @ATG_CHANGE : BEGIN UWP LIVE support
-		const uint32 TitleId = LiveContext->AppConfig->TitleId;
-		// @ATG_CHANGE : END
 
 		auto pAsyncOp = LiveContext->AchievementService->GetAchievementsForTitleIdAsync(
 			XBoxUser->XboxUserId,						// Xbox LIVE user Id
-			TitleId,									// Title Id to get achievement data for
+			LiveSubsystem->TitleId,						// Title Id to get achievement data for
 			AchievementType::All,						// AchievementType filter: All mean to get Persistent and Challenge achievements
 			false,										// All possible achievements including accurate unlocked data
 			AchievementOrderBy::TitleId,				// AchievementOrderBy filter: Default means no particular order
@@ -301,22 +299,18 @@ void FOnlineAchievementsLive::QueryAchievements( const FUniqueNetId& PlayerId, c
 			{
 				auto Results = Task.get();
 
-				if ( LiveSubsystem->GetAsyncTaskManager() && Results != nullptr && Results->Items != nullptr )
+				if (Results != nullptr && Results->Items != nullptr )
 				{
-					auto NewEvent = new FAsyncEventQueryCompleted( LiveSubsystem, UserLive, Results, true, Delegate );
-					LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue( NewEvent );
+					LiveSubsystem->CreateAndDispatchAsyncEvent<FAsyncEventQueryCompleted>(LiveSubsystem, UserLive, Results, true, Delegate);
 				}
 			}
-			catch( Platform::COMException^ Ex )
+			catch (Platform::COMException^ Ex)
 			{
 				UE_LOG_ONLINE(Warning, TEXT( "Getting achievements failed. Exception: %s." ), Ex->ToString()->Data() );
-				if ( LiveSubsystem->GetAsyncTaskManager() )
+				LiveSubsystem->ExecuteNextTick([Delegate, UserLive]()
 				{
-					LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([Delegate, UserLive]()
-					{
-						Delegate.ExecuteIfBound( UserLive, false );
-					});
-				}
+					Delegate.ExecuteIfBound(UserLive, false );
+				});
 			}
 		});
 	}

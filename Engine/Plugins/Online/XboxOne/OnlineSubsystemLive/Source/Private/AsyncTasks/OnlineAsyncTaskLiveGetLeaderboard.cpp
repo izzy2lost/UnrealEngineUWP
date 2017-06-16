@@ -25,7 +25,7 @@ void FOnlineAsyncTaskLiveGetLeaderboard::Finalize()
 	for(unsigned int i = 0; i < Results->Rows->Size; i++)
 	{
 		LeaderboardRow^ LiveRow = Results->Rows->GetAt(i);
-		FOnlineStatsRow NewStatsRow = FOnlineStatsRow(LiveRow->Gamertag->Data(), MakeShareable(new FUniqueNetIdLive(LiveRow->XboxUserId->Data())));
+		FOnlineStatsRow NewStatsRow = FOnlineStatsRow(LiveRow->Gamertag->Data(), MakeShared<FUniqueNetIdLive>(LiveRow->XboxUserId));
 		NewStatsRow.Rank = LiveRow->Rank;
 
 		//Copy each column name and value into the new stats row

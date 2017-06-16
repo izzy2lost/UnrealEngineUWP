@@ -47,7 +47,7 @@ public:
 	 *
 	 * @param InUniqueNetId the id to set ours to
 	 */
-	explicit FUniqueNetIdLive(const FString& InUniqueNetId) 
+	explicit FUniqueNetIdLive(const FString& InUniqueNetId)
 		: FUniqueNetIdString(InUniqueNetId)
 	{
 	}
@@ -77,7 +77,7 @@ public:
 	 *
 	 * @param Src the id as a platform string
 	 */
-	explicit FUniqueNetIdLive(Platform::String^ Src) 
+	explicit FUniqueNetIdLive(Platform::String^ Src)
 		: FUniqueNetIdString(FString(Src == nullptr ? INVALID_NETID : Src->Data()))
 	{
 	}
@@ -87,6 +87,12 @@ public:
 	{
 		static const FString InvalidId(INVALID_NETID);
 		return !UniqueNetIdStr.Equals(InvalidId, ESearchCase::CaseSensitive);
+	}
+
+	friend FORCEINLINE uint32 GetTypeHash(const FUniqueNetIdLive& Id)
+	{
+		const FUniqueNetIdString& SuperId = Id;
+		return GetTypeHash(SuperId);
 	}
 };
 
@@ -262,6 +268,7 @@ public:
 		if( InLiveSession )
 		{
 			LiveSessionRef = InLiveSession->SessionReference;
+			SessionId = FUniqueNetIdString(FString(LiveSessionRef->ToUriPath()->Data()));
 		}
 	}
 
@@ -328,12 +335,13 @@ public:
 	void RefreshLiveInfo(Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LatestSession)
 	{
 		LiveSession = LatestSession;
-		if(LatestSession)
+		if (LatestSession)
 		{
 			LiveSessionRef = LatestSession->SessionReference;
+			SessionId = FUniqueNetIdString(FString(LiveSessionRef->ToUriPath()->Data()));
 		}
 
-		if(!LastDiffedGameSession)
+		if (!LastDiffedGameSession)
 		{
 			LastDiffedGameSession = LatestSession;
 		}
@@ -436,7 +444,7 @@ private:
 
 static const int32 XBOX_MAX_PLAYER_NAME_LENGTH = 16;
 
-class FOnlineUserLive
+class FOnlineUserInfoLive
 	: public FOnlineUser
 {
 public:
@@ -469,14 +477,20 @@ public:
 	}
 
 PACKAGE_SCOPE:
-	FOnlineUserLive(Microsoft::Xbox::Services::Social::XboxUserProfile^ InUserProfile)
+	FOnlineUserInfoLive(Microsoft::Xbox::Services::Social::XboxUserProfile^ InUserProfile)
 		: UserProfile(InUserProfile)
-		, UserId(MakeShareable(new FUniqueNetIdLive(InUserProfile->XboxUserId)))
+		, UserId(MakeShared<FUniqueNetIdLive>(InUserProfile->XboxUserId))
 	{
 		check(UserProfile);
+
+		UserAttributes.Emplace(FString(TEXT("Gamerscore")), FString(UserProfile->Gamerscore->Data()));
+		// This is a the URI to a resizeable display image for the user.  For example, &format=png&w=64&h=64
+		// Valid Format: png
+		// Valid Width/Height: 64/64, 208/208, or 424/424
+		UserAttributes.Emplace(FString(TEXT("DisplayPictureUri")), FString(UserProfile->GameDisplayPictureResizeUri->AbsoluteCanonicalUri->Data()));
 	}
 
-	virtual ~FOnlineUserLive() = default;
+	virtual ~FOnlineUserInfoLive() = default;
 
 	static FString FilterPlayerName(Platform::String^ InPlayerName)
 	{

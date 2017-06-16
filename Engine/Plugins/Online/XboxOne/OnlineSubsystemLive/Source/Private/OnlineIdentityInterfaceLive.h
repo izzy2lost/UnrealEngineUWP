@@ -111,6 +111,22 @@ PACKAGE_SCOPE:
 	 */
 	int32 GetControllerIndexForId(const FUniqueNetId& PlayerId) const;
 
+	/**
+	 * Helper method to get the current cached list of users
+	 *
+	 * @return The cached list of users
+	 */
+	Windows::Foundation::Collections::IVectorView<Windows::Xbox::System::User^>^ GetCachedUsers() const;
+
+	/**
+	 * Callback for handling the Controller connection / disconnection
+	 *
+	 * @param Connected true for a connection, false for a disconnection.
+	 * @param UserID the user ID affected by the connection change (-1 for disconnects)
+	 * @param ControllerId the ID for the controller that triggered the event
+	 */
+	void OnControllerConnectionChange( bool Connected, int32 UserId, int32 ControllerId);
+
 private:
 	/**
 	 * Async event that notifies when a user has been added. Using a task for this because
@@ -164,7 +180,7 @@ private:
 	};
 
 	/** Cached list of users */
-	mutable Windows::Foundation::Collections::IVectorView<Windows::Xbox::System::User^>^ CachedUsers;
+	Windows::Foundation::Collections::IVectorView<Windows::Xbox::System::User^>^ CachedUsers;
 
 	/** Lock for updating/reading CachedUsers vector */
 	mutable FCriticalSection CachedUsersLock;
@@ -177,6 +193,9 @@ private:
 
 	/** Stored token used to remove the task later */
 	Windows::Foundation::EventRegistrationToken TaskTokenControllerPairingChanged;
+
+	/** Stored delegate handle to remove the task later */
+	FDelegateHandle ControllerConnectionChanged;
 
 PACKAGE_SCOPE:
 	FString LoginXSTSEndpoint;
@@ -225,7 +244,7 @@ public:
 		: UserData(InUser)
 		, UserId(new FUniqueNetIdLive(InUser->XboxUserId))
 	{
-		// Store our XUID as 'id' for Epic login code puposes
+		// Store our XUID as 'id' for Epic login code purposes
 		// On other platforms, this isn't always just our FUniqueNetId.ToString(), so
 		// we just follow convention
 		UserAttributes.Emplace(TEXT("id"), UserId->ToString());
@@ -242,3 +261,5 @@ private:
 	TSharedRef<const FUniqueNetIdLive> UserId;
 	FString UserXSTSToken;
 };
+
+typedef TSharedPtr<class FOnlineIdentityLive, ESPMode::ThreadSafe> FOnlineIdentityLivePtr;

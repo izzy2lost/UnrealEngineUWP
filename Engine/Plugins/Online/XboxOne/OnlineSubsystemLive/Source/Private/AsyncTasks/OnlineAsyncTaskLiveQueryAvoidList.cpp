@@ -2,8 +2,12 @@
 
 #include "../OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineAsyncTaskLiveQueryAvoidList.h"
+#include "OnlineSubsystemLive.h"
 
-FOnlineAsyncTaskLiveQueryAvoidList::FOnlineAsyncTaskLiveQueryAvoidList(FOnlineSubsystemLive* const InLiveInterface, Microsoft::Xbox::Services::XboxLiveContext^ InLiveContext, const FUniqueNetIdLive& InUserIdLive)
+using Microsoft::Xbox::Services::XboxLiveContext;
+using Windows::Foundation::Collections::IVectorView;
+
+FOnlineAsyncTaskLiveQueryAvoidList::FOnlineAsyncTaskLiveQueryAvoidList(FOnlineSubsystemLive* const InLiveInterface, XboxLiveContext^ InLiveContext, const FUniqueNetIdLive& InUserIdLive)
 	: FOnlineAsyncTaskConcurrencyLive(InLiveInterface, InLiveContext)
 	, UserIdLive(InUserIdLive)
 {
@@ -35,7 +39,7 @@ bool FOnlineAsyncTaskLiveQueryAvoidList::ProcessResult(const Concurrency::task<I
 		for (int32 Index = 0; Index < VectorSize; ++Index)
 		{
 			Platform::String^ XUID = XUIDVector->GetAt(Index);
-			AvoidList.Emplace(MakeShareable(new FOnlineBlockedPlayerLive(XUID)));
+			AvoidList.Emplace(MakeShared<FOnlineBlockedPlayerLive>(XUID));
 		}
 	}
 	catch (Platform::Exception^ Ex)

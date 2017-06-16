@@ -20,7 +20,7 @@ public:
 	virtual FString ToString() const override { return TEXT("FOnlineAsyncTaskLiveQueryAvoidList"); }
 
 	// Starts in Game Thread
-	virtual Windows::Foundation::IAsyncOperation<IVectorView<Platform::String^>^>^ CreateOperation() override;
+	virtual Windows::Foundation::IAsyncOperation<Windows::Foundation::Collections::IVectorView<Platform::String^>^>^ CreateOperation() override;
 	// Process in Online Thread
 	virtual bool ProcessResult(const Concurrency::task<Windows::Foundation::Collections::IVectorView<Platform::String^>^>& CompletedTask) override;
 

@@ -6,11 +6,8 @@
 #include "../OnlineSessionInterfaceLive.h"
 #include "../OnlineMatchmakingInterfaceLive.h"
 
-using namespace Microsoft::Xbox::Services;
-using namespace Microsoft::Xbox::Services::Multiplayer;
-using namespace Microsoft::Xbox::Services::Matchmaking;
-using namespace Windows::Foundation;
-using namespace concurrency;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSession;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference;
 
 // @ATG_CHANGE : UWP LIVE support: Xbox headers to pch
 
@@ -18,18 +15,17 @@ using namespace concurrency;
 //
 //-----------------------------------------------------------------------------
 
-FOnlineAsyncTaskLiveSessionChanged::FOnlineAsyncTaskLiveSessionChanged(
-	class FOnlineSubsystemLive* InLiveSubsystem, 
-	Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ InSessionReference,
-	FString InChangeBranch,
-	uint64 InChangeNumber)
-	: FOnlineAsyncTaskLive( InLiveSubsystem, INDEX_NONE )
-	, LiveSessionReference( InSessionReference )
-	, UpdatedLiveSession( nullptr )
-	, ChangeBranch( InChangeBranch )
-	, ChangeNumber( InChangeNumber )
-	, bShouldTriggerDelegates( false )
-{	
+FOnlineAsyncTaskLiveSessionChanged::FOnlineAsyncTaskLiveSessionChanged(FOnlineSubsystemLive* InLiveSubsystem,
+																	   MultiplayerSessionReference^ InSessionReference,
+																	   FString InChangeBranch,
+																	   uint64 InChangeNumber)
+	: FOnlineAsyncTaskLive(InLiveSubsystem, INDEX_NONE)
+	, LiveSessionReference(InSessionReference)
+	, UpdatedLiveSession(nullptr)
+	, ChangeBranch(InChangeBranch)
+	, ChangeNumber(InChangeNumber)
+	, bShouldTriggerDelegates(false)
+{
 	SessionName = GetSessionNameForLiveSessionRef(LiveSessionReference);
 	if (SessionName.IsNone())
 	{
@@ -55,29 +51,18 @@ FOnlineAsyncTaskLiveSessionChanged::FOnlineAsyncTaskLiveSessionChanged(
 	}
 }
 
-//-----------------------------------------------------------------------------
-//
-//-----------------------------------------------------------------------------
-
-FOnlineAsyncTaskLiveSessionChanged::~FOnlineAsyncTaskLiveSessionChanged()
-{
-}
-
 void FOnlineAsyncTaskLiveSessionChanged::OnFailed()
 {
 	bWasSuccessful = false;
 	bIsComplete = true;
 }
 
-//-----------------------------------------------------------------------------
-//
-//-----------------------------------------------------------------------------
-
-void FOnlineAsyncTaskLiveSessionChanged::Initialize() 
+void FOnlineAsyncTaskLiveSessionChanged::Initialize()
 {
 	if (bIsComplete)
 	{
-		return;		// something failed in the constructor
+		// something failed in the constructor
+		return;
 	}
 
 	UE_LOG_ONLINE(Log, TEXT("FOnlineAsyncTaskLiveSessionChanged::Start - Branch: %s, ChangeNumber: %u"), *ChangeBranch, ChangeNumber);
@@ -92,8 +77,8 @@ void FOnlineAsyncTaskLiveSessionChanged::Initialize()
 
 	UE_LOG_ONLINE(Log, TEXT("  Getting updated session from Live"));
 
-	create_task(LiveContext->MultiplayerService->GetCurrentSessionAsync(LiveSessionReference))
-		.then([this](concurrency::task<MultiplayerSession^> Task)
+	Concurrency::create_task(LiveContext->MultiplayerService->GetCurrentSessionAsync(LiveSessionReference))
+		.then([this](Concurrency::task<MultiplayerSession^> Task)
 	{
 		try
 		{
@@ -113,11 +98,7 @@ void FOnlineAsyncTaskLiveSessionChanged::Initialize()
 	});
 }
 
-//-----------------------------------------------------------------------------
-//
-//-----------------------------------------------------------------------------
-
-void FOnlineAsyncTaskLiveSessionChanged::Finalize() 
+void FOnlineAsyncTaskLiveSessionChanged::Finalize()
 {
 	if (bWasSuccessful && UpdatedLiveSession)
 	{
@@ -125,7 +106,7 @@ void FOnlineAsyncTaskLiveSessionChanged::Finalize()
 		if (LiveSessionReference = GetLiveSessionRefForSessionName(SessionName))
 		{
 			if (FOnlineSubsystemLive::AreSessionReferencesEqual(LiveSessionReference, UpdatedLiveSession->SessionReference))
-			{				
+			{
 				CachedLiveSession = Subsystem->GetLastDiffedSession(SessionName);
 
 				Diff = MultiplayerSession::CompareMultiplayerSessions(UpdatedLiveSession, CachedLiveSession);
@@ -136,29 +117,25 @@ void FOnlineAsyncTaskLiveSessionChanged::Finalize()
 				bShouldTriggerDelegates = true;
 			}
 		}
+
+		FOnlineSessionLivePtr SessionInt = Subsystem->GetSessionInterfaceLive();
+		if (SessionInt.IsValid())
+		{
+			SessionInt->UpdateSessionChangedStats();
+		}
 	}
 }
 
-//-----------------------------------------------------------------------------
-//
-//-----------------------------------------------------------------------------
-
 void FOnlineAsyncTaskLiveSessionChanged::TriggerDelegates()
-{				
+{
 	if (bShouldTriggerDelegates)
 	{
 		Subsystem->GetSessionMessageRouter()->TriggerOnSessionChangedDelegates(LiveSessionReference, SessionName, Diff);
 	}
 }
 
-//-----------------------------------------------------------------------------
-// Conversion helpers
-//-----------------------------------------------------------------------------
-
-FName FOnlineAsyncTaskLiveSessionChanged::GetSessionNameForLiveSessionRef(Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ LiveSessionRef)
+FName FOnlineAsyncTaskLiveSessionChanged::GetSessionNameForLiveSessionRef(MultiplayerSessionReference^ LiveSessionRef)
 {
-	FName EmptyName;
-
 	if (FNamedOnlineSession* FoundSession = Subsystem->GetSessionInterfaceLive()->GetNamedSessionForLiveSessionRef(LiveSessionRef))
 	{
 		return FoundSession->SessionName;
@@ -170,14 +147,14 @@ FName FOnlineAsyncTaskLiveSessionChanged::GetSessionNameForLiveSessionRef(Micros
 		return MatchTicket->SessionName;
 	}
 
-	return EmptyName;
+	return NAME_None;
 }
 
-Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ FOnlineAsyncTaskLiveSessionChanged::GetLiveSessionRefForSessionName(const FName& SessionName)
+MultiplayerSessionReference^ FOnlineAsyncTaskLiveSessionChanged::GetLiveSessionRefForSessionName(const FName& SessionName)
 {
 	if (FNamedOnlineSession* NamedSession = Subsystem->GetSessionInterfaceLive()->GetNamedSession(SessionName))
 	{
-		auto LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
+		TSharedPtr<FOnlineSessionInfoLive> LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
 		if (LiveInfo.IsValid())
 		{
 			return LiveInfo->GetLiveMultiplayerSessionRef();
@@ -193,5 +170,3 @@ Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ FOnlineAsyn
 
 	return nullptr;
 }
-
-//------------------------------- End of file ---------------------------------

@@ -19,7 +19,7 @@ class FOnlineAsyncTaskLiveQueryFriends
 	: public FOnlineAsyncTaskConcurrencyLive<Microsoft::Xbox::Services::Social::XboxSocialRelationshipResult^>
 {
 public:
-	FOnlineAsyncTaskLiveQueryFriends(FOnlineSubsystemLive* InLiveInterface, Microsoft::Xbox::Services::XboxLiveContext^ InLiveContext, const int32 InLocalUserNum, const FString& InListName, const FOnReadFriendsListComplete& InCompletionDelegate);
+	FOnlineAsyncTaskLiveQueryFriends(FOnlineSubsystemLive* const InLiveInterface, Microsoft::Xbox::Services::XboxLiveContext^ InLiveContext, const int32 InLocalUserNum, const FString& InListName, const FOnReadFriendsListComplete& InCompletionDelegate);
 	virtual ~FOnlineAsyncTaskLiveQueryFriends() = default;
 
 	//~ Begin FOnlineAsyncItem Interface
@@ -63,6 +63,7 @@ public:
 		, Delegate(MoveTemp(InDelegate))
 		, AccountDetailsStatus(EOnlineAsyncTaskState::NotStarted)
 		, PresenceDetailsStatus(EOnlineAsyncTaskState::NotStarted)
+		, SessionDetailsStatus(EOnlineAsyncTaskState::NotStarted)
 	{
 	}
 
@@ -80,18 +81,19 @@ PACKAGE_SCOPE:
 	FString ListName;
 	FOnReadFriendsListComplete Delegate;
 
-	EOnlineAsyncTaskState::Type AccountDetailsStatus;
-	EOnlineAsyncTaskState::Type PresenceDetailsStatus;
+	volatile EOnlineAsyncTaskState::Type AccountDetailsStatus;
+	volatile EOnlineAsyncTaskState::Type PresenceDetailsStatus;
+	volatile EOnlineAsyncTaskState::Type SessionDetailsStatus;
 };
 
 /**
- * Async Task to query the account details of a friend
+ * Async Task to query the account details of friends
  */
 class FOnlineAsyncTaskLiveQueryFriendAccountDetails
 	: public FOnlineAsyncTaskConcurrencyLive<Windows::Foundation::Collections::IVectorView<Microsoft::Xbox::Services::Social::XboxUserProfile^>^>
 {
 public:
-	FOnlineAsyncTaskLiveQueryFriendAccountDetails(FOnlineSubsystemLive* InLiveInterface,
+	FOnlineAsyncTaskLiveQueryFriendAccountDetails(FOnlineSubsystemLive* const InLiveInterface,
 												  Microsoft::Xbox::Services::XboxLiveContext^ InLiveContext,
 												  Windows::Foundation::Collections::IVectorView<Platform::String^>^ InXUIDsVectorView,
 												  FOnlineAsyncTaskLiveQueryFriendManagerTask& InManagerTask);
@@ -103,19 +105,21 @@ public:
 	virtual Windows::Foundation::IAsyncOperation<Windows::Foundation::Collections::IVectorView<Microsoft::Xbox::Services::Social::XboxUserProfile^>^>^ CreateOperation() override;
 	virtual bool ProcessResult(const Concurrency::task<Windows::Foundation::Collections::IVectorView<Microsoft::Xbox::Services::Social::XboxUserProfile^>^>& CompletedTask) override;
 
+	virtual void Finalize();
+
 protected:
 	Windows::Foundation::Collections::IVectorView<Platform::String^>^ XUIDsVectorView;
 	FOnlineAsyncTaskLiveQueryFriendManagerTask& ManagerTask;
 };
 
 /**
- * Async Task to query the presence details of a friend
+ * Async Task to query the presence details of friends
  */
 class FOnlineAsyncTaskLiveQueryFriendPresenceDetails
 	: public FOnlineAsyncTaskConcurrencyLive<Windows::Foundation::Collections::IVectorView<Microsoft::Xbox::Services::Presence::PresenceRecord^>^>
 {
 public:
-	FOnlineAsyncTaskLiveQueryFriendPresenceDetails(FOnlineSubsystemLive* InLiveInterface,
+	FOnlineAsyncTaskLiveQueryFriendPresenceDetails(FOnlineSubsystemLive* const InLiveInterface,
 												   Microsoft::Xbox::Services::XboxLiveContext^ InLiveContext,
 												   Windows::Foundation::Collections::IVectorView<Platform::String^>^ InXUIDsVectorView,
 												   FOnlineAsyncTaskLiveQueryFriendManagerTask& InManagerTask);
@@ -127,11 +131,38 @@ public:
 	virtual Windows::Foundation::IAsyncOperation<Windows::Foundation::Collections::IVectorView<Microsoft::Xbox::Services::Presence::PresenceRecord^>^>^ CreateOperation() override;
 	virtual bool ProcessResult(const Concurrency::task<Windows::Foundation::Collections::IVectorView<Microsoft::Xbox::Services::Presence::PresenceRecord^>^>& CompletedTask);
 
+	virtual void Finalize();
+
 protected:
 	Windows::Foundation::Collections::IVectorView<Platform::String^>^ XUIDsVectorView;
 	FOnlineAsyncTaskLiveQueryFriendManagerTask& ManagerTask;
 };
 
+/**
+ * Async Task to query the session details of friends
+ */
+class FOnlineAsyncTaskLiveQueryFriendSessionDetails
+	: public FOnlineAsyncTaskConcurrencyLive<Windows::Foundation::Collections::IVectorView<Microsoft::Xbox::Services::Multiplayer::MultiplayerActivityDetails^>^>
+{
+public:
+	FOnlineAsyncTaskLiveQueryFriendSessionDetails(FOnlineSubsystemLive* const InLiveInterface,
+												  Microsoft::Xbox::Services::XboxLiveContext^ InLiveContext,
+												  Windows::Foundation::Collections::IVectorView<Platform::String^>^ InXUIDsVectorView,
+												  FOnlineAsyncTaskLiveQueryFriendManagerTask& InManagerTask);
+	virtual ~FOnlineAsyncTaskLiveQueryFriendSessionDetails() = default;
+
+	//~ Begin FOnlineAsyncItem Interface
+	virtual FString ToString() const override { return TEXT("FOnlineAsyncTaskLiveQueryFriendSessionDetails"); }
+
+	virtual Windows::Foundation::IAsyncOperation<Windows::Foundation::Collections::IVectorView<Microsoft::Xbox::Services::Multiplayer::MultiplayerActivityDetails^>^>^ CreateOperation() override;
+	virtual bool ProcessResult(const Concurrency::task<Windows::Foundation::Collections::IVectorView<Microsoft::Xbox::Services::Multiplayer::MultiplayerActivityDetails^>^>& CompletedTask);
+
+	virtual void Finalize();
+
+protected:
+	Windows::Foundation::Collections::IVectorView<Platform::String^>^ XUIDsVectorView;
+	FOnlineAsyncTaskLiveQueryFriendManagerTask& ManagerTask;
+};
 // @ATG_CHANGE :  BEGIN - Alternative Social implementation using Manager 
 #endif // USE_SOCIAL_MANAGER
 // @ATG_CHANGE :  END

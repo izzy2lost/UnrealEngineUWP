@@ -8,11 +8,9 @@
 #include "OnlineSubsystemLiveTypes.h"
 #include "OnlineSubsystemLivePackage.h"
 
-// @ATG_CHANGE : BEGIN UWP LIVE support
+// @ATG_CHANGE : BEGIN - UWP LIVE support
 #if WITH_GAME_CHAT
-// @ATG_CHANGE : END
 
-// @ATG_CHANGE : BEGIN UWP LIVE support
 #if PLATFORM_XBOXONE
 namespace Windows
 {
@@ -73,8 +71,6 @@ class FOnlineVoiceLive : public IOnlineVoice
 {
 	/** Reference to the main Live subsystem */
 	class FOnlineSubsystemLive* LiveSubsystem;
-	/** Reference to the sessions interface */
-	class FOnlineSessionLive* SessionInt;
 	/** Reference to the profile interface */
 	class FOnlineIdentityLive* IdentityInt;
 
@@ -106,6 +102,9 @@ class FOnlineVoiceLive : public IOnlineVoice
 
 	/** Next packet index to send. Only used to track dropped/misordered packets **/
 	uint32						PacketIndex;
+
+	/** Automatically mute remote talkers if they have bad reputation */
+	bool bAutoMuteBadRepRemotePlayers;
 
 	/** Internal Live pointers */
 	Microsoft::Xbox::GameChat::ChatManager^ LiveChatManager;
@@ -164,14 +163,14 @@ class FOnlineVoiceLive : public IOnlineVoice
 	 * Deal with headsets being added or removed
 	 */
 	void OnUserAudioDeviceAdded(__in Windows::Xbox::System::AudioDeviceAddedEventArgs^ args);
+// @ATG_CHANGE : BEGIN - UWP LIVE support
+#endif // PLATFORM_XBOXONE
+// @ATG_CHANGE : END - UWP LIVE support
 	
 	/**
 	 * Deal with internal User changes, e.g. pad disconnect/reconnect
 	 */
 	void OnControllerPairingChanged( __in Windows::Xbox::Input::ControllerPairingChangedEventArgs^ args );
-// @ATG_CHANGE : BEGIN - UWP LIVE support
-#endif // PLATFORM_XBOXONE
-// @ATG_CHANGE : END - UWP LIVE support
 
 	void RemoveRemoteConsole(Platform::Object^ uniqueIdentifier);
 
@@ -203,7 +202,7 @@ class FOnlineVoiceLive : public IOnlineVoice
 	 *
 	 * @return First registered local player
 	 */
-	int GetFirstRegisteredLocalPlayer();
+	int32 GetFirstRegisteredLocalPlayer();
 
 	/**
 	 * Display all talkers and their status
@@ -215,15 +214,14 @@ class FOnlineVoiceLive : public IOnlineVoice
 	 */
 	void DisplayUserStatus(FString talker, bool isTalking, Microsoft::Xbox::GameChat::ChatUser^ user = nullptr);
 
-	// @ATG_CHANGE : BEGIN UWP LIVE support
+	// @ATG_CHANGE : BEGIN - UWP LIVE support
 	Windows::Xbox::Chat::IChatUser^ GetChatUserFromLocalUser(Windows::Xbox::System::User^ user);
 	// @ATG_CHANGE : END
 PACKAGE_SCOPE:
 	/** Constructor */
 	FOnlineVoiceLive() :
-		LiveSubsystem(NULL),
-		SessionInt(NULL),
-		IdentityInt(NULL),
+		LiveSubsystem(nullptr),
+		IdentityInt(nullptr),
 		MaxLocalTalkers(MAX_SPLITSCREEN_TALKERS),
 		MaxRemoteTalkers(MAX_REMOTE_TALKERS),
 		VoiceNotificationDelta(0.0f)

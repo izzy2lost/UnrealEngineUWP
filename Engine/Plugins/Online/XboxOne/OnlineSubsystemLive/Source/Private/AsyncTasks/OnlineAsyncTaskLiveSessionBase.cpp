@@ -32,7 +32,6 @@ class FOnlineSubsystemLive* InLiveSubsystem,
 	, SessionTemplateName()
 	, SessionMaxSeats( 0 )
 	, ClientMatchmakingCapable( false )
-	, SessionVisibility( MultiplayerSessionVisibility::Open ) 
 	, CustomConstantsJson( ref new String( L"{}" ) )
 	, InitiatorXboxUserIds( ref new Platform::Collections::Vector<Platform::String^> )
 	, PartyEnabledSession( true )

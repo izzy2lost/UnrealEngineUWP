@@ -60,7 +60,7 @@ FOnlineFriendLive::FOnlineFriendLive(FOnlineSubsystemLive* Subsystem, XboxSocial
 
 FOnlineFriendLive::FOnlineFriendLive(Microsoft::Xbox::Services::Social::XboxSocialRelationship^ InSocialRelationship)
 	: SocialRelationship(InSocialRelationship)
-	, UniqueNetIdLive(MakeShareable(new FUniqueNetIdLive(InSocialRelationship->XboxUserId->Data())))
+	, UniqueNetIdLive(MakeShared<FUniqueNetIdLive>(InSocialRelationship->XboxUserId->Data()))
 {
 	// We don't set DisplayName here since we don't know it yet; it gets set later
 }
@@ -75,8 +75,8 @@ EInviteStatus::Type FOnlineFriendLive::GetInviteStatus() const
 #if USE_SOCIAL_MANAGER
 	return InviteStatus;
 #else
-	// Not currently supported
-	return EInviteStatus::Unknown;
+	// Friends on XboxLive are single-directional, meaning there is no approval step
+	return EInviteStatus::Accepted;
 #endif
 // @ATG_CHANGE : END
 }
@@ -136,7 +136,7 @@ bool FOnlineFriendLive::IsFavorite() const
 }
 
 FOnlineBlockedPlayerLive::FOnlineBlockedPlayerLive(Platform::String^ InXUID)
-	: UniqueNetIdLive(MakeShareable(new FUniqueNetIdLive(InXUID->Data())))
+	: UniqueNetIdLive(MakeShared<FUniqueNetIdLive>(InXUID->Data()))
 {
 }
 
@@ -189,12 +189,14 @@ bool FOnlineFriendsLive::ReadFriendsList(int32 LocalUserNum, const FString& List
 		return false;
 	}
 
-	FOnlineAsyncTaskManagerLive* MyTaskManager = LiveSubsystem->GetAsyncTaskManager();
-	check(MyTaskManager);
+	FUniqueNetIdLive UserNetId(UserLiveContext->User->XboxUserId);
+	if (FriendChangeSubscriptionMap.Find(UserNetId) == nullptr)
+	{
+		UE_LOG_ONLINE(Verbose, TEXT("Registering for SocialRelationshipChanges for user %s"), *UserNetId.ToString());
+		FriendChangeSubscriptionMap.Add(MoveTemp(UserNetId), UserLiveContext->SocialService->SubscribeToSocialRelationshipChange(UserLiveContext->User->XboxUserId));
+	}
 
-	FOnlineAsyncTaskLiveQueryFriends* NewTask = new FOnlineAsyncTaskLiveQueryFriends(LiveSubsystem, UserLiveContext, LocalUserNum, ListName, Delegate);
-	MyTaskManager->AddToParallelTasks(NewTask);
-
+	LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveQueryFriends>(LiveSubsystem, UserLiveContext, LocalUserNum, ListName, Delegate);
 	return true;
 // @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 	
 #endif
@@ -294,12 +296,12 @@ bool FOnlineFriendsLive::GetFriendsList(int32 LocalUserNum, const FString& ListN
 	TSharedPtr<const FUniqueNetIdLive> LiveUserId = StaticCastSharedPtr<const FUniqueNetIdLive>(LiveSubsystem->GetIdentityLive()->GetUniquePlayerId(LocalUserNum));
 	if (!LiveUserId.IsValid())
 	{
-		UE_LOG_ONLINE(Warning, TEXT("Could not find a user for LocalUserNum %d"), LocalUserNum);
+		UE_LOG_ONLINE(Warning, TEXT("Get FriendsList failed, could not find a user for LocalUserNum %d"), LocalUserNum);
 		OutFriends.Empty();
 		return false;
 	}
 
-	FOnlineFriendsListLiveMap* UserFriendsList = FriendsMap.Find(*LiveUserId);
+	const FOnlineFriendsListLiveMap* const UserFriendsList = FriendsMap.Find(*LiveUserId);
 	if (UserFriendsList != nullptr)
 	{
 		OutFriends.Empty(UserFriendsList->Num());
@@ -311,7 +313,7 @@ bool FOnlineFriendsLive::GetFriendsList(int32 LocalUserNum, const FString& ListN
 	else
 	{
 		OutFriends.Empty();
-		UE_LOG_ONLINE(Warning, TEXT("Could not find a friendslist for user %s; was this user's friendslist queried?"), *LiveUserId->ToString())
+		UE_LOG_ONLINE(Warning, TEXT("Get FriendsList failed, could not find a friendslist for user %s; was this user's friendslist queried?"), *LiveUserId->ToString())
 	}
 
 	return true;
@@ -325,7 +327,7 @@ TSharedPtr<FOnlineFriend> FOnlineFriendsLive::GetFriend(int32 LocalUserNum, cons
 	TSharedPtr<const FUniqueNetIdLive> LiveUserId = StaticCastSharedPtr<const FUniqueNetIdLive>(LiveSubsystem->GetIdentityLive()->GetUniquePlayerId(LocalUserNum));
 	if (!LiveUserId.IsValid())
 	{
-		UE_LOG_ONLINE(Warning, TEXT("Could not find a user for LocalUserNum %d"), LocalUserNum);
+		UE_LOG_ONLINE(Warning, TEXT("Get Friend failed, could not find a user for LocalUserNum %d"), LocalUserNum);
 		return nullptr;
 	}
 
@@ -356,14 +358,14 @@ TSharedPtr<FOnlineFriend> FOnlineFriendsLive::GetFriend(int32 LocalUserNum, cons
 	return nullptr;
 #else
 // @ATG_CHANGE : END
-	FOnlineFriendsListLiveMap* UserFriendsList = FriendsMap.Find(*LiveUserId);
+	const FOnlineFriendsListLiveMap* const UserFriendsList = FriendsMap.Find(*LiveUserId);
 	if (UserFriendsList == nullptr)
 	{
-		UE_LOG_ONLINE(Warning, TEXT("Could not find a friendslist for user %s; was this user's friendslist queried?"), *LiveUserId->ToString())
+		UE_LOG_ONLINE(Warning, TEXT("Get Friend failed, could not find a friendslist for user %s; was this user's friendslist queried?"), *LiveUserId->ToString())
 		return nullptr;
 	}
 
-	TSharedRef<FOnlineFriendLive>* FoundFriendPtr = UserFriendsList->Find(static_cast<const FUniqueNetIdLive&>(FriendId));
+	const TSharedRef<FOnlineFriendLive>* const FoundFriendPtr = UserFriendsList->Find(static_cast<const FUniqueNetIdLive&>(FriendId));
 	if (FoundFriendPtr == nullptr)
 	{
 		return nullptr;
@@ -377,10 +379,10 @@ TSharedPtr<FOnlineFriend> FOnlineFriendsLive::GetFriend(int32 LocalUserNum, cons
 
 bool FOnlineFriendsLive::IsFriend(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName)
 {
-	TSharedPtr<const FUniqueNetIdLive> LiveUserId = StaticCastSharedPtr<const FUniqueNetIdLive>(LiveSubsystem->GetIdentityLive()->GetUniquePlayerId(LocalUserNum));
+	const TSharedPtr<const FUniqueNetIdLive> LiveUserId = StaticCastSharedPtr<const FUniqueNetIdLive>(LiveSubsystem->GetIdentityLive()->GetUniquePlayerId(LocalUserNum));
 	if (!LiveUserId.IsValid())
 	{
-		UE_LOG_ONLINE(Warning, TEXT("Could not find a user for LocalUserNum %d"), LocalUserNum);
+		UE_LOG_ONLINE(Warning, TEXT("IsFriend failed, could not find a user for LocalUserNum %d"), LocalUserNum);
 		return false;
 	}
 
@@ -411,10 +413,10 @@ bool FOnlineFriendsLive::IsFriend(int32 LocalUserNum, const FUniqueNetId& Friend
 	return false;
 #else
 // @ATG_CHANGE : END
-	FOnlineFriendsListLiveMap* UserFriendsList = FriendsMap.Find(*LiveUserId);
+	const FOnlineFriendsListLiveMap* const UserFriendsList = FriendsMap.Find(*LiveUserId);
 	if (UserFriendsList == nullptr)
 	{
-		UE_LOG_ONLINE(Warning, TEXT("Could not find a friendslist for user %s; was this user's friendslist queried?"), *LiveUserId->ToString())
+		UE_LOG_ONLINE(Warning, TEXT("IsFriend failed, could not find a friendslist for user %s; was this user's friendslist queried?"), *LiveUserId->ToString())
 		return false;
 	}
 
@@ -483,15 +485,8 @@ bool FOnlineFriendsLive::QueryBlockedPlayers(const FUniqueNetId& UserId)
 		return false;
 	}
 
-	if (FOnlineAsyncTaskManagerLive* MyAsyncTaskManager = LiveSubsystem->GetAsyncTaskManager())
-	{
-		FOnlineAsyncTaskLiveQueryAvoidList* AvoidListTask = new FOnlineAsyncTaskLiveQueryAvoidList(LiveSubsystem, UserLiveContext, LiveUserId);
-		MyAsyncTaskManager->AddToParallelTasks(AvoidListTask);
-
-		return true;
-	}
-
-	return false;
+	LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveQueryAvoidList>(LiveSubsystem, UserLiveContext, LiveUserId);
+	return true;
 }
 
 bool FOnlineFriendsLive::GetBlockedPlayers(const FUniqueNetId& UserId, TArray< TSharedRef<FOnlineBlockedPlayer> >& OutBlockedPlayers)
@@ -521,6 +516,65 @@ void FOnlineFriendsLive::DumpBlockedPlayers() const
 			UE_LOG_ONLINE(Log, TEXT("User %s has player %s blocked"), *LiveUserIdBlockedPlayerPtrPair.Key.ToString(), *BlockedPlayer->UniqueNetIdLive->ToString());
 		}
 	}
+}
+
+void FOnlineFriendsLive::OnUserPresenceUpdate(const FUniqueNetIdLive& FriendId, const TSharedRef<FOnlineUserPresenceLive>& UpdatedPresenceRef)
+{
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
+// When using the social manager we get friend presence updates via manager events, not via this method
+#if !USE_SOCIAL_MANAGER
+	FOnlineIdentityLivePtr IdentityPtr = LiveSubsystem->GetIdentityLive();
+
+	for (FOnlineUserFriendsListLiveMap::ElementType& UserToFriendListMap : FriendsMap)
+	{
+		TSharedRef<FOnlineFriendLive>* FriendRefPtr = UserToFriendListMap.Value.Find(FriendId);
+		if (FriendRefPtr)
+		{
+			TSharedRef<FOnlineFriendLive>& FriendRef = *FriendRefPtr;
+
+			// Copy our presence
+			FriendRef->Presence = *UpdatedPresenceRef;
+
+			// Trigger delegates if we're a safe player num
+			int32 LocalUserNum = IdentityPtr->GetControllerIndexForId(UserToFriendListMap.Key);
+			if (LocalUserNum >= 0 && LocalUserNum < MAX_LOCAL_PLAYERS)
+			{
+				TriggerOnFriendsChangeDelegates(LocalUserNum);
+			}
+		}
+	}
+#endif
+// @ATG_CHANGE : END
+}
+
+void FOnlineFriendsLive::OnUserSessionPresenceUpdate(const FUniqueNetIdLive& FriendId, const TSharedPtr<const FUniqueNetId>& NewSessionId, const bool bNewIsJoinable)
+{
+// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
+// When using the social manager we get friend presence updates via manager events, not via this method
+#if !USE_SOCIAL_MANAGER
+	FOnlineIdentityLivePtr IdentityPtr = LiveSubsystem->GetIdentityLive();
+
+	for (FOnlineUserFriendsListLiveMap::ElementType& UserToFriendListMap : FriendsMap)
+	{
+		TSharedRef<FOnlineFriendLive>* FriendRefPtr = UserToFriendListMap.Value.Find(FriendId);
+		if (FriendRefPtr)
+		{
+			TSharedRef<FOnlineFriendLive>& FriendRef = *FriendRefPtr;
+
+			// Update our presence
+			FriendRef->Presence.SessionId = NewSessionId;
+			FriendRef->Presence.bIsJoinable = bNewIsJoinable;
+
+			// Trigger delegates if we're a safe player num
+			int32 LocalUserNum = IdentityPtr->GetControllerIndexForId(UserToFriendListMap.Key);
+			if (LocalUserNum >= 0 && LocalUserNum < MAX_LOCAL_PLAYERS)
+			{
+				TriggerOnFriendsChangeDelegates(LocalUserNum);
+			}
+		}
+	}
+#endif
+// @ATG_CHANGE : END
 }
 
 // @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 

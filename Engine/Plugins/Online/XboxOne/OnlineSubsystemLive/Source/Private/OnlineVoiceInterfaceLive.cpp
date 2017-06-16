@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineSubsystemLive.h"
@@ -23,11 +23,19 @@
 using namespace concurrency;
 using namespace Microsoft::Xbox::GameChat;
 using namespace Windows::Foundation::Collections;
-
+using Windows::Foundation::IAsyncAction;
+using Windows::Xbox::System::User;
 
 /** Constructor */
-FOnlineVoiceLive::FOnlineVoiceLive(FOnlineSubsystemLive* InLiveSubsystem) :
-	LiveSubsystem(InLiveSubsystem)
+FOnlineVoiceLive::FOnlineVoiceLive(FOnlineSubsystemLive* InLiveSubsystem)
+	: LiveSubsystem(InLiveSubsystem)
+	, IdentityInt(nullptr)
+	, MaxLocalTalkers(0)
+	, MaxRemoteTalkers(0)
+	, VoiceNotificationDelta(0.0f)
+	, DebugDisplayEnabled(false)
+	, PacketIndex(0)
+	, bAutoMuteBadRepRemotePlayers(false)
 {
 	// @ATG_CHANGE : Init now called separately
 }
@@ -52,25 +60,38 @@ bool FOnlineVoiceLive::Init()
 		MaxLocalTalkers = MAX_SPLITSCREEN_TALKERS;
 		UE_LOG(LogVoice, Warning, TEXT("Missing MaxLocalTalkers key in OnlineSubsystem of DefaultEngine.ini"));
 	}
+	if (MaxLocalTalkers < 0)
+	{
+		UE_LOG(LogVoice, Warning, TEXT("Invalid MaxLocalTalkers value of %d, setting to 0"), MaxLocalTalkers);
+		MaxLocalTalkers = 0;
+	}
+
 	if (!GConfig->GetInt(TEXT("OnlineSubsystem"),TEXT("MaxRemoteTalkers"), MaxRemoteTalkers, GEngineIni))
 	{
 		MaxRemoteTalkers = MAX_REMOTE_TALKERS;
 		UE_LOG(LogVoice, Warning, TEXT("Missing MaxRemoteTalkers key in OnlineSubsystem of DefaultEngine.ini"));
 	}
+	if (MaxRemoteTalkers < 0)
+	{
+		UE_LOG(LogVoice, Warning, TEXT("Invalid MaxRemoteTalkers value of %d, setting to 0"), MaxRemoteTalkers);
+		MaxRemoteTalkers = 0;
+	}
+
 	if (!GConfig->GetFloat(TEXT("OnlineSubsystem"),TEXT("VoiceNotificationDelta"), VoiceNotificationDelta, GEngineIni))
 	{
-		VoiceNotificationDelta = 0.2;
+		VoiceNotificationDelta = 0.2f;
 		UE_LOG(LogVoice, Warning, TEXT("Missing VoiceNotificationDelta key in OnlineSubsystem of DefaultEngine.ini"));
 	}
+
+	GConfig->GetBool(TEXT("OnlineSubsystemLive"),TEXT("bAutoMuteBadRepRemotePlayers"), bAutoMuteBadRepRemotePlayers, GEngineIni);
 
 	GConfig->GetBool(TEXT("OnlineSubsystem"),TEXT("VoiceDebugDisplay"),DebugDisplayEnabled,GEngineIni);
 
 	if (LiveSubsystem)
 	{
-		SessionInt = (FOnlineSessionLive*)LiveSubsystem->GetSessionInterface().Get();
 		IdentityInt = (FOnlineIdentityLive*)LiveSubsystem->GetIdentityInterface().Get();
 
-		if (SessionInt && IdentityInt)
+		if (IdentityInt)
 		{
 			FScopeLock LocalTalkersLock( &LocalTalkersCS );
 
@@ -92,13 +113,13 @@ void FOnlineVoiceLive::ClearVoicePackets()
 {
 	// this is called once per frame and deletes any packets not yet sent
 	// this is bad for reliable packets, so we make sure they don't get deleted
-	FScopeLock PacketLock( &LocalPacketsCS );
+	FScopeLock PacketLock(&LocalPacketsCS);
 
-	for(int i=LocalPackets.Num() - 1; i >= 0; i--)
+	for (int32 i = (LocalPackets.Num() - 1); i >= 0; --i)
 	{
-		if(!LocalPackets[i]->IsReliable())
+		if (!LocalPackets[i]->IsReliable())
 		{
-			LocalPackets.RemoveAt(i,1,false);
+			LocalPackets.RemoveAt(i, 1, false);
 		}
 	}
 
@@ -111,7 +132,7 @@ void FOnlineVoiceLive::ClearVoicePackets()
  *
  * @param DeltaTime the amount of time that has elapsed since the last update
  */
-void FOnlineVoiceLive::Tick(float DeltaTime) 
+void FOnlineVoiceLive::Tick(float DeltaTime)
 {
 	// Submit queued packets to audio system
 	ProcessRemoteVoicePackets();
@@ -130,7 +151,7 @@ void FOnlineVoiceLive::Tick(float DeltaTime)
 void FOnlineVoiceLive::StartNetworkedVoice(uint8 LocalUserNum)
 {
 	// Validate the range of the entry
-	if (LocalUserNum >= 0 && LocalUserNum < MAX_LOCAL_PLAYERS)
+	if (LocalUserNum < MAX_LOCAL_PLAYERS)
 	{
 		TSharedPtr<const FUniqueNetId> LocalUserId = IdentityInt->GetUniquePlayerId(LocalUserNum);
 
@@ -142,8 +163,7 @@ void FOnlineVoiceLive::StartNetworkedVoice(uint8 LocalUserNum)
 	}
 	else
 	{
-		UE_LOG(LogVoice, Log, TEXT("Invalid user specified in StartNetworkedVoice(%d)"),
-			(uint32)LocalUserNum);
+		UE_LOG(LogVoice, Warning, TEXT("Invalid user specified in StartNetworkedVoice(%d)"), static_cast<uint32>(LocalUserNum));
 	}
 }
 
@@ -156,7 +176,7 @@ void FOnlineVoiceLive::StartNetworkedVoice(uint8 LocalUserNum)
 void FOnlineVoiceLive::StopNetworkedVoice(uint8 LocalUserNum)
 {
 	// Validate the range of the entry
-	if (LocalUserNum >= 0 && LocalUserNum < MAX_LOCAL_PLAYERS)
+	if (LocalUserNum < MAX_LOCAL_PLAYERS)
 	{
 		TSharedPtr<const FUniqueNetId> LocalUserId = IdentityInt->GetUniquePlayerId(LocalUserNum);
 
@@ -168,8 +188,7 @@ void FOnlineVoiceLive::StopNetworkedVoice(uint8 LocalUserNum)
 	}
 	else
 	{
-		UE_LOG(LogVoice, Log, TEXT("Invalid user specified in StopNetworkedVoice(%d)"),
-			(uint32)LocalUserNum);
+		UE_LOG(LogVoice, Warning, TEXT("Invalid user specified in StopNetworkedVoice(%d)"), static_cast<uint32>(LocalUserNum));
 	}
 }
 
@@ -180,61 +199,72 @@ void FOnlineVoiceLive::StopNetworkedVoice(uint8 LocalUserNum)
  *
  * @return 0 upon success, an error code otherwise
  */
-bool FOnlineVoiceLive::RegisterLocalTalker(uint32 LocalUserNum) 
+bool FOnlineVoiceLive::RegisterLocalTalker(uint32 LocalUserNum)
 {
 	FScopeLock LocalTalkersLock( &LocalTalkersCS );
 
-	if ( static_cast<int>( LocalUserNum ) >= LocalTalkers.Num() )
+	if (static_cast<int32>(LocalUserNum) >= LocalTalkers.Num())
 	{
 		UE_LOG( LogVoice, Warning, TEXT( "RegisterLocalTalker: LocalUserNum exceeds size of LocalTalkers array. MaxLocalTalkers may not be configured correctly." ) );
 		return false;
 	}
 
 	uint32 Return = E_FAIL;
-	if (LocalUserNum >= 0 && LocalUserNum < MAX_LOCAL_PLAYERS)
+	if (LocalUserNum >= MAX_LOCAL_PLAYERS)
 	{
-		// Get at the local talker's cached data
-		FLocalTalker& Talker = LocalTalkers[LocalUserNum];
-		// Make local user capable of sending voice data
-		StartNetworkedVoice(LocalUserNum);
+		UE_LOG(LogVoice, Warning, TEXT("Invalid user specified in RegisterLocalTalker(%d)"), LocalUserNum);
+		return false;
+	}
 
-		if (Talker.bIsRegistered == false)
+	User^ LocalXboxUser = IdentityInt->GetUserForControllerIndex(LocalUserNum);
+	if (!LocalXboxUser)
+	{
+		UE_LOG(LogVoice, Warning, TEXT("RegisterLocalTalker: Unable to register local talker %u, unable to find Xbox LocalUser"), LocalUserNum);
+		return false;
+	}
+
+	// Get at the local talker's cached data
+	FLocalTalker& Talker = LocalTalkers[LocalUserNum];
+
+	// Check if we're already registered
+	if (Talker.bIsRegistered)
+	{
+		// If we're already registered, don't re-register.  Count as a "success" to the user by returning true
+		return true;
+	}
+
+	UE_LOG(LogVoice, Log, TEXT("Registering Local talker %d"), LocalUserNum);
+
+	// 0 here is the channel number. This is arbitrary, but in order to talk to each other everyone must have the same channel
+	// Currently there's no way in the UE interface to set this from a game level
+	constexpr const uint8 ChannelNumber = 0;
+
+	// @ATG_CHANGE : BEGIN - UWP LIVE support
+	IAsyncAction^ AsyncOp = LiveChatManager->AddLocalUserToChatChannelAsync(ChannelNumber, GetChatUserFromLocalUser(LocalXboxUser));
+	// @ATG_CHANGE : END
+	create_task(AsyncOp)
+		.then([this, LocalUserNum](task<void> t)
+	{
+		// Error handling
+		try
 		{
-			UE_LOG(LogVoice, Log, TEXT("Local talker %d registered"), LocalUserNum);
-
-			// 0 here is the channel number. This is arbitrary, but in order to talk to each other everyone must have the same channel
-			// Currently there's no way in the UE interface to set this from a game level
-			// @ATG_CHANGE : BEGIN UWP LIVE support
-			auto asyncOp = LiveChatManager->AddLocalUserToChatChannelAsync(0, GetChatUserFromLocalUser(IdentityInt->GetUserForControllerIndex(LocalUserNum)));
-			// @ATG_CHANGE : END
-			create_task( asyncOp )
-				.then( [this, LocalUserNum] ( task<void> t )
+			t.get();
 			{
-				// Error handling
-				try
-				{
-					t.get();                
-					FScopeLock LocalTalkersLock( &LocalTalkersCS );
-					FLocalTalker& Talker = LocalTalkers[LocalUserNum];
-					Talker.bIsRegistered = true;
-				}
-				catch ( Platform::Exception^ ex )
-				{
-					UE_LOG( LogVoice, Warning, L"AddLocalUserToChatChannelAsync failed 0x%x", ex->HResult );
-				}
-			});				// Register the talker locally
+				FScopeLock LocalTalkersLock( &LocalTalkersCS );
+				FLocalTalker& Talker = LocalTalkers[LocalUserNum];
+				Talker.bIsRegistered = true;
+
+				// Ideally we'd call a delegate that we're done registering here, but that doesn't exist.  Hope nobody tried to talk yet!
+			}
+			UE_LOG(LogVoice, Log, TEXT("Registered Local talker %d"), LocalUserNum);
 		}
-		else
+		catch (Platform::Exception^ Ex)
 		{
-			// Just say yes, we registered fine
-			Return = S_OK;
+			UE_LOG(LogVoice, Warning, L"AddLocalUserToChatChannelAsync failed 0x%x", Ex->HResult);
 		}
-	}
-	else
-	{
-		UE_LOG(LogVoice, Log, TEXT("Invalid user specified in RegisterLocalTalker(%d)"), LocalUserNum);
-	}
-	return Return == S_OK;
+	});
+
+	return true;
 }
 
 /**
@@ -243,8 +273,8 @@ bool FOnlineVoiceLive::RegisterLocalTalker(uint32 LocalUserNum)
 void FOnlineVoiceLive::RegisterLocalTalkers()
 {
 	UE_LOG(LogVoice, Log, TEXT("Registering all local talkers"));
-	// Loop through the 4 available players and register them
-	for (uint32 Index = 0; Index < MAX_LOCAL_PLAYERS; Index++)
+	// Loop through the available players and register them
+	for (int32 Index = 0; Index < MaxLocalTalkers; Index++)
 	{
 		// Register the local player as a local talker
 		RegisterLocalTalker(Index);
@@ -258,19 +288,19 @@ void FOnlineVoiceLive::RegisterLocalTalkers()
  *
  * @return 0 upon success, an error code otherwise
  */
-bool FOnlineVoiceLive::UnregisterLocalTalker(uint32 LocalUserNum) 
+bool FOnlineVoiceLive::UnregisterLocalTalker(uint32 LocalUserNum)
 {
 	FScopeLock LocalTalkersLock( &LocalTalkersCS );
 
-	if ( static_cast<int>( LocalUserNum ) >= LocalTalkers.Num() )
+	if (static_cast<int32>(LocalUserNum) >= LocalTalkers.Num())
 	{
-		UE_LOG( LogVoice, Warning, TEXT( "UnregisterLocalTalker: LocalUserNum exceeds size of LocalTalkers array. MaxLocalTalkers may not be configured correctly." ) );
+		UE_LOG(LogVoice, Warning, TEXT( "UnregisterLocalTalker: LocalUserNum exceeds size of LocalTalkers array. MaxLocalTalkers may not be configured correctly."));
 		return false;
 	}
 
 	uint32 Return = S_OK;
 
-	if (LocalUserNum >= 0 && LocalUserNum < MAX_LOCAL_PLAYERS)
+	if (LocalUserNum < MAX_LOCAL_PLAYERS)
 	{
 		// Get at the local talker's cached data
 		FLocalTalker& Talker = LocalTalkers[LocalUserNum];
@@ -294,7 +324,7 @@ bool FOnlineVoiceLive::UnregisterLocalTalker(uint32 LocalUserNum)
 				}
 			}
 
-			// @ATG_CHANGE : BEGIN UWP LIVE support
+			// @ATG_CHANGE : BEGIN - UWP LIVE support
 			auto asyncOp = LiveChatManager->RemoveLocalUserFromChatChannelAsync(0, GetChatUserFromLocalUser(IdentityInt->GetUserForControllerIndex(LocalUserNum)));
 			// @ATG_CHANGE : END
 			create_task( asyncOp )
@@ -303,13 +333,13 @@ bool FOnlineVoiceLive::UnregisterLocalTalker(uint32 LocalUserNum)
 				// Error handling
 				try
 				{
-					t.get();                
+					t.get();
 				}
 				catch ( Platform::Exception^ ex )
 				{
 					UE_LOG( LogVoice, Warning, L"RemoveLocalUserFromChatChannel failed 0x%x", ex->HResult );
 				}
-			});	
+			});
 
 			Talker.bIsRegistered = false;
 		}
@@ -330,7 +360,7 @@ void FOnlineVoiceLive::UnregisterLocalTalkers()
 {
 	UE_LOG(LogVoice, Log, TEXT("Unregistering all local talkers"));
 	// Loop through the 4 available players and unregister them
-	for (uint32 Index = 0; Index < MAX_LOCAL_PLAYERS; Index++)
+	for (int32 Index = 0; Index < LocalTalkers.Num(); ++Index)
 	{
 		// Unregister the local player as a local talker
 		UnregisterLocalTalker(Index);
@@ -344,7 +374,7 @@ void FOnlineVoiceLive::UnregisterLocalTalkers()
  *
  * @return 0 upon success, an error code otherwise
  */
-bool FOnlineVoiceLive::RegisterRemoteTalker(const FUniqueNetId& UniqueId) 
+bool FOnlineVoiceLive::RegisterRemoteTalker(const FUniqueNetId& UniqueId)
 {
 	// See if this talker has already been registered or not
 	FRemoteTalkerLive* Talker = FindRemoteTalker(UniqueId);
@@ -355,7 +385,7 @@ bool FOnlineVoiceLive::RegisterRemoteTalker(const FUniqueNetId& UniqueId)
 		Talker = &RemoteTalkers[AddIndex];
 		// Copy the UniqueId
 		const FUniqueNetIdLive& UniqueIdLive = (const FUniqueNetIdLive&)UniqueId;
-		Talker->TalkerId = MakeShareable(new FUniqueNetIdLive(UniqueIdLive));
+		Talker->TalkerId = MakeShared<FUniqueNetIdLive>(UniqueIdLive);
 
 		// register the talker with Live
 		LiveChatManager->HandleNewRemoteConsole(ref new Platform::String(*UniqueId.ToString()));
@@ -366,7 +396,7 @@ bool FOnlineVoiceLive::RegisterRemoteTalker(const FUniqueNetId& UniqueId)
 	{
 		UE_LOG(LogVoice, VeryVerbose, TEXT("Remote talker %s is being re-registered"), *UniqueId.ToDebugString());
 	}
-	
+
 	return true;
 }
 
@@ -377,7 +407,7 @@ bool FOnlineVoiceLive::RegisterRemoteTalker(const FUniqueNetId& UniqueId)
  *
  * @return 0 upon success, an error code otherwise
  */
-bool FOnlineVoiceLive::UnregisterRemoteTalker(const FUniqueNetId& UniqueId) 
+bool FOnlineVoiceLive::UnregisterRemoteTalker(const FUniqueNetId& UniqueId)
 {
 	// Find them in the talkers array and remove them
 	for (int32 Index = 0; Index < RemoteTalkers.Num(); Index++)
@@ -416,7 +446,7 @@ void FOnlineVoiceLive::RemoveRemoteConsole(Platform::Object^ uniqueIdentifier)
 		// Error handling
 		try
 		{
-			t.get();                
+			t.get();
 		}
 		catch ( Platform::Exception^ ex )
 		{
@@ -426,7 +456,7 @@ void FOnlineVoiceLive::RemoveRemoteConsole(Platform::Object^ uniqueIdentifier)
 }
 
 /**
- * Iterates the current remote talker list unregistering them with the 
+ * Iterates the current remote talker list unregistering them with the
  * voice engine and our internal state
  */
 void FOnlineVoiceLive::RemoveAllRemoteTalkers()
@@ -483,7 +513,7 @@ FRemoteTalkerLive* FOnlineVoiceLive::FindRemoteTalker(const FUniqueNetId& Unique
  *
  * @return true if there is a headset, false otherwise
  */
-bool FOnlineVoiceLive::IsHeadsetPresent(uint32 LocalUserNum) 
+bool FOnlineVoiceLive::IsHeadsetPresent(uint32 LocalUserNum)
 {
 	return 	LiveChatManager->HasMicFocus;
 }
@@ -495,7 +525,7 @@ bool FOnlineVoiceLive::IsHeadsetPresent(uint32 LocalUserNum)
  *
  * @return true if the user is talking, false otherwise
  */
-bool FOnlineVoiceLive::IsLocalPlayerTalking(uint32 LocalUserNum) 
+bool FOnlineVoiceLive::IsLocalPlayerTalking(uint32 LocalUserNum)
 {
 	auto UserId = ref new Platform::String(*IdentityInt->GetUniquePlayerId(LocalUserNum)->ToString());
 	for(ChatUser^ user : LiveChatManager->GetChatUsers())
@@ -515,7 +545,7 @@ bool FOnlineVoiceLive::IsLocalPlayerTalking(uint32 LocalUserNum)
  *
  * @return true if the user is talking, false otherwise
  */
-bool FOnlineVoiceLive::IsRemotePlayerTalking(const FUniqueNetId& UniqueId) 
+bool FOnlineVoiceLive::IsRemotePlayerTalking(const FUniqueNetId& UniqueId)
 {
 	auto consoleId = ref new Platform::String(*UniqueId.ToString());
 	for(ChatUser^ user : LiveChatManager->GetChatUsers())
@@ -550,7 +580,7 @@ bool FOnlineVoiceLive::IsMuted(uint32 LocalUserNum, const FUniqueNetId& UniqueId
 }
 
 /**
- * Mutes a remote talker for the specified local player. 
+ * Mutes a remote talker for the specified local player.
  * NOTE: bIsSystemWide not supported on Live
  *
  * @param LocalUserNum the user that is muting the remote talker
@@ -565,7 +595,7 @@ bool FOnlineVoiceLive::MuteRemoteTalker(uint8 LocalUserNum, const FUniqueNetId& 
 }
 
 /**
- * Allows a remote talker to talk to the specified local player. 
+ * Allows a remote talker to talk to the specified local player.
  * NOTE: bIsSystemWide not supported on Live
  *
  * @param LocalUserNum the user that is allowing the remote talker to talk
@@ -594,7 +624,7 @@ void FOnlineVoiceLive::ProcessMuteChangeNotification()
  */
 TSharedPtr<FVoicePacket> FOnlineVoiceLive::SerializeRemotePacket(FArchive& Ar)
 {
-	TSharedPtr<FVoicePacketLive> NewPacket = MakeShareable(new FVoicePacketLive());
+	TSharedPtr<FVoicePacketLive> NewPacket = MakeShared<FVoicePacketLive>();
 	NewPacket->Serialize(Ar);
 
 	FScopeLock PacketLock( &RemotePacketsCS );
@@ -602,7 +632,7 @@ TSharedPtr<FVoicePacket> FOnlineVoiceLive::SerializeRemotePacket(FArchive& Ar)
 	if (Ar.IsError() == false && NewPacket->GetBufferSize() > 0)
 	{
 		RemotePackets.Add(NewPacket);
-		
+
 		return NewPacket;
 	}
 
@@ -611,7 +641,7 @@ TSharedPtr<FVoicePacket> FOnlineVoiceLive::SerializeRemotePacket(FArchive& Ar)
 
 /**
  * Get the local voice packet intended for send
- * 
+ *
  * @param LocalUserNum user index voice packet to retrieve
  */
 TSharedPtr<FVoicePacket> FOnlineVoiceLive::GetLocalPacket(uint32 LocalUserNum)
@@ -832,10 +862,10 @@ FString FOnlineVoiceLive::GetVoiceDebugState() const
 	for (int32 idx=0; idx < LocalTalkers.Num(); idx++)
 	{
 		UniqueId = IdentityInt->GetUniquePlayerId(idx);
-		
+
 		const FLocalTalker& Talker = LocalTalkers[idx];
 		Output += FString::Printf(TEXT("ID: %s\n Registered: %d\n Networked: %d\n Talking: %d\n "),
-			UniqueId.IsValid() ? *UniqueId->ToDebugString() : TEXT("NULL"), 
+			UniqueId.IsValid() ? *UniqueId->ToDebugString() : TEXT("NULL"),
 			Talker.bIsRegistered,
 			Talker.bHasNetworkedVoice,
 			Talker.bIsTalking);
@@ -846,7 +876,7 @@ FString FOnlineVoiceLive::GetVoiceDebugState() const
 	{
 		const FRemoteTalkerLive& Talker = RemoteTalkers[idx];
 		Output += FString::Printf(TEXT("ID: %s\n IsTalking: %d\n Muted: %s\n"),
-			*Talker.TalkerId->ToDebugString(), 
+			*Talker.TalkerId->ToDebugString(),
 			Talker.bIsTalking,
 			IsMuted(0, *Talker.TalkerId) ? TEXT("1") : TEXT("0"));
 
@@ -859,14 +889,21 @@ void FOnlineVoiceLive::OnOutgoingChatPacketReady(__in Microsoft::Xbox::GameChat:
 {
 	if(args->ChatMessageType == ChatMessageType::ChatVoiceDataMessage)
 	{
-		UE_LOG( LogVoice, VeryVerbose, L"OnOutgoingChatPacketReady: %s", args->ChatMessageType.ToString()->Data());
+		UE_LOG(LogVoice, VeryVerbose, TEXT("OnOutgoingChatPacketReady: %ls"), args->ChatMessageType.ToString()->Data());
 	}
 	else
 	{
-		UE_LOG( LogVoice, Log, L"OnOutgoingChatPacketReady: %s", args->ChatMessageType.ToString()->Data());
+		UE_LOG(LogVoice, Log, TEXT("OnOutgoingChatPacketReady: %ls"), args->ChatMessageType.ToString()->Data());
 	}
 
-	TSharedPtr<FVoicePacketLive> NewPacket = MakeShareable(new FVoicePacketLive());
+	const int32 RegisteredTalkerIndex = GetFirstRegisteredLocalPlayer();
+	if (RegisteredTalkerIndex < 0)
+	{
+		// We have no registered talkers, so drop this packet?
+		return;
+	}
+
+	TSharedPtr<FVoicePacketLive> NewPacket = MakeShared<FVoicePacketLive>();
 
 	BYTE* byteBufferPointer;
 	GetBufferBytes(args->PacketBuffer, &byteBufferPointer);
@@ -882,7 +919,7 @@ void FOnlineVoiceLive::OnOutgoingChatPacketReady(__in Microsoft::Xbox::GameChat:
 	// unique console identifier for the GameChat library.
 	// Just use the first registered local talker
 	// @todo: This probably breaks per-user muting in splitscreen
-	NewPacket->Sender = IdentityInt->GetUniquePlayerId(GetFirstRegisteredLocalPlayer());
+	NewPacket->Sender = IdentityInt->GetUniquePlayerId(RegisteredTalkerIndex);
 
 	// If we couldn't find a sender, all local users probably signed out.  Dropping the packet
 	// for now.
@@ -896,13 +933,13 @@ void FOnlineVoiceLive::OnOutgoingChatPacketReady(__in Microsoft::Xbox::GameChat:
 	if(!args->SendPacketToAllConnectedConsoles)
 	{
 		auto  Target = dynamic_cast<Platform::String^>(args->UniqueTargetConsoleIdentifier);
-		NewPacket->Target = MakeShareable(new FUniqueNetIdLive(Target->Data()));
+		NewPacket->Target = MakeShared<FUniqueNetIdLive>(Target->Data());
 		NewPacket->Broadcast = false;
 	}
 	else
 	{
 		NewPacket->Broadcast = true;
-		NewPacket->Target = MakeShareable(new FUniqueNetIdLive(TEXT("")));
+		NewPacket->Target = MakeShared<FUniqueNetIdLive>(TEXT(""));
 	}
 
 	NewPacket->Reliable = args->SendReliable;
@@ -940,29 +977,33 @@ void FOnlineVoiceLive::HookLiveEvents()
 		LiveChatManager->ChatSettings->DiagnosticsTraceLevel = GameChatDiagnosticsTraceLevel::Verbose;
 	}
 
-	m_tokenOnOutgoingChatPacketReady = LiveChatManager->OnOutgoingChatPacketReady += 
-		ref new Windows::Foundation::EventHandler<Microsoft::Xbox::GameChat::ChatPacketEventArgs^>( 
-		[this] ( Platform::Object^, Microsoft::Xbox::GameChat::ChatPacketEventArgs^ args )
+	// If users have bad reputation, we may want to mute them automatically to bypass Matchmaking XR requirements
+	// See XR 068 for more details
+	LiveChatManager->ChatSettings->AutoMuteBadReputationUsers = bAutoMuteBadRepRemotePlayers;
+
+	m_tokenOnOutgoingChatPacketReady = LiveChatManager->OnOutgoingChatPacketReady +=
+		ref new Windows::Foundation::EventHandler<Microsoft::Xbox::GameChat::ChatPacketEventArgs^>(
+		[this](Platform::Object^, Microsoft::Xbox::GameChat::ChatPacketEventArgs^ Args)
 	{
 		// Queue the event to be handled on the game thread
-		LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this,args]()
+		LiveSubsystem->ExecuteNextTick([this, Args]()
 		{
-			OnOutgoingChatPacketReady(args);
+			OnOutgoingChatPacketReady(Args);
 		});
 	});
 
-	m_tokenOnDebugMessage = LiveChatManager->OnDebugMessage += 
+	m_tokenOnDebugMessage = LiveChatManager->OnDebugMessage +=
 		ref new Windows::Foundation::EventHandler<Microsoft::Xbox::GameChat::DebugMessageEventArgs^>(
 		[this] ( Platform::Object^, Microsoft::Xbox::GameChat::DebugMessageEventArgs^ args )
 	{
 		OnDebugMessageReceived(args);
 	});
 
-	m_tokenOnCompareUniqueConsoleIdentifiers = LiveChatManager->OnCompareUniqueConsoleIdentifiers += 
-		ref new Microsoft::Xbox::GameChat::CompareUniqueConsoleIdentifiersHandler( 
-		[this] ( Platform::Object^ obj1, Platform::Object^ obj2 ) 
-	{ 
-		return CompareUniqueConsoleIdentifiers(obj1, obj2); 
+	m_tokenOnCompareUniqueConsoleIdentifiers = LiveChatManager->OnCompareUniqueConsoleIdentifiers +=
+		ref new Microsoft::Xbox::GameChat::CompareUniqueConsoleIdentifiersHandler(
+		[this] ( Platform::Object^ obj1, Platform::Object^ obj2 )
+	{
+		return CompareUniqueConsoleIdentifiers(obj1, obj2);
 	});
 
 // @ATG_CHANGE : BEGIN - UWP LIVE support - Compatible wrapper needs implementation here
@@ -1079,19 +1120,19 @@ void FOnlineVoiceLive::SetLocalPlayerIsTalking(TSharedPtr<const FUniqueNetId> Ne
 	}
 }
 
-int FOnlineVoiceLive::GetFirstRegisteredLocalPlayer()
+int32 FOnlineVoiceLive::GetFirstRegisteredLocalPlayer()
 {
-	for(int i=0; i<LocalTalkers.Num();i++)
+	for (int32 Index = 0; Index < LocalTalkers.Num(); ++Index)
 	{
-		if(LocalTalkers[i].bIsRegistered)
+		if (LocalTalkers[Index].bIsRegistered)
 		{
-			return i;
+			return Index;
 		}
 	}
 
 	UE_LOG(LogVoice, Warning, TEXT("Found no local talkers"));
 
-	return 0;
+	return -1;
 }
 
 int32 FOnlineVoiceLive::GetNumLocalTalkers()
@@ -1112,9 +1153,12 @@ void FOnlineVoiceLive::DisplayDebugText()
 		{
 			UniqueId = IdentityInt->GetUniquePlayerId(idx);
 
-			const FLocalTalker& Talker = LocalTalkers[idx];
+			if (UniqueId.IsValid())
+			{
+				const FLocalTalker& Talker = LocalTalkers[idx];
 
-			DisplayUserStatus(UniqueId->ToString(), Talker.bIsTalking);
+				DisplayUserStatus(UniqueId->ToString(), Talker.bIsTalking);
+			}
 		}
 
 		for (int32 idx=0; idx < RemoteTalkers.Num(); idx++)
@@ -1175,7 +1219,7 @@ void FOnlineVoiceLive::DisplayUserStatus(FString talker, bool isTalking, Microso
 
 }
 
-// @ATG_CHANGE : BEGIN UWP LIVE support
+// @ATG_CHANGE : BEGIN - UWP LIVE support
 Windows::Xbox::Chat::IChatUser^ FOnlineVoiceLive::GetChatUserFromLocalUser(Windows::Xbox::System::User^ user)
 {
 #if PLATFORM_XBOXONE
@@ -1185,6 +1229,7 @@ Windows::Xbox::Chat::IChatUser^ FOnlineVoiceLive::GetChatUserFromLocalUser(Windo
 #endif
 }
 // @ATG_CHANGE : END
+
 
 // @ATG_CHANGE : BEGIN - UWP LIVE support - Compatible wrapper needs implementation here
 #if PLATFORM_XBOXONE

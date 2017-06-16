@@ -3,10 +3,15 @@
 #pragma once
 
 #include "OnlineAsyncTaskManager.h"
-#include "OnlineSubsystemLive.h"
 #include "OnlineSubsystemLivePackage.h"
+#include "OnlineSubsystemLive.h"
 
 #include <type_traits>
+#include <ppltasks.h>
+// @ATG_CHANGE : UWP LIVE support - moved platform specific includes to "OnlineSubsystemLive.h"
+
+class FOnlineSubsystemLive;
+
 /**
  * Base class that holds a delegate to fire when a given async task is complete
  */
@@ -114,19 +119,11 @@ private:
 		}
 		catch (const std::exception& Ex)
 		{
-			UE_LOG_ONLINE(Error, TEXT("Unhandled std::exception exception caught in %s(); operation failed for reason '%s'."), *ToString(), ANSI_TO_TCHAR(Ex.what()));
-		}
-		catch (Platform::InvalidArgumentException^ Ex)
-		{
-			UE_LOG_ONLINE(Error, TEXT("Unhandled InvalidArgumentException exception caught in %s(); operation failed with code 0x%08X."), *ToString(), Ex->HResult);
-		}
-		catch (Platform::COMException^ Ex)
-		{
-			UE_LOG_ONLINE(Error, TEXT("Unhandled COMException caught in %s(); operation failed with code 0x%08X."), *ToString(), Ex->HResult);
+			UE_LOG_ONLINE(Warning, TEXT("Unhandled std::exception exception caught in %s(); operation failed for reason '%s'."), *ToString(), ANSI_TO_TCHAR(Ex.what()));
 		}
 		catch (Platform::Exception^ Ex)
 		{
-			UE_LOG_ONLINE(Error, TEXT("Unhandled Platform exception caught in %s(); operation failed with code 0x%08X."), *ToString(), Ex->HResult);
+			UE_LOG_ONLINE(Warning, TEXT("Unhandled %s exception caught in %s(); operation failed with code 0x%08X and reason '%s'."), Ex->GetType()->ToString()->Data(), *ToString(), Ex->HResult, Ex->Message->Data());
 		}
 		catch (...)
 		{
@@ -174,19 +171,11 @@ private:
 			}
 			catch (const std::exception& Ex)
 			{
-				UE_LOG_ONLINE(Error, TEXT("Unhandled std::exception exception caught in %s(); task failed for reason '%s'."), *ToString(), ANSI_TO_TCHAR(Ex.what()));
-			}
-			catch (Platform::InvalidArgumentException^ Ex)
-			{
-				UE_LOG_ONLINE(Error, TEXT("Unhandled InvalidArgumentException exception caught in %s(); task failed with code 0x%08X."), *ToString(), Ex->HResult);
-			}
-			catch (Platform::COMException^ Ex)
-			{
-				UE_LOG_ONLINE(Error, TEXT("Unhandled COMException caught in %s(); task failed with code 0x%08X."), *ToString(), Ex->HResult);
+				UE_LOG_ONLINE(Warning, TEXT("Unhandled std::exception exception caught in %s(); task failed for reason '%s'."), *ToString(), ANSI_TO_TCHAR(Ex.what()));
 			}
 			catch (Platform::Exception^ Ex)
 			{
-				UE_LOG_ONLINE(Error, TEXT("Unhandled Platform exception caught in %s(); task failed with code 0x%08X."), *ToString(), Ex->HResult);
+				UE_LOG_ONLINE(Warning, TEXT("Unhandled %s exception caught in %s(); task failed with code 0x%08X and reason '%s'."), Ex->GetType()->ToString()->Data(), *ToString(), Ex->HResult, Ex->Message->Data());
 			}
 			catch (...)
 			{
@@ -229,12 +218,8 @@ public:
 	{
 	}
 
-	~FOnlineAsyncTaskManagerLive()
-	{
-	}
+	virtual ~FOnlineAsyncTaskManagerLive() = default;
 
 	// FOnlineAsyncTaskManager
 	virtual void OnlineTick() override;
 };
-
-

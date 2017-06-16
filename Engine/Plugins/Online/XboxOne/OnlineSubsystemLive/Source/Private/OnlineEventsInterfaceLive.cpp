@@ -1036,9 +1036,13 @@ bool FOnlineEventsLive::TriggerEvent( const FUniqueNetId& PlayerId, const TCHAR*
 			FString MultiplayerCorrelationId( TEXT( "0" ) );
 
 			// Grab the correlation id from the game session if it exists
-			if ( SessionInfoLive.IsValid() && SessionInfoLive->GetLiveMultiplayerSession() != nullptr )
+			if ( SessionInfoLive.IsValid() )
 			{
-				MultiplayerCorrelationId = SessionInfoLive->GetLiveMultiplayerSession()->MultiplayerCorrelationId->Data();
+				const WCHAR* SessionProvidedId = SessionInfoLive->GetMultiplayerCorrelationId();
+				if (SessionProvidedId != nullptr)
+				{
+					MultiplayerCorrelationId = SessionProvidedId;
+				}
 			}
 
 			InternalParms.AddParm( *MultiplayerCorrelationId, ( MultiplayerCorrelationId.Len() + 1 ) * sizeof( WCHAR ) );

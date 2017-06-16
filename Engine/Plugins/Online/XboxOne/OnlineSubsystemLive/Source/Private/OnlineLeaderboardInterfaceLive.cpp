@@ -63,24 +63,24 @@ bool FOnlineLeaderboardsLive::ReadLeaderboards(const TArray< TSharedRef<const FU
 
 	try
 	{
-		for(int i = 0; i < Players.Num(); i++)
+		for (int32 i = 0; i < Players.Num(); ++i)
 		{
 			FOnlineLeaderboardReadRef LeaderboardRead = FOnlineLeaderboardReadRef(new FOnlineLeaderboardRead());
 			LeaderboardRead->LeaderboardName = ReadObject->LeaderboardName;
-			for(int j = 0; j < ReadObject->ColumnMetadata.Num(); j++)
+			for (int32 j = 0; j < ReadObject->ColumnMetadata.Num(); ++j)
 			{
 				LeaderboardRead->ColumnMetadata.Add(ReadObject->ColumnMetadata[j]);
 			}
 			LeaderboardReads.Add(LeaderboardRead);
 
-			Platform::String^ LeaderboardName = ref new Platform::String(ReadObject->LeaderboardName.GetPlainNameString().GetCharArray().GetData());
+			Platform::String^ LeaderboardName = ref new Platform::String(*ReadObject->LeaderboardName.GetPlainNameString());
 			FUniqueNetIdLive LiveId(*Players[i]);
-			Platform::String^ PlayerName = ref new Platform::String(LiveId.ToString().GetCharArray().GetData());
-		
+			Platform::String^ PlayerName = ref new Platform::String(*LiveId.ToString());
+
 			Windows::Foundation::IAsyncOperation<LeaderboardResult^>^ pAsyncOp = LiveContext->LeaderboardService->GetLeaderboardWithSkipToUserAsync(
-																	// @ATG_CHANGE :  BEGIN UWP LIVE support
+																	// @ATG_CHANGE : BEGIN - UWP LIVE support
 																	LiveContext->AppConfig->ServiceConfigurationId,
-																	// @ATG_CHANGE :  END
+																	// @ATG_CHANGE : END
 																	LeaderboardName,
 																	PlayerName,
 																	1
@@ -168,12 +168,12 @@ bool FOnlineLeaderboardsLive::ReadLeaderboardsForFriends(int32 LocalUserNum, FOn
 	try
 	{
 		Platform::String^ StatName;
-		if(ReadObject->ColumnMetadata.Num() > 0)
+		if (ReadObject->ColumnMetadata.Num() > 0)
 		{
-			StatName = ref new Platform::String(ReadObject->ColumnMetadata[0].ColumnName.GetPlainNameString().GetCharArray().GetData());
+			StatName = ref new Platform::String(*ReadObject->ColumnMetadata[0].ColumnName.GetPlainNameString());
 		}
 
-		if(StatName->Length() == 0)
+		if (StatName->Length() == 0)
 		{
 			UE_LOG_ONLINE(Warning, TEXT("Failing Leaderboards request. No statistic requested for friends leaderboard."));
 			ReadObject->ReadState = EOnlineAsyncTaskState::Failed;
@@ -188,9 +188,9 @@ bool FOnlineLeaderboardsLive::ReadLeaderboardsForFriends(int32 LocalUserNum, FOn
 
 		Windows::Foundation::IAsyncOperation<LeaderboardResult^>^ pAsyncOp = LiveContext->LeaderboardService->GetLeaderboardForSocialGroupAsync(
 											LiveContext->User->XboxUserId,
-											// @ATG_CHANGE :  BEGIN UWP LIVE support
+											// @ATG_CHANGE : BEGIN UWP LIVE support
 											LiveContext->AppConfig->ServiceConfigurationId,
-											// @ATG_CHANGE :  END
+											// @ATG_CHANGE : END
 											StatName,
 											Microsoft::Xbox::Services::Social::SocialGroupConstants::People,
 											ref new Platform::String(SortOrder),
@@ -236,6 +236,17 @@ bool FOnlineLeaderboardsLive::ReadLeaderboardsForFriends(int32 LocalUserNum, FOn
 	}
 
 	return true;
+}
+
+bool FOnlineLeaderboardsLive::ReadLeaderboardsAroundRank(int32 Rank, uint32 Range, FOnlineLeaderboardReadRef& ReadObject)
+{
+	UE_LOG_ONLINE(Warning, TEXT("FOnlineLeaderboardsLive::ReadLeaderboardsAroundRank is currently not supported."));
+	return false;
+}
+bool FOnlineLeaderboardsLive::ReadLeaderboardsAroundUser(TSharedRef<const FUniqueNetId> Player, uint32 Range, FOnlineLeaderboardReadRef& ReadObject)
+{
+	UE_LOG_ONLINE(Warning, TEXT("FOnlineLeaderboardsLive::ReadLeaderboardsAroundUser is currently not supported."));
+	return false;
 }
 
 void FOnlineLeaderboardsLive::FreeStats(FOnlineLeaderboardRead& ReadObject)

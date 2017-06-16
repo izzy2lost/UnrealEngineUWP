@@ -21,7 +21,7 @@ using namespace Windows::Xbox::UI;
 const int32 PEOPLE_PICKER_MAX_SIZE = 100;
 #define INVITE_UI_TEXT TEXT("Invite players")
 
-bool FOnlineExternalUILive::ShowLoginUI(const int ControllerIndex, bool bShowOnlineOnly, const FOnLoginUIClosedDelegate& Delegate)
+bool FOnlineExternalUILive::ShowLoginUI(const int ControllerIndex, bool bShowOnlineOnly, bool bShowSkipButton, const FOnLoginUIClosedDelegate& Delegate)
 {
 	// Get the controller object corresponding to the desired controller Id.
 	if(!FSlateApplication::IsInitialized())
@@ -29,16 +29,18 @@ bool FOnlineExternalUILive::ShowLoginUI(const int ControllerIndex, bool bShowOnl
 		return false;
 	}
 
-	// @ATG_CHANGE : BEGIN UWP LIVE support
+	// @ATG_CHANGE : BEGIN - UWP LIVE Support
 	auto PlatformApp = FSlateApplication::Get().GetPlatformApplication();
-	if(!PlatformApp.IsValid())
+	if (!PlatformApp.IsValid())
+	// @ATG_CHANGE : END - UWP LIVE Support
 	{
 		return false;
 	}
 
-	auto PlatformInput = static_cast<FPlatformInputInterface*>(PlatformApp->GetInputInterface());
-	auto RequestedGamepad = PlatformInput->GetGamepadForUser(ControllerIndex);
-	// @ATG_CHANGE : END
+	// @ATG_CHANGE : BEGIN - UWP LIVE Support
+	auto InputInterface = static_cast<FPlatformInputInterface*>(PlatformApp->GetInputInterface());
+	auto RequestedGamepad = InputInterface->GetGamepadForUser(ControllerIndex);
+	// @ATG_CHANGE : END - UWP LIVE Support
 
 	AccountPickerOptions LoginOption = bAllowGuestLogin ? AccountPickerOptions::AllowGuests : AccountPickerOptions::None;
 
@@ -46,14 +48,13 @@ bool FOnlineExternalUILive::ShowLoginUI(const int ControllerIndex, bool bShowOnl
 	asyncOp->Completed = ref new AsyncOperationCompletedHandler<AccountPickerResult^>(
 		[=,this](IAsyncOperation<AccountPickerResult^>^ operation, AsyncStatus status)
 	{
-		// @ATG_CHANGE : BEGIN - avoid missing callback when async op fails
-		Windows::Xbox::System::IUser^ PickedUser = nullptr;
-		if(status == AsyncStatus::Completed)
+		Windows::Xbox::System::IUser^ User = nullptr;
+		if (status == AsyncStatus::Completed)
 		{
 			auto Results = operation->GetResults();
 			if (Results)
 			{
-				PickedUser = Results->User;
+				User = Results->User;
 			}
 		}
 		else
@@ -62,14 +63,12 @@ bool FOnlineExternalUILive::ShowLoginUI(const int ControllerIndex, bool bShowOnl
 			UE_LOG_ONLINE(Log, TEXT("Error in SystemUI::ShowAccountPickerAsync: 0x%x"), operation->ErrorCode.Value);
 		}
 
-		if(LiveSubsystem && LiveSubsystem->GetAsyncTaskManager())
+		if (LiveSubsystem && LiveSubsystem->GetAsyncTaskManager())
 		{
-			FAsyncEventAccountPickerClosed* NewEvent = new FAsyncEventAccountPickerClosed(LiveSubsystem, PickedUser, ControllerIndex, Delegate);
+			FAsyncEventAccountPickerClosed* NewEvent = new FAsyncEventAccountPickerClosed(LiveSubsystem, User, ControllerIndex, Delegate);
 			LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue(NewEvent);
 		}
-		// @ATG_CHANGE : END
 	});
-
 	return true;
 }
 
@@ -120,9 +119,11 @@ bool FOnlineExternalUILive::ShowInviteUI(int32 LocalUserNum, FName SessionName)
 
 	// Need to find the user's current session to include in the invite call.
 	concurrency::create_task(LiveContext->MultiplayerService->GetActivitiesForUsersAsync(
+		// @ATG_CHANGE : BEGIN - UWP LIVE Support
 		LiveContext->AppConfig->ServiceConfigurationId,
+		// @ATG_CHANGE : END - UWP LIVE Support
 		UserVector->GetView()
-		)).then([this, LiveUser, SessionLiveMultiplayerSessionRef](concurrency::task<IVectorView<Microsoft::Xbox::Services::Multiplayer::MultiplayerActivityDetails^> ^> Task)
+		)).then([this, LiveUser, SessionLiveMultiplayerSessionRef](concurrency::task<IVectorView<Microsoft::Xbox::Services::Multiplayer::MultiplayerActivityDetails^>^> Task)
 	{
 		try
 		{
@@ -133,9 +134,9 @@ bool FOnlineExternalUILive::ShowInviteUI(int32 LocalUserNum, FName SessionName)
 				throw ref new Platform::InvalidArgumentException();	// let the handler below deal with this
 			}
 
-			for(Microsoft::Xbox::Services::Multiplayer::MultiplayerActivityDetails^ CurActivityDetail : ActivityDetails)
+			for (Microsoft::Xbox::Services::Multiplayer::MultiplayerActivityDetails^ CurActivityDetail : ActivityDetails)
 			{
-				Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ CurrentSessionRef = CurActivityDetail->SessionReference;	
+				Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ CurrentSessionRef = CurActivityDetail->SessionReference;
 
 				if (CurrentSessionRef != nullptr && SessionLiveMultiplayerSessionRef->SessionName->Equals(CurrentSessionRef->SessionName))
 				{
@@ -149,15 +150,15 @@ bool FOnlineExternalUILive::ShowInviteUI(int32 LocalUserNum, FName SessionName)
 						{
 							Task.get();
 
-							LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this]()
+							LiveSubsystem->ExecuteNextTick([this]()
 							{
 								TriggerOnExternalUIChangeDelegates(true);
 							});
 						}
-						catch(Platform::Exception^ ex)
+						catch (Platform::Exception^ Ex)
 						{
-							UE_LOG(LogOnline, Warning, TEXT("ShowInviteUI: Failed to show invite UI with 0x%0.8X"), ex->HResult);
-							LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this]()
+							UE_LOG(LogOnline, Warning, TEXT("ShowInviteUI: Failed to show invite UI with 0x%0.8X"), Ex->HResult);
+							LiveSubsystem->ExecuteNextTick([this]()
 							{
 								TriggerOnExternalUIChangeDelegates(false);
 							});
@@ -167,11 +168,11 @@ bool FOnlineExternalUILive::ShowInviteUI(int32 LocalUserNum, FName SessionName)
 				}
 			}
 		}
-		catch(Platform::Exception^ ex)
+		catch (Platform::Exception^ Ex)
 		{
-			UE_LOG(LogOnline, Warning, TEXT("ShowInviteUI: Failed to get current session with 0x%0.8X"), ex->HResult);
+			UE_LOG(LogOnline, Warning, TEXT("ShowInviteUI: Failed to get current session with 0x%0.8X"), Ex->HResult);
 
-			LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this]()
+			LiveSubsystem->ExecuteNextTick([this]()
 			{
 				TriggerOnExternalUIChangeDelegates(false);
 			});
@@ -194,11 +195,7 @@ bool FOnlineExternalUILive::ShowAchievementsUI(int32 LocalUserNum)
 		return false;
 	}
 
-	// @ATG_CHANGE : BEGIN - UWP LIVE Support
-	uint32 TitleId = Microsoft::Xbox::Services::XboxLiveAppConfiguration::SingletonInstance->TitleId;
-	// @ATG_CHANGE : END - UWP LIVE Support
-
-	auto LaunchAchievementsTask = SystemUI::LaunchAchievementsAsync(LiveUser, TitleId);
+	auto LaunchAchievementsTask = SystemUI::LaunchAchievementsAsync(LiveUser, LiveSubsystem->TitleId);
 
 	concurrency::create_task(LaunchAchievementsTask).then([this, LiveUser](concurrency::task<void> task)
 	{
@@ -308,9 +305,9 @@ void FOnlineExternalUILive::FAsyncEventAccountPickerClosed::TriggerDelegates()
 {
 	FOnlineAsyncEvent::TriggerDelegates();
 
-	if(SignedInUser)
+	if (SignedInUser)
 	{
-		TSharedPtr<const FUniqueNetId> UniqueId(MakeShareable(new FUniqueNetIdLive(SignedInUser->XboxUserId->Data())));
+		TSharedPtr<const FUniqueNetId> UniqueId(MakeShared<FUniqueNetIdLive>(SignedInUser->XboxUserId->Data()));
 		Delegate.ExecuteIfBound(UniqueId, ControllerIndex);
 	}
 	else

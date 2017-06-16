@@ -8,6 +8,7 @@
 #include "../OnlineMatchmakingInterfaceLive.h"
 #include "SocketSubsystem.h"
 #include "IPAddress.h"
+#include "OnlineAsyncTaskLiveSetSessionActivity.h"
 
 #include <collection.h>
 
@@ -78,10 +79,10 @@ void FOnlineAsyncTaskLiveGameSessionReady::Initialize()
 						NamedSession->bHosting = true;
 						if (LiveSession->CurrentUser)
 						{
-							NamedSession->LocalOwnerId = MakeShareable(new FUniqueNetIdLive(LiveSession->CurrentUser->XboxUserId));
+							NamedSession->LocalOwnerId = MakeShared<FUniqueNetIdLive>(LiveSession->CurrentUser->XboxUserId);
 						}
 					}
-					
+
 					if(!LiveSession)
 					{
 						UE_LOG_ONLINE(Log, TEXT("Failed to set host device token."));
@@ -92,7 +93,6 @@ void FOnlineAsyncTaskLiveGameSessionReady::Initialize()
 				}
 
 				MultiplayerSessionMember^ NewHostMember = FOnlineSessionLive::GetLiveSessionHost(LiveSession);
-				bool bIsLocalConsoleHost = false;
 				for(auto Member : LiveSession->Members)
 				{
 					if(Member->IsCurrentUser && ( Member->DeviceToken == LiveSession->SessionProperties->HostDeviceToken ) )
@@ -124,6 +124,7 @@ void FOnlineAsyncTaskLiveGameSessionReady::Initialize()
 					}
 
 					auto asyncOp = SDATemplate->CreateAssociationAsync(SDA, CreateSecureDeviceAssociationBehavior::Default);
+					// @ATG_CHANGE : BEGIN - UWP LIVE support
 					create_task(asyncOp).then([this](task<SecureDeviceAssociation^> InAssociationTask)
 					{
 						try
@@ -136,14 +137,13 @@ void FOnlineAsyncTaskLiveGameSessionReady::Initialize()
 							Association->StateChanged += StateChangedEvent;
 
 							// Set activity to new session. This will be the session used for invites/join in progress if supported.
-							LiveContext->MultiplayerService->SetActivityAsync(LiveSession->SessionReference);
+							Subsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveSetSessionActivity>(Subsystem, LiveContext, LiveSession->SessionReference);
 
 							// Store the host address, will be set in Finalize() since Finalize() runs on the game thread.
 							HostAddr = FOnlineSessionLive::GetAddrFromDeviceAssociation(Association);
 
 							bWasSuccessful = true;
 							bIsComplete = true;
-						// @ATG_CHANGE :  BEGIN UWP LIVE support
 						}
 						catch(Platform::Exception^ Ex)
 						{
@@ -152,8 +152,8 @@ void FOnlineAsyncTaskLiveGameSessionReady::Initialize()
 							bWasSuccessful = false;
 							bIsComplete = true;
 						}
-						// @ATG_CHANGE : END
 					});
+					// @ATG_CHANGE : END
 				}
 				catch(Platform::Exception^ Ex)
 				{

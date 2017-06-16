@@ -2,9 +2,12 @@
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineSessionInterfaceLive.h"
+#include "OnlineSubsystemLive.h"
 #include "OnlineSubsystemSessionSettings.h"
+#include "OnlineEventsInterfaceLive.h"
 #include "OnlineIdentityInterfaceLive.h"
 #include "OnlineMatchmakingInterfaceLive.h"
+#include "OnlinePresenceInterfaceLive.h"
 #include "VoiceInterface.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/ScopeLock.h"
@@ -14,6 +17,7 @@
 // @ATG_CHANGE : UWP Live Support - BEGIN
 #if PLATFORM_XBOXONE
 #include "XboxOnePostApi.h"
+#include "XboxOne/XboxOneMisc.h"
 #endif
 // @ATG_CHANGE : UWP Live Support - END
 #include "SocketSubsystem.h"
@@ -32,9 +36,12 @@
 #include "AsyncTasks/OnlineAsyncTaskLiveUpdateSession.h"
 #include "AsyncTasks/OnlineAsyncTaskLiveUpdateSessionMember.h"
 #include "AsyncTasks/OnlineAsyncTaskLiveMeasureAndUploadQos.h"
-// @ATG_CHANGE :  UWP LIVE support: Xbox headers to pch
+#include "AsyncTasks/OnlineAsyncTaskLiveSendSessionInviteToFriends.h"
+#include "AsyncTasks/OnlineAsyncTaskLiveSetSessionActivity.h"
+#include "AsyncTasks/OnlineAsyncTaskLiveFindSessionById.h"
 
-using namespace Platform;
+// @ATG_CHANGE : UWP LIVE support: Xbox headers to pch
+
 using namespace Platform::Collections;
 using namespace Windows::ApplicationModel::Activation;
 using namespace Windows::ApplicationModel::Core;
@@ -43,16 +50,33 @@ using namespace Windows::Foundation::Collections;
 using namespace Windows::Xbox::Networking;
 using namespace Windows::Xbox::System;
 using namespace Microsoft::Xbox::Services;
+using Microsoft::Xbox::Services::XboxLiveContext;
 using namespace Microsoft::Xbox::Services::Matchmaking;
-using namespace Microsoft::Xbox::Services::Multiplayer;
-using namespace Microsoft::Xbox::Services::Social;
-using namespace concurrency;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerActivityDetails;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerInitializationStage;
+// @ATG_CHANGE: BEGIN
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerGetSessionsRequest;
+// @ATG_CHANGE: END
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerMeasurementFailure;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSession;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionChangeTypes;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionMember;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionMemberStatus;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionProperties;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionRestriction;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionStates;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionVisibility;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionWriteMode;
+using Microsoft::Xbox::Services::Multiplayer::WriteSessionResult;
+using Microsoft::Xbox::Services::Multiplayer::WriteSessionStatus;
+using Microsoft::Xbox::Services::Social::XboxUserProfile;
 
 namespace
 {
 	/** The maximum number of Live sessions to return when searching for orphaned sessions. */
-	const int MAX_ORPHANED_SESSIONS_RESULTS = 100;
-	const int MAX_RETRIES = 20;
+	const int32 MAX_ORPHANED_SESSIONS_RESULTS = 100;
+	const int32 MAX_RETRIES = 20;
 
 	/** Gets the current time as a DateTime object */
 	DateTime GetCurrentTime()
@@ -90,19 +114,44 @@ namespace
 	{
 		if (Session == nullptr)
 		{
-			UE_LOG_ONLINE(Log, TEXT("DebugLogLiveSession: Session is null."));
+			UE_LOG_ONLINE(Verbose, TEXT("DebugLogLiveSession: Session is null."));
 			return;
 		}
 
-		UE_LOG_ONLINE(Log, TEXT("DebugLogLiveSession:\n"));
-		UE_LOG_ONLINE(Log, TEXT("  MaxMembersInSession: %d\n"), Session->SessionConstants->MaxMembersInSession);
-		UE_LOG_ONLINE(Log, TEXT("  Members->Size: %d. Members:\n"), Session->Members->Size);
+		UE_LOG_ONLINE(Verbose, TEXT("DebugLogLiveSession:"));
+		UE_LOG_ONLINE(Verbose, TEXT("  MaxMembersInSession: %d"), Session->SessionConstants->MaxMembersInSession);
+		UE_LOG_ONLINE(Verbose, TEXT("  Members->Size: %d. Members:"), Session->Members->Size);
 
-		for (auto Member : Session->Members)
+		for (MultiplayerSessionMember^ Member : Session->Members)
 		{
-			UE_LOG_ONLINE(Log,
-				TEXT( "    Gamertag: %s, Live ID: %s, status: %s" ),
+			UE_LOG_ONLINE(Verbose, TEXT("    Gamertag: %s, Live ID: %s, status: %s"),
 				Member->Gamertag->Data(), Member->XboxUserId->Data(), GetSessionMemberStatusString(Member->Status));
+		}
+
+		Platform::String^ PlatformPropertiesJson = Session->SessionProperties->SessionCustomPropertiesJson;
+		FString PropertiesJson(PlatformPropertiesJson->Data());
+		TSharedPtr< FJsonObject > JsonObject;
+		TSharedRef< TJsonReader<> > Reader = TJsonReaderFactory<>::Create(PropertiesJson);
+
+		if (FJsonSerializer::Deserialize(Reader, JsonObject) && JsonObject.IsValid())
+		{
+			UE_LOG_ONLINE(Verbose, TEXT("  Custom Properties Size: %d. Fields:"), JsonObject->Values.Num());
+			for (const TMap<FString, TSharedPtr<FJsonValue>>::ElementType& Pair : JsonObject->Values)
+			{
+				FString OutString;
+				if (Pair.Value->TryGetString(OutString))
+				{
+					UE_LOG_ONLINE(Verbose, TEXT("    %s: %s"), *Pair.Key, *OutString);
+				}
+				else
+				{
+					UE_LOG_ONLINE(Verbose, TEXT("    %s: [Non-String Value]"), *Pair.Key, *OutString);
+				}
+			}
+		}
+		else
+		{
+			UE_LOG_ONLINE(Verbose, TEXT("  No Custom Properties Set"));
 		}
 	}
 }
@@ -111,13 +160,13 @@ FOnlineSessionLive::FOnlineSessionLive(class FOnlineSubsystemLive* InSubsystem)
 	: LiveSubsystem(InSubsystem)
 	, PeerTemplate(nullptr)
 	, bIsDestroyingSessions(false)
-{ 
-	Initialize(); 
+{
+	Initialize();
 }
 
 FOnlineSessionLive::~FOnlineSessionLive()
 {
-	if( PeerTemplate )
+	if (PeerTemplate)
 	{
 		PeerTemplate->AssociationIncoming -= TokenSecureAssociationIncoming;
 	}
@@ -126,11 +175,11 @@ FOnlineSessionLive::~FOnlineSessionLive()
 	{
 		Windows::Xbox::System::User::SignInCompleted -= SignInCompletedToken;
 	}
-	catch(Platform::Exception^ )
+	catch(Platform::Exception^)
 	{
 		UE_LOG_ONLINE(Warning, TEXT("User Exception during shutdown"));
 	}
-	
+
 	// Replaced old party events with session subscriptions and activation handler for invites
 	CoreApplication::GetCurrentView()->Activated -= ActivatedToken;
 	LiveSubsystem->GetSessionMessageRouter()->ClearOnSubscriptionLostDelegate_Handle(OnSubscriptionLostDelegateHandle);
@@ -144,20 +193,24 @@ void FOnlineSessionLive::Initialize()
 {
 	FString TemplateName;
 
+	// Load our session-updating stats
+	GConfig->GetString(TEXT("OnlineSubsystemLive"), TEXT("SessionUpdateStatName"), SessionUpdateStatName, GEngineIni);
+	GConfig->GetString(TEXT("OnlineSubsystemLive"), TEXT("SessionUpdateEventName"), SessionUpdateEventName, GEngineIni);
+
 	// Look up the secure device association template name in the engine ini settings.
-	if(GConfig->GetString(TEXT("OnlineSubsystemLive"), TEXT("SecureDeviceAssociationTemplateName"), TemplateName, GEngineIni))
+	if (GConfig->GetString(TEXT("OnlineSubsystemLive"), TEXT("SecureDeviceAssociationTemplateName"), TemplateName, GEngineIni))
 	{
 		try
 		{
 			PeerTemplate = SecureDeviceAssociationTemplate::GetTemplateByName(ref new Platform::String(*TemplateName));
-			
+
 			// Listen for Secure Association incoming
 			auto AssociationIncomingEvent = ref new TypedEventHandler<SecureDeviceAssociationTemplate^, SecureDeviceAssociationIncomingEventArgs^>(
 				[] (Platform::Object^, SecureDeviceAssociationIncomingEventArgs^ EventArgs)
 			{
-				if(EventArgs->Association)
+				if (EventArgs->Association)
 				{
-					UE_LOG_ONLINE(Log, TEXT("Received association, state is %d."), (int)EventArgs->Association->State);
+					UE_LOG_ONLINE(Log, TEXT("Received association, state is %d."), EventArgs->Association->State);
 
 					auto StateChangedEvent = ref new TypedEventHandler<SecureDeviceAssociation^, SecureDeviceAssociationStateChangedEventArgs^>(&LogAssociationStateChange);
 					EventArgs->Association->StateChanged += StateChangedEvent;
@@ -183,11 +236,15 @@ void FOnlineSessionLive::Initialize()
 	// games should detect sessions with only the local user in them at startup and call Leave() on those sessions.
 	// Also enable multiplayer subscriptions to get session updates.
 
-	// Grab the user list, this is a cross-VM call but since it's only done once at startup the extra milliseconds
-	// shouldn't be a big deal.
-	auto Users = Windows::Xbox::System::User::Users;
+	// Grab the user list, the Identity interface caches this at startup already so we can just use their list instead of
+	// spending extra time making another cross-VM call.
+	// Note that this forces a dependency on the identity interface being initialized before the session interface.
+	FOnlineIdentityLivePtr Identity = LiveSubsystem->GetIdentityLive();
+	check(Identity.IsValid());
 
-	for(auto CurrentUser : Users)
+	auto Users = Identity->GetCachedUsers();
+
+	for (auto CurrentUser : Users)
 	{
 		CleanUpOrphanedSessions(CurrentUser);
 
@@ -196,14 +253,14 @@ void FOnlineSessionLive::Initialize()
 	using namespace Windows::Foundation;
 	EventHandler<SignInCompletedEventArgs^>^ SignInCompletedEvent = ref new EventHandler<SignInCompletedEventArgs^>(
 		[this] (Platform::Object^, SignInCompletedEventArgs^ EventArgs)
-	{		
-		CleanUpOrphanedSessions( EventArgs->User );
+	{
+		CleanUpOrphanedSessions(EventArgs->User);
 	});
 	SignInCompletedToken = Windows::Xbox::System::User::SignInCompleted += SignInCompletedEvent;
 
 
 	OnSubscriptionLostDestroyCompleteDelegate = FOnEndSessionCompleteDelegate::CreateRaw(this, &FOnlineSessionLive::OnSubscriptionLostDestroyComplete);
-	
+
 	// Sign up for Activated events, which we use to detect accepted invites while the game
 	// is running.
 	ActivatedToken = CoreApplication::GetCurrentView()->Activated += ref new TypedEventHandler< CoreApplicationView^, IActivatedEventArgs^ >(
@@ -211,11 +268,11 @@ void FOnlineSessionLive::Initialize()
 	{
 		OnActivated(EventArgs);
 	});
-	
+
 	// Check for a saved invite protocol URI, indicating that local player accepted an invite.
 	CheckPendingSessionInvite();
 
-	// @ATG_CHANGE : BEGIN - on UWP users might now arrive until later.  Re-check invites at that point.
+	// @ATG_CHANGE : BEGIN - on UWP users might not arrive until later.  Re-check invites at that point.
 	// Harmless on Xbox since we've already consumed any saved invite.
 	UserAddedToken = User::UserAdded += ref new EventHandler<UserAddedEventArgs^>(
 		[this](Platform::Object^, UserAddedEventArgs^ Args)
@@ -237,9 +294,9 @@ void FOnlineSessionLive::CleanUpOrphanedSessions(Windows::Xbox::System::User^ Us
 {
 	try
 	{
-		auto LiveContext = LiveSubsystem->GetLiveContext(User);
-		
-		// @ATG_CHANGE :  BEGIN UWP LIVE support
+		XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(User);
+
+		// @ATG_CHANGE : BEGIN UWP LIVE support
 		auto SessionsRequest = ref new MultiplayerGetSessionsRequest(LiveContext->AppConfig->ServiceConfigurationId, MAX_ORPHANED_SESSIONS_RESULTS);
 		SessionsRequest->IncludePrivateSessions = true;
 		SessionsRequest->IncludeReservations = true;
@@ -248,9 +305,9 @@ void FOnlineSessionLive::CleanUpOrphanedSessions(Windows::Xbox::System::User^ Us
 		SessionsRequest->VisibilityFilter = MultiplayerSessionVisibility::Any;
 
 		auto AsyncGetOp = LiveContext->MultiplayerService->GetSessionsAsync(SessionsRequest);
-		// @ATG_CHANGE :  END
+		// @ATG_CHANGE : END
 
-		create_task(AsyncGetOp).then([User, LiveContext](task<IVectorView<MultiplayerSessionStates^>^> Task)
+		Concurrency::create_task(AsyncGetOp).then([User, LiveContext](Concurrency::task<IVectorView<MultiplayerSessionStates^>^> Task)
 		{
 			try
 			{
@@ -258,26 +315,26 @@ void FOnlineSessionLive::CleanUpOrphanedSessions(Windows::Xbox::System::User^ Us
 
 				UE_LOG_ONLINE(Log, TEXT("Found %d potentially orphaned sessions."), Results->Size);
 
-				for(auto SessionState : Results)
+				for (auto SessionState : Results)
 				{
 					UE_LOG_ONLINE(Log, TEXT("Potentially orphaned session:"));
 					UE_LOG_ONLINE(Log, TEXT("  Template name: %s"), SessionState->SessionReference->SessionTemplateName->Data());
 					UE_LOG_ONLINE(Log, TEXT("  Id: %s"), SessionState->SessionReference->SessionName->Data());
 					UE_LOG_ONLINE(Log, TEXT("  State: %s"), SessionState->Status.ToString()->Data());
-					
+
 					auto GetSessionOp = LiveContext->MultiplayerService->GetCurrentSessionAsync(SessionState->SessionReference);
-					
-					create_task(GetSessionOp).then([User, LiveContext, SessionState](task<MultiplayerSession^> SessionTask)
+
+					Concurrency::create_task(GetSessionOp).then([User, LiveContext, SessionState](Concurrency::task<MultiplayerSession^> SessionTask)
 					{
 						try
 						{
 							auto Session = SessionTask.get();
-							
+
 							if (!Session)
 							{
 								return;
 							}
-							
+
 							for (auto Member : Session->Members)
 							{
 								if (Member->XboxUserId != User->XboxUserId)
@@ -289,9 +346,9 @@ void FOnlineSessionLive::CleanUpOrphanedSessions(Windows::Xbox::System::User^ Us
 								if (Member->Status == MultiplayerSessionMemberStatus::Active || Member->Status == MultiplayerSessionMemberStatus::Inactive)
 								{
 									Session->Leave();
-									
+
 									auto WriteOp = LiveContext->MultiplayerService->WriteSessionAsync(Session, MultiplayerSessionWriteMode::UpdateExisting);
-									create_task(WriteOp).then([Session](task<MultiplayerSession^> WriteTask)
+									Concurrency::create_task(WriteOp).then([Session](Concurrency::task<MultiplayerSession^> WriteTask)
 									{
 										try
 										{
@@ -342,24 +399,24 @@ bool FOnlineSessionLive::CreateSession(const FUniqueNetId& HostingPlayerId, FNam
 {
 	// Check for an existing session
 	FNamedOnlineSession* Session = GetNamedSession(SessionName);
-	
+
 	if (Session != nullptr)
 	{
 		UE_LOG(LogOnline, Warning, TEXT("Cannot create session '%s': session already exists."), *SessionName.ToString());
 		TriggerOnCreateSessionCompleteDelegates(SessionName, false);
 		return false;
 	}
-	
+
 	// Create a new session and deep copy the game settings
 	Session = AddNamedSession(SessionName, NewSessionSettings);
 	check(Session != nullptr);
 	Session->SessionState = EOnlineSessionState::Creating;
 	Session->bHosting = true;
-	Session->LocalOwnerId = MakeShareable(new FUniqueNetIdLive(HostingPlayerId));
+	Session->LocalOwnerId = MakeShared<FUniqueNetIdLive>(HostingPlayerId);
 
 	FString TemplateNameString;
-	const FOnlineSessionSetting* TemplateNameSetting = NewSessionSettings.Settings.Find( SETTING_SESSION_TEMPLATE_NAME );
-	if ( TemplateNameSetting )
+	const FOnlineSessionSetting* TemplateNameSetting = NewSessionSettings.Settings.Find(SETTING_SESSION_TEMPLATE_NAME);
+	if (TemplateNameSetting)
 	{
 		TemplateNameSetting->Data.GetValue(TemplateNameString);
 	}
@@ -372,7 +429,7 @@ bool FOnlineSessionLive::CreateSession(const FUniqueNetId& HostingPlayerId, FNam
 	try
 	{
 		auto writeSessionOp = CreateSessionOperation(HostingPlayerId, NewSessionSettings, Keyword, TemplateNameString);
-		if(!writeSessionOp)
+		if (!writeSessionOp)
 		{
 			UE_LOG(LogOnline, Log, TEXT("Failed to create async create session operation"));
 			RemoveNamedSession(SessionName);
@@ -380,77 +437,80 @@ bool FOnlineSessionLive::CreateSession(const FUniqueNetId& HostingPlayerId, FNam
 			return false;
 		}
 
-		// @ATG_CHANGE :  BEGIN Allow modifying session visibility/joinability
-		create_task(writeSessionOp).then([this,CreatingUser,SessionName,NewSessionSettings](task<MultiplayerSession^> CreateTask)
-		// @ATG_CHANGE :  END
-		{    
-			Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession = nullptr;
-			try 
+		// @ATG_CHANGE : BEGIN Allow modifying session visibility/joinability
+		Concurrency::create_task(writeSessionOp).then([this,CreatingUser,SessionName,NewSessionSettings](Concurrency::task<MultiplayerSession^> CreateTask)
+		// @ATG_CHANGE : END
+		{
+			MultiplayerSession^ LiveSession = nullptr;
+			try
 			{
 				LiveSession = CreateTask.get(); // if t.get() didn't throw, it succeeded
 
 				LiveSubsystem->GetSessionMessageRouter()->AddOnSessionChangedDelegate(OnSessionChangedDelegate, LiveSession->SessionReference);
 				// Now that the session is created, we can get the device token and set this console as the host.
 				MultiplayerSessionMember^ HostMember = nullptr;
-				for (auto Member : LiveSession->Members)
+				for (MultiplayerSessionMember^ Member : LiveSession->Members)
 				{
-					if(Member->XboxUserId == CreatingUser->XboxUserId)
+					if (Member->XboxUserId == CreatingUser->XboxUserId)
 					{
 						HostMember = Member;
 					}
 				}
 
-				TSharedPtr<const FUniqueNetId> CreatingUserUniqueId = MakeShareable(new FUniqueNetIdLive(CreatingUser->XboxUserId));
+				TSharedRef<const FUniqueNetId> CreatingUserUniqueId(MakeShared<FUniqueNetIdLive>(CreatingUser->XboxUserId));
 
-				if(HostMember == nullptr)
+				XboxLiveContext^ Context = LiveSubsystem->GetLiveContext(CreatingUser);
+				check(Context != nullptr);
+
+				if (HostMember == nullptr)
 				{
 					UE_LOG_ONLINE(Warning, TEXT("Could not find creator in session members. Not setting host."));
-					
-					auto NewTask = new FOnlineAsyncTaskLiveCreateSession(
+
+					// Set activity now if we're done updating the session
+					LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveSetSessionActivity>(LiveSubsystem, Context, LiveSession->SessionReference);
+
+					LiveSubsystem->CreateAndDispatchAsyncEvent<FOnlineAsyncTaskLiveCreateSession>(
 						this,
 						CreatingUserUniqueId,
 						SessionName,
 						LiveSession);
-					LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue(NewTask);
 					return;
 				}
 
 				// Simple host selection - the user that creates the session is the host.
 				LiveSession->SetHostDeviceToken(HostMember->DeviceToken);
 
-				// @ATG_CHANGE :  BEGIN Allow modifying session visibility/joinability
+				// @ATG_CHANGE : BEGIN Allow modifying session visibility/joinability
 				// Now that the session is created its constants should be fully initialized - as such
 				// it's now safe to rely on constants to help determine joinability.
 				WriteSessionPrivacySettingsToLiveJson(NewSessionSettings, LiveSession);
-				// @ATG_CHANGE :  END
-
-				XboxLiveContext^ Context = LiveSubsystem->GetLiveContext(CreatingUser);
+				// @ATG_CHANGE : END
 				
 				// This will be the session used for invites/join in progress if supported.
-				Context->MultiplayerService->SetActivityAsync(LiveSession->SessionReference);
 
 				auto WriteSessionOp = Context->MultiplayerService->WriteSessionAsync(
 					LiveSession,
 					MultiplayerSessionWriteMode::UpdateExisting);
 
-				create_task(WriteSessionOp).then([this, CreatingUserUniqueId,SessionName, LiveSession](task<MultiplayerSession^> WriteTask)
+				Concurrency::create_task(WriteSessionOp).then([this, CreatingUserUniqueId, SessionName, LiveSession, Context](Concurrency::task<MultiplayerSession^> WriteTask)
 				{
 					try
 					{
 						auto NewSession = WriteTask.get(); // if t.get() didn't throw, it succeeded
-						
-						auto NewTask = new FOnlineAsyncTaskLiveCreateSession(
+
+						LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveSetSessionActivity>(LiveSubsystem, Context, NewSession->SessionReference);
+
+						LiveSubsystem->CreateAndDispatchAsyncEvent<FOnlineAsyncTaskLiveCreateSession>(
 							this,
 							CreatingUserUniqueId,
 							SessionName,
 							NewSession);
-						LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue(NewTask);
 					}
-					catch ( Platform::COMException^ ex )
+					catch (Platform::COMException^ Ex)
 					{
 						UE_LOG_ONLINE(Warning, TEXT("WriteSessionAsync failed attempting to write host device token."));
-						
-						LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this, SessionName, LiveSession]()
+
+						LiveSubsystem->ExecuteNextTick([this, SessionName, LiveSession]()
 						{
 							if (LiveSession)
 							{
@@ -462,11 +522,11 @@ bool FOnlineSessionLive::CreateSession(const FUniqueNetId& HostingPlayerId, FNam
 					}
 				});
 			}
-			catch (Platform::Exception^ ex)
+			catch (Platform::Exception^ Ex)
 			{
-				UE_LOG(LogOnline, Log, TEXT("Create Session Task failed with 0x%0.8X"), ex->HResult);
-	
-				LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this, SessionName, LiveSession]()
+				UE_LOG(LogOnline, Log, TEXT("Create Session Task failed with 0x%0.8X"), Ex->HResult);
+
+				LiveSubsystem->ExecuteNextTick([this, SessionName, LiveSession]()
 				{
 					if (LiveSession)
 					{
@@ -477,10 +537,10 @@ bool FOnlineSessionLive::CreateSession(const FUniqueNetId& HostingPlayerId, FNam
 				});
 			}
 		});
-	} 
-	catch(Platform::Exception^ ex)
+	}
+	catch(Platform::Exception^ Ex)
 	{
-		UE_LOG(LogOnline, Log, L"Create Session Task failed with 0x%0.8X", ex->HResult);
+		UE_LOG(LogOnline, Log, L"Create Session Task failed with 0x%0.8X", Ex->HResult);
 		RemoveNamedSession(SessionName);
 		TriggerOnCreateSessionCompleteDelegates(SessionName, false);
 		return false;
@@ -494,7 +554,7 @@ bool FOnlineSessionLive::IsPlayerInSession(FName SessionName, const FUniqueNetId
 	return IsPlayerInSessionImpl(this, SessionName, UniqueId);
 }
 
-bool FOnlineSessionLive::FindSessions(int32 SearchingPlayerControllerIndex, const TSharedRef<FOnlineSessionSearch>& SearchSettings) 
+bool FOnlineSessionLive::FindSessions(int32 SearchingPlayerControllerIndex, const TSharedRef<FOnlineSessionSearch>& SearchSettings)
 {
 	auto UniqueId = LiveSubsystem->GetIdentityLive()->GetUniquePlayerId(SearchingPlayerControllerIndex);
 	if (!UniqueId.IsValid())
@@ -507,7 +567,7 @@ bool FOnlineSessionLive::FindSessions(int32 SearchingPlayerControllerIndex, cons
 	return FindSessions(*UniqueId, SearchSettings);
 }
 
-bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, const TSharedRef<FOnlineSessionSearch>& SearchSettings) 
+bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, const TSharedRef<FOnlineSessionSearch>& SearchSettings)
 {
 	// Don't start another search while one is in progress
 	if (!CurrentSessionSearch.IsValid() && SearchSettings->SearchState != EOnlineAsyncTaskState::InProgress)
@@ -529,7 +589,7 @@ bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, con
 		SearchSettings->QuerySettings.Get(SEARCH_USER, InUser);
 		SearchSettings->QuerySettings.Get(SEARCH_KEYWORDS, InKeywords);
 		SearchSettings->QuerySettings.Get(SETTING_MAX_RESULT, MaxResult);
-		if(MaxResult == 0)
+		if (MaxResult == 0)
 		{
 			// Default value is 100, this is arbitrary
 			MaxResult = 100;
@@ -540,9 +600,9 @@ bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, con
 		SearchSettings->QuerySettings.Get(SETTING_FIND_INACTIVE_SESSIONS,	IncludeInactiveSessions);
 		SearchSettings->QuerySettings.Get(SETTING_MULTIPLAYER_VISIBILITY,	MultiplayerVisibility);
 
-		String ^sessionTemplateNameFilter	= ref new Platform::String( *InGameType );
-		String ^xboxUserIdFilter			= ref new Platform::String( *InUser );
-		String ^keywordFilter				= ref new Platform::String( *InKeywords );
+		Platform::String^ sessionTemplateNameFilter	= ref new Platform::String(*InGameType);
+		Platform::String^ xboxUserIdFilter			= ref new Platform::String(*InUser);
+		Platform::String^ keywordFilter				= ref new Platform::String(*InKeywords);
 
 		try
 		{
@@ -554,7 +614,7 @@ bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, con
 				return false;
 			}
 
-			// @ATG_CHANGE :  BEGIN UWP LIVE support
+			// @ATG_CHANGE : BEGIN UWP LIVE support
 			auto SessionsRequest = ref new MultiplayerGetSessionsRequest(LiveContext->AppConfig->ServiceConfigurationId, MaxResult);
 			SessionsRequest->IncludePrivateSessions = IncludePrivateSessions;
 			SessionsRequest->IncludeReservations = IncludeReservations;
@@ -566,10 +626,10 @@ bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, con
 
 			IAsyncOperation<IVectorView<MultiplayerSessionStates^>^>^  SearchOp;
 			SearchOp = LiveContext->MultiplayerService->GetSessionsAsync(SessionsRequest);
-			// @ATG_CHANGE :  END
+			// @ATG_CHANGE : END
 
-			create_task(SearchOp)
-				.then( [this,SearchSettings,LiveContext] (task<IVectorView<MultiplayerSessionStates^>^> SearchTask)
+			Concurrency::create_task(SearchOp)
+				.then([this,SearchSettings,LiveContext] (Concurrency::task<IVectorView<MultiplayerSessionStates^>^> SearchTask)
 			{
 				try
 				{
@@ -579,37 +639,42 @@ bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, con
 					if (ExpectedResults == 0)
 					{
 						// Finish on the Game thread
-						LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this, SearchSettings]()
+						LiveSubsystem->ExecuteNextTick([this, SearchSettings]()
 						{
 							SearchSettings->SearchState = EOnlineAsyncTaskState::Done;
 							CurrentSessionSearch = nullptr;
-							TriggerOnFindSessionsCompleteDelegates(true);  
+							TriggerOnFindSessionsCompleteDelegates(true);
 						});
 						return;
 					}
-			
-					for(auto SessionState : SearchResults)
+
+					for (auto SessionState : SearchResults)
 					{
 						if (SessionState->SessionReference != nullptr)
 						{
 							auto GetSessionOp = LiveContext->MultiplayerService->GetCurrentSessionAsync(SessionState->SessionReference);
-							create_task(GetSessionOp)
-								.then( [this,SearchSettings,LiveContext] (task<MultiplayerSession^> t)
+							Concurrency::create_task(GetSessionOp)
+								.then([this, SearchSettings, LiveContext](Concurrency::task<MultiplayerSession^> t)
 							{
 								// Lock for the entirety of this scope to protect safe access to SearchSettings' SearchResults and ExpectedResults
 								FScopeLock Lock(&SessionResultLock);
-								try 
+								try
 								{
 									MultiplayerSession^ SearchResult = t.get();
 									if (SearchResult)
-									{										
-										String^ HostDisplayName = ref new String(TEXT("Unknown host"));
+									{
+										Platform::String^ HostDisplayName = nullptr;
 										auto HostMember = GetLiveSessionHost(SearchResult);
-										if(HostMember)
+										if (HostMember)
 										{
-												// XR-46 permits the use of Gamertag here.
-												HostDisplayName = HostMember->Gamertag;
-										}     
+											// XR-46 permits the use of Gamertag here.
+											HostDisplayName = HostMember->Gamertag;
+										}
+										else
+										{
+											HostDisplayName = ref new Platform::String(TEXT("Unknown Host"));
+										}
+
 										auto NewSearchResult = CreateSearchResultFromSession(SearchResult, HostDisplayName, LiveContext);
 										SearchSettings->SearchResults.Add(NewSearchResult);
 									}
@@ -619,7 +684,7 @@ bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, con
 									UE_LOG(LogOnline, Log,TEXT("A MultiplayerService::GetCurrentSessionAsync call failed with 0x%0.8X"), ex->HResult);
 								}
 
-								ExpectedResults--;
+								--ExpectedResults;
 
 								if (ExpectedResults == 0)
 								{
@@ -631,7 +696,7 @@ bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, con
 						{
 							//Lock for the entirety of the fail case so ExpectedResults is valid for it.
 							FScopeLock Lock(&SessionResultLock);
-							ExpectedResults--;
+							--ExpectedResults;
 
 							if (ExpectedResults == 0)
 							{
@@ -643,12 +708,12 @@ bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, con
 				catch (Platform::Exception^ ex)
 				{
 					UE_LOG(LogOnline, Log,TEXT("MultiplayerService::GetSessionsAsync with 0x%0.8X"), ex->HResult);
-					
-					LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this,SearchSettings]()
+
+					LiveSubsystem->ExecuteNextTick([this,SearchSettings]()
 					{
 						CurrentSessionSearch = nullptr;
 						SearchSettings->SearchState = EOnlineAsyncTaskState::Failed;
-						TriggerOnFindSessionsCompleteDelegates(false); 
+						TriggerOnFindSessionsCompleteDelegates(false);
 					});
 				}
 			});
@@ -660,7 +725,7 @@ bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, con
 		catch (Platform::Exception^ ex)
 		{
 			UE_LOG(LogOnline, Log,TEXT("MultiplayerService::GetSessionsAsync failed with 0x%0.8X: %s"), ex->HResult, ex->ToString()->Data());
-			TriggerOnFindSessionsCompleteDelegates(false); 
+			TriggerOnFindSessionsCompleteDelegates(false);
 			return false;
 		}
 	}
@@ -672,14 +737,84 @@ bool FOnlineSessionLive::FindSessions(const FUniqueNetId& SearchingPlayerId, con
 	return true;
 }
 
-bool FOnlineSessionLive::FindSessionById(const FUniqueNetId& SearchingUserId, const FUniqueNetId& SessionId, const FUniqueNetId& FriendId, const FOnSingleSessionResultCompleteDelegate& CompletionDelegates)
+bool FOnlineSessionLive::FindSessionById(const FUniqueNetId& SearchingUserId, const FUniqueNetId& SessionId, const FUniqueNetId& FriendId, const FOnSingleSessionResultCompleteDelegate& CompletionDelegate)
 {
-	FOnlineSessionSearchResult EmptyResult;
-	CompletionDelegates.ExecuteIfBound(0, false, EmptyResult);
+	UNREFERENCED_PARAMETER(FriendId);
+
+	if (!SearchingUserId.IsValid())
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Invalid local-user: %s"), *SearchingUserId.ToString());
+		LiveSubsystem->ExecuteNextTick([this, CompletionDelegate]()
+		{
+			FOnlineSessionSearchResult EmptyResult;
+			CompletionDelegate.ExecuteIfBound(0, false, EmptyResult);
+		});
+		return false;
+	}
+
+	FOnlineIdentityLivePtr IdentityPtr = LiveSubsystem->GetIdentityLive();
+	if (!IdentityPtr.IsValid())
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Identity Interface invalid"));
+		LiveSubsystem->ExecuteNextTick([this, CompletionDelegate]()
+		{
+			FOnlineSessionSearchResult EmptyResult;
+			CompletionDelegate.ExecuteIfBound(0, false, EmptyResult);
+		});
+		return false;
+	}
+
+	const int32 LocalUserNum = IdentityPtr->GetControllerIndexForId(SearchingUserId);
+	if (LocalUserNum < 0 || LocalUserNum >= MAX_LOCAL_PLAYERS)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Invalid local-user: %s"), *SearchingUserId.ToString());
+		LiveSubsystem->ExecuteNextTick([this, CompletionDelegate]()
+		{
+			FOnlineSessionSearchResult EmptyResult;
+			CompletionDelegate.ExecuteIfBound(0, false, EmptyResult);
+		});
+		return false;
+	}
+
+	XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(LocalUserNum);
+	if (!LiveContext)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Unknown local-user: %s"), *SearchingUserId.ToString());
+		LiveSubsystem->ExecuteNextTick([this, LocalUserNum, CompletionDelegate]()
+		{
+			FOnlineSessionSearchResult EmptyResult;
+			CompletionDelegate.ExecuteIfBound(LocalUserNum, false, EmptyResult);
+		});
+		return false;
+	}
+
+	if (!SessionId.IsValid())
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Invalid session id: %s"), *SessionId.ToString());
+		LiveSubsystem->ExecuteNextTick([this, LocalUserNum, CompletionDelegate]()
+		{
+			FOnlineSessionSearchResult EmptyResult;
+			CompletionDelegate.ExecuteIfBound(LocalUserNum, false, EmptyResult);
+		});
+		return false;
+	}
+
+	LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveFindSessionById>(LiveSubsystem, LiveContext, LocalUserNum, SessionId.ToString(), CompletionDelegate);
 	return true;
 }
 
-FOnlineSessionSearchResult* ResultFromSDA(String^ SDABase64, const TSharedRef<FOnlineSessionSearch>& SearchSettings)
+bool FOnlineSessionLive::CancelFindSessions()
+{
+	// Unsupported
+	LiveSubsystem->ExecuteNextTick([this]()
+	{
+		TriggerOnCancelFindSessionsCompleteDelegates(false);
+	});
+
+	return false;
+}
+
+FOnlineSessionSearchResult* ResultFromSDA(Platform::String^ SDABase64, const TSharedRef<FOnlineSessionSearch>& SearchSettings)
 {
 	for (FOnlineSessionSearchResult& SearchResult : SearchSettings->SearchResults)
 	{
@@ -687,17 +822,19 @@ FOnlineSessionSearchResult* ResultFromSDA(String^ SDABase64, const TSharedRef<FO
 		for (auto Member : LiveSessionInfo->GetLiveMultiplayerSession()->Members)
 		{
 			if (Member->SecureDeviceAddressBase64 == SDABase64)
+			{
 				return &SearchResult;
+			}
 		}
 	}
 	return nullptr;
 }
 void FOnlineSessionLive::PingResultsAndTriggerDelegates(const TSharedRef<FOnlineSessionSearch>& SearchSettings)
-{ 
-	auto Addresses = ref new Vector<SecureDeviceAddress^>();
-	auto Metrics = ref new Vector<QualityOfServiceMetric>();
+{
+	Vector<SecureDeviceAddress^>^ Addresses = ref new Vector<SecureDeviceAddress^>();
+	Vector<QualityOfServiceMetric>^ Metrics = ref new Vector<QualityOfServiceMetric>();
 	Metrics->Append(QualityOfServiceMetric::LatencyAverage);
-	
+
 	for (auto SearchResult : SearchSettings->SearchResults)
 	{
 		FOnlineSessionInfoLive* LiveSessionInfo = static_cast<FOnlineSessionInfoLive*>(SearchResult.Session.SessionInfo.Get());
@@ -707,13 +844,13 @@ void FOnlineSessionLive::PingResultsAndTriggerDelegates(const TSharedRef<FOnline
 			continue;
 		}
 
-		String^ HostSDABase64 = Host->SecureDeviceAddressBase64;
+		Platform::String^ HostSDABase64 = Host->SecureDeviceAddressBase64;
 		if (nullptr == HostSDABase64)
 		{
 			continue;
 		}
-		
-		auto SDA = SecureDeviceAddress::FromBase64String(HostSDABase64);
+
+		SecureDeviceAddress^ SDA = SecureDeviceAddress::FromBase64String(HostSDABase64);
 		if (nullptr == SDA) //Non Thunderhead dedicated servers need to manually ping the result here...
 		{
 			continue;
@@ -725,14 +862,14 @@ void FOnlineSessionLive::PingResultsAndTriggerDelegates(const TSharedRef<FOnline
 
 	if (Addresses->Size > 0)
 	{
-		create_task(
+		Concurrency::create_task(
 			QualityOfService::MeasureQualityOfServiceAsync(
-			Addresses, 
-			Metrics, 
-			QOS_TIMEOUT_MILLISECONDS,  
-			QOS_PROBE_COUNT               
+			Addresses,
+			Metrics,
+			QOS_TIMEOUT_MILLISECONDS,
+			QOS_PROBE_COUNT
 			))
-			.then([this, SearchSettings](task<MeasureQualityOfServiceResult^> Task)
+			.then([this, SearchSettings](Concurrency::task<MeasureQualityOfServiceResult^> Task)
 		{
 			try
 			{
@@ -755,23 +892,34 @@ void FOnlineSessionLive::PingResultsAndTriggerDelegates(const TSharedRef<FOnline
 				UE_LOG_ONLINE(Warning, TEXT("MeasureQualityOfServiceAsync failed: 0x%0.8X"), Ex->HResult);
 			}
 
-			LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this,SearchSettings]()
+			LiveSubsystem->ExecuteNextTick([this,SearchSettings]()
 			{
 				SearchSettings->SearchState = EOnlineAsyncTaskState::Done;
 				CurrentSessionSearch = nullptr;
-				TriggerOnFindSessionsCompleteDelegates(true); 
+				TriggerOnFindSessionsCompleteDelegates(true);
 			});
 		});
 	}
 	else
 	{
-		LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this,SearchSettings]()
+		LiveSubsystem->ExecuteNextTick([this,SearchSettings]()
 		{
 			SearchSettings->SearchState = EOnlineAsyncTaskState::Done;
 			CurrentSessionSearch = nullptr;
-			TriggerOnFindSessionsCompleteDelegates(true); 
+			TriggerOnFindSessionsCompleteDelegates(true);
 		});
 	}
+}
+
+int32 FOnlineSessionLive::GetHostingPlayerNum(const FUniqueNetId& HostNetId) const
+{
+	FOnlineIdentityLivePtr IdentityPtr = LiveSubsystem->GetIdentityLive();
+	if (!IdentityPtr.IsValid())
+	{
+		return -1;
+	}
+
+	return IdentityPtr->GetControllerIndexForId(HostNetId);
 }
 
 bool FOnlineSessionLive::StartMatchmaking(const TArray< TSharedRef<const FUniqueNetId> >& LocalPlayers, FName SessionName, const FOnlineSessionSettings& NewSessionSettings, TSharedRef<FOnlineSessionSearch>& SearchSettings)
@@ -779,7 +927,7 @@ bool FOnlineSessionLive::StartMatchmaking(const TArray< TSharedRef<const FUnique
 	return LiveSubsystem->GetMatchmakingInterfaceLive()->StartMatchmaking(LocalPlayers, SessionName, NewSessionSettings, SearchSettings);
 }
 
-bool FOnlineSessionLive::CancelMatchmaking(int32 SearchingPlayerNum, FName SessionName) 
+bool FOnlineSessionLive::CancelMatchmaking(int32 SearchingPlayerNum, FName SessionName)
 {
 	return LiveSubsystem->GetMatchmakingInterfaceLive()->CancelMatchmaking(SearchingPlayerNum, SessionName);
 }
@@ -788,7 +936,6 @@ bool FOnlineSessionLive::CancelMatchmaking(const FUniqueNetId& SearchingPlayerId
 {
 	return LiveSubsystem->GetMatchmakingInterfaceLive()->CancelMatchmaking(SearchingPlayerId, SessionName);
 }
-
 
 bool FOnlineSessionLive::JoinSession(int32 ControllerIndex, FName SessionName, const FOnlineSessionSearchResult& DesiredSession)
 {
@@ -807,99 +954,94 @@ bool FOnlineSessionLive::JoinSession(const FUniqueNetId& UserId, FName SessionNa
 	bool bRetVal = true;
 
 	// work out if we're already in the session or not
-	auto NamedSession = GetNamedSession(SessionName);
-
-	if(NamedSession)
+	FNamedOnlineSession* const NamedSessionCheck = GetNamedSession(SessionName);
+	if (NamedSessionCheck)
 	{
-		UE_LOG_ONLINE(Warning, TEXT("Session (%s) already exists, can't join twice"), *SessionName.ToString());
-		TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::AlreadyInSession);
+		LiveSubsystem->ExecuteNextTick([SessionName, this]()
+		{
+			UE_LOG_ONLINE(Warning, TEXT("Session (%s) already exists, can't join twice"), *SessionName.ToString());
+			TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::AlreadyInSession);
+		});
 		return false;
 	}
 
 	// If there's no secure device association template, we can't get the host's address.
-	if(!PeerTemplate)
+	if (!PeerTemplate && !DesiredSession.Session.SessionSettings.bIsDedicated)
 	{
-		UE_LOG_ONLINE(Warning, TEXT("No secure device association template, unable to join host."));
-		TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::CouldNotRetrieveAddress);
+		LiveSubsystem->ExecuteNextTick([SessionName, this]()
+		{
+			UE_LOG_ONLINE(Warning, TEXT("No secure device association template, unable to join host."));
+			TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::CouldNotRetrieveAddress);
+		});
 		return false;
 	}
 
-	// Check for a Join from URI (Invites, Join In Progress from Matchmade Sessions)
+	// Check for a Join from URI (Join In Progress from Matchmade Sessions)
 	FString SessionURI;
 	if (DesiredSession.Session.SessionSettings.Get(SETTING_GAME_SESSION_URI, SessionURI))
 	{
-		NamedSession = AddNamedSession(SessionName, DesiredSession.Session.SessionSettings);
+		FNamedOnlineSession* const NamedSession = AddNamedSession(SessionName, DesiredSession.Session.SessionSettings);
 		FString SessionTemplateName;
 		DesiredSession.Session.SessionSettings.Get(SETTING_SESSION_TEMPLATE_NAME, SessionTemplateName);
 
-		auto SessionReference = Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference::ParseFromUriPath(ref new String(*SessionURI));
+		MultiplayerSessionReference^ SessionReference = MultiplayerSessionReference::ParseFromUriPath(ref new Platform::String(*SessionURI));
 
-		SessionReference->ParseFromUriPath(ref new String(*SessionURI));
+		SessionReference->ParseFromUriPath(ref new Platform::String(*SessionURI));
 
-		if (auto LiveContext = LiveSubsystem->GetLiveContext(UserId))
+		if (XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(UserId))
 		{
-			FOnlineAsyncTaskLiveJoinSession* Task =
-				new FOnlineAsyncTaskLiveJoinSession( this,
-				SessionReference,
-				PeerTemplate,
-				LiveContext,
-				NamedSession,
-				LiveSubsystem,
-				MAX_RETRIES,
-				true);
-			LiveSubsystem->QueueAsyncTask(Task);
-			//LiveSubsystem->GetAsyncTaskManager()->Add(Task);
-
+			LiveSubsystem->CreateAndDispatchAsyncTaskSerial<FOnlineAsyncTaskLiveJoinSession>(this, SessionReference, PeerTemplate, LiveContext, NamedSession, LiveSubsystem, MAX_RETRIES, true);
 			return true;
 		}
 
 		RemoveNamedSession(SessionName);
-		TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::UnknownError);
+
+		LiveSubsystem->ExecuteNextTick([SessionName, this]()
+		{
+			TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::UnknownError);
+		});
 		return false;
 	}
 
 	// Create a named session from the search result data
-	NamedSession = AddNamedSession(SessionName, DesiredSession.Session);
-	// @ATG_CHANGE :  BEGIN Allow modifying session visibility/joinability
+	FNamedOnlineSession* const NamedSession = AddNamedSession(SessionName, DesiredSession.Session);
+	// @ATG_CHANGE : BEGIN Allow modifying session visibility/joinability
 	// Comments and other OSS implementations indicate the on non-host machines HostingPlayerNum 
 	// should be the local index of the player that iniated Join...
 	NamedSession->HostingPlayerNum = LiveSubsystem->GetIdentityLive()->GetControllerIndexForId(UserId);
-	// @ATG_CHANGE :  END
-	NamedSession->LocalOwnerId = MakeShareable(new FUniqueNetIdLive(UserId));
+	// @ATG_CHANGE : END
+	NamedSession->LocalOwnerId = MakeShared<FUniqueNetIdLive>(UserId);
 
-	if(!DesiredSession.Session.SessionInfo.IsValid())
+	if (!DesiredSession.Session.SessionInfo.IsValid())
 	{
 		UE_LOG_ONLINE(Warning, TEXT("Invalid session info on search result"));
 		RemoveNamedSession(SessionName);
-		TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::UnknownError);
+
+		LiveSubsystem->ExecuteNextTick([SessionName, this]()
+		{
+			TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::UnknownError);
+		});
 		return false;
 	}
 
 	const FOnlineSessionInfoLive* SearchSessionInfo = static_cast<FOnlineSessionInfoLive*>(DesiredSession.Session.SessionInfo.Get());
 
-	auto LiveSession = SearchSessionInfo->GetLiveMultiplayerSession();
-	auto LiveContext = LiveSubsystem->GetLiveContext(UserId);
+	MultiplayerSession^ LiveSession = SearchSessionInfo->GetLiveMultiplayerSession();
+	XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(UserId);
 	//Protect against signout
 	if (LiveContext == nullptr)
 	{
 		UE_LOG_ONLINE(Warning, TEXT("Invalid session info on search result"));
 		RemoveNamedSession(SessionName);
-		TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::UnknownError);
+		LiveSubsystem->ExecuteNextTick([SessionName, this]()
+		{
+			TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::UnknownError);
+		});
 		return false;
 	}
 
-	FOnlineAsyncTaskLiveJoinSession* Task =
-		new FOnlineAsyncTaskLiveJoinSession( this,
-											 LiveSession->SessionReference,
-											 PeerTemplate,
-											 LiveContext,
-											 NamedSession,
-											 LiveSubsystem,
-											 MAX_RETRIES );
-	
 	// Ensure this finishes before session notifications are processed so session is initialized
-	LiveSubsystem->QueueAsyncTask(Task);
-	
+	LiveSubsystem->CreateAndDispatchAsyncTaskSerial<FOnlineAsyncTaskLiveJoinSession>(this, LiveSession->SessionReference, PeerTemplate, LiveContext, NamedSession, LiveSubsystem, MAX_RETRIES);
 	return true;
 }
 
@@ -907,7 +1049,7 @@ MultiplayerSessionMember^ FOnlineSessionLive::GetCurrentUserFromSession(Multipla
 {
 	for (auto Member : LiveSession->Members)
 	{
-		if(Member->IsCurrentUser)
+		if (Member->IsCurrentUser)
 		{
 			return Member;
 		}
@@ -916,7 +1058,7 @@ MultiplayerSessionMember^ FOnlineSessionLive::GetCurrentUserFromSession(Multipla
 }
 
 //-----------------------------------------------------------------------------
-// This API returns the "Advertised Session" which my friend is in, not all sessions he is in.
+// This API returns the "Advertised Session" which my friend is in, not all sessions they are in.
 //-----------------------------------------------------------------------------
 
 bool FOnlineSessionLive::FindFriendSession(int32 LocalUserNum, const FUniqueNetId& Friend)
@@ -924,69 +1066,123 @@ bool FOnlineSessionLive::FindFriendSession(int32 LocalUserNum, const FUniqueNetI
 	try
 	{
 		Platform::Collections::Vector<Platform::String^>^ FriendVector = ref new Platform::Collections::Vector<Platform::String^>;
-		FriendVector->Append(ref new Platform::String( *Friend.ToString() ));
+		FriendVector->Append(ref new Platform::String(*Friend.ToString()));
 
-		auto LiveContext = LiveSubsystem->GetLiveContext(LocalUserNum);
+		XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(LocalUserNum);
 		if (LiveContext == nullptr)
 		{
-			FOnlineSessionSearchResult FriendSession;
-			TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, false, FriendSession);
+			UE_LOG_ONLINE(Warning, TEXT("FindFriendSession: Failed to retrieve Friend's multiplayer, no available LiveContext for user %d"), LocalUserNum);
+			LiveSubsystem->ExecuteNextTick([this, LocalUserNum]()
+			{
+				TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, false, TArray<FOnlineSessionSearchResult>());
+			});
 			return false;
 		}
 
-		// @ATG_CHANGE :  BEGIN UWP LIVE support
+		const FUniqueNetIdLive& LiveFriend = static_cast<const FUniqueNetIdLive>(Friend);
+
 		auto GetActivitiesOp =
-			LiveContext->MultiplayerService->GetActivitiesForUsersAsync( LiveContext->AppConfig->ServiceConfigurationId,
-																		 FriendVector->GetView() );
-		// @ATG_CHANGE :  END
+			// @ATG_CHANGE : BEGIN - UWP support
+			LiveContext->MultiplayerService->GetActivitiesForUsersAsync(LiveContext->AppConfig->ServiceConfigurationId,
+			// @ATG_CHANGE : END - UWP support
+																		FriendVector->GetView());
 
-		create_task(GetActivitiesOp)
-			.then([LiveContext](task<IVectorView<MultiplayerActivityDetails^> ^> Task)
-		{
-			try
+		Concurrency::create_task(GetActivitiesOp)
+			.then([this, LocalUserNum, LiveContext, LiveFriend](Concurrency::task<IVectorView<MultiplayerActivityDetails^> ^> Task)
 			{
-				IVectorView<MultiplayerActivityDetails^>^ ActivityDetails = Task.get();
-				if(ActivityDetails->Size == 0)
+				try
 				{
-					throw ref new Platform::InvalidArgumentException(); //  User does not have any advertisable session, let the exception handler below deal with it.
+					IVectorView<MultiplayerActivityDetails^>^ ActivityDetails = Task.get();
+					if (ActivityDetails->Size < 1)
+					{
+						// Friend has no advertised active session
+						UE_LOG_ONLINE(Verbose, TEXT("FindFriendSession: Friend has no multiplayer activity"));
+						LiveSubsystem->ExecuteNextTick([this, LocalUserNum, LiveFriend]()
+						{
+							TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, false, TArray<FOnlineSessionSearchResult>());
+
+							FOnlinePresenceLivePtr PresentInt = LiveSubsystem->GetPresenceLive();
+							if (PresentInt.IsValid())
+							{
+								PresentInt->OnFindFriendSessionCompleteForSessionUpdated(LocalUserNum, false, FOnlineSessionSearchResult(), LiveFriend);
+							}
+						});
+					}
+					else
+					{
+						auto GetSessionOp = LiveContext->MultiplayerService->GetCurrentSessionAsync(ActivityDetails->GetAt(0)->SessionReference);
+						Concurrency::create_task(GetSessionOp)
+							.then([this, LocalUserNum, LiveContext, LiveFriend](Concurrency::task<MultiplayerSession^> Task)
+							{
+								try
+								{
+									MultiplayerSession^ FriendLiveSession = Task.get();
+
+									MultiplayerSessionMember^ SessionHost = GetLiveSessionHost(FriendLiveSession);
+
+									Platform::String^ HostDisplayName = SessionHost != nullptr ? SessionHost->Gamertag : nullptr;
+
+									LiveSubsystem->ExecuteNextTick([this, LocalUserNum, FriendLiveSession, HostDisplayName, LiveFriend]()
+									{
+										FOnlineSessionSearchResult SearchResult = CreateSearchResultFromSession(FriendLiveSession, HostDisplayName);
+
+										// Trigger success delegate
+										{
+											TArray<FOnlineSessionSearchResult> FriendSessions;
+											FriendSessions.Add(SearchResult);
+
+											TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, true, FriendSessions); 
+										}
+
+										FOnlinePresenceLivePtr PresentInt = LiveSubsystem->GetPresenceLive();
+										if (PresentInt.IsValid())
+										{
+											PresentInt->OnFindFriendSessionCompleteForSessionUpdated(LocalUserNum, true, SearchResult, LiveFriend);
+										}
+									});
+								}
+								catch (Platform::Exception^ Ex)
+								{
+									// Ignore JSON parse errors, they indicate we don't have access to read the session (private sessions)
+									if (Ex->HResult != WEB_E_INVALID_JSON_STRING)
+									{
+										UE_LOG_ONLINE(Warning, TEXT("FindFriendSession: Failed to retrieve MultiplayerSession with 0x%0.8X"), Ex->HResult);
+									}
+
+									LiveSubsystem->ExecuteNextTick([this, LocalUserNum, LiveFriend]()
+									{
+										TArray<FOnlineSessionSearchResult> FriendSessions;
+										TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, false, FriendSessions);
+
+										FOnlinePresenceLivePtr PresentInt = LiveSubsystem->GetPresenceLive();
+										if (PresentInt.IsValid())
+										{
+											PresentInt->OnFindFriendSessionCompleteForSessionUpdated(LocalUserNum, false, FOnlineSessionSearchResult(), LiveFriend);
+										}
+									});
+								}
+							}
+						);
+					}
 				}
-
-				return LiveContext->MultiplayerService->GetCurrentSessionAsync( ActivityDetails->GetAt(0)->SessionReference );
-			}
-			catch(Platform::Exception^ ex)
-			{
-				UE_LOG_ONLINE(Warning, TEXT("FindFriendSession: Failed to retrieve Friend's multiplayer activity with 0x%0.8X"), ex->HResult);
-				throw;
-			}
-		})
-		.then([this, LocalUserNum, LiveContext](task<Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^> Task)
-		{
-			try
-			{
-				Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ FriendLiveSession = Task.get();				
-				String^ HostDisplayName = GetLiveSessionHost(FriendLiveSession)->Gamertag;
-
-				LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this, LocalUserNum, FriendLiveSession, HostDisplayName]()
+				catch (Platform::Exception^ ex)
 				{
-					FOnlineSessionSearchResult FriendSession = CreateSearchResultFromSession( FriendLiveSession, HostDisplayName );
-					TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, true, FriendSession); 
-				});
+					UE_LOG_ONLINE(Warning, TEXT("FindFriendSession: Failed to retrieve Friend's multiplayer activity with 0x%0.8X"), ex->HResult);
+					LiveSubsystem->ExecuteNextTick([this, LocalUserNum]()
+					{
+						TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, false, TArray<FOnlineSessionSearchResult>()); 
+					});
+				}
 			}
-			catch (Platform::Exception^ ex)
-			{
-				UE_LOG_ONLINE(Warning, TEXT("FindFriendSession: Failed to retrieve MultiplayerSession with 0x%0.8X"), ex->HResult);
-				LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this, LocalUserNum]()
-				{
-					FOnlineSessionSearchResult FriendSession;
-					TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, false, FriendSession); 
-				});
-			}
-		});
+		);
 	}
 	catch (Platform::Exception^ ex)
 	{
-		FOnlineSessionSearchResult FriendSession;
-		TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, false, FriendSession); 
+		UE_LOG_ONLINE(Warning, TEXT("FindFriendSession: Failed to query Friend's multiplayer activity with 0x%0.8X"), ex->HResult);
+		LiveSubsystem->ExecuteNextTick([this, LocalUserNum]()
+		{
+			TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, false, TArray<FOnlineSessionSearchResult>()); 
+		});
 		return false;
 	}
 
@@ -995,26 +1191,238 @@ bool FOnlineSessionLive::FindFriendSession(int32 LocalUserNum, const FUniqueNetI
 
 bool FOnlineSessionLive::FindFriendSession(const FUniqueNetId& LocalUserId, const FUniqueNetId& Friend)
 {
-	auto ControllerId = LiveSubsystem->GetIdentityLive()->GetControllerIndexForId(LocalUserId);
-	if (ControllerId == -1)
+	int32 ControllerId = LiveSubsystem->GetIdentityLive()->GetControllerIndexForId(LocalUserId);
+	if (ControllerId < 0 || ControllerId >= MAX_LOCAL_PLAYERS)
 	{
-		FOnlineSessionSearchResult FriendSession;
-			TriggerOnFindFriendSessionCompleteDelegates(-1, false, FriendSession); 
+		LiveSubsystem->ExecuteNextTick([this, ControllerId]()
+		{
+			TArray<FOnlineSessionSearchResult> FriendSessions;
+			TriggerOnFindFriendSessionCompleteDelegates(-1, false, FriendSessions); 
+		});
 		return false;
 	}
 
 	return FindFriendSession(ControllerId, Friend);
-};
+}
+
+bool FOnlineSessionLive::FindFriendSession(const FUniqueNetId& LocalUserId, const TArray<TSharedRef<const FUniqueNetId>>& FriendList)
+{
+	bool bSuccessfullyJoinedFriendSession = false;
+
+	UE_LOG(LogOnline, Display, TEXT("FOnlineSessionLive::FindFriendSession(const FUniqueNetId& LocalUserId, const TArray<TSharedRef<const FUniqueNetId>>& FriendList) - not implemented"));
+
+	int32 LocalUserNum = LiveSubsystem->GetIdentityLive()->GetPlatformUserIdFromUniqueNetId(LocalUserId);
+
+	TArray<FOnlineSessionSearchResult> EmptyResult;
+	TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, bSuccessfullyJoinedFriendSession, EmptyResult);
+
+	return bSuccessfullyJoinedFriendSession;
+}
+
+bool FOnlineSessionLive::SendSessionInviteToFriend(int32 LocalUserNum, FName SessionName, const FUniqueNetId& Friend)
+{
+	if (!Friend.IsValid())
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Cannot Invite invalid friend to session %s"), *SessionName.ToString());
+		return false;
+	}
+
+	XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(LocalUserNum);
+	if (!LiveContext)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Cannot Invite Friend %s to session %s, LocalUserNum %d is invalid"), *Friend.ToString(), *SessionName.ToString(), LocalUserNum);
+		return false;
+	}
+
+	Platform::Collections::Vector<Platform::String^>^ FriendsToInvite = ref new Platform::Collections::Vector<Platform::String^>();
+	FriendsToInvite->Append(ref new Platform::String(*Friend.ToString()));
+
+	return SendSessionInviteToFriends_Internal(LiveContext, SessionName, FriendsToInvite->GetView());
+}
+
+bool FOnlineSessionLive::SendSessionInviteToFriend(const FUniqueNetId& LocalUserId, FName SessionName, const FUniqueNetId& Friend)
+{
+	if (!LocalUserId.IsValid())
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Cannot Invite friend to session %s, LocalUserId is invalid"), *SessionName.ToString());
+		return false;
+	}
+
+	if (!Friend.IsValid())
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Cannot Invite invalid friend to session %s"), *SessionName.ToString());
+		return false;
+	}
+
+	XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(LocalUserId);
+	if (!LiveContext)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Cannot Invite Friend %s to session %s, LocalUserId %s is invalid"), *Friend.ToString(), *SessionName.ToString(), *LocalUserId.ToString());
+		return false;
+	}
+
+	Platform::Collections::Vector<Platform::String^>^ FriendsToInvite = ref new Platform::Collections::Vector<Platform::String^>();
+	FriendsToInvite->Append(ref new Platform::String(*Friend.ToString()));
+
+	return SendSessionInviteToFriends_Internal(LiveContext, SessionName, FriendsToInvite->GetView());
+}
+
+bool FOnlineSessionLive::SendSessionInviteToFriends(int32 LocalUserNum, FName SessionName, const TArray< TSharedRef<const FUniqueNetId> >& Friends)
+{
+	if (Friends.Num() < 1)
+	{
+		// Return true in this case, but log it since it's strange
+		UE_LOG_ONLINE(Warning, TEXT("Attempted to invite any empty array of friends to session %s"), *SessionName.ToString());
+		return true;
+	}
+
+	for (const TSharedRef<const FUniqueNetId>& Friend : Friends)
+	{
+		if (!Friend->IsValid())
+		{
+			UE_LOG_ONLINE(Warning, TEXT("Cannot Invite invalid friend to session %s"), *SessionName.ToString());
+			return false;
+		}
+	}
+
+	XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(LocalUserNum);
+	if (!LiveContext)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Cannot Invite Friends to session %s, LocalUserNum %d is invalid"), *SessionName.ToString(), LocalUserNum);
+		return false;
+	}
+
+	Platform::Collections::Vector<Platform::String^>^ FriendsToInvite = ref new Platform::Collections::Vector<Platform::String^>();
+	for (const TSharedRef<const FUniqueNetId>& Friend : Friends)
+	{
+		FriendsToInvite->Append(ref new Platform::String(*Friend->ToString()));
+	}
+
+	return SendSessionInviteToFriends_Internal(LiveContext, SessionName, FriendsToInvite->GetView());
+}
+
+bool FOnlineSessionLive::SendSessionInviteToFriends(const FUniqueNetId& LocalUserId, FName SessionName, const TArray< TSharedRef<const FUniqueNetId> >& Friends)
+{
+	if (!LocalUserId.IsValid())
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Cannot Invite friend to session %s, LocalUserId is invalid"), *SessionName.ToString());
+		return false;
+	}
+
+	if (Friends.Num() < 1)
+	{
+		// Return true in this case, but log it since it's strange
+		UE_LOG_ONLINE(Warning, TEXT("Attempted to invite any empty array of friends to session %s"), *SessionName.ToString());
+		return true;
+	}
+
+	for (const TSharedRef<const FUniqueNetId>& Friend : Friends)
+	{
+		if (!Friend->IsValid())
+		{
+			UE_LOG_ONLINE(Warning, TEXT("Cannot Invite invalid friend to session %s"), *SessionName.ToString());
+			return false;
+		}
+	}
+
+	XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(LocalUserId);
+	if (!LiveContext)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Cannot Invite Friends to session %s, LocalUserId %s is invalid"), *SessionName.ToString(), *LocalUserId.ToString());
+		return false;
+	}
+
+	Platform::Collections::Vector<Platform::String^>^ FriendsToInvite = ref new Platform::Collections::Vector<Platform::String^>();
+	for (const TSharedRef<const FUniqueNetId>& Friend : Friends)
+	{
+		FriendsToInvite->Append(ref new Platform::String(*Friend->ToString()));
+	}
+
+	return SendSessionInviteToFriends_Internal(LiveContext, SessionName, FriendsToInvite->GetView());}
+
+bool FOnlineSessionLive::SendSessionInviteToFriends_Internal(XboxLiveContext^ LiveContext, FName SessionName, Windows::Foundation::Collections::IVectorView<Platform::String^>^ FriendXuidVectorView)
+{
+	FNamedOnlineSession* SessionPtr = GetNamedSession(SessionName);
+	if (!SessionPtr)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Cannot Invite Friends to session %s, that session does not exist"), *SessionName.ToString());
+		return false;
+	}
+
+	if (SessionPtr->SessionState < EOnlineSessionState::Pending || SessionPtr->SessionState > EOnlineSessionState::InProgress)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Cannot Invite Friends to session %s, that session is in state %d"), *SessionName.ToString(), SessionPtr->SessionState);
+		return false;
+	}
+
+	TSharedPtr<FOnlineSessionInfoLive> SessionInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(SessionPtr->SessionInfo);
+	if (!SessionInfo.IsValid())
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Cannot Invite Friends to session %s, that session has invalid info"), *SessionName.ToString());
+		return false;
+	}
+
+	MultiplayerSessionReference^ LiveSessionReference = SessionInfo->GetLiveMultiplayerSessionRef();
+	if (!LiveSessionReference)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Cannot Invite Friends to session %s, that session has an invalid reference"), *SessionName.ToString());
+		return false;
+	}
+
+	LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveSendSessionInviteToFriends>(LiveSubsystem, LiveContext, LiveSessionReference, FriendXuidVectorView);
+	return true;
+}
+
+void FOnlineSessionLive::UpdateSessionChangedStats()
+{
+	if (SessionUpdateStatName.IsEmpty() || SessionUpdateEventName.IsEmpty())
+	{
+		return;
+	}
+
+	UE_LOG_ONLINE(VeryVerbose, TEXT("Updating Session Changed Stats"))
+
+	// This is a hack so that friends may subscribe to session change notifications
+
+	FOnlineIdentityLivePtr IdentityPtr = LiveSubsystem->GetIdentityLive();
+	IOnlineEventsPtr EventsInt = LiveSubsystem->GetEventsInterface();
+	if (IdentityPtr.IsValid() && EventsInt.IsValid())
+	{
+		for (int32 Index = 0; Index < MAX_LOCAL_PLAYERS; ++Index)
+		{
+			const TSharedPtr<const FUniqueNetId> LocalPlayerNetId = IdentityPtr->GetUniquePlayerId(Index);
+			if (LocalPlayerNetId.IsValid() && LocalPlayerNetId->IsValid())
+			{
+				static const FName SessionUpdateName(*SessionUpdateStatName);
+				static const FVariantData IncrementData = FVariantData(static_cast<int32>(1));
+
+				FOnlineEventParms StatParams;
+				StatParams.Add(SessionUpdateName, IncrementData);
+				if (!EventsInt->TriggerEvent(*LocalPlayerNetId, *SessionUpdateEventName, StatParams))
+				{
+					UE_LOG_ONLINE(Warning, TEXT("Failed to trigger session updated event"));
+				}
+			}
+		}
+	}
+}
+
+bool FOnlineSessionLive::IsSubscribedToSessionStatUpdates(const FUniqueNetIdLive& PlayerId) const
+{
+	return SessionUpdateStatSubsriptions.Contains(PlayerId);
+}
+
+void FOnlineSessionLive::AddSessionUpdateStatSubscription(const FUniqueNetIdLive& PlayerId)
+{
+	SessionUpdateStatSubsriptions.Add(PlayerId);
+}
 
 void FOnlineSessionLive::SetCurrentUserActive(int32 UserNum, MultiplayerSession^ LiveSession, bool bIsActive)
 {
-	check( LiveSession );
+	check(LiveSession);
 
 	//. Mark the current user as active, or otherwise
-	LiveSession->SetCurrentUserStatus(
-		bIsActive ?  
-		MultiplayerSessionMemberStatus::Active : 
-	MultiplayerSessionMemberStatus::Inactive );
+	LiveSession->SetCurrentUserStatus(bIsActive ? MultiplayerSessionMemberStatus::Active : MultiplayerSessionMemberStatus::Inactive);
 }
 
 /** Get a resolved connection string from a session info */
@@ -1043,7 +1451,7 @@ static bool GetConnectStringFromSessionInfo(TSharedPtr<FOnlineSessionInfoLive>& 
 	return bSuccess;
 }
 
-bool FOnlineSessionLive::GetResolvedConnectString(FName SessionName, FString& ConnectInfo)
+bool FOnlineSessionLive::GetResolvedConnectString(FName SessionName, FString& ConnectInfo, FName PortType)
 {
 	bool bSuccess = false;
 	// Find the session
@@ -1051,7 +1459,17 @@ bool FOnlineSessionLive::GetResolvedConnectString(FName SessionName, FString& Co
 	if (Session != NULL)
 	{
 		TSharedPtr<FOnlineSessionInfoLive> SessionInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(Session->SessionInfo);
-		bSuccess = GetConnectStringFromSessionInfo(SessionInfo, ConnectInfo);
+
+		if (PortType == BeaconPort)
+		{
+			int32 BeaconListenPort = GetBeaconPortFromSessionSettings(Session->SessionSettings);
+			bSuccess = GetConnectStringFromSessionInfo(SessionInfo, ConnectInfo, BeaconListenPort);
+		}
+		else if (PortType == GamePort)
+		{
+			bSuccess = GetConnectStringFromSessionInfo(SessionInfo, ConnectInfo);
+		}
+
 		if (!bSuccess)
 		{
 			UE_LOG_ONLINE(Warning, TEXT("Invalid session info for session %s in GetResolvedConnectString()"), *SessionName.ToString());
@@ -1076,12 +1494,7 @@ bool FOnlineSessionLive::GetResolvedConnectString(const FOnlineSessionSearchResu
 
 		if (PortType == BeaconPort)
 		{
-			int32 BeaconListenPort = DEFAULT_BEACON_PORT;
-			if (!SearchResult.Session.SessionSettings.Get(SETTING_BEACONPORT, BeaconListenPort) || BeaconListenPort <= 0)
-			{
-				// Reset the default BeaconListenPort back to DEFAULT_BEACON_PORT because the SessionSettings value does not exist or was not valid
-				BeaconListenPort = DEFAULT_BEACON_PORT;
-			}
+			int32 BeaconListenPort = GetBeaconPortFromSessionSettings(SearchResult.Session.SessionSettings);
 			bSuccess = GetConnectStringFromSessionInfo(SessionInfo, ConnectInfo, BeaconListenPort);
 		}
 		else if (PortType == GamePort)
@@ -1098,24 +1511,21 @@ bool FOnlineSessionLive::GetResolvedConnectString(const FOnlineSessionSearchResu
 	return bSuccess;
 }
 
-// @ATG_CHANGE :  BEGIN Allow modifying session visibility/joinability
 FOnlineSessionSettings* FOnlineSessionLive::GetSessionSettings(FName SessionName)
 {
-	auto Session = GetNamedSession(SessionName);
-	if (Session == nullptr)
+	FNamedOnlineSession* const MySession = GetNamedSession(SessionName);
+	if (!MySession)
 	{
-		UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::GetSessionSettings: couldn't find session '%s'"), *SessionName.ToString());
 		return nullptr;
 	}
 
-	return &Session->SessionSettings;
+	return &MySession->SessionSettings;
 }
-// @ATG_CHANGE :  END
 
 bool FOnlineSessionLive::RegisterPlayer(FName SessionName, const FUniqueNetId& PlayerId, bool bWasInvited)
 {
 	TArray< TSharedRef<const FUniqueNetId> > Players;
-	Players.Add(MakeShareable(new FUniqueNetIdLive(PlayerId)));
+	Players.Add(MakeShared<FUniqueNetIdLive>(PlayerId));
 	return RegisterPlayers(SessionName, Players, bWasInvited);
 }
 
@@ -1130,7 +1540,7 @@ bool FOnlineSessionLive::RegisterPlayers(FName SessionName, const TArray< TShare
 			for (int32 PlayerIdx=0; PlayerIdx < Players.Num(); PlayerIdx++)
 			{
 				const TSharedRef<const FUniqueNetId>& PlayerId = Players[PlayerIdx];
-				
+
 				FUniqueNetIdMatcher PlayerMatch(*PlayerId);
 				if (Session->RegisteredPlayers.IndexOfByPredicate(PlayerMatch) == INDEX_NONE)
 				{
@@ -1162,8 +1572,8 @@ bool FOnlineSessionLive::RegisterPlayers(FName SessionName, const TArray< TShare
 
 bool FOnlineSessionLive::UnregisterPlayer(FName SessionName, const FUniqueNetId& PlayerId)
 {
-	TArray< TSharedRef<const FUniqueNetId> > Players;
-	Players.Add(MakeShareable(new FUniqueNetIdLive(PlayerId)));
+	TArray<TSharedRef<const FUniqueNetId>> Players;
+	Players.Add(MakeShared<FUniqueNetIdLive>(PlayerId));
 	return UnregisterPlayers(SessionName, Players);
 }
 
@@ -1211,40 +1621,52 @@ bool FOnlineSessionLive::UnregisterPlayers(FName SessionName, const TArray< TSha
 
 bool FOnlineSessionLive::UpdateSession(FName SessionName, FOnlineSessionSettings& UpdatedSessionSettings, bool bShouldRefreshOnlineData)
 {
-	auto NamedSession = GetNamedSession(SessionName);
+	FNamedOnlineSession* const NamedSession = GetNamedSession(SessionName);
 
-	if(!NamedSession)
+	if (!NamedSession)
 	{
-		TriggerOnUpdateSessionCompleteDelegates(SessionName, false);
+		LiveSubsystem->ExecuteNextTick([this, SessionName]()
+		{
+			TriggerOnUpdateSessionCompleteDelegates(SessionName, false);
+		});
 		return false;
 	}
 
-	if(bShouldRefreshOnlineData)
+	if (bShouldRefreshOnlineData)
 	{
-		XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(NamedSession->HostingPlayerNum);
-		if(LiveContext == nullptr)
+		XboxLiveContext^ LiveContext = nullptr;
+		TSharedPtr<const FUniqueNetId> HostNetId(NamedSession->OwningUserId);
+		if (HostNetId.IsValid())
 		{
-			TriggerOnUpdateSessionCompleteDelegates(SessionName, false);
+			LiveContext = LiveSubsystem->GetLiveContext(*HostNetId);
+		}
+
+		if (LiveContext == nullptr)
+		{
+			LiveSubsystem->ExecuteNextTick([this, SessionName]()
+			{
+				TriggerOnUpdateSessionCompleteDelegates(SessionName, false);
+			});
 			return false;
 		}
 
-		auto UpdateSessionTask = new FOnlineAsyncTaskLiveUpdateSession(SessionName, LiveContext, LiveSubsystem, MAX_RETRIES, UpdatedSessionSettings);
-		LiveSubsystem->GetAsyncTaskManager()->AddToParallelTasks(UpdateSessionTask);
+		LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveUpdateSession>(SessionName, LiveContext, LiveSubsystem, MAX_RETRIES, UpdatedSessionSettings);
+		return true;
 	}
-	else //Update Player constants/Player group info 
+	else //Update Player constants/Player group info
 	{
-		int NumPendingUpdates = 0;
-		auto LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
+		int32 NumPendingUpdates = 0;
+		TSharedPtr<FOnlineSessionInfoLive> LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
 		if (LiveInfo.IsValid())
 		{
-			if (auto Session = LiveInfo->GetLiveMultiplayerSession())
+			if (MultiplayerSession^ Session = LiveInfo->GetLiveMultiplayerSession())
 			{
-				for (auto Member : LiveInfo->GetLiveMultiplayerSession()->Members)
+				for (MultiplayerSessionMember^ Member : Session->Members)
 				{
-					if (XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(FUniqueNetIdLive(Member->XboxUserId->Data())))
+					if (XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(FUniqueNetIdLive(Member->XboxUserId)))
 					{
-						FOnlineAsyncTaskLiveUpdateSessionMember* UpdateSessionTask = new FOnlineAsyncTaskLiveUpdateSessionMember(SessionName, LiveContext, LiveSubsystem, 10);
-						LiveSubsystem->GetAsyncTaskManager()->AddToParallelTasks(UpdateSessionTask);
+						constexpr const int32 RetryCount = 10;
+						LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveUpdateSessionMember>(SessionName, LiveContext, LiveSubsystem, RetryCount);
 						++NumPendingUpdates;
 					}
 				}
@@ -1253,165 +1675,165 @@ bool FOnlineSessionLive::UpdateSession(FName SessionName, FOnlineSessionSettings
 
 		if (NumPendingUpdates == 0)
 		{
-			TriggerOnUpdateSessionCompleteDelegates(SessionName, false);
+			LiveSubsystem->ExecuteNextTick([this, SessionName]()
+			{
+				TriggerOnUpdateSessionCompleteDelegates(SessionName, false);
+			});
+			return false;
 		}
 
-		return NumPendingUpdates != 0;
+		return true;
 	}
-
-	return true;
 }
 
-void FOnlineSessionLive::ReadSettingsFromLiveJson(MultiplayerSession^ LiveSession, FOnlineSession& Session, Microsoft::Xbox::Services::XboxLiveContext^ LiveContext)
+void FOnlineSessionLive::ReadSettingsFromLiveJson(MultiplayerSession^ LiveSession, FOnlineSession& Session, XboxLiveContext^ LiveContext)
 {
-	String^ PlatformPropertiesJson = LiveSession->SessionProperties->SessionCustomPropertiesJson;
-	FString PropertiesJson( PlatformPropertiesJson->Data() );
-	TSharedPtr< FJsonObject > JObj;
-	TSharedRef< TJsonReader<> > Reader = TJsonReaderFactory<>::Create( PropertiesJson );
+	FSessionSettings NewSettings;
 
-	if ( FJsonSerializer::Deserialize(Reader, JObj) && JObj.IsValid() )
+	// Copy existing values that are not service based
+	for (const FOnlineKeyValuePairs<FName, FOnlineSessionSetting>::ElementType& Pair : Session.SessionSettings.Settings)
 	{
-		FSessionSettings  NewSettings;
+		const FName						SettingName = Pair.Key;
+		const FOnlineSessionSetting&	SettingValue = Pair.Value;
 
-		// Copy existing values that are not service based
-		for ( FSessionSettings::TConstIterator It( Session.SessionSettings.Settings ); It; ++It)
+		if (SettingValue.AdvertisementType < EOnlineDataAdvertisementType::ViaOnlineService)
 		{
-			const FName&					SettingName = It.Key();
-			const FOnlineSessionSetting&	SettingValue = It.Value();
-
-			if ( SettingValue.AdvertisementType < EOnlineDataAdvertisementType::ViaOnlineService ) 
-			{
-				NewSettings.Add( SettingName, SettingValue );
-			}
+			NewSettings.Add(SettingName, SettingValue);
 		}
+	}
 
-		TMap< FString, TSharedPtr<FJsonValue> > JSettings = JObj->Values;
+	Platform::String^ PlatformPropertiesJson = LiveSession->SessionProperties->SessionCustomPropertiesJson;
+	FString PropertiesJson(PlatformPropertiesJson->Data());
+	TSharedPtr< FJsonObject > JObj;
+	TSharedRef< TJsonReader<> > Reader = TJsonReaderFactory<>::Create(PropertiesJson);
 
-		for ( auto it = JSettings.CreateConstIterator(); it; ++it )
+	if (FJsonSerializer::Deserialize(Reader, JObj) && JObj.IsValid())
+	{
+		for (const TMap<FString, TSharedPtr<FJsonValue>>::ElementType& Pair : JObj->Values)
 		{
-			const FString					JSettingName = it.Key();
-			const TSharedPtr<FJsonValue>	JSettingValue = it.Value();
+			const FString&					JSettingName = Pair.Key;
+			const TSharedPtr<FJsonValue>&	JSettingValue = Pair.Value;
 
 			FOnlineSessionSetting NewSetting;
 
 			// Create setting of matching data type
-			switch ( JSettingValue->Type )
+			switch (JSettingValue->Type)
 			{
 				case EJson::Array:
 				case EJson::Object:
-				case EJson::String:		
-					NewSetting = FOnlineSessionSetting( JSettingValue->AsString(), EOnlineDataAdvertisementType::ViaOnlineService ); 
+				case EJson::String:
+					NewSetting = FOnlineSessionSetting(JSettingValue->AsString(), EOnlineDataAdvertisementType::ViaOnlineService);
 					break;
 
-				case EJson::Number:		
-					NewSetting = FOnlineSessionSetting( JSettingValue->AsNumber(), EOnlineDataAdvertisementType::ViaOnlineService );
+				case EJson::Number:
+					NewSetting = FOnlineSessionSetting(JSettingValue->AsNumber(), EOnlineDataAdvertisementType::ViaOnlineService);
 					break;
 
-				case EJson::Boolean:	
-					NewSetting = FOnlineSessionSetting( JSettingValue->AsBool(), EOnlineDataAdvertisementType::ViaOnlineService );
+				case EJson::Boolean:
+					NewSetting = FOnlineSessionSetting(JSettingValue->AsBool(), EOnlineDataAdvertisementType::ViaOnlineService);
 					break;
 
 				default: continue;
 			}
 
-			if ( JSettingName == TEXT( "HostXboxUserId" ) )
+			if (JSettingName == TEXT("HostXboxUserId"))
 			{
-				if ( LiveContext != nullptr )
+				if (LiveContext != nullptr)
 				{
 					// If we pass in a live context, we are assuming this is on an async task already
 					// In this case, look up the name from the json value to override the OwningUserName
-					Platform::String^ HostXboxUserId = ref new Platform::String( *NewSetting.Data.ToString() );
-
-					auto ProfileOp = LiveContext->ProfileService->GetUserProfileAsync( HostXboxUserId );
+					Platform::String^ HostXboxUserId = ref new Platform::String(*NewSetting.Data.ToString());
 
 					try
 					{
+						auto ProfileOp = LiveContext->ProfileService->GetUserProfileAsync(HostXboxUserId);
+
 						// We're already in an async callback so it should be OK to block on the get() here.
-						auto HostProfile = create_task(ProfileOp).get();
-						Session.OwningUserName = FString( HostProfile->GameDisplayName->Data() );
+						XboxUserProfile^ HostProfile = Concurrency::create_task(ProfileOp).get();
+						Session.OwningUserName = FString(HostProfile->GameDisplayName->Data());
 					}
-					catch(Platform::COMException^ Ex)
+					catch (Platform::COMException^ Ex)
 					{
-						UE_LOG(LogOnline, Log,TEXT("A ProfileService::GetUserProfileAsync call failed with 0x%0.8X"), Ex->HResult);
+						UE_LOG(LogOnline, Warning, TEXT("A ProfileService::GetUserProfileAsync call failed with 0x%0.8X"), Ex->HResult);
 					}
 				}
 			}
 			else
 			{
-				NewSettings.Add( FName( *JSettingName ), NewSetting );
+				NewSettings.Add(FName(*JSettingName), NewSetting);
 			}
 		}
-
-		UpdateMatchMembersJson(NewSettings, LiveSession);
-
-		// Finally, replace existing with new settings (this deletes settings that have been removed)
-		Session.SessionSettings.Settings = NewSettings;
 	}
+
+	UpdateMatchMembersJson(NewSettings, LiveSession);
+
+	// Finally, replace existing with new settings (this deletes settings that have been removed)
+	Session.SessionSettings.Settings = NewSettings;
 }
 
 void FOnlineSessionLive::ExtractJsonMemberSettings(MultiplayerSession^ LiveSession, FString& OutJsonString)
 {
 	bool NeedComma = false;
 
-	// We could have used JsonWriter here, but it escapes JSON characters, so instead 
+	// We could have used JsonWriter here, but it escapes JSON characters, so instead
 	// we just build it manually so that we can pass our snippets of JSON directly
 
-	OutJsonString = FString( TEXT("{\"Members\":[") );
+	OutJsonString = FString(TEXT("{\"Members\":["));
 
-	for ( MultiplayerSessionMember^ member : LiveSession->Members )
+	for (MultiplayerSessionMember^ member : LiveSession->Members)
 	{
-		OutJsonString += FString::Printf( TEXT("%s{\"xuid\":\"%s\", \"constants\":%s, \"properties\":%s}"),
+		OutJsonString += FString::Printf(TEXT("%s{\"xuid\":\"%s\", \"constants\":%s, \"properties\":%s}"),
 					NeedComma ? TEXT(",") : TEXT(""),
 					member->XboxUserId->Data(),
 					member->MemberCustomConstantsJson->Data(),
-					member->MemberCustomPropertiesJson->Data() );	
+					member->MemberCustomPropertiesJson->Data());
 
 		NeedComma = true;
 	}
 
-	OutJsonString +=  FString( TEXT("]}") );
+	OutJsonString +=  FString(TEXT("]}"));
 }
 
-void FOnlineSessionLive::UpdateMatchMembersJson(FSessionSettings& UpdatedSettings, Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession)
+void FOnlineSessionLive::UpdateMatchMembersJson(FSessionSettings& UpdatedSettings, MultiplayerSession^ LiveSession)
 {
 	FString MemberSessionJson;
 
-	ExtractJsonMemberSettings( LiveSession, MemberSessionJson );
-	UpdatedSettings.Remove( SETTING_MATCH_MEMBERS_JSON );
-	UpdatedSettings.Add( SETTING_MATCH_MEMBERS_JSON, FOnlineSessionSetting( MemberSessionJson, EOnlineDataAdvertisementType::DontAdvertise ) );
+	ExtractJsonMemberSettings(LiveSession, MemberSessionJson);
+	UpdatedSettings.Remove(SETTING_MATCH_MEMBERS_JSON);
+	UpdatedSettings.Add(SETTING_MATCH_MEMBERS_JSON, FOnlineSessionSetting(MemberSessionJson, EOnlineDataAdvertisementType::DontAdvertise));
 }
 
 void FOnlineSessionLive::WriteSettingsToLiveJson(const FOnlineSessionSettings& SessionSettings, MultiplayerSession^ LiveSession, User^ HostUser)
 {
-	for ( FSessionSettings::TConstIterator It( SessionSettings.Settings ); It; ++It)
+	for (FSessionSettings::TConstIterator It(SessionSettings.Settings); It; ++It)
 	{
 		const FName& SettingName = It.Key();
 		const FOnlineSessionSetting& SettingValue = It.Value();
 
 		// Only upload values that are marked for service use
-		if ( SettingValue.AdvertisementType >= EOnlineDataAdvertisementType::ViaOnlineService )
+		if (SettingValue.AdvertisementType >= EOnlineDataAdvertisementType::ViaOnlineService)
 		{
-			Platform::String^ PlatformName  = ref new Platform::String( *SettingName.ToString() );
-			Platform::String^ PlatformValue = ref new Platform::String( *SettingValue.Data.ToString() );
+			Platform::String^ PlatformName  = ref new Platform::String(*SettingName.ToString());
+			Platform::String^ PlatformValue = ref new Platform::String(*SettingValue.Data.ToString());
 
-			LiveSession->SetSessionCustomPropertyJson( PlatformName, PlatformValue );
+			LiveSession->SetSessionCustomPropertyJson(PlatformName, PlatformValue);
 		}
 	}
 
 	// If we have a host, write the name of the host to the session
 	// This is a workaround for the client not having a reliable way to determine who the host is in splitscreen
-	if ( HostUser != nullptr )
+	if (HostUser != nullptr)
 	{
 		// We have to add quotes so it's treated as a string in json
-		FString XboxUserId = FString::Printf( TEXT( "\"%s\"" ), *FString( HostUser->XboxUserId->Data() ) );
-		
-		Platform::String^ XboxUserIdStr = ref new Platform::String( *XboxUserId );
+		FString XboxUserId = FString::Printf(TEXT("\"%s\""), *FString(HostUser->XboxUserId->Data()));
 
-		LiveSession->SetSessionCustomPropertyJson( "HostXboxUserId", XboxUserIdStr );
+		Platform::String^ XboxUserIdStr = ref new Platform::String(*XboxUserId);
+
+		LiveSession->SetSessionCustomPropertyJson("HostXboxUserId", XboxUserIdStr);
 	}
 }
 
-// @ATG_CHANGE :  BEGIN Allow modifying session visibility/joinability
+// @ATG_CHANGE : BEGIN Allow modifying session visibility/joinability
 void FOnlineSessionLive::WriteSessionPrivacySettingsToLiveJson(const FOnlineSessionSettings& SessionSettings, Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession)
 {
 	// Note that sessions with "userAuthorizationStyle" : true MUST currently have read and join
@@ -1441,12 +1863,12 @@ void FOnlineSessionLive::WriteSessionPrivacySettingsToLiveJson(const FOnlineSess
 		LiveSession->SessionProperties->JoinRestriction = MultiplayerSessionRestriction::Local;
 	}
 }
-// @ATG_CHANGE :  END
+// @ATG_CHANGE : END
 
-bool FOnlineSessionLive::StartSession( FName SessionName )
+bool FOnlineSessionLive::StartSession(FName SessionName)
 {
 	auto Session = GetNamedSession(SessionName);
-	if(!Session)
+	if (!Session)
 	{
 		UE_LOG_ONLINE(Warning, TEXT("Can't start an online game for session (%s) that hasn't been created"),
 			*SessionName.ToString());
@@ -1482,7 +1904,7 @@ bool FOnlineSessionLive::StartSession( FName SessionName )
 bool FOnlineSessionLive::EndSession(FName SessionName)
 {
 	auto Session = GetNamedSession(SessionName);
-	if(!Session)
+	if (!Session)
 	{
 		UE_LOG_ONLINE(Warning, TEXT("Can't end an online game for session (%s) that hasn't been created"),
 			*SessionName.ToString());
@@ -1490,7 +1912,7 @@ bool FOnlineSessionLive::EndSession(FName SessionName)
 		return false;
 	}
 
-	if(Session->SessionState != EOnlineSessionState::InProgress)
+	if (Session->SessionState != EOnlineSessionState::InProgress)
 	{
 		UE_LOG_ONLINE(Warning, TEXT("Can't end session (%s) in state %s"),
 			*SessionName.ToString(),
@@ -1510,7 +1932,7 @@ bool FOnlineSessionLive::DestroySession(FName SessionName, const FOnDestroySessi
 	// hope everyone else leaves also, and let it time out.
 
 	auto Session = GetNamedSession(SessionName);
-	if(!Session)
+	if (!Session)
 	{
 		UE_LOG_ONLINE(Warning, TEXT("Can't destroy a null online session (%s)"), *SessionName.ToString());
 		CompletionDelegate.ExecuteIfBound(SessionName, false);
@@ -1527,9 +1949,8 @@ bool FOnlineSessionLive::DestroySession(FName SessionName, const FOnDestroySessi
 
 	Session->SessionState = EOnlineSessionState::Destroying;
 
-	auto LiveSessionInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(Session->SessionInfo);
-	
-	if(!LiveSessionInfo.IsValid())
+	TSharedPtr<FOnlineSessionInfoLive> LiveSessionInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(Session->SessionInfo);
+	if (!LiveSessionInfo.IsValid())
 	{
 		UE_LOG_ONLINE(Warning, TEXT("Destroying an online session (%s) will null Live info. No writes to the MPSD will occur."), *SessionName.ToString());
 		RemoveNamedSession(SessionName);
@@ -1537,10 +1958,9 @@ bool FOnlineSessionLive::DestroySession(FName SessionName, const FOnDestroySessi
 		TriggerOnDestroySessionCompleteDelegates(SessionName, true);
 		return false;
 	}
-	
-	auto LiveSession = LiveSessionInfo->GetLiveMultiplayerSession();
 
-	if(!LiveSession)
+	MultiplayerSession^ LiveSession = LiveSessionInfo->GetLiveMultiplayerSession();
+	if (!LiveSession)
 	{
 		UE_LOG_ONLINE(Warning, TEXT("Destroying a session with a null Live MultiplayerSession (%s)"), *SessionName.ToString());
 		RemoveNamedSession(SessionName);
@@ -1550,7 +1970,7 @@ bool FOnlineSessionLive::DestroySession(FName SessionName, const FOnDestroySessi
 	}
 
 	LiveSubsystem->GetSessionMessageRouter()->ClearOnSessionChangedDelegate(OnSessionChangedDelegate, LiveSession->SessionReference);
-	if ( IsConsoleHost(LiveSession) )
+	if (IsConsoleHost(LiveSession))
 	{
 		LiveSubsystem->GetMatchmakingInterfaceLive()->RemoveMatchmakingTicket(Session->SessionName);
 	}
@@ -1569,20 +1989,20 @@ bool FOnlineSessionLive::DestroySession(FName SessionName, const FOnDestroySessi
 	return true;
 }
 
-FNamedOnlineSession* FOnlineSessionLive::GetNamedSession( FName SessionName )
+FNamedOnlineSession* FOnlineSessionLive::GetNamedSession(FName SessionName)
 {
 	FScopeLock ScopeLock(&SessionLock);
-	for (int32 SearchIndex = 0; SearchIndex < Sessions.Num(); SearchIndex++)
+	for (FNamedOnlineSession& Session : Sessions)
 	{
-		if (Sessions[SearchIndex].SessionName == SessionName)
+		if (Session.SessionName == SessionName)
 		{
-			return &Sessions[SearchIndex];
+			return &Session;
 		}
 	}
-	return NULL;
+	return nullptr;
 }
 
-void FOnlineSessionLive::RemoveNamedSession( FName SessionName )
+void FOnlineSessionLive::RemoveNamedSession(FName SessionName)
 {
 	FScopeLock ScopeLock(&SessionLock);
 	for (int32 SearchIndex = 0; SearchIndex < Sessions.Num(); SearchIndex++)
@@ -1595,26 +2015,40 @@ void FOnlineSessionLive::RemoveNamedSession( FName SessionName )
 	}
 }
 
-class FNamedOnlineSession* FOnlineSessionLive::AddNamedSession( FName SessionName, const FOnlineSessionSettings& SessionSettings )
+bool FOnlineSessionLive::HasPresenceSession()
+{
+	FScopeLock ScopeLock(&SessionLock);
+	for (const FNamedOnlineSession& Session : Sessions)
+	{
+		if (Session.SessionSettings.bUsesPresence)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+class FNamedOnlineSession* FOnlineSessionLive::AddNamedSession(FName SessionName, const FOnlineSessionSettings& SessionSettings)
 {
 	FScopeLock ScopeLock(&SessionLock);
 	return new (Sessions) FNamedOnlineSession(SessionName, SessionSettings);
 }
 
-class FNamedOnlineSession* FOnlineSessionLive::AddNamedSession( FName SessionName, const FOnlineSession& Session )
+class FNamedOnlineSession* FOnlineSessionLive::AddNamedSession(FName SessionName, const FOnlineSession& Session)
 {
 	FScopeLock ScopeLock(&SessionLock);
 	return new (Sessions) FNamedOnlineSession(SessionName, Session);
 }
 
-EOnlineSessionState::Type FOnlineSessionLive::GetSessionState( FName SessionName ) const 
+EOnlineSessionState::Type FOnlineSessionLive::GetSessionState(FName SessionName) const
 {
 	FScopeLock ScopeLock(&SessionLock);
-	for (int32 SearchIndex = 0; SearchIndex < Sessions.Num(); SearchIndex++)
+	for (const FNamedOnlineSession& Session : Sessions)
 	{
-		if (Sessions[SearchIndex].SessionName == SessionName)
+		if (Session.SessionName == SessionName)
 		{
-			return Sessions[SearchIndex].SessionState;
+			return Session.SessionState;
 		}
 	}
 
@@ -1622,7 +2056,7 @@ EOnlineSessionState::Type FOnlineSessionLive::GetSessionState( FName SessionName
 }
 
 IAsyncOperation<MultiplayerSession^>^ FOnlineSessionLive::CreateSessionOperation(
-	const int UserIndex,
+	const int32 UserIndex,
 	const FOnlineSessionSettings& SessionSettings,
 	const FString& Keyword, const FString& SessionTemplateName)
 {
@@ -1646,7 +2080,7 @@ IAsyncOperation<MultiplayerSession^>^ FOnlineSessionLive::InternalCreateSessionO
 	const FOnlineSessionSettings& SessionSettings,
 	const FString& Keyword, const FString& SessionTemplateName)
 {
-	if(!LiveContext)
+	if (!LiveContext)
 	{
 		return nullptr;
 	}
@@ -1654,135 +2088,127 @@ IAsyncOperation<MultiplayerSession^>^ FOnlineSessionLive::InternalCreateSessionO
 	GUID NewGUID;
 	CoCreateGuid(&NewGUID);
 	Platform::Guid SessionGuidName = Platform::Guid(NewGUID);
-	Platform::String^ UniqueSessionName = LiveSubsystem->RemoveBracesFromGuidString(SessionGuidName.ToString()); 
+	Platform::String^ UniqueSessionName = LiveSubsystem->RemoveBracesFromGuidString(SessionGuidName.ToString());
 
 	FString TemplateNameString;
-	const FOnlineSessionSetting* TemplateNameSetting = SessionSettings.Settings.Find( SETTING_SESSION_TEMPLATE_NAME );
-	if ( TemplateNameSetting )
+	const FOnlineSessionSetting* TemplateNameSetting = SessionSettings.Settings.Find(SETTING_SESSION_TEMPLATE_NAME);
+	if (TemplateNameSetting)
 	{
 		TemplateNameSetting->Data.GetValue(TemplateNameString);
 	}
 
-	// @ATG_CHANGE :  BEGIN UWP LIVE support
-	auto SessionRef = ref new Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference(
+	MultiplayerSessionReference^ SessionRef = ref new MultiplayerSessionReference(
+		// @ATG_CHANGE : BEGIN UWP LIVE support - don't use the console-specific path for getting config ID
 		LiveContext->AppConfig->ServiceConfigurationId,
-		ref new String(*SessionTemplateName),
+		// @ATG_CHANGE : END
+		ref new Platform::String(*SessionTemplateName),
 		UniqueSessionName);
-	// @ATG_CHANGE :  END
 
 	IVector<Platform::String^>^ InitiatorXboxUserIds = ref new Platform::Collections::Vector<Platform::String^>;
-	InitiatorXboxUserIds->Append( LiveContext->User->XboxUserId );
+	InitiatorXboxUserIds->Append(LiveContext->User->XboxUserId);
 
-	Platform::String^ CustomConstantsJson = ref new String( L"{}" );
-	const FOnlineSessionSetting* CustomJsonSetting = SessionSettings.Settings.Find( SETTING_CUSTOM );
-	if ( CustomJsonSetting )
+	Platform::String^ CustomConstantsJson = ref new Platform::String(L"{}");
+	const FOnlineSessionSetting* CustomJsonSetting = SessionSettings.Settings.Find(SETTING_CUSTOM);
+	if (CustomJsonSetting)
 	{
 		FString InJson;
 
-		CustomJsonSetting->Data.GetValue( InJson );
+		CustomJsonSetting->Data.GetValue(InJson);
 
-		if ( InJson.Len() )
+		if (InJson.Len())
 		{
-			CustomConstantsJson = ref new String( *InJson );
+			CustomConstantsJson = ref new Platform::String(*InJson);
 		}
 	}
 
 	// Create the session object
 	MultiplayerSession^ LiveSession = ref new MultiplayerSession(
 		LiveContext, SessionRef,
-		0, // 0 will use the number of players from the template in the service config
-		MultiplayerSessionVisibility::Any, // Using Any here appears to use the visibility from
-										   // the template in the service config
-		InitiatorXboxUserIds->GetView(), CustomConstantsJson );
+		0, // 0 will use the number of players from the session template in the Xbox Developers Portal service config
+		MultiplayerSessionVisibility::Any,
+		InitiatorXboxUserIds->GetView(), CustomConstantsJson);
 
 	Platform::String^ PlayerCustomConstantBlob = nullptr;
 	FString KeyFormat = SETTING_SESSION_MEMBER_CONSTANT_CUSTOM_JSON_XUID.ToString();
 	FString Key = FString::Printf(*KeyFormat, LiveContext->User->XboxUserId->Data());
 
 	// Add keyword
-	if(!Keyword.IsEmpty())
+	if (!Keyword.IsEmpty())
 	{
-		Platform::Collections::Vector<String^>^ Keywords = ref new Platform::Collections::Vector<String^>();
-		Keywords->Append( ref new String(*Keyword) );
+		Platform::Collections::Vector<Platform::String^>^ Keywords = ref new Platform::Collections::Vector<Platform::String^>();
+		Keywords->Append(ref new Platform::String(*Keyword));
 		LiveSession->SessionProperties->Keywords = Keywords->GetView();
 	}
 
-	const FOnlineSessionSetting* CurrentPlayerConstantCustomJsonSetting = SessionSettings.Settings.Find( FName(*Key) );
-	if ( CurrentPlayerConstantCustomJsonSetting )
+	// Get our session's join/read restriction from our settings
+	const MultiplayerSessionRestriction SessionRestriction = GetLiveSessionRestrictionFromSettings(SessionSettings);
+	LiveSession->SessionProperties->JoinRestriction = SessionRestriction;
+	LiveSession->SessionProperties->ReadRestriction = SessionRestriction;
+
+	const FOnlineSessionSetting* CurrentPlayerConstantCustomJsonSetting = SessionSettings.Settings.Find(FName(*Key));
+	if (CurrentPlayerConstantCustomJsonSetting)
 	{
 		FString CurrentPlayerConstantCustomJson;
-		CurrentPlayerConstantCustomJsonSetting->Data.GetValue( CurrentPlayerConstantCustomJson );
-		PlayerCustomConstantBlob = ref new String(*CurrentPlayerConstantCustomJson);
+		CurrentPlayerConstantCustomJsonSetting->Data.GetValue(CurrentPlayerConstantCustomJson);
+		PlayerCustomConstantBlob = ref new Platform::String(*CurrentPlayerConstantCustomJson);
 	}
 
 	// Set current user to be active and joined
-	// @ATG_CHANGE :  BEGIN UWP LIVE support
+	// @ATG_CHANGE : BEGIN UWP LIVE support
 	LiveSession->Join(PlayerCustomConstantBlob, true, false);
-	// @ATG_CHANGE :  END
+	// @ATG_CHANGE : END
 	LiveSession->SetCurrentUserStatus(MultiplayerSessionMemberStatus::Active);
 	LiveSession->SetCurrentUserSecureDeviceAddressBase64(SecureDeviceAddress::GetLocal()->GetBase64String());
-	
+
 	// Indicate what events to subscribe to
 	LiveSession->SetSessionChangeSubscription(MultiplayerSessionChangeTypes::Everything);
-	
-	// Add custom settings
-	WriteSettingsToLiveJson(SessionSettings, LiveSession, SystemUserFromXSAPIUser(LiveContext->User));
 
-	auto writeSessionOp = LiveContext->MultiplayerService->WriteSessionAsync( LiveSession, Multiplayer::MultiplayerSessionWriteMode::CreateNew );
+	// Add custom settings
+	// @ATG_CHANGE : BEGIN UWP LIVE support
+	WriteSettingsToLiveJson(SessionSettings, LiveSession, SystemUserFromXSAPIUser(LiveContext->User));
+	// @ATG_CHANGE : END UWP LIVE support
+
+	auto writeSessionOp = LiveContext->MultiplayerService->WriteSessionAsync(LiveSession, MultiplayerSessionWriteMode::CreateNew);
 
 	return writeSessionOp;
 }
 
 void FOnlineSessionLive::DetermineSessionHost(FName SessionName, MultiplayerSession^ LiveSession)
 {
-	if (FNamedOnlineSession* NamedSession = GetNamedSession(SessionName))
+	FNamedOnlineSession* NamedSession = GetNamedSession(SessionName);
+	if (!NamedSession)
 	{
-		String^ hostxuid;
-		bool bHosting = NamedSession->bHosting;
-		// @ATG_CHANGE :  BEGIN Allow modifying session visibility/joinability
-		//int32 HostingPlayerNum = NamedSession->HostingPlayerNum;
-		// @ATG_CHANGE :  END
-		
-		if(LiveSession && LiveSession->SessionProperties->HostDeviceToken != nullptr)
-		{
-			auto member = GetMemberFromDeviceToken(LiveSession,LiveSession->SessionProperties->HostDeviceToken);
-			if(member)
-			{
-				UE_LOG(LogOnline, Log, TEXT("Determining host: using first host device token"));
-				hostxuid = member->XboxUserId;
-
-				if (member->IsCurrentUser)
-				{
-					bHosting = true;
-					// @ATG_CHANGE :  BEGIN Allow modifying session visibility/joinability
-					//HostingPlayerNum = 0;
-					// @ATG_CHANGE :  END
-				}
-			}
-		}
-
-		if(hostxuid == nullptr)
-		{
-			UE_LOG(LogOnline, Error, TEXT("Host device token not set to valid player when determining host"));
-			hostxuid = LiveSession->Members->GetAt(0)->XboxUserId;
-		}
-		else
-		{
-			NamedSession->OwningUserId = MakeShareable(new FUniqueNetIdLive( FString(hostxuid->Data()) ));
-			NamedSession->bHosting = bHosting;
-			// @ATG_CHANGE :  BEGIN Allow modifying session visibility/joinability
-			NamedSession->HostingPlayerNum = LiveSubsystem->GetIdentityLive()->GetControllerIndexForId(*NamedSession->OwningUserId);
-			// @ATG_CHANGE :  END
-			UE_LOG(LogOnline, Log, TEXT("Picking %s as host for session"), hostxuid->Data());
-		}
+		return;
 	}
+
+	bool bHosting = NamedSession->bHosting;
+	int32 HostingPlayerNum = NamedSession->HostingPlayerNum;
+
+	MultiplayerSessionMember^ SessionMember = GetLiveSessionHost(LiveSession);
+	if (!SessionMember)
+	{
+		UE_LOG(LogOnline, Verbose, TEXT("Host not currently set, unable to update host/owner session information"));
+		return;
+	}
+
+	const TSharedRef<const FUniqueNetId> HostNetId = MakeShared<FUniqueNetIdLive>(SessionMember->XboxUserId);
+	if (SessionMember->IsCurrentUser)
+	{
+		bHosting = true;
+		HostingPlayerNum = GetHostingPlayerNum(*HostNetId);
+	}
+
+	NamedSession->OwningUserId = HostNetId;
+	NamedSession->bHosting = bHosting;
+	NamedSession->HostingPlayerNum = HostingPlayerNum;
+	UE_LOG(LogOnline, Log, TEXT("Picking %ls as host for session"), SessionMember->XboxUserId->Data());
 }
 
 MultiplayerSessionMember^ FOnlineSessionLive::GetMemberFromDeviceToken(MultiplayerSession^ LiveSession, Platform::String^ DeviceToken)
 {
-	for each (MultiplayerSessionMember^ member in LiveSession->Members)
+	for (MultiplayerSessionMember^ member : LiveSession->Members)
 	{
-		if( _wcsicmp(member->DeviceToken->Data(), DeviceToken->Data()) == 0)
+		if (FCString::Stricmp(member->DeviceToken->Data(), DeviceToken->Data()) == 0)
 		{
 			return member;
 		}
@@ -1794,10 +2220,10 @@ MultiplayerSessionMember^ FOnlineSessionLive::GetMemberFromDeviceToken(Multiplay
 MultiplayerSession^ FOnlineSessionLive::SetHostDeviceTokenSynchronous(int32 UserNum, FName SessionName, MultiplayerSession^ LiveSession,
 																	  XboxLiveContext^ Context)
 {
-	while(LiveSession && LiveSession->SessionProperties->HostDeviceToken == nullptr)
+	while (LiveSession && LiveSession->SessionProperties->HostDeviceToken == nullptr)
 	{
 		MultiplayerSessionMember^ CurrentMember = GetCurrentUserFromSession(LiveSession);
-		if(CurrentMember == nullptr)
+		if (CurrentMember == nullptr)
 		{
 			UE_LOG(LogOnline, Log, L"User in this console is not part of the Game Session, so not attempting to set Host");
 			break;
@@ -1806,14 +2232,12 @@ MultiplayerSession^ FOnlineSessionLive::SetHostDeviceTokenSynchronous(int32 User
 		LiveSession->SetHostDeviceToken(CurrentMember->DeviceToken);
 
 		//. Assume the host always wants to be active
-		SetCurrentUserActive( UserNum, LiveSession, true );
+		SetCurrentUserActive(UserNum, LiveSession, true);
 
-		//. Write the changes 
-		auto writeSessionOp = Context->MultiplayerService->TryWriteSessionAsync( 
-			LiveSession, 
-			Multiplayer::MultiplayerSessionWriteMode::SynchronizedUpdate);
+		//. Write the changes
+		auto writeSessionOp = Context->MultiplayerService->TryWriteSessionAsync(LiveSession, MultiplayerSessionWriteMode::SynchronizedUpdate);
 
-		create_task(writeSessionOp).then([this,&LiveSession](task<WriteSessionResult^> t)
+		Concurrency::create_task(writeSessionOp).then([this,&LiveSession](Concurrency::task<WriteSessionResult^> t)
 		{
 			try
 			{
@@ -1841,45 +2265,44 @@ MultiplayerSession^ FOnlineSessionLive::SetHostDeviceTokenSynchronous(int32 User
 
 }
 
-void FOnlineSessionLive::RegisterVoice( const FUniqueNetId& PlayerId )
+void FOnlineSessionLive::RegisterVoice(const FUniqueNetId& PlayerId)
 {
 	IOnlineVoicePtr VoiceInt = LiveSubsystem->GetVoiceInterface();
 
-	if ( VoiceInt.IsValid() )
+	if (VoiceInt.IsValid())
 	{
-		if ( !LiveSubsystem->IsLocalPlayer( PlayerId ) )
+		if (!LiveSubsystem->IsLocalPlayer(PlayerId))
 		{
-			VoiceInt->RegisterRemoteTalker( PlayerId );
+			VoiceInt->RegisterRemoteTalker(PlayerId);
 		}
 		else
 		{
 			int32 LocalUserNum =
-				LiveSubsystem->GetIdentityLive()->GetControllerIndexForId( PlayerId );
-			VoiceInt->RegisterLocalTalker( LocalUserNum );
+				LiveSubsystem->GetIdentityLive()->GetControllerIndexForId(PlayerId);
+			VoiceInt->RegisterLocalTalker(LocalUserNum);
 		}
 	}
 }
 
-void FOnlineSessionLive::UnregisterVoice( const FUniqueNetId& PlayerId )
+void FOnlineSessionLive::UnregisterVoice(const FUniqueNetId& PlayerId)
 {
 	IOnlineVoicePtr VoiceInt = LiveSubsystem->GetVoiceInterface();
 
-	if ( VoiceInt.IsValid() )
+	if (VoiceInt.IsValid())
 	{
-		if ( !LiveSubsystem->IsLocalPlayer( PlayerId ) )
+		if (!LiveSubsystem->IsLocalPlayer(PlayerId))
 		{
-			VoiceInt->UnregisterRemoteTalker( PlayerId );
+			VoiceInt->UnregisterRemoteTalker(PlayerId);
 		}
 		else
 		{
-			int32 LocalUserNum =
-				LiveSubsystem->GetIdentityLive()->GetControllerIndexForId( PlayerId );
-			VoiceInt->UnregisterLocalTalker( LocalUserNum );
+			const int32 LocalUserNum = LiveSubsystem->GetIdentityLive()->GetControllerIndexForId(PlayerId);
+			VoiceInt->UnregisterLocalTalker(LocalUserNum);
 		}
 	}
 }
 
-TSharedPtr<FInternetAddr> FOnlineSessionLive::GetAddrFromDeviceAssociation( Windows::Xbox::Networking::ISecureDeviceAssociation^ SDA )
+TSharedRef<FInternetAddr> FOnlineSessionLive::GetAddrFromDeviceAssociation(Windows::Xbox::Networking::ISecureDeviceAssociation^ SDA)
 {
 	SOCKADDR_STORAGE RemoteSocketAddress;
 	Platform::ArrayReference<BYTE> RemoteSocketAddressBytes((BYTE*)&RemoteSocketAddress, sizeof(RemoteSocketAddress));
@@ -1893,7 +2316,7 @@ TSharedPtr<FInternetAddr> FOnlineSessionLive::GetAddrFromDeviceAssociation( Wind
 	char IPStr[INET6_ADDRSTRLEN];
 	inet_ntop(AF_INET6, (void*)&In6Addr->sin6_addr, IPStr, INET6_ADDRSTRLEN);
 
-	auto SocketSub = ISocketSubsystem::Get( PLATFORM_SOCKETSUBSYSTEM );
+	ISocketSubsystem* const SocketSub = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
 	TSharedRef<FInternetAddr> Addr = SocketSub->CreateInternetAddr();
 
 	bool bIsValid;
@@ -1907,35 +2330,38 @@ void FOnlineSessionLive::CheckPendingSessionInvite()
 {
 	// If the title was protocol activated before OSS was initialized (likely at launch), the startup code saved the
 	// activation URI.
-	// @ATG_CHANGE :  BEGIN UWP LIVE support
+	// @ATG_CHANGE : BEGIN UWP LIVE support
 	const FString ActivationUriString = FPlatformMisc::GetProtocolActivationUri();
 
 	// On Xbox we should have a user by now, but we probably won't on UWP.
 	if(!ActivationUriString.IsEmpty() && (PLATFORM_XBOXONE || User::Users->Size > 0))
 	{
 		FPlatformMisc::SetProtocolActivationUri(FString());
-		// @ATG_CHANGE :  END
+		// @ATG_CHANGE : END
 
-		Windows::Foundation::Uri^ ActivationUri = ref new Windows::Foundation::Uri(ref new Platform::String(ActivationUriString.GetCharArray().GetData()));
+		Windows::Foundation::Uri^ ActivationUri = ref new Windows::Foundation::Uri(ref new Platform::String(*ActivationUriString));
 
 		// See if this activation was in response to a session invite
 		SaveInviteFromActivation(ActivationUri);
 	}
 }
 
-MultiplayerSessionMember^ FOnlineSessionLive::GetLiveSessionHost(
-	Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession )
+MultiplayerSessionMember^ FOnlineSessionLive::GetLiveSessionHost(MultiplayerSession^ LiveSession)
 {
-	if(!LiveSession)
+	if (!LiveSession || !LiveSession->SessionProperties)
 	{
 		return nullptr;
 	}
 
-	auto HostToken = LiveSession->SessionProperties->HostDeviceToken;
-	MultiplayerSessionMember^ Host = nullptr;
-	for ( auto Member : LiveSession->Members )
+	Platform::String^ HostToken = LiveSession->SessionProperties->HostDeviceToken;
+	if (!HostToken)
 	{
-		if ( Member->DeviceToken == HostToken )
+		return nullptr;
+	}
+
+	for (MultiplayerSessionMember^ Member : LiveSession->Members)
+	{
+		if (Member->DeviceToken == HostToken)
 		{
 			return Member;
 		}
@@ -1944,32 +2370,25 @@ MultiplayerSessionMember^ FOnlineSessionLive::GetLiveSessionHost(
 	return nullptr;
 }
 
-FOnlineSessionSearchResult FOnlineSessionLive::CreateSearchResultFromSession(
-	Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession,
-	Platform::String^ HostDisplayName,
-	XboxLiveContext^ LiveContext )
+FOnlineSessionSearchResult FOnlineSessionLive::CreateSearchResultFromSession(MultiplayerSession^ LiveSession, Platform::String^ HostDisplayName, XboxLiveContext^ LiveContext)
 {
 	FOnlineSessionSearchResult NewSearchResult;
-	NewSearchResult.Session.SessionInfo =
-		MakeShareable( new FOnlineSessionInfoLive( LiveSession ) );
+	NewSearchResult.Session.SessionInfo = MakeShared<FOnlineSessionInfoLive>(LiveSession);
 
-	if ( HostDisplayName )
+	if (HostDisplayName)
 	{
-		NewSearchResult.Session.OwningUserName = FString( HostDisplayName->Data() );
+		NewSearchResult.Session.OwningUserName = FString(HostDisplayName->Data());
 	}
 
 	// Try to find the host.
 	MultiplayerSessionMember^ Host = GetLiveSessionHost(LiveSession);
-
-	if ( Host )
+	if (Host)
 	{
-		NewSearchResult.Session.OwningUserId =
-			MakeShareable( new FUniqueNetIdLive( Host->XboxUserId->Data() ) );
+		NewSearchResult.Session.OwningUserId = MakeShared<FUniqueNetIdLive>(Host->XboxUserId);
 	}
 	else
 	{
-		NewSearchResult.Session.OwningUserName =
-			FString( LiveSession->SessionReference->SessionName->Data() );
+		NewSearchResult.Session.OwningUserName = FString(LiveSession->SessionReference->SessionName->Data());
 	}
 
 	ReadSettingsFromLiveJson(LiveSession, NewSearchResult.Session, LiveContext);
@@ -1977,27 +2396,26 @@ FOnlineSessionSearchResult FOnlineSessionLive::CreateSearchResultFromSession(
 	DebugLogLiveSession(LiveSession);
 
 	// Find number of open slots.
-	int MaxSlots = LiveSession->SessionConstants->MaxMembersInSession;
-	int FilledSlots = LiveSession->Members->Size;
-	int OpenSlots = MaxSlots - FilledSlots;
+	int32 MaxSlots = LiveSession->SessionConstants->MaxMembersInSession;
+	int32 FilledSlots = LiveSession->Members->Size;
+	int32 OpenSlots = MaxSlots - FilledSlots;
 	NewSearchResult.Session.NumOpenPrivateConnections = 0;
 	NewSearchResult.Session.NumOpenPublicConnections = OpenSlots;
 	NewSearchResult.Session.SessionSettings.NumPublicConnections = MaxSlots;
+	NewSearchResult.Session.SessionSettings.bAllowJoinInProgress = !LiveSession->SessionProperties->Closed;
 
 	return NewSearchResult;
 }
 
-void FOnlineSessionLive::SaveSessionInvite(
-	User^ AcceptingUser,
-	Platform::String^ SessionHandle )
+void FOnlineSessionLive::SaveSessionInvite(User^ AcceptingUser, Platform::String^ SessionHandle)
 {
-	if ( !AcceptingUser || !SessionHandle )
+	if (!AcceptingUser || !SessionHandle)
 	{
 		return;
 	}
 
 	// Set the invite data on the game thread since that's where it will be consumed
-	LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue(	[this, AcceptingUser, SessionHandle]
+	LiveSubsystem->ExecuteNextTick(	[this, AcceptingUser, SessionHandle]
 	{
 		PendingInvite.AcceptingUser = AcceptingUser;
 		PendingInvite.SessionHandle = SessionHandle;
@@ -2024,23 +2442,24 @@ void FOnlineSessionLive::SaveInviteFromActivation(Windows::Foundation::Uri^ Acti
 	if (SessionHandle != nullptr && UserXuid != nullptr)
 	{
 		// Find the user the invite is for.
-		// This is an uncommon call so I'm OK with making the slow User::Users query
-		// here
-		const auto CachedUsers = User::Users;
+		// For the sake of centralizing access to Users, grab the cached list from the identity interface
+		FOnlineIdentityLivePtr Identity = LiveSubsystem->GetIdentityLive();
+
+		IVectorView<User^>^ CachedUsers = Identity->GetCachedUsers();
 		User^ JoiningUser = nullptr;
 
-		for ( const auto CurrentUser : CachedUsers )
+		for (User^ CurrentUser : CachedUsers)
 		{
-			if ( CurrentUser->XboxUserId == UserXuid )
+			if (CurrentUser->XboxUserId == UserXuid)
 			{
 				JoiningUser = CurrentUser;
 				break;
 			}
 		}
 
-		if ( !JoiningUser )
+		if (!JoiningUser)
 		{
-			UE_LOG_ONLINE(Warning, TEXT( "FOnlineSessionLive::SaveInviteFromActivation: couldn't find a local user to accept the invite." ) );
+			UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::SaveInviteFromActivation: couldn't find a local user to accept the invite."));
 			return;
 		}
 
@@ -2055,36 +2474,34 @@ void FOnlineSessionLive::SaveInviteFromActivation(Windows::Foundation::Uri^ Acti
 
 void FOnlineSessionLive::OnActivated(Windows::ApplicationModel::Activation::IActivatedEventArgs^ EventArgs)
 {
-	if(EventArgs->Kind == Windows::ApplicationModel::Activation::ActivationKind::Protocol)
+	if (EventArgs->Kind == Windows::ApplicationModel::Activation::ActivationKind::Protocol)
 	{
-		ProtocolActivatedEventArgs^ ProtocolArgs = (ProtocolActivatedEventArgs^)EventArgs;				
+		ProtocolActivatedEventArgs^ ProtocolArgs = static_cast<ProtocolActivatedEventArgs^>(EventArgs);
 		Windows::Foundation::Uri^ ActivationUri = ref new Windows::Foundation::Uri(ProtocolArgs->Uri->RawUri);
 
-		UE_LOG_ONLINE(Log, TEXT("----- Got activation URI: %s"), ActivationUri->ToString()->Data());
+		UE_LOG_ONLINE(Log, TEXT("----- Got activation URI: %ls"), ActivationUri->AbsoluteUri->Data());
 
 		// See if this activation was in response to a session invite or gamercard join
 		SaveInviteFromActivation(ActivationUri);
 	}
 }
 
-bool FOnlineSessionLive::IsConsoleHost(
-	Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession )
+bool FOnlineSessionLive::IsConsoleHost(MultiplayerSession^ LiveSession)
 {
-	if( LiveSession == nullptr )
+	if (LiveSession == nullptr)
 	{
 		return false;
 	}
 
-	Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionMember^ HostMember = GetLiveSessionHost(LiveSession);
-	
-	if( !HostMember )
+	MultiplayerSessionMember^ HostMember = GetLiveSessionHost(LiveSession);
+	if (!HostMember)
 	{
 		return false;
 	}
 
-	for( auto Member : LiveSession->Members )
+	for (MultiplayerSessionMember^ Member : LiveSession->Members)
 	{
-		if ( Member && Member->IsCurrentUser && Member->DeviceToken == HostMember->DeviceToken )
+		if (Member && Member->IsCurrentUser && Member->DeviceToken == HostMember->DeviceToken)
 		{
 			return true;
 		}
@@ -2093,12 +2510,12 @@ bool FOnlineSessionLive::IsConsoleHost(
 	return false;
 }
 
-void FOnlineSessionLive::Tick( float DeltaTime )
+void FOnlineSessionLive::Tick(float DeltaTime)
 {
 	TickPendingInvites(DeltaTime);
 }
 
-void FOnlineSessionLive::TickPendingInvites( float DeltaTime )
+void FOnlineSessionLive::TickPendingInvites(float DeltaTime)
 {
 	if (!PendingInvite.bHaveInvite)
 	{
@@ -2107,64 +2524,66 @@ void FOnlineSessionLive::TickPendingInvites( float DeltaTime )
 
 	if (PendingInvite.AcceptingUser == nullptr)
 	{
-		UE_LOG_ONLINE(Warning,
-			TEXT( "FOnlineSessionLive::TickPendingInvites: bHaveInvite is true but AcceptingUser is null." ) );
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::TickPendingInvites: bHaveInvite is true but AcceptingUser is null."));
 		PendingInvite.bHaveInvite = false;
 		return;
 	}
 
 	if (PendingInvite.SessionHandle == nullptr)
 	{
-		UE_LOG_ONLINE(Warning,
-			TEXT( "FOnlineSessionLive::TickPendingInvites: bHaveInvite is true but SessionHandle is null." ) );
-	
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::TickPendingInvites: bHaveInvite is true but SessionHandle is null."));
 		PendingInvite.bHaveInvite = false;
 		return;
 	}
 
-	const auto AcceptingUserIndex =
-		LiveSubsystem->GetIdentityLive()->GetControllerIndexForUser(
-		PendingInvite.AcceptingUser );
-
-	FUniqueNetIdLive UniqueNetId( PendingInvite.AcceptingUser->XboxUserId );
-
-	auto Context = LiveSubsystem->GetLiveContext( PendingInvite.AcceptingUser );
-	
-	if ( !Context )
+	const int32 AcceptingUserIndex = LiveSubsystem->GetIdentityLive()->GetControllerIndexForUser(PendingInvite.AcceptingUser);
+	if (AcceptingUserIndex < 0)
 	{
-		UE_LOG_ONLINE(Warning,
-			TEXT( "FOnlineSessionLive::TickPendingInvites: couldn't create an XboxLiveContext for the AcceptingUser." ) );
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::TickPendingInvites: bHaveInvite is true but unknown player %s."), PendingInvite.AcceptingUser->XboxUserId->Data());
+		PendingInvite.bHaveInvite = false;
 		return;
 	}
 
-	auto AsyncOp = Context->MultiplayerService->GetCurrentSessionByHandleAsync( PendingInvite.SessionHandle );
-	
-	create_task( AsyncOp ).then( [this, AcceptingUserIndex, UniqueNetId]( task<MultiplayerSession^> SessionTask )
+	XboxLiveContext^ Context = LiveSubsystem->GetLiveContext(PendingInvite.AcceptingUser);
+	if (!Context)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::TickPendingInvites: couldn't create an XboxLiveContext for the AcceptingUser."));
+		return;
+	}
+
+	const FUniqueNetIdLive UniqueNetId(PendingInvite.AcceptingUser->XboxUserId);
+
+	auto AsyncOp = Context->MultiplayerService->GetCurrentSessionByHandleAsync(PendingInvite.SessionHandle);
+	Concurrency::create_task(AsyncOp).then([this, AcceptingUserIndex, UniqueNetId](Concurrency::task<MultiplayerSession^> SessionTask)
 	{
 		try
 		{
-			auto LiveSession = SessionTask.get();
-
+			MultiplayerSession^ LiveSession = SessionTask.get();
 			if (LiveSession == nullptr)
 			{
 				return;
 			}
 
-			LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue(	[this, LiveSession, AcceptingUserIndex, UniqueNetId]
+			LiveSubsystem->ExecuteNextTick([this, LiveSession, AcceptingUserIndex, UniqueNetId]()
 			{
-				auto SearchResult = CreateSearchResultFromSession(LiveSession, nullptr);
+				const FOnlineSessionSearchResult SearchResult = CreateSearchResultFromSession(LiveSession, nullptr);
 
-				TSharedPtr<const FUniqueNetId> UniqueNetIdPtr = MakeShareable(new FUniqueNetIdLive(UniqueNetId));
+				TSharedRef<const FUniqueNetId> UniqueNetIdRef(MakeShared<FUniqueNetIdLive>(UniqueNetId));
 
-				TriggerOnSessionUserInviteAcceptedDelegates( true, AcceptingUserIndex, UniqueNetIdPtr, SearchResult );
-			} );
+				TriggerOnSessionUserInviteAcceptedDelegates(true, AcceptingUserIndex, UniqueNetIdRef, SearchResult);
+			});
 		}
-		catch ( Platform::COMException^ Ex )
+		catch (Platform::COMException^ Ex)
 		{
-			UE_LOG( LogOnline, Warning,	TEXT( "FOnlineSessionLive::TickPendingInvites: error getting game session by handle: 0x%0.8x" ),
-				Ex->HResult );
+			UE_LOG(LogOnline, Warning,	TEXT("FOnlineSessionLive::TickPendingInvites: Error getting game session by handle: 0x%0.8x"), Ex->HResult);
+			LiveSubsystem->ExecuteNextTick([this, AcceptingUserIndex, UniqueNetId]()
+			{
+				TSharedRef<const FUniqueNetId> UniqueNetIdRef(MakeShared<FUniqueNetIdLive>(UniqueNetId));
+				const FOnlineSessionSearchResult EmptyResult;
+				TriggerOnSessionUserInviteAcceptedDelegates(false, AcceptingUserIndex, UniqueNetIdRef, EmptyResult);
+			});
 		}
-	} );
+	});
 
 	PendingInvite.bHaveInvite = false;
 	PendingInvite.AcceptingUser = nullptr;
@@ -2173,66 +2592,54 @@ void FOnlineSessionLive::TickPendingInvites( float DeltaTime )
 
 void FOnlineSessionLive::RegisterLocalPlayer(const FUniqueNetId& PlayerId, FName SessionName, const FOnRegisterLocalPlayerCompleteDelegate& Delegate)
 {
-	auto LiveContext = LiveSubsystem->GetLiveContext(PlayerId);
-
+	XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(PlayerId);
 	if (LiveContext == nullptr)
 	{
 		Delegate.ExecuteIfBound(PlayerId, EOnJoinSessionCompleteResult::UnknownError);
 		return;
 	}
 
-	auto NamedSession = GetNamedSession(SessionName);
-
+	FNamedOnlineSession* const NamedSession = GetNamedSession(SessionName);
 	if (NamedSession == nullptr)
 	{
 		Delegate.ExecuteIfBound(PlayerId, EOnJoinSessionCompleteResult::SessionDoesNotExist);
 		return;
 	}
 
-	auto LiveSessionInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
-
+	TSharedPtr<FOnlineSessionInfoLive> LiveSessionInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
 	if (!LiveSessionInfo.IsValid())
 	{
 		Delegate.ExecuteIfBound(PlayerId, EOnJoinSessionCompleteResult::UnknownError);
 		return;
 	}
 
-	FOnlineAsyncTaskLiveRegisterLocalUser* RegisterTask = new FOnlineAsyncTaskLiveRegisterLocalUser(
-		SessionName, LiveContext, LiveSubsystem, FUniqueNetIdLive(PlayerId), Delegate);
-
-	LiveSubsystem->QueueAsyncTask(RegisterTask);
+	LiveSubsystem->CreateAndDispatchAsyncTaskSerial<FOnlineAsyncTaskLiveRegisterLocalUser>(SessionName, LiveContext, LiveSubsystem, FUniqueNetIdLive(PlayerId), Delegate);
 }
 
 void FOnlineSessionLive::UnregisterLocalPlayer(const FUniqueNetId& PlayerId, FName SessionName, const FOnUnregisterLocalPlayerCompleteDelegate& Delegate)
 {
-	auto LiveContext = LiveSubsystem->GetLiveContext(PlayerId);
-
+	XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(PlayerId);
 	if (LiveContext == nullptr)
 	{
 		Delegate.ExecuteIfBound(PlayerId, false);
 		return;
 	}
 
-	auto NamedSession = GetNamedSession(SessionName);
-
+	FNamedOnlineSession* const NamedSession = GetNamedSession(SessionName);
 	if (NamedSession == nullptr)
 	{
 		Delegate.ExecuteIfBound(PlayerId, false);
 		return;
 	}
 
-	auto LiveSessionInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
-
+	TSharedPtr<FOnlineSessionInfoLive> LiveSessionInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
 	if (!LiveSessionInfo.IsValid())
 	{
 		Delegate.ExecuteIfBound(PlayerId, false);
 		return;
 	}
 
-	auto RegisterTask = new FOnlineAsyncTaskLiveUnregisterLocalUser(
-		SessionName, LiveContext, LiveSubsystem, FUniqueNetIdLive(PlayerId), Delegate);
-
-	LiveSubsystem->QueueAsyncTask(RegisterTask);
+	LiveSubsystem->CreateAndDispatchAsyncTaskSerial<FOnlineAsyncTaskLiveUnregisterLocalUser>(SessionName, LiveContext, LiveSubsystem, FUniqueNetIdLive(PlayerId), Delegate);
 }
 
 void FOnlineSessionLive::LogAssociationStateChange(SecureDeviceAssociation^ Association, SecureDeviceAssociationStateChangedEventArgs^ EventArgs)
@@ -2285,22 +2692,22 @@ const TCHAR* FOnlineSessionLive::AssociationStateToString(SecureDeviceAssociatio
 	return TEXT("Unknown");
 }
 
-bool FOnlineSessionLive::CanUserJoinSession(Windows::Xbox::System::User^ JoiningUser, Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession)
+bool FOnlineSessionLive::CanUserJoinSession(Windows::Xbox::System::User^ JoiningUser, MultiplayerSession^ LiveSession)
 {
 	if (JoiningUser == nullptr || LiveSession == nullptr)
 	{
 		return false;
 	}
-	
+
 	if (LiveSession->Members->Size < LiveSession->SessionConstants->MaxMembersInSession)
 	{
 		return true;
 	}
 
 	// Check for a reservation
-	for (auto CurrentMember : LiveSession->Members)
+	for (MultiplayerSessionMember^ CurrentMember : LiveSession->Members)
 	{
-		if (FCString::Stricmp(CurrentMember->XboxUserId->Data(), JoiningUser->XboxUserId->Data()) == 0)
+		if (CurrentMember->XboxUserId == JoiningUser->XboxUserId)
 		{
 			return true;
 		}
@@ -2309,9 +2716,34 @@ bool FOnlineSessionLive::CanUserJoinSession(Windows::Xbox::System::User^ Joining
 	return false;
 }
 
+Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionRestriction FOnlineSessionLive::GetLiveSessionRestrictionFromSettings(const FOnlineSessionSettings& SessionSettings)
+{
+	if (SessionSettings.bShouldAdvertise)
+	{
+		// "None" restriction means anyone may interact with this session if there's room, this is the session default
+		// @ATG_CHANGE : BEGIN - UWP doesn't allow unrestricted sessions, so clamp here for that platform
+#if PLATFORM_UWP
+		return MultiplayerSessionRestriction::Followed;
+#else
+		return MultiplayerSessionRestriction::None;
+#endif
+		// @ATG_CHANGE : END
+	}
+
+	if (SessionSettings.bAllowJoinViaPresence)
+	{
+		// "Followed" restriction means anyone who follows a member of this session may interact with this session
+		return MultiplayerSessionRestriction::Followed;
+	}
+
+	// "Local" restriction means only people who created the session, are on the same console as session members, or
+	// those who have been invited may interact with this session
+	return MultiplayerSessionRestriction::Local;
+}
+
 void FOnlineSessionLive::OnSessionChanged(FName SessionName, MultiplayerSessionChangeTypes Diff)
 {
-	auto NamedSession = GetNamedSession(SessionName);
+	FNamedOnlineSession* const NamedSession = GetNamedSession(SessionName);
 	MultiplayerSession^ UpdatedLiveSession = nullptr;
 
 	if (NamedSession)
@@ -2336,17 +2768,6 @@ void FOnlineSessionLive::OnSessionChanged(FName SessionName, MultiplayerSessionC
 		if (NamedSession)
 		{
 			DetermineSessionHost(SessionName, UpdatedLiveSession);
-			if (auto Host = GetLiveSessionHost(UpdatedLiveSession))
-			{
-				NamedSession->OwningUserId = LiveSubsystem->GetIdentityInterface()->CreateUniquePlayerId(Host->XboxUserId->Data());
-				if (Host->IsCurrentUser)
-				{
-					NamedSession->bHosting = true;
-					// @ATG_CHANGE :  BEGIN Allow modifying session visibility/joinability
-					NamedSession->HostingPlayerNum = LiveSubsystem->GetIdentityLive()->GetControllerIndexForId(*NamedSession->OwningUserId);
-					// @ATG_CHANGE :  END
-				}
-			}
 		}
 	}
 
@@ -2379,7 +2800,7 @@ void FOnlineSessionLive::OnInitializationStateChanged(const FName& SessionName)
 
 	UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::OnInitializationStateChanged - game thread"));
 
-	const auto NamedSession = GetNamedSession(SessionName);
+	FNamedOnlineSession* const NamedSession = GetNamedSession(SessionName);
 	if (NamedSession == nullptr)
 	{
 		UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::OnInitializationStateChanged - session doesn't exist or was destroyed before task ran"));
@@ -2389,11 +2810,11 @@ void FOnlineSessionLive::OnInitializationStateChanged(const FName& SessionName)
 	TSharedPtr<FOnlineSessionInfoLive> LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
 	check(LiveInfo.IsValid());
 
-    if (LiveInfo->IsSessionReady())
-    {
-        return;
-    }
-	
+	if (LiveInfo->IsSessionReady())
+	{
+		return;
+	}
+
 	// We only track initialization changes for the user associated with this session instance,
 	// not other local users. The use of initialization groups in JoinSessionAsync ensures all
 	// local users pass or fail QoS together.
@@ -2410,7 +2831,7 @@ void FOnlineSessionLive::OnInitializationStateChanged(const FName& SessionName)
 
 	if (SessionMember->InitializationFailureCause != MultiplayerMeasurementFailure::None)
 	{
-		UE_LOG_ONLINE(Log, TEXT("  Qos failed for this member, failure case: %u"), static_cast<uint32>(SessionMember->InitializationFailureCause));
+		UE_LOG_ONLINE(Log, TEXT("  Qos failed for this member, failure case: %u"), SessionMember->InitializationFailureCause);
 		FOnlineMatchmakingInterfaceLivePtr MatchmakingInterface = LiveSubsystem->GetMatchmakingInterfaceLive();
 		MatchmakingInterface->SetTicketState(SessionName, EOnlineLiveMatchmakingState::None);
 		MatchmakingInterface->TriggerOnMatchmakingCompleteDelegates(NamedSession->SessionName, false);
@@ -2421,14 +2842,8 @@ void FOnlineSessionLive::OnInitializationStateChanged(const FName& SessionName)
 	{
 		UE_LOG_ONLINE(Log, TEXT("  QoS succeeded"));
 
-		auto LiveContext = LiveSubsystem->GetLiveContext(LiveInfo->GetLiveMultiplayerSession());
-		auto SessionReadyTask = new FOnlineAsyncTaskLiveGameSessionReady(
-			LiveSubsystem,
-			LiveContext,
-			NamedSession->SessionName,
-			LiveInfo->GetLiveMultiplayerSessionRef());
-		LiveSubsystem->QueueAsyncTask(SessionReadyTask);
-
+		XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(LiveInfo->GetLiveMultiplayerSession());
+		LiveSubsystem->CreateAndDispatchAsyncTaskSerial<FOnlineAsyncTaskLiveGameSessionReady>(LiveSubsystem, LiveContext, NamedSession->SessionName, LiveInfo->GetLiveMultiplayerSessionRef());
 		return;
 	}
 
@@ -2439,67 +2854,59 @@ void FOnlineSessionLive::OnInitializationStateChanged(const FName& SessionName)
 
 		switch (Stage)
 		{
-			case Microsoft::Xbox::Services::Multiplayer::MultiplayerInitializationStage::None:
+			case MultiplayerInitializationStage::None:
 				UE_LOG_ONLINE(Log, TEXT("  InitializationStage = None"));
 				break;
 
-			case Microsoft::Xbox::Services::Multiplayer::MultiplayerInitializationStage::Unknown:
+			case MultiplayerInitializationStage::Unknown:
 				UE_LOG_ONLINE(Log, TEXT("  InitializationStage = Unknown"));
 				break;
 
-			case Microsoft::Xbox::Services::Multiplayer::MultiplayerInitializationStage::Joining:
+			case MultiplayerInitializationStage::Joining:
 				// Nothing to be done here, just wait for the other devices to finish joining the session
 				UE_LOG_ONLINE(Log, TEXT("  InitializationStage = Joining"));
 				break;
 
-			case Microsoft::Xbox::Services::Multiplayer::MultiplayerInitializationStage::Measuring:
+			case MultiplayerInitializationStage::Measuring:
 			{
 				// Title will measure and upload QoS result, service will do the evaluation.
 				UE_LOG_ONLINE(Log, TEXT("  InitializationStage = Measuring"));
 
-				auto LiveContext = LiveSubsystem->GetLiveContext(LiveInfo->GetLiveMultiplayerSession());
+				XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(LiveInfo->GetLiveMultiplayerSession());
 
-				FOnlineAsyncTaskLiveMeasureAndUploadQos* Task =
-					new FOnlineAsyncTaskLiveMeasureAndUploadQos( this,
-														 LiveContext,
-														 NamedSession,
-														 LiveSubsystem,
-														 MAX_RETRIES,
-														 QOS_TIMEOUT_MILLISECONDS,
-														 QOS_PROBE_COUNT);
-				LiveSubsystem->QueueAsyncTask(Task);
+				LiveSubsystem->CreateAndDispatchAsyncTaskSerial<FOnlineAsyncTaskLiveMeasureAndUploadQos>(this, LiveContext, NamedSession, LiveSubsystem, MAX_RETRIES, QOS_TIMEOUT_MILLISECONDS, QOS_PROBE_COUNT);
 				break;
 			}
 
-			case Microsoft::Xbox::Services::Multiplayer::MultiplayerInitializationStage::Evaluating:
+			case MultiplayerInitializationStage::Evaluating:
 				UE_LOG_ONLINE(Log, TEXT("  InitializationStage = Evaluating"));
 				// @todo Currently the engine supports system-evaluated QoS. Code for title-evaluated
 				// QoS would go here.
 				break;
 
-			case Microsoft::Xbox::Services::Multiplayer::MultiplayerInitializationStage::Failed:
+			case MultiplayerInitializationStage::Failed:
 				{
 					// QoS failed for the session overall
 					UE_LOG_ONLINE(Log, TEXT("  InitializationStage = Failed"));
 					FOnlineMatchmakingInterfaceLivePtr MatchmakingInterface = LiveSubsystem->GetMatchmakingInterfaceLive();
 					MatchmakingInterface->SetTicketState(SessionName, EOnlineLiveMatchmakingState::None);
-					MatchmakingInterface->TriggerOnMatchmakingCompleteDelegates(NamedSession->SessionName, false);	
+					MatchmakingInterface->TriggerOnMatchmakingCompleteDelegates(NamedSession->SessionName, false);
 					break;
 				}
 			default:
-				UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::OnInitializationStateChanged - Got unexpected InitializationStage: %u"), static_cast<uint32>(Stage));
+				UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::OnInitializationStateChanged - Got unexpected InitializationStage: %u"), Stage);
 				break;
 		}
 	}
 }
 
-void FOnlineSessionLive::OnMemberListChanged(Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession, const FName& SessionName)
+void FOnlineSessionLive::OnMemberListChanged(MultiplayerSession^ LiveSession, const FName& SessionName)
 {
 	check(IsInGameThread());
 
 	UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::OnMemberListChanged - game thread"));
 
-	const auto NamedSession = GetNamedSession(SessionName);
+	FNamedOnlineSession* const NamedSession = GetNamedSession(SessionName);
 	if (NamedSession == nullptr)
 	{
 		UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::OnMatchmakingStatusChanged - session doesn't exist or was destroyed before task ran"));
@@ -2512,7 +2919,7 @@ void FOnlineSessionLive::OnMemberListChanged(Microsoft::Xbox::Services::Multipla
 	if (NamedSession->SessionSettings.Get(SETTING_ALLOW_ARBITER_MIGRATION, AllowMigration) && AllowMigration)
 	{
 		bool ShouldMigrate = true;
-		for (auto Member : LiveSession->Members)
+		for (MultiplayerSessionMember^ Member : LiveSession->Members)
 		{
 			if (LiveSession->SessionProperties->HostDeviceToken == Member->DeviceToken)
 			{
@@ -2531,7 +2938,7 @@ void FOnlineSessionLive::OnMemberListChanged(Microsoft::Xbox::Services::Multipla
 	check(LiveInfo.IsValid());
 
 	// @v2live Should this go inside the MatchmakingState check below?
-	if ( !NamedSession->OwningUserId.IsValid() )
+	if (!NamedSession->OwningUserId.IsValid())
 	{
 		UE_LOG_ONLINE(Verbose, TEXT("FOnlineSessionLive::OnMemberListChanged: NamedSession->OwningUserId is not set, but the host should be handling this event."));
 		return;
@@ -2549,9 +2956,9 @@ void FOnlineSessionLive::OnMemberListChanged(Microsoft::Xbox::Services::Multipla
 	//	 On the new multiplayer APIs, there are no parties, so this would likely require a second session to hold
 	//	 waiting players.
 	//   Idea 2: Maybe the engine can detect when the session switches to Pending. Maybe games want more control though
-	if ( !NamedSession->SessionSettings.bAllowJoinInProgress )
+	if (!NamedSession->SessionSettings.bAllowJoinInProgress)
 	{
-		UE_LOG_ONLINE(Verbose, TEXT( "FOnlineSessionLive::OnMemberListChanged: Game is not join in progress, not resubmitting match ticket." ) );
+		UE_LOG_ONLINE(Verbose, TEXT("FOnlineSessionLive::OnMemberListChanged: Game is not join in progress, not resubmitting match ticket."));
 		return;
 	}
 
@@ -2562,20 +2969,20 @@ void FOnlineSessionLive::OnMemberListChanged(Microsoft::Xbox::Services::Multipla
 
 void FOnlineSessionLive::OnHostInvalid(const FName& SessionName)
 {
-	if (auto NamedSession = GetNamedSession(SessionName))
+	if (FNamedOnlineSession* const NamedSession = GetNamedSession(SessionName))
 	{
 		TSharedPtr<FOnlineSessionInfoLive> LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
 		if (LiveInfo.IsValid())
 		{
-			auto LiveSession =  LiveInfo->GetLiveMultiplayerSession();
-			if (auto LiveContext = LiveSubsystem->GetLiveContext(LiveSession))
+			MultiplayerSession^ LiveSession =  LiveInfo->GetLiveMultiplayerSession();
+			if (XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(LiveSession))
 			{
 				LiveSession->SetHostDeviceToken(LiveSession->CurrentUser->DeviceToken);
-				auto writeSessionOp = LiveContext->MultiplayerService->TryWriteSessionAsync( 
-					LiveSession, 
+				auto writeSessionOp = LiveContext->MultiplayerService->TryWriteSessionAsync(
+					LiveSession,
 					Multiplayer::MultiplayerSessionWriteMode::SynchronizedUpdate);
 
-				create_task(writeSessionOp).then([this,SessionName](task<WriteSessionResult^> t)
+				Concurrency::create_task(writeSessionOp).then([this,SessionName](Concurrency::task<WriteSessionResult^> t)
 				{
 					try
 					{
@@ -2583,8 +2990,8 @@ void FOnlineSessionLive::OnHostInvalid(const FName& SessionName)
 						if (Result->Succeeded || Result->Status == WriteSessionStatus::OutOfSync)
 						{
 							LiveSubsystem->RefreshLiveInfo(SessionName, Result->Session);
-						
-							LiveSubsystem->GetAsyncTaskManager()->AddGenericToOutQueue([this, SessionName, Result]
+
+							LiveSubsystem->ExecuteNextTick([this, SessionName, Result]
 							{
 								DetermineSessionHost(SessionName, Result->Session);
 							});
@@ -2611,24 +3018,22 @@ void FOnlineSessionLive::OnSessionNeedsInitialState(FName SessionName)
 
 /** Detect a loss of connection to the subscription service and exit multiplayer. */
 void FOnlineSessionLive::OnMultiplayerSubscriptionsLost()
-{	
+{
 	check(IsInGameThread());
 
 	UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::OnMultiplayerSubscriptionsLost - game thread"));
 	UE_LOG_ONLINE(Log, TEXT("  Connection to multiplayer service lost. Destroying session objects."));
 
 	// We were automatically removed from any Live sessions, so clean them up.
-	if(!bIsDestroyingSessions && Sessions.Num() > 0)
+	if (!bIsDestroyingSessions && Sessions.Num() > 0)
 	{
 		bIsDestroyingSessions = true;	// if multiple users lose subscriptions simultaneously, only try to destroy once
 		OnSubscriptionLostDestroyCompleteDelegateHandle = AddOnDestroySessionCompleteDelegate_Handle(OnSubscriptionLostDestroyCompleteDelegate);
 
 		FScopeLock Lock(&SessionLock);
 
-		// @ATG_CHANGE :  BEGIN Avoid error from Sessions changing during iteration
 		TArray<FNamedOnlineSession> SessionsCopy = Sessions;
-		for (auto& CurrentSession : SessionsCopy)
-		// @ATG_CHANGE :  END
+		for (const FNamedOnlineSession& CurrentSession : SessionsCopy)
 		{
 			DestroySession(CurrentSession.SessionName);
 		}
@@ -2648,7 +3053,7 @@ void FOnlineSessionLive::OnSubscriptionLostDestroyComplete(FName SessionName, bo
 			// @v2live: We currently give up when this occurs. Is this right?
 			UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::OnSubscriptionLostDestroyComplete - couldn't destroy session %s."), *SessionName.ToString());
 		}
-		
+
 		ClearOnDestroySessionCompleteDelegate_Handle(OnSubscriptionLostDestroyCompleteDelegateHandle);
 		bIsDestroyingSessions = false;
 
@@ -2658,20 +3063,20 @@ void FOnlineSessionLive::OnSubscriptionLostDestroyComplete(FName SessionName, bo
 	}
 }
 
-FNamedOnlineSession* FOnlineSessionLive::GetNamedSessionForLiveSessionRef(Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ LiveSessionRef)
+FNamedOnlineSession* FOnlineSessionLive::GetNamedSessionForLiveSessionRef(MultiplayerSessionReference^ LiveSessionRef)
 {
 	check(IsInGameThread());
-	
+
 	FScopeLock Lock(&SessionLock);
 
 	for (auto& CurrentSession : Sessions)
 	{
 		TSharedPtr<FOnlineSessionInfoLive> LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(CurrentSession.SessionInfo);
-		if(!LiveInfo.IsValid())
+		if (!LiveInfo.IsValid())
 		{
 			continue;
 		}
-		
+
 		if (LiveInfo->GetLiveMultiplayerSessionRef() &&
 			FOnlineSubsystemLive::AreSessionReferencesEqual(LiveInfo->GetLiveMultiplayerSessionRef(), LiveSessionRef))
 		{

@@ -55,12 +55,12 @@ void FOnlineAsyncTaskLiveCancelMatchmaking::Initialize()
 
 	try
 	{
-		// @ATG_CHANGE : BEGIN UWP LIVE support
 		auto CancelMatchTicketOperation = UserContext->MatchmakingService->DeleteMatchTicketAsync(
+			// @ATG_CHANGE : UWP Live Support - BEGIN
 			UserContext->AppConfig->ServiceConfigurationId,
+			// @ATG_CHANGE : UWP Live Support - BEGIN
 			ref new Platform::String(*TicketInfo->HopperName),
 			ref new Platform::String(*TicketInfo->TicketId));
-		// @ATG_CHANGE : END
 
 		concurrency::create_task( CancelMatchTicketOperation )
 			.then( [this] (concurrency::task<void> t)

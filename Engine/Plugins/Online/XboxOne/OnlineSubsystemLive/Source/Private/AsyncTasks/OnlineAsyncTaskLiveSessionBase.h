@@ -10,7 +10,7 @@
 //
 //-----------------------------------------------------------------------------
 
-/** 
+/**
  *  Async task base class for session related operations
  */
 class FOnlineAsyncTaskLiveSessionBase : public FOnlineAsyncTaskLive
@@ -19,7 +19,7 @@ public:
 	FOnlineAsyncTaskLiveSessionBase(
 	class FOnlineSubsystemLive* LiveSubsystem,
 		int32		InUserIndex,
-		FName		SessionName, 
+		FName		SessionName,
 		const FOnlineSessionSettings& NewSessionSettings
 		);
 
@@ -27,9 +27,9 @@ public:
 	FOnlineAsyncTaskLiveSessionBase( FOnlineAsyncTaskLiveSessionBase* PreviousTask );
 
 	virtual ~FOnlineAsyncTaskLiveSessionBase();
-		
+
 	virtual	bool					SettingsAreValid();
-	
+
 	const FName&					GetSessionName()	{ return SessionName; }
 
 protected:
@@ -49,7 +49,6 @@ protected:
 
 	bool							ClientMatchmakingCapable;
 	bool							PartyEnabledSession;
-	Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionVisibility	SessionVisibility; 
 	Platform::String^				CustomConstantsJson;
 	Windows::Foundation::Collections::IVector<Platform::String^>^		InitiatorXboxUserIds;
 };

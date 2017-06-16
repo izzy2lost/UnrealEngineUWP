@@ -8,19 +8,23 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CommandLine.h"
 
-// @ATG_CHANGE : BEGIN Adding social features
-#include "OnlineUserInterfaceLive.h"
-// @ATG_CHANGE : END
 #include "OnlineFriendsInterfaceLive.h"
 // #include "OnlineUserCloudInterfaceLive.h"
 #include "OnlineLeaderboardInterfaceLive.h"
 #include "OnlineExternalUIInterfaceLive.h"
 #include "OnlineIdentityInterfaceLive.h"
+// @ATG_CHANGE : BEGIN - Needs UWP implementation.  XDK-based implementation should come from standard OSSLive
+#if PLATFORM_XBOXONE
+#include "OnlineStoreInterfaceLive.h"
+#include "OnlinePurchaseInterfaceLive.h"
+#endif
+// @ATG_CHANGE : END
 #include "OnlineAchievementsInterfaceLive.h"
 #include "OnlineAsyncTaskManagerLive.h"
 #include "OnlineSessionInterfaceLive.h"
 #include "OnlinePresenceInterfaceLive.h"
 #include "OnlineVoiceInterfaceLive.h"
+#include "OnlineUserInterfaceLive.h"
 #include "SessionMessageRouter.h"
 #include "OnlineMatchmakingInterfaceLive.h"
 // @ATG_CHANGE : BEGIN - needed for pathing to cpprest dll
@@ -36,6 +40,10 @@ typedef FOnlineVoiceLivePtr FOnlineVoiceImplPtr;
 
 using namespace Microsoft::Xbox::Services;
 using namespace Windows::Networking::Connectivity;
+using Microsoft::Xbox::Services::Social::SocialRelationshipChangeEventArgs;
+using Microsoft::Xbox::Services::Presence::DevicePresenceChangeEventArgs;
+using Microsoft::Xbox::Services::Presence::TitlePresenceChangeEventArgs;
+using Microsoft::Xbox::Services::UserStatistics::StatisticChangeEventArgs;
 
 // FOnlineSubsystemLiveModule
 
@@ -80,7 +88,7 @@ public:
 			return nullptr;
 		}
 
-		LiveSingleton = MakeShareable(new FOnlineSubsystemLive());
+		LiveSingleton = MakeShared<FOnlineSubsystemLive, ESPMode::ThreadSafe>();
 		if (LiveSingleton->IsEnabled())
 		{
 			if(!LiveSingleton->Init())
@@ -200,14 +208,22 @@ IOnlineStorePtr FOnlineSubsystemLive::GetStoreInterface() const
 IOnlineStoreV2Ptr FOnlineSubsystemLive::GetStoreV2Interface() const
 {
 // @ATG_CHANGE : UWP Live Support - BEGIN
+#if PLATFORM_XBOXONE
+	return StoreInterface;
+#else
 	return nullptr;
+#endif
 // @ATG_CHANGE : UWP Live Support - END
 }
 
 IOnlinePurchasePtr FOnlineSubsystemLive::GetPurchaseInterface() const
 {
 // @ATG_CHANGE : UWP Live Support - BEGIN
+#if PLATFORM_XBOXONE
+	return PurchaseInterface;
+#else
 	return nullptr;
+#endif
 // @ATG_CHANGE : UWP Live Support - END
 }
 
@@ -228,9 +244,7 @@ IOnlineSharingPtr FOnlineSubsystemLive::GetSharingInterface() const
 
 IOnlineUserPtr FOnlineSubsystemLive::GetUserInterface() const
 {
-	// @ATG_CHANGE : BEGIN Adding social features
 	return UserInterface;
-	// @ATG_CHANGE : END
 }
 
 IOnlineMessagePtr FOnlineSubsystemLive::GetMessageInterface() const
@@ -363,7 +377,9 @@ public:
 bool FOnlineSubsystemLive::Init()
 {
 	const bool bLiveInit = true;
-	
+
+	bIgnoreNetworkStatusChanged = false;
+
 	if (bLiveInit)
 	{
 		// @todo - still need to define Live socket subsystem
@@ -389,32 +405,34 @@ bool FOnlineSubsystemLive::Init()
 // @ATG_CHANGE : END
 
 		// Create the online async task thread
-		OnlineAsyncTaskThreadRunnable = new FOnlineAsyncTaskManagerLive(this);
-		check(OnlineAsyncTaskThreadRunnable);
-		OnlineAsyncTaskThread = FRunnableThread::Create(OnlineAsyncTaskThreadRunnable, *FString::Printf(TEXT("OnlineAsyncTaskThread %s"), *InstanceName.ToString()));
-		check(OnlineAsyncTaskThread);
+		OnlineAsyncTaskThreadRunnable = MakeUnique<FOnlineAsyncTaskManagerLive>(this);
+
+		OnlineAsyncTaskThread.Reset(FRunnableThread::Create(OnlineAsyncTaskThreadRunnable.Get(), *FString::Printf(TEXT("OnlineAsyncTaskThread %s"), *InstanceName.ToString())));
+		check(OnlineAsyncTaskThread.IsValid());
+
 		UE_LOG(LogOnline, Verbose, TEXT("Created thread (ID:%d)."), OnlineAsyncTaskThread->GetThreadID() );
 
 		// @ATG_CHANGE : BEGIN 
 		ApplicationConfig = XboxLiveAppConfiguration::SingletonInstance;
 		// @ATG_CHANGE : END
 
-		SessionMessageRouterInterface = MakeShareable(new FSessionMessageRouter(this));
-		MatchmakingInterfaceLive = MakeShareable(new FOnlineMatchmakingInterfaceLive(this));
+		SessionMessageRouterInterface = MakeShared<FSessionMessageRouter, ESPMode::ThreadSafe>(this);
+		MatchmakingInterfaceLive = MakeShared<FOnlineMatchmakingInterfaceLive, ESPMode::ThreadSafe>(this);
 
-		IdentityInterface = MakeShareable(new FOnlineIdentityLive(this));
+		IdentityInterface = MakeShared<FOnlineIdentityLive, ESPMode::ThreadSafe>(this);
+#if PLATFORM_XBOXONE
+		StoreInterface = MakeShared<FOnlineStoreLive, ESPMode::ThreadSafe>(this);
+		PurchaseInterface = MakeShared<FOnlinePurchaseLive, ESPMode::ThreadSafe>(this);
+#endif
+		SessionInterface = MakeShared<FOnlineSessionLive, ESPMode::ThreadSafe>(this);
 
- 		SessionInterface = MakeShareable(new FOnlineSessionLive(this));
-
- 		// @ATG_CHANGE : BEGIN Adding social features
-		FriendInterface = MakeShareable(new FOnlineFriendsLive(this));
-		// @ATG_CHANGE : END		
-// 		UserCloudInterface = MakeShareable(new FOnlineUserCloudLive(this));
-		LeaderboardsInterface = MakeShareable(new FOnlineLeaderboardsLive(this));
+		FriendInterface = MakeShared<FOnlineFriendsLive, ESPMode::ThreadSafe>(this);
+// 		UserCloudInterface = MakeShared<FOnlineUserCloudLive, ESPMode::ThreadSafe>(this);
+		LeaderboardsInterface = MakeShared<FOnlineLeaderboardsLive, ESPMode::ThreadSafe>(this);
 
 // @ATG_CHANGE : BEGIN 
 #if WITH_GAME_CHAT
-		FOnlineVoiceImplPtr VoiceImpl = MakeShareable(new FOnlineVoiceLive(this));
+		FOnlineVoiceImplPtr VoiceImpl = MakeShared<FOnlineVoiceLive, ESPMode::ThreadSafe>(this);
 
 		if (VoiceImpl->Init())
 		{
@@ -422,31 +440,44 @@ bool FOnlineSubsystemLive::Init()
 		}
 #endif
 // @ATG_CHANGE : END
+		ExternalUIInterface = MakeShared<FOnlineExternalUILive, ESPMode::ThreadSafe>(this);
+		EventsInterface = MakeShared<FOnlineEventsLive, ESPMode::ThreadSafe>(this);
+		AchievementInterface = MakeShared<FOnlineAchievementsLive, ESPMode::ThreadSafe>(this);
+		PresenceInterface = MakeShared<FOnlinePresenceLive, ESPMode::ThreadSafe>(this);
+		UserInterface = MakeShared<FOnlineUserLive, ESPMode::ThreadSafe>(this);
 
- 		ExternalUIInterface = MakeShareable(new FOnlineExternalUILive(this));
-		EventsInterface = MakeShareable(new FOnlineEventsLive(this));
-		AchievementInterface = MakeShareable(new FOnlineAchievementsLive(this));
-		PresenceInterface = MakeShareable(new FOnlinePresenceLive(this));
- 		// @ATG_CHANGE : BEGIN Adding social features
-		UserInterface = MakeShareable(new FOnlineUserInterfaceLive(this));
-		// @ATG_CHANGE : END		
-		
 		bHasCalledNetworkStatusChangedAtLeastOnce = false;
+
+		Windows::ApplicationModel::Core::CoreApplication::Resuming += ref new Windows::Foundation::EventHandler< Platform::Object^>(
+			[this](Platform::Object^, Platform::Object^)
+		{
+			// After resuming, we may get a series of conflicting NetworkStatusChanged events
+			// which should be ignored for a few seconds before polling the status
+			// https://forums.xboxlive.com/questions/57371/networkconnectivitylevel-when-resuming-from-suspen.html
+			bIgnoreNetworkStatusChanged = true;
+
+			concurrency::task<void> delayedTask = concurrency::create_task([]()
+			{
+				concurrency::wait(5000);
+
+			}).then([this]()
+			{
+				bIgnoreNetworkStatusChanged = false;
+				RefreshNetworkConnectivityLevel();
+			});
+		});
 
 		Windows::Networking::Connectivity::NetworkInformation::NetworkStatusChanged += ref new Windows::Networking::Connectivity::NetworkStatusChangedEventHandler( 
 			[this] (Platform::Object^)
 		{
-			Windows::Networking::Connectivity::NetworkConnectivityLevel NetworkConnectivityLevelOnStack = Windows::Networking::Connectivity::NetworkConnectivityLevel::None;
-
-			ConnectionProfile^ InternetConnectionProfile = NetworkInformation::GetInternetConnectionProfile();
-
-			if ( InternetConnectionProfile != nullptr )
+			if (!bIgnoreNetworkStatusChanged)
 			{
-				NetworkConnectivityLevelOnStack = InternetConnectionProfile->GetNetworkConnectivityLevel();
+				RefreshNetworkConnectivityLevel();
 			}
-
-			auto NewEvent = new FAsyncEventConnectionStatusChanged(this, NetworkConnectivityLevelOnStack);
-			GetAsyncTaskManager()->AddToOutQueue(NewEvent);
+			else
+			{
+				UE_LOG_ONLINE(Verbose, TEXT("Ignoring NetworkStatusChanged"));
+			}
 		});
 
 		// Clear cached XboxLiveContext when user is removed
@@ -455,12 +486,16 @@ bool FOnlineSubsystemLive::Init()
 		{
 			FScopeLock ScopeLock(&LiveContextsLock);
 
-			// @ATG_CHANGE : UWP Live Support - BEGIN
-			XboxLiveContext^* RemoveContext = CachedXboxLiveContexts.Find(Args->User->XboxUserId->Data());
-			(*RemoveContext)->RealTimeActivityService->Deactivate();
+			// @ATG_CHANGE : BEGIN UWP support
+			XboxLiveContext^ RemoveContext = CachedXboxLiveContexts.FindChecked(Args->User->XboxUserId->Data());
+			RemoveContext->RealTimeActivityService->Deactivate();
 			CachedXboxLiveContexts.Remove(Args->User->XboxUserId->Data());
-			// @ATG_CHANGE : UWP Live Support - END
+			// @ATG_CHANGE : END UWP support 
 		});
+
+		// @ATG_CHANGE : BEGIN UWP support - delay setting this until after the above manual load steps for dependant libs
+		TitleId = Microsoft::Xbox::Services::XboxLiveAppConfiguration::SingletonInstance->TitleId;
+		// @ATG_CHANGE : END
 	}
 	else
 	{
@@ -476,20 +511,19 @@ bool FOnlineSubsystemLive::Shutdown()
 
 	FOnlineSubsystemImpl::Shutdown();
 
-	if (OnlineAsyncTaskThread)
+	if (OnlineAsyncTaskThread.IsValid())
 	{
 		// Destroy the online async task thread
-		delete OnlineAsyncTaskThread;
-		OnlineAsyncTaskThread = nullptr;
+		OnlineAsyncTaskThread->Kill(true);
+		OnlineAsyncTaskThread.Reset();
 	}
 
-	if (OnlineAsyncTaskThreadRunnable)
+	if (OnlineAsyncTaskThreadRunnable.IsValid())
 	{
-		delete OnlineAsyncTaskThreadRunnable;
-		OnlineAsyncTaskThreadRunnable = nullptr;
+		OnlineAsyncTaskThreadRunnable.Reset();
 	}
 
-	#define DESTRUCT_INTERFACE(Interface) \
+#define DESTRUCT_INTERFACE(Interface) \
 	if (Interface.IsValid()) \
 	{ \
 		ensure(Interface.IsUnique()); \
@@ -497,6 +531,7 @@ bool FOnlineSubsystemLive::Shutdown()
 	}
 
 	// Destruct the interfaces (in opposite order they were created)
+	DESTRUCT_INTERFACE(UserInterface);
 	DESTRUCT_INTERFACE(PresenceInterface);
 	DESTRUCT_INTERFACE(AchievementInterface);
 	DESTRUCT_INTERFACE(EventsInterface);
@@ -505,17 +540,17 @@ bool FOnlineSubsystemLive::Shutdown()
 	DESTRUCT_INTERFACE(LeaderboardsInterface);
 	DESTRUCT_INTERFACE(FriendInterface);
 	DESTRUCT_INTERFACE(SessionInterface);
+	// @ATG_CHANGE : UWP Live Support - BEGIN
+	#if PLATFORM_XBOXONE
+	DESTRUCT_INTERFACE(PurchaseInterface);
+	DESTRUCT_INTERFACE(StoreInterface);
+	#endif // PLATFORM_XBOXONE
+	// @ATG_CHANGE : UWP Live Support - END
 	DESTRUCT_INTERFACE(IdentityInterface);
 	DESTRUCT_INTERFACE(MatchmakingInterfaceLive);
 	DESTRUCT_INTERFACE(SessionMessageRouterInterface);
-	// @ATG_CHANGE : BEGIN Adding social features
-	DESTRUCT_INTERFACE(FriendInterface);
-	DESTRUCT_INTERFACE(UserInterface);
-	// @ATG_CHANGE : END
 
-
-	#undef DESTRUCT_INTERFACE
-
+#undef DESTRUCT_INTERFACE
 	// Clear cached XboxLiveContext when user is removed
 	if (UserRemovedToken.Value != 0)
 	{
@@ -536,7 +571,7 @@ FString FOnlineSubsystemLive::GetAppId() const
 	return TEXT("");
 }
 
-bool FOnlineSubsystemLive::Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar) 
+bool FOnlineSubsystemLive::Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar)
 {
 	if (FOnlineSubsystemImpl::Exec(InWorld, Cmd, Ar))
 	{
@@ -556,6 +591,13 @@ bool FOnlineSubsystemLive::IsEnabled()
 	bEnableLive = bEnableLive && !FParse::Param(FCommandLine::Get(),TEXT("NOLIVE"));
 #endif
 	return bEnableLive;
+}
+
+FOnlineAsyncTaskManagerLive* FOnlineSubsystemLive::GetAsyncTaskManager()
+{
+	check(OnlineAsyncTaskThreadRunnable != nullptr);
+
+	return OnlineAsyncTaskThreadRunnable.Get();
 }
 
 void FOnlineSubsystemLive::QueueAsyncTask(FOnlineAsyncTask* const AsyncTask, const bool bCanRunInParallel)
@@ -665,7 +707,95 @@ Microsoft::Xbox::Services::XboxLiveContext^ FOnlineSubsystemLive::GetLiveContext
 		{
 			// @ATG_CHANGE : BEGIN UWP LIVE support
 			auto LiveContext = ref new XboxLiveContext(XSAPIUserFromSystemUser(LiveUser));
+			// @ATG_CHANGE : END UWP LIVE support
 			LiveContext->RealTimeActivityService->Activate();
+
+			// Register for friends updates
+			LiveContext->SocialService->SocialRelationshipChanged += ref new Windows::Foundation::EventHandler<SocialRelationshipChangeEventArgs^>([this](Platform::Object^, SocialRelationshipChangeEventArgs^ EventArgs)
+			{
+				const FUniqueNetIdLive LiveNetId(EventArgs->CallerXboxUserId);
+				UE_LOG_ONLINE(Verbose, TEXT("Received SocialRelationshipChange event for player %s"), *LiveNetId.ToString());
+
+				// Call on the game thread
+				ExecuteNextTick([this, LiveNetId]()
+				{
+					const FOnlineIdentityLivePtr IdentityPtr = GetIdentityLive();
+					if (!IdentityPtr.IsValid())
+					{
+						UE_LOG_ONLINE(Warning, TEXT("Received unhandleable SocialRelationshipChange event for player %s"), *LiveNetId.ToString());
+						return;
+					}
+
+					const int32 LocalUserNum = IdentityPtr->GetControllerIndexForId(LiveNetId);
+					if (LocalUserNum == -1)
+					{
+						UE_LOG_ONLINE(Warning, TEXT("Received SocialRelationshipChange event for unknown player %s"), *LiveNetId.ToString());
+						return;
+					}
+
+					// Requery our friends list
+					const FOnlineFriendsLivePtr FriendsPtr = GetFriendsLive();
+					if (FriendsPtr.IsValid())
+					{
+						if (!FriendsPtr->ReadFriendsList(LocalUserNum, EFriendsLists::ToString(EFriendsLists::Default), FOnReadFriendsListComplete()))
+						{
+							UE_LOG_ONLINE(Warning, TEXT("Failed to requery friends list for player %s after SocialRelationshipChange"), *LiveNetId.ToString());
+						}
+					}
+				});
+			});
+
+			// Register for presence updates
+			LiveContext->PresenceService->DevicePresenceChanged += ref new Windows::Foundation::EventHandler<DevicePresenceChangeEventArgs^>([this](Platform::Object^, DevicePresenceChangeEventArgs^ EventArgs)
+			{
+				const FUniqueNetIdLive LiveNetId(EventArgs->XboxUserId);
+				UE_LOG_ONLINE(Verbose, TEXT("Received DevicePresenceChanged Event Player:%s DeviceType:%s IsUserLoggedIn:%d"), *LiveNetId.ToString(), EventArgs->DeviceType.ToString()->Data(), EventArgs->IsUserLoggedOnDevice);
+				ExecuteNextTick([this, EventArgs]()
+				{
+					const FOnlinePresenceLivePtr PresencePtr = GetPresenceLive();
+					if (PresencePtr.IsValid())
+					{
+						PresencePtr->OnPresenceDeviceChanged(EventArgs);
+					}
+				});
+			});
+			LiveContext->PresenceService->TitlePresenceChanged += ref new Windows::Foundation::EventHandler<TitlePresenceChangeEventArgs^>([this](Platform::Object^, TitlePresenceChangeEventArgs^ EventArgs)
+			{
+				const FUniqueNetIdLive LiveNetId(EventArgs->XboxUserId);
+				UE_LOG_ONLINE(Verbose, TEXT("Received TitlePresenceChanged Event Player: %s TitleId: %u TitleState:%s"), *LiveNetId.ToString(), EventArgs->TitleId, EventArgs->TitleState.ToString()->Data());
+				ExecuteNextTick([this, EventArgs]()
+				{
+					const FOnlinePresenceLivePtr PresencePtr = GetPresenceLive();
+					if (PresencePtr.IsValid())
+					{
+						PresencePtr->OnPresenceTitleChanged(EventArgs);
+					}
+				});
+			});
+			const FUniqueNetIdLive SourceNetId(LiveUser->XboxUserId);
+			LiveContext->UserStatisticsService->StatisticChanged += ref new Windows::Foundation::EventHandler<StatisticChangeEventArgs^>([this, SourceNetId](Platform::Object^, StatisticChangeEventArgs^ EventArgs)
+			{
+				const FUniqueNetIdLive LiveNetId(EventArgs->XboxUserId);
+				UE_LOG_ONLINE(Verbose, TEXT("Received StatisticChanged Event Player:%s StatName: %s NewValue: %s"), *LiveNetId.ToString(), EventArgs->LatestStatistic->StatisticName->Data(), EventArgs->LatestStatistic->Value->Data());
+				ExecuteNextTick([this, SourceNetId, EventArgs, LiveNetId]()
+				{
+					FOnlineSessionLivePtr SessionInt(GetSessionInterfaceLive());
+					if (SessionInt.IsValid())
+					{
+						FString StatName(EventArgs->LatestStatistic->StatisticName->Data());
+						if (StatName == SessionInt->SessionUpdateStatName)
+						{
+							FOnlinePresenceLivePtr PresencePtr(GetPresenceLive());
+							if (PresencePtr.IsValid())
+							{
+								PresencePtr->OnSessionUpdatedStatChange(SourceNetId, LiveNetId);
+							}
+						}
+					}
+				});
+			});
+
+			// @ATG_CHANGE : BEGIN UWP LIVE support
 			CachedXboxLiveContexts.Add(LiveUser->XboxUserId->Data(), LiveContext);
 			// @ATG_CHANGE : END
 
@@ -796,4 +926,30 @@ FOnlineSessionLivePtr FOnlineSubsystemLive::GetSessionInterfaceLive()
 }
 // @ATG_CHANGE :  END
 
+void FOnlineSubsystemLive::RefreshNetworkConnectivityLevel()
+{
+	UE_LOG_ONLINE(Verbose, TEXT("RefreshNetworkConnectivityLevel"));
+	Windows::Networking::Connectivity::NetworkConnectivityLevel NetworkConnectivityLevelOnStack = Windows::Networking::Connectivity::NetworkConnectivityLevel::None;
 
+	ConnectionProfile^ InternetConnectionProfile = NetworkInformation::GetInternetConnectionProfile();
+
+	if (InternetConnectionProfile != nullptr)
+	{
+		NetworkConnectivityLevelOnStack = InternetConnectionProfile->GetNetworkConnectivityLevel();
+	}
+
+	auto NewEvent = new FAsyncEventConnectionStatusChanged(this, NetworkConnectivityLevelOnStack);
+	GetAsyncTaskManager()->AddToOutQueue(NewEvent);
+}
+
+EOnlineEnvironment::Type FOnlineSubsystemLive::GetOnlineEnvironment() const
+{
+	// TODO: consider a way to do this better, perhaps with sandbox ids?
+#if UE_BUILD_SHIPPING
+	return EOnlineEnvironment::Production;
+#elif UE_BUILD_TEST
+	return EOnlineEnvironment::Certification;
+#else
+	return EOnlineEnvironment::Development;
+#endif
+}

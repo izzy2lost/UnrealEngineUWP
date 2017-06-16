@@ -5,34 +5,37 @@
 #include "OnlineSubsystemLive.h"
 #include "../OnlineSessionInterfaceLive.h"
 
-
-
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSession;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference;
+using Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionRestriction;
+using Microsoft::Xbox::Services::XboxLiveContext;
 
 FOnlineAsyncTaskLiveUpdateSession::FOnlineAsyncTaskLiveUpdateSession(
 	FName InSessionName,
-	Microsoft::Xbox::Services::XboxLiveContext^ InContext,
+	XboxLiveContext^ InContext,
 	FOnlineSubsystemLive* InSubsystem,
-	int RetryCount,
-	const FOnlineSessionSettings& InUpdatedSessionSettings)
+	int32 RetryCount,
+	const FOnlineSessionSettings& InUpdatedSessionSettings
+)
 	: FOnlineAsyncTaskLiveSafeWriteSession(InSessionName, InContext, InSubsystem, RetryCount)
 	, UpdatedSessionSettings(InUpdatedSessionSettings)
 {
-	
 }
 
 FOnlineAsyncTaskLiveUpdateSession::FOnlineAsyncTaskLiveUpdateSession(
 	FName InSessionName,
-	Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ InSessionReference,
-	Microsoft::Xbox::Services::XboxLiveContext^ InContext,
+	MultiplayerSessionReference^ InSessionReference,
+	XboxLiveContext^ InContext,
 	FOnlineSubsystemLive* InSubsystem,
-	int RetryCount,
-	const FOnlineSessionSettings& InUpdatedSessionSettings)
+	int32 RetryCount,
+	const FOnlineSessionSettings& InUpdatedSessionSettings
+)
 	: FOnlineAsyncTaskLiveSafeWriteSession(InSessionName, InSessionReference, InContext, InSubsystem, RetryCount)
 	, UpdatedSessionSettings(InUpdatedSessionSettings)
 {
 }
 
-bool FOnlineAsyncTaskLiveUpdateSession::UpdateSession(Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ Session)
+bool FOnlineAsyncTaskLiveUpdateSession::UpdateSession(MultiplayerSession^ Session)
 {
 	FOnlineSessionLive::WriteSettingsToLiveJson( UpdatedSessionSettings, Session, nullptr );
 	// @ATG_CHANGE : BEGIN Allow modifying session visibility/joinability
@@ -42,10 +45,9 @@ bool FOnlineAsyncTaskLiveUpdateSession::UpdateSession(Microsoft::Xbox::Services:
 	return true;
 }
 
-
 void FOnlineAsyncTaskLiveUpdateSession::TriggerDelegates()
 {
-	auto SessionInterface = Subsystem->GetSessionInterface();
+	IOnlineSessionPtr SessionInterface = Subsystem->GetSessionInterface();
 	if (SessionInterface.IsValid())
 	{
 		SessionInterface->TriggerOnUpdateSessionCompleteDelegates(GetSessionName(), WasSuccessful());

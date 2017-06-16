@@ -4,6 +4,7 @@
 #include "../OnlineSessionInterfaceLive.h"
 #include "OnlineSubsystemLive.h"
 #include "OnlineAsyncTaskLiveRegisterLocalUser.h"
+#include "OnlineAsyncTaskLiveSetSessionActivity.h"
 
 using namespace Windows::Xbox::Networking;
 using namespace Microsoft::Xbox::Services::Multiplayer;
@@ -39,13 +40,15 @@ FOnlineAsyncTaskLiveRegisterLocalUser::FOnlineAsyncTaskLiveRegisterLocalUser(
 bool FOnlineAsyncTaskLiveRegisterLocalUser::UpdateSession(MultiplayerSession^ Session)
 {
 	// Don't join if the session is full.
+	// @ATG_CHANGE : UWP Live Support - BEGIN
 	if (!Subsystem->GetSessionInterfaceLive()->CanUserJoinSession(SystemUserFromXSAPIUser(GetLiveContext()->User), Session))
+	// @ATG_CHANGE : UWP Live Support - END
 	{
 		Result = EOnJoinSessionCompleteResult::SessionIsFull;
 		return false;
 	}
 
-	// @ATG_CHANGE : BEGIN UWP LIVE support
+	// @ATG_CHANGE : BEGIN - UWP LIVE support
 	Session->Join(nullptr, true, false);
 	// @ATG_CHANGE : END
 	Session->SetCurrentUserStatus(MultiplayerSessionMemberStatus::Active);
@@ -78,5 +81,5 @@ void FOnlineAsyncTaskLiveRegisterLocalUser::Finalize()
 	FOnlineAsyncTaskLiveSafeWriteSession::Finalize();
 		
 	// Set this as the user's activity
-	GetLiveContext()->MultiplayerService->SetActivityAsync(GetSessionReference());
+	Subsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveSetSessionActivity>(Subsystem, GetLiveContext(), GetSessionReference());
 }

@@ -1,11 +1,11 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "OnlineSubsystemLivePackage.h"
 #include "SimpleTokenParser.h"
 #include "OnlineEventsInterface.h"
-// @ATG_CHANGE : BEGIN UWP LIVE support
+// @ATG_CHANGE : BEGIN - UWP LIVE support
 #include "OnlineSubsystemLiveTypes.h"
 
 class FOnlineSubsystemLive;
@@ -282,7 +282,7 @@ private:
 
 typedef TSharedPtr<FOnlineEventsLive, ESPMode::ThreadSafe> FOnlineEventsLivePtr;
 
-// @ATG_CHANGE : BEGIN UWP LIVE support
+// @ATG_CHANGE : BEGIN - UWP LIVE support
 #else
 /**
 *	FOnlineEventsLive - Interface class for events (Live implementation)

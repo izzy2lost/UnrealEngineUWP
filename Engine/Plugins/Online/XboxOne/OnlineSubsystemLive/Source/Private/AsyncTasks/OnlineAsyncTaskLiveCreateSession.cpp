@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "../OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineAsyncTaskLiveCreateSession.h"
@@ -6,7 +6,7 @@
 #include "../OnlineSessionInterfaceLive.h"
 #include "OnlineSubsystemLivePackage.h"
 #include "Online.h"
-// @ATG_CHANGE : BEGIN Allow modifying session visibility/joinability
+// @ATG_CHANGE : BEGIN - Allow modifying session visibility/joinability
 #include "../OnlineIdentityInterfaceLive.h"
 // @ATG_CHANGE : END
 
@@ -63,7 +63,7 @@ void FOnlineAsyncTaskLiveCreateSession::Finalize()
 		UE_LOG_ONLINE(Error, TEXT("FOnlineAsyncTaskLiveCreateSession::Finalize - Couldn't get Live subsystem"));
 	}
 
-	// @ATG_CHANGE : BEGIN Allow modifying session visibility/joinability
+	// @ATG_CHANGE : BEGIN - Allow modifying session visibility/joinability
 	NamedSession->HostingPlayerNum = Subsystem->GetIdentityLive()->GetControllerIndexForId(*UserId);
 	// @ATG_CHANGE : END
 

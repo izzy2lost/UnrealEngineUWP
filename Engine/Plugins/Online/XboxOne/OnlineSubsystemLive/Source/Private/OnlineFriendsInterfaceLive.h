@@ -124,8 +124,8 @@ public:
 	virtual bool DeleteFriendsList(int32 LocalUserNum, const FString& ListName, const FOnDeleteFriendsListComplete& Delegate = FOnDeleteFriendsListComplete()) override;
 	virtual bool SendInvite(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName,  const FOnSendInviteComplete& Delegate = FOnSendInviteComplete()) override;
 	virtual bool AcceptInvite(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName, const FOnAcceptInviteComplete& Delegate = FOnAcceptInviteComplete()) override;
- 	virtual bool RejectInvite(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName) override;
- 	virtual bool DeleteFriend(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName) override;
+	virtual bool RejectInvite(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName) override;
+	virtual bool DeleteFriend(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName) override;
 	virtual bool GetFriendsList(int32 LocalUserNum, const FString& ListName, TArray< TSharedRef<FOnlineFriend> >& OutFriends) override;
 	virtual TSharedPtr<FOnlineFriend> GetFriend(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName) override;
 	virtual bool IsFriend(int32 LocalUserNum, const FUniqueNetId& FriendId, const FString& ListName) override;
@@ -148,10 +148,12 @@ public:
 
 	bool ReadUserListInternal(int32 LocalUserNum, const FString& ListName, const TArray<TSharedRef<const FUniqueNetId> >* UserIds, const FOnReadFriendsListComplete& Delegate);
 	// @ATG_CHANGE : END
-	virtual ~FOnlineFriendsLive()
-	{
 
-	}
+	virtual ~FOnlineFriendsLive() = default;
+
+PACKAGE_SCOPE:
+	void OnUserPresenceUpdate(const FUniqueNetIdLive& FriendId, const TSharedRef<FOnlineUserPresenceLive>& UpdatedPresence);
+	void OnUserSessionPresenceUpdate(const FUniqueNetIdLive& FriendId, const TSharedPtr<const FUniqueNetId>& NewSessionId, const bool bNewIsJoinable);
 
 private:
 	/** Reference to the main Live subsystem */
@@ -200,6 +202,9 @@ private:
 // @ATG_CHANGE : END
 	/** These are users we have asked not to play with (similar to a blocklist) */
 	TMap<FUniqueNetIdLive, TArray<TSharedRef<FOnlineBlockedPlayerLive>>> AvoidListMap;
+
+	/** Map of local players to their friends list change subscription token */
+	TMap<FUniqueNetIdLive, Microsoft::Xbox::Services::Social::SocialRelationshipChangeSubscription^> FriendChangeSubscriptionMap;
 };
 
 typedef TSharedPtr<FOnlineFriendsLive, ESPMode::ThreadSafe> FOnlineFriendsLivePtr;

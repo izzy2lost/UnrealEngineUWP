@@ -5,10 +5,6 @@
 #include "../OnlineAsyncTaskManagerLive.h"
 #include "../OnlineSubsystemLiveTypes.h"
 
-//-----------------------------------------------------------------------------
-//
-//-----------------------------------------------------------------------------
-
 class FOnlineAsyncTaskLiveSessionChanged : public FOnlineAsyncTaskLive
 {
 public:
@@ -19,7 +15,7 @@ public:
 		FString InChangeBranch,
 		uint64 InChangeNumber);
 
-	virtual ~FOnlineAsyncTaskLiveSessionChanged();
+	virtual ~FOnlineAsyncTaskLiveSessionChanged() = default;
 
 	void			OnFailed();
 	virtual void	Initialize() override;
@@ -44,5 +40,3 @@ private:
 	FName GetSessionNameForLiveSessionRef(Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ LiveSessionRef);
 	Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ GetLiveSessionRefForSessionName(const FName& SessionName);
 };
-
-//------------------------------- End of file ---------------------------------

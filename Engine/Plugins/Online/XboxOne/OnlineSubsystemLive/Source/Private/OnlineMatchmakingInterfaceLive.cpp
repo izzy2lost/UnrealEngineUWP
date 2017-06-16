@@ -87,7 +87,7 @@ bool FOnlineMatchmakingInterfaceLive::StartMatchmaking(const TArray< TSharedRef<
 
 	if (MatchmakingTicket.IsValid() == false)
 	{
-		MatchmakingTicket = MakeShareable(new FOnlineMatchTicketInfo);
+		MatchmakingTicket = MakeShared<FOnlineMatchTicketInfo>();
 		AddMatchmakingTicket(SessionName, MatchmakingTicket);
 	}
 
@@ -347,8 +347,7 @@ void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(FName SessionNa
 					}
 				}
 
-				auto LiveInfo = new FOnlineSessionInfoLive(TargetSessionReference);
-				NamedSession->SessionInfo = MakeShareable(LiveInfo);
+				NamedSession->SessionInfo = MakeShared<FOnlineSessionInfoLive>(TargetSessionReference);
 				
 				LiveSubsystem->GetSessionMessageRouter()->AddOnSessionChangedDelegate(SessionInterface->OnSessionChangedDelegate, TargetSessionReference);
 
