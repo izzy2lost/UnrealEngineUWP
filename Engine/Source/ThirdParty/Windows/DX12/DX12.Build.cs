@@ -30,7 +30,7 @@ public class DX12 : ModuleRules
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
 		}
 		// @ATG_CHANGE : BEGIN UWP support
-		else if (Target.Platform == UnrealTargetPlatform.UWP64)
+		else if (Target.Platform == UnrealTargetPlatform.UWP64 && Target.Configuration != UnrealTargetConfiguration.Shipping)
 		{
 			PublicDelayLoadDLLs.Add("WinPixEventRuntime.dll");
 			PublicAdditionalLibraries.Add("WinPixEventRuntime.lib");
