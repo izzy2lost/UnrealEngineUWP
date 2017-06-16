@@ -1038,5 +1038,18 @@ namespace UnrealBuildTool
 			Log.TraceInformation(Output);
 		}
 
+		public static FileReference GetWindowsSdkToolPath(string ToolName)
+		{
+			// The effect of the Compiler parameters passed below is that we always use the latest SDK tools, even when we built using an older SDK.
+			DirectoryReference WindowsSdkDir = new DirectoryReference(VCEnvironment.FindWindowsSDKInstallationFolder(CppPlatform.UWP64, WindowsCompiler.VisualStudio2017));
+			Version WindowsSdkLatestVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(WindowsSdkDir.FullName, WindowsCompiler.Default);
+			DirectoryReference WindowsSdkBinDir = DirectoryReference.Combine(WindowsSdkDir, WindowsSdkLatestVersion.ToString(), "bin");
+			if (!DirectoryReference.Exists(WindowsSdkBinDir))
+			{
+				WindowsSdkBinDir = DirectoryReference.Combine(WindowsSdkDir, "bin");
+			}
+
+			return FileReference.Combine(WindowsSdkBinDir, Environment.Is64BitProcess ? "x64" : "x86", ToolName);
+		}
 	};
 }

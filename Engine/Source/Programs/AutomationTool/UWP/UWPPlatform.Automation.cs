@@ -344,11 +344,6 @@ namespace UWP.Automation
 		{
 			base.PlatformSetupParams(ref ProjParams);
 
-			if (UniversalWindowsPlatform.Compiler == WindowsCompiler.Default)
-			{
-				UniversalWindowsPlatform.Compiler = UniversalWindowsPlatform.GetDefaultCompiler(new string[]{ }, ProjParams.RawProjectPath);
-			}
-
 			if (ProjParams.Deploy && !ProjParams.Package)
 			{
 				foreach (string DeviceAddress in ProjParams.DeviceNames)
@@ -393,23 +388,28 @@ namespace UWP.Automation
 
 		public override void GetFilesToDeployOrStage(ProjectParams Params, DeploymentContext SC)
 		{
-			UWPDeploy DeployHandler = new UWPDeploy();
 			// Stage all the build products
+			UWPExports DeployExports = new UWPExports();
 			foreach (StageTarget Target in SC.StageTargets)
 			{
 				SC.StageBuildProductsFromReceipt(Target.Receipt, Target.RequireFilesExist, Params.bTreatNonShippingBinariesAsDebugFiles);
-				DeployHandler.AddWinMDReferencesFromReceipt(Target.Receipt, Params.RawProjectPath.Directory, SC.LocalRoot);
+				DeployExports.AddWinMDReferencesFromReceipt(Target.Receipt, Params.RawProjectPath.Directory, SC.LocalRoot);
 			}
-
-			string ExePath = Path.Combine(Params.ProjectBinariesFolder, SC.StageExecutables[0] + Platform.GetExeExtension(SC.StageTargetPlatform.PlatformType));
-			DeployHandler.PrepForUATPackageOrDeploy(Params.RawProjectPath, Params.ShortProjectName, SC.ProjectRoot, ExePath, SC.LocalRoot + "/Engine", Params.Distribution, "", Params.Deploy);
+			List<string> FullExePaths = new List<string>();
+			foreach (string ExecutablePath in SC.StageExecutables)
+			{
+				FullExePaths.Add(Path.Combine(Params.ProjectBinariesFolder, ExecutablePath + Platform.GetExeExtension(SC.StageTargetPlatform.PlatformType)));
+			}
+			DeployExports.PrepForUATPackageOrDeploy(Params.RawProjectPath, Params.ShortProjectName, SC.ProjectRoot, SC.StageTargetConfigurations, FullExePaths,
+				SC.LocalRoot + "/Engine", Params.Distribution, "", Params.Deploy);
 
 			// Stage UWP-specific assets (tile, splash, etc.)
-			string assetsPath = Path.Combine(Params.ProjectBinariesFolder, "Resources");
+			string assetsPath = Path.Combine(SC.ProjectRoot, "Saved", "UWP", "Resources");
 			SC.StageFiles(StagedFileType.NonUFS, assetsPath, "*.png", true, null, "Resources");
 
-			SC.StageFile(StagedFileType.NonUFS, Path.Combine(Params.ProjectBinariesFolder, "AppxManifest.xml"), "AppxManifest.xml");
-			SC.StageFile(StagedFileType.NonUFS, Path.Combine(Params.ProjectBinariesFolder, "resources.pri"), "resources.pri");
+			string packageFilesPath = Path.Combine(SC.ProjectRoot, "Saved", "UWP");
+			SC.StageFile(StagedFileType.NonUFS, Path.Combine(packageFilesPath, "AppxManifest.xml"), "AppxManifest.xml");
+			SC.StageFile(StagedFileType.NonUFS, Path.Combine(packageFilesPath, "resources.pri"), "resources.pri");
 
 			string SourceNetworkManifestPath = Path.Combine(Params.ProjectBinariesFolder, "NetworkManifest.xml");
 			if (File.Exists(SourceNetworkManifestPath))
@@ -430,11 +430,10 @@ namespace UWP.Automation
 
 		public override void Package(ProjectParams Params, DeploymentContext SC, int WorkingCL)
 		{
-			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
-			string MakeAppXPath = Path.Combine(SDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "makeappx.exe");
+			FileReference MakeAppXPath = UWPExports.GetWindowsSdkToolPath("makeappx.exe");
 			string OutputAppX = Path.Combine(SC.StageDirectory, Params.ShortProjectName + ".appx");
 			string MakeAppXCommandLine = string.Format(@"pack /o /d ""{0}"" /p ""{1}""", SC.StageDirectory, OutputAppX);
-			RunAndLog(CmdEnv, MakeAppXPath, MakeAppXCommandLine, null, 0, null, ERunOptions.None);
+			RunAndLog(CmdEnv, MakeAppXPath.FullName, MakeAppXCommandLine, null, 0, null, ERunOptions.None);
 
 			string SigningCertificate = @"Build\UWP\SigningCertificate.pfx";
             ConfigHierarchy PlatformEngineConfig = null; 
@@ -459,7 +458,7 @@ namespace UWP.Automation
 						if (!string.IsNullOrEmpty(Publisher))
 						{
 							LogWarning("No certificate found at {0}.  Generating temporary self-signed certificate for {1}.", SigningCertificatePath, Publisher);
-							GenerateSigningCertificate(SDKFolder, SigningCertificatePath, Publisher);
+							GenerateSigningCertificate(SigningCertificatePath, Publisher);
 						}
 						else
 						{
@@ -476,9 +475,9 @@ namespace UWP.Automation
 				System.Security.Cryptography.X509Certificates.X509Certificate2 ActualCert = new System.Security.Cryptography.X509Certificates.X509Certificate2(Path.Combine(SC.ProjectRoot, SigningCertificate));
 				File.WriteAllText(Path.Combine(SC.StageDirectory, Params.ShortProjectName + ".cer"), Convert.ToBase64String(ActualCert.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Cert)));
 
-				string SignToolPath = Path.Combine(SDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "signtool.exe");
+				FileReference SignToolPath = UWPExports.GetWindowsSdkToolPath("signtool.exe");
 				string SignToolCommandLine = string.Format(@"sign /a /f ""{0}"" /fd SHA256 ""{1}""", Path.Combine(SC.ProjectRoot, SigningCertificate), OutputAppX);
-				RunAndLog(CmdEnv, SignToolPath, SignToolCommandLine, null, 0, null, ERunOptions.None);
+				RunAndLog(CmdEnv, SignToolPath.FullName, SignToolCommandLine, null, 0, null, ERunOptions.None);
 			}
 			else
 			{
@@ -534,20 +533,20 @@ namespace UWP.Automation
 			return new List<string> { ".pdb", ".map" };
 		}
 
-		private void GenerateSigningCertificate(string InSDKFolder, string InCertificatePath, string InPublisher)
+		private void GenerateSigningCertificate(string InCertificatePath, string InPublisher)
 		{
 			// MakeCert.exe -r -h 0 -n "CN=No Publisher, O=No Publisher" -eku 1.3.6.1.5.5.7.3.3 -pe -sv "Signing Certificate.pvk" "Signing Certificate.cer"
 			// pvk2pfx -pvk "Signing Certificate.pvk" -spc "Signing Certificate.cer" -pfx "Signing Certificate.pfx"
-			string MakeCertPath = Path.Combine(InSDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "makecert.exe");
-			string Pvk2PfxPath = Path.Combine(InSDKFolder, "bin", Environment.Is64BitProcess ? "x64" : "x86", "pvk2pfx.exe");
+			FileReference MakeCertPath = UWPExports.GetWindowsSdkToolPath("makecert.exe");
+			FileReference Pvk2PfxPath = UWPExports.GetWindowsSdkToolPath("pvk2pfx.exe");
 			string CerFile = Path.ChangeExtension(InCertificatePath, ".cer");
 			string PvkFile = Path.ChangeExtension(InCertificatePath, ".pvk");
 
 			string MakeCertCommandLine = string.Format(@"-r -h 0 -n ""{0}"" -eku 1.3.6.1.5.5.7.3.3 -pe -sv ""{1}"" ""{2}""", InPublisher, PvkFile, CerFile);
-			RunAndLog(CmdEnv, MakeCertPath, MakeCertCommandLine, null, 0, null, ERunOptions.None);
+			RunAndLog(CmdEnv, MakeCertPath.FullName, MakeCertCommandLine, null, 0, null, ERunOptions.None);
 
 			string Pvk2PfxCommandLine = string.Format(@"-pvk ""{0}"" -spc ""{1}"" -pfx ""{2}""", PvkFile, CerFile, InCertificatePath);
-			RunAndLog(CmdEnv, Pvk2PfxPath, Pvk2PfxCommandLine, null, 0, null, ERunOptions.None);
+			RunAndLog(CmdEnv, Pvk2PfxPath.FullName, Pvk2PfxCommandLine, null, 0, null, ERunOptions.None);
 		}
 
 		private bool IsLocalDevice(string DeviceAddress)
@@ -600,8 +599,9 @@ namespace UWP.Automation
 					string PackagePath = Path.Combine(SC.StageDirectory, Params.ShortProjectName + ".appx");
 
 					List<Uri> Dependencies = new List<Uri>();
-					bool UseDebugCrt = Params.ClientConfigsToBuild.Contains(UnrealTargetConfiguration.Debug) && Params.bDebugBuildsActuallyUseDebugCRT;
-					Dependencies.Add(new Uri(GetPathToVCLibsPackage(UseDebugCrt)));
+					TargetRules Rules = Params.ProjectTargets[TargetType.Game].Rules;
+					bool UseDebugCrt = Params.ClientConfigsToBuild.Contains(UnrealTargetConfiguration.Debug) && Rules.bDebugBuildsActuallyUseDebugCRT;
+					Dependencies.Add(new Uri(GetPathToVCLibsPackage(UseDebugCrt, Rules.WindowsPlatform.Compiler)));
 
 					PackMgr.AddPackageAsync(new Uri(PackagePath), Dependencies, Windows.Management.Deployment.DeploymentOptions.None).AsTask().Wait();
 				}
@@ -643,8 +643,9 @@ namespace UWP.Automation
 					string CertPath = Path.Combine(SC.StageDirectory, Params.ShortProjectName + ".cer");
 
 					List<string> Dependencies = new List<string>();
-					bool UseDebugCrt = Params.ClientConfigsToBuild.Contains(UnrealTargetConfiguration.Debug) && Params.bDebugBuildsActuallyUseDebugCRT;
-					Dependencies.Add(GetPathToVCLibsPackage(UseDebugCrt));
+					TargetRules Rules = Params.ProjectTargets[TargetType.Game].Rules;
+					bool UseDebugCrt = Params.ClientConfigsToBuild.Contains(UnrealTargetConfiguration.Debug) && Rules.bDebugBuildsActuallyUseDebugCRT;
+					Dependencies.Add(GetPathToVCLibsPackage(UseDebugCrt, Rules.WindowsPlatform.Compiler));
 
 					portal.AppInstallStatus += Portal_AppInstallStatus;
 					portal.InstallApplicationAsync(string.Empty, PackagePath, Dependencies, CertPath).Wait();
@@ -686,8 +687,9 @@ namespace UWP.Automation
 				throw new AutomationException(ExitCode.Error_LauncherFailed, "Could not find installed app (Name: {0}, Publisher: {1}", Name, Publisher);
 			}
 
+			TargetRules Rules = Params.ProjectTargets[TargetType.Game].Rules;
 			string Aumid = string.Format("{0}!{1}", InstalledPackage.Id.FamilyName, PrimaryAppId);
-			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder("v10.0");
+			string SDKFolder = UWPExports.FindWindowsSDKInstallationFolder();
 			string LauncherPath = Path.Combine(SDKFolder, "App Certification Kit", "microsoft.windows.softwarelogo.appxlauncher.exe");
 			IProcessResult LauncherProc = Run(LauncherPath, Aumid);
 			LauncherProc.WaitForExit();
@@ -844,10 +846,10 @@ namespace UWP.Automation
 			}
 		}
 
-		private string GetPathToVCLibsPackage(bool UseDebugCrt)
+        private string GetPathToVCLibsPackage(bool UseDebugCrt, WindowsCompiler Compiler)
 		{
 			string VCVersionFragment;
-			switch (UniversalWindowsPlatform.Compiler)
+            switch (Compiler)
 			{
 				case WindowsCompiler.VisualStudio2017:
 				//Compiler version is still 14 for 2017

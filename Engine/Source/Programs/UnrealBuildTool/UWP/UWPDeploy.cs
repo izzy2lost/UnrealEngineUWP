@@ -192,7 +192,7 @@ namespace UnrealBuildTool
 
 			string TargetDirectory = Path.Combine(ProjectDirectory, "Saved", "UWP");
 			string IntermediateDirectory = Path.Combine(ProjectDirectory, "Intermediate", "Deploy");
-			List<string> UpdatedFiles = new UWPManifestGenerator().CreateManifest(Platform, TargetDirectory, IntermediateDirectory, ProjectFile, ProjectDirectory, TargetConfigurations, ExecutablePaths, WinMDReferences);
+			List<string> UpdatedFiles = new UWPManifestGenerator().CreateManifest(Platform, AbsoluteExeDirectory, IntermediateDirectory, ProjectFile, ProjectDirectory, TargetConfigurations, ExecutablePaths, WinMDReferences);
 
 
 			// Generate resources based on ini files.

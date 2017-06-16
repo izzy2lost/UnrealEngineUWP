@@ -280,9 +280,9 @@ class BuildPhysX : BuildCommand
 						return DirectoryReference.Combine(ApexCMakeFiles, "Windows").ToString() + " -G \"" + VisualStudioName + "\" -Ax64 -DTARGET_BUILD_PLATFORM=Windows" + OutputFlags + ApexFlags;
 					// @ATG_CHANGE: BEGIN UWP support
 					case UnrealTargetPlatform.UWP32:
-						return DirectoryReference.Combine(ApexCMakeFiles, "UWP").ToString() + " -G \"" + VisualStudioName + "\" -AWin32 -DTARGET_BUILD_PLATFORM=Windows -DTARGET_BUILD_PLATFORM=Windows -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0" + OutputFlags + CustomFlags;
+						return DirectoryReference.Combine(ApexCMakeFiles, "Windows").ToString() + " -G \"" + VisualStudioName + "\" -AWin32 -DTARGET_BUILD_PLATFORM=Windows -DTARGET_BUILD_PLATFORM=Windows -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0" + OutputFlags + ApexFlags;
 					case UnrealTargetPlatform.UWP64:
-						return DirectoryReference.Combine(ApexCMakeFiles, "UWP").ToString() + " -G \"" + VisualStudioName + "\" -Ax64 -DTARGET_BUILD_PLATFORM=Windows -DTARGET_BUILD_PLATFORM=Windows -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0" + OutputFlags + CustomFlags;
+						return DirectoryReference.Combine(ApexCMakeFiles, "Windows").ToString() + " -G \"" + VisualStudioName + "\" -Ax64 -DTARGET_BUILD_PLATFORM=Windows -DTARGET_BUILD_PLATFORM=Windows -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0" + OutputFlags + ApexFlags;
 					// @ATG_CHANGE: END
 					case UnrealTargetPlatform.PS4:
 						return DirectoryReference.Combine(ApexCMakeFiles, "PS4").ToString() + " -G \"Unix Makefiles\" -DTARGET_BUILD_PLATFORM=PS4 -DCMAKE_BUILD_TYPE=" + BuildConfig + " -DCMAKE_TOOLCHAIN_FILE=\"" + PhysXSourceRootDirectory + "\\Externals\\CMakeModules\\PS4\\PS4Toolchain.txt\"" + OutputFlags + ApexFlags;
@@ -1386,7 +1386,7 @@ class BuildPhysX : BuildCommand
 			// @ATG_CHANGE: BEGIN UWP support
 			case UnrealTargetPlatform.UWP64:
 			// @ATG_CHANGE: END
-			SearchSuffix += "_x64";
+				SearchSuffix += "_x64";
 				break;
 		}
 		string SearchPrefix = "*" + SearchSuffix + ".";
