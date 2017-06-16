@@ -465,6 +465,35 @@ namespace UnrealBuildTool
 				}
 			}
 
+			// Now find specially named qualified versions of the resource (e.g. logo.scale-200.png) and give them the same treatment
+			string QualifiedResourceFileName = ResourceFileName.Replace(".png", ".*.png");
+			IEnumerable<string> SourceResourceQualifiedInstances = Directory.EnumerateFiles(SourcePath, QualifiedResourceFileName, SearchOption.AllDirectories);
+
+			// Copy new resource files
+			foreach (string SourceResourceFile in SourceResourceQualifiedInstances)
+			{
+				//@todo only copy files for cultures we are staging
+				string TargetResourcePath = Path.Combine(TargetPath, SourceResourceFile.Substring(SourcePath.Length + 1));
+				if (!CreateCheckDirectory(Path.GetDirectoryName(TargetResourcePath)))
+				{
+					Log.TraceError("Unable to create intermediate directory {0}.", Path.GetDirectoryName(TargetResourcePath));
+					continue;
+				}
+				if (!File.Exists(TargetResourcePath))
+				{
+					try
+					{
+						File.Copy(SourceResourceFile, TargetResourcePath);
+					}
+					catch (Exception)
+					{
+						Log.TraceError("Unable to copy file {0} to {1}.", SourceResourceFile, TargetResourcePath);
+						return false;
+					}
+				}
+			}
+
+
 			return true;
 		}
 
@@ -789,9 +818,38 @@ namespace UnrealBuildTool
 				// Modify configuration to restrict indexing to the Resources directory (saves time and space)
 				XmlDocument PriConfig = new XmlDocument();
 				PriConfig.Load(ResourceConfigFile);
-				XmlNode PriIndexNode = PriConfig.SelectSingleNode("/resources/index");
-				XmlAttribute PriStartIndex = PriIndexNode.Attributes["startIndexAt"];
-				PriStartIndex.Value = "\\Resources\\";
+
+				// The Xbox One approach to limiting the indexer causes files to have dodgy uris in the 
+				// generated pri e.g. ms-resource://PackageIdentityName/Files/Logo.png instead of ms-resource://PackageIdentityName/Files/Resources/Logo.png
+				// This appears to affect Windows's ability to locate a valid image in some scenarios such as a
+				// desktop shortcut.  So on UWP we start from the root and add exclusions.
+				XmlNodeList ConfigNodes = PriConfig.SelectNodes("/resources/index/indexer-config");
+				foreach (XmlNode ConfigNode in ConfigNodes)
+				{
+					if (ConfigNode.Attributes["type"].Value == "folder")
+					{
+						IEnumerable<string> AllSubItems = Directory.EnumerateFileSystemEntries(OutputPath);
+						foreach (string FileSystemEntry in AllSubItems)
+						{
+							if (Path.GetFileName(FileSystemEntry) != "Resources")
+							{
+								XmlElement ExcludeElement = PriConfig.CreateElement("exclude");
+								if (File.Exists(FileSystemEntry))
+								{
+									ExcludeElement.SetAttribute("type", "path");
+								}
+								else
+								{
+									ExcludeElement.SetAttribute("type", "tree");
+								}
+								ExcludeElement.SetAttribute("value", Path.GetFileName(FileSystemEntry));
+								ExcludeElement.SetAttribute("doNotTraverse", "true");
+								ExcludeElement.SetAttribute("doNotIndex", "true");
+								ConfigNode.AppendChild(ExcludeElement);
+							}
+						}
+					}
+				}
 				PriConfig.Save(ResourceConfigFile);
 
 				// Remove previous pri files so we can enumerate which ones are new since the resource generator could produce a file for each staged language.
@@ -1202,7 +1260,7 @@ namespace UnrealBuildTool
 			if (ReturnVal == null || ReturnVal.Length <= 0)
 			{
 				Log.TraceError("Invalid package name {0}. Package names must only contain letters, numbers, dash, and period and must be at least one character long.", InPackageName);
-				Log.TraceError("Consider using the setting [/Script/UWPPlatformEditor.UWPTargetSettings]:PackageName to provide an Xbox specific value.");
+				Log.TraceError("Consider using the setting [/Script/UWPPlatformEditor.UWPTargetSettings]:PackageName to provide a UWP specific value.");
 			}
 			return ReturnVal;
 		}
