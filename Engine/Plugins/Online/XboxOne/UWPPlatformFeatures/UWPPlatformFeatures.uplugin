@@ -4,7 +4,6 @@
 	"FriendlyName" : "UWP Platform Features",
 	"Version" : 1,
 	"VersionName" : "1.0",
-	"EngineVersion" : "4.13.0",
 	"Description" : "UWP save-game system supporting cross-platform saves with Xbox One",
 	"Category" : "Online Platform",
 	"CreatedBy" : "Microsoft.",

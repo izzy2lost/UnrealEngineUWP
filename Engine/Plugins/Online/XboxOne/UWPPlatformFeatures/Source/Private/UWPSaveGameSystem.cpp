@@ -1,6 +1,8 @@
 // Copyright Microsoft Inc. All Rights Reserved.
 
 #include "UWPSaveGameSystem.h"
+#include "SlateApplication.h"
+
 #include "AllowWindowsPlatformTypes.h"
 #include <collection.h>
 #include <robuffer.h>
@@ -170,7 +172,7 @@ static task< GameSaveContainer ^ > GetDefaultContainerAsync(Platform::String ^ P
 
 
 
-static task< bool > ExistsAsyncAux(Platform::String ^		ProductConfigId,
+static task< ISaveGameSystem::ESaveExistsResult > ExistsAsyncAux(Platform::String ^		ProductConfigId,
 	Platform::String ^		PlatformSlotName)
 {
 	task< GameSaveContainer ^ > GetContainerTask = GetDefaultContainerAsync(ProductConfigId);
@@ -202,7 +204,7 @@ static task< bool > ExistsAsyncAux(Platform::String ^		ProductConfigId,
 								{
 									if (Platform::String::CompareOrdinal(PlatformSlotName, Info->Name) == 0)
 									{
-										return true;
+										return ISaveGameSystem::ESaveExistsResult::OK;
 									}
 								}
 							}
@@ -210,14 +212,14 @@ static task< bool > ExistsAsyncAux(Platform::String ^		ProductConfigId,
 						}
 					}
 
-					return false;
+					return ISaveGameSystem::ESaveExistsResult::DoesNotExist;
 				});
 			}
 		}
 
-		return create_task([]() -> bool
+		return create_task([]() -> ISaveGameSystem::ESaveExistsResult
 		{
-			return false;
+			return ISaveGameSystem::ESaveExistsResult::DoesNotExist;
 		});
 	});
 }
@@ -348,11 +350,10 @@ static task< bool > DeleteAsyncAux(Platform::String ^	ProductConfigId,
 
 
 
-bool FUWPSaveGameSystem::DoesSaveGameExist(const TCHAR *	Name,
+ISaveGameSystem::ESaveExistsResult FUWPSaveGameSystem::DoesSaveGameExistWithResult(const TCHAR *	Name,
 	const int32	 /* UserIndex */)
 {
-	bool Result = false;
-
+	ESaveExistsResult Result = ESaveExistsResult::UnspecifiedError;
 
 	try
 	{
@@ -513,3 +514,4 @@ bool FUWPSaveGameSystem::DeleteGame(bool			 /* bAttemptToUseUI */,
 
 	return Result;
 }
+

@@ -1,6 +1,5 @@
 // Copyright Microsoft Inc. All Rights Reserved.
 
-#include "Engine.h"
 #include "PlatformFeatures.h"
 #include "UWPSaveGameSystem.h"
 #include "OnlineSubsystem.h"

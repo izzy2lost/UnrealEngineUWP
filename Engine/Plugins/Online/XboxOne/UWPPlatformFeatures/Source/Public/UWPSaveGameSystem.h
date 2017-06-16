@@ -23,7 +23,13 @@ public:
 	}
 
 	/** Return true if the named savegame exists */
-	virtual bool DoesSaveGameExist(const TCHAR* Name, const int32 UserIndex) override;
+	virtual bool DoesSaveGameExist(const TCHAR* Name, const int32 UserIndex) override
+	{
+		return ESaveExistsResult::OK == DoesSaveGameExistWithResult(Name, UserIndex);
+	}
+
+	/** Return ESaveExistsResult::OK if the named savegame exists, an error code otherwise. */
+	virtual ESaveExistsResult DoesSaveGameExistWithResult(const TCHAR* Name, const int32 UserIndex) override;
 
 	/** Saves the game, blocking until complete. Platform may use FGameDelegates to get more information from the game */
 	virtual bool SaveGame(bool bAttemptToUseUI, const TCHAR* Name, const int32 UserIndex, const TArray<uint8>& Data) override;
