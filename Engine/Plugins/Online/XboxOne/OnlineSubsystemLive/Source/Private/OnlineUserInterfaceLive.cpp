@@ -26,7 +26,7 @@ bool FOnlineUserLive::QueryUserInfo(int32 LocalUserNum, const TArray<TSharedRef<
 	Microsoft::Xbox::Services::XboxLiveContext^ UserContext = LiveSubsystem->GetLiveContext(LocalUserNum);
 	if (UserContext == nullptr)
 	{
-		LiveSubsystem->ExecuteNextTick([this, LocalUserNum, UserIds]()
+		LiveSubsystem->ExecuteNextTick([this, Localgit adggiUserNum, UserIds]()
 		{
 			const constexpr bool bWasSuccessful = false;
 			TriggerOnQueryUserInfoCompleteDelegates(LocalUserNum, bWasSuccessful, UserIds, TEXT("Could not find user context for user"));
