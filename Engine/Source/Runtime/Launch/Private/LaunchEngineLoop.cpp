@@ -3315,7 +3315,10 @@ void FEngineLoop::OnSuspending(_In_ Platform::Object^ Sender, _In_ Windows::Appl
 	FlushRenderingCommands();
 
 	// Make the call down to the RHI to Suspend the GPU state
-	RHISuspendRendering();
+	if (GDynamicRHI != nullptr)
+	{
+		RHISuspendRendering();
+	}
 
 	// @TODO Wait for async save to complete
 	// Flush the log so it's all written to disk
