@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 using System.Diagnostics;
+using System.Linq;
 
 namespace UnrealBuildTool
 {
@@ -380,13 +381,7 @@ namespace UnrealBuildTool
 				AppXRecipeProjectFileContent.Append(@"	  </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
 			}
 
-			if (InTarget.ProjectFile != null)
-			{
-				// Game project file
-				AppXRecipeProjectFileContent.Append(@"	  <AppxPackagedFile Include=""" + InTarget.ProjectFile + @""">" + ProjectFileGenerator.NewLine);
-				AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + Path.Combine(InTarget.AppName, InTarget.ProjectFile.MakeRelativeTo(InTarget.ProjectDirectory)) + @"</PackagePath>" + ProjectFileGenerator.NewLine);
-				AppXRecipeProjectFileContent.Append(@"	  </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
-			}
+			// No need for project file - comes in via RuntimeDependencies now
 
 			// Runtime dependencies.
 			Dictionary<string, string> SourceVariables = new Dictionary<string, string>();
@@ -397,10 +392,14 @@ namespace UnrealBuildTool
 			DestVariables["EngineDir"] = "Engine";
 			DestVariables["ProjectDir"] = InTarget.AppName;
 
-			foreach (var RuntimeDep in Dependencies)
+			// Note: some entries are added multiple times (notable Engine/Content/SlateDebug, possibly a bug?).
+			// This will cause UWP F5 deployment to *always* believe these files need updating, which is not desirable.
+			IEnumerable<string> DependencyPaths = Dependencies.Select((d) => (d.Path));
+
+			foreach (var RuntimeDep in DependencyPaths.Distinct())
 			{
-				string SourcePath = Utils.ExpandVariables(RuntimeDep.Path, SourceVariables).Replace(@"/", @"\");
-				string DeployPath = Utils.ExpandVariables(RuntimeDep.Path, DestVariables).Replace(@"/", @"\");
+				string SourcePath = Utils.ExpandVariables(RuntimeDep, SourceVariables).Replace(@"/", @"\");
+				string DeployPath = Utils.ExpandVariables(RuntimeDep, DestVariables).Replace(@"/", @"\");
 				
 				// 4.12: Dependencies now support ... syntax for recursive directory traversal.
 				// Translate this to MSBuild syntax. 
@@ -428,7 +427,7 @@ namespace UnrealBuildTool
 							break;
 					}
 					IncludeDependencyInRecipe = false;
-					Log.WriteLine(TraceVerbosity, "Could not find source file for runtime dependency {0}.  Excluding from appxrecipe.", RuntimeDep.Path);
+					Log.WriteLine(TraceVerbosity, "Could not find source file for runtime dependency {0}.  Excluding from appxrecipe.", RuntimeDep);
 				}
 
 				if (IncludeDependencyInRecipe)
@@ -442,10 +441,6 @@ namespace UnrealBuildTool
 			//UWP resources
 			AppXRecipeProjectFileContent.Append(@"	  <AppxPackagedFile Include=""" + FileReference.Combine(ProjectBinariesDirectory, "resources.pri") + @""">" + ProjectFileGenerator.NewLine);
 			AppXRecipeProjectFileContent.Append(@"		  <PackagePath>resources.pri</PackagePath>" + ProjectFileGenerator.NewLine);
-			AppXRecipeProjectFileContent.Append(@"	  </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
-			AppXRecipeProjectFileContent.Append(@"	  <AppxPackagedFile Include=""" + FileReference.Combine(ProjectBinariesDirectory, @"Resources\*.*") + @""">" + ProjectFileGenerator.NewLine);
-			AppXRecipeProjectFileContent.Append(@"		  <PackagePath>Resources\%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
-			AppXRecipeProjectFileContent.Append(@"		  <ReRegisterAppIfChanged>true</ReRegisterAppIfChanged>" + ProjectFileGenerator.NewLine);
 			AppXRecipeProjectFileContent.Append(@"	  </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
 			AppXRecipeProjectFileContent.Append(@"	  <AppxPackagedFile Include=""" + FileReference.Combine(ProjectBinariesDirectory, @"Resources\**\*.*") + @""">" + ProjectFileGenerator.NewLine);
 			AppXRecipeProjectFileContent.Append(@"		  <PackagePath>Resources\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);

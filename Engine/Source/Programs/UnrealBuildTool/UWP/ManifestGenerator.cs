@@ -41,6 +41,7 @@ namespace UnrealBuildTool
 		// Manifest generation state
 		private ResXResourceWriter DefaultResourceWriter;
 		private List<ResXResourceWriter> PerCultureResourceWriters;
+		private List<Dictionary<string, string>> PerCultureSourceResources;
 		private XmlDocument AppxManifestXmlDocument;
 		private List<string> UpdatedFilePaths;
 
@@ -370,7 +371,7 @@ namespace UnrealBuildTool
 			{
 				byte[] OriginalContents = File.ReadAllBytes(TargetPath);
 				byte[] NewContents = File.ReadAllBytes(IntermediatePath);
-				if (!OriginalContents.Equals(NewContents))
+				if (!OriginalContents.SequenceEqual(NewContents))
 				{
 					try
 					{
@@ -727,6 +728,7 @@ namespace UnrealBuildTool
 
 			// Construct the ResXWriters for each culture
 			PerCultureResourceWriters = new List<ResXResourceWriter>();
+			PerCultureSourceResources = new List<Dictionary<string, string>>();
 			foreach (string Culture in CulturesToStage)
 			{
 				string IntermediateStringResourcePath = Path.Combine(IntermediateResourceDirectory, Culture);
@@ -743,6 +745,10 @@ namespace UnrealBuildTool
 					continue;
 				}
 				PerCultureResourceWriters.Add(new ResXResourceWriter(IntermediateStringResourceFile));
+
+				// Support loading localized resources from resw files in the source tree, per earlier versions.
+				string SourceStringResourceFile = Path.Combine(ProjectPath, BuildResourceProjectRelativePath, "Resources", Culture, "resources.resw");
+				PerCultureSourceResources.Add(LoadSourceResources(SourceStringResourceFile));
 			}
 
 			// Create the appxmanifest document
@@ -759,6 +765,10 @@ namespace UnrealBuildTool
 			string ManifestIntermediatePath = Path.Combine(IntermediatePath, "AppxManifest.xml");
 			string ManifestTargetPath = Path.Combine(OutputPath, "AppxManifest.xml");
 			AppxManifestXmlDocument.Save(ManifestIntermediatePath);
+
+			// Check we produced a reasonable manifest document
+			ValidateAppxManifest(ManifestIntermediatePath);
+
 			CompareAndReplaceModifiedTarget(ManifestIntermediatePath, ManifestTargetPath);
 
 			// Clean out any resource directories that we aren't staging
@@ -792,6 +802,10 @@ namespace UnrealBuildTool
 				string TargetStringResourceFile = Path.Combine(OutputPath, BuildResourceSubPath, Culture, "resources.resw");
 				PerCultureResourceWriters[CultureIndex].Close();
 				CompareAndReplaceModifiedTarget(IntermediateStringResourceFile, TargetStringResourceFile);
+
+				// Also update hand-authored resw files in the source directory
+				string SourceStringResourceFile = Path.Combine(ProjectPath, BuildResourceProjectRelativePath, "Resources", Culture, "resources.resw");
+				CompareAndReplaceModifiedTarget(IntermediateStringResourceFile, SourceStringResourceFile);
 			}
 
 			// Copy all the binary resources into the target directory.
@@ -799,7 +813,8 @@ namespace UnrealBuildTool
 
 			// The resource database is dependent on everything else calculated here (manifest, resource string tables, binary resources).
 			// So if any file has been updated we'll need to run the config.
-			if (UpdatedFilePaths.Count > 0)
+			IEnumerable<string> TargetPriFiles = Directory.EnumerateFiles(OutputPath, "*.pri");
+			if (UpdatedFilePaths.Count > 0 || TargetPriFiles.Count() == 0)
 			{
 				// Create resource index configuration
 				DirectoryReference WindowsSdkDir = new DirectoryReference(VCEnvironment.FindWindowsSDKInstallationFolder(CppPlatform.UWP64, WindowsCompiler.VisualStudio2017));
@@ -813,7 +828,16 @@ namespace UnrealBuildTool
 				string PriExecutable = FileReference.Combine(WindowsSdkBinDir, Environment.Is64BitProcess ? "x64" : "x86", "makepri.exe").FullName;
 
 				string ResourceConfigFile = Path.Combine(IntermediatePath, "priconfig.xml");
-				Utils.RunLocalProcessAndReturnStdOut(PriExecutable, "createconfig /cf \"" + ResourceConfigFile + "\" /dq " + DefaultCulture + " /o");
+				string MakePriArgs = "createconfig /cf \"" + ResourceConfigFile + "\" /dq " + DefaultCulture + " /o";
+				System.Diagnostics.ProcessStartInfo StartInfo = new System.Diagnostics.ProcessStartInfo(PriExecutable, MakePriArgs);
+				StartInfo.UseShellExecute = false;
+				StartInfo.RedirectStandardOutput = true;
+				StartInfo.CreateNoWindow = true;
+				int ExitCode = Utils.RunLocalProcessAndLogOutput(StartInfo);
+				if (ExitCode != 0)
+				{
+					throw new BuildException("Failed to generate config file for Package Resource Index.  See log for details.");
+				}
 
 				// Modify configuration to restrict indexing to the Resources directory (saves time and space)
 				XmlDocument PriConfig = new XmlDocument();
@@ -869,11 +893,21 @@ namespace UnrealBuildTool
 				// Generate the resource index
 				string ResourceLogFile = Path.Combine(IntermediatePath, "ResIndexLog.xml");
 				string ResourceIndexFile = Path.Combine(IntermediatePath, "resources.pri");
-				Utils.RunLocalProcessAndReturnStdOut(PriExecutable, "new /pr \"" + OutputPath + "\" /cf \"" + ResourceConfigFile + "\" /mn \"" + ManifestTargetPath + "\" /il \"" + ResourceLogFile + "\" /of \"" + ResourceIndexFile + "\" /o");
+				MakePriArgs = "new /pr \"" + OutputPath + "\" /cf \"" + ResourceConfigFile + "\" /mn \"" + ManifestTargetPath + "\" /il \"" + ResourceLogFile + "\" /of \"" + ResourceIndexFile + "\" /o";
+				StartInfo = new System.Diagnostics.ProcessStartInfo(PriExecutable, MakePriArgs);
+				StartInfo.UseShellExecute = false;
+				StartInfo.RedirectStandardOutput = true;
+				StartInfo.CreateNoWindow = true;
+				StartInfo.StandardErrorEncoding = System.Text.Encoding.Unicode;
+				StartInfo.StandardOutputEncoding = System.Text.Encoding.Unicode;
+				ExitCode = Utils.RunLocalProcessAndLogOutput(StartInfo);
+				if (ExitCode != 0)
+				{
+					throw new BuildException("Failed to generate Package Resource Index file.  See log for details.");
+				}
 
 				// Remove any existing pri target files that were not generated by this latest update
 				IEnumerable<string> NewPriFiles = Directory.EnumerateFiles(IntermediatePath, "*.pri");
-				IEnumerable<string> TargetPriFiles = Directory.EnumerateFiles(OutputPath, "*.pri");
 				foreach (string TargetPri in TargetPriFiles)
 				{
 					if (!NewPriFiles.Contains(TargetPri))
@@ -1153,9 +1187,11 @@ namespace UnrealBuildTool
 					}
 				}
 			}
+
 			DefaultResourceWriter.AddResource(ResourceEntryName, ConfigScratchValue + ValuePostfix);
 
-			// Find the default value
+			// Use Xbox-style ini-provided localized value if available
+			Dictionary<string, string> IniLocalizedValues = new Dictionary<string, string>();
 			List<string> PerCultureValues;
 			if (EngineIni.GetArray(TargetSettings, "PerCultureResources", out PerCultureValues))
 			{
@@ -1167,9 +1203,34 @@ namespace UnrealBuildTool
 					int CultureIndex = CulturesToStage.IndexOf(CultureToFind/*SeparatedCultureValues["CultureId"]*/);
 					if (CultureIndex >= 0 && SeparatedCultureValues[ConfigKey] != null && SeparatedCultureValues[ConfigKey].Length > 0)
 					{
-						PerCultureResourceWriters[CultureIndex].AddResource(ResourceEntryName, SeparatedCultureValues[ConfigKey] + ValuePostfix);
+						IniLocalizedValues.Add(CultureToFind, SeparatedCultureValues[ConfigKey] + ValuePostfix);
 					}
 				}
+			}
+
+			// Make sure we wrote a culture-specific value of some sort.  If necessary fall back to behavior from previous versions where we
+			// pulled values from hand-authored resw files.
+			for (int i = 0; i < CulturesToStage.Count; ++i)
+			{
+				string ValueToWrite = string.Empty;
+				if (!IniLocalizedValues.TryGetValue(CulturesToStage[i], out ValueToWrite))
+				{
+					// Note: consider deprecating in the future once we have Editor UI for UWP resource localization (following Xbox pattern)
+					// Note: don't apply ValuePostfix in this case.  Thanks to the way these are generated it will already be part of the pre-existing value
+					if (!PerCultureSourceResources[i].TryGetValue(ResourceEntryName, out ValueToWrite))
+					{
+						if (CulturesToStage[i] == DefaultCulture)
+						{
+							ValueToWrite = ConfigScratchValue + ValuePostfix;
+						}
+						else
+						{
+							Log.TraceWarning("Missing localized value for {0} in culture {1}", ResourceEntryName, CulturesToStage[i]);
+							ValueToWrite = string.Format("[{0}_{1}]", CulturesToStage[i], ResourceEntryName);
+						}
+					}
+				}
+				PerCultureResourceWriters[i].AddResource(ResourceEntryName, ValueToWrite);
 			}
 		}
 
@@ -1506,9 +1567,6 @@ namespace UnrealBuildTool
 			XmlNode VisualElements = GetVisualElements(/*Document, */ApplicationIndex, ConfigPostfix);
 			AddElementIfValid(Application, VisualElements, true, true);
 
-			XmlNode Extensions = GetApplicationExtensions(/*Document, */ApplicationIndex, TargetConfig);
-			AddElementIfValid(Application, Extensions, false, true);
-
 			return Application;
 		}
 
@@ -1654,138 +1712,6 @@ namespace UnrealBuildTool
 			return SplashScreen;
 		}
 
-		//@todo application support
-		// 		private static XmlNode GetViewStates(XmlDocument Document, int ApplicationIndex)
-		// 		{
-		// 			XmlElement ViewStates = Document.CreateElement("mx:ViewStates");
-		// 
-		// 			for (int ViewStateIndex = 0; ViewStateIndex < /*ViewStates.Length*/1; ViewStateIndex++)
-		// 			{
-		// 				XmlNode ViewState = Document.CreateElement("mx:ViewState");
-		// 
-		// 				XmlAttribute NameAttribute = Document.CreateAttribute("Name");
-		// 				NameAttribute.Value = "";
-		// 				ViewState.Attributes.Append(NameAttribute);
-		// 
-		// 				ViewStates.AppendChild(ViewState);
-		// 			}
-		// 
-		// 			return ViewStates;
-		// 		}
-
-		/// <summary>
-		/// Special attribute creation to handle background task items using boolean values in the new setup, but more complex setup in the old AppxManifest INI settings
-		/// </summary>
-		private XmlNode ProcessBackgroundTaskExtensions(string TaskType, string PlatformINIKey, string ManifestBasePath)
-		{
-			string BackgroundTaskManifestPath = null;
-			int BackgroundTaskIndex = FindIndexOfArrayValue(ManifestBasePath, "Type", TaskType);
-			if (BackgroundTaskIndex >= 0)
-			{
-				BackgroundTaskManifestPath = ManifestBasePath + "[" + BackgroundTaskIndex + "].Type";
-			}
-			if (CreateBoolValue(PlatformINIKey, BackgroundTaskManifestPath, null, null, "False", TaskType))
-			{
-				XmlElement Task = AppxManifestXmlDocument.CreateElement("Task");
-				XmlAttribute Type = AppxManifestXmlDocument.CreateAttribute("Type");
-				Type.Value = TaskType;
-				Task.Attributes.Append(Type);
-				return Task;
-			}
-			return null;
-		}
-
-		/// <summary>
-		/// Special attribute creation to handle extension indexes in the old appxmanifest INI setup
-		/// </summary>
-		private XmlAttribute ProcessApplicationExtensionStringAttribute(string ExtensionManifestId, string AttributeManifestId, string PlatformINIKey, string GlobalINISection, string GlobalINIKey, string DefaultValue, int ApplicationIndex, int ExtensionIndex, bool RequireLowerCase = false)
-		{
-			string ManifestPath = null;
-			if (ExtensionIndex >= 0)
-			{
-				ManifestPath = "Package.Applications.Application[" + ApplicationIndex + "].Extensions.mx:Extension[" + ExtensionIndex + "]." + ExtensionManifestId + "." + AttributeManifestId;
-			}
-			string Value = CreateStringValue(PlatformINIKey, ManifestPath, GlobalINISection, GlobalINIKey, DefaultValue);
-			if (Value != null && Value.Length > 0)
-			{
-				XmlAttribute Attribute = AppxManifestXmlDocument.CreateAttribute(AttributeManifestId);
-				if (RequireLowerCase)
-				{
-					Attribute.Value = Value.ToLower();
-				}
-				else
-				{
-					Attribute.Value = Value;
-				}
-				return Attribute;
-			}
-			return null;
-		}
-
-		/// <summary>
-		/// Gather and create manifest for the application extension entries. There are multiple possible extension types
-		/// that can occur in any order and may individually be present or absent. A great deal of the complexity of this
-		/// function deals with correlating the old and new style INI entries across these order differences.
-		/// </summary>
-		private XmlNode GetApplicationExtensions(int ApplicationIndex, UnrealTargetConfiguration TargetConfig)
-		{
-			XmlElement Extensions = AppxManifestXmlDocument.CreateElement("Extensions");
-
-			// windows.backgroundTasks
-			{
-				// Get extension index in old settings
-				int ExtensionIndex = FindIndexOfArrayValue("Package.Applications.Application[" + ApplicationIndex + "].Extensions.Extension", "Category", "windows.backgroundTasks");
-				string ManifestBasePath = "Package.Applications.Application[" + ApplicationIndex + "].Extensions.Extension[" + ExtensionIndex + "].BackgroundTasks.Task";
-
-				XmlElement BackgroundTasks = AppxManifestXmlDocument.CreateElement("BackgroundTasks");
-
-				XmlNode AudioBackgroundTask = ProcessBackgroundTaskExtensions("audio", "bRequiresAudioBackgroundTask", ManifestBasePath);
-				if (AudioBackgroundTask != null)
-				{
-					BackgroundTasks.AppendChild(AudioBackgroundTask);
-				}
-
-				XmlNode ControlChannelBackgroundTask = ProcessBackgroundTaskExtensions("controlChannel", "bRequiresControlChannelBackgroundTask", ManifestBasePath);
-				if (ControlChannelBackgroundTask != null)
-				{
-					BackgroundTasks.AppendChild(ControlChannelBackgroundTask);
-				}
-
-				XmlNode SystemEventBackgroundTask = ProcessBackgroundTaskExtensions("systemEvent", "bRequiresSystemEventBackgroundTask", ManifestBasePath);
-				if (SystemEventBackgroundTask != null)
-				{
-					BackgroundTasks.AppendChild(SystemEventBackgroundTask);
-				}
-
-				XmlNode TimerBackgroundTask = ProcessBackgroundTaskExtensions("timer", "bRequiresTimerBackgroundTask", ManifestBasePath);
-				if (TimerBackgroundTask != null)
-				{
-					BackgroundTasks.AppendChild(TimerBackgroundTask);
-				}
-
-				XmlNode PushNotificationBackgroundTask = ProcessBackgroundTaskExtensions("pushNotification", "bRequiresPushNotificationBackgroundTask", ManifestBasePath);
-				if (PushNotificationBackgroundTask != null)
-				{
-					BackgroundTasks.AppendChild(PushNotificationBackgroundTask);
-				}
-
-				if (BackgroundTasks.HasChildNodes)
-				{
-					XmlElement BackgroundExtention = AppxManifestXmlDocument.CreateElement("Extension");
-					XmlAttribute BackgroundCategory = AppxManifestXmlDocument.CreateAttribute("Category");
-					BackgroundCategory.Value = "windows.backgroundTasks";
-					BackgroundExtention.Attributes.Append(BackgroundCategory);
-					XmlAttribute BackgroundEntryPoint = AppxManifestXmlDocument.CreateAttribute("EntryPoint");
-					BackgroundEntryPoint.Value = "Tasks.BackgroundTask";
-					BackgroundExtention.Attributes.Append(BackgroundEntryPoint);
-					BackgroundExtention.AppendChild(BackgroundTasks);
-					Extensions.AppendChild(BackgroundExtention);
-				}
-			}
-
-			return Extensions;
-		}
-
         // for ease of integration with mainlain, allow Epic's implementation for XboxOne to flow through unchanged
         private XmlNode GetCapabilities()
         {
@@ -1897,6 +1823,96 @@ namespace UnrealBuildTool
 			}
 
 			return Extensions;
+		}
+
+		private Dictionary<string, string> LoadSourceResources(string ResourceSourcePath)
+		{
+			Dictionary<string, string> LoadedResources = new Dictionary<string, string>();
+			if (File.Exists(ResourceSourcePath))
+			{
+				ResXResourceReader reader = new ResXResourceReader(ResourceSourcePath);
+				System.Collections.IDictionaryEnumerator enumerator = reader.GetEnumerator();
+				while (enumerator.MoveNext())
+				{
+					LoadedResources.Add(enumerator.Key.ToString(), enumerator.Value.ToString());
+				}
+			}
+			return LoadedResources;
+		}
+
+		private void ValidateAppxManifest(string ManifestPath)
+		{
+			System.Xml.Schema.XmlSchemaSet AppxSchema = new System.Xml.Schema.XmlSchemaSet();
+
+			// Validate against VS2017 schemas if possible
+			DirectoryReference VSInstallDir;
+			if (WindowsPlatform.TryGetVSInstallDir(WindowsCompiler.VisualStudio2017, out VSInstallDir))
+			{
+				DirectoryReference VSSchemaFolder = DirectoryReference.Combine(VSInstallDir, "Xml", "Schemas");
+
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v2.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v3.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v4.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "FoundationManifestSchema.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestTypes.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2010_v3.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2013_v2.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2014.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxPhoneManifestSchema2014.xsd").FullName));
+				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "DesktopManifestSchema_v2.xsd").FullName));
+			}
+			else
+			{
+				string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(CppPlatform.UWP64, WindowsCompiler.VisualStudio2015);
+				Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, WindowsCompiler.VisualStudio2015);
+				string UWPSchemaFolder = Path.Combine(SDKFolder, "Include", SDKVersion.ToString(), "winrt");
+
+				string PhoneSchemaFolder = Path.Combine(SDKFolder, "Extension SDKs", "WindowsMobile", SDKVersion.ToString(), "Include", "WinRT");
+
+				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "UapManifestSchema.xsd")));
+				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "FoundationManifestSchema.xsd")));
+				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestTypes.xsd")));
+				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestSchema2010_v2.xsd")));
+				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestSchema2013.xsd")));
+				AppxSchema.Add(null, XmlReader.Create(Path.Combine(PhoneSchemaFolder, "AppxPhoneManifestSchema2014.xsd")));
+			}
+			AppxSchema.Compile();
+
+			bool ValidationSucceeded = true;
+			XmlReaderSettings ReaderSettings = new XmlReaderSettings();
+			ReaderSettings.ValidationType = ValidationType.Schema;
+			ReaderSettings.Schemas = AppxSchema;
+			ReaderSettings.ValidationEventHandler += (source, args) =>
+			{
+				switch (args.Severity)
+				{
+					case System.Xml.Schema.XmlSeverityType.Error:
+						Log.TraceError(args.Message);
+						ValidationSucceeded = false;
+						break;
+
+					case System.Xml.Schema.XmlSeverityType.Warning:
+						Log.TraceWarning(args.Message);
+						break;
+
+					default:
+						break;
+				}
+			};
+
+			using (XmlReader ValidatingReader = XmlReader.Create(ManifestPath, ReaderSettings))
+			{
+				while (ValidatingReader.Read())
+				{
+					// No-op, just reading to end to force validation.
+				}
+			}
+
+			if (!ValidationSucceeded)
+			{
+				throw new BuildException("Generated AppxManifest ({0}) is invalid.  See log for details and check your UWP Project Settings.", ManifestPath);
+			}
 		}
 	};
 }
