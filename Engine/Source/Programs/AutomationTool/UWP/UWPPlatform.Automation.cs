@@ -404,12 +404,11 @@ namespace UWP.Automation
 				SC.LocalRoot + "/Engine", Params.Distribution, "", Params.Deploy);
 
 			// Stage UWP-specific assets (tile, splash, etc.)
-			string assetsPath = Path.Combine(SC.ProjectRoot, "Saved", "UWP", "Resources");
+			string assetsPath = Path.Combine(Params.ProjectBinariesFolder, "Resources");
 			SC.StageFiles(StagedFileType.NonUFS, assetsPath, "*.png", true, null, "Resources");
 
-			string packageFilesPath = Path.Combine(SC.ProjectRoot, "Saved", "UWP");
-			SC.StageFile(StagedFileType.NonUFS, Path.Combine(packageFilesPath, "AppxManifest.xml"), "AppxManifest.xml");
-			SC.StageFile(StagedFileType.NonUFS, Path.Combine(packageFilesPath, "resources.pri"), "resources.pri");
+			SC.StageFile(StagedFileType.NonUFS, Path.Combine(Params.ProjectBinariesFolder, "AppxManifest.xml"), "AppxManifest.xml");
+			SC.StageFile(StagedFileType.NonUFS, Path.Combine(Params.ProjectBinariesFolder, "resources.pri"), "resources.pri");
 
 			string SourceNetworkManifestPath = Path.Combine(Params.ProjectBinariesFolder, "NetworkManifest.xml");
 			if (File.Exists(SourceNetworkManifestPath))
@@ -687,7 +686,6 @@ namespace UWP.Automation
 				throw new AutomationException(ExitCode.Error_LauncherFailed, "Could not find installed app (Name: {0}, Publisher: {1}", Name, Publisher);
 			}
 
-			TargetRules Rules = Params.ProjectTargets[TargetType.Game].Rules;
 			string Aumid = string.Format("{0}!{1}", InstalledPackage.Id.FamilyName, PrimaryAppId);
 			string SDKFolder = UWPExports.FindWindowsSDKInstallationFolder();
 			string LauncherPath = Path.Combine(SDKFolder, "App Certification Kit", "microsoft.windows.softwarelogo.appxlauncher.exe");
