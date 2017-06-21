@@ -345,6 +345,7 @@ namespace UnrealBuildTool
 				"<Project DefaultTargets=\"Build\" ToolsVersion=\"" + VcProjectToolVersion + "\" xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">" + ProjectFileGenerator.NewLine);
 
 			DirectoryReference ProjectBinariesDirectory = new FileReference(InTarget.BuildReceiptFileName).Directory;
+			string ProjectDirectoryName = InTarget.ProjectDirectory.GetDirectoryName();
 
 			// This is not the full set of properties that a VS build would add, but it's enough that VS deployment will work
 			// both locally and on a remote machine.
@@ -372,7 +373,7 @@ namespace UnrealBuildTool
 				bool IsGameSpecificExe = InTarget.ProjectFile != null && BinaryOutput.IsUnderDirectory(InTarget.ProjectDirectory);
 				if (IsGameSpecificExe)
 				{
-					AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + Path.Combine(InTarget.AppName, BinaryOutput.MakeRelativeTo(InTarget.ProjectDirectory)) + @"</PackagePath>" + ProjectFileGenerator.NewLine);
+					AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + Path.Combine(ProjectDirectoryName, BinaryOutput.MakeRelativeTo(InTarget.ProjectDirectory)) + @"</PackagePath>" + ProjectFileGenerator.NewLine);
 				}
 				else
 				{
@@ -390,7 +391,7 @@ namespace UnrealBuildTool
 
 			Dictionary<string, string> DestVariables = new Dictionary<string, string>();
 			DestVariables["EngineDir"] = "Engine";
-			DestVariables["ProjectDir"] = InTarget.AppName;
+			DestVariables["ProjectDir"] = InTarget.ProjectDirectory.GetDirectoryName();
 
 			// Note: some entries are added multiple times (notable Engine/Content/SlateDebug, possibly a bug?).
 			// This will cause UWP F5 deployment to *always* believe these files need updating, which is not desirable.
@@ -480,7 +481,7 @@ namespace UnrealBuildTool
 					AppXRecipeProjectFileContent.Append(@"	  </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
 
 					AppXRecipeProjectFileContent.Append(@"	  <AppxPackagedFile Include=""" + DirectoryReference.Combine(BaseCookedDir, InTarget.AppName, "**", "*.*").FullName + @""">" + ProjectFileGenerator.NewLine);
-					AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + InTarget.AppName + @"\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
+					AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + ProjectDirectoryName + @"\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
 					AppXRecipeProjectFileContent.Append(@"	  </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
 				}
 			}
@@ -498,7 +499,7 @@ namespace UnrealBuildTool
 			if (ConfigDirRef != null)
 			{
 				AppXRecipeProjectFileContent.Append(@"	  <AppxPackagedFile Include=""" + DirectoryReference.Combine(ConfigDirRef, "Config", "**", "*.*") + @""" >" + ProjectFileGenerator.NewLine);
-				AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + InTarget.AppName + @"\Config\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
+				AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + ProjectDirectoryName + @"\Config\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
 				AppXRecipeProjectFileContent.Append(@"	  </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
 			}
 
