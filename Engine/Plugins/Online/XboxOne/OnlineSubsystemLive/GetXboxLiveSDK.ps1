@@ -1,45 +1,23 @@
 function Install-LivePackage($pathToNuget, $packageName, $packageVersion, $installLocation, $alias)
 {
 	# Package names get long, which can cause path length problems both during install
-	# and when referencing contents later.  Install via a temp symlink, and also set up
-	# permanent links for use by the build system.
+	# and when referencing contents later.  Install to the temp folder, and then just copy
+	# out the bits we actually need.
 	$tempFolder = [System.IO.Path]::GetTempPath()
-	[string] $tempLinkName = [System.Guid]::NewGuid()
-	$tempLinkName = Join-Path $tempFolder $tempLinkName
-	New-Item -Path $installLocation -ItemType Directory -ErrorAction Ignore
-	New-Item -Path $tempLinkName -ItemType SymbolicLink -Value $installLocation
+	&$pathToNuget install $packageName -version $packageVersion -outputdirectory $tempFolder
 
-	&$pathToNuget install $packageName -version $packageVersion -outputdirectory $tempLinkName
+	$aliasPath = [System.IO.Path]::Combine($installLocation, $alias + "." + $packageVersion)
 
-	$aliasPath = $installLocation + "\" + $alias
-	$nativeReleasePackage = $installLocation + "\" + $packageName + ".Native.Release." + $packageVersion
-	if (Test-Path $nativeReleasePackage)
-	{
-		$actualPath = $nativeReleasePackage
-	}
-	else
-	{
-		$actualPath = $installLocation + "\" + $packageName + "." + $packageVersion
-	}
-
-	New-Item -Path $aliasPath -ItemType SymbolicLink -Value $actualPath -Force
-
-	# Remove-Item would try to remove the actual files, rather than just the link
-	cmd.exe /c "rmdir $tempLinkName"
+	$actualPath = [System.IO.Path]::Combine($tempFolder, $packageName + "." + $packageVersion, "build", "native")
+	Copy-Item ([System.IO.Path]::Combine($actualPath, "lib")) -Destination $aliasPath -Recurse -ErrorAction Ignore
+	Copy-Item ([System.IO.Path]::Combine($actualPath, "bin")) -Destination $aliasPath -Recurse -ErrorAction Ignore
+	Copy-Item ([System.IO.Path]::Combine($actualPath, "references")) -Destination $aliasPath -Recurse -ErrorAction Ignore
+	Copy-Item ([System.IO.Path]::Combine($actualPath, "include")) -Destination $aliasPath -Recurse -ErrorAction Ignore
 }
 
 # Package versions
 $xsapiVersionUwp = "2017.05.20170517.001"
 $xsapiVersionXdk = "2017.05.20170517.001"
-
-
-# Elevate if necessary (needed for new-item)
-if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) 
-{ 
-	$arguments = "& '" + $myinvocation.mycommand.definition + "'"
-	Start-Process powershell.exe -Verb RunAs -ArgumentList $arguments
-	exit 
-}
 
 $webClient = New-Object System.Net.WebClient
 $ossLivePath = Split-Path $MyInvocation.MyCommand.Path
@@ -66,7 +44,7 @@ else
 # Use nuget.exe to install Xbox Live packages
 $xsapiInstallPath = $ossLivePath + "\ThirdParty\XSAPI"
 $ximInstallPath = $ossLivePath + "\ThirdParty\XIM"
-Install-LivePackage $nuget microsoft.xbox.live.sdk.winrt.uwp $xsapiVersionUwp $xsapiInstallPath UWP
+Install-LivePackage $nuget microsoft.xbox.live.sdk.winrt.uwp.native.release $xsapiVersionUwp $xsapiInstallPath UWP
 Install-LivePackage $nuget microsoft.xbox.live.sdk.winrt.XboxOneXDK $xsapiVersionXdk $xsapiInstallPath XboxOne
 
 # Check for Live Extensions SDK
