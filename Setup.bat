@@ -26,6 +26,10 @@ rem Install prerequisites...
 echo Installing prerequisites...
 start /wait Engine\Extras\Redist\en-us\UE4PrereqSetup_x64.exe /quiet
 
+rem @ATG_CHANGE - BEGIN Ensure the right version of the Live SDK is in the expected location
+powershell Engine/Plugins/Online/XboxOne/OnlineSubsystemLive/GetXboxLiveSDK.ps1
+rem @ARG_CHANGE - END
+
 rem Register the engine installation...
 if not exist .\Engine\Binaries\Win64\UnrealVersionSelector-Win64-Shipping.exe goto :no_unreal_version_selector
 .\Engine\Binaries\Win64\UnrealVersionSelector-Win64-Shipping.exe /register

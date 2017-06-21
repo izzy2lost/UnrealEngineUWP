@@ -15,7 +15,7 @@ function Install-LivePackage($pathToNuget, $packageName, $packageVersion, $insta
 	Copy-Item ([System.IO.Path]::Combine($actualPath, "include")) -Destination $aliasPath -Recurse -ErrorAction Ignore
 }
 
-# Package versions
+# Package versions.  Should match OnlineSubsystemLive.build.cs
 $xsapiVersionUwp = "2017.05.20170517.001"
 $xsapiVersionXdk = "2017.05.20170517.001"
 
