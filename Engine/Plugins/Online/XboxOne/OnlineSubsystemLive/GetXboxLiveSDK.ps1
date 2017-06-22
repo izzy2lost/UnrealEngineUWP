@@ -9,10 +9,10 @@ function Install-LivePackage($pathToNuget, $packageName, $packageVersion, $insta
 	$aliasPath = [System.IO.Path]::Combine($installLocation, $alias + "." + $packageVersion)
 
 	$actualPath = [System.IO.Path]::Combine($tempFolder, $packageName + "." + $packageVersion, "build", "native")
-	Copy-Item ([System.IO.Path]::Combine($actualPath, "lib")) -Destination $aliasPath -Recurse -ErrorAction Ignore
-	Copy-Item ([System.IO.Path]::Combine($actualPath, "bin")) -Destination $aliasPath -Recurse -ErrorAction Ignore
-	Copy-Item ([System.IO.Path]::Combine($actualPath, "references")) -Destination $aliasPath -Recurse -ErrorAction Ignore
-	Copy-Item ([System.IO.Path]::Combine($actualPath, "include")) -Destination $aliasPath -Recurse -ErrorAction Ignore
+	Copy-Item ([System.IO.Path]::Combine($actualPath, "lib")) -Destination ([System.IO.Path]::Combine($aliasPath, "lib")) -Recurse -ErrorAction Ignore
+	Copy-Item ([System.IO.Path]::Combine($actualPath, "bin")) -Destination ([System.IO.Path]::Combine($aliasPath, "bin")) -Recurse -ErrorAction Ignore
+	Copy-Item ([System.IO.Path]::Combine($actualPath, "references")) -Destination ([System.IO.Path]::Combine($aliasPath, "references")) -Recurse -ErrorAction Ignore
+	Copy-Item ([System.IO.Path]::Combine($actualPath, "include")) -Destination ([System.IO.Path]::Combine($aliasPath, "include")) -Recurse -ErrorAction Ignore
 }
 
 # Package versions.  Should match OnlineSubsystemLive.build.cs
