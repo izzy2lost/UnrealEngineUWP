@@ -161,6 +161,14 @@ private:
 template <bool Is64Bit>
 class TUWPTargetPlatform : public FUWPTargetPlatform
 {
+public:
+	TUWPTargetPlatform()
+	{
+		// FTargetPlatformBase won't quite have the right PlatformInfo, since it uses
+		// FUWPPlatformProperties::PlatformName to look this up.  Fix it now.
+		PlatformInfo = ::PlatformInfo::FindPlatformInfo(Is64Bit ? FName("UWP_UWP64") : FName("UWP_UWP32"));
+	}
+
 	virtual FText GetVariantTitle() const override
 	{
 		return LOCTEXT("UWPVariantTitle", "Build Type");

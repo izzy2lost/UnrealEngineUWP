@@ -120,8 +120,8 @@ static const FPlatformInfo PlatformInfoArray[] = {
 	BuildPlatformInfo(TEXT("Switch"),					TEXT("Switch"),				LOCTEXT("Switch", "Switch"),									EPlatformType::Game,	EPlatformFlags::None,			FPlatformIconPaths(TEXT("Launcher/SwitchTarget/Platform_Switch_24x"), TEXT("Launcher/SwitchTarget/Platform_Switch_128x")),						TEXT(""),											TEXT(""),			EPlatformSDKStatus::Unknown,	TEXT(""),																								IsAvailableOnWindows,											TEXT("Switch"),		TEXT("Switch"),		false,					true,					TEXT("Switch")),
 // @ATG_CHANGE : BEGIN UWP packaging & F5 support
 	BuildPlatformInfo(TEXT("UWP"),						TEXT("UWP"),				LOCTEXT("UWP", "Universal Windows Platform"),					EPlatformType::Game,	EPlatformFlags::None,			FPlatformIconPaths(TEXT("Launcher/WindowsTarget/Platform_Windows_24x"), TEXT("Launcher/WindowsTarget/Platform_Windows_128x")),					TEXT("-targetplatform=UWP64"),						TEXT(""),			EPlatformSDKStatus::Unknown,	TEXT("/Engine/Tutorial/Installation/InstallingVisualStudioTutorial.InstallingVisualStudioTutorial"),	IsAvailableOnWindows,											TEXT("UWP64"),		TEXT("UWP"),		IsAvailableOnWindows,	false,					TEXT("UWP64")),
-	BuildPlatformInfo(TEXT("UWP32"),					TEXT("UWP32"),				LOCTEXT("UWP_UWP32", "UWP (x86-32bit)"),						EPlatformType::Game,	EPlatformFlags::BuildFlavor,	FPlatformIconPaths(TEXT("Launcher/WindowsTarget/Platform_Windows_24x"), TEXT("Launcher/WindowsTarget/Platform_Windows_128x")),					TEXT("-targetplatform=UWP32"),						TEXT(""),			EPlatformSDKStatus::Unknown,	TEXT("/Engine/Tutorial/Installation/InstallingVisualStudioTutorial.InstallingVisualStudioTutorial"),	IsAvailableOnWindows,											TEXT("UWP32"),		TEXT("UWP"),		IsAvailableOnWindows,	false,					TEXT("UWP32")),
-	BuildPlatformInfo(TEXT("UWP64"),					TEXT("UWP64"),				LOCTEXT("UWP_UWP64", "UWP (x64-64bit)"),						EPlatformType::Game,	EPlatformFlags::BuildFlavor,	FPlatformIconPaths(TEXT("Launcher/WindowsTarget/Platform_Windows_24x"), TEXT("Launcher/WindowsTarget/Platform_Windows_128x")),					TEXT("-targetplatform=UWP64"),						TEXT(""),			EPlatformSDKStatus::Unknown,	TEXT("/Engine/Tutorial/Installation/InstallingVisualStudioTutorial.InstallingVisualStudioTutorial"),	IsAvailableOnWindows,											TEXT("UWP64"),		TEXT("UWP"),		IsAvailableOnWindows,	false,					TEXT("UWP64")),
+	BuildPlatformInfo(TEXT("UWP_UWP32"),				TEXT("UWP32"),				LOCTEXT("UWP_UWP32", "UWP (x86-32bit)"),						EPlatformType::Game,	EPlatformFlags::BuildFlavor,	FPlatformIconPaths(TEXT("Launcher/WindowsTarget/Platform_Windows_24x"), TEXT("Launcher/WindowsTarget/Platform_Windows_128x")),					TEXT("-targetplatform=UWP32"),						TEXT(""),			EPlatformSDKStatus::Unknown,	TEXT("/Engine/Tutorial/Installation/InstallingVisualStudioTutorial.InstallingVisualStudioTutorial"),	IsAvailableOnWindows,											TEXT("UWP32"),		TEXT("UWP"),		IsAvailableOnWindows,	false,					TEXT("UWP32")),
+	BuildPlatformInfo(TEXT("UWP_UWP64"),				TEXT("UWP64"),				LOCTEXT("UWP_UWP64", "UWP (x64-64bit)"),						EPlatformType::Game,	EPlatformFlags::BuildFlavor,	FPlatformIconPaths(TEXT("Launcher/WindowsTarget/Platform_Windows_24x"), TEXT("Launcher/WindowsTarget/Platform_Windows_128x")),					TEXT("-targetplatform=UWP64"),						TEXT(""),			EPlatformSDKStatus::Unknown,	TEXT("/Engine/Tutorial/Installation/InstallingVisualStudioTutorial.InstallingVisualStudioTutorial"),	IsAvailableOnWindows,											TEXT("UWP64"),		TEXT("UWP"),		IsAvailableOnWindows,	false,					TEXT("UWP64")),
 // @ATG_CHANGE : END 
 };
 
@@ -135,6 +135,13 @@ const FPlatformInfo* FindPlatformInfo(const FName& InPlatformName)
 		{
 			return &PlatformInfo;
 		}
+
+		// @ATG_CHANGE : BEGIN - UWP packaging & F5 support
+		if (PlatformInfo.TargetPlatformName == InPlatformName)
+		{
+			return &PlatformInfo;
+		}
+		// @ATG_CHANGE : END - UWP packaging & F5 support
 	}
 	return nullptr;
 }
