@@ -45,6 +45,9 @@ namespace UnrealBuildTool
 		private XmlDocument AppxManifestXmlDocument;
 		private List<string> UpdatedFilePaths;
 
+		// Analagous to RelativeProjectRootForStage in UAT so that VS (UBT only) and UAT layouts match
+		private string RelativeProjectRootForStage; 
+
 		/// <summary>
 		/// Retrieve a package configuration option from the deprecated [AppxManifest] INI settings and return the value.
 		/// NOTE: Do not use this method for storing values, it is left in purely for compatibility. All package configuration
@@ -674,6 +677,7 @@ namespace UnrealBuildTool
 			EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(InProjectFile), TargetPlatform);
 
 			ProjectPath = InProjectDirectory;
+			RelativeProjectRootForStage = InProjectFile.GetFileNameWithoutAnyExtensions();
 
 			// Load and verify/clean culture list
 			List<string> CulturesToStageWithDuplicates = null;
@@ -1377,9 +1381,9 @@ namespace UnrealBuildTool
 			//   1. Project package logo
 			//   2. Project application logo
 			//   3. Engine application logo (the engine always uses a single logo for package and application)
-			if (CopyAndReplaceBinaryIntermediate("PackageLogo.png", false))
+			if (CopyAndReplaceBinaryIntermediate("StoreLogo.png", false))
 			{
-				PackageLogo.InnerText = BuildResourceSubPath + "\\PackageLogo.png";
+				PackageLogo.InnerText = BuildResourceSubPath + "\\StoreLogo.png";
 				Properties.AppendChild(PackageLogo);
 			}
 			else if (CopyAndReplaceBinaryIntermediate("Logo.png"))
@@ -1519,7 +1523,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Validate the base name we use to construct the application id and entry point. Must match [A-Za-z][A-Za-z0-9]*.
 		/// </summary>
-		private string ValidateProjectBaseName(string InApplicationId)
+		private string ValidateApplicationName(string InApplicationId)
 		{
 			string ReturnVal = Regex.Replace(InApplicationId, "[^A-Za-z0-9]", "");
 			if (ReturnVal != null)
@@ -1530,7 +1534,7 @@ namespace UnrealBuildTool
 			if (ReturnVal == null || ReturnVal.Length <= 0)
 			{
 				Log.TraceError("Invalid application ID {0}. Application IDs must only contain letters and numbers. And they must begin with a letter.", InApplicationId);
-				Log.TraceError("Consider using the setting [/Script/UWPPlatformEditor.UWPTargetSettings]:PackageName to provide a UWP specific value.");
+				Log.TraceError("Consider using the setting [/Script/UWPPlatformEditor.UWPTargetSettings]:ValidateApplicationName to provide a UWP specific value.");
 			}
 			return ReturnVal;
 		}
@@ -1542,7 +1546,7 @@ namespace UnrealBuildTool
 		{
 			XmlElement Application = AppxManifestXmlDocument.CreateElement("Application");
 
-			string PackageBaseName = CreateStringValue("PackageName", "Package.Applications.Application[" + ApplicationIndex + "].Id", "/Script/EngineSettings.GeneralProjectSettings", "ProjectName", "UE4Game", ValidateProjectBaseName);
+			string PackageBaseName = CreateStringValue("ApplicationName", "Package.Applications.Application[" + ApplicationIndex + "].Id", "/Script/EngineSettings.GeneralProjectSettings", "ProjectName", "UE4Game", ValidateApplicationName);
 
 			string ConfigPostfix = "";
 			if (bIncludeConfigPostfix)
@@ -1550,7 +1554,7 @@ namespace UnrealBuildTool
 				ConfigPostfix = TargetConfig.ToString();
 			}
 
-			string RelativeExePath = Utils.MakePathRelativeTo(ExecutablePath, Path.Combine(ExecutablePath, "../../../.."));
+			string RelativeExePath = Path.Combine(RelativeProjectRootForStage, Utils.MakePathRelativeTo(ExecutablePath, ProjectPath));
 
 			XmlAttribute Id = AppxManifestXmlDocument.CreateAttribute("Id");
 			Id.Value = "App" + PackageBaseName + ConfigPostfix;

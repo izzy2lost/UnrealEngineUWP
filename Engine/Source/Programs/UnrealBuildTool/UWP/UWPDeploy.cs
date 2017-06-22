@@ -473,7 +473,7 @@ namespace UnrealBuildTool
 				EngineIni.GetBool("/Script/UWPPlatformEditor.UWPTargetSettings", "bCopyCookedContentForF5Deployment", out bCopyCookedContentForF5Deployment);
 				if (bCopyCookedContentForF5Deployment)
 				{
-					DirectoryReference BaseCookedDir = DirectoryReference.Combine(InTarget.ProjectDirectory, "Saved", "Cooked", "UWP");
+					DirectoryReference BaseCookedDir = DirectoryReference.Combine(InTarget.ProjectDirectory, "Saved", "Cooked", InTarget.Platform.ToString());
 
 					AppXRecipeProjectFileContent.Append(@"	  <AppxPackagedFile Include=""" + DirectoryReference.Combine(BaseCookedDir, "Engine", "**", "*.*").FullName + @""">" + ProjectFileGenerator.NewLine);
 					AppXRecipeProjectFileContent.Append(@"		  <PackagePath>Engine\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
