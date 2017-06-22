@@ -19,6 +19,11 @@ public:
 
 	GENERATED_UCLASS_BODY()
 
+	virtual const TCHAR* GetConfigOverridePlatform() const override
+	{
+		return TEXT("UWP");
+	}
+
 	virtual void PostInitProperties() override;
 
 	/**
@@ -59,6 +64,11 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "Toolchain", Meta = (DisplayName = "Copy Cooked Content for F5 Deployment"))
 	uint32 bCopyCookedContentForF5Deployment : 1;
 
+	/**
+	* Pfx file containing a private key used to sign the AppX file created during packaging.  The certificate subject
+	* name must exactly match the value of Package/Identity/Publisher.  Signing is required when sideloading packaged
+	* builds.
+	*/
 	UPROPERTY(EditAnywhere, config, Category = Packaging)
 	FString SigningCertificate;
 
@@ -88,6 +98,22 @@ public:
 
 	UPROPERTY(EditAnywhere, config, Category = Packaging)
 	FString SplashScreenBackgroundColorHex = FString::Printf(TEXT("#%02X%02X%02X"), SplashScreenBackgroundColor.R, SplashScreenBackgroundColor.G, SplashScreenBackgroundColor.B);
+
+	/**
+	* The value for Package/Identity/Name in the generated AppX Manifest.  If empty, the ProjectName
+	* from General Project Settings will be used.  When building for the Windows Store or using Xbox Live this value
+	* must match the identity assigned in Dev Center
+	*/
+	UPROPERTY(EditAnywhere, config, Category = Packaging, AdvancedDisplay, Meta = (DisplayName = "Package/Identity/Name override"))
+	FString PackageName;
+
+	/**
+	* The value for Package/Identity/Publisher in the generated AppX Manifest.  If empty, the CompanyDistinguishedName 
+	* from General Project Settings will be used.  When building for the Windows Store or using Xbox Live this value 
+	* must match the identity assigned in Dev Center
+	*/
+	UPROPERTY(EditAnywhere, config, Category = Packaging, AdvancedDisplay, Meta = (DisplayName = "Package/Identity/Publisher override"))
+	FString PublisherName;
 
 	/**
 	* Identifies the device family that your package will target.
