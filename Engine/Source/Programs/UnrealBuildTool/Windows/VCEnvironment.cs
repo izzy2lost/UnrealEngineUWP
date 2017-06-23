@@ -559,16 +559,22 @@ namespace UnrealBuildTool
 		// @ATG_CHANGE : BEGIN 
 		public static DirectoryReference GetCppCXMetadataLocation(WindowsCompiler Compiler)
 		{
+			DirectoryReference LocalVCInstallDir;
+			if (!WindowsPlatform.TryGetVCInstallDir(Compiler, out LocalVCInstallDir))
+			{
+				return null;
+			}
+
 			switch (Compiler)
 			{
 				case WindowsCompiler.VisualStudio2017:
 					{
-						string Version = File.ReadAllText(FileReference.Combine(EnvVars.VCInstallDir, "Auxiliary", "Build", "Microsoft.VCToolsVersion.default.txt").FullName).Trim();
-						return DirectoryReference.Combine(EnvVars.VCInstallDir, "Tools", "MSVC", Version, "lib", "x86", "Store", "references");
+						string Version = File.ReadAllText(FileReference.Combine(LocalVCInstallDir, "Auxiliary", "Build", "Microsoft.VCToolsVersion.default.txt").FullName).Trim();
+						return DirectoryReference.Combine(LocalVCInstallDir, "Tools", "MSVC", Version, "lib", "x86", "Store", "references");
 					}
 
 				case WindowsCompiler.VisualStudio2015:
-					return DirectoryReference.Combine(EnvVars.VCInstallDir, "vcpackages");
+					return DirectoryReference.Combine(LocalVCInstallDir, "vcpackages");
 
 				default:
 					// Not supported
