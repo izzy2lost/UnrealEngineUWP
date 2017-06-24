@@ -31,7 +31,8 @@ namespace UnrealBuildTool
 		/// Adds all of the specified winmds to this VCProject's list of winmds for all modules in the project
 		/// </summary>
 		/// <param name="NewWinMDReferences">List of winmds paths to add</param>
-		void AddIntelliSenseWinMDReferences(List<string> NewWinMDReferences);
+		/// <param name="Compiler">Compiler version currently in use (controls search path for winmds that are SDK contracts)</param>
+		void AddIntelliSenseWinMDReferences(List<string> NewWinMDReferences, WindowsCompiler Compiler);
 		// @ATG_CHANGE : END
 	}
 
@@ -387,14 +388,21 @@ namespace UnrealBuildTool
 		/// Adds all of the specified winmds to this VCProject's list of winmds for all modules in the project
 		/// </summary>
 		/// <param name="NewWinMDReferences">List of winmds paths to add</param>
-		public void AddIntelliSenseWinMDReferences(List<string> NewWinMDReferences)
+		/// <param name="Compiler">Compiler version currently in use (controls search path for winmds that are SDK contracts)</param>
+		public void AddIntelliSenseWinMDReferences(List<string> NewWinMDReferences, WindowsCompiler Compiler)
 		{
 			if (ProjectFileGenerator.OnlyGenerateIntelliSenseDataForProject == null ||
 				ProjectFileGenerator.OnlyGenerateIntelliSenseDataForProject == this)
 			{
 				foreach (var CurPath in NewWinMDReferences)
 				{
-					if (KnownIntelliSenseWinMDReferences.Add(CurPath))
+					string ResolvedPath = CurPath;
+					if (!File.Exists(ResolvedPath))
+					{
+						ResolvedPath = VCEnvironment.GetLatestMetadataPathForApiContract(ResolvedPath, Compiler);
+					}
+
+					if (KnownIntelliSenseWinMDReferences.Add(ResolvedPath))
 					{
 						string PathRelativeToProjectFile;
 
@@ -402,13 +410,13 @@ namespace UnrealBuildTool
 						// give it a relative path
 						if (CurPath.StartsWith("$("))
 						{
-							PathRelativeToProjectFile = CurPath;
+							PathRelativeToProjectFile = ResolvedPath;
 						}
 						else
 						{
 							// Incoming include paths are relative to the solution directory, but we need these paths to be
 							// relative to the project file's directory
-							PathRelativeToProjectFile = NormalizeProjectPath(CurPath);
+							PathRelativeToProjectFile = NormalizeProjectPath(ResolvedPath);
 						}
 
 						// Trim any trailing slash
