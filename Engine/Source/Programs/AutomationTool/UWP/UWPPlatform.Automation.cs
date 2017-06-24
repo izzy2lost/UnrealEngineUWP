@@ -62,7 +62,7 @@ namespace UWP.Automation
 			get
 			{
 				// Avoid potential access of the exit code.
-				return ExternallyLaunchedProcess.HasExited;
+				return ExternallyLaunchedProcess != null && ExternallyLaunchedProcess.HasExited;
 			}
 		}
 
@@ -482,6 +482,40 @@ namespace UWP.Automation
 			{
 				LogWarning("No signing certificate provided.  App will not be deployable.  Specify a valid pfx in UWP platform settings.");
 			}
+
+			// If the user indicated that they will distribute this build, then let's also generate an
+			// appxupload file suitable for submission to the Windows Store.  This file zips together
+			// the appx package and the public symbols (themselves zipped) for the binaries.
+			if (Params.Distribution)
+			{
+				List<FileReference> SymbolFilesToZip = new List<FileReference>();
+				DirectoryReference StageDirRef = new DirectoryReference(SC.StageDirectory);
+				DirectoryReference PublicSymbols = DirectoryReference.Combine(StageDirRef, "PublicSymbols");
+				CreateDirectory_NoExceptions(PublicSymbols.FullName);
+				foreach (StageTarget Target in SC.StageTargets)
+				{
+					foreach (BuildProduct Product in Target.Receipt.BuildProducts)
+					{
+						if (Product.Type == BuildProductType.SymbolFile)
+						{
+							FileReference FullSymbolFile = new FileReference(Product.Path);
+							FileReference TempStrippedSymbols = FileReference.Combine(PublicSymbols, FullSymbolFile.GetFileName());
+							StripSymbols(FullSymbolFile, TempStrippedSymbols);
+							SymbolFilesToZip.Add(TempStrippedSymbols);
+						}
+					}
+				}
+				FileReference AppxSymFile = FileReference.Combine(StageDirRef, Params.ShortProjectName + ".appxsym");
+				ZipFiles(AppxSymFile, PublicSymbols, SymbolFilesToZip);
+
+				FileReference AppxUploadFile = FileReference.Combine(StageDirRef, Params.ShortProjectName + ".appxupload");
+				ZipFiles(AppxUploadFile, StageDirRef,
+					new FileReference[]
+					{
+							new FileReference(OutputAppX),
+							AppxSymFile
+					});
+			}
 		}
 
 		public override IProcessResult RunClient(ERunOptions ClientRunFlags, string ClientApp, string ClientCmdLine, ProjectParams Params)
@@ -530,6 +564,40 @@ namespace UWP.Automation
 		public override List<string> GetDebugFileExtentions()
 		{
 			return new List<string> { ".pdb", ".map" };
+		}
+
+		public override void StripSymbols(FileReference SourceFile, FileReference TargetFile)
+		{
+			// Note: pulled directly from WinPlatform.Automation.cs
+
+			bool bStripInPlace = false;
+
+			if (SourceFile == TargetFile)
+			{
+				// PDBCopy only supports creation of a brand new stripped file so we have to create a temporary filename
+				TargetFile = new FileReference(Path.Combine(TargetFile.Directory.FullName, Guid.NewGuid().ToString() + TargetFile.GetExtension()));
+				bStripInPlace = true;
+			}
+
+			ProcessStartInfo StartInfo = new ProcessStartInfo();
+			string PDBCopyPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "MSBuild", "Microsoft", "VisualStudio", "v14.0", "AppxPackage", "PDBCopy.exe");
+			if (!File.Exists(PDBCopyPath))
+			{
+				// Fall back on VS2013 version
+				PDBCopyPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "MSBuild", "Microsoft", "VisualStudio", "v12.0", "AppxPackage", "PDBCopy.exe");
+			}
+			StartInfo.FileName = PDBCopyPath;
+			StartInfo.Arguments = String.Format("\"{0}\" \"{1}\" -p", SourceFile.FullName, TargetFile.FullName);
+			StartInfo.UseShellExecute = false;
+			StartInfo.CreateNoWindow = true;
+			Utils.RunLocalProcessAndLogOutput(StartInfo);
+
+			if (bStripInPlace)
+			{
+				// Copy stripped file to original location and delete the temporary file
+				File.Copy(TargetFile.FullName, SourceFile.FullName, true);
+				FileReference.Delete(TargetFile);
+			}
 		}
 
 		private void GenerateSigningCertificate(string InCertificatePath, string InPublisher)

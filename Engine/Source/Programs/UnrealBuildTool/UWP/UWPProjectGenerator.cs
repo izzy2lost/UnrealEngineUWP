@@ -65,17 +65,22 @@ namespace UnrealBuildTool
 			VCProjectFileContent.Append("		<WindowsTargetPlatformMinVersion>" + MinVersion + "</WindowsTargetPlatformMinVersion>" + ProjectFileGenerator.NewLine);
 			VCProjectFileContent.Append("		<WindowsTargetPlatformVersion>" + MaxTestedVersion + "</WindowsTargetPlatformVersion>" + ProjectFileGenerator.NewLine);
 
-			WindowsCompiler Compiler = WindowsCompiler.Default;
+			WindowsCompiler Compiler = WindowsCompiler.VisualStudio2017;
+			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler);
+			if (PlatformWinMDLocation == null || !FileReference.Exists(FileReference.Combine(PlatformWinMDLocation, "platform.winmd")))
+			{
+				Compiler = WindowsCompiler.VisualStudio2015;
+				PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler);
+			}
 			string FoundationWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Compiler);
 			string UniversalWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Compiler);
 			VCProjectFileContent.Append("		<AdditionalOptions>/ZW</AdditionalOptions>" + ProjectFileGenerator.NewLine);
 			VCProjectFileContent.Append("		<NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions);PLATFORM_UWP=1;UWP=1;</NMakePreprocessorDefinitions>" + ProjectFileGenerator.NewLine);
-			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler);
 			if (PlatformWinMDLocation != null)
 			{
-				VCProjectFileContent.Append("       <NMakeAssemblySearchPath>$(NMakeAssemblySearchPath);" + PlatformWinMDLocation + "</NMakeAssemblySearchPath>" + ProjectFileGenerator.NewLine);
+				VCProjectFileContent.Append("		<NMakeAssemblySearchPath>$(NMakeAssemblySearchPath);" + PlatformWinMDLocation + "</NMakeAssemblySearchPath>" + ProjectFileGenerator.NewLine);
 			}
-			VCProjectFileContent.Append("       <NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies);" + FoundationWinMDPath + ";" + UniversalWinMDPath + ";platform.winmd</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine);
+			VCProjectFileContent.Append("		<NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies);" + FoundationWinMDPath + ";" + UniversalWinMDPath + ";platform.winmd</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine);
 		}
 
 		public override string GetVisualStudioPreDefaultString(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration)

@@ -343,6 +343,9 @@ namespace UnrealBuildTool
 				IntelliSenseGatherer.AddIntelliSensePreprocessorDefinitions(ModuleCompileEnvironment.Definitions);
 				IntelliSenseGatherer.AddInteliiSenseIncludePaths(ModuleCompileEnvironment.IncludePaths.SystemIncludePaths, bAddingSystemIncludes: true);
 				IntelliSenseGatherer.AddInteliiSenseIncludePaths(ModuleCompileEnvironment.IncludePaths.UserIncludePaths, bAddingSystemIncludes: false);
+				// @ATG_CHANGE : BEGIN winmd support
+				IntelliSenseGatherer.AddIntelliSenseWinMDReferences(ModuleCompileEnvironment.WinMDReferences, Target.WindowsPlatform.Compiler);
+				// @ATG_CHANGE : END
 
 				// Bail out.  We don't need to actually compile anything while generating project files.
 				return LinkInputFiles;

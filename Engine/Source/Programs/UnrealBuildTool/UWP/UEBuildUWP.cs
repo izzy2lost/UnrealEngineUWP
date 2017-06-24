@@ -34,7 +34,13 @@ namespace UnrealBuildTool
 			// Compiler version and pix flags must be reloaded from the UWP hive
 
 			// Read the project setting
-			ConfigHierarchy Ini = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(Target.ProjectFile), Target.Platform);
+			DirectoryReference IniDirRef = DirectoryReference.FromFile(Target.ProjectFile);
+			if (IniDirRef == null && !string.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()))
+			{
+				IniDirRef = new DirectoryReference(UnrealBuildTool.GetRemoteIniPath());
+			}
+
+			ConfigHierarchy Ini = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, IniDirRef, Target.Platform);
 
 			Target.WindowsPlatform.Compiler = WindowsCompiler.Default;
 			// prefer ini configuration first...
