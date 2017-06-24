@@ -46,7 +46,9 @@ namespace UnrealBuildTool
 		private List<string> UpdatedFilePaths;
 
 		// Analagous to RelativeProjectRootForStage in UAT so that VS (UBT only) and UAT layouts match
-		private string RelativeProjectRootForStage; 
+		private string RelativeProjectRootForStage;
+		bool IsGameSpecificExe;
+
 
 		/// <summary>
 		/// Retrieve a package configuration option from the deprecated [AppxManifest] INI settings and return the value.
@@ -673,11 +675,24 @@ namespace UnrealBuildTool
 
 			// Load up INI settings. We'll use engine settings to retrieve the manifest configuration, but these may reference
 			// values in either game or engine settings, so we'll keep both.
-			GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, DirectoryReference.FromFile(InProjectFile), TargetPlatform);
-			EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(InProjectFile), TargetPlatform);
+			// Use the project directory here since this accounts for 'RemoteIniDir' when InProjectFile is null
+			if (InProjectFile != null)
+			{
+				DirectoryReference IniDirRef = DirectoryReference.FromFile(InProjectFile);
+				GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, IniDirRef, TargetPlatform);
+				EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, IniDirRef, TargetPlatform);
+				IsGameSpecificExe = new DirectoryReference(InOutputPath).IsUnderDirectory(IniDirRef);
+			}
+			else
+			{
+				DirectoryReference IniDirRef = new DirectoryReference(UnrealBuildTool.GetRemoteIniPath());
+				GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, IniDirRef, TargetPlatform);
+				EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, IniDirRef, TargetPlatform);
+				IsGameSpecificExe = false;
+			}
 
 			ProjectPath = InProjectDirectory;
-			RelativeProjectRootForStage = InProjectFile.GetFileNameWithoutAnyExtensions();
+			RelativeProjectRootForStage = IsGameSpecificExe ? InProjectFile.GetFileNameWithoutAnyExtensions() : "Engine";
 
 			// Load and verify/clean culture list
 			List<string> CulturesToStageWithDuplicates = null;
@@ -1554,7 +1569,8 @@ namespace UnrealBuildTool
 				ConfigPostfix = TargetConfig.ToString();
 			}
 
-			string RelativeExePath = Path.Combine(RelativeProjectRootForStage, Utils.MakePathRelativeTo(ExecutablePath, ProjectPath));
+			string MakeRelativeTo = IsGameSpecificExe ? ProjectPath : UnrealBuildTool.EngineDirectory.FullName;
+			string RelativeExePath = Path.Combine(RelativeProjectRootForStage, Utils.MakePathRelativeTo(ExecutablePath, MakeRelativeTo));
 
 			XmlAttribute Id = AppxManifestXmlDocument.CreateAttribute("Id");
 			Id.Value = "App" + PackageBaseName + ConfigPostfix;
