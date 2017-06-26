@@ -397,10 +397,6 @@ namespace UnrealBuildTool
 				foreach (var CurPath in NewWinMDReferences)
 				{
 					string ResolvedPath = CurPath;
-					if (!File.Exists(ResolvedPath))
-					{
-						ResolvedPath = VCEnvironment.GetLatestMetadataPathForApiContract(ResolvedPath, Compiler);
-					}
 
 					if (KnownIntelliSenseWinMDReferences.Add(ResolvedPath))
 					{
@@ -414,6 +410,17 @@ namespace UnrealBuildTool
 						}
 						else
 						{
+							if (!File.Exists(ResolvedPath))
+							{
+								// WinMDs that are Windows SDK (or extension) contracts can be referenced by contract
+								// name rather than full path
+								string PossibleContractPath = VCEnvironment.GetLatestMetadataPathForApiContract(ResolvedPath, Compiler);
+								if (!string.IsNullOrEmpty(PossibleContractPath))
+								{
+									ResolvedPath = PossibleContractPath;
+								}
+							}
+
 							// Incoming include paths are relative to the solution directory, but we need these paths to be
 							// relative to the project file's directory
 							PathRelativeToProjectFile = NormalizeProjectPath(ResolvedPath);
