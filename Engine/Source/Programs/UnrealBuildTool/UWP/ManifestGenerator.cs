@@ -683,11 +683,17 @@ namespace UnrealBuildTool
 				EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, IniDirRef, TargetPlatform);
 				IsGameSpecificExe = new DirectoryReference(InOutputPath).IsUnderDirectory(IniDirRef);
 			}
-			else
+			else if (!string.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()))
 			{
 				DirectoryReference IniDirRef = new DirectoryReference(UnrealBuildTool.GetRemoteIniPath());
 				GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, IniDirRef, TargetPlatform);
 				EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, IniDirRef, TargetPlatform);
+				IsGameSpecificExe = false;
+			}
+			else
+			{
+				GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, null, TargetPlatform);
+				EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, null, TargetPlatform);
 				IsGameSpecificExe = false;
 			}
 
