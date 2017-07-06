@@ -338,6 +338,9 @@ const TCHAR* FUWPMisc::RootDir()
 	if (Path.Len() == 0)
 	{
 		Path = Windows::ApplicationModel::Package::Current->InstalledLocation->Path->Data();
+
+		// Add trailing \\ - this is important for correct operation of FPaths::MakePathRelativeTo
+		Path += TEXT("\\");
 	}
 	return *Path;
 }
