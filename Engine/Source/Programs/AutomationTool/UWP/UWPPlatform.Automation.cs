@@ -568,8 +568,6 @@ namespace UWP.Automation
 
 		public override void StripSymbols(FileReference SourceFile, FileReference TargetFile)
 		{
-			// Note: pulled directly from WinPlatform.Automation.cs
-
 			bool bStripInPlace = false;
 
 			if (SourceFile == TargetFile)
@@ -580,13 +578,27 @@ namespace UWP.Automation
 			}
 
 			ProcessStartInfo StartInfo = new ProcessStartInfo();
-			string PDBCopyPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "MSBuild", "Microsoft", "VisualStudio", "v14.0", "AppxPackage", "PDBCopy.exe");
-			if (!File.Exists(PDBCopyPath))
+			FileReference PDBCopyPath = null;
+
+			// VS 2017 puts MSBuild stuff (where PDBCopy lives) under the Visual Studio Installation directory
+			DirectoryReference VSInstallDir;
+			if (WindowsExports.TryGetVSInstallDir(WindowsCompiler.VisualStudio2017, out VSInstallDir))
 			{
-				// Fall back on VS2013 version
-				PDBCopyPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "MSBuild", "Microsoft", "VisualStudio", "v12.0", "AppxPackage", "PDBCopy.exe");
+				PDBCopyPath = FileReference.Combine(VSInstallDir, "MSBuild", "Microsoft", "VisualStudio", "v15.0", "AppxPackage", "PDBCopy.exe");
 			}
-			StartInfo.FileName = PDBCopyPath;
+
+			// Earlier versions use a separate MSBuild install location
+			if (PDBCopyPath == null || !FileReference.Exists(PDBCopyPath))
+			{
+				DirectoryReference MSBuildInstallDir = new DirectoryReference(Path.Combine(WindowsExports.GetMSBuildToolPath(), "..", "..", ".."));
+				PDBCopyPath = FileReference.Combine(MSBuildInstallDir, "Microsoft", "VisualStudio", "v14.0", "AppxPackage", "PDBCopy.exe");
+				if (PDBCopyPath == null || !FileReference.Exists(PDBCopyPath))
+				{
+					PDBCopyPath = FileReference.Combine(MSBuildInstallDir, "Microsoft", "VisualStudio", "v12.0", "AppxPackage", "PDBCopy.exe");
+				}
+			}
+
+			StartInfo.FileName = PDBCopyPath.FullName;
 			StartInfo.Arguments = String.Format("\"{0}\" \"{1}\" -p", SourceFile.FullName, TargetFile.FullName);
 			StartInfo.UseShellExecute = false;
 			StartInfo.CreateNoWindow = true;
