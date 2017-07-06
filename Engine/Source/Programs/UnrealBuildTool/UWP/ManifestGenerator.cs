@@ -1738,7 +1738,7 @@ namespace UnrealBuildTool
 			return SplashScreen;
 		}
 
-        // for ease of integration with mainlain, allow Epic's implementation for XboxOne to flow through unchanged
+        // for ease of integration with mainline, allow Epic's implementation for XboxOne to flow through unchanged
         private XmlNode GetCapabilities()
         {
             XmlElement Capabilities = AppxManifestXmlDocument.CreateElement("Capabilities");
@@ -1760,23 +1760,11 @@ namespace UnrealBuildTool
                 }
             }
 
-            if (EngineIni.GetArray(TargetSettings, "DeviceCapabilityList", out DeviceCapabilityList))
-            {
-                foreach (string capName in CapabilityList)
-                {
-                    XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("DeviceCapability");
-                    XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
-                    Name.Value = capName;
-                    CapabilityElement.Attributes.Append(Name);
-                    Capabilities.AppendChild(CapabilityElement);
-                }
-            }
-
             if (EngineIni.GetArray(TargetSettings, "UapCapabilityList", out UapCapabilityList))
             {
-                foreach (string capName in CapabilityList)
+                foreach (string capName in UapCapabilityList)
                 {
-                    XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("uap:Capability");
+                    XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("uap:Capability", "http://schemas.microsoft.com/appx/manifest/uap/windows10");
                     XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
                     Name.Value = capName;
                     CapabilityElement.Attributes.Append(Name);
@@ -1786,9 +1774,21 @@ namespace UnrealBuildTool
 
             if (EngineIni.GetArray(TargetSettings, "Uap2CapabilityList", out Uap2CapabilityList))
             {
-                foreach (string capName in CapabilityList)
+                foreach (string capName in Uap2CapabilityList)
                 {
-                    XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("uap2:Capability");
+                    XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("uap2:Capability", "http://schemas.microsoft.com/appx/manifest/uap/windows10/2");
+                    XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
+                    Name.Value = capName;
+                    CapabilityElement.Attributes.Append(Name);
+                    Capabilities.AppendChild(CapabilityElement);
+                }
+            }
+
+            if (EngineIni.GetArray(TargetSettings, "DeviceCapabilityList", out DeviceCapabilityList))
+            {
+                foreach (string capName in DeviceCapabilityList)
+                {
+                    XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("DeviceCapability");
                     XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
                     Name.Value = capName;
                     CapabilityElement.Attributes.Append(Name);
