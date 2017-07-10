@@ -10,6 +10,77 @@ using Microsoft.Win32;
 
 namespace UnrealBuildTool
 {
+	/// <summary>
+	/// UWP-specific target settings
+	/// </summary>
+	public class UWPTargetRules
+	{
+		/// <summary>
+		/// Version of the compiler toolchain to use on UWP. A value of "default" will be changed to a specific version at UBT startup.
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/UWPPlatformEditor.UWPTargetSettings", "CompilerVersion")]
+		[CommandLine("-2015", Value = "VisualStudio2015")]
+		[CommandLine("-2017", Value = "VisualStudio2017")]
+		public WindowsCompiler Compiler = WindowsCompiler.Default;
+
+		/// <summary>
+		/// Enable PIX debugging (automatically disabled in Shipping and Test configs)
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/UWPPlatformEditor.UWPTargetSettings", "bEnablePIXProfiling")]
+		public bool bPixProfilingEnabled = true;
+
+		/// <summary>
+		/// Version of the compiler toolchain to use on UWP. A value of "default" will be changed to a specific version at UBT startup.
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/UWPPlatformEditor.UWPTargetSettings", "bBuildForRetailWindowsStore")]
+		public bool bBuildForRetailWindowsStore = false;
+	}
+
+	/// <summary>
+	/// Read-only wrapper for UWP-specific target settings
+	/// </summary>
+	public class ReadOnlyUWPTargetRules
+	{
+		/// <summary>
+		/// The private mutable settings object
+		/// </summary>
+		private UWPTargetRules Inner;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="Inner">The settings object to wrap</param>
+		public ReadOnlyUWPTargetRules(UWPTargetRules Inner)
+		{
+			this.Inner = Inner;
+		}
+
+		/// <summary>
+		/// Accessors for fields on the inner TargetRules instance
+		/// </summary>
+		#region Read-only accessor properties 
+#if !__MonoCS__
+#pragma warning disable CS1591
+#endif
+		public WindowsCompiler Compiler
+		{
+			get { return Inner.Compiler; }
+		}
+
+		public bool bPixProfilingEnabled
+		{
+			get { return Inner.bPixProfilingEnabled; }
+		}
+
+		public bool bBuildForRetailWindowsStore
+		{
+			get { return Inner.bBuildForRetailWindowsStore; }
+		}
+#if !__MonoCS__
+#pragma warning restore CS1591
+#endif
+		#endregion
+	}
 
 	class UniversalWindowsPlatform : UEBuildPlatform
 	{
@@ -33,50 +104,28 @@ namespace UnrealBuildTool
 
 			// Compiler version and pix flags must be reloaded from the UWP hive
 
-			// Read the project setting
+			// Currently BP-only projects don't load build-related settings from their remote ini when building UE4Game.exe
+			// (see TargetRules.cs, where the possibly-null project directory is passed to ConfigCache.ReadSettings).
+			// It's important for UWP that we *do* use the project-specific settings when building (VS 2017 vs 2015 and
+			// retail Windows Store are both examples).  Possibly this should be done on all platforms?  But in the interest
+			// of not changing behavior on other platforms I'm limiting the scope.
+
 			DirectoryReference IniDirRef = DirectoryReference.FromFile(Target.ProjectFile);
 			if (IniDirRef == null && !string.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()))
 			{
 				IniDirRef = new DirectoryReference(UnrealBuildTool.GetRemoteIniPath());
 			}
 
-			ConfigHierarchy Ini = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, IniDirRef, Target.Platform);
+			ConfigCache.ReadSettings(IniDirRef, Platform, Target.UWPPlatform);
 
-			Target.WindowsPlatform.Compiler = WindowsCompiler.Default;
-			// prefer ini configuration first...
-			string CompilerVersionString;
-			if (Ini.GetString("/Script/UWPPlatformEditor.UWPTargetSettings", "CompilerVersion", out CompilerVersionString))
+			if (Target.UWPPlatform.Compiler == WindowsCompiler.Default)
 			{
-				WindowsCompiler CompilerIniSetting;
-				if (Enum.TryParse(CompilerVersionString, out CompilerIniSetting))
-				{
-					if (CompilerIniSetting >= WindowsCompiler.VisualStudio2015)
-					{
-						Target.WindowsPlatform.Compiler = CompilerIniSetting;
-					}
-					else if (CompilerIniSetting != WindowsCompiler.Default)
-					{
-						Log.TraceWarning("Selected compiler ({0}) requested by config is not supported.  Setting will be ignored.", CompilerIniSetting);
-					}
-				}
-			}
-			// then default to command line overrides
-			if (Target.WindowsPlatform.Compiler == WindowsCompiler.Default)
-			{
-				Target.WindowsPlatform.Compiler = CommandLineCompilerOverride;
-			}
-			// then default to the generic default if necessary
-			if (Target.WindowsPlatform.Compiler == WindowsCompiler.Default)
-			{
-				Target.WindowsPlatform.Compiler = WindowsPlatform.GetDefaultCompiler();
+				Target.UWPPlatform.Compiler = WindowsPlatform.GetDefaultCompiler();
 			}
 
-			Target.WindowsPlatform.bPixProfilingEnabled = true; // default, turned off later for shipping\test
-			bool bPixProfilingEnabled;
-			if (Ini.GetBool("/Script/UWPPlatformEditor.UWPTargetSettings", "bEnablePIXProfiling", out bPixProfilingEnabled))
-			{
-				Target.WindowsPlatform.bPixProfilingEnabled = bPixProfilingEnabled;
-			}
+			Target.WindowsPlatform.Compiler = Target.UWPPlatform.Compiler;
+			Target.WindowsPlatform.bPixProfilingEnabled = Target.UWPPlatform.bPixProfilingEnabled;
+			Target.WindowsPlatform.bUseWindowsSDK10 = true;
 
 			Target.bDeployAfterCompile = true;
 			Target.bCompileNvCloth = false;		 // requires CUDA
@@ -89,19 +138,11 @@ namespace UnrealBuildTool
 			}
 
 			// Use shipping binaries to avoid dependency on nvToolsExt which fails WACK.
-			Target.WindowsPlatform.bUseWindowsSDK10 = true;
-			//Target.WindowsPlatform.bWinApiFamilyApp = true;
-
 			if (Target.Configuration == UnrealTargetConfiguration.Shipping)
 			{
 				Target.bUseShippingPhysXLibraries = true;
 			}
-
 		}
-
-		[CommandLine("-2015", Value = "VisualStudio2015")]
-		[CommandLine("-2017", Value = "VisualStudio2017")]
-		public WindowsCompiler CommandLineCompilerOverride = WindowsCompiler.Default;
 
 		public override bool RequiresDeployPrepAfterCompile()
 		{
@@ -331,6 +372,14 @@ namespace UnrealBuildTool
 			// No D3DX on UWP!
 			CompileEnvironment.Definitions.Add("NO_D3DX_LIBS=1");
 
+			if (Target.UWPPlatform.bBuildForRetailWindowsStore)
+			{
+				CompileEnvironment.Definitions.Add("USING_RETAIL_WINDOWS_STORE=1");
+			}
+			else
+			{
+				CompileEnvironment.Definitions.Add("USING_RETAIL_WINDOWS_STORE=0");
+			}
 
 			// Explicitly exclude the MS C++ runtime libraries we're not using, to ensure other libraries we link with use the same
 			// runtime library as the engine.

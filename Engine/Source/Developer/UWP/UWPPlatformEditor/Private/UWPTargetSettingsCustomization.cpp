@@ -16,6 +16,10 @@
 #include "FileHelper.h"
 #include "AllowWindowsPlatformTypes.h"
 #include "Wincrypt.h"
+#include "UWPTargetSettings.h"
+#include "GeneralProjectSettings.h"
+#include "SButton.h"
+#include "SErrorHint.h"
 
 #define LOCTEXT_NAMESPACE "UWPTargetSettingsCustomization"
 
@@ -63,36 +67,23 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	TSharedRef<IPropertyHandle> MaxVersionProperty = DetailBuilder.GetProperty("MaximumPlatformVersionTested");
 	AddWidgetForPlatformVersion(DetailBuilder, MaxVersionProperty);
 
-	// Not yet implemented - we're just forcing SM5 right now.
-	//@todo: if/when we add support we should reuse code from WindowsTargetSettingsDetails (which means it needs to be broken out into an accessible location).
-	TSharedRef<IPropertyHandle> RHIPropertyHandle = DetailBuilder.GetProperty("TargetedRHIs");
-	DetailBuilder.HideProperty(RHIPropertyHandle);
-
 	// Add UI to select signing certificate
-	TSharedRef<IPropertyHandle> SigningProperty = DetailBuilder.GetProperty("SigningCertificate");
-	IDetailCategoryBuilder& PackagingCategoryBuilder = DetailBuilder.EditCategory(FName(*SigningProperty->GetMetaData("Category")));
-	DetailBuilder.HideProperty(SigningProperty);
-	SigningProperty->NotifyPreChange();
+	IDetailCategoryBuilder& PackagingCategoryBuilder = DetailBuilder.EditCategory(FName("Packaging"));
+	FString ProjectPath = FPaths::GameDir() / TEXT("Build") / TEXT("UWP") / TEXT("SigningCertificate.pfx");
 
-	FString DefaultSigningSubPath = FString::Printf(TEXT("Build/UWP/%s.pfx"), *SigningProperty->GetProperty()->GetName());
-	FString SubPath;
-	if (SigningProperty->GetValue(SubPath) == FPropertyAccess::Fail)
-	{
-		SubPath = DefaultSigningSubPath;
-		SigningProperty->SetValue(SubPath);
-	}
-	if (SubPath.IsEmpty())
-	{
-		SubPath = DefaultSigningSubPath;
-		SigningProperty->SetValue(SubPath);
-	}
+	// Load the existing signing certificate (if any)
+	FText SigningCertificateCaption = LOCTEXT("SigningCertificate", "Signing Certificate");
+	FText SigningCertificateTooltip = LOCTEXT("SigningCertificateTooltip",
+		"Pfx file containing a private key used to sign the AppX file created during packaging.  The certificate subject" \
+		"name must exactly match the value of Package/Identity/Publisher.  Signing is required when sideloading packaged builds");
 
-	FString ProjectPath = FPaths::GameDir() / SubPath;
-
-	PackagingCategoryBuilder.AddCustomRow(SigningProperty->GetPropertyDisplayName())
+	PackagingCategoryBuilder.AddCustomRow(SigningCertificateCaption)
 	.NameContent()
 	[
-		SigningProperty->CreatePropertyNameWidget()
+		SNew(STextBlock)
+		.Text(SigningCertificateCaption)
+		.ToolTipText(SigningCertificateTooltip)
+		.Font(IDetailLayoutBuilder::GetDetailFont())
 	]
 	.ValueContent()
 	.MaxDesiredWidth(500.0f)
@@ -109,34 +100,35 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 			.BrowseDirectory(FEditorDirectories::Get().GetLastDirectory(ELastDirectory::GENERIC_OPEN))
 			.FileTypeFilter(TEXT("pfx files (*.pfx)|*.pfx"))
 			.IsReadOnly(true)
-			.OnPathPicked(FOnPathPicked::CreateLambda([ProjectPath](const FString &PickedPath) { OnCertificatePicked(PickedPath, ProjectPath); }))
-			.FilePath(TAttribute<FString>::Create(TAttribute<FString>::FGetter::CreateLambda([ProjectPath]() { return GetNameForSigningCertificate(ProjectPath); })))
+			.OnPathPicked(this, &FUWPTargetSettingsCustomization::OnCertificatePicked)
+			.FilePath(this, &FUWPTargetSettingsCustomization::GetSigningCertificateSubjectName)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		[
+			SAssignNew(SigningCertificateError, SErrorHint)
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		[
+			SNew(SButton)
+			.Text(LOCTEXT("NewSigningCertificate", "Generate new"))
+			.OnClicked(this, &FUWPTargetSettingsCustomization::GenerateSigningCertificate)
 		]
 	];
 
-	SigningProperty->NotifyPostChange();
+	LoadAndValidateSigningCertificate();
 
 	// Add the packaging images customization
-	AddWidgetForResourceImage(DetailBuilder, DetailBuilder.GetProperty("Logo"), FVector2D(150.0f, 150.0f));
-	AddWidgetForResourceImage(DetailBuilder, DetailBuilder.GetProperty("SmallLogo"), FVector2D(44.0f, 44.0f));
-	AddWidgetForResourceImage(DetailBuilder, DetailBuilder.GetProperty("WideLogo"), FVector2D(310.0f, 150.0f));
-	AddWidgetForResourceImage(DetailBuilder, DetailBuilder.GetProperty("SplashScreen"), FVector2D(310.0f, 150.0f));
-	AddWidgetForResourceImage(DetailBuilder, DetailBuilder.GetProperty("StoreLogo"), FVector2D(50.0f, 50.0f));
+	IDetailGroup& ImagesGroup = PackagingCategoryBuilder.AddGroup(FName("PackagingImages"), LOCTEXT("PackagingImages", "Images"));
 
-	// Add UI to select tile and splash colors.
-	TSharedRef<IPropertyHandle> TileHexProperty = DetailBuilder.GetProperty("TileBackgroundColorHex");
-	DetailBuilder.HideProperty(TileHexProperty);
-	TileHexProperty->NotifyPreChange();
-	TSharedRef<IPropertyHandle> ColorProperty = DetailBuilder.GetProperty("TileBackgroundColor");
-	ColorProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([TileHexProperty, ColorProperty] { TransferColorToHexProperty(ColorProperty, TileHexProperty); }));
-	TileHexProperty->NotifyPostChange();
-
-	TSharedRef<IPropertyHandle> SplashHexProperty = DetailBuilder.GetProperty("SplashScreenBackgroundColorHex");
-	DetailBuilder.HideProperty(SplashHexProperty);
-	SplashHexProperty->NotifyPreChange();
-	ColorProperty = DetailBuilder.GetProperty("SplashScreenBackgroundColor");
-	ColorProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([SplashHexProperty, ColorProperty] { TransferColorToHexProperty(ColorProperty, SplashHexProperty); }));
-	SplashHexProperty->NotifyPostChange();
+	AddWidgetForResourceImage(ImagesGroup, TEXT("Logo"), LOCTEXT("Square150x150Logo", "Square 150x150 Logo"), FVector2D(150.0f, 150.0f));
+	AddWidgetForResourceImage(ImagesGroup, TEXT("SmallLogo"), LOCTEXT("Square44x44Logo", "Square 44x44 Logo"), FVector2D(44.0f, 44.0f));
+	AddWidgetForResourceImage(ImagesGroup, TEXT("WideLogo"), LOCTEXT("Wide310x150Logo", "Wide 310x150 Logo"), FVector2D(310.0f, 150.0f));
+	AddWidgetForResourceImage(ImagesGroup, TEXT("SplashScreen"), LOCTEXT("SplashScreen", "Splash Screen"), FVector2D(620.0f, 300.0f));
+	AddWidgetForResourceImage(ImagesGroup, TEXT("StoreLogo"), LOCTEXT("StoreLogo", "Store Logo"), FVector2D(50.0f, 50.0f));
 
 	// Add capability support.
 	TSharedRef<IPropertyHandle> CapabilityList = DetailBuilder.GetProperty("CapabilityList");
@@ -189,61 +181,44 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	}
 }
 
-void FUWPTargetSettingsCustomization::AddWidgetForResourceImage(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle, const FVector2D& ImageDimensions)
-{
-	PropertyHandle->NotifyPreChange();
-	IDetailCategoryBuilder& PackagingCategoryBuilder = DetailBuilder.EditCategory(FName(*PropertyHandle->GetMetaData("Category")));
-	DetailBuilder.HideProperty(PropertyHandle);
-
-	const FString DefaultEngineImageSubPath = FString::Printf(TEXT("Build/UWP/DefaultImages/%s.png"), *PropertyHandle->GetProperty()->GetName());
-	const FString DefaultGameImageSubPath = FString::Printf(TEXT("Build/UWP/Resources/%s.png"), *PropertyHandle->GetProperty()->GetName());
-	FString ImageSubPath;
-	if (PropertyHandle->GetValue(ImageSubPath) == FPropertyAccess::Fail)
-	{
-		ImageSubPath = DefaultGameImageSubPath;
-		PropertyHandle->SetValue(ImageSubPath);
-	}
-	if (ImageSubPath.IsEmpty())
-	{
-		ImageSubPath = DefaultGameImageSubPath;
-		PropertyHandle->SetValue(ImageSubPath);
-	}
+void FUWPTargetSettingsCustomization::AddWidgetForResourceImage(IDetailGroup& GroupBuilder, const FString& ImageFileName, const FText& ImageCaption, const FVector2D& ImageDimensions)
+{	
+	const FString DefaultEngineImageSubPath = FString::Printf(TEXT("Build/UWP/DefaultImages/%s.png"), *ImageFileName);
+	const FString DefaultGameImageSubPath = FString::Printf(TEXT("Build/UWP/Resources/%s.png"), *ImageFileName);
 
 	const FString EngineImagePath = FPaths::EngineDir() / DefaultEngineImageSubPath;
-	const FString ProjectImagePath = FPaths::GameDir() / ImageSubPath;
+	const FString ProjectImagePath = FPaths::GameDir() / DefaultGameImageSubPath;
 
-	// If the project image does not exist, copy the default image over from the engine directory so we have something to display in the UI.
-	if (!FPaths::FileExists(ProjectImagePath))
-	{
-		FText ErrorMessage;
-		SourceControlHelpers::CopyFileUnderSourceControl(ProjectImagePath, EngineImagePath, PropertyHandle->GetPropertyDisplayName(), ErrorMessage);
-		PropertyHandle->SetValue(ImageSubPath);
-	}
+	TArray<FString> ImageExtensions;
+	ImageExtensions.Add(TEXT("png"));
 
-	PackagingCategoryBuilder.AddCustomRow(PropertyHandle->GetPropertyDisplayName())
+	GroupBuilder.AddWidgetRow()
 	.NameContent()
 	[
-		PropertyHandle->CreatePropertyNameWidget()
+		SNew(STextBlock)
+		.Text(ImageCaption)
+		.Font(IDetailLayoutBuilder::GetDetailFont())
 	]
 	.ValueContent()
-	.MaxDesiredWidth(500.0f)
-	.MinDesiredWidth(100.0f)
+	.MinDesiredWidth(ImageDimensions.X)
 	[
 		SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
 		.VAlign(VAlign_Center)
 		[
-			SNew(SExternalImageReference, FString(), ProjectImagePath)
-			.FileDescription(PropertyHandle->GetPropertyDisplayName())
+			SNew(SExternalImageReference, EngineImagePath, ProjectImagePath)
+			.FileDescription(ImageCaption)
 			.MaxDisplaySize(ImageDimensions)
 			.OnGetPickerPath(FOnGetPickerPath::CreateSP(this, &FUWPTargetSettingsCustomization::GetPickerPath))
 			.OnPostExternalImageCopy(FOnPostExternalImageCopy::CreateSP(this, &FUWPTargetSettingsCustomization::HandlePostExternalIconCopy))
+			.DeleteTargetWhenDefaultChosen(true)
+			.FileExtensions(ImageExtensions)
+			.DeletePreviousTargetWhenExtensionChanges(true)
 		]
 	];
-
-	PropertyHandle->NotifyPostChange();
 }
+
 
 FString FUWPTargetSettingsCustomization::GetPickerPath()
 {
@@ -257,15 +232,18 @@ bool FUWPTargetSettingsCustomization::HandlePostExternalIconCopy(const FString& 
 	return true;
 }
 
-void FUWPTargetSettingsCustomization::OnCertificatePicked(const FString& PickedPath, const FString &TargetPath)
+void FUWPTargetSettingsCustomization::OnCertificatePicked(const FString& PickedPath)
 {
+	FString CertificatePath = FPaths::GameDir() / TEXT("Build") / TEXT("UWP") / TEXT("SigningCertificate.pfx");
 	FText FailReason;
-	if (!SourceControlHelpers::CopyFileUnderSourceControl(TargetPath, PickedPath, LOCTEXT("CertificateDescription", "Certificate"), FailReason))
+	if (!SourceControlHelpers::CopyFileUnderSourceControl(CertificatePath, PickedPath, LOCTEXT("CertificateDescription", "Certificate"), FailReason))
 	{
 		FNotificationInfo Info(FailReason);
 		Info.ExpireDuration = 3.0f;
 		FSlateNotificationManager::Get().AddNotification(Info);
 	}
+
+	LoadAndValidateSigningCertificate();
 }
 
 FString FUWPTargetSettingsCustomization::GetNameForSigningCertificate(const FString &CertificatePath)
@@ -281,12 +259,13 @@ FString FUWPTargetSettingsCustomization::GetNameForSigningCertificate(const FStr
 		HCERTSTORE CertStore = PFXImportCertStore(&CertBlob, nullptr, 0);
 		if (CertStore != nullptr)
 		{
+			DWORD StrType = CERT_X500_NAME_STR;
 			const CERT_CONTEXT *CertContext = CertEnumCertificatesInStore(CertStore, nullptr);
 			if (CertContext != nullptr)
 			{
-				DWORD NumCharacters = CertGetNameString(CertContext, CERT_NAME_FRIENDLY_DISPLAY_TYPE, 0, nullptr, nullptr, 0);
+				DWORD NumCharacters = CertGetNameString(CertContext, CERT_NAME_RDN_TYPE, 0, &StrType, nullptr, 0);
 				CertificateName.GetCharArray().SetNumZeroed(NumCharacters);
-				CertGetNameString(CertContext, CERT_NAME_FRIENDLY_DISPLAY_TYPE, 0, nullptr, CertificateName.GetCharArray().GetData(), CertificateName.GetAllocatedSize());
+				CertGetNameString(CertContext, CERT_NAME_RDN_TYPE, 0, &StrType, CertificateName.GetCharArray().GetData(), CertificateName.GetAllocatedSize());
 				CertFreeCertificateContext(CertContext);
 			}
 			CertCloseStore(CertStore, 0);
@@ -307,17 +286,6 @@ FString FUWPTargetSettingsCustomization::GetNameForSigningCertificate(const FStr
 	}
 
 	return CertificateName;
-}
-
-void FUWPTargetSettingsCustomization::TransferColorToHexProperty(TSharedRef<IPropertyHandle> ColorProperty, TSharedRef<IPropertyHandle> HexProperty)
-{
-	// UI property is FColor to enable color picker, but we need to serialize as 3 byte hex string for manifest generation.
-	FColor SelectedColor;
-	FString SelectedColorAsString;
-	ColorProperty->GetValueAsFormattedString(SelectedColorAsString);
-	SelectedColor.InitFromString(SelectedColorAsString);
-	FString SelectedColorAsManifestHex = FString::Printf(TEXT("#%02X%02X%02X"), SelectedColor.R, SelectedColor.G, SelectedColor.B);
-	HexProperty->SetValue(SelectedColorAsManifestHex);
 }
 
 void FUWPTargetSettingsCustomization::AddWidgetForPlatformVersion(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle)
@@ -488,6 +456,167 @@ void FUWPTargetSettingsCustomization::OnCapabilityStateChanged(ECheckBoxState Ch
 
 	// Save settings to Ini
 	CapabilityList->NotifyPostChange();
+}
+
+FReply FUWPTargetSettingsCustomization::GenerateSigningCertificate()
+{
+	FString WinSDKSubKey = TEXT("SOFTWARE\\Wow6432Node\\Microsoft\\Microsoft SDKs\\Windows\\v10.0");
+	FString WinSDKFolder;
+	if (!FPlatformMisc::QueryRegKey(HKEY_CURRENT_USER, *WinSDKSubKey, TEXT("InstallationFolder"), WinSDKFolder))
+	{
+		if (!FPlatformMisc::QueryRegKey(HKEY_LOCAL_MACHINE, *WinSDKSubKey, TEXT("InstallationFolder"), WinSDKFolder))
+		{
+			FNotificationInfo Info(LOCTEXT("SigningCertificateFailed_SDKInstallationFolder", "Failed to generate certificate: could not find Windows 10 SDK Installation Folder"));
+			Info.ExpireDuration = 3.0f;
+			FSlateNotificationManager::Get().AddNotification(Info);
+
+			return FReply::Handled();
+		}
+	}
+
+	FString WinSDKVersion;
+	if (!FPlatformMisc::QueryRegKey(HKEY_CURRENT_USER, *WinSDKSubKey, TEXT("ProductVersion"), WinSDKVersion))
+	{
+		if (!FPlatformMisc::QueryRegKey(HKEY_LOCAL_MACHINE, *WinSDKSubKey, TEXT("ProductVersion"), WinSDKVersion))
+		{
+			// Carry on for now, maybe it's in an unversioned folder
+		}
+	}
+	WinSDKVersion += TEXT(".0");
+
+	FString ArchFragment = PLATFORM_64BITS ? TEXT("x64") : TEXT("x86");
+	FString MakeCert = WinSDKFolder / TEXT("bin") / WinSDKVersion / ArchFragment / TEXT("makecert.exe");
+	if (!IPlatformFile::GetPlatformPhysical().FileExists(*MakeCert))
+	{
+		MakeCert = WinSDKFolder / TEXT("bin") / ArchFragment / TEXT("makecert.exe");
+		if (!IPlatformFile::GetPlatformPhysical().FileExists(*MakeCert))
+		{
+			FNotificationInfo Info(LOCTEXT("SigningCertificateFailed_MissingMakecert", "Failed to generate certificate: could not locate makecert.exe"));
+			Info.ExpireDuration = 3.0f;
+			FSlateNotificationManager::Get().AddNotification(Info);
+
+			return FReply::Handled();
+		}
+	}
+
+	FString Pvk2Pfx = WinSDKFolder / TEXT("bin") / WinSDKVersion / ArchFragment / TEXT("pvk2pfx.exe");
+	if (!IPlatformFile::GetPlatformPhysical().FileExists(*Pvk2Pfx))
+	{
+		Pvk2Pfx = WinSDKFolder / TEXT("bin") / ArchFragment / TEXT("pvk2pfx.exe");
+		if (!IPlatformFile::GetPlatformPhysical().FileExists(*Pvk2Pfx))
+		{
+			FNotificationInfo Info(LOCTEXT("SigningCertificateFailed_MissingPvk2pfx", "Failed to generate certificate: could not locate pvk2pfx.exe"));
+			Info.ExpireDuration = 3.0f;
+			FSlateNotificationManager::Get().AddNotification(Info);
+
+			return FReply::Handled();
+		}
+	}
+
+	FString CertificatePath = FPaths::GameDir() / TEXT("Build") / TEXT("UWP") / TEXT("SigningCertificate");
+
+	FString CerFile = CertificatePath + TEXT(".cer");
+	FString PvkFile = CertificatePath + TEXT(".pvk");
+	FString PfxFile = CertificatePath + TEXT(".pfx");
+
+	uint32 ProcId = 0;
+	FProcHandle MakeCertProc = FPlatformProcess::CreateProc(*MakeCert, *FString::Printf(TEXT("-r -h 0 -n \"%s\" -eku %hs -pe -sv \"%s\" \"%s\""), *GetPublisherIdentityName(), szOID_PKIX_KP_CODE_SIGNING, *PvkFile, *CerFile), false, false, false, &ProcId, 0, nullptr, nullptr);
+	FPlatformProcess::WaitForProc(MakeCertProc);
+	int32 ExitCode = 0;
+	if (!FPlatformProcess::GetProcReturnCode(MakeCertProc, &ExitCode) || ExitCode != 0)
+	{
+		FNotificationInfo Info(LOCTEXT("SigningCertificateFailed_MakecertFailed", "Failed to generate certificate: makecert.exe encountered an error"));
+		Info.ExpireDuration = 3.0f;
+		FSlateNotificationManager::Get().AddNotification(Info);
+
+		return FReply::Handled();
+	}
+
+	FProcHandle Pvk2PfxProc = FPlatformProcess::CreateProc(*Pvk2Pfx, *FString::Printf(TEXT("-pvk \"%s\" -spc \"%s\" -pfx \"%s\""), *PvkFile, *CerFile, *PfxFile), false, false, false, &ProcId, 0, nullptr, nullptr);
+	FPlatformProcess::WaitForProc(Pvk2PfxProc);
+	
+	// Note: pvk2pfx seems to have non-zero return code for success.
+
+	LoadAndValidateSigningCertificate();
+
+	return FReply::Handled();
+}
+
+FString FUWPTargetSettingsCustomization::GetPublisherIdentityName() const
+{
+	FString PublisherIdentityName = GetDefault<UUWPTargetSettings>()->PublisherName;
+	if (PublisherIdentityName.IsEmpty())
+	{
+		PublisherIdentityName = GetDefault<UGeneralProjectSettings>()->CompanyDistinguishedName;
+		if (PublisherIdentityName.IsEmpty())
+		{
+			PublisherIdentityName = TEXT("CN=NoPublisher");
+		}
+	}
+	return PublisherIdentityName;
+}
+
+void FUWPTargetSettingsCustomization::LoadAndValidateSigningCertificate()
+{
+	SigningCertificateError->SetError(FText::GetEmpty());
+	SigningCertificateSubjectName = TEXT("Invalid Certificate");
+
+	FString CertificatePath = FPaths::GameDir() / TEXT("Build") / TEXT("UWP") / TEXT("SigningCertificate.pfx");
+	TArray<uint8> CertBytes;
+	if (FFileHelper::LoadFileToArray(CertBytes, *CertificatePath))
+	{
+		CRYPT_DATA_BLOB CertBlob;
+		CertBlob.cbData = CertBytes.Num();
+		CertBlob.pbData = CertBytes.GetData();
+		HCERTSTORE CertStore = PFXImportCertStore(&CertBlob, nullptr, 0);
+		if (CertStore != nullptr)
+		{
+			PCCERT_CONTEXT SigningCertificateContext = CertEnumCertificatesInStore(CertStore, nullptr);
+			if (SigningCertificateContext)
+			{
+				DWORD StrType = CERT_X500_NAME_STR;
+				DWORD NumCharacters = CertGetNameString(SigningCertificateContext, CERT_NAME_RDN_TYPE, 0, &StrType, nullptr, 0);
+				SigningCertificateSubjectName.GetCharArray().SetNumZeroed(NumCharacters);
+				CertGetNameString(SigningCertificateContext, CERT_NAME_RDN_TYPE, 0, &StrType, SigningCertificateSubjectName.GetCharArray().GetData(), SigningCertificateSubjectName.GetAllocatedSize());
+
+				if (SigningCertificateSubjectName != GetPublisherIdentityName())
+				{
+					SigningCertificateError->SetError(LOCTEXT("CertificateInvalidSubjectName", "Certificate subject name does not match Package/Identity/Name in AppxManifest"));
+				}
+
+				// TODO - check private key, expiration, others?
+				CertFreeCertificateContext(SigningCertificateContext);
+			}
+			else
+			{
+				SigningCertificateError->SetError(LOCTEXT("CertificateEmptyStore", "No certificate found in SigningCertificate.pfx file"));
+			}
+			CertCloseStore(CertStore, 0);
+		}
+		else
+		{
+			DWORD FailureReason = GetLastError();
+			switch (FailureReason)
+			{
+			case ERROR_INVALID_PASSWORD:
+				SigningCertificateError->SetError(LOCTEXT("CertificatePasswordProtected", "SigningCertificate.pfx file is password protected"));
+				break;
+
+			default:
+				SigningCertificateError->SetError(LOCTEXT("CertificateUnknownError", "Unknown error loading SigningCertificate.pfx"));
+				break;
+			}
+		}
+	}
+	else
+	{
+		SigningCertificateError->SetError(LOCTEXT("CertificateMissing", "SigningCertificate.pfx does not exist"));
+	}
+}
+
+FString FUWPTargetSettingsCustomization::GetSigningCertificateSubjectName() const
+{
+	return SigningCertificateSubjectName;
 }
 
 #undef LOCTEXT_NAMESPACE

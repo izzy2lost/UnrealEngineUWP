@@ -1621,7 +1621,7 @@ namespace UnrealBuildTool
 			VisualElements.Attributes.Append(Description);
 			AddResourceEntry("AppDescription", "ApplicationDescription", "Package.Applications.Application[" + ApplicationIndex + "].VisualElements.Description", "/Script/EngineSettings.GeneralProjectSettings", "Description", "");
 
-			XmlAttribute BackgroundColor = CreateColorAttribute("BackgroundColor", "ApplicationBackgroundColor", "Package.Applications.Application[" + ApplicationIndex + "].VisualElements.BackgroundColor", "#000040");
+			XmlAttribute BackgroundColor = CreateColorAttribute("BackgroundColor", "TileBackgroundColor", "Package.Applications.Application[" + ApplicationIndex + "].VisualElements.BackgroundColor", "#000040");
 			VisualElements.Attributes.Append(BackgroundColor);
 
 			XmlAttribute Logo = AppxManifestXmlDocument.CreateAttribute("Square150x150Logo");

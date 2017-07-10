@@ -23,6 +23,7 @@ public class UWPPlatformEditor : ModuleRules
 				"UnrealEd",
 				"SourceControl",
 				"WindowsTargetPlatform", // For ECompilerVersion
+				"EngineSettings",
 			}
 		);
 

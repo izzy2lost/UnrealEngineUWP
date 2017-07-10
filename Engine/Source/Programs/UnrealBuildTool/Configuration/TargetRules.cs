@@ -962,6 +962,13 @@ namespace UnrealBuildTool
 		/// </summary>
 		public XboxOneTargetRules XboxOnePlatform = new XboxOneTargetRules();
 
+		// @ATG_CHANGE : BEGIN UWP support
+		/// <summary>
+		/// UWP-specific target settings.
+		/// </summary>
+		public UWPTargetRules UWPPlatform = new UWPTargetRules();
+		// @ATG_CHANGE : END
+
 		/// <summary>
 		/// Default constructor (deprecated; use the constructor below instead).
 		/// </summary>
@@ -1141,6 +1148,9 @@ namespace UnrealBuildTool
 			yield return PS4Platform;
 			yield return WindowsPlatform;
 			yield return XboxOnePlatform;
+			// @ATG_CHANGE : BEGIN UWP support
+			yield return UWPPlatform;
+			// @ATG_CHANGE : END
 		}
 
 		/// <summary>
@@ -1373,15 +1383,18 @@ namespace UnrealBuildTool
 			PS4Platform = new ReadOnlyPS4TargetRules(Inner.PS4Platform);
 			WindowsPlatform = new ReadOnlyWindowsTargetRules(Inner.WindowsPlatform);
 			XboxOnePlatform = new ReadOnlyXboxOneTargetRules(Inner.XboxOnePlatform);
+			// @ATG_CHANGE : BEGIN UWP support
+			UWPPlatform = new ReadOnlyUWPTargetRules(Inner.UWPPlatform);
+			// @ATG_CHANGE : END
 		}
 
 		/// <summary>
 		/// Accessors for fields on the inner TargetRules instance
 		/// </summary>
 		#region Read-only accessor properties 
-		#if !__MonoCS__
-		#pragma warning disable CS1591
-		#endif
+#if !__MonoCS__
+#pragma warning disable CS1591
+#endif
 
 		public string Name
 		{
@@ -1988,6 +2001,14 @@ namespace UnrealBuildTool
 			get;
 			private set;
 		}
+
+		// @ATG_CHANGE : BEGIN UWP support
+		public ReadOnlyUWPTargetRules UWPPlatform
+		{
+			get;
+			private set;
+		}
+		// @ATG_CHANGE : END
 
 		public string OverrideExecutableFileExtension
 		{

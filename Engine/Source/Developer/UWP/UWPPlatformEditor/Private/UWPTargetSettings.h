@@ -44,7 +44,7 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = XboxLive)
 	uint32 bIsCreatorsProgramTitle : 1;
 
-	/*
+	/**
 	* UWP includes SM4 support (D3D Feature level 10) by default.  This setting excludes this
 	* support, possibly reducing package size, but limiting the range of devices the package
 	* will run on.  Currently you must leave this DISABLED if you wish to run as UWP on Xbox One.
@@ -65,39 +65,22 @@ public:
 	uint32 bCopyCookedContentForF5Deployment : 1;
 
 	/**
-	* Pfx file containing a private key used to sign the AppX file created during packaging.  The certificate subject
-	* name must exactly match the value of Package/Identity/Publisher.  Signing is required when sideloading packaged
-	* builds.
+	* Controls whether to use the retail Windows Store environment for license checks.  This must be turned on
+	* when building for submission to the Windows Store, or when sideloading outside of Developer Mode.  Note,
+	* however, that testing a build with this flag enables requires that the product is listed in the retail
+	* catalog for the Windows Store.
 	*/
-	UPROPERTY(EditAnywhere, config, Category = Packaging)
-	FString SigningCertificate;
+	UPROPERTY(EditAnywhere, config, Category = "Packaging", AdvancedDisplay, Meta = (DisplayName = "Use Retail Windows Store Environment"))
+	uint32 bBuildForRetailWindowsStore : 1;
 
-	UPROPERTY(EditAnywhere, config, Category = Packaging)
-	FString Logo;
+	UPROPERTY(EditAnywhere, config, Category = "Rendering", meta = (DisplayName = "Enable PIX Profiling"))
+	uint32 bEnablePIXProfiling : 1;
 
-	UPROPERTY(EditAnywhere, config, Category = Packaging)
-	FString SmallLogo;
-
-	UPROPERTY(EditAnywhere, config, Category = Packaging)
-	FString WideLogo;
-
-	UPROPERTY(EditAnywhere, config, Category = Packaging)
-	FString SplashScreen;
-
-	UPROPERTY(EditAnywhere, config, Category = Packaging)
-	FString StoreLogo;
-
-	UPROPERTY(EditAnywhere, Category = Packaging, meta=(HideAlphaChannel))
+	UPROPERTY(EditAnywhere, config, Category = Packaging, meta=(HideAlphaChannel))
 	FColor TileBackgroundColor = FColor::FromHex(FString("#000040"));
 
-	UPROPERTY(EditAnywhere, Category = Packaging, meta=(HideAlphaChannel))
+	UPROPERTY(EditAnywhere, config, Category = Packaging, meta=(HideAlphaChannel))
 	FColor SplashScreenBackgroundColor = FColor::FromHex(FString("#000040"));
-
-	UPROPERTY(EditAnywhere, config, Category = Packaging)
-	FString TileBackgroundColorHex = FString::Printf(TEXT("#%02X%02X%02X"), TileBackgroundColor.R, TileBackgroundColor.G, TileBackgroundColor.B);
-
-	UPROPERTY(EditAnywhere, config, Category = Packaging)
-	FString SplashScreenBackgroundColorHex = FString::Printf(TEXT("#%02X%02X%02X"), SplashScreenBackgroundColor.R, SplashScreenBackgroundColor.G, SplashScreenBackgroundColor.B);
 
 	/**
 	* The value for Package/Identity/Name in the generated AppX Manifest.  If empty, the ProjectName
