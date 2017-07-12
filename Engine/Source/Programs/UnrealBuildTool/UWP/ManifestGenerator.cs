@@ -1426,7 +1426,7 @@ namespace UnrealBuildTool
 		private XmlNode GetDependencies()
 		{
 			XmlElement Dependencies = AppxManifestXmlDocument.CreateElement("Dependencies");
-
+			
 			{
 				XmlElement TargetDeviceFamily = AppxManifestXmlDocument.CreateElement("TargetDeviceFamily");
 				Dependencies.AppendChild(TargetDeviceFamily);
@@ -1436,11 +1436,11 @@ namespace UnrealBuildTool
 				TargetDeviceFamily.Attributes.Append(NameAttribute);
 
 				XmlAttribute MinVersionAttribute = AppxManifestXmlDocument.CreateAttribute("MinVersion");
-				MinVersionAttribute.Value = CreateStringValue("MinVersion", "Package.Dependencies.TargetDeviceFamily[0].MinVersion", "MinVersion", "MinVersion", "10.0.10240.0");
+				MinVersionAttribute.Value = CreateStringValue("MinimumPlatformVersion", "Package.Dependencies.TargetDeviceFamily[0].MinVersion", "MinimumPlatformVersion", "MinVersion", "10.0.10240.0");
 				TargetDeviceFamily.Attributes.Append(MinVersionAttribute);
 
 				XmlAttribute MaxVersionTestedAttribute = AppxManifestXmlDocument.CreateAttribute("MaxVersionTested");
-				MaxVersionTestedAttribute.Value = CreateStringValue("MaxVersionTested", "Package.Dependencies.TargetDeviceFamily[0].MaxVersionTested", "MaxVersionTested", "MaxVersionTested", "10.0.10586.0");
+				MaxVersionTestedAttribute.Value = CreateStringValue("MaximumPlatformVersionTested", "Package.Dependencies.TargetDeviceFamily[0].MaxVersionTested", "MaximumPlatformVersionTested", "MaxVersionTested", "10.0.10586.0");
 				TargetDeviceFamily.Attributes.Append(MaxVersionTestedAttribute);
 			}
 
