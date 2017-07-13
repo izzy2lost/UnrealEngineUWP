@@ -15,7 +15,6 @@
 // PhysX library imports
     
 
-
 // @ATG_CHANGE : BEGIN UWP support
 #if PLATFORM_WINDOWS || PLATFORM_UWP || PLATFORM_MAC
 // @ATG_CHANGE : END
