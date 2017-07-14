@@ -574,7 +574,7 @@ namespace UnrealBuildTool
 					}
 
 				case WindowsCompiler.VisualStudio2015:
-					return DirectoryReference.Combine(LocalVCInstallDir, "vcpackages");
+					return DirectoryReference.Combine(LocalVCInstallDir, "lib", "store", "references");
 
 				default:
 					// Not supported
