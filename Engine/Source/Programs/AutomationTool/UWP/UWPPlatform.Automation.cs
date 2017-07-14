@@ -435,53 +435,40 @@ namespace UWP.Automation
 			RunAndLog(CmdEnv, MakeAppXPath.FullName, MakeAppXCommandLine, null, 0, null, ERunOptions.None);
 
 			string SigningCertificate = @"Build\UWP\SigningCertificate.pfx";
-            ConfigHierarchy PlatformEngineConfig = null; 
-			if (Params.EngineConfigs.TryGetValue(SC.StageTargetPlatform.PlatformType, out PlatformEngineConfig))
+			string SigningCertificatePath = Path.Combine(SC.ProjectRoot, SigningCertificate);
+			if (!File.Exists(SigningCertificatePath))
 			{
-				PlatformEngineConfig.GetString("/Script/UWPPlatformEditor.UWPTargetSettings", "SigningCertificate", out SigningCertificate);
-			}
-
-			if (!string.IsNullOrEmpty(SigningCertificate))
-			{
-				string SigningCertificatePath = Path.Combine(SC.ProjectRoot, SigningCertificate);
-				if (!File.Exists(SigningCertificatePath))
+				if (!IsBuildMachine && !Params.Unattended)
 				{
-					if (!IsBuildMachine && !Params.Unattended)
+					// Extract the publisher name from the AppXManifest
+					string AppxManifestPath = GetAppxManifestPath(SC);
+					string Name;
+					string Publisher;
+					string PrimaryAppId;
+					GetPackageInfo(AppxManifestPath, out Name, out Publisher, out PrimaryAppId);
+					if (!string.IsNullOrEmpty(Publisher))
 					{
-						// Extract the publisher name from the AppXManifest
-						string AppxManifestPath = GetAppxManifestPath(SC);
-						string Name;
-						string Publisher;
-						string PrimaryAppId;
-						GetPackageInfo(AppxManifestPath, out Name, out Publisher, out PrimaryAppId);
-						if (!string.IsNullOrEmpty(Publisher))
-						{
-							LogWarning("No certificate found at {0}.  Generating temporary self-signed certificate for {1}.", SigningCertificatePath, Publisher);
-							GenerateSigningCertificate(SigningCertificatePath, Publisher);
-						}
-						else
-						{
-							LogWarning("No certificate found at {0} and temporary certificate cannot be generated (missing publisher name).  Check your Company Distinguished Name setting.  Signing will probably fail.", SigningCertificatePath);
-						}
+						LogWarning("No certificate found at {0}.  Generating temporary self-signed certificate for {1}.", SigningCertificatePath, Publisher);
+						GenerateSigningCertificate(SigningCertificatePath, Publisher);
 					}
 					else
 					{
-						LogWarning("No certificate found at {0} and temporary certificate cannot be generated (running unattended).", SigningCertificatePath);
+						LogWarning("No certificate found at {0} and temporary certificate cannot be generated (missing publisher name).  Check your Company Distinguished Name setting.  Signing will probably fail.", SigningCertificatePath);
 					}
 				}
-
-				// Emit a .cer file adjacent to the appx so it can be installed to enable packaged deployment
-				System.Security.Cryptography.X509Certificates.X509Certificate2 ActualCert = new System.Security.Cryptography.X509Certificates.X509Certificate2(Path.Combine(SC.ProjectRoot, SigningCertificate));
-				File.WriteAllText(Path.Combine(SC.StageDirectory, Params.ShortProjectName + ".cer"), Convert.ToBase64String(ActualCert.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Cert)));
-
-				FileReference SignToolPath = UWPExports.GetWindowsSdkToolPath("signtool.exe");
-				string SignToolCommandLine = string.Format(@"sign /a /f ""{0}"" /fd SHA256 ""{1}""", Path.Combine(SC.ProjectRoot, SigningCertificate), OutputAppX);
-				RunAndLog(CmdEnv, SignToolPath.FullName, SignToolCommandLine, null, 0, null, ERunOptions.None);
+				else
+				{
+					LogWarning("No certificate found at {0} and temporary certificate cannot be generated (running unattended).", SigningCertificatePath);
+				}
 			}
-			else
-			{
-				LogWarning("No signing certificate provided.  App will not be deployable.  Specify a valid pfx in UWP platform settings.");
-			}
+
+			// Emit a .cer file adjacent to the appx so it can be installed to enable packaged deployment
+			System.Security.Cryptography.X509Certificates.X509Certificate2 ActualCert = new System.Security.Cryptography.X509Certificates.X509Certificate2(Path.Combine(SC.ProjectRoot, SigningCertificate));
+			File.WriteAllText(Path.Combine(SC.StageDirectory, Params.ShortProjectName + ".cer"), Convert.ToBase64String(ActualCert.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Cert)));
+
+			FileReference SignToolPath = UWPExports.GetWindowsSdkToolPath("signtool.exe");
+			string SignToolCommandLine = string.Format(@"sign /a /f ""{0}"" /fd SHA256 ""{1}""", Path.Combine(SC.ProjectRoot, SigningCertificate), OutputAppX);
+			RunAndLog(CmdEnv, SignToolPath.FullName, SignToolCommandLine, null, 0, null, ERunOptions.None);
 
 			// If the user indicated that they will distribute this build, then let's also generate an
 			// appxupload file suitable for submission to the Windows Store.  This file zips together
