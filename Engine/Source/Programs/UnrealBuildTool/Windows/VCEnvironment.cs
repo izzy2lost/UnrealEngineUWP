@@ -719,7 +719,8 @@ namespace UnrealBuildTool
 			{
 				if (!string.IsNullOrEmpty(WindowsSDKExtensionDir))
 				{
-					string RCPath = Path.Combine(WindowsSDKExtensionDir, "bin", WindowsSDKExtensionHeaderLibVersion.ToString(), "x64", "rc.exe");
+					string VersionDirectory = FindWindowsSDKExtensionLatestVersion(WindowsSDKExtensionDir, WindowsCompiler.Default).ToString();
+					string RCPath = Path.Combine(WindowsSDKExtensionDir, "bin", VersionDirectory, "x64", "rc.exe");
 					if (!File.Exists(RCPath))
 					{
 						RCPath = Path.Combine(WindowsSDKExtensionDir, "bin", "x64", "rc.exe");
@@ -735,7 +736,8 @@ namespace UnrealBuildTool
 			{
 				if (!string.IsNullOrEmpty(WindowsSDKExtensionDir))
 				{
-					string RCPath = Path.Combine(WindowsSDKExtensionDir, "bin", WindowsSDKExtensionHeaderLibVersion.ToString(), "x86", "rc.exe");
+					string VersionDirectory = FindWindowsSDKExtensionLatestVersion(WindowsSDKExtensionDir, WindowsCompiler.Default).ToString();
+					string RCPath = Path.Combine(WindowsSDKExtensionDir, "bin", VersionDirectory, "x86", "rc.exe");
 					if (!File.Exists(RCPath))
 					{
 						RCPath = Path.Combine(WindowsSDKExtensionDir, "bin", "x86", "rc.exe");
