@@ -47,10 +47,12 @@ public:
 	virtual FPlatformUserId GetPlatformUserIdFromUniqueNetId(const FUniqueNetId& UniqueNetId) override;
 	virtual FString GetAuthType() const override;
 
+	// @ATG_CHANGE : BEGIN - Support storing multiple tokens for different remote endpoints
 	/**
 	* Sets a user's XSTS token (adding the user to the internal map if they're not already in it)
 	*/
-	void SetUserXSTSToken(Windows::Xbox::System::User^ User, const FString& AuthToken);
+	void SetUserXSTSToken(Windows::Xbox::System::User^ User, const FString& EndPointURL, const FString& AuthToken);
+	// @ATG_CHANGE : END
 
 private:
 

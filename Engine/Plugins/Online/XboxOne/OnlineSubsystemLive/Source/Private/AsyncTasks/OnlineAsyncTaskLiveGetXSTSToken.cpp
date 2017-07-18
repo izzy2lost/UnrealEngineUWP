@@ -73,7 +73,9 @@ void FOnlineAsyncTaskLiveGetXSTSToken::Finalize()
 	if (bWasSuccessful)
 	{
 		FOnlineIdentityLivePtr LiveIdentity = Subsystem->GetIdentityLive();
-		LiveIdentity->SetUserXSTSToken(LocalUser, ResultToken);
+		// @ATG_CHANGE : BEGIN - Support storing multiple tokens for different remote endpoints
+		LiveIdentity->SetUserXSTSToken(LocalUser, RequestEndPointURL, ResultToken);
+		// @ATG_CHANGE : END
 	}
 }
 

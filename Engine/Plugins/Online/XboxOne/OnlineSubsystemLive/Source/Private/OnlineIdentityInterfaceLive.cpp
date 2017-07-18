@@ -128,8 +128,16 @@ bool FOnlineIdentityLive::Login(int32 LocalUserNum, const FOnlineAccountCredenti
 		return false;
 	}
 
+	// @ATG_CHANGE : BEGIN - Support passing endpoint requiring XSTS token via AccountCredentials
+	FString TargetEndpoint = AccountCredentials.Type;
+	if (TargetEndpoint.IsEmpty())
+	{
+		// Default endpoint
+		TargetEndpoint = LoginXSTSEndpoint;
+	}
 	// If there is no configured Endpoint, we do not need to fetch a XSTS token
-	if (LoginXSTSEndpoint.IsEmpty())
+	if (TargetEndpoint.IsEmpty())
+	// @ATG_CHANGE : END
 	{
 		TriggerOnLoginCompleteDelegates(LocalUserNum, true, *UserId, FString());
 		return true;
@@ -156,7 +164,9 @@ bool FOnlineIdentityLive::Login(int32 LocalUserNum, const FOnlineAccountCredenti
 		TriggerOnLoginCompleteDelegates(LocalUserNum, Result.bSucceeded, UserId, Result.ErrorMessage.ToString());
 	});
 
-	FOnlineAsyncTaskLiveGetXSTSToken* const GetXSTSTokenTask = new FOnlineAsyncTaskLiveGetXSTSToken(LiveSubsystem, XboxUser, LocalUserNum, LoginXSTSEndpoint, MoveTemp(OnLoginCompleteDelegate));
+	// @ATG_CHANGE : BEGIN - Support passing endpoint requiring XSTS token via AccountCredentials
+	FOnlineAsyncTaskLiveGetXSTSToken* const GetXSTSTokenTask = new FOnlineAsyncTaskLiveGetXSTSToken(LiveSubsystem, XboxUser, LocalUserNum, TargetEndpoint, MoveTemp(OnLoginCompleteDelegate));
+	// @ATG_CHANGE : END
 	MyTaskManager->AddToParallelTasks(GetXSTSTokenTask);
 
 	return true;
@@ -390,7 +400,9 @@ void FOnlineIdentityLive::RefreshGamepadsAndUsers()
 	}
 }
 
-void FOnlineIdentityLive::SetUserXSTSToken(Windows::Xbox::System::User^ User, const FString& AuthToken)
+// @ATG_CHANGE : BEGIN - Support storing multiple tokens for different remote endpoints
+void FOnlineIdentityLive::SetUserXSTSToken(Windows::Xbox::System::User^ User, const FString& EndPointURL, const FString& AuthToken)
+// @ATG_CHANGE : END
 {
 	check(User);
 
@@ -400,13 +412,34 @@ void FOnlineIdentityLive::SetUserXSTSToken(Windows::Xbox::System::User^ User, co
 	if (FoundUser == nullptr || !FoundUser->IsValid())
 	{
 		TSharedPtr<FUserOnlineAccountLive> OnlineUser(new FUserOnlineAccountLive(User));
-		OnlineUser->SetAccessToken(AuthToken);
+
+		// @ATG_CHANGE : BEGIN - Support storing multiple tokens for different remote endpoints
+		// Record the token keyed by the URL that it is associated with.  Can be retrieved via GetAuthAttribute
+		OnlineUser->SetUserAttribute(EndPointURL, AuthToken);
+
+		// If this is the primary login endpoint, also use the token as the 'AccessToken' (original behavior)
+		if (EndPointURL == LoginXSTSEndpoint)
+		{
+			OnlineUser->SetAccessToken(AuthToken);
+		}
+		// @ATG_CHANGE : END
+
 		OnlineUsers.Add(MoveTemp(UserId), MoveTemp(OnlineUser));
 	}
 	else
 	{
 		TSharedPtr<FUserOnlineAccountLive> OnlineUserLive = StaticCastSharedPtr<FUserOnlineAccountLive>(*FoundUser);
-		OnlineUserLive->SetAccessToken(AuthToken);
+
+		// @ATG_CHANGE : BEGIN - Support storing multiple tokens for different remote endpoints
+		// Record the token keyed by the URL that it is associated with.  Can be retrieved via GetAuthAttribute
+		OnlineUserLive->SetUserAttribute(EndPointURL, AuthToken);
+
+		// If this is the primary login endpoint, also use the token as the 'AccessToken' (original behavior)
+		if (EndPointURL == LoginXSTSEndpoint)
+		{
+			OnlineUserLive->SetAccessToken(AuthToken);
+		}
+		// @ATG_CHANGE : END
 	}
 }
 
