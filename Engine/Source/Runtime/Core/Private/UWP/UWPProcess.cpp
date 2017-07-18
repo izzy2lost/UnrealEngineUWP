@@ -196,6 +196,7 @@ const TCHAR* FUWPProcess::ApplicationSettingsDir()
 	return UserSettingsDir();
 }
 
+#if WIN10_SDK_VERSION < 16225
 // This is a drop in equivelent to the deprecated thread affinity APIs that most legacy code is based on.
 // As with those older APIs, it's functionality may be unexpected on machines with more than 64 cores.
 DWORD_PTR WINAPI SetThreadAffinityMask(
@@ -300,6 +301,7 @@ DWORD_PTR WINAPI SetThreadAffinityMask(
 		return 0;
 	}
 }
+#endif
 
 void FUWPProcess::SetThreadAffinityMask(uint64 AffinityMask)
 {
