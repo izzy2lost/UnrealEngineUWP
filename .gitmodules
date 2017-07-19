@@ -1,0 +1,4 @@
+[submodule "Engine/Plugins/Runtime/Mixer"]
+	path = Engine/Plugins/Runtime/Mixer
+	url = https://github.com/MICROSOFT-XBOX-ATG/interactive-unreal-plugin.git
+	branch = add-uwp-support
