@@ -18,16 +18,23 @@ if not exist .git\hooks goto no_git_hooks_directory
 echo Registering git hooks...
 echo #!/bin/sh >.git\hooks\post-checkout
 echo Engine/Binaries/DotNET/GitDependencies.exe %* >>.git\hooks\post-checkout
+rem @ATG_CHANGE - BEGIN Sync dependencies custom to the UWP fork
+echo powershell -NoProfile -ExecutionPolicy Bypass -File GetUWPDependencies.ps1 >>.git\hooks\post-checkout 
+rem @ARG_CHANGE - END
 echo #!/bin/sh >.git\hooks\post-merge
 echo Engine/Binaries/DotNET/GitDependencies.exe %* >>.git\hooks\post-merge
+rem @ATG_CHANGE - BEGIN Sync dependencies custom to the UWP fork
+echo powershell -NoProfile -ExecutionPolicy Bypass -File GetUWPDependencies.ps1 >>.git\hooks\post-merge 
+rem @ARG_CHANGE - END
 :no_git_hooks_directory
 
 rem Install prerequisites...
 echo Installing prerequisites...
 start /wait Engine\Extras\Redist\en-us\UE4PrereqSetup_x64.exe /quiet
 
-rem @ATG_CHANGE - BEGIN Ensure the right version of the Live SDK is in the expected location
-powershell Engine/Plugins/Online/XboxOne/OnlineSubsystemLive/GetXboxLiveSDK.ps1
+rem @ATG_CHANGE - BEGIN Sync dependencies custom to the UWP fork
+echo Installing dependencies custom to the UWP fork...
+powershell -NoProfile -ExecutionPolicy Bypass -File %~dp0\GetUWPDependencies.ps1
 rem @ARG_CHANGE - END
 
 rem Register the engine installation...

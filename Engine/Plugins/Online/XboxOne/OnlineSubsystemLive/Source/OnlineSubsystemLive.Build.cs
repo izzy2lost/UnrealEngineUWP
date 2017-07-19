@@ -5,10 +5,12 @@ using System.IO;
 
 public class OnlineSubsystemLive : ModuleRules
 {
-	// Should match versions in GetXboxLiveSDK.ps1
+	// Should match versions in GetUWPDependencies.ps1
 	readonly string XsapiVersionUwp = "2017.05.20170517.001";
 	readonly string XsapiVersionXboxOne = "2017.05.20170517.001";
 	readonly string CppRestVersion = "2_9";
+
+	static bool HasWarnedAboutLiveSdk = false;
 
 	public OnlineSubsystemLive(ReadOnlyTargetRules Target) : base(Target)
 	{
@@ -83,7 +85,11 @@ public class OnlineSubsystemLive : ModuleRules
 		string XSAPISubDir = Path.Combine("XSAPI", NugetPathChunk);
 		if (!AddWinRTDllReference(XSAPISubDir, "Microsoft.Xbox.Services"))
 		{
-			Log.TraceError("Error: Xbox Live SDK (version {0}) not found.  Run Engine/Plugins/Online/XboxOne/OnlineSubsystemLive/GetXboxLiveSDK.ps1", Target.Platform == UnrealTargetPlatform.XboxOne ? XsapiVersionXboxOne : XsapiVersionUwp);
+			if (!HasWarnedAboutLiveSdk)
+			{
+				Log.TraceWarning(" Xbox Live SDK (version {0}) not found.  Xbox Live features will not be available.  Run Setup.bat to ensure the SDK is in the expected location.", Target.Platform == UnrealTargetPlatform.XboxOne ? XsapiVersionXboxOne : XsapiVersionUwp);
+				HasWarnedAboutLiveSdk = true;
+			}
 		}
 
 		if (Target.Platform != UnrealTargetPlatform.XboxOne)

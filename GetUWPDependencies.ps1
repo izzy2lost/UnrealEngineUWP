@@ -20,7 +20,8 @@ $xsapiVersionUwp = "2017.05.20170517.001"
 $xsapiVersionXdk = "2017.05.20170517.001"
 
 $webClient = New-Object System.Net.WebClient
-$ossLivePath = Split-Path $MyInvocation.MyCommand.Path
+$startupPath = Split-Path $MyInvocation.MyCommand.Path
+$ossLivePath = [System.IO.Path]::Combine($startupPath, "Engine", "Plugins", "Online", "XboxOne", "OnlineSubsystemLive")
 
 # Locate nuget.exe - check locally first
 $nuget = (Get-ChildItem | Where-Object {$_.Name -eq "nuget.exe"})
@@ -32,18 +33,17 @@ if ($nuget -eq $null)
 	# Download if still not found
 	if ($nuget -eq $null)
 	{
-		$nuget = $ossLivePath + "\nuget.exe"
+		$nuget = [System.IO.Path]::Combine($startupPath, "nuget.exe")
 		$webClient.DownloadFile("https://dist.nuget.org/win-x86-commandline/latest/nuget.exe", $nuget)
 	}
 }
 else
 {
-	$nuget = $ossLivePath + "\" + $nuget
+	$nuget = $startupPath + "\" + $nuget
 }
 
 # Use nuget.exe to install Xbox Live packages
-$xsapiInstallPath = $ossLivePath + "\ThirdParty\XSAPI"
-$ximInstallPath = $ossLivePath + "\ThirdParty\XIM"
+$xsapiInstallPath = [System.IO.Path]::Combine($ossLivePath, "ThirdParty", "XSAPI")
 Install-LivePackage $nuget microsoft.xbox.live.sdk.winrt.uwp.native.release $xsapiVersionUwp $xsapiInstallPath UWP
 Install-LivePackage $nuget microsoft.xbox.live.sdk.winrt.XboxOneXDK $xsapiVersionXdk $xsapiInstallPath XboxOne
 
