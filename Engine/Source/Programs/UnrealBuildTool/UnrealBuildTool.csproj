@@ -233,8 +233,8 @@
       <HintPath>$(SystemDrive)\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETCore\$(TargetFrameworkVersion)\System.Runtime.WindowsRuntime.dll</HintPath>
     </Reference>
     <Reference Include="Windows">
-      <HintPath>$(Windows10SdkPath)\References\UnionMetadata\$(Windows10SdkLatestVersion)\Windows.winmd</HintPath>
-      <HintPath>$(Windows10SdkPath)\References\UnionMetadata\Windows.winmd</HintPath>
+      <HintPath>$(Windows10SdkPath)\UnionMetadata\$(Windows10SdkLatestVersion)\Windows.winmd</HintPath>
+      <HintPath>$(Windows10SdkPath)\UnionMetadata\Windows.winmd</HintPath>
       <HintPath>C:\Program Files (x86)\Microsoft Visual Studio 14.0\XAML\WinMetadata\8.1\Unified\Windows.winmd</HintPath>
       <HintPath>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v8.1@InstallationFolder)\References\CommonConfiguration\Neutral\Windows.winmd</HintPath>
     </Reference>
