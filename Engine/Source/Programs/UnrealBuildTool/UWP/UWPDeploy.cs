@@ -260,8 +260,9 @@ namespace UnrealBuildTool
 
 		public override bool PrepTargetForDeployment(UEBuildDeployTarget InTarget)
 		{
-			string InAppName = InTarget.AppName;
-			Log.TraceInformation("Prepping {0} for deployment to {1}", InAppName, InTarget.Platform.ToString());
+			// Use the project name if possible - InTarget.AppName changes for 'Client'/'Server' builds
+			string ProjectName = InTarget.ProjectFile != null ? InTarget.ProjectFile.GetFileNameWithoutAnyExtensions() : InTarget.AppName;
+			Log.TraceInformation("Prepping {0} for deployment to {1}", ProjectName, InTarget.Platform.ToString());
 			System.DateTime PrepDeployStartTime = DateTime.UtcNow;
 
 			TargetReceipt Receipt = TargetReceipt.Read(InTarget.BuildReceiptFileName);
@@ -271,14 +272,14 @@ namespace UnrealBuildTool
 			List<UnrealTargetConfiguration> TargetConfigs = new List<UnrealTargetConfiguration> { InTarget.Configuration };
 			List<string> ExePaths = new List<string> { InTarget.OutputPath.FullName };
 			string RelativeEnginePath = UnrealBuildTool.EngineDirectory.MakeRelativeTo(DirectoryReference.GetCurrentDirectory());
-			PrepForUATPackageOrDeploy(InTarget.ProjectFile, InAppName, InTarget.ProjectDirectory.FullName, TargetConfigs, ExePaths, RelativeEnginePath, false, "", false);
+			PrepForUATPackageOrDeploy(InTarget.ProjectFile, ProjectName, InTarget.ProjectDirectory.FullName, TargetConfigs, ExePaths, RelativeEnginePath, false, "", false);
 
 			DirectoryReference ProjectBinaryFolder = InTarget.OutputPath.Directory;
 
 			string[] AdditionalAppXFiles = new string[] { "NetworkManifest.xml", "xboxservices.config", "UE4Commandline.txt" };
 			bool IsGameSpecificExe = InTarget.ProjectFile != null && ProjectBinaryFolder.IsUnderDirectory(InTarget.ProjectDirectory);
 			
-			string RecipeFileName = (IsGameSpecificExe ? InAppName : "UE4") + ".build.appxrecipe";
+			string RecipeFileName = (IsGameSpecificExe ? ProjectName : "UE4") + ".build.appxrecipe";
 
 			FileReference AppxRecipeDest = FileReference.Combine(ProjectBinaryFolder, RecipeFileName);
 
@@ -287,7 +288,7 @@ namespace UnrealBuildTool
 			{
 				Compiler = WindowsPlatform.GetDefaultCompiler();
 			}
-			GeneratePackageAppXRecipe(Compiler, AppxRecipeDest.FullName, InTarget, Receipt.RuntimeDependencies, AdditionalAppXFiles);
+			GeneratePackageAppXRecipe(Compiler, AppxRecipeDest.FullName, ProjectName, InTarget, Receipt.RuntimeDependencies, AdditionalAppXFiles);
 
 			// Log out the time taken to deploy...
 			double PrepDeployDuration = (DateTime.UtcNow - PrepDeployStartTime).TotalSeconds;
@@ -325,7 +326,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		private void GeneratePackageAppXRecipe(WindowsCompiler Compiler, string InOutputFile, UEBuildDeployTarget InTarget, List<RuntimeDependency> Dependencies, IEnumerable<string> AdditionalFiles)
+		private void GeneratePackageAppXRecipe(WindowsCompiler Compiler, string InOutputFile, string InProjectName, UEBuildDeployTarget InTarget, List<RuntimeDependency> Dependencies, IEnumerable<string> AdditionalFiles)
 		{
 			var AppXRecipeProjectFileContent = new StringBuilder();
 			string VcProjectToolVersion;
@@ -372,7 +373,7 @@ namespace UnrealBuildTool
 				bool IsGameSpecificExe = InTarget.ProjectFile != null && BinaryOutput.IsUnderDirectory(InTarget.ProjectDirectory);
 				if (IsGameSpecificExe)
 				{
-					AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + Path.Combine(InTarget.AppName, BinaryOutput.MakeRelativeTo(InTarget.ProjectDirectory)) + @"</PackagePath>" + ProjectFileGenerator.NewLine);
+					AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + Path.Combine(InProjectName, BinaryOutput.MakeRelativeTo(InTarget.ProjectDirectory)) + @"</PackagePath>" + ProjectFileGenerator.NewLine);
 				}
 				else
 				{
@@ -390,7 +391,7 @@ namespace UnrealBuildTool
 
 			Dictionary<string, string> DestVariables = new Dictionary<string, string>();
 			DestVariables["EngineDir"] = "Engine";
-			DestVariables["ProjectDir"] = InTarget.AppName;
+			DestVariables["ProjectDir"] = InProjectName;
 
 			// Note: some entries are added multiple times (notable Engine/Content/SlateDebug, possibly a bug?).
 			// This will cause UWP F5 deployment to *always* believe these files need updating, which is not desirable.
@@ -480,7 +481,7 @@ namespace UnrealBuildTool
 					AppXRecipeProjectFileContent.Append(@"	  </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
 
 					AppXRecipeProjectFileContent.Append(@"	  <AppxPackagedFile Include=""" + DirectoryReference.Combine(BaseCookedDir, InTarget.AppName, "**", "*.*").FullName + @""">" + ProjectFileGenerator.NewLine);
-					AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + InTarget.AppName + @"\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
+					AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + InProjectName + @"\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
 					AppXRecipeProjectFileContent.Append(@"	  </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
 				}
 			}
@@ -498,7 +499,7 @@ namespace UnrealBuildTool
 			if (ConfigDirRef != null)
 			{
 				AppXRecipeProjectFileContent.Append(@"	  <AppxPackagedFile Include=""" + DirectoryReference.Combine(ConfigDirRef, "Config", "**", "*.*") + @""" >" + ProjectFileGenerator.NewLine);
-				AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + InTarget.AppName + @"\Config\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
+				AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + InProjectName + @"\Config\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
 				AppXRecipeProjectFileContent.Append(@"	  </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
 			}
 
