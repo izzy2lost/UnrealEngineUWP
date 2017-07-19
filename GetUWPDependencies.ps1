@@ -1,18 +1,43 @@
-function Install-LivePackage($pathToNuget, $packageName, $packageVersion, $installLocation, $alias)
+[CmdletBinding()]
+Param()
+
+function Install-Package($pathToNuget, $packageName, $installLocation, $subPaths, $packageVersion, $alias)
 {
 	# Package names get long, which can cause path length problems both during install
 	# and when referencing contents later.  Install to the temp folder, and then just copy
 	# out the bits we actually need.
 	$tempFolder = [System.IO.Path]::GetTempPath()
-	&$pathToNuget install $packageName -version $packageVersion -outputdirectory $tempFolder
 
-	$aliasPath = [System.IO.Path]::Combine($installLocation, $alias + "." + $packageVersion)
+	# Version name format is a little inconsistent (01 vs 001, etc.).  ExcludeVersion allows for
+	# the output path to be predictable despite this.
+	if ($packageVersion -ne $null)
+	{
+		&$pathToNuget install $packageName -outputdirectory $tempFolder -ExcludeVersion -version $packageVersion 2>&1 | Write-Verbose
+	}
+	else
+	{
+		&$pathToNuget install $packageName -outputdirectory $tempFolder -ExcludeVersion 2>&1 | Write-Verbose
+	}
 
-	$actualPath = [System.IO.Path]::Combine($tempFolder, $packageName + "." + $packageVersion, "build", "native")
-	Copy-Item ([System.IO.Path]::Combine($actualPath, "lib")) -Destination ([System.IO.Path]::Combine($aliasPath, "lib")) -Recurse -ErrorAction Ignore
-	Copy-Item ([System.IO.Path]::Combine($actualPath, "bin")) -Destination ([System.IO.Path]::Combine($aliasPath, "bin")) -Recurse -ErrorAction Ignore
-	Copy-Item ([System.IO.Path]::Combine($actualPath, "references")) -Destination ([System.IO.Path]::Combine($aliasPath, "references")) -Recurse -ErrorAction Ignore
-	Copy-Item ([System.IO.Path]::Combine($actualPath, "include")) -Destination ([System.IO.Path]::Combine($aliasPath, "include")) -Recurse -ErrorAction Ignore
+	# The install action should have essentially unzipped the nupkg.  Now we're going to
+	# copy the important bits out of it into the requested UE location
+	$unpackedToPath = [System.IO.Path]::Combine($tempFolder, $packageName)
+
+	if ($alias -ne $null)
+	{
+		$aliasPath = [System.IO.Path]::Combine($installLocation, $alias + "." + $packageVersion)
+	}
+	else
+	{
+		$aliasPath = $installLocation
+	}
+
+	# Create the target folder if it does not already exist - this is important because
+	# the behavior of Copy-Item will change depending on whether Destination exists or not.
+	New-Item -ItemType Directory $aliasPath -ErrorAction Ignore
+
+	# Iterate over the sub-directories provided and copy them into our UE tree
+	$subPaths | %{[System.IO.Path]::Combine($actualPath, $_)} | Copy-Item -Destination $aliasPath -Recurse -Container -ErrorAction Ignore
 }
 
 # Package versions.  Should match OnlineSubsystemLive.build.cs
@@ -42,15 +67,24 @@ else
 	$nuget = $startupPath + "\" + $nuget
 }
 
-# Use nuget.exe to install Xbox Live packages
+# Install Xbox Live packages
+Write-Output "Installing Xbox Live SDK from Nuget..."
 $xsapiInstallPath = [System.IO.Path]::Combine($ossLivePath, "ThirdParty", "XSAPI")
-Install-LivePackage $nuget microsoft.xbox.live.sdk.winrt.uwp.native.release $xsapiVersionUwp $xsapiInstallPath UWP
-Install-LivePackage $nuget microsoft.xbox.live.sdk.winrt.XboxOneXDK $xsapiVersionXdk $xsapiInstallPath XboxOne
+Install-Package $nuget microsoft.xbox.live.sdk.winrt.uwp.native.release $xsapiInstallPath @("build\native\lib") $xsapiVersionUwp UWP
+Install-Package $nuget microsoft.xbox.live.sdk.winrt.XboxOneXDK $xsapiInstallPath @("build\native\bin", "build\native\references") $xsapiVersionXdk XboxOne
+
+# Install Windows Device Portal Wrapper (used by UWP.Automation)
+Write-Output "Installing Windows Device Portal Wrapper from Nuget..."
+$wdpwrapperInstallPath = [System.IO.Path]::Combine($startupPath, "Engine", "Binaries", "ThirdParty", "WindowsDevicePortalWrapper")
+Install-Package $nuget windowsdeviceportalwrapper $wdpwrapperInstallPath @("lib\net452\*")
 
 # Check for Live Extensions SDK
+Write-Output "Checking for Xbox Live Extensions SDK..."
 $existingLiveExtSdk = Get-ItemProperty HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* | Where-Object {$_.DisplayName -like "*Xbox Live Platform Extensions*"}
 if ($existingLiveExtSdk -eq $null)
 {
+	Write-Output "Xbox Live Extensions SDK not found.  Installing..."
+
 	# Downloading Xbox Live Extensions SDK
 	$xblextzip = $ossLivePath + "\XboxLiveExtensionSDK.zip"
 	$xblextfolder = $ossLivePath + "\XboxLiveExtensionSDK"
@@ -64,4 +98,11 @@ if ($existingLiveExtSdk -eq $null)
 	# Cleanup
 	Remove-Item $xblextzip
 	Remove-Item $xblextfolder -Recurse -Force
+}
+
+# Init git submodules if possible (external projects we consume in source format)
+if ((Get-ChildItem -Hidden | Where-Object {$_.Name -eq ".git"}) -ne $null)
+{
+	Write-Output "Ensuring git submodules are up-to-date..." 
+	&git submodule update --init --recursive 2>&1 | Write-Verbose
 }

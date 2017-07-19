@@ -45,8 +45,8 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
-    <Reference Include="WindowsDevicePortalWrapper, Version=0.9.4.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\..\..\..\..\packages\WindowsDevicePortalWrapper.0.9.4.1-beta\lib\net452\WindowsDevicePortalWrapper.dll</HintPath>
+    <Reference Include="WindowsDevicePortalWrapper">
+      <HintPath>..\..\..\..\..\Engine\Binaries\ThirdParty\WindowsDevicePortalWrapper\WindowsDevicePortalWrapper.dll</HintPath>
     </Reference>
   </ItemGroup>
   <PropertyGroup>
@@ -83,9 +83,6 @@
       <Name>AutomationUtils.Automation</Name>
       <Private>False</Private>
     </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

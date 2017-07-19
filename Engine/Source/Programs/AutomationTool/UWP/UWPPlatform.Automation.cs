@@ -184,13 +184,13 @@ namespace UWP.Automation
 	{
 		object StateLock;
 		Microsoft.Tools.WindowsDevicePortal.DevicePortal Portal;
-		int ProcId;
+		uint ProcId;
 		string PackageName;
 		string FriendlyName;
 
 		bool ProcessHasExited;
 
-		public UWPDevicePortalCreatedProcess(Microsoft.Tools.WindowsDevicePortal.DevicePortal InPortal, string InPackageName, string InFriendlyName, int InProcId)
+		public UWPDevicePortalCreatedProcess(Microsoft.Tools.WindowsDevicePortal.DevicePortal InPortal, string InPackageName, string InFriendlyName, uint InProcId)
 		{
 			Portal = InPortal;
 			ProcId = InProcId;
