@@ -637,6 +637,12 @@ bool FDesktopPlatformBase::GenerateProjectFiles(const FString& RootDir, const FS
 	}
 	Arguments += TEXT(" -progress");
 
+	// @ATG_CHANGE : BEGIN - if the editor was built with 2017 then we should probably generate a project for use with 2017
+#if _MSC_VER >= 1910
+	Arguments += TEXT(" -2017");
+#endif
+	// @ATG_CHANGE : END
+
 	// Compile UnrealBuildTool if it doesn't exist. This can happen if we're just copying source from somewhere.
 	bool bRes = true;
 	Warn->BeginSlowTask(LOCTEXT("GeneratingProjectFiles", "Generating project files..."), true, true);
