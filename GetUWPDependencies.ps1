@@ -37,7 +37,7 @@ function Install-Package($pathToNuget, $packageName, $installLocation, $subPaths
 	New-Item -ItemType Directory $aliasPath -ErrorAction Ignore
 
 	# Iterate over the sub-directories provided and copy them into our UE tree
-	$subPaths | %{[System.IO.Path]::Combine($actualPath, $_)} | Copy-Item -Destination $aliasPath -Recurse -Container -ErrorAction Ignore
+	$subPaths | %{[System.IO.Path]::Combine($unpackedToPath, $_)} | Copy-Item -Destination $aliasPath -Recurse -Container #-ErrorAction Ignore
 }
 
 # Package versions.  Should match OnlineSubsystemLive.build.cs
