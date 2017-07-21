@@ -8,6 +8,11 @@ function Install-Package($pathToNuget, $packageName, $installLocation, $subPaths
 	# out the bits we actually need.
 	$tempFolder = [System.IO.Path]::GetTempPath()
 
+	# This script used to unpack to folders with a version suffix.  Delete any of these that still
+	# exist otherwise NuGet might decide the package is already installed and files won't be where
+	# we expect
+	Remove-Item -Path ([System.IO.Path]::Combine($tempFolder, $packageName + ".*")) -Recurse -ErrorAction Continue 2>&1 | Write-Verbose
+
 	# Version name format is a little inconsistent (01 vs 001, etc.).  ExcludeVersion allows for
 	# the output path to be predictable despite this.
 	if ($packageVersion -ne $null)
