@@ -88,7 +88,7 @@ namespace UnrealBuildTool
 
 		// @ATG_CHANGE : BEGIN UWP support
         /// <summary>
-        /// Enable building the editor with the Win10 SDK instead of the older Win8.1 SDK (enables UWP deployment features)
+        /// Enable building with the Win10 SDK instead of the older Win8.1 SDK 
         /// </summary>
         [ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bUseWindowsSDK10")]
         public bool bUseWindowsSDK10 = WindowsPlatform.bUseWindowsSDK10;
