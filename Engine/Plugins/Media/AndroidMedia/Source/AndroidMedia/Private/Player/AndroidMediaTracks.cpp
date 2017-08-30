@@ -352,6 +352,14 @@ bool FAndroidMediaTracks::SelectTrack(EMediaTrackType TrackType, int32 TrackInde
 	switch (TrackType)
 	{
 	case EMediaTrackType::Audio:
+		if (TrackIndex == INDEX_NONE)
+		{
+			JavaMediaPlayer->SetAudioEnabled(false);
+			SelectedAudioTrack = TrackIndex;
+
+			return true;
+		}
+
 		if (AudioTracks.IsValidIndex(TrackIndex))
 		{
 			if (!JavaMediaPlayer->SelectTrack(AudioTracks[TrackIndex].Index))
@@ -359,6 +367,7 @@ bool FAndroidMediaTracks::SelectTrack(EMediaTrackType TrackType, int32 TrackInde
 				return false;
 			}
 
+			JavaMediaPlayer->SetAudioEnabled(true);
 			SelectedAudioTrack = TrackIndex;
 			InitializeAudioSink();
 
@@ -495,37 +504,43 @@ void FAndroidMediaTracks::UpdateVideoSink()
 
 	// update sink
 #if WITH_ENGINE
-	FRHITexture* Texture = VideoSink->GetTextureSinkTexture();
-
-	if (Texture != nullptr)
+	if (!FAndroidMisc::ShouldUseVulkan())
 	{
-		int32 Resource = *reinterpret_cast<int32*>(Texture->GetNativeResource());
+	    FRHITexture* Texture = VideoSink->GetTextureSinkTexture();
 
-		if (JavaMediaPlayer->GetVideoLastFrame(Resource))
-		{
-			if (CurrentFramePosition < LastFramePosition)
-			{
-				PlaybackLooped = true;
-			}
-			LastFramePosition = CurrentFramePosition;
-		}
+	    if (Texture != nullptr)
+	    {
+		    int32 Resource = *reinterpret_cast<int32*>(Texture->GetNativeResource());
+    
+		    if (JavaMediaPlayer->GetVideoLastFrame(Resource))
+		    {
+			    if (CurrentFramePosition < LastFramePosition)
+			    {
+				    PlaybackLooped = true;
+			    }
+			    LastFramePosition = CurrentFramePosition;
+		    }
+	    }
 	}
-#else
-	void* Buffer = VideoSink->AcquireTextureSinkBuffer();
-	int64 SampleCount = 0;
-
-	if ((Buffer != nullptr) && JavaMediaPlayer->GetVideoLastFrameData(Buffer, SampleCount))
-	{
-		VideoSink->ReleaseTextureSinkBuffer();
-		VideoSink->DisplayTextureSinkBuffer();
-
-		if (CurrentFramePosition < LastFramePosition)
-		{
-			PlaybackLooped = true;
-		}
-		LastFramePosition = CurrentFramePosition;
-	}
+	else
 #endif
+	{
+		int64 SampleCount = 0;
+		void* LastFrameData = nullptr;
+		if (JavaMediaPlayer->GetVideoLastFrameData(LastFrameData, SampleCount))
+	    {
+			void* DestTextureData = VideoSink->AcquireTextureSinkBuffer();
+			FMemory::Memcpy(DestTextureData, LastFrameData, SampleCount);
+			VideoSink->ReleaseTextureSinkBuffer();
+		    VideoSink->DisplayTextureSinkBuffer(FTimespan(0));
+  
+		    if (CurrentFramePosition < LastFramePosition)
+		    {
+			    PlaybackLooped = true;
+		    }
+		    LastFramePosition = CurrentFramePosition;
+	    }
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -145,7 +145,7 @@ protected:
 	/** Cancel the request. This is a non-blocking async call and so does not ensure completion! **/
 	virtual void CancelImpl() = 0;
 
-	void SetComplete()
+	void SetDataComplete()
 	{
 		bDataIsReady = true;
 		FPlatformMisc::MemoryBarrier();
@@ -154,8 +154,18 @@ protected:
 			Callback(bCanceled, this);
 		}
 		FPlatformMisc::MemoryBarrier();
+	}
+
+	void SetAllComplete()
+	{
 		bCompleteAndCallbackCalled = true;
 		FPlatformMisc::MemoryBarrier();
+	}
+
+	void SetComplete()
+	{
+		SetDataComplete();
+		SetAllComplete();
 	}
 };
 
@@ -188,4 +198,8 @@ public:
 	* @return A request for the read. This is owned by the caller and must be deleted by the caller.
 	**/
 	virtual IAsyncReadRequest* ReadRequest(int64 Offset, int64 BytesToRead, EAsyncIOPriority Priority = AIOP_Normal, FAsyncFileCallBack* CompleteCallback = nullptr, uint8* UserSuppliedMemory = nullptr) = 0;
+
+	// Non-copyable
+	IAsyncReadFileHandle(const IAsyncReadFileHandle&) = delete;
+	IAsyncReadFileHandle& operator=(const IAsyncReadFileHandle&) = delete;
 };
