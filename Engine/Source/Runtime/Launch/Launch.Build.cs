@@ -35,12 +35,13 @@ public class Launch : ModuleRules
 				"Slate",
 				"SlateCore",
 				"Sockets",
+                "Overlay",
 			}
 		);
 
 		// Enable the LauncherCheck module to be used for platforms that support the Launcher.
-        // Projects should set UEBuildConfiguration.bUseLauncherChecks in their Target.cs to enable the functionality.
-        if (UEBuildConfiguration.bUseLauncherChecks &&
+		// Projects should set UEBuildConfiguration.bUseLauncherChecks in their Target.cs to enable the functionality.
+		if (UEBuildConfiguration.bUseLauncherChecks &&
             ((Target.Platform == UnrealTargetPlatform.Win32) ||
 			(Target.Platform == UnrealTargetPlatform.Win64) ||
 			(Target.Platform == UnrealTargetPlatform.Mac)))
@@ -48,12 +49,17 @@ public class Launch : ModuleRules
             PrivateDependencyModuleNames.Add("LauncherCheck");
             Definitions.Add("WITH_LAUNCHERCHECK=1");
 		}
+        else
+        {
+            Definitions.Add("WITH_LAUNCHERCHECK=0");
+        }
 
 		if (Target.Type != TargetType.Server)
 		{
 			PrivateDependencyModuleNames.AddRange(
 				new string[] {
 					"HeadMountedDisplay",
+					"MRMesh",
 				}
 			);
 
@@ -72,7 +78,7 @@ public class Launch : ModuleRules
 			else if (Target.Platform == UnrealTargetPlatform.Mac)
 			{
 				DynamicallyLoadedModuleNames.Add("CoreAudio");
-				DynamicallyLoadedModuleNames.Add("AudioMixerCoreAudio");
+				DynamicallyLoadedModuleNames.Add("AudioMixerAudioUnit");
 			}
 			else if (Target.Platform == UnrealTargetPlatform.Linux)
 			{
@@ -102,6 +108,7 @@ public class Launch : ModuleRules
 				new string[] {
 					"NetworkFile",
 					"StreamingFile",
+					"CookedIterativeFile",
     				"AutomationWorker",
 				}
 			);
@@ -149,7 +156,8 @@ public class Launch : ModuleRules
 				new string[] {
 					"SourceControl",
 					"UnrealEd",
-					"DesktopPlatform"
+					"DesktopPlatform",
+					"PIEPreviewDeviceProfileSelector",
 				}
 			);
 

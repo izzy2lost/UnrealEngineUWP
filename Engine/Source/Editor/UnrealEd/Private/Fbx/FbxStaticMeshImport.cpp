@@ -42,7 +42,7 @@ using namespace UnFbx;
 struct ExistingStaticMeshData;
 extern ExistingStaticMeshData* SaveExistingStaticMeshData(UStaticMesh* ExistingMesh, FBXImportOptions* ImportOptions, int32 LodIndex);
 extern void RestoreExistingMeshSettings(struct ExistingStaticMeshData* ExistingMesh, UStaticMesh* NewMesh, int32 LODIndex);
-extern void RestoreExistingMeshData(struct ExistingStaticMeshData* ExistingMeshDataPtr, UStaticMesh* NewMesh, int32 LodLevel);
+extern void RestoreExistingMeshData(struct ExistingStaticMeshData* ExistingMeshDataPtr, UStaticMesh* NewMesh, int32 LodLevel, bool bResetMaterialSlots);
 extern void UpdateSomeLodsImportMeshData(UStaticMesh* NewMesh, TArray<int32> *ReimportLodList);
 
 static FbxString GetNodeNameWithoutNamespace( FbxNode* Node )
@@ -886,7 +886,7 @@ UStaticMesh* UnFbx::FFbxImporter::ReimportSceneStaticMesh(uint64 FbxNodeUniqueId
 		}
 	}
 	//Don't restore materials when reimporting scene
-	RestoreExistingMeshData(ExistMeshDataPtr, FirstBaseMesh, INDEX_NONE);
+	RestoreExistingMeshData(ExistMeshDataPtr, FirstBaseMesh, INDEX_NONE, false);
 	return FirstBaseMesh;
 }
 
@@ -1034,9 +1034,11 @@ UStaticMesh* UnFbx::FFbxImporter::ReimportStaticMesh(UStaticMesh* Mesh, UFbxStat
 			AddTokenizedErrorMessage(FTokenizedMessage::Create(EMessageSeverity::Warning, FText::Format(LOCTEXT("Error_NoFBXMeshFound", "No FBX mesh found when reimport Unreal mesh '{0}'. The FBX file is crashed."), FText::FromString(Mesh->GetName()))), FFbxErrors::Generic_Mesh_MeshNotFound);
 		}
 	}
-
-	UpdateSomeLodsImportMeshData(NewMesh, &ReimportLodList);
-	RestoreExistingMeshData(ExistMeshDataPtr, NewMesh, INDEX_NONE);
+	if (NewMesh != nullptr)
+	{
+		UpdateSomeLodsImportMeshData(NewMesh, &ReimportLodList);
+		RestoreExistingMeshData(ExistMeshDataPtr, NewMesh, INDEX_NONE, ImportOptions->bResetMaterialSlots);
+	}
 	return NewMesh;
 }
 

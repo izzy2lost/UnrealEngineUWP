@@ -8,7 +8,6 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Xml;
-using Tools.DotNETCommon.CaselessDictionary;
 
 namespace UnrealBuildTool
 {
@@ -159,7 +158,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Files which this module depends on at runtime.
 		/// </summary>
-		public RuntimeDependencyList RuntimeDependencies;
+		public List<RuntimeDependency> RuntimeDependencies;
 
 		/// <summary>
 		/// Set of all whitelisted restricted folder references
@@ -174,7 +173,8 @@ namespace UnrealBuildTool
 		/// <param name="InModuleDirectory">Base directory for the module</param>
 		/// <param name="InRules">Rules for this module</param>
 		/// <param name="InRulesFile">Path to the rules file</param>
-		public UEBuildModule(string InName, UHTModuleType InType, DirectoryReference InModuleDirectory, ModuleRules InRules, FileReference InRulesFile)
+		/// <param name="InRuntimeDependencies">List of runtime dependencies</param>
+		public UEBuildModule(string InName, UHTModuleType InType, DirectoryReference InModuleDirectory, ModuleRules InRules, FileReference InRulesFile, List<RuntimeDependency> InRuntimeDependencies)
 		{
 			Name = InName;
 			Type = InType;
@@ -819,10 +819,10 @@ namespace UnrealBuildTool
 			Writer.WriteArrayEnd();
 
 			Writer.WriteArrayStart("RuntimeDependencies");
-			foreach(RuntimeDependency RuntimeDependency in Rules.RuntimeDependencies)
+			foreach(RuntimeDependency RuntimeDependency in RuntimeDependencies)
 			{
 				Writer.WriteObjectStart();
-				Writer.WriteValue("Path", RuntimeDependency.Path);
+				Writer.WriteValue("Path", RuntimeDependency.Path.FullName);
 				Writer.WriteValue("Type", RuntimeDependency.Type.ToString());
 				Writer.WriteObjectEnd();
 			}

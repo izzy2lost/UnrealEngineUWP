@@ -172,7 +172,7 @@ private:
 	} Value;
 	bool bIsSet;
 #else
-	bool bIsSet;
 	TTypeCompatibleBytes<OptionalType> Value;
+	bool bIsSet;
 #endif
 };

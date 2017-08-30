@@ -50,18 +50,18 @@ FModuleManager::ModuleInfoRef FModuleManager::FindModuleChecked(FName InModuleNa
 
 FModuleManager& FModuleManager::Get()
 {
-	// NOTE: The reason we initialize to NULL here is due to an issue with static initialization of variables with
+	// NOTE: The reason we initialize to nullptr here is due to an issue with static initialization of variables with
 	// constructors/destructors across DLL boundaries, where a function called from a statically constructed object
 	// calls a function in another module (such as this function) that creates a static variable.  A crash can occur
 	// because the static initialization of this DLL has not yet happened, and the CRT's list of static destructors
 	// cannot be written to because it has not yet been initialized fully.	(@todo UE4 DLL)
-	static FModuleManager* ModuleManager = NULL;
+	static FModuleManager* ModuleManager = nullptr;
 
-	if( ModuleManager == NULL )
+	if( ModuleManager == nullptr)
 	{
 		static FCriticalSection FModuleManagerSingletonConstructor;
 		FScopeLock Guard(&FModuleManagerSingletonConstructor);
-		if (ModuleManager == NULL)
+		if (ModuleManager == nullptr)
 		{
 			// FModuleManager is not thread-safe
 			ensure(IsInGameThread());
@@ -331,32 +331,36 @@ void FModuleManager::AddModule(const FName InModuleName)
 }
 
 
-TSharedPtr<IModuleInterface> FModuleManager::LoadModule( const FName InModuleName, bool bWasReloaded )
+IModuleInterface* FModuleManager::LoadModule( const FName InModuleName, bool bWasReloaded )
 {
 	// FModuleManager is not thread-safe
 	ensure(IsInGameThread());
 
 	EModuleLoadResult FailureReason;
-	TSharedPtr<IModuleInterface> Result = LoadModuleWithFailureReason(InModuleName, FailureReason, bWasReloaded );
+	IModuleInterface* Result = LoadModuleWithFailureReason(InModuleName, FailureReason, bWasReloaded );
 
 	// This should return a valid pointer only if and only if the module is loaded
-	check(Result.IsValid() == IsModuleLoaded(InModuleName));
+	check((Result != nullptr) == IsModuleLoaded(InModuleName));
 
 	return Result;
 }
 
 
-TSharedPtr<IModuleInterface> FModuleManager::LoadModuleChecked( const FName InModuleName, const bool bWasReloaded )
+IModuleInterface& FModuleManager::LoadModuleChecked( const FName InModuleName, const bool bWasReloaded )
 {
-	TSharedPtr<IModuleInterface> Module = LoadModule(InModuleName, bWasReloaded);
-	checkf(Module.IsValid(), *InModuleName.ToString());
+	IModuleInterface* Module = LoadModule(InModuleName, bWasReloaded);
+	checkf(Module, *InModuleName.ToString());
 
-	return Module;
+	return *Module;
 }
 
 
-TSharedPtr<IModuleInterface> FModuleManager::LoadModuleWithFailureReason(const FName InModuleName, EModuleLoadResult& OutFailureReason, bool bWasReloaded /*=false*/)
+IModuleInterface* FModuleManager::LoadModuleWithFailureReason(const FName InModuleName, EModuleLoadResult& OutFailureReason, bool bWasReloaded /*=false*/)
 {
+#if 0
+	ensureMsgf(IsInGameThread(), TEXT("ModuleManager: Attempting to load '%s' outside the main thread.  Please call LoadModule on the main/game thread only.  You can use GetModule or GetModuleChecked instead, those are safe to call outside the game thread."), *InModuleName.ToString());
+#endif
+
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("Module Load"), STAT_ModuleLoad, STATGROUP_LoadTime);
 
 #if	STATS
@@ -367,7 +371,7 @@ TSharedPtr<IModuleInterface> FModuleManager::LoadModuleWithFailureReason(const F
 	FScopeCycleCounter CycleCounter( StatId );
 #endif // STATS
 
-	TSharedPtr<IModuleInterface> LoadedModule;
+	IModuleInterface* LoadedModule = nullptr;
 	OutFailureReason = EModuleLoadResult::Success;
 
 	// Update our set of known modules, in case we don't already know about this module
@@ -379,7 +383,11 @@ TSharedPtr<IModuleInterface> FModuleManager::LoadModuleWithFailureReason(const F
 	if (ModuleInfo->Module.IsValid())
 	{
 		// Assign the already loaded module into the return value, otherwise the return value gives the impression the module failed load!
-		LoadedModule = ModuleInfo->Module;
+		LoadedModule = ModuleInfo->Module.Get();
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		WarnIfItWasntSafeToLoadHere(InModuleName);
+#endif
 	}
 	else
 	{
@@ -393,12 +401,12 @@ TSharedPtr<IModuleInterface> FModuleManager::LoadModuleWithFailureReason(const F
 		// Check if we're statically linked with the module.  Those modules register with the module manager using a static variable,
 		// so hopefully we already know about the name of the module and how to initialize it.
 		const FInitializeStaticallyLinkedModule* ModuleInitializerPtr = StaticallyLinkedModuleInitializers.Find(InModuleName);
-		if (ModuleInitializerPtr != NULL)
+		if (ModuleInitializerPtr != nullptr)
 		{
 			const FInitializeStaticallyLinkedModule& ModuleInitializer(*ModuleInitializerPtr);
 
 			// Initialize the module!
-			ModuleInfo->Module = MakeShareable(ModuleInitializer.Execute());
+			ModuleInfo->Module = TUniquePtr<IModuleInterface>(ModuleInitializer.Execute());
 
 			if (ModuleInfo->Module.IsValid())
 			{
@@ -411,11 +419,11 @@ TSharedPtr<IModuleInterface> FModuleManager::LoadModuleWithFailureReason(const F
 				ModulesChangedEvent.Broadcast(InModuleName, EModuleChangeReason::ModuleLoaded);
 
 				// Set the return parameter
-				LoadedModule = ModuleInfo->Module;
+				LoadedModule = ModuleInfo->Module.Get();
 			}
 			else
 			{
-				UE_LOG(LogModuleManager, Warning, TEXT("ModuleManager: Unable to load module '%s' because InitializeModule function failed (returned NULL pointer.)"), *InModuleName.ToString());
+				UE_LOG(LogModuleManager, Warning, TEXT("ModuleManager: Unable to load module '%s' because InitializeModule function failed (returned nullptr.)"), *InModuleName.ToString());
 				OutFailureReason = EModuleLoadResult::FailedToInitialize;
 			}
 		}
@@ -452,7 +460,7 @@ TSharedPtr<IModuleInterface> FModuleManager::LoadModuleWithFailureReason(const F
 			const FString ModuleFileToLoad = FPaths::ConvertRelativePathToFull(ModuleInfo->Filename);
 
 			// Clear the handle and set it again below if the module is successfully loaded
-			ModuleInfo->Handle = NULL;
+			ModuleInfo->Handle = nullptr;
 
 			// Skip this check if file manager has not yet been initialized
 			if (FPaths::FileExists(ModuleFileToLoad))
@@ -460,7 +468,7 @@ TSharedPtr<IModuleInterface> FModuleManager::LoadModuleWithFailureReason(const F
 				if (CheckModuleCompatibility(*ModuleFileToLoad))
 				{
 					ModuleInfo->Handle = FPlatformProcess::GetDllHandle(*ModuleFileToLoad);
-					if (ModuleInfo->Handle != NULL)
+					if (ModuleInfo->Handle != nullptr)
 					{
 						// First things first.  If the loaded DLL has UObjects in it, then their generated code's
 						// static initialization will have run during the DLL loading phase, and we'll need to
@@ -479,17 +487,17 @@ TSharedPtr<IModuleInterface> FModuleManager::LoadModuleWithFailureReason(const F
 						// Find our "InitializeModule" global function, which must exist for all module DLLs
 						FInitializeModuleFunctionPtr InitializeModuleFunctionPtr =
 							(FInitializeModuleFunctionPtr)FPlatformProcess::GetDllExport(ModuleInfo->Handle, TEXT("InitializeModule"));
-						if (InitializeModuleFunctionPtr != NULL)
+						if (InitializeModuleFunctionPtr != nullptr)
 						{
 							if ( ModuleInfo->Module.IsValid() )
 							{
 								// Assign the already loaded module into the return value, otherwise the return value gives the impression the module failed load!
-								LoadedModule = ModuleInfo->Module;
+								LoadedModule = ModuleInfo->Module.Get();
 							}
 							else
 							{
 								// Initialize the module!
-								ModuleInfo->Module = MakeShareable(InitializeModuleFunctionPtr());
+								ModuleInfo->Module = TUniquePtr<IModuleInterface>(InitializeModuleFunctionPtr());
 
 								if ( ModuleInfo->Module.IsValid() )
 								{
@@ -502,14 +510,14 @@ TSharedPtr<IModuleInterface> FModuleManager::LoadModuleWithFailureReason(const F
 									ModulesChangedEvent.Broadcast(InModuleName, EModuleChangeReason::ModuleLoaded);
 
 									// Set the return parameter
-									LoadedModule = ModuleInfo->Module;
+									LoadedModule = ModuleInfo->Module.Get();
 								}
 								else
 								{
-									UE_LOG(LogModuleManager, Warning, TEXT("ModuleManager: Unable to load module '%s' because InitializeModule function failed (returned NULL pointer.)"), *ModuleFileToLoad);
+									UE_LOG(LogModuleManager, Warning, TEXT("ModuleManager: Unable to load module '%s' because InitializeModule function failed (returned nullptr.)"), *ModuleFileToLoad);
 
 									FPlatformProcess::FreeDllHandle(ModuleInfo->Handle);
-									ModuleInfo->Handle = NULL;
+									ModuleInfo->Handle = nullptr;
 									OutFailureReason = EModuleLoadResult::FailedToInitialize;
 								}
 							}
@@ -519,7 +527,7 @@ TSharedPtr<IModuleInterface> FModuleManager::LoadModuleWithFailureReason(const F
 							UE_LOG(LogModuleManager, Warning, TEXT("ModuleManager: Unable to load module '%s' because InitializeModule function was not found."), *ModuleFileToLoad);
 
 							FPlatformProcess::FreeDllHandle(ModuleInfo->Handle);
-							ModuleInfo->Handle = NULL;
+							ModuleInfo->Handle = nullptr;
 							OutFailureReason = EModuleLoadResult::FailedToInitialize;
 						}
 					}
@@ -562,18 +570,11 @@ bool FModuleManager::UnloadModule( const FName InModuleName, bool bIsShutdown )
 			// Shutdown the module
 			ModuleInfo.Module->ShutdownModule();
 
-			// Verify that we have the only outstanding reference to this module.  No one should still be 
-			// referencing a module that is about to be destroyed!
-			if (!ModuleInfo.Module.IsUnique())
-			{
-				UE_LOG(LogModuleManager, Fatal, TEXT("Outstanding reference to module '%s' while trying to unload it. Strong references to module interfaces should not be kept."), *InModuleName.ToString());
-			}
-
 			// Release reference to module interface.  This will actually destroy the module object.
 			ModuleInfo.Module.Reset();
 
 #if !IS_MONOLITHIC
-			if( ModuleInfo.Handle != NULL )
+			if( ModuleInfo.Handle != nullptr )
 			{
 				// If we're shutting down then don't bother actually unloading the DLL.  We'll simply abandon it in memory
 				// instead.  This makes it much less likely that code will be unloaded that could still be called by
@@ -584,7 +585,7 @@ bool FModuleManager::UnloadModule( const FName InModuleName, bool bIsShutdown )
 					// Unload the DLL
 					FPlatformProcess::FreeDllHandle( ModuleInfo.Handle );
 				}
-				ModuleInfo.Handle = NULL;
+				ModuleInfo.Handle = nullptr;
 			}
 #endif
 
@@ -648,8 +649,8 @@ void FModuleManager::UnloadModulesAtShutdown()
 	{
 		FName ModuleName;
 		int32 LoadOrder;
-		TSharedPtr<IModuleInterface> Module;
-		FModulePair(FName InModuleName, int32 InLoadOrder, TSharedPtr<IModuleInterface> InModule)
+		IModuleInterface* Module;
+		FModulePair(FName InModuleName, int32 InLoadOrder, IModuleInterface* InModule)
 			: ModuleName(InModuleName)
 			, LoadOrder(InLoadOrder)
 			, Module(InModule)
@@ -661,7 +662,9 @@ void FModuleManager::UnloadModulesAtShutdown()
 			return LoadOrder > Other.LoadOrder; //intentionally backwards, we want the last loaded module first
 		}
 	};
+
 	TArray<FModulePair> ModulesToUnload;
+
 	for (const auto ModuleIt : Modules)
 	{
 		ModuleInfoRef ModuleInfo( ModuleIt.Value );
@@ -672,7 +675,7 @@ void FModuleManager::UnloadModulesAtShutdown()
 			// Only if the module supports shutting down in this phase
 			if( ModuleInfo->Module->SupportsAutomaticShutdown() )
 			{
-				new (ModulesToUnload)FModulePair(ModuleIt.Key, ModuleIt.Value->LoadOrder, ModuleInfo->Module);
+				new (ModulesToUnload)FModulePair(ModuleIt.Key, ModuleIt.Value->LoadOrder, ModuleInfo->Module.Get());
 			}
 		}
 	}
@@ -695,8 +698,7 @@ void FModuleManager::UnloadModulesAtShutdown()
 	}
 }
 
-
-TSharedPtr<IModuleInterface> FModuleManager::GetModule( const FName InModuleName )
+IModuleInterface* FModuleManager::GetModule( const FName InModuleName )
 {
 	// Do we even know about this module?
 	ModuleInfoPtr ModuleInfo = FindModule(InModuleName);
@@ -706,9 +708,8 @@ TSharedPtr<IModuleInterface> FModuleManager::GetModule( const FName InModuleName
 		return nullptr;
 	}
 
-	return ModuleInfo->Module;
+	return ModuleInfo->Module.Get();
 }
-
 
 bool FModuleManager::Exec( UWorld* Inworld, const TCHAR* Cmd, FOutputDevice& Ar )
 {
@@ -914,17 +915,17 @@ FString FModuleManager::GetCleanModuleFilename(FName ModuleName, bool bGameModul
 void FModuleManager::GetModuleFilenameFormat(bool bGameModule, FString& OutPrefix, FString& OutSuffix)
 {
 	// Get the module configuration for this directory type
-	const TCHAR* ConfigSuffix = NULL;
+	const TCHAR* ConfigSuffix = nullptr;
 	switch(FApp::GetBuildConfiguration())
 	{
 	case EBuildConfigurations::Debug:
 		ConfigSuffix = TEXT("-Debug");
 		break;
 	case EBuildConfigurations::DebugGame:
-		ConfigSuffix = bGameModule? TEXT("-DebugGame") : NULL;
+		ConfigSuffix = bGameModule? TEXT("-DebugGame") : nullptr;
 		break;
 	case EBuildConfigurations::Development:
-		ConfigSuffix = NULL;
+		ConfigSuffix = nullptr;
 		break;
 	case EBuildConfigurations::Test:
 		ConfigSuffix = TEXT("-Test");
@@ -950,7 +951,7 @@ void FModuleManager::GetModuleFilenameFormat(bool bGameModule, FString& OutPrefi
 
 	// Get the suffix for each module
 	OutSuffix.Empty();
-	if (ConfigSuffix != NULL)
+	if (ConfigSuffix != nullptr)
 	{
 		OutSuffix += TEXT("-");
 		OutSuffix += FPlatformProcess::GetBinariesSubdirectory();
@@ -1105,10 +1106,10 @@ void FModuleManager::AbandonModuleWithCallback(const FName InModuleName)
 
 bool FModuleManager::LoadModuleWithCallback( const FName InModuleName, FOutputDevice &Ar )
 {
-	TSharedPtr<IModuleInterface> LoadedModule = LoadModule( InModuleName, true );
+	IModuleInterface* LoadedModule = LoadModule( InModuleName, true );
 	bool bWasSuccessful = IsModuleLoaded( InModuleName );
 
-	if (bWasSuccessful && LoadedModule.IsValid())
+	if (bWasSuccessful && (LoadedModule != nullptr))
 	{
 		LoadedModule->PostLoadCallback();
 	}

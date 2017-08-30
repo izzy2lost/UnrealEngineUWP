@@ -440,7 +440,7 @@ public:
 	template <EShaderFrequency ShaderFrequency>
 	void ClearShaderResourceViews(FD3D12ResourceLocation*& ResourceLocation)
 	{
-		SCOPE_CYCLE_COUNTER(STAT_D3D12ClearShaderResourceViewsTime);
+		//SCOPE_CYCLE_COUNTER(STAT_D3D12ClearShaderResourceViewsTime);
 
 		if (PipelineState.Common.SRVCache.MaxBoundIndex[ShaderFrequency] < 0)
 		{
@@ -828,7 +828,7 @@ public:
 
 	void Init(FD3D12Device* InParent, FD3D12CommandContext* InCmdContext, const FD3D12StateCacheBase* AncestralState, FD3D12SubAllocatedOnlineHeap::SubAllocationDesc& SubHeapDesc);
 
-	~FD3D12StateCacheBase()
+	virtual ~FD3D12StateCacheBase()
 	{
 	}
 

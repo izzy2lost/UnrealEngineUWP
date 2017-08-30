@@ -68,6 +68,7 @@ FMfMediaTracks::FMfMediaTracks()
 	, CaptionDone(true)
 	, Enabled(false)
 	, VideoDone(true)
+	, bIsStarted(false)
 {
 }
 
@@ -182,6 +183,14 @@ void FMfMediaTracks::Tick(float DeltaTime)
 		return;
 	}
 
+	// Clear out the delta time on the first tick of playback.
+	// This guarantees we will start playback at the first frame.
+	if (!bIsStarted)
+	{
+		DeltaTime = 0.0f;
+		bIsStarted = true;
+	}
+
 	// Check if new video sample(s) required
 	if (VideoTracks.IsValidIndex(SelectedVideoTrack) && !VideoDone)
 	{
@@ -248,13 +257,13 @@ void FMfMediaTracks::Tick(float DeltaTime)
 						IMFSample*, Sample, Sample,
 						{
 							uint8* Data = nullptr;
-					if (SUCCEEDED(Buffer->Lock(&Data, nullptr, nullptr)))
-					{
-						VideoSink->UpdateTextureSinkBuffer(Data);
-						VideoSink->DisplayTextureSinkBuffer(FTimespan(Timestamp));
-						Buffer->Unlock();
-						SAFE_RELEASE(Sample);
-					}
+							if (SUCCEEDED(Buffer->Lock(&Data, nullptr, nullptr)))
+							{
+								VideoSink->UpdateTextureSinkBuffer(Data);
+								VideoSink->DisplayTextureSinkBuffer(FTimespan(Timestamp));
+								Buffer->Unlock();
+								SAFE_RELEASE(Sample);
+							}
 						});
 				}
 				else
@@ -1109,6 +1118,10 @@ void FMfMediaTracks::InitializeAudioSink()
 
 	const FAudioTrack& AudioTrack = AudioTracks[SelectedAudioTrack];
 	AudioSink->InitializeAudioSink(AudioTrack.NumChannels, AudioTrack.SampleRate);
+	if (Enabled)
+	{
+		AudioSink->ResumeAudioSink();
+	}
 }
 
 

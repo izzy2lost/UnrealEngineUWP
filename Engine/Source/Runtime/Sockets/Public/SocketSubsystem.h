@@ -61,6 +61,9 @@ public:
 	 */
 	static void ShutdownAllSystems();
 
+
+	virtual ~ISocketSubsystem() { }
+
 	/**
 	 * Does per platform initialization of the sockets library
 	 *

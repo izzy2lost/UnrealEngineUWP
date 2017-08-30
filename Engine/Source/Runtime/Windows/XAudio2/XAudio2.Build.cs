@@ -30,7 +30,12 @@ public class XAudio2 : ModuleRules
 			{
 				PublicAdditionalLibraries.Add("legacy_stdio_definitions.lib");
 			}
+
 		}
+        else if (Target.Platform == UnrealTargetPlatform.XboxOne)
+        {
+            PrivateDependencyModuleNames.Add("XMA2");
+        }
 
 		AddEngineThirdPartyPrivateStaticDependencies(Target, 
 			"DX11Audio",

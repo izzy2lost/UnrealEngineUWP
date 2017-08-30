@@ -24,7 +24,6 @@ void FDiskCacheInterface::Init(FString &filename)
 	mMapAddress = 0;
 	mCurrentFileMapSize = 0;
 	mCurrentOffset = 0;
-	mCacheExists = false;
 	mInErrorState = false;
 
 	mFileName = filename;
@@ -38,11 +37,17 @@ void FDiskCacheInterface::Init(FString &filename)
 		// @ATG_CHANGE : BEGIN UWP support
 		// FindFirstFileEx should be available everywhere, so use that in preference to FindFirstFile (which is not in UWP prior to 14393)
 		WIN32_FIND_DATAW fileData;
-		FindFirstFileEx(mFileName.GetCharArray().GetData(), FINDEX_INFO_LEVELS::FindExInfoStandard, &fileData, FINDEX_SEARCH_OPS::FindExSearchNameMatch, nullptr, 0);
-		// @ATG_CHANGE : END
-		if (GetLastError() == ERROR_FILE_NOT_FOUND)
+		HANDLE Handle = FindFirstFileEx(mFileName.GetCharArray().GetData(), FINDEX_INFO_LEVELS::FindExInfoStandard, &fileData, FINDEX_SEARCH_OPS::FindExSearchNameMatch, nullptr, 0);
+		if (Handle == INVALID_HANDLE_VALUE)
 		{
-			mCacheExists = false;
+			if (GetLastError() == ERROR_FILE_NOT_FOUND)
+			{
+				mCacheExists = false;
+			}
+		}
+		else
+		{
+			FindClose(Handle);
 		}
 	}
 	bool fileFound = mCacheExists;

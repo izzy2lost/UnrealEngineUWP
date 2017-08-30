@@ -55,6 +55,7 @@ protected:
 	EComponentCreationMethod SourceComponentCreationMethod;
 
 	TArray<uint8> SavedProperties;
+	TArray<UObject*> InstancedObjects;
 };
 
 /** 

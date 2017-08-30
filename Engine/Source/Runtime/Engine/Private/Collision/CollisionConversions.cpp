@@ -567,10 +567,6 @@ EConvertQueryResult ConvertQueryImpactHit(const UWorld* World, const PxLocationH
 
 EConvertQueryResult ConvertRaycastResults(bool& OutHasValidBlockingHit, const UWorld* World, int32 NumHits, PxRaycastHit* Hits, float CheckLength, const PxFilterData& QueryFilter, TArray<FHitResult>& OutHits, const FVector& StartLoc, const FVector& EndLoc, bool bReturnFaceIndex, bool bReturnPhysMat)
 {
-#if PLATFORM_LINUX	// to narrow down OR-24947
-	_Pragma("clang optimize off");
-#endif // PLATFORM_LINUX
-
 	OutHits.Reserve(OutHits.Num() + NumHits);
 	EConvertQueryResult ConvertResult = EConvertQueryResult::Valid;
 	bool bHadBlockingHit = false;
@@ -597,10 +593,6 @@ EConvertQueryResult ConvertRaycastResults(bool& OutHasValidBlockingHit, const UW
 	OutHits.Sort( FCompareFHitResultTime() );
 	OutHasValidBlockingHit = bHadBlockingHit;
 	return ConvertResult;
-
-#if PLATFORM_LINUX	// to narrow down OR-24947
-	_Pragma("clang optimize on");
-#endif // PLATFORM_LINUX
 }
 
 EConvertQueryResult AddSweepResults(bool& OutHasValidBlockingHit, const UWorld* World, int32 NumHits, PxSweepHit* Hits, float CheckLength, const PxFilterData& QueryFilter, TArray<FHitResult>& OutHits, const FVector& StartLoc, const FVector& EndLoc, const PxGeometry& Geom, const PxTransform& QueryTM, float MaxDistance, bool bReturnFaceIndex, bool bReturnPhysMat)
@@ -713,7 +705,8 @@ static bool ComputeInflatedMTD_Internal(const float MtdInflation, const PxLocati
 
 	PxVec3 PxMtdNormal(0.f);
 	PxF32 PxMtdDepth = 0.f;
-	const PxGeometry& POtherGeom = PHit.shape->getGeometry().any();
+	PxGeometryHolder Holder = PHit.shape->getGeometry();
+	const PxGeometry& POtherGeom = Holder.any();
 	const bool bMtdResult = PxGeometryQuery::computePenetration(PxMtdNormal, PxMtdDepth, Geom, QueryTM, POtherGeom, PShapeWorldPose);
 	if (bMtdResult)
 	{
@@ -993,7 +986,8 @@ static bool ConvertOverlappedShapeToImpactHit(const UWorld* World, const PxLocat
 				{
 					// MTD failed, use point distance. This is not ideal.
 					// Note: faceIndex seems to be unreliable for convex meshes in these cases, so not using FindGeomOpposingNormal() for them here.
-					PxGeometry& PGeom = PShape->getGeometry().any();
+					PxGeometryHolder Holder = PShape->getGeometry();
+					PxGeometry& PGeom = Holder.any();
 					PxVec3 PClosestPoint;
 					const float Distance = PxGeometryQuery::pointDistance(QueryTM.p, PGeom, PShapeWorldPose, &PClosestPoint);
 

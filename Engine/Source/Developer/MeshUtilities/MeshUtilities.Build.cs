@@ -7,7 +7,6 @@ public class MeshUtilities : ModuleRules
 {
 	public MeshUtilities(ReadOnlyTargetRules Target) : base(Target)
 	{
-
         PublicDependencyModuleNames.AddRange(
             new string[] {
 				"MaterialUtilities",
@@ -47,8 +46,27 @@ public class MeshUtilities : ModuleRules
 			PrivateDependencyModuleNames.Add("DX11Audio");
 		}
 		// @ATG_CHANGE : END
+        PublicIncludePathModuleNames.AddRange(
+            new string[] {
+                "MeshMergeUtilities"
+            }
+        );
 
-		AddEngineThirdPartyPrivateStaticDependencies(Target, "nvTriStrip");
+        PrivateIncludePathModuleNames.AddRange(
+          new string[] {
+                "MeshMergeUtilities",
+                "MaterialBaking",
+          }
+      );
+
+        DynamicallyLoadedModuleNames.AddRange(
+            new string[] {
+                "MeshMergeUtilities",
+                "MaterialBaking",
+            }
+        );
+
+        AddEngineThirdPartyPrivateStaticDependencies(Target, "nvTriStrip");
         AddEngineThirdPartyPrivateStaticDependencies(Target, "ForsythTriOptimizer");
         AddEngineThirdPartyPrivateStaticDependencies(Target, "QuadricMeshReduction");
         AddEngineThirdPartyPrivateStaticDependencies(Target, "MikkTSpace");
