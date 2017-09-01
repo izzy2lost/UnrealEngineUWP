@@ -5,6 +5,11 @@
 #include "OnlineAsyncTaskManager.h"
 #include "OnlineSessionInterface.h"
 
+// @ATG_CHANGE : xbox headers moved to primary include so as to not repeat uwp\xbox branching
+//#include "XboxOneAllowPlatformTypes.h"
+//#include <collection.h>
+//#include "XboxOneHidePlatformTypes.h"
+
 class FOnlineSubsystemLive;
 
 /** 
@@ -20,19 +25,9 @@ public:
 			Microsoft::Xbox::Services::XboxLiveContext^ InContext,
 			class FNamedOnlineSession* InNamedSession,
 			class FOnlineSubsystemLive* Subsystem,
-			int RetryCount);
-
-	// Handle joining a matchmaking target session prior to QoS
-	FOnlineAsyncTaskLiveJoinSession(
-			class FOnlineSessionLive* InLiveInterface,
-			Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ InReference,
-			Windows::Xbox::Networking::SecureDeviceAssociationTemplate^ InTemplate,
-			Microsoft::Xbox::Services::XboxLiveContext^ InContext,
-			class FNamedOnlineSession* InNamedSession,
-			class FOnlineSubsystemLive* Subsystem,
 			int RetryCount,
-			
-			bool bSessionIsMatchmakingResult);
+			bool bSessionIsMatchmakingResult,
+			const bool bInSetActivity);
 
 	// FOnlineAsyncItem
 	virtual FString ToString() const override { return TEXT("JoinSessionAsync");}
@@ -40,9 +35,13 @@ public:
 	virtual void TriggerDelegates() override;
 
 private:
+	void OnSuccess();
 	void OnFailed(EOnJoinSessionCompleteResult::Type Result);
 	void Retry(bool bGetSession);
 	void TryJoinSession();
+	void TryJoinSessionFromMatchmaking(Platform::Collections::Vector<Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionMember^>^ LocalMembers);
+	void TryJoinSessionFromDedicated();
+	void TryJoinSessionFromPeer(Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionMember^ Host);
 	
 	// Callback when other local players are added to session in matchmaking case
 	void OnAddLocalPlayerComplete(const FUniqueNetId& PlayerId, EOnJoinSessionCompleteResult::Type Result);
@@ -64,4 +63,6 @@ private:
 	int RetryCount;
 	bool bIsMatchmakingResult;
 	volatile int32 OtherLocalPlayersToAdd;
+	bool bSetActivity;
+	FName SessionName;
 };

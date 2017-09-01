@@ -353,16 +353,18 @@ void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(FName SessionNa
 
 				UE_LOG_ONLINE(Log, TEXT("Session Found: %s %s"), TargetSessionReference->SessionTemplateName->Data(), TargetSessionReference->SessionName->Data());
 
-				FOnlineAsyncTaskLiveJoinSession* Task =
-					new FOnlineAsyncTaskLiveJoinSession( SessionInterface.Get(),
+				const bool bSessionIsMatchmakingResult = true;
+				const bool bInSetActivity = true;
+
+				LiveSubsystem->CreateAndDispatchAsyncTaskSerial<FOnlineAsyncTaskLiveJoinSession>(SessionInterface.Get(),
 					TargetSessionReference,
 					nullptr,
 					LiveContext,
 					NamedSession,
 					LiveSubsystem,
 					SessionInterface->MAX_RETRIES,
-					true);
-				LiveSubsystem->QueueAsyncTask(Task);
+					bSessionIsMatchmakingResult,
+					bInSetActivity);
 			}
 			break;
 		}
@@ -381,7 +383,7 @@ void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(FName SessionNa
 		break;
 
 	default:
-		UE_LOG_ONLINE(Warning, TEXT("FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged - Got unexpected MatchmakingStatus: %u"), static_cast<uint32>(MatchStatus));
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged - Got unexpected MatchmakingStatus: %u"), MatchStatus);
 		break;
 	}
 }

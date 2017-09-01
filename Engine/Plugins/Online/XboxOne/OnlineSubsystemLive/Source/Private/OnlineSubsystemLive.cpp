@@ -13,8 +13,8 @@
 #include "OnlineLeaderboardInterfaceLive.h"
 #include "OnlineExternalUIInterfaceLive.h"
 #include "OnlineIdentityInterfaceLive.h"
-// @ATG_CHANGE : BEGIN - Needs UWP implementation.  XDK-based implementation should come from standard OSSLive
-#if PLATFORM_XBOXONE
+// @ATG_CHANGE : BEGIN removal of interfaces not yet flushed out for UWP
+#if !PLATFORM_UWP
 #include "OnlineStoreInterfaceLive.h"
 #include "OnlinePurchaseInterfaceLive.h"
 #endif
@@ -30,12 +30,24 @@
 // @ATG_CHANGE : BEGIN - needed for pathing to cpprest dll
 #include "IPluginManager.h"
 // @ATG_CHANGE : END
+#include "Framework/Application/SlateApplication.h"
 
-// @ATG_CHANGE :  BEGIN 
+// @ATG_CHANGE : BEGIN - Xim Support 
+#if USE_XIM
+#include "Xim/OnlineSessionInterfaceXim.h"
+#include "Xim/SocketSubsystemXim.h"
+#include "Xim/OnlineVoiceInterfaceXim.h"
+#include "Xim/XimMessageRouter.h"
+typedef FOnlineSessionXim FOnlineSessionImpl;
+typedef FOnlineSessionXimPtr FOnlineSessionImplPtr;
+typedef FOnlineVoiceXim FOnlineVoiceImpl;
+typedef FOnlineVoiceXimPtr FOnlineVoiceImplPtr;
+#else
 typedef FOnlineSessionLive FOnlineSessionImpl;
 typedef FOnlineSessionLivePtr FOnlineSessionImplPtr;
 typedef FOnlineVoiceLive FOnlineVoiceImpl;
 typedef FOnlineVoiceLivePtr FOnlineVoiceImplPtr;
+#endif
 // @ATG_CHANGE : END
 
 using namespace Microsoft::Xbox::Services;
@@ -287,18 +299,18 @@ bool FOnlineSubsystemLive::Tick(float DeltaTime)
 		OnlineAsyncTaskThreadRunnable->GameTick();
 	}
 
-	// @ATG_CHANGE : BEGIN
+	// @ATG_CHANGE : BEGIN - Xim Support
 	FOnlineSessionImplPtr SessionImpl = StaticCastSharedPtr<FOnlineSessionImpl>(SessionInterface);
  	if (SessionImpl.IsValid())
  	{
 		SessionImpl->Tick(DeltaTime);
  	}
-	// @ATG_CHANGE : END
 
 	if (VoiceInterface.IsValid())
 	{
 		VoiceInterface->Tick(DeltaTime);
 	}
+	// @ATG_CHANGE : END
 
 	// @ATG_CHANGE : BEGIN Adding social features
 	if (FriendInterface.IsValid())
@@ -384,14 +396,30 @@ bool FOnlineSubsystemLive::Init()
 	{
 		// @todo - still need to define Live socket subsystem
 		//CreateLiveSocketSubsystem();
-// @ATG_CHANGE : BEGIN UWP LIVE support
+// @ATG_CHANGE : BEGIN - Adding XIM
 		TSharedPtr<IPlugin> LivePlugin = IPluginManager::Get().FindPlugin(TEXT("OnlineSubsystemLive"));
 		if (!LivePlugin.IsValid())
 		{
-			UE_LOG(LogOnline, Error, TEXT("Failed to locate FPlugin instance describing Live plugin."), OnlineAsyncTaskThread->GetThreadID());
+			UE_LOG_ONLINE(Error, TEXT("Failed to locate FPlugin instance describing Live plugin."), OnlineAsyncTaskThread->GetThreadID());
 			return false;
 		}
 
+#if USE_XIM
+		CreateXimSocketSubsystem();
+#ifdef XIM_DLL
+		// Must manually load XIM since staging puts in a location where it won't
+		// be naturally picked up.
+		void *XimDll = FPlatformProcess::GetDllHandle(*(LivePlugin->GetBaseDir() / XIM_DLL));
+		if (!XimDll)
+		{
+			UE_LOG_ONLINE(Error, TEXT("Failed to load XIM dll from %s."), *(LivePlugin->GetBaseDir() / XIM_DLL));
+			return false;
+		}
+#endif
+#endif
+// @ATG_CHANGE : END
+
+// @ATG_CHANGE : BEGIN UWP LIVE support
 #ifdef CPP_REST_DLL
 		// Must manually load cpprest since staging puts in a location where it won't
 		// be naturally picked up.
@@ -410,35 +438,41 @@ bool FOnlineSubsystemLive::Init()
 		OnlineAsyncTaskThread.Reset(FRunnableThread::Create(OnlineAsyncTaskThreadRunnable.Get(), *FString::Printf(TEXT("OnlineAsyncTaskThread %s"), *InstanceName.ToString())));
 		check(OnlineAsyncTaskThread.IsValid());
 
-		UE_LOG(LogOnline, Verbose, TEXT("Created thread (ID:%d)."), OnlineAsyncTaskThread->GetThreadID() );
+		UE_LOG_ONLINE(Verbose, TEXT("Created thread (ID:%d)."), OnlineAsyncTaskThread->GetThreadID());
 
-		// @ATG_CHANGE : BEGIN 
-		ApplicationConfig = XboxLiveAppConfiguration::SingletonInstance;
-		// @ATG_CHANGE : END
-
+// @ATG_CHANGE : BEGIN - Adding XIM
+#if USE_XIM
+		XimMessageRouter = MakeShared<FXimMessageRouter, ESPMode::ThreadSafe>(this);
+#else
 		SessionMessageRouterInterface = MakeShared<FSessionMessageRouter, ESPMode::ThreadSafe>(this);
 		MatchmakingInterfaceLive = MakeShared<FOnlineMatchmakingInterfaceLive, ESPMode::ThreadSafe>(this);
-
+#endif
 		IdentityInterface = MakeShared<FOnlineIdentityLive, ESPMode::ThreadSafe>(this);
+		IdentityInterface->RefreshGamepadsAndUsers();
 #if PLATFORM_XBOXONE
 		StoreInterface = MakeShared<FOnlineStoreLive, ESPMode::ThreadSafe>(this);
 		PurchaseInterface = MakeShared<FOnlinePurchaseLive, ESPMode::ThreadSafe>(this);
+		PurchaseInterface->RegisterLivePurchaseHooks();
 #endif
+#if USE_XIM
+		SessionInterface = MakeShared<FOnlineSessionXim, ESPMode::ThreadSafe>(this);
+#else
 		SessionInterface = MakeShared<FOnlineSessionLive, ESPMode::ThreadSafe>(this);
-
+#endif
 		FriendInterface = MakeShared<FOnlineFriendsLive, ESPMode::ThreadSafe>(this);
 // 		UserCloudInterface = MakeShared<FOnlineUserCloudLive, ESPMode::ThreadSafe>(this);
 		LeaderboardsInterface = MakeShared<FOnlineLeaderboardsLive, ESPMode::ThreadSafe>(this);
-
-// @ATG_CHANGE : BEGIN 
 #if WITH_GAME_CHAT
+#if USE_XIM
+		FOnlineVoiceImplPtr VoiceImpl = MakeShared<FOnlineVoiceXim, ESPMode:ThreadSafe>(this);
+#else
 		FOnlineVoiceImplPtr VoiceImpl = MakeShared<FOnlineVoiceLive, ESPMode::ThreadSafe>(this);
-
+#endif
 		if (VoiceImpl->Init())
 		{
 			VoiceInterface = VoiceImpl;
 		}
-#endif
+#endif //WITH_GAME_CHAT
 // @ATG_CHANGE : END
 		ExternalUIInterface = MakeShared<FOnlineExternalUILive, ESPMode::ThreadSafe>(this);
 		EventsInterface = MakeShared<FOnlineEventsLive, ESPMode::ThreadSafe>(this);
@@ -451,6 +485,26 @@ bool FOnlineSubsystemLive::Init()
 		Windows::ApplicationModel::Core::CoreApplication::Resuming += ref new Windows::Foundation::EventHandler< Platform::Object^>(
 			[this](Platform::Object^, Platform::Object^)
 		{
+			// Handle multiplayer subscriptions and contexts next tick so that if this happens on the same frame as
+			// the SessionMessageRouter's MultiplayerSubscriptionLost event, they will happen in the correct order
+			// relative to each other.
+			ExecuteNextTick([this]()
+			{
+				// On resume, multiplayer subscriptions are invalidated, so we need to re-subscribe to them.
+				// Unsubscribe here, re-subscription will happen after the old contexts are cleared.
+				SessionMessageRouterInterface->UnsubscribeAllUsersFromMultiplayerEvents();
+
+				{
+					// After resuming from suspend, the cached XboxLiveContexts are invalid. Clear them,
+					// and they will be re-created on demand in GetLiveContext().
+					FScopeLock Lock(&LiveContextsLock);
+
+					CachedXboxLiveContexts.Reset();
+				}
+
+				SessionMessageRouterInterface->SubscribeAllUsersToMultiplayerEvents();
+			});
+
 			// After resuming, we may get a series of conflicting NetworkStatusChanged events
 			// which should be ignored for a few seconds before polling the status
 			// https://forums.xboxlive.com/questions/57371/networkconnectivitylevel-when-resuming-from-suspen.html
@@ -562,13 +616,10 @@ bool FOnlineSubsystemLive::Shutdown()
 
 FString FOnlineSubsystemLive::GetAppId() const
 {
-	// @ATG_CHANGE : BEGIN Report scid as appid for use by other components
-	if (ApplicationConfig != nullptr)
-	{
-		return ApplicationConfig->ServiceConfigurationId->Data();
-	}
-	// @ATG_CHANGE : END
-	return TEXT("");
+	// @ATG_CHANGE : UWP Live Support - BEGIN
+	static const FString TitleId(TEXT("%d"), Microsoft::Xbox::Services::XboxLiveAppConfiguration::SingletonInstance->TitleId);
+	// @ATG_CHANGE : UWP Live Support - END
+	return TitleId;
 }
 
 bool FOnlineSubsystemLive::Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar)
@@ -581,6 +632,11 @@ bool FOnlineSubsystemLive::Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice
 	return false;
 }
 
+FText FOnlineSubsystemLive::GetOnlineServiceName() const
+{
+	return NSLOCTEXT("OnlineSubsystemLive", "OnlineServiceName", "Xbox Live");
+}
+
 bool FOnlineSubsystemLive::IsEnabled()
 {
 	// Check the ini for disabling Live
@@ -591,6 +647,17 @@ bool FOnlineSubsystemLive::IsEnabled()
 	bEnableLive = bEnableLive && !FParse::Param(FCommandLine::Get(),TEXT("NOLIVE"));
 #endif
 	return bEnableLive;
+}
+
+const FString& FOnlineSubsystemLive::GetTitleProductId() const
+{
+	static FString TitleProductId;
+	if (TitleProductId.IsEmpty())
+	{
+		GConfig->GetString(TEXT("/Script/XboxOnePlatformEditor.XboxOneTargetSettings"), TEXT("ProductId"), TitleProductId, GEngineIni);
+	}
+
+	return TitleProductId;
 }
 
 FOnlineAsyncTaskManagerLive* FOnlineSubsystemLive::GetAsyncTaskManager()
@@ -638,16 +705,6 @@ Platform::String^ FOnlineSubsystemLive::RemoveBracesFromGuidString( __in Platfor
 
 	return ref new Platform::String(strGuid.c_str());
 }
-
-// @ATG_CHANGE : BEGIN Adding social features
-XboxLiveContext^ FOnlineSubsystemLive::GetDefaultLiveContext() const
-{
-	FScopeLock ScopeLock(&LiveContextsLock);
-
-	TMap<FString, Microsoft::Xbox::Services::XboxLiveContext^>::TConstIterator It(CachedXboxLiveContexts);
-	return It ? It.Value() : nullptr;
-}
-// @ATG_CHANGE : END
 
 Microsoft::Xbox::Services::XboxLiveContext^ FOnlineSubsystemLive::GetLiveContext(int32 LocalUserNum)
 {
@@ -836,11 +893,14 @@ void FOnlineSubsystemLive::RefreshLiveInfo(const FName& SessionName, Microsoft::
 		}
 	}
 
-	FOnlineMatchTicketInfoPtr MatchTicket;
-	MatchmakingInterfaceLive->GetMatchmakingTicket(SessionName, MatchTicket);
-	if (MatchTicket.IsValid())
+	if (MatchmakingInterfaceLive.IsValid())
 	{
-		MatchTicket->RefreshLiveInfo(LatestSession);
+		FOnlineMatchTicketInfoPtr MatchTicket;
+		MatchmakingInterfaceLive->GetMatchmakingTicket(SessionName, MatchTicket);
+		if (MatchTicket.IsValid())
+		{
+			MatchTicket->RefreshLiveInfo(LatestSession);
+		}
 	}
 }
 
@@ -918,13 +978,28 @@ void FOnlineSubsystemLive::HandleAppResume()
 }
 // @ATG_CHANGE : END
 
+FOnlineSessionXimPtr FOnlineSubsystemLive::GetSessionInterfaceXim()
+{
+// @ATG_CHANGE : BEGIN - Adding XIM
+#if USE_XIM
+	return StaticCastSharedPtr<FOnlineSessionXim>(SessionInterface);
+#else
+	return nullptr;
+#endif
+// @ATG_CHANGE : END
+}
 
-// @ATG_CHANGE : BEGIN 
 FOnlineSessionLivePtr FOnlineSubsystemLive::GetSessionInterfaceLive()
 {
+// @ATG_CHANGE : BEGIN - Adding XIM
+#if USE_XIM
+	return nullptr;
+#else
 	return StaticCastSharedPtr<FOnlineSessionLive>(SessionInterface);
+#endif
+// @ATG_CHANGE : END
 }
-// @ATG_CHANGE :  END
+
 
 void FOnlineSubsystemLive::RefreshNetworkConnectivityLevel()
 {
@@ -944,12 +1019,43 @@ void FOnlineSubsystemLive::RefreshNetworkConnectivityLevel()
 
 EOnlineEnvironment::Type FOnlineSubsystemLive::GetOnlineEnvironment() const
 {
-	// TODO: consider a way to do this better, perhaps with sandbox ids?
-#if UE_BUILD_SHIPPING
-	return EOnlineEnvironment::Production;
-#elif UE_BUILD_TEST
-	return EOnlineEnvironment::Certification;
-#else
-	return EOnlineEnvironment::Development;
+	// @ATG_CHANGE : BEGIN - UWP support
+	FString SandboxId = Microsoft::Xbox::Services::XboxLiveAppConfiguration::SingletonInstance->Sandbox->Data();
+	// @ATG_CHANGE : END
+
+	if (SandboxId.Equals(TEXT("RETAIL")))
+	{
+		return EOnlineEnvironment::Production;
+	}
+	else if (SandboxId.StartsWith(TEXT("CERT")) || SandboxId.EndsWith(TEXT(".99")))
+	{
+		return EOnlineEnvironment::Certification;
+	}
+	else
+	{
+		return EOnlineEnvironment::Development;
+	}
+}
+
+TSharedPtr<FPlatformInputInterface> GetInputInterface()
+{
+	if (!FSlateApplication::IsInitialized())
+	{
+		return nullptr;
+	}
+
+#if PLATFORM_XBOXONE
+	FXboxOneApplication* PlatformApp = FXboxOneApplication::GetXboxOneApplication();
+#elif PLATFORM_UWP
+	FUWPApplication* PlatformApp = FUWPApplication::GetUWPApplication();
+#endif
+	if (PlatformApp == nullptr)
+	{
+		return nullptr;
+	}
+#if PLATFORM_XBOXONE
+	return PlatformApp->GetXboxInputInterface();
+#elif PLATFORM_UWP
+	return PlatformApp->GetUWPInputInterface();
 #endif
 }

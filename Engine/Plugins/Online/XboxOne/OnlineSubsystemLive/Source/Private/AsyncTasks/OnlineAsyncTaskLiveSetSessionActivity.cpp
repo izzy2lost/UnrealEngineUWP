@@ -21,7 +21,7 @@ Windows::Foundation::IAsyncAction^ FOnlineAsyncTaskLiveSetSessionActivity::Creat
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG_ONLINE(Error, TEXT("Error starting SetActivityAsync, error: (%d) %ls."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, TEXT("Error starting SetActivityAsync, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 		return nullptr;
 	}
 }
@@ -38,7 +38,7 @@ bool FOnlineAsyncTaskLiveSetSessionActivity::ProcessResult(const Concurrency::ta
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG_ONLINE(Error, TEXT("Failed to update Multiplayer Session Activity for player %ls, error: (%d) %ls."), LiveContext->User->XboxUserId->Data(), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, TEXT("Failed to update Multiplayer Session Activity for player %ls, error: (0x%0.8X) %ls."), LiveContext->User->XboxUserId->Data(), Ex->HResult, Ex->ToString()->Data());
 		return false;
 	}
 }

@@ -16,6 +16,10 @@ namespace UnrealBuildTool
 	{
 		Win32,
 		Win64,
+		// @ATG_CHANGE : BEGIN - UWP support
+		UWP32,				// Universal Windows Platform - x86-32
+		UWP64,				// Universal Windows Platform - x64
+		// @ATG_CHANGE : END
 		Mac,
 		XboxOne,
 		PS4,
@@ -288,6 +292,18 @@ namespace UnrealBuildTool
 		/// A list of additional frameworks whose include paths are needed.
 		/// </summary>
 		public List<UEBuildFramework> AdditionalFrameworks = new List<UEBuildFramework>();
+		
+		// @ATG_CHANGE : BEGIN - winmd support
+		/// <summary>
+		/// List of winmd files that the source depends on
+		/// </summary>
+		public List<string> WinMDReferences = new List<string>();
+
+		/// <summary>
+		/// Enables WinRT C++/CX support (/ZW)
+		/// </summary>
+		public bool bEnableWinRTComponentExtensions = false;
+		// @ATG_CHANGE : END
 
 		/// <summary>
 		/// The file containing the precompiled header data.
@@ -363,6 +379,10 @@ namespace UnrealBuildTool
 			PrecompiledHeaderFile = Other.PrecompiledHeaderFile;
 			Headers = Other.Headers;
 			bHackHeaderGenerator = Other.bHackHeaderGenerator;
+			// @ATG_CHANGE : BEGIN - winmd support
+			WinMDReferences.AddRange(Other.WinMDReferences);
+			bEnableWinRTComponentExtensions = Other.bEnableWinRTComponentExtensions;
+			// @ATG_CHANGE : END
 		}
 	}
 }

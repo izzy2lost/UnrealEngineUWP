@@ -6,6 +6,7 @@
 #include "OnlineSubsystemLive.h"
 #include "OnlineIdentityInterfaceLive.h"
 #include "OnlineAsyncTaskManagerLive.h"
+// @ATG_CHANGE : UWP LIVE support: Xbox headers to pch
 #include "Online.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Engine/World.h"
@@ -13,10 +14,18 @@
 #include "GameFramework/PlayerController.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/ScopeLock.h"
 
 using namespace Windows::Foundation;
 using namespace Windows::Foundation::Collections;
 using namespace Windows::Xbox::UI;
+// @ATG_CHANGE : BEGIN - UWP LIVE Support - store compat wrapper needed
+#if PLATFORM_XBOXONE
+using namespace Windows::Xbox::ApplicationModel;
+
+using Windows::Xbox::ApplicationModel::Store::ProductItemTypes;
+#endif
+// @ATG_CHANGE : END - UWP LIVE Support
 
 const int32 PEOPLE_PICKER_MAX_SIZE = 100;
 #define INVITE_UI_TEXT TEXT("Invite players")
@@ -24,23 +33,15 @@ const int32 PEOPLE_PICKER_MAX_SIZE = 100;
 bool FOnlineExternalUILive::ShowLoginUI(const int ControllerIndex, bool bShowOnlineOnly, bool bShowSkipButton, const FOnLoginUIClosedDelegate& Delegate)
 {
 	// Get the controller object corresponding to the desired controller Id.
-	if(!FSlateApplication::IsInitialized())
+	const auto InputInterface = GetInputInterface();
+	if (!InputInterface.IsValid())
 	{
 		return false;
 	}
 
-	// @ATG_CHANGE : BEGIN - UWP LIVE Support
-	auto PlatformApp = FSlateApplication::Get().GetPlatformApplication();
-	if (!PlatformApp.IsValid())
-	// @ATG_CHANGE : END - UWP LIVE Support
-	{
-		return false;
-	}
-
-	// @ATG_CHANGE : BEGIN - UWP LIVE Support
-	auto InputInterface = static_cast<FPlatformInputInterface*>(PlatformApp->GetInputInterface());
-	auto RequestedGamepad = InputInterface->GetGamepadForUser(ControllerIndex);
-	// @ATG_CHANGE : END - UWP LIVE Support
+	// @ATG_CHANGE : BEGIN - UWP LIVE Support 
+	auto RequestedGamepad = InputInterface->GetGamepadForControllerId(ControllerIndex);
+	// @ATG_CHANGE : END
 
 	AccountPickerOptions LoginOption = bAllowGuestLogin ? AccountPickerOptions::AllowGuests : AccountPickerOptions::None;
 
@@ -57,6 +58,10 @@ bool FOnlineExternalUILive::ShowLoginUI(const int ControllerIndex, bool bShowOnl
 				User = Results->User;
 			}
 		}
+		else if (status == AsyncStatus::Canceled)
+		{
+			UE_LOG_ONLINE(Log, TEXT("SystemUI::ShowAccountPickerAsync: Canceled"));
+		}
 		else
 		{
 			// There was an error during the async operation.
@@ -65,7 +70,7 @@ bool FOnlineExternalUILive::ShowLoginUI(const int ControllerIndex, bool bShowOnl
 
 		if (LiveSubsystem && LiveSubsystem->GetAsyncTaskManager())
 		{
-			FAsyncEventAccountPickerClosed* NewEvent = new FAsyncEventAccountPickerClosed(LiveSubsystem, User, ControllerIndex, Delegate);
+			FAsyncEventAccountPickerClosed* NewEvent = new FAsyncEventAccountPickerClosed(LiveSubsystem, User, Delegate);
 			LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue(NewEvent);
 		}
 	});
@@ -264,12 +269,167 @@ bool FOnlineExternalUILive::ShowAccountUpgradeUI(const FUniqueNetId& UniqueId)
 
 bool FOnlineExternalUILive::ShowStoreUI(int32 LocalUserNum, const FShowStoreParams& ShowParams, const FOnShowStoreUIClosedDelegate& Delegate)
 {
+// @ATG_CHANGE : BEGIN - UWP LIVE Support - wrapper needed
+#if PLATFORM_XBOXONE
+	const FOnlineIdentityLivePtr Identity = LiveSubsystem->GetIdentityLive();
+	check(Identity.IsValid());
+
+	Windows::Xbox::System::User^ LiveUser = Identity->GetUserForControllerIndex(LocalUserNum);
+	if (!LiveUser)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("ShowStoreUI: Couldn't find Live user for LocalUserNum %d."), LocalUserNum);
+		LiveSubsystem->ExecuteNextTick([this, Delegate]()
+		{
+			Delegate.ExecuteIfBound(false);
+		});
+		return false;
+	}
+
+	StoreUIClosedDelegate = Delegate;
+	ShouldCallUIDelegate = true;
+
+	FCoreDelegates::ApplicationHasReactivatedDelegate.AddRaw(this, &FOnlineExternalUILive::HandleApplicationHasReactivated_Store);
+	ProductPurchasedToken = Store::Product::ProductPurchased += ref new Store::ProductPurchasedEventHandler([this](Store::ProductPurchasedEventArgs^ Args)
+	{
+		LiveSubsystem->ExecuteNextTick([this, Args]()
+		{
+			ProductPurchased_Store(Args);
+		});
+	});
+
+	try
+	{
+		IAsyncAction^ ShowStoreTask = nullptr;
+		if (!ShowParams.ProductId.IsEmpty())
+		{
+			ShowStoreTask = Store::Product::ShowDetailsAsync(LiveUser,
+				ref new Platform::String(*ShowParams.ProductId));
+		}
+		else
+		{
+			const FString& TitleProductId = LiveSubsystem->GetTitleProductId();
+			if (TitleProductId.IsEmpty())
+			{
+				UE_LOG_ONLINE(Warning, TEXT("ShowStoreUI: No product id set for title!"));
+				LiveSubsystem->ExecuteNextTick([this, Delegate]()
+				{
+					Delegate.ExecuteIfBound(false);
+				});
+				return false;
+			}
+
+			ShowStoreTask = Store::Product::ShowMarketplaceAsync(LiveUser, 
+				ProductItemTypes::Game,
+				ref new Platform::String(*TitleProductId),
+				ProductItemTypes::Consumable | ProductItemTypes::Durable | ProductItemTypes::Game | ProductItemTypes::App | ProductItemTypes::GameDemo);
+		}
+
+		concurrency::create_task(ShowStoreTask).then([this](concurrency::task<void> Task)
+		{
+			try
+			{
+				Task.get();
+				UE_LOG_ONLINE(Log, TEXT("ShowStoreUI: Marketplace UI now displaying."));
+			}
+			catch (const std::exception& Ex)
+			{
+				UE_LOG_ONLINE(Warning, TEXT("FOnlineExternalUI::ShowStoreUI call failed with error %s"), ANSI_TO_TCHAR(Ex.what()));
+			}
+			catch (Platform::Exception^ Ex)
+			{
+				UE_LOG_ONLINE(Warning, TEXT("FOnlineExternalUI::ShowStoreUI call failed with 0x%0.8X %ls"), Ex->HResult, Ex->Message->Data());
+			}
+		});
+
+		return true;
+	}
+	catch (const std::exception& Ex)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineExternalUI::ShowStoreUI call failed with error %s"), ANSI_TO_TCHAR(Ex.what()));
+	}
+	catch (Platform::Exception^ Ex)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineExternalUI::ShowStoreUI call failed with 0x%0.8X %ls"), Ex->HResult, Ex->Message->Data());
+	}
+
+	HandleApplicationHasReactivated_Store();
+#endif
+// @ATG_CHANGE : END - UWP LIVE Support
 	return false;
 }
 
+// @ATG_CHANGE : BEGIN - UWP LIVE Support
+#if PLATFORM_XBOXONE
+void FOnlineExternalUILive::ProductPurchased_Store(Windows::Xbox::ApplicationModel::Store::ProductPurchasedEventArgs^ Args)
+{
+	check(IsInGameThread());
+	FCoreDelegates::ApplicationHasReactivatedDelegate.RemoveAll(this);
+	Store::Product::ProductPurchased -= ProductPurchasedToken;
+
+	// if we received a purchase callback that means we must have bought something
+	if (ShouldCallUIDelegate)
+	{
+		LiveSubsystem->CreateAndDispatchAsyncEvent<FAsyncEventStoreUIClosed>(LiveSubsystem, StoreUIClosedDelegate, true);
+		ShouldCallUIDelegate = false;
+	}
+}
+
+void FOnlineExternalUILive::HandleApplicationHasReactivated_Store()
+{
+	check(IsInGameThread());
+	FCoreDelegates::ApplicationHasReactivatedDelegate.RemoveAll(this);
+	Store::Product::ProductPurchased -= ProductPurchasedToken;
+
+	// assume that if the product purchase event hasn't fired yet then we didn't actually buy anything
+	if (ShouldCallUIDelegate)
+	{
+		LiveSubsystem->CreateAndDispatchAsyncEvent<FAsyncEventStoreUIClosed>(LiveSubsystem, StoreUIClosedDelegate, false);
+		ShouldCallUIDelegate = false;
+	}
+}
+#endif
+// @ATG_CHANGE : END - UWP LIVE Support
+
 bool FOnlineExternalUILive::ShowSendMessageUI(int32 LocalUserNum, const FShowSendMessageParams& ShowParams, const FOnShowSendMessageUIClosedDelegate& Delegate)
 {
+// @ATG_CHANGE : BEGIN - UWP LIVE Support
+#if PLATFORM_XBOXONE
+	const FOnlineIdentityLivePtr Identity = LiveSubsystem->GetIdentityLive();
+	check(Identity.IsValid());
+
+	Windows::Xbox::System::User^ LiveUser = Identity->GetUserForControllerIndex(LocalUserNum);
+
+	if (!LiveUser)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("ShowStoreUI: Couldn't find Live user for LocalUserNum %d."), LocalUserNum);
+		return false;
+	}
+
+	IAsyncAction^ SendMessageTask;
+
+	if (ShowParams.DisplayMessage.IsEmpty())
+	{
+		SendMessageTask = SystemUI::ShowComposeMessageAsync(LiveUser, nullptr, nullptr);
+	}
+	else
+	{
+		Platform::String^ MessageString = ref new Platform::String(*(ShowParams.DisplayMessage.ToString()));
+		SendMessageTask = SystemUI::ShowComposeMessageAsync(LiveUser, MessageString, nullptr);
+	}
+	
+
+	concurrency::create_task(SendMessageTask).then([this, Delegate](concurrency::task<void> task)
+	{
+		UE_LOG_ONLINE(Log, TEXT("ShowSendMessageUI: Task complete!"));
+		FAsyncEventSendMessageUIClosed* NewEvent = new FAsyncEventSendMessageUIClosed(LiveSubsystem, Delegate, false /* no known way to tell if message was sent */);
+		LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue(NewEvent);
+	});
+
 	return false;
+#else
+	return false;
+#endif
+// @ATG_CHANGE : END - UWP LIVE Support
 }
 
 bool FOnlineExternalUILive::ShowProfileUI(const FUniqueNetId& Requestor, const FUniqueNetId& Requestee, const FOnProfileUIClosedDelegate& Delegate)
@@ -280,16 +440,19 @@ bool FOnlineExternalUILive::ShowProfileUI(const FUniqueNetId& Requestor, const F
 	}
 
 	Windows::Xbox::System::IUser^ RequestingUser = LiveSubsystem->GetIdentityLive()->GetUserForUniqueNetId(FUniqueNetIdLive(Requestor));
+	if (!ensure(RequestingUser != nullptr))
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Passed in invalider requester to"));
+		return false;
+	}
 
 	// The string version of an FUniqueNetIdLive is the actual XUID, so we can just use ToString for the requestee here.
 	auto AsyncOp = SystemUI::ShowProfileCardAsync(RequestingUser, ref new Platform::String(*Requestee.ToString()));
-
 	concurrency::create_task(AsyncOp).then([=,this](concurrency::task<void> Task)
 	{
-		if(LiveSubsystem && LiveSubsystem->GetAsyncTaskManager())
+		if (LiveSubsystem)
 		{
-			FAsyncEventProfileCardClosed* NewEvent = new FAsyncEventProfileCardClosed(LiveSubsystem, Delegate);
-			LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue(NewEvent);
+			LiveSubsystem->CreateAndDispatchAsyncEvent<FAsyncEventProfileCardClosed>(LiveSubsystem, Delegate);
 		}
 	});
 
@@ -303,17 +466,29 @@ FString FOnlineExternalUILive::FAsyncEventAccountPickerClosed::ToString() const
 
 void FOnlineExternalUILive::FAsyncEventAccountPickerClosed::TriggerDelegates()
 {
+	Platform::String^ UserId = nullptr;
+	FPlatformUserId PlatformUserId = PLATFORMUSERID_NONE;
+
 	FOnlineAsyncEvent::TriggerDelegates();
 
 	if (SignedInUser)
 	{
-		TSharedPtr<const FUniqueNetId> UniqueId(MakeShared<FUniqueNetIdLive>(SignedInUser->XboxUserId->Data()));
-		Delegate.ExecuteIfBound(UniqueId, ControllerIndex);
+		const auto InputInterface = GetInputInterface();
+		if (InputInterface.IsValid())
+		{
+			// @todo Less than ideal, but SignedInUser is an IUser^ and need a User^ for other functions
+#if PLATFORM_XBOXONE
+			PlatformUserId = InputInterface->GetPlatformUserIdFromXboxUserId(SignedInUser->XboxUserId->Data());
+#elif PLATFORM_UWP
+			PlatformUserId = SignedInUser->Id;
+#endif
+		}
+
+		UserId = SignedInUser->XboxUserId;
 	}
-	else
-	{
-		Delegate.ExecuteIfBound(TSharedPtr<const FUniqueNetId>(), ControllerIndex);
-	}
+	
+	TSharedRef<const FUniqueNetId> UniqueId = MakeShared<FUniqueNetIdLive>(UserId);
+	Delegate.ExecuteIfBound(UniqueId, PlatformUserId);
 }
 
 FString FOnlineExternalUILive::FAsyncEventProfileCardClosed::ToString() const 
@@ -377,6 +552,29 @@ FAutoConsoleCommandWithWorldAndArgs TestProfileCardCommand(
 	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(TestProfileCard)
 	);
 #endif
+
+FString FOnlineExternalUILive::FAsyncEventStoreUIClosed::ToString() const
+{
+	return TEXT("Store UI Closed");
+}
+
+void FOnlineExternalUILive::FAsyncEventStoreUIClosed::TriggerDelegates()
+{
+	FOnlineAsyncEvent::TriggerDelegates();
+	Delegate.ExecuteIfBound(bPurchasedProduct);
+}
+
+FString FOnlineExternalUILive::FAsyncEventSendMessageUIClosed::ToString() const
+{
+	return TEXT("SendMessage UI Closed");
+}
+
+void FOnlineExternalUILive::FAsyncEventSendMessageUIClosed::TriggerDelegates()
+{
+	FOnlineAsyncEvent::TriggerDelegates();
+	Delegate.ExecuteIfBound(bMessageSent);
+}
+
 FString FOnlineExternalUILive::FAsyncEventWebUrlUIClosed::ToString() const
 {
 	return TEXT("WebURL closed");

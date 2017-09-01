@@ -63,6 +63,7 @@ public:
 		, Delegate(MoveTemp(InDelegate))
 		, AccountDetailsStatus(EOnlineAsyncTaskState::NotStarted)
 		, PresenceDetailsStatus(EOnlineAsyncTaskState::NotStarted)
+		, PresenceStatsStatus(EOnlineAsyncTaskState::NotStarted)
 		, SessionDetailsStatus(EOnlineAsyncTaskState::NotStarted)
 	{
 	}
@@ -83,6 +84,7 @@ PACKAGE_SCOPE:
 
 	volatile EOnlineAsyncTaskState::Type AccountDetailsStatus;
 	volatile EOnlineAsyncTaskState::Type PresenceDetailsStatus;
+	volatile EOnlineAsyncTaskState::Type PresenceStatsStatus;
 	volatile EOnlineAsyncTaskState::Type SessionDetailsStatus;
 };
 
@@ -135,6 +137,45 @@ public:
 
 protected:
 	Windows::Foundation::Collections::IVectorView<Platform::String^>^ XUIDsVectorView;
+	FOnlineAsyncTaskLiveQueryFriendManagerTask& ManagerTask;
+};
+
+/**
+ * Async Task to query additional stats used for presence of friends
+ */
+class FOnlineAsyncTaskLiveQueryFriendPresenceStats
+	: public FOnlineAsyncTaskConcurrencyLive<Windows::Foundation::Collections::IVectorView<Microsoft::Xbox::Services::UserStatistics::UserStatisticsResult^>^>
+{
+public:
+	FOnlineAsyncTaskLiveQueryFriendPresenceStats(FOnlineSubsystemLive* const InLiveInterface,
+												 Microsoft::Xbox::Services::XboxLiveContext^ InLiveContext,
+												 Windows::Foundation::Collections::IVectorView<Platform::String^>^ InXUIDsVectorView,
+												 const int32 InStartIndex,
+												 Windows::Foundation::Collections::IVectorView<Platform::String^>^ InPresenceStatNamesVectorView,
+												 FOnlineAsyncTaskLiveQueryFriendManagerTask& InManagerTask);
+	virtual ~FOnlineAsyncTaskLiveQueryFriendPresenceStats() = default;
+
+	//~ Begin FOnlineAsyncItem Interface
+	virtual FString ToString() const override { return TEXT("FOnlineAsyncTaskLiveQueryFriendPresenceStats"); }
+
+	virtual Windows::Foundation::IAsyncOperation<Windows::Foundation::Collections::IVectorView<Microsoft::Xbox::Services::UserStatistics::UserStatisticsResult^>^>^ CreateOperation() override;
+	virtual bool ProcessResult(const Concurrency::task<Windows::Foundation::Collections::IVectorView<Microsoft::Xbox::Services::UserStatistics::UserStatisticsResult^>^>& CompletedTask);
+
+	virtual void Finalize();
+
+private:
+	/** Maximum amount of user's to request stats from at a time */
+	static const int32 MAX_USER_QUERY_COUNT = 50;
+
+	/** Index to start processing users from*/
+	int32 StartIndex;
+	/** Index of next request's start; used to signal we're finished if this is >= the user vector size */
+	int32 NextRequestIndex;
+	/** Vector view of all friends to query */
+	Windows::Foundation::Collections::IVectorView<Platform::String^>^ XUIDsVectorView;
+	/** List of stats needing queried from the above users */
+	Windows::Foundation::Collections::IVectorView<Platform::String^>^ PresenceStatNamesVectorView;
+	/** Manager task tracking completion of all friends requests */
 	FOnlineAsyncTaskLiveQueryFriendManagerTask& ManagerTask;
 };
 

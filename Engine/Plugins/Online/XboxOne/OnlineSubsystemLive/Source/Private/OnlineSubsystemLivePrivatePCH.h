@@ -34,7 +34,6 @@
 #include "XboxOneHidePlatformTypes.h"
 
 #include "Runtime/Core/Private/XboxOne/XboxOneInputInterface.h"
-typedef FXboxOneInputInterface FPlatformInputInterface;
 
 inline Windows::Xbox::System::User ^SystemUserFromXSAPIUser(Windows::Xbox::System::User ^user)
 {
@@ -49,6 +48,11 @@ inline Windows::Xbox::System::User ^XSAPIUserFromSystemUser(Windows::Xbox::Syste
 inline Windows::Xbox::System::User ^SystemUserFromControllerUser(Windows::Xbox::System::User ^user)
 {
 	return user;
+}
+
+inline Windows::Xbox::Input::Controller^ SystemGamepadFromShim(Windows::Xbox::Input::Controller^ controller)
+{
+	return controller;
 }
 
 #elif PLATFORM_UWP
@@ -118,17 +122,11 @@ namespace Windows
 		namespace Input
 		{
 			using Controller = EraAdapter::Windows::Xbox::Input::Controller;
+			using IGamepad = EraAdapter::Windows::Xbox::Input::Controller;
 			using ControllerPairingChangedEventArgs = EraAdapter::Windows::Xbox::Input::ControllerPairingChangedEventArgs;
-		}
-
-		namespace Services
-		{
-			using XboxLiveConfiguration = ::Microsoft::Xbox::Services::XboxLiveAppConfiguration;
 		}
 	}
 }
-
-typedef FUWPInputInterface FPlatformInputInterface;
 
 inline Windows::Xbox::System::User ^SystemUserFromXSAPIUser(Microsoft::Xbox::Services::System::XboxLiveUser ^user)
 {
@@ -145,5 +143,12 @@ inline Windows::Xbox::System::User ^SystemUserFromControllerUser(Windows::System
 	return Windows::Xbox::System::User::ShimUserFromControllerUser(user);
 }
 
+inline Windows::Gaming::Input::Gamepad^ SystemGamepadFromShim(EraAdapter::Windows::Xbox::Input::Controller^ controller)
+{
+	return controller->Gamepad;
+}
+
 #endif
 // @ATG_CHANGE :  END
+/** Attribute to use to read the IsBadReputation attribute off a local-user */
+#define BAD_REPUTATION_ATTRIBUTE TEXT("BadReputation")

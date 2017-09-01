@@ -42,7 +42,7 @@ IAsyncOperation<IVectorView<XboxUserProfile^>^>^ FOnlineAsyncTaskLiveQueryUsers:
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG_ONLINE(Error, TEXT("Error starting user account details query, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, TEXT("Error starting user account details query, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 	}
 
 	return nullptr;
@@ -72,7 +72,7 @@ bool FOnlineAsyncTaskLiveQueryUsers::ProcessResult(const Concurrency::task<IVect
 	{
 		OnlineError.bSucceeded = false;
 		OnlineError.SetFromErrorCode(TEXT("Unable to query users"));
-		UE_LOG_ONLINE(Error, TEXT("Error querying user account details, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, TEXT("Error querying user account details, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 	}
 
 	return OnlineError.bSucceeded;

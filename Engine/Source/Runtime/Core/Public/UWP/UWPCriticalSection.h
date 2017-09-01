@@ -73,5 +73,48 @@ public:
 	}
 };
 
+/**
+ * FUwpRWLock - Read/Write Mutex
+ *	- Provides non-recursive Read/Write (or shared-exclusive) access.
+ *	- Windows specific lock structures/calls Ref: https://msdn.microsoft.com/en-us/library/windows/desktop/aa904937(v=vs.85).aspx
+ */
+class FUwpRWLock
+{
+public:
+	FORCEINLINE FUwpRWLock(uint32 Level = 0)
+	{
+		InitializeSRWLock(&Mutex);
+	}
+	
+	FORCEINLINE ~FUwpRWLock()
+	{
+	}
+	
+	FORCEINLINE void ReadLock()
+	{
+		AcquireSRWLockShared(&Mutex);
+	}
+	
+	FORCEINLINE void WriteLock()
+	{
+		AcquireSRWLockExclusive(&Mutex);
+	}
+	
+	FORCEINLINE void ReadUnlock()
+	{
+		ReleaseSRWLockShared(&Mutex);
+	}
+	
+	FORCEINLINE void WriteUnlock()
+	{
+		ReleaseSRWLockExclusive(&Mutex);
+	}
+	
+private:
+	SRWLOCK Mutex;
+};
+
+
 typedef FUWPCriticalSection FCriticalSection;
 typedef FSystemWideCriticalSectionNotImplemented FSystemWideCriticalSection;
+typedef FUwpRWLock FRWLock;

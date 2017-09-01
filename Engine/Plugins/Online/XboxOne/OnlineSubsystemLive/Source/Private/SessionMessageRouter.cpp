@@ -101,13 +101,7 @@ FSessionMessageRouter::FSessionMessageRouter(FOnlineSubsystemLive* InSubsystem)
 	});
 	SignOutStartedToken = Windows::Xbox::System::User::SignOutStarted += SignOutStartedEvent;
 
-	for (auto CurrentUser : Windows::Xbox::System::User::Users)
-	{
-		if (CurrentUser->IsSignedIn)
-		{
-			SubscribeToMultiplayerEvents(CurrentUser);
-		}
-	}
+	SubscribeAllUsersToMultiplayerEvents();
 }
 
 FSessionMessageRouter::~FSessionMessageRouter()
@@ -122,13 +116,54 @@ FSessionMessageRouter::~FSessionMessageRouter()
 		UE_LOG_ONLINE(Warning, TEXT("User Exception during shutdown"));
 	}
 
-	// @ATG_CHANGE : BEGIN - UWP LIVE support
+	UnsubscribeAllUsersFromMultiplayerEvents();
+}
+
+void FSessionMessageRouter::SubscribeAllUsersToMultiplayerEvents()
+{
+	for (User^ CurrentUser : Windows::Xbox::System::User::Users)
+	{
+		if (CurrentUser->IsSignedIn)
+		{
+			SubscribeToMultiplayerEvents(CurrentUser);
+		}
+	}
+}
+
+void FSessionMessageRouter::UnsubscribeAllUsersFromMultiplayerEvents()
+{
+	Windows::Foundation::Collections::IVectorView<Windows::Xbox::System::User^>^ CachedUsers = Windows::Xbox::System::User::Users;
+	const int32 CachedUsersSize = static_cast<int32>(CachedUsers->Size);
+
+	// @ATG_CHANGE : BEGIN uwp support
 	TArray<FString> SubscribedUserIds;
 	MultiplayerSubscriptionTokens.GenerateKeyArray(SubscribedUserIds);
 
-	for (auto UserId : SubscribedUserIds)
+	for (FString UserId : SubscribedUserIds)
 	{
-		UnsubscribeFromMultiplayerEvents(FUniqueNetIdLive(UserId));
+		// This call seems to crash on app resume when the UserId is valid but the User^ has signed out during suspend
+		//Windows::Xbox::System::User^ SubscribedUser = Windows::Xbox::System::User::GetUserById(UserId);
+
+		Windows::Xbox::System::User^ SubscribedUser = nullptr;
+		for (int32 CachedUserIndex = 0; CachedUserIndex < CachedUsersSize; ++CachedUserIndex)
+		{
+			Windows::Xbox::System::User^ CurrentUser = CachedUsers->GetAt(CachedUserIndex);
+			if ((CurrentUser != nullptr) && (CurrentUser)->XboxUserId->Data() == UserId)
+			{
+				SubscribedUser = CurrentUser;
+				break;
+			}
+		}
+
+		if (SubscribedUser)
+		{
+			UnsubscribeFromMultiplayerEvents(FUniqueNetIdLive(SubscribedUser->XboxUserId->Data()));
+		}
+		else
+		{
+			UE_LOG_ONLINE(Warning, TEXT("Couldn't find user with ID %u to unsubscribe from multiplayer events."), *UserId);
+			MultiplayerSubscriptionTokens.Remove(UserId);
+		}
 	}
 	// @ATG_CHANGE : END
 }

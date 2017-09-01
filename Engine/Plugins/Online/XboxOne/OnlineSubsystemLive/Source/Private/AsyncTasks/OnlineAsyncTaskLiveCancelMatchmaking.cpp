@@ -85,7 +85,7 @@ void FOnlineAsyncTaskLiveCancelMatchmaking::Initialize()
 	}
 	catch (Platform::COMException^ Ex)
 	{
-		UE_LOG(LogOnline, Warning, TEXT("FOnlineAsyncTaskLiveCancelMatchmaking::CancelLiveTicket: Failed to delete ticket. HResult = %d"), Ex->HResult);
+		UE_LOG(LogOnline, Warning, TEXT("FOnlineAsyncTaskLiveCancelMatchmaking::CancelLiveTicket: Failed to delete ticket. HResult = 0x%0.8X"), Ex->HResult);
 		bWasSuccessful = false;
 		bIsComplete = true;
 	}

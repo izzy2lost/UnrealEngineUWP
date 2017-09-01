@@ -36,7 +36,7 @@ Windows::Foundation::IAsyncOperation<GetTokenAndSignatureResult^>^ FOnlineAsyncT
 	}
 	catch (Platform::COMException^ Ex)
 	{
-		UE_LOG(LogOnline, Warning, TEXT("FOnlineAsyncTaskLiveGetXSTSToken::GetTokenAndSignatureAsync: Failed to get token. HResult = %d"), Ex->HResult);
+		UE_LOG(LogOnline, Warning, TEXT("FOnlineAsyncTaskLiveGetXSTSToken::GetTokenAndSignatureAsync: Failed to get token. HResult = 0x%0.8X"), Ex->HResult);
 	}
 
 	return nullptr;

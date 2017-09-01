@@ -854,8 +854,8 @@ FORCEINLINE VectorRegister VectorTransformVector(const VectorRegister&  VecP,  c
  * @param Value the value to determine the number of leading zeros for
  * @return the number of zeros before the first "on" bit
  */
-// @ATG_CHANGE : BEGIN  UWP support
-#if PLATFORM_WINDOWS || PLATFORM_WINRT || PLATFORM_UWP
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
 #pragma intrinsic( _BitScanForward )
 FORCEINLINE uint32 appCountTrailingZeros(uint32 Value)
 {
@@ -867,7 +867,7 @@ FORCEINLINE uint32 appCountTrailingZeros(uint32 Value)
 	_BitScanForward( &BitIndex, Value );	// Scans from LSB to MSB
 	return BitIndex;
 }
-#else // ~if PLATFORM_WINDOWS || PLATFORM_WINRT || PLATFORM_UWP
+#else // ~if PLATFORM_WINDOWS || PLATFORM_UWP
 FORCEINLINE uint32 appCountTrailingZeros(uint32 Value)
 {
 	if (Value == 0)
@@ -876,7 +876,7 @@ FORCEINLINE uint32 appCountTrailingZeros(uint32 Value)
 	}
 	return __builtin_ffs(Value) - 1;
 }
-#endif // ~if PLATFORM_WINDOWS || PLATFORM_WINRT || PLATFORM_UWP
+#endif // ~if PLATFORM_WINDOWS || PLATFORM_UWP
 // @ATG_CHANGE : END
 
 /**

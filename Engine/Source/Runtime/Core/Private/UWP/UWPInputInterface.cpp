@@ -106,10 +106,10 @@ void FUWPInputInterface::SetForceFeedbackChannelValues(int32 ControllerId, const
 	GamingInput->SetVibration(ControllerId, Values.LeftLarge, Values.RightLarge, Values.LeftSmall, Values.RightSmall);
 }
 
-Windows::Gaming::Input::Gamepad^ FUWPInputInterface::GetGamepadForUser(const int UserId)
-{
-	return GamingInput->GetGamepadForIndex(UserId);
-}
+//Windows::Gaming::Input::Gamepad^ FUWPInputInterface::GetGamepadForUser(const int UserId)
+//{
+//	return GamingInput->GetGamepadFor(UserId);
+//}
 
 int FUWPInputInterface::GetUserIdForController(Windows::Gaming::Input::Gamepad^ Controller)
 {
@@ -118,12 +118,17 @@ int FUWPInputInterface::GetUserIdForController(Windows::Gaming::Input::Gamepad^ 
 }
 
 /** Platform-specific backdoor to get the FPlatformUserId from an XboxUserId */
-FPlatformUserId FUWPInputInterface::GetPlatformUserIdFromXboxUserId(const TCHAR* XboxUserId)
-{
-	// TODO: handle multi-user scenario in UWP
-	return 0;
-}
+//FPlatformUserId FUWPInputInterface::GetPlatformUserIdFromXboxUserId(const TCHAR* XboxUserId)
+//{
+//	// TODO: handle multi-user scenario in UWP
+//	return 0;
+//}
 
+
+Windows::Gaming::Input::Gamepad^ FUWPInputInterface::GetGamepadForControllerId(int32 ControllerId)
+{
+	return GamingInput->GetGamepadForIndex(ControllerId);
+}
 
 
 void FUWPInputInterface::OnFocusLost()

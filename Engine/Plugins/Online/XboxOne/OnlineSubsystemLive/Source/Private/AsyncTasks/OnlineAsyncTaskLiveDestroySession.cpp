@@ -37,7 +37,7 @@ void CreateDestroyMatchmakingCompleteTask(FName SessionName,
 		return;
 	}
 
-	// Find a local player in the session and make him Leave() it.
+	// Find the local player in the session and make them Leave() it.
 	for (auto Member : Session->Members)
 	{
 		FUniqueNetIdLive MemberId(Member->XboxUserId);
@@ -76,7 +76,7 @@ void CreateDestroyTask(FName SessionName,
 		return;
 	}
 
-	// Find a local player in the session and make him Leave() it.
+	// Find the local player in the session and make them Leave() it.
 	for (auto Member : Session->Members)
 	{
 		FUniqueNetIdLive MemberId(Member->XboxUserId);

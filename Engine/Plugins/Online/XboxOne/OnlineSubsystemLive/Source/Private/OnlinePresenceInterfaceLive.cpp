@@ -6,6 +6,8 @@
 #include "OnlineFriendsInterfaceLive.h"
 #include "OnlineSessionInterfaceLive.h"
 #include "OnlineSubsystemLive.h"
+#include "AsyncTasks/OnlineAsyncTaskLiveQueryPresence.h"
+#include "Misc/ConfigCacheIni.h"
 
 // @ATG_CHANGE : UWP LIVE support: Xbox headers to pch
 #include "OnlineEventsInterface.h"
@@ -14,8 +16,64 @@ using namespace Microsoft::Xbox::Services::Presence;
 // @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
 using namespace Microsoft::Xbox::Services::Social::Manager;
 // @ATG_CHANGE : END
+using namespace Microsoft::Xbox::Services::UserStatistics;
 using namespace Platform;
 using Microsoft::Xbox::Services::Presence::PresenceDeviceType;
+
+void FOnlineUserPresenceLive::SetStatusPropertiesFromStatistics(Microsoft::Xbox::Services::UserStatistics::UserStatisticsResult^ StatsResult)
+{
+	// Add any stats, if requested and available, to the PresenceProperties
+	if (StatsResult)
+	{
+		for (ServiceConfigurationStatistic^ ServiceConfigStat : StatsResult->ServiceConfigurationStatistics)
+		{
+			// @ATG_CHANGE : BEGIN UWP support
+			if (ServiceConfigStat->ServiceConfigurationId->Equals(Microsoft::Xbox::Services::XboxLiveAppConfiguration::SingletonInstance->ServiceConfigurationId))
+			// @ATG_CHANGE : END
+			{
+				for (Statistic^ Stat : ServiceConfigStat->Statistics)
+				{
+					const FString StatName(Stat->StatisticName->Data());
+					
+					switch (Stat->StatisticType)
+					{
+						case Windows::Foundation::PropertyType::Int64:
+						{
+							int64 Value = 0;
+							Lex::FromString(Value, Stat->Value->Data());
+							Status.Properties.Add(StatName, Value);
+							break;
+						}
+
+						case Windows::Foundation::PropertyType::Double:
+						{
+							double Value = 0;
+							Lex::FromString(Value, Stat->Value->Data());
+							Status.Properties.Add(StatName, Value);
+							break;
+						}
+
+						case Windows::Foundation::PropertyType::String:
+						{
+							Status.Properties.Add(StatName, Stat->Value->Data());
+							break;
+						}
+
+						case Windows::Foundation::PropertyType::DateTime:
+						case Windows::Foundation::PropertyType::OtherType:
+						default:
+						{
+							UE_LOG_ONLINE(Log, TEXT("Presence stat %s has unsupported type %s. Adding as a string. Value: %s"),
+								*StatName, Stat->StatisticType.ToString(), *Stat->Value->Data());
+							Status.Properties.Add(StatName, Stat->Value->Data());
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+}
 
 void FOnlinePresenceLive::SetPresence(const FUniqueNetId& User, const FOnlineUserPresenceStatus& Status, const FOnPresenceTaskCompleteDelegate& Delegate)
 {
@@ -105,11 +163,8 @@ void FOnlinePresenceLive::SetPresence(const FUniqueNetId& User, const FOnlineUse
 				static const FString EventPrefix(TEXT("Event_"));
 				if (PropertyPair.Key.StartsWith(EventPrefix, ESearchCase::IgnoreCase))
 				{
-					FString DataString;
-					PropertyPair.Value.GetValue(DataString);
-
 					FOnlineEventParms Parms;
-					Parms.Add(TEXT("Value"), DataString);
+					Parms.Add(TEXT("Value"), PropertyPair.Value);
 
 					EventsInterface->TriggerEvent(UserLive, *PropertyPair.Key, Parms);
 				}
@@ -222,30 +277,13 @@ void FOnlinePresenceLive::QueryPresence(const FUniqueNetId& User, const FOnPrese
 				SessionInt->AddSessionUpdateStatSubscription(UserLive);
 				Platform::String^ SessionUpdatedStatName = ref new Platform::String(*SessionInt->SessionUpdateStatName);
 				// @ATG_CHANGE : BEGIN - UWP support
-				LiveContext->UserStatisticsService->SubscribeToStatisticChange(UserToQueryXuid, ::Microsoft::Xbox::Services::XboxLiveAppConfiguration::SingletonInstance->ServiceConfigurationId, SessionUpdatedStatName);
+				LiveContext->UserStatisticsService->SubscribeToStatisticChange(UserToQueryXuid, LiveContext->AppConfig->ServiceConfigurationId, SessionUpdatedStatName);
 				// @ATG_CHANGE : END - UWP support
 			}
 		}
 
-		auto GetPresenceOp = LiveContext->PresenceService->GetPresenceAsync(UserToQueryXuid);
-		concurrency::create_task(GetPresenceOp).then([this, UserLive, Delegate](concurrency::task<PresenceRecord^> Task)
-		{
-			PresenceRecord^ Results = nullptr;
-			bool bWasSuccessful = false;
-
-			try
-			{
-				Results = Task.get();
-				bWasSuccessful = true;
-			}
-			catch (Platform::Exception^ Ex)
-			{
-				UE_LOG_ONLINE(Warning, TEXT("The get presence task failed. Exception: %ls."), Ex->ToString()->Data());
-			}
-
-			// Queue up an event in the async task manager so that the delegate can safely trigger in the game thread.
-			LiveSubsystem->CreateAndDispatchAsyncEvent<FAsyncEventQueryCompleted>(LiveSubsystem, UserLive, Results, bWasSuccessful, Delegate);
-		});
+		// Launch the task that will do the actual query
+		LiveSubsystem->CreateAndDispatchAsyncTaskSerial<FOnlineAsyncTaskLiveQueryPresence>(LiveSubsystem, LiveContext, UserLive, Delegate);
 	}
 	catch (Platform::Exception^ Ex)
 	{
@@ -277,6 +315,23 @@ EOnlineCachedResult::Type FOnlinePresenceLive::GetCachedPresenceForApp(const FUn
 	return Result;
 }
 
+Windows::Foundation::Collections::IVectorView<Platform::String^>^ FOnlinePresenceLive::GetConfiguredPresenceStatNames()
+{
+	// Build a list of stats from the config
+	TArray<FString> PresenceStats;
+	Platform::Collections::Vector<Platform::String^>^ StatNames = ref new Platform::Collections::Vector<Platform::String^>();
+
+	if (GConfig->GetArray(TEXT("OnlineSubsystemLive"), TEXT("PresenceStats"), PresenceStats, GEngineIni))
+	{
+		for (const FString& Stat : PresenceStats)
+		{
+			StatNames->Append(ref new Platform::String(*Stat));
+		}
+	}
+
+	return StatNames->GetView();
+}
+
 void FOnlinePresenceLive::OnPresenceDeviceChanged(DevicePresenceChangeEventArgs^ Args)
 {
 	const FUniqueNetIdLive UserLive(Args->XboxUserId);
@@ -284,9 +339,9 @@ void FOnlinePresenceLive::OnPresenceDeviceChanged(DevicePresenceChangeEventArgs^
 	TSharedRef<FOnlineUserPresenceLive>* UserPresencePtr = PresenceCache.Find(UserLive);
 	if (!UserPresencePtr)
 	{
-		UE_LOG_ONLINE(Warning, TEXT("Received presence update for unknown player %s"), *UserLive.ToString());
 		return;
 	}
+
 	// Update Presence values
 	TSharedRef<FOnlineUserPresenceLive>& Presence = *UserPresencePtr;
 	Presence->bIsOnline = Args->IsUserLoggedOnDevice;
@@ -309,7 +364,6 @@ void FOnlinePresenceLive::OnPresenceTitleChanged(TitlePresenceChangeEventArgs^ A
 	TSharedRef<FOnlineUserPresenceLive>* UserPresencePtr = PresenceCache.Find(UserLive);
 	if (!UserPresencePtr)
 	{
-		UE_LOG_ONLINE(Warning, TEXT("Received presence update for unknown player %s"), *UserLive.ToString());
 		return;
 	}
 
@@ -331,6 +385,13 @@ void FOnlinePresenceLive::OnPresenceTitleChanged(TitlePresenceChangeEventArgs^ A
 
 void FOnlinePresenceLive::OnSessionUpdatedStatChange(const FUniqueNetIdLive& LocalUserId, const FUniqueNetIdLive& UpdatedSessionPlayerId)
 {
+	if (!PresenceCache.Contains(UpdatedSessionPlayerId))
+	{
+		// Ignore users we haven't fully queried and cached yet.  This suppresses the callback that happens when we initially
+		// subscribe to a new user.
+		return;
+	}
+
 	FOnlineSessionLivePtr SessionInt(LiveSubsystem->GetSessionInterfaceLive());
 	if (!SessionInt.IsValid())
 	{
@@ -424,51 +485,6 @@ void FOnlinePresenceLive::FAsyncEventSetPresenceCompleted::TriggerDelegates()
 {
 	FOnlineAsyncEvent::TriggerDelegates();
 	Delegate.ExecuteIfBound(User, bWasSuccessful);
-}
-
-FString FOnlinePresenceLive::FAsyncEventQueryCompleted::ToString() const
-{
-	return TEXT("Query presence complete.");
-}
-
-void FOnlinePresenceLive::FAsyncEventQueryCompleted::TriggerDelegates()
-{
-	FOnlineAsyncEvent::TriggerDelegates();
-	Delegate.ExecuteIfBound(User, bWasSuccessful);
-
-	if (bWasSuccessful)
-	{
-		TSharedPtr<FOnlineUserPresence> Presence;
-		if (Subsystem &&
-			Subsystem->GetPresenceLive().IsValid() &&
-			Subsystem->GetPresenceLive()->GetCachedPresence(User, Presence) == EOnlineCachedResult::Success &&
-			Presence.IsValid())
-		{
-			Subsystem->GetPresenceLive()->TriggerOnPresenceReceivedDelegates(User, Presence.ToSharedRef());
-		}
-	}
-}
-
-void FOnlinePresenceLive::FAsyncEventQueryCompleted::Finalize()
-{
-	FOnlineAsyncEvent::Finalize();
-
-	if(!Subsystem || !Subsystem->GetPresenceLive().IsValid())
-	{
-		bWasSuccessful = false;
-		return;
-	}
-
-// @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
-	if(!Record || !Record->PresenceDeviceRecords)
-	{
-		bWasSuccessful = false;
-		return;
-	}
-
-	Subsystem->GetPresenceLive()->CachePresenceFromLive(Record);
-	bWasSuccessful = true;
-	// @ATG_CHANGE : END
 }
 
 // @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 

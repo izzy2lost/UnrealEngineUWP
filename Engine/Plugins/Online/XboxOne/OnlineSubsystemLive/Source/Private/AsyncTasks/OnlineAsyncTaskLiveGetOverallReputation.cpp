@@ -14,16 +14,29 @@ using namespace Microsoft::Xbox::Services::UserStatistics;
 
 using Windows::Foundation::Collections::IVectorView;
 
-FOnlineAsyncTaskLiveGetOverallReputation::FOnlineAsyncTaskLiveGetOverallReputation(FOnlineSubsystemLive* const InLiveSubsystem
+FOnlineAsyncTaskLiveGetOverallReputation::FOnlineAsyncTaskLiveGetOverallReputation(
+	FOnlineSubsystemLive* const InLiveSubsystem
 	, Microsoft::Xbox::Services::XboxLiveContext^ InLiveContext
-	, TArray< TSharedRef<const FUniqueNetIdLive> >& InUserIDs
+	, TArray<TSharedRef<const FUniqueNetIdLive> >&& InUserIDs
 	, const FOnGetOverallReputationCompleteDelegate& InCompletionDelegate
 )
 	: FOnlineAsyncTaskConcurrencyLive(InLiveSubsystem, InLiveContext)
-	, UserIds(InUserIDs)
+	, UserIds(MoveTemp(InUserIDs))
 	, CompletionDelegate(InCompletionDelegate)
 {
 
+}
+
+FOnlineAsyncTaskLiveGetOverallReputation::FOnlineAsyncTaskLiveGetOverallReputation(
+	FOnlineSubsystemLive* const InLiveSubsystem,
+	Microsoft::Xbox::Services::XboxLiveContext^ InLiveContext,
+	const TSharedRef<const FUniqueNetIdLive>& InUserID,
+	const FOnGetOverallReputationCompleteDelegate& InCompletionDelegate
+)
+	: FOnlineAsyncTaskConcurrencyLive(InLiveSubsystem, InLiveContext)
+	, CompletionDelegate(InCompletionDelegate)
+{
+	UserIds.Add(InUserID);
 }
 
 FString FOnlineAsyncTaskLiveGetOverallReputation::ToString() const
@@ -33,13 +46,11 @@ FString FOnlineAsyncTaskLiveGetOverallReputation::ToString() const
 
 IAsyncOperation<IVectorView<UserStatisticsResult^>^>^ FOnlineAsyncTaskLiveGetOverallReputation::CreateOperation()
 {
-
 	Platform::Collections::Vector<Platform::String^> UserIDsToSend;
 
-	for (int i = 0; i < UserIds.Num(); ++i)
+	for (const TSharedRef<const FUniqueNetIdLive>& UserId : UserIds)
 	{
-		TSharedRef<const FUniqueNetIdLive> UserId = UserIds[i];
-		Platform::String^ UserIdString = ref new Platform::String(*(*UserId).ToString());
+		Platform::String^ UserIdString = ref new Platform::String(*UserId->ToString());
 
 		UserIDsToSend.Append(UserIdString);
 	}
@@ -57,7 +68,7 @@ IAsyncOperation<IVectorView<UserStatisticsResult^>^>^ FOnlineAsyncTaskLiveGetOve
 	}
 	catch (Platform::COMException^ Ex)
 	{
-		UE_LOG(LogOnline, Warning, TEXT("FOnlineAsyncTaskLiveGetOverallReputation: GetMultipleUserStatisticsAsync: Failed to get statistics. HResult = %d"), Ex->HResult);
+		UE_LOG(LogOnline, Warning, TEXT("FOnlineAsyncTaskLiveGetOverallReputation: GetMultipleUserStatisticsAsync: Failed to get statistics. HResult = 0x%0.8X"), Ex->HResult);
 	}
 
 	return nullptr;
@@ -73,7 +84,7 @@ bool FOnlineAsyncTaskLiveGetOverallReputation::ProcessResult(const Concurrency::
 			UserStatisticsResult^ Stats = UserStats->GetAt(UserStatIndex);
 			IVectorView<ServiceConfigurationStatistic^>^ ServiceStats = Stats->ServiceConfigurationStatistics;
 
-			UE_LOG_ONLINE(Log, TEXT("Reputation: Found %d statistics for user %s"), ServiceStats->Size, Stats->XboxUserId->Data());
+			UE_LOG_ONLINE(Verbose, TEXT("Reputation: Found %d statistics for user %s"), ServiceStats->Size, Stats->XboxUserId->Data());
 
 			bool bOverallReputationIsBad = false;
 
@@ -81,8 +92,8 @@ bool FOnlineAsyncTaskLiveGetOverallReputation::ProcessResult(const Concurrency::
 			{
 				ServiceConfigurationStatistic^ ConfigStat = ServiceStats->GetAt(ConfigStatIndex);
 
-				UE_LOG_ONLINE(Log, TEXT("Reputation: stat %d: %s"), ConfigStatIndex, ConfigStat->ToString()->Data());
-				UE_LOG_ONLINE(Log, TEXT("Reputation: Found %d config statistics in stat %d"), ConfigStat->Statistics->Size, ConfigStatIndex);
+				UE_LOG_ONLINE(Verbose, TEXT("Reputation: stat %d: %s"), ConfigStatIndex, ConfigStat->ToString()->Data());
+				UE_LOG_ONLINE(Verbose, TEXT("Reputation: Found %d config statistics in stat %d"), ConfigStat->Statistics->Size, ConfigStatIndex);
 
 				for (uint32 StatIndex = 0; StatIndex < ConfigStat->Statistics->Size; ++StatIndex)
 				{
@@ -103,7 +114,7 @@ bool FOnlineAsyncTaskLiveGetOverallReputation::ProcessResult(const Concurrency::
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG_ONLINE(Error, TEXT("GetTokenAndSignatureAsync failed with 0x%0.8X"), Ex->HResult);
+		UE_LOG_ONLINE(Error, TEXT("GetMultipleUserStatisticsAsync failed with 0x%0.8X"), Ex->HResult);
 		return false;
 	}
 

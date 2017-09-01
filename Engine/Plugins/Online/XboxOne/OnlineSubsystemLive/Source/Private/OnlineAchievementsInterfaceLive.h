@@ -9,6 +9,8 @@
 #include "OnlineSubsystemLivePackage.h"
 #include "OnlineJsonSerializer.h"
 
+#include <collection.h>
+
 using namespace Microsoft::Xbox::Services::Achievements;
 
 class FAchievementsConfig : public FOnlineJsonSerializable
@@ -89,7 +91,7 @@ private:
 		/** The user who made the request */
 		FUniqueNetIdLive						PlayerId;
 
-		AchievementsResult ^					Results;
+		Platform::Collections::Vector<Achievement^>^	Achievements;
 
 		/** True if the set presence operation succeeded, false if it didn't. */
 		bool									bWasSuccessful;
@@ -108,12 +110,12 @@ private:
 		 */
 		FAsyncEventQueryCompleted(	FOnlineSubsystemLive *							InLiveSubsystem,
 									const FUniqueNetIdLive &						InPlayerId,
-									AchievementsResult ^							InResults,
+									Platform::Collections::Vector<Achievement^>^	InAchievements,
 									const bool										InWasSuccessful,
 									const FOnQueryAchievementsCompleteDelegate &	InDelegate) :
 			FOnlineAsyncEvent( InLiveSubsystem ),
 			PlayerId( InPlayerId ),
-			Results( InResults ),
+			Achievements( InAchievements ),
 			bWasSuccessful( InWasSuccessful ),
 			Delegate( InDelegate )
 		{
@@ -123,6 +125,9 @@ private:
 		virtual FString		ToString() const override;
 		virtual void		TriggerDelegates() override;
 	};
+
+	/** Process the AchievementsResult and query for the next "page" of results if necessary */
+	void ProcessGetAchievementsResults(AchievementsResult^ Results, Platform::Collections::Vector<Achievement^>^ AllAchievements, const FUniqueNetIdLive UserLive, const FOnQueryAchievementsCompleteDelegate Delegate);
 };
 
 typedef TSharedPtr<FOnlineAchievementsLive, ESPMode::ThreadSafe> FOnlineAchievementsLivePtr;

@@ -2,7 +2,6 @@
 
 #pragma once
 
-// @ATG_CHANGE : BEGIN UWP LIVE support
 #if PLATFORM_UWP
 namespace Windows
 {
@@ -17,7 +16,6 @@ namespace Windows
 	}
 }
 #endif
-// @ATG_CHANGE : END
 
 #include "OnlineSubsystem.h"
 #include "OnlineSubsystemImpl.h"
@@ -26,15 +24,17 @@ namespace Windows
 #include "HAL/RunnableThread.h"
 
 // @ATG_CHANGE : BEGIN UWP LIVE support
-#include "HAL/ThreadSafeBool.h"
 #if PLATFORM_XBOXONE
 #include "XboxOneAllowPlatformTypes.h"
 #define _UITHREADCTXT_SUPPORT   0
 #include <ppltasks.h>
 #include "XboxOneHidePlatformTypes.h"
 #include "Runtime/Core/Public/XboxOne/XboxOneApplication.h"
+typedef FXboxOneInputInterface FPlatformInputInterface;
+
 #elif PLATFORM_UWP
 #include "Runtime/Core/Public/UWP/UWPApplication.h"
+typedef FUWPInputInterface FPlatformInputInterface;
 #endif
 // @ATG_CHANGE : END
 
@@ -57,10 +57,15 @@ typedef TSharedPtr<class FOnlinePresenceLive, ESPMode::ThreadSafe> FOnlinePresen
 typedef TSharedPtr<class FOnlineUserLive, ESPMode::ThreadSafe> FOnlineUserLivePtr;
 typedef TSharedPtr<class FOnlineMatchmakingInterfaceLive, ESPMode::ThreadSafe> FOnlineMatchmakingInterfaceLivePtr;
 typedef TSharedPtr<class FSessionMessageRouter, ESPMode::ThreadSafe> FSessionMessageRouterPtr;
-
+// @ATG_CHANGE : BEGIN - Adding XIM
+typedef TSharedPtr<class FOnlineSessionXim, ESPMode::ThreadSafe> FOnlineSessionXimPtr;
+typedef TSharedPtr<class FOnlineVoiceXim, ESPMode::ThreadSafe> FOnlineVoiceXimPtr;
+typedef TSharedPtr<class FXimMessageRouter, ESPMode::ThreadSafe> FXimMessageRouterPtr;
+// @ATG_CHANGE : END
 
 class FOnlineAsyncTask;
 class FOnlineAsyncTaskManagerLive;
+class FXboxOneInputInterface;
 template<class FOnlineSubsystemClass> class FOnlineAsyncEvent;
 
 /**
@@ -109,6 +114,7 @@ public:
 	virtual bool Shutdown() override;
 	virtual FString GetAppId() const override;
 	virtual bool Exec(class UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar) override;
+	virtual FText GetOnlineServiceName() const override;
 
 	// FTickerObjectBase
 	virtual bool Tick(float DeltaTime) override;
@@ -131,7 +137,10 @@ PACKAGE_SCOPE:
 	virtual ~FOnlineSubsystemLive() = default;
 
 	/** Helpers to get typed Interface shared pointers */
+	// @ATG_CHANGE : BEGIN Adding XIM
+	FOnlineSessionXimPtr GetSessionInterfaceXim();
 	FOnlineSessionLivePtr GetSessionInterfaceLive();
+	// @ATG_CHANGE : END
 	FOnlineIdentityLivePtr GetIdentityLive() const { return IdentityInterface; }
 #if PLATFORM_XBOXONE
 	FOnlineStoreLivePtr GetStoreLive() const { return StoreInterface; }
@@ -143,6 +152,9 @@ PACKAGE_SCOPE:
 	FSessionMessageRouterPtr GetSessionMessageRouter() const { return SessionMessageRouterInterface; }
 	FOnlineFriendsLivePtr GetFriendsLive() const { return FriendInterface; }
 	FOnlineUserLivePtr GetUsersLive() const { return UserInterface; }
+
+	/** Get title's product id if one is configured */
+	const FString& GetTitleProductId() const;
 
 	FOnlineAsyncTaskManagerLive* GetAsyncTaskManager();
 
@@ -214,11 +226,10 @@ PACKAGE_SCOPE:
 	uint32 TitleId;
 
 private:
-
-	// @ATG_CHANGE : BEGIN 
+// @ATG_CHANGE : BEGIN - Adding XIM
 	/** Interface to the session services */
 	IOnlineSessionPtr SessionInterface;
-	// @ATG_CHANGE : END
+// @ATG_CHANGE : END
 
 	/** Interface to the external UI services */
 	FOnlineExternalUILivePtr ExternalUIInterface;
@@ -234,7 +245,7 @@ private:
 	FOnlinePurchaseLivePtr PurchaseInterface;
 #endif // PLATFORM_XBOXONE
 
-	// @ATG_CHANGE : BEGIN
+	// @ATG_CHANGE : BEGIN - Adding XIM
 	/** Interface to the voice chat services */
 	IOnlineVoicePtr VoiceInterface;
 	// @ATG_CHANGE : END
@@ -257,7 +268,10 @@ private:
 	/** Interface to the mpsd shouldertap services */
 	FSessionMessageRouterPtr SessionMessageRouterInterface;
 
-	// @ATG_CHANGE : BEGIN Adding social features
+	// @ATG_CHANGE : BEGIN Adding XIM
+	FXimMessageRouterPtr XimMessageRouter;
+	// @ATG_CHANGE : END
+
 	/** Interface to the social service */
 	FOnlineFriendsLivePtr FriendInterface;
 
@@ -271,36 +285,18 @@ private:
 	TUniquePtr<FRunnableThread> OnlineAsyncTaskThread;
 
 PACKAGE_SCOPE:
-	FOnlineIdentityLivePtr GetIdentityLive() { return IdentityInterface; }
-	FOnlinePresenceLivePtr GetPresenceLive() { return PresenceInterface; }
-
-	// @ATG_CHANGE : BEGIN Adding social features
-	/** Returns the first available Live context, or null if none available.  Useful when user context is not available. */
-	Microsoft::Xbox::Services::XboxLiveContext^		GetDefaultLiveContext() const;
+	// @ATG_CHANGE : BEGIN - Adding XIM
+	FXimMessageRouterPtr GetXimMessageRouter() { return XimMessageRouter; }
 	// @ATG_CHANGE : END
 
-	// @ATG_CHANGE : BEGIN 
-	Microsoft::Xbox::Services::XboxLiveAppConfiguration^ GetApplicationConfig() { return ApplicationConfig; }
-	// @ATG_CHANGE : END
-
-	/** Utility function which makes it easy to run task continuations on the game thread. */
-	//template<class ResultType, class ContinuationType>
-	//void GameThreadContinuation(Windows::Foundation::IAsyncOperation<ResultType>^ Op, ContinuationType Continuation)
-	//{
-	//	create_task(Op).then( [this,Continuation](concurrency::task<ResultType> Task )
-	//	{
-	//		GetAsyncTaskManager()->AddGenericToOutQueue( [Task,Continuation]() { Continuation(Task); } );
-	//	});
-	//}
-
-	// @ATG_CHANGE : BEGIN UWP LIVE support
+	// @ATG_CHANGE : BEGIN - UWP LIVE support
 	// Store single XboxLiveContext per user
 	TMap<FString, Microsoft::Xbox::Services::XboxLiveContext^> CachedXboxLiveContexts;
 
 	void HandleAppResume();
 
 	// Store the singleton application config object because calling the static WinRT property every time is expensive.
-	Microsoft::Xbox::Services::XboxLiveAppConfiguration^ ApplicationConfig;
+	//Microsoft::Xbox::Services::XboxLiveAppConfiguration^ ApplicationConfig;
 	// @ATG_CHANGE : END
 	mutable FCriticalSection LiveContextsLock;
 
@@ -310,5 +306,14 @@ PACKAGE_SCOPE:
 
 	FThreadSafeBool bIgnoreNetworkStatusChanged;
 };
+
+// @ATG_CHANGE : BEGIN - UWP LIVE support
+/**
+ * Helper to get a pointer to the FPlatformInputInterface. It could be null if Slate isn't initialized, so check it!
+ *
+ * @return A pointer to the input interface, if it could be found. Null otherwise.
+ */
+TSharedPtr<FPlatformInputInterface> GetInputInterface();
+// @ATG_CHANGE : END - UWP LIVE support
 
 typedef TSharedPtr<FOnlineSubsystemLive, ESPMode::ThreadSafe> FOnlineSubsystemLivePtr;

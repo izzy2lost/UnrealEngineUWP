@@ -265,8 +265,8 @@ namespace UnrealBuildTool
 			Log.TraceInformation("Prepping {0} for deployment to {1}", ProjectName, InTarget.Platform.ToString());
 			System.DateTime PrepDeployStartTime = DateTime.UtcNow;
 
-			TargetReceipt Receipt = TargetReceipt.Read(InTarget.BuildReceiptFileName);
-			AddWinMDReferencesFromReceipt(Receipt, InTarget.ProjectDirectory, string.Empty);
+			TargetReceipt Receipt = TargetReceipt.Read(InTarget.BuildReceiptFileName, UnrealBuildTool.EngineDirectory, InTarget.ProjectDirectory);
+			AddWinMDReferencesFromReceipt(Receipt, InTarget.ProjectDirectory, UnrealBuildTool.EngineDirectory.ParentDirectory.FullName);
 
 			//PrepForUATPackageOrDeploy(InTarget.ProjectFile, InAppName, InTarget.ProjectDirectory.FullName, InTarget.OutputPath.FullName, TargetBuildEnvironment.RelativeEnginePath, false, "", false);
 			List<UnrealTargetConfiguration> TargetConfigs = new List<UnrealTargetConfiguration> { InTarget.Configuration };
@@ -311,13 +311,13 @@ namespace UnrealBuildTool
 
 			foreach (var Dep in Receipt.RuntimeDependencies)
 			{
-				if (Path.GetExtension(Dep.Path) == ".dll")
+				if (Dep.Path.GetExtension() == ".dll")
 				{
-					string SourcePath = Utils.ExpandVariables(Dep.Path, SourceVariables);
+					string SourcePath = Utils.ExpandVariables(Dep.Path.FullName, SourceVariables);
 					string WinMDFile = Path.ChangeExtension(SourcePath, "winmd");
 					if (File.Exists(WinMDFile))
 					{
-						string DestPath = Dep.Path;
+						string DestPath = Dep.Path.FullName;
 						DestPath = Utils.ExpandVariables(DestPath, DestVariables);
 						DestPath = Utils.MakePathRelativeTo(DestPath, DestRelativeTo);
 						WinMDReferences.Add(new WinMDRegistrationInfo(new FileReference(WinMDFile), DestPath));
@@ -345,7 +345,7 @@ namespace UnrealBuildTool
 				ProjectFileGenerator.NewLine +
 				"<Project DefaultTargets=\"Build\" ToolsVersion=\"" + VcProjectToolVersion + "\" xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">" + ProjectFileGenerator.NewLine);
 
-			DirectoryReference ProjectBinariesDirectory = new FileReference(InTarget.BuildReceiptFileName).Directory;
+			DirectoryReference ProjectBinariesDirectory = InTarget.BuildReceiptFileName.Directory;
 
 			// This is not the full set of properties that a VS build would add, but it's enough that VS deployment will work
 			// both locally and on a remote machine.
@@ -395,7 +395,7 @@ namespace UnrealBuildTool
 
 			// Note: some entries are added multiple times (notable Engine/Content/SlateDebug, possibly a bug?).
 			// This will cause UWP F5 deployment to *always* believe these files need updating, which is not desirable.
-			IEnumerable<string> DependencyPaths = Dependencies.Select((d) => (d.Path));
+			IEnumerable<string> DependencyPaths = Dependencies.Select((d) => (d.Path.FullName));
 
 			foreach (var RuntimeDep in DependencyPaths.Distinct())
 			{

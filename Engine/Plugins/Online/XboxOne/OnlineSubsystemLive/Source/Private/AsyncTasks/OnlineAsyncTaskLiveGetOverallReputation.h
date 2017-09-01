@@ -7,7 +7,7 @@
 #include "OnlineError.h"
 
 typedef TMap<const FUniqueNetIdLive, bool> UserReputationMap;
-DECLARE_DELEGATE_OneParam(FOnGetOverallReputationCompleteDelegate, UserReputationMap /* UsersWithBadReputations */);
+DECLARE_DELEGATE_OneParam(FOnGetOverallReputationCompleteDelegate, const UserReputationMap& /* UsersWithBadReputations */);
 
 class FOnlineAsyncTaskLiveGetOverallReputation
 	: public FOnlineAsyncTaskConcurrencyLive<Windows::Foundation::Collections::IVectorView<Microsoft::Xbox::Services::UserStatistics::UserStatisticsResult^>^>
@@ -15,8 +15,14 @@ class FOnlineAsyncTaskLiveGetOverallReputation
 public:
 
 	FOnlineAsyncTaskLiveGetOverallReputation(FOnlineSubsystemLive* const InLiveSubsystem
-		, Microsoft::Xbox::Services::XboxLiveContext^ InLocalContext
-		, TArray< TSharedRef<const FUniqueNetIdLive> >& InUserIDs
+		, Microsoft::Xbox::Services::XboxLiveContext^ InLiveContext
+		, TArray<TSharedRef<const FUniqueNetIdLive> >&& InUserIDs
+		, const FOnGetOverallReputationCompleteDelegate& InCompletionDelegate
+	);
+
+	FOnlineAsyncTaskLiveGetOverallReputation(FOnlineSubsystemLive* const InLiveSubsystem
+		, Microsoft::Xbox::Services::XboxLiveContext^ InLiveContext
+		, const TSharedRef<const FUniqueNetIdLive>& InUserID
 		, const FOnGetOverallReputationCompleteDelegate& InCompletionDelegate
 	);
 
@@ -43,6 +49,6 @@ private:
 private:
 	FOnGetOverallReputationCompleteDelegate CompletionDelegate;
 
-	TArray< TSharedRef<const FUniqueNetIdLive> > UserIds;
+	TArray<TSharedRef<const FUniqueNetIdLive> > UserIds;
 	UserReputationMap UsersWithBadReputations;
 };

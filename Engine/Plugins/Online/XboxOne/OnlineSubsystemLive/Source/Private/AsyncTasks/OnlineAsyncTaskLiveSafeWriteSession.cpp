@@ -29,23 +29,30 @@ FOnlineAsyncTaskLiveSafeWriteSession::FOnlineAsyncTaskLiveSafeWriteSession(
 	check(Subsystem);
 	bWasSuccessful = true;
 
-	auto NamedSession = Subsystem->GetSessionInterfaceLive()->GetNamedSession(SessionName);
-
-	auto LiveInfo = NamedSession ? StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo) : nullptr;
+	FNamedOnlineSession* NamedSession = Subsystem->GetSessionInterfaceLive()->GetNamedSession(SessionName);
+	TSharedPtr<FOnlineSessionInfoLive> LiveInfo = NamedSession ? StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo) : nullptr;
 	FOnlineMatchTicketInfoPtr MatchTicket;
-	Subsystem->GetMatchmakingInterfaceLive()->GetMatchmakingTicket(SessionName, MatchTicket);
+
 	if (LiveInfo.IsValid())
 	{
 		SessionReference = LiveInfo->GetLiveMultiplayerSessionRef();
 	}
-
-	// Use match or game session as appropriate
-	else if (MatchTicket.IsValid())
-	{
-		SessionReference = MatchTicket->GetLiveSessionRef();
-	}
 	else
 	{
+		// Use match or game session as appropriate
+		Subsystem->GetMatchmakingInterfaceLive()->GetMatchmakingTicket(SessionName, MatchTicket);
+		if (MatchTicket.IsValid())
+		{
+			SessionReference = MatchTicket->GetLiveSessionRef();
+		}
+	}
+	
+	if (!SessionReference)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineAsyncTaskLiveSafeWriteSession(): Unable to find SessionReference from LiveInfo (%s named session, %s live info) or MatchTicket (%s match ticket)"),
+			NamedSession ? TEXT("has") : TEXT("no"),
+			LiveInfo.IsValid() ? TEXT("has") : TEXT("no"),
+			MatchTicket.IsValid() ? TEXT("has") : TEXT("no"));
 		OnFailed();
 	}
 }
@@ -165,5 +172,8 @@ void FOnlineAsyncTaskLiveSafeWriteSession::Finalize()
 
 void FOnlineAsyncTaskLiveSafeWriteSession::Initialize()
 {
-	Retry(true);
+	if (!bIsComplete)
+	{
+		Retry(true);
+	}
 }

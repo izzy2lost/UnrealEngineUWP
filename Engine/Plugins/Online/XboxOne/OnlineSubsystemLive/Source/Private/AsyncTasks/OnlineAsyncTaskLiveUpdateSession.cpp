@@ -37,10 +37,14 @@ FOnlineAsyncTaskLiveUpdateSession::FOnlineAsyncTaskLiveUpdateSession(
 
 bool FOnlineAsyncTaskLiveUpdateSession::UpdateSession(MultiplayerSession^ Session)
 {
-	FOnlineSessionLive::WriteSettingsToLiveJson( UpdatedSessionSettings, Session, nullptr );
-	// @ATG_CHANGE : BEGIN Allow modifying session visibility/joinability
-	FOnlineSessionLive::WriteSessionPrivacySettingsToLiveJson(UpdatedSessionSettings, Session);
-	// @ATG_CHANGE : END
+	FOnlineSessionLive::WriteSettingsToLiveJson(UpdatedSessionSettings, Session, nullptr);
+
+	// Write new session Joinability and Readability
+	MultiplayerSessionRestriction SessionRestriction = FOnlineSessionLive::GetLiveSessionRestrictionFromSettings(UpdatedSessionSettings);
+	Session->SessionProperties->JoinRestriction = SessionRestriction;
+	Session->SessionProperties->ReadRestriction = SessionRestriction;
+
+	// TODO: there might be other good things to update here?
 
 	return true;
 }

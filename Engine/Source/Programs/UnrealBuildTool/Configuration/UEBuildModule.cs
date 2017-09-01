@@ -197,7 +197,7 @@ namespace UnrealBuildTool
 			PublicAdditionalBundleResources = InRules.AdditionalBundleResources == null ? new HashSet<UEBuildBundleResource>() : new HashSet<UEBuildBundleResource>(InRules.AdditionalBundleResources);
 			PublicDelayLoadDLLs = HashSetFromOptionalEnumerableStringParameter(InRules.PublicDelayLoadDLLs);
 			PrivateIncludePaths = HashSetFromOptionalEnumerableStringParameter(InRules.PrivateIncludePaths);
-			RuntimeDependencies = (InRules.RuntimeDependencies == null) ? new RuntimeDependencyList() : new RuntimeDependencyList(InRules.RuntimeDependencies);
+			RuntimeDependencies = InRuntimeDependencies;
 			// @ATG_CHANGE : BEGIN - winmd support
 			PublicWinMDReferences = HashSetFromOptionalEnumerableStringParameter(InRules.PublicWinMDReferences);
 			PrivateWinMDReferences = HashSetFromOptionalEnumerableStringParameter(InRules.PrivateWinMDReferences);

@@ -62,6 +62,9 @@ public:
 
 	void SyncInitialSessionState(FName SessionName, Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ Session);
 
+	void SubscribeAllUsersToMultiplayerEvents();
+	void UnsubscribeAllUsersFromMultiplayerEvents();
+
 PACKAGE_SCOPE:
 	uint64 GetLastProcessedChangeNumber(const FString& Branch);
 	void SetLastProcessedChangeNumber(const FString& Branch, uint64 ChangeNumber);

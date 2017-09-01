@@ -137,6 +137,11 @@ public:
 		Platform::String^ get();
 	}
 
+	property ::Windows::Gaming::Input::Gamepad^ Gamepad
+	{
+		::Windows::Gaming::Input::Gamepad^ get();
+	}
+
 	static property ::Windows::Foundation::Collections::IVectorView<Controller^>^ Controllers
 	{
 		::Windows::Foundation::Collections::IVectorView<Controller^>^ get();
@@ -146,18 +151,12 @@ public:
 	static event ::Windows::Foundation::EventHandler<ControllerRemovedEventArgs^>^ ControllerRemoved;
 	static event ::Windows::Foundation::EventHandler<ControllerPairingChangedEventArgs^>^ ControllerPairingChanged;
 
-
 internal:
 	Controller(
 		uint32 id,
 		::Windows::Gaming::Input::Gamepad^ gamepad
 	);
 	
-	property ::Windows::Gaming::Input::Gamepad^ Gamepad
-	{
-		::Windows::Gaming::Input::Gamepad^ get();
-	}
-
 private:
 	::Windows::System::User^ _priorUser;
 	::Windows::Foundation::EventRegistrationToken _gamepadUserChangedEventToken;

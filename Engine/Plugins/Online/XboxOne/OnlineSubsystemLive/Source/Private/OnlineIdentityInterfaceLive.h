@@ -9,8 +9,9 @@
 
 class FUserOnlineAccountLive;
 
-class FOnlineIdentityLive :
-	public IOnlineIdentity
+class FOnlineIdentityLive
+	: public IOnlineIdentity
+	, public TSharedFromThis<FOnlineIdentityLive, ESPMode::ThreadSafe>
 {
 PACKAGE_SCOPE:
 
@@ -72,12 +73,12 @@ private:
 	 */
 	void HandleAppResume();
 
+PACKAGE_SCOPE:
 	/**
 	 * Refresh cached Gamepads and Users when LIVE events fire
 	 */
 	void RefreshGamepadsAndUsers();
 
-PACKAGE_SCOPE:
 	/**
 	 * Searches the cache of User^s for one that matches the UniqueId and returns it if found.
 	 *
@@ -114,97 +115,106 @@ PACKAGE_SCOPE:
 	int32 GetControllerIndexForId(const FUniqueNetId& PlayerId) const;
 
 	/**
+	 * Helper method to translate an Xbox User^ to PlatformUserId
+	 *
+	 * @param InUser the user to look up
+	 *
+	 * @return The platform user id associated with the user, or PLATFORMUSERID_NONE if not found.
+	 */
+	FPlatformUserId GetPlatformUserIdFromXboxUser(Windows::Xbox::System::User^ InUser) const;
+
+	/**
 	 * Helper method to get the current cached list of users
 	 *
 	 * @return The cached list of users
 	 */
 	Windows::Foundation::Collections::IVectorView<Windows::Xbox::System::User^>^ GetCachedUsers() const;
 
-	/**
-	 * Callback for handling the Controller connection / disconnection
-	 *
-	 * @param Connected true for a connection, false for a disconnection.
-	 * @param UserID the user ID affected by the connection change (-1 for disconnects)
-	 * @param ControllerId the ID for the controller that triggered the event
-	 */
-	void OnControllerConnectionChange( bool Connected, int32 UserId, int32 ControllerId);
-
 private:
-	/**
-	 * Async event that notifies when a user has been added. Using a task for this because
-	 * we need the delegates to be executed on the game thread.
-	 */
-	class FAsyncEventUserAdded : public FOnlineAsyncEvent<FOnlineSubsystemLive>
-	{
-	private:
-		Windows::Xbox::System::UserAddedEventArgs^ Args;
-
-	public:
-		FAsyncEventUserAdded(FOnlineSubsystemLive* InLiveSubsystem, Windows::Xbox::System::UserAddedEventArgs^ InArgs);
-
-		virtual void Finalize() override;
-		virtual FString ToString() const override;
-		virtual void TriggerDelegates() override;
-	};
 
 	/**
-	 * Async event that notifies when a user has been added. Using a task for this because
-	 * we need the delegates to be executed on the game thread.
+	 * Hook into engine initialization completion to add input delegates
 	 */
-	class FAsyncEventUserRemoved : public FOnlineAsyncEvent<FOnlineSubsystemLive>
-	{
-	private:
-		Windows::Xbox::System::UserRemovedEventArgs^ Args;
+	void OnEngineInitComplete();
 
-	public:
-		FAsyncEventUserRemoved(FOnlineSubsystemLive* InLiveSubsystem, Windows::Xbox::System::UserRemovedEventArgs^ InArgs);
+	/** Create an FUserOnlineAccount for an Xbox User^ */
+	bool AddUserAccount(Windows::Xbox::System::User^ InUser);
 
-		virtual void Finalize() override;
-		virtual FString ToString() const override;
-		virtual void TriggerDelegates() override;
-	};
+	/** Remove an FUserOnlineAccount for an Xbox User^ */
+	bool RemoveUserAccount(Windows::Xbox::System::User^ InUser);
 
 	/**
-	 * Async event that notifies when a user has been added. Using a task for this because
-	 * we need the delegates to be executed on the game thread.
+	 * Delegate fired when the input system adds a new user
+	 *
+	 * @param InUserAdded pointer to Xbox user added to the system
 	 */
-	class FAsyncEventControllerPairingChanged : public FOnlineAsyncEvent<FOnlineSubsystemLive>
-	{
-	private:
-		Windows::Xbox::Input::ControllerPairingChangedEventArgs^ Args;
+	void OnUserAdded(Windows::Xbox::System::User^ InUserAdded);
 
-	public:
-		FAsyncEventControllerPairingChanged(FOnlineSubsystemLive* InLiveSubsystem, Windows::Xbox::Input::ControllerPairingChangedEventArgs^ InArgs);
+	/**
+	 * Delegate fired when the input system adds a new user
+	 *
+	 * @param InUserRemoved pointer to Xbox user removed from the system
+	 */
+	void OnUserRemoved(Windows::Xbox::System::User^ InUserRemoved);
 
-		virtual void Finalize() override;
-		virtual FString ToString() const override;
-		virtual void TriggerDelegates() override;
-	};
+	/**
+	* Callback for handling the Controller connection / disconnection
+	*
+	* @param Connected true for a connection, false for a disconnection.
+	* @param UserID the user ID affected by the connection change (-1 for disconnects)
+	* @param ControllerId the ID for the controller that triggered the event
+	*/
+	void OnControllerConnectionChange(bool Connected, int32 UserId, int32 ControllerId);
+
+	/**
+	 * Delegate fired when the input system notes a controller pairing change
+	 * Can be multiple firings for one "action"  (olduser->null) then (null->newuser)
+	 * User can be the same user (when connecting the USB cable for instance)
+	 *
+	 * @param InControllerIndex the controller index from the input system
+	 * @param InNewUserId platform user id for the new pairing (can be invalid)
+	 * @param InOldUserId platform user id for the old pairing (can be invalid)
+	 */
+	void OnControllerPairingChange(int32 InControllerIndex, FPlatformUserId InNewUserId, FPlatformUserId InOldUserId);
+
+	/**
+	 * Callback for querying the bOverallReputationIsBad state for our local users.
+	 * If the user's bool is true, they are considered a bad user.
+	 * 
+	 * @param UserIsBadMap A Map of live net ids to a bool if they are bad or not
+	 */
+	void OnReputationQueryComplete(const TMap<const FUniqueNetIdLive, bool>& UserIsBadMap);
 
 	/** Cached list of users */
 	Windows::Foundation::Collections::IVectorView<Windows::Xbox::System::User^>^ CachedUsers;
 
-	/** Lock for updating/reading CachedUsers vector */
-	mutable FCriticalSection CachedUsersLock;
-
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_UWP
 	/** Stored token used to remove the task later */
 	Windows::Foundation::EventRegistrationToken TaskTokenUserRemoved;
 
 	/** Stored token used to remove the task later */
 	Windows::Foundation::EventRegistrationToken TaskTokenUserAdded;
+#endif
+// @ATG_CHANGE : END
 
-	/** Stored token used to remove the task later */
-	Windows::Foundation::EventRegistrationToken TaskTokenControllerPairingChanged;
+	/** Lock for updating/reading CachedUsers vector */
+	mutable FCriticalSection CachedUsersLock;
 
 	/** Stored delegate handle to remove the task later */
+	FDelegateHandle AppInitComplete;
+	FDelegateHandle UserAdded;
+	FDelegateHandle UserRemoved;
 	FDelegateHandle ControllerConnectionChanged;
+	FDelegateHandle ControllerPairingChanged;
 
 PACKAGE_SCOPE:
 	FString LoginXSTSEndpoint;
 
 private:
 	/** Map of online user accounts (using user id as key) */
-	TMap<FUniqueNetIdLive, TSharedPtr<FUserOnlineAccount> > OnlineUsers;
+	typedef TMap<FUniqueNetIdLive, TSharedRef<FUserOnlineAccountLive> > LiveUserAccountMap;
+	LiveUserAccountMap OnlineUsers;
 
 };
 
@@ -238,6 +248,12 @@ public:
 	virtual bool GetUserAttribute(const FString& AttrName, FString& OutAttrValue) const override;
 	/** Sets the user's access token, used to verify their authentication */
 	void SetAccessToken(const FString& AuthToken);
+
+	/** Set if this user has bad reputation or not */
+	void SetBadReputation(const bool bIsBadReputation);
+
+	/** Check if this user has his reputation state set, and if so, what the value is */
+	TOptional<bool> GetIsBadReputation() const;
 
 	/**
 	 * Init/default constructor

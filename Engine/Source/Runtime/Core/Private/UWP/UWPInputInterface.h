@@ -4,6 +4,7 @@
 
 #include "GenericPlatform/IInputInterface.h"
 #include "GenericPlatform/GenericApplicationMessageHandler.h"
+#include "Math/Color.h"
 
 /**
  * Interface class for input devices.
@@ -39,13 +40,16 @@ public:
 public:
 
 	/** Platform-specific code can call this function to get the Gamepad^ associated with a UserId, if any. */
-	Windows::Gaming::Input::Gamepad^ GetGamepadForUser(const int UserId);
+	//Windows::Gaming::Input::Gamepad^ GetGamepadForUser(const int UserId);
 
 	/** Platform-specific code can call this function to get the UserId associated with a Gamepad^, if any. */
 	int GetUserIdForController(Windows::Gaming::Input::Gamepad^ Controller);
 
 	/** Platform-specific backdoor to get the FPlatformUserId from an XboxUserId */
-	FPlatformUserId GetPlatformUserIdFromXboxUserId(const TCHAR* XboxUserId);
+	//FPlatformUserId GetPlatformUserIdFromXboxUserId(const TCHAR* XboxUserId);
+
+	/** Platform-specific code can call this function to get the Controller^ associated with a ControllerIndex, if any. */
+	Windows::Gaming::Input::Gamepad^ GetGamepadForControllerId(int32 ControllerId);
 
 private:
 

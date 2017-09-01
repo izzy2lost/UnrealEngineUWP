@@ -393,32 +393,36 @@ namespace UWP.Automation
 			foreach (StageTarget Target in SC.StageTargets)
 			{
 				SC.StageBuildProductsFromReceipt(Target.Receipt, Target.RequireFilesExist, Params.bTreatNonShippingBinariesAsDebugFiles);
-				DeployExports.AddWinMDReferencesFromReceipt(Target.Receipt, Params.RawProjectPath.Directory, SC.LocalRoot);
+				DeployExports.AddWinMDReferencesFromReceipt(Target.Receipt, Params.RawProjectPath.Directory, SC.LocalRoot.FullName);
 			}
 			List<string> FullExePaths = new List<string>();
 			foreach (string ExecutablePath in SC.StageExecutables)
 			{
 				FullExePaths.Add(Path.Combine(Params.ProjectBinariesFolder, ExecutablePath + Platform.GetExeExtension(SC.StageTargetPlatform.PlatformType)));
 			}
-			DeployExports.PrepForUATPackageOrDeploy(Params.RawProjectPath, Params.ShortProjectName, SC.ProjectRoot, SC.StageTargetConfigurations, FullExePaths,
+			DeployExports.PrepForUATPackageOrDeploy(Params.RawProjectPath, Params.ShortProjectName, SC.ProjectRoot.FullName, SC.StageTargetConfigurations, FullExePaths,
 				SC.LocalRoot + "/Engine", Params.Distribution, "", Params.Deploy);
 
 			// Stage UWP-specific assets (tile, splash, etc.)
-			string assetsPath = Path.Combine(Params.ProjectBinariesFolder, "Resources");
-			SC.StageFiles(StagedFileType.NonUFS, assetsPath, "*.png", true, null, "Resources");
+			DirectoryReference assetsPath = new DirectoryReference(Path.Combine(Params.ProjectBinariesFolder, "Resources"));
+            StagedDirectoryReference stagedAssetPath = new StagedDirectoryReference("Resources");
+			SC.StageFiles(StagedFileType.NonUFS, assetsPath, "*.png", true, null, stagedAssetPath);
 
-			SC.StageFile(StagedFileType.NonUFS, Path.Combine(Params.ProjectBinariesFolder, "AppxManifest.xml"), "AppxManifest.xml");
-			SC.StageFile(StagedFileType.NonUFS, Path.Combine(Params.ProjectBinariesFolder, "resources.pri"), "resources.pri");
 
-			string SourceNetworkManifestPath = Path.Combine(Params.ProjectBinariesFolder, "NetworkManifest.xml");
-			if (File.Exists(SourceNetworkManifestPath))
+			SC.StageFile(StagedFileType.NonUFS, new FileReference( Path.Combine(Params.ProjectBinariesFolder, "AppxManifest.xml")), 
+                new StagedFileReference("AppxManifest.xml"));
+			SC.StageFile(StagedFileType.NonUFS, new FileReference( Path.Combine(Params.ProjectBinariesFolder, "resources.pri")), 
+                new StagedFileReference("resources.pri"));
+
+			FileReference SourceNetworkManifestPath = new FileReference(Path.Combine(Params.ProjectBinariesFolder, "NetworkManifest.xml"));
+			if (FileReference.Exists(SourceNetworkManifestPath))
 			{
-				SC.StageFile(StagedFileType.NonUFS, SourceNetworkManifestPath, "NetworkManifest.xml");
+				SC.StageFile(StagedFileType.NonUFS, SourceNetworkManifestPath, new StagedFileReference("NetworkManifest.xml"));
 			}
-			string SourceXboxConfigPath = Path.Combine(Params.ProjectBinariesFolder, "xboxservices.config");
-			if (File.Exists(SourceXboxConfigPath))
+			FileReference SourceXboxConfigPath = new FileReference(Path.Combine(Params.ProjectBinariesFolder, "xboxservices.config"));
+			if (FileReference.Exists(SourceXboxConfigPath))
 			{
-				SC.StageFile(StagedFileType.NonUFS, SourceXboxConfigPath, "xboxservices.config");
+				SC.StageFile(StagedFileType.NonUFS, SourceXboxConfigPath, new StagedFileReference("xboxservices.config"));
 			}
 		}
 
@@ -430,12 +434,12 @@ namespace UWP.Automation
 		public override void Package(ProjectParams Params, DeploymentContext SC, int WorkingCL)
 		{
 			FileReference MakeAppXPath = UWPExports.GetWindowsSdkToolPath("makeappx.exe");
-			string OutputAppX = Path.Combine(SC.StageDirectory, Params.ShortProjectName + ".appx");
+			string OutputAppX = Path.Combine(SC.StageDirectory.FullName, Params.ShortProjectName + ".appx");
 			string MakeAppXCommandLine = string.Format(@"pack /o /d ""{0}"" /p ""{1}""", SC.StageDirectory, OutputAppX);
 			RunAndLog(CmdEnv, MakeAppXPath.FullName, MakeAppXCommandLine, null, 0, null, ERunOptions.None);
 
 			string SigningCertificate = @"Build\UWP\SigningCertificate.pfx";
-			string SigningCertificatePath = Path.Combine(SC.ProjectRoot, SigningCertificate);
+			string SigningCertificatePath = Path.Combine(SC.ProjectRoot.FullName, SigningCertificate);
 			if (!File.Exists(SigningCertificatePath))
 			{
 				if (!IsBuildMachine && !Params.Unattended)
@@ -463,11 +467,11 @@ namespace UWP.Automation
 			}
 
 			// Emit a .cer file adjacent to the appx so it can be installed to enable packaged deployment
-			System.Security.Cryptography.X509Certificates.X509Certificate2 ActualCert = new System.Security.Cryptography.X509Certificates.X509Certificate2(Path.Combine(SC.ProjectRoot, SigningCertificate));
-			File.WriteAllText(Path.Combine(SC.StageDirectory, Params.ShortProjectName + ".cer"), Convert.ToBase64String(ActualCert.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Cert)));
+			System.Security.Cryptography.X509Certificates.X509Certificate2 ActualCert = new System.Security.Cryptography.X509Certificates.X509Certificate2(Path.Combine(SC.ProjectRoot.FullName, SigningCertificate));
+			File.WriteAllText(Path.Combine(SC.StageDirectory.FullName, Params.ShortProjectName + ".cer"), Convert.ToBase64String(ActualCert.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Cert)));
 
 			FileReference SignToolPath = UWPExports.GetWindowsSdkToolPath("signtool.exe");
-			string SignToolCommandLine = string.Format(@"sign /a /f ""{0}"" /fd SHA256 ""{1}""", Path.Combine(SC.ProjectRoot, SigningCertificate), OutputAppX);
+			string SignToolCommandLine = string.Format(@"sign /a /f ""{0}"" /fd SHA256 ""{1}""", Path.Combine(SC.ProjectRoot.FullName, SigningCertificate), OutputAppX);
 			RunAndLog(CmdEnv, SignToolPath.FullName, SignToolCommandLine, null, 0, null, ERunOptions.None);
 
 			// If the user indicated that they will distribute this build, then let's also generate an
@@ -476,7 +480,7 @@ namespace UWP.Automation
 			if (Params.Distribution)
 			{
 				List<FileReference> SymbolFilesToZip = new List<FileReference>();
-				DirectoryReference StageDirRef = new DirectoryReference(SC.StageDirectory);
+				DirectoryReference StageDirRef = new DirectoryReference(SC.StageDirectory.FullName);
 				DirectoryReference PublicSymbols = DirectoryReference.Combine(StageDirRef, "PublicSymbols");
 				CreateDirectory_NoExceptions(PublicSymbols.FullName);
 				foreach (StageTarget Target in SC.StageTargets)
@@ -485,7 +489,7 @@ namespace UWP.Automation
 					{
 						if (Product.Type == BuildProductType.SymbolFile)
 						{
-							FileReference FullSymbolFile = new FileReference(Product.Path);
+							FileReference FullSymbolFile = new FileReference(Product.Path.FullName);
 							FileReference TempStrippedSymbols = FileReference.Combine(PublicSymbols, FullSymbolFile.GetFileName());
 							StripSymbols(FullSymbolFile, TempStrippedSymbols);
 							SymbolFilesToZip.Add(TempStrippedSymbols);
@@ -524,24 +528,17 @@ namespace UWP.Automation
 			return ProcResult;
 		}
 
-		public override List<string> GetExecutableNames(DeploymentContext SC, bool bIsRun = false)
+        public override List<FileReference> GetExecutableNames(DeploymentContext SC)
 		{
-			if (bIsRun)
-			{
-				// If we're calling this for the purpose of running the app then the string we really
-				// need is the AUMID.  We can't form a full AUMID here without making assumptions about 
-				// how the PFN is built, which (while straightforward) does not appear to be officially
-				// documented.  So we'll save off the path to the manifest, which the launch process can
-				// parse later for information that, in conjunction with the target device, will allow
-				// for looking up the true AUMID.
-				List<string> Exes = new List<string>();
-				Exes.Add(GetAppxManifestPath(SC));
-				return Exes;
-			}
-			else
-			{
-				return base.GetExecutableNames(SC, bIsRun);
-			}
+			// If we're calling this for the purpose of running the app then the string we really
+			// need is the AUMID.  We can't form a full AUMID here without making assumptions about 
+			// how the PFN is built, which (while straightforward) does not appear to be officially
+			// documented.  So we'll save off the path to the manifest, which the launch process can
+			// parse later for information that, in conjunction with the target device, will allow
+			// for looking up the true AUMID.
+			List<FileReference> Exes = new List<FileReference>();
+			Exes.Add(new FileReference(GetAppxManifestPath(SC)));
+			return Exes;
 		}
 
 		public override bool IsSupported { get { return true; } }
@@ -662,7 +659,7 @@ namespace UWP.Automation
 				}
 				else
 				{
-					string PackagePath = Path.Combine(SC.StageDirectory, Params.ShortProjectName + ".appx");
+					string PackagePath = Path.Combine(SC.StageDirectory.FullName, Params.ShortProjectName + ".appx");
 
 					List<Uri> Dependencies = new List<Uri>();
 					TargetRules Rules = Params.ProjectTargets[TargetType.Game].Rules;
@@ -705,8 +702,8 @@ namespace UWP.Automation
 				{
 					portal.ConnectAsync().Wait();
 
-					string PackagePath = Path.Combine(SC.StageDirectory, Params.ShortProjectName + ".appx");
-					string CertPath = Path.Combine(SC.StageDirectory, Params.ShortProjectName + ".cer");
+					string PackagePath = Path.Combine(SC.StageDirectory.FullName, Params.ShortProjectName + ".appx");
+					string CertPath = Path.Combine(SC.StageDirectory.FullName, Params.ShortProjectName + ".cer");
 
 					List<string> Dependencies = new List<string>();
 					TargetRules Rules = Params.ProjectTargets[TargetType.Game].Rules;
@@ -845,12 +842,12 @@ namespace UWP.Automation
 
 		private string GetAppxManifestPath(DeploymentContext SC)
 		{
-			return Path.Combine(SC.Stage ? SC.StageDirectory : SC.ProjectBinariesFolder, "AppxManifest.xml");
+			return Path.Combine(SC.Stage ? SC.StageDirectory.FullName : SC.ProjectBinariesFolder.FullName, "AppxManifest.xml");
 		}
 
 		private void GetPackageInfo(string AppxManifestPath, out string Name, out string Publisher, out string PrimaryAppId)
 		{
-			System.Xml.Linq.XDocument Doc = System.Xml.Linq.XDocument.Load(AppxManifestPath);
+            System.Xml.Linq.XDocument Doc = System.Xml.Linq.XDocument.Load(AppxManifestPath);
 			System.Xml.Linq.XElement Package = Doc.Root;
 			System.Xml.Linq.XElement Identity = Package.Element(System.Xml.Linq.XName.Get("Identity", Package.Name.NamespaceName));
 			Name = Identity.Attribute("Name").Value;

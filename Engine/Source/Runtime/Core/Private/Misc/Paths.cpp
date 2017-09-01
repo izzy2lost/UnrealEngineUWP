@@ -1156,7 +1156,9 @@ bool FPaths::IsSamePath(const FString& PathA, const FString& PathB)
 	MakeStandardFilename(TmpA);
 	MakeStandardFilename(TmpB);
 
-#if PLATFORM_WINDOWS || PLATFORM_XBOXONE
+// @ATG_CHANGE : BEGIN UWP support 
+#if PLATFORM_WINDOWS || PLATFORM_XBOXONE || PLATFORM_UWP
+// @ATG_CHANGE : END
 	return FCString::Stricmp(*TmpA, *TmpB) == 0;
 #else
 	return FCString::Strcmp(*TmpA, *TmpB) == 0;

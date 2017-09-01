@@ -34,7 +34,13 @@ namespace UnrealBuildTool
 		/// </summary>
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/UWPPlatformEditor.UWPTargetSettings", "bBuildForRetailWindowsStore")]
 		public bool bBuildForRetailWindowsStore = false;
-	}
+
+        /// <summary>
+        /// Controls whether to use XIM for Xbox Live multiplayer and chat.
+        /// </summary>
+        [ConfigFile(ConfigHierarchyType.Engine, "/Script/UWPPlatformEditor.UWPTargetSettings", "bUseXim")]
+        public readonly bool bUseXim = false;
+    }
 
 	/// <summary>
 	/// Read-only wrapper for UWP-specific target settings
@@ -76,11 +82,16 @@ namespace UnrealBuildTool
 		{
 			get { return Inner.bBuildForRetailWindowsStore; }
 		}
+
+        public bool bUseXim
+        {
+            get { return Inner.bUseXim; }
+        }
 #if !__MonoCS__
 #pragma warning restore CS1591
 #endif
-		#endregion
-	}
+        #endregion
+    }
 
 	class UniversalWindowsPlatform : UEBuildPlatform
 	{

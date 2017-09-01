@@ -41,10 +41,6 @@ struct FUWPPlatformProperties : public FGenericPlatformProperties
 	{
 		return false; // Requires expand from G8 to RGBA
 	}
-	static FORCEINLINE const char* GetPhysicsFormat()
-	{
-		return "PhysXUWP";
-	}
 
 	static FORCEINLINE bool HasFixedResolution()
 	{

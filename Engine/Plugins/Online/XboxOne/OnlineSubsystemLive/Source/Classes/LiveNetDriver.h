@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 //
 // Xbox One based implementation of the net driver
@@ -15,4 +15,7 @@ class ULiveNetDriver : public UIpNetDriver
 	GENERATED_UCLASS_BODY()
 
 	virtual int GetClientPort() override;
+	// @ATG_CHANGE : BEGIN Adding XIM
+	virtual bool InitConnectionClass() override;
+	// @ATG_CHANGE : END
 };

@@ -37,21 +37,6 @@ namespace UnrealBuildTool
 			// in object file sizes (and link times) due to the amount of stuff we inline.
 			Arguments.Add("/Zc:inline");
 
-			if (CompileEnvironment.bEnableCodeAnalysis)
-			{
-				Arguments.Add("/analyze");
-
-				// Don't cause analyze warnings to be errors
-				Arguments.Add("/analyze:WX-");
-
-				// Report functions that use a LOT of stack space.  You can lower this value if you
-				// want more aggressive checking for functions that use a lot of stack memory.
-				Arguments.Add("/analyze:stacksize81940");
-
-				// Don't bother generating code, only analyze code (may report fewer warnings though.)
-				//Arguments.Add("/analyze:only");
-			}
-
 			// Prevents the compiler from displaying its logo for each invocation.
 			Arguments.Add("/nologo");
 

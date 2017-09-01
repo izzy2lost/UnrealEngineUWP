@@ -29,6 +29,11 @@ PACKAGE_SCOPE:
 	 */
 	explicit FOnlineUserPresenceLive(Microsoft::Xbox::Services::Presence::PresenceRecord^ Record)
 	{
+		SetPresenceFromPresenceRecord(Record);
+	}
+
+	void SetPresenceFromPresenceRecord(Microsoft::Xbox::Services::Presence::PresenceRecord^ Record)
+	{
 		switch (Record->UserState)
 		{
 		case Microsoft::Xbox::Services::Presence::UserPresenceState::Online:
@@ -105,6 +110,11 @@ PACKAGE_SCOPE:
 	// @ATG_CHANGE : Improved Social support - BEGIN
 	explicit FOnlineUserPresenceLive(Microsoft::Xbox::Services::Social::Manager::SocialManagerPresenceRecord^ Record);
 	// @ATG_CHANGE : END
+
+	/**
+	 * Add status key/value properties based on Xbox statistics.
+	 */
+	void SetStatusPropertiesFromStatistics(Microsoft::Xbox::Services::UserStatistics::UserStatisticsResult^ StatsResult);
 };
 
 /**
@@ -134,6 +144,13 @@ public:
 	virtual void QueryPresence(const FUniqueNetId& User, const FOnPresenceTaskCompleteDelegate& Delegate = FOnPresenceTaskCompleteDelegate()) override;
 	virtual EOnlineCachedResult::Type GetCachedPresence(const FUniqueNetId& User, TSharedPtr<FOnlineUserPresence>& OutPresence) override;
 	virtual EOnlineCachedResult::Type GetCachedPresenceForApp(const FUniqueNetId& LocalUserId, const FUniqueNetId& User, const FString& AppId, TSharedPtr<FOnlineUserPresence>& OutPresence) override;
+
+	/**
+	 * Returns an IVectorView of statistic names that have been set by the PresenceStats array in the [OnlineSubsystemLive] config section.
+	 * This view is suitable for passing to GetSingleUserStatisticsAsync, GetMultipleUserStatisticsAsync, or related functions.
+	 * These stats should be added as properties in the FOnlineUserPresence results of presence queries.
+	 */
+	static Windows::Foundation::Collections::IVectorView<Platform::String^>^ GetConfiguredPresenceStatNames();
 
 PACKAGE_SCOPE:
 	void OnPresenceDeviceChanged(Microsoft::Xbox::Services::Presence::DevicePresenceChangeEventArgs^ Args);
@@ -184,59 +201,13 @@ private:
 		virtual void TriggerDelegates() override;
 	};
 
-	/**
-	 *	Async event that notifies when a Query presence operation has completed.
-	 */
-	class FAsyncEventQueryCompleted : public FOnlineAsyncEvent<FOnlineSubsystemLive>
-	{
-		/** Hidden on purpose */
-		FAsyncEventQueryCompleted() = delete;
-
-		/** The collection of user ids requested */
-		FUniqueNetIdLive User;
-
-		/** The PresenceRecord retrieved for the user. */
-		Microsoft::Xbox::Services::Presence::PresenceRecord^ Record;
-
-		/** True if the set presence operation succeeded, false if it didn't. */
-		bool bWasSuccessful;
-
-		/** Delegate to execute on the game thread to notify it that the operation is complete. */
-		FOnPresenceTaskCompleteDelegate Delegate;
-
-	public:
-		/**
-		 * Constructor.
-		 *
-		 * @param InLiveSubsystem The owner of the external UI interface that triggered this event.
-		 * @param InUsers The users whose presence was retrieved.
-		 * @param InRecord The presence information for the user.
-		 * @param InWasSuccessful True if the set presence operation succeeded, false if it didn't.
-		 */
-		FAsyncEventQueryCompleted(FOnlineSubsystemLive* InLiveSubsystem,
-								  const FUniqueNetId& InUser,
-								  Microsoft::Xbox::Services::Presence::PresenceRecord^ InRecord,
-								  const bool InWasSuccessful,
-								  const FOnPresenceTaskCompleteDelegate& InDelegate) :
-			FOnlineAsyncEvent(InLiveSubsystem),
-			User(InUser),
-			Record(InRecord),
-			bWasSuccessful(InWasSuccessful),
-			Delegate(InDelegate)
-		{
-		}
-
-		virtual void Finalize() override;
-		virtual FString ToString() const override;
-		virtual void TriggerDelegates() override;
-	};
-
 PACKAGE_SCOPE:
 	/** Reference to the owning subsystem */
 	class FOnlineSubsystemLive* LiveSubsystem;
 
 private:
 	friend class FOnlineAsyncTaskLiveQueryFriendManagerTask;
+	friend class FOnlineAsyncTaskLiveQueryPresence;
 
 	TArray<FDelegateHandle> FriendSessionDelegateHandles;
 

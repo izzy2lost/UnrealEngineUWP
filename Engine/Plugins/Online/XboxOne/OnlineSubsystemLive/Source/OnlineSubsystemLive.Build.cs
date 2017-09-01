@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
 using System.IO;
@@ -14,14 +14,13 @@ public class OnlineSubsystemLive : ModuleRules
 
 	public OnlineSubsystemLive(ReadOnlyTargetRules Target) : base(Target)
 	{
-		// @ATG_CHANGE : BEGIN XSAPI (decoupled from XDK) lives inside the OSSLive plugin.
 		Definitions.Add("ONLINESUBSYSTEMLIVE_PACKAGE=1");
+		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		// @ATG_CHANGE : BEGIN XSAPI (decoupled from XDK) lives inside the OSSLive plugin.
 		// Use alternate MS implementation of social features that leverages
 		// XSAPI manager type to limit service calls and extend feature set.
-		Definitions.Add("USE_SOCIAL_MANAGER=1");
-
-		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+		//Definitions.Add("USE_SOCIAL_MANAGER=1");
 
 		if (Target.Platform == UnrealTargetPlatform.XboxOne)
 		{
@@ -33,21 +32,23 @@ public class OnlineSubsystemLive : ModuleRules
 		// Modules our Privates require
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
-			"Core",
-			"Engine",
-			"Sockets",
-			"OnlineSubsystemUtils",
-			"Voice",
-			"Projects"
+				"Core",
+				"Engine",
+				"Sockets",
+				"OnlineSubsystemUtils",
+				"Voice",
+				"Projects",
+				"HTTP"
 			}
 			);
 
 		// Modules our Publics require
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
-			"OnlineSubsystem",
-			}
-			);
+				"OnlineSubsystem",
+                "HTTP",
+            }
+            );
 
 		string WinMDReferencePathRoot = Path.Combine(ModuleDirectory, "..", "ThirdParty");
 		string RuntimeDependencyPathRoot = Path.Combine("$(PluginDir)", "ThirdParty");
@@ -90,40 +91,60 @@ public class OnlineSubsystemLive : ModuleRules
 				Log.TraceWarning(" Xbox Live SDK (version {0}) not found.  Xbox Live features will not be available.  Run Setup.bat to ensure the SDK is in the expected location.", Target.Platform == UnrealTargetPlatform.XboxOne ? XsapiVersionXboxOne : XsapiVersionUwp);
 				HasWarnedAboutLiveSdk = true;
 			}
+        }
+
+		string PlatformSubDir = string.Empty;
+		switch (Target.Platform)
+		{
+			case UnrealTargetPlatform.Win64:
+				// This case is currently used for intellisense generation.  Fall-through to UWP64 so it can find the winmd
+				PlatformSubDir = UnrealTargetPlatform.UWP64.ToString();
+				break;
+
+			case UnrealTargetPlatform.Win32:
+				PlatformSubDir = UnrealTargetPlatform.UWP32.ToString();
+				break;
+
+			default:
+				PlatformSubDir = Target.Platform.ToString();
+				break;
 		}
 
-		if (Target.Platform != UnrealTargetPlatform.XboxOne)
-		{
-			string PlatformSubDir = string.Empty;
-			switch (Target.Platform)
-			{
-				case UnrealTargetPlatform.Win64:
-					// This case is currently used for intellisense generation.  Fall-through to UWP64 so it can find the winmd
-					PlatformSubDir = UnrealTargetPlatform.UWP64.ToString();
-					break;
+		bool HasGameChat = true;
+		string GameChatSubDir = Path.Combine("GameChat", "Binaries", PlatformSubDir);
+		HasGameChat = HasGameChat && AddWinRTDllReference(GameChatSubDir, "Microsoft.Xbox.GameChat");
+		HasGameChat = HasGameChat && AddWinRTDllReference(GameChatSubDir, "Microsoft.Xbox.ChatAudio");
+		Definitions.Add(string.Format("WITH_GAME_CHAT={0}", HasGameChat ? 1 : 0));
 
-				case UnrealTargetPlatform.Win32:
-					PlatformSubDir = UnrealTargetPlatform.UWP32.ToString();
-					break;
+		string EraAdapterSubDir = Path.Combine("EraAdapter", "Binaries", PlatformSubDir);
+		AddWinRTDllReference(EraAdapterSubDir, "EraAdapter");
 
-				default:
-					PlatformSubDir = Target.Platform.ToString();
-					break;
-			}
-
-			bool HasGameChat = true;
-			string GameChatSubDir = Path.Combine("GameChat", "Binaries", PlatformSubDir);
-			HasGameChat = HasGameChat && AddWinRTDllReference(GameChatSubDir, "Microsoft.Xbox.GameChat");
-			HasGameChat = HasGameChat && AddWinRTDllReference(GameChatSubDir, "Microsoft.Xbox.ChatAudio");
-			Definitions.Add(string.Format("WITH_GAME_CHAT={0}", HasGameChat ? 1 : 0));
-
-			string EraAdapterSubDir = Path.Combine("EraAdapter", "Binaries", PlatformSubDir);
-			AddWinRTDllReference(EraAdapterSubDir, "EraAdapter");
-
-			// CppRest a little different - it's not a WinRT component, and it will need to be loaded explicitly
-			string CppRestDll = Path.Combine("ThirdParty", XSAPISubDir, string.Format("cpprest140_uwp_{0}.dll", CppRestVersion));
+        if (Target.Platform != UnrealTargetPlatform.XboxOne)
+        {
+            // CppRest a little different - it's not a WinRT component, and it will need to be loaded explicitly
+            string CppRestDll = Path.Combine("ThirdParty", XSAPISubDir, string.Format("cpprest140_uwp_{0}.dll", CppRestVersion));
 			RuntimeDependencies.Add(new RuntimeDependency(Path.Combine("$(PluginDir)", CppRestDll)));
 			Definitions.Add(string.Format(@"CPP_REST_DLL=TEXT(""{0}"")", CppRestDll.Replace(@"\", "/")));
+		}
+
+		if (UseXim(Target))
+		{
+			Definitions.Add("USE_XIM=1");
+
+			PublicIncludePaths.Add(Path.Combine(WinMDReferencePathRoot, "XIM", PackageFolder, "build", "native", "include"));
+			PublicLibraryPaths.Add(Path.Combine(WinMDReferencePathRoot, "XIM", PackageFolder, "build", "native", "lib", PackageArch, "release"));
+			PublicAdditionalLibraries.Add("xboxintegratedmultiplayer.lib");
+
+			// Xim DLL is like cpprest.
+			string XimDll = Path.Combine("ThirdParty", "XIM", PackageFolder, "build", "native", "lib", PackageArch, "release", "XboxIntegratedMultiplayer.dll");
+			RuntimeDependencies.Add(new RuntimeDependency(Path.Combine("$(PluginDir)", XimDll)));
+			PublicDelayLoadDLLs.Add("XboxIntegratedMultiplayer.dll");
+
+			Definitions.Add(string.Format(@"XIM_DLL=TEXT(""{0}"")", XimDll.Replace(@"\", "/")));
+		}
+		else
+		{
+			Definitions.Add("USE_XIM=0");
 		}
 		// @ATG_CHANGE : END
 	}
@@ -142,4 +163,20 @@ public class OnlineSubsystemLive : ModuleRules
 		return true;
 	}
 	// @ATG_CHANGE : END 
+
+	// @ATG_CHANGE : BEGIN XIM toggle
+	private bool UseXim(ReadOnlyTargetRules Target)
+	{
+		switch (Target.Platform)
+		{
+			case UnrealTargetPlatform.UWP64:
+			case UnrealTargetPlatform.UWP32:
+				return Target.UWPPlatform.bUseXim;
+
+			default:
+				return false;
+		}
+	}
+	// @ATG_CHANGE : END XIM toggle
+
 }

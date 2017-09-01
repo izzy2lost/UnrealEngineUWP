@@ -159,7 +159,7 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Microsoft.Xbox.Services">
-      <HintPath>..\..\XSAPI\UWP\build\native\lib\$(Platform)\$(PlatformToolset)\Release\Microsoft.Xbox.Services.winmd</HintPath>
+      <HintPath>..\..\XSAPI\UWP.2017.05.20170517.001\lib\$(Platform)\v140\Release\Microsoft.Xbox.Services.winmd</HintPath>
       <IsWinMDFile>true</IsWinMDFile>
     </Reference>
     <Reference Include="Windows.Networking.XboxLive.XboxLiveSecureSocketsContract">

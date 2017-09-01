@@ -427,6 +427,10 @@ namespace UnrealBuildTool
 		{
 			// Useful to be able to call this from module build.cs files where
 			// SetEnvironment hasn't been called.
+            if (!WindowsPlatform.bUseWindowsSDK10)
+            {
+                return null;
+            }
 			string SDKDir;
 			string MetadataPath = string.Empty;
 			if (EnvVars != null)

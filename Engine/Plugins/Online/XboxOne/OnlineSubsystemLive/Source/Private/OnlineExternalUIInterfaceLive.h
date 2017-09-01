@@ -30,7 +30,7 @@ private:
 		Windows::Xbox::System::IUser^ SignedInUser;
 
 		/** The controller index corresponding to the controller with which the user has signed in. */
-		int ControllerIndex;
+		//int ControllerIndex;
 
 		/** The delegate to execute when the account picker is closed. */
 		FOnLoginUIClosedDelegate Delegate;
@@ -45,10 +45,10 @@ private:
 		 * @param InControllerIndex The controller that was used to sign in.
 		 * @param InDelegate The delegate to execute on the game thread.
 		 */
-		FAsyncEventAccountPickerClosed(FOnlineSubsystemLive* InLiveSubsystem, Windows::Xbox::System::IUser^ InUser, const int InControllerIndex, const FOnLoginUIClosedDelegate& InDelegate) :
+		FAsyncEventAccountPickerClosed(FOnlineSubsystemLive* InLiveSubsystem, Windows::Xbox::System::IUser^ InUser/*, const int InControllerIndex*/, const FOnLoginUIClosedDelegate& InDelegate) :
 			FOnlineAsyncEvent(InLiveSubsystem),
 			SignedInUser(InUser),
-			ControllerIndex(InControllerIndex),
+			//ControllerIndex(InControllerIndex),
 			Delegate(InDelegate)
 		{
 		}
@@ -89,8 +89,91 @@ private:
 		virtual void TriggerDelegates() override;
 	};
 
+
+	void HandleApplicationHasReactivated_Store();
+// @ATG_CHANGE : BEGIN - UWP LIVE Support
+#if PLATFORM_XBOXONE
+	void ProductPurchased_Store(Windows::Xbox::ApplicationModel::Store::ProductPurchasedEventArgs^ Args);
+#endif
+// @ATG_CHANGE : END - UWP LIVE Support
+
+	/**
+	*	Async event that notifies when the store UI has been closed
+	*/
+	class FAsyncEventStoreUIClosed : public FOnlineAsyncEvent<FOnlineSubsystemLive>
+	{
+		/** Hidden on purpose */
+		FAsyncEventStoreUIClosed() :
+			FOnlineAsyncEvent(NULL)
+		{
+		}
+
+		/** The delegate to execute when the store UI is closed. */
+		FOnShowStoreUIClosedDelegate Delegate;
+
+		/** Whether a purchase was made */
+		bool bPurchasedProduct;
+
+	public:
+
+		/**
+		* Constructor.
+		*
+		* @param InLiveSubsystem The owner of the external UI interface that triggered this event.
+		* @param InDelegate The delegate to execute on the game thread.
+		* @param PurchasedProduct A flag determining whether a purchase was made.
+		*/
+		FAsyncEventStoreUIClosed(FOnlineSubsystemLive* InLiveSubsystem, const FOnShowStoreUIClosedDelegate& InDelegate, bool PurchasedProduct) :
+			FOnlineAsyncEvent(InLiveSubsystem),
+			Delegate(InDelegate),
+			bPurchasedProduct(PurchasedProduct)
+		{
+		}
+
+		virtual FString ToString() const override;
+		virtual void TriggerDelegates() override;
+	};
+
+	/**
+	*	Async event that notifies when the message UI has been closed
+	*/
+	class FAsyncEventSendMessageUIClosed : public FOnlineAsyncEvent<FOnlineSubsystemLive>
+	{
+		/** Hidden on purpose */
+		FAsyncEventSendMessageUIClosed() :
+			FOnlineAsyncEvent(NULL)
+		{
+		}
+
+		/** The delegate to execute when the store UI is closed. */
+		FOnShowSendMessageUIClosedDelegate Delegate;
+
+		/** Whether a message was sent */
+		bool bMessageSent;
+
+	public:
+
+		/**
+		* Constructor.
+		*
+		* @param InLiveSubsystem The owner of the external UI interface that triggered this event.
+		* @param InDelegate The delegate to execute on the game thread.
+		* @param MessageSent A flag determining whether a message was sent.
+		*/
+		FAsyncEventSendMessageUIClosed(FOnlineSubsystemLive* InLiveSubsystem, const FOnShowSendMessageUIClosedDelegate& InDelegate, bool MessageSent) :
+			FOnlineAsyncEvent(InLiveSubsystem),
+			Delegate(InDelegate),
+			bMessageSent(MessageSent)
+		{
+		}
+
+		virtual FString ToString() const override;
+		virtual void TriggerDelegates() override;
+	};
+
 	void HandleApplicationHasReactivated_WebUrl();
 	FString WebUrlBeingOpened;
+
 	/**
 	*	Async event that notifies when the Web Url has closed
 	*/
@@ -126,7 +209,10 @@ private:
 		virtual FString ToString() const override;
 		virtual void TriggerDelegates() override;
 	};
+
+	Windows::Foundation::EventRegistrationToken ProductPurchasedToken;
 	FCriticalSection CallbackLock;
+
 PACKAGE_SCOPE:
 
 	/** Constructor
@@ -137,10 +223,13 @@ PACKAGE_SCOPE:
 
 	/** Reference to the owning subsystem */
 	class FOnlineSubsystemLive* LiveSubsystem;
+
 	/** Allow guests to login */
 	bool bAllowGuestLogin;
+
 	/** delegates to hold onto for particular callbacks */
 	bool ShouldCallUIDelegate;
+	FOnShowStoreUIClosedDelegate StoreUIClosedDelegate;
 	FOnShowWebUrlClosedDelegate WebUrlClosedDelegate;
 
 public:

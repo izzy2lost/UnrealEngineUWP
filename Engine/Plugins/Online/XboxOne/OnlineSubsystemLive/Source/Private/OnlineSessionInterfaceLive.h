@@ -379,6 +379,9 @@ PACKAGE_SCOPE:
 	/** List of players that we are subscribed to for session stat updates */
 	TSet<FUniqueNetIdLive> SessionUpdateStatSubsriptions;
 
+	/** Whether only the host can update the session or if anyone can */
+	bool bOnlyHostUpdateSession;
+
 	static const int MAX_RETRIES = 20;
 };
 

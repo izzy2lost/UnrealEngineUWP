@@ -32,6 +32,13 @@ struct CORE_API FUWPTime : public FGenericPlatformTime
 		return Cycles.LowPart;
 	}
 
+	static FORCEINLINE uint64 Cycles64()
+	{
+		LARGE_INTEGER Cycles;
+		QueryPerformanceCounter(&Cycles);
+		return Cycles.QuadPart;
+	}
+
 	static void SystemTime(int32& Year, int32& Month, int32& DayOfWeek, int32& Day, int32& Hour, int32& Min, int32& Sec, int32& MSec);
 	static void UtcTime(int32& Year, int32& Month, int32& DayOfWeek, int32& Day, int32& Hour, int32& Min, int32& Sec, int32& MSec);
 };

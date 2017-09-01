@@ -21,11 +21,11 @@ FOnlineAsyncTaskLiveFindSessionById::FOnlineAsyncTaskLiveFindSessionById(FOnline
 	, Delegate(InDelegate)
 	, OnlineError(false)
 {
-
 }
 
 Windows::Foundation::IAsyncOperation<Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^>^ FOnlineAsyncTaskLiveFindSessionById::CreateOperation()
 {
+	UE_LOG_ONLINE(Verbose, TEXT("Attempting to find Session by Id %s"), *SessionIdString);
 	try
 	{
 		MultiplayerSessionReference^ SessionRef = MultiplayerSessionReference::ParseFromUriPath(ref new Platform::String(*SessionIdString));
@@ -35,7 +35,7 @@ Windows::Foundation::IAsyncOperation<Microsoft::Xbox::Services::Multiplayer::Mul
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG_ONLINE(Error, TEXT("Error starting FindSessionById query, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, TEXT("Error starting FindSessionById query, error: (0x%0.8X) %s."), Ex->HResult, Ex->ToString()->Data());
 	}
 
 	return nullptr;
@@ -54,7 +54,7 @@ bool FOnlineAsyncTaskLiveFindSessionById::ProcessResult(const Concurrency::task<
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG_ONLINE(Error, TEXT("Error during FindSessionById, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, TEXT("Error during FindSessionById, error: (0x%0.8X) %s."), Ex->HResult, Ex->ToString()->Data());
 	}
 
 	return OnlineError.bSucceeded;

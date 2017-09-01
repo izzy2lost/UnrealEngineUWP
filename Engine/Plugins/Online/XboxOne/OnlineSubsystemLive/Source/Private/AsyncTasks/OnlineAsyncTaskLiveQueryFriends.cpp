@@ -17,6 +17,7 @@
 
 using Microsoft::Xbox::Services::Multiplayer::MultiplayerActivityDetails;
 using Microsoft::Xbox::Services::Presence::PresenceRecord;
+using Microsoft::Xbox::Services::UserStatistics::UserStatisticsResult;
 using Microsoft::Xbox::Services::Social::XboxSocialRelationship;
 using Microsoft::Xbox::Services::Social::XboxSocialRelationshipResult;
 using Microsoft::Xbox::Services::Social::XboxUserProfile;
@@ -45,7 +46,7 @@ IAsyncOperation<XboxSocialRelationshipResult^>^ FOnlineAsyncTaskLiveQueryFriends
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		OutError = FString::Printf(TEXT("Error querying friends, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		OutError = FString::Printf(TEXT("Error querying friends, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 		UE_LOG_ONLINE(Error, *OutError);
 	}
 
@@ -61,7 +62,7 @@ bool FOnlineAsyncTaskLiveQueryFriends::ProcessResult(const Concurrency::task<Xbo
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		OutError = FString::Printf(TEXT("Error querying friends, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		OutError = FString::Printf(TEXT("Error querying friends, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 		UE_LOG_ONLINE(Error, *OutError);
 		return false;
 	}
@@ -137,6 +138,21 @@ void FOnlineAsyncTaskLiveQueryFriends::Finalize()
 
 				// Request Presence Information
 				Subsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveQueryFriendPresenceDetails>(Subsystem, LiveContext, XUIDVectorView, *ManagerTask);
+
+				// Request Session Information
+				Subsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveQueryFriendSessionDetails>(Subsystem, LiveContext, XUIDVectorView, *ManagerTask);
+
+				// Request presence stats information if any stats were configured
+				IVectorView<Platform::String^>^ PresenceStatNamesVectorView = FOnlinePresenceLive::GetConfiguredPresenceStatNames();
+				if (PresenceStatNamesVectorView->Size > 0)
+				{
+					Subsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveQueryFriendPresenceStats>(Subsystem, LiveContext, XUIDVectorView, 0, PresenceStatNamesVectorView, *ManagerTask);
+				}
+				else
+				{
+					// Nothing to do if no stats are needed, no need to create a task for it.
+					ManagerTask->PresenceStatsStatus = EOnlineAsyncTaskState::Done;
+				}
 			}
 			// Add Manager Last so it gets ticked after the tasks
 			MyTaskManager->AddToParallelTasks(ManagerTask);
@@ -185,11 +201,13 @@ void FOnlineAsyncTaskLiveQueryFriendManagerTask::Tick()
 {
 	if ((AccountDetailsStatus == EOnlineAsyncTaskState::Done || AccountDetailsStatus == EOnlineAsyncTaskState::Failed)
 		&& (PresenceDetailsStatus == EOnlineAsyncTaskState::Done || PresenceDetailsStatus == EOnlineAsyncTaskState::Failed)
+		&& (PresenceStatsStatus == EOnlineAsyncTaskState::Done || PresenceStatsStatus == EOnlineAsyncTaskState::Failed)
 		&& (SessionDetailsStatus == EOnlineAsyncTaskState::Done || SessionDetailsStatus == EOnlineAsyncTaskState::Failed))
 	{
 		bIsComplete = true;
 		bWasSuccessful = (AccountDetailsStatus == EOnlineAsyncTaskState::Done &&
 			PresenceDetailsStatus == EOnlineAsyncTaskState::Done &&
+			PresenceStatsStatus == EOnlineAsyncTaskState::Done &&
 			SessionDetailsStatus == EOnlineAsyncTaskState::Done);
 	}
 }
@@ -232,24 +250,24 @@ void FOnlineAsyncTaskLiveQueryFriendManagerTask::TriggerDelegates()
 
 	if (!bWasSuccessful)
 	{
-		if (AccountDetailsStatus == EOnlineAsyncTaskState::Failed
-			|| PresenceDetailsStatus == EOnlineAsyncTaskState::Failed
-			|| SessionDetailsStatus == EOnlineAsyncTaskState::Failed)
+		if (AccountDetailsStatus == EOnlineAsyncTaskState::Failed)
 		{
-			if (AccountDetailsStatus == EOnlineAsyncTaskState::Failed)
-			{
-				ErrorString += TEXT("Failed to query account details. ");
-			}
-			if (PresenceDetailsStatus == EOnlineAsyncTaskState::Failed)
-			{
-				ErrorString += TEXT("Failed to query presence details. ");
-			}
-			if (SessionDetailsStatus == EOnlineAsyncTaskState::Failed)
-			{
-				ErrorString += TEXT("Failed to query session details. ");
-			}
+			ErrorString += TEXT("Failed to query account details. ");
 		}
-		else
+		if (PresenceDetailsStatus == EOnlineAsyncTaskState::Failed)
+		{
+			ErrorString += TEXT("Failed to query presence details. ");
+		}
+		if (PresenceStatsStatus == EOnlineAsyncTaskState::Failed)
+		{
+			ErrorString += TEXT("Failed to query presence stats. ");
+		}
+		if (SessionDetailsStatus == EOnlineAsyncTaskState::Failed)
+		{
+			ErrorString += TEXT("Failed to query session details. ");
+		}
+
+		if (ErrorString.IsEmpty())
 		{
 			ErrorString = TEXT("An unknown error has occured");
 		}
@@ -279,11 +297,12 @@ IAsyncOperation<IVectorView<XboxUserProfile^>^>^ FOnlineAsyncTaskLiveQueryFriend
 	try
 	{
 		IAsyncOperation<IVectorView<XboxUserProfile^>^>^ AsyncTask = LiveContext->ProfileService->GetUserProfilesAsync(XUIDsVectorView);
+		ManagerTask.AccountDetailsStatus = EOnlineAsyncTaskState::InProgress;
 		return AsyncTask;
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG_ONLINE(Error, TEXT("Error querying friend account details for friends list, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, TEXT("Error querying friend account details for friends list, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 	}
 
 	return nullptr;
@@ -314,7 +333,7 @@ bool FOnlineAsyncTaskLiveQueryFriendAccountDetails::ProcessResult(const Concurre
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG_ONLINE(Error, TEXT("Error querying friend account details, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, TEXT("Error querying friend account details, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 	}
 
 	return false;
@@ -340,12 +359,15 @@ IAsyncOperation<IVectorView<PresenceRecord^>^>^ FOnlineAsyncTaskLiveQueryFriendP
 {
 	try
 	{
-		IAsyncOperation<IVectorView<PresenceRecord^>^>^ AsyncTask = LiveContext->PresenceService->GetPresenceForMultipleUsersAsync(XUIDsVectorView);
+		// The GetPresenceForMultipleUsersAsync(XUIDsVectorView) overload of this function should have the same defaults for the other parameters according to the documentation, but
+		// doesn't return the detailed presence for some reason. This overload works however.
+		IAsyncOperation<IVectorView<PresenceRecord^>^>^ AsyncTask = LiveContext->PresenceService->GetPresenceForMultipleUsersAsync(XUIDsVectorView, nullptr, nullptr, Microsoft::Xbox::Services::Presence::PresenceDetailLevel::All, false, false);
+		ManagerTask.PresenceDetailsStatus = EOnlineAsyncTaskState::InProgress;
 		return AsyncTask;
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG_ONLINE(Error, TEXT("Error querying friend presence details for friends list, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, TEXT("Error querying friend presence details for friends list, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 	}
 
 	return nullptr;
@@ -364,7 +386,9 @@ bool FOnlineAsyncTaskLiveQueryFriendPresenceDetails::ProcessResult(const Concurr
 
 			TSharedRef<FOnlineFriendLive>& FoundFriend = ManagerTask.FriendsListMap.FindChecked(FUniqueNetIdLive(XboxPresence->XboxUserId));
 
-			FoundFriend->Presence = FOnlineUserPresenceLive(XboxPresence);
+			// Not clobbering the presence value using the FOnlineUserPresenceLive constructor here
+			// since the stats task may finish first and if it does we don't want to overwrite its results.
+			FoundFriend->Presence.SetPresenceFromPresenceRecord(XboxPresence);
 		}
 
 		// Register for stat updates
@@ -385,14 +409,11 @@ bool FOnlineAsyncTaskLiveQueryFriendPresenceDetails::ProcessResult(const Concurr
 			}
 		}
 
-		// Now that our presence value has been set for everyone, we want to update the session value for all users we requested presence for
-		Subsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveQueryFriendSessionDetails>(Subsystem, LiveContext, XUIDsVectorView, ManagerTask);
-
 		return true;
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG_ONLINE(Error, TEXT("Error querying friend presence details, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, TEXT("Error querying friend presence details, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 	}
 
 	return false;
@@ -407,7 +428,107 @@ void FOnlineAsyncTaskLiveQueryFriendPresenceDetails::Finalize()
 	else
 	{
 		ManagerTask.PresenceDetailsStatus = EOnlineAsyncTaskState::Failed;
-		ManagerTask.SessionDetailsStatus = EOnlineAsyncTaskState::Failed;
+	}
+}
+
+FOnlineAsyncTaskLiveQueryFriendPresenceStats::FOnlineAsyncTaskLiveQueryFriendPresenceStats(FOnlineSubsystemLive* const InLiveInterface,
+																						   XboxLiveContext^ InLiveContext,
+																						   IVectorView<Platform::String^>^ InXUIDsVectorView,
+																						   const int32 InStartIndex,
+																						   IVectorView<Platform::String^>^ InPresenceStatNamesVectorView,
+																						   FOnlineAsyncTaskLiveQueryFriendManagerTask& InManagerTask)
+	: FOnlineAsyncTaskConcurrencyLive(InLiveInterface, InLiveContext)
+	, XUIDsVectorView(InXUIDsVectorView)
+	, StartIndex(InStartIndex)
+	, NextRequestIndex(FMath::Min<int32>(InXUIDsVectorView->Size, InStartIndex + MAX_USER_QUERY_COUNT))
+	, PresenceStatNamesVectorView(InPresenceStatNamesVectorView)
+	, ManagerTask(InManagerTask)
+{
+	check(XUIDsVectorView);
+}
+
+IAsyncOperation<IVectorView<UserStatisticsResult^>^>^ FOnlineAsyncTaskLiveQueryFriendPresenceStats::CreateOperation()
+{
+	try
+	{
+		// We need to batch our queries as to not exceed the maximum amount of users per request, so we're rebuilding our smaller xuid view here
+		Platform::Collections::Vector<Platform::String^>^ ThisRequestUsers = ref new Platform::Collections::Vector<Platform::String^>();
+		int32 Index = StartIndex;
+		for (; Index < NextRequestIndex; ++Index)
+		{
+			ThisRequestUsers->Append(XUIDsVectorView->GetAt(Index));
+		}
+		UE_LOG_ONLINE(Verbose, TEXT("Starting request batch of %d users, from index %d up until %d"), Index - StartIndex, StartIndex, NextRequestIndex);
+
+		// Send request with user subset
+		IAsyncOperation<IVectorView<UserStatisticsResult^>^>^ AsyncTask = LiveContext->UserStatisticsService->GetMultipleUserStatisticsAsync(
+			ThisRequestUsers->GetView(),
+			// @ATG_CHANGE : BEGIN uwp support
+			LiveContext->AppConfig->ServiceConfigurationId,
+			// @ATG_CHANGE : END
+			PresenceStatNamesVectorView);
+		ManagerTask.PresenceStatsStatus = EOnlineAsyncTaskState::InProgress;
+		return AsyncTask;
+	}
+	catch (Platform::Exception^ Ex)
+	{
+		UE_LOG_ONLINE(Error, TEXT("Error querying friend presence stats for friends list, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
+	}
+
+	return nullptr;
+}
+
+bool FOnlineAsyncTaskLiveQueryFriendPresenceStats::ProcessResult(const Concurrency::task<IVectorView<UserStatisticsResult^>^>& CompletedTask)
+{
+	try
+	{
+		IVectorView<UserStatisticsResult^>^ UserStatsVector = CompletedTask.get();
+		const int32 FoundStatsCount = UserStatsVector->Size;
+		for (int32 Index = 0; Index < FoundStatsCount; ++Index)
+		{
+			UserStatisticsResult^ XboxStats = UserStatsVector->GetAt(Index);
+			check(XboxStats);
+
+			// Add the returned stats to the friend's presence properties.
+			TSharedRef<FOnlineFriendLive>& FoundFriend = ManagerTask.FriendsListMap.FindChecked(FUniqueNetIdLive(XboxStats->XboxUserId));
+			FoundFriend->Presence.SetStatusPropertiesFromStatistics(XboxStats);
+		}
+
+		// If we're not finished querying all of our users, request the next batch here
+		const bool bIsFinishedProcessingAllFriends = NextRequestIndex >= static_cast<int32>(XUIDsVectorView->Size);
+		if (!bIsFinishedProcessingAllFriends)
+		{
+			UE_LOG_ONLINE(Verbose, TEXT("Queuing next batch of user-statistic queries, starting at index %d"), NextRequestIndex);
+			Subsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveQueryFriendPresenceStats>(Subsystem, LiveContext, XUIDsVectorView, NextRequestIndex, PresenceStatNamesVectorView, ManagerTask);
+		}
+
+		return true;
+	}
+	catch (Platform::Exception^ Ex)
+	{
+		UE_LOG_ONLINE(Error, TEXT("Error querying friend presence stats, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
+	}
+
+	return false;
+}
+
+void FOnlineAsyncTaskLiveQueryFriendPresenceStats::Finalize()
+{
+	if (bWasSuccessful)
+	{
+		const bool bIsFinishedProcessingAllFriends = NextRequestIndex >= static_cast<int32>(XUIDsVectorView->Size);
+		if (bIsFinishedProcessingAllFriends)
+		{
+			ManagerTask.PresenceStatsStatus = EOnlineAsyncTaskState::Done;
+		}
+		else
+		{
+			// We're processing the next batch of users, so we don't end yet
+		}
+	}
+	else
+	{
+		ManagerTask.PresenceStatsStatus = EOnlineAsyncTaskState::Failed;
 	}
 }
 
@@ -426,15 +547,15 @@ IAsyncOperation<IVectorView<MultiplayerActivityDetails^>^>^ FOnlineAsyncTaskLive
 {
 	try
 	{
-		// TODO: subscribe to session changes
-
 		// @ATG_CHANGE : BEGIN - UWP support
-		return LiveContext->MultiplayerService->GetActivitiesForUsersAsync(Microsoft::Xbox::Services::XboxLiveAppConfiguration::SingletonInstance->ServiceConfigurationId, XUIDsVectorView);
+		IAsyncOperation<IVectorView<MultiplayerActivityDetails^>^>^ AsyncTask = LiveContext->MultiplayerService->GetActivitiesForUsersAsync(Microsoft::Xbox::Services::XboxLiveAppConfiguration::SingletonInstance->ServiceConfigurationId, XUIDsVectorView);
 		// @ATG_CHANGE : END - UWP support
+		ManagerTask.SessionDetailsStatus = EOnlineAsyncTaskState::InProgress;
+		return AsyncTask;
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG_ONLINE(Error, TEXT("Error querying friend session details for friends list, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, TEXT("Error querying friend session details for friends list, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 	}
 
 	return nullptr;
@@ -453,6 +574,17 @@ bool FOnlineAsyncTaskLiveQueryFriendSessionDetails::ProcessResult(const Concurre
 
 			TSharedRef<FOnlineFriendLive>& FoundFriend = ManagerTask.FriendsListMap.FindChecked(FUniqueNetIdLive(UserActivity->OwnerXboxUserId));
 
+			UE_LOG_ONLINE(VeryVerbose, TEXT("Found Friend User Activity:"));
+			UE_LOG_ONLINE(VeryVerbose, TEXT("  OwnerXboxUserId: %ls"), UserActivity->OwnerXboxUserId->Data());
+			UE_LOG_ONLINE(VeryVerbose, TEXT("  bIsClosed: %d"), UserActivity->Closed);
+			UE_LOG_ONLINE(VeryVerbose, TEXT("  HandleId: %ls"), UserActivity->HandleId->Data());
+			UE_LOG_ONLINE(VeryVerbose, TEXT("  JoinRestriction: %ls"), UserActivity->JoinRestriction.ToString()->Data());
+			UE_LOG_ONLINE(VeryVerbose, TEXT("  MembersCount: %d"), UserActivity->MembersCount);
+			UE_LOG_ONLINE(VeryVerbose, TEXT("  MaxMembersCount: %d"), UserActivity->MaxMembersCount);
+			UE_LOG_ONLINE(VeryVerbose, TEXT("  MultiplayerSessionReference: %ls"), UserActivity->SessionReference->ToUriPath()->Data());
+			UE_LOG_ONLINE(VeryVerbose, TEXT("  TitleId: %d"), UserActivity->TitleId);
+			UE_LOG_ONLINE(VeryVerbose, TEXT("  Visibility: %ls"), UserActivity->Visibility.ToString()->Data());
+
 			const bool bHasEmptySlot = UserActivity->MembersCount < UserActivity->MaxMembersCount;
 			const bool bSessionOpen = !UserActivity->Closed;
 
@@ -466,7 +598,7 @@ bool FOnlineAsyncTaskLiveQueryFriendSessionDetails::ProcessResult(const Concurre
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG_ONLINE(Error, TEXT("Error querying friend session details, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, TEXT("Error querying friend session details, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 	}
 
 	return false;

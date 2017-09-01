@@ -160,6 +160,7 @@ FOnlineSessionLive::FOnlineSessionLive(class FOnlineSubsystemLive* InSubsystem)
 	: LiveSubsystem(InSubsystem)
 	, PeerTemplate(nullptr)
 	, bIsDestroyingSessions(false)
+	, bOnlyHostUpdateSession(true)
 {
 	Initialize();
 }
@@ -197,6 +198,9 @@ void FOnlineSessionLive::Initialize()
 	GConfig->GetString(TEXT("OnlineSubsystemLive"), TEXT("SessionUpdateStatName"), SessionUpdateStatName, GEngineIni);
 	GConfig->GetString(TEXT("OnlineSubsystemLive"), TEXT("SessionUpdateEventName"), SessionUpdateEventName, GEngineIni);
 
+	// Load session updating permissions setting
+	GConfig->GetBool(TEXT("OnlineSubsystemLive"), TEXT("bOnlyHostUpdateSession"), bOnlyHostUpdateSession, GEngineIni);
+
 	// Look up the secure device association template name in the engine ini settings.
 	if (GConfig->GetString(TEXT("OnlineSubsystemLive"), TEXT("SecureDeviceAssociationTemplateName"), TemplateName, GEngineIni))
 	{
@@ -226,7 +230,7 @@ void FOnlineSessionLive::Initialize()
 	}
 	else
 	{
-		UE_LOG_ONLINE(Warning, TEXT("No SecureDeviceAssociationTemplateName specified in the engine ini file."));
+		UE_LOG_ONLINE(Log, TEXT("No SecureDeviceAssociationTemplateName specified in the engine ini file."));
 	}
 
 	// Clean up orphaned sessions.
@@ -942,7 +946,11 @@ bool FOnlineSessionLive::JoinSession(int32 ControllerIndex, FName SessionName, c
 	auto UniqueId = LiveSubsystem->GetIdentityLive()->GetUniquePlayerId(ControllerIndex);
 	if (!UniqueId.IsValid())
 	{
-		TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::UnknownError);
+		LiveSubsystem->ExecuteNextTick([SessionName, ControllerIndex, this]()
+		{
+			UE_LOG_ONLINE(Warning, TEXT("JoinSession failed; unable to find player at index %d"), ControllerIndex);
+			TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::UnknownError);
+		});
 		return false;
 	}
 
@@ -951,15 +959,13 @@ bool FOnlineSessionLive::JoinSession(int32 ControllerIndex, FName SessionName, c
 
 bool FOnlineSessionLive::JoinSession(const FUniqueNetId& UserId, FName SessionName, const FOnlineSessionSearchResult& DesiredSession)
 {
-	bool bRetVal = true;
-
 	// work out if we're already in the session or not
 	FNamedOnlineSession* const NamedSessionCheck = GetNamedSession(SessionName);
 	if (NamedSessionCheck)
 	{
 		LiveSubsystem->ExecuteNextTick([SessionName, this]()
 		{
-			UE_LOG_ONLINE(Warning, TEXT("Session (%s) already exists, can't join twice"), *SessionName.ToString());
+			UE_LOG_ONLINE(Warning, TEXT("Join session failed; session (%s) already exists, can't join twice"), *SessionName.ToString());
 			TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::AlreadyInSession);
 		});
 		return false;
@@ -970,7 +976,7 @@ bool FOnlineSessionLive::JoinSession(const FUniqueNetId& UserId, FName SessionNa
 	{
 		LiveSubsystem->ExecuteNextTick([SessionName, this]()
 		{
-			UE_LOG_ONLINE(Warning, TEXT("No secure device association template, unable to join host."));
+			UE_LOG_ONLINE(Warning, TEXT("Join session failed, no host secure device association template"));
 			TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::CouldNotRetrieveAddress);
 		});
 		return false;
@@ -990,7 +996,9 @@ bool FOnlineSessionLive::JoinSession(const FUniqueNetId& UserId, FName SessionNa
 
 		if (XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(UserId))
 		{
-			LiveSubsystem->CreateAndDispatchAsyncTaskSerial<FOnlineAsyncTaskLiveJoinSession>(this, SessionReference, PeerTemplate, LiveContext, NamedSession, LiveSubsystem, MAX_RETRIES, true);
+			const bool bIsMatchmakingSession = true;
+			const bool bSetActivity = DesiredSession.Session.SessionSettings.bUsesPresence;
+			LiveSubsystem->CreateAndDispatchAsyncTaskSerial<FOnlineAsyncTaskLiveJoinSession>(this, SessionReference, PeerTemplate, LiveContext, NamedSession, LiveSubsystem, MAX_RETRIES, bIsMatchmakingSession, bSetActivity);
 			return true;
 		}
 
@@ -998,6 +1006,7 @@ bool FOnlineSessionLive::JoinSession(const FUniqueNetId& UserId, FName SessionNa
 
 		LiveSubsystem->ExecuteNextTick([SessionName, this]()
 		{
+			UE_LOG_ONLINE(Warning, TEXT("Failed to join session, could not get live context for user"));
 			TriggerOnJoinSessionCompleteDelegates(SessionName, EOnJoinSessionCompleteResult::UnknownError);
 		});
 		return false;
@@ -1014,7 +1023,7 @@ bool FOnlineSessionLive::JoinSession(const FUniqueNetId& UserId, FName SessionNa
 
 	if (!DesiredSession.Session.SessionInfo.IsValid())
 	{
-		UE_LOG_ONLINE(Warning, TEXT("Invalid session info on search result"));
+		UE_LOG_ONLINE(Warning, TEXT("Join session failed, invalid session info on search result"));
 		RemoveNamedSession(SessionName);
 
 		LiveSubsystem->ExecuteNextTick([SessionName, this]()
@@ -1031,7 +1040,7 @@ bool FOnlineSessionLive::JoinSession(const FUniqueNetId& UserId, FName SessionNa
 	//Protect against signout
 	if (LiveContext == nullptr)
 	{
-		UE_LOG_ONLINE(Warning, TEXT("Invalid session info on search result"));
+		UE_LOG_ONLINE(Warning, TEXT("Join session failed, invalid session info on search result"));
 		RemoveNamedSession(SessionName);
 		LiveSubsystem->ExecuteNextTick([SessionName, this]()
 		{
@@ -1040,8 +1049,11 @@ bool FOnlineSessionLive::JoinSession(const FUniqueNetId& UserId, FName SessionNa
 		return false;
 	}
 
+	const bool bIsMatchmakingSession = false;
+	const bool bSetActivity = DesiredSession.Session.SessionSettings.bUsesPresence;
+
 	// Ensure this finishes before session notifications are processed so session is initialized
-	LiveSubsystem->CreateAndDispatchAsyncTaskSerial<FOnlineAsyncTaskLiveJoinSession>(this, LiveSession->SessionReference, PeerTemplate, LiveContext, NamedSession, LiveSubsystem, MAX_RETRIES);
+	LiveSubsystem->CreateAndDispatchAsyncTaskSerial<FOnlineAsyncTaskLiveJoinSession>(this, LiveSession->SessionReference, PeerTemplate, LiveContext, NamedSession, LiveSubsystem, MAX_RETRIES, bIsMatchmakingSession, bSetActivity);
 	return true;
 }
 
@@ -1635,10 +1647,22 @@ bool FOnlineSessionLive::UpdateSession(FName SessionName, FOnlineSessionSettings
 	if (bShouldRefreshOnlineData)
 	{
 		XboxLiveContext^ LiveContext = nullptr;
-		TSharedPtr<const FUniqueNetId> HostNetId(NamedSession->OwningUserId);
+		const TSharedPtr<const FUniqueNetId>& HostNetId(NamedSession->OwningUserId);
 		if (HostNetId.IsValid())
 		{
 			LiveContext = LiveSubsystem->GetLiveContext(*HostNetId);
+		}
+
+		if (LiveContext == nullptr)
+		{
+			if (!bOnlyHostUpdateSession)
+			{
+				const TSharedPtr<const FUniqueNetId>& LocalOwnerId(NamedSession->LocalOwnerId);
+				if (LocalOwnerId.IsValid())
+				{
+					LiveContext = LiveSubsystem->GetLiveContext(*LocalOwnerId);
+				}
+			}
 		}
 
 		if (LiveContext == nullptr)
@@ -1758,6 +1782,26 @@ void FOnlineSessionLive::ReadSettingsFromLiveJson(MultiplayerSession^ LiveSessio
 					}
 				}
 			}
+			else if (JSettingName == TEXT("_flags") && NewSetting.Data.GetType() == EOnlineKeyValuePairDataType::String)
+			{
+				FString SessionSettingsFlagsValue;
+				NewSetting.Data.GetValue(SessionSettingsFlagsValue);
+
+				int16 SessionSettingsFlags = 0;
+				Lex::FromString(SessionSettingsFlags, *SessionSettingsFlagsValue);
+				
+				int32 BitShift = 0;
+				Session.SessionSettings.bShouldAdvertise = (SessionSettingsFlags & (1 << BitShift++)) ? true : false;
+				Session.SessionSettings.bAllowJoinInProgress = (SessionSettingsFlags & (1 << BitShift++)) ? true : false;
+				Session.SessionSettings.bIsLANMatch = (SessionSettingsFlags & (1 << BitShift++)) ? true : false;
+				Session.SessionSettings.bIsDedicated = (SessionSettingsFlags & (1 << BitShift++)) ? true : false;
+				Session.SessionSettings.bUsesStats = (SessionSettingsFlags & (1 << BitShift++)) ? true : false;
+				Session.SessionSettings.bAllowInvites = (SessionSettingsFlags & (1 << BitShift++)) ? true : false;
+				Session.SessionSettings.bUsesPresence = (SessionSettingsFlags & (1 << BitShift++)) ? true : false;
+				Session.SessionSettings.bAllowJoinViaPresence = (SessionSettingsFlags & (1 << BitShift++)) ? true : false;
+				Session.SessionSettings.bAllowJoinViaPresenceFriendsOnly = (SessionSettingsFlags & (1 << BitShift++)) ? true : false;
+				Session.SessionSettings.bAntiCheatProtected = (SessionSettingsFlags & (1 << BitShift++)) ? true : false;
+			}
 			else
 			{
 				NewSettings.Add(FName(*JSettingName), NewSetting);
@@ -1805,6 +1849,25 @@ void FOnlineSessionLive::UpdateMatchMembersJson(FSessionSettings& UpdatedSetting
 
 void FOnlineSessionLive::WriteSettingsToLiveJson(const FOnlineSessionSettings& SessionSettings, MultiplayerSession^ LiveSession, User^ HostUser)
 {
+	{
+		int32 BitShift = 0;
+		int32 SessionSettingsFlags = 0;
+		SessionSettingsFlags |= ((int32)SessionSettings.bShouldAdvertise) << BitShift++;
+		SessionSettingsFlags |= ((int32)SessionSettings.bAllowJoinInProgress) << BitShift++;
+		SessionSettingsFlags |= ((int32)SessionSettings.bIsLANMatch) << BitShift++;
+		SessionSettingsFlags |= ((int32)SessionSettings.bIsDedicated) << BitShift++;
+		SessionSettingsFlags |= ((int32)SessionSettings.bUsesStats) << BitShift++;
+		SessionSettingsFlags |= ((int32)SessionSettings.bAllowInvites) << BitShift++;
+		SessionSettingsFlags |= ((int32)SessionSettings.bUsesPresence) << BitShift++;
+		SessionSettingsFlags |= ((int32)SessionSettings.bAllowJoinViaPresence) << BitShift++;
+		SessionSettingsFlags |= ((int32)SessionSettings.bAllowJoinViaPresenceFriendsOnly) << BitShift++;
+		SessionSettingsFlags |= ((int32)SessionSettings.bAntiCheatProtected) << BitShift++;
+		Platform::String^ SessionSettingsFlagsName = ref new Platform::String(L"_flags");
+		// Send as a string as JSON uses floating point for numbers
+		Platform::String^ SessionSettingsFlagsValue = ref new Platform::String(*FString::Printf(TEXT("\"%d\""), SessionSettingsFlags));
+		LiveSession->SetSessionCustomPropertyJson(SessionSettingsFlagsName, SessionSettingsFlagsValue);
+	}
+
 	for (FSessionSettings::TConstIterator It(SessionSettings.Settings); It; ++It)
 	{
 		const FName& SettingName = It.Key();
@@ -2409,10 +2472,8 @@ FOnlineSessionSearchResult FOnlineSessionLive::CreateSearchResultFromSession(Mul
 
 void FOnlineSessionLive::SaveSessionInvite(User^ AcceptingUser, Platform::String^ SessionHandle)
 {
-	if (!AcceptingUser || !SessionHandle)
-	{
-		return;
-	}
+	check(AcceptingUser != nullptr);
+	check (SessionHandle != nullptr);
 
 	// Set the invite data on the game thread since that's where it will be consumed
 	LiveSubsystem->ExecuteNextTick(	[this, AcceptingUser, SessionHandle]
@@ -2469,6 +2530,12 @@ void FOnlineSessionLive::SaveInviteFromActivation(Windows::Foundation::Uri^ Acti
 		// case, if it cares. We may want to do something better here.
 		// If the user joined from a gamercard, this shouldn't be an issue.
 		SaveSessionInvite(JoiningUser, SessionHandle);
+	}
+	else
+	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::SaveInviteFromActivation: couldn't save invite, missing required info Handle=[%ls] UserXuid=[%ls]"),
+			SessionHandle == nullptr ? L"INVALID" : SessionHandle->Data(),
+			UserXuid == nullptr ? L"INVALID" : UserXuid->Data());
 	}
 }
 
@@ -2561,6 +2628,7 @@ void FOnlineSessionLive::TickPendingInvites(float DeltaTime)
 			MultiplayerSession^ LiveSession = SessionTask.get();
 			if (LiveSession == nullptr)
 			{
+				UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::TickPendingInvites: Failed to get session from invite"));
 				return;
 			}
 
@@ -2575,7 +2643,7 @@ void FOnlineSessionLive::TickPendingInvites(float DeltaTime)
 		}
 		catch (Platform::COMException^ Ex)
 		{
-			UE_LOG(LogOnline, Warning,	TEXT("FOnlineSessionLive::TickPendingInvites: Error getting game session by handle: 0x%0.8x"), Ex->HResult);
+			UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::TickPendingInvites: Error getting game session by handle: 0x%0.8x"), Ex->HResult);
 			LiveSubsystem->ExecuteNextTick([this, AcceptingUserIndex, UniqueNetId]()
 			{
 				TSharedRef<const FUniqueNetId> UniqueNetIdRef(MakeShared<FUniqueNetIdLive>(UniqueNetId));
@@ -2721,12 +2789,10 @@ Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionRestriction FOnlineSes
 	if (SessionSettings.bShouldAdvertise)
 	{
 		// "None" restriction means anyone may interact with this session if there's room, this is the session default
-		// @ATG_CHANGE : BEGIN - UWP doesn't allow unrestricted sessions, so clamp here for that platform
-#if PLATFORM_UWP
+		// @ATG_CHANGE : BEGIN - UWP doesn't allow unrestricted sessions, so clamp here until we get the info from the service to tell if
+		// the title has used an openly advertizable session template that's locked to closed platforms, or a non-advertizable template that's
+		// open to non-closed platforms
 		return MultiplayerSessionRestriction::Followed;
-#else
-		return MultiplayerSessionRestriction::None;
-#endif
 		// @ATG_CHANGE : END
 	}
 

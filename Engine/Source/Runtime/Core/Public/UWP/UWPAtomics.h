@@ -147,6 +147,13 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 	 */
 	static FORCEINLINE int32 InterlockedCompareExchange(volatile int32* Dest,int32 Exchange,int32 Comparand)
 	{
+		#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+			if (IsAligned(Dest, 4) == false)
+			{
+				HandleAtomicsFailure(TEXT("InterlockedCompareExchange32 requires args be aligned to %d bytes"), sizeof(int32));
+			}
+		#endif
+
 		return (int32)::_InterlockedCompareExchange((LPLONG)Dest,(LONG)Exchange,(LONG)Comparand);
 	}
 
@@ -156,7 +163,18 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 	 */
 	static FORCEINLINE int64 InterlockedCompareExchange (volatile int64* Dest, int64 Exchange, int64 Comparand)
 	{
+		#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+			if (IsAligned(Dest, 8) == false)
+			{
+				HandleAtomicsFailure(TEXT("InterlockedCompareExchange64 requires args be aligned to %d bytes"), sizeof(int64));
+			}
+		#endif
+
 		return (int64)::_InterlockedCompareExchange64((LONGLONG*)Dest, (LONGLONG)Exchange, (LONGLONG)Comparand);
+	}
+	static FORCEINLINE int64 AtomicRead64(volatile const int64* Src)
+	{
+		return InterlockedCompareExchange((volatile int64*)Src, 0, 0);
 	}
 
 	/**
@@ -176,12 +194,6 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 	}
 
 private:
-	/** Checks if a pointer is aligned and can be used with atomic functions */
-	static inline bool IsAligned( const void* Ptr )
-	{
-		return (((DWORD64)Ptr) & (sizeof(void*) - 1)) == 0 ? true : false;
-	}
-
 	/** Handles atomics function failure. Since 'check' has not yet been declared here we need to call external function to use it. */
 	static void HandleAtomicsFailure( const TCHAR* InFormat, ... );
 };

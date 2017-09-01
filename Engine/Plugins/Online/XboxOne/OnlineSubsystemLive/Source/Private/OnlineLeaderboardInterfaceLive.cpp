@@ -42,9 +42,26 @@ bool FOnlineLeaderboardsLive::ReadLeaderboards(const TArray< TSharedRef<const FU
 		
 	//Attempt to retrieve an XboxLiveContext from the signed in users for making leaderboard requests.
 	//This is necessary because the user actively requesting this data is not provided explicitly and not guaranteed to be in the Players list.
-	// @ATG_CHANGE :  BEGIN Adding social features
-	Microsoft::Xbox::Services::XboxLiveContext^ LiveContext  = LiveSubsystem->GetDefaultLiveContext();
-	// @ATG_CHANGE :  END
+	Microsoft::Xbox::Services::XboxLiveContext^ LiveContext = nullptr;
+	
+	FOnlineIdentityLivePtr Identity = LiveSubsystem->GetIdentityLive();
+	check(Identity.IsValid());
+
+	Windows::Foundation::Collections::IVectorView<Windows::Xbox::System::User^>^ Users = Identity->GetCachedUsers();
+	for(unsigned int i = 0; i < Users->Size; i++)
+	{
+		Windows::Xbox::System::User^ User = Users->GetAt(i);
+		if(!User->IsSignedIn)
+		{
+			continue;
+		}
+
+		LiveContext  = LiveSubsystem->GetLiveContext(User);
+		if(LiveContext != nullptr)
+		{
+			break;
+		}
+	}
 	
 	if(LiveContext == nullptr)
 	{

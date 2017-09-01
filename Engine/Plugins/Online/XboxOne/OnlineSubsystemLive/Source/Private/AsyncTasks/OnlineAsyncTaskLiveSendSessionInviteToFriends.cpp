@@ -24,7 +24,7 @@ Windows::Foundation::IAsyncOperation<Windows::Foundation::Collections::IVectorVi
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG_ONLINE(Error, TEXT("Error starting SendSessionInvitesToFriends, error: (%d) %ls."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, TEXT("Error starting SendSessionInvitesToFriends, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 		return nullptr;
 	}
 }
@@ -39,7 +39,7 @@ bool FOnlineAsyncTaskLiveSendSessionInviteToFriends::ProcessResult(const Concurr
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		UE_LOG_ONLINE(Error, TEXT("Error SendSessionInvitesToFriends, error: (%d) %ls."), Ex->HResult, Ex->ToString()->Data());
+		UE_LOG_ONLINE(Error, TEXT("Error SendSessionInvitesToFriends, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 		return false;
 	}
 }

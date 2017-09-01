@@ -615,7 +615,9 @@ private:
 	class FD3D12DynamicRHI* D3D12RHI;
 };
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN Uwp support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 class FD3D12TransientResource
 {
 	// Nothing special for fast ram

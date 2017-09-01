@@ -26,6 +26,9 @@ using namespace Windows::Foundation::Collections;
 using Windows::Foundation::IAsyncAction;
 using Windows::Xbox::System::User;
 
+/** Limit for the number of voice packets to keep in the buffer in case they can't be sent immediately. */
+static const int32 MaxBufferedVoicePackets = 128;
+
 /** Constructor */
 FOnlineVoiceLive::FOnlineVoiceLive(FOnlineSubsystemLive* InLiveSubsystem)
 	: LiveSubsystem(InLiveSubsystem)
@@ -324,23 +327,28 @@ bool FOnlineVoiceLive::UnregisterLocalTalker(uint32 LocalUserNum)
 				}
 			}
 
-			// @ATG_CHANGE : BEGIN - UWP LIVE support
-			auto asyncOp = LiveChatManager->RemoveLocalUserFromChatChannelAsync(0, GetChatUserFromLocalUser(IdentityInt->GetUserForControllerIndex(LocalUserNum)));
-			// @ATG_CHANGE : END
-			create_task( asyncOp )
-				.then( [] ( task<void> t )
+			Windows::Xbox::System::User^ LocalUser = IdentityInt->GetUserForControllerIndex(LocalUserNum);
+			if (LocalUser)
 			{
-				// Error handling
-				try
+				// @ATG_CHANGE : BEGIN - UWP LIVE support
+				auto asyncOp = LiveChatManager->RemoveLocalUserFromChatChannelAsync(0, GetChatUserFromLocalUser(LocalUser));
+				// @ATG_CHANGE : END - UWP LIVE support
+				create_task(asyncOp)
+					.then([](task<void> t)
 				{
-					t.get();
-				}
-				catch ( Platform::Exception^ ex )
-				{
-					UE_LOG( LogVoice, Warning, L"RemoveLocalUserFromChatChannel failed 0x%x", ex->HResult );
-				}
-			});
-
+					// Error handling
+					try
+					{
+						t.get();
+					}
+					catch (Platform::Exception^ ex)
+					{
+						UE_LOG(LogVoice, Warning, TEXT("RemoveLocalUserFromChatChannel failed 0x%x"), ex->HResult);
+					}
+				});
+			}
+			Talker.bIsTalking = false;
+			Talker.bWasTalking = false;
 			Talker.bIsRegistered = false;
 		}
 		UE_LOG(LogVoice, Log, TEXT("Local talker %d unregistered"), LocalUserNum);
@@ -955,10 +963,35 @@ void FOnlineVoiceLive::OnOutgoingChatPacketReady(__in Microsoft::Xbox::GameChat:
 		NewPacket->PacketIndex = 0;
 	}
 
-	FScopeLock PacketLock( &LocalPacketsCS );
-	PendingLocalPackets.Add(NewPacket);
-
 	check(NewPacket->GetTotalPacketSize() < MAX_VOICE_DATA_SIZE);
+
+	FScopeLock PacketLock( &LocalPacketsCS );
+
+	// Packets are only cleared when a net driver calls ClearVoicePackets.
+	// If this isn't happening, packets can stack up indefinitely, so clear
+	// out an old null or unreliable one if possible.
+	if (PendingLocalPackets.Num() >= MaxBufferedVoicePackets)
+	{
+		const int32 IndexToRemove = PendingLocalPackets.IndexOfByPredicate([](const TSharedPtr<FVoicePacketLive>& Packet)
+		{
+			return !Packet.IsValid() || !Packet->IsReliable();
+		});
+
+		if (IndexToRemove != INDEX_NONE)
+		{
+			PendingLocalPackets.RemoveAt(IndexToRemove);
+		}
+		else
+		{
+			// No unreliable packets found, the buffer is full of reliable packets. Warn that one will be dropped.
+			UE_LOG(LogVoice, Warning, TEXT("FOnlineVoiceLive: PendingLocalPackets buffer reliable overflow - has MaxBufferedVoicePackets (%d) reliable packets queued. Reliable packet will be dropped!"), MaxBufferedVoicePackets);
+
+			PendingLocalPackets.RemoveAt(0);
+		}
+	}
+
+	ensure(PendingLocalPackets.Num() < MaxBufferedVoicePackets);
+	PendingLocalPackets.Add(NewPacket);
 }
 
 void FOnlineVoiceLive::HookLiveEvents()

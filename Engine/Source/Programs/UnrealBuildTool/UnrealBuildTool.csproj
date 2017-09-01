@@ -220,6 +220,7 @@
     <Compile Include="UWP\ManifestGenerator.cs" />
     <Compile Include="UWP\WinMDRegistrationInfo.cs" />
     <!-- ATG_CHANGE : END UWP support  -->
+    <Compile Include="Windows\PVSToolChain.cs" />
     <Compile Include="Windows\WindowsDeploy.cs" />
     <Compile Include="Windows\WinResources.cs" />
   </ItemGroup>

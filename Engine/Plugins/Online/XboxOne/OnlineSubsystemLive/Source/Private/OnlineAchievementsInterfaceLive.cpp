@@ -9,6 +9,7 @@
 #include "OnlineAsyncTaskManagerLive.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
+#include "Misc/CString.h"
 
 #define TEST_ACHIEVEMENTS			0
 #define USE_EVENTS_HEADER_TEST		0
@@ -96,7 +97,9 @@ void FOnlineAchievementsLive::TestEventsAndAchievements()
 				UE_LOG_ONLINE( Warning, TEXT( "[RequestBody]: %s"), args->RequestBody->RequestMessageString->Data() );
 			}
 			UE_LOG_ONLINE( Warning, TEXT( "") );
+			// @ATG_CHANGE : BEGIN - minor bug fix
 			UE_LOG_ONLINE( Warning, TEXT( "[Response]: %s %s"), args->HttpStatus.ToString()->Data(), args->ResponseBody->Data() );
+			// @ATG_CHANGE : END - minor bug fix
 			UE_LOG_ONLINE( Warning, TEXT( "") );
 		}
 	});
@@ -219,10 +222,41 @@ void FOnlineAchievementsLive::WriteAchievements(const FUniqueNetId& PlayerId, FO
 
 	bool bResult = true;
 
-	for ( FStatPropertyArray::TConstIterator It( WriteObject->Properties ); It; ++It )
+	const FOnlineIdentityLivePtr Identity = LiveSubsystem->GetIdentityLive();
+	check(Identity.IsValid());
+	Windows::Xbox::System::User^ XBoxUser = Identity->GetUserForUniqueNetId(LiveId);
+	Microsoft::Xbox::Services::XboxLiveContext ^ LiveContext = LiveSubsystem->GetLiveContext(XBoxUser);
+
+	for (FStatPropertyArray::TConstIterator It(WriteObject->Properties); It; ++It)
 	{
 		float Percent = 0.0f;
-		It.Value().GetValue( Percent );
+		It.Value().GetValue(Percent);
+
+		// Clamp as there's a WinRT exception if the percentage is too high
+		Percent = FMath::Clamp(Percent, 0.0f, 100.0f);
+
+		// The XBL back end wants the achievement ID, which is the number assigned to the achievement
+		// This is the the order in which the achievements are created on XDP/UDC, starting from 1
+		int32 AchievementId = AchievementsConfig.AchievementMap[It.Key().ToString()];
+
+		// Achievement IDs are 1-based, so increment
+		++AchievementId;
+
+		// Then for unknown reasons, UpdateAchievementAsync wants this ID as a string
+		FString AchievementIdStr = FString::FromInt(AchievementId);
+
+		Platform::String^ NetIdPlatformStr = ref new Platform::String(*LiveId.UniqueNetIdStr);
+		Platform::String^ AchievementPlatformStr = ref new Platform::String(*AchievementIdStr);
+
+		try
+		{
+			LiveContext->AchievementService->UpdateAchievementAsync(NetIdPlatformStr, AchievementPlatformStr, (uint32)Percent);
+		}
+		catch (Platform::COMException^ Ex)
+		{
+			UE_LOG_ONLINE(Warning, TEXT("UpdateAchievementAsync failed. Exception: %s."), Ex->ToString()->Data());
+			bResult = false;
+		}
 
 		if ( Percent < 100.0f )
 		{
@@ -299,10 +333,8 @@ void FOnlineAchievementsLive::QueryAchievements( const FUniqueNetId& PlayerId, c
 			{
 				auto Results = Task.get();
 
-				if (Results != nullptr && Results->Items != nullptr )
-				{
-					LiveSubsystem->CreateAndDispatchAsyncEvent<FAsyncEventQueryCompleted>(LiveSubsystem, UserLive, Results, true, Delegate);
-				}
+				Platform::Collections::Vector<Achievement^>^ AllAchievements = ref new Platform::Collections::Vector<Achievement ^>();
+				ProcessGetAchievementsResults(Results, AllAchievements, UserLive, Delegate);
 			}
 			catch (Platform::COMException^ Ex)
 			{
@@ -324,6 +356,42 @@ void FOnlineAchievementsLive::QueryAchievements( const FUniqueNetId& PlayerId, c
 	}
 }
 
+void FOnlineAchievementsLive::ProcessGetAchievementsResults(AchievementsResult^ Results, Platform::Collections::Vector<Achievement^>^ AllAchievements, const FUniqueNetIdLive UserLive, const FOnQueryAchievementsCompleteDelegate Delegate)
+{
+	if (Results != nullptr && Results->Items != nullptr )
+	{
+		uint32 ItemCount = Results->Items->Size;
+		for (uint32 i = 0; i < ItemCount; ++i)
+		{
+			AllAchievements->Append(Results->Items->GetAt(i));
+		}
+		if (Results->HasNext)
+		{
+			auto pAsyncOp = Results->GetNextAsync(0);
+			concurrency::create_task(pAsyncOp).then([this, UserLive, Delegate, AllAchievements](concurrency::task<AchievementsResult^> Task)
+			{
+				try
+				{
+					auto NextResults = Task.get();
+
+					ProcessGetAchievementsResults(NextResults, AllAchievements, UserLive, Delegate);
+				}
+				catch (Platform::COMException^ Ex)
+				{
+					UE_LOG_ONLINE(Warning, TEXT( "Getting achievements failed. Exception: %s." ), Ex->ToString()->Data() );
+					LiveSubsystem->ExecuteNextTick([Delegate, UserLive]()
+					{
+						Delegate.ExecuteIfBound(UserLive, false );
+					});
+				}
+			});
+		}
+		else
+		{
+			LiveSubsystem->CreateAndDispatchAsyncEvent<FAsyncEventQueryCompleted>(LiveSubsystem, UserLive, AllAchievements, true, Delegate);
+		}
+	}
+}
 
 void FOnlineAchievementsLive::QueryAchievementDescriptions( const FUniqueNetId& PlayerId, const FOnQueryAchievementsCompleteDelegate& Delegate )
 {
@@ -342,9 +410,18 @@ EOnlineCachedResult::Type FOnlineAchievementsLive::GetCachedAchievement(const FU
 		return EOnlineCachedResult::NotFound;
 	}
 
+	// Look up platform ID from achievement mapping
+	int32* Index = AchievementsConfig.AchievementMap.Find( AchievementId );
+	if (Index == nullptr)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineAchievementsLive::GetCachedAchievement: No mapping for achievement %s"), *AchievementId);
+		return EOnlineCachedResult::NotFound;
+	}
+	FString PlatformAchievementId = FString::FromInt(*Index);
+
 	for ( int32 i = 0; i < Achievements->Num(); i++ )
 	{
-		if ( (*Achievements)[ i ].Id == AchievementId )
+		if ( (*Achievements)[ i ].Id == PlatformAchievementId )
 		{
 			OutAchievement = (*Achievements)[ i ];
 			return EOnlineCachedResult::Success;
@@ -371,7 +448,15 @@ EOnlineCachedResult::Type FOnlineAchievementsLive::GetCachedAchievements(const F
 
 EOnlineCachedResult::Type FOnlineAchievementsLive::GetCachedAchievementDescription(const FString& AchievementId, FOnlineAchievementDesc& OutAchievementDesc)
 {
-	FOnlineAchievementDesc * AchievementDesc = AchievementDescriptions.Find( AchievementId );
+	int32* Index = AchievementsConfig.AchievementMap.Find( AchievementId );
+	if (Index == nullptr)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineAchievementsLive::GetCachedAchievementDescription: No mapping for achievement %s"), *AchievementId);
+		return EOnlineCachedResult::NotFound;
+	}
+	FString PlatformAchievementId = FString::FromInt(*Index);
+
+	FOnlineAchievementDesc * AchievementDesc = AchievementDescriptions.Find( PlatformAchievementId );
 
 	if ( AchievementDesc == NULL )
 	{
@@ -420,7 +505,7 @@ void FOnlineAchievementsLive::FAsyncEventQueryCompleted::Finalize()
 		return;
 	}
 
-	if ( Results == nullptr )
+	if ( Achievements == nullptr || Achievements->Size == 0)
 	{
 		bWasSuccessful = false;
 		return;
@@ -428,9 +513,9 @@ void FOnlineAchievementsLive::FAsyncEventQueryCompleted::Finalize()
 
 	TArray< FOnlineAchievement > AchievementsForPlayer;
 
-	for ( int32 i = 0; i < (int32)Results->Items->Size; ++i )
+	for ( uint32 i = 0; i < Achievements->Size; ++i )
 	{
-		Achievement ^ XBoxAchievement = Results->Items->GetAt( i );
+		Achievement^ XBoxAchievement = Achievements->GetAt(i);
 
 		FOnlineAchievement OnlineAchievement; 
 

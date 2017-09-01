@@ -603,17 +603,18 @@ namespace UnrealBuildTool
 				// Enable /ZW if the module requests it
 				if (CompileEnvironment.bEnableWinRTComponentExtensions || CompileEnvironment.WinMDReferences.Count > 0)
 				{
-					if (WindowsPlatform.bUseWindowsSDK10)
-					{
-						// Enable Windows Runtime extensions.
-						Arguments.Add(" /ZW");
+					// Enable Windows Runtime extensions.
+					Arguments.Add(" /ZW");
 
-						// Don't automatically add metadata references.  We'll do that ourselves to avoid referencing windows.winmd directly:
-						// we've hit problems where types are somehow in windows.winmd on some installations but not others, leading to either
-						// missing or duplicated type references.
-						Arguments.Add(" /ZW:nostdlib");
+					// Don't automatically add metadata references.  We'll do that ourselves to avoid referencing windows.winmd directly:
+					// we've hit problems where types are somehow in windows.winmd on some installations but not others, leading to either
+					// missing or duplicated type references.
+					Arguments.Add(" /ZW:nostdlib");
 
-						if (Directory.Exists(Path.Combine(EnvVars.WindowsSDKExtensionDir, "References")))
+                    if (WindowsPlatform.bUseWindowsSDK10)
+                    {
+
+                        if (Directory.Exists(Path.Combine(EnvVars.WindowsSDKExtensionDir, "References")))
 						{
 							Arguments.Add(String.Format(@" /AI""{0}\References""", EnvVars.WindowsSDKExtensionDir));
 							Arguments.Add(String.Format(@" /AI""{0}\References\{1}""", EnvVars.WindowsSDKExtensionDir, EnvVars.WindowsSDKExtensionHeaderLibVersion));
@@ -624,17 +625,13 @@ namespace UnrealBuildTool
 							Arguments.Add(String.Format(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Compiler)));
 							Arguments.Add(String.Format(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Compiler)));
 						}
+                    }
 
-						DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler);
-						if (PlatformWinMDLocation != null)
-						{
-							Arguments.Add(String.Format(@" /AI""{0}""", PlatformWinMDLocation));
-							Arguments.Add(String.Format(@" /FU""{0}\platform.winmd""", PlatformWinMDLocation));
-						}
-					}
-					else
+                    DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler);
+					if (PlatformWinMDLocation != null)
 					{
-						Log.TraceWarning("C++/CX is only supported when using the Windows 10 SDK.  Verify that the correct SDK is installed, and set bForceWindowsSDK10 for non-editor builds.");
+						Arguments.Add(String.Format(@" /AI""{0}""", PlatformWinMDLocation));
+						Arguments.Add(String.Format(@" /FU""{0}\platform.winmd""", PlatformWinMDLocation));
 					}
 				}
 				// @ATG_CHANGE : END winmd support

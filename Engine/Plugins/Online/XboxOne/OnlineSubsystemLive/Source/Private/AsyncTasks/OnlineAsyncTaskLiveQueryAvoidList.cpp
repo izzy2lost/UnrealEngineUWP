@@ -22,7 +22,7 @@ Windows::Foundation::IAsyncOperation<IVectorView<Platform::String^>^>^ FOnlineAs
 	}
 	catch (Platform::COMException^ Ex)
 	{
-		OutError = FString::Printf(TEXT("Error querying block list, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		OutError = FString::Printf(TEXT("Error querying block list, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 		UE_LOG_ONLINE(Error, *OutError);
 	}
 
@@ -44,7 +44,7 @@ bool FOnlineAsyncTaskLiveQueryAvoidList::ProcessResult(const Concurrency::task<I
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		OutError = FString::Printf(TEXT("Error querying block list, error: (%d) %s."), Ex->HResult, Ex->ToString()->Data());
+		OutError = FString::Printf(TEXT("Error querying block list, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 		UE_LOG_ONLINE(Error, *OutError);
 		return false;
 	}

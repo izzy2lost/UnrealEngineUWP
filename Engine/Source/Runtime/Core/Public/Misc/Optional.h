@@ -166,7 +166,7 @@ private:
 	// to 8 bytes on UWP32.  As a result, we need a different definition of TTypeCompatibleBytes to avoid 
 	// C2719: 'parameter': formal parameter with __declspec(align('#')) won't be aligned.
 #if PLATFORM_UWP && !PLATFORM_64BITS
-	struct 
+	struct
 	{
 		uint8 Pad[sizeof(OptionalType)];
 	} Value;

@@ -10,7 +10,13 @@
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 
-// @ATG_CHANGE : BEGIN UWP LIVE support
+// @ATG_CHANGE : BEGIN - Adding XIM
+#if USE_XIM
+#include "Xim/OnlineSessionInterfaceXim.h"
+#endif
+// @ATG_CHANGE : END
+
+// @ATG_CHANGE : BEGIN - UWP LIVE support
 #if PLATFORM_XBOXONE
 // @ATG_CHANGE : END
 
@@ -959,7 +965,7 @@ bool FOnlineEventsLive::TriggerEvent( const FUniqueNetId& PlayerId, const TCHAR*
 	// Make a list of internal parameters that will be a final copy of what we use for the actual low level event call
 	FOnlineEventParmsLive InternalParms;
 
-	for ( int32 i = 1; i < Event->Fields.GetNumFields(); i++ )
+	for ( int32 i = 1; i < Event->Fields.GetNumFields() && i < Event->Fields.GetNumFieldParmNames(); i++ )
 	{
 		const FName& FieldParmName		= Event->Fields.GetFieldParmNameByIndex( i );
 		const TCHAR* FieldParmTypeName = FindFieldNameFromType( Event->Fields.GetFieldDescByIndex( i ).Type );
@@ -994,15 +1000,21 @@ bool FOnlineEventsLive::TriggerEvent( const FUniqueNetId& PlayerId, const TCHAR*
 			continue;
 		}
 
+// @ATG_CHANGE : BEGIN - Adding XIM
+#if USE_XIM
+		typedef FOnlineSessionInfoXim FSessionInfoType;
+#else
+		typedef FOnlineSessionInfoLive FSessionInfoType;
+#endif
 		// Grab the required GUIDs from the game session if it exists
-		TSharedPtr<FOnlineSessionInfoLive> SessionInfoLive = nullptr;
-		auto SessionInterface = Subsystem->GetSessionInterfaceLive();
+		TSharedPtr<FSessionInfoType> SessionInfoLive = nullptr;
+		auto SessionInterface = Subsystem->GetSessionInterface();
 		if (SessionInterface.IsValid())
 		{
 			auto NamedSession = SessionInterface->GetNamedSession(GameSessionName);
 			if (NamedSession != nullptr)
 			{
-				SessionInfoLive = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
+				SessionInfoLive = StaticCastSharedPtr<FSessionInfoType>(NamedSession->SessionInfo);
 			}
 		}
 
@@ -1048,6 +1060,7 @@ bool FOnlineEventsLive::TriggerEvent( const FUniqueNetId& PlayerId, const TCHAR*
 			InternalParms.AddParm( *MultiplayerCorrelationId, ( MultiplayerCorrelationId.Len() + 1 ) * sizeof( WCHAR ) );
 			continue;
 		}
+// @ATG_CHANGE : END
 
 		// Not a built in parm type, expect the parameter to exist
 		const FVariantData* Value = Parms.Find( FieldParmName );
@@ -1102,6 +1115,7 @@ bool FOnlineEventsLive::TriggerEvent( const FUniqueNetId& PlayerId, const TCHAR*
 		{
 			// Use macro to handle basic POD types, which will give some flexibility to convert between them
 			HANDLE_POD_PARAMETER1( Int32, int32, 0 );
+			HANDLE_POD_PARAMETER1( UInt32, uint32, 0 );
 			HANDLE_POD_PARAMETER1( Int64, uint64, 0 );		// FIXME: FVariantData bug, really uint64, not signed
 			HANDLE_POD_PARAMETER1( Float, float, 0.0f );
 			HANDLE_POD_PARAMETER1( Double, double, 0 );
