@@ -706,9 +706,25 @@ namespace UWP.Automation
 					string CertPath = Path.Combine(SC.StageDirectory.FullName, Params.ShortProjectName + ".cer");
 
 					List<string> Dependencies = new List<string>();
-					TargetRules Rules = Params.ProjectTargets[TargetType.Game].Rules;
-					bool UseDebugCrt = Params.ClientConfigsToBuild.Contains(UnrealTargetConfiguration.Debug) && Rules.bDebugBuildsActuallyUseDebugCRT;
-					Dependencies.Add(GetPathToVCLibsPackage(UseDebugCrt, Rules.WindowsPlatform.Compiler));
+					bool UseDebugCrt = false;
+					WindowsCompiler Compiler = WindowsCompiler.Default;
+					TargetRules Rules = null;
+					if (Params.HasGameTargetDetected)
+					{
+						Rules = Params.ProjectTargets[TargetType.Game].Rules;
+					}
+					else if (Params.HasClientTargetDetected)
+					{
+						Rules = Params.ProjectTargets[TargetType.Game].Rules;
+					}
+
+					if (Rules != null)
+					{
+						UseDebugCrt = Params.ClientConfigsToBuild.Contains(UnrealTargetConfiguration.Debug) && Rules.bDebugBuildsActuallyUseDebugCRT;
+						Compiler = Rules.WindowsPlatform.Compiler;
+					}
+
+					Dependencies.Add(GetPathToVCLibsPackage(UseDebugCrt, Compiler));
 
 					portal.AppInstallStatus += Portal_AppInstallStatus;
 					portal.InstallApplicationAsync(string.Empty, PackagePath, Dependencies, CertPath).Wait();
