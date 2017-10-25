@@ -29,11 +29,6 @@
 		},
 		{
 			"Name" : "MfMediaFactory",
-			"Type" : "Editor",
-			"LoadingPhase" : "PostEngineInit"
-		},
-		{
-			"Name" : "MfMediaFactory",
 			"Type" : "RuntimeNoCommandlet",
 			"LoadingPhase" : "PostEngineInit",
 			"WhitelistPlatforms" : [ "XboxOne", "UWP64", "UWP32", "Win32", "Win64" ]
