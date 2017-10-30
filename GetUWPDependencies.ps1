@@ -85,7 +85,8 @@ Install-Package $nuget windowsdeviceportalwrapper $wdpwrapperInstallPath @("lib\
 
 # Check for Live Extensions SDK
 Write-Output "Checking for Xbox Live Extensions SDK..."
-$existingLiveExtSdk = Get-ItemProperty HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* | Where-Object {$_.DisplayName -like "*Xbox Live Platform Extensions*"}
+$windowsSdkLocationValue = (Get-ItemProperty "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0" -Name InstallationFolder).InstallationFolder
+$existingLiveExtSdk = get-childitem $windowsSdkLocationValue -recurse | where-object {$_.Name -like "XboxLive"}
 if ($existingLiveExtSdk -eq $null)
 {
 	Write-Output "Xbox Live Extensions SDK not found.  Installing..."
@@ -97,7 +98,23 @@ if ($existingLiveExtSdk -eq $null)
 
 	# Unpack and install
 	Expand-Archive $xblextzip -DestinationPath $xblextfolder -Force
-	$installExe = $xblextfolder + "\XboxLivePlatformExt.exe"
+
+	# Attempt to match the latest installed Windows SDK
+	$highestSdkVersion = Get-ChildItem ([System.IO.Path]::Combine($windowsSdkLocationValue, "Include")) -Name | Convert-String -Example '"10.0.10240.0"=10240' | measure-object -maximum
+
+	if ($highestSdkVersion.Maximum -ge 15063)
+	{
+		$installExe = [System.IO.Path]::Combine($xblextfolder, "XboxLivePlatformExt_10.0.15063", "XboxLivePlatformExt.exe")
+	}
+	elseif ($highestSdkVersion.Maximum -eq 14393)
+	{
+		$installExe = [System.IO.Path]::Combine($xblextfolder, "XboxLivePlatformExt_10.0.14393", "XboxLivePlatformExt.exe")
+	}
+	else
+	{
+		$installExe = [System.IO.Path]::Combine($xblextfolder, "XboxLivePlatformExt_10.0.10240", "XboxLivePlatformExt.exe")
+	}
+
 	$installProc = Start-Process $installExe -wait
 
 	# Cleanup
