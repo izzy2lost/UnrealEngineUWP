@@ -6,7 +6,10 @@
 
 #include "AllowWindowsPlatformTypes.h"
 
+#if USE_WINRT_DEVICE_WATCHER
+#include <vccorlib.h>
 #include <collection.h>
+#endif
 
 namespace UWPDeviceTypes
 {
@@ -27,10 +30,12 @@ public:
 	virtual const TArray<FUWPDeviceInfo> GetKnownDevices()	{ return KnownDevices; }
 
 private:
+#if USE_WINRT_DEVICE_WATCHER
 	static void DeviceWatcherDeviceAdded(Platform::Object^ Sender, Windows::Devices::Enumeration::DeviceInformation^ Info);
 	static void DeviceWatcherDeviceRemoved(Platform::Object^ Sender, Windows::Devices::Enumeration::DeviceInformationUpdate^ Info);
 	static void DeviceWatcherDeviceUpdated(Platform::Object^ Sender, Windows::Devices::Enumeration::DeviceInformationUpdate^ Info);
 	static void DeviceWatcherDeviceEnumerationCompleted(Platform::Object^ Sender, Platform::Object^);
+#endif
 
 	void AddDevice(const FUWPDeviceInfo& Info);
 
@@ -39,7 +44,10 @@ private:
 private:
 	static FUWPDeviceDetectorModule* ThisModule;
 
+#if USE_WINRT_DEVICE_WATCHER
 	Windows::Devices::Enumeration::DeviceWatcher^ UwpDeviceWatcher;
+#endif
+
 	FOnDeviceDetected DeviceDetected;
 	FCriticalSection DevicesLock;
 	TArray<FUWPDeviceInfo> KnownDevices;
@@ -66,6 +74,19 @@ FUWPDeviceDetectorModule::~FUWPDeviceDetectorModule()
 
 void FUWPDeviceDetectorModule::StartDeviceDetection()
 {
+	// Ensure local device is available even when device portal is off
+	// or full device watcher is not enabled.
+	if (KnownDevices.Num() == 0)
+	{
+		FUWPDeviceInfo LocalDevice;
+		LocalDevice.HostName = FPlatformProcess::ComputerName();
+		LocalDevice.Is64Bit = PLATFORM_64BITS;
+		LocalDevice.RequiresCredentials = 0;
+		LocalDevice.DeviceTypeName = UWPDeviceTypes::Desktop;
+		ThisModule->AddDevice(LocalDevice);
+	}
+
+#if USE_WINRT_DEVICE_WATCHER
 	using namespace Platform;
 	using namespace Platform::Collections;
 	using namespace Windows::Foundation;
@@ -97,18 +118,22 @@ void FUWPDeviceDetectorModule::StartDeviceDetection()
 	UwpDeviceWatcher->EnumerationCompleted += ref new TypedEventHandler<DeviceWatcher^, Object^>(&FUWPDeviceDetectorModule::DeviceWatcherDeviceEnumerationCompleted);
 
 	UwpDeviceWatcher->Start();
+#endif
 }
 
 void FUWPDeviceDetectorModule::StopDeviceDetection()
 {
+#if USE_WINRT_DEVICE_WATCHER
 	if (UwpDeviceWatcher != nullptr)
 	{
 		UwpDeviceWatcher->Stop();
 		UwpDeviceWatcher = nullptr;
 	}
+#endif
 }
 
 
+#if USE_WINRT_DEVICE_WATCHER
 void FUWPDeviceDetectorModule::DeviceWatcherDeviceAdded(Platform::Object^ Sender, Windows::Devices::Enumeration::DeviceInformation^ Info)
 {
 	using namespace Platform;
@@ -195,14 +220,9 @@ void FUWPDeviceDetectorModule::DeviceWatcherDeviceUpdated(Platform::Object^ Send
 
 void FUWPDeviceDetectorModule::DeviceWatcherDeviceEnumerationCompleted(Platform::Object^ Sender, Platform::Object^)
 {
-	// In case device portal isn't enabled locally...
-	FUWPDeviceInfo LocalDevice;
-	LocalDevice.HostName = FPlatformProcess::ComputerName();
-	LocalDevice.Is64Bit = PLATFORM_64BITS;
-	LocalDevice.RequiresCredentials = 0;
-	LocalDevice.DeviceTypeName = UWPDeviceTypes::Desktop;
-	ThisModule->AddDevice(LocalDevice);
+
 }
+#endif
 
 void FUWPDeviceDetectorModule::AddDevice(const FUWPDeviceInfo& Info)
 {

@@ -23,7 +23,6 @@ FUWPTargetPlatform::FUWPTargetPlatform()
 
 	DeviceDetectedRegistration = IUWPDeviceDetectorModule::Get().OnDeviceDetected().AddRaw(this, &FUWPTargetPlatform::OnDeviceDetected);
 
-	IUWPDeviceDetectorModule::Get().StartDeviceDetection();
 }
 
 FUWPTargetPlatform::~FUWPTargetPlatform()
@@ -33,6 +32,8 @@ FUWPTargetPlatform::~FUWPTargetPlatform()
 
 void FUWPTargetPlatform::GetAllDevices(TArray<ITargetDevicePtr>& OutDevices) const
 {
+	IUWPDeviceDetectorModule::Get().StartDeviceDetection();
+
 	OutDevices.Reset();
 	FScopeLock Lock(&DevicesLock);
 	OutDevices = Devices;
@@ -42,6 +43,8 @@ ITargetDevicePtr FUWPTargetPlatform::GetDevice(const FTargetDeviceId& DeviceId)
 {
 	if (PlatformName() == DeviceId.GetPlatformName())
 	{
+		IUWPDeviceDetectorModule::Get().StartDeviceDetection();
+
 		FScopeLock Lock(&DevicesLock);
 		for (ITargetDevicePtr Device : Devices)
 		{
@@ -58,6 +61,8 @@ ITargetDevicePtr FUWPTargetPlatform::GetDevice(const FTargetDeviceId& DeviceId)
 
 ITargetDevicePtr FUWPTargetPlatform::GetDefaultDevice() const
 {
+	IUWPDeviceDetectorModule::Get().StartDeviceDetection();
+
 	FScopeLock Lock(&DevicesLock);
 	for (ITargetDevicePtr RemoteDevice : Devices)
 	{

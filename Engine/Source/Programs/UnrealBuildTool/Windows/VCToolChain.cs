@@ -633,6 +633,12 @@ namespace UnrealBuildTool
 						Arguments.Add(String.Format(@" /AI""{0}""", PlatformWinMDLocation));
 						Arguments.Add(String.Format(@" /FU""{0}\platform.winmd""", PlatformWinMDLocation));
 					}
+
+					if (Compiler >= WindowsCompiler.VisualStudio2017)
+					{
+						// c1xx : warning C4199: two-phase name lookup is not supported for C++/CLI, C++/CX, or OpenMP; use /Zc:twoPhase-
+						Arguments.Add(" /Zc:twoPhase-");
+					}
 				}
 				// @ATG_CHANGE : END winmd support
 			}

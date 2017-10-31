@@ -1144,6 +1144,9 @@ namespace UnrealBuildTool
 
 			// Enable WinRT if requested, or auto-enable if WinMDs have been added to the environment
 			Result.bEnableWinRTComponentExtensions = Rules.bEnableWinRTComponentExtensions || Result.WinMDReferences.Count > 0;
+
+			// /ZW ends up generating #import directives, which must be compiled locally
+			Result.bBuildLocallyWithSNDBS = Result.bBuildLocallyWithSNDBS || Result.bEnableWinRTComponentExtensions;
 			// @ATG_CHANGE : END winmd support
 
 			return Result;
