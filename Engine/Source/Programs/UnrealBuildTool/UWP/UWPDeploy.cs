@@ -265,6 +265,7 @@ namespace UnrealBuildTool
 			Log.TraceInformation("Prepping {0} for deployment to {1}", ProjectName, InTarget.Platform.ToString());
 			System.DateTime PrepDeployStartTime = DateTime.UtcNow;
 
+			// Note: TargetReceipt.Read now expands path variables internally.
 			TargetReceipt Receipt = TargetReceipt.Read(InTarget.BuildReceiptFileName, UnrealBuildTool.EngineDirectory, InTarget.ProjectDirectory);
 			AddWinMDReferencesFromReceipt(Receipt, InTarget.ProjectDirectory, UnrealBuildTool.EngineDirectory.ParentDirectory.FullName);
 
@@ -299,26 +300,18 @@ namespace UnrealBuildTool
 
 		public void AddWinMDReferencesFromReceipt(TargetReceipt Receipt, DirectoryReference SourceProjectDir, string DestRelativeTo)
 		{
-			// Don't use Receipt.ExpandPathVariables because the variables are useful for both source and dest.
-
-			Dictionary<string, string> SourceVariables = new Dictionary<string, string>();
-			SourceVariables["EngineDir"] = UnrealBuildTool.EngineDirectory.FullName;
-			SourceVariables["ProjectDir"] = SourceProjectDir.FullName;
-
-			Dictionary<string, string> DestVariables = new Dictionary<string, string>();
-			DestVariables["EngineDir"] = Path.Combine(DestRelativeTo, "Engine");
-			DestVariables["ProjectDir"] = Path.Combine(DestRelativeTo, SourceProjectDir.GetDirectoryName());
-
+			// Dependency paths in receipt are already expanded at this point
 			foreach (var Dep in Receipt.RuntimeDependencies)
 			{
 				if (Dep.Path.GetExtension() == ".dll")
 				{
-					string SourcePath = Utils.ExpandVariables(Dep.Path.FullName, SourceVariables);
+					string SourcePath = Dep.Path.FullName;
 					string WinMDFile = Path.ChangeExtension(SourcePath, "winmd");
 					if (File.Exists(WinMDFile))
 					{
 						string DestPath = Dep.Path.FullName;
-						DestPath = Utils.ExpandVariables(DestPath, DestVariables);
+						DestPath = Dep.Path.FullName.Replace(UnrealBuildTool.EngineDirectory.FullName, Path.Combine(DestRelativeTo, "Engine"));
+						DestPath = DestPath.Replace(SourceProjectDir.FullName, Path.Combine(DestRelativeTo, SourceProjectDir.GetDirectoryName()));
 						DestPath = Utils.MakePathRelativeTo(DestPath, DestRelativeTo);
 						WinMDReferences.Add(new WinMDRegistrationInfo(new FileReference(WinMDFile), DestPath));
 					}
@@ -385,25 +378,20 @@ namespace UnrealBuildTool
 			// No need for project file - comes in via RuntimeDependencies now
 
 			// Runtime dependencies.
-			Dictionary<string, string> SourceVariables = new Dictionary<string, string>();
-			SourceVariables["EngineDir"] = UnrealBuildTool.EngineDirectory.FullName;
-			SourceVariables["ProjectDir"] = InTarget.ProjectDirectory.FullName;
-
-			Dictionary<string, string> DestVariables = new Dictionary<string, string>();
-			DestVariables["EngineDir"] = "Engine";
-			DestVariables["ProjectDir"] = InProjectName;
-
 			// Note: some entries are added multiple times (notable Engine/Content/SlateDebug, possibly a bug?).
 			// This will cause UWP F5 deployment to *always* believe these files need updating, which is not desirable.
 			IEnumerable<string> DependencyPaths = Dependencies.Select((d) => (d.Path.FullName));
 
 			foreach (var RuntimeDep in DependencyPaths.Distinct())
 			{
-				string SourcePath = Utils.ExpandVariables(RuntimeDep, SourceVariables).Replace(@"/", @"\");
-				string DeployPath = Utils.ExpandVariables(RuntimeDep, DestVariables).Replace(@"/", @"\");
-				
+				string SourcePath = RuntimeDep;
+				string DeployPath = RuntimeDep;
+				DeployPath = DeployPath.Replace(UnrealBuildTool.EngineDirectory.FullName, "Engine");
+				DeployPath = DeployPath.Replace(InTarget.ProjectDirectory.FullName, InProjectName);
+
 				// 4.12: Dependencies now support ... syntax for recursive directory traversal.
 				// Translate this to MSBuild syntax. 
+				// 4.17 - 
 				bool IncludeDependencyInRecipe = true;
 				if (SourcePath.Contains(@"..."))
 				{
