@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using Microsoft.Win32;
 using System.Text;
+using Tools.DotNETCommon;
 
 namespace UnrealBuildTool
 {
@@ -15,12 +16,27 @@ namespace UnrealBuildTool
 	{
 		WindowsCompiler Compiler;
 		bool bWithStaticAnalyzer;
+		bool bStrictConformanceMode;
+		string ObjSrcMapFile;
 
-		public VCToolChain(CppPlatform CppPlatform, WindowsCompiler Compiler, bool bWithStaticAnalyzer)
+		public VCToolChain(CppPlatform CppPlatform, WindowsCompiler Compiler, bool bWithStaticAnalyzer, bool bStrictConformanceMode, string ObjSrcMapFile)
 			: base(CppPlatform)
 		{
 			this.Compiler = Compiler;
 			this.bWithStaticAnalyzer = bWithStaticAnalyzer;
+			this.bStrictConformanceMode = bStrictConformanceMode;
+			this.ObjSrcMapFile = ObjSrcMapFile;
+
+			if (ObjSrcMapFile != null)
+			{
+				try
+				{
+					File.Delete(ObjSrcMapFile);
+				}
+				catch
+				{
+				}
+			}
 		}
 
 		// @ATG_CHANGE : BEGIN making public for reuse in UWP toolchain
@@ -250,7 +266,7 @@ namespace UnrealBuildTool
 			}
 
 			// Disable Microsoft extensions on VS2017+ for improved standards compliance.
-			if (Compiler >= WindowsCompiler.VisualStudio2017)
+			if (Compiler >= WindowsCompiler.VisualStudio2017 && bStrictConformanceMode)
 			{
 				Arguments.Add("/permissive-");
 				Arguments.Add("/Zc:strictStrings-"); // Have to disable strict const char* semantics due to Windows headers not being compliant.
@@ -1250,12 +1266,15 @@ namespace UnrealBuildTool
 				{
 					string ObjectFileExtension = UEBuildPlatform.GetBuildPlatform(UnrealTargetPlatform.Win64).GetBinaryExtension(UEBuildBinaryType.Object);
 					// Add the object file to the produced item list.
-					FileItem ObjectFile = FileItem.GetItemByFileReference(
-						FileReference.Combine(
-							CompileEnvironment.OutputDirectory,
-							Path.GetFileName(SourceFile.AbsolutePath) + ObjectFileExtension
-							)
-						);
+					string ObjectLeafFilename = Path.GetFileName(SourceFile.AbsolutePath) + ObjectFileExtension;
+					FileItem ObjectFile = FileItem.GetItemByFileReference(FileReference.Combine(CompileEnvironment.OutputDirectory, ObjectLeafFilename));
+					if (ObjSrcMapFile != null)
+					{
+						using (var Writer = File.AppendText(ObjSrcMapFile))
+						{
+							Writer.WriteLine(string.Format("\"{0}\" -> \"{1}\"", ObjectLeafFilename, SourceFile.AbsolutePath));
+						}
+					}
 					CompileAction.ProducedItems.Add(ObjectFile);
 					Result.ObjectFiles.Add(ObjectFile);
 					if (WindowsPlatform.bUseVCCompilerArgs)
@@ -1742,65 +1761,6 @@ namespace UnrealBuildTool
 			}
 			Directory.CreateDirectory(Path.GetDirectoryName(FileName));
 			File.WriteAllLines(FileName, ObjectFileDirectories.Select(x => x.FullName).OrderBy(x => x).ToArray());
-		}
-
-		public override void CompileCSharpProject(CSharpEnvironment CompileEnvironment, FileReference ProjectFileName, FileReference DestinationFile, ActionGraph ActionGraph)
-		{
-			// Initialize environment variables required for spawned tools.
-			VCEnvironment EnvVars = VCEnvironment.SetEnvironment(CompileEnvironment.EnvironmentTargetPlatform, Compiler);
-
-			Action BuildProjectAction = ActionGraph.Add(ActionType.BuildProject);
-
-			// Specify the source file (prerequisite) for the action
-			FileItem ProjectFileItem = FileItem.GetExistingItemByFileReference(ProjectFileName);
-			if (ProjectFileItem == null)
-			{
-				throw new BuildException("Expected C# project file {0} to exist.", ProjectFileName);
-			}
-
-			// Add the project and the files contained to the prerequisites.
-			BuildProjectAction.PrerequisiteItems.Add(ProjectFileItem);
-			VCSharpProjectFile ProjectFile = new VCSharpProjectFile(ProjectFileName);
-			List<string> ProjectPreReqs = ProjectFile.GetCSharpDependencies();
-			DirectoryReference ProjectFolder = ProjectFileName.Directory;
-			foreach (string ProjectPreReqRelativePath in ProjectPreReqs)
-			{
-				FileReference ProjectPreReqAbsolutePath = FileReference.Combine(ProjectFolder, ProjectPreReqRelativePath);
-				FileItem ProjectPreReqFileItem = FileItem.GetExistingItemByFileReference(ProjectPreReqAbsolutePath);
-				if (ProjectPreReqFileItem == null)
-				{
-					throw new BuildException("Expected C# dependency {0} to exist.", ProjectPreReqAbsolutePath);
-				}
-				BuildProjectAction.PrerequisiteItems.Add(ProjectPreReqFileItem);
-			}
-
-			// We might be able to distribute this safely, but it doesn't take any time.
-			BuildProjectAction.bCanExecuteRemotely = false;
-
-			// Setup execution via MSBuild.
-			BuildProjectAction.WorkingDirectory = UnrealBuildTool.EngineSourceDirectory.FullName;
-			BuildProjectAction.StatusDescription = ProjectFileName.GetFileName();
-			BuildProjectAction.CommandPath = EnvVars.MSBuildPath;
-			if (CompileEnvironment.TargetConfiguration == CSharpTargetConfiguration.Debug)
-			{
-				BuildProjectAction.CommandArguments = " /target:rebuild /property:Configuration=Debug";
-			}
-			else
-			{
-				BuildProjectAction.CommandArguments = " /target:rebuild /property:Configuration=Development";
-			}
-
-			// Be less verbose
-			BuildProjectAction.CommandArguments += " /nologo /verbosity:minimal";
-
-			// Add project
-			BuildProjectAction.CommandArguments += String.Format(" \"{0}\"", ProjectFileItem.AbsolutePath);
-
-			// Specify the output files.
-			FileReference PDBFilePath = FileReference.Combine(DestinationFile.Directory, DestinationFile.GetFileNameWithoutExtension() + ".pdb");
-			FileItem PDBFile = FileItem.GetItemByFileReference(PDBFilePath);
-			BuildProjectAction.ProducedItems.Add(FileItem.GetItemByFileReference(DestinationFile));
-			BuildProjectAction.ProducedItems.Add(PDBFile);
 		}
 
 		/// <summary>

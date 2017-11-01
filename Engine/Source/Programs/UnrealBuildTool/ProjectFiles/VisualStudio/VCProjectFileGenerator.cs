@@ -6,6 +6,7 @@ using System.Text;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
+using Tools.DotNETCommon;
 
 namespace UnrealBuildTool
 {
@@ -573,7 +574,7 @@ namespace UnrealBuildTool
 							Dependencies.Add(UBTProject);
 							Dependencies.AddRange(UBTProject.DependsOnProjects);
 						}
-						if (bEditorDependsOnShaderCompileWorker && CurProject.IsGeneratedProject && ShaderCompileWorkerProject != null && CurProject.ProjectTargets.Any(x => x.TargetRules != null && x.TargetRules.Type == TargetType.Editor))
+						if (bEditorDependsOnShaderCompileWorker && !bUsePrecompiled && CurProject.IsGeneratedProject && ShaderCompileWorkerProject != null && CurProject.ProjectTargets.Any(x => x.TargetRules != null && x.TargetRules.Type == TargetType.Editor))
 						{
 							Dependencies.Add(ShaderCompileWorkerProject);
 						}

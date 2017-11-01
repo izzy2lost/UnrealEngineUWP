@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Diagnostics;
 using System.Security;
+using Tools.DotNETCommon;
 
 namespace UnrealBuildTool
 {
@@ -470,7 +471,7 @@ namespace UnrealBuildTool
 			}
 
 			//write out any additional project files
-			if (!IsStubProject && (ProjectFileGenerator.IsEngineProject(ProjectName) || ProjectFileGenerator.IsGameProject(ProjectName)))
+			if (!IsStubProject && ProjectTargets.Any(x => x.TargetRules != null && x.TargetRules.Type != TargetType.Program))
 			{
 				foreach (UnrealTargetPlatform Platform in ProjectPlatforms)
 				{
@@ -1203,31 +1204,24 @@ namespace UnrealBuildTool
 					DirectoryReference RootDirectory = UnrealBuildTool.EngineDirectory;
 					if (TargetRulesObject.Type != TargetType.Program && (bShouldCompileMonolithic || TargetRulesObject.BuildEnvironment == TargetBuildEnvironment.Unique) && !TargetRulesObject.bOutputToEngineBinaries)
 					{
-						if (OnlyGameProject != null && TargetFilePath.IsUnderDirectory(OnlyGameProject.Directory))
+						if(Combination.ProjectTarget.UnrealProjectFilePath != null)
 						{
-							RootDirectory = OnlyGameProject.Directory;
-						}
-						else
-						{
-							FileReference ProjectFileName;
-							if (UProjectInfo.TryGetProjectFileName(ProjectName, out ProjectFileName))
-							{
-								RootDirectory = ProjectFileName.Directory;
-							}
+							RootDirectory = Combination.ProjectTarget.UnrealProjectFilePath.Directory;
 						}
 					}
 
-					if (TargetRulesObject.Type == TargetType.Program && !TargetRulesObject.bOutputToEngineBinaries)
+					if (TargetRulesObject.Type == TargetType.Program && !TargetRulesObject.bOutputToEngineBinaries && Combination.ProjectTarget.UnrealProjectFilePath != null)
 					{
-						FileReference ProjectFileName;
-						if (UProjectInfo.TryGetProjectForTarget(TargetName, out ProjectFileName))
-						{
-							RootDirectory = ProjectFileName.Directory;
-						}
+						RootDirectory = Combination.ProjectTarget.UnrealProjectFilePath.Directory;
 					}
 
 					// Get the output directory
 					DirectoryReference OutputDirectory = DirectoryReference.Combine(RootDirectory, "Binaries", UBTPlatformName);
+
+					if (!string.IsNullOrEmpty(TargetRulesObject.ExeBinariesSubFolder))
+					{
+						OutputDirectory = DirectoryReference.Combine(OutputDirectory, TargetRulesObject.ExeBinariesSubFolder);
+					}
 
 					// Get the executable name (minus any platform or config suffixes)
 					string BaseExeName = TargetName;
@@ -1406,6 +1400,37 @@ namespace UnrealBuildTool
 		{
 		}
 
+		/// <summary>
+		/// Extract information from the csproj file based on the supplied configuration
+		/// </summary>
+		public CsProjectInfo GetProjectInfo(UnrealTargetConfiguration InConfiguration)
+		{
+			if (CachedProjectInfo.ContainsKey(InConfiguration))
+			{
+				return CachedProjectInfo[InConfiguration];
+			}
+
+			CsProjectInfo Info;
+
+			Dictionary<string, string> Properties = new Dictionary<string, string>();
+			Properties.Add("Platform", "AnyCPU");
+			Properties.Add("Configuration", InConfiguration.ToString());
+			if (CsProjectInfo.TryRead(ProjectFilePath, Properties, out Info))
+			{
+				CachedProjectInfo.Add(InConfiguration, Info);
+			}
+
+			return Info;
+		}
+
+		/// <summary>
+		/// Determine if this project is a .NET Core project
+		/// </summary>
+		public bool IsDotNETCoreProject()
+		{
+			CsProjectInfo Info = GetProjectInfo(UnrealTargetConfiguration.Debug);
+			return Info.IsDotNETCoreProject();
+		}
 
 		/// <summary>
 		/// Reads the list of dependencies from the specified project file.
@@ -1481,6 +1506,8 @@ namespace UnrealBuildTool
 		protected readonly List<FileReference> AssemblyReferences = new List<FileReference>();
 		/// System assemblies this project is dependent on
 		protected readonly List<string> DotNetAssemblyReferences = new List<string>() { "System", "System.Core", "System.Data", "System.Xml" };
+		/// Cache of parsed info about this project
+		protected readonly Dictionary<UnrealTargetConfiguration, CsProjectInfo> CachedProjectInfo = new Dictionary<UnrealTargetConfiguration, CsProjectInfo>();
 	}
 
 }

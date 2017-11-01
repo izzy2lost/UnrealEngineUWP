@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -8,6 +8,7 @@ using System.Xml.XPath;
 using System.Xml.Linq;
 using System.Linq;
 using System.Text;
+using Tools.DotNETCommon;
 
 namespace UnrealBuildTool
 {
@@ -157,7 +158,7 @@ namespace UnrealBuildTool
 		public FileReference ProjectFilePath
 		{
 			get;
-			private set;
+			protected set;
 		}
 
 

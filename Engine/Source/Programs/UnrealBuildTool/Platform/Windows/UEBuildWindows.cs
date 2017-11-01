@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.IO;
 using Microsoft.Win32;
 using System.Linq;
+using Tools.DotNETCommon;
 
 namespace UnrealBuildTool
 {
@@ -130,10 +131,24 @@ namespace UnrealBuildTool
 		public WindowsStaticAnalyzer StaticAnalyzer = WindowsStaticAnalyzer.None;
 
 		/// <summary>
+		/// Whether we should export a file containing .obj->source file mappings.
+		/// </summary>
+		[XmlConfigFile]
+		[CommandLine("-ObjSrcMap")]
+		public string ObjSrcMapFile = null;
+
+		/// <summary>
 		/// Provides a Module Definition File (.def) to the linker to describe various attributes of a DLL.
 		/// Necessary when exporting functions by ordinal values instead of by name.
 		/// </summary>
 		public string ModuleDefinitionFile;
+
+		/// <summary>
+		/// Enables strict standard conformance mode (/permissive-) in VS2017+.
+		/// </summary>
+		[XmlConfigFile(Category = "WindowsPlatform")]
+		[CommandLine("-Strict")]
+		public bool bStrictConformanceMode = false; 
 
 		/// VS2015 updated some of the CRT definitions but not all of the Windows SDK has been updated to match.
 		/// Microsoft provides legacy_stdio_definitions library to enable building with VS2015 until they fix everything up.
@@ -225,6 +240,11 @@ namespace UnrealBuildTool
 			get { return Inner.StaticAnalyzer; }
 		}
 
+		public string ObjSrcMapFile
+		{
+			get { return Inner.ObjSrcMapFile; }
+		}
+
 		public string ModuleDefinitionFile
 		{
 			get { return Inner.ModuleDefinitionFile; }
@@ -233,6 +253,11 @@ namespace UnrealBuildTool
 		public bool bNeedsLegacyStdioDefinitionsLib
 		{
 			get { return Inner.bNeedsLegacyStdioDefinitionsLib; }
+		}
+
+		public bool bStrictConformanceMode
+		{
+			get { return Inner.bStrictConformanceMode; }
 		}
 
 		public string GetVisualStudioCompilerVersionName()
@@ -596,6 +621,26 @@ namespace UnrealBuildTool
 			{
 				return false;
 			}
+		}
+
+		/// <summary>
+		/// Determines if the given name is a build product for a target.
+		/// </summary>
+		/// <param name="FileName">The name to check</param>
+		/// <param name="NamePrefixes">Target or application names that may appear at the start of the build product name (eg. "UE4Editor", "ShooterGameEditor")</param>
+		/// <param name="NameSuffixes">Suffixes which may appear at the end of the build product name</param>
+		/// <returns>True if the string matches the name of a build product, false otherwise</returns>
+		public override bool IsBuildProduct(string FileName, string[] NamePrefixes, string[] NameSuffixes)
+		{
+			return IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".exe")
+				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".dll")
+				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".dll.response")
+				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".lib")
+				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".pdb")
+				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".exp")
+				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".obj")
+				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".map")
+				|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".objpaths");
 		}
 
 		/// <summary>
@@ -1052,11 +1097,11 @@ namespace UnrealBuildTool
 			}
 			else if(Target.WindowsPlatform.StaticAnalyzer == WindowsStaticAnalyzer.VisualCpp)
 			{
-				return new VCToolChain(CppPlatform, Target.WindowsPlatform.Compiler, true);
+				return new VCToolChain(CppPlatform, Target.WindowsPlatform.Compiler, true, Target.WindowsPlatform.bStrictConformanceMode, Target.WindowsPlatform.ObjSrcMapFile);
 			}
 			else
 			{
-				return new VCToolChain(CppPlatform, Target.WindowsPlatform.Compiler, false);
+				return new VCToolChain(CppPlatform, Target.WindowsPlatform.Compiler, false, Target.WindowsPlatform.bStrictConformanceMode, Target.WindowsPlatform.ObjSrcMapFile);
 			}
 		}
 
