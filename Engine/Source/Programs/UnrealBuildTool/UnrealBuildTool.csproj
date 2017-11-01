@@ -212,17 +212,17 @@
     <Compile Include="Utilities\EncryptionAndSigning.cs" />
     <Compile Include="Utilities\HashSetExtensions.cs" />
     <!-- ATG_CHANGE : BEGIN UWP support  -->
-    <Compile Include="UWP\UEBuildUWP.cs" />
-    <Compile Include="UWP\UWPDeploy.cs" />
-    <Compile Include="UWP\UWPExports.cs" />
-    <Compile Include="UWP\UWPProjectGenerator.cs" />
-    <Compile Include="UWP\UWPToolChain.cs" />
-    <Compile Include="UWP\ManifestGenerator.cs" />
-    <Compile Include="UWP\WinMDRegistrationInfo.cs" />
+    <Compile Include="Platform\UWP\UEBuildUWP.cs" />
+    <Compile Include="Platform\UWP\UWPDeploy.cs" />
+    <Compile Include="Platform\UWP\UWPExports.cs" />
+    <Compile Include="Platform\UWP\UWPProjectGenerator.cs" />
+    <Compile Include="Platform\UWP\UWPToolChain.cs" />
+    <Compile Include="Platform\UWP\ManifestGenerator.cs" />
+    <Compile Include="Platform\UWP\WinMDRegistrationInfo.cs" />
     <!-- ATG_CHANGE : END UWP support  -->
-    <Compile Include="Windows\PVSToolChain.cs" />
-    <Compile Include="Windows\WindowsDeploy.cs" />
-    <Compile Include="Windows\WinResources.cs" />
+    <Compile Include="Platform\Windows\PVSToolChain.cs" />
+    <Compile Include="Platform\Windows\WindowsDeploy.cs" />
+    <Compile Include="Platform\Windows\WinResources.cs" />
   </ItemGroup>
   <PropertyGroup>
     <TargetPlatformVersion>8.0</TargetPlatformVersion>
@@ -349,11 +349,11 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Utilities\JsonObject.cs" />
-    <Compile Include="Windows\UEBuildWindows.cs" />
-    <Compile Include="Windows\VCEnvironment.cs" />
-    <Compile Include="Windows\VCToolChain.cs" />
-    <Compile Include="Windows\WindowsExports.cs" />
-    <Compile Include="Windows\WindowsProjectGenerator.cs" />
+    <Compile Include="Platform\Windows\UEBuildWindows.cs" />
+    <Compile Include="Platform\Windows\VCEnvironment.cs" />
+    <Compile Include="Platform\Windows\VCToolChain.cs" />
+    <Compile Include="Platform\Windows\WindowsExports.cs" />
+    <Compile Include="Platform\Windows\WindowsProjectGenerator.cs" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include="Microsoft.Net.Client.3.5">
