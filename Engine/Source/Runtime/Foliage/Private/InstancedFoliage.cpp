@@ -193,7 +193,7 @@ static void ConvertDeprecatedFoliageMeshes(
 	check(IFA->InstanceBaseCache.InstanceBaseLevelMap.Num() <= 1);
 	// populate WorldAsset->BasePtr map
 	IFA->InstanceBaseCache.InstanceBaseLevelMap.Empty();
-	auto& BaseList = IFA->InstanceBaseCache.InstanceBaseLevelMap.Add(TAssetPtr<UWorld>(Cast<UWorld>(IFA->GetLevel()->GetOuter())));
+	auto& BaseList = IFA->InstanceBaseCache.InstanceBaseLevelMap.Add(TSoftObjectPtr<UWorld>(Cast<UWorld>(IFA->GetLevel()->GetOuter())));
 	for (auto& BaseInfoPair : IFA->InstanceBaseCache.InstanceBaseMap)
 	{
 		BaseList.Add(BaseInfoPair.Value.BasePtr);
@@ -605,7 +605,10 @@ void UFoliageType::PostEditChangeProperty(struct FPropertyChangedEvent& Property
 	{
 		for (TObjectIterator<AInstancedFoliageActor> It(RF_ClassDefaultObject, /** bIncludeDerivedClasses */ true, /** InternalExcludeFalgs */ EInternalObjectFlags::PendingKill); It; ++It)
 		{
-			It->NotifyFoliageTypeChanged(this, bMeshChanged);
+			if (It->GetWorld() != nullptr)
+			{
+				It->NotifyFoliageTypeChanged(this, bMeshChanged);
+			}
 		}
 	}
 }
@@ -764,12 +767,13 @@ void FFoliageMeshInfo::CreateNewComponent(AInstancedFoliageActor* InIFA, const U
 	}
 
 	UFoliageInstancedStaticMeshComponent* FoliageComponent = NewObject<UFoliageInstancedStaticMeshComponent>(InIFA, ComponentClass, NAME_None, RF_Transactional);
+	FoliageComponent->KeepInstanceBufferCPUAccess = false;
+	FoliageComponent->InitPerInstanceRenderData(false);
 
 	Component = FoliageComponent;
 	Component->SetStaticMesh(InSettings->GetStaticMesh());
 	Component->bSelectable = true;
 	Component->bHasPerInstanceHitProxies = true;
-	Component->InstancingRandomSeed = FMath::Rand();
 
 	if (Component->GetStaticMesh() != nullptr)
 	{
@@ -1282,7 +1286,7 @@ void FFoliageMeshInfo::ReapplyInstancesToComponent()
 		const bool bWasRegistered = Component->IsRegistered();
 		Component->UnregisterComponent();
 		Component->ClearInstances();
-		Component->InitPerInstanceRenderData();
+		Component->InitPerInstanceRenderData(false);
 
 		Component->bAutoRebuildTreeOnInstanceChanges = false;
 
@@ -2732,8 +2736,12 @@ void AInstancedFoliageActor::PostLoad()
 	{
 		for (auto& MeshPair : FoliageMeshes)
 		{
-			MeshPair.Value->Component->ConditionalPostLoad();
-			MeshPair.Value->Component->DestroyComponent();
+			if (MeshPair.Value->Component != nullptr)
+			{
+				MeshPair.Value->Component->ConditionalPostLoad();
+				MeshPair.Value->Component->DestroyComponent();
+			}
+
 			MeshPair.Value = FFoliageMeshInfo();
 		}
 	}

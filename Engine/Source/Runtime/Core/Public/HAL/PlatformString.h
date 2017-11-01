@@ -13,7 +13,6 @@
 #include "Apple/ApplePlatformString.h"
 #elif PLATFORM_IOS
 #include "Apple/ApplePlatformString.h"
-#import "IOS/IOSPlatformString.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidString.h"
 // @ATG_CHANGE : BEGIN UWP support

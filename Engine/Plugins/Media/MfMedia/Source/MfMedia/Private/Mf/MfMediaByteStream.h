@@ -2,18 +2,26 @@
 
 #pragma once
 
-#include "../MfMediaPrivate.h"
+#include "MfMediaPrivate.h"
 
 #if MFMEDIA_SUPPORTED_PLATFORM
 
-// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
-#if PLATFORM_WINDOWS || PLATFORM_UWP
-// @ATG_CHANGE : END
-	#include "WindowsHWrapper.h"
-	#include "AllowWindowsPlatformTypes.h"
+#include "CoreTypes.h"
+#include "Templates/SharedPointer.h"
+
+#if PLATFORM_WINDOWS
+	#include "Windows/WindowsHWrapper.h"
+	#include "Windows/AllowWindowsPlatformTypes.h"
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP	
+#elif PLATFORM_UWP
+	#include "UWP/WindowsHWrapper.h"
+	#include "UWP/AllowWindowsPlatformTypes.h"
 #else
-	#include "XboxOneAllowPlatformTypes.h"
+// @ATG_CHANGE : END
+	#include "XboxOne/XboxOneAllowPlatformTypes.h"
 #endif
+
+class FArchive;
 
 
 /**
@@ -31,9 +39,6 @@ public:
 	 * @param InArchive The archive to stream from.
 	 */
 	FMfMediaByteStream(const TSharedRef<FArchive, ESPMode::ThreadSafe>& InArchive);
-
-	/** Virtual destructor. */
-	virtual ~FMfMediaByteStream() { }
 
 public:
 
@@ -64,6 +69,11 @@ public:
 	STDMETHODIMP SetLength(QWORD qwLength);
 	STDMETHODIMP SetCurrentPosition(QWORD qwPosition);
 	STDMETHODIMP Write(const BYTE* pb, ULONG cb, ULONG* pcbWritten);
+
+protected:
+
+	/** Hidden destructor. */
+	virtual ~FMfMediaByteStream() { }
 
 protected:
 
@@ -102,12 +112,14 @@ private:
 };
 
 
+#if PLATFORM_WINDOWS
+	#include "Windows/HideWindowsPlatformTypes.h"
 // @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
-#if PLATFORM_WINDOWS || PLATFORM_UWP
-// @ATG_CHANGE : END
-	#include "HideWindowsPlatformTypes.h"
+#elif PLATFORM_UWP
+	#include "UWP/HideWindowsPlatformTypes.h"
 #else
-	#include "XboxOneHidePlatformTypes.h"
+// @ATG_CHANGE : END
+	#include "XboxOne/XboxOneHidePlatformTypes.h"
 #endif
 
-#endif
+#endif //MFMEDIA_SUPPORTED_PLATFORM

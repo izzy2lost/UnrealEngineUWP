@@ -1404,6 +1404,9 @@ enum class EJoinPartyCompletionResult
 	/** Failed to send a message to the party leader.  No message sent to the party leader. */
 	MessagingFailure,
 
+	/** Game specific reason, indicated by the NotApprovedReason parameter.  Message might or might not have been sent to party leader. */
+	GameSpecificReason,
+
 	/** DEPRECATED! */
 	PartyNotInPendingState,
 	/** DEPRECATED! */
@@ -1574,7 +1577,7 @@ inline const TCHAR* ToString(const EPartyState Value)
 		return TEXT("CleanUp");
 	}
 	}
-	return TEXT("");
+	return TEXT("Unknown");
 }
 
 inline const TCHAR* ToString(const EMemberExitedReason Value)
@@ -1598,7 +1601,7 @@ inline const TCHAR* ToString(const EMemberExitedReason Value)
 		return TEXT("Kicked");
 	}
 	}
-	return TEXT("");
+	return TEXT("Unknown"); // Same as EMemberExitedReason::Unknown, which is ok because it is only used when we do not have enough information
 }
 
 inline const TCHAR* ToString(const ECreatePartyCompletionResult Value)
@@ -1638,7 +1641,7 @@ inline const TCHAR* ToString(const ECreatePartyCompletionResult Value)
 		return TEXT("Succeeded");
 	}
 	}
-	return TEXT("");
+	return TEXT("Unknown");
 }
 
 inline const TCHAR* ToString(const ESendPartyInvitationCompletionResult Value)
@@ -1674,7 +1677,7 @@ inline const TCHAR* ToString(const ESendPartyInvitationCompletionResult Value)
 		return TEXT("Succeeded");
 	}
 	}
-	return TEXT("");
+	return TEXT("Unknown");
 }
 
 inline const TCHAR* ToString(const EJoinPartyCompletionResult Value)
@@ -1749,6 +1752,10 @@ inline const TCHAR* ToString(const EJoinPartyCompletionResult Value)
 	{
 		return TEXT("MessagingFailure");
 	}
+	case EJoinPartyCompletionResult::GameSpecificReason:
+	{
+		return TEXT("GameSpecificReason");
+	}
 	case EJoinPartyCompletionResult::Succeeded:
 	{
 		return TEXT("Succeeded");
@@ -1766,7 +1773,7 @@ inline const TCHAR* ToString(const EJoinPartyCompletionResult Value)
 		return TEXT("DeprecatedUnknownInternalFailure");
 	}
 	}
-	return TEXT("");
+	return TEXT("Unknown");
 }
 
 inline const TCHAR* ToString(const ELeavePartyCompletionResult Value)
@@ -1818,7 +1825,7 @@ inline const TCHAR* ToString(const ELeavePartyCompletionResult Value)
 		return TEXT("DeprecatedUnknownInternalFailure");
 	}
 	}
-	return TEXT("");
+	return TEXT("Unknown");
 }
 
 inline const TCHAR* ToString(const EUpdateConfigCompletionResult Value)
@@ -1862,7 +1869,7 @@ inline const TCHAR* ToString(const EUpdateConfigCompletionResult Value)
 		return TEXT("Succeeded");
 	}
 	}
-	return TEXT("");
+	return TEXT("Unknown");
 }
 
 inline const TCHAR* ToString(const EKickMemberCompletionResult Value)
@@ -1910,7 +1917,7 @@ inline const TCHAR* ToString(const EKickMemberCompletionResult Value)
 		return TEXT("Succeeded");
 	}
 	}
-	return TEXT("");
+	return TEXT("Unknown");
 }
 
 inline const TCHAR* ToString(const EPromoteMemberCompletionResult Value)
@@ -1962,7 +1969,7 @@ inline const TCHAR* ToString(const EPromoteMemberCompletionResult Value)
 		return TEXT("Succeeded");
 	}
 	}
-	return TEXT("");
+	return TEXT("Unknown");
 }
 
 inline const TCHAR* ToString(const PartySystemPermissions::EPresencePermissions Value)
@@ -2010,7 +2017,7 @@ inline const TCHAR* ToString(const PartySystemPermissions::EPresencePermissions 
 		return TEXT("AnyonePublishIdAnyonePublishKey");
 	}
 	}
-	return TEXT("");
+	return TEXT("Unknown");
 }
 
 inline const TCHAR* ToString(const PartySystemPermissions::EInvitePermissions Value)
@@ -2030,7 +2037,7 @@ inline const TCHAR* ToString(const PartySystemPermissions::EInvitePermissions Va
 		return TEXT("Anyone");
 	}
 	}
-	return TEXT("");
+	return TEXT("Unknown");
 }
 
 inline const TCHAR* ToString(const EJoinRequestAction Value)
@@ -2050,7 +2057,7 @@ inline const TCHAR* ToString(const EJoinRequestAction Value)
 		return TEXT("AutoReject");
 	}
 	}
-	return TEXT("");
+	return TEXT("Unknown");
 }
 
 inline const TCHAR* ToString(const EInvitationResponse Value)
@@ -2074,7 +2081,7 @@ inline const TCHAR* ToString(const EInvitationResponse Value)
 		return TEXT("Accepted");
 	}
 	}
-	return TEXT("");
+	return TEXT("Unknown");
 }
 
 inline FString ToDebugString(const FPartyConfiguration& PartyConfiguration)

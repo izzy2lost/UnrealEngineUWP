@@ -779,10 +779,8 @@ ULandscapeInfo* ALandscapeProxy::GetLandscapeInfo() const
 	check(GIsEditor);
 	check(LandscapeGuid.IsValid());
 	UWorld* OwningWorld = GetWorld();
-	check(OwningWorld);
-	
-	//check(!OwningWorld->IsGameWorld());
-	if (!OwningWorld->IsGameWorld())
+
+	if (OwningWorld != nullptr && !OwningWorld->IsGameWorld())
 	{
 		auto& LandscapeInfoMap = ULandscapeInfoMap::GetLandscapeInfoMap(OwningWorld);
 		LandscapeInfo = LandscapeInfoMap.Map.FindRef(LandscapeGuid);
@@ -2127,8 +2125,12 @@ void ULandscapeInfo::RecreateLandscapeInfo(UWorld* InWorld, bool bMapCheck)
 	for (auto& LandscapeInfoPair : LandscapeInfoMap.Map)
 	{
 		ULandscapeInfo* LandscapeInfo = LandscapeInfoPair.Value;
-		LandscapeInfo->Modify();
-		LandscapeInfo->Reset();
+
+		if (LandscapeInfo != nullptr)
+		{
+			LandscapeInfo->Modify();
+			LandscapeInfo->Reset();
+		}
 	}
 
 	TMap<FGuid, TArray<ALandscapeProxy*>> ValidLandscapesMap;

@@ -19,7 +19,7 @@ public class PhysX : ModuleRules
 		switch (Config)
 		{
 			case UnrealTargetConfiguration.Debug:
-				if (BuildConfiguration.bDebugBuildsActuallyUseDebugCRT)
+				if (Target.bDebugBuildsActuallyUseDebugCRT)
 				{
 					return PhysXLibraryMode.Debug;
 				}
@@ -34,11 +34,11 @@ public class PhysX : ModuleRules
 			case UnrealTargetConfiguration.DebugGame:
 			case UnrealTargetConfiguration.Unknown:
 			default:
-				if (BuildConfiguration.bUseShippingPhysXLibraries)
+				if (Target.bUseShippingPhysXLibraries)
 				{
 					return PhysXLibraryMode.Shipping;
 				}
-				else if (BuildConfiguration.bUseCheckedPhysXLibraries)
+				else if (Target.bUseCheckedPhysXLibraries)
 				{
 					return PhysXLibraryMode.Checked;
 				}
@@ -85,11 +85,11 @@ public class PhysX : ModuleRules
 		string PhysXVersion = "PhysX_3.4";
 		string PxSharedVersion = "PxShared";
 
-		string PhysXDir = UEBuildConfiguration.UEThirdPartySourceDirectory + "PhysX/" + PhysXVersion + "/";
-		string PxSharedDir = UEBuildConfiguration.UEThirdPartySourceDirectory + "PhysX/" + PxSharedVersion + "/";
+		string PhysXDir = Target.UEThirdPartySourceDirectory + "PhysX/" + PhysXVersion + "/";
+		string PxSharedDir = Target.UEThirdPartySourceDirectory + "PhysX/" + PxSharedVersion + "/";
 
-		string PhysXLibDir = UEBuildConfiguration.UEThirdPartySourceDirectory + "PhysX/Lib/";
-		string PxSharedLibDir = UEBuildConfiguration.UEThirdPartySourceDirectory + "PhysX/Lib/";
+		string PhysXLibDir = Target.UEThirdPartySourceDirectory + "PhysX/Lib/";
+		string PxSharedLibDir = Target.UEThirdPartySourceDirectory + "PhysX/Lib/";
 
 		string PhysXIncludeDir = PhysXDir + "Include/";
 		string PxSharedIncludeDir = PxSharedDir + "include/";
@@ -115,8 +115,8 @@ public class PhysX : ModuleRules
 // @ATG_CHANGE : BEGIN UWP support
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 		{
-			PhysXLibDir += Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
-			PxSharedLibDir += Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PhysXLibDir += Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PxSharedLibDir += Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
 // @ATG_CHANGE : END
 			PublicLibraryPaths.Add(PhysXLibDir);
 			PublicLibraryPaths.Add(PxSharedLibDir);
@@ -155,7 +155,7 @@ public class PhysX : ModuleRules
 				PublicDelayLoadDLLs.Add(String.Format(DLL, LibrarySuffix));
 			}
 // @ATG_CHANGE : BEGIN UWP support
-			string PhysXBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/{1}/VS{0}/", WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
+			string PhysXBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/{1}/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
 // @ATG_CHANGE : END
 			foreach (string DLL in DelayLoadDLLsX64)
 			{
@@ -170,7 +170,7 @@ public class PhysX : ModuleRules
 			}
 
 			// @ATG_CHANGE : BEGIN UWP support
-			string PxSharedBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/{1}/VS{0}/", WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
+			string PxSharedBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/{1}/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
 			// @ATG_CHANGE : END
 			foreach (string DLL in PxSharedRuntimeDependenciesX64)
 			{
@@ -178,13 +178,11 @@ public class PhysX : ModuleRules
 			}
 		}
 // @ATG_CHANGE : BEGIN UWP support
-		else if (Target.Platform == UnrealTargetPlatform.Win32 || 
-			(Target.Platform == UnrealTargetPlatform.UWP32) ||
-			(Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32"))
-// @ATG_CHANGE : END
+		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
 		{
-			PhysXLibDir += Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
-			PxSharedLibDir += Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PhysXLibDir += Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PxSharedLibDir += Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+// @ATG_CHANGE : END
 			PublicLibraryPaths.Add(PhysXLibDir);
 			PublicLibraryPaths.Add(PxSharedLibDir);
 
@@ -200,9 +198,9 @@ public class PhysX : ModuleRules
 			};
 
 			string[] DelayLoadDLLsX86 = new string[] {
-                "PxFoundation{0}_x86.dll",
-                "PxPvdSDK{0}_x86.dll",
-                "PhysX3{0}_x86.dll",
+				"PxFoundation{0}_x86.dll",
+				"PxPvdSDK{0}_x86.dll",
+				"PhysX3{0}_x86.dll",
 				"PhysX3Cooking{0}_x86.dll",
 				"PhysX3Common{0}_x86.dll"
 			};
@@ -218,7 +216,7 @@ public class PhysX : ModuleRules
 			}
 
 // @ATG_CHANGE : BEGIN UWP support
-			string PhysXBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/{1}/VS{0}/", WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
+			string PhysXBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/{1}/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
 // @ATG_CHANGE : END
 			foreach (string DLL in DelayLoadDLLsX86)
 			{
@@ -258,12 +256,12 @@ public class PhysX : ModuleRules
 			string[] DynamicLibrariesMac = new string[] {
 				"/libPhysX3{0}.dylib",
 				"/libPhysX3Cooking{0}.dylib",
-                "/libPhysX3Common{0}.dylib",
-                "/libPxFoundation{0}.dylib",
+				"/libPhysX3Common{0}.dylib",
+				"/libPxFoundation{0}.dylib",
 				"/libPxPvdSDK{0}.dylib",
 			};
 
-			string PhysXBinariesDir = UEBuildConfiguration.UEThirdPartyBinariesDirectory + "PhysX/Mac";
+			string PhysXBinariesDir = Target.UEThirdPartyBinariesDirectory + "PhysX/Mac";
 			foreach (string Lib in DynamicLibrariesMac)
 			{
 				string LibraryPath = PhysXBinariesDir + String.Format(Lib, LibrarySuffix);
@@ -300,7 +298,7 @@ public class PhysX : ModuleRules
 			};
 
 			//if you are shipping, and you actually want the shipping libs, you do not need this lib
-			if (!(LibraryMode == PhysXLibraryMode.Shipping && BuildConfiguration.bUseShippingPhysXLibraries))
+			if (!(LibraryMode == PhysXLibraryMode.Shipping && Target.bUseShippingPhysXLibraries))
 			{
 //				PublicAdditionalLibraries.Add("nvToolsExt");
 			}
@@ -334,7 +332,7 @@ public class PhysX : ModuleRules
 				PublicAdditionalLibraries.Add(String.Format(Lib, LibrarySuffix));
 			}
 
-			if (UEBuildConfiguration.bCompileAPEX)
+			if (Target.bCompileAPEX)
 			{
 				string[] StaticLibrariesApexLinux = new string[] {
 					"NvParameterized{0}",
@@ -438,7 +436,7 @@ public class PhysX : ModuleRules
 				};
 
 			string OpimizationSuffix = "";
-			if (UEBuildConfiguration.bCompileForSize)
+			if (Target.bCompileForSize)
 			{
 				OpimizationSuffix = "_Oz";
 			}

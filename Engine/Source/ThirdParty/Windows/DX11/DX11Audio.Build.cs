@@ -9,8 +9,8 @@ public class DX11Audio : ModuleRules
 
         // @ATG_CHANGE : BEGIN UWP Support
 		string DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
-			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
-			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";        
+			Target.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
+			Target.UEThirdPartySourceDirectory + "Windows/DirectX";        
         // @ATG_CHANGE : END
 
         PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");

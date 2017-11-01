@@ -62,10 +62,6 @@ const float* FXAudioDeviceProperties::OutputMixMatrix = NULL;
 XAUDIO2_DEVICE_DETAILS FXAudioDeviceProperties::DeviceDetails;
 #endif	//XAUDIO_SUPPORTS_DEVICE_DETAILS
 
-#if PLATFORM_WINDOWS
-FMMNotificationClient* FXAudioDeviceProperties::NotificationClient = nullptr;
-#endif
-
 /*------------------------------------------------------------------------------------
 	FAudioDevice Interface.
 ------------------------------------------------------------------------------------*/
@@ -299,19 +295,36 @@ void FXAudio2Device::UpdateHardware()
 	if (DeviceProperties)
 	{
 #if PLATFORM_WINDOWS
+		// If the audio device changed, we need to tear down and restart the audio engine state
 		if (DeviceProperties->DidAudioDeviceChange())
 		{
-			// Stop any sounds that are playing
-			StopAllSounds(true);
+			//Cache the current audio clock.
+			CachedAudioClockStartTime = GetAudioClock();
 
-			// Set all sound sources to virtual mode so they don't play audio
-			for (FSoundSource* Source : Sources)
+			// Flush stops all sources so sources can be safely deleted below.
+			Flush(nullptr);
+
+			// Remove the effects manager
+			if (Effects)
 			{
-				Source->SetVirtual();
+				delete Effects;
+				Effects = nullptr;
 			}
+	
+			// Teardown hardware
+			TeardownHardware();
+		
+			// Restart the hardware
+			InitializeHardware();
 
-			// And switch to no-audio mode.
-			bIsAudioDeviceHardwareInitialized = false;
+			// Recreate the effects manager
+			Effects = CreateEffectsManager();
+
+			// Now reset and restart the sound source objects
+			FreeSources.Reset();
+			Sources.Reset();
+
+			InitSoundSources();
 		}
 #endif
 	}
@@ -329,7 +342,7 @@ void FXAudio2Device::UpdateAudioClock()
 	}
 	else
 	{
-		AudioClock = NewAudioClock;
+		AudioClock = NewAudioClock + CachedAudioClockStartTime;
 	}
 }
 
