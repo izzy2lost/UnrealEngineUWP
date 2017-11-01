@@ -40,6 +40,9 @@ void FUWPTargetSettingsCustomization::InitSupportedPlatformVersions()
 	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.14393.0")));
 	// Windows 10 Creators update
 	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.15063.0")));
+	// Windows 10 Fall Creators update
+	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.16299.0")));
+
 }
 
 void FUWPTargetSettingsCustomization::InitTargetDeviceFamilyOptions()

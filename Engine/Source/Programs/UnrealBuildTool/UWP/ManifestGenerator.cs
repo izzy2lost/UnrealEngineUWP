@@ -1872,37 +1872,97 @@ namespace UnrealBuildTool
 
 			// Validate against VS2017 schemas if possible
 			DirectoryReference VSInstallDir;
+			DirectoryReference SdkSchemaFolder = null;
+			DirectoryReference VSSchemaFolder = null;
+			DirectoryReference PhoneSchemaFolder = null;
+
+			// Limit to VS2015 compatible SDKs here - newer ones have incomplete schema sets
+			DirectoryReference SDKRootFolder = new DirectoryReference(VCEnvironment.FindWindowsSDKInstallationFolder(CppPlatform.UWP64, WindowsCompiler.VisualStudio2015));
+			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKRootFolder.FullName, WindowsCompiler.VisualStudio2015);
+			SdkSchemaFolder = DirectoryReference.Combine(SDKRootFolder, "Include", SDKVersion.ToString(), "winrt");
+			PhoneSchemaFolder = DirectoryReference.Combine(SDKRootFolder, "Extension SDKs", "WindowsMobile", SDKVersion.ToString(), "Include", "WinRT");
+
 			if (WindowsPlatform.TryGetVSInstallDir(WindowsCompiler.VisualStudio2017, out VSInstallDir))
 			{
-				DirectoryReference VSSchemaFolder = DirectoryReference.Combine(VSInstallDir, "Xml", "Schemas");
-
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v2.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v3.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v4.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "FoundationManifestSchema.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestTypes.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2010_v3.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2013_v2.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2014.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxPhoneManifestSchema2014.xsd").FullName));
-				AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "DesktopManifestSchema_v2.xsd").FullName));
+				VSSchemaFolder = DirectoryReference.Combine(VSInstallDir, "Xml", "Schemas");
 			}
-			else
+
+			string[] RequiredSchemas =
 			{
-				string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(CppPlatform.UWP64, WindowsCompiler.VisualStudio2015);
-				Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, WindowsCompiler.VisualStudio2015);
-				string UWPSchemaFolder = Path.Combine(SDKFolder, "Include", SDKVersion.ToString(), "winrt");
+				"AppxManifestTypes.xsd",
+				"UapManifestSchema.xsd",
+				"UapManifestSchema_v2.xsd",
+				"UapManifestSchema_v3.xsd",
+				"UapManifestSchema_v4.xsd",
+				"UapManifestSchema_v5.xsd",
+				"FoundationManifestSchema.xsd",
+				"AppxManifestSchema2010_v2.xsd",
+				"AppxManifestSchema2010_v3.xsd",
+				"AppxManifestSchema2013.xsd",
+				"AppxManifestSchema2013_v2.xsd",
+				"AppxManifestSchema2014.xsd",
+				"AppxPhoneManifestSchema2014.xsd",
+				"DesktopManifestSchema_v2.xsd",
+				"DesktopManifestSchema_v3.xsd",
+			};
 
-				string PhoneSchemaFolder = Path.Combine(SDKFolder, "Extension SDKs", "WindowsMobile", SDKVersion.ToString(), "Include", "WinRT");
+			foreach (string SchemaName in RequiredSchemas)
+			{
+				FileReference SchemaFile = null;
 
-				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "UapManifestSchema.xsd")));
-				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "FoundationManifestSchema.xsd")));
-				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestTypes.xsd")));
-				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestSchema2010_v2.xsd")));
-				AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestSchema2013.xsd")));
-				AppxSchema.Add(null, XmlReader.Create(Path.Combine(PhoneSchemaFolder, "AppxPhoneManifestSchema2014.xsd")));
+				if (VSSchemaFolder != null)
+				{
+					SchemaFile = FileReference.Combine(VSSchemaFolder, SchemaName);
+				}
+
+				if ((SchemaFile == null || !FileReference.Exists(SchemaFile)) && SdkSchemaFolder != null)
+				{
+					SchemaFile = FileReference.Combine(SdkSchemaFolder, SchemaName);
+				}
+
+				if ((SchemaFile == null || !FileReference.Exists(SchemaFile)) && PhoneSchemaFolder != null)
+				{
+					SchemaFile = FileReference.Combine(VSSchemaFolder, SchemaName);
+				}
+
+				if (SchemaFile != null && FileReference.Exists(SchemaFile))
+				{
+					AppxSchema.Add(null, XmlReader.Create(SchemaFile.FullName));
+				}
 			}
+
+			//AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema.xsd").FullName));
+			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v2.xsd").FullName));
+			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v3.xsd").FullName));
+			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v4.xsd").FullName));
+			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "FoundationManifestSchema.xsd").FullName));
+			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestTypes.xsd").FullName));
+			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2010_v3.xsd").FullName));
+			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2013_v2.xsd").FullName));
+			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2014.xsd").FullName));
+			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxPhoneManifestSchema2014.xsd").FullName));
+			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "DesktopManifestSchema_v2.xsd").FullName));
+
+			//	FileReference UapV5Schema = FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v5.xsd");
+			//	if (FileReference.Exists(UapV5Schema))
+			//	{
+			//	}
+
+			//	File
+			//}
+			//else
+			//{
+
+
+			//	string 
+
+			//	AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "UapManifestSchema.xsd")));
+			//	AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "FoundationManifestSchema.xsd")));
+			//	AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestTypes.xsd")));
+			//	AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestSchema2010_v2.xsd")));
+			//	AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestSchema2013.xsd")));
+			//	AppxSchema.Add(null, XmlReader.Create(Path.Combine(PhoneSchemaFolder, "AppxPhoneManifestSchema2014.xsd")));
+			//}
 			AppxSchema.Compile();
 
 			bool ValidationSucceeded = true;
