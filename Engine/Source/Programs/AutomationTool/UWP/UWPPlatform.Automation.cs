@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using AutomationTool;
 using UnrealBuildTool;
 using System.Diagnostics;
+using Tools.DotNETCommon;
 
 namespace UWP.Automation
 {
@@ -172,7 +173,7 @@ namespace UWP.Automation
 						while (!LogReader.EndOfStream)
 						{
 							string LogLine = LogReader.ReadLine();
-							Log.WriteLine(1, LogName, SpewVerbosity, LogLine);
+							Log.WriteLine(1, SpewVerbosity, "{0} : {1}", LogName, LogLine);
 						}
 					}
 				}
@@ -219,7 +220,7 @@ namespace UWP.Automation
 				{
 					if (EtwEvent["ProviderName"] == FriendlyName)
 					{
-						Log.WriteLine(1, FriendlyName, GetLogVerbosityFromEventLevel(EtwEvent.Level), EtwEvent["StringMessage"].Trim('\"'));
+						Log.WriteLine(1, GetLogVerbosityFromEventLevel(EtwEvent.Level), "{0} : {1}", FriendlyName, EtwEvent["StringMessage"].Trim('\"'));
 					}
 				}
 			}
@@ -406,7 +407,7 @@ namespace UWP.Automation
 			// Stage UWP-specific assets (tile, splash, etc.)
 			DirectoryReference assetsPath = new DirectoryReference(Path.Combine(Params.ProjectBinariesFolder, "Resources"));
             StagedDirectoryReference stagedAssetPath = new StagedDirectoryReference("Resources");
-			SC.StageFiles(StagedFileType.NonUFS, assetsPath, "*.png", true, null, stagedAssetPath);
+			SC.StageFiles(StagedFileType.NonUFS, assetsPath, "*.png", StageFilesSearch.AllDirectories, stagedAssetPath);
 
 
 			SC.StageFile(StagedFileType.NonUFS, new FileReference( Path.Combine(Params.ProjectBinariesFolder, "AppxManifest.xml")), 
