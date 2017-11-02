@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Windows.Foundation.Metadata;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Reflection;
-
+using Tools.DotNETCommon;
 
 namespace UnrealBuildTool
 {

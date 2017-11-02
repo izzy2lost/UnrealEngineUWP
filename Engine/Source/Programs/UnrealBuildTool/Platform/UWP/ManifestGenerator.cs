@@ -8,6 +8,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Resources;
 using System.Xml;
+using Tools.DotNETCommon;
+using Tools.DotNETUtilities;
 
 namespace UnrealBuildTool
 {
@@ -39,8 +41,8 @@ namespace UnrealBuildTool
 		private List<string> CulturesToStage;
 
 		// Manifest generation state
-		private ResXResourceWriter DefaultResourceWriter;
-		private List<ResXResourceWriter> PerCultureResourceWriters;
+		private UEResXWriter DefaultResourceWriter;
+		private List<UEResXWriter> PerCultureResourceWriters;
 		private List<Dictionary<string, string>> PerCultureSourceResources;
 		private XmlDocument AppxManifestXmlDocument;
 		private List<string> UpdatedFilePaths;
@@ -749,10 +751,10 @@ namespace UnrealBuildTool
 
 			// Construct a single resource writer for the default (no-culture) values
 			string DefaultResourceIntermediatePath = Path.Combine(IntermediateResourceDirectory, "resources.resw");
-			DefaultResourceWriter = new ResXResourceWriter(DefaultResourceIntermediatePath);
+			DefaultResourceWriter = new UEResXWriter(DefaultResourceIntermediatePath);
 
 			// Construct the ResXWriters for each culture
-			PerCultureResourceWriters = new List<ResXResourceWriter>();
+			PerCultureResourceWriters = new List<UEResXWriter>();
 			PerCultureSourceResources = new List<Dictionary<string, string>>();
 			foreach (string Culture in CulturesToStage)
 			{
@@ -769,7 +771,7 @@ namespace UnrealBuildTool
 					}
 					continue;
 				}
-				PerCultureResourceWriters.Add(new ResXResourceWriter(IntermediateStringResourceFile));
+				PerCultureResourceWriters.Add(new UEResXWriter(IntermediateStringResourceFile));
 
 				// Support loading localized resources from resw files in the source tree, per earlier versions.
 				string SourceStringResourceFile = Path.Combine(ProjectPath, BuildResourceProjectRelativePath, "Resources", Culture, "resources.resw");
@@ -1856,12 +1858,14 @@ namespace UnrealBuildTool
 			Dictionary<string, string> LoadedResources = new Dictionary<string, string>();
 			if (File.Exists(ResourceSourcePath))
 			{
-				ResXResourceReader reader = new ResXResourceReader(ResourceSourcePath);
-				System.Collections.IDictionaryEnumerator enumerator = reader.GetEnumerator();
-				while (enumerator.MoveNext())
-				{
-					LoadedResources.Add(enumerator.Key.ToString(), enumerator.Value.ToString());
-				}
+				// Disabled for now - ResXResourceReader no longer available; implement UEResXReader,
+				// or just eliminate this approach to localizing manifest resources?
+				//ResXResourceReader reader = new ResXResourceReader(ResourceSourcePath);
+				//System.Collections.IDictionaryEnumerator enumerator = reader.GetEnumerator();
+				//while (enumerator.MoveNext())
+				//{
+				//	LoadedResources.Add(enumerator.Key.ToString(), enumerator.Value.ToString());
+				//}
 			}
 			return LoadedResources;
 		}

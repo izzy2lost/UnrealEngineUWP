@@ -40,7 +40,7 @@ namespace UnrealBuildTool
 		}
 
 		// @ATG_CHANGE : BEGIN making public for reuse in UWP toolchain
-		static void AddDefinition(List<string> Arguments, string Definition)
+		public static void AddDefinition(List<string> Arguments, string Definition)
 		// @ATG_CHANGE : END
 		{
 			// Split the definition into name and value
@@ -57,7 +57,7 @@ namespace UnrealBuildTool
 
 
 		// @ATG_CHANGE : BEGIN making public for reuse in UWP toolchain
-		static void AddDefinition(List<string> Arguments, string Variable, string Value)
+		public static void AddDefinition(List<string> Arguments, string Variable, string Value)
 		// @ATG_CHANGE : END
 		{
 			// If the value has a space in it and isn't wrapped in quotes, do that now
@@ -92,7 +92,7 @@ namespace UnrealBuildTool
 
 
 		// @ATG_CHANGE : BEGIN making helper public for use in UWP toolchain
-		static void AddIncludePath(List<string> Arguments, string IncludePath)
+		public static void AddIncludePath(List<string> Arguments, string IncludePath)
 		// @ATG_CHANGE : END 
 		{
 			// Need to convert to full paths to get full paths in error messages when debug info is disabled. I don't know why.
