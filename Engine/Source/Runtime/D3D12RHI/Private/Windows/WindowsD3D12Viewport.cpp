@@ -83,6 +83,40 @@ void FD3D12Viewport::Init()
 	const DXGI_MODE_DESC BufferDesc = SetupDXGI_MODE_DESC();
 
 	// Create the swapchain.
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_UWP
+	{
+		// MSAA Sample count
+		DXGI_SWAP_CHAIN_DESC1 SwapChainDesc = { 0 };
+		SwapChainDesc.SampleDesc.Count = 1;
+		SwapChainDesc.SampleDesc.Quality = 0;
+		SwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_SHADER_INPUT;
+		SwapChainDesc.Width = BufferDesc.Width;
+		SwapChainDesc.Height = BufferDesc.Height;
+		SwapChainDesc.Format = BufferDesc.Format;
+		// 1:single buffering, 2:double buffering, 3:triple buffering
+		SwapChainDesc.BufferCount = NumBackBuffers;
+		SwapChainDesc.Scaling = DXGI_SCALING_NONE;
+		SwapChainDesc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
+		// DXGI_SWAP_EFFECT_DISCARD / DXGI_SWAP_EFFECT_SEQUENTIAL
+		SwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+		SwapChainDesc.Flags = SwapChainFlags;
+
+		pCommandQueue = Adapter->GetDevice()->GetCommandListManager().GetD3DCommandQueue();
+
+		TRefCountPtr<IDXGIFactory4> Factory4;
+		Factory->QueryInterface(IID_PPV_ARGS(Factory4.GetInitReference()));
+
+		VERIFYD3D12RESULT(Factory4->CreateSwapChainForCoreWindow(
+			pCommandQueue,
+			reinterpret_cast< IUnknown* >(Windows::UI::Core::CoreWindow::GetForCurrentThread()),
+			&SwapChainDesc,
+			NULL,
+			SwapChain1.GetInitReference()
+		));
+	}
+#else
+// @ATG_CHANGE : END
 	{
 		DXGI_SWAP_CHAIN_DESC SwapChainDesc = {};
 		SwapChainDesc.BufferDesc = BufferDesc;
@@ -107,6 +141,9 @@ void FD3D12Viewport::Init()
 		// Get a SwapChain4 if supported.
 		SwapChain->QueryInterface(IID_PPV_ARGS(SwapChain4.GetInitReference()));
 	}
+// @ATG_CHANGE : BEGIN UWP support
+#endif
+// @ATG_CHANGE : END
 
 	// Set the DXGI message hook to not change the window behind our back.
 	Adapter->GetDXGIFactory2()->MakeWindowAssociation(WindowHandle, DXGI_MWA_NO_WINDOW_CHANGES);
@@ -114,9 +151,13 @@ void FD3D12Viewport::Init()
 	// Resize to setup mGPU correctly.
 	Resize(BufferDesc.Width, BufferDesc.Height, bIsFullscreen, PixelFormat);
 
+// @ATG_CHANGE : BEGIN UWP support
+#if !PLATFORM_UWP
 	// Tell the window to redraw when they can.
 	// @todo: For Slate viewports, it doesn't make sense to post WM_PAINT messages (we swallow those.)
 	::PostMessage(WindowHandle, WM_PAINT, 0, 0);
+#endif
+// @ATG_CHANGE : END
 }
 
 void FD3D12Viewport::ConditionalResetSwapChain(bool bIgnoreFocus)

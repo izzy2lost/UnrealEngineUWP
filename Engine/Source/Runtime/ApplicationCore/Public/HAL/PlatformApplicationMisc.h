@@ -22,4 +22,8 @@
 #include "Linux/LinuxPlatformApplicationMisc.h"
 #elif PLATFORM_SWITCH
 #include "Switch/SwitchPlatformApplicationMisc.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPPlatformApplicationMisc.h"
+// @ATG_CHANGE : END
 #endif

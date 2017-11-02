@@ -20,7 +20,6 @@ struct CORE_API FUWPMisc : public FGenericPlatformMisc
 	static void PlatformPreInit();
 	static void PlatformInit();
 	static void PlatformPostInit(bool ShowSplashScreen = false);
-	static class GenericApplication* CreateApplication();
 	static void GetEnvironmentVariable(const TCHAR* VariableName, TCHAR* Result, int32 ResultLength);
 	static const TCHAR* GetPlatformFeaturesModuleName();
 
@@ -59,8 +58,6 @@ struct CORE_API FUWPMisc : public FGenericPlatformMisc
     }
     
     static void PumpMessages(bool bFromMainLoop);
-	static uint32 GetKeyMap(uint32* KeyCodes, FString* KeyNames, uint32 MaxMappings);
-	static uint32 GetCharKeyMap(uint32* KeyCodes, FString* KeyNames, uint32 MaxMappings);
 	static void LowLevelOutputDebugString(const TCHAR *Message);
 	static void RequestExit(bool Force);
 	static const TCHAR* GetSystemErrorMessage(TCHAR* OutBuffer, int32 BufferCount, int32 Error);

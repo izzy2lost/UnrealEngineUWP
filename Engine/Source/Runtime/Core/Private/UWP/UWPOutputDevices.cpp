@@ -10,7 +10,6 @@
 
 #include "FeedbackContextAnsi.h"
 #include "UWPOutputDevicesPrivate.h"
-#include "UWPFeedbackContextPrivate.h"
 
 DEFINE_LOG_CATEGORY(LogUWPOutputDevices);
 

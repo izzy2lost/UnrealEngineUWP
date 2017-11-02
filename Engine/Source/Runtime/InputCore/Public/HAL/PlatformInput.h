@@ -22,4 +22,8 @@
 #include "Linux/LinuxPlatformInput.h"
 #elif PLATFORM_SWITCH
 #include "Switch/SwitchPlatformInput.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPPlatformInput.h"
+// @ATG_CHANGE : END
 #endif
