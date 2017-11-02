@@ -17,7 +17,8 @@ public class UWP32TargetPlatform : ModuleRules
 			}
 		);
 
-		if (UEBuildConfiguration.bCompileAgainstEngine)
+		// compile withEngine
+		if (Target.bCompileAgainstEngine)
 		{
 			PrivateDependencyModuleNames.Add("Engine");
 			PrivateIncludePathModuleNames.Add("TextureCompressor");

@@ -15,19 +15,13 @@ public class UWPDeviceDetector : ModuleRules
 			}
 		);
 
-		if (UEBuildConfiguration.bCompileAgainstEngine)
-		{
-			PrivateDependencyModuleNames.Add("Engine");
-			PrivateIncludePathModuleNames.Add("TextureCompressor");
-		}
-
 		PrivateIncludePaths.AddRange(
 			new string[] {
 				"Developer/UWP/UWPTargetPlatform/Private"
 			}
 		);
 
-		if (WindowsPlatform.bUseWindowsSDK10)
+		if (Target.WindowsPlatform.bUseWindowsSDK10)
 		{
 			bEnableWinRTComponentExtensions = true;
 			bEnableExceptions = true;

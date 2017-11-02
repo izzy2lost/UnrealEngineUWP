@@ -11,8 +11,8 @@ public class DX12 : ModuleRules
 		string DirectXSDKDir = Target.UEThirdPartySourceDirectory + (Target.WindowsPlatform.bUseWindowsSDK10 ? "Windows/DX12" : "Windows/DirectX");
 		if (Target.WindowsPlatform.bUseWindowsSDK10 && (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64))
 		{
-			PublicSystemIncludePaths.Add(UEBuildConfiguration.UEThirdPartySourceDirectory + "/Windows/Pix/Include");
-			PublicLibraryPaths.Add(UEBuildConfiguration.UEThirdPartySourceDirectory + "/Windows/Pix/Lib/x64");
+			PublicSystemIncludePaths.Add(Target.UEThirdPartySourceDirectory + "/Windows/Pix/Include");
+			PublicLibraryPaths.Add(Target.UEThirdPartySourceDirectory + "/Windows/Pix/Lib/x64");
 		}
 		// @ATG_CHANGE : END
 		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");

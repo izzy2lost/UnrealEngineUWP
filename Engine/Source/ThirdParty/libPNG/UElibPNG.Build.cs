@@ -29,18 +29,18 @@ public class UElibPNG : ModuleRules
 		// @ATG_CHANGE : BEGIN UWP support
 		else if (Target.Platform == UnrealTargetPlatform.UWP64)
 		{
-			string LibPath = libPNGPath + "/lib/UWP64/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			string LibPath = libPNGPath + "/lib/UWP64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PublicLibraryPaths.Add(LibPath);
 
-			string LibFileName = "libpng" + (Target.Configuration == UnrealTargetConfiguration.Debug && BuildConfiguration.bDebugBuildsActuallyUseDebugCRT ? "d" : "") + "_64.lib";
+			string LibFileName = "libpng" + (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT ? "d" : "") + "_64.lib";
 			PublicAdditionalLibraries.Add(LibFileName);
 		}
 		else if (Target.Platform == UnrealTargetPlatform.UWP32)
 		{
-			libPNGPath = libPNGPath + "/lib/UWP32/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			libPNGPath = libPNGPath + "/lib/UWP32/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PublicLibraryPaths.Add(libPNGPath);
 
-			string LibFileName = "libpng" + (Target.Configuration == UnrealTargetConfiguration.Debug && BuildConfiguration.bDebugBuildsActuallyUseDebugCRT ? "d" : "") + ".lib";
+			string LibFileName = "libpng" + (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT ? "d" : "") + ".lib";
 			PublicAdditionalLibraries.Add(LibFileName);
 		}
 		// @ATG_CHANGE : END
