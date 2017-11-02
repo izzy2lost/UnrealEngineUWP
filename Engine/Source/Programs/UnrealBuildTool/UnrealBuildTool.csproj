@@ -223,13 +223,13 @@
     <Compile Include="Utilities\EncryptionAndSigning.cs" />
     <Compile Include="Utilities\HashSetExtensions.cs" />
     <!-- ATG_CHANGE : BEGIN UWP support  -->
-    <Compile Include="UWP\UEBuildUWP.cs" />
-    <Compile Include="UWP\UWPDeploy.cs" />
-    <Compile Include="UWP\UWPExports.cs" />
-    <Compile Include="UWP\UWPProjectGenerator.cs" />
-    <Compile Include="UWP\UWPToolChain.cs" />
-    <Compile Include="UWP\ManifestGenerator.cs" />
-    <Compile Include="UWP\WinMDRegistrationInfo.cs" />
+    <Compile Include="Platform\UWP\UEBuildUWP.cs" />
+    <Compile Include="Platform\UWP\UWPDeploy.cs" />
+    <Compile Include="Platform\UWP\UWPExports.cs" />
+    <Compile Include="Platform\UWP\UWPProjectGenerator.cs" />
+    <Compile Include="Platform\UWP\UWPToolChain.cs" />
+    <Compile Include="Platform\UWP\ManifestGenerator.cs" />
+    <Compile Include="Platform\UWP\WinMDRegistrationInfo.cs" />
     <!-- ATG_CHANGE : END UWP support  -->
     <Compile Include="Platform\Windows\PVSToolChain.cs" />
     <Compile Include="Platform\Windows\WindowsDeploy.cs" />
