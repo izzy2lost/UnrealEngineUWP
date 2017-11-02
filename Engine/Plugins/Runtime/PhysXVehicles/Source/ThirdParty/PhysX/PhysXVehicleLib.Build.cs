@@ -87,7 +87,7 @@ public class PhysXVehicleLib : ModuleRules
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
 		{
-			PublicLibraryPaths.Add(PhysXLibDir + Target.Platform.ToString()) + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			PublicLibraryPaths.Add(PhysXLibDir + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
 
 			PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}_x86.lib", LibrarySuffix));
 		}

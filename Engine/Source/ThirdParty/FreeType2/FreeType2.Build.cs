@@ -36,10 +36,10 @@ public class FreeType2 : ModuleRules
 		FreeType2LibPath = FreeType2Path + "Lib/";
 
 		if (Target.Platform == UnrealTargetPlatform.Win32 ||
-			Target.Platform == UnrealTargetPlatform.Win64)
+			Target.Platform == UnrealTargetPlatform.Win64 ||
 // @ATG_CHANGE : BEGIN  UWP support
 			Target.Platform == UnrealTargetPlatform.UWP32 ||
-			Target.Platform == UnrealTargetPlatform.UWP64 ||
+			Target.Platform == UnrealTargetPlatform.UWP64)
 // @ATG_CHANGE : END
 		{
 

@@ -35,14 +35,12 @@ public class ICU : ModuleRules
         {
             PlatformFolderName = "UWP32";
         }
-// @ATG_CHANGE : END
 		string TargetSpecificPath = ICURootPath + PlatformFolderName + "/";
 
 		if ((Target.Platform == UnrealTargetPlatform.Win64) ||
-			(Target.Platform == UnrealTargetPlatform.Win32))
-// @ATG_CHANGE : BEGIN UWP support
+			(Target.Platform == UnrealTargetPlatform.Win32) ||
 			(Target.Platform == UnrealTargetPlatform.UWP64) || 
-			(Target.Platform == UnrealTargetPlatform.UWP32) || 
+			(Target.Platform == UnrealTargetPlatform.UWP32)) 
 // @ATG_CHANGE : END
 		{
 			string VSVersionFolderName = "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
