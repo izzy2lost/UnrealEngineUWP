@@ -207,4 +207,4 @@ Engine/Binaries/DotNET/AutomationScripts/UWP/Windows.xml
 Engine/Build/UWP/Resources/en/resources.resw
 
 # Exclude all XboxOne SDK files
-/Engine/Plugins/Online/XboxOne/OnlineSubsystemLive/ThirdParty/XSAPI/**
+/Engine/Plugins/Online/OnlineSubsystemLive/ThirdParty/XSAPI/**

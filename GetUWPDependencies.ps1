@@ -51,7 +51,7 @@ $xsapiVersionXdk = "2017.05.20170517.001"
 
 $webClient = New-Object System.Net.WebClient
 $startupPath = Split-Path $MyInvocation.MyCommand.Path
-$ossLivePath = [System.IO.Path]::Combine($startupPath, "Engine", "Plugins", "Online", "XboxOne", "OnlineSubsystemLive")
+$ossLivePath = [System.IO.Path]::Combine($startupPath, "Engine", "Plugins", "Online", "OnlineSubsystemLive")
 
 # Locate nuget.exe - check locally first
 $nuget = (Get-ChildItem | Where-Object {$_.Name -eq "nuget.exe"})
