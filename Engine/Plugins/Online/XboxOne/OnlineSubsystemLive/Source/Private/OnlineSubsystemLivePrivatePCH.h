@@ -33,7 +33,7 @@
 #include <collection.h>
 #include "XboxOneHidePlatformTypes.h"
 
-#include "Runtime/Core/Private/XboxOne/XboxOneInputInterface.h"
+#include "Runtime/ApplicationCore/Private/XboxOne/XboxOneInputInterface.h"
 
 inline Windows::Xbox::System::User ^SystemUserFromXSAPIUser(Windows::Xbox::System::User ^user)
 {
@@ -62,7 +62,7 @@ inline Windows::Xbox::Input::Controller^ SystemGamepadFromShim(Windows::Xbox::In
 #include <ws2tcpip.h>
 #include <collection.h>
 #include "HideWindowsPlatformTypes.h"
-#include "Runtime/Core/Private/UWP/UWPInputInterface.h"
+#include "Runtime/ApplicationCore/Private/UWP/UWPInputInterface.h"
 
 // @ATG_CHANGE : sspiller@microsoft.com - BEGIN disable warning caused by build reference mismatch
 #pragma warning(disable: 4691)

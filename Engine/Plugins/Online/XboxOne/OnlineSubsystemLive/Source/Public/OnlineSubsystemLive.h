@@ -29,11 +29,11 @@ namespace Windows
 #define _UITHREADCTXT_SUPPORT   0
 #include <ppltasks.h>
 #include "XboxOneHidePlatformTypes.h"
-#include "Runtime/Core/Public/XboxOne/XboxOneApplication.h"
+#include "Runtime/ApplicationCore/Public/XboxOne/XboxOneApplication.h"
 typedef FXboxOneInputInterface FPlatformInputInterface;
 
 #elif PLATFORM_UWP
-#include "Runtime/Core/Public/UWP/UWPApplication.h"
+#include "Runtime/ApplicationCore/Public/UWP/UWPApplication.h"
 typedef FUWPInputInterface FPlatformInputInterface;
 #endif
 // @ATG_CHANGE : END

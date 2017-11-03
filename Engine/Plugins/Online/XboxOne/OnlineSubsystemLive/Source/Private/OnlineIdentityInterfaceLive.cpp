@@ -158,7 +158,7 @@ bool FOnlineIdentityLive::Login(int32 LocalUserNum, const FOnlineAccountCredenti
 	});
 
 	// @ATG_CHANGE : BEGIN - Support passing endpoint requiring XSTS token via AccountCredentials
-	LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveGetXSTSToken>(LiveSubsystem, XboxUser, LocalUserNum, TargetEndpoint, MoveTemp(OnLoginCompleteDelegate));
+	LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveGetXSTSToken>(LiveSubsystem, XboxUser, LocalUserNum, TargetEndpoint, OnLoginCompleteDelegate);
 	// @ATG_CHANGE : END
 
 	return true;
@@ -275,6 +275,16 @@ FString FOnlineIdentityLive::GetAuthToken(int32 ControllerIndex) const
 	}
 
 	return AuthToken;
+}
+
+void FOnlineIdentityLive::RevokeAuthToken(const FUniqueNetId& UserId, const FOnRevokeAuthTokenCompleteDelegate& Delegate)
+{
+	UE_LOG(LogOnline, Display, TEXT("FOnlineIdentityLive::RevokeAuthToken not implemented"));
+	TSharedRef<const FUniqueNetId> UserIdRef(UserId.AsShared());
+	LiveSubsystem->ExecuteNextTick([UserIdRef, Delegate]()
+	{
+		Delegate.ExecuteIfBound(*UserIdRef, FOnlineError(FString(TEXT("RevokeAuthToken not implemented"))));
+	});
 }
 
 Windows::Xbox::System::User^ FOnlineIdentityLive::GetUserForUniqueNetId(const FUniqueNetIdLive& UniqueId) const
@@ -823,7 +833,7 @@ void FOnlineIdentityLive::GetUserPrivilege(const FUniqueNetId& UserId, EUserPriv
 // @ATG_CHANGE : END - UWP LIVE support
 }
 
-FPlatformUserId FOnlineIdentityLive::GetPlatformUserIdFromUniqueNetId(const FUniqueNetId& UniqueNetId)
+FPlatformUserId FOnlineIdentityLive::GetPlatformUserIdFromUniqueNetId(const FUniqueNetId& UniqueNetId) const
 {
 	const auto InputInterface = GetInputInterface();
 	if(!InputInterface.IsValid())

@@ -123,7 +123,7 @@ bool FSocketXim::Listen(int32 MaxBacklog)
 	return false;
 }
 
-bool FSocketXim::HasPendingConnection(bool& bHasPendingConnection)
+bool FSocketXim::WaitForPendingConnection(bool &bHasPendingConnection, const FTimespan& WaitTime)
 {
 	return false;
 }
