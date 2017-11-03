@@ -8,6 +8,8 @@
 #include "GenericApplication.h"
 #include "CoreDelegates.h"
 
+DEFINE_LOG_CATEGORY(LogUWP);
+
 // Flip this on to make license checks operate against the retail Windows Store environment.
 // We default to simulator which is only permitted when the OS is in developer mode.  Titles
 // will need to manually flip this switch to use retail before ship.  Note that retail license
@@ -76,6 +78,16 @@ void FUWPApplication::PollGameDeviceState( const float TimeDelta )
 FVector2D FUWPApplication::GetDesktopSize()
 {
 	return DesktopSize;
+}
+
+bool FUWPApplication::IsMouseAttached() const
+{
+	return (ref new Windows::Devices::Input::MouseCapabilities())->MousePresent > 0;
+}
+
+bool FUWPApplication::IsGamepadAttached() const
+{
+	return Windows::Gaming::Input::Gamepad::Gamepads->Size > 0;
 }
 
 FPlatformRect FUWPApplication::GetWorkArea(const FPlatformRect& CurrentWindow) const

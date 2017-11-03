@@ -10,9 +10,6 @@
 struct CORE_API FUWPOutputDevices : public FGenericPlatformOutputDevices
 {
 	static FOutputDevice*			GetEventLog();
-	static FOutputDeviceConsole*	GetLogConsole();
-	static FOutputDeviceError*		GetError();
-	static FFeedbackContext*		GetWarn();
 };
 
 typedef FUWPOutputDevices FPlatformOutputDevices;

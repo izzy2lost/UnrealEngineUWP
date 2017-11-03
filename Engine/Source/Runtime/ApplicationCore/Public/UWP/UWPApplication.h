@@ -4,6 +4,8 @@
 
 #include "GenericApplication.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(LogUWP, Log, All);
+
 class FUWPApplication : public GenericApplication
 {
 public:
@@ -21,6 +23,10 @@ public:
 	virtual ~FUWPApplication() {}
 
 	virtual void PollGameDeviceState( const float TimeDelta ) override;
+
+	virtual bool IsMouseAttached() const override;
+
+	virtual bool IsGamepadAttached() const override;
 
 	virtual FPlatformRect GetWorkArea( const FPlatformRect& CurrentWindow ) const override;
 	virtual TSharedRef< FGenericWindow > MakeWindow();
