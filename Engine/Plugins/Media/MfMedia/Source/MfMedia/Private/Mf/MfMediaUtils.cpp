@@ -144,6 +144,9 @@ namespace MfMedia
 				}
 			}
 
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if !PLATFORM_UWP
+// @ATG_CHANGE : END
 			if ((SubType == MFVideoFormat_HEVC) && !FWindowsPlatformMisc::VerifyWindowsVersion(10, 0))
 			{
 				UE_LOG(LogMfMedia, Warning, TEXT("Your Windows version is %s"), *FPlatformMisc::GetOSVersion());
@@ -156,6 +159,10 @@ namespace MfMedia
 
 				UE_LOG(LogMfMedia, Warning, TEXT("HEVC video type requires Windows 10 or newer (game must be manifested for Windows 10)"));
 			}
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#endif // PLATFORM_UWP
+// @ATG_CHANGE : END
+
 #endif //PLATFORM_XBOXONE
 
 			// configure video output
