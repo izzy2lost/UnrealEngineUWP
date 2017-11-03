@@ -5,10 +5,12 @@
 #include "CoreMinimal.h"
 
 #include "HAL/PlatformFilemanager.h"
+#include "HAL/PlatformAffinity.h"
 #include "Misc/LocalTimestampDirectoryVisitor.h"
 
 #include "Misc/App.h"
 #include "Misc/CoreDelegates.h"
+#include "Misc/Paths.h"
 
 #include "LaunchEngineLoop.h"
 //#include "CoreTypes.h"
@@ -840,70 +842,50 @@ void ViewProvider::Run()
 void ViewProvider::Uninitialize()
 {
 }
- 
-[Platform::MTAThread]
-int main(Platform::Array<Platform::String^>^)
+
+static void InitCommandLine()
 {
-	// @ATG_CHANGE : BEGIN UWP packaging & F5 support
-	// check for a ue4commandline.txt, but there's no point on blocking on this...
-	concurrency::create_task([]() {
-		FCommandLine::Set(L"");
-		const LONG MaxCmdLineSize = 65536;
-		char AnsiCmdLine[MaxCmdLineSize];
-		FMemory::Memzero(AnsiCmdLine, MaxCmdLineSize);
+	// check for a ue4commandline.txt.
+	FCommandLine::Set(L"");
 
-		int32 CmdLineFileSize = 0;
-		WIN32_FILE_ATTRIBUTE_DATA AttribData;
-		PCWCHAR fileName = L"UE4CommandLine.txt";
-		if (GetFileAttributesEx(fileName, GetFileExInfoStandard, (void*)&AttribData))
+	// FPaths should be good at this point (FPaths::EngineDir() is used during static init for instance)
+	// so be specific about the location we want, otherwise working directory changes can mess this up.
+	// Also this means the regular file interface is in place, so let's use that.
+	FString FileName = FString(FPaths::RootDir()) / TEXT("UE4CommandLine.txt");
+
+	IFileHandle* CmdLineFileHandle = IPlatformFile::GetPlatformPhysical().OpenRead(*FileName);
+	if (CmdLineFileHandle != nullptr)
+	{
+		const int64 MaxCmdLineSize = 65536;
+
+		int64 CmdLineFileSize = CmdLineFileHandle->Size();
+		if (CmdLineFileSize < MaxCmdLineSize - 1)
 		{
-			if ((AttribData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
+			char AnsiCmdLine[MaxCmdLineSize] = {};
+			if (CmdLineFileHandle->Read(reinterpret_cast<uint8*>(AnsiCmdLine), CmdLineFileSize))
 			{
-				CmdLineFileSize = AttribData.nFileSizeLow;
-			}
-		}
-
-		if ((CmdLineFileSize > 0) && (CmdLineFileSize < MaxCmdLineSize - 1))
-		{
-			DWORD  Access = GENERIC_READ;
-			DWORD  WinFlags = FILE_SHARE_READ;
-			DWORD  Create = OPEN_EXISTING;
-			HANDLE Handle = CreateFile2(fileName, Access, WinFlags, Create, NULL);
-			if (Handle != INVALID_HANDLE_VALUE)
-			{
-				DWORD Result = 0;
-				if (!ReadFile(Handle, AnsiCmdLine, DWORD(CmdLineFileSize), &Result, NULL) || (Result != DWORD(CmdLineFileSize)))
-				{
-					UE_LOG(LogLaunchUWP, Warning, TEXT("Failed to read %s file!"), fileName);
-				}
-				else
-				{
-					AnsiCmdLine[CmdLineFileSize + 1] = 0;
-				}
-
-				CloseHandle(Handle);
-
-				TCHAR CmdLine[MaxCmdLineSize] = { 0 };
-				FCString::Strcpy(CmdLine, ANSI_TO_TCHAR(AnsiCmdLine));
-				while ((CmdLine[FCString::Strlen(CmdLine) - 1] == TEXT('\n')) ||
-					(CmdLine[FCString::Strlen(CmdLine) - 1] == TEXT('\r')) ||
-					(CmdLine[FCString::Strlen(CmdLine) - 1] == 0xFE))
-				{
-					CmdLine[FCString::Strlen(CmdLine) - 1] = 0;
-				}
-				FString Args = FString::Printf(TEXT("%s"), *FString(CmdLine)); //FString::Printf(TEXT("%s %s"), FCommandLine::Get(), *FString(CmdLine));
-				Args = Args.Trim();
-				Args = Args.TrimTrailing();
-				UE_LOG(LogLaunchUWP, Log, TEXT("%s"), *Args);
-				FCommandLine::Set(*Args);
+				FString CmdLine = StringCast<TCHAR>(AnsiCmdLine).Get();
+				CmdLine.TrimStartAndEndInline();
+				UE_LOG(LogLaunchUWP, Log, TEXT("%s"), *CmdLine);
+				FCommandLine::Set(*CmdLine);
 			}
 			else
 			{
-				UE_LOG(LogLaunchUWP, Warning, TEXT("Failed to open UE4CommandLine.txt file with CreateFile2!"));
+				UE_LOG(LogLaunchUWP, Warning, TEXT("Failed to read commandline from %s!"), *FileName);
 			}
 		}
-	});
-	// @ATG_CHANGE : END
+		else
+		{
+			UE_LOG(LogLaunchUWP, Warning, TEXT("Commandline file %s too large (%d / %d bytes).  Ignoring."), *FileName, CmdLineFileSize, MaxCmdLineSize);
+		}
+		delete CmdLineFileHandle;
+	}
+}
+
+[Platform::MTAThread]
+int main(Platform::Array<Platform::String^>^)
+{
+	InitCommandLine();
 
 	uint64 GameThreadAffinity = FPlatformAffinity::GetMainGameMask();
 	FPlatformProcess::SetThreadAffinityMask((DWORD_PTR)GameThreadAffinity);
