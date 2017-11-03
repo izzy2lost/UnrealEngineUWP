@@ -173,6 +173,14 @@ void FUWPProcess::SetCurrentWorkingDirectoryToBaseDir()
 	verify(SetCurrentDirectoryW(BaseDir()));	// failure here usually means the ACLs got messed up, reregister the app
 }
 
+FString FUWPProcess::GetCurrentWorkingDirectory()
+{
+	// get the current working directory (uncached)
+	TCHAR CurrentDirectory[MAX_PATH];
+	GetCurrentDirectoryW(MAX_PATH, CurrentDirectory);
+	return CurrentDirectory;
+}
+
 const TCHAR* FUWPProcess::UserDir()
 {
 	return UE_BUILD_SHIPPING ? GetLocalAppDataLowLevelPath() : GetLocalAppDataRedirectPath();
