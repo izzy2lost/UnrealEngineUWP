@@ -185,6 +185,11 @@ public:
 #if PLATFORM_WINDOWS
 		VERIFYD3D12RESULT(::CreateDXGIFactory(IID_PPV_ARGS(DxgiFactory.GetInitReference())));
 		VERIFYD3D12RESULT(DxgiFactory->QueryInterface(IID_PPV_ARGS(DxgiFactory2.GetInitReference())));
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+		VERIFYD3D12RESULT(::CreateDXGIFactory1(IID_PPV_ARGS(DxgiFactory.GetInitReference())));
+		VERIFYD3D12RESULT(DxgiFactory->QueryInterface(IID_PPV_ARGS(DxgiFactory2.GetInitReference())));
+// @ATG_CHANGE : END
 #endif
 	}
 	inline IDXGIFactory* GetDXGIFactory() const { return DxgiFactory; }
