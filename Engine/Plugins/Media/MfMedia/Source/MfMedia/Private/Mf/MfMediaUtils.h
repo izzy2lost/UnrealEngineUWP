@@ -2,22 +2,40 @@
 
 #pragma once
 
-#include "../MfMediaPrivate.h"
+#include "MfMediaPrivate.h"
 
 #if MFMEDIA_SUPPORTED_PLATFORM
 
+#include "Containers/UnrealString.h"
+#include "Templates/SharedPointer.h"
+
+#if PLATFORM_WINDOWS
+	#include "Windows/WindowsHWrapper.h"
+	#include "Windows/AllowWindowsPlatformTypes.h"
 // @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
-#if PLATFORM_WINDOWS || PLATFORM_UWP
-// @ATG_CHANGE : END
-	#include "WindowsHWrapper.h"
-	#include "AllowWindowsPlatformTypes.h"
+#elif PLATFORM_UWP
+	#include "UWP/WindowsHWrapper.h"
+	#include "UWP/AllowWindowsPlatformTypes.h"
 #else
-	#include "XboxOneAllowPlatformTypes.h"
+// @ATG_CHANGE : END
+	#include "XboxOne/XboxOneAllowPlatformTypes.h"
 #endif
+
+class FArchive;
 
 
 namespace MfMedia
 {
+	/**
+	 * Create an output media type for the given input media type.
+	 *
+	 * @param MajorType The output's major type, i.e. audio or video.
+	 * @param SubType The output's sub type, i.e. PCM or RGB32.
+	 * @param AllowNonStandardCodecs Whether non-standard codecs should be allowed.
+	 * @return The output type, or NULL on error.
+	 */
+	TComPtr<IMFMediaType> CreateOutputType(const GUID& MajorType, const GUID& SubType, bool AllowNonStandardCodecs);
+
 	/** 
 	 * Convert a FOURCC code to string.
 	 *
@@ -43,6 +61,24 @@ namespace MfMedia
 	FString MajorTypeToString(const GUID& MajorType);
 
 	/**
+	 * Convert a media event to string.
+	 *
+	 * @param Event The event code to convert.
+	 * @return The corresponding string.
+	 */
+	FString MediaEventToString(MediaEventType Event);
+
+	/**
+	 * Resolve a media source from an archive or URL.
+	 *
+	 * @param Archive The archive to read media data from (optional).
+	 * @param Url The media source URL.
+	 * @param Precache Whether to precache media into RAM if URL is a local file.
+	 * @return The media source object, or NULL if it couldn't be resolved.
+	 */
+	TComPtr<IMFMediaSource> ResolveMediaSource(TSharedPtr<FArchive, ESPMode::ThreadSafe> Archive, const FString& Url, bool Precache);
+
+	/**
 	 * Convert an WMF HRESULT code to string.
 	 *
 	 * @param Result The result code to convert.
@@ -60,12 +96,14 @@ namespace MfMedia
 }
 
 
+#if PLATFORM_WINDOWS
+	#include "Windows/HideWindowsPlatformTypes.h"
 // @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
-#if PLATFORM_WINDOWS || PLATFORM_UWP
-// @ATG_CHANGE : END
-	#include "HideWindowsPlatformTypes.h"
+#elif PLATFORM_UWP
+	#include "UWP/HideWindowsPlatformTypes.h"
 #else
-	#include "XboxOneHidePlatformTypes.h"
+// @ATG_CHANGE : END
+	#include "XboxOne/XboxOneHidePlatformTypes.h"
 #endif
 
-#endif
+#endif //MFMEDIA_SUPPORTED_PLATFORM

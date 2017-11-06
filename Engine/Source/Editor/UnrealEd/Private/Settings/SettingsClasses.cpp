@@ -4,7 +4,6 @@
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
-#include "Misc/StringAssetReference.h"
 #include "Misc/PackageName.h"
 #include "InputCoreTypes.h"
 #include "EditorStyleSettings.h"
@@ -12,7 +11,6 @@
 #include "Model.h"
 #include "ISourceControlModule.h"
 #include "Settings/ContentBrowserSettings.h"
-#include "Settings/DestructableMeshEditorSettings.h"
 #include "Settings/LevelEditorPlaySettings.h"
 #include "Settings/LevelEditorViewportSettings.h"
 #include "Settings/EditorProjectSettings.h"
@@ -32,9 +30,9 @@
 #include "AutoReimport/AutoReimportUtilities.h"
 #include "Misc/ConfigCacheIni.h" // for FConfigCacheIni::GetString()
 #include "SourceCodeNavigation.h"
-#include "Developer/BlueprintProfiler/Public/BlueprintProfilerModule.h"
 #include "IProjectManager.h"
 #include "ProjectDescriptor.h"
+#include "Settings/SkeletalMeshEditorSettings.h"
 
 #define LOCTEXT_NAMESPACE "SettingsClasses"
 
@@ -92,10 +90,11 @@ void UClassViewerSettings::PostEditChangeProperty(struct FPropertyChangedEvent& 
 	SettingChangedEvent.Broadcast(Name);
 }
 
-/* UDestructableMeshEditorSettings interface
- *****************************************************************************/
 
-UDestructableMeshEditorSettings::UDestructableMeshEditorSettings( const FObjectInitializer& ObjectInitializer )
+/* USkeletalMeshEditorSettings interface
+*****************************************************************************/
+
+USkeletalMeshEditorSettings::USkeletalMeshEditorSettings(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	AnimPreviewLightingDirection = FRotator(-45.0f, 45.0f, 0);
@@ -106,14 +105,12 @@ UDestructableMeshEditorSettings::UDestructableMeshEditorSettings( const FObjectI
 	AnimPreviewLightBrightness = 1.0f * PI;
 }
 
-
 /* UEditorExperimentalSettings interface
  *****************************************************************************/
 
 UEditorExperimentalSettings::UEditorExperimentalSettings( const FObjectInitializer& ObjectInitializer )
 	: Super(ObjectInitializer)
 	, bEnableLocalizationDashboard(true)
-	, bBlueprintPerformanceAnalysisTools(false)
 	, bUseOpenCLForConvexHullDecomp(false)
 	, bAllowPotentiallyUnsafePropertyEditing(false)
 {
@@ -136,18 +133,6 @@ void UEditorExperimentalSettings::PostEditChangeProperty( struct FPropertyChange
 		if (bEQSEditor)
 		{
 			FModuleManager::Get().LoadModule(TEXT("EnvironmentQueryEditor"));
-		}
-	}
-	else if (Name == FName(TEXT("bBlueprintPerformanceAnalysisTools")))
-	{
-		if (!bBlueprintPerformanceAnalysisTools)
-		{
-			IBlueprintProfilerInterface* ProfilerInterface = FModuleManager::GetModulePtr<IBlueprintProfilerInterface>("BlueprintProfiler");
-			if (ProfilerInterface && ProfilerInterface->IsProfilerEnabled())
-			{
-				// Force Profiler off
-				ProfilerInterface->ToggleProfilingCapture();
-			}
 		}
 	}
 
@@ -245,7 +230,7 @@ bool FAutoReimportDirectoryConfig::ParseSourceDirectoryAndMountPoint(FString& So
 	if (SourceDirectory.StartsWith("../"))
 	{
 		// Normalize. Interpret setting as a relative path from the Game User directory (Named after the Game)
-		SourceDirectory = FPaths::ConvertRelativePathToFull(FPaths::GameUserDir() / SourceDirectory);
+		SourceDirectory = FPaths::ConvertRelativePathToFull(FPaths::ProjectUserDir() / SourceDirectory);
 	}
 
 	// Check if the source directory is actually a mount point
@@ -385,6 +370,7 @@ ULevelEditorPlaySettings::ULevelEditorPlaySettings( const FObjectInitializer& Ob
 	ClientWindowWidth = 640;
 	ClientWindowHeight = 480;
 	PlayNumberOfClients = 1;
+	ServerPort = 17777;
 	PlayNetDedicated = false;
 	RunUnderOneProcess = true;
 	RouteGamepadToSecondWindow = false;
@@ -422,7 +408,7 @@ ULevelEditorViewportSettings::ULevelEditorViewportSettings( const FObjectInitial
 	MeasuringToolUnits = MeasureUnits_Centimeters;
 
 	// Set a default preview mesh
-	PreviewMeshes.Add(FStringAssetReference("/Engine/EditorMeshes/ColorCalibrator/SM_ColorCalibrator.SM_ColorCalibrator"));
+	PreviewMeshes.Add(FSoftObjectPath("/Engine/EditorMeshes/ColorCalibrator/SM_ColorCalibrator.SM_ColorCalibrator"));
 }
 
 void ULevelEditorViewportSettings::PostInitProperties()
@@ -534,7 +520,6 @@ void ULevelEditorViewportSettings::PostEditChangeProperty( struct FPropertyChang
 UProjectPackagingSettings::UProjectPackagingSettings( const FObjectInitializer& ObjectInitializer )
 	: Super(ObjectInitializer)
 {
-	bWarnIfPackagedWithoutNativizationFlag = true;
 }
 
 
@@ -554,6 +539,9 @@ void UProjectPackagingSettings::PostInitProperties()
 	// Reset deprecated settings to defaults.
 	bNativizeBlueprintAssets_DEPRECATED = false;
 	bNativizeOnlySelectedBlueprints_DEPRECATED = false;
+
+	// Build code projects by default
+	Build = EProjectPackagingBuild::IfProjectHasCode;
 
 	// Cache the current set of Blueprint assets selected for nativization.
 	CachedNativizeBlueprintAssets = NativizeBlueprintAssets;
@@ -589,7 +577,7 @@ void UProjectPackagingSettings::PostEditChangeProperty( FPropertyChangedEvent& P
 	}
 	else if (Name == FName(TEXT("ForDistribution")) || Name == FName(TEXT("BuildConfiguration")))
 	{
-		if (ForDistribution)
+		if (ForDistribution && BuildConfiguration != EProjectPackagingBuildConfigurations::PPBC_Shipping && BuildConfiguration != EProjectPackagingBuildConfigurations::PPBC_ShippingClient)
 		{
 			BuildConfiguration = EProjectPackagingBuildConfigurations::PPBC_Shipping;
 		}
@@ -650,36 +638,6 @@ void UProjectPackagingSettings::PostEditChangeProperty( FPropertyChangedEvent& P
 				ApplocalPrerequisitesDirectory.Path = "$(ProjectDir)/" + ProjectRootedPath;
 				return;
 			}
-		}
-	}
-	else if (Name == FName((TEXT("BlueprintNativizationMethod"))))
-	{
-		IProjectManager& ProjManager = IProjectManager::Get();
-		{
-			// NOTE: these are hardcoded to match the path constructed by AddBlueprintPluginPathArgument() on CookCommand.Automation.cs, and the defaults in 
-			//       FBlueprintNativeCodeGenPaths::GetDefaultCodeGenPaths(); if you alter this (or either of those) then you need to update the others
-			const FString NativizedPluginDir  = TEXT("./Intermediate/Plugins");
-			const FString NativizedPluginName = TEXT("NativizedAssets");
-			const FString FullPluginPath = FPaths::ConvertRelativePathToFull( FPaths::ConvertRelativePathToFull(FPaths::GameDir()), NativizedPluginDir );
-
-			if (BlueprintNativizationMethod == EProjectPackagingBlueprintNativizationMethod::Disabled)
-			{
-				
-				ProjManager.UpdateAdditionalPluginDirectory(FullPluginPath, /*bAddOrRemove =*/false);
-				FText PluginDisableFailure;
-				ProjManager.SetPluginEnabled(NativizedPluginName, /*bEnabled =*/false, PluginDisableFailure);
-			}
-			else
-			{
-				ProjManager.UpdateAdditionalPluginDirectory(FullPluginPath, /*bAddOrRemove =*/true);
-				// plugin is enabled by default, so let's remove it from the uproject list entirely (else it causes problem in the packaged project)
-				// SetPluginEnabled() will only remove it if the plugin exists (it may not yet), so we rely on this explicit removal
-				FText PluginEnableFailure;
-				ProjManager.RemovePluginReference(NativizedPluginName, PluginEnableFailure);
-			}
-
-			FText SaveFailure;
-			ProjManager.SaveCurrentProjectToDisk(SaveFailure);
 		}
 	}
 	else if (Name == FName((TEXT("NativizeBlueprintAssets"))))

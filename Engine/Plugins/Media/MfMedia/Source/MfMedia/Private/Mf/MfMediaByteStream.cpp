@@ -1,11 +1,15 @@
 // Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "MfMediaByteStream.h"
-#include "Misc/ScopeLock.h"
 
 #if MFMEDIA_SUPPORTED_PLATFORM
 
+#include "CoreTypes.h"
+#include "HAL/PlatformAtomics.h"
+#include "Misc/ScopeLock.h"
 #include "MfMediaReadState.h"
+#include "Serialization/Archive.h"
+#include "Windows/COMPointer.h"
 
 // @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
 #if PLATFORM_WINDOWS || PLATFORM_UWP

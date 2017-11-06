@@ -21,7 +21,7 @@ public class UWPTargetPlatform : ModuleRules
 		PrivateIncludePathModuleNames.Add("Settings");
 
 		// compile withEngine
-		if (UEBuildConfiguration.bCompileAgainstEngine)
+		if (Target.bCompileAgainstEngine)
 		{
 			PrivateDependencyModuleNames.Add("Engine");
 			PrivateIncludePathModuleNames.Add("TextureCompressor");

@@ -8,7 +8,7 @@ public class UEOgg : ModuleRules
 	{
 		Type = ModuleType.External;
 
-		string OggPath = UEBuildConfiguration.UEThirdPartySourceDirectory + "Ogg/libogg-1.2.2/";
+		string OggPath = Target.UEThirdPartySourceDirectory + "Ogg/libogg-1.2.2/";
 
 		PublicSystemIncludePaths.Add(OggPath + "include");
 
@@ -17,57 +17,51 @@ public class UEOgg : ModuleRules
 // @ATG_CHANGE : BEGIN UWP support
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 		{
-			OggLibPath += Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			OggLibPath += Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PublicLibraryPaths.Add( OggLibPath );
 
 			PublicAdditionalLibraries.Add("libogg_64.lib");
 
 			PublicDelayLoadDLLs.Add("libogg_64.dll");
 
-			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Ogg/" + Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libogg_64.dll"));
+			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Ogg/" + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libogg_64.dll"));
 		}
         else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
         {
-            OggLibPath += Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+            OggLibPath += Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
             PublicLibraryPaths.Add( OggLibPath );
 
 			PublicAdditionalLibraries.Add("libogg.lib");
 
 			PublicDelayLoadDLLs.Add("libogg.dll");
 
-			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Ogg/" + Target.Platform.ToString() + "/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libogg.dll"));
+			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Ogg/" + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libogg.dll"));
 		}
 // @ATG_CHANGE : END
-        else if (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32") // simulator
-        {
-            OggLibPath += "HTML5Win32";
-            PublicLibraryPaths.Add(OggLibPath);
-			PublicAdditionalLibraries.Add("libogg.lib");
-        }
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			PublicAdditionalLibraries.Add(OggPath + "macosx/libogg.dylib");
 		}
-        else if (Target.Platform == UnrealTargetPlatform.HTML5)
-        {
-            string OpimizationSuffix = "";
-            if (UEBuildConfiguration.bCompileForSize)
-            {
-                OpimizationSuffix = "_Oz";
-            }
-            else
-            {
-                if (Target.Configuration == UnrealTargetConfiguration.Development)
-                {
-                    OpimizationSuffix = "_O2";
-                }
-                else if (Target.Configuration == UnrealTargetConfiguration.Shipping)
-                {
-                    OpimizationSuffix = "_O3";
-                }
-            }
-            PublicAdditionalLibraries.Add(OggLibPath + "HTML5/libogg" + OpimizationSuffix + ".bc");
-        }
+		else if (Target.Platform == UnrealTargetPlatform.HTML5)
+		{
+			string OpimizationSuffix = "";
+			if (Target.bCompileForSize)
+			{
+				OpimizationSuffix = "_Oz";
+			}
+			else
+			{
+				if (Target.Configuration == UnrealTargetConfiguration.Development)
+				{
+					OpimizationSuffix = "_O2";
+				}
+				else if (Target.Configuration == UnrealTargetConfiguration.Shipping)
+				{
+					OpimizationSuffix = "_O3";
+				}
+			}
+			PublicAdditionalLibraries.Add(OggLibPath + "HTML5/libogg" + OpimizationSuffix + ".bc");
+		}
 		else if (Target.Platform == UnrealTargetPlatform.Android)
 		{
 			// Filtered in the toolchain.
@@ -80,14 +74,14 @@ public class UEOgg : ModuleRules
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Linux)
 		{
-            if (Target.LinkType == TargetLinkType.Monolithic)
-            {
-                PublicAdditionalLibraries.Add(OggLibPath + "Linux/" + Target.Architecture + "/libogg.a");
-            }
-            else
-            {
-                PublicAdditionalLibraries.Add(OggLibPath + "Linux/" + Target.Architecture + "/libogg_fPIC.a");
-            }
+			if (Target.LinkType == TargetLinkType.Monolithic)
+			{
+				PublicAdditionalLibraries.Add(OggLibPath + "Linux/" + Target.Architecture + "/libogg.a");
+			}
+			else
+			{
+				PublicAdditionalLibraries.Add(OggLibPath + "Linux/" + Target.Architecture + "/libogg_fPIC.a");
+			}
 		}
 		else if (Target.Platform == UnrealTargetPlatform.XboxOne)
 		{

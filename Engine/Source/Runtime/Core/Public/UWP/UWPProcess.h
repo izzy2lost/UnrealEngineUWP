@@ -37,6 +37,7 @@ struct CORE_API FUWPProcess : public FGenericPlatformProcess
 	static void* GetDllHandle(const TCHAR* Filename);
 	static void FreeDllHandle(void* DllHandle);
 	static void SetCurrentWorkingDirectoryToBaseDir();
+	static FString GetCurrentWorkingDirectory();
 	/** Content saved to the game or engine directories should be rerouted to user directories instead **/
 	static bool ShouldSaveToUserDir();
 

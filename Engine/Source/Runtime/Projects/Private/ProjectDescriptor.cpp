@@ -145,7 +145,7 @@ bool FProjectDescriptor::Read(const FJsonObject& Object, const FString& PathToPr
 		if (FPlatformProperties::RequiresCookedData() && AdditionalPluginDirectoriesValue->Num() > 0)
 		{
 			AdditionalPluginDirectories.Empty();
-			FString RemappedDir = FPaths::GameDir() + TEXT("../RemappedPlugins/");
+			FString RemappedDir = FPaths::ProjectDir() + TEXT("../RemappedPlugins/");
 			AddPluginDirectory(RemappedDir);
 		}
 	}
@@ -276,7 +276,7 @@ const FString FProjectDescriptor::MakePathRelativeToProject(const FString& Dir, 
 
 void FProjectDescriptor::AddPluginDirectory(const FString& AdditionalDir)
 {
-	check(!AdditionalDir.StartsWith(IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*FPaths::GamePluginsDir())));
+	check(!AdditionalDir.StartsWith(IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*FPaths::ProjectPluginsDir())));
 	check(!AdditionalDir.StartsWith(IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*FPaths::EnginePluginsDir())));
 
 	// Detect calls where the path is not absolute

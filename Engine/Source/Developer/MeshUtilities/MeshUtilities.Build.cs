@@ -36,6 +36,7 @@ public class MeshUtilities : ModuleRules
 				"SkeletonEditor",
 				"PropertyEditor",
 				"EditorStyle",
+                "GraphColor",
             }
 		);
 
@@ -77,11 +78,11 @@ public class MeshUtilities : ModuleRules
             AddEngineThirdPartyPrivateStaticDependencies(Target, "DX9");
 		}
 
-		if (UEBuildConfiguration.bCompileSimplygon == true)
+		if (Target.bCompileSimplygon == true)
 		{
             AddEngineThirdPartyPrivateDynamicDependencies(Target, "SimplygonMeshReduction");
             
-            if (UEBuildConfiguration.bCompileSimplygonSSF == true)
+            if (Target.bCompileSimplygonSSF == true)
             {
                 DynamicallyLoadedModuleNames.AddRange(
                     new string[] {
@@ -94,7 +95,7 @@ public class MeshUtilities : ModuleRules
         // EMBREE
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {
-            string SDKDir = UEBuildConfiguration.UEThirdPartySourceDirectory + "IntelEmbree/Embree2140/Win64/";
+            string SDKDir = Target.UEThirdPartySourceDirectory + "IntelEmbree/Embree2140/Win64/";
 
             PublicIncludePaths.Add(SDKDir + "include");
             PublicLibraryPaths.Add(SDKDir + "lib");
@@ -106,7 +107,7 @@ public class MeshUtilities : ModuleRules
         }
         else if (Target.Platform == UnrealTargetPlatform.Mac)
         {
-            string SDKDir = UEBuildConfiguration.UEThirdPartySourceDirectory + "IntelEmbree/Embree2140/MacOSX/";
+            string SDKDir = Target.UEThirdPartySourceDirectory + "IntelEmbree/Embree2140/MacOSX/";
 
             PublicIncludePaths.Add(SDKDir + "include");
             PublicAdditionalLibraries.Add(SDKDir + "lib/libembree.2.14.0.dylib");

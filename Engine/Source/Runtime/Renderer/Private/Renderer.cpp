@@ -40,15 +40,20 @@ public:
 	{
 		if (GMaxRHIFeatureLevel == ERHIFeatureLevel::SM5)
 		{
-			ForwardLightingResources.ForwardLocalLightBuffer.Initialize(sizeof(FVector4), sizeof(FForwardLocalLightData) / sizeof(FVector4), PF_A32B32G32R32F, BUF_Dynamic);
+			ForwardLightingResources.ForwardLocalLightBuffer.Initialize(sizeof(FVector4), sizeof(FForwardLocalLightData) / sizeof(FVector4), PF_R32G32B32A32_UINT, BUF_Dynamic);
 			ForwardLightingResources.ForwardGlobalLightData = TUniformBufferRef<FForwardGlobalLightData>::CreateUniformBufferImmediate(FForwardGlobalLightData(), UniformBuffer_MultiFrame);
 			ForwardLightingResources.NumCulledLightsGrid.Initialize(sizeof(uint32), 1, PF_R32_UINT);
-			// @todo Metal lacks SRV format conversions.
-#if !PLATFORM_MAC && !PLATFORM_IOS
-			ForwardLightingResources.CulledLightDataGrid.Initialize(sizeof(uint16), 1, PF_R16_UINT);
-#else
-			ForwardLightingResources.CulledLightDataGrid.Initialize(sizeof(uint32), 1, PF_R32_UINT);
+			// @todo Metal lacks SRV/UAV format conversions in v1.1 and earlier.
+#if PLATFORM_MAC || PLATFORM_IOS
+			if(IsMetalPlatform(GMaxRHIShaderPlatform) && RHIGetShaderLanguageVersion(GMaxRHIShaderPlatform) < 2)
+			{
+				ForwardLightingResources.CulledLightDataGrid.Initialize(sizeof(uint16), 1, PF_R32_UINT);
+			}
+			else
 #endif
+			{
+				ForwardLightingResources.CulledLightDataGrid.Initialize(sizeof(uint16), 1, PF_R16_UINT);
+			}
 		}
 	}
 	
@@ -58,7 +63,17 @@ public:
 	}
 };
 
-static TGlobalResource<FMinimalDummyForwardLightingResources>* GMinimalDummyForwardLightingResources = NULL;
+FForwardLightingViewResources* GetMinimalDummyForwardLightingResources()
+{
+	static TGlobalResource<FMinimalDummyForwardLightingResources>* GMinimalDummyForwardLightingResources = nullptr;
+
+	if (!GMinimalDummyForwardLightingResources)
+	{
+		GMinimalDummyForwardLightingResources = new TGlobalResource<FMinimalDummyForwardLightingResources>();
+	}
+
+	return &GMinimalDummyForwardLightingResources->ForwardLightingResources;
+}
 
 DEFINE_LOG_CATEGORY(LogRenderer);
 
@@ -96,20 +111,20 @@ void FRendererModule::DrawTileMesh(FRHICommandListImmediate& RHICmdList, FDrawin
 		//@todo - reuse this view for multiple tiles, this is going to be slow for each tile
 		FViewInfo View(&SceneView);
 		
-		if (!GMinimalDummyForwardLightingResources)
-		{
-			GMinimalDummyForwardLightingResources = new TGlobalResource<FMinimalDummyForwardLightingResources>();
-		}
-
 		FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions();
 
 		//Apply the minimal forward lighting resources
-		View.ForwardLightingResources = &GMinimalDummyForwardLightingResources->ForwardLightingResources;
-		
+		View.ForwardLightingResources = GetMinimalDummyForwardLightingResources();
+
 		View.InitRHIResources();
 
 		const auto FeatureLevel = View.GetFeatureLevel();
-	
+
+		if (FeatureLevel <= ERHIFeatureLevel::ES3_1)
+		{
+			View.MobileDirectionalLightUniformBuffers[0] = TUniformBufferRef<FMobileDirectionalLightShaderParameters>::CreateUniformBufferImmediate(FMobileDirectionalLightShaderParameters(), UniformBuffer_SingleFrame);
+		}
+		
 		const FMaterial* Material = Mesh.MaterialRenderProxy->GetMaterial(FeatureLevel);
 
 		//get the blend mode of the material

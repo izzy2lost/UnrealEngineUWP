@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.IO;
+using Tools.DotNETCommon;
 
 namespace UnrealBuildTool
 {
@@ -69,22 +70,6 @@ namespace UnrealBuildTool
 		public List<FileItem> ObjectFiles = new List<FileItem>();
 		public List<FileItem> DebugDataFiles = new List<FileItem>();
 		public FileItem PrecompiledHeaderFile = null;
-	}
-
-	/// <summary>
-	/// Encapsulates the environment that a C# file is compiled in.
-	/// </summary>
-	class CSharpEnvironment
-	{
-		/// <summary>
-		/// The configuration to be compiled for.
-		/// </summary>
-		public CSharpTargetConfiguration TargetConfiguration;
-
-		/// <summary>
-		/// The target platform used to set the environment. Doesn't affect output.
-		/// </summary>
-		public CppPlatform EnvironmentTargetPlatform;
 	}
 
 	/// <summary>
@@ -172,6 +157,11 @@ namespace UnrealBuildTool
 		/// Enable exception handling
 		/// </summary>
 		public bool bEnableExceptions = false;
+
+		/// <summary>
+		/// Enable objective C exception handling
+		/// </summary>
+		public bool bEnableObjCExceptions = false;
 
 		/// <summary>
 		/// Whether to warn about the use of shadow variables
@@ -352,6 +342,7 @@ namespace UnrealBuildTool
 			MinFilesUsingPrecompiledHeaderOverride = Other.MinFilesUsingPrecompiledHeaderOverride;
 			bBuildLocallyWithSNDBS = Other.bBuildLocallyWithSNDBS;
 			bEnableExceptions = Other.bEnableExceptions;
+			bEnableObjCExceptions = Other.bEnableObjCExceptions;
 			bShadowVariableWarningsAsErrors = Other.bShadowVariableWarningsAsErrors;
 			bEnableShadowVariableWarnings = Other.bEnableShadowVariableWarnings;
 			bUndefinedIdentifierWarningsAsErrors = Other.bUndefinedIdentifierWarningsAsErrors;

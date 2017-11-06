@@ -2,15 +2,20 @@
 
 #pragma once
 
-#include "../MfMediaPrivate.h"
+#include "MfMediaPrivate.h"
 
+#if MFMEDIA_SUPPORTED_PLATFORM
+
+#if PLATFORM_WINDOWS
+	#include "Windows/WindowsHWrapper.h"
+	#include "Windows/AllowWindowsPlatformTypes.h"
 // @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
-#if PLATFORM_WINDOWS || PLATFORM_UWP
-// @ATG_CHANGE : END
-	#include "WindowsHWrapper.h"
-	#include "AllowWindowsPlatformTypes.h"
+#elif PLATFORM_UWP
+	#include "UWP/WindowsHWrapper.h"
+	#include "UWP/AllowWindowsPlatformTypes.h"
 #else
-	#include "XboxOneAllowPlatformTypes.h"
+// @ATG_CHANGE : END
+	#include "XboxOne/XboxOneAllowPlatformTypes.h"
 #endif
 
 
@@ -38,9 +43,6 @@ public:
 		, ReadBufferSize(InReadBufferSize)
 		, RefCount(0)
 	{ }
-
-	/** Virtual destructor. */
-	virtual ~FMfMediaReadState() { }
 
 public:
 
@@ -125,6 +127,11 @@ public:
 		return CurrentRefCount;
 	}
 
+protected:
+
+	/** Hidden destructor. */
+	virtual ~FMfMediaReadState() { }
+
 private:
 
 	/** Number of bytes read. */
@@ -141,10 +148,14 @@ private:
 };
 
 
-// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
-#if PLATFORM_WINDOWS || PLATFORM_UWP
-// @ATG_CHANGE : END
-	#include "HideWindowsPlatformTypes.h"
+#if PLATFORM_WINDOWS
+	#include "Windows/HideWindowsPlatformTypes.h"
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP	
+#elif PLATFORM_UWP
+	#include "UWP/HideWindowsPlatformTypes.h"
 #else
-	#include "XboxOneHidePlatformTypes.h"
+// @ATG_CHANGE : END
+	#include "XboxOne/XboxOneHidePlatformTypes.h"
 #endif
+
+#endif //MFMEDIA_SUPPORTED_PLATFORM

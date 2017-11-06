@@ -9,8 +9,8 @@ public class DX11 : ModuleRules
 
         // @ATG_CHANGE : BEGIN UWP support
         string DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
-            UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
-			UEBuildConfiguration.UEThirdPartySourceDirectory + "Windows/DirectX";
+            Target.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
+			Target.UEThirdPartySourceDirectory + "Windows/DirectX";
 		// @ATG_CHANGE : END 
         PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
 
@@ -34,7 +34,7 @@ public class DX11 : ModuleRules
 				"d3d11.lib",
 				"dxguid.lib",
 				"d3dcompiler.lib",
-				(Target.Configuration == UnrealTargetConfiguration.Debug && BuildConfiguration.bDebugBuildsActuallyUseDebugCRT) ? "d3dx11d.lib" : "d3dx11.lib",
+				(Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT) ? "d3dx11d.lib" : "d3dx11.lib",
 				"dinput8.lib",
 				}
 				);

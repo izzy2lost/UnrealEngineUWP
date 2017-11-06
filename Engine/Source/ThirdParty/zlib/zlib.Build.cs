@@ -7,28 +7,25 @@ public class zlib : ModuleRules
 	{
 		Type = ModuleType.External;
 
-		string zlibPath = UEBuildConfiguration.UEThirdPartySourceDirectory + "zlib/v1.2.8/";
+		string zlibPath = Target.UEThirdPartySourceDirectory + "zlib/v1.2.8/";
 
 		// TODO: recompile for consoles and mobile platforms
-		string OldzlibPath = UEBuildConfiguration.UEThirdPartySourceDirectory + "zlib/zlib-1.2.5/";
+		string OldzlibPath = Target.UEThirdPartySourceDirectory + "zlib/zlib-1.2.5/";
 
 // @ATG_CHANGE : BEGIN UWP support
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 // @ATG_CHANGE : END
 		{
-			string platform = "/Win64/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			string platform = "/Win64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PublicIncludePaths.Add(zlibPath + "include" + platform);
 			PublicLibraryPaths.Add(zlibPath + "lib" + platform);
 			PublicAdditionalLibraries.Add("zlibstatic.lib");
-        }
-
-		else if (Target.Platform == UnrealTargetPlatform.Win32 ||
+		}
 // @ATG_CHANGE : BEGIN UWP support
-                (Target.Platform == UnrealTargetPlatform.UWP32) ||
+		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
 // @ATG_CHANGE : END
-				(Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32")) // simulator
 		{
-			string platform = "/Win32/VS" + WindowsPlatform.GetVisualStudioCompilerVersionName();
+			string platform = "/Win32/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PublicIncludePaths.Add(zlibPath + "include" + platform);
 			PublicLibraryPaths.Add(zlibPath + "lib" + platform);
 			PublicAdditionalLibraries.Add("zlibstatic.lib");
@@ -58,7 +55,7 @@ public class zlib : ModuleRules
 		else if (Target.Platform == UnrealTargetPlatform.HTML5)
 		{
 			string OpimizationSuffix = "";
-			if (UEBuildConfiguration.bCompileForSize)
+			if (Target.bCompileForSize)
 			{
 				OpimizationSuffix = "_Oz";
 			}
@@ -84,28 +81,28 @@ public class zlib : ModuleRules
 			PublicAdditionalLibraries.Add(zlibPath + "/lib/" + platform + ((Target.LinkType == TargetLinkType.Monolithic) ? "/libz" : "/libz_fPIC") + ".a");
 		}
 
-        else if (Target.Platform == UnrealTargetPlatform.PS4)
-        {
+		else if (Target.Platform == UnrealTargetPlatform.PS4)
+		{
 			PublicIncludePaths.Add(OldzlibPath + "Inc");
-            PublicLibraryPaths.Add(OldzlibPath + "Lib/PS4");
-            PublicAdditionalLibraries.Add("z");
-        }
-        else if (Target.Platform == UnrealTargetPlatform.XboxOne)
-        {
-            // Use reflection to allow type not to exist if console code is not present
-            System.Type XboxOnePlatformType = System.Type.GetType("UnrealBuildTool.XboxOnePlatform,UnrealBuildTool");
-            if (XboxOnePlatformType != null)
-            {
-                System.Object VersionName = XboxOnePlatformType.GetMethod("GetVisualStudioCompilerVersionName").Invoke(null, null);
+			PublicLibraryPaths.Add(OldzlibPath + "Lib/PS4");
+			PublicAdditionalLibraries.Add("z");
+		}
+		else if (Target.Platform == UnrealTargetPlatform.XboxOne)
+		{
+			// Use reflection to allow type not to exist if console code is not present
+			System.Type XboxOnePlatformType = System.Type.GetType("UnrealBuildTool.XboxOnePlatform,UnrealBuildTool");
+			if (XboxOnePlatformType != null)
+			{
+				System.Object VersionName = XboxOnePlatformType.GetMethod("GetVisualStudioCompilerVersionName").Invoke(null, null);
 				PublicIncludePaths.Add(OldzlibPath + "Inc");
 				PublicLibraryPaths.Add(OldzlibPath + "Lib/XboxOne/VS" + VersionName.ToString());
-                PublicAdditionalLibraries.Add("zlib125_XboxOne.lib");
-            }
-        }
+				PublicAdditionalLibraries.Add("zlib125_XboxOne.lib");
+			}
+		}
 		else if (Target.Platform == UnrealTargetPlatform.Switch)
 		{
 			PublicIncludePaths.Add(OldzlibPath + "inc");
 			PublicAdditionalLibraries.Add(System.IO.Path.Combine(OldzlibPath, "Lib/Switch/libz.a"));
 		}
-    }
+	}
 }

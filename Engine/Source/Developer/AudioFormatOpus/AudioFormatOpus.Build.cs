@@ -21,13 +21,13 @@ public class AudioFormatOpus : ModuleRules
 			(Target.Platform == UnrealTargetPlatform.UWP64) ||
 			(Target.Platform == UnrealTargetPlatform.UWP32) ||
 // @ATG_CHANGE : END
-            (Target.Platform == UnrealTargetPlatform.Linux) ||
-            (Target.Platform == UnrealTargetPlatform.Mac) ||
-            (Target.Platform == UnrealTargetPlatform.XboxOne)
-            //(Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32")
-            )
+			(Target.Platform == UnrealTargetPlatform.Linux) ||
+			(Target.Platform == UnrealTargetPlatform.Mac) ||
+			(Target.Platform == UnrealTargetPlatform.XboxOne)
+			//(Target.Platform == UnrealTargetPlatform.HTML5) // TODO test this for HTML5 !
+		)
 		{
-			AddEngineThirdPartyPrivateStaticDependencies(Target, 
+			AddEngineThirdPartyPrivateStaticDependencies(Target,
 				"libOpus"
 				);
 		}

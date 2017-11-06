@@ -3,6 +3,10 @@
 #include "Launcher/LauncherWorker.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/FileManager.h"
+#include "ISourceCodeAccessor.h"
+#include "ISourceCodeAccessModule.h"
+#include "ITargetDeviceProxy.h"
+#include "ITargetDeviceProxyManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Paths.h"
 #include "HAL/ThreadSafeCounter.h"
@@ -13,20 +17,21 @@
 #include "Launcher/LauncherUATTask.h"
 #include "Launcher/LauncherVerifyProfileTask.h"
 #include "PlatformInfo.h"
-#include "ISourceCodeAccessor.h"
-#include "ISourceCodeAccessModule.h"
+
 
 #define LOCTEXT_NAMESPACE "LauncherWorker"
+
 
 /* Static class member instantiations
 *****************************************************************************/
 
 FThreadSafeCounter FLauncherTask::TaskCounter;
 
+
 /* FLauncherWorker structors
  *****************************************************************************/
 
-FLauncherWorker::FLauncherWorker( const ITargetDeviceProxyManagerRef& InDeviceProxyManager, const ILauncherProfileRef& InProfile )
+FLauncherWorker::FLauncherWorker(const TSharedRef<ITargetDeviceProxyManager>& InDeviceProxyManager, const ILauncherProfileRef& InProfile)
 	: DeviceProxyManager(InDeviceProxyManager)
 	, Profile(InProfile)
 	, Status(ELauncherWorkerStatus::Busy)
@@ -66,7 +71,7 @@ uint32 FLauncherWorker::Run( )
 			{
 				for (int32 Index = 0; Index < count-1; ++Index)
 				{
-					StringArray[Index].TrimTrailing();
+					StringArray[Index].TrimEndInline();
 					OutputMessageReceived.Broadcast(StringArray[Index]);
 				}
 				Line = StringArray[count-1];
@@ -92,7 +97,7 @@ uint32 FLauncherWorker::Run( )
 				{
 					for (int32 Index = 0; Index < count-1; ++Index)
 					{
-						StringArray[Index].TrimTrailing();
+						StringArray[Index].TrimEndInline();
 						OutputMessageReceived.Broadcast(StringArray[Index]);
 					}
 					Line = StringArray[count-1];
@@ -211,7 +216,7 @@ void FLauncherWorker::OnTaskCompleted(const FString& TaskName)
 	StageCompleted.Broadcast(TaskName, FPlatformTime::Seconds() - StageStartTime);
 }
 
-static void AddDeviceToLaunchCommand(const FString& DeviceId, ITargetDeviceProxyPtr DeviceProxy, const ILauncherProfileRef& InProfile, FString& DeviceNames, FString& RoleCommands, bool& bVsyncAdded)
+static void AddDeviceToLaunchCommand(const FString& DeviceId, TSharedPtr<ITargetDeviceProxy> DeviceProxy, const ILauncherProfileRef& InProfile, FString& DeviceNames, FString& RoleCommands, bool& bVsyncAdded)
 {
 	// add the platform
 	DeviceNames += TEXT("+\"") + DeviceId + TEXT("\"");
@@ -398,7 +403,7 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 		for (int32 DeviceIndex = 0; DeviceIndex < Devices.Num(); ++DeviceIndex)
 		{
 			const FString& DeviceId = Devices[DeviceIndex];
-			ITargetDeviceProxyPtr DeviceProxy = DeviceProxyManager->FindProxyDeviceForTargetDevice(DeviceId);
+			TSharedPtr<ITargetDeviceProxy> DeviceProxy = DeviceProxyManager->FindProxyDeviceForTargetDevice(DeviceId);
 			if (DeviceProxy.IsValid())
 			{
 				AddDeviceToLaunchCommand(DeviceId, DeviceProxy, InProfile, DeviceNames, RoleCommands, bVsyncAdded);
@@ -428,14 +433,26 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 	FString CommandLine = FString::Printf(TEXT(" -cmdline=\"%s -Messaging\""),
 		*InitialMap);
 
+	// localization command line
+	FString LocalizationCommands;
+#if WITH_EDITOR
+	const FString PreviewGameLanguage = FTextLocalizationManager::Get().GetConfiguredGameLocalizationPreviewLanguage();
+	if (!PreviewGameLanguage.IsEmpty())
+	{
+		LocalizationCommands += TEXT(" -culture=");
+		LocalizationCommands += PreviewGameLanguage;
+	}
+#endif	// WITH_EDITOR
+
 	// additional commands to be sent to the commandline
 	FString SessionName = InProfile->GetName().Replace(TEXT("\'"), TEXT("_")).Replace(TEXT("\'"), TEXT("_"));
 	FString SessionOwner = FString(FPlatformProcess::UserName(false)).Replace(TEXT("\'"), TEXT("_")).Replace(TEXT("\'"), TEXT("_"));;
-	FString AdditionalCommandLine = FString::Printf(TEXT(" -addcmdline=\"-SessionId=%s -SessionOwner='%s' -SessionName='%s'%s\""),
+	FString AdditionalCommandLine = FString::Printf(TEXT(" -addcmdline=\"-SessionId=%s -SessionOwner='%s' -SessionName='%s'%s%s\""),
 		*SessionId.ToString(),
 		*SessionOwner,
 		*SessionName,
-		*RoleCommands);
+		*RoleCommands,
+		*LocalizationCommands);
 
 	// map list
 	FString MapList = TEXT("");
@@ -455,6 +472,15 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 	else
 	{
 		MapList = TEXT(" -map=") + InitialMap;
+	}
+
+	// Override the Blueprint nativization method for anything other than "cook by the book" mode. Nativized assets
+	// won't get regenerated otherwise, and we don't want UBT to include generated code assets from a previous cook.
+	// Also disable Blueprint nativization if the profile is not configured to also build code. Otherwise nativized
+	// assets generated at cook time will not be linked into the game's executable prior to stage/deployment phases.
+	if (InProfile->GetCookMode() != ELauncherProfileCookModes::ByTheBook || !InProfile->IsBuilding())
+	{
+		UATCommand += TEXT(" -ini:Game:[/Script/UnrealEd.ProjectPackagingSettings]:BlueprintNativizationMethod=Disabled");
 	}
 
 	// build
@@ -618,8 +644,6 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 		UATCommand += TEXT(" -skipcook");
 		break;
 	}
-
-
 
 	if ( InProfile->IsForDistribution() )
 	{
@@ -807,7 +831,7 @@ void FLauncherWorker::CreateAndExecuteTasks( const ILauncherProfileRef& InProfil
 		{
 			const FString& DeviceId = Devices[DeviceIndex];
 
-			ITargetDeviceProxyPtr DeviceProxy = DeviceProxyManager->FindProxyDeviceForTargetDevice(DeviceId);
+			TSharedPtr<ITargetDeviceProxy> DeviceProxy = DeviceProxyManager->FindProxyDeviceForTargetDevice(DeviceId);
 
 			if (DeviceProxy.IsValid())
 			{

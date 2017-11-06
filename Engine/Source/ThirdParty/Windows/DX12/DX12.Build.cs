@@ -8,11 +8,11 @@ public class DX12 : ModuleRules
 		Type = ModuleType.External;
 
 		// @ATG_CHANGE : BEGIN UWP support - using the flattened "DirectX" folder that has some conflicting legacy items is an issue when consuming W10 SDK
-		string DirectXSDKDir = UEBuildConfiguration.UEThirdPartySourceDirectory + (WindowsPlatform.bUseWindowsSDK10 ? "Windows/DX12" : "Windows/DirectX");
-		if (WindowsPlatform.bUseWindowsSDK10 && (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64))
+		string DirectXSDKDir = Target.UEThirdPartySourceDirectory + (Target.WindowsPlatform.bUseWindowsSDK10 ? "Windows/DX12" : "Windows/DirectX");
+		if (Target.WindowsPlatform.bUseWindowsSDK10 && (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64))
 		{
-			PublicSystemIncludePaths.Add(UEBuildConfiguration.UEThirdPartySourceDirectory + "/Windows/Pix/Include");
-			PublicLibraryPaths.Add(UEBuildConfiguration.UEThirdPartySourceDirectory + "/Windows/Pix/Lib/x64");
+			PublicSystemIncludePaths.Add(Target.UEThirdPartySourceDirectory + "/Windows/Pix/Include");
+			PublicLibraryPaths.Add(Target.UEThirdPartySourceDirectory + "/Windows/Pix/Lib/x64");
 		}
 		// @ATG_CHANGE : END
 		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");

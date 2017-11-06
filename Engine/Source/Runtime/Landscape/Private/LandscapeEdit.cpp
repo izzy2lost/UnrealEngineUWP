@@ -3108,7 +3108,7 @@ void ULandscapeInfo::ExportLayer(ULandscapeLayerInfoObject* LayerInfo, const FSt
 	GWarn->EndSlowTask();
 }
 
-void ULandscapeInfo::DeleteLayer(ULandscapeLayerInfoObject* LayerInfo)
+void ULandscapeInfo::DeleteLayer(ULandscapeLayerInfoObject* LayerInfo, const FName& LayerName)
 {
 	GWarn->BeginSlowTask(LOCTEXT("BeginDeletingLayerTask", "Deleting Layer"), true);
 
@@ -3118,7 +3118,7 @@ void ULandscapeInfo::DeleteLayer(ULandscapeLayerInfoObject* LayerInfo)
 
 	// Remove from layer settings array
 	{
-		int32 LayerIndex = Layers.IndexOfByPredicate([LayerInfo](const FLandscapeInfoLayerSettings& LayerSettings) { return LayerSettings.LayerInfoObj == LayerInfo; });
+		int32 LayerIndex = Layers.IndexOfByPredicate([LayerInfo, LayerName](const FLandscapeInfoLayerSettings& LayerSettings) { return LayerSettings.LayerInfoObj == LayerInfo && LayerSettings.LayerName == LayerName; });
 		if (LayerIndex != INDEX_NONE)
 		{
 			Layers.RemoveAt(LayerIndex);
@@ -3258,7 +3258,7 @@ void ALandscapeProxy::PostEditMove(bool bFinished)
 	// This point is only reached when Copy and Pasted
 	Super::PostEditMove(bFinished);
 
-	if (bFinished)
+	if (bFinished && !GetWorld()->IsGameWorld())
 	{
 		ULandscapeInfo::RecreateLandscapeInfo(GetWorld(), true);
 		RecreateComponentsState();
@@ -3293,7 +3293,7 @@ void ALandscapeProxy::PostEditImport()
 
 void ALandscape::PostEditMove(bool bFinished)
 {
-	if (bFinished)
+	if (bFinished && !GetWorld()->IsGameWorld())
 	{
 		// align all proxies to landscape actor
 		auto* LandscapeInfo = GetLandscapeInfo();
@@ -3306,18 +3306,22 @@ void ALandscape::PostEditMove(bool bFinished)
 	Super::PostEditMove(bFinished);
 }
 
+bool ALandscape::ShouldImport(FString* ActorPropString, bool IsMovingLevel)
+{
+	return GetWorld() != nullptr && !GetWorld()->IsGameWorld();
+}
+
 void ALandscape::PostEditImport()
 {
-	if (GetWorld())
+	check(GetWorld() && !GetWorld()->IsGameWorld());
+
+	for (ALandscape* Landscape : TActorRange<ALandscape>(GetWorld()))
 	{
-		for (ALandscape* Landscape : TActorRange<ALandscape>(GetWorld()))
+		if (Landscape && Landscape != this && !Landscape->HasAnyFlags(RF_BeginDestroyed) && Landscape->LandscapeGuid == LandscapeGuid)
 		{
-			if (Landscape && Landscape != this && !Landscape->HasAnyFlags(RF_BeginDestroyed) && Landscape->LandscapeGuid == LandscapeGuid)
-			{
-				// Copy/Paste case, need to generate new GUID
-				LandscapeGuid = FGuid::NewGuid();
-				break;
-			}
+			// Copy/Paste case, need to generate new GUID
+			LandscapeGuid = FGuid::NewGuid();
+			break;
 		}
 	}
 
@@ -3776,30 +3780,36 @@ void ALandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 
 	if (PropertyName == FName(TEXT("LandscapeMaterial")) || PropertyName == FName(TEXT("LandscapeHoleMaterial")))
 	{
-		FMaterialUpdateContext MaterialUpdateContext;
-		Info->UpdateLayerInfoMap(/*this*/);
-
-		ChangedMaterial = true;
-
-		// Clear the parents out of combination material instances
-		for (const auto& MICPair : MaterialInstanceConstantMap)
+		if (Info != nullptr)
 		{
-			UMaterialInstanceConstant* MaterialInstance = MICPair.Value;
-			MaterialInstance->BasePropertyOverrides.bOverride_BlendMode = false;
-			MaterialInstance->SetParentEditorOnly(nullptr);
-			MaterialUpdateContext.AddMaterialInstance(MaterialInstance);
-		}
+			FMaterialUpdateContext MaterialUpdateContext;
+			Info->UpdateLayerInfoMap(/*this*/);
 
-		// Remove our references to any material instances
-		MaterialInstanceConstantMap.Empty();
+			ChangedMaterial = true;
+
+			// Clear the parents out of combination material instances
+			for (const auto& MICPair : MaterialInstanceConstantMap)
+			{
+				UMaterialInstanceConstant* MaterialInstance = MICPair.Value;
+				MaterialInstance->BasePropertyOverrides.bOverride_BlendMode = false;
+				MaterialInstance->SetParentEditorOnly(nullptr);
+				MaterialUpdateContext.AddMaterialInstance(MaterialInstance);
+			}
+
+			// Remove our references to any material instances
+			MaterialInstanceConstantMap.Empty();
+		}
 	}
 	else if (PropertyName == FName(TEXT("RelativeScale3D")) ||
 		PropertyName == FName(TEXT("RelativeLocation")) ||
 		PropertyName == FName(TEXT("RelativeRotation")))
 	{
-		// update transformations for all linked proxies 
-		Info->FixupProxiesTransform();
-		bNeedsRecalcBoundingBox = true;
+		if (Info != nullptr)
+		{
+			// update transformations for all linked proxies 
+			Info->FixupProxiesTransform();
+			bNeedsRecalcBoundingBox = true;
+		}
 	}
 	else if (GIsEditor && PropertyName == FName(TEXT("MaxLODLevel")))
 	{
@@ -3853,7 +3863,7 @@ void ALandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 
 	bPropagateToProxies = bPropagateToProxies || bNeedsRecalcBoundingBox || bChangedLighting;
 
-	if (ensure(Info))
+	if (Info != nullptr)
 	{
 		if (bPropagateToProxies)
 		{
@@ -3914,6 +3924,12 @@ void ALandscape::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 			{
 				Gizmo->MarkComponentsRenderStateDirty();
 			}
+		}
+
+		// Must be done after the AActor::PostEditChange as we depend on the relinking of the landscapeInfo->LandscapeActor
+		if (ChangedMaterial)
+		{
+			LandscapeMaterialChangedDelegate.Broadcast();
 		}
 	}
 }

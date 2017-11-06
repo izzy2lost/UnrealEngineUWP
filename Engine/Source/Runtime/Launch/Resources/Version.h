@@ -55,7 +55,7 @@
 // These numbers define the banner UE4 version, and are the most significant numbers when ordering two engine versions (that is, a 4.12.* version is always 
 // newer than a 4.11.* version, regardless of the changelist that it was built with)
 #define ENGINE_MAJOR_VERSION	4
-#define ENGINE_MINOR_VERSION	17
+#define ENGINE_MINOR_VERSION	18
 #define ENGINE_PATCH_VERSION	0
 
 // If set to 1, indicates that this is a licensee build of the engine. For the same major/minor/patch release of the engine, licensee changelists are always 
@@ -103,7 +103,7 @@
 
 // The branch that this engine is being built from. When set by UAT, this has the form of a Perforce depot path with forward slashes escaped by plus characters 
 // (eg. //UE4/Main -> ++UE4+Main)
-#define BRANCH_NAME "++UE4+Release-4.17"
+#define BRANCH_NAME "++UE4+Release-4.18"
 
 // Macros for encoding strings
 #define VERSION_TEXT_2(x) L ## x

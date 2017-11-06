@@ -31,9 +31,9 @@ namespace
 		}
 
 		return FFileStatData(
-			IOSEpoch + FTimespan(0, 0, FileInfo.st_ctime), 
-			IOSEpoch + FTimespan(0, 0, FileInfo.st_atime), 
-			IOSEpoch + FTimespan(0, 0, FileInfo.st_mtime), 
+			IOSEpoch + FTimespan::FromSeconds(FileInfo.st_ctime), 
+			IOSEpoch + FTimespan::FromSeconds(FileInfo.st_atime), 
+			IOSEpoch + FTimespan::FromSeconds(FileInfo.st_mtime), 
 			FileSize,
 			bIsDirectory,
 			!!(FileInfo.st_mode & S_IWUSR)
@@ -760,7 +760,7 @@ FString FIOSPlatformFile::ConvertToIOSPath(const FString& Filename, bool bForWri
 
 	if(bForWrite)
 	{
-		static FString WritePathBase = FString([NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) objectAtIndex:0]) + TEXT("/");
+		static FString WritePathBase = FString([NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0]) + TEXT("/");
 		return WritePathBase + Result;
 	}
 	else

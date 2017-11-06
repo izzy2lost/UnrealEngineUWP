@@ -62,7 +62,7 @@ public class Core : ModuleRules
 			}
 			);
 
-		if (UEBuildConfiguration.bBuildEditor == true)
+		if (Target.bBuildEditor == true)
 		{
 			DynamicallyLoadedModuleNames.Add("SourceCodeAccess");
 
@@ -74,12 +74,11 @@ public class Core : ModuleRules
 			(Target.Platform == UnrealTargetPlatform.Win32))
 		{
 			PublicIncludePaths.Add("Runtime/Core/Public/Windows");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, 
+			AddEngineThirdPartyPrivateStaticDependencies(Target,
 				"zlib");
 
 			AddEngineThirdPartyPrivateStaticDependencies(Target, 
-				"IntelTBB",
-				"XInput"
+				"IntelTBB"
 				);
 		} 
 // @ATG_CHANGE : BEGIN UWP support
@@ -98,15 +97,14 @@ public class Core : ModuleRules
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			PublicIncludePaths.AddRange(new string[] { "Runtime/Core/Public/Apple", "Runtime/Core/Public/Mac" });
-			AddEngineThirdPartyPrivateStaticDependencies(Target, 
+			AddEngineThirdPartyPrivateStaticDependencies(Target,
 				"IntelTBB",
 				"zlib",
-				"OpenGL",
 				"PLCrashReporter"
 				);
 			PublicFrameworks.AddRange(new string[] { "Cocoa", "Carbon", "IOKit", "Security" });
 			
-			if (UEBuildConfiguration.bBuildEditor == true)
+			if (Target.bBuildEditor == true)
 			{
 				PublicAdditionalLibraries.Add("/System/Library/PrivateFrameworks/MultitouchSupport.framework/Versions/Current/MultitouchSupport");
 			}
@@ -114,7 +112,7 @@ public class Core : ModuleRules
 		else if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
 		{
 			PublicIncludePaths.AddRange(new string[] {"Runtime/Core/Public/Apple", "Runtime/Core/Public/IOS"});
-			AddEngineThirdPartyPrivateStaticDependencies(Target, 
+			AddEngineThirdPartyPrivateStaticDependencies(Target,
 				"zlib"
 				);
 			PublicFrameworks.AddRange(new string[] { "UIKit", "Foundation", "AudioToolbox", "AVFoundation", "GameKit", "StoreKit", "CoreVideo", "CoreMedia", "CoreGraphics", "GameController", "SystemConfiguration" });
@@ -126,6 +124,8 @@ public class Core : ModuleRules
                     );
 			}
 
+			PrivateIncludePathModuleNames.Add("ApplicationCore");
+
 			bool bSupportAdvertising = Target.Platform == UnrealTargetPlatform.IOS;
 			if (bSupportAdvertising)
 			{
@@ -135,7 +135,7 @@ public class Core : ModuleRules
 		else if (Target.Platform == UnrealTargetPlatform.Android)
 		{
 			PublicIncludePaths.Add("Runtime/Core/Public/Android");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, 
+			AddEngineThirdPartyPrivateStaticDependencies(Target,
 				"cxademangle",
 				"zlib"
 				);
@@ -143,33 +143,17 @@ public class Core : ModuleRules
         else if ((Target.Platform == UnrealTargetPlatform.Linux))
         {
             PublicIncludePaths.Add("Runtime/Core/Public/Linux");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, 
+			AddEngineThirdPartyPrivateStaticDependencies(Target,
 				"zlib",
 				"jemalloc",
-				"elftoolchain",
-				"SDL2"
+				"elftoolchain"
                 );
 
 			// Core uses dlopen()
 			PublicAdditionalLibraries.Add("dl");
-
-            // We need FreeType2 and GL for the Splash, but only in the Editor
-            if (Target.Type == TargetType.Editor)
-            {
-                AddEngineThirdPartyPrivateStaticDependencies(Target, "FreeType2");
-				AddEngineThirdPartyPrivateStaticDependencies(Target, "OpenGL");
-				PrivateIncludePathModuleNames.Add("ImageWrapper");
-			}
         }
-		else if (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture == "-win32")
+		else if (Target.Platform == UnrealTargetPlatform.HTML5)
 		{
-            PublicIncludePaths.Add("Runtime/Core/Public/HTML5");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "SDL2");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "OpenAL");
-		}
-        else if (Target.Platform == UnrealTargetPlatform.HTML5 && Target.Architecture != "-win32")
-        {
-            AddEngineThirdPartyPrivateStaticDependencies(Target, "SDL2");
             PrivateDependencyModuleNames.Add("HTML5JS");
             PrivateDependencyModuleNames.Add("MapPakDownloader");
         }
@@ -178,16 +162,16 @@ public class Core : ModuleRules
             PublicAdditionalLibraries.Add("SceRtc_stub_weak"); //ORBIS SDK rtc.h, used in PS4Time.cpp
         }
 
-        if ( UEBuildConfiguration.bCompileICU == true ) 
+		if ( Target.bCompileICU == true )
         {
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "ICU");
         }
-        Definitions.Add("UE_ENABLE_ICU=" + (UEBuildConfiguration.bCompileICU ? "1" : "0")); // Enable/disable (=1/=0) ICU usage in the codebase. NOTE: This flag is for use while integrating ICU and will be removed afterward.
+        Definitions.Add("UE_ENABLE_ICU=" + (Target.bCompileICU ? "1" : "0")); // Enable/disable (=1/=0) ICU usage in the codebase. NOTE: This flag is for use while integrating ICU and will be removed afterward.
 
         // If we're compiling with the engine, then add Core's engine dependencies
-		if (UEBuildConfiguration.bCompileAgainstEngine == true)
+		if (Target.bCompileAgainstEngine == true)
 		{
-			if (!UEBuildConfiguration.bBuildRequiresCookedData)
+			if (!Target.bBuildRequiresCookedData)
 			{
 				DynamicallyLoadedModuleNames.AddRange(new string[] { "DerivedDataCache" });
 			}
@@ -238,8 +222,8 @@ public class Core : ModuleRules
             Definitions.Add("WITH_DIRECTXMATH=0");  // Enable to test on Win64/32.
 
             //PublicDependencyModuleNames.AddRange(  // Enable to test on Win64/32.
-            //    new string[] { 
-            //    "DirectXMath" 
+			//    new string[] {
+			//    "DirectXMath"
             //});
         }
         else

@@ -15,8 +15,8 @@ public class IntelTBB : ModuleRules
             (Target.Platform == UnrealTargetPlatform.UWP64))
 // @ATG_CHANGE : END
 		{
-			string IntelTBBPath = UEBuildConfiguration.UEThirdPartySourceDirectory + "IntelTBB/";
-			switch (WindowsPlatform.Compiler)
+			string IntelTBBPath = Target.UEThirdPartySourceDirectory + "IntelTBB/";
+			switch (Target.WindowsPlatform.Compiler)
 			{
 				case WindowsCompiler.VisualStudio2017:
 				case WindowsCompiler.VisualStudio2015: IntelTBBPath += "IntelTBB-4.4u3/"; break;
@@ -28,7 +28,7 @@ public class IntelTBB : ModuleRules
 			if ((Target.Platform == UnrealTargetPlatform.Win64) || (Target.Platform == UnrealTargetPlatform.UWP64))
 // @ATG_CHANGE : END
 			{
-				if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 || WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2017)
+				if (Target.WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 || Target.WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2017)
 				{
 					PublicLibraryPaths.Add(IntelTBBPath + "lib/Win64/vc14");
 				}
@@ -37,7 +37,7 @@ public class IntelTBB : ModuleRules
 			else if ((Target.Platform == UnrealTargetPlatform.Win32) || (Target.Platform == UnrealTargetPlatform.UWP32))
 // @ATG_CHANGE : END
 			{
-				if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 || WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2017)
+				if (Target.WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2015 || Target.WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2017)
 				{
 					PublicLibraryPaths.Add(IntelTBBPath + "lib/Win32/vc14");
 				}
@@ -48,7 +48,7 @@ public class IntelTBB : ModuleRules
 			Definitions.Add("__TBBMALLOC_BUILD=1");
 
 			string LibName = "tbbmalloc";
-			if (Target.Configuration == UnrealTargetConfiguration.Debug && BuildConfiguration.bDebugBuildsActuallyUseDebugCRT)
+			if (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT)
 			{
 				LibName += "_debug";
 			}
@@ -59,14 +59,14 @@ public class IntelTBB : ModuleRules
 		{
 			PublicSystemIncludePaths.AddRange(
 				new string[] {
-					UEBuildConfiguration.UEThirdPartySourceDirectory + "IntelTBB/IntelTBB-4.0/include",
+					Target.UEThirdPartySourceDirectory + "IntelTBB/IntelTBB-4.0/include",
 				}
 			);
 
 			PublicAdditionalLibraries.AddRange(
 				new string[] {
-					UEBuildConfiguration.UEThirdPartySourceDirectory + "IntelTBB/IntelTBB-4.0/lib/Mac/libtbb.a",
-					UEBuildConfiguration.UEThirdPartySourceDirectory + "IntelTBB/IntelTBB-4.0/lib/Mac/libtbbmalloc.a",
+					Target.UEThirdPartySourceDirectory + "IntelTBB/IntelTBB-4.0/lib/Mac/libtbb.a",
+					Target.UEThirdPartySourceDirectory + "IntelTBB/IntelTBB-4.0/lib/Mac/libtbbmalloc.a",
 				}
 			);
 		}

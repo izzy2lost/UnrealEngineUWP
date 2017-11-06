@@ -42,6 +42,7 @@ struct CORE_API FUWPPlatformMemory : public FGenericPlatformMemory
 		MCR_UsedStreamingPool, // amount of texture pool used for streaming.
 		MCR_GPUDefragPool, // presized pool of memory that can be defragmented.
 		MCR_SamplePlatformSpecifcMemoryRegion,
+		MCR_PhysicalLLM, // total physical memory displayed in the LLM stats (on consoles CPU + GPU)
 		MCR_MAX
 	};
 
