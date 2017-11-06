@@ -127,11 +127,22 @@ namespace UnrealBuildTool
 				IniDirRef = new DirectoryReference(UnrealBuildTool.GetRemoteIniPath());
 			}
 
+			// Stash the current compiler choice (accounts for command line) in case ReadSettings reverts it to default
+			WindowsCompiler CompilerBeforeReadSettings = Target.UWPPlatform.Compiler;
+
 			ConfigCache.ReadSettings(IniDirRef, Platform, Target.UWPPlatform);
 
 			if (Target.UWPPlatform.Compiler == WindowsCompiler.Default)
 			{
-				Target.UWPPlatform.Compiler = WindowsPlatform.GetDefaultCompiler();
+				if (CompilerBeforeReadSettings != WindowsCompiler.Default)
+				{
+					// Previous setting was more specific, use that
+					Target.UWPPlatform.Compiler = CompilerBeforeReadSettings;
+				}
+				else
+				{
+					Target.UWPPlatform.Compiler = WindowsPlatform.GetDefaultCompiler();
+				}
 			}
 
 			Target.WindowsPlatform.Compiler = Target.UWPPlatform.Compiler;
