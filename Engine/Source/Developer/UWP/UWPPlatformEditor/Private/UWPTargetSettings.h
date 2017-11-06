@@ -45,6 +45,13 @@ public:
 	uint32 bIsCreatorsProgramTitle : 1;
 
 	/**
+	* Title uses the Achievements 2017 Live configuration. This must match the setting chosen in the title's Live configuration.
+	* This value determines which APIs are used by the OnlineSubsystem for interacting with Live.
+	*/
+	UPROPERTY(EditAnywhere, config, Category = XboxLive, meta = (DisplayName = "Use Achievements 2017"))
+	uint32 bUseAchievements2017 : 1;
+
+	/**
 	* UWP includes SM4 support (D3D Feature level 10) by default.  This setting excludes this
 	* support, possibly reducing package size, but limiting the range of devices the package
 	* will run on.  Currently you must leave this DISABLED if you wish to run as UWP on Xbox One.

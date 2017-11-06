@@ -210,6 +210,100 @@ void FOnlineAchievementsLive::TestEventsAndAchievements()
 
 void FOnlineAchievementsLive::WriteAchievements(const FUniqueNetId& PlayerId, FOnlineAchievementsWriteRef& WriteObject, const FOnAchievementsWrittenDelegate& Delegate)
 {
+// @ATG_CHANGE : BEGIN - Achievements 2017 support
+#if USE_ACHIEVEMENTS_2017
+	if (!LiveSubsystem)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("The Live Subsystem has not been initialized."));
+		WriteObject->WriteState = EOnlineAsyncTaskState::Failed;
+		Delegate.ExecuteIfBound(PlayerId, false);
+		return;
+	}
+
+	const FOnlineIdentityLivePtr Identity = LiveSubsystem->GetIdentityLive();
+	if (!Identity.IsValid())
+	{
+		UE_LOG_ONLINE(Warning, TEXT("The Live Subsystem Identity interface is invalid."));
+		WriteObject->WriteState = EOnlineAsyncTaskState::Failed;
+		Delegate.ExecuteIfBound(PlayerId, false);
+		return;
+	}
+
+	const FUniqueNetIdLive UserLive(PlayerId);
+	Windows::Xbox::System::User^ XBoxUser = Identity->GetUserForUniqueNetId(UserLive);
+	if (!XBoxUser)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Could not get Xbox Live user for the given Player Id."));
+		WriteObject->WriteState = EOnlineAsyncTaskState::Failed;
+		Delegate.ExecuteIfBound(PlayerId, false);
+		return;
+	}
+
+	Microsoft::Xbox::Services::XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(XBoxUser);
+	if (!LiveContext)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Could not get the Xbox Live Context for the given Xbox Live user."));
+		WriteObject->WriteState = EOnlineAsyncTaskState::Failed;
+		Delegate.ExecuteIfBound(PlayerId, false);
+		return;
+	}
+
+	concurrency::create_task([this, UserLive, WriteObject, LiveContext, XBoxUser, Delegate]()
+	{
+		bool bResult = true;
+		TArray<IAsyncAction^> AchievementUpdates;
+		WriteObject->WriteState = EOnlineAsyncTaskState::InProgress;
+
+		for (FStatPropertyArray::TConstIterator It(WriteObject->Properties); It; ++It)
+		{
+			FName AchId = It.Key();
+			Platform::String^ AchIdStr = ref new Platform::String(*AchId.ToString());
+
+			float Percent = 0.0f;
+			It.Value().GetValue(Percent);
+			// Clamp as there's a WinRT exception if the percentage is too high
+			Percent = FMath::Clamp(Percent, 0.0f, 100.0f);
+
+			try
+			{
+				IAsyncAction^ pAsyncOp = LiveContext->AchievementService->UpdateAchievementAsync(
+					XBoxUser->XboxUserId,   // The Xbox User ID of the player.
+					AchIdStr,               // The achievement ID as defined by XDP or Dev Center.
+					(uint32)Percent		    // The completion percentage of the achievement to indicate progress.
+				);
+				AchievementUpdates.Add(pAsyncOp);
+			}
+			catch (Platform::Exception ^ Ex)
+			{
+				bResult = false;
+			}
+		}
+
+		//wait until we either know that one operation was canceled or failed or we have 
+		//checked each operation and they are all completed so we can fire the delegate.
+		if (bResult)
+		{
+			for (int32 i = 0; i < AchievementUpdates.Num(); i++)
+			{
+				concurrency::create_task(AchievementUpdates[i]).wait();
+				if (AchievementUpdates[i]->Status != AsyncStatus::Completed)
+				{
+					bResult = false;
+					break;
+				}
+			}
+		}
+
+		WriteObject->WriteState = bResult ? EOnlineAsyncTaskState::Done : EOnlineAsyncTaskState::Failed;
+
+		LiveSubsystem->ExecuteNextTick([Delegate, UserLive, bResult]()
+		{
+			Delegate.ExecuteIfBound(UserLive, bResult);
+		});
+	});
+#else
+// @ATG_CHANGE : END
+
 	FOnlineEventsLive * EventInterface = (FOnlineEventsLive*)LiveSubsystem->GetEventsInterface().Get();
 
 	FUniqueNetIdLive LiveId( PlayerId );
@@ -285,6 +379,10 @@ void FOnlineAchievementsLive::WriteAchievements(const FUniqueNetId& PlayerId, FO
 
 	//@TODO: This is probably too soon, and should be pushed thru to happen once the event has finished processing
 	Delegate.ExecuteIfBound(PlayerId, bResult);
+
+// @ATG_CHANGE : BEGIN - Achievements 2017 support
+#endif
+// @ATG_CHANGE : END
 };
 
 void FOnlineAchievementsLive::QueryAchievements( const FUniqueNetId& PlayerId, const FOnQueryAchievementsCompleteDelegate& Delegate )

@@ -40,7 +40,13 @@ namespace UnrealBuildTool
         /// </summary>
         [ConfigFile(ConfigHierarchyType.Engine, "/Script/UWPPlatformEditor.UWPTargetSettings", "bUseXim")]
         public readonly bool bUseXim = false;
-    }
+
+		/// <summary>
+		/// Controls whether to use Achievements 2017 APIs.
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/UWPPlatformEditor.UWPTargetSettings", "bUseAchievements2017")]
+		public readonly bool bUseAchievements2017 = false;
+	}
 
 	/// <summary>
 	/// Read-only wrapper for UWP-specific target settings
@@ -87,11 +93,16 @@ namespace UnrealBuildTool
         {
             get { return Inner.bUseXim; }
         }
+
+		public bool bUseAchievements2017
+		{
+			get { return Inner.bUseAchievements2017; }
+		}
 #if !__MonoCS__
 #pragma warning restore CS1591
 #endif
-        #endregion
-    }
+		#endregion
+	}
 
 	class UniversalWindowsPlatform : UEBuildPlatform
 	{
