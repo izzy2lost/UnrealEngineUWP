@@ -6,8 +6,8 @@ using System.IO;
 public class OnlineSubsystemLive : ModuleRules
 {
 	// Should match versions in GetUWPDependencies.ps1
-	readonly string XsapiVersionUwp = "2017.05.20170517.001";
-	readonly string XsapiVersionXboxOne = "2017.05.20170517.001";
+	readonly string XsapiVersionUwp = "2017.08.20170829.001";
+	readonly string XsapiVersionXboxOne = "2017.08.20170829.001";
 	readonly string CppRestVersion = "2_9";
 
 	static bool HasWarnedAboutLiveSdk = false;
