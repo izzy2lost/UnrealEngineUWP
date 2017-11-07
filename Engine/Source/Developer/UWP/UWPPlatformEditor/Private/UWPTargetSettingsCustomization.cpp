@@ -72,7 +72,7 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 
 	// Add UI to select signing certificate
 	IDetailCategoryBuilder& PackagingCategoryBuilder = DetailBuilder.EditCategory(FName("Packaging"));
-	FString ProjectPath = FPaths::GameDir() / TEXT("Build") / TEXT("UWP") / TEXT("SigningCertificate.pfx");
+	FString ProjectPath = FPaths::ProjectDir() / TEXT("Build") / TEXT("UWP") / TEXT("SigningCertificate.pfx");
 
 	// Load the existing signing certificate (if any)
 	FText SigningCertificateCaption = LOCTEXT("SigningCertificate", "Signing Certificate");
@@ -190,7 +190,7 @@ void FUWPTargetSettingsCustomization::AddWidgetForResourceImage(IDetailGroup& Gr
 	const FString DefaultGameImageSubPath = FString::Printf(TEXT("Build/UWP/Resources/%s.png"), *ImageFileName);
 
 	const FString EngineImagePath = FPaths::EngineDir() / DefaultEngineImageSubPath;
-	const FString ProjectImagePath = FPaths::GameDir() / DefaultGameImageSubPath;
+	const FString ProjectImagePath = FPaths::ProjectDir() / DefaultGameImageSubPath;
 
 	TArray<FString> ImageExtensions;
 	ImageExtensions.Add(TEXT("png"));
@@ -237,7 +237,7 @@ bool FUWPTargetSettingsCustomization::HandlePostExternalIconCopy(const FString& 
 
 void FUWPTargetSettingsCustomization::OnCertificatePicked(const FString& PickedPath)
 {
-	FString CertificatePath = FPaths::GameDir() / TEXT("Build") / TEXT("UWP") / TEXT("SigningCertificate.pfx");
+	FString CertificatePath = FPaths::ProjectDir() / TEXT("Build") / TEXT("UWP") / TEXT("SigningCertificate.pfx");
 	FText FailReason;
 	if (!SourceControlHelpers::CopyFileUnderSourceControl(CertificatePath, PickedPath, LOCTEXT("CertificateDescription", "Certificate"), FailReason))
 	{
@@ -516,7 +516,7 @@ FReply FUWPTargetSettingsCustomization::GenerateSigningCertificate()
 		}
 	}
 
-	FString CertificatePath = FPaths::GameDir() / TEXT("Build") / TEXT("UWP") / TEXT("SigningCertificate");
+	FString CertificatePath = FPaths::ProjectDir() / TEXT("Build") / TEXT("UWP") / TEXT("SigningCertificate");
 
 	FString CerFile = CertificatePath + TEXT(".cer");
 	FString PvkFile = CertificatePath + TEXT(".pvk");
@@ -564,7 +564,7 @@ void FUWPTargetSettingsCustomization::LoadAndValidateSigningCertificate()
 	SigningCertificateError->SetError(FText::GetEmpty());
 	SigningCertificateSubjectName = TEXT("Invalid Certificate");
 
-	FString CertificatePath = FPaths::GameDir() / TEXT("Build") / TEXT("UWP") / TEXT("SigningCertificate.pfx");
+	FString CertificatePath = FPaths::ProjectDir() / TEXT("Build") / TEXT("UWP") / TEXT("SigningCertificate.pfx");
 	TArray<uint8> CertBytes;
 	if (FFileHelper::LoadFileToArray(CertBytes, *CertificatePath))
 	{
