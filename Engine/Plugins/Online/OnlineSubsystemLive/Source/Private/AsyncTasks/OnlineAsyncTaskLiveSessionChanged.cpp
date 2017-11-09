@@ -154,7 +154,7 @@ MultiplayerSessionReference^ FOnlineAsyncTaskLiveSessionChanged::GetLiveSessionR
 {
 	if (FNamedOnlineSession* NamedSession = Subsystem->GetSessionInterfaceLive()->GetNamedSession(SessionName))
 	{
-		TSharedPtr<FOnlineSessionInfoLive> LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
+		FOnlineSessionInfoLivePtr LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
 		if (LiveInfo.IsValid())
 		{
 			return LiveInfo->GetLiveMultiplayerSessionRef();

@@ -25,7 +25,7 @@ public:
 	/** Hidden on purpose */
 	FOnlineAsyncTaskLive() = delete;
 
-	FOnlineAsyncTaskLive(FOnlineSubsystemLive* const InLiveSubsystem, const int32 InUserIndex)
+	explicit FOnlineAsyncTaskLive(FOnlineSubsystemLive* const InLiveSubsystem, const int32 InUserIndex = -1)
 		: FOnlineAsyncTaskBasic(InLiveSubsystem)
 		, UserIndex(InUserIndex)
 	{

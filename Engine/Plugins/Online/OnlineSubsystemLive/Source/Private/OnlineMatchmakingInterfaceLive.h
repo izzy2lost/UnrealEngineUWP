@@ -8,32 +8,36 @@
 
 #include "Interfaces/OnlineSessionInterface.h"
 
+class FOnlineSubsystemLive;
+class FOnlineSessionSettings;
+class FOnlineSessionSearch;
+
 class FOnlineMatchmakingInterfaceLive
 {
 public:
-	FOnlineMatchmakingInterfaceLive(class FOnlineSubsystemLive* InSubsystem);
+	FOnlineMatchmakingInterfaceLive(FOnlineSubsystemLive* InSubsystem);
 	~FOnlineMatchmakingInterfaceLive();
 
 PACKAGE_SCOPE:
 
-	bool StartMatchmaking(const TArray< TSharedRef<const FUniqueNetId> >& LocalPlayers, FName SessionName, const class FOnlineSessionSettings& NewSessionSettings, TSharedRef<class FOnlineSessionSearch>& SearchSettings);
+	bool StartMatchmaking(const TArray< TSharedRef<const FUniqueNetId> >& LocalPlayers, const FName SessionName, const FOnlineSessionSettings& NewSessionSettings, const TSharedRef<FOnlineSessionSearch>& SearchSettings);
 
-	bool CancelMatchmaking(int32 SearchingPlayerNum, FName SessionName);
-	bool CancelMatchmaking(const FUniqueNetId& SearchingPlayerId, FName SessionName);
+	bool CancelMatchmaking(const int32 SearchingPlayerNum, const FName SessionName);
+	bool CancelMatchmaking(const FUniqueNetId& SearchingPlayerId, const FName SessionName);
 	
 	/**
 	 * Matchmaking related APIs
 	 */
-	void AddMatchmakingTicket( FName SessionName, FOnlineMatchTicketInfoPtr TicketInfo );
-	void RemoveMatchmakingTicket( FName SessionName );
-	bool GetMatchmakingTicket( FName SessionName, FOnlineMatchTicketInfoPtr& OutTicketInfo );
-	void SetTicketState( FName SessionName, EOnlineLiveMatchmakingState::Type State);
+	void AddMatchmakingTicket(const FName SessionName, const FOnlineMatchTicketInfoPtr TicketInfo);
+	void RemoveMatchmakingTicket(const FName SessionName );
+	bool GetMatchmakingTicket(const FName SessionName, FOnlineMatchTicketInfoPtr& OutTicketInfo) const;
+	void SetTicketState(const FName SessionName, const EOnlineLiveMatchmakingState::Type State);
 
 	/** Resubmit a matchmaking ticket if necessary */
 	void SubmitMatchingTicket(
 		Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ SessionRef,
-		FName SessionName,
-		bool CancelExistingTicket);
+		const FName SessionName,
+		const bool bCancelExistingTicket);
 
 	/** Look up the ticket corresponding to a Live session reference */
 	FOnlineMatchTicketInfoPtr GetMatchTicketForLiveSessionRef(Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ LiveSessionRef);
@@ -56,15 +60,15 @@ PACKAGE_SCOPE:
 
 private:
 
-	EOnlineLiveMatchmakingState::Type GetMatchmakingState(FName SessionName);
-	void SetMatchmakingState(FName SessionName, EOnlineLiveMatchmakingState::Type State);
+	EOnlineLiveMatchmakingState::Type GetMatchmakingState(FName SessionName) const;
+	void SetMatchmakingState(const FName SessionName, const EOnlineLiveMatchmakingState::Type State);
 
 	void OnMultiplayerSubscriptionsLost();
-	void OnSessionChanged(FName SessionName, Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionChangeTypes Diff);
+	void OnSessionChanged(const FName SessionName, Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionChangeTypes Diff);
 	
 	/** Handle changes to matchmaking status */
-	void OnMatchmakingStatusChanged(FName SessionName);
-	void OnMemberListChanged(FName SessionName);
+	void OnMatchmakingStatusChanged(const FName SessionName);
+	void OnMemberListChanged(const FName SessionName);
 
 	FOnSessionChangedDelegate OnSessionChangedDelegate;
 
@@ -75,5 +79,7 @@ private:
 	mutable FCriticalSection	TicketsLock;
 	TicketInfoMap				MatchmakingTickets;
 
-	class FOnlineSubsystemLive* LiveSubsystem;
+	FOnlineSubsystemLive* LiveSubsystem;
 };
+
+typedef TSharedPtr<FOnlineMatchmakingInterfaceLive, ESPMode::ThreadSafe> FOnlineMatchmakingInterfaceLivePtr;

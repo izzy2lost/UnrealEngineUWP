@@ -5,6 +5,8 @@
 #include "OnlineAsyncTaskLiveSessionBase.h"
 #include "OnlineSessionInterface.h"
 
+class FOnlineSubsystemLive;
+
 //-----------------------------------------------------------------------------
 // Task to encapsulate Start Matchmaking
 //-----------------------------------------------------------------------------
@@ -14,11 +16,11 @@ class FOnlineAsyncTaskLiveCreateMatchSession : public FOnlineAsyncTaskLiveSessio
 public:
 	//. Regular Matchmaking should use this constructor
 	FOnlineAsyncTaskLiveCreateMatchSession(
-		class FOnlineSubsystemLive* InLiveSubsystem,
+		FOnlineSubsystemLive* InLiveSubsystem,
 		const TArray< TSharedRef<const FUniqueNetId> >& InSearchingUserIds,
-		FName InSessionName,
+		const FName InSessionName,
 		const FOnlineSessionSettings& InSessionSettings,
-		TSharedPtr<FOnlineSessionSearch>& InSearchSettings
+		const TSharedRef<FOnlineSessionSearch>& InSearchSettings
 		);
 
 	virtual ~FOnlineAsyncTaskLiveCreateMatchSession();
@@ -32,8 +34,6 @@ public:
 private:
 	// Store array of users
 	TArray< TSharedRef<const FUniqueNetId> > SearchingUserIds;
-
-	TSharedPtr<FOnlineSessionSearch> SearchSettings;
 
 	Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ CurrentMatchSessionRef;
 

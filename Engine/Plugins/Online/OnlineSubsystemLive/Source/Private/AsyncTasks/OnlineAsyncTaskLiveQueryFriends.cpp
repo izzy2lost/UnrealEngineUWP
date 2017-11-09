@@ -204,11 +204,11 @@ void FOnlineAsyncTaskLiveQueryFriendManagerTask::Tick()
 		&& (PresenceStatsStatus == EOnlineAsyncTaskState::Done || PresenceStatsStatus == EOnlineAsyncTaskState::Failed)
 		&& (SessionDetailsStatus == EOnlineAsyncTaskState::Done || SessionDetailsStatus == EOnlineAsyncTaskState::Failed))
 	{
-		bIsComplete = true;
 		bWasSuccessful = (AccountDetailsStatus == EOnlineAsyncTaskState::Done &&
 			PresenceDetailsStatus == EOnlineAsyncTaskState::Done &&
 			PresenceStatsStatus == EOnlineAsyncTaskState::Done &&
 			SessionDetailsStatus == EOnlineAsyncTaskState::Done);
+		bIsComplete = true;
 	}
 }
 
@@ -277,7 +277,11 @@ void FOnlineAsyncTaskLiveQueryFriendManagerTask::TriggerDelegates()
 	Delegate.ExecuteIfBound(LocalUserNum, bWasSuccessful, ListName, ErrorString);
 	if (bWasSuccessful)
 	{
-		Subsystem->GetFriendsLive()->TriggerOnFriendsChangeDelegates(LocalUserNum);
+		FOnlineFriendsLivePtr FriendsInt = Subsystem->GetFriendsLive();
+		if (FriendsInt.IsValid())
+		{
+			FriendsInt->TriggerOnFriendsChangeDelegates(LocalUserNum);
+		}
 	}
 }
 

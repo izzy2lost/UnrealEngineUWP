@@ -212,13 +212,16 @@ private:
 	TArray<FDelegateHandle> FriendSessionDelegateHandles;
 
 	/** Cache of local user's last saved presence to prevent duplicate stores */
-	TMap<FUniqueNetIdLive, FString> LocalUserPresenceCache;
+	TMap<FUniqueNetIdLive, FOnlineUserPresenceStatus> LocalUserPresenceCache;
 
 	/** Cache of presence data. Stores only the most recent results of QueryPresence. */
 	TMap<FUniqueNetIdLive, TSharedRef<FOnlineUserPresenceLive>> PresenceCache;
 
 	/** List of users we're subscribed to for presence updates */
 	TSet<FUniqueNetIdLive> PresenceSubscriptionSet;
+
+	/** Helper function to get the presence string from presence status */
+	static FString GetPresenceIdString(const FOnlineUserPresenceStatus& Status);
 };
 
 typedef TSharedPtr<FOnlinePresenceLive, ESPMode::ThreadSafe> FOnlinePresenceLivePtr;

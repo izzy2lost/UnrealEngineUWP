@@ -19,7 +19,7 @@ public:
 			FOnlineSubsystemLive* InSubsystem);
 	
 	// FOnlineAsyncItem
-	virtual FString ToString() const override { return TEXT("DestroySession"); }
+	virtual FString ToString() const override { return FString::Printf(TEXT("FOnlineAsyncTaskLiveDestroySessionBase SessionName: %s bWasSuccessful: %d"), *GetSessionName().ToString(), bWasSuccessful); }
 
 	/** Triggers the appropriate delegate based on DelegateType */
 	static void RemoveAndCleanupSession(
@@ -44,6 +44,7 @@ public:
 	{}
 
 	// FOnlineAsyncItem
+	virtual FString ToString() const override { return FString::Printf(TEXT("FOnlineAsyncTaskLiveDestroyMatchmakingSession SessionName: %s bWasSuccessful: %d"), *GetSessionName().ToString(), bWasSuccessful); }
 	virtual void Finalize() override;
 
 };
@@ -61,10 +62,10 @@ public:
 	{}
 
 	// FOnlineAsyncItem
+	virtual FString ToString() const override { return FString::Printf(TEXT("FOnlineAsyncTaskLiveDestroySession SessionName: %s bWasSuccessful: %d"), *GetSessionName().ToString(), bWasSuccessful); }
 	virtual void Finalize() override;
 
 private:
-
 	FOnDestroySessionCompleteDelegate CompletionDelegate;
 };
 

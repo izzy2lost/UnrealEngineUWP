@@ -48,16 +48,16 @@ bool FOnlineLeaderboardsLive::ReadLeaderboards(const TArray< TSharedRef<const FU
 	check(Identity.IsValid());
 
 	Windows::Foundation::Collections::IVectorView<Windows::Xbox::System::User^>^ Users = Identity->GetCachedUsers();
-	for(unsigned int i = 0; i < Users->Size; i++)
+	for (unsigned int i = 0; i < Users->Size; i++)
 	{
 		Windows::Xbox::System::User^ User = Users->GetAt(i);
-		if(!User->IsSignedIn)
+		if (!User->IsSignedIn)
 		{
 			continue;
 		}
 
-		LiveContext  = LiveSubsystem->GetLiveContext(User);
-		if(LiveContext != nullptr)
+		LiveContext = LiveSubsystem->GetLiveContext(User);
+		if (LiveContext != nullptr)
 		{
 			break;
 		}

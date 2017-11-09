@@ -197,7 +197,7 @@ void FOnlineAsyncTaskLiveGameSessionReady::Finalize()
 	FOnlineSessionLive::ReadSettingsFromLiveJson( LiveSession, *NamedSession );
 	NamedSession->SessionState = EOnlineSessionState::Pending;
 
-	auto LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
+	FOnlineSessionInfoLivePtr LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
 	check(LiveInfo.IsValid());
 
 	Subsystem->RefreshLiveInfo(SessionName, LiveSession);

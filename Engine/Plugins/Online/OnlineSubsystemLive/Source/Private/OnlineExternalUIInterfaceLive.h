@@ -11,7 +11,9 @@
 /** 
  * Implementation for the Live external UIs
  */
-class FOnlineExternalUILive : public IOnlineExternalUI
+class FOnlineExternalUILive
+	: public IOnlineExternalUI
+	, public TSharedFromThis<FOnlineExternalUILive, ESPMode::ThreadSafe>
 {
 private:
 	/**
@@ -172,7 +174,7 @@ private:
 	};
 
 	void HandleApplicationHasReactivated_WebUrl();
-	FString WebUrlBeingOpened;
+	void HandleApplicationReactivatedByProtocol_WebUrl(FString ActivationUri);
 
 	/**
 	*	Async event that notifies when the Web Url has closed
@@ -193,16 +195,16 @@ private:
 	public:
 
 		/**
-		* Constructor.
-		*
-		* @param InLiveSubsystem The owner of the external UI interface that triggered this event.
-		* @param InDelegate The delegate to execute on the game thread.
-		* @param InWebUrl The URL that was opened
-		*/
-		FAsyncEventWebUrlUIClosed(FOnlineSubsystemLive* InLiveSubsystem, const FOnShowWebUrlClosedDelegate& InDelegate, FString& InWebUrl) :
+		 * Constructor.
+		 *
+		 * @param InLiveSubsystem The owner of the external UI interface that triggered this event.
+		 * @param InDelegate The delegate to execute on the game thread.
+		 * @param InWebUrl The URL that was opened
+		 */
+		FAsyncEventWebUrlUIClosed(FOnlineSubsystemLive* InLiveSubsystem, FOnShowWebUrlClosedDelegate&& InDelegate, FString&& InWebUrl) :
 			FOnlineAsyncEvent(InLiveSubsystem),
-			Delegate(InDelegate),
-			WebUrl(InWebUrl)
+			Delegate(MoveTemp(InDelegate)),
+			WebUrl(MoveTemp(InWebUrl))
 		{
 		}
 
@@ -228,9 +230,28 @@ PACKAGE_SCOPE:
 	bool bAllowGuestLogin;
 
 	/** delegates to hold onto for particular callbacks */
-	bool ShouldCallUIDelegate;
+	bool bShouldCallUIDelegate;
 	FOnShowStoreUIClosedDelegate StoreUIClosedDelegate;
-	FOnShowWebUrlClosedDelegate WebUrlClosedDelegate;
+	
+	struct FShowWebUrlRequest
+	{
+		FShowWebUrlRequest()
+		{
+			Reset();
+		}
+		void Reset()
+		{
+			WebUrlBeingOpened.Empty();
+			WebUrlClosedDelegate = FOnShowWebUrlClosedDelegate();
+			WaitForProtocolActivationTimeRemaining = 0.0f;
+		}
+		FString WebUrlBeingOpened;
+		FOnShowWebUrlClosedDelegate WebUrlClosedDelegate;
+		float WaitForProtocolActivationTimeRemaining;
+	};
+	FShowWebUrlRequest ShowWebUrlRequest;
+
+	void FinishShowWebUrl(FString&& FinalUrl);
 
 public:
 
@@ -244,7 +265,7 @@ public:
 	// IOnlineExternalUI
 	virtual bool ShowLoginUI(const int ControllerIndex, bool bShowOnlineOnly, bool bShowSkipButton, const FOnLoginUIClosedDelegate& Delegate = FOnLoginUIClosedDelegate()) override;
 	virtual bool ShowFriendsUI(int32 LocalUserNum) override;
-	virtual bool ShowInviteUI(int32 LocalUserNum, FName SessionName = GameSessionName) override;
+	virtual bool ShowInviteUI(int32 LocalUserNum, FName SessionName = NAME_GameSession) override;
 	virtual bool ShowAchievementsUI(int32 LocalUserNum) override;
 	virtual bool ShowLeaderboardUI(const FString& LeaderboardName) override;
 	virtual bool ShowWebURL(const FString& Url, const FShowWebUrlParams& ShowParams, const FOnShowWebUrlClosedDelegate& Delegate = FOnShowWebUrlClosedDelegate()) override;
@@ -253,6 +274,7 @@ public:
 	virtual bool ShowAccountUpgradeUI(const FUniqueNetId& UniqueId) override;
 	virtual bool ShowStoreUI(int32 LocalUserNum, const FShowStoreParams& ShowParams, const FOnShowStoreUIClosedDelegate& Delegate = FOnShowStoreUIClosedDelegate()) override;
 	virtual bool ShowSendMessageUI(int32 LocalUserNum, const FShowSendMessageParams& ShowParams, const FOnShowSendMessageUIClosedDelegate& Delegate = FOnShowSendMessageUIClosedDelegate()) override;
+	void Tick(float DeltaTime);
 };
 
 typedef TSharedPtr<FOnlineExternalUILive, ESPMode::ThreadSafe> FOnlineExternalUILivePtr;

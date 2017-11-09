@@ -8,8 +8,21 @@
 
 class FOnlineSubsystemLive;
 class FOnlineUserInfoLive;
+struct FOnlineError;
 
 using FOnlineUserListLiveMap = TMap<FUniqueNetIdLive, TSharedRef<FOnlineUserInfoLive>>;
+
+/** Map of User's permission to communicate to other users */
+using FCommunicationPermissionResultsMap = TMap<TSharedRef<const FUniqueNetId>, bool>;
+
+/**
+ * Delegate used when the user's communication permissions has completed
+ *
+ * @param RequestStatus If this request was successful or not
+ * @param RequestingUser The user who generated this request
+ * @param Results A Map of Users to communication results
+ */
+DECLARE_DELEGATE_ThreeParams(FOnLiveCommunicationPermissionsQueryComplete, const FOnlineError& /*RequestStatus*/, const TSharedRef<const FUniqueNetId>& /*RequestingUser*/, const FCommunicationPermissionResultsMap& /*Results*/);
 
 /**
  * Implements the XBox Live specific interface for friends
@@ -38,6 +51,12 @@ public:
 	}
 
 	virtual ~FOnlineUserLive() = default;
+
+PACKAGE_SCOPE:
+	void QueryUserCommunicationPermissions(const FUniqueNetId& UserId, const TArray<TSharedRef<const FUniqueNetId> >& InUsersToQuery, const FOnLiveCommunicationPermissionsQueryComplete& CompletionDelegate);
+
+private:
+	void OnQueryUserCommunicationPermissionsComplete(const FOnlineError& RequestStatus, const TSharedRef<const FUniqueNetId>& RequestingUser, const TMap<TSharedRef<const FUniqueNetId>, TMap<FString, bool> >& Results, FOnLiveCommunicationPermissionsQueryComplete CompletionDelegate);
 
 private:
 	/** Reference to the main Live subsystem */

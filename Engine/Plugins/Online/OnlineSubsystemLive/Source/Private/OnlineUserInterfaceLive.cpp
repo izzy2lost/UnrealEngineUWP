@@ -4,6 +4,17 @@
 #include "OnlineUserInterfaceLive.h"
 #include "OnlineSubsystemLive.h"
 #include "AsyncTasks/OnlineAsyncTaskLiveQueryUsers.h"
+#include "AsyncTasks/OnlineAsyncTaskLiveQueryPrivacyPermissions.h"
+#include "OnlineError.h"
+
+#include <collection.h>
+
+// Should be Microsoft::Xbox::Services::Privacy::PermissionIdConstants::CommunicateUsingText
+// see https://forums.xboxlive.com/questions/55445/class-not-registered-exception-with-permissionidco.html
+#define COMMUNICATE_USING_TEXT L"CommunicateUsingText"
+
+using Microsoft::Xbox::Services::XboxLiveContext;
+using Platform::Collections::Vector;
 
 bool FOnlineUserLive::QueryUserInfo(int32 LocalUserNum, const TArray<TSharedRef<const FUniqueNetId>>& UserIds)
 {
@@ -135,3 +146,55 @@ TSharedPtr<const FUniqueNetId> FOnlineUserLive::GetExternalIdMapping(const FExte
 {
 	return nullptr;
 }
+
+void FOnlineUserLive::QueryUserCommunicationPermissions(const FUniqueNetId& UserId, const TArray<TSharedRef<const FUniqueNetId> >& InUsersToQuery, const FOnLiveCommunicationPermissionsQueryComplete& CompletionDelegate)
+{
+	const FUniqueNetIdLive& LiveUserId = static_cast<const FUniqueNetIdLive&>(UserId);
+
+	// Get a live context
+	XboxLiveContext^ UserContext = LiveSubsystem->GetLiveContext(LiveUserId);
+	if (UserContext != nullptr)
+	{
+		// Build our permissions to query vector
+		Platform::Collections::Vector<Platform::String^>^ PermissionsToQuery = ref new Platform::Collections::Vector<Platform::String^>();
+		PermissionsToQuery->Append(COMMUNICATE_USING_TEXT);
+
+		// Fire off our task
+		LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveQueryPrivacyPermissions>(
+			LiveSubsystem,
+			UserContext,
+			InUsersToQuery,
+			PermissionsToQuery->GetView(),
+			FOnLivePrivacyPermissionsQueryComplete::CreateRaw(this, &FOnlineUserLive::OnQueryUserCommunicationPermissionsComplete, CompletionDelegate)
+			);
+	}
+	else
+	{
+		LiveSubsystem->ExecuteNextTick([CompletionDelegate, LiveUserId]()
+		{
+			const constexpr bool bWasSuccessful = false;
+			CompletionDelegate.ExecuteIfBound(FOnlineError(TEXT("Unable to retrieve live-context")), MakeShared<FUniqueNetIdLive>(LiveUserId), FCommunicationPermissionResultsMap());
+		});
+	}
+}
+
+void FOnlineUserLive::OnQueryUserCommunicationPermissionsComplete(const FOnlineError& RequestStatus, const TSharedRef<const FUniqueNetId>& RequestingUser, const TMap<TSharedRef<const FUniqueNetId>, TMap<FString, bool> >& Results, FOnLiveCommunicationPermissionsQueryComplete CompletionDelegate)
+{
+	static const FString CommunicationPermissionName(COMMUNICATE_USING_TEXT);
+
+	// Build summarized results Map
+	FCommunicationPermissionResultsMap OutResults;
+	OutResults.Empty(Results.Num());
+	for (const TPair<TSharedRef<const FUniqueNetId>, TMap<FString, bool> >& UserPermissionsMapPair : Results)
+	{
+		const bool* CommunicationAllowedPtr = UserPermissionsMapPair.Value.Find(CommunicationPermissionName);
+		bool bCommunicationAllowed = CommunicationAllowedPtr && *CommunicationAllowedPtr;
+
+		OutResults.Add(UserPermissionsMapPair.Key, bCommunicationAllowed);
+	}
+
+	// Fire off our results
+	CompletionDelegate.ExecuteIfBound(RequestStatus, RequestingUser, OutResults);
+}
+
+#undef COMMUNICATE_USING_TEXT

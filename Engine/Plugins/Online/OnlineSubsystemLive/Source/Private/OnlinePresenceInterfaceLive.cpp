@@ -75,6 +75,28 @@ void FOnlineUserPresenceLive::SetStatusPropertiesFromStatistics(Microsoft::Xbox:
 	}
 }
 
+FString FOnlinePresenceLive::GetPresenceIdString(const FOnlineUserPresenceStatus& Status)
+{
+	// Only support the default key for now, as a string.
+	const FVariantData* PresenceId = Status.Properties.Find(DefaultPresenceKey);
+	if (!PresenceId || PresenceId->GetType() != EOnlineKeyValuePairDataType::String)
+	{
+		PresenceId = nullptr;
+	}
+
+	FString PresenceIdString;
+	if (PresenceId)
+	{
+		PresenceId->GetValue(PresenceIdString);
+	}
+	else
+	{
+		PresenceIdString = Status.StatusStr;
+	}
+
+	return PresenceIdString;
+}
+
 void FOnlinePresenceLive::SetPresence(const FUniqueNetId& User, const FOnlineUserPresenceStatus& Status, const FOnPresenceTaskCompleteDelegate& Delegate)
 {
 	const FUniqueNetIdLive UserLive(User);
@@ -102,17 +124,10 @@ void FOnlinePresenceLive::SetPresence(const FUniqueNetId& User, const FOnlineUse
 		return;
 	}
 
-	FString GameStatusStr = Status.StatusStr;
-
-	// Only support the default key for now, as a string.
-	const FVariantData* PresenceId = Status.Properties.Find(DefaultPresenceKey);
-	if (!PresenceId || PresenceId->GetType() != EOnlineKeyValuePairDataType::String)
-	{
-		PresenceId = nullptr;
-	}
+	const FString PresenceIdString = GetPresenceIdString(Status);
 
 	// if we have no current status to set, return
-	if (!PresenceId && GameStatusStr.IsEmpty())
+	if (PresenceIdString.IsEmpty())
 	{
 		LiveSubsystem->ExecuteNextTick([Delegate, UserLive]()
 		{
@@ -122,37 +137,12 @@ void FOnlinePresenceLive::SetPresence(const FUniqueNetId& User, const FOnlineUse
 		return;
 	}
 
-	FString PresenceIdString;
-	if (PresenceId)
-	{
-		PresenceId->GetValue(PresenceIdString);
-	}
-	else
-	{
-		PresenceIdString = GameStatusStr;
-	}
-
-	// Ensure we're not posting our current presence again
-	{
-		FString* CurrentUsersPresencePtr = LocalUserPresenceCache.Find(UserLive);
-		if (CurrentUsersPresencePtr != nullptr)
-		{
-			if (CurrentUsersPresencePtr->Equals(PresenceIdString))
-			{
-				LiveSubsystem->ExecuteNextTick([Delegate, UserLive]()
-				{
-					constexpr const bool bWasSuccessful = true;
-					Delegate.ExecuteIfBound(UserLive, bWasSuccessful);
-				});
-				return;
-			}
-		}
-		LocalUserPresenceCache.Add(UserLive, PresenceIdString);
-	}
-
 	try
 	{
 		Microsoft::Xbox::Services::XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(PresenceUser);
+
+		// Get the cached presence status so we can skip updates if it hasn't changed
+		const FOnlineUserPresenceStatus* const CurrentUsersPresencePtr = LocalUserPresenceCache.Find(UserLive);
 
 		// before setting the presence queue up the stat events to trigger
 		IOnlineEventsPtr EventsInterface = LiveSubsystem->GetEventsInterface();
@@ -163,11 +153,43 @@ void FOnlinePresenceLive::SetPresence(const FUniqueNetId& User, const FOnlineUse
 				static const FString EventPrefix(TEXT("Event_"));
 				if (PropertyPair.Key.StartsWith(EventPrefix, ESearchCase::IgnoreCase))
 				{
+					// Skip this event if the property value hasn't changed.
+					if (CurrentUsersPresencePtr != nullptr)
+					{
+						const FVariantData* const FoundProperty = CurrentUsersPresencePtr->Properties.Find(PropertyPair.Key);
+						if ((FoundProperty != nullptr) && (*FoundProperty == PropertyPair.Value))
+						{
+							continue;
+						}
+					}
+
 					FOnlineEventParms Parms;
 					Parms.Add(TEXT("Value"), PropertyPair.Value);
 
 					EventsInterface->TriggerEvent(UserLive, *PropertyPair.Key, Parms);
 				}
+			}
+		}
+
+		// Ensure we're not posting our current presence again
+		{
+			FString CurrentPresenceIdString;
+			if (CurrentUsersPresencePtr != nullptr)
+			{
+				CurrentPresenceIdString = GetPresenceIdString(*CurrentUsersPresencePtr);
+			}
+
+			// Always save the latest presence status so that properties are up to date
+			LocalUserPresenceCache.Add(UserLive, Status);
+
+			if (CurrentPresenceIdString.Equals(PresenceIdString))
+			{
+				LiveSubsystem->ExecuteNextTick([Delegate, UserLive]()
+				{
+					constexpr const bool bWasSuccessful = true;
+					Delegate.ExecuteIfBound(UserLive, bWasSuccessful);
+				});
+				return;
 			}
 		}
 
@@ -406,7 +428,7 @@ void FOnlinePresenceLive::OnSessionUpdatedStatChange(const FUniqueNetIdLive& Loc
 		return;
 	}
 
-	int32 LocalUserNum = IdentityInt->GetControllerIndexForId(LocalUserId);
+	int32 LocalUserNum = IdentityInt->GetPlatformUserIdFromUniqueNetId(LocalUserId);
 	if (LocalUserNum < 0 || LocalUserNum >= MAX_LOCAL_PLAYERS)
 	{
 		UE_LOG_ONLINE(Warning, TEXT("Unable to update presence session, bad localplayernum"));

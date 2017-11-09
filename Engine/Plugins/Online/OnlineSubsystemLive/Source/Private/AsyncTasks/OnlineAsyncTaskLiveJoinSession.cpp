@@ -35,7 +35,8 @@ FOnlineAsyncTaskLiveJoinSession::FOnlineAsyncTaskLiveJoinSession(
 	class FOnlineSubsystemLive* Subsystem,
 	int RetryCount,
 	bool bSessionIsMatchmakingResult,
-	const bool bInSetActivity)
+	const bool bInSetActivity,
+	const TOptional<FString>& InSessionInviteHandle)
 	: FOnlineAsyncTaskBasic(Subsystem)
 	, SessionInterface(InLiveInterface)
 	, SessionReference(InReference)
@@ -50,6 +51,7 @@ FOnlineAsyncTaskLiveJoinSession::FOnlineAsyncTaskLiveJoinSession(
 	, OtherLocalPlayersToAdd(0)
 	, bSetActivity(bInSetActivity)
 	, SessionName(NamedSession->SessionName)
+	, SessionInviteHandle(InSessionInviteHandle)
 {
 	Retry(true);
 }
@@ -85,8 +87,17 @@ void FOnlineAsyncTaskLiveJoinSession::Retry(bool bGetSession)
 
 	if (bGetSession)
 	{
-		auto GetSessionOp = LiveContext->MultiplayerService->GetCurrentSessionAsync(SessionReference);
-		create_task(GetSessionOp).then([this](task<MultiplayerSession^> SessionTask)
+		IAsyncOperation<MultiplayerSession^>^ SessionFetchTask = nullptr;
+		if (SessionInviteHandle.IsSet())
+		{
+			SessionFetchTask = LiveContext->MultiplayerService->GetCurrentSessionByHandleAsync(ref new Platform::String(*SessionInviteHandle.GetValue()));
+		}
+		else
+		{
+			SessionFetchTask = LiveContext->MultiplayerService->GetCurrentSessionAsync(SessionReference);
+		}
+		
+		create_task(SessionFetchTask).then([this](task<MultiplayerSession^> SessionTask)
 		{
 			try
 			{
@@ -125,7 +136,6 @@ void FOnlineAsyncTaskLiveJoinSession::TryJoinSession()
 
 	// Don't join if the session is full.
 	// @ATG_CHANGE : UWP Live Support - BEGIN
-	// was: Subsystem->GetSessionInterfaceLive()->
 	if (!FOnlineSessionLive::CanUserJoinSession(SystemUserFromXSAPIUser(LiveContext->User), LiveSession))
 	// @ATG_CHANGE : UWP Live Support - END
 	{
@@ -142,15 +152,19 @@ void FOnlineAsyncTaskLiveJoinSession::TryJoinSession()
 		FOnlineIdentityLivePtr IdentityInt(Subsystem->GetIdentityLive());
 		check(IdentityInt.IsValid());
 
-		for (MultiplayerSessionMember^ Member : LiveSession->Members)
 		{
-			FUniqueNetIdLive MemberId(Member->XboxUserId);
-
-			User^ MemberUser = IdentityInt->GetUserForUniqueNetId(MemberId);
-			if (MemberUser != nullptr)
+			IVectorView<User^>^ CachedUsers = IdentityInt->GetCachedUsers();
+			for (MultiplayerSessionMember^ Member : LiveSession->Members)
 			{
-				// Found a local member
-				LocalMembers->Append(Member);
+				for (User^ User : CachedUsers)
+				{
+					if (Member->XboxUserId == User->XboxUserId)
+					{
+						// Found a local member
+						LocalMembers->Append(Member);
+						break;
+					}
+				}
 			}
 		}
 
@@ -177,7 +191,7 @@ void FOnlineAsyncTaskLiveJoinSession::TryJoinSession()
 	{
 		// In matchmaking, the session info already exists, so just update it.
 		// @v2live Should this branch off bIsMatchmakingResult, or should we just check if SessionInfo exists?
-		TSharedPtr<FOnlineSessionInfoLive> LiveInfo(StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo));
+		FOnlineSessionInfoLivePtr LiveInfo(StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo));
 		LiveInfo->RefreshLiveInfo(LiveSession);
 	}
 	else
@@ -187,7 +201,24 @@ void FOnlineAsyncTaskLiveJoinSession::TryJoinSession()
 
 	NamedSession->SessionState = EOnlineSessionState::Pending;
 
-	auto JoinOp = LiveContext->MultiplayerService->TryWriteSessionAsync(LiveSession, MultiplayerSessionWriteMode::SynchronizedUpdate);
+	IAsyncOperation<WriteSessionResult^>^ JoinOp = nullptr;
+	try
+	{
+		if (SessionInviteHandle.IsSet())
+		{
+			JoinOp = LiveContext->MultiplayerService->TryWriteSessionByHandleAsync(LiveSession, MultiplayerSessionWriteMode::SynchronizedUpdate, ref new Platform::String(*SessionInviteHandle.GetValue()));
+		}
+		else
+		{
+			JoinOp = LiveContext->MultiplayerService->TryWriteSessionAsync(LiveSession, MultiplayerSessionWriteMode::SynchronizedUpdate);
+		}
+	}
+	catch (Platform::Exception^ Ex)
+	{
+		
+		OnFailed(EOnJoinSessionCompleteResult::UnknownError);
+		return;
+	}
 	create_task(JoinOp).then([this, LocalMembers](task<WriteSessionResult^> Task)
 	{
 		try
@@ -351,7 +382,7 @@ void FOnlineAsyncTaskLiveJoinSession::Finalize()
 	{
 		if (Association)
 		{
-			TSharedPtr<FOnlineSessionInfoLive> LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
+			FOnlineSessionInfoLivePtr LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
 			TSharedRef<FInternetAddr> Addr = FOnlineSessionLive::GetAddrFromDeviceAssociation(Association);
 			LiveInfo->SetHostAddr(Addr);
 			LiveInfo->SetAssociation(Association);

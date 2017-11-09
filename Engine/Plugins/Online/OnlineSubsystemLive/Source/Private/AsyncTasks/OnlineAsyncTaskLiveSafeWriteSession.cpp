@@ -29,8 +29,8 @@ FOnlineAsyncTaskLiveSafeWriteSession::FOnlineAsyncTaskLiveSafeWriteSession(
 	check(Subsystem);
 	bWasSuccessful = true;
 
-	FNamedOnlineSession* NamedSession = Subsystem->GetSessionInterfaceLive()->GetNamedSession(SessionName);
-	TSharedPtr<FOnlineSessionInfoLive> LiveInfo = NamedSession ? StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo) : nullptr;
+	const FNamedOnlineSession* NamedSession = Subsystem->GetSessionInterfaceLive()->GetNamedSession(SessionName);
+	const FOnlineSessionInfoLivePtr LiveInfo = NamedSession ? StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo) : nullptr;
 	FOnlineMatchTicketInfoPtr MatchTicket;
 
 	if (LiveInfo.IsValid())

@@ -95,25 +95,7 @@ PACKAGE_SCOPE:
 	 *
 	 * @return The User^ associated with the controller index, or nullptr if no users are found
 	 */
-	Windows::Xbox::System::User^ GetUserForControllerIndex(int32 ControllerIndex) const;
-
-	/**
-	 * Helper method to translate a User into a ControllerIndex.
-	 *
-	 * @param User the user to look up
-	 *
-	 * @return The controller index associated with the user, or -1 if not found.
-	 */
-	int32 GetControllerIndexForUser(Windows::Xbox::System::User^ InUser) const;
-
-	/**
-	 * Helper method to translate an ID into a ControllerIndex.
-	 *
-	 * @param PlayerId the user to look up
-	 *
-	 * @return The controller index associated with the user, or -1 if not found.
-	 */
-	int32 GetControllerIndexForId(const FUniqueNetId& PlayerId) const;
+	Windows::Xbox::System::User^ GetUserForPlatformUserId(int32 ControllerIndex) const;
 
 	/**
 	 * Helper method to translate an Xbox User^ to PlatformUserId

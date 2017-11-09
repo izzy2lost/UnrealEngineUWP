@@ -51,7 +51,7 @@ private:
 
 	// Saved values used across functions
 	Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LiveSession;
-	TSharedPtr<FOnlineSessionInfoLive> LiveInfo;
+	FOnlineSessionInfoLivePtr LiveInfo;
 	TMap<FString, FString> AddressDeviceTokenMap;
 	Platform::Collections::Vector<Microsoft::Xbox::Services::Multiplayer::MultiplayerQualityOfServiceMeasurements^>^ MeasurementResults;
 	Platform::Collections::Vector<Windows::Xbox::System::User^>^ LocalUsersInSession;

@@ -32,30 +32,25 @@ using namespace Microsoft::Xbox::Services::Multiplayer;
 using namespace Microsoft::Xbox::Services::Social;
 using namespace concurrency;
 
-
 //////////////////////////////////////////////////////////////////////////
-FOnlineMatchmakingInterfaceLive::FOnlineMatchmakingInterfaceLive(class FOnlineSubsystemLive* InSubsystem)
+FOnlineMatchmakingInterfaceLive::FOnlineMatchmakingInterfaceLive(FOnlineSubsystemLive* InSubsystem)
 	: LiveSubsystem(InSubsystem)
 {
 	OnSessionChangedDelegate = FOnSessionChangedDelegate::CreateRaw(this, &FOnlineMatchmakingInterfaceLive::OnSessionChanged);
-
 	OnSubscriptionLostDelegateHandle = LiveSubsystem->GetSessionMessageRouter()->OnSubscriptionLostDelegates.AddRaw(this, &FOnlineMatchmakingInterfaceLive::OnMultiplayerSubscriptionsLost);
 }
 
-//////////////////////////////////////////////////////////////////////////
 FOnlineMatchmakingInterfaceLive::~FOnlineMatchmakingInterfaceLive()
 {
 	LiveSubsystem->GetSessionMessageRouter()->ClearOnSubscriptionLostDelegate_Handle(OnSubscriptionLostDelegateHandle);
 }
 
-//////////////////////////////////////////////////////////////////////////
 void FOnlineMatchmakingInterfaceLive::OnMultiplayerSubscriptionsLost()
 {
 
 }
 
-//////////////////////////////////////////////////////////////////////////
-void FOnlineMatchmakingInterfaceLive::OnSessionChanged(FName SessionName, MultiplayerSessionChangeTypes Diff)
+void FOnlineMatchmakingInterfaceLive::OnSessionChanged(const FName SessionName, MultiplayerSessionChangeTypes Diff)
 {
 	UE_LOG_ONLINE(Log, TEXT("FOnlineMatchmakingInterfaceLive::OnSessionChanged"));
 
@@ -69,8 +64,7 @@ void FOnlineMatchmakingInterfaceLive::OnSessionChanged(FName SessionName, Multip
 	}
 }
 
-//////////////////////////////////////////////////////////////////////////
-bool FOnlineMatchmakingInterfaceLive::StartMatchmaking(const TArray< TSharedRef<const FUniqueNetId> >& LocalPlayers, FName SessionName, const FOnlineSessionSettings& NewSessionSettings, TSharedRef<FOnlineSessionSearch>& SearchSettings)
+bool FOnlineMatchmakingInterfaceLive::StartMatchmaking(const TArray<TSharedRef<const FUniqueNetId>>& LocalPlayers, const FName SessionName, const FOnlineSessionSettings& NewSessionSettings, const TSharedRef<FOnlineSessionSearch>& SearchSettings)
 {
 	if (LocalPlayers.Num() == 0)
 	{
@@ -79,13 +73,10 @@ bool FOnlineMatchmakingInterfaceLive::StartMatchmaking(const TArray< TSharedRef<
 		return false;
 	}
 
-
-	auto SearchSettingsPtr = TSharedPtr<FOnlineSessionSearch>( SearchSettings );
-
 	FOnlineMatchTicketInfoPtr MatchmakingTicket;
 	GetMatchmakingTicket(SessionName, MatchmakingTicket);
 
-	if (MatchmakingTicket.IsValid() == false)
+	if (!MatchmakingTicket.IsValid())
 	{
 		MatchmakingTicket = MakeShared<FOnlineMatchTicketInfo>();
 		AddMatchmakingTicket(SessionName, MatchmakingTicket);
@@ -95,7 +86,6 @@ bool FOnlineMatchmakingInterfaceLive::StartMatchmaking(const TArray< TSharedRef<
 	MatchmakingTicket->SessionName = SessionName;
 	MatchmakingTicket->SessionSearch = SearchSettings;
 	MatchmakingTicket->SessionSettings = NewSessionSettings;
-	
 
 	FOnlineAsyncTaskLiveCreateMatchSession* StartMatchTask = 
 		new FOnlineAsyncTaskLiveCreateMatchSession(
@@ -103,12 +93,12 @@ bool FOnlineMatchmakingInterfaceLive::StartMatchmaking(const TArray< TSharedRef<
 		LocalPlayers,
 		SessionName,
 		NewSessionSettings,
-		SearchSettingsPtr
+		SearchSettings
 		);
 
-	bool bSettingsValid = StartMatchTask->SettingsAreValid();
+	const bool bSettingsValid = StartMatchTask->SettingsAreValid();
 
-	if ( bSettingsValid )
+	if (bSettingsValid)
 	{
 		LiveSubsystem->QueueAsyncTask(StartMatchTask);
 	}
@@ -122,13 +112,12 @@ bool FOnlineMatchmakingInterfaceLive::StartMatchmaking(const TArray< TSharedRef<
 	return bSettingsValid;
 }
 
-//////////////////////////////////////////////////////////////////////////
-bool FOnlineMatchmakingInterfaceLive::CancelMatchmaking(int32 SearchingPlayerNum, FName SessionName) 
+bool FOnlineMatchmakingInterfaceLive::CancelMatchmaking(const int32 SearchingPlayerNum, const FName SessionName)
 {
-	UE_LOG(LogOnline, Log, L"LIVE Cancel Matchmaking %s", *SessionName.ToString() );
+	UE_LOG_ONLINE(Log, TEXT("LIVE Cancel Matchmaking %s"), *SessionName.ToString());
 
 	TSharedPtr<const FUniqueNetId> UserId = LiveSubsystem->GetIdentityLive()->GetUniquePlayerId(SearchingPlayerNum);
-	if(!UserId.IsValid())
+	if (!UserId.IsValid())
 	{
 		TriggerOnCancelMatchmakingCompleteDelegates(SessionName, false);
 		return true;
@@ -137,8 +126,7 @@ bool FOnlineMatchmakingInterfaceLive::CancelMatchmaking(int32 SearchingPlayerNum
 	return CancelMatchmaking(*UserId, SessionName);
 }
 
-//////////////////////////////////////////////////////////////////////////
-EOnlineLiveMatchmakingState::Type FOnlineMatchmakingInterfaceLive::GetMatchmakingState(FName SessionName)
+EOnlineLiveMatchmakingState::Type FOnlineMatchmakingInterfaceLive::GetMatchmakingState(const FName SessionName) const
 {
 	FOnlineMatchTicketInfoPtr MatchmakingTicket;
 	GetMatchmakingTicket(SessionName, MatchmakingTicket);
@@ -148,13 +136,11 @@ EOnlineLiveMatchmakingState::Type FOnlineMatchmakingInterfaceLive::GetMatchmakin
 		return MatchmakingTicket->MatchmakingState;
 	}
 
-	//Fall back to session?
-
+	// Fall back to session?
 	return EOnlineLiveMatchmakingState::None;
 }
 
-//////////////////////////////////////////////////////////////////////////
-void FOnlineMatchmakingInterfaceLive::SetMatchmakingState(FName SessionName, EOnlineLiveMatchmakingState::Type State)
+void FOnlineMatchmakingInterfaceLive::SetMatchmakingState(const FName SessionName, const EOnlineLiveMatchmakingState::Type State)
 {
 	FOnlineMatchTicketInfoPtr MatchmakingTicket;
 	GetMatchmakingTicket(SessionName, MatchmakingTicket);
@@ -165,15 +151,14 @@ void FOnlineMatchmakingInterfaceLive::SetMatchmakingState(FName SessionName, EOn
 	}
 }
 
-//////////////////////////////////////////////////////////////////////////
-bool FOnlineMatchmakingInterfaceLive::CancelMatchmaking(const FUniqueNetId& SearchingPlayerId, FName SessionName)
+bool FOnlineMatchmakingInterfaceLive::CancelMatchmaking(const FUniqueNetId& SearchingPlayerId, const FName SessionName)
 {
-	UE_LOG(LogOnline, Log, L"LIVE Cancel Matchmaking %s", *SessionName.ToString() );
+	UE_LOG_ONLINE(Log, TEXT("LIVE Cancel Matchmaking %s"), *SessionName.ToString());
 
 	FOnlineMatchTicketInfoPtr MatchmakingTicket;
 	GetMatchmakingTicket(SessionName, MatchmakingTicket);
 
-	if (MatchmakingTicket.IsValid() == false)
+	if (!MatchmakingTicket.IsValid())
 	{
 		TriggerOnCancelMatchmakingCompleteDelegates(SessionName, false);
 		return true;
@@ -182,25 +167,25 @@ bool FOnlineMatchmakingInterfaceLive::CancelMatchmaking(const FUniqueNetId& Sear
 	switch (MatchmakingTicket->MatchmakingState)
 	{
 		case EOnlineLiveMatchmakingState::None:
-			{
-				// Session is not in a valid state to be canceled
-				RemoveMatchmakingTicket(SessionName);
-				TriggerOnCancelMatchmakingCompleteDelegates(SessionName, false);
-				return true;
-			}
+		{
+			// Session is not in a valid state to be canceled
+			RemoveMatchmakingTicket(SessionName);
+			TriggerOnCancelMatchmakingCompleteDelegates(SessionName, false);
+			return true;
+		}
 		
-		case EOnlineLiveMatchmakingState::SubmittingInitialTicket:
+		case EOnlineLiveMatchmakingState::SubmittingInitialTicket: // Intentional fall-through
 		case EOnlineLiveMatchmakingState::CreatingMatchSession:
-			{
-				RemoveMatchmakingTicket(SessionName);
-				TriggerOnCancelMatchmakingCompleteDelegates(SessionName, true);
-				return true;
-			}
+		{
+			RemoveMatchmakingTicket(SessionName);
+			TriggerOnCancelMatchmakingCompleteDelegates(SessionName, true);
+			return true;
+		}
 
 		default:
-			{
-				MatchmakingTicket->MatchmakingState = EOnlineLiveMatchmakingState::UserCancelled;
-			}
+		{
+			MatchmakingTicket->MatchmakingState = EOnlineLiveMatchmakingState::UserCancelled;
+		}
 	}
 
 	XboxLiveContext^ UserContext = LiveSubsystem->GetLiveContext(static_cast<const FUniqueNetIdLive&>(SearchingPlayerId));
@@ -217,44 +202,40 @@ bool FOnlineMatchmakingInterfaceLive::CancelMatchmaking(const FUniqueNetId& Sear
 	return true;
 }
 
-//////////////////////////////////////////////////////////////////////////
-void FOnlineMatchmakingInterfaceLive::AddMatchmakingTicket( FName SessionName, FOnlineMatchTicketInfoPtr InTicketInfo  )
+void FOnlineMatchmakingInterfaceLive::AddMatchmakingTicket(const FName SessionName, const FOnlineMatchTicketInfoPtr InTicketInfo)
 {
-	FScopeLock ScopeLock( &TicketsLock );
-	MatchmakingTickets.Add( SessionName, InTicketInfo );
+	FScopeLock ScopeLock(&TicketsLock);
+	MatchmakingTickets.Add(SessionName, InTicketInfo);
 }
 
-//////////////////////////////////////////////////////////////////////////
-void FOnlineMatchmakingInterfaceLive::RemoveMatchmakingTicket( FName SessionName )
+void FOnlineMatchmakingInterfaceLive::RemoveMatchmakingTicket(const FName SessionName)
 {
-	FScopeLock ScopeLock( &TicketsLock );
+	FScopeLock ScopeLock(&TicketsLock);
 
-	if ( FOnlineMatchTicketInfoPtr* FoundTicket = MatchmakingTickets.Find( SessionName ) )
+	if (FOnlineMatchTicketInfoPtr* FoundTicket = MatchmakingTickets.Find(SessionName))
 	{
 		LiveSubsystem->GetSessionMessageRouter()->ClearOnSessionChangedDelegate(OnSessionChangedDelegate, (*FoundTicket)->GetLiveSessionRef());
 	}
 
 
-	MatchmakingTickets.Remove( SessionName );
+	MatchmakingTickets.Remove(SessionName);
 }
 
-//////////////////////////////////////////////////////////////////////////
-bool FOnlineMatchmakingInterfaceLive::GetMatchmakingTicket( FName SessionName, FOnlineMatchTicketInfoPtr& OutTicketInfo  )
+bool FOnlineMatchmakingInterfaceLive::GetMatchmakingTicket(const FName SessionName, FOnlineMatchTicketInfoPtr& OutTicketInfo) const
 {
-	FScopeLock ScopeLock( &TicketsLock );
+	FScopeLock ScopeLock(&TicketsLock);
 
-	const FOnlineMatchTicketInfoPtr* FoundTicket = MatchmakingTickets.Find( SessionName );
+	const FOnlineMatchTicketInfoPtr* FoundTicket = MatchmakingTickets.Find(SessionName);
 
-	if ( FoundTicket )
+	if (FoundTicket)
 	{
 		OutTicketInfo = *FoundTicket;
 	}
 
-	return ( FoundTicket != nullptr );
+	return (FoundTicket != nullptr);
 }
 
-//////////////////////////////////////////////////////////////////////////
-void FOnlineMatchmakingInterfaceLive::SetTicketState( FName SessionName, EOnlineLiveMatchmakingState::Type State)
+void FOnlineMatchmakingInterfaceLive::SetTicketState(const FName SessionName, const EOnlineLiveMatchmakingState::Type State)
 {
 	FOnlineMatchTicketInfoPtr MatchmakingTicket;
 	GetMatchmakingTicket(SessionName, MatchmakingTicket);
@@ -265,15 +246,14 @@ void FOnlineMatchmakingInterfaceLive::SetTicketState( FName SessionName, EOnline
 	}
 }
 
-//////////////////////////////////////////////////////////////////////////
-void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(FName SessionName)
+void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(const FName SessionName)
 {
 	check(IsInGameThread());
 
 	FOnlineMatchTicketInfoPtr MatchmakingTicket;
 	GetMatchmakingTicket(SessionName, MatchmakingTicket);
 
-	if (MatchmakingTicket.IsValid() == false)
+	if (!MatchmakingTicket.IsValid())
 	{
 		UE_LOG_ONLINE(Warning, TEXT("FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged - ticket doesn't exist or was destroyed before task ran"));
 		return;
@@ -313,7 +293,7 @@ void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(FName SessionNa
 			// Join the target session so we can do QoS. If this isn't a match session (we're
 			// advertising an existing game session), we've already joined.
 			FOnlineSessionLivePtr SessionInterface = LiveSubsystem->GetSessionInterfaceLive();
-			if (SessionInterface->GetNamedSession(SessionName) == nullptr || SessionName == PartySessionName)
+			if (SessionInterface->GetNamedSession(SessionName) == nullptr || SessionName == NAME_PartySession)
 			{
 				Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ TargetSessionReference =
 					LiveSession->MatchmakingServer->TargetSessionRef;
@@ -323,24 +303,24 @@ void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(FName SessionNa
 				MatchmakingTicket->RefreshLiveInfo(TargetSessionReference);
 				MatchmakingTicket->SetLastDiffedSession(nullptr);
 				
-				auto LiveContext = LiveSubsystem->GetLiveContext(LiveSession);
+				XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(LiveSession);
 
 				// Create a named session from the search result data
-				FNamedOnlineSession* NamedSession = SessionInterface->AddNamedSession(GameSessionName, MatchmakingTicket->SessionSettings);
+				FNamedOnlineSession* NamedSession = SessionInterface->AddNamedSession(NAME_GameSession, MatchmakingTicket->SessionSettings);
 				NamedSession->HostingPlayerNum = INDEX_NONE;
 				{
-					//Party tickets should now follow the Matchmade session for backfilling
-					MatchmakingTicket->SessionName = GameSessionName;
+					// Party tickets should now follow the Matchmade session for backfilling
+					MatchmakingTicket->SessionName = NAME_GameSession;
 					
-					FScopeLock ScopeLock( &TicketsLock );
-					MatchmakingTickets.Remove( SessionName );
-					MatchmakingTickets.Add(GameSessionName, MatchmakingTicket);					
+					FScopeLock ScopeLock(&TicketsLock);
+					MatchmakingTickets.Remove(SessionName);
+					MatchmakingTickets.Add(NAME_GameSession, MatchmakingTicket);					
 				}
 
-				//Record the game session URI so invites can pass along the target session.
-				if (SessionName == PartySessionName) 
+				// Record the game session URI so invites can pass along the target session.
+				if (SessionName == NAME_PartySession) 
 				{
-					if (auto NamedSession = SessionInterface->GetNamedSession(SessionName))
+					if (FNamedOnlineSession* NamedSession = SessionInterface->GetNamedSession(SessionName))
 					{
 						NamedSession->SessionSettings.Set(SETTING_GAME_SESSION_URI, FString(TargetSessionReference->ToUriPath()->Data()), EOnlineDataAdvertisementType::ViaOnlineService);
 						SessionInterface->UpdateSession(SessionName, NamedSession->SessionSettings, true);
@@ -351,7 +331,7 @@ void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(FName SessionNa
 				
 				LiveSubsystem->GetSessionMessageRouter()->AddOnSessionChangedDelegate(SessionInterface->OnSessionChangedDelegate, TargetSessionReference);
 
-				UE_LOG_ONLINE(Log, TEXT("Session Found: %s %s"), TargetSessionReference->SessionTemplateName->Data(), TargetSessionReference->SessionName->Data());
+				UE_LOG_ONLINE(Log, TEXT("Session Found: %ls %ls"), TargetSessionReference->SessionTemplateName->Data(), TargetSessionReference->SessionName->Data());
 
 				const bool bSessionIsMatchmakingResult = true;
 				const bool bInSetActivity = true;
@@ -364,13 +344,13 @@ void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(FName SessionNa
 					LiveSubsystem,
 					SessionInterface->MAX_RETRIES,
 					bSessionIsMatchmakingResult,
-					bInSetActivity);
+					bInSetActivity,
+					TOptional<FString>());
 			}
 			break;
 		}
 
 	case MatchmakingStatus::Canceled:
-		
 		if (MatchmakingTicket.IsValid() && MatchmakingTicket->MatchmakingState != EOnlineLiveMatchmakingState::UserCancelled)
 		{
 			SubmitMatchingTicket(
@@ -388,11 +368,10 @@ void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(FName SessionNa
 	}
 }
 
-//////////////////////////////////////////////////////////////////////////
 void FOnlineMatchmakingInterfaceLive::SubmitMatchingTicket(
 	Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ SessionRef,
-	FName SessionName,
-	bool CancelExistingTicket)
+	const FName SessionName,
+	const bool bCancelExistingTicket)
 {
 
 	FOnlineMatchTicketInfoPtr MatchmakingTicket;
@@ -400,8 +379,8 @@ void FOnlineMatchmakingInterfaceLive::SubmitMatchingTicket(
 
 	FNamedOnlineSession* NamedSession = LiveSubsystem->GetSessionInterfaceLive()->GetNamedSession(SessionName);
 
-	//Start matchmaking should have been called first...
-	if (MatchmakingTicket.IsValid() == false)
+	// Start matchmaking should have been called first...
+	if (!MatchmakingTicket.IsValid())
 	{
 		return;
 	}
@@ -428,19 +407,19 @@ void FOnlineMatchmakingInterfaceLive::SubmitMatchingTicket(
 		}
 	}
 
-	FOnlineSessionInfoLive* LiveInfo =  NamedSession && NamedSession->SessionInfo.IsValid() ? static_cast<FOnlineSessionInfoLive*>(NamedSession->SessionInfo.Get()) : nullptr;
+	FOnlineSessionInfoLivePtr LiveInfo = NamedSession ? StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo) : nullptr;
 
-	if (LiveInfo && LiveInfo->GetLiveMultiplayerSession() != nullptr)
+	if (LiveInfo.IsValid() && LiveInfo->GetLiveMultiplayerSession() != nullptr)
 	{
-		uint32 CurrentSessionSize = LiveInfo->GetLiveMultiplayerSession()->Members->Size;
-		if( CurrentSessionSize >= (uint32) NamedSession->SessionSettings.NumPublicConnections )
+		const uint32 CurrentSessionSize = LiveInfo->GetLiveMultiplayerSession()->Members->Size;
+		if (CurrentSessionSize >= (uint32) NamedSession->SessionSettings.NumPublicConnections)
 		{
 			UE_LOG_ONLINE(Log, TEXT("FOnlineSessionLive::SubmitMatchingTicket: Maximum players reached for this session. No longer matchmaking. Size: %d"), CurrentSessionSize);
 			return;
 		}
 	}
 
-	auto SearchSettings = MatchmakingTicket->SessionSearch;
+	TSharedPtr<FOnlineSessionSearch> SearchSettings = MatchmakingTicket->SessionSearch;
 	check(SearchSettings.IsValid());
 
 	FString MatchHopperName;
@@ -449,24 +428,24 @@ void FOnlineMatchmakingInterfaceLive::SubmitMatchingTicket(
 
 	FString MatchTicketAttributes;
 	const FOnlineSessionSetting* AttributesSetting =  MatchmakingTicket->SessionSettings.Settings.Find(SETTING_MATCHING_ATTRIBUTES);
-	if ( AttributesSetting )
+	if (AttributesSetting)
 	{
-		AttributesSetting->Data.GetValue( MatchTicketAttributes );
+		AttributesSetting->Data.GetValue(MatchTicketAttributes);
 	}
 
 	TimeSpan PlatformTimeout;
-	PlatformTimeout.Duration	= (uint64) (10000000 * SearchSettings->TimeoutInSeconds); //. Convert timeout to duration in ticks (10 million per second)
+	PlatformTimeout.Duration = (uint64) (10000000 * SearchSettings->TimeoutInSeconds); // Convert timeout to duration in ticks (10 million per second)
 
 	PreserveSessionMode Mode = PreserveSessionMode::Always;
 
-	bool CreateNewSession = false;
-	if (NamedSession && NamedSession->SessionSettings.Get(SETTING_MATCHING_PRESERVE_SESSION, CreateNewSession))
+	bool bCreateNewSession = false;
+	if (NamedSession && NamedSession->SessionSettings.Get(SETTING_MATCHING_PRESERVE_SESSION, bCreateNewSession))
 	{
-		CreateNewSession = !CreateNewSession;
+		bCreateNewSession = !bCreateNewSession;
 	}
 
 	// If we don't have a game session yet, set the ticket to create one
-	if (LiveInfo == nullptr || LiveInfo->GetLiveMultiplayerSession() == nullptr || CreateNewSession)
+	if (!LiveInfo.IsValid() || LiveInfo->GetLiveMultiplayerSession() == nullptr || bCreateNewSession)
 	{
 		Mode = PreserveSessionMode::Never;
 	}
@@ -480,19 +459,18 @@ void FOnlineMatchmakingInterfaceLive::SubmitMatchingTicket(
 		ref new Platform::String(*MatchTicketAttributes),
 		PlatformTimeout,
 		Mode,
-		CancelExistingTicket);
+		bCancelExistingTicket);
 	LiveSubsystem->QueueAsyncTask(SubmitTask);
 }
 
-//////////////////////////////////////////////////////////////////////////
-void FOnlineMatchmakingInterfaceLive::OnMemberListChanged(FName SessionName)
+void FOnlineMatchmakingInterfaceLive::OnMemberListChanged(const FName SessionName)
 {
 	check(IsInGameThread());
 
 	FOnlineMatchTicketInfoPtr MatchmakingTicket;
 	GetMatchmakingTicket(SessionName, MatchmakingTicket);
 
-	if (MatchmakingTicket.IsValid() == false)
+	if (!MatchmakingTicket.IsValid())
 	{
 		UE_LOG_ONLINE(Warning, TEXT("FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged - session doesn't exist or was destroyed before task ran"));
 		return;
@@ -509,16 +487,15 @@ void FOnlineMatchmakingInterfaceLive::OnMemberListChanged(FName SessionName)
 	SubmitMatchingTicket(MatchmakingTicket->GetLiveSessionRef(), SessionName, true);
 }
 
-//////////////////////////////////////////////////////////////////////////
 FOnlineMatchTicketInfoPtr FOnlineMatchmakingInterfaceLive::GetMatchTicketForLiveSessionRef(Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionReference^ LiveSessionRef)
 {
-	FScopeLock ScopeLock( &TicketsLock );
+	FScopeLock ScopeLock(&TicketsLock);
 	FOnlineMatchTicketInfoPtr FoundTicket;
 
-	for (auto TicketPair : MatchmakingTickets)
+	for (TPair<FName, FOnlineMatchTicketInfoPtr>& TicketPair : MatchmakingTickets)
 	{
-		FOnlineMatchTicketInfoPtr Ticket = TicketPair.Value;
-		if (Ticket.IsValid() == false)
+		FOnlineMatchTicketInfoPtr& Ticket = TicketPair.Value;
+		if (!Ticket.IsValid())
 		{
 			continue;
 		}

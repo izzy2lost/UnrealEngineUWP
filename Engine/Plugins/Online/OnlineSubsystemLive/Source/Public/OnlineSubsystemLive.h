@@ -42,6 +42,7 @@ typedef FUWPInputInterface FPlatformInputInterface;
 typedef TSharedPtr<class FOnlineSessionLive, ESPMode::ThreadSafe> FOnlineSessionLivePtr;
 typedef TSharedPtr<class FOnlineProfileLive, ESPMode::ThreadSafe> FOnlineProfileLivePtr;
 typedef TSharedPtr<class FOnlineFriendsLive, ESPMode::ThreadSafe> FOnlineFriendsLivePtr;
+typedef TSharedPtr<class FMessageSanitizerLive, ESPMode::ThreadSafe> FMessageSanitizerLivePtr;
 typedef TSharedPtr<class FOnlineUserCloudLive, ESPMode::ThreadSafe> FOnlineUserCloudLivePtr;
 typedef TSharedPtr<class FOnlineLeaderboardsLive, ESPMode::ThreadSafe> FOnlineLeaderboardsLivePtr;
 typedef TSharedPtr<class FOnlineVoiceLive, ESPMode::ThreadSafe> FOnlineVoiceLivePtr;
@@ -62,7 +63,7 @@ typedef TSharedPtr<class FOnlineSessionXim, ESPMode::ThreadSafe> FOnlineSessionX
 typedef TSharedPtr<class FOnlineVoiceXim, ESPMode::ThreadSafe> FOnlineVoiceXimPtr;
 typedef TSharedPtr<class FXimMessageRouter, ESPMode::ThreadSafe> FXimMessageRouterPtr;
 // @ATG_CHANGE : END
-
+class UWorld;
 class FOnlineAsyncTask;
 class FOnlineAsyncTaskManagerLive;
 class FXboxOneInputInterface;
@@ -73,6 +74,7 @@ template<class FOnlineSubsystemClass> class FOnlineAsyncEvent;
  */
 class ONLINESUBSYSTEMLIVE_API FOnlineSubsystemLive
 	: public FOnlineSubsystemImpl
+	, public TSharedFromThis<FOnlineSubsystemLive, ESPMode::ThreadSafe>
 {
 public:
 	/**
@@ -84,6 +86,7 @@ public:
 	// IOnlineSubsystem
 	virtual IOnlineSessionPtr GetSessionInterface() const override;
 	virtual IOnlineFriendsPtr GetFriendsInterface() const override;
+	virtual IMessageSanitizerPtr GetMessageSanitizer(int32 LocalUserNum, FString& OutAuthTypeToExclude) const override;
 	virtual IOnlinePartyPtr GetPartyInterface() const override;
 	virtual IOnlineGroupsPtr GetGroupsInterface() const override;
 	virtual IOnlineSharedCloudPtr GetSharedCloudInterface() const override;
@@ -113,7 +116,7 @@ public:
 	virtual bool Init() override;
 	virtual bool Shutdown() override;
 	virtual FString GetAppId() const override;
-	virtual bool Exec(class UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar) override;
+	virtual bool Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar) override;
 	virtual FText GetOnlineServiceName() const override;
 
 	// FTickerObjectBase
@@ -272,8 +275,11 @@ private:
 	FXimMessageRouterPtr XimMessageRouter;
 	// @ATG_CHANGE : END
 
-	/** Interface to the social service */
+	/** Interface to the Friends services */
 	FOnlineFriendsLivePtr FriendInterface;
+
+	/** Interface to the message sanitizer */
+	FMessageSanitizerLivePtr MessageSanitizer;
 
 	/** Interface to the Users services */
 	FOnlineUserLivePtr UserInterface;

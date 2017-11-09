@@ -15,6 +15,7 @@
 #include "Misc/CoreDelegates.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/ScopeLock.h"
+#include "GenericPlatformHttp.h"
 
 using namespace Windows::Foundation;
 using namespace Windows::Foundation::Collections;
@@ -36,6 +37,10 @@ bool FOnlineExternalUILive::ShowLoginUI(const int ControllerIndex, bool bShowOnl
 	const auto InputInterface = GetInputInterface();
 	if (!InputInterface.IsValid())
 	{
+		LiveSubsystem->ExecuteNextTick([ControllerIndex, Delegate]()
+		{
+			Delegate.ExecuteIfBound(MakeShared<FUniqueNetIdLive>(), ControllerIndex);
+		});
 		return false;
 	}
 
@@ -65,14 +70,15 @@ bool FOnlineExternalUILive::ShowLoginUI(const int ControllerIndex, bool bShowOnl
 		else
 		{
 			// There was an error during the async operation.
-			UE_LOG_ONLINE(Log, TEXT("Error in SystemUI::ShowAccountPickerAsync: 0x%x"), operation->ErrorCode.Value);
+			UE_LOG_ONLINE(Log, TEXT("Error in SystemUI::ShowAccountPickerAsync: 0x%0.8X"), operation->ErrorCode.Value);
 		}
 
-		if (LiveSubsystem && LiveSubsystem->GetAsyncTaskManager())
+		LiveSubsystem->ExecuteNextTick([this, User, Delegate]()
 		{
-			FAsyncEventAccountPickerClosed* NewEvent = new FAsyncEventAccountPickerClosed(LiveSubsystem, User, Delegate);
-			LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue(NewEvent);
-		}
+			// We want to wait 1 extra tick so that the input system has definitely be called before we tell the game to check
+			// the user's state.  Without the ExecuteNextTick, this can happen before the input system registers the user/controllers
+			LiveSubsystem->CreateAndDispatchAsyncEvent<FAsyncEventAccountPickerClosed>(LiveSubsystem, User, Delegate);
+		});
 	});
 	return true;
 }
@@ -87,7 +93,7 @@ bool FOnlineExternalUILive::ShowInviteUI(int32 LocalUserNum, FName SessionName)
 	const auto Identity = LiveSubsystem->GetIdentityLive();
 	check(Identity.IsValid());
 
-	const auto LiveUser = Identity->GetUserForControllerIndex(LocalUserNum);
+	const auto LiveUser = Identity->GetUserForPlatformUserId(LocalUserNum);
 
 	if(!LiveUser)
 	{
@@ -108,7 +114,7 @@ bool FOnlineExternalUILive::ShowInviteUI(int32 LocalUserNum, FName SessionName)
 		return false;
 	}
 
-	TSharedPtr<FOnlineSessionInfoLive> LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(Session->SessionInfo);
+	FOnlineSessionInfoLivePtr LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(Session->SessionInfo);
 	if (!LiveInfo->IsValid())
 	{
 		UE_LOG(LogOnline, Warning, TEXT("ShowInviteUI: FOnlineSessionInfoLive not valid for %s. Can't send invite."), *SessionName.ToString());
@@ -192,7 +198,7 @@ bool FOnlineExternalUILive::ShowAchievementsUI(int32 LocalUserNum)
 	const FOnlineIdentityLivePtr Identity = LiveSubsystem->GetIdentityLive();
 	check(Identity.IsValid());
 
-	Windows::Xbox::System::User^ LiveUser = Identity->GetUserForControllerIndex(LocalUserNum);
+	Windows::Xbox::System::User^ LiveUser = Identity->GetUserForPlatformUserId(LocalUserNum);
 
 	if (!LiveUser)
 	{
@@ -217,10 +223,20 @@ bool FOnlineExternalUILive::ShowLeaderboardUI( const FString& LeaderboardName )
 
 bool FOnlineExternalUILive::ShowWebURL(const FString& Url, const FShowWebUrlParams& ShowParams, const FOnShowWebUrlClosedDelegate& Delegate)
 {
-	WebUrlBeingOpened = Url;
-	WebUrlClosedDelegate = Delegate;
+	if (ShowWebUrlRequest.WaitForProtocolActivationTimeRemaining > 0.0f)
+	{
+		// If we had one outstanding, consider it cancelled
+		UE_LOG_ONLINE(Log, TEXT("FOnlineExternalUILive::ShowWebURL: Abandoning wait for previous ShowWebUrl protocol activation"));
+		FinishShowWebUrl(MoveTemp(ShowWebUrlRequest.WebUrlBeingOpened));
+	}
+	ShowWebUrlRequest.WebUrlBeingOpened = Url;
+	ShowWebUrlRequest.WebUrlClosedDelegate = Delegate;
 
-	FCoreDelegates::ApplicationHasReactivatedDelegate.AddRaw(this, &FOnlineExternalUILive::HandleApplicationHasReactivated_WebUrl);
+	FCoreDelegates::ApplicationHasReactivatedDelegate.AddThreadSafeSP(this, &FOnlineExternalUILive::HandleApplicationHasReactivated_WebUrl);
+#ifdef XBOXONE_HASONACTIVATEDBYPROTOCOL
+	FXboxOneApplication* XboxOneApp = FXboxOneApplication::GetXboxOneApplication();
+	XboxOneApp->OnActivatedByProtocol().AddThreadSafeSP(this, &FOnlineExternalUILive::HandleApplicationReactivatedByProtocol_WebUrl);
+#endif
 
 	auto LaunchUriTask = Windows::System::Launcher::LaunchUriAsync(ref new Uri(ref new Platform::String(*Url)));
 
@@ -244,15 +260,49 @@ bool FOnlineExternalUILive::ShowWebURL(const FString& Url, const FShowWebUrlPara
 void FOnlineExternalUILive::HandleApplicationHasReactivated_WebUrl()
 {
 	FCoreDelegates::ApplicationHasReactivatedDelegate.RemoveAll(this);
+	if (!ShowWebUrlRequest.WebUrlBeingOpened.IsEmpty())
+	{
+		// Wait for a protocol activation before triggering the complete delegate
+		// Not guaranteed to come, will only come if the web browser reactivates the application with a specific uri
+		ShowWebUrlRequest.WaitForProtocolActivationTimeRemaining = 3.0f;
+	}
+}
 
-	FAsyncEventWebUrlUIClosed* NewEvent = new FAsyncEventWebUrlUIClosed(LiveSubsystem, WebUrlClosedDelegate, WebUrlBeingOpened);
-	LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue(NewEvent);
+void FOnlineExternalUILive::HandleApplicationReactivatedByProtocol_WebUrl(FString ActivationUri)
+{
+	// Does this match the format we expect?
+	const FString ActivationUriDomain = FGenericPlatformHttp::GetUrlDomain(ActivationUri);
+	if (ActivationUriDomain.Equals(TEXT("showWebUrlComplete"), ESearchCase::IgnoreCase))
+	{
+#ifdef XBOXONE_HASONACTIVATEDBYPROTOCOL
+		FXboxOneApplication* XboxOneApp = FXboxOneApplication::GetXboxOneApplication();
+		XboxOneApp->OnActivatedByProtocol().RemoveAll(this);
+#endif
+		// We have handled this protocol activation, clear out the global one
+		// @ATG_CHANGE : BEGIN - UWP LIVE support
+		FPlatformMisc::SetProtocolActivationUri(FString());
+		// @ATG_CHANGE : END
+		if (!ShowWebUrlRequest.WebUrlBeingOpened.IsEmpty())
+		{
+			// Parse out the final url
+			int32 UrlStart = ActivationUri.Find(TEXT("url="));
+			if (UrlStart != INDEX_NONE)
+			{
+				const int32 UrlParamLen = 4;
+				FinishShowWebUrl(ActivationUri.Mid(UrlStart + UrlParamLen));
+			}
+			else
+			{
+				FinishShowWebUrl(MoveTemp(ShowWebUrlRequest.WebUrlBeingOpened));
+			}
+		}
+	}
 }
 
 FOnlineExternalUILive::FOnlineExternalUILive(FOnlineSubsystemLive* InSubsystem)
 	: LiveSubsystem(InSubsystem)
 	, bAllowGuestLogin(true)
-	, ShouldCallUIDelegate(false)
+	, bShouldCallUIDelegate(false)
 {
 	GConfig->GetBool(TEXT("OnlineSubsystemLive"), TEXT("bAllowGuestLogin"), bAllowGuestLogin, GEngineIni);
 }
@@ -274,7 +324,7 @@ bool FOnlineExternalUILive::ShowStoreUI(int32 LocalUserNum, const FShowStorePara
 	const FOnlineIdentityLivePtr Identity = LiveSubsystem->GetIdentityLive();
 	check(Identity.IsValid());
 
-	Windows::Xbox::System::User^ LiveUser = Identity->GetUserForControllerIndex(LocalUserNum);
+	Windows::Xbox::System::User^ LiveUser = Identity->GetUserForPlatformUserId(LocalUserNum);
 	if (!LiveUser)
 	{
 		UE_LOG_ONLINE(Warning, TEXT("ShowStoreUI: Couldn't find Live user for LocalUserNum %d."), LocalUserNum);
@@ -286,7 +336,7 @@ bool FOnlineExternalUILive::ShowStoreUI(int32 LocalUserNum, const FShowStorePara
 	}
 
 	StoreUIClosedDelegate = Delegate;
-	ShouldCallUIDelegate = true;
+	bShouldCallUIDelegate = true;
 
 	FCoreDelegates::ApplicationHasReactivatedDelegate.AddRaw(this, &FOnlineExternalUILive::HandleApplicationHasReactivated_Store);
 	ProductPurchasedToken = Store::Product::ProductPurchased += ref new Store::ProductPurchasedEventHandler([this](Store::ProductPurchasedEventArgs^ Args)
@@ -367,10 +417,10 @@ void FOnlineExternalUILive::ProductPurchased_Store(Windows::Xbox::ApplicationMod
 	Store::Product::ProductPurchased -= ProductPurchasedToken;
 
 	// if we received a purchase callback that means we must have bought something
-	if (ShouldCallUIDelegate)
+	if (bShouldCallUIDelegate)
 	{
 		LiveSubsystem->CreateAndDispatchAsyncEvent<FAsyncEventStoreUIClosed>(LiveSubsystem, StoreUIClosedDelegate, true);
-		ShouldCallUIDelegate = false;
+		bShouldCallUIDelegate = false;
 	}
 }
 
@@ -381,10 +431,10 @@ void FOnlineExternalUILive::HandleApplicationHasReactivated_Store()
 	Store::Product::ProductPurchased -= ProductPurchasedToken;
 
 	// assume that if the product purchase event hasn't fired yet then we didn't actually buy anything
-	if (ShouldCallUIDelegate)
+	if (bShouldCallUIDelegate)
 	{
 		LiveSubsystem->CreateAndDispatchAsyncEvent<FAsyncEventStoreUIClosed>(LiveSubsystem, StoreUIClosedDelegate, false);
-		ShouldCallUIDelegate = false;
+		bShouldCallUIDelegate = false;
 	}
 }
 #endif
@@ -394,42 +444,53 @@ bool FOnlineExternalUILive::ShowSendMessageUI(int32 LocalUserNum, const FShowSen
 {
 // @ATG_CHANGE : BEGIN - UWP LIVE Support
 #if PLATFORM_XBOXONE
+// @ATG_CHANGE : END - UWP LIVE Support
 	const FOnlineIdentityLivePtr Identity = LiveSubsystem->GetIdentityLive();
 	check(Identity.IsValid());
 
-	Windows::Xbox::System::User^ LiveUser = Identity->GetUserForControllerIndex(LocalUserNum);
-
+	Windows::Xbox::System::User^ LiveUser = Identity->GetUserForPlatformUserId(LocalUserNum);
 	if (!LiveUser)
 	{
 		UE_LOG_ONLINE(Warning, TEXT("ShowStoreUI: Couldn't find Live user for LocalUserNum %d."), LocalUserNum);
 		return false;
 	}
 
-	IAsyncAction^ SendMessageTask;
-
-	if (ShowParams.DisplayMessage.IsEmpty())
+	try
 	{
-		SendMessageTask = SystemUI::ShowComposeMessageAsync(LiveUser, nullptr, nullptr);
+		IAsyncAction^ SendMessageTask = SystemUI::ShowComposeMessageAsync(LiveUser, ref new Platform::String(*ShowParams.DisplayMessage.ToString()), nullptr);
+		concurrency::create_task(SendMessageTask).then([this, Delegate](concurrency::task<void> task)
+		{
+			try
+			{
+				task.get();
+				UE_LOG_ONLINE(Log, TEXT("ShowSendMessageUI: Task complete!"));
+				LiveSubsystem->CreateAndDispatchAsyncEvent<FAsyncEventSendMessageUIClosed>(LiveSubsystem, Delegate, true);
+			}
+			catch (concurrency::task_canceled&)
+			{
+				UE_LOG_ONLINE(Warning, TEXT("ShowSendMessageUI: Task Cancelled!"));
+				LiveSubsystem->CreateAndDispatchAsyncEvent<FAsyncEventSendMessageUIClosed>(LiveSubsystem, Delegate, false);
+			}
+			catch (Platform::Exception^)
+			{
+				UE_LOG_ONLINE(Warning, TEXT("ShowSendMessageUI: Task Failed!"));
+				LiveSubsystem->CreateAndDispatchAsyncEvent<FAsyncEventSendMessageUIClosed>(LiveSubsystem, Delegate, false);
+			}
+		});
 	}
-	else
+	catch (Platform::Exception^ Ex)
 	{
-		Platform::String^ MessageString = ref new Platform::String(*(ShowParams.DisplayMessage.ToString()));
-		SendMessageTask = SystemUI::ShowComposeMessageAsync(LiveUser, MessageString, nullptr);
+		UE_LOG_ONLINE(Warning, TEXT("ShowSendMessageUI: Failed to start task!"));
+		LiveSubsystem->CreateAndDispatchAsyncEvent<FAsyncEventSendMessageUIClosed>(LiveSubsystem, Delegate, false);
+		return false;
 	}
-	
 
-	concurrency::create_task(SendMessageTask).then([this, Delegate](concurrency::task<void> task)
-	{
-		UE_LOG_ONLINE(Log, TEXT("ShowSendMessageUI: Task complete!"));
-		FAsyncEventSendMessageUIClosed* NewEvent = new FAsyncEventSendMessageUIClosed(LiveSubsystem, Delegate, false /* no known way to tell if message was sent */);
-		LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue(NewEvent);
-	});
-
-	return false;
+	return true;
+// @ATG_CHANGE : BEGIN - UWP LIVE Support
 #else
 	return false;
 #endif
-// @ATG_CHANGE : END - UWP LIVE Support
+// @ATG_CHANGE : END
 }
 
 bool FOnlineExternalUILive::ShowProfileUI(const FUniqueNetId& Requestor, const FUniqueNetId& Requestee, const FOnProfileUIClosedDelegate& Delegate)
@@ -584,4 +645,29 @@ void FOnlineExternalUILive::FAsyncEventWebUrlUIClosed::TriggerDelegates()
 {
 	FOnlineAsyncEvent::TriggerDelegates();
 	Delegate.ExecuteIfBound(WebUrl);
+}
+
+void FOnlineExternalUILive::Tick(float DeltaTime)
+{
+	if (ShowWebUrlRequest.WaitForProtocolActivationTimeRemaining > 0.0f)
+	{
+		ShowWebUrlRequest.WaitForProtocolActivationTimeRemaining -= DeltaTime;
+		if (ShowWebUrlRequest.WaitForProtocolActivationTimeRemaining <= 0.0f)
+		{
+			FinishShowWebUrl(MoveTemp(ShowWebUrlRequest.WebUrlBeingOpened));
+		}
+	}
+}
+
+void FOnlineExternalUILive::FinishShowWebUrl(FString&& FinalUrl)
+{
+	FCoreDelegates::ApplicationHasReactivatedDelegate.RemoveAll(this);
+#ifdef XBOXONE_HASONACTIVATEDBYPROTOCOL
+	FXboxOneApplication* XboxOneApp = FXboxOneApplication::GetXboxOneApplication();
+	XboxOneApp->OnActivatedByProtocol().RemoveAll(this);
+#endif
+
+	FAsyncEventWebUrlUIClosed* NewEvent = new FAsyncEventWebUrlUIClosed(LiveSubsystem, MoveTemp(ShowWebUrlRequest.WebUrlClosedDelegate), MoveTemp(FinalUrl));
+	ShowWebUrlRequest.Reset();
+	LiveSubsystem->GetAsyncTaskManager()->AddToOutQueue(NewEvent);
 }

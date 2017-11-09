@@ -219,7 +219,7 @@ bool FOnlineVoiceLive::RegisterLocalTalker(uint32 LocalUserNum)
 		return false;
 	}
 
-	User^ LocalXboxUser = IdentityInt->GetUserForControllerIndex(LocalUserNum);
+	User^ LocalXboxUser = IdentityInt->GetUserForPlatformUserId(LocalUserNum);
 	if (!LocalXboxUser)
 	{
 		UE_LOG(LogVoice, Warning, TEXT("RegisterLocalTalker: Unable to register local talker %u, unable to find Xbox LocalUser"), LocalUserNum);
@@ -327,7 +327,7 @@ bool FOnlineVoiceLive::UnregisterLocalTalker(uint32 LocalUserNum)
 				}
 			}
 
-			Windows::Xbox::System::User^ LocalUser = IdentityInt->GetUserForControllerIndex(LocalUserNum);
+			Windows::Xbox::System::User^ LocalUser = IdentityInt->GetUserForPlatformUserId(LocalUserNum);
 			if (LocalUser)
 			{
 				// @ATG_CHANGE : BEGIN - UWP LIVE support
@@ -347,6 +347,7 @@ bool FOnlineVoiceLive::UnregisterLocalTalker(uint32 LocalUserNum)
 					}
 				});
 			}
+
 			Talker.bIsTalking = false;
 			Talker.bWasTalking = false;
 			Talker.bIsRegistered = false;
@@ -1232,7 +1233,7 @@ void FOnlineVoiceLive::DisplayUserStatus(FString talker, bool isTalking, Microso
 		if(user->RestrictionMode != Windows::Xbox::Chat::ChatRestriction::None)
 		{
 			displayColor = FColor::Red;
-			text += FString::Printf(TEXT(" Restriction %s") , user->RestrictionMode.ToString()->Data());
+			text += FString::Printf(TEXT(" Restriction %d") , user->RestrictionMode);
 		}
 
 		if((user->IsLocal && user->IsLocalUserMuted) || (!user->IsLocal && user->IsMuted))

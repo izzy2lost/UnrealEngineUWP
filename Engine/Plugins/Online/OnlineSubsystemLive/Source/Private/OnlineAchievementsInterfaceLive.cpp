@@ -67,20 +67,25 @@ void FOnlineAchievementsLive::TestEventsAndAchievements()
 
 	check(Identity.IsValid());
 
-	Windows::Xbox::System::User ^ TestUser = Identity->GetCachedUsers()->GetAt(0);
-
-	if ( TestUser == nullptr )
+	FString PlayerXUIDStr;
+	Microsoft::Xbox::Services::XboxLiveContext^ xboxLiveContext = nullptr;
 	{
-		return;
+		Windows::Xbox::System::User ^ TestUser = Identity->GetCachedUsers()->GetAt(0);
+		if (TestUser != nullptr)
+		{
+			xboxLiveContext = LiveSubsystem->GetLiveContext(TestUser);
+			if (xboxLiveContext != nullptr)
+			{
+				PlayerXUIDStr = FString(TestUser->XboxUserId->Data());
+			}
+		}
+
+		if ((PlayerXUIDStr.IsEmpty()) || (xboxLiveContext == nullptr))
+		{
+			return;
+		}
 	}
 	
-	Microsoft::Xbox::Services::XboxLiveContext ^ xboxLiveContext = LiveSubsystem->GetLiveContext( TestUser );
-	
-	if ( xboxLiveContext == nullptr )
-	{
-		return;
-	}
-
 	// Turn on debug logging to Output debug window for Xbox Services
 	xboxLiveContext->Settings->DiagnosticsTraceLevel = XboxServicesDiagnosticsTraceLevel::Verbose;
 
@@ -118,27 +123,25 @@ void FOnlineAchievementsLive::TestEventsAndAchievements()
 		return;
 	}
 
-	FString XBoxLiveId( TestUser->XboxUserId->Data() );
-
 	GUID PlayerSessionId = { 1 };
 
 	uint32 Result = 0;
 
-	Result = EventWritePlayerSessionStart( *XBoxLiveId, &PlayerSessionId, NULL, 0, 0 );
+	Result = EventWritePlayerSessionStart( *PlayerXUIDStr, &PlayerSessionId, NULL, 0, 0 );
 
 	if ( Result != ERROR_SUCCESS )
 	{
 		return;
 	}
 
-	Result = EventWriteTempActivateAchiement( *XBoxLiveId, &PlayerSessionId, 10 );
+	Result = EventWriteTempActivateAchiement( *PlayerXUIDStr, &PlayerSessionId, 10 );
 
 	if ( Result != ERROR_SUCCESS )
 	{
 		return;
 	}
 
-	Result = EventWritePlayerSessionEnd( *XBoxLiveId, &PlayerSessionId, NULL, 0, 0, 0 );
+	Result = EventWritePlayerSessionEnd( *PlayerXUIDStr, &PlayerSessionId, NULL, 0, 0, 0 );
 
 	if ( Result != ERROR_SUCCESS )
 	{
@@ -149,7 +152,6 @@ void FOnlineAchievementsLive::TestEventsAndAchievements()
 #else
 	FOnlineEventsLive * EventInterface = (FOnlineEventsLive*)LiveSubsystem->GetEventsInterface().Get();
 
-	FString PlayerXUIDStr( TestUser->XboxUserId->Data() );
 	FUniqueNetIdLive PlayerId( PlayerXUIDStr );
 
 	// Start player session

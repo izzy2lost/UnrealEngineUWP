@@ -69,8 +69,12 @@ private:
 	Windows::Foundation::EventRegistrationToken UserAddedToken;
 	// @ATG_CHANGE : END
 
-	/** Parses a protocol activation URI. If it was from an accepted invite, begins the invite accepted flow. */
-	void SaveInviteFromActivation(Windows::Foundation::Uri^ ActivationUri);
+	/**
+	 * Parses a protocol activation URI. If it was from an accepted invite, begins the invite accepted flow.
+	 * @param ActivationUri the protocol activation URI
+	 * @return true if we processed the activation URI, false if not
+	 */
+	bool SaveInviteFromActivation(Windows::Foundation::Uri^ ActivationUri);
 	
 	/**
 	 * Turns a session handle into a Session, then into an FOnlineSessionSearchResult, then triggers

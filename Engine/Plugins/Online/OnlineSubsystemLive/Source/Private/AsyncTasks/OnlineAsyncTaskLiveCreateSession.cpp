@@ -46,12 +46,10 @@ void FOnlineAsyncTaskLiveCreateSession::Finalize()
 	NamedSession->HostingPlayerNum = INDEX_NONE;
 	NamedSession->OwningUserId = UserId;
 
-	FOnlineSessionInfoLive* NewSessionInfo = new FOnlineSessionInfoLive( LiveSession );
-	check( NewSessionInfo );
-	
+	FOnlineSessionInfoLivePtr NewSessionInfo = MakeShared<FOnlineSessionInfoLive>(LiveSession);
 	NewSessionInfo->SetSessionReady();
 
-	NamedSession->SessionInfo  = MakeShareable( NewSessionInfo );
+	NamedSession->SessionInfo  = NewSessionInfo;
 	NamedSession->SessionState = EOnlineSessionState::Pending;
 	
 	FOnlineSessionLive::ReadSettingsFromLiveJson( LiveSession, *NamedSession );
@@ -64,7 +62,7 @@ void FOnlineAsyncTaskLiveCreateSession::Finalize()
 	}
 
 	// @ATG_CHANGE : BEGIN - Allow modifying session visibility/joinability
-	NamedSession->HostingPlayerNum = Subsystem->GetIdentityLive()->GetControllerIndexForId(*UserId);
+	NamedSession->HostingPlayerNum = Subsystem->GetIdentityLive()->GetPlatformUserIdFromUniqueNetId(*UserId);
 	// @ATG_CHANGE : END
 
 	Subsystem->GetSessionMessageRouter()->SyncInitialSessionState(SessionName, LiveSession);

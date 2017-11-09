@@ -44,7 +44,7 @@ public:
 			Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ InLiveSession);
 	
 	// FOnlineAsyncItem
-	virtual FString ToString() const override { return TEXT("CreateSession");}
+	virtual FString ToString() const override { return FString::Printf(TEXT("FOnlineAsyncTaskLiveCreateSession SessionName: %s bWasSuccessful: %d"), *SessionName.ToString(), bWasSuccessful); }
 	virtual void Finalize() override;
 	virtual void TriggerDelegates() override;
 };

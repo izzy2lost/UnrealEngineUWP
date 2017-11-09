@@ -81,7 +81,7 @@ public:
 
 bool FOnlineEventsLive::LoadAndInitFromJsonConfig( const TCHAR* JsonConfigName )
 {
-	const FString BaseDir = FPaths::GameDir() + TEXT( "Config/OSS/Live/" );
+	const FString BaseDir = FPaths::ProjectDir() + TEXT( "Config/OSS/Live/" );
 	const FString JSonConfigFilename = BaseDir + JsonConfigName;;
 
 	FString JSonText;

@@ -340,6 +340,11 @@ public:
 			LiveSessionRef = LatestSession->SessionReference;
 			SessionId = FUniqueNetIdString(FString(LiveSessionRef->ToUriPath()->Data()));
 		}
+		else
+		{
+			LiveSessionRef = nullptr;
+			SessionId = FUniqueNetIdString();
+		}
 
 		if (!LastDiffedGameSession)
 		{
@@ -409,6 +414,21 @@ public:
 		IsReady = true;
 	}
 
+	void SetSessionInviteHandle(const FString& InSessionHandle)
+	{
+		SessionInviteHandle = InSessionHandle;
+	}
+
+	void SetSessionInviteHandle(FString&& InSessionHandle)
+	{
+		SessionInviteHandle = MoveTemp(InSessionHandle);
+	}
+
+	const TOptional<FString>& GetSessionInviteHandle() const
+	{
+		return SessionInviteHandle;
+	}
+	
 	// @ATG_CHANGE : BEGIN Adding XIM
 	const WCHAR* GetMultiplayerCorrelationId()
 	{
@@ -440,7 +460,12 @@ private:
 
 	/** Stored RoundId, used when triggering Xbox events */
 	FGuid RoundId;
+
+	/** Session handle if this session is from an to-be-joined invite */
+	TOptional<FString> SessionInviteHandle;
 };
+
+typedef TSharedPtr<FOnlineSessionInfoLive> FOnlineSessionInfoLivePtr;
 
 static const int32 XBOX_MAX_PLAYER_NAME_LENGTH = 16;
 

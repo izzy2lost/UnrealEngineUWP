@@ -177,7 +177,7 @@ bool FOnlineIdentityLive::AutoLogin(int32 LocalUserNum)
 
 ELoginStatus::Type FOnlineIdentityLive::GetLoginStatus(int32 ControllerIndex) const
 {
-	User^ RequestedUser = GetUserForControllerIndex(ControllerIndex);
+	User^ RequestedUser = GetUserForPlatformUserId(ControllerIndex);
 	return GetLoginStatusForUser(RequestedUser);
 }
 
@@ -189,7 +189,7 @@ ELoginStatus::Type FOnlineIdentityLive::GetLoginStatus( const FUniqueNetId& User
 
 TSharedPtr<const FUniqueNetId> FOnlineIdentityLive::GetUniquePlayerId(int32 ControllerIndex) const
 {
-	User^ User = GetUserForControllerIndex(ControllerIndex);
+	User^ User = GetUserForPlatformUserId(ControllerIndex);
 	if( User != nullptr )
 	{
 		return MakeShared<FUniqueNetIdLive>(User->XboxUserId->Data());
@@ -200,7 +200,7 @@ TSharedPtr<const FUniqueNetId> FOnlineIdentityLive::GetUniquePlayerId(int32 Cont
 
 TSharedPtr<const FUniqueNetId> FOnlineIdentityLive::GetSponsorUniquePlayerId(int32 ControllerIndex) const
 {
-	User^ User = GetUserForControllerIndex(ControllerIndex);
+	User^ User = GetUserForPlatformUserId(ControllerIndex);
 	if( User != nullptr )
 	{
 		if( User->Sponsor != nullptr )
@@ -231,7 +231,7 @@ FString FOnlineIdentityLive::GetPlayerNickname(int32 ControllerIndex) const
 {
 	FString PlayerNickname;
 
-	User^ RequestedUser = GetUserForControllerIndex(ControllerIndex);
+	User^ RequestedUser = GetUserForPlatformUserId(ControllerIndex);
 	if( RequestedUser )
 	{
 		PlayerNickname = FOnlineUserInfoLive::FilterPlayerName(RequestedUser->DisplayInfo->GameDisplayName);
@@ -289,33 +289,14 @@ void FOnlineIdentityLive::RevokeAuthToken(const FUniqueNetId& UserId, const FOnR
 
 Windows::Xbox::System::User^ FOnlineIdentityLive::GetUserForUniqueNetId(const FUniqueNetIdLive& UniqueId) const
 {
-	// Lock CachedUsers while we access it
-	const FScopeLock CachedUsersScopeLock(&CachedUsersLock);
-
-	if (!CachedUsers)
-	{
-		return nullptr;
-	}
-
-	const int32 CachedUserSize = CachedUsers->Size;
-	for (int32 i = 0; i < CachedUserSize; ++i)
-	{
-		User^ CurrentUser = CachedUsers->GetAt(i);
-		if (CurrentUser)
-		{
-			UE_LOG_ONLINE(VeryVerbose, TEXT("FOnlineIdentityLive::GetUserForUniqueNetId UniqueId: %s, CurrentUser Id: %s ."), *UniqueId.ToString(), CurrentUser->XboxUserId->Data());
-			if (UniqueId.ToString() == CurrentUser->XboxUserId->Data())
-			{
-				return CurrentUser;
-			}
-		}
-	}
-
-	return nullptr;
+	FPlatformUserId PlatformUserId = GetPlatformUserIdFromUniqueNetId(UniqueId);
+	User^ UserPtr = GetUserForPlatformUserId(PlatformUserId);
+	return UserPtr;
 }
 
-User^ FOnlineIdentityLive::GetUserForControllerIndex(int32 ControllerIndex) const
+User^ FOnlineIdentityLive::GetUserForPlatformUserId(int32 PlatformUserId) const
 {
+#if PLATFORM_XBOXONE
 	// This isn't thread safe
 	check(IsInGameThread());
 
@@ -325,49 +306,21 @@ User^ FOnlineIdentityLive::GetUserForControllerIndex(int32 ControllerIndex) cons
 		return nullptr;
 	}
 
-// @ATG_CHANGE : BEGIN - UWP LIVE support
-#if PLATFORM_XBOXONE
-	return InputInterface->GetXboxUserFromPlatformUserId(ControllerIndex);
-#elif PLATFORM_UWP
-	auto RequestedGamepad = InputInterface->GetGamepadForControllerId(ControllerIndex);
-	// If there is a user associated with the controller, use it.
-	if (RequestedGamepad && RequestedGamepad->User)
-	{
-		return SystemUserFromControllerUser(RequestedGamepad->User);
-	}
-	return nullptr;
-#endif
-// @ATG_CHANGE : END
-}
-
-
-int32 FOnlineIdentityLive::GetControllerIndexForUser(Windows::Xbox::System::User^ InUser) const
-{
-	// This isn't thread safe
-	check(IsInGameThread());
-
-	const auto InputInterface = GetInputInterface();
-	if (!InputInterface.IsValid())
-	{
-		return -1;
-	}
-
-// @ATG_CHANGE : BEGIN - UWP LIVE support
-#if PLATFORM_XBOXONE
-	return InputInterface->GetPlatformUserIdFromXboxUser(InUser);
-#elif PLATFORM_UWP
-	auto CurrentController = InUser->Controllers->GetAt(0);
-	unsigned int index = -1;
-	Windows::Gaming::Input::Gamepad::Gamepads->IndexOf(CurrentController, &index);
-	return index;
+	return InputInterface->GetXboxUserFromPlatformUserId(PlatformUserId);
 #else
-	return -1;
+	// Note: assume SUA
+	const FScopeLock CachedUsersScopeLock(&CachedUsersLock);
+	return PlatformUserId == 0 && CachedUsers->Size > 0 ? CachedUsers->GetAt(0) : nullptr;
 #endif
-// @ATG_CHANGE : END
 }
 
 FPlatformUserId FOnlineIdentityLive::GetPlatformUserIdFromXboxUser( Windows::Xbox::System::User^ InUser ) const
 {
+// @ATG_CHANGE : BEGIN - UWP LIVE support, workaround for platform user no having a tie in to Live
+#if PLATFORM_XBOXONE
+	// This isn't thread safe
+	check(IsInGameThread());
+
 	if (!InUser)
 	{
 		return PLATFORMUSERID_NONE;
@@ -379,26 +332,14 @@ FPlatformUserId FOnlineIdentityLive::GetPlatformUserIdFromXboxUser( Windows::Xbo
 		return PLATFORMUSERID_NONE;
 	}
 
-// @ATG_CHANGE : BEGIN - UWP LIVE support, workaround for platform user no having a tie in to Live
-#if PLATFORM_XBOXONE
 	return InputInterface->GetPlatformUserIdFromXboxUser(InUser);
 #elif PLATFORM_UWP
-	int32 UserId = -1;
-	for (int32 i = 0; (UserId == -1) && (i < static_cast<int32>(InUser->Controllers->Size)); ++i)
-	{
-		auto CurrentController = InUser->Controllers->GetAt(i);
-		UserId = InputInterface->GetUserIdForController(CurrentController);
-	}
-	return UserId;
+	// Note: assume SUA for now - if we have a valid user then that's the one-and-only user
+	return InUser ? 0 : -1;
 #else
 	return -1;
 #endif
 // @ATG_CHANGE : END
-}
-
-int32 FOnlineIdentityLive::GetControllerIndexForId( const FUniqueNetId& PlayerId ) const
-{
-	return GetControllerIndexForUser(GetUserForUniqueNetId(FUniqueNetIdLive(PlayerId)));
 }
 
 Windows::Foundation::Collections::IVectorView<Windows::Xbox::System::User^>^ FOnlineIdentityLive::GetCachedUsers() const
@@ -417,6 +358,7 @@ bool FOnlineIdentityLive::AddUserAccount(Windows::Xbox::System::User^ InUser)
 		{
 			RefreshGamepadsAndUsers();
 		}
+		// @ATG_CHANGE : END
 
 		if (!OnlineUsers.Contains(UserXboxId))
 		{
@@ -429,7 +371,6 @@ bool FOnlineIdentityLive::AddUserAccount(Windows::Xbox::System::User^ InUser)
 		{
 			UE_LOG_ONLINE(Log, TEXT("User %s already exists in OnlineUsers"), *UserXboxId.ToString());
 		}
-		// @ATG_CHANGE : END
 	}
 
 	return false;
@@ -446,7 +387,7 @@ bool FOnlineIdentityLive::RemoveUserAccount(Windows::Xbox::System::User^ InUser)
 		}
 		else
 		{
-			UE_LOG_ONLINE(Log, TEXT("User %s not found in CachedUsers"), *UserXboxId.ToString());
+			UE_LOG_ONLINE(Log, TEXT("User %s not found in OnlineUsers"), *UserXboxId.ToString());
 		}
 	}
 
@@ -835,17 +776,29 @@ void FOnlineIdentityLive::GetUserPrivilege(const FUniqueNetId& UserId, EUserPriv
 
 FPlatformUserId FOnlineIdentityLive::GetPlatformUserIdFromUniqueNetId(const FUniqueNetId& UniqueNetId) const
 {
+// @ATG_CHANGE : BEGIN - UWP LIVE support
+#if PLATFORM_XBOXONE
 	const auto InputInterface = GetInputInterface();
 	if(!InputInterface.IsValid())
 	{
 		return PLATFORMUSERID_NONE;
 	}
-// @ATG_CHANGE : BEGIN - UWP LIVE support
-#if PLATFORM_XBOXONE
+
 	return InputInterface->GetPlatformUserIdFromXboxUserId(*UniqueNetId.ToString());
-#elif PLATFORM_UWP
-	User^ RequestedUser = GetUserForUniqueNetId(FUniqueNetIdLive(*UniqueNetId.ToString()));
-	return RequestedUser->Id;
+#else
+	// Note: assume SUA for now - either this netid matches the only user, or it doesn't
+	const FScopeLock CachedUsersScopeLock(&CachedUsersLock);
+	FPlatformUserId UserId = -1;
+	if (CachedUsers->Size > 0)
+	{
+		check(CachedUsers->Size == 1);
+		if (UniqueNetId.ToString() == CachedUsers->GetAt(0)->XboxUserId->Data())
+		{
+			UserId = 0;
+		}
+	}
+
+	return UserId;
 #endif
 // @ATG_CHANGE : END
 }
@@ -860,13 +813,13 @@ void FOnlineIdentityLive::OnUserAdded(Windows::Xbox::System::User^ InUserAdded)
 	AddUserAccount(InUserAdded);
 
 	ELoginStatus::Type LoginStatus = GetLoginStatusForUser(InUserAdded);
-	const int ControllerIndex = GetControllerIndexForUser(InUserAdded);
+	const FPlatformUserId PlatformUserId = GetPlatformUserIdFromXboxUser(InUserAdded);
 	TSharedRef<const FUniqueNetIdLive> UserAdded = MakeShared<const FUniqueNetIdLive>(InUserAdded ? InUserAdded->XboxUserId : nullptr);
 
-	UE_LOG_ONLINE(Log, TEXT("UserAdded ControllerIndex %d"), ControllerIndex);
+	UE_LOG_ONLINE(Log, TEXT("UserAdded PlatformUserId %d"), PlatformUserId);
 
 	/* HACK -- Assume the previous state could not be UsingLocalProfile */
-	TriggerOnLoginStatusChangedDelegates(ControllerIndex, (LoginStatus != ELoginStatus::LoggedIn) ? ELoginStatus::LoggedIn : ELoginStatus::NotLoggedIn,
+	TriggerOnLoginStatusChangedDelegates(PlatformUserId, (LoginStatus != ELoginStatus::LoggedIn) ? ELoginStatus::LoggedIn : ELoginStatus::NotLoggedIn,
 		LoginStatus, *UserAdded);
 }
 
@@ -874,13 +827,13 @@ void FOnlineIdentityLive::OnUserRemoved(Windows::Xbox::System::User^ InUserRemov
 {
 	RemoveUserAccount(InUserRemoved);
 
-	const int ControllerIndex = GetControllerIndexForUser(InUserRemoved);
+	const FPlatformUserId PlatformUserId = GetPlatformUserIdFromXboxUser(InUserRemoved);
 	TSharedRef<const FUniqueNetIdLive> UserRemoved = MakeShared<const FUniqueNetIdLive>(InUserRemoved ? InUserRemoved->XboxUserId : nullptr);
 
-	UE_LOG_ONLINE(Log, TEXT("UserRemoved ControllerIndex %d"), ControllerIndex);
+	UE_LOG_ONLINE(Log, TEXT("UserRemoved PlatformUserId %d"), PlatformUserId);
 
 	/* HACK -- Assume the previous state could not be UsingLocalProfile */
-	TriggerOnLoginStatusChangedDelegates(ControllerIndex, ELoginStatus::LoggedIn, ELoginStatus::NotLoggedIn, *UserRemoved);
+	TriggerOnLoginStatusChangedDelegates(PlatformUserId, ELoginStatus::LoggedIn, ELoginStatus::NotLoggedIn, *UserRemoved);
 }
 
 void FOnlineIdentityLive::OnControllerConnectionChange(bool Connected, int32 UserId, int32 ControllerId)
@@ -896,8 +849,8 @@ void FOnlineIdentityLive::OnControllerPairingChange(int32 InControllerIndex, FPl
 {
 	RefreshGamepadsAndUsers();
 
-	User^ NewUser = GetUserForControllerIndex(InNewUserId);
-	User^ OldUser = GetUserForControllerIndex(InOldUserId);
+	User^ NewUser = GetUserForPlatformUserId(InNewUserId);
+	User^ OldUser = GetUserForPlatformUserId(InOldUserId);
 
 	TSharedRef<const FUniqueNetIdLive> PreviousUserId = MakeShared<const FUniqueNetIdLive>(OldUser ? OldUser->XboxUserId : nullptr);
 	TSharedRef<const FUniqueNetIdLive> NewUserId = MakeShared<const FUniqueNetIdLive>(NewUser ? NewUser->XboxUserId : nullptr);

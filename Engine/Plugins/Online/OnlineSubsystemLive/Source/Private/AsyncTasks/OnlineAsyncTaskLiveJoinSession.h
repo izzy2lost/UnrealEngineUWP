@@ -27,10 +27,11 @@ public:
 			class FOnlineSubsystemLive* Subsystem,
 			int RetryCount,
 			bool bSessionIsMatchmakingResult,
-			const bool bInSetActivity);
+			const bool bInSetActivity,
+			const TOptional<FString>& InSessionInviteHandle);
 
 	// FOnlineAsyncItem
-	virtual FString ToString() const override { return TEXT("JoinSessionAsync");}
+	virtual FString ToString() const override { return FString::Printf(TEXT("FOnlineAsyncTaskLiveJoinSession SessionName: %s SessionId: %ls bWasSuccessful: %d"), *SessionName.ToString(), SessionReference->ToUriPath()->Data(), bWasSuccessful); }
 	virtual void Finalize() override;
 	virtual void TriggerDelegates() override;
 
@@ -65,4 +66,5 @@ private:
 	volatile int32 OtherLocalPlayersToAdd;
 	bool bSetActivity;
 	FName SessionName;
+	TOptional<FString> SessionInviteHandle;
 };

@@ -185,6 +185,7 @@ bool FOnlineFriendsLive::ReadFriendsList(int32 LocalUserNum, const FString& List
 	if (!UserLiveContext)
 	{
 		constexpr bool bWasSuccessful = false;
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineFriendsLive::ReadFriendsList failed, could not find user at index %d"), LocalUserNum);
 		Delegate.ExecuteIfBound(LocalUserNum, bWasSuccessful, ListName, FString::Printf(TEXT("Could not find user at index %d"), LocalUserNum));
 		return false;
 	}
@@ -192,10 +193,11 @@ bool FOnlineFriendsLive::ReadFriendsList(int32 LocalUserNum, const FString& List
 	FUniqueNetIdLive UserNetId(UserLiveContext->User->XboxUserId);
 	if (FriendChangeSubscriptionMap.Find(UserNetId) == nullptr)
 	{
-		UE_LOG_ONLINE(Verbose, TEXT("Registering for SocialRelationshipChanges for user %s"), *UserNetId.ToString());
-		FriendChangeSubscriptionMap.Add(MoveTemp(UserNetId), UserLiveContext->SocialService->SubscribeToSocialRelationshipChange(UserLiveContext->User->XboxUserId));
+		UE_LOG_ONLINE(Verbose, TEXT("FOnlineFriendsLive::ReadFriendsList Registering for SocialRelationshipChanges for user %s"), *UserNetId.ToString());
+		FriendChangeSubscriptionMap.Add(UserNetId, UserLiveContext->SocialService->SubscribeToSocialRelationshipChange(UserLiveContext->User->XboxUserId));
 	}
 
+	UE_LOG_ONLINE(Verbose, TEXT("FOnlineFriendsLive::ReadFriendsList Request started for user %d/%s for friendslist %s"), LocalUserNum, *UserNetId.ToString(), *ListName);
 	LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveQueryFriends>(LiveSubsystem, UserLiveContext, LocalUserNum, ListName, Delegate);
 	return true;
 // @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 	
@@ -208,6 +210,7 @@ bool FOnlineFriendsLive::DeleteFriendsList(int32 LocalUserNum, const FString& Li
 	// Not Implemented
 	LiveSubsystem->ExecuteNextTick([LocalUserNum, ListName, Delegate]()
 	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineFriendsLive::DeleteFriendsList is not currently supported"));
 		Delegate.ExecuteIfBound(LocalUserNum, false, ListName, TEXT("FOnlineFriendsLive::DeleteFriendsList is not currently supported"));
 	});
 
@@ -220,6 +223,7 @@ bool FOnlineFriendsLive::SendInvite(int32 LocalUserNum, const FUniqueNetId& Frie
 	const FUniqueNetIdLive& LiveFriendId = static_cast<const FUniqueNetIdLive&>(FriendId);
 	LiveSubsystem->ExecuteNextTick([LocalUserNum, LiveFriendId, ListName, Delegate]()
 	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineFriendsLive::SendInvite is currently not implemented"));
 		Delegate.ExecuteIfBound(LocalUserNum, false, LiveFriendId, ListName, TEXT("FOnlineFriendsLive::SendInvite is currently not implemented"));
 	});
 
@@ -232,6 +236,7 @@ bool FOnlineFriendsLive::AcceptInvite(int32 LocalUserNum, const FUniqueNetId& Fr
 	const FUniqueNetIdLive& LiveFriendId = static_cast<const FUniqueNetIdLive&>(FriendId);
 	LiveSubsystem->ExecuteNextTick([LocalUserNum, LiveFriendId, ListName, Delegate]()
 	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineFriendsLive::AcceptInvite is currently not implemented"));
 		Delegate.ExecuteIfBound(LocalUserNum, false, LiveFriendId, ListName, TEXT("FOnlineFriendsLive::AcceptInvite is currently not implemented"));
 	});
 
@@ -244,6 +249,7 @@ bool FOnlineFriendsLive::RejectInvite(int32 LocalUserNum, const FUniqueNetId& Fr
 	const FUniqueNetIdLive& LiveFriendId = static_cast<const FUniqueNetIdLive&>(FriendId);
 	LiveSubsystem->ExecuteNextTick([LocalUserNum, LiveFriendId, ListName, this]()
 	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineFriendsLive::RejectInvite is currently not implemented"));
 		TriggerOnRejectInviteCompleteDelegates(LocalUserNum, false, LiveFriendId, ListName, TEXT("FOnlineFriendsLive::RejectInvite is currently not implemented"));
 	});
 
@@ -256,6 +262,7 @@ bool FOnlineFriendsLive::DeleteFriend(int32 LocalUserNum, const FUniqueNetId& Fr
 	const FUniqueNetIdLive& LiveFriendId = static_cast<const FUniqueNetIdLive&>(FriendId);
 	LiveSubsystem->ExecuteNextTick([LocalUserNum, LiveFriendId, ListName, this]()
 	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineFriendsLive::DeleteFriend is not currently supported"));
 		TriggerOnDeleteFriendCompleteDelegates(LocalUserNum, false, LiveFriendId, ListName, TEXT("FOnlineFriendsLive::DeleteFriend is not currently supported"));
 	});
 
@@ -432,6 +439,7 @@ bool FOnlineFriendsLive::QueryRecentPlayers(const FUniqueNetId& UserId, const FS
 	const FUniqueNetIdLive& LiveUserId = static_cast<const FUniqueNetIdLive&>(UserId);
 	LiveSubsystem->ExecuteNextTick([LiveUserId, Namespace, this]()
 	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineFriendsLive::QueryRecentPlayers is currently not implemented"));
 		TriggerOnQueryRecentPlayersCompleteDelegates(LiveUserId, Namespace, false, TEXT("FOnlineFriendsLive::QueryRecentPlayers is currently not implemented"));
 	});
 
@@ -441,6 +449,7 @@ bool FOnlineFriendsLive::QueryRecentPlayers(const FUniqueNetId& UserId, const FS
 bool FOnlineFriendsLive::GetRecentPlayers(const FUniqueNetId& UserId, const FString& Namespace, TArray< TSharedRef<FOnlineRecentPlayer> >& OutRecentPlayers)
 {
 	// Not Implemented
+	UE_LOG_ONLINE(Warning, TEXT("FOnlineFriendsLive::GetRecentPlayers is currently not implemented"));
 	OutRecentPlayers.Empty();
 	return false;
 }
@@ -451,6 +460,7 @@ bool FOnlineFriendsLive::BlockPlayer(int32 LocalUserNum, const FUniqueNetId& Pla
 	const FUniqueNetIdLive& LivePlayerId = static_cast<const FUniqueNetIdLive&>(PlayerId);
 	LiveSubsystem->ExecuteNextTick([LocalUserNum, LivePlayerId, this]()
 	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineFriendsLive::BlockPlayer is not supported"));
 		TriggerOnBlockedPlayerCompleteDelegates(LocalUserNum, false, LivePlayerId, TEXT(""), TEXT("FOnlineFriendsLive::BlockPlayer is not supported"));
 	});
 
@@ -463,6 +473,7 @@ bool FOnlineFriendsLive::UnblockPlayer(int32 LocalUserNum, const FUniqueNetId& P
 	const FUniqueNetIdLive& LivePlayerId = static_cast<const FUniqueNetIdLive&>(PlayerId);
 	LiveSubsystem->ExecuteNextTick([LocalUserNum, LivePlayerId, this]()
 	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineFriendsLive::UnblockPlayer is not supported"));
 		TriggerOnUnblockedPlayerCompleteDelegates(LocalUserNum, false, LivePlayerId, TEXT(""), TEXT("FOnlineFriendsLive::UnblockPlayer is not supported"));
 	});
 
@@ -479,6 +490,7 @@ bool FOnlineFriendsLive::QueryBlockedPlayers(const FUniqueNetId& UserId)
 		LiveSubsystem->ExecuteNextTick([this, LiveUserId]()
 		{
 			constexpr bool bWasSuccessful = false;
+			UE_LOG_ONLINE(Warning, TEXT("FOnlineFriendsLive::UnblockPlayer Could not find user %s"), *LiveUserId.ToString());
 			TriggerOnQueryBlockedPlayersCompleteDelegates(LiveUserId, bWasSuccessful, FString::Printf(TEXT("Could not find user %s"), *LiveUserId.ToString()));
 		});
 
@@ -536,7 +548,7 @@ void FOnlineFriendsLive::OnUserPresenceUpdate(const FUniqueNetIdLive& FriendId, 
 			FriendRef->Presence = *UpdatedPresenceRef;
 
 			// Trigger delegates if we're a safe player num
-			int32 LocalUserNum = IdentityPtr->GetControllerIndexForId(UserToFriendListMap.Key);
+			FPlatformUserId LocalUserNum = IdentityPtr->GetPlatformUserIdFromUniqueNetId(UserToFriendListMap.Key);
 			if (LocalUserNum >= 0 && LocalUserNum < MAX_LOCAL_PLAYERS)
 			{
 				TriggerOnFriendsChangeDelegates(LocalUserNum);
@@ -566,7 +578,7 @@ void FOnlineFriendsLive::OnUserSessionPresenceUpdate(const FUniqueNetIdLive& Fri
 			FriendRef->Presence.bIsJoinable = bNewIsJoinable;
 
 			// Trigger delegates if we're a safe player num
-			int32 LocalUserNum = IdentityPtr->GetControllerIndexForId(UserToFriendListMap.Key);
+			FPlatformUserId LocalUserNum = IdentityPtr->GetPlatformUserIdFromUniqueNetId(UserToFriendListMap.Key);
 			if (LocalUserNum >= 0 && LocalUserNum < MAX_LOCAL_PLAYERS)
 			{
 				TriggerOnFriendsChangeDelegates(LocalUserNum);

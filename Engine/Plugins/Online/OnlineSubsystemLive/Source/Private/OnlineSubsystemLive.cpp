@@ -9,6 +9,7 @@
 #include "Misc/CommandLine.h"
 
 #include "OnlineFriendsInterfaceLive.h"
+#include "MessageSanitizerLive.h"
 // #include "OnlineUserCloudInterfaceLive.h"
 #include "OnlineLeaderboardInterfaceLive.h"
 #include "OnlineExternalUIInterfaceLive.h"
@@ -103,7 +104,7 @@ public:
 		LiveSingleton = MakeShared<FOnlineSubsystemLive, ESPMode::ThreadSafe>();
 		if (LiveSingleton->IsEnabled())
 		{
-			if(!LiveSingleton->Init())
+			if (!LiveSingleton->Init())
 			{
 				UE_LOG_ONLINE(Warning, TEXT("Live API failed to initialize!"));
 				DestroySubsystem();
@@ -154,6 +155,11 @@ IOnlineSessionPtr FOnlineSubsystemLive::GetSessionInterface() const
 IOnlineFriendsPtr FOnlineSubsystemLive::GetFriendsInterface() const
 {
 	return FriendInterface;
+}
+
+IMessageSanitizerPtr FOnlineSubsystemLive::GetMessageSanitizer(int32 LocalUserNum, FString& OutAuthTypeToExclude) const
+{
+	return MessageSanitizer;
 }
 
 IOnlinePartyPtr FOnlineSubsystemLive::GetPartyInterface() const
@@ -305,13 +311,18 @@ bool FOnlineSubsystemLive::Tick(float DeltaTime)
  	{
 		SessionImpl->Tick(DeltaTime);
  	}
+	// @ATG_CHANGE : END
 
 	if (VoiceInterface.IsValid())
 	{
 		VoiceInterface->Tick(DeltaTime);
 	}
-	// @ATG_CHANGE : END
 
+	if (ExternalUIInterface.IsValid())
+	{
+		ExternalUIInterface->Tick(DeltaTime);
+	}
+	
 	// @ATG_CHANGE : BEGIN Adding social features
 	if (FriendInterface.IsValid())
 	{
@@ -482,51 +493,81 @@ bool FOnlineSubsystemLive::Init()
 
 		bHasCalledNetworkStatusChangedAtLeastOnce = false;
 
+		TWeakPtr<FOnlineSubsystemLive, ESPMode::ThreadSafe> WeakThis = AsShared();
+
 		Windows::ApplicationModel::Core::CoreApplication::Resuming += ref new Windows::Foundation::EventHandler< Platform::Object^>(
-			[this](Platform::Object^, Platform::Object^)
+			[WeakThis](Platform::Object^, Platform::Object^)
 		{
+			FOnlineSubsystemLivePtr StrongThis = WeakThis.Pin();
+			if (!StrongThis.IsValid())
+			{
+				UE_LOG_ONLINE(Verbose, TEXT("Ignoring ResumeEvent as we went away"));
+				return;
+			}
+
 			// Handle multiplayer subscriptions and contexts next tick so that if this happens on the same frame as
 			// the SessionMessageRouter's MultiplayerSubscriptionLost event, they will happen in the correct order
 			// relative to each other.
-			ExecuteNextTick([this]()
+			StrongThis->ExecuteNextTick([WeakThis]()
 			{
+				FOnlineSubsystemLivePtr StrongThis = WeakThis.Pin();
+				if (!StrongThis.IsValid())
+				{
+					UE_LOG_ONLINE(Verbose, TEXT("Ignoring MultiplayerEventsSubscription as we went away"));
+					return;
+				}
+
 				// On resume, multiplayer subscriptions are invalidated, so we need to re-subscribe to them.
 				// Unsubscribe here, re-subscription will happen after the old contexts are cleared.
-				SessionMessageRouterInterface->UnsubscribeAllUsersFromMultiplayerEvents();
+				StrongThis->SessionMessageRouterInterface->UnsubscribeAllUsersFromMultiplayerEvents();
 
 				{
 					// After resuming from suspend, the cached XboxLiveContexts are invalid. Clear them,
 					// and they will be re-created on demand in GetLiveContext().
-					FScopeLock Lock(&LiveContextsLock);
+					FScopeLock Lock(&StrongThis->LiveContextsLock);
 
-					CachedXboxLiveContexts.Reset();
+					StrongThis->CachedXboxLiveContexts.Reset();
 				}
 
-				SessionMessageRouterInterface->SubscribeAllUsersToMultiplayerEvents();
+				StrongThis->SessionMessageRouterInterface->SubscribeAllUsersToMultiplayerEvents();
 			});
 
 			// After resuming, we may get a series of conflicting NetworkStatusChanged events
 			// which should be ignored for a few seconds before polling the status
 			// https://forums.xboxlive.com/questions/57371/networkconnectivitylevel-when-resuming-from-suspen.html
-			bIgnoreNetworkStatusChanged = true;
+			StrongThis->bIgnoreNetworkStatusChanged = true;
 
 			concurrency::task<void> delayedTask = concurrency::create_task([]()
 			{
 				concurrency::wait(5000);
 
-			}).then([this]()
+			}).then([WeakThis]()
 			{
-				bIgnoreNetworkStatusChanged = false;
-				RefreshNetworkConnectivityLevel();
+				FOnlineSubsystemLivePtr StrongThis = WeakThis.Pin();
+				if (!StrongThis.IsValid())
+				{
+					UE_LOG_ONLINE(Verbose, TEXT("Ignoring NetworkStatusChanged as we went away"));
+					return;
+				}
+
+				StrongThis->bIgnoreNetworkStatusChanged = false;
+				StrongThis->RefreshNetworkConnectivityLevel();
 			});
 		});
 
 		Windows::Networking::Connectivity::NetworkInformation::NetworkStatusChanged += ref new Windows::Networking::Connectivity::NetworkStatusChangedEventHandler( 
-			[this] (Platform::Object^)
+			[WeakThis] (Platform::Object^)
 		{
-			if (!bIgnoreNetworkStatusChanged)
+			FOnlineSubsystemLivePtr StrongThis = WeakThis.Pin();
+			if (!StrongThis.IsValid())
 			{
-				RefreshNetworkConnectivityLevel();
+				UE_LOG_ONLINE(Verbose, TEXT("Ignoring NetworkStatusChanged as we went away"));
+				return;
+			}
+
+			if (!StrongThis->bIgnoreNetworkStatusChanged)
+			{
+				StrongThis->RefreshNetworkConnectivityLevel();
 			}
 			else
 			{
@@ -536,14 +577,20 @@ bool FOnlineSubsystemLive::Init()
 
 		// Clear cached XboxLiveContext when user is removed
 		UserRemovedToken = Windows::Xbox::System::User::UserRemoved += ref new Windows::Foundation::EventHandler<Windows::Xbox::System::UserRemovedEventArgs^>(
-		[this] (Platform::Object^, Windows::Xbox::System::UserRemovedEventArgs^ Args)
+			[WeakThis] (Platform::Object^, Windows::Xbox::System::UserRemovedEventArgs^ Args)
 		{
-			FScopeLock ScopeLock(&LiveContextsLock);
+			FOnlineSubsystemLivePtr StrongThis = WeakThis.Pin();
+			if (!StrongThis.IsValid())
+			{
+				UE_LOG_ONLINE(Verbose, TEXT("Ignoring UserRemovedEventArgs as we went away"));
+				return;
+			}
 
+			FScopeLock ScopeLock(&StrongThis->LiveContextsLock);
 			// @ATG_CHANGE : BEGIN UWP support
-			XboxLiveContext^ RemoveContext = CachedXboxLiveContexts.FindChecked(Args->User->XboxUserId->Data());
+			XboxLiveContext^ RemoveContext = StrongThis->CachedXboxLiveContexts.FindChecked(Args->User->XboxUserId->Data());
 			RemoveContext->RealTimeActivityService->Deactivate();
-			CachedXboxLiveContexts.Remove(Args->User->XboxUserId->Data());
+			StrongThis->CachedXboxLiveContexts.Remove(Args->User->XboxUserId->Data());
 			// @ATG_CHANGE : END UWP support 
 		});
 
@@ -617,7 +664,7 @@ bool FOnlineSubsystemLive::Shutdown()
 FString FOnlineSubsystemLive::GetAppId() const
 {
 	// @ATG_CHANGE : UWP Live Support - BEGIN
-	static const FString TitleId(TEXT("%d"), Microsoft::Xbox::Services::XboxLiveAppConfiguration::SingletonInstance->TitleId);
+	static const FString TitleId = FString::Printf(TEXT("%d"), Microsoft::Xbox::Services::XboxLiveAppConfiguration::SingletonInstance->TitleId);
 	// @ATG_CHANGE : UWP Live Support - END
 	return TitleId;
 }
@@ -713,7 +760,7 @@ Microsoft::Xbox::Services::XboxLiveContext^ FOnlineSubsystemLive::GetLiveContext
 		return nullptr;
 	}
 
-	auto LiveUser = IdentityInterface->GetUserForControllerIndex(LocalUserNum);
+	auto LiveUser = IdentityInterface->GetUserForPlatformUserId(LocalUserNum);
 	if(!LiveUser)
 	{
 		return nullptr;
@@ -758,32 +805,48 @@ Microsoft::Xbox::Services::XboxLiveContext^ FOnlineSubsystemLive::GetLiveContext
 	XboxLiveContext^* LiveContextPtr = CachedXboxLiveContexts.Find(LiveUser->XboxUserId->Data());
 	// @ATG_CHANGE : END
 
-	if(LiveContextPtr == nullptr || *LiveContextPtr == nullptr)
+	if (LiveContextPtr == nullptr || *LiveContextPtr == nullptr)
 	{
+		TWeakPtr<FOnlineSubsystemLive, ESPMode::ThreadSafe> WeakThis = AsShared();
+
 		try
 		{
 			// @ATG_CHANGE : BEGIN UWP LIVE support
-			auto LiveContext = ref new XboxLiveContext(XSAPIUserFromSystemUser(LiveUser));
+			XboxLiveContext^ LiveContext = ref new XboxLiveContext(XSAPIUserFromSystemUser(LiveUser));
 			// @ATG_CHANGE : END UWP LIVE support
 			LiveContext->RealTimeActivityService->Activate();
 
 			// Register for friends updates
-			LiveContext->SocialService->SocialRelationshipChanged += ref new Windows::Foundation::EventHandler<SocialRelationshipChangeEventArgs^>([this](Platform::Object^, SocialRelationshipChangeEventArgs^ EventArgs)
+			LiveContext->SocialService->SocialRelationshipChanged += ref new Windows::Foundation::EventHandler<SocialRelationshipChangeEventArgs^>([WeakThis](Platform::Object^, SocialRelationshipChangeEventArgs^ EventArgs)
 			{
 				const FUniqueNetIdLive LiveNetId(EventArgs->CallerXboxUserId);
 				UE_LOG_ONLINE(Verbose, TEXT("Received SocialRelationshipChange event for player %s"), *LiveNetId.ToString());
 
-				// Call on the game thread
-				ExecuteNextTick([this, LiveNetId]()
+				FOnlineSubsystemLivePtr StrongThis = WeakThis.Pin();
+				if (!StrongThis.IsValid())
 				{
-					const FOnlineIdentityLivePtr IdentityPtr = GetIdentityLive();
+					UE_LOG_ONLINE(Verbose, TEXT("Ignoring SocialRelationshipChange as we went away"));
+					return;
+				}
+
+				// Call on the game thread
+				StrongThis->ExecuteNextTick([WeakThis, LiveNetId]()
+				{
+					FOnlineSubsystemLivePtr StrongThis = WeakThis.Pin();
+					if (!StrongThis.IsValid())
+					{
+						UE_LOG_ONLINE(Verbose, TEXT("Ignoring SocialRelationshipChange as we went away"));
+						return;
+					}
+
+					const FOnlineIdentityLivePtr IdentityPtr = StrongThis->GetIdentityLive();
 					if (!IdentityPtr.IsValid())
 					{
 						UE_LOG_ONLINE(Warning, TEXT("Received unhandleable SocialRelationshipChange event for player %s"), *LiveNetId.ToString());
 						return;
 					}
 
-					const int32 LocalUserNum = IdentityPtr->GetControllerIndexForId(LiveNetId);
+					const int32 LocalUserNum = IdentityPtr->GetPlatformUserIdFromUniqueNetId(LiveNetId);
 					if (LocalUserNum == -1)
 					{
 						UE_LOG_ONLINE(Warning, TEXT("Received SocialRelationshipChange event for unknown player %s"), *LiveNetId.ToString());
@@ -791,7 +854,7 @@ Microsoft::Xbox::Services::XboxLiveContext^ FOnlineSubsystemLive::GetLiveContext
 					}
 
 					// Requery our friends list
-					const FOnlineFriendsLivePtr FriendsPtr = GetFriendsLive();
+					const FOnlineFriendsLivePtr FriendsPtr = StrongThis->GetFriendsLive();
 					if (FriendsPtr.IsValid())
 					{
 						if (!FriendsPtr->ReadFriendsList(LocalUserNum, EFriendsLists::ToString(EFriendsLists::Default), FOnReadFriendsListComplete()))
@@ -803,26 +866,56 @@ Microsoft::Xbox::Services::XboxLiveContext^ FOnlineSubsystemLive::GetLiveContext
 			});
 
 			// Register for presence updates
-			LiveContext->PresenceService->DevicePresenceChanged += ref new Windows::Foundation::EventHandler<DevicePresenceChangeEventArgs^>([this](Platform::Object^, DevicePresenceChangeEventArgs^ EventArgs)
+			LiveContext->PresenceService->DevicePresenceChanged += ref new Windows::Foundation::EventHandler<DevicePresenceChangeEventArgs^>([WeakThis](Platform::Object^, DevicePresenceChangeEventArgs^ EventArgs)
 			{
 				const FUniqueNetIdLive LiveNetId(EventArgs->XboxUserId);
 				UE_LOG_ONLINE(Verbose, TEXT("Received DevicePresenceChanged Event Player:%s DeviceType:%s IsUserLoggedIn:%d"), *LiveNetId.ToString(), EventArgs->DeviceType.ToString()->Data(), EventArgs->IsUserLoggedOnDevice);
-				ExecuteNextTick([this, EventArgs]()
+
+				FOnlineSubsystemLivePtr StrongThis = WeakThis.Pin();
+				if (!StrongThis.IsValid())
 				{
-					const FOnlinePresenceLivePtr PresencePtr = GetPresenceLive();
+					UE_LOG_ONLINE(Verbose, TEXT("Ignoring DevicePresenceChanged as we went away"));
+					return;
+				}
+
+				StrongThis->ExecuteNextTick([WeakThis, EventArgs]()
+				{
+					FOnlineSubsystemLivePtr StrongThis = WeakThis.Pin();
+					if (!StrongThis.IsValid())
+					{
+						UE_LOG_ONLINE(Verbose, TEXT("Ignoring DevicePresenceChanged as we went away"));
+						return;
+					}
+
+					const FOnlinePresenceLivePtr PresencePtr = StrongThis->GetPresenceLive();
 					if (PresencePtr.IsValid())
 					{
 						PresencePtr->OnPresenceDeviceChanged(EventArgs);
 					}
 				});
 			});
-			LiveContext->PresenceService->TitlePresenceChanged += ref new Windows::Foundation::EventHandler<TitlePresenceChangeEventArgs^>([this](Platform::Object^, TitlePresenceChangeEventArgs^ EventArgs)
+			LiveContext->PresenceService->TitlePresenceChanged += ref new Windows::Foundation::EventHandler<TitlePresenceChangeEventArgs^>([WeakThis](Platform::Object^, TitlePresenceChangeEventArgs^ EventArgs)
 			{
 				const FUniqueNetIdLive LiveNetId(EventArgs->XboxUserId);
 				UE_LOG_ONLINE(Verbose, TEXT("Received TitlePresenceChanged Event Player: %s TitleId: %u TitleState:%s"), *LiveNetId.ToString(), EventArgs->TitleId, EventArgs->TitleState.ToString()->Data());
-				ExecuteNextTick([this, EventArgs]()
+
+				FOnlineSubsystemLivePtr StrongThis = WeakThis.Pin();
+				if (!StrongThis.IsValid())
 				{
-					const FOnlinePresenceLivePtr PresencePtr = GetPresenceLive();
+					UE_LOG_ONLINE(Verbose, TEXT("Ignoring TitlePresenceChanged as we went away"));
+					return;
+				}
+
+				StrongThis->ExecuteNextTick([WeakThis, EventArgs]()
+				{
+					FOnlineSubsystemLivePtr StrongThis = WeakThis.Pin();
+					if (!StrongThis.IsValid())
+					{
+						UE_LOG_ONLINE(Verbose, TEXT("Ignoring TitlePresenceChanged as we went away"));
+						return;
+					}
+
+					const FOnlinePresenceLivePtr PresencePtr = StrongThis->GetPresenceLive();
 					if (PresencePtr.IsValid())
 					{
 						PresencePtr->OnPresenceTitleChanged(EventArgs);
@@ -830,19 +923,34 @@ Microsoft::Xbox::Services::XboxLiveContext^ FOnlineSubsystemLive::GetLiveContext
 				});
 			});
 			const FUniqueNetIdLive SourceNetId(LiveUser->XboxUserId);
-			LiveContext->UserStatisticsService->StatisticChanged += ref new Windows::Foundation::EventHandler<StatisticChangeEventArgs^>([this, SourceNetId](Platform::Object^, StatisticChangeEventArgs^ EventArgs)
+			LiveContext->UserStatisticsService->StatisticChanged += ref new Windows::Foundation::EventHandler<StatisticChangeEventArgs^>([WeakThis, SourceNetId](Platform::Object^, StatisticChangeEventArgs^ EventArgs)
 			{
 				const FUniqueNetIdLive LiveNetId(EventArgs->XboxUserId);
 				UE_LOG_ONLINE(Verbose, TEXT("Received StatisticChanged Event Player:%s StatName: %s NewValue: %s"), *LiveNetId.ToString(), EventArgs->LatestStatistic->StatisticName->Data(), EventArgs->LatestStatistic->Value->Data());
-				ExecuteNextTick([this, SourceNetId, EventArgs, LiveNetId]()
+
+				FOnlineSubsystemLivePtr StrongThis = WeakThis.Pin();
+				if (!StrongThis.IsValid())
 				{
-					FOnlineSessionLivePtr SessionInt(GetSessionInterfaceLive());
+					UE_LOG_ONLINE(Verbose, TEXT("Ignoring StatisticChanged as we went away"));
+					return;
+				}
+
+				StrongThis->ExecuteNextTick([WeakThis, SourceNetId, EventArgs, LiveNetId]()
+				{
+					FOnlineSubsystemLivePtr StrongThis = WeakThis.Pin();
+					if (!StrongThis.IsValid())
+					{
+						UE_LOG_ONLINE(Verbose, TEXT("Ignoring StatisticChanged as we went away"));
+						return;
+					}
+
+					FOnlineSessionLivePtr SessionInt(StrongThis->GetSessionInterfaceLive());
 					if (SessionInt.IsValid())
 					{
 						FString StatName(EventArgs->LatestStatistic->StatisticName->Data());
 						if (StatName == SessionInt->SessionUpdateStatName)
 						{
-							FOnlinePresenceLivePtr PresencePtr(GetPresenceLive());
+							FOnlinePresenceLivePtr PresencePtr(StrongThis->GetPresenceLive());
 							if (PresencePtr.IsValid())
 							{
 								PresencePtr->OnSessionUpdatedStatChange(SourceNetId, LiveNetId);
@@ -886,7 +994,7 @@ void FOnlineSubsystemLive::RefreshLiveInfo(const FName& SessionName, Microsoft::
 	FScopeLock ScopedRefreshLock(&RefreshLock);
 	if (FNamedOnlineSession* NamedSession = SessionInterface->GetNamedSession(SessionName))
 	{
-		auto LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
+		FOnlineSessionInfoLivePtr LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
 		if (LiveInfo.IsValid())
 		{
 			LiveInfo->RefreshLiveInfo(LatestSession);
@@ -907,17 +1015,21 @@ void FOnlineSubsystemLive::RefreshLiveInfo(const FName& SessionName, Microsoft::
 void FOnlineSubsystemLive::SetLastDiffedSession(const FName& SessionName, Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ LatestSession)
 {
 	// Access interfaces directly through this object
-	if (SessionInterface.IsValid())
+	// @ATG_CHANGE : BEGIN - Adding XIM
+	FOnlineSessionLivePtr SessionInterfaceTyped = GetSessionInterfaceLive();
+	if (SessionInterfaceTyped.IsValid())
 	{
-		if (FNamedOnlineSession* NamedSession = SessionInterface->GetNamedSession(SessionName))
+		FScopeLock ScopeLock(&SessionInterfaceTyped->SessionLock);
+		if (FNamedOnlineSession* NamedSession = SessionInterfaceTyped->GetNamedSession(SessionName))
 		{
-			auto LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
+			FOnlineSessionInfoLivePtr LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
 			if (LiveInfo.IsValid())
 			{
 				LiveInfo->SetLastDiffedMultiplayerSession(LatestSession);
 			}
 		}
 	}
+	// @ATG_CHANGE : END
 
 	if (MatchmakingInterfaceLive.IsValid())
 	{
@@ -936,7 +1048,7 @@ Microsoft::Xbox::Services::Multiplayer::MultiplayerSession^ FOnlineSubsystemLive
 	{
 		if (FNamedOnlineSession* NamedSession = SessionInterface->GetNamedSession(SessionName))
 		{
-			auto LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
+			FOnlineSessionInfoLivePtr LiveInfo = StaticCastSharedPtr<FOnlineSessionInfoLive>(NamedSession->SessionInfo);
 			if (LiveInfo.IsValid())
 			{
 				return LiveInfo->GetLastDiffedMultiplayerSession();
@@ -1013,8 +1125,7 @@ void FOnlineSubsystemLive::RefreshNetworkConnectivityLevel()
 		NetworkConnectivityLevelOnStack = InternetConnectionProfile->GetNetworkConnectivityLevel();
 	}
 
-	auto NewEvent = new FAsyncEventConnectionStatusChanged(this, NetworkConnectivityLevelOnStack);
-	GetAsyncTaskManager()->AddToOutQueue(NewEvent);
+	CreateAndDispatchAsyncEvent<FAsyncEventConnectionStatusChanged>(this, NetworkConnectivityLevelOnStack);
 }
 
 EOnlineEnvironment::Type FOnlineSubsystemLive::GetOnlineEnvironment() const

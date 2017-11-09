@@ -13,7 +13,7 @@ class FOnlineAsyncTaskLiveQueryAvoidList
 	: public FOnlineAsyncTaskConcurrencyLive<Windows::Foundation::Collections::IVectorView<Platform::String^>^>
 {
 public:
-	FOnlineAsyncTaskLiveQueryAvoidList(FOnlineSubsystemLive* const InLiveInterface, Microsoft::Xbox::Services::XboxLiveContext^ InLiveContext, const FUniqueNetIdLive& InUserIdLive);
+	FOnlineAsyncTaskLiveQueryAvoidList(FOnlineSubsystemLive* InLiveInterface, Microsoft::Xbox::Services::XboxLiveContext^ InLiveContext, const FUniqueNetIdLive& InUserIdLive);
 	virtual ~FOnlineAsyncTaskLiveQueryAvoidList() = default;
 
 	//~ Begin FOnlineAsyncItem Interface

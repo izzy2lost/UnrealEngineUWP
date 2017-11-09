@@ -2,13 +2,13 @@
 
 #include "UWPSaveGameSystem.h"
 #include "SlateApplication.h"
+#include "ConfigCacheIni.h"
 
 #include "AllowWindowsPlatformTypes.h"
 #include <collection.h>
 #include <robuffer.h>
 #include <ppltasks.h>
 #include "HideWindowsPlatformTypes.h"
-#include "OnlineSubsystem.h"
 
 DEFINE_LOG_CATEGORY(LogUWPSaveGame);
 
@@ -26,12 +26,10 @@ using namespace Windows::Gaming::XboxLive::Storage;	// GameSaveProviderGetResult
 
 static Platform::String ^ GetProductConfigId()
 {
-	IOnlineSubsystem * OnlineSubsystem = IOnlineSubsystem::Get();
-	if (nullptr != OnlineSubsystem)
+	FString ScidFromIni;
+	if (GConfig->GetString(TEXT("/Script/UWPPlatformEditor.UWPTargetSettings"), TEXT("ServiceConfigId"), ScidFromIni, GEngineIni))
 	{
-		FString AppId = OnlineSubsystem->GetAppId();
-
-		return ref new Platform::String(*AppId);
+		return ref new Platform::String(*ScidFromIni);
 	}
 
 	return nullptr;
