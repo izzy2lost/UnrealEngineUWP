@@ -1900,9 +1900,7 @@ namespace UnrealBuildTool
 				"UapManifestSchema_v4.xsd",
 				"UapManifestSchema_v5.xsd",
 				"FoundationManifestSchema.xsd",
-				"AppxManifestSchema2010_v2.xsd",
 				"AppxManifestSchema2010_v3.xsd",
-				"AppxManifestSchema2013.xsd",
 				"AppxManifestSchema2013_v2.xsd",
 				"AppxManifestSchema2014.xsd",
 				"AppxPhoneManifestSchema2014.xsd",
@@ -1926,7 +1924,7 @@ namespace UnrealBuildTool
 
 				if ((SchemaFile == null || !FileReference.Exists(SchemaFile)) && PhoneSchemaFolder != null)
 				{
-					SchemaFile = FileReference.Combine(VSSchemaFolder, SchemaName);
+					SchemaFile = FileReference.Combine(PhoneSchemaFolder, SchemaName);
 				}
 
 				if (SchemaFile != null && FileReference.Exists(SchemaFile))
@@ -1935,39 +1933,22 @@ namespace UnrealBuildTool
 				}
 			}
 
-			//AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema.xsd").FullName));
-			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v2.xsd").FullName));
-			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v3.xsd").FullName));
-			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v4.xsd").FullName));
-			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "FoundationManifestSchema.xsd").FullName));
-			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestTypes.xsd").FullName));
-			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2010_v3.xsd").FullName));
-			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2013_v2.xsd").FullName));
-			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxManifestSchema2014.xsd").FullName));
-			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "AppxPhoneManifestSchema2014.xsd").FullName));
-			//	AppxSchema.Add(null, XmlReader.Create(FileReference.Combine(VSSchemaFolder, "DesktopManifestSchema_v2.xsd").FullName));
+			try
+			{
+				AppxSchema.Compile();
+			}
+			catch (System.Xml.Schema.XmlSchemaException e)
+			{
+				string InvalidSchemaWarning =
+					"\r\n" +
+					"{0}({1}): {2}\r\n" +
+					"XML schema failed to compile; validation of the final AppxManifest.xml will be skipped.\r\n" +
+					"If your AppxManifest.xml is valid then this is harmless, but if it contains invalid content you may encounter packaging or deployment errors.\r\n" +
+					"Updating your Windows SDK and/or Visual Studio installation may correct the schema problems and simplify diagnosis of invalid content.\r\n";
 
-			//	FileReference UapV5Schema = FileReference.Combine(VSSchemaFolder, "UapManifestSchema_v5.xsd");
-			//	if (FileReference.Exists(UapV5Schema))
-			//	{
-			//	}
-
-			//	File
-			//}
-			//else
-			//{
-
-
-			//	string 
-
-			//	AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "UapManifestSchema.xsd")));
-			//	AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "FoundationManifestSchema.xsd")));
-			//	AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestTypes.xsd")));
-			//	AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestSchema2010_v2.xsd")));
-			//	AppxSchema.Add(null, XmlReader.Create(Path.Combine(UWPSchemaFolder, "AppxManifestSchema2013.xsd")));
-			//	AppxSchema.Add(null, XmlReader.Create(Path.Combine(PhoneSchemaFolder, "AppxPhoneManifestSchema2014.xsd")));
-			//}
-			AppxSchema.Compile();
+				Log.TraceWarning(InvalidSchemaWarning, e.SourceUri, e.LineNumber, e.Message);
+				return;
+			}
 
 			bool ValidationSucceeded = true;
 			XmlReaderSettings ReaderSettings = new XmlReaderSettings();
