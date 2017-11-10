@@ -2,6 +2,8 @@
 
 #include "UWPTargetDevice.h"
 
+#include "Misc/Paths.h"
+
 #include "AllowWindowsPlatformTypes.h"
 
 //#include <wrl/client.h>
