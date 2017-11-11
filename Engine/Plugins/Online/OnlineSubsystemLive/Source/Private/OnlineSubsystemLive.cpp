@@ -330,6 +330,15 @@ bool FOnlineSubsystemLive::Tick(float DeltaTime)
 	}
 	// @ATG_CHANGE : END
 
+	// @ATG_CHANGE : BEGIN - Stats 2017 implementation
+#if USE_STATS_2017
+	if (LeaderboardsInterface.IsValid())
+	{
+		LeaderboardsInterface->Tick(DeltaTime);
+	}
+#endif
+	// @ATG_CHANGE : END
+
 	return true;
 }
 

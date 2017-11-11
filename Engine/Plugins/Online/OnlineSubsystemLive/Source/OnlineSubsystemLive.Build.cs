@@ -148,6 +148,7 @@ public class OnlineSubsystemLive : ModuleRules
 		}
 
 		Definitions.Add(string.Format(@"USE_ACHIEVEMENTS_2017={0}", UseAchievements2017(Target) ? 1 : 0));
+		Definitions.Add(string.Format(@"USE_STATS_2017={0}", UseStats2017(Target) ? 1 : 0));
 		// @ATG_CHANGE : END
 	}
 
@@ -199,5 +200,24 @@ public class OnlineSubsystemLive : ModuleRules
 		}
 	}
 	// @ATG_CHANGE : END Achievements 2017 toggle
+
+	// @ATG_CHANGE : BEGIN Stats 2017 toggle
+	private bool UseStats2017(ReadOnlyTargetRules Target)
+	{
+		switch (Target.Platform)
+		{
+			case UnrealTargetPlatform.XboxOne:
+				//return Target.XboxOnePlatform.bUseStats2017;
+				return false;
+
+			case UnrealTargetPlatform.UWP64:
+			case UnrealTargetPlatform.UWP32:
+				return Target.UWPPlatform.bUseStats2017;
+
+			default:
+				return false;
+		}
+	}
+	// @ATG_CHANGE : END Stats 2017 toggle
 
 }

@@ -9,11 +9,33 @@
 #include "OnlineAsyncTaskManagerLive.h"
 #include "AsyncTasks/OnlineAsyncTaskLiveGetLeaderboardForUsers.h"
 
+// @ATG_CHANGE : BEGIN - Stats 2017 implementation using StatisticManager
+using namespace Microsoft::Xbox::Services::Statistics::Manager;
+// @ATG_CHANGE : END
+
 const TCHAR* FOnlineLeaderboardsLive::SortOrder = L"descending";
 
 FOnlineLeaderboardsLive::FOnlineLeaderboardsLive( class FOnlineSubsystemLive* InSubsystem ) : LiveSubsystem( InSubsystem )
 {
+	// @ATG_CHANGE : BEGIN - Stats 2017 implementation using StatisticManager
+#if USE_STATS_2017 
+	StatsManager = StatisticManager::SingletonInstance;
+#endif
+	// @ATG_CHANGE : END
 }
+
+// @ATG_CHANGE : BEGIN - Stats 2017 implementation using StatisticManager
+FOnlineLeaderboardsLive::~FOnlineLeaderboardsLive()
+{
+#if USE_STATS_2017
+	for (int32 i = 0; i < AddedUserList.Num(); ++i)
+	{
+		StatsManager->RemoveLocalUser(XSAPIUserFromSystemUser(AddedUserList[i]));
+	}
+	StatsManager->DoWork();
+#endif
+}
+// @ATG_CHANGE : END
 
 bool FOnlineLeaderboardsLive::ReadLeaderboards(const TArray< TSharedRef<const FUniqueNetId> >& Players, FOnlineLeaderboardReadRef& ReadObject)
 {
@@ -274,16 +296,110 @@ void FOnlineLeaderboardsLive::FreeStats(FOnlineLeaderboardRead& ReadObject)
 
 bool FOnlineLeaderboardsLive::WriteLeaderboards(const FName& SessionName, const FUniqueNetId& Player, FOnlineLeaderboardWrite& WriteObject)
 {
+	// @ATG_CHANGE : BEGIN - Stats 2017 implementation using StatisticManager
+#if USE_STATS_2017
+
+	if (!LiveSubsystem)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("The Live Subsystem has not been initialized."));
+		return false;
+	}
+
+	const FOnlineIdentityLivePtr Identity = LiveSubsystem->GetIdentityLive();
+	if (!Identity.IsValid())
+	{
+		UE_LOG_ONLINE(Warning, TEXT("The Live Subsystem Identity interface is invalid."));
+		return false;
+	}
+
+	const FUniqueNetIdLive UserLive(Player);
+	Windows::Xbox::System::User^ XBoxUser = Identity->GetUserForUniqueNetId(UserLive);
+	if (!XBoxUser)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("Could not get Xbox Live user for the given Player Id."));
+		return false;
+	}
+
+	if (!AddedUserList.Contains(XBoxUser))
+	{
+		try
+		{
+			StatsManager->AddLocalUser(XSAPIUserFromSystemUser(XBoxUser));
+			AddedUserList.Add(XBoxUser);
+		}
+		catch (Platform::Exception^ ex)
+		{
+			UE_LOG_ONLINE(Warning, TEXT("User already in the StatsManager user list."));
+		}
+	}
+
+	auto SessionUser = TTuple<FName, Windows::Xbox::System::User^>(SessionName, XBoxUser);
+	if (!SessionUserMapping.Contains(SessionUser))
+	{
+		SessionUserMapping.Add(SessionUser);
+	}
+
+	for (FStatPropertyArray::TConstIterator It(WriteObject.Properties); It; ++It)
+	{
+		const FVariantData& Stat = It.Value();
+		FName StatName = It.Key();
+		if (Stat.GetType() == EOnlineKeyValuePairDataType::Int32)
+		{
+			int StatVal;
+			Stat.GetValue(StatVal);
+			StatsManager->SetStatisticIntegerData(XSAPIUserFromSystemUser(XBoxUser), ref new Platform::String(*StatName.ToString()), StatVal);
+		}
+		else if (Stat.GetType() == EOnlineKeyValuePairDataType::Float)
+		{
+			float StatVal;
+			Stat.GetValue(StatVal);
+			StatsManager->SetStatisticNumberData(XSAPIUserFromSystemUser(XBoxUser), ref new Platform::String(*StatName.ToString()), StatVal);
+		}
+		else
+		{
+			UE_LOG_ONLINE(Warning, TEXT("Did not write statistic %s for user %s. the statistic was not of a type supported by FOnlineLeaderboardWrite."), *StatName.ToString(), XBoxUser->XboxUserId->Data());
+		}
+	}
+
+	return true;
+#else
+	// @ATG_CHANGE : END
 	UNREFERENCED_PARAMETER(SessionName);
 	UNREFERENCED_PARAMETER(Player);
 	UNREFERENCED_PARAMETER(WriteObject);
 	return false;
+	// @ATG_CHANGE : BEGIN - Stats 2017 implementation using StatisticManager
+#endif
+	// @ATG_CHANGE : END
 }
 
 bool FOnlineLeaderboardsLive::FlushLeaderboards(const FName& SessionName)
 {
+	// @ATG_CHANGE : BEGIN - Stats 2017 implementation using StatisticManager
+#if USE_STATS_2017
+	/**
+	* StatsManager will buffer any changes and flush these to the service periodically, there is no need to manually flush unless you
+	* are just about to display a leaderboard and need data that has just been written.
+	* From the Microsoft Documentation:
+	* Note: Do not flush stats too often. Otherwise your title will be rate limited. A best practice is to flush at most once every 5 minutes.
+	**/
+	for (int32 i = 0; i < SessionUserMapping.Num(); ++i)
+	{
+		if (SessionUserMapping[i].Key == SessionName)
+		{
+			StatsManager->RequestFlushToService(XSAPIUserFromSystemUser(SessionUserMapping[i].Value));
+			SessionUserMapping.RemoveAt(i);
+			i--;
+		}
+	}
+	return true;
+#else
+	// @ATG_CHANGE : END
 	UNREFERENCED_PARAMETER(SessionName);
 	return false;
+	// @ATG_CHANGE : BEGIN - Stats 2017 implementation using StatisticManager
+#endif
+	// @ATG_CHANGE : END
 }
 
 bool FOnlineLeaderboardsLive::WriteOnlinePlayerRatings(const FName& SessionName, int32 LeaderboardId, const TArray<FOnlinePlayerScore>& PlayerScores)
@@ -292,4 +408,54 @@ bool FOnlineLeaderboardsLive::WriteOnlinePlayerRatings(const FName& SessionName,
 	UNREFERENCED_PARAMETER(LeaderboardId);
 	UNREFERENCED_PARAMETER(PlayerScores);
 	return false;
+}
+
+// @ATG_CHANGE : BEGIN - Stats 2017 implementation using StatisticManager
+void FOnlineLeaderboardsLive::Tick(float DeltaTime)
+{
+	UNREFERENCED_PARAMETER(DeltaTime);
+#if USE_STATS_2017
+	auto EventList = StatsManager->DoWork();
+
+	for (unsigned int i = 0; i < EventList->Size; i++)
+	{
+		StatisticEvent^ Event = EventList->GetAt(i);
+		if (Event->ErrorCode == 0)
+		{
+			switch (Event->EventType)
+			{
+			case StatisticEventType::LocalUserAdded:
+				UE_LOG_ONLINE(Log, TEXT("Statistic data for user %s synced successfully."), Event->User->XboxUserId->Data());
+				break;
+			case StatisticEventType::LocalUserRemoved:
+				UE_LOG_ONLINE(Log, TEXT("Statistic data for user %s removed successfully."), Event->User->XboxUserId->Data());
+				break;
+			case StatisticEventType::StatisticUpdateComplete:
+				UE_LOG_ONLINE(Log, TEXT("Statistic data sent for user %s: successfully."), Event->User->XboxUserId->Data());
+				break;
+			default:
+				UE_LOG_ONLINE(Warning, TEXT("Unknown StatisticEvent type."));
+				break;
+			}
+		}
+		else
+		{
+			switch (Event->EventType)
+			{
+			case StatisticEventType::LocalUserAdded:
+				UE_LOG_ONLINE(Warning, TEXT("Statistic data for user %s failed to sync: ErrorCode = %d."), Event->User->XboxUserId->Data(), Event->ErrorCode);
+				break;
+			case StatisticEventType::LocalUserRemoved:
+				UE_LOG_ONLINE(Warning, TEXT("Statistic data for user %s removal failed: ErrorCode = %d."), Event->User->XboxUserId->Data(), Event->ErrorCode);
+				break;
+			case StatisticEventType::StatisticUpdateComplete:
+				UE_LOG_ONLINE(Warning, TEXT("Statistic data failed to send for user %s: ErrorCode = %d."), Event->User->XboxUserId->Data(), Event->ErrorCode);
+				break;
+			default:
+				UE_LOG_ONLINE(Warning, TEXT("Unknown StatisticEvent type."));
+				break;
+			}
+		}
+	}
+#endif
 }

@@ -48,8 +48,15 @@ public:
 	* Title uses the Achievements 2017 Live configuration. This must match the setting chosen in the title's Live configuration.
 	* This value determines which APIs are used by the OnlineSubsystem for interacting with Live.
 	*/
-	UPROPERTY(EditAnywhere, config, Category = XboxLive, meta = (DisplayName = "Use Achievements 2017"))
+	UPROPERTY(EditAnywhere, config, Category = XboxLive, meta = (DisplayName = "Use Achievements 2017", editcondition = "!bIsCreatorsProgramTitle"))
 	uint32 bUseAchievements2017 : 1;
+
+	/**
+	* Title uses the Stats 2017 Live configuration. This must match the setting chosen in the title's Live configuration.
+	* This value determines which APIs are used by the OnlineSubsystem for interacting with Live.
+	*/
+	UPROPERTY(EditAnywhere, config, Category = XboxLive, meta = (DisplayName = "Use Stats 2017", editcondition="!bIsCreatorsProgramTitle"))
+	uint32 bUseStats2017 : 1;
 
 	/**
 	* UWP includes SM4 support (D3D Feature level 10) by default.  This setting excludes this

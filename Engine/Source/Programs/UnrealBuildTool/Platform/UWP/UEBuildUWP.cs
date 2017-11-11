@@ -40,13 +40,25 @@ namespace UnrealBuildTool
         /// Controls whether to use XIM for Xbox Live multiplayer and chat.
         /// </summary>
         [ConfigFile(ConfigHierarchyType.Engine, "/Script/UWPPlatformEditor.UWPTargetSettings", "bUseXim")]
-        public readonly bool bUseXim = false;
+        public bool bUseXim = false;
 
 		/// <summary>
 		/// Controls whether to use Achievements 2017 APIs.
 		/// </summary>
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/UWPPlatformEditor.UWPTargetSettings", "bUseAchievements2017")]
-		public readonly bool bUseAchievements2017 = false;
+		public bool bUseAchievements2017 = false;
+
+		/// <summary>
+		/// Controls whether to use Stats 2017 APIs.
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/UWPPlatformEditor.UWPTargetSettings", "bUseStats2017")]
+		public bool bUseStats2017 = false;
+
+		/// <summary>
+		/// Controls whether the title accesses Xbox Live via the Creators Program
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/UWPPlatformEditor.UWPTargetSettings", "bIsCreatorsProgramTitle")]
+		public bool bIsCreatorsProgramTitle = false;
 	}
 
 	/// <summary>
@@ -98,6 +110,16 @@ namespace UnrealBuildTool
 		public bool bUseAchievements2017
 		{
 			get { return Inner.bUseAchievements2017; }
+		}
+
+		public bool bUseStats2017
+		{
+			get { return Inner.bUseStats2017; }
+		}
+
+		public bool bIsCreatorsProgramTitle
+		{
+			get { return Inner.bIsCreatorsProgramTitle; }
 		}
 #if !__MonoCS__
 #pragma warning restore CS1591
@@ -176,6 +198,9 @@ namespace UnrealBuildTool
 			{
 				Target.bUseShippingPhysXLibraries = true;
 			}
+
+			// All Creators Program titles use stats 2017
+			Target.UWPPlatform.bUseStats2017 |= Target.UWPPlatform.bIsCreatorsProgramTitle;
 		}
 
 		public override bool RequiresDeployPrepAfterCompile()
