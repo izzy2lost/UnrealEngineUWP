@@ -250,59 +250,74 @@ void FOnlineAchievementsLive::WriteAchievements(const FUniqueNetId& PlayerId, FO
 		return;
 	}
 
-	concurrency::create_task([this, UserLive, WriteObject, LiveContext, XBoxUser, Delegate]()
+	bool bSyncResult = true;
+	TArray<concurrency::task<void>> AchievementUpdates;
+	AchievementUpdates.Empty(WriteObject->Properties.Num());
+	WriteObject->WriteState = EOnlineAsyncTaskState::InProgress;
+
+	for (FStatPropertyArray::TConstIterator It(WriteObject->Properties); It; ++It)
 	{
-		bool bResult = true;
-		TArray<IAsyncAction^> AchievementUpdates;
-		WriteObject->WriteState = EOnlineAsyncTaskState::InProgress;
+		FName AchId = It.Key();
+		Platform::String^ AchIdStr = ref new Platform::String(*AchId.ToString());
 
-		for (FStatPropertyArray::TConstIterator It(WriteObject->Properties); It; ++It)
+		float Percent = 0.0f;
+		It.Value().GetValue(Percent);
+		// Clamp as there's a WinRT exception if the percentage is too high
+		Percent = FMath::Clamp(Percent, 0.0f, 100.0f);
+
+		try
 		{
-			FName AchId = It.Key();
-			Platform::String^ AchIdStr = ref new Platform::String(*AchId.ToString());
-
-			float Percent = 0.0f;
-			It.Value().GetValue(Percent);
-			// Clamp as there's a WinRT exception if the percentage is too high
-			Percent = FMath::Clamp(Percent, 0.0f, 100.0f);
-
-			try
-			{
-				IAsyncAction^ pAsyncOp = LiveContext->AchievementService->UpdateAchievementAsync(
-					XBoxUser->XboxUserId,   // The Xbox User ID of the player.
-					AchIdStr,               // The achievement ID as defined by XDP or Dev Center.
-					(uint32)Percent		    // The completion percentage of the achievement to indicate progress.
-				);
-				AchievementUpdates.Add(pAsyncOp);
-			}
-			catch (Platform::Exception ^ Ex)
-			{
-				bResult = false;
-			}
+			IAsyncAction^ pAsyncOp = LiveContext->AchievementService->UpdateAchievementAsync(
+				XBoxUser->XboxUserId,   // The Xbox User ID of the player.
+				AchIdStr,               // The achievement ID as defined by XDP or Dev Center.
+				(uint32)Percent		    // The completion percentage of the achievement to indicate progress.
+			);
+			AchievementUpdates.Emplace(concurrency::create_task(pAsyncOp));
 		}
-
-		//wait until we either know that one operation was canceled or failed or we have 
-		//checked each operation and they are all completed so we can fire the delegate.
-		if (bResult)
+		catch (Platform::Exception ^ Ex)
 		{
-			for (int32 i = 0; i < AchievementUpdates.Num(); i++)
+			bSyncResult = false;
+			UE_LOG_ONLINE(Warning, TEXT("UpdateAchievementAsync failed synchronously. Exception: %s."), Ex->ToString()->Data());
+		}
+	}
+
+	if (AchievementUpdates.Num() > 0)
+	{
+		// Need to monitor the tasks even if we've already failed in case there's a further async failure -
+		// otherwise we can have a fatal unobserved exception.
+		concurrency::create_task([=]()
+		{
+			bool bAsyncResult = true;
+
+			// Observe the individual tasks
+			for (concurrency::task<void> IndividualUpdate : AchievementUpdates)
 			{
-				concurrency::create_task(AchievementUpdates[i]).wait();
-				if (AchievementUpdates[i]->Status != AsyncStatus::Completed)
+				try
 				{
-					bResult = false;
-					break;
+					IndividualUpdate.get();
+				}
+				catch (Platform::Exception^ Ex)
+				{
+					UE_LOG_ONLINE(Warning, TEXT("UpdateAchievementAsync failed asynchronously. Exception: %s."), Ex->ToString()->Data());
+					bAsyncResult = false;
 				}
 			}
-		}
 
-		WriteObject->WriteState = bResult ? EOnlineAsyncTaskState::Done : EOnlineAsyncTaskState::Failed;
+			bool bResult = bSyncResult && bAsyncResult;
+			WriteObject->WriteState = bResult ? EOnlineAsyncTaskState::Done : EOnlineAsyncTaskState::Failed;
 
-		LiveSubsystem->ExecuteNextTick([Delegate, UserLive, bResult]()
-		{
-			Delegate.ExecuteIfBound(UserLive, bResult);
+			LiveSubsystem->ExecuteNextTick([Delegate, UserLive, bResult]()
+			{
+				Delegate.ExecuteIfBound(UserLive, bResult);
+			});
 		});
-	});
+	}
+	else
+	{
+		UE_LOG_ONLINE(Warning, TEXT("No achievements were written."));
+		WriteObject->WriteState = EOnlineAsyncTaskState::Failed;
+		Delegate.ExecuteIfBound(PlayerId, false);
+	}
 #else
 // @ATG_CHANGE : END
 
