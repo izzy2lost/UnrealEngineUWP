@@ -1976,6 +1976,30 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Patches the manifests with the new module suffixes from the OnlyModules list.
+		/// </summary>
+		public void PatchModuleManifestsForHotReloadAssembling(List<OnlyModule> OnlyModules)
+		{
+			if (FileReferenceToModuleManifestPairs == null)
+			{
+				return;
+			}
+
+			foreach (KeyValuePair<FileReference, ModuleManifest> FileNameToVersionManifest in FileReferenceToModuleManifestPairs)
+			{
+				foreach (KeyValuePair<string, string> Manifest in FileNameToVersionManifest.Value.ModuleNameToFileName)
+				{
+					string ModuleFilename = Manifest.Value;
+					if (UnrealBuildTool.ReplaceHotReloadFilenameSuffix(ref ModuleFilename, (ModuleName) => UnrealBuildTool.GetReplacementModuleSuffix(OnlyModules, ModuleName)))
+					{
+						FileNameToVersionManifest.Value.ModuleNameToFileName[Manifest.Key] = ModuleFilename;
+						break;
+					}
+				}
+			}
+		}
+
+		/// <summary>
 		/// Writes out the version manifest
 		/// </summary>
 		public void WriteReceipts()
@@ -2054,7 +2078,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Builds the target, appending list of output files and returns building result.
 		/// </summary>
-		public ECompilationResult Build(BuildConfiguration BuildConfiguration, CPPHeaders Headers, List<FileItem> OutputItems, List<UHTModuleInfo> UObjectModules, ISourceFileWorkingSet WorkingSet, ActionGraph ActionGraph)
+		public ECompilationResult Build(BuildConfiguration BuildConfiguration, CPPHeaders Headers, List<FileItem> OutputItems, List<UHTModuleInfo> UObjectModules, ISourceFileWorkingSet WorkingSet, ActionGraph ActionGraph, EHotReload HotReload)
 		{
 			CppPlatform CppPlatform = UEBuildPlatform.GetBuildPlatform(Platform).DefaultCppPlatform;
 			CppConfiguration CppConfiguration = GetCppConfiguration(Configuration);
@@ -2078,7 +2102,7 @@ namespace UnrealBuildTool
 					throw new BuildException("One or more of the modules specified using the '-module' argument could not be found.");
 				}
 			}
-			else if (BuildConfiguration.bHotReloadFromIDE)
+			else if (HotReload == EHotReload.FromIDE)
 			{
 				AppBinaries = GetFilteredGameModules(AppBinaries);
 				if (AppBinaries.Count == 0)
@@ -2340,7 +2364,7 @@ namespace UnrealBuildTool
 					// Execute the header tool
 					FileReference ModuleInfoFileName = FileReference.Combine(ProjectIntermediateDirectory, GetTargetName() + ".uhtmanifest");
 					ECompilationResult UHTResult = ECompilationResult.OtherCompilationError;
-					if (!ExternalExecution.ExecuteHeaderToolIfNecessary(BuildConfiguration, this, GlobalCompileEnvironment, UObjectModules, ModuleInfoFileName, ref UHTResult))
+					if (!ExternalExecution.ExecuteHeaderToolIfNecessary(BuildConfiguration, this, GlobalCompileEnvironment, UObjectModules, ModuleInfoFileName, ref UHTResult, HotReload))
 					{
 						Log.TraceInformation(String.Format("Error: UnrealHeaderTool failed for target '{0}' (platform: {1}, module info: {2}, exit code: {3} ({4})).", GetTargetName(), Platform.ToString(), ModuleInfoFileName, UHTResult.ToString(), (int)UHTResult));
 						return UHTResult;
