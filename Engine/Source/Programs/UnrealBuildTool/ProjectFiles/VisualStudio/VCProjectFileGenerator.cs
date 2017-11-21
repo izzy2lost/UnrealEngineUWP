@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -98,11 +98,15 @@ namespace UnrealBuildTool
 
 			if(InOverrideCompiler == WindowsCompiler.VisualStudio2015)
 			{
-				BuildToolOverride = "-2015";
+				// @ATG_CHANGE : BEGIN - typo fix, back out when possible
+				BuildToolOverride = " -2015";
+				// @ATG_CHANGE : END
 			}
 			else if(InOverrideCompiler == WindowsCompiler.VisualStudio2017)
 			{
-				BuildToolOverride = "-2017";
+				// @ATG_CHANGE : BEGIN - typo fix, back out when possible
+				BuildToolOverride = " -2017";
+				// @ATG_CHANGE : END
 			}
 		}
 
