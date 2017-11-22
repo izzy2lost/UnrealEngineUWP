@@ -48,6 +48,7 @@ function Install-Package($pathToNuget, $packageName, $installLocation, $subPaths
 # Package versions.  Should match OnlineSubsystemLive.build.cs
 $xsapiVersionUwp = "2017.08.20170829.001"
 $xsapiVersionXdk = "2017.08.20170829.001"
+$ximVersionUwp = "1706.8.0"
 
 $webClient = New-Object System.Net.WebClient
 $startupPath = Split-Path $MyInvocation.MyCommand.Path
@@ -75,8 +76,10 @@ else
 # Install Xbox Live packages
 Write-Output "Installing Xbox Live SDK from Nuget..."
 $xsapiInstallPath = [System.IO.Path]::Combine($ossLivePath, "ThirdParty", "XSAPI")
+$ximInstallPath = [System.IO.Path]::Combine($ossLivePath, "ThirdParty", "XIM")
 Install-Package $nuget microsoft.xbox.live.sdk.winrt.uwp.native.release $xsapiInstallPath @("build\native\lib") $xsapiVersionUwp UWP
 Install-Package $nuget microsoft.xbox.live.sdk.winrt.XboxOneXDK $xsapiInstallPath @("build\native\bin", "build\native\references") $xsapiVersionXdk XboxOne
+Install-Package $nuget microsoft.xbox.XboxIntegratedMultiplayer.cpp.uwp $ximInstallPath @("build\native\lib", "build\native\include") $ximVersionUwp UWP
 
 # Install Windows Device Portal Wrapper (used by UWP.Automation)
 Write-Output "Installing Windows Device Portal Wrapper from Nuget..."

@@ -471,7 +471,7 @@ bool FOnlineSessionXim::FindSessions(int32 SearchingPlayerNum, const TSharedRef<
 
 bool FOnlineSessionXim::FindSessions(const FUniqueNetId& SearchingPlayerId, const TSharedRef<FOnlineSessionSearch>& SearchSettings)
 {
-	int32 SearchingPlayerNum = LiveSubsystem->GetIdentityLive()->GetControllerIndexForId(SearchingPlayerId);
+	int32 SearchingPlayerNum = LiveSubsystem->GetIdentityLive()->GetPlatformUserIdFromUniqueNetId(SearchingPlayerId);
 	if (SearchingPlayerNum == -1)
 	{
 		SearchSettings->SearchState = EOnlineAsyncTaskState::Failed;
@@ -643,38 +643,45 @@ bool FOnlineSessionXim::FindFriendSession(int32 LocalUserNum, const FUniqueNetId
 	TSharedPtr<const FUniqueNetId> LocalUserId = LiveSubsystem->GetIdentityLive()->GetUniquePlayerId(LocalUserNum);
 	if (!LocalUserId.IsValid())
 	{
-		TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, false, FOnlineSessionSearchResult());
+		TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, false, TArray<FOnlineSessionSearchResult>());
 		return false;
 	}
 
-	return FindFriendSession(LocalUserNum, *LocalUserId, Friend);
+	TArray<TSharedRef<const FUniqueNetId>> FriendList;
+	FriendList.Emplace(MakeShared<FUniqueNetIdLive>(static_cast<const FUniqueNetIdLive&>(Friend)));
+	return FindFriendSession(LocalUserNum, *LocalUserId, FriendList);
 }
 
-bool FOnlineSessionXim::FindFriendSession(int32 LocalUserNum, const FUniqueNetId& LocalUserId, const FUniqueNetId& Friend)
+bool FOnlineSessionXim::FindFriendSession(int32 LocalUserNum, const FUniqueNetId& LocalUserId, const TArray<TSharedRef<const FUniqueNetId>>& FriendList)
 {
 	TSharedPtr<FOnlineSessionXim, ESPMode::ThreadSafe> SharedThis = AsShared();
-	const FUniqueNetIdLive& FriendIdLive = static_cast<const FUniqueNetIdLive&>(Friend);
-	auto OnXimJoinableUsersCompleted = [SharedThis, FriendIdLive, LocalUserNum](const TArray<TSharedRef<FUniqueNetIdLive>>& JoinableUsers)
+	auto OnXimJoinableUsersCompleted = [SharedThis, FriendList, LocalUserNum](const TArray<TSharedRef<FUniqueNetIdLive>>& JoinableUsers)
 	{
 		bool FoundSession = false;
-		FOnlineSessionSearchResult FriendSession;
+		TArray<FOnlineSessionSearchResult> FriendSessions;
 		for (int i = 0; i < JoinableUsers.Num(); ++i)
 		{
-			if (*JoinableUsers[i] == FriendIdLive)
+			for (int j = 0; j < FriendList.Num(); ++j)
 			{
-				SharedThis->SessionSearchResultsFromUserId(LocalUserNum, JoinableUsers[i], FriendSession);
-				FoundSession = true;
-				break;
+				TSharedRef<const FUniqueNetIdLive> FriendIdLive = StaticCastSharedRef<const FUniqueNetIdLive>(FriendList[j]);
+				if (*JoinableUsers[i] == *FriendIdLive)
+				{
+					FOnlineSessionSearchResult SearchResult;
+					SharedThis->SessionSearchResultsFromUserId(LocalUserNum, JoinableUsers[i], SearchResult);
+					FriendSessions.Add(SearchResult);
+					FoundSession = true;
+				}
 			}
+
 		}
 
-		SharedThis->TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, FoundSession, FriendSession);
+		SharedThis->TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, FoundSession, FriendSessions);
 		SharedThis->LiveSubsystem->GetXimMessageRouter()->ClearOnXimJoinableUsersCompletedDelegate_Handle(SharedThis->XimJoinableUsersCompletedHandle);
 	};
 
 	if (!FindSessions(LocalUserNum, LocalUserId, FOnXimJoinableUsersCompletedDelegate::CreateLambda(OnXimJoinableUsersCompleted)))
 	{
-		TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, false, FOnlineSessionSearchResult());
+		TriggerOnFindFriendSessionCompleteDelegates(LocalUserNum, false, TArray<FOnlineSessionSearchResult>());
 	}
 
 	return true;
@@ -682,14 +689,27 @@ bool FOnlineSessionXim::FindFriendSession(int32 LocalUserNum, const FUniqueNetId
 
 bool FOnlineSessionXim::FindFriendSession(const FUniqueNetId& LocalUserId, const FUniqueNetId& Friend)
 {
-	auto ControllerId = LiveSubsystem->GetIdentityLive()->GetControllerIndexForId(LocalUserId);
-	if (ControllerId == -1)
+	int32 LocalUserNum = LiveSubsystem->GetIdentityLive()->GetPlatformUserIdFromUniqueNetId(LocalUserId);
+	if (LocalUserNum == -1)
 	{
-		TriggerOnFindFriendSessionCompleteDelegates(-1, false, FOnlineSessionSearchResult());
+		TriggerOnFindFriendSessionCompleteDelegates(-1, false, TArray<FOnlineSessionSearchResult>());
 		return false;
 	}
 
-	return FindFriendSession(ControllerId, LocalUserId, Friend);
+	TArray<TSharedRef<const FUniqueNetId>> FriendList;
+	FriendList.Emplace(MakeShared<FUniqueNetIdLive>(static_cast<const FUniqueNetIdLive&>(Friend)));
+	return FindFriendSession(LocalUserNum, LocalUserId, FriendList);
+}
+
+bool FOnlineSessionXim::FindFriendSession(const FUniqueNetId& LocalUserId, const TArray<TSharedRef<const FUniqueNetId>>& FriendList)
+{
+	int32 LocalUserNum = LiveSubsystem->GetIdentityLive()->GetPlatformUserIdFromUniqueNetId(LocalUserId);
+	if (LocalUserNum == -1)
+	{
+		TriggerOnFindFriendSessionCompleteDelegates(-1, false, TArray<FOnlineSessionSearchResult>());
+		return false;
+	}
+	return FindFriendSession(LocalUserNum, LocalUserId, FriendList);
 }
 
 bool FOnlineSessionXim::SendSessionInviteToFriend(int32 LocalUserNum, FName SessionName, const FUniqueNetId& Friend)
@@ -750,7 +770,7 @@ bool FOnlineSessionXim::SendSessionInviteToFriends(const FUniqueNetId& LocalUser
 	return false;
 }
 
-bool FOnlineSessionXim::GetResolvedConnectString(FName SessionName, FString& ConnectInfo)
+bool FOnlineSessionXim::GetResolvedConnectString(FName SessionName, FString& ConnectInfo, FName PortType)
 {
 	auto Session = GetNamedSession(SessionName);
 	if (!Session)
@@ -984,7 +1004,7 @@ void FOnlineSessionXim::CheckPendingSessionInvite()
 		if (xim::extract_protocol_activation_information(*ActivationUriString, &ActivationInfo))
 		{
 			TSharedPtr<const FUniqueNetId> UniqueNetIdPtr = MakeShareable(new FUniqueNetIdLive(ActivationInfo.local_xbox_user_id));
-			int32 AcceptingUserIndex = LiveSubsystem->GetIdentityLive()->GetControllerIndexForId(*UniqueNetIdPtr);
+			int32 AcceptingUserIndex = LiveSubsystem->GetIdentityLive()->GetPlatformUserIdFromUniqueNetId(*UniqueNetIdPtr);
 			FOnlineSessionSearchResult SearchResult;
 			SearchResult.Session.NumOpenPrivateConnections = 0;
 			SearchResult.Session.NumOpenPublicConnections = 1; // ??

@@ -15,8 +15,7 @@ FXimMessageRouter::FXimMessageRouter(FOnlineSubsystemLive* InSubsystem) :
 {
 	using namespace xbox::services::xbox_integrated_multiplayer;
 
-	check(LiveSubsystem);
-	Microsoft::Xbox::Services::XboxLiveAppConfiguration^ AppConfig = LiveSubsystem->GetApplicationConfig();
+	Microsoft::Xbox::Services::XboxLiveAppConfiguration^ AppConfig = Microsoft::Xbox::Services::XboxLiveAppConfiguration::SingletonInstance;
 	check(AppConfig != nullptr);
 
 	xim::set_memory_callbacks(&FXimMessageRouter::XimAlloc, &FXimMessageRouter::XimFree);

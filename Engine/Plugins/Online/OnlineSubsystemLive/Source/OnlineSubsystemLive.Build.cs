@@ -8,6 +8,7 @@ public class OnlineSubsystemLive : ModuleRules
 	// Should match versions in GetUWPDependencies.ps1
 	readonly string XsapiVersionUwp = "2017.08.20170829.001";
 	readonly string XsapiVersionXboxOne = "2017.08.20170829.001";
+	readonly string XimVersion = "1706.8.0";
 	readonly string CppRestVersion = "2_9";
 
 	static bool HasWarnedAboutLiveSdk = false;
@@ -54,13 +55,15 @@ public class OnlineSubsystemLive : ModuleRules
 		string RuntimeDependencyPathRoot = Path.Combine("$(PluginDir)", "ThirdParty");
 
 		// XSAPI package names are long enough that a shortened symbolic link is set up in GetXboxLiveSDK.bat
-		string PackageFolder = string.Empty;
+		string XsapiPackageFolder = string.Empty;
+		string XimPackageFolder = string.Empty;
 		string PackageArch = string.Empty;
 		string PlatformArchAndCompilerPathChunk = string.Empty;
 		switch (Target.Platform)
 		{
 			case UnrealTargetPlatform.XboxOne:
-				PackageFolder = "XboxOne." + XsapiVersionXboxOne;
+				XsapiPackageFolder = "XboxOne." + XsapiVersionXboxOne;
+				XimPackageFolder = "XboxOne." + XimVersion;
 				PackageArch = "Durango";
 				PlatformArchAndCompilerPathChunk = Path.Combine("references", PackageArch, "v110");
 				break;
@@ -68,7 +71,8 @@ public class OnlineSubsystemLive : ModuleRules
 			case UnrealTargetPlatform.Win32:
 				// This case is currently used for intellisense generation.  Fall-through to UWP32 so it can find the winmd
 			case UnrealTargetPlatform.UWP32:
-				PackageFolder = "UWP." + XsapiVersionUwp;
+				XsapiPackageFolder = "UWP." + XsapiVersionUwp;
+				XimPackageFolder = "UWP." + XimVersion;
 				PackageArch = "Win32";
 				PlatformArchAndCompilerPathChunk = Path.Combine("lib", PackageArch, "v140");
 				break;
@@ -76,12 +80,13 @@ public class OnlineSubsystemLive : ModuleRules
 			case UnrealTargetPlatform.Win64:
 				// This case is currently used for intellisense generation.  Fall-through to UWP64 so it can find the winmd
 			case UnrealTargetPlatform.UWP64:
-				PackageFolder = "UWP." + XsapiVersionUwp;
+				XsapiPackageFolder = "UWP." + XsapiVersionUwp;
+				XimPackageFolder = "UWP." + XimVersion;
 				PackageArch = "x64";
 				PlatformArchAndCompilerPathChunk = Path.Combine("lib", PackageArch, "v140");
 				break;
 		}
-		string NugetPathChunk = Path.Combine(PackageFolder, PlatformArchAndCompilerPathChunk, "release");
+		string NugetPathChunk = Path.Combine(XsapiPackageFolder, PlatformArchAndCompilerPathChunk, "release");
 
 		string XSAPISubDir = Path.Combine("XSAPI", NugetPathChunk);
 		if (!AddWinRTDllReference(XSAPISubDir, "Microsoft.Xbox.Services"))
@@ -131,12 +136,12 @@ public class OnlineSubsystemLive : ModuleRules
 		{
 			Definitions.Add("USE_XIM=1");
 
-			PublicIncludePaths.Add(Path.Combine(WinMDReferencePathRoot, "XIM", PackageFolder, "build", "native", "include"));
-			PublicLibraryPaths.Add(Path.Combine(WinMDReferencePathRoot, "XIM", PackageFolder, "build", "native", "lib", PackageArch, "release"));
+			PublicIncludePaths.Add(Path.Combine(WinMDReferencePathRoot, "XIM", XimPackageFolder, "include"));
+			PublicLibraryPaths.Add(Path.Combine(WinMDReferencePathRoot, "XIM", XimPackageFolder, "lib", PackageArch, "release"));
 			PublicAdditionalLibraries.Add("xboxintegratedmultiplayer.lib");
 
 			// Xim DLL is like cpprest.
-			string XimDll = Path.Combine("ThirdParty", "XIM", PackageFolder, "build", "native", "lib", PackageArch, "release", "XboxIntegratedMultiplayer.dll");
+			string XimDll = Path.Combine("ThirdParty", "XIM", XimPackageFolder, "lib", PackageArch, "release", "XboxIntegratedMultiplayer.dll");
 			RuntimeDependencies.Add(new RuntimeDependency(Path.Combine("$(PluginDir)", XimDll)));
 			PublicDelayLoadDLLs.Add("XboxIntegratedMultiplayer.dll");
 
