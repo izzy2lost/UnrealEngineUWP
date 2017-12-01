@@ -63,6 +63,7 @@ typedef TSharedPtr<class FOnlineSessionXim, ESPMode::ThreadSafe> FOnlineSessionX
 typedef TSharedPtr<class FOnlineVoiceXim, ESPMode::ThreadSafe> FOnlineVoiceXimPtr;
 typedef TSharedPtr<class FXimMessageRouter, ESPMode::ThreadSafe> FXimMessageRouterPtr;
 // @ATG_CHANGE : END
+
 class UWorld;
 class FOnlineAsyncTask;
 class FOnlineAsyncTaskManagerLive;

@@ -480,6 +480,7 @@ bool FOnlineSubsystemLive::Init()
 		SessionInterface = MakeShared<FOnlineSessionLive, ESPMode::ThreadSafe>(this);
 #endif
 		FriendInterface = MakeShared<FOnlineFriendsLive, ESPMode::ThreadSafe>(this);
+		MessageSanitizer = MakeShared<FMessageSanitizerLive, ESPMode::ThreadSafe>(this);
 // 		UserCloudInterface = MakeShared<FOnlineUserCloudLive, ESPMode::ThreadSafe>(this);
 		LeaderboardsInterface = MakeShared<FOnlineLeaderboardsLive, ESPMode::ThreadSafe>(this);
 #if WITH_GAME_CHAT
@@ -596,6 +597,7 @@ bool FOnlineSubsystemLive::Init()
 			}
 
 			FScopeLock ScopeLock(&StrongThis->LiveContextsLock);
+
 			// @ATG_CHANGE : BEGIN UWP support
 			XboxLiveContext^ RemoveContext = StrongThis->CachedXboxLiveContexts.FindChecked(Args->User->XboxUserId->Data());
 			RemoveContext->RealTimeActivityService->Deactivate();
@@ -649,6 +651,7 @@ bool FOnlineSubsystemLive::Shutdown()
 	DESTRUCT_INTERFACE(VoiceInterface);
 	DESTRUCT_INTERFACE(LeaderboardsInterface);
 	DESTRUCT_INTERFACE(FriendInterface);
+	DESTRUCT_INTERFACE(MessageSanitizer);
 	DESTRUCT_INTERFACE(SessionInterface);
 	// @ATG_CHANGE : UWP Live Support - BEGIN
 	#if PLATFORM_XBOXONE

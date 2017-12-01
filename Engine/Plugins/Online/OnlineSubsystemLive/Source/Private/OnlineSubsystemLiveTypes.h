@@ -414,6 +414,13 @@ public:
 		IsReady = true;
 	}
 
+	// @ATG_CHANGE : BEGIN Adding XIM
+	const WCHAR* GetMultiplayerCorrelationId()
+	{
+		return LiveSession != nullptr ? LiveSession->MultiplayerCorrelationId->Data() : nullptr;
+	}
+	// @ATG_CHANGE : END
+
 	void SetSessionInviteHandle(const FString& InSessionHandle)
 	{
 		SessionInviteHandle = InSessionHandle;
@@ -428,13 +435,6 @@ public:
 	{
 		return SessionInviteHandle;
 	}
-	
-	// @ATG_CHANGE : BEGIN Adding XIM
-	const WCHAR* GetMultiplayerCorrelationId()
-	{
-		return LiveSession != nullptr ? LiveSession->MultiplayerCorrelationId->Data() : nullptr;
-	}
-	// @ATG_CHANGE : END
 
 private:
 

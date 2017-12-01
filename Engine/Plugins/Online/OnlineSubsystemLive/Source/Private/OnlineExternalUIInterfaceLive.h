@@ -278,4 +278,3 @@ public:
 };
 
 typedef TSharedPtr<FOnlineExternalUILive, ESPMode::ThreadSafe> FOnlineExternalUILivePtr;
-

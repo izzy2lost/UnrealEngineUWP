@@ -133,7 +133,7 @@ void FOnlineAsyncTaskLiveCreateMatchSession::OnAddLocalPlayerComplete(const FUni
 
 	if (Result != EOnJoinSessionCompleteResult::Success)
 	{
-		UE_LOG_ONLINE(Error, TEXT("FOnlineAsyncTaskLiveStartMatchmaking::OnAddLocalPlayerComplete: failed to add local player to match session with result %u"), Result);
+		UE_LOG_ONLINE(Error, TEXT("FOnlineAsyncTaskLiveStartMatchmaking::OnAddLocalPlayerComplete: failed to add local player to match session with result %u"), static_cast<uint32>(Result));
 		bWasSuccessful = false;
 	}
 

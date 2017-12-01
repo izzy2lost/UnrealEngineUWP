@@ -347,7 +347,6 @@ bool FOnlineVoiceLive::UnregisterLocalTalker(uint32 LocalUserNum)
 					}
 				});
 			}
-
 			Talker.bIsTalking = false;
 			Talker.bWasTalking = false;
 			Talker.bIsRegistered = false;
@@ -1233,7 +1232,7 @@ void FOnlineVoiceLive::DisplayUserStatus(FString talker, bool isTalking, Microso
 		if(user->RestrictionMode != Windows::Xbox::Chat::ChatRestriction::None)
 		{
 			displayColor = FColor::Red;
-			text += FString::Printf(TEXT(" Restriction %d") , user->RestrictionMode);
+			text += FString::Printf(TEXT(" Restriction %s") , user->RestrictionMode.ToString()->Data());
 		}
 
 		if((user->IsLocal && user->IsLocalUserMuted) || (!user->IsLocal && user->IsMuted))

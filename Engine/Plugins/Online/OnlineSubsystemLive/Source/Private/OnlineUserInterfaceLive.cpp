@@ -33,7 +33,7 @@ bool FOnlineUserLive::QueryUserInfo(int32 LocalUserNum, const TArray<TSharedRef<
 	return FriendsInterface->ReadUserListInternal(LocalUserNum, TEXT("custom"), &UserIds, ListReadyDelegate);
 #else
 // @ATG_CHANGE : END	
-	Microsoft::Xbox::Services::XboxLiveContext^ UserContext = LiveSubsystem->GetLiveContext(LocalUserNum);
+	XboxLiveContext^ UserContext = LiveSubsystem->GetLiveContext(LocalUserNum);
 	if (UserContext == nullptr)
 	{
 		LiveSubsystem->ExecuteNextTick([this, LocalUserNum, UserIds]()

@@ -548,7 +548,7 @@ void FOnlineFriendsLive::OnUserPresenceUpdate(const FUniqueNetIdLive& FriendId, 
 			FriendRef->Presence = *UpdatedPresenceRef;
 
 			// Trigger delegates if we're a safe player num
-			FPlatformUserId LocalUserNum = IdentityPtr->GetPlatformUserIdFromUniqueNetId(UserToFriendListMap.Key);
+			int32 LocalUserNum = IdentityPtr->GetPlatformUserIdFromUniqueNetId(UserToFriendListMap.Key);
 			if (LocalUserNum >= 0 && LocalUserNum < MAX_LOCAL_PLAYERS)
 			{
 				TriggerOnFriendsChangeDelegates(LocalUserNum);
@@ -578,7 +578,7 @@ void FOnlineFriendsLive::OnUserSessionPresenceUpdate(const FUniqueNetIdLive& Fri
 			FriendRef->Presence.bIsJoinable = bNewIsJoinable;
 
 			// Trigger delegates if we're a safe player num
-			FPlatformUserId LocalUserNum = IdentityPtr->GetPlatformUserIdFromUniqueNetId(UserToFriendListMap.Key);
+			int32 LocalUserNum = IdentityPtr->GetPlatformUserIdFromUniqueNetId(UserToFriendListMap.Key);
 			if (LocalUserNum >= 0 && LocalUserNum < MAX_LOCAL_PLAYERS)
 			{
 				TriggerOnFriendsChangeDelegates(LocalUserNum);
