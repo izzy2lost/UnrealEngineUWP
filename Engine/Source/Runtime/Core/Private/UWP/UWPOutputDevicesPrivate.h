@@ -27,7 +27,7 @@ public:
 		// Always use the default logging channel GUID here.  This is simpler than the prior approach of sometimes
 		// using the session id, and UAT can still filter on the provider name.
 		static const Platform::Guid MicrosoftWindowsDiagnoticsLoggingChannelId(0x4bd2826e, 0x54a1, 0x4ba9, 0xbf, 0x63, 0x92, 0xb7, 0x3e, 0xa1, 0xac, 0x4a);
-		EtwLogChannel = ref new Windows::Foundation::Diagnostics::LoggingChannel(ref new Platform::String(FApp::GetGameName()), nullptr, MicrosoftWindowsDiagnoticsLoggingChannelId);
+		EtwLogChannel = ref new Windows::Foundation::Diagnostics::LoggingChannel(ref new Platform::String(FApp::GetProjectName()), nullptr, MicrosoftWindowsDiagnoticsLoggingChannelId);
 	}
 
 	/** Destructor that cleans up any remaining resources */
