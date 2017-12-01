@@ -1434,7 +1434,7 @@ namespace UnrealBuildTool
 				Dependencies.AppendChild(TargetDeviceFamily);
 
 				XmlAttribute NameAttribute = AppxManifestXmlDocument.CreateAttribute("Name");
-				NameAttribute.Value = "Windows.Universal";
+				NameAttribute.Value = CreateStringValue("TargetDeviceFamily", "Package.Dependencies.TargetDeviceFamily[0].Name", "TargetDeviceFamily", "Name", "Windows.Universal");
 				TargetDeviceFamily.Attributes.Append(NameAttribute);
 
 				XmlAttribute MinVersionAttribute = AppxManifestXmlDocument.CreateAttribute("MinVersion");
