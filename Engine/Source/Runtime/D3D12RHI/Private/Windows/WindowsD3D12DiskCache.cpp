@@ -38,6 +38,7 @@ void FDiskCacheInterface::Init(FString &filename)
 		// FindFirstFileEx should be available everywhere, so use that in preference to FindFirstFile (which is not in UWP prior to 14393)
 		WIN32_FIND_DATAW fileData;
 		HANDLE Handle = FindFirstFileEx(mFileName.GetCharArray().GetData(), FINDEX_INFO_LEVELS::FindExInfoStandard, &fileData, FINDEX_SEARCH_OPS::FindExSearchNameMatch, nullptr, 0);
+		// @ATG_CHANGE : END
 		if (Handle == INVALID_HANDLE_VALUE)
 		{
 			if (GetLastError() == ERROR_FILE_NOT_FOUND)
