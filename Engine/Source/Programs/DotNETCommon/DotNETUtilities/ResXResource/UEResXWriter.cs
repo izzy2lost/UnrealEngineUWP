@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -39,7 +39,10 @@ namespace Tools.DotNETUtilities
 			XmlElement Value = Document.CreateElement("value");
 			Value.InnerText = InValue;
 
-			XmlElement Data = Document.CreateElement("data");
+			// @ATG_CHANGE : BEGIN
+			// Typo fix: Use parameter so that headers have resheader element name 
+			XmlElement Data = Document.CreateElement(InRootName);
+			// @ATG_CHANGE : END
 
 			{
 				XmlAttribute Attr = Document.CreateAttribute("name");
