@@ -55,15 +55,17 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System.Runtime.WindowsRuntime">
-      <HintPath>C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETCore\v4.5\System.Runtime.WindowsRuntime.dll</HintPath>
       <HintPath>$(SystemDrive)\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETCore\$(TargetFrameworkVersion)\System.Runtime.WindowsRuntime.dll</HintPath>
+      <HintPath Condition="'$([System.IO.File]::Exists($(HintPath)))'=='false'">C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETCore\v4.5\System.Runtime.WindowsRuntime.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Windows">
       <HintPath>$(Windows10SdkPath)\UnionMetadata\$(Windows10SdkLatestVersion)\Windows.winmd</HintPath>
-      <HintPath>$(Windows10SdkPath)\UnionMetadata\Windows.winmd</HintPath>
-      <HintPath>C:\Program Files (x86)\Microsoft Visual Studio 14.0\XAML\WinMetadata\8.1\Unified\Windows.winmd</HintPath>
-      <HintPath>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v8.1@InstallationFolder)\References\CommonConfiguration\Neutral\Windows.winmd</HintPath>
+      <!-- 16299 SDK (possibly others?) has ProductVersion == 10.0.16299 in the registry, but pathing needs the final .0 -->
+      <HintPath Condition="'$([System.IO.File]::Exists($(HintPath)))'=='false'">$(Windows10SdkPath)\UnionMetadata\$(Windows10SdkLatestVersion).0\Windows.winmd</HintPath>
+      <!-- Fall back to old, unversioned location -->
+      <HintPath Condition="'$([System.IO.File]::Exists($(HintPath)))'=='false'">$(Windows10SdkPath)\UnionMetadata\Windows.winmd</HintPath>
+      <Private>false</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
