@@ -67,9 +67,17 @@ public:
 	uint32 bExcludeShaderModel4Support : 1;
 
 	/*
-	* Selects between the D3D12 RHI and the D3D11 RHI
+	* Selects whether to build the D3D12 RHI module.  The D3D12 RHI may have requirements for minimum supported
+	* Windows SDK version and compiler toolset beyond the defaults for UWP support.  D3D11 support is always
+	* included in the final exe regardless of this setting.
 	*/
-	UPROPERTY(EditAnywhere, config, Category = Rendering, Meta=(DisplayName = "Use D3D12 RHI"))
+	UPROPERTY(EditAnywhere, config, Category = Rendering, Meta = (DisplayName = "Build with D3D12 support"))
+	uint32 bBuildD3D12RHI : 1;
+
+	/*
+	* Selects whether to use the D3D12 RHI by default at runtime.  Requires that the exe is build with D3D12 support enabled.
+	*/
+	UPROPERTY(EditAnywhere, config, Category = Rendering, Meta=(DisplayName = "Run using D3D12 RHI", editcondition="bBuildD3D12RHI"))
 	uint32 bUseD3D12RHI : 1;
 
 	/**

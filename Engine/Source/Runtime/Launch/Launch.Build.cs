@@ -67,17 +67,28 @@ public class Launch : ModuleRules
 			);
 
 			if ((Target.Platform == UnrealTargetPlatform.Win32) ||
-// @ATG_CHANGE : BEGIN UWP support
-				(Target.Platform == UnrealTargetPlatform.Win64) ||
-                (Target.Platform == UnrealTargetPlatform.UWP32) ||
-                (Target.Platform == UnrealTargetPlatform.UWP64))
-// @ATG_CHANGE : END
+				(Target.Platform == UnrealTargetPlatform.Win64))
+
 			{
 				DynamicallyLoadedModuleNames.Add("D3D12RHI");
 				DynamicallyLoadedModuleNames.Add("D3D11RHI");
 				DynamicallyLoadedModuleNames.Add("XAudio2");
 				DynamicallyLoadedModuleNames.Add("AudioMixerXAudio2");
 			}
+			// @ATG_CHANGE : BEGIN UWP support
+			else if (Target.Platform == UnrealTargetPlatform.UWP32 ||
+					Target.Platform == UnrealTargetPlatform.UWP64)
+			{
+				DynamicallyLoadedModuleNames.Add("D3D11RHI");
+				DynamicallyLoadedModuleNames.Add("XAudio2");
+				DynamicallyLoadedModuleNames.Add("AudioMixerXAudio2");
+
+				if (Target.UWPPlatform.bBuildD3D12RHI)
+				{
+					DynamicallyLoadedModuleNames.Add("D3D12RHI");
+				}
+			}
+			// @ATG_CHANGE : END
 			else if (Target.Platform == UnrealTargetPlatform.Mac)
 			{
 				DynamicallyLoadedModuleNames.Add("CoreAudio");

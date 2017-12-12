@@ -3,12 +3,14 @@
 #include "RHI.h"
 #include "ModuleManager.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/MessageDialog.h"
 
 FDynamicRHI* PlatformCreateDynamicRHI()
 {
 	FDynamicRHI* DynamicRHI = NULL;
 	IDynamicRHIModule* DynamicRHIModule = NULL;
 
+#if WITH_D3D12_RHI
 	bool bConfigRequestsD3D12 = false;
 	GConfig->GetBool(TEXT("/Script/UWPPlatformEditor.UWPTargetSettings"), TEXT("bUseD3D12RHI"), bConfigRequestsD3D12, GEngineIni);
 	const bool bForceD3D12 = FParse::Param(FCommandLine::Get(), TEXT("d3d12")) || FParse::Param(FCommandLine::Get(), TEXT("dx12"));
@@ -18,6 +20,7 @@ FDynamicRHI* PlatformCreateDynamicRHI()
 		DynamicRHIModule = &FModuleManager::LoadModuleChecked<IDynamicRHIModule>(TEXT("D3D12RHI"));
 	}
 	else
+#endif
 	{
 		// Load the dynamic RHI module.
 		DynamicRHIModule = &FModuleManager::LoadModuleChecked<IDynamicRHIModule>(TEXT("D3D11RHI"));

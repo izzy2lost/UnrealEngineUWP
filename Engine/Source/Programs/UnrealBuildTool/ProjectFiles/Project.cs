@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -419,16 +419,7 @@ namespace UnrealBuildTool
 						}
 						else
 						{
-							if (!File.Exists(ResolvedPath))
-							{
-								// WinMDs that are Windows SDK (or extension) contracts can be referenced by contract
-								// name rather than full path
-								string PossibleContractPath = VCEnvironment.GetLatestMetadataPathForApiContract(ResolvedPath, Compiler);
-								if (!string.IsNullOrEmpty(PossibleContractPath))
-								{
-									ResolvedPath = PossibleContractPath;
-								}
-							}
+							// WinMDs referenced by contract name should already have been resolved to files at this point
 
 							// Incoming include paths are relative to the solution directory, but we need these paths to be
 							// relative to the project file's directory

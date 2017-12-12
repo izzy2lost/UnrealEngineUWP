@@ -213,8 +213,10 @@ namespace UnrealBuildTool
 			// @ATG_CHANGE : END
 
 			// Setup the INCLUDE environment variable
-			List<string> IncludePaths = GetVisualCppIncludePaths(Compiler, VCInstallDir, VCToolChainDir, UniversalCRTDir, UniversalCRTVersion, NetFxSDKExtensionDir, WindowsSDKDir, WindowsSDKLibVersion);
-			if(InitialIncludePaths != null)
+			// @ATG_CHANGE : BEGIN UWP support
+			List<string> IncludePaths = GetVisualCppIncludePaths(Compiler, VCInstallDir, VCToolChainDir, UniversalCRTDir, UniversalCRTVersion, NetFxSDKExtensionDir, WindowsSDKDir, WindowsSDKLibVersion, Platform);
+			// @ATG_CHANGE : END
+			if (InitialIncludePaths != null)
 			{
 				IncludePaths.Add(InitialIncludePaths);
 			}
@@ -385,7 +387,7 @@ namespace UnrealBuildTool
 		{
 			Version LatestVersion = new Version(0, 0, 0, 0);
 
-			Version WindowsSDKVersionMaxForToolchain = Compiler < WindowsCompiler.VisualStudio2017 && Compiler != WindowsCompiler.Default ? new Version(10, 0, 14393, 0) : null;
+			Version WindowsSDKVersionMaxForToolchain = Compiler < WindowsCompiler.VisualStudio2017 && Compiler != WindowsCompiler.Default ? UniversalWindowsPlatform.MaximumSDKVersionForVS2015 : null;
 			if (
 				!string.IsNullOrEmpty(WindowsSDKExtensionDir) &&
 				Directory.Exists(WindowsSDKExtensionDir))
@@ -446,7 +448,7 @@ namespace UnrealBuildTool
 			if (DirectoryReference.Exists(ReferenceDir))
 			{
 				// Prefer a contract from a suitable SDK-versioned subdir of the references folder when available (starts with 15063 SDK)
-				Version WindowsSDKVersionMaxForToolchain = Compiler < WindowsCompiler.VisualStudio2017 ? new Version(10, 0, 14393, 0) : null;
+				Version WindowsSDKVersionMaxForToolchain = Compiler < WindowsCompiler.VisualStudio2017 ? UniversalWindowsPlatform.MaximumSDKVersionForVS2015 : null;
 				DirectoryReference SDKVersionedReferenceDir = DirectoryReference.Combine(ReferenceDir, FindLatestVersionDirectory(ReferenceDir.FullName, WindowsSDKVersionMaxForToolchain).ToString());
 				DirectoryReference ContractDir = DirectoryReference.Combine(SDKVersionedReferenceDir, ApiContract);
 				Version ContractLatestVersion = null;
@@ -878,7 +880,9 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Sets the Visual C++ INCLUDE environment variable
 		/// </summary>
-		static List<string> GetVisualCppIncludePaths(WindowsCompiler Compiler, DirectoryReference VisualCppDir, DirectoryReference VisualCppToolchainDir, string UniversalCRTDir, string UniversalCRTVersion, string NetFXSDKDir, string WindowsSDKDir, string WindowsSDKLibVersion)
+		// @ATG_CHANGE : BEGIN UWP support - add CppPlatform parameter
+		static List<string> GetVisualCppIncludePaths(WindowsCompiler Compiler, DirectoryReference VisualCppDir, DirectoryReference VisualCppToolchainDir, string UniversalCRTDir, string UniversalCRTVersion, string NetFXSDKDir, string WindowsSDKDir, string WindowsSDKLibVersion, CppPlatform Platform)
+		// @ATG_CHANGE : END
 		{
 			List<string> IncludePaths = new List<string>();
 
@@ -910,31 +914,38 @@ namespace UnrealBuildTool
 			    }
 			}
 
-			// Add the universal CRT paths
-			if (!String.IsNullOrEmpty(UniversalCRTDir) && !String.IsNullOrEmpty(UniversalCRTVersion))
+			// @ATG_CHANGE : BEGIN UWP support
+			// Don't add Windows SDK paths here for UWP - we'll do that elsewhere when we know
+			// what version of the Windows 10 SDK is wanted for the building project.
+			if (Platform != CppPlatform.UWP32 && Platform != CppPlatform.UWP64)
 			{
-				IncludePaths.Add(Path.Combine(UniversalCRTDir, "include", UniversalCRTVersion, "ucrt"));
-			}
+				// Add the universal CRT paths
+				if (!String.IsNullOrEmpty(UniversalCRTDir) && !String.IsNullOrEmpty(UniversalCRTVersion))
+				{
+					IncludePaths.Add(Path.Combine(UniversalCRTDir, "include", UniversalCRTVersion, "ucrt"));
+				}
 
-			// Add the NETFXSDK include path
-			if (!String.IsNullOrEmpty(NetFXSDKDir))
-			{
-				IncludePaths.Add(Path.Combine(NetFXSDKDir, "include", "um")); // 2015
-			}
+				// Add the NETFXSDK include path
+				if (!String.IsNullOrEmpty(NetFXSDKDir))
+				{
+					IncludePaths.Add(Path.Combine(NetFXSDKDir, "include", "um")); // 2015
+				}
 
-			// Add the Windows SDK paths
-			if (Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.bUseWindowsSDK10)
-			{
-				IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", WindowsSDKLibVersion, "shared"));
-				IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", WindowsSDKLibVersion, "um"));
-				IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", WindowsSDKLibVersion, "winrt"));
+				// Add the Windows SDK paths
+				if (Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.bUseWindowsSDK10)
+				{
+					IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", WindowsSDKLibVersion, "shared"));
+					IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", WindowsSDKLibVersion, "um"));
+					IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", WindowsSDKLibVersion, "winrt"));
+				}
+				else
+				{
+					IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", "shared"));
+					IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", "um"));
+					IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", "winrt"));
+				}
 			}
-			else
-			{
-				IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", "shared"));
-				IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", "um"));
-				IncludePaths.Add(Path.Combine(WindowsSDKDir, "include", "winrt"));
-			}
+			// @ATG_CHANGE : END
 
 			// Add the existing include paths
 			string ExistingIncludePaths = Environment.GetEnvironmentVariable("INCLUDE");
@@ -974,7 +985,7 @@ namespace UnrealBuildTool
 						LibraryPaths.Add(StdLibraryDir.FullName);
 					}
 				}
-				if (Platform == CppPlatform.Win32)
+				else if (Platform == CppPlatform.Win32)
 				// @ATG_CHANGE : END
 				{
 					DirectoryReference StdLibraryDir = DirectoryReference.Combine(VisualCppToolchainDir, "lib", "x86");
@@ -1040,47 +1051,48 @@ namespace UnrealBuildTool
 				}
 			}
 
-			// Add the Universal CRT
-			if (!String.IsNullOrEmpty(UniversalCRTDir) && !String.IsNullOrEmpty(UniversalCRTVersion))
+			// @ATG_CHANGE : BEGIN UWP support
+			// Don't add Windows SDK paths here for UWP - we'll do that elsewhere when we know
+			// what version of the Windows 10 SDK is wanted for the building project.
+			if (Platform != CppPlatform.UWP32 && Platform != CppPlatform.UWP64)
 			{
-				// @ATG_CHANGE : BEGIN UWP32 support
-				if (Platform == CppPlatform.Win32 || Platform == CppPlatform.UWP32)
-				// @ATG_CHANGE : END
+				// Add the Universal CRT
+				if (!String.IsNullOrEmpty(UniversalCRTDir) && !String.IsNullOrEmpty(UniversalCRTVersion))
 				{
-					LibraryPaths.Add(Path.Combine(UniversalCRTDir, "lib", UniversalCRTVersion, "ucrt", "x86"));
+					if (Platform == CppPlatform.Win32)
+					{
+						LibraryPaths.Add(Path.Combine(UniversalCRTDir, "lib", UniversalCRTVersion, "ucrt", "x86"));
+					}
+					else
+					{
+						LibraryPaths.Add(Path.Combine(UniversalCRTDir, "lib", UniversalCRTVersion, "ucrt", "x64"));
+					}
+				}
+
+				// Add the NETFXSDK include path
+				if (!String.IsNullOrEmpty(NetFXSDKDir))
+				{
+					if (Platform == CppPlatform.Win32)
+					{
+						LibraryPaths.Add(Path.Combine(NetFXSDKDir, "lib", "um", "x86"));
+					}
+					else
+					{
+						LibraryPaths.Add(Path.Combine(NetFXSDKDir, "lib", "um", "x64"));
+					}
+				}
+
+				// Add the standard Windows SDK paths
+				if (Platform == CppPlatform.Win32)
+				{
+					LibraryPaths.Add(Path.Combine(WindowsSDKDir, "lib", WindowsSDKLibVersion, "um", "x86"));
 				}
 				else
 				{
-					LibraryPaths.Add(Path.Combine(UniversalCRTDir, "lib", UniversalCRTVersion, "ucrt", "x64"));
+					LibraryPaths.Add(Path.Combine(WindowsSDKDir, "lib", WindowsSDKLibVersion, "um", "x64"));
 				}
 			}
-
-			// Add the NETFXSDK include path
-			if (!String.IsNullOrEmpty(NetFXSDKDir))
-			{
-				// @ATG_CHANGE : BEGIN UWP32 support
-				if (Platform == CppPlatform.Win32 || Platform == CppPlatform.UWP32)
-				// @ATG_CHANGE : END
-				{
-					LibraryPaths.Add(Path.Combine(NetFXSDKDir, "lib", "um", "x86"));
-				}
-				else
-				{
-					LibraryPaths.Add(Path.Combine(NetFXSDKDir, "lib", "um", "x64"));
-				}
-			}
-
-			// Add the standard Windows SDK paths
-			// @ATG_CHANGE : BEGIN UWP32 support
-			if (Platform == CppPlatform.Win32 || Platform == CppPlatform.UWP32)
 			// @ATG_CHANGE : END
-			{
-				LibraryPaths.Add(Path.Combine(WindowsSDKDir, "lib", WindowsSDKLibVersion, "um", "x86"));
-			}
-			else
-			{
-				LibraryPaths.Add(Path.Combine(WindowsSDKDir, "lib", WindowsSDKLibVersion, "um", "x64"));
-			}
 
 			// Add the existing library paths
 			string ExistingLibraryPaths = Environment.GetEnvironmentVariable("LIB");

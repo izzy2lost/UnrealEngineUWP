@@ -120,6 +120,7 @@ typedef FUWPTypes FPlatformTypes;
 #define FORCE_WACK_FAILURE(LogCategory, LogMessage) \
 		__pragma(message("WARNING: " LogMessage)) \
 		__pragma(message("WARNING: Deliberately inserting reference to " UNSUPPORTED_API_FOR_WACK " in order to force WACK failure.")) \
+		__pragma(comment(lib, "d3d12.lib")) \
 		__pragma(comment(linker, "/include:" UNSUPPORTED_API_FOR_WACK)) \
 		UE_LOG(LogCategory, Warning, TEXT(LogMessage))
 

@@ -204,41 +204,14 @@ namespace UnrealBuildTool
 				}
 			}
 
-			// Specify the appropriate runtime library based on the platform and config.
-			if (CompileEnvironment.bUseStaticCRT)
+			// Static CRT not supported for UWP
+			if (CompileEnvironment.bUseDebugCRT)
 			{
-				if (CompileEnvironment.bUseDebugCRT)
-				{
-					Arguments.Add("/MTd");
-				}
-				else
-				{
-					Arguments.Add("/MT");
-				}
+				Arguments.Add("/MDd");
 			}
 			else
 			{
-				if (CompileEnvironment.bUseDebugCRT)
-				{
-					Arguments.Add("/MDd");
-				}
-				else
-				{
-					Arguments.Add("/MD");
-				}
-			}
-
-
-
-			VCToolChain.AddDefinition(Arguments, "_BUILD_FOR_STORE", "1");
-
-			// These must be appended to the end of the system include list, lest they override some of the third party sources includes
-			if (Directory.Exists(EnvVars.WindowsSDKExtensionDir))
-			{
-				CompileEnvironment.IncludePaths.SystemIncludePaths.Add(string.Format(@"{0}\Include\{1}\ucrt", EnvVars.WindowsSDKExtensionDir, EnvVars.WindowsSDKExtensionHeaderLibVersion));
-				CompileEnvironment.IncludePaths.SystemIncludePaths.Add(string.Format(@"{0}\Include\{1}\um", EnvVars.WindowsSDKExtensionDir, EnvVars.WindowsSDKExtensionHeaderLibVersion));
-				CompileEnvironment.IncludePaths.SystemIncludePaths.Add(string.Format(@"{0}\Include\{1}\shared", EnvVars.WindowsSDKExtensionDir, EnvVars.WindowsSDKExtensionHeaderLibVersion));
-				CompileEnvironment.IncludePaths.SystemIncludePaths.Add(string.Format(@"{0}\Include\{1}\winrt", EnvVars.WindowsSDKExtensionDir, EnvVars.WindowsSDKExtensionHeaderLibVersion));
+				Arguments.Add("/MD");
 			}
 
 			// Enable Windows Runtime extensions.  Do this even for libs (plugins) so that these too can consume WinRT APIs
@@ -248,20 +221,7 @@ namespace UnrealBuildTool
 			// we've hit problems where types are somehow in windows.winmd on some installations but not others, leading to either
 			// missing or duplicated type references.
 			Arguments.Add("/ZW:nostdlib");
-			VCToolChain.AddDefinition(Arguments, "USE_WINRT_MAIN", "1");
 
-			if (Compiler >= WindowsCompiler.VisualStudio2015 &&
-				Directory.Exists(Path.Combine(EnvVars.WindowsSDKExtensionDir, "References")))
-			{
-				Arguments.AddFormat(@" /AI""{0}\References""", EnvVars.WindowsSDKExtensionDir);
-				Arguments.AddFormat(@" /AI""{0}\References\{1}""", EnvVars.WindowsSDKExtensionDir, EnvVars.WindowsSDKExtensionHeaderLibVersion);
-
-				// Use the latest version of contracts, consistent with our choice elsewhere to use the latest version of the SDK.
-				// These metadata files should bring in everything available on the Universal family.  Extension SDKs should be
-				// referenced directly by the modules that depend on them.
-				Arguments.AddFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Compiler));
-				Arguments.AddFormat(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Compiler));
-			}
 			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler);
 			if (PlatformWinMDLocation != null)
 			{
@@ -482,23 +442,7 @@ namespace UnrealBuildTool
 
 			foreach (string CurAssemblyInfo in CompileEnvironment.WinMDReferences)
 			{
-				// resolve if it's not a path....
-				string location = CurAssemblyInfo;
-				if (!location.Contains(Path.DirectorySeparatorChar) && !location.Contains(Path.AltDirectorySeparatorChar))
-				{
-					
-					string resolvedPath = VCEnvironment.GetLatestMetadataPathForApiContract(CurAssemblyInfo, Compiler);
-					if (!string.IsNullOrEmpty(location))
-					{
-						SharedArguments.AddFormat("/AI\"{0}\"", Path.GetDirectoryName(resolvedPath));
-						location = resolvedPath;
-					}
-					else
-					{
-						Log.TraceWarning("Unable to resolve location for WinMD api contract {0}", CurAssemblyInfo);
-					}
-				}
-				SharedArguments.AddFormat("/FU\"{0}\"", location);
+				SharedArguments.AddFormat("/FU\"{0}\"", CurAssemblyInfo);
 			}
 
 			// Add preprocessor definitions to the argument list.
