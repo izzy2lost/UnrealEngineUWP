@@ -20,6 +20,7 @@
 #include "GeneralProjectSettings.h"
 #include "SButton.h"
 #include "SErrorHint.h"
+#include "PlatformFileManager.h"
 
 #define LOCTEXT_NAMESPACE "UWPTargetSettingsCustomization"
 
@@ -550,31 +551,64 @@ FReply FUWPTargetSettingsCustomization::GenerateSigningCertificate()
 		}
 	}
 
-	FString CertificatePath = FPaths::ProjectDir() / TEXT("Build") / TEXT("UWP") / TEXT("SigningCertificate");
+	FString TempCerFile = FPaths::CreateTempFilename(FPlatformProcess::UserTempDir(), TEXT("SigningCertificate-"), TEXT(".cer"));
+	FString TempPvkFile = FPaths::ChangeExtension(TempCerFile, TEXT(".pvk"));
+	FString TempPfxFile = FPaths::ChangeExtension(TempCerFile, TEXT(".pfx"));
 
-	FString CerFile = CertificatePath + TEXT(".cer");
-	FString PvkFile = CertificatePath + TEXT(".pvk");
-	FString PfxFile = CertificatePath + TEXT(".pfx");
-
+	void* ReadPipe = nullptr;
+	void* WritePipe = nullptr;
+	FPlatformProcess::CreatePipe(ReadPipe, WritePipe);
+	int32 ExitCode = 0xffffffff;
 	uint32 ProcId = 0;
-	FProcHandle MakeCertProc = FPlatformProcess::CreateProc(*MakeCert, *FString::Printf(TEXT("-r -h 0 -n \"%s\" -eku %hs -pe -sv \"%s\" \"%s\""), *GetPublisherIdentityName(), szOID_PKIX_KP_CODE_SIGNING, *PvkFile, *CerFile), false, false, false, &ProcId, 0, nullptr, nullptr);
-	FPlatformProcess::WaitForProc(MakeCertProc);
-	int32 ExitCode = 0;
-	if (!FPlatformProcess::GetProcReturnCode(MakeCertProc, &ExitCode) || ExitCode != 0)
+
+	FString MakeCertParams = FString::Printf(TEXT("-r -h 0 -n \"%s\" -eku %hs -pe -sv \"%s\" \"%s\""), *GetPublisherIdentityName(), szOID_PKIX_KP_CODE_SIGNING, *TempPvkFile, *TempCerFile);
+
+	// ExecProcess is simpler, but unfortunately forces any created window to be minimized.
+	// MakeCert pops UI to ask what password the new cert should have (answer is always none for this usage, but no way to say this on the command line)
+	FProcHandle MakeCertProc = FPlatformProcess::CreateProc(*MakeCert, *MakeCertParams, false, false, false, &ProcId, 0, nullptr, WritePipe);
+	FString MakeCertOutput;
+	FString LatestOutput = FPlatformProcess::ReadPipe(ReadPipe);
+	while (FPlatformProcess::IsProcRunning(MakeCertProc) || !LatestOutput.IsEmpty())
 	{
-		FNotificationInfo Info(LOCTEXT("SigningCertificateFailed_MakecertFailed", "Failed to generate certificate: makecert.exe encountered an error"));
-		Info.ExpireDuration = 3.0f;
+		MakeCertOutput += LatestOutput;
+		LatestOutput = FPlatformProcess::ReadPipe(ReadPipe);
+		FPlatformProcess::Sleep(0);
+	}
+	bool GotReturnCode = FPlatformProcess::GetProcReturnCode(MakeCertProc, &ExitCode);
+	FPlatformProcess::CloseProc(MakeCertProc);
+	FPlatformProcess::ClosePipe(ReadPipe, WritePipe);
+	if (!GotReturnCode || ExitCode != 0)
+	{
+		FText NotificationMessage = FText::FormatOrdered(LOCTEXT("SigningCertificateFailed_MakecertFailed", "Failed to generate certificate: makecert.exe encountered an error: {0}"), FText::FromString(MakeCertOutput));
+		FNotificationInfo Info(NotificationMessage);
+		Info.ExpireDuration = 6.0f;
 		FSlateNotificationManager::Get().AddNotification(Info);
 
 		return FReply::Handled();
 	}
 
-	FProcHandle Pvk2PfxProc = FPlatformProcess::CreateProc(*Pvk2Pfx, *FString::Printf(TEXT("-pvk \"%s\" -spc \"%s\" -pfx \"%s\""), *PvkFile, *CerFile, *PfxFile), false, false, false, &ProcId, 0, nullptr, nullptr);
-	FPlatformProcess::WaitForProc(Pvk2PfxProc);
+	FString StdOutput;
+	FString StdError;
+	ExitCode = 0xffffffff;
+	FString Pvk2PfxParams = FString::Printf(TEXT("-pvk \"%s\" -spc \"%s\" -pfx \"%s\""), *TempPvkFile, *TempCerFile, *TempPfxFile);
+	GotReturnCode = FPlatformProcess::ExecProcess(*Pvk2Pfx, *Pvk2PfxParams, &ExitCode, &StdOutput, &StdError);
 	
-	// Note: pvk2pfx seems to have non-zero return code for success.
+	if (!GotReturnCode || ExitCode != 0)
+	{
+		FText NotificationMessage = FText::FormatOrdered(LOCTEXT("SigningCertificateFailed_Pvk2PfxFailed", "Failed to generate certificate: pvk2pfx.exe encountered an error: {0}"), FText::FromString(StdError));
+		FNotificationInfo Info(NotificationMessage);
+		Info.ExpireDuration = 6.0f;
+		FSlateNotificationManager::Get().AddNotification(Info);
 
-	LoadAndValidateSigningCertificate();
+		return FReply::Handled();
+	}
+
+	OnCertificatePicked(TempPfxFile);
+
+	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+	PlatformFile.DeleteFile(*TempCerFile);
+	PlatformFile.DeleteFile(*TempPvkFile);
+	PlatformFile.DeleteFile(*TempPfxFile);
 
 	return FReply::Handled();
 }
