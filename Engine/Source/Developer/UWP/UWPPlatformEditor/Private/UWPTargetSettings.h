@@ -145,6 +145,9 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "Toolchain", Meta = (DisplayName = "Compiler Version"))
 	ECompilerVersion CompilerVersion;
 
+	UPROPERTY(EditAnywhere, config, Category = "Toolchain", Meta = (DisplayName = "Windows 10 SDK Version"))
+	FString Windows10SDKVersion;
+
 	/**
 	* List of supported <Capability><Capability> elements for the application.
 	*/

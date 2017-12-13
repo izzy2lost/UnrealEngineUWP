@@ -124,6 +124,37 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 
 	LoadAndValidateSigningCertificate();
 
+	IDetailCategoryBuilder& ToolchainCategoryBuilder = DetailBuilder.EditCategory(FName("Toolchain"));
+
+	// Make sure compiler version comes first - it's probably most important
+	ToolchainCategoryBuilder.AddProperty(FName("CompilerVersion"));
+
+	TSharedRef<IPropertyHandle> Win10SDKVersionPropertyHandle = DetailBuilder.GetProperty("Windows10SDKVersion");
+
+	FText AutoDetectSDKCaption = LOCTEXT("AutodetectWin10SDKCaption", "Auto-detect Windows 10 SDK");
+	FText AutoDetectSDKTooltip = LOCTEXT("AutodetectWin10SDKTooltip",
+		"When enabled the project will build against the most recent version of the Windows 10 SDK supported by your compiler." \
+		"This is typically the recommended behavior.  Uncheck in order to manually select a specific SDK version");
+	TSharedPtr<SCheckBox> AutoDetectSDKCheckbox;
+	ToolchainCategoryBuilder.AddCustomRow(AutoDetectSDKCaption)
+	.NameContent()
+	[
+		SNew(STextBlock)
+		.Text(AutoDetectSDKCaption)
+		.ToolTipText(AutoDetectSDKTooltip)
+		.Font(IDetailLayoutBuilder::GetDetailFont())
+	]
+	.ValueContent()
+	.MaxDesiredWidth(500.0f)
+	.MinDesiredWidth(100.0f)
+	[
+		SAssignNew(AutoDetectSDKCheckbox, SCheckBox)
+		.IsChecked(this, &FUWPTargetSettingsCustomization::IsAutoDetectWin10SDKChecked)
+		.OnCheckStateChanged(this, &FUWPTargetSettingsCustomization::OnAutoDetectWin10SDKChanged, Win10SDKVersionPropertyHandle)
+	];
+
+	AddWidgetForPlatformVersion(DetailBuilder, Win10SDKVersionPropertyHandle, &WindowsSDKSelector);
+
 	// Add the packaging images customization
 	IDetailGroup& ImagesGroup = PackagingCategoryBuilder.AddGroup(FName("PackagingImages"), LOCTEXT("PackagingImages", "Images"));
 
@@ -291,7 +322,7 @@ FString FUWPTargetSettingsCustomization::GetNameForSigningCertificate(const FStr
 	return CertificateName;
 }
 
-void FUWPTargetSettingsCustomization::AddWidgetForPlatformVersion(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle)
+void FUWPTargetSettingsCustomization::AddWidgetForPlatformVersion(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle, TSharedPtr<STextComboBox>* OutVersionSelector)
 {
 	IDetailCategoryBuilder& VersionCategoryBuilder = DetailBuilder.EditCategory(FName(*PropertyHandle->GetMetaData("Category")));
 	DetailBuilder.HideProperty(PropertyHandle);
@@ -319,6 +350,9 @@ void FUWPTargetSettingsCustomization::AddWidgetForPlatformVersion(IDetailLayoutB
 		}
 	}
 
+	TSharedPtr<STextComboBox> Unused;
+	TSharedPtr<STextComboBox>& VersionSelectorRef = OutVersionSelector != nullptr ? *OutVersionSelector : Unused;
+
 	VersionCategoryBuilder.AddCustomRow(PropertyHandle->GetPropertyDisplayName())
 	.NameContent()
 	[
@@ -333,7 +367,7 @@ void FUWPTargetSettingsCustomization::AddWidgetForPlatformVersion(IDetailLayoutB
 		.FillWidth(1.0f)
 		.VAlign(VAlign_Center)
 		[
-			SNew(STextComboBox)
+			SAssignNew(VersionSelectorRef, STextComboBox)
 			.Font(IDetailLayoutBuilder::GetDetailFont())
 			.OptionsSource(&PlatformVersionOptions)
 			.InitiallySelectedItem(PlatformVersionOptions[CurrentSelectedIndex])
@@ -584,7 +618,7 @@ void FUWPTargetSettingsCustomization::LoadAndValidateSigningCertificate()
 
 				if (SigningCertificateSubjectName != GetPublisherIdentityName())
 				{
-					SigningCertificateError->SetError(LOCTEXT("CertificateInvalidSubjectName", "Certificate subject name does not match Package/Identity/Name in AppxManifest"));
+					SigningCertificateError->SetError(LOCTEXT("CertificateInvalidSubjectName", "Certificate subject name does not match Package/Identity/Publisher in AppxManifest"));
 				}
 
 				// TODO - check private key, expiration, others?
@@ -620,6 +654,35 @@ void FUWPTargetSettingsCustomization::LoadAndValidateSigningCertificate()
 FString FUWPTargetSettingsCustomization::GetSigningCertificateSubjectName() const
 {
 	return SigningCertificateSubjectName;
+}
+
+void FUWPTargetSettingsCustomization::OnAutoDetectWin10SDKChanged(ECheckBoxState NewState, TSharedRef<IPropertyHandle> Win10SDKVersionPropertyHandle)
+{
+	Win10SDKVersionPropertyHandle->NotifyPreChange();
+	if (NewState == ECheckBoxState::Checked)
+	{
+		Win10SDKVersionPropertyHandle->SetValue(FString());
+		WindowsSDKSelector->SetSelectedItem(MakeShared<FString>());
+		WindowsSDKSelector->SetEnabled(false);
+	}
+	else if (GetDefault<UUWPTargetSettings>()->CompilerVersion == ECompilerVersion::VisualStudio2017)
+	{
+		Win10SDKVersionPropertyHandle->SetValue(*PlatformVersionOptions.Last());
+		WindowsSDKSelector->SetSelectedItem(PlatformVersionOptions.Last());
+		WindowsSDKSelector->SetEnabled(true);
+	}
+	else
+	{
+		Win10SDKVersionPropertyHandle->SetValue(*PlatformVersionOptions[2]);
+		WindowsSDKSelector->SetSelectedItem(PlatformVersionOptions[2]);
+		WindowsSDKSelector->SetEnabled(true);
+	}
+	Win10SDKVersionPropertyHandle->NotifyPostChange();
+}
+
+ECheckBoxState FUWPTargetSettingsCustomization::IsAutoDetectWin10SDKChecked() const
+{
+	return GetDefault<UUWPTargetSettings>()->Windows10SDKVersion.IsEmpty() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
 #undef LOCTEXT_NAMESPACE

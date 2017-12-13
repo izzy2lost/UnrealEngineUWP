@@ -20,7 +20,7 @@ public:
 private:
 
 	void AddWidgetForCapability(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> CapabilityList, const FString& CapabilityName, const FText& CapabilityCaption, const FText& CapabilityTooltip, bool bForAdvanced);
-	void AddWidgetForPlatformVersion(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle);
+	void AddWidgetForPlatformVersion(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle, TSharedPtr<STextComboBox>* OutVersionSelector = nullptr);
 	void AddWidgetForResourceImage(IDetailGroup& GroupBuilder, const FString& ImageFileName, const FText& ImageCaption, const FVector2D& ImageDimensions);
 	void AddWidgetForTargetDeviceFamily(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle);
 	static FString GetNameForSigningCertificate(const FString &CertificatePath);
@@ -32,6 +32,9 @@ private:
 	void OnCapabilityStateChanged(ECheckBoxState CheckState, TSharedRef<IPropertyHandle> CapabilityList, const FString CapabilityName);
 	void OnCertificatePicked(const FString& PickedPath);
 	void OnSelectedItemChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> HandlePtr);
+	void OnAutoDetectWin10SDKChanged(ECheckBoxState NewState, TSharedRef<IPropertyHandle> Win10SDKVersionPropertyHandle);
+	ECheckBoxState IsAutoDetectWin10SDKChecked() const;
+	EVisibility GetManualWin10SDKWidgetVisibility() const;
 
 	FString GetSigningCertificateSubjectName() const;
 	FReply GenerateSigningCertificate();
@@ -43,4 +46,5 @@ private:
 
 	FString SigningCertificateSubjectName;
 	TSharedPtr<SErrorHint> SigningCertificateError;
+	TSharedPtr<STextComboBox> WindowsSDKSelector;
 };
