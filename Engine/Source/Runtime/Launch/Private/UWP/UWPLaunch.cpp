@@ -11,6 +11,7 @@
 #include "Misc/App.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/Paths.h"
+#include "Misc/PackageName.h"
 
 #include "LaunchEngineLoop.h"
 //#include "CoreTypes.h"
@@ -23,6 +24,7 @@
 #include <stdio.h>
 
 #include "AllowWindowsPlatformTypes.h"
+#include <collection.h>
 // @ATG_CHANGE : BEGIN UWP packaging & F5 support
 #include <ppltasks.h>
 // @ATG_CHANGE : END
@@ -92,6 +94,9 @@ public:
 	{
 		return bWindowClosed;
 	}
+
+	void InitOptionalPackages();
+
 protected:
 	// Registers the extended execution session
 	void RequestExtendedExecution();
@@ -108,7 +113,6 @@ private:
 	void OnActivated( _In_ Windows::ApplicationModel::Core::CoreApplicationView^ applicationView, _In_ Windows::ApplicationModel::Activation::IActivatedEventArgs^ args );
 	void OnResuming( _In_ Platform::Object^ sender, _In_ Platform::Object^ args );
 	void OnSuspending( _In_ Platform::Object^ sender, _In_ Windows::ApplicationModel::SuspendingEventArgs^ args );
-	void OnLicenseChanged();
 
 	const TCHAR* GetPointerUpdateKindString(Windows::UI::Input::PointerUpdateKind InKind);
 	EMouseButtons::Type PointerUpdateKindToUEKey(Windows::UI::Input::PointerUpdateKind InKind, bool& bWasPressed);
@@ -131,6 +135,8 @@ private:
 		Windows::UI::Input::PointerUpdateKind Kind;
 	};
 	bool ProcessMouseEvent(const QueuedPointerEvent& Event);
+
+	static void MountOrUnmountPackageForStatusChange(Windows::ApplicationModel::Package ^DependencyPackage);
 
 	TArray<QueuedPointerEvent> PointerEventQueue;
 };
@@ -573,18 +579,6 @@ void ViewProvider::OnSuspending(_In_ Platform::Object^ Sender, _In_ Windows::App
 	GEngineLoop.OnSuspending(Sender,Args);
 }
 
-void ViewProvider::OnLicenseChanged()
-{
-	// Perform action on the main thread.
-	CoreApplication::MainView->Dispatcher->RunAsync(
-		Windows::UI::Core::CoreDispatcherPriority::Normal,
-		ref new Windows::UI::Core::DispatchedHandler([this]()
-	{
-		FCoreDelegates::ApplicationLicenseChange.Broadcast();
-	}));
-}
-
-
 const TCHAR* ViewProvider::GetPointerUpdateKindString(Windows::UI::Input::PointerUpdateKind InKind)
 {
 	switch (InKind)
@@ -788,6 +782,93 @@ void ViewProvider::Load(Platform::String^ /*entryPoint*/)
 {
 }
 
+void ViewProvider::MountOrUnmountPackageForStatusChange(Windows::ApplicationModel::Package^ DependencyPackage)
+{
+#if WIN10_SDK_VERSION >= 14393
+	check(Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent("Windows.ApplicationModel.Package", "IsOptional"));
+	// Optional dependencies are the mechanism for DLC on UWP
+	if (DependencyPackage->IsOptional)
+	{
+		bool ShouldMount = true;
+		if (DependencyPackage->Status->NeedsRemediation)
+		{
+			UE_LOG(LogLaunchUWP, Warning, TEXT("Optional package %s has NeedsRemediation set and will not be loaded."), DependencyPackage->Id->FullName->Data());
+			ShouldMount = false;
+		}
+		else if (DependencyPackage->Status->NotAvailable)
+		{
+			UE_LOG(LogLaunchUWP, Warning, TEXT("Optional package %s has NotAvailable set and will not be loaded."), DependencyPackage->Id->FullName->Data());
+			ShouldMount = false;
+		}
+
+		// Store names are {some #}{publisher}.{name entered}
+		// Since . is invalid in UE package names we'll just take the {name entered} portion
+		FString NameWithoutPublisherEtc;
+		FString(DependencyPackage->Id->Name->Data()).Split(TEXT("."), nullptr, &NameWithoutPublisherEtc);
+		FString MountName = FString(TEXT("/")) + NameWithoutPublisherEtc + TEXT("/");
+		FString ProbePackageName = MountName + TEXT("probe");
+		FString PackageContentPath = FString(DependencyPackage->InstalledLocation->Path->Data()) / TEXT("Content");
+
+		if (ShouldMount)
+		{
+			if (!FPackageName::IsValidLongPackageName(ProbePackageName))
+			{
+				FPackageName::RegisterMountPoint(MountName, PackageContentPath);
+			}
+			check(FPackageName::IsValidLongPackageName(ProbePackageName));
+		}
+		else
+		{
+			if (FPackageName::IsValidLongPackageName(ProbePackageName))
+			{
+				FPackageName::UnRegisterMountPoint(MountName, PackageContentPath);
+			}
+			check(!FPackageName::IsValidLongPackageName(ProbePackageName));
+		}
+	}
+#endif
+}
+
+void ViewProvider::InitOptionalPackages()
+{
+#if WIN10_SDK_VERSION >= 14393
+	if (Windows::Foundation::Metadata::ApiInformation::IsTypePresent("Windows.ApplicationModel.PackageCatalog"))
+	{
+		using namespace Windows::Foundation;
+		using namespace Windows::Foundation::Collections;
+		using namespace Windows::ApplicationModel;
+
+		IVectorView<Package^>^ DependencyPackages = Package::Current->Dependencies;
+		for (Package^ DependencyPackage : DependencyPackages)
+		{
+			MountOrUnmountPackageForStatusChange(DependencyPackage);
+		}
+
+		static PackageCatalog^ Catalog = PackageCatalog::OpenForCurrentPackage();
+		Catalog->PackageInstalling += ref new TypedEventHandler<PackageCatalog^, PackageInstallingEventArgs^>(
+			[](PackageCatalog^, PackageInstallingEventArgs^ Args)
+		{
+			if (Args->IsComplete)
+			{
+				MountOrUnmountPackageForStatusChange(Args->Package);
+			}
+		});
+
+		Catalog->PackageStatusChanged += ref new TypedEventHandler<PackageCatalog^, PackageStatusChangedEventArgs^>(
+			[](PackageCatalog^, PackageStatusChangedEventArgs^ Args)
+		{
+			MountOrUnmountPackageForStatusChange(Args->Package);
+		});
+	}
+	else
+	{
+		UE_LOG(LogLaunchUWP, Warning, TEXT("Optional packages (DLC) require a runtime Windows version of 14393 or higher."));
+	}
+#else
+	UE_LOG(LogLaunchUWP, Warning, TEXT("Optional packages (DLC) are not available with this Windows SDK version (%d).  Use the 14393 SDK or later.", WIN10_SDK_VERSION));
+#endif
+}
+
 #include "AllowWindowsPlatformTypes.h"
 #include "NetworkMessage.h"
 
@@ -952,6 +1033,7 @@ int32 EnginePreInit( const TCHAR* CmdLine )
  */
 int32 EngineInit( void )
 {
+	GViewProvider->InitOptionalPackages();
 	return GEngineLoop.Init();
 }
 
