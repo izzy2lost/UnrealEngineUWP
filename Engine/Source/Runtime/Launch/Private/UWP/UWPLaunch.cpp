@@ -782,6 +782,52 @@ void ViewProvider::Load(Platform::String^ /*entryPoint*/)
 {
 }
 
+struct FMountOptionalPackageDirectoryVisitor : public IPlatformFile::FDirectoryVisitor
+{
+public:
+	virtual bool Visit(const TCHAR* FilenameOrDirectory, bool bIsDirectory) override
+	{
+		if (bIsDirectory)
+		{
+			FString MountNameWithoutTrailingSeparator = BaseNameForMountPoint / FPaths::GetBaseFilename(FilenameOrDirectory);
+			FString MountName = MountNameWithoutTrailingSeparator + TEXT("/");
+			FString ProbePackageName = MountName + TEXT("probe");
+			FString NormalizedContentPath = FilenameOrDirectory;
+			FPaths::NormalizeFilename(NormalizedContentPath);
+
+			if (bShouldMount)
+			{
+				FString ExistingFilename;
+				if (!FPackageName::TryConvertLongPackageNameToFilename(ProbePackageName, ExistingFilename) ||
+					!ExistingFilename.StartsWith(NormalizedContentPath))
+				{
+					FPackageName::RegisterMountPoint(MountName, FilenameOrDirectory);
+				}
+				check(FPackageName::TryConvertLongPackageNameToFilename(ProbePackageName, ExistingFilename) && ExistingFilename.StartsWith(NormalizedContentPath));
+			}
+			else
+			{
+				if (FPackageName::GetPackageMountPoint(ProbePackageName) == FName(*MountNameWithoutTrailingSeparator))
+				{
+					FPackageName::UnRegisterMountPoint(MountName, FilenameOrDirectory);
+				}
+				check(FPackageName::GetPackageMountPoint(ProbePackageName) != FName(*MountNameWithoutTrailingSeparator));
+			}
+		}
+		return true;
+	}
+
+	FMountOptionalPackageDirectoryVisitor(const FString& InBaseMountPoint, bool InShouldMount)
+		: BaseNameForMountPoint(InBaseMountPoint)
+		, bShouldMount(InShouldMount)
+	{
+	}
+
+private:
+	FString BaseNameForMountPoint;
+	bool bShouldMount;
+};
+
 void ViewProvider::MountOrUnmountPackageForStatusChange(Windows::ApplicationModel::Package^ DependencyPackage)
 {
 #if WIN10_SDK_VERSION >= 14393
@@ -805,26 +851,13 @@ void ViewProvider::MountOrUnmountPackageForStatusChange(Windows::ApplicationMode
 		// Since . is invalid in UE package names we'll just take the {name entered} portion
 		FString NameWithoutPublisherEtc;
 		FString(DependencyPackage->Id->Name->Data()).Split(TEXT("."), nullptr, &NameWithoutPublisherEtc);
-		FString MountName = FString(TEXT("/")) + NameWithoutPublisherEtc + TEXT("/");
-		FString ProbePackageName = MountName + TEXT("probe");
 		FString PackageContentPath = FString(DependencyPackage->InstalledLocation->Path->Data()) / TEXT("Content");
 
-		if (ShouldMount)
-		{
-			if (!FPackageName::IsValidLongPackageName(ProbePackageName))
-			{
-				FPackageName::RegisterMountPoint(MountName, PackageContentPath);
-			}
-			check(FPackageName::IsValidLongPackageName(ProbePackageName));
-		}
-		else
-		{
-			if (FPackageName::IsValidLongPackageName(ProbePackageName))
-			{
-				FPackageName::UnRegisterMountPoint(MountName, PackageContentPath);
-			}
-			check(!FPackageName::IsValidLongPackageName(ProbePackageName));
-		}
+		// The path here will be absolute and outside our package, so always use the physical file system:
+		// higher layers won't understand it.
+		IPlatformFile& PlatformFile = IPlatformFile::GetPlatformPhysical();
+		FMountOptionalPackageDirectoryVisitor Visitor(FString(TEXT("/")) + TEXT("Game") / NameWithoutPublisherEtc, ShouldMount);
+		PlatformFile.IterateDirectory(*PackageContentPath, Visitor);
 	}
 #endif
 }
