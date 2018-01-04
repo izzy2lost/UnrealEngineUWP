@@ -282,6 +282,7 @@ namespace UnrealBuildTool
 			if (Target.UWPPlatform.bBuildD3D12RHI && Target.UWPPlatform.Win10SDKVersion < MinimumSDKVersionForD3D12RHI)
 			{
 				Log.TraceWarning("Ignoring 'Build with D3D12 support' flag: the D3D12 RHI requires at least the {0} SDK.", MinimumSDKVersionForD3D12RHI);
+				Target.UWPPlatform.bBuildD3D12RHI = false;
 			}
 		}
 
