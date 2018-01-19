@@ -1,7 +1,5 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 
-#if PLATFORM_UWP
-
 #include "CoreMinimal.h"
 
 #include "HAL/PlatformFilemanager.h"
@@ -17,6 +15,8 @@
 //#include "CoreTypes.h"
 #include "ExceptionHandling.h"
 #include "RHI.h"
+
+#include "Interfaces/IPluginManager.h"
 
 #include "UWPApplication.h"
 #include "UWPCursor.h"
@@ -136,7 +136,8 @@ private:
 	};
 	bool ProcessMouseEvent(const QueuedPointerEvent& Event);
 
-	static void MountOrUnmountPackageForStatusChange(Windows::ApplicationModel::Package ^DependencyPackage);
+	static void RegisterDlcPluginsForOptionalPackage(Windows::ApplicationModel::Package ^DependencyPackage);
+	static void EnsureDlcPluginsAreMounted();
 
 	TArray<QueuedPointerEvent> PointerEventQueue;
 };
@@ -782,82 +783,42 @@ void ViewProvider::Load(Platform::String^ /*entryPoint*/)
 {
 }
 
-struct FMountOptionalPackageDirectoryVisitor : public IPlatformFile::FDirectoryVisitor
+void ViewProvider::EnsureDlcPluginsAreMounted()
 {
-public:
-	virtual bool Visit(const TCHAR* FilenameOrDirectory, bool bIsDirectory) override
+	IPluginManager::Get().RefreshPluginsList();
+	TArray<TSharedRef<IPlugin>> DiscoveredPlugins = IPluginManager::Get().GetDiscoveredPlugins();
+	for (TSharedRef<IPlugin>& Plugin : DiscoveredPlugins)
 	{
-		if (bIsDirectory)
+		if (Plugin->GetType() == EPluginType::External && !Plugin->IsEnabled())
 		{
-			FString MountNameWithoutTrailingSeparator = BaseNameForMountPoint / FPaths::GetBaseFilename(FilenameOrDirectory);
-			FString MountName = MountNameWithoutTrailingSeparator + TEXT("/");
-			FString ProbePackageName = MountName + TEXT("probe");
-			FString NormalizedContentPath = FilenameOrDirectory;
-			FPaths::NormalizeFilename(NormalizedContentPath);
-
-			if (bShouldMount)
-			{
-				FString ExistingFilename;
-				if (!FPackageName::TryConvertLongPackageNameToFilename(ProbePackageName, ExistingFilename) ||
-					!ExistingFilename.StartsWith(NormalizedContentPath))
-				{
-					FPackageName::RegisterMountPoint(MountName, FilenameOrDirectory);
-				}
-				check(FPackageName::TryConvertLongPackageNameToFilename(ProbePackageName, ExistingFilename) && ExistingFilename.StartsWith(NormalizedContentPath));
-			}
-			else
-			{
-				if (FPackageName::GetPackageMountPoint(ProbePackageName) == FName(*MountNameWithoutTrailingSeparator))
-				{
-					FPackageName::UnRegisterMountPoint(MountName, FilenameOrDirectory);
-				}
-				check(FPackageName::GetPackageMountPoint(ProbePackageName) != FName(*MountNameWithoutTrailingSeparator));
-			}
+			IPluginManager::Get().MountNewlyCreatedPlugin(Plugin->GetName());
 		}
-		return true;
 	}
+}
 
-	FMountOptionalPackageDirectoryVisitor(const FString& InBaseMountPoint, bool InShouldMount)
-		: BaseNameForMountPoint(InBaseMountPoint)
-		, bShouldMount(InShouldMount)
-	{
-	}
-
-private:
-	FString BaseNameForMountPoint;
-	bool bShouldMount;
-};
-
-void ViewProvider::MountOrUnmountPackageForStatusChange(Windows::ApplicationModel::Package^ DependencyPackage)
+void ViewProvider::RegisterDlcPluginsForOptionalPackage(Windows::ApplicationModel::Package^ DependencyPackage)
 {
 #if WIN10_SDK_VERSION >= 14393
 	check(Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent("Windows.ApplicationModel.Package", "IsOptional"));
 	// Optional dependencies are the mechanism for DLC on UWP
 	if (DependencyPackage->IsOptional)
 	{
-		bool ShouldMount = true;
+		bool ShouldLoad = true;
 		if (DependencyPackage->Status->NeedsRemediation)
 		{
 			UE_LOG(LogLaunchUWP, Warning, TEXT("Optional package %s has NeedsRemediation set and will not be loaded."), DependencyPackage->Id->FullName->Data());
-			ShouldMount = false;
+			ShouldLoad = false;
 		}
 		else if (DependencyPackage->Status->NotAvailable)
 		{
 			UE_LOG(LogLaunchUWP, Warning, TEXT("Optional package %s has NotAvailable set and will not be loaded."), DependencyPackage->Id->FullName->Data());
-			ShouldMount = false;
+			ShouldLoad = false;
 		}
 
-		// Store names are {some #}{publisher}.{name entered}
-		// Since . is invalid in UE package names we'll just take the {name entered} portion
-		FString NameWithoutPublisherEtc;
-		FString(DependencyPackage->Id->Name->Data()).Split(TEXT("."), nullptr, &NameWithoutPublisherEtc);
-		FString PackageContentPath = FString(DependencyPackage->InstalledLocation->Path->Data()) / TEXT("Content");
-
-		// The path here will be absolute and outside our package, so always use the physical file system:
-		// higher layers won't understand it.
-		IPlatformFile& PlatformFile = IPlatformFile::GetPlatformPhysical();
-		FMountOptionalPackageDirectoryVisitor Visitor(FString(TEXT("/")) + TEXT("Game") / NameWithoutPublisherEtc, ShouldMount);
-		PlatformFile.IterateDirectory(*PackageContentPath, Visitor);
+		if (ShouldLoad)
+		{
+			IPluginManager::Get().AddPluginSearchPath(FString(DependencyPackage->InstalledLocation->Path->Data()), false);
+		}
 	}
 #endif
 }
@@ -874,8 +835,9 @@ void ViewProvider::InitOptionalPackages()
 		IVectorView<Package^>^ DependencyPackages = Package::Current->Dependencies;
 		for (Package^ DependencyPackage : DependencyPackages)
 		{
-			MountOrUnmountPackageForStatusChange(DependencyPackage);
+			RegisterDlcPluginsForOptionalPackage(DependencyPackage);
 		}
+		EnsureDlcPluginsAreMounted();
 
 		static PackageCatalog^ Catalog = PackageCatalog::OpenForCurrentPackage();
 		Catalog->PackageInstalling += ref new TypedEventHandler<PackageCatalog^, PackageInstallingEventArgs^>(
@@ -883,14 +845,16 @@ void ViewProvider::InitOptionalPackages()
 		{
 			if (Args->IsComplete)
 			{
-				MountOrUnmountPackageForStatusChange(Args->Package);
+				RegisterDlcPluginsForOptionalPackage(Args->Package);
+				EnsureDlcPluginsAreMounted();
 			}
 		});
 
 		Catalog->PackageStatusChanged += ref new TypedEventHandler<PackageCatalog^, PackageStatusChangedEventArgs^>(
 			[](PackageCatalog^, PackageStatusChangedEventArgs^ Args)
 		{
-			MountOrUnmountPackageForStatusChange(Args->Package);
+			RegisterDlcPluginsForOptionalPackage(Args->Package);
+			EnsureDlcPluginsAreMounted();
 		});
 	}
 	else
@@ -898,7 +862,7 @@ void ViewProvider::InitOptionalPackages()
 		UE_LOG(LogLaunchUWP, Warning, TEXT("Optional packages (DLC) require a runtime Windows version of 14393 or higher."));
 	}
 #else
-	UE_LOG(LogLaunchUWP, Warning, TEXT("Optional packages (DLC) are not available with this Windows SDK version (%d).  Use the 14393 SDK or later.", WIN10_SDK_VERSION));
+	UE_LOG(LogLaunchUWP, Warning, TEXT("Optional packages (DLC) are not available with this Windows SDK version (%d).  Use the 14393 SDK or later."), WIN10_SDK_VERSION);
 #endif
 }
 
@@ -1150,5 +1114,3 @@ int32 GuardedMain( const TCHAR* CmdLine, HINSTANCE hInInstance, HINSTANCE hPrevI
 	}
 	return ErrorLevel;
 }
-
-#endif
