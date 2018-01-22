@@ -14,12 +14,8 @@
 #include "OnlineLeaderboardInterfaceLive.h"
 #include "OnlineExternalUIInterfaceLive.h"
 #include "OnlineIdentityInterfaceLive.h"
-// @ATG_CHANGE : BEGIN removal of interfaces not yet flushed out for UWP
-#if !PLATFORM_UWP
 #include "OnlineStoreInterfaceLive.h"
 #include "OnlinePurchaseInterfaceLive.h"
-#endif
-// @ATG_CHANGE : END
 #include "OnlineAchievementsInterfaceLive.h"
 #include "OnlineAsyncTaskManagerLive.h"
 #include "OnlineSessionInterfaceLive.h"
@@ -226,23 +222,23 @@ IOnlineStorePtr FOnlineSubsystemLive::GetStoreInterface() const
 IOnlineStoreV2Ptr FOnlineSubsystemLive::GetStoreV2Interface() const
 {
 // @ATG_CHANGE : UWP Live Support - BEGIN
-#if PLATFORM_XBOXONE
+#if WITH_MARKETPLACE
 	return StoreInterface;
 #else
 	return nullptr;
 #endif
-// @ATG_CHANGE : UWP Live Support - END
+// @ATG_CHANGE : END
 }
 
 IOnlinePurchasePtr FOnlineSubsystemLive::GetPurchaseInterface() const
 {
 // @ATG_CHANGE : UWP Live Support - BEGIN
-#if PLATFORM_XBOXONE
+#if WITH_MARKETPLACE
 	return PurchaseInterface;
 #else
 	return nullptr;
 #endif
-// @ATG_CHANGE : UWP Live Support - END
+// @ATG_CHANGE : END
 }
 
 IOnlineEventsPtr FOnlineSubsystemLive::GetEventsInterface() const
@@ -469,7 +465,7 @@ bool FOnlineSubsystemLive::Init()
 #endif
 		IdentityInterface = MakeShared<FOnlineIdentityLive, ESPMode::ThreadSafe>(this);
 		IdentityInterface->RefreshGamepadsAndUsers();
-#if PLATFORM_XBOXONE
+#if WITH_MARKETPLACE
 		StoreInterface = MakeShared<FOnlineStoreLive, ESPMode::ThreadSafe>(this);
 		PurchaseInterface = MakeShared<FOnlinePurchaseLive, ESPMode::ThreadSafe>(this);
 		PurchaseInterface->RegisterLivePurchaseHooks();
@@ -653,12 +649,12 @@ bool FOnlineSubsystemLive::Shutdown()
 	DESTRUCT_INTERFACE(FriendInterface);
 	DESTRUCT_INTERFACE(MessageSanitizer);
 	DESTRUCT_INTERFACE(SessionInterface);
-	// @ATG_CHANGE : UWP Live Support - BEGIN
-	#if PLATFORM_XBOXONE
+// @ATG_CHANGE : UWP Live Support - BEGIN
+#if WITH_MARKETPLACE
 	DESTRUCT_INTERFACE(PurchaseInterface);
 	DESTRUCT_INTERFACE(StoreInterface);
-	#endif // PLATFORM_XBOXONE
-	// @ATG_CHANGE : UWP Live Support - END
+#endif
+// @ATG_CHANGE : UWP Live Support - END
 	DESTRUCT_INTERFACE(IdentityInterface);
 	DESTRUCT_INTERFACE(MatchmakingInterfaceLive);
 	DESTRUCT_INTERFACE(SessionMessageRouterInterface);

@@ -28,6 +28,7 @@ public class OnlineSubsystemLive : ModuleRules
 			// We need etwplus.lib for events, leader boards and achievements
 			PublicAdditionalLibraries.Add("etwplus.lib");
 			Definitions.Add("WITH_GAME_CHAT=1");
+			Definitions.Add("WITH_MARKETPLACE=1");
 		}
 
 		// Modules our Privates require
@@ -130,6 +131,16 @@ public class OnlineSubsystemLive : ModuleRules
             string CppRestDll = Path.Combine("ThirdParty", XSAPISubDir, string.Format("cpprest140_uwp_{0}.dll", CppRestVersion));
 			RuntimeDependencies.Add(new RuntimeDependency(Path.Combine("$(PluginDir)", CppRestDll)));
 			Definitions.Add(string.Format(@"CPP_REST_DLL=TEXT(""{0}"")", CppRestDll.Replace(@"\", "/")));
+
+			if (Target.UWPPlatform.Win10SDKVersion >= new System.Version(10, 0, 14393, 0))
+			{
+				Definitions.Add("WITH_MARKETPLACE=1");
+				PrivateWinMDReferences.Add("Windows.Services.Store.StoreContract");
+			}
+			else
+			{
+				Definitions.Add("WITH_MARKETPLACE=0");
+			}
 		}
 
 		if (UseXim(Target))

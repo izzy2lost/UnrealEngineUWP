@@ -10,6 +10,10 @@
 	"CreatedByURL" : "http://epicgames.com",
 	"EnabledByDefault" : false,
 
+	"SupportedTargetPlatforms": [
+		"XboxOne", "UWP64", "UWP32"
+	],
+
     "Modules": [
         {
             "Name": "OnlineSubsystemLive",

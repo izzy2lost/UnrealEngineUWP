@@ -48,10 +48,8 @@ typedef TSharedPtr<class FOnlineLeaderboardsLive, ESPMode::ThreadSafe> FOnlineLe
 typedef TSharedPtr<class FOnlineVoiceLive, ESPMode::ThreadSafe> FOnlineVoiceLivePtr;
 typedef TSharedPtr<class FOnlineExternalUILive, ESPMode::ThreadSafe> FOnlineExternalUILivePtr;
 typedef TSharedPtr<class FOnlineIdentityLive, ESPMode::ThreadSafe> FOnlineIdentityLivePtr;
-#if PLATFORM_XBOXONE
 typedef TSharedPtr<class FOnlinePurchaseLive, ESPMode::ThreadSafe> FOnlinePurchaseLivePtr;
 typedef TSharedPtr<class FOnlineStoreLive, ESPMode::ThreadSafe> FOnlineStoreLivePtr;
-#endif // PLATFORM_XBOXONE
 typedef TSharedPtr<class FOnlineAchievementsLive, ESPMode::ThreadSafe> FOnlineAchievementsLivePtr;
 typedef TSharedPtr<class FOnlineEventsLive, ESPMode::ThreadSafe> FOnlineEventsLivePtr;
 typedef TSharedPtr<class FOnlinePresenceLive, ESPMode::ThreadSafe> FOnlinePresenceLivePtr;
@@ -146,10 +144,8 @@ PACKAGE_SCOPE:
 	FOnlineSessionLivePtr GetSessionInterfaceLive();
 	// @ATG_CHANGE : END
 	FOnlineIdentityLivePtr GetIdentityLive() const { return IdentityInterface; }
-#if PLATFORM_XBOXONE
 	FOnlineStoreLivePtr GetStoreLive() const { return StoreInterface; }
 	FOnlinePurchaseLivePtr GetPurchaseLive() const { return PurchaseInterface; }
-#endif // PLATFORM_XBOXONE
 	FOnlinePresenceLivePtr GetPresenceLive() const { return PresenceInterface; }
 	FOnlineLeaderboardsLivePtr GetLeaderboardsInterfaceLive() const { return LeaderboardsInterface; }
 	FOnlineMatchmakingInterfaceLivePtr GetMatchmakingInterfaceLive() const { return MatchmakingInterfaceLive; }
@@ -241,13 +237,11 @@ private:
 	/** Interface to the identity registration/auth services */
 	FOnlineIdentityLivePtr IdentityInterface;
 
-#if PLATFORM_XBOXONE
 	/** Interface to the store services */
 	FOnlineStoreLivePtr StoreInterface;
 
 	/** Interface to the purchase services */
 	FOnlinePurchaseLivePtr PurchaseInterface;
-#endif // PLATFORM_XBOXONE
 
 	// @ATG_CHANGE : BEGIN - Adding XIM
 	/** Interface to the voice chat services */

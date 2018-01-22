@@ -2,6 +2,20 @@
 
 #pragma once
 
+// @ATG_CHANGE :  BEGIN UWP LIVE support
+// Get ppltasks properly wrapped, otherwise create_async<...> instantiations 
+// can cause compile errors.  This means we need to include it as early as possible
+// in case later headers are including it without full protection.
+#if PLATFORM_UWP
+#include "HAL/Platform.h"
+
+#include "PreUWPApi.h"
+#include "MinUWPApi.h"
+#include <ppltasks.h>
+#include "PostUWPApi.h"
+#endif // PLATFORM_UWP
+// @ATG_CHANGE :  END
+
 #include "CoreMinimal.h"
 #include "OnlineSubsystemLiveModule.h"
 #include "OnlineSubsystemModule.h"
@@ -55,14 +69,28 @@ inline Windows::Xbox::Input::Controller^ SystemGamepadFromShim(Windows::Xbox::In
 	return controller;
 }
 
+#if WITH_MARKETPLACE
+
+inline Microsoft::Xbox::Services::Marketplace::CatalogService^ GetCatalogService(Microsoft::Xbox::Services::XboxLiveContext^ LiveContext)
+{
+	return LiveContext->CatalogService;
+}
+
+inline Microsoft::Xbox::Services::Marketplace::InventoryService^ GetInventoryService(Microsoft::Xbox::Services::XboxLiveContext^ LiveContext)
+{
+	return LiveContext->InventoryService;
+}
+
+#endif
+
 #elif PLATFORM_UWP
 #include "AllowWindowsPlatformTypes.h"
-#define _UITHREADCTXT_SUPPORT   0
-#include <ppltasks.h>
 #include <ws2tcpip.h>
 #include <collection.h>
 #include "HideWindowsPlatformTypes.h"
 #include "UWPInputInterface.h"
+
+#include "UWP/Marketplace.h"
 
 // @ATG_CHANGE : sspiller@microsoft.com - BEGIN disable warning caused by build reference mismatch
 #pragma warning(disable: 4691)
@@ -125,6 +153,18 @@ namespace Windows
 			using IGamepad = EraAdapter::Windows::Xbox::Input::Controller;
 			using ControllerPairingChangedEventArgs = EraAdapter::Windows::Xbox::Input::ControllerPairingChangedEventArgs;
 		}
+
+		namespace ApplicationModel
+		{
+			namespace Store
+			{
+				using KnownPrivileges = EraAdapter::Windows::Xbox::ApplicationModel::Store::KnownPrivileges;
+				using PrivilegeCheckResult = EraAdapter::Windows::Xbox::ApplicationModel::Store::PrivilegeCheckResult;
+				using Product = EraAdapter::Windows::Xbox::ApplicationModel::Store::Product;
+				using ProductPurchasedEventArgs = EraAdapter::Windows::Xbox::ApplicationModel::Store::ProductPurchasedEventArgs;
+				using ProductPurchasedEventHandler = EraAdapter::Windows::Xbox::ApplicationModel::Store::ProductPurchasedEventHandler;
+			}
+		}
 	}
 }
 
@@ -147,6 +187,20 @@ inline Windows::Gaming::Input::Gamepad^ SystemGamepadFromShim(EraAdapter::Window
 {
 	return controller->Gamepad;
 }
+
+#if WITH_MARKETPLACE
+
+inline Microsoft::Xbox::Services::Marketplace::CatalogService^ GetCatalogService(Microsoft::Xbox::Services::XboxLiveContext^ LiveContext)
+{
+	return Microsoft::Xbox::Services::Marketplace::CatalogService::Get();
+}
+
+inline Microsoft::Xbox::Services::Marketplace::InventoryService^ GetInventoryService(Microsoft::Xbox::Services::XboxLiveContext^ LiveContext)
+{
+	return Microsoft::Xbox::Services::Marketplace::InventoryService::Get();
+}
+
+#endif // WITH_MARKETPLACE
 
 #endif
 // @ATG_CHANGE :  END
