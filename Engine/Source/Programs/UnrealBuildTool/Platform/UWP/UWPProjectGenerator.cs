@@ -63,8 +63,14 @@ namespace UnrealBuildTool
 				EngineIni.GetString("/Script/UWPPlatformEditor.UWPTargetSettings", "MinimumPlatformVersion", out MinVersion);
 				EngineIni.GetString("/Script/UWPPlatformEditor.UWPTargetSettings", "MaximumPlatformVersionTested", out MaxTestedVersion);
 			}
-			VCProjectFileContent.Append("		<WindowsTargetPlatformMinVersion>" + MinVersion + "</WindowsTargetPlatformMinVersion>" + ProjectFileGenerator.NewLine);
-			VCProjectFileContent.Append("		<WindowsTargetPlatformVersion>" + MaxTestedVersion + "</WindowsTargetPlatformVersion>" + ProjectFileGenerator.NewLine);
+			if (!string.IsNullOrEmpty(MinVersion))
+			{
+				VCProjectFileContent.Append("		<WindowsTargetPlatformMinVersion>" + MinVersion + "</WindowsTargetPlatformMinVersion>" + ProjectFileGenerator.NewLine);
+			}
+			if (!string.IsNullOrEmpty(MaxTestedVersion))
+			{
+				VCProjectFileContent.Append("		<WindowsTargetPlatformVersion>" + MaxTestedVersion + "</WindowsTargetPlatformVersion>" + ProjectFileGenerator.NewLine);
+			}
 
 			WindowsCompiler Compiler = WindowsCompiler.VisualStudio2017;
 			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler);
@@ -75,7 +81,7 @@ namespace UnrealBuildTool
 			}
 			string FoundationWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Compiler);
 			string UniversalWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Compiler);
-			VCProjectFileContent.Append("		<AdditionalOptions>/ZW</AdditionalOptions>" + ProjectFileGenerator.NewLine);
+			VCProjectFileContent.Append("		<AdditionalOptions>/ZW /ZW:nostdlib</AdditionalOptions>" + ProjectFileGenerator.NewLine);
 			VCProjectFileContent.Append("		<NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions);PLATFORM_UWP=1;UWP=1;</NMakePreprocessorDefinitions>" + ProjectFileGenerator.NewLine);
 			if (PlatformWinMDLocation != null)
 			{

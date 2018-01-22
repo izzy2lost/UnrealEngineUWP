@@ -18,9 +18,9 @@
 
 #include "Interfaces/IPluginManager.h"
 
-#include "UWPApplication.h"
-#include "UWPCursor.h"
-#include "UWPWindow.h"
+#include "UWP/UWPApplication.h"
+#include "UWP/UWPCursor.h"
+#include "UWP/UWPWindow.h"
 #include <stdio.h>
 
 #include "AllowWindowsPlatformTypes.h"

@@ -407,7 +407,7 @@ namespace UnrealBuildTool
 			// Using the Win10 SDK in the editor allows additional features for use with UWP, but should
 			// be kept seaparate from the game setting since it affects the minimum Windows version required
 			// to run the built exe.
-			if (Target.Type == TargetType.Editor || Target.Type == TargetType.Program)
+			if (ProjectFileGenerator.bGenerateProjectFiles || Target.Type == TargetType.Editor || Target.Type == TargetType.Program)
 			{
 				Target.WindowsPlatform.bUseWindowsSDK10 = Target.WindowsPlatform.bUseWindowsSDK10ForEditor;
 			}

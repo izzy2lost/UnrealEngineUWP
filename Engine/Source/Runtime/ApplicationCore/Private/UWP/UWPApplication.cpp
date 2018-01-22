@@ -1,10 +1,10 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 
-#include "UWPApplication.h"
-#include "UWPWindow.h"
-#include "UWPCursor.h"
-#include "UWPInputInterface.h"
-#include "UWPMisc.h"
+#include "UWP/UWPApplication.h"
+#include "UWP/UWPWindow.h"
+#include "UWP/UWPCursor.h"
+#include "UWP/UWPInputInterface.h"
+#include "UWP/UWPMisc.h"
 #include "GenericApplication.h"
 #include "CoreDelegates.h"
 

@@ -414,6 +414,11 @@ namespace UnrealBuildTool
 					{
 						Rules.PlatformSpecificDynamicallyLoadedModuleNames.Add("UWPPlatformFeatures");
 					}
+
+					// Use latest SDK for Intellisense purposes
+					string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(GetBuildPlatform(Target.Platform).DefaultCppPlatform, Target.UWPPlatform.Compiler);
+					Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, Target.UWPPlatform.Compiler);
+					Rules.Definitions.Add(string.Format("WIN10_SDK_VERSION={0}", SDKVersion.Build));
 				}
 			}
 
@@ -522,6 +527,12 @@ namespace UnrealBuildTool
 
 		private void ExpandWinMDReferences(string SDKFolder, string SDKVersion, ref List<string> WinMDReferences)
 		{
+			// Code below will fail when not using the Win10 SDK.  Early out to avoid warning spam.
+			if (!WindowsPlatform.bUseWindowsSDK10)
+			{
+				return;
+			}
+
 			if (WinMDReferences.Count > 0)
 			{
 				// Allow bringing in Windows SDK contracts just by naming the contract
