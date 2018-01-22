@@ -178,11 +178,21 @@ Product::RequestDownloadOrUpdateContentForOfferAsync(
 				throw ref new COMException(queryResult->ExtendedError.Value);
 			}
 
-			StoreProduct^ locatedProduct = queryResult->Products->Lookup(offer);
-			if (locatedProduct == nullptr)
+			StoreProduct^ locatedProduct = nullptr;
+			try
+			{
+				queryResult->Products->Lookup(offer);
+			}
+			catch (Platform::OutOfBoundsException^)
 			{
 				// Don't report this as an error - it could be that the passed in offer is valid, just not a type that supports DLC.
 				return concurrency::create_task([]() {});
+			}
+
+			// ...but if the lookup succeeded it better have found a valid offer.
+			if (locatedProduct == nullptr)
+			{
+				throw ref new FailureException();
 			}
 
 			if (locatedProduct->HasDigitalDownload)
