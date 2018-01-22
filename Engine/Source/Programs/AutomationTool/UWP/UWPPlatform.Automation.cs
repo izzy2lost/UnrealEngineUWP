@@ -434,8 +434,11 @@ namespace UWP.Automation
 
 		public override void Package(ProjectParams Params, DeploymentContext SC, int WorkingCL)
 		{
+			GenerateDLCManifestIfNecessary(Params, SC);
+
 			FileReference MakeAppXPath = UWPExports.GetWindowsSdkToolPath("makeappx.exe");
-			string OutputAppX = Path.Combine(SC.StageDirectory.FullName, Params.ShortProjectName + ".appx");
+			string OutputName = Params.HasDLCName ? Params.DLCFile.GetFileNameWithoutExtension() : Params.ShortProjectName;
+			string OutputAppX = Path.Combine(SC.StageDirectory.FullName, OutputName + ".appx");
 			string MakeAppXCommandLine = string.Format(@"pack /o /d ""{0}"" /p ""{1}""", SC.StageDirectory, OutputAppX);
 			RunAndLog(CmdEnv, MakeAppXPath.FullName, MakeAppXCommandLine, null, 0, null, ERunOptions.None);
 
@@ -469,7 +472,7 @@ namespace UWP.Automation
 
 			// Emit a .cer file adjacent to the appx so it can be installed to enable packaged deployment
 			System.Security.Cryptography.X509Certificates.X509Certificate2 ActualCert = new System.Security.Cryptography.X509Certificates.X509Certificate2(Path.Combine(SC.ProjectRoot.FullName, SigningCertificate));
-			File.WriteAllText(Path.Combine(SC.StageDirectory.FullName, Params.ShortProjectName + ".cer"), Convert.ToBase64String(ActualCert.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Cert)));
+			File.WriteAllText(Path.Combine(SC.StageDirectory.FullName, OutputName + ".cer"), Convert.ToBase64String(ActualCert.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Cert)));
 
 			FileReference SignToolPath = UWPExports.GetWindowsSdkToolPath("signtool.exe");
 			string SignToolCommandLine = string.Format(@"sign /a /f ""{0}"" /fd SHA256 ""{1}""", Path.Combine(SC.ProjectRoot.FullName, SigningCertificate), OutputAppX);
@@ -497,10 +500,10 @@ namespace UWP.Automation
 						}
 					}
 				}
-				FileReference AppxSymFile = FileReference.Combine(StageDirRef, Params.ShortProjectName + ".appxsym");
+				FileReference AppxSymFile = FileReference.Combine(StageDirRef, OutputName + ".appxsym");
 				ZipFiles(AppxSymFile, PublicSymbols, SymbolFilesToZip);
 
-				FileReference AppxUploadFile = FileReference.Combine(StageDirRef, Params.ShortProjectName + ".appxupload");
+				FileReference AppxUploadFile = FileReference.Combine(StageDirRef, OutputName + ".appxupload");
 				ZipFiles(AppxUploadFile, StageDirRef,
 					new FileReference[]
 					{
@@ -967,6 +970,25 @@ namespace UWP.Automation
 				UseDebugCrt ? "Debug" : "Retail",
 				ArchitectureFragment,
 				string.Format("Microsoft.VCLibs.{0}.{1}.00.appx", ArchitectureFragment, VCVersionFragment));
+		}
+
+		private void GenerateDLCManifestIfNecessary(ProjectParams Params, DeploymentContext SC)
+		{
+			// Only required for DLC
+			if (!Params.HasDLCName)
+			{
+				return;
+			}
+
+			// Only required for the first stage (package or deploy) that requires a manifest.
+			// Assumes that the staging directory is pre-cleaned
+			if (FileReference.Exists(FileReference.Combine(SC.StageDirectory, "AppxManifest.xml")))
+			{
+				return;
+			}
+
+
+			UWPExports.CreateManifestForDLC(Params.DLCFile, SC.StageDirectory);
 		}
 
 		private static List<string> AcceptThumbprints = new List<string>();

@@ -71,5 +71,16 @@ namespace UnrealBuildTool
 		{
 			return UniversalWindowsPlatformToolChain.GetWindowsSdkToolPath(ToolName);
 		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="DLCFile"></param>
+		/// <param name="OutputDirectory"></param>
+		public static void CreateManifestForDLC(FileReference DLCFile, DirectoryReference OutputDirectory)
+		{
+			string IntermediateDirectory = DirectoryReference.Combine(DLCFile.Directory, "Intermediate", "Deploy").FullName;
+			new UWPManifestGenerator().CreateManifest(UnrealTargetPlatform.UWP64, OutputDirectory.FullName, IntermediateDirectory, DLCFile, DLCFile.Directory.FullName, new List<UnrealTargetConfiguration>(), new List<string>(), null);
+		}
 	}
 }

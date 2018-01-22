@@ -37,19 +37,19 @@ namespace UnrealBuildTool
 		private string ProjectPath;
 		private string OutputPath;
 		private string IntermediatePath;
-		private string DefaultCulture;
 		private List<string> CulturesToStage;
 
 		// Manifest generation state
-		private UEResXWriter DefaultResourceWriter;
+		private UEResXWriter NeutralResourceWriter;
 		private List<UEResXWriter> PerCultureResourceWriters;
-		private List<Dictionary<string, string>> PerCultureSourceResources;
 		private XmlDocument AppxManifestXmlDocument;
 		private List<string> UpdatedFilePaths;
 
 		// Analagous to RelativeProjectRootForStage in UAT so that VS (UBT only) and UAT layouts match
 		private string RelativeProjectRootForStage;
 		bool IsGameSpecificExe;
+		private bool IsDlc;
+		private Dictionary<string, string> ParsedDlcInfo;
 
 
 		/// <summary>
@@ -680,10 +680,48 @@ namespace UnrealBuildTool
 			// Use the project directory here since this accounts for 'RemoteIniDir' when InProjectFile is null
 			if (InProjectFile != null)
 			{
-				DirectoryReference IniDirRef = DirectoryReference.FromFile(InProjectFile);
-				GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, IniDirRef, TargetPlatform);
-				EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, IniDirRef, TargetPlatform);
-				IsGameSpecificExe = new DirectoryReference(InOutputPath).IsUnderDirectory(IniDirRef);
+				IsDlc = InProjectFile.GetExtension() == ".uplugin";
+
+				if (IsDlc)
+				{
+					DirectoryReference IniDirRef = DirectoryReference.FromFile(InProjectFile).ParentDirectory.ParentDirectory;
+					GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, IniDirRef, TargetPlatform);
+					EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, IniDirRef, TargetPlatform);
+					IsGameSpecificExe = new DirectoryReference(InOutputPath).IsUnderDirectory(IniDirRef);
+
+					List<string> DlcStoreMapping = new List<string>();
+					if (EngineIni.GetArray("/Script/UWPPlatformEditor.UWPTargetSettings", "DLCStoreMapping", out DlcStoreMapping))
+					{
+						foreach (string DlcEntry in DlcStoreMapping)
+						{
+							Dictionary<string, string> PossibleParsedDlcInfo = new Dictionary<string, string>();
+							InterpretINIStruct(DlcEntry, out PossibleParsedDlcInfo);
+							string DlcName = null;
+							PossibleParsedDlcInfo.TryGetValue("PluginName", out DlcName);
+							if (DlcName == InProjectFile.GetFileNameWithoutExtension())
+							{
+								ParsedDlcInfo = PossibleParsedDlcInfo;
+								break;
+							}
+						}
+					}
+
+					if (ParsedDlcInfo == null)
+					{
+						Log.TraceWarning("Could not map {0} to a Store identity.  Using a temporary identity to enable local deployment.  For Store upload configure identity in the UWP Project Settings.", InProjectFile);
+						ParsedDlcInfo = new Dictionary<string, string>();
+						ParsedDlcInfo["PluginName"] = InProjectFile.GetFileNameWithoutExtension();
+						ParsedDlcInfo["PackageIdentityName"] = ParsedDlcInfo["PluginName"];
+						ParsedDlcInfo["PackageIdentityVersion"] = "1.0.0.0";
+					}
+				}
+				else
+				{
+					DirectoryReference IniDirRef = DirectoryReference.FromFile(InProjectFile);
+					GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, IniDirRef, TargetPlatform);
+					EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, IniDirRef, TargetPlatform);
+					IsGameSpecificExe = new DirectoryReference(InOutputPath).IsUnderDirectory(IniDirRef);
+				}
 			}
 			else if (!string.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()))
 			{
@@ -705,77 +743,38 @@ namespace UnrealBuildTool
 			// Load and verify/clean culture list
 			List<string> CulturesToStageWithDuplicates = null;
 			GameIni.GetArray("/Script/UnrealEd.ProjectPackagingSettings", "CulturesToStage", out CulturesToStageWithDuplicates);
-			GameIni.GetString("/Script/UnrealEd.ProjectPackagingSettings", "DefaultCulture", out DefaultCulture);
 			if (CulturesToStageWithDuplicates == null || CulturesToStageWithDuplicates.Count < 1)
 			{
 				Log.TraceError("At least one culture must be selected to stage.");
 				return null;
 			}
-			if (DefaultCulture == null || DefaultCulture.Length < 1)
-			{
-				DefaultCulture = CulturesToStageWithDuplicates[0];
-				Log.TraceWarning("A default culture must be selected to stage. Using {0}.", DefaultCulture);
-			}
-			if (!CulturesToStageWithDuplicates.Contains(DefaultCulture))
-			{
-				DefaultCulture = CulturesToStageWithDuplicates[0];
-				Log.TraceWarning("The default culture must be one of the staged cultures. Using {0}.", DefaultCulture);
-				return null;
-			}
 
 			CulturesToStage = CulturesToStageWithDuplicates.Distinct().ToList();
-			List<string> PerCultureValues;
-			if (EngineIni.GetArray(TargetSettings, "PerCultureResources", out PerCultureValues))
-			{
-				foreach (string CultureCombinedValues in PerCultureValues)
-				{
-					Dictionary<string, string> SeparatedCultureValues;
-					InterpretINIStruct(CultureCombinedValues, out SeparatedCultureValues);
-					string StageId = SeparatedCultureValues["StageId"];
-					int CultureIndex = CulturesToStage.FindIndex(x => x.Equals(StageId));
-					if (CultureIndex >= 0)
-					{
-						CulturesToStage[CultureIndex] = SeparatedCultureValues["CultureId"];
-						if (DefaultCulture.Equals(StageId))
-						{
-							DefaultCulture = SeparatedCultureValues["CultureId"];
-						}
-					}
-				}
-			}
-			// Only warn if shipping, we can run without translated cultures they're just needed for cert
-			else if (InTargetConfigs.Contains(UnrealTargetConfiguration.Shipping))
-			{
-				Log.TraceWarning("Staged culture mappings not setup in the editor. See Per Culture Resources in the Target Settings.");
-			}
 
 			// Construct a single resource writer for the default (no-culture) values
-			string DefaultResourceIntermediatePath = Path.Combine(IntermediateResourceDirectory, "resources.resw");
-			DefaultResourceWriter = new UEResXWriter(DefaultResourceIntermediatePath);
+			string NeutralResourceIntermediatePath = Path.Combine(IntermediateResourceDirectory, "resources.resw");
+			NeutralResourceWriter = new UEResXWriter(NeutralResourceIntermediatePath);
 
-			// Construct the ResXWriters for each culture
 			PerCultureResourceWriters = new List<UEResXWriter>();
-			PerCultureSourceResources = new List<Dictionary<string, string>>();
-			foreach (string Culture in CulturesToStage)
+			for (int i = 0; i < CulturesToStage.Count; ++i)
 			{
+				string Culture = CulturesToStage[i];
 				string IntermediateStringResourcePath = Path.Combine(IntermediateResourceDirectory, Culture);
 				string IntermediateStringResourceFile = Path.Combine(IntermediateStringResourcePath, "resources.resw");
 				if (!CreateCheckDirectory(IntermediateStringResourcePath))
 				{
-					Log.TraceWarning("Culture {0} resources not staged.", Culture);
-					CulturesToStage.Remove(Culture);
-					if (Culture.Equals(DefaultCulture))
-					{
-						DefaultCulture = CulturesToStage[0];
-						Log.TraceWarning("Default culture skipped. Using {0} as default culture.", DefaultCulture);
-					}
+					Log.TraceWarning("Failed to create {0}.  Culture {1} resources not staged.", IntermediateStringResourcePath, Culture);
+					CulturesToStage.RemoveAt(i);
+					--i;
 					continue;
 				}
 				PerCultureResourceWriters.Add(new UEResXWriter(IntermediateStringResourceFile));
+			}
 
-				// Support loading localized resources from resw files in the source tree, per earlier versions.
-				string SourceStringResourceFile = Path.Combine(ProjectPath, BuildResourceProjectRelativePath, "Resources", Culture, "resources.resw");
-				PerCultureSourceResources.Add(LoadSourceResources(SourceStringResourceFile));
+			if (CulturesToStage.Count == 0)
+			{
+				Log.TraceError("Failed to create intermediate files for any culture.  Manifest could not be generated.");
+				return null;
 			}
 
 			// Create the appxmanifest document
@@ -814,13 +813,17 @@ namespace UnrealBuildTool
 
 			// MS staging code requires an AppxManifest to convert
 			//@todo remove if possible
-			string ManifestBinaryPath = Path.Combine(Path.GetDirectoryName(InExecutables[0]), "AppxManifest.xml");
-			CompareAndReplaceModifiedTarget(ManifestIntermediatePath, ManifestBinaryPath);
+			// DLC packages do not contain an exe
+			if (InExecutables.Count > 0)
+			{
+				string ManifestBinaryPath = Path.Combine(Path.GetDirectoryName(InExecutables[0]), "AppxManifest.xml");
+				CompareAndReplaceModifiedTarget(ManifestIntermediatePath, ManifestBinaryPath);
+			}
 
-			// Export the resource tables starting with the default culture
-			string DefaultResourceTargetPath = Path.Combine(OutputPath, BuildResourceSubPath, "resources.resw");
-			DefaultResourceWriter.Close();
-			CompareAndReplaceModifiedTarget(DefaultResourceIntermediatePath, DefaultResourceTargetPath);
+			// Export the resource tables starting with the neutral culture
+			string NeutralResourceTargetPath = Path.Combine(OutputPath, BuildResourceSubPath, "resources.resw");
+			NeutralResourceWriter.Close();
+			CompareAndReplaceModifiedTarget(NeutralResourceIntermediatePath, NeutralResourceTargetPath);
 
 			for (int CultureIndex = 0; CultureIndex < CulturesToStage.Count; CultureIndex++)
 			{
@@ -829,10 +832,6 @@ namespace UnrealBuildTool
 				string TargetStringResourceFile = Path.Combine(OutputPath, BuildResourceSubPath, Culture, "resources.resw");
 				PerCultureResourceWriters[CultureIndex].Close();
 				CompareAndReplaceModifiedTarget(IntermediateStringResourceFile, TargetStringResourceFile);
-
-				// Also update hand-authored resw files in the source directory
-				string SourceStringResourceFile = Path.Combine(ProjectPath, BuildResourceProjectRelativePath, "Resources", Culture, "resources.resw");
-				CompareAndReplaceModifiedTarget(IntermediateStringResourceFile, SourceStringResourceFile);
 			}
 
 			// Copy all the binary resources into the target directory.
@@ -854,8 +853,11 @@ namespace UnrealBuildTool
 
 				string PriExecutable = FileReference.Combine(WindowsSdkBinDir, Environment.Is64BitProcess ? "x64" : "x86", "makepri.exe").FullName;
 
+				// We're not currently splitting pri files along the culture dimension, so all supported languages should be defaults
+				string AllDefaultCultures = CulturesToStage.Aggregate((c1, c2) => (c1 + "_" + c2));
+
 				string ResourceConfigFile = Path.Combine(IntermediatePath, "priconfig.xml");
-				string MakePriArgs = "createconfig /cf \"" + ResourceConfigFile + "\" /dq " + DefaultCulture + " /o";
+				string MakePriArgs = "createconfig /cf \"" + ResourceConfigFile + "\" /dq " + AllDefaultCultures + " /o";
 				System.Diagnostics.ProcessStartInfo StartInfo = new System.Diagnostics.ProcessStartInfo(PriExecutable, MakePriArgs);
 				StartInfo.UseShellExecute = false;
 				StartInfo.RedirectStandardOutput = true;
@@ -869,6 +871,13 @@ namespace UnrealBuildTool
 				// Modify configuration to restrict indexing to the Resources directory (saves time and space)
 				XmlDocument PriConfig = new XmlDocument();
 				PriConfig.Load(ResourceConfigFile);
+
+				// Remove the 'Packaging' node so that we have no autoResourcePackage entries
+				XmlNodeList PackagingNodes = PriConfig.SelectNodes("/resources/packaging");
+				foreach (XmlNode Node in PackagingNodes)
+				{
+					Node.ParentNode.RemoveChild(Node);
+				}
 
 				// The Xbox One approach to limiting the indexer causes files to have dodgy uris in the 
 				// generated pri e.g. ms-resource://PackageIdentityName/Files/Logo.png instead of ms-resource://PackageIdentityName/Files/Resources/Logo.png
@@ -1187,6 +1196,16 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Determine whether a resource is per-DLC or should be inherited from the main package
+		/// </summary>
+		private bool UseDlcResourcesForResourceEntry(string ResourceEntryName)
+		{
+			return IsDlc &&
+				(ResourceEntryName == "PackageDisplayName" ||
+				ResourceEntryName == "PackageDescription");
+		}
+
+		/// <summary>
 		/// Calculate the per culture manifest string value and add a resource table entry encompassing the values.
 		/// </summary>
 		private void AddResourceEntry(string ResourceEntryName, string ConfigKey, string ManifestFullPath, string GenericINISection, string GenericINIKey, string DefaultValue, string ValuePostfix = "")
@@ -1215,49 +1234,70 @@ namespace UnrealBuildTool
 				}
 			}
 
-			DefaultResourceWriter.AddResource(ResourceEntryName, ConfigScratchValue + ValuePostfix);
+			bool IsDlcDefinedResource = UseDlcResourcesForResourceEntry(ResourceEntryName);
 
-			// Use Xbox-style ini-provided localized value if available
 			Dictionary<string, string> IniLocalizedValues = new Dictionary<string, string>();
 			List<string> PerCultureValues;
-			if (EngineIni.GetArray(TargetSettings, "PerCultureResources", out PerCultureValues))
+			if (EngineIni.GetArray(TargetSettings, IsDlcDefinedResource ? "DlcPerCultureResources" : "PerCultureResources", out PerCultureValues))
 			{
 				foreach (string CultureCombinedValues in PerCultureValues)
 				{
 					Dictionary<string, string> SeparatedCultureValues;
 					InterpretINIStruct(CultureCombinedValues, out SeparatedCultureValues);
-					string CultureToFind = SeparatedCultureValues["CultureId"];
-					int CultureIndex = CulturesToStage.IndexOf(CultureToFind/*SeparatedCultureValues["CultureId"]*/);
-					if (CultureIndex >= 0 && SeparatedCultureValues[ConfigKey] != null && SeparatedCultureValues[ConfigKey].Length > 0)
+					if (!IsDlcDefinedResource ||
+						string.Compare(SeparatedCultureValues["AppliesToDlcPlugin"], ParsedDlcInfo["PluginName"], StringComparison.InvariantCultureIgnoreCase) == 0)
 					{
-						IniLocalizedValues.Add(CultureToFind, SeparatedCultureValues[ConfigKey] + ValuePostfix);
+						string CultureId = SeparatedCultureValues["CultureId"];
+						bool IsStagedCulture = string.IsNullOrEmpty(CultureId) || CulturesToStage.Contains(CultureId);
+						if (IsStagedCulture)
+						{
+							if (SeparatedCultureValues[ConfigKey] != null && SeparatedCultureValues[ConfigKey].Length > 0)
+							{
+								IniLocalizedValues.Add(CultureId, SeparatedCultureValues[ConfigKey] + ValuePostfix);
+							}
+						}
 					}
 				}
 			}
 
-			// Make sure we wrote a culture-specific value of some sort.  If necessary fall back to behavior from previous versions where we
-			// pulled values from hand-authored resw files.
+			string NeutralValue = string.Empty;
+			if (!IniLocalizedValues.TryGetValue("", out NeutralValue))
+			{
+				NeutralValue = ConfigScratchValue + ValuePostfix;
+			}
+
+			bool IsEverLocalized = false;
 			for (int i = 0; i < CulturesToStage.Count; ++i)
 			{
 				string ValueToWrite = string.Empty;
-				if (!IniLocalizedValues.TryGetValue(CulturesToStage[i], out ValueToWrite))
+				if (IniLocalizedValues.TryGetValue(CulturesToStage[i], out ValueToWrite))
 				{
-					// Note: consider deprecating in the future once we have Editor UI for UWP resource localization (following Xbox pattern)
-					// Note: don't apply ValuePostfix in this case.  Thanks to the way these are generated it will already be part of the pre-existing value
-					if (!PerCultureSourceResources[i].TryGetValue(ResourceEntryName, out ValueToWrite))
+					IsEverLocalized = true;
+					PerCultureResourceWriters[i].AddResource(ResourceEntryName, ValueToWrite);
+				}
+				else
+				{ 
+					Log.TraceVerbose("No localized value for {0} in culture {1}.  Neutral value ({2}) will be used", ResourceEntryName, CulturesToStage[i], NeutralValue);
+				}
+			}
+
+			// Any culture with a culture-specific value will override the neutral value,
+			// even for unrelated cultures.  So propagate the neutral value to avoid this happening.
+			if (IsEverLocalized)
+			{
+				for (int i = 0; i < CulturesToStage.Count; ++i)
+				{
+					string ValueToWrite = string.Empty;
+					if (!IniLocalizedValues.ContainsKey(CulturesToStage[i]))
 					{
-						if (CulturesToStage[i] == DefaultCulture)
-						{
-							ValueToWrite = ConfigScratchValue + ValuePostfix;
-						}
-						else
-						{
-							Log.TraceWarning("Missing localized value for {0} in culture {1}", ResourceEntryName, CulturesToStage[i]);
-							ValueToWrite = string.Format("[{0}_{1}]", CulturesToStage[i], ResourceEntryName);
-						}
+						PerCultureResourceWriters[i].AddResource(ResourceEntryName, NeutralValue);
 					}
 				}
-				PerCultureResourceWriters[i].AddResource(ResourceEntryName, ValueToWrite);
+			}
+			else
+			{
+				// No culture has a specific value for this string.  Write the shared value to the neutral resource collection.
+				NeutralResourceWriter.AddResource(ResourceEntryName, NeutralValue);
 			}
 		}
 
@@ -1306,12 +1346,16 @@ namespace UnrealBuildTool
             Uap2ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10/2";
             Package.Attributes.Append(Uap2ManifestNamespace);
 
-            XmlAttribute MpManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:mp");
+			XmlAttribute Uap3ManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:uap3");
+			Uap3ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10/3";
+			Package.Attributes.Append(Uap3ManifestNamespace);
+
+			XmlAttribute MpManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:mp");
 			MpManifestNamespace.Value = "http://schemas.microsoft.com/appx/2014/phone/manifest";
 			Package.Attributes.Append(MpManifestNamespace);
 
             XmlAttribute IgnorableNamespaces = AppxManifestXmlDocument.CreateAttribute("IgnorableNamespaces");
-            IgnorableNamespaces.Value = "mp uap uap2";
+            IgnorableNamespaces.Value = "mp uap uap2 uap3";
             Package.Attributes.Append(IgnorableNamespaces);
 
 
@@ -1327,15 +1371,17 @@ namespace UnrealBuildTool
 			XmlNode Resources = GetResources();
 			AddElementIfValid(Package, Resources, true);
 
-			XmlNode Applications = GetApplications(TargetConfigs, Executables);
-			AddElementIfValid(Package, Applications, true);
+			if (!IsDlc)
+			{
+				XmlNode Applications = GetApplications(TargetConfigs, Executables);
+				AddElementIfValid(Package, Applications, true);
 
-			XmlNode Capabilities = GetCapabilities();
-			AddElementIfValid(Package, Capabilities, true);
+				XmlNode Capabilities = GetCapabilities();
+				AddElementIfValid(Package, Capabilities, true);
 
-			XmlNode Extensions = GetPackageExtensions();
-			AddElementIfValid(Package, Extensions, false, true);
-
+				XmlNode Extensions = GetPackageExtensions();
+				AddElementIfValid(Package, Extensions, false, true);
+			}
 			return Package;
 		}
 
@@ -1360,8 +1406,18 @@ namespace UnrealBuildTool
 		{
 			XmlElement Identity = AppxManifestXmlDocument.CreateElement("Identity");
 
-			XmlAttribute PackageName = CreateStringAttribute("Name", "PackageName", "Package.Identity.Name", "/Script/EngineSettings.GeneralProjectSettings", "ProjectName", "DefaultUE4Project", ValidatePackageName);
-			Identity.Attributes.Append(PackageName);
+			if (!IsDlc)
+			{
+				XmlAttribute PackageName = CreateStringAttribute("Name", "PackageName", "Package.Identity.Name", "/Script/EngineSettings.GeneralProjectSettings", "ProjectName", "DefaultUE4Project", ValidatePackageName);
+				Identity.Attributes.Append(PackageName);
+			}
+			else
+			{
+				XmlAttribute PackageName = AppxManifestXmlDocument.CreateAttribute("Name");
+				PackageName.Value = ParsedDlcInfo["PackageIdentityName"];
+				ValidatePackageName(PackageName.Value);
+				Identity.Attributes.Append(PackageName);
+			}
 
 			XmlAttribute ProcessorArchitecture = AppxManifestXmlDocument.CreateAttribute("ProcessorArchitecture");
 			ProcessorArchitecture.Value = Platform == UnrealTargetPlatform.UWP64 ? "x64" : "x86";
@@ -1370,8 +1426,17 @@ namespace UnrealBuildTool
 			XmlAttribute PublisherName = CreateStringAttribute("Publisher", "PublisherName", "Package.Identity.Publisher", "/Script/EngineSettings.GeneralProjectSettings", "CompanyDistinguishedName", "CN=NoPublisher");
 			Identity.Attributes.Append(PublisherName);
 
-			XmlAttribute VersionNumber = CreateStringAttribute("Version", "PackageVersion", "Package.Identity.Version", "/Script/EngineSettings.GeneralProjectSettings", "ProjectVersion", "1.0.0.0");
-			Identity.Attributes.Append(VersionNumber);
+			if (!IsDlc)
+			{
+				XmlAttribute VersionNumber = CreateStringAttribute("Version", "PackageVersion", "Package.Identity.Version", "/Script/EngineSettings.GeneralProjectSettings", "ProjectVersion", "1.0.0.0");
+				Identity.Attributes.Append(VersionNumber);
+			}
+			else
+			{
+				XmlAttribute VersionNumber = AppxManifestXmlDocument.CreateAttribute("Version");
+				VersionNumber.Value = ParsedDlcInfo["PackageIdentityVersion"];
+				Identity.Attributes.Append(VersionNumber);
+			}
 
 			return Identity;
 		}
@@ -1463,6 +1528,16 @@ namespace UnrealBuildTool
 				PackageDependency.Attributes.Append(MinVersionAttribute);
 			}
 
+			if (IsDlc)
+			{
+				// Add a dependency for the main package
+				XmlElement PackageDependency = AppxManifestXmlDocument.CreateElement("uap3:MainPackageDependency", "http://schemas.microsoft.com/appx/manifest/uap/windows10/3");
+				Dependencies.AppendChild(PackageDependency);
+
+				XmlAttribute NameAttribute = CreateStringAttribute("Name", "PackageName", "Package.Identity.Name", "/Script/EngineSettings.GeneralProjectSettings", "ProjectName", "DefaultUE4Project", ValidatePackageName);
+				PackageDependency.Attributes.Append(NameAttribute);
+			}
+
 			return Dependencies;
 		}
  
@@ -1489,18 +1564,13 @@ namespace UnrealBuildTool
 		{
 			XmlElement Resources = AppxManifestXmlDocument.CreateElement("Resources");
 
-			List<string> ResourceCulturesList = CulturesToStage.ToList();
-			// Move the default culture to the front of the list
-			ResourceCulturesList.Remove(DefaultCulture);
-			ResourceCulturesList.Insert(0, DefaultCulture);
-
-			// Check that we have a valid number of cultures
+			// Check that we have a valid number of cultures.
 			if (CulturesToStage.Count < 1 || CulturesToStage.Count >= MaxResourceEntries)
 			{
 				Log.TraceWarning("Incorrect number of cultures to stage. There must be between 1 and {0} cultures selected.", MaxResourceEntries);
 			}
 
-			// Create the culture list. This list is unordered except that the default language must be first which we already took care of above.
+			// Create the culture list.
 			for (int ResourceIndex = 0; ResourceIndex < CulturesToStage.Count; ResourceIndex++)
 			{
 				XmlNode Resource = AppxManifestXmlDocument.CreateElement("Resource");
@@ -1851,23 +1921,6 @@ namespace UnrealBuildTool
 			}
 
 			return Extensions;
-		}
-
-		private Dictionary<string, string> LoadSourceResources(string ResourceSourcePath)
-		{
-			Dictionary<string, string> LoadedResources = new Dictionary<string, string>();
-			if (File.Exists(ResourceSourcePath))
-			{
-				// Disabled for now - ResXResourceReader no longer available; implement UEResXReader,
-				// or just eliminate this approach to localizing manifest resources?
-				//ResXResourceReader reader = new ResXResourceReader(ResourceSourcePath);
-				//System.Collections.IDictionaryEnumerator enumerator = reader.GetEnumerator();
-				//while (enumerator.MoveNext())
-				//{
-				//	LoadedResources.Add(enumerator.Key.ToString(), enumerator.Value.ToString());
-				//}
-			}
-			return LoadedResources;
 		}
 
 		private void ValidateAppxManifest(string ManifestPath)
