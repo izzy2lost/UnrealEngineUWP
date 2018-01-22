@@ -24,6 +24,7 @@ public class UWPPlatformEditor : ModuleRules
 				"SourceControl",
 				"WindowsTargetPlatform", // For ECompilerVersion
 				"EngineSettings",
+				"Projects",
 			}
 		);
 

@@ -21,6 +21,9 @@
 #include "SButton.h"
 #include "SErrorHint.h"
 #include "PlatformFileManager.h"
+#include "PropertyCustomizationHelpers.h"
+#include "IDetailChildrenBuilder.h"
+#include "UWPLocalizedResourcesCustomization.h"
 
 #define LOCTEXT_NAMESPACE "UWPTargetSettingsCustomization"
 
@@ -73,6 +76,10 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 
 	// Add UI to select signing certificate
 	IDetailCategoryBuilder& PackagingCategoryBuilder = DetailBuilder.EditCategory(FName("Packaging"));
+	TSharedRef<IPropertyHandle> LocalizedResourcesProperty = DetailBuilder.GetProperty("PerCultureResources");
+	DetailBuilder.HideProperty(LocalizedResourcesProperty);
+	PackagingCategoryBuilder.AddCustomBuilder(MakeShared<FUWPLocalizedResourcesNodeBuilder>(LocalizedResourcesProperty, TEXT("")));
+
 	FString ProjectPath = FPaths::ProjectDir() / TEXT("Build") / TEXT("UWP") / TEXT("SigningCertificate.pfx");
 
 	// Load the existing signing certificate (if any)
@@ -156,15 +163,6 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 
 	AddWidgetForPlatformVersion(DetailBuilder, Win10SDKVersionPropertyHandle, &WindowsSDKSelector);
 
-	// Add the packaging images customization
-	IDetailGroup& ImagesGroup = PackagingCategoryBuilder.AddGroup(FName("PackagingImages"), LOCTEXT("PackagingImages", "Images"));
-
-	AddWidgetForResourceImage(ImagesGroup, TEXT("Logo"), LOCTEXT("Square150x150Logo", "Square 150x150 Logo"), FVector2D(150.0f, 150.0f));
-	AddWidgetForResourceImage(ImagesGroup, TEXT("SmallLogo"), LOCTEXT("Square44x44Logo", "Square 44x44 Logo"), FVector2D(44.0f, 44.0f));
-	AddWidgetForResourceImage(ImagesGroup, TEXT("WideLogo"), LOCTEXT("Wide310x150Logo", "Wide 310x150 Logo"), FVector2D(310.0f, 150.0f));
-	AddWidgetForResourceImage(ImagesGroup, TEXT("SplashScreen"), LOCTEXT("SplashScreen", "Splash Screen"), FVector2D(620.0f, 300.0f));
-	AddWidgetForResourceImage(ImagesGroup, TEXT("StoreLogo"), LOCTEXT("StoreLogo", "Store Logo"), FVector2D(50.0f, 50.0f));
-
 	// Add capability support.
 	TSharedRef<IPropertyHandle> CapabilityList = DetailBuilder.GetProperty("CapabilityList");
 	DetailBuilder.HideProperty(CapabilityList);
@@ -214,57 +212,6 @@ void FUWPTargetSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 		SetDefaultCapabilitiesProperty->SetValue(false);
 		SetDefaultCapabilitiesProperty->NotifyPostChange();
 	}
-}
-
-void FUWPTargetSettingsCustomization::AddWidgetForResourceImage(IDetailGroup& GroupBuilder, const FString& ImageFileName, const FText& ImageCaption, const FVector2D& ImageDimensions)
-{	
-	const FString DefaultEngineImageSubPath = FString::Printf(TEXT("Build/UWP/DefaultImages/%s.png"), *ImageFileName);
-	const FString DefaultGameImageSubPath = FString::Printf(TEXT("Build/UWP/Resources/%s.png"), *ImageFileName);
-
-	const FString EngineImagePath = FPaths::EngineDir() / DefaultEngineImageSubPath;
-	const FString ProjectImagePath = FPaths::ProjectDir() / DefaultGameImageSubPath;
-
-	TArray<FString> ImageExtensions;
-	ImageExtensions.Add(TEXT("png"));
-
-	GroupBuilder.AddWidgetRow()
-	.NameContent()
-	[
-		SNew(STextBlock)
-		.Text(ImageCaption)
-		.Font(IDetailLayoutBuilder::GetDetailFont())
-	]
-	.ValueContent()
-	.MinDesiredWidth(ImageDimensions.X)
-	[
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.FillWidth(1.0f)
-		.VAlign(VAlign_Center)
-		[
-			SNew(SExternalImageReference, EngineImagePath, ProjectImagePath)
-			.FileDescription(ImageCaption)
-			.MaxDisplaySize(ImageDimensions)
-			.OnGetPickerPath(FOnGetPickerPath::CreateSP(this, &FUWPTargetSettingsCustomization::GetPickerPath))
-			.OnPostExternalImageCopy(FOnPostExternalImageCopy::CreateSP(this, &FUWPTargetSettingsCustomization::HandlePostExternalIconCopy))
-			.DeleteTargetWhenDefaultChosen(true)
-			.FileExtensions(ImageExtensions)
-			.DeletePreviousTargetWhenExtensionChanges(true)
-		]
-	];
-}
-
-
-FString FUWPTargetSettingsCustomization::GetPickerPath()
-{
-	return FEditorDirectories::Get().GetLastDirectory(ELastDirectory::GENERIC_OPEN);
-}
-
-
-bool FUWPTargetSettingsCustomization::HandlePostExternalIconCopy(const FString& InChosenImage)
-{
-	FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_OPEN, FPaths::GetPath(InChosenImage));
-	return true;
 }
 
 void FUWPTargetSettingsCustomization::OnCertificatePicked(const FString& PickedPath)

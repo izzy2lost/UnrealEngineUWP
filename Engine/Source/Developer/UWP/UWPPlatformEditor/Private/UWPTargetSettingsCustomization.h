@@ -21,11 +21,8 @@ private:
 
 	void AddWidgetForCapability(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> CapabilityList, const FString& CapabilityName, const FText& CapabilityCaption, const FText& CapabilityTooltip, bool bForAdvanced);
 	void AddWidgetForPlatformVersion(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle, TSharedPtr<STextComboBox>* OutVersionSelector = nullptr);
-	void AddWidgetForResourceImage(IDetailGroup& GroupBuilder, const FString& ImageFileName, const FText& ImageCaption, const FVector2D& ImageDimensions);
 	void AddWidgetForTargetDeviceFamily(IDetailLayoutBuilder& DetailBuilder, TSharedRef<IPropertyHandle> PropertyHandle);
 	static FString GetNameForSigningCertificate(const FString &CertificatePath);
-	FString GetPickerPath();
-	bool HandlePostExternalIconCopy(const FString & InChosenImage);
 	void InitSupportedPlatformVersions();
 	void InitTargetDeviceFamilyOptions();
 	ECheckBoxState IsCapabilityChecked(TSharedRef<IPropertyHandle> CapabilityList, const FString CapabilityName) const;

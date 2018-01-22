@@ -6,7 +6,24 @@
 #pragma once
 
 #include "WindowsTargetSettings.h"
+#include "UWPLocalizedResources.h"
 #include "UWPTargetSettings.generated.h"
+
+USTRUCT()
+struct FUWPDLCSettings
+{
+public:
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, config, Category = DLC)
+	FString PluginName;
+
+	UPROPERTY(EditAnywhere, config, Category = DLC, Meta = (DisplayName = "Package/Identity/Name"))
+	FString PackageIdentityName;
+
+	UPROPERTY(EditAnywhere, config, Category = DLC, Meta = (DisplayName = "Package/Identity/Version"))
+	FString PackageIdentityVersion;
+};
 
 /**
  * Implements the settings for the UWP target platform.
@@ -109,7 +126,7 @@ public:
 	* from General Project Settings will be used.  When building for the Windows Store or using Xbox Live this value
 	* must match the identity assigned in Dev Center
 	*/
-	UPROPERTY(EditAnywhere, config, Category = Packaging, AdvancedDisplay, Meta = (DisplayName = "Package/Identity/Name override"))
+	UPROPERTY(EditAnywhere, config, Category = Packaging, Meta = (DisplayName = "Package/Identity/Name override"))
 	FString PackageName;
 
 	/**
@@ -117,8 +134,11 @@ public:
 	* from General Project Settings will be used.  When building for the Windows Store or using Xbox Live this value 
 	* must match the identity assigned in Dev Center
 	*/
-	UPROPERTY(EditAnywhere, config, Category = Packaging, AdvancedDisplay, Meta = (DisplayName = "Package/Identity/Publisher override"))
+	UPROPERTY(EditAnywhere, config, Category = Packaging, Meta = (DisplayName = "Package/Identity/Publisher override"))
 	FString PublisherName;
+
+	UPROPERTY(EditAnywhere, config, Category = Packaging)
+	TArray<FUWPCorePackageLocalizedResources> PerCultureResources;
 
 	/**
 	* Identifies the device family that your package will target.
@@ -177,4 +197,10 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, config, Category = Capabilities)
 	bool bSetDefaultCapabilities = true;
+
+	UPROPERTY(EditAnywhere, config, Category = DLC)
+	TArray<FUWPDLCSettings> DLCStoreMapping;
+
+	UPROPERTY(EditAnywhere, config, Category = DLC)
+	TArray<FUWPDlcLocalizedResources> DLCPerCultureResources;
 };

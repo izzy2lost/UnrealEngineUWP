@@ -1,5 +1,8 @@
 #include "PropertyEditorModule.h"
 #include "UWPTargetSettingsCustomization.h"
+#include "UWPLocalizedResourcesCustomization.h"
+#include "UWPDlcSettingsCustomization.h"
+#include "UWPImageResourcesCustomization.h"
 #include "ISettingsModule.h"
 #include "ModuleManager.h"
 #include "UWPTargetSettings.h"
@@ -46,6 +49,31 @@ public:
 		PropertyModule.RegisterCustomClassLayout(
 			"UWPTargetSettings",
 			FOnGetDetailCustomizationInstance::CreateStatic(&FUWPTargetSettingsCustomization::MakeInstance)
+			);
+
+		PropertyModule.RegisterCustomPropertyTypeLayout(
+			"UWPCorePackageLocalizedResources",
+			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FUWPLocalizedResourcesCustomization::MakeInstance)
+			);
+
+		PropertyModule.RegisterCustomPropertyTypeLayout(
+			"UWPDlcLocalizedResources",
+			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FUWPLocalizedResourcesCustomization::MakeInstance)
+			);
+
+		PropertyModule.RegisterCustomPropertyTypeLayout(
+			"UWPDlcSettings",
+			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FUWPDlcSettingsCustomization::MakeInstance)
+			);
+
+		PropertyModule.RegisterCustomPropertyTypeLayout(
+			"UWPCorePackageImageResources",
+			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FUWPCorePackageImagesCustomization::MakeInstance)
+			);
+
+		PropertyModule.RegisterCustomPropertyTypeLayout(
+			"UWPDlcImageResources",
+			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FUWPDlcImagesCustomization::MakeInstance)
 			);
 	}
 
