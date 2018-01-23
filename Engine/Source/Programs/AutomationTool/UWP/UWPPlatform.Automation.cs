@@ -389,6 +389,20 @@ namespace UWP.Automation
 
 		public override void GetFilesToDeployOrStage(ProjectParams Params, DeploymentContext SC)
 		{
+			// Some off-the-shelf binaries (e.g. Live SDK components) are labeled as Win32.  Make sure
+			// this name isn't on the restricted list.  Ditto for Win64 (though this is typically less
+			// of a problem since the binaries are probably in an x64 folder)
+			switch (PlatformType)
+			{
+				case UnrealTargetPlatform.UWP32:
+					SC.RestrictedFolderNames.RemoveWhere((x) => (x.DisplayName == UnrealTargetPlatform.Win32.ToString()));
+					break;
+
+				case UnrealTargetPlatform.UWP64:
+					SC.RestrictedFolderNames.RemoveWhere((x) => (x.DisplayName == UnrealTargetPlatform.Win64.ToString()));
+					break;
+			}
+
 			// Stage all the build products
 			UWPExports DeployExports = new UWPExports();
 			foreach (StageTarget Target in SC.StageTargets)
