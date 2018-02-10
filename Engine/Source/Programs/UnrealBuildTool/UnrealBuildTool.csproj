@@ -236,9 +236,6 @@
     <Compile Include="Platform\Windows\WinResources.cs" />
   </ItemGroup>
   <PropertyGroup>
-    <TargetPlatformVersion>8.0</TargetPlatformVersion>
-    <DefineConstants>VS140COMNTOOLS;$(DefineConstants)</DefineConstants>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <Windows10SdkPath>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0@InstallationFolder)</Windows10SdkPath>
     <Windows10SdkLatestVersion>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0@ProductVersion)</Windows10SdkLatestVersion>
   </PropertyGroup>
@@ -246,9 +243,9 @@
     <Reference Include="Windows">
       <HintPath>$(Windows10SdkPath)\UnionMetadata\$(Windows10SdkLatestVersion)\Windows.winmd</HintPath>
       <!-- 16299 SDK (possibly others?) has ProductVersion == 10.0.16299 in the registry, but pathing needs the final .0 -->
-      <HintPath Condition="'$([System.IO.File]::Exists($(HintPath)))'=='false'">$(Windows10SdkPath)\UnionMetadata\$(Windows10SdkLatestVersion).0\Windows.winmd</HintPath>
+      <HintPath Condition="'$([System.IO.File]::Exists(%(HintPath)))'=='false'">$(Windows10SdkPath)\UnionMetadata\$(Windows10SdkLatestVersion).0\Windows.winmd</HintPath>
       <!-- Fall back to old, unversioned location -->
-      <HintPath Condition="'$([System.IO.File]::Exists($(HintPath)))'=='false'">$(Windows10SdkPath)\UnionMetadata\Windows.winmd</HintPath>
+      <HintPath Condition="'$([System.IO.File]::Exists(%(HintPath)))'=='false'">$(Windows10SdkPath)\UnionMetadata\Windows.winmd</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
