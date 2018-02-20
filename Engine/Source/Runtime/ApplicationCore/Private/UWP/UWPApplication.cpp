@@ -157,6 +157,11 @@ void FDisplayMetrics::GetDisplayMetrics(FDisplayMetrics& OutDisplayMetrics)
 	// size aligns this with the coordinate space naturally used for UWP pointer events,
 	// and allows us to correctly handle cases where a windowed app spans multiple screens.
 	OutDisplayMetrics.VirtualDisplayRect = FUWPWindow::GetOSWindowBounds();
+
+	// Translate so that the top left of the Window is the origin to exactly match
+	// pointer event coordinate space.
+	OutDisplayMetrics.VirtualDisplayRect.Bottom -= OutDisplayMetrics.VirtualDisplayRect.Top;
+	OutDisplayMetrics.VirtualDisplayRect.Right -= OutDisplayMetrics.VirtualDisplayRect.Left;
 	OutDisplayMetrics.VirtualDisplayRect.Left = 0;
 	OutDisplayMetrics.VirtualDisplayRect.Top = 0;
 
