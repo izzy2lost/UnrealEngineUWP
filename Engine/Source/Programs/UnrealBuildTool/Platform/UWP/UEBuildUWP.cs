@@ -416,9 +416,13 @@ namespace UnrealBuildTool
 					}
 
 					// Use latest SDK for Intellisense purposes
-					string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(GetBuildPlatform(Target.Platform).DefaultCppPlatform, Target.UWPPlatform.Compiler);
-					Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, Target.UWPPlatform.Compiler);
-					Rules.Definitions.Add(string.Format("WIN10_SDK_VERSION={0}", SDKVersion.Build));
+					WindowsCompiler CompilerForSdkRestriction = Target.UWPPlatform.Compiler != WindowsCompiler.Default ? Target.UWPPlatform.Compiler : Target.WindowsPlatform.Compiler;
+					if (CompilerForSdkRestriction != WindowsCompiler.Default)
+					{
+						string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(GetBuildPlatform(Target.Platform).DefaultCppPlatform, CompilerForSdkRestriction);
+						Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, Target.UWPPlatform.Compiler);
+						Rules.Definitions.Add(string.Format("WIN10_SDK_VERSION={0}", SDKVersion.Build));
+					}
 				}
 			}
 
