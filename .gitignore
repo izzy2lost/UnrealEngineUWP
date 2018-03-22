@@ -150,6 +150,9 @@ Engine/Binaries/DotNET/AutomationScripts/BuildGraph.Automation.xml
 # Ignore version files in the Engine/Binaries directory created by UBT
 /Engine/Binaries/**/*.version
 
+# Ignore exp files in the the Engine/Binaries directory as they aren't C/C++ source files
+/Engine/Binaries/**/*.exp
+
 # Ignore content folders
 Content/
 
@@ -162,17 +165,24 @@ obj/
 
 # Ignore any saved local files
 Saved/
+/Engine/Programs/MemoryProfiler2/**
 /Engine/Programs/UnrealBuildTool/**
 /LocalBuilds/
+
+# Ignore Swarm local save files
+Engine/Binaries/DotNET/SwarmAgent.DeveloperOptions.xml
+Engine/Binaries/DotNET/SwarmAgent.Options.xml
 
 # Explcitly ignore Mac DS_Store files, regardless of where they are
 .DS_Store
 
 # Ignore VS / VS Code settings directory
 .vs
+.vscode
 
 # Exception for third-party UWP binaries, since these are not obtained via Setup.bat
 !/Engine/Binaries/ThirdParty/**/UWP*/**
+/Engine/Binaries/ThirdParty/WindowsDevicePortalWrapper/**
 !/Engine/Source/ThirdParty/**/UWP*/**
 
 # But some third-party UWP output file types are not consumed by the engine and should still be ignored.
@@ -208,3 +218,4 @@ Engine/Build/UWP/Resources/en/resources.resw
 
 # Exclude all XboxOne SDK files
 /Engine/Plugins/Online/OnlineSubsystemLive/ThirdParty/XSAPI/**
+/Engine/Plugins/Online/OnlineSubsystemLive/ThirdParty/XIM/**

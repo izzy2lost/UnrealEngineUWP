@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
 
@@ -8,7 +8,7 @@ public class D3D12RHI : ModuleRules
 	{
 		PrivateIncludePaths.Add("Runtime/D3D12RHI/Private");
 
-        PrivateDependencyModuleNames.AddRange(
+		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
 				"Engine",
@@ -51,6 +51,7 @@ public class D3D12RHI : ModuleRules
 			else
 			{
                 AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
+				AddEngineThirdPartyPrivateStaticDependencies(Target, "AMD_AGS");
             }
             // @ATG_CHANGE : END
 		}

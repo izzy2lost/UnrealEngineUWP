@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
 using System;
@@ -78,7 +78,8 @@ public class Core : ModuleRules
 				"zlib");
 
 			AddEngineThirdPartyPrivateStaticDependencies(Target, 
-				"IntelTBB"
+				"IntelTBB",
+				"IntelVTune"
 				);
 		} 
 // @ATG_CHANGE : BEGIN UWP support
@@ -166,7 +167,7 @@ public class Core : ModuleRules
         {
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "ICU");
         }
-        Definitions.Add("UE_ENABLE_ICU=" + (Target.bCompileICU ? "1" : "0")); // Enable/disable (=1/=0) ICU usage in the codebase. NOTE: This flag is for use while integrating ICU and will be removed afterward.
+        PublicDefinitions.Add("UE_ENABLE_ICU=" + (Target.bCompileICU ? "1" : "0")); // Enable/disable (=1/=0) ICU usage in the codebase. NOTE: This flag is for use while integrating ICU and will be removed afterward.
 
         // If we're compiling with the engine, then add Core's engine dependencies
 		if (Target.bCompileAgainstEngine == true)
@@ -194,18 +195,15 @@ public class Core : ModuleRules
 			if (File.Exists(Path.Combine(PerfIncludeDirectory, "VSPerf.h")))
 			{
 				PrivateIncludePaths.Add(PerfIncludeDirectory);
-				Definitions.Add("WITH_VS_PERF_PROFILER=1");
+				PublicDefinitions.Add("WITH_VS_PERF_PROFILER=1");
 			}
 			else
 			{
-				Definitions.Add("WITH_VS_PERF_PROFILER=0");
+				PublicDefinitions.Add("WITH_VS_PERF_PROFILER=0");
 			}
 		}
 
-		if(Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.Win64)
-		{
-			WhitelistRestrictedFolders.Add("Private/Windows/NoRedist");
-		}
+		WhitelistRestrictedFolders.Add("Private/NoRedist");
 
         if ((Target.Platform == UnrealTargetPlatform.XboxOne) ||
 // @ATG_CHANGE : BEGIN UWP support
@@ -213,13 +211,13 @@ public class Core : ModuleRules
             (Target.Platform == UnrealTargetPlatform.UWP64))
 // @ATG_CHANGE : END
         {
-            Definitions.Add("WITH_DIRECTXMATH=1");
+            PublicDefinitions.Add("WITH_DIRECTXMATH=1");
         }
         else if ((Target.Platform == UnrealTargetPlatform.Win64) ||
                 (Target.Platform == UnrealTargetPlatform.Win32))
         {
 			// To enable this requires Win8 SDK
-            Definitions.Add("WITH_DIRECTXMATH=0");  // Enable to test on Win64/32.
+            PublicDefinitions.Add("WITH_DIRECTXMATH=0");  // Enable to test on Win64/32.
 
             //PublicDependencyModuleNames.AddRange(  // Enable to test on Win64/32.
 			//    new string[] {
@@ -228,7 +226,7 @@ public class Core : ModuleRules
         }
         else
         {
-            Definitions.Add("WITH_DIRECTXMATH=0");
+            PublicDefinitions.Add("WITH_DIRECTXMATH=0");
         }
     }
 }

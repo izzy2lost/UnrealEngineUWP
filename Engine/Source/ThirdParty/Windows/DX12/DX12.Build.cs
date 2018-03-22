@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 using UnrealBuildTool;
 
 public class DX12 : ModuleRules
@@ -21,10 +21,10 @@ public class DX12 : ModuleRules
 		{
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x64");
 
-			PublicDelayLoadDLLs.Add("WinPixEventRuntime.dll");
-			PublicAdditionalLibraries.Add("WinPixEventRuntime.lib");
-			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Windows/DirectX/x64/WinPixEventRuntime.dll"));
-		}
+            PublicDelayLoadDLLs.Add("WinPixEventRuntime.dll");
+            PublicAdditionalLibraries.Add("WinPixEventRuntime.lib");
+            RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Windows/DirectX/x64/WinPixEventRuntime.dll");
+        }
 		else if (Target.Platform == UnrealTargetPlatform.Win32)
 		{
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
@@ -34,7 +34,7 @@ public class DX12 : ModuleRules
 		{
 			PublicDelayLoadDLLs.Add("WinPixEventRuntime.dll");
 			PublicAdditionalLibraries.Add("WinPixEventRuntime.lib");
-			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Windows/DirectX/x64/WinPixEventRuntime.dll"));
+			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Windows/DirectX/x64/WinPixEventRuntime.dll");
 		}
 		// @ATG_CHANGE : END
 

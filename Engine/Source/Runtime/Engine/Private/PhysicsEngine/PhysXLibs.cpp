@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	PhysXLibs.cpp: PhysX library imports
@@ -38,9 +38,9 @@ namespace PhysDLLHelper
 #if PLATFORM_WINDOWS || PLATFORM_UWP
 // @ATG_CHANGE : END
 
-	FString PhysXBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX/");
-	FString APEXBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX/");
-	FString SharedBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX/");
+	FString PhysXBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX3/");
+	FString APEXBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX3/");
+	FString SharedBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX3/");
 
 #if _MSC_VER >= 1900
 	FString VSDirectory(TEXT("VS2015/"));
@@ -86,7 +86,7 @@ namespace PhysDLLHelper
 	FString APEXSuffix(ArchName + TEXT(".dll"));
 #endif
 #elif PLATFORM_MAC
-	FString PhysXBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX/Mac/");
+	FString PhysXBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX3/Mac/");
 #ifdef UE_PHYSX_SUFFIX
 	FString PhysXSuffix = FString(TEXT(PREPROCESSOR_TO_STRING(UE_PHYSX_SUFFIX))) + TEXT(".dylib");
 #else

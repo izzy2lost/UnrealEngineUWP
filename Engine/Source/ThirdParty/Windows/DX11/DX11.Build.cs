@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 using UnrealBuildTool;
 
 public class DX11 : ModuleRules
@@ -16,7 +16,7 @@ public class DX11 : ModuleRules
 
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
 		{
-			Definitions.Add("WITH_D3DX_LIBS=1");
+			PublicDefinitions.Add("WITH_D3DX_LIBS=1");
 
 			if (Target.Platform == UnrealTargetPlatform.Win64)
 			{
@@ -55,7 +55,7 @@ public class DX11 : ModuleRules
 		}
 		else if (Target.Platform == UnrealTargetPlatform.XboxOne)
 		{
-			Definitions.Add("WITH_D3DX_LIBS=0");
+			PublicDefinitions.Add("WITH_D3DX_LIBS=0");
 		}
 		// @ATG_CHANGE : BEGIN UWP support
 		else if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)

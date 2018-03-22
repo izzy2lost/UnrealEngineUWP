@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "MfMediaPlayer.h"
 
@@ -21,8 +21,6 @@
 #else
 	#include "XboxOneAllowPlatformTypes.h"
 #endif
-
-#define MFMEDIAPLAYER_USE_SEEKANDREVERSE 0 // not fully working yet
 
 #define LOCTEXT_NAMESPACE "FMfMediaPlayer"
 
@@ -210,6 +208,8 @@ void FMfMediaPlayer::TickFetch(FTimespan /*DeltaTime*/, FTimespan /*Timecode*/)
 	{
 		if (Tracks->IsInitialized())
 		{
+			EventSink.ReceiveMediaEvent(EMediaEvent::TracksChanged);
+
 			if (CurrentState == EMediaState::Preparing)
 			{
 				CurrentDuration = Tracks->GetDuration();
@@ -229,8 +229,6 @@ void FMfMediaPlayer::TickFetch(FTimespan /*DeltaTime*/, FTimespan /*Timecode*/)
 					EventSink.ReceiveMediaEvent(EMediaEvent::MediaOpenFailed);
 				}
 			}
-
-			EventSink.ReceiveMediaEvent(EMediaEvent::TracksChanged);
 		}
 		else
 		{
@@ -256,9 +254,14 @@ void FMfMediaPlayer::TickFetch(FTimespan /*DeltaTime*/, FTimespan /*Timecode*/)
 
 void FMfMediaPlayer::TickInput(FTimespan DeltaTime, FTimespan Timecode)
 {
-	if ((CurrentState != EMediaState::Playing) || (CurrentDuration == FTimespan::Zero()))
+	if (CurrentDuration == FTimespan::Zero())
 	{
-		return;
+		return; // nothing to play
+	}
+
+	if ((CurrentState != EMediaState::Paused) && (CurrentState != EMediaState::Playing))
+	{
+		return; // not paused or playing
 	}
 
 	if (SourceReaderError)
@@ -310,19 +313,9 @@ void FMfMediaPlayer::TickInput(FTimespan DeltaTime, FTimespan Timecode)
 			Tracks->Restart();
 		}
 	}
-	else if (CurrentRate < 0.0f)
-	{
-		// IMFSourceReader does not support reverse playback, even if the media
-		// source does. we emulate the WMF behavior by seeking to key frames.
-
-		if (!CommitTime(CurrentTime))
-		{
-			CurrentState = EMediaState::Error;
-		}
-	}
 
 	// update tracks
-	if (CurrentState == EMediaState::Playing)
+	if ((CurrentState == EMediaState::Paused) || (CurrentState == EMediaState::Playing))
 	{
 		Tracks->TickInput(CurrentRate, CurrentTime);
 	}
@@ -356,6 +349,7 @@ bool FMfMediaPlayer::CommitTime(FTimespan Time)
 	}
 
 	CurrentTime = Time;
+	Tracks->Restart();
 
 	return true;
 }
@@ -454,6 +448,9 @@ void FMfMediaPlayer::UpdateCharacteristics()
 	// cache rate control properties
 	if (RateSupport.IsValid())
 	{
+		// Note: IMFSourceReader does not support reverse playback, even if the
+		// media source does, so we are only querying the supported forward rates.
+
 		float MaxRate = 0.0f;
 		float MinRate = 0.0f;
 
@@ -463,27 +460,11 @@ void FMfMediaPlayer::UpdateCharacteristics()
 			ThinnedRates.Add(TRange<float>::Inclusive(MinRate, MaxRate));
 		}
 
-#if MFMEDIAPLAYER_USE_SEEKANDREVERSE
-		if (SUCCEEDED(RateSupport->GetSlowestRate(MFRATE_REVERSE, TRUE, &MinRate)) &&
-			SUCCEEDED(RateSupport->GetFastestRate(MFRATE_REVERSE, TRUE, &MaxRate)))
-		{
-			ThinnedRates.Add(TRange<float>::Inclusive(MaxRate, MinRate));
-		}
-#endif
-
 		if (SUCCEEDED(RateSupport->GetSlowestRate(MFRATE_FORWARD, FALSE, &MinRate)) &&
 			SUCCEEDED(RateSupport->GetFastestRate(MFRATE_FORWARD, FALSE, &MaxRate)))
 		{
 			UnthinnedRates.Add(TRange<float>::Inclusive(MinRate, MaxRate));
 		}
-
-#if MFMEDIAPLAYER_USE_SEEKANDREVERSE
-		if (SUCCEEDED(RateSupport->GetSlowestRate(MFRATE_REVERSE, FALSE, &MinRate)) &&
-			SUCCEEDED(RateSupport->GetFastestRate(MFRATE_REVERSE, FALSE, &MaxRate)))
-		{
-			UnthinnedRates.Add(TRange<float>::Inclusive(MaxRate, MinRate));
-		}
-#endif
 	}
 }
 
@@ -508,7 +489,6 @@ bool FMfMediaPlayer::CanControl(EMediaControl Control) const
 		return ((CurrentState != EMediaState::Playing) && ThinnedRates.Contains(1.0f));
 	}
 
-#if MFMEDIAPLAYER_USE_SEEKANDREVERSE
 	if (Control == EMediaControl::Scrub)
 	{
 		return (((Characteristics & MFMEDIASOURCE_HAS_SLOW_SEEK) == 0) && (ThinnedRates.Contains(0.0f)));
@@ -518,7 +498,6 @@ bool FMfMediaPlayer::CanControl(EMediaControl Control) const
 	{
 		return (((Characteristics & MFMEDIASOURCE_CAN_SEEK) != 0) && (CurrentDuration > FTimespan::Zero()));
 	}
-#endif
 
 	return false;
 }

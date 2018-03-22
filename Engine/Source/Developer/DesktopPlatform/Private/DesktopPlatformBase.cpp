@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "DesktopPlatformBase.h"
 #include "HAL/FileManager.h"
@@ -600,7 +600,7 @@ bool FDesktopPlatformBase::CompileGameProject(const FString& RootDir, const FStr
 	return RunUnrealBuildTool(LOCTEXT("CompilingProject", "Compiling project..."), RootDir, Arguments, Warn);
 }
 
-bool FDesktopPlatformBase::GenerateProjectFiles(const FString& RootDir, const FString& ProjectFileName, FFeedbackContext* Warn)
+bool FDesktopPlatformBase::GenerateProjectFiles(const FString& RootDir, const FString& ProjectFileName, FFeedbackContext* Warn, FString LogFilePath)
 {
 	FString Arguments = TEXT(" -projectfiles");
 
@@ -631,6 +631,10 @@ bool FDesktopPlatformBase::GenerateProjectFiles(const FString& RootDir, const FS
 	}
 	Arguments += TEXT(" -progress");
 
+	if (!LogFilePath.IsEmpty())
+	{
+		Arguments += TEXT(" -log=") + LogFilePath;
+	}
 	// @ATG_CHANGE : BEGIN - if the editor was built with 2017 then we should probably generate a project for use with 2017
 #if _MSC_VER >= 1910
 	Arguments += TEXT(" -2017");

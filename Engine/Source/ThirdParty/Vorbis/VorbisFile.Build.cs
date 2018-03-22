@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 using UnrealBuildTool;
 
 public class VorbisFile : ModuleRules
@@ -16,7 +16,7 @@ public class VorbisFile : ModuleRules
 			PublicLibraryPaths.Add(VorbisLibPath);
 			PublicAdditionalLibraries.Add("libvorbisfile_64.lib");
 			PublicDelayLoadDLLs.Add("libvorbisfile_64.dll");
-			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Vorbis/"+ Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbisfile_64.dll"));
+			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Vorbis/"+ Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbisfile_64.dll");
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
 		{
@@ -24,7 +24,7 @@ public class VorbisFile : ModuleRules
 			PublicLibraryPaths.Add(VorbisLibPath);
 			PublicAdditionalLibraries.Add("libvorbisfile.lib");
 			PublicDelayLoadDLLs.Add("libvorbisfile.dll");
-			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Vorbis/"+ Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbisfile.dll"));
+			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Vorbis/"+ Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbisfile.dll");
 		}
 // @ATG_CHANGE : END
 		else if (Target.Platform == UnrealTargetPlatform.HTML5)

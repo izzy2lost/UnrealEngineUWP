@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -101,10 +101,10 @@ namespace UnrealBuildTool
 				IncludePath = Path.GetFullPath(IncludePath);
 			}
 
-			// If the value has a space in it and isn't wrapped in quotes, do that now
+			// If the value has a space in it and isn't wrapped in quotes, do that now. Make sure it doesn't include a trailing slash, because that will escape the closing quote.
 			if (!IncludePath.StartsWith("\"") && (IncludePath.Contains(" ") || IncludePath.Contains("$")))
 			{
-				IncludePath = "\"" + IncludePath + "\"";
+				IncludePath = "\"" + IncludePath.TrimEnd('\\') + "\"";
 			}
 
 			if (WindowsPlatform.bUseVCCompilerArgs)
@@ -313,7 +313,7 @@ namespace UnrealBuildTool
 					Arguments.Add("/Os");
 
 					// Allow inline method expansion unless E&C support is requested
-					if (!CompileEnvironment.bSupportEditAndContinue)
+					if (!CompileEnvironment.bSupportEditAndContinue && CompileEnvironment.bUseInlining)
 					{
 						Arguments.Add("/Ob2");
 					}
@@ -1117,7 +1117,7 @@ namespace UnrealBuildTool
 			if (!WindowsPlatform.bCompileWithClang && CompileEnvironment.bPrintTimingInfo)
 			{
 				// Force MSVC
-				SharedArguments.Add("/Bt+");
+				SharedArguments.Add("/Bt+ /d2cgsummary");
 			}
 
 			// @ATG_CHANGE : BEGIN winmd support
