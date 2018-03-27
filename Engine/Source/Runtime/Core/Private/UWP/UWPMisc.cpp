@@ -245,6 +245,9 @@ const TCHAR* FUWPMisc::RootDir()
 
 		// Add trailing \\ - this is important for correct operation of FPaths::MakePathRelativeTo
 		Path += TEXT("\\");
+
+		// Switch to / so that FPaths::MakeStandardFilename will work
+		Path.ReplaceInline(TEXT("\\"), TEXT("/"), ESearchCase::CaseSensitive);
 	}
 	return *Path;
 }
