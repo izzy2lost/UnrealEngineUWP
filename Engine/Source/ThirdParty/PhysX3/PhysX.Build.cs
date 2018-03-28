@@ -112,10 +112,12 @@ public class PhysX : ModuleRules
 			);
 
 		// Libraries and DLLs for windows platform
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 		{
-			PhysXLibDir += "Win64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
-			PxSharedLibDir += "Win64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PhysXLibDir += Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PxSharedLibDir += Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+// @ATG_CHANGE : END
 			PublicLibraryPaths.Add(PhysXLibDir);
 			PublicLibraryPaths.Add(PxSharedLibDir);
 
@@ -152,8 +154,9 @@ public class PhysX : ModuleRules
 			{
 				PublicDelayLoadDLLs.Add(String.Format(DLL, LibrarySuffix));
 			}
-
-			string PhysXBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/Win64/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+// @ATG_CHANGE : BEGIN UWP support
+			string PhysXBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/{1}/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
+// @ATG_CHANGE : END
 			foreach (string DLL in DelayLoadDLLsX64)
 			{
 				string FileName = PhysXBinariesDir + String.Format(DLL, LibrarySuffix);
@@ -166,16 +169,20 @@ public class PhysX : ModuleRules
 				PublicDefinitions.Add("UE_PHYSX_SUFFIX=" + LibrarySuffix);
 			}
 
-			string PxSharedBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/Win64/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			// @ATG_CHANGE : BEGIN UWP support
+			string PxSharedBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/{1}/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
+			// @ATG_CHANGE : END
 			foreach (string DLL in PxSharedRuntimeDependenciesX64)
 			{
 				RuntimeDependencies.Add(PxSharedBinariesDir + String.Format(DLL, LibrarySuffix));
 			}
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Win32)
+// @ATG_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
 		{
-			PhysXLibDir += "Win32/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
-			PxSharedLibDir += "Win32/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PhysXLibDir += Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PxSharedLibDir += Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+// @ATG_CHANGE : END
 			PublicLibraryPaths.Add(PhysXLibDir);
 			PublicLibraryPaths.Add(PxSharedLibDir);
 
@@ -191,9 +198,9 @@ public class PhysX : ModuleRules
 			};
 
 			string[] DelayLoadDLLsX86 = new string[] {
-                "PxFoundation{0}_x86.dll",
-                "PxPvdSDK{0}_x86.dll",
-                "PhysX3{0}_x86.dll",
+				"PxFoundation{0}_x86.dll",
+				"PxPvdSDK{0}_x86.dll",
+				"PhysX3{0}_x86.dll",
 				"PhysX3Cooking{0}_x86.dll",
 				"PhysX3Common{0}_x86.dll"
 			};
@@ -208,7 +215,9 @@ public class PhysX : ModuleRules
 				PublicDelayLoadDLLs.Add(String.Format(DLL, LibrarySuffix));
 			}
 
-			string PhysXBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/Win32/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+// @ATG_CHANGE : BEGIN UWP support
+			string PhysXBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/{1}/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
+// @ATG_CHANGE : END
 			foreach (string DLL in DelayLoadDLLsX86)
 			{
 				string FileName = PhysXBinariesDir + String.Format(DLL, LibrarySuffix);
@@ -247,8 +256,8 @@ public class PhysX : ModuleRules
 			string[] DynamicLibrariesMac = new string[] {
 				"/libPhysX3{0}.dylib",
 				"/libPhysX3Cooking{0}.dylib",
-                "/libPhysX3Common{0}.dylib",
-                "/libPxFoundation{0}.dylib",
+				"/libPhysX3Common{0}.dylib",
+				"/libPxFoundation{0}.dylib",
 				"/libPxPvdSDK{0}.dylib",
 			};
 

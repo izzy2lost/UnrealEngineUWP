@@ -18,7 +18,7 @@ FXimMessageRouter::FXimMessageRouter(FOnlineSubsystemLive* InSubsystem) :
 	Microsoft::Xbox::Services::XboxLiveAppConfiguration^ AppConfig = Microsoft::Xbox::Services::XboxLiveAppConfiguration::SingletonInstance;
 	check(AppConfig != nullptr);
 
-	xim::set_memory_callbacks(&FXimMessageRouter::XimAlloc, &FXimMessageRouter::XimFree);
+	xim::set_memory_callbacks((xim_allocate_memory_callback)&FXimMessageRouter::XimAlloc, (xim_free_memory_callback)&FXimMessageRouter::XimFree);
 	xim::singleton_instance().initialize(AppConfig->ServiceConfigurationId->Data(), AppConfig->TitleId);
 
 }

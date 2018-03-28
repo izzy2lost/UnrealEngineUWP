@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "SessionMessageRouter.h"
@@ -87,17 +87,27 @@ FSessionMessageRouter::FSessionMessageRouter(FOnlineSubsystemLive* InSubsystem)
 {
 	EventHandler<SignInCompletedEventArgs^>^ SignInCompletedEvent = ref new EventHandler<SignInCompletedEventArgs^>(
 		[this] (Platform::Object^, SignInCompletedEventArgs^ EventArgs)
-	{		
-		SubscribeToMultiplayerEvents(EventArgs->User);
+	{
+		// Since this event is called from non-game threads, marshal the call to the game thread
+		// to ensure that data access is safe.
+		LiveSubsystem->ExecuteNextTick([this, EventArgs]()
+		{
+			SubscribeToMultiplayerEvents(EventArgs->User);
+		});
 	});
 	SignInCompletedToken = Windows::Xbox::System::User::SignInCompleted += SignInCompletedEvent;
 
 	EventHandler<SignOutStartedEventArgs^>^ SignOutStartedEvent = ref new EventHandler<SignOutStartedEventArgs^>(
 		[this] (Platform::Object^, SignOutStartedEventArgs^ EventArgs)
 	{
-		// @ATG_CHANGE : UWP Live Support - BEGIN
-		UnsubscribeFromMultiplayerEvents(FUniqueNetIdLive(EventArgs->User->XboxUserId->Data()));
-		// @ATG_CHANGE : UWP Live Support - END
+		// Since this event is called from non-game threads, marshal the call to the game thread
+		// to ensure that data access is safe.
+		LiveSubsystem->ExecuteNextTick([this, EventArgs]()
+		{
+			// @ATG_CHANGE : UWP Live Support - BEGIN
+			UnsubscribeFromMultiplayerEvents(FUniqueNetIdLive(EventArgs->User->XboxUserId->Data()));
+			// @ATG_CHANGE : UWP Live Support - END
+		});
 	});
 	SignOutStartedToken = Windows::Xbox::System::User::SignOutStarted += SignOutStartedEvent;
 
@@ -132,6 +142,8 @@ void FSessionMessageRouter::SubscribeAllUsersToMultiplayerEvents()
 
 void FSessionMessageRouter::UnsubscribeAllUsersFromMultiplayerEvents()
 {
+	ensure(IsInGameThread());
+
 	Windows::Foundation::Collections::IVectorView<Windows::Xbox::System::User^>^ CachedUsers = Windows::Xbox::System::User::Users;
 	const int32 CachedUsersSize = static_cast<int32>(CachedUsers->Size);
 
@@ -170,6 +182,8 @@ void FSessionMessageRouter::UnsubscribeAllUsersFromMultiplayerEvents()
 
 void FSessionMessageRouter::SubscribeToMultiplayerEvents(Windows::Xbox::System::User^ SubscribingUser)
 {
+	ensure(IsInGameThread());
+
 	XboxLiveContext^ UserContext = LiveSubsystem->GetLiveContext(SubscribingUser);
 	if (UserContext == nullptr)
 	{
@@ -216,6 +230,8 @@ void FSessionMessageRouter::SubscribeToMultiplayerEvents(Windows::Xbox::System::
 void FSessionMessageRouter::UnsubscribeFromMultiplayerEvents(const FUniqueNetId& SubscribedUser)
 // @ATG_CHANGE : END
 {
+	ensure(IsInGameThread());
+
 	auto UserContext = LiveSubsystem->GetLiveContext(SubscribedUser);
 
 	if (UserContext == nullptr)

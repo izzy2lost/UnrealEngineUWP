@@ -135,6 +135,10 @@ struct FEncryptionKeyResponse
 	FString ErrorMsg;
 	/** Encryption key */
 	TArray<uint8> EncryptionKey;
+	// @ATG_CHANGE : BEGIN
+	/** Nonce Data */
+	TArray<uint8> NonceData;
+	// @ATG_CHANGE : END
 
 	FEncryptionKeyResponse()
 		: Response(EEncryptionResponse::Failure)

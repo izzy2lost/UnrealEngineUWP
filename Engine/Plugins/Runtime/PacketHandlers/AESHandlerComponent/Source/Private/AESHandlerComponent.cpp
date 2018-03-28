@@ -23,13 +23,15 @@ FAESHandlerComponent::FAESHandlerComponent()
 
 void FAESHandlerComponent::SetEncryptionKey(TArrayView<const uint8> NewKey)
 {
-	if (NewKey.Num() != KeySizeInBytes)
+	// @ATG_CHANGE : BEGIN - allowing for other size keys
+	if (NewKey.Num() < MinKeySizeInBytes)
 	{
-		UE_LOG(PacketHandlerLog, Log, TEXT("FAESHandlerComponent::SetEncryptionKey. NewKey is not %d bytes long, ignoring."), KeySizeInBytes);
+		UE_LOG(PacketHandlerLog, Log, TEXT("FAESHandlerComponent::SetEncryptionKey. NewKey is not %d bytes long, ignoring."), MinKeySizeInBytes);
 		return;
 	}
 
-	Key.Reset(KeySizeInBytes);
+	Key.Reset(NewKey.Num());
+	// @ATG_CHANGE : END
 	Key.Append(NewKey.GetData(), NewKey.Num());
 }
 
@@ -54,6 +56,20 @@ bool FAESHandlerComponent::IsValid() const
 {
 	return true;
 }
+
+// @ATG_CHANGE : BEGIN - GCM auth mode requires a per-packet nonce to maintain security
+void FAESHandlerComponent::SetEncryptionNonceData(const TArrayView<const uint8>& NewData)
+{
+	if (NewData.Num() != NonceSizeInBytes) //12
+	{
+		UE_LOG(PacketHandlerLog, Log, TEXT("FAESHandlerComponent::SetNonceData. NewData is not %d bytes long, ignoring."), NonceSizeInBytes);
+		return;
+	}
+
+	NonceData.Reset(NewData.Num());
+	NonceData.Append(NewData.GetData(), NewData.Num());
+}
+// @ATG_CHANGE : END
 
 void FAESHandlerComponent::Incoming(FBitReader& Packet)
 {
@@ -82,7 +98,9 @@ void FAESHandlerComponent::Incoming(FBitReader& Packet)
 			UE_LOG(PacketHandlerLog, VeryVerbose, TEXT("AES packet handler received %ld bytes before decryption."), Ciphertext.Num());
 
 			EPlatformCryptoResult DecryptResult = EPlatformCryptoResult::Failure;
-			TArray<uint8> Plaintext = EncryptionContext->Decrypt_AES_256_ECB(Ciphertext, Key, DecryptResult);
+			// @ATG_CHANGE : BEGIN - allow platforms using BCrypt to use GCM mode
+			TArray<uint8> Plaintext = EncryptionContext->Decrypt(Ciphertext, Key, DecryptResult);
+			// @ATG_CHANGE : END
 
 			if (DecryptResult == EPlatformCryptoResult::Failure)
 			{
@@ -118,6 +136,21 @@ void FAESHandlerComponent::Incoming(FBitReader& Packet)
 				}
 			}
 		}
+		// @ATG_CHANGE : BEGIN - Security fix
+		else
+		{
+			// If this connection has flipped to secure (encrypted & GCM authenticated), and we get an unauthenticated packet, discard...
+			// Also if we get an unauthenticated packet that isn't a handshake packet (high bit of first byte)
+			if (Key.Num() != 0 ||
+				(*Packet.GetData() & 0x80) == 0)
+			{
+				UE_LOG(PacketHandlerLog, Log, TEXT("FAESHandlerComponent::Incoming: received unauthenticated packet, ignoring."));
+				FBitReader EmptyPacket(nullptr, 0);
+				Packet = EmptyPacket;
+				return;
+			}
+		}
+		// @ATG_CHANGE : END
 	}
 }
 
@@ -154,7 +187,9 @@ void FAESHandlerComponent::Outgoing(FBitWriter& Packet)
 			}
 
 			EPlatformCryptoResult EncryptResult = EPlatformCryptoResult::Failure;
-			TArray<uint8> Ciphertext = EncryptionContext->Encrypt_AES_256_ECB(TArrayView<uint8>(Packet.GetData(), Packet.GetNumBytes()), Key, EncryptResult);
+			// @ATG_CHANGE : BEGIN - allow platforms using BCrypt to use GCM mode
+			TArray<uint8> Ciphertext = EncryptionContext->Encrypt(TArrayView<uint8>(Packet.GetData(), Packet.GetNumBytes()), Key, NonceData, EncryptResult);
+			// @ATG_CHANGE : END
 
 			if (EncryptResult == EPlatformCryptoResult::Failure)
 			{
@@ -196,6 +231,8 @@ void FAESHandlerComponent::OutgoingConnectionless(FString Address, FBitWriter& P
 
 int32 FAESHandlerComponent::GetReservedPacketBits()
 {
-	// Worst case includes the encryption enabled bit, the termination bit, padding up to the next whole byte, and a block of padding.
-	return 2 + 7 + (BlockSizeInBytes * 8);
+	// @ATG_CHANGE : BEGIN - AES-GCM 
+	// Worst case includes the encryption enabled bit, the termination bit, padding up to the next whole byte, and whatever the mode needs.
+	return 2 + 7 + EncryptionContext->GetMaxReservedBits();
+	// @ATG_CHANGE : END
 }

@@ -88,8 +88,10 @@ physx::PhysXIndicator::PhysXIndicator(bool isGpu)
 			PAGE_READWRITE, 0, sizeof(NvPhysXToDrv_Data_V1), configNameWide);
 	}
 #else
+	
 	mFileHandle = CreateFileMapping(INVALID_HANDLE_VALUE, NULL,
 		PAGE_READWRITE, 0, sizeof(NvPhysXToDrv_Data_V1), configName);
+
 #endif
 // @ATG_CHANGE : END
 	if (!mFileHandle || mFileHandle == INVALID_HANDLE_VALUE)

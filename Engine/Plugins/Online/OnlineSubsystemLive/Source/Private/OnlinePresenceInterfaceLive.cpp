@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlinePresenceInterfaceLive.h"
@@ -64,7 +64,7 @@ void FOnlineUserPresenceLive::SetStatusPropertiesFromStatistics(Microsoft::Xbox:
 						default:
 						{
 							UE_LOG_ONLINE(Log, TEXT("Presence stat %s has unsupported type %s. Adding as a string. Value: %s"),
-								*StatName, Stat->StatisticType.ToString(), *Stat->Value->Data());
+								*StatName, Stat->StatisticType.ToString()->Data(), *Stat->Value->Data());
 							Status.Properties.Add(StatName, Stat->Value->Data());
 							break;
 						}
@@ -144,6 +144,8 @@ void FOnlinePresenceLive::SetPresence(const FUniqueNetId& User, const FOnlineUse
 		// Get the cached presence status so we can skip updates if it hasn't changed
 		const FOnlineUserPresenceStatus* const CurrentUsersPresencePtr = LocalUserPresenceCache.Find(UserLive);
 
+		FOnlineEventParms AllTriggeredParams;
+
 		// before setting the presence queue up the stat events to trigger
 		IOnlineEventsPtr EventsInterface = LiveSubsystem->GetEventsInterface();
 		if (EventsInterface.IsValid())
@@ -163,10 +165,11 @@ void FOnlinePresenceLive::SetPresence(const FUniqueNetId& User, const FOnlineUse
 						}
 					}
 
-					FOnlineEventParms Parms;
-					Parms.Add(TEXT("Value"), PropertyPair.Value);
+					FOnlineEventParms Params;
+					Params.Add(TEXT("Value"), PropertyPair.Value);
+					AllTriggeredParams.Add(FName(*PropertyPair.Key), PropertyPair.Value);
 
-					EventsInterface->TriggerEvent(UserLive, *PropertyPair.Key, Parms);
+					EventsInterface->TriggerEvent(UserLive, *PropertyPair.Key, Params);
 				}
 			}
 		}
@@ -190,6 +193,15 @@ void FOnlinePresenceLive::SetPresence(const FUniqueNetId& User, const FOnlineUse
 					Delegate.ExecuteIfBound(UserLive, bWasSuccessful);
 				});
 				return;
+			}
+		}
+
+		UE_LOG_ONLINE(Verbose, TEXT("Updating presence to %s"), *PresenceIdString);
+		if (UE_LOG_ACTIVE(LogOnline, VeryVerbose))
+		{
+			for (const FOnlineEventParms::ElementType& Pair : AllTriggeredParams)
+			{
+				UE_LOG_ONLINE(VeryVerbose, TEXT("Set Presence Key '%s' to '%s'"), *Pair.Key.ToString(), *Pair.Value.ToString());
 			}
 		}
 

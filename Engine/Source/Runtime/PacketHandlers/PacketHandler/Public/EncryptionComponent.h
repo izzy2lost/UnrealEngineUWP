@@ -32,4 +32,11 @@ public:
 	 * that the component implements. This should be called before EnableEncryption.
 	 */
 	virtual void SetEncryptionKey(TArrayView<const uint8> Key) = 0;
+
+	// @ATG_CHANGE : BEGIN 
+	/**
+	 * Replace the NonceData used for encryption with NewData if NewData is exactly NonceSizeInBytes long.
+	 */
+	virtual void SetEncryptionNonceData(const TArrayView<const uint8>& NewData) = 0;
+	// ATG_CHANGE : END
 };

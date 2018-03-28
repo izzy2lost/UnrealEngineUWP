@@ -15,17 +15,22 @@
  */
 struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 {
-	/**
-	 * Atomically increments the value pointed to and returns that to the caller
-	 */
+
+	static FORCEINLINE int8 InterlockedIncrement(volatile int8* Value)
+	{
+		return (int8)_InterlockedExchangeAdd8((char*)Value, 1) + 1;
+	}
+
+	static FORCEINLINE int16 InterlockedIncrement(volatile int16* Value)
+	{
+		return (int16)_InterlockedIncrement16((short*)Value);
+	}
+
 	static FORCEINLINE int32 InterlockedIncrement(volatile int32* Value)
 	{
-		return (int32)::_InterlockedIncrement((LPLONG)Value);
+		return (int32)_InterlockedIncrement((long*)Value);
 	}
-	
-	/**
-	 * Atomically increments the value pointed to and returns that to the caller
-	 */
+
 	static FORCEINLINE int64 InterlockedIncrement (volatile int64* Value)
 	{
 #if PLATFORM_64BITS
@@ -43,17 +48,21 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 #endif
 	}
 
-	/**
-	 * Atomically decrements the value pointed to and returns that to the caller
-	 */
-	static FORCEINLINE int32 InterlockedDecrement(volatile int32* Value)
+	static FORCEINLINE int8 InterlockedDecrement(volatile int8* Value)
 	{
-		return (int32)::_InterlockedDecrement((LPLONG)Value);
+		return (int8)::_InterlockedExchangeAdd8((char*)Value, -1) - 1;
 	}
 
-	/**
-	 * Atomically decrements the value pointed to and returns that to the caller
-	 */
+	static FORCEINLINE int16 InterlockedDecrement(volatile int16* Value)
+	{
+		return (int16)::_InterlockedDecrement16((short*)Value);
+	}
+
+	static FORCEINLINE int32 InterlockedDecrement(volatile int32* Value)
+	{
+		return (int32)::_InterlockedDecrement((long*)Value);
+	}
+
 	static FORCEINLINE int64 InterlockedDecrement (volatile int64* Value)
 	{
 #if PLATFORM_64BITS
@@ -71,19 +80,21 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 #endif
 	}
 
-	/**
-	 * Atomically adds the amount to the value pointed to and returns the old
-	 * value to the caller
-	 */
-	static FORCEINLINE int32 InterlockedAdd(volatile int32* Value,int32 Amount)
+	static FORCEINLINE int8 InterlockedAdd(volatile int8* Value, int8 Amount)
 	{
-		return (int32)::_InterlockedExchangeAdd((LPLONG)Value, (LONG)Amount);
+		return (int8)::_InterlockedExchangeAdd8((char*)Value, (char)Amount);
 	}
 
-	/**
-	 * Atomically adds the amount to the value pointed to and returns the old
-	 * value to the caller
-	 */
+	static FORCEINLINE int16 InterlockedAdd(volatile int16* Value, int16 Amount)
+	{
+		return (int16)::_InterlockedExchangeAdd16((short*)Value, (short)Amount);
+	}
+
+	static FORCEINLINE int32 InterlockedAdd(volatile int32* Value, int32 Amount)
+	{
+		return (int32)::_InterlockedExchangeAdd((long*)Value, (long)Amount);
+	}
+
 	static FORCEINLINE int64 InterlockedAdd (volatile int64* Value, int64 Amount)
 	{
 #if PLATFORM_64BITS
@@ -101,17 +112,21 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 #endif
 	}
 
-	/**
-	 * Atomically swaps two values returning the original value to the caller
-	 */
-	static FORCEINLINE int32 InterlockedExchange(volatile int32* Value,int32 Exchange)
+	static FORCEINLINE int8 InterlockedExchange(volatile int8* Value, int8 Exchange)
 	{
-		return (int32)::_InterlockedExchange((LPLONG)Value, (LONG)Exchange);
+		return (int8)::_InterlockedExchange8((char*)Value, (char)Exchange);
 	}
 
-	/**
-	 * Atomically swaps two values returning the original value to the caller
-	 */
+	static FORCEINLINE int16 InterlockedExchange(volatile int16* Value, int16 Exchange)
+	{
+		return (int16)::_InterlockedExchange16((short*)Value, (short)Exchange);
+	}
+
+	static FORCEINLINE int32 InterlockedExchange(volatile int32* Value, int32 Exchange)
+	{
+		return (int32)::_InterlockedExchange((long*)Value, (long)Exchange);
+	}
+
 	static FORCEINLINE int64 InterlockedExchange (volatile int64* Value, int64 Exchange)
 	{
 #if PLATFORM_64BITS
@@ -141,26 +156,21 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 		return ::_InterlockedExchangePointer(Dest, Exchange);
 	}
 
-	/**
-	 * Atomically compares the value to comparand and replaces with the exchange
-	 * value if they are equal and returns the original value
-	 */
+	static FORCEINLINE int8 InterlockedCompareExchange(volatile int8* Dest, int8 Exchange, int8 Comparand)
+	{
+		return (int8)::_InterlockedCompareExchange8((char*)Dest, (char)Exchange, (char)Comparand);
+	}
+
+	static FORCEINLINE int16 InterlockedCompareExchange(volatile int16* Dest, int16 Exchange, int16 Comparand)
+	{
+		return (int16)::_InterlockedCompareExchange16((short*)Dest, (short)Exchange, (short)Comparand);
+	}
+
 	static FORCEINLINE int32 InterlockedCompareExchange(volatile int32* Dest,int32 Exchange,int32 Comparand)
 	{
-		#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (IsAligned(Dest, 4) == false)
-			{
-				HandleAtomicsFailure(TEXT("InterlockedCompareExchange32 requires args be aligned to %d bytes"), sizeof(int32));
-			}
-		#endif
-
 		return (int32)::_InterlockedCompareExchange((LPLONG)Dest,(LONG)Exchange,(LONG)Comparand);
 	}
 
-	/**
-	 * Atomically compares the value to comparand and replaces with the exchange
-	 * value if they are equal and returns the original value
-	 */
 	static FORCEINLINE int64 InterlockedCompareExchange (volatile int64* Dest, int64 Exchange, int64 Comparand)
 	{
 		#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -172,9 +182,45 @@ struct CORE_API FUWPAtomics : public FGenericPlatformAtomics
 
 		return (int64)::_InterlockedCompareExchange64((LONGLONG*)Dest, (LONGLONG)Exchange, (LONGLONG)Comparand);
 	}
-	static FORCEINLINE int64 AtomicRead64(volatile const int64* Src)
+
+	static FORCEINLINE int8 AtomicRead(volatile const int8* Src)
 	{
-		return InterlockedCompareExchange((volatile int64*)Src, 0, 0);
+		return InterlockedCompareExchange((int8*)Src, 0, 0);
+	}
+
+	static FORCEINLINE int16 AtomicRead(volatile const int16* Src)
+	{
+		return InterlockedCompareExchange((int16*)Src, 0, 0);
+	}
+
+	static FORCEINLINE int32 AtomicRead(volatile const int32* Src)
+	{
+		return InterlockedCompareExchange((int32*)Src, 0, 0);
+	}
+
+	static FORCEINLINE int64 AtomicRead(volatile const int64* Src)
+	{
+		return InterlockedCompareExchange((int64*)Src, 0, 0);
+	}
+
+	static FORCEINLINE void AtomicStore(volatile int8* Src, int8 Val)
+	{
+		InterlockedExchange(Src, Val);
+	}
+
+	static FORCEINLINE void AtomicStore(volatile int16* Src, int16 Val)
+	{
+		InterlockedExchange(Src, Val);
+	}
+
+	static FORCEINLINE void AtomicStore(volatile int32* Src, int32 Val)
+	{
+		InterlockedExchange(Src, Val);
+	}
+
+	static FORCEINLINE void AtomicStore(volatile int64* Src, int64 Val)
+	{
+		InterlockedExchange(Src, Val);
 	}
 
 	/**

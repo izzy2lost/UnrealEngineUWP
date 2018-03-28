@@ -19,7 +19,13 @@ namespace UnrealBuildTool.Rules
 				}
 				);
 
-			if (Target.Platform == UnrealTargetPlatform.XboxOne)
+			// @ATG_CHANGE : BEGIN - allow more platforms to use AES-GCM
+			if (Target.Platform == UnrealTargetPlatform.XboxOne ||
+				Target.Platform == UnrealTargetPlatform.Win64 ||
+				Target.Platform == UnrealTargetPlatform.Win32 ||
+				Target.Platform == UnrealTargetPlatform.UWP64 ||
+				Target.Platform == UnrealTargetPlatform.UWP32)
+			// @ATG_CHANGE : END
 			{
 				PublicDependencyModuleNames.AddRange(
 					new string[]

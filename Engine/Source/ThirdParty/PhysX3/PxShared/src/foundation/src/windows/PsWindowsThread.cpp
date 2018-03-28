@@ -32,6 +32,12 @@
 #include "PsThread.h"
 #include "foundation/PxErrorCallback.h"
 #include "foundation/PxAssert.h"
+// @ATG_CHANGE : BEGIN UWP support
+#if PX_UWP
+#include <thread>
+#endif
+// @ATG_CHANGE : END UWP support
+
 
 // an exception for setting the thread name in Microsoft debuggers
 #define NS_MS_VC_EXCEPTION 0x406D1388
@@ -123,9 +129,8 @@ uint32_t ThreadImpl::getNbPhysicalCores()
 	if(!gPhysicalCoreCount)
 	{
 		// @ATG_CHANGE : BEGIN UWP support
-		// Report not implemented for now.  Consider reimplementing in terms of GetSystemCpuSetInformation?
 #if PX_UWP
-		DWORD processorCoreCount = 0;
+		DWORD processorCoreCount = std::thread::hardware_concurrency();
 #else
 		// @ATG_CHANGE : END
 		// modified example code from: http://msdn.microsoft.com/en-us/library/ms683194
@@ -185,12 +190,12 @@ uint32_t ThreadImpl::getNbPhysicalCores()
 			byteOffset += sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
 			ptr++;
 		}
-		// @ATG_CHANGE : BEGIN UWP support
+
+	// @ATG_CHANGE : BEGIN UWP support
 #endif
-		// @ATG_CHANGE : END
+	// @ATG_CHANGE : END
 		gPhysicalCoreCount = processorCoreCount;
 	}
-
 	return gPhysicalCoreCount;
 }
 
@@ -302,6 +307,115 @@ void ThreadImpl::yield()
 	SwitchToThread();
 }
 
+// @ATG_CHANGE : BEGIN thread affinity addition
+// This is a drop in equivelent to the thread affinity APIs that most legacy code is based on.
+// As with those older APIs, it's functionality may be unexpected on machines with more than 64 cores.
+#if PX_UWP && !defined(SetThreadAffinityMask)
+DWORD_PTR WINAPI SetThreadAffinityMask(
+	_In_ HANDLE    hThread,
+	_In_ DWORD_PTR dwThreadAffinityMask
+)
+{
+	static struct CPU_INFO {
+		int Count;
+		ULONG CpuInfoBytes;
+		uint8_t* CpuInfoBuffer;
+		PSYSTEM_CPU_SET_INFORMATION* CpuInfoPtrs;
+
+		CPU_INFO() {
+			Count = 0;
+			CpuInfoBytes = 0;
+			GetSystemCpuSetInformation(nullptr, 0, &CpuInfoBytes, GetCurrentProcess(), 0);
+
+			CpuInfoBuffer = reinterpret_cast<uint8_t*>(malloc(CpuInfoBytes));
+			if (CpuInfoBuffer)
+			{
+				GetSystemCpuSetInformation(reinterpret_cast<PSYSTEM_CPU_SET_INFORMATION>(CpuInfoBuffer),
+					CpuInfoBytes, &CpuInfoBytes, GetCurrentProcess(), 0);
+
+				BYTE* firstCpu = CpuInfoBuffer;
+				for (BYTE* currentCpu = firstCpu; currentCpu < firstCpu + CpuInfoBytes; currentCpu += reinterpret_cast<PSYSTEM_CPU_SET_INFORMATION>(currentCpu)->Size)
+				{
+					Count++;
+				}
+
+				CpuInfoPtrs = reinterpret_cast<PSYSTEM_CPU_SET_INFORMATION*>(calloc(Count, sizeof(PSYSTEM_CPU_SET_INFORMATION)));
+
+				if (CpuInfoPtrs)
+				{
+					firstCpu = CpuInfoBuffer;
+					int currentCpuNum = 0;
+					for (BYTE* currentCpu = firstCpu; currentCpu < firstCpu + CpuInfoBytes; currentCpu += reinterpret_cast<PSYSTEM_CPU_SET_INFORMATION>(currentCpu)->Size)
+					{
+						CpuInfoPtrs[currentCpuNum] = reinterpret_cast<PSYSTEM_CPU_SET_INFORMATION>(currentCpu);
+						currentCpuNum++;
+					}
+				}
+			}
+		}
+	} Cpu_Info;
+
+	// if static initialization got Cpu info....
+	if (Cpu_Info.Count > 0 && Cpu_Info.CpuInfoBytes && Cpu_Info.CpuInfoBuffer && Cpu_Info.CpuInfoPtrs)
+	{
+#ifdef _WIN64
+		DWORD_PTR priorMask = 0xffffffffffffffffull;
+		ULONG coreIds[64];
+#else
+		DWORD_PTR priorMask = 0xfffffffful;
+		ULONG coreIds[32];
+#endif
+		ULONG priorCoreCount = 0;
+
+		// this is simplified, assuming that not other setter will be setting affinity
+		if (GetThreadSelectedCpuSets(hThread, coreIds, ARRAYSIZE(coreIds), &priorCoreCount))
+		{
+			if (priorCoreCount > 0 && priorCoreCount <= ARRAYSIZE(coreIds))
+			{
+				priorMask = 0;
+				for (unsigned int currentCoreEntry = 0; currentCoreEntry < priorCoreCount; currentCoreEntry++)
+				{
+					for (int i = 0; i < Cpu_Info.Count; i++)
+					{
+						if (coreIds[currentCoreEntry] == Cpu_Info.CpuInfoPtrs[i]->CpuSet.Id)
+						{
+							priorMask |= (1ull << i);
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		int markedCount = 0;
+		for (int coreNum = 0; coreNum < ARRAYSIZE(coreIds) && coreNum < Cpu_Info.Count; coreNum++)
+		{
+			if (dwThreadAffinityMask & (1ull << coreNum))
+			{
+				coreIds[markedCount] = Cpu_Info.CpuInfoPtrs[coreNum]->CpuSet.Id;
+				markedCount++;
+			}
+		}
+
+		if (SetThreadSelectedCpuSets(hThread, coreIds, markedCount))
+		{
+			return priorMask;
+		}
+		else
+		{
+			SetLastError(ERROR_BAD_ARGUMENTS);
+			return 0;
+		}
+	}
+	else
+	{
+		SetLastError(ERROR_DEVICE_ENUMERATION_ERROR);
+		return 0;
+	}
+}
+#endif
+// @ATG_CHANGE : END thread affinity addition
+
 uint32_t ThreadImpl::setAffinityMask(uint32_t mask)
 {
 	if(mask)
@@ -312,13 +426,8 @@ uint32_t ThreadImpl::setAffinityMask(uint32_t mask)
 		// if thread already started apply immediately
 		if(getThread(this)->state == _ThreadImpl::Started)
 		{
-			// @ATG_CHANGE : BEGIN UWP support
-			// No-op for now.  Consider reimplementing in terms of SetThreadSelectedCpuSets?
-#if !PX_UWP
 			uint32_t err = uint32_t(SetThreadAffinityMask(getThread(this)->thread, mask));
 			return err;
-#endif
-			// @ATG_CHANGE : BEGIN UWP support
 		}
 	}
 

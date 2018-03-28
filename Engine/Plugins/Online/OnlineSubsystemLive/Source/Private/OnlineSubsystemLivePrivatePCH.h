@@ -69,20 +69,6 @@ inline Windows::Xbox::Input::Controller^ SystemGamepadFromShim(Windows::Xbox::In
 	return controller;
 }
 
-#if WITH_MARKETPLACE
-
-inline Microsoft::Xbox::Services::Marketplace::CatalogService^ GetCatalogService(Microsoft::Xbox::Services::XboxLiveContext^ LiveContext)
-{
-	return LiveContext->CatalogService;
-}
-
-inline Microsoft::Xbox::Services::Marketplace::InventoryService^ GetInventoryService(Microsoft::Xbox::Services::XboxLiveContext^ LiveContext)
-{
-	return LiveContext->InventoryService;
-}
-
-#endif
-
 #elif PLATFORM_UWP
 #include "AllowWindowsPlatformTypes.h"
 #include <ws2tcpip.h>

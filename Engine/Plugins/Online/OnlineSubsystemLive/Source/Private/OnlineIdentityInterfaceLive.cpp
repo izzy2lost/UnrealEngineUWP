@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineIdentityInterfaceLive.h"
@@ -396,7 +396,7 @@ bool FOnlineIdentityLive::RemoveUserAccount(Windows::Xbox::System::User^ InUser)
 
 void FOnlineIdentityLive::RefreshGamepadsAndUsers()
 {
-	UE_LOG_ONLINE(Warning, TEXT("RefreshGamepadsAndUsers"));
+	UE_LOG_ONLINE(Log, TEXT("RefreshGamepadsAndUsers"));
 	// Lock CachedUsers while we access it
 	const FScopeLock CachedUsersScopeLock(&CachedUsersLock);
 
@@ -528,7 +528,7 @@ void FOnlineIdentityLive::SetUserXSTSToken(Windows::Xbox::System::User^ User, co
 
 void FOnlineIdentityLive::HandleAppResume()
 {
-	UE_LOG_ONLINE(Warning, TEXT("FOnlineIdentityLive::HandleAppResume"));
+	UE_LOG_ONLINE(Log, TEXT("FOnlineIdentityLive::HandleAppResume"));
 	RefreshGamepadsAndUsers();
 }
 
@@ -645,22 +645,38 @@ void FOnlineIdentityLive::GetUserPrivilege(const FUniqueNetId& UserId, EUserPriv
 	}
 
 	const bool bShowUpsellUIIfPossible = true;
-	IAsyncOperation<PrivilegeCheckResult>^ CheckOp = Product::CheckPrivilegeAsync(LiveUser, static_cast<uint32>(KnownPrivilege), bShowUpsellUIIfPossible, nullptr);
-	Concurrency::create_task(CheckOp).then([this, LiveId, Privilege, Delegate, LiveUser](Concurrency::task<PrivilegeCheckResult> Task)
+	try
 	{
-		try
+		IAsyncOperation<PrivilegeCheckResult>^ CheckOp = Product::CheckPrivilegeAsync(LiveUser, static_cast<uint32>(KnownPrivilege), bShowUpsellUIIfPossible, nullptr);
+		Concurrency::create_task(CheckOp).then([this, LiveId, Privilege, Delegate, LiveUser](Concurrency::task<PrivilegeCheckResult> Task)
 		{
-			PrivilegeCheckResult Result = Task.get();
-
-			LiveSubsystem->CreateAndDispatchAsyncEvent<FOnlineAsyncTaskLiveCheckForPackageUpdate>(LiveSubsystem, LiveUser,
-				FOnCheckForPackageUpdateCompleteDelegate::CreateLambda([this, Delegate, LiveId, Privilege, Result](bool IsUpdateAvailable, bool IsUpdateRequired)
+			try
 			{
-				if (IsUpdateAvailable && IsUpdateRequired)
+				PrivilegeCheckResult Result = Task.get();
+
+				LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveCheckForPackageUpdate>(LiveSubsystem, LiveUser,
+					FOnCheckForPackageUpdateCompleteDelegate::CreateLambda([this, Delegate, LiveId, Privilege, Result](const FOnlineError& ErrorResult, const TOptional<ECheckForPackageUpdateResult> OptionalPatchCheckResult)
 				{
-					Delegate.ExecuteIfBound(LiveId, Privilege, (uint32)EPrivilegeResults::RequiredPatchAvailable);
-				}
-				else
-				{
+					if (!ErrorResult.bSucceeded)
+					{
+						// Ensure our patch check succeeds in non-development environments.  In development, unpackaged builds won't have a package
+						if (LiveSubsystem->GetOnlineEnvironment() != EOnlineEnvironment::Development)
+						{
+							Delegate.ExecuteIfBound(LiveId, Privilege, static_cast<uint32>(EPrivilegeResults::GenericFailure));
+							return;
+						}
+					}
+
+					if (OptionalPatchCheckResult.IsSet())
+					{
+						const ECheckForPackageUpdateResult PatchCheckResult = OptionalPatchCheckResult.GetValue();
+						if (PatchCheckResult == ECheckForPackageUpdateResult::MandatoryUpdateAvailable)
+						{
+							Delegate.ExecuteIfBound(LiveId, Privilege, (uint32)EPrivilegeResults::RequiredPatchAvailable);
+							return;
+						}
+					}
+
 					const uint32 ResultInt = static_cast<uint32>(Result);
 
 					// Default to GenericFailure
@@ -690,19 +706,37 @@ void FOnlineIdentityLive::GetUserPrivilege(const FUniqueNetId& UserId, EUserPriv
 						}
 					}
 					Delegate.ExecuteIfBound(LiveId, Privilege, (uint32)PrivilegeResult);
-				}
-			}));
-		}
-		catch (Platform::Exception^ Ex)
-		{
-			UE_LOG_ONLINE(Log, TEXT("FOnlineIdentityLive::GetUserPrivilege failed with code 0x%0.8X."), Ex->HResult);
-
-			LiveSubsystem->ExecuteNextTick([LiveId, Privilege, Delegate]()
+				}));
+			}
+			catch (Platform::Exception^ Ex)
 			{
-				Delegate.ExecuteIfBound(LiveId, Privilege, (uint32)EPrivilegeResults::GenericFailure);
-			});
-		}
-	});
+				UE_LOG_ONLINE(Warning, TEXT("FOnlineIdentityLive::GetUserPrivilege failed with code 0x%0.8X."), Ex->HResult);
+
+				LiveSubsystem->ExecuteNextTick([LiveId, Privilege, Delegate]()
+				{
+					Delegate.ExecuteIfBound(LiveId, Privilege, (uint32)EPrivilegeResults::GenericFailure);
+				});
+			}
+			catch (const std::exception& Ex)
+			{
+				UE_LOG_ONLINE(Warning, TEXT("FOnlineIdentityLive::GetUserPrivilege starting  failed with reason '%s'."), ANSI_TO_TCHAR(Ex.what()));
+				LiveSubsystem->ExecuteNextTick([LiveId, Privilege, Delegate]()
+				{
+					Delegate.ExecuteIfBound(LiveId, Privilege, (uint32)EPrivilegeResults::GenericFailure);
+				});
+			}
+		});
+		return;
+	}
+	catch (Platform::Exception^ Ex)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineIdentityLive::GetUserPrivilege starting failed with code 0x%0.8X."), Ex->HResult);
+	}
+	catch (const std::exception& Ex)
+	{
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineIdentityLive::GetUserPrivilege starting  failed with reason '%s'."), ANSI_TO_TCHAR(Ex.what()));
+	}
+
 #elif PLATFORM_UWP
 	Microsoft::Xbox::Services::System::GamingPrivilege KnownPrivilege = Microsoft::Xbox::Services::System::GamingPrivilege::MultiplayerSessions;
 
@@ -758,6 +792,7 @@ void FOnlineIdentityLive::GetUserPrivilege(const FUniqueNetId& UserId, EUserPriv
 				});
 			}
 		});
+		return;
 	}
 	catch (Platform::Exception^ Ex)
 	{
@@ -772,6 +807,8 @@ void FOnlineIdentityLive::GetUserPrivilege(const FUniqueNetId& UserId, EUserPriv
 #error "Unsupported platform"
 #endif // PLATFORM_*
 // @ATG_CHANGE : END - UWP LIVE support
+
+	Delegate.ExecuteIfBound(UserId, Privilege, (uint32)EPrivilegeResults::GenericFailure);
 }
 
 FPlatformUserId FOnlineIdentityLive::GetPlatformUserIdFromUniqueNetId(const FUniqueNetId& UniqueNetId) const

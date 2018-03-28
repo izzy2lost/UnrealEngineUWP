@@ -629,12 +629,16 @@ public:
 	/**
 	 * Sets the encryption key and enables encryption.
 	 */
-	ENGINE_API void EnableEncryptionWithKey(TArrayView<const uint8> Key);
+	// @ATG_CHANGE : BEGIN
+	ENGINE_API void EnableEncryptionWithKeyAndNonce(TArrayView<const uint8> Key, const TArrayView<const uint8>& NonceData);
+	// @ATG_CHANGE : END
 
 	/**
 	 * Sets the encryption key, enables encryption, and sends the encryption ack to the client.
 	 */
-	ENGINE_API void EnableEncryptionWithKeyServer(TArrayView<const uint8> Key);
+	// @ATG_CHANGE : BEGIN
+	ENGINE_API void EnableEncryptionWithKeyAndIVServer(TArrayView<const uint8> Key, TArrayView<const uint8> NonceData);
+	// @ATG_CHANGE : END
 
 	/**
 	 * Sets the key for the underlying encryption packet handler component, but doesn't modify encryption enabled state.

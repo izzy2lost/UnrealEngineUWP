@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -275,6 +275,9 @@ PACKAGE_SCOPE:
 
 	/** Returns what the Multiplayer Session restriction should be based on session settings */
 	static Microsoft::Xbox::Services::Multiplayer::MultiplayerSessionRestriction GetLiveSessionRestrictionFromSettings(const FOnlineSessionSettings& SessionSettings);
+
+	/** Returns true if this session allows invites and join in presence */
+	static bool AreInvitesAndJoinViaPresenceAllowed(const FOnlineSessionSettings& OnlineSessionSettings);
 
 	/** Critical sections for thread safe operation of session lists */
 	mutable FCriticalSection SessionLock;

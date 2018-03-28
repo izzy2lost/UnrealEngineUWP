@@ -60,7 +60,7 @@ public class DX11 : ModuleRules
 		// @ATG_CHANGE : BEGIN UWP support
 		else if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
 		{
-			Definitions.Add("WITH_D3DX_LIBS=0");
+			PublicDefinitions.Add("WITH_D3DX_LIBS=0");
 			PublicAdditionalLibraries.AddRange(
 				new string[] {
 				"dxguid.lib",

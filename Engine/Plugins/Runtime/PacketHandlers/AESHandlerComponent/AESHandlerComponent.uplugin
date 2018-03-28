@@ -25,6 +25,8 @@
 				"Mac",
 				"Win32",
 				"Win64",
+				"UWP32",
+				"UWP64",
 				"Linux",
 				"PS4",
 				"XboxOne"
@@ -41,6 +43,8 @@
 				"Mac",
 				"Win32",
 				"Win64",
+				"UWP32",
+				"UWP64",
 				"Linux",
 				"PS4",
 				"XboxOne"

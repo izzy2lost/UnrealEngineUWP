@@ -24,7 +24,7 @@ public class UEOgg : ModuleRules
 
 			PublicDelayLoadDLLs.Add("libogg_64.dll");
 
-			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Ogg/" + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libogg_64.dll"));
+			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Ogg/" + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libogg_64.dll");
 		}
         else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
         {
@@ -35,7 +35,7 @@ public class UEOgg : ModuleRules
 
 			PublicDelayLoadDLLs.Add("libogg.dll");
 
-			RuntimeDependencies.Add(new RuntimeDependency("$(EngineDir)/Binaries/ThirdParty/Ogg/" + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libogg.dll"));
+			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Ogg/" + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libogg.dll");
 		}
 // @ATG_CHANGE : END
 		else if (Target.Platform == UnrealTargetPlatform.Mac)

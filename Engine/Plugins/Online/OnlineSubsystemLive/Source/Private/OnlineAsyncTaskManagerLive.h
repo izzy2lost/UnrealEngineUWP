@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -110,25 +110,25 @@ private:
 		AsyncOperation_t^ AsyncOperation = nullptr;
 		try
 		{
-			UE_LOG_ONLINE(Verbose, TEXT("Starting task for %s()."), *ToString());
+			UE_LOG_ONLINE(Verbose, TEXT("Starting task for %s."), *ToString());
 			AsyncOperation = CreateOperation();
 		}
 		catch (const Concurrency::task_canceled& Ex)
 		{
-			UE_LOG_ONLINE(Warning, TEXT("Unhandled task_canceled exception caught in %s(); operation failed with reason '%s'."), *ToString(), ANSI_TO_TCHAR(Ex.what()));
+			UE_LOG_ONLINE(Warning, TEXT("Unhandled task_canceled exception caught in %s; operation failed with reason '%s'."), *ToString(), ANSI_TO_TCHAR(Ex.what()));
 		}
 		catch (const std::exception& Ex)
 		{
-			UE_LOG_ONLINE(Warning, TEXT("Unhandled std::exception exception caught in %s(); operation failed for reason '%s'."), *ToString(), ANSI_TO_TCHAR(Ex.what()));
+			UE_LOG_ONLINE(Warning, TEXT("Unhandled std::exception exception caught in %s; operation failed for reason '%s'."), *ToString(), ANSI_TO_TCHAR(Ex.what()));
 		}
 		catch (Platform::Exception^ Ex)
 		{
-			UE_LOG_ONLINE(Warning, TEXT("Unhandled %s exception caught in %s(); operation failed with code 0x%08X and reason '%s'."), Ex->GetType()->ToString()->Data(), *ToString(), Ex->HResult, Ex->Message->Data());
+			UE_LOG_ONLINE(Warning, TEXT("Unhandled %s exception caught in %s; operation failed with code 0x%08X and reason '%s'."), Ex->GetType()->ToString()->Data(), *ToString(), Ex->HResult, Ex->Message->Data());
 		}
 		catch (...)
 		{
 			// Anything we don't handle above, just crash on
-			checkf(false, TEXT("Unhandled exception caught in %s()."), *ToString());
+			checkf(false, TEXT("Unhandled exception caught in %s."), *ToString());
 		}
 
 		// If our operation is nullptr, we failed to init it

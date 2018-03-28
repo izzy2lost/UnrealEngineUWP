@@ -8,7 +8,11 @@
 #include "Modules/ModuleManager.h"
 #include "AllowWindowsPlatformTypes.h"
 	#include <delayimp.h>
+	// @ATG_CHANGE : BEGIN UWP support
+	#if !PLATFORM_UWP
 	#include "amd_ags.h"
+	#endif
+	// @ATG_CHANGE : END UWP support
 #include "HideWindowsPlatformTypes.h"
 
 #include "HardwareInfo.h"
@@ -150,7 +154,7 @@ static bool SafeTestD3D12CreateDevice(IDXGIAdapter* Adapter, D3D_FEATURE_LEVEL M
 
 	// @ATG_CHANGE : BEGIN UWP support
 	// Prevent use of D3D12GetDebugInterface in UWP shipping - it fails WACK
-#if !PLATFORM_UWP || !UE_BUILD_SHIPPING
+#if !PLATFORM_UWP || (!UE_BUILD_SHIPPING && D3D12_PROFILING_ENABLED)
 	// Use a debug device if specified on the command line.
 	if (D3D12RHI_ShouldCreateWithD3DDebug())
 	{
@@ -515,6 +519,8 @@ void FD3D12DynamicRHI::Init()
 	// Need to set GRHIVendorId before calling IsRHIDevice* functions
 	GRHIVendorId = AdapterDesc.VendorId;
 
+	// @ATG_CHANGE : BEGIN UWP support
+#if !PLATFORM_UWP
 	// Initialize the AMD AGS utility library, when running on an AMD device
 	if (IsRHIDeviceAMD())
 	{
@@ -522,6 +528,8 @@ void FD3D12DynamicRHI::Init()
 		// agsInit should be called before D3D device creation
 		agsInit(&AmdAgsContext, nullptr, nullptr);
 	}
+#endif
+	// @ATG_CHANGE : END UWP support
 
 	// Create a device chain for each of the adapters we have choosen. This could be a single discrete card,
 	// a set discrete cards linked together (i.e. SLI/Crossfire) an Integrated device or any combination of the above
@@ -532,6 +540,8 @@ void FD3D12DynamicRHI::Init()
 	}
 
 	uint32 AmdSupportedExtensionFlags = 0;
+	// @ATG_CHANGE : BEGIN UWP support
+#if !PLATFORM_UWP
 	if (AmdAgsContext)
 	{
 		// Initialize AMD driver extensions
@@ -548,6 +558,8 @@ void FD3D12DynamicRHI::Init()
 	{
 		UE_LOG(LogD3D12RHI, Warning, TEXT("Attempting to use RGP frame markers without driver support. Update AMD driver."));
 	}
+#endif
+	// @ATG_CHANGE : END UWP support
 
 	GTexturePoolSize = 0;
 

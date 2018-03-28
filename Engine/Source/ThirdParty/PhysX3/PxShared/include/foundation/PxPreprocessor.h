@@ -88,7 +88,7 @@ Operating system defines, see http://sourceforge.net/p/predef/wiki/OperatingSyst
 #elif defined(__ORBIS__)
 #define PX_PS4 1
 #elif defined(__NX__)
-#define PX_SWITCH 1
+#define PX_NX 1
 #else
 #error "Unknown operating system"
 #endif
@@ -124,6 +124,12 @@ SIMD defines
 #define PX_VMX 1
 #endif
 #endif
+
+// @ATG_CHANGE : BEGIN UWP support
+#if WINAPI_FAMILY == WINAPI_FAMILY_APP
+#define PX_UWP 1
+#endif
+// @ATG_CHANGE : END
 
 /**
 define anything not defined on this platform to 0
@@ -161,8 +167,8 @@ define anything not defined on this platform to 0
 #ifndef PX_PS4
 #define PX_PS4 0
 #endif
-#ifndef PX_SWITCH
-#define PX_SWITCH 0
+#ifndef PX_NX
+#define PX_NX 0
 #endif
 #ifndef PX_X64
 #define PX_X64 0
@@ -188,6 +194,11 @@ define anything not defined on this platform to 0
 #ifndef PX_VMX
 #define PX_VMX 0
 #endif
+// @ATG_CHANGE : BEGIN UWP support
+#ifndef PX_UWP
+#define PX_UWP 0
+#endif
+// @ATG_CHANGE : END
 
 /*
 define anything not defined through the command line to 0
@@ -428,7 +439,7 @@ General defines
 */
 
 // static assert
-#if(defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))) || (PX_PS4) || (PX_APPLE_FAMILY) || (PX_SWITCH) || (PX_CLANG && PX_ARM)
+#if(defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))) || (PX_PS4) || (PX_APPLE_FAMILY) || (PX_NX) || (PX_CLANG && PX_ARM)
 #define PX_COMPILE_TIME_ASSERT(exp) typedef char PxCompileTimeAssert_Dummy[(exp) ? 1 : -1] __attribute__((unused))
 #else
 #define PX_COMPILE_TIME_ASSERT(exp) typedef char PxCompileTimeAssert_Dummy[(exp) ? 1 : -1]
@@ -491,8 +502,8 @@ struct PxPackValidation
 	long long a;
 };
 #endif
-// clang (as of version 3.9) cannot align doubles on 8 byte boundary  when compiling for Intel 32 bit target
-#if !PX_APPLE_FAMILY && !PX_EMSCRIPTEN && !(PX_CLANG && PX_X86)
+// clang that we use for Linux cannot align doubles on 8 byte boundary (as of version 3.9) when compiling for Intel 32 bit target
+#if !PX_APPLE_FAMILY && !PX_EMSCRIPTEN && !(PX_CLANG && PX_LINUX_FAMILY && PX_X86)
 PX_COMPILE_TIME_ASSERT(PX_OFFSET_OF(PxPackValidation, a) == 8);
 #endif
 

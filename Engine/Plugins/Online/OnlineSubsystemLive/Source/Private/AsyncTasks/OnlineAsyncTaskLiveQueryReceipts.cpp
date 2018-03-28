@@ -222,9 +222,9 @@ void FOnlineAsyncTaskLiveQueryReceipts::Tick()
 				UE_LOG_ONLINE(Log, TEXT("ReceiptItemDetails: %s = %u"),		TEXT("ConsumableBalance"),		PurchasedItem->ConsumableBalance);
 				UE_LOG_ONLINE(VeryVerbose, TEXT("ReceiptItemDetails: %s = %ls"),	TEXT("ConsumableUrl"),			(PurchasedItem->ConsumableUrl != nullptr) ? PurchasedItem->ConsumableUrl->AbsoluteUri->Data() : L"N/A");
 				UE_LOG_ONLINE(VeryVerbose, TEXT("ReceiptItemDetails: %s = %lld"),	TEXT("EndDate"),				PurchasedItem->EndDate.UniversalTime);
-				UE_LOG_ONLINE(VeryVerbose, TEXT("ReceiptItemDetails: %s = %d"),		TEXT("InventoryItemState"),		PurchasedItem->InventoryItemState);
+				UE_LOG_ONLINE(VeryVerbose, TEXT("ReceiptItemDetails: %s = %d"),		TEXT("InventoryItemState"),		(int)PurchasedItem->InventoryItemState);
 				UE_LOG_ONLINE(VeryVerbose, TEXT("ReceiptItemDetails: %s = %s"),		TEXT("IsTrialEntitlement"),		PurchasedItem->IsTrialEntitlement ? TEXT("True") : TEXT("False"));
-				UE_LOG_ONLINE(VeryVerbose, TEXT("ReceiptItemDetails: %s = %d"),		TEXT("MediaItemType"),			PurchasedItem->MediaItemType);
+				UE_LOG_ONLINE(VeryVerbose, TEXT("ReceiptItemDetails: %s = %d"),		TEXT("MediaItemType"),			(int)PurchasedItem->MediaItemType);
 				UE_LOG_ONLINE(Log, TEXT("ReceiptItemDetails: %s = %ls"),	TEXT("ProductId"),				PurchasedItem->ProductId->Data());
 				UE_LOG_ONLINE(VeryVerbose, TEXT("ReceiptItemDetails: %s = %lld"),	TEXT("RightsObtainedDate"),		PurchasedItem->RightsObtainedDate.UniversalTime);
 				UE_LOG_ONLINE(VeryVerbose, TEXT("ReceiptItemDetails: %s = %lld"),	TEXT("StartDate"),				PurchasedItem->StartDate.UniversalTime);

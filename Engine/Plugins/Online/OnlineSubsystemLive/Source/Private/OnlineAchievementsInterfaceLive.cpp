@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineAchievementsInterfaceLive.h"
@@ -102,9 +102,7 @@ void FOnlineAchievementsLive::TestEventsAndAchievements()
 				UE_LOG_ONLINE( Warning, TEXT( "[RequestBody]: %s"), args->RequestBody->RequestMessageString->Data() );
 			}
 			UE_LOG_ONLINE( Warning, TEXT( "") );
-			// @ATG_CHANGE : BEGIN - minor bug fix
 			UE_LOG_ONLINE( Warning, TEXT( "[Response]: %s %s"), args->HttpStatus.ToString()->Data(), args->ResponseBody->Data() );
-			// @ATG_CHANGE : END - minor bug fix
 			UE_LOG_ONLINE( Warning, TEXT( "") );
 		}
 	});
@@ -348,13 +346,17 @@ void FOnlineAchievementsLive::WriteAchievements(const FUniqueNetId& PlayerId, FO
 
 		// The XBL back end wants the achievement ID, which is the number assigned to the achievement
 		// This is the the order in which the achievements are created on XDP/UDC, starting from 1
-		int32 AchievementId = AchievementsConfig.AchievementMap[It.Key().ToString()];
+		int32* AchievementId = AchievementsConfig.AchievementMap.Find(It.Key().ToString());
 
-		// Achievement IDs are 1-based, so increment
-		++AchievementId;
+		if (AchievementId == NULL)
+		{
+			UE_LOG_ONLINE(Warning, TEXT("FOnlineAchievementsLive::WriteAchievements: No mapping for achievement %s"), *It.Key().ToString());
+			bResult = false;
+			continue;
+		}
 
 		// Then for unknown reasons, UpdateAchievementAsync wants this ID as a string
-		FString AchievementIdStr = FString::FromInt(AchievementId);
+		FString AchievementIdStr = FString::FromInt(*AchievementId);
 
 		Platform::String^ NetIdPlatformStr = ref new Platform::String(*LiveId.UniqueNetIdStr);
 		Platform::String^ AchievementPlatformStr = ref new Platform::String(*AchievementIdStr);

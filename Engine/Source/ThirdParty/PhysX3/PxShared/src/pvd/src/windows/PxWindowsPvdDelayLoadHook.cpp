@@ -45,7 +45,11 @@ void physx::PxPvdSetFoundationDelayLoadHook(const physx::PxFoundationDelayLoadHo
 
 using namespace physx;
 
+// @ATG_CHANGE : BEGIN UWP support, where the helpers link in from a default lib
+#if !PX_UWP
 #pragma comment(lib, "delayimp")
+#endif
+// @ATG_CHANGE : END
 
 FARPROC WINAPI delayHook(unsigned dliNotify, PDelayLoadInfo pdli)
 {

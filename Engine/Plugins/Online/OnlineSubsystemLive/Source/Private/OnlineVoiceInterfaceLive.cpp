@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineSubsystemLive.h"
@@ -1232,7 +1232,7 @@ void FOnlineVoiceLive::DisplayUserStatus(FString talker, bool isTalking, Microso
 		if(user->RestrictionMode != Windows::Xbox::Chat::ChatRestriction::None)
 		{
 			displayColor = FColor::Red;
-			text += FString::Printf(TEXT(" Restriction %s") , user->RestrictionMode.ToString()->Data());
+			text += FString::Printf(TEXT(" Restriction %d") , (int)user->RestrictionMode);
 		}
 
 		if((user->IsLocal && user->IsLocalUserMuted) || (!user->IsLocal && user->IsMuted))

@@ -491,6 +491,11 @@ void FD3D11DynamicRHI::Init()
 	InitD3DDevice();
 }
 
+bool FD3D11DynamicRHI::IsQuadBufferStereoEnabled()
+{
+	return false; // TODO: MR support...
+}
+
 void FD3D11DynamicRHI::FlushPendingLogs()
 {
 #if !UE_BUILD_SHIPPING
@@ -808,6 +813,8 @@ void FD3D11DynamicRHI::InitD3DDevice()
 #endif
 
 		{
+			// since we can't change the output device, just use the current backbuffer type
+			// as the basis for whether we support HDR.  But we don't know that till viewport creation.
 			GRHISupportsHDROutput = false;
 			GRHIHDRDisplayOutputFormat = PF_FloatRGBA;
 		}
@@ -828,6 +835,7 @@ void FD3D11DynamicRHI::EnableHDR()
 
 	if (GRHISupportsHDROutput && CVarHDROutputEnabled->GetValueOnAnyThread() != 0)
 	{
+		UE_LOG(LogD3D11RHI, Warning, TEXT("UWP titles are not able to change the hardware device output mode to enable HDR, it is controlled by the user."));
 	}
 }
 
@@ -836,6 +844,7 @@ void FD3D11DynamicRHI::ShutdownHDR()
 {
 	if (GRHISupportsHDROutput)
 	{
+		UE_LOG(LogD3D11RHI, Warning, TEXT("UWP titles are not able to change the hardware device output mode to disable HDR, it is controlled by the user."));
 	}
 }
 

@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineMatchmakingInterfaceLive.h"	
@@ -363,7 +363,7 @@ void FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged(const FName Ses
 		break;
 
 	default:
-		UE_LOG_ONLINE(Warning, TEXT("FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged - Got unexpected MatchmakingStatus: %u"), MatchStatus);
+		UE_LOG_ONLINE(Warning, TEXT("FOnlineMatchmakingInterfaceLive::OnMatchmakingStatusChanged - Got unexpected MatchmakingStatus: %u"), (uint32)MatchStatus);
 		break;
 	}
 }

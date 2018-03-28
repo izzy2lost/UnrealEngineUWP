@@ -288,7 +288,7 @@ namespace UnrealBuildTool
 			WindowsCompiler Compiler = new WindowsTargetRules().Compiler;
 			if (Compiler == WindowsCompiler.Default)
 			{
-				Compiler = WindowsPlatform.GetDefaultCompiler();
+				Compiler = WindowsPlatform.GetDefaultCompiler(InTarget.ProjectFile);
 			}
 			GeneratePackageAppXRecipe(Compiler, AppxRecipeDest.FullName, ProjectName, InTarget, Receipt.RuntimeDependencies, AdditionalAppXFiles);
 

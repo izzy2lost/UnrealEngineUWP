@@ -364,13 +364,13 @@ public:
 	{
 		switch ( ConnectivityLevel )
 		{
-			case NetworkConnectivityLevel::None: UE_LOG_ONLINE(Warning, TEXT("NetworkStatusChangedEvent: None") ); break;
-			case NetworkConnectivityLevel::ConstrainedInternetAccess: UE_LOG_ONLINE(Warning, TEXT("NetworkStatusChangedEvent: ConstrainedInternetAccess") ); break;
-			case NetworkConnectivityLevel::InternetAccess: UE_LOG_ONLINE(Warning, TEXT("NetworkStatusChangedEvent: InternetAccess") ); break;
-			case NetworkConnectivityLevel::LocalAccess: UE_LOG_ONLINE(Warning, TEXT("NetworkStatusChangedEvent: LocalAccess") ); break;
+			case NetworkConnectivityLevel::None: UE_LOG_ONLINE(Log, TEXT("NetworkStatusChangedEvent: None") ); break;
+			case NetworkConnectivityLevel::ConstrainedInternetAccess: UE_LOG_ONLINE(Log, TEXT("NetworkStatusChangedEvent: ConstrainedInternetAccess") ); break;
+			case NetworkConnectivityLevel::InternetAccess: UE_LOG_ONLINE(Log, TEXT("NetworkStatusChangedEvent: InternetAccess") ); break;
+			case NetworkConnectivityLevel::LocalAccess: UE_LOG_ONLINE(Log, TEXT("NetworkStatusChangedEvent: LocalAccess") ); break;
 // @ATG_CHANGE : UWP Live Support - BEGIN
 #if PLATFORM_XBOXONE
-			case NetworkConnectivityLevel::XboxLiveAccess: UE_LOG_ONLINE(Warning, TEXT("NetworkStatusChangedEvent: XboxLiveAccess") ); break;
+			case NetworkConnectivityLevel::XboxLiveAccess: UE_LOG_ONLINE(Log, TEXT("NetworkStatusChangedEvent: XboxLiveAccess") ); break;
 #endif
 			default: UE_LOG_ONLINE(Warning, TEXT("NetworkStatusChangedEvent: Invalid") ); break;
 		}
@@ -390,7 +390,7 @@ public:
 #endif
 // @ATG_CHANGE : UWP Live Support - END
 
-		UE_LOG_ONLINE(Warning, TEXT("NetworkStatusChangedEvent: OldConverted: %s, Converted: %s"), EOnlineServerConnectionStatus::ToString( Subsystem->ConvertedNetworkConnectivityLevel ), EOnlineServerConnectionStatus::ToString( ConvertedNetworkConnectivityLevelOnStack ) );
+		UE_LOG_ONLINE(Log, TEXT("NetworkStatusChangedEvent: OldConverted: %s, Converted: %s"), EOnlineServerConnectionStatus::ToString( Subsystem->ConvertedNetworkConnectivityLevel ), EOnlineServerConnectionStatus::ToString( ConvertedNetworkConnectivityLevelOnStack ) );
 
 		if ( !Subsystem->bHasCalledNetworkStatusChangedAtLeastOnce || ConvertedNetworkConnectivityLevelOnStack != Subsystem->ConvertedNetworkConnectivityLevel )
 		{
@@ -690,18 +690,6 @@ bool FOnlineSubsystemLive::Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice
 FText FOnlineSubsystemLive::GetOnlineServiceName() const
 {
 	return NSLOCTEXT("OnlineSubsystemLive", "OnlineServiceName", "Xbox Live");
-}
-
-bool FOnlineSubsystemLive::IsEnabled()
-{
-	// Check the ini for disabling Live
-	bool bEnableLive = false;
-	GConfig->GetBool(TEXT("OnlineSubsystemLive"), TEXT("bEnabled"), bEnableLive, GEngineIni);
-#if !UE_BUILD_SHIPPING
-	// Check the commandline for disabling Mcp, but not in shipping
-	bEnableLive = bEnableLive && !FParse::Param(FCommandLine::Get(),TEXT("NOLIVE"));
-#endif
-	return bEnableLive;
 }
 
 const FString& FOnlineSubsystemLive::GetTitleProductId() const

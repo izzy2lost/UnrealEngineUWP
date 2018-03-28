@@ -21,7 +21,7 @@ public class libOpus : ModuleRules
 			(Target.Platform == UnrealTargetPlatform.UWP64))
 		{
 			// ATG - it appears that the 2013-built version of this dependency is not part of the normal enlistment
-			LibraryPath += "win32/VS" + (WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 ? "2015" : "2012");
+			LibraryPath += "win32/VS" + (Target.WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015 ? "2015" : "2012");
 			if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 			{
 				LibraryPath += "/x64/";

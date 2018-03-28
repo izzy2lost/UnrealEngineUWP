@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
 using System.IO;
@@ -6,8 +6,8 @@ using System.IO;
 public class OnlineSubsystemLive : ModuleRules
 {
 	// Should match versions in GetUWPDependencies.ps1
-	readonly string XsapiVersionUwp = "2017.08.20170829.001";
-	readonly string XsapiVersionXboxOne = "2017.08.20170829.001";
+	readonly string XsapiVersionUwp = "2017.11.20171204.001";
+	readonly string XsapiVersionXboxOne = "2017.11.20171204.001";
 	readonly string XimVersion = "1706.8.0";
 	readonly string CppRestVersion = "2_9";
 
@@ -15,20 +15,20 @@ public class OnlineSubsystemLive : ModuleRules
 
 	public OnlineSubsystemLive(ReadOnlyTargetRules Target) : base(Target)
 	{
-		Definitions.Add("ONLINESUBSYSTEMLIVE_PACKAGE=1");
+		PublicDefinitions.Add("ONLINESUBSYSTEMLIVE_PACKAGE=1");
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		// @ATG_CHANGE : BEGIN XSAPI (decoupled from XDK) lives inside the OSSLive plugin.
 		// Use alternate MS implementation of social features that leverages
 		// XSAPI manager type to limit service calls and extend feature set.
-		//Definitions.Add("USE_SOCIAL_MANAGER=1");
+		//PublicDefinitions.Add("USE_SOCIAL_MANAGER=1");
 
 		if (Target.Platform == UnrealTargetPlatform.XboxOne)
 		{
 			// We need etwplus.lib for events, leader boards and achievements
 			PublicAdditionalLibraries.Add("etwplus.lib");
-			Definitions.Add("WITH_GAME_CHAT=1");
-			Definitions.Add("WITH_MARKETPLACE=1");
+			PublicDefinitions.Add("WITH_GAME_CHAT=1");
+			PublicDefinitions.Add("WITH_MARKETPLACE=1");
 		}
 
 		// Modules our Privates require
@@ -120,7 +120,7 @@ public class OnlineSubsystemLive : ModuleRules
 		string GameChatSubDir = Path.Combine("GameChat", "Binaries", PlatformSubDir);
 		HasGameChat = HasGameChat && AddWinRTDllReference(GameChatSubDir, "Microsoft.Xbox.GameChat");
 		HasGameChat = HasGameChat && AddWinRTDllReference(GameChatSubDir, "Microsoft.Xbox.ChatAudio");
-		Definitions.Add(string.Format("WITH_GAME_CHAT={0}", HasGameChat ? 1 : 0));
+		PublicDefinitions.Add(string.Format("WITH_GAME_CHAT={0}", HasGameChat ? 1 : 0));
 
 		string EraAdapterSubDir = Path.Combine("EraAdapter", "Binaries", PlatformSubDir);
 		AddWinRTDllReference(EraAdapterSubDir, "EraAdapter");
@@ -129,23 +129,23 @@ public class OnlineSubsystemLive : ModuleRules
         {
             // CppRest a little different - it's not a WinRT component, and it will need to be loaded explicitly
             string CppRestDll = Path.Combine("ThirdParty", XSAPISubDir, string.Format("cpprest140_uwp_{0}.dll", CppRestVersion));
-			RuntimeDependencies.Add(new RuntimeDependency(Path.Combine("$(PluginDir)", CppRestDll)));
-			Definitions.Add(string.Format(@"CPP_REST_DLL=TEXT(""{0}"")", CppRestDll.Replace(@"\", "/")));
+			RuntimeDependencies.Add(Path.Combine("$(PluginDir)", CppRestDll));
+			PublicDefinitions.Add(string.Format(@"CPP_REST_DLL=TEXT(""{0}"")", CppRestDll.Replace(@"\", "/")));
 
 			if (Target.UWPPlatform.Win10SDKVersion >= new System.Version(10, 0, 14393, 0))
 			{
-				Definitions.Add("WITH_MARKETPLACE=1");
+				PublicDefinitions.Add("WITH_MARKETPLACE=1");
 				PrivateWinMDReferences.Add("Windows.Services.Store.StoreContract");
 			}
 			else
 			{
-				Definitions.Add("WITH_MARKETPLACE=0");
+				PublicDefinitions.Add("WITH_MARKETPLACE=0");
 			}
 		}
 
 		if (UseXim(Target))
 		{
-			Definitions.Add("USE_XIM=1");
+			PublicDefinitions.Add("USE_XIM=1");
 
 			PublicIncludePaths.Add(Path.Combine(WinMDReferencePathRoot, "XIM", XimPackageFolder, "include"));
 			PublicLibraryPaths.Add(Path.Combine(WinMDReferencePathRoot, "XIM", XimPackageFolder, "lib", PackageArch, "release"));
@@ -153,20 +153,20 @@ public class OnlineSubsystemLive : ModuleRules
 
 			// Xim DLL is like cpprest.
 			string XimDll = Path.Combine("ThirdParty", "XIM", XimPackageFolder, "lib", PackageArch, "release", "XboxIntegratedMultiplayer.dll");
-			RuntimeDependencies.Add(new RuntimeDependency(Path.Combine("$(PluginDir)", XimDll)));
+			RuntimeDependencies.Add(Path.Combine("$(PluginDir)", XimDll));
 			PublicDelayLoadDLLs.Add("XboxIntegratedMultiplayer.dll");
 
-			Definitions.Add(string.Format(@"XIM_DLL=TEXT(""{0}"")", XimDll.Replace(@"\", "/")));
+			PublicDefinitions.Add(string.Format(@"XIM_DLL=TEXT(""{0}"")", XimDll.Replace(@"\", "/")));
 		}
 		else
 		{
-			Definitions.Add("USE_XIM=0");
+			PublicDefinitions.Add("USE_XIM=0");
 		}
 
-		Definitions.Add(string.Format(@"USE_ACHIEVEMENTS_2017={0}", UseAchievements2017(Target) ? 1 : 0));
-		Definitions.Add(string.Format(@"USE_STATS_2017={0}", UseStats2017(Target) ? 1 : 0));
-		// @ATG_CHANGE : END
-	}
+        PublicDefinitions.Add(string.Format(@"USE_ACHIEVEMENTS_2017={0}", UseAchievements2017(Target) ? 1 : 0));
+        PublicDefinitions.Add(string.Format(@"USE_STATS_2017={0}", UseStats2017(Target) ? 1 : 0));
+        // @ATG_CHANGE : END
+    }
 
 	// @ATG_CHANGE : BEGIN XSAPI (decoupled from XDK) lives inside the OSSLive plugin.
 	private bool AddWinRTDllReference(string SubDir, string BaseFileName)
@@ -178,7 +178,7 @@ public class OnlineSubsystemLive : ModuleRules
 		}
 
 		PublicWinMDReferences.Add(WinMDPath);
-		RuntimeDependencies.Add(new RuntimeDependency(Path.Combine("$(PluginDir)", "ThirdParty", SubDir, BaseFileName + ".dll")));
+		RuntimeDependencies.Add(Path.Combine("$(PluginDir)", "ThirdParty", SubDir, BaseFileName + ".dll"));
 		return true;
 	}
 	// @ATG_CHANGE : END 

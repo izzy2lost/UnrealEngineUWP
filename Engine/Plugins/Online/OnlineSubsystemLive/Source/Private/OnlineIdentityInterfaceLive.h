@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -195,6 +195,9 @@ PACKAGE_SCOPE:
 	FString LoginXSTSEndpoint;
 
 private:
+
+	FDelegateHandle AppResumeDelegateHandle;
+
 	/** Map of online user accounts (using user id as key) */
 	typedef TMap<FUniqueNetIdLive, TSharedRef<FUserOnlineAccountLive> > LiveUserAccountMap;
 	LiveUserAccountMap OnlineUsers;

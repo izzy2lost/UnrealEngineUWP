@@ -46,8 +46,8 @@ function Install-Package($pathToNuget, $packageName, $installLocation, $subPaths
 }
 
 # Package versions.  Should match OnlineSubsystemLive.build.cs
-$xsapiVersionUwp = "2017.08.20170829.001"
-$xsapiVersionXdk = "2017.08.20170829.001"
+$xsapiVersionUwp = "2017.11.20171204.001"
+$xsapiVersionXdk = "2017.11.20171204.001"
 $ximVersionUwp = "1706.8.0"
 
 $webClient = New-Object System.Net.WebClient

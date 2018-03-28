@@ -204,7 +204,7 @@ namespace UnrealBuildTool
 				}
 				else
 				{
-					Target.UWPPlatform.Compiler = WindowsPlatform.GetDefaultCompiler();
+					Target.UWPPlatform.Compiler = WindowsPlatform.GetDefaultCompiler(Target.ProjectFile);
 				}
 			}
 
@@ -421,7 +421,7 @@ namespace UnrealBuildTool
 					{
 						string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(GetBuildPlatform(Target.Platform).DefaultCppPlatform, CompilerForSdkRestriction);
 						Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, Target.UWPPlatform.Compiler);
-						Rules.Definitions.Add(string.Format("WIN10_SDK_VERSION={0}", SDKVersion.Build));
+						Rules.PublicDefinitions.Add(string.Format("WIN10_SDK_VERSION={0}", SDKVersion.Build));
 					}
 				}
 			}
@@ -476,20 +476,20 @@ namespace UnrealBuildTool
 			}
 			else if (ModuleName == "D3D11RHI")
 			{
-				Rules.Definitions.Add("D3D11_WITH_DWMAPI=0");
-				Rules.Definitions.Add("WITH_DX_PERF=0");
+				Rules.PublicDefinitions.Add("D3D11_WITH_DWMAPI=0");
+				Rules.PublicDefinitions.Add("WITH_DX_PERF=0");
 			}
 			else if (ModuleName == "D3D12RHI")
 			{
 				if (Target.WindowsPlatform.bPixProfilingEnabled && Target.Platform == UnrealTargetPlatform.UWP64 && Target.Configuration != UnrealTargetConfiguration.Shipping && Target.Configuration != UnrealTargetConfiguration.Test)
 				{
 					// Define to indicate profiling enabled (64-bit only)
-					Rules.Definitions.Add("D3D12_PROFILING_ENABLED=1");
-					Rules.Definitions.Add("PROFILE");
+					Rules.PublicDefinitions.Add("D3D12_PROFILING_ENABLED=1");
+					Rules.PublicDefinitions.Add("PROFILE");
 				}
 				else
 				{
-					Rules.Definitions.Add("D3D12_PROFILING_ENABLED=0");
+					Rules.PublicDefinitions.Add("D3D12_PROFILING_ENABLED=0");
 				}
 
 				// To enable platform specific D3D12 RHI Types
@@ -503,17 +503,17 @@ namespace UnrealBuildTool
 				Rules.PublicIncludePaths.Clear();
 				Rules.PublicLibraryPaths.Clear();
 				Rules.PublicAdditionalLibraries.Clear();
-				Rules.Definitions.Remove("WITH_D3DX_LIBS=1");
-				Rules.Definitions.Add("WITH_D3DX_LIBS=0");
+				Rules.PublicDefinitions.Remove("WITH_D3DX_LIBS=1");
+				Rules.PublicDefinitions.Add("WITH_D3DX_LIBS=0");
 				Rules.PublicAdditionalLibraries.Remove("X3DAudio.lib");
 				Rules.PublicAdditionalLibraries.Remove("XAPOFX.lib");
 			}
 			else if (ModuleName == "XAudio2")
 			{
-				Rules.Definitions.Add("XAUDIO_SUPPORTS_XMA2WAVEFORMATEX=0");
-				Rules.Definitions.Add("XAUDIO_SUPPORTS_DEVICE_DETAILS=0");
-				Rules.Definitions.Add("XAUDIO2_SUPPORTS_MUSIC=0");
-				Rules.Definitions.Add("XAUDIO2_SUPPORTS_SENDLIST=1");
+				Rules.PublicDefinitions.Add("XAUDIO_SUPPORTS_XMA2WAVEFORMATEX=0");
+				Rules.PublicDefinitions.Add("XAUDIO_SUPPORTS_DEVICE_DETAILS=0");
+				Rules.PublicDefinitions.Add("XAUDIO2_SUPPORTS_MUSIC=0");
+				Rules.PublicDefinitions.Add("XAUDIO2_SUPPORTS_SENDLIST=1");
 				Rules.PublicAdditionalLibraries.Add("XAudio2.lib");
 			}
 			else if (ModuleName == "DX11Audio")

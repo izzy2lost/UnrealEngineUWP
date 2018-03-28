@@ -24,6 +24,8 @@
               "Mac",
               "Win32",
               "Win64",
+              "UWP32",
+              "UWP64",
               "Linux",
               "PS4",
               "XboxOne"
@@ -39,8 +41,6 @@
 			"LoadingPhase": "Default",
             "WhitelistPlatforms": [
               "Mac",
-              "Win32",
-              "Win64",
               "Linux",
               "PS4"
             ],
@@ -54,7 +54,11 @@
 			"Type" : "Runtime",
 			"LoadingPhase" : "Default",
             "WhitelistPlatforms": [
-              "XboxOne"
+              "XboxOne",
+              "Win32",
+              "Win64",
+              "UWP32",
+              "UWP64",
             ],
             "BlacklistPlatforms": [
               "Android",

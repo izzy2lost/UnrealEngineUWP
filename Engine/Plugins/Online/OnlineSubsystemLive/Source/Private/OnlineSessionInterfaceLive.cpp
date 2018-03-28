@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineSessionInterfaceLive.h"
@@ -215,7 +215,7 @@ void FOnlineSessionLive::Initialize()
 			{
 				if (EventArgs->Association)
 				{
-					UE_LOG_ONLINE(Log, TEXT("Received association, state is %d."), EventArgs->Association->State);
+					UE_LOG_ONLINE(Log, TEXT("Received association, state is %d."), (int)EventArgs->Association->State);
 
 					auto StateChangedEvent = ref new TypedEventHandler<SecureDeviceAssociation^, SecureDeviceAssociationStateChangedEventArgs^>(&LogAssociationStateChange);
 					EventArgs->Association->StateChanged += StateChangedEvent;
@@ -299,6 +299,11 @@ void FOnlineSessionLive::CleanUpOrphanedSessions(Windows::Xbox::System::User^ Us
 	try
 	{
 		XboxLiveContext^ LiveContext = LiveSubsystem->GetLiveContext(User);
+		if (!LiveContext)
+		{
+			UE_LOG_ONLINE(Warning, TEXT("Unable to retrieve LiveContext for User %s"), (User && User->XboxUserId) ? User->XboxUserId->Data() : L"Unknown User");
+			return;
+		}
 
 		// @ATG_CHANGE : BEGIN UWP LIVE support
 		auto SessionsRequest = ref new MultiplayerGetSessionsRequest(LiveContext->AppConfig->ServiceConfigurationId, MAX_ORPHANED_SESSIONS_RESULTS);
@@ -386,6 +391,11 @@ void FOnlineSessionLive::CleanUpOrphanedSessions(Windows::Xbox::System::User^ Us
 	}
 }
 
+bool FOnlineSessionLive::AreInvitesAndJoinViaPresenceAllowed(const FOnlineSessionSettings& OnlineSessionSettings)
+{
+	return OnlineSessionSettings.bAllowInvites || OnlineSessionSettings.bAllowJoinViaPresence || OnlineSessionSettings.bAllowJoinViaPresenceFriendsOnly;
+}
+
 bool FOnlineSessionLive::CreateSession(int32 HostingPlayerControllerIndex, FName SessionName, const FOnlineSessionSettings& NewSessionSettings)
 {
 	auto UniqueId = LiveSubsystem->GetIdentityLive()->GetUniquePlayerId(HostingPlayerControllerIndex);
@@ -441,8 +451,9 @@ bool FOnlineSessionLive::CreateSession(const FUniqueNetId& HostingPlayerId, FNam
 			return false;
 		}
 
+		bool bCreateActivity = AreInvitesAndJoinViaPresenceAllowed(NewSessionSettings);
 		// @ATG_CHANGE : BEGIN Allow modifying session visibility/joinability
-		Concurrency::create_task(writeSessionOp).then([this,CreatingUser,SessionName,NewSessionSettings](Concurrency::task<MultiplayerSession^> CreateTask)
+		Concurrency::create_task(writeSessionOp).then([this,CreatingUser,SessionName,bCreateActivity,NewSessionSettings](Concurrency::task<MultiplayerSession^> CreateTask)
 		// @ATG_CHANGE : END
 		{
 			MultiplayerSession^ LiveSession = nullptr;
@@ -470,8 +481,11 @@ bool FOnlineSessionLive::CreateSession(const FUniqueNetId& HostingPlayerId, FNam
 				{
 					UE_LOG_ONLINE(Warning, TEXT("Could not find creator in session members. Not setting host."));
 
-					// Set activity now if we're done updating the session
-					LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveSetSessionActivity>(LiveSubsystem, Context, LiveSession->SessionReference);
+					if (bCreateActivity)
+					{
+						// Set activity now if we're done updating the session
+						LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveSetSessionActivity>(LiveSubsystem, Context, LiveSession->SessionReference);
+					}
 
 					LiveSubsystem->CreateAndDispatchAsyncEvent<FOnlineAsyncTaskLiveCreateSession>(
 						this,
@@ -496,13 +510,16 @@ bool FOnlineSessionLive::CreateSession(const FUniqueNetId& HostingPlayerId, FNam
 					LiveSession,
 					MultiplayerSessionWriteMode::UpdateExisting);
 
-				Concurrency::create_task(WriteSessionOp).then([this, CreatingUserUniqueId, SessionName, LiveSession, Context](Concurrency::task<MultiplayerSession^> WriteTask)
+				Concurrency::create_task(WriteSessionOp).then([this, CreatingUserUniqueId, SessionName, LiveSession, Context, bCreateActivity](Concurrency::task<MultiplayerSession^> WriteTask)
 				{
 					try
 					{
 						auto NewSession = WriteTask.get(); // if t.get() didn't throw, it succeeded
 
-						LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveSetSessionActivity>(LiveSubsystem, Context, NewSession->SessionReference);
+						if (bCreateActivity)
+						{
+							LiveSubsystem->CreateAndDispatchAsyncTaskParallel<FOnlineAsyncTaskLiveSetSessionActivity>(LiveSubsystem, Context, NewSession->SessionReference);
+						}
 
 						LiveSubsystem->CreateAndDispatchAsyncEvent<FOnlineAsyncTaskLiveCreateSession>(
 							this,
@@ -2612,6 +2629,18 @@ void FOnlineSessionLive::Tick(float DeltaTime)
 
 void FOnlineSessionLive::TickPendingInvites(float DeltaTime)
 {
+	if (bIsDestroyingSessions)
+	{
+		// Don't accept invites while we're destroying all of our sessions
+		return;
+	}
+
+	if (LiveSubsystem->ConvertedNetworkConnectivityLevel != EOnlineServerConnectionStatus::Connected)
+	{
+		// Don't process invites until we're fully connected
+		return;
+	}
+
 	if (!PendingInvite.bHaveInvite)
 	{
 		return;
@@ -2931,7 +2960,7 @@ void FOnlineSessionLive::OnInitializationStateChanged(const FName& SessionName)
 
 	if (SessionMember->InitializationFailureCause != MultiplayerMeasurementFailure::None)
 	{
-		UE_LOG_ONLINE(Log, TEXT("  Qos failed for this member, failure case: %u"), SessionMember->InitializationFailureCause);
+		UE_LOG_ONLINE(Log, TEXT("  Qos failed for this member, failure case: %u"), (int)SessionMember->InitializationFailureCause);
 		FOnlineMatchmakingInterfaceLivePtr MatchmakingInterface = LiveSubsystem->GetMatchmakingInterfaceLive();
 		MatchmakingInterface->SetTicketState(SessionName, EOnlineLiveMatchmakingState::None);
 		MatchmakingInterface->TriggerOnMatchmakingCompleteDelegates(NamedSession->SessionName, false);
@@ -2994,7 +3023,7 @@ void FOnlineSessionLive::OnInitializationStateChanged(const FName& SessionName)
 					break;
 				}
 			default:
-				UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::OnInitializationStateChanged - Got unexpected InitializationStage: %u"), Stage);
+				UE_LOG_ONLINE(Warning, TEXT("FOnlineSessionLive::OnInitializationStateChanged - Got unexpected InitializationStage: %u"), (int)Stage);
 				break;
 		}
 	}

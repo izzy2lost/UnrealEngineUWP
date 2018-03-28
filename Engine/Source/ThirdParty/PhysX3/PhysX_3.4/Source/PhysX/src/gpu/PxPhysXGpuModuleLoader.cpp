@@ -113,10 +113,14 @@ namespace physx
 
 	void PxLoadPhysxGPUModule(const char* appGUID)
 	{
-		static HMODULE s_library;
+// @ATG_CHANGE : BEGIN UWP support
+// API not available in UWP, so use static init value as the determining indicator
+		static HMODULE s_library = NULL;
 
+#if !PX_UWP
 		if (s_library == NULL)
 			s_library = GetModuleHandle(gPhysXGpuLibraryName);
+#endif
 
 		if (s_library == NULL)
 		{
