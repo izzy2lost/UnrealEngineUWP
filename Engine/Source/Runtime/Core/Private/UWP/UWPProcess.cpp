@@ -360,12 +360,14 @@ const TCHAR* FUWPProcess::GetTempAppDataLowLevelPath()
 
 const TCHAR* FUWPProcess::GetLocalAppDataRedirectPath()
 {
-	return TEXT("..\\..\\UWPLocalAppData");
+	static FString RedirectPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("UWPLocalAppData"));
+	return *RedirectPath;
 }
 
 const TCHAR* FUWPProcess::GetTempAppDataRedirectPath()
 {
-	return TEXT("..\\..\\UWPTempAppData");
+	static FString RedirectPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("UWPTempAppData"));
+	return *RedirectPath;
 }
 
 bool FUWPProcess::ShouldSaveToUserDir()
