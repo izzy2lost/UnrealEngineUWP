@@ -692,6 +692,20 @@ FText FOnlineSubsystemLive::GetOnlineServiceName() const
 	return NSLOCTEXT("OnlineSubsystemLive", "OnlineServiceName", "Xbox Live");
 }
 
+// @ATG_CHANGE : BEGIN
+bool FOnlineSubsystemLive::IsEnabled()
+{
+	// Check the ini for disabling Live
+	bool bEnableLive = false;
+	GConfig->GetBool(TEXT("OnlineSubsystemLive"), TEXT("bEnabled"), bEnableLive, GEngineIni);
+#if !UE_BUILD_SHIPPING
+	// Check the commandline for disabling Mcp, but not in shipping
+	bEnableLive = bEnableLive && !FParse::Param(FCommandLine::Get(),TEXT("NOLIVE"));
+#endif
+	return bEnableLive;
+}
+// @ATG_CHANGE : EDN
+
 const FString& FOnlineSubsystemLive::GetTitleProductId() const
 {
 	static FString TitleProductId;
