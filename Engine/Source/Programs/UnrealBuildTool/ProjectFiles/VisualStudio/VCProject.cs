@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -1362,7 +1362,7 @@ namespace UnrealBuildTool
 						string DebuggerFlavor = "WindowsLocalDebugger";
 						if (Platform == UnrealTargetPlatform.UWP32 || Platform == UnrealTargetPlatform.UWP64)
 						{
-							DebuggerFlavor = "LocalWindowsDebugger";
+							DebuggerFlavor = "AppHostLocalDebugger ";
 						}
 						VCUserFileContent.Append(
 						"		<DebuggerFlavor>" + DebuggerFlavor + "</DebuggerFlavor>" + ProjectFileGenerator.NewLine
