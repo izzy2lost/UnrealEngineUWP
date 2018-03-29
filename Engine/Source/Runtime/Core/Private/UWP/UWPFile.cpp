@@ -1,7 +1,10 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 
 #include "UWPFile.h"
+#include "CoreMinimal.h"
+#include "GenericPlatformFile.h"
 #include "UWPProcess.h"
+#include "Paths.h"
 #include <sys/utime.h>
 
 
@@ -312,36 +315,7 @@ public:
 
 	virtual FString GetFilenameOnDisk(const TCHAR* Filename) override
 	{
-		FString Result;
-		WIN32_FIND_DATAW Data;
-		FString NormalizedFilename = NormalizeFilename(Filename);
-		while (NormalizedFilename.Len())
-		{
-			HANDLE Handle = FindFirstFileExW(*NormalizedFilename, FINDEX_INFO_LEVELS::FindExInfoStandard, &Data, FINDEX_SEARCH_OPS::FindExSearchNameMatch, nullptr, 0);
-			if (Handle != INVALID_HANDLE_VALUE)
-			{
-				if (Result.Len())
-				{
-					Result = FString(Data.cFileName) / Result;
-				}
-				else
-				{
-					Result = Data.cFileName;
-				}
-				FindClose(Handle);
-			}
-			int32 SeparatorIndex = INDEX_NONE;
-			if (NormalizedFilename.FindLastChar('/', SeparatorIndex))
-			{
-				NormalizedFilename = NormalizedFilename.Mid(0, SeparatorIndex);
-			}
-			if (NormalizedFilename.Len() && (SeparatorIndex == INDEX_NONE || NormalizedFilename.EndsWith(TEXT(":"))))
-			{
-				Result = NormalizedFilename / Result;
-				NormalizedFilename.Empty();
-			}
-		}
-		return Result;
+		return NormalizeFilename(Filename);
 	}
 
 	virtual IFileHandle* OpenRead(const TCHAR* Filename, bool bAllowWrite = false) override

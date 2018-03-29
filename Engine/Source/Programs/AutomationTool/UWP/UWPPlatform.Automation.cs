@@ -617,6 +617,9 @@ namespace UWP.Automation
 
 		private void GenerateSigningCertificate(string InCertificatePath, string InPublisher)
 		{
+			// Ensure the output directory exists otherwise makecert will fail.
+			InternalUtils.SafeCreateDirectory(Path.GetDirectoryName(InCertificatePath));
+
 			// MakeCert.exe -r -h 0 -n "CN=No Publisher, O=No Publisher" -eku 1.3.6.1.5.5.7.3.3 -pe -sv "Signing Certificate.pvk" "Signing Certificate.cer"
 			// pvk2pfx -pvk "Signing Certificate.pvk" -spc "Signing Certificate.cer" -pfx "Signing Certificate.pfx"
 			FileReference MakeCertPath = UWPExports.GetWindowsSdkToolPath("makecert.exe");

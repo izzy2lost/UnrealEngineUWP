@@ -3,6 +3,9 @@
 #include "SocketSubsystemUWP.h"
 #include "SocketSubsystemModule.h"
 #include "ModuleManager.h"
+#include "Misc/ScopeLock.h"
+
+#include "BSDIPv6Sockets/IPAddressBSDIPv6.h"
 
 #include "AllowWindowsPlatformTypes.h"
 #include "Iphlpapi.h"
@@ -83,6 +86,52 @@ FSocket* FSocketSubsystemUWP::CreateSocket(const FName& SocketType, const FStrin
 	}
 
 	return NewSocket;
+}
+
+ESocketErrors FSocketSubsystemUWP::GetHostByName(const ANSICHAR* HostName, FInternetAddr& OutAddr)
+{
+	FScopeLock ScopeLock(&HostByNameSynch);
+	addrinfo* AddrInfo = nullptr;
+
+	// We will allow either IPv6 or IPv4 since we call SetIPv6Only(false)
+	addrinfo HintAddrInfo;
+	FMemory::Memzero(&HintAddrInfo, sizeof(HintAddrInfo));
+	HintAddrInfo.ai_family = AF_UNSPEC;
+
+	OutAddr.SetIp(0);
+	int32 ErrorCode = getaddrinfo(HostName, nullptr, &HintAddrInfo, &AddrInfo);
+	ESocketErrors SocketError = TranslateGAIErrorCode(ErrorCode);
+	if (SocketError == SE_NO_ERROR)
+	{
+		for (; AddrInfo != nullptr; AddrInfo = AddrInfo->ai_next)
+		{
+			if (AddrInfo->ai_family == AF_INET6)
+			{
+				sockaddr_in6* IPv6SockAddr = reinterpret_cast<sockaddr_in6*>(AddrInfo->ai_addr);
+				if (IPv6SockAddr != nullptr)
+				{
+					static_cast<FInternetAddrBSDIPv6&>(OutAddr).SetIp(IPv6SockAddr->sin6_addr);
+
+					// Break out immediately if we find a v6 address - this is our preference.
+					break;
+				}
+			}
+			else if (AddrInfo->ai_family == AF_INET && !OutAddr.IsValid())
+			{
+				sockaddr_in* IPv4SockAddr = reinterpret_cast<sockaddr_in*>(AddrInfo->ai_addr);
+				if (IPv4SockAddr != nullptr)
+				{
+					static_cast<FInternetAddrBSDIPv6&>(OutAddr).SetIp(IPv4SockAddr->sin_addr);
+
+					// Keep looking in case there's a v6 address to be had
+				}
+			}
+		}
+		freeaddrinfo(AddrInfo);
+		return OutAddr.IsValid() ? SE_NO_ERROR : SE_HOST_NOT_FOUND;
+	}
+	return SocketError;
+
 }
 
 

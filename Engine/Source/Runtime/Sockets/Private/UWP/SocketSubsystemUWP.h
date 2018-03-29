@@ -29,6 +29,7 @@ public:
 	// FSocketSubsystemBSD overrides
 
 	virtual class FSocket* CreateSocket(const FName& SocketType, const FString& SocketDescription, bool bForceUDP = false) override;
+	virtual ESocketErrors GetHostByName(const ANSICHAR* HostName, FInternetAddr& OutAddr) override;
 	virtual bool HasNetworkDevice() override;
 	virtual ESocketErrors GetLastErrorCode() override;
 	virtual bool GetLocalAdapterAddresses(TArray<TSharedPtr<FInternetAddr> >& OutAdresses) override;
@@ -56,4 +57,9 @@ protected:
 
 	/** Holds the single instantiation of this subsystem. */
 	static FSocketSubsystemUWP* SocketSingleton;
+
+private:
+
+	// Used to prevent multiple threads accessing the shared data.
+	FCriticalSection HostByNameSynch;
 };

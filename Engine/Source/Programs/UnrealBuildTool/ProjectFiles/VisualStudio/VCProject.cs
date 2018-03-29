@@ -1349,7 +1349,7 @@ namespace UnrealBuildTool
 						string DebuggerFlavor = "WindowsLocalDebugger";
 						if (Platform == UnrealTargetPlatform.UWP32 || Platform == UnrealTargetPlatform.UWP64)
 						{
-							DebuggerFlavor = "LocalWindowsDebugger";
+							DebuggerFlavor = "AppHostLocalDebugger ";
 						}
 						VCUserFileContent.Append(
 						"		<DebuggerFlavor>" + DebuggerFlavor + "</DebuggerFlavor>" + ProjectFileGenerator.NewLine
