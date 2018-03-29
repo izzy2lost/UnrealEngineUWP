@@ -411,30 +411,31 @@ namespace UWP.Automation
 				DeployExports.AddWinMDReferencesFromReceipt(Target.Receipt, Params.RawProjectPath.Directory, SC.LocalRoot.FullName);
 			}
 			List<string> FullExePaths = new List<string>();
+			DirectoryReference ProjectBinariesFolder = Params.GetProjectBinariesPathForPlatform(PlatformType);
 			foreach (string ExecutablePath in SC.StageExecutables)
 			{
-				FullExePaths.Add(Path.Combine(Params.ProjectBinariesFolder, ExecutablePath + Platform.GetExeExtension(SC.StageTargetPlatform.PlatformType)));
+				FullExePaths.Add(Path.Combine(ProjectBinariesFolder.FullName, ExecutablePath + Platform.GetExeExtension(SC.StageTargetPlatform.PlatformType)));
 			}
 			DeployExports.PrepForUATPackageOrDeploy(Params.RawProjectPath, Params.ShortProjectName, SC.ProjectRoot.FullName, SC.StageTargetConfigurations, FullExePaths,
 				SC.LocalRoot + "/Engine", Params.Distribution, "", Params.Deploy);
 
 			// Stage UWP-specific assets (tile, splash, etc.)
-			DirectoryReference assetsPath = new DirectoryReference(Path.Combine(Params.ProjectBinariesFolder, "Resources"));
+			DirectoryReference assetsPath = new DirectoryReference(Path.Combine(ProjectBinariesFolder.FullName, "Resources"));
             StagedDirectoryReference stagedAssetPath = new StagedDirectoryReference("Resources");
 			SC.StageFiles(StagedFileType.NonUFS, assetsPath, "*.png", StageFilesSearch.AllDirectories, stagedAssetPath);
 
 
-			SC.StageFile(StagedFileType.NonUFS, new FileReference( Path.Combine(Params.ProjectBinariesFolder, "AppxManifest.xml")), 
+			SC.StageFile(StagedFileType.NonUFS, new FileReference( Path.Combine(ProjectBinariesFolder.FullName, "AppxManifest.xml")), 
                 new StagedFileReference("AppxManifest.xml"));
-			SC.StageFile(StagedFileType.NonUFS, new FileReference( Path.Combine(Params.ProjectBinariesFolder, "resources.pri")), 
+			SC.StageFile(StagedFileType.NonUFS, new FileReference( Path.Combine(ProjectBinariesFolder.FullName, "resources.pri")), 
                 new StagedFileReference("resources.pri"));
 
-			FileReference SourceNetworkManifestPath = new FileReference(Path.Combine(Params.ProjectBinariesFolder, "NetworkManifest.xml"));
+			FileReference SourceNetworkManifestPath = new FileReference(Path.Combine(ProjectBinariesFolder.FullName, "NetworkManifest.xml"));
 			if (FileReference.Exists(SourceNetworkManifestPath))
 			{
 				SC.StageFile(StagedFileType.NonUFS, SourceNetworkManifestPath, new StagedFileReference("NetworkManifest.xml"));
 			}
-			FileReference SourceXboxConfigPath = new FileReference(Path.Combine(Params.ProjectBinariesFolder, "xboxservices.config"));
+			FileReference SourceXboxConfigPath = new FileReference(Path.Combine(ProjectBinariesFolder.FullName, "xboxservices.config"));
 			if (FileReference.Exists(SourceXboxConfigPath))
 			{
 				SC.StageFile(StagedFileType.NonUFS, SourceXboxConfigPath, new StagedFileReference("xboxservices.config"));
@@ -500,7 +501,7 @@ namespace UWP.Automation
 				List<FileReference> SymbolFilesToZip = new List<FileReference>();
 				DirectoryReference StageDirRef = new DirectoryReference(SC.StageDirectory.FullName);
 				DirectoryReference PublicSymbols = DirectoryReference.Combine(StageDirRef, "PublicSymbols");
-				CreateDirectory_NoExceptions(PublicSymbols.FullName);
+				DirectoryReference.CreateDirectory(PublicSymbols);
 				foreach (StageTarget Target in SC.StageTargets)
 				{
 					foreach (BuildProduct Product in Target.Receipt.BuildProducts)
@@ -563,7 +564,7 @@ namespace UWP.Automation
 		public override bool UseAbsLog { get { return false; } }
 		public override bool LaunchViaUFE { get { return false; } }
 
-		public override List<string> GetDebugFileExtentions()
+		public override List<string> GetDebugFileExtensions()
 		{
 			return new List<string> { ".pdb", ".map" };
 		}
