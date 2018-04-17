@@ -843,15 +843,7 @@ namespace UnrealBuildTool
 			if (UpdatedFilePaths.Count > 0 || TargetPriFiles.Count() == 0)
 			{
 				// Create resource index configuration
-				DirectoryReference WindowsSdkDir = new DirectoryReference(VCEnvironment.FindWindowsSDKInstallationFolder(CppPlatform.UWP64, WindowsCompiler.VisualStudio2017));
-				Version WindowsSdkLatestVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(WindowsSdkDir.FullName, WindowsCompiler.Default);
-				DirectoryReference WindowsSdkBinDir = DirectoryReference.Combine(WindowsSdkDir, WindowsSdkLatestVersion.ToString(), "bin");
-				if (!DirectoryReference.Exists(WindowsSdkBinDir))
-				{
-					WindowsSdkBinDir = DirectoryReference.Combine(WindowsSdkDir, "bin");
-				}
-
-				string PriExecutable = FileReference.Combine(WindowsSdkBinDir, Environment.Is64BitProcess ? "x64" : "x86", "makepri.exe").FullName;
+				string PriExecutable = UniversalWindowsPlatformToolChain.GetWindowsSdkToolPath("makepri.exe").FullName;
 
 				// We're not currently splitting pri files along the culture dimension, so all supported languages should be defaults
 				string AllDefaultCultures = CulturesToStage.Aggregate((c1, c2) => (c1 + "_" + c2));
