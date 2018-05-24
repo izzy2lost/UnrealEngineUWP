@@ -1944,6 +1944,7 @@ namespace UnrealBuildTool
 				"UapManifestSchema_v3.xsd",
 				"UapManifestSchema_v4.xsd",
 				"UapManifestSchema_v5.xsd",
+				"UapManifestSchema_v6.xsd",
 				"FoundationManifestSchema.xsd",
 				"AppxManifestSchema2010_v3.xsd",
 				"AppxManifestSchema2013_v2.xsd",
@@ -1951,6 +1952,8 @@ namespace UnrealBuildTool
 				"AppxPhoneManifestSchema2014.xsd",
 				"DesktopManifestSchema_v2.xsd",
 				"DesktopManifestSchema_v3.xsd",
+				"DesktopManifestSchema_v4.xsd",
+				"IotManifestSchema_v2.xsd"
 			};
 
 			foreach (string SchemaName in RequiredSchemas)
