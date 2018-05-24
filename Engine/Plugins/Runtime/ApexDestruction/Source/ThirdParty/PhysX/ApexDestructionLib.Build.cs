@@ -159,7 +159,7 @@ public class ApexDestructionLib : ModuleRules
 				"APEX_Destructible{0}_x64.dll",
 			};
 
-			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/UWP64/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/UWP64/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
 			foreach (string RuntimeDependency in RuntimeDependenciesX64)
 			{
 				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix);
@@ -180,7 +180,7 @@ public class ApexDestructionLib : ModuleRules
 				"APEX_Destructible{0}_x86.dll",
 			};
 
-			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX/UWP32/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/UWP32/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
 			foreach (string RuntimeDependency in RuntimeDependenciesX86)
 			{
 				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix);
