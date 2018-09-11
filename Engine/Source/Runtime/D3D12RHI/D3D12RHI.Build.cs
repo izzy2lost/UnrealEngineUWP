@@ -6,8 +6,6 @@ public class D3D12RHI : ModuleRules
 {
 	public D3D12RHI(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PrivateIncludePaths.Add("Runtime/D3D12RHI/Private");
-
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
@@ -45,7 +43,7 @@ public class D3D12RHI : ModuleRules
 			{
 				if (!Target.UWPPlatform.bBuildD3D12RHI)
 				{
-					Log.TraceWarning("D3D12 RHI is being built, but UWP buld settings indicate that it should not be.  Depending on your Windows SDK environment this may cause build errors.  Check build.cs files for dependencies.");
+					Log.TraceWarning("D3D12 RHI is being built, but UWP build settings indicate that it should not be.  Depending on your Windows SDK environment this may cause build errors.  Check build.cs files for dependencies.");
 				}
 			}
 			else

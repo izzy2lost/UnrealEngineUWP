@@ -1,6 +1,7 @@
 // Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
 
 #include "HttpIXML.h"
+#include "HttpManager.h"
 
 #if PLATFORM_UWP
 
@@ -28,7 +29,7 @@ FHttpRequestIXML::~FHttpRequestIXML()
 //-----------------------------------------------------------------------------
 //	
 //-----------------------------------------------------------------------------
-FString FHttpRequestIXML::GetURL()
+FString FHttpRequestIXML::GetURL() const
 {
 	return URL;
 }
@@ -36,7 +37,7 @@ FString FHttpRequestIXML::GetURL()
 //-----------------------------------------------------------------------------
 //	
 //-----------------------------------------------------------------------------
-FString FHttpRequestIXML::GetURLParameter(const FString& ParameterName)
+FString FHttpRequestIXML::GetURLParameter(const FString& ParameterName) const
 {
 	check(false);
 	return TEXT("Not yet implemented");
@@ -45,16 +46,16 @@ FString FHttpRequestIXML::GetURLParameter(const FString& ParameterName)
 //-----------------------------------------------------------------------------
 //	
 //-----------------------------------------------------------------------------
-FString FHttpRequestIXML::GetHeader(const FString& HeaderName)
+FString FHttpRequestIXML::GetHeader(const FString& HeaderName) const
 {
-	FString* Header = Headers.Find(HeaderName);
+	const FString* Header = Headers.Find(HeaderName);
 	return Header != NULL ? *Header : TEXT("");
 }
 
 //-----------------------------------------------------------------------------
 //	
 //-----------------------------------------------------------------------------
-TArray<FString> FHttpRequestIXML::GetAllHeaders()
+TArray<FString> FHttpRequestIXML::GetAllHeaders() const
 {
 	TArray<FString> Result;
 	for (TMap<FString, FString>::TConstIterator It(Headers); It; ++It)
@@ -67,7 +68,7 @@ TArray<FString> FHttpRequestIXML::GetAllHeaders()
 //-----------------------------------------------------------------------------
 //	
 //-----------------------------------------------------------------------------
-FString FHttpRequestIXML::GetContentType()
+FString FHttpRequestIXML::GetContentType() const
 {
 	return GetHeader(TEXT("Content-Type"));
 }
@@ -75,7 +76,7 @@ FString FHttpRequestIXML::GetContentType()
 //-----------------------------------------------------------------------------
 //	
 //-----------------------------------------------------------------------------
-int32 FHttpRequestIXML::GetContentLength()
+int32 FHttpRequestIXML::GetContentLength() const
 {
 	return Payload.Num();
 }
@@ -83,7 +84,7 @@ int32 FHttpRequestIXML::GetContentLength()
 //-----------------------------------------------------------------------------
 //	
 //-----------------------------------------------------------------------------
-const TArray<uint8>& FHttpRequestIXML::GetContent()
+const TArray<uint8>& FHttpRequestIXML::GetContent() const
 {
 	return Payload;
 }
@@ -91,7 +92,7 @@ const TArray<uint8>& FHttpRequestIXML::GetContent()
 //-----------------------------------------------------------------------------
 //	
 //-----------------------------------------------------------------------------
-FString FHttpRequestIXML::GetVerb()
+FString FHttpRequestIXML::GetVerb() const
 {
 	return Verb;
 }
@@ -314,6 +315,11 @@ FHttpRequestProgressDelegate& FHttpRequestIXML::OnRequestProgress()
 }
 
 
+FHttpRequestHeaderReceivedDelegate& FHttpRequestIXML::OnHeaderReceived()
+{
+	return RequestHeaderReceivedDelegate;
+}
+
 //-----------------------------------------------------------------------------
 //	
 //-----------------------------------------------------------------------------
@@ -327,7 +333,7 @@ void FHttpRequestIXML::CancelRequest()
 //-----------------------------------------------------------------------------
 //	
 //-----------------------------------------------------------------------------
-EHttpRequestStatus::Type FHttpRequestIXML::GetStatus()
+EHttpRequestStatus::Type FHttpRequestIXML::GetStatus() const
 {
 	return RequestStatus;
 }
@@ -408,7 +414,7 @@ void FHttpRequestIXML::CleanupRequest()
 {
 }
 
-float FHttpRequestIXML::GetElapsedTime()
+float FHttpRequestIXML::GetElapsedTime() const
 {
 	return ElapsedTime;
 }
@@ -463,7 +469,7 @@ bool FHttpResponseIXML::Succeeded()
 //	
 //-----------------------------------------------------------------------------
 
-FString FHttpResponseIXML::GetURL()
+FString FHttpResponseIXML::GetURL() const
 {
 	return Request.GetURL();
 }
@@ -472,7 +478,7 @@ FString FHttpResponseIXML::GetURL()
 //	
 //-----------------------------------------------------------------------------
 
-FString FHttpResponseIXML::GetURLParameter(const FString& ParameterName)
+FString FHttpResponseIXML::GetURLParameter(const FString& ParameterName) const
 {
 	return Request.GetURLParameter( ParameterName );
 }
@@ -481,7 +487,7 @@ FString FHttpResponseIXML::GetURLParameter(const FString& ParameterName)
 //	
 //-----------------------------------------------------------------------------
 
-FString FHttpResponseIXML::GetHeader(const FString& HeaderName)
+FString FHttpResponseIXML::GetHeader(const FString& HeaderName) const
 {
 	FString SingleHeader;
 	PWSTR SingleHeaderPtr;
@@ -498,7 +504,7 @@ FString FHttpResponseIXML::GetHeader(const FString& HeaderName)
 //	
 //-----------------------------------------------------------------------------
 
-TArray<FString> FHttpResponseIXML::GetAllHeaders()
+TArray<FString> FHttpResponseIXML::GetAllHeaders() const
 {
 	TArray<FString> AllHeaders;
 	PWSTR AllHeadersPtr;
@@ -526,7 +532,7 @@ TArray<FString> FHttpResponseIXML::GetAllHeaders()
 //	
 //----------------------------------------------------------->-----------------
 
-FString FHttpResponseIXML::GetContentType()
+FString FHttpResponseIXML::GetContentType() const
 {
 	return GetHeader(TEXT("Content-Type"));
 }
@@ -535,7 +541,7 @@ FString FHttpResponseIXML::GetContentType()
 //	
 //-----------------------------------------------------------------------------
 
-int32 FHttpResponseIXML::GetContentLength()
+int32 FHttpResponseIXML::GetContentLength() const
 {
 	check ( HttpCB );
 	
@@ -546,7 +552,7 @@ int32 FHttpResponseIXML::GetContentLength()
 //	
 //-----------------------------------------------------------------------------
 
-const TArray<uint8>& FHttpResponseIXML::GetContent()
+const TArray<uint8>& FHttpResponseIXML::GetContent() const
 {
 	check ( HttpCB );
 	
@@ -557,7 +563,7 @@ const TArray<uint8>& FHttpResponseIXML::GetContent()
 //	
 //-----------------------------------------------------------------------------
 
-int32 FHttpResponseIXML::GetResponseCode()
+int32 FHttpResponseIXML::GetResponseCode() const
 {
 	check ( HttpCB );
 
@@ -568,7 +574,7 @@ int32 FHttpResponseIXML::GetResponseCode()
 //	
 //-----------------------------------------------------------------------------
 
-FString FHttpResponseIXML::GetContentAsString()
+FString FHttpResponseIXML::GetContentAsString() const
 {
 	TArray<uint8> ZeroTerminatedPayload(GetContent());
 	ZeroTerminatedPayload.Add(0);

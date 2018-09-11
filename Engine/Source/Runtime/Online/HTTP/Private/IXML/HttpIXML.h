@@ -1,10 +1,12 @@
-﻿// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2015 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #if PLATFORM_UWP
 
 #include "HttpIXMLSupport.h"
+#include "Interfaces/IHttpResponse.h"
+#include "Interfaces/IHttpRequest.h"
 
 // Default user agent string
 static const WCHAR USER_AGENT[] = L"UE4HTTPIXML\r\n";
@@ -19,17 +21,17 @@ public:
 
 	// IHttpBase
 
-	virtual FString GetURL() override;
-	virtual FString GetURLParameter(const FString& ParameterName) override;
-	virtual FString GetHeader(const FString& HeaderName) override;
-	virtual TArray<FString> GetAllHeaders() override;	
-	virtual FString GetContentType() override;
-	virtual int32 GetContentLength() override;
-	virtual const TArray<uint8>& GetContent() override;
+	virtual FString GetURL() const override;
+	virtual FString GetURLParameter(const FString& ParameterName) const override;
+	virtual FString GetHeader(const FString& HeaderName) const override;
+	virtual TArray<FString> GetAllHeaders() const override;
+	virtual FString GetContentType() const override;
+	virtual int32 GetContentLength() const override;
+	virtual const TArray<uint8>& GetContent() const override;
 
 	// IHttpRequest
 
-	virtual FString GetVerb() override;
+	virtual FString GetVerb() const override;
 	virtual void SetVerb(const FString& InVerb) override;
 	virtual void SetURL(const FString& InURL) override;
 	virtual void SetContent(const TArray<uint8>& ContentPayload) override;
@@ -39,11 +41,12 @@ public:
 	virtual bool ProcessRequest() override;
 	virtual FHttpRequestCompleteDelegate& OnProcessRequestComplete() override;
 	virtual FHttpRequestProgressDelegate& OnRequestProgress() override;
+	virtual FHttpRequestHeaderReceivedDelegate& OnHeaderReceived() override;
 	virtual void CancelRequest() override;
-	virtual EHttpRequestStatus::Type GetStatus() override;
+	virtual EHttpRequestStatus::Type GetStatus() const override;
 	virtual const FHttpResponsePtr GetResponse() const override;
 	virtual void Tick(float DeltaSeconds) override;
-	virtual float GetElapsedTime() override;
+	virtual float GetElapsedTime() const override;
 
 	/**
 	 * Constructor
@@ -70,6 +73,7 @@ private:
 	FString								Verb;
 	FHttpRequestCompleteDelegate		CompleteDelegate;
 	FHttpRequestProgressDelegate		RequestProgressDelegate;
+	FHttpRequestHeaderReceivedDelegate	RequestHeaderReceivedDelegate;
 
 	EHttpRequestStatus::Type			RequestStatus;
 	float								ElapsedTime;
@@ -94,18 +98,18 @@ public:
 
 	// IHttpBase
 
-	virtual FString GetURL() override;
-	virtual FString GetURLParameter(const FString& ParameterName) override;
-	virtual FString GetHeader(const FString& HeaderName) override;
-	virtual TArray<FString> GetAllHeaders() override;	
-	virtual FString GetContentType() override;
-	virtual int32 GetContentLength() override;
-	virtual const TArray<uint8>& GetContent() override;
+	virtual FString GetURL() const override;
+	virtual FString GetURLParameter(const FString& ParameterName) const override;
+	virtual FString GetHeader(const FString& HeaderName) const override;
+	virtual TArray<FString> GetAllHeaders() const override;
+	virtual FString GetContentType() const override;
+	virtual int32 GetContentLength() const override;
+	virtual const TArray<uint8>& GetContent() const override;
 
 	// IHttpResponse
 
-	virtual int32 GetResponseCode() override;
-	virtual FString GetContentAsString() override;
+	virtual int32 GetResponseCode() const override;
+	virtual FString GetContentAsString() const override;
 
 	// FHttpResponseIXML
 

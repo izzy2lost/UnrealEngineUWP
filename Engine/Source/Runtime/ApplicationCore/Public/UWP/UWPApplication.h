@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "GenericApplication.h"
+#include "GenericPlatform/GenericApplication.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogUWP, Log, All);
 

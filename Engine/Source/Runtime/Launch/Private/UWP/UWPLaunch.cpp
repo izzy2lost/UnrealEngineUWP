@@ -10,10 +10,11 @@
 #include "Misc/CoreDelegates.h"
 #include "Misc/Paths.h"
 #include "Misc/PackageName.h"
+#include "Misc/EngineVersion.h"
 
 #include "LaunchEngineLoop.h"
 //#include "CoreTypes.h"
-#include "ExceptionHandling.h"
+#include "HAL/ExceptionHandling.h"
 #include "RHI.h"
 
 #include "Interfaces/IPluginManager.h"
@@ -23,13 +24,13 @@
 #include "UWP/UWPWindow.h"
 #include <stdio.h>
 
-#include "AllowWindowsPlatformTypes.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 #include <collection.h>
 // @ATG_CHANGE : BEGIN UWP packaging & F5 support
 #include <ppltasks.h>
 // @ATG_CHANGE : END
 #include <concurrent_queue.h>
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"
 
 // http://developer.download.nvidia.com/devzone/devcenter/gamegraphics/files/OptimusRenderingPolicies.pdf
 // The following line is to favor the high performance NVIDIA GPU if there are multiple GPUs
@@ -1016,13 +1017,14 @@ void appUWPEarlyInit()
 /** The global EngineLoop instance */
 FEngineLoop	GEngineLoop;
 
-/** 
- * PreInits the engine loop 
+/**
+ * PreInits the engine loop
  */
-int32 EnginePreInit( const TCHAR* CmdLine )
+int32 EnginePreInit(const TCHAR* CmdLine)
 {
-	PreInitUObject();
-	return GEngineLoop.PreInit( CmdLine );
+	int32 ErrorLevel = GEngineLoop.PreInit(CmdLine);
+
+	return(ErrorLevel);
 }
 
 /** 

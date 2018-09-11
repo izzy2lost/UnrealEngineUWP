@@ -5,7 +5,9 @@
 #if PLATFORM_UWP
 
 
-#include "AllowWindowsPlatformTypes.h"
+#include "Containers/UnrealString.h"
+#include "Http.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 #include <msxml6.h>
 #include <wrl.h>
 #include <Windows.h>
@@ -108,6 +110,6 @@ protected:
 };
 
 
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"
 
 #endif

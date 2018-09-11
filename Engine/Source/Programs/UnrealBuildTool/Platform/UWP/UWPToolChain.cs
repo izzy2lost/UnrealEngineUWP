@@ -453,6 +453,11 @@ namespace UnrealBuildTool
 				VCToolChain.AddIncludePath(SharedArguments, IncludePath);
 			}
 
+			foreach (DirectoryReference IncludePath in EnvVars.IncludePaths)
+			{
+				VCToolChain.AddIncludePath(SharedArguments, IncludePath);
+			}
+
 			foreach (string CurAssemblyInfo in CompileEnvironment.WinMDReferences)
 			{
 				SharedArguments.AddFormat("/FU\"{0}\"", CurAssemblyInfo);

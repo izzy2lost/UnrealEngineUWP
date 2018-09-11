@@ -2,7 +2,7 @@
 
 #include "SocketSubsystemUWP.h"
 #include "SocketSubsystemModule.h"
-#include "ModuleManager.h"
+#include "Modules/ModuleManager.h"
 #include "Misc/ScopeLock.h"
 
 #include "BSDIPv6Sockets/IPAddressBSDIPv6.h"

@@ -2,12 +2,12 @@
 
 
 #include "UWPPlatformCrashContext.h"
-#include "PlatformMallocCrash.h"
-#include "ExceptionHandling.h"
-#include "UWPPlatformCrashContext.h"
+#include "HAL/PlatformMallocCrash.h"
+#include "HAL/ExceptionHandling.h"
+#include "UWP/UWPPlatformCrashContext.h"
 #include "../../Launch/Resources/Version.h"
 
-#include "AllowWindowsPlatformTypes.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 
 	#include <strsafe.h>
 	#include <werapi.h>
@@ -374,7 +374,7 @@ void CreateExceptionInfoString(EXCEPTION_RECORD* ExceptionRecord)
 #endif
 #undef HANDLE_CASE
 }
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"
 
 int32 ReportCrash( LPEXCEPTION_POINTERS ExceptionInfo )
 {

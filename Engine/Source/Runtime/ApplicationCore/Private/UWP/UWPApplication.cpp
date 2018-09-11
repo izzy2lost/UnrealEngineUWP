@@ -5,8 +5,8 @@
 #include "UWP/UWPCursor.h"
 #include "UWP/UWPInputInterface.h"
 #include "UWP/UWPMisc.h"
-#include "GenericApplication.h"
-#include "CoreDelegates.h"
+#include "GenericPlatform/GenericApplication.h"
+#include "Misc/CoreDelegates.h"
 
 DEFINE_LOG_CATEGORY(LogUWP);
 

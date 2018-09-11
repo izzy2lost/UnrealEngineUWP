@@ -29,7 +29,6 @@ namespace UnrealBuildTool
 		{
 			this.Target = Target;
 			this.EnvVars = VCEnvironment.Create(Target.WindowsPlatform.Compiler, Platform, Target.WindowsPlatform.CompilerVersion, Target.WindowsPlatform.WindowsSdkVersion);
-
 			if (Target.WindowsPlatform.ObjSrcMapFile != null)
 			{
 				try
@@ -1096,6 +1095,7 @@ namespace UnrealBuildTool
 
 			foreach (DirectoryReference IncludePath in EnvVars.IncludePaths)
 			{
+
 				AddSystemIncludePath(SharedArguments, IncludePath);
 			}
 

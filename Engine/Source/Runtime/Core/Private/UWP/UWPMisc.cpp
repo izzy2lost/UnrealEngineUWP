@@ -8,11 +8,11 @@
 #include "Internationalization/Internationalization.h"
 #include "Misc/MessageDialog.h"
 #include "Misc/App.h"
-#include "ExceptionHandling.h"
-#include "SecureHash.h"
+#include "HAL/ExceptionHandling.h"
+#include "Misc/SecureHash.h"
 #include <time.h>
 #include <agile.h>
-#include "ModuleManager.h"
+#include "Modules/ModuleManager.h"
 
 /** 
  * Whether support for integrating into the firewall is there

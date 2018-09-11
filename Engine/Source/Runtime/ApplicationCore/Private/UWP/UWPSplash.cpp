@@ -1,7 +1,7 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 
-#include "UWPSplash.h"
-#include "UWPPlatformApplicationMisc.h"
+#include "UWP/UWPSplash.h"
+#include "UWP/UWPPlatformApplicationMisc.h"
 
 void FUWPSplash::Show()
 {

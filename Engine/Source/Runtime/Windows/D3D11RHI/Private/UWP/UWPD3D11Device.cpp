@@ -828,6 +828,12 @@ void FD3D11DynamicRHI::InitD3DDevice()
 	}
 }
 
+// @LAB132 : BEGIN UWP Support
+void FD3D11DynamicRHI::RHIPerFrameRHIFlushComplete()
+{
+}
+// @LAB132 : END
+
 /** Enable HDR meta data transmission */
 void FD3D11DynamicRHI::EnableHDR()
 {

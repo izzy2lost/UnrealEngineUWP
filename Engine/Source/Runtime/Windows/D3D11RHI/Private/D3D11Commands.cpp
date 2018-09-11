@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	D3D11Commands.cpp: D3D RHI commands implementation.
@@ -1914,7 +1914,10 @@ void FD3D11DynamicRHI::RHIExecuteCommandList(FRHICommandList* CmdList)
 // NVIDIA Depth Bounds Test interface
 void FD3D11DynamicRHI::EnableDepthBoundsTest(bool bEnable,float MinDepth,float MaxDepth)
 {
-#if PLATFORM_DESKTOP
+// @LAB132 : BEGIN UWP Support
+#if PLATFORM_DESKTOP && !PLATFORM_UWP
+// @LAB132 : END
+
 	if(MinDepth > MaxDepth)
 	{
 		UE_LOG(LogD3D11RHI, Error,TEXT("RHIEnableDepthBoundsTest(%i,%f, %f) MinDepth > MaxDepth, cannot set DBT."),bEnable,MinDepth,MaxDepth);
@@ -2053,6 +2056,9 @@ static bool GOverlapUAVOBegin = false;
 
 void FD3D11DynamicRHI::RHIAutomaticCacheFlushAfterComputeShader(bool bEnable)
 {
+#if PLATFORM_UWP
+	return;
+#else
 	bool bCVarEnabled = CVarAllowUAVFlushNV.GetValueOnRenderThread() != 0;
 
 	if (GAllowUAVFlushNV != bCVarEnabled)
@@ -2088,10 +2094,12 @@ void FD3D11DynamicRHI::RHIAutomaticCacheFlushAfterComputeShader(bool bEnable)
 			GOverlapUAVOBegin = true;
 		}
 	}
+#endif
 }
 
 void FD3D11DynamicRHI::RHIFlushComputeShaderCache()
 {
+#if !PLATFORM_UWP
 	if (!IsRHIDeviceNVIDIA() || !GAllowUAVFlushNV)
 	{
 		return;
@@ -2102,4 +2110,5 @@ void FD3D11DynamicRHI::RHIFlushComputeShaderCache()
 		NvAPI_D3D11_EndUAVOverlap(Direct3DDevice);
 		GOverlapUAVOBegin = false;
 	}
+#endif
 }

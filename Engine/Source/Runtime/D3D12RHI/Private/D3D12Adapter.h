@@ -90,7 +90,9 @@ public:
 	FORCEINLINE const D3D_FEATURE_LEVEL GetFeatureLevel() const { return Desc.MaxSupportedFeatureLevel; }
 	FORCEINLINE ID3D12Device* GetD3DDevice() { return RootDevice.GetReference(); }
 	FORCEINLINE ID3D12Device1* GetD3DDevice1() { return RootDevice1.GetReference(); }
-#if PLATFORM_WINDOWS
+// @LAB132 : BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132 : END
 	FORCEINLINE ID3D12Device2* GetD3DDevice2() { return RootDevice2.GetReference(); }
 #endif
 	FORCEINLINE void SetDeviceRemoved(bool value) { bDeviceRemoved = value; }
@@ -312,7 +314,9 @@ protected:
 	// LDA setups have one ID3D12Device
 	TRefCountPtr<ID3D12Device> RootDevice;
 	TRefCountPtr<ID3D12Device1> RootDevice1;
-#if PLATFORM_WINDOWS
+// @LAB132 : BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132 : END
 	TRefCountPtr<ID3D12Device2> RootDevice2;
 #endif
 	D3D12_RESOURCE_HEAP_TIER ResourceHeapTier;

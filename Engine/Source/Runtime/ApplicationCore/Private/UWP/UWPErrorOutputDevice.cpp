@@ -1,7 +1,7 @@
-#include "UWPErrorOutputDevice.h"
+#include "UWP/UWPErrorOutputDevice.h"
 
-#include "UWPApplication.h"
-#include "UWPPlatformApplicationMisc.h"
+#include "UWP/UWPApplication.h"
+#include "UWP/UWPPlatformApplicationMisc.h"
 #include "HAL/PlatformMisc.h"
 #include "UWP/WindowsHWrapper.h"
 #include "CoreGlobals.h"

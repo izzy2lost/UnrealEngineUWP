@@ -1,6 +1,6 @@
 // Copyright Microsoft. All Rights Reserved.
 
-#include "UWPInputInterface.h"
+#include "UWP/UWPInputInterface.h"
 #include "Misc/CoreDelegates.h"
 #include "GenericPlatform/GenericApplication.h"
 #include "WindowsGamingInputInterface.h"

@@ -1,8 +1,8 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 
-#include "UWPCursor.h"
-#include "UWPApplication.h"
-#include "UWPWindow.h"
+#include "UWP/UWPCursor.h"
+#include "UWP/UWPApplication.h"
+#include "UWP/UWPWindow.h"
 
 using namespace Windows::ApplicationModel::Core;
 using namespace Windows::UI::Core;

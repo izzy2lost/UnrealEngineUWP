@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "GenericWindow.h"
-#include "GenericApplication.h"
-#include "SharedPointer.h"
+#include "GenericPlatform/GenericWindow.h"
+#include "GenericPlatform/GenericApplication.h"
+#include "Templates/SharedPointer.h"
 
 
 /**

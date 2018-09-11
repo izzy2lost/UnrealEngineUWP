@@ -2,21 +2,21 @@
 
 #include "UWPFile.h"
 #include "CoreMinimal.h"
-#include "GenericPlatformFile.h"
-#include "UWPProcess.h"
-#include "Paths.h"
+#include "GenericPlatform/GenericPlatformFile.h"
+#include "UWP/UWPProcess.h"
+#include "Misc/Paths.h"
 #include <sys/utime.h>
 
 
 // make an FTimeSpan object that represents the "epoch" for time_t (from a _stat struct)
 const FDateTime UWPEpoch(1970, 1, 1);
 
-#include "AllowWindowsPlatformTypes.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 namespace FileConstants
 {
 	uint32 WIN_INVALID_SET_FILE_POINTER = INVALID_SET_FILE_POINTER;
 }
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"
 
 namespace
 {

@@ -1,4 +1,4 @@
-#include "UWPPlatformInput.h"
+#include "UWP/UWPPlatformInput.h"
 
 uint32 FUWPPlatformInput::GetCharKeyMap(uint32* KeyCodes, FString* KeyNames, uint32 MaxMappings)
 {

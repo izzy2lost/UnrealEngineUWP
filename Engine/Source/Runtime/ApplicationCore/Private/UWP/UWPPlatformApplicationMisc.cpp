@@ -1,6 +1,6 @@
-#include "UWPPlatformApplicationMisc.h"
-#include "UWPApplication.h"
-#include "UWPErrorOutputDevice.h"
+#include "UWP/UWPPlatformApplicationMisc.h"
+#include "UWP/UWPApplication.h"
+#include "UWP/UWPErrorOutputDevice.h"
 #include "HAL/PlatformProcess.h"
 #include "Misc/App.h"
 

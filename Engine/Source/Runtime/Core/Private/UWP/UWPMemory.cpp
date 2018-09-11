@@ -2,19 +2,19 @@
 
 
 #include "UWPMemory.h"
-#include "MallocTBB.h"
-#include "MallocAnsi.h"
-#include "GenericPlatformMemoryPoolStats.h"
-#include "MemoryMisc.h"
+#include "HAL/MallocTBB.h"
+#include "HAL/MallocAnsi.h"
+#include "GenericPlatform/GenericPlatformMemoryPoolStats.h"
+#include "HAL/MemoryMisc.h"
 #include "CoreGlobals.h"
 #include "Misc/OutputDeviceRedirector.h"
 
 
 #if !FORCE_ANSI_ALLOCATOR
-#include "MallocBinned.h"
+#include "HAL/MallocBinned.h"
 #endif
 
-#include "AllowWindowsPlatformTypes.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 #define PSAPI_VERSION 2
 #include <Psapi.h>
 #pragma comment(lib, "psapi.lib")
@@ -35,7 +35,7 @@ return true;
 }
 */
 
-#include "GenericPlatformMemoryPoolStats.h"
+#include "GenericPlatform/GenericPlatformMemoryPoolStats.h"
 
 
 void FUWPPlatformMemory::Init()
@@ -279,4 +279,4 @@ bool FUWPPlatformMemory::UnmapNamedSharedMemoryRegion(FSharedMemoryRegion * Memo
 
 	return bAllSucceeded;
 }
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"

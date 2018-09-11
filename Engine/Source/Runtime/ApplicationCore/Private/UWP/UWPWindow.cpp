@@ -1,8 +1,8 @@
 // Copyright (C) Microsoft. All rights reserved.
 
 
-#include "UWPWindow.h"
-#include "UWPApplication.h"
+#include "UWP/UWPWindow.h"
+#include "UWP/UWPApplication.h"
 #include "CoreTypes.h"
 
 FUWPWindow::FUWPWindow() :

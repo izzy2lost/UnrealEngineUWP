@@ -104,7 +104,8 @@ void FD3D12Viewport::Init()
 		SwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 		SwapChainDesc.Flags = SwapChainFlags;
 
-		pCommandQueue = Adapter->GetDevice()->GetCommandListManager().GetD3DCommandQueue();
+		// The command queue used here is irrelevant in regard to multi - GPU as it gets overriden in the Resize
+		ID3D12CommandQueue* pCommandQueue = Adapter->GetDevice(0)->GetD3DCommandQueue();
 
 		TRefCountPtr<IDXGIFactory4> Factory4;
 		Factory->QueryInterface(IID_PPV_ARGS(Factory4.GetInitReference()));
