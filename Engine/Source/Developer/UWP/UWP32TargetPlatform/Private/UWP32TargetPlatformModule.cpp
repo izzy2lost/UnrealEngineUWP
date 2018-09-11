@@ -1,6 +1,6 @@
 #include "UWPTargetPlatform.h"
-#include "ITargetPlatformModule.h"
-#include "ModuleManager.h"
+#include "Interfaces/ITargetPlatformModule.h"
+#include "Modules/ModuleManager.h"
 
 /**
  * Holds the target platform singleton.

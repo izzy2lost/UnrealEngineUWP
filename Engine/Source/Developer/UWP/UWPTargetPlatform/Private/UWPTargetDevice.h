@@ -11,7 +11,7 @@
 #include "Interfaces/ITargetPlatform.h"
 #include "IUWPDeviceDetectorModule.h"
 
-#include "AllowWindowsPlatformTypes.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 
 /**
  * Implements a UWP target device.
@@ -152,4 +152,4 @@ private:
 
 typedef TSharedPtr<FUWPTargetDevice, ESPMode::ThreadSafe> FUWPDevicePtr;
 
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"

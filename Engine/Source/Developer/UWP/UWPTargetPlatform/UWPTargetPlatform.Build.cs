@@ -19,9 +19,13 @@ public class UWPTargetPlatform : ModuleRules
 		);
 
 		PrivateIncludePathModuleNames.Add("Settings");
+        bEnableWinRTComponentExtensions = true;
+        bEnableExceptions = true;
+        PCHUsage = PCHUsageMode.NoSharedPCHs;
+        PrivatePCHHeaderFile = "Private/UWPTargetPlatformPCH.h";
 
-		// compile withEngine
-		if (Target.bCompileAgainstEngine)
+        // compile withEngine
+        if (Target.bCompileAgainstEngine)
 		{
 			PrivateDependencyModuleNames.Add("Engine");
 			PrivateIncludePathModuleNames.Add("TextureCompressor");

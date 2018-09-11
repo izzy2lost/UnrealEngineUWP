@@ -10,7 +10,7 @@
 #if PLATFORM_XBOXONE
 #include "XboxOneAllowPlatformTypes.h"
 #else
-#include "AllowWindowsPlatformTypes.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 #endif
 
 #include <bcrypt.h>
@@ -18,7 +18,7 @@
 #if PLATFORM_XBOXONE
 #include "XboxOneHidePlatformTypes.h"
 #else
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"
 #endif
 // @ATG_CHANGE : END
 

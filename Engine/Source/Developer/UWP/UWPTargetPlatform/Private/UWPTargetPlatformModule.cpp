@@ -1,10 +1,10 @@
 #include "UWPTargetDevice.h"
-#include "ITargetPlatformModule.h"
+#include "Interfaces/ITargetPlatformModule.h"
 #include "UWPTargetPlatform.h"
-#include "AllowWindowsPlatformTypes.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 #include "ISettingsModule.h"
-#include "ModuleManager.h"
-#include "Package.h"
+#include "Modules/ModuleManager.h"
+#include "UObject/Package.h"
 
 #define LOCTEXT_NAMESPACE "FUWPTargetPlatformModule"
 
@@ -56,4 +56,4 @@ public:
 IMPLEMENT_MODULE(FUWPTargetPlatformModule, UWPTargetPlatform);
 
 
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"

@@ -4,14 +4,14 @@
 
 #pragma once
 
-#include "TargetPlatformBase.h"
+#include "Common/TargetPlatformBase.h"
 #include "Runtime/Core/Public/UWP/UWPProperties.h"
 #include "Misc/ConfigCacheIni.h"
 #include "UWPTargetDevice.h"
 #include "Misc/ScopeLock.h"
 #include "IUWPDeviceDetectorModule.h"
 
-#include "AllowWindowsPlatformTypes.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 
 #if WITH_ENGINE
 #include "StaticMeshResources.h"
@@ -58,6 +58,8 @@ public:
 	virtual bool IsRunningPlatform() const override { return false; }
 
 	virtual bool SupportsFeature(ETargetPlatformFeatures Feature) const override;
+
+	virtual FPlatformAudioCookOverrides* GetAudioCompressionSettings() const override;
 
 #if WITH_ENGINE
 	virtual const class FStaticMeshLODSettings& GetStaticMeshLODSettings() const override { return StaticMeshLODSettings; }
@@ -205,4 +207,4 @@ protected:
 
 #undef LOCTEXT_NAMESPACE
 
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"

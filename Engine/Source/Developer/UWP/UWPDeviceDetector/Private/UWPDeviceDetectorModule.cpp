@@ -1,10 +1,10 @@
 #include "IUWPDeviceDetectorModule.h"
 #include "HttpModule.h"
 #include "PlatformHttp.h"
-#include "IHttpResponse.h"
+#include "Interfaces/IHttpResponse.h"
 #include "Misc/ScopeLock.h"
 
-#include "AllowWindowsPlatformTypes.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 
 #if USE_WINRT_DEVICE_WATCHER
 #include <vccorlib.h>
@@ -239,4 +239,4 @@ void FUWPDeviceDetectorModule::AddDevice(const FUWPDeviceInfo& Info)
 	DeviceDetected.Broadcast(Info);
 }
 
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"

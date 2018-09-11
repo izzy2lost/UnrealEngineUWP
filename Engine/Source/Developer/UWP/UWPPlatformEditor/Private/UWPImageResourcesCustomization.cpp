@@ -4,7 +4,7 @@
 #include "IDetailChildrenBuilder.h"
 #include "DetailWidgetRow.h"
 #include "SExternalImageReference.h"
-#include "STextBlock.h"
+#include "Widgets/Text/STextBlock.h"
 #include "IExternalImagePickerModule.h"
 #include "ISourceControlModule.h"
 #include "PropertyHandle.h"

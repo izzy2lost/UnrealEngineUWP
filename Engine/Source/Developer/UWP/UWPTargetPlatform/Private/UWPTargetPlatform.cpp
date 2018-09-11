@@ -9,7 +9,7 @@
 #include "Misc/ScopeLock.h"
 #include "HttpModule.h"
 #include "PlatformHttp.h"
-#include "IHttpResponse.h"
+#include "Interfaces/IHttpResponse.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUWPTargetPlatform, Log, All);
 
@@ -83,6 +83,12 @@ bool FUWPTargetPlatform::SupportsFeature(ETargetPlatformFeatures Feature) const
 	}
 
 	return TTargetPlatformBase<FUWPPlatformProperties>::SupportsFeature(Feature);
+}
+
+
+FPlatformAudioCookOverrides* FUWPTargetPlatform::GetAudioCompressionSettings() const
+{
+	return nullptr;
 }
 
 #if WITH_ENGINE

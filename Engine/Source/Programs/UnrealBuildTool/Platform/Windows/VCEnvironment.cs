@@ -99,7 +99,7 @@ namespace UnrealBuildTool
 			DirectoryReference VCToolPath64 = GetVCToolPath64(Compiler, ToolChainDir);
 
             // Compile using 64 bit tools for 64 bit targets, and 32 for 32.
-            DirectoryReference CompilerDir = (Platform == CppPlatform.Win64) ? VCToolPath64 : VCToolPath32;
+            DirectoryReference CompilerDir = (Platform == CppPlatform.Win64 || Platform == CppPlatform.UWP64) ? VCToolPath64 : VCToolPath32;
 
 			// Regardless of the target, if we're linking on a 64 bit machine, we want to use the 64 bit linker (it's faster than the 32 bit linker and can handle large linking jobs)
 			DirectoryReference LinkerDir = VCToolPath64;
@@ -111,12 +111,12 @@ namespace UnrealBuildTool
 
 			// Add both toolchain paths to the PATH environment variable. There are some support DLLs which are only added to one of the paths, but which the toolchain in the other directory
 			// needs to run (eg. mspdbcore.dll).
-			if(Platform == CppPlatform.Win64)
+			if(Platform == CppPlatform.Win64 || Platform == CppPlatform.UWP64)
 			{
 				AddDirectoryToPath(VCToolPath64);
 				AddDirectoryToPath(VCToolPath32);
 			}
-			if(Platform == CppPlatform.Win32)
+			if(Platform == CppPlatform.Win32 || Platform == CppPlatform.UWP32)
 			{
 				AddDirectoryToPath(VCToolPath32);
 				AddDirectoryToPath(VCToolPath64);
@@ -248,7 +248,7 @@ namespace UnrealBuildTool
 		}
 		// @ATG_CHANGE : END
 
-		private static string FindWindowsSDKExtensionInstallationFolder(WindowsCompiler Compiler)
+		public static string FindWindowsSDKExtensionInstallationFolder(WindowsCompiler Compiler)
 		{
 			string Version;
 			switch (Compiler)
@@ -298,16 +298,7 @@ namespace UnrealBuildTool
 			{
 				case WindowsCompiler.VisualStudio2017:
 				case WindowsCompiler.VisualStudio2015:
-					// @ATG_CHANGE : BEGIN - UWP support.  bUseWindowsSDK10 may not be set when this is called during project generation
-					if (InPlatform == CppPlatform.UWP64 || InPlatform == CppPlatform.UWP32)
-					// @ATG_CHANGE : END
-					{
 						Version = "v10.0";
-					}
-					else
-					{
-						Version = "v8.1";
-					}
 					break;
 
 				default:
@@ -534,7 +525,7 @@ namespace UnrealBuildTool
 		static FileReference GetResourceCompilerToolPath(CppPlatform Platform, DirectoryReference WindowsSdkDir, VersionNumber WindowsSdkVersion)
 		{
 			// 64 bit -- we can use the 32 bit version to target 64 bit on 32 bit OS.
-			if (Platform == CppPlatform.Win64)
+			if (Platform == CppPlatform.Win64 || Platform == CppPlatform.UWP64)
 			{
 				FileReference ResourceCompilerPath = FileReference.Combine(WindowsSdkDir, "bin", WindowsSdkVersion.ToString(), "x64", "rc.exe");
 				if(FileReference.Exists(ResourceCompilerPath))
@@ -576,7 +567,7 @@ namespace UnrealBuildTool
 			// Add the standard Visual C++ library paths
 			if (Compiler >= WindowsCompiler.VisualStudio2017)
 			{
-				if (Platform == CppPlatform.Win32)
+				if (Platform == CppPlatform.Win32 || Platform == CppPlatform.UWP32)
 				{
 					LibraryPaths.Add(DirectoryReference.Combine(ToolChainDir, "lib", "x86"));
 				}
@@ -587,7 +578,7 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				if (Platform == CppPlatform.Win32)
+				if (Platform == CppPlatform.Win32 || Platform == CppPlatform.UWP32)
 				{
 					LibraryPaths.Add(DirectoryReference.Combine(ToolChainDir, "LIB"));
 				}
@@ -610,7 +601,7 @@ namespace UnrealBuildTool
 				IncludePaths.Add(DirectoryReference.Combine(IncludeRootDir, "ucrt"));
 
 				DirectoryReference LibraryRootDir = DirectoryReference.Combine(Pair.Value, "lib", Pair.Key.ToString());
-				if(Platform == CppPlatform.Win64)
+				if(Platform == CppPlatform.Win64 || Platform == CppPlatform.UWP64)
 				{
 					LibraryPaths.Add(DirectoryReference.Combine(LibraryRootDir, "ucrt", "x64"));
 				}
@@ -625,7 +616,7 @@ namespace UnrealBuildTool
 			if(WindowsPlatform.TryGetNetFxSdkInstallDir(out NetFxSdkDir))
 			{
 				IncludePaths.Add(DirectoryReference.Combine(NetFxSdkDir, "include", "um"));
-				if (Platform == CppPlatform.Win32)
+				if (Platform == CppPlatform.Win32 || Platform == CppPlatform.UWP32)
 				{
 					LibraryPaths.Add(DirectoryReference.Combine(NetFxSdkDir, "lib", "um", "x86"));
 				}
@@ -645,7 +636,7 @@ namespace UnrealBuildTool
 				IncludePaths.Add(DirectoryReference.Combine(IncludeRootDir, "winrt"));
 
 				DirectoryReference LibraryRootDir = DirectoryReference.Combine(WindowsSdkDir, "lib", WindowsSdkVersion.ToString());
-				if(Platform == CppPlatform.Win64)
+				if(Platform == CppPlatform.Win64 || Platform == CppPlatform.UWP64)
 				{
 					LibraryPaths.Add(DirectoryReference.Combine(LibraryRootDir, "ucrt", "x64"));
 					LibraryPaths.Add(DirectoryReference.Combine(LibraryRootDir, "um", "x64"));
@@ -664,7 +655,7 @@ namespace UnrealBuildTool
 				IncludePaths.Add(DirectoryReference.Combine(IncludeRootDir, "winrt"));
 
 				DirectoryReference LibraryRootDir = DirectoryReference.Combine(WindowsSdkDir, "lib", "winv6.3");
-				if(Platform == CppPlatform.Win64)
+				if(Platform == CppPlatform.Win64 || Platform == CppPlatform.UWP64)
 				{
 					LibraryPaths.Add(DirectoryReference.Combine(LibraryRootDir, "um", "x64"));
 				}

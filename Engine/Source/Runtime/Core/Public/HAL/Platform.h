@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -76,6 +76,7 @@
 // @ATG_CHANGE : BEGIN UWP support
 #if !defined(PLATFORM_UWP)
 	#define PLATFORM_UWP 0
+#endif
 // @ATG_CHANGE : END
 
 

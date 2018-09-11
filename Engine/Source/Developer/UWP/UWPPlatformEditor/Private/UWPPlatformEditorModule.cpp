@@ -4,7 +4,7 @@
 #include "UWPDlcSettingsCustomization.h"
 #include "UWPImageResourcesCustomization.h"
 #include "ISettingsModule.h"
-#include "ModuleManager.h"
+#include "Modules/ModuleManager.h"
 #include "UWPTargetSettings.h"
 
 

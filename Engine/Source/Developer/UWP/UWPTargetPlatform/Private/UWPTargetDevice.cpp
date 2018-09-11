@@ -4,11 +4,10 @@
 
 #include "Misc/Paths.h"
 
-#include "AllowWindowsPlatformTypes.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 
 //#include <wrl/client.h>
 //#include <wrl/wrappers/corewrappers.h>
-
 #include <shlwapi.h>
 #include <shobjidl.h>
 #include <AppxPackaging.h>
@@ -132,4 +131,4 @@ bool FUWPTargetDevice::Run(const FString& ExecutablePath, const FString& Params,
 	return ActivationSuccess;
 }
 
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"

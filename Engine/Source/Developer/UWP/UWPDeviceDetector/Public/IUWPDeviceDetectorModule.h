@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Modules/ModuleInterface.h"
-#include "ModuleManager.h"
+#include "Modules/ModuleManager.h"
 #include "HAL/PlatformProcess.h"
 
 namespace UWPDeviceTypes

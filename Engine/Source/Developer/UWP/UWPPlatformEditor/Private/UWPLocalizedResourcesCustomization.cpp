@@ -7,7 +7,7 @@
 #include "PropertyCustomizationHelpers.h"
 #include "IDetailChildrenBuilder.h"
 #include "IDetailGroup.h"
-#include "STextComboBox.h"
+#include "Widgets/Input/STextComboBox.h"
 #include "Settings/ProjectPackagingSettings.h"
 
 #define LOCTEXT_NAMESPACE "UWPLocalizedResourcesCustomization"

@@ -7,9 +7,9 @@
 #include "PropertyCustomizationHelpers.h"
 #include "IDetailChildrenBuilder.h"
 #include "IDetailGroup.h"
-#include "STextComboBox.h"
+#include "Widgets/Input/STextComboBox.h"
 #include "Interfaces/IPluginManager.h"
-#include "STooltip.h"
+#include "Widgets/STooltip.h"
 #include "Settings/ProjectPackagingSettings.h"
 #include "UWPLocalizedResourcesCustomization.h"
 
