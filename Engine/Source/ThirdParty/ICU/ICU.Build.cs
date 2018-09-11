@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 using UnrealBuildTool;
 using System;
 using System.IO;
@@ -36,6 +36,16 @@ public class ICU : ModuleRules
             PlatformFolderName = "UWP32";
         }
 		string TargetSpecificPath = ICURootPath + PlatformFolderName + "/";
+		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
+		{
+			TargetSpecificPath = ICURootPath + "Linux/";
+		}
+
+		// make all Androids use the Android directory
+		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Android))
+		{
+			TargetSpecificPath = ICURootPath + "Android/";
+		}
 
 		if ((Target.Platform == UnrealTargetPlatform.Win64) ||
 			(Target.Platform == UnrealTargetPlatform.Win32) ||
@@ -104,21 +114,21 @@ public class ICU : ModuleRules
 				break;
 			}
 		}
-		else if	(Target.Platform == UnrealTargetPlatform.Linux || Target.Platform == UnrealTargetPlatform.Android)
+		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) ||
+			Target.Platform == UnrealTargetPlatform.Android)
 		{
 			string StaticLibraryExtension = "a";
 
-			switch (Target.Platform)
+			if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
 			{
-				case UnrealTargetPlatform.Linux:
 					TargetSpecificPath += Target.Architecture + "/";
-					break;
-				case UnrealTargetPlatform.Android:
+			}
+			else
+			{
 					PublicLibraryPaths.Add(TargetSpecificPath + "ARMv7/lib");
 					PublicLibraryPaths.Add(TargetSpecificPath + "ARM64/lib");
 					PublicLibraryPaths.Add(TargetSpecificPath + "x86/lib");
 					PublicLibraryPaths.Add(TargetSpecificPath + "x64/lib");
-					break;
 			}
 
 			string[] LibraryNameStems =
@@ -143,19 +153,20 @@ public class ICU : ModuleRules
 					foreach (string Stem in LibraryNameStems)
 					{
 						string LibraryName = "icu" + Stem + LibraryNamePostfix;
-						if (Target.Platform == UnrealTargetPlatform.Android)
+						if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
 						{
-							// we will filter out in the toolchain
-							PublicAdditionalLibraries.Add(LibraryName); // Android requires only the filename.
+							// Linux needs the path, not just the filename, to avoid linking to system lib instead of a bundled one.
+							PublicAdditionalLibraries.Add(TargetSpecificPath + "lib/" + "lib" + LibraryName + "." + StaticLibraryExtension); 
 						}
 						else
 						{
-							PublicAdditionalLibraries.Add(TargetSpecificPath + "lib/" + "lib" + LibraryName + "." + StaticLibraryExtension); // Linux seems to need the path, not just the filename.
+							// other platforms will just use the library name
+							PublicAdditionalLibraries.Add(LibraryName);
 						}
 					}
 					break;
 				case EICULinkType.Dynamic:
-					if (Target.Platform == UnrealTargetPlatform.Linux)
+					if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
 					{
 						string PathToBinary = String.Format("$(EngineDir)/Binaries/ThirdParty/ICU/{0}/{1}/{2}/", ICUVersion, Target.Platform.ToString(),
 							Target.Architecture);
@@ -338,7 +349,7 @@ public class ICU : ModuleRules
             (Target.Platform == UnrealTargetPlatform.UWP64) ||
             (Target.Platform == UnrealTargetPlatform.UWP32) ||
 // @ATG_CHANGE : END
-			(Target.Platform == UnrealTargetPlatform.Linux) ||
+			(Target.IsInPlatformGroup(UnrealPlatformGroup.Unix)) ||
 			(Target.Platform == UnrealTargetPlatform.Android) ||
 			(Target.Platform == UnrealTargetPlatform.Mac) ||
 			(Target.Platform == UnrealTargetPlatform.IOS) ||

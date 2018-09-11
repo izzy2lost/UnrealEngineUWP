@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "Widgets/SWindow.h"
 #include "Application/SlateWindowHelper.h"
@@ -48,11 +48,13 @@ public:
 	SLATE_END_ARGS()
 
 	SPopupLayer()
-	: Children()
+		: Children(this)
 	{}
 
 	void Construct( const FArguments& InArgs, const TSharedRef<SWindow>& InWindow )
 	{
+		bCanTick = false;
+
 		OwnerWindow = InWindow;
 
 		const int32 NumSlots = InArgs.Slots.Num();
@@ -225,6 +227,7 @@ void SWindow::Construct(const FArguments& InArgs)
 	this->bDragAnywhere = InArgs._bDragAnywhere;
 	this->TransparencySupport = InArgs._SupportsTransparency.Value;
 	this->Opacity = InArgs._InitialOpacity;
+	this->bIsWindow = true;
 	this->bInitiallyMaximized = InArgs._IsInitiallyMaximized;
 	this->bInitiallyMinimized = InArgs._IsInitiallyMinimized;
 	this->SizingRule = InArgs._SizingRule;
@@ -246,6 +249,7 @@ void SWindow::Construct(const FArguments& InArgs)
 		.SetMinHeight(InArgs._MinHeight)
 		.SetMaxWidth(InArgs._MaxWidth)
 		.SetMaxHeight(InArgs._MaxHeight);
+	bCanTick = false;
 	
 	// calculate window size from client size
 	bCreateTitleBar = InArgs._CreateTitleBar && !bIsPopupWindow && Type != EWindowType::CursorDecorator && !bHasOSWindowBorder;
@@ -262,7 +266,7 @@ void SWindow::Construct(const FArguments& InArgs)
 	FDisplayMetrics DisplayMetrics;
 	FSlateApplicationBase::Get().GetDisplayMetrics( DisplayMetrics );
 	const FPlatformRect& VirtualDisplayRect = DisplayMetrics.VirtualDisplayRect;
-	FPlatformRect PrimaryDisplayRect = DisplayMetrics.GetMonitorWorkAreaFromPoint(WindowPosition);
+	FPlatformRect PrimaryDisplayRect = AutoCenterRule == EAutoCenter::PrimaryWorkArea ? DisplayMetrics.PrimaryDisplayWorkAreaRect : DisplayMetrics.GetMonitorWorkAreaFromPoint(WindowPosition);
 
 	if (PrimaryDisplayRect == FPlatformRect(0, 0, 0, 0))
 	{
@@ -706,6 +710,7 @@ void SWindow::Tick( const FGeometry& AllottedGeometry, const double InCurrentTim
 
 			this->SetOpacity( Morpher.TargetOpacity );
 			Morpher.bIsActive = false;
+			bCanTick = false;
 		}
 	}
 }
@@ -1001,7 +1006,7 @@ void SWindow::StartMorph()
 	Morpher.StartingMorphShape = FSlateRect( this->ScreenPosition.X, this->ScreenPosition.Y, this->ScreenPosition.X + this->Size.X, this->ScreenPosition.Y + this->Size.Y );
 	Morpher.bIsActive = true;
 	Morpher.Sequence.JumpToStart();
-
+	bCanTick = true;
 	if ( !ActiveTimerHandle.IsValid() )
 	{
 		ActiveTimerHandle = RegisterActiveTimer( 0.f, FWidgetActiveTimerDelegate::CreateSP( this, &SWindow::TriggerPlayMorphSequence ) );
@@ -1137,6 +1142,7 @@ void SWindow::SetContent( TSharedRef<SWidget> InContent )
 	{
 		this->ContentSlot->operator[]( InContent );
 	}
+	Invalidate(EInvalidateWidget::LayoutAndVolatility);
 }
 
 TSharedRef<const SWidget> SWindow::GetContent() const
@@ -1450,7 +1456,7 @@ bool SWindow::IsTopmostWindow() const
 bool SWindow::IsScreenspaceMouseWithin(FVector2D ScreenspaceMouseCoordinate) const
 {
 	const FVector2D LocalMouseCoordinate = ScreenspaceMouseCoordinate - ScreenPosition;
-	return NativeWindow->IsPointInWindow(FMath::TruncToInt(LocalMouseCoordinate.X), FMath::TruncToInt(LocalMouseCoordinate.Y));
+	return !LocalMouseCoordinate.ContainsNaN() && NativeWindow->IsPointInWindow(FMath::TruncToInt(LocalMouseCoordinate.X), FMath::TruncToInt(LocalMouseCoordinate.Y));
 }
 
 /** @return true if this is a user-sized window with a thick edge */

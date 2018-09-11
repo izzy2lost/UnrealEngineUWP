@@ -22,8 +22,10 @@
 // @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 #include "HTML5/HTML5PlatformTime.h"
-#elif PLATFORM_LINUX
-#include "Linux/LinuxPlatformTime.h"
+#elif PLATFORM_UNIX
+#include "Unix/UnixPlatformTime.h"
 #elif PLATFORM_SWITCH
 #include "Switch/SwitchPlatformTime.h"
+#else
+#error Unknown platform
 #endif

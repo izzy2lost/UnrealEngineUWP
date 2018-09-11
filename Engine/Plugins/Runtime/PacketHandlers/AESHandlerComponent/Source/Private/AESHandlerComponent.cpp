@@ -45,6 +45,11 @@ void FAESHandlerComponent::DisableEncryption()
 	bEncryptionEnabled = false;
 }
 
+bool FAESHandlerComponent::IsEncryptionEnabled() const
+{
+	return bEncryptionEnabled;
+}
+
 void FAESHandlerComponent::Initialize()
 {
 	SetActive(true);

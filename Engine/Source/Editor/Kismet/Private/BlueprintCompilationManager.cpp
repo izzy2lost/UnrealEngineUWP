@@ -2,10 +2,10 @@
 
 #include "BlueprintCompilationManager.h"
 
-#include "BlueprintEditorUtils.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "BlueprintEditorSettings.h"
 #include "Blueprint/BlueprintSupport.h"
-#include "CompilerResultsLog.h"
+#include "Kismet2/CompilerResultsLog.h"
 #include "Components/TimelineComponent.h"
 #include "Editor.h"
 #include "Engine/Engine.h"
@@ -305,6 +305,7 @@ struct FCompilerData
 	bool IsSkeletonOnly() const { return JobType == ECompilationManagerJobType::SkeletonOnly; }
 	bool ShouldResetClassMembers() const { return JobType != ECompilationManagerJobType::RelinkOnly; }
 	bool ShouldSetTemporaryBlueprintFlags() const { return JobType != ECompilationManagerJobType::RelinkOnly; }
+	bool ShouldResetErrorState() const { return JobType == ECompilationManagerJobType::Normal && InternalOptions.CompileType != EKismetCompileType::BytecodeOnly; }
 	bool ShouldValidateVariableNames() const { return JobType == ECompilationManagerJobType::Normal; }
 	bool ShouldRegenerateSkeleton() const { return JobType != ECompilationManagerJobType::RelinkOnly; }
 	bool ShouldMarkUpToDateAfterSkeletonStage() const { return IsSkeletonOnly(); }
@@ -517,16 +518,34 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(TArray<UObject*
 		// STAGE IV: Set UBlueprint flags (bBeingCompiled, bIsRegeneratingOnLoad)
 		for (FCompilerData& CompilerData : CurrentlyCompilingBPs)
 		{
-			if(CompilerData.ShouldSetTemporaryBlueprintFlags())
+			if (!CompilerData.ShouldSetTemporaryBlueprintFlags())
 			{
-				UBlueprint* BP = CompilerData.BP;
-				BP->bBeingCompiled = true;
-				BP->CurrentMessageLog = CompilerData.ActiveResultsLog;
-				BP->bIsRegeneratingOnLoad = !BP->bHasBeenRegenerated && BP->GetLinker();
-				if(BP->bIsRegeneratingOnLoad)
+				continue;
+			}
+
+			UBlueprint* BP = CompilerData.BP;
+			BP->bBeingCompiled = true;
+			BP->CurrentMessageLog = CompilerData.ActiveResultsLog;
+			BP->bIsRegeneratingOnLoad = !BP->bHasBeenRegenerated && BP->GetLinker();
+			if(BP->bIsRegeneratingOnLoad)
+			{
+				// we may have cached dependencies before being fully loaded:
+				BP->bCachedDependenciesUpToDate = false;
+			}
+
+			if(CompilerData.ShouldResetErrorState())
+			{
+				TArray<UEdGraph*> AllGraphs;
+				BP->GetAllGraphs(AllGraphs);
+				for (UEdGraph* Graph : AllGraphs )
 				{
-					// we may have cached dependencies before being fully loaded:
-					BP->bCachedDependenciesUpToDate = false;
+					for (UEdGraphNode* GraphNode : Graph->Nodes)
+					{
+						if (GraphNode)
+						{
+							GraphNode->ClearCompilerMessage();
+						}
+					}
 				}
 			}
 		}
@@ -569,7 +588,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(TArray<UObject*
 			// then we can avoid dependency recompilation:
 			TSet<UBlueprint*> BlueprintsWithSignatureChanges;
 			const UBlueprintEditorProjectSettings* EditorProjectSettings = GetDefault<UBlueprintEditorProjectSettings>();
-			bool bSkipUnneededDependencyCompilation = EditorProjectSettings->bSkipUnneededDependencyCompilation;
+			bool bSkipUnneededDependencyCompilation = !EditorProjectSettings->bForceAllDependenciesToRecompile;
 
 			for (FCompilerData& CompilerData : CurrentlyCompilingBPs)
 			{
@@ -789,18 +808,6 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(TArray<UObject*
 			if(BP->GeneratedClass && BP->GeneratedClass->GetSuperClass()->HasAnyClassFlags(CLASS_NewerVersionExists))
 			{
 				BP->GeneratedClass->SetSuperStruct(BP->GeneratedClass->GetSuperClass()->GetAuthoritativeClass());
-
-				if(CompilerData.ShouldResetClassMembers())
-				{
-					BP->GeneratedClass->Children = NULL;
-					BP->GeneratedClass->Script.Empty();
-					BP->GeneratedClass->MinAlignment = 0;
-					BP->GeneratedClass->RefLink = NULL;
-					BP->GeneratedClass->PropertyLink = NULL;
-					BP->GeneratedClass->DestructorLink = NULL;
-					BP->GeneratedClass->ScriptObjectReferences.Empty();
-					BP->GeneratedClass->PropertyLink = NULL;
-				}
 			}
 		}
 
@@ -827,6 +834,16 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(TArray<UObject*
 		
 					FKismetCompilerContext& CompilerContext = *(CompilerData.Compiler);
 					CompilerContext.CompileClassLayout(EInternalCompilerFlags::PostponeLocalsGenerationUntilPhaseTwo);
+
+					// We immediately relink children so that iterative compilation logic has an easier time:
+					TArray<UClass*> ClassesToRelink;
+					GetDerivedClasses(BP->GeneratedClass, ClassesToRelink, false);
+					for (UClass* ChildClass : ClassesToRelink)
+					{
+						ChildClass->Bind();
+						ChildClass->StaticLink();
+						ensure(ChildClass->ClassDefaultObject == nullptr);
+					}
 				}
 				else
 				{
@@ -913,6 +930,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(TArray<UObject*
 
 			if(BP->GeneratedClass)
 			{
+				BP->GeneratedClass->ClassFlags &= ~CLASS_ReplicationDataIsSetUp;
 				BP->GeneratedClass->SetUpRuntimeReplicationData();
 			}
 
@@ -1064,7 +1082,24 @@ void FBlueprintCompilationManagerImpl::FlushReinstancingQueueImpl()
 		TGuardValue<bool> ReinstancingGuard(GIsReinstancing, true);
 		FBlueprintCompileReinstancer::BatchReplaceInstancesOfClass(ClassesToReinstance, true);
 
-		ClassesToReinstance.Empty();
+		if (IsAsyncLoading())
+		{
+			// While async loading we only remove classes that have no instances being
+			// async loaded. Those instances will need to be reinstanced once they finish
+			// loading, there's no race here because if any instances are created after
+			// we check ClassHasInstancesAsyncLoading they will be created with the new class:
+			for( TMap<UClass*, UClass*>::TIterator It(ClassesToReinstance); It; ++It )
+			{
+				if (!ClassHasInstancesAsyncLoading(It->Key))
+				{
+					It.RemoveCurrent();
+				}
+			}
+		}
+		else
+		{
+			ClassesToReinstance.Empty();
+		}
 	}
 	
 #if VERIFY_NO_STALE_CLASS_REFERENCES
@@ -1551,7 +1586,7 @@ UClass* FBlueprintCompilationManagerImpl::FastGenerateSkeletonClass(UBlueprint* 
 			UField**& InCurrentParamStorageLocation, 
 			EFunctionFlags InFunctionFlags, 
 			const TArray<UK2Node_FunctionResult*>& ReturnNodes, 
-			const TArray<UEdGraphPin*>& InputPins, 
+			const TArray<UEdGraphPin*>& InputPins,
 			bool bIsStaticFunction, 
 			bool bForceArrayStructRefsConst, 
 			UFunction* SignatureOverride) -> UFunction*
@@ -1691,7 +1726,7 @@ UClass* FBlueprintCompilationManagerImpl::FastGenerateSkeletonClass(UBlueprint* 
 							{
 								UsedPinNames.Add(Pin->PinName);
 							
-								UProperty* Param = FKismetCompilerUtilities::CreatePropertyOnScope(NewFunction, Pin->PinName, Pin->PinType, Ret, 0, Schema, MessageLog);
+								UProperty* Param = FKismetCompilerUtilities::CreatePropertyOnScope(NewFunction, Pin->PinName, Pin->PinType, Ret, CPF_None, Schema, MessageLog);
 								if(Param)
 								{
 									Param->SetFlags(RF_Transient);
@@ -1768,7 +1803,7 @@ UClass* FBlueprintCompilationManagerImpl::FastGenerateSkeletonClass(UBlueprint* 
 						if( FindField<UObjectProperty>(NewFunction, TEXT("__WorldContext")) == nullptr )
 						{
 							FEdGraphPinType WorldContextPinType(UEdGraphSchema_K2::PC_Object, NAME_None, UObject::StaticClass(), EPinContainerType::None, false, FEdGraphTerminalType());
-							UProperty* Param = FKismetCompilerUtilities::CreatePropertyOnScope(NewFunction, TEXT("__WorldContext"), WorldContextPinType, Ret, 0, Schema, MessageLog);
+							UProperty* Param = FKismetCompilerUtilities::CreatePropertyOnScope(NewFunction, TEXT("__WorldContext"), WorldContextPinType, Ret, CPF_None, Schema, MessageLog);
 							if(Param)
 							{
 								Param->SetFlags(RF_Transient);
@@ -1791,7 +1826,7 @@ UClass* FBlueprintCompilationManagerImpl::FastGenerateSkeletonClass(UBlueprint* 
 	UField** CurrentFieldStorageLocation = &Ret->Children;
 	
 	// Helper function for making UFunctions generated for 'event' nodes, e.g. custom event and timelines
-	const auto MakeEventFunction = [&CurrentFieldStorageLocation, MakeFunction, Schema]( FName InName, EFunctionFlags ExtraFnFlags, const TArray<UEdGraphPin*>& InputPins, UFunction* InSourceFN, bool bInCallInEditor )
+	const auto MakeEventFunction = [&CurrentFieldStorageLocation, MakeFunction, Schema]( FName InName, EFunctionFlags ExtraFnFlags, const TArray<UEdGraphPin*>& InputPins, const TArray< TSharedPtr<FUserPinInfo> >& UserPins, UFunction* InSourceFN, bool bInCallInEditor )
 	{
 		UField** CurrentParamStorageLocation = nullptr;
 
@@ -1809,18 +1844,7 @@ UClass* FBlueprintCompilationManagerImpl::FastGenerateSkeletonClass(UBlueprint* 
 
 		if(NewFunction)
 		{
-			for (UEdGraphPin* InputPin : InputPins)
-			{
-				// No defaults for object/class pins
-				if(	!Schema->IsMetaPin(*InputPin) && 
-					(InputPin->PinType.PinCategory != UEdGraphSchema_K2::PC_Object) && 
-					(InputPin->PinType.PinCategory != UEdGraphSchema_K2::PC_Class) && 
-					(InputPin->PinType.PinCategory != UEdGraphSchema_K2::PC_Interface) && 
-					!InputPin->DefaultValue.IsEmpty() )
-				{
-					NewFunction->SetMetaData(InputPin->PinName, *InputPin->DefaultValue);
-				}
-			}
+			FKismetCompilerContext::SetDefaultInputValueMetaData(NewFunction, UserPins);
 
 			if(bInCallInEditor)
 			{
@@ -1870,6 +1894,7 @@ UClass* FBlueprintCompilationManagerImpl::FastGenerateSkeletonClass(UBlueprint* 
 				CompilerContext.GetEventStubFunctionName(Event), 
 				(EFunctionFlags)Event->FunctionFlags, 
 				Event->Pins, 
+				Event->UserDefinedPins,
 				Event->FindEventSignatureFunction(),
 				bCallInEditor
 			);
@@ -1880,11 +1905,11 @@ UClass* FBlueprintCompilationManagerImpl::FastGenerateSkeletonClass(UBlueprint* 
 	{
 		for(int32 EventTrackIdx=0; EventTrackIdx<Timeline->EventTracks.Num(); EventTrackIdx++)
 		{
-			MakeEventFunction(Timeline->GetEventTrackFunctionName(EventTrackIdx), EFunctionFlags::FUNC_None, TArray<UEdGraphPin*>(), nullptr, false);
+			MakeEventFunction(Timeline->GetEventTrackFunctionName(EventTrackIdx), EFunctionFlags::FUNC_None, TArray<UEdGraphPin*>(), TArray< TSharedPtr<FUserPinInfo> >(), nullptr, false);
 		}
 		
-		MakeEventFunction(Timeline->GetUpdateFunctionName(), EFunctionFlags::FUNC_None, TArray<UEdGraphPin*>(), nullptr, false);
-		MakeEventFunction(Timeline->GetFinishedFunctionName(), EFunctionFlags::FUNC_None, TArray<UEdGraphPin*>(), nullptr, false);
+		MakeEventFunction(Timeline->GetUpdateFunctionName(), EFunctionFlags::FUNC_None, TArray<UEdGraphPin*>(), TArray< TSharedPtr<FUserPinInfo> >(), nullptr, false);
+		MakeEventFunction(Timeline->GetFinishedFunctionName(), EFunctionFlags::FUNC_None, TArray<UEdGraphPin*>(), TArray< TSharedPtr<FUserPinInfo> >(), nullptr, false);
 	}
 
 	CompilerContext.NewClass = Ret;

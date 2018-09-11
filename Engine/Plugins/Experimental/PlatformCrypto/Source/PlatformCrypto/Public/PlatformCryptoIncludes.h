@@ -8,6 +8,8 @@
 #if PLATFORM_XBOXONE || PLATFORM_WINDOWS || PLATFORM_UWP
 // @ATG_CHANGE : END
 	#include "EncryptionContextBCrypt.h"
+#elif PLATFORM_SWITCH
+	#include "EncryptionContextSwitch.h"
 #else
 	#include "EncryptionContextOpenSSL.h"
 #endif

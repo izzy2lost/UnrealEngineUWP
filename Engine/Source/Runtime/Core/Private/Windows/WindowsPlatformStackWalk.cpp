@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "Windows/WindowsPlatformStackWalk.h"
 #include "HAL/PlatformMemory.h"
@@ -15,6 +15,7 @@
 #include "HAL/PlatformProcess.h"
 #include "CoreGlobals.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/OutputDeviceRedirector.h"
 
 #include "Windows/WindowsHWrapper.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
@@ -74,6 +75,7 @@ struct FWindowsThreadContextWrapper
 
 	FWindowsThreadContextWrapper()
 		: Magic(MAGIC_VAL)
+		, Context{}
 	{
 	}
 	void CheckOk()
@@ -135,7 +137,7 @@ static int32 CaptureStackTraceHelper(uint64 *BackTrace, uint32 MaxDepth, FWindow
 		// Walk the stack one frame at a time.
 		while( bStackWalkSucceeded && (CurrentDepth < MaxDepth) )
 		{
-			bStackWalkSucceeded = !!StackWalk64(  MachineType, 
+			bStackWalkSucceeded = !!StackWalk64(MachineType, 
 												ProcessHandle, 
 												ThreadHandle, 
 												&StackFrame64,
@@ -144,9 +146,6 @@ static int32 CaptureStackTraceHelper(uint64 *BackTrace, uint32 MaxDepth, FWindow
 												SymFunctionTableAccess64,
 												SymGetModuleBase64,
 												NULL );
-
-			BackTrace[CurrentDepth++] = StackFrame64.AddrPC.Offset;
-			*Depth = CurrentDepth;
 
 			if( !bStackWalkSucceeded  )
 			{
@@ -161,6 +160,9 @@ static int32 CaptureStackTraceHelper(uint64 *BackTrace, uint32 MaxDepth, FWindow
 			{
 				break;
 			}
+
+			BackTrace[CurrentDepth++] = StackFrame64.AddrPC.Offset;
+			*Depth = CurrentDepth;
 		}
 	} 
 #if !PLATFORM_SEH_EXCEPTIONS_DISABLED
@@ -258,6 +260,37 @@ void FWindowsPlatformStackWalk::ThreadStackWalkAndDump(ANSICHAR* HumanReadableSt
 		}
 		ResumeThread(ThreadHandle);
 	}
+}
+
+uint32 FWindowsPlatformStackWalk::CaptureThreadStackBackTrace(uint64 ThreadId, uint64* BackTrace, uint32 MaxDepth)
+{
+	InitStackWalking();
+
+	if (BackTrace == nullptr || MaxDepth == 0)
+		return 0;
+
+	HANDLE ThreadHandle = OpenThread(THREAD_GET_CONTEXT | THREAD_SET_CONTEXT | THREAD_TERMINATE | THREAD_SUSPEND_RESUME, false, ThreadId);
+	if (!ThreadHandle)
+		return 0;
+
+	// Suspend the thread before grabbing its context
+	SuspendThread(ThreadHandle);
+
+	FWindowsThreadContextWrapper ContextWrapper;
+	ContextWrapper.Context.ContextFlags = CONTEXT_CONTROL;
+	ContextWrapper.ThreadHandle = ThreadHandle;
+
+	uint32 Depth = 0;
+	if (GetThreadContext(ThreadHandle, &ContextWrapper.Context))
+	{
+		CaptureStackTraceHelper(BackTrace, MaxDepth, &ContextWrapper, &Depth);
+	}
+
+	ResumeThread(ThreadHandle);
+
+	CloseHandle(ThreadHandle);
+
+	return Depth;
 }
 
 // #CrashReport: 2014-09-05 Switch to TArray<uint64,TFixedAllocator<100>>>
@@ -710,10 +743,12 @@ int32 FWindowsPlatformStackWalk::GetProcessModuleSignatures(FStackWalkModuleInfo
 		FGetModuleFileNameEx( ProcessHandle, ModuleHandlePointer[ModuleIndex], ImageName, MAX_PATH );
 		FGetModuleBaseName( ProcessHandle, ModuleHandlePointer[ModuleIndex], ModuleName, MAX_PATH );
 
-		// Load module.
-		if(SymGetModuleInfoW64(ProcessHandle, (DWORD64)ModuleInfo.lpBaseOfDll, &Img))
+		FStackWalkModuleInfo Info = { 0 };
+
+		// Load module and get rich image help information
+		if (SymGetModuleInfoW64(ProcessHandle, (DWORD64)ModuleInfo.lpBaseOfDll, &Img))
 		{
-			FStackWalkModuleInfo Info = {0};
+
 			Info.BaseOfImage = Img.BaseOfImage;
 			FCString::Strcpy(Info.ImageName, Img.ImageName);
 			Info.ImageSize = Img.ImageSize;
@@ -723,10 +758,22 @@ int32 FWindowsPlatformStackWalk::GetProcessModuleSignatures(FStackWalkModuleInfo
 			Info.PdbSig = Img.PdbSig;
 			FMemory::Memcpy(&Info.PdbSig70, &Img.PdbSig70, sizeof(GUID));
 			Info.TimeDateStamp = Img.TimeDateStamp;
-
-			ModuleSignatures[SignatureIndex] = Info;
-			++SignatureIndex;
 		}
+		else
+		{
+			// Unable to get image help information, so fallback to the module info that is available
+			Info.BaseOfImage = (uint64)ModuleInfo.lpBaseOfDll;
+			FCString::Strcpy(Info.ImageName, ImageName);
+			Info.ImageSize = ModuleInfo.SizeOfImage;
+			FCString::Strcpy(Info.LoadedImageName, ImageName);
+			FCString::Strcpy(Info.ModuleName, ModuleName);
+
+			UE_LOG(LogWindows, Verbose, TEXT("SymGetModuleInfoW64 failed, rich module information unavailable. Error Code: %u"), GetLastError());
+		}
+
+		ModuleSignatures[SignatureIndex] = Info;
+		++SignatureIndex;
+
 	}
 
 	// Free the module handle pointer allocated in case the static array was insufficient.

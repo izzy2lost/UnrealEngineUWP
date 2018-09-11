@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -6,19 +6,20 @@
 #include "HAL/ThreadSafeCounter.h"
 #include "Interfaces/IHttpResponse.h"
 #include "IHttpThreadedRequest.h"
+#include "Containers/Queue.h"
 
 class FCurlHttpResponse;
 
 #if WITH_LIBCURL
 // @ATG_CHANGE : BEGIN UWP support
 #if PLATFORM_WINDOWS || PLATFORM_UWP
-#include "WindowsHWrapper.h"
-#include "AllowWindowsPlatformTypes.h"
+#include "Windows/WindowsHWrapper.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 #endif
 	#include "curl/curl.h"
 #if PLATFORM_WINDOWS || PLATFORM_UWP
 // @ATG_CHANGE : END
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"
 #endif
 
 #if !defined(CURL_ENABLE_DEBUG_CALLBACK)
@@ -125,17 +126,17 @@ public:
 	friend class FCurlHttpResponse;
 
 	//~ Begin IHttpBase Interface
-	virtual FString GetURL() override;
-	virtual FString GetURLParameter(const FString& ParameterName) override;
-	virtual FString GetHeader(const FString& HeaderName) override;
-	virtual TArray<FString> GetAllHeaders() override;	
-	virtual FString GetContentType() override;
-	virtual int32 GetContentLength() override;
-	virtual const TArray<uint8>& GetContent() override;
+	virtual FString GetURL() const override;
+	virtual FString GetURLParameter(const FString& ParameterName) const override;
+	virtual FString GetHeader(const FString& HeaderName) const override;
+	virtual TArray<FString> GetAllHeaders() const override;
+	virtual FString GetContentType() const override;
+	virtual int32 GetContentLength() const override;
+	virtual const TArray<uint8>& GetContent() const override;
 	//~ End IHttpBase Interface
 
 	//~ Begin IHttpRequest Interface
-	virtual FString GetVerb() override;
+	virtual FString GetVerb() const override;
 	virtual void SetVerb(const FString& InVerb) override;
 	virtual void SetURL(const FString& InURL) override;
 	virtual void SetContent(const TArray<uint8>& ContentPayload) override;
@@ -143,13 +144,11 @@ public:
 	virtual void SetHeader(const FString& HeaderName, const FString& HeaderValue) override;
 	virtual void AppendToHeader(const FString& HeaderName, const FString& AdditionalHeaderValue) override;
 	virtual bool ProcessRequest() override;
-	virtual FHttpRequestCompleteDelegate& OnProcessRequestComplete() override;
-	virtual FHttpRequestProgressDelegate& OnRequestProgress() override;
 	virtual void CancelRequest() override;
-	virtual EHttpRequestStatus::Type GetStatus() override;
+	virtual EHttpRequestStatus::Type GetStatus() const override;
 	virtual const FHttpResponsePtr GetResponse() const override;
 	virtual void Tick(float DeltaSeconds) override;
-	virtual float GetElapsedTime() override;
+	virtual float GetElapsedTime() const override;
 	//~ End IHttpRequest Interface
 
 	//~ Begin IHttpRequestThreaded Interface
@@ -179,7 +178,7 @@ public:
 	 */
 	inline void MarkAsCompleted(CURLcode InCurlCompletionResult)
 	{
-		bCompleted = true;
+		bCurlRequestCompleted = true;
 		CurlCompletionResult = InCurlCompletionResult;
 	}
 	
@@ -200,7 +199,6 @@ public:
 	 * Destructor. Clean up any connection/request handles
 	 */
 	virtual ~FCurlHttpRequest();
-
 
 private:
 
@@ -306,15 +304,16 @@ private:
 	void FinishedRequest();
 
 	/**
-	 * Close session/request handles and unregister callbacks
-	 */
-	void CleanupRequest();
-
-	/**
 	 * Trigger the request progress delegate if progress has changed
 	 */
 	void CheckProgressDelegate();
 
+	/** Broadcast newly received headers */
+	void BroadcastNewlyReceivedHeaders();
+
+	/** Combine a header's key/value in the format "Key: Value" */
+	static FString CombineHeaderKeyValue(const FString& HeaderKey, const FString& HeaderValue);
+	
 private:
 
 	/** Pointer to an easy handle specific to this request */
@@ -328,7 +327,7 @@ private:
 	/** Set to true if request has been canceled */
 	bool			bCanceled;
 	/** Set to true when request has been completed */
-	bool			bCompleted;
+	bool			bCurlRequestCompleted;
 	/** Set to true if request failed to be added to curl multi */
 	CURLMcode		CurlAddToMultiResult;
 	/** Operation result code as returned by libcurl */
@@ -337,10 +336,6 @@ private:
 	TSharedPtr<class FCurlHttpResponse,ESPMode::ThreadSafe> Response;
 	/** BYTE array payload to use with the request. Typically for a POST */
 	TArray<uint8> RequestPayload;
-	/** Delegate that will get called once request completes or on any error */
-	FHttpRequestCompleteDelegate RequestCompleteDelegate;
-	/** Delegate that will get called once per tick with total bytes uploaded and downloaded so far */
-	FHttpRequestProgressDelegate RequestProgressDelegate;
 	/** Current status of request being processed */
 	EHttpRequestStatus::Type CompletionStatus;
 	/** Mapping of header section to values. */
@@ -349,6 +344,8 @@ private:
 	float ElapsedTime;
 	/** Elapsed time since the last received HTTP response. */
 	float TimeSinceLastResponse;
+	/** Have we had any HTTP activity with the host? Sending headers, SSL handshake, etc */
+	bool bAnyHttpActivity;
 	/** Number of bytes sent already */
 	FThreadSafeCounter BytesSent;
 	/** Last bytes read reported to progress delegate */
@@ -362,8 +359,6 @@ private:
 	/** Cache of info messages from libcurl */
 	TArray<FString> InfoMessageCache;
 };
-
-
 
 /**
  * Curl implementation of an HTTP response
@@ -380,26 +375,20 @@ public:
 	// implementation friends
 	friend class FCurlHttpRequest;
 
-
 	//~ Begin IHttpBase Interface
-	virtual FString GetURL() override;
-	virtual FString GetURLParameter(const FString& ParameterName) override;
-	virtual FString GetHeader(const FString& HeaderName) override;
-	virtual TArray<FString> GetAllHeaders() override;	
-	virtual FString GetContentType() override;
-	virtual int32 GetContentLength() override;
-	virtual const TArray<uint8>& GetContent() override;
+	virtual FString GetURL() const override;
+	virtual FString GetURLParameter(const FString& ParameterName) const override;
+	virtual FString GetHeader(const FString& HeaderName) const override;
+	virtual TArray<FString> GetAllHeaders() const override;	
+	virtual FString GetContentType() const override;
+	virtual int32 GetContentLength() const override;
+	virtual const TArray<uint8>& GetContent() const override;
 	//~ End IHttpBase Interface
 
 	//~ Begin IHttpResponse Interface
-	virtual int32 GetResponseCode() override;
-	virtual FString GetContentAsString() override;
+	virtual int32 GetResponseCode() const override;
+	virtual FString GetContentAsString() const override;
 	//~ End IHttpResponse Interface
-
-	/**
-	 * Check whether a response is ready or not.
-	 */
-	bool IsReady();
 
 	/**
 	 * Constructor
@@ -419,8 +408,10 @@ private:
 	TArray<uint8> Payload;
 	/** Caches how many bytes of the response we've read so far */
 	FThreadSafeCounter TotalBytesRead;
-	/** Cached key/value header pairs. Parsed once request completes */
+	/** Cached key/value header pairs. Parsed once request completes. Only accessible on the game thread. */
 	TMap<FString, FString> Headers;
+	/** Newly received headers we need to inform listeners about */
+	TQueue<TPair<FString, FString>> NewlyReceivedHeaders;
 	/** Cached code from completed response */
 	int32 HttpCode;
 	/** Cached content length from completed response */

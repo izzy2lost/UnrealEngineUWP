@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	XeAudioDevice.cpp: Unreal XAudio2 Audio interface object.
@@ -18,16 +18,16 @@
 #include "XAudio2Effects.h"
 #include "Interfaces/IAudioFormat.h"
 #include "HAL/PlatformAffinity.h"
-#include "WindowsHWrapper.h"
-#include "AllowWindowsPlatformTypes.h"
-#include "AllowWindowsPlatformAtomics.h"
+#include "Windows/WindowsHWrapper.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include "Windows/AllowWindowsPlatformAtomics.h"
 THIRD_PARTY_INCLUDES_START
 	#include <xapobase.h>
 	#include <xapofx.h>
 	#include <xaudio2fx.h>
 THIRD_PARTY_INCLUDES_END
-#include "HideWindowsPlatformAtomics.h"
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformAtomics.h"
+#include "Windows/HideWindowsPlatformTypes.h"
 #include "XAudio2Support.h"
 #include "Runtime/HeadMountedDisplay/Public/IHeadMountedDisplayModule.h"
 
@@ -279,11 +279,15 @@ void FXAudio2Device::TeardownHardware()
 		DeviceProperties = nullptr;
 	}
 
-// @ATG_CHANGE : BEGIN UWP support
-#if PLATFORM_WINDOWS || PLATFORM_UWP
+#if WITH_XMA2
+	FXMAAudioInfo::Shutdown();
+#endif
+
+#if PLATFORM_WINDOWS
 	if (bComInitialized)
 	{
 		FPlatformMisc::CoUninitialize();
+// @ATG_CHANGE : BEGIN UWP support
 		bComInitialized = false;
 // @ATG_CHANGE : END
 	}
@@ -295,37 +299,37 @@ void FXAudio2Device::UpdateHardware()
 	if (DeviceProperties)
 	{
 #if PLATFORM_WINDOWS
-		// If the audio device changed, we need to tear down and restart the audio engine state
-		if (DeviceProperties->DidAudioDeviceChange())
+	// If the audio device changed, we need to tear down and restart the audio engine state
+	if (DeviceProperties->DidAudioDeviceChange())
+	{
+		//Cache the current audio clock.
+		CachedAudioClockStartTime = GetAudioClock();
+
+		// Flush stops all sources so sources can be safely deleted below.
+		Flush(nullptr);
+
+		// Remove the effects manager
+		if (Effects)
 		{
-			//Cache the current audio clock.
-			CachedAudioClockStartTime = GetAudioClock();
-
-			// Flush stops all sources so sources can be safely deleted below.
-			Flush(nullptr);
-
-			// Remove the effects manager
-			if (Effects)
-			{
-				delete Effects;
-				Effects = nullptr;
-			}
-	
-			// Teardown hardware
-			TeardownHardware();
-		
-			// Restart the hardware
-			InitializeHardware();
-
-			// Recreate the effects manager
-			Effects = CreateEffectsManager();
-
-			// Now reset and restart the sound source objects
-			FreeSources.Reset();
-			Sources.Reset();
-
-			InitSoundSources();
+			delete Effects;
+			Effects = nullptr;
 		}
+	
+		// Teardown hardware
+		TeardownHardware();
+		
+		// Restart the hardware
+		InitializeHardware();
+
+		// Recreate the effects manager
+		Effects = CreateEffectsManager();
+
+		// Now reset and restart the sound source objects
+		FreeSources.Reset();
+		Sources.Reset();
+
+		InitSoundSources();
+	}
 #endif
 	}
 }
@@ -599,7 +603,7 @@ void FXAudio2Device::TestDecompressOggVorbis( USoundWave* Wave )
 	if( OggInfo.ReadCompressedInfo( Wave->ResourceData, Wave->ResourceSize, &QualityInfo ) )
 	{
 		// Extract the data
-		Wave->SampleRate = QualityInfo.SampleRate;
+		Wave->SetSampleRate(QualityInfo.SampleRate);
 		Wave->NumChannels = QualityInfo.NumChannels;
 		Wave->RawPCMDataSize = QualityInfo.SampleDataSize;
 		Wave->Duration = QualityInfo.Duration;

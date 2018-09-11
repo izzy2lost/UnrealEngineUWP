@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
 using System;
@@ -30,8 +30,9 @@ public class PhysXVehicleLib : ModuleRules
                     return PhysXLibraryMode.Checked;
                 }
             case UnrealTargetConfiguration.Shipping:
+				return PhysXLibraryMode.Shipping;
             case UnrealTargetConfiguration.Test:
-                return PhysXLibraryMode.Shipping;
+                return PhysXLibraryMode.Profile;
             case UnrealTargetConfiguration.Development:
             case UnrealTargetConfiguration.DebugGame:
             case UnrealTargetConfiguration.Unknown:
@@ -77,58 +78,58 @@ public class PhysXVehicleLib : ModuleRules
 
         string PhysXLibDir = Target.UEThirdPartySourceDirectory + "PhysX3/Lib/";
 
-		// Libraries and DLLs for windows platform
+        // Libraries and DLLs for windows platform
 		// @ATG_CHANGE: BEGIN UWP support
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
-		{
+        {
 			PublicLibraryPaths.Add(PhysXLibDir + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
 
-			PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}_x64.lib", LibrarySuffix));
-		}
+            PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}_x64.lib", LibrarySuffix));
+        }
 		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
-		{
+        {
 			PublicLibraryPaths.Add(PhysXLibDir + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
 
-			PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}_x86.lib", LibrarySuffix));
-		}
+            PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}_x86.lib", LibrarySuffix));
+        }
 		// @ATG_CHANGE: END UWP support
-		else if (Target.Platform == UnrealTargetPlatform.Mac)
-		{
-			PublicLibraryPaths.Add(PhysXLibDir + "Mac");
+        else if (Target.Platform == UnrealTargetPlatform.Mac)
+        {
+            PublicLibraryPaths.Add(PhysXLibDir + "Mac");
 
-			PublicAdditionalLibraries.Add(String.Format(PhysXLibDir + "Mac/libPhysX3Vehicle{0}.a", LibrarySuffix));
-		}
-		else if (Target.Platform == UnrealTargetPlatform.Android)
-		{
-			PublicLibraryPaths.Add(PhysXLibDir + "Android/ARMv7");
-			PublicLibraryPaths.Add(PhysXLibDir + "Android/x86");
-			PublicLibraryPaths.Add(PhysXLibDir + "Android/ARM64");
-			PublicLibraryPaths.Add(PhysXLibDir + "Android/x64");
+            PublicAdditionalLibraries.Add(String.Format(PhysXLibDir + "Mac/libPhysX3Vehicle{0}.a", LibrarySuffix));
+        }
+        else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Android))
+        {
+            PublicLibraryPaths.Add(PhysXLibDir + "Android/ARMv7");
+            PublicLibraryPaths.Add(PhysXLibDir + "Android/x86");
+            PublicLibraryPaths.Add(PhysXLibDir + "Android/ARM64");
+            PublicLibraryPaths.Add(PhysXLibDir + "Android/x64");
 
-			PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}", LibrarySuffix));
-		}
-		else if (Target.Platform == UnrealTargetPlatform.Linux)
-		{
-			PublicLibraryPaths.Add(PhysXLibDir + "Linux/" + Target.Architecture);
+            PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}", LibrarySuffix));
+        }
+        else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
+        {
+            PublicLibraryPaths.Add(PhysXLibDir + "Linux/" + Target.Architecture);
 
-			PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}", LibrarySuffix));
-		}
-		else if (Target.Platform == UnrealTargetPlatform.IOS)
-		{
-			PublicLibraryPaths.Add(PhysXLibDir + "IOS");
+            PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}", LibrarySuffix));
+        }
+        else if (Target.Platform == UnrealTargetPlatform.IOS)
+        {
+            PublicLibraryPaths.Add(PhysXLibDir + "IOS");
 
-			PublicAdditionalLibraries.Add("PhysX3Vehicle" + LibrarySuffix);
-			PublicAdditionalShadowFiles.Add(Path.Combine(PhysXLibDir, "IOS", "libPhysX3Vehicle" + LibrarySuffix + ".a"));
-		}
-		else if (Target.Platform == UnrealTargetPlatform.TVOS)
-		{
-			PublicLibraryPaths.Add(PhysXLibDir + "TVOS");
+            PublicAdditionalLibraries.Add("PhysX3Vehicle" + LibrarySuffix);
+            PublicAdditionalShadowFiles.Add(Path.Combine(PhysXLibDir, "IOS", "libPhysX3Vehicle" + LibrarySuffix + ".a"));
+        }
+        else if (Target.Platform == UnrealTargetPlatform.TVOS)
+        {
+            PublicLibraryPaths.Add(PhysXLibDir + "TVOS");
 
-			PublicAdditionalLibraries.Add("PhysX3Vehicle" + LibrarySuffix);
-			PublicAdditionalShadowFiles.Add(Path.Combine(PhysXLibDir, "TVOS", "libPhysX3Vehicle" + LibrarySuffix + ".a"));
-		}
-		else if (Target.Platform == UnrealTargetPlatform.HTML5)
-		{
+            PublicAdditionalLibraries.Add("PhysX3Vehicle" + LibrarySuffix);
+            PublicAdditionalShadowFiles.Add(Path.Combine(PhysXLibDir, "TVOS", "libPhysX3Vehicle" + LibrarySuffix + ".a"));
+        }
+        else if (Target.Platform == UnrealTargetPlatform.HTML5)
+        {
 			string OpimizationSuffix = "";
 			if (Target.bCompileForSize)
 			{
@@ -146,24 +147,24 @@ public class PhysXVehicleLib : ModuleRules
 				}
 			}
             PublicAdditionalLibraries.Add(PhysXLibDir + "HTML5/PhysX3Vehicle" + OpimizationSuffix + ".bc");
-		}
-		else if (Target.Platform == UnrealTargetPlatform.PS4)
-		{
-			PublicLibraryPaths.Add(PhysXLibDir + "PS4");
+        }
+        else if (Target.Platform == UnrealTargetPlatform.PS4)
+        {
+            PublicLibraryPaths.Add(PhysXLibDir + "PS4");
 
-			PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}", LibrarySuffix));
-		}
-		else if (Target.Platform == UnrealTargetPlatform.XboxOne)
-		{
+            PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}", LibrarySuffix));
+        }
+        else if (Target.Platform == UnrealTargetPlatform.XboxOne)
+        {
             PublicLibraryPaths.Add(Path.Combine(PhysXLibDir, "XboxOne\\VS2015"));
 
-			PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}.lib", LibrarySuffix));
-		}
-		else if (Target.Platform == UnrealTargetPlatform.Switch)
-		{
-			PublicLibraryPaths.Add(PhysXLibDir + "Switch");
+            PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}.lib", LibrarySuffix));
+        }
+        else if (Target.Platform == UnrealTargetPlatform.Switch)
+        {
+            PublicLibraryPaths.Add(PhysXLibDir + "Switch");
 
-			PublicAdditionalLibraries.Add("PhysX3Vehicle" + LibrarySuffix);
-		}
+            PublicAdditionalLibraries.Add("PhysX3Vehicle" + LibrarySuffix);
+        }
     }
 }

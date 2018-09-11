@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -30,10 +30,10 @@ public:
 	// Local functions.
 	void LocalPrint( const TCHAR* Str )
 	{
-#if PLATFORM_APPLE || PLATFORM_LINUX
-		printf("%s", TCHAR_TO_ANSI(Str));
+#if PLATFORM_APPLE || PLATFORM_UNIX
+		printf("%s", TCHAR_TO_UTF8(Str));
 // @ATG_CHANGE : BEGIN UWP support
-#elif PLATFORM_WINDOWS || PLATFORM_UWP
+#elif PLATFORM_WINDOWS || PLATFORM_XBOXONE || PLATFORM_UWP
 // @ATG_CHANGE : END
 		wprintf(TEXT("%ls"), Str);
 #else

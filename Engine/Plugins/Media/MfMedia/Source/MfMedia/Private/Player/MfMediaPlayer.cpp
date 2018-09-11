@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "MfMediaPlayer.h"
 
@@ -16,10 +16,10 @@
 // @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
 #if PLATFORM_WINDOWS || PLATFORM_UWP
 // @ATG_CHANGE : END
-	#include "WindowsHWrapper.h"
-	#include "AllowWindowsPlatformTypes.h"
+	#include "Windows/WindowsHWrapper.h"
+	#include "Windows/AllowWindowsPlatformTypes.h"
 #else
-	#include "XboxOneAllowPlatformTypes.h"
+	#include "XboxOne/XboxOneAllowPlatformTypes.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "FMfMediaPlayer"
@@ -750,9 +750,9 @@ void FMfMediaPlayer::ReceiveSourceReaderSample(IMFSample* Sample, HRESULT Status
 // @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
 #if PLATFORM_WINDOWS || PLATFORM_UWP
 // @ATG_CHANGE : END
-	#include "HideWindowsPlatformTypes.h"
+	#include "Windows/HideWindowsPlatformTypes.h"
 #else
-	#include "XboxOneHidePlatformTypes.h"
+	#include "XboxOne/XboxOneHidePlatformTypes.h"
 #endif
 
 #endif //MFMEDIA_SUPPORTED_PLATFORM

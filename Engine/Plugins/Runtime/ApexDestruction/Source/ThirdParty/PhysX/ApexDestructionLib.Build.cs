@@ -29,8 +29,9 @@ public class ApexDestructionLib : ModuleRules
                     return APEXLibraryMode.Checked;
                 }
             case UnrealTargetConfiguration.Shipping:
+				return APEXLibraryMode.Shipping;
             case UnrealTargetConfiguration.Test:
-                return APEXLibraryMode.Shipping;
+                return APEXLibraryMode.Profile;
             case UnrealTargetConfiguration.Development:
             case UnrealTargetConfiguration.DebugGame:
             case UnrealTargetConfiguration.Unknown:
@@ -205,7 +206,7 @@ public class ApexDestructionLib : ModuleRules
                 RuntimeDependencies.Add(LibraryPath);
             }
         }
-        else if (Target.Platform == UnrealTargetPlatform.Linux)
+        else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
         {
             if (Target.Architecture.StartsWith("x86_64"))
             {

@@ -13,6 +13,8 @@
 #include "Mac/MacPlatformOutputDevices.h"
 #elif PLATFORM_IOS
 #include "IOS/IOSPlatformOutputDevices.h"
+#elif PLATFORM_LUMIN
+#include "Lumin/LuminOutputDevices.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidOutputDevices.h"
 // @ATG_CHANGE : BEGIN UWP support
@@ -21,8 +23,8 @@
 // @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 #include "HTML5/HTML5PlatformOutputDevices.h"
-#elif PLATFORM_LINUX
-#include "Linux/LinuxPlatformOutputDevices.h"
+#elif PLATFORM_UNIX
+#include "Unix/UnixPlatformOutputDevices.h"
 #elif PLATFORM_SWITCH
 #include "Switch/SwitchPlatformOutputDevices.h"
 #endif

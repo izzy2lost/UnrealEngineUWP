@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
 using System.IO;
@@ -61,6 +61,8 @@ public class UnrealEd : ModuleRules
 				"Persona",
                 "PhysicsAssetEditor",
                 "ClothingSystemEditorInterface",
+				"NavigationSystem",
+				"Media",
 			}
 		);
 
@@ -82,7 +84,6 @@ public class UnrealEd : ModuleRules
 				"EditorStyle",
 				"SourceControl",
 				"UnrealEdMessages",
-				"AIModule",
 				"GameplayDebugger",
 				"BlueprintGraph",
 				"Http",
@@ -93,6 +94,9 @@ public class UnrealEd : ModuleRules
 				"AudioEditor",
 				"NetworkFileSystem",
 				"UMG",
+				"NavigationSystem",
+                "MeshDescription",
+                "MeshBuilder",
 			}
 		);
 
@@ -105,6 +109,7 @@ public class UnrealEd : ModuleRules
 				"AppFramework",
 				"BlueprintGraph",
 				"CinematicCamera",
+				"CurveEditor",
 				"DesktopPlatform",
 				"LauncherPlatform",
 				"EditorStyle",
@@ -156,6 +161,7 @@ public class UnrealEd : ModuleRules
 				"ClothingSystemRuntime",
 				"ClothingSystemRuntimeInterface",
 				"PIEPreviewDeviceProfileSelector",
+				"TimeManagement",
 			}
 		);
 
@@ -213,11 +219,11 @@ public class UnrealEd : ModuleRules
 				"HTML5PlatformEditor",
 				"PortalProxies",
 				"PortalServices",
-				"GeometryCacheEd",
 				"BlueprintNativeCodeGen",
 				"OverlayEditor",
 				"AnimationModifiers",
 				"ClothPainter",
+				"Media",
 			}
 		);
 
@@ -231,12 +237,19 @@ public class UnrealEd : ModuleRules
 			DynamicallyLoadedModuleNames.Add("AndroidPlatformEditor");
 		}
 
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.Mac)
+		{
+			DynamicallyLoadedModuleNames.Add("LuminPlatformEditor");
+		}
+
 		// @ATG_CHANGE : BEGIN UWP support
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
 		{
 			DynamicallyLoadedModuleNames.Add("UWPPlatformEditor");
 		}
 		// @ATG_CHANGE : END
+
+
 
 		CircularlyReferencedDependentModules.AddRange(
 			new string[]
@@ -245,7 +258,7 @@ public class UnrealEd : ModuleRules
 				"Kismet",
 				"AudioEditor",
 				"ViewportInteraction",
-				"VREditor"
+				"VREditor",
 			}
 		);
 
@@ -261,6 +274,9 @@ public class UnrealEd : ModuleRules
 				"MeshUtilities",
 				"AssetTools",
 				"KismetCompiler",
+				"NavigationSystem",
+				"GameplayTasks",
+				"AIModule",
 			}
 			);
 

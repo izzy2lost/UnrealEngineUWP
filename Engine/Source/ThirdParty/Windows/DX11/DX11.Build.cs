@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 using UnrealBuildTool;
 
 public class DX11 : ModuleRules
@@ -12,7 +12,7 @@ public class DX11 : ModuleRules
             Target.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
 			Target.UEThirdPartySourceDirectory + "Windows/DirectX";
 		// @ATG_CHANGE : END 
-        PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
+		PublicSystemIncludePaths.Add(DirectXSDKDir + "/Include");
 
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
 		{
@@ -45,12 +45,12 @@ public class DX11 : ModuleRules
 				PublicAdditionalLibraries.AddRange(
 					new string[]
 					{
-						"X3DAudio.lib",
-						"xapobase.lib",
-						"XAPOFX.lib"
-					}
-					);
-			}
+				"X3DAudio.lib",
+				"xapobase.lib",
+				"XAPOFX.lib"
+				}
+				);
+		}
 			// @ATG_CHANGE : END
 		}
 		else if (Target.Platform == UnrealTargetPlatform.XboxOne)
@@ -69,6 +69,6 @@ public class DX11 : ModuleRules
 		}
 		// @ATG_CHANGE : END 
 
-		}
+	}
 }
 

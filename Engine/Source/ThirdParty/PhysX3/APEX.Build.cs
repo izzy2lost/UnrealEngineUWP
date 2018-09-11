@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
 using System;
@@ -29,8 +29,9 @@ public class APEX : ModuleRules
                     return APEXLibraryMode.Checked;
                 }
 			case UnrealTargetConfiguration.Shipping:
-			case UnrealTargetConfiguration.Test:
 				return APEXLibraryMode.Shipping;
+			case UnrealTargetConfiguration.Test:
+				return APEXLibraryMode.Profile;
 			case UnrealTargetConfiguration.Development:
 			case UnrealTargetConfiguration.DebugGame:
 			case UnrealTargetConfiguration.Unknown:
@@ -94,7 +95,6 @@ public class APEX : ModuleRules
                 APEXDir + "shared/general/RenderDebug/public",
                 APEXDir + "shared/general/PairFilter/include",
 				APEXDir + "shared/internal/include",
-                APEXDir + "externals/CUDA_6.5.19/include",
 			}
 			);
 
@@ -207,7 +207,7 @@ public class APEX : ModuleRules
 				PublicDefinitions.Add("UE_APEX_SUFFIX=" + LibrarySuffix);
 			}
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Linux)
+		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
 		{
 			if (Target.Architecture.StartsWith("x86_64"))
 			{

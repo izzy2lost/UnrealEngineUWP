@@ -24,6 +24,7 @@
 
 #include "CoreGlobals.h"
 #include "Misc/ConfigCacheIni.h"
+#include "AudioCompressionSettingsUtils.h"
 
 // Macro to check result code for XAudio2 failure, get the string version, log, and goto a cleanup
 #define XAUDIO2_CLEANUP_ON_FAIL(Result)						\
@@ -302,7 +303,7 @@ namespace Audio
 #if PLATFORM_WINDOWS || PLATFORM_UWP
 		// @ATG_CHANGE : END
 		OutInfo.SampleRate = WaveFormatEx.nSamplesPerSec;
-		
+
 		bool bIsMono = (WaveFormatEx.nChannels == 1);
 		// We are going to default to stereo for mono devices, then mix to mono on buffer submission (automatically done by xaudio2)
 		if (bIsMono == 1)
@@ -605,9 +606,6 @@ namespace Audio
 			OutputAudioStreamSourceVoice = nullptr;
 		}
 
-		// Don't let the audio stream process while switching to new audio device!
-		//FScopeLock Lock(&AudioRenderCritSect); XXX - Audio should be stopped then the device switched then audio started again
-
 		// Now destroy the mastering voice
 		if (OutputAudioStreamMasteringVoice)
 		{
@@ -795,4 +793,12 @@ namespace Audio
 		return FAudioPlatformSettings::GetPlatformSettings(TEXT("/Script/WindowsTargetPlatform.WindowsTargetSettings"));
 	}
 
+	bool FMixerPlatformXAudio2::DisablePCMAudioCaching() const
+	{
+#if PLATFORM_WINDOWS
+		return false;
+#else
+		return true;
+#endif
+	}
 }

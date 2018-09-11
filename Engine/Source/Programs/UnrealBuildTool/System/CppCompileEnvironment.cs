@@ -30,6 +30,8 @@ namespace UnrealBuildTool
 		Linux,
 		TVOS,
 		Switch,
+		Quail,
+		Lumin,
 	}
 
 	/// <summary>
@@ -91,16 +93,6 @@ namespace UnrealBuildTool
 		/// The architecture that is being compiled/linked (empty string by default)
 		/// </summary>
 		public readonly string Architecture;
-
-		/// <summary>
-		/// The directory to put the output object/debug files in.
-		/// </summary>
-		public DirectoryReference OutputDirectory = null;
-
-		/// <summary>
-		/// The directory to put precompiled header files in. Experimental setting to allow using a path on a faster drive. Defaults to the standard output directory if not set.
-		/// </summary>
-		public DirectoryReference PCHOutputDirectory = null;
 
 		/// <summary>
 		/// The directory to shadow source files in for syncing to remote compile servers
@@ -291,7 +283,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// List of header files to force include
 		/// </summary>
-		public List<FileReference> ForceIncludeFiles = new List<FileReference>();
+		public List<FileItem> ForceIncludeFiles = new List<FileItem>();
 
 		/// <summary>
 		/// The C++ preprocessor definitions to use.
@@ -360,8 +352,6 @@ namespace UnrealBuildTool
 			Platform = Other.Platform;
 			Configuration = Other.Configuration;
 			Architecture = Other.Architecture;
-			OutputDirectory = Other.OutputDirectory;
-			PCHOutputDirectory = Other.PCHOutputDirectory;
 			LocalShadowDirectory = Other.LocalShadowDirectory;
 			PrecompiledHeaderIncludeFilename = Other.PrecompiledHeaderIncludeFilename;
 			PrecompiledHeaderAction = Other.PrecompiledHeaderAction;

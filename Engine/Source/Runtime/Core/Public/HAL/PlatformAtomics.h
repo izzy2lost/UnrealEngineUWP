@@ -23,8 +23,10 @@
 // @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 #include "HTML5/HTML5PlatformAtomics.h"
-#elif PLATFORM_LINUX
-#include "Linux/LinuxPlatformAtomics.h"
+#elif PLATFORM_UNIX
+#include "Unix/UnixPlatformAtomics.h"
 #elif PLATFORM_SWITCH
 #include "Switch/SwitchPlatformAtomics.h"
+#else
+#error Unknown platform
 #endif

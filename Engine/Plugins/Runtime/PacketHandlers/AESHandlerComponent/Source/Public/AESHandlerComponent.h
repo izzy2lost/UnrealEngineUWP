@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -42,6 +42,8 @@ public:
 	// Replace the NonceData used for encryption with NewData if NewData is exactly NonceSizeInBytes long.
 	virtual void SetEncryptionNonceData(const TArrayView<const uint8>& NewData) override;
 	// ATG_CHANGE : END
+	// Returns true if encryption is currently enabled.
+	virtual bool IsEncryptionEnabled() const override;
 
 	// HandlerComponent interface
 	virtual void Initialize() override;

@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "MfMediaUtils.h"
 
@@ -15,9 +15,9 @@
 // @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
 #if PLATFORM_WINDOWS || PLATFORM_UWP
 // @ATG_CHANGE : END
-	#include "AllowWindowsPlatformTypes.h"
+	#include "Windows/AllowWindowsPlatformTypes.h"
 #else
-	#include "XboxOneAllowPlatformTypes.h"
+	#include "XboxOne/XboxOneAllowPlatformTypes.h"
 #endif
 
 
@@ -143,21 +143,30 @@ namespace MfMedia
 					return NULL;
 				}
 			}
-
 // @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
 #if !PLATFORM_UWP
 // @ATG_CHANGE : END
-			if ((SubType == MFVideoFormat_HEVC) && !FWindowsPlatformMisc::VerifyWindowsVersion(10, 0))
+			if ((SubType == MFVideoFormat_H264) || (SubType == MFVideoFormat_H264_ES))
 			{
-				UE_LOG(LogMfMedia, Warning, TEXT("Your Windows version is %s"), *FPlatformMisc::GetOSVersion());
+				if (!FWindowsPlatformMisc::VerifyWindowsVersion(6, 1) /*Win7*/)
+			{
+					UE_LOG(LogMfMedia, Warning, TEXT("H264 video type requires Windows 7 or newer (your version is %s)"), *FPlatformMisc::GetOSVersion());
+					return NULL;
+				}
+			}
 
-				if ((SubType == MFVideoFormat_HEVC) && !FWindowsPlatformMisc::VerifyWindowsVersion(6, 2))
+			if ((SubType == MFVideoFormat_HEVC) || (SubType == MFVideoFormat_HEVC_ES))
+			{
+				if (!FWindowsPlatformMisc::VerifyWindowsVersion(10, 0) /*Win10*/)
 				{
-					UE_LOG(LogMfMedia, Warning, TEXT("HEVC video type requires Windows 10 or newer"));
+					if (!FWindowsPlatformMisc::VerifyWindowsVersion(6, 2) /*Win8*/)
+				{
+						UE_LOG(LogMfMedia, Warning, TEXT("HEVC video type requires Windows 10 or newer (your version is %s"), *FPlatformMisc::GetOSVersion());
 					return NULL;
 				}
 
-				UE_LOG(LogMfMedia, Warning, TEXT("HEVC video type requires Windows 10 or newer (game must be manifested for Windows 10)"));
+					UE_LOG(LogMfMedia, Warning, TEXT("HEVC video type requires Windows 10 or newer (your version is %s), and game must be manifested for Windows 10"), *FPlatformMisc::GetOSVersion());
+				}
 			}
 // @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
 #endif // PLATFORM_UWP
@@ -177,7 +186,24 @@ namespace MfMedia
 #if PLATFORM_XBOXONE
 			Result = OutputType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12); // XboxOne only supports NV12
 #else
-			Result = OutputType->SetGUID(MF_MT_SUBTYPE, (SubType == MFVideoFormat_RGB32) ? MFVideoFormat_RGB32 : MFVideoFormat_NV12);
+			if ((SubType == MFVideoFormat_HEVC) ||
+				(SubType == MFVideoFormat_HEVC_ES) ||
+				(SubType == MFVideoFormat_NV12) ||
+				(SubType == MFVideoFormat_IYUV))
+			{
+				Result = OutputType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12);
+			}
+			else
+			{
+				const bool Uncompressed =
+					(SubType == MFVideoFormat_RGB555) ||
+					(SubType == MFVideoFormat_RGB565) ||
+					(SubType == MFVideoFormat_RGB24) ||
+					(SubType == MFVideoFormat_RGB32) ||
+					(SubType == MFVideoFormat_ARGB32);
+
+				Result = OutputType->SetGUID(MF_MT_SUBTYPE, Uncompressed ? MFVideoFormat_RGB32 : MFVideoFormat_YUY2);
+			}
 #endif
 
 			if (FAILED(Result))
@@ -872,9 +898,9 @@ namespace MfMedia
 // @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
 #if PLATFORM_WINDOWS || PLATFORM_UWP
 // @ATG_CHANGE : END
-	#include "HideWindowsPlatformTypes.h"
+	#include "Windows/HideWindowsPlatformTypes.h"
 #else
-	#include "XboxOneHidePlatformTypes.h"
+	#include "XboxOne/XboxOneHidePlatformTypes.h"
 #endif
 
 #endif //MFMEDIA_SUPPORTED_PLATFORM

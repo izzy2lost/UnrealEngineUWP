@@ -14,6 +14,8 @@
 #include "Apple/ApplePlatformFile.h"
 #elif PLATFORM_IOS
 #include "Apple/ApplePlatformFile.h"
+#elif PLATFORM_LUMIN
+#include "Lumin/LuminPlatformFile.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidFile.h"
 // @ATG_CHANGE : BEGIN UWP support

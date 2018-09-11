@@ -21,6 +21,8 @@
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
             "WhitelistPlatforms": [
+              "Android",
+              "IOS",
               "Mac",
               "Win32",
               "Win64",
@@ -28,11 +30,11 @@
               "UWP64",
               "Linux",
               "PS4",
-              "XboxOne"
+              "XboxOne",
+              "Switch"
             ],
             "BlacklistPlatforms": [
-              "Android",
-              "IOS",
+              "TVOS"
             ]
 		},
 		{
@@ -40,13 +42,14 @@
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
             "WhitelistPlatforms": [
+              "Android",
+              "IOS",
               "Mac",
               "Linux",
               "PS4"
             ],
             "BlacklistPlatforms": [
-              "Android",
-              "IOS",
+              "TVOS"
             ]
 		},
 		{
@@ -63,6 +66,20 @@
             "BlacklistPlatforms": [
               "Android",
               "IOS",
+              "TVOS"
+            ]
+		},
+		{
+			"Name": "PlatformCryptoSwitch",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+            "WhitelistPlatforms": [
+              "Switch"
+            ],
+            "BlacklistPlatforms": [
+              "Android",
+              "IOS",
+              "TVOS"
             ]
 		}
 	]
