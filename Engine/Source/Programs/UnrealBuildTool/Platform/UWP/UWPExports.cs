@@ -54,17 +54,6 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// 
 		/// </summary>
-		/// <returns></returns>
-		public static string FindWindowsSDKInstallationFolder()
-		{
-			// Neither of the parameters here need to be exactly right to find the correct SDK location.
-			// The key is just that we pass a UWP platform and a supported compiler.
-			return VCEnvironment.FindWindowsSDKInstallationFolder(CppPlatform.UWP64, WindowsCompiler.VisualStudio2017);
-		}
-
-		/// <summary>
-		/// 
-		/// </summary>
 		/// <param name="ToolName"></param>
 		/// <returns></returns>
 		public static FileReference GetWindowsSdkToolPath(string ToolName)

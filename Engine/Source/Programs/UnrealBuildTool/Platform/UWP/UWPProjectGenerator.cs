@@ -73,11 +73,11 @@ namespace UnrealBuildTool
 			}
 
 			WindowsCompiler Compiler = WindowsCompiler.VisualStudio2017;
-			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler);
+			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler, "Latest");
 			if (PlatformWinMDLocation == null || !FileReference.Exists(FileReference.Combine(PlatformWinMDLocation, "platform.winmd")))
 			{
 				Compiler = WindowsCompiler.VisualStudio2015;
-				PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler);
+				PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler, "Latest");
 			}
 			string FoundationWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Compiler);
 			string UniversalWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Compiler);

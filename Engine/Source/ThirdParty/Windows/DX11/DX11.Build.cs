@@ -8,9 +8,8 @@ public class DX11 : ModuleRules
 		Type = ModuleType.External;
 
         // @ATG_CHANGE : BEGIN UWP support
-        string DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
-            Target.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
-			Target.UEThirdPartySourceDirectory + "Windows/DirectX";
+        string DirectXSDKDir =
+            Target.UEThirdPartySourceDirectory + "Windows/DirectXLegacy";
 		// @ATG_CHANGE : END 
 		PublicSystemIncludePaths.Add(DirectXSDKDir + "/Include");
 
@@ -38,20 +37,6 @@ public class DX11 : ModuleRules
 				"dinput8.lib",
 				}
 				);
-	        // @ATG_CHANGE : BEGIN DX SDK lib isolation clean up
-			// Preserved for consistency with original version, but definitely not needed when using Win10 SDK
-			if (!Target.WindowsPlatform.bUseWindowsSDK10)
-			{
-				PublicAdditionalLibraries.AddRange(
-					new string[]
-					{
-				"X3DAudio.lib",
-				"xapobase.lib",
-				"XAPOFX.lib"
-				}
-				);
-		}
-			// @ATG_CHANGE : END
 		}
 		else if (Target.Platform == UnrealTargetPlatform.XboxOne)
 		{

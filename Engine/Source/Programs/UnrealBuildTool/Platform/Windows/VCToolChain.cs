@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -48,10 +48,8 @@ namespace UnrealBuildTool
 			Log.TraceLog("Using {0} compiler toolchain in {1}", EnvVars.ToolChainVersion, EnvVars.ToolChainDir);
 			Log.TraceLog("Using Windows SDK {0} in {1}", EnvVars.WindowsSdkVersion, EnvVars.WindowsSdkDir);
 		}
-		
-		// @ATG_CHANGE : BEGIN making public for reuse in UWP toolchain
-		static void AddDefinition(List<string> Arguments, string Definition)
-		// @ATG_CHANGE : END
+
+		public static void AddDefinition(List<string> Arguments, string Definition)
 		{
 			// Split the definition into name and value
 			int ValueIdx = Definition.IndexOf('=');
@@ -66,9 +64,7 @@ namespace UnrealBuildTool
 		}
 
 
-		// @ATG_CHANGE : BEGIN making public for reuse in UWP toolchain
 		public static void AddDefinition(List<string> Arguments, string Variable, string Value)
-		// @ATG_CHANGE : END
 		{
 			// If the value has a space in it and isn't wrapped in quotes, do that now
 			if (Value != null && !Value.StartsWith("\"") && (Value.Contains(" ") || Value.Contains("$")))
@@ -100,14 +96,13 @@ namespace UnrealBuildTool
 			}
 		}
 
-		// @ATG_CHANGE : BEGIN making helper public for use in UWP toolchain
+
 		public static void AddIncludePath(List<string> Arguments, DirectoryReference IncludePath)
-		// @ATG_CHANGE : END 
 		{
 			// If the value has a space in it and isn't wrapped in quotes, do that now. Make sure it doesn't include a trailing slash, because that will escape the closing quote.
 			string IncludePathString;
 			if(IncludePath.IsUnderDirectory(UnrealBuildTool.RootDirectory))
-		{
+			{
 				IncludePathString = IncludePath.MakeRelativeTo(UnrealBuildTool.EngineSourceDirectory);
 			}
 			else
@@ -133,7 +128,7 @@ namespace UnrealBuildTool
 		static void AddSystemIncludePath(List<string> Arguments, DirectoryReference IncludePath)
 		{
 			if (WindowsPlatform.bCompileWithClang)
-		{
+			{
 				// @todo Clang: Clang uses a special command-line syntax for system headers.  This is used for two reasons.  The first is that Clang will automatically 
 				// suppress compiler warnings in headers found in these directories, such as the DirectX SDK headers.  The other reason this is important is in the case 
 				// where there the same header include path is passed as both a regular include path and a system include path (extracted from INCLUDE environment).  In 
@@ -141,19 +136,19 @@ namespace UnrealBuildTool
 				// include path set later on by a module.  NOTE: When passing "-Xclang", these options will always appear at the end of the command-line string, meaning
 				// they will be forced to appear *after* all environment-variable-extracted includes.  This is technically okay though.
 				if (WindowsPlatform.bUseVCCompilerArgs)
-			{
+				{
 					Arguments.Add(String.Format("-Xclang -internal-isystem -Xclang \"{0}\"", IncludePath));
 				}
 				else
 				{
 					Arguments.Add(String.Format("-isystem \"{0}\"", IncludePath));
 				}
-				}
-			else
-				{
-				AddIncludePath(Arguments, IncludePath);
-				}
 			}
+			else
+			{
+				AddIncludePath(Arguments, IncludePath);
+			}
+		}
 
 
 		void AppendCLArguments_Global(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
@@ -382,12 +377,12 @@ namespace UnrealBuildTool
 					//
 					// LTCG
 					//
-						if (CompileEnvironment.bAllowLTCG)
-						{
-							// Enable link-time code generation.
-							Arguments.Add("/GL");
-						}
+					if (CompileEnvironment.bAllowLTCG)
+					{
+						// Enable link-time code generation.
+						Arguments.Add("/GL");
 					}
+				}
 				else
 				{
 					if(CompileEnvironment.bOptimizeCode)
@@ -574,9 +569,9 @@ namespace UnrealBuildTool
 				{
 					// Allow optimized code to be debugged more easily.  This makes PDBs a bit larger, but doesn't noticeably affect
 					// compile times.  The executable code is not affected at all by this switch, only the debugging information.
-						Arguments.Add("/Zo");
-					}
-					}
+					Arguments.Add("/Zo");
+				}
+			}
 			else
 			{
 				// Relaxes floating point precision semantics to allow more optimization.
@@ -622,50 +617,8 @@ namespace UnrealBuildTool
 				Arguments.Add("/wd4463"); // 4463 - overflow; assigning 1 to bit-field that can only hold values from -1 to 0
 
 				Arguments.Add("/wd4838"); // 4838: conversion from 'type1' to 'type2' requires a narrowing conversion
-
-				// @ATG_CHANGE : BEGIN winmd support
-				// Enable /ZW if the module requests it
-				if (CompileEnvironment.bEnableWinRTComponentExtensions || CompileEnvironment.WinMDReferences.Count > 0)
-				{
-					// Enable Windows Runtime extensions.
-					Arguments.Add(" /ZW");
-
-					// Don't automatically add metadata references.  We'll do that ourselves to avoid referencing windows.winmd directly:
-					// we've hit problems where types are somehow in windows.winmd on some installations but not others, leading to either
-					// missing or duplicated type references.
-					Arguments.Add(" /ZW:nostdlib");
-
-                    if (WindowsPlatform.bUseWindowsSDK10)
-                    {
-
-                        if (Directory.Exists(Path.Combine(EnvVars.WindowsSDKExtensionDir, "References")))
-						{
-							Arguments.Add(String.Format(@" /AI""{0}\References""", EnvVars.WindowsSDKExtensionDir));
-							Arguments.Add(String.Format(@" /AI""{0}\References\{1}""", EnvVars.WindowsSDKExtensionDir, EnvVars.WindowsSDKExtensionHeaderLibVersion));
-
-							// Use the latest version of contracts, consistent with our choice elsewhere to use the latest version of the SDK.
-							// These metadata files should bring in everything available on the Universal family.  Extension SDKs should be
-							// referenced directly by the modules that depend on them.
-							Arguments.Add(String.Format(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Compiler)));
-							Arguments.Add(String.Format(@" /FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Compiler)));
 			}
-                    }
 
-                    DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler);
-					if (PlatformWinMDLocation != null)
-					{
-						Arguments.Add(String.Format(@" /AI""{0}""", PlatformWinMDLocation));
-						Arguments.Add(String.Format(@" /FU""{0}\platform.winmd""", PlatformWinMDLocation));
-					}
-
-					if (Compiler >= WindowsCompiler.VisualStudio2017)
-					{
-						// c1xx : warning C4199: two-phase name lookup is not supported for C++/CLI, C++/CX, or OpenMP; use /Zc:twoPhase-
-						Arguments.Add(" /Zc:twoPhase-");
-					}
-				}
-				// @ATG_CHANGE : END winmd support
-			}
 			if(WindowsPlatform.bUseVCCompilerArgs && CompileEnvironment.bEnableUndefinedIdentifierWarnings)
 			{
 				if (CompileEnvironment.bUndefinedIdentifierWarningsAsErrors)
@@ -1096,12 +1049,12 @@ namespace UnrealBuildTool
 			foreach (DirectoryReference IncludePath in CompileEnvironment.IncludePaths.SystemIncludePaths)
 			{
 				AddSystemIncludePath(SharedArguments, IncludePath);
-					}
+			}
 
 			foreach (DirectoryReference IncludePath in EnvVars.IncludePaths)
-					{
+			{
 				AddSystemIncludePath(SharedArguments, IncludePath);
-				}
+			}
 
 			if (!WindowsPlatform.bCompileWithClang && CompileEnvironment.bPrintTimingInfo)
 			{
@@ -1111,17 +1064,6 @@ namespace UnrealBuildTool
 					SharedArguments.Add("/d1reportTime");
 				}
 			}
-
-			// @ATG_CHANGE : BEGIN winmd support
-			// Add winmd references			
-			if (Compiler >= WindowsCompiler.VisualStudio2015 && WindowsPlatform.bUseWindowsSDK10)
-			{
-				foreach (string CurAssemblyInfo in CompileEnvironment.WinMDReferences)
-				{
-					SharedArguments.Add(String.Format(" /FU \"{0}\"", CurAssemblyInfo));
-				}
-			}
-			// @ATG_CHANGE : END winmd support
 
 			// Add preprocessor definitions to the argument list.
 			foreach (string Definition in CompileEnvironment.Definitions)
@@ -1711,9 +1653,7 @@ namespace UnrealBuildTool
 			return OutputFile;
 		}
 
-		// @ATG_CHANGE : BEGIN making public for reuse in UWP toolchain
-		public static void ExportObjectFilePaths(LinkEnvironment LinkEnvironment, string FileName)
-		// @ATG_CHANGE : END making public for reuse in UWP toolchain
+		private void ExportObjectFilePaths(LinkEnvironment LinkEnvironment, string FileName)
 		{
 			// Write the list of object file directories
 			HashSet<DirectoryReference> ObjectFileDirectories = new HashSet<DirectoryReference>();
@@ -1730,7 +1670,7 @@ namespace UnrealBuildTool
 				// Need to handle import libraries that are about to be built (but may not exist yet), third party libraries with relative paths in the UE4 tree, and system libraries in the system path
 				FileReference AdditionalLibraryLocation = new FileReference(AdditionalLibrary);
 				if(Path.IsPathRooted(AdditionalLibrary) || FileReference.Exists(AdditionalLibraryLocation))
-			{
+				{
 					ObjectFileDirectories.Add(AdditionalLibraryLocation.Directory);
 				}
 			}

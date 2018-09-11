@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -107,24 +107,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bEnablePIXProfiling")]
 		public bool bPixProfilingEnabled = true;
-
-		// @ATG_CHANGE : BEGIN UWP support
-        /// <summary>
-        /// Enable building with the Win10 SDK instead of the older Win8.1 SDK 
-        /// </summary>
-        [ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bUseWindowsSDK10")]
-        public bool bUseWindowsSDK10 = WindowsPlatform.bUseWindowsSDK10;
-		// @ATG_CHANGE : END UWP support
-
-		// @ATG_CHANGE : BEGIN UWP support
-		/// <summary>
-		/// True to compile toolchain (but not game targets, which require the standard bUseWindows10SDK) against the Windows 10 SDK.
-		/// We default to true to enable UWP support.  Turning this off will allow the Editor etc. to run on older versions of Windows,
-		/// but will exclude UWP support
-		/// </summary>
-		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bUseWindowsSDK10ForEditor")]
-		public bool bUseWindowsSDK10ForEditor = true;
-		// @ATG_CHANGE : END UWP support
+		
 
 		/// <summary>
 		/// The name of the company (author, provider) that created the project.
@@ -262,13 +245,6 @@ namespace UnrealBuildTool
 		{
 			get { return Inner.bPixProfilingEnabled; }
 		}
-
-		// @ATG_CHANGE : BEGIN UWP support
-		public bool bUseWindowsSDK10
-		{
-			get { return Inner.bUseWindowsSDK10; }
-		}
-		// @ATG_CHANGE : END UWP support
 
 		public string CompanyName
 		{
@@ -1615,13 +1591,6 @@ namespace UnrealBuildTool
 		/// <returns>New toolchain instance.</returns>
 		public override UEToolChain CreateToolChain(CppPlatform CppPlatform, ReadOnlyTargetRules Target)
 		{
-			// @ATG_CHANGE : BEGIN UWP support
-			// Using the Win10 SDK in the editor allows additional features for use with UWP, but should
-			// be kept seaparate from the game setting since it affects the minimum Windows version required
-			// to run the built exe.
-			bUseWindowsSDK10 = Target.WindowsPlatform.bUseWindowsSDK10;
-			// @ATG_CHANGE : END
-
 			if (Target.WindowsPlatform.StaticAnalyzer == WindowsStaticAnalyzer.PVSStudio)
 			{
 				return new PVSToolChain(CppPlatform, Target);

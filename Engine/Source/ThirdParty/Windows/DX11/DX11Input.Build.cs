@@ -8,9 +8,7 @@ public class DX11Input : ModuleRules
 		Type = ModuleType.External;
 
         // @ATG_CHANGE : BEGIN UWP support
-        string DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
-            Target.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
-			Target.UEThirdPartySourceDirectory + "Windows/DirectX";
+        string DirectXSDKDir = Target.UEThirdPartySourceDirectory + "Windows/DirectXLegacy";
 
         PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
 

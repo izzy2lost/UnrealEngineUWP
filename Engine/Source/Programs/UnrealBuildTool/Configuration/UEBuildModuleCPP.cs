@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -404,15 +404,19 @@ namespace UnrealBuildTool
 			HashSet<DirectoryReference> SystemIncludePaths,
 			List<string> Definitions,
 			List<UEBuildFramework> AdditionalFrameworks,
-			bool bLegacyPublicIncludePaths
+			bool bLegacyPublicIncludePaths,
+			// @ATG_CHANGE : BEGIN - winmd support
+			List<string> WinMDFiles
+			// @ATG_CHANGE : END - winmd support
 			)
 		{
 			if(AutoGenerateCppInfo != null)
 			{
 				IncludePaths.Add(GeneratedCodeDirectory);
 			}
-
-			base.AddModuleToCompileEnvironment(SourceBinary, IncludePaths, SystemIncludePaths, Definitions, AdditionalFrameworks, bLegacyPublicIncludePaths);
+			// @ATG_CHANGE : BEGIN - winmd support
+			base.AddModuleToCompileEnvironment(SourceBinary, IncludePaths, SystemIncludePaths, Definitions, AdditionalFrameworks, bLegacyPublicIncludePaths, WinMDFiles);
+			// @ATG_CHANGE : END - winmd support
 		}
 
 		// UEBuildModule interface.
