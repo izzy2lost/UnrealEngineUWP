@@ -50,6 +50,8 @@
     </Reference>
   </ItemGroup>
   <PropertyGroup>
+    <Windows10SdkPath>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0@InstallationFolder)</Windows10SdkPath>
+    <Windows10SdkLatestVersion>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0@ProductVersion)</Windows10SdkLatestVersion>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System.Runtime.WindowsRuntime">

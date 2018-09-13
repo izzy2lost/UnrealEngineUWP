@@ -298,7 +298,16 @@ namespace UnrealBuildTool
 			{
 				case WindowsCompiler.VisualStudio2017:
 				case WindowsCompiler.VisualStudio2015:
+					// @ATG_CHANGE : BEGIN - UWP support.  bUseWindowsSDK10 may not be set when this is called during project generation
+					if (InPlatform == CppPlatform.UWP64 || InPlatform == CppPlatform.UWP32)
+					// @ATG_CHANGE : END
+					{
 						Version = "v10.0";
+					}
+					else
+					{
+						Version = "v8.1";
+					}
 					break;
 
 				default:
