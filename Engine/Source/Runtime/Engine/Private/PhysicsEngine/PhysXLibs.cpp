@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	PhysXLibs.cpp: PhysX library imports
@@ -241,7 +241,9 @@ ENGINE_API bool LoadPhysXModules(bool bLoadCookingModule)
 
 	bool bSucceeded = true;
 
-#if PLATFORM_WINDOWS || PLATFORM_MAC
+// @LAB132 - Begin UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP || PLATFORM_MAC
+// @LAB132 - End
 	// Required modules (core PhysX)
 	bSucceeded = bSucceeded && PxFoundationHandle;
 	bSucceeded = bSucceeded && PhysX3CommonHandle;

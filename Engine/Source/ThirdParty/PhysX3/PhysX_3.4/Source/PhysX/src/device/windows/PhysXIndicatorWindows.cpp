@@ -84,7 +84,7 @@ physx::PhysXIndicator::PhysXIndicator(bool isGpu)
 	WCHAR configNameWide[_countof(configName)];
 	if (MultiByteToWideChar(CP_ACP, 0, configName, -1, configNameWide, _countof(configNameWide)) > 0)
 	{
-		mFileHandle = CreateFileMapping(INVALID_HANDLE_VALUE, NULL,
+		mFileHandle = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL,
 			PAGE_READWRITE, 0, sizeof(NvPhysXToDrv_Data_V1), configNameWide);
 	}
 #else
