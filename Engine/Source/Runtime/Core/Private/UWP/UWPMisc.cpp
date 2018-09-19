@@ -14,6 +14,7 @@
 #include <agile.h>
 #include "Modules/ModuleManager.h"
 
+
 /** 
  * Whether support for integrating into the firewall is there
  */
@@ -422,4 +423,3 @@ void FUWPMisc::GetValidTargetPlatforms(class TArray<class FString>& TargetPlatfo
 	}
 	TargetPlatformNames.Add(TEXT("UWP32"));
 }
-

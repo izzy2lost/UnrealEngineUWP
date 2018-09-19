@@ -283,7 +283,9 @@ void FXAudio2Device::TeardownHardware()
 	FXMAAudioInfo::Shutdown();
 #endif
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 	if (bComInitialized)
 	{
 		FPlatformMisc::CoUninitialize();
@@ -298,7 +300,9 @@ void FXAudio2Device::UpdateHardware()
 {
 	if (DeviceProperties)
 	{
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 	// If the audio device changed, we need to tear down and restart the audio engine state
 	if (DeviceProperties->DidAudioDeviceChange())
 	{

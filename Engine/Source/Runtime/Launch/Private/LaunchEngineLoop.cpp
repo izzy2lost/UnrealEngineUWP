@@ -79,7 +79,9 @@
 	#include "Interfaces/IEditorStyleModule.h"
 	#include "PIEPreviewDeviceProfileSelectorModule.h"
 
-	#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 		#include "Windows/AllowWindowsPlatformTypes.h"
 			#include <objbase.h>
 		#include "Windows/HideWindowsPlatformTypes.h"
@@ -179,7 +181,9 @@ class FFeedbackContext;
 
 #define LOCTEXT_NAMESPACE "LaunchEngineLoop"
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 	#include "Windows/AllowWindowsPlatformTypes.h"
 	#include <ObjBase.h>
 	#include "Windows/HideWindowsPlatformTypes.h"
@@ -2192,7 +2196,9 @@ int32 FEngineLoop::PreInit(const TCHAR* CmdLine)
 				return 1;
 			}
 
-#if PLATFORM_WINDOWS || PLATFORM_MAC || PLATFORM_UNIX
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP || PLATFORM_MAC || PLATFORM_UNIX
+// @LAB132: END
 			extern bool GIsConsoleExecutable;
 			if (GIsConsoleExecutable)
 			{
@@ -3968,7 +3974,9 @@ bool FEngineLoop::AppInit( )
 	}
 #endif // !UE_BUILD_SHIPPING
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 
 	// make sure that the log directory exists
 	IFileManager::Get().MakeDirectory( *FPaths::ProjectLogDir() );

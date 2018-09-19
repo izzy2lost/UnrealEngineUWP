@@ -1016,6 +1016,7 @@ void appUWPEarlyInit()
 
 /** The global EngineLoop instance */
 FEngineLoop	GEngineLoop;
+bool GIsConsoleExecutable = false;
 
 /**
  * PreInits the engine loop

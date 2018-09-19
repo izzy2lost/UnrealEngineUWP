@@ -209,7 +209,9 @@ template <> struct equality_pipeline_state_desc<FD3D12ComputePipelineStateDesc>
 	bool operator()(const FD3D12ComputePipelineStateDesc& lhs, const FD3D12ComputePipelineStateDesc& rhs)
 	{
 		PSO_IF_NOT_EQUAL_RETURN_FALSE(Desc.CS.BytecodeLength)
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 		PSO_IF_NOT_EQUAL_RETURN_FALSE(Desc.Flags)
 #endif
 		PSO_IF_NOT_EQUAL_RETURN_FALSE(Desc.pRootSignature)
@@ -388,7 +390,9 @@ protected:
 
 	FCriticalSection DiskCachesCS;
 
-#if !PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if !PLATFORM_WINDOWS && !PLATFORM_UWP
+// @LAB132: END
 	FRWLock CS;
 #endif
 

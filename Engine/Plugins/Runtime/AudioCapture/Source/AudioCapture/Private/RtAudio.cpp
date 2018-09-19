@@ -1,4 +1,6 @@
-﻿#if PLATFORM_WINDOWS
+﻿// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 /************************************************************************/
 /*! \class RtAudio
     \brief Realtime audio i/o C++ classes.

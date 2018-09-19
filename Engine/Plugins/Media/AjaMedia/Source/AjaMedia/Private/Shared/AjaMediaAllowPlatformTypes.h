@@ -6,7 +6,7 @@
 	#error Nesting AjaAllowPlatformTypes.h is not allowed!
 #endif
 
-#ifndef PLATFORM_WINDOWS
+#if !defined(PLATFORM_WINDOWS) && !defined(PLATFORM_UWP)
 	#include "Processing.AJA.compat.h"
 #endif
 

@@ -318,10 +318,12 @@ class BuildPhysX : BuildCommand
 						return DirectoryReference.Combine(NvClothCMakeFiles, "Windows").ToString() + " -G \"" + VisualStudioName + "\" -AWin32 -DTARGET_BUILD_PLATFORM=Windows -DNV_CLOTH_ENABLE_CUDA=0 -DNV_CLOTH_ENABLE_DX11=0" + OutputFlags;
 					case UnrealTargetPlatform.Win64:
 						return DirectoryReference.Combine(NvClothCMakeFiles, "Windows").ToString() + " -G \"" + VisualStudioName + "\" -Ax64 -DTARGET_BUILD_PLATFORM=Windows -DNV_CLOTH_ENABLE_CUDA=0 -DNV_CLOTH_ENABLE_DX11=0" + OutputFlags;
+					// @LAB132: BEGIN UWP Support
 					case UnrealTargetPlatform.UWP32:
 						return DirectoryReference.Combine(NvClothCMakeFiles, "Windows").ToString() + " -G \"" + VisualStudioName + "\" -AWin32 -DTARGET_BUILD_PLATFORM=Windows -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 -DNV_CLOTH_ENABLE_CUDA=0 -DNV_CLOTH_ENABLE_DX11=0" + OutputFlags;
 					case UnrealTargetPlatform.UWP64:
 						return DirectoryReference.Combine(NvClothCMakeFiles, "Windows").ToString() + " -G \"" + VisualStudioName + "\" -Ax64 -DTARGET_BUILD_PLATFORM=Windows -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 -DNV_CLOTH_ENABLE_CUDA=0 -DNV_CLOTH_ENABLE_DX11=0" + OutputFlags;
+					// @LAB132: END
 					case UnrealTargetPlatform.PS4:
 						return DirectoryReference.Combine(NvClothCMakeFiles, "PS4").ToString() + " -G \"Unix Makefiles\" -DTARGET_BUILD_PLATFORM=ps4 -DCMAKE_BUILD_TYPE=" + BuildConfig + " -DCMAKE_TOOLCHAIN_FILE=\"" + PhysXSourceRootDirectory + "\\Externals\\CMakeModules\\PS4\\PS4Toolchain.txt\"" + OutputFlags;
 					case UnrealTargetPlatform.Switch:
@@ -636,8 +638,10 @@ class BuildPhysX : BuildCommand
 		{
 			case UnrealTargetPlatform.Win32:
 			case UnrealTargetPlatform.Win64:
+			// @LAB132: BEGIN UWP Support
 			case UnrealTargetPlatform.UWP64:
 			case UnrealTargetPlatform.UWP32:
+			// @LAB132: END
 				// for windows platforms we support building against multiple compilers
 				foreach(WindowsCompiler TargetWindowsCompiler in TargetWindowsCompilers)
 				{
@@ -1134,8 +1138,10 @@ class BuildPhysX : BuildCommand
 			{
 				case UnrealTargetPlatform.Win32:
 				case UnrealTargetPlatform.Win64:
+				// @LAB132: BEGIN UWP Support
 				case UnrealTargetPlatform.UWP64:
 				case UnrealTargetPlatform.UWP32:
+				// @LAB132: END
 					// for windows platforms we support building against multiple compilers
 					foreach (WindowsCompiler TargetWindowsCompiler in TargetWindowsCompilers)
 					{
@@ -1598,8 +1604,10 @@ class BuildPhysX : BuildCommand
 			{
 				case UnrealTargetPlatform.Win32:
 				case UnrealTargetPlatform.Win64:
+				// @LAB132: BEGIN UWP Support
 				case UnrealTargetPlatform.UWP32:
 				case UnrealTargetPlatform.UWP64:
+				// @LAB132: END
 				case UnrealTargetPlatform.PS4:
 				case UnrealTargetPlatform.Switch:
 				case UnrealTargetPlatform.XboxOne:
@@ -1720,8 +1728,10 @@ class BuildPhysX : BuildCommand
 						{
 							case UnrealTargetPlatform.Win32:
 							case UnrealTargetPlatform.Win64:
+							// @LAB132: BEGIN UWP Support
 							case UnrealTargetPlatform.UWP32:
 							case UnrealTargetPlatform.UWP64:
+							// @LAB132: END
 								foreach (WindowsCompiler TargetCompiler in TargetWindowsCompilers)
 								{
 									FindOutputFiles(FilesToDelete, TargetLib, TargetData, TargetConfiguration, TargetCompiler);
@@ -1796,8 +1806,10 @@ class BuildPhysX : BuildCommand
 						{
 							case UnrealTargetPlatform.Win32:
 							case UnrealTargetPlatform.Win64:
+							// @LAB132: BEGIN UWP Support
 							case UnrealTargetPlatform.UWP32:
 							case UnrealTargetPlatform.UWP64:
+							// @LAB132: END
 										foreach (WindowsCompiler TargetCompiler in TargetWindowsCompilers)
 								{
 											FindOutputFiles(FilesToReconcile, TargetLib, TargetData, TargetConfiguration, TargetCompiler);

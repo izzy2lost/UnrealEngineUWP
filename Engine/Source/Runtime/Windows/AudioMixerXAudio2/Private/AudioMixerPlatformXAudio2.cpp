@@ -107,7 +107,9 @@ namespace Audio
 			case HRESULT(XAUDIO2_E_XMA_DECODER_ERROR):		return TEXT("XAUDIO2_E_XMA_DECODER_ERROR");
 			case HRESULT(XAUDIO2_E_XAPO_CREATION_FAILED):	return TEXT("XAUDIO2_E_XAPO_CREATION_FAILED");
 			case HRESULT(XAUDIO2_E_DEVICE_INVALIDATED):		return TEXT("XAUDIO2_E_DEVICE_INVALIDATED");
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 			case REGDB_E_CLASSNOTREG:						return TEXT("REGDB_E_CLASSNOTREG");
 			case CLASS_E_NOAGGREGATION:						return TEXT("CLASS_E_NOAGGREGATION");
 			case E_NOINTERFACE:								return TEXT("E_NOINTERFACE");
@@ -586,7 +588,9 @@ namespace Audio
 
 	bool FMixerPlatformXAudio2::MoveAudioStreamToNewAudioDevice(const FString& InNewDeviceId)
 	{
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 
 		UE_LOG(LogTemp, Log, TEXT("Resetting audio stream to device id %s"), *InNewDeviceId);
 
@@ -795,7 +799,9 @@ namespace Audio
 
 	bool FMixerPlatformXAudio2::DisablePCMAudioCaching() const
 	{
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 		return false;
 #else
 		return true;
