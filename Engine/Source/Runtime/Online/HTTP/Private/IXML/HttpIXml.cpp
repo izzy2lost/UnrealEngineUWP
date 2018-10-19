@@ -584,4 +584,4 @@ FString FHttpResponseIXML::GetContentAsString() const
 //-----------------------------------------------------------------------------
 //	End of file
 
-#endif PLATFORM_UWP
+#endif // PLATFORM_UWP
