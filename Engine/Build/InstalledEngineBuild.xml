@@ -862,6 +862,7 @@
 				<Tag Files="#UE4Game UWP64;#UE4Game UWP64 Includes" With="#Installed Win64"/>
 				<Property Name="CopyInstalledFilter" Value="$(CopyInstalledFilter);$(CopyUWP64Filter)"/>
 				<Property Name="CopyInstalledExceptions" Value="$(CopyInstalledExceptions);$(CopyUWP64Exceptions)"/>
+			</Do>
 			<!-- @ATG_CHANGE : END -->
 
 			<!-- Tag any dependencies from all previous build products -->
