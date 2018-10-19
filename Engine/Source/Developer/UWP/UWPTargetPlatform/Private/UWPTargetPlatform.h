@@ -59,9 +59,10 @@ public:
 
 	virtual bool SupportsFeature(ETargetPlatformFeatures Feature) const override;
 
-	virtual FPlatformAudioCookOverrides* GetAudioCompressionSettings() const override;
-
 #if WITH_ENGINE
+
+	virtual const struct FPlatformAudioCookOverrides* GetAudioCompressionSettings() const override;
+
 	virtual const class FStaticMeshLODSettings& GetStaticMeshLODSettings() const override { return StaticMeshLODSettings; }
 
 	virtual void GetTextureFormats(const UTexture* InTexture, TArray<FName>& OutFormats) const override;

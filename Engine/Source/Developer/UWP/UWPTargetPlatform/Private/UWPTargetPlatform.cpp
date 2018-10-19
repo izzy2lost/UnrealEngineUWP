@@ -85,13 +85,12 @@ bool FUWPTargetPlatform::SupportsFeature(ETargetPlatformFeatures Feature) const
 	return TTargetPlatformBase<FUWPPlatformProperties>::SupportsFeature(Feature);
 }
 
+#if WITH_ENGINE
 
-FPlatformAudioCookOverrides* FUWPTargetPlatform::GetAudioCompressionSettings() const
+const struct FPlatformAudioCookOverrides* FUWPTargetPlatform::GetAudioCompressionSettings() const
 {
 	return nullptr;
 }
-
-#if WITH_ENGINE
 
 void FUWPTargetPlatform::GetTextureFormats(const UTexture* InTexture, TArray<FName>& OutFormats) const
 {
