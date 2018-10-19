@@ -310,7 +310,7 @@
 		<Node Name="Compile UE4Game UWP32" Requires="Compile UnrealHeaderTool Win64" Produces="#UE4Game UWP32;#UE4Game UWP32 Unstripped;#UE4Game UWP32 Stripped;#UE4Game UWP32 Unsigned;#UE4Game UWP32 Signed;#UE4Game UWP32 Includes">
 		
 			<ForEach Name="Configuration" Values="$(GameConfigurations)">
-				<Compile Target="UE4Game" Platform="UWP32" Configuration="$(Configuration)" Tag="#UE4Game UWP32" Arguments="$(WindowsGameCompileArguments)"/>
+				<Compile Target="UE4Game" Platform="UWP32" Configuration="$(Configuration)" Tag="#UE4Game UWP32" Arguments="-precompile $(VSCompilerArg) $(TargetDebugInfoArg)"/>
 			</ForEach>
 
 			<Do If="$(EmbedSrcSrvInfo)">
@@ -341,7 +341,7 @@
 		<Node Name="Compile UE4Game UWP64" Requires="Compile UnrealHeaderTool Win64" Produces="#UE4Game UWP64;#UE4Game UWP64 Unstripped;#UE4Game UWP64 Stripped;#UE4Game UWP64 Unsigned;#UE4Game UWP64 Signed;#UE4Game UWP64 Includes">
 		
 			<ForEach Name="Configuration" Values="$(GameConfigurations)">
-				<Compile Target="UE4Game" Platform="UWP64" Configuration="$(Configuration)" Tag="#UE4Game UWP64" Arguments="$(WindowsGameCompileArguments)"/>
+				<Compile Target="UE4Game" Platform="UWP64" Configuration="$(Configuration)" Tag="#UE4Game UWP64" Arguments="-precompile $(VSCompilerArg) $(TargetDebugInfoArg)"/>
 			</ForEach>
 
 			<Do If="$(EmbedSrcSrvInfo)">
