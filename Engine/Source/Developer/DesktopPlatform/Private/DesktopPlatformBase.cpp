@@ -613,7 +613,7 @@ bool FDesktopPlatformBase::GenerateProjectFiles(const FString& RootDir, const FS
 		Arguments += TEXT(" -log=") + LogFilePath;
 	}
 	// @ATG_CHANGE : BEGIN - if the editor was built with 2017 then we should probably generate a project for use with 2017
-	// @LAB132: But only if we are build with any msvc
+	// @LAB132: But only if the editor was build with any msvc at all
 #ifdef _MSC_VER
 #if _MSC_VER >= 1910
 	Arguments += TEXT(" -2017");
