@@ -1,4 +1,4 @@
-// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineSubsystemLive.h"
@@ -304,9 +304,9 @@ bool FOnlineSubsystemLive::Tick(float DeltaTime)
 	// @ATG_CHANGE : BEGIN - Xim Support
 	FOnlineSessionImplPtr SessionImpl = StaticCastSharedPtr<FOnlineSessionImpl>(SessionInterface);
  	if (SessionImpl.IsValid())
- 	{
+	{
 		SessionImpl->Tick(DeltaTime);
- 	}
+	}
 	// @ATG_CHANGE : END
 
 	if (VoiceInterface.IsValid())
@@ -318,7 +318,7 @@ bool FOnlineSubsystemLive::Tick(float DeltaTime)
 	{
 		ExternalUIInterface->Tick(DeltaTime);
 	}
-	
+
 	// @ATG_CHANGE : BEGIN Adding social features
 	if (FriendInterface.IsValid())
 	{
@@ -413,6 +413,7 @@ bool FOnlineSubsystemLive::Init()
 		// @todo - still need to define Live socket subsystem
 		//CreateLiveSocketSubsystem();
 // @ATG_CHANGE : BEGIN - Adding XIM
+#if PLATFORM_UWP
 		TSharedPtr<IPlugin> LivePlugin = IPluginManager::Get().FindPlugin(TEXT("OnlineSubsystemLive"));
 		if (!LivePlugin.IsValid())
 		{
@@ -446,6 +447,7 @@ bool FOnlineSubsystemLive::Init()
 			return false;
 		}
 #endif
+#endif
 // @ATG_CHANGE : END
 
 		// Create the online async task thread
@@ -457,6 +459,7 @@ bool FOnlineSubsystemLive::Init()
 		UE_LOG_ONLINE(Verbose, TEXT("Created thread (ID:%d)."), OnlineAsyncTaskThread->GetThreadID());
 
 // @ATG_CHANGE : BEGIN - Adding XIM
+#if PLATFORM_UWP
 #if USE_XIM
 		XimMessageRouter = MakeShared<FXimMessageRouter, ESPMode::ThreadSafe>(this);
 #else
@@ -490,6 +493,7 @@ bool FOnlineSubsystemLive::Init()
 			VoiceInterface = VoiceImpl;
 		}
 #endif //WITH_GAME_CHAT
+#endif //PLATFORM_UWP
 // @ATG_CHANGE : END
 		ExternalUIInterface = MakeShared<FOnlineExternalUILive, ESPMode::ThreadSafe>(this);
 		EventsInterface = MakeShared<FOnlineEventsLive, ESPMode::ThreadSafe>(this);
@@ -583,7 +587,7 @@ bool FOnlineSubsystemLive::Init()
 
 		// Clear cached XboxLiveContext when user is removed
 		UserRemovedToken = Windows::Xbox::System::User::UserRemoved += ref new Windows::Foundation::EventHandler<Windows::Xbox::System::UserRemovedEventArgs^>(
-			[WeakThis] (Platform::Object^, Windows::Xbox::System::UserRemovedEventArgs^ Args)
+			[WeakThis](Platform::Object^, Windows::Xbox::System::UserRemovedEventArgs^ Args)
 		{
 			FOnlineSubsystemLivePtr StrongThis = WeakThis.Pin();
 			if (!StrongThis.IsValid())
@@ -592,17 +596,19 @@ bool FOnlineSubsystemLive::Init()
 				return;
 			}
 
-			FScopeLock ScopeLock(&StrongThis->LiveContextsLock);
+				FScopeLock ScopeLock(&StrongThis->LiveContextsLock);
 
 			// @ATG_CHANGE : BEGIN UWP support
 			XboxLiveContext^ RemoveContext = StrongThis->CachedXboxLiveContexts.FindChecked(Args->User->XboxUserId->Data());
 			RemoveContext->RealTimeActivityService->Deactivate();
-			StrongThis->CachedXboxLiveContexts.Remove(Args->User->XboxUserId->Data());
+					StrongThis->CachedXboxLiveContexts.Remove(Args->User->XboxUserId->Data());
 			// @ATG_CHANGE : END UWP support 
-		});
+			});
 
 		// @ATG_CHANGE : BEGIN UWP support - delay setting this until after the above manual load steps for dependant libs
+#if PLATFORM_UWP
 		TitleId = Microsoft::Xbox::Services::XboxLiveAppConfiguration::SingletonInstance->TitleId;
+#endif
 		// @ATG_CHANGE : END
 	}
 	else
