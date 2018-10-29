@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "VoiceInterface.h"
+#include "Interfaces/VoiceInterface.h"
 #include "VoicePacketLive.h"
 #include "OnlineSubsystemLiveTypes.h"
 #include "OnlineSubsystemLivePackage.h"

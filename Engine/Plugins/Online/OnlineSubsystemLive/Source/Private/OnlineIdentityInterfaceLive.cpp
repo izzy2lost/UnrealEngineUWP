@@ -18,8 +18,8 @@
 #include "Misc/CoreDelegates.h"
 #include "Misc/ScopeLock.h"
 #include "HttpModule.h"
-#include "IHttpRequest.h"
-#include "IHttpResponse.h"
+#include "Interfaces/IHttpRequest.h"
+#include "Interfaces/IHttpResponse.h"
 
 // @ATG_CHANGE : UWP Live Support - platform headers moved to pch
 

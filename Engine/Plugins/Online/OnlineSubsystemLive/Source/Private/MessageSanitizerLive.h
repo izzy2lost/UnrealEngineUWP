@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "IMessageSanitizerInterface.h"
+#include "Interfaces/IMessageSanitizerInterface.h"
 #include "OnlineSubsystemTypes.h"
 #include "OnlineUserInterfaceLive.h"
 #include "OnlineSubsystemLivePackage.h"

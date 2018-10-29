@@ -46,8 +46,7 @@ IAsyncOperation<XboxSocialRelationshipResult^>^ FOnlineAsyncTaskLiveQueryFriends
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		OutError = FString::Printf(TEXT("Error querying friends, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
-		UE_LOG_ONLINE(Error, *OutError);
+		UE_LOG_ONLINE(Error, TEXT("Error querying friends, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 	}
 
 	return nullptr;
@@ -62,8 +61,7 @@ bool FOnlineAsyncTaskLiveQueryFriends::ProcessResult(const Concurrency::task<Xbo
 	}
 	catch (Platform::Exception^ Ex)
 	{
-		OutError = FString::Printf(TEXT("Error querying friends, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
-		UE_LOG_ONLINE(Error, *OutError);
+		UE_LOG_ONLINE(Error, TEXT("Error querying friends, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data());
 		return false;
 	}
 

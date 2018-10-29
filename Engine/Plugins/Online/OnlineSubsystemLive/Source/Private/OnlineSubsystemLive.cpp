@@ -1,8 +1,8 @@
-﻿// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2017 Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineSubsystemLivePrivatePCH.h"
 #include "OnlineSubsystemLive.h"
-#include "ModuleManager.h"
+#include "Modules/ModuleManager.h"
 #include "HAL/RunnableThread.h"
 #include "Misc/ScopeLock.h"
 #include "Misc/ConfigCacheIni.h"
@@ -25,7 +25,7 @@
 #include "SessionMessageRouter.h"
 #include "OnlineMatchmakingInterfaceLive.h"
 // @ATG_CHANGE : BEGIN - needed for pathing to cpprest dll
-#include "IPluginManager.h"
+#include "Interfaces/IPluginManager.h"
 // @ATG_CHANGE : END
 #include "Framework/Application/SlateApplication.h"
 
@@ -397,7 +397,7 @@ public:
 			Subsystem->bHasCalledNetworkStatusChangedAtLeastOnce = true;
 			Subsystem->ConvertedNetworkConnectivityLevel = ConvertedNetworkConnectivityLevelOnStack;
 
-			Subsystem->TriggerOnConnectionStatusChangedDelegates(EOnlineServerConnectionStatus::Normal, Subsystem->ConvertedNetworkConnectivityLevel);
+			Subsystem->TriggerOnConnectionStatusChangedDelegates(Subsystem->GetSubsystemName().ToString(), EOnlineServerConnectionStatus::Normal, Subsystem->ConvertedNetworkConnectivityLevel);
 		}
 	}
 };

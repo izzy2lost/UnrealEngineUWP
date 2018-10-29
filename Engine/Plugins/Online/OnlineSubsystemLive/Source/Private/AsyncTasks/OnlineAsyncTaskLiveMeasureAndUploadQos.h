@@ -3,7 +3,7 @@
 #pragma once
 
 #include "OnlineAsyncTaskManager.h"
-#include "OnlineSessionInterface.h"
+#include "Interfaces/OnlineSessionInterface.h"
 #include <collection.h>
 
 class FOnlineSubsystemLive;

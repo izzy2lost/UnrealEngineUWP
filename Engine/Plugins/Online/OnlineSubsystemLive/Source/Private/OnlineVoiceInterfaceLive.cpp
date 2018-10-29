@@ -11,7 +11,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Engine/Engine.h"
 
-#include "Crc.h"
+#include "Misc/Crc.h"
 
 #include <collection.h>
 #include <Robuffer.h>

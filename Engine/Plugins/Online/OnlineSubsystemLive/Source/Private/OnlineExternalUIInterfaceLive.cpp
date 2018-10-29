@@ -15,7 +15,7 @@
 #include "Misc/CoreDelegates.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/ScopeLock.h"
-#include "GenericPlatformHttp.h"
+#include "GenericPlatform/GenericPlatformHttp.h"
 
 using namespace Windows::Foundation;
 using namespace Windows::Foundation::Collections;
@@ -39,7 +39,7 @@ bool FOnlineExternalUILive::ShowLoginUI(const int ControllerIndex, bool bShowOnl
 	{
 		LiveSubsystem->ExecuteNextTick([ControllerIndex, Delegate]()
 		{
-			Delegate.ExecuteIfBound(MakeShared<FUniqueNetIdLive>(), ControllerIndex);
+			Delegate.ExecuteIfBound(MakeShared<FUniqueNetIdLive>(), ControllerIndex, FOnlineError(false));
 		});
 		return false;
 	}
@@ -549,7 +549,7 @@ void FOnlineExternalUILive::FAsyncEventAccountPickerClosed::TriggerDelegates()
 	}
 	
 	TSharedRef<const FUniqueNetId> UniqueId = MakeShared<FUniqueNetIdLive>(UserId);
-	Delegate.ExecuteIfBound(UniqueId, PlatformUserId);
+	Delegate.ExecuteIfBound(UniqueId, PlatformUserId, FOnlineError(true));
 }
 
 FString FOnlineExternalUILive::FAsyncEventProfileCardClosed::ToString() const 

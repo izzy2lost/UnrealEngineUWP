@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "OnlineLeaderboardInterface.h"
+#include "Interfaces/OnlineLeaderboardInterface.h"
 
 /**
  * Interface definition for the online services leaderboard services 

@@ -4,7 +4,7 @@
 
 #include "OnlineSubsystemLivePackage.h"
 #include "SimpleTokenParser.h"
-#include "OnlineEventsInterface.h"
+#include "Interfaces/OnlineEventsInterface.h"
 // @ATG_CHANGE : BEGIN - UWP LIVE support
 #include "OnlineSubsystemLiveTypes.h"
 

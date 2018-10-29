@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "OnlinePresenceInterface.h"
+#include "Interfaces/OnlinePresenceInterface.h"
 #include "OnlineSubsystemLiveTypes.h"
 #include "OnlineAsyncTaskManager.h"
 #include "OnlineSubsystemLivePackage.h"

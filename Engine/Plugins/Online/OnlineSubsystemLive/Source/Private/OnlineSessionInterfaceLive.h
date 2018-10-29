@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "OnlineSessionInterface.h"
+#include "Interfaces/OnlineSessionInterface.h"
 #include "OnlineAsyncTaskManagerLive.h"
 #include "OnlineSubsystemLiveTypes.h"
 #include "OnlineSubsystemLivePackage.h"
@@ -323,6 +323,7 @@ public:
 	virtual bool UpdateSession(FName SessionName, FOnlineSessionSettings& UpdatedSessionSettings, bool bShouldRefreshOnlineData = false)  override;
 	virtual bool EndSession(FName SessionName) override;
 	virtual bool DestroySession(FName SessionName, const FOnDestroySessionCompleteDelegate& CompletionDelegate = FOnDestroySessionCompleteDelegate()) override;
+	virtual TSharedPtr<const FUniqueNetId> CreateSessionIdFromString(const FString& SessionIdStr) override;
 	virtual bool IsPlayerInSession(FName SessionName, const FUniqueNetId& UniqueId) override;
 	virtual bool StartMatchmaking(const TArray< TSharedRef<const FUniqueNetId> >& LocalPlayers, FName SessionName, const FOnlineSessionSettings& NewSessionSettings, TSharedRef<FOnlineSessionSearch>& SearchSettings) override;
 	virtual bool CancelMatchmaking(int32 SearchingPlayerNum, FName SessionName) override;

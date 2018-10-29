@@ -10,7 +10,7 @@
 #include "Misc/ConfigCacheIni.h"
 
 // @ATG_CHANGE : UWP LIVE support: Xbox headers to pch
-#include "OnlineEventsInterface.h"
+#include "Interfaces/OnlineEventsInterface.h"
 
 using namespace Microsoft::Xbox::Services::Presence;
 // @ATG_CHANGE : BEGIN - Alternative Social implementation using Manager 
@@ -40,7 +40,7 @@ void FOnlineUserPresenceLive::SetStatusPropertiesFromStatistics(Microsoft::Xbox:
 						case Windows::Foundation::PropertyType::Int64:
 						{
 							int64 Value = 0;
-							Lex::FromString(Value, Stat->Value->Data());
+							LexFromString(Value, Stat->Value->Data());
 							Status.Properties.Add(StatName, Value);
 							break;
 						}
@@ -48,7 +48,7 @@ void FOnlineUserPresenceLive::SetStatusPropertiesFromStatistics(Microsoft::Xbox:
 						case Windows::Foundation::PropertyType::Double:
 						{
 							double Value = 0;
-							Lex::FromString(Value, Stat->Value->Data());
+							LexFromString(Value, Stat->Value->Data());
 							Status.Properties.Add(StatName, Value);
 							break;
 						}

@@ -6,7 +6,7 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 
-#include "AllowWindowsPlatformAtomics.h"
+#include "Windows/AllowWindowsPlatformAtomics.h"
 
 namespace Microsoft
 {
@@ -225,6 +225,6 @@ CatalogAndInventoryServiceShim::CatalogAndInventoryServiceShim()
 }
 }
 
-#include "HideWindowsPlatformAtomics.h"
+#include "Windows/HideWindowsPlatformAtomics.h"
 
 #endif // WITH_MARKETPLACE

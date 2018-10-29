@@ -4,7 +4,7 @@
 #include "VoicePacketLive.h"
 #include "OnlineSubsystemLiveTypes.h"
 #include "Online.h"
-#include "OnlineIdentityInterface.h"
+#include "Interfaces/OnlineIdentityInterface.h"
 
 /**
  * Copies another packet

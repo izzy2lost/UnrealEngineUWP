@@ -31,7 +31,7 @@ IAsyncOperation<IVectorView<MultiplePermissionsCheckResult^>^>^ FOnlineAsyncTask
 	if (PermissionsToQueryVector->Size < 1)
 	{
 		OnlineError.SetFromErrorCode(TEXT("Error starting user privacy permissions query, no permissions were requested"));
-		UE_LOG_ONLINE(Warning, *OnlineError.ErrorCode);
+		UE_LOG_ONLINE(Warning, TEXT("%s"), *OnlineError.ErrorCode);
 		return nullptr;
 	}
 
@@ -49,7 +49,7 @@ IAsyncOperation<IVectorView<MultiplePermissionsCheckResult^>^>^ FOnlineAsyncTask
 	if (XUIDVector->Size < 1)
 	{
 		OnlineError.SetFromErrorCode(TEXT("Error starting user privacy permissions query, no permissions were requested"));
-		UE_LOG_ONLINE(Warning, *OnlineError.ErrorCode);
+		UE_LOG_ONLINE(Warning, TEXT("%s"), *OnlineError.ErrorCode);
 		return nullptr;
 	}
 
@@ -58,7 +58,7 @@ IAsyncOperation<IVectorView<MultiplePermissionsCheckResult^>^>^ FOnlineAsyncTask
 	if (XUIDVector->Size > 50)
 	{
 		OnlineError.SetFromErrorCode(TEXT("Error starting user privacy permissions query, more than 50 users were requested"));
-		UE_LOG_ONLINE(Warning, *OnlineError.ErrorCode);
+		UE_LOG_ONLINE(Warning, TEXT("%s"), *OnlineError.ErrorCode);
 		return nullptr;
 	}
 
@@ -113,7 +113,7 @@ bool FOnlineAsyncTaskLiveQueryPrivacyPermissions::ProcessResult(const Concurrenc
 	catch (Platform::Exception^ Ex)
 	{
 		OnlineError.SetFromErrorCode(FString::Printf(TEXT("Error querying user privacy permissions, error: (0x%0.8X) %ls."), Ex->HResult, Ex->ToString()->Data()));
-		UE_LOG_ONLINE(Error, *OnlineError.ErrorCode);
+		UE_LOG_ONLINE(Error, TEXT("%s"), *OnlineError.ErrorCode);
 	}
 
 	return OnlineError.bSucceeded;

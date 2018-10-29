@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "OnlineFriendsInterface.h"
+#include "Interfaces/OnlineFriendsInterface.h"
 #include "OnlineSubsystemLivePackage.h"
 #include "OnlinePresenceInterfaceLive.h"
 #include "OnlineSubsystemLiveTypes.h"

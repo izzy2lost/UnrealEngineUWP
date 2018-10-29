@@ -35,10 +35,9 @@ bool FOnlineAsyncTaskLiveUpdateSessionMember::UpdateSession(Microsoft::Xbox::Ser
 	auto SessionInterface = Subsystem->GetSessionInterface();
 	if (SessionInterface.IsValid() && Session->CurrentUser)
 	{
-		if (auto NamedSession = SessionInterface->GetNamedSession(SessionIdentifier))
+		if (auto NamedSession = SessionInterface->GetNamedSession(GetSessionName()))
 		{
-			FString KeyFormat = SETTING_GROUP_NAME.ToString();
-			FString Key = FString::Printf(*KeyFormat, Session->CurrentUser->XboxUserId->Data());
+			FString Key = FString::Printf(TEXT("%s%s"), SETTING_GROUP_NAME_PREFIX, Session->CurrentUser->XboxUserId->Data());
 			FString Setting;
 			if (NamedSession->SessionSettings.Get(FName(*Key), Setting))
 			{
@@ -46,16 +45,15 @@ bool FOnlineAsyncTaskLiveUpdateSessionMember::UpdateSession(Microsoft::Xbox::Ser
 				Session->CurrentUser->Groups->Append(ref new Platform::String(*Setting));
 			}
 
-			KeyFormat = SETTING_SESSION_MEMBER_CONSTANT_CUSTOM_JSON_XUID.ToString();
-			Key = FString::Printf(*KeyFormat, Session->CurrentUser->XboxUserId->Data());
+			Key = FString::Printf(TEXT("%s%s"), SETTING_SESSION_MEMBER_CONSTANT_CUSTOM_JSON_XUID_PREFIX, Session->CurrentUser->XboxUserId->Data());
 			if (NamedSession->SessionSettings.Get(FName(*Key), Setting))
 			{
 				TSharedPtr< FJsonObject > JObj;
-				TSharedRef< TJsonReader<> > Reader = TJsonReaderFactory<>::Create( Setting );
+				TSharedRef< TJsonReader<> > Reader = TJsonReaderFactory<>::Create(Setting);
 
-				if ( FJsonSerializer::Deserialize(Reader, JObj) && JObj.IsValid() )
+				if (FJsonSerializer::Deserialize(Reader, JObj) && JObj.IsValid())
 				{
-					for ( auto it = JObj->Values.CreateConstIterator(); it; ++it )
+					for (auto it = JObj->Values.CreateConstIterator(); it; ++it)
 					{
 						const FString					JSettingName = it.Key();
 						const TSharedPtr<FJsonValue>	JSettingValue = it.Value();
@@ -65,8 +63,10 @@ bool FOnlineAsyncTaskLiveUpdateSessionMember::UpdateSession(Microsoft::Xbox::Ser
 				}
 			}
 		}
+
 		return true;
 	}
+
 	return false;
 }
 

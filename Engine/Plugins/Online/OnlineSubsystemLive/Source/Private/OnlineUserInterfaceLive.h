@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "OnlineUserInterface.h"
+#include "Interfaces/OnlineUserInterface.h"
 #include "OnlineSubsystemLiveTypes.h"
 #include "OnlineSubsystemLivePackage.h"
 

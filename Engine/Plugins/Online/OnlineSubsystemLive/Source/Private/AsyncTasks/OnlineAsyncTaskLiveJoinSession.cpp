@@ -369,8 +369,10 @@ void FOnlineAsyncTaskLiveJoinSession::OnAddLocalPlayerComplete(const FUniqueNetI
 
 void FOnlineAsyncTaskLiveJoinSession::Finalize()
 {
-	UE_LOG_ONLINE(Verbose, TEXT("JoinSessionLive Complete bWasSuccessful: %d SessionId: %ls"), bWasSuccessful, SessionReference->ToUriPath()->Data());
-	
+	{
+		const bool WasSuccessful = bWasSuccessful;
+		UE_LOG_ONLINE(Verbose, TEXT("JoinSessionLive Complete bWasSuccessful: %d SessionId: %ls"), WasSuccessful, SessionReference->ToUriPath()->Data());
+	}
 	if (!bWasSuccessful && NamedSession != nullptr)
 	{
 		// Clean up partial create/join

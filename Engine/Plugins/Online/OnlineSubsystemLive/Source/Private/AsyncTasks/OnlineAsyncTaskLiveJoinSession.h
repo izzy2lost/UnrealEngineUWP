@@ -3,7 +3,7 @@
 #pragma once
 
 #include "OnlineAsyncTaskManager.h"
-#include "OnlineSessionInterface.h"
+#include "Interfaces/OnlineSessionInterface.h"
 
 // @ATG_CHANGE : xbox headers moved to primary include so as to not repeat uwp\xbox branching
 //#include "XboxOneAllowPlatformTypes.h"
@@ -31,7 +31,9 @@ public:
 			const TOptional<FString>& InSessionInviteHandle);
 
 	// FOnlineAsyncItem
-	virtual FString ToString() const override { return FString::Printf(TEXT("FOnlineAsyncTaskLiveJoinSession SessionName: %s SessionId: %ls bWasSuccessful: %d"), *SessionName.ToString(), SessionReference->ToUriPath()->Data(), bWasSuccessful); }
+	virtual FString ToString() const override {
+		const bool WasSuccessful = bWasSuccessful;
+		return FString::Printf(TEXT("FOnlineAsyncTaskLiveJoinSession SessionName: %s SessionId: %ls bWasSuccessful: %d"), *SessionName.ToString(), SessionReference->ToUriPath()->Data(), WasSuccessful); }
 	virtual void Finalize() override;
 	virtual void TriggerDelegates() override;
 

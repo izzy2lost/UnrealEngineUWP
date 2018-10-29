@@ -76,7 +76,7 @@ void FOnlinePurchaseLive::Checkout(const FUniqueNetId& UserId, const FPurchaseCh
 	{
 		LiveSubsystem->ExecuteNextTick([Delegate, ErrorMessage]
 		{
-			UE_LOG_ONLINE(Error, *ErrorMessage);
+			UE_LOG_ONLINE(Error, TEXT("%s"), *ErrorMessage);
 
 			const TSharedRef<FPurchaseReceipt> PurchaseReceipt = MakeShared<FPurchaseReceipt>();
 			PurchaseReceipt->TransactionState = EPurchaseTransactionState::Failed;

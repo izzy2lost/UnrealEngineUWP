@@ -3,7 +3,7 @@
 #pragma once
 
 #include "OnlineAsyncTaskLiveSafeWriteSession.h"
-#include "OnlineSessionInterface.h"
+#include "Interfaces/OnlineSessionInterface.h"
 #include "../OnlineSubsystemLiveTypes.h"
 
 /** 

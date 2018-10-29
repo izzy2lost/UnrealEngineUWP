@@ -22,7 +22,7 @@
 #include "OnlineSubsystem.h"
 #include "OnlineSubsystemSessionSettings.h"
 #include "OnlineSubsystemLive.h"
-#include "ModuleManager.h"
+#include "Modules/ModuleManager.h"
 #include "PixelFormat.h"
 
 #define INVALID_INDEX -1
@@ -74,7 +74,7 @@ inline Windows::Xbox::Input::Controller^ SystemGamepadFromShim(Windows::Xbox::In
 #include <ws2tcpip.h>
 #include <collection.h>
 #include "HideWindowsPlatformTypes.h"
-#include "UWPInputInterface.h"
+#include "UWP/UWPInputInterface.h"
 
 #include "UWP/Marketplace.h"
 

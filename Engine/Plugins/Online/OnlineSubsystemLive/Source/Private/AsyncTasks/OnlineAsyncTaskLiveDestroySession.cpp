@@ -6,7 +6,7 @@
 #include "../OnlineSessionInterfaceLive.h"
 #include "../OnlineIdentityInterfaceLive.h"
 #include "../OnlineMatchmakingInterfaceLive.h"
-#include "VoiceInterface.h"
+#include "Interfaces/VoiceInterface.h"
 
 // @ATG_CHANGE : UWP LIVE support: Xbox headers to pch
 

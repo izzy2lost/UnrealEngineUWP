@@ -29,7 +29,9 @@ public:
 	/**
 	 *	Get a human readable description of task
 	 */
-	virtual FString ToString() const { return FString::Printf(TEXT("FOnlineAsyncTaskLiveGetLeaderboardForUsers bWasSuccessful: %d"), bWasSuccessful);}
+	virtual FString ToString() const {
+		const bool WasSuccessful = bWasSuccessful;
+		return FString::Printf(TEXT("FOnlineAsyncTaskLiveGetLeaderboardForUsers bWasSuccessful: %d"), WasSuccessful);}
 	virtual void Tick();
 	virtual void Finalize();
 	virtual void TriggerDelegates();

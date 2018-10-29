@@ -3,7 +3,7 @@
 #pragma once
 
 #include "OnlineAsyncTaskLiveSafeWriteSession.h"
-#include "OnlineSessionInterface.h"
+#include "Interfaces/OnlineSessionInterface.h"
 
 class FOnlineSubsystemLive;
 
@@ -19,7 +19,9 @@ public:
 			FOnlineSubsystemLive* InSubsystem);
 	
 	// FOnlineAsyncItem
-	virtual FString ToString() const override { return FString::Printf(TEXT("FOnlineAsyncTaskLiveDestroySessionBase SessionName: %s bWasSuccessful: %d"), *GetSessionName().ToString(), bWasSuccessful); }
+	virtual FString ToString() const override {
+		const bool WasSuccessful = bWasSuccessful;
+		return FString::Printf(TEXT("FOnlineAsyncTaskLiveDestroySessionBase SessionName: %s bWasSuccessful: %d"), *GetSessionName().ToString(), WasSuccessful); }
 
 	/** Triggers the appropriate delegate based on DelegateType */
 	static void RemoveAndCleanupSession(
@@ -44,7 +46,9 @@ public:
 	{}
 
 	// FOnlineAsyncItem
-	virtual FString ToString() const override { return FString::Printf(TEXT("FOnlineAsyncTaskLiveDestroyMatchmakingSession SessionName: %s bWasSuccessful: %d"), *GetSessionName().ToString(), bWasSuccessful); }
+	virtual FString ToString() const override {
+		const bool WasSuccessful = bWasSuccessful;
+		return FString::Printf(TEXT("FOnlineAsyncTaskLiveDestroyMatchmakingSession SessionName: %s bWasSuccessful: %d"), *GetSessionName().ToString(), WasSuccessful); }
 	virtual void Finalize() override;
 
 };
@@ -62,7 +66,9 @@ public:
 	{}
 
 	// FOnlineAsyncItem
-	virtual FString ToString() const override { return FString::Printf(TEXT("FOnlineAsyncTaskLiveDestroySession SessionName: %s bWasSuccessful: %d"), *GetSessionName().ToString(), bWasSuccessful); }
+	virtual FString ToString() const override {
+		const bool WasSuccessful = bWasSuccessful;
+		return FString::Printf(TEXT("FOnlineAsyncTaskLiveDestroySession SessionName: %s bWasSuccessful: %d"), *GetSessionName().ToString(), WasSuccessful); }
 	virtual void Finalize() override;
 
 private:

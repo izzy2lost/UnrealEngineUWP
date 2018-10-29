@@ -8,7 +8,7 @@
 #include "OnlineIdentityInterfaceLive.h"
 #include "OnlineMatchmakingInterfaceLive.h"
 #include "OnlinePresenceInterfaceLive.h"
-#include "VoiceInterface.h"
+#include "Interfaces/VoiceInterface.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/ScopeLock.h"
 #include "Serialization/JsonReader.h"
@@ -1803,7 +1803,7 @@ void FOnlineSessionLive::ReadSettingsFromLiveJson(MultiplayerSession^ LiveSessio
 				NewSetting.Data.GetValue(SessionSettingsFlagsValue);
 
 				int16 SessionSettingsFlags = 0;
-				Lex::FromString(SessionSettingsFlags, *SessionSettingsFlagsValue);
+				LexFromString(SessionSettingsFlags, *SessionSettingsFlagsValue);
 				
 				int32 BitShift = 0;
 				Session.SessionSettings.bShouldAdvertise = (SessionSettingsFlags & (1 << BitShift++)) ? true : false;
@@ -2089,6 +2089,16 @@ bool FOnlineSessionLive::DestroySession(FName SessionName, const FOnDestroySessi
 	return true;
 }
 
+TSharedPtr<const FUniqueNetId> FOnlineSessionLive::CreateSessionIdFromString(const FString& SessionIdStr)
+{
+	TSharedPtr<const FUniqueNetId> SessionId;
+	if (!SessionIdStr.IsEmpty())
+	{
+		SessionId = MakeShared<FUniqueNetIdString>(SessionIdStr, LIVE_SUBSYSTEM);
+	}
+	return SessionId;
+}
+
 FNamedOnlineSession* FOnlineSessionLive::GetNamedSession(FName SessionName)
 {
 	FScopeLock ScopeLock(&SessionLock);
@@ -2232,8 +2242,7 @@ IAsyncOperation<MultiplayerSession^>^ FOnlineSessionLive::InternalCreateSessionO
 	// @ATG_CHANGE : END
 
 	Platform::String^ PlayerCustomConstantBlob = nullptr;
-	FString KeyFormat = SETTING_SESSION_MEMBER_CONSTANT_CUSTOM_JSON_XUID.ToString();
-	FString Key = FString::Printf(*KeyFormat, LiveContext->User->XboxUserId->Data());
+	FString Key = FString::Printf(TEXT("%s%s"), SETTING_SESSION_MEMBER_CONSTANT_CUSTOM_JSON_XUID_PREFIX, LiveContext->User->XboxUserId->Data());
 
 	// Add keyword
 	if (!Keyword.IsEmpty())

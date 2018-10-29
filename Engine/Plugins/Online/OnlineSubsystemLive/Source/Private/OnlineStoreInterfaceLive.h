@@ -3,7 +3,7 @@
 #pragma once
 
 #include "OnlineSubsystemLivePrivatePCH.h"
-#include "OnlineStoreInterfaceV2.h"
+#include "Interfaces/OnlineStoreInterfaceV2.h"
 
 class FOnlineSubsystemLive;
 
