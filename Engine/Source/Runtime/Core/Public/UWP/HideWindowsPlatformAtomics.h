@@ -6,6 +6,7 @@
 	#error Mismatched HideWindowsPlatformAtomics.h detected.
 #endif
 
+#undef MemoryBarrier
 #undef InterlockedIncrement
 #undef InterlockedDecrement
 #undef InterlockedAdd

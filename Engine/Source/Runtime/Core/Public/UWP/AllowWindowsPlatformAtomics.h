@@ -6,6 +6,7 @@
 	#error Nesting AllowWindowsPlatformAtomics.h is not allowed!
 #endif
 
+#define MemoryBarrier __faststorefence
 #define InterlockedIncrement _InterlockedIncrement
 #define InterlockedDecrement _InterlockedDecrement
 #define InterlockedAdd _InterlockedAdd

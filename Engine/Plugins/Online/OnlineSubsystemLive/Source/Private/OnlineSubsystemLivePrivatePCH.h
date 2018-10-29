@@ -9,10 +9,9 @@
 #if PLATFORM_UWP
 #include "HAL/Platform.h"
 
-#include "PreUWPApi.h"
-#include "MinUWPApi.h"
+#include "AllowWindowsPlatformAtomics.h"
 #include <ppltasks.h>
-#include "PostUWPApi.h"
+#include "HideWindowsPlatformAtomics.h"
 #endif // PLATFORM_UWP
 // @ATG_CHANGE :  END
 
@@ -70,10 +69,10 @@ inline Windows::Xbox::Input::Controller^ SystemGamepadFromShim(Windows::Xbox::In
 }
 
 #elif PLATFORM_UWP
-#include "AllowWindowsPlatformTypes.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 #include <ws2tcpip.h>
 #include <collection.h>
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"
 #include "UWP/UWPInputInterface.h"
 
 #include "UWP/Marketplace.h"

@@ -6,8 +6,6 @@
 #include "OnlineSubsystemLivePackage.h"
 #include "OnlineSubsystemLive.h"
 
-#include <type_traits>
-#include <ppltasks.h>
 // @ATG_CHANGE : UWP LIVE support - moved platform specific includes to "OnlineSubsystemLive.h"
 
 class FOnlineSubsystemLive;
