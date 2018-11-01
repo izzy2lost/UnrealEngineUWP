@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -386,14 +386,7 @@ namespace UnrealBuildTool
 			ProjectFile.AddIntelliSensePreprocessorDefinitions(ModuleCompileEnvironment.Definitions);
 			ProjectFile.AddInteliiSenseIncludePaths(ModuleCompileEnvironment.IncludePaths.SystemIncludePaths, true);
 			ProjectFile.AddInteliiSenseIncludePaths(ModuleCompileEnvironment.IncludePaths.UserIncludePaths, false);
-
-			// This directory may not exist for this module (or ever exist, if it doesn't contain any generated headers), but we want the project files
-			// to search it so we can pick up generated code definitions after UHT is run for the first time.
-			if(GeneratedCodeDirectory != null)
-			{
-				ProjectFile.AddInteliiSenseIncludePaths(new HashSet<DirectoryReference>{ GeneratedCodeDirectory }, false);
 			}
-		}
 
 		/// <summary>
 		/// Sets up the environment for compiling any module that includes the public interface of this module.
@@ -410,7 +403,9 @@ namespace UnrealBuildTool
 			// @ATG_CHANGE : END - winmd support
 			)
 		{
-			if(AutoGenerateCppInfo != null)
+			// This directory may not exist for this module (or ever exist, if it doesn't contain any generated headers), but we want the project files
+			// to search it so we can pick up generated code definitions after UHT is run for the first time.
+			if(AutoGenerateCppInfo != null || (ProjectFileGenerator.bGenerateProjectFiles && GeneratedCodeDirectory != null))
 			{
 				IncludePaths.Add(GeneratedCodeDirectory);
 			}
@@ -435,7 +430,7 @@ namespace UnrealBuildTool
 			{
 				PrecompiledManifest Manifest = PrecompiledManifest.Read(PrecompiledManifestLocation);
 				foreach(FileReference OutputFile in Manifest.OutputFiles)
-			{
+				{
 					FileItem ObjectFile = FileItem.GetExistingItemByFileReference(OutputFile);
 					ToolChain.DoLocalToRemoteFileItem(ObjectFile);
 					LinkInputFiles.Add(ObjectFile);
@@ -683,7 +678,7 @@ namespace UnrealBuildTool
 			// must be specified relative to the resource file itself or Engine/Source.
 			if(SourceFilesToBuild.RCFiles.Count > 0)
 			{
-			CppCompileEnvironment ResourceCompileEnvironment = new CppCompileEnvironment(BinaryCompileEnvironment);
+				CppCompileEnvironment ResourceCompileEnvironment = new CppCompileEnvironment(BinaryCompileEnvironment);
 				LinkInputFiles.AddRange(ToolChain.CompileRCFiles(ResourceCompileEnvironment, SourceFilesToBuild.RCFiles, IntermediateDirectory, ActionGraph).ObjectFiles);
 			}
 
