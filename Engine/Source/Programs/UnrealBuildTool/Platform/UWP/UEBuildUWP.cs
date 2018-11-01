@@ -491,9 +491,6 @@ namespace UnrealBuildTool
 				{
 					Rules.PublicDefinitions.Add("D3D12_PROFILING_ENABLED=0");
 				}
-
-				// To enable platform specific D3D12 RHI Types
-				Rules.PrivateIncludePaths.Add("Runtime/Windows/D3D12RHI/Private/UWP");
 			}
 			else if (ModuleName == "DX11")
 			{
