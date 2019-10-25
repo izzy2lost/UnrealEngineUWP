@@ -30,7 +30,7 @@ uint32 D3D11GetSwapChainFlags()
 	return GSwapChainFlags;
 }
 
-static int32 GD3D11UseAllowTearing = 1;
+static int32 GD3D11UseAllowTearing = 0;
 static FAutoConsoleVariableRef CVarD3DUseAllowTearing(
 	TEXT("r.D3D11.UseAllowTearing"),
 	GD3D11UseAllowTearing,
