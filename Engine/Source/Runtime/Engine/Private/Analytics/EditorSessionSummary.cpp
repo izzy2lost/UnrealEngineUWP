@@ -229,19 +229,19 @@ void FEditorSessionSummaryWriter::InitializeRecords(bool bFirstAttempt)
 			bInitializedRecords = true;
 
 			UE_LOG(LogEditorSessionSummary, Log, TEXT("EditorSessionSummaryWriter initialized"));
-		}
 
-		// update session list string
-		FString SessionListString;
-		FPlatformMisc::GetStoredValue(SessionSummaryDefs::StoreId, SessionSummaryDefs::SessionSummarySection, SessionSummaryDefs::SessionListStoreKey, SessionListString);
-		
-		if (!SessionListString.IsEmpty())
-		{
-			SessionListString.Append(TEXT(","));
-		}
-		SessionListString.Append(CurrentSession->SessionId);
+			// update session list string
+			FString SessionListString;
+			FPlatformMisc::GetStoredValue(SessionSummaryDefs::StoreId, SessionSummaryDefs::SessionSummarySection, SessionSummaryDefs::SessionListStoreKey, SessionListString);
 
-		FPlatformMisc::SetStoredValue(SessionSummaryDefs::StoreId, SessionSummaryDefs::SessionSummarySection, SessionSummaryDefs::SessionListStoreKey, SessionListString);
+			if (!SessionListString.IsEmpty())
+			{
+				SessionListString.Append(TEXT(","));
+			}
+			SessionListString.Append(CurrentSession->SessionId);
+
+			FPlatformMisc::SetStoredValue(SessionSummaryDefs::StoreId, SessionSummaryDefs::SessionSummarySection, SessionSummaryDefs::SessionListStoreKey, SessionListString);
+		}
 	}
 }
 
