@@ -843,18 +843,18 @@ namespace ObjectTools
 			}
 		}
 		else
-		{
-		// Iterate over the map of referencing objects/changed properties, forcefully replacing the references and
-		int32 NumObjsReplaced = 0;
-		for (int32 Index = 0; Index < ReferencingPropertiesMapKeys.Num(); Index++)
-		{
-			++NumObjsReplaced;
-			GWarn->StatusUpdate( NumObjsReplaced, ReferencingPropertiesMapKeys.Num(), NSLOCTEXT("UnrealEd", "ConsolidateAssetsUpdate_ReplacingReferences", "Replacing Asset References...") );
+		{			
+			// Iterate over the map of referencing objects/changed properties, forcefully replacing the references and
+			int32 NumObjsReplaced = 0;
+			for (int32 Index = 0; Index < ReferencingPropertiesMapKeys.Num(); Index++)
+			{
+				++NumObjsReplaced;
+				GWarn->StatusUpdate( NumObjsReplaced, ReferencingPropertiesMapKeys.Num(), NSLOCTEXT("UnrealEd", "ConsolidateAssetsUpdate_ReplacingReferences", "Replacing Asset References...") );
 
-			UObject* CurReplaceObj = ReferencingPropertiesMapKeys[Index];
+				UObject* CurReplaceObj = ReferencingPropertiesMapKeys[Index];
 
-			FArchiveReplaceObjectRef<UObject> ReplaceAr( CurReplaceObj, ReplacementMap, false, true, false );
-		}
+				FArchiveReplaceObjectRef<UObject> ReplaceAr( CurReplaceObj, ReplacementMap, false, true, false );
+			}
 		}
 		// Now alter the referencing objects the change has completed via PostEditChange, 
 		// this is done in a separate loop to prevent reading of data that we want to overwrite
@@ -2332,6 +2332,13 @@ namespace ObjectTools
 			if (MorphTarget && MorphTarget->BaseSkelMesh)
 			{
 				MorphTarget->BaseSkelMesh->UnregisterMorphTarget(MorphTarget);
+			}
+
+			// @todo Hack for 4.23.2 since public headers can't be touched.
+			// Worlds get hooked on by a lot of external non-uobject system through GCObject, call World cleanup to fire delegates to tell them to unhook and release reference
+			if (UWorld* World = Cast<UWorld>(ObjectToDelete))
+			{
+				World->CleanupWorld();
 			}
 		}
 
