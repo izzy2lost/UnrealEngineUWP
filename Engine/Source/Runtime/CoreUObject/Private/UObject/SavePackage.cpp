@@ -12,7 +12,6 @@
 #include "Async/AsyncWork.h"
 #include "Serialization/LargeMemoryWriter.h"
 #include "Serialization/LargeMemoryReader.h"
-#include "Serialization/BufferArchive.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/FeedbackContext.h"
 #include "Misc/ScopedSlowTask.h"
@@ -3515,7 +3514,7 @@ void VerifyEDLCookInfo()
 	FEDLCookChecker::Verify();
 }
 
-static void AddArchiveToHash(FBufferArchive& Ar, FMD5& OutHash)
+static void AddArchiveToHash(FLargeMemoryWriter& Ar, FMD5& OutHash)
 {
 	if (int64 Size = Ar.TotalSize())
 	{
@@ -5622,9 +5621,9 @@ FSavePackageResultStruct UPackage::Save(UPackage* InOuter, UObject* Base, EObjec
 						if (bSaveAsync || bDiffing)
 						{
 							bBufferedBulkArchives = true;
-							BulkArchive = new FBufferArchive(true);
-							OptionalBulkArchive = new FBufferArchive(true);
-							MappedBulkArchive = new FBufferArchive(true);
+							BulkArchive = new FLargeMemoryWriter(true);
+							OptionalBulkArchive = new FLargeMemoryWriter(true);
+							MappedBulkArchive = new FLargeMemoryWriter(true);
 						}
 						else
 						{
@@ -5746,7 +5745,7 @@ FSavePackageResultStruct UPackage::Save(UPackage* InOuter, UObject* Base, EObjec
 										// TODO - update the BulkBuffer code to write into a FLargeMemoryWriter so we can 
 										// take ownership of the data
 										uint8* Data = new uint8[DataSize];
-										FMemory::Memcpy(Data, ((FBufferArchive*)(Archive))->GetData(), DataSize);
+										FMemory::Memcpy(Data, ((FLargeMemoryWriter*)(Archive))->GetData(), DataSize);
 										FLargeMemoryPtr DataPtr = FLargeMemoryPtr(Data);
 		
 										AsyncWriteFile(MoveTemp(DataPtr), DataSize, *ArchiveFilename, FDateTime::MinValue(), false);
@@ -5757,9 +5756,9 @@ FSavePackageResultStruct UPackage::Save(UPackage* InOuter, UObject* Base, EObjec
 
 						if (bComputeHash && bBufferedBulkArchives)
 						{
-							AddArchiveToHash(*(FBufferArchive*)BulkArchive, CookedPackageHash);
-							AddArchiveToHash(*(FBufferArchive*)OptionalBulkArchive, CookedPackageHash);
-							AddArchiveToHash(*(FBufferArchive*)MappedBulkArchive, CookedPackageHash);
+							AddArchiveToHash(*(FLargeMemoryWriter*)BulkArchive, CookedPackageHash);
+							AddArchiveToHash(*(FLargeMemoryWriter*)OptionalBulkArchive, CookedPackageHash);
+							AddArchiveToHash(*(FLargeMemoryWriter*)MappedBulkArchive, CookedPackageHash);
 						}
 						
 						TotalPackageSizeUncompressed += BulkArchive->TotalSize();
