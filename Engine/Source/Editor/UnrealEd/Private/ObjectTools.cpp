@@ -2392,7 +2392,7 @@ namespace ObjectTools
 		return true;
 	}
 
-	static void RecursiveRetrieveReferencers(UObject* Object, TSet<UObject*>& ReferencingObjects)
+	static void RecursiveRetrieveReferencers(UObject* Object, TSet<FWeakObjectPtr>& ReferencingObjects)
 	{
 		TArray<FReferencerInformation> ExternalReferencers;
 		Object->RetrieveReferencers(nullptr /* internal refs */, &ExternalReferencers);
@@ -2434,7 +2434,7 @@ namespace ObjectTools
 		}
 
 		// Recursively find all references to objects being deleted
-		TSet<UObject*> ReferencingObjects;
+		TSet<FWeakObjectPtr> ReferencingObjects;
 		for (UObject* ToDelete : InObjectsToDelete)
 		{
 			ReferencingObjects.Add(ToDelete);
@@ -2444,8 +2444,9 @@ namespace ObjectTools
 
 		// Attempt to close all editors referencing any of the deleted objects
 		bool bClosedAllEditors = true;
-		for (UObject* Object : ReferencingObjects)
+		for (const FWeakObjectPtr& ObjectPtr : ReferencingObjects)
 		{
+			UObject* Object = ObjectPtr.Get();
 			if (Object != nullptr && Object->IsAsset())
 			{
 				const TArray<IAssetEditorInstance*> ObjectEditors = FAssetEditorManager::Get().FindEditorsForAsset(Object);
