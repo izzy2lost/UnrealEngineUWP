@@ -681,6 +681,11 @@ bool FMacPlatformProcess::GetProcReturnCode( FProcHandle& ProcessHandle, int32* 
 
 bool FMacPlatformProcess::IsApplicationRunning( uint32 ProcessId )
 {
+	if (ProcessId)
+	{
+		return false;
+	}
+
 	errno = 0;
 	getpriority(PRIO_PROCESS, ProcessId);
 	return errno == 0;

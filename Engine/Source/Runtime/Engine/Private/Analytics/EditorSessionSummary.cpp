@@ -538,7 +538,7 @@ void FEditorSessionSummarySender::SendStoredRecords(FTimespan Timeout) const
 			// Check each stored session to see if they should be sent or not 
 			for (FEditorSessionRecord& Record : ExistingRecords)
 			{
-				if (IsSessionProcessRunning(Record))
+				if (FPlatformProcess::IsApplicationRunning(Record.PlatformProcessID))
 				{
 					// Skip processes that are still running
 					continue;

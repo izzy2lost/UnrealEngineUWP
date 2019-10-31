@@ -1554,6 +1554,11 @@ bool FUnixPlatformProcess::Daemonize()
 
 bool FUnixPlatformProcess::IsApplicationRunning( uint32 ProcessId )
 {
+	if (ProcessId == 0)
+	{
+		return false;
+	}
+
 	errno = 0;
 	getpriority(PRIO_PROCESS, ProcessId);
 	return errno == 0;
