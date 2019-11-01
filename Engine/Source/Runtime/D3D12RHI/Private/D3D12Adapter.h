@@ -185,7 +185,8 @@ public:
 		const D3D12_RESOURCE_STATES& InitialUsage,
 		const D3D12_CLEAR_VALUE* ClearValue,
 		FD3D12Resource** ppOutResource,
-		const TCHAR* Name);
+		const TCHAR* Name,
+		bool bVerifyHResult = true);
 
 	HRESULT CreatePlacedResource(const D3D12_RESOURCE_DESC& Desc,
 		FD3D12Heap* BackingHeap,
@@ -193,7 +194,8 @@ public:
 		const D3D12_RESOURCE_STATES& InitialUsage,
 		const D3D12_CLEAR_VALUE* ClearValue,
 		FD3D12Resource** ppOutResource,
-		const TCHAR* Name);
+		const TCHAR* Name,
+		bool bVerifyHResult = true);
 
 	HRESULT CreateBuffer(D3D12_HEAP_TYPE HeapType,
 		FRHIGPUMask CreationNode,
