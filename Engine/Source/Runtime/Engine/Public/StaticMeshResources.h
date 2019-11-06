@@ -675,12 +675,6 @@ public:
 	{
 		for (TObjectIterator<UStaticMeshComponent> It; It; ++It)
 		{
-			// First, flush all deferred render updates, as they may depend on InStaticMesh.
-			if (It->IsRenderStateDirty() && It->IsRegistered() && !It->IsTemplate() && !It->IsPendingKill())
-			{
-				It->DoDeferredRenderUpdates_Concurrent();
-			}
-
 			if ( It->GetStaticMesh() == InStaticMesh )
 			{
 				checkf( !It->IsUnreachable(), TEXT("%s"), *It->GetFullName() );
@@ -691,6 +685,11 @@ public:
 					It->DestroyRenderState_Concurrent();
 					StaticMeshComponents.Add(*It);
 				}
+			}
+			// Recreate dirty render state, if needed, only for components not using the static mesh we currently have released resources for.
+			else if (It->IsRenderStateDirty() && It->IsRegistered() && !It->IsTemplate() && !It->IsPendingKill())
+			{
+				It->DoDeferredRenderUpdates_Concurrent();
 			}
 		}
 
