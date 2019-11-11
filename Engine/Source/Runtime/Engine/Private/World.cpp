@@ -351,6 +351,7 @@ UWorld::UWorld( const FObjectInitializer& ObjectInitializer )
 ,	TickTaskLevel(FTickTaskManagerInterface::Get().AllocateTickTaskLevel())
 ,	FlushLevelStreamingType(EFlushLevelStreamingType::None)
 ,	NextTravelType(TRAVEL_Relative)
+,	bCleanedUpWorld(false)
 {
 	TimerManager = new FTimerManager();
 #if WITH_EDITOR
@@ -4089,7 +4090,6 @@ void UWorld::CleanupWorld(bool bSessionEnded, bool bCleanupResources, UWorld* Ne
 
 	check(IsVisibilityRequestPending() == false);
 	
-	check(!bCleanedUpWorld);
 	bCleanedUpWorld = true;
 
 	if (bResetCleanedUpFlag)
