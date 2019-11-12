@@ -965,7 +965,7 @@ void FDeferredShadingSceneRenderer::RenderLights(FRHICommandListImmediate& RHICm
 			} // if (RHI_RAYTRACING)
 
 			bool bDirectLighting = ViewFamily.EngineShowFlags.DirectLighting;
-
+			bool bShadowMaskReadable = false;
 			TRefCountPtr<IPooledRenderTarget> ScreenShadowMaskTexture;
 
 			// Draw shadowed and light function lights
@@ -987,6 +987,7 @@ void FDeferredShadingSceneRenderer::RenderLights(FRHICommandListImmediate& RHICm
 				if ((bDrawShadows || bDrawLightFunction || bDrawPreviewIndicator) && !ScreenShadowMaskTexture.IsValid())
 				{
 					SceneContext.AllocateScreenShadowMask(RHICmdList, ScreenShadowMaskTexture);
+					bShadowMaskReadable = false;
 				}
 
 				FString LightNameWithLevel;
@@ -1330,6 +1331,12 @@ void FDeferredShadingSceneRenderer::RenderLights(FRHICommandListImmediate& RHICm
 				if (bUsedShadowMaskTexture)
 				{
 					RHICmdList.CopyToResolveTarget(ScreenShadowMaskTexture->GetRenderTargetItem().TargetableTexture, ScreenShadowMaskTexture->GetRenderTargetItem().ShaderResourceTexture, FResolveParams(FResolveRect()));
+				}
+
+				if(bUsedShadowMaskTexture || !bShadowMaskReadable)
+				{
+					RHICmdList.TransitionResource(EResourceTransitionAccess::EReadable, ScreenShadowMaskTexture->GetRenderTargetItem().ShaderResourceTexture);
+					bShadowMaskReadable = true;
 				}
 
 				if(bDirectLighting && !bInjectedTranslucentVolume)
