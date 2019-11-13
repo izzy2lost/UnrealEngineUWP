@@ -38,10 +38,12 @@
 
 #define PCM_LOW_LEVEL_DEBUG	0
 
+#ifndef PX_CLANG 
 // @MIXEDREALITY_CHANGE : BEGIN
 // 4324 - structure was padded due to declspec(align())
 #pragma warning( disable : 4324)
 // @MIXEDREALITY_CHANGE : END
+#endif
 
 namespace physx
 {
@@ -852,6 +854,8 @@ PX_INLINE void MultiplePersistentContactManifold::toBuffer(PxU8*  PX_RESTRICT bu
 
 #endif
 
+#ifndef PX_CLANG 
 // @MIXEDREALITY_CHANGE : BEGIN
 #pragma warning( default : 4324)
 // @MIXEDREALITY_CHANGE : END
+#endif
