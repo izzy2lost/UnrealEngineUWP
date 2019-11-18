@@ -1335,7 +1335,10 @@ void FDeferredShadingSceneRenderer::RenderLights(FRHICommandListImmediate& RHICm
 
 				if(bUsedShadowMaskTexture || !bShadowMaskReadable)
 				{
-					RHICmdList.TransitionResource(EResourceTransitionAccess::EReadable, ScreenShadowMaskTexture->GetRenderTargetItem().ShaderResourceTexture);
+					if(ScreenShadowMaskTexture)
+					{
+						RHICmdList.TransitionResource(EResourceTransitionAccess::EReadable, ScreenShadowMaskTexture->GetRenderTargetItem().ShaderResourceTexture);
+					}
 					bShadowMaskReadable = true;
 				}
 
