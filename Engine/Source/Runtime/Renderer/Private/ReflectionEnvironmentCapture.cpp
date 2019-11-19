@@ -744,6 +744,7 @@ void CaptureSceneToScratchCubemap(FRHICommandListImmediate& RHICmdList, FSceneRe
 
 	// update any resources that needed a deferred update
 	FDeferredUpdateResource::UpdateResources(RHICmdList);
+	FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions();
 
 	const auto FeatureLevel = SceneRenderer->FeatureLevel;
 	
