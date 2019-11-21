@@ -1531,6 +1531,7 @@ void FSceneRenderer::RenderShadowDepthMaps(FRHICommandListImmediate& RHICmdList)
 			{
 				// Skip the clear when we'll copy from a cached shadowmap
 				bDoClear = false;
+				ProjectedShadowInfo->TransitionCachedShadowmap(RHICmdList, Scene);
 			}
 
 			SCOPED_CONDITIONAL_DRAW_EVENT(RHICmdList, Clear, bDoClear);
