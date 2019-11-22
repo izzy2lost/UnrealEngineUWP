@@ -681,7 +681,7 @@ bool FMacPlatformProcess::GetProcReturnCode( FProcHandle& ProcessHandle, int32* 
 
 bool FMacPlatformProcess::IsApplicationRunning( uint32 ProcessId )
 {
-	if (ProcessId)
+	if (ProcessId == 0)
 	{
 		return false;
 	}
