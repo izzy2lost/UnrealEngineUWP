@@ -1718,6 +1718,7 @@ public:
 	FVector Position;
 	float InfluenceRadius;
 	float Brightness;
+	float ContributionFactor;
 	uint32 Guid;
 	FVector CaptureOffset;
 	int32 SortedCaptureIndex; // Index into ReflectionSceneData.SortedCaptures (and ReflectionCaptures uniform buffer).

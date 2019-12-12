@@ -526,6 +526,9 @@ public:
 
 		OutEnvironment.SetDefine(TEXT("ENABLE_SKY_LIGHT"), bEnableSkyLight);
 		TBasePassPixelShaderBaseType<LightMapPolicyType>::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		static const auto AllowLocalIBLVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.LocalIBLFromCaptures"));
+		OutEnvironment.SetDefine(TEXT("ENABLE_LOCAL_IBL"), AllowLocalIBLVar && AllowLocalIBLVar->GetValueOnAnyThread() != 0 ? 1 : 0);
 	}
 	
 	/** Initialization constructor. */

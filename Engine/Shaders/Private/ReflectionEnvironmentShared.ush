@@ -202,3 +202,126 @@ float ComputeMixingWeight(float IndirectIrradiance, float AverageBrightness, flo
 
 	return lerp(1.0f, MixingWeight, MixingAlpha);
 }
+
+float4 CompositeIBLCaptures(
+	float3 WorldPosition, 
+	float3 RayDirection, 
+	uint NumCapturesAffectingTile, 
+	uint CaptureDataStartIndex)
+{
+	float Mip = View.ReflectionCubemapMaxMip;
+	float4 ImageBasedReflections = float4(0, 0, 0, 1);
+
+#if FEATURE_LEVEL >= FEATURE_LEVEL_SM5
+#if REFLECTION_COMPOSITE_USE_BLENDED_REFLECTION_CAPTURES
+	// Accumulate reflections from captures affecting this tile, applying largest captures first so that the smallest ones display on top
+	LOOP
+	for (uint TileCaptureIndex = 0; TileCaptureIndex < NumCapturesAffectingTile; TileCaptureIndex++)
+	{
+		BRANCH
+		if (ImageBasedReflections.a < 0.001)
+		{
+			break;
+		}
+
+		uint CaptureIndex = 0;
+	#ifdef REFLECTION_COMPOSITE_NO_CULLING_DATA
+		CaptureIndex = TileCaptureIndex;	// Go from 0 to NumCapturesAffectingTile as absolute index in capture array
+	#else
+	#if INSTANCED_STEREO
+		BRANCH
+		if (EyeIndex == 0)
+		{
+	#endif
+			CaptureIndex = ForwardLightData.CulledLightDataGrid[CaptureDataStartIndex + TileCaptureIndex];
+
+	#if INSTANCED_STEREO
+		}
+		else
+		{
+			CaptureIndex = ForwardLightDataISR.CulledLightDataGrid[CaptureDataStartIndex + TileCaptureIndex];
+		}
+	#endif
+	#endif
+
+
+		float4 CapturePositionAndRadius = ReflectionCapture.PositionAndRadius[CaptureIndex];
+		float4 CaptureProperties = ReflectionCapture.CaptureProperties[CaptureIndex];
+
+		// skip if capture has no contribution
+		BRANCH
+		if (CaptureProperties.a < 0.001)
+		{
+			continue;
+		}
+
+		float3 CaptureVector = WorldPosition - CapturePositionAndRadius.xyz;
+		float CaptureVectorLength = sqrt(dot(CaptureVector, CaptureVector));
+		float NormalizedDistanceToCapture = saturate(CaptureVectorLength / CapturePositionAndRadius.w);
+
+		BRANCH
+		if (CaptureVectorLength < CapturePositionAndRadius.w)
+		{
+			float3 ProjectedCaptureVector = RayDirection;
+			float3 ProjectedShadowVector = -RayDirection;
+			float4 CaptureOffsetAndAverageBrightness = ReflectionCapture.CaptureOffsetAndAverageBrightness[CaptureIndex];
+
+			// Fade out based on distance to capture
+			float DistanceAlpha = 0;
+
+			#define PROJECT_ONTO_SHAPE 1
+			#if PROJECT_ONTO_SHAPE
+				#if REFLECTION_COMPOSITE_HAS_BOX_CAPTURES
+					#if REFLECTION_COMPOSITE_HAS_SPHERE_CAPTURES
+					// Box
+					BRANCH if (CaptureProperties.b > 0)
+					#endif
+					{
+						ProjectedShadowVector = GetLookupVectorForBoxCapture(-RayDirection, WorldPosition, CapturePositionAndRadius, ReflectionCapture.BoxTransform[CaptureIndex], ReflectionCapture.BoxScales[CaptureIndex], CaptureOffsetAndAverageBrightness.xyz, DistanceAlpha);
+						ProjectedCaptureVector = GetLookupVectorForBoxCapture(RayDirection, WorldPosition, CapturePositionAndRadius, ReflectionCapture.BoxTransform[CaptureIndex], ReflectionCapture.BoxScales[CaptureIndex], CaptureOffsetAndAverageBrightness.xyz, DistanceAlpha);
+						#if !SPECULAR_BOUNCE
+							DistanceAlpha *= saturate(CaptureProperties.a);
+						#endif
+					}
+				#endif 
+
+				#if REFLECTION_COMPOSITE_HAS_SPHERE_CAPTURES
+					// Sphere
+					#if REFLECTION_COMPOSITE_HAS_BOX_CAPTURES
+					else
+					#endif
+					{
+						ProjectedShadowVector = GetLookupVectorForSphereCapture(-RayDirection, WorldPosition, CapturePositionAndRadius, NormalizedDistanceToCapture, CaptureOffsetAndAverageBrightness.xyz, DistanceAlpha);
+						ProjectedCaptureVector = GetLookupVectorForSphereCapture(RayDirection, WorldPosition, CapturePositionAndRadius, NormalizedDistanceToCapture, CaptureOffsetAndAverageBrightness.xyz, DistanceAlpha);
+						#if !SPECULAR_BOUNCE
+							DistanceAlpha *= saturate(CaptureProperties.a);
+						#endif
+					}
+				#endif
+			#else
+				DistanceAlpha = 1.0;
+			#endif //PROJECT_ONTO_SHAPE
+
+			float CaptureArrayIndex = CaptureProperties.g;
+
+			{
+				float4 Sample = ReflectionStruct.ReflectionCubemap.SampleLevel(ReflectionStruct.ReflectionCubemapSampler, float4(ProjectedCaptureVector, CaptureArrayIndex), Mip);
+
+				Sample.rgb *= CaptureProperties.r;
+				Sample *= DistanceAlpha;
+
+				// Under operator (back to front)
+				ImageBasedReflections.rgb += Sample.rgb * ImageBasedReflections.a;
+				ImageBasedReflections.a *= 1 - Sample.a;
+			}
+		}
+	}
+
+#endif
+#endif
+
+	// Apply indirect lighting scale while we have only accumulated reflection captures
+	ImageBasedReflections.rgb *= View.IndirectLightingColorScale;
+
+	return ImageBasedReflections;
+}

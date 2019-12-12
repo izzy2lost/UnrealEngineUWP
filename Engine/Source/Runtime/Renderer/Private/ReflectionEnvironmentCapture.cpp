@@ -81,6 +81,13 @@ static TAutoConsoleVariable<int32> CVarReflectionCaptureGPUArrayCopy(
 	TEXT(" 0 is off, 1 is on (default)"),
 	ECVF_ReadOnly);
 
+static TAutoConsoleVariable<int32> CVarLocalIBLFromCaptures(
+	TEXT("r.LocalIBLFromCaptures"),
+	0,
+	TEXT("Apply Reflection Captures as Local IBL replacing the Skylight.\n")
+	TEXT(" 0 is off (default), 1 is on"),
+	ECVF_RenderThreadSafe);
+
 // Chaos addition
 static TAutoConsoleVariable<int32> CVarReflectionCaptureStaticSceneOnly(
 	TEXT("r.chaos.ReflectionCaptureStaticSceneOnly"),
@@ -1354,6 +1361,10 @@ void CaptureSceneIntoScratchCubemap(
 		ViewFamily.EngineShowFlags.LightShafts = 0;
 		// Don't apply sky lighting diffuse when capturing the sky light source, or we would have feedback
 		ViewFamily.EngineShowFlags.SkyLighting = !bCapturingForSkyLight;
+		if (CVarLocalIBLFromCaptures.GetValueOnAnyThread() > 0 && !bCapturingForSkyLight)
+		{
+			bStaticSceneOnly = false;
+		}
 		// Skip lighting for emissive only
 		ViewFamily.EngineShowFlags.Lighting = !bCaptureEmissiveOnly;
 		// Never do screen percentage in reflection environment capture.

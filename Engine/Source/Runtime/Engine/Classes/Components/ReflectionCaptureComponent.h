@@ -45,8 +45,12 @@ class UReflectionCaptureComponent : public USceneComponent
 	float SourceCubemapAngle;
 
 	/** A brightness control to scale the captured scene's reflection intensity. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ReflectionCapture, meta=(UIMin = ".5", UIMax = "4"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=ReflectionCapture, meta=(UIMin = "0", UIMax = "4"))
 	float Brightness;
+
+	/** A control to scale the reflection contribution. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = ReflectionCapture, meta = (UIMin = "0", UIMax = "1"))
+	float ContributionFactor;
 	
 	/** World space offset to apply before capturing. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=ReflectionCapture, AdvancedDisplay)
@@ -111,6 +115,15 @@ class UReflectionCaptureComponent : public USceneComponent
 	virtual bool IsReadyForFinishDestroy() override;
 	virtual void FinishDestroy() override;
 	//~ End UObject Interface
+
+public:
+	/** Set brightness of the Reflection Capture */
+	UFUNCTION(BlueprintCallable, Category="Rendering|Components|ReflectionCapture")
+	void SetBrightness(float NewBrightness);
+
+	/** Set contribution factor of the Reflection Capture */
+	UFUNCTION(BlueprintCallable, Category="Rendering|Components|ReflectionCapture")
+	void SetContributionFactor(float NewContributionFactor);
 
 private:
 

@@ -479,6 +479,7 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 	class FDynamicSkyLight			: SHADER_PERMUTATION_BOOL("ENABLE_DYNAMIC_SKY_LIGHT");
 	class FSkyShadowing				: SHADER_PERMUTATION_BOOL("APPLY_SKY_SHADOWING");
 	class FRayTracedReflections		: SHADER_PERMUTATION_BOOL("RAY_TRACED_REFLECTIONS");
+	class FLocalIBL					: SHADER_PERMUTATION_BOOL("ENABLE_LOCAL_IBL");
 
 	using FPermutationDomain = TShaderPermutationDomain<
 		FHasBoxCaptures,
@@ -487,7 +488,8 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 		FSkyLight,
 		FDynamicSkyLight,
 		FSkyShadowing,
-		FRayTracedReflections>;
+		FRayTracedReflections,
+		FLocalIBL>;
 
 	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
 	{
@@ -495,6 +497,7 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 		if (!PermutationVector.Get<FSkyLight>())
 		{
 			PermutationVector.Set<FDynamicSkyLight>(false);
+			PermutationVector.Set<FLocalIBL>(false);
 		}
 
 		// FSkyLightingSkyShadowing requires FSkyLightingDynamicSkyLight.
@@ -506,7 +509,7 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 		return PermutationVector;
 	}
 
-	static FPermutationDomain BuildPermutationVector(const FViewInfo& View, bool bBoxCapturesOnly, bool bSphereCapturesOnly, bool bSupportDFAOIndirectOcclusion, bool bEnableSkyLight, bool bEnableDynamicSkyLight, bool bApplySkyShadowing, bool bRayTracedReflections)
+	static FPermutationDomain BuildPermutationVector(const FViewInfo& View, bool bBoxCapturesOnly, bool bSphereCapturesOnly, bool bSupportDFAOIndirectOcclusion, bool bEnableSkyLight, bool bEnableDynamicSkyLight, bool bApplySkyShadowing, bool bRayTracedReflections, bool bUseLocalIBL)
 	{
 		FPermutationDomain PermutationVector;
 
@@ -517,6 +520,7 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 		PermutationVector.Set<FDynamicSkyLight>(bEnableDynamicSkyLight);
 		PermutationVector.Set<FSkyShadowing>(bApplySkyShadowing);
 		PermutationVector.Set<FRayTracedReflections>(bRayTracedReflections);
+		PermutationVector.Set<FLocalIBL>(bUseLocalIBL);
 
 		return RemapPermutation(PermutationVector);
 	}
@@ -640,6 +644,9 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(FRHI
 	}
 
 	check(RHICmdList.IsOutsideRenderPass());
+
+	static const auto AllowLocalIBLVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.LocalIBLFromCaptures"));
+	const bool bUseLocalIBL = (AllowLocalIBLVar->GetValueOnRenderThread() == 1);
 
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 
@@ -873,7 +880,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(FRHI
 			// Bind hair data
 			const bool bCheckerboardSubsurfaceRendering = IsSubsurfaceCheckerboardFormat(SceneContext.GetSceneColorFormat());
 			auto PermutationVector = FReflectionEnvironmentSkyLightingPS::BuildPermutationVector(
-				View, bHasBoxCaptures, bHasSphereCaptures, DynamicBentNormalAO != NULL, bSkyLight, bDynamicSkyLight, bApplySkyShadowing, bRayTracedReflections);
+				View, bHasBoxCaptures, bHasSphereCaptures, DynamicBentNormalAO != NULL, bSkyLight, bDynamicSkyLight, bApplySkyShadowing, bRayTracedReflections, bUseLocalIBL);
 
 			TShaderMapRef<FReflectionEnvironmentSkyLightingPS> PixelShader(View.ShaderMap, PermutationVector);
 			ClearUnusedGraphResources(*PixelShader, PassParameters);

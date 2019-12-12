@@ -7,15 +7,15 @@
 #include "Common.ush"
 #include "DeferredShadingCommon.ush"  
 #include "BRDF.ush"
+
+#define REFLECTION_COMPOSITE_USE_BLENDED_REFLECTION_CAPTURES 1
+#define REFLECTION_COMPOSITE_SUPPORT_SKYLIGHT_BLEND 1
 #include "ReflectionEnvironmentShared.ush"
 #include "SkyLightingShared.ush"
 #include "DistanceFieldAOShared.ush"
 #include "ShadingModels.ush"
 #include "LightGridCommon.ush"
 #include "SceneTextureParameters.ush"
-
-#define REFLECTION_COMPOSITE_USE_BLENDED_REFLECTION_CAPTURES 1
-#define REFLECTION_COMPOSITE_SUPPORT_SKYLIGHT_BLEND 1
 #include "ReflectionEnvironmentComposite.ush"
 
 float3 GatherRadiance(float CompositeAlpha, float3 WorldPosition, float3 RayDirection, float Roughness, float3 BentNormal, float IndirectIrradiance, uint ShadingModelID, uint NumCulledReflectionCaptures, uint CaptureDataStartIndex)
@@ -44,6 +44,22 @@ float3 GatherRadiance(float CompositeAlpha, float3 WorldPosition, float3 RayDire
 		CaptureDataStartIndex, 
 		0,
 		bCompositeSkylight);
+}
+
+float4 GetCaptureIBL(float4 SvPosition, float SceneDepth, float3 WorldPosition, float3 WorldNormal, float3 BentNormal, uint ShadingModelID)
+{
+#if FEATURE_LEVEL >= FEATURE_LEVEL_SM5
+	float2 LocalPosition = SvPosition.xy - View.ViewRectMin.xy;
+	uint GridIndex = ComputeLightGridCellIndex(uint2(LocalPosition.x, LocalPosition.y), SceneDepth);
+	uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
+	uint NumCulledReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
+	uint DataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+#else
+	uint DataStartIndex = 0;
+	uint NumCulledReflectionCaptures = 0;
+#endif
+
+	return CompositeIBLCaptures(WorldPosition, WorldNormal, NumCulledReflectionCaptures, DataStartIndex);
 }
 
 
@@ -301,6 +317,43 @@ float3 ReflectionEnvironment(FGBufferData GBuffer, float AmbientOcclusion, float
 	return -min(-Color.rgb, 0.0);
 }
 
+float4 IBLDiffuse(float4 SvPosition, FGBufferData GBuffer, float AmbientOcclusion, float2 BufferUV, float2 ScreenPosition, float3 BentNormal)
+{
+		float SceneDepth = GBuffer.Depth;
+		float3 WorldPosition = mul(float4(ScreenPosition * SceneDepth, SceneDepth, 1), View.ScreenToWorld).xyz;
+		uint ShadingModelID = GBuffer.ShadingModelID;
+
+		float4 IBL = GetCaptureIBL(SvPosition, SceneDepth, WorldPosition, GBuffer.WorldNormal, BentNormal, ShadingModelID);
+
+		float SkyVisibility = 1;
+		SkyVisibility = length(BentNormal);
+
+		float ContrastCurve = 1 / (1 + exp(-ContrastAndNormalizeMulAdd.x * (SkyVisibility * 10 - 5)));
+		SkyVisibility = saturate(ContrastCurve * ContrastAndNormalizeMulAdd.y + ContrastAndNormalizeMulAdd.z);
+
+		// Apply DFAO controls
+		SkyVisibility = pow(SkyVisibility, OcclusionExponent);
+		SkyVisibility = lerp(SkyVisibility, 1, OcclusionTintAndMinOcclusion.w);
+
+		// Combine with other AO sources
+		if (OcclusionCombineMode == 0)
+		{
+			// Combine with min which nicely avoids over-occlusion in cases where strong DFAO is present along with strong SSAO (distant trees)
+			SkyVisibility = min(SkyVisibility, min(GBuffer.GBufferAO, AmbientOcclusion));
+		}
+		else
+		{
+			// Combine with mul, which continues to add SSAO depth even indoors.  SSAO will need to be tweaked to be less strong.
+			SkyVisibility = SkyVisibility * min(GBuffer.GBufferAO, AmbientOcclusion);
+		}
+
+		// Blend AO into IBL using the DFAO Tint
+		IBL.xyz = lerp(OcclusionTintAndMinOcclusion.xyz, IBL.xyz, SkyVisibility);
+		IBL.xyz *= GBuffer.DiffuseColor;
+
+		return IBL;
+}
+
 void ReflectionEnvironmentSkyLighting(
 	in float4 SvPosition : SV_Position,
 	out float4 OutColor : SV_Target0)
@@ -330,6 +383,10 @@ void ReflectionEnvironmentSkyLighting(
 	if (ShadingModelID != SHADINGMODELID_UNLIT)
 	{
 		float3 SkyLighting = SkyLightDiffuse(GBuffer, AmbientOcclusion, BufferUV, ScreenPosition, BentNormal);
+		#if ENABLE_LOCAL_IBL
+			float4 IBL = IBLDiffuse(SvPosition, GBuffer, AmbientOcclusion, BufferUV, ScreenPosition, BentNormal);
+			SkyLighting = lerp(IBL.rgb, SkyLighting, IBL.a);
+		#endif
 
 		// Scene color alpha is used for ScreenSpaceSubsurfaceScattering (if that is not needed it can be disabled with SUBSURFACE_CHANNEL_MODE)
 		FLightAccumulator LightAccumulator = (FLightAccumulator)0;

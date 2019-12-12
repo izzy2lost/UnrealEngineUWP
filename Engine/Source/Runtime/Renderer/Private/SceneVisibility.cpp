@@ -3520,7 +3520,7 @@ void UpdateReflectionSceneData(FScene* Scene)
 		NewSortEntry.Guid = CurrentCapture->Guid;
 		NewSortEntry.PositionAndRadius = FVector4(CurrentCapture->Position, CurrentCapture->InfluenceRadius);
 		float ShapeTypeValue = (float)CurrentCapture->Shape;
-		NewSortEntry.CaptureProperties = FVector4(CurrentCapture->Brightness, NewSortEntry.CubemapIndex, ShapeTypeValue, 0);
+		NewSortEntry.CaptureProperties = FVector4(CurrentCapture->Brightness, NewSortEntry.CubemapIndex, ShapeTypeValue, CurrentCapture->ContributionFactor);
 
 		if (CurrentCapture->Shape == EReflectionCaptureShape::Plane)
 		{

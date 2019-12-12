@@ -726,6 +726,7 @@ UReflectionCaptureComponent::UReflectionCaptureComponent(const FObjectInitialize
 	: Super(ObjectInitializer)
 {
 	Brightness = 1;
+	ContributionFactor = 1;
 	// Shouldn't be able to change reflection captures at runtime
 	Mobility = EComponentMobility::Static;
 
@@ -1133,6 +1134,20 @@ void UReflectionCaptureComponent::PreFeatureLevelChange(ERHIFeatureLevel::Type P
 }
 #endif // WITH_EDITOR
 
+void UReflectionCaptureComponent::SetBrightness(float NewBrightness)
+{
+	Brightness = NewBrightness;
+
+	MarkRenderStateDirty();
+}
+
+void UReflectionCaptureComponent::SetContributionFactor(float NewContributionFactor)
+{
+	ContributionFactor = NewContributionFactor;
+
+	MarkRenderStateDirty();
+}
+
 USphereReflectionCaptureComponent::USphereReflectionCaptureComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -1258,6 +1273,7 @@ FReflectionCaptureProxy::FReflectionCaptureProxy(const UReflectionCaptureCompone
 	SetTransform(InComponent->GetComponentTransform().ToMatrixWithScale());
 	InfluenceRadius = InComponent->GetInfluenceBoundingRadius();
 	Brightness = InComponent->Brightness;
+	ContributionFactor = InComponent->ContributionFactor;
 	Guid = GetTypeHash( Component->GetPathName() );
 
 	bUsingPreviewCaptureData = MapBuildData == NULL;
