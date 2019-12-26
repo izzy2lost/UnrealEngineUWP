@@ -223,7 +223,111 @@ UGameViewportClient::UGameViewportClient(const FObjectInitializer& ObjectInitial
 	SplitscreenInfo[ESplitScreenType::FourPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.f, 0.25f, 0.0f, 0.5f));
 	SplitscreenInfo[ESplitScreenType::FourPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.f, 0.25f, 0.0f, 0.75f));
 
-	MaxSplitscreenPlayers = 4;
+	SplitscreenInfo[ESplitScreenType::FivePlayer_FavorTop].PlayerData.Add(FPerPlayerSplitscreenData(0.5f, 0.5f, 0.0f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_FavorTop].PlayerData.Add(FPerPlayerSplitscreenData(0.5f, 0.5f, 0.5f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_FavorTop].PlayerData.Add(FPerPlayerSplitscreenData(0.333f, 0.5f, 0.0f, 0.5f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_FavorTop].PlayerData.Add(FPerPlayerSplitscreenData(0.333f, 0.5f, 0.333f, 0.5f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_FavorTop].PlayerData.Add(FPerPlayerSplitscreenData(0.333f, 0.5f, 0.666f, 0.5f));
+
+	SplitscreenInfo[ESplitScreenType::FivePlayer_FavorBottom].PlayerData.Add(FPerPlayerSplitscreenData(0.333f, 0.5f, 0.0f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_FavorBottom].PlayerData.Add(FPerPlayerSplitscreenData(0.333f, 0.5f, 0.333f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_FavorBottom].PlayerData.Add(FPerPlayerSplitscreenData(0.333f, 0.5f, 0.666f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_FavorBottom].PlayerData.Add(FPerPlayerSplitscreenData(0.5f, 0.5f, 0.0f, 0.5f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_FavorBottom].PlayerData.Add(FPerPlayerSplitscreenData(0.5f, 0.5f, 0.5f, 0.5f));
+
+	SplitscreenInfo[ESplitScreenType::FivePlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData(0.2f, 1.0f, 0.0f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData(0.2f, 1.0f, 0.2f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData(0.2f, 1.0f, 0.4f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData(0.2f, 1.0f, 0.6f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData(0.2f, 1.0f, 0.8f, 0.0f));
+
+	SplitscreenInfo[ESplitScreenType::FivePlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, 0.2f, 0.0f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, 0.2f, 0.0f, 0.2f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, 0.2f, 0.0f, 0.4f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, 0.2f, 0.0f, 0.6f));
+	SplitscreenInfo[ESplitScreenType::FivePlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, 0.2f, 0.0f, 0.8f));
+
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Grid].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 3.0f), 0.5f, 0.0f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Grid].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 3.0f), 0.5f, (1.0f / 3.0f), 0.0f));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Grid].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 3.0f), 0.5f, ((1.0f / 3.0f) * 2.0f), 0.0f));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Grid].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 3.0f), 0.5f, 0.0f, 0.5f));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Grid].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 3.0f), 0.5f, (1.0f / 3.0f), 0.5f));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Grid].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 3.0f), 0.5f, ((1.0f / 3.0f) * 2.0f), 0.5f));
+
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 6.0f), 1.0f, 0.0f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 6.0f), 1.0f, (1.0f / 6.0f), 0.0f));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 6.0f), 1.0f, ((1.0f / 6.0f) * 2.0f), 0.0f));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 6.0f), 1.0f, ((1.0f / 6.0f) * 3.0f), 0.0f));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 6.0f), 1.0f, ((1.0f / 6.0f) * 4.0f), 0.0f));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 6.0f), 1.0f, ((1.0f / 6.0f) * 5.0f), 0.0f));
+
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, (1.0f / 6.0f), 0.0f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, (1.0f / 6.0f), 0.0f, (1.0f / 6.0f)));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, (1.0f / 6.0f), 0.0f, ((1.0f / 6.0f) * 2.0f)));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, (1.0f / 6.0f), 0.0f, ((1.0f / 6.0f) * 3.0f)));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, (1.0f / 6.0f), 0.0f, ((1.0f / 6.0f) * 4.0f)));
+	SplitscreenInfo[ESplitScreenType::SixPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, (1.0f / 6.0f), 0.0f, ((1.0f / 6.0f) * 5.0f)));
+
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_FavorTop].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 3.0f), 0.5f, 0.0f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_FavorTop].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 3.0f), 0.5f, (1.0f / 3.0f), 0.0f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_FavorTop].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 3.0f), 0.5f, ((1.0f / 3.0f) * 2.0f), 0.0f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_FavorTop].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.0f, 0.5f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_FavorTop].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.25f, 0.5f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_FavorTop].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.5f, 0.5f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_FavorTop].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.75f, 0.5f));
+
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_FavorBottom].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.0f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_FavorBottom].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.25f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_FavorBottom].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.5f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_FavorBottom].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.75f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_FavorBottom].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 3.0f), 0.5f, 0.0f, 0.5f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_FavorBottom].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 3.0f), 0.5f, (1.0f / 3.0f), 0.5f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_FavorBottom].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 3.0f), 0.5f, ((1.0f / 3.0f) * 2.0f), 0.5f));
+
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 7.0f), 1.0f, 0.0f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 7.0f), 1.0f, (1.0f / 7.0f), 0.0f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 7.0f), 1.0f, ((1.0f / 7.0f) * 2.0f), 0.0f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 7.0f), 1.0f, ((1.0f / 7.0f) * 3.0f), 0.0f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 7.0f), 1.0f, ((1.0f / 7.0f) * 4.0f), 0.0f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 7.0f), 1.0f, ((1.0f / 7.0f) * 5.0f), 0.0f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData((1.0f / 7.0f), 1.0f, ((1.0f / 7.0f) * 6.0f), 0.0f));
+
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, (1.0f / 7.0f), 0.0f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, (1.0f / 7.0f), 0.0f, (1.0f / 7.0f)));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, (1.0f / 7.0f), 0.0f, ((1.0f / 7.0f) * 2.0f)));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, (1.0f / 7.0f), 0.0f, ((1.0f / 7.0f) * 3.0f)));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, (1.0f / 7.0f), 0.0f, ((1.0f / 7.0f) * 4.0f)));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, (1.0f / 7.0f), 0.0f, ((1.0f / 7.0f) * 5.0f)));
+	SplitscreenInfo[ESplitScreenType::SevenPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, (1.0f / 7.0f), 0.0f, ((1.0f / 7.0f) * 6.0f)));
+
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Grid].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.0f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Grid].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.25f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Grid].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.5f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Grid].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.75f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Grid].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.0f, 0.5f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Grid].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.25f, 0.5f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Grid].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.5f, 0.5f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Grid].PlayerData.Add(FPerPlayerSplitscreenData(0.25f, 0.5f, 0.75f, 0.5f));
+
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData(0.125f, 1.0f, 0.0f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData(0.125f, 1.0f, 0.125f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData(0.125f, 1.0f, 0.25f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData(0.125f, 1.0f, 0.375f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData(0.125f, 1.0f, 0.5f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData(0.125f, 1.0f, 0.625f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData(0.125f, 1.0f, 0.75f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Vertical].PlayerData.Add(FPerPlayerSplitscreenData(0.125f, 1.0f, 0.875f, 0.0f));
+
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, 0.125f, 0.0f, 0.0f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, 0.125f, 0.0f, 0.125f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, 0.125f, 0.0f, 0.25f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, 0.125f, 0.0f, 0.375f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, 0.125f, 0.0f, 0.5f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, 0.125f, 0.0f, 0.625f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, 0.125f, 0.0f, 0.75f));
+	SplitscreenInfo[ESplitScreenType::EightPlayer_Horizontal].PlayerData.Add(FPerPlayerSplitscreenData(1.0f, 0.125f, 0.0f, 0.875f));
+
+	MaxSplitscreenPlayers = 8;
 	bSuppressTransitionMessage = true;
 
 	if (HasAnyFlags(RF_ClassDefaultObject) == false)
@@ -2091,6 +2195,94 @@ void UGameViewportClient::UpdateActiveSplitscreenType()
 
 			case EThreePlayerSplitScreenType::Horizontal:
 				SplitType = ESplitScreenType::ThreePlayer_Horizontal;
+				break;
+
+			default:
+				check(0);
+			}
+			break;
+
+		case 5:
+			switch (Settings->FivePlayerSplitscreenLayout)
+			{
+			case EFivePlayerSplitScreenType::FavorTop:
+				SplitType = ESplitScreenType::FivePlayer_FavorTop;
+				break;
+
+			case EFivePlayerSplitScreenType::FavorBottom:
+				SplitType = ESplitScreenType::FivePlayer_FavorBottom;
+				break;
+
+			case EFivePlayerSplitScreenType::Vertical:
+				SplitType = ESplitScreenType::FivePlayer_Vertical;
+				break;
+
+			case EFivePlayerSplitScreenType::Horizontal:
+				SplitType = ESplitScreenType::FivePlayer_Horizontal;
+				break;
+
+			default:
+				check(0);
+			}
+			break;
+
+		case 6:
+			switch (Settings->SixPlayerSplitscreenLayout)
+			{
+			case ESixPlayerSplitScreenType::Grid:
+				SplitType = ESplitScreenType::SixPlayer_Grid;
+				break;
+
+			case ESixPlayerSplitScreenType::Vertical:
+				SplitType = ESplitScreenType::SixPlayer_Vertical;
+				break;
+
+			case ESixPlayerSplitScreenType::Horizontal:
+				SplitType = ESplitScreenType::SixPlayer_Horizontal;
+				break;
+
+			default:
+				check(0);
+			}
+			break;
+
+		case 7:
+			switch (Settings->SevenPlayerSplitscreenLayout)
+			{
+			case ESevenPlayerSplitScreenType::FavorTop:
+				SplitType = ESplitScreenType::SevenPlayer_FavorTop;
+				break;
+
+			case ESevenPlayerSplitScreenType::FavorBottom:
+				SplitType = ESplitScreenType::SevenPlayer_FavorBottom;
+				break;
+
+			case ESevenPlayerSplitScreenType::Vertical:
+				SplitType = ESplitScreenType::SevenPlayer_Vertical;
+				break;
+
+			case ESevenPlayerSplitScreenType::Horizontal:
+				SplitType = ESplitScreenType::SevenPlayer_Horizontal;
+				break;
+
+			default:
+				check(0);
+			}
+			break;
+
+		case 8:
+			switch (Settings->EightPlayerSplitscreenLayout)
+			{
+			case EEightPlayerSplitScreenType::Grid:
+				SplitType = ESplitScreenType::EightPlayer_Grid;
+				break;
+
+			case EEightPlayerSplitScreenType::Vertical:
+				SplitType = ESplitScreenType::EightPlayer_Vertical;
+				break;
+
+			case EEightPlayerSplitScreenType::Horizontal:
+				SplitType = ESplitScreenType::EightPlayer_Horizontal;
 				break;
 
 			default:

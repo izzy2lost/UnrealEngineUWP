@@ -39,6 +39,34 @@ namespace ESplitScreenType
 		FourPlayer_Vertical,
 		// 4 Player horizontal split
 		FourPlayer_Horizontal,
+		// 5 Player split with 2 players on top and 3 on bottom
+		FivePlayer_FavorTop,
+		// 5 Player split with 3 players on top and 2 on bottom
+		FivePlayer_FavorBottom,
+		// 5 Player vertical split
+		FivePlayer_Vertical,
+		// 5 Player horizontal split
+		FivePlayer_Horizontal,
+		// 6 Player grid split
+		SixPlayer_Grid,
+		// 6 Player vertical split
+		SixPlayer_Vertical,
+		// 6 Player horizontal split
+		SixPlayer_Horizontal,
+		// 7 Player split with 3 players on top and 4 on bottom
+		SevenPlayer_FavorTop,
+		// 7 Player split with 4 players on top and 3 on bottom
+		SevenPlayer_FavorBottom,
+		// 7 Player vertical split
+		SevenPlayer_Vertical,
+		// 7 Player horizontal split
+		SevenPlayer_Horizontal,
+		// 8 Player grid split
+		EightPlayer_Grid,
+		// 8 Player vertical split
+		EightPlayer_Vertical,
+		// 8 Player horizontal split
+		EightPlayer_Horizontal,
 
 		SplitTypeCount
 	};

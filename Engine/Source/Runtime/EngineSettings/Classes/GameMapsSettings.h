@@ -41,6 +41,40 @@ enum class EFourPlayerSplitScreenType : uint8
 	Horizontal
 };
 
+UENUM()
+enum class EFivePlayerSplitScreenType : uint8
+{
+	FavorTop,
+	FavorBottom,
+	Vertical,
+	Horizontal
+};
+
+UENUM()
+enum class ESixPlayerSplitScreenType : uint8
+{
+	Grid,
+	Vertical,
+	Horizontal
+};
+
+UENUM()
+enum class ESevenPlayerSplitScreenType : uint8
+{
+	FavorTop,
+	FavorBottom,
+	Vertical,
+	Horizontal
+};
+
+UENUM()
+enum class EEightPlayerSplitScreenType : uint8
+{
+	Grid,
+	Vertical,
+	Horizontal
+};
+
 /** Helper structure, used to associate GameModes with shortcut names. */
 USTRUCT()
 struct FGameModeName
@@ -147,9 +181,25 @@ public:
 	UPROPERTY(config, EditAnywhere, Category=LocalMultiplayer, meta=(editcondition="bUseSplitScreen"))
 	TEnumAsByte<EThreePlayerSplitScreenType::Type> ThreePlayerSplitscreenLayout;
 
-	/** The viewport layout to use if the screen should be split and there are three local players */
+	/** The viewport layout to use if the screen should be split and there are four local players */
 	UPROPERTY(config, EditAnywhere, Category=LocalMultiplayer, meta=(editcondition="bUseSplitScreen"))
 	EFourPlayerSplitScreenType FourPlayerSplitscreenLayout;
+
+	/** The viewport layout to use if the screen should be split and there are five local players */
+	UPROPERTY(config, EditAnywhere, Category=LocalMultiplayer, meta=(editcondition="bUseSplitScreen"))
+	EFivePlayerSplitScreenType FivePlayerSplitscreenLayout;
+
+	/** The viewport layout to use if the screen should be split and there are six local players */
+	UPROPERTY(config, EditAnywhere, Category=LocalMultiplayer, meta=(editcondition="bUseSplitScreen"))
+	ESixPlayerSplitScreenType SixPlayerSplitscreenLayout;
+
+	/** The viewport layout to use if the screen should be split and there are seven local players */
+	UPROPERTY(config, EditAnywhere, Category=LocalMultiplayer, meta=(editcondition="bUseSplitScreen"))
+	ESevenPlayerSplitScreenType SevenPlayerSplitscreenLayout;
+
+	/** The viewport layout to use if the screen should be split and there are eight local players */
+	UPROPERTY(config, EditAnywhere, Category=LocalMultiplayer, meta=(editcondition="bUseSplitScreen"))
+	EEightPlayerSplitScreenType EightPlayerSplitscreenLayout;
 
 	/**
 	* If enabled, this will make so that gamepads start being assigned to the second controller ID in local multiplayer games.
