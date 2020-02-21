@@ -1,7 +1,7 @@
 [submodule "Engine/Plugins/Runtime/Mixer"]
 	path = Engine/Plugins/Runtime/Mixer
-	url = https://github.com/MICROSOFT-XBOX-ATG/interactive-unreal-plugin.git
+	url = https://github.com/mixer/interactive-unreal-plugin.git
 	branch = add-uwp-support
 [submodule "Engine/Plugins/Runtime/XboxOne/XboxFrontPanel"]
 	path = Engine/Plugins/Runtime/XboxOne/XboxFrontPanel
-	url = https://github.com/MICROSOFT-XBOX-ATG/xbox-front-panel-unreal-plugin.git
+	url = https://github.com/lab132/xbox-front-panel-unreal-plugin.git
