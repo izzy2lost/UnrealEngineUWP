@@ -239,7 +239,7 @@ namespace UnrealBuildTool
 			if (string.IsNullOrEmpty(Target.UWPPlatform.Win10SDKVersionString))
 			{
 				Log.TraceInformation("Auto-detecting Windows 10 SDK version...");
-				Target.UWPPlatform.Win10SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, Target.UWPPlatform.Compiler);
+				Target.UWPPlatform.Win10SDKVersion = new Version(10, 0, 17134, 0);// VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, Target.UWPPlatform.Compiler);
 
 				if (Target.UWPPlatform.Win10SDKVersion.Major == 0)
 				{
