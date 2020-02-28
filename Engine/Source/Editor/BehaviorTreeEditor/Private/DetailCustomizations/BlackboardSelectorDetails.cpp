@@ -170,7 +170,7 @@ void FBlackboardSelectorDetails::InitKeyFromProperty()
 			{
 				MyKeyClassProperty->SetValue((UObject*)NULL);
 				MyKeyIDProperty->SetValue(FBlackboard::InvalidKey);
-				MyKeyNameProperty->SetValue(TEXT("None"));
+				MyKeyNameProperty->SetValue(FString(TEXT("None")));
 			}
 		}
 	}
