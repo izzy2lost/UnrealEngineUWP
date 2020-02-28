@@ -1055,7 +1055,7 @@ bool FFCPXMLExportVisitor::ConstructAudioFileNode(TSharedRef<FFCPXMLNode> InPare
 		
 		if (InAudioSectionData->NumChannels == 2)
 		{
-			AudioNode->CreateChildNode(TEXT("layout"))->SetContent(TEXT("stereo"));
+			AudioNode->CreateChildNode(TEXT("layout"))->SetContent(FString(TEXT("stereo")));
 			TSharedRef<FFCPXMLNode> AudioChannelNode = AudioNode->CreateChildNode(TEXT("audiochannel"));
 			AudioChannelNode->CreateChildNode(TEXT("sourcechannel"))->SetContent(1);
 			AudioChannelNode->CreateChildNode(TEXT("channellabel"))->SetContent(FString(TEXT("left")));
@@ -1067,7 +1067,7 @@ bool FFCPXMLExportVisitor::ConstructAudioFileNode(TSharedRef<FFCPXMLNode> InPare
 				return false;
 			}
 			AudioNode->CreateChildNode(TEXT("channelcount"))->SetContent(1);
-			AudioNode->CreateChildNode(TEXT("layout"))->SetContent(TEXT("stereo"));
+			AudioNode->CreateChildNode(TEXT("layout"))->SetContent(FString(TEXT("stereo")));
 
 			AudioChannelNode = AudioNode->CreateChildNode(TEXT("audiochannel"));
 			AudioChannelNode->CreateChildNode(TEXT("sourcechannel"))->SetContent(2);
