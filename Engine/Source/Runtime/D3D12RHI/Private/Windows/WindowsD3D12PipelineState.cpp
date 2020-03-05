@@ -540,7 +540,7 @@ void FD3D12PipelineStateCache::Init(FString& GraphicsCacheFileName, FString& Com
 	
 	const bool bEnableDriverOptimizedPipelineStateDiskCaches = CVarDriverOptimizedPipelineStateDiskCache.GetValueOnAnyThread() != 0;
 	UE_CLOG(!bEnableDriverOptimizedPipelineStateDiskCaches, LogD3D12RHI, Display, TEXT("Not using driver-optimized pipeline state disk cache per r.D3D12.PSO.DriverOptimizedDiskCache=0"));
-	bUseAPILibaries = bEnableDriverOptimizedPipelineStateDiskCaches;
+	bUseAPILibaries = false;// bEnableDriverOptimizedPipelineStateDiskCaches;
 
 	DiskCaches[PSO_CACHE_GRAPHICS].Init(GraphicsCacheFileName, bEnableGeneralPipelineStateDiskCaches);
 	DiskCaches[PSO_CACHE_COMPUTE].Init(ComputeCacheFileName, bEnableGeneralPipelineStateDiskCaches);
@@ -600,7 +600,7 @@ bool FD3D12PipelineStateCache::IsInErrorState() const
 }
 
 FD3D12PipelineStateCache::FD3D12PipelineStateCache(FD3D12Adapter* InParent)
-	: bUseAPILibaries(true)
+	: bUseAPILibaries(false)
 	, FD3D12PipelineStateCacheBase(InParent)
 {
 }
