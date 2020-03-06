@@ -543,7 +543,7 @@ namespace MeshDescriptionOp
 		// Clean out empty charts
 		for (int32 i = 0; i < Charts.Num(); i++)
 		{
-			while (i < Charts.Num() && Charts[i].FirstTri == Charts[i].LastTri)
+			while (Charts.IsValidIndex(i) && Charts[i].FirstTri == Charts[i].LastTri)
 			{
 				Charts.RemoveAtSwap(i);
 			}
