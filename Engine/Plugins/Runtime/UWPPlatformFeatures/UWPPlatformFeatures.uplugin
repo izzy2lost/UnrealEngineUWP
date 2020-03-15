@@ -1,0 +1,30 @@
+{
+	"FileVersion": 3,
+
+	"FriendlyName": "UWP Platform Features",
+	"Version": 1,
+	"VersionName": "1.0",
+	"Description": "UWP save-game system supporting cross-platform saves with Xbox One",
+	"Category": "Online Platform",
+	"CreatedBy": "Microsoft.",
+	"CreatedByURL": "http://microsoft.com",
+	"EnabledByDefault": false,
+
+	"Modules": [
+		{
+			"Name": "UWPPlatformFeatures",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"WhitelistPlatforms": [
+				"UWP64",
+				"UWP32"
+			]
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "OnlineSubsystem",
+			"Enabled": true
+		}
+	]
+}
