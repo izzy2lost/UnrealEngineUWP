@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -46,9 +46,9 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
-    <Reference Include="WindowsDevicePortalWrapper">
-      <HintPath>..\..\..\..\..\Engine\Binaries\ThirdParty\WindowsDevicePortalWrapper\WindowsDevicePortalWrapper.dll</HintPath>
-    </Reference>
+    <!--<Reference Include="WindowsDevicePortalWrapper"> -->
+    <!--  <HintPath>..\..\..\..\..\Engine\Binaries\ThirdParty\WindowsDevicePortalWrapper\WindowsDevicePortalWrapper.dll</HintPath> -->
+    <!--</Reference> -->
   </ItemGroup>
   <PropertyGroup>
     <Windows10SdkPath>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\v10.0@InstallationFolder)</Windows10SdkPath>
@@ -87,6 +87,10 @@
       <Project>{fd7c5e1a-cfe4-4fd5-a525-1eb1599a39ac}</Project>
       <Name>UnrealBuildTool</Name>
       <Private>False</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\..\WindowsDevicePortalWrapper\WindowsDevicePortalWrapper.csproj">
+      <Project>{6a9e862e-5cda-4a8a-bbc0-56e9ea921e39}</Project>
+      <Name>WindowsDevicePortalWrapper</Name>
     </ProjectReference>
     <ProjectReference Include="..\AutomationUtils\AutomationUtils.Automation.csproj">
       <Project>{2c96a7f2-b1a3-4258-8e0a-e588ff41a53e}</Project>
