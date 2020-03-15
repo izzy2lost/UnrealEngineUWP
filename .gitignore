@@ -228,6 +228,9 @@ Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/**
 !/Engine/Source/ThirdParty/Windows/PIX/**
 # @EVOPULSE_CHANGE - END
 
+# Exception for WindowsDevicePortalWrapper (nuget version is outdated, has bug, using actual submodule here)
+!/Engine/Source/Programs/WindowsDevicePortalWrapper/**
+
 # But some third-party UWP output file types are not consumed by the engine and should still be ignored.
 /Engine/Binaries/ThirdParty/**/UWP*/VS2015/*.map
 /Engine/Binaries/ThirdParty/**/UWP*/VS2015/*.pri
