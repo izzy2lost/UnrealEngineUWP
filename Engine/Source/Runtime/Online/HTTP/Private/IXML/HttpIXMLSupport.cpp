@@ -2,7 +2,7 @@
 
 #include "HttpIXMLSupport.h"
 
-#if PLATFORM_HOLOLENS
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
 
 #include "HttpIXML.h"
 #include <string>

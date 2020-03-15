@@ -1,0 +1,30 @@
+{
+	"FileVersion" : 3,
+	"Version" : 1,
+	"VersionName" : "1.0",
+	"FriendlyName" : "UWP Movie Player",
+	"Description" : "Startup move player for UWP",
+	"Category" : "Movie Players",
+	"CreatedBy" : "Microsoft",
+	"CreatedByURL" : "http://www.microsoft.com",
+	"DocsURL" : "",
+	"MarketplaceURL" : "",
+	"SupportURL" : "",
+	"EnabledByDefault" : true,
+	"CanContainContent" : false,
+	"IsBetaVersion" : false,
+	"Installed" : false,
+	"Modules" :
+	[
+		{
+			"Name" : "UWPMoviePlayer",
+			"Type" : "RuntimeNoCommandlet",
+			"LoadingPhase" : "PreLoadingScreen",
+			"WhitelistPlatforms" :
+			[
+				"UWP64",
+				"UWP32"
+			]
+		}
+	]
+}
