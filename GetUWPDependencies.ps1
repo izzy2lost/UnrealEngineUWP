@@ -82,9 +82,10 @@ Install-Package $nuget microsoft.xbox.live.sdk.winrt.XboxOneXDK $xsapiInstallPat
 Install-Package $nuget microsoft.xbox.XboxIntegratedMultiplayer.cpp.uwp $ximInstallPath @("build\native\lib", "build\native\include") $ximVersionUwp UWP
 
 # Install Windows Device Portal Wrapper (used by UWP.Automation)
-Write-Output "Installing Windows Device Portal Wrapper from Nuget..."
-$wdpwrapperInstallPath = [System.IO.Path]::Combine($startupPath, "Engine", "Binaries", "ThirdParty", "WindowsDevicePortalWrapper")
-Install-Package $nuget windowsdeviceportalwrapper $wdpwrapperInstallPath @("lib\net452\*")
+#Write-Output "Installing Windows Device Portal Wrapper from Nuget..."
+Write-Output "Skipping installing Windows Device Portal Wrapper from Nuget... because its outdated, and we already have a source version integrated"
+#$wdpwrapperInstallPath = [System.IO.Path]::Combine($startupPath, "Engine", "Binaries", "ThirdParty", "WindowsDevicePortalWrapper")
+#Install-Package $nuget windowsdeviceportalwrapper $wdpwrapperInstallPath @("lib\net452\*")
 
 # Check for Live Extensions SDK
 Write-Output "Checking for Xbox Live Extensions SDK..."
