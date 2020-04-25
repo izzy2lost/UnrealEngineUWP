@@ -57,6 +57,7 @@ private:
 		float								RightTrigger;
 		bool								TerminateInputs;
 		float								RepeatTime[MaxSupportedButtons];
+		bool								IsRequestingAssignment;
 
 		GamepadMapping()
 			: DeviceId(InvalidGamepadDeviceId)
@@ -64,6 +65,7 @@ private:
 			, LeftTrigger(0.0f)
 			, RightTrigger(0.0f)
 			, TerminateInputs(false)
+			, IsRequestingAssignment(false)
 		{
 			for (uint32 i = 0; i < MaxSupportedButtons; i++)
 			{

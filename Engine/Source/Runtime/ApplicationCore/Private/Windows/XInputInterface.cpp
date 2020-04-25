@@ -151,6 +151,20 @@ void XInputInterface::SendControllerEvents()
 			{
 				FCoreDelegates::OnControllerConnectionChange.Broadcast(false, -1, ControllerState.ControllerId);
 			}
+
+			// Trigger assignment request event on menu key press
+			if (XInputState.Gamepad.wButtons & XINPUT_GAMEPAD_START)
+			{
+				if (!ControllerState.IsRequestingAssignment)
+				{
+					ControllerState.IsRequestingAssignment = true;
+					FCoreDelegates::OnControllerAssignmentRequest.Broadcast(ControllerState.ControllerId);
+				}
+			}
+			else
+			{
+				ControllerState.IsRequestingAssignment = false;
+			}
 			
 			bool CurrentStates[MAX_NUM_CONTROLLER_BUTTONS] = {0};
 		

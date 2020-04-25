@@ -2,6 +2,7 @@
 
 #include "WindowsGamingInputInterface.h"
 #include "HAL/PlatformTime.h"
+#include "Misc/CoreDelegates.h"
 #include <unordered_map>
 
 DECLARE_LOG_CATEGORY_EXTERN(GamepadSystem, Log, All);
@@ -316,6 +317,21 @@ void WindowsGamingInputInterface::UpdateGamepads()
 				(nullptr != PadInfo[i].Gamepad))
 			{
 				GamepadReading Reading = PadInfo[i].Gamepad->GetCurrentReading();
+
+				// Trigger assignment request event on menu key press
+				if ((Reading.Buttons & Windows::Gaming::Input::GamepadButtons::Menu) == Windows::Gaming::Input::GamepadButtons::Menu)
+				{
+					if (!PadInfo[i].IsRequestingAssignment)
+					{
+						PadInfo[i].IsRequestingAssignment = true;
+						FCoreDelegates::OnControllerAssignmentRequest.Broadcast(i/*ControllerId*/);
+					}
+				}
+				else
+				{
+					PadInfo[i].IsRequestingAssignment = false;
+				}
+
 				float LeftThumbX = (float)Reading.LeftThumbstickX;
 				float LeftThumbY = (float)Reading.LeftThumbstickY;
 				float RightThumbX = (float)Reading.RightThumbstickX;

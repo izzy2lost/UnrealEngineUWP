@@ -100,6 +100,8 @@ private:
 
 		float LastLargeValue;
 		float LastSmallValue;
+
+		bool IsRequestingAssignment;
 	};
 
 	/** If we've been notified by the system that the controller state may have changed */

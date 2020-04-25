@@ -118,6 +118,9 @@ public:
 	// second param is NewUserPlatformId, third is OldUserPlatformId.
 	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnUserControllerPairingChange, int32 /*ControllerIndex*/, FPlatformUserId /*NewUserPlatformId*/, FPlatformUserId /*OldUserPlatformId*/);
 
+	// Callback for handling a Controller assignment attempt by menu key press
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnUserControllerAssignmentRequest, int32 /* ControllerId */);
+
 	// Callback for platform handling when flushing async loads.
 	DECLARE_MULTICAST_DELEGATE(FOnAsyncLoadingFlush);
 	static FOnAsyncLoadingFlush OnAsyncLoadingFlush;
@@ -144,6 +147,9 @@ public:
 
 	// Callback when a single controller pairing changes
 	static FOnUserControllerPairingChange OnControllerPairingChange;
+
+	// Callback when the menu key of a controller is pressed
+	static FOnUserControllerAssignmentRequest OnControllerAssignmentRequest;
 
 	// Callback when a user changes the safe frame size
 	static FOnSafeFrameChangedEvent OnSafeFrameChangedEvent;
