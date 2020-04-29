@@ -1,3 +1,8 @@
+There is a lot of information explaining setup and how to use this. There are customizations I made to get this to work. DO NOT FOLLOW OLD GUIDES!!!!!
+
+I've put all of this into the discord channel #faq-uwp, you can use the link below:
+https://discord.gg/V5JwNPp
+
 
 ##Unreal Engine 4 for Universal Windows Platform##
 ***Readme Updated 2016.07.20 @ 1:46PM***
