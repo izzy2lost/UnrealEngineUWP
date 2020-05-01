@@ -229,6 +229,9 @@ void FUWPInputInterface::ConditionalScanForKeyboardChanges( float DeltaTime )
 				{
 					if (bKeyReleased == false)
 					{
+						if (KeyIndex == VK_SPACE)
+							FCoreDelegates::OnControllerAssignmentRequest.Broadcast(0);
+
 						MessageHandler->OnKeyDown( KeyIndex, CharCode, bIsRepeat );
 					}
 					else

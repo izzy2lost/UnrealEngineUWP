@@ -1784,6 +1784,9 @@ int32 FWindowsApplication::ProcessDeferredMessage( const FDeferredWindowsMessage
 					break;
 				}
 
+				if (Win32Key == VK_SPACE)
+					FCoreDelegates::OnControllerAssignmentRequest.Broadcast(0);
+
 				// Get the character code from the virtual key pressed.  If 0, no translation from virtual key to character exists
 				uint32 CharCode = ::MapVirtualKey( Win32Key, MAPVK_VK_TO_CHAR );
 

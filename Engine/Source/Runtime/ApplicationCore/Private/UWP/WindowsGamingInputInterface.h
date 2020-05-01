@@ -43,7 +43,7 @@ private:
 	float											InitialRepeatDelay;
 	float											SubsequentRepeatDelay;
 
-	enum { MaxSupportedGamepads = 4 };		// MAX_NUM_XINPUT_CONTROLLER == 4 (in XInput manager)
+	enum { MaxSupportedGamepads = 8 };
 	enum { InvalidGamepadDeviceId = -1 };
 	enum { MaxSupportedButtons = 32 };
 

@@ -131,7 +131,10 @@ void WindowsGamingInputInterface::OnGamepadRemoved(Windows::Gaming::Input::Gamep
 
 Windows::Gaming::Input::Gamepad^ WindowsGamingInputInterface::GetGamepadForIndex(int Id)
 {
-	return ((((unsigned int)Id) < MaxSupportedGamepads) ? PadInfo[Id].Gamepad : nullptr);
+	if (Id < 1)
+		return nullptr;
+
+	return ((((unsigned int)Id) < MaxSupportedGamepads) ? PadInfo[Id - 1].Gamepad : nullptr);
 }
 
 bool WindowsGamingInputInterface::GetVibration(int Id, float& LeftMotor, float& RightMotor, float& LeftTrigger, float& RightTrigger)
@@ -142,10 +145,10 @@ bool WindowsGamingInputInterface::GetVibration(int Id, float& LeftMotor, float& 
 		return false;
 	}
 
-	LeftMotor = PadInfo[Id].Gamepad->Vibration.LeftMotor;
-	RightMotor = PadInfo[Id].Gamepad->Vibration.RightMotor;
-	LeftTrigger = PadInfo[Id].Gamepad->Vibration.LeftTrigger;
-	RightTrigger = PadInfo[Id].Gamepad->Vibration.RightTrigger;
+	LeftMotor = GamePad->Vibration.LeftMotor;
+	RightMotor = GamePad->Vibration.RightMotor;
+	LeftTrigger = GamePad->Vibration.LeftTrigger;
+	RightTrigger = GamePad->Vibration.RightTrigger;
 
 	return true;
 }
@@ -158,10 +161,10 @@ bool WindowsGamingInputInterface::SetVibration(int Id, float LeftMotor, float Ri
 		return false;
 	}
 
-	if (PadInfo[Id].Gamepad->Vibration.LeftMotor != LeftMotor ||
-		PadInfo[Id].Gamepad->Vibration.RightMotor != RightMotor ||
-		PadInfo[Id].Gamepad->Vibration.LeftTrigger != LeftTrigger ||
-		PadInfo[Id].Gamepad->Vibration.RightTrigger != RightTrigger)
+	if (GamePad->Vibration.LeftMotor != LeftMotor ||
+		GamePad->Vibration.RightMotor != RightMotor ||
+		GamePad->Vibration.LeftTrigger != LeftTrigger ||
+		GamePad->Vibration.RightTrigger != RightTrigger)
 	{
 		Windows::Gaming::Input::GamepadVibration Vibration;
 		Vibration.LeftMotor = FMath::Clamp(LeftMotor, 0.f, 1.f);
@@ -169,8 +172,8 @@ bool WindowsGamingInputInterface::SetVibration(int Id, float LeftMotor, float Ri
 		Vibration.LeftTrigger = FMath::Clamp(LeftTrigger, 0.f, 1.f);
 		Vibration.RightTrigger = FMath::Clamp(RightTrigger, 0.f, 1.f);
 
-		UE_LOG(GamepadSystem, Verbose, TEXT("Set Gamepad 0x%p (id = %d) vibration. (%f, %f, %f, %f)"), (void *)(PadInfo[Id].Gamepad), Id, Vibration.LeftMotor, Vibration.RightMotor, Vibration.LeftTrigger, Vibration.RightTrigger);
-		PadInfo[Id].Gamepad->Vibration = Vibration;
+		UE_LOG(GamepadSystem, Verbose, TEXT("Set Gamepad 0x%p (id = %d) vibration. (%f, %f, %f, %f)"), (void *)(PadInfo[Id - 1].Gamepad), Id - 1, Vibration.LeftMotor, Vibration.RightMotor, Vibration.LeftTrigger, Vibration.RightTrigger);
+		PadInfo[Id - 1].Gamepad->Vibration = Vibration;
 	}
 
 	return true;
@@ -239,6 +242,8 @@ void WindowsGamingInputInterface::DisableUpdate()
 void WindowsGamingInputInterface::TerminateGamepadInputs(GamepadMapping& Mapping, int Id)
 {
 	UE_LOG(GamepadSystem, Log, TEXT("Terminate active gamepad inputs."));
+
+	Id += 1;
 
 	// reset axes
 	MessageHandler->OnControllerAnalog(FGamepadKeyNames::LeftAnalogX, Id, 0.0f);
@@ -313,6 +318,8 @@ void WindowsGamingInputInterface::UpdateGamepads()
 		// find slot and remove
 		for (int i = 0; i < MaxSupportedGamepads; i++)
 		{
+			int Id = i + 1;
+
 			if ((InvalidGamepadDeviceId != PadInfo[i].DeviceId) &&
 				(nullptr != PadInfo[i].Gamepad))
 			{
@@ -324,7 +331,7 @@ void WindowsGamingInputInterface::UpdateGamepads()
 					if (!PadInfo[i].IsRequestingAssignment)
 					{
 						PadInfo[i].IsRequestingAssignment = true;
-						FCoreDelegates::OnControllerAssignmentRequest.Broadcast(i/*ControllerId*/);
+						FCoreDelegates::OnControllerAssignmentRequest.Broadcast(Id/*ControllerId*/);
 					}
 				}
 				else
@@ -340,14 +347,14 @@ void WindowsGamingInputInterface::UpdateGamepads()
 				float RightTrigger = (float)Reading.RightTrigger;
 
 				// map axes
-				MessageHandler->OnControllerAnalog(FGamepadKeyNames::LeftAnalogX, i, LeftThumbX);
-				MessageHandler->OnControllerAnalog(FGamepadKeyNames::LeftAnalogY, i, LeftThumbY);
-				MessageHandler->OnControllerAnalog(FGamepadKeyNames::RightAnalogX, i, RightThumbX);
-				MessageHandler->OnControllerAnalog(FGamepadKeyNames::RightAnalogY, i, RightThumbY);
+				MessageHandler->OnControllerAnalog(FGamepadKeyNames::LeftAnalogX, Id, LeftThumbX);
+				MessageHandler->OnControllerAnalog(FGamepadKeyNames::LeftAnalogY, Id, LeftThumbY);
+				MessageHandler->OnControllerAnalog(FGamepadKeyNames::RightAnalogX, Id, RightThumbX);
+				MessageHandler->OnControllerAnalog(FGamepadKeyNames::RightAnalogY, Id, RightThumbY);
 
 				// map analog triggers directly
-				MessageHandler->OnControllerAnalog(FGamepadKeyNames::LeftTriggerAnalog, i, LeftTrigger);
-				MessageHandler->OnControllerAnalog(FGamepadKeyNames::RightTriggerAnalog, i, RightTrigger);
+				MessageHandler->OnControllerAnalog(FGamepadKeyNames::LeftTriggerAnalog, Id, LeftTrigger);
+				MessageHandler->OnControllerAnalog(FGamepadKeyNames::RightTriggerAnalog, Id, RightTrigger);
 
 				// map buttons (low 15 bits)
 				unsigned int CurrentButtonHeldMask = (((unsigned int)Reading.Buttons) & GamingInputButtonMask);
@@ -433,7 +440,7 @@ void WindowsGamingInputInterface::UpdateGamepads()
 							if (GamepadButtonToUnrealName(ButtonKey, BitMask))
 							{
 								UE_LOG(GamepadSystem, Verbose, TEXT("Gamepad 0x%p (id = %d) - %s Pressed"), (void *)(PadInfo[i].Gamepad), i, *ButtonKey.ToString());
-								MessageHandler->OnControllerButtonPressed(ButtonKey, i, false);
+								MessageHandler->OnControllerButtonPressed(ButtonKey, Id, false);
 								PadInfo[i].RepeatTime[n] = InitialRepeatDelay;
 							}
 						}
@@ -442,7 +449,7 @@ void WindowsGamingInputInterface::UpdateGamepads()
 							if (GamepadButtonToUnrealName(ButtonKey, BitMask))
 							{
 								UE_LOG(GamepadSystem, Verbose, TEXT("Gamepad 0x%p (id = %d) - %s Released"), (void *)(PadInfo[i].Gamepad), i, *ButtonKey.ToString());
-								MessageHandler->OnControllerButtonReleased(ButtonKey, i, false);
+								MessageHandler->OnControllerButtonReleased(ButtonKey, Id, false);
 								PadInfo[i].RepeatTime[n] = 0.0f;
 							}
 						}
@@ -458,7 +465,7 @@ void WindowsGamingInputInterface::UpdateGamepads()
 							if (GamepadButtonToUnrealName(ButtonKey, BitMask))
 							{
 								UE_LOG(GamepadSystem, Verbose, TEXT("Gamepad 0x%p (id = %d) - %s Repeated"), (void *)(PadInfo[i].Gamepad), i, *ButtonKey.ToString());
-								MessageHandler->OnControllerButtonPressed(ButtonKey, i, true);
+								MessageHandler->OnControllerButtonPressed(ButtonKey, Id, true);
 							}
 						}
 					}

@@ -28,7 +28,8 @@ XInputInterface::XInputInterface( const TSharedRef< FGenericApplicationMessageHa
 		FControllerState& ControllerState = ControllerStates[ControllerIndex];
 		FMemory::Memzero( &ControllerState, sizeof(FControllerState) );
 
-		ControllerState.ControllerId = ControllerIndex;
+		// Start controller indexes from 1 keeping 0 as keyboard/mouse
+		ControllerState.ControllerId = ControllerIndex + 1;
 	}
 
 	bIsGamepadAttached = false;
