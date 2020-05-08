@@ -266,3 +266,4 @@ Engine/Build/UWP/Resources/en/resources.resw
 /Engine/Plugins/Online/OnlineSubsystemLive/ThirdParty/XSAPI/**
 /Engine/Plugins/Online/OnlineSubsystemLive/ThirdParty/XIM/**
 
+!/ImportantImages/**
