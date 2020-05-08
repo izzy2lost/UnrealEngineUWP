@@ -279,3 +279,5 @@ Engine/Build/UWP/Resources/en/resources.resw
 
 # Include UWP third party binaries
 !/Engine/Plugins/Online/OnlineSubsystemLive/ThirdParty/EraAdapter/Binaries/**
+
+!/ImportantImages/**
