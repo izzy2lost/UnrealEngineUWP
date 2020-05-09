@@ -851,6 +851,8 @@ namespace UnrealBuildTool
 				}
 			}
 
+			string StoreLibPath = null;
+
 			// Set up the library paths for linking this binary
 			if (bBuildImportLibraryOnly)
 			{
@@ -867,7 +869,13 @@ namespace UnrealBuildTool
 				}
 				foreach (DirectoryReference LibraryPath in EnvVars.LibraryPaths)
 				{
-					Arguments.Add(String.Format("/LIBPATH:\"{0}\"", LibraryPath));
+					if (LibraryPath.FullName.Contains("VC") &&
+						LibraryPath.FullName.Contains("Tools") &&
+						LibraryPath.FullName.Contains("MSVC"))
+					{
+						StoreLibPath = Path.Combine(LibraryPath.FullName, "store");
+						Arguments.Add(String.Format("/LIBPATH:\"{0}\"", StoreLibPath));
+					}
 				}
 
 				// Add the excluded default libraries to the argument list.
@@ -875,6 +883,11 @@ namespace UnrealBuildTool
 				{
 					Arguments.Add(String.Format("/NODEFAULTLIB:\"{0}\"", ExcludedLibrary));
 				}
+
+				Arguments.Add("/NODEFAULTLIB:\"VCCORLIB\"");
+				Arguments.Add("/NODEFAULTLIB:\"MSVCP\"");
+				Arguments.Add("/NODEFAULTLIB:\"KERNEL32\"");
+				Arguments.Add("/NODEFAULTLIB:\"VCRUNTIME\"");
 			}
 
 			// For targets that are cross-referenced, we don't want to write a LIB file during the link step as that
@@ -941,6 +954,12 @@ namespace UnrealBuildTool
 					}
 				}
 			}
+
+			if (StoreLibPath == null)
+				throw new Exception("Store lib path is not resolved");
+
+			InputFileNames.Add($"\"{Path.Combine(StoreLibPath, "vccorlib.lib")}\"");
+			InputFileNames.Add($"\"{Path.Combine(StoreLibPath, "vcruntime.lib")}\"");
 
 			Arguments.AddRange(InputFileNames);
 
