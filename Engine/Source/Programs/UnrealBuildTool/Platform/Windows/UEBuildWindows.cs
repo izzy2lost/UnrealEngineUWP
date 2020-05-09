@@ -458,7 +458,7 @@ namespace UnrealBuildTool
 		/// compiler or later, and the Windows 10 SDK must be installed.  The application will require at least Windows 8.x to run.
 		/// @todo UWP: Expose this to be enabled more easily for building Windows 10 desktop apps
 		/// </summary>
-		public static bool bUseWindowsSDK10 = false;
+		public static bool bUseWindowsSDK10 = true;
 		// @ATG_CHANGE : END UWP support
 
 		WindowsPlatformSDK SDK;
@@ -547,6 +547,13 @@ namespace UnrealBuildTool
 			{
 				Target.bDisableDebugInfoForGeneratedCode = false;
 			}
+
+			// Initialize the VC environment for the target, and set all the version numbers to the concrete values we chose.
+			VCEnvironment Environment = VCEnvironment.Create(Target.WindowsPlatform.Compiler, DefaultCppPlatform, Target.WindowsPlatform.CompilerVersion, Target.WindowsPlatform.WindowsSdkVersion);
+			Target.WindowsPlatform.Environment = Environment;
+			Target.WindowsPlatform.Compiler = Environment.Compiler;
+			Target.WindowsPlatform.CompilerVersion = Environment.CompilerVersion.ToString();
+			Target.WindowsPlatform.WindowsSdkVersion = Environment.WindowsSdkVersion.ToString();
 
 //			@Todo: Still getting reports of frequent OOM issues with this enabled as of 15.7.
 //			// Enable fast PDB linking if we're on VS2017 15.7 or later. Previous versions have OOM issues with large projects.
@@ -1242,6 +1249,10 @@ namespace UnrealBuildTool
 		/// <returns>True if the toolchain directory was found correctly</returns>
 		public static bool TryGetWindowsSdkDir(string DesiredVersion, out VersionNumber OutSdkVersion, out DirectoryReference OutSdkDir)
 		{
+			// @UWP_CHANGE : BEGIN Currently using Windows SDK 10.0.17134.0 to workaround issues
+			DesiredVersion = "10.0.17134.0";
+			// @UWP_CHANGE : END
+
 			// Get a map of Windows SDK versions to their root directories
 			IReadOnlyDictionary<VersionNumber, DirectoryReference> WindowsSdkDirs = FindWindowsSdkDirs();
 

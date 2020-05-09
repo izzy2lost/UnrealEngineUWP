@@ -330,12 +330,7 @@ namespace UnrealBuildTool
 				ProjectPlatformName = DefaultPlatformName;
 
 				// @ATG_CHANGE : BEGIN UWP support - VS remote debugging needs our fake platform to have the right processor architecture
-				// TODO: TEST
-				//if (!string.IsNullOrEmpty(ProjectPlatformNameOverride))
-				//{
-				//	ProjectPlatformName = ProjectPlatformNameOverride;
-				//}
-				/*else */if (Platform == UnrealTargetPlatform.UWP64)
+				if (Platform == UnrealTargetPlatform.UWP64)
 				{
 					// Needed so that VS understands that we're 64bit for remote debugger purposes.
 					ProjectPlatformName = "x64";

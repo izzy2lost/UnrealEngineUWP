@@ -1006,21 +1006,11 @@ namespace UnrealBuildTool
 			LinkAction.PrerequisiteItems.AddRange(PrerequisiteItems);
 			LinkAction.StatusDescription = Path.GetFileName(OutputFile.AbsolutePath);
 
-			// TODO: TEST?
-			//LinkAction.bUseIncrementalLinking = LinkEnvironment.bUseIncrementalLinking;
-
 			// ensure compiler timings are captured when we execute the action.
 			if (Target.WindowsPlatform.Compiler != WindowsCompiler.Clang && LinkEnvironment.bPrintTimingInfo)
 			{
 				LinkAction.bPrintDebugInfo = true;
 			}
-
-			// TODO: TEST?
-			//// VS 15.3+ does not touch lib files if they do not contain any modifications, but we need to ensure the timestamps are updated to avoid repeatedly building them.
-			//if (bBuildImportLibraryOnly || (LinkEnvironment.bHasExports && !bIsBuildingLibrary))
-			//{
-			//	LinkAction.bShouldDeleteProducedItems = true;
-			//}
 
 			// Tell the action that we're building an import library here and it should conditionally be
 			// ignored as a prerequisite for other actions

@@ -231,7 +231,7 @@ void FORCENOINLINE FThreadHeartBeat::OnHang(double HangDuration, uint32 ThreadTh
 #else
 		UE_LOG(LogCore, Error, TEXT("%s"), *ErrorMessage);
 
-#if PLATFORM_DESKTOP
+#if PLATFORM_DESKTOP && !PLATFORM_UWP
 		GLog->PanicFlushThreadedLogs();
 		// GErrorMessage here is very unfortunate but it's used internally by the crash context code.
 		FCString::Strcpy(GErrorMessage, ARRAY_COUNT(GErrorMessage), *ErrorMessage);
@@ -242,6 +242,7 @@ void FORCENOINLINE FThreadHeartBeat::OnHang(double HangDuration, uint32 ThreadTh
 		{
 			FPlatformStackWalk::ProgramCounterToSymbolInfo(StackFrames[Idx], Stack.AddDefaulted_GetRef());
 		}
+
 		ReportHang(*ErrorMessage, Stack);
 
 		GErrorMessage[0] = '\0';

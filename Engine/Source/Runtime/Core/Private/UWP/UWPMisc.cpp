@@ -115,11 +115,10 @@ void FUWPMisc::CoUninitialize()
 	::CoUninitialize();
 }
 
-void FUWPMisc::GetEnvironmentVariable(const TCHAR* VariableName, TCHAR* Result, int32 ResultLength)
+FString FUWPMisc::GetEnvironmentVariable(const TCHAR* VariableName)
 {
 	//@todo.UWP:
-	*Result = 0;
-	ResultLength = 0;
+	return TEXT("");
 }
 
 const TCHAR* FUWPMisc::GetPlatformFeaturesModuleName()

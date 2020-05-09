@@ -100,12 +100,12 @@ namespace UnrealBuildTool
 			WindowsCompiler Compiler = WindowsCompiler.VisualStudio2017;  
 			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(UEBuildPlatform.GetBuildPlatform(InPlatform).DefaultCppPlatform, Compiler);
 			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, Compiler);
-			ProjectFileBuilder.Append("		<AppContainerApplication>true</AppContainerApplication>" + ProjectFileGenerator.NewLine +
-					"		<ApplicationType>Windows Store</ApplicationType>" + ProjectFileGenerator.NewLine +
-					"		<ApplicationTypeRevision>10.0</ApplicationTypeRevision>" + ProjectFileGenerator.NewLine +
-					"		<WindowsAppContainer>true</WindowsAppContainer>" + ProjectFileGenerator.NewLine +
-					"		<AppxPackage>true</AppxPackage>" + ProjectFileGenerator.NewLine +
-					"		<WindowsTargetPlatformVersion>" + SDKVersion.ToString() + "</WindowsTargetPlatformVersion>" + ProjectFileGenerator.NewLine);
+			ProjectFileBuilder.AppendLine("    <AppContainerApplication>true</AppContainerApplication>");
+			ProjectFileBuilder.AppendLine("    <ApplicationType>Windows Store</ApplicationType>");
+			ProjectFileBuilder.AppendLine("    <ApplicationTypeRevision>10.0</ApplicationTypeRevision>");
+			ProjectFileBuilder.AppendLine("    <WindowsAppContainer>true</WindowsAppContainer>");
+			ProjectFileBuilder.AppendLine("    <AppxPackage>true</AppxPackage>");
+			ProjectFileBuilder.AppendLine("    <WindowsTargetPlatformVersion>" + SDKVersion.ToString() + "</WindowsTargetPlatformVersion>");
 		}
 
 		public override string GetVisualStudioLayoutDirSection(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InConditionString, TargetType TargetType, FileReference TargetRulesPath, FileReference ProjectFilePath, FileReference NMakeOutputPath, VCProjectFileFormat InProjectFileFormat)

@@ -284,6 +284,13 @@ namespace UnrealBuildTool
 				Log.TraceWarning("Ignoring 'Build with D3D12 support' flag: the D3D12 RHI requires at least the {0} SDK.", MinimumSDKVersionForD3D12RHI);
 				Target.UWPPlatform.bBuildD3D12RHI = false;
 			}
+
+			// Initialize the VC environment for the target, and set all the version numbers to the concrete values we chose.
+			VCEnvironment Environment = VCEnvironment.Create(Target.WindowsPlatform.Compiler, DefaultCppPlatform, Target.WindowsPlatform.CompilerVersion, Target.WindowsPlatform.WindowsSdkVersion);
+			Target.WindowsPlatform.Environment = Environment;
+			Target.WindowsPlatform.Compiler = Environment.Compiler;
+			Target.WindowsPlatform.CompilerVersion = Environment.CompilerVersion.ToString();
+			Target.WindowsPlatform.WindowsSdkVersion = Environment.WindowsSdkVersion.ToString();
 		}
 
 		public override bool RequiresDeployPrepAfterCompile()

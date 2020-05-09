@@ -2079,6 +2079,10 @@ static bool GOverlapUAVOBegin = false;
 
 static bool IsUAVOverlapSupported()
 {
+// @UWP_CHANGE : BEGIN UWP support
+#if PLATFORM_UWP
+	return false;
+#else
 	if (!GAllowUAVFlushExt ||
 		!IsRHIDeviceNVIDIA() ||
 		!IsRHIDeviceAMD())
@@ -2086,10 +2090,16 @@ static bool IsUAVOverlapSupported()
 		return false;
 	}
 	return true;
+#endif
+// @UWP_CHANGE : END UWP support
 }
 
 void FD3D11DynamicRHI::BeginUAVOverlap()
 {
+// @UWP_CHANGE : BEGIN UWP support
+#if PLATFORM_UWP
+	return;
+#else
 	if (!GOverlapUAVOBegin)
 	{
 		if (IsRHIDeviceNVIDIA())
@@ -2104,9 +2114,15 @@ void FD3D11DynamicRHI::BeginUAVOverlap()
 
 		GOverlapUAVOBegin = true;
 	}
+#endif
+// @UWP_CHANGE : END UWP support
 }
 void FD3D11DynamicRHI::EndUAVOverlap()
 {
+// @UWP_CHANGE : BEGIN UWP support
+#if PLATFORM_UWP
+	return;
+#else
 	if (GOverlapUAVOBegin)
 	{
 		if (IsRHIDeviceNVIDIA())
@@ -2121,11 +2137,14 @@ void FD3D11DynamicRHI::EndUAVOverlap()
 
 		GOverlapUAVOBegin = false;
 	}
+#endif
+// @UWP_CHANGE : END UWP support
 }
 
 
 void FD3D11DynamicRHI::RHIAutomaticCacheFlushAfterComputeShader(bool bEnable)
 {
+// @UWP_CHANGE : BEGIN UWP support
 #if PLATFORM_UWP
 	return;
 #else
@@ -2153,10 +2172,12 @@ void FD3D11DynamicRHI::RHIAutomaticCacheFlushAfterComputeShader(bool bEnable)
 		BeginUAVOverlap();
 	}
 #endif
+// @UWP_CHANGE : END UWP support
 }
 
 void FD3D11DynamicRHI::RHIFlushComputeShaderCache()
 {
+// @UWP_CHANGE : BEGIN UWP support
 #if !PLATFORM_UWP
 	if (!IsUAVOverlapSupported())
 	{
@@ -2165,6 +2186,7 @@ void FD3D11DynamicRHI::RHIFlushComputeShaderCache()
 
 	EndUAVOverlap();
 #endif
+// @UWP_CHANGE : END UWP support
 }
 
 //*********************** StagingBuffer Implementation ***********************//
@@ -2210,7 +2232,6 @@ void FD3D11DynamicRHI::RHIEnqueueStagedRead(FStagingBufferRHIParamRef StagingBuf
 	{
 		Fence->Write();
 	}
-#endif
 }
 
 void* FD3D11DynamicRHI::RHILockStagingBuffer(FStagingBufferRHIParamRef StagingBufferRHI, uint32 Offset, uint32 SizeRHI)

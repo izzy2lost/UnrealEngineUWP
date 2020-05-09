@@ -153,9 +153,13 @@ namespace Audio
 		}
 
 // @ATG_CHANGE: BEGIN UWP support
-#if PLATFORM_WINDOWS || PLATFORM_UWP
+#if PLATFORM_UWP
+		bIsComInitialized = FPlatformMisc::CoInitialize();
+#endif
+// @ATG_CHANGE: END
+#if PLATFORM_WINDOWS
 		bIsComInitialized = FWindowsPlatformMisc::CoInitialize();
-#if PLATFORM_WINDOWS && PLATFORM_64BITS
+#if PLATFORM_64BITS
 		// Work around the fact the x64 version of XAudio2_7.dll does not properly ref count
 		// by forcing it to be always loaded
 
@@ -170,9 +174,8 @@ namespace Audio
 			UE_LOG(LogInit, Warning, TEXT("Failed to load XAudio2 dll"));
 			return false;
 		}
-#endif // #if PLATFORM_WINDOWS && PLATFORM_64BITS
-#endif //#if PLATFORM_WINDOWS || PLATFORM_UWP
-// @ATG_CHANGE: END
+#endif // #if PLATFORM_64BITS
+#endif //#if PLATFORM_WINDOWS
 
 		uint32 Flags = 0;
 
