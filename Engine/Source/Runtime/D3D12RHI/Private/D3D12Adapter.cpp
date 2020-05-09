@@ -83,7 +83,9 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 	//		Software must be NULL. 
 	D3D_DRIVER_TYPE DriverType = D3D_DRIVER_TYPE_UNKNOWN;
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || (PLATFORM_UWP && !UE_BUILD_SHIPPING && D3D12_PROFILING_ENABLED)
+// @ATG_CHANGE : END
 	if (bWithDebug)
 	{
 		TRefCountPtr<ID3D12Debug> DebugController;
@@ -115,7 +117,9 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 
 		UE_LOG(LogD3D12RHI, Log, TEXT("InitD3DDevice: -D3DDebug = %s -D3D12GPUValidation = %s"), bWithDebug ? TEXT("on") : TEXT("off"), bD3d12gpuvalidation ? TEXT("on") : TEXT("off") );
 	}
-#endif // PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#endif // PLATFORM_WINDOWS || (PLATFORM_UWP && !UE_BUILD_SHIPPING)
+// @ATG_CHANGE : END
 
 #if USE_PIX
 	UE_LOG(LogD3D12RHI, Log, TEXT("Emitting draw events for PIX profiling."));
@@ -135,7 +139,9 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 		IID_PPV_ARGS(RootDevice.GetInitReference())
 		));
 
-#if UE_BUILD_DEBUG	&& PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if UE_BUILD_DEBUG	&& (PLATFORM_WINDOWS || PLATFORM_UWP)
+// @ATG_CHANGE : END
 	//break on debug
 	TRefCountPtr<ID3D12Debug> d3dDebug;
 	if (SUCCEEDED(RootDevice->QueryInterface(__uuidof(ID3D12Debug), (void**)d3dDebug.GetInitReference())))
@@ -150,7 +156,9 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 	}
 #endif
 
-#if !(UE_BUILD_SHIPPING && WITH_EDITOR) && PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if !(UE_BUILD_SHIPPING && WITH_EDITOR) && (PLATFORM_WINDOWS || PLATFORM_UWP)
+// @ATG_CHANGE : END
 	// Add some filter outs for known debug spew messages (that we don't care about)
 	if (bWithDebug)
 	{
@@ -307,8 +315,9 @@ void FD3D12Adapter::InitializeDevices()
 			{
 				UE_LOG(LogD3D12RHI, Log, TEXT("The system supports ID3D12Device1."));
 			}
-
-	#if PLATFORM_WINDOWS
+// @LAB132 : BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132 : END
 			if (SUCCEEDED(RootDevice->QueryInterface(IID_PPV_ARGS(RootDevice2.GetInitReference()))))
 			{
 				UE_LOG(LogD3D12RHI, Log, TEXT("The system supports ID3D12Device2."));
@@ -321,7 +330,9 @@ void FD3D12Adapter::InitializeDevices()
 		ResourceHeapTier = D3D12Caps.ResourceHeapTier;
 		ResourceBindingTier = D3D12Caps.ResourceBindingTier;
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 		D3D12_FEATURE_DATA_D3D12_OPTIONS2 D3D12Caps2 = {};
 		if (FAILED(RootDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS2, &D3D12Caps2, sizeof(D3D12Caps2))))
 		{
@@ -576,7 +587,9 @@ FD3D12FastConstantAllocator& FD3D12Adapter::GetTransientUniformBufferAllocator()
 
 void FD3D12Adapter::GetLocalVideoMemoryInfo(DXGI_QUERY_VIDEO_MEMORY_INFO* LocalVideoMemoryInfo)
 {
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 	TRefCountPtr<IDXGIAdapter3> Adapter3;
 	VERIFYD3D12RESULT(GetAdapter()->QueryInterface(IID_PPV_ARGS(Adapter3.GetInitReference())));
 

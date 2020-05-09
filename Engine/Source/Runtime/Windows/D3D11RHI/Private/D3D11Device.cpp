@@ -10,7 +10,9 @@
 #include "Modules/ModuleManager.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 	#include <delayimp.h>
+	#if !PLATFORM_UWP
 	#include "amd_ags.h"
+	#endif
 #include "Windows/HideWindowsPlatformTypes.h"
 
 
@@ -535,6 +537,8 @@ void FD3D11DynamicRHI::CleanupD3DDevice()
 		ReleasePooledUniformBuffers();
 		ReleasePooledTextures();
 
+// @ATG_CHANGE : BEGIN - driver extensions not available for UWP
+#if !PLATFORM_UWP
 		// Clean up the AMD extensions and shut down the AMD AGS utility library
 		if (AmdAgsContext != NULL)
 		{
@@ -545,6 +549,8 @@ void FD3D11DynamicRHI::CleanupD3DDevice()
 			GRHIDeviceIsAMDPreGCNArchitecture = false;
 			AmdAgsContext = NULL;
 		}
+#endif
+// @ATG_CHANGE : END
 
 #if INTEL_METRICSDISCOVERY
 		if (GDX11IntelMetricsDiscoveryEnabled)

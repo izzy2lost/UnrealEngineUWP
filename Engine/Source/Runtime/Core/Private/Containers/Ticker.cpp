@@ -129,7 +129,8 @@ bool FTicker::FElement::Fire(float DeltaTime)
 	return false;
 }
 
-#if PLATFORM_WINDOWS && PLATFORM_32BITS
+// @LAB132: BEGIN UWP Support
+#if (PLATFORM_WINDOWS || PLATFORM_UWP) && PLATFORM_32BITS
 // Workaround for ICE on VC++ 2017 14.13.26128 for UE4Game Win32
 PRAGMA_DISABLE_OPTIMIZATION
 #endif
@@ -142,7 +143,8 @@ FTickerObjectBase::FTickerObjectBase(float InDelay, FTicker& InTicker)
 	TickHandle = Ticker.AddTicker(TickDelegate, InDelay);
 }
 
-#if PLATFORM_WINDOWS && PLATFORM_32BITS
+#if (PLATFORM_WINDOWS || PLATFORM_UWP) && PLATFORM_32BITS
+// @LAB132: END
 PRAGMA_ENABLE_OPTIMIZATION
 #endif
 

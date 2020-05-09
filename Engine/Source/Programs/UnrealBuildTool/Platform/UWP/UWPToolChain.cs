@@ -110,13 +110,13 @@ namespace UnrealBuildTool
 			// @todo UWP: Silence the hash_map deprecation errors for now. This should be replaced with unordered_map for the real fix.
 			if (EnvVars.Compiler >= WindowsCompiler.VisualStudio2015)
 			{
-				VCToolChain.AddDefinition(Arguments, "_SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS");
+				AddDefinition(Arguments, "_SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS");
 			}
 
 			// If compiling as a DLL, set the relevant defines
 			if (CompileEnvironment.bIsBuildingDLL)
 			{
-				VCToolChain.AddDefinition(Arguments, "_WINDLL");
+				AddDefinition(Arguments, "_WINDLL");
 			}
 
 			//
@@ -438,6 +438,41 @@ namespace UnrealBuildTool
 			Arguments.Add("/ignore:4264");
 		}
 
+		void AddIncludePath(List<string> Arguments, DirectoryReference IncludePath)
+		{
+			// If the value has a space in it and isn't wrapped in quotes, do that now. Make sure it doesn't include a trailing slash, because that will escape the closing quote.
+			string IncludePathString;
+			if (IncludePath.IsUnderDirectory(UnrealBuildTool.RootDirectory) && Target.WindowsPlatform.Compiler != WindowsCompiler.Clang)
+			{
+				IncludePathString = IncludePath.MakeRelativeTo(UnrealBuildTool.EngineSourceDirectory);
+			}
+			else
+			{
+				IncludePathString = IncludePath.FullName;
+			}
+
+			if (IncludePathString.Contains(" "))
+			{
+				IncludePathString = "\"" + IncludePathString + "\"";
+			}
+
+			Arguments.Add("/I " + IncludePathString);
+		}
+
+		void AddDefinition(List<string> Arguments, string Definition)
+		{
+			// Split the definition into name and value
+			int ValueIdx = Definition.IndexOf('=');
+			if (ValueIdx == -1)
+			{
+				VCToolChain.AddDefinition(Arguments, Definition, null);
+			}
+			else
+			{
+				VCToolChain.AddDefinition(Arguments, Definition.Substring(0, ValueIdx), Definition.Substring(ValueIdx + 1));
+			}
+		}
+
 		public override CPPOutput CompileCPPFiles(CppCompileEnvironment CompileEnvironment, List<FileItem> InputFiles, DirectoryReference OutputDir, string ModuleName, ActionGraph ActionGraph)
 		{
 			List<string> SharedArguments = new List<string>();
@@ -446,16 +481,16 @@ namespace UnrealBuildTool
 			// Add include paths to the argument list.
 			foreach (DirectoryReference IncludePath in CompileEnvironment.IncludePaths.UserIncludePaths)
 			{
-				VCToolChain.AddIncludePath(SharedArguments, IncludePath);
+				AddIncludePath(SharedArguments, IncludePath);
 			}
 			foreach (DirectoryReference IncludePath in CompileEnvironment.IncludePaths.SystemIncludePaths)
 			{
-				VCToolChain.AddIncludePath(SharedArguments, IncludePath);
+				AddIncludePath(SharedArguments, IncludePath);
 			}
 
 			foreach (DirectoryReference IncludePath in EnvVars.IncludePaths)
 			{
-				VCToolChain.AddIncludePath(SharedArguments, IncludePath);
+				AddIncludePath(SharedArguments, IncludePath);
 			}
 
 			foreach (string CurAssemblyInfo in CompileEnvironment.WinMDReferences)
@@ -468,7 +503,7 @@ namespace UnrealBuildTool
 			{
 				// Escape all quotation marks so that they get properly passed with the command line.
 				var DefinitionArgument = Definition.Contains("\"") ? Definition.Replace("\"", "\\\"") : Definition;
-				VCToolChain.AddDefinition(SharedArguments,  DefinitionArgument);
+				AddDefinition(SharedArguments,  DefinitionArgument);
 			}
 
 			var BuildPlatform = UEBuildPlatform.GetBuildPlatformForCPPTargetPlatform(CompileEnvironment.Platform);
@@ -501,7 +536,7 @@ namespace UnrealBuildTool
 					string OriginalPCHHeaderDirectory = Path.GetDirectoryName(SourceFile.AbsolutePath);
 					FileArguments.AddFormat(" /I \"{0}\"", OriginalPCHHeaderDirectory);
 
-					var PrecompiledFileExtension = UEBuildPlatform.GetBuildPlatform(UnrealTargetPlatform.UWP64).GetBinaryExtension(UEBuildBinaryType.PrecompiledHeader);
+					var PrecompiledFileExtension = ".pch";
 					// Add the precompiled header file to the produced items list.
 					FileItem PrecompiledHeaderFile = FileItem.GetItemByFileReference(
 						FileReference.Combine(
@@ -557,7 +592,7 @@ namespace UnrealBuildTool
 
 				if (bEmitsObjectFile)
 				{
-					var ObjectFileExtension = UEBuildPlatform.GetBuildPlatform(UnrealTargetPlatform.UWP64).GetBinaryExtension(UEBuildBinaryType.Object);
+					var ObjectFileExtension = ".obj";
 					// Add the object file to the produced item list.
 					FileItem ObjectFile = FileItem.GetItemByFileReference(
 						FileReference.Combine(
@@ -635,7 +670,7 @@ namespace UnrealBuildTool
 				string[] AdditionalArguments = String.IsNullOrEmpty(CompileEnvironment.AdditionalArguments) ? new string[0] : new string[] { CompileEnvironment.AdditionalArguments };
 
 				if (!ProjectFileGenerator.bGenerateProjectFiles
-					&& !WindowsPlatform.bCompileWithClang
+					&& Target.WindowsPlatform.Compiler != WindowsCompiler.Clang
 					&& CompileAction.ProducedItems.Count > 0)
 				{
 					FileItem TargetFile = CompileAction.ProducedItems[0];
@@ -700,7 +735,7 @@ namespace UnrealBuildTool
 				// compiler so that we can switch on that in the .rc file using #ifdef.
 				if (CompileEnvironment.Platform == CppPlatform.UWP64)
 				{
-					VCToolChain.AddDefinition(Arguments, "_WIN64");
+					AddDefinition(Arguments, "_WIN64");
 				}
 
 				// Language
@@ -727,7 +762,7 @@ namespace UnrealBuildTool
 				{
 					if (!Definition.Contains("_API"))
 					{
-						VCToolChain.AddDefinition(Arguments, Definition);
+						AddDefinition(Arguments, Definition);
 					}
 				}
 
@@ -774,7 +809,7 @@ namespace UnrealBuildTool
 				AppendLinkArguments(LinkEnvironment, Arguments);
 			}
 
-			if (!WindowsPlatform.bCompileWithClang && LinkEnvironment.bPrintTimingInfo)
+			if (Target.WindowsPlatform.Compiler != WindowsCompiler.Clang && LinkEnvironment.bPrintTimingInfo)
 			{
 				Arguments.Add("/time+");
 			}
@@ -970,19 +1005,22 @@ namespace UnrealBuildTool
 			LinkAction.ProducedItems.AddRange(ProducedItems);
 			LinkAction.PrerequisiteItems.AddRange(PrerequisiteItems);
 			LinkAction.StatusDescription = Path.GetFileName(OutputFile.AbsolutePath);
-			LinkAction.bUseIncrementalLinking = LinkEnvironment.bUseIncrementalLinking;
+
+			// TODO: TEST?
+			//LinkAction.bUseIncrementalLinking = LinkEnvironment.bUseIncrementalLinking;
 
 			// ensure compiler timings are captured when we execute the action.
-			if (!WindowsPlatform.bCompileWithClang && LinkEnvironment.bPrintTimingInfo)
+			if (Target.WindowsPlatform.Compiler != WindowsCompiler.Clang && LinkEnvironment.bPrintTimingInfo)
 			{
 				LinkAction.bPrintDebugInfo = true;
 			}
 
-			// VS 15.3+ does not touch lib files if they do not contain any modifications, but we need to ensure the timestamps are updated to avoid repeatedly building them.
-			if (bBuildImportLibraryOnly || (LinkEnvironment.bHasExports && !bIsBuildingLibrary))
-			{
-				LinkAction.bShouldDeleteProducedItems = true;
-			}
+			// TODO: TEST?
+			//// VS 15.3+ does not touch lib files if they do not contain any modifications, but we need to ensure the timestamps are updated to avoid repeatedly building them.
+			//if (bBuildImportLibraryOnly || (LinkEnvironment.bHasExports && !bIsBuildingLibrary))
+			//{
+			//	LinkAction.bShouldDeleteProducedItems = true;
+			//}
 
 			// Tell the action that we're building an import library here and it should conditionally be
 			// ignored as a prerequisite for other actions

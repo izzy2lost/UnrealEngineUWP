@@ -8,17 +8,26 @@ public class IntelTBB : ModuleRules
 	{
 		Type = ModuleType.External;
 
-		if ((Target.Platform == UnrealTargetPlatform.Win64) || (Target.Platform == UnrealTargetPlatform.Win32))
+// @ATG_CHANGE : BEGIN UWP support
+		if ((Target.Platform == UnrealTargetPlatform.Win64) || 
+            (Target.Platform == UnrealTargetPlatform.Win32) ||
+            (Target.Platform == UnrealTargetPlatform.UWP32) ||
+            (Target.Platform == UnrealTargetPlatform.UWP64))
+// @ATG_CHANGE : END
 		{
 			string IntelTBBPath = Target.UEThirdPartySourceDirectory + "IntelTBB/IntelTBB-4.4u3/";
 
 			PublicSystemIncludePaths.Add(IntelTBBPath + "Include");
 
-			if (Target.Platform == UnrealTargetPlatform.Win64)
+// @ATG_CHANGE : BEGIN UWP support
+			if ((Target.Platform == UnrealTargetPlatform.Win64) || (Target.Platform == UnrealTargetPlatform.UWP64))
+// @ATG_CHANGE : END
 			{
 				PublicLibraryPaths.Add(IntelTBBPath + "lib/Win64/vc14");
 			}
-			else if (Target.Platform == UnrealTargetPlatform.Win32)
+// @ATG_CHANGE : BEGIN  UWP support
+			else if ((Target.Platform == UnrealTargetPlatform.Win32) || (Target.Platform == UnrealTargetPlatform.UWP32))
+// @ATG_CHANGE : END
 			{
 				PublicLibraryPaths.Add(IntelTBBPath + "lib/Win32/vc14");
 			}

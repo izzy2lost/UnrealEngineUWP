@@ -28,7 +28,7 @@ namespace UnrealBuildTool
 			: base(Platform)
 		{
 			this.Target = Target;
-			this.EnvVars = Target.WindowsPlatform.Environment;
+			this.EnvVars = VCEnvironment.Create(Target.WindowsPlatform.Compiler, Platform, Target.WindowsPlatform.CompilerVersion, Target.WindowsPlatform.WindowsSdkVersion);
 
 			if (Target.WindowsPlatform.ObjSrcMapFile != null)
 			{
@@ -58,7 +58,7 @@ namespace UnrealBuildTool
 			Log.TraceLog("Resource Compiler: {0}", EnvVars.ResourceCompilerPath);
 		}
 
-		static void AddDefinition(List<string> Arguments, string Definition)
+		public void AddDefinition(List<string> Arguments, string Definition)
 		{
 			// Split the definition into name and value
 			int ValueIdx = Definition.IndexOf('=');
@@ -73,7 +73,7 @@ namespace UnrealBuildTool
 		}
 
 
-		static void AddDefinition(List<string> Arguments, string Variable, string Value)
+		public static void AddDefinition(List<string> Arguments, string Variable, string Value)
 		{
 			// If the value has a space in it and isn't wrapped in quotes, do that now
 			if (Value != null && !Value.StartsWith("\"") && (Value.Contains(" ") || Value.Contains("$")))
@@ -92,7 +92,7 @@ namespace UnrealBuildTool
 		}
 
 
-		void AddIncludePath(List<string> Arguments, DirectoryReference IncludePath)
+		public void AddIncludePath(List<string> Arguments, DirectoryReference IncludePath)
 		{
 			// If the value has a space in it and isn't wrapped in quotes, do that now. Make sure it doesn't include a trailing slash, because that will escape the closing quote.
 			string IncludePathString;
@@ -461,6 +461,49 @@ namespace UnrealBuildTool
 				Arguments.Add("/wd4463"); // 4463 - overflow; assigning 1 to bit-field that can only hold values from -1 to 0
 
 				Arguments.Add("/wd4838"); // 4838: conversion from 'type1' to 'type2' requires a narrowing conversion
+
+				// @ATG_CHANGE : BEGIN winmd support
+				// Enable /ZW if the module requests it
+				if (CompileEnvironment.bEnableWinRTComponentExtensions || CompileEnvironment.WinMDReferences.Count > 0)
+				{
+					// Enable Windows Runtime extensions.
+					Arguments.Add("/ZW");
+
+					// Don't automatically add metadata references.  We'll do that ourselves to avoid referencing windows.winmd directly:
+					// we've hit problems where types are somehow in windows.winmd on some installations but not others, leading to either
+					// missing or duplicated type references.
+					Arguments.Add("/ZW:nostdlib");
+					if (WindowsPlatform.bUseWindowsSDK10)
+					{
+
+						string WindowsSDKExtensionDir = VCEnvironment.FindWindowsSDKExtensionInstallationFolder(Target.WindowsPlatform.Compiler);
+						if (Directory.Exists(Path.Combine(WindowsSDKExtensionDir, "References")))
+						{
+							Arguments.Add(String.Format(@"/AI""{0}\References""", WindowsSDKExtensionDir));
+							Arguments.Add(String.Format(@"/AI""{0}\References\{1}""", WindowsSDKExtensionDir, EnvVars.WindowsSdkVersion));
+
+							// Use the latest version of contracts, consistent with our choice elsewhere to use the latest version of the SDK.
+							// These metadata files should bring in everything available on the Universal family.  Extension SDKs should be
+							// referenced directly by the modules that depend on them.
+							Arguments.Add(String.Format(@"/FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Target.WindowsPlatform.Compiler)));
+							Arguments.Add(String.Format(@"/FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Target.WindowsPlatform.Compiler)));
+						}
+					}
+					DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Target.WindowsPlatform.Compiler, Target.WindowsPlatform.CompilerVersion);
+					if (PlatformWinMDLocation != null)
+					{
+						Arguments.Add(String.Format(@"/AI""{0}""", PlatformWinMDLocation));
+						Arguments.Add(String.Format(@"/FU""{0}\platform.winmd""", PlatformWinMDLocation));
+					}
+
+					if (Target.WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2017)
+					{
+						// c1xx : warning C4199: two-phase name lookup is not supported for C++/CLI, C++/CX, or OpenMP; use /Zc:twoPhase-
+						Arguments.Add("/Zc:twoPhase-");
+					}
+				}
+				// @ATG_CHANGE : END winmd support
+
 			}
 
 			if(CompileEnvironment.bEnableUndefinedIdentifierWarnings)
@@ -870,6 +913,17 @@ namespace UnrealBuildTool
 					}
 				}
 			}
+
+			// @ATG_CHANGE : BEGIN winmd support
+			// Add winmd references			
+			if (Target.WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2015)
+			{
+				foreach (string CurAssemblyInfo in CompileEnvironment.WinMDReferences)
+				{
+					SharedArguments.Add(String.Format(" /FU \"{0}\"", CurAssemblyInfo));
+				}
+			}
+			// @ATG_CHANGE : END winmd support
 
 			// Add preprocessor definitions to the argument list.
 			foreach (string Definition in CompileEnvironment.Definitions)

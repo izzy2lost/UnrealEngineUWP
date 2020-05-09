@@ -47,6 +47,12 @@
 
 namespace Audio
 {
+// @ATG_CHANGE: BEGIN UWP support
+#if PLATFORM_UWP
+	static Windows::Devices::Enumeration::DeviceInformationCollection^ AllAudioDevices = nullptr;
+#endif
+// @ATG_CHANGE: END
+
 	void FXAudio2VoiceCallback::OnBufferEnd(void* BufferContext)
 	{
 		check(BufferContext);
@@ -102,7 +108,9 @@ namespace Audio
 			case HRESULT(XAUDIO2_E_XMA_DECODER_ERROR):		return TEXT("XAUDIO2_E_XMA_DECODER_ERROR");
 			case HRESULT(XAUDIO2_E_XAPO_CREATION_FAILED):	return TEXT("XAUDIO2_E_XAPO_CREATION_FAILED");
 			case HRESULT(XAUDIO2_E_DEVICE_INVALIDATED):		return TEXT("XAUDIO2_E_DEVICE_INVALIDATED");
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 			case REGDB_E_CLASSNOTREG:						return TEXT("REGDB_E_CLASSNOTREG");
 			case CLASS_E_NOAGGREGATION:						return TEXT("CLASS_E_NOAGGREGATION");
 			case E_NOINTERFACE:								return TEXT("E_NOINTERFACE");
@@ -144,9 +152,10 @@ namespace Audio
 
 		}
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE: BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
 		bIsComInitialized = FWindowsPlatformMisc::CoInitialize();
-#if PLATFORM_64BITS
+#if PLATFORM_WINDOWS && PLATFORM_64BITS
 		// Work around the fact the x64 version of XAudio2_7.dll does not properly ref count
 		// by forcing it to be always loaded
 
@@ -161,8 +170,9 @@ namespace Audio
 			UE_LOG(LogInit, Warning, TEXT("Failed to load XAudio2 dll"));
 			return false;
 		}
-#endif // #if PLATFORM_64BITS
-#endif // #if PLATFORM_WINDOWS
+#endif // #if PLATFORM_WINDOWS && PLATFORM_64BITS
+#endif //#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE: END
 
 		uint32 Flags = 0;
 
@@ -172,6 +182,23 @@ namespace Audio
 #endif
 
 		XAUDIO2_RETURN_ON_FAIL(XAudio2Create(&XAudio2System, Flags, (XAUDIO2_PROCESSOR)FPlatformAffinity::GetAudioThreadMask()));
+
+// @ATG_CHANGE: BEGIN UWP support
+#if PLATFORM_UWP
+		using namespace Windows::Foundation;
+		using namespace Windows::Devices::Enumeration;
+		IAsyncOperation<DeviceInformationCollection^>^ EnumerationOp = DeviceInformation::FindAllAsync(DeviceClass::AudioRender);
+		while (EnumerationOp->Status == AsyncStatus::Started)
+		{
+			// Spin
+		}
+
+		if (EnumerationOp->Status == AsyncStatus::Completed)
+		{
+			AllAudioDevices = EnumerationOp->GetResults();
+		}
+#endif
+// @ATG_CHANGE: END
 
 #if WITH_XMA2
 		//Initialize our XMA2 decoder context
@@ -209,7 +236,9 @@ namespace Audio
 
 		if (bIsComInitialized)
 		{
-			FWindowsPlatformMisc::CoUninitialize();
+			// @ATG_CHANGE: BEGIN UWP support
+			FPlatformMisc::CoUninitialize();
+			// @ATG_CHANGE: END
 		}
 #endif
 
@@ -233,7 +262,17 @@ namespace Audio
 			return false;
 		}
 
-#if PLATFORM_WINDOWS
+		// @ATG_CHANGE : BEGIN UWP support
+		// XAudio2 for UWP doesn't have GetDeviceCount, use Windows::Devices::Enumeration instead
+		// See https://blogs.msdn.microsoft.com/chuckw/2012/04/02/xaudio2-and-windows-8/
+#if PLATFORM_UWP
+		if (!AllAudioDevices)
+		{
+			return false;
+		}
+		OutNumOutputDevices = AllAudioDevices->Size;
+#elif PLATFORM_WINDOWS
+		// @ATG_CHANGE : END
 		check(XAudio2System);
 		XAUDIO2_RETURN_ON_FAIL(XAudio2System->GetDeviceCount(&OutNumOutputDevices));
 #else
@@ -250,7 +289,57 @@ namespace Audio
 			return false;
 		}
 
-#if PLATFORM_WINDOWS
+		// @ATG_CHANGE : BEGIN UWP support
+		// XAudio2 for UWP doesn't have GetDeviceDetails, use Windows::Devices::Enumeration instead
+		// See https://blogs.msdn.microsoft.com/chuckw/2012/04/02/xaudio2-and-windows-8/
+#if PLATFORM_UWP
+		if (!AllAudioDevices)
+		{
+			return false;
+		}
+
+		Windows::Devices::Enumeration::DeviceInformation^ WindowsDeviceInfo = AllAudioDevices->GetAt(InDeviceIndex);
+		OutInfo.Name = WindowsDeviceInfo->Name->Data();
+		OutInfo.bIsSystemDefault = WindowsDeviceInfo->IsDefault;
+
+		// No direct equivalent of OutputFormat.  If we have a voice already we can assemble what
+		// we need from methods on that.  But what to do if we don't?
+		WAVEFORMATEXTENSIBLE FakeWaveFormatExtensible;
+		XAUDIO2_VOICE_DETAILS VoiceDetails;
+		if (OutputAudioStreamMasteringVoice && InDeviceIndex == AudioStreamInfo.OutputDeviceIndex)
+		{
+			OutputAudioStreamMasteringVoice->GetVoiceDetails(&VoiceDetails);
+			OutputAudioStreamMasteringVoice->GetChannelMask(&FakeWaveFormatExtensible.dwChannelMask);
+		}
+		else if (!OutputAudioStreamMasteringVoice)
+		{
+			// If we don't yet have a mastering voice we can create a temporary one with asking for the default channels
+			// and sample rate, and then query that to discover the device's preferred format. 
+			IXAudio2MasteringVoice* TempMasteringVoice;
+			if (SUCCEEDED(XAudio2System->CreateMasteringVoice(&TempMasteringVoice, XAUDIO2_DEFAULT_CHANNELS, XAUDIO2_DEFAULT_SAMPLERATE, 0, AllAudioDevices->GetAt(InDeviceIndex)->Id->Data(), nullptr)))
+			{
+				TempMasteringVoice->GetVoiceDetails(&VoiceDetails);
+				TempMasteringVoice->GetChannelMask(&FakeWaveFormatExtensible.dwChannelMask);
+				TempMasteringVoice->DestroyVoice();
+			}
+			else
+			{
+				return false;
+			}
+		}
+		else
+		{
+			// Can't create multiple mastering voices, so currently we can't report
+			// device preferred format in this scenario.
+			return false;
+		}
+
+		WAVEFORMATEX& WaveFormatEx = *(WAVEFORMATEX*)&FakeWaveFormatExtensible;
+		WaveFormatEx.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+		WaveFormatEx.nSamplesPerSec = VoiceDetails.InputSampleRate;
+		WaveFormatEx.nChannels = VoiceDetails.InputChannels;
+
+#elif PLATFORM_WINDOWS
 
 		check(XAudio2System);
 
@@ -263,6 +352,9 @@ namespace Audio
 
 		// Get the wave format to parse there rest of the device details
 		const WAVEFORMATEX& WaveFormatEx = DeviceDetails.OutputFormat.Format;
+#endif
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+		// @ATG_CHANGE : END
 		OutInfo.SampleRate = WaveFormatEx.nSamplesPerSec;
 
 		OutInfo.NumChannels = FMath::Clamp((int32)WaveFormatEx.nChannels, 2, 8);
@@ -455,6 +547,11 @@ namespace Audio
 			Result = XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, AudioStreamInfo.OutputDeviceIndex, nullptr);
 #elif PLATFORM_XBOXONE
 			Result = XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, nullptr, nullptr);
+#elif PLATFORM_UWP
+			// @ATG_CHANGE : BEGIN UWP support
+			// XAudio2 for UWP has different parameters to CreateMasteringVoice
+			// See https://blogs.msdn.microsoft.com/chuckw/2012/04/02/xaudio2-and-windows-8/
+			Result = XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, AllAudioDevices->GetAt(AudioStreamInfo.OutputDeviceIndex)->Id->Data(), nullptr);
 #endif // #if PLATFORM_WINDOWS
 
 			XAUDIO2_CLEANUP_ON_FAIL(Result);
@@ -609,7 +706,9 @@ namespace Audio
 
 	bool FMixerPlatformXAudio2::MoveAudioStreamToNewAudioDevice(const FString& InNewDeviceId)
 	{
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 
 		UE_LOG(LogTemp, Log, TEXT("Resetting audio stream to device id %s"), *InNewDeviceId);
 
@@ -660,7 +759,13 @@ namespace Audio
 		XAUDIO2_RETURN_ON_FAIL(XAudio2Create(&XAudio2System, Flags, (XAUDIO2_PROCESSOR)FPlatformAffinity::GetAudioThreadMask()));
 
 		uint32 NumDevices = 0;
-		XAUDIO2_RETURN_ON_FAIL(XAudio2System->GetDeviceCount(&NumDevices));
+		// @ATG_CHANGE : BEGIN UWP support
+		// XAudio2 for UWP doesn't have GetDeviceCount, use local wrapper instead
+		if (!GetNumOutputDevices(NumDevices))
+		{
+			return false;
+		}
+		// @ATG_CHANGE : END UWP support
 
 		if (NumDevices > 0)
 		{
@@ -668,17 +773,20 @@ namespace Audio
 			uint32 DeviceIndex = 0;
 			if (!InNewDeviceId.IsEmpty())
 			{
+				// @ATG_CHANGE : BEGIN UWP support
+				// XAudio2 for UWP doesn't have GetDeviceDetails, use local wrapper instead
 
-				XAUDIO2_DEVICE_DETAILS DeviceDetails;
+				FAudioPlatformDeviceInfo DeviceDetails;
 				for (uint32 i = 0; i < NumDevices; ++i)
 				{
-					XAudio2System->GetDeviceDetails(i, &DeviceDetails);
-					if (DeviceDetails.DeviceID == InNewDeviceId)
+					GetOutputDeviceInfo(i, DeviceDetails);
+					if (DeviceDetails.DeviceId == InNewDeviceId)
 					{
 						DeviceIndex = i;
 						break;
 					}
 				}
+				// @ATG_CHANGE : END UWP support
 			}
 
 			// Update the audio stream info to the new device info
@@ -686,8 +794,16 @@ namespace Audio
 			// Get the output device info at this new index
 			GetOutputDeviceInfo(AudioStreamInfo.OutputDeviceIndex, AudioStreamInfo.DeviceInfo);
 
+			// @ATG_CHANGE : BEGIN UWP support
+			// XAudio2 for UWP has different parameters to CreateMasteringVoice
+			// See https://blogs.msdn.microsoft.com/chuckw/2012/04/02/xaudio2-and-windows-8/
+#if PLATFORM_UWP
+			XAUDIO2_RETURN_ON_FAIL(XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, AllAudioDevices->GetAt(AudioStreamInfo.OutputDeviceIndex)->Id->Data(), nullptr));
+#else
 			// Create a new master voice
 			XAUDIO2_RETURN_ON_FAIL(XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, AudioStreamInfo.OutputDeviceIndex, nullptr));
+#endif
+			// @ATG_CHANGE : END
 
 			// Setup the format of the output source voice
 			WAVEFORMATEX Format = { 0 };
@@ -820,7 +936,9 @@ namespace Audio
 
 	bool FMixerPlatformXAudio2::DisablePCMAudioCaching() const
 	{
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 		return false;
 #else
 		return true;

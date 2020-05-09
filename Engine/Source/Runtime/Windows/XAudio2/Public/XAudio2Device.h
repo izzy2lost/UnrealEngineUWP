@@ -210,11 +210,13 @@ private:
 	/** Cached audio clock time for when devices are removed/swapped. */
 	double CachedAudioClockStartTime;
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
 	// We need to keep track whether com was successfully initialized so we can clean 
 	// it up during shutdown
 	bool bComInitialized;
-#endif // PLATFORM_WINDOWS
+#endif // PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 };
 
 class FXMPHelper

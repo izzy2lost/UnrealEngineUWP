@@ -15,6 +15,10 @@
 #include "IOS/IOSPlatformSurvey.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidSurvey.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPSurvey.h"
+// @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 #include "HTML5/HTML5PlatformSurvey.h"
 #elif PLATFORM_UNIX

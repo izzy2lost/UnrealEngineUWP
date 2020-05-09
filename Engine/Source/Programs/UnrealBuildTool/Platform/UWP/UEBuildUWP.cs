@@ -326,10 +326,6 @@ namespace UnrealBuildTool
 					return ".exe";
 				case UEBuildBinaryType.StaticLibrary:
 					return ".lib";
-				case UEBuildBinaryType.Object:
-					return ".obj";
-				case UEBuildBinaryType.PrecompiledHeader:
-					return ".pch";
 			}
 			return base.GetBinaryExtension(InBinaryType);
 		}
@@ -350,19 +346,7 @@ namespace UnrealBuildTool
 			}
 			return new string[] { "" };
 		}
-
-
-		/// <summary>
-		/// Whether the editor should be built for this platform or not
-		/// </summary>
-		/// <param name="InPlatform"> The UnrealTargetPlatform being built</param>
-		/// <param name="InConfiguration">The UnrealTargetConfiguration being built</param>
-		/// <returns>bool   true if the editor should be built, false if not</returns>
-		public override bool ShouldNotBuildEditor(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration)
-		{
-			return true;
-		}
-
+		
 		public override bool BuildRequiresCookedData(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration)
 		{
 			return false;
@@ -434,15 +418,6 @@ namespace UnrealBuildTool
 				ExpandWinMDReferences(SDKFolder, SDKVersionString, ref Rules.PublicWinMDReferences);
 				ExpandWinMDReferences(SDKFolder, SDKVersionString, ref Rules.PrivateWinMDReferences);
 			}
-		}
-
-		/// <summary>
-		/// Return whether this platform has uniquely named binaries across multiple games
-		/// </summary>
-		public override bool HasUniqueBinaries()
-		{
-			// Windows applications have many shared binaries between games
-			return false;
 		}
 
 		/// <summary>
@@ -618,7 +593,8 @@ namespace UnrealBuildTool
 			CompileEnvironment.Definitions.Add("WINVER=0x0A00");
 
 			CompileEnvironment.Definitions.Add("PLATFORM_UWP=1");
-			CompileEnvironment.Definitions.Add("UWP=1");	
+			CompileEnvironment.Definitions.Add("UWP=1");
+			CompileEnvironment.Definitions.Add("WITH_EDITOR=0");
 
 			CompileEnvironment.Definitions.Add("WINAPI_FAMILY=WINAPI_FAMILY_APP");
 

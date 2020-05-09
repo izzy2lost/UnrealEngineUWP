@@ -90,7 +90,7 @@ namespace UnrealBuildTool
 			VCProjectFileContent.Append("		<NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies);" + FoundationWinMDPath + ";" + UniversalWinMDPath + ";platform.winmd</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine);
 		}
 
-		public override string GetVisualStudioPreDefaultString(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration)
+		public override void GetVisualStudioPreDefaultString(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, StringBuilder ProjectFileBuilder)
 		{
 			// VS2017 expects WindowsTargetPlatformVersion to be set in conjunction with these other properties, otherwise the projects
 			// will fail to load when the solution is in a UWP configuration.
@@ -100,12 +100,12 @@ namespace UnrealBuildTool
 			WindowsCompiler Compiler = WindowsCompiler.VisualStudio2017;  
 			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(UEBuildPlatform.GetBuildPlatform(InPlatform).DefaultCppPlatform, Compiler);
 			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, Compiler);
-			return "		<AppContainerApplication>true</AppContainerApplication>" + ProjectFileGenerator.NewLine +
+			ProjectFileBuilder.Append("		<AppContainerApplication>true</AppContainerApplication>" + ProjectFileGenerator.NewLine +
 					"		<ApplicationType>Windows Store</ApplicationType>" + ProjectFileGenerator.NewLine +
 					"		<ApplicationTypeRevision>10.0</ApplicationTypeRevision>" + ProjectFileGenerator.NewLine +
 					"		<WindowsAppContainer>true</WindowsAppContainer>" + ProjectFileGenerator.NewLine +
 					"		<AppxPackage>true</AppxPackage>" + ProjectFileGenerator.NewLine +
-					"		<WindowsTargetPlatformVersion>" + SDKVersion.ToString() + "</WindowsTargetPlatformVersion>" + ProjectFileGenerator.NewLine;
+					"		<WindowsTargetPlatformVersion>" + SDKVersion.ToString() + "</WindowsTargetPlatformVersion>" + ProjectFileGenerator.NewLine);
 		}
 
 		public override string GetVisualStudioLayoutDirSection(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InConditionString, TargetType TargetType, FileReference TargetRulesPath, FileReference ProjectFilePath, FileReference NMakeOutputPath, VCProjectFileFormat InProjectFileFormat)
@@ -145,7 +145,8 @@ namespace UnrealBuildTool
 				string TempTargetFilePath = InTargetFilePath.FullName.Replace("\\", "/");
 				if (TempTargetFilePath.Contains("/Templates/"))
 				{
-					string AbsoluteEnginePath = UnrealBuildTool.EngineDirectory.CanonicalName;
+					// TODO: TEST?
+					string AbsoluteEnginePath = UnrealBuildTool.EngineDirectory.FullName;
 					AbsoluteEnginePath = AbsoluteEnginePath.Replace("\\", "/");
 					if (AbsoluteEnginePath.EndsWith("/") == false)
 					{

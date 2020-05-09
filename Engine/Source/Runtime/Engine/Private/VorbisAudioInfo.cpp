@@ -35,7 +35,7 @@
 #endif
 
 // Non-windows platform don't load Dlls
-#if !PLATFORM_WINDOWS
+#if !PLATFORM_WINDOWS && !PLATFORM_UWP
 static FThreadSafeBool bDllLoaded = true;
 #else
 static FThreadSafeBool bDllLoaded;
@@ -576,7 +576,9 @@ void LoadVorbisLibraries()
 	if (!bIsInitialized)
 	{
 		bIsInitialized = true;
-#if PLATFORM_WINDOWS  && WITH_OGGVORBIS
+// @ATG_CHANGE : BEGIN UWP support
+#if (PLATFORM_WINDOWS || PLATFORM_UWP) && WITH_OGGVORBIS
+// @ATG_CHANGE : END
 		//@todo if ogg is every ported to another platform, then use the platform abstraction to load these DLLs
 		// Load the Ogg dlls
 #  if _MSC_VER >= 1900
@@ -590,6 +592,15 @@ void LoadVorbisLibraries()
 		PlatformString = TEXT("Win64");
 		DLLNameStub = TEXT("_64.dll");
 #endif
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_UWP
+#if PLATFORM_64BITS
+		PlatformString = TEXT("UWP64");
+#else
+		PlatformString = TEXT("UWP32");
+#endif
+#endif
+// @ATG_CHANGE :  END
 
 		FString RootOggPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Ogg/") / PlatformString / VSVersion;
 		FString RootVorbisPath = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/Vorbis/") / PlatformString / VSVersion;
@@ -616,7 +627,9 @@ void LoadVorbisLibraries()
 		}
 #elif WITH_OGGVORBIS
 		bDllLoaded = true;
-#endif	//PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#endif	//(PLATFORM_WINDOWS || PLATFORM_UWP) && WITH_OGGVORBIS
+// @ATG_CHANGE : END
 	}
 }
 

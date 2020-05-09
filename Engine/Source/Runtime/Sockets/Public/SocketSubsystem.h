@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -22,6 +22,10 @@ SOCKETS_API DECLARE_LOG_CATEGORY_EXTERN(LogSockets, Log, All);
 		#define PLATFORM_SOCKETSUBSYSTEM FName(TEXT("IOS"))
 	#elif PLATFORM_UNIX
 		#define PLATFORM_SOCKETSUBSYSTEM FName(TEXT("UNIX"))
+// @ATG_CHANGE : BEGIN UWP support
+	#elif PLATFORM_UWP
+		#define PLATFORM_SOCKETSUBSYSTEM FName(TEXT("UWP"))
+// @ATG_CHANGE : END
 	#elif PLATFORM_ANDROID
 		#define PLATFORM_SOCKETSUBSYSTEM FName(TEXT("ANDROID"))
 	#elif PLATFORM_PS4
