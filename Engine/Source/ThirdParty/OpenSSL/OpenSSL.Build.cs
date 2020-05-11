@@ -34,7 +34,10 @@ public class OpenSSL : ModuleRules
 			PublicAdditionalLibraries.Add(LibraryPath + "/" + "libssl.a");
 			PublicAdditionalLibraries.Add(LibraryPath + "/" + "libcrypto.a");
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
+// @ATG_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32 ||
+				Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+// @ATG_CHANGE : END
 		{
 			string LibPath = Path.Combine(OpenSSL102Path, "lib", PlatformSubdir, "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
 			string LibPostfixAndExt = (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT) ? "d.lib" : ".lib";

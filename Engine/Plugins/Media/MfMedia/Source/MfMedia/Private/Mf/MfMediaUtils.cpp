@@ -1,4 +1,4 @@
-// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "MfMediaUtils.h"
 
@@ -9,11 +9,12 @@
 #include "Misc/FileHelper.h"
 #include "Serialization/Archive.h"
 #include "Serialization/ArrayReader.h"
-
 #include "MfMediaByteStream.h"
 #include "MfMediaPrivate.h"
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#include "Windows/AllowWindowsPlatformTypes.h"
 #else
 	#include "XboxOne/XboxOneAllowPlatformTypes.h"
@@ -142,7 +143,9 @@ namespace MfMedia
 					return NULL;
 				}
 			}
-
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if !PLATFORM_UWP
+// @ATG_CHANGE : END
 			if ((SubType == MFVideoFormat_H264) || (SubType == MFVideoFormat_H264_ES))
 			{
 				if (!FWindowsPlatformMisc::VerifyWindowsVersion(6, 1) /*Win7*/)
@@ -165,6 +168,10 @@ namespace MfMedia
 					UE_LOG(LogMfMedia, Warning, TEXT("HEVC video type requires Windows 10 or newer (your version is %s), and game must be manifested for Windows 10"), *FPlatformMisc::GetOSVersion());
 				}
 			}
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#endif // PLATFORM_UWP
+// @ATG_CHANGE : END
+
 #endif //PLATFORM_XBOXONE
 
 			// configure video output
@@ -888,7 +895,9 @@ namespace MfMedia
 }
 
 
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#include "Windows/HideWindowsPlatformTypes.h"
 #else
 	#include "XboxOne/XboxOneHidePlatformTypes.h"

@@ -12,15 +12,18 @@ public class zlib : ModuleRules
 		// TODO: recompile for consoles and mobile platforms
 		string OldzlibPath = Target.UEThirdPartySourceDirectory + "zlib/zlib-1.2.5/";
 
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
+// @ATG_CHANGE : END
 		{
 			string platform = "/Win64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PublicIncludePaths.Add(zlibPath + "include" + platform);
 			PublicLibraryPaths.Add(zlibPath + "lib" + platform);
 			PublicAdditionalLibraries.Add("zlibstatic.lib");
 		}
-
-		else if (Target.Platform == UnrealTargetPlatform.Win32)
+// @ATG_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
+// @ATG_CHANGE : END
 		{
 			string platform = "/Win32/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
 			PublicIncludePaths.Add(zlibPath + "include" + platform);

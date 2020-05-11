@@ -234,7 +234,13 @@ void SocketImpl::disconnect()
 	}
 	if(mSocket != INVALID_SOCKET)
 	{
+		// @ATG_CHANGE : BEGIN UWP support
+#if PX_UWP
+		shutdown(mSocket, SD_SEND);
+#else
 		WSASendDisconnect(mSocket, NULL);
+#endif
+		// @ATG_CHANGE : END
 		closesocket(mSocket);
 		mSocket = INVALID_SOCKET;
 	}

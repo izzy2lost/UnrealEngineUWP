@@ -26,7 +26,7 @@ struct CORE_API FUWPMisc : public FGenericPlatformMisc
 	static void PlatformPreInit();
 	static void PlatformInit();
 	static void PlatformPostInit(bool ShowSplashScreen = false);
-	static void GetEnvironmentVariable(const TCHAR* VariableName, TCHAR* Result, int32 ResultLength);
+	static FString GetEnvironmentVariable(const TCHAR* VariableName);
 	static const TCHAR* GetPlatformFeaturesModuleName();
 
 #if !UE_BUILD_SHIPPING

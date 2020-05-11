@@ -13,9 +13,41 @@ private:
 PACKAGE_SCOPE:
 	FUniqueNetIdLive PlayerId;
 
-
+	/**
+	* Copy Constructor
+	*/
+	FInternetAddrXim(const FInternetAddrXim& Src) :
+		PlayerId(Src.PlayerId)
+	{
+	}
 
 public:
+	/**
+	* Constructor. Sets address to default state
+	*/
+	FInternetAddrXim() :
+		PlayerId(nullptr)
+	{
+	}
+
+	/**
+	* Constructor
+	*/
+	explicit FInternetAddrXim(const FUniqueNetIdLive& InPlayerId) :
+		PlayerId(InPlayerId)
+	{
+	}
+
+	virtual TArray<uint8> GetRawIp() const override
+	{
+		check("Not supported for XIM addresses" && 0);
+	}
+
+	virtual void SetRawIp(const TArray<uint8>& RawAddr) override
+	{
+		check("Not supported for XIM addresses" && 0);
+	}
+
 	virtual void SetIp(uint32 InAddr) override
 	{
 		check("Not supported for XIM addresses" && 0);
@@ -52,6 +84,11 @@ public:
 		check("Not supported for XIM addresses" && 0);
 	}
 
+	virtual void SetLoopbackAddress() override
+	{
+		check("Not supported for XIM addresses" && 0);
+	}
+
 	virtual FString ToString(bool bAppendPort) const override
 	{
 		return PlayerId.ToString();
@@ -63,8 +100,20 @@ public:
 		return PlayerId == XimOther.PlayerId;
 	}
 
+	virtual uint32 GetTypeHash() override
+	{
+		return ::GetTypeHash(*(uint64*)PlayerId.GetBytes());
+	}
+
 	virtual bool IsValid() const override
 	{
 		return PlayerId.IsValid();
+	}
+
+	virtual TSharedRef<FInternetAddr> Clone() const override
+	{
+		TSharedRef<FInternetAddrXim> NewAddress = MakeShareable(new FInternetAddrXim);
+		NewAddress->PlayerId = PlayerId;
+		return NewAddress;
 	}
 };

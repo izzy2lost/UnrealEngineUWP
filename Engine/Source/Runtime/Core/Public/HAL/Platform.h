@@ -73,9 +73,17 @@
 #if !defined(PLATFORM_UNIX)
 	#define PLATFORM_UNIX 0
 #endif
+// @ATG_CHANGE : BEGIN UWP support
+#if !defined(PLATFORM_UWP)
+	#define PLATFORM_UWP 0
+#endif
+// @ATG_CHANGE : END
+
 
 // Platform specific compiler pre-setup.
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#include "Windows/WindowsPlatformCompilerPreSetup.h"
 #elif PLATFORM_PS4
 	#include "PS4/PS4PlatformCompilerPreSetup.h"
@@ -146,6 +154,10 @@
 	#include "IOS/IOSPlatform.h"
 #elif PLATFORM_ANDROID
 	#include "Android/AndroidPlatform.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+	#include "UWP/UWPPlatform.h"
+// @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 	#include "HTML5/HTML5Platform.h"
 #elif PLATFORM_LINUX
@@ -885,6 +897,10 @@ namespace TypeTests
 	#include "Quail/QuailPlatformCompilerSetup.h"
 #elif PLATFORM_SWITCH
 	#include "Switch/SwitchPlatformCompilerSetup.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+	#include "UWP/UWPCompilerSetup.h"
+// @ATG_CHANGE : END	
 #else
 	#error Unknown Compiler
 #endif

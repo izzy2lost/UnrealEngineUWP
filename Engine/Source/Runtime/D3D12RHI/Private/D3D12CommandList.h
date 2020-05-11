@@ -241,7 +241,9 @@ private:
 		FD3D12CommandContext*					CurrentOwningContext;
 		const D3D12_COMMAND_LIST_TYPE			CommandListType;
 		TRefCountPtr<ID3D12GraphicsCommandList>	CommandList;		// Raw D3D command list pointer
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 		TRefCountPtr<ID3D12GraphicsCommandList1> CommandList1;
 #endif
 		FD3D12CommandAllocator*					CurrentCommandAllocator;	// Command allocator currently being used for recording the command list
@@ -391,7 +393,9 @@ public:
 		return reinterpret_cast<ID3D12GraphicsCommandList*>(CommandListData->CommandList.GetReference());
 	}
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 	ID3D12GraphicsCommandList1* GraphicsCommandList1() const
 	{
 		check(CommandListData && (CommandListData->CommandListType == D3D12_COMMAND_LIST_TYPE_DIRECT || CommandListData->CommandListType == D3D12_COMMAND_LIST_TYPE_COMPUTE));

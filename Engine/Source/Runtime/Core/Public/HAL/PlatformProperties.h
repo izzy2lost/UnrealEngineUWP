@@ -25,6 +25,11 @@ typedef FLuminPlatformProperties FPlatformProperties;
 #elif PLATFORM_ANDROID
 #include "Android/AndroidProperties.h"
 typedef FAndroidPlatformProperties FPlatformProperties;
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPProperties.h"
+typedef FUWPPlatformProperties FPlatformProperties;
+// @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 #include "HTML5/HTML5PlatformProperties.h"
 typedef FHTML5PlatformProperties FPlatformProperties;

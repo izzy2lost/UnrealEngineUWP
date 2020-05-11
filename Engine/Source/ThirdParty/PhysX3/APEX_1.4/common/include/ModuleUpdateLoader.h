@@ -29,6 +29,9 @@
 
 //#include "PsWindowsInclude.h"
 #include <windows.h>
+// @ATG_CHANGE : BEGIN UWP support, pull in definitions that are missing, including UWP
+#include "PxPreprocessor.h"
+// @ATG_CHANGE : END UWP support
 
 class ModuleUpdateLoader
 {

@@ -5,6 +5,10 @@
 
 #if PLATFORM_WINDOWS
 #include "Windows/WindowsPlatformHttp.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPHttp.h"
+// @ATG_CHANGE : END
 #elif PLATFORM_PS4
 #include "PS4/PS4PlatformHttp.h"
 #elif PLATFORM_XBOXONE

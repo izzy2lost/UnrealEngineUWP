@@ -1,6 +1,8 @@
 #include "AudioCapture.h"
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 /************************************************************************/
 /*! \class RtAudio
     \brief Realtime audio i/o C++ classes.
@@ -48,7 +50,9 @@
 #ifndef __RTAUDIO_H
 #define __RTAUDIO_H
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 #include "Windows/WindowsHWrapper.h"
 
 #ifndef __WINDOWS_DS__
