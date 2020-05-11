@@ -7,7 +7,14 @@ public class DX12 : ModuleRules
 	{
 		Type = ModuleType.External;
 
+		// @ATG_CHANGE : BEGIN UWP support - using the flattened "DirectX" folder that has some conflicting legacy items is an issue when consuming W10 SDK
 		string DirectXSDKDir = Target.UEThirdPartySourceDirectory + "Windows/DirectX";
+        if (Target.WindowsPlatform.bUseWindowsSDK10 && (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64))
+		{
+			PublicSystemIncludePaths.Add(Target.UEThirdPartySourceDirectory + "/Windows/Pix/Include");
+			PublicLibraryPaths.Add(Target.UEThirdPartySourceDirectory + "/Windows/Pix/Lib/x64");
+		}
+		// @ATG_CHANGE : END
 		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
@@ -22,6 +29,14 @@ public class DX12 : ModuleRules
 		{
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
 		}
+		// @ATG_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.UWP64 && Target.Configuration != UnrealTargetConfiguration.Shipping)
+		{
+			PublicDelayLoadDLLs.Add("WinPixEventRuntime.dll");
+			PublicAdditionalLibraries.Add("WinPixEventRuntime.lib");
+			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Windows/DirectX/x64/WinPixEventRuntime.dll");
+		}
+		// @ATG_CHANGE : END
 
 		// Always delay-load D3D12
 		PublicDelayLoadDLLs.AddRange( new string[] {

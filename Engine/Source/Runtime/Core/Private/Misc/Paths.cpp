@@ -1052,6 +1052,10 @@ void FPaths::MakeStandardFilename(FString& InPath)
 
 	// make it relative to Engine\Binaries\Platform
 	InPath = Standardized.Replace(*RootDirectory, *FPaths::GetRelativePathToRoot());
+
+// @ATG_CHANGE : BEGIN UWP support (UWP pathing root-relative, exposed some engine bugs)
+	FPaths::RemoveDuplicateSlashes(InPath);
+// @ATG_CHANGE : END
 }
 
 void FPaths::MakePlatformFilename( FString& InPath )
@@ -1401,7 +1405,9 @@ bool FPaths::IsSamePath(const FString& PathA, const FString& PathB)
 	MakeStandardFilename(TmpA);
 	MakeStandardFilename(TmpB);
 
-#if PLATFORM_WINDOWS || PLATFORM_XBOXONE
+// @ATG_CHANGE : BEGIN UWP support 
+#if PLATFORM_WINDOWS || PLATFORM_XBOXONE || PLATFORM_UWP
+// @ATG_CHANGE : END
 	return FCString::Stricmp(*TmpA, *TmpB) == 0;
 #else
 	return FCString::Strcmp(*TmpA, *TmpB) == 0;

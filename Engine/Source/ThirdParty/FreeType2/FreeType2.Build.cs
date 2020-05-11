@@ -17,6 +17,10 @@ public class FreeType2 : ModuleRules
 		{
 			case UnrealTargetPlatform.Win32:
 			case UnrealTargetPlatform.Win64:
+// @ATG_CHANGE : BEGIN UWP support
+			case UnrealTargetPlatform.UWP64:
+			case UnrealTargetPlatform.UWP32:
+// @ATG_CHANGE : END
 			case UnrealTargetPlatform.XboxOne:
 			case UnrealTargetPlatform.Switch:
 			case UnrealTargetPlatform.PS4:
@@ -43,10 +47,16 @@ public class FreeType2 : ModuleRules
 		FreeType2LibPath = FreeType2Path + "Lib/";
 
 		if (Target.Platform == UnrealTargetPlatform.Win32 ||
-			Target.Platform == UnrealTargetPlatform.Win64)
+			Target.Platform == UnrealTargetPlatform.Win64 ||
+// @ATG_CHANGE : BEGIN  UWP support
+			Target.Platform == UnrealTargetPlatform.UWP32 ||
+			Target.Platform == UnrealTargetPlatform.UWP64)
+// @ATG_CHANGE : END
 		{
 
-			FreeType2LibPath += (Target.Platform == UnrealTargetPlatform.Win64) ? "Win64/" : "Win32/";
+// @ATG_CHANGE : BEGIN UWP support
+            FreeType2LibPath += (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64) ? "Win64/" : "Win32/";
+// @ATG_CHANGE : END
 			FreeType2LibPath += "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
 
 			PublicLibraryPaths.Add(FreeType2LibPath);

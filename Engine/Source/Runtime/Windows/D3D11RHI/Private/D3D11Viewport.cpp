@@ -196,7 +196,11 @@ FD3D11Viewport::~FD3D11Viewport()
 
 	// If the swap chain was in fullscreen mode, switch back to windowed before releasing the swap chain.
 	// DXGI throws an error otherwise.
+// @ATG_CHANGE : BEGIN UWP support
+#if !PLATFORM_UWP
 	VERIFYD3D11RESULT_EX(SwapChain->SetFullscreenState(false,NULL), D3DRHI->GetDevice());
+#endif
+// @ATG_CHANGE : END
 
 	FrameSyncEvent.ReleaseResource();
 
@@ -254,7 +258,11 @@ void FD3D11Viewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 		{
 			// Resize the swap chain.
 			DXGI_FORMAT RenderTargetFormat = GetRenderTargetFormat(PixelFormat);
-			VERIFYD3D11RESIZEVIEWPORTRESULT(SwapChain->ResizeBuffers(1, SizeX, SizeY, RenderTargetFormat, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH), SizeX, SizeY, RenderTargetFormat, D3DRHI->GetDevice());
+			// @ATG_CHANGE : BEGIN UWP resize support
+			// Resize all existing buffers, don't change count
+			VERIFYD3D11RESIZEVIEWPORTRESULT(SwapChain->ResizeBuffers(0, SizeX, SizeY, RenderTargetFormat, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH), SizeX, SizeY, RenderTargetFormat, D3DRHI->GetDevice());
+			// @ATG_CHANGE : END UWP resize support
+
 
 			if (bInIsFullscreen)
 			{
@@ -499,6 +507,9 @@ bool FD3D11Viewport::Present(bool bLockToVsync)
 {
 	bool bNativelyPresented = true;
 #if	D3D11_WITH_DWMAPI
+// @ATG_CHANGE : BEGIN UWP support
+#if !PLATFORM_UWP
+// @ATG_CHANGE : END
 	// We can't call Present if !bIsValid, as it waits a window message to be processed, but the main thread may not be pumping the message handler.
 	if(bIsValid && SwapChain.IsValid())
 	{
@@ -512,7 +523,9 @@ bool FD3D11Viewport::Present(bool bLockToVsync)
 			bIsValid = false;
 		}
 	}
-
+// @ATG_CHANGE : BEGIN UWP support
+#endif
+// @ATG_CHANGE : END
 	if (MaximumFrameLatency != RHIConsoleVariables::MaximumFrameLatency)
 	{
 		MaximumFrameLatency = RHIConsoleVariables::MaximumFrameLatency;	

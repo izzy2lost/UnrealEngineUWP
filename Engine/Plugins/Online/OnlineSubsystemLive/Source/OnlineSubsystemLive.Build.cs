@@ -94,7 +94,7 @@ public class OnlineSubsystemLive : ModuleRules
 		{
 			if (!HasWarnedAboutLiveSdk)
 			{
-				Log.TraceWarning(" Xbox Live SDK (version {0}) not found.  Xbox Live features will not be available.  Run Setup.bat to ensure the SDK is in the expected location.", Target.Platform == UnrealTargetPlatform.XboxOne ? XsapiVersionXboxOne : XsapiVersionUwp);
+				Tools.DotNETCommon.Log.TraceWarning(" Xbox Live SDK (version {0}) not found.  Xbox Live features will not be available.  Run Setup.bat to ensure the SDK is in the expected location.", Target.Platform == UnrealTargetPlatform.XboxOne ? XsapiVersionXboxOne : XsapiVersionUwp);
 				HasWarnedAboutLiveSdk = true;
 			}
         }

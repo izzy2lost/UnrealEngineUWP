@@ -658,6 +658,23 @@ namespace UnrealBuildTool
 		/// </summary>
 		public List<string> PublicDefinitions = new List<string>();
 
+		// @ATG_CHANGE : BEGIN winmd support
+		/// <summary>
+		/// Force enable /ZW for this module
+		/// </summary>
+		public bool bEnableWinRTComponentExtensions = false;
+
+		/// <summary>
+		/// /ZW modules only: The winmds referenced by the module and exposed over its interface.
+		/// </summary>
+		public List<string> PublicWinMDReferences = new List<string>();
+
+		/// <summary>
+		/// /ZW modules only: The winmds referenced by the module's private implementation.
+		/// </summary>
+		public List<string> PrivateWinMDReferences = new List<string>();
+		// @ATG_CHANGE : END
+
 		/// <summary>
 		/// Addition modules this module may require at run-time 
 		/// </summary>

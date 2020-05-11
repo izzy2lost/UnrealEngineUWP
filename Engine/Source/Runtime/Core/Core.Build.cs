@@ -66,6 +66,19 @@ public class Core : ModuleRules
 				PrivateDefinitions.Add("USE_BUNDLED_DBGHELP=0");
 			}
 		}
+// @ATG_CHANGE : BEGIN UWP support
+		else if ((Target.Platform == UnrealTargetPlatform.UWP64) || (Target.Platform == UnrealTargetPlatform.UWP32))
+		{
+			PublicIncludePaths.Add("Runtime/Core/Public/UWP");
+			AddEngineThirdPartyPrivateStaticDependencies(Target,
+				"zlib");
+
+			AddEngineThirdPartyPrivateStaticDependencies(Target,
+				"IntelTBB",
+				"XInput"
+				);
+		}
+// @ATG_CHANGE : END
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			AddEngineThirdPartyPrivateStaticDependencies(Target,
@@ -148,10 +161,15 @@ public class Core : ModuleRules
 
 		
 		// On Windows platform, VSPerfExternalProfiler.cpp needs access to "VSPerf.h".  This header is included with Visual Studio, but it's not in a standard include path.
-		if( Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.Win64 )
+// @ATG_CHANGE : BEGIN UWP support
+		if( Target.Platform == UnrealTargetPlatform.Win32 || 
+			Target.Platform == UnrealTargetPlatform.Win64 || 
+			Target.Platform == UnrealTargetPlatform.UWP32 || 
+			Target.Platform == UnrealTargetPlatform.UWP64)
 		{
 			var VisualStudioVersionNumber = "11.0";
-			var SubFolderName = ( Target.Platform == UnrealTargetPlatform.Win64 ) ? "x64/PerfSDK" : "PerfSDK";
+            var SubFolderName = (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64) ? "x64/PerfSDK" : "PerfSDK";
+// @ATG_CHANGE : END
 
 			string PerfIncludeDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), String.Format("Microsoft Visual Studio {0}/Team Tools/Performance Tools/{1}", VisualStudioVersionNumber, SubFolderName));
 
@@ -168,7 +186,11 @@ public class Core : ModuleRules
 
 		WhitelistRestrictedFolders.Add("Private/NoRedist");
 
-        if (Target.Platform == UnrealTargetPlatform.XboxOne)
+        if ((Target.Platform == UnrealTargetPlatform.XboxOne) ||
+// @ATG_CHANGE : BEGIN UWP support
+            (Target.Platform == UnrealTargetPlatform.UWP32) ||
+            (Target.Platform == UnrealTargetPlatform.UWP64))
+// @ATG_CHANGE : END
         {
             PublicDefinitions.Add("WITH_DIRECTXMATH=1");
         }

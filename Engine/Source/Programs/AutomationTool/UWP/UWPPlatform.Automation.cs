@@ -395,11 +395,11 @@ namespace UWP.Automation
 			switch (PlatformType)
 			{
 				case UnrealTargetPlatform.UWP32:
-					SC.RestrictedFolderNames.RemoveWhere((x) => (x.DisplayName == UnrealTargetPlatform.Win32.ToString()));
+					SC.RestrictedFolderNames.Remove(UnrealTargetPlatform.Win32.ToString());
 					break;
 
 				case UnrealTargetPlatform.UWP64:
-					SC.RestrictedFolderNames.RemoveWhere((x) => (x.DisplayName == UnrealTargetPlatform.Win64.ToString()));
+					SC.RestrictedFolderNames.Remove(UnrealTargetPlatform.Win64.ToString());
 					break;
 			}
 
@@ -647,6 +647,14 @@ namespace UWP.Automation
 			}
 		}
 
+		private TargetRules GetTargetRules(List<SingleTargetProperties> Targets, TargetType TargetType)
+		{
+			TargetRules Rules = Targets.FirstOrDefault(t => t.TargetName == TargetType.Game.ToString()).Rules;
+			if (Rules == null)
+				throw new Exception($"Missing target rules for {TargetType}");
+			return Rules;
+		}
+
 		private void DeployToLocalDevice(ProjectParams Params, DeploymentContext SC)
 		{
 			string AppxManifestPath = GetAppxManifestPath(SC);
@@ -684,7 +692,7 @@ namespace UWP.Automation
 					string PackagePath = Path.Combine(SC.StageDirectory.FullName, Params.ShortProjectName + ".appx");
 
 					List<Uri> Dependencies = new List<Uri>();
-					TargetRules Rules = Params.ProjectTargets[TargetType.Game].Rules;
+					TargetRules Rules = GetTargetRules(Params.ProjectTargets, TargetType.Game);
 					bool UseDebugCrt = Params.ClientConfigsToBuild.Contains(UnrealTargetConfiguration.Debug) && Rules.bDebugBuildsActuallyUseDebugCRT;
 					Dependencies.Add(new Uri(GetPathToVCLibsPackage(UseDebugCrt, Rules.WindowsPlatform.Compiler)));
 
@@ -733,11 +741,11 @@ namespace UWP.Automation
 					TargetRules Rules = null;
 					if (Params.HasGameTargetDetected)
 					{
-						Rules = Params.ProjectTargets[TargetType.Game].Rules;
+						Rules = GetTargetRules(Params.ProjectTargets, TargetType.Game);
 					}
 					else if (Params.HasClientTargetDetected)
 					{
-						Rules = Params.ProjectTargets[TargetType.Game].Rules;
+						Rules = GetTargetRules(Params.ProjectTargets, TargetType.Game);
 					}
 
 					if (Rules != null)
@@ -804,7 +812,7 @@ namespace UWP.Automation
 			}
 			System.Diagnostics.Process Proc = System.Diagnostics.Process.GetProcessById(LauncherProc.ExitCode);
 			bool AllowSpew = ClientRunFlags.HasFlag(ERunOptions.AllowSpew);
-			UnrealBuildTool.LogEventType SpewVerbosity = ClientRunFlags.HasFlag(ERunOptions.SpewIsVerbose) ? UnrealBuildTool.LogEventType.Verbose : UnrealBuildTool.LogEventType.Console;
+			LogEventType SpewVerbosity = ClientRunFlags.HasFlag(ERunOptions.SpewIsVerbose) ? LogEventType.Verbose : LogEventType.Console;
 			UWPLauncherCreatedProcess UwpProcessResult = new UWPLauncherCreatedProcess(Proc, LogFile, AllowSpew, SpewVerbosity);
 			ProcessManager.AddProcess(UwpProcessResult);
 			if (!ClientRunFlags.HasFlag(ERunOptions.NoWaitForExit))

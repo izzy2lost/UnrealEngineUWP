@@ -1190,6 +1190,13 @@ namespace UnrealBuildTool
 		/// </summary>
 		public XboxOneTargetRules XboxOnePlatform = new XboxOneTargetRules();
 
+		// @ATG_CHANGE : BEGIN UWP support
+		/// <summary>
+		/// UWP-specific target settings.
+		/// </summary>
+		public UWPTargetRules UWPPlatform = new UWPTargetRules();
+		// @ATG_CHANGE : END
+
 		/// <summary>
 		/// Constructor.
 		/// </summary>
@@ -1451,6 +1458,9 @@ namespace UnrealBuildTool
 			yield return SwitchPlatform;
 			yield return WindowsPlatform;
 			yield return XboxOnePlatform;
+			// @ATG_CHANGE : BEGIN UWP support
+			yield return UWPPlatform;
+			// @ATG_CHANGE : END
 		}
 
 		/// <summary>
@@ -1506,6 +1516,9 @@ namespace UnrealBuildTool
 			SwitchPlatform = new ReadOnlySwitchTargetRules(Inner.SwitchPlatform);
 			WindowsPlatform = new ReadOnlyWindowsTargetRules(Inner.WindowsPlatform);
 			XboxOnePlatform = new ReadOnlyXboxOneTargetRules(Inner.XboxOnePlatform);
+			// @ATG_CHANGE : BEGIN UWP support
+			UWPPlatform = new ReadOnlyUWPTargetRules(Inner.UWPPlatform);
+			// @ATG_CHANGE : END
 		}
 
 		/// <summary>
@@ -2291,6 +2304,14 @@ namespace UnrealBuildTool
 			get;
 			private set;
 		}
+
+		// @ATG_CHANGE : BEGIN UWP support
+		public ReadOnlyUWPTargetRules UWPPlatform
+		{
+			get;
+			private set;
+		}
+		// @ATG_CHANGE : END
 
 		public ReadOnlyXboxOneTargetRules XboxOnePlatform
 		{

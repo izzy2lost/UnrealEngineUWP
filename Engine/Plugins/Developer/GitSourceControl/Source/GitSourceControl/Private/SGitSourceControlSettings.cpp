@@ -38,7 +38,9 @@ void SGitSourceControlSettings::Construct(const FArguments& InArgs)
 	InitialCommitMessage = LOCTEXT("InitialCommitMessage", "Initial commit");
 
 	const FText FileFilterType = NSLOCTEXT("GitSourceControl", "Executables", "Executables");
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 	const FString FileFilterText = FString::Printf(TEXT("%s (*.exe)|*.exe"), *FileFilterType.ToString());
 #else
 	const FString FileFilterText = FString::Printf(TEXT("%s"), *FileFilterType.ToString());

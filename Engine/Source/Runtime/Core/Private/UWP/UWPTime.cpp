@@ -12,6 +12,7 @@ double FUWPTime::InitTiming()
 	LARGE_INTEGER Frequency;
 	verify(QueryPerformanceFrequency(&Frequency));
 	SecondsPerCycle = 1.0 / Frequency.QuadPart;
+	SecondsPerCycle64 = 1.0 / Frequency.QuadPart;
 	return FPlatformTime::Seconds();
 }
 

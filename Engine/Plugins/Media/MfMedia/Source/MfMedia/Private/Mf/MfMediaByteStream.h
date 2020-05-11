@@ -12,7 +12,12 @@
 #if PLATFORM_WINDOWS
 	#include "Windows/WindowsHWrapper.h"
 	#include "Windows/AllowWindowsPlatformTypes.h"
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP	
+#elif PLATFORM_UWP
+	#include "UWP/WindowsHWrapper.h"
+	#include "UWP/AllowWindowsPlatformTypes.h"
 #else
+// @ATG_CHANGE : END
 	#include "XboxOne/XboxOneAllowPlatformTypes.h"
 #endif
 
@@ -109,7 +114,11 @@ private:
 
 #if PLATFORM_WINDOWS
 	#include "Windows/HideWindowsPlatformTypes.h"
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#elif PLATFORM_UWP
+	#include "UWP/HideWindowsPlatformTypes.h"
 #else
+// @ATG_CHANGE : END
 	#include "XboxOne/XboxOneHidePlatformTypes.h"
 #endif
 

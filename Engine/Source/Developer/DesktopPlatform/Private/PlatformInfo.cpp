@@ -157,6 +157,12 @@ static const FPlatformInfo AllPlatformInfoArray[] = {
 	BuildPlatformInfo(TEXT("Quail"),					TEXT("Quail"),				LOCTEXT("Quail", "Quail"),										EPlatformType::Game,	EPlatformFlags::None,			FPlatformIconPaths(TEXT("Launcher/Quail/Platform_Quail_24x"), TEXT("Launcher/Quail/Platform_Quail_128x")),							TEXT(""),											TEXT(""),			EPlatformSDKStatus::Unknown,	TEXT(""),																								IsAvailableOnWindows,											TEXT("Quail"),		TEXT("Quail"),		false,					false,					true,			TEXT("Quail"),		TEXT("")),
 	BuildPlatformInfo(TEXT("QuailClient"),				TEXT("QuailClient"),		LOCTEXT("QuailClient", "Quail (Client-only)"),					EPlatformType::Client,	EPlatformFlags::None,			FPlatformIconPaths(TEXT("Launcher/Quail/Platform_Quail_24x"), TEXT("Launcher/Quail/Platform_Quail_128x")),							TEXT("-client -targetplatform=Quail"),				TEXT(""),			EPlatformSDKStatus::Unknown,	TEXT(""),																								IsAvailableOnWindows,											TEXT("Quail"),		TEXT("Quail"),		false,					false,					true,			TEXT("Quail"),		TEXT("")),
 
+// @ATG_CHANGE : BEGIN UWP packaging & F5 support
+	BuildPlatformInfo(TEXT("UWP"),						TEXT("UWP"),				LOCTEXT("UWP", "Universal Windows Platform"),					EPlatformType::Game,	EPlatformFlags::None,			FPlatformIconPaths(TEXT("Launcher/Windows/Platform_WindowsNoEditor_24x"), TEXT("Launcher/Windows/Platform_WindowsNoEditor_128x")),	TEXT("-targetplatform=UWP64"),						TEXT(""),			EPlatformSDKStatus::Unknown,	TEXT("/Engine/Tutorial/Installation/InstallingVisualStudioTutorial.InstallingVisualStudioTutorial"),	IsAvailableOnWindows,											TEXT("UWP64"),		TEXT("UWP"),		IsAvailableOnWindows,	false,					false,			TEXT("UWP64"),		TEXT("Desktop")),
+	BuildPlatformInfo(TEXT("UWP_UWP32"),				TEXT("UWP32"),				LOCTEXT("UWP_UWP32", "UWP (x86-32bit)"),						EPlatformType::Game,	EPlatformFlags::BuildFlavor,	FPlatformIconPaths(TEXT("Launcher/Windows/Platform_WindowsNoEditor_24x"), TEXT("Launcher/Windows/Platform_WindowsNoEditor_128x")),	TEXT("-targetplatform=UWP32"),						TEXT(""),			EPlatformSDKStatus::Unknown,	TEXT("/Engine/Tutorial/Installation/InstallingVisualStudioTutorial.InstallingVisualStudioTutorial"),	IsAvailableOnWindows,											TEXT("UWP32"),		TEXT("UWP"),		IsAvailableOnWindows,	false,					false,			TEXT("UWP32"),		TEXT("Desktop")),
+	BuildPlatformInfo(TEXT("UWP_UWP64"),				TEXT("UWP64"),				LOCTEXT("UWP_UWP64", "UWP (x64-64bit)"),						EPlatformType::Game,	EPlatformFlags::BuildFlavor,	FPlatformIconPaths(TEXT("Launcher/Windows/Platform_WindowsNoEditor_24x"), TEXT("Launcher/Windows/Platform_WindowsNoEditor_128x")),	TEXT("-targetplatform=UWP64"),						TEXT(""),			EPlatformSDKStatus::Unknown,	TEXT("/Engine/Tutorial/Installation/InstallingVisualStudioTutorial.InstallingVisualStudioTutorial"),	IsAvailableOnWindows,											TEXT("UWP64"),		TEXT("UWP"),		IsAvailableOnWindows,	false,					false,			TEXT("UWP64"),		TEXT("Desktop")),
+// @ATG_CHANGE : END 
+
 	// Note: For "AllDesktop" bEnabledForUse value, see SProjectTargetPlatformSettings::Construct !!!! IsAvailableOnWindows || IsAvailableOnMac || IsAvailableOnLinux
 };
 
@@ -170,6 +176,13 @@ const FPlatformInfo* FindPlatformInfo(const FName& InPlatformName)
 		{
 			return &PlatformInfo;
 		}
+
+		// @ATG_CHANGE : BEGIN - UWP packaging & F5 support
+		if (PlatformInfo.TargetPlatformName == InPlatformName)
+		{
+			return &PlatformInfo;
+		}
+		// @ATG_CHANGE : END - UWP packaging & F5 support
 	}
 	return nullptr;
 }
