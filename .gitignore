@@ -266,4 +266,7 @@ Engine/Build/UWP/Resources/en/resources.resw
 /Engine/Plugins/Online/OnlineSubsystemLive/ThirdParty/XSAPI/**
 /Engine/Plugins/Online/OnlineSubsystemLive/ThirdParty/XIM/**
 
+# Include UWP third party binaries
+!/Engine/Plugins/Online/OnlineSubsystemLive/ThirdParty/EraAdapter/Binaries/**
+
 !/ImportantImages/**
