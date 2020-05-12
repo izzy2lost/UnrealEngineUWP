@@ -13,20 +13,23 @@ namespace UnrealBuildTool
 	/// <summary>
 	/// Base class for platform-specific project generators
 	/// </summary>
-	class UWPProjectGenerator : UEPlatformProjectGenerator
+	class UWPProjectGenerator : PlatformProjectGenerator
 	{
 		const string PlatformString = "UWP";
 
-		/// <summary>
-		/// Register the platform with the UEPlatformProjectGenerator class
-		/// </summary>
-		public override void RegisterPlatformProjectGenerator()
+		public UWPProjectGenerator(CommandLineArguments Arguments)
+			: base(Arguments)
 		{
-			// Register this project generator for UWP
-			Log.TraceVerbose("		Registering for {0}", UnrealTargetPlatform.UWP64.ToString());
-			UEPlatformProjectGenerator.RegisterPlatformProjectGenerator(UnrealTargetPlatform.UWP64, this);
-			Log.TraceVerbose("		Registering for {0}", UnrealTargetPlatform.UWP32.ToString());
-			UEPlatformProjectGenerator.RegisterPlatformProjectGenerator(UnrealTargetPlatform.UWP32, this);
+
+		}
+
+		/// <summary>
+		/// Enumerate all the platforms that this generator supports
+		/// </summary>
+		public override IEnumerable<UnrealTargetPlatform> GetPlatforms()
+		{
+			yield return UnrealTargetPlatform.UWP32;
+			yield return UnrealTargetPlatform.UWP64;
 		}
 
 		///
@@ -76,7 +79,6 @@ namespace UnrealBuildTool
 			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler, "Latest");
 			if (PlatformWinMDLocation == null || !FileReference.Exists(FileReference.Combine(PlatformWinMDLocation, "platform.winmd")))
 			{
-				Compiler = WindowsCompiler.VisualStudio2015;
 				PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler, "Latest");
 			}
 			string FoundationWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Compiler);

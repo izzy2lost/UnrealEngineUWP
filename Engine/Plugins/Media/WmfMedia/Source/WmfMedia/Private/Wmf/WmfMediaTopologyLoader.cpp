@@ -10,7 +10,9 @@
 #include <d3d11.h>
 #include "Windows/HideWindowsPlatformTypes.h"
 
-const GUID MF_SA_D3D11_AWARE = { 0x206b4fc8, 0xfcf9, 0x4c51, { 0xaf, 0xe3, 0x97, 0x64, 0x36, 0x9e, 0x33, 0xa0 } };
+// @UWP_CHANGE : BEGIN Commented out as generates redefinition error
+//const GUID MF_SA_D3D11_AWARE = { 0x206b4fc8, 0xfcf9, 0x4c51, { 0xaf, 0xe3, 0x97, 0x64, 0x36, 0x9e, 0x33, 0xa0 } };
+// @UWP_CHANGE : END
 
 bool WmfMediaTopologyLoader::IsHardwareAccelerated(const TComPtr<IMFTopology>& InTopology) const
 {

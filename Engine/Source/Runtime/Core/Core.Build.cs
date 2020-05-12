@@ -186,11 +186,7 @@ public class Core : ModuleRules
 
 		WhitelistRestrictedFolders.Add("Private/NoRedist");
 
-        if ((Target.Platform == UnrealTargetPlatform.XboxOne) ||
-// @ATG_CHANGE : BEGIN UWP support
-            (Target.Platform == UnrealTargetPlatform.UWP32) ||
-            (Target.Platform == UnrealTargetPlatform.UWP64))
-// @ATG_CHANGE : END
+        if (Target.Platform == UnrealTargetPlatform.XboxOne)
         {
             PublicDefinitions.Add("WITH_DIRECTXMATH=1");
         }

@@ -30,7 +30,7 @@ extern CORE_API void ReportEnsure(const TCHAR* ErrorMessage, int NumStackFramesT
 extern CORE_API void ReportHang(const TCHAR*, const uint64* StackFrames, int32 NumStackFrames, uint32 HungThreadId);
 #elif PLATFORM_UWP
 extern CORE_API int32 ReportCrash(LPEXCEPTION_POINTERS ExceptionInfo);
-extern CORE_API void NewReportEnsure(const TCHAR* ErrorMessage, int NumStackFramesToIgnore );
+extern CORE_API void ReportEnsure(const TCHAR* ErrorMessage, int NumStackFramesToIgnore );
 #elif PLATFORM_XBOXONE
 #include "XboxOne/XboxOneSystemIncludes.h"
 // #CrashReport: 2014-10-09 Should be move to another file

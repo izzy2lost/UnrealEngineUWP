@@ -12,14 +12,12 @@ namespace UnrealBuildTool
 	/// </summary>
 	public class UWPExports
 	{
-		private UWPDeploy InnerDeploy;
-
 		/// <summary>
 		/// 
 		/// </summary>
 		public UWPExports()
 		{
-			InnerDeploy = new UWPDeploy();
+
 		}
 
 		/// <summary>
@@ -37,7 +35,7 @@ namespace UnrealBuildTool
 		/// <returns></returns>
 		public bool PrepForUATPackageOrDeploy(FileReference ProjectFile, string InProjectName, string InProjectDirectory, List<UnrealTargetConfiguration> InTargetConfigurations, List<string> InExecutablePaths, string InEngineDir, bool bForDistribution, string CookFlavor, bool bIsDataDeploy)
 		{
-			return InnerDeploy.PrepForUATPackageOrDeploy(ProjectFile, InProjectName, InProjectDirectory, InTargetConfigurations, InExecutablePaths, InEngineDir, bForDistribution, CookFlavor, bIsDataDeploy);
+			return new UWPDeploy(ProjectFile).PrepForUATPackageOrDeploy(InProjectName, InProjectDirectory, InTargetConfigurations, InExecutablePaths, InEngineDir, bForDistribution, CookFlavor, bIsDataDeploy);
 		}
 
 		/// <summary>
@@ -48,7 +46,7 @@ namespace UnrealBuildTool
 		/// <param name="DestPackageRoot"></param>
 		public void AddWinMDReferencesFromReceipt(TargetReceipt Receipt, DirectoryReference SourceProjectDir, string DestPackageRoot)
 		{
-			InnerDeploy.AddWinMDReferencesFromReceipt(Receipt, SourceProjectDir, DestPackageRoot);
+			new UWPDeploy(Receipt.ProjectFile).AddWinMDReferencesFromReceipt(Receipt, SourceProjectDir, DestPackageRoot);
 		}
 
 		/// <summary>

@@ -134,6 +134,19 @@ void FHttpRequestIXML::SetContentAsString(const FString& ContentString)
 	}
 }
 
+bool FHttpRequestIXML::SetContentAsStreamedFile(const FString& Filename)
+{
+	// Not implemented.
+	UE_LOG(LogHttp, Warning, TEXT("FHttpRequestIXML::SetContentAsStreamedFile is not implemented"));
+	return false;
+}
+
+bool FHttpRequestIXML::SetContentFromStream(TSharedRef<FArchive, ESPMode::ThreadSafe> Stream)
+{
+	UE_LOG(LogHttp, Warning, TEXT("FHttpRequestIXML::SetContentFromStream is not implemented"));
+	return false;
+}
+
 //-----------------------------------------------------------------------------
 //	
 //-----------------------------------------------------------------------------

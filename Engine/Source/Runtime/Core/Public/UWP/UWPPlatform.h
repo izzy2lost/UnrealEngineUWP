@@ -65,6 +65,12 @@ typedef FUWPTypes FPlatformTypes;
 #define WINDOWS_PF_COMPARE_EXCHANGE128                      PF_COMPARE_EXCHANGE128
 //#define PLATFORM_COMPILER_HAS_DEFAULT_FUNCTION_TEMPLATE_ARGUMENTS	1
 
+#if UE_BUILD_SHIPPING
+#define PLATFORM_BREAK() ((void)0)
+#else
+#define PLATFORM_BREAK() ((void)(FUWPMisc::IsDebuggerPresent() && (__debugbreak(), 1)))
+#endif
+
 //@todo.UWP: Fixup once sockets are supported
 #define PLATFORM_SUPPORTS_MESSAGEBUS						1
 

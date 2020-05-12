@@ -374,50 +374,46 @@ namespace UnrealBuildTool
 		/// <param name="Compiler">Compiler version currently in use (controls search path for winmds that are SDK contracts)</param>
 		public void AddIntelliSenseWinMDReferences(List<string> NewWinMDReferences, WindowsCompiler Compiler)
 		{
-			if (ProjectFileGenerator.OnlyGenerateIntelliSenseDataForProject == null ||
-				ProjectFileGenerator.OnlyGenerateIntelliSenseDataForProject == this)
+			foreach (var CurPath in NewWinMDReferences)
 			{
-				foreach (var CurPath in NewWinMDReferences)
+				string ResolvedPath = CurPath;
+
+				if (KnownIntelliSenseWinMDReferences.Add(ResolvedPath))
 				{
-					string ResolvedPath = CurPath;
+					string PathRelativeToProjectFile;
 
-					if (KnownIntelliSenseWinMDReferences.Add(ResolvedPath))
+					// If the include string is an environment variable (e.g. $(DXSDK_DIR)), then we never want to
+					// give it a relative path
+					if (CurPath.StartsWith("$("))
 					{
-						string PathRelativeToProjectFile;
+						PathRelativeToProjectFile = ResolvedPath;
+					}
+					else
+					{
+						// WinMDs referenced by contract name should already have been resolved to files at this point
 
-						// If the include string is an environment variable (e.g. $(DXSDK_DIR)), then we never want to
-						// give it a relative path
-						if (CurPath.StartsWith("$("))
+						// Incoming include paths are relative to the solution directory, but we need these paths to be
+						// relative to the project file's directory
+						PathRelativeToProjectFile = NormalizeProjectPath(ResolvedPath);
+					}
+
+					// Trim any trailing slash
+					PathRelativeToProjectFile = PathRelativeToProjectFile.TrimEnd('/', '\\');
+
+					// Make sure that it doesn't exist already
+					var AlreadyExists = false;
+					foreach (var ExistingPath in IntelliSenseWinMDReferences)
+					{
+						if (PathRelativeToProjectFile == ExistingPath)
 						{
-							PathRelativeToProjectFile = ResolvedPath;
+							AlreadyExists = true;
+							break;
 						}
-						else
-						{
-							// WinMDs referenced by contract name should already have been resolved to files at this point
+					}
 
-							// Incoming include paths are relative to the solution directory, but we need these paths to be
-							// relative to the project file's directory
-							PathRelativeToProjectFile = NormalizeProjectPath(ResolvedPath);
-						}
-
-						// Trim any trailing slash
-						PathRelativeToProjectFile = PathRelativeToProjectFile.TrimEnd('/', '\\');
-
-						// Make sure that it doesn't exist already
-						var AlreadyExists = false;
-						foreach (var ExistingPath in IntelliSenseWinMDReferences)
-						{
-							if (PathRelativeToProjectFile == ExistingPath)
-							{
-								AlreadyExists = true;
-								break;
-							}
-						}
-
-						if (!AlreadyExists)
-						{
-							IntelliSenseWinMDReferences.Add(PathRelativeToProjectFile);
-						}
+					if (!AlreadyExists)
+					{
+						IntelliSenseWinMDReferences.Add(PathRelativeToProjectFile);
 					}
 				}
 			}

@@ -95,7 +95,7 @@ namespace UnrealBuildTool
 			// Disable "The file contains a character that cannot be represented in the current code page" warning for non-US windows.
 			Arguments.Add("/wd4819");
 
-			if (EnvVars.Compiler >= WindowsCompiler.VisualStudio2015)
+			if (EnvVars.Compiler >= WindowsCompiler.VisualStudio2017)
 			{
 				VCToolChain.AddDefinition(Arguments, "_CRT_STDIO_LEGACY_WIDE_SPECIFIERS", "1");
 				//VCToolChain.AddDefinition(Arguments, "USE_SECURE_CRT", "1");
@@ -108,7 +108,7 @@ namespace UnrealBuildTool
 			Arguments.Add("/wd4467");
 
 			// @todo UWP: Silence the hash_map deprecation errors for now. This should be replaced with unordered_map for the real fix.
-			if (EnvVars.Compiler >= WindowsCompiler.VisualStudio2015)
+			if (EnvVars.Compiler >= WindowsCompiler.VisualStudio2017)
 			{
 				AddDefinition(Arguments, "_SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS");
 			}
@@ -295,7 +295,7 @@ namespace UnrealBuildTool
 				// Output debug info for the linked executable.
 
 				// Allow partial PDBs for faster linking
-				if (EnvVars.Compiler >= WindowsCompiler.VisualStudio2015 && LinkEnvironment.bUseFastPDBLinking)
+				if (EnvVars.Compiler >= WindowsCompiler.VisualStudio2017 && LinkEnvironment.bUseFastPDBLinking)
 				{
 					Arguments.Add("/DEBUG:FASTLINK");
 				}
@@ -473,17 +473,17 @@ namespace UnrealBuildTool
 			}
 		}
 
-		public override CPPOutput CompileCPPFiles(CppCompileEnvironment CompileEnvironment, List<FileItem> InputFiles, DirectoryReference OutputDir, string ModuleName, ActionGraph ActionGraph)
+		public override CPPOutput CompileCPPFiles(CppCompileEnvironment CompileEnvironment, List<FileItem> InputFiles, DirectoryReference OutputDir, string ModuleName, List<Action> Actions)
 		{
 			List<string> SharedArguments = new List<string>();
 			AppendCLArguments_Global(CompileEnvironment, EnvVars, SharedArguments);
 
 			// Add include paths to the argument list.
-			foreach (DirectoryReference IncludePath in CompileEnvironment.IncludePaths.UserIncludePaths)
+			foreach (DirectoryReference IncludePath in CompileEnvironment.UserIncludePaths)
 			{
 				AddIncludePath(SharedArguments, IncludePath);
 			}
-			foreach (DirectoryReference IncludePath in CompileEnvironment.IncludePaths.SystemIncludePaths)
+			foreach (DirectoryReference IncludePath in CompileEnvironment.SystemIncludePaths)
 			{
 				AddIncludePath(SharedArguments, IncludePath);
 			}
@@ -512,14 +512,18 @@ namespace UnrealBuildTool
 			CPPOutput Result = new CPPOutput();
 			foreach (FileItem SourceFile in InputFiles)
 			{
-				Action CompileAction = ActionGraph.Add(ActionType.Compile);
-				CompileAction.CommandDescription = "Compile";
+				Action CompileAction = new Action(ActionType.Compile)
+				{
+					CommandDescription = "Compile"
+				};
+
+				Actions.Add(CompileAction);
 
 				List<string> FileArguments = new List<string>();
 				bool bIsPlainCFile = Path.GetExtension(SourceFile.AbsolutePath).ToUpperInvariant() == ".C";
 
 				// Add the C++ source file and its included files to the prerequisite item list.
-				AddPrerequisiteSourceFile(CompileEnvironment, SourceFile, CompileAction.PrerequisiteItems);
+				CompileAction.PrerequisiteItems.Add(SourceFile);
 
 				bool bEmitsObjectFile = true;
 				if (CompileEnvironment.PrecompiledHeaderAction == PrecompiledHeaderAction.Create)
@@ -664,8 +668,8 @@ namespace UnrealBuildTool
 					AppendCLArguments_CPP(CompileEnvironment, FileArguments);
 				}
 
-				CompileAction.WorkingDirectory = UnrealBuildTool.EngineSourceDirectory.FullName;
-				CompileAction.CommandPath = EnvVars.CompilerPath.FullName;
+				CompileAction.WorkingDirectory = UnrealBuildTool.EngineSourceDirectory;
+				CompileAction.CommandPath = EnvVars.CompilerPath;
 
 				string[] AdditionalArguments = String.IsNullOrEmpty(CompileEnvironment.AdditionalArguments) ? new string[0] : new string[] { CompileEnvironment.AdditionalArguments };
 
@@ -675,10 +679,10 @@ namespace UnrealBuildTool
 				{
 					FileItem TargetFile = CompileAction.ProducedItems[0];
 					string ResponseFileName = TargetFile.AbsolutePath + ".response";
-					var Arguments = SharedArguments.Concat(FileArguments).Concat(AdditionalArguments).Select(x => ActionThread.ExpandEnvironmentVariables(x));
+					var Arguments = SharedArguments.Concat(FileArguments).Concat(AdditionalArguments).Select(x => Environment.ExpandEnvironmentVariables(x));
 					FileItem ResponseFile = FileItem.CreateIntermediateTextFile(new FileReference(ResponseFileName), String.Join(Environment.NewLine, Arguments));
 					CompileAction.CommandArguments = " @\"" + ResponseFileName + "\"";
-					CompileAction.PrerequisiteItems.Add(FileItem.GetExistingItemByPath(ResponseFileName));
+					CompileAction.PrerequisiteItems.Add(FileItem.GetItemByPath(ResponseFileName));
 				}
 				else
 				{
@@ -710,18 +714,22 @@ namespace UnrealBuildTool
 			return Result;
 		}
 
-		public override CPPOutput CompileRCFiles(CppCompileEnvironment CompileEnvironment, List<FileItem> InputFiles, DirectoryReference OutputDir, ActionGraph ActionGraph)
+		public override CPPOutput CompileRCFiles(CppCompileEnvironment CompileEnvironment, List<FileItem> InputFiles, DirectoryReference OutputDir, List<Action> Actions)
 		{
 			CPPOutput Result = new CPPOutput();
 
 			foreach (FileItem RCFile in InputFiles)
 			{
-				Action CompileAction = ActionGraph.Add(ActionType.Compile);
-				CompileAction.CommandDescription = "Resource";
-				CompileAction.WorkingDirectory = UnrealBuildTool.EngineSourceDirectory.FullName;
-				CompileAction.CommandPath = EnvVars.ResourceCompilerPath.FullName;
-				CompileAction.StatusDescription = Path.GetFileName(RCFile.AbsolutePath);
+				Action CompileAction = new Action(ActionType.Compile)
+				{
+					CommandDescription = "Resource",
+					WorkingDirectory = UnrealBuildTool.EngineSourceDirectory,
+					CommandPath = EnvVars.ResourceCompilerPath,
+					StatusDescription = Path.GetFileName(RCFile.AbsolutePath),
+				};
+
 				CompileAction.PrerequisiteItems.AddRange(CompileEnvironment.ForceIncludeFiles);
+				Actions.Add(CompileAction);
 
 				// Resource tool can run remotely if possible
 				CompileAction.bCanExecuteRemotely = true;
@@ -742,13 +750,13 @@ namespace UnrealBuildTool
 				Arguments.Add("/l 0x409");
 
 				// Include paths. Don't use AddIncludePath() here, since it uses the full path and exceeds the max command line length.
-				foreach (DirectoryReference IncludePath in CompileEnvironment.IncludePaths.UserIncludePaths)
+				foreach (DirectoryReference IncludePath in CompileEnvironment.UserIncludePaths)
 				{
 					Arguments.Add(String.Format("/I \"{0}\"", IncludePath));
 				}
 
 				// System include paths.
-				foreach (DirectoryReference SystemIncludePath in CompileEnvironment.IncludePaths.SystemIncludePaths)
+				foreach (DirectoryReference SystemIncludePath in CompileEnvironment.SystemIncludePaths)
 				{
 					Arguments.Add(String.Format("/I \"{0}\"", SystemIncludePath));
 				}
@@ -783,13 +791,13 @@ namespace UnrealBuildTool
 				CompileAction.CommandArguments = String.Join(" ", Arguments);
 
 				// Add the C++ source file and its included files to the prerequisite item list.
-				AddPrerequisiteSourceFile(CompileEnvironment, RCFile, CompileAction.PrerequisiteItems);
+				CompileAction.PrerequisiteItems.Add(RCFile);
 			}
 
 			return Result;
 		}
 
-		public override FileItem LinkFiles(LinkEnvironment LinkEnvironment, bool bBuildImportLibraryOnly, ActionGraph ActionGraph) //(LinkEnvironment LinkEnvironment, bool bBuildImportLibraryOnly)
+		public override FileItem LinkFiles(LinkEnvironment LinkEnvironment, bool bBuildImportLibraryOnly, List<Action> Actions) //(LinkEnvironment LinkEnvironment, bool bBuildImportLibraryOnly)
 		{
 			if(LinkEnvironment.bIsBuildingDotNetAssembly)
 			{
@@ -890,7 +898,9 @@ namespace UnrealBuildTool
 			else
 			{
 				OutputFile = FileItem.GetItemByFileReference(LinkEnvironment.OutputFilePath);
-				OutputFile.bNeedsHotReloadNumbersDLLCleanUp = LinkEnvironment.bIsBuildingDLL;
+
+				// NOTE: bNeedsHotReloadNumbersDLLCleanUp removed in 4.22
+				//OutputFile.bNeedsHotReloadNumbersDLLCleanUp = LinkEnvironment.bIsBuildingDLL;
 			}
 
 			List<FileItem> ProducedItems = new List<FileItem>();
@@ -947,16 +957,18 @@ namespace UnrealBuildTool
 
 			if (!bIsBuildingLibrary)
 			{
-				// There is anything to export
-				if (LinkEnvironment.bHasExports
-					// Shipping monolithic builds don't need exports
-					&& (!((LinkEnvironment.Configuration == CppConfiguration.Shipping) && (LinkEnvironment.bShouldCompileMonolithic != false))))
-				{
-					// Write the import library to the output directory for nFringe support.
-					FileItem ImportLibraryFile = FileItem.GetItemByFileReference(ImportLibraryFilePath);
-					Arguments.Add(String.Format("/IMPLIB:\"{0}\"", ImportLibraryFilePath));
-					ProducedItems.Add(ImportLibraryFile);
-				}
+				// NOTE: bShouldCompileMonolithic removed in 4.22
+
+				//// There is anything to export
+				//if (LinkEnvironment.bHasExports
+				//	// Shipping monolithic builds don't need exports
+				//	&& (!((LinkEnvironment.Configuration == CppConfiguration.Shipping) && (LinkEnvironment.bShouldCompileMonolithic != false))))
+				//{
+				//	// Write the import library to the output directory for nFringe support.
+				//	FileItem ImportLibraryFile = FileItem.GetItemByFileReference(ImportLibraryFilePath);
+				//	Arguments.Add(String.Format("/IMPLIB:\"{0}\"", ImportLibraryFilePath));
+				//	ProducedItems.Add(ImportLibraryFile);
+				//}
 
 				if (LinkEnvironment.bCreateDebugInfo)
 				{
@@ -997,14 +1009,15 @@ namespace UnrealBuildTool
 			}
 
 			// Create an action that invokes the linker.
-			Action LinkAction = ActionGraph.Add(ActionType.Link);
+			Action LinkAction = new Action(ActionType.Link);
 			LinkAction.CommandDescription = "Link";
-			LinkAction.WorkingDirectory = UnrealBuildTool.EngineSourceDirectory.FullName;
-			LinkAction.CommandPath = bIsBuildingLibrary ? EnvVars.LibraryManagerPath.FullName : EnvVars.LinkerPath.FullName;
+			LinkAction.WorkingDirectory = UnrealBuildTool.EngineSourceDirectory;
+			LinkAction.CommandPath = bIsBuildingLibrary ? EnvVars.LibraryManagerPath : EnvVars.LinkerPath;
 			LinkAction.CommandArguments = String.Format("@\"{0}\"", ResponseFileName);
 			LinkAction.ProducedItems.AddRange(ProducedItems);
 			LinkAction.PrerequisiteItems.AddRange(PrerequisiteItems);
 			LinkAction.StatusDescription = Path.GetFileName(OutputFile.AbsolutePath);
+			Actions.Add(LinkAction);
 
 			// ensure compiler timings are captured when we execute the action.
 			if (Target.WindowsPlatform.Compiler != WindowsCompiler.Clang && LinkEnvironment.bPrintTimingInfo)

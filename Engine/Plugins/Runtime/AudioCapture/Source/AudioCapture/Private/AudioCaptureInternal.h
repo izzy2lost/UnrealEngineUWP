@@ -5,11 +5,9 @@
 #include "AudioCapture.h"
 
 
-// @LAB132: BEGIN UWP Support
-#if PLATFORM_WINDOWS || PLATFORM_LUMIN || PLATFORM_UWP
+#if PLATFORM_WINDOWS || PLATFORM_LUMIN
 
-#if PLATFORM_WINDOWS || PLATFORM_UWP
-// @LAB132: END
+#if PLATFORM_WINDOWS
 #include "Windows/WindowsHWrapper.h"
 
 THIRD_PARTY_INCLUDES_START
@@ -52,9 +50,7 @@ namespace Audio
 		IAudioCaptureCallback* Callback;
 		int32 NumChannels;
 		int32 SampleRate;
-// @LAB132: BEGIN UWP Support
-#if PLATFORM_WINDOWS || PLATFORM_UWP
-// @LAB132: END
+#if PLATFORM_WINDOWS
 		RtAudio CaptureDevice;
 #endif
 	};

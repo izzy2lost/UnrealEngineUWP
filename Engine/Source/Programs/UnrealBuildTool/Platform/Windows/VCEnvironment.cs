@@ -258,8 +258,10 @@ namespace UnrealBuildTool
 						return DirectoryReference.Combine(SelectedToolChainDir, "lib", "x86", "Store", "references");
 					}
 
-				case WindowsCompiler.VisualStudio2015:
-					return DirectoryReference.Combine(SelectedToolChainDir, "lib", "store", "references");
+				case WindowsCompiler.VisualStudio2019:
+					{
+						return DirectoryReference.Combine(SelectedToolChainDir, "lib", "x86", "Store", "references");
+					}
 
 				default:
 					// Not supported
@@ -274,7 +276,7 @@ namespace UnrealBuildTool
 			switch (Compiler)
 			{
 				case WindowsCompiler.VisualStudio2017:
-				case WindowsCompiler.VisualStudio2015:
+				case WindowsCompiler.VisualStudio2019:
 					Version = "v10.0";
 					break;
 
@@ -317,7 +319,7 @@ namespace UnrealBuildTool
 			switch (InCompiler)
 			{
 				case WindowsCompiler.VisualStudio2017:
-				case WindowsCompiler.VisualStudio2015:
+				case WindowsCompiler.VisualStudio2019:
 					// @ATG_CHANGE : BEGIN - UWP support.  bUseWindowsSDK10 may not be set when this is called during project generation
 					if (InPlatform == CppPlatform.UWP64 || InPlatform == CppPlatform.UWP32)
 					// @ATG_CHANGE : END

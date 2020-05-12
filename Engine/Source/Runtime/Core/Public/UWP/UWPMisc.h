@@ -10,11 +10,7 @@
 #include "Misc/Build.h"
 #include "UWP/UWPSystemIncludes.h"
 
-#if UE_BUILD_SHIPPING
-#define UE_DEBUG_BREAK() ((void)0)
-#else
-#define UE_DEBUG_BREAK() ((void)(FUWPMisc::IsDebuggerPresent() && (__debugbreak(), 1)))
-#endif
+#define UE_DEBUG_BREAK_IMPL() PLATFORM_BREAK()
 
 class FString;
 

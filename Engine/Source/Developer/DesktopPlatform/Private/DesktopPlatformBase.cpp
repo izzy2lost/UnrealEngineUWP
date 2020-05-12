@@ -1171,6 +1171,10 @@ static bool TryReadMsBuildInstallPath(FString& OutPath)
 
 bool FDesktopPlatformBase::BuildUnrealBuildTool(const FString& RootDir, FOutputDevice& Ar)
 {
+// @UWP_CHANGE : BEGIN Since 4.22 BuildUnrealBuildTool seems to get called during UWP builds 
+#if !PLATFORM_WINDOWS && PLATFORM_UWP
+	return false;
+#else
 	Ar.Logf(TEXT("Building UnrealBuildTool in %s..."), *RootDir);
 
 	// Check the project file exists
@@ -1240,6 +1244,8 @@ bool FDesktopPlatformBase::BuildUnrealBuildTool(const FString& RootDir, FOutputD
 	}
 
 	return true;
+#endif
+// UWP_CHANGE : END
 }
 
 FString FDesktopPlatformBase::GetUnrealBuildToolProjectFileName(const FString& RootDir) const

@@ -25,18 +25,18 @@ public class D3D12RHI : ModuleRules
 		}
 
 		///////////////////////////////////////////////////////////////
-        // Platform specific defines
-        ///////////////////////////////////////////////////////////////
+		// Platform specific defines
+		///////////////////////////////////////////////////////////////
 
-        if (Target.Platform != UnrealTargetPlatform.Win32 && Target.Platform != UnrealTargetPlatform.Win64 && Target.Platform != UnrealTargetPlatform.XboxOne)
-        {
-            PrecompileForTargets = PrecompileTargetsType.None;
-        }
+		if (Target.Platform != UnrealTargetPlatform.Win32 && Target.Platform != UnrealTargetPlatform.Win64 && Target.Platform != UnrealTargetPlatform.XboxOne)
+		{
+			PrecompileForTargets = PrecompileTargetsType.None;
+		}
 
-        // @ATG_CHANGE : BEGIN UWP support
-        if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32 ||
-            Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
-        // @ATG_CHANGE : END
+		// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32 ||
+			Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+		// @ATG_CHANGE : END
 		{
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "DX12");
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11");
@@ -50,11 +50,12 @@ public class D3D12RHI : ModuleRules
 			}
 			else
 			{
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "AMD_AGS");
-            AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAftermath");
-            AddEngineThirdPartyPrivateStaticDependencies(Target, "IntelMetricsDiscovery");
+				AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
+				AddEngineThirdPartyPrivateStaticDependencies(Target, "AMD_AGS");
+				AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAftermath");
+				AddEngineThirdPartyPrivateStaticDependencies(Target, "IntelMetricsDiscovery");
+			}
+			// @ATG_CHANGE : END
 		}
-                        // @ATG_CHANGE : END
-    }
+	}
 }

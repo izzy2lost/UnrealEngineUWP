@@ -16,9 +16,7 @@ public class zlib : ModuleRules
 
 		string ConfigPath = (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT) ? "Debug" :"Release";
 
-// @ATG_CHANGE : BEGIN UWP support
-		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
-// @ATG_CHANGE : END
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
 		{
 			string Platform = Target.Platform.ToString();
 			string VSVersion = "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
@@ -28,7 +26,21 @@ public class zlib : ModuleRules
 
 			PublicAdditionalLibraries.Add("zlibstatic.lib");
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Mac)
+        // @UWP_CHANGE : BEGIN Using old zlib path for UWP
+        else if (Target.Platform == UnrealTargetPlatform.UWP64)
+        {
+            PublicIncludePaths.Add(OldzlibPath + "/inc");
+            PublicLibraryPaths.Add(OldzlibPath + "/lib/winrt/win64");
+            PublicAdditionalLibraries.Add("zlib125.lib");
+        }
+		else if (Target.Platform == UnrealTargetPlatform.UWP32)
+        {
+            PublicIncludePaths.Add(OldzlibPath + "/inc");
+            PublicLibraryPaths.Add(OldzlibPath + "/lib/winrt/win32");
+            PublicAdditionalLibraries.Add("zlib125.lib");
+        }
+        // @UWP_CHANGE : END
+        else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			string platform = "/Mac/";
 			PublicIncludePaths.Add(zlibPath + "/include" + platform);
