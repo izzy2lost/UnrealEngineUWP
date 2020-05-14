@@ -13,8 +13,8 @@
 #define LOCTEXT_NAMESPACE "UWPLocalizedResourcesCustomization"
 
 FUWPLocalizedResourcesNodeBuilder::FUWPLocalizedResourcesNodeBuilder(TSharedRef<IPropertyHandle> InLocalizedResourceCollectionProperty, const FString& InPluginName)
-	: LocalizedResourceCollectionArray(InLocalizedResourceCollectionProperty->AsArray().ToSharedRef())
-	, OptionalPluginName(InPluginName)
+	: OptionalPluginName(InPluginName)
+	, LocalizedResourceCollectionArray(InLocalizedResourceCollectionProperty->AsArray().ToSharedRef())
 {
 	// Ensure that we have a default set of fallback resources (empty culture id)
 	uint32 NumElements;

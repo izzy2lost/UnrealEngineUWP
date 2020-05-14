@@ -37,6 +37,8 @@ public:
 	/* Ignored if controller does not support a color. */
 	virtual void SetLightColor(int32 ControllerId, struct FColor Color) override { /* nop */ }
 
+	virtual void ResetLightColor(int32 ControllerId) override {}
+
 public:
 
 	/** Platform-specific code can call this function to get the Gamepad^ associated with a UserId, if any. */

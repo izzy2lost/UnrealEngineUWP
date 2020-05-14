@@ -71,6 +71,7 @@ public class Launch : ModuleRules
 
 			if ((Target.Platform == UnrealTargetPlatform.Win32) ||
 				(Target.Platform == UnrealTargetPlatform.Win64))
+
 			{
 				DynamicallyLoadedModuleNames.AddRange(new string[] {
 					"AudioMixerXAudio2",
@@ -79,6 +80,20 @@ public class Launch : ModuleRules
 					"XAudio2",
 				});
 			}
+			// @ATG_CHANGE : BEGIN UWP support
+			else if (Target.Platform == UnrealTargetPlatform.UWP32 ||
+					Target.Platform == UnrealTargetPlatform.UWP64)
+			{
+				DynamicallyLoadedModuleNames.Add("D3D11RHI");
+				DynamicallyLoadedModuleNames.Add("XAudio2");
+				DynamicallyLoadedModuleNames.Add("AudioMixerXAudio2");
+
+				if (Target.UWPPlatform.bBuildD3D12RHI)
+				{
+					DynamicallyLoadedModuleNames.Add("D3D12RHI");
+				}
+			}
+			// @ATG_CHANGE : END
 			else if (Target.Platform == UnrealTargetPlatform.Mac)
 			{
 				DynamicallyLoadedModuleNames.AddRange(new string[] {

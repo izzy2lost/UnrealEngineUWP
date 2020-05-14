@@ -7,30 +7,46 @@ public class DX11Audio : ModuleRules
 	{
 		Type = ModuleType.External;
 
-		string DirectXSDKDir = Target.UEThirdPartySourceDirectory + "Windows/DirectX";
+        // @ATG_CHANGE : BEGIN UWP Support
+		string DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
+			Target.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
+			Target.UEThirdPartySourceDirectory + "Windows/DirectX";        
+        // @ATG_CHANGE : END
 
 		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
+			PublicSystemIncludePaths.Add(DirectXSDKDir + "/include/Win7");
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x64");
+			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x64/Win7");
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Win32)
 		{
+			PublicSystemIncludePaths.Add(DirectXSDKDir + "/include/Win7");
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
+			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86/Win7");
 		}
+
+		// @ATG_CHANGE : BEGIN UWP Support
+		PublicAdditionalLibraries.AddRange(
+			new string[]
+			{
+				"dxguid.lib",
+				"xapobase.lib"
+			}
+			);
 
 		if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			PublicAdditionalLibraries.AddRange(
 				new string[] {
-				"dxguid.lib",
 				"X3DAudio.lib",
-				"xapobase.lib",
 				"XAPOFX.lib"
 				}
 				);
 		}
+		// @ATG_CHANGE : END
 	}
 }
 

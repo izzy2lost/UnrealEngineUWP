@@ -9,7 +9,6 @@ using System.Text.RegularExpressions;
 using System.Resources;
 using System.Xml;
 using Tools.DotNETCommon;
-using Tools.DotNETUtilities;
 
 namespace UnrealBuildTool
 {
@@ -1925,9 +1924,9 @@ namespace UnrealBuildTool
 			DirectoryReference VSSchemaFolder = null;
 			DirectoryReference PhoneSchemaFolder = null;
 
-			// Limit to VS2015 compatible SDKs here - newer ones have incomplete schema sets
-			DirectoryReference SDKRootFolder = new DirectoryReference(VCEnvironment.FindWindowsSDKInstallationFolder(CppPlatform.UWP64, WindowsCompiler.VisualStudio2015));
-			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKRootFolder.FullName, WindowsCompiler.VisualStudio2015);
+			// Limit to VS2017 compatible SDKs here - newer ones have incomplete schema sets
+			DirectoryReference SDKRootFolder = new DirectoryReference(VCEnvironment.FindWindowsSDKInstallationFolder(CppPlatform.UWP64, WindowsCompiler.VisualStudio2017));
+			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKRootFolder.FullName, WindowsCompiler.VisualStudio2017);
 			SdkSchemaFolder = DirectoryReference.Combine(SDKRootFolder, "Include", SDKVersion.ToString(), "winrt");
 			PhoneSchemaFolder = DirectoryReference.Combine(SDKRootFolder, "Extension SDKs", "WindowsMobile", SDKVersion.ToString(), "Include", "WinRT");
 

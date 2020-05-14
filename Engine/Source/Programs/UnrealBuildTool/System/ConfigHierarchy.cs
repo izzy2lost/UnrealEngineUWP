@@ -903,6 +903,12 @@ namespace UnrealBuildTool
 			{
 				return "Windows";
 			}
+			// @ATG_CHANGE : BEGIN UWP support
+			else if (TargetPlatform == UnrealTargetPlatform.UWP32 || TargetPlatform == UnrealTargetPlatform.UWP64)
+			{
+				return "UWP";
+			}
+			// @ATG_CHANGE : END
 			else
 			{
 				return Enum.GetName(typeof(UnrealTargetPlatform), TargetPlatform);

@@ -7,16 +7,22 @@ public class DX9 : ModuleRules
 	{
 		Type = ModuleType.External;
 
-		string DirectXSDKDir = Target.UEThirdPartySourceDirectory + "Windows/DirectX";
+		// @ATG_CHANGE : BEGIN UWP support
+		string DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
+			Target.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
+			Target.UEThirdPartySourceDirectory + "Windows/DirectX";
+		// @ATG_CHANGE : END 
 		PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x64");
+			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x64/win7");
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Win32)
 		{
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
+			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x64/win7");
 		}
 
 		PublicAdditionalLibraries.AddRange(

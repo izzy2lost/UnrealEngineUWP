@@ -472,6 +472,10 @@ namespace UnrealBuildTool
 			{
 				case CppPlatform.Win32:			return UnrealTargetPlatform.Win32;
 				case CppPlatform.Win64:			return UnrealTargetPlatform.Win64;
+				// @ATG_CHANGE : BEGIN UWP support
+				case CppPlatform.UWP32:			return UnrealTargetPlatform.UWP32;
+				case CppPlatform.UWP64:			return UnrealTargetPlatform.UWP64;
+				// @ATG_CHANGE : END UWP support
 				case CppPlatform.Mac:			return UnrealTargetPlatform.Mac;
 				case CppPlatform.XboxOne:		return UnrealTargetPlatform.XboxOne;
 				case CppPlatform.PS4:			return UnrealTargetPlatform.PS4;
@@ -535,6 +539,10 @@ namespace UnrealBuildTool
 					return ":";
 				case UnrealTargetPlatform.Win32:
 				case UnrealTargetPlatform.Win64:
+// @ATG_CHANGE : BEGIN UWP support
+				case UnrealTargetPlatform.UWP32:
+				case UnrealTargetPlatform.UWP64:
+// @ATG_CHANGE : END
 					return ";";
 				default:
 					Log.TraceWarning("PATH variable delimiter unknown for platform " + BuildHostPlatform.Current.Platform.ToString() + " using ';'");

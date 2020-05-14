@@ -15,6 +15,10 @@
 #include "Apple/ApplePlatformStackWalk.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidPlatformStackWalk.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPStackWalk.h"
+// @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 #include "HTML5/HTML5PlatformStackWalk.h"
 #elif PLATFORM_UNIX

@@ -17,6 +17,10 @@
 #include "Lumin/LuminOutputDevices.h"
 #elif PLATFORM_ANDROID
 #include "Android/AndroidOutputDevices.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPOutputDevices.h"
+// @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 #include "HTML5/HTML5PlatformOutputDevices.h"
 #elif PLATFORM_UNIX

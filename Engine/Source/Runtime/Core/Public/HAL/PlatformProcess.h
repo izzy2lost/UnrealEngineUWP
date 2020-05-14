@@ -20,6 +20,10 @@
 #include "Android/AndroidProcess.h"
 #elif PLATFORM_QUAIL
 #include "Quail/QuailPlatformProcess.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPProcess.h"
+// @ATG_CHANGE : END
 #elif PLATFORM_HTML5
 #include "HTML5/HTML5PlatformProcess.h"
 #elif PLATFORM_LINUX

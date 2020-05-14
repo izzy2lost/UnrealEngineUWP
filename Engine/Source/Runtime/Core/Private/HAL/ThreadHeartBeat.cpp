@@ -231,7 +231,7 @@ void FORCENOINLINE FThreadHeartBeat::OnHang(double HangDuration, uint32 ThreadTh
 #else
 		UE_LOG(LogCore, Error, TEXT("%s"), *ErrorMessage);
 
-#if PLATFORM_DESKTOP
+#if PLATFORM_DESKTOP && !PLATFORM_UWP
 		GLog->PanicFlushThreadedLogs();
 
 		// Skip macros and FDebug, we always want this to fire

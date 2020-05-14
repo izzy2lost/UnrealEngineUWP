@@ -131,12 +131,12 @@ namespace UnrealBuildTool
 
 			// Add both toolchain paths to the PATH environment variable. There are some support DLLs which are only added to one of the paths, but which the toolchain in the other directory
 			// needs to run (eg. mspdbcore.dll).
-			if(Platform == CppPlatform.Win64)
+			if(Platform == CppPlatform.Win64 || Platform == CppPlatform.UWP64)
 			{
 				AddDirectoryToPath(VCToolPath64);
 				AddDirectoryToPath(VCToolPath32);
 			}
-			if(Platform == CppPlatform.Win32)
+			if(Platform == CppPlatform.Win32 || Platform == CppPlatform.UWP32)
 			{
 				AddDirectoryToPath(VCToolPath32);
 				AddDirectoryToPath(VCToolPath64);
@@ -241,6 +241,213 @@ namespace UnrealBuildTool
 			}
 		}
 
+		// @ATG_CHANGE : BEGIN
+		public static DirectoryReference GetCppCXMetadataLocation(WindowsCompiler Compiler, string CompilerVersion)
+		{
+			VersionNumber SelectedToolChainVersion;
+			DirectoryReference SelectedToolChainDir;
+			if (!WindowsPlatform.TryGetToolChainDir(Compiler, CompilerVersion, out SelectedToolChainVersion, out SelectedToolChainDir))
+			{
+				return null;
+			}
+
+			switch (Compiler)
+			{
+				case WindowsCompiler.VisualStudio2017:
+					{
+						return DirectoryReference.Combine(SelectedToolChainDir, "lib", "x86", "Store", "references");
+					}
+
+				case WindowsCompiler.VisualStudio2019:
+					{
+						return DirectoryReference.Combine(SelectedToolChainDir, "lib", "x86", "Store", "references");
+					}
+
+				default:
+					// Not supported
+					return null;
+			}
+		}
+		// @ATG_CHANGE : END
+
+		public static string FindWindowsSDKExtensionInstallationFolder(WindowsCompiler Compiler)
+		{
+			string Version;
+			switch (Compiler)
+			{
+				case WindowsCompiler.VisualStudio2017:
+				case WindowsCompiler.VisualStudio2019:
+					Version = "v10.0";
+					break;
+
+				default:
+					return string.Empty;
+			}
+
+			// Based on VCVarsQueryRegistry
+			string FinalResult = null;
+			{
+				object Result = Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows SDKs\" + Version, "InstallationFolder", null)
+						  ?? Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows SDKs\" + Version, "InstallationFolder", null);
+				if (Result == null)
+				{
+					Result = Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\" + Version, "InstallationFolder", null)
+						  ?? Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\" + Version, "InstallationFolder", null);
+				}
+				if (Result != null)
+				{
+					FinalResult = ((string)Result).TrimEnd('\\');
+				}
+
+			}
+			if (FinalResult == null)
+			{
+				FinalResult = string.Empty;
+			}
+
+			return FinalResult;
+		}
+
+		// @ATG_CHANGE : BEGIN - UWP support.  Making public 
+		/// <returns>The path to Windows SDK directory for the specified version and platform.</returns>
+		public static string FindWindowsSDKInstallationFolder(CppPlatform InPlatform, WindowsCompiler InCompiler)
+		// @ATG_CHANGE : END
+		{
+			// When targeting Windows XP on Visual Studio 2012+, we need to point at the older Windows SDK 7.1A that comes
+			// installed with Visual Studio 2012 Update 1. (http://blogs.msdn.com/b/vcblog/archive/2012/10/08/10357555.aspx)
+			string Version;
+			switch (InCompiler)
+			{
+				case WindowsCompiler.VisualStudio2017:
+				case WindowsCompiler.VisualStudio2019:
+					// @ATG_CHANGE : BEGIN - UWP support.  bUseWindowsSDK10 may not be set when this is called during project generation
+					if (InPlatform == CppPlatform.UWP64 || InPlatform == CppPlatform.UWP32)
+					// @ATG_CHANGE : END
+					{
+						Version = "v10.0";
+					}
+					else
+					{
+						Version = "v8.1";
+					}
+					break;
+
+				default:
+					throw new BuildException("Unexpected compiler setting when trying to determine Windows SDK folder");
+			}
+
+			// Based on VCVarsQueryRegistry
+			string FinalResult = null;
+			foreach (string IndividualVersion in Version.Split('|'))
+			{
+				object Result = Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Microsoft SDKs\Windows\" + IndividualVersion, "InstallationFolder", null)
+					?? Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\" + IndividualVersion, "InstallationFolder", null)
+					?? Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\SOFTWARE\Wow6432Node\Microsoft\Microsoft SDKs\Windows\" + IndividualVersion, "InstallationFolder", null);
+
+				if (Result != null)
+				{
+					FinalResult = (string)Result;
+					break;
+				}
+			}
+			if (FinalResult == null)
+			{
+				throw new BuildException("Windows SDK {0} must be installed in order to build this target.", Version);
+			}
+
+			return FinalResult;
+		}
+
+		// @ATG_CHANGE : BEGIN - Limit by compiler, some older toolchains might not work 100% against new SDKs
+		public static Version FindWindowsSDKExtensionLatestVersion(string WindowsSDKExtensionDir, WindowsCompiler Compiler)
+		{
+			// @UWP_CHANGE : BEGIN Currently using Windows SDK 10.0.17134.0 to workaround issues
+			return new Version(10, 0, 17134, 0);
+
+			//Version LatestVersion = new Version(0, 0, 0, 0);
+
+			//Version WindowsSDKVersionMaxForToolchain = Compiler < WindowsCompiler.VisualStudio2017 && Compiler != WindowsCompiler.Default ? UniversalWindowsPlatform.MaximumSDKVersionForVS2015 : null;
+			//if (
+			//	!string.IsNullOrEmpty(WindowsSDKExtensionDir) &&
+			//	Directory.Exists(WindowsSDKExtensionDir))
+			//{
+			//	string IncludesBaseDirectory = Path.Combine(WindowsSDKExtensionDir, "include");
+			//	if (Directory.Exists(IncludesBaseDirectory))
+			//	{
+			//		LatestVersion = FindLatestVersionDirectory(IncludesBaseDirectory, WindowsSDKVersionMaxForToolchain);
+			//	}
+			//}
+			//return LatestVersion;
+			// @UWP_CHANGE : END
+		}
+
+
+		public static Version FindLatestVersionDirectory(string InDirectory, Version NoLaterThan)
+		{
+			Version LatestVersion = new Version(0, 0, 0, 0);
+			if (Directory.Exists(InDirectory))
+			{
+				string[] VersionDirectories = Directory.GetDirectories(InDirectory);
+				foreach (string Dir in VersionDirectories)
+				{
+					string VersionString = Path.GetFileName(Dir);
+					Version FoundVersion;
+					if (Version.TryParse(VersionString, out FoundVersion) && FoundVersion > LatestVersion)
+					{
+						if (NoLaterThan == null || FoundVersion <= NoLaterThan)
+						{
+							LatestVersion = FoundVersion;
+						}
+					}
+				}
+			}
+			return LatestVersion;
+		}
+		// @ATG_CHANGE : END - Limit by compiler
+
+		// @ATG_CHANGE : BEGIN UWP contract version support
+		public static string GetLatestMetadataPathForApiContract(string ApiContract, WindowsCompiler Compiler)
+		{
+			string SDKDir;
+			string MetadataPath = string.Empty;
+			
+			SDKDir = FindWindowsSDKExtensionInstallationFolder(Compiler);
+			DirectoryReference ReferenceDir = DirectoryReference.Combine(new DirectoryReference(SDKDir), "References");
+			if (DirectoryReference.Exists(ReferenceDir))
+			{
+				// Prefer a contract from a suitable SDK-versioned subdir of the references folder when available (starts with 15063 SDK)
+				Version WindowsSDKVersionMaxForToolchain = Compiler < WindowsCompiler.VisualStudio2017 ? UniversalWindowsPlatform.MaximumSDKVersionForVS2015 : null;
+				DirectoryReference SDKVersionedReferenceDir = DirectoryReference.Combine(ReferenceDir, FindLatestVersionDirectory(ReferenceDir.FullName, WindowsSDKVersionMaxForToolchain).ToString());
+				DirectoryReference ContractDir = DirectoryReference.Combine(SDKVersionedReferenceDir, ApiContract);
+				Version ContractLatestVersion = null;
+				FileReference MetadataFileRef = null;
+				if (DirectoryReference.Exists(ContractDir))
+				{
+					// Note: contract versions don't line up with Windows SDK versions (they're numbered independently as 1.0.0.0, 2.0.0.0, etc.)
+					ContractLatestVersion = FindLatestVersionDirectory(ContractDir.FullName, null);
+					MetadataFileRef = FileReference.Combine(ContractDir, ContractLatestVersion.ToString(), ApiContract + ".winmd");
+				}
+
+				// Retry in unversioned references dir if we failed above.
+				if (MetadataFileRef == null || !FileReference.Exists(MetadataFileRef))
+				{
+					ContractDir = DirectoryReference.Combine(ReferenceDir, ApiContract);
+					if (DirectoryReference.Exists(ContractDir))
+					{
+						ContractLatestVersion = VCEnvironment.FindLatestVersionDirectory(ContractDir.FullName, null);
+						MetadataFileRef = FileReference.Combine(ContractDir, ContractLatestVersion.ToString(), ApiContract + ".winmd");
+					}
+				}
+				if (MetadataFileRef != null && FileReference.Exists(MetadataFileRef))
+				{
+					MetadataPath = MetadataFileRef.FullName;
+				}
+			}
+
+			return MetadataPath;
+		}
+		// @ATG_CHANGE : END
+
 		/// <summary>
 		/// Gets the path to the compiler.
 		/// </summary>
@@ -252,7 +459,7 @@ namespace UnrealBuildTool
 			}
 			else if(Compiler == WindowsCompiler.Intel)
 			{
-				if(Platform == CppPlatform.Win32)
+				if(Platform == CppPlatform.Win32 || Platform == CppPlatform.UWP32)
 				{
 					return FileReference.Combine(CompilerDir, "bin", "ia32", "icl.exe");
 				}
@@ -263,7 +470,7 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				if(Platform == CppPlatform.Win32)
+				if(Platform == CppPlatform.Win32 || Platform == CppPlatform.UWP32)
 				{
 					return FileReference.Combine(GetVCToolPath32(Compiler, CompilerDir), "cl.exe");
 				}
@@ -340,7 +547,7 @@ namespace UnrealBuildTool
 		static FileReference GetResourceCompilerToolPath(CppPlatform Platform, DirectoryReference WindowsSdkDir, VersionNumber WindowsSdkVersion)
 		{
 			// 64 bit -- we can use the 32 bit version to target 64 bit on 32 bit OS.
-			if (Platform == CppPlatform.Win64)
+			if (Platform == CppPlatform.Win64 || Platform == CppPlatform.UWP64)
 			{
 				FileReference ResourceCompilerPath = FileReference.Combine(WindowsSdkDir, "bin", WindowsSdkVersion.ToString(), "x64", "rc.exe");
 				if(FileReference.Exists(ResourceCompilerPath))
@@ -382,7 +589,7 @@ namespace UnrealBuildTool
 			// Add the standard Visual C++ library paths
 			if (ToolChain >= WindowsCompiler.VisualStudio2017)
 			{
-				if (Platform == CppPlatform.Win32)
+				if (Platform == CppPlatform.Win32 || Platform == CppPlatform.UWP32)
 				{
 					LibraryPaths.Add(DirectoryReference.Combine(ToolChainDir, "lib", "x86"));
 				}
@@ -393,7 +600,7 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				if (Platform == CppPlatform.Win32)
+				if (Platform == CppPlatform.Win32 || Platform == CppPlatform.UWP32)
 				{
 					LibraryPaths.Add(DirectoryReference.Combine(ToolChainDir, "LIB"));
 				}
@@ -416,7 +623,7 @@ namespace UnrealBuildTool
 				IncludePaths.Add(DirectoryReference.Combine(IncludeRootDir, "ucrt"));
 
 				DirectoryReference LibraryRootDir = DirectoryReference.Combine(Pair.Value, "lib", Pair.Key.ToString());
-				if(Platform == CppPlatform.Win64)
+				if(Platform == CppPlatform.Win64 || Platform == CppPlatform.UWP64)
 				{
 					LibraryPaths.Add(DirectoryReference.Combine(LibraryRootDir, "ucrt", "x64"));
 				}
@@ -431,7 +638,7 @@ namespace UnrealBuildTool
 			if(WindowsPlatform.TryGetNetFxSdkInstallDir(out NetFxSdkDir))
 			{
 				IncludePaths.Add(DirectoryReference.Combine(NetFxSdkDir, "include", "um"));
-				if (Platform == CppPlatform.Win32)
+				if (Platform == CppPlatform.Win32 || Platform == CppPlatform.UWP32)
 				{
 					LibraryPaths.Add(DirectoryReference.Combine(NetFxSdkDir, "lib", "um", "x86"));
 				}
@@ -451,7 +658,7 @@ namespace UnrealBuildTool
 				IncludePaths.Add(DirectoryReference.Combine(IncludeRootDir, "winrt"));
 
 				DirectoryReference LibraryRootDir = DirectoryReference.Combine(WindowsSdkDir, "lib", WindowsSdkVersion.ToString());
-				if(Platform == CppPlatform.Win64)
+				if(Platform == CppPlatform.Win64 || Platform == CppPlatform.UWP64)
 				{
 					LibraryPaths.Add(DirectoryReference.Combine(LibraryRootDir, "ucrt", "x64"));
 					LibraryPaths.Add(DirectoryReference.Combine(LibraryRootDir, "um", "x64"));
@@ -470,7 +677,7 @@ namespace UnrealBuildTool
 				IncludePaths.Add(DirectoryReference.Combine(IncludeRootDir, "winrt"));
 
 				DirectoryReference LibraryRootDir = DirectoryReference.Combine(WindowsSdkDir, "lib", "winv6.3");
-				if(Platform == CppPlatform.Win64)
+				if(Platform == CppPlatform.Win64 || Platform == CppPlatform.UWP64)
 				{
 					LibraryPaths.Add(DirectoryReference.Combine(LibraryRootDir, "um", "x64"));
 				}

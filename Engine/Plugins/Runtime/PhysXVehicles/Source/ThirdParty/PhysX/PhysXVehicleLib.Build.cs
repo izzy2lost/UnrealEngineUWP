@@ -79,18 +79,20 @@ public class PhysXVehicleLib : ModuleRules
         string PhysXLibDir = Target.UEThirdPartySourceDirectory + "PhysX3/Lib/";
 
         // Libraries and DLLs for windows platform
-        if (Target.Platform == UnrealTargetPlatform.Win64)
+		// @ATG_CHANGE: BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
         {
-            PublicLibraryPaths.Add(PhysXLibDir + "Win64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			PublicLibraryPaths.Add(PhysXLibDir + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
 
             PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}_x64.lib", LibrarySuffix));
         }
-        else if (Target.Platform == UnrealTargetPlatform.Win32)
+		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
         {
-            PublicLibraryPaths.Add(PhysXLibDir + "Win32/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			PublicLibraryPaths.Add(PhysXLibDir + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
 
             PublicAdditionalLibraries.Add(String.Format("PhysX3Vehicle{0}_x86.lib", LibrarySuffix));
         }
+		// @ATG_CHANGE: END UWP support
         else if (Target.Platform == UnrealTargetPlatform.Mac)
         {
             PublicLibraryPaths.Add(PhysXLibDir + "Mac");

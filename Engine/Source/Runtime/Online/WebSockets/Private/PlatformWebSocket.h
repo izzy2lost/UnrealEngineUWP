@@ -13,7 +13,12 @@
 
 #elif PLATFORM_XBOXONE
 	#include "XboxOne/XboxOneWebSocketsManager.h"
+// @ATG_CHANGE : BEGIN UWP websockets
+#elif PLATFORM_UWP
+#include "UWP/UWPWebSocketsManager.h"
+typedef FUWPWebSocketsManager FPlatformWebSocketsManager;
 #else
+// @ATG_CHANGE : END
 	#error "Web sockets not implemented on this platform yet"
 #endif // WITH_LIBWEBSOCKETS
 

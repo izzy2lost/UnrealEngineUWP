@@ -107,7 +107,7 @@ FPlatformRect FUWPApplication::GetWorkArea(const FPlatformRect& CurrentWindow) c
 
 void FUWPApplication::GetInitialDisplayMetrics(FDisplayMetrics& OutDisplayMetrics) const
 {
-	FDisplayMetrics::GetDisplayMetrics(OutDisplayMetrics);
+	FDisplayMetrics::RebuildDisplayMetrics(OutDisplayMetrics);
 
 	// The initial virtual display rect is used to constrain maximum window size, and
 	// so should report the full desktop resolution.  Later calls will report window
@@ -137,7 +137,7 @@ void FUWPApplication::CacheDesktopSize()
 	}
 }
 
-void FDisplayMetrics::GetDisplayMetrics(FDisplayMetrics& OutDisplayMetrics)
+void FDisplayMetrics::RebuildDisplayMetrics(FDisplayMetrics& OutDisplayMetrics)
 {
 	FVector2D DesktopSize = FUWPApplication::GetDesktopSize();
 

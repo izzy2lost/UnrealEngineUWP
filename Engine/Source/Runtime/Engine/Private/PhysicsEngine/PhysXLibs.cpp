@@ -20,7 +20,9 @@ namespace PhysDLLHelper
 	const static int32 NumModuleLoadRetries = 5;
 	const static float ModuleReloadDelay = 0.5f;
 
-#if PLATFORM_WINDOWS || PLATFORM_MAC
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP || PLATFORM_MAC
+// @ATG_CHANGE : END
 	void* PxFoundationHandle = nullptr;
 	void* PhysX3CommonHandle = nullptr;
 	void* PhysX3Handle = nullptr;
@@ -35,7 +37,11 @@ namespace PhysDLLHelper
 		#endif  //WITH_APEX_CLOTHING
 	#endif	//WITH_APEX
 #endif
-#if PLATFORM_WINDOWS
+
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
+
 	FString PhysXBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX3/");
 	FString APEXBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX3/");
 	FString SharedBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/PhysX3/");
@@ -47,15 +53,27 @@ namespace PhysDLLHelper
 #endif
 
 #if PLATFORM_64BITS
+	#if PLATFORM_UWP
+		FString RootPhysXPath(PhysXBinariesRoot + TEXT("UWP64/") + VSDirectory);
+		FString RootAPEXPath(APEXBinariesRoot + TEXT("UWP64/") + VSDirectory);
+		FString RootSharedPath(SharedBinariesRoot + TEXT("UWP64/") + VSDirectory);
+	#else
 	FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win64/") + VSDirectory);
 	FString RootAPEXPath(APEXBinariesRoot + TEXT("Win64/") + VSDirectory);
 	FString RootSharedPath(SharedBinariesRoot + TEXT("Win64/") + VSDirectory);
+	#endif
 	FString ArchName(TEXT("_x64"));
 	FString ArchBits(TEXT("64"));
+#else
+	#if PLATFORM_UWP
+		FString RootPhysXPath(PhysXBinariesRoot + TEXT("UWP32/") + VSDirectory);
+		FString RootAPEXPath(APEXBinariesRoot + TEXT("UWP32/") + VSDirectory);
+		FString RootSharedPath(SharedBinariesRoot + TEXT("UWP32/") + VSDirectory);
 #else
 	FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win32/") + VSDirectory);
 	FString RootAPEXPath(APEXBinariesRoot + TEXT("Win32/") + VSDirectory);
 	FString RootSharedPath(SharedBinariesRoot + TEXT("Win32/") + VSDirectory);
+	#endif
 	FString ArchName(TEXT("_x86"));
 	FString ArchBits(TEXT("32"));
 #endif
@@ -142,7 +160,9 @@ void* LoadPhysicsLibrary(const FString& Path)
 #if WITH_APEX
 ENGINE_API void* LoadAPEXModule(const FString& Path)
 {
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	return LoadPhysicsLibrary(RootAPEXPath + Path + APEXSuffix);
 #elif PLATFORM_MAC
 	const FString APEX_HandleLibName = FString::Printf(TEXT("%slib%s%s"), *PhysXBinariesRoot, *Path, *APEXSuffix);
@@ -158,7 +178,9 @@ ENGINE_API void* LoadAPEXModule(const FString& Path)
 ENGINE_API bool LoadPhysXModules(bool bLoadCookingModule)
 {
 	bool bHasToolsExtensions = false;
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	PxFoundationHandle = LoadPhysicsLibrary(RootSharedPath + "PxFoundation" + PhysXSuffix);
 	PhysX3CommonHandle = LoadPhysicsLibrary(RootPhysXPath + "PhysX3Common" + PhysXSuffix);
 	const FString nvToolsExtPath = RootPhysXPath + "nvToolsExt" + ArchBits + "_1.dll";
@@ -219,7 +241,9 @@ ENGINE_API bool LoadPhysXModules(bool bLoadCookingModule)
 
 	bool bSucceeded = true;
 
-#if PLATFORM_WINDOWS || PLATFORM_MAC
+// @LAB132 - Begin UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP || PLATFORM_MAC
+// @LAB132 - End
 	// Required modules (core PhysX)
 	bSucceeded = bSucceeded && PxFoundationHandle;
 	bSucceeded = bSucceeded && PhysX3CommonHandle;
@@ -249,7 +273,9 @@ ENGINE_API bool LoadPhysXModules(bool bLoadCookingModule)
  */
 void UnloadPhysXModules()
 {
-#if PLATFORM_WINDOWS || PLATFORM_MAC
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP || PLATFORM_MAC
+// @ATG_CHANGE : END
 	FPlatformProcess::FreeDllHandle(PxPvdSDKHandle);
 	FPlatformProcess::FreeDllHandle(PhysX3Handle);
 	if(PhysX3CookingHandle)
@@ -271,7 +297,9 @@ void UnloadPhysXModules()
 #if WITH_APEX
 ENGINE_API void UnloadAPEXModule(void* Handle)
 {
-#if PLATFORM_WINDOWS || PLATFORM_MAC
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP || PLATFORM_MAC
+// @ATG_CHANGE : END
 	if(Handle)
 	{
 		FPlatformProcess::FreeDllHandle(Handle);
