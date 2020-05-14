@@ -1010,6 +1010,13 @@ RETRY_SETUPANDVALIDATE:
 					PlatformName = TEXT("HoloLens");
 					PlatformInfo::UpdatePlatformSDKStatus(PlatformName, Status);
 				}
+				// @ATG_CHANGE : BEGIN UWP support
+				else if (PlatformName == TEXT("UWP64") || PlatformName == TEXT("UWP32"))
+				{
+					PlatformName = TEXT("UWP");
+					PlatformInfo::UpdatePlatformSDKStatus(PlatformName, Status);
+				}
+				// @ATG_CHANGE : END
 				else
 				{
 					PlatformInfo::UpdatePlatformSDKStatus(PlatformName, Status);

@@ -35,7 +35,7 @@
 #endif
 
 // Non-windows platform don't load Dlls
-#if !PLATFORM_WINDOWS && !PLATFORM_HOLOLENS
+#if !PLATFORM_WINDOWS && !PLATFORM_HOLOLENS && !PLATFORM_UWP
 static FThreadSafeBool bDllLoaded = true;
 #else
 static FThreadSafeBool bDllLoaded;
@@ -661,7 +661,9 @@ void LoadVorbisLibraries()
 	if (!bIsInitialized)
 	{
 		bIsInitialized = true;
-#if (PLATFORM_WINDOWS || PLATFORM_HOLOLENS) && WITH_OGGVORBIS
+// @ATG_CHANGE : BEGIN UWP support
+#if (PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP) && WITH_OGGVORBIS
+// @ATG_CHANGE : END
 		//@todo if ogg is every ported to another platform, then use the platform abstraction to load these DLLs
 		// Load the Ogg dlls
 #  if _MSC_VER >= 1900
@@ -678,6 +680,15 @@ void LoadVorbisLibraries()
 #if PLATFORM_HOLOLENS
 		PlatformString = TEXT("HoloLens");
 #endif
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_UWP
+#if PLATFORM_64BITS
+		PlatformString = TEXT("UWP64");
+#else
+		PlatformString = TEXT("UWP32");
+#endif
+#endif
+// @ATG_CHANGE :  END
 
 #if PLATFORM_CPU_ARM_FAMILY
 #if PLATFORM_64BITS
@@ -718,7 +729,9 @@ void LoadVorbisLibraries()
 		}
 #elif WITH_OGGVORBIS
 		bDllLoaded = true;
-#endif	//(PLATFORM_WINDOWS || PLATFORM_HOLOLENS) && WITH_OGGVORBIS
+// @ATG_CHANGE : BEGIN UWP support
+#endif	//(PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP) && WITH_OGGVORBIS
+// @ATG_CHANGE : END
 	}
 }
 

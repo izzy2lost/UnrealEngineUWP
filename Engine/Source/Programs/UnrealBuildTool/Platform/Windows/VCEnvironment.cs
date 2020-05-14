@@ -261,7 +261,7 @@ namespace UnrealBuildTool
 			}
 			else if(Compiler == WindowsCompiler.Intel)
 			{
-				if(Platform == UnrealTargetPlatform.Win32)
+				if(Platform == UnrealTargetPlatform.Win32 || Platform == UnrealTargetPlatform.UWP32)
 				{
 					return FileReference.Combine(CompilerDir, "bin", "ia32", "icl.exe");
 				}
@@ -342,7 +342,7 @@ namespace UnrealBuildTool
 		static FileReference GetResourceCompilerToolPath(UnrealTargetPlatform Platform, DirectoryReference WindowsSdkDir, VersionNumber WindowsSdkVersion)
 		{
 			// 64 bit -- we can use the 32 bit version to target 64 bit on 32 bit OS.
-			if (Platform == UnrealTargetPlatform.Win64)
+			if (Platform == UnrealTargetPlatform.Win64 || Platform == UnrealTargetPlatform.UWP64)
 			{
 				FileReference ResourceCompilerPath = FileReference.Combine(WindowsSdkDir, "bin", WindowsSdkVersion.ToString(), "x64", "rc.exe");
 				if(FileReference.Exists(ResourceCompilerPath))
@@ -400,7 +400,7 @@ namespace UnrealBuildTool
 			// Add the standard Visual C++ library paths
 			if (ToolChain >= WindowsCompiler.VisualStudio2017)
 			{
-				if (Platform == UnrealTargetPlatform.HoloLens)
+				if (Platform == UnrealTargetPlatform.HoloLens || Platform == UnrealTargetPlatform.UWP32 || Platform == UnrealTargetPlatform.UWP64)
 				{
 					LibraryPaths.Add(DirectoryReference.Combine(ToolChainDir, "lib", ArchFolder, "store"));
 				}
@@ -412,7 +412,7 @@ namespace UnrealBuildTool
 			else
 			{
 				DirectoryReference LibsPath = DirectoryReference.Combine(ToolChainDir, "LIB");
-				if (Platform == UnrealTargetPlatform.HoloLens)
+				if (Platform == UnrealTargetPlatform.HoloLens || Platform == UnrealTargetPlatform.UWP32 || Platform == UnrealTargetPlatform.UWP64)
 				{
 					LibsPath = DirectoryReference.Combine(LibsPath, "store");
 				}

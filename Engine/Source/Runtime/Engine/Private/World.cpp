@@ -5276,7 +5276,9 @@ void UWorld::SendChallengeControlMessage(const FEncryptionKeyResponse& Response,
 		{
 			if (Response.Response == EEncryptionResponse::Success)
 			{
-				Connection->EnableEncryptionWithKeyServer(Response.EncryptionKey);
+				// @ATG_CHANGE : BEGIN - AES-GCM
+				Connection->EnableEncryptionWithKeyAndIVServer(Response.EncryptionKey, Response.NonceData);
+				// @ATG_CHANGE : END
 				SendChallengeControlMessage(Connection);
 			}
 			else

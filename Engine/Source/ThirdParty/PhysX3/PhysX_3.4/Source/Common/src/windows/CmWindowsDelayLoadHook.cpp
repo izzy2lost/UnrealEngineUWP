@@ -46,7 +46,7 @@ void physx::PxSetPhysXCommonDelayLoadHook(const physx::PxDelayLoadHook* hook)
 using namespace physx;
 
 // @ATG_CHANGE : BEGIN HoloLens support
-#if !PX_HOLOLENS
+#if !PX_HOLOLENS && !PX_UWP
 #pragma comment(lib, "delayimp")
 #endif
 // @ATG_CHANGE : END

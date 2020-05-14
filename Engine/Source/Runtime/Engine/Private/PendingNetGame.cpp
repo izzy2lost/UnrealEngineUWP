@@ -371,7 +371,9 @@ void UPendingNetGame::FinalizeEncryptedConnection(const FEncryptionKeyResponse& 
 		{
 			if (Response.Response == EEncryptionResponse::Success)
 			{
-				Connection->EnableEncryptionWithKey(Response.EncryptionKey);
+				// @ATG_CHANGE : BEGIN - AES-GCM 
+				Connection->EnableEncryptionWithKeyAndNonce(Response.EncryptionKey, Response.NonceData);
+				// @ATG_CHANGE : END
 			}
 			else
 			{

@@ -34,9 +34,11 @@ namespace UnrealBuildTool.Rules
 				PrivateIncludePaths.Add("WebMMoviePlayer/Private/Audio/Null");
 			}
 
-			// Some Linux architectures don't have the libs built yet
-			bool bHaveWebMlibs = (!Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) || Target.Architecture.StartsWith("x86_64"));
-			PublicDefinitions.Add("WITH_WEBM_LIBS=" + (bHaveWebMlibs ? "1" : "0"));
+            // Some Linux architectures don't have the libs built yet
+            // @UWP_CHANGE : BEGIN UWP support
+            bool bHaveWebMlibs = (!Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) || Target.Architecture.StartsWith("x86_64")) && !Target.IsInPlatformGroup(UnrealPlatformGroup.UWP);
+            // @UWP_CHANGE : END
+            PublicDefinitions.Add("WITH_WEBM_LIBS=" + (bHaveWebMlibs ? "1" : "0"));
 		}
 	}
 }

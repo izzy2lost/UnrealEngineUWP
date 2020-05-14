@@ -8,8 +8,12 @@ public class DX12 : ModuleRules
 		Type = ModuleType.External;
 
 		string DirectXSDKDir = "";
-		if (Target.Platform == UnrealTargetPlatform.HoloLens)
+// @UWP_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.HoloLens ||
+			Target.Platform == UnrealTargetPlatform.UWP32 ||
+			Target.Platform == UnrealTargetPlatform.UWP64)
 		{
+// @UWP_END
 			DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
 			Target.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
 			Target.UEThirdPartySourceDirectory + "Windows/DirectX";
@@ -32,7 +36,9 @@ public class DX12 : ModuleRules
 		{
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
 		}
-		else if (Target.Platform == UnrealTargetPlatform.HoloLens)
+		// @UWP_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.HoloLens || Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+		// @UWP_CHANGE : END
 		{
 			bool PixAvalable = (Target.WindowsPlatform.Architecture == WindowsArchitecture.ARM64);
 			if (PixAvalable &&

@@ -167,6 +167,16 @@ public:
 		}
 		return true;
 	}
+	virtual bool Flush(const bool bFullFlush = false) override
+	{
+		check(IsValid());
+		return FlushFileBuffers(FileHandle) != 0;
+	}
+	virtual bool Truncate(int64 NewSize) override
+	{
+		check(IsValid());
+		return Seek(NewSize) && SetEndOfFile(FileHandle) != 0;
+	}
 };
 
 /**

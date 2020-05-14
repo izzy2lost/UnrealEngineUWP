@@ -149,6 +149,24 @@ namespace UnrealBuildTool
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bEnablePIXProfiling")]
 		public bool bPixProfilingEnabled = true;
 
+		// @ATG_CHANGE : BEGIN UWP support
+		/// <summary>
+		/// Enable building with the Win10 SDK instead of the older Win8.1 SDK 
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bUseWindowsSDK10")]
+		public bool bUseWindowsSDK10 = WindowsPlatform.bUseWindowsSDK10;
+		// @ATG_CHANGE : END UWP support
+
+		// @ATG_CHANGE : BEGIN UWP support
+		/// <summary>
+		/// True to compile toolchain (but not game targets, which require the standard bUseWindows10SDK) against the Windows 10 SDK.
+		/// We default to true to enable UWP support.  Turning this off will allow the Editor etc. to run on older versions of Windows,
+		/// but will exclude UWP support
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bUseWindowsSDK10ForEditor")]
+		public bool bUseWindowsSDK10ForEditor = true;
+		// @ATG_CHANGE : END UWP support
+
 		/// <summary>
 		/// Enable building with the Win10 SDK instead of the older Win8.1 SDK 
 		/// </summary>
@@ -1548,6 +1566,10 @@ namespace UnrealBuildTool
 		/// <returns>True if the toolchain directory was found correctly</returns>
 		public static bool TryGetWindowsSdkDir(string DesiredVersion, out VersionNumber OutSdkVersion, out DirectoryReference OutSdkDir)
 		{
+			// @UWP_CHANGE : BEGIN Currently using Windows SDK 10.0.17134.0 to workaround issues
+			DesiredVersion = "10.0.17134.0";
+			// @UWP_CHANGE : END
+
 			// Get a map of Windows SDK versions to their root directories
 			IReadOnlyDictionary<VersionNumber, DirectoryReference> WindowsSdkDirs = FindWindowsSdkDirs();
 
@@ -2035,6 +2057,13 @@ namespace UnrealBuildTool
 		/// <returns>New toolchain instance.</returns>
 		public override UEToolChain CreateToolChain(ReadOnlyTargetRules Target)
 		{
+			// @ATG_CHANGE : BEGIN UWP support
+			// Using the Win10 SDK in the editor allows additional features for use with UWP, but should
+			// be kept seaparate from the game setting since it affects the minimum Windows version required
+			// to run the built exe.
+			bUseWindowsSDK10 = Target.WindowsPlatform.bUseWindowsSDK10;
+			// @ATG_CHANGE : END
+
 			if (Target.WindowsPlatform.StaticAnalyzer == WindowsStaticAnalyzer.PVSStudio)
 			{
 				return new PVSToolChain(Target);

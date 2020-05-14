@@ -13,9 +13,12 @@ public class FreeType2 : ModuleRules
 		string FreeType2Path;
 		string FreeType2LibPath;
 
+// @UWP_CHANGE : BEGIN UWP support
 		if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.XboxOne ||
 			Target.Platform == UnrealTargetPlatform.Switch || Target.Platform == UnrealTargetPlatform.PS4 || Target.Platform == UnrealTargetPlatform.Linux ||
-			Target.Platform == UnrealTargetPlatform.HTML5 || Target.Platform == UnrealTargetPlatform.HoloLens)
+			Target.Platform == UnrealTargetPlatform.HTML5 || Target.Platform == UnrealTargetPlatform.HoloLens ||
+			Target.Platform == UnrealTargetPlatform.UWP32 || Target.Platform == UnrealTargetPlatform.UWP64)
+// @UWP_CHANGE : END
 		{
 			FreeType2Path = Target.UEThirdPartySourceDirectory + "FreeType2/FreeType2-2.6/";
 			PublicSystemIncludePaths.Add(FreeType2Path + "Include");
@@ -37,10 +40,16 @@ public class FreeType2 : ModuleRules
 		FreeType2LibPath = FreeType2Path + "Lib/";
 
 		if (Target.Platform == UnrealTargetPlatform.Win32 ||
-			Target.Platform == UnrealTargetPlatform.Win64)
+			Target.Platform == UnrealTargetPlatform.Win64 ||
+// @ATG_CHANGE : BEGIN  UWP support
+			Target.Platform == UnrealTargetPlatform.UWP32 ||
+			Target.Platform == UnrealTargetPlatform.UWP64)
+// @ATG_CHANGE : END
 		{
 
-			FreeType2LibPath += (Target.Platform == UnrealTargetPlatform.Win64) ? "Win64/" : "Win32/";
+// @ATG_CHANGE : BEGIN UWP support
+            FreeType2LibPath += (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64) ? "Win64/" : "Win32/";
+// @ATG_CHANGE : END
 			FreeType2LibPath += "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
 
 			PublicLibraryPaths.Add(FreeType2LibPath);

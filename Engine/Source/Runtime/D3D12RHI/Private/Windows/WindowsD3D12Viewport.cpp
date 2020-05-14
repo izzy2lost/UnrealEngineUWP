@@ -88,7 +88,9 @@ void FD3D12Viewport::Init()
 
 	// Create the swapchain.
 // Change from Microsoft for HoloLens support, may require further review: : BEGIN HoloLens support
-#if PLATFORM_HOLOLENS
+// @UWP_CHANGE : BEGIN UWP support
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
+// @UWP_CHANGE : END
 	{
 		// MSAA Sample count
 		DXGI_SWAP_CHAIN_DESC1 SwapChainDesc = { 0 };
@@ -216,7 +218,9 @@ void FD3D12Viewport::Init()
 	Resize(BufferDesc.Width, BufferDesc.Height, bIsFullscreen, PixelFormat);
 
 // Change from Microsoft for HoloLens support, may require further review: : BEGIN HoloLens support
-#if !PLATFORM_HOLOLENS
+// @UWP_CHANGE : BEGIN UWP support
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
+// @UWP_CHANGE : END
 	// Tell the window to redraw when they can.
 	// @todo: For Slate viewports, it doesn't make sense to post WM_PAINT messages (we swallow those.)
 	::PostMessage(WindowHandle, WM_PAINT, 0, 0);

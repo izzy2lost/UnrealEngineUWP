@@ -10,7 +10,7 @@
 #include "Modules/ModuleManager.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 	#include <delayimp.h>
-	#if !PLATFORM_HOLOLENS
+	#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
 	#include "amd_ags.h"
 	#endif
 #include "Windows/HideWindowsPlatformTypes.h"
@@ -545,6 +545,9 @@ void FD3D11DynamicRHI::CleanupD3DDevice()
 			GRHIDeviceIsAMDPreGCNArchitecture = false;
 			AmdAgsContext = NULL;
 		}
+// UWP_CHANGE : BEGIN Was the #endif missing in 4.23 by mistake?
+#endif
+// UWP_CHANGE : END
 
 #if INTEL_METRICSDISCOVERY
 		if (GDX11IntelMetricsDiscoveryEnabled)

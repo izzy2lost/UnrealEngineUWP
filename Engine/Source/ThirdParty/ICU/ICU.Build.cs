@@ -26,6 +26,15 @@ public class ICU : ModuleRules
 
 		string PlatformFolderName = Target.Platform.ToString();
 
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.UWP64)
+		{
+			PlatformFolderName = "UWP64";
+		}
+        if (Target.Platform == UnrealTargetPlatform.UWP32)
+        {
+            PlatformFolderName = "UWP32";
+        }
 		string TargetSpecificPath = ICURootPath + PlatformFolderName + "/";
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
 		{
@@ -40,7 +49,9 @@ public class ICU : ModuleRules
 
 		if ((Target.Platform == UnrealTargetPlatform.Win64) ||
 			(Target.Platform == UnrealTargetPlatform.Win32) ||
-			(Target.Platform == UnrealTargetPlatform.HoloLens))
+			(Target.Platform == UnrealTargetPlatform.HoloLens) ||
+			(Target.Platform == UnrealTargetPlatform.UWP64) || 
+			(Target.Platform == UnrealTargetPlatform.UWP32)) 
 		{
 			string VSVersionFolderName = "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
 			TargetSpecificPath += VSVersionFolderName + "/";
@@ -111,6 +122,21 @@ public class ICU : ModuleRules
 						RuntimeDependencies.Add(LibraryName);
 					}
 				}
+// @UWP_CHANGE : BEGIN UWP support
+                		else if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+				{
+					string BinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/ICU/{0}/{1}/VS{2}/", ICUVersion, PlatformFolderName, Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+					if(Target.Platform == UnrealTargetPlatform.HoloLens)
+					{
+                            			BinariesDir += Target.WindowsPlatform.GetArchitectureSubpath() + "/";
+					}
+					foreach(string Stem in LibraryNameStems)
+					{
+						string LibraryName = BinariesDir + String.Format("icu{0}{1}53.dll", Stem, LibraryNamePostfix);
+						RuntimeDependencies.Add(LibraryName);
+					}
+				}
+// @UWP_CHANGE : END
 
 				bNeedsDlls = true;
 

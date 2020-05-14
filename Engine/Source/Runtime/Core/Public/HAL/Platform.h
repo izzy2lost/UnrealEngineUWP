@@ -76,6 +76,11 @@
 #if !defined(PLATFORM_HOLOLENS)
 #define PLATFORM_HOLOLENS 0
 #endif
+// @ATG_CHANGE : BEGIN UWP support
+#if !defined(PLATFORM_UWP)
+	#define PLATFORM_UWP 0
+#endif
+// @ATG_CHANGE : END
 
 // Platform specific compiler pre-setup.
 #include "PreprocessorHelpers.h"

@@ -364,7 +364,9 @@ void AOnlineBeaconHost::SendWelcomeControlMessage(const FEncryptionKeyResponse& 
 		{
 			if (Response.Response == EEncryptionResponse::Success)
 			{
-				Connection->EnableEncryptionWithKeyServer(Response.EncryptionKey);
+				// @ATG_CHANGE : BEGIN - allow modes that require nonce distribution
+				Connection->EnableEncryptionWithKeyAndIVServer(Response.EncryptionKey, Response.NonceData);
+				// @ATG_CHANGE : END
 				SendWelcomeControlMessage(Connection);
 			}
 			else

@@ -205,6 +205,18 @@ namespace UnrealBuildTool
 		/// </summary>
 		public static UnrealTargetPlatform HoloLens = FindOrAddByName("HoloLens");
 
+		// @ATG_CHANGE : BEGIN UWP support
+		/// <summary>
+		/// UWP (x64)
+		/// </summary>
+		UWP64,
+
+		/// <summary>
+		/// UWP (x86)
+		/// </summary>
+		UWP32,
+		// @ATG_CHANGE : END
+
 		/// <summary>
 		/// Mac
 		/// </summary>
@@ -432,6 +444,13 @@ namespace UnrealBuildTool
 		/// this group is just to lump HoloLens32 and HoloLens64 into HoloLens directories
 		/// </summary>
 		public static UnrealPlatformGroup HoloLens = FindOrAddByName("HoloLens");
+
+		// @ATG_CHANGE : BEGIN UWP support
+		/// <summary>
+		/// this group is just to lump UWP32 and UWP64 into UWP directories
+		/// </summary>
+		UWP,
+		// @ATG_CHANGE : END
 
 		/// <summary>
 		/// Microsoft platforms
@@ -1558,7 +1577,9 @@ namespace UnrealBuildTool
 				}
 				else
 				{
-					IsCurrentPlatform = Platform == UnrealTargetPlatform.Win64 || Platform == UnrealTargetPlatform.Win32 || Platform == UnrealTargetPlatform.HoloLens;
+					// @ATG_CHANGE : BEGIN UWP support
+					IsCurrentPlatform = Platform == UnrealTargetPlatform.Win64 || Platform == UnrealTargetPlatform.Win32 || Platform == UnrealTargetPlatform.HoloLens || Platform == UnrealTargetPlatform.UWP64 || Platform == UnrealTargetPlatform.UWP32;
+					// @ATG_CHANGE : END
 				}
 
 				if (IsCurrentPlatform)

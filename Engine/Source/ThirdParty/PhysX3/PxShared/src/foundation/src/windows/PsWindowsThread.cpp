@@ -33,7 +33,7 @@
 #include "foundation/PxErrorCallback.h"
 #include "foundation/PxAssert.h"
 // @ATG_CHANGE : BEGIN HoloLens support
-#if PX_HOLOLENS
+#if PX_HOLOLENS || PX_UWP
 #include <thread>
 #endif
 // @ATG_CHANGE : END HoloLens support
@@ -129,7 +129,7 @@ uint32_t ThreadImpl::getNbPhysicalCores()
 	if(!gPhysicalCoreCount)
 	{
 		// @ATG_CHANGE : BEGIN HoloLens support
-#if PX_HOLOLENS
+#if PX_HOLOLENS || PX_UWP
 		DWORD processorCoreCount = std::thread::hardware_concurrency();
 #else
 		// @ATG_CHANGE : END
@@ -196,7 +196,6 @@ uint32_t ThreadImpl::getNbPhysicalCores()
 	// @ATG_CHANGE : END
 		gPhysicalCoreCount = processorCoreCount;
 	}
-
 	return gPhysicalCoreCount;
 }
 
@@ -290,7 +289,7 @@ void ThreadImpl::quit()
 void ThreadImpl::kill()
 {
 	// @ATG_CHANGE : BEGIN HoloLens support - no equivalent is available
-#if !PX_HOLOLENS
+#if !PX_HOLOLENS && !PX_UWP
 	if(getThread(this)->state == _ThreadImpl::Started)
 		TerminateThread(getThread(this)->thread, 0);
 #endif
@@ -311,7 +310,7 @@ void ThreadImpl::yield()
 // @ATG_CHANGE : BEGIN thread affinity addition
 // This is a drop in equivelent to the thread affinity APIs that most legacy code is based on.
 // As with those older APIs, it's functionality may be unexpected on machines with more than 64 cores.
-#if PX_HOLOLENS && !defined(SetThreadAffinityMask)
+#if (PX_HOLOLENS || PX_UWP) && !defined(SetThreadAffinityMask)
 DWORD_PTR WINAPI SetThreadAffinityMask(
 	_In_ HANDLE    hThread,
 	_In_ DWORD_PTR dwThreadAffinityMask

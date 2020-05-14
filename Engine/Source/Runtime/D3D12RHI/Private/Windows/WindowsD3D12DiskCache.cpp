@@ -27,8 +27,11 @@ void FDiskCacheInterface::Init(FString &filename, bool bEnable)
 	}
 	else
 	{
-		WIN32_FIND_DATA fileData;
-		HANDLE Handle = FindFirstFile(mFileName.GetCharArray().GetData(), &fileData);
+		// @ATG_CHANGE : BEGIN UWP support
+		// FindFirstFileEx should be available everywhere, so use that in preference to FindFirstFile (which is not in UWP prior to 14393)
+		WIN32_FIND_DATAW fileData;
+		HANDLE Handle = FindFirstFileEx(mFileName.GetCharArray().GetData(), FINDEX_INFO_LEVELS::FindExInfoStandard, &fileData, FINDEX_SEARCH_OPS::FindExSearchNameMatch, nullptr, 0);
+		// @ATG_CHANGE : END
 		if (Handle == INVALID_HANDLE_VALUE)
 		{
 			if (GetLastError() == ERROR_FILE_NOT_FOUND)
@@ -104,18 +107,22 @@ void FDiskCacheInterface::GrowMapping(SIZE_T size, bool firstrun)
 
 	mCacheExists = true;
 
-	uint32 fileSize = GetFileSize(mFile, NULL);
-	if (fileSize == 0)
+	// @ATG_CHANGE : BEGIN UWP support
+	// GetFileSizeEx should be available everywhere, so use that in preference to GetFileSize (which is not in UWP)
+	LARGE_INTEGER fileSize;
+	GetFileSizeEx(mFile, &fileSize);
+	if (fileSize.QuadPart == 0)
 	{
 		byte data[64];
 		FMemory::Memzero(data);
-		//It's invalide to map a zero sized file so write some junk data in that case
+		//It's invalid to map a zero sized file so write some junk data in that case
 		WriteFile(mFile, data, sizeof(data), NULL, NULL);
 	}
 	else if (firstrun)
 	{
-		mCurrentFileMapSize = fileSize;
+		mCurrentFileMapSize = fileSize.QuadPart;
 	}
+	// @ATG_CHANGE : END
 
 	mMemoryMap = CreateFileMapping(mFile, NULL, PAGE_READWRITE, 0, (uint32)mCurrentFileMapSize, NULL);
 	if (mMemoryMap == (HANDLE)nullptr)

@@ -71,7 +71,7 @@ void* PhysXCpuIndicator::createIndicatorBlock(AgMMFile &mmfile, bool &alreadyExi
 
     // Get the windows version (we can only create Global\\ namespace objects in XP)
 // @ATG_CHANGE : BEGIN HoloLens support (API doesn't exist, but always Vista or greater)
-#if PX_HOLOLENS
+#if PX_HOLOLENS || PX_UWP
 	BOOL bIsVistaOrGreater = TRUE;
 #elif _MSC_VER >= 1800
 // @ATG_CHANGE : END
