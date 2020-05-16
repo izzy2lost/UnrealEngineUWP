@@ -92,12 +92,11 @@ const struct FPlatformAudioCookOverrides* FUWPTargetPlatform::GetAudioCompressio
 	return nullptr;
 }
 
-void FUWPTargetPlatform::GetTextureFormats(const UTexture* InTexture, TArray<FName>& OutFormats) const
+void FUWPTargetPlatform::GetTextureFormats(const UTexture* InTexture, TArray< TArray<FName> >& OutFormats) const
 {
 	bool bExcludeShaderModel4Support = false;
 	GConfig->GetBool(TEXT("/Script/UWPPlatformEditor.UWPTargetSettings"), TEXT("bExcludeShaderModel4Support"), bExcludeShaderModel4Support, GEngineIni);
-	FName TextureFormatName = GetDefaultTextureFormatName(this, InTexture, EngineSettings, bExcludeShaderModel4Support);
-	OutFormats.Add(TextureFormatName);
+	GetDefaultTextureFormatNamePerLayer(OutFormats.AddDefaulted_GetRef(), this, InTexture, EngineSettings, bExcludeShaderModel4Support);
 }
 
 void FUWPTargetPlatform::GetAllTextureFormats(TArray<FName>& OutFormats) const
