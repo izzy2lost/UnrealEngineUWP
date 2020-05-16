@@ -1,3 +1,8 @@
+##Note from EmmettJnr##
+This branch is a work in progress. It's not ready for use!
+
+
+##Note from EvoPulseGaming##
 There is a lot of information explaining setup and how to use this. There are customizations I made to get this to work. DO NOT FOLLOW OLD GUIDES!!!!!
 
 I've put all of this into the discord channel #faq-uwp, you can use the link below:
