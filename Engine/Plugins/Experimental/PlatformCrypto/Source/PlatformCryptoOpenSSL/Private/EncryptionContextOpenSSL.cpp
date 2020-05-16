@@ -134,7 +134,9 @@ TArray<uint8> FEncryptionContextOpenSSL::Decrypt_AES_256_ECB(const TArrayView<co
 	return Plaintext;
 }
 
-TArray<uint8> FEncryptionContextOpenSSL::Encrypt_AES_256_GCM(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, const TArrayView<const uint8> IV, TArray<uint8>& OutAuthTag, EPlatformCryptoResult& OutResult)
+// @UWP_CHANGE : BEGIN REVIEW removed const from IV to allow for implementation of BCrypt module
+TArray<uint8> FEncryptionContextOpenSSL::Encrypt_AES_256_GCM(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, const TArrayView<uint8> IV, TArray<uint8>& OutAuthTag, EPlatformCryptoResult& OutResult)
+// @UWP_CHANGE
 {
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("OpenSSL AES256GCM Encrypt"), STAT_OpenSSL_AES_GCM_Encrypt, STATGROUP_PlatformCrypto);
 

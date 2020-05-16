@@ -59,9 +59,10 @@ private:
 	TUniquePtr<FEncryptionContext> EncryptionContext;
 
 	TArray<uint8> Key;
-	// @ATG_CHANGE : BEGIN 
+	// @UWP_CHANGE : BEGIN 
 	TArray<uint8> NonceData;
-	// ATG_CHANGE : END
+	TArray<uint8> AuthTag;
+	// UWP_CHANGE : END
 
 	TArray<uint8> Ciphertext;
 

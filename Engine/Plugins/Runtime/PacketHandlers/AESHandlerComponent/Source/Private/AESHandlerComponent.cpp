@@ -104,9 +104,9 @@ void FAESHandlerComponent::Incoming(FBitReader& Packet)
 			UE_LOG(PacketHandlerLog, VeryVerbose, TEXT("AES packet handler received %ld bytes before decryption."), Ciphertext.Num());
 
 			EPlatformCryptoResult DecryptResult = EPlatformCryptoResult::Failure;
-			// @ATG_CHANGE : BEGIN - allow platforms using BCrypt to use GCM mode
-			TArray<uint8> Plaintext = EncryptionContext->Decrypt(Ciphertext, Key, DecryptResult);
-			// @ATG_CHANGE : END
+			// @UWP_CHANGE : BEGIN - allow platforms using BCrypt to use GCM mode
+			TArray<uint8> Plaintext = EncryptionContext->Decrypt(Ciphertext, Key, NonceData, AuthTag, DecryptResult);
+			// @UWP_CHANGE : END
 
 			if (DecryptResult == EPlatformCryptoResult::Failure)
 			{
@@ -197,7 +197,7 @@ void FAESHandlerComponent::Outgoing(FBitWriter& Packet, FOutPacketTraits& Traits
 
 			EPlatformCryptoResult EncryptResult = EPlatformCryptoResult::Failure;
 			// @ATG_CHANGE : BEGIN - allow platforms using BCrypt to use GCM mode
-			TArray<uint8> OutCiphertext = EncryptionContext->Encrypt(TArrayView<uint8>(Packet.GetData(), Packet.GetNumBytes()), Key, NonceData, EncryptResult);
+			TArray<uint8> OutCiphertext = EncryptionContext->Encrypt(TArrayView<uint8>(Packet.GetData(), Packet.GetNumBytes()), Key, NonceData, AuthTag, EncryptResult);
 			// @ATG_CHANGE : END
 
 			if (EncryptResult == EPlatformCryptoResult::Failure)

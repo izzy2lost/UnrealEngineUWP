@@ -1,4 +1,4 @@
-﻿// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 #include "EncryptionContextBCrypt.h"
 #include "PlatformCryptoBCryptModule.h"
@@ -67,14 +67,14 @@ private:
 };
 
 // @ATG_CHANGE : BEGIN - Switching ECB to GCM, and allowing other key sizes
-TArray<uint8> FEncryptionContextBCrypt::Encrypt(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, TArray<uint8>& NonceData, EPlatformCryptoResult& OutResult)
+TArray<uint8> FEncryptionContextBCrypt::Encrypt(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, const TArrayView<uint8> IV, TArray<uint8>& OutAuthTag, EPlatformCryptoResult& OutResult)
 {
-	return Encrypt_AES_GCM(Plaintext, Key, NonceData, OutResult);
+	return Encrypt_AES_256_GCM(Plaintext, Key, IV, OutAuthTag, OutResult);
 }
 
-TArray<uint8> FEncryptionContextBCrypt::Decrypt(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, EPlatformCryptoResult& OutResult)
+TArray<uint8> FEncryptionContextBCrypt::Decrypt(const TArrayView<const uint8> Ciphertext, const TArrayView<const uint8> Key, const TArrayView<const uint8> IV, const TArrayView<const uint8> AuthTag, EPlatformCryptoResult& OutResult)
 {
-	return Decrypt_AES_GCM(Plaintext, Key, OutResult);
+	return Decrypt_AES_256_GCM(Ciphertext, Key, IV, AuthTag, OutResult);
 }
 
 int32 FEncryptionContextBCrypt::GetMaxReservedBits()
@@ -82,7 +82,7 @@ int32 FEncryptionContextBCrypt::GetMaxReservedBits()
 	return (AES_GCM_PacketHeaderSizeInBytes + AES_BlockSizeInBytes) * 8;
 }
 
-TArray<uint8> FEncryptionContextBCrypt::Encrypt_AES_GCM(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, TArray<uint8>& Nonce, EPlatformCryptoResult& OutResult)
+TArray<uint8> FEncryptionContextBCrypt::Encrypt_AES_256_GCM(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, const TArrayView<uint8> IV, TArray<uint8>& OutAuthTag, EPlatformCryptoResult& OutResult)
 {
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("BCrypt AES Encrypt"), STAT_BCrypt_AES_Encrypt, STATGROUP_PlatformCrypto);
 
@@ -92,7 +92,7 @@ TArray<uint8> FEncryptionContextBCrypt::Encrypt_AES_GCM(const TArrayView<const u
 	int KeyBits = Key.Num() * 8;
 	if (KeyBits != 128 && KeyBits != 192 && KeyBits != 256)
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_GCM: Key size %d is not a supported size (128/192/256)."), KeyBits);
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_256_GCM: Key size %d is not a supported size (128/192/256)."), KeyBits);
 		return TArray<uint8>();
 	}
 
@@ -100,7 +100,7 @@ TArray<uint8> FEncryptionContextBCrypt::Encrypt_AES_GCM(const TArrayView<const u
 
 	if (ProviderHandle == nullptr)
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_GCM: failed to open provider."));
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_256_GCM: failed to open provider."));
 		return TArray<uint8>();
 	}
 
@@ -108,21 +108,21 @@ TArray<uint8> FEncryptionContextBCrypt::Encrypt_AES_GCM(const TArrayView<const u
 
 	if (RNGProviderHandle == nullptr)
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_GCM: failed to open RNG provider."));
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_256_GCM: failed to open RNG provider."));
 		return TArray<uint8>();
 	}
 
 	const NTSTATUS SetChainResult = BCryptSetProperty(ProviderHandle, BCRYPT_CHAINING_MODE, (PBYTE)BCRYPT_CHAIN_MODE_GCM, sizeof(BCRYPT_CHAIN_MODE_GCM), 0);
 	if (!BCRYPT_SUCCESS(SetChainResult))
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_GCM: BCryptSetProperty failed to set chaining mode with code 0x%08x."), SetChainResult);
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_256_GCM: BCryptSetProperty failed to set chaining mode with code 0x%08x."), SetChainResult);
 		return TArray<uint8>();
 	}
 
 	FScopedBCryptKey BCryptKey(ProviderHandle, Key);
 	if (!BCryptKey.IsValid())
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_GCM: failed to generate key object."));
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_256_GCM: failed to generate key object."));
 		return TArray<uint8>();
 	}
 
@@ -137,19 +137,24 @@ TArray<uint8> FEncryptionContextBCrypt::Encrypt_AES_GCM(const TArrayView<const u
 	//	uint32 Counter; //Sequence Number
 	//};
 
-	uint32* NonceCounter = reinterpret_cast<uint32*>(Nonce.GetData() + 8);
+	uint32* NonceCounter = reinterpret_cast<uint32*>(IV.GetData() + 8);
 	(*NonceCounter)++;
 
-	const NTSTATUS RandomSeedResult = BCryptGenRandom(RNGProviderHandle, (Nonce.GetData() + 4), 4, 0);
+	const NTSTATUS RandomSeedResult = BCryptGenRandom(RNGProviderHandle, (IV.GetData() + 4), 4, 0);
 	if (!BCRYPT_SUCCESS(SetChainResult))
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_GCM: BCryptGenRandom failed to create random seed with code 0x%08x."), SetChainResult);
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_256_GCM: BCryptGenRandom failed to create random seed with code 0x%08x."), SetChainResult);
 		return TArray<uint8>();
 	}
 
+	// @UWP_CHANGE : BEGIN REVIEW - added OutAuthTag
+	OutAuthTag.Reset();
+	OutAuthTag.AddUninitialized(AES_GCM_AuthenticatorSizeInBytes);
+	// @UWP_CHANGE : END
+
 	BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO AuthInfo;
 	BCRYPT_INIT_AUTH_MODE_INFO(AuthInfo);
-	AuthInfo.pbNonce = Nonce.GetData();// read the nonce from our temp buffer
+	AuthInfo.pbNonce = IV.GetData();// read the nonce from our temp buffer
 	AuthInfo.cbNonce = AES_GCM_NonceSizeInBytes;
 	AuthInfo.pbAuthData = nullptr;
 	AuthInfo.cbAuthData = 0;
@@ -165,7 +170,7 @@ TArray<uint8> FEncryptionContextBCrypt::Encrypt_AES_GCM(const TArrayView<const u
 	const NTSTATUS GetEncryptSizeResult = BCryptEncrypt(BCryptKey.GetHandle(), const_cast<uint8*>(Plaintext.GetData()), Plaintext.Num(), &AuthInfo, nullptr, 0, nullptr, 0, &CiphertextSize, 0);
 	if (!BCRYPT_SUCCESS(GetEncryptSizeResult))
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_GCM: BCryptEncrypt failed to get ciphertext size with code 0x%08x."), GetEncryptSizeResult);
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_256_GCM: BCryptEncrypt failed to get ciphertext size with code 0x%08x."), GetEncryptSizeResult);
 		return TArray<uint8>();
 	}
 
@@ -176,24 +181,28 @@ TArray<uint8> FEncryptionContextBCrypt::Encrypt_AES_GCM(const TArrayView<const u
 	const NTSTATUS EncryptResult = BCryptEncrypt(BCryptKey.GetHandle(), const_cast<uint8*>(Plaintext.GetData()), Plaintext.Num(), &AuthInfo, nullptr, 0, Ciphertext.GetData() + AES_GCM_PacketHeaderSizeInBytes, CiphertextSize, &NumCiphertextBytesWritten, 0);
 	if (!BCRYPT_SUCCESS(EncryptResult))
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_GCM: BCryptEncrypt failed to encrypt with code 0x%08x."), EncryptResult);
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_256_GCM: BCryptEncrypt failed to encrypt with code 0x%08x."), EncryptResult);
 		return TArray<uint8>();
 	}
 
-	memcpy(Ciphertext.GetData(), Nonce.GetData(), AES_GCM_NonceSizeInBytes);
+	memcpy(Ciphertext.GetData(), IV.GetData(), AES_GCM_NonceSizeInBytes);
 	memcpy(Ciphertext.GetData() + AES_GCM_NonceSizeInBytes, tagTemp, AES_GCM_AuthenticatorSizeInBytes);
 
 	if ((NumCiphertextBytesWritten + AES_GCM_PacketHeaderSizeInBytes) != Ciphertext.Num())
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_GCM: BCryptEncrypt didn't write correct number of bytes (%d) to ciphertext. Written: %d"), Ciphertext.Num(), NumCiphertextBytesWritten);
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Encrypt_AES_256_GCM: BCryptEncrypt didn't write correct number of bytes (%d) to ciphertext. Written: %d"), Ciphertext.Num(), NumCiphertextBytesWritten);
 		return TArray<uint8>();
 	}
+
+	// @UWP_CHANGE : BEGIN REVIEW - added OutAuthTag
+	OutAuthTag.Append(tagTemp, AES_GCM_AuthenticatorSizeInBytes);
+	// @UWP_CHANGE : END
 
 	OutResult = EPlatformCryptoResult::Success;
 	return Ciphertext;
 }
 
-TArray<uint8> FEncryptionContextBCrypt::Decrypt_AES_GCM(const TArrayView<const uint8> Ciphertext, const TArrayView<const uint8> Key, EPlatformCryptoResult& OutResult)
+TArray<uint8> FEncryptionContextBCrypt::Decrypt_AES_256_GCM(const TArrayView<const uint8> Ciphertext, const TArrayView<const uint8> Key, const TArrayView<const uint8> IV, const TArrayView<const uint8> AuthTag, EPlatformCryptoResult& OutResult)
 {
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("BCrypt AES Decrypt"), STAT_BCrypt_AES_Decrypt, STATGROUP_PlatformCrypto);
 
@@ -203,36 +212,44 @@ TArray<uint8> FEncryptionContextBCrypt::Decrypt_AES_GCM(const TArrayView<const u
 	int KeyBits = Key.Num() * 8;
 	if (KeyBits != 128 && KeyBits != 192 && KeyBits != 256)
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_GCM: Key size %d is not a supported size (128/192/256)."), KeyBits);
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_256_GCM: Key size %d is not a supported size (128/192/256)."), KeyBits);
 		return TArray<uint8>();
 	}
 
 	if (Ciphertext.Num() <= AES_GCM_PacketHeaderSizeInBytes)
 	{
 		//Malformed or empty packet
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_GCM: Packet recieved of too small size, discarding"));
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_256_GCM: Packet recieved of too small size, discarding"));
 		return TArray<uint8>();
 	}
+
+	// @UWP_CHANGE : BEGIN REVIEW Add auth tag validation?
+	if (AuthTag.Num() != AES_GCM_AuthenticatorSizeInBytes)
+	{
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_256_GCM: Auth tag size %d is not the expected size %d."), IV.Num(), AES_GCM_AuthenticatorSizeInBytes);
+		return TArray<uint8>();
+	}
+	// @UWP_CHANGE : END
 
 	BCRYPT_ALG_HANDLE ProviderHandle = FPlatformCryptoBCryptModule::Get().GetOrOpenProvider(BCRYPT_AES_ALGORITHM);
 
 	if (ProviderHandle == nullptr)
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_GCM: failed to open provider."));
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_256_GCM: failed to open provider."));
 		return TArray<uint8>();
 	}
 
 	const NTSTATUS SetChainResult = BCryptSetProperty(ProviderHandle, BCRYPT_CHAINING_MODE, (PBYTE)BCRYPT_CHAIN_MODE_GCM, sizeof(BCRYPT_CHAIN_MODE_GCM), 0);
 	if (!BCRYPT_SUCCESS(SetChainResult))
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_GCM: BCryptSetProperty failed to set chaining mode with code 0x%08x."), SetChainResult);
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_256_GCM: BCryptSetProperty failed to set chaining mode with code 0x%08x."), SetChainResult);
 		return TArray<uint8>();
 	}
 
 	FScopedBCryptKey BCryptKey(ProviderHandle, Key);
 	if (!BCryptKey.IsValid())
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_GCM: failed to generate key object."));
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_256_GCM: failed to generate key object."));
 		return TArray<uint8>();
 	}
 
@@ -254,7 +271,7 @@ TArray<uint8> FEncryptionContextBCrypt::Decrypt_AES_GCM(const TArrayView<const u
 	const NTSTATUS GetDecryptSizeResult = BCryptDecrypt(BCryptKey.GetHandle(), const_cast<uint8*>(Ciphertext.GetData() + AES_GCM_PacketHeaderSizeInBytes), Ciphertext.Num() - AES_GCM_PacketHeaderSizeInBytes, &AuthInfo, nullptr, 0, nullptr, 0, &PlaintextSize, 0);
 	if (!BCRYPT_SUCCESS(GetDecryptSizeResult))
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_GCM: BCryptDecrypt failed to get plaintext size with code 0x%08x."), GetDecryptSizeResult);
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_256_GCM: BCryptDecrypt failed to get plaintext size with code 0x%08x."), GetDecryptSizeResult);
 		return TArray<uint8>();
 	}
 
@@ -265,7 +282,7 @@ TArray<uint8> FEncryptionContextBCrypt::Decrypt_AES_GCM(const TArrayView<const u
 	const NTSTATUS DecryptResult = BCryptDecrypt(BCryptKey.GetHandle(), const_cast<uint8*>(Ciphertext.GetData() + AES_GCM_PacketHeaderSizeInBytes), Ciphertext.Num() - AES_GCM_PacketHeaderSizeInBytes, &AuthInfo, nullptr, 0, Plaintext.GetData(), Plaintext.Num(), &NumPlaintextBytesWritten, 0);
 	if (!BCRYPT_SUCCESS(DecryptResult))
 	{
-		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_GCM: BCryptDecrypt failed to encrypt with code 0x%08x."), DecryptResult);
+		UE_LOG(LogPlatformCryptoBCrypt, Warning, TEXT("FEncryptionContextBCrypt::Decrypt_AES_256_GCM: BCryptDecrypt failed to encrypt with code 0x%08x."), DecryptResult);
 		return TArray<uint8>();
 	}
 
@@ -274,4 +291,59 @@ TArray<uint8> FEncryptionContextBCrypt::Decrypt_AES_GCM(const TArrayView<const u
 	OutResult = EPlatformCryptoResult::Success;
 	return Plaintext;
 }
-// @ATG_CHANGE : END
+
+// @UWP_CHANGE : BEGIN REVIEW - New functions which PlatformCrypto requires - NEEDS REVIEW - will this break stuff?!
+TArray<uint8> FEncryptionContextBCrypt::GetRandomBytes(uint32 NumBytes, EPlatformCryptoResult& OutResult)
+{
+	OutResult = EPlatformCryptoResult::Failure;
+
+	TArray<uint8> RandomBytes;
+	RandomBytes.AddUninitialized(0);
+	return RandomBytes;
+}
+
+bool FEncryptionContextBCrypt::DigestVerify_PS256(const TArrayView<const char> Message, const TArrayView<const uint8> Signature, const TArrayView<const uint8> PKCS1Key)
+{
+	return false;
+}
+
+FRSAKeyHandle FEncryptionContextBCrypt::CreateKey_RSA(const TArrayView<const uint8> PublicExponent, const TArrayView<const uint8> PrivateExponent, const TArrayView<const uint8> Modulus)
+{
+	return nullptr;
+}
+
+void FEncryptionContextBCrypt::DestroyKey_RSA(FRSAKeyHandle Key)
+{
+	
+}
+
+int32 FEncryptionContextBCrypt::GetKeySize_RSA(FRSAKeyHandle Key)
+{
+	return 0;
+}
+
+int32 FEncryptionContextBCrypt::GetMaxDataSize_RSA(FRSAKeyHandle Key)
+{
+	return 0;
+}
+
+int32 FEncryptionContextBCrypt::EncryptPublic_RSA(TArrayView<const uint8> Source, TArray<uint8>& Dest, FRSAKeyHandle Key)
+{
+	return 0;
+}
+
+int32 FEncryptionContextBCrypt::EncryptPrivate_RSA(TArrayView<const uint8> Source, TArray<uint8>& Dest, FRSAKeyHandle Key)
+{
+	return 0;
+}
+
+int32 FEncryptionContextBCrypt::DecryptPublic_RSA(TArrayView<const uint8> Source, TArray<uint8>& Dest, FRSAKeyHandle Key)
+{
+	return 0;
+}
+
+int32 FEncryptionContextBCrypt::DecryptPrivate_RSA(TArrayView<const uint8> Source, TArray<uint8>& Dest, FRSAKeyHandle Key)
+{
+	return 0;
+}
+// @UWP_CHANGE : END
