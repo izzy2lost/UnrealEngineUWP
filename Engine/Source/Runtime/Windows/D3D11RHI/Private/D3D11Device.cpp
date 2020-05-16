@@ -545,9 +545,6 @@ void FD3D11DynamicRHI::CleanupD3DDevice()
 			GRHIDeviceIsAMDPreGCNArchitecture = false;
 			AmdAgsContext = NULL;
 		}
-// UWP_CHANGE : BEGIN Was the #endif missing in 4.23 by mistake?
-#endif
-// UWP_CHANGE : END
 
 #if INTEL_METRICSDISCOVERY
 		if (GDX11IntelMetricsDiscoveryEnabled)

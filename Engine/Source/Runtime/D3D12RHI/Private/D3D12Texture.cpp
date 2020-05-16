@@ -1038,7 +1038,6 @@ TD3D12Texture2D<BaseResourceType>* FD3D12DynamicRHI::CreateD3D12Texture2D(FRHICo
 
 FD3D12Texture3D* FD3D12DynamicRHI::CreateD3D12Texture3D(FRHICommandListImmediate* RHICmdList, uint32 SizeX, uint32 SizeY, uint32 SizeZ, EPixelFormat Format, uint32 NumMips, uint32 Flags, FRHIResourceCreateInfo& CreateInfo)
 {
-{
 // @ATG_CHANGE : BEGIN UWP support
 #if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
 // @ATG_CHANGE : END

@@ -213,6 +213,7 @@ define anything not defined on this platform to 0
 // @ATG_CHANGE : BEGIN HoloLens support
 #ifndef PX_HOLOLENS
 #define PX_HOLOLENS 0
+#endif
 #ifndef PX_UWP
 #define PX_UWP 0
 #endif
