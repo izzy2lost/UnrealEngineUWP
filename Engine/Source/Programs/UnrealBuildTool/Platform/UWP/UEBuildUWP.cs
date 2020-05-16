@@ -20,9 +20,15 @@ namespace UnrealBuildTool
 		/// Version of the compiler toolchain to use on UWP. A value of "default" will be changed to a specific version at UBT startup.
 		/// </summary>
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/UWPPlatformEditor.UWPTargetSettings", "CompilerVersion")]
-		[CommandLine("-2015", Value = "VisualStudio2015")]
 		[CommandLine("-2017", Value = "VisualStudio2017")]
+		[CommandLine("-2019", Value = "VisualStudio2019")]
 		public WindowsCompiler Compiler = WindowsCompiler.Default;
+
+		/// <summary>
+		/// Architecture of Target.
+		/// </summary>
+		[CommandLine("x64", Value = "x64")]
+		public WindowsArchitecture Architecture = WindowsArchitecture.x64;
 
 		/// <summary>
 		/// Enable PIX debugging (automatically disabled in Shipping and Test configs)
@@ -146,6 +152,10 @@ namespace UnrealBuildTool
 		{
 			get { return Inner.Win10SDKVersion; }
 		}
+		public string Win10SDKVersionString
+		{
+			get { return Inner.Win10SDKVersionString; }
+		}
 #if !__MonoCS__
 #pragma warning restore CS1591
 #endif
@@ -154,14 +164,14 @@ namespace UnrealBuildTool
 
 	class UniversalWindowsPlatform : UEBuildPlatform
 	{
-		public static readonly Version MinimumSDKVersionRecommended = new Version(10, 0, 14393, 0);
-		public static readonly Version MaximumSDKVersionTested = new Version(10, 0, 17134, int.MaxValue);
+		public static readonly Version MinimumSDKVersionRecommended = new Version(10, 0, 17763, 0);
+		public static readonly Version MaximumSDKVersionTested = new Version(10, 0, 18362, int.MaxValue);
 		public static readonly Version MaximumSDKVersionForVS2015 = new Version(10, 0, 14393, int.MaxValue);
 		public static readonly Version MinimumSDKVersionForD3D12RHI = new Version(10, 0, 15063, 0);
 
 		UWPPlatformSDK SDK;
 
-		public UniversalWindowsPlatform(UnrealTargetPlatform InPlatform, CppPlatform InDefaultCppPlatform, UWPPlatformSDK InSDK) : base(InPlatform, InDefaultCppPlatform)
+		public UniversalWindowsPlatform(UnrealTargetPlatform InPlatform, UWPPlatformSDK InSDK) : base(InPlatform)
 		{
 			SDK = InSDK;
 		}
@@ -171,26 +181,8 @@ namespace UnrealBuildTool
 			return SDK.HasRequiredSDKsInstalled();
 		}
 
-		public override void ResetTarget(TargetRules Target)
-		{
-			ValidateTarget(Target);
-
-			Target.bDeployAfterCompile = true;
-		}
-
 		public override void ValidateTarget(TargetRules Target)
 		{
-			// WindowsTargetRules are reused for UWP, so that build modules can keep the model that reuses "windows" configs for most cases
-			// That means overriding those settings here that need to be adjusted for UWP
-
-			// Compiler version and pix flags must be reloaded from the UWP hive
-
-			// Currently BP-only projects don't load build-related settings from their remote ini when building UE4Game.exe
-			// (see TargetRules.cs, where the possibly-null project directory is passed to ConfigCache.ReadSettings).
-			// It's important for UWP that we *do* use the project-specific settings when building (VS 2017 vs 2015 and
-			// retail Windows Store are both examples).  Possibly this should be done on all platforms?  But in the interest
-			// of not changing behavior on other platforms I'm limiting the scope.
-
 			DirectoryReference IniDirRef = DirectoryReference.FromFile(Target.ProjectFile);
 			if (IniDirRef == null && !string.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()))
 			{
@@ -215,12 +207,26 @@ namespace UnrealBuildTool
 				}
 			}
 
+			Target.UWPPlatform.Architecture = WindowsArchitecture.x64;
+
+			if (!Target.bGenerateProjectFiles)
+			{
+				Log.TraceInformationOnce("Using x64 architecture for deploying to UWP");
+			}
+
 			Target.WindowsPlatform.Compiler = Target.UWPPlatform.Compiler;
+			Target.WindowsPlatform.Architecture = Target.UWPPlatform.Architecture;
 			Target.WindowsPlatform.bPixProfilingEnabled = Target.UWPPlatform.bPixProfilingEnabled;
 			Target.WindowsPlatform.bUseWindowsSDK10 = true;
 
 			Target.bDeployAfterCompile = true;
 			Target.bCompileNvCloth = false;      // requires CUDA
+
+			// Disable Simplygon support if compiling against the NULL RHI.
+			if (Target.GlobalDefinitions.Contains("USE_NULL_RHI=1"))
+			{
+				Target.bCompileSpeedTree = false;
+			}
 
 			// Use shipping binaries to avoid dependency on nvToolsExt which fails WACK.
 			if (Target.Configuration == UnrealTargetConfiguration.Shipping)
@@ -228,59 +234,42 @@ namespace UnrealBuildTool
 				Target.bUseShippingPhysXLibraries = true;
 			}
 
-			// All Creators Program titles use stats 2017
-			Target.UWPPlatform.bUseStats2017 |= Target.UWPPlatform.bIsCreatorsProgramTitle;
-
-			// Windows 10 SDK version
-			// Auto-detect latest compatible by default (recommended), allow for explicit override if necessary
-			// Validate that the SDK isn't too old, and that the combination of VS and SDK is supported.
-			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(DefaultCppPlatform, Target.UWPPlatform.Compiler);
-
-			if (string.IsNullOrEmpty(Target.UWPPlatform.Win10SDKVersionString))
+			// Be resilient to SDKs being uninstalled but still referenced in the INI file
+			VersionNumber SelectedWindowsSdkVersion;
+			DirectoryReference SelectedWindowsSdkDir;
+			if (!WindowsPlatform.TryGetWindowsSdkDir(Target.UWPPlatform.Win10SDKVersionString, out SelectedWindowsSdkVersion, out SelectedWindowsSdkDir))
 			{
-				Log.TraceInformation("Auto-detecting Windows 10 SDK version...");
-				Target.UWPPlatform.Win10SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, Target.UWPPlatform.Compiler);
-
-				if (Target.UWPPlatform.Win10SDKVersion.Major == 0)
-				{
-					throw new BuildException("Could not locate a Windows 10 SDK version compatible with your build environment.  For VS2015 use the {0} SDK.  For VS2107 use the latest available.", MaximumSDKVersionForVS2015.Build);
-				}
-			}
-			else
-			{
-				if (!Version.TryParse(Target.UWPPlatform.Win10SDKVersionString, out Target.UWPPlatform.Win10SDKVersion))
-				{
-					throw new BuildException("Requested Windows 10 SDK version ({0}) is not in a recognized format.  Expected something like {1}.", Target.UWPPlatform.Win10SDKVersionString, MinimumSDKVersionRecommended);
-				}
-				else if (!Directory.Exists(Path.Combine(SDKFolder, "include", Target.UWPPlatform.Win10SDKVersionString)))
-				{
-					throw new BuildException("Requested Windows 10 SDK version ({0}) was not found in {1}.  Please check your installation.", Target.UWPPlatform.Win10SDKVersionString, SDKFolder);
-				}
-			}
-
-			Log.TraceInformation("Building using Windows SDK version {0}", Target.UWPPlatform.Win10SDKVersion);
-
-			if (Target.UWPPlatform.Win10SDKVersion < MinimumSDKVersionRecommended)
-			{
-				Log.TraceWarning("Your Windows SDK version {0} is older than the minimum recommended version ({1}).  Consider upgrading.", Target.UWPPlatform.Win10SDKVersion, MinimumSDKVersionRecommended);
-			}
-			else if (Target.UWPPlatform.Win10SDKVersion > MaximumSDKVersionTested)
-			{
-				Log.TraceInformation("Your Windows SDK version ({0}) is newer than the highest tested with this version of UBT ({1}).  This is probably fine, but if you encounter issues consider using an earlier SDK.", Target.UWPPlatform.Win10SDKVersion, MaximumSDKVersionTested);
-			}
-
-			if (Target.UWPPlatform.bBuildD3D12RHI && Target.UWPPlatform.Win10SDKVersion < MinimumSDKVersionForD3D12RHI)
-			{
-				Log.TraceWarning("Ignoring 'Build with D3D12 support' flag: the D3D12 RHI requires at least the {0} SDK.", MinimumSDKVersionForD3D12RHI);
-				Target.UWPPlatform.bBuildD3D12RHI = false;
+				Target.UWPPlatform.Win10SDKVersionString = "Latest";
 			}
 
 			// Initialize the VC environment for the target, and set all the version numbers to the concrete values we chose.
-			VCEnvironment Environment = VCEnvironment.Create(Target.WindowsPlatform.Compiler, DefaultCppPlatform, Target.WindowsPlatform.CompilerVersion, Target.WindowsPlatform.WindowsSdkVersion);
+			VCEnvironment Environment = VCEnvironment.Create(Target.WindowsPlatform.Compiler, Platform, Target.WindowsPlatform.Architecture, Target.WindowsPlatform.CompilerVersion, Target.HoloLensPlatform.Win10SDKVersionString);
 			Target.WindowsPlatform.Environment = Environment;
 			Target.WindowsPlatform.Compiler = Environment.Compiler;
 			Target.WindowsPlatform.CompilerVersion = Environment.CompilerVersion.ToString();
 			Target.WindowsPlatform.WindowsSdkVersion = Environment.WindowsSdkVersion.ToString();
+
+			// Windows 10 SDK version
+			// Auto-detect latest compatible by default (recommended), allow for explicit override if necessary
+			// Validate that the SDK isn't too old, and that the combination of VS and SDK is supported.
+
+			Target.UWPPlatform.Win10SDKVersion = new Version(Environment.WindowsSdkVersion.ToString());
+
+			if (!Target.bGenerateProjectFiles)
+			{
+				Log.TraceInformationOnce("Building using Windows SDK version {0} for HoloLens", Target.HoloLensPlatform.Win10SDKVersion);
+
+				if (Target.UWPPlatform.Win10SDKVersion < MinimumSDKVersionRecommended)
+				{
+					Log.TraceWarning("Your Windows SDK version {0} is older than the minimum recommended version ({1}) for UWP.  Consider upgrading.", Target.UWPPlatform.Win10SDKVersion, MinimumSDKVersionRecommended);
+				}
+				else if (Target.UWPPlatform.Win10SDKVersion > MaximumSDKVersionTested)
+				{
+					Log.TraceInformationOnce("Your Windows SDK version ({0}) for UWP is newer than the highest tested with this version of UBT ({1}).  This is probably fine, but if you encounter issues consider using an earlier SDK.", Target.UWPPlatform.Win10SDKVersion, MaximumSDKVersionTested);
+				}
+			}
+
+			HoloLensExports.InitWindowsSdkToolPath(Target.UWPPlatform.Win10SDKVersion.ToString());
 		}
 
 		/// <summary>
@@ -318,6 +307,10 @@ namespace UnrealBuildTool
 					return ".exe";
 				case UEBuildBinaryType.StaticLibrary:
 					return ".lib";
+				case UEBuildBinaryType.Object:
+					return ".obj";
+				case UEBuildBinaryType.PrecompiledHeader:
+					return ".pch";
 			}
 			return base.GetBinaryExtension(InBinaryType);
 		}
@@ -339,6 +332,28 @@ namespace UnrealBuildTool
 			return new string[] { "" };
 		}
 
+		private static Version FindLatestVersionDirectory(string InDirectory, Version NoLaterThan)
+		{
+			Version LatestVersion = new Version(0, 0, 0, 0);
+			if (Directory.Exists(InDirectory))
+			{
+				string[] VersionDirectories = Directory.GetDirectories(InDirectory);
+				foreach (string Dir in VersionDirectories)
+				{
+					string VersionString = Path.GetFileName(Dir);
+					Version FoundVersion;
+					if (Version.TryParse(VersionString, out FoundVersion) && FoundVersion > LatestVersion)
+					{
+						if (NoLaterThan == null || FoundVersion <= NoLaterThan)
+						{
+							LatestVersion = FoundVersion;
+						}
+					}
+				}
+			}
+			return LatestVersion;
+		}
+
 		/// <summary>
 		/// Modify the rules for a newly created module, where the target is a different host platform.
 		/// This is not required - but allows for hiding details of a particular platform.
@@ -350,6 +365,21 @@ namespace UnrealBuildTool
 		{
 			if (Target.Platform == UnrealTargetPlatform.Win64)
 			{
+				if (ProjectFileGenerator.bGenerateProjectFiles)
+				{
+					// Use latest SDK for Intellisense purposes
+					WindowsCompiler CompilerForSdkRestriction = Target.UWPPlatform.Compiler != WindowsCompiler.Default ? Target.UWPPlatform.Compiler : Target.WindowsPlatform.Compiler;
+					if (CompilerForSdkRestriction != WindowsCompiler.Default)
+					{
+						Version OutWin10SDKVersion;
+						DirectoryReference OutSdkDir;
+						if (WindowsExports.TryGetWindowsSdkDir(Target.UWPPlatform.Win10SDKVersionString, out OutWin10SDKVersion, out OutSdkDir))
+						{
+							Rules.PublicDefinitions.Add(string.Format("WIN10_SDK_VERSION={0}", OutWin10SDKVersion.Build));
+						}
+					}
+				}
+
 				if (!Target.bBuildRequiresCookedData)
 				{
 					if (ModuleName == "Engine")
@@ -385,25 +415,19 @@ namespace UnrealBuildTool
 					{
 						Rules.DynamicallyLoadedModuleNames.Add("UWPPlatformFeatures");
 					}
-
-					// Use latest SDK for Intellisense purposes
-					WindowsCompiler CompilerForSdkRestriction = Target.UWPPlatform.Compiler != WindowsCompiler.Default ? Target.UWPPlatform.Compiler : Target.WindowsPlatform.Compiler;
-					if (CompilerForSdkRestriction != WindowsCompiler.Default)
-					{
-						string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(GetBuildPlatform(Target.Platform).DefaultCppPlatform, CompilerForSdkRestriction);
-						Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, Target.UWPPlatform.Compiler);
-						Rules.PublicDefinitions.Add(string.Format("WIN10_SDK_VERSION={0}", SDKVersion.Build));
-					}
 				}
 			}
 
 			if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
 			{
 				// Adjust any WinMD references that were provided as contract names.
-				string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(GetBuildPlatform(Target.Platform).DefaultCppPlatform, Target.WindowsPlatform.Compiler);
-				string SDKVersionString = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, Target.WindowsPlatform.Compiler).ToString();
-				ExpandWinMDReferences(SDKFolder, SDKVersionString, ref Rules.PublicWinMDReferences);
-				ExpandWinMDReferences(SDKFolder, SDKVersionString, ref Rules.PrivateWinMDReferences);
+				Version OutWin10SDKVersion;
+				DirectoryReference OutSdkDir;
+				if (WindowsExports.TryGetWindowsSdkDir(Target.UWPPlatform.Win10SDKVersionString, out OutWin10SDKVersion, out OutSdkDir))
+				{
+					ExpandWinMDReferences(Target, OutSdkDir.ToString(), OutWin10SDKVersion.ToString(), ref Rules.PublicWinMDReferences);
+					ExpandWinMDReferences(Target, OutSdkDir.ToString(), OutWin10SDKVersion.ToString(), ref Rules.PrivateWinMDReferences);
+				}
 			}
 		}
 
@@ -482,16 +506,19 @@ namespace UnrealBuildTool
 			}
 
 			// Adjust any WinMD references that were provided as contract names.
-			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(DefaultCppPlatform, Target.UWPPlatform.Compiler);
-			string SDKVersionString = Target.UWPPlatform.Win10SDKVersion.ToString();
-			ExpandWinMDReferences(SDKFolder, SDKVersionString, ref Rules.PublicWinMDReferences);
-			ExpandWinMDReferences(SDKFolder, SDKVersionString, ref Rules.PrivateWinMDReferences);
+			Version OutWin10SDKVersion;
+			DirectoryReference OutSdkDir;
+			if (WindowsExports.TryGetWindowsSdkDir(Target.UWPPlatform.Win10SDKVersionString, out OutWin10SDKVersion, out OutSdkDir))
+			{
+				ExpandWinMDReferences(Target, OutSdkDir.ToString(), OutWin10SDKVersion.ToString(), ref Rules.PublicWinMDReferences);
+				ExpandWinMDReferences(Target, OutSdkDir.ToString(), OutWin10SDKVersion.ToString(), ref Rules.PrivateWinMDReferences);
+			}
 		}
 
-		private void ExpandWinMDReferences(string SDKFolder, string SDKVersion, ref List<string> WinMDReferences)
+		private void ExpandWinMDReferences(ReadOnlyTargetRules Target, string SDKFolder, string SDKVersion, ref List<string> WinMDReferences)
 		{
 			// Code below will fail when not using the Win10 SDK.  Early out to avoid warning spam.
-			if (!WindowsPlatform.bUseWindowsSDK10)
+			if (!Target.WindowsPlatform.bUseWindowsSDK10)
 			{
 				return;
 			}
@@ -520,7 +547,7 @@ namespace UnrealBuildTool
 					{
 						string ContractFolder = Path.Combine(ReferenceRoot, WinMDRef);
 
-						Version ContractVersion = VCEnvironment.FindLatestVersionDirectory(ContractFolder, null);
+						Version ContractVersion = FindLatestVersionDirectory(ContractFolder, null);
 						string ExpandedWinMDRef = Path.Combine(ContractFolder, ContractVersion.ToString(), WinMDRef + ".winmd");
 						if (File.Exists(ExpandedWinMDRef))
 						{
@@ -546,7 +573,7 @@ namespace UnrealBuildTool
 		public override void SetUpEnvironment(ReadOnlyTargetRules Target, CppCompileEnvironment CompileEnvironment, LinkEnvironment LinkEnvironment)
 		{
 			// Add Win10 SDK pieces - moved here since it allows better control over SDK version
-			string Win10SDKRoot = VCEnvironment.FindWindowsSDKInstallationFolder(DefaultCppPlatform, Target.UWPPlatform.Compiler);
+			string Win10SDKRoot = Target.WindowsPlatform.WindowsSdkDir;
 
 			// Include paths
 			CompileEnvironment.SystemIncludePaths.Add(new DirectoryReference(string.Format(@"{0}\Include\{1}\ucrt", Win10SDKRoot, Target.UWPPlatform.Win10SDKVersion)));
@@ -565,7 +592,7 @@ namespace UnrealBuildTool
 			List<string> AlwaysReferenceContracts = new List<string>();
 			AlwaysReferenceContracts.Add("Windows.Foundation.FoundationContract");
 			AlwaysReferenceContracts.Add("Windows.Foundation.UniversalApiContract");
-			ExpandWinMDReferences(Win10SDKRoot, Target.UWPPlatform.Win10SDKVersion.ToString(), ref AlwaysReferenceContracts);
+			ExpandWinMDReferences(Target, Win10SDKRoot, Target.UWPPlatform.Win10SDKVersion.ToString(), ref AlwaysReferenceContracts);
 
 			StringBuilder WinMDReferenceArguments = new StringBuilder();
 			foreach (string WinMDReference in AlwaysReferenceContracts)
@@ -606,40 +633,32 @@ namespace UnrealBuildTool
 				CompileEnvironment.Definitions.Add("WITH_D3D12_RHI=0");
 			}
 
-			// Explicitly exclude the MS C++ runtime libraries we're not using, to ensure other libraries we link with use the same
-			// runtime library as the engine.
-			if (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT)
-			{
-				LinkEnvironment.ExcludedLibraries.Add("MSVCRT");
-				LinkEnvironment.ExcludedLibraries.Add("MSVCPRT");
-			}
-			else
-			{
-				LinkEnvironment.ExcludedLibraries.Add("MSVCRTD");
-				LinkEnvironment.ExcludedLibraries.Add("MSVCPRTD");
-			}
-			LinkEnvironment.ExcludedLibraries.Add("LIBC");
-			LinkEnvironment.ExcludedLibraries.Add("LIBCMT");
-			LinkEnvironment.ExcludedLibraries.Add("LIBCPMT");
-			LinkEnvironment.ExcludedLibraries.Add("LIBCP");
-			LinkEnvironment.ExcludedLibraries.Add("LIBCD");
-			LinkEnvironment.ExcludedLibraries.Add("LIBCMTD");
-			LinkEnvironment.ExcludedLibraries.Add("LIBCPMTD");
-			LinkEnvironment.ExcludedLibraries.Add("LIBCPD");
-
-			LinkEnvironment.ExcludedLibraries.Add("ole32");
-
+			LinkEnvironment.AdditionalArguments += "/NODEFAULTLIB";
 			LinkEnvironment.AdditionalLibraries.Add("windowsapp.lib");
 
-			// In the 10586 SDK TLS APIs are not inlined, but they're also not in windowsapp.lib
-			if (Target.UWPPlatform.Win10SDKVersion.Build == 10586)
-			{
-				LinkEnvironment.AdditionalLibraries.Add("kernel32.lib");
-			}
-			CompileEnvironment.Definitions.Add(string.Format("WIN10_SDK_VERSION={0}", Target.UWPPlatform.Win10SDKVersion.Build));
+			CompileEnvironment.Definitions.Add(string.Format("WIN10_SDK_VERSION={0}", Target.HoloLensPlatform.Win10SDKVersion.Build));
 
 			LinkEnvironment.AdditionalLibraries.Add("dloadhelper.lib");
 			LinkEnvironment.AdditionalLibraries.Add("ws2_32.lib");
+
+			if (CompileEnvironment.bUseDebugCRT)
+			{
+				LinkEnvironment.AdditionalLibraries.Add("vccorlibd.lib");
+				LinkEnvironment.AdditionalLibraries.Add("ucrtd.lib");
+				LinkEnvironment.AdditionalLibraries.Add("vcruntimed.lib");
+				LinkEnvironment.AdditionalLibraries.Add("msvcrtd.lib");
+				LinkEnvironment.AdditionalLibraries.Add("msvcprtd.lib");
+			}
+			else
+			{
+				LinkEnvironment.AdditionalLibraries.Add("vccorlib.lib");
+				LinkEnvironment.AdditionalLibraries.Add("ucrt.lib");
+				LinkEnvironment.AdditionalLibraries.Add("vcruntime.lib");
+				LinkEnvironment.AdditionalLibraries.Add("msvcrt.lib");
+				LinkEnvironment.AdditionalLibraries.Add("msvcprt.lib");
+			}
+			LinkEnvironment.AdditionalLibraries.Add("legacy_stdio_wide_specifiers.lib");
+			LinkEnvironment.AdditionalLibraries.Add("uuid.lib");
 		}
 
 		/// <summary>
@@ -718,14 +737,11 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Creates a toolchain instance for the given platform.
 		/// </summary>
-		/// <param name="CppPlatform">The platform to create a toolchain for</param>
 		/// <param name="Target">The target being built</param>
 		/// <returns>New toolchain instance.</returns>
-		public override UEToolChain CreateToolChain(CppPlatform CppPlatform, ReadOnlyTargetRules Target)
+		public override UEToolChain CreateToolChain(ReadOnlyTargetRules Target)
 		{
-			WindowsPlatform.bUseWindowsSDK10 = true;
-
-			return new UniversalWindowsPlatformToolChain(CppPlatform, Target);
+			return new UniversalWindowsPlatformToolChain(Target);
 		}
 	}
 
@@ -739,6 +755,12 @@ namespace UnrealBuildTool
 
 		static UWPPlatformSDK()
 		{
+#if !__MonoCS__
+			if (Utils.IsRunningOnMono)
+			{
+				return;
+			}
+
 			string Version = "v10.0";
 			string[] possibleRegLocations =
 			{
@@ -757,7 +779,7 @@ namespace UnrealBuildTool
 					break;
 				}
 			}
-
+#endif
 		}
 
 		protected override SDKStatus HasRequiredManualSDKInternal()
@@ -785,14 +807,15 @@ namespace UnrealBuildTool
 			if (SDK.HasRequiredSDKsInstalled() == SDKStatus.Valid)
 			{
 				Log.TraceVerbose("		Registering for {0}", UnrealTargetPlatform.UWP64.ToString());
-				UEBuildPlatform.RegisterBuildPlatform(new UniversalWindowsPlatform(UnrealTargetPlatform.UWP64, CppPlatform.UWP64, SDK));
+				UEBuildPlatform.RegisterBuildPlatform(new UniversalWindowsPlatform(UnrealTargetPlatform.UWP64, SDK));
 				UEBuildPlatform.RegisterPlatformWithGroup(UnrealTargetPlatform.UWP64, UnrealPlatformGroup.Microsoft);
 				UEBuildPlatform.RegisterPlatformWithGroup(UnrealTargetPlatform.UWP64, UnrealPlatformGroup.UWP);
 
-				Log.TraceVerbose("		Registering for {0}", UnrealTargetPlatform.UWP32.ToString());
-				UEBuildPlatform.RegisterBuildPlatform(new UniversalWindowsPlatform(UnrealTargetPlatform.UWP32, CppPlatform.UWP32, SDK));
-				UEBuildPlatform.RegisterPlatformWithGroup(UnrealTargetPlatform.UWP32, UnrealPlatformGroup.Microsoft);
-				UEBuildPlatform.RegisterPlatformWithGroup(UnrealTargetPlatform.UWP32, UnrealPlatformGroup.UWP);
+				// UWP32 may require testing and fixes if there's any need to keep it
+				//Log.TraceVerbose("		Registering for {0}", UnrealTargetPlatform.UWP32.ToString());
+				//UEBuildPlatform.RegisterBuildPlatform(new UniversalWindowsPlatform(UnrealTargetPlatform.UWP32, CppPlatform.UWP32, SDK));
+				//UEBuildPlatform.RegisterPlatformWithGroup(UnrealTargetPlatform.UWP32, UnrealPlatformGroup.Microsoft);
+				//UEBuildPlatform.RegisterPlatformWithGroup(UnrealTargetPlatform.UWP32, UnrealPlatformGroup.UWP);
 			}
 		}
 

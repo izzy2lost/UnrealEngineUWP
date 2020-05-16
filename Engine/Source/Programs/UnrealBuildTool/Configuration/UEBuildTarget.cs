@@ -205,17 +205,17 @@ namespace UnrealBuildTool
 		/// </summary>
 		public static UnrealTargetPlatform HoloLens = FindOrAddByName("HoloLens");
 
-		// @ATG_CHANGE : BEGIN UWP support
+		// @UWP_CHANGE : BEGIN UWP support
 		/// <summary>
 		/// UWP (x64)
 		/// </summary>
-		UWP64,
+		public static UnrealTargetPlatform UWP64 = FindOrAddByName("UWP64");
 
 		/// <summary>
 		/// UWP (x86)
 		/// </summary>
-		UWP32,
-		// @ATG_CHANGE : END
+		public static UnrealTargetPlatform UWP32 = FindOrAddByName("UWP32");
+		// @UWP_CHANGE : END
 
 		/// <summary>
 		/// Mac
@@ -445,12 +445,12 @@ namespace UnrealBuildTool
 		/// </summary>
 		public static UnrealPlatformGroup HoloLens = FindOrAddByName("HoloLens");
 
-		// @ATG_CHANGE : BEGIN UWP support
+		// @UWP_CHANGE : BEGIN UWP support
 		/// <summary>
 		/// this group is just to lump UWP32 and UWP64 into UWP directories
 		/// </summary>
-		UWP,
-		// @ATG_CHANGE : END
+		public static UnrealPlatformGroup UWP = FindOrAddByName("UWP");
+		// @UWP_CHANGE : END
 
 		/// <summary>
 		/// Microsoft platforms
@@ -2128,7 +2128,7 @@ namespace UnrealBuildTool
 			List<string> Definitions = new List<string>(GlobalCompileEnvironment.Definitions);
 			foreach(UEBuildModule Module in Binary.Modules)
 			{
-				Module.AddModuleToCompileEnvironment(null, new HashSet<DirectoryReference>(), new HashSet<DirectoryReference>(), Definitions, new List<UEBuildFramework>(), false);
+				Module.AddModuleToCompileEnvironment(null, new HashSet<DirectoryReference>(), new HashSet<DirectoryReference>(), Definitions, new List<UEBuildFramework>(), false, new List<string>());
 			}
 
 			// Write the header

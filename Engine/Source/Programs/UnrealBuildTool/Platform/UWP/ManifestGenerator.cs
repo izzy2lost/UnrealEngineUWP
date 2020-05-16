@@ -1918,19 +1918,17 @@ namespace UnrealBuildTool
 		{
 			System.Xml.Schema.XmlSchemaSet AppxSchema = new System.Xml.Schema.XmlSchemaSet();
 
-			// Validate against VS2017 schemas if possible
 			DirectoryReference VSInstallDir;
 			DirectoryReference SdkSchemaFolder = null;
 			DirectoryReference VSSchemaFolder = null;
 			DirectoryReference PhoneSchemaFolder = null;
 
-			// Limit to VS2017 compatible SDKs here - newer ones have incomplete schema sets
-			DirectoryReference SDKRootFolder = new DirectoryReference(VCEnvironment.FindWindowsSDKInstallationFolder(CppPlatform.UWP64, WindowsCompiler.VisualStudio2017));
-			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKRootFolder.FullName, WindowsCompiler.VisualStudio2017);
+			UWPExports.FindWindowsSDKInstallationFolder(out DirectoryReference SDKRootFolder, out Version SDKVersion);
+
 			SdkSchemaFolder = DirectoryReference.Combine(SDKRootFolder, "Include", SDKVersion.ToString(), "winrt");
 			PhoneSchemaFolder = DirectoryReference.Combine(SDKRootFolder, "Extension SDKs", "WindowsMobile", SDKVersion.ToString(), "Include", "WinRT");
 
-			if (WindowsPlatform.TryGetVSInstallDir(WindowsCompiler.VisualStudio2017, out VSInstallDir))
+			if (WindowsPlatform.TryGetVSInstallDir(WindowsCompiler.VisualStudio2019, out VSInstallDir))
 			{
 				VSSchemaFolder = DirectoryReference.Combine(VSInstallDir, "Xml", "Schemas");
 			}

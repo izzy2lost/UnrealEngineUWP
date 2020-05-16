@@ -53,11 +53,13 @@ namespace UnrealBuildTool
 		/// 
 		/// </summary>
 		/// <returns></returns>
-		public static string FindWindowsSDKInstallationFolder()
+		public static void FindWindowsSDKInstallationFolder(out DirectoryReference SDKFolder, out Version SDKVersion)
 		{
-			// Neither of the parameters here need to be exactly right to find the correct SDK location.
-			// The key is just that we pass a UWP platform and a supported compiler.
-			return VCEnvironment.FindWindowsSDKInstallationFolder(CppPlatform.UWP64, WindowsCompiler.VisualStudio2017);
+			if (!WindowsPlatform.TryGetWindowsSdkDir("Latest", out VersionNumber SelectedWindowsSdkVersion, out DirectoryReference SelectedWindowsSdkDir))
+				throw new Exception("Could not find latest windows sdk dir");
+
+			SDKFolder = SelectedWindowsSdkDir;
+			SDKVersion = new Version(SelectedWindowsSdkVersion.ToString());
 		}
 
 		/// <summary>

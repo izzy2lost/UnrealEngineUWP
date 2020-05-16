@@ -700,11 +700,11 @@ namespace UnrealBuildTool
 				// @ATG_CHANGE : BEGIN UWP support
 				if (InPlatforms.Contains(UnrealTargetPlatform.UWP32))
 				{
-					VCIncludeSearchPaths.Append(UniversalWindowsPlatformToolChain.GetVCIncludePaths(CppPlatform.UWP32, GetCompilerForIntellisense()) + ";");
+					VCIncludeSearchPaths.Append(UniversalWindowsPlatformToolChain.GetVCIncludePaths(UnrealTargetPlatform.UWP32, GetCompilerForIntellisense()) + ";");
 				}
 				else if (InPlatforms.Contains(UnrealTargetPlatform.UWP64))
 				{
-					VCIncludeSearchPaths.Append(UniversalWindowsPlatformToolChain.GetVCIncludePaths(CppPlatform.UWP64, GetCompilerForIntellisense()) + ";");
+					VCIncludeSearchPaths.Append(UniversalWindowsPlatformToolChain.GetVCIncludePaths(UnrealTargetPlatform.UWP64, GetCompilerForIntellisense()) + ";");
 				}
 				else if (InPlatforms.Contains(UnrealTargetPlatform.Win64))
 				// @ATG_CHANGE : END
@@ -876,8 +876,11 @@ namespace UnrealBuildTool
 			// do this only for valid combinations, which conveniently provides access to the true UnrealTargetPlatform (i.e. accounts for
 			// UWP, WinRT, and any others that don't map to VS platforms).
 			foreach (ProjectConfigAndTargetCombination Combination in ProjectConfigAndTargetCombinations)
-				{
-				WritePreDefaultPropsConfiguration(Combination.Platform, Combination.Configuration, Combination.ProjectPlatformName, Combination.ProjectConfigurationName, PlatformProjectGenerators, VCProjectFileContent);
+			{
+				if (Combination.Platform == null)
+					continue;
+
+				WritePreDefaultPropsConfiguration(Combination.Platform.Value, Combination.Configuration, Combination.ProjectPlatformName, Combination.ProjectConfigurationName, PlatformProjectGenerators, VCProjectFileContent);
 			}
 			// @ATG_CHANGE : END
 
@@ -1511,7 +1514,7 @@ namespace UnrealBuildTool
 					TargetRules TargetRulesObject = Combination.ProjectTarget.TargetRules;
 
 					// @ATG_CHANGE : BEGIN - UWP support
-					if ((Combination.Platform == UnrealTargetPlatform.Win32) || (Combination.Platform == UnrealTargetPlatform.Win64) || (Combination.Platform == UnrealTargetPlatform.HoloLens) || (Platform == UnrealTargetPlatform.UWP32) || (Platform == UnrealTargetPlatform.UWP64))
+					if ((Combination.Platform == UnrealTargetPlatform.Win32) || (Combination.Platform == UnrealTargetPlatform.Win64) || (Combination.Platform == UnrealTargetPlatform.HoloLens) || (Combination.Platform == UnrealTargetPlatform.UWP32) || (Combination.Platform == UnrealTargetPlatform.UWP64))
 					// @ATG_CHANGE : END
 					{
 						VCUserFileContent.AppendLine("  <PropertyGroup {0}>", ConditionString);

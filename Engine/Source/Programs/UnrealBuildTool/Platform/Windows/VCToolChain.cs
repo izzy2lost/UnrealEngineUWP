@@ -499,23 +499,26 @@ namespace UnrealBuildTool
 					// we've hit problems where types are somehow in windows.winmd on some installations but not others, leading to either
 					// missing or duplicated type references.
 					Arguments.Add("/ZW:nostdlib");
-					if (WindowsPlatform.bUseWindowsSDK10)
+					if (Target.WindowsPlatform.bUseWindowsSDK10)
 					{
-
-						string WindowsSDKExtensionDir = VCEnvironment.FindWindowsSDKExtensionInstallationFolder(Target.WindowsPlatform.Compiler);
-						if (Directory.Exists(Path.Combine(WindowsSDKExtensionDir, "References")))
+						VersionNumber SelectedWindowsSdkVersion;
+						DirectoryReference SelectedWindowsSdkDir;
+						if (!WindowsPlatform.TryGetWindowsSdkDir(Target.UWPPlatform.Win10SDKVersionString, out SelectedWindowsSdkVersion, out SelectedWindowsSdkDir))
 						{
-							Arguments.Add(String.Format(@"/AI""{0}\References""", WindowsSDKExtensionDir));
-							Arguments.Add(String.Format(@"/AI""{0}\References\{1}""", WindowsSDKExtensionDir, EnvVars.WindowsSdkVersion));
+							if (Directory.Exists(Path.Combine(SelectedWindowsSdkDir.FullName, "References")))
+							{
+								Arguments.Add(String.Format(@"/AI""{0}\References""", SelectedWindowsSdkDir.FullName));
+								Arguments.Add(String.Format(@"/AI""{0}\References\{1}""", SelectedWindowsSdkDir.FullName, EnvVars.WindowsSdkVersion));
 
-							// Use the latest version of contracts, consistent with our choice elsewhere to use the latest version of the SDK.
-							// These metadata files should bring in everything available on the Universal family.  Extension SDKs should be
-							// referenced directly by the modules that depend on them.
-							Arguments.Add(String.Format(@"/FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Target.WindowsPlatform.Compiler)));
-							Arguments.Add(String.Format(@"/FU""{0}""", VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Target.WindowsPlatform.Compiler)));
+								// Use the latest version of contracts, consistent with our choice elsewhere to use the latest version of the SDK.
+								// These metadata files should bring in everything available on the Universal family.  Extension SDKs should be
+								// referenced directly by the modules that depend on them.
+								Arguments.Add(String.Format(@"/FU""{0}""", HoloLens.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Target.WindowsPlatform.Compiler)));
+								Arguments.Add(String.Format(@"/FU""{0}""", HoloLens.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Target.WindowsPlatform.Compiler)));
+							}
 						}
 					}
-					DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Target.WindowsPlatform.Compiler, Target.WindowsPlatform.CompilerVersion);
+					DirectoryReference PlatformWinMDLocation = HoloLens.GetCppCXMetadataLocation(Target.WindowsPlatform.Compiler, Target.WindowsPlatform.CompilerVersion);
 					if (PlatformWinMDLocation != null)
 					{
 						Arguments.Add(String.Format(@"/AI""{0}""", PlatformWinMDLocation));

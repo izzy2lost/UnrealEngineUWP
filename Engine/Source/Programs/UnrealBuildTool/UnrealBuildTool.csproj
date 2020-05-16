@@ -287,7 +287,6 @@
     <Compile Include="Platform\UWP\UWPProjectGenerator.cs" />
     <Compile Include="Platform\UWP\UWPToolChain.cs" />
     <Compile Include="Platform\UWP\ManifestGenerator.cs" />
-    <Compile Include="Platform\UWP\WinMDRegistrationInfo.cs" />
     <!-- ATG_CHANGE : END UWP support  -->
     <Compile Include="Platform\Windows\PVSToolChain.cs" />
   </ItemGroup>

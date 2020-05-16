@@ -75,14 +75,14 @@ namespace UnrealBuildTool
 				VCProjectFileContent.Append("		<WindowsTargetPlatformVersion>" + MaxTestedVersion + "</WindowsTargetPlatformVersion>" + ProjectFileGenerator.NewLine);
 			}
 
-			WindowsCompiler Compiler = WindowsCompiler.VisualStudio2017;
-			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler, "Latest");
+			WindowsCompiler Compiler = WindowsCompiler.VisualStudio2019;
+			DirectoryReference PlatformWinMDLocation = HoloLens.GetCppCXMetadataLocation(Compiler, "Latest");
 			if (PlatformWinMDLocation == null || !FileReference.Exists(FileReference.Combine(PlatformWinMDLocation, "platform.winmd")))
 			{
-				PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler, "Latest");
+				PlatformWinMDLocation = HoloLens.GetCppCXMetadataLocation(Compiler, "Latest");
 			}
-			string FoundationWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Compiler);
-			string UniversalWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Compiler);
+			string FoundationWinMDPath = HoloLens.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Compiler);
+			string UniversalWinMDPath = HoloLens.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Compiler);
 			VCProjectFileContent.Append("		<AdditionalOptions>/ZW /ZW:nostdlib</AdditionalOptions>" + ProjectFileGenerator.NewLine);
 			VCProjectFileContent.Append("		<NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions);PLATFORM_UWP=1;UWP=1;</NMakePreprocessorDefinitions>" + ProjectFileGenerator.NewLine);
 			if (PlatformWinMDLocation != null)
@@ -99,9 +99,8 @@ namespace UnrealBuildTool
 			// Default to latest supported version.  Game projects can override this later.
 			// Because this property is only required for VS2017 we can safely say that's the compiler version (whether that's actually true
 			// or not)
-			WindowsCompiler Compiler = WindowsCompiler.VisualStudio2017;  
-			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(UEBuildPlatform.GetBuildPlatform(InPlatform).DefaultCppPlatform, Compiler);
-			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, Compiler);
+			UWPExports.FindWindowsSDKInstallationFolder(out DirectoryReference SDKFolder, out Version SDKVersion);
+
 			ProjectFileBuilder.AppendLine("    <AppContainerApplication>true</AppContainerApplication>");
 			ProjectFileBuilder.AppendLine("    <ApplicationType>Windows Store</ApplicationType>");
 			ProjectFileBuilder.AppendLine("    <ApplicationTypeRevision>10.0</ApplicationTypeRevision>");

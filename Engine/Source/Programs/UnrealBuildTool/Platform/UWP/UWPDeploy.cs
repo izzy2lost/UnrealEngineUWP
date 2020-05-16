@@ -291,12 +291,7 @@ namespace UnrealBuildTool
 
 			FileReference AppxRecipeDest = FileReference.Combine(ProjectBinaryFolder, RecipeFileName);
 
-			WindowsCompiler Compiler = new WindowsTargetRules().Compiler;
-			if (Compiler == WindowsCompiler.Default)
-			{
-				Compiler = WindowsPlatform.GetDefaultCompiler(ProjectFile);
-			}
-			GeneratePackageAppXRecipe(Compiler, AppxRecipeDest.FullName, ProjectName, Receipt, AdditionalAppXFiles);
+			GeneratePackageAppXRecipe(AppxRecipeDest.FullName, ProjectName, Receipt, AdditionalAppXFiles);
 
 			// Log out the time taken to deploy...
 			double PrepDeployDuration = (DateTime.UtcNow - PrepDeployStartTime).TotalSeconds;
@@ -326,19 +321,11 @@ namespace UnrealBuildTool
 			}
 		}
 
-		private void GeneratePackageAppXRecipe(WindowsCompiler Compiler, string InOutputFile, string InProjectName, TargetReceipt Receipt, IEnumerable<string> AdditionalFiles)
+		private void GeneratePackageAppXRecipe(string InOutputFile, string InProjectName, TargetReceipt Receipt, IEnumerable<string> AdditionalFiles)
 		{
+			// Not sure where to get correct VCProjectFileFormat from - hardcoding to VS2019
 			var AppXRecipeProjectFileContent = new StringBuilder();
-			string VcProjectToolVersion;
-			switch (Compiler)
-			{
-				case WindowsCompiler.VisualStudio2017:
-					VcProjectToolVersion = VCProjectFileGenerator.GetProjectFileToolVersionString(VCProjectFileFormat.VisualStudio2017);
-					break;
-				default:
-					VcProjectToolVersion = VCProjectFileGenerator.GetProjectFileToolVersionString(VCProjectFileFormat.VisualStudio2015);
-					break;
-			}
+			string VcProjectToolVersion = VCProjectFileGenerator.GetProjectFileToolVersionString(VCProjectFileFormat.VisualStudio2019);
 
 			AppXRecipeProjectFileContent.Append(
 				"<?xml version=\"1.0\" encoding=\"utf-8\"?>" + ProjectFileGenerator.NewLine +
