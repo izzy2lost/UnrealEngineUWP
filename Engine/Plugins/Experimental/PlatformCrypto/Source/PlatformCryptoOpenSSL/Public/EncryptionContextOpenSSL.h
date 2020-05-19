@@ -11,28 +11,14 @@
  */
 class PLATFORMCRYPTOOPENSSL_API FEncryptionContextOpenSSL
 {
-
 public:
-	// @UWP_CHANGE : BEGIN
-	TArray<uint8> Encrypt(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, const TArrayView<uint8> IV, TArray<uint8>& OutAuthTag, EPlatformCryptoResult& OutResult)
-	{
-		return Encrypt_AES_256_ECB(Plaintext, Key, OutResult);
-	}
-
-	TArray<uint8> Decrypt(const TArrayView<const uint8> Ciphertext, const TArrayView<const uint8> Key, const TArrayView<const uint8> IV, const TArrayView<const uint8> AuthTag, EPlatformCryptoResult& OutResult)
-	{
-		return Decrypt_AES_256_ECB(Ciphertext, Key, OutResult);
-	}
-
-	int32 GetMaxReservedBits() { return 16 * 8; }
-
-private:
-	TArray<uint8> Encrypt_AES_256_ECB(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, EPlatformCryptoResult& OutResult);
-	TArray<uint8> Decrypt_AES_256_ECB(const TArrayView<const uint8> Ciphertext, const TArrayView<const uint8> Key, EPlatformCryptoResult& OutResult);
-
-public:
-	TArray<uint8> Encrypt_AES_256_GCM(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, const TArrayView<uint8> IV, TArray<uint8>& OutAuthTag, EPlatformCryptoResult& OutResult);
+	// @UWP_CHANGE : BEGIN UWP support - REVIEW - disabled ECB - is this necessary?
+	int32 GetMaxReservedBits();
+	//TArray<uint8> Encrypt_AES_256_ECB(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, EPlatformCryptoResult& OutResult);
+	//TArray<uint8> Decrypt_AES_256_ECB(const TArrayView<const uint8> Ciphertext, const TArrayView<const uint8> Key, EPlatformCryptoResult& OutResult);
 	// @UWP_CHANGE : END
+
+	TArray<uint8> Encrypt_AES_256_GCM(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, const TArrayView<const uint8> IV, TArray<uint8>& OutAuthTag, EPlatformCryptoResult& OutResult);
 	TArray<uint8> Decrypt_AES_256_GCM(const TArrayView<const uint8> Ciphertext, const TArrayView<const uint8> Key, const TArrayView<const uint8> IV, const TArrayView<const uint8> AuthTag, EPlatformCryptoResult& OutResult);
 
 	TArray<uint8> GetRandomBytes(uint32 NumBytes, EPlatformCryptoResult& OutResult);

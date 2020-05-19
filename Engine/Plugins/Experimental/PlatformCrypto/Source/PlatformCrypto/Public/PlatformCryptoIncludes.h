@@ -4,9 +4,7 @@
 
 #include "CoreMinimal.h"
 
-// @ATG_CHANGE : BEGIN - allow more platforms to use AES-GCM
-#if PLATFORM_XBOXONE || PLATFORM_WINDOWS || PLATFORM_UWP
-// @ATG_CHANGE : END
+#if PLATFORM_XBOXONE
 	#include "EncryptionContextBCrypt.h"
 #elif PLATFORM_SWITCH
 	#include "EncryptionContextSwitch.h"
