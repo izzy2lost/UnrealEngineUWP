@@ -33,8 +33,8 @@ public class XInput : ModuleRules
 		{
 			PublicLibraryPaths.Add(DirectXSDKDir + "/Lib/x86");
 		}
-		
-// @UWP_CHANGE : BEGIN UWP support
+
+		// @UWP_CHANGE : BEGIN UWP support
 		if (Target.Platform == UnrealTargetPlatform.HoloLens || Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
 // @UWP_CHANGE : END
 		{

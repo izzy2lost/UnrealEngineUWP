@@ -19,10 +19,14 @@ public class UWPTargetPlatform : ModuleRules
 		);
 
 		PrivateIncludePathModuleNames.Add("Settings");
-        bEnableWinRTComponentExtensions = true;
-        bEnableExceptions = true;
-        PCHUsage = PCHUsageMode.NoSharedPCHs;
-        PrivatePCHHeaderFile = "Private/UWPTargetPlatformPCH.h";
+
+		if (Target.WindowsPlatform.bUseWindowsSDK10)
+		{
+			bEnableWinRTComponentExtensions = true;
+			bEnableExceptions = true;
+			PCHUsage = PCHUsageMode.NoSharedPCHs;
+			PrivatePCHHeaderFile = "Private/UWPTargetPlatformPCH.h";
+		}
 
         // compile withEngine
         if (Target.bCompileAgainstEngine)

@@ -37,7 +37,9 @@ public class DX11Audio : ModuleRules
 		{
 			PublicAdditionalLibraries.AddRange(
 				new string[] {
+				"dxguid.lib",
 				"X3DAudio.lib",
+				"xapobase.lib",
 				"XAPOFX.lib"
 				}
 				);
