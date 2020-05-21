@@ -48,6 +48,8 @@
 				"Mac",
 				"Win32",
 				"Win64",
+				"UWP32",
+				"UWP64",
 				"Linux",
 				"PS4"
 			],
@@ -60,9 +62,7 @@
 			"Type": "RuntimeAndProgram",
 			"LoadingPhase": "EarliestPossible",
 			"WhitelistPlatforms": [
-				"XboxOne",
-				"UWP32",
-				"UWP64",
+				"XboxOne"
 			],
 			"BlacklistPlatforms": [
 				"Android",

@@ -49,6 +49,7 @@ void FUWPTargetSettingsCustomization::InitSupportedPlatformVersions()
 	// Windows 10 Spring 2018 update
 	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.17134.0")));
 
+	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.18362.0")));
 }
 
 void FUWPTargetSettingsCustomization::InitTargetDeviceFamilyOptions()
@@ -648,7 +649,7 @@ void FUWPTargetSettingsCustomization::OnAutoDetectWin10SDKChanged(ECheckBoxState
 		WindowsSDKSelector->SetSelectedItem(MakeShared<FString>());
 		WindowsSDKSelector->SetEnabled(false);
 	}
-	else if (GetDefault<UUWPTargetSettings>()->CompilerVersion == ECompilerVersion::VisualStudio2017)
+	else if (GetDefault<UUWPTargetSettings>()->CompilerVersion == ECompilerVersion::VisualStudio2019)
 	{
 		Win10SDKVersionPropertyHandle->SetValue(*PlatformVersionOptions.Last());
 		WindowsSDKSelector->SetSelectedItem(PlatformVersionOptions.Last());

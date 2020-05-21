@@ -243,7 +243,7 @@ namespace UnrealBuildTool
 			}
 
 			// Initialize the VC environment for the target, and set all the version numbers to the concrete values we chose.
-			VCEnvironment Environment = VCEnvironment.Create(Target.WindowsPlatform.Compiler, Platform, Target.WindowsPlatform.Architecture, Target.WindowsPlatform.CompilerVersion, Target.HoloLensPlatform.Win10SDKVersionString);
+			VCEnvironment Environment = VCEnvironment.Create(Target.WindowsPlatform.Compiler, Platform, Target.WindowsPlatform.Architecture, Target.WindowsPlatform.CompilerVersion, Target.UWPPlatform.Win10SDKVersionString);
 			Target.WindowsPlatform.Environment = Environment;
 			Target.WindowsPlatform.Compiler = Environment.Compiler;
 			Target.WindowsPlatform.CompilerVersion = Environment.CompilerVersion.ToString();
@@ -257,7 +257,7 @@ namespace UnrealBuildTool
 
 			if (!Target.bGenerateProjectFiles)
 			{
-				Log.TraceInformationOnce("Building using Windows SDK version {0} for HoloLens", Target.HoloLensPlatform.Win10SDKVersion);
+				Log.TraceInformationOnce("Building using Windows SDK version {0} for UWP", Target.UWPPlatform.Win10SDKVersion);
 
 				if (Target.UWPPlatform.Win10SDKVersion < MinimumSDKVersionRecommended)
 				{
