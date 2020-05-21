@@ -157,6 +157,8 @@ private:
 
 	// Holds an event delegate that is executed when a target device has been lost, i.e. disconnected or timed out.
 	FOnTargetDeviceLost DeviceLostEvent;
+
+	IUWPDeviceDetectorModule& UWPDeviceDetectorModule;
 };
 
 template <bool Is64Bit>

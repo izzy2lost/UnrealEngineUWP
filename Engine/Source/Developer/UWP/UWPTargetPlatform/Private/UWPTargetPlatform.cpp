@@ -15,6 +15,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogUWPTargetPlatform, Log, All);
 
 FUWPTargetPlatform::FUWPTargetPlatform(const FName& InPlatformName)
 	: TTargetPlatformBase(InPlatformName)
+	, UWPDeviceDetectorModule(IUWPDeviceDetectorModule::Get())
 {
 #if WITH_ENGINE
 	FConfigCacheIni::LoadLocalIniFile(EngineSettings, TEXT("Engine"), true, *PlatformName());
@@ -33,7 +34,7 @@ FUWPTargetPlatform::~FUWPTargetPlatform()
 
 void FUWPTargetPlatform::GetAllDevices(TArray<ITargetDevicePtr>& OutDevices) const
 {
-	IUWPDeviceDetectorModule::Get().StartDeviceDetection();
+	UWPDeviceDetectorModule.StartDeviceDetection();
 
 	OutDevices.Reset();
 	FScopeLock Lock(&DevicesLock);
