@@ -345,7 +345,7 @@ FString FLauncherWorker::CreateUATCommand( const ILauncherProfileRef& InProfile,
 				Platforms += TEXT("+HoloLens");
 			}
 // @ATG_CHANGE : BEGIN UWP packaging & F5 support
-			else if (PlatformInfo->TargetPlatformName == FName("UWP"))
+			else if (PlatformInfo->TargetPlatformName == FName("UWP64"))
 			{
 				Platforms += TEXT("+UWP64");
 			}

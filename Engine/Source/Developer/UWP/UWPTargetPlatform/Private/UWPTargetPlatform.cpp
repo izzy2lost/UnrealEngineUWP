@@ -13,7 +13,8 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogUWPTargetPlatform, Log, All);
 
-FUWPTargetPlatform::FUWPTargetPlatform()
+FUWPTargetPlatform::FUWPTargetPlatform(const FName& InPlatformName)
+	: TTargetPlatformBase(InPlatformName)
 {
 #if WITH_ENGINE
 	FConfigCacheIni::LoadLocalIniFile(EngineSettings, TEXT("Engine"), true, *PlatformName());
