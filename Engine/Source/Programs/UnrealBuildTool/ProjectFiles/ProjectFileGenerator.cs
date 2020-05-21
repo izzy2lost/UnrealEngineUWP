@@ -550,7 +550,9 @@ namespace UnrealBuildTool
 				}
 				else if (PreferredAccessor == "visualstudio2017")
 				{
-					Format = ProjectFileFormat.VisualStudio2017;
+					// @UWP_CHANGE : BEGIN UWP support - hack to generate projects with VS2019 regardless of default VS2017 setting
+					Format = ProjectFileFormat.VisualStudio2019;
+					// @UWP_CHANGE
 					return true;
 				}
 				else if (PreferredAccessor == "visualstudio2019")
