@@ -166,7 +166,7 @@ class TUWPTargetPlatform : public FUWPTargetPlatform
 {
 public:
 	TUWPTargetPlatform()
-		: FUWPTargetPlatform(Is64Bit ? FName("UWP64") : FName("UWP32"))
+		: FUWPTargetPlatform(Is64Bit ? FName("UWP_UWP64") : FName("UWP_UWP32"))
 	{
 
 	}
@@ -178,7 +178,7 @@ public:
 
 	virtual FString PlatformName() const override
 	{
-		return Is64Bit ? TEXT("UWP64") : TEXT("UWP32");
+		return Is64Bit ? TEXT("UWP_UWP64") : TEXT("UWP_UWP32");
 	}
 
 	virtual FText GetVariantDisplayName() const override

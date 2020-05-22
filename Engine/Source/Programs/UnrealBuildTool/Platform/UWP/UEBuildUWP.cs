@@ -269,7 +269,7 @@ namespace UnrealBuildTool
 				}
 			}
 
-			HoloLensExports.InitWindowsSdkToolPath(Target.UWPPlatform.Win10SDKVersion.ToString());
+			UWPExports.InitWindowsSdkToolPath(Target.UWPPlatform.Win10SDKVersion.ToString());
 		}
 
 		/// <summary>
@@ -636,7 +636,7 @@ namespace UnrealBuildTool
 			LinkEnvironment.AdditionalArguments += "/NODEFAULTLIB";
 			LinkEnvironment.AdditionalLibraries.Add("windowsapp.lib");
 
-			CompileEnvironment.Definitions.Add(string.Format("WIN10_SDK_VERSION={0}", Target.HoloLensPlatform.Win10SDKVersion.Build));
+			CompileEnvironment.Definitions.Add(string.Format("WIN10_SDK_VERSION={0}", Target.UWPPlatform.Win10SDKVersion.Build));
 
 			LinkEnvironment.AdditionalLibraries.Add("dloadhelper.lib");
 			LinkEnvironment.AdditionalLibraries.Add("ws2_32.lib");

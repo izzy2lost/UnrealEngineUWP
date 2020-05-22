@@ -75,6 +75,16 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// 
 		/// </summary>
+		/// <param name="SdkVersion"></param>
+		/// <returns></returns>
+		public static bool InitWindowsSdkToolPath(string SdkVersion)
+		{
+			return UniversalWindowsPlatformToolChain.InitWindowsSdkToolPath(SdkVersion);
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
 		/// <param name="DLCFile"></param>
 		/// <param name="OutputDirectory"></param>
 		public static void CreateManifestForDLC(FileReference DLCFile, DirectoryReference OutputDirectory)

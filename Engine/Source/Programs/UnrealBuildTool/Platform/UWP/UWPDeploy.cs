@@ -275,6 +275,14 @@ namespace UnrealBuildTool
 
 			AddWinMDReferencesFromReceipt(Receipt, Receipt.ProjectDir, UnrealBuildTool.EngineDirectory.ParentDirectory.FullName);
 
+			string SDK = "";
+			var Results = Receipt.AdditionalProperties.Where(x => x.Name == "SDK");
+			if (Results.Any())
+			{
+				SDK = Results.First().Value;
+			}
+			UWPExports.InitWindowsSdkToolPath(SDK);
+
 			List<UnrealTargetConfiguration> TargetConfigs = new List<UnrealTargetConfiguration> { Receipt.Configuration };
 			List<string> ExePaths = Receipt.BuildProducts.Where(x => x.Type == BuildProductType.Executable).Select(x => x.Path.FullName).ToList();
 			string RelativeEnginePath = UnrealBuildTool.EngineDirectory.MakeRelativeTo(DirectoryReference.GetCurrentDirectory());
