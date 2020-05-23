@@ -484,6 +484,8 @@ namespace UnrealBuildTool
 					Arguments.Add("/we4459"); // 4459 - declaration of 'LocalVariable' hides global declaration
 				}
 
+				Arguments.Add("/wd4800"); // 4800: Implicit conversion from 'type' to bool. Possible information loss
+
 				Arguments.Add("/wd4463"); // 4463 - overflow; assigning 1 to bit-field that can only hold values from -1 to 0
 
 				Arguments.Add("/wd4838"); // 4838: conversion from 'type1' to 'type2' requires a narrowing conversion
