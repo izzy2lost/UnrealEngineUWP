@@ -12,14 +12,12 @@ namespace UnrealBuildTool
 	/// </summary>
 	public class UWPExports
 	{
-		private UWPDeploy InnerDeploy;
-
 		/// <summary>
 		/// 
 		/// </summary>
 		public UWPExports()
 		{
-			InnerDeploy = new UWPDeploy();
+
 		}
 
 		/// <summary>
@@ -28,7 +26,6 @@ namespace UnrealBuildTool
 		/// <param name="ProjectFile"></param>
 		/// <param name="InProjectName"></param>
 		/// <param name="InProjectDirectory"></param>
-		/// <param name="Architecture"></param>
 		/// <param name="InTargetConfigurations"></param>
 		/// <param name="InExecutablePaths"></param>
 		/// <param name="InEngineDir"></param>
@@ -36,9 +33,9 @@ namespace UnrealBuildTool
 		/// <param name="CookFlavor"></param>
 		/// <param name="bIsDataDeploy"></param>
 		/// <returns></returns>
-		public bool PrepForUATPackageOrDeploy(FileReference ProjectFile, string InProjectName, string InProjectDirectory, WindowsArchitecture Architecture, List<UnrealTargetConfiguration> InTargetConfigurations, List<string> InExecutablePaths, string InEngineDir, bool bForDistribution, string CookFlavor, bool bIsDataDeploy)
+		public bool PrepForUATPackageOrDeploy(FileReference ProjectFile, string InProjectName, string InProjectDirectory, List<UnrealTargetConfiguration> InTargetConfigurations, List<string> InExecutablePaths, string InEngineDir, bool bForDistribution, string CookFlavor, bool bIsDataDeploy)
 		{
-			return InnerDeploy.PrepForUATPackageOrDeploy(ProjectFile, InProjectName, InProjectDirectory, Architecture, InTargetConfigurations, InExecutablePaths, InEngineDir, bForDistribution, CookFlavor, bIsDataDeploy);
+			return new UWPDeploy(ProjectFile).PrepForUATPackageOrDeploy(InProjectName, InProjectDirectory, InTargetConfigurations, InExecutablePaths, InEngineDir, bForDistribution, CookFlavor, bIsDataDeploy);
 		}
 
 		/// <summary>
@@ -49,7 +46,20 @@ namespace UnrealBuildTool
 		/// <param name="DestPackageRoot"></param>
 		public void AddWinMDReferencesFromReceipt(TargetReceipt Receipt, DirectoryReference SourceProjectDir, string DestPackageRoot)
 		{
-			InnerDeploy.AddWinMDReferencesFromReceipt(Receipt, SourceProjectDir, DestPackageRoot);
+			new UWPDeploy(Receipt.ProjectFile).AddWinMDReferencesFromReceipt(Receipt, SourceProjectDir, DestPackageRoot);
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <returns></returns>
+		public static void FindWindowsSDKInstallationFolder(out DirectoryReference SDKFolder, out Version SDKVersion)
+		{
+			if (!WindowsPlatform.TryGetWindowsSdkDir("Latest", out VersionNumber SelectedWindowsSdkVersion, out DirectoryReference SelectedWindowsSdkDir))
+				throw new Exception("Could not find latest windows sdk dir");
+
+			SDKFolder = SelectedWindowsSdkDir;
+			SDKVersion = new Version(SelectedWindowsSdkVersion.ToString());
 		}
 
 		/// <summary>
@@ -80,16 +90,7 @@ namespace UnrealBuildTool
 		public static void CreateManifestForDLC(FileReference DLCFile, DirectoryReference OutputDirectory)
 		{
 			string IntermediateDirectory = DirectoryReference.Combine(DLCFile.Directory, "Intermediate", "Deploy").FullName;
-			new UWPManifestGenerator().CreateManifest(UnrealTargetPlatform.UWP64, WindowsArchitecture.x64, OutputDirectory.FullName, IntermediateDirectory, DLCFile, DLCFile.Directory.FullName, new List<UnrealTargetConfiguration>(), new List<string>(), null);
-		}
-
-		/// <summary>
-		/// 
-		/// </summary>
-		/// <returns>CurrentWindowsSdkVersion</returns>
-		public static Version GetCurrentWindowsSdkVersion()
-		{
-			return UniversalWindowsPlatformToolChain.GetCurrentWindowsSdkVersion();
+			new UWPManifestGenerator().CreateManifest(UnrealTargetPlatform.UWP64, OutputDirectory.FullName, IntermediateDirectory, DLCFile, DLCFile.Directory.FullName, new List<UnrealTargetConfiguration>(), new List<string>(), null);
 		}
 	}
 }

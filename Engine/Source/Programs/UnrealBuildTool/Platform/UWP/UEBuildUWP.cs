@@ -332,34 +332,6 @@ namespace UnrealBuildTool
 			return new string[] { "" };
 		}
 
-		internal static DirectoryReference GetCppCXMetadataLocation(WindowsCompiler Compiler, string CompilerVersion)
-		{
-			VersionNumber SelectedToolChainVersion;
-			DirectoryReference SelectedToolChainDir;
-			if (!WindowsPlatform.TryGetToolChainDir(Compiler, CompilerVersion, out SelectedToolChainVersion, out SelectedToolChainDir))
-			{
-				return null;
-			}
-
-			return GetCppCXMetadataLocation(Compiler, SelectedToolChainDir);
-		}
-
-		public static DirectoryReference GetCppCXMetadataLocation(WindowsCompiler Compiler, DirectoryReference SelectedToolChainDir)
-		{
-			if (Compiler >= WindowsCompiler.VisualStudio2017)
-			{
-				return DirectoryReference.Combine(SelectedToolChainDir, "lib", "x86", "Store", "references");
-			}
-			else if (Compiler >= WindowsCompiler.VisualStudio2019)
-			{
-				return DirectoryReference.Combine(SelectedToolChainDir, "lib", "x86", "Store", "references");
-			}
-			else
-			{
-				return null;
-			}
-		}
-
 		private static Version FindLatestVersionDirectory(string InDirectory, Version NoLaterThan)
 		{
 			Version LatestVersion = new Version(0, 0, 0, 0);
@@ -380,50 +352,6 @@ namespace UnrealBuildTool
 				}
 			}
 			return LatestVersion;
-		}
-
-		internal static string GetLatestMetadataPathForApiContract(string ApiContract, WindowsCompiler Compiler)
-		{
-			DirectoryReference SDKFolder;
-			VersionNumber SDKVersion;
-			if (!WindowsPlatform.TryGetWindowsSdkDir("Latest", out SDKVersion, out SDKFolder))
-			{
-				return string.Empty;
-			}
-
-			DirectoryReference ReferenceDir = DirectoryReference.Combine(SDKFolder, "References");
-			if (DirectoryReference.Exists(ReferenceDir))
-			{
-				// Prefer a contract from a suitable SDK-versioned subdir of the references folder when available (starts with 15063 SDK)
-				Version WindowsSDKVersionMaxForToolchain = Compiler < WindowsCompiler.VisualStudio2017 ? UniversalWindowsPlatform.MaximumSDKVersionForVS2015 : null;
-				DirectoryReference SDKVersionedReferenceDir = DirectoryReference.Combine(ReferenceDir, SDKVersion.ToString());
-				DirectoryReference ContractDir = DirectoryReference.Combine(SDKVersionedReferenceDir, ApiContract);
-				Version ContractLatestVersion = null;
-				FileReference MetadataFileRef = null;
-				if (DirectoryReference.Exists(ContractDir))
-				{
-					// Note: contract versions don't line up with Windows SDK versions (they're numbered independently as 1.0.0.0, 2.0.0.0, etc.)
-					ContractLatestVersion = FindLatestVersionDirectory(ContractDir.FullName, null);
-					MetadataFileRef = FileReference.Combine(ContractDir, ContractLatestVersion.ToString(), ApiContract + ".winmd");
-				}
-
-				// Retry in unversioned references dir if we failed above.
-				if (MetadataFileRef == null || !FileReference.Exists(MetadataFileRef))
-				{
-					ContractDir = DirectoryReference.Combine(ReferenceDir, ApiContract);
-					if (DirectoryReference.Exists(ContractDir))
-					{
-						ContractLatestVersion = FindLatestVersionDirectory(ContractDir.FullName, null);
-						MetadataFileRef = FileReference.Combine(ContractDir, ContractLatestVersion.ToString(), ApiContract + ".winmd");
-					}
-				}
-				if (MetadataFileRef != null && FileReference.Exists(MetadataFileRef))
-				{
-					return MetadataFileRef.FullName;
-				}
-			}
-
-			return string.Empty;
 		}
 
 		/// <summary>
@@ -509,7 +437,7 @@ namespace UnrealBuildTool
 		/// <param name="Receipt">Receipt for the target being deployed</param>
 		public override void Deploy(TargetReceipt Receipt)
 		{
-			new UWPDeploy().PrepTargetForDeployment(Receipt);
+			new UWPDeploy(Receipt.ProjectFile).PrepTargetForDeployment(Receipt);
 		}
 
 		/// <summary>

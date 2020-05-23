@@ -1669,7 +1669,7 @@ class BuildPhysX : BuildCommand
 				TargetData.Platform == UnrealTargetPlatform.HoloLens ||
 				// @ATG_CHANGE: BEGIN UWP support
 				TargetData.Platform == UnrealTargetPlatform.UWP32 ||
-				TargetData.Platform == UnrealTargetPlatform.UWP64)
+				TargetData.Platform == UnrealTargetPlatform.UWP64
 				// @ATG_CHANGE: END
 			{
 				return true;

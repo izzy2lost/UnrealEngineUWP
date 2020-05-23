@@ -18,8 +18,7 @@ namespace UnrealBuildTool
 	public class UWPManifestGenerator
 	{
 		// Global path configuration
-		private string BuildResourceSubPath = "Resources";
-		private string StoreResourceSubPath;
+		private const string BuildResourceSubPath = "Resources";
 		private const string EngineResourceSubPath = "DefaultImages";
 
 		// Manifest compliance values
@@ -32,7 +31,6 @@ namespace UnrealBuildTool
 		// Manifest configuration values/paths
 		private List<WinMDRegistrationInfo> WinMDReferences;
 		private UnrealTargetPlatform Platform;
-		private WindowsArchitecture Architecture;
 		private string TargetSettings;
 		private string BuildResourceProjectRelativePath;
 		private string ProjectPath;
@@ -45,7 +43,6 @@ namespace UnrealBuildTool
 		private List<UEResXWriter> PerCultureResourceWriters;
 		private XmlDocument AppxManifestXmlDocument;
 		private List<string> UpdatedFilePaths;
-		private List<string> ManifestRelatedFilePaths;
 
 		// Analagous to RelativeProjectRootForStage in UAT so that VS (UBT only) and UAT layouts match
 		private string RelativeProjectRootForStage;
@@ -420,12 +417,10 @@ namespace UnrealBuildTool
 		/// Copies all cultures of a source resource to the intermediate directory.
 		/// <returns>true on success, false if the operation fails (i.e. the default source file doesn't exist)</returns>
 		/// </summary>
-		private bool CopyAndReplaceBinaryIntermediate(string ResourceFileName, bool AllowEngineFallback = true, Action<string, string> CopyOp = null)
+		private bool CopyAndReplaceBinaryIntermediate(string ResourceFileName, bool AllowEngineFallback = true)
 		{
 			string TargetPath = Path.Combine(IntermediatePath, BuildResourceSubPath);
 			string SourcePath = Path.Combine(ProjectPath, BuildResourceProjectRelativePath, BuildResourceSubPath);
-
-			CopyOp = CopyOp ?? File.Copy;
 
 			// Try falling back to the engine defaults if requested
 			bool bFileExists = File.Exists(Path.Combine(SourcePath, ResourceFileName));
@@ -467,7 +462,7 @@ namespace UnrealBuildTool
 				{
 					try
 					{
-						CopyOp(SourceResourceFile, TargetResourcePath);
+						File.Copy(SourceResourceFile, TargetResourcePath);
 					}
 					catch (Exception)
 					{
@@ -479,7 +474,6 @@ namespace UnrealBuildTool
 
 			// Now find specially named qualified versions of the resource (e.g. logo.scale-200.png) and give them the same treatment
 			string QualifiedResourceFileName = ResourceFileName.Replace(".png", ".*.png");
-			QualifiedResourceFileName = QualifiedResourceFileName.Replace(".glb", ".*.glb");
 			IEnumerable<string> SourceResourceQualifiedInstances = Directory.EnumerateFiles(SourcePath, QualifiedResourceFileName, SearchOption.AllDirectories);
 
 			// Copy new resource files
@@ -496,12 +490,12 @@ namespace UnrealBuildTool
 				{
 					try
 					{
-						CopyOp(SourceResourceFile, TargetResourcePath);
+						File.Copy(SourceResourceFile, TargetResourcePath);
 					}
 					catch (Exception)
 					{
 						Log.TraceError("Unable to copy file {0} to {1}.", SourceResourceFile, TargetResourcePath);
-						throw;
+						return false;
 					}
 				}
 			}
@@ -517,7 +511,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		private void CopyResourcesToTargetDir()
 		{
-			string TargetPath = Path.Combine(OutputPath, StoreResourceSubPath);
+			string TargetPath = Path.Combine(OutputPath, BuildResourceSubPath);
 			string SourcePath = Path.Combine(IntermediatePath, BuildResourceSubPath);
 
 			// If the target resource folder doesn't exist yet, create it
@@ -568,7 +562,6 @@ namespace UnrealBuildTool
 				//@todo only copy files for cultures we are staging
 				string TargetResourcePath = Path.Combine(TargetPath, SourceResourceFile.Substring(SourcePath.Length + 1));
 				CompareAndReplaceModifiedTarget(SourceResourceFile, TargetResourcePath);
-				ManifestRelatedFilePaths.Add(TargetResourcePath);
 			}
 		}
 
@@ -620,7 +613,6 @@ namespace UnrealBuildTool
 		/// file unless there are changes (to avoid unnecessary copies when deploying).
 		/// </summary>
 		/// <param name="TargetPlatform">The platform we're generating a manifest for.</param>
-		/// <param name="TargetArchitecture">The architecture we're generating a manifest for.</param>
 		/// <param name="InOutputPath">Path to write manifest files to.</param>
 		/// <param name="InIntermediatePath">Path to store temporary intermediate data (e.g. XML resource file).</param>
 		/// <param name="InProjectFile">Path to the uproject file</param>
@@ -629,7 +621,7 @@ namespace UnrealBuildTool
 		/// <param name="InExecutables">The launch executable for each configuration. Must match the length and order of InTargetConfigs.</param>
 		/// <param name="InWinMDReferences">The WinMD references that should be added as activatable types</param>
 		/// <returns>A list of all updated target files</returns>
-		public List<string> CreateManifest(UnrealTargetPlatform TargetPlatform, WindowsArchitecture TargetArchitecture, string InOutputPath, string InIntermediatePath, FileReference InProjectFile, string InProjectDirectory, List<UnrealTargetConfiguration> InTargetConfigs, List<string> InExecutables, IEnumerable<WinMDRegistrationInfo> InWinMDReferences)
+		public List<string> CreateManifest(UnrealTargetPlatform TargetPlatform, string InOutputPath, string InIntermediatePath, FileReference InProjectFile, string InProjectDirectory, List<UnrealTargetConfiguration> InTargetConfigs, List<string> InExecutables, IEnumerable<WinMDRegistrationInfo> InWinMDReferences)
 		{
 			// Check parameter values are valid
 			if (InTargetConfigs.Count != InExecutables.Count)
@@ -660,15 +652,11 @@ namespace UnrealBuildTool
 			IntermediatePath = InIntermediatePath;
 
 			UpdatedFilePaths = new List<string>();
-			ManifestRelatedFilePaths = new List<string>();
 
 			WinMDReferences = ((InWinMDReferences == null) ? new List<WinMDRegistrationInfo>() : new List<WinMDRegistrationInfo>(InWinMDReferences));
 			Platform = TargetPlatform;
-			Architecture = TargetArchitecture;
 			TargetSettings = "/Script/UWPPlatformEditor.UWPTargetSettings";
 			BuildResourceProjectRelativePath = "Build\\UWP";
-			BuildResourceSubPath = "Resources";
-			StoreResourceSubPath = WindowsExports.GetArchitectureSubpath(Architecture) + "\\" + BuildResourceSubPath;
 
 			// Clean out the resources intermediate path so that we know there are no stale binary files.
 			string IntermediateResourceDirectory = Path.Combine(IntermediatePath, BuildResourceSubPath);
@@ -792,16 +780,15 @@ namespace UnrealBuildTool
 			AppxManifestXmlDocument = new XmlDocument();
 			XmlDeclaration Declaration = AppxManifestXmlDocument.CreateXmlDeclaration("1.0", Encoding.UTF8.BodyName, null);
 			AppxManifestXmlDocument.AppendChild(Declaration);
-
+			
 			// Begin document content construction. Resources entries will be setup as required to support the manifest generation.
-			XmlNode Package = GetPackage(TargetPlatform, InTargetConfigs, InExecutables);
+			XmlNode Package = GetPackage(InTargetConfigs, InExecutables);
 			AppxManifestXmlDocument.AppendChild(Package);
 
 			// Export appxmanifest.xml to the intermediate directory then compare the contents to any existing target manifest
 			// and replace if there are differences.
-			string ManifestName = String.Format("AppxManifest_{0}.xml", WindowsExports.GetArchitectureSubpath(Architecture));
-			string ManifestIntermediatePath = Path.Combine(IntermediatePath, ManifestName);
-			string ManifestTargetPath = Path.Combine(OutputPath, ManifestName);
+			string ManifestIntermediatePath = Path.Combine(IntermediatePath, "AppxManifest.xml");
+			string ManifestTargetPath = Path.Combine(OutputPath, "AppxManifest.xml");
 			AppxManifestXmlDocument.Save(ManifestIntermediatePath);
 
 			// Check we produced a reasonable manifest document
@@ -810,7 +797,7 @@ namespace UnrealBuildTool
 			CompareAndReplaceModifiedTarget(ManifestIntermediatePath, ManifestTargetPath);
 
 			// Clean out any resource directories that we aren't staging
-			string TargetResourcePath = Path.Combine(OutputPath, StoreResourceSubPath);
+			string TargetResourcePath = Path.Combine(OutputPath, BuildResourceSubPath);
 			if (Directory.Exists(TargetResourcePath))
 			{
 				List<string> TargetResourceDirectories = new List<string>(Directory.GetDirectories(TargetResourcePath, "*.*", SearchOption.AllDirectories));
@@ -828,12 +815,12 @@ namespace UnrealBuildTool
 			// DLC packages do not contain an exe
 			if (InExecutables.Count > 0)
 			{
-				string ManifestBinaryPath = Path.Combine(Path.GetDirectoryName(InExecutables[0]), ManifestName);
+				string ManifestBinaryPath = Path.Combine(Path.GetDirectoryName(InExecutables[0]), "AppxManifest.xml");
 				CompareAndReplaceModifiedTarget(ManifestIntermediatePath, ManifestBinaryPath);
 			}
 
 			// Export the resource tables starting with the neutral culture
-			string NeutralResourceTargetPath = Path.Combine(OutputPath, StoreResourceSubPath, "resources.resw");
+			string NeutralResourceTargetPath = Path.Combine(OutputPath, BuildResourceSubPath, "resources.resw");
 			NeutralResourceWriter.Close();
 			CompareAndReplaceModifiedTarget(NeutralResourceIntermediatePath, NeutralResourceTargetPath);
 
@@ -841,7 +828,7 @@ namespace UnrealBuildTool
 			{
 				string Culture = CulturesToStage[CultureIndex];
 				string IntermediateStringResourceFile = Path.Combine(IntermediateResourceDirectory, Culture, "resources.resw");
-				string TargetStringResourceFile = Path.Combine(OutputPath, StoreResourceSubPath, Culture, "resources.resw");
+				string TargetStringResourceFile = Path.Combine(OutputPath, BuildResourceSubPath, Culture, "resources.resw");
 				PerCultureResourceWriters[CultureIndex].Close();
 				CompareAndReplaceModifiedTarget(IntermediateStringResourceFile, TargetStringResourceFile);
 			}
@@ -861,13 +848,13 @@ namespace UnrealBuildTool
 				string AllDefaultCultures = CulturesToStage.Aggregate((c1, c2) => (c1 + "_" + c2));
 
 				string ResourceConfigFile = Path.Combine(IntermediatePath, "priconfig.xml");
-				string MakePriArgs = "createconfig /cf \"" + ResourceConfigFile + "\" /dq " + AllDefaultCultures + " /o /pv 10.0.0";
+				string MakePriArgs = "createconfig /cf \"" + ResourceConfigFile + "\" /dq " + AllDefaultCultures + " /o";
 				System.Diagnostics.ProcessStartInfo StartInfo = new System.Diagnostics.ProcessStartInfo(PriExecutable, MakePriArgs);
 				StartInfo.UseShellExecute = false;
 				StartInfo.RedirectStandardOutput = true;
 				StartInfo.CreateNoWindow = true;
 				int ExitCode = Utils.RunLocalProcessAndLogOutput(StartInfo);
-				if (ExitCode < 0)
+				if (ExitCode != 0)
 				{
 					throw new BuildException("Failed to generate config file for Package Resource Index.  See log for details.");
 				}
@@ -914,14 +901,6 @@ namespace UnrealBuildTool
 						}
 					}
 				}
-
-				var ResNode = PriConfig.SelectSingleNode("/resources");
-				{
-					var Attr = PriConfig.CreateAttribute("isDeploymentMergeable");
-					Attr.Value = "true";
-					ResNode.Attributes.Append(Attr);
-				}
-
 				PriConfig.Save(ResourceConfigFile);
 
 				// Remove previous pri files so we can enumerate which ones are new since the resource generator could produce a file for each staged language.
@@ -939,9 +918,9 @@ namespace UnrealBuildTool
 				}
 
 				// Generate the resource index
-				string ResourceLogFile = Path.Combine(IntermediatePath, "ResIndexLog_" + WindowsExports.GetArchitectureSubpath(Architecture) + ".xml");
-				string ResourceIndexFile = Path.Combine(IntermediatePath, "resources_" + WindowsExports.GetArchitectureSubpath(Architecture) + ".pri");
-				MakePriArgs = "new /pr \"" + IntermediateResourceDirectory + "\" /cf \"" + ResourceConfigFile + "\" /mn \"" + ManifestTargetPath + "\" /il \"" + ResourceLogFile + "\" /of \"" + ResourceIndexFile + "\" /o";
+				string ResourceLogFile = Path.Combine(IntermediatePath, "ResIndexLog.xml");
+				string ResourceIndexFile = Path.Combine(IntermediatePath, "resources.pri");
+				MakePriArgs = "new /pr \"" + OutputPath + "\" /cf \"" + ResourceConfigFile + "\" /mn \"" + ManifestTargetPath + "\" /il \"" + ResourceLogFile + "\" /of \"" + ResourceIndexFile + "\" /o";
 				StartInfo = new System.Diagnostics.ProcessStartInfo(PriExecutable, MakePriArgs);
 				StartInfo.UseShellExecute = false;
 				StartInfo.RedirectStandardOutput = true;
@@ -949,284 +928,37 @@ namespace UnrealBuildTool
 				StartInfo.StandardErrorEncoding = System.Text.Encoding.Unicode;
 				StartInfo.StandardOutputEncoding = System.Text.Encoding.Unicode;
 				ExitCode = Utils.RunLocalProcessAndLogOutput(StartInfo);
-				if (ExitCode < 0)
+				if (ExitCode != 0)
 				{
 					throw new BuildException("Failed to generate Package Resource Index file.  See log for details.");
 				}
 
-				// Stage all the modified pri files to the output directory
-				string FinalResourceIndexFile = Path.Combine(OutputPath, Path.GetFileName(ResourceIndexFile));
-				CompareAndReplaceModifiedTarget(ResourceIndexFile, FinalResourceIndexFile);
-			}
-
-			return ManifestRelatedFilePaths;
-		}
-
-		/// <summary>
-		/// Kicks off asset manifest generation. 
-		/// </summary>
-		/// <param name="TargetPlatform">The platform we're generating a manifest for.</param>
-		/// <param name="InOutputPath">Path to write manifest files to.</param>
-		/// <param name="InIntermediatePath">Path to store temporary intermediate data (e.g. XML resource file).</param>
-		/// <param name="InProjectFile">Path to the uproject file</param>
-		/// <param name="InProjectDirectory">Directory containing the uproject file or the base engine path if no project file is specified (for content only builds).</param>
-		/// <returns>A list of all updated target files</returns>
-		public List<string> CreateAssetsManifest(UnrealTargetPlatform TargetPlatform, string InOutputPath, string InIntermediatePath, FileReference InProjectFile, string InProjectDirectory)
-		{
-			if (File.Exists(InOutputPath))
-			{
-				Log.TraceWarning("InOutputPath {0} is a file. Should be a directory. Continuing using parent directory.", InOutputPath);
-				InOutputPath = Path.GetDirectoryName(InOutputPath);
-			}
-			if (File.Exists(InIntermediatePath))
-			{
-				Log.TraceWarning("InIntermediatePath {0} is a file. Should be a directory. Continuing using parent directory.", InIntermediatePath);
-				InIntermediatePath = Path.GetDirectoryName(InIntermediatePath);
-			}
-			if (!CreateCheckDirectory(InOutputPath))
-			{
-				return null;
-			}
-			if (!CreateCheckDirectory(InIntermediatePath))
-			{
-				return null;
-			}
-
-			OutputPath = InOutputPath;
-			IntermediatePath = InIntermediatePath;
-
-			UpdatedFilePaths = new List<string>();
-			ManifestRelatedFilePaths = new List<string>();
-
-			WinMDReferences = new List<WinMDRegistrationInfo>();
-			Platform = TargetPlatform;
-			TargetSettings = "/Script/UWPPlatformEditor.UWPTargetSettings";
-			BuildResourceProjectRelativePath = "Build\\UWP";
-			BuildResourceSubPath = "AssetsResources";
-			StoreResourceSubPath = BuildResourceSubPath;
-
-			string IntermediateResourceDirectory = Path.Combine(IntermediatePath, BuildResourceSubPath);
-			RecursivelyForceDeleteDirectory(IntermediateResourceDirectory);
-			if (!Directory.Exists(IntermediateResourceDirectory))
-			{
-				try
+				// Remove any existing pri target files that were not generated by this latest update
+				IEnumerable<string> NewPriFiles = Directory.EnumerateFiles(IntermediatePath, "*.pri");
+				foreach (string TargetPri in TargetPriFiles)
 				{
-					Directory.CreateDirectory(IntermediateResourceDirectory);
-				}
-				catch (Exception)
-				{
-					Log.TraceError("Could not create directory {0}.", IntermediateResourceDirectory);
-					return null;
-				}
-			}
-
-			// Load up INI settings. We'll use engine settings to retrieve the manifest configuration, but these may reference
-			// values in either game or engine settings, so we'll keep both.
-			// Use the project directory here since this accounts for 'RemoteIniDir' when InProjectFile is null
-			if (InProjectFile != null)
-			{
-				IsDlc = InProjectFile.GetExtension() == ".uplugin";
-
-				if (IsDlc)
-				{
-					DirectoryReference IniDirRef = DirectoryReference.FromFile(InProjectFile).ParentDirectory.ParentDirectory;
-					GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, IniDirRef, TargetPlatform);
-					EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, IniDirRef, TargetPlatform);
-					IsGameSpecificExe = new DirectoryReference(InOutputPath).IsUnderDirectory(IniDirRef);
-
-					List<string> DlcStoreMapping = new List<string>();
-					if (EngineIni.GetArray("/Script/UWPPlatformEditor.UWPTargetSettings", "DLCStoreMapping", out DlcStoreMapping))
+					if (!NewPriFiles.Contains(TargetPri))
 					{
-						foreach (string DlcEntry in DlcStoreMapping)
+						try
 						{
-							Dictionary<string, string> PossibleParsedDlcInfo = new Dictionary<string, string>();
-							InterpretINIStruct(DlcEntry, out PossibleParsedDlcInfo);
-							string DlcName = null;
-							PossibleParsedDlcInfo.TryGetValue("PluginName", out DlcName);
-							if (DlcName == InProjectFile.GetFileNameWithoutExtension())
-							{
-								ParsedDlcInfo = PossibleParsedDlcInfo;
-								break;
-							}
+							File.Delete(TargetPri);
+						}
+						catch (Exception)
+						{
+							Log.TraceError("Could not remove stale file {0}.", TargetPri);
 						}
 					}
-
-					if (ParsedDlcInfo == null)
-					{
-						Log.TraceWarning("Could not map {0} to a Store identity.  Using a temporary identity to enable local deployment.  For Store upload configure identity in the UWP Project Settings.", InProjectFile);
-						ParsedDlcInfo = new Dictionary<string, string>();
-						ParsedDlcInfo["PluginName"] = InProjectFile.GetFileNameWithoutExtension();
-						ParsedDlcInfo["PackageIdentityName"] = ParsedDlcInfo["PluginName"];
-						ParsedDlcInfo["PackageIdentityVersion"] = "1.0.0.0";
-					}
 				}
-				else
+
+				// Stage all the modified pri files to the output directory
+				foreach (string NewPri in NewPriFiles)
 				{
-					DirectoryReference IniDirRef = DirectoryReference.FromFile(InProjectFile);
-					GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, IniDirRef, TargetPlatform);
-					EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, IniDirRef, TargetPlatform);
-					IsGameSpecificExe = new DirectoryReference(InOutputPath).IsUnderDirectory(IniDirRef);
+					string FinalResourceIndexFile = Path.Combine(OutputPath, Path.GetFileName(NewPri));
+					CompareAndReplaceModifiedTarget(ResourceIndexFile, FinalResourceIndexFile);
 				}
 			}
-			else if (!string.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()))
-			{
-				DirectoryReference IniDirRef = new DirectoryReference(UnrealBuildTool.GetRemoteIniPath());
-				GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, IniDirRef, TargetPlatform);
-				EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, IniDirRef, TargetPlatform);
-				IsGameSpecificExe = false;
-			}
-			else
-			{
-				GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, null, TargetPlatform);
-				EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, null, TargetPlatform);
-				IsGameSpecificExe = false;
-			}
 
-			ProjectPath = InProjectDirectory;
-			RelativeProjectRootForStage = IsGameSpecificExe ? InProjectFile.GetFileNameWithoutAnyExtensions() : "Engine";
-
-			// Load and verify/clean culture list
-			List<string> CulturesToStageWithDuplicates = null;
-			GameIni.GetArray("/Script/UnrealEd.ProjectPackagingSettings", "CulturesToStage", out CulturesToStageWithDuplicates);
-			if (CulturesToStageWithDuplicates == null || CulturesToStageWithDuplicates.Count < 1)
-			{
-				Log.TraceError("At least one culture must be selected to stage.");
-				return null;
-			}
-
-			CulturesToStage = CulturesToStageWithDuplicates.Distinct().ToList();
-
-			// Construct a single resource writer for the default (no-culture) values
-			string NeutralResourceIntermediatePath = Path.Combine(IntermediateResourceDirectory, "resources.resw");
-			NeutralResourceWriter = new UEResXWriter(NeutralResourceIntermediatePath);
-
-			PerCultureResourceWriters = new List<UEResXWriter>();
-			for (int i = 0; i < CulturesToStage.Count; ++i)
-			{
-				string Culture = CulturesToStage[i];
-				string IntermediateStringResourcePath = Path.Combine(IntermediateResourceDirectory, Culture);
-				string IntermediateStringResourceFile = Path.Combine(IntermediateStringResourcePath, "resources.resw");
-				if (!CreateCheckDirectory(IntermediateStringResourcePath))
-				{
-					Log.TraceWarning("Failed to create {0}.  Culture {1} resources not staged.", IntermediateStringResourcePath, Culture);
-					CulturesToStage.RemoveAt(i);
-					--i;
-					continue;
-				}
-				PerCultureResourceWriters.Add(new UEResXWriter(IntermediateStringResourceFile));
-			}
-
-			if (CulturesToStage.Count == 0)
-			{
-				Log.TraceError("Failed to create intermediate files for any culture.  Manifest could not be generated.");
-				return null;
-			}
-
-			AppxManifestXmlDocument = new XmlDocument();
-			var Declaration = AppxManifestXmlDocument.CreateXmlDeclaration("1.0", Encoding.UTF8.BodyName, null);
-			AppxManifestXmlDocument.AppendChild(Declaration);
-
-			// Begin document content construction. Resources entries will be setup as required to support the manifest generation.
-			XmlElement Package = AppxManifestXmlDocument.CreateElement("Package");
-			{
-				XmlAttribute ManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns");
-				ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/foundation/windows10";
-				Package.Attributes.Append(ManifestNamespace);
-				Version WinBuild;
-
-				XmlElement Identity = AppxManifestXmlDocument.CreateElement("Identity");
-				{
-					XmlAttribute PackageName = CreateStringAttribute("Name", "PackageName", "Package.Identity.Name", "/Script/EngineSettings.GeneralProjectSettings", "ProjectName", "DefaultUE4Project", ValidatePackageName);
-					Identity.Attributes.Append(PackageName);
-					XmlAttribute PublisherName = CreateStringAttribute("Publisher", "PublisherName", "Package.Identity.Publisher", "/Script/EngineSettings.GeneralProjectSettings", "CompanyDistinguishedName", "CN=NoPublisher");
-					Identity.Attributes.Append(PublisherName);
-					XmlAttribute VersionNumber = CreateStringAttribute("Version", "PackageVersion", "Package.Identity.Version", "/Script/EngineSettings.GeneralProjectSettings", "ProjectVersion", "1.0.0.0");
-					Identity.Attributes.Append(VersionNumber);
-				}
-				Package.AppendChild(Identity);
-
-				var Dependencies = AppxManifestXmlDocument.CreateElement("Dependencies");
-				{
-					XmlElement TargetDeviceFamily = AppxManifestXmlDocument.CreateElement("TargetDeviceFamily");
-					Dependencies.AppendChild(TargetDeviceFamily);
-
-					XmlAttribute NameAttribute = AppxManifestXmlDocument.CreateAttribute("Name");
-					NameAttribute.Value = CreateStringValue("TargetDeviceFamily", "Package.Dependencies.TargetDeviceFamily[0].Name", "TargetDeviceFamily", "Name", "Windows.Universal");
-					TargetDeviceFamily.Attributes.Append(NameAttribute);
-
-					XmlAttribute MinVersionAttribute = AppxManifestXmlDocument.CreateAttribute("MinVersion");
-					string versionString = CreateStringValue("MinimumPlatformVersion", "Package.Dependencies.TargetDeviceFamily[0].MinVersion", "MinimumPlatformVersion", "MinVersion", "10.0.10240.0");
-					MinVersionAttribute.Value = versionString;
-					TargetDeviceFamily.Attributes.Append(MinVersionAttribute);
-
-					Version.TryParse(versionString, out WinBuild);
-
-					XmlAttribute MaxVersionTestedAttribute = AppxManifestXmlDocument.CreateAttribute("MaxVersionTested");
-					MaxVersionTestedAttribute.Value = CreateStringValue("MaximumPlatformVersionTested", "Package.Dependencies.TargetDeviceFamily[0].MaxVersionTested", "MaximumPlatformVersionTested", "MaxVersionTested", "10.0.10586.0");
-					TargetDeviceFamily.Attributes.Append(MaxVersionTestedAttribute);
-				}
-				Package.AppendChild(Dependencies);
-
-
-				var Properties = AppxManifestXmlDocument.CreateElement("Properties");
-				{
-
-					XmlElement DisplayName = AppxManifestXmlDocument.CreateElement("DisplayName");
-					DisplayName.InnerText = "ms-resource:PackageDisplayName";
-					Properties.AppendChild(DisplayName);
-
-					XmlElement PublisherDisplayName = AppxManifestXmlDocument.CreateElement("PublisherDisplayName");
-					PublisherDisplayName.InnerText = "ms-resource:PublisherDisplayName";
-					Properties.AppendChild(PublisherDisplayName);
-
-					XmlElement PackageLogo = AppxManifestXmlDocument.CreateElement("Logo");
-					// Some applications may not have a package logo and use the application logo instead.
-					// Try logos in the following order:
-					//   1. Project package logo
-					//   2. Project application logo
-					//   3. Engine application logo (the engine always uses a single logo for package and application)
-					if (CopyAndReplaceBinaryIntermediate("StoreLogo.png", false))
-					{
-						PackageLogo.InnerText = BuildResourceSubPath + "\\StoreLogo.png";
-						Properties.AppendChild(PackageLogo);
-					}
-					else if (CopyAndReplaceBinaryIntermediate("Logo.png"))
-					{
-						PackageLogo.InnerText = BuildResourceSubPath + "\\Logo.png";
-						Properties.AppendChild(PackageLogo);
-					}
-					else
-					{
-						Log.TraceError("Unable to stage package logo.");
-					}
-
-					XmlElement ResourcePackageParam = AppxManifestXmlDocument.CreateElement("ResourcePackage");
-					ResourcePackageParam.InnerText = "true";
-					Properties.AppendChild(ResourcePackageParam);
-
-					if (WinBuild != null && WinBuild >= new Version("10.0.17134.0"))
-					{
-						XmlElement NotExecutionParam = AppxManifestXmlDocument.CreateElement("uap6", "AllowExecution", "http://schemas.microsoft.com/appx/manifest/uap/windows10/6");
-						NotExecutionParam.InnerText = "false";
-						Properties.AppendChild(NotExecutionParam);
-					}
-				}
-				Package.AppendChild(Properties);
-			}
-			AppxManifestXmlDocument.AppendChild(Package);
-
-			// Export appxmanifest.xml to the intermediate directory then compare the contents to any existing target manifest
-			// and replace if there are differences.
-			string ManifestTargetPath = Path.Combine(InOutputPath, "AppxManifest_assets.xml");
-			AppxManifestXmlDocument.Save(ManifestTargetPath);
-
-			// Check we produced a reasonable manifest document
-			ValidateAppxManifest(ManifestTargetPath);
-
-			// Copy all the binary resources into the target directory.
-			CopyResourcesToTargetDir();
-
-			return ManifestRelatedFilePaths;
+			return UpdatedFilePaths;
 		}
 
 		/// <summary>
@@ -1251,7 +983,7 @@ namespace UnrealBuildTool
 				}
 			}
 		}
-
+		
 		/// <summary>
 		/// Calculate a manifest string value based on a system of fallback possibilities and return it.
 		/// Selection priorities:
@@ -1535,7 +1267,7 @@ namespace UnrealBuildTool
 					PerCultureResourceWriters[i].AddResource(ResourceEntryName, ValueToWrite);
 				}
 				else
-				{
+				{ 
 					Log.TraceVerbose("No localized value for {0} in culture {1}.  Neutral value ({2}) will be used", ResourceEntryName, CulturesToStage[i], NeutralValue);
 				}
 			}
@@ -1589,7 +1321,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Gather all information for the Package element of the manifest.
 		/// </summary>
-		private XmlNode GetPackage(UnrealTargetPlatform TargetPlatform, List<UnrealTargetConfiguration> TargetConfigs, List<string> Executables)
+		private XmlNode GetPackage(List<UnrealTargetConfiguration> TargetConfigs, List<string> Executables)
 		{
 			XmlElement Package = AppxManifestXmlDocument.CreateElement("Package");
 
@@ -1601,32 +1333,24 @@ namespace UnrealBuildTool
 			UapManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10";
 			Package.Attributes.Append(UapManifestNamespace);
 
-			XmlAttribute Uap2ManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:uap2");
-			Uap2ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10/2";
-			Package.Attributes.Append(Uap2ManifestNamespace);
+            XmlAttribute Uap2ManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:uap2");
+            Uap2ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10/2";
+            Package.Attributes.Append(Uap2ManifestNamespace);
 
 			XmlAttribute Uap3ManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:uap3");
 			Uap3ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10/3";
 			Package.Attributes.Append(Uap3ManifestNamespace);
 
-			XmlAttribute Uap4ManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:uap4");
-			Uap4ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10/4";
-			Package.Attributes.Append(Uap4ManifestNamespace);
-
-			XmlAttribute Uap5ManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:uap5");
-			Uap5ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10/5";
-			Package.Attributes.Append(Uap5ManifestNamespace);
-
 			XmlAttribute MpManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:mp");
 			MpManifestNamespace.Value = "http://schemas.microsoft.com/appx/2014/phone/manifest";
 			Package.Attributes.Append(MpManifestNamespace);
 
-			XmlAttribute IgnorableNamespaces = AppxManifestXmlDocument.CreateAttribute("IgnorableNamespaces");
-			IgnorableNamespaces.Value = "mp uap uap2 uap3 uap4 uap5";
-			Package.Attributes.Append(IgnorableNamespaces);
+            XmlAttribute IgnorableNamespaces = AppxManifestXmlDocument.CreateAttribute("IgnorableNamespaces");
+            IgnorableNamespaces.Value = "mp uap uap2 uap3";
+            Package.Attributes.Append(IgnorableNamespaces);
 
 
-			XmlNode Identity = GetIdentity();
+            XmlNode Identity = GetIdentity();
 			AddElementIfValid(Package, Identity, true);
 
 			XmlNode Properties = GetProperties();
@@ -1643,7 +1367,7 @@ namespace UnrealBuildTool
 				XmlNode Applications = GetApplications(TargetConfigs, Executables);
 				AddElementIfValid(Package, Applications, true);
 
-				XmlNode Capabilities = GetCapabilities(TargetPlatform);
+				XmlNode Capabilities = GetCapabilities();
 				AddElementIfValid(Package, Capabilities, true);
 
 				XmlNode Extensions = GetPackageExtensions();
@@ -1687,8 +1411,7 @@ namespace UnrealBuildTool
 			}
 
 			XmlAttribute ProcessorArchitecture = AppxManifestXmlDocument.CreateAttribute("ProcessorArchitecture");
-			// @MIXEDREALITY_CHANGE : BEGIN TODO:
-			ProcessorArchitecture.Value = WindowsExports.GetArchitectureSubpath(Architecture);
+			ProcessorArchitecture.Value = Platform == UnrealTargetPlatform.UWP64 ? "x64" : "x86";
 			Identity.Attributes.Append(ProcessorArchitecture);
 
 			XmlAttribute PublisherName = CreateStringAttribute("Publisher", "PublisherName", "Package.Identity.Publisher", "/Script/EngineSettings.GeneralProjectSettings", "CompanyDistinguishedName", "CN=NoPublisher");
@@ -1761,7 +1484,7 @@ namespace UnrealBuildTool
 		private XmlNode GetDependencies()
 		{
 			XmlElement Dependencies = AppxManifestXmlDocument.CreateElement("Dependencies");
-
+			
 			{
 				XmlElement TargetDeviceFamily = AppxManifestXmlDocument.CreateElement("TargetDeviceFamily");
 				Dependencies.AppendChild(TargetDeviceFamily);
@@ -1808,7 +1531,7 @@ namespace UnrealBuildTool
 
 			return Dependencies;
 		}
-
+ 
 
 		/// <summary>
 		/// Gather all information for the Prerequisites element of the manifest.
@@ -1915,10 +1638,8 @@ namespace UnrealBuildTool
 				ConfigPostfix = TargetConfig.ToString();
 			}
 
-			string MakeRelativeTo = IsGameSpecificExe ? Path.Combine(ProjectPath, "..") : UnrealBuildTool.EngineDirectory.FullName;
-			string RelativeExePath = IsGameSpecificExe ?
-				Utils.MakePathRelativeTo(ExecutablePath, MakeRelativeTo) :
-				Path.Combine(RelativeProjectRootForStage, Utils.MakePathRelativeTo(ExecutablePath, MakeRelativeTo));
+			string MakeRelativeTo = IsGameSpecificExe ? ProjectPath : UnrealBuildTool.EngineDirectory.FullName;
+			string RelativeExePath = Path.Combine(RelativeProjectRootForStage, Utils.MakePathRelativeTo(ExecutablePath, MakeRelativeTo));
 
 			XmlAttribute Id = AppxManifestXmlDocument.CreateAttribute("Id");
 			Id.Value = "App" + PackageBaseName + ConfigPostfix;
@@ -1991,9 +1712,6 @@ namespace UnrealBuildTool
 			XmlNode SplashScreen = GetSplashScreen(ApplicationIndex);
 			VisualElements.AppendChild(SplashScreen);
 
-			XmlNode DefaultTile = GetDefaultTile(ApplicationIndex);
-			VisualElements.AppendChild(DefaultTile);
-
 			//@todo application support
 			// 			XmlNode ViewStates = GetViewStates(Document, ApplicationIndex);
 			// 			VisualElements.AppendChild(ViewStates);
@@ -2006,41 +1724,13 @@ namespace UnrealBuildTool
 		/// </summary>
 		private XmlNode GetDefaultTile(int ApplicationIndex)
 		{
-			XmlElement DefaultTile = AppxManifestXmlDocument.CreateElement("uap:DefaultTile", "http://schemas.microsoft.com/appx/manifest/uap/windows10");
+			XmlElement DefaultTile = AppxManifestXmlDocument.CreateElement("DefaultTile");
 
-			XmlAttribute WideLogo = AppxManifestXmlDocument.CreateAttribute("Wide310x150Logo");
+			XmlAttribute WideLogo = AppxManifestXmlDocument.CreateAttribute("WideLogo");
 			if (CopyAndReplaceBinaryIntermediate("WideLogo.png"))
 			{
 				WideLogo.Value = BuildResourceSubPath + "\\WideLogo.png";
 				DefaultTile.Attributes.Append(WideLogo);
-				if (CopyAndReplaceBinaryIntermediate("3DLogo.glb", false, (string from, string to) =>
-				{
-					//we need to process the logo with the gltf tool
-					string Args = string.Format("\"{0}\" -o \"{1}\" -platform all -replace-textures -min-version 1803" //-temp-directory \"{2}\"
-						, from
-						, to
-						//, Path.Combine(IntermediatePath, "tempGltf") //temp path doesn't work
-						);
-					string Exe = Path.Combine(UnrealBuildTool.EngineDirectory.FullName, "Binaries", "Win64", "WindowsMRAssetConverter.exe");
-					System.Diagnostics.ProcessStartInfo StartInfo = new System.Diagnostics.ProcessStartInfo(Exe, Args);
-					StartInfo.UseShellExecute = false;
-					StartInfo.RedirectStandardOutput = true;
-					StartInfo.CreateNoWindow = true;
-					int ExitCode = Utils.RunLocalProcessAndPrintfOutput(StartInfo);
-					if (ExitCode < 0)
-					{
-						Log.TraceError("GLTF packaging failed. See log for details.");
-						throw new BuildException("GLTF packaging failed. See log for details.");
-					}
-					File.SetLastWriteTimeUtc(to, File.GetLastWriteTimeUtc(from));
-				}))
-				{
-					XmlElement MixedRealityModel = AppxManifestXmlDocument.CreateElement("uap5:MixedRealityModel", "http://schemas.microsoft.com/appx/manifest/uap/windows10/5");
-					XmlAttribute MixedRealityModelPath = AppxManifestXmlDocument.CreateAttribute("Path");
-					MixedRealityModelPath.Value = BuildResourceSubPath + "\\3DLogo.glb";
-					MixedRealityModel.Attributes.Append(MixedRealityModelPath);
-					DefaultTile.AppendChild(MixedRealityModel);
-				}
 			}
 			else
 			{
@@ -2111,66 +1801,66 @@ namespace UnrealBuildTool
 			return SplashScreen;
 		}
 
-		// for ease of integration with mainline, allow Epic's implementation for XboxOne to flow through unchanged
-		private XmlNode GetCapabilities(UnrealTargetPlatform TargetPlatform)
-		{
-			XmlElement Capabilities = AppxManifestXmlDocument.CreateElement("Capabilities");
+        // for ease of integration with mainline, allow Epic's implementation for XboxOne to flow through unchanged
+        private XmlNode GetCapabilities()
+        {
+            XmlElement Capabilities = AppxManifestXmlDocument.CreateElement("Capabilities");
 
-			List<string> CapabilityList = new List<string>();
-			List<string> DeviceCapabilityList = new List<string>();
-			List<string> UapCapabilityList = new List<string>();
-			List<string> Uap2CapabilityList = new List<string>();
+            List<string> CapabilityList = new List<string>();
+            List<string> DeviceCapabilityList = new List<string>();
+            List<string> UapCapabilityList = new List<string>();
+            List<string> Uap2CapabilityList = new List<string>();
 
-			if (EngineIni.GetArray(TargetSettings, "CapabilityList", out CapabilityList))
-			{
-				foreach (string capName in CapabilityList)
-				{
-					XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("Capability");
-					XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
-					Name.Value = capName;
-					CapabilityElement.Attributes.Append(Name);
-					Capabilities.AppendChild(CapabilityElement);
-				}
-			}
+            if (EngineIni.GetArray(TargetSettings, "CapabilityList", out CapabilityList))
+            {
+                foreach (string capName in CapabilityList)
+                {
+                    XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("Capability");
+                    XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
+                    Name.Value = capName;
+                    CapabilityElement.Attributes.Append(Name);
+                    Capabilities.AppendChild(CapabilityElement);
+                }
+            }
 
-			if (EngineIni.GetArray(TargetSettings, "UapCapabilityList", out UapCapabilityList))
-			{
-				foreach (string capName in UapCapabilityList)
-				{
-					XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("uap:Capability", "http://schemas.microsoft.com/appx/manifest/uap/windows10");
-					XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
-					Name.Value = capName;
-					CapabilityElement.Attributes.Append(Name);
-					Capabilities.AppendChild(CapabilityElement);
-				}
-			}
+            if (EngineIni.GetArray(TargetSettings, "UapCapabilityList", out UapCapabilityList))
+            {
+                foreach (string capName in UapCapabilityList)
+                {
+                    XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("uap:Capability", "http://schemas.microsoft.com/appx/manifest/uap/windows10");
+                    XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
+                    Name.Value = capName;
+                    CapabilityElement.Attributes.Append(Name);
+                    Capabilities.AppendChild(CapabilityElement);
+                }
+            }
 
-			if (EngineIni.GetArray(TargetSettings, "Uap2CapabilityList", out Uap2CapabilityList))
-			{
-				foreach (string capName in Uap2CapabilityList)
-				{
-					XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("uap2:Capability", "http://schemas.microsoft.com/appx/manifest/uap/windows10/2");
-					XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
-					Name.Value = capName;
-					CapabilityElement.Attributes.Append(Name);
-					Capabilities.AppendChild(CapabilityElement);
-				}
-			}
+            if (EngineIni.GetArray(TargetSettings, "Uap2CapabilityList", out Uap2CapabilityList))
+            {
+                foreach (string capName in Uap2CapabilityList)
+                {
+                    XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("uap2:Capability", "http://schemas.microsoft.com/appx/manifest/uap/windows10/2");
+                    XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
+                    Name.Value = capName;
+                    CapabilityElement.Attributes.Append(Name);
+                    Capabilities.AppendChild(CapabilityElement);
+                }
+            }
 
-			if (EngineIni.GetArray(TargetSettings, "DeviceCapabilityList", out DeviceCapabilityList))
-			{
-				foreach (string capName in DeviceCapabilityList)
-				{
-					XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("DeviceCapability");
-					XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
-					Name.Value = capName;
-					CapabilityElement.Attributes.Append(Name);
-					Capabilities.AppendChild(CapabilityElement);
-				}
-			}
+            if (EngineIni.GetArray(TargetSettings, "DeviceCapabilityList", out DeviceCapabilityList))
+            {
+                foreach (string capName in DeviceCapabilityList)
+                {
+                    XmlElement CapabilityElement = AppxManifestXmlDocument.CreateElement("DeviceCapability");
+                    XmlAttribute Name = AppxManifestXmlDocument.CreateAttribute("Name");
+                    Name.Value = capName;
+                    CapabilityElement.Attributes.Append(Name);
+                    Capabilities.AppendChild(CapabilityElement);
+                }
+            }
 
-			return Capabilities;
-		}
+            return Capabilities;
+        }
 
 		/// <summary>
 		/// Gather and create manifest for the package extension entries. There are multiple possible extension types
@@ -2228,26 +1918,17 @@ namespace UnrealBuildTool
 		{
 			System.Xml.Schema.XmlSchemaSet AppxSchema = new System.Xml.Schema.XmlSchemaSet();
 
-			// Validate against VS2017 schemas if possible
 			DirectoryReference VSInstallDir;
 			DirectoryReference SdkSchemaFolder = null;
 			DirectoryReference VSSchemaFolder = null;
 			DirectoryReference PhoneSchemaFolder = null;
 
-			// Limit to VS2015 compatible SDKs here - newer ones have incomplete schema sets
-			string SDKVersion = "";
-
-			DirectoryReference SDKRootFolder;
-			VersionNumber version;
-			if (WindowsPlatform.TryGetWindowsSdkDir("Latest", out version, out SDKRootFolder))
-			{
-				SDKVersion = version.ToString();
-			}
+			UWPExports.FindWindowsSDKInstallationFolder(out DirectoryReference SDKRootFolder, out Version SDKVersion);
 
 			SdkSchemaFolder = DirectoryReference.Combine(SDKRootFolder, "Include", SDKVersion.ToString(), "winrt");
 			PhoneSchemaFolder = DirectoryReference.Combine(SDKRootFolder, "Extension SDKs", "WindowsMobile", SDKVersion.ToString(), "Include", "WinRT");
 
-			if (WindowsPlatform.TryGetVSInstallDir(WindowsCompiler.VisualStudio2017, out VSInstallDir))
+			if (WindowsPlatform.TryGetVSInstallDir(WindowsCompiler.VisualStudio2019, out VSInstallDir))
 			{
 				VSSchemaFolder = DirectoryReference.Combine(VSInstallDir, "Xml", "Schemas");
 			}
@@ -2261,7 +1942,6 @@ namespace UnrealBuildTool
 				"UapManifestSchema_v4.xsd",
 				"UapManifestSchema_v5.xsd",
 				"UapManifestSchema_v6.xsd",
-				"UapManifestSchema_v7.xsd",
 				"FoundationManifestSchema.xsd",
 				"AppxManifestSchema2010_v3.xsd",
 				"AppxManifestSchema2013_v2.xsd",
@@ -2270,7 +1950,6 @@ namespace UnrealBuildTool
 				"DesktopManifestSchema_v2.xsd",
 				"DesktopManifestSchema_v3.xsd",
 				"DesktopManifestSchema_v4.xsd",
-				"DesktopManifestSchema_v5.xsd",
 				"IotManifestSchema_v2.xsd"
 			};
 
