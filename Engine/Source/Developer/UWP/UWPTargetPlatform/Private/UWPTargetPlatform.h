@@ -5,7 +5,7 @@
 #pragma once
 
 #include "Common/TargetPlatformBase.h"
-#include "Runtime/Core/Public/UWP/UWPProperties.h"
+#include "Runtime/Core/Public/UWP/UWPPlatformProperties.h"
 #include "Misc/ConfigCacheIni.h"
 #include "UWPTargetDevice.h"
 #include "Misc/ScopeLock.h"
