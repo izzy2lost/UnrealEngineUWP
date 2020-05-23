@@ -50,7 +50,7 @@ void FUWPTargetSettingsCustomization::InitSupportedPlatformVersions()
 	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.17134.0")));
 
 	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.18362.0")));
-	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.19041.0")));
+	//PlatformVersionOptions.Add(MakeShareable(new FString("10.0.19041.0")));
 }
 
 void FUWPTargetSettingsCustomization::InitTargetDeviceFamilyOptions()
