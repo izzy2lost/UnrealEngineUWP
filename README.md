@@ -1,8 +1,20 @@
 ##Note from EmmettJnr##
-This branch is a work in progress. It's not ready for use!
+
+- Changes made to generate VS2019 projects by default. Testing done on UWP64 with latest VS2019 and Windows SDK 10.0.18362.0.
+
+- It seems deployment to xbox one from VS currently doesn't work. However, packaging the game for UWP64 from the editor and uploading through the xbox device portal works!
+
+- Removed UWP specific BCrypt module (completely broken in 4.23) and added Microsoft's fork of OpenSSL for WinRT. Needs testing.
+
+- Not tested at time of writing: Upload to store, live functionality, mixer and front panel.
+
+- D3D12 needs testing and fixing up.
+
+- UWP32 is probably broken. Could be fixed later if someone needs it.
 
 
 ##Note from EvoPulseGaming##
+
 There is a lot of information explaining setup and how to use this. There are customizations I made to get this to work. DO NOT FOLLOW OLD GUIDES!!!!!
 
 I've put all of this into the discord channel #faq-uwp, you can use the link below:
