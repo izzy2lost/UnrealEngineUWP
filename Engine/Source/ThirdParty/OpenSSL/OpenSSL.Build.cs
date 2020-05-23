@@ -35,11 +35,8 @@ public class OpenSSL : ModuleRules
 			PublicAdditionalLibraries.Add(LibraryPath + "/" + "libssl.a");
 			PublicAdditionalLibraries.Add(LibraryPath + "/" + "libcrypto.a");
 		}
-// @ATG_CHANGE : BEGIN UWP support
 		else if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32 ||
-				Target.Platform == UnrealTargetPlatform.HoloLens ||
-				Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
-// @ATG_CHANGE : END
+				Target.Platform == UnrealTargetPlatform.HoloLens)
 		{
 			// Our OpenSSL 1.1.1 libraries are built with zlib compression support
 			PrivateDependencyModuleNames.Add("zlib");
@@ -57,6 +54,24 @@ public class OpenSSL : ModuleRules
 			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "libcrypto.lib"));
 			PublicAdditionalLibraries.Add("crypt32.lib");
 		}
+		// @UWP_CHANGE : BEGIN UWP support - OpenSSL 1.0.2 built from https://github.com/microsoft/openssl/tree/OpenSSL_1_0_2_WinRT-stable
+		else if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+        {
+			string OpenSSL102UWPPath = Path.Combine(Target.UEThirdPartySourceDirectory, "OpenSSL", "1.0.2");
+
+			string VSVersion = "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+
+			// Add includes
+			PublicIncludePaths.Add(Path.Combine(OpenSSL102UWPPath, "include", PlatformSubdir, VSVersion));
+
+			// Add Libs
+			string LibPath = Path.Combine(OpenSSL102UWPPath, "lib", PlatformSubdir, VSVersion, ConfigFolder);
+			PublicLibraryPaths.Add(LibPath);
+
+			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "ssleay32.lib"));
+			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "libeay32.lib"));
+		}
+		// @UWP_CHANGE : END
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
 		{
 			string platform = "/Linux/" + Target.Architecture;
