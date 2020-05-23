@@ -269,9 +269,11 @@ namespace Audio
 		FXMAAudioInfo::Shutdown();
 #endif
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+		// @UWP_CHANGE : BEGIN
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
 
-#if PLATFORM_64BITS && !PLATFORM_HOLOLENS
+#if PLATFORM_64BITS && !PLATFORM_HOLOLENS && !PLATFORM_UWP
+		// @UWP_CHANGE : END
 		if (XAudio2Dll != nullptr && GIsRequestingExit)
 		{
 			if (!FreeLibrary(XAudio2Dll))
@@ -402,7 +404,9 @@ namespace Audio
 		// Get the wave format to parse there rest of the device details
 		const WAVEFORMATEX& WaveFormatEx = DeviceDetails.OutputFormat.Format;
 #endif
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+		// @UWP_CHANGE : BEGIN
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+		// @UWP_CHANGE : END
 		OutInfo.SampleRate = WaveFormatEx.nSamplesPerSec;
 
 		OutInfo.NumChannels = FMath::Clamp((int32)WaveFormatEx.nChannels, 2, 8);
@@ -562,7 +566,9 @@ namespace Audio
 
 		OpenStreamParams = Params;
 
-#if !PLATFORM_HOLOLENS
+		// @UWP_CHANGE : BEGIN UWP support
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
+		// @UWP_CHANGE : END
 		// On windows, default device index is 0
 		if (Params.OutputDeviceIndex == AUDIO_MIXER_DEFAULT_DEVICE_INDEX)
 		{
@@ -581,7 +587,9 @@ namespace Audio
 
 		if (GetNumOutputDevices(NumOutputDevices) && NumOutputDevices > 0)
 		{
-#if PLATFORM_HOLOLENS
+			// @UWP_CHANGE : BEGIN UWP support
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
+			// @UWP_CHANGE : END
 			// On windows, default device index is 0
 			// But if that device cannot be configured try to find one that can be.  This happens in the hololens emulator.
 			if (AudioStreamInfo.OutputDeviceIndex == AUDIO_MIXER_DEFAULT_DEVICE_INDEX)

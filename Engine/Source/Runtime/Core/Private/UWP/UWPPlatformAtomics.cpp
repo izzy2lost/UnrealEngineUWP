@@ -1,6 +1,6 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 
-#include "UWPAtomics.h"
+#include "UWPPlatformAtomics.h"
 #include "CoreMinimal.h"
 
 #if PLATFORM_UWP
@@ -11,7 +11,7 @@ void FUWPAtomics::HandleAtomicsFailure( const TCHAR* InFormat, ... )
 	va_list Ptr;
 
 	va_start( Ptr, InFormat );	
-	FPlatformString::GetVarArgs( TempStr, ARRAY_COUNT(TempStr), ARRAY_COUNT(TempStr) - 1, InFormat, Ptr );
+	FPlatformString::GetVarArgs(TempStr, ARRAY_COUNT(TempStr), InFormat, Ptr);
 	va_end( Ptr );
 
 	UE_LOG(LogTemp, Log, TempStr);

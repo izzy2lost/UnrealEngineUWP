@@ -53,4 +53,6 @@ struct FUWPPlatformProperties : public FGenericPlatformProperties
 	}
 };
 
-
+#ifdef PROPERTY_HEADER_SHOULD_DEFINE_TYPE
+typedef FUWPPlatformProperties FPlatformProperties;
+#endif

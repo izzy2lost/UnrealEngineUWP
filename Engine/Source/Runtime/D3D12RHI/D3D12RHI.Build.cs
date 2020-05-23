@@ -10,6 +10,12 @@ public class D3D12RHI : ModuleRules
 		{
 			PrivateIncludePaths.Add("Runtime/D3D12RHI/Private/HoloLens");
 		}
+		// @UWP_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.UWP32 || Target.Platform == UnrealTargetPlatform.UWP64)
+        {
+			PrivateIncludePaths.Add("Runtime/D3D12RHI/Private/UWP");
+		}
+		// @UWP_CHANGE : END
 		PrivateIncludePaths.Add("Runtime/D3D12RHI/Private");
 		PrivateIncludePaths.Add("../Shaders/Shared");
 

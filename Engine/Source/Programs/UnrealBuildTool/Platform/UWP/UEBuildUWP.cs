@@ -607,7 +607,11 @@ namespace UnrealBuildTool
 			CompileEnvironment.Definitions.Add("WINVER=0x0A00");
 
 			CompileEnvironment.Definitions.Add("PLATFORM_UWP=1");
-			CompileEnvironment.Definitions.Add("UWP=1");
+			CompileEnvironment.Definitions.Add("OVERRIDE_PLATFORM_HEADER_NAME=UWP");
+
+			// Presumably not necessary? Causes the OVERRIDE_PLATFORM_HEADER_NAME to point to 1.
+			//CompileEnvironment.Definitions.Add("UWP=1");
+
 			CompileEnvironment.Definitions.Add("WITH_EDITOR=0");
 
 			CompileEnvironment.Definitions.Add("WINAPI_FAMILY=WINAPI_FAMILY_APP");

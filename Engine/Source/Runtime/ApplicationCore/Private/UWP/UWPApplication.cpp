@@ -4,7 +4,7 @@
 #include "UWP/UWPWindow.h"
 #include "UWP/UWPCursor.h"
 #include "UWP/UWPInputInterface.h"
-#include "UWP/UWPMisc.h"
+#include "UWP/UWPPlatformMisc.h"
 #include "GenericPlatform/GenericApplication.h"
 #include "Misc/CoreDelegates.h"
 

@@ -1,9 +1,9 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 
-#include "UWPFile.h"
+#include "UWPPlatformFile.h"
 #include "CoreMinimal.h"
 #include "GenericPlatform/GenericPlatformFile.h"
-#include "UWP/UWPProcess.h"
+#include "UWP/UWPPlatformProcess.h"
 #include "Misc/Paths.h"
 #include <sys/utime.h>
 

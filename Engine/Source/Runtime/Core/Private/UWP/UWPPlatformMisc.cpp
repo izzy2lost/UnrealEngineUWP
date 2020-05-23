@@ -4,7 +4,7 @@
 	UWPMisc.cpp: UWP implementations of misc functions
 =============================================================================*/
 
-#include "UWPMisc.h"
+#include "UWPPlatformMisc.h"
 #include "Internationalization/Internationalization.h"
 #include "Misc/MessageDialog.h"
 #include "Misc/App.h"

@@ -4,7 +4,9 @@
 
 struct FMath;
 
-#if defined(__cplusplus_cli) && !PLATFORM_HOLOLENS
+// @UWP_CHANGE : BEGIN UWP support
+#if defined(__cplusplus_cli) && !PLATFORM_HOLOLENS && !PLATFORM_UWP
+// @UWP_CHANGE : END
 // there are compile issues with this file in managed mode, so use the FPU version
 #include "Math/UnrealMathFPU.h"
 #else

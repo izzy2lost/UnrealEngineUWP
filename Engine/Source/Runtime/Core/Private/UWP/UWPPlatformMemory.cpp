@@ -1,7 +1,7 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 
 
-#include "UWPMemory.h"
+#include "UWPPlatformMemory.h"
 #include "HAL/MallocTBB.h"
 #include "HAL/MallocAnsi.h"
 #include "GenericPlatform/GenericPlatformMemoryPoolStats.h"
@@ -14,7 +14,7 @@
 #include "HAL/MallocBinned.h"
 #endif
 
-#include "Windows/AllowWindowsPlatformTypes.h"
+#include "UWP/AllowWindowsPlatformTypes.h"
 #define PSAPI_VERSION 2
 #include <Psapi.h>
 #pragma comment(lib, "psapi.lib")
@@ -64,7 +64,7 @@ FMalloc* FUWPPlatformMemory::BaseAllocator()
 #elif (WITH_EDITORONLY_DATA || IS_PROGRAM) && TBB_ALLOCATOR_ALLOWED
 	return new FMallocTBB();
 #else
-	return new FMallocBinned((uint32)(GetConstants().PageSize&MAX_uint32), (uint64)MAX_uint32 + 1);
+	return new FMallocBinned((uint32)(GetConstants().PageSize & MAX_uint32), (uint64)MAX_uint32 + 1);
 #endif
 
 	//	_CrtSetAllocHook(UWPAllocHook); // Enable to track down windows allocs not handled by our wrapper
@@ -86,7 +86,7 @@ FPlatformMemoryStats FUWPPlatformMemory::GetStats()
 	*      TotalCommitUsage
 	*      AvailableCommit - remaining memory available for allocation, akin to MEMORYSTATUSEX::ullAvailPhys for desktop titles without memory limits
 	*
-	*	GetSystemInfo 
+	*	GetSystemInfo
 	*		SYSTEM_INFO
 	*/
 
@@ -97,7 +97,7 @@ FPlatformMemoryStats FUWPPlatformMemory::GetStats()
 	::GetProcessInformation(GetCurrentProcess(), ProcessAppMemoryInfo, &AppMemoryInfo, sizeof(AppMemoryInfo));
 	MemoryStats.AvailablePhysical = AppMemoryInfo.AvailableCommit;
 
-	// ATG - Simplified since 32bit 4GB tuned UWPs are unlikely to exist
+	// ATG - Simplified since 32bit 4GB tuned HoloLenss are unlikely to exist
 #if _WIN64
 	MemoryStats.AvailableVirtual = (128ull * 1024 * 1024 * 1024 * 1024) - AppMemoryInfo.TotalCommitUsage;   // 64bit Win8+ 128TB limit, minus currently commited bytes
 #else
@@ -107,7 +107,7 @@ FPlatformMemoryStats FUWPPlatformMemory::GetStats()
 	// ATG - GetProcessMemoryInfo did not make the cut for app API-set inclusion, removing for now
 	//PROCESS_MEMORY_COUNTERS ProcessMemoryCounters = { 0 };
 	//::GetProcessMemoryInfo(::GetCurrentProcess(), &ProcessMemoryCounters, sizeof(ProcessMemoryCounters));
-	
+
 	//MemoryStats.UsedPhysical = ProcessMemoryCounters.WorkingSetSize;
 	//MemoryStats.PeakUsedPhysical = ProcessMemoryCounters.PeakWorkingSetSize;
 	//MemoryStats.UsedVirtual = ProcessMemoryCounters.PagefileUsage;
@@ -144,7 +144,7 @@ const FPlatformMemoryConstants& FUWPPlatformMemory::GetConstants()
 		::GetSystemInfo(&SystemInformation);
 
 		MemoryConstants.TotalPhysical = AppMemoryInfo.TotalCommitUsage + AppMemoryInfo.AvailableCommit;
-		// ATG - Simplified since 32bit 4GB tuned UWPs are unlikely to exist
+		// ATG - Simplified since 32bit 4GB tuned HoloLenss are unlikely to exist
 #if _WIN64
 		MemoryConstants.TotalVirtual = (128ull * 1024 * 1024 * 1024 * 1024);   // 64bit Win8+ 128TB limit
 #else
@@ -172,8 +172,85 @@ void* FUWPPlatformMemory::BinnedAllocFromOS(SIZE_T Size)
 void FUWPPlatformMemory::BinnedFreeToOS(void* Ptr, SIZE_T Size)
 {
 	CA_SUPPRESS(6001)
-	// Windows maintains the size of allocation internally, so Size is unused
-	verify(VirtualFree(Ptr, 0, MEM_RELEASE) != 0);
+		// Windows maintains the size of allocation internally, so Size is unused
+		verify(VirtualFree(Ptr, 0, MEM_RELEASE) != 0);
+}
+
+size_t FUWPPlatformMemory::FPlatformVirtualMemoryBlock::GetVirtualSizeAlignment()
+{
+	static SIZE_T OsAllocationGranularity = FPlatformMemory::GetConstants().OsAllocationGranularity;
+	return OsAllocationGranularity;
+}
+
+size_t FUWPPlatformMemory::FPlatformVirtualMemoryBlock::GetCommitAlignment()
+{
+	static SIZE_T OSPageSize = FPlatformMemory::GetConstants().PageSize;
+	return OSPageSize;
+}
+
+FUWPPlatformMemory::FPlatformVirtualMemoryBlock FUWPPlatformMemory::FPlatformVirtualMemoryBlock::AllocateVirtual(size_t InSize, size_t InAlignment)
+{
+	FPlatformVirtualMemoryBlock Result;
+	InSize = Align(InSize, GetVirtualSizeAlignment());
+	Result.VMSizeDivVirtualSizeAlignment = InSize / GetVirtualSizeAlignment();
+
+	size_t Alignment = FMath::Max(InAlignment, GetVirtualSizeAlignment());
+	check(Alignment <= GetVirtualSizeAlignment());
+
+	bool bTopDown = Result.GetActualSize() > 100ll * 1024 * 1024; // this is hacky, but we want to allocate huge VM blocks (like for MB3) top down
+
+	Result.Ptr = VirtualAlloc(NULL, Result.GetActualSize(), MEM_RESERVE | (bTopDown ? MEM_TOP_DOWN : 0), PAGE_NOACCESS);
+
+
+	if (!LIKELY(Result.Ptr))
+	{
+		FPlatformMemory::OnOutOfMemory(Result.GetActualSize(), Alignment);
+	}
+	check(Result.Ptr && IsAligned(Result.Ptr, Alignment));
+	return Result;
+}
+
+
+
+void FUWPPlatformMemory::FPlatformVirtualMemoryBlock::FreeVirtual()
+{
+	if (Ptr)
+	{
+		check(GetActualSize() > 0);
+		// this is an iffy assumption, we don't know how much of this memory is really committed, we will assume none of it is
+		//LLM(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr));
+
+		CA_SUPPRESS(6001)
+			// Windows maintains the size of allocation internally, so Size is unused
+			verify(VirtualFree(Ptr, 0, MEM_RELEASE) != 0);
+
+		Ptr = nullptr;
+		VMSizeDivVirtualSizeAlignment = 0;
+	}
+}
+
+void FUWPPlatformMemory::FPlatformVirtualMemoryBlock::Commit(size_t InOffset, size_t InSize)
+{
+	check(IsAligned(InOffset, GetCommitAlignment()) && IsAligned(InSize, GetCommitAlignment()));
+	check(InOffset >= 0 && InSize >= 0 && InOffset + InSize <= GetActualSize() && Ptr);
+
+	// There are no guarantees LLM is going to be able to deal with this
+	uint8* UsePtr = ((uint8*)Ptr) + InOffset;
+	LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, UsePtr, InSize));
+	if (VirtualAlloc(UsePtr, InSize, MEM_COMMIT, PAGE_READWRITE) != UsePtr)
+	{
+		FPlatformMemory::OnOutOfMemory(InSize, 0);
+	}
+}
+
+void FUWPPlatformMemory::FPlatformVirtualMemoryBlock::Decommit(size_t InOffset, size_t InSize)
+{
+	check(IsAligned(InOffset, GetCommitAlignment()) && IsAligned(InSize, GetCommitAlignment()));
+	check(InOffset >= 0 && InSize >= 0 && InOffset + InSize <= GetActualSize() && Ptr);
+	uint8* UsePtr = ((uint8*)Ptr) + InOffset;
+	// There are no guarantees LLM is going to be able to deal with this
+	LLM(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, UsePtr));
+	VirtualFree(UsePtr, InSize, MEM_DECOMMIT);
 }
 
 FPlatformMemory::FSharedMemoryRegion* FUWPPlatformMemory::MapNamedSharedMemoryRegion(const FString& InName, bool bCreate, uint32 AccessMode, SIZE_T Size)
@@ -214,7 +291,7 @@ FPlatformMemory::FSharedMemoryRegion* FUWPPlatformMemory::MapNamedSharedMemoryRe
 			UE_LOG(LogHAL, Warning, TEXT("CreateFileMappingFromApp(file=INVALID_HANDLE_VALUE, security=NULL, protect=0x%x, size%I64, name='%s') failed with GetLastError() = %d"),
 				CreateMappingAccess, Size, *Name,
 				ErrNo
-				);
+			);
 		}
 	}
 	else
@@ -234,7 +311,7 @@ FPlatformMemory::FSharedMemoryRegion* FUWPPlatformMemory::MapNamedSharedMemoryRe
 		UE_LOG(LogHAL, Warning, TEXT("MapViewOfFile(mapping=0x%x, access=0x%x, OffsetHigh=0, OffsetLow=0, NumBytes=%u) failed with GetLastError() = %d"),
 			Mapping, OpenMappingAccess, Size,
 			ErrNo
-			);
+		);
 
 		CloseHandle(Mapping);
 		return NULL;
@@ -243,13 +320,13 @@ FPlatformMemory::FSharedMemoryRegion* FUWPPlatformMemory::MapNamedSharedMemoryRe
 	return new FUWPSharedMemoryRegion(Name, AccessMode, Ptr, Size, Mapping);
 }
 
-bool FUWPPlatformMemory::UnmapNamedSharedMemoryRegion(FSharedMemoryRegion * MemoryRegion)
+bool FUWPPlatformMemory::UnmapNamedSharedMemoryRegion(FSharedMemoryRegion* MemoryRegion)
 {
 	bool bAllSucceeded = true;
 
 	if (MemoryRegion)
 	{
-		FUWPSharedMemoryRegion * UWPRegion = static_cast< FUWPSharedMemoryRegion* >(MemoryRegion);
+		FUWPSharedMemoryRegion* UWPRegion = static_cast<FUWPSharedMemoryRegion*>(MemoryRegion);
 
 		if (!UnmapViewOfFile(UWPRegion->GetAddress()))
 		{
@@ -259,7 +336,7 @@ bool FUWPPlatformMemory::UnmapNamedSharedMemoryRegion(FSharedMemoryRegion * Memo
 			UE_LOG(LogHAL, Warning, TEXT("UnmapViewOfFile(address=%p) failed with GetLastError() = %d"),
 				UWPRegion->GetAddress(),
 				ErrNo
-				);
+			);
 		}
 
 		if (!CloseHandle(UWPRegion->GetMapping()))
@@ -270,7 +347,7 @@ bool FUWPPlatformMemory::UnmapNamedSharedMemoryRegion(FSharedMemoryRegion * Memo
 			UE_LOG(LogHAL, Warning, TEXT("CloseHandle(handle=0x%x) failed with GetLastError() = %d"),
 				UWPRegion->GetMapping(),
 				ErrNo
-				);
+			);
 		}
 
 		// delete the region

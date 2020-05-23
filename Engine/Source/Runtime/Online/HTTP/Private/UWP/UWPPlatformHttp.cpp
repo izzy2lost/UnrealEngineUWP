@@ -1,6 +1,6 @@
 // Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
 
-#include "UWP/UWPHttp.h"
+#include "UWP/UWPPlatformHttp.h"
 #include "IXML/HttpIXML.h"
 
 void FUWPHttp::Init()

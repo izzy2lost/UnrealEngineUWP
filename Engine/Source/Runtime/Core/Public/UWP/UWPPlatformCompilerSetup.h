@@ -121,6 +121,10 @@ static_assert(_MSC_VER >= 1900, "Visual Studio 2015 or newer required.");
 // NOTE: _mm_cvtpu8_ps will generate this falsely if it doesn't get inlined
 #pragma warning(disable : 4799)	// Warning: function 'ident' has no EMMS instruction
 
+// NOTE: https://answers.unrealengine.com/questions/701635/warning-c4828.html
+#pragma warning(disable: 4828) // The file contains a character starting at offset ... that is illegal in the current source character set(codepage ...).	// No docs
+#pragma warning(disable: 4868) // 'file(line_number)' compiler may not enforce left-to-right evaluation order in braced initializer list	https://docs.microsoft.com/en-us/cpp/error-messages/compiler-warnings/compiler-warning-c4868
+
 //--------------------
 // @HEMI : georgwu - 
 //-----  disable this warning because __is_pod threw a warning saying behavior has changed

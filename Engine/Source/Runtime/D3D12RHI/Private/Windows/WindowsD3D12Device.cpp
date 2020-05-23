@@ -213,10 +213,14 @@ static bool SupportsHDROutput(FD3D12DynamicRHI* D3DRHI)
 
 bool FD3D12DynamicRHIModule::IsSupported()
 {
+	// @UWP_CHANGE : BEGIN UWP support
+#if !PLATFORM_UWP
 	if (!FWindowsPlatformMisc::VerifyWindowsVersion(10, 0))
 	{
 		return false;
 	}
+#endif
+	// @UWP_CHANGE : END
 
 	// If not computed yet
 	if (ChosenAdapters.Num() == 0)

@@ -72,7 +72,7 @@ void FSocketSubsystemUWP::Destroy()
 
 FSocket* FSocketSubsystemUWP::CreateSocket(const FName& SocketType, const FString& SocketDescription, bool bForceUDP)
 {
-	FSocketBSDIPv6* NewSocket = static_cast<FSocketBSDIPv6*>(FSocketSubsystemBSDIPv6::CreateSocket(SocketType, SocketDescription, ESocketProtocolFamily::IPv4));
+	FSocketBSDIPv6* NewSocket = static_cast<FSocketBSDIPv6*>(FSocketSubsystemBSDIPv6::CreateSocket(SocketType, SocketDescription, bForceUDP));
 
 	if (NewSocket)
 	{
