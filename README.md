@@ -1,8 +1,8 @@
 ##Note from EmmettJnr##
 
-- Deployment from VS2017 with Windows SDK 10.0.17134.0 works (make sure this SDK is selected in UWP project settings).
+- Deployment from VS2017 with Windows SDK 10.0.17134.0 to the xbox one works (make sure this SDK is selected in UWP project settings).
 
-- Deployment from VS2019 with Windows SDK 10.0.18362.0 builds a working appx for the xbox, but currently remote deployment from VS2019 doesn't work.
+- Deployment from VS2019 with Windows SDK 10.0.18362.0 to the xbox one currently doesn't work. However with this setup the editor builds an appx which works on the xbox one.
 
 - UWP32 is probably broken. May need fixing.
 
