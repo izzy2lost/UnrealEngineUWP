@@ -1,6 +1,6 @@
 ##Note from EmmettJnr##
 
-- Changes made to generate VS2019 projects by default. Testing done on UWP64 with latest VS2019 and Windows SDK 10.0.18362.0.
+- Testing done on UWP64 with VS2019 and Windows SDK 10.0.18362.0.
 
 - It seems deployment to xbox one from VS currently doesn't work. However, packaging the game for UWP64 from the editor and uploading through the xbox device portal works!
 
