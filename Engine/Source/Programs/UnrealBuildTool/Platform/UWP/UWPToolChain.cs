@@ -1082,8 +1082,16 @@ namespace UnrealBuildTool
 			return true;
 		}
 
+
+
 		public static FileReference GetWindowsSdkToolPath(string ToolName)
 		{
+			if (CurrentWindowsSdkBinDir == null)
+				throw new Exception("CurrentWindowsSdkBinDir is null");
+
+			if (ToolName == null)
+				throw new Exception("ToolName is null");
+
 			FileReference file = FileReference.Combine(CurrentWindowsSdkBinDir, ToolName);
 
 			if (!FileReference.Exists(file))
@@ -1104,29 +1112,53 @@ namespace UnrealBuildTool
 			return CurrentWindowsSdkVersion.ToString();
 		}
 
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <returns></returns>
+		public static void GetWindowsSDKInstallationFolder(out DirectoryReference SDKFolder, out Version SDKVersion)
+		{
+			if (CurrentWindowsSdkBinDir == null)
+				throw new Exception("CurrentWindowsSdkBinDir is null");
+
+			SDKFolder = CurrentWindowsSdkBinDir;
+			SDKVersion = CurrentWindowsSdkVersion;
+		}
+
+		private FileReference GetFileReference(DirectoryInfo BaseDirectory, string FileName)
+		{
+			// Workaround for weird issue where the base directory doesn't get added to the file name in some cases
+			FileInfo fileInfo = new FileInfo(BaseDirectory.FullName.TrimEnd('\\', '/') + "\\" + FileName.TrimStart('\\', '/'));
+
+			if (!fileInfo.Exists)
+				throw new Exception("File does not exist: " + fileInfo.FullName);
+
+			return new FileReference(fileInfo.FullName);
+		}
+
 		public override void ModifyBuildProducts(ReadOnlyTargetRules Target, UEBuildBinary Binary, List<string> Libraries, List<UEBuildBundleResource> BundleResources, Dictionary<FileReference, BuildProductType> BuildProducts)
 		{
-			DirectoryReference UWPBinaryDirectory = Binary.OutputFilePath.Directory;
+			DirectoryInfo UWPBinaryDirectory = new DirectoryInfo(Binary.OutputFilePath.Directory.FullName);
 
-			AddBuildProductSafe(BuildProducts, FileReference.Combine(UWPBinaryDirectory, "AppxManifest_" + Target.Architecture + ".xml"), BuildProductType.BuildResource);
-			AddBuildProductSafe(BuildProducts, FileReference.Combine(UWPBinaryDirectory, "resources_" + Target.Architecture + ".pri"), BuildProductType.BuildResource);
+			AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, "AppxManifest.xml"), BuildProductType.BuildResource);
+			AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, "resources.pri"), BuildProductType.BuildResource);
 			if (Target.Configuration == UnrealTargetConfiguration.Development)
 			{
-				AddBuildProductSafe(BuildProducts, FileReference.Combine(UWPBinaryDirectory, Target.Name + Target.Architecture + ".exe"), BuildProductType.Executable);
-				AddBuildProductSafe(BuildProducts, FileReference.Combine(UWPBinaryDirectory, Target.Name + Target.Architecture + ".pdb"), BuildProductType.SymbolFile);
+				AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, Target.Name + Target.Architecture + ".exe"), BuildProductType.Executable);
+				AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, Target.Name + Target.Architecture + ".pdb"), BuildProductType.SymbolFile);
 			}
 			else
 			{
-				AddBuildProductSafe(BuildProducts, FileReference.Combine(UWPBinaryDirectory, Target.Name + "-UWP-" + Target.Configuration + Target.Architecture + ".exe"), BuildProductType.Executable);
-				AddBuildProductSafe(BuildProducts, FileReference.Combine(UWPBinaryDirectory, Target.Name + "-UWP-" + Target.Configuration + Target.Architecture + ".pdb"), BuildProductType.SymbolFile);
+				AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, Target.Name + ".exe"), BuildProductType.Executable);
+				AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, Target.Name + ".pdb"), BuildProductType.SymbolFile);
 			}
-			AddBuildProductSafe(BuildProducts, FileReference.Combine(UWPBinaryDirectory, Target.Name + "-UWP-" + Target.Configuration + Target.Architecture + ".target"), BuildProductType.BuildResource);
-			AddBuildProductSafe(BuildProducts, FileReference.Combine(UWPBinaryDirectory, Target.Architecture + "\\Resources\\Logo.png"), BuildProductType.BuildResource);
-			AddBuildProductSafe(BuildProducts, FileReference.Combine(UWPBinaryDirectory, Target.Architecture + "\\Resources\\resources.resw"), BuildProductType.BuildResource);
-			AddBuildProductSafe(BuildProducts, FileReference.Combine(UWPBinaryDirectory, Target.Architecture + "\\Resources\\SmallLogo.png"), BuildProductType.BuildResource);
-			AddBuildProductSafe(BuildProducts, FileReference.Combine(UWPBinaryDirectory, Target.Architecture + "\\Resources\\SplashScreen.png"), BuildProductType.BuildResource);
-			AddBuildProductSafe(BuildProducts, FileReference.Combine(UWPBinaryDirectory, Target.Architecture + "\\Resources\\WideLogo.png"), BuildProductType.BuildResource);
-			AddBuildProductSafe(BuildProducts, FileReference.Combine(UWPBinaryDirectory, Target.Architecture + "\\Resources\\en\\resources.resw"), BuildProductType.BuildResource);
+			AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, Target.Name + ".target"), BuildProductType.BuildResource);
+			AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, "\\Resources\\Logo.png"), BuildProductType.BuildResource);
+			AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, "\\Resources\\resources.resw"), BuildProductType.BuildResource);
+			AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, "\\Resources\\SmallLogo.png"), BuildProductType.BuildResource);
+			AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, "\\Resources\\SplashScreen.png"), BuildProductType.BuildResource);
+			//AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, "\\Resources\\WideLogo.png"), BuildProductType.BuildResource);
+			AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, "\\Resources\\en\\resources.resw"), BuildProductType.BuildResource);
 		}
 
 		private void AddBuildProductSafe(Dictionary<FileReference, BuildProductType> BuildProducts, FileReference FileToAdd, BuildProductType ProductType)

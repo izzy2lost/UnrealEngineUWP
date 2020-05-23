@@ -336,7 +336,9 @@ namespace UWP.Automation
 
 	public abstract class UWPPlatform : Platform
     {
-        public UWPPlatform(UnrealTargetPlatform P)
+		private string Windows10SDKVersion;
+
+		public UWPPlatform(UnrealTargetPlatform P)
             : base(P)
         {
         }
@@ -368,6 +370,15 @@ namespace UWP.Automation
 				}
 			}
 
+			if (string.IsNullOrEmpty(Windows10SDKVersion))
+			{
+				Windows10SDKVersion = "Latest";
+			}
+
+			if (!UWPExports.InitWindowsSdkToolPath(Windows10SDKVersion))
+			{
+				throw new AutomationException(ExitCode.Error_Arguments, "Wrong WinSDK toolchain selected on \'Platforms/HoloLens/Toolchain\' page. Please check.");
+			}
 		}
 
 		public override void Deploy(ProjectParams Params, DeploymentContext SC)
@@ -392,15 +403,14 @@ namespace UWP.Automation
 			// Some off-the-shelf binaries (e.g. Live SDK components) are labeled as Win32.  Make sure
 			// this name isn't on the restricted list.  Ditto for Win64 (though this is typically less
 			// of a problem since the binaries are probably in an x64 folder)
-			switch (PlatformType)
+			if (PlatformType == UnrealTargetPlatform.UWP32)
 			{
-				case UnrealTargetPlatform.UWP32:
-					SC.RestrictedFolderNames.Remove(UnrealTargetPlatform.Win32.ToString());
-					break;
+				SC.RestrictedFolderNames.Remove(UnrealTargetPlatform.Win32.ToString());
+			}
 
-				case UnrealTargetPlatform.UWP64:
-					SC.RestrictedFolderNames.Remove(UnrealTargetPlatform.Win64.ToString());
-					break;
+			if (PlatformType == UnrealTargetPlatform.UWP64)
+			{
+				SC.RestrictedFolderNames.Remove(UnrealTargetPlatform.Win64.ToString());
 			}
 
 			// Stage all the build products
@@ -797,8 +807,8 @@ namespace UWP.Automation
 			}
 
 			string Aumid = string.Format("{0}!{1}", InstalledPackage.Id.FamilyName, PrimaryAppId);
-			string SDKFolder = UWPExports.FindWindowsSDKInstallationFolder();
-			string LauncherPath = Path.Combine(SDKFolder, "App Certification Kit", "microsoft.windows.softwarelogo.appxlauncher.exe");
+			UWPExports.GetWindowsSDKInstallationFolder(out DirectoryReference SDKFolder, out Version SDKVersion);
+			string LauncherPath = Path.Combine(SDKFolder.ToString(), "App Certification Kit", "microsoft.windows.softwarelogo.appxlauncher.exe");
 			IProcessResult LauncherProc = Run(LauncherPath, Aumid);
 			LauncherProc.WaitForExit();
 			string LogFile;
@@ -972,17 +982,17 @@ namespace UWP.Automation
 			}
 
 			string ArchitectureFragment;
-			switch (PlatformType)
+			if (PlatformType == UnrealTargetPlatform.UWP64)
 			{
-				case UnrealTargetPlatform.UWP64:
-					ArchitectureFragment = "x64";
-					break;
-				case UnrealTargetPlatform.UWP32:
-					ArchitectureFragment = "x86";
-					break;
-				default:
-					ArchitectureFragment = "Unknown_Architecture";
-					break;
+				ArchitectureFragment = "x64";
+			}
+			else if (PlatformType == UnrealTargetPlatform.UWP32)
+			{
+				ArchitectureFragment = "x86";
+			}
+			else
+			{
+				ArchitectureFragment = "Unknown_Architecture";
 			}
 
 			return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),

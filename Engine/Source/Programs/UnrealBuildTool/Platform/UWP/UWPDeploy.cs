@@ -340,9 +340,7 @@ namespace UnrealBuildTool
 				ProjectFileGenerator.NewLine +
 				"<Project DefaultTargets=\"Build\" ToolsVersion=\"" + VcProjectToolVersion + "\" xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">" + ProjectFileGenerator.NewLine);
 
-			DirectoryReference ProjectBinariesDirectory = Receipt.BuildProducts.FirstOrDefault(x => x.Type == BuildProductType.Executable)?.Path?.Directory;
-			if (ProjectBinariesDirectory == null)
-				throw new Exception("Could not resolve project binary directory");
+			DirectoryReference ProjectBinariesDirectory = Receipt.Launch.Directory;
 
 			// This is not the full set of properties that a VS build would add, but it's enough that VS deployment will work
 			// both locally and on a remote machine.

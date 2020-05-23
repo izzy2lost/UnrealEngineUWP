@@ -53,8 +53,9 @@ namespace UnrealBuildTool
 		/// 
 		/// </summary>
 		/// <returns></returns>
-		public static void FindWindowsSDKInstallationFolder(out DirectoryReference SDKFolder, out Version SDKVersion)
+		public static void GetWindowsSDKInstallationFolder(out DirectoryReference SDKFolder, out Version SDKVersion)
 		{
+			// TODO: Use configured UWP SDK?
 			if (!WindowsPlatform.TryGetWindowsSdkDir("Latest", out VersionNumber SelectedWindowsSdkVersion, out DirectoryReference SelectedWindowsSdkDir))
 				throw new Exception("Could not find latest windows sdk dir");
 
