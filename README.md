@@ -1,16 +1,16 @@
 ##Note from EmmettJnr##
 
-- Testing done on UWP64 with VS2019 and Windows SDK 10.0.18362.0.
+- Deployment from VS2017 with Windows SDK 10.0.17134.0 works (make sure this SDK is selected in UWP project settings).
 
-- It seems deployment to xbox one from VS currently doesn't work. However, packaging the game for UWP64 from the editor and uploading through the xbox device portal works!
+- Deployment from VS2019 with Windows SDK 10.0.18362.0 builds a working appx for the xbox, but currently remote deployment from VS2019 doesn't work.
+
+- UWP32 is probably broken. May need fixing.
 
 - Removed UWP specific BCrypt module (completely broken in 4.23) and added Microsoft's fork of OpenSSL for WinRT. Needs testing.
 
 - Not tested at time of writing: Upload to store, live functionality, mixer and front panel.
 
 - D3D12 needs testing and fixing up.
-
-- UWP32 is probably broken. Could be fixed later if someone needs it.
 
 
 ##Note from EvoPulseGaming##
