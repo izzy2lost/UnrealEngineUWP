@@ -165,7 +165,7 @@ namespace UnrealBuildTool
 	class UniversalWindowsPlatform : UEBuildPlatform
 	{
 		public static readonly Version MinimumSDKVersionRecommended = new Version(10, 0, 17763, 0);
-		public static readonly Version MaximumSDKVersionTested = new Version(10, 0, 18362, int.MaxValue);
+		public static readonly Version MaximumSDKVersionTested = new Version(10, 0, 19041, int.MaxValue);
 		public static readonly Version MaximumSDKVersionForVS2015 = new Version(10, 0, 14393, int.MaxValue);
 		public static readonly Version MinimumSDKVersionForD3D12RHI = new Version(10, 0, 15063, 0);
 

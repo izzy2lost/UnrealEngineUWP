@@ -1128,12 +1128,7 @@ namespace UnrealBuildTool
 		private FileReference GetFileReference(DirectoryInfo BaseDirectory, string FileName)
 		{
 			// Workaround for weird issue where the base directory doesn't get added to the file name in some cases
-			FileInfo fileInfo = new FileInfo(BaseDirectory.FullName.TrimEnd('\\', '/') + "\\" + FileName.TrimStart('\\', '/'));
-
-			if (!fileInfo.Exists)
-				throw new Exception("File does not exist: " + fileInfo.FullName);
-
-			return new FileReference(fileInfo.FullName);
+			return new FileReference(BaseDirectory.FullName.TrimEnd('\\', '/') + "\\" + FileName.TrimStart('\\', '/'));
 		}
 
 		public override void ModifyBuildProducts(ReadOnlyTargetRules Target, UEBuildBinary Binary, List<string> Libraries, List<UEBuildBundleResource> BundleResources, Dictionary<FileReference, BuildProductType> BuildProducts)
