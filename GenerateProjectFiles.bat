@@ -6,7 +6,7 @@ if exist "%~dp0Engine\Extras\VisualStudioDebugging\PS4\InstallPS4Visualizer.bat"
 )
 
 if not exist "%~dp0Engine\Build\BatchFiles\GenerateProjectFiles.bat" goto Error_BatchFileInWrongLocation
-call "%~dp0Engine\Build\BatchFiles\GenerateProjectFiles.bat" -2019 %*
+call "%~dp0Engine\Build\BatchFiles\GenerateProjectFiles.bat" %*
 exit /B %ERRORLEVEL%
 
 :Error_BatchFileInWrongLocation
