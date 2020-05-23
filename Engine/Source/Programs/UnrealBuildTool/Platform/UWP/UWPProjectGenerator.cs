@@ -99,7 +99,16 @@ namespace UnrealBuildTool
 			// Default to latest supported version.  Game projects can override this later.
 			// Because this property is only required for VS2017 we can safely say that's the compiler version (whether that's actually true
 			// or not)
-			UWPExports.GetWindowsSDKInstallationFolder(out DirectoryReference SDKFolder, out Version SDKVersion);
+			string SDKFolder = "";
+			string SDKVersion = "";
+
+			DirectoryReference folder;
+			VersionNumber version;
+			if (WindowsPlatform.TryGetWindowsSdkDir("Latest", out version, out folder))
+			{
+				SDKFolder = folder.FullName;
+				SDKVersion = version.ToString();
+			}
 
 			ProjectFileBuilder.AppendLine("    <AppContainerApplication>true</AppContainerApplication>");
 			ProjectFileBuilder.AppendLine("    <ApplicationType>Windows Store</ApplicationType>");
