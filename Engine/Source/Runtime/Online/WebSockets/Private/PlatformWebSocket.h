@@ -20,7 +20,6 @@ typedef FHoloLensWebSocketsManager FPlatformWebSocketsManager;
 #elif PLATFORM_UWP
 #include "UWP/UWPWebSocketsManager.h"
 typedef FUWPWebSocketsManager FPlatformWebSocketsManager;
-#else
 // @ATG_CHANGE : END
 #else
 	#error "Web sockets not implemented on this platform yet"
