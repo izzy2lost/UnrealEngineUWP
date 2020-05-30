@@ -15,6 +15,13 @@ namespace UnrealBuildTool
 	/// </summary>
 	class UWPDeploy : UEBuildDeploy
 	{
+		protected FileReference ProjectFile;
+
+		public UWPDeploy(FileReference InProjectFile)
+		{
+			ProjectFile = InProjectFile;
+		}
+
 		/// <summary>
 		/// Utility function to delete a file
 		/// </summary>
@@ -176,7 +183,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		public bool PrepForUATPackageOrDeploy(FileReference ProjectFile, string ProjectName, string ProjectDirectory, List<UnrealTargetConfiguration> TargetConfigurations, List<string> ExecutablePaths, string EngineDirectory, bool bForDistribution, string CookFlavor, bool bIsDataDeploy)
+		public bool PrepForUATPackageOrDeploy(string ProjectName, string ProjectDirectory, List<UnrealTargetConfiguration> TargetConfigurations, List<string> ExecutablePaths, string EngineDirectory, bool bForDistribution, string CookFlavor, bool bIsDataDeploy)
 		{
 			//@todo need to support dlc and other targets
 			string LocalizedContentDirectory = Path.Combine(ProjectDirectory, "Content", "Localization", "Game");
@@ -259,38 +266,40 @@ namespace UnrealBuildTool
 			return true;
 		}
 
-		public override bool PrepTargetForDeployment(UEBuildDeployTarget InTarget)
+		public override bool PrepTargetForDeployment(TargetReceipt Receipt)
 		{
 			// Use the project name if possible - InTarget.AppName changes for 'Client'/'Server' builds
-			string ProjectName = InTarget.ProjectFile != null ? InTarget.ProjectFile.GetFileNameWithoutAnyExtensions() : InTarget.AppName;
-			Log.TraceInformation("Prepping {0} for deployment to {1}", ProjectName, InTarget.Platform.ToString());
+			string ProjectName = ProjectFile != null ? ProjectFile.GetFileNameWithoutAnyExtensions() : Receipt.TargetName;
+			Log.TraceInformation("Prepping {0} for deployment to {1}", ProjectName, Receipt.Platform.ToString());
 			System.DateTime PrepDeployStartTime = DateTime.UtcNow;
 
-			// Note: TargetReceipt.Read now expands path variables internally.
-			TargetReceipt Receipt = TargetReceipt.Read(InTarget.BuildReceiptFileName, UnrealBuildTool.EngineDirectory, InTarget.ProjectDirectory);
-			AddWinMDReferencesFromReceipt(Receipt, InTarget.ProjectDirectory, UnrealBuildTool.EngineDirectory.ParentDirectory.FullName);
+			AddWinMDReferencesFromReceipt(Receipt, Receipt.ProjectDir, UnrealBuildTool.EngineDirectory.ParentDirectory.FullName);
 
-			//PrepForUATPackageOrDeploy(InTarget.ProjectFile, InAppName, InTarget.ProjectDirectory.FullName, InTarget.OutputPath.FullName, TargetBuildEnvironment.RelativeEnginePath, false, "", false);
-			List<UnrealTargetConfiguration> TargetConfigs = new List<UnrealTargetConfiguration> { InTarget.Configuration };
-			List<string> ExePaths = new List<string> { InTarget.OutputPath.FullName };
+			string SDK = "";
+			var Results = Receipt.AdditionalProperties.Where(x => x.Name == "SDK");
+			if (Results.Any())
+			{
+				SDK = Results.First().Value;
+			}
+			UWPExports.InitWindowsSdkToolPath(SDK);
+
+			List<UnrealTargetConfiguration> TargetConfigs = new List<UnrealTargetConfiguration> { Receipt.Configuration };
+			List<string> ExePaths = new List<string> { Receipt.Launch.FullName };
 			string RelativeEnginePath = UnrealBuildTool.EngineDirectory.MakeRelativeTo(DirectoryReference.GetCurrentDirectory());
-			PrepForUATPackageOrDeploy(InTarget.ProjectFile, ProjectName, InTarget.ProjectDirectory.FullName, TargetConfigs, ExePaths, RelativeEnginePath, false, "", false);
+			PrepForUATPackageOrDeploy(ProjectName, Receipt.ProjectDir.FullName, TargetConfigs, ExePaths, RelativeEnginePath, false, "", false);
 
-			DirectoryReference ProjectBinaryFolder = InTarget.OutputPath.Directory;
+			DirectoryReference ProjectBinaryFolder = Receipt.BuildProducts.FirstOrDefault(x => x.Type == BuildProductType.Executable)?.Path?.Directory;
+			if (ProjectBinaryFolder == null)
+				throw new Exception("Could not resolve project binary folder");
 
 			string[] AdditionalAppXFiles = new string[] { "NetworkManifest.xml", "xboxservices.config", "UE4Commandline.txt" };
-			bool IsGameSpecificExe = InTarget.ProjectFile != null && ProjectBinaryFolder.IsUnderDirectory(InTarget.ProjectDirectory);
+			bool IsGameSpecificExe = ProjectFile != null && ProjectBinaryFolder.IsUnderDirectory(Receipt.ProjectDir);
 			
 			string RecipeFileName = (IsGameSpecificExe ? ProjectName : "UE4") + ".build.appxrecipe";
 
 			FileReference AppxRecipeDest = FileReference.Combine(ProjectBinaryFolder, RecipeFileName);
 
-			WindowsCompiler Compiler = new WindowsTargetRules().Compiler;
-			if (Compiler == WindowsCompiler.Default)
-			{
-				Compiler = WindowsPlatform.GetDefaultCompiler(InTarget.ProjectFile);
-			}
-			GeneratePackageAppXRecipe(Compiler, AppxRecipeDest.FullName, ProjectName, InTarget, Receipt.RuntimeDependencies, AdditionalAppXFiles);
+			GeneratePackageAppXRecipe(AppxRecipeDest.FullName, ProjectName, Receipt, AdditionalAppXFiles);
 
 			// Log out the time taken to deploy...
 			double PrepDeployDuration = (DateTime.UtcNow - PrepDeployStartTime).TotalSeconds;
@@ -320,33 +329,25 @@ namespace UnrealBuildTool
 			}
 		}
 
-		private void GeneratePackageAppXRecipe(WindowsCompiler Compiler, string InOutputFile, string InProjectName, UEBuildDeployTarget InTarget, List<RuntimeDependency> Dependencies, IEnumerable<string> AdditionalFiles)
+		private void GeneratePackageAppXRecipe(string InOutputFile, string InProjectName, TargetReceipt Receipt, IEnumerable<string> AdditionalFiles)
 		{
+			// Not sure where to get correct VCProjectFileFormat from - hardcoding to VS2019
 			var AppXRecipeProjectFileContent = new StringBuilder();
-			string VcProjectToolVersion;
-			switch (Compiler)
-			{
-				case WindowsCompiler.VisualStudio2017:
-					VcProjectToolVersion = VCProjectFileGenerator.GetProjectFileToolVersionString(VCProjectFileFormat.VisualStudio2017);
-					break;
-				default:
-					VcProjectToolVersion = VCProjectFileGenerator.GetProjectFileToolVersionString(VCProjectFileFormat.VisualStudio2015);
-					break;
-			}
+			string VcProjectToolVersion = VCProjectFileGenerator.GetProjectFileToolVersionString(VCProjectFileFormat.VisualStudio2019);
 
 			AppXRecipeProjectFileContent.Append(
 				"<?xml version=\"1.0\" encoding=\"utf-8\"?>" + ProjectFileGenerator.NewLine +
 				ProjectFileGenerator.NewLine +
 				"<Project DefaultTargets=\"Build\" ToolsVersion=\"" + VcProjectToolVersion + "\" xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">" + ProjectFileGenerator.NewLine);
 
-			DirectoryReference ProjectBinariesDirectory = InTarget.BuildReceiptFileName.Directory;
+			DirectoryReference ProjectBinariesDirectory = Receipt.Launch.Directory;
 
 			// This is not the full set of properties that a VS build would add, but it's enough that VS deployment will work
 			// both locally and on a remote machine.
 			AppXRecipeProjectFileContent.Append(@"   <PropertyGroup>" + ProjectFileGenerator.NewLine);
 			AppXRecipeProjectFileContent.Append(@"	   <TargetOSVersion>10.0</TargetOSVersion>" + ProjectFileGenerator.NewLine);
 			AppXRecipeProjectFileContent.Append(@"	   <WindowsUser>" + Environment.UserName + "</WindowsUser>" + ProjectFileGenerator.NewLine);
-			AppXRecipeProjectFileContent.Append(@"	   <SolutionConfiguration>" + InTarget.Configuration + "|" + InTarget.Platform + "</SolutionConfiguration>" + ProjectFileGenerator.NewLine);
+			AppXRecipeProjectFileContent.Append(@"	   <SolutionConfiguration>" + Receipt.Configuration + "|" + Receipt.Platform + "</SolutionConfiguration>" + ProjectFileGenerator.NewLine);
 			AppXRecipeProjectFileContent.Append(@"   </PropertyGroup>" + ProjectFileGenerator.NewLine);
 
 			// Add the manifest
@@ -360,14 +361,16 @@ namespace UnrealBuildTool
 			// Add the actual package content
 			AppXRecipeProjectFileContent.Append(@"   <ItemGroup>" + ProjectFileGenerator.NewLine);
 
+			List<FileReference> OutputPaths = Receipt.BuildProducts.Where(x => x.Type == BuildProductType.Executable).Select(x => x.Path).ToList();
+
 			// Game exe
-			foreach (var BinaryOutput in InTarget.OutputPaths)
+			foreach (var BinaryOutput in OutputPaths)
 			{
 				AppXRecipeProjectFileContent.Append(@"	  <AppxPackagedFile Include=""" + BinaryOutput + @""">" + ProjectFileGenerator.NewLine);
-				bool IsGameSpecificExe = InTarget.ProjectFile != null && BinaryOutput.IsUnderDirectory(InTarget.ProjectDirectory);
+				bool IsGameSpecificExe = Receipt.ProjectFile != null && BinaryOutput.IsUnderDirectory(Receipt.ProjectDir);
 				if (IsGameSpecificExe)
 				{
-					AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + Path.Combine(InProjectName, BinaryOutput.MakeRelativeTo(InTarget.ProjectDirectory)) + @"</PackagePath>" + ProjectFileGenerator.NewLine);
+					AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + Path.Combine(InProjectName, BinaryOutput.MakeRelativeTo(Receipt.ProjectDir)) + @"</PackagePath>" + ProjectFileGenerator.NewLine);
 				}
 				else
 				{
@@ -381,14 +384,14 @@ namespace UnrealBuildTool
 			// Runtime dependencies.
 			// Note: some entries are added multiple times (notable Engine/Content/SlateDebug, possibly a bug?).
 			// This will cause UWP F5 deployment to *always* believe these files need updating, which is not desirable.
-			IEnumerable<string> DependencyPaths = Dependencies.Select((d) => (d.Path.FullName));
+			IEnumerable<string> DependencyPaths = Receipt.RuntimeDependencies.Select((d) => (d.Path.FullName));
 
 			foreach (var RuntimeDep in DependencyPaths.Distinct())
 			{
 				string SourcePath = RuntimeDep;
 				string DeployPath = RuntimeDep;
 				DeployPath = DeployPath.Replace(UnrealBuildTool.EngineDirectory.FullName, "Engine");
-				DeployPath = DeployPath.Replace(InTarget.ProjectDirectory.FullName, InProjectName);
+				DeployPath = DeployPath.Replace(Receipt.ProjectDir.FullName, InProjectName);
 
 				// 4.12: Dependencies now support ... syntax for recursive directory traversal.
 				// Translate this to MSBuild syntax. 
@@ -449,27 +452,27 @@ namespace UnrealBuildTool
 				}
 			}
 
-			DirectoryReference ConfigDirRef = DirectoryReference.FromFile(InTarget.ProjectFile);
+			DirectoryReference ConfigDirRef = DirectoryReference.FromFile(Receipt.ProjectFile);
 			if (ConfigDirRef == null && !string.IsNullOrEmpty(UnrealBuildTool.GetRemoteIniPath()))
 			{
 				ConfigDirRef = new DirectoryReference(UnrealBuildTool.GetRemoteIniPath());
 			}
 
 			// Copy pre-cooked content into the package.  This is optional since it could be enormous.
-			ConfigHierarchy EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, ConfigDirRef, InTarget.Platform);
+			ConfigHierarchy EngineIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, ConfigDirRef, Receipt.Platform);
 			if (EngineIni != null)
 			{
 				bool bCopyCookedContentForF5Deployment = false;
 				EngineIni.GetBool("/Script/UWPPlatformEditor.UWPTargetSettings", "bCopyCookedContentForF5Deployment", out bCopyCookedContentForF5Deployment);
 				if (bCopyCookedContentForF5Deployment)
 				{
-					DirectoryReference BaseCookedDir = DirectoryReference.Combine(InTarget.ProjectDirectory, "Saved", "Cooked", InTarget.Platform.ToString());
+					DirectoryReference BaseCookedDir = DirectoryReference.Combine(Receipt.ProjectDir, "Saved", "Cooked", Receipt.Platform.ToString());
 
 					AppXRecipeProjectFileContent.Append(@"	  <AppxPackagedFile Include=""" + DirectoryReference.Combine(BaseCookedDir, "Engine", "**", "*.*").FullName + @""">" + ProjectFileGenerator.NewLine);
 					AppXRecipeProjectFileContent.Append(@"		  <PackagePath>Engine\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
 					AppXRecipeProjectFileContent.Append(@"	  </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
 
-					AppXRecipeProjectFileContent.Append(@"	  <AppxPackagedFile Include=""" + DirectoryReference.Combine(BaseCookedDir, InTarget.AppName, "**", "*.*").FullName + @""">" + ProjectFileGenerator.NewLine);
+					AppXRecipeProjectFileContent.Append(@"	  <AppxPackagedFile Include=""" + DirectoryReference.Combine(BaseCookedDir, Receipt.TargetName, "**", "*.*").FullName + @""">" + ProjectFileGenerator.NewLine);
 					AppXRecipeProjectFileContent.Append(@"		  <PackagePath>" + InProjectName + @"\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>" + ProjectFileGenerator.NewLine);
 					AppXRecipeProjectFileContent.Append(@"	  </AppxPackagedFile>" + ProjectFileGenerator.NewLine);
 				}

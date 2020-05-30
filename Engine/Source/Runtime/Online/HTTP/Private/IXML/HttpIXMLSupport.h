@@ -8,7 +8,11 @@
 
 #include "Containers/UnrealString.h"
 #include "Http.h"
+#if PLATFORM_HOLOLENS
 #include "HoloLens/AllowWindowsPlatformTypes.h"
+#elif PLATFORM_UWP
+#include "UWP/AllowWindowsPlatformTypes.h"
+#endif
 #include <msxml6.h>
 #include <wrl.h>
 #include <Windows.h>

@@ -4,7 +4,7 @@
 	UWPOutputDevices.cpp: UWP implementations of OutputDevices functions
 =============================================================================*/
 
-#include "UWP/UWPOutputDevices.h"
+#include "UWP/UWPPlatformOutputDevices.h"
 #include "Misc/App.h"
 #include "Misc/CoreDelegates.h"
 

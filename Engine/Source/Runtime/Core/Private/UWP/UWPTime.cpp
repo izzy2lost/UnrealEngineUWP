@@ -5,13 +5,14 @@ UWPTime.cpp: UWP implementations of time functions
 =============================================================================*/
 
 //#include "CorePrivatePCH.h"
-#include "UWPTime.h"
+#include "UWPPlatformTime.h"
 
 double FUWPTime::InitTiming()
 {
 	LARGE_INTEGER Frequency;
 	verify(QueryPerformanceFrequency(&Frequency));
 	SecondsPerCycle = 1.0 / Frequency.QuadPart;
+	SecondsPerCycle64 = 1.0 / Frequency.QuadPart;
 	return FPlatformTime::Seconds();
 }
 

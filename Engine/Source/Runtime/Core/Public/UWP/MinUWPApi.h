@@ -15,6 +15,10 @@
 	#pragma message ( " " )
 #endif // _WINDOWS_
 
+#if !PLATFORM_UWP
+#error PLATFORM_UWP not defined
+#endif
+
 #define UE4_MINIMAL_WINDOWS_INCLUDE
 
 // WIN32_LEAN_AND_MEAN excludes rarely-used services from windows headers.
@@ -66,6 +70,34 @@
 #define NOPROXYSTUB
 #define NORPC
 
+#ifndef TRUE
+#define TRUE 1
+#endif
+#ifndef FALSE
+#define FALSE 0
+#endif
+
 // Finally now we can include windows.h
+#ifndef InterlockedIncrement
+#define InterlockedIncrement_MinUWPApi_h_hidden
+#define InterlockedIncrement _InterlockedIncrement
+#endif // !InterlockedIncrement
+
+#ifndef InterlockedDecrement
+#define InterlockedDecrement_MinUWPApi_h_hidden
+#define InterlockedDecrement _InterlockedDecrement
+#endif // !InterlockedDecrement
+
+#define InterlockedDecrement _InterlockedDecrement
+
 #include <wrl.h>
 
+#ifdef InterlockedIncrement_MinUWPApi_h_hidden
+#undef InterlockedIncrement
+#undef InterlockedIncrement_MinUWPApi_h_hidden
+#endif // InterlockedIncrement_MinUWPApi_h_hidden
+
+#ifdef InterlockedDecrement_MinUWPApi_h_hidden
+#undef InterlockedDecrement
+#undef InterlockedDecrement_MinUWPApi_h_hidden
+#endif // InterlockedIncrement_MinUWPApi_h_hidden

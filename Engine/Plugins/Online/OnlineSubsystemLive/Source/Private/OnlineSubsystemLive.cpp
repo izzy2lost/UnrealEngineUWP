@@ -281,6 +281,11 @@ IOnlineTurnBasedPtr FOnlineSubsystemLive::GetTurnBasedInterface() const
 	return nullptr;
 }
 
+IOnlineTournamentPtr FOnlineSubsystemLive::GetTournamentInterface() const
+{
+	return nullptr;
+}
+
 FOnlineMatchmakingInterfaceLivePtr FOnlineSubsystemLive::GetMatchmakingInterface() const
 {
 	return MatchmakingInterfaceLive;

@@ -70,7 +70,9 @@ FModuleManager& FModuleManager::Get()
 			ModuleManager = new FModuleManager();
 
 			//temp workaround for IPlatformFile being used for FPaths::DirectoryExists before main() sets up the commandline.
-#if PLATFORM_DESKTOP && !IS_MONOLITHIC
+// @ATG_CHANGE : BEGIN UWP packaging & F5 support
+#if PLATFORM_DESKTOP && !IS_MONOLITHIC && !PLATFORM_UWP
+// @ATG_CHANGE : END
 		// Ensure that dependency dlls can be found in restricted sub directories
 			TArray<FString> RestrictedFolderNames = { TEXT("NoRedist"), TEXT("NotForLicensees"), TEXT("CarefullyRedist") };
 			RestrictedFolderNames.Append(FDataDrivenPlatformInfoRegistry::GetConfidentialPlatforms());

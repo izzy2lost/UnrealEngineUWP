@@ -1,4 +1,4 @@
-﻿#include "RtAudio.h"
+#include "RtAudio.h"
 
 #if PLATFORM_WINDOWS
 /************************************************************************/

@@ -619,6 +619,14 @@ bool FDesktopPlatformBase::GenerateProjectFiles(const FString& RootDir, const FS
 	{
 		Arguments += FString::Printf(TEXT(" -log=\"%s\""), *LogFilePath);
 	}
+	// @ATG_CHANGE : BEGIN - if the editor was built with 2017 then we should probably generate a project for use with 2017
+	// @LAB132: But only if the editor was build with any msvc at all
+#ifdef _MSC_VER
+#if _MSC_VER >= 1910
+	Arguments += TEXT(" -2017");
+#endif
+#endif
+	// @ATG_CHANGE : END
 
 	// Compile UnrealBuildTool if it doesn't exist. This can happen if we're just copying source from somewhere.
 	bool bRes = true;
@@ -1163,6 +1171,10 @@ static bool TryReadMsBuildInstallPath(FString& OutPath)
 
 bool FDesktopPlatformBase::BuildUnrealBuildTool(const FString& RootDir, FOutputDevice& Ar)
 {
+// @UWP_CHANGE : BEGIN Since 4.22 BuildUnrealBuildTool seems to get called during UWP builds 
+#if !PLATFORM_WINDOWS && PLATFORM_UWP
+	return false;
+#else
 	Ar.Logf(TEXT("Building UnrealBuildTool in %s..."), *RootDir);
 
 	// Check the project file exists
@@ -1176,9 +1188,13 @@ bool FDesktopPlatformBase::BuildUnrealBuildTool(const FString& RootDir, FOutputD
 	FString CompilerExecutableFilename;
 	FString CmdLineParams;
 
-	if (PLATFORM_WINDOWS)
+// @ATG_CHANGE : BEGIN UWP support
+	if (PLATFORM_WINDOWS || PLATFORM_UWP)
+// @ATG_CHANGE : END
 	{
-#if PLATFORM_WINDOWS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
 		if (!TryReadMsBuildInstallPath(CompilerExecutableFilename))
 		{
 			Ar.Logf(TEXT("Couldn't find MSBuild installation; skipping."));
@@ -1228,6 +1244,8 @@ bool FDesktopPlatformBase::BuildUnrealBuildTool(const FString& RootDir, FOutputD
 	}
 
 	return true;
+#endif
+// UWP_CHANGE : END
 }
 
 FString FDesktopPlatformBase::GetUnrealBuildToolProjectFileName(const FString& RootDir) const

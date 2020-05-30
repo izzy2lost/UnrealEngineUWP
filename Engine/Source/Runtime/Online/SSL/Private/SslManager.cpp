@@ -6,7 +6,9 @@
 
 #if WITH_SSL
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 #include "Windows/WindowsHWrapper.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #endif
@@ -15,7 +17,9 @@
 #include <openssl/conf.h>
 #include <openssl/err.h>
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 #include "Windows/HideWindowsPlatformTypes.h"
 #endif
 

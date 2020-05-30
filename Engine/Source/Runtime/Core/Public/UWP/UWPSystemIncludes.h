@@ -16,7 +16,7 @@
 #include "UWP/PostUWPApi.h"
 
 // Set up compiler pragmas, etc
-#include "UWP/UWPCompilerSetup.h"
+#include "UWP/UWPPlatformCompilerSetup.h"
 
 // Macro for releasing COM objects
 #define SAFE_RELEASE(p) { if(p) { (p)->Release(); (p)=NULL; } }

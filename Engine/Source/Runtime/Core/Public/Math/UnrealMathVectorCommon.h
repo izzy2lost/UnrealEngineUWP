@@ -252,7 +252,9 @@ FORCEINLINE void VectorQuaternionInverseRotateVectorPtr(void* RESTRICT Result, c
  * @param Value the value to determine the number of leading zeros for
  * @return the number of zeros before the first "on" bit
  */
-#if (((PLATFORM_WINDOWS || PLATFORM_HOLOLENS) && !PLATFORM_COMPILER_CLANG) || PLATFORM_XBOXONE)
+// @LAB132 : BEGIN UWP Support
+#if (((PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP) && !PLATFORM_COMPILER_CLANG) || PLATFORM_XBOXONE)
+// @LAB132 : END
 #pragma intrinsic( _BitScanForward )
 FORCEINLINE uint32 appCountTrailingZeros(uint32 Value)
 {

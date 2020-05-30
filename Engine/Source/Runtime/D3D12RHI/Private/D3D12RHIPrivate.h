@@ -46,6 +46,10 @@ DECLARE_LOG_CATEGORY_EXTERN(LogD3D12RHI, Log, All);
 #include "Windows/D3D12RHIBasePrivate.h"
 #elif PLATFORM_HOLOLENS
 #include "HoloLens/D3D12RHIBasePrivate.h"
+// @UWP_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/D3D12RHIBasePrivate.h"
+// @UWP_CHANGE : END
 #else
 #include "XboxOne/D3D12RHIBasePrivate.h"
 #endif

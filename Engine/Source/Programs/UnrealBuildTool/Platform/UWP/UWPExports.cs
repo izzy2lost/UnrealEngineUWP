@@ -12,14 +12,12 @@ namespace UnrealBuildTool
 	/// </summary>
 	public class UWPExports
 	{
-		private UWPDeploy InnerDeploy;
-
 		/// <summary>
 		/// 
 		/// </summary>
 		public UWPExports()
 		{
-			InnerDeploy = new UWPDeploy();
+
 		}
 
 		/// <summary>
@@ -37,7 +35,7 @@ namespace UnrealBuildTool
 		/// <returns></returns>
 		public bool PrepForUATPackageOrDeploy(FileReference ProjectFile, string InProjectName, string InProjectDirectory, List<UnrealTargetConfiguration> InTargetConfigurations, List<string> InExecutablePaths, string InEngineDir, bool bForDistribution, string CookFlavor, bool bIsDataDeploy)
 		{
-			return InnerDeploy.PrepForUATPackageOrDeploy(ProjectFile, InProjectName, InProjectDirectory, InTargetConfigurations, InExecutablePaths, InEngineDir, bForDistribution, CookFlavor, bIsDataDeploy);
+			return new UWPDeploy(ProjectFile).PrepForUATPackageOrDeploy(InProjectName, InProjectDirectory, InTargetConfigurations, InExecutablePaths, InEngineDir, bForDistribution, CookFlavor, bIsDataDeploy);
 		}
 
 		/// <summary>
@@ -48,18 +46,16 @@ namespace UnrealBuildTool
 		/// <param name="DestPackageRoot"></param>
 		public void AddWinMDReferencesFromReceipt(TargetReceipt Receipt, DirectoryReference SourceProjectDir, string DestPackageRoot)
 		{
-			InnerDeploy.AddWinMDReferencesFromReceipt(Receipt, SourceProjectDir, DestPackageRoot);
+			new UWPDeploy(Receipt.ProjectFile).AddWinMDReferencesFromReceipt(Receipt, SourceProjectDir, DestPackageRoot);
 		}
 
 		/// <summary>
 		/// 
 		/// </summary>
 		/// <returns></returns>
-		public static string FindWindowsSDKInstallationFolder()
+		public static void GetWindowsSDKInstallationFolder(out DirectoryReference SDKFolder, out Version SDKVersion)
 		{
-			// Neither of the parameters here need to be exactly right to find the correct SDK location.
-			// The key is just that we pass a UWP platform and a supported compiler.
-			return VCEnvironment.FindWindowsSDKInstallationFolder(CppPlatform.UWP64, WindowsCompiler.VisualStudio2017);
+			UniversalWindowsPlatformToolChain.GetWindowsSDKInstallationFolder(out SDKFolder, out SDKVersion);
 		}
 
 		/// <summary>
@@ -70,6 +66,16 @@ namespace UnrealBuildTool
 		public static FileReference GetWindowsSdkToolPath(string ToolName)
 		{
 			return UniversalWindowsPlatformToolChain.GetWindowsSdkToolPath(ToolName);
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="SdkVersion"></param>
+		/// <returns></returns>
+		public static bool InitWindowsSdkToolPath(string SdkVersion)
+		{
+			return UniversalWindowsPlatformToolChain.InitWindowsSdkToolPath(SdkVersion);
 		}
 
 		/// <summary>

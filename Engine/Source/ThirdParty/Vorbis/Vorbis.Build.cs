@@ -12,25 +12,27 @@ public class Vorbis : ModuleRules
 		PublicIncludePaths.Add(VorbisPath + "include");
 		PublicDefinitions.Add("WITH_OGGVORBIS=1");
 
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 		{
-			string VorbisLibPath = VorbisPath + "Lib/win64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/";
+			string VorbisLibPath = VorbisPath + "Lib/" + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/";
 			PublicLibraryPaths.Add(VorbisLibPath);
 
 			PublicAdditionalLibraries.Add("libvorbis_64.lib");
 			PublicDelayLoadDLLs.Add("libvorbis_64.dll");
 
-			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Vorbis/Win64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbis_64.dll");
+			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Vorbis/" + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbis_64.dll");
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Win32)
+		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
 		{
-			string VorbisLibPath = VorbisPath + "Lib/win32/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/";
+			string VorbisLibPath = VorbisPath + "Lib/" + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/";
 			PublicLibraryPaths.Add(VorbisLibPath);
 
 			PublicAdditionalLibraries.Add("libvorbis.lib");
 			PublicDelayLoadDLLs.Add("libvorbis.dll");
 
-			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Vorbis/Win32/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbis.dll");
+			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Vorbis/" + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbis.dll");
+// @ATG_CHANGE : END
 		}
 		else if (Target.Platform == UnrealTargetPlatform.HoloLens)
         {

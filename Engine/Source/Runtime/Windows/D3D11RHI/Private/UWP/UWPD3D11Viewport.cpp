@@ -14,7 +14,12 @@ using namespace Windows::Foundation;
 using namespace Windows::ApplicationModel::Core;
 using namespace Windows::UI::Core;
 
-extern FD3D11Texture2D* GetSwapChainSurface(FD3D11DynamicRHI* D3DRHI, EPixelFormat PixelFormat, IDXGISwapChain* SwapChain);
+static uint32 GSwapChainFlags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
+uint32 D3D11GetSwapChainFlags()
+{
+	return GSwapChainFlags;
+}
 
 DXGI_FORMAT GetSupportedSwapChainBufferFormat(DXGI_FORMAT InPreferredDXGIFormat)
 {
@@ -60,76 +65,153 @@ FD3D11Viewport::FD3D11Viewport(FD3D11DynamicRHI* InD3DRHI,HWND InWindowHandle,ui
 	D3DRHI->InitD3DDevice();
 
 	// Create a backbuffer/swapchain for each viewport
-	// First, retrieve the underlying DXGI Device from the D3D Device
-	TRefCountPtr<IDXGIDevice1> DXGIDevice;
-	VERIFYD3D11RESULT(D3DRHI->GetDevice()->QueryInterface(__uuidof(DXGIDevice), (void**)DXGIDevice.GetInitReference() ));
+	TRefCountPtr<IDXGIDevice> DXGIDevice;
+	VERIFYD3D11RESULT_EX(D3DRHI->GetDevice()->QueryInterface(IID_IDXGIDevice, (void**)DXGIDevice.GetInitReference()), D3DRHI->GetDevice());
 
-	IDXGIAdapter* pdxgiAdapter;
-	VERIFYD3D11RESULT(DXGIDevice->GetAdapter(&pdxgiAdapter));
+	uint32 DisplayIndex = D3DRHI->GetHDRDetectedDisplayIndex();
+	bForcedFullscreenDisplay = FParse::Value(FCommandLine::Get(), TEXT("FullscreenDisplay="), DisplayIndex);
 
-	IDXGIFactory2* pdxgiFactory;
-	VERIFYD3D11RESULT(pdxgiAdapter->GetParent(__uuidof(pdxgiFactory), reinterpret_cast< void** >(&pdxgiFactory)));
+	if (bForcedFullscreenDisplay || GRHISupportsHDROutput)
+	{
+		TRefCountPtr<IDXGIAdapter> DXGIAdapter;
+		DXGIDevice->GetAdapter((IDXGIAdapter**)DXGIAdapter.GetInitReference());
 
-	// Create the swapchain.
-	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {0};
-	swapChainDesc.Width = SizeX;
-	swapChainDesc.Height = SizeY;
-	swapChainDesc.Format = GetSupportedSwapChainBufferFormat(GetRenderTargetFormat(PixelFormat));
-	swapChainDesc.Stereo = false; 
-	swapChainDesc.SampleDesc.Count = 1;                          // don't use multi-sampling
-	swapChainDesc.SampleDesc.Quality = 0;
-	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_SHADER_INPUT;
-	swapChainDesc.BufferCount = 2;                               // use two buffers to enable flip effect
-	swapChainDesc.Scaling = DXGI_SCALING_NONE;
-	swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
-	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; // we recommend using this swap effect for all applications
-	swapChainDesc.Flags = 0;
+		if (S_OK != DXGIAdapter->EnumOutputs(DisplayIndex, ForcedFullscreenOutput.GetInitReference()))
+		{
+			UE_LOG(LogD3D11RHI, Log, TEXT("Failed to find requested output display (%i)."), DisplayIndex);
+			ForcedFullscreenOutput = nullptr;
+			bForcedFullscreenDisplay = false;
+		}
+	}
+	else
+	{
+		ForcedFullscreenOutput = nullptr;
+	}
 
-	IDXGISwapChain1* CreatedSwapChain = NULL;
+	if (PixelFormat == PF_FloatRGBA && bIsFullscreen)
+	{
+		// Send HDR meta data to enable
+		D3DRHI->EnableHDR();
+	}
 
-	VERIFYD3D11RESULT(pdxgiFactory->CreateSwapChainForCoreWindow(
-		D3DRHI->GetDevice(), 
-		reinterpret_cast< IUnknown* >(CoreWindow::GetForCurrentThread()),
-		&swapChainDesc,
-		NULL,
-		(IDXGISwapChain1**)&CreatedSwapChain
-		)
-		);
+	// Skip swap chain creation in off-screen rendering mode
+	bNeedSwapChain = !FParse::Param(FCommandLine::Get(), TEXT("RenderOffScreen"));
+	if (bNeedSwapChain)
+	{
+		// Create the swapchain.
+		if (InD3DRHI->IsQuadBufferStereoEnabled())
+		{
+			IDXGIFactory2* Factory2 = (IDXGIFactory2*)D3DRHI->GetFactory();
 
-	*(SwapChain.GetInitReference()) = CreatedSwapChain;
+			BOOL stereoEnabled = Factory2->IsWindowedStereoEnabled();
+			if (stereoEnabled)
+			{
+				DXGI_SWAP_CHAIN_DESC1 SwapChainDesc1;
+				FMemory::Memzero(&SwapChainDesc1, sizeof(DXGI_SWAP_CHAIN_DESC1));
 
-	// Set the DXGI message hook to not change the window behind our back.
-	//D3DRHI->GetFactory()->MakeWindowAssociation(WindowHandle,DXGI_MWA_NO_WINDOW_CHANGES);
+				// Enable stereo 
+				SwapChainDesc1.Stereo = true;
+				// MSAA Sample count
+				SwapChainDesc1.SampleDesc.Count = 1;
+				SwapChainDesc1.SampleDesc.Quality = 0;
+
+				SwapChainDesc1.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+				SwapChainDesc1.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_SHADER_INPUT;
+				// Double buffering required to create stereo swap chain
+				SwapChainDesc1.BufferCount = 2;
+				SwapChainDesc1.Scaling = DXGI_SCALING_NONE;
+				SwapChainDesc1.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+				SwapChainDesc1.Flags = GSwapChainFlags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
+				IDXGISwapChain1* SwapChain1 = nullptr;
+				VERIFYD3D11RESULT_EX((Factory2->CreateSwapChainForCoreWindow(
+					D3DRHI->GetDevice(),
+					reinterpret_cast<IUnknown*>(CoreWindow::GetForCurrentThread()),
+					&SwapChainDesc1,
+					nullptr,
+					&SwapChain1)
+					), D3DRHI->GetDevice());
+				SwapChain = SwapChain1;
+				GRHISupportsHDROutput =
+					(SwapChainDesc1.Format == DXGI_FORMAT_R10G10B10A2_TYPELESS) ||
+					(SwapChainDesc1.Format == DXGI_FORMAT_R16G16B16A16_FLOAT);
+			}
+			else
+			{
+				UE_LOG(LogD3D11RHI, Log, TEXT("FD3D11Viewport::FD3D11Viewport was not able to create stereo SwapChain; Please enable stereo in driver settings."));
+				InD3DRHI->DisableQuadBufferStereo();
+			}
+		}
+
+		// if stereo was not activated or not enabled in settings
+		if (SwapChain == nullptr)
+		{
+			IDXGIAdapter* pdxgiAdapter;
+			VERIFYD3D11RESULT(DXGIDevice->GetAdapter(&pdxgiAdapter));
+
+			IDXGIFactory2* pdxgiFactory;
+			VERIFYD3D11RESULT(pdxgiAdapter->GetParent(__uuidof(pdxgiFactory), reinterpret_cast<void**>(&pdxgiFactory)));
+
+			// Create the swapchain.
+			DXGI_SWAP_CHAIN_DESC1 swapChainDesc = { 0 };
+			swapChainDesc.Width = SizeX;
+			swapChainDesc.Height = SizeY;
+			swapChainDesc.Format = GetSupportedSwapChainBufferFormat(GetRenderTargetFormat(PixelFormat));
+			swapChainDesc.Stereo = false;
+			swapChainDesc.SampleDesc.Count = 1;                          // don't use multi-sampling
+			swapChainDesc.SampleDesc.Quality = 0;
+			swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_SHADER_INPUT;
+			swapChainDesc.BufferCount = 2;                               // use two buffers to enable flip effect
+			swapChainDesc.Scaling = DXGI_SCALING_NONE;
+			swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
+			swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; // we recommend using this swap effect for all applications
+			swapChainDesc.Flags = GSwapChainFlags = 0;
+
+			IDXGISwapChain1* CreatedSwapChain = NULL;
+
+			VERIFYD3D11RESULT(pdxgiFactory->CreateSwapChainForCoreWindow(
+				D3DRHI->GetDevice(),
+				reinterpret_cast<IUnknown*>(CoreWindow::GetForCurrentThread()),
+				&swapChainDesc,
+				NULL,
+				(IDXGISwapChain1**)&CreatedSwapChain
+			)
+			);
+
+			*(SwapChain.GetInitReference()) = CreatedSwapChain;
+
+			GRHISupportsHDROutput =
+				(swapChainDesc.Format == DXGI_FORMAT_R10G10B10A2_TYPELESS) ||
+				(swapChainDesc.Format == DXGI_FORMAT_R16G16B16A16_FLOAT);
+
+		}
+	}
 
 	// Create a RHI surface to represent the viewport's back buffer.
-	BackBuffer = GetSwapChainSurface(D3DRHI, PixelFormat, SwapChain);
-
-	GRHISupportsHDROutput =
-		(swapChainDesc.Format == DXGI_FORMAT_R10G10B10A2_TYPELESS) ||
-		(swapChainDesc.Format == DXGI_FORMAT_R16G16B16A16_FLOAT);
+	BackBuffer = GetSwapChainSurface(D3DRHI, PixelFormat, SizeX, SizeY, SwapChain);
 
 	BeginInitResource(&FrameSyncEvent);
 }
 
 void FD3D11Viewport::ConditionalResetSwapChain(bool bIgnoreFocus)
 {
-	if(!bIsValid)
+	if (!bIsValid)
 	{
 		const bool bIsFocused = true;
 		const bool bIsIconic = false;
-		if(bIgnoreFocus || (bIsFocused && !bIsIconic) )
+		if (bIgnoreFocus || (bIsFocused && !bIsIconic))
 		{
 			FlushRenderingCommands();
 
-			HRESULT Result = SwapChain->SetFullscreenState(bIsFullscreen,NULL);
-			if(SUCCEEDED(Result))
+			HRESULT Result = SwapChain->SetFullscreenState(bIsFullscreen, NULL);
+			if (SUCCEEDED(Result))
 			{
 				bIsValid = true;
 			}
 			else
 			{
 				// Even though the docs say SetFullscreenState always returns S_OK, that doesn't always seem to be the case.
-				UE_LOG(LogD3D11RHI, Log, TEXT("IDXGISwapChain::SetFullscreenState returned %08x; waiting for the next frame to try again."),Result);
+				UE_LOG(LogD3D11RHI, Log, TEXT("IDXGISwapChain::SetFullscreenState returned %08x; waiting for the next frame to try again."), Result);
 			}
 		}
 	}

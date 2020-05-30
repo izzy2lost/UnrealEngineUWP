@@ -4,5 +4,5 @@
 	UWPStackWalk.cpp: UWP implementations of stack walk functions
 =============================================================================*/
 
-#include "UWPStackWalk.h"
+#include "UWPPlatformStackWalk.h"
 

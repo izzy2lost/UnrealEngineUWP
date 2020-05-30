@@ -428,7 +428,8 @@ void UNetConnection::NotifyAnalyticsProvider()
 	}
 }
 
-void UNetConnection::EnableEncryptionWithKey(TArrayView<const uint8> Key)
+// @ATG_CHANGE : BEGIN - GCM requires persistant nonce data that is incremented for each send
+void UNetConnection::EnableEncryptionWithKeyAndNonce(TArrayView<const uint8> Key, const TArrayView<const uint8>& NonceData)
 {
 	if (Handler.IsValid())
 	{
@@ -438,6 +439,7 @@ void UNetConnection::EnableEncryptionWithKey(TArrayView<const uint8> Key)
 		if (EncryptionComponent.IsValid())
 		{
 			EncryptionComponent->SetEncryptionKey(Key);
+			EncryptionComponent->SetEncryptionNonceData(NonceData);
 			EncryptionComponent->EnableEncryption();
 		}
 		else
@@ -447,18 +449,19 @@ void UNetConnection::EnableEncryptionWithKey(TArrayView<const uint8> Key)
 	}
 }
 
-void UNetConnection::EnableEncryptionWithKeyServer(TArrayView<const uint8> Key)
+void UNetConnection::EnableEncryptionWithKeyAndIVServer(TArrayView<const uint8> Key, TArrayView<const uint8> NonceData)
 {
 	if (State != USOCK_Invalid && State != USOCK_Closed && Driver)
 	{
 		SendClientEncryptionAck();
-		EnableEncryptionWithKey(Key);
+		EnableEncryptionWithKeyAndNonce(Key, NonceData);
 	}
 	else
 	{
 		UE_LOG(LogNet, Log, TEXT("UNetConnection::EnableEncryptionWithKeyServer, connection in invalid state. %s"), *Describe());
 	}
 }
+// @ATG_CHANGE : END
 
 void UNetConnection::SendClientEncryptionAck()
 {

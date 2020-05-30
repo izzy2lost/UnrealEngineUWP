@@ -301,7 +301,7 @@ int32 ReportCrashUsingWindowsErrorReporting(EXCEPTION_POINTERS* ExceptionInfo, c
 /** 
  * Report an ensure to the crash reporting system
  */
-void NewReportEnsure( const TCHAR* ErrorMessage )
+void ReportEnsure( const TCHAR* ErrorMessage, int NumStackFramesToIgnore )
 {
 #if !PLATFORM_SEH_EXCEPTIONS_DISABLED && !PLATFORM_UWP 
 	__try

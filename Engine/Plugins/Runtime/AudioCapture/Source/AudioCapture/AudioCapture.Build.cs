@@ -15,7 +15,7 @@ namespace UnrealBuildTool.Rules
 				}
 			);
 
-			if (Target.Platform == UnrealTargetPlatform.Win32 ||
+            if (Target.Platform == UnrealTargetPlatform.Win32 ||
 				Target.Platform == UnrealTargetPlatform.Win64)
 			{
 				PublicDefinitions.Add("WITH_RTAUDIO=1");
@@ -31,7 +31,7 @@ namespace UnrealBuildTool.Rules
 			}
 			else
 			{
-				// Not supported on this platform
+                // Not supported on this platform
 				PublicDefinitions.Add("WITH_AUDIOCAPTURE=0");
 			}
 		}

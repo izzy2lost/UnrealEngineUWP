@@ -80,7 +80,10 @@ public class PhysXVehicleLib : ModuleRules
 
         // Libraries and DLLs for windows platform
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.HoloLens ||
-            Target.Platform == UnrealTargetPlatform.Win32)
+            Target.Platform == UnrealTargetPlatform.Win32
+		    // @ATG_CHANGE: BEGIN UWP support
+            || Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+            // @ATG_CHANGE: END UWP support
         {
 			PublicLibraryPaths.Add(PhysXLibDir + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
 

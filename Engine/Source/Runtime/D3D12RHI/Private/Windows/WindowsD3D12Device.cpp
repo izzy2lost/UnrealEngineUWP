@@ -8,7 +8,9 @@
 #include "Modules/ModuleManager.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 	#include <delayimp.h>
-#if !PLATFORM_CPU_ARM_FAMILY
+// @UWP_CHANGE : BEGIN UWP support
+#if !PLATFORM_CPU_ARM_FAMILY && !PLATFORM_UWP
+// @ATG_CHANGE : END UWP support
 #include "amd_ags.h"
 #endif
 #include "Windows/HideWindowsPlatformTypes.h"
@@ -211,10 +213,14 @@ static bool SupportsHDROutput(FD3D12DynamicRHI* D3DRHI)
 
 bool FD3D12DynamicRHIModule::IsSupported()
 {
+	// @UWP_CHANGE : BEGIN UWP support
+#if !PLATFORM_UWP
 	if (!FWindowsPlatformMisc::VerifyWindowsVersion(10, 0))
 	{
 		return false;
 	}
+#endif
+	// @UWP_CHANGE : END
 
 	// If not computed yet
 	if (ChosenAdapters.Num() == 0)
@@ -531,7 +537,9 @@ void FD3D12DynamicRHI::Init()
 	// Need to set GRHIVendorId before calling IsRHIDevice* functions
 	GRHIVendorId = AdapterDesc.VendorId;
 
-#if !PLATFORM_CPU_ARM_FAMILY
+// @UWP_CHANGE : BEGIN UWP support
+#if !PLATFORM_CPU_ARM_FAMILY && !PLATFORM_UWP
+// @UWP_CHANGE : END
 	// Initialize the AMD AGS utility library, when running on an AMD device
 	if (IsRHIDeviceAMD())
 	{
@@ -551,7 +559,9 @@ void FD3D12DynamicRHI::Init()
 
 	uint32 AmdSupportedExtensionFlags = 0;
 
-#if !PLATFORM_CPU_ARM_FAMILY
+// @UWP_CHANGE : BEGIN UWP support
+#if !PLATFORM_CPU_ARM_FAMILY && !PLATFORM_UWP
+// @UWP_CHANGE : END
 	if (AmdAgsContext)
 	{
 		// Initialize AMD driver extensions

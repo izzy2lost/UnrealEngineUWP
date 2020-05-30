@@ -60,60 +60,55 @@ public class OnlineSubsystemLive : ModuleRules
 		string XimPackageFolder = string.Empty;
 		string PackageArch = string.Empty;
 		string PlatformArchAndCompilerPathChunk = string.Empty;
-		switch (Target.Platform)
+
+		if (Target.Platform == UnrealTargetPlatform.XboxOne)
 		{
-			case UnrealTargetPlatform.XboxOne:
-				XsapiPackageFolder = "XboxOne." + XsapiVersionXboxOne;
-				XimPackageFolder = "XboxOne." + XimVersion;
-				PackageArch = "Durango";
-				PlatformArchAndCompilerPathChunk = Path.Combine("references", PackageArch, "v110");
-				break;
-
-			case UnrealTargetPlatform.Win32:
-				// This case is currently used for intellisense generation.  Fall-through to UWP32 so it can find the winmd
-			case UnrealTargetPlatform.UWP32:
-				XsapiPackageFolder = "UWP." + XsapiVersionUwp;
-				XimPackageFolder = "UWP." + XimVersion;
-				PackageArch = "Win32";
-				PlatformArchAndCompilerPathChunk = Path.Combine("lib", PackageArch, "v140");
-				break;
-
-			case UnrealTargetPlatform.Win64:
-				// This case is currently used for intellisense generation.  Fall-through to UWP64 so it can find the winmd
-			case UnrealTargetPlatform.UWP64:
-				XsapiPackageFolder = "UWP." + XsapiVersionUwp;
-				XimPackageFolder = "UWP." + XimVersion;
-				PackageArch = "x64";
-				PlatformArchAndCompilerPathChunk = Path.Combine("lib", PackageArch, "v140");
-				break;
+			XsapiPackageFolder = "XboxOne." + XsapiVersionXboxOne;
+			XimPackageFolder = "XboxOne." + XimVersion;
+			PackageArch = "Durango";
+			PlatformArchAndCompilerPathChunk = Path.Combine("references", PackageArch, "v110");
 		}
-		string NugetPathChunk = Path.Combine(XsapiPackageFolder, PlatformArchAndCompilerPathChunk, "release");
+		// This case is currently used for intellisense generation.  Include UWP32 so it can find the winmd
+		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
+		{
+			XsapiPackageFolder = "UWP." + XsapiVersionUwp;
+			XimPackageFolder = "UWP." + XimVersion;
+			PackageArch = "Win32";
+			PlatformArchAndCompilerPathChunk = Path.Combine("lib", PackageArch, "v140");
+		}
+		// This case is currently used for intellisense generation.  Include UWP64 so it can find the winmd
+		else if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
+		{
+			XsapiPackageFolder = "UWP." + XsapiVersionUwp;
+			XimPackageFolder = "UWP." + XimVersion;
+			PackageArch = "x64";
+			PlatformArchAndCompilerPathChunk = Path.Combine("lib", PackageArch, "v140");
+		}
 
+		string NugetPathChunk = Path.Combine(XsapiPackageFolder, PlatformArchAndCompilerPathChunk, "release");
 		string XSAPISubDir = Path.Combine("XSAPI", NugetPathChunk);
 		if (!AddWinRTDllReference(XSAPISubDir, "Microsoft.Xbox.Services"))
 		{
 			if (!HasWarnedAboutLiveSdk)
 			{
-				Log.TraceWarning(" Xbox Live SDK (version {0}) not found.  Xbox Live features will not be available.  Run Setup.bat to ensure the SDK is in the expected location.", Target.Platform == UnrealTargetPlatform.XboxOne ? XsapiVersionXboxOne : XsapiVersionUwp);
+				Tools.DotNETCommon.Log.TraceWarning(" Xbox Live SDK (version {0}) not found.  Xbox Live features will not be available.  Run Setup.bat to ensure the SDK is in the expected location.", Target.Platform == UnrealTargetPlatform.XboxOne ? XsapiVersionXboxOne : XsapiVersionUwp);
 				HasWarnedAboutLiveSdk = true;
 			}
         }
 
 		string PlatformSubDir = string.Empty;
-		switch (Target.Platform)
+		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
-			case UnrealTargetPlatform.Win64:
-				// This case is currently used for intellisense generation.  Fall-through to UWP64 so it can find the winmd
-				PlatformSubDir = UnrealTargetPlatform.UWP64.ToString();
-				break;
-
-			case UnrealTargetPlatform.Win32:
-				PlatformSubDir = UnrealTargetPlatform.UWP32.ToString();
-				break;
-
-			default:
-				PlatformSubDir = Target.Platform.ToString();
-				break;
+			// This is currently used for intellisense generation.  Fall-through to UWP64 so it can find the winmd
+			PlatformSubDir = UnrealTargetPlatform.UWP64.ToString();
+		}
+		else if (Target.Platform == UnrealTargetPlatform.Win32)
+		{
+			PlatformSubDir = UnrealTargetPlatform.UWP32.ToString();
+		}
+		else
+		{
+			PlatformSubDir = Target.Platform.ToString();
 		}
 
 		bool HasGameChat = true;
@@ -186,53 +181,46 @@ public class OnlineSubsystemLive : ModuleRules
 	// @ATG_CHANGE : BEGIN XIM toggle
 	private bool UseXim(ReadOnlyTargetRules Target)
 	{
-		switch (Target.Platform)
-		{
-			case UnrealTargetPlatform.UWP64:
-			case UnrealTargetPlatform.UWP32:
-				return Target.UWPPlatform.bUseXim;
+		if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+			return Target.UWPPlatform.bUseXim;
 
-			default:
-				return false;
-		}
+		return false;
 	}
 	// @ATG_CHANGE : END XIM toggle
 
 	// @ATG_CHANGE : BEGIN Achievements 2017 toggle
 	private bool UseAchievements2017(ReadOnlyTargetRules Target)
 	{
-		switch (Target.Platform)
+		if (Target.Platform == UnrealTargetPlatform.XboxOne)
 		{
-			case UnrealTargetPlatform.XboxOne:
-				//return Target.XboxOnePlatform.bUseAchievements2017;
-				return false;
-
-			case UnrealTargetPlatform.UWP64:
-			case UnrealTargetPlatform.UWP32:
-				return Target.UWPPlatform.bUseAchievements2017;
-
-			default:
-				return false;
+			//return Target.XboxOnePlatform.bUseAchievements2017;
+			return false;
 		}
+
+		if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+		{
+			return Target.UWPPlatform.bUseAchievements2017;
+		}
+
+		return false;
 	}
 	// @ATG_CHANGE : END Achievements 2017 toggle
 
 	// @ATG_CHANGE : BEGIN Stats 2017 toggle
 	private bool UseStats2017(ReadOnlyTargetRules Target)
 	{
-		switch (Target.Platform)
+		if (Target.Platform == UnrealTargetPlatform.XboxOne)
 		{
-			case UnrealTargetPlatform.XboxOne:
-				//return Target.XboxOnePlatform.bUseStats2017;
-				return false;
-
-			case UnrealTargetPlatform.UWP64:
-			case UnrealTargetPlatform.UWP32:
-				return Target.UWPPlatform.bUseStats2017;
-
-			default:
-				return false;
+			//return Target.XboxOnePlatform.bUseStats2017;
+			return false;
 		}
+
+		if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+		{
+			return Target.UWPPlatform.bUseStats2017;
+		}
+
+		return false;
 	}
 	// @ATG_CHANGE : END Stats 2017 toggle
 

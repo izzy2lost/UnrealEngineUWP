@@ -19,7 +19,7 @@
 #include "XAudio2Effects.h"
 #include "Interfaces/IAudioFormat.h"
 #include "HAL/PlatformAffinity.h"
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_XBOXONE
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP || PLATFORM_XBOXONE
 #include "Windows/WindowsHWrapper.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include "Windows/AllowWindowsPlatformAtomics.h"
@@ -109,9 +109,10 @@ bool FXAudio2Device::InitializeHardware()
 
 	SampleRate = UE4_XAUDIO2_SAMPLERATE;
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
 	bComInitialized = FPlatformMisc::CoInitialize();
-#if PLATFORM_64BITS && !PLATFORM_HOLOLENS
+#if PLATFORM_64BITS && !PLATFORM_HOLOLENS && !PLATFORM_UWP
 	// Work around the fact the x64 version of XAudio2_7.dll does not properly ref count
 	// by forcing it to be always loaded
 
@@ -135,8 +136,9 @@ bool FXAudio2Device::InitializeHardware()
 			return false;
 		}
 	}
-#endif	//PLATFORM_64BITS && !PLATFORM_HOLOLENS
-#endif	//PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+#endif	//PLATFORM_64BITS && !PLATFORM_HOLOLENS && !PLATFORM_UWP
+#endif	//PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+// @ATG_CHANGE : END
 
 #if DEBUG_XAUDIO2
 	uint32 Flags = XAUDIO2_DEBUG_ENGINE;
@@ -299,7 +301,9 @@ void FXAudio2Device::TeardownHardware()
 	FXMAAudioInfo::Shutdown();
 #endif
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 	if (bComInitialized)
 	{
 		FPlatformMisc::CoUninitialize();
@@ -310,6 +314,11 @@ void FXAudio2Device::TeardownHardware()
 
 void FXAudio2Device::UpdateHardware()
 {
+	if (DeviceProperties)
+	{
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 	// If the audio device changed, we need to tear down and restart the audio engine state
 	if (DeviceProperties && DeviceProperties->DidAudioDeviceChange())
 	{
@@ -340,6 +349,8 @@ void FXAudio2Device::UpdateHardware()
 		Sources.Reset();
 
 		InitSoundSources();
+	}
+#endif
 	}
 }
 

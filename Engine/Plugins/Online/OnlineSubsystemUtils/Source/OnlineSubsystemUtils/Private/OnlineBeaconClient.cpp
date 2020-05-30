@@ -431,7 +431,9 @@ void AOnlineBeaconClient::FinalizeEncryptedConnection(const FEncryptionKeyRespon
 		{
 			if (Response.Response == EEncryptionResponse::Success)
 			{
-				Connection->EnableEncryptionWithKey(Response.EncryptionKey);
+				// @ATG_CHANGE : BEGIN - allow modes that require nonce distribution
+				Connection->EnableEncryptionWithKeyAndNonce(Response.EncryptionKey, Response.NonceData);
+				// @ATG_CHANGE : END
 			}
 			else
 			{

@@ -49,6 +49,24 @@ public class UElibPNG : ModuleRules
             }
             PublicAdditionalLibraries.Add(LibFileName + ".lib");
         }
+		// @ATG_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.UWP64)
+		{
+			string LibPath = libPNGPath + "/lib/UWP64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PublicLibraryPaths.Add(LibPath);
+
+			string LibFileName = "libpng" + (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT ? "d" : "") + "_64.lib";
+			PublicAdditionalLibraries.Add(LibFileName);
+		}
+		else if (Target.Platform == UnrealTargetPlatform.UWP32)
+		{
+			libPNGPath = libPNGPath + "/lib/UWP32/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PublicLibraryPaths.Add(libPNGPath);
+
+			string LibFileName = "libpng" + (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT ? "d" : "") + ".lib";
+			PublicAdditionalLibraries.Add(LibFileName);
+		}
+		// @ATG_CHANGE : END
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			PublicAdditionalLibraries.Add(libPNGPath + "/lib/Mac/libpng.a");

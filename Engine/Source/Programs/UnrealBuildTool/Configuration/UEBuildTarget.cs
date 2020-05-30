@@ -205,6 +205,18 @@ namespace UnrealBuildTool
 		/// </summary>
 		public static UnrealTargetPlatform HoloLens = FindOrAddByName("HoloLens");
 
+		// @UWP_CHANGE : BEGIN UWP support
+		/// <summary>
+		/// UWP (x64)
+		/// </summary>
+		public static UnrealTargetPlatform UWP64 = FindOrAddByName("UWP64");
+
+		/// <summary>
+		/// UWP (x86)
+		/// </summary>
+		public static UnrealTargetPlatform UWP32 = FindOrAddByName("UWP32");
+		// @UWP_CHANGE : END
+
 		/// <summary>
 		/// Mac
 		/// </summary>
@@ -432,6 +444,13 @@ namespace UnrealBuildTool
 		/// this group is just to lump HoloLens32 and HoloLens64 into HoloLens directories
 		/// </summary>
 		public static UnrealPlatformGroup HoloLens = FindOrAddByName("HoloLens");
+
+		// @UWP_CHANGE : BEGIN UWP support
+		/// <summary>
+		/// this group is just to lump UWP32 and UWP64 into UWP directories
+		/// </summary>
+		public static UnrealPlatformGroup UWP = FindOrAddByName("UWP");
+		// @UWP_CHANGE : END
 
 		/// <summary>
 		/// Microsoft platforms
@@ -1558,7 +1577,9 @@ namespace UnrealBuildTool
 				}
 				else
 				{
-					IsCurrentPlatform = Platform == UnrealTargetPlatform.Win64 || Platform == UnrealTargetPlatform.Win32 || Platform == UnrealTargetPlatform.HoloLens;
+					// @ATG_CHANGE : BEGIN UWP support
+					IsCurrentPlatform = Platform == UnrealTargetPlatform.Win64 || Platform == UnrealTargetPlatform.Win32 || Platform == UnrealTargetPlatform.HoloLens || Platform == UnrealTargetPlatform.UWP64 || Platform == UnrealTargetPlatform.UWP32;
+					// @ATG_CHANGE : END
 				}
 
 				if (IsCurrentPlatform)
@@ -1688,10 +1709,11 @@ namespace UnrealBuildTool
 				Binary.GetBuildProducts(Rules, TargetToolChain, BinaryBuildProducts, GlobalLinkEnvironment.bCreateDebugInfo);
 				BuildProducts.AddRange(BinaryBuildProducts);
 			}
+
 			BuildProducts.AddRange(RuntimeDependencyTargetFileToSourceFile.Select(x => new KeyValuePair<FileReference, BuildProductType>(x.Key, BuildProductType.RequiredResource)));
 
 			// Remove any installed build products that don't exist. They may be part of an optional install.
-			if(UnrealBuildTool.IsEngineInstalled())
+			if (UnrealBuildTool.IsEngineInstalled())
 			{
 				BuildProducts.RemoveAll(x => UnrealBuildTool.IsFileInstalled(x.Key) && !FileReference.Exists(x.Key));
 			}
@@ -2107,7 +2129,7 @@ namespace UnrealBuildTool
 			List<string> Definitions = new List<string>(GlobalCompileEnvironment.Definitions);
 			foreach(UEBuildModule Module in Binary.Modules)
 			{
-				Module.AddModuleToCompileEnvironment(null, new HashSet<DirectoryReference>(), new HashSet<DirectoryReference>(), Definitions, new List<UEBuildFramework>(), false);
+				Module.AddModuleToCompileEnvironment(null, new HashSet<DirectoryReference>(), new HashSet<DirectoryReference>(), Definitions, new List<UEBuildFramework>(), false, new List<string>());
 			}
 
 			// Write the header
