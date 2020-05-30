@@ -1139,13 +1139,14 @@ namespace UnrealBuildTool
 			AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, "resources.pri"), BuildProductType.BuildResource);
 			if (Target.Configuration == UnrealTargetConfiguration.Development)
 			{
-				AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, Target.Name + Target.Architecture + ".exe"), BuildProductType.Executable);
-				AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, Target.Name + Target.Architecture + ".pdb"), BuildProductType.SymbolFile);
+				AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, Target.Name + ".exe"), BuildProductType.Executable);
+				AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, Target.Name + ".pdb"), BuildProductType.SymbolFile);
 			}
 			else
 			{
-				AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, Target.Name + ".exe"), BuildProductType.Executable);
-				AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, Target.Name + ".pdb"), BuildProductType.SymbolFile);
+				// Hardcoded to UWP64 for now
+				AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, Target.Name + "-UWP64-" + Target.Configuration + ".exe"), BuildProductType.Executable);
+				AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, Target.Name + "-UWP64-" + Target.Configuration + ".pdb"), BuildProductType.SymbolFile);
 			}
 			AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, Target.Name + ".target"), BuildProductType.BuildResource);
 			AddBuildProductSafe(BuildProducts, GetFileReference(UWPBinaryDirectory, "\\Resources\\Logo.png"), BuildProductType.BuildResource);

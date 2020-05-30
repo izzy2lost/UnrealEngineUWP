@@ -284,7 +284,7 @@ namespace UnrealBuildTool
 			UWPExports.InitWindowsSdkToolPath(SDK);
 
 			List<UnrealTargetConfiguration> TargetConfigs = new List<UnrealTargetConfiguration> { Receipt.Configuration };
-			List<string> ExePaths = Receipt.BuildProducts.Where(x => x.Type == BuildProductType.Executable).Select(x => x.Path.FullName).ToList();
+			List<string> ExePaths = new List<string> { Receipt.Launch.FullName };
 			string RelativeEnginePath = UnrealBuildTool.EngineDirectory.MakeRelativeTo(DirectoryReference.GetCurrentDirectory());
 			PrepForUATPackageOrDeploy(ProjectName, Receipt.ProjectDir.FullName, TargetConfigs, ExePaths, RelativeEnginePath, false, "", false);
 
