@@ -5,7 +5,7 @@
 #pragma once
 
 #include "Common/TargetPlatformBase.h"
-#include "Runtime/Core/Public/UWP/UWPProperties.h"
+#include "Runtime/Core/Public/UWP/UWPPlatformProperties.h"
 #include "Misc/ConfigCacheIni.h"
 #include "UWPTargetDevice.h"
 #include "Misc/ScopeLock.h"
@@ -30,7 +30,7 @@ public:
 	/**
 	 * Default constructor.
 	 */
-	FUWPTargetPlatform();
+	FUWPTargetPlatform(const FName& InPlatformName);
 
 	/**
 	 * Destructor.
@@ -51,8 +51,6 @@ public:
 
 	virtual ITargetDevicePtr GetDevice(const FTargetDeviceId& DeviceId) override;
 
-	virtual ECompressionFlags GetBaseCompressionMethod() const override { return ECompressionFlags::COMPRESS_ZLIB; }
-
 	virtual bool GenerateStreamingInstallManifest(const TMultiMap<FString, int32>& ChunkMap, const TSet<int32>& ChunkIDsInUse) const override { return true; }
 
 	virtual bool IsRunningPlatform() const override { return false; }
@@ -65,7 +63,7 @@ public:
 
 	virtual const class FStaticMeshLODSettings& GetStaticMeshLODSettings() const override { return StaticMeshLODSettings; }
 
-	virtual void GetTextureFormats(const UTexture* InTexture, TArray<FName>& OutFormats) const override;
+	virtual void GetTextureFormats(const UTexture* InTexture, TArray< TArray<FName> >& OutFormats) const override;
 
 	virtual const UTextureLODSettings& GetTextureLODSettings() const override { return *TextureLODSettings; }
 
@@ -159,6 +157,8 @@ private:
 
 	// Holds an event delegate that is executed when a target device has been lost, i.e. disconnected or timed out.
 	FOnTargetDeviceLost DeviceLostEvent;
+
+	IUWPDeviceDetectorModule& UWPDeviceDetectorModule;
 };
 
 template <bool Is64Bit>
@@ -166,10 +166,9 @@ class TUWPTargetPlatform : public FUWPTargetPlatform
 {
 public:
 	TUWPTargetPlatform()
+		: FUWPTargetPlatform(Is64Bit ? FName("UWP64") : FName("UWP32"))
 	{
-		// FTargetPlatformBase won't quite have the right PlatformInfo, since it uses
-		// FUWPPlatformProperties::PlatformName to look this up.  Fix it now.
-		PlatformInfo = ::PlatformInfo::FindPlatformInfo(Is64Bit ? FName("UWP_UWP64") : FName("UWP_UWP32"));
+
 	}
 
 	virtual FText GetVariantTitle() const override

@@ -4,7 +4,7 @@
 UWPProcess.cpp: UWP implementations of Process functions
 =============================================================================*/
 
-#include "UWPProcess.h"
+#include "UWPPlatformProcess.h"
 #include "Misc/SingleThreadEvent.h"
 #include "UWPRunnableThread.h"
 #include "Misc/CommandLine.h"

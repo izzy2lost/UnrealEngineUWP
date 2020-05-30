@@ -488,9 +488,57 @@ namespace UnrealBuildTool
 					Arguments.Add("/we4459"); // 4459 - declaration of 'LocalVariable' hides global declaration
 				}
 
+				Arguments.Add("/wd4800"); // 4800: Implicit conversion from 'type' to bool. Possible information loss
+
 				Arguments.Add("/wd4463"); // 4463 - overflow; assigning 1 to bit-field that can only hold values from -1 to 0
 
 				Arguments.Add("/wd4838"); // 4838: conversion from 'type1' to 'type2' requires a narrowing conversion
+
+				// @ATG_CHANGE : BEGIN winmd support
+				// Enable /ZW if the module requests it
+				if (CompileEnvironment.bEnableWinRTComponentExtensions || CompileEnvironment.WinMDReferences.Count > 0)
+				{
+					// Enable Windows Runtime extensions.
+					Arguments.Add("/ZW");
+
+					// Don't automatically add metadata references.  We'll do that ourselves to avoid referencing windows.winmd directly:
+					// we've hit problems where types are somehow in windows.winmd on some installations but not others, leading to either
+					// missing or duplicated type references.
+					Arguments.Add("/ZW:nostdlib");
+					if (Target.WindowsPlatform.bUseWindowsSDK10)
+					{
+						VersionNumber SelectedWindowsSdkVersion;
+						DirectoryReference SelectedWindowsSdkDir;
+						if (!WindowsPlatform.TryGetWindowsSdkDir(Target.UWPPlatform.Win10SDKVersionString, out SelectedWindowsSdkVersion, out SelectedWindowsSdkDir))
+						{
+							if (Directory.Exists(Path.Combine(SelectedWindowsSdkDir.FullName, "References")))
+							{
+								Arguments.Add(String.Format(@"/AI""{0}\References""", SelectedWindowsSdkDir.FullName));
+								Arguments.Add(String.Format(@"/AI""{0}\References\{1}""", SelectedWindowsSdkDir.FullName, EnvVars.WindowsSdkVersion));
+
+								// Use the latest version of contracts, consistent with our choice elsewhere to use the latest version of the SDK.
+								// These metadata files should bring in everything available on the Universal family.  Extension SDKs should be
+								// referenced directly by the modules that depend on them.
+								Arguments.Add(String.Format(@"/FU""{0}""", HoloLens.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Target.WindowsPlatform.Compiler)));
+								Arguments.Add(String.Format(@"/FU""{0}""", HoloLens.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Target.WindowsPlatform.Compiler)));
+							}
+						}
+					}
+					DirectoryReference PlatformWinMDLocation = HoloLens.GetCppCXMetadataLocation(Target.WindowsPlatform.Compiler, Target.WindowsPlatform.CompilerVersion);
+					if (PlatformWinMDLocation != null)
+					{
+						Arguments.Add(String.Format(@"/AI""{0}""", PlatformWinMDLocation));
+						Arguments.Add(String.Format(@"/FU""{0}\platform.winmd""", PlatformWinMDLocation));
+					}
+
+					if (Target.WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2017)
+					{
+						// c1xx : warning C4199: two-phase name lookup is not supported for C++/CLI, C++/CX, or OpenMP; use /Zc:twoPhase-
+						Arguments.Add("/Zc:twoPhase-");
+					}
+				}
+				// @ATG_CHANGE : END winmd support
+
 			}
 
 			if(CompileEnvironment.bEnableUndefinedIdentifierWarnings)
@@ -934,6 +982,17 @@ namespace UnrealBuildTool
 					}
 				}
 			}
+
+			// @ATG_CHANGE : BEGIN winmd support
+			// Add winmd references			
+			if (Target.WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2017)
+			{
+				foreach (string CurAssemblyInfo in CompileEnvironment.WinMDReferences)
+				{
+					SharedArguments.Add(String.Format(" /FU \"{0}\"", CurAssemblyInfo));
+				}
+			}
+			// @ATG_CHANGE : END winmd support
 
 			// Add preprocessor definitions to the argument list.
 			foreach (string Definition in CompileEnvironment.Definitions)

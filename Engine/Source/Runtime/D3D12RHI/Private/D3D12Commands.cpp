@@ -1716,7 +1716,9 @@ void FD3D12CommandContext::RHISetDepthBounds(float MinDepth, float MaxDepth)
 
 void FD3D12CommandContext::SetDepthBounds(float MinDepth, float MaxDepth)
 {
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 	if (GSupportsDepthBoundsTest && CommandListHandle.GraphicsCommandList1())
 	{
 		// This should only be called if Depth Bounds Test is supported.

@@ -13,20 +13,23 @@ namespace UnrealBuildTool
 	/// <summary>
 	/// Base class for platform-specific project generators
 	/// </summary>
-	class UWPProjectGenerator : UEPlatformProjectGenerator
+	class UWPProjectGenerator : PlatformProjectGenerator
 	{
 		const string PlatformString = "UWP";
 
-		/// <summary>
-		/// Register the platform with the UEPlatformProjectGenerator class
-		/// </summary>
-		public override void RegisterPlatformProjectGenerator()
+		public UWPProjectGenerator(CommandLineArguments Arguments)
+			: base(Arguments)
 		{
-			// Register this project generator for UWP
-			Log.TraceVerbose("		Registering for {0}", UnrealTargetPlatform.UWP64.ToString());
-			UEPlatformProjectGenerator.RegisterPlatformProjectGenerator(UnrealTargetPlatform.UWP64, this);
-			Log.TraceVerbose("		Registering for {0}", UnrealTargetPlatform.UWP32.ToString());
-			UEPlatformProjectGenerator.RegisterPlatformProjectGenerator(UnrealTargetPlatform.UWP32, this);
+
+		}
+
+		/// <summary>
+		/// Enumerate all the platforms that this generator supports
+		/// </summary>
+		public override IEnumerable<UnrealTargetPlatform> GetPlatforms()
+		{
+			yield return UnrealTargetPlatform.UWP32;
+			yield return UnrealTargetPlatform.UWP64;
 		}
 
 		///
@@ -72,15 +75,14 @@ namespace UnrealBuildTool
 				VCProjectFileContent.Append("		<WindowsTargetPlatformVersion>" + MaxTestedVersion + "</WindowsTargetPlatformVersion>" + ProjectFileGenerator.NewLine);
 			}
 
-			WindowsCompiler Compiler = WindowsCompiler.VisualStudio2017;
-			DirectoryReference PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler, "Latest");
+			WindowsCompiler Compiler = WindowsCompiler.VisualStudio2019;
+			DirectoryReference PlatformWinMDLocation = HoloLens.GetCppCXMetadataLocation(Compiler, "Latest");
 			if (PlatformWinMDLocation == null || !FileReference.Exists(FileReference.Combine(PlatformWinMDLocation, "platform.winmd")))
 			{
-				Compiler = WindowsCompiler.VisualStudio2015;
-				PlatformWinMDLocation = VCEnvironment.GetCppCXMetadataLocation(Compiler, "Latest");
+				PlatformWinMDLocation = HoloLens.GetCppCXMetadataLocation(Compiler, "Latest");
 			}
-			string FoundationWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Compiler);
-			string UniversalWinMDPath = VCEnvironment.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Compiler);
+			string FoundationWinMDPath = HoloLens.GetLatestMetadataPathForApiContract("Windows.Foundation.FoundationContract", Compiler);
+			string UniversalWinMDPath = HoloLens.GetLatestMetadataPathForApiContract("Windows.Foundation.UniversalApiContract", Compiler);
 			VCProjectFileContent.Append("		<AdditionalOptions>/ZW /ZW:nostdlib</AdditionalOptions>" + ProjectFileGenerator.NewLine);
 			VCProjectFileContent.Append("		<NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions);PLATFORM_UWP=1;UWP=1;</NMakePreprocessorDefinitions>" + ProjectFileGenerator.NewLine);
 			if (PlatformWinMDLocation != null)
@@ -90,22 +92,30 @@ namespace UnrealBuildTool
 			VCProjectFileContent.Append("		<NMakeForcedUsingAssemblies>$(NMakeForcedUsingAssemblies);" + FoundationWinMDPath + ";" + UniversalWinMDPath + ";platform.winmd</NMakeForcedUsingAssemblies>" + ProjectFileGenerator.NewLine);
 		}
 
-		public override string GetVisualStudioPreDefaultString(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration)
+		public override void GetVisualStudioPreDefaultString(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, StringBuilder ProjectFileBuilder)
 		{
 			// VS2017 expects WindowsTargetPlatformVersion to be set in conjunction with these other properties, otherwise the projects
 			// will fail to load when the solution is in a UWP configuration.
 			// Default to latest supported version.  Game projects can override this later.
 			// Because this property is only required for VS2017 we can safely say that's the compiler version (whether that's actually true
 			// or not)
-			WindowsCompiler Compiler = WindowsCompiler.VisualStudio2017;  
-			string SDKFolder = VCEnvironment.FindWindowsSDKInstallationFolder(UEBuildPlatform.GetBuildPlatform(InPlatform).DefaultCppPlatform, Compiler);
-			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKFolder, Compiler);
-			return "		<AppContainerApplication>true</AppContainerApplication>" + ProjectFileGenerator.NewLine +
-					"		<ApplicationType>Windows Store</ApplicationType>" + ProjectFileGenerator.NewLine +
-					"		<ApplicationTypeRevision>10.0</ApplicationTypeRevision>" + ProjectFileGenerator.NewLine +
-					"		<WindowsAppContainer>true</WindowsAppContainer>" + ProjectFileGenerator.NewLine +
-					"		<AppxPackage>true</AppxPackage>" + ProjectFileGenerator.NewLine +
-					"		<WindowsTargetPlatformVersion>" + SDKVersion.ToString() + "</WindowsTargetPlatformVersion>" + ProjectFileGenerator.NewLine;
+			string SDKFolder = "";
+			string SDKVersion = "";
+
+			DirectoryReference folder;
+			VersionNumber version;
+			if (WindowsPlatform.TryGetWindowsSdkDir("Latest", out version, out folder))
+			{
+				SDKFolder = folder.FullName;
+				SDKVersion = version.ToString();
+			}
+
+			ProjectFileBuilder.AppendLine("    <AppContainerApplication>true</AppContainerApplication>");
+			ProjectFileBuilder.AppendLine("    <ApplicationType>Windows Store</ApplicationType>");
+			ProjectFileBuilder.AppendLine("    <ApplicationTypeRevision>10.0</ApplicationTypeRevision>");
+			ProjectFileBuilder.AppendLine("    <WindowsAppContainer>true</WindowsAppContainer>");
+			ProjectFileBuilder.AppendLine("    <AppxPackage>true</AppxPackage>");
+			ProjectFileBuilder.AppendLine("    <WindowsTargetPlatformVersion>" + SDKVersion.ToString() + "</WindowsTargetPlatformVersion>");
 		}
 
 		public override string GetVisualStudioLayoutDirSection(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InConditionString, TargetType TargetType, FileReference TargetRulesPath, FileReference ProjectFilePath, FileReference NMakeOutputPath, VCProjectFileFormat InProjectFileFormat)
@@ -145,7 +155,8 @@ namespace UnrealBuildTool
 				string TempTargetFilePath = InTargetFilePath.FullName.Replace("\\", "/");
 				if (TempTargetFilePath.Contains("/Templates/"))
 				{
-					string AbsoluteEnginePath = UnrealBuildTool.EngineDirectory.CanonicalName;
+					// TODO: TEST?
+					string AbsoluteEnginePath = UnrealBuildTool.EngineDirectory.FullName;
 					AbsoluteEnginePath = AbsoluteEnginePath.Replace("\\", "/");
 					if (AbsoluteEnginePath.EndsWith("/") == false)
 					{

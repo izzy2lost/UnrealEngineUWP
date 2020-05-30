@@ -4,6 +4,9 @@
 	AllowWindowsPLatformTypes.h: Defines for allowing the use of Windows types.
 =============================================================================*/
 
+#include "UWP/WindowsHWrapper.h"
+
+
 #ifndef WINDOWS_PLATFORM_TYPES_GUARD
 	#define WINDOWS_PLATFORM_TYPES_GUARD
 #else

@@ -39,6 +39,21 @@ void FAESGCMHandlerComponent::DisableEncryption()
 	bEncryptionEnabled = false;
 }
 
+// @UWP_CHANGE : BEGIN - GCM auth mode requires a per-packet nonce to maintain security
+// Needs review as to whether this is valid here
+void FAESGCMHandlerComponent::SetEncryptionNonceData(const TArrayView<const uint8>& NewData)
+{
+	if (NewData.Num() != IVSizeInBytes)
+	{
+		UE_LOG(PacketHandlerLog, Log, TEXT("FAESGCMHandlerComponent::SetEncryptionNonceData. NewData is not %d bytes long, ignoring."), IVSizeInBytes);
+		return;
+	}
+
+	IV.Reset(NewData.Num());
+	IV.Append(NewData.GetData(), NewData.Num());
+}
+// @UWP_CHANGE : END
+
 bool FAESGCMHandlerComponent::IsEncryptionEnabled() const
 {
 	return bEncryptionEnabled;

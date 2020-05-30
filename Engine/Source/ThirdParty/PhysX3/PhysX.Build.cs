@@ -114,7 +114,8 @@ public class PhysX : ModuleRules
 		string EngineBinThirdPartyPath = Path.Combine("$(EngineDir)", "Binaries", "ThirdParty", "PhysX3");
 
 		// Libraries and DLLs for windows platform
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 		{
 			string[] StaticLibrariesX64 = new string[] {
 				"PhysX3{0}_x64.lib",
@@ -150,7 +151,7 @@ public class PhysX : ModuleRules
 				PublicDelayLoadDLLs.Add(String.Format(DLL, LibrarySuffix));
 			}
 
-			string PhysXBinariesDir = Path.Combine(EngineBinThirdPartyPath, "Win64", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			string PhysXBinariesDir = Path.Combine(EngineBinThirdPartyPath, Target.Platform == UnrealTargetPlatform.UWP64 ? "UWP64" : "Win64", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
 			foreach (string DLL in DelayLoadDLLsX64)
 			{
 				string FileName = Path.Combine(PhysXBinariesDir, String.Format(DLL, LibrarySuffix));
@@ -168,7 +169,8 @@ public class PhysX : ModuleRules
 				RuntimeDependencies.Add(Path.Combine(PhysXBinariesDir, String.Format(DLL, LibrarySuffix)));
 			}
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Win32)
+// @ATG_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
 		{
 			string[] StaticLibrariesX86 = new string[] {
 				"PhysX3{0}_x86.lib",
@@ -199,7 +201,7 @@ public class PhysX : ModuleRules
 				PublicDelayLoadDLLs.Add(String.Format(DLL, LibrarySuffix));
 			}
 
-			string PhysXBinariesDir = Path.Combine(EngineBinThirdPartyPath, "Win32", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			string PhysXBinariesDir = Path.Combine(EngineBinThirdPartyPath, Target.Platform == UnrealTargetPlatform.UWP32 ? "UWP32" : "Win32", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
 			foreach (string DLL in DelayLoadDLLsX86)
 			{
 				string FileName = Path.Combine(PhysXBinariesDir, String.Format(DLL, LibrarySuffix));

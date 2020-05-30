@@ -17,6 +17,12 @@
 *
 !*/
 
+#Do not ignore UWP files in base directory
+!GetUWPDependencies.ps1
+!Setup.bat
+!Setup.command
+!Setup.sh
+
 # C/C++ source files
 !*.c
 !*.cc
@@ -267,3 +273,6 @@ Engine/Build/UWP/Resources/en/resources.resw
 # Exclude all XboxOne SDK files
 /Engine/Plugins/Online/OnlineSubsystemLive/ThirdParty/XSAPI/**
 /Engine/Plugins/Online/OnlineSubsystemLive/ThirdParty/XIM/**
+
+# Include UWP third party binaries
+!/Engine/Plugins/Online/OnlineSubsystemLive/ThirdParty/EraAdapter/Binaries/**

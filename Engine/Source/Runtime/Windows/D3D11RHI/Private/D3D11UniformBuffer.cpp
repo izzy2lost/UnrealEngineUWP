@@ -258,9 +258,15 @@ FUniformBufferRHIRef FD3D11DynamicRHI::RHICreateUniformBuffer(const void* Conten
 			FRHIResource* Resource = *(FRHIResource**)((uint8*)Contents + Layout.Resources[i].MemberOffset);
 
 			// Allow null SRV's in uniform buffers for feature levels that don't support SRV's in shaders
-			if (!(GMaxRHIFeatureLevel <= ERHIFeatureLevel::ES3_1 
+			if (!(GMaxRHIFeatureLevel <= ERHIFeatureLevel::ES3_1
 				&& (Layout.Resources[i].MemberType == UBMT_SRV || Layout.Resources[i].MemberType == UBMT_RDG_TEXTURE_SRV || Layout.Resources[i].MemberType == UBMT_RDG_BUFFER_SRV))
-				&& Validation == EUniformBufferValidation::ValidateResources)
+				&& Validation == EUniformBufferValidation::ValidateResources
+// @UWP_CHANGE : BEGIN Allowing null resources here otherwise crashes on Xbox One under UWP
+#if !PLATFORM_WINDOWS && PLATFORM_UWP
+				&& false
+#endif
+// @UWP_CHANGE : END
+				)
 			{
 				checkf(Resource, TEXT("Invalid resource entry creating uniform buffer, %s.Resources[%u], ResourceType 0x%x."), *Layout.GetDebugName().ToString(), i, Layout.Resources[i].MemberType);
 			}
@@ -313,7 +319,13 @@ void FD3D11DynamicRHI::RHIUpdateUniformBuffer(FRHIUniformBuffer* UniformBufferRH
 
 			if (!(GMaxRHIFeatureLevel <= ERHIFeatureLevel::ES3_1
 				&& (Layout.Resources[ResourceIndex].MemberType == UBMT_SRV || Layout.Resources[ResourceIndex].MemberType == UBMT_RDG_TEXTURE_SRV || Layout.Resources[ResourceIndex].MemberType == UBMT_RDG_BUFFER_SRV))
-				&& UniformBufferValidation == EUniformBufferValidation::ValidateResources)
+				&& UniformBufferValidation == EUniformBufferValidation::ValidateResources
+// @UWP_CHANGE : BEGIN Allowing null resources here otherwise crashes on Xbox One under UWP
+#if !PLATFORM_WINDOWS && PLATFORM_UWP
+				&& false
+#endif
+// @UWP_CHANGE : END
+				)
 			{
 				checkf(Resource, TEXT("Invalid resource entry creating uniform buffer, %s.Resources[%u], ResourceType 0x%x."),
 					*Layout.GetDebugName().ToString(),
@@ -339,7 +351,13 @@ void FD3D11DynamicRHI::RHIUpdateUniformBuffer(FRHIUniformBuffer* UniformBufferRH
 
 				if (!(GMaxRHIFeatureLevel <= ERHIFeatureLevel::ES3_1
 					&& (Layout.Resources[ResourceIndex].MemberType == UBMT_SRV || Layout.Resources[ResourceIndex].MemberType == UBMT_RDG_TEXTURE_SRV || Layout.Resources[ResourceIndex].MemberType == UBMT_RDG_BUFFER_SRV))
-					&& UniformBufferValidation == EUniformBufferValidation::ValidateResources)
+					&& UniformBufferValidation == EUniformBufferValidation::ValidateResources
+// @UWP_CHANGE : BEGIN Allowing null resources here otherwise crashes on Xbox One under UWP
+#if !PLATFORM_WINDOWS && PLATFORM_UWP
+					&& false
+#endif
+// @UWP_CHANGE : END
+					)
 				{
 					checkf(Resource, TEXT("Invalid resource entry creating uniform buffer, %s.Resources[%u], ResourceType 0x%x."),
 						*Layout.GetDebugName().ToString(),

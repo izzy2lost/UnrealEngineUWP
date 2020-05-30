@@ -33,9 +33,11 @@ public class DX12 : ModuleRules
 		{
 			LibDir = DirectXSDKDir + "/Lib/x86/";
 		}
-		else if (Target.Platform == UnrealTargetPlatform.HoloLens)
+		// @UWP_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.HoloLens || Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
 		{
-			bool PixAvalable = (Target.WindowsPlatform.Architecture == WindowsArchitecture.ARM64);
+			bool PixAvalable = (Target.WindowsPlatform.Architecture == WindowsArchitecture.ARM64 || Target.Platform == UnrealTargetPlatform.UWP64);
+			// @UWP_CHANGE : END
 			if (PixAvalable &&
 			//Target.WindowsPlatform.bUseWindowsSDK10 &&
 			Target.WindowsPlatform.bPixProfilingEnabled &&

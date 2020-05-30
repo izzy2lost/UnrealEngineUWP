@@ -8,9 +8,13 @@ public class IntelTBB : ModuleRules
     {
         Type = ModuleType.External;
 
+// @ATG_CHANGE : BEGIN UWP support
         if ((Target.Platform == UnrealTargetPlatform.Win64) ||
             (Target.Platform == UnrealTargetPlatform.Win32) ||
-            (Target.Platform == UnrealTargetPlatform.HoloLens))
+            (Target.Platform == UnrealTargetPlatform.HoloLens) ||
+            (Target.Platform == UnrealTargetPlatform.UWP32) ||
+            (Target.Platform == UnrealTargetPlatform.UWP64))
+// @ATG_CHANGE : END
         {
             string IntelTBBPath;
             string PlatformSubpath = Target.WindowsPlatform.Architecture == WindowsArchitecture.ARM32 || Target.WindowsPlatform.Architecture == WindowsArchitecture.x86 ? "Win32" : "Win64";

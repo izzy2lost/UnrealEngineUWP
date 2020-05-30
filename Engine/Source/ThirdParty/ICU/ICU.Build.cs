@@ -27,7 +27,9 @@ public class ICU : ModuleRules
 				Target.Platform == UnrealTargetPlatform.Win64 ||
 				Target.Platform == UnrealTargetPlatform.XboxOne ||
 				Target.IsInPlatformGroup(UnrealPlatformGroup.Android) ||
-				Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
+				Target.IsInPlatformGroup(UnrealPlatformGroup.Unix)
+				Target.IsInPlatformGroup(UnrealPlatformGroup.UWP32) ||
+				Target.IsInPlatformGroup(UnrealPlatformGroup.UWP64))
 			{
 				return ICU64VersionString;
 			}

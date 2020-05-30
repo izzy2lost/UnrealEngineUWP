@@ -9,6 +9,8 @@
 	#include <DelayImp.h>
 #include "HideWindowsPlatformTypes.h"
 
+FD3D11DynamicRHI* GD3D11RHI = nullptr;
+
 extern bool D3D11RHI_ShouldCreateWithD3DDebug();
 extern bool D3D11RHI_ShouldAllowAsyncResourceCreation();
 
@@ -350,7 +352,9 @@ FDynamicRHI* FD3D11DynamicRHIModule::CreateRHI(ERHIFeatureLevel::Type RequestedF
 	TRefCountPtr<IDXGIFactory2> DXGIFactory;
 	SafeCreateDXGIFactory(DXGIFactory.GetInitReference());
 	check(DXGIFactory);
-	return new FD3D11DynamicRHI(DXGIFactory, ChosenAdapter.MaxSupportedFeatureLevel,ChosenAdapter.AdapterIndex,ChosenDescription);
+	FD3D11DynamicRHI* RHI = new FD3D11DynamicRHI(DXGIFactory, ChosenAdapter.MaxSupportedFeatureLevel,ChosenAdapter.AdapterIndex,ChosenDescription);
+	GD3D11RHI = RHI;
+	return GD3D11RHI;
 }
 
 /**
@@ -494,6 +498,11 @@ void FD3D11DynamicRHI::Init()
 bool FD3D11DynamicRHI::IsQuadBufferStereoEnabled()
 {
 	return false; // TODO: MR support...
+}
+
+void FD3D11DynamicRHI::DisableQuadBufferStereo()
+{
+
 }
 
 void FD3D11DynamicRHI::FlushPendingLogs()

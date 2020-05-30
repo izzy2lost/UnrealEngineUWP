@@ -103,6 +103,50 @@ public class ApexDestructionLib : ModuleRules
             }
 
         }
+// @ATG_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.UWP64)
+		{
+			APEXLibDir += "/UWP64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PublicLibraryPaths.Add(APEXLibDir);
+
+			PublicAdditionalLibraries.Add(String.Format("APEXFramework{0}_x64.lib", LibrarySuffix));
+			PublicDelayLoadDLLs.Add(String.Format("APEXFramework{0}_x64.dll", LibrarySuffix));
+
+			string[] RuntimeDependenciesX64 =
+			{
+				"APEX_Destructible{0}_x64.dll",
+			};
+
+			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/UWP64/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			foreach (string RuntimeDependency in RuntimeDependenciesX64)
+			{
+				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix);
+				RuntimeDependencies.Add(FileName, StagedFileType.NonUFS);
+				RuntimeDependencies.Add(Path.ChangeExtension(FileName, ".pdb"), StagedFileType.DebugNonUFS);
+			}
+		}
+		else if (Target.Platform == UnrealTargetPlatform.UWP32)
+		{
+			APEXLibDir += "/UWP32/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+			PublicLibraryPaths.Add(APEXLibDir);
+
+			PublicAdditionalLibraries.Add(String.Format("APEXFramework{0}_x86.lib", LibrarySuffix));
+			PublicDelayLoadDLLs.Add(String.Format("APEXFramework{0}_x86.dll", LibrarySuffix));
+
+			string[] RuntimeDependenciesX86 =
+			{
+				"APEX_Destructible{0}_x86.dll",
+			};
+
+			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/UWP32/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			foreach (string RuntimeDependency in RuntimeDependenciesX86)
+			{
+				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix);
+				RuntimeDependencies.Add(FileName, StagedFileType.NonUFS);
+				RuntimeDependencies.Add(Path.ChangeExtension(FileName, ".pdb"), StagedFileType.DebugNonUFS);
+			}
+		}
+		// @ATG_CHANGE : END
         else if (Target.Platform == UnrealTargetPlatform.Mac)
         {
             string[] DynamicLibrariesMac = new string[] {

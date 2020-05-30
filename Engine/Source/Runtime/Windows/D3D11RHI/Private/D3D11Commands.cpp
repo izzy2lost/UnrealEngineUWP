@@ -15,7 +15,9 @@
 #include "SceneUtils.h"
 #include "EngineGlobals.h"
 
-#if PLATFORM_DESKTOP
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_DESKTOP && !PLATFORM_UWP
+// @ATG_CHANGE : END
 // For Depth Bounds Test interface
 #include "Windows/AllowWindowsPlatformTypes.h"
 	#include "nvapi.h"
@@ -72,7 +74,7 @@ void FD3D11BaseShaderResource::SetDirty(bool bInDirty, uint32 CurrentFrame)
 	ensureMsgf((GEnableDX11TransitionChecks == 0) || !(CurrentGPUAccess == EResourceTransitionAccess::EReadable && bDirty), TEXT("ShaderResource is dirty, but set to Readable."));
 }
 
-#if !PLATFORM_HOLOLENS
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
 //MultiGPU
 void FD3D11DynamicRHI::RHIBeginUpdateMultiFrameResource(FRHITexture* RHITexture)
 {
@@ -1796,7 +1798,10 @@ void FD3D11DynamicRHI::RHIExecuteCommandList(FRHICommandList* CmdList)
 // NVIDIA Depth Bounds Test interface
 void FD3D11DynamicRHI::EnableDepthBoundsTest(bool bEnable,float MinDepth,float MaxDepth)
 {
-#if PLATFORM_DESKTOP
+// @LAB132 : BEGIN UWP Support
+#if PLATFORM_DESKTOP && !PLATFORM_UWP
+// @LAB132 : END
+
 	if(MinDepth > MaxDepth)
 	{
 		UE_LOG(LogD3D11RHI, Error,TEXT("RHIEnableDepthBoundsTest(%i,%f, %f) MinDepth > MaxDepth, cannot set DBT."),bEnable,MinDepth,MaxDepth);
@@ -1971,7 +1976,7 @@ static bool IsUAVOverlapSupported()
 
 void FD3D11DynamicRHI::BeginUAVOverlap()
 {
-#if !PLATFORM_HOLOLENS
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
 	if (!GOverlapUAVOBegin)
 	{
 		if (IsRHIDeviceNVIDIA())
@@ -1990,7 +1995,7 @@ void FD3D11DynamicRHI::BeginUAVOverlap()
 }
 void FD3D11DynamicRHI::EndUAVOverlap()
 {
-#if !PLATFORM_HOLOLENS
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
 	if (GOverlapUAVOBegin)
 	{
 		if (IsRHIDeviceNVIDIA())

@@ -57,7 +57,7 @@ UOBJECT_DEFINE_RTTI_IMPLEMENTATION(Win32NumberFormat)
  * (e.g. "3" => 30, "3;2" => 320)
  */
 
-#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS
+#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS || PLATFORM_UWP
 static UINT getGrouping(const UChar *grouping)
 {
     UINT g = 0;
@@ -101,7 +101,7 @@ static UINT getGrouping(const char *grouping)
 
 static void getNumberFormat(NUMBERFMTW *fmt, int32_t lcid)
 {
-#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS
+#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS || PLATFORM_UWP
         UChar buf[10];
 
 	GetLocaleInfoEx(LOCALE_NAME_USER_DEFAULT, LOCALE_RETURN_NUMBER|LOCALE_IDIGITS, (LPWSTR) &fmt->NumDigits, sizeof(UINT));
@@ -146,7 +146,7 @@ static void freeNumberFormat(NUMBERFMTW *fmt)
 
 static void getCurrencyFormat(CURRENCYFMTW *fmt, int32_t lcid)
 {
-#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS
+#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS || PLATFORM_UWP
 	UChar buf[10];
 	GetLocaleInfoEx(LOCALE_NAME_USER_DEFAULT, LOCALE_RETURN_NUMBER|LOCALE_ICURRDIGITS, (LPWSTR) &fmt->NumDigits, sizeof(UINT));
 	GetLocaleInfoEx(LOCALE_NAME_USER_DEFAULT, LOCALE_RETURN_NUMBER|LOCALE_ILZERO, (LPWSTR) &fmt->LeadingZero, sizeof(UINT));
@@ -367,7 +367,7 @@ UnicodeString &Win32NumberFormat::format(int32_t numDigits, UnicodeString &appen
             formatInfo.currency.Grouping = 0;
         }
 
-#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS
+#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS || PLATFORM_UWP
         result = GetCurrencyFormatEx(LOCALE_NAME_USER_DEFAULT, 0, nBuffer, &formatInfo.currency, buffer, STACK_BUFFER_SIZE);
 #else
         result = GetCurrencyFormatW(fLCID, 0, nBuffer, &formatInfo.currency, buffer, STACK_BUFFER_SIZE);
@@ -377,7 +377,7 @@ UnicodeString &Win32NumberFormat::format(int32_t numDigits, UnicodeString &appen
             DWORD lastError = GetLastError();
 
             if (lastError == ERROR_INSUFFICIENT_BUFFER) {
-#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS
+#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS || PLATFORM_UWP
 				int newLength = GetCurrencyFormatEx(LOCALE_NAME_USER_DEFAULT, 0, nBuffer, &formatInfo.currency, NULL, 0);
 #else
                 int newLength = GetCurrencyFormatW(fLCID, 0, nBuffer, &formatInfo.currency, NULL, 0);
@@ -385,7 +385,7 @@ UnicodeString &Win32NumberFormat::format(int32_t numDigits, UnicodeString &appen
 
                 buffer = NEW_ARRAY(UChar, newLength);
                 buffer[0] = 0x0000;
-#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS
+#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS || PLATFORM_UWP
 				GetCurrencyFormatEx(LOCALE_NAME_USER_DEFAULT, 0, nBuffer,  &formatInfo.currency, buffer, newLength);
 #else
                 GetCurrencyFormatW(fLCID, 0, nBuffer,  &formatInfo.currency, buffer, newLength);
@@ -401,7 +401,7 @@ UnicodeString &Win32NumberFormat::format(int32_t numDigits, UnicodeString &appen
             formatInfo.number.Grouping = 0;
         }
 
-#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS
+#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS || PLATFORM_UWP
 		result = GetNumberFormatEx(LOCALE_NAME_USER_DEFAULT, 0, nBuffer, &formatInfo.number, buffer, STACK_BUFFER_SIZE);
 #else
         result = GetNumberFormatW(fLCID, 0, nBuffer, &formatInfo.number, buffer, STACK_BUFFER_SIZE);
@@ -409,7 +409,7 @@ UnicodeString &Win32NumberFormat::format(int32_t numDigits, UnicodeString &appen
 
         if (result == 0) {
             if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
-#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS
+#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS || PLATFORM_UWP
 				int newLength = GetNumberFormatEx(LOCALE_NAME_USER_DEFAULT, 0, nBuffer, &formatInfo.number, NULL, 0);
 #else
                 int newLength = GetNumberFormatW(fLCID, 0, nBuffer, &formatInfo.number, NULL, 0);
@@ -417,7 +417,7 @@ UnicodeString &Win32NumberFormat::format(int32_t numDigits, UnicodeString &appen
 
                 buffer = NEW_ARRAY(UChar, newLength);
                 buffer[0] = 0x0000;
-#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS
+#if U_PLATFORM == U_PF_DURANGO || PLATFORM_HOLOLENS || PLATFORM_UWP
 				GetNumberFormatEx(LOCALE_NAME_USER_DEFAULT, 0, nBuffer, &formatInfo.number, buffer, newLength);
 #else
                 GetNumberFormatW(fLCID, 0, nBuffer, &formatInfo.number, buffer, newLength);

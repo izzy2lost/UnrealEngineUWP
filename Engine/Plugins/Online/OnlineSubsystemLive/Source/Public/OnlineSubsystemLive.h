@@ -108,6 +108,7 @@ public:
 	virtual IOnlinePresencePtr GetPresenceInterface() const override;
 	virtual IOnlineChatPtr GetChatInterface() const override;
 	virtual IOnlineTurnBasedPtr GetTurnBasedInterface() const override;
+	virtual IOnlineTournamentPtr GetTournamentInterface() const override;
 	virtual FOnlineMatchmakingInterfaceLivePtr GetMatchmakingInterface() const;
 
 	virtual EOnlineEnvironment::Type GetOnlineEnvironment() const override;
@@ -129,10 +130,12 @@ public:
 
 PACKAGE_SCOPE:
 	/** Only the factory makes instances */
-	FOnlineSubsystemLive()
-		: ConvertedNetworkConnectivityLevel(EOnlineServerConnectionStatus::Normal)
-		, bHasCalledNetworkStatusChangedAtLeastOnce(false)
-		, TitleId(0)
+	FOnlineSubsystemLive() = delete;
+	FOnlineSubsystemLive(FName InInstanceName) :
+		FOnlineSubsystemImpl(LIVE_SUBSYSTEM, InInstanceName),
+		ConvertedNetworkConnectivityLevel(EOnlineServerConnectionStatus::Normal),
+		bHasCalledNetworkStatusChangedAtLeastOnce(false),
+		TitleId(0)
 	{
 	}
 

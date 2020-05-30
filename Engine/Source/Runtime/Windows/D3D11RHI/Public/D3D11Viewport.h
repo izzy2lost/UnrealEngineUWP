@@ -10,7 +10,9 @@
 #include "RenderResource.h"
 #include "RenderUtils.h"
 
-#if PLATFORM_HOLOLENS
+// @UWP_CHANGE : BEGIN UWP support
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
+// @UWP_CHANGE : END
 #include "AllowWindowsPlatformTypes.h"
 #include <dxgi1_2.h>
 #include "HideWindowsPlatformTypes.h"
@@ -100,7 +102,9 @@ public:
 		FrameSyncEvent.IssueEvent();
 	}
 
-#if PLATFORM_HOLOLENS
+// @UWP_CHANGE : BEGIN UWP support
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
+// @UWP_CHANGE : END
 	IDXGISwapChain1* GetSwapChain() const { return SwapChain; } 
 #else
 	IDXGISwapChain* GetSwapChain() const { return SwapChain; }
@@ -148,7 +152,9 @@ protected:
 	EPixelFormat PixelFormat;
 	EColorSpaceAndEOTF PixelColorSpace;
 	bool bIsValid;
-#if PLATFORM_HOLOLENS
+// @UWP_CHANGE : BEGIN UWP support
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
+// @UWP_CHANGE : END
 	TRefCountPtr<IDXGISwapChain1> SwapChain;
 #else
 	TRefCountPtr<IDXGISwapChain> SwapChain;

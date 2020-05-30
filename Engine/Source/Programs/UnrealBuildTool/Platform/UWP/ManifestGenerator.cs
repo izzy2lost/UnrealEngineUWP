@@ -9,7 +9,6 @@ using System.Text.RegularExpressions;
 using System.Resources;
 using System.Xml;
 using Tools.DotNETCommon;
-using Tools.DotNETUtilities;
 
 namespace UnrealBuildTool
 {
@@ -1334,24 +1333,32 @@ namespace UnrealBuildTool
 			UapManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10";
 			Package.Attributes.Append(UapManifestNamespace);
 
-            XmlAttribute Uap2ManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:uap2");
-            Uap2ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10/2";
-            Package.Attributes.Append(Uap2ManifestNamespace);
+			XmlAttribute Uap2ManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:uap2");
+			Uap2ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10/2";
+			Package.Attributes.Append(Uap2ManifestNamespace);
 
 			XmlAttribute Uap3ManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:uap3");
 			Uap3ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10/3";
 			Package.Attributes.Append(Uap3ManifestNamespace);
 
+			XmlAttribute Uap4ManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:uap4");
+			Uap4ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10/4";
+			Package.Attributes.Append(Uap4ManifestNamespace);
+
+			XmlAttribute Uap5ManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:uap5");
+			Uap5ManifestNamespace.Value = "http://schemas.microsoft.com/appx/manifest/uap/windows10/5";
+			Package.Attributes.Append(Uap5ManifestNamespace);
+
 			XmlAttribute MpManifestNamespace = AppxManifestXmlDocument.CreateAttribute("xmlns:mp");
 			MpManifestNamespace.Value = "http://schemas.microsoft.com/appx/2014/phone/manifest";
 			Package.Attributes.Append(MpManifestNamespace);
 
-            XmlAttribute IgnorableNamespaces = AppxManifestXmlDocument.CreateAttribute("IgnorableNamespaces");
-            IgnorableNamespaces.Value = "mp uap uap2 uap3";
-            Package.Attributes.Append(IgnorableNamespaces);
+			XmlAttribute IgnorableNamespaces = AppxManifestXmlDocument.CreateAttribute("IgnorableNamespaces");
+			IgnorableNamespaces.Value = "mp uap uap2 uap3 uap4 uap5";
+			Package.Attributes.Append(IgnorableNamespaces);
 
 
-            XmlNode Identity = GetIdentity();
+			XmlNode Identity = GetIdentity();
 			AddElementIfValid(Package, Identity, true);
 
 			XmlNode Properties = GetProperties();
@@ -1919,19 +1926,17 @@ namespace UnrealBuildTool
 		{
 			System.Xml.Schema.XmlSchemaSet AppxSchema = new System.Xml.Schema.XmlSchemaSet();
 
-			// Validate against VS2017 schemas if possible
 			DirectoryReference VSInstallDir;
 			DirectoryReference SdkSchemaFolder = null;
 			DirectoryReference VSSchemaFolder = null;
 			DirectoryReference PhoneSchemaFolder = null;
 
-			// Limit to VS2015 compatible SDKs here - newer ones have incomplete schema sets
-			DirectoryReference SDKRootFolder = new DirectoryReference(VCEnvironment.FindWindowsSDKInstallationFolder(CppPlatform.UWP64, WindowsCompiler.VisualStudio2015));
-			Version SDKVersion = VCEnvironment.FindWindowsSDKExtensionLatestVersion(SDKRootFolder.FullName, WindowsCompiler.VisualStudio2015);
+			UWPExports.GetWindowsSDKInstallationFolder(out DirectoryReference SDKRootFolder, out Version SDKVersion);
+
 			SdkSchemaFolder = DirectoryReference.Combine(SDKRootFolder, "Include", SDKVersion.ToString(), "winrt");
 			PhoneSchemaFolder = DirectoryReference.Combine(SDKRootFolder, "Extension SDKs", "WindowsMobile", SDKVersion.ToString(), "Include", "WinRT");
 
-			if (WindowsPlatform.TryGetVSInstallDir(WindowsCompiler.VisualStudio2017, out VSInstallDir))
+			if (WindowsPlatform.TryGetVSInstallDir(WindowsCompiler.VisualStudio2019, out VSInstallDir))
 			{
 				VSSchemaFolder = DirectoryReference.Combine(VSInstallDir, "Xml", "Schemas");
 			}

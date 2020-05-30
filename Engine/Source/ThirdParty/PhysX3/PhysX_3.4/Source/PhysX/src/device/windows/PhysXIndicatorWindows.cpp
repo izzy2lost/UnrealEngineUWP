@@ -63,7 +63,7 @@ physx::PhysXIndicator::PhysXIndicator(bool isGpu)
 
 // @ATG_CHANGE : BEGIN HoloLens support
 // API not available in HoloLens, but we're guaranteed > Vista
-#if PX_HOLOLENS
+#if PX_HOLOLENS || PX_UWP
 	if (false)
 #elif _MSC_VER >= 1800
 // @ATG_CHANGE : END
@@ -80,7 +80,7 @@ physx::PhysXIndicator::PhysXIndicator(bool isGpu)
 		NvPhysXToDrv_Build_SectionName(GetCurrentProcessId(), configName);
 // @ATG_CHANGE : BEGIN HoloLens support
 // Only CreateFileMappingW availabledel
-#if PX_HOLOLENS
+#if PX_HOLOLENS || PX_UWP
 	WCHAR configNameWide[_countof(configName)];
 	if (MultiByteToWideChar(CP_ACP, 0, configName, -1, configNameWide, _countof(configNameWide)) > 0)
 	{
