@@ -20,13 +20,11 @@ public:
 	 */
 	FAESHandlerComponent();
 
-	// @ATG_CHANGE : BEGIN
-	// This handler uses AES, allow any key length by default
-	static const int32 MinKeySizeInBytes = 16;
+	// This handler uses AES256, which has 32-byte keys.
+	static const int32 KeySizeInBytes = 32;
 
-	// This handler uses AES GCM, which has 12-byte Nonce.
-	static const int32 NonceSizeInBytes = 12;
-	// @ATG_CHANGE : END
+	// This handler uses AES256, which has 32-byte keys.
+	static const int32 BlockSizeInBytes = 16;
 
 	// Replace the key used for encryption with NewKey if NewKey is exactly KeySizeInBytes long.
 	virtual void SetEncryptionData(const FEncryptionData& EncryptionData) override;
@@ -37,10 +35,6 @@ public:
 	// After calling this, future outgoing packets will not be encrypted (until a call to DisableEncryption).
 	virtual void DisableEncryption() override;
 
-	// @ATG_CHANGE : BEGIN 
-	// Replace the NonceData used for encryption with NewData if NewData is exactly NonceSizeInBytes long.
-	virtual void SetEncryptionNonceData(const TArrayView<const uint8>& NewData) override;
-	// ATG_CHANGE : END
 	// Returns true if encryption is currently enabled.
 	virtual bool IsEncryptionEnabled() const override;
 
@@ -58,10 +52,6 @@ private:
 	TUniquePtr<FEncryptionContext> EncryptionContext;
 
 	TArray<uint8> Key;
-	// @UWP_CHANGE : BEGIN 
-	TArray<uint8> NonceData;
-	TArray<uint8> AuthTag;
-	// UWP_CHANGE : END
 
 	TArray<uint8> Ciphertext;
 

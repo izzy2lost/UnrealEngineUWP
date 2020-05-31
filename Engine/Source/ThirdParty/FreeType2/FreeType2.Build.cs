@@ -17,11 +17,10 @@ public class FreeType2 : ModuleRules
 				Target.Platform == UnrealTargetPlatform.Win64 ||
 				Target.Platform == UnrealTargetPlatform.XboxOne ||
 				Target.IsInPlatformGroup(UnrealPlatformGroup.Android) ||
-// @UWP_CHANGE : BEGIN UWP support
 				Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) ||
-				Target.IsInPlatformGroup(UnrealPlatformGroup.UWP32) ||
-				Target.IsInPlatformGroup(UnrealPlatformGroup.UWP64)
-// @UWP_CHANGE : END
+				// @UWP_CHANGE : BEGIN UWP support
+				Target.IsInPlatformGroup(UnrealPlatformGroup.UWP)
+				// @UWP_CHANGE : END
 			)
 			{
 				return "FreeType2-2.10.0";

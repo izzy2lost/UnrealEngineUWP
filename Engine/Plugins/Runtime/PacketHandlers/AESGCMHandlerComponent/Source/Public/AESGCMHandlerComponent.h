@@ -38,11 +38,6 @@ public:
 	// After calling this, future outgoing packets will not be encrypted (until a call to DisableEncryption).
 	virtual void DisableEncryption() override;
 
-	// @UWP_CHANGE : BEGIN Needs review
-	// Replace the NonceData used for encryption with NewData if NewData is exactly NonceSizeInBytes long.
-	virtual void SetEncryptionNonceData(const TArrayView<const uint8>& NewData) override;
-	// @UWP_CHANGE : END
-
 	// Returns true if encryption is currently enabled.
 	virtual bool IsEncryptionEnabled() const override;
 

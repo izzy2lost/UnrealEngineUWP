@@ -63,7 +63,6 @@ public class OpenSSL : ModuleRules
 
 			// Add Libs
 			string LibPath = Path.Combine(OpenSSL102UWPPath, "lib", PlatformSubdir, VSVersion, ConfigFolder);
-			PublicLibraryPaths.Add(LibPath);
 
 			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "ssleay32.lib"));
 			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "libeay32.lib"));

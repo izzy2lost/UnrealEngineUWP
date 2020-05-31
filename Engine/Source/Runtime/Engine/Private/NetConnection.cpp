@@ -472,8 +472,7 @@ void UNetConnection::NotifyAnalyticsProvider()
 	}
 }
 
-// @ATG_CHANGE : BEGIN - GCM requires persistant nonce data that is incremented for each send
-void UNetConnection::EnableEncryptionWithKeyAndNonce(TArrayView<const uint8> Key, const TArrayView<const uint8>& NonceData)
+void UNetConnection::EnableEncryptionWithKey(TArrayView<const uint8> Key)
 {
 	FEncryptionData EncryptionData;
 	EncryptionData.Key.Append(Key.GetData(), Key.Num());
@@ -500,7 +499,7 @@ void UNetConnection::EnableEncryption(const FEncryptionData& EncryptionData)
 	}
 }
 
-void UNetConnection::EnableEncryptionWithKeyAndIVServer(TArrayView<const uint8> Key, TArrayView<const uint8> NonceData)
+void UNetConnection::EnableEncryptionWithKeyServer(TArrayView<const uint8> Key)
 {
 	FEncryptionData EncryptionData;
 	EncryptionData.Key.Append(Key.GetData(), Key.Num());
@@ -520,7 +519,6 @@ void UNetConnection::EnableEncryptionServer(const FEncryptionData& EncryptionDat
 		UE_LOG(LogNet, Log, TEXT("UNetConnection::EnableEncryptionServer, connection in invalid state. %s"), *Describe());
 	}
 }
-// @ATG_CHANGE : END
 
 void UNetConnection::SendClientEncryptionAck()
 {

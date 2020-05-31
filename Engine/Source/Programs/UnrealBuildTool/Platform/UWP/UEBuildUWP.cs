@@ -484,7 +484,8 @@ namespace UnrealBuildTool
 				// The UWPSDK module handles proper paths and libs for UWP.
 				// However, the D3D11RHI module will include the DX11 module.
 				Rules.PublicIncludePaths.Clear();
-				Rules.PublicLibraryPaths.Clear();
+				Rules.PublicRuntimeLibraryPaths.Clear();
+				Rules.PublicSystemLibraryPaths.Clear();
 				Rules.PublicAdditionalLibraries.Clear();
 				Rules.PublicDefinitions.Remove("WITH_D3DX_LIBS=1");
 				Rules.PublicDefinitions.Add("WITH_D3DX_LIBS=0");

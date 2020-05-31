@@ -1931,7 +1931,10 @@ namespace UnrealBuildTool
 			DirectoryReference VSSchemaFolder = null;
 			DirectoryReference PhoneSchemaFolder = null;
 
-			UWPExports.GetWindowsSDKInstallationFolder(out DirectoryReference SDKRootFolder, out Version SDKVersion);
+			DirectoryReference SDKRootFolder;
+			Version SDKVersion;
+
+			UWPExports.GetWindowsSDKInstallationFolder(out SDKRootFolder, out SDKVersion);
 
 			SdkSchemaFolder = DirectoryReference.Combine(SDKRootFolder, "Include", SDKVersion.ToString(), "winrt");
 			PhoneSchemaFolder = DirectoryReference.Combine(SDKRootFolder, "Extension SDKs", "WindowsMobile", SDKVersion.ToString(), "Include", "WinRT");

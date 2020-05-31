@@ -143,8 +143,7 @@ public class OnlineSubsystemLive : ModuleRules
 			PublicDefinitions.Add("USE_XIM=1");
 
 			PublicIncludePaths.Add(Path.Combine(WinMDReferencePathRoot, "XIM", XimPackageFolder, "include"));
-			PublicLibraryPaths.Add(Path.Combine(WinMDReferencePathRoot, "XIM", XimPackageFolder, "lib", PackageArch, "release"));
-			PublicAdditionalLibraries.Add("xboxintegratedmultiplayer.lib");
+			PublicAdditionalLibraries.Add(Path.Combine(WinMDReferencePathRoot, "XIM", XimPackageFolder, "lib", PackageArch, "release", "xboxintegratedmultiplayer.lib"));
 
 			// Xim DLL is like cpprest.
 			string XimDll = Path.Combine("ThirdParty", "XIM", XimPackageFolder, "lib", PackageArch, "release", "XboxIntegratedMultiplayer.dll");

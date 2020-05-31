@@ -49,7 +49,7 @@ public class UWPTargetPlatform : ModuleRules
 			PrivateIncludePathModuleNames.Add("TextureCompressor");
 		}
 
-		PublicAdditionalLibraries.Add("shlwapi.lib");
+		PublicSystemLibraries.Add("shlwapi.lib");
 
 		string LibrariesPath = Path.Combine(ThirdPartyPath, "Lib", Target.WindowsPlatform.GetArchitectureSubpath());
 

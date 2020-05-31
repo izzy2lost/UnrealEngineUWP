@@ -28,6 +28,6 @@ public class UWPPlatformEditor : ModuleRules
 			}
 		);
 
-		PublicAdditionalLibraries.Add("crypt32.lib");
+		PublicSystemLibraries.Add("crypt32.lib");
 	}
 }

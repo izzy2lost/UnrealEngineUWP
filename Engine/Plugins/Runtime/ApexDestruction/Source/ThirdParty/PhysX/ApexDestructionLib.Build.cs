@@ -106,42 +106,40 @@ public class ApexDestructionLib : ModuleRules
 // @ATG_CHANGE : BEGIN UWP support
 		else if (Target.Platform == UnrealTargetPlatform.UWP64)
 		{
-			APEXLibDir += "/UWP64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
-			PublicLibraryPaths.Add(APEXLibDir);
+			string Arch = Target.WindowsPlatform.GetArchitectureSubpath();
 
-			PublicAdditionalLibraries.Add(String.Format("APEXFramework{0}_x64.lib", LibrarySuffix));
-			PublicDelayLoadDLLs.Add(String.Format("APEXFramework{0}_x64.dll", LibrarySuffix));
+			PublicAdditionalLibraries.Add(Path.Combine(ApexLibDir, "UWP64", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), String.Format("APEXFramework{0}_{1}.lib", LibrarySuffix, Arch)));
+			PublicDelayLoadDLLs.Add(String.Format("APEXFramework{0}_{1}.dll", LibrarySuffix, Arch));
 
-			string[] RuntimeDependenciesX64 =
+			string[] RuntimeDependenciesT =
 			{
-				"APEX_Destructible{0}_x64.dll",
+				"APEX_Destructible{0}_{1}.dll",
 			};
 
 			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/UWP64/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
-			foreach (string RuntimeDependency in RuntimeDependenciesX64)
+			foreach (string RuntimeDependency in RuntimeDependenciesT)
 			{
-				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix);
+				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix, Arch);
 				RuntimeDependencies.Add(FileName, StagedFileType.NonUFS);
 				RuntimeDependencies.Add(Path.ChangeExtension(FileName, ".pdb"), StagedFileType.DebugNonUFS);
 			}
 		}
 		else if (Target.Platform == UnrealTargetPlatform.UWP32)
 		{
-			APEXLibDir += "/UWP32/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
-			PublicLibraryPaths.Add(APEXLibDir);
+			string Arch = Target.WindowsPlatform.GetArchitectureSubpath();
 
-			PublicAdditionalLibraries.Add(String.Format("APEXFramework{0}_x86.lib", LibrarySuffix));
-			PublicDelayLoadDLLs.Add(String.Format("APEXFramework{0}_x86.dll", LibrarySuffix));
+			PublicAdditionalLibraries.Add(Path.Combine(ApexLibDir, "UWP32", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), String.Format("APEXFramework{0}_{1}.lib", LibrarySuffix, Arch)));
+			PublicDelayLoadDLLs.Add(String.Format("APEXFramework{0}_{1}.dll", LibrarySuffix, Arch));
 
-			string[] RuntimeDependenciesX86 =
+			string[] RuntimeDependenciesT =
 			{
-				"APEX_Destructible{0}_x86.dll",
+				"APEX_Destructible{0}_{1}.dll",
 			};
 
 			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/UWP32/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
-			foreach (string RuntimeDependency in RuntimeDependenciesX86)
+			foreach (string RuntimeDependency in RuntimeDependenciesT)
 			{
-				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix);
+				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix, Arch);
 				RuntimeDependencies.Add(FileName, StagedFileType.NonUFS);
 				RuntimeDependencies.Add(Path.ChangeExtension(FileName, ".pdb"), StagedFileType.DebugNonUFS);
 			}
