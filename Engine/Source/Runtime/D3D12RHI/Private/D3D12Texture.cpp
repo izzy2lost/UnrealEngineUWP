@@ -1785,7 +1785,7 @@ void FD3D12TextureBase::InitializeTextureData(FRHICommandListImmediate* RHICmdLi
 		}
 	}
 
-#if PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS || PLATFORM_UWP
 	ensure(DstDataOffset == Size);
 #else
 	ensure(Align(DstDataOffset, FD3D12_TEXTURE_DATA_PITCH_ALIGNMENT) == Size);
