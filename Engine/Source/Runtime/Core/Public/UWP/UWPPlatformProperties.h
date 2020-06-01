@@ -21,6 +21,10 @@ struct FUWPPlatformProperties : public FGenericPlatformProperties
 	{
 		return "UWP";
 	}
+	static FORCEINLINE const TCHAR* GetRuntimeSettingsClassName()
+	{
+		return TEXT("/Script/UWPRuntimeSettings.UWPRuntimeSettings");
+	}
 	static FORCEINLINE bool HasEditorOnlyData()
 	{
 		return false;

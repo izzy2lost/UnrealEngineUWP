@@ -16,9 +16,7 @@
 #if WITH_EDITOR
 	#include "UnrealEdGlobals.h"
 #endif
-// @LAB132: BEGIN UWP Support
-	#if PLATFORM_WINDOWS || PLATFORM_UWP
-// @LAB132: END
+#if PLATFORM_WINDOWS
 	#include "Windows/WindowsHWrapper.h"
 #endif
 

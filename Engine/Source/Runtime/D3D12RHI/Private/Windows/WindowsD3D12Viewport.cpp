@@ -230,6 +230,7 @@ void FD3D12Viewport::Init()
 
 void FD3D12Viewport::ConditionalResetSwapChain(bool bIgnoreFocus)
 {
+#if !PLATFORM_UWP
 	if (!bIsValid)
 	{
 		// Check if the viewport's window is focused before resetting the swap chain's fullscreen state.
@@ -261,6 +262,7 @@ void FD3D12Viewport::ConditionalResetSwapChain(bool bIgnoreFocus)
 			}
 		}
 	}
+#endif
 }
 
 void FD3D12Viewport::ResizeInternal()

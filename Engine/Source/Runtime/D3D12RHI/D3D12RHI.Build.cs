@@ -42,26 +42,16 @@ public class D3D12RHI : ModuleRules
 			PrecompileForTargets = PrecompileTargetsType.None;
 		}
 
-		// @ATG_CHANGE : BEGIN UWP support
+		// @UWP_CHANGE : BEGIN UWP support
         if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32 ||
             Target.Platform == UnrealTargetPlatform.HoloLens ||
             Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
-		// @ATG_CHANGE : END
-		{
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "DX12");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11");
+        // @UWP_CHANGE : END
+        {
+            AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11");
+            AddEngineThirdPartyPrivateStaticDependencies(Target, "DX12");
 
-			// @ATG_CHANGE : BEGIN UWP support
-			if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
-			{
-				if (!Target.UWPPlatform.bBuildD3D12RHI)
-				{
-					Tools.DotNETCommon.Log.TraceWarning("D3D12 RHI is being built, but UWP build settings indicate that it should not be.  Depending on your Windows SDK environment this may cause build errors.  Check build.cs files for dependencies.");
-				}
-			}
-			// @ATG_CHANGE : END
-
-			// @UWP_CHANGE : BEGIN UWP support
+            // @UWP_CHANGE : BEGIN UWP support
             if (Target.Platform != UnrealTargetPlatform.HoloLens && Target.Platform != UnrealTargetPlatform.UWP64 && Target.Platform != UnrealTargetPlatform.UWP32)
 			// @UWP_CHANGE : END
             {

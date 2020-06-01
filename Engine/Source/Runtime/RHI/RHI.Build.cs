@@ -31,17 +31,13 @@ public class RHI : ModuleRules
 					DynamicallyLoadedModuleNames.Add("D3D11RHI");
 				}
 
-				// @ATG_CHANGE : BEGIN UWP support
-				if ((Target.Platform == UnrealTargetPlatform.UWP32) ||
-					(Target.Platform == UnrealTargetPlatform.UWP64))
-				{
-					DynamicallyLoadedModuleNames.Add("D3D11RHI");
-
-					if (Target.UWPPlatform.bBuildD3D12RHI)
-					{
-						DynamicallyLoadedModuleNames.Add("D3D12RHI");
-					}
-				}
+                // @ATG_CHANGE : BEGIN UWP support
+                if ((Target.Platform == UnrealTargetPlatform.UWP32) ||
+                    (Target.Platform == UnrealTargetPlatform.UWP64))
+                {
+                    DynamicallyLoadedModuleNames.Add("D3D11RHI");
+                    DynamicallyLoadedModuleNames.Add("D3D12RHI");
+                }
 				// @ATG_CHANGE : END
 
 				if ((Target.Platform == UnrealTargetPlatform.Win64) ||

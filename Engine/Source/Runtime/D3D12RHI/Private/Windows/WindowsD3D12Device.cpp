@@ -7,19 +7,21 @@
 #include "D3D12RHIPrivate.h"
 #include "Modules/ModuleManager.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
+
 #include <delayimp.h>
 // @UWP_CHANGE : BEGIN UWP support
 #if !PLATFORM_CPU_ARM_FAMILY && !PLATFORM_UWP
 // @ATG_CHANGE : END UWP support
 	#include "amd_ags.h"
 #endif
-#if !PLATFORM_HOLOLENS && !PLATFORM_CPU_ARM_FAMILY
+#if !PLATFORM_HOLOLENS && !PLATFORM_CPU_ARM_FAMILY && !PLATFORM_UWP
 	#define NV_API_ENABLE 1
 	#include "nvapi.h"
 	#include "nvShaderExtnEnums.h"
 #else
 	#define NV_API_ENABLE 0
 #endif
+
 #include "Windows/HideWindowsPlatformTypes.h"
 
 #include "HardwareInfo.h"

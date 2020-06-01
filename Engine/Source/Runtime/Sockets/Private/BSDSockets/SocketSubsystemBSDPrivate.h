@@ -6,15 +6,24 @@
 #include "SocketSubsystem.h"
 
 #if PLATFORM_HAS_BSD_SOCKET_FEATURE_WINSOCKETS
+
+#if PLATFORM_UWP
+	#include "UWP/AllowWindowsPlatformTypes.h"
+#else
 	#include "Windows/WindowsHWrapper.h"
 	#include "Windows/AllowWindowsPlatformTypes.h"
+#endif
 
 	#include <winsock2.h>
 	#include <ws2tcpip.h>
 
 	typedef int32 SOCKLEN;
 
+#if PLATFORM_UWP
+	#include "UWP/HideWindowsPlatformTypes.h"
+#else
 	#include "Windows/HideWindowsPlatformTypes.h"
+#endif
 #else
 #if PLATFORM_SWITCH
 	#include "Switch/SwitchSocketApiWrapper.h"

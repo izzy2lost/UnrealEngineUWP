@@ -11,12 +11,12 @@
 // make an FTimeSpan object that represents the "epoch" for time_t (from a _stat struct)
 const FDateTime UWPEpoch(1970, 1, 1);
 
-#include "Windows/AllowWindowsPlatformTypes.h"
+#include "UWP/AllowWindowsPlatformTypes.h"
 namespace FileConstants
 {
 	uint32 WIN_INVALID_SET_FILE_POINTER = INVALID_SET_FILE_POINTER;
 }
-#include "Windows/HideWindowsPlatformTypes.h"
+#include "UWP/HideWindowsPlatformTypes.h"
 
 namespace
 {

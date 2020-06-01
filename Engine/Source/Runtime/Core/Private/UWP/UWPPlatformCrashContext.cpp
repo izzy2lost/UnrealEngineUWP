@@ -7,7 +7,7 @@
 #include "UWP/UWPPlatformCrashContext.h"
 #include "../../Launch/Resources/Version.h"
 
-#include "Windows/AllowWindowsPlatformTypes.h"
+#include "UWP/AllowWindowsPlatformTypes.h"
 
 	#include <strsafe.h>
 	#include <werapi.h>
@@ -318,15 +318,15 @@ void ReportEnsure( const TCHAR* ErrorMessage, int NumStackFramesToIgnore )
 }
 
 
-#include "HideWindowsPlatformTypes.h"
+#include "UWP/HideWindowsPlatformTypes.h"
 #if WER_CUSTOM_REPORTS
 
 // Original code below
 
-#include "AllowWindowsPlatformTypes.h"
+#include "UWP/AllowWindowsPlatformTypes.h"
 	#include <ErrorRep.h>
 	#include <DbgHelp.h>
-#include "HideWindowsPlatformTypes.h"
+#include "UWP/HideWindowsPlatformTypes.h"
 
 #pragma comment(lib, "Faultrep.lib")
 
@@ -334,7 +334,7 @@ void ReportEnsure( const TCHAR* ErrorMessage, int NumStackFramesToIgnore )
  * Creates an info string describing the given exception record.
  * See MSDN docs on EXCEPTION_RECORD.
  */
-#include "AllowWindowsPlatformTypes.h"
+#include "UWP/AllowWindowsPlatformTypes.h"
 void CreateExceptionInfoString(EXCEPTION_RECORD* ExceptionRecord)
 {
 	// @TODO yrx 2014-08-18 Fix FString usage?
@@ -374,7 +374,7 @@ void CreateExceptionInfoString(EXCEPTION_RECORD* ExceptionRecord)
 #endif
 #undef HANDLE_CASE
 }
-#include "Windows/HideWindowsPlatformTypes.h"
+#include "UWP/HideWindowsPlatformTypes.h"
 
 int32 ReportCrash( LPEXCEPTION_POINTERS ExceptionInfo )
 {

@@ -67,12 +67,6 @@ namespace UnrealBuildTool
 		public bool bIsCreatorsProgramTitle = false;
 
 		/// <summary>
-		/// Controls whether the D3D12 RHI should be included in the build.
-		/// </summary>
-		[ConfigFile(ConfigHierarchyType.Engine, "/Script/UWPPlatformEditor.UWPTargetSettings", "bBuildD3D12RHI")]
-		public bool bBuildD3D12RHI = true;
-
-		/// <summary>
 		/// Contains the specific version of the Windows 10 SDK that we will build against.
 		/// Note that this is separate from the version of the OS that will be targeted at runtime.
 		/// </summary>
@@ -141,11 +135,6 @@ namespace UnrealBuildTool
 		public bool bIsCreatorsProgramTitle
 		{
 			get { return Inner.bIsCreatorsProgramTitle; }
-		}
-
-		public bool bBuildD3D12RHI
-		{
-			get { return Inner.bBuildD3D12RHI; }
 		}
 
 		public Version Win10SDKVersion
@@ -498,7 +487,7 @@ namespace UnrealBuildTool
 				Rules.PublicDefinitions.Add("XAUDIO_SUPPORTS_DEVICE_DETAILS=0");
 				Rules.PublicDefinitions.Add("XAUDIO2_SUPPORTS_MUSIC=0");
 				Rules.PublicDefinitions.Add("XAUDIO2_SUPPORTS_SENDLIST=1");
-				Rules.PublicAdditionalLibraries.Add("XAudio2.lib");
+				Rules.PublicSystemLibraries.Add("XAudio2.lib");
 			}
 			else if (ModuleName == "DX11Audio")
 			{
@@ -629,14 +618,7 @@ namespace UnrealBuildTool
 				CompileEnvironment.Definitions.Add("USING_RETAIL_WINDOWS_STORE=0");
 			}
 
-			if (Target.UWPPlatform.bBuildD3D12RHI)
-			{
-				CompileEnvironment.Definitions.Add("WITH_D3D12_RHI=1");
-			}
-			else
-			{
-				CompileEnvironment.Definitions.Add("WITH_D3D12_RHI=0");
-			}
+			CompileEnvironment.Definitions.Add("WITH_D3D12_RHI=1");
 
 			LinkEnvironment.AdditionalArguments += "/NODEFAULTLIB";
 			LinkEnvironment.AdditionalLibraries.Add("windowsapp.lib");

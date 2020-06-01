@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "MSVC/MSVCPlatform.h"
+
 /** Define the UWP platform to be the active one **/
 #define PLATFORM_UWP					1
 
