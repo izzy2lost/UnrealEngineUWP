@@ -9,7 +9,6 @@
 
 UUWPTargetSettings::UUWPTargetSettings(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-	, bBuildD3D12RHI(1)
 	, bEnablePIXProfiling(1)
 {
 }

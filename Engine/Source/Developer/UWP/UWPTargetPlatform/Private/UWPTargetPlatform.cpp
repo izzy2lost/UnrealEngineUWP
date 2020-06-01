@@ -96,16 +96,12 @@ const struct FPlatformAudioCookOverrides* FUWPTargetPlatform::GetAudioCompressio
 
 void FUWPTargetPlatform::GetTextureFormats(const UTexture* InTexture, TArray< TArray<FName> >& OutFormats) const
 {
-	bool bExcludeShaderModel4Support = false;
-	GConfig->GetBool(TEXT("/Script/UWPPlatformEditor.UWPTargetSettings"), TEXT("bExcludeShaderModel4Support"), bExcludeShaderModel4Support, GEngineIni);
-	GetDefaultTextureFormatNamePerLayer(OutFormats.AddDefaulted_GetRef(), this, InTexture, EngineSettings, bExcludeShaderModel4Support);
+	GetDefaultTextureFormatNamePerLayer(OutFormats.AddDefaulted_GetRef(), this, InTexture, EngineSettings, true);
 }
 
 void FUWPTargetPlatform::GetAllTextureFormats(TArray<FName>& OutFormats) const
 {
-	bool bExcludeShaderModel4Support = false;
-	GConfig->GetBool(TEXT("/Script/UWPPlatformEditor.UWPTargetSettings"), TEXT("bExcludeShaderModel4Support"), bExcludeShaderModel4Support, GEngineIni);
-	GetAllDefaultTextureFormats(this, OutFormats, bExcludeShaderModel4Support);
+	GetAllDefaultTextureFormats(this, OutFormats, true);
 }
 
 static FName NAME_PCD3D_SM4(TEXT("PCD3D_SM4"));
@@ -114,18 +110,11 @@ static FName NAME_PCD3D_SM5(TEXT("PCD3D_SM5"));
 void FUWPTargetPlatform::GetAllPossibleShaderFormats(TArray<FName>& OutFormats) const
 {
 	OutFormats.AddUnique(NAME_PCD3D_SM5);
-	OutFormats.AddUnique(NAME_PCD3D_SM4);
 }
 
 void FUWPTargetPlatform::GetAllTargetedShaderFormats(TArray<FName>& OutFormats) const
 {
-	bool bExcludeShaderModel4Support = false;
-	GConfig->GetBool(TEXT("/Script/UWPPlatformEditor.UWPTargetSettings"), TEXT("bExcludeShaderModel4Support"), bExcludeShaderModel4Support, GEngineIni);
 	OutFormats.AddUnique(NAME_PCD3D_SM5);
-	if (!bExcludeShaderModel4Support)
-	{
-		OutFormats.AddUnique(NAME_PCD3D_SM4);
-	}
 }
 
 #endif
