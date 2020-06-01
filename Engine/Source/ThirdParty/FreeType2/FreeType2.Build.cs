@@ -17,15 +17,14 @@ public class FreeType2 : ModuleRules
 				Target.Platform == UnrealTargetPlatform.Win64 ||
 				Target.Platform == UnrealTargetPlatform.XboxOne ||
 				Target.IsInPlatformGroup(UnrealPlatformGroup.Android) ||
-				Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) ||
-				// @UWP_CHANGE : BEGIN UWP support
-				Target.IsInPlatformGroup(UnrealPlatformGroup.UWP)
-				// @UWP_CHANGE : END
+				Target.IsInPlatformGroup(UnrealPlatformGroup.Unix)
 			)
 			{
 				return "FreeType2-2.10.0";
 			}
-			else if (Target.Platform == UnrealTargetPlatform.TVOS)
+			else if (Target.Platform == UnrealTargetPlatform.TVOS ||
+				Target.Platform == UnrealTargetPlatform.UWP32 ||
+                Target.Platform == UnrealTargetPlatform.UWP64)
 			{
 				return "FreeType2-2.4.12";
 			}
@@ -102,7 +101,15 @@ public class FreeType2 : ModuleRules
 
 			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "freetype26MT.lib"));
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Mac)
+        else if (Target.Platform == UnrealTargetPlatform.UWP32 || Target.Platform == UnrealTargetPlatform.UWP64)
+        {
+            string PlatformSubpath = Target.Platform == UnrealTargetPlatform.UWP32 ? "Win32" : "Win64";
+
+            LibPath = Path.Combine(FreeType2LibPath, "WinRT", PlatformSubpath);
+
+            PublicAdditionalLibraries.Add(Path.Combine(LibPath, "freetype2412MT.lib"));
+        }
+        else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			LibPath = Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT
 				? "libfreetyped.a"

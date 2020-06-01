@@ -314,7 +314,7 @@ static const FFieldTypeNameMap FieldTypeNameMappings[] =
 
 static int32 FindFieldTypeFromName( const TCHAR* Name )
 {
-	for ( int32 i = 0; i < ARRAY_COUNT( FieldTypeNameMappings ); i++ )
+	for ( int32 i = 0; i < UE_ARRAY_COUNT( FieldTypeNameMappings ); i++ )
 	{
 		if ( !FCString::Stricmp( FieldTypeNameMappings[i].Name, Name ) )
 		{
@@ -327,7 +327,7 @@ static int32 FindFieldTypeFromName( const TCHAR* Name )
 
 static const TCHAR* FindFieldNameFromType( const int32 Type )
 {
-	for ( int32 i = 0; i < ARRAY_COUNT( FieldTypeNameMappings ); i++ )
+	for ( int32 i = 0; i < UE_ARRAY_COUNT( FieldTypeNameMappings ); i++ )
 	{
 		if ( FieldTypeNameMappings[i].Value == Type )
 		{

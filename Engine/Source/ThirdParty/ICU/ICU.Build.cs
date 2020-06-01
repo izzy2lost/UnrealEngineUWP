@@ -27,10 +27,7 @@ public class ICU : ModuleRules
 				Target.Platform == UnrealTargetPlatform.Win64 ||
 				Target.Platform == UnrealTargetPlatform.XboxOne ||
 				Target.IsInPlatformGroup(UnrealPlatformGroup.Android) ||
-				Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) ||
-				// @UWP_CHANGE : BEGIN UWP support
-				Target.IsInPlatformGroup(UnrealPlatformGroup.UWP))
-				// @UWP_CHANGE : END
+				Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
 			{
 				return ICU64VersionString;
 			}
@@ -131,6 +128,29 @@ public class ICU : ModuleRules
 				PublicAdditionalLibraries.Add(Path.Combine(PlatformICULibPath, LibraryName));
 			}
 		}
+		else if (Target.Platform == UnrealTargetPlatform.UWP32 || Target.Platform == UnrealTargetPlatform.UWP64)
+        {
+            string VSVersionFolderName = "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
+            string PlatformICULibPath = Path.Combine(ICULibPath, VSVersionFolderName, "lib");
+
+            string[] LibraryNameStems =
+			{
+                "dt",   // Data
+				"uc",   // Unicode Common
+				"in",   // Internationalization
+				"le",   // Layout Engine
+				"lx",   // Layout Extensions
+				"io"	// Input/Output
+			};
+            string LibraryNamePostfix = UseDebugLibs ? "d" : string.Empty;
+
+            // Library Paths
+            foreach (string Stem in LibraryNameStems)
+            {
+                string LibraryName = "sicu" + Stem + LibraryNamePostfix + "." + "lib";
+                PublicAdditionalLibraries.Add(Path.Combine(PlatformICULibPath, LibraryName));
+            }
+        }
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			PublicAdditionalLibraries.Add(Path.Combine(ICULibPath, UseDebugLibs ? "libicud.a" : "libicu.a"));
