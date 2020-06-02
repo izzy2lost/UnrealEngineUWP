@@ -456,16 +456,16 @@ namespace UnrealBuildTool
 			}
 			else if (ModuleName == "D3D12RHI")
 			{
-				if (Target.WindowsPlatform.bPixProfilingEnabled && Target.Platform == UnrealTargetPlatform.UWP64 && Target.Configuration != UnrealTargetConfiguration.Shipping && Target.Configuration != UnrealTargetConfiguration.Test)
-				{
-					// Define to indicate profiling enabled (64-bit only)
-					Rules.PublicDefinitions.Add("D3D12_PROFILING_ENABLED=1");
-					Rules.PublicDefinitions.Add("PROFILE");
-				}
-				else
-				{
+				//if (Target.WindowsPlatform.bPixProfilingEnabled && Target.Platform == UnrealTargetPlatform.UWP64 && Target.Configuration != UnrealTargetConfiguration.Shipping && Target.Configuration != UnrealTargetConfiguration.Test)
+				//{
+				//	// Define to indicate profiling enabled (64-bit only)
+				//	Rules.PublicDefinitions.Add("D3D12_PROFILING_ENABLED=1");
+				//	Rules.PublicDefinitions.Add("PROFILE");
+				//}
+				//else
+				//{
 					Rules.PublicDefinitions.Add("D3D12_PROFILING_ENABLED=0");
-				}
+				//}
 			}
 			else if (ModuleName == "DX11")
 			{
