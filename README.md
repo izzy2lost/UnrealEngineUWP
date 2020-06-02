@@ -1,6 +1,12 @@
 ##Note from EmmettJnr##
 
-- This branch is a work in progress!
+* UWP now builds to D3D12 only. SM4 support is gone in UE 4.24. UWP on xbox one requires D3D12 to use SM5.
+
+* Deployment from VS2017 works. It may be necessary to select Windows SDK 10.0.17134.0 in UWP project settings.
+
+* UWP32 is probably broken. Up in the air whether it needs fixing.
+
+* Live functionality is probably completely broken. Old BCrypt module is removed and encryption code may need updating.
 
 
 ##Note from EvoPulseGaming##
