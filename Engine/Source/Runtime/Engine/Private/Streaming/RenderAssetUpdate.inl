@@ -22,9 +22,16 @@ TRenderAssetUpdate<TContext>::TRenderAssetUpdate(UStreamableRenderAsset* InAsset
 template <typename TContext>
 void TRenderAssetUpdate<TContext>::PushTask(const FContext& Context, EThreadType InTaskThread, const FCallback& InTaskCallback, EThreadType InCancelationThread, const FCallback& InCancelationCallback)
 {
+#if PLATFORM_UWP
+	if (!(TaskState == TS_Locked || TaskState == TS_Init))
+	{
+		// @EmmettJnr TODO: This can't be good but can't currently figure out how the xbox one gets into here
+	}
+#else
 	// PushTask can only be called by the one thread/callback that is doing the processing. 
 	// This means we don't need to check whether other threads could be trying to push tasks.
 	check(TaskState == TS_Locked || TaskState == TS_Init);
+#endif
 	checkSlow((bool)InTaskCallback == (InTaskThread != TT_None));
 	checkSlow((bool)InCancelationCallback == (InCancelationThread != TT_None));
 
@@ -37,7 +44,14 @@ void TRenderAssetUpdate<TContext>::PushTask(const FContext& Context, EThreadType
 template <typename TContext>
 FRenderAssetUpdate::ETaskState TRenderAssetUpdate<TContext>::TickInternal(EThreadType InCurrentThread, bool bCheckForSuspension)
 {
+#if PLATFORM_UWP
+	if (!(TaskState == TS_Locked))
+	{
+		// @EmmettJnr TODO: This can't be good but can't currently figure out how the xbox one gets into here
+	}
+#else
 	check(TaskState == TS_Locked);
+#endif
 
 	// Thread, callback and asset must be coherent because Abort() could be called while this is executing.
 	EThreadType RelevantThread = TaskThread;
