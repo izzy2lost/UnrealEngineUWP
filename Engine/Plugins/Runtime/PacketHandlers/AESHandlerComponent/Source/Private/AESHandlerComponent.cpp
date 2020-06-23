@@ -97,17 +97,7 @@ void FAESHandlerComponent::Incoming(FBitReader& Packet)
 			UE_LOG(PacketHandlerLog, VeryVerbose, TEXT("AES packet handler received %ld bytes before decryption."), Ciphertext.Num());
 
 			EPlatformCryptoResult DecryptResult = EPlatformCryptoResult::Failure;
-			// @ATG_CHANGE : BEGIN -  from 4.22-uwp using GCM mode
-			// @jimbo10 this 4.24-uwp and 4.25-uwp conversion from 4.22-uwp using GCM mode
-			#if PLATFORM_UWP // @jimbo10 PLATFORM_UWP  is defined
 			TArray<uint8> Plaintext = EncryptionContext->Decrypt_AES_256_ECB(Ciphertext, Key, DecryptResult);
-			#else
-			// @ATG_CHANGE : BEGIN - allow platforms using BCrypt to use GCM mode
-			TArray<uint8> Plaintext = EncryptionContext->Decrypt(Ciphertext, Key, DecryptResult);
-			// @ATG_CHANGE : END
-
-			#endif
-			// @ATG_CHANGE : END UWP from 4.22-uwp using GCM mode
 
 			if (DecryptResult == EPlatformCryptoResult::Failure)
 			{
