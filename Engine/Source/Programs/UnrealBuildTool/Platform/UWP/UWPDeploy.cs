@@ -273,7 +273,10 @@ namespace UnrealBuildTool
 			Log.TraceInformation("Prepping {0} for deployment to {1}", ProjectName, Receipt.Platform.ToString());
 			System.DateTime PrepDeployStartTime = DateTime.UtcNow;
 
-			AddWinMDReferencesFromReceipt(Receipt, Receipt.ProjectDir, UnrealBuildTool.EngineDirectory.ParentDirectory.FullName);
+			DirectoryReference ProjectDirectory = Receipt.ProjectDir ?? UnrealBuildTool.EngineDirectory;
+			Log.TraceInformation(Receipt.ProjectDir == null ? "Using engine directory as project directory" : "Project directory has been specified");
+
+			AddWinMDReferencesFromReceipt(Receipt, ProjectDirectory, UnrealBuildTool.EngineDirectory.ParentDirectory.FullName);
 
 			string SDK = "";
 			var Results = Receipt.AdditionalProperties.Where(x => x.Name == "SDK");
@@ -286,7 +289,7 @@ namespace UnrealBuildTool
 			List<UnrealTargetConfiguration> TargetConfigs = new List<UnrealTargetConfiguration> { Receipt.Configuration };
 			List<string> ExePaths = new List<string> { Receipt.Launch.FullName };
 			string RelativeEnginePath = UnrealBuildTool.EngineDirectory.MakeRelativeTo(DirectoryReference.GetCurrentDirectory());
-			PrepForUATPackageOrDeploy(ProjectName, Receipt.ProjectDir.FullName, TargetConfigs, ExePaths, RelativeEnginePath, false, "", false);
+			PrepForUATPackageOrDeploy(ProjectName, ProjectDirectory.FullName, TargetConfigs, ExePaths, RelativeEnginePath, false, "", false);
 
 			DirectoryReference ProjectBinaryFolder = Receipt.BuildProducts.FirstOrDefault(x => x.Type == BuildProductType.Executable)?.Path?.Directory;
 			if (ProjectBinaryFolder == null)
@@ -386,12 +389,14 @@ namespace UnrealBuildTool
 			// This will cause UWP F5 deployment to *always* believe these files need updating, which is not desirable.
 			IEnumerable<string> DependencyPaths = Receipt.RuntimeDependencies.Select((d) => (d.Path.FullName));
 
+			Log.TraceInformation("Looking for runtime dependencies");
+
 			foreach (var RuntimeDep in DependencyPaths.Distinct())
 			{
 				string SourcePath = RuntimeDep;
 				string DeployPath = RuntimeDep;
 				DeployPath = DeployPath.Replace(UnrealBuildTool.EngineDirectory.FullName, "Engine");
-				DeployPath = DeployPath.Replace(Receipt.ProjectDir.FullName, InProjectName);
+				DeployPath = DeployPath.Replace((Receipt.ProjectDir ?? UnrealBuildTool.EngineDirectory).FullName, InProjectName);
 
 				// 4.12: Dependencies now support ... syntax for recursive directory traversal.
 				// Translate this to MSBuild syntax. 
