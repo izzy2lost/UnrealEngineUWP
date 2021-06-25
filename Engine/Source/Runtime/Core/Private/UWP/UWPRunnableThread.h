@@ -2,10 +2,14 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
 #include "HAL/RunnableThread.h"
 #include "HAL/Runnable.h"
+#include "HAL/Event.h"
 #include "Containers/StringConv.h"
-#include "AllowWindowsPlatformTypes.h"
+#include "UWP/WindowsHWrapper.h"
+#include "UWP/UWPPlatformProcess.h"
+#include "UWP/AllowWindowsPlatformTypes.h"
 
 /**
 * This is the base interface for all runnable thread classes. It specifies the
@@ -203,4 +207,4 @@ protected:
 		return Thread != NULL;
 	}
 };
-#include "HideWindowsPlatformTypes.h"
+#include "UWP/HideWindowsPlatformTypes.h"
