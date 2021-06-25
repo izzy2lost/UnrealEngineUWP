@@ -4,13 +4,11 @@
 
 * WARNING 2: UWP32 doesn't build, it needs one or more third party dlls built and some hardcoded references to UWP64 replaced. Unless this is fixed, apparently store submission will fail.
 
-* UWP now uses D3D12 by default. SM4 support is gone in UE 4.24. UWP on xbox one requires D3D12 to use SM5.
+* From UE 4.24, UWP only works with D3D12 and SM5 on the xbox.
 
-* Deployment from VS2017 works. It may be necessary to select Windows SDK 10.0.17134.0 in UWP project settings. Currently requires VS2019 to be installed (needs fixing to use VS2017 toolchain).
+* Deployment from VS2017 works. It may be necessary to select Windows SDK 10.0.17134.0 in UWP project settings. Currently requires VS2019 to be installed.
 
-* Live functionality is probably completely broken. Old BCrypt module is removed and encryption code may need updating.
-
-* D3D11 with SM5 should technically work on Windows but the code might need modifying / testing to get it going.
+* Plugins like live functionality is probably completely broken. Old BCrypt module is removed and encryption code may need updating.
 
 
 ##Note from EvoPulseGaming##
