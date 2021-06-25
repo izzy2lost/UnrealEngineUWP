@@ -37,6 +37,14 @@ void TRenderAssetUpdate<TContext>::PushTask(const FContext& Context, EThreadType
 template <typename TContext>
 FRenderAssetUpdate::ETaskState TRenderAssetUpdate<TContext>::TickInternal(EThreadType InCurrentThread, bool bCheckForSuspension)
 {
+	// EmmettJnr: Workaround attempt #2 for intermittent crashing
+	//------------------------------------------------
+	if (InCurrentThread == EThreadType::TT_None)
+	{
+		return TS_Done;
+	}
+	//------------------------------------------------
+
 	check(TaskState == TS_Locked);
 
 	// Thread, callback and asset must be coherent because Abort() could be called while this is executing.
