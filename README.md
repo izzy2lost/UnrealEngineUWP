@@ -1,8 +1,6 @@
-##Note from EmmettJnr##
+##Notes from EmmettJnr##
 
-* WARNING: There is currently a bug which causes intermittent crashes when running on UWP in some cases.
-
-* WARNING 2: UWP32 doesn't build, it needs one or more third party dlls built and some hardcoded references to UWP64 replaced. Unless this is fixed, apparently store submission will fail.
+* WARNING: UWP32 doesn't build, it needs one or more third party dlls built and some hardcoded references to UWP64 replaced. Unless this is fixed, apparently store submission will fail.
 
 * From UE 4.24, UWP only works with D3D12 and SM5 on the xbox.
 
