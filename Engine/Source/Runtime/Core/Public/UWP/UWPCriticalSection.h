@@ -58,7 +58,6 @@ public:
 	{
 		if (TryEnterCriticalSection(&CriticalSection))
 		{
-			LeaveCriticalSection(&CriticalSection);
 			return true;
 		};
 		return false;
