@@ -334,9 +334,9 @@ namespace UnrealBuildTool
 
 		private void GeneratePackageAppXRecipe(string InOutputFile, string InProjectName, TargetReceipt Receipt, IEnumerable<string> AdditionalFiles)
 		{
-			// Not sure where to get correct VCProjectFileFormat from - hardcoding to VS2019
+			// Not sure where to get correct VCProjectFileFormat from - hardcoding to VS2017
 			var AppXRecipeProjectFileContent = new StringBuilder();
-			string VcProjectToolVersion = VCProjectFileGenerator.GetProjectFileToolVersionString(VCProjectFileFormat.VisualStudio2019);
+			string VcProjectToolVersion = VCProjectFileGenerator.GetProjectFileToolVersionString(VCProjectFileFormat.VisualStudio2017);
 
 			AppXRecipeProjectFileContent.Append(
 				"<?xml version=\"1.0\" encoding=\"utf-8\"?>" + ProjectFileGenerator.NewLine +

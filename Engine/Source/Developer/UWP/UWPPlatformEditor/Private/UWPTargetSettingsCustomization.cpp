@@ -36,20 +36,21 @@ void FUWPTargetSettingsCustomization::InitSupportedPlatformVersions()
 {
 	PlatformVersionOptions.Empty();
 
-	// Windows 10 RTM
-	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.10240.0")));
-	// Windows 10 November 2015 update
-	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.10586.0")));
-	// Windows 10 Anniversary update
-	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.14393.0")));
-	// Windows 10 Creators update
-	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.15063.0")));
-	// Windows 10 Fall Creators update
-	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.16299.0")));
+	//// Windows 10 RTM
+	//PlatformVersionOptions.Add(MakeShareable(new FString("10.0.10240.0")));
+	//// Windows 10 November 2015 update
+	//PlatformVersionOptions.Add(MakeShareable(new FString("10.0.10586.0")));
+	//// Windows 10 Anniversary update
+	//PlatformVersionOptions.Add(MakeShareable(new FString("10.0.14393.0")));
+	//// Windows 10 Creators update
+	//PlatformVersionOptions.Add(MakeShareable(new FString("10.0.15063.0")));
+	//// Windows 10 Fall Creators update
+	//PlatformVersionOptions.Add(MakeShareable(new FString("10.0.16299.0")));
+
 	// Windows 10 Spring 2018 update
 	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.17134.0")));
 
-	PlatformVersionOptions.Add(MakeShareable(new FString("10.0.18362.0")));
+	//PlatformVersionOptions.Add(MakeShareable(new FString("10.0.18362.0")));
 	//PlatformVersionOptions.Add(MakeShareable(new FString("10.0.19041.0")));
 }
 
