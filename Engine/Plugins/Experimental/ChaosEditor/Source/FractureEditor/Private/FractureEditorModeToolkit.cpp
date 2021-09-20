@@ -61,6 +61,8 @@
 #include "DetailLayoutBuilder.h"
 #include "PropertyHandle.h"
 
+#include "LevelEditor.h"
+
 #include "FractureSettings.h"
 
 #define LOCTEXT_NAMESPACE "FFractureEditorModeToolkit"
@@ -196,6 +198,12 @@ FFractureEditorModeToolkit::FFractureEditorModeToolkit()
 FFractureEditorModeToolkit::~FFractureEditorModeToolkit()
 {
 	FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
+
+	if (FModuleManager::Get().IsModuleLoaded(TEXT("LevelEditor")))
+	{
+		auto& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
+		LevelEditorModule.OnMapChanged().RemoveAll(this);
+	}
 }
 
 void FFractureEditorModeToolkit::Init(const TSharedPtr<IToolkitHost>& InitToolkitHost)
@@ -208,6 +216,9 @@ void FFractureEditorModeToolkit::Init(const TSharedPtr<IToolkitHost>& InitToolki
 
 	FCoreUObjectDelegates::OnObjectPropertyChanged.AddRaw(this, &FFractureEditorModeToolkit::OnObjectPostEditChange);
 
+	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+	LevelEditorModule.OnMapChanged().AddRaw(this, &FFractureEditorModeToolkit::HandleMapChanged);
+	
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.bAllowSearch = false;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
@@ -591,6 +602,14 @@ void FFractureEditorModeToolkit::BindCommands()
 			}
 		}
 
+	}
+}
+
+void FFractureEditorModeToolkit::HandleMapChanged(class UWorld* NewWorld, EMapChangeType MapChangeType)
+{
+	if ((MapChangeType == EMapChangeType::LoadMap || MapChangeType == EMapChangeType::NewMap || MapChangeType == EMapChangeType::TearDownWorld))
+	{
+		GetEditorMode()->Exit();
 	}
 }
 

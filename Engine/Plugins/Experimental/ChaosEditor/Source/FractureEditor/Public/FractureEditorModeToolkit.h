@@ -172,6 +172,9 @@ private:
 	void OnHistogramBoneSelectionChanged(UGeometryCollectionComponent* RootComponent, TArray<int32>& SelectedBones);
 	void BindCommands();
 
+	/** Callback for map changes. */
+	void HandleMapChanged(UWorld* NewWorld, EMapChangeType MapChangeType);
+
 private:
 	UFractureModalTool* ActiveTool;
 

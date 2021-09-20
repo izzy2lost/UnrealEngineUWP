@@ -98,8 +98,11 @@ void FFractureEditorMode::Exit()
 	GEditor->UnregisterForUndo(this);
 
 	// shutdown and clean up the ToolsContext
-	ToolsContext->ShutdownContext();
-	ToolsContext = nullptr;
+	if (ToolsContext)
+	{ 
+		ToolsContext->ShutdownContext();
+		ToolsContext = nullptr;
+	}
 
 	// TODO: cannot deregister currently because if another mode is also registering, its Enter()
 	// will be called before our Exit(); add the below line back after this bug is fixed
@@ -189,25 +192,40 @@ bool FFractureEditorMode::InputKey(FEditorViewportClient* ViewportClient, FViewp
 		const TSharedRef<FUICommandList> CommandList = Toolkit.Get()->GetToolkitCommands();
 		bHandled = CommandList->ProcessCommandBindings( Key, ModifierKeysState, false );
 	}
-	bHandled |= ToolsContext->InputKey(ViewportClient, Viewport, Key, Event);
+	if (ToolsContext != nullptr)
+	{
+		bHandled |= ToolsContext->InputKey(ViewportClient, Viewport, Key, Event);
+	}
 	return bHandled;
 }
 
 bool FFractureEditorMode::MouseEnter(FEditorViewportClient* ViewportClient, FViewport* Viewport, int32 x, int32 y)
 {
-	bool bHandled = ToolsContext->MouseEnter(ViewportClient, Viewport, x, y);
+	bool bHandled = false;
+	if (ToolsContext != nullptr)
+	{
+		bHandled = ToolsContext->MouseEnter(ViewportClient, Viewport, x, y);
+	}
 	return bHandled;
 }
 
 bool FFractureEditorMode::MouseMove(FEditorViewportClient* ViewportClient, FViewport* Viewport, int32 x, int32 y)
 {
-	bool bHandled = ToolsContext->MouseMove(ViewportClient, Viewport, x, y);
+	bool bHandled = false;
+	if (ToolsContext != nullptr)
+	{
+		bHandled = ToolsContext->MouseMove(ViewportClient, Viewport, x, y);
+	}
 	return bHandled;
 }
 
 bool FFractureEditorMode::MouseLeave(FEditorViewportClient* ViewportClient, FViewport* Viewport)
 {
-	bool bHandled = ToolsContext->MouseLeave(ViewportClient, Viewport);
+	bool bHandled = false;
+	if (ToolsContext != nullptr)
+	{
+		bHandled = ToolsContext->MouseLeave(ViewportClient, Viewport);
+	}
 	return bHandled;
 }
 
@@ -216,19 +234,30 @@ bool FFractureEditorMode::MouseLeave(FEditorViewportClient* ViewportClient, FVie
 bool FFractureEditorMode::StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
 {
 	bool bHandled = FEdMode::StartTracking(InViewportClient, InViewport);
-	bHandled |= ToolsContext->StartTracking(InViewportClient, InViewport);
+	if (ToolsContext != nullptr)
+	{
+		bHandled |= ToolsContext->StartTracking(InViewportClient, InViewport);
+	}
 	return bHandled;
 }
 
 bool FFractureEditorMode::CapturedMouseMove(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 InMouseX, int32 InMouseY)
 {
-	bool bHandled = ToolsContext->CapturedMouseMove(InViewportClient, InViewport, InMouseX, InMouseY);
+	bool bHandled = false;
+	if (ToolsContext != nullptr)
+	{
+		bHandled = ToolsContext->CapturedMouseMove(InViewportClient, InViewport, InMouseX, InMouseY);
+	}
 	return bHandled;
 }
 
 bool FFractureEditorMode::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
 {
-	bool bHandled = ToolsContext->EndTracking(InViewportClient, InViewport);
+	bool bHandled = false;
+	if (ToolsContext != nullptr)
+	{
+		bHandled = ToolsContext->EndTracking(InViewportClient, InViewport);
+	}
 	return bHandled;
 }
 
