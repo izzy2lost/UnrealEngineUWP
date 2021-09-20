@@ -449,6 +449,7 @@
     <File Name="Engine/Binaries/ThirdParty/CEF3/Win64/snapshot_blob.bin" Hash="2af54c9bd47e1b31fb930c90379a74a082f357d4" />
     <File Name="Engine/Binaries/ThirdParty/CEF3/Win64/widevinecdmadapter.dll" Hash="4f457084447197fac2f47e7bee67efe1afd9a41a" />
     <File Name="Engine/Binaries/ThirdParty/DbgHelp/dbghelp.dll" Hash="e4e2c71ed0caac10e4a1555b54c91d03bfda01b7" />
+    <File Name="Engine/Binaries/ThirdParty/EOSSDK/Mac/libEOSSDK-Mac-Shipping.dylib" Hash="6340bdbe8f77809342637ec612583a78c6883db9" />
     <File Name="Engine/Binaries/ThirdParty/FBX/2020.2/Linux/x86_64-unknown-linux-gnu/libfbxsdk.so" Hash="176b2449830536d0be4433c69fc827ddfdf4600b" />
     <File Name="Engine/Binaries/ThirdParty/FBX/2020.2/Mac/libfbxsdk.dylib" Hash="c5fa0b2ffa245d3ed89082cbace39a0087be9517" />
     <File Name="Engine/Binaries/ThirdParty/FBX/2020.2/Win64/libfbxsdk.dll" Hash="77f2a4645fb0e4f73e764695f8ef528a6a1fce9e" />
@@ -50734,7 +50735,6 @@
     <File Name="Engine/Source/ThirdParty/EOSSDK/SDK/Bin/IOS/EOSSDK.framework/EOSSDK" Hash="4ac92a60bb9d04c2547cd8d076749515f5ed50be" />
     <File Name="Engine/Source/ThirdParty/EOSSDK/SDK/Bin/IOS/EOSSDK.framework/Info.plist" Hash="c1a346bb7e952d7c1a777dc64cf682b680e45453" />
     <File Name="Engine/Source/ThirdParty/EOSSDK/SDK/Bin/libEOSSDK-Linux-Shipping.so" Hash="7f2e0a2d08bc24fc152935ab43a2f56222d7a713" />
-    <File Name="Engine/Source/ThirdParty/EOSSDK/SDK/Bin/libEOSSDK-Mac-Shipping.dylib" Hash="6340bdbe8f77809342637ec612583a78c6883db9" />
     <File Name="Engine/Source/ThirdParty/EOSSDK/SDK/Bin/x64/xaudio2_9redist.dll" Hash="f0103c77e4e3fb5640a6d01a79644a8cfc5e4eed" />
     <File Name="Engine/Source/ThirdParty/EOSSDK/SDK/Bin/x86/xaudio2_9redist.dll" Hash="0fc94b00bce7f90e12baa230f4f6c58da80bc5d8" />
     <File Name="Engine/Source/ThirdParty/EOSSDK/SDK/Lib/EOSSDK-Win32-Shipping.lib" Hash="660c144855b30a05045c4d2f2ce768a12e15f39d" />
