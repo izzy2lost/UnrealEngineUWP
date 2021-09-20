@@ -2592,6 +2592,7 @@
     <File Name="Engine/Binaries/ThirdParty/OpenVR/OpenVrv1_4_18/win64/openvr_api.dll" Hash="ba2d1297a1ad40dab8c2c6f2fa00e0a9e44549d7" />
     <File Name="Engine/Binaries/ThirdParty/OpenXR/hololens/arm64/openxr_loader.dll" Hash="b8d844bb18bad4ed21cf9f9ca474207d3fe514a5" />
     <File Name="Engine/Binaries/ThirdParty/OpenXR/hololens/x64/openxr_loader.dll" Hash="0f2df210180f459d015e13163775cecbc6048b31" />
+    <File Name="Engine/Binaries/ThirdParty/OpenXR/linux/x86_64-unknown-linux-gnu/libopenxr_loader.so" Hash="51f8dbb262ef54980d8aac81f530ed7224150037" IsExecutable="true" />
     <File Name="Engine/Binaries/ThirdParty/OpenXR/win32/openxr_loader.dll" Hash="33003b7b4c75244f47c28f01aef8c703bb0ccac7" />
     <File Name="Engine/Binaries/ThirdParty/OpenXR/win64/openxr_loader.dll" Hash="4ef77f73dce0cf262bf4ea8a1fa88022252ee66e" />
     <File Name="Engine/Binaries/ThirdParty/Phonon/OSX/phonon.bundle/Contents/Info.plist" Hash="f3781e6044c194243f26dbf8b9ef4381e7fb18e8" />
@@ -78380,6 +78381,7 @@
     <Blob Hash="51f545226db84602622b3ef328a8858e0425f62b" Size="5164" PackHash="d7cd467675e181dbeba3cf24443590ebb76f9515" PackOffset="427040" />
     <Blob Hash="51f65ee88432147ec8c908c84fa8f3cfe1889981" Size="27944" PackHash="16e421c9204b08586edd8de93b93b19fb10644ea" PackOffset="1938448" />
     <Blob Hash="51f8960ad55bb4fb71ae8fc47d40827161c4a60e" Size="2833" PackHash="b5ca4cf47eef50dc0732aff0b9d00c282415892e" PackOffset="1148245" />
+    <Blob Hash="51f8dbb262ef54980d8aac81f530ed7224150037" Size="9687336" PackHash="58b4b89eb69c123b319a3368042f4956e9f4c78f" PackOffset="8" />
     <Blob Hash="51f8f10af2e90c4c0ebfea2499087901dc6eeecc" Size="1373696" PackHash="888a139a37ec9bc5a72d2b8879e1094b5fc1f6bc" PackOffset="8" />
     <Blob Hash="51f92df149f41f89920edb57fa29e4ae610fe79d" Size="4866" PackHash="e458507f455e3bac9232d632426fc4b75f29841d" PackOffset="207039" />
     <Blob Hash="51f9db3df07d3a8e670a45754f483d5f4a6f15b8" Size="89" PackHash="56304ecbe66a10d054956a5d7d80624fec86a588" PackOffset="471257" />
@@ -109747,6 +109749,7 @@
     <Pack Hash="587bc3c17415169a5941d9e5e129f011bcc14538" Size="2735202" CompressedSize="594594" RemotePath="UnrealEngine-15901221" />
     <Pack Hash="58a33cda94878b9a9af25daba8444c691b223eac" Size="19514922" CompressedSize="5734829" RemotePath="UnrealEngine-16056428" />
     <Pack Hash="58ac2c42f0e658e2eac91900c70315b2748af534" Size="2730504" CompressedSize="729156" RemotePath="UnrealEngine-16488106" />
+    <Pack Hash="58b4b89eb69c123b319a3368042f4956e9f4c78f" Size="9687344" CompressedSize="2183832" RemotePath="UnrealEngine-17574404" />
     <Pack Hash="58bb811a92e5fad1f466600ef7090371417a97d4" Size="2097147" CompressedSize="1978617" RemotePath="UnrealEngine-3665845-2db6f4cd59fc4db5985e58a4d96277a6" />
     <Pack Hash="58c236296e2fe2cff7757903880f37ad162a37b4" Size="2064998" CompressedSize="477699" RemotePath="UnrealEngine-4119095-f4a40ff1e88e4582841ff9ca209ecb44" />
     <Pack Hash="58c296582abb3dba4bc073aa6708c81bc8798ff7" Size="2429791" CompressedSize="2236540" RemotePath="2369826-2acd3c361c9d4a858bd63938a2ab980e" />
