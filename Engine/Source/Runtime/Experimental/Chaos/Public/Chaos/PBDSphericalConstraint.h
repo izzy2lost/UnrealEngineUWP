@@ -184,8 +184,8 @@ namespace Chaos
 					return;
 				}
 
-				const FVec3& AnimationPosition = AnimationPositions[Index];
-				const FVec3& AnimationNormal = AnimationNormals[Index];
+				const FVec3& AnimationPosition = AnimationPositions[ParticleIndex];
+				const FVec3& AnimationNormal = AnimationNormals[ParticleIndex];
 
 				const FReal SphereOffsetDistance = SphereOffsetDistances[Index];
 				const FReal Radius = SphereRadii[Index] * SphereRadiiMultiplier;
@@ -221,8 +221,8 @@ namespace Chaos
 					return;
 				}
 
-				const FVec3& AnimationPosition = AnimationPositions[Index];
-				const FVec3& AnimationNormal = AnimationNormals[Index];
+				const FVec3& AnimationPosition = AnimationPositions[ParticleIndex];
+				const FVec3& AnimationNormal = AnimationNormals[ParticleIndex];
 
 				const FReal SphereOffsetDistance = SphereOffsetDistances[Index];
 				const FReal Radius = SphereRadii[Index] * SphereRadiiMultiplier;
