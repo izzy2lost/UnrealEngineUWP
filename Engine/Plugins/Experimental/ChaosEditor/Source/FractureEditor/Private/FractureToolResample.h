@@ -9,6 +9,24 @@
 
 class FFractureToolContext;
 
+/** Settings giving additional control over geometry resampling + related visualization */
+UCLASS(config = EditorPerProjectUserSettings)
+class UFractureResampleSettings : public UFractureToolSettings
+{
+public:
+
+	GENERATED_BODY()
+
+	UFractureResampleSettings(const FObjectInitializer& ObjInit)
+		: Super(ObjInit)
+	{}
+
+	/** Whether to visualize all mesh vertices or only the ones added by resampling */
+	UPROPERTY(EditAnywhere, Category = FilterSettings)
+	bool bOnlyShowAddedPoints = false;
+
+};
+
 // Note this tool doesn't actually fracture, but it does remake pieces of geometry and shares a lot of machinery with the fracture tools
 UCLASS(DisplayName = "Resample Tool", Category = "FractureTools")
 class UFractureToolResample : public UFractureToolCutterBase
@@ -36,6 +54,10 @@ public:
 
 private:
 
+
+
+	UPROPERTY(EditAnywhere, Category = FixGeo)
+	UFractureResampleSettings* ResampleSettings;
 
 	TArray<FVector> GeneratedPoints;
 
