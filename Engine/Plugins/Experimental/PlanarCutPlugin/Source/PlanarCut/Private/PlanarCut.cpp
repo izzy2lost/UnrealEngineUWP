@@ -887,7 +887,8 @@ int32 MergeBones(
 	const TArrayView<const double>& Volumes,
 	double MinVolume,
 	const TArrayView<const int32>& SmallTransformIndices,
-	bool bUnionJoinedPieces
+	bool bUnionJoinedPieces,
+	UE::PlanarCut::ENeighborSelectionMethod NeighborSelectionMethod
 )
 {
 	FTransform CellsToWorld = FTransform::Identity;
@@ -1006,6 +1007,23 @@ int32 MergeBones(
 	TSet<int32> TooSmalls;
 	TSet<int32> CanMerge;
 
+	// GeomToCenter is just a cache for GetCenter; may not be worth caching as long as 'center' == bounding box center
+	// TODO: consider switching to a more accurate 'center' and/or removing the cache
+	TMap<int32, FVector> GeomToCenter;
+	auto GetCenter = [&Collection, &GeomToCenter](int32 GeomIdx) -> FVector
+	{
+		FVector* CachedCenter = GeomToCenter.Find(GeomIdx);
+		if (CachedCenter)
+		{
+			return *CachedCenter;
+		}
+		int32 TransformIdx = Collection.TransformIndex[GeomIdx];
+		FTransform Transform = GeometryCollectionAlgo::GlobalMatrix(Collection.Transform, Collection.Parent, TransformIdx);
+		FVector Center = Transform.TransformPosition(Collection.BoundingBox[GeomIdx].GetCenter());
+		GeomToCenter.Add(GeomIdx, Center);
+		return Center;
+	};
+
 	for (int32 TransformIdx : TransformIndices)
 	{
 		int32 GeomIdx = Collection.TransformToGeometryIndex[TransformIdx];
@@ -1041,29 +1059,38 @@ int32 MergeBones(
 		}
 
 		const TSet<int32>& Prox = Proximity[SmallIdx];
-		double BiggestVol = 0;
-		int32 BiggestVolIdx = INDEX_NONE;
+		double BestScore = -FMathd::MaxReal;
+		int32 BestNbrIdx = INDEX_NONE;
 		for (int32 NbrIdx : Prox)
 		{
-			if (CanMerge.Contains(NbrIdx))
+			if (NbrIdx != SmallIdx && CanMerge.Contains(NbrIdx))
 			{
-				double Vol = GeomToVol[NbrIdx];
-				if (Vol > BiggestVol)
+				double Score;
+				if (NeighborSelectionMethod == UE::PlanarCut::ENeighborSelectionMethod::LargestNeighbor)
 				{
-					BiggestVol = Vol;
-					BiggestVolIdx = NbrIdx;
+					Score = GeomToVol[NbrIdx];
+				}
+				else // Nearest center
+				{
+					Score = 1.0 / (SMALL_NUMBER + FVector::DistSquared(GetCenter(NbrIdx), GetCenter(SmallIdx)));
+				}
+				if (Score > BestScore)
+				{
+					BestScore = Score;
+					BestNbrIdx = NbrIdx;
 				}
 			}
 		}
-		if (BiggestVolIdx == INDEX_NONE)
+		if (BestNbrIdx == INDEX_NONE)
 		{
+			UE_LOG(LogPlanarCut, Warning, TEXT("Couldn't fix Bone %d: No neighbors found in proximity graph"), SmallIdx);
 			continue;
 		}
 
 		if (SmallRemoveGroupIdx)
 		{
 			int32 OldSGIdx = *SmallRemoveGroupIdx;
-			int32* BigRemoveGroupIdx = GeomIdxToRemoveGroupIdx.Find(BiggestVolIdx);
+			int32* BigRemoveGroupIdx = GeomIdxToRemoveGroupIdx.Find(BestNbrIdx);
 			if (BigRemoveGroupIdx)
 			{
 				int32 BigRGIdx = *BigRemoveGroupIdx;
@@ -1075,14 +1102,14 @@ int32 MergeBones(
 			}
 			else
 			{
-				RemoveGroups[OldSGIdx].AddBig(GeomToVol, MinVolume, BiggestVolIdx);
-				checkSlow(!GeomIdxToRemoveGroupIdx.Contains(BiggestVolIdx));
-				GeomIdxToRemoveGroupIdx.Add(BiggestVolIdx, OldSGIdx);
+				RemoveGroups[OldSGIdx].AddBig(GeomToVol, MinVolume, BestNbrIdx);
+				checkSlow(!GeomIdxToRemoveGroupIdx.Contains(BestNbrIdx));
+				GeomIdxToRemoveGroupIdx.Add(BestNbrIdx, OldSGIdx);
 			}
 		}
 		else
 		{
-			int32* BigRemoveGroupIdx = GeomIdxToRemoveGroupIdx.Find(BiggestVolIdx);
+			int32* BigRemoveGroupIdx = GeomIdxToRemoveGroupIdx.Find(BestNbrIdx);
 			if (BigRemoveGroupIdx)
 			{
 				int32 BigRGIdx = *BigRemoveGroupIdx;
@@ -1092,11 +1119,11 @@ int32 MergeBones(
 			}
 			else
 			{
-				int32 RemoveGroupIdx = RemoveGroups.Emplace(GeomToVol, MinVolume, SmallIdx, BiggestVolIdx);
+				int32 RemoveGroupIdx = RemoveGroups.Emplace(GeomToVol, MinVolume, SmallIdx, BestNbrIdx);
 				checkSlow(!GeomIdxToRemoveGroupIdx.Contains(SmallIdx));
-				checkSlow(!GeomIdxToRemoveGroupIdx.Contains(BiggestVolIdx));
+				checkSlow(!GeomIdxToRemoveGroupIdx.Contains(BestNbrIdx));
 				GeomIdxToRemoveGroupIdx.Add(SmallIdx, RemoveGroupIdx);
-				GeomIdxToRemoveGroupIdx.Add(BiggestVolIdx, RemoveGroupIdx);
+				GeomIdxToRemoveGroupIdx.Add(BestNbrIdx, RemoveGroupIdx);
 			}
 		}
 	}
