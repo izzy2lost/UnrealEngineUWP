@@ -229,19 +229,20 @@ void UFractureToolVoronoiCutterBase::Render(const FSceneView* View, FViewport* V
 {
 	if (CutterSettings->bDrawSites)
 	{
-		for (const FVector& Site : VoronoiSites)
+		EnumerateVisualizationMapping(SitesMappings, VoronoiSites.Num(), [&](int32 Idx, FVector ExplodedVector)
 		{
-			PDI->DrawPoint(Site, FLinearColor::Green, 4.f, SDPG_Foreground);
-		}
+			PDI->DrawPoint(VoronoiSites[Idx] + ExplodedVector, FLinearColor::Green, 4.f, SDPG_Foreground);
+		});
 	}
 
 	if (CutterSettings->bDrawDiagram)
 	{
 		PDI->AddReserveLines(SDPG_Foreground, VoronoiEdges.Num(), false, false);
-		for (int32 ii = 0, ni = VoronoiEdges.Num(); ii < ni; ++ii)
+		EnumerateVisualizationMapping(EdgesMappings, VoronoiEdges.Num(), [&](int32 Idx, FVector ExplodedVector)
 		{
-			PDI->DrawLine(VoronoiEdges[ii].Get<0>(), VoronoiEdges[ii].Get<1>(), Colors[CellMember[ii] % 100], SDPG_Foreground);
-		}
+			PDI->DrawLine(VoronoiEdges[Idx].Get<0>() + ExplodedVector,
+				VoronoiEdges[Idx].Get<1>() + ExplodedVector, Colors[CellMember[Idx] % 100], SDPG_Foreground);
+		});
 	}
 }
 
@@ -250,9 +251,7 @@ void UFractureToolVoronoiCutterBase::FractureContextChanged()
 	UpdateDefaultRandomSeed();
 	TArray<FFractureToolContext> FractureContexts = GetFractureToolContexts();
 
-	VoronoiSites.Empty();
-	CellMember.Empty();
-	VoronoiEdges.Empty();
+	ClearVisualizations();
 
 	int32 MaxSitesToShowEdges = 50000; // computing all the voronoi diagrams can make the program non-responsive above this
 	int32 MaxSitesToShowSites = 1000000; // PDI struggles to render the site positions above this
@@ -264,6 +263,11 @@ void UFractureToolVoronoiCutterBase::FractureContextChanged()
 		{
 			continue;
 		}
+		int32 CollectionIdx = VisualizedCollections.Emplace(FractureContext.GetGeometryCollectionComponent());
+		int32 BoneIdx = FractureContext.GetSelection().Num() == 1 ? FractureContext.GetSelection()[0] : INDEX_NONE;
+		SitesMappings.AddMapping(CollectionIdx, BoneIdx, VoronoiSites.Num());
+		EdgesMappings.AddMapping(CollectionIdx, BoneIdx, VoronoiEdges.Num());
+
 		// Generate voronoi diagrams and cache visualization info
 		TArray<FVector> LocalVoronoiSites;
 		GenerateVoronoiSites(FractureContext, LocalVoronoiSites);
@@ -271,9 +275,7 @@ void UFractureToolVoronoiCutterBase::FractureContextChanged()
 		if (LocalVoronoiSites.Num() * FractureContexts.Num() > MaxSitesToShowSites || VoronoiSites.Num() + LocalVoronoiSites.Num() > MaxSitesToShowSites)
 		{
 			UE_LOG(LogFractureTool, Warning, TEXT("Voronoi diagram(s) number of sites too large; will not display Voronoi diagram sites"));
-			VoronoiSites.Empty();
-			CellMember.Empty();
-			VoronoiEdges.Empty();
+			ClearVisualizations();
 			break;
 		}
 		VoronoiSites.Append(LocalVoronoiSites);
@@ -282,6 +284,7 @@ void UFractureToolVoronoiCutterBase::FractureContextChanged()
 			UE_LOG(LogFractureTool, Warning, TEXT("Voronoi diagram(s) number of sites too large; will not display Voronoi diagram edges"));
 			VoronoiEdges.Empty();
 			CellMember.Empty();
+			EdgesMappings.Empty();
 			bEstAboveMaxSites = true;
 		}
 		else

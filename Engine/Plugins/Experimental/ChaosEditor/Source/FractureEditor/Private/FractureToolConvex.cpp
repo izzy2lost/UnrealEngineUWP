@@ -60,8 +60,7 @@ void UFractureToolConvex::FractureContextChanged()
 {
 	TArray<FFractureToolContext> FractureContexts = GetFractureToolContexts();
 
-	HullPoints.Reset();
-	HullEdges.Reset();
+	ClearVisualizations();
 
 	for (const FFractureToolContext& FractureContext : FractureContexts)
 	{
@@ -73,20 +72,18 @@ void UFractureToolConvex::FractureContextChanged()
 			continue;
 		}
 
+		int32 CollectionIdx = VisualizedCollections.Add(FractureContext.GetGeometryCollectionComponent());
+
 		FTransform OuterTransform = FractureContext.GetTransform();
 		for (int32 TransformIdx : FractureContext.GetSelection())
 		{
 			FTransform InnerTransform = GeometryCollectionAlgo::GlobalMatrix(Collection.Transform, Collection.Parent, TransformIdx);
-			if (Collection.HasAttribute("ExplodedVector", FGeometryCollection::TransformGroup))
-			{
-				TManagedArray<FVector>& ExplodedVectors = Collection.GetAttribute<FVector>("ExplodedVector", FGeometryCollection::TransformGroup);
-				InnerTransform = InnerTransform * FTransform(ExplodedVectors[TransformIdx]);
-			}
-
 			FTransform CombinedTransform = InnerTransform * OuterTransform;
 
 			TManagedArray<TSet<int32>>& TransformToConvexIndices = Collection.GetAttribute<TSet<int32>>("TransformToConvexIndices", FTransformCollection::TransformGroup);
 			TManagedArray<TUniquePtr<Chaos::FConvex>>& ConvexHull = Collection.GetAttribute<TUniquePtr<Chaos::FConvex>>("ConvexHull", "Convex");
+
+			EdgesMappings.AddMapping(CollectionIdx, TransformIdx, HullEdges.Num());
 
 			for (int32 ConvexIdx : TransformToConvexIndices[TransformIdx])
 			{
@@ -114,12 +111,13 @@ void UFractureToolConvex::FractureContextChanged()
 
 void UFractureToolConvex::Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI)
 {
-	for (TPair<int32, int32> Edge : HullEdges)
+	EnumerateVisualizationMapping(EdgesMappings, HullEdges.Num(), [&](int32 Idx, FVector ExplodedVector)
 	{
-		FVector P1 = HullPoints[Edge.Key];
-		FVector P2 = HullPoints[Edge.Value];
+		TPair<int32, int32> Edge = HullEdges[Idx];
+		FVector P1 = HullPoints[Edge.Key] + ExplodedVector;
+		FVector P2 = HullPoints[Edge.Value] + ExplodedVector;
 		PDI->DrawLine(P1, P2, FLinearColor::Green, SDPG_Foreground, 0.0f, 0.001f);
-	}
+	});
 }
 
 void UFractureToolConvex::PostEditChangeChainProperty(struct FPropertyChangedChainEvent& PropertyChangedEvent)
@@ -152,6 +150,8 @@ int32 UFractureToolConvex::ExecuteFracture(const FFractureToolContext& FractureC
 	if (FractureContext.GetGeometryCollection().IsValid())
 	{
 		FGeometryCollection& Collection = *FractureContext.GetGeometryCollection();
+		FGeometryCollectionProximityUtility ProximityUtility(&Collection);
+		ProximityUtility.UpdateProximity();
 		FGeometryCollectionConvexUtility::CreateNonOverlappingConvexHullData(&Collection, ConvexSettings->FractionAllowRemove);
 	}
 

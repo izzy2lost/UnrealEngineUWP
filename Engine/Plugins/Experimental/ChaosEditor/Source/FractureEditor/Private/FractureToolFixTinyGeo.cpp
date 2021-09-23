@@ -42,10 +42,11 @@ void UFractureToolFixTinyGeo::RegisterUICommand( FFractureEditorCommands* Bindin
 
 void UFractureToolFixTinyGeo::Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI)
 {
-	for (FBox& Box : ToRemoveBounds)
+	EnumerateVisualizationMapping(ToRemoveMappings, ToRemoveBounds.Num(), [&](int32 Idx, FVector ExplodedVector)
 	{
-		FVector B000 = Box.Min;
-		FVector B111 = Box.Max;
+		const FBox& Box = ToRemoveBounds[Idx];
+		FVector B000 = Box.Min + ExplodedVector;
+		FVector B111 = Box.Max + ExplodedVector;
 		FVector B011(B000.X, B111.Y, B111.Z);
 		FVector B101(B111.X, B000.Y, B111.Z);
 		FVector B110(B111.X, B111.Y, B000.Z);
@@ -64,7 +65,7 @@ void UFractureToolFixTinyGeo::Render(const FSceneView* View, FViewport* Viewport
 		PDI->DrawLine(B110, B010, FLinearColor::Red, SDPG_Foreground, 0.0f, 0.001f);
 		PDI->DrawLine(B100, B101, FLinearColor::Red, SDPG_Foreground, 0.0f, 0.001f);
 		PDI->DrawLine(B010, B011, FLinearColor::Red, SDPG_Foreground, 0.0f, 0.001f);
-	}
+	});
 	
 }
 
@@ -82,11 +83,12 @@ void UFractureToolFixTinyGeo::FractureContextChanged()
 	UpdateDefaultRandomSeed();
 	TArray<FFractureToolContext> FractureContexts = GetFractureToolContexts();
 
-	ToRemoveBounds.Reset();
+	ClearVisualizations();
 
 	for (const FFractureToolContext& FractureContext : FractureContexts)
 	{
 		FGeometryCollection& Collection = *FractureContext.GetGeometryCollection();
+		int CollectionIdx = VisualizedCollections.Emplace(FractureContext.GetGeometryCollectionComponent());
 
 		TArray<double> Volumes;
 		FindBoneVolumes(
@@ -142,6 +144,7 @@ void UFractureToolFixTinyGeo::FractureContextChanged()
 			{
 				Bounds += CombinedTransform.TransformPosition(Collection.Vertex[VIdx]);
 			}
+			ToRemoveMappings.AddMapping(CollectionIdx, TransformIdx, ToRemoveBounds.Num());
 			ToRemoveBounds.Add(Bounds);
 		}
 	}

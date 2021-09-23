@@ -52,6 +52,14 @@ public:
 	virtual void FractureContextChanged() override;
 	virtual int32 ExecuteFracture(const FFractureToolContext& FractureContext) override;
 
+protected:
+	virtual void ClearVisualizations() override
+	{
+		Super::ClearVisualizations();
+		GeneratedPoints.Empty();
+		PointsMappings.Empty();
+	}
+
 private:
 
 
@@ -60,7 +68,7 @@ private:
 	UFractureResampleSettings* ResampleSettings;
 
 	TArray<FVector> GeneratedPoints;
-
+	FVisualizationMappings PointsMappings;
 };
 
 

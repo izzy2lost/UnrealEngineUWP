@@ -14,7 +14,6 @@ enum class EGeometrySelectionMethod
 {
 	VolumeCubeRoot,
 	RelativeVolume
-	// TODO: also have a manual selection method?
 };
 
 UENUM()
@@ -85,13 +84,21 @@ public:
 	virtual void FractureContextChanged() override;
 	virtual int32 ExecuteFracture(const FFractureToolContext& FractureContext) override;
 
+protected:
+	virtual void ClearVisualizations() override
+	{
+		Super::ClearVisualizations();
+		ToRemoveBounds.Empty();
+		ToRemoveMappings.Empty();
+	}
+
 private:
 
 	UPROPERTY(EditAnywhere, Category = FixGeo)
 	UFractureTinyGeoSettings* TinyGeoSettings;
 
-
-	TArray<FBox> ToRemoveBounds;
+	TArray<FBox> ToRemoveBounds; // Bounds in global space but without exploded vectors applied
+	FVisualizationMappings ToRemoveMappings;
 
 	double GetMinVolume(TArray<double>& Volumes);
 	const double VolDimScale = .01; // compute volumes in meters instead of cm, for saner units at typical scales
