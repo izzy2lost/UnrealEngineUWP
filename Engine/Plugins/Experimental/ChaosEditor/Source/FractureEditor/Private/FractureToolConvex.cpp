@@ -8,6 +8,7 @@
 #include "GeometryCollection/GeometryCollectionComponent.h"
 #include "GeometryCollection/GeometryCollectionAlgo.h"
 #include "GeometryCollection/GeometryCollectionConvexUtility.h"
+#include "GeometryCollection/GeometryCollectionProximityUtility.h"
 
 #define LOCTEXT_NAMESPACE "FractureToolConvex"
 
