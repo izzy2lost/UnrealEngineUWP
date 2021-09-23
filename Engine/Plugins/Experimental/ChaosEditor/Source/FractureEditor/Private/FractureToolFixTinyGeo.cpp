@@ -123,11 +123,7 @@ void UFractureToolFixTinyGeo::FractureContextChanged()
 		for (int32 TransformIdx : SmallIndices) // small transforms
 		{
 			FTransform InnerTransform = GeometryCollectionAlgo::GlobalMatrix(Collection.Transform, Collection.Parent, TransformIdx);
-			if (Collection.HasAttribute("ExplodedVector", FGeometryCollection::TransformGroup))
-			{
-				TManagedArray<FVector>& ExplodedVectors = Collection.GetAttribute<FVector>("ExplodedVector", FGeometryCollection::TransformGroup);
-				InnerTransform = InnerTransform * FTransform(ExplodedVectors[TransformIdx]);
-			}
+
 
 			FTransform CombinedTransform = InnerTransform * OuterTransform;
 
