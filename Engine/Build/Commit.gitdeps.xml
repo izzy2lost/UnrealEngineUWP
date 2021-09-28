@@ -43919,6 +43919,7 @@
     <File Name="Engine/Plugins/Media/BinkMedia/BinkforUnrealEngine.pdf" Hash="e768816d231f03681071f58c464f78eeb3dfdecd" />
     <File Name="Engine/Plugins/Media/BinkMedia/Source/SDK/lib/BinkUnrealLinux.a" Hash="932f74357fc97f99b550017494539bfbe67abc8b" />
     <File Name="Engine/Plugins/Media/BinkMedia/Source/SDK/lib/BinkUnrealLinuxAArch64.a" Hash="5aa079e1d239a78f90a5dd974c2b4f3128926696" />
+    <File Name="Engine/Plugins/Media/BinkMedia/Source/SDK/lib/BinkUnrealLinuxArm64.a" Hash="5aa079e1d239a78f90a5dd974c2b4f3128926696" />
     <File Name="Engine/Plugins/Media/BinkMedia/Source/SDK/lib/BinkUnrealMac.a" Hash="8d6b6b976f62b99102c4331554b57bdbf64b1d82" />
     <File Name="Engine/Plugins/Media/BinkMedia/Source/SDK/lib/BinkUnrealWin32.lib" Hash="77921bacbe75c63e8fd7820d9a73a6ac45b59ec9" />
     <File Name="Engine/Plugins/Media/BinkMedia/Source/SDK/lib/BinkUnrealWin64.lib" Hash="e4388c55084439e1acfc06a174ac3358f19f5bab" />
