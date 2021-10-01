@@ -553,10 +553,24 @@ public:
 		InsertToMapAndArray(Particle, MovingKinematicsToIndex, MovingKinematicsArray);
 	}
 
-	void ClearAllMovingKinematic()
+	void UpdateAllMovingKinematic()
 	{
-		MovingKinematicsArray.Empty();
-		MovingKinematicsToIndex.Empty();
+		// moving kinematics are going to a 'reset' mode then a 'none' mode
+		// 'reset' ones need to stay for another frame 
+		// 'none' can be safely removed from the map/array 
+		int32 Index = 0;
+		while (Index < MovingKinematicsArray.Num())
+		{
+			if (MovingKinematicsArray[Index]->KinematicTarget().GetMode() == EKinematicTargetMode::None)
+			{
+				// remove and do not increment Index
+				RemoveFromMapAndArray(MovingKinematicsArray[Index], MovingKinematicsToIndex, MovingKinematicsArray);
+			}
+			else
+			{
+				++Index;
+			}
+		}
 	}
 
 	void Serialize(FChaosArchive& Ar)

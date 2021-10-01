@@ -799,7 +799,7 @@ public:
 		// done with update, let's clear the tracking structures
 		if (IsLastStep && ChaosNonMovingKinematicUpdateOptimization)
 		{
-			Particles.ClearAllMovingKinematic();
+			Particles.UpdateAllMovingKinematic();
 		}
 	}
 
