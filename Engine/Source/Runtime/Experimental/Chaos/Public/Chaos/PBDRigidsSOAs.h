@@ -514,6 +514,11 @@ public:
 			InsertToMapAndArray(Particle->CastToRigidParticle(), ActiveParticlesToIndex, ActiveParticlesArray);
 		}
 
+		if (Particle->ObjectState() != EObjectStateType::Kinematic)
+		{
+			RemoveFromMapAndArray(Particle->CastToKinematicParticle(), MovingKinematicsToIndex, MovingKinematicsArray);
+		}
+
 		// Move to appropriate dynamic SOA
 		switch (State)
 		{
