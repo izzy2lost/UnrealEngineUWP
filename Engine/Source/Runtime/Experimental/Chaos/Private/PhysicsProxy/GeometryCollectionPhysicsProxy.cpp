@@ -17,6 +17,7 @@
 #include "Chaos/PBDCollisionConstraintsUtil.h"
 #include "Chaos/PerParticleGravity.h"
 #include "Chaos/ImplicitObject.h"
+#include "Chaos/ImplicitObjectScaled.h"
 #include "Chaos/Convex.h"
 #include "Chaos/Serializable.h"
 #include "Chaos/ErrorReporter.h"
@@ -219,7 +220,8 @@ void PopulateSimulatedParticle(
 	FVector InertiaTensorVec,
 	const FTransform& WorldTransform, 
 	const uint8 DynamicState, 
-	const int16 CollisionGroup)
+	const int16 CollisionGroup,
+	float CollisionParticlesPerObjectFraction)
 {
 	SCOPE_CYCLE_COUNTER(STAT_PopulateSimulatedParticle);
 	Handle->SetDisabledLowLevel(false);
@@ -268,10 +270,23 @@ void PopulateSimulatedParticle(
 
 	Handle->SetCollisionGroup(CollisionGroup);
 
+	const FVector Scale = WorldTransform.GetScale3D();
 	if (Implicit)	//todo(ocohen): this is only needed for cases where clusters have no proxy. Kind of gross though, should refactor
 	{
-		TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe> SharedImplicitTS(Implicit->DeepCopy().Release());
-		FCollisionStructureManager::UpdateImplicitFlags(SharedImplicitTS.Get(), SharedParams.SizeSpecificData[0].CollisionType); // @todo(chaos) : Implicit constructor clobbers CollisionType
+		auto DeepCopyImplicit = [&Scale](FGeometryDynamicCollection::FSharedImplicit ImplicitToCopy) -> TUniquePtr<Chaos::FImplicitObject>
+		{
+			if (Scale.Equals(FVector::OneVector))
+			{
+				return ImplicitToCopy->DeepCopy();
+			}
+			else
+			{
+				return ImplicitToCopy->DeepCopyWithScale(Scale);
+			}
+		};
+
+		TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe> SharedImplicitTS(DeepCopyImplicit(Implicit).Release());
+
 		Handle->SetSharedGeometry(SharedImplicitTS);
 		Handle->SetHasBounds(true);
 		Handle->SetLocalBounds(SharedImplicitTS->BoundingBox());
@@ -286,22 +301,27 @@ void PopulateSimulatedParticle(
 		Handle->CollisionParticlesInitIfNeeded();
 
 		TUniquePtr<Chaos::FBVHParticles>& CollisionParticles = Handle->CollisionParticles();
-		if (Simplicial->Size())
+		CollisionParticles.Reset(Simplicial->NewCopy()); // @chaos(optimize) : maybe just move this memory instead. 
+
+		int32 NumCollisionParticles = CollisionParticles->Size();
+		int32 CollisionParticlesSize = FMath::Max(0, FMath::Min(int(NumCollisionParticles * CollisionParticlesPerObjectFraction), NumCollisionParticles));
+		CollisionParticles->Resize(CollisionParticlesSize); // Truncates! ( particles are already sorted by importance )
+
+		Chaos::FAABB3 ImplicitShapeDomain = Chaos::FAABB3::FullAABB();
+		if (Implicit && Implicit->GetType() == Chaos::ImplicitObjectType::LevelSet && Implicit->HasBoundingBox())
 		{
-			const Chaos::FAABB3 ImplicitShapeDomain = 
-				Implicit && Implicit->GetType() == Chaos::ImplicitObjectType::LevelSet && Implicit->HasBoundingBox() ? 
-				Implicit->BoundingBox() : Chaos::FAABB3::FullAABB();
+			ImplicitShapeDomain = Implicit->BoundingBox();
+			ImplicitShapeDomain.Scale(Scale);
+		}
 
-			CollisionParticles->Resize(0);
-			CollisionParticles->AddParticles(Simplicial->Size());
-			for (int32 VertexIndex = 0; VertexIndex < (int32)Simplicial->Size(); ++VertexIndex)
-			{
-				CollisionParticles->X(VertexIndex) = Simplicial->X(VertexIndex);
-
-				// Make sure the collision particles are at least in the domain 
-				// of the implicit shape.
-				ensure(ImplicitShapeDomain.Contains(CollisionParticles->X(VertexIndex)));
-			}
+		// we need to account for scale and check if the particle is still within its domain
+		for (int32 ParticleIndex = 0; ParticleIndex < (int32)CollisionParticles->Size(); ++ParticleIndex)
+		{
+			CollisionParticles->X(ParticleIndex) *= Scale;
+			
+			// Make sure the collision particles are at least in the domain 
+			// of the implicit shape.
+			ensure(ImplicitShapeDomain.Contains(CollisionParticles->X(ParticleIndex)));
 		}
 
 		// @todo(remove): IF there is no simplicial we should not be forcing one. 
@@ -782,21 +802,13 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 					InertiaTensor[TransformGroupIndex],
 					WorldTransform,
 					(uint8)DynamicState[TransformGroupIndex],
-					CollisionGroup[TransformGroupIndex]);
+					CollisionGroup[TransformGroupIndex],
+					CollisionParticlesPerObjectFraction);
 
 				if (Parameters.EnableClustering)
 				{
 					Handle->SetClusterGroupIndex(Parameters.ClusterGroupIndex);
 					Handle->SetStrain(StrainDefault);
-				}
-
-				TUniquePtr<Chaos::FBVHParticles>& CollisionParticles = Handle->CollisionParticles();
-				CollisionParticles.Reset(Simplicials[TransformGroupIndex]?Simplicials[TransformGroupIndex]->NewCopy():nullptr); // @chaos(optimize) : maybe just move this memory instead. 
-				if (CollisionParticles)
-				{
-					int32 NumCollisionParticles = CollisionParticles->Size();
-					int32 CollisionParticlesSize = FMath::Max(0, FMath::Min(int(NumCollisionParticles * CollisionParticlesPerObjectFraction), NumCollisionParticles));
-					CollisionParticles->Resize(CollisionParticlesSize); // Truncates!
 				}
 
 				// #BGTODO - non-updating parameters - remove lin/ang drag arrays and always query material if this stays a material parameter
@@ -930,6 +942,7 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 
 					Chaos::FClusterCreationParameters CreationParameters;
 					CreationParameters.ClusterParticleHandle = ClusterHandles.Num() ? ClusterHandles[ClusterHandlesIndex++] : nullptr;
+					CreationParameters.Scale = Parameters.WorldTransform.GetScale3D();
 
 					// Hook the handle up with the GT particle
 					Chaos::FGeometryParticle* GTParticle = GTParticles[TransformGroupIndex].Get();
@@ -1128,7 +1141,8 @@ FGeometryCollectionPhysicsProxy::BuildClusters(
 		Parent->I().GetDiagonal() != Chaos::FVec3(0.0) ? Parent->I().GetDiagonal() : InertiaTensor[CollectionClusterIndex],
 		ParticleTM, 
 		(uint8)DynamicState[CollectionClusterIndex], 
-		0); // CollisionGroup
+		0,
+		CollisionParticlesPerObjectFraction); // CollisionGroup
 
 	// two-way mapping
 	SolverClusterHandles[CollectionClusterIndex] = Parent;
@@ -1534,6 +1548,8 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults(Chaos::FPBDRigidsSolv
 	const FTransform& ActorToWorld = Parameters.WorldTransform;
 	const TManagedArray<int32>& Parent = PhysicsThreadCollection.Parent;
 	const TManagedArray<TSet<int32>>& Children = PhysicsThreadCollection.Children;
+	const bool IsActorScaled = !ActorToWorld.GetScale3D().Equals(FVector::OneVector);
+	const FTransform ActorScaleTransform(FQuat::Identity,  FVector::ZeroVector, ActorToWorld.GetScale3D());
 
 	if(NumTransformGroupElements > 0)
 	{ 
@@ -1602,6 +1618,10 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults(Chaos::FPBDRigidsSolv
 
 				TargetResults.Transforms[TransformGroupIndex] = MassToLocal.GetRelativeTransformReverse(ParticleToWorld).GetRelativeTransform(ActorToWorld);
 				TargetResults.Transforms[TransformGroupIndex].NormalizeRotation();
+				if (IsActorScaled)
+				{
+					TargetResults.Transforms[TransformGroupIndex] = MassToLocal.Inverse() * ActorScaleTransform * MassToLocal * TargetResults.Transforms[TransformGroupIndex];
+				}
 
 				PhysicsThreadCollection.Transform[TransformGroupIndex] = TargetResults.Transforms[TransformGroupIndex];
 
@@ -1669,6 +1689,10 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults(Chaos::FPBDRigidsSolv
 							const FTransform MassToLocal                  = PhysicsThreadCollection.MassToLocal[TransformGroupIndex];
 							TargetResults.Transforms[TransformGroupIndex] = MassToLocal.GetRelativeTransformReverse(ParticleToWorld).GetRelativeTransform(ActorToWorld);
 							TargetResults.Transforms[TransformGroupIndex].NormalizeRotation();
+							if (IsActorScaled)
+							{
+								TargetResults.Transforms[TransformGroupIndex] = MassToLocal.Inverse() * ActorScaleTransform * MassToLocal * TargetResults.Transforms[TransformGroupIndex];
+							}
 
 							PhysicsThreadCollection.Transform[TransformGroupIndex] = TargetResults.Transforms[TransformGroupIndex];
 
@@ -2303,7 +2327,9 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
  					CollectionInertiaTensor[TransformGroupIndex], 
 					GeometryWorldTransform,
  					(uint8)EObjectStateTypeEnum::Chaos_Object_Dynamic, 
- 					INDEX_NONE); // CollisionGroup
+ 					INDEX_NONE,  // CollisionGroup
+					1.0f // todo(chaos) CollisionParticlesPerObjectFraction is not accessible right there for now but we can pass 1.0 for the time being
+				);
  			}
  		}
 

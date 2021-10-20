@@ -312,6 +312,7 @@ public:
 		Chaos::FPBDRigidClusteredParticleHandle* Parent, 
 		TSet<FPBDRigidParticleHandle*>& Children, 
 		const FRigidTransform3* ForceMassOrientation);
+
 	void UpdateGeometry(
 		Chaos::FPBDRigidClusteredParticleHandle* Parent, 
 		const TSet<FPBDRigidParticleHandle*>& Children, 
