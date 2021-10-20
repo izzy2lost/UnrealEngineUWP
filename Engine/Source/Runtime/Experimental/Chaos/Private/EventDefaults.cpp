@@ -132,15 +132,19 @@ namespace Chaos
 							FGeometryParticleHandle* Particle0 = Constraint.Particle[0];
 							FGeometryParticleHandle* Particle1 = Constraint.Particle[1];
 
+							const TSet<IPhysicsProxyBase*>* ParticleProxySet0 = Solver->GetProxies(Particle0->Handle());
+							const TSet<IPhysicsProxyBase*>* ParticleProxySet1 = Solver->GetProxies(Particle1->Handle());
+
+							IPhysicsProxyBase* ParticleFirstProxy0 = (ParticleProxySet0 && ParticleProxySet0->Num()) ? *ParticleProxySet0->begin() : nullptr; // @todo(chaos) : Iterate all proxies ?
+							IPhysicsProxyBase* ParticleFirstProxy1 = (ParticleProxySet1 && ParticleProxySet1->Num()) ? *ParticleProxySet1->begin() : nullptr; // @todo(chaos) : Iterate all proxies ?					
+					
 							FCollidingData Data;
 							Data.Location = Constraint.GetLocation();
 							Data.AccumulatedImpulse = Constraint.AccumulatedImpulse;
 							Data.Normal = Constraint.GetNormal();
 							Data.PenetrationDepth = Constraint.GetPhi();
-							Data.ParticleProxy = Solver->GetProxies(Particle0->Handle()) && Solver->GetProxies(Particle0->Handle())->Array().Num() ? 
-								Solver->GetProxies(Particle0->Handle())->Array().operator[](0) : nullptr; // @todo(chaos) : Iterate all proxies
-							Data.LevelsetProxy = Solver->GetProxies(Particle1->Handle()) && Solver->GetProxies(Particle1->Handle())->Array().Num() ? 
-								Solver->GetProxies(Particle1->Handle())->Array().operator[](0) : nullptr; // @todo(chaos) : Iterate all proxies
+							Data.ParticleProxy = ParticleFirstProxy0;
+							Data.LevelsetProxy = ParticleFirstProxy1;
 
 							if (FPBDRigidParticleHandle * Rigid0 = Particle0->CastToRigidParticle())
 							{
