@@ -118,7 +118,7 @@ namespace ChaosTest {
 		Dynamic->SetGeometry(MakeSerializable(DynamicBox));
 
 		Static->X() = FVec3(10, 10, 10);
-		Dynamic->X() = FVec3(10, 10, 300);
+		Dynamic->X() = FVec3(10, 10, 120);
 		Dynamic->I() = FMatrix33(100000.0f, 100000.0f, 100000.0f);
 		Dynamic->InvI() = FMatrix33(1.0f / 100000.0f, 1.0f / 100000.0f, 1.0f / 100000.0f);
 

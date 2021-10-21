@@ -68,12 +68,9 @@ namespace Chaos
 				const FReal MinDeltaVelocityForHitEvents = FChaosSolversModule::GetModule()->GetSettingsProvider().GetMinDeltaVelocityForHitEvents();
 				for (const Chaos::FPBDCollisionConstraintHandle * ContactHandle : CollisionRule.GetConstConstraintHandles())
 				{
-					if (ContactHandle->GetType() == FCollisionConstraintBase::FType::SinglePoint ||
-						ContactHandle->GetType() == FCollisionConstraintBase::FType::SinglePointSwept)
+					if (ContactHandle->GetType() != ECollisionConstraintType::None)
 					{
-						const FRigidBodyPointContactConstraint& Constraint = (ContactHandle->GetType() == FCollisionConstraintBase::FType::SinglePoint) ?
-							ContactHandle->GetPointContact() :
-							*ContactHandle->GetSweptPointContact().As<FRigidBodyPointContactConstraint>();
+						const FPBDCollisionConstraint& Constraint = ContactHandle->GetContact();
 
 						// Since Clustered GCs can be unioned the particleIndex representing the union 
 						// is not associated with a PhysicsProxy
@@ -122,12 +119,9 @@ namespace Chaos
 				{
 					for (int32 IdxCollision = 0; IdxCollision < ValidCollisionHandles.Num(); ++IdxCollision)
 					{
-						if (ValidCollisionHandles[IdxCollision]->GetType() == FCollisionConstraintBase::FType::SinglePoint ||
-							ValidCollisionHandles[IdxCollision]->GetType() == FCollisionConstraintBase::FType::SinglePointSwept)
+						if (ValidCollisionHandles[IdxCollision]->GetType() != ECollisionConstraintType::None)
 						{
-							const FRigidBodyPointContactConstraint& Constraint = (ValidCollisionHandles[IdxCollision]->GetType() == FCollisionConstraintBase::FType::SinglePoint) ? 
-								ValidCollisionHandles[IdxCollision]->GetPointContact() :
-								*ValidCollisionHandles[IdxCollision]->GetSweptPointContact().As<FRigidBodyPointContactConstraint>();
+							const FPBDCollisionConstraint& Constraint = ValidCollisionHandles[IdxCollision]->GetContact();
 
 							FGeometryParticleHandle* Particle0 = Constraint.Particle[0];
 							FGeometryParticleHandle* Particle1 = Constraint.Particle[1];

@@ -166,6 +166,8 @@ public:
 
 };
 
+using ISpatialDebugDrawInterface = ISpacialDebugDrawInterface<FReal>;
+
 using SpatialAccelerationType = uint8;	//see ESpatialAcceleration. Projects can add their own custom types by using enum values higher than ESpatialAcceleration::Unknown
 enum class ESpatialAcceleration : SpatialAccelerationType
 {
@@ -261,6 +263,10 @@ public:
 
 	virtual bool IsAsyncTimeSlicingComplete() { return AsyncTimeSlicingComplete; }
 	virtual void ProgressAsyncTimeSlicing(bool ForceBuildCompletion = false) {}
+	virtual bool ShouldRebuild() { return true; }  // Used to find out if something changed since last reset for optimizations
+	virtual void ClearShouldRebuild() {}
+	virtual void PrepareCopyTimeSliced(const  ISpatialAcceleration<TPayloadType, FReal, 3>& InFrom) { check(false); }
+	virtual void ProgressCopyTimeSliced(const  ISpatialAcceleration<TPayloadType, FReal, 3>& InFrom, int MaximumBytesToCopy) { check(false); }
 	virtual TArray<TPayloadType> FindAllIntersections(const TAABB<T, d>& Box) const { check(false); return TArray<TPayloadType>(); }
 
 	virtual void Raycast(const TVector<T, d>& Start, const TVector<T, d>& Dir, const T Length, ISpatialVisitor<TPayloadType, T>& Visitor) const { check(false); }
@@ -298,8 +304,17 @@ public:
 		return nullptr;
 	}
 
+	virtual ISpatialAcceleration<TPayloadType, T, d>& operator=(const ISpatialAcceleration<TPayloadType, T, d>& Other)
+	{
+		Type = Other.Type;
+		SyncTimestamp = Other.SyncTimestamp;
+		AsyncTimeSlicingComplete = Other.AsyncTimeSlicingComplete;
+		return *this;
+	}
+
 #if !UE_BUILD_SHIPPING
 	virtual void DebugDraw(ISpacialDebugDrawInterface<T>* InInterface) const {}
+	virtual void DebugDrawLeaf(ISpacialDebugDrawInterface<T>& InInterface, const FLinearColor& InLinearColor, float InThickness) const {}
 	virtual void DumpStats() const {}
 #endif
 
@@ -427,6 +442,29 @@ template <typename TKey, typename TValue>
 class TArrayAsMap
 {
 public:
+	using ElementType = TValue;
+
+	struct Element
+	{
+#if CHAOS_SERIALIZE_OUT
+		TKey KeyToSerializeOut;
+#endif
+		TValue Entry;
+	};
+
+	int32 Num() const
+	{
+		return Entries.Num();
+	}
+
+	void Reserve(int32 Size)
+	{
+		Entries.Reserve(Size);
+#if CHAOS_SERIALIZE_OUT
+		KeysToSerializeOut.Reserve(Size);
+#endif
+	}
+
 	TValue* Find(const TKey& Key)
 	{
 		const int32 Idx = GetUniqueIdx(Key).Idx;
@@ -550,6 +588,14 @@ public:
 		{
 			ensure(false);	//can't serialize out, if you are trying to serialize for perf/debug set CHAOS_SERIALIZE_OUT to 1 
 		}
+	}
+
+	void AddFrom(const TArrayAsMap<TKey, TValue>& Source, int32 SourceIndex)
+	{
+		Entries.Add(Source.Entries[SourceIndex]);
+#if CHAOS_SERIALIZE_OUT
+		KeysToSerializeOut.Add(Source.KeysToSerializeOut[SourceIndex]);
+#endif
 	}
 
 private:

@@ -19,18 +19,22 @@ namespace Chaos
 		{
 			SavedConstraints.Reset();
 			WeakSinglePointConstraints.Reset();
-			WeakSinglePointSweptConstraints.Reset();
 		}
 
-		void SaveConstraints(const FCollisionConstraintsArray& CollisionsArray)
+		void SaveConstraints(TArrayView<const FPBDCollisionConstraint* const> CollisionsArray)
 		{
-			SavedConstraints = CollisionsArray;
+			// Copy the constraints into an array
+			SavedConstraints.Reset(CollisionsArray.Num());
+			for (const FPBDCollisionConstraint* Collision : CollisionsArray)
+			{
+				SavedConstraints.Emplace(FPBDCollisionConstraint::MakeResimCache(*Collision));
+			}
 
 			//Create weak handles so we can make sure everything is alive later
 			auto SaveArrayHelper = [](auto& Constraints,auto& WeakPairs)
 			{
 				WeakPairs.Empty(Constraints.Num());
-				for(FCollisionConstraintBase& Constraint : Constraints)
+				for(FPBDCollisionConstraint& Constraint : Constraints)
 				{
 					WeakPairs.Add(FWeakConstraintPair{Constraint.Particle[0]->WeakParticleHandle(),Constraint.Particle[1]->WeakParticleHandle()});
 
@@ -43,19 +47,18 @@ namespace Chaos
 				check(Constraints.Num() == WeakPairs.Num());
 			};
 
-			SaveArrayHelper(SavedConstraints.SinglePointConstraints,WeakSinglePointConstraints);
-			SaveArrayHelper(SavedConstraints.SinglePointSweptConstraints,WeakSinglePointSweptConstraints);
+			SaveArrayHelper(SavedConstraints,WeakSinglePointConstraints);
 		}
 
 		//Returns all constraints that are still valid (resim can invalidate constraints by either deleting particles, moving particles, etc...)
-		const FCollisionConstraintsArray& GetAndSanitizeConstraints()
+		const TArray<FPBDCollisionConstraint>& GetAndSanitizeConstraints()
 		{
 			auto CleanupArrayHelper = [](auto& Constraints,auto& WeakPairs)
 			{
 				check(Constraints.Num() == WeakPairs.Num());
 				for(int32 Idx = Constraints.Num() - 1; Idx >= 0; --Idx)
 				{
-					FCollisionConstraintBase& Constraint = Constraints[Idx];
+					FPBDCollisionConstraint& Constraint = Constraints[Idx];
 					FWeakConstraintPair& WeakPair = WeakPairs[Idx];
 
 					TGeometryParticleHandle<FReal,3>* A = WeakPair.A.GetHandleUnsafe();
@@ -76,8 +79,7 @@ namespace Chaos
 				}
 			};
 
-			CleanupArrayHelper(SavedConstraints.SinglePointConstraints,WeakSinglePointConstraints);
-			CleanupArrayHelper(SavedConstraints.SinglePointSweptConstraints,WeakSinglePointSweptConstraints);
+			CleanupArrayHelper(SavedConstraints,WeakSinglePointConstraints);
 
 			return SavedConstraints;
 		}
@@ -107,7 +109,7 @@ namespace Chaos
 		}
 
 		//NOTE: You must sanitize this before using. This can contain dangling pointers or invalid constraints
-		FCollisionConstraintsArray SavedConstraints;
+		TArray<FPBDCollisionConstraint> SavedConstraints;
 
 		struct FWeakConstraintPair
 		{
@@ -117,7 +119,6 @@ namespace Chaos
 
 		//TODO: better way to handle this?
 		TArray<FWeakConstraintPair> WeakSinglePointConstraints;
-		TArray<FWeakConstraintPair> WeakSinglePointSweptConstraints;
 	};
 
 } // namespace Chaos

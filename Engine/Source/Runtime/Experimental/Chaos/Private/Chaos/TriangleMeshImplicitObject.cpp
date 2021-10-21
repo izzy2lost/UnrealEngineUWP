@@ -118,6 +118,7 @@ struct FTriangleMeshRaycastVisitor
 		const FVec3& B = Particles.X(Elements[TriIdx][1]);
 		const FVec3& C = Particles.X(Elements[TriIdx][2]);
 
+		// Note: the math here needs to match FTriangleMeshImplicitObject::GetFaceNormal
 		const FVec3 AB = B - A;
 		const FVec3 AC = C - A;
 		FVec3 TriNormal = FVec3::CrossProduct(AB, AC);
@@ -993,10 +994,13 @@ FVec3 FTriangleMeshImplicitObject::GetFaceNormal(const int32 FaceIdx) const
 			const FVec3& B = MParticles.X(Elements[FaceIdx][1]);
 			const FVec3& C = MParticles.X(Elements[FaceIdx][2]);
 
+			// Note: The math here needs to match FTriangleMeshRaycastVisitor::Visit
+			constexpr FReal Epsilon = FReal(1e-4);
 			const FVec3 AB = B - A;
 			const FVec3 AC = C - A;
 			FVec3 Normal = FVec3::CrossProduct(AB, AC);
-			if (Utilities::NormalizeSafe(Normal))
+			const FReal Length = Normal.SafeNormalize();
+			if (Length > Epsilon)
 			{
 				return Normal;
 			}

@@ -14,7 +14,7 @@
 
 namespace Chaos
 {
-	void ComputeHashTable(const TArray<Chaos::FRigidBodyPointContactConstraint>& ConstraintsArray,
+	void ComputeHashTable(const TArray<Chaos::FPBDCollisionConstraint>& ConstraintsArray,
 						  const FBox& BoundingBox, TMultiMap<int32, int32>& HashTableMap, const FRealSingle SpatialHashRadius)
 	{
 		FRealSingle CellSize = 2.f * SpatialHashRadius;

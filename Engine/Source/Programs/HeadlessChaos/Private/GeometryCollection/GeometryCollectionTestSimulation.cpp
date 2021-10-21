@@ -55,7 +55,7 @@ namespace GeometryCollectionTest
 		Params.SimplicialType = ESimplicialType::Chaos_Simplicial_Box;
 		FVector BoxScale(Scale); 
 		Params.GeomTransform.SetScale3D(BoxScale); // Box dimensions
-		Params.GeomTransform.SetLocation(0.9f * Scale * FVector::UpVector);	// Don't start too deep in penetration or the pushout is too aggressive
+		Params.GeomTransform.SetLocation(0.99f * Scale * FVector::UpVector);	// Don't start too deep in penetration or the pushout is too aggressive
 		FGeometryCollectionWrapper* Collection = TNewSimulationObject<GeometryType::GeometryCollectionWithSingleRigid>::Init(Params)->template As<FGeometryCollectionWrapper>();
 		RigidBodyWrapper* Floor = TNewSimulationObject<GeometryType::RigidFloor>::Init()->template As<RigidBodyWrapper>();
 
@@ -107,7 +107,7 @@ namespace GeometryCollectionTest
 		FVector Scale(100.0f);
 		CreationParameters Params; Params.ImplicitType = EImplicitTypeEnum::Chaos_Implicit_Box;  Params.SimplicialType = ESimplicialType::Chaos_Simplicial_Box;
 		Params.GeomTransform.SetScale3D(Scale); // Box size
-		Params.GeomTransform.SetLocation(0.9f * Scale * FVector::UpVector);	// Don't start too deep in penetration or the pushout is too aggressive
+		Params.GeomTransform.SetLocation(0.99f * Scale * FVector::UpVector);	// Don't start too deep in penetration or the pushout is too aggressive
 
 		FGeometryCollectionWrapper* Collection = TNewSimulationObject<GeometryType::GeometryCollectionWithSingleRigid>::Init(Params)->template As<FGeometryCollectionWrapper>();
 		RigidBodyWrapper* Floor = TNewSimulationObject<GeometryType::RigidFloor>::Init()->template As<RigidBodyWrapper>();
