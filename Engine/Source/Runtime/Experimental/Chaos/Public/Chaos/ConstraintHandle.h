@@ -31,7 +31,7 @@ namespace Chaos
 		/**
 		 * @brief An invalid constraint handle type for initialization and invalidation
 		*/
-		static const FConstraintHandleTypeID& InvalidTypeID()
+		static const FConstraintHandleTypeID InvalidTypeID()
 		{
 			return FConstraintHandleTypeID(NAME_None);
 		}

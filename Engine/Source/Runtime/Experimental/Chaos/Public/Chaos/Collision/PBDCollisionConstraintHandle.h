@@ -77,7 +77,7 @@ namespace Chaos
 		FPBDCollisionConstraint& GetSweptPointContact() { return GetContact(); }
 
 
-		typename ECollisionConstraintType GetType() const;
+		ECollisionConstraintType GetType() const;
 
 		virtual void SetEnabled(bool InEnabled) override;
 

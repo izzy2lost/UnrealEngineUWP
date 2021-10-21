@@ -44,7 +44,7 @@ public:
 	{
 		ISpatialAcceleration<TPayloadType, FReal, 3>::operator=(Other);
 		check(ActiveBucketsMask == Other.ActiveBucketsMask);
-		AllAsyncTasksComplete = AllAsyncTasksComplete;
+		AllAsyncTasksComplete = Other.AllAsyncTasksComplete;
 		return *this;
 	}
 

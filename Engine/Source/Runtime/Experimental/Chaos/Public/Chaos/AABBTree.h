@@ -1851,19 +1851,19 @@ private:
 	template<typename ContainerType>
 	static int32 ContainerElementSizeHelper(const ContainerType& Container, int32 Index)
 	{
-		return sizeof(ContainerType::ElementType);
+		return sizeof(typename ContainerType::ElementType);
 	}
 
 	template<>
 	static int32 ContainerElementSizeHelper(const TArray<TAABBTreeLeafArray<TPayloadType, true>>& Container, int32 Index)
 	{
-		return sizeof(TArray<TAABBTreeLeafArray<TPayloadType, true>>::ElementType) + sizeof(decltype(Container[Index].Elems)::ElementType) * Container[Index].GetElementCount();
+		return sizeof(typename TArray<TAABBTreeLeafArray<TPayloadType, true>>::ElementType) + sizeof(typename decltype(Container[Index].Elems)::ElementType) * Container[Index].GetElementCount();
 	}
 
 	template<>
 	static int32 ContainerElementSizeHelper(const TArray<TAABBTreeLeafArray<TPayloadType, false>>& Container, int32 Index)
 	{
-		return sizeof(TArray<TAABBTreeLeafArray<TPayloadType, false>>::ElementType) + sizeof(decltype(Container[Index].Elems)::ElementType) * Container[Index].GetElementCount();
+		return sizeof(typename TArray<TAABBTreeLeafArray<TPayloadType, false>>::ElementType) + sizeof(typename decltype(Container[Index].Elems)::ElementType) * Container[Index].GetElementCount();
 	}
 
 	template<typename ContainerType>
