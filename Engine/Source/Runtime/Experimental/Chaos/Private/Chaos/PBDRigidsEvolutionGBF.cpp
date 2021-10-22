@@ -48,7 +48,8 @@ namespace Chaos
 		int CollisionDisableCulledContacts = 0;
 		FAutoConsoleVariableRef CVarDisableCulledContacts(TEXT("p.CollisionDisableCulledContacts"), CollisionDisableCulledContacts, TEXT("Allow the PBDRigidsEvolutionGBF collision constraints to throw out contacts mid solve if they are culled."));
 
-		FRealSingle BoundsThicknessVelocityMultiplier = 2.0f;	// @todo(chaos): more to FChaosSolverConfiguration
+		// @todo(chaos): this should be 0 but we need it for CCD atm
+		FRealSingle BoundsThicknessVelocityMultiplier = 1.0f;	// @todo(chaos): more to FChaosSolverConfiguration. The required value depends on the solver type
 		FAutoConsoleVariableRef CVarBoundsThicknessVelocityMultiplier(TEXT("p.CollisionBoundsVelocityInflation"), BoundsThicknessVelocityMultiplier, TEXT("Collision velocity inflation for speculatibe contact generation.[def:2.0]"));
 
 		FRealSingle SmoothedPositionLerpRate = 0.1f;
@@ -76,6 +77,7 @@ namespace Chaos
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::ComputeIntermediateSpatialAcceleration"), STAT_Evolution_ComputeIntermediateSpatialAcceleration, STATGROUP_Chaos);
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::CreateConstraintGraph"), STAT_Evolution_CreateConstraintGraph, STATGROUP_Chaos);
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::CreateIslands"), STAT_Evolution_CreateIslands, STATGROUP_Chaos);
+		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::AddSleepingContacts"), STAT_Evolution_AddSleepingContacts, STATGROUP_Chaos);
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::PreApplyCallback"), STAT_Evolution_PreApplyCallback, STATGROUP_Chaos);
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::ParallelSolve"), STAT_Evolution_ParallelSolve, STATGROUP_Chaos);
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::DeactivateSleep"), STAT_Evolution_DeactivateSleep, STATGROUP_Chaos);
@@ -151,7 +153,37 @@ void FPBDRigidsEvolutionGBF::Advance(const FReal Dt,const FReal MaxStepDt,const 
 		UnprepareTick();
 	}
 }
+	
+void FPBDRigidsEvolutionGBF::AddSleepingContacts()
+{
+	FCollisionConstraintAllocator& ConstraintAllocator = CollisionDetector.GetCollisionContainer().GetConstraintAllocator();
 
+	
+	for(int32 IslandIndex = 0; IslandIndex < ConstraintGraph.NumIslands(); ++IslandIndex)
+	{
+		if( FPBDIslandSolver* IslandSolver = ConstraintGraph.GetSolverIsland(IslandIndex))
+		{
+			//bool bNeedsResorting = false;
+			for( auto& ConstraintHandle : IslandSolver->GetConstraints())
+			{
+				if(ConstraintHandle->WasAwakened())
+				{
+					if( FPBDCollisionConstraint* CollisionConstraint = ConstraintHandle->As<FPBDCollisionConstraint>())
+					{
+						ConstraintAllocator.AddConstraintHandle(CollisionConstraint);
+						//bNeedsResorting = true;
+					}
+				}
+			}
+			// For now we don't need to sort the constraints twice since they are already sorted before pushing them to the graph
+			// @todo : remove the allocator sorting to use the island one. but will need to sort the graph as well which for now requires some overhead
+			// if(!IslandSolver->IsSleeping() && bNeedsResorting)
+			// {
+			// 	IslandSolver->SortConstraints();
+			// }
+		}
+	}
+}
 
 void FPBDRigidsEvolutionGBF::AdvanceOneTimeStep(const FReal Dt,const FSubStepInfo& SubStepInfo)
 {
@@ -235,21 +267,26 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 		CollisionConstraints.ApplyCollisionModifier(*CollisionModifiers);
 	}
 
+	
+
 	{
 		SCOPE_CYCLE_COUNTER(STAT_Evolution_CreateConstraintGraph);
 		CreateConstraintGraph();
 	}
+	//CollisionDetector.GetCollisionContainer().GetConstraintAllocator().SortConstraintsHandles();
 	{
 		SCOPE_CYCLE_COUNTER(STAT_Evolution_CreateIslands);
 		CreateIslands();
 	}
-
+	{
+		SCOPE_CYCLE_COUNTER(STAT_Evolution_AddSleepingContacts);
+		AddSleepingContacts();
+	}
 	if (PreApplyCallback != nullptr)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_Evolution_PreApplyCallback);
 		PreApplyCallback();
 	}
-
 	CollisionConstraints.SetGravity(GetGravityForces().GetAcceleration());
 
 	TArray<bool> SleepedIslands;
@@ -268,6 +305,11 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 				{
 					return;
 				}
+			}
+
+			if(GetConstraintGraph().GetSolverIsland(Island)->IsSleeping())
+			{
+				return;
 			}
 			
 			const TArray<FGeometryParticleHandle*>& IslandParticles = GetConstraintGraph().GetIslandParticles(Island);
@@ -415,7 +457,7 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 				{
 					if(Geom->HasBoundingBox())
 					{
-						const int32 Island = Active.Island();
+						const int32 Island = Active.IslandIndex();
 						ensure(Island >= 0);
 						const int32 ColorIdx = Island % NumColors;
 						const FAABB3 LocalBounds = Geom->BoundingBox();
@@ -435,7 +477,7 @@ void FPBDRigidsEvolutionGBF::GatherSolverInput(FReal Dt, int32 Island)
 	// island so that the pointers remain valid (the array should not grow and relocate)
 	ConstraintGraph.GetSolverIsland(Island)->GetBodyContainer().Reset(ConstraintGraph.GetIslandParticles(Island).Num());
 
-	// NOTE: SolverBodies are gathered as part of the constraint gather, in the order that they are first seen
+	// NOTE: SolverBodies are gathered as part of the constraint gather, in the order that they are first seen 
 	for (FPBDConstraintGraphRule* ConstraintRule : PrioritizedConstraintRules)
 	{
 		ConstraintRule->GatherSolverInput(Dt, Island);

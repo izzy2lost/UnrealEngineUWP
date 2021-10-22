@@ -26,7 +26,7 @@ namespace Chaos
 		bool bChaos_PBDCollisionSolver_Position_SolveEnabled = true;
 		int32 Chaos_PBDCollisionSolver_Position_ShockPropagationIterations = 3;
 		float Chaos_PBDCollisionSolver_Position_MinInvMassScale = 0.5f;
-		int32 Chaos_PBDCollisionSolver_Position_ZeroFrictionIterations = 2;
+		int32 Chaos_PBDCollisionSolver_Position_ZeroFrictionIterations = 4;
 		float Chaos_PBDCollisionSolver_Position_NormalTolerance = 0.1f;
 		bool bChaos_PBDCollisionSolver_Position_NegativePushOutEnabled = true;
 		float Chaos_PBDCollisionSolver_Position_StaticFrictionStiffness = 0.5f;

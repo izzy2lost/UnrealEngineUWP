@@ -231,7 +231,8 @@ void PopulateSimulatedParticle(
 	Handle->SetW(Chaos::FVec3(0.f));
 	Handle->SetP(Handle->X());
 	Handle->SetQ(Handle->R());
-	Handle->SetIsland(INDEX_NONE);
+	Handle->SetIslandIndex(INDEX_NONE);
+	Handle->SetConstraintGraphIndex(INDEX_NONE);
 	Handle->SetCenterOfMass(FVector::ZeroVector);
 	Handle->SetRotationOfMass(FQuat::Identity);
 

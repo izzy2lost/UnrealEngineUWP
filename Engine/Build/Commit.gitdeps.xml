@@ -38457,7 +38457,7 @@
     <File Name="Engine/Extras/UnrealVS/VS2015/UnrealVS.vsix" Hash="a205314fe693d98d27c2fa27e212c0bc8f9d1ab9" />
     <File Name="Engine/Extras/UnrealVS/VS2017/UnrealVS.vsix" Hash="4458cb6c87cb5d161bb8c2f88316b9bb04e7f84f" />
     <File Name="Engine/Extras/UnrealVS/VS2019/UnrealVS.vsix" Hash="0262485bbd336c0a1f86a430d5a2f7b032e36b04" />
-    <File Name="Engine/Extras/VisualStudioDebugging/UE4.natvis" Hash="c4ff67b4ee36cc80ea4d08b2b16f7f7ef9f5bb8c" />
+    <File Name="Engine/Extras/VisualStudioDebugging/UE4.natvis" Hash="c8e50d6d01cd30ae97123d863a02d004c3dd134b" />
     <File Name="Engine/Extras/VisualStudioDebugging/UE4_Android_Nsight.dat" Hash="6529564713f47b0a7dee6e03e776cd4c28887501" />
     <File Name="Engine/Extras/VisualStudioDebugging/usertype.dat_ForHLSL" Hash="b504120990a654a5f6ce6dc5afc5a4b8c40525f0" />
     <File Name="Engine/Extras/VisualStudioSnippets/Community/DocsTeam_ExampleSnippetPrj.zip" Hash="c1f6a21b73f9f15142253c350233ee41502f340f" />
@@ -97698,7 +97698,6 @@
     <Blob Hash="c4fae5c4b18e2d2ea4a05a7045909432e15276ae" Size="104" PackHash="2f143d8520d94bbf2cb250b35a8f79e3d3e8572c" PackOffset="965580" />
     <Blob Hash="c4fb5f0ad173b978a3466883135f9f8007d30b3f" Size="19237" PackHash="9bfa76eaf50a585e99981b54ef5628fd89b397e7" PackOffset="1909352" />
     <Blob Hash="c4ff1c3bea5278467e57fbd0a4c27d06640fd1b0" Size="81142" PackHash="a5476361c6ff9989f807d913c4c702800239968a" PackOffset="8" />
-    <Blob Hash="c4ff67b4ee36cc80ea4d08b2b16f7f7ef9f5bb8c" Size="86571" PackHash="c6057a6a9ad9bc75c4b7e2a8bf3ccc70f25eb3ce" PackOffset="8" />
     <Blob Hash="c4ff6e6c22ecb6784a399643cfcf80614f9b7f51" Size="1624" PackHash="7ca0e1410f00142dc9791ff1fb493669e443f644" PackOffset="1052384" />
     <Blob Hash="c50281993dae0c9ec3f09556b2b44e97185a12a1" Size="1594" PackHash="09365257939c24c4ae90b87ab72c645dfb299d72" PackOffset="2028658" />
     <Blob Hash="c5037a9d3ccfad22d3ecffbadfc5316573e2b894" Size="495" PackHash="bde0225c28adec3c7cfd94baa9ca97eda197ad75" PackOffset="721328" />
@@ -98374,6 +98373,7 @@
     <Blob Hash="c8e054bdf243d7b6c5ba2eaa3efb229d9825ff4e" Size="72192" PackHash="d980fd066a9034b58cde86f397c0536846cb4d0d" PackOffset="1172488" />
     <Blob Hash="c8e3a2f27bf00371d74cd2c599da6d950927b799" Size="1296" PackHash="8152e8edca61209c0ceddfe18df09424216095a3" PackOffset="971392" />
     <Blob Hash="c8e43a3df8cfcf62a24c3095db2a7aebd537d328" Size="12100" PackHash="3e0514a8447504118339e4ed81085e2ddb8fc470" PackOffset="2083126" />
+    <Blob Hash="c8e50d6d01cd30ae97123d863a02d004c3dd134b" Size="86441" PackHash="e8cc2cecd960962ca8313968e8d6ebf2b4ce6e4c" PackOffset="8" />
     <Blob Hash="c8e648f0a1137961d3884c1ef4b10ae2928d1e52" Size="215673" PackHash="d0832bdb2b5fb1f4997601e49c13919497d63319" PackOffset="204857" />
     <Blob Hash="c8e732e3e74a332ff544b038a110469fb0201779" Size="320512" PackHash="58fbf77a55a8063016df0e403ca64af4d59383ca" PackOffset="1188184" />
     <Blob Hash="c8ea0bf1f15f2b589a256c02a4d34656117d8c7f" Size="1433756" PackHash="6c4b043f66068481e53902d96442b2240352f6ce" PackOffset="8" />
@@ -111357,7 +111357,6 @@
     <Pack Hash="c5b3a48f75bce6aeff3a3ad07639efdef95efe31" Size="2064606" CompressedSize="525358" RemotePath="UnrealEngine-14659600-f51ab127376046e2974c31558cd9fdc8" />
     <Pack Hash="c5e41cf851c31a225a9d6577d596725a83d555e4" Size="1531696" CompressedSize="406986" RemotePath="UnrealEngine-12372358-6ad1aa6e82dd46b6b809750a9e8e1e65" />
     <Pack Hash="c5feb7afdff7a75cae51954c7ec19f9b2fad8594" Size="2027624" CompressedSize="710937" RemotePath="UnrealEngine-15805898" />
-    <Pack Hash="c6057a6a9ad9bc75c4b7e2a8bf3ccc70f25eb3ce" Size="86579" CompressedSize="9426" RemotePath="UnrealEngine-17888583" />
     <Pack Hash="c62361268a6a818fcfc6f8bbd579ba291217148b" Size="38776" CompressedSize="9014" RemotePath="UnrealEngine-16717187" />
     <Pack Hash="c624e89f24dcb4acf990dac20b6036d18ea168f5" Size="2617544" CompressedSize="344571" RemotePath="UnrealEngine-13150150-93080e228d574bb1a4ea0d0d09b51469" />
     <Pack Hash="c62d1d8b2745bfe10eeb347cf1861c71716b998f" Size="110995" CompressedSize="84978" RemotePath="UnrealEngine-4974367-78a72753d67e417893d95f51f39389e4" />
@@ -111937,6 +111936,7 @@
     <Pack Hash="e8ab433bcba920d688442b45886cc06769958bc1" Size="34853800" CompressedSize="5189099" RemotePath="UnrealEngine-13478673-ae3c4c1d6d56421e88dff81978a32d76" />
     <Pack Hash="e8abc8ed97b496f95e8f039b6f8bfef26710e472" Size="7435824" CompressedSize="1167054" RemotePath="UnrealEngine-14737008-1c10680f2b1b47ccb2e902859bb08cb6" />
     <Pack Hash="e8c3e90942a5b288720c462500e119088f07598b" Size="1283974" CompressedSize="854253" RemotePath="2646891-b5b29624e5354ef694dffc02dae26b0a" />
+    <Pack Hash="e8cc2cecd960962ca8313968e8d6ebf2b4ce6e4c" Size="86449" CompressedSize="9416" RemotePath="UnrealEngine-17897023" />
     <Pack Hash="e8e49822979ea38dfceeeb4c17d588ebac6c6c80" Size="1984976" CompressedSize="341348" RemotePath="UnrealEngine-6654056-657e01ec03a04bd4b0894946198ba2e1" />
     <Pack Hash="e8f3851b576bfdeaf9b9ec493247cd6607ac18a1" Size="1940707" CompressedSize="275293" RemotePath="UnrealEngine-14481304-f2d18d0c96af43cebff14f72a982cefd" />
     <Pack Hash="e8f7a41b55a455a74ff003e24a6e7c50a9d844c4" Size="2075432" CompressedSize="848705" RemotePath="UnrealEngine-13722956-5a1bcfb8f0ee4d29a31f0992d369e4a4" />

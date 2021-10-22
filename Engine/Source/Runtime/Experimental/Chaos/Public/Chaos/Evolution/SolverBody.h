@@ -390,6 +390,8 @@ namespace Chaos
 		const FRotation3& R() const { return Body->R(); }
 		const FVec3& P() const { return Body->P(); }
 		const FRotation3& Q() const { return Body->Q(); }
+		const FVec3 ActorP() const { return Body->ActorP(); }
+		const FRotation3 ActorQ() const { return Body->ActorQ(); }
 		const FVec3& V() const { return Body->V(); }
 		const FVec3& W() const { return Body->W(); }
 		int32 Level() const { return Body->Level(); }

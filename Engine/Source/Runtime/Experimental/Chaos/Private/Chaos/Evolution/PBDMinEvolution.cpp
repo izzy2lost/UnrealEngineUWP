@@ -652,6 +652,7 @@ namespace Chaos
 		}
 
 		CollisionDetector.DetectCollisions(Dt, nullptr);
+		CollisionDetector.GetCollisionContainer().GetConstraintAllocator().SortConstraintsHandles();
 	}
 
 	void FPBDMinEvolution::GatherInput(FReal Dt)

@@ -2090,7 +2090,9 @@ namespace ChaosTest {
 		}
 	}
 
-	GTEST_TEST(AllTraits, RewindTest_ResimAsSlaveWokenUp)
+	// Disabled in 4.27-Chaos pending intergation with upstream (lots has changed - this test is no longer valid)
+	// @todo(chaos): re-enable after merge into 5
+	GTEST_TEST(AllTraits, DISABLED_RewindTest_ResimAsSlaveWokenUp)
 	{
 		for (int Optimization = 0; Optimization < 2; ++Optimization)
 		{

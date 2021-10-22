@@ -326,7 +326,7 @@ void FPBDConstraintColor::ComputeContactGraph(const int32 Island, const FPBDCons
 	{
 		if(IslandConstraint)
 		{
-			const int32 EdgeIndex = IslandConstraint->GetConstraintGraphIndex();
+			const int32 EdgeIndex = IslandConstraint->ConstraintGraphIndex();
 			if(Edges.IsValidIndex(EdgeIndex))
 			{
 				check(Edges[EdgeIndex].Level <= IslandData[Island].MaxLevel);
@@ -335,7 +335,7 @@ void FPBDConstraintColor::ComputeContactGraph(const int32 Island, const FPBDCons
 					Edges[EdgeIndex].Level = 0;
 				}
 			}
-		}
+		} 
 	}
 
 	check(IslandData[Island].MaxLevel >= 0 || !IslandConstraints.Num());
@@ -415,9 +415,9 @@ void FPBDConstraintColor::CollectIslandDirectedEdges(const FReal Dt, const int32
 
 	for (const FConstraintHandle* IslandConstraint : ConstraintGraph.GetIslandConstraints(Island))
 	{
-		if(IslandConstraint && ConstraintGraph.GetGraphEdges().IsValidIndex(IslandConstraint->GetConstraintGraphIndex()))
+		if(IslandConstraint && ConstraintGraph.GetGraphEdges().IsValidIndex(IslandConstraint->ConstraintGraphIndex()))
 		{
-			const typename FPBDConstraintGraph::FGraphEdge& GraphEdge = ConstraintGraph.GetGraphEdges()[IslandConstraint->GetConstraintGraphIndex()];
+			const typename FPBDConstraintGraph::FGraphEdge& GraphEdge = ConstraintGraph.GetGraphEdges()[IslandConstraint->ConstraintGraphIndex()];
 
 			const FPBDCollisionConstraintHandle *CollisionHandle = GraphEdge.EdgeItem->As<FPBDCollisionConstraintHandle>();
 			if (CollisionHandle)
@@ -671,9 +671,9 @@ void FPBDConstraintColor::AssignEdgeLevels(const int32 Island, const FPBDConstra
 {
 	for(const FConstraintHandle* IslandConstraint : ConstraintGraph.GetIslandConstraints(Island))
 	{
-		if(IslandConstraint && ConstraintGraph.GetGraphEdges().IsValidIndex(IslandConstraint->GetConstraintGraphIndex()))
+		if(IslandConstraint && ConstraintGraph.GetGraphEdges().IsValidIndex(IslandConstraint->ConstraintGraphIndex()))
 		{
-			const int32 EdgeIndex = IslandConstraint->GetConstraintGraphIndex();
+			const int32 EdgeIndex = IslandConstraint->ConstraintGraphIndex();
 			const typename FPBDConstraintGraph::FGraphEdge& GraphEdge = ConstraintGraph.GetGraphEdges()[EdgeIndex];
 
 			const bool IsFirstNodeDynamic = ConstraintGraph.GetGraphNodes()[GraphEdge.FirstNode].IslandIndex != INDEX_NONE;

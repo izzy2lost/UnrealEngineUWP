@@ -102,7 +102,7 @@ void FPBDSpringConstraints::Apply(TPBDRigidParticles<FReal, 3>& InParticles, con
 		const auto& Constraint = MConstraints[i];
 		const int32 i1 = Constraint[0];
 		const int32 i2 = Constraint[1];
-		check(InParticles.Island(i1) == InParticles.Island(i2) || InParticles.Island(i1) == INDEX_NONE || InParticles.Island(i2) == INDEX_NONE);
+		check(InParticles.IslandIndex(i1) == InParticles.IslandIndex(i2) || InParticles.IslandIndex(i1) == INDEX_NONE || InParticles.IslandIndex(i2) == INDEX_NONE);
 		Apply(InParticles, Dt, i);
 	}
 }

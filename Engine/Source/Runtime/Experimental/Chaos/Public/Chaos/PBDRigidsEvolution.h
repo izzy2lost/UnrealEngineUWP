@@ -465,10 +465,10 @@ public:
 		{
 			if (InitialState == EObjectStateType::Sleeping)
 			{
-				if (Particle->Island() != INDEX_NONE)
+				if (Particle->IslandIndex() != INDEX_NONE)
 				{
 					// GT has forced a wake so have to wake everything in the island
-					IslandsToWake.Enqueue(Particle->Island());
+					IslandsToWake.Enqueue(Particle->IslandIndex());
 				}
 			}
 			else if(ObjectState != EObjectStateType::Dynamic)
