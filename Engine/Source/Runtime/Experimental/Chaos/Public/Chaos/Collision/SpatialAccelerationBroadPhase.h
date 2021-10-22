@@ -150,12 +150,12 @@ namespace Chaos
 
 		template<bool bNeedsResim, bool bOnlyRigid, typename ViewType, typename SpatialAccelerationType>
 		void ComputeParticlesOverlaps(ViewType& OverlapView, FReal Dt,
-			const SpatialAccelerationType& SpatialAcceleration, FNarrowPhase& NarrowPhase)
+			const SpatialAccelerationType& InSpatialAcceleration, FNarrowPhase& NarrowPhase)
 		{
 			OverlapView.ParallelFor([&](auto& Particle1,int32 ActiveIdxIdx)
 			{
 				FGenericParticleHandleHandleImp GenericHandle(Particle1.Handle());
-				ProduceParticleOverlaps<bNeedsResim,bOnlyRigid>(Dt,GenericHandle,SpatialAcceleration,NarrowPhase,ActiveIdxIdx);
+				ProduceParticleOverlaps<bNeedsResim,bOnlyRigid>(Dt,GenericHandle, InSpatialAcceleration,NarrowPhase,ActiveIdxIdx);
 			},bDisableCollisionParallelFor);
 		}
 
