@@ -126,7 +126,7 @@ namespace Chaos
 				Solver.InitMaterial(
 					ManifoldPointIndex,
 					WorldContactVelocityTargetNormal,
-					ManifoldPoint.bPotentialRestingContact,
+					ManifoldPoint.bPotentialRestingContact && (Solver.StaticFriction() > 0),
 					ManifoldPoint.StaticFrictionMax);
 			}
 		}
