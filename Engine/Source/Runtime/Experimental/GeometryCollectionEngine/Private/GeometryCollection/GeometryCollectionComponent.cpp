@@ -1993,6 +1993,13 @@ void UGeometryCollectionComponent::OnCreatePhysicsState()
 			InitialSimFilter = FilterData.SimFilter;
 			InitialQueryFilter = FilterData.QuerySimpleFilter;
 
+			// since InitBody has not been called on the bodyInstance, OwnerComponent is nullptr
+			// we then need to set the owner on the query filters to allow for actor filtering 
+			if (const AActor* Owner = GetOwner())
+			{
+				InitialQueryFilter.Word0 = Owner->GetUniqueID();
+			}
+
 			// Enable for complex and simple (no dual representation currently like other meshes)
 			InitialQueryFilter.Word3 |= (EPDF_SimpleCollision | EPDF_ComplexCollision);
 			InitialSimFilter.Word3 |= (EPDF_SimpleCollision | EPDF_ComplexCollision);
@@ -2212,7 +2219,7 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 	};
 
 
-	PhysicsProxy = new FGeometryCollectionPhysicsProxy(this, *DynamicCollection, SimulationParameters, InitialQueryFilter, InitialSimFilter, InitFunc, CacheSyncFunc, FinalSyncFunc);
+	PhysicsProxy = new FGeometryCollectionPhysicsProxy(this, *DynamicCollection, SimulationParameters, InitialSimFilter, InitialQueryFilter, InitFunc, CacheSyncFunc, FinalSyncFunc);
 	FPhysScene_Chaos* Scene = GetInnerChaosScene();
 	Scene->AddObject(this, PhysicsProxy);
 
