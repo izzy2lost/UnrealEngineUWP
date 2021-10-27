@@ -115,9 +115,6 @@ namespace Chaos
 
 		virtual bool IsSleeping() const { return false; }
 		virtual void SetIsSleeping(const bool bInIsSleeping) {}
-		
-		virtual bool WasAwakened() const { return false; }
-		virtual void SetWasAwakened(const bool bInWasAwakened) {}
 
 		// Implemented in ConstraintContainer.h
 		int32 GetContainerId() const;

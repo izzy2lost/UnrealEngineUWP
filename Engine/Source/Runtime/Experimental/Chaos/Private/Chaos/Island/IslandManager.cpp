@@ -110,7 +110,6 @@ inline void UpdateSleepState(FPBDIslandSolver* IslandSolver, FPBDRigidsSOAs& Par
 		// Island constraints are updating their sleeping flag + awaken one 
 		for (auto& IslandConstraint : IslandSolver->GetConstraints())
 		{
-			IslandConstraint->SetWasAwakened(!bIsSleeping && IslandConstraint->IsSleeping());
 			IslandConstraint->SetIsSleeping(bIsSleeping);
 		}
 	}
@@ -547,6 +546,7 @@ void FPBDIslandManager::SleepIsland(FPBDRigidsSOAs& Particles, const int32 Islan
 	if (IslandSolvers.IsValidIndex(GraphIndex) && !IslandSolvers[GraphIndex]->IsSleeping())
 	{
 		IslandSolvers[GraphIndex]->SetIsSleeping(true);
+		IslandGraph->GraphIslands[GraphIndex].bIsSleeping = true;
 		UpdateSleepState(IslandSolvers[GraphIndex].Get(),Particles);
 	}
 }
@@ -557,6 +557,7 @@ void FPBDIslandManager::WakeIsland(FPBDRigidsSOAs& Particles, const int32 Island
 	if (IslandSolvers.IsValidIndex(GraphIndex))
 	{
 		IslandSolvers[GraphIndex]->SetIsSleeping(false);
+		IslandGraph->GraphIslands[GraphIndex].bIsSleeping = false;
 		UpdateSleepState(IslandSolvers[GraphIndex].Get(),Particles);
 		
 		IslandSolvers[GraphIndex]->SetSleepCounter(0);
