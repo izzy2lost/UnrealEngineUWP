@@ -2696,7 +2696,7 @@ void FGeometryCollectionPhysicsProxy::FieldParameterUpdateCallback(Chaos::FPBDRi
 				{
 					if (FieldCommand.TargetAttribute == GetGeometryCollectionPhysicsTypeName(EGeometryCollectionPhysicsTypeEnum::Chaos_DynamicState))
 					{
-						TArray<int32> LocalResults; 
+						TArray<int32> LocalResults;
 						LocalResults.AddUninitialized(ParticleHandles.Num());
 						TArrayView<int32> ResultsView(&(LocalResults[0]), LocalResults.Num());
 
@@ -2711,7 +2711,7 @@ void FGeometryCollectionPhysicsProxy::FieldParameterUpdateCallback(Chaos::FPBDRi
 								Chaos::TPBDRigidParticleHandle<float, 3>* RigidHandle = ParticleHandles[Index.Sample]->CastToRigidParticle();
 								if (RigidHandle)
 								{
-									const int8 ResultState = ResultsView[Index.Result];  
+									const int8 ResultState = ResultsView[Index.Result];
 									const int32 TransformIndex = HandleToTransformGroupIndex[RigidHandle];
 
 									// Update of the handles object state. No need to update 
@@ -2798,10 +2798,10 @@ void FGeometryCollectionPhysicsProxy::FieldParameterUpdateCallback(Chaos::FPBDRi
 							UE_LOG(LogChaos, Error, TEXT("Field based evaluation of the simulations 'InitialAngularVelocity' requires the geometry collection be set to User Defined Initial Velocity"));
 						}
 					}
-					else 
-					{
-						Chaos::FieldScalarParameterUpdate(RigidSolver, FieldCommand, ParticleHandles, FieldContext, CommandsToRemove, PositionTarget, TargetedParticles, CommandIndex);
-					}
+				}
+				else if ((FieldOutput == EFieldOutputType::Field_Output_Scalar) && (FieldCommand.RootNode->Type() == FFieldNodeBase::EFieldType::EField_Float))
+				{
+					Chaos::FieldScalarParameterUpdate(RigidSolver, FieldCommand, ParticleHandles, FieldContext, CommandsToRemove, PositionTarget, TargetedParticles, CommandIndex);
 				}
 			}
 		}		

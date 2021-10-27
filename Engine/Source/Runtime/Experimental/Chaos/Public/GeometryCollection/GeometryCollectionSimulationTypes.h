@@ -51,6 +51,8 @@ enum class EGeometryCollectionPhysicsTypeEnum : uint8
 	Chaos_CollisionGroup           UMETA(DisplayName = "Collision Group", ToolTip = "Set the particles collision group."),
 	Chaos_LinearForce              UMETA(DisplayName = "Linear Force", ToolTip = "Add a vector field to the particles linear force."),
 	Chaos_AngularTorque            UMETA(DisplayName = "Angular Torque", ToolTip = "Add a vector field to the particles angular torque."),
+	Chaos_ExternalClusterStrain    UMETA(DisplayName = "External Strain", ToolTip = "Apply an external strain over the particles. If this strain is over the internal one, the cluster will break."),
+	Chaos_InternalClusterStrain    UMETA(DisplayName = "Internal Strain", ToolTip = "Add a strain field to the particles internal one."),
 	//
 	Chaos_Max						UMETA(Hidden)
 };
@@ -77,6 +79,10 @@ GetGeometryCollectionPhysicsTypeName(EGeometryCollectionPhysicsTypeEnum Attribut
 		return "LinearForce";
 	case EGeometryCollectionPhysicsTypeEnum::Chaos_AngularTorque:
 		return "AngularTorque";
+	case EGeometryCollectionPhysicsTypeEnum::Chaos_ExternalClusterStrain:
+			return "ExternalClusterStrain";
+	case EGeometryCollectionPhysicsTypeEnum::Chaos_InternalClusterStrain:
+		return "InternalClusterStrain";
 	}
 	return "None";
 }
