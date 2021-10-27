@@ -193,6 +193,9 @@ namespace Chaos
 		Chaos::FRealSingle ChaosSolverCullDistance = -1.0f;
 		FAutoConsoleVariableRef CVarChaosSolverCullDistance(TEXT("p.Chaos.Solver.Collision.CullDistance"), ChaosSolverCullDistance, TEXT("Override cull distance (if >= 0)"));
 
+		Chaos::FRealSingle ChaosSolverMaxPushOutVelocity = -1.0f;
+		FAutoConsoleVariableRef CVarChaosSolverMaxPushOutVelocity(TEXT("p.Chaos.Solver.Collision.MaxPushOutVelocity"), ChaosSolverMaxPushOutVelocity, TEXT("Override max pushout velocity (if >= 0)"));
+
 		int32 ChaosSolverCleanupCommandsOnDestruction = 1;
 		FAutoConsoleVariableRef CVarChaosSolverCleanupCommandsOnDestruction(TEXT("p.Chaos.Solver.CleanupCommandsOnDestruction"), ChaosSolverCleanupCommandsOnDestruction, TEXT("Whether or not to run internal command queue cleanup on solver destruction (0 = no cleanup, >0 = cleanup all commands)"));
 
@@ -790,6 +793,10 @@ namespace Chaos
 			if (ChaosSolverCullDistance >= 0.0f)
 			{
 				SetCollisionCullDistance(ChaosSolverCullDistance);
+			}
+			if (ChaosSolverMaxPushOutVelocity >= 0.0f)
+			{
+				SetCollisionMaxPushOutVelocity(ChaosSolverMaxPushOutVelocity);
 			}
 		}
 
@@ -1494,6 +1501,7 @@ namespace Chaos
 		SetJointPairIterations(InConfig.JointPairIterations);
 		SetJointPushOutPairIterations(InConfig.JointPushOutPairIterations);
 		SetCollisionCullDistance(InConfig.CollisionCullDistance);
+		SetCollisionMaxPushOutVelocity(InConfig.CollisionMaxPushOutVelocity);
 		SetGenerateCollisionData(InConfig.bGenerateCollisionData);
 		SetGenerateBreakingData(InConfig.bGenerateBreakData);
 		SetGenerateTrailingData(InConfig.bGenerateTrailingData);
