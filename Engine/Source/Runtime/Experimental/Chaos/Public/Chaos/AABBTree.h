@@ -277,16 +277,16 @@ struct TAABBTreeLeafArray : public TBoundsWrapperHelper<TPayloadType, bComputeBo
 #if !UE_BUILD_SHIPPING
 	void DebugDrawLeaf(ISpacialDebugDrawInterface<FReal>& InInterface, const FLinearColor& InLinearColor, float InThickness) const
 	{
-		const FAABB3 Bounds = TBoundsWrapperHelper<TPayloadType, bComputeBounds>::GetBounds();
+		const FAABB3 LeafBounds = TBoundsWrapperHelper<TPayloadType, bComputeBounds>::GetBounds();
 
 		const float Alpha = (float)Elems.Num() / 10.f;
 		const FLinearColor ColorByCount = FLinearColor::Green * (1.f - Alpha) + FLinearColor::Red * Alpha;
 		const FVec3 ColorAsVec = { ColorByCount.R, ColorByCount.G, ColorByCount.B };
 		
-		InInterface.Box(Bounds, ColorAsVec, InThickness);
+		InInterface.Box(LeafBounds, ColorAsVec, InThickness);
 		for (const auto& Elem : Elems)
 		{
-			InInterface.Line(Bounds.Center(), Elem.Bounds.Center(), ColorAsVec, InThickness);
+			InInterface.Line(LeafBounds.Center(), Elem.Bounds.Center(), ColorAsVec, InThickness);
 			InInterface.Box(Elem.Bounds, { 1.0, 0.2, 0.2 }, 1.0f);
 		}
 	}
