@@ -612,7 +612,7 @@ public:
 
 	void InitializeAccelerationStructures()
 	{
-		ConstraintGraph.InitializeGraph(Particles.GetNonDisabledView());
+		ConstraintGraph.InitializeGraph(Particles.GetNonDisabledDynamicView());
 
 		for (FPBDConstraintGraphRule* ConstraintRule : ConstraintRules)
 		{
@@ -859,7 +859,7 @@ protected:
 
 	void CreateConstraintGraph()
 	{
-		ConstraintGraph.InitializeGraph(Particles.GetNonDisabledView());
+		ConstraintGraph.InitializeGraph(Particles.GetNonDisabledDynamicView());
 
 		for (FPBDConstraintGraphRule* ConstraintRule : ConstraintRules)
 		{
