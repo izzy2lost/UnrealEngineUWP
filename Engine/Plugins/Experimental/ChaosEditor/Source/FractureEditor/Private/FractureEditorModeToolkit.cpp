@@ -609,7 +609,13 @@ void FFractureEditorModeToolkit::HandleMapChanged(class UWorld* NewWorld, EMapCh
 {
 	if ((MapChangeType == EMapChangeType::LoadMap || MapChangeType == EMapChangeType::NewMap || MapChangeType == EMapChangeType::TearDownWorld))
 	{
-		GetEditorMode()->Exit();
+		if (ActiveTool)
+		{
+			ActiveTool->Shutdown();
+			ActiveTool->SetToolsContext(nullptr);
+		}
+		TArray<UGeometryCollectionComponent*> EmptySelection;
+		SetOutlinerComponents(EmptySelection);
 	}
 }
 

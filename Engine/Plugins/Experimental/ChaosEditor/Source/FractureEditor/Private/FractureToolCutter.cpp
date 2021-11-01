@@ -32,7 +32,7 @@ void UFractureTransformGizmoSettings::ResetGizmo(bool bResetRotation)
 	{
 		AttachedCutter->SetMandateGroupFracture(bUseGizmo);
 	}
-	if (!bUseGizmo || !AttachedCutter)
+	if (!bUseGizmo || !AttachedCutter || !TransformGizmo->ActiveTarget)
 	{
 		TransformGizmo->SetVisibility(false);
 		return;
@@ -100,7 +100,7 @@ void UFractureTransformGizmoSettings::Setup(UFractureToolCutterBase* Cutter)
 void UFractureTransformGizmoSettings::Shutdown()
 {
 	UInteractiveToolsContext* Context = GetToolsContext();
-	if (Context)
+	if (Context && Context->GizmoManager)
 	{
 		Context->GizmoManager->DestroyAllGizmosByOwner(this);
 	}

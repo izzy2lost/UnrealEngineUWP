@@ -556,7 +556,7 @@ void UTransformGizmo::SetNewChildScale(const FVector& NewChildScale)
 
 void UTransformGizmo::SetVisibility(bool bVisible)
 {
-	if (!ensure(GizmoActor))
+	if (!GizmoActor) // GizmoActor may be null because the interactive tools context cleanup removes the gizmo manager early
 	{
 		return;
 	}
