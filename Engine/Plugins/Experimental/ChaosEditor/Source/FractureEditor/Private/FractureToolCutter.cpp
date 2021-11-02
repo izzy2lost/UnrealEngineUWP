@@ -6,6 +6,7 @@
 #include "FractureToolContext.h"
 #include "InteractiveToolsContext.h"
 #include "EditorModeManager.h"
+#include "BaseGizmos/GizmoBaseComponent.h"
 
 #include "GeometryCollection/GeometryCollectionObject.h"
 #include "GeometryCollection/GeometryCollectionComponent.h"
@@ -91,6 +92,17 @@ void UFractureTransformGizmoSettings::Setup(UFractureToolCutterBase* Cutter)
 		UInteractiveGizmoManager* GizmoManager = Context->GizmoManager;
 		TransformProxy = NewObject<UTransformProxy>(this);
 		TransformGizmo = GizmoManager->CreateCustomTransformGizmo(ETransformGizmoSubElements::StandardTranslateRotate, this);
+		// TODO: Stop setting bUseEditorCompositing on gizmo components like this, once gizmo rendering is improved
+		// This is a hack to make gizmos more visible when the translucent fracture bone selection material is on screen
+		// This hack unfortunately makes the gizmos dithered when they're behind objects, but at least they're relatively visible
+		for (UActorComponent* Component : TransformGizmo->GetGizmoActor()->GetComponents())
+		{
+			UGizmoBaseComponent* GizmoComponent = Cast<UGizmoBaseComponent>(Component);
+			if (GizmoComponent)
+			{
+				GizmoComponent->bUseEditorCompositing = true;
+			}
+		}
 		TransformGizmo->SetActiveTarget(TransformProxy);
 		TransformProxy->OnTransformChanged.AddUObject(this, &UFractureTransformGizmoSettings::TransformChanged);
 		ResetGizmo();
