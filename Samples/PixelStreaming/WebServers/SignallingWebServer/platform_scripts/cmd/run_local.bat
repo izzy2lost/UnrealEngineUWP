@@ -3,8 +3,6 @@
 
 pushd "%~dp0"
 
-call setup.bat
-
 title Cirrus
 
 pushd ..\..
