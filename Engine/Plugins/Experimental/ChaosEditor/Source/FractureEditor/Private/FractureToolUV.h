@@ -94,9 +94,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = Unwrap)
 	FVector ProjectionScale = FVector(100, 100, 100);
 
-	// TODO: Backport this feature
-	//UFUNCTION(CallInEditor, Category = Unwrap, meta = (DisplayName = "Box Project UVs"))
-	//void BoxProjectUVs();
+	UFUNCTION(CallInEditor, Category = Unwrap, meta = (DisplayName = "Box Project UVs"))
+	void BoxProjectUVs();
 
 	/** The pixel resolution of the generated map */
 	UPROPERTY(EditAnywhere, Category = MapSettings)

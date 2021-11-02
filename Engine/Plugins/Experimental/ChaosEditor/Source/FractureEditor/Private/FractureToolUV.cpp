@@ -57,12 +57,11 @@ void UFractureAutoUVSettings::ChangeNumUVChannels(int32 Delta)
 	}
 }
 
-// The underlying box project algo isn't backported yet
-//void UFractureAutoUVSettings::BoxProjectUVs()
-//{
-//	UFractureToolAutoUV* AutoUVTool = Cast<UFractureToolAutoUV>(OwnerTool.Get());
-//	AutoUVTool->BoxProjectUVs();
-//}
+void UFractureAutoUVSettings::BoxProjectUVs()
+{
+	UFractureToolAutoUV* AutoUVTool = Cast<UFractureToolAutoUV>(OwnerTool);
+	AutoUVTool->BoxProjectUVs();
+}
 
 void UFractureAutoUVSettings::LayoutUVs()
 {
@@ -171,27 +170,26 @@ void UFractureToolAutoUV::UpdateUVChannels(int32 TargetNumUVChannels)
 
 void UFractureToolAutoUV::BoxProjectUVs()
 {
-	// This feature isn't backported yet
-	//int32 UVLayer = AutoUVSettings->GetSelectedChannelIndex();
+	int32 UVLayer = AutoUVSettings->GetSelectedChannelIndex();
 
-	//TArray<int32> EmptyMaterialIDs;
-	//UE::PlanarCut::EUseMaterials UseMaterialIDs =
-	//	AutoUVSettings->TargetMaterialIDs == ETargetMaterialIDs::SelectedIDs ? UE::PlanarCut::EUseMaterials::NoDefaultMaterials :
-	//	(AutoUVSettings->TargetMaterialIDs == ETargetMaterialIDs::AllIDs ? UE::PlanarCut::EUseMaterials::AllMaterials : UE::PlanarCut::EUseMaterials::OddMaterials);
+	TArray<int32> EmptyMaterialIDs;
+	UE::PlanarCut::EUseMaterials UseMaterialIDs =
+		AutoUVSettings->TargetMaterialIDs == ETargetMaterialIDs::SelectedIDs ? UE::PlanarCut::EUseMaterials::NoDefaultMaterials :
+		(AutoUVSettings->TargetMaterialIDs == ETargetMaterialIDs::AllIDs ? UE::PlanarCut::EUseMaterials::AllMaterials : UE::PlanarCut::EUseMaterials::OddMaterials);
 
-	//TSet<UGeometryCollectionComponent*> GeomCompSelection;
-	//GetSelectedGeometryCollectionComponents(GeomCompSelection);
-	//for (UGeometryCollectionComponent* GeometryCollectionComponent : GeomCompSelection)
-	//{
-	//	UE::PlanarCut::BoxProjectUVs(UVLayer,
-	//		*GeometryCollectionComponent->GetRestCollection()->GetGeometryCollection(),
-	//		(FVector3d)AutoUVSettings->ProjectionScale,
-	//		UseMaterialIDs,
-	//		AutoUVSettings->TargetMaterialIDs == ETargetMaterialIDs::OddIDs ? EmptyMaterialIDs : AutoUVSettings->MaterialIDs);
+	TSet<UGeometryCollectionComponent*> GeomCompSelection;
+	GetSelectedGeometryCollectionComponents(GeomCompSelection);
+	for (UGeometryCollectionComponent* GeometryCollectionComponent : GeomCompSelection)
+	{
+		UE::PlanarCut::BoxProjectUVs(UVLayer,
+			*GeometryCollectionComponent->GetRestCollection()->GetGeometryCollection(),
+			(FVector3d)AutoUVSettings->ProjectionScale,
+			UseMaterialIDs,
+			AutoUVSettings->TargetMaterialIDs == ETargetMaterialIDs::OddIDs ? EmptyMaterialIDs : AutoUVSettings->MaterialIDs);
 
-	//	GeometryCollectionComponent->MarkRenderDynamicDataDirty();
-	//	GeometryCollectionComponent->MarkRenderStateDirty();
-	//}
+		GeometryCollectionComponent->MarkRenderDynamicDataDirty();
+		GeometryCollectionComponent->MarkRenderStateDirty();
+	}
 }
 
 void UFractureToolAutoUV::Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI)

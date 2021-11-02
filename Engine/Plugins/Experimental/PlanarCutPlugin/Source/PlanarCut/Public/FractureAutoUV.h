@@ -24,13 +24,13 @@ enum class EUseMaterials
  * @param MaterialsPattern	Which pattern of material IDs to automatically consider for UV island layout
  * @param WhichMaterials	If non-empty, consider listed material IDs for UV island layout
  */
-//bool PLANARCUT_API BoxProjectUVs(
-//	int32 TargetUVLayer,
-//	FGeometryCollection& Collection,
-//	const FVector3d& BoxDimensions,
-//	EUseMaterials MaterialsPattern = EUseMaterials::OddMaterials,
-//	TArrayView<int32> WhichMaterials = TArrayView<int32>()
-//);
+bool PLANARCUT_API BoxProjectUVs(
+	int32 TargetUVLayer,
+	FGeometryCollection& Collection,
+	const FVector3d& BoxDimensions,
+	EUseMaterials MaterialsPattern = EUseMaterials::OddMaterials,
+	TArrayView<int32> WhichMaterials = TArrayView<int32>()
+);
 
 /**
  * Make a UV atlas of non-overlapping UV charts for a geometry collection

@@ -304,7 +304,7 @@ struct FGeomFlatUVMesh
 	}
 };
 
-/*
+
 bool BoxProjectUVs(
 	int32 TargetUVLayer,
 	FGeometryCollection& Collection,
@@ -313,71 +313,67 @@ bool BoxProjectUVs(
 	TArrayView<int32> WhichMaterials
 )
 {
-	ensure(false);
-	return false;
-	// TODO: backport FDynamicMeshUVEditor's SetTriangleUVsFromBoxProjection to make this work
-	//TArray<int32> TransformIndices;
-	//for (int32 GeomIdx = 0; GeomIdx < Collection.TransformIndex.Num(); GeomIdx++)
-	//{
-	//	TransformIndices.Add(Collection.TransformIndex[GeomIdx]);
-	//}
-	//FDynamicMeshCollection CollectionMeshes(&Collection, TransformIndices, FTransform::Identity, false);
-	//TSet<int32> TargetMaterials;
-	//for (int32 MatID : WhichMaterials)
-	//{
-	//	TargetMaterials.Add(MatID);
-	//}
+	TArray<int32> TransformIndices;
+	for (int32 GeomIdx = 0; GeomIdx < Collection.TransformIndex.Num(); GeomIdx++)
+	{
+		TransformIndices.Add(Collection.TransformIndex[GeomIdx]);
+	}
+	FDynamicMeshCollection CollectionMeshes(&Collection, TransformIndices, FTransform::Identity, false);
+	TSet<int32> TargetMaterials;
+	for (int32 MatID : WhichMaterials)
+	{
+		TargetMaterials.Add(MatID);
+	}
 
-	//int32 NumUVLayers = Collection.NumUVLayers();
-	//if (TargetUVLayer >= NumUVLayers)
-	//{
-	//	return false;
-	//}
+	int32 NumUVLayers = Collection.NumUVLayers();
+	if (TargetUVLayer >= NumUVLayers)
+	{
+		return false;
+	}
 
-	//for (int MeshIdx = 0; MeshIdx < CollectionMeshes.Meshes.Num(); MeshIdx++)
-	//{
-	//	int32 TransformIdx = CollectionMeshes.Meshes[MeshIdx].TransformIndex;
-	//	FDynamicMesh3& Mesh = CollectionMeshes.Meshes[MeshIdx].AugMesh;
+	for (int MeshIdx = 0; MeshIdx < CollectionMeshes.Meshes.Num(); MeshIdx++)
+	{
+		int32 TransformIdx = CollectionMeshes.Meshes[MeshIdx].TransformIndex;
+		FDynamicMesh3& Mesh = CollectionMeshes.Meshes[MeshIdx].AugMesh;
 
-	//	FMeshNormals::InitializeOverlayToPerVertexNormals(Mesh.Attributes()->PrimaryNormals(), true);
-	//	AugmentedDynamicMesh::InitializeOverlayToPerVertexTangents(Mesh);
-	//	AugmentedDynamicMesh::InitializeOverlayToPerVertexUVs(Mesh, NumUVLayers, 0);
+		FMeshNormals::InitializeOverlayToPerVertexNormals(Mesh.Attributes()->PrimaryNormals(), true);
+		AugmentedDynamicMesh::InitializeOverlayToPerVertexTangents(Mesh);
+		AugmentedDynamicMesh::InitializeOverlayToPerVertexUVs(Mesh, NumUVLayers, 0);
 
-	//	// Apply coincident edge merge so that projection can re-determine the UV islands without having to keep existing seams
-	//	FMergeCoincidentMeshEdges EdgeWelder(&Mesh);
-	//	EdgeWelder.Apply();
+		// Apply coincident edge merge so that projection can re-determine the UV islands without having to keep existing seams
+		FMergeCoincidentMeshEdges EdgeWelder(&Mesh);
+		EdgeWelder.Apply();
 
-	//	TArray<int32> TargetTris;
-	//	for (int TID : Mesh.TriangleIndicesItr())
-	//	{
-	//		bool bIsTextureTri = IsTriActive(
-	//			AugmentedDynamicMesh::GetVisibility(Mesh, TID),
-	//			Mesh.Attributes()->GetMaterialID()->GetValue(TID), TargetMaterials, true, MaterialsPattern);
-	//		if (bIsTextureTri)
-	//		{
-	//			TargetTris.Add(TID);
-	//		}
-	//	}
-	//	if (TargetTris.Num() == 0)
-	//	{
-	//		continue;
-	//	}
+		TArray<int32> TargetTris;
+		for (int TID : Mesh.TriangleIndicesItr())
+		{
+			bool bIsTextureTri = IsTriActive(
+				AugmentedDynamicMesh::GetVisibility(Mesh, TID),
+				Mesh.Attributes()->GetMaterialID()->GetValue(TID), TargetMaterials, true, MaterialsPattern);
+			if (bIsTextureTri)
+			{
+				TargetTris.Add(TID);
+			}
+		}
+		if (TargetTris.Num() == 0)
+		{
+			continue;
+		}
 
-	//	FDynamicMeshUVEditor UVEd(&Mesh, TargetUVLayer, false);
-	//	FFrame3d BoxFrame; // defaults to origin / no rotation
-	//	UVEd.SetTriangleUVsFromBoxProjection(TargetTris, [](const FVector3d& Pos) { return Pos; }, BoxFrame, BoxDimensions);
+		FDynamicMeshUVEditor UVEd(&Mesh, TargetUVLayer, false);
+		FFrame3d BoxFrame; // defaults to origin / no rotation
+		UVEd.SetTriangleUVsFromBoxProjection(TargetTris, [](const FVector3d& Pos) { return Pos; }, BoxFrame, BoxDimensions);
 
-	//	Mesh.CompactInPlace();
+		Mesh.CompactInPlace();
 
-	//	// Re-split vertices with different UVs/normals/tangents and transfer attributes back (required because we weld edges above)
-	//	AugmentedDynamicMesh::SplitOverlayAttributesToPerVertex(Mesh, true, true);
-	//}
+		// Re-split vertices with different UVs/normals/tangents and transfer attributes back (required because we weld edges above)
+		AugmentedDynamicMesh::SplitOverlayAttributesToPerVertex(Mesh, true, true);
+	}
 
-	//CollectionMeshes.UpdateAllCollections(Collection);
+	CollectionMeshes.UpdateAllCollections(Collection);
 
-	//return true;
+	return true;
 }
-*/
 
 
 bool UVLayout(

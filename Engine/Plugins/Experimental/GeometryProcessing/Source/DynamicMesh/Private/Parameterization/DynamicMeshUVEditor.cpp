@@ -11,6 +11,12 @@
 #include "Parameterization/MeshDijkstra.h"
 #include "Parameterization/MeshLocalParam.h"
 #include "Solvers/MeshParameterizationSolvers.h"
+#include "Parameterization/MeshRegionGraph.h"
+
+#include "Selections/MeshConnectedComponents.h"
+
+
+#include "Async/ParallelFor.h"
 
 
 FDynamicMeshUVEditor::FDynamicMeshUVEditor(FDynamicMesh3* MeshIn, int32 UVLayerIndex, bool bCreateIfMissing)
@@ -45,6 +51,22 @@ void FDynamicMeshUVEditor::CreateUVLayer(int32 LayerIndex)
 	}
 }
 
+
+void FDynamicMeshUVEditor::ResetUVs()
+{
+	if (ensure(UVOverlay))
+	{
+		UVOverlay->ClearElements();
+	}
+}
+
+void FDynamicMeshUVEditor::ResetUVs(const TArray<int32>& Triangles)
+{
+	if (ensure(UVOverlay))
+	{
+		UVOverlay->ClearElements(Triangles);
+	}
+}
 
 
 template<typename EnumerableType>
@@ -550,3 +572,146 @@ bool FDynamicMeshUVEditor::CreateSeamAlongVertexPath(const TArray<int32>& Vertex
 
 	return true;
 }
+
+
+
+void FDynamicMeshUVEditor::SetTriangleUVsFromBoxProjection(
+	const TArray<int32>& Triangles,
+	TFunctionRef<FVector3d(const FVector3d&)> PointTransform,
+	const FFrame3d& BoxFrame,
+	const FVector3d& BoxDimensions,
+	int32 MinIslandTriCount,
+	FUVEditResult* Result)
+{
+	if (ensure(UVOverlay) == false) return;
+	int32 NumTriangles = Triangles.Num();
+	if (!NumTriangles) return;
+
+	ResetUVs(Triangles);
+
+	const int Minor1s[3] = { 1, 0, 0 };
+	const int Minor2s[3] = { 2, 2, 1 };
+	const int Minor1Flip[3] = { -1, 1, 1 };
+	const int Minor2Flip[3] = { -1, -1, 1 };
+
+	auto GetTriNormal = [this, &PointTransform](int32 tid) -> FVector3d
+	{
+		FVector3d A, B, C;
+		Mesh->GetTriVertices(tid, A, B, C);
+		return VectorUtil::Normal(PointTransform(A), PointTransform(B), PointTransform(C));
+	};
+
+	double ScaleX = (FMathd::Abs(BoxDimensions.X) > FMathf::ZeroTolerance) ? (1.0 / BoxDimensions.X) : 1.0;
+	double ScaleY = (FMathd::Abs(BoxDimensions.Y) > FMathf::ZeroTolerance) ? (1.0 / BoxDimensions.Y) : 1.0;
+	double ScaleZ = (FMathd::Abs(BoxDimensions.Z) > FMathf::ZeroTolerance) ? (1.0 / BoxDimensions.Z) : 1.0;
+	FVector3d Scale(ScaleX, ScaleY, ScaleZ);
+
+	// compute assignments to the available planes based on face normals
+	TArray<FVector3d> TriNormals;
+	TArray<FIndex2i> TriangleBoxPlaneAssignments;
+	TriNormals.SetNum(NumTriangles);
+	TriangleBoxPlaneAssignments.SetNum(NumTriangles);
+	TArray<int32> IndexMap;
+	IndexMap.SetNum(Mesh->MaxTriangleID());
+	ParallelFor(NumTriangles, [&](int32 i)
+		{
+			int32 tid = Triangles[i];
+			TriNormals[i] = GetTriNormal(tid);
+			FVector3d ScaledNormal = BoxFrame.ToFrameVector(TriNormals[i]);
+			ScaledNormal = ScaledNormal * Scale;
+			FVector3d NAbs(FMathd::Abs(ScaledNormal.X), FMathd::Abs(ScaledNormal.Y), FMathd::Abs(ScaledNormal.Z));
+			int MajorAxis = NAbs[0] > NAbs[1] ? (NAbs[0] > NAbs[2] ? 0 : 2) : (NAbs[1] > NAbs[2] ? 1 : 2);
+			double MajorAxisSign = FMathd::Sign(ScaledNormal[MajorAxis]);
+			int Bucket = (MajorAxisSign > 0) ? (MajorAxis + 3) : MajorAxis;
+			TriangleBoxPlaneAssignments[i] = FIndex2i(MajorAxis, Bucket);
+			IndexMap[tid] = i;
+		});
+
+
+	// Optimize face assignments. Small regions are grouped with larger neighbour regions.
+	if (MinIslandTriCount > 1)
+	{
+		FMeshConnectedComponents Components(Mesh);
+		Components.FindConnectedTriangles(Triangles, [&](int32 t1, int32 t2) { return TriangleBoxPlaneAssignments[IndexMap[t1]] == TriangleBoxPlaneAssignments[IndexMap[t2]]; });
+		FMeshRegionGraph RegionGraph;
+		RegionGraph.BuildFromComponents(*Mesh, Components, [&](int32 ComponentIdx) { int32 tid = Components.GetComponent(ComponentIdx).Indices[0]; return TriangleBoxPlaneAssignments[IndexMap[tid]].A; });
+		// todo: similarity measure should probably take normals into account
+		bool bMerged = RegionGraph.MergeSmallRegions(MinIslandTriCount - 1,
+			[&](int32 A, int32 B) { return RegionGraph.GetRegionTriCount(A) > RegionGraph.GetRegionTriCount(B); });
+		bool bSwapped = RegionGraph.OptimizeBorders();
+		if (bMerged || bSwapped)
+		{
+			int32 N = RegionGraph.MaxRegionIndex();
+			for (int32 k = 0; k < N; ++k)
+			{
+				if (RegionGraph.IsRegion(k))
+				{
+					int32 MajorAxis = RegionGraph.GetExternalID(k);
+					const TArray<int32>& Tris = RegionGraph.GetRegionTris(k);
+					for (int32 tid : Tris)
+					{
+						int32 i = IndexMap[tid];
+						FVector3d ScaledNormal = BoxFrame.ToFrameVector(TriNormals[i]) * Scale;
+						double MajorAxisSign = FMathd::Sign(ScaledNormal[MajorAxis]);
+						int Bucket = (MajorAxisSign > 0) ? (MajorAxis + 3) : MajorAxis;
+						TriangleBoxPlaneAssignments[i] = FIndex2i(MajorAxis, Bucket);
+					}
+				}
+			}
+		}
+	}
+
+
+	auto ProjAxis = [](const FVector3d& P, int Axis1, int Axis2, float Axis1Scale, float Axis2Scale)
+	{
+		return FVector2f(float(P[Axis1]) * Axis1Scale, float(P[Axis2]) * Axis2Scale);
+	};
+
+	TMap<FIndex2i, int32> BaseToOverlayVIDMap;
+	TArray<int32> NewUVIndices;
+
+	for (int32 i = 0; i < NumTriangles; ++i)
+	{
+		int32 tid = Triangles[i];
+		FIndex3i BaseTri = Mesh->GetTriangle(tid);
+		FIndex2i TriBoxInfo = TriangleBoxPlaneAssignments[i];
+		FVector3d N = BoxFrame.ToFrameVector(TriNormals[i]);
+
+		int MajorAxis = TriBoxInfo.A;
+		int Bucket = TriBoxInfo.B;
+		double MajorAxisSign = FMathd::Sign(N[MajorAxis]);
+		int Minor1 = Minor1s[MajorAxis];
+		int Minor2 = Minor2s[MajorAxis];
+
+		FIndex3i ElemTri;
+		for (int32 j = 0; j < 3; ++j)
+		{
+			FIndex2i ElementKey(BaseTri[j], Bucket);
+			const int32* FoundElementID = BaseToOverlayVIDMap.Find(ElementKey);
+			if (FoundElementID == nullptr)
+			{
+				FVector3d Pos = Mesh->GetVertex(BaseTri[j]);
+				FVector3d TransformPos = PointTransform(Pos);
+				FVector3d BoxPos = BoxFrame.ToFramePoint(TransformPos);
+				BoxPos = BoxPos * Scale;
+
+				FVector2f UV = ProjAxis(BoxPos, Minor1, Minor2, MajorAxisSign * Minor1Flip[MajorAxis], Minor2Flip[MajorAxis]);
+
+				ElemTri[j] = UVOverlay->AppendElement(UV);
+				NewUVIndices.Add(ElemTri[j]);
+				BaseToOverlayVIDMap.Add(ElementKey, ElemTri[j]);
+			}
+			else
+			{
+				ElemTri[j] = *FoundElementID;
+			}
+		}
+		UVOverlay->SetTriangle(tid, ElemTri);
+	}
+
+	if (Result != nullptr)
+	{
+		Result->NewUVElements = MoveTemp(NewUVIndices);
+	}
+}
+

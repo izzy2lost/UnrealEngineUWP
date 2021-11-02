@@ -44,6 +44,16 @@ public:
 	void CreateUVLayer(int32 UVLayerIndex);
 
 	/**
+	 * Clear UVs for all triangles on active layer
+	 */
+	void ResetUVs();
+
+	/**
+	 * Clear UVs for given triangles on active layer
+	 */
+	void ResetUVs(const TArray<int32>& Triangles);
+
+	/**
 	 * Create new UV island for each Triangle, by planar projection onto plane of Triangle. No transforms/etc are applied.
 	 */
 	void SetPerTriangleUVs(const TArray<int32>& Triangles, double ScaleFactor = 1.0, FUVEditResult* Result = nullptr);
@@ -88,4 +98,13 @@ public:
 	 * @return true on success
 	 */
 	bool CreateSeamAlongVertexPath(const TArray<int32>& VertexPath, FUVEditResult* Result = nullptr);
+
+	/**
+	 * Set UVs by box projection. Triangles will be grouped to "best" box face
+	 * PointTransform is applied to points before projectiong onto ProjectionFrame X/Y axes
+	 * Projected U/V coordinates are divided by Dimensions.X/Y
+	 * @param MinIslandTriCount Any UV island with fewer triangles than this count will be merged into a neighbouring island
+	 */
+	void SetTriangleUVsFromBoxProjection(const TArray<int32>& Triangles, TFunctionRef<FVector3d(const FVector3d&)> PointTransform, const FFrame3d& BoxFrame, const FVector3d& BoxDimensions, int32 MinIslandTriCount = 2, FUVEditResult* Result = nullptr);
+
 };
