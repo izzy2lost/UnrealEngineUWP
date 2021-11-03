@@ -166,6 +166,7 @@ namespace Chaos
 		, GJKWarmStartData()
 		, PrevManifoldPoints()
 		, bWasManifoldRestored(false)
+		, NumActivePositionIterations(0)
 	{
 		Manifold.Implicit[0] = nullptr;
 		Manifold.Implicit[1] = nullptr;
