@@ -542,6 +542,6 @@ void FIslandGraph<NodeType, EdgeType, IslandType>::ResetIslands()
 	}
 }
 
-template class FIslandGraph<FGeometryParticleHandle*, FConstraintHandle*, FPBDIslandSolver*>;
+template class FIslandGraph<FGeometryParticleHandle*, FConstraintHandleHolder, FPBDIslandSolver*>;
 template class FIslandGraph<int32, int32, int32>;
 }

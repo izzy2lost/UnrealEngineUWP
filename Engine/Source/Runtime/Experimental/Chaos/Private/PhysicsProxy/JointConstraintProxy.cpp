@@ -101,6 +101,8 @@ void FJointConstraintPhysicsProxy::DestroyOnPhysicsThread(Chaos::FPBDRigidsSolve
 {
 	if (Handle && Handle->IsValid())
 	{
+		// @todo(chaos): clean up constraint management
+		InSolver->GetEvolution()->RemoveConstraintFromConstraintGraph(Handle);
 		auto& JointConstraints = InSolver->GetJointConstraints();
 		JointConstraints.RemoveConstraint(Handle->GetConstraintIndex());
 
