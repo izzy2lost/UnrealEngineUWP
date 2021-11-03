@@ -265,6 +265,15 @@ namespace Chaos
 		}
 
 		/**
+		 * @brief Called at the start of the frame to clear the frame's active collision list.
+		 * @todo(chaos): This is only required because of the way events work (see AdvanceOneTimeStepTask::DoWork)
+		*/
+		void BeginFrame()
+		{
+			Constraints.Reset();
+		}
+
+		/**
 		 * @brief Called at the start of the tick to prepare for collision detection.
 		 * Resets the list of active contacts.
 		*/

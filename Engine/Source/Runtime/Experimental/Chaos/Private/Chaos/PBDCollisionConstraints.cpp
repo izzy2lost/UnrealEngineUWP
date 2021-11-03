@@ -256,6 +256,11 @@ namespace Chaos
 	{
 	}
 
+	void FPBDCollisionConstraints::BeginFrame()
+	{
+		ConstraintAllocator.BeginFrame();
+	}
+
 	void FPBDCollisionConstraints::Reset()
 	{
 		SCOPE_CYCLE_COUNTER(STAT_Collisions_Reset);

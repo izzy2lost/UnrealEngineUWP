@@ -90,6 +90,12 @@ public:
 	}
 
 	/**
+	 *  Clears the list of active constraints.
+	 * @todo(chaos): This is only required because of the way events work (see AdvanceOneTimeStepTask::DoWork)
+	*/
+	void BeginFrame();
+
+	/**
 	*  Reset the constraint frame. 
 	*/
 	void Reset();

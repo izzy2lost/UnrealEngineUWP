@@ -287,6 +287,10 @@ namespace Chaos
 			{
 				SCOPE_CYCLE_COUNTER(STAT_EvolutionAndKinematicUpdate);
 
+				// clear out the collision constraints as they will be stale from last frame if AdvanceOneTimeStep never gets called due to TimeRemaining being less than MinDeltaTime 
+				// @todo(chaos): maybe we can pull data at a better time instead to avoid collision-specific code here for event dispatch
+				MSolver->GetEvolution()->GetCollisionConstraints().BeginFrame();
+
 				// This outer loop can potentially cause the system to lose energy over integration
 				// in a couple of different cases.
 				//
