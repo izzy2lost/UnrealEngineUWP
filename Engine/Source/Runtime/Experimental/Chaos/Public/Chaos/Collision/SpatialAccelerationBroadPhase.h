@@ -239,6 +239,7 @@ namespace Chaos
 
 				SCOPE_CYCLE_COUNTER(STAT_Collisions_Filtering);
 				const int32 NumPotentials = PotentialIntersections.Num();
+				int32 NumIntoNarrowPhase = 0;
 				for (int32 i = 0; i < NumPotentials; ++i)
 				{
 					auto& Particle2 = *PotentialIntersections[i].GetGeometryParticleHandle_PhysicsThread();
@@ -363,35 +364,62 @@ namespace Chaos
 						continue;
 					}
 
-					// Try to restore all the contacts for this pair. This will only succeed if they have not moved (within some threshold)
+					// Constraints have a key generated from the Particle IDs and we don't want to have to deal with constraint being created in the two orders.
+					// Since particles can change type (between Kinematic and Dynamic) we may visit them in different orders at different times. 
+					// That would break Resim and constraint re-use.
+					TGeometryParticleHandle<FReal, 3>* ParticleA = Particle1.Handle();
+					TGeometryParticleHandle<FReal, 3>* ParticleB = Particle2.Handle();
+					if (!bIsParticle1Preferred)
 					{
-						SCOPE_CYCLE_COUNTER(STAT_Collisions_Restore);
-						if (NarrowPhase.TryRestoreCollisions(Dt, Particle1.Handle(), Particle2.Handle()))
-						{
-							continue;
-						}
+						Swap(ParticleA, ParticleB);
 					}
-					
-					// If we get here, we need to run the narrow phase to possibly generate new contacts, or refresh existing ones
+
+					bool bDidRunNarrowPhase = RunNarrowPhaseOrRestore(Dt, ParticleA, ParticleB, NarrowPhase);
+
+					if (bDidRunNarrowPhase)
 					{
-						SCOPE_CYCLE_COUNTER(STAT_Collisions_GenerateCollisions);
-
-						// We move the bodies during contact resolution and it may be in any direction
-						// NOTE: We use 0 BoundsThickness here - it is already accounted for in CullDistance
-						const FReal CullDistance1 = ComputeBoundsThickness(Particle1, Dt, FReal(0), BoundsThicknessVelocityInflation).Size();
-						FReal CullDistance2 = 0.0f;
-						if (FKinematicGeometryParticleHandle* KinematicParticle2 = Particle2.CastToKinematicParticle())
-						{
-							CullDistance2 = ComputeBoundsThickness(*KinematicParticle2, Dt, FReal(0), BoundsThicknessVelocityInflation).Size();
-						}
-						const FReal NetCullDistance = CullDistance + CullDistance1 + CullDistance2;
-
-						// Generate constraints for the potentially overlapping shape pairs. Also run collision detection to generate
-						// the contact position and normal (for contacts within CullDistance) for use in collision callbacks.
-						NarrowPhase.GenerateCollisions(Dt, Particle1.Handle(), Particle2.Handle(), NetCullDistance);
+						++NumIntoNarrowPhase;
 					}
 				}
+
 			}
+		}
+
+		bool RunNarrowPhaseOrRestore(
+			const FReal Dt, 
+			TGeometryParticleHandle<FReal, 3>* Particle1,
+			TGeometryParticleHandle<FReal, 3>* Particle2,
+			FNarrowPhase& NarrowPhase)
+		{
+			// Try to restore all the contacts for this pair. This will only succeed if they have not moved (within some threshold)
+			{
+				SCOPE_CYCLE_COUNTER(STAT_Collisions_Restore);
+				if (NarrowPhase.TryRestoreCollisions(Dt, Particle1, Particle2))
+				{
+					return false;
+				}
+			}
+
+			// If we get here, we need to run the narrow phase to possibly generate new contacts, or refresh existing ones
+			{
+				SCOPE_CYCLE_COUNTER(STAT_Collisions_GenerateCollisions);
+
+				// We move the bodies during contact resolution and it may be in any direction
+				// NOTE: We use 0 BoundsThickness here - it is already accounted for in CullDistance
+				const FReal CullDistance1 = ComputeBoundsThickness(*Particle1, Dt, FReal(0), BoundsThicknessVelocityInflation).Size();
+				FReal CullDistance2 = 0.0f;
+				if (FKinematicGeometryParticleHandle* KinematicParticle2 = Particle2->CastToKinematicParticle())
+				{
+					CullDistance2 = ComputeBoundsThickness(*KinematicParticle2, Dt, FReal(0), BoundsThicknessVelocityInflation).Size();
+				}
+				const FReal NetCullDistance = CullDistance + CullDistance1 + CullDistance2;
+
+				// Generate constraints for the potentially overlapping shape pairs. Also run collision detection to generate
+				// the contact position and normal (for contacts within CullDistance) for use in collision callbacks.
+				NarrowPhase.GenerateCollisions(Dt, Particle1, Particle2, NetCullDistance);
+			}
+
+			return true;
 		}
 
 		const FPBDRigidsSOAs& Particles;
