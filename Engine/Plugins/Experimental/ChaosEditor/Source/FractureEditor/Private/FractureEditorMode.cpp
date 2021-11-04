@@ -80,7 +80,7 @@ void FFractureEditorMode::Enter()
 	FCoreUObjectDelegates::OnPackageReloaded.AddSP(this, &FFractureEditorMode::HandlePackageReloaded);
 	
 	// initialize the adapter that attaches the ToolsContext to this FEdMode
-	ToolsContext = NewObject<UEdModeInteractiveToolsContext>(GetTransientPackage(), TEXT("ToolsContext"), RF_Transient);
+	ToolsContext = NewObject<UEdModeInteractiveToolsContext>();
 	ToolsContext->InitializeContextFromEdMode(this);
 	
 	// Get initial geometry component selection from currently selected actors when we enter the mode
