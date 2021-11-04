@@ -1086,6 +1086,11 @@ void ULevel::IncrementalUpdateComponents(int32 NumComponentsToUpdate, bool bReru
 	int32 PreviousIndex = CurrentActorIndexForUpdateComponents;
 	// Find next valid actor to process components registration
 
+	if (OwningWorld)
+	{
+		OwningWorld->SetAllowDeferredPhysicsStateCreation(true);
+	}
+
 	while (CurrentActorIndexForUpdateComponents < Actors.Num())
 	{
 		AActor* Actor = Actors[CurrentActorIndexForUpdateComponents];
@@ -1165,6 +1170,11 @@ void ULevel::IncrementalUpdateComponents(int32 NumComponentsToUpdate, bool bReru
 	{
 		// The editor is never allowed to incrementally updated components.  Make sure to pass in a value of zero for NumActorsToUpdate.
 		check(OwningWorld->IsGameWorld());
+	}
+
+	if (OwningWorld)
+	{
+		OwningWorld->SetAllowDeferredPhysicsStateCreation(false);
 	}
 
 	{

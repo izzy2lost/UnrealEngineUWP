@@ -1520,8 +1520,7 @@ float FPhysScene_Chaos::OnStartFrame(float InDeltaTime)
 		UseDeltaTime = 0.0f;
 	}
 #endif
-
-	ProcessDeferredCreatePhysicsState();
+	ensure(DeferredCreatePhysicsStateComponents.Num() == 0);
 
 	// CVar determines if this happens before or after phys replication.
 	if (GEnableKinematicDeferralStartPhysicsCondition == 0)
