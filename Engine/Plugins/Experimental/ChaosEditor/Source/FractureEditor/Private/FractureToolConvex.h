@@ -16,13 +16,17 @@ public:
 
 	GENERATED_BODY()
 
-		UFractureConvexSettings(const FObjectInitializer& ObjInit)
+	UFractureConvexSettings(const FObjectInitializer& ObjInit)
 		: Super(ObjInit)
 	{}
 
 	/** Fraction of the convex hulls for a transform that we can remove before instead using the hulls of the children */
 	UPROPERTY(EditAnywhere, Category = MapSettings, meta = (ClampMin = ".01", ClampMax = "1"))
-		double FractionAllowRemove = .5;
+	double FractionAllowRemove = .5;
+
+	/** We simplify the convex shape to keep points spaced at least this far apart (except to keep the hull from collapsing to zero volume) */
+	UPROPERTY(EditAnywhere, Category = MapSettings, meta = (ClampMin = "0"))
+	double SimplificationDistanceThreshold = 0;
 };
 
 
@@ -32,7 +36,7 @@ class UFractureToolConvex : public UFractureModalTool
 public:
 	GENERATED_BODY()
 
-		UFractureToolConvex(const FObjectInitializer& ObjInit);
+	UFractureToolConvex(const FObjectInitializer& ObjInit);
 
 	///
 	/// UFractureModalTool Interface
