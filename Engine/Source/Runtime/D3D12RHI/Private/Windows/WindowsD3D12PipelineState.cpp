@@ -8,7 +8,10 @@
 #include "D3D12RHIPrivate.h"
 #include "Misc/ScopeRWLock.h"
 #include "Stats/StatsMisc.h"
+
+#if !PLATFORM_UWP
 #include "nvapi.h"
+#endif
 
 // UE-65533
 // Using asynchronous PSO creation to preload the PSO cache significantly speeds up startup.

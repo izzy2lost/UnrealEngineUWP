@@ -3,9 +3,16 @@
 #pragma once
 
 #include "AudioMixer.h"
+
+#if PLATFORM_UWP
+#include "UWP/AllowWindowsPlatformTypes.h"
+#include <xaudio2.h>
+#include "UWP/HideWindowsPlatformTypes.h"
+#else
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include <xaudio2.h>
 #include "Windows/HideWindowsPlatformTypes.h"
+#endif
 
 // Any platform defines
 namespace Audio

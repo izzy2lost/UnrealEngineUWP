@@ -9,6 +9,7 @@ using System.Linq;
 using System.Xml;
 using System.Globalization;
 using Tools.DotNETCommon;
+using System.Threading;
 
 namespace UnrealBuildTool
 {

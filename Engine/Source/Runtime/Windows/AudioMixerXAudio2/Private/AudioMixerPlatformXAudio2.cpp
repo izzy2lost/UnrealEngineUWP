@@ -53,7 +53,9 @@
 
 namespace Audio
 {
-#if PLATFORM_HOLOLENS
+// @UWP_CHANGE: BEGIN UWP support
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
+// @UWP_CHANGE: END
 	static Windows::Devices::Enumeration::DeviceInformationCollection^ AllAudioDevices = nullptr;
 #endif
 
@@ -112,7 +114,9 @@ namespace Audio
 			case HRESULT(XAUDIO2_E_XMA_DECODER_ERROR):		return TEXT("XAUDIO2_E_XMA_DECODER_ERROR");
 			case HRESULT(XAUDIO2_E_XAPO_CREATION_FAILED):	return TEXT("XAUDIO2_E_XAPO_CREATION_FAILED");
 			case HRESULT(XAUDIO2_E_DEVICE_INVALIDATED):		return TEXT("XAUDIO2_E_DEVICE_INVALIDATED");
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 			case REGDB_E_CLASSNOTREG:						return TEXT("REGDB_E_CLASSNOTREG");
 			case CLASS_E_NOAGGREGATION:						return TEXT("CLASS_E_NOAGGREGATION");
 			case E_NOINTERFACE:								return TEXT("E_NOINTERFACE");
@@ -174,9 +178,13 @@ namespace Audio
 
 		}
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+// @UWP_CHANGE: BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+// @UWP_CHANGE: END
 		bIsComInitialized = FPlatformMisc::CoInitialize();
-#if PLATFORM_64BITS && !PLATFORM_HOLOLENS
+// @UWP_CHANGE: BEGIN UWP support
+#if PLATFORM_64BITS && !PLATFORM_HOLOLENS && !PLATFORM_UWP
+// @UWP_CHANGE: END
 		// Work around the fact the x64 version of XAudio2_7.dll does not properly ref count
 		// by forcing it to be always loaded
 
@@ -223,6 +231,23 @@ namespace Audio
 		}
 #endif
 
+// @ATG_CHANGE: BEGIN UWP support
+#if PLATFORM_UWP
+		using namespace Windows::Foundation;
+		using namespace Windows::Devices::Enumeration;
+		IAsyncOperation<DeviceInformationCollection^>^ EnumerationOp = DeviceInformation::FindAllAsync(DeviceClass::AudioRender);
+		while (EnumerationOp->Status == AsyncStatus::Started)
+		{
+			// Spin
+		}
+
+		if (EnumerationOp->Status == AsyncStatus::Completed)
+		{
+			AllAudioDevices = EnumerationOp->GetResults();
+		}
+#endif
+// @ATG_CHANGE: END
+
 #if WITH_XMA2
 		//Initialize our XMA2 decoder context
 		FXMAAudioInfo::Initialize();
@@ -251,9 +276,11 @@ namespace Audio
 		FXMAAudioInfo::Shutdown();
 #endif
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+		// @UWP_CHANGE : BEGIN
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
 
-#if PLATFORM_64BITS && !PLATFORM_HOLOLENS
+#if PLATFORM_64BITS && !PLATFORM_HOLOLENS && !PLATFORM_UWP
+		// @UWP_CHANGE : END
 		if (XAudio2Dll != nullptr && IsEngineExitRequested())
 		{
 			if (!FreeLibrary(XAudio2Dll))
@@ -293,7 +320,9 @@ namespace Audio
 
 		// XAudio2 for HoloLens doesn't have GetDeviceCount, use Windows::Devices::Enumeration instead
 		// See https://blogs.msdn.microsoft.com/chuckw/2012/04/02/xaudio2-and-windows-8/
-#if PLATFORM_HOLOLENS
+// @UWP_CHANGE : BEGIN
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
+// @UWP_CHANGE : END
 		if (!AllAudioDevices)
 		{
 			return false;
@@ -319,7 +348,9 @@ namespace Audio
 
 		// XAudio2 for HoloLens doesn't have GetDeviceDetails, use Windows::Devices::Enumeration instead
 		// See https://blogs.msdn.microsoft.com/chuckw/2012/04/02/xaudio2-and-windows-8/
-#if PLATFORM_HOLOLENS
+// @UWP_CHANGE : BEGIN
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
+// @UWP_CHANGE : END
 		if (!AllAudioDevices)
 		{
 			return false;
@@ -380,7 +411,9 @@ namespace Audio
 		// Get the wave format to parse there rest of the device details
 		const WAVEFORMATEX& WaveFormatEx = DeviceDetails.OutputFormat.Format;
 #endif
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+		// @UWP_CHANGE : BEGIN
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+		// @UWP_CHANGE : END
 		OutInfo.SampleRate = WaveFormatEx.nSamplesPerSec;
 
 		OutInfo.NumChannels = FMath::Clamp((int32)WaveFormatEx.nChannels, 2, 8);
@@ -540,7 +573,9 @@ namespace Audio
 
 		OpenStreamParams = Params;
 
-#if !PLATFORM_HOLOLENS
+		// @UWP_CHANGE : BEGIN UWP support
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
+		// @UWP_CHANGE : END
 		// On windows, default device index is 0
 		if (Params.OutputDeviceIndex == AUDIO_MIXER_DEFAULT_DEVICE_INDEX)
 		{
@@ -559,7 +594,9 @@ namespace Audio
 
 		if (GetNumOutputDevices(NumOutputDevices) && NumOutputDevices > 0)
 		{
-#if PLATFORM_HOLOLENS
+			// @UWP_CHANGE : BEGIN UWP support
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
+			// @UWP_CHANGE : END
 			// On windows, default device index is 0
 			// But if that device cannot be configured try to find one that can be.  This happens in the hololens emulator.
 			if (AudioStreamInfo.OutputDeviceIndex == AUDIO_MIXER_DEFAULT_DEVICE_INDEX)
@@ -605,7 +642,9 @@ namespace Audio
 			Result = XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, AudioStreamInfo.OutputDeviceIndex, nullptr);
 #elif PLATFORM_XBOXONE
 			Result = XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, nullptr, nullptr);
-#elif PLATFORM_HOLOLENS
+// @UWP_CHANGE : BEGIN
+#elif PLATFORM_HOLOLENS || PLATFORM_UWP
+// @UWP_CHANGE : END
 		// XAudio2 for HoloLens has different parameters to CreateMasteringVoice
 		// See https://blogs.msdn.microsoft.com/chuckw/2012/04/02/xaudio2-and-windows-8/
 		Result = XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, AllAudioDevices->GetAt(AudioStreamInfo.OutputDeviceIndex)->Id->Data(), nullptr);
@@ -764,7 +803,9 @@ namespace Audio
 
 	bool FMixerPlatformXAudio2::MoveAudioStreamToNewAudioDevice(const FString& InNewDeviceId)
 	{
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 
 		uint32 NumDevices = 0;
 		// XAudio2 for HoloLens doesn't have GetDeviceCount, use local wrapper instead
@@ -861,7 +902,9 @@ namespace Audio
 			// Create a new master voice
 			// XAudio2 for HoloLens has different parameters to CreateMasteringVoice
 			// See https://blogs.msdn.microsoft.com/chuckw/2012/04/02/xaudio2-and-windows-8/
-#if PLATFORM_HOLOLENS
+// @UWP_CHANGE : BEGIN
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
+// @UWP_CHANGE : END
 			XAUDIO2_RETURN_ON_FAIL(XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, AllAudioDevices->GetAt(AudioStreamInfo.OutputDeviceIndex)->Id->Data(), nullptr));
 #else
 			XAUDIO2_RETURN_ON_FAIL(XAudio2System->CreateMasteringVoice(&OutputAudioStreamMasteringVoice, AudioStreamInfo.DeviceInfo.NumChannels, AudioStreamInfo.DeviceInfo.SampleRate, 0, AudioStreamInfo.OutputDeviceIndex, nullptr));
@@ -1048,7 +1091,9 @@ namespace Audio
 
 	bool FMixerPlatformXAudio2::DisablePCMAudioCaching() const
 	{
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 		return false;
 #else
 		return true;

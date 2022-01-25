@@ -1,0 +1,2 @@
+OpenSSL 1.0.2 built from this repository:
+https://github.com/microsoft/openssl/tree/OpenSSL_1_0_2_WinRT-stable

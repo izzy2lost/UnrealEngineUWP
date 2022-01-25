@@ -62,7 +62,9 @@ FD3D12CommandListHandle::FD3D12CommandListData::FD3D12CommandListData(FD3D12Devi
 	VERIFYD3D12RESULT(ParentDevice->GetDevice()->CreateCommandList(GetGPUMask().GetNative(), CommandListType, CommandAllocator, nullptr, IID_PPV_ARGS(CommandList.GetInitReference())));
 	INC_DWORD_STAT(STAT_D3D12NumCommandLists);
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 	// Optionally obtain the ID3D12GraphicsCommandList1 interface, we don't check the HRESULT.
 	CommandList->QueryInterface(IID_PPV_ARGS(CommandList1.GetInitReference()));
 #endif

@@ -13,7 +13,7 @@
 
 #include "AgMMFile.h"
 // @ATG_CHANGE : BEGIN HoloLens support (for PX_ARRAY_SIZE)
-#if PX_HOLOLENS
+#if PX_HOLOLENS || PX_UWP
 #include "PsUtilities.h"
 #endif
 // @ATG_CHANGE : END
@@ -35,7 +35,7 @@ void AgMMFile::create(char *name, unsigned int size, bool &alreadyExists)
 	mSize = size;
 
 // @ATG_CHANGE : BEGIN HoloLens support (non-wide variant removed from API set)
-#if PX_HOLOLENS
+#if PX_HOLOLENS || PX_UWP
 	wchar_t wideName[MAX_PATH];
 	MultiByteToWideChar(CP_ACP, 0, name, -1, wideName, PX_ARRAY_SIZE(wideName));
 	mFileH = CreateFileMapping(INVALID_HANDLE_VALUE,	// use paging file

@@ -3,7 +3,7 @@
 
 #include "CoreTypes.h"
 
-#if PLATFORM_HOLOLENS
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
 
 #include "HttpIXMLSupport.h"
 #include "Interfaces/IHttpResponse.h"

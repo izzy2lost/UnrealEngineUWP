@@ -20,7 +20,7 @@ using UnrealBuildTool;
 [Help("SkipCreateChangelist", "Do not create a P4 changelist for source or libs. If this argument is not supplied source and libs will be added to a Perforce changelist.")]
 [Help("SkipSubmit", "Do not perform P4 submit of source or libs. If this argument is not supplied source and libs will be automatically submitted to Perforce. If SkipCreateChangelist is specified, this argument applies by default.")]
 [Help("Robomerge", "Which robomerge action to apply to the submission. If we're skipping submit, this is not used.")]
-[RequireP4]
+// @ATG_CHANGE : Removed P4 requirement to work with git
 public sealed class BuildPhysX : BuildCommand
 {
 	// The libs we can optionally build

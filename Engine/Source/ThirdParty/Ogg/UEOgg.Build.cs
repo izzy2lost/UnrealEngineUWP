@@ -20,7 +20,8 @@ public class UEOgg : ModuleRules
 
 		string LibDir;
 
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 		{
 			LibDir = Path.Combine(OggLibPath, "Win64", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
 
@@ -28,7 +29,7 @@ public class UEOgg : ModuleRules
 
 			PublicDelayLoadDLLs.Add("libogg_64.dll");
 
-			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Ogg/Win64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libogg_64.dll");
+			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Ogg/" + Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libogg_64.dll");
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Win32)
 		{

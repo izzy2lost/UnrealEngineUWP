@@ -50,6 +50,10 @@
 	<Option Name="WithLumin" Restrict="true|false" DefaultValue="$(DefaultWithPlatform)" Description="Include the Lumin target platform on Windows"/>
 	<Option Name="WithLuminMac" Restrict="true|false" DefaultValue="$(DefaultWithPlatform)" Description="Include the Lumin target platform on Mac"/>
 	<Option Name="WithHoloLens" Restrict="true|false" DefaultValue="$(DefaultWithHoloLens)" Description="Include the HoloLens target platform"/>
+	<!-- @ATG_CHANGE : BEGIN - Installed builds can now support UWP -->
+	<Option Name="WithUWP32" Restrict="true|false" DefaultValue="false" Description="Include the UWP32 target platform"/>
+	<Option Name="WithUWP64" Restrict="true|false" DefaultValue="false" Description="Include the UWP64 target platform"/>
+	<!-- @ATG_CHANGE : END -->
 
 	<!-- Set up target types -->
 	<Option Name="WithClient" Restrict="true|false" DefaultValue="false" Description="Include precompiled client targets"/>
@@ -288,7 +292,73 @@
 				<Sign Files="#Game_ToSign_Win32" Tag="#UE4Game Win32 Signed"/>
 			</Do>
 		</Node>
-	</Agent>
+		</Agent>
+		<!-- @ATG_CHANGE : BEGIN - Installed builds can now support UWP -->
+		<!-- Downstream monolithics and tools UWP32 -->
+		<Agent Name="Target UWP32" Type="Win64">
+		<Node Name="Compile UE4Game UWP32" Requires="Compile UnrealHeaderTool Win64" Produces="#UE4Game UWP32;#UE4Game UWP32 Unstripped;#UE4Game UWP32 Stripped;#UE4Game UWP32 Unsigned;#UE4Game UWP32 Signed;#UE4Game UWP32 Includes">
+		
+			<ForEach Name="Configuration" Values="$(GameConfigurations)">
+				<Compile Target="UE4Game" Platform="UWP32" Configuration="$(Configuration)" Tag="#UE4Game UWP32" Arguments="-precompile $(VSCompilerArg) $(TargetDebugInfoArg)"/>
+			</ForEach>
+
+			<Do If="$(EmbedSrcSrvInfo)">
+				<!-- Embed source info into the PDB files. Should be done from this machine to ensure that paths are correct. -->
+				<Log Message="Embedding source file information into PDB files..."/>
+				<Tag Files="Engine/Source/...;Engine/Plugins/..." Filter="*.c;*.h;*.cpp;*.hpp;*.inl" Except="Engine/Source/ThirdParty/..." With="#SourceFiles"/>
+				<SrcSrv BinaryFiles="#UE4Game UWP32" SourceFiles="#SourceFiles" Branch="$(Branch)" Change="$(Change)"/>
+			</Do>
+
+			<Tag Files="#UE4Game UWP32" Filter="$(UWP32StripFilter)" With="#UE4Game UWP32 Unstripped"/>
+
+				<Switch>
+					<Case If="'$(WithFullDebugInfo)' == true">
+						<!-- Copy files for local debug builds -->
+						<Copy Files="#UE4Game UWP32 Unstripped" From="$(RootDir)" To="$(SavedOutput)"/>
+					</Case>
+					<Default>
+						<!-- Otherwise, strip the files for distribution -->
+						<Strip BaseDir="$(RootDir)" OutputDir="$(SavedOutput)" Platform="UWP32" Files="#UE4Game UWP32 Unstripped" Tag="#UE4Game UWP32 Stripped"/>
+					</Default>
+				</Switch>
+
+			<!-- Tag the generated includes for this target -->
+			<Tag Files="Engine/Intermediate/Build/UWP32/UE4/Inc/...;Engine/Plugins/.../Intermediate/Build/UWP32/UE4/Inc/..." With="#UE4Game UWP32 Includes"/>
+		</Node>
+		</Agent>
+		<Agent Name="Target UWP64" Type="Win64">
+		<!-- Downstream monolithics and tools UWP64 -->
+		<Node Name="Compile UE4Game UWP64" Requires="Compile UnrealHeaderTool Win64" Produces="#UE4Game UWP64;#UE4Game UWP64 Unstripped;#UE4Game UWP64 Stripped;#UE4Game UWP64 Unsigned;#UE4Game UWP64 Signed;#UE4Game UWP64 Includes">
+		
+			<ForEach Name="Configuration" Values="$(GameConfigurations)">
+				<Compile Target="UE4Game" Platform="UWP64" Configuration="$(Configuration)" Tag="#UE4Game UWP64" Arguments="-precompile $(VSCompilerArg) $(TargetDebugInfoArg)"/>
+			</ForEach>
+
+			<Do If="$(EmbedSrcSrvInfo)">
+				<!-- Embed source info into the PDB files. Should be done from this machine to ensure that paths are correct. -->
+				<Log Message="Embedding source file information into PDB files..."/>
+				<Tag Files="Engine/Source/...;Engine/Plugins/..." Filter="*.c;*.h;*.cpp;*.hpp;*.inl" Except="Engine/Source/ThirdParty/..." With="#SourceFiles"/>
+				<SrcSrv BinaryFiles="#UE4Game UWP64" SourceFiles="#SourceFiles" Branch="$(Branch)" Change="$(Change)"/>
+			</Do>
+
+			<Tag Files="#UE4Game UWP64" Filter="$(UWP64StripFilter)" With="#UE4Game UWP64 Unstripped"/>
+
+				<Switch>
+					<Case If="'$(WithFullDebugInfo)' == true">
+						<!-- Copy files for local debug builds -->
+						<Copy Files="#UE4Game UWP64 Unstripped" From="$(RootDir)" To="$(SavedOutput)"/>
+					</Case>
+					<Default>
+						<!-- Otherwise, strip the files for distribution -->
+						<Strip BaseDir="$(RootDir)" OutputDir="$(SavedOutput)" Platform="UWP64" Files="#UE4Game UWP64 Unstripped" Tag="#UE4Game UWP64 Stripped"/>
+					</Default>
+				</Switch>
+
+			<!-- Tag the generated includes for this target -->
+			<Tag Files="Engine/Intermediate/Build/UWP64/UE4/Inc/...;Engine/Plugins/.../Intermediate/Build/UWP64/UE4/Inc/..." With="#UE4Game UWP64 Includes"/>
+		</Node>
+		</Agent>
+		<!-- @ATG_CHANGE : END -->
 	<Agent Name="Target Linux" Type="CompileWin64;Win64">
 		<Node Name="Compile UE4Game Linux" Requires="Compile UnrealHeaderTool $(HostPlatform)" Produces="#UE4Game Linux;#UE4Game Linux Unstripped;#UE4Game Linux Stripped">
 
@@ -600,6 +670,10 @@
 		<Property Name="DDCPlatformsWin64" Value="$(DDCPlatformsWin64)+Switch" If="'$(WithSwitch)' == true"/>
 		<Property Name="DDCPlatformsWin64" Value="$(DDCPlatformsWin64)+Lumin" If="'$(WithLumin)' == true"/>
 		<Property Name="DDCPlatformsWin64" Value="$(DDCPlatformsWin64)+HoloLens" If="'$(WithHoloLens)' == true"/>
+		<!-- @ATG_CHANGE : BEGIN - Installed builds can now support UWP -->
+		<Property Name="DDCPlatformsWin64" Value="$(DDCPlatformsWin64)+UWP32" If="'$(WithUWP32)' == true"/>
+		<Property Name="DDCPlatformsWin64" Value="$(DDCPlatformsWin64)+UWP64" If="'$(WithUWP64)' == true"/>
+		<!-- @ATG_CHANGE : END -->
 	</Do>
 
 	<Agent Name="DDC Group Win64" Type="Win64">
@@ -756,6 +830,10 @@
 		<Property Name="InstalledRequirements" Value="$(InstalledRequirements);#UE4Game Switch" If="'$(WithSwitch)' == true"/>
 		<Property Name="InstalledRequirements" Value="$(InstalledRequirements);#UE4Game Lumin" If="'$(WithLumin)' == true"/>
 		<Property Name="InstalledRequirements" Value="$(InstalledRequirements);#UE4Game HoloLens" If="'$(WithHoloLens)' == true"/>
+		<!-- @ATG_CHANGE : BEGIN - Installed builds can now support UWP -->
+		<Property Name="InstalledRequirements" Value="$(InstalledRequirements);#UE4Game UWP32;#UE4Game UWP32 Includes" If="'$(WithUWP32)' == true"/>
+		<Property Name="InstalledRequirements" Value="$(InstalledRequirements);#UE4Game UWP64;#UE4Game UWP64 Includes" If="'$(WithUWP64)' == true"/>
+		<!-- @ATG_CHANGE : END -->
 		<Property Name="InstalledRequirements" Value="$(InstalledRequirements);#CompressedDDCWin64" If="'$(WithDDC)' == true"/>
 		<!-- Feature packs -->
 		<Property Name="InstalledRequirements" Value="$(InstalledRequirements);Make Feature Packs"/>
@@ -844,6 +922,18 @@
 				<Property Name="CopyInstalledFilter" Value="$(CopyInstalledFilter);$(CopyHoloLensFilter)"/>
 				<Property Name="CopyInstalledExceptions" Value="$(CopyInstalledExceptions);$(CopyHoloLensExceptions)"/>
 			</Do>
+			<!-- @ATG_CHANGE : BEGIN - Installed builds can now support UWP -->
+			<Do If="'$(WithUWP32)' == true">
+				<Tag Files="#UE4Game UWP32;#UE4Game UWP32 Includes" With="#Installed Win64"/>
+				<Property Name="CopyInstalledFilter" Value="$(CopyInstalledFilter);$(CopyUWP32Filter)"/>
+				<Property Name="CopyInstalledExceptions" Value="$(CopyInstalledExceptions);$(CopyUWP32Exceptions)"/>
+			</Do>
+			<Do If="'$(WithUWP64)' == true">
+				<Tag Files="#UE4Game UWP64;#UE4Game UWP64 Includes" With="#Installed Win64"/>
+				<Property Name="CopyInstalledFilter" Value="$(CopyInstalledFilter);$(CopyUWP64Filter)"/>
+				<Property Name="CopyInstalledExceptions" Value="$(CopyInstalledExceptions);$(CopyUWP64Exceptions)"/>
+			</Do>
+			<!-- @ATG_CHANGE : END -->
 			<!-- Tag any dependencies from all previous build products -->
 			<Tag Files="#Installed Win64" Filter="*.target" With="#TargetReceipts"/>
 			<TagReceipt Files="#TargetReceipts" RuntimeDependencies="true" With="#Installed Win64"/>

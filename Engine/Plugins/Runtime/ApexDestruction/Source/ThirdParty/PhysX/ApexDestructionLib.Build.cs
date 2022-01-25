@@ -103,6 +103,48 @@ public class ApexDestructionLib : ModuleRules
             }
 
         }
+// @ATG_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.UWP64)
+		{
+			string Arch = Target.WindowsPlatform.GetArchitectureSubpath();
+
+			PublicAdditionalLibraries.Add(Path.Combine(ApexLibDir, "UWP64", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), String.Format("APEXFramework{0}_{1}.lib", LibrarySuffix, Arch)));
+			PublicDelayLoadDLLs.Add(String.Format("APEXFramework{0}_{1}.dll", LibrarySuffix, Arch));
+
+			string[] RuntimeDependenciesT =
+			{
+				"APEX_Destructible{0}_{1}.dll",
+			};
+
+			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/UWP64/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			foreach (string RuntimeDependency in RuntimeDependenciesT)
+			{
+				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix, Arch);
+				RuntimeDependencies.Add(FileName, StagedFileType.NonUFS);
+				RuntimeDependencies.Add(Path.ChangeExtension(FileName, ".pdb"), StagedFileType.DebugNonUFS);
+			}
+		}
+		else if (Target.Platform == UnrealTargetPlatform.UWP32)
+		{
+			string Arch = Target.WindowsPlatform.GetArchitectureSubpath();
+
+			PublicAdditionalLibraries.Add(Path.Combine(ApexLibDir, "UWP32", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), String.Format("APEXFramework{0}_{1}.lib", LibrarySuffix, Arch)));
+			PublicDelayLoadDLLs.Add(String.Format("APEXFramework{0}_{1}.dll", LibrarySuffix, Arch));
+
+			string[] RuntimeDependenciesT =
+			{
+				"APEX_Destructible{0}_{1}.dll",
+			};
+
+			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/UWP32/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			foreach (string RuntimeDependency in RuntimeDependenciesT)
+			{
+				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix, Arch);
+				RuntimeDependencies.Add(FileName, StagedFileType.NonUFS);
+				RuntimeDependencies.Add(Path.ChangeExtension(FileName, ".pdb"), StagedFileType.DebugNonUFS);
+			}
+		}
+		// @ATG_CHANGE : END
         else if (Target.Platform == UnrealTargetPlatform.Mac)
         {
             string[] DynamicLibrariesMac = new string[] {

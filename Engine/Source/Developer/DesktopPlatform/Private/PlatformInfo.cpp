@@ -225,6 +225,13 @@ const FPlatformInfo* FindPlatformInfo(const FName& InPlatformName)
 		{
 			return &PlatformInfo;
 		}
+
+		// @ATG_CHANGE : BEGIN - UWP packaging & F5 support
+		if (PlatformInfo.TargetPlatformName == InPlatformName)
+		{
+			return &PlatformInfo;
+		}
+		// @ATG_CHANGE : END - UWP packaging & F5 support
 	}
 	return nullptr;
 }
