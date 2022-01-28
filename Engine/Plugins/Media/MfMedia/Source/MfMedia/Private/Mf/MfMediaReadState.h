@@ -9,7 +9,12 @@
 #if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
 	#include "Windows/WindowsHWrapper.h"
 	#include "Windows/AllowWindowsPlatformTypes.h"
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#elif PLATFORM_UWP
+	#include "UWP/WindowsHWrapper.h"
+	#include "UWP/AllowWindowsPlatformTypes.h"
 #else
+// @ATG_CHANGE : END
 	#include "XboxCommonAllowPlatformTypes.h"
 #endif
 
@@ -145,7 +150,11 @@ private:
 
 #if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
 	#include "Windows/HideWindowsPlatformTypes.h"
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP	
+#elif PLATFORM_UWP
+	#include "UWP/HideWindowsPlatformTypes.h"
 #else
+// @ATG_CHANGE : END
 	#include "XboxCommonHidePlatformTypes.h"
 #endif
 

@@ -392,7 +392,11 @@ public class Engine : ModuleRules
 		}
 
 		if ((Target.Platform == UnrealTargetPlatform.Win64) ||
-			(Target.Platform == UnrealTargetPlatform.Win32))
+// @ATG_CHANGE :  BEGIN UWP support
+			(Target.Platform == UnrealTargetPlatform.Win32) ||
+			(Target.Platform == UnrealTargetPlatform.UWP64) ||
+			(Target.Platform == UnrealTargetPlatform.UWP32))
+// @ATG_CHANGE : END
 		{
 			// Head Mounted Display support
 //			PrivateIncludePathModuleNames.AddRange(new string[] { "HeadMountedDisplay" });

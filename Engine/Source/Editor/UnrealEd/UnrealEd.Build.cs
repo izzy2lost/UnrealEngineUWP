@@ -265,6 +265,15 @@ public class UnrealEd : ModuleRules
 			DynamicallyLoadedModuleNames.Add("LuminPlatformEditor");
 		}
 
+		// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
+		{
+			DynamicallyLoadedModuleNames.Add("UWPPlatformEditor");
+		}
+		// @ATG_CHANGE : END
+
+
+
 		CircularlyReferencedDependentModules.AddRange(
 			new string[]
 			{

@@ -9,7 +9,7 @@
 #include "Misc/EngineVersion.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 	#include <delayimp.h>
-	#if !PLATFORM_HOLOLENS
+	#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
 	#include "nvapi.h"
 	#include "nvShaderExtnEnums.h"
 	#include "amd_ags.h"
@@ -348,7 +348,7 @@ static bool SafeTestD3D11CreateDevice(IDXGIAdapter* Adapter,D3D_FEATURE_LEVEL Mi
 		// Log any reason for failure to create test device. Extra debug help.
 		VERIFYD3D11RESULT_NOEXIT(Result);
 
-#if PLATFORM_HOLOLENS
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
 		bool bIsWin10 = true;
 #else
 		bool bIsWin10 = FPlatformMisc::VerifyWindowsVersion(10, 0);
@@ -1034,7 +1034,7 @@ void FD3D11DynamicRHIModule::FindAdapter()
 
 FDynamicRHI* FD3D11DynamicRHIModule::CreateRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 {
-#if PLATFORM_HOLOLENS
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
 	GMaxRHIFeatureLevel = ERHIFeatureLevel::ES3_1;
 	GMaxRHIShaderPlatform = SP_PCD3D_ES3_1;
 #endif

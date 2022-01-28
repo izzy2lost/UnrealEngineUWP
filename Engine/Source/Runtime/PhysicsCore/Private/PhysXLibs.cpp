@@ -18,7 +18,7 @@ namespace PhysDLLHelper
 	const static int32 NumModuleLoadRetries = 5;
 	const static float ModuleReloadDelay = 0.5f;
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_MAC
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP || PLATFORM_MAC
 	void* PxFoundationHandle = nullptr;
 	void* PhysX3CommonHandle = nullptr;
 	void* PhysX3Handle = nullptr;
@@ -34,7 +34,7 @@ namespace PhysDLLHelper
 	#endif	//WITH_APEX
 #endif
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
 
 	FString PhysXBinariesRoot = TEXT("Binaries/ThirdParty/PhysX3/");
 	FString APEXBinariesRoot = TEXT("Binaries/ThirdParty/PhysX3/");
@@ -51,6 +51,10 @@ namespace PhysDLLHelper
 		FString RootPhysXPath(PhysXBinariesRoot + TEXT("HoloLens/") + VSDirectory);
 		FString RootAPEXPath(APEXBinariesRoot + TEXT("HoloLens/") + VSDirectory);
 		FString RootSharedPath(SharedBinariesRoot + TEXT("HoloLens/") + VSDirectory);
+	#elif PLATFORM_UWP
+		FString RootPhysXPath(PhysXBinariesRoot + TEXT("UWP64/") + VSDirectory);
+		FString RootAPEXPath(APEXBinariesRoot + TEXT("UWP64/") + VSDirectory);
+		FString RootSharedPath(SharedBinariesRoot + TEXT("UWP64/") + VSDirectory);
 	#else
 		FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win64/") + VSDirectory);
 		FString RootAPEXPath(APEXBinariesRoot + TEXT("Win64/") + VSDirectory);
@@ -70,6 +74,10 @@ namespace PhysDLLHelper
 		FString RootPhysXPath(PhysXBinariesRoot + TEXT("HoloLens/") + VSDirectory);
 		FString RootAPEXPath(APEXBinariesRoot + TEXT("HoloLens/") + VSDirectory);
 		FString RootSharedPath(SharedBinariesRoot + TEXT("HoloLens/") + VSDirectory);
+	#elif PLATFORM_UWP
+		FString RootPhysXPath(PhysXBinariesRoot + TEXT("UWP64/") + VSDirectory);
+		FString RootAPEXPath(APEXBinariesRoot + TEXT("UWP64/") + VSDirectory);
+		FString RootSharedPath(SharedBinariesRoot + TEXT("UWP64/") + VSDirectory);
 	#else
 		FString RootPhysXPath(PhysXBinariesRoot + TEXT("Win32/") + VSDirectory);
 		FString RootAPEXPath(APEXBinariesRoot + TEXT("Win32/") + VSDirectory);
@@ -169,7 +177,7 @@ void* LoadPhysicsLibrary(const FString& PathEnd)
 #if WITH_APEX
 PHYSICSCORE_API void* LoadAPEXModule(const FString& Path)
 {
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
 	return LoadPhysicsLibrary(RootAPEXPath + Path + APEXSuffix);
 #elif PLATFORM_MAC
 	const FString APEX_HandleLibName = FString::Printf(TEXT("%slib%s%s"), *PhysXBinariesRoot, *Path, *APEXSuffix);
@@ -185,7 +193,7 @@ PHYSICSCORE_API void* LoadAPEXModule(const FString& Path)
 PHYSICSCORE_API bool LoadPhysXModules(bool bLoadCookingModule)
 {
 	bool bHasToolsExtensions = false;
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
 	PxFoundationHandle = LoadPhysicsLibrary(RootSharedPath + "PxFoundation" + PhysXSuffix);
 	PhysX3CommonHandle = LoadPhysicsLibrary(RootPhysXPath + "PhysX3Common" + PhysXSuffix);
 	const FString nvToolsExtPath = RootPhysXPath + "nvToolsExt" + ArchBits + "_1.dll";
@@ -298,7 +306,7 @@ PHYSICSCORE_API void UnloadPhysXModules()
 #if WITH_APEX
 PHYSICSCORE_API void UnloadAPEXModule(void* Handle)
 {
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_MAC
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP || PLATFORM_MAC
 	if(Handle)
 	{
 		FPlatformProcess::FreeDllHandle(Handle);

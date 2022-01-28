@@ -7,17 +7,21 @@
 #include "D3D12RHIPrivate.h"
 #include "Modules/ModuleManager.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
+
 #include <delayimp.h>
-#if !PLATFORM_CPU_ARM_FAMILY
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+#if !PLATFORM_CPU_ARM_FAMILY && !PLATFORM_UWP
+// @ATG_CHANGE : END UWP support
 	#include "amd_ags.h"
 #endif
-#if !PLATFORM_HOLOLENS && !PLATFORM_CPU_ARM_FAMILY
+#if !PLATFORM_HOLOLENS && !PLATFORM_CPU_ARM_FAMILY && !PLATFORM_UWP
 	#define NV_API_ENABLE 1
 	#include "nvapi.h"
 	#include "nvShaderExtnEnums.h"
 #else
 	#define NV_API_ENABLE 0
 #endif
+
 #include "Windows/HideWindowsPlatformTypes.h"
 
 #include "HardwareInfo.h"
@@ -221,10 +225,14 @@ static bool SupportsHDROutput(FD3D12DynamicRHI* D3DRHI)
 
 bool FD3D12DynamicRHIModule::IsSupported()
 {
+	// @EMMETTJNR_CHANGE : BEGIN UWP support
+#if !PLATFORM_UWP
 	if (!FPlatformMisc::VerifyWindowsVersion(10, 0))
 	{
 		return false;
 	}
+#endif
+	// @EMMETTJNR_CHANGE : END
 
 	// If not computed yet
 	if (ChosenAdapters.Num() == 0)
@@ -546,7 +554,9 @@ void FD3D12DynamicRHI::Init()
 	// Need to set GRHIVendorId before calling IsRHIDevice* functions
 	GRHIVendorId = AdapterDesc.VendorId;
 
-#if !PLATFORM_CPU_ARM_FAMILY
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+#if !PLATFORM_CPU_ARM_FAMILY && !PLATFORM_UWP
+// @EMMETTJNR_CHANGE : END
 	// Initialize the AMD AGS utility library, when running on an AMD device
 	if (IsRHIDeviceAMD() && bAllowVendorDevice)
 	{
@@ -566,7 +576,9 @@ void FD3D12DynamicRHI::Init()
 		Adapter->InitializeDevices();
 	}
 
-#if !PLATFORM_CPU_ARM_FAMILY
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+#if !PLATFORM_CPU_ARM_FAMILY && !PLATFORM_UWP
+// @EMMETTJNR_CHANGE : END
 	// Warn if we are trying to use RGP frame markers but are either running on a non-AMD device
 	// or using an older AMD driver without RGP marker support
 	if (GEmitRgpFrameMarkers && !IsRHIDeviceAMD())

@@ -24,6 +24,10 @@
 	<Property Name="LinuxStripFilter" Value="Engine\Binaries\Linux\*."/>
 	<Property Name="LuminStripFilter" Value="*.a;*.so"/>
 	<Property Name="HoloLensStripFilter" Value="*.pdb"/>
+	<!-- @ATG_CHANGE : BEGIN - Installed builds can now support UWP -->
+	<Property Name="UWP32StripFilter" Value="*.pdb"/>
+	<Property Name="UWP64StripFilter" Value="*.pdb"/>
+	<!-- @ATG_CHANGE : END -->
 
 
 	<Property Name="WindowsSignFilter" Value="*.exe;*.dll"/>
@@ -540,5 +544,25 @@
 
 	<Property Name="CopyHoloLensExceptions">
 	</Property>
+
+	<!-- @ATG_CHANGE : BEGIN - Installed builds can now support UWP -->
+	<!-- UWP32 -->
+	<Property Name="CopyUWP32Filter">
+		<!-- Build Files -->
+		Engine/Build/UWP/...
+	</Property>
+
+	<Property Name="CopyUWP32Exceptions">
+	</Property>
+
+	<!-- UWP64 -->
+	<Property Name="CopyUWP64Filter">
+		<!-- Build Files -->
+		Engine/Build/UWP/...
+	</Property>
+
+	<Property Name="CopyUWP64Exceptions">
+	</Property>
+	<!-- @ATG_CHANGE : END -->
 
 </BuildGraph>

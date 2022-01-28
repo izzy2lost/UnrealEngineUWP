@@ -37,7 +37,9 @@
 // enough to ensure that the GPU is rarely blocked by residency work
 #define RESIDENCY_PIPELINE_DEPTH	6
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#define ENABLE_RESIDENCY_MANAGEMENT				1
 	#define ASYNC_DEFERRED_DELETION					1
 	#define PIPELINE_STATE_FILE_LOCATION			FPaths::ProjectSavedDir()

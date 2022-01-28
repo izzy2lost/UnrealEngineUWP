@@ -63,7 +63,9 @@ FD3D12DynamicRHI::FD3D12DynamicRHI(const TArray<TSharedPtr<FD3D12Adapter>>& Chos
 	FeatureLevel = GetAdapter().GetFeatureLevel();
 	check(FeatureLevel >= D3D_FEATURE_LEVEL_11_0);
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	// Allocate a buffer of zeroes. This is used when we need to pass D3D memory
 	// that we don't care about and will overwrite with valid data in the future.
 	ZeroBufferSize = FMath::Max(CVarD3D12ZeroBufferSizeInMB.GetValueOnAnyThread(), 0) * (1 << 20);

@@ -11,7 +11,6 @@
  */
 class PLATFORMCRYPTOOPENSSL_API FEncryptionContextOpenSSL
 {
-
 public:
 
 	TArray<uint8> Encrypt_AES_256_ECB(const TArrayView<const uint8> Plaintext, const TArrayView<const uint8> Key, EPlatformCryptoResult& OutResult);

@@ -9,7 +9,9 @@ public class IntelTBB : ModuleRules
         Type = ModuleType.External;
 
         if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) ||
-            (Target.Platform == UnrealTargetPlatform.HoloLens))
+            (Target.Platform == UnrealTargetPlatform.HoloLens) ||
+            (Target.Platform == UnrealTargetPlatform.UWP32) ||
+            (Target.Platform == UnrealTargetPlatform.UWP64))
         {
             string IntelTBBPath = Target.UEThirdPartySourceDirectory + "IntelTBB/IntelTBB-2019u8/";
             string PlatformSubpath = (Target.WindowsPlatform.Architecture == WindowsArchitecture.ARM32 || Target.WindowsPlatform.Architecture == WindowsArchitecture.x86) ? "Win32" : "Win64";

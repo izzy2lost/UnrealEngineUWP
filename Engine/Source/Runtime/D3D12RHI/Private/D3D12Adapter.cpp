@@ -179,7 +179,9 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 	DxgiFactory->EnumAdapters(Desc.AdapterIndex, TempAdapter.GetInitReference());
 	VERIFYD3D12RESULT(TempAdapter->QueryInterface(IID_PPV_ARGS(DxgiAdapter.GetInitReference())));
 
-#if PLATFORM_WINDOWS || (PLATFORM_HOLOLENS && !UE_BUILD_SHIPPING && D3D12_PROFILING_ENABLED)
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || ((PLATFORM_HOLOLENS || PLATFORM_UWP) && !UE_BUILD_SHIPPING && D3D12_PROFILING_ENABLED)
+// @EMMETTJNR_CHANGE : END
 	
 	// Two ways to enable GPU crash debugging, command line or the r.GPUCrashDebugging variable
 	// Note: If intending to change this please alert game teams who use this for user support.
@@ -253,7 +255,9 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 		}
 	}
 
-#endif // PLATFORM_WINDOWS || (PLATFORM_HOLOLENS && !UE_BUILD_SHIPPING && D3D12_PROFILING_ENABLED)
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+#endif // PLATFORM_WINDOWS || ((PLATFORM_HOLOLENS || PLATFORM_UWP) && !UE_BUILD_SHIPPING && D3D12_PROFILING_ENABLED)
+// @EMMETTJNR_CHANGE : END
 
 #if USE_PIX
 	UE_LOG(LogD3D12RHI, Log, TEXT("Emitting draw events for PIX profiling."));
@@ -415,7 +419,9 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 	}
 #endif //  (PLATFORM_WINDOWS || PLATFORM_HOLOLENS)
 
-#if UE_BUILD_DEBUG	&& (PLATFORM_WINDOWS || PLATFORM_HOLOLENS)
+// @ATG_CHANGE : BEGIN UWP support
+#if UE_BUILD_DEBUG	&& (PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP)
+// @ATG_CHANGE : END
 	//break on debug
 	TRefCountPtr<ID3D12Debug> d3dDebug;
 	if (SUCCEEDED(RootDevice->QueryInterface(__uuidof(ID3D12Debug), (void**)d3dDebug.GetInitReference())))
@@ -430,7 +436,9 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 	}
 #endif
 
-#if !(UE_BUILD_SHIPPING && WITH_EDITOR) && (PLATFORM_WINDOWS || PLATFORM_HOLOLENS)
+// @ATG_CHANGE : BEGIN UWP support
+#if !(UE_BUILD_SHIPPING && WITH_EDITOR) && (PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP)
+// @ATG_CHANGE : END
 	// Add some filter outs for known debug spew messages (that we don't care about)
 	if (bWithDebug)
 	{
@@ -448,10 +456,12 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 
 			// Be sure to carefully comment the reason for any additions here!  Someone should be able to look at it later and get an idea of whether it is still necessary.
 			TArray<D3D12_MESSAGE_ID, TInlineAllocator<16>> DenyIds = {
-				// OMSETRENDERTARGETS_INVALIDVIEW - d3d will complain if depth and color targets don't have the exact same dimensions, but actually
-				//	if the color target is smaller then things are ok.  So turn off this error.  There is a manual check in FD3D12DynamicRHI::SetRenderTarget
-				//	that tests for depth smaller than color and MSAA settings to match.
-				D3D12_MESSAGE_ID_OMSETRENDERTARGETS_INVALIDVIEW,
+				// @EMMETTJNR_CHANGE : BEGIN Commented out code which seems to error out on Windows SDK 10.0.19041.0
+				//// OMSETRENDERTARGETS_INVALIDVIEW - d3d will complain if depth and color targets don't have the exact same dimensions, but actually
+				////	if the color target is smaller then things are ok.  So turn off this error.  There is a manual check in FD3D12DynamicRHI::SetRenderTarget
+				////	that tests for depth smaller than color and MSAA settings to match.
+				//D3D12_MESSAGE_ID_OMSETRENDERTARGETS_INVALIDVIEW,
+				// @EMMETTJNR_CHANGE : END
 
 				// QUERY_BEGIN_ABANDONING_PREVIOUS_RESULTS - The RHI exposes the interface to make and issue queries and a separate interface to use that data.
 				//		Currently there is a situation where queries are issued and the results may be ignored on purpose.  Filtering out this message so it doesn't
@@ -636,7 +646,9 @@ void FD3D12Adapter::InitializeDevices()
 				UE_LOG(LogD3D12RHI, Log, TEXT("The system supports ID3D12Device1."));
 			}
 
-	#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+// @LAB132 : BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+// @LAB132 : END
 			if (SUCCEEDED(RootDevice->QueryInterface(IID_PPV_ARGS(RootDevice2.GetInitReference()))))
 			{
 				UE_LOG(LogD3D12RHI, Log, TEXT("The system supports ID3D12Device2."));
@@ -658,7 +670,9 @@ void FD3D12Adapter::InitializeDevices()
 		}
 #endif
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+// @LAB132: END
 		D3D12_FEATURE_DATA_D3D12_OPTIONS2 D3D12Caps2 = {};
 		if (FAILED(RootDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS2, &D3D12Caps2, sizeof(D3D12Caps2))))
 		{
@@ -939,7 +953,9 @@ FD3D12FastConstantAllocator& FD3D12Adapter::GetTransientUniformBufferAllocator()
 
 void FD3D12Adapter::GetLocalVideoMemoryInfo(DXGI_QUERY_VIDEO_MEMORY_INFO* LocalVideoMemoryInfo)
 {
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+// @LAB132: END
 	TRefCountPtr<IDXGIAdapter3> Adapter3;
 	VERIFYD3D12RESULT(GetAdapter()->QueryInterface(IID_PPV_ARGS(Adapter3.GetInitReference())));
 

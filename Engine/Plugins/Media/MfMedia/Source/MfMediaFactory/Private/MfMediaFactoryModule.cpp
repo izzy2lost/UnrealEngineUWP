@@ -162,6 +162,9 @@ public:
 		// supported platforms
 		SupportedPlatforms.Add(TEXT("XboxOne"));
 		SupportedPlatforms.Add(TEXT("HoloLens"));
+		// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+		SupportedPlatforms.Add(TEXT("UWP"));
+		// @ATG_CHANGE : END
 #if MFMEDIAFACTORY_WINDOWS && MFMEDIAFACTORY_USE_WINDOWS
 		SupportedPlatforms.Add(TEXT("Windows"));
 #endif

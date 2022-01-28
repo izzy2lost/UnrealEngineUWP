@@ -92,7 +92,9 @@ public:
 	FORCEINLINE const D3D_FEATURE_LEVEL GetFeatureLevel() const { return Desc.MaxSupportedFeatureLevel; }
 	FORCEINLINE ID3D12Device* GetD3DDevice() const { return RootDevice.GetReference(); }
 	FORCEINLINE ID3D12Device1* GetD3DDevice1() const { return RootDevice1.GetReference(); }
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+// @LAB132 : BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+// @LAB132 : END
 	FORCEINLINE ID3D12Device2* GetD3DDevice2() const { return RootDevice2.GetReference(); }
 #endif
 #if D3D12_RHI_RAYTRACING
@@ -309,7 +311,9 @@ protected:
 	// LDA setups have one ID3D12Device
 	TRefCountPtr<ID3D12Device> RootDevice;
 	TRefCountPtr<ID3D12Device1> RootDevice1;
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+// @LAB132 : BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+// @LAB132 : END
 	TRefCountPtr<ID3D12Device2> RootDevice2;
 
 	HANDLE ExceptionHandlerHandle = INVALID_HANDLE_VALUE;

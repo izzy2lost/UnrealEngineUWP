@@ -60,8 +60,9 @@ public class APEX : ModuleRules
 
 		string ApexLibDir = ApexLibDir_Default;
 
+// @ATG_CHANGE : BEGIN UWP support
 		// Libraries and DLLs for windows platform
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 		{
 			ApexLibDir = Path.Combine(ApexLibDir, "Win64", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
 
@@ -75,7 +76,9 @@ public class APEX : ModuleRules
 				"ApexFramework{0}_x64.dll",
 			};
 
-			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/Win64/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/{1}/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
+			bHasApexLegacy = Target.Platform != UnrealTargetPlatform.UWP64;
+
 			foreach (string RuntimeDependency in RuntimeDependenciesX64)
 			{
 				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix);
@@ -88,7 +91,7 @@ public class APEX : ModuleRules
 			}
 
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Win32)
+		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
 		{
 			ApexLibDir = Path.Combine(ApexLibDir, "Win32", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
 
@@ -102,7 +105,10 @@ public class APEX : ModuleRules
 				"ApexFramework{0}_x86.dll",
 			};
 
-			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/Win32/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			string ApexBinariesDir = String.Format("$(EngineDir)/Binaries/ThirdParty/PhysX3/{1}/VS{0}/", Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), Target.Platform.ToString());
+			bHasApexLegacy = Target.Platform != UnrealTargetPlatform.UWP32;
+
+// @ATG_CHANGE : END
 			foreach (string RuntimeDependency in RuntimeDependenciesX86)
 			{
 				string FileName = ApexBinariesDir + String.Format(RuntimeDependency, LibrarySuffix);

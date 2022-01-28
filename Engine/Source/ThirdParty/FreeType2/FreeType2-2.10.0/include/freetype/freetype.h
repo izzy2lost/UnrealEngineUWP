@@ -15,6 +15,9 @@
  *
  */
 
+// @EMMETTJNR_CHANGE : BEGIN More info https://stackoverflow.com/questions/13122266/freetype-generic-conflict-with-c-cx-keyword
+#define generic GenericFromFreeTypeLibrary
+// @EMMETTJNR_CHANGE : END
 
 #ifndef FREETYPE_H_
 #define FREETYPE_H_
@@ -4878,3 +4881,7 @@ FT_END_HEADER
 
 
 /* END */
+
+// @EMMETTJNR_CHANGE : BEGIN More info https://stackoverflow.com/questions/13122266/freetype-generic-conflict-with-c-cx-keyword
+#undef generic
+// @EMMETTJNR_CHANGE : END

@@ -6,7 +6,7 @@
 
 #include "D3D11RHIPrivate.h"
 
-#if PLATFORM_DESKTOP && !PLATFORM_HOLOLENS
+#if PLATFORM_DESKTOP && !PLATFORM_HOLOLENS && !PLATFORM_UWP
 // For Depth Bounds Test interface
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include "nvapi.h"
@@ -924,7 +924,7 @@ TD3D11Texture2D<BaseResourceType>* FD3D11DynamicRHI::CreateD3D11Texture2D(uint32
 
 	D3D11TextureAllocated(*Texture2D);
 	
-#if !PLATFORM_HOLOLENS
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
 	if (IsRHIDeviceNVIDIA() && (Flags & TexCreate_AFRManual))
 	{
 		// get a resource handle for this texture
@@ -1079,7 +1079,7 @@ FD3D11Texture3D* FD3D11DynamicRHI::CreateD3D11Texture3D(uint32 SizeX,uint32 Size
 	}
 
 	D3D11TextureAllocated(*Texture3D);
-#if !PLATFORM_HOLOLENS
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
 	if (IsRHIDeviceNVIDIA() && (Flags & TexCreate_AFRManual))
 	{
 		// get a resource handle for this texture
@@ -2051,12 +2051,12 @@ void FD3D11DynamicRHI::RHICopySubTextureRegion(FRHITexture2D* SourceTextureRHI, 
 		SourceBox.Max.Y -= Delta;
 	}
 
-	int32 DestinationOffsetX = 0;
-	int32 DestinationOffsetY = 0;
-	int32 SourceStartX = SourceBox.Min.X;
-	int32 SourceEndX = SourceBox.Max.X;
-	int32 SourceStartY = SourceBox.Min.Y;
-	int32 SourceEndY = SourceBox.Max.Y;
+	uint32 DestinationOffsetX = 0;
+	uint32 DestinationOffsetY = 0;
+	uint32 SourceStartX = SourceBox.Min.X;
+	uint32 SourceEndX = SourceBox.Max.X;
+	uint32 SourceStartY = SourceBox.Min.Y;
+	uint32 SourceEndY = SourceBox.Max.Y;
 	//If the source box is not fitting on the left bottom side, offset the result so the destination pixel match the expectation
 	if (SourceStartX < 0)
 	{

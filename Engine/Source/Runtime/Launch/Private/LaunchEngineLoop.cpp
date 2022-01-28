@@ -90,7 +90,9 @@
 	#include "Interfaces/IEditorStyleModule.h"
 	#include "PIEPreviewDeviceProfileSelectorModule.h"
 
-	#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 		#include "Windows/AllowWindowsPlatformTypes.h"
 			#include <objbase.h>
 		#include "Windows/HideWindowsPlatformTypes.h"
@@ -193,7 +195,9 @@ class FFeedbackContext;
 
 #define LOCTEXT_NAMESPACE "LaunchEngineLoop"
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 	#include "Windows/AllowWindowsPlatformTypes.h"
 	#include <ObjBase.h>
 	#include "Windows/HideWindowsPlatformTypes.h"
@@ -3261,7 +3265,9 @@ int32 FEngineLoop::PreInitPostStartupScreen(const TCHAR* CmdLine)
 				return 1;
 			}
 
-#if PLATFORM_WINDOWS || PLATFORM_MAC || PLATFORM_UNIX
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP || PLATFORM_MAC || PLATFORM_UNIX
+// @LAB132: END
 			extern bool GIsConsoleExecutable;
 			if (GIsConsoleExecutable)
 			{
@@ -5107,6 +5113,46 @@ void FEngineLoop::ClearPendingCleanupObjects()
 	PendingCleanupObjects = nullptr;
 }
 
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_UWP
+
+void FEngineLoop::OnResuming(_In_ Platform::Object^ Sender, _In_ Platform::Object^ Args)
+{
+	// Make the call down to the RHI to Resume the GPU state
+	RHIResumeRendering();
+
+	// Notify application of resume
+	FCoreDelegates::ApplicationHasEnteredForegroundDelegate.Broadcast();
+}
+
+void FEngineLoop::OnSuspending(_In_ Platform::Object^ Sender, _In_ Windows::ApplicationModel::SuspendingEventArgs^ Args)
+{
+	// Get the Suspending Event
+	Windows::ApplicationModel::SuspendingDeferral^ SuspendingEvent = Args->SuspendingOperation->GetDeferral();
+	
+	// Notify application of suspend. Application should kick off an async save at this point.
+	FCoreDelegates::ApplicationWillEnterBackgroundDelegate.Broadcast();
+
+	// Flush the RenderingThread
+	FlushRenderingCommands();
+
+	// Make the call down to the RHI to Suspend the GPU state
+	if (GDynamicRHI != nullptr)
+	{
+		RHISuspendRendering();
+	}
+
+	// @TODO Wait for async save to complete
+	// Flush the log so it's all written to disk
+	GLog->FlushThreadedLogs();
+	GLog->Flush();
+
+	// Tell the callback that we are done
+	SuspendingEvent->Complete();
+}
+
+#endif //  PLATFORM_UWP
+// @ATG_CHANGE : END
 #endif // WITH_ENGINE
 
 
@@ -5348,7 +5394,9 @@ bool FEngineLoop::AppInit( )
 	}
 #endif // !UE_BUILD_SHIPPING
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 
 	// make sure that the log directory tree exists
 	IFileManager::Get().MakeDirectory( *FPaths::ProjectLogDir(), true );

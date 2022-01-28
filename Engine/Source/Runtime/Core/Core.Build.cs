@@ -83,6 +83,19 @@ public class Core : ModuleRules
 				"XInput"
 				);
 		}
+// @ATG_CHANGE : BEGIN UWP support
+		else if ((Target.Platform == UnrealTargetPlatform.UWP64) || (Target.Platform == UnrealTargetPlatform.UWP32))
+		{
+			PublicIncludePaths.Add("Runtime/Core/Public/UWP");
+			AddEngineThirdPartyPrivateStaticDependencies(Target,
+				"zlib");
+
+			AddEngineThirdPartyPrivateStaticDependencies(Target,
+				"IntelTBB",
+				"XInput"
+				);
+		}
+// @ATG_CHANGE : END
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			AddEngineThirdPartyPrivateStaticDependencies(Target,
@@ -162,7 +175,9 @@ public class Core : ModuleRules
 		if(Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
 		{
 			var VisualStudioVersionNumber = "11.0";
-			var SubFolderName = ( Target.Platform == UnrealTargetPlatform.Win32 ) ? "PerfSDK" : "x64/PerfSDK";
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+			var SubFolderName = ( Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32 ) ? "PerfSDK" : "x64/PerfSDK";
+// @EMMETTJNR_CHANGE : END
 
 			string PerfIncludeDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), String.Format("Microsoft Visual Studio {0}/Team Tools/Performance Tools/{1}", VisualStudioVersionNumber, SubFolderName));
 

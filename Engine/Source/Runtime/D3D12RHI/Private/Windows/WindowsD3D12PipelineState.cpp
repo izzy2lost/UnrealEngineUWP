@@ -8,7 +8,10 @@
 #include "D3D12RHIPrivate.h"
 #include "Misc/ScopeRWLock.h"
 #include "Stats/StatsMisc.h"
+
+#if !PLATFORM_UWP
 #include "nvapi.h"
+#endif
 
 #include "d3dcompiler.h"
 

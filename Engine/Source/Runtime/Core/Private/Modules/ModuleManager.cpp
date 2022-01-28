@@ -78,7 +78,9 @@ FModuleManager::FModuleManager()
 {
 	check(IsInGameThread());
 
-#if !IS_MONOLITHIC
+// @ATG_CHANGE : BEGIN UWP packaging & F5 support
+#if !IS_MONOLITHIC && !PLATFORM_UWP
+// @ATG_CHANGE : END
 	// Modules bootstrapping is useful to avoid costly directory enumeration by reloading
 	// a serialized state of the module manager. Can only be used when run in the exact
 	// same context multiple times (i.e. starting multiple shader compile workers)

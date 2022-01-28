@@ -3,6 +3,12 @@
 #pragma once
 
 #include "AudioMixer.h"
+
+#if PLATFORM_UWP
+#include "UWP/AllowWindowsPlatformTypes.h"
+#include <xaudio2.h>
+#include "UWP/HideWindowsPlatformTypes.h"
+#else
 #include "Windows/AllowWindowsPlatformTypes.h"
 #if PLATFORM_WINDOWS
 #include <xaudio2redist.h>
@@ -10,6 +16,7 @@
 #include <xaudio2.h>
 #endif
 #include "Windows/HideWindowsPlatformTypes.h"
+#endif
 
 #if PLATFORM_WINDOWS
 #pragma comment(lib,"xaudio2_9redist.lib")

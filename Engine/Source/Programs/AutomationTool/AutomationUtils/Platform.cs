@@ -436,6 +436,13 @@ namespace AutomationTool
 			get { return false; }
 		}
 
+		// @ATG_CHANGE : BEGIN - UWP packaging & F5 support
+		public virtual string UFEPlatformName
+		{
+			get { return PlatformType.ToString(); }
+		}
+		// @ATG_CHANGE : END
+
 		/// <summary>
 		/// Gets extra launch commandline arguments for this platform.
 		/// </summary>
@@ -637,7 +644,7 @@ namespace AutomationTool
 				return PlatformExeExtension;
 			}
 
-			if (Target == UnrealTargetPlatform.Win32 || Target == UnrealTargetPlatform.Win64 || Target == UnrealTargetPlatform.XboxOne|| Target == UnrealTargetPlatform.HoloLens)
+			if (Target == UnrealTargetPlatform.Win32 || Target == UnrealTargetPlatform.Win64 || Target == UnrealTargetPlatform.XboxOne|| Target == UnrealTargetPlatform.HoloLens || Target == UnrealTargetPlatform.UWP32 || Target == UnrealTargetPlatform.UWP64)
 			{
 				return ".exe";
 			}

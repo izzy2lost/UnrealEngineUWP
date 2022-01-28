@@ -815,7 +815,8 @@ namespace Tools.DotNETCommon
 				// Make sure there's nothing left over
 				if(TokenIdx != Tokens.Length)
 				{
-					throw new Exception(String.Format("Unable to parse token '{0}'", NewText));
+					Console.WriteLine(string.Join("::", Tokens));
+					throw new Exception(String.Format("Unable to parse token '{0}' '{1}'", NewText, TokenIdx));
 				}
 
 				// Replace the variable with its value

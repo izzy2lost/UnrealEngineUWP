@@ -122,7 +122,9 @@ FName GetNextDllToTry(FName Current = NAME_None)
 
 namespace Audio
 {
-#if PLATFORM_HOLOLENS
+// @EMMETTJNR_CHANGE: BEGIN UWP support
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
+// @EMMETTJNR_CHANGE: END
 	static Windows::Devices::Enumeration::DeviceInformationCollection^ AllAudioDevices = nullptr;
 #endif
 
@@ -175,7 +177,9 @@ namespace Audio
 
 	FMixerPlatformXAudio2::~FMixerPlatformXAudio2()
 	{
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+// @EMMETTJNR_CHANGE : BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+// @EMMETTJNR_CHANGE : END
 		FPlatformMisc::CoUninitialize();
 #endif // #if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
 	}
@@ -230,7 +234,9 @@ namespace Audio
 
 		}
 
-#if PLATFORM_WINDOWS
+// @EMMETTJNR_CHANGE: BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @EMMETTJNR_CHANGE: END
 		// Work around the fact the x64 version of XAudio2_7.dll does not properly ref count
 		// by forcing it to be always loaded
 
@@ -276,6 +282,23 @@ namespace Audio
 		}
 #endif
 
+// @ATG_CHANGE: BEGIN UWP support
+#if PLATFORM_UWP
+		using namespace Windows::Foundation;
+		using namespace Windows::Devices::Enumeration;
+		IAsyncOperation<DeviceInformationCollection^>^ EnumerationOp = DeviceInformation::FindAllAsync(DeviceClass::AudioRender);
+		while (EnumerationOp->Status == AsyncStatus::Started)
+		{
+			// Spin
+		}
+
+		if (EnumerationOp->Status == AsyncStatus::Completed)
+		{
+			AllAudioDevices = EnumerationOp->GetResults();
+		}
+#endif
+// @ATG_CHANGE: END
+
 #if XAUDIO2_DEBUG_ENABLED
 		XAUDIO2_DEBUG_CONFIGURATION DebugConfiguration = { 0 };
 		DebugConfiguration.TraceMask = XAUDIO2_LOG_ERRORS | XAUDIO2_LOG_WARNINGS;
@@ -310,7 +333,9 @@ namespace Audio
 		XMA2_INFO_CALL(FXMAAudioInfo::Shutdown());
 #endif
 
-#if PLATFORM_WINDOWS
+		// @EMMETTJNR_CHANGE : BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+		// @EMMETTJNR_CHANGE : END
 		if (XAudio2Dll != nullptr && IsEngineExitRequested())
 		{
 			if (!FreeLibrary(XAudio2Dll))
@@ -343,7 +368,9 @@ namespace Audio
 
 		// XAudio2 for HoloLens doesn't have GetDeviceCount, use Windows::Devices::Enumeration instead
 		// See https://blogs.msdn.microsoft.com/chuckw/2012/04/02/xaudio2-and-windows-8/
-#if PLATFORM_HOLOLENS
+// @EMMETTJNR_CHANGE : BEGIN
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
+// @EMMETTJNR_CHANGE : END
 		if (!AllAudioDevices)
 		{
 			return false;
@@ -821,7 +848,9 @@ namespace Audio
 
 		if (GetNumOutputDevices(NumOutputDevices) && NumOutputDevices > 0)
 		{
-#if PLATFORM_HOLOLENS
+			// @EMMETTJNR_CHANGE : BEGIN UWP support
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
+			// @EMMETTJNR_CHANGE : END
 			// On windows, default device index is 0
 			// But if that device cannot be configured try to find one that can be.  This happens in the hololens emulator.
 			if (AudioStreamInfo.OutputDeviceIndex == AUDIO_MIXER_DEFAULT_DEVICE_INDEX)
@@ -872,7 +901,9 @@ namespace Audio
 				nullptr,
 				nullptr,
 				AudioCategory_GameEffects);
-#elif PLATFORM_HOLOLENS
+// @EMMETTJNR_CHANGE : BEGIN UWP Support
+#elif PLATFORM_HOLOLENS || PLATFORM_UWP
+// @EMMETTJNR_CHANGE : END
 		// XAudio2 for HoloLens has different parameters to CreateMasteringVoice
 		// See https://blogs.msdn.microsoft.com/chuckw/2012/04/02/xaudio2-and-windows-8/
 		Result = XAudio2System->CreateMasteringVoice(
@@ -1061,7 +1092,9 @@ namespace Audio
 
 	bool FMixerPlatformXAudio2::MoveAudioStreamToNewAudioDevice(const FString& InNewDeviceId)
 	{
-#if PLATFORM_WINDOWS && XAUDIO_SUPPORTS_DEVICE_DETAILS
+// @EMMETTJNR_CHANGE : BEGIN UWP Support
+#if (PLATFORM_WINDOWS || PLATFORM_UWP) && XAUDIO_SUPPORTS_DEVICE_DETAILS
+// @EMMETTJNR_CHANGE: END
 
 		uint32 NumDevices = 0;
 		// XAudio2 for HoloLens doesn't have GetDeviceCount, use local wrapper instead
@@ -1159,7 +1192,9 @@ namespace Audio
 			// Create a new master voice
 			// XAudio2 for HoloLens has different parameters to CreateMasteringVoice
 			// See https://blogs.msdn.microsoft.com/chuckw/2012/04/02/xaudio2-and-windows-8/
-#if PLATFORM_HOLOLENS
+// @EMMETTJNR_CHANGE : BEGIN
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
+// @EMMETTJNR_CHANGE : END
 			XAUDIO2_RETURN_ON_FAIL(XAudio2System->CreateMasteringVoice(
 				&OutputAudioStreamMasteringVoice, 
 				AudioStreamInfo.DeviceInfo.NumChannels, 
@@ -1364,7 +1399,9 @@ namespace Audio
 
 	bool FMixerPlatformXAudio2::DisablePCMAudioCaching() const
 	{
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 		return false;
 #else
 		return true;

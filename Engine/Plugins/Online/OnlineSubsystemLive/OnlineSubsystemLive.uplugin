@@ -1,0 +1,44 @@
+{
+	"FileVersion" : 3,
+	
+	"FriendlyName" : "Online Subsystem Live",
+	"Version" : 1,
+	"VersionName" : "1.0",
+	"Description" : "Access to Live platform",
+	"Category" : "Online Platform",
+	"CreatedBy" : "Epic Games, Inc.",
+	"CreatedByURL" : "http://epicgames.com",
+	"EnabledByDefault" : false,
+
+	"SupportedTargetPlatforms": [
+		"XboxOne", "UWP64", "UWP32"
+	],
+
+    "Modules": [
+        {
+            "Name": "OnlineSubsystemLive",
+            "Type": "Runtime",
+            "LoadingPhase": "Default",
+            "WhitelistPlatforms" :
+			[
+				"XboxOne", "UWP64", "UWP32"
+			]
+        }
+    ],
+	"LocalizationTargets": [
+		{
+			"Name": "OnlineSubsystemLive",
+			"LoadingPolicy": "Always"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "OnlineSubsystem",
+			"Enabled": true
+		},
+		{
+			"Name": "OnlineSubsystemUtils",
+			"Enabled": true
+		}
+	]
+}

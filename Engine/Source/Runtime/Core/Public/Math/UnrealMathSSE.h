@@ -2,7 +2,9 @@
 
 #pragma once
 
-#if defined(__cplusplus_cli) && !PLATFORM_HOLOLENS
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+#if defined(__cplusplus_cli) && !PLATFORM_HOLOLENS && !PLATFORM_UWP
+// @EMMETTJNR_CHANGE : END
 // there are compile issues with this file in managed mode, so use the FPU version
 #include "Math/UnrealMathFPU.h"
 #else

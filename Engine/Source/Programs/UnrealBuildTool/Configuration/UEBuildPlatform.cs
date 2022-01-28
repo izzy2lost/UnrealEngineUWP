@@ -455,7 +455,11 @@ namespace UnrealBuildTool
 				return ":";
 			}
 			if (BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win32 || BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win64 || 
-				BuildHostPlatform.Current.Platform == UnrealTargetPlatform.HoloLens)
+				BuildHostPlatform.Current.Platform == UnrealTargetPlatform.HoloLens ||
+				// @ATG_CHANGE : BEGIN UWP support
+				BuildHostPlatform.Current.Platform == UnrealTargetPlatform.UWP32 ||
+				BuildHostPlatform.Current.Platform == UnrealTargetPlatform.UWP64)
+				// @ATG_CHANGE : END
 			{
 				return ";";
 			}

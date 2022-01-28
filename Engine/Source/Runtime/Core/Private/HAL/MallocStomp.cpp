@@ -12,7 +12,9 @@
 
 #if WITH_MALLOC_STOMP
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 // MallocStomp can keep virtual address range reserved after memory block is freed, while releasing the physical memory.
 // This dramatically increases accuracy of use-after-free detection, but consumes significant amount of memory for the OS page table.
 // Virtual memory limit for a process on Win10 is 128 TB, which means we can afford to keep virtual memory reserved for a very long time.
@@ -119,7 +121,9 @@ void* FMallocStomp::TryMalloc(SIZE_T Size, uint32 Alignment)
 		ReturnedPointer = reinterpret_cast<void*>(reinterpret_cast<uint8*>(FullAllocationPointer) + PageSize + AlignedAllocationData);
 		void* AllocDataPointerStart = reinterpret_cast<FAllocationData*>(reinterpret_cast<uint8*>(FullAllocationPointer) + PageSize);
 
-#if PLATFORM_WINDOWS && MALLOC_STOMP_KEEP_VIRTUAL_MEMORY
+// @LAB132: BEGIN UWP Support
+#if (PLATFORM_WINDOWS || PLATFORM_UWP) && MALLOC_STOMP_KEEP_VIRTUAL_MEMORY
+// @LAB132: END
 		// Commit physical pages to the used range, leaving the first page unmapped.
 		void* CommittedMemory = VirtualAlloc(AllocDataPointerStart, AllocFullPageSize, MEM_COMMIT, PAGE_READWRITE);
 		if (!CommittedMemory)
@@ -137,7 +141,9 @@ void* FMallocStomp::TryMalloc(SIZE_T Size, uint32 Alignment)
 	{
 		ReturnedPointer = reinterpret_cast<void*>(reinterpret_cast<uint8*>(FullAllocationPointer) + AllocFullPageSize - AlignedSize);
 
-#if PLATFORM_WINDOWS && MALLOC_STOMP_KEEP_VIRTUAL_MEMORY
+// @LAB132: BEGIN UWP Support
+#if (PLATFORM_WINDOWS || PLATFORM_UWP) && MALLOC_STOMP_KEEP_VIRTUAL_MEMORY
+// @LAB132: END
 		// Commit physical pages to the used range, leaving the last page unmapped.
 		void* CommittedMemory = VirtualAlloc(FullAllocationPointer, AllocFullPageSize, MEM_COMMIT, PAGE_READWRITE);
 		if (!CommittedMemory)

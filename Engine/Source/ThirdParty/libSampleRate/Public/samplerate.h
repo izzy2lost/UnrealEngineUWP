@@ -13,7 +13,9 @@
 */
 
 #ifdef PLATFORM_WINDOWS
-	#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 	#define SRC_EXPORT __declspec(dllexport)
 	#elif PLATFORM_MAC
 	#define SRC_EXPORT __attribute__((visibility("default")))

@@ -35,6 +35,15 @@ public class RHI : ModuleRules
 					DynamicallyLoadedModuleNames.Add("D3D11RHI");
 				}
 
+                // @ATG_CHANGE : BEGIN UWP support
+                if ((Target.Platform == UnrealTargetPlatform.UWP32) ||
+                    (Target.Platform == UnrealTargetPlatform.UWP64))
+                {
+                    DynamicallyLoadedModuleNames.Add("D3D11RHI");
+                    DynamicallyLoadedModuleNames.Add("D3D12RHI");
+                }
+				// @ATG_CHANGE : END
+
 				if ((Target.Platform == UnrealTargetPlatform.Win64) ||
 					(Target.Platform == UnrealTargetPlatform.Win32) ||
 					(Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) && (Target.Architecture.StartsWith("x86_64") || Target.Architecture.StartsWith("aarch64"))))	// temporary, not all archs can support Vulkan atm

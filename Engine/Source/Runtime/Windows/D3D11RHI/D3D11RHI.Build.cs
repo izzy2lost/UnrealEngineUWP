@@ -10,6 +10,12 @@ public class D3D11RHI : ModuleRules
 		{
 			PrivateIncludePaths.Add("Runtime/Windows/D3D11RHI/Private/HoloLens");
 		}
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+		{
+			PrivateIncludePaths.Add("Runtime/Windows/D3D11RHI/Private/UWP");
+		}
+// @ATG_CHANGE : END
 		PrivateIncludePaths.Add("Runtime/Windows/D3D11RHI/Private");
 		PrivateIncludePaths.Add("../Shaders/Shared");
 
@@ -23,7 +29,9 @@ public class D3D11RHI : ModuleRules
 			);
 
 		AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11");
-		if (Target.Platform != UnrealTargetPlatform.HoloLens)
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+		if (Target.Platform != UnrealTargetPlatform.HoloLens && Target.Platform != UnrealTargetPlatform.UWP64 && Target.Platform != UnrealTargetPlatform.UWP32)
+// @EMMETTJNR_CHANGE : END
 		{ 
         	AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "AMD_AGS");

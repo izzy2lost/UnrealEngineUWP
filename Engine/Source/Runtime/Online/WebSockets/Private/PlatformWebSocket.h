@@ -16,8 +16,13 @@
 #elif PLATFORM_HOLOLENS
 #include "HoloLens/HoloLensWebSocketsManager.h"
 typedef FHoloLensWebSocketsManager FPlatformWebSocketsManager;
+// @ATG_CHANGE : BEGIN UWP websockets
+#elif PLATFORM_UWP
+#include "UWP/UWPWebSocketsManager.h"
+typedef FUWPWebSocketsManager FPlatformWebSocketsManager;
+// @ATG_CHANGE : END
 #else
-#error "Web sockets not implemented on this platform yet"
+	#error "Web sockets not implemented on this platform yet"
 #endif // WITH_LIBWEBSOCKETS
 
 #if WITH_LIBWEBSOCKETS

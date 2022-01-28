@@ -513,7 +513,9 @@ void FD3D12CommandContextBase::RHIEndFrame()
 
 void FD3D12CommandContextBase::UpdateMemoryStats()
 {
-#if PLATFORM_WINDOWS && STATS
+// @LAB132: BEGIN UWP Support
+#if (PLATFORM_WINDOWS || PLATFORM_UWP) && STATS
+// @LAB132: END 
 	DXGI_QUERY_VIDEO_MEMORY_INFO LocalVideoMemoryInfo;
 	ParentAdapter->GetLocalVideoMemoryInfo(&LocalVideoMemoryInfo);
 

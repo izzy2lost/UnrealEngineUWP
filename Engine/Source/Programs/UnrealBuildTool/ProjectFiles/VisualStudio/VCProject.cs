@@ -338,6 +338,18 @@ namespace UnrealBuildTool
 				// and then using "Win32" as the actual VS platform name
 				ProjectConfigurationName = Platform.ToString() + "_" + Configuration.ToString();
 				ProjectPlatformName = DefaultPlatformName;
+
+				// @ATG_CHANGE : BEGIN UWP support - VS remote debugging needs our fake platform to have the right processor architecture
+				if (Platform == UnrealTargetPlatform.UWP64)
+				{
+					// Needed so that VS understands that we're 64bit for remote debugger purposes.
+					ProjectPlatformName = "x64";
+				}
+				else
+				{
+					ProjectPlatformName =  "Win32";
+				}
+				// @ATG_CHANGE : END UWP support
 			}
 
 			if(TargetConfigurationName != TargetType.Game)
@@ -845,7 +857,17 @@ namespace UnrealBuildTool
 				}
 
 				// Add all the default system include paths
-				if (InPlatforms.Contains(UnrealTargetPlatform.Win64))
+				// @ATG_CHANGE : BEGIN UWP support
+				if (InPlatforms.Contains(UnrealTargetPlatform.UWP32))
+				{
+					VCIncludeSearchPaths.Append(UniversalWindowsPlatformToolChain.GetVCIncludePaths(UnrealTargetPlatform.UWP32, GetCompilerForIntellisense()) + ";");
+				}
+				else if (InPlatforms.Contains(UnrealTargetPlatform.UWP64))
+				{
+					VCIncludeSearchPaths.Append(UniversalWindowsPlatformToolChain.GetVCIncludePaths(UnrealTargetPlatform.UWP64, GetCompilerForIntellisense()) + ";");
+				}
+				else if (InPlatforms.Contains(UnrealTargetPlatform.Win64))
+				// @ATG_CHANGE : END
 				{
 					SharedIncludeSearchPaths.Append(VCToolChain.GetVCIncludePaths(UnrealTargetPlatform.Win64, GetCompilerForIntellisense(), null) + ";");
 				}
@@ -868,6 +890,22 @@ namespace UnrealBuildTool
 				}
 				VCPreprocessorDefinitions.Append(CurDef);
 			}
+
+			// @ATG_CHANGE : BEGIN winmd support
+			// Ensure custom winmds are pulled in for Intellisense purposes.  Needs to be here because
+			// the list is owned by the VCProjectFile instance (same as other Intellisense collections).
+			// Also note that file locations may be platform-specific, but the list was formed based
+			// on Win64 only.
+			StringBuilder VCWinMDReferences = new StringBuilder();
+			foreach (var CurDef in IntelliSenseWinMDReferences)
+			{
+				if (VCWinMDReferences.Length > 0)
+				{
+					VCWinMDReferences.Append(';');
+				}
+				VCWinMDReferences.Append(CurDef.Replace(UnrealTargetPlatform.Win64.ToString(), UnrealTargetPlatform.UWP64.ToString()));
+			}
+			// @ATG_CHANGE : END
 
 			// Setup VC project file content
 			StringBuilder VCProjectFileContent = new StringBuilder();
@@ -994,17 +1032,17 @@ namespace UnrealBuildTool
 			}
 
 			// Write each project configuration PreDefaultProps section
-			foreach (Tuple<string, UnrealTargetConfiguration> ConfigurationTuple in ProjectConfigurationNameAndConfigurations)
+			// @ATG_CHANGE : BEGIN - UWP packaging & F5 support
+			// do this only for valid combinations, which conveniently provides access to the true UnrealTargetPlatform (i.e. accounts for
+			// UWP, WinRT, and any others that don't map to VS platforms).
+			foreach (ProjectConfigAndTargetCombination Combination in ProjectConfigAndTargetCombinations)
 			{
-				string ProjectConfigurationName = ConfigurationTuple.Item1;
-				UnrealTargetConfiguration TargetConfiguration = ConfigurationTuple.Item2;
-				foreach (Tuple<string, UnrealTargetPlatform> PlatformTuple in ProjectPlatformNameAndPlatforms)
-				{
-					string ProjectPlatformName = PlatformTuple.Item1;
-					UnrealTargetPlatform TargetPlatform = PlatformTuple.Item2;
-					WritePreDefaultPropsConfiguration(TargetPlatform, TargetConfiguration, ProjectPlatformName, ProjectConfigurationName, PlatformProjectGenerators, VCProjectFileContent);
-				}
+				if (Combination.Platform == null)
+					continue;
+
+				WritePreDefaultPropsConfiguration(Combination.Platform.Value, Combination.Configuration, Combination.ProjectPlatformName, Combination.ProjectConfigurationName, PlatformProjectGenerators, VCProjectFileContent);
 			}
+			// @ATG_CHANGE : END
 
 			VCProjectFileContent.AppendLine("  <Import Project=\"$(VCTargetsPath)\\Microsoft.Cpp.Default.props\" />");
 
@@ -1712,7 +1750,9 @@ namespace UnrealBuildTool
 				{
 					TargetRules TargetRulesObject = Combination.ProjectTarget.TargetRules;
 
-					if (Combination.Platform.Value.IsInGroup(UnrealPlatformGroup.Windows) || (Combination.Platform == UnrealTargetPlatform.HoloLens))
+					// @ATG_CHANGE : BEGIN - UWP support
+					if (Combination.Platform.Value.IsInGroup(UnrealPlatformGroup.Windows) || (Combination.Platform == UnrealTargetPlatform.HoloLens) || (Combination.Platform == UnrealTargetPlatform.UWP32) || (Combination.Platform == UnrealTargetPlatform.UWP64))
+					// @ATG_CHANGE : END
 					{
 						VCUserFileContent.AppendLine("  <PropertyGroup {0}>", ConditionString);
 						if (TargetRulesObject.Type != TargetType.Game)
@@ -1731,7 +1771,9 @@ namespace UnrealBuildTool
 
 							VCUserFileContent.AppendLine("    <LocalDebuggerCommandArguments>{0}</LocalDebuggerCommandArguments>", DebugOptions);
 						}
-						VCUserFileContent.AppendLine("    <DebuggerFlavor>{0}</DebuggerFlavor>", Combination.Platform == UnrealTargetPlatform.HoloLens ? "AppHostLocalDebugger " : "WindowsLocalDebugger");
+						// @EMMETTJNR_CHANGE : BEGIN - UWP support
+						VCUserFileContent.AppendLine("    <DebuggerFlavor>{0}</DebuggerFlavor>", (Combination.Platform == UnrealTargetPlatform.HoloLens || Combination.Platform == UnrealTargetPlatform.UWP32 || Combination.Platform == UnrealTargetPlatform.UWP64) ? "AppHostLocalDebugger " : "WindowsLocalDebugger");
+						// @EMMETTJNR_CHANGE : END
 						VCUserFileContent.AppendLine("  </PropertyGroup>");
 					}
 

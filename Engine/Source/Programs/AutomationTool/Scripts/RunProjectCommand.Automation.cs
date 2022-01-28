@@ -883,7 +883,9 @@ public partial class Project : CommandUtils
             }
             ClientCmdLine += " ";
 			ClientCmdLine += "-Exe=\"" + ClientApp + "\" ";
+			// @ATG_CHANGE : BEGIN UWP packaging & F5 support
 			ClientCmdLine += "-Targetplatform=" + Params.ClientTargetPlatforms[0].ToString() + " ";
+			// @ATG_CHANGE : END
 			ClientCmdLine += "-Params=\"" + TempCmdLine + "\"";
 			ClientApp = CombinePaths(CmdEnv.LocalRoot, "Engine/Binaries/Win64/UnrealFrontend.exe");
 

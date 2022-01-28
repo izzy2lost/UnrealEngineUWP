@@ -16,18 +16,20 @@ public class VorbisFile : ModuleRules
 		Type = ModuleType.External;
 
 		PublicIncludePaths.Add(VorbisFileIncPath);
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+        if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(VorbisFileLibPath, "win64", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), "libvorbisfile_64.lib"));
+			PublicAdditionalLibraries.Add(Path.Combine(VorbisFileLibPath, Target.Platform.ToString(), "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), "libvorbisfile_64.lib"));
 			PublicDelayLoadDLLs.Add("libvorbisfile_64.dll");
-			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Vorbis/Win64/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbisfile_64.dll");
+			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Vorbis/"+ Target.Platform.ToString() + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbisfile_64.dll");
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Win32 )
+		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(VorbisFileLibPath, "win32", "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), "libvorbisfile.lib"));
+			PublicAdditionalLibraries.Add(Path.Combine(VorbisFileLibPath, Target.Platform.ToString(), "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), "libvorbisfile.lib"));
 			PublicDelayLoadDLLs.Add("libvorbisfile.dll");
 			RuntimeDependencies.Add("$(EngineDir)/Binaries/ThirdParty/Vorbis/Win32/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/libvorbisfile.dll");
 		}
+// @EMMETTJNR_CHANGE : END
 		else if (Target.Platform == UnrealTargetPlatform.HoloLens)
         {
             string LibFileName = "libvorbisfile";
