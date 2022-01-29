@@ -525,6 +525,8 @@ namespace UnrealBuildTool
 					Arguments.Add("/we4459"); // 4459 - declaration of 'LocalVariable' hides global declaration
 				}
 
+				Arguments.Add("/wd4800"); // 4800: Implicit conversion from 'type' to bool. Possible information loss
+
 				Arguments.Add("/wd4463"); // 4463 - overflow; assigning 1 to bit-field that can only hold values from -1 to 0
 			}
 
@@ -1008,6 +1010,17 @@ namespace UnrealBuildTool
 					}
 				}
 			}
+
+			// @ATG_CHANGE : BEGIN winmd support
+			// Add winmd references			
+			if (Target.WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2017)
+			{
+				foreach (string CurAssemblyInfo in CompileEnvironment.WinMDReferences)
+				{
+					SharedArguments.Add(String.Format(" /FU \"{0}\"", CurAssemblyInfo));
+				}
+			}
+			// @ATG_CHANGE : END winmd support
 
 			// Add preprocessor definitions to the argument list.
 			foreach (string Definition in CompileEnvironment.Definitions)

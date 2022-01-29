@@ -9,11 +9,12 @@
 #include "Misc/FileHelper.h"
 #include "Serialization/Archive.h"
 #include "Serialization/ArrayReader.h"
-
 #include "MfMediaByteStream.h"
 #include "MfMediaPrivate.h"
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#include "Windows/AllowWindowsPlatformTypes.h"
 #else
 	#include "XboxCommonAllowPlatformTypes.h"
@@ -152,7 +153,9 @@ namespace MfMedia
 					return NULL;
 				}
 			}
-#if !PLATFORM_HOLOLENS
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
+// @ATG_CHANGE : END
 			if ((SubType == MFVideoFormat_H264) || (SubType == MFVideoFormat_H264_ES))
 			{
 				if (!FPlatformMisc::VerifyWindowsVersion(6, 1) /*Win7*/)
@@ -175,7 +178,9 @@ namespace MfMedia
 					UE_LOG(LogMfMedia, Warning, TEXT("HEVC video type requires Windows 10 or newer (your version is %s), and game must be manifested for Windows 10"), *FPlatformMisc::GetOSVersion());
 				}
 			}
-#endif // PLATFORM_HOLOLENS
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#endif // PLATFORM_HOLOLENS || PLATFORM_UWP
+// @ATG_CHANGE : END
 
 #endif //MFMEDIA_PLATFORM_SUPPORTS_ONLY_H264
 
@@ -900,7 +905,9 @@ namespace MfMedia
 }
 
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+// @ATG_CHANGE : BEGIN - Enable MFMedia for UWP
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+// @ATG_CHANGE : END
 	#include "Windows/HideWindowsPlatformTypes.h"
 #else
 	#include "XboxCommonHidePlatformTypes.h"

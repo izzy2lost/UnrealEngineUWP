@@ -427,6 +427,60 @@ namespace UnrealBuildTool
 			}
 		}
 
+		// @ATG_CHANGE : BEGIN - winmd support
+		/// <summary>
+		/// Adds all of the specified winmds to this VCProject's list of winmds for all modules in the project
+		/// </summary>
+		/// <param name="NewWinMDReferences">List of winmds paths to add</param>
+		/// <param name="Compiler">Compiler version currently in use (controls search path for winmds that are SDK contracts)</param>
+		public void AddIntelliSenseWinMDReferences(List<string> NewWinMDReferences, WindowsCompiler Compiler)
+		{
+			foreach (var CurPath in NewWinMDReferences)
+			{
+				string ResolvedPath = CurPath;
+
+				if (KnownIntelliSenseWinMDReferences.Add(ResolvedPath))
+				{
+					string PathRelativeToProjectFile;
+
+					// If the include string is an environment variable (e.g. $(DXSDK_DIR)), then we never want to
+					// give it a relative path
+					if (CurPath.StartsWith("$("))
+					{
+						PathRelativeToProjectFile = ResolvedPath;
+					}
+					else
+					{
+						// WinMDs referenced by contract name should already have been resolved to files at this point
+
+						// Incoming include paths are relative to the solution directory, but we need these paths to be
+						// relative to the project file's directory
+						PathRelativeToProjectFile = NormalizeProjectPath(ResolvedPath);
+					}
+
+					// Trim any trailing slash
+					PathRelativeToProjectFile = PathRelativeToProjectFile.TrimEnd('/', '\\');
+
+					// Make sure that it doesn't exist already
+					var AlreadyExists = false;
+					foreach (var ExistingPath in IntelliSenseWinMDReferences)
+					{
+						if (PathRelativeToProjectFile == ExistingPath)
+						{
+							AlreadyExists = true;
+							break;
+						}
+					}
+
+					if (!AlreadyExists)
+					{
+						IntelliSenseWinMDReferences.Add(PathRelativeToProjectFile);
+					}
+				}
+			}
+		}
+		// @ATG_CHANGE : END
+
 		/// <summary>
 		/// Add the given project to the DepondsOn project list.
 		/// </summary>
@@ -607,12 +661,6 @@ namespace UnrealBuildTool
 		/// </summary>
 		public readonly List<string> IntelliSensePreprocessorDefinitions = new List<string>();
 
-		/// <summary>
-		/// Set of unique preprocessor definitions
-		/// </summary>
-		HashSet<string> KnownIntelliSensePreprocessorDefinitions = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
-
-		/// <summary>
 		/// Projects that this project is dependent on
 		/// </summary>
 		public readonly List<ProjectFile> DependsOnProjects = new List<ProjectFile>();

@@ -10,7 +10,7 @@
 #include "Modules/ModuleManager.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 	#include <delayimp.h>
-	#if !PLATFORM_HOLOLENS
+	#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
 	#include "amd_ags.h"
 	#endif
 #include "Windows/HideWindowsPlatformTypes.h"

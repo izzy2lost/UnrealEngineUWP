@@ -8,7 +8,11 @@ public class XInput : ModuleRules
 		Type = ModuleType.External;
 
 		string DirectXSDKDir = "";
-		if (Target.Platform == UnrealTargetPlatform.HoloLens)
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.HoloLens ||
+			Target.Platform == UnrealTargetPlatform.UWP32 ||
+			Target.Platform == UnrealTargetPlatform.UWP64)
+// @EMMETTJNR_CHANGE : END
 		{
 			DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
 			Target.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
@@ -21,7 +25,9 @@ public class XInput : ModuleRules
 
 		// Ensure correct include and link paths for xinput so the correct dll is loaded (xinput1_3.dll)
 		
-		if (Target.Platform == UnrealTargetPlatform.HoloLens)
+		// @EMMETTJNR_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.HoloLens || Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+		// @EMMETTJNR_CHANGE : END
 		{
 			PublicSystemLibraries.Add("xinputuap.lib");
 			PublicSystemIncludePaths.Add(DirectXSDKDir + "/include");

@@ -7,20 +7,24 @@
 #include "D3D12RHIPrivate.h"
 #include "Modules/ModuleManager.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
+
 #include <delayimp.h>
-#if !PLATFORM_HOLOLENS && !PLATFORM_CPU_ARM_FAMILY
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP && !PLATFORM_CPU_ARM_FAMILY
+// @EMMETTJNR_CHANGE : END UWP support
 #include "amd_ags.h"
 #define AMD_API_ENABLE 1
 #else
 #define AMD_API_ENABLE 0
 #endif
-#if !PLATFORM_HOLOLENS && !PLATFORM_CPU_ARM_FAMILY
+#if !PLATFORM_HOLOLENS && !PLATFORM_CPU_ARM_FAMILY && !PLATFORM_UWP
 	#define NV_API_ENABLE 1
 	#include "nvapi.h"
 	#include "nvShaderExtnEnums.h"
 #else
 	#define NV_API_ENABLE 0
 #endif
+
 #include "Windows/HideWindowsPlatformTypes.h"
 
 #include "HardwareInfo.h"
@@ -275,7 +279,9 @@ static bool SupportsHDROutput(FD3D12DynamicRHI* D3DRHI)
 
 bool FD3D12DynamicRHIModule::IsSupported()
 {
-#if !PLATFORM_HOLOLENS
+	// @EMMETTJNR_CHANGE : BEGIN UWP support
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
+	// @EMMETTJNR_CHANGE : END
 	if (!FPlatformMisc::VerifyWindowsVersion(10, 0))
 	{
 		return false;
@@ -678,7 +684,9 @@ void FD3D12DynamicRHI::Init()
 	}
 #endif
 
-#if !PLATFORM_HOLOLENS
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
+// @EMMETTJNR_CHANGE : END
 	// Disable ray tracing for Windows build versions
 
 	bool bIsRunningNvidiaGFN = false;

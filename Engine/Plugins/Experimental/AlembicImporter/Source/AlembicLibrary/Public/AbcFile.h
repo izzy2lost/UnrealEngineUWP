@@ -5,7 +5,9 @@
 #include "CoreMinimal.h"
 #include "Misc/EnumClassFlags.h"
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 #include "Windows/WindowsHWrapper.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #endif

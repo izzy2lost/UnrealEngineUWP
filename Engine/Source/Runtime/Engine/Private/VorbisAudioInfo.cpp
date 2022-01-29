@@ -768,6 +768,15 @@ void LoadVorbisLibraries()
 #if PLATFORM_HOLOLENS
 		PlatformString = TEXT("HoloLens");
 #endif
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_UWP
+#if PLATFORM_64BITS
+		PlatformString = TEXT("UWP64");
+#else
+		PlatformString = TEXT("UWP32");
+#endif
+#endif
+// @ATG_CHANGE :  END
 
 #if PLATFORM_CPU_ARM_FAMILY
 #if PLATFORM_64BITS

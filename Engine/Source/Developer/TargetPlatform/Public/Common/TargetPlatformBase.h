@@ -243,6 +243,15 @@ public:
 		check(TPlatformProperties::HasEditorOnlyData() != TPlatformProperties::RequiresCookedData());
 	}
 
+	// @EMMETTJNR_CHANGE : BEGIN UWP support
+	TTargetPlatformBase(const FName& InPlatformName)
+		: FTargetPlatformBase(PlatformInfo::FindPlatformInfo(InPlatformName))
+	{
+		// HasEditorOnlyData and RequiresCookedData are mutually exclusive.
+		check(TPlatformProperties::HasEditorOnlyData() != TPlatformProperties::RequiresCookedData());
+	}
+	// @EMMETTJNR_CHANGE : END
+
 public:
 
 	// ITargetPlatform interface

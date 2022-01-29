@@ -128,7 +128,7 @@ namespace physx
 // API not available in HoloLens, so use static init value as the determining indicator
 		static HMODULE s_library = NULL;
 
-#if !PX_HOLOLENS
+#if !PX_HOLOLENS && !PX_UWP
 		if (s_library == NULL)
 			s_library = GetModuleHandle(gPhysXGpuLibraryName);
 #endif

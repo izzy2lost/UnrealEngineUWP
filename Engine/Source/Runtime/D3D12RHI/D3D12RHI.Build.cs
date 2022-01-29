@@ -10,6 +10,12 @@ public class D3D12RHI : ModuleRules
 		{
 			PrivateIncludePaths.Add("Runtime/D3D12RHI/Private/HoloLens");
 		}
+		// @EMMETTJNR_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.UWP32 || Target.Platform == UnrealTargetPlatform.UWP64)
+        {
+			PrivateIncludePaths.Add("Runtime/D3D12RHI/Private/UWP");
+		}
+		// @EMMETTJNR_CHANGE : END
 		PrivateIncludePaths.Add("Runtime/D3D12RHI/Private");
 		PrivateIncludePaths.Add("../Shaders/Shared");
 
@@ -28,20 +34,26 @@ public class D3D12RHI : ModuleRules
 		}
 
 		///////////////////////////////////////////////////////////////
-        // Platform specific defines
-        ///////////////////////////////////////////////////////////////
+		// Platform specific defines
+		///////////////////////////////////////////////////////////////
 
         if (!Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) && Target.Platform != UnrealTargetPlatform.XboxOne)
         {
             PrecompileForTargets = PrecompileTargetsType.None;
         }
 
+// @EMMETTJNR_CHANGE : BEGIN UWP support
         if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) ||
-            Target.Platform == UnrealTargetPlatform.HoloLens)
+            Target.Platform == UnrealTargetPlatform.HoloLens ||
+            Target.Platform == UnrealTargetPlatform.UWP64 ||
+            Target.Platform == UnrealTargetPlatform.UWP32)
+// @EMMETTJNR_CHANGE : END
 		{
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "DX12");
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11");
-            if (Target.Platform != UnrealTargetPlatform.HoloLens)
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+            if (Target.Platform != UnrealTargetPlatform.HoloLens && Target.Platform != UnrealTargetPlatform.UWP64 && Target.Platform != UnrealTargetPlatform.UWP32)
+// @EMMETTJNR_CHANGE : END
             {
 				PrivateDependencyModuleNames.Add("GeForceNOWWrapper");
 				AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");

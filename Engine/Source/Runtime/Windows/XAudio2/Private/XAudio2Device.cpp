@@ -111,9 +111,10 @@ bool FXAudio2Device::InitializeHardware()
 
 	SampleRate = UE4_XAUDIO2_SAMPLERATE;
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
 	bComInitialized = FPlatformMisc::CoInitialize();
-#if PLATFORM_64BITS && !PLATFORM_HOLOLENS
+#if PLATFORM_64BITS && !PLATFORM_HOLOLENS && !PLATFORM_UWP
 	// Work around the fact the x64 version of XAudio2_7.dll does not properly ref count
 	// by forcing it to be always loaded
 
@@ -141,8 +142,9 @@ bool FXAudio2Device::InitializeHardware()
 			return false;
 		}
 	}
-#endif	//PLATFORM_64BITS && !PLATFORM_HOLOLENS
-#endif	//PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+#endif	//PLATFORM_64BITS && !PLATFORM_HOLOLENS && !PLATFORM_UWP
+#endif	//PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
+// @ATG_CHANGE : END
 
 #if DEBUG_XAUDIO2
 	uint32 Flags = XAUDIO2_DEBUG_ENGINE;
@@ -306,7 +308,9 @@ void FXAudio2Device::TeardownHardware()
 	XMA2_INFO_CALL(FXMAAudioInfo::Shutdown());
 #endif
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+	#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 	if (bComInitialized)
 	{
 		FPlatformMisc::CoUninitialize();
@@ -351,6 +355,8 @@ void FXAudio2Device::UpdateHardware()
 		Sources.Reset();
 
 		InitSoundSources();
+	}
+#endif
 	}
 }
 

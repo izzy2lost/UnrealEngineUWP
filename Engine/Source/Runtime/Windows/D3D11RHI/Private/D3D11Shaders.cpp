@@ -7,7 +7,7 @@
 #include "D3D11RHIPrivate.h"
 #include "Serialization/MemoryReader.h"
 
-#if !PLATFORM_HOLOLENS
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
 #include "nvapi.h"
 #endif
 
@@ -100,7 +100,7 @@ static inline void ReadShaderOptionalData(FShaderCodeReader& InShaderCode, TShad
 static bool ApplyVendorExtensions(ID3D11Device* Direct3DDevice, EShaderFrequency Frequency, const TArray<FShaderCodeVendorExtension>& VendorExtensions)
 {
 	bool IsValidHardwareExtension = true;
-#if !PLATFORM_HOLOLENS
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
 	for (int32 ExtensionIndex = 0; ExtensionIndex < VendorExtensions.Num(); ++ExtensionIndex)
 	{
 		const FShaderCodeVendorExtension& Extension = VendorExtensions[ExtensionIndex];
@@ -143,7 +143,7 @@ static bool ApplyVendorExtensions(ID3D11Device* Direct3DDevice, EShaderFrequency
 
 static void ResetVendorExtensions(ID3D11Device* Direct3DDevice, EShaderFrequency Frequency, const TArray<FShaderCodeVendorExtension>& VendorExtensions)
 {
-#if !PLATFORM_HOLOLENS
+#if !PLATFORM_HOLOLENS && !PLATFORM_UWP
 	for (int32 ExtensionIndex = 0; ExtensionIndex < VendorExtensions.Num(); ++ExtensionIndex)
 	{
 		const FShaderCodeVendorExtension& Extension = VendorExtensions[ExtensionIndex];

@@ -15,7 +15,9 @@ public class Kiss_FFT : ModuleRules
 
 		PublicIncludePaths.Add(Kiss_FFTPath);
 
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+// @ATG_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
+// @ATG_CHANGE : END
 		{
 			string LibDir;
 			if (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT)

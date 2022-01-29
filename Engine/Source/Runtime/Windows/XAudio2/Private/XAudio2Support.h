@@ -6,16 +6,16 @@
 
 #pragma once
 
+// @ATG_CHANGE :  BEGIN UWP support
 #ifndef XAUDIO_SUPPORTS_XMA2WAVEFORMATEX
 	#define XAUDIO_SUPPORTS_XMA2WAVEFORMATEX	0
 #endif	//XAUDIO_SUPPORTS_XMA2WAVEFORMATEX
 #ifndef XAUDIO_SUPPORTS_DEVICE_DETAILS
-	#define XAUDIO_SUPPORTS_DEVICE_DETAILS		1
+	#define XAUDIO_SUPPORTS_DEVICE_DETAILS		0
 #endif	//XAUDIO_SUPPORTS_DEVICE_DETAILS
 #ifndef X3DAUDIO_VECTOR_IS_A_D3DVECTOR
 	#define X3DAUDIO_VECTOR_IS_A_D3DVECTOR		1
 #endif	//X3DAUDIO_VECTOR_IS_A_D3DVECTOR
-
 
 /*------------------------------------------------------------------------------------
 	XAudio2 system headers
@@ -33,6 +33,10 @@ THIRD_PARTY_INCLUDES_START
 THIRD_PARTY_INCLUDES_END
 #include "Windows/HideWindowsPlatformAtomics.h"
 #include "Windows/HideWindowsPlatformTypes.h"
+#endif
+
+#if PLATFORM_UWP
+#include "DirectX/Include/audiodefs.h"
 #endif
 
 #if PLATFORM_WINDOWS

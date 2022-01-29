@@ -53,9 +53,35 @@ public class DX12 : ModuleRules
 				PublicDefinitions.Add("D3D12_PROFILING_ENABLED=0");
 			}
 		}
+		else if (Target.Platform == UnrealTargetPlatform.UWP64)
+        {
+            LibDir = DirectXSDKDir + "/Lib/x64/";
 
-		// Always delay-load D3D12
-		PublicDelayLoadDLLs.AddRange( new string[] {
+            //if (Target.WindowsPlatform.bPixProfilingEnabled &&
+            //    Target.Configuration != UnrealTargetConfiguration.Shipping &&
+            //    Target.Configuration != UnrealTargetConfiguration.Test)
+            //{
+            //    string Arch = Target.WindowsPlatform.GetArchitectureSubpath();
+            //    PublicSystemIncludePaths.Add(Target.UEThirdPartySourceDirectory + "/Windows/Pix/Include");
+            //    string LibDir2 = Target.UEThirdPartySourceDirectory + "Windows/Pix/Lib/" + Arch + "/";
+            //    PublicDelayLoadDLLs.Add("WinPixEventRuntime.dll");
+            //    PublicAdditionalLibraries.Add(LibDir2 + "WinPixEventRuntime.lib");
+            //    RuntimeDependencies.Add(System.String.Format("$(EngineDir)/Binaries/ThirdParty/Windows/DirectX/{0}/WinPixEventRuntime.dll", Arch));
+            //    PublicDefinitions.Add("D3D12_PROFILING_ENABLED=1");
+            //    PublicDefinitions.Add("PROFILE");
+            //}
+            //else
+            //{
+                PublicDefinitions.Add("D3D12_PROFILING_ENABLED=0");
+            //}
+        }
+        else if (Target.Platform == UnrealTargetPlatform.UWP32)
+        {
+            LibDir = DirectXSDKDir + "/Lib/x86/";
+        }
+
+        // Always delay-load D3D12
+        PublicDelayLoadDLLs.AddRange( new string[] {
 			"d3d12.dll"
 			} );
 

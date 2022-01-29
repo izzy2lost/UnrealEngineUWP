@@ -20,17 +20,23 @@ public class libOpus : ModuleRules
 		bool bIsNewOpus = Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32 || Target.Architecture == "x86_64-unknown-linux-gnu";
 		string OpusLibraryPath = Path.Combine(LibRootDirectory, "libOpus", "opus-1.3.1-12");
 
-		if ((Target.Platform == UnrealTargetPlatform.Win64) || (Target.Platform == UnrealTargetPlatform.Win32))
+		if ((Target.Platform == UnrealTargetPlatform.Win64) ||
+// @ATG_CHANGE : BEGIN UWP support
+			(Target.Platform == UnrealTargetPlatform.Win32) ||
+			(Target.Platform == UnrealTargetPlatform.UWP32) ||
+			(Target.Platform == UnrealTargetPlatform.UWP64))
 		{
-			LibraryPath += "Windows/VS2012/";
-			if (Target.Platform == UnrealTargetPlatform.Win64)
+			// ATG - it appears that the 2013-built version of this dependency is not part of the normal enlistment
+			LibraryPath += "win32/VS" + (Target.WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2017 ? "2015" : "2012");
+			if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
 			{
-				LibraryPath += "x64/";
+				LibraryPath += "/x64/";
 			}
 			else
 			{
-				LibraryPath += "win32/";
+				LibraryPath += "/win32/";
 			}
+// @ATG_CHANGE : END
 
 			LibraryPath += "Release/";
 

@@ -43,6 +43,10 @@ DECLARE_LOG_CATEGORY_EXTERN(LogD3D12GapRecorder, Log, All);
 #include "Windows/D3D12RHIBasePrivate.h"
 #elif PLATFORM_HOLOLENS
 #include "HoloLens/D3D12RHIBasePrivate.h"
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/D3D12RHIBasePrivate.h"
+// @EMMETTJNR_CHANGE : END
 #else
 #include "D3D12RHIBasePrivate.h"
 #endif

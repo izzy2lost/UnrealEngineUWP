@@ -362,6 +362,18 @@ namespace UnrealBuildTool
 		/// </summary>
 		public List<UEBuildFramework> AdditionalFrameworks = new List<UEBuildFramework>();
 
+		// @ATG_CHANGE : BEGIN - winmd support
+		/// <summary>
+		/// List of winmd files that the source depends on
+		/// </summary>
+		public List<string> WinMDReferences = new List<string>();
+
+		/// <summary>
+		/// Enables WinRT C++/CX support (/ZW)
+		/// </summary>
+		public bool bEnableWinRTComponentExtensions = false;
+		// @ATG_CHANGE : END
+
 		/// <summary>
 		/// The file containing the precompiled header data.
 		/// </summary>
@@ -460,6 +472,10 @@ namespace UnrealBuildTool
 			bHackHeaderGenerator = Other.bHackHeaderGenerator;
 			bHideSymbolsByDefault = Other.bHideSymbolsByDefault;
 			CppStandard = Other.CppStandard;
+			// @ATG_CHANGE : BEGIN - winmd support
+			WinMDReferences.AddRange(Other.WinMDReferences);
+			bEnableWinRTComponentExtensions = Other.bEnableWinRTComponentExtensions;
+			// @ATG_CHANGE : END
 		}
 	}
 }

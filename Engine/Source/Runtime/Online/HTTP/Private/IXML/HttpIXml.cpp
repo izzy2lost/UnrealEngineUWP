@@ -4,7 +4,7 @@
 #include "HttpManager.h"
 #include "HAL/FileManager.h"
 
-#if PLATFORM_HOLOLENS
+#if PLATFORM_HOLOLENS || PLATFORM_UWP
 
 #define CHECK_SUCCESS(a)  { bool success = SUCCEEDED( (a) ); check( success ); }
 
@@ -627,4 +627,4 @@ FString FHttpResponseIXML::GetContentAsString() const
 //-----------------------------------------------------------------------------
 //	End of file
 
-#endif // PLATFORM_HOLOLENS
+#endif // PLATFORM_HOLOLENS || PLATFORM_UWP

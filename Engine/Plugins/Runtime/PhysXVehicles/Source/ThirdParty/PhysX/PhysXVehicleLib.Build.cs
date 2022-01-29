@@ -20,7 +20,10 @@ public class PhysXVehicleLib : ModuleRules
         string LibDir = Path.Combine(PhysXLibDir, Target.Platform.ToString());
 
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.HoloLens ||
-            Target.Platform == UnrealTargetPlatform.Win32)
+            Target.Platform == UnrealTargetPlatform.Win32
+		    // @ATG_CHANGE: BEGIN UWP support
+            || Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+            // @ATG_CHANGE: END UWP support
         {
             PublicAdditionalLibraries.Add(Path.Combine(LibDir, "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName(), String.Format("PhysX3Vehicle{0}_{1}.lib", LibrarySuffix, Target.WindowsPlatform.GetArchitectureSubpath())));
         }

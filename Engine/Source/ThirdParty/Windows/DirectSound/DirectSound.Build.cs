@@ -8,7 +8,11 @@ public class DirectSound : ModuleRules
 		Type = ModuleType.External;
 		
 		string DirectXSDKDir = "";
-		if (Target.Platform == UnrealTargetPlatform.HoloLens)
+// @EMMETTJNR_CHANGE  : BEGIN
+		if (Target.Platform == UnrealTargetPlatform.HoloLens ||
+			Target.Platform == UnrealTargetPlatform.UWP32 ||
+			Target.Platform == UnrealTargetPlatform.UWP64)
+// @EMMETTJNR_CHANGE : END
 		{
 			DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
             Target.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :

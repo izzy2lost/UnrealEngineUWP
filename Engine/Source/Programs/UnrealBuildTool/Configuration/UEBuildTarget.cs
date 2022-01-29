@@ -218,6 +218,18 @@ namespace UnrealBuildTool
 		/// </summary>
 		public static UnrealTargetPlatform HoloLens = FindOrAddByName("HoloLens");
 
+		// @EMMETTJNR_CHANGE : BEGIN UWP support
+		/// <summary>
+		/// UWP (x64)
+		/// </summary>
+		public static UnrealTargetPlatform UWP64 = FindOrAddByName("UWP64");
+
+		/// <summary>
+		/// UWP (x86)
+		/// </summary>
+		public static UnrealTargetPlatform UWP32 = FindOrAddByName("UWP32");
+		// @EMMETTJNR_CHANGE : END
+
 		/// <summary>
 		/// Mac
 		/// </summary>
@@ -492,6 +504,13 @@ namespace UnrealBuildTool
 		/// this group is just to lump HoloLens32 and HoloLens64 into HoloLens directories
 		/// </summary>
 		public static UnrealPlatformGroup HoloLens = FindOrAddByName("HoloLens");
+
+		// @EMMETTJNR_CHANGE : BEGIN UWP support
+		/// <summary>
+		/// this group is just to lump UWP32 and UWP64 into UWP directories
+		/// </summary>
+		public static UnrealPlatformGroup UWP = FindOrAddByName("UWP");
+		// @EMMETTJNR_CHANGE : END
 
 		/// <summary>
 		/// Microsoft platforms
@@ -1829,10 +1848,11 @@ namespace UnrealBuildTool
 				Binary.GetBuildProducts(Rules, TargetToolChain, BinaryBuildProducts, GlobalLinkEnvironment.bCreateDebugInfo);
 				BuildProducts.AddRange(BinaryBuildProducts);
 			}
+
 			BuildProducts.AddRange(RuntimeDependencyTargetFileToSourceFile.Select(x => new KeyValuePair<FileReference, BuildProductType>(x.Key, BuildProductType.RequiredResource)));
 
 			// Remove any installed build products that don't exist. They may be part of an optional install.
-			if(UnrealBuildTool.IsEngineInstalled())
+			if (UnrealBuildTool.IsEngineInstalled())
 			{
 				BuildProducts.RemoveAll(x => UnrealBuildTool.IsFileInstalled(x.Key) && !FileReference.Exists(x.Key));
 			}
@@ -2236,7 +2256,7 @@ namespace UnrealBuildTool
 			List<string> Definitions = new List<string>(GlobalCompileEnvironment.Definitions);
 			foreach(UEBuildModule Module in Binary.Modules)
 			{
-				Module.AddModuleToCompileEnvironment(null, new HashSet<DirectoryReference>(), new HashSet<DirectoryReference>(), Definitions, new List<UEBuildFramework>(), new List<FileItem>(), false);
+				Module.AddModuleToCompileEnvironment(null, new HashSet<DirectoryReference>(), new HashSet<DirectoryReference>(), Definitions, new List<UEBuildFramework>(), new List<FileItem>(), false, new List<string>());
 			}
 
 			// Write the header

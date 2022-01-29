@@ -277,7 +277,7 @@ void FORCENOINLINE FThreadHeartBeat::OnHang(double HangDuration, uint32 ThreadTh
 
 		const FString ErrorMessage = FString::Printf(TEXT("Hang detected on %s:%s%s%sCheck log for full callstack."), *ThreadName, LINE_TERMINATOR, *StackTrimmed, LINE_TERMINATOR);
 
-#if PLATFORM_DESKTOP
+#if PLATFORM_DESKTOP && !PLATFORM_UWP
 		UE_LOG(LogCore, Error, TEXT("%s"), *ErrorMessage);
 		GLog->PanicFlushThreadedLogs();
 

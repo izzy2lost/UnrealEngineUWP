@@ -1,0 +1,9 @@
+[submodule "Engine/Plugins/Runtime/Mixer"]
+	path = Engine/Plugins/Runtime/Mixer
+	url = https://github.com/EmmettJnr/interactive-unreal-plugin.git
+[submodule "Engine/Plugins/Runtime/XboxOne/XboxFrontPanel"]
+	path = Engine/Plugins/Runtime/XboxOne/XboxFrontPanel
+	url = https://github.com/EmmettJnr/xbox-front-panel-unreal-plugin.git
+[submodule "Engine/Source/Programs/WindowsDevicePortalWrapper"]
+	path = Engine/Source/Programs/WindowsDevicePortalWrapper
+	url = https://github.com/EvoPulseGaming/WindowsDevicePortalWrapper.git

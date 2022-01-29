@@ -1494,7 +1494,9 @@ public:
 
 		int32 NumWorkerThread = 0;
 		bool bConcurrentQueue = false;
-#if !PLATFORM_WINDOWS && !PLATFORM_ANDROID
+// @LAB132: BEGIN UWP Support
+#if !PLATFORM_WINDOWS && !PLATFORM_UWP && !PLATFORM_ANDROID
+// @LAB132: END
 		// some schedulers will hang for seconds trying to do this algorithm, threads starve even though other threads are calling sleep(0)
 		if (!FTickTaskSequencer::SingleThreadedMode())
 		{

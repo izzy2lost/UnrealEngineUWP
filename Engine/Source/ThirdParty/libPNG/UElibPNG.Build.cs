@@ -86,7 +86,23 @@ public class UElibPNG : ModuleRules
 			}
 			PublicAdditionalLibraries.Add(Path.Combine(LibDir, LibFileName + ".lib"));
 		}
-		else if (Target.Platform == UnrealTargetPlatform.Mac)
+        else if (Target.Platform == UnrealTargetPlatform.UWP32 || Target.Platform == UnrealTargetPlatform.UWP64)
+        {
+            string PlatformSubpath = Target.Platform.ToString();
+            LibDir = Path.Combine(LibPNGPath, PlatformSubpath, "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+
+            string LibFileName = "libpng";
+            if (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT)
+            {
+                LibFileName += "d";
+            }
+            if (Target.WindowsPlatform.Architecture == WindowsArchitecture.ARM64 || Target.WindowsPlatform.Architecture == WindowsArchitecture.x64)
+            {
+                LibFileName += "_64";
+            }
+            PublicAdditionalLibraries.Add(Path.Combine(LibDir, LibFileName + ".lib"));
+        }
+        else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			PublicAdditionalLibraries.Add(Path.Combine(LibPNGPath, "Mac", "libpng.a"));
 		}

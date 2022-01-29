@@ -153,7 +153,9 @@ bool FD3D12Device::IsGPUIdle()
 	return Fence.IsFenceComplete(Fence.GetLastSignaledFence());
 }
 
-#if (PLATFORM_WINDOWS || PLATFORM_HOLOLENS)
+// @LAB132: BEGIN UWP Support
+#if (PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP)
+// @LAB132: END
 typedef HRESULT(WINAPI *FDXGIGetDebugInterface1)(UINT, REFIID, void **);
 #endif
 
@@ -165,7 +167,9 @@ void FD3D12Device::SetupAfterDeviceCreation()
 
 	GRHISupportsArrayIndexFromAnyShader = true;
 
-#if (PLATFORM_WINDOWS || PLATFORM_HOLOLENS)
+// @LAB132: BEGIN UWP Support
+#if (PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP)
+// @LAB132: END
 	// Check if we're running under GPU capture
 	bool bUnderGPUCapture = false;
 
@@ -215,14 +219,14 @@ void FD3D12Device::SetupAfterDeviceCreation()
 		DXGIGetDebugInterface1FnPtr = DXGIGetDebugInterface1;
 #else
 		// CreateDXGIFactory2 is only available on Win8.1+, find it if it exists
-		HMODULE DxgiDLL = LoadLibraryA("dxgi.dll");
+		HMODULE DxgiDLL = (HMODULE)FPlatformProcess::GetDllHandle(TEXT("dxgi.dll"));
 		if (DxgiDLL)
 		{
 #pragma warning(push)
 #pragma warning(disable: 4191) // disable the "unsafe conversion from 'FARPROC' to 'blah'" warning
 			DXGIGetDebugInterface1FnPtr = (FDXGIGetDebugInterface1)(GetProcAddress(DxgiDLL, "DXGIGetDebugInterface1"));
 #pragma warning(pop)
-			FreeLibrary(DxgiDLL);
+			FPlatformProcess::FreeDllHandle(DxgiDLL);
 		}
 #endif
 		

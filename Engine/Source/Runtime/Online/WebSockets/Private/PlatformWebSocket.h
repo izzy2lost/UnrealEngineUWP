@@ -16,6 +16,10 @@
 	#include "XboxOneWebSocketsManager.h"
 #elif PLATFORM_HOLOLENS
 	#include "HoloLens/HoloLensWebSocketsManager.h"
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+        #include "UWP/UWPWebSocketsManager.h"
+// @EMMETTJNR_CHANGE : END
 #else
 	#error "Web Sockets not implemented on this platform yet"
 #endif

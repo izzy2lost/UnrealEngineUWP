@@ -130,11 +130,15 @@ namespace UnrealBuildTool
 
 			if(InArguments.HasOption("-2015"))
 			{
+				// @ATG_CHANGE : BEGIN - typo fix, back out when possible
 				BuildToolOverride = "-2015";
+				// @ATG_CHANGE : END
 			}
 			else if(InArguments.HasOption("-2017"))
 			{
+				// @ATG_CHANGE : BEGIN - typo fix, back out when possible
 				BuildToolOverride = "-2017";
+				// @ATG_CHANGE : END
 			}
 			else if(InArguments.HasOption("-2019"))
 			{

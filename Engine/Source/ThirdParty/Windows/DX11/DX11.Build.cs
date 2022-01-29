@@ -8,7 +8,11 @@ public class DX11 : ModuleRules
 		Type = ModuleType.External;
 
 		string DirectXSDKDir = "";
-		if (Target.Platform == UnrealTargetPlatform.HoloLens)
+// @EMMETTJNR_CHANGE : BEGIN UWP support
+		if (Target.Platform == UnrealTargetPlatform.HoloLens ||
+			Target.Platform == UnrealTargetPlatform.UWP32 ||
+			Target.Platform == UnrealTargetPlatform.UWP64)
+// @EMMETTJNR_CHANGE : END
 		{
 			DirectXSDKDir = Target.WindowsPlatform.bUseWindowsSDK10 ?
 			Target.UEThirdPartySourceDirectory + "Windows/DirectXLegacy" :
@@ -44,18 +48,33 @@ public class DX11 : ModuleRules
 					LibDir + "d3dcompiler.lib",
 					(Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT) ? LibDir + "d3dx11d.lib" : LibDir + "d3dx11.lib",
 					LibDir + "dinput8.lib",
-					LibDir + "X3DAudio.lib",
-					LibDir + "xapobase.lib",
-					LibDir + "XAPOFX.lib"
-					}
+				}
 				);
+	        	// @ATG_CHANGE : BEGIN DX SDK lib isolation clean up
+			// Preserved for consistency with original version, but definitely not needed when using Win10 SDK
+			if (!Target.WindowsPlatform.bUseWindowsSDK10)
+			{
+				PublicAdditionalLibraries.AddRange(
+					new string[]
+					{
+				LibDir + "X3DAudio.lib",
+				LibDir + "xapobase.lib",
+				LibDir + "XAPOFX.lib"
+				}
+				);
+			}
+			// @ATG_CHANGE : END
 		}
 		else if (Target.Platform == UnrealTargetPlatform.XboxOne)
 		{
 			PublicDefinitions.Add("WITH_D3DX_LIBS=0");
 		}
 
-		else if (Target.Platform == UnrealTargetPlatform.HoloLens)
+// UWP_CHANGE : BEGIN UWP support
+		else if (Target.Platform == UnrealTargetPlatform.HoloLens ||
+			Target.Platform == UnrealTargetPlatform.UWP32 ||
+			Target.Platform == UnrealTargetPlatform.UWP64)
+// UWP_CHANGE : END
 		{
 			PublicSystemIncludePaths.Add(DirectXSDKDir + "/Include");
 

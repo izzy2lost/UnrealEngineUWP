@@ -11,7 +11,9 @@
 #include "UObject/UObjectThreadContext.h"
 #include "Framework/Application/SlateApplication.h"
 
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include "Windows/HideWindowsPlatformTypes.h"
 #endif
@@ -187,7 +189,9 @@ PyObject* ParentExternalWindowToSlate(PyObject* InSelf, PyObject* InArgs)
 		const void* SlateParentWindowHandle = FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr, ParentWindowSearchMethod);
 		if (SlateParentWindowHandle && ExternalWindowHandle)
 		{
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 			::SetWindowLongPtr((HWND)ExternalWindowHandle, -8/*GWL_HWNDPARENT*/, (LONG_PTR)SlateParentWindowHandle);
 #endif
 		}

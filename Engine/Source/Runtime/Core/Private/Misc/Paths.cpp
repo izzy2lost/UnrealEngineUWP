@@ -1232,6 +1232,11 @@ FString FPaths::CreateStandardFilename(const FString& InPath)
 	FPaths::RemoveDuplicateSlashes(Standardized);
 	// make it relative to Engine\Binaries\Platform
 	Standardized.ReplaceInline(RootDirectory, *FPaths::GetRelativePathToRoot());
+
+// @EMMETTJNR_CHANGE : BEGIN UWP support - may not be necessary anymore?
+	FPaths::RemoveDuplicateSlashes(Standardized);
+// @EMMETTJNR_CHANGE : END
+
 	return Standardized;
 }
 

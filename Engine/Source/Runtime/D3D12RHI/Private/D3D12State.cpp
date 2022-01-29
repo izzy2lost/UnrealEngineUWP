@@ -358,7 +358,9 @@ FDepthStencilStateRHIRef FD3D12DynamicRHI::RHICreateDepthStencilState(const FDep
 	{
 		DepthStencilDesc.BackFace = DepthStencilDesc.FrontFace;
 	}
-#if PLATFORM_WINDOWS
+// @LAB132: BEGIN UWP Support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @LAB132: END
 	// Currently, the initializer doesn't include depth bound test info, we have to track it separately.
 	DepthStencilDesc.DepthBoundsTestEnable = false;
 #endif

@@ -9,7 +9,7 @@
 #if _MSC_VER >= 1920
 	#define PLATFORM_COMPILER_HAS_IF_CONSTEXPR 1
 #else
-	#define PLATFORM_COMPILER_HAS_IF_CONSTEXPR 0
+#define PLATFORM_COMPILER_HAS_IF_CONSTEXPR 0
 #endif
 
 #if defined(__cpp_fold_expressions)
