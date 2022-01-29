@@ -232,7 +232,7 @@ namespace UnrealBuildTool
 			}
 
 			// Initialize the VC environment for the target, and set all the version numbers to the concrete values we chose.
-			VCEnvironment Environment = VCEnvironment.Create(Target.WindowsPlatform.Compiler, Platform, Target.WindowsPlatform.Architecture, Target.WindowsPlatform.CompilerVersion, Target.UWPPlatform.Win10SDKVersionString);
+			VCEnvironment Environment = VCEnvironment.Create(Target.WindowsPlatform.Compiler, Platform, Target.WindowsPlatform.Architecture, Target.WindowsPlatform.CompilerVersion, Target.UWPPlatform.Win10SDKVersionString, null);
 			Target.WindowsPlatform.Environment = Environment;
 			Target.WindowsPlatform.Compiler = Environment.Compiler;
 			Target.WindowsPlatform.CompilerVersion = Environment.CompilerVersion.ToString();
@@ -573,8 +573,8 @@ namespace UnrealBuildTool
 
 			// Library paths
 			string LibArchitecture = Platform == UnrealTargetPlatform.UWP64 ? "x64" : "x86";
-			LinkEnvironment.LibraryPaths.Add(new DirectoryReference (string.Format(@"{0}\Lib\{1}\ucrt\{2}", Win10SDKRoot, Target.UWPPlatform.Win10SDKVersion, LibArchitecture)));
-			LinkEnvironment.LibraryPaths.Add(new DirectoryReference (string.Format(@"{0}\Lib\{1}\um\{2}", Win10SDKRoot, Target.UWPPlatform.Win10SDKVersion, LibArchitecture)));
+			LinkEnvironment.SystemLibraryPaths.Add(new DirectoryReference (string.Format(@"{0}\Lib\{1}\ucrt\{2}", Win10SDKRoot, Target.UWPPlatform.Win10SDKVersion, LibArchitecture)));
+			LinkEnvironment.SystemLibraryPaths.Add(new DirectoryReference (string.Format(@"{0}\Lib\{1}\um\{2}", Win10SDKRoot, Target.UWPPlatform.Win10SDKVersion, LibArchitecture)));
 
 			// Reference (WinMD) paths
 			// Only Foundation and Universal are referenced by default.  Modules can bring in additional
