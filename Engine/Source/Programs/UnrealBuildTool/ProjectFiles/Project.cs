@@ -661,6 +661,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		public readonly List<string> IntelliSensePreprocessorDefinitions = new List<string>();
 
+		/// <summary>
 		/// Projects that this project is dependent on
 		/// </summary>
 		public readonly List<ProjectFile> DependsOnProjects = new List<ProjectFile>();

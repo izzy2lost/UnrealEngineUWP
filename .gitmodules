@@ -6,4 +6,4 @@
 	url = https://github.com/EmmettJnr/xbox-front-panel-unreal-plugin.git
 [submodule "Engine/Source/Programs/WindowsDevicePortalWrapper"]
 	path = Engine/Source/Programs/WindowsDevicePortalWrapper
-	url = https://github.com/EvoPulseGaming/WindowsDevicePortalWrapper.git
+url=https://github.com/EmmettJnr/WindowsDevicePortalWrapper.git
