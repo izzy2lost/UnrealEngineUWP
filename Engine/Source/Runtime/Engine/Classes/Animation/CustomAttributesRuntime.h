@@ -215,8 +215,8 @@ struct TBaseCustomAttributes
 
 protected:
 	// Number of, and explicit types which are currently supported
-	static CONSTEXPR int32 NumSupportedDataTypes = 3;
-	static CONSTEXPR EVariantTypes SupportedTypes[NumSupportedDataTypes] = { EVariantTypes::Float, EVariantTypes::Int32, EVariantTypes::String };	
+	static  CONSTEXPR int32 NumSupportedDataTypes = 3;
+	static  CONSTEXPR EVariantTypes SupportedTypes[NumSupportedDataTypes] = { EVariantTypes::Float, EVariantTypes::Int32, EVariantTypes::String };	
 	
 	template<typename DataType>
 	static CONSTEXPR int32 GetIndexForType()
@@ -244,10 +244,10 @@ protected:
 
 protected:
 	// Information for each stored custom attribute
-	TArray<FCustomAttributeInfo, InAllocator> AttributeInfos[NumSupportedDataTypes];
+  TArray<FCustomAttributeInfo, InAllocator> AttributeInfos[NumSupportedDataTypes];
 	
 	/* Contains the uniquely added bone indices, on a per-type basis (could make this a non-per-type array and index into it from BoneIndices, would add some cost for runtime evaluation to retrieve unique bone indices per type) */
-	TArray<int32, InAllocator> UniqueTypedBoneIndices[NumSupportedDataTypes];
+  TArray<int32, InAllocator> UniqueTypedBoneIndices[NumSupportedDataTypes];
 
 	// Attribute typed value arrays
 	TArray<float, InAllocator> FloatValues;

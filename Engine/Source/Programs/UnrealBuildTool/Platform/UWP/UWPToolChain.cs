@@ -90,17 +90,23 @@ namespace UnrealBuildTool
 			// Disable "The file contains a character that cannot be represented in the current code page" warning for non-US windows.
 			Arguments.Add("/wd4819");
 
-			{
-				VCToolChain.AddDefinition(Arguments, "_CRT_STDIO_LEGACY_WIDE_SPECIFIERS", "1");
-				//VCToolChain.AddDefinition(Arguments, "USE_SECURE_CRT", "1");
-			}
+			Arguments.Add("/wd4866");
+			Arguments.Add("/wd4430");
+			Arguments.Add("/wd4003");
 
+		
+			
 			// @todo HoloLens: Disable "unreachable code" warning since auto-included vccorlib.h triggers it
 			Arguments.Add("/wd4702");
 
 			// Disable "usage of ATL attributes is deprecated" since WRL headers generate this
 			Arguments.Add("/wd4467");
-
+			
+		
+			{
+				VCToolChain.AddDefinition(Arguments, "_CRT_STDIO_LEGACY_WIDE_SPECIFIERS", "1");
+				//VCToolChain.AddDefinition(Arguments, "USE_SECURE_CRT", "1");
+			}
 			// @todo HoloLens: Silence the hash_map deprecation errors for now. This should be replaced with unordered_map for the real fix.
 			{
 				VCToolChain.AddDefinition(Arguments, "_SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS");
@@ -230,7 +236,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		static void AppendCLArguments_CPP(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
+		 void AppendCLArguments_CPP(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
 		{
 			// Enable Windows Runtime extensions.  Do this even for libs (plugins) so that these too can consume WinRT APIs
 			Arguments.Add("/ZW");
@@ -242,7 +248,18 @@ namespace UnrealBuildTool
 
 			// Explicitly compile the file as C++.
 			Arguments.Add("/TP");
-
+		//	if (CompileEnvironment.CppStandard >= CppStandardVersion.Latest)
+		//	{
+		//		Arguments.Add("/std:c++latest");
+		//	}
+		//	else if (CompileEnvironment.CppStandard >= CppStandardVersion.Cpp17)
+		//	{
+				Arguments.Add("/std:c++17");
+		//	}
+		//	else if (CompileEnvironment.CppStandard >= CppStandardVersion.Cpp14)
+		//	{
+		//		Arguments.Add("/std:c++14");
+		//	}
 			if (!CompileEnvironment.bEnableBufferSecurityChecks)
 			{
 				// This will disable buffer security checks (which are enabled by default) that the MS compiler adds around arrays on the stack,
@@ -263,7 +280,82 @@ namespace UnrealBuildTool
 			}
 
 			// Level 4 warnings.
-			Arguments.Add("/W3");
+			Arguments.Add("/W0");
+
+
+			// Disable specific warnings that cause problems with Clang
+			// NOTE: These must appear after we set the MSVC warning level
+
+			// @todo clang: Ideally we want as few warnings disabled as possible
+			//
+
+			if (Target.WindowsPlatform.Compiler == WindowsCompiler.Clang)
+			{
+
+				// Allow Microsoft-specific syntax to slide, even though it may be non-standard.  Needed for Windows headers.
+				Arguments.Add("-Wno-microsoft");
+
+			// @todo clang: Hack due to how we have our 'DummyPCH' wrappers setup when using unity builds.  This warning should not be disabled!!
+			Arguments.Add("-Wno-msvc-include");
+
+			if (CompileEnvironment.ShadowVariableWarningLevel != WarningLevel.Off)
+			{
+				Arguments.Add("-Wshadow");
+				if (CompileEnvironment.ShadowVariableWarningLevel == WarningLevel.Warning)
+				{
+					Arguments.Add("-Wno-error=shadow");
+				}
+			}
+
+			if (CompileEnvironment.bEnableUndefinedIdentifierWarnings)
+			{
+				Arguments.Add(" -Wundef" + (CompileEnvironment.bUndefinedIdentifierWarningsAsErrors ? "" : " -Wno-error=undef"));
+			}
+
+			// @todo clang: Kind of a shame to turn these off.  We'd like to catch unused variables, but it is tricky with how our assertion macros work.
+			Arguments.Add("-Wno-inconsistent-missing-override");
+			Arguments.Add("-Wno-unused-variable");
+			Arguments.Add("-Wno-unused-local-typedefs");
+			Arguments.Add("-Wno-unused-function");
+			Arguments.Add("-Wno-unused-private-field");
+			Arguments.Add("-Wno-unused-value");
+
+			Arguments.Add("-Wno-inline-new-delete");    // @todo clang: We declare operator new as inline.  Clang doesn't seem to like that.
+			Arguments.Add("-Wno-implicit-exception-spec-mismatch");
+
+			// Sometimes we compare 'this' pointers against nullptr, which Clang warns about by default
+			Arguments.Add("-Wno-undefined-bool-conversion");
+
+			// @todo clang: Disabled warnings were copied from MacToolChain for the most part
+			Arguments.Add("-Wno-deprecated-declarations");
+			Arguments.Add("-Wno-deprecated-writable-strings");
+			Arguments.Add("-Wno-deprecated-register");
+			Arguments.Add("-Wno-switch-enum");
+			Arguments.Add("-Wno-logical-op-parentheses");   // needed for external headers we shan't change
+			Arguments.Add("-Wno-null-arithmetic");          // needed for external headers we shan't change
+			Arguments.Add("-Wno-deprecated-declarations");  // needed for wxWidgets
+			Arguments.Add("-Wno-return-type-c-linkage");    // needed for PhysX
+			Arguments.Add("-Wno-ignored-attributes");       // needed for nvtesslib
+			Arguments.Add("-Wno-uninitialized");
+			Arguments.Add("-Wno-tautological-compare");
+			Arguments.Add("-Wno-switch");
+			Arguments.Add("-Wno-invalid-offsetof"); // needed to suppress warnings about using offsetof on non-POD types.
+
+			// @todo clang: Sorry for adding more of these, but I couldn't read my output log. Most should probably be looked at
+			Arguments.Add("-Wno-unused-parameter");         // Unused function parameter. A lot are named 'bUnused'...
+			Arguments.Add("-Wno-ignored-qualifiers");       // const ignored when returning by value e.g. 'const int foo() { return 4; }'
+			Arguments.Add("-Wno-expansion-to-defined");     // Usage of 'defined(X)' in a macro definition. Gives different results under MSVC
+			Arguments.Add("-Wno-gnu-string-literal-operator-template"); // String literal operator"" in template, used by delegates
+			Arguments.Add("-Wno-sign-compare");             // Signed/unsigned comparison - millions of these
+			Arguments.Add("-Wno-undefined-var-template");   // Variable template instantiation required but no definition available
+			Arguments.Add("-Wno-missing-field-initializers"); // Stupid warning, generated when you initialize with MyStruct A = {0};
+			Arguments.Add("-Wno-unused-lambda-capture");
+			Arguments.Add("-Wno-nonportable-include-path");
+			Arguments.Add("-Wno-invalid-token-paste");
+			Arguments.Add("-Wno-null-pointer-arithmetic");
+			Arguments.Add("-Wno-constant-logical-operand"); // Triggered by || of two template-derived values inside a static_assert
+
+			}
 		}
 
 		static void AppendCLArguments_C(List<string> Arguments)
@@ -430,16 +522,16 @@ namespace UnrealBuildTool
 			// Add include paths to the argument list.
 			foreach (DirectoryReference IncludePath in CompileEnvironment.UserIncludePaths)
 			{
-				VCToolChain.AddIncludePath(SharedArguments, IncludePath, Target.UWPPlatform.Compiler);
+				VCToolChain.AddIncludePath(SharedArguments, IncludePath, Target.UWPPlatform.Compiler, true);
 			}
 			foreach (DirectoryReference IncludePath in CompileEnvironment.SystemIncludePaths)
 			{
-				VCToolChain.AddIncludePath(SharedArguments, IncludePath, Target.UWPPlatform.Compiler);
+				VCToolChain.AddIncludePath(SharedArguments, IncludePath, Target.UWPPlatform.Compiler, true);
 			}
 
 			foreach (DirectoryReference IncludePath in EnvVars.IncludePaths)
 			{
-				VCToolChain.AddIncludePath(SharedArguments, IncludePath, Target.UWPPlatform.Compiler);
+				VCToolChain.AddIncludePath(SharedArguments, IncludePath, Target.UWPPlatform.Compiler,true);
 			}
 
 			// Add preprocessor definitions to the argument list.
@@ -478,7 +570,7 @@ namespace UnrealBuildTool
 					string OriginalPCHHeaderDirectory = Path.GetDirectoryName(SourceFile.AbsolutePath);
 					FileArguments.AddFormat(" /I \"{0}\"", OriginalPCHHeaderDirectory);
 
-					var PrecompiledFileExtension = UEBuildPlatform.GetBuildPlatform(UnrealTargetPlatform.UWP64).GetBinaryExtension(UEBuildBinaryType.PrecompiledHeader);
+					var PrecompiledFileExtension = ".pch";
 					// Add the precompiled header file to the produced items list.
 					FileItem PrecompiledHeaderFile = FileItem.GetItemByFileReference(
 						FileReference.Combine(
@@ -486,6 +578,8 @@ namespace UnrealBuildTool
 							Path.GetFileName(SourceFile.AbsolutePath) + PrecompiledFileExtension
 							)
 						);
+					// Add the precompiled header file to the produced items list.
+					
 					CompileAction.ProducedItems.Add(PrecompiledHeaderFile);
 					Result.PrecompiledHeaderFile = PrecompiledHeaderFile;
 
@@ -533,7 +627,7 @@ namespace UnrealBuildTool
 
 				if (bEmitsObjectFile)
 				{
-					var ObjectFileExtension = UEBuildPlatform.GetBuildPlatform(UnrealTargetPlatform.UWP64).GetBinaryExtension(UEBuildBinaryType.Object);
+					var ObjectFileExtension = ".obj";
 					// Add the object file to the produced item list.
 					FileItem ObjectFile = FileItem.GetItemByFileReference(
 						FileReference.Combine(
@@ -739,24 +833,24 @@ namespace UnrealBuildTool
 
 				// Add the C++ source file and its included files to the prerequisite item list.
 				CompileAction.PrerequisiteItems.Add(RCFile);
-				Actions.Add(CompileAction);
+				//Actions.Add(CompileAction);
 			}
 
 			return Result;
 		}
 
-		public override FileItem LinkFiles(LinkEnvironment LinkEnvironment, bool bBuildImportLibraryOnly, IActionGraphBuilder Graph) //(LinkEnvironment LinkEnvironment, bool bBuildImportLibraryOnly)
+		public override FileItem LinkFiles(LinkEnvironment LinkEnvironment, bool bBuildImportLibraryOnly, IActionGraphBuilder Graph)
 		{
 			if (LinkEnvironment.bIsBuildingDotNetAssembly)
 			{
 				return FileItem.GetItemByFileReference(LinkEnvironment.OutputFilePath);
 			}
 
-			bool bIsBuildingLibrary = LinkEnvironment.bIsBuildingLibrary || bBuildImportLibraryOnly;
+			bool bIsBuildingLibraryOrImportLibrary = LinkEnvironment.bIsBuildingLibrary || bBuildImportLibraryOnly;
 
 			// Get link arguments.
 			List<string> Arguments = new List<string>();
-			if (bIsBuildingLibrary)
+			if (bIsBuildingLibraryOrImportLibrary)
 			{
 				AppendLibArguments(LinkEnvironment, Arguments);
 			}
@@ -765,7 +859,7 @@ namespace UnrealBuildTool
 				AppendLinkArguments(LinkEnvironment, Arguments);
 			}
 
-			if (Target.UWPPlatform.Compiler != WindowsCompiler.Clang && LinkEnvironment.bPrintTimingInfo)
+			if (Target.WindowsPlatform.Compiler != WindowsCompiler.Clang && LinkEnvironment.bPrintTimingInfo)
 			{
 				Arguments.Add("/time+");
 			}
@@ -784,8 +878,7 @@ namespace UnrealBuildTool
 			}
 
 
-			// Add delay loaded DLLs.
-			if (!bIsBuildingLibrary)
+			if (!bIsBuildingLibraryOrImportLibrary)
 			{
 				// Delay-load these DLLs.
 				foreach (string DelayLoadDLL in LinkEnvironment.DelayLoadDLLs.Distinct())
@@ -801,16 +894,16 @@ namespace UnrealBuildTool
 			}
 
 			// Set up the library paths for linking this binary
-			if (bBuildImportLibraryOnly)
+			if(bBuildImportLibraryOnly)
 			{
-				// When building an import library, ignore all the libraries included via embedded #pragma lib declarations. 
+				// When building an import library, ignore all the libraries included via embedded #pragma lib declarations.
 				// We shouldn't need them to generate exports.
 				Arguments.Add("/NODEFAULTLIB");
 			}
 			else if (!LinkEnvironment.bIsBuildingLibrary)
 			{
 				// Add the library paths to the argument list.
-				foreach (DirectoryReference LibraryPath in LinkEnvironment.LibraryPaths)
+				foreach (DirectoryReference LibraryPath in LinkEnvironment.SystemLibraryPaths)
 				{
 					Arguments.Add(String.Format("/LIBPATH:\"{0}\"", LibraryPath));
 				}
@@ -826,17 +919,29 @@ namespace UnrealBuildTool
 				}
 			}
 
+			// Enable function level hot-patching
+			if(!bBuildImportLibraryOnly && Target.WindowsPlatform.bCreateHotpatchableImage)
+			{
+				Arguments.Add("/FUNCTIONPADMIN");
+			}
+
 			// For targets that are cross-referenced, we don't want to write a LIB file during the link step as that
 			// file will clobber the import library we went out of our way to generate during an earlier step.  This
 			// file is not needed for our builds, but there is no way to prevent MSVC from generating it when
 			// linking targets that have exports.  We don't want this to clobber our LIB file and invalidate the
 			// existing timstamp, so instead we simply emit it with a different name
-			FileReference ImportLibraryFilePath = FileReference.Combine(LinkEnvironment.IntermediateDirectory,
-														 LinkEnvironment.OutputFilePath.GetFileNameWithoutExtension() + ".lib");
-
+			FileReference ImportLibraryFilePath;
 			if (LinkEnvironment.bIsCrossReferenced && !bBuildImportLibraryOnly)
 			{
-				ImportLibraryFilePath = ImportLibraryFilePath.ChangeExtension(".suppressed" + ImportLibraryFilePath.GetExtension());
+				ImportLibraryFilePath = FileReference.Combine(LinkEnvironment.IntermediateDirectory, LinkEnvironment.OutputFilePath.GetFileNameWithoutExtension() + ".suppressed.lib");
+			}
+			else if(Target.bShouldCompileAsDLL)
+			{
+				ImportLibraryFilePath = FileReference.Combine(LinkEnvironment.OutputDirectory, LinkEnvironment.OutputFilePath.GetFileNameWithoutExtension() + ".lib");
+			}
+			else
+			{
+				ImportLibraryFilePath = FileReference.Combine(LinkEnvironment.IntermediateDirectory, LinkEnvironment.OutputFilePath.GetFileNameWithoutExtension() + ".lib");
 			}
 
 			FileItem OutputFile;
@@ -862,19 +967,16 @@ namespace UnrealBuildTool
 				PrerequisiteItems.Add(InputFile);
 			}
 
-			if (!bIsBuildingLibrary)
+			if (!bIsBuildingLibraryOrImportLibrary)
 			{
-				foreach (string AdditionalLibrary in LinkEnvironment.AdditionalLibraries)
+				foreach (FileReference Library in LinkEnvironment.Libraries)
 				{
-					InputFileNames.Add(string.Format("\"{0}\"", AdditionalLibrary));
-
-					// If the library file name has a relative path attached (rather than relying on additional
-					// lib directories), then we'll add it to our prerequisites list.  This will allow UBT to detect
-					// when the binary needs to be relinked because a dependent external library has changed.
-					//if( !String.IsNullOrEmpty( Path.GetDirectoryName( AdditionalLibrary ) ) )
-					{
-						PrerequisiteItems.Add(FileItem.GetItemByPath(AdditionalLibrary));
-					}
+					InputFileNames.Add(string.Format("\"{0}\"", Library));
+					PrerequisiteItems.Add(FileItem.GetItemByFileReference(Library));
+				}
+				foreach (string SystemLibrary in LinkEnvironment.SystemLibraries)
+				{
+					InputFileNames.Add(string.Format("\"{0}\"", SystemLibrary));
 				}
 			}
 
@@ -883,30 +985,35 @@ namespace UnrealBuildTool
 			// Add the output file to the command-line.
 			Arguments.Add(String.Format("/OUT:\"{0}\"", OutputFile.AbsolutePath));
 
-			if (bBuildImportLibraryOnly || (LinkEnvironment.bHasExports && !bIsBuildingLibrary))
+			// For import libraries and exports generated by cross-referenced builds, we don't track output files. VS 15.3+ doesn't touch timestamps for libs
+			// and exp files with no modifications, breaking our dependency checking, but incremental linking will fall back to a full link if we delete it.
+			// Since all DLLs are typically marked as cross referenced now anyway, we can just ignore this file to allow incremental linking to work.
+			if(LinkEnvironment.bHasExports && !LinkEnvironment.bIsBuildingLibrary && !LinkEnvironment.bIsCrossReferenced)
 			{
-				// An export file is written to the output directory implicitly; add it to the produced items list.
 				FileReference ExportFilePath = ImportLibraryFilePath.ChangeExtension(".exp");
 				FileItem ExportFile = FileItem.GetItemByFileReference(ExportFilePath);
 				ProducedItems.Add(ExportFile);
 			}
 
-			if (!bIsBuildingLibrary)
+			if (!bIsBuildingLibraryOrImportLibrary)
 			{
 				// There is anything to export
-				if (LinkEnvironment.bHasExports
-					// Shipping monolithic builds don't need exports
-					&& (!((LinkEnvironment.Configuration == CppConfiguration.Shipping) /*&& (LinkEnvironment.bShouldCompileMonolithic != false)*/)))
+				if (LinkEnvironment.bHasExports)
 				{
 					// Write the import library to the output directory for nFringe support.
 					FileItem ImportLibraryFile = FileItem.GetItemByFileReference(ImportLibraryFilePath);
 					Arguments.Add(String.Format("/IMPLIB:\"{0}\"", ImportLibraryFilePath));
-					ProducedItems.Add(ImportLibraryFile);
+
+					// Like the export file above, don't add the import library as a produced item when it's cross referenced.
+					if(!LinkEnvironment.bIsCrossReferenced)
+					{
+						ProducedItems.Add(ImportLibraryFile);
+					}
 				}
 
 				if (LinkEnvironment.bCreateDebugInfo)
 				{
-					// Write the PDB file to the output directory.			
+					// Write the PDB file to the output directory.
 					{
 						FileReference PDBFilePath = FileReference.Combine(LinkEnvironment.OutputDirectory, Path.GetFileNameWithoutExtension(OutputFile.AbsolutePath) + ".pdb");
 						FileItem PDBFile = FileItem.GetItemByFileReference(PDBFilePath);
@@ -914,7 +1021,7 @@ namespace UnrealBuildTool
 						ProducedItems.Add(PDBFile);
 					}
 
-					// Write the MAP file to the output directory.			
+					// Write the MAP file to the output directory.
 					if (LinkEnvironment.bCreateMapFile)
 					{
 						FileReference MAPFilePath = FileReference.Combine(LinkEnvironment.OutputDirectory, Path.GetFileNameWithoutExtension(OutputFile.AbsolutePath) + ".map");
@@ -928,11 +1035,27 @@ namespace UnrealBuildTool
 				}
 
 				// Add the additional arguments specified by the environment.
-				if (!String.IsNullOrEmpty(LinkEnvironment.AdditionalArguments))
+				if(!String.IsNullOrEmpty(LinkEnvironment.AdditionalArguments))
 				{
 					Arguments.Add(LinkEnvironment.AdditionalArguments.Trim());
 				}
 			}
+
+			// Add any forced references to functions
+			foreach(string IncludeFunction in LinkEnvironment.IncludeFunctions)
+			{
+				if(LinkEnvironment.Platform == UnrealTargetPlatform.Win32)
+				{
+					Arguments.Add(String.Format("/INCLUDE:_{0}", IncludeFunction)); // Assume decorated cdecl name
+				}
+				else
+				{
+					Arguments.Add(String.Format("/INCLUDE:{0}", IncludeFunction));
+				}
+			}
+
+			// Allow the toolchain to adjust/process the link arguments
+			ModifyFinalLinkArguments(LinkEnvironment, Arguments, bBuildImportLibraryOnly );
 
 			// Create a response file for the linker, unless we're generating IntelliSense data
 			FileReference ResponseFileName = GetResponseFileName(LinkEnvironment, OutputFile);
@@ -946,20 +1069,29 @@ namespace UnrealBuildTool
 			Action LinkAction = Graph.CreateAction(ActionType.Link);
 			LinkAction.CommandDescription = "Link";
 			LinkAction.WorkingDirectory = UnrealBuildTool.EngineSourceDirectory;
-			LinkAction.CommandPath = bIsBuildingLibrary ? EnvVars.LibraryManagerPath : EnvVars.LinkerPath;
-			LinkAction.CommandArguments = String.Format("@\"{0}\"", ResponseFileName);
+			if(bIsBuildingLibraryOrImportLibrary)
+			{
+				LinkAction.CommandPath = EnvVars.LibraryManagerPath;
+				LinkAction.CommandArguments = String.Format("@\"{0}\"", ResponseFileName);
+			}
+			else
+			{
+				LinkAction.CommandPath = FileReference.Combine(UnrealBuildTool.EngineDirectory, "Build", "Windows", "link-filter", "link-filter.exe");
+				LinkAction.CommandArguments = String.Format("-- \"{0}\" @\"{1}\"", EnvVars.LinkerPath, ResponseFileName);
+			}
+			LinkAction.CommandVersion = EnvVars.ToolChainVersion.ToString();
 			LinkAction.ProducedItems.AddRange(ProducedItems);
 			LinkAction.PrerequisiteItems.AddRange(PrerequisiteItems);
 			LinkAction.StatusDescription = Path.GetFileName(OutputFile.AbsolutePath);
 
 			// ensure compiler timings are captured when we execute the action.
-			if (!WindowsPlatform.bAllowClangLinker && LinkEnvironment.bPrintTimingInfo)
+			if (Target.WindowsPlatform.Compiler != WindowsCompiler.Clang && LinkEnvironment.bPrintTimingInfo)
 			{
 				LinkAction.bPrintDebugInfo = true;
 			}
 
 			// VS 15.3+ does not touch lib files if they do not contain any modifications, but we need to ensure the timestamps are updated to avoid repeatedly building them.
-			if (bBuildImportLibraryOnly || (LinkEnvironment.bHasExports && !bIsBuildingLibrary))
+			if (bBuildImportLibraryOnly || (LinkEnvironment.bHasExports && !bIsBuildingLibraryOrImportLibrary))
 			{
 				LinkAction.DeleteItems.AddRange(LinkAction.ProducedItems.Where(x => x.Location.HasExtension(".lib") || x.Location.HasExtension(".exp")));
 			}
@@ -969,7 +1101,6 @@ namespace UnrealBuildTool
 			{
 				LinkAction.DeleteItems.AddRange(LinkAction.ProducedItems.Where(x => x.Location.HasExtension(".pdb")));
 			}
-
 
 			// Tell the action that we're building an import library here and it should conditionally be
 			// ignored as a prerequisite for other actions
@@ -983,7 +1114,95 @@ namespace UnrealBuildTool
 
 			return OutputFile;
 		}
+		protected virtual void ModifyFinalLinkArguments(LinkEnvironment LinkEnvironment, List<string> Arguments, bool bBuildImportLibraryOnly)
+		{
+			AddPGOLinkArguments(LinkEnvironment, Arguments);
 
+			// IMPLEMENT_MODULE_ is not required - it only exists to ensure developers add an IMPLEMENT_MODULE() declaration in code. These are always removed for PGO so that adding/removing a module won't invalidate PGC data.
+			Arguments.RemoveAll(Argument => Argument.StartsWith("/INCLUDE:IMPLEMENT_MODULE_"));
+		}
+		protected virtual void AddPGOLinkArguments(LinkEnvironment LinkEnvironment, List<string> Arguments)
+		{
+			bool bPGOOptimize = LinkEnvironment.bPGOOptimize;
+			bool bPGOProfile = LinkEnvironment.bPGOProfile;
+
+			if (bPGOOptimize)
+			{
+				if (PreparePGOFiles(LinkEnvironment))
+				{
+					//Arguments.Add("/USEPROFILE:PGD=" + Path.Combine(LinkEnvironment.PGODirectory, LinkEnvironment.PGOFilenamePrefix + ".pgd"));
+					Arguments.Add("/LTCG");
+					//Arguments.Add("/USEPROFILE:PGD=" + LinkEnvironment.PGOFilenamePrefix + ".pgd");
+					Arguments.Add("/USEPROFILE");
+					Log.TraceInformationOnce("Enabling Profile Guided Optimization (PGO). Linking will take a while.");
+				}
+				else
+				{
+					Log.TraceWarning("PGO Optimize build will be disabled");
+					bPGOOptimize = false;
+				}
+			}
+			else if (bPGOProfile)
+			{
+				//Arguments.Add("/GENPROFILE:PGD=" + Path.Combine(LinkEnvironment.PGODirectory, LinkEnvironment.PGOFilenamePrefix + ".pgd"));
+				Arguments.Add("/LTCG");
+				//Arguments.Add("/GENPROFILE:PGD=" + LinkEnvironment.PGOFilenamePrefix + ".pgd");
+				Arguments.Add("/GENPROFILE");
+				Log.TraceInformationOnce("Enabling Profile Guided Optimization (PGO). Linking will take a while.");
+			}
+		}
+		protected bool PreparePGOFiles(LinkEnvironment LinkEnvironment)
+		{
+			if (LinkEnvironment.bPGOOptimize && LinkEnvironment.OutputFilePath.FullName.EndsWith(".exe"))
+			{
+				// The linker expects the .pgd and any .pgc files to be in the output directory.
+				// Copy the files there and make them writable...
+				Log.TraceInformation("...copying the profile guided optimization files to output directory...");
+
+				string[] PGDFiles = Directory.GetFiles(LinkEnvironment.PGODirectory, "*.pgd");
+				string[] PGCFiles = Directory.GetFiles(LinkEnvironment.PGODirectory, "*.pgc");
+
+				if (PGDFiles.Length > 1)
+				{
+					throw new BuildException("More than one .pgd file found in \"{0}\".", LinkEnvironment.PGODirectory);
+				}
+				else if (PGDFiles.Length == 0)
+				{
+					Log.TraceWarning("No .pgd files found in \"{0}\".", LinkEnvironment.PGODirectory);
+					return false;
+				}
+
+				if (PGCFiles.Length == 0)
+				{
+					Log.TraceWarning("No .pgc files found in \"{0}\".", LinkEnvironment.PGODirectory);
+					return false;
+				}
+
+				// Make sure the destination directory exists!
+				Directory.CreateDirectory(LinkEnvironment.OutputDirectory.FullName);
+
+				// Copy the .pgd to the linker output directory, renaming it to match the PGO filename prefix.
+				string PGDFile = PGDFiles.First();
+				string DestPGDFile = Path.Combine(LinkEnvironment.OutputDirectory.FullName, LinkEnvironment.PGOFilenamePrefix + ".pgd");
+				Log.TraceInformation("{0} -> {1}", PGDFile, DestPGDFile);
+				File.Copy(PGDFile, DestPGDFile, true);
+				File.SetAttributes(DestPGDFile, FileAttributes.Normal);
+
+				// Copy the *!n.pgc files (where n is an integer), renaming them to match the PGO filename prefix and ensuring they are numbered sequentially
+				int PGCFileIndex = 0;
+				foreach (string SrcFilePath in PGCFiles)
+				{
+					string DestFileName = string.Format("{0}!{1}.pgc", LinkEnvironment.PGOFilenamePrefix, ++PGCFileIndex);
+					string DestFilePath = Path.Combine(LinkEnvironment.OutputDirectory.FullName, DestFileName);
+
+					Log.TraceInformation("{0} -> {1}", SrcFilePath, DestFilePath);
+					File.Copy(SrcFilePath, DestFilePath, true);
+					File.SetAttributes(DestFilePath, FileAttributes.Normal);
+				}
+			}
+
+			return true;
+		}
 		private void ExportObjectFilePaths(LinkEnvironment LinkEnvironment, string FileName)
 		{
 			// Write the list of object file directories
@@ -992,22 +1211,21 @@ namespace UnrealBuildTool
 			{
 				ObjectFileDirectories.Add(InputFile.Location.Directory);
 			}
-			foreach (string AdditionalLibrary in LinkEnvironment.AdditionalLibraries)
+			foreach (FileReference Library in LinkEnvironment.Libraries)
 			{
-				// Need to handle import libraries that are about to be built (but may not exist yet), third party libraries with relative paths in the UE4 tree, and system libraries in the system path
-				FileReference AdditionalLibraryLocation = new FileReference(AdditionalLibrary);
-				if (Path.IsPathRooted(AdditionalLibrary) || FileReference.Exists(AdditionalLibraryLocation))
-				{
-					ObjectFileDirectories.Add(AdditionalLibraryLocation.Directory);
-				}
+				ObjectFileDirectories.Add(Library.Directory);
 			}
-			foreach (DirectoryReference LibraryPath in LinkEnvironment.LibraryPaths)
+			foreach (DirectoryReference LibraryPath in LinkEnvironment.SystemLibraryPaths)
 			{
 				ObjectFileDirectories.Add(LibraryPath);
 			}
 			foreach (string LibraryPath in (Environment.GetEnvironmentVariable("LIB") ?? "").Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
 			{
 				ObjectFileDirectories.Add(new DirectoryReference(LibraryPath));
+			}
+			foreach (DirectoryReference LibraryPath in EnvVars.LibraryPaths)
+			{
+				ObjectFileDirectories.Add(LibraryPath);
 			}
 			Directory.CreateDirectory(Path.GetDirectoryName(FileName));
 			File.WriteAllLines(FileName, ObjectFileDirectories.Select(x => x.FullName).OrderBy(x => x).ToArray());
@@ -1107,7 +1325,7 @@ namespace UnrealBuildTool
 
 		public override string GetSDKVersion()
 		{
-			return CurrentWindowsSdkVersion.ToString();
+			return "10.0.17134.0";
 		}
 
 		/// <summary>

@@ -46,12 +46,18 @@ public class OodleNetworkHandlerComponent : ModuleRules
 
 		bool bSkipLibrarySetup = false;
 
-        if (Target.Platform == UnrealTargetPlatform.Win32)
+        if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
         {
 			ReleaseLib = "oo2net_win32.lib";
 			DebugLib = "oo2net_win32_debug.lib";
         }
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
+		{
+			ReleaseLib = "oo2net_win64.lib";
+			DebugLib = "oo2net_win64_debug.lib";
+			PlatformDir = "Win64";
+		}
+		else if (Target.Platform == UnrealTargetPlatform.UWP64)
 		{
 			ReleaseLib = "oo2net_win64.lib";
 			DebugLib = "oo2net_win64_debug.lib";

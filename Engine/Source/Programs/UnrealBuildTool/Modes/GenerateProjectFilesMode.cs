@@ -172,9 +172,6 @@ namespace UnrealBuildTool
 					case ProjectFileFormat.VisualStudio2019:
 						Generator = new VCProjectFileGenerator(ProjectFile, VCProjectFileFormat.VisualStudio2019, Arguments);
 						break;
-					case ProjectFileFormat.VisualStudio2022:
-						Generator = new VCProjectFileGenerator(ProjectFile, VCProjectFileFormat.VisualStudio2022, Arguments);
-						break;
 					case ProjectFileFormat.XCode:
 						Generator = new XcodeProjectFileGenerator(ProjectFile, Arguments);
 						break;

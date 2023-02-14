@@ -171,7 +171,7 @@ public:
 		AddSupportedPlatform(FGuid(0x0df604e1, 0x12e44452, 0x80bee1c7, 0x4eb934b1));
 
 		// @EMMETTJNR_CHANGE : BEGIN - TODO Refactor for new guid thing - Enable MFMedia for UWP
-		AddSupportedPlatform(FGuid(TEXT("UWP"));
+		//AddSupportedPlatform(FGuid(TEXT("UWP"));
 		// @EMMETTJNR_CHANGE : END
 
 #if MFMEDIAFACTORY_WINDOWS && MFMEDIAFACTORY_USE_WINDOWS

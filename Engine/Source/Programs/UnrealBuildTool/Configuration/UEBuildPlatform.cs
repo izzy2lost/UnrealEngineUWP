@@ -38,6 +38,8 @@ namespace UnrealBuildTool
 		/// </summary>
 		private ReadOnlyHashSet<string> CachedExcludedFolderNames;
 
+		
+
 		/// <summary>
 		/// Constructor.
 		/// </summary>

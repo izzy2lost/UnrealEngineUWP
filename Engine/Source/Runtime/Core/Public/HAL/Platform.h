@@ -85,9 +85,35 @@
 #endif
 // @ATG_CHANGE : END
 
+
 // Platform specific compiler pre-setup.
-#include "PreprocessorHelpers.h"
-#include COMPILED_PLATFORM_HEADER(PlatformCompilerPreSetup.h)
+// @ATG_CHANGE : BEGIN UWP support
+#if PLATFORM_WINDOWS || PLATFORM_UWP
+// @ATG_CHANGE : END
+#include "Windows/WindowsPlatformCompilerPreSetup.h"
+#elif PLATFORM_PS4
+#include "PS4/PS4PlatformCompilerPreSetup.h"
+#elif PLATFORM_XBOXONE
+#include "XboxOne/XboxOnePlatformCompilerPreSetup.h"
+#elif PLATFORM_MAC
+#include "Mac/MacPlatformCompilerPreSetup.h"
+#elif PLATFORM_IOS
+#include "IOS/IOSPlatformCompilerPreSetup.h"
+#elif PLATFORM_ANDROID
+#include "Android/AndroidPlatformCompilerPreSetup.h"
+#elif PLATFORM_HTML5
+#include "HTML5/HTML5PlatformCompilerPreSetup.h"
+#elif PLATFORM_LINUX
+#include "Linux/LinuxPlatformCompilerPreSetup.h"
+#elif PLATFORM_QUAIL
+#include "Quail/QuailPlatformCompilerPreSetup.h"
+#elif PLATFORM_SWITCH
+#include "Switch/SwitchPlatformCompilerPreSetup.h"
+#else
+#error Unknown Compiler
+#endif
+
+// Generic compiler pre-setup.
 
 // Generic compiler pre-setup.
 #include "GenericPlatform/GenericPlatformCompilerPreSetup.h"
@@ -141,7 +167,38 @@
 // Include main platform setup header (XXX/XXXPlatform.h)
 //---------------------------------------------------------
 
-#include COMPILED_PLATFORM_HEADER(Platform.h)
+//---------------------------------------------------------
+// Identify the current platform and include that header
+//---------------------------------------------------------
+
+//@port Identify the platform here and include the platform header to setup the platform types, etc
+#if PLATFORM_WINDOWS
+#include "Windows/WIndowsPlatform.h"	// this is the actual filename on disk, alas cannot be easily renamed in source control
+#elif PLATFORM_PS4
+#include "PS4/PS4Platform.h"
+#elif PLATFORM_XBOXONE
+#include "XboxOne/XboxOnePlatform.h"
+#elif PLATFORM_MAC
+#include "Mac/MacPlatform.h"
+#elif PLATFORM_IOS
+#include "IOS/IOSPlatform.h"
+#elif PLATFORM_ANDROID
+#include "Android/AndroidPlatform.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPPlatform.h"
+// @ATG_CHANGE : END
+#elif PLATFORM_HTML5
+#include "HTML5/HTML5Platform.h"
+#elif PLATFORM_LINUX
+#include "Linux/LinuxPlatform.h"
+#elif PLATFORM_QUAIL
+#include "Quail/QuailPlatform.h"
+#elif PLATFORM_SWITCH
+#include "Switch/SwitchPlatform.h"
+#else
+#error Unknown platform
+#endif
 
 //------------------------------------------------------------------
 // Finalize define setup
@@ -1077,7 +1134,34 @@ namespace TypeTests
 }
 
 // Platform specific compiler setup.
-#include COMPILED_PLATFORM_HEADER(PlatformCompilerSetup.h)
+// Platform specific compiler setup.
+#if PLATFORM_WINDOWS
+#include "Windows/WindowsPlatformCompilerSetup.h"
+#elif PLATFORM_PS4
+#include "PS4/PS4CompilerSetup.h"
+#elif PLATFORM_XBOXONE
+#include "XboxOne/XboxOneCompilerSetup.h"
+#elif PLATFORM_MAC
+#include "Mac/MacPlatformCompilerSetup.h"
+#elif PLATFORM_IOS
+#include "IOS/IOSPlatformCompilerSetup.h"
+#elif PLATFORM_ANDROID
+#include "Android/AndroidCompilerSetup.h"
+#elif PLATFORM_HTML5
+#include "HTML5/HTML5PlatformCompilerSetup.h"
+#elif PLATFORM_LINUX
+#include "Linux/LinuxPlatformCompilerSetup.h"
+#elif PLATFORM_QUAIL
+#include "Quail/QuailPlatformCompilerSetup.h"
+#elif PLATFORM_SWITCH
+#include "Switch/SwitchPlatformCompilerSetup.h"
+// @ATG_CHANGE : BEGIN UWP support
+#elif PLATFORM_UWP
+#include "UWP/UWPCompilerSetup.h"
+// @ATG_CHANGE : END	
+#else
+#error Unknown Compiler
+#endif
 
 
 // If we don't have a platform-specific define for the TEXT macro, define it now.

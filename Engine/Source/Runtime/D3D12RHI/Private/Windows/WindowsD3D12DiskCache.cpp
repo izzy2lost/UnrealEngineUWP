@@ -112,30 +112,7 @@ void FDiskCacheInterface::GrowMapping(SIZE_T size, bool firstrun)
 	mCacheExists = true;
 
 	// @EMMETTJNR_CHANGE : BEGIN UWP support
-#if PLATFORM_HOLOLENS || PLATFORM_UWP
-	// @EMMETTJNR_CHANGE : END
-	LARGE_INTEGER largeFileSize;
-	if (!GetFileSizeEx(mFile, &largeFileSize))
-	{
-		//error state!
-		mInErrorState = true;
-		return;
-	}
-	uint32 fileSize = largeFileSize.LowPart;
-#else
-	uint32 fileSize = GetFileSize(mFile, NULL);
-#endif
-	if (fileSize == 0)
-	{
-		byte data[64];
-		FMemory::Memzero(data);
-		//It's invalid to map a zero sized file so write some junk data in that case
-		WriteFile(mFile, data, sizeof(data), NULL, NULL);
-	}
-	else if (firstrun)
-	{
-		mCurrentFileMapSize = fileSize.QuadPart;
-	}
+
 	// @ATG_CHANGE : END
 
 	mMemoryMap = CreateFileMapping(mFile, NULL, PAGE_READWRITE, 0, (uint32)mCurrentFileMapSize, NULL);

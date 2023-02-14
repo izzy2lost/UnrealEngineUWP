@@ -86,6 +86,11 @@ uint64 FInstallBundleCache::GetUsedSize() const
 	return UsedSize;
 }
 
+uint64 FInstallBundleCache::GetFreeSpace() const
+{
+	return uint64();
+}
+
 uint64 FInstallBundleCache::GetFreeSpaceInternal(uint64 UsedSize) const
 {
 	if (UsedSize > TotalSize)
@@ -94,7 +99,7 @@ uint64 FInstallBundleCache::GetFreeSpaceInternal(uint64 UsedSize) const
 	return TotalSize - UsedSize;
 }
 
-uint64 FInstallBundleCache::GetFreeSpace() const
+uint64 FInstallBundleCache::GetFreeSpace()
 {
 	CSV_SCOPED_TIMING_STAT(InstallBundleManager, FInstallBundleCache_GetFreeSpace);
 

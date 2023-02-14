@@ -58,6 +58,9 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
+    <Reference Include="WindowsDevicePortalWrapper, Version=0.9.5.1, Culture=neutral, PublicKeyToken=630e3a646efe131a, processorArchitecture=MSIL">
+      <HintPath>..\..\..\..\packages\WindowsDevicePortalWrapper.0.9.5.1\lib\net452\WindowsDevicePortalWrapper.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\DotNETCommon\MetaData.cs">
@@ -92,6 +95,7 @@
     <None Include="app.manifest">
       <SubType>Designer</SubType>
     </None>
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <WCFMetadata Include="Service References\" />

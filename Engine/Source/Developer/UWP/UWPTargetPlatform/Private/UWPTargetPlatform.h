@@ -59,7 +59,7 @@ public:
 
 #if WITH_ENGINE
 
-	virtual const struct FPlatformAudioCookOverrides* GetAudioCompressionSettings() const override;
+	virtual const struct FPlatformAudioCookOverrides* GetAudioCompressionSettings() const ;
 
 	virtual const class FStaticMeshLODSettings& GetStaticMeshLODSettings() const override { return StaticMeshLODSettings; }
 
@@ -109,10 +109,10 @@ public:
 		return DeviceLostEvent;
 	}
 
-	virtual bool RequiresUserCredentials() const override
-	{
-		return true;
-	}
+	//virtual bool RequiresUserCredentials() const override
+	//{
+	//	return true;
+	//}
 
 	virtual bool SupportsVariants() const override
 	{

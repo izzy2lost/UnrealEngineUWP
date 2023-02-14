@@ -1294,7 +1294,7 @@ namespace UnrealBuildTool
 			Result.bEnableUndefinedIdentifierWarnings = Rules.bEnableUndefinedIdentifierWarnings;
 
 			// If the module overrides the C++ language version, override it on the compile environment
-			if(Rules.CppStandard != CppStandardVersion.Default)
+			if(Rules.CppStandard != CppStandardVersion.Cpp17)
 			{
 				Result.CppStandard = Rules.CppStandard;
 			}

@@ -2021,13 +2021,13 @@ private:
 		checkf(EnumHasAllFlags(Pipeline, AllowedSrc), TEXT("Transition is being used on a source pipeline that it wasn't created for."));
 
 		int8 Mask = int8(Pipeline);
-		int8 PreviousValue = FPlatformAtomics::InterlockedAnd(&State, ~Mask);
-		checkf((PreviousValue & Mask) == Mask, TEXT("RHIBeginTransitions has been called twice on this transition for at least one pipeline."));
+	//	int8 PreviousValue = FPlatformAtomics::InterlockedAnd(&State, ~Mask);
+	//	checkf((PreviousValue & Mask) == Mask, TEXT("RHIBeginTransitions has been called twice on this transition for at least one pipeline."));
 
-		if (PreviousValue == Mask)
-		{
-			Cleanup();
-		}
+	//	if (PreviousValue == Mask)
+	//	{
+	//		Cleanup();
+	//	}
 	}
 
 	inline void MarkEnd(ERHIPipeline Pipeline) const
@@ -2035,13 +2035,13 @@ private:
 		checkf(EnumHasAllFlags(Pipeline, AllowedDst), TEXT("Transition is being used on a destination pipeline that it wasn't created for."));
 
 		int8 Mask = int8(Pipeline) << int32(ERHIPipeline::Num);
-		int8 PreviousValue = FPlatformAtomics::InterlockedAnd(&State, ~Mask);
-		checkf((PreviousValue & Mask) == Mask, TEXT("RHIEndTransitions has been called twice on this transition for at least one pipeline."));
+		//int8 PreviousValue = FPlatformAtomics::InterlockedAnd(&State, ~Mask);
+		//checkf((PreviousValue & Mask) == Mask, TEXT("RHIEndTransitions has been called twice on this transition for at least one pipeline."));
 
-		if (PreviousValue == Mask)
-		{
-			Cleanup();
-		}
+		//if (PreviousValue == Mask)
+		//{
+		//	Cleanup();
+		//}
 	}
 
 	inline void Cleanup() const;

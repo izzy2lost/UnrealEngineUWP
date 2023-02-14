@@ -2,7 +2,7 @@
 //   Licenced under the Unreal Engine EULA 
 #pragma once
 
-#if defined WINAPI_FAMILY && !defined PLATFORM_WINGDK && !defined _GAMING_XBOX_XBOXONE
+#if defined WINAPI_FAMILY && !defined PLATFORM_WINGDK && !defined _GAMING_XBOX_XBOXONE && !PLATFORM_UWP
 #include "MinWindows.h"
 #endif
 

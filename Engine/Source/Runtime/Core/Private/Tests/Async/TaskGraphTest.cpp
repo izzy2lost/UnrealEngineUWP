@@ -223,7 +223,7 @@ namespace OldTaskGraphTests
 			{
 				while (!Output[Index])
 				{
-					FPlatformProcess::Yield();
+				//	FPlatformProcess::Yield();
 				}
 			}
 			EndTime = FPlatformTime::Seconds();
@@ -242,7 +242,7 @@ namespace OldTaskGraphTests
 			QueueTime = FPlatformTime::Seconds();
 			while (Counter.GetValue() < 1000)
 			{
-				FPlatformProcess::Yield();
+//				FPlatformProcess::Yield();
 			}
 			EndTime = FPlatformTime::Seconds();
 		}
@@ -256,7 +256,7 @@ namespace OldTaskGraphTests
 			QueueTime = FPlatformTime::Seconds();
 			while (Counter.GetValue() < 1000)
 			{
-				FPlatformProcess::Yield();
+//				FPlatformProcess::Yield();
 			}
 			EndTime = FPlatformTime::Seconds();
 		}
@@ -896,7 +896,7 @@ namespace TaskGraphTests
 
 		while ((CompletedTasks < NumTasks))
 		{
-			FPlatformProcess::Yield();
+//			FPlatformProcess::Yield();
 		}
 	}
 
@@ -923,7 +923,7 @@ namespace TaskGraphTests
 
 		while ((CompletedTasks < NumTasks))
 		{
-			FPlatformProcess::Yield();
+//			FPlatformProcess::Yield();
 		}
 	}
 

@@ -22,7 +22,7 @@ public class ShaderFormatD3D : ModuleRules
 			);
 
 		//DXC
-        if (Target.Platform == UnrealTargetPlatform.Win64)
+        if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
         {
             string DxDllsPath = "$(EngineDir)/Binaries/ThirdParty/Windows/DirectX/x64/";
 

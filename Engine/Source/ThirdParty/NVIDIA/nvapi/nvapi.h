@@ -11499,8 +11499,8 @@ typedef enum _NV_COMPUTE_SHADER_DERIVATIVES
 
 NVAPI_INTERFACE NvAPI_D3D12_CreateGraphicsPipelineState(__in ID3D12Device *pDevice,
                                                         __in const D3D12_GRAPHICS_PIPELINE_STATE_DESC *pPSODesc,
-                                                          NvU32 numExtensions,
-                                                        __in const NVAPI_D3D12_PSO_EXTENSION_DESC** ppExtensions,
+                                                         NvU32 numExtensions,
+                                                       __in const NVAPI_D3D12_PSO_EXTENSION_DESC** ppExtensions,
                                                         __out ID3D12PipelineState **ppPSO);
 
 #endif //defined(__cplusplus) && defined(__d3d12_h__)

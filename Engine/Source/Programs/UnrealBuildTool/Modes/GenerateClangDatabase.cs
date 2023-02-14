@@ -99,10 +99,10 @@ namespace UnrealBuildTool
 								{
 									CommandBuilder.AppendFormat(" -std=c++17");
 								}
-								else if (ModuleCompileEnvironment.CppStandard >= CppStandardVersion.Cpp14)
-								{
-									CommandBuilder.AppendFormat(" -std=c++14");
-								}
+								//else if (ModuleCompileEnvironment.CppStandard >= CppStandardVersion.Cpp14)
+								//{
+								//	CommandBuilder.AppendFormat(" -std=c++14");
+								//}
 
 								foreach (FileItem ForceIncludeFile in ModuleCompileEnvironment.ForceIncludeFiles)
 								{

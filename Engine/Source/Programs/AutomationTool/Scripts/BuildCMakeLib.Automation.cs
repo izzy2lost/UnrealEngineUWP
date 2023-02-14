@@ -262,7 +262,7 @@ public sealed class BuildCMakeLib : BuildCommand
 			{
 				Args += AdditionalArgs.Replace("${TARGET_CONFIG}", TargetConfiguration ?? "");
 			}
-
+			
 			return Args;
 		}
 

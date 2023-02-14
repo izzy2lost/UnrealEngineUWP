@@ -52,7 +52,7 @@ public class BinkMediaPlayer : ModuleRules
 
 		if(Lib == null)
 		{
-			if (Target.IsInPlatformGroup(UnrealPlatformGroup.Microsoft))
+			if (Target.IsInPlatformGroup(UnrealPlatformGroup.Microsoft) && Target.Platform != UnrealTargetPlatform.UWP64)
 			{
 				Lib = "BinkUnreal" + Platform + ".lib";
 			}
@@ -79,6 +79,10 @@ public class BinkMediaPlayer : ModuleRules
 				PublicAdditionalLibraries.Add(Path.Combine(LibDirectory, "libBinkUnrealAndroidArm64.a"));
 				string PluginPath = Utils.MakePathRelativeTo(ModuleDirectory, Target.RelativeEnginePath);
 				AdditionalPropertiesForReceipt.Add("AndroidPlugin", Path.Combine(PluginPath, "BinkMediaPlayer_APL.xml"));
+			}
+			else if (Target.Platform == UnrealTargetPlatform.UWP64)
+			{
+				Lib = "BinkUnreal" + "Win64"+ ".lib";
 			}
 			else
 			{

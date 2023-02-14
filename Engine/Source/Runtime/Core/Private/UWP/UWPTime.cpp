@@ -5,7 +5,7 @@ UWPTime.cpp: UWP implementations of time functions
 =============================================================================*/
 
 //#include "CorePrivatePCH.h"
-#include "UWPPlatformTime.h"
+#include "UWPTime.h"
 
 double FUWPTime::InitTiming()
 {

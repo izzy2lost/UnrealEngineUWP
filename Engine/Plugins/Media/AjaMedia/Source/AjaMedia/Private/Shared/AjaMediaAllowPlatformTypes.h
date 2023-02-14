@@ -6,9 +6,9 @@
 	#error Nesting AjaAllowPlatformTypes.h is not allowed!
 #endif
 
-#ifndef (PLATFORM_WINDOWS && PLATFORM_UWP)
-	#include "Processing.AJA.compat.h"
-#endif
+//#ifndef (PLATFORM_WINDOWS && PLATFORM_UWP)
+//	#include "Processing.AJA.compat.h"
+//#endif
 
 #define DWORD ::DWORD
 #define FLOAT ::FLOAT

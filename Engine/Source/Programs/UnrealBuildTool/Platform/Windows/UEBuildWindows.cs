@@ -930,10 +930,6 @@ namespace UnrealBuildTool
 				{
 					return WindowsCompiler.VisualStudio2019;
 				}
-				else if (ProjectFormat == VCProjectFileFormat.VisualStudio2022)
-				{
-					return WindowsCompiler.VisualStudio2022;
-				}
 				else if (ProjectFormat == VCProjectFileFormat.VisualStudio2017)
 				{
 					return WindowsCompiler.VisualStudio2017;

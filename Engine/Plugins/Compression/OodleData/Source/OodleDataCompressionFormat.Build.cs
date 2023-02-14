@@ -52,18 +52,24 @@ public class OodleDataCompressionFormat : ModuleRules
 
 		bool bSkipLibrarySetup = false;
 
-        if (Target.Platform == UnrealTargetPlatform.Win32)
+        if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.UWP32)
         {
 			ReleaseLib = "oo2core_win32.lib";
 			DebugLib = "oo2core_win32_debug.lib";
         }
-        else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
+        else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows) )
         {
 			ReleaseLib = "oo2core_win64.lib";
 			DebugLib = "oo2core_win64_debug.lib";
 			PlatformDir = "Win64";
         }
-        else if (Target.Platform == UnrealTargetPlatform.Mac)
+		else if (Target.Platform == UnrealTargetPlatform.UWP64)
+		{
+			ReleaseLib = "oo2core_win64.lib";
+			DebugLib = "oo2core_win64_debug.lib";
+			PlatformDir = "Win64";
+		}
+		else if (Target.Platform == UnrealTargetPlatform.Mac)
         {
 			ReleaseLib = "liboo2coremac64.a";
 			DebugLib = "liboo2coremac64_dbg.a";

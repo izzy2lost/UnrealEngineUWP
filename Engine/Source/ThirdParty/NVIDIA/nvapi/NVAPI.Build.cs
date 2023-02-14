@@ -24,7 +24,7 @@ public class NVAPI : ModuleRules
 
 		PublicSystemIncludePaths.Add(nvApiPath);
 
-		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) && Target.Platform != UnrealTargetPlatform.Win32)
+		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows)   || Target.Platform == UnrealTargetPlatform.UWP64)
 		{
 			string nvApiLibPath = nvApiPath + "amd64/";
 			PublicAdditionalLibraries.Add(nvApiLibPath + "nvapi64.lib");

@@ -41,7 +41,8 @@ public class libcurl : ModuleRules
 			}
 		}
 // @ATG_CHANGE : BEGIN UWP support
-		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.HoloLens || Target.Platform == UnrealTargetPlatform.UWP32 || Target.Platform == UnrealTargetPlatform.UWP64)
+		else if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.HoloLens  //|| Target.Platform == UnrealTargetPlatform.UWP32 || Target.Platform == UnrealTargetPlatform.UWP64
+                                                                                                                                                                     )
 // @ATG_CHANGE : END
 		{
 			PublicIncludePaths.Add(WinLibCurlPath + "include/" + Target.Platform.ToString() +  "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
@@ -55,6 +56,24 @@ public class libcurl : ModuleRules
 				"OpenSSL",
 				"zlib"
 			});
+		}else if(Target.Platform == UnrealTargetPlatform.UWP32 || Target.Platform == UnrealTargetPlatform.UWP64)
+		{
+
+			
+
+			PublicIncludePaths.Add(WinLibCurlPath + "include/" + "Win64" + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName());
+			string LibDir = WinLibCurlPath + "lib/" + "Win64" + "/VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName() + "/";
+			PublicAdditionalLibraries.Add(LibDir + "libcurl_a.lib");
+			PublicDefinitions.Add("CURL_STATICLIB=1");
+
+			// Our build requires OpenSSL and zlib, so ensure thye're linked in
+			AddEngineThirdPartyPrivateStaticDependencies(Target, new string[]
+			{
+				"OpenSSL",
+				"zlib"
+			});
+
 		}
+
 	}
 }

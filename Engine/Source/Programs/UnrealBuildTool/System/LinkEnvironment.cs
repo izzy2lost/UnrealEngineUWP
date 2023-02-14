@@ -301,7 +301,14 @@ namespace UnrealBuildTool
 		/// All the additional properties from the modules linked into this binary
 		/// </summary>
 		public List<ReceiptProperty> AdditionalProperties = new List<ReceiptProperty>();
-
+		/// <summary>
+		/// A list of additional libraries to link in.
+		/// </summary>
+		public List<string> AdditionalLibraries = new List<string>();
+		/// <summary>
+		/// A list of the paths used to find libraries.
+		/// </summary>
+		public List<DirectoryReference> LibraryPaths = new List<DirectoryReference>();
 		/// <summary>
 		/// Default constructor.
 		/// </summary>

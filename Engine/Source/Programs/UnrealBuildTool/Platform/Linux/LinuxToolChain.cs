@@ -872,11 +872,13 @@ namespace UnrealBuildTool
 
 		static string GetCompilerStandardVersion_CPP(CppCompileEnvironment CompileEnvironment)
 		{
-			if (CompileEnvironment.CppStandard == CppStandardVersion.Cpp14 || CompileEnvironment.CppStandard == CppStandardVersion.Default)
-			{
-				return " -std=c++14";
-			}
-			else if (CompileEnvironment.CppStandard == CppStandardVersion.Cpp17)
+			//if (CompileEnvironment.CppStandard == CppStandardVersion.Cpp14 || CompileEnvironment.CppStandard == CppStandardVersion.Default)
+			//{
+			//	return " -std=c++14";
+			//}
+			//else
+			//
+			if (CompileEnvironment.CppStandard == CppStandardVersion.Cpp17)
 			{
 				return " -std=c++17";
 			}

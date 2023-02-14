@@ -18,7 +18,7 @@ class FCurlHttpResponse;
 #include "Windows/WindowsHWrapper.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #endif
-	#include "curl/curl.h"
+	#include "ThirdParty/libcurl/curl-7.55.1/include/Win64/VS2015/curl/curl.h"
 #if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_UWP
 // @ATG_CHANGE : END
 #include "Windows/HideWindowsPlatformTypes.h"

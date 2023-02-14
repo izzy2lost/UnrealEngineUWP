@@ -4,6 +4,8 @@
 
 #include "InstallBundleTypes.h"
 
+
+
 class FInstallBundleCache;
 
 struct FInstallBundleCacheInitInfo
@@ -80,6 +82,8 @@ public:
 
 private:
 	uint64 GetFreeSpaceInternal(uint64 UsedSize) const;
+
+	uint64 GetFreeSpace();
 
 	void CheckInvariants() const;
 	

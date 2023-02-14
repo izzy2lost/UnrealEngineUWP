@@ -2,9 +2,9 @@
 
 #pragma once
 
-#if !PLATFORM_WINDOWS
-	#error this code should only be included on Windows
-#endif
+//#if !PLATFORM_WINDOWS
+//	#error this code should only be included on Windows
+//#endif
 
 #include <intrin.h>
 #include <smmintrin.h>

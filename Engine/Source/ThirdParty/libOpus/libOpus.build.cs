@@ -22,9 +22,10 @@ public class libOpus : ModuleRules
 
 		if ((Target.Platform == UnrealTargetPlatform.Win64) ||
 // @ATG_CHANGE : BEGIN UWP support
-			(Target.Platform == UnrealTargetPlatform.Win32) ||
-			(Target.Platform == UnrealTargetPlatform.UWP32) ||
-			(Target.Platform == UnrealTargetPlatform.UWP64))
+			(Target.Platform == UnrealTargetPlatform.Win32) //||
+		//	(Target.Platform == UnrealTargetPlatform.UWP32) ||
+		//	(Target.Platform == UnrealTargetPlatform.UWP64)
+        )
 		{
 			// ATG - it appears that the 2013-built version of this dependency is not part of the normal enlistment
 			LibraryPath += "win32/VS" + (Target.WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2017 ? "2015" : "2012");
@@ -59,6 +60,52 @@ public class libOpus : ModuleRules
 			string OpusBinaryPath = Path.Combine(OpusLibraryPath, "bin", Target.Platform.ToString(), ConfigPath);
 			PublicAdditionalLibraries.Add(Path.Combine(OpusBinaryPath, "opus.lib"));
 			PublicAdditionalLibraries.Add(Path.Combine(OpusBinaryPath, "opus_sse41.lib"));
+		} else if ((Target.Platform == UnrealTargetPlatform.UWP32) ||
+			(Target.Platform == UnrealTargetPlatform.UWP64))
+		{
+
+
+
+
+			// ATG - it appears that the 2013-built version of this dependency is not part of the normal enlistment
+			LibraryPath += "win32/VS" + (Target.WindowsPlatform.Compiler >= WindowsCompiler.VisualStudio2017 ? "2015" : "2012");
+			if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.UWP64)
+			{
+				LibraryPath += "/x64/";
+			}
+			else
+			{
+				LibraryPath += "/win32/";
+			}
+			// @ATG_CHANGE : END
+
+			LibraryPath += "Release/";
+
+			//PublicAdditionalLibraries.Add(LibraryPath + "silk_common.lib");
+			//PublicAdditionalLibraries.Add(LibraryPath + "silk_float.lib");
+			//PublicAdditionalLibraries.Add(LibraryPath + "celt.lib");
+			//PublicAdditionalLibraries.Add(LibraryPath + "opus.lib");
+			PublicAdditionalLibraries.Add(LibraryPath + "speex_resampler.lib");
+
+			string ConfigPath = "";
+			if (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT)
+			{
+				ConfigPath = "Debug";
+			}
+			else
+			{
+				ConfigPath = "Release";
+			}
+
+			string OpusBinaryPath = Path.Combine(OpusLibraryPath, "bin", "Win64", ConfigPath);
+			PublicAdditionalLibraries.Add(Path.Combine(OpusBinaryPath, "opus.lib"));
+			PublicAdditionalLibraries.Add(Path.Combine(OpusBinaryPath, "opus_sse41.lib"));
+
+
+
+
+
+
 		}
 		else if (Target.Platform == UnrealTargetPlatform.HoloLens)
 		{

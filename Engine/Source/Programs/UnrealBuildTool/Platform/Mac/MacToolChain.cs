@@ -295,10 +295,10 @@ namespace UnrealBuildTool
 		{
 			var Mapping = new Dictionary<CppStandardVersion, string>
 			{
-				{ CppStandardVersion.Cpp14, " -std=c++14" },
+				//{ CppStandardVersion.Cpp14, " -std=c++14" },
 				{ CppStandardVersion.Cpp17, " -std=c++17" },
 				{ CppStandardVersion.Latest, " -std=c++17" },
-				{ CppStandardVersion.Default, " -std=c++14" }
+				//{ CppStandardVersion.Default, " -std=c++14" }
 			};
 			return Mapping[CompileEnvironment.CppStandard];
 		}

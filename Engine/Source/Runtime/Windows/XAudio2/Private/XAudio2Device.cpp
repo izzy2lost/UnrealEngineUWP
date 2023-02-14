@@ -356,8 +356,8 @@ void FXAudio2Device::UpdateHardware()
 
 		InitSoundSources();
 	}
-#endif
-	}
+//#endif
+//	}
 }
 
 FAudioEffectsManager* FXAudio2Device::CreateEffectsManager()

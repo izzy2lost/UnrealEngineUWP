@@ -562,6 +562,8 @@ namespace UnrealBuildTool
 				{
 					Log.TraceInformation("Total execution time: {0:0.00} seconds", Timeline.Elapsed.TotalSeconds);
 				}
+
+				
 				return Result;
 			}
 			catch (CompilationResultException Ex)

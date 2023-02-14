@@ -11,9 +11,9 @@ public class AMD_AGS : ModuleRules
 		string AmdAgsPath = Target.UEThirdPartySourceDirectory + "AMD/AMD_AGS/";
 		PublicSystemIncludePaths.Add(AmdAgsPath + "inc/");
 
-		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
+		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) || Target.Platform == UnrealTargetPlatform.UWP64)
 		{
-			string AmdApiLibPath = AmdAgsPath + "lib/VS2017";
+			string AmdApiLibPath = AmdAgsPath + "lib/VS2017/";
 
 			if (Target.Platform != UnrealTargetPlatform.Win32)
 			{

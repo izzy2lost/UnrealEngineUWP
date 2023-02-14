@@ -142,7 +142,7 @@ namespace UnrealBuildTool
 		{
 			ProjectFilePath = InProjectFilePath;
 			ShouldBuildByDefaultForSolutionTargets = true;
-			IntelliSenseCppVersion = CppStandardVersion.Default;
+			IntelliSenseCppVersion = CppStandardVersion.Cpp17;
 		}
 
 
@@ -418,7 +418,7 @@ namespace UnrealBuildTool
 		/// <param name="CppVersion">Version</param>
 		public void SetIntelliSenseCppVersion(CppStandardVersion CppVersion)
 		{
-			if (CppVersion != CppStandardVersion.Default)
+			if (CppVersion != CppStandardVersion.Cpp17)
 			{
 				if (CppVersion > IntelliSenseCppVersion)
 				{
@@ -655,11 +655,19 @@ namespace UnrealBuildTool
 		{
 			get { return SystemIncludePaths.RelativePaths; }
 		}
+		/// Include paths for every single module in the project file, merged together
+		
+		public readonly HashSet<string> KnownIntelliSenseIncludeSearchPaths = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+		public readonly HashSet<string> KnownIntelliSenseSystemIncludeSearchPaths = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
 
-		/// <summary>
-		/// List of preprocessor definitions for the project
-		/// </summary>
+		/// Preprocessor definitions for every single module in the project file, merged together
 		public readonly List<string> IntelliSensePreprocessorDefinitions = new List<string>();
+		public readonly HashSet<string> KnownIntelliSensePreprocessorDefinitions = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+		// @ATG_CHANGE : BEGIN - winmd support
+		/// WinMD references for every single module in the project file, merged together
+		public readonly List<string> IntelliSenseWinMDReferences = new List<string>();
+		public readonly HashSet<string> KnownIntelliSenseWinMDReferences = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+		// @ATG_CHANGE : END
 
 		/// <summary>
 		/// Projects that this project is dependent on

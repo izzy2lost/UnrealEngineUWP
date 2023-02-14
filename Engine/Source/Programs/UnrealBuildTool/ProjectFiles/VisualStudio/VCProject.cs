@@ -550,8 +550,7 @@ namespace UnrealBuildTool
 		{
 			switch(ProjectFileFormat)
 			{
-				case VCProjectFileFormat.VisualStudio2022:
-					return WindowsCompiler.VisualStudio2022;
+				
 				case VCProjectFileFormat.VisualStudio2019:
 					return WindowsCompiler.VisualStudio2019;
 				case VCProjectFileFormat.VisualStudio2017:
@@ -567,12 +566,12 @@ namespace UnrealBuildTool
 		/// <returns>C++ standard version</returns>
 		public CppStandardVersion GetIntelliSenseCppVersion()
 		{
-			if (IntelliSenseCppVersion != CppStandardVersion.Default)
+			if (IntelliSenseCppVersion != CppStandardVersion.Cpp17)
 			{
 				return IntelliSenseCppVersion;
 			}
 
-			CppStandardVersion Version = CppStandardVersion.Default;
+			CppStandardVersion Version = CppStandardVersion.Cpp17;
 			foreach (ProjectConfigAndTargetCombination Combination in ProjectConfigAndTargetCombinations)
 			{
 				if (Combination.ProjectTarget != null && Combination.ProjectTarget.TargetRules != null && Combination.ProjectTarget.TargetRules.CppStandard > Version)
@@ -591,9 +590,7 @@ namespace UnrealBuildTool
 		{
 			switch (Version)
 			{
-				case CppStandardVersion.Default:
-				case CppStandardVersion.Cpp14:
-					return "/std:c++14";
+				
 				case CppStandardVersion.Cpp17:
 					return "/std:c++17";
 				case CppStandardVersion.Latest:
@@ -784,7 +781,8 @@ namespace UnrealBuildTool
 		public override bool WriteProjectFile(List<UnrealTargetPlatform> InPlatforms, List<UnrealTargetConfiguration> InConfigurations, PlatformProjectGeneratorCollection PlatformProjectGenerators)
 		{
 			string ProjectName = ProjectFilePath.GetFileNameWithoutExtension();
-
+			// Build up the new include search path string
+			StringBuilder VCIncludeSearchPaths = new StringBuilder();
 			bool bSuccess = true;
 
 			// Merge as many include paths as possible into the shared list
@@ -1223,7 +1221,7 @@ namespace UnrealBuildTool
 						VCProjectFileContent.AppendLine("    <{0} Include=\"{1}\">", VCFileType, EscapeFileName(AliasedFile.FileSystemPath));
 						VCProjectFileContent.AppendLine("      <AdditionalIncludeDirectories>$(NMakeIncludeSearchPath);{0}</AdditionalIncludeDirectories>", IncludeSearchPaths);
 						VCProjectFileContent.AppendLine("      <ForcedIncludeFiles>{0}</ForcedIncludeFiles>", ForceIncludePaths);
-						if (PchHeaderFile != null && ProjectFileFormat >= VCProjectFileFormat.VisualStudio2022)
+						if (PchHeaderFile != null && ProjectFileFormat >= VCProjectFileFormat.VisualStudio2019)
 						{
 							VCProjectFileContent.AppendLine("      <AdditionalOptions>/Yu\"{0}\"</AdditionalOptions>", PchHeaderFile);
 						}
@@ -1741,10 +1739,10 @@ namespace UnrealBuildTool
 					{
 						VCProjectFileContent.AppendLine("    <AdditionalOptions>/std:c++17</AdditionalOptions>");
 					}
-					else if (TargetRulesObject.CppStandard >= CppStandardVersion.Cpp14)
-					{
-						VCProjectFileContent.AppendLine("    <AdditionalOptions>/std:c++14</AdditionalOptions>");
-					}
+					//else if (TargetRulesObject.CppStandard >= CppStandardVersion.Cpp14)
+					//{
+					//	VCProjectFileContent.AppendLine("    <AdditionalOptions>/std:c++14</AdditionalOptions>");
+					//}
 
 					if (TargetRulesObject.Type == TargetType.Game || TargetRulesObject.Type == TargetType.Client || TargetRulesObject.Type == TargetType.Server)
 					{

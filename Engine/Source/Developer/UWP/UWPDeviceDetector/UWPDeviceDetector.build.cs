@@ -9,7 +9,6 @@ public class UWPDeviceDetector : ModuleRules
 				"Core",
 				"CoreUObject",
 				"TargetPlatform",
-				"UWPTargetPlatform",
 				"DesktopPlatform",
 				"HTTP",
 			}
