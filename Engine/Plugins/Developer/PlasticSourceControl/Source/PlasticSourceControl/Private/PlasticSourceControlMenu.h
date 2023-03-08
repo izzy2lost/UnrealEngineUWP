@@ -44,6 +44,9 @@ private:
 
 private:
 
+	/** Tracks if the menu extension has been registered with the editor or not */
+	bool bHasRegistered = false;
+	
 	/** Loaded packages to reload after a Sync or Revert operation */
 	TArray<UPackage*> PackagesToReload;
 
