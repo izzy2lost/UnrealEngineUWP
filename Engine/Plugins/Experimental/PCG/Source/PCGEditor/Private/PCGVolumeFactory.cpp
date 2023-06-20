@@ -14,7 +14,7 @@ UPCGVolumeFactory::UPCGVolumeFactory(const FObjectInitializer& ObjectInitializer
 {
 	DisplayName = LOCTEXT("PCGVolumeDisplayName", "PCG Volume");
 	NewActorClass = APCGVolume::StaticClass();
-	bUseSurfaceOrientation = true;
+	bUseSurfaceOrientation = false;
 }
 
 bool UPCGVolumeFactory::CanCreateActorFrom(const FAssetData& AssetData, FText& OutErrorMsg)
