@@ -551,9 +551,9 @@ void FPreLoadScreenManager::EarlyPlayRenderFrameTick()
 					}
 				});
 
-			SlateApp.Tick();
-
 			AcquireCriticalSection.Unlock();
+
+			SlateApp.Tick();
 
 			// Synchronize the game thread and the render thread so that the render thread doesn't get too far behind.
 			SlateApp.GetRenderer()->Sync();
