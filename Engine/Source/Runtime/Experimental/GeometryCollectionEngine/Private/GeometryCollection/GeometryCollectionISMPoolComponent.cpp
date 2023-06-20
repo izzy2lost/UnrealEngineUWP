@@ -67,7 +67,7 @@ FGeometryCollectionISM::FGeometryCollectionISM(AActor* InOwningActor, const FGeo
 	UHierarchicalInstancedStaticMeshComponent* HISMC = nullptr;
 	UInstancedStaticMeshComponent* ISMC = nullptr;
 	
-	if (MeshInstance.Desc.bUseHISM)
+	if ((MeshInstance.Desc.Flags & FISMComponentDescription::UseHISM) != 0)
 	{
 		const FName ISMName = MakeUniqueObjectName(InOwningActor, UHierarchicalInstancedStaticMeshComponent::StaticClass(), MeshInstance.StaticMesh->GetFName());
 		ISMC = HISMC = NewObject<UHierarchicalInstancedStaticMeshComponent>(InOwningActor, ISMName, RF_Transient | RF_DuplicateTransient);
@@ -95,12 +95,14 @@ FGeometryCollectionISM::FGeometryCollectionISM(AActor* InOwningActor, const FGeo
 
 	ISMC->SetRemoveSwap();
 	ISMC->NumCustomDataFloats = MeshInstance.Desc.NumCustomDataFloats;
-	ISMC->SetReverseCulling(MeshInstance.Desc.bReverseCulling);
-	ISMC->SetMobility(MeshInstance.Desc.bIsStaticMobility ? EComponentMobility::Static : EComponentMobility::Stationary);
+	ISMC->SetReverseCulling((MeshInstance.Desc.Flags & FISMComponentDescription::ReverseCulling) != 0);
+	ISMC->SetMobility((MeshInstance.Desc.Flags & FISMComponentDescription::StaticMobility) != 0 ? EComponentMobility::Static : EComponentMobility::Stationary);
 	ISMC->SetCullDistances(MeshInstance.Desc.StartCullDistance, MeshInstance.Desc.EndCullDistance);
-	ISMC->SetCastShadow(MeshInstance.Desc.bAffectShadow);
-	ISMC->bAffectDynamicIndirectLighting = MeshInstance.Desc.bAffectDynamicIndirectLighting;
-	ISMC->bAffectDistanceFieldLighting = MeshInstance.Desc.bAffectDistanceFieldLighting;
+	ISMC->SetCastShadow((MeshInstance.Desc.Flags & FISMComponentDescription::AffectShadow) != 0);
+	ISMC->bAffectDynamicIndirectLighting = (MeshInstance.Desc.Flags & FISMComponentDescription::AffectDynamicIndirectLighting) != 0;
+	ISMC->bAffectDistanceFieldLighting = (MeshInstance.Desc.Flags & FISMComponentDescription::AffectDistanceFieldLighting) != 0;
+	ISMC->bWorldPositionOffsetWritesVelocity = (MeshInstance.Desc.Flags & FISMComponentDescription::WorldPositionOffsetWritesVelocity) != 0;
+	ISMC->bUseGpuLodSelection = (MeshInstance.Desc.Flags & FISMComponentDescription::GpuLodSelection) != 0;
 	ISMC->SetCanEverAffectNavigation(false);
 	ISMC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ISMC->bOverrideMinLOD = MeshInstance.Desc.MinLod > 0;	

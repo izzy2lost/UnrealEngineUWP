@@ -99,12 +99,19 @@ struct FInstanceGroups
  */
 struct FISMComponentDescription
 {
-	bool bUseHISM = false;
-	bool bReverseCulling = false;
-	bool bIsStaticMobility = false;
-	bool bAffectShadow = true;
-	bool bAffectDistanceFieldLighting = false;
-	bool bAffectDynamicIndirectLighting = false;
+	enum EFlags
+	{
+		UseHISM = 1 << 1,
+		GpuLodSelection = 1 << 2,
+		ReverseCulling = 1 << 3,
+		StaticMobility = 1 << 4,
+		WorldPositionOffsetWritesVelocity = 1 << 5,
+		AffectShadow = 1 << 6,
+		AffectDistanceFieldLighting = 1 << 7,
+		AffectDynamicIndirectLighting = 1 << 8,
+	};
+
+	uint32 Flags = WorldPositionOffsetWritesVelocity|AffectShadow;
 	int32 NumCustomDataFloats = 0;
 	int32 StartCullDistance = 0;
 	int32 EndCullDistance = 0;
@@ -114,12 +121,7 @@ struct FISMComponentDescription
 
 	bool operator==(const FISMComponentDescription& Other) const
 	{
-		return bUseHISM == Other.bUseHISM &&
-			bReverseCulling == Other.bReverseCulling &&
-			bIsStaticMobility == Other.bIsStaticMobility &&
-			bAffectShadow == Other.bAffectShadow &&
-			bAffectDistanceFieldLighting == Other.bAffectDistanceFieldLighting &&
-			bAffectDynamicIndirectLighting == Other.bAffectDistanceFieldLighting &&
+		return Flags == Other.Flags &&
 			NumCustomDataFloats == Other.NumCustomDataFloats &&
 			StartCullDistance == Other.StartCullDistance && 
 			EndCullDistance == Other.EndCullDistance &&
@@ -131,14 +133,7 @@ struct FISMComponentDescription
 
 FORCEINLINE uint32 GetTypeHash(const FISMComponentDescription& Desc)
 {
-	const uint32 PackedBools = 
-		(Desc.bUseHISM ? 1 : 0) | 
-		(Desc.bReverseCulling ? 2 : 0) | 
-		(Desc.bIsStaticMobility ? 4 : 0) | 
-		(Desc.bAffectShadow ? 8 : 0) | 
-		(Desc.bAffectDistanceFieldLighting ? 16 : 0) |
-		(Desc.bAffectDynamicIndirectLighting ? 32 : 0);
-	uint32 Hash = HashCombineFast(GetTypeHash(PackedBools), GetTypeHash(Desc.NumCustomDataFloats));
+	uint32 Hash = HashCombineFast(GetTypeHash(Desc.Flags), GetTypeHash(Desc.NumCustomDataFloats));
 	Hash = HashCombineFast(Hash, GetTypeHash(Desc.StartCullDistance));
 	Hash = HashCombineFast(Hash, GetTypeHash(Desc.EndCullDistance));
 	Hash = HashCombineFast(Hash, GetTypeHash(Desc.MinLod));
