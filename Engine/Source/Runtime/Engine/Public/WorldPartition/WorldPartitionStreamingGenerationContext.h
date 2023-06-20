@@ -62,6 +62,7 @@ public:
 		ENGINE_API const FActorContainerID& GetContainerID() const;
 		ENGINE_API const FTransform& GetTransform() const;
 		ENGINE_API const UActorDescContainer* GetActorDescContainer() const;
+		ENGINE_API const FBox GetBounds() const;
 	};
 
 	virtual FBox GetWorldBounds() const = 0;

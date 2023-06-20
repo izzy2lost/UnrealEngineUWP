@@ -186,7 +186,7 @@ public:
 	mutable FActorDescList ModifiedActorDescListForPIE;
 #endif
 
-private:
+protected:
 #if WITH_EDITOR
 	ENGINE_API void ForceExternalActorLevelReference(bool bForceExternalActorLevelReferenceForPIE);
 #endif

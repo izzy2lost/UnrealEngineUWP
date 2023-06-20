@@ -6,7 +6,7 @@
 #include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
 #include "RuntimePartition.generated.h"
 
-UCLASS(Abstract, Within=WorldPartitionRuntimeHashSet, CollapseCategories)
+UCLASS(Abstract, CollapseCategories)
 class URuntimePartition : public UObject
 {
 	GENERATED_BODY()
@@ -32,7 +32,7 @@ public:
 #endif
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "!bIsHLODSetup", EditConditionHides, HideEditConditionToggle))
+	UPROPERTY()
 	FName Name;
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "!bIsHLODSetup", EditConditionHides, HideEditConditionToggle))
@@ -43,6 +43,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "!bIsHLODSetup", EditConditionHides, HideEditConditionToggle))
 	int32 Priority;
+
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
+	float LoadingRange;
 
 	UPROPERTY()
 	bool bIsHLODSetup;

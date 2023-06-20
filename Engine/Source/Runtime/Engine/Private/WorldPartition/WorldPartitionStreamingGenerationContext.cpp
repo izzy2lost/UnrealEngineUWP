@@ -23,4 +23,9 @@ const UActorDescContainer* IStreamingGenerationContext::FActorInstance::GetActor
 {
 	return GetActorDescView().GetActorDesc()->GetContainer();
 }
+
+const FBox IStreamingGenerationContext::FActorInstance::GetBounds() const
+{
+	return ActorSetInstance->Bounds;
+}
 #endif

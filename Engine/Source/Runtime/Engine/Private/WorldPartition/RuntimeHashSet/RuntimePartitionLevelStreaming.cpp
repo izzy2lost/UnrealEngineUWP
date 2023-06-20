@@ -25,7 +25,7 @@ bool URuntimePartitionLevelStreaming::GenerateStreaming(const TArray<const IStre
 	TArray<IStreamingGenerationContext::FActorInstance> CellActorInstances;
 	if (PopulateCellActorInstances(ActorSetInstances, bIsMainWorldPartition, false, CellActorInstances))
 	{
-		TMap<FName, TPair<FName, TArray<IStreamingGenerationContext::FActorInstance>>> SubLevelsActorInstances;
+		TMap<FName, TArray<IStreamingGenerationContext::FActorInstance>> SubLevelsActorInstances;
 		for (const IStreamingGenerationContext::FActorInstance& ActorInstance : CellActorInstances)
 		{
 			TArray<FName> ActorSetGridNameList;
@@ -54,22 +54,20 @@ bool URuntimePartitionLevelStreaming::GenerateStreaming(const TArray<const IStre
 
 			FName SubLevelName = *StringBuilder;
 
-			TPair<FName, TArray<IStreamingGenerationContext::FActorInstance>>& Pair = SubLevelsActorInstances.FindOrAdd(SubLevelName);
-			Pair.Key = SubLevelName;
-			Pair.Value.Add(ActorInstance);
+			SubLevelsActorInstances.FindOrAdd(SubLevelName).Add(ActorInstance);
 		}
 
 		for (auto& [SubLevelName, SubLevelActorSetInstances] : SubLevelsActorInstances)
 		{
 			FCellDesc& CellDesc = OutRuntimeCellDescs.Emplace_GetRef();
 
-			CellDesc.Name = SubLevelActorSetInstances.Key;
+			CellDesc.Name = SubLevelName;
 			CellDesc.bIsSpatiallyLoaded = true;
-			CellDesc.ContentBundleID = SubLevelActorSetInstances.Value[0].ActorSetInstance->ContentBundleID;
+			CellDesc.ContentBundleID = SubLevelActorSetInstances[0].ActorSetInstance->ContentBundleID;
 			CellDesc.bBlockOnSlowStreaming = bBlockOnSlowStreaming;
 			CellDesc.bClientOnlyVisible = bClientOnlyVisible;
 			CellDesc.Priority = Priority;
-			CellDesc.ActorInstances = SubLevelActorSetInstances.Value;
+			CellDesc.ActorInstances = SubLevelActorSetInstances;
 
 			for (const IStreamingGenerationContext::FActorInstance& ActorInstance : CellDesc.ActorInstances)
 			{

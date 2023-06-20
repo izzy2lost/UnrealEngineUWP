@@ -64,16 +64,6 @@ public:
 		}
 	}
 
-	void Serialize(FArchive& Ar)
-	{
-		Ar << Elements;
-
-		if (Ar.IsLoading())
-		{
-			InitSpatialIndex();
-		}
-	}
-
 	// IStaticSpatialIndexDataInterface interface
 	virtual const FBox& GetBox(uint32 InIndex) const override
 	{

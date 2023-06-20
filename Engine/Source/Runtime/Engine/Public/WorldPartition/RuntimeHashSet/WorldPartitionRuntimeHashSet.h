@@ -19,8 +19,10 @@ struct FRuntimePartitionHLODSetup
 {
 	GENERATED_USTRUCT_BODY()
 
+#if WITH_EDITORONLY_DATA
 	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Meta = (DisplayThumbnail = false))
 	TObjectPtr<const UHLODLayer> HLODLayer;
+#endif
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Instanced)
 	TObjectPtr<URuntimePartition> PartitionLayer;
@@ -59,20 +61,52 @@ struct FRuntimePartitionDesc
 #endif
 };
 
+USTRUCT()
+struct FRuntimePartitionStreamingData
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** Name of the runtime partition, currently maps to target grids. */
+	UPROPERTY()
+	FName Name;
+
+	UPROPERTY()
+	float LoadingRange;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UWorldPartitionRuntimeCell>> RuntimeCells;
+
+	// Transient
+	mutable TUniquePtr<FStaticSpatialIndexType> SpatialIndex;
+};
+
+template<>
+struct TStructOpsTypeTraits<FRuntimePartitionStreamingData> : public TStructOpsTypeTraitsBase2<FRuntimePartitionStreamingData>
+{
+	enum
+	{
+		WithCopy = false
+	};
+};
+
 UCLASS()
 class URuntimeHashSetExternalStreamingObject : public URuntimeHashExternalStreamingObjectBase
 {
 	GENERATED_BODY()
 
 public:
+	//~ Begin UObject Interface
+	ENGINE_API static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+	//~ End UObject Interface
+
+	void CreatePartitionsSpatialIndex() const;
+	void DestroyPartitionsSpatialIndex() const;
+
 	UPROPERTY()
 	TArray<TObjectPtr<UWorldPartitionRuntimeCell>> NonSpatiallyLoadedRuntimeCells;
 
 	UPROPERTY()
-	TArray<TObjectPtr<UWorldPartitionRuntimeCell>> SpatiallyLoadedRuntimeCells;
-
-	// Transient
-	TUniquePtr<FStaticSpatialIndexType> SpatialIndex;
+	TArray<FRuntimePartitionStreamingData> RuntimeStreamingData;
 };
 
 UCLASS(HideDropdown, MinimalAPI)
@@ -81,9 +115,7 @@ class UWorldPartitionRuntimeHashSet : public UWorldPartitionRuntimeHash
 	GENERATED_UCLASS_BODY()
 
 	//~ Begin UObject Interface
-	ENGINE_API virtual void Serialize(FArchive& Ar) override;
 	ENGINE_API virtual void PostLoad() override;
-	static ENGINE_API void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 #if WITH_EDITOR
 	ENGINE_API virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif
@@ -122,21 +154,19 @@ private:
 	void UpdateHLODPartitionLayers();
 #endif
 
+	ENGINE_API void ForEachStreamingObject(TFunctionRef<void(const URuntimeHashSetExternalStreamingObject*)> Func) const;
+
 public:
 #if WITH_EDITORONLY_DATA
 	/** Persistent partition */
 	UPROPERTY()
 	FRuntimePartitionDesc PersistentPartitionDesc;
+#endif
 
 	/** Array of runtime partition descriptors */
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (TitleProperty = "Name"))
 	TArray<FRuntimePartitionDesc> RuntimePartitions;
-#endif
 
 	UPROPERTY()
-	TArray<TObjectPtr<UWorldPartitionRuntimeCell>> NonSpatiallyLoadedRuntimeCells;
-
-	TUniquePtr<FStaticSpatialIndexType> SpatialIndex;
-
-	TSet<URuntimeHashSetExternalStreamingObject*> InjectedExternalStreamingObjects;
+	TObjectPtr<URuntimeHashSetExternalStreamingObject> StreamingObject;
 };
