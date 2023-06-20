@@ -37,9 +37,9 @@ bool IsTracing(const FAnimationBaseContext& InContext)
 
 	check(InContext.AnimInstanceProxy);
 	return !CANNOT_TRACE_OBJECT(InContext.AnimInstanceProxy->GetSkelMeshComponent());
-#else
+#else // UE_POSE_SEARCH_TRACE_ENABLED
 	return false;
-#endif
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
 }
 
 FArchive& operator<<(FArchive& Ar, FTraceMessage& State)
