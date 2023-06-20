@@ -823,10 +823,13 @@ namespace UnrealGameSync
 								}
 
 								OpenedRecord record = response.Data;
-								if (record.Action != FileAction.Add || record.Action != FileAction.Branch || record.Action != FileAction.MoveAdd)
+								if (!String.IsNullOrEmpty(record.DepotFile) && !String.IsNullOrEmpty(record.ClientFile))
 								{
-									string relativePath = PerforceUtils.GetClientRelativePath(record.ClientFile);
-									syncFiles.Add(new SyncFile(record.DepotFile, relativePath, 0));
+									if (record.Action != FileAction.Add || record.Action != FileAction.Branch || record.Action != FileAction.MoveAdd)
+									{
+										string relativePath = PerforceUtils.GetClientRelativePath(record.ClientFile);
+										syncFiles.Add(new SyncFile(record.DepotFile, relativePath, 0));
+									}
 								}
 							}
 

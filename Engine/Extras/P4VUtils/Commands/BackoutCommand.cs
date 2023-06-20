@@ -170,7 +170,7 @@ namespace P4VUtils.Commands
 			List<OpenedRecord> OpenedRecords = await Perforce.OpenedAsync(OpenedOptions.AllWorkspaces | OpenedOptions.ShortOutput, ExistingChangeRecord.Files.Select(x => x.DepotFile).ToArray(), CancellationToken.None).ToListAsync();
 			if (OpenedRecords.Count > 0)
 			{
-				HashSet<string> UniqueDepotFiles = (OpenedRecords.Select(x => x.DepotFile)).ToHashSet();
+				HashSet<string> UniqueDepotFiles = (OpenedRecords.Where(x => !String.IsNullOrEmpty(x.DepotFile)).Select(x => x.DepotFile!)).ToHashSet();
 				string FileListString = string.Join("\r\n", UniqueDepotFiles);
 
 				Logger.LogInformation("\r\nSome files are checked out on another workspace, please confirm that you wish to continue.\r\n");
