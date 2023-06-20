@@ -382,7 +382,8 @@ void FMetalUnorderedAccessView::UpdateView()
 		{
             // If we are using texture atomics then we need to bind them as buffers because Metal lacks texture atomics
             if((EnumHasAllFlags(Texture->GetDesc().Flags, TexCreate_UAV | TexCreate_NoTiling) ||
-               EnumHasAllFlags(Texture->GetDesc().Flags, TexCreate_AtomicCompatible)) && Texture->Texture.GetBuffer())
+                EnumHasAllFlags(Texture->GetDesc().Flags, TexCreate_AtomicCompatible) ||
+                 EnumHasAllFlags(Texture->GetDesc().Flags, ETextureCreateFlags::Atomic64Compatible)) && Texture->Texture.GetBuffer())
             {
                 FMetalBuffer MetalBuffer(Texture->Texture.GetBuffer(), false);
                 InitAsTextureBufferBacked(Texture->Texture, MetalBuffer,
@@ -417,7 +418,9 @@ void FMetalUnorderedAccessView::UpdateView()
 			);
             
             // If we are using texture atomics then we need to bind them as buffers because Metal lacks texture atomics
-            if((EnumHasAllFlags(Texture->GetDesc().Flags, TexCreate_UAV | TexCreate_NoTiling) || EnumHasAllFlags(Texture->GetDesc().Flags,TexCreate_AtomicCompatible))
+            if((EnumHasAllFlags(Texture->GetDesc().Flags, TexCreate_UAV | TexCreate_NoTiling) ||
+                EnumHasAllFlags(Texture->GetDesc().Flags, TexCreate_AtomicCompatible) ||
+                EnumHasAllFlags(Texture->GetDesc().Flags, ETextureCreateFlags::Atomic64Compatible))
 				 && Texture->Texture.GetBuffer())
             {
                 FMetalBuffer MetalBuffer(Texture->Texture.GetBuffer(), false);
