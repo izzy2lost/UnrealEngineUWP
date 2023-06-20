@@ -40,8 +40,6 @@ struct FAABBTreeCVars
 	static CHAOS_API int32 DynamicTreeLeafCapacity;
 	static CHAOS_API FAutoConsoleVariableRef CVarDynamicTreeLeafCapacity;
 
-	static CHAOS_API bool DynamicTreeSkipCheckAuntOnRotate;
-	static CHAOS_API FAutoConsoleVariableRef CVarDynamicTreeSkipCheckAuntOnRotate;
 };
 
 struct FAABBTreeDirtyGridCVars
@@ -1435,12 +1433,10 @@ public:
 			}
 		}
 
-		// Speculative fix for FORT-562490 introduced past hardlock, change protected with cvar.
-		const bool bValidAunt = FAABBTreeCVars::DynamicTreeSkipCheckAuntOnRotate || (BestAuntToSwap != INDEX_NONE);
-
 		// Now do the rotation if required
-		if (BestGrandChildToSwap != INDEX_NONE && bValidAunt)
+		if (BestGrandChildToSwap != INDEX_NONE)
 		{
+			check(BestAuntToSwap != INDEX_NONE);
 			if (debugAssert)
 			{
 				check(false);
@@ -2874,7 +2870,7 @@ private:
 //#endif
 
 			const FNodeQueueEntry NodeEntry = NodeStack[--NodeStackNum];
-			if (Query != EAABBQueryType::Overlap)
+			if constexpr (Query != EAABBQueryType::Overlap)
 			{
 				if (NodeEntry.TOI > CurData.CurrentLength)
 				{
@@ -2887,14 +2883,14 @@ private:
 			{
 				PHYSICS_CSV_SCOPED_VERY_EXPENSIVE(PhysicsVerbose, NodeTraverse_Leaf);
 				const auto& Leaf = Leaves[Node.ChildrenNodes[0]];
-				if (Query == EAABBQueryType::Overlap)
+				if constexpr (Query == EAABBQueryType::Overlap)
 				{
 					if (Leaf.OverlapFast(QueryBounds, Visitor) == false)
 					{
 						return false;
 					}
 				}
-				else if (Query == EAABBQueryType::Sweep)
+				else if constexpr (Query == EAABBQueryType::Sweep)
 				{
 					if (Leaf.SweepFast(Start, CurData, QueryHalfExtents, Visitor, Dir, InvDir, bParallel) == false)
 					{
