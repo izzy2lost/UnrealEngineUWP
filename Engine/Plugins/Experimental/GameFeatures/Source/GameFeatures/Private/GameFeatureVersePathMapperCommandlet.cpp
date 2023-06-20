@@ -121,7 +121,18 @@ namespace GameFeatureVersePathMapper
 		}
 	};
 
-	FString GetChunkPattern(int32 Chunk)
+	FString GetGameFeatureRootVersePath()
+	{
+		FString AppDomain;
+		if (!GConfig->GetString(TEXT("Verse"), TEXT("AppDomain"), AppDomain, GGameIni))
+		{
+			AppDomain = FPaths::Combine(TEXTVIEW("/"), FApp::GetProjectName());
+		}
+
+		return FPaths::Combine(AppDomain, TEXTVIEW("GameFeatures"));
+	}
+
+	FString GetChunkPatternFormat()
 	{
 		FString ChunkPatternFormat;
 		if (!GConfig->GetString(TEXT("GameFeaturePlugins"), TEXT("GFPBundleRegexMatchPatternFormat"), ChunkPatternFormat, GInstallBundleIni))
@@ -129,6 +140,11 @@ namespace GameFeatureVersePathMapper
 			ChunkPatternFormat = TEXTVIEW("chunk{Chunk}.pak");
 		}
 
+		return ChunkPatternFormat;
+	}
+
+	FString GetChunkPattern(const FString& ChunkPatternFormat, int32 Chunk)
+	{
 		return FString::Format(*ChunkPatternFormat, FStringFormatNamedArguments{ {TEXT("Chunk"), Chunk} });
 	}
 
@@ -214,7 +230,7 @@ namespace GameFeatureVersePathMapper
 		});
 	}
 
-	bool FDepthFirstGameFeatureSorter::Visit(const FName Plugin, TFunctionRef<void(FName)> AddOutput)
+	bool FDepthFirstGameFeatureSorter::Visit(const FName Plugin, TFunctionRef<void(FName, const FString&)> AddOutput)
 	{
 		const FGameFeaturePluginInfo* MaybePluginInfo = GfpInfoMap.Find(Plugin);
 		if (!MaybePluginInfo)
@@ -250,11 +266,14 @@ namespace GameFeatureVersePathMapper
 		}
 
 		VisitedPlugins.FindChecked(Plugin) = EVisitState::Visited;
-		AddOutput(Plugin);
+		if (bIncludeVirtualNodes || !PluginInfo.GfpUri.IsEmpty()) // An empty URI means this is virtual node that only exists for verse path resolution
+		{
+			AddOutput(Plugin, PluginInfo.GfpUri);
+		}
 		return true;
 	}
 
-	bool FDepthFirstGameFeatureSorter::Sort(TFunctionRef<FName()> GetNextRootPlugin, TFunctionRef<void(FName)> AddOutput)
+	bool FDepthFirstGameFeatureSorter::Sort(TFunctionRef<FName()> GetNextRootPlugin, TFunctionRef<void(FName, const FString&)> AddOutput)
 	{
 		for (FName RootPlugin = GetNextRootPlugin(); !RootPlugin.IsNone(); RootPlugin = GetNextRootPlugin())
 		{
@@ -266,7 +285,7 @@ namespace GameFeatureVersePathMapper
 		return true;
 	}
 
-	bool FDepthFirstGameFeatureSorter::Sort(TConstArrayView<FName> RootPlugins, TFunctionRef<void(FName)> AddOutput)
+	bool FDepthFirstGameFeatureSorter::Sort(TConstArrayView<FName> RootPlugins, TFunctionRef<void(FName, const FString&)> AddOutput)
 	{
 		return Sort(
 			[RootPlugins, i = int32(0)]() mutable -> FName
@@ -291,7 +310,7 @@ namespace GameFeatureVersePathMapper
 				}
 				return RootPlugins[i++];
 			}, 
-			[&OutPlugins](FName OutPlugin) 
+			[&OutPlugins](FName OutPlugin, const FString& URI)
 			{
 				OutPlugins.Add(OutPlugin);
 			});
@@ -304,6 +323,9 @@ namespace GameFeatureVersePathMapper
 		IPluginManager& PluginMan = IPluginManager::Get();
 
 		FInstallBundleResolver InstallBundleResolver(TargetPlatform ? *TargetPlatform->IniPlatformName() : nullptr);
+
+		const FString GameFeatureRootVersePath = GetGameFeatureRootVersePath();
+		const FString ChunkPatternFormat = GetChunkPatternFormat();
 
 		FGameFeatureVersePathLookup Output;
 		for (const TPair<FString, int32>& Pair : GFPChunks)
@@ -318,14 +340,19 @@ namespace GameFeatureVersePathMapper
 			FStringView PluginNameView(Plugin->GetName());
 			FName PluginName(PluginNameView);
 
-			if (Plugin->GetVersePath().IsEmpty())
+			Output.VersePathToGfpMap.Add(FPaths::Combine(GameFeatureRootVersePath, PluginNameView), PluginName);
+
+			if (!Plugin->GetVersePath().IsEmpty())
 			{
-				UE_LOGFMT(LogGameFeatureVersePathMapper, Warning, "Could not find verse path for uplugin {PluginName}, using default value", PluginName);
-				Output.VersePathToGfpMap.Add(FString::Format(TEXT("/Fortnite.com/GameFeatures/{0}"), { PluginNameView }), PluginName);
-			}
-			else
-			{
-				Output.VersePathToGfpMap.Add(Plugin->GetVersePath() / Plugin->GetName(), PluginName);
+				// Add a virtual GFP with this verse path that depends on this GFP
+				FName& VirtualGFPName = Output.VersePathToGfpMap.FindOrAdd(Plugin->GetVersePath());
+				if (VirtualGFPName.IsNone())
+				{
+					VirtualGFPName = FName(FStringView(TEXTVIEW("V_") + Plugin->GetVersePath()));
+				}
+
+				FGameFeaturePluginInfo& GfpInfo = Output.GfpInfoMap.FindOrAdd(VirtualGFPName);
+				GfpInfo.Dependencies.Add(PluginName);
 			}
 
 			FGameFeaturePluginInfo& GfpInfo = Output.GfpInfoMap.Add(PluginName);
@@ -333,7 +360,7 @@ namespace GameFeatureVersePathMapper
 			const FString DescriptorFileName = FPaths::CreateStandardFilename(Plugin->GetDescriptorFileName());
 
 			const int32 Chunk = Pair.Value;
-			const FString ChunkPattern = Chunk > 0 ? GetChunkPattern(Chunk) : FString();
+			const FString ChunkPattern = Chunk > 0 ? GetChunkPattern(ChunkPatternFormat, Chunk) : FString();
 			const FString InstallBundleName = InstallBundleResolver.Resolve(ChunkPattern);
 
 			GfpInfo.GfpUri = InstallBundleName.IsEmpty() ?
@@ -410,7 +437,7 @@ int32 UGameFeatureVersePathMapperCommandlet::Main(const FString& CmdLineParams)
 			TSharedRef<FJsonObject> GfpVersePathMap = MakeShared<FJsonObject>();
 
 			// Sort the reversed map in dependency order
-			GameFeatureVersePathMapper::FDepthFirstGameFeatureSorter Sorter(Lookup.GfpInfoMap);
+			GameFeatureVersePathMapper::FDepthFirstGameFeatureSorter Sorter(Lookup.GfpInfoMap, true /*bIncludeVirtualNodes*/);
 			Sorter.Sort(
 				[It = TempGfpVersePathMap.CreateConstIterator()]() mutable -> FName
 				{
@@ -422,7 +449,7 @@ int32 UGameFeatureVersePathMapperCommandlet::Main(const FString& CmdLineParams)
 					++It;
 					return Plugin;
 				},
-				[&TempGfpVersePathMap, GfpVersePathMap](FName OutPlugin)
+				[&TempGfpVersePathMap, GfpVersePathMap](FName OutPlugin, const FString& OutGfpUri)
 				{
 					GfpVersePathMap->Values.Add(OutPlugin.ToString(), TempGfpVersePathMap.FindChecked(OutPlugin));
 				});

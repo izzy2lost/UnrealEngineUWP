@@ -37,14 +37,19 @@ namespace GameFeatureVersePathMapper
 		const TMap<FName, FGameFeaturePluginInfo>& GfpInfoMap;
 		TMap<FName, EVisitState> VisitedPlugins;
 
-		GAMEFEATURES_API bool Visit(FName Plugin, TFunctionRef<void(FName)> AddOutput);
+		bool bIncludeVirtualNodes = false;
+
+		GAMEFEATURES_API bool Visit(FName Plugin, TFunctionRef<void(FName, const FString&)> AddOutput);
 
 	public:
 		/**
 		 * Constructor
 		 * @Param InGfpInfoMap Map containing plugin dependencies (FDepthFirstGameFeatureSorter points to this map, it is not copied)
 		 */
-		FDepthFirstGameFeatureSorter(const TMap<FName, FGameFeaturePluginInfo>& InGfpInfoMap) : GfpInfoMap(InGfpInfoMap) {}
+		FDepthFirstGameFeatureSorter(const TMap<FName, FGameFeaturePluginInfo>& InGfpInfoMap, bool bInIncludeVirtualNodes = false) 
+			: GfpInfoMap(InGfpInfoMap) 
+			, bIncludeVirtualNodes(bInIncludeVirtualNodes)
+		{}
 
 		// @TODO: Allow passing a callback to fetch dependencies?
 
@@ -54,7 +59,7 @@ namespace GameFeatureVersePathMapper
 		 * @Param AddOutput callback to receive roots and dependencies, called in dependency order
 		 * @Return false if there is an error or a cyclic dependency is discovered
 		 */
-		GAMEFEATURES_API bool Sort(TFunctionRef<FName()> GetNextRootPlugin, TFunctionRef<void(FName)> AddOutput);
+		GAMEFEATURES_API bool Sort(TFunctionRef<FName()> GetNextRootPlugin, TFunctionRef<void(FName, const FString&)> AddOutput);
 
 		/**
 		 * Find and sort all dependencies
@@ -62,8 +67,8 @@ namespace GameFeatureVersePathMapper
 		 * @Param AddOutput callback to receive roots and dependencies, called in dependency order
 		 * @Return false if there is an error or a cyclic dependency is discovered
 		 */
-		GAMEFEATURES_API bool Sort(TConstArrayView<FName> RootPlugins, TFunctionRef<void(FName)> AddOutput);
-		bool Sort(FName RootPlugin, TFunctionRef<void(FName)> AddOutput) { return Sort(MakeArrayView(&RootPlugin, 1), AddOutput); }
+		GAMEFEATURES_API bool Sort(TConstArrayView<FName> RootPlugins, TFunctionRef<void(FName, const FString&)> AddOutput);
+		bool Sort(FName RootPlugin, TFunctionRef<void(FName, const FString&)> AddOutput) { return Sort(MakeArrayView(&RootPlugin, 1), AddOutput); }
 
 		/**
 		 * Find and sort all dependencies
