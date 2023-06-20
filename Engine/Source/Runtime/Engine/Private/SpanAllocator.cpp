@@ -4,7 +4,8 @@
 #include "CoreGlobals.h"
 
 FSpanAllocator::FSpanAllocator(bool bInGrowOnly) 
-	: CurrentMaxSize(0)
+	: CurrentSize(0)
+	, CurrentMaxSize(0)
 	, PeakMaxSize(0)
 	, FirstNonEmptySpan(0)
 	, bGrowOnly(bInGrowOnly)
@@ -13,6 +14,7 @@ FSpanAllocator::FSpanAllocator(bool bInGrowOnly)
 
 void FSpanAllocator::Reset()
 {
+	CurrentSize = 0;
 	CurrentMaxSize = 0;
 	PeakMaxSize = 0;
 	FirstNonEmptySpan = 0;
@@ -22,6 +24,7 @@ void FSpanAllocator::Reset()
 
 void FSpanAllocator::Empty()
 {
+	CurrentSize = 0;
 	CurrentMaxSize = 0;
 	PeakMaxSize = 0;
 	FirstNonEmptySpan = 0;
