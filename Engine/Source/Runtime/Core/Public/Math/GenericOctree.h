@@ -592,7 +592,7 @@ private:
 
 	void CollapseNodesInternal(FNodeIndex CurrentNodeIndex, ElementArrayType& CollapsedNodeElements)
 	{
-		CollapsedNodeElements.Append(MoveTemp(TreeElements[CurrentNodeIndex]));	
+		CollapsedNodeElements.Append(MoveTemp(TreeElements[CurrentNodeIndex]));
 		TreeElements[CurrentNodeIndex].Reset();
 
 		if (!TreeNodes[CurrentNodeIndex].IsLeaf())
@@ -602,6 +602,10 @@ private:
 			{
 				CollapseNodesInternal(ChildStartIndex + i, CollapsedNodeElements);
 			}
+
+			// Mark the node as a leaf.
+			TreeNodes[CurrentNodeIndex].ChildNodes = INDEX_NONE;
+
 			FreeEightNodes(ChildStartIndex);
 		}
 	}
@@ -868,9 +872,6 @@ public:
 					// Update the external element id for the element that's being collapsed.
 					SetElementId(TreeElements[CollapseNodeIndex][ElementIndex], FOctreeElementId2(CollapseNodeIndex, ElementIndex));
 				}
-
-				// Mark the node as a leaf.
-				TreeNodes[CollapseNodeIndex].ChildNodes = INDEX_NONE;
 			}
 		}
 	}
