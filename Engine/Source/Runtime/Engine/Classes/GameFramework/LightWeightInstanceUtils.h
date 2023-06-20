@@ -5,6 +5,7 @@
 // HEADER_UNIT_UNSUPPORTED - I don't think this header is used. dll export of templated function below indicates that.
 
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Engine/ActorInstanceHandle.h"
 #include "Engine/EngineTypes.h"
 
 #include "LightWeightInstanceBlueprintFunctionLibrary.generated.h"
@@ -15,13 +16,13 @@ namespace LWIUtils
 	 * Returns true if the object this handle represents supports the interface of type U
 	 */
 	template<typename U>
-	static ENGINE_API bool DoesHandleSupportInterface(const FActorInstanceHandle& Handle);
+	static bool DoesHandleSupportInterface(const FActorInstanceHandle& Handle);
 
 	/**
 	 * Returns an object implementing the interface I.
 	 */
 	template<typename I>
-	static ENGINE_API I* FetchInterfaceFromHandle(const FActorInstanceHandle& Handle);
+	static I* FetchInterfaceFromHandle(const FActorInstanceHandle& Handle);
 
 
 	/**
@@ -46,7 +47,7 @@ namespace LWIUtils
 	{
 		if (Handle.IsActorValid())
 		{
-			return Cast<I>(Actor.Get());
+			return Cast<I>(Handle.FetchActor().Get());
 		}
 
 		return FLightWeightInstanceSubsystem::Get().FetchInterfaceObject<I>(Handle);

@@ -4,6 +4,7 @@
 
 #include "Features/IModularFeature.h"
 #include "RHIDefinitions.h"
+#include "UObject/NameTypes.h"
 
 class IDXGISwapchainProvider : public IModularFeature
 {
