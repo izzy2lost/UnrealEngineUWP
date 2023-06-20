@@ -1064,9 +1064,6 @@ void FD3D12Adapter::InitializeDevices()
 			if (GetHighestShaderModel() >= D3D_SHADER_MODEL_6_6 && GetResourceBindingTier() >= D3D12_RESOURCE_BINDING_TIER_3)
 			{
 				GRHIBindlessSupport = GMaxRHIFeatureLevel == ERHIFeatureLevel::SM5 ? ERHIBindlessSupport::RayTracingOnly : ERHIBindlessSupport::AllShaderTypes;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				GRHISupportsBindless = true;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				UE_LOG(LogD3D12RHI, Log, TEXT("Bindless resources are supported"));
 			}
 

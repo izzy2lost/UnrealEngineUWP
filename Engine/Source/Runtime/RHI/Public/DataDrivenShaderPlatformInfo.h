@@ -677,12 +677,6 @@ public:
 		return static_cast<ERHIBindlessSupport>(Infos[Platform].BindlessSupport);
 	}
 
-	UE_DEPRECATED(5.2, "You must use GetBindlessSupport instead.")
-	static FORCEINLINE_DEBUGGABLE const bool GetSupportsBindless(const FStaticShaderPlatform Platform)
-	{
-		return GetBindlessSupport(Platform) == ERHIBindlessSupport::AllShaderTypes;
-	}
-
 	static FORCEINLINE_DEBUGGABLE const bool GetSupportsVolumeTextureAtomics(const FStaticShaderPlatform Platform)
 	{
 		return Infos[Platform].bSupportsVolumeTextureAtomics;
@@ -1101,12 +1095,6 @@ inline bool RHISupportsConservativeRasterization(const FStaticShaderPlatform Pla
 inline ERHIBindlessSupport RHIGetBindlessSupport(const FStaticShaderPlatform Platform)
 {
 	return FDataDrivenShaderPlatformInfo::GetBindlessSupport(Platform);
-}
-
-UE_DEPRECATED(5.2, "You must use RHIGetBindlessSupport instead.")
-inline bool RHISupportsBindless(EShaderPlatform Platform)
-{
-	return RHIGetBindlessSupport(Platform) == ERHIBindlessSupport::AllShaderTypes;
 }
 
 inline bool RHISupportsVolumeTextureAtomics(EShaderPlatform Platform)

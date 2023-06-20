@@ -569,9 +569,6 @@ struct FRHIGlobals
 	/** Whether dynamic (bindless) resources are supported */
 	ERHIBindlessSupport BindlessSupport = ERHIBindlessSupport::Unsupported;
 
-	UE_DEPRECATED(5.2, "You must use BindlessSupport instead.")
-	bool SupportsBindless = false;
-
 	/** True if the RHI supports reserved (AKA tiled, virtual or sparse) resources and operations related to them*/
 	bool SupportsReservedResources = false;
 
@@ -737,7 +734,6 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHIDefaultMSAASampleOffsets                           GRHIGlobals.DefaultMSAASampleOffsets
 #define GRHISupportsAsyncPipelinePrecompile                    GRHIGlobals.SupportsAsyncPipelinePrecompile
 #define GRHIBindlessSupport                                    GRHIGlobals.BindlessSupport
-#define GRHISupportsBindless                                   GRHIGlobals.SupportsBindless
 #define GRHISupportsReservedResources                          GRHIGlobals.SupportsReservedResources
 #define GShaderPlatformForFeatureLevel                         GRHIGlobals.ShaderPlatformForFeatureLevel
 #define GRHIIsDebugLayerEnabled                                GRHIGlobals.IsDebugLayerEnabled

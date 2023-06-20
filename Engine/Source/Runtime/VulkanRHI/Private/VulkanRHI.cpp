@@ -941,9 +941,6 @@ void FVulkanDynamicRHI::InitInstance()
 		GSupportsSeparateRenderTargetBlendState = true;
 		GRHISupportsSeparateDepthStencilCopyAccess = Device->SupportsParallelRendering();
 		GRHIBindlessSupport = Device->SupportsBindless() ? RHIGetBindlessSupport(GMaxRHIShaderPlatform) : ERHIBindlessSupport::Unsupported;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		GRHISupportsBindless = GRHIBindlessSupport != ERHIBindlessSupport::Unsupported;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		GRHIMaxDispatchThreadGroupsPerDimension.X = FMath::Min<uint32>(Limits.maxComputeWorkGroupCount[0], 0x7fffffff);
 		GRHIMaxDispatchThreadGroupsPerDimension.Y = FMath::Min<uint32>(Limits.maxComputeWorkGroupCount[1], 0x7fffffff);
