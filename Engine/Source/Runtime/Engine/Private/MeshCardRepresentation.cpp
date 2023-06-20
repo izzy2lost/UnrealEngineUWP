@@ -98,7 +98,7 @@ FCardRepresentationAsyncQueue* GCardRepresentationAsyncQueue = NULL;
 #if WITH_EDITOR
 
 // DDC key for card representation data, must be changed when modifying the generation code or data format
-#define CARDREPRESENTATION_DERIVEDDATA_VER TEXT("FF1E9B99-1837-4F13-A892-13BD62922D0B")
+#define CARDREPRESENTATION_DERIVEDDATA_VER TEXT("E8B65E19-7C68-4BDC-BA5E-91C9A5855599")
 
 FString BuildCardRepresentationDerivedDataKey(const FString& InMeshKey, int32 MaxLumenMeshCards)
 {
@@ -117,7 +117,7 @@ FString BuildCardRepresentationDerivedDataKey(const FString& InMeshKey, int32 Ma
 
 #if WITH_EDITORONLY_DATA
 
-extern void BuildSignedDistanceFieldBuildMaterialData(UStaticMesh* Mesh, uint32 LODIndex, TArray<FSignedDistanceFieldBuildMaterialData>& OutData);
+extern void BuildSignedDistanceFieldBuildSectionData(UStaticMesh* Mesh, uint32 LODIndex, TArray<FSignedDistanceFieldBuildSectionData>& OutData);
 
 void BeginCacheMeshCardRepresentation(const ITargetPlatform* TargetPlatform, UStaticMesh* StaticMeshAsset, FStaticMeshRenderData& RenderData, const FString& DistanceFieldKey, FSourceMeshDataForDerivedDataTask* OptionalSourceMeshData)
 {
@@ -177,7 +177,7 @@ void FCardRepresentationData::CacheDerivedData(const FString& InDDCKey, const IT
 		NewTask->bGenerateDistanceFieldAsIfTwoSided = bGenerateDistanceFieldAsIfTwoSided;
 
 		const uint32 LODIndex = 0;
-		BuildSignedDistanceFieldBuildMaterialData(Mesh, LODIndex, NewTask->MaterialBlendModes);
+		BuildSignedDistanceFieldBuildSectionData(Mesh, LODIndex, NewTask->SectionData);
 
 		// Nanite overrides source static mesh with a coarse representation. Need to load original data before we build the mesh SDF.
 		if (OptionalSourceMeshData)
@@ -652,7 +652,7 @@ void FCardRepresentationAsyncQueue::Build(FAsyncCardRepresentationTask* Task, FQ
 			Task->SourceMeshData,
 			LODModel,
 			BuildThreadPool,
-			Task->MaterialBlendModes,
+			Task->SectionData,
 			Task->GenerateSource->GetRenderData()->Bounds,
 			Task->GenerateSource->GetRenderData()->LODResources[0].DistanceFieldData,
 			Task->MaxLumenMeshCards,

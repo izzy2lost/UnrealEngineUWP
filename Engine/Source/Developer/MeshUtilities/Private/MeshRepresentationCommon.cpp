@@ -126,7 +126,7 @@ void MeshRepresentation::SetupEmbreeScene(
 	FString MeshName,
 	const FSourceMeshDataForDerivedDataTask& SourceMeshData,
 	const FStaticMeshLODResources& LODModel,
-	const TArray<FSignedDistanceFieldBuildMaterialData>& MaterialBlendModes,
+	const TArray<FSignedDistanceFieldBuildSectionData>& SectionData,
 	bool bGenerateAsIfTwoSided,
 	FEmbreeScene& EmbreeScene)
 {
@@ -164,6 +164,11 @@ void MeshRepresentation::SetupEmbreeScene(
 		}
 	}
 #endif
+
+	if (LODModel.Sections.Num() > SectionData.Num())
+	{
+		UE_LOG(LogMeshUtilities, Warning, TEXT("Unexpected number of mesh sections when setting up Embree Scene for %s."), *MeshName);
+	}
 
 	TArray<int32> FilteredTriangles;
 	FilteredTriangles.Empty(NumTriangles);
@@ -213,9 +218,9 @@ void MeshRepresentation::SetupEmbreeScene(
 
 					if ((uint32)(TriangleIndex * 3) >= Section.FirstIndex && (uint32)(TriangleIndex * 3) < Section.FirstIndex + Section.NumTriangles * 3)
 					{
-						if (MaterialBlendModes.IsValidIndex(Section.MaterialIndex))
+						if (SectionData.IsValidIndex(SectionIndex))
 						{
-							bTriangleIsOpaqueOrMasked = !IsTranslucentBlendMode(MaterialBlendModes[Section.MaterialIndex].BlendMode) && MaterialBlendModes[Section.MaterialIndex].bAffectDistanceFieldLighting;
+							bTriangleIsOpaqueOrMasked = !IsTranslucentBlendMode(SectionData[SectionIndex].BlendMode) && SectionData[SectionIndex].bAffectDistanceFieldLighting;
 						}
 
 						break;
@@ -279,9 +284,9 @@ void MeshRepresentation::SetupEmbreeScene(
 
 			if ((uint32)(TriangleIndex * 3) >= Section.FirstIndex && (uint32)(TriangleIndex * 3) < Section.FirstIndex + Section.NumTriangles * 3)
 			{
-				if (MaterialBlendModes.IsValidIndex(Section.MaterialIndex))
+				if (SectionData.IsValidIndex(SectionIndex))
 				{
-					bTriangleIsTwoSided = MaterialBlendModes[Section.MaterialIndex].bTwoSided;
+					bTriangleIsTwoSided = SectionData[SectionIndex].bTwoSided;
 				}
 
 				break;
@@ -354,11 +359,11 @@ void MeshRepresentation::SetupEmbreeScene(
 		{
 			const FStaticMeshSection& Section = LODModel.Sections[SectionIndex];
 
-			if (MaterialBlendModes.IsValidIndex(Section.MaterialIndex))
+			if (SectionData.IsValidIndex(SectionIndex))
 			{
 				NumTrianglesTotal += Section.NumTriangles;
 
-				if (MaterialBlendModes[Section.MaterialIndex].bTwoSided)
+				if (SectionData[SectionIndex].bTwoSided)
 				{
 					NumTwoSidedTriangles += Section.NumTriangles;
 				}
