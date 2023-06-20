@@ -19,6 +19,7 @@
 #include "MetasoundFrontendController.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendDocumentBuilder.h"
+#include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendDocumentVersioning.h"
 #include "MetasoundFrontendGraph.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
@@ -338,6 +339,10 @@ bool FMetasoundAssetBase::VersionAsset()
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::VersionAsset);
+#if WITH_EDITOR
+	const bool bIsDeterministic = MetaSoundEnableDeterministicIDGenerationInEditorCVar != 0 && !IsRunningCookCommandlet();
+	FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
+#endif // WITH_EDITOR
 
 	FName AssetName;
 	FString AssetPath;
@@ -833,6 +838,10 @@ void FMetasoundAssetBase::RegisterAssetDependencies(const Metasound::Frontend::F
 bool FMetasoundAssetBase::AutoUpdate(bool bInLogWarningsOnDroppedConnection)
 {
 	using namespace Metasound::Frontend;
+#if WITH_EDITOR
+	const bool bIsDeterministic = MetaSoundEnableDeterministicIDGenerationInEditorCVar != 0 && !IsRunningCookCommandlet();
+	FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
+#endif // WITH_EDITOR
 
 	FString OwningAssetName = GetOwningAssetName();
 	const bool bAutoUpdated = FAutoUpdateRootGraph(MoveTemp(OwningAssetName), bInLogWarningsOnDroppedConnection).Transform(GetDocumentHandle());

@@ -995,7 +995,7 @@ public:
 	TArray<FMetasoundFrontendClassEnvironmentVariable> Environment;
 
 private:
-	UPROPERTY()
+	UPROPERTY(Transient)
 	FGuid ChangeID;
 
 public:
@@ -1310,7 +1310,7 @@ private:
 
 	// ID used to identify if any of the above have been modified,
 	// to determine if the parent class should be auto-updated.
-	UPROPERTY()
+	UPROPERTY(Transient)
 	FGuid ChangeID;
 
 public:
@@ -1587,12 +1587,20 @@ public:
 	UPROPERTY()
 	TArray<FMetasoundFrontendClass> Dependencies;
 
+	uint32 GetNextIdCounter() const
+	{
+		return IdCounter++;
+	}
+
 private:
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.0 - ArchetypeVersion has been migrated to InterfaceVersions array."))
 	FMetasoundFrontendVersion ArchetypeVersion;
 
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.0 - InterfaceVersions has been migrated to Interfaces set."))
 	TArray<FMetasoundFrontendVersion> InterfaceVersions;
+
+	// Used for generating deterministic IDs per document
+	mutable uint32 IdCounter = 1;
 
 public:
 	// Data migration for 5.0 Early Access data. ArchetypeVersion/InterfaceVersions properties can be removed post 5.0 release

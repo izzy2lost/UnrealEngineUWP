@@ -6,6 +6,7 @@
 #include "Internationalization/Text.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendDocumentAccessPtr.h"
+#include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendGraph.h"
 #include "MetasoundFrontendNodeController.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
@@ -974,14 +975,15 @@ namespace Metasound
 							FMetasoundFrontendNode& Node = GraphClass->Graph.Nodes.Emplace_GetRef(*InputClass);
 							Node.Name = NewName;
 
-							if (InClassInput.NodeID.IsValid())
+							FGuid NodeID = InClassInput.NodeID;
+							if (!NodeID.IsValid())
 							{
-								Node.UpdateID(InClassInput.NodeID);
+								FDocumentAccessPtr DocumentPtr = OwningDocument->GetDocumentPtr();
+								const FMetasoundFrontendDocument* Document = DocumentPtr.Get();
+								check(Document);
+								NodeID = FDocumentIDGenerator::Get().CreateNodeID(*Document);
 							}
-							else
-							{
-								Node.UpdateID(FGuid::NewGuid());
-							}
+							Node.UpdateID(NodeID);
 
 							// Set name on related vertices of input node
 							auto IsVertexWithTypeName = [&](FMetasoundFrontendVertex& Vertex) { return Vertex.TypeName == InClassInput.TypeName; };
@@ -1011,7 +1013,10 @@ namespace Metasound
 							{
 								// Create a new guid if there wasn't a valid guid attached
 								// to input.
-								NewInput.VertexID = FGuid::NewGuid();
+								FDocumentAccessPtr DocumentPtr = OwningDocument->GetDocumentPtr();
+								const FMetasoundFrontendDocument* Document = DocumentPtr.Get();
+								check(Document);
+								NewInput.VertexID = FDocumentIDGenerator::Get().CreateVertexID(*Document);
 							}
 
 #if WITH_EDITOR
@@ -1114,14 +1119,15 @@ namespace Metasound
 							FMetasoundFrontendNode& Node = GraphClass->Graph.Nodes.Add_GetRef(*OutputClass);
 							Node.Name = NewName;
 
-							if (InClassOutput.NodeID.IsValid())
+							FGuid NodeID = InClassOutput.NodeID;
+							if (!NodeID.IsValid())
 							{
-								Node.UpdateID(InClassOutput.NodeID);
+								FDocumentAccessPtr DocumentPtr = OwningDocument->GetDocumentPtr();
+								const FMetasoundFrontendDocument* Document = DocumentPtr.Get();
+								check(Document);
+								NodeID = FDocumentIDGenerator::Get().CreateNodeID(*Document);
 							}
-							else
-							{
-								Node.UpdateID(FGuid::NewGuid());
-							}
+							Node.UpdateID(NodeID);
 
 							// Set vertex name on output node
 							auto IsVertexWithTypeName = [&](FMetasoundFrontendVertex& Vertex) { return Vertex.TypeName == InClassOutput.TypeName; };
@@ -1152,7 +1158,10 @@ namespace Metasound
 							{
 								// Create a new guid if there wasn't a valid guid attached
 								// to output.
-								NewOutput.VertexID = FGuid::NewGuid();
+								FDocumentAccessPtr DocumentPtr = OwningDocument->GetDocumentPtr();
+								const FMetasoundFrontendDocument* Document = DocumentPtr.Get();
+								check(Document);
+								NewOutput.VertexID = FDocumentIDGenerator::Get().CreateVertexID(*Document);
 							}
 
 #if WITH_EDITOR

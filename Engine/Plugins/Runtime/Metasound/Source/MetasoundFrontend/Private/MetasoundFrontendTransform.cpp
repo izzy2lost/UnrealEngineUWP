@@ -8,6 +8,7 @@
 #include "MetasoundAssetBase.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendDocumentController.h"
+#include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundLog.h"
@@ -733,10 +734,12 @@ namespace Metasound
 			{
 				*InPresetNodeID = PresetNodeHandle->GetID();
 			}, EMetasoundFrontendClassType::External); 
-
+			
 			if (!PresetNodeID.IsValid())
 			{
-				PresetNodeID = FGuid::NewGuid();
+				// This ID was originally being set to FGuid::NewGuid. 
+				// If you were reliant on that ID, please resave the asset so it is serialized with a valid ID
+				PresetNodeID = InDocument->GetRootGraph()->GetClassID();
 			}
 
 			// Clear the root graph so it can be rebuilt.
@@ -857,7 +860,7 @@ namespace Metasound
 
 			Style.SortDefaults(NodeHandles, DocumentTransform::GetNodeDisplayNameProjection());
 
-			// Set input node location
+			// Set output node location
 			for (const FNodeHandle& OutputNode : NodeHandles)
 			{
 				FMetasoundFrontendNodeStyle NodeStyle;
@@ -891,8 +894,11 @@ namespace Metasound
 					ClassInput.Metadata.SetDescription(InputNode->GetDescription());
 					ClassInput.Metadata.SetDisplayName(Input->GetMetadata().GetDisplayName());
 #endif // WITH_EDITOR
-
-					ClassInput.VertexID = FGuid::NewGuid();
+					FConstDocumentHandle DocumentHandle = InPresetGraph->GetOwningDocument();
+					FDocumentAccessPtr DocumentPtr = DocumentHandle->GetDocumentPtr();
+					const FMetasoundFrontendDocument* Document = DocumentPtr.Get();
+					check(Document);
+					ClassInput.VertexID = FDocumentIDGenerator::Get().CreateVertexID(*Document);;
 
 					if (const FMetasoundFrontendClassInput* ExistingClassInput = InPresetGraph->FindClassInputWithName(NodeName).Get())
 					{
@@ -968,7 +974,11 @@ namespace Metasound
 					ClassOutput.Metadata.SetDisplayName(Output->GetMetadata().GetDisplayName());
 #endif // WITH_EDITOR
 
-					ClassOutput.VertexID = FGuid::NewGuid();
+					FConstDocumentHandle DocumentHandle = InPresetGraph->GetOwningDocument();
+					FDocumentAccessPtr DocumentPtr = DocumentHandle->GetDocumentPtr();
+					const FMetasoundFrontendDocument* Document = DocumentPtr.Get();
+					check(Document);
+					ClassOutput.VertexID = FDocumentIDGenerator::Get().CreateVertexID(*Document);
 
 					if (const FMetasoundFrontendClassOutput* ExistingClassOutput = InPresetGraph->FindClassOutputWithName(NodeName).Get())
 					{

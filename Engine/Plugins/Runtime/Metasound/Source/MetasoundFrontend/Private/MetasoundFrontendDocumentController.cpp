@@ -5,6 +5,7 @@
 #include "Algo/ForEach.h"
 #include "HAL/FileManager.h"
 #include "MetasoundFrontendGraphController.h"
+#include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendInvalidController.h"
 #include "MetasoundJsonBackend.h"
 #include "StructSerializer.h"
@@ -292,7 +293,7 @@ namespace Metasound
 
 					return NewClassPtr;
 				};
-
+				
 				if (FMetasoundFrontendClass* MetasoundClass = ClassPtr.Get())
 				{
 					// External node classes must match version to return shared definition.
@@ -305,7 +306,8 @@ namespace Metasound
 						FMetasoundFrontendClass NewClass = GenerateClass(InKey);
 						if (NewClass.Metadata.GetVersion().Major != MetasoundClass->Metadata.GetVersion().Major)
 						{
-							return AddClass(MoveTemp(NewClass), FGuid::NewGuid());
+							const FGuid ClassId = FDocumentIDGenerator::Get().CreateClassID(*Document);
+							return AddClass(MoveTemp(NewClass), ClassId);
 						}
 					}
 
@@ -321,7 +323,8 @@ namespace Metasound
 				}
 
 				FMetasoundFrontendClass NewClass = GenerateClass(InKey);
-				return AddClass(MoveTemp(NewClass), FGuid::NewGuid());
+				const FGuid ClassId = FDocumentIDGenerator::Get().CreateClassID(*Document);
+				return AddClass(MoveTemp(NewClass), ClassId);
 			}
 
 			return FConstClassAccessPtr();
@@ -507,6 +510,16 @@ namespace Metasound
 					});
 			}
 			return IGraphController::GetInvalidHandle();
+		}
+
+		FDocumentAccessPtr FDocumentController::GetDocumentPtr()
+		{
+			return DocumentPtr;
+		}
+
+		const FDocumentAccessPtr FDocumentController::GetDocumentPtr() const
+		{
+			return DocumentPtr;
 		}
 
 		TArray<FGraphHandle> FDocumentController::GetSubgraphHandles() 
