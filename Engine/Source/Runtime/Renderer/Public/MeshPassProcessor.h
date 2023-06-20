@@ -1295,7 +1295,8 @@ public:
 		{
 			uint64 VertexShaderHash		: 16; // Order by vertex shader's hash.
 			uint64 PixelShaderHash		: 32; // Order by pixel shader's hash.
-			uint64 Masked				: 16; // First order by masked.
+			uint64 Background			: 1;
+			uint64 Masked				: 15; // First order by masked.
 		} BasePass;
 
 		struct

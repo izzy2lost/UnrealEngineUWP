@@ -325,13 +325,13 @@ static uint64 GetMobileBasePassSortKey_ByState(bool bMasked, bool bBackground, u
 /**
 * Compute mesh sort keys for the mobile base pass
 */
-void UpdateMobileBasePassMeshSortKeys(
+void UpdateMobilePassMeshSortKeys(
 	const FVector& ViewOrigin,
 	const TScenePrimitiveArray<FPrimitiveBounds>& ScenePrimitiveBounds,
 	FMeshCommandOneFrameArray& VisibleMeshCommands
 )
 {
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_UpdateMobileBasePassMeshSortKeys);
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_UpdateMobilePassMeshSortKeys);
 
 	// Object radius past which we treat object as part of 'background'
 	constexpr float MIN_BACKGROUND_OBJECT_RADIUS = 500000;
@@ -346,8 +346,8 @@ void UpdateMobileBasePassMeshSortKeys(
 		{
 			FVisibleMeshDrawCommand& Cmd = VisibleMeshCommands[CmdIdx];
 			// Set in MobileBasePass.cpp - GetBasePassStaticSortKey;
-			bool bMasked = Cmd.SortKey.PackedData & 0x1 ? true : false;
-			bool bBackground = Cmd.SortKey.PackedData & 0x2 ? true : false;
+			bool bMasked = Cmd.SortKey.BasePass.Masked == 1;
+			bool bBackground = Cmd.SortKey.BasePass.Background == 1;
 			float PrimitiveDistance = 0;
 			if (Cmd.PrimitiveIdInfo.ScenePrimitiveId < ScenePrimitiveBounds.Num())
 			{
@@ -405,8 +405,8 @@ void UpdateMobileBasePassMeshSortKeys(
 		{
 			FVisibleMeshDrawCommand& Cmd = VisibleMeshCommands[CmdIdx];
 			// Set in MobileBasePass.cpp - GetBasePassStaticSortKey;
-			bool bMasked = Cmd.SortKey.PackedData & 0x1 ? true : false;
-			bool bBackground = Cmd.SortKey.PackedData & 0x2 ? true : false;
+			bool bMasked = Cmd.SortKey.BasePass.Masked == 1;
+			bool bBackground = Cmd.SortKey.BasePass.Background == 1;
 			float PrimitiveDistance = 0;
 			if (Cmd.PrimitiveIdInfo.ScenePrimitiveId < ScenePrimitiveBounds.Num())
 			{
@@ -892,10 +892,14 @@ public:
 	{
 		FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
 		SCOPED_NAMED_EVENT(MeshDrawCommandPassSetupTask, FColor::Magenta);
+		// On SM5 Mobile platform, still want the same sorting
+		const bool bMobile = Context.ShadingPath == EShadingPath::Mobile || IsVulkanMobileSM5Platform(Context.ShaderPlatform);
 		// Mobile base pass is a special case, as final lists is created from two mesh passes based on CSM visibility.
 		const bool bMobileShadingBasePass = Context.ShadingPath == EShadingPath::Mobile && Context.PassType == EMeshPass::BasePass;
 		// On SM5 Mobile platform, still want the same sorting
-		const bool bMobileVulkanSM5BasePass = IsVulkanMobileSM5Platform(Context.ShaderPlatform) && Context.PassType == EMeshPass::BasePass;
+		// Mobile pass expects mesh sorting
+		const bool bNeedsUpdateMobilePassMeshSortKeys = bMobile && (Context.PassType == EMeshPass::DepthPass
+																|| (Context.PassType == EMeshPass::BasePass && Context.Scene->EarlyZPassMode != DDM_AllOpaque));
 
 		if (bMobileShadingBasePass)
 		{
@@ -962,9 +966,9 @@ public:
 			}
 
 			// Update sort keys.
-			if (bMobileShadingBasePass || bMobileVulkanSM5BasePass)
+			if (bNeedsUpdateMobilePassMeshSortKeys)
 			{
-				UpdateMobileBasePassMeshSortKeys(
+				UpdateMobilePassMeshSortKeys(
 					Context.ViewOrigin,
 					*Context.PrimitiveBounds,
 					Context.MeshDrawCommands
