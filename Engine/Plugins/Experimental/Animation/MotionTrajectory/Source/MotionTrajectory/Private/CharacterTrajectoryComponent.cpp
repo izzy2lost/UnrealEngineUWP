@@ -182,13 +182,28 @@ void UCharacterTrajectoryComponent::UpdateHistory(float DeltaSeconds)
 	}
 }
 
+static FVector RemapVectorMagnitudeWithCurve(const FVector& Vector, bool bUseCurve, const FRuntimeFloatCurve& Curve)
+{
+	if (bUseCurve)
+	{
+		const float Length = Vector.Length();
+		if (Length > UE_KINDA_SMALL_NUMBER)
+		{
+			const float RemappedLength = Curve.GetRichCurveConst()->Eval(Length);
+			return Vector * (RemappedLength / Length);
+		}
+	}
+
+	return Vector;
+}
+
 void UCharacterTrajectoryComponent::UpdatePrediction(const FVector& PositionWS, const FQuat& FacingWS, const FVector& VelocityWS, const FVector& AccelerationWS, const FRotator& ControllerRotationRate)
 {
 	check(CharacterMovementComponent);
 
 	FVector CurrentPositionWS = PositionWS;
-	FVector CurrentVelocityWS = VelocityWS;
-	FVector CurrentAccelerationWS = AccelerationWS;
+	FVector CurrentVelocityWS = RemapVectorMagnitudeWithCurve(VelocityWS, bUseSpeedRemappingCurve, SpeedRemappingCurve);
+	FVector CurrentAccelerationWS = RemapVectorMagnitudeWithCurve(AccelerationWS, bUseAccelerationRemappingCurve, AccelerationRemappingCurve);
 	FQuat CurrentFacingWS = FacingWS;
 	float AccumulatedSeconds = 0.f;
 
@@ -213,11 +228,11 @@ void UCharacterTrajectoryComponent::UpdatePrediction(const FVector& PositionWS, 
 
 			// Account for the controller (e.g. the camera) rotating.
 			CurrentFacingWS = ControllerRotationPerStep * CurrentFacingWS;
-			CurrentAccelerationWS = ControllerRotationPerStep * CurrentAccelerationWS;
+			CurrentAccelerationWS = RemapVectorMagnitudeWithCurve(ControllerRotationPerStep * CurrentAccelerationWS, bUseAccelerationRemappingCurve, AccelerationRemappingCurve);
 
 			FVector NewVelocityCS = FVector::ZeroVector;
 			UCharacterMovementTrajectoryLibrary::StepCharacterMovementGroundPrediction(SecondsPerPredictionSample, CurrentVelocityWS, CurrentAccelerationWS, CharacterMovementComponent, NewVelocityCS);
-			CurrentVelocityWS = NewVelocityCS;
+			CurrentVelocityWS = RemapVectorMagnitudeWithCurve(NewVelocityCS, bUseSpeedRemappingCurve, SpeedRemappingCurve);
 
 			if (CharacterMovementComponent->bOrientRotationToMovement && !CurrentAccelerationWS.IsNearlyZero())
 			{

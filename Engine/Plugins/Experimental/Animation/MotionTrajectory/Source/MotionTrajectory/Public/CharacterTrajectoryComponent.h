@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Components/ActorComponent.h"
+#include "Curves/CurveFloat.h"
 #include "PoseSearch/PoseSearchTrajectoryTypes.h"
 #include "CharacterTrajectoryComponent.generated.h"
 
@@ -79,8 +80,20 @@ protected:
 
 	// Maximum controller rotation rate in degrees per second used to clamp the character owner controller desired rotation to generate the prediction trajectory.
 	// Negative values disable the clamping behavior
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Trajectory Settings")
+	UPROPERTY(EditDefaultsOnly, Category = "Trajectory Settings")
 	float MaxControllerRotationRate = -1.f;	
+
+	UPROPERTY(EditDefaultsOnly, Category = "Trajectory Settings", meta = (InlineEditConditionToggle))
+	bool bUseSpeedRemappingCurve = false;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Trajectory Settings", meta = (EditCondition = "bUseSpeedRemappingCurve"))
+	FRuntimeFloatCurve SpeedRemappingCurve;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Trajectory Settings", meta = (InlineEditConditionToggle))
+	bool bUseAccelerationRemappingCurve = false;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Trajectory Settings", meta = (EditCondition = "bUseAccelerationRemappingCurve"))
+	FRuntimeFloatCurve AccelerationRemappingCurve;
 
 	UPROPERTY()
 	TObjectPtr<USkeletalMeshComponent> SkelMeshComponent;
