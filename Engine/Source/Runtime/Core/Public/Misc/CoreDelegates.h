@@ -80,7 +80,11 @@ public:
 	static CORE_API TMulticastDelegate<void()> OnAsyncLoadingFlushUpdate;
 
 	// Callback on the game thread when an async load is started. This goes off before the packages has finished loading
+	UE_DEPRECATED(5.3, "This delegate is not thread-safe, please use GetOnAsyncLoadPackage().")
 	static CORE_API TMulticastDelegate<void(const FString&)> OnAsyncLoadPackage;
+
+	// Thread-safe callback that is called on the same thread that LoadPackageAsync is issued from.
+	static CORE_API TTSMulticastDelegate<void(FStringView)>& GetOnAsyncLoadPackage();
 
 	static CORE_API TMulticastDelegate<void(const FString&)> OnSyncLoadPackage;
 

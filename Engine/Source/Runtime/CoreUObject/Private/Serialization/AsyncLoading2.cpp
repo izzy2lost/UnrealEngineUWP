@@ -8467,10 +8467,20 @@ int32 FAsyncLoadingThread2::LoadPackage(const FPackagePath& InPackagePath, FName
 	{
 		InCustomName = NAME_None;
 	}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (FCoreDelegates::OnAsyncLoadPackage.IsBound())
 	{
+		checkf(IsInGameThread(), TEXT("FCoreDelegates::OnAsyncLoadPackage is not thread-safe and deprecated, update the callees to be thread-safe and register to FCoreDelegates::GetOnAsyncLoadPackage() instead before calling LoadPackageAsync from any other thread than the game-thread."));
 		const FName PackageName = InCustomName.IsNone() ? PackageNameToLoad : InCustomName;
 		FCoreDelegates::OnAsyncLoadPackage.Broadcast(PackageName.ToString());
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	if (FCoreDelegates::GetOnAsyncLoadPackage().IsBound())
+	{
+		const FName PackageName = InCustomName.IsNone() ? PackageNameToLoad : InCustomName;
+		FCoreDelegates::GetOnAsyncLoadPackage().Broadcast(PackageName.ToString());
 	}
 
 	// Generate new request ID and add it immediately to the global request list (it needs to be there before we exit

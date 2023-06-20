@@ -7428,6 +7428,8 @@ bool FAsyncLoadingThread::ShouldAlwaysLoadPackageAsync(const FPackagePath& InPac
 
 int32 FAsyncLoadingThread::LoadPackage(const FPackagePath& InPackagePath, FName InCustomName, FLoadPackageAsyncDelegate InCompletionDelegate, EPackageFlags InPackageFlags, int32 InPIEInstanceID, int32 InPackagePriority, const FLinkerInstancingContext* InInstancingContext, uint32 InLoadFlags)
 {
+	checkf(IsInGameThread(), TEXT("LoadPackageAsync is only thread-safe when using the zenloader (i.e. AsyncLoading2)."));
+
 	static bool bOnce = false;
 	if (!bOnce && GEventDrivenLoaderEnabled)
 	{
@@ -7445,9 +7447,16 @@ int32 FAsyncLoadingThread::LoadPackage(const FPackagePath& InPackagePath, FName 
 	FName PackageName = InCustomName.IsNone() ? InPackagePath.GetPackageFName() : InCustomName;
 	UE_SCOPED_COOK_STAT(PackageName, EPackageEventStatType::LoadPackage);
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if ( FCoreDelegates::OnAsyncLoadPackage.IsBound() )
 	{
 		FCoreDelegates::OnAsyncLoadPackage.Broadcast(PackageName.ToString());
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	if (FCoreDelegates::GetOnAsyncLoadPackage().IsBound())
+	{
+		FCoreDelegates::GetOnAsyncLoadPackage().Broadcast(PackageName.ToString());
 	}
 
 	// Generate new request ID and add it immediately to the global request list (it needs to be there before we exit

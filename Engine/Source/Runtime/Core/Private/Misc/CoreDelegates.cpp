@@ -245,7 +245,17 @@ TMulticastDelegate<void(bool)> FCoreDelegates::IsVanillaProductChanged;
 
 TMulticastDelegate<void()> FCoreDelegates::OnAsyncLoadingFlush;
 TMulticastDelegate<void()> FCoreDelegates::OnAsyncLoadingFlushUpdate;
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 TMulticastDelegate<void(const FString&)> FCoreDelegates::OnAsyncLoadPackage;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+TTSMulticastDelegate<void(FStringView)>& FCoreDelegates::GetOnAsyncLoadPackage()
+{
+	static TTSMulticastDelegate<void(FStringView)> Singleton;
+	return Singleton;
+}
+
 TMulticastDelegate<void(const FString&)> FCoreDelegates::OnSyncLoadPackage;
 TMulticastDelegate<void()> FCoreDelegates::PostRenderingThreadCreated;
 TMulticastDelegate<void()> FCoreDelegates::PreRenderingThreadDestroyed;
