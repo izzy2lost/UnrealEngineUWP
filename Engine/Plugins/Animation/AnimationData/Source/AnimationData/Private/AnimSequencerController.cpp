@@ -483,7 +483,8 @@ bool UAnimSequencerController::AddCurve(const FAnimationCurveIdentifier& CurveId
 					CurveTypeArray.Add({ CurveName, CurveFlags});					
 					Model->CurveIdentifierToMetaData.FindOrAdd(CurveId).Flags = CurveFlags;
 				};
-				
+
+				ConditionalAction<UE::Anim::FRemoveCurveAction>(bShouldTransact,  CurveId);
 				switch (CurveId.CurveType)
 				{
 				case ERawCurveTrackTypes::RCT_Transform:
@@ -504,7 +505,6 @@ bool UAnimSequencerController::AddCurve(const FAnimationCurveIdentifier& CurveId
 					}
 				}
 
-				ConditionalAction<UE::Anim::FRemoveCurveAction>(bShouldTransact,  CurveId);
 				Model->GetNotifier().Notify(EAnimDataModelNotifyType::CurveAdded, Payload);
 
 				return true;
