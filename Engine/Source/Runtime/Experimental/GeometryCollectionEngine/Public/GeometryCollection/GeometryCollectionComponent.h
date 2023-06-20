@@ -63,6 +63,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnChaosRemovalEvent, const FChaosRe
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnChaosCrumblingEvent, const FChaosCrumblingEvent&, CrumbleEvent);
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnGeometryCollectionFullyDecayedEvent);
+
 namespace GeometryCollection
 {
 	enum class ESelectionMode : uint8
@@ -964,6 +966,7 @@ public:
 #endif  // UE_ENABLE_DEBUG_DRAWING
 
 	/**/
+	UE_DEPRECATED(5.4, "Disabled flags are no longer used.")
 	const TArray<bool>& GetDisabledFlags() const { return DisabledFlags; }
 
 	GEOMETRYCOLLECTIONENGINE_API virtual void OnCreatePhysicsState() override;
@@ -1025,6 +1028,8 @@ public:
 
 	// todo(chaos) remove when no longer necessary
 	FOnChaosBreakEvent OnRootBreakEvent;
+
+	FOnGeometryCollectionFullyDecayedEvent OnFullyDecayedEvent;
 
 	GEOMETRYCOLLECTIONENGINE_API void DispatchBreakEvent(const FChaosBreakEvent& Event);
 
@@ -1295,6 +1300,9 @@ protected:
 	GEOMETRYCOLLECTIONENGINE_API virtual void ProcessRepData();
 
 	GEOMETRYCOLLECTIONENGINE_API virtual bool ProcessRepData(float DeltaTime, float SimTime);
+
+	void CheckFullyDecayed();
+	bool bAlreadyFullyDecayed = false;
 
 	int32 VersionProcessed = INDEX_NONE;
 

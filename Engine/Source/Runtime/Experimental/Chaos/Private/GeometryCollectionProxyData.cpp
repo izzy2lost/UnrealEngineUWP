@@ -128,6 +128,11 @@ bool FGeometryCollectionDynamicStateFacade::IsValid() const
 		;
 }
 
+bool FGeometryCollectionDynamicStateFacade::IsActive(int32 TransformIndex) const
+{
+	return ActiveAttribute.Get()[TransformIndex];
+}
+
 bool FGeometryCollectionDynamicStateFacade::IsDynamicOrSleeping(int32 TransformIndex) const
 {
 	const int32 State = DynamicStateAttribute.Get()[TransformIndex];
@@ -147,9 +152,9 @@ bool FGeometryCollectionDynamicStateFacade::HasChildren(int32 TransformIndex) co
 
 bool FGeometryCollectionDynamicStateFacade::HasBrokenOff(int32 TransformIndex) const
 {
-	const bool IsActive = ActiveAttribute.Get()[TransformIndex];
-	const bool HasParent = (ParentAttribute.Get()[TransformIndex] != INDEX_NONE);
-	return IsActive && (!HasParent) && IsDynamicOrSleeping(TransformIndex);
+	const bool bIsActive = IsActive(TransformIndex);
+	const bool bHasParent = (ParentAttribute.Get()[TransformIndex] != INDEX_NONE);
+	return bIsActive && (!bHasParent) && IsDynamicOrSleeping(TransformIndex);
 }
 
 bool FGeometryCollectionDynamicStateFacade::HasInternalClusterParent(int32 TransformIndex) const

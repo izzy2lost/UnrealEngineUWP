@@ -116,6 +116,9 @@ public:
 	/** returns true if all the necessary attributes are present */
 	CHAOS_API bool IsValid() const;
 
+	/** return true if the transform is active */
+	CHAOS_API bool IsActive(int32 TransformIndex) const;
+
 	/** return true if the transform is in a dynamic or sleeping state */
 	CHAOS_API bool IsDynamicOrSleeping(int32 TransformIndex) const;
 

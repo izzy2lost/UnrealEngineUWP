@@ -2770,6 +2770,52 @@ void UGeometryCollectionComponent::TickComponent(float DeltaTime, enum ELevelTic
 	}
 }
 
+void UGeometryCollectionComponent::CheckFullyDecayed()
+{
+	if (bAlreadyFullyDecayed)
+	{
+		// Already fully decayed - don't bother doing extra work.
+		return;
+	}
+
+	if (DynamicCollection && PhysicsProxy)
+	{
+		bool bFullyDecayed = true;
+		FGeometryCollectionDecayDynamicFacade DecayFacade(*DynamicCollection);
+		FGeometryCollectionDynamicStateFacade DynamicStateFacade(*DynamicCollection);
+
+		const int32 NumTransforms = DecayFacade.GetDecayAttributeSize();
+		for (int32 TransformIdx = 0; TransformIdx < NumTransforms; ++TransformIdx)
+		{
+			// If we didn't create a particle for this transform, we shouldn't consider this particle.
+			if (!PhysicsProxy->GetExternalParticles()[TransformIdx])
+			{
+				continue;
+			}
+
+			// In an internal cluster, decay hasn't gotten to this particle yet (e.g. could be in a cluster union).
+			if (DynamicStateFacade.HasInternalClusterParent(TransformIdx))
+			{
+				bFullyDecayed = false;
+				break;
+			}
+
+			// If the particle is active, it's definitely not decayed either.
+			if (DynamicStateFacade.IsActive(TransformIdx))
+			{
+				bFullyDecayed = false;
+				break;
+			}
+		}
+
+		if (bFullyDecayed)
+		{
+			bAlreadyFullyDecayed = true;
+			OnFullyDecayedEvent.Broadcast();
+		}
+	}
+}
+
 void UGeometryCollectionComponent::AsyncPhysicsTickComponent(float DeltaTime, float SimTime)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(GeometryCollectionComponent_AsyncPhysicsTick);
@@ -3276,6 +3322,8 @@ void UGeometryCollectionComponent::OnPostPhysicsSync()
 
 		// only update removal if the root is broken
 		UpdateRemovalIfNeeded();
+
+		CheckFullyDecayed();
 	}
 
 	const bool bDynamicDataIsDirty = (DynamicCollection && DynamicCollection->IsDirty() && HasVisibleGeometry());
