@@ -621,6 +621,7 @@ void FAssetTable::AddDefaultColumns()
 
 		AddColumn(ColumnRef);
 	}
+
 	//////////////////////////////////////////////////
 	// Staged Compressed Size Column
 	{
@@ -895,7 +896,7 @@ void FAssetTable::AddDefaultColumns()
 
 		AddColumn(ColumnRef);
 	}
-
+	
 	//////////////////////////////////////////////////
 	// Total Size of Unique Dependencies
 	{
