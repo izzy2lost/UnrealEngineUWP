@@ -127,6 +127,9 @@ public:
 	/** Returns whether the sound has a sequencer node. */
 	ENGINE_API virtual bool HasConcatenatorNode() const;
 
+	/** Returns whether the sound has an attenuation node. */
+	ENGINE_API virtual bool HasAttenuationNode() const;
+
 	/** Returns true if the sound node is set to play when silent. */
 	ENGINE_API virtual bool IsPlayWhenSilent() const;
 

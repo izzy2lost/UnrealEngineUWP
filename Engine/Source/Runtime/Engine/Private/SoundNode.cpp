@@ -377,6 +377,22 @@ bool USoundNode::HasConcatenatorNode() const
 	return false;
 }
 
+bool USoundNode::HasAttenuationNode() const
+{
+	for (USoundNode* ChildNode : ChildNodes)
+	{
+		if (ChildNode)
+		{
+			ChildNode->ConditionalPostLoad();
+			if (ChildNode->HasAttenuationNode())
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 bool USoundNode::IsPlayWhenSilent() const
 {
 	for (USoundNode* ChildNode : ChildNodes)

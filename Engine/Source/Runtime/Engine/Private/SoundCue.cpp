@@ -87,6 +87,7 @@ void USoundCue::CacheAggregateValues()
 		bHasDelayNode = FirstNode->HasDelayNode();
 		bHasConcatenatorNode = FirstNode->HasConcatenatorNode();
 		bHasPlayWhenSilent = FirstNode->IsPlayWhenSilent();
+		bHasAttenuationNode = FirstNode->HasAttenuationNode();
 	}
 }
 
@@ -679,6 +680,48 @@ const FSoundAttenuationSettings* USoundCue::GetAttenuationSettingsToApply() cons
 		return &AttenuationOverrides;
 	}
 	return Super::GetAttenuationSettingsToApply();
+}
+
+float USoundCue::EvaluateMaxAttenuation(const FTransform& Origin, FVector Location, float DistanceScale /*= 1.f*/) const
+{
+	if (!bHasAttenuationNode)
+	{
+		if (const FSoundAttenuationSettings* Att = GetAttenuationSettingsToApply())
+		{
+			return Att->Evaluate(Origin, Location, DistanceScale);
+		}
+		else
+		{
+			return 1.0f;
+		}
+	}
+
+	// Otherwise let's traverse recursively through our attenuation nodes and tally up the highest eval to return
+	TArray<const USoundNodeAttenuation*> Nodes;
+	RecursiveFindAttenuation(FirstNode, Nodes);
+
+	float MaxEval = 0.0f;
+	for (const USoundNodeAttenuation* Node : Nodes)
+	{
+		if (Node == nullptr)
+		{
+			continue;
+		}
+
+		if (Node->bOverrideAttenuation)
+		{
+			MaxEval = FMath::Max(MaxEval, Node->AttenuationOverrides.Evaluate(Origin, Location, DistanceScale));
+		}
+		else if (Node->AttenuationSettings)
+		{
+			MaxEval = FMath::Max(MaxEval, Node->AttenuationSettings->Attenuation.Evaluate(Origin, Location, DistanceScale));
+		}
+		else
+		{
+			MaxEval = 1.0f;
+		}
+	}
+	return MaxEval;
 }
 
 float USoundCue::GetSubtitlePriority() const
