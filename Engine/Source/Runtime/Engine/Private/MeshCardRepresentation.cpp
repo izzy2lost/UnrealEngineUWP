@@ -117,6 +117,8 @@ FString BuildCardRepresentationDerivedDataKey(const FString& InMeshKey, int32 Ma
 
 #if WITH_EDITORONLY_DATA
 
+extern void BuildSignedDistanceFieldBuildMaterialData(UStaticMesh* Mesh, uint32 LODIndex, TArray<FSignedDistanceFieldBuildMaterialData>& OutData);
+
 void BeginCacheMeshCardRepresentation(const ITargetPlatform* TargetPlatform, UStaticMesh* StaticMeshAsset, FStaticMeshRenderData& RenderData, const FString& DistanceFieldKey, FSourceMeshDataForDerivedDataTask* OptionalSourceMeshData)
 {
 	static const auto CVarCards = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MeshCardRepresentation"));
@@ -173,31 +175,9 @@ void FCardRepresentationData::CacheDerivedData(const FString& InDDCKey, const IT
 		NewTask->GeneratedCardRepresentation = new FCardRepresentationData();
 		NewTask->MaxLumenMeshCards = MaxLumenMeshCards;
 		NewTask->bGenerateDistanceFieldAsIfTwoSided = bGenerateDistanceFieldAsIfTwoSided;
-		NewTask->MaterialBlendModes.SetNum(Mesh->GetStaticMaterials().Num());
 
-		const TArray<FStaticMaterial>& StaticMaterials = Mesh->GetStaticMaterials();
-		const FMeshSectionInfoMap& SectionInfoMap = Mesh->GetSectionInfoMap();
 		const uint32 LODIndex = 0;
-
-		for (int32 SectionIndex = 0; SectionIndex < SectionInfoMap.GetSectionNumber(LODIndex); SectionIndex++)
-		{
-			const FMeshSectionInfo& Section = SectionInfoMap.Get(LODIndex, SectionIndex);
-
-			if (!NewTask->MaterialBlendModes.IsValidIndex(Section.MaterialIndex))
-			{
-				continue;
-			}
-
-			FSignedDistanceFieldBuildMaterialData& MaterialData = NewTask->MaterialBlendModes[Section.MaterialIndex];
-			MaterialData.bAffectDistanceFieldLighting = Section.bAffectDistanceFieldLighting;
-
-			UMaterialInterface* MaterialInterface = StaticMaterials[Section.MaterialIndex].MaterialInterface;
-			if (MaterialInterface)
-			{
-				MaterialData.BlendMode = MaterialInterface->GetBlendMode();
-				MaterialData.bTwoSided = MaterialInterface->IsTwoSided();
-			}
-		}
+		BuildSignedDistanceFieldBuildMaterialData(Mesh, LODIndex, NewTask->MaterialBlendModes);
 
 		// Nanite overrides source static mesh with a coarse representation. Need to load original data before we build the mesh SDF.
 		if (OptionalSourceMeshData)
