@@ -10,6 +10,7 @@
 #include "NiagaraShaderParametersBuilder.h"
 #include "NiagaraSystem.h"
 #include "NiagaraSystemInstance.h"
+#include "NiagaraWorldManager.h"
 
 #include "Internationalization/Internationalization.h"
 #include "RenderGraphBuilder.h"
@@ -40,51 +41,33 @@ namespace NDIExportLocal
 		TEXT("Maximum buffer instance count for the GPU readback when in PerParticleMode, where <= 0 means ignore."),
 		ECVF_Default
 	);
+
+	void EnqueueGameThreadCallback(TWeakObjectPtr<UObject> WeakCallbackHandler, TArray<FBasicParticleData> ParticleData, TWeakObjectPtr<UNiagaraSystem> WeakSystem, FVector3f SystemTileOffset)
+	{
+		FNiagaraWorldManager::EnqueueGlobalDeferredCallback(
+			[WeakCallbackHandler, ParticleData=MoveTemp(ParticleData), WeakSystem, SystemTileOffset]()
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(NiagaraExportGTCallback);
+
+				UNiagaraSystem* System = WeakSystem.Get();
+				if (System == nullptr)
+				{
+					UE_LOG(LogNiagara, Warning, TEXT("Invalid system handle in export data interface callback, skipping"));
+					return;
+				}
+
+				UObject* CallbackHandler = WeakCallbackHandler.Get();
+				if (CallbackHandler == nullptr)
+				{
+					UE_LOG(LogNiagara, Warning, TEXT("Invalid CallbackHandler in export data interface callback, skipping"));
+					return;
+				}
+
+				INiagaraParticleCallbackHandler::Execute_ReceiveParticleData(CallbackHandler, ParticleData, System, FVector(SystemTileOffset) * FLargeWorldRenderScalar::GetTileSize());
+			}
+		);
+	}
 }
-
-
-/**
-Async task to call the blueprint callback on the game thread and isolate the Niagara tick from the blueprint
-*/
-class FNiagaraExportCallbackAsyncTask
-{
-	TWeakObjectPtr<UObject> WeakCallbackHandler;
-	TArray<FBasicParticleData> Data;
-	TWeakObjectPtr<UNiagaraSystem> WeakSystem;
-	FVector3f SystemTileOffset;
-
-public:
-	FNiagaraExportCallbackAsyncTask(TWeakObjectPtr<UObject> InCallbackHandler, TArray<FBasicParticleData> Data, TWeakObjectPtr<UNiagaraSystem> InSystem, FVector3f InSystemTileOffset)
-		: WeakCallbackHandler(InCallbackHandler)
-		, Data(Data)
-		, WeakSystem(InSystem)
-		, SystemTileOffset(InSystemTileOffset)
-	{
-	}
-
-	FORCEINLINE TStatId GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(FNiagaraExportCallbackAsyncTask, STATGROUP_TaskGraphTasks); }
-	static FORCEINLINE ENamedThreads::Type GetDesiredThread() { return ENamedThreads::GameThread; }
-	static FORCEINLINE ESubsequentsMode::Type GetSubsequentsMode() { return ESubsequentsMode::FireAndForget; }
-
-	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
-	{
-		UNiagaraSystem* System = WeakSystem.Get();
-		if (System == nullptr)
-		{
-			UE_LOG(LogNiagara, Warning, TEXT("Invalid system handle in export data interface callback, skipping"));
-			return;
-		}
-
-		UObject* CallbackHandler = WeakCallbackHandler.Get();
-		if (CallbackHandler == nullptr)
-		{
-			UE_LOG(LogNiagara, Warning, TEXT("Invalid CallbackHandler in export data interface callback, skipping"));
-			return;
-		}
-
-		INiagaraParticleCallbackHandler::Execute_ReceiveParticleData(CallbackHandler, Data, System, FVector(SystemTileOffset) * FLargeWorldRenderScalar::GetTileSize());
-	}
-};
 
 //////////////////////////////////////////////////////////////////////////
 // Instance and Proxy Data
@@ -162,7 +145,7 @@ struct FNDIExportProxy : public FNiagaraDataInterfaceProxy
 							FloatData += NDIExportLocal::NumFloatsPerInstance;
 						}
 
-						TGraphTask<FNiagaraExportCallbackAsyncTask>::CreateTask().ConstructAndDispatchWhenReady(WeakCallbackHandler, MoveTemp(ExportParticleData), WeakSystem, SystemLWCTile);
+						NDIExportLocal::EnqueueGameThreadCallback(WeakCallbackHandler, MoveTemp(ExportParticleData), WeakSystem, SystemLWCTile);
 					}
 				}
 			);
@@ -294,7 +277,7 @@ bool UNiagaraDataInterfaceExport::PerInstanceTickPostSimulate(void* PerInstanceD
 				Data.Add(Value);
 			}
 
-			TGraphTask<FNiagaraExportCallbackAsyncTask>::CreateTask().ConstructAndDispatchWhenReady(PIData->CallbackHandler, MoveTemp(Data), SystemInstance->GetSystem(), SystemInstance->GetLWCTile());
+			NDIExportLocal::EnqueueGameThreadCallback(CallbackHandler, MoveTemp(Data), SystemInstance->GetSystem(), SystemInstance->GetLWCTile());
 		}
 	}
 	return false;

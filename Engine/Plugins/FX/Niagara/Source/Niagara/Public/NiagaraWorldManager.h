@@ -223,6 +223,12 @@ public:
 
 	class FNiagaraDeferredMethodQueue& GetDeferredMethodQueue() { return DeferredMethods; }
 
+	/**
+	This is a threadsafe queue which will execute on the game thread.
+	The queue is flushed at the start of each tick group & pre / post actor tick.
+	*/
+	NIAGARA_API static void EnqueueGlobalDeferredCallback(TFunction<void()>&& Callback);
+
 	/** Is this component in anyway linked to the local player. */
 	static bool IsComponentLocalPlayerLinked(const USceneComponent* Component);
 

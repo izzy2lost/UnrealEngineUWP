@@ -255,8 +255,19 @@ FDelegateHandle FNiagaraWorldManager::ViewTargetChangedHandle;
 std::atomic<bool> FNiagaraWorldManager::bInvalidateCachedSystemScalabilityData(false);
 TMap<class UWorld*, class FNiagaraWorldManager*> FNiagaraWorldManager::WorldManagers;
 
-namespace FNiagaraUtilities
+namespace NiagaraWorldManagerInternal
 {
+	static TQueue<TFunction<void()>, EQueueMode::Mpsc> GlobalDeferredCallbacks;
+
+	void ExecuteGlobalDeferredCallbacks()
+	{
+		TFunction<void()> Callback;
+		while (GlobalDeferredCallbacks.Dequeue(Callback))
+		{
+			Callback();
+		}
+	}
+
 	int GetNiagaraTickGroup(ETickingGroup TickGroup)
 	{
 		const int ActualTickGroup = FMath::Clamp(TickGroup - NiagaraFirstTickGroup, 0, NiagaraNumTickGroups - 1);
@@ -563,10 +574,10 @@ FNiagaraSystemSimulationRef FNiagaraWorldManager::GetSystemSimulation(ETickingGr
 {
 	LLM_SCOPE(ELLMTag::Niagara);
 
-	int32 ActualTickGroup = FNiagaraUtilities::GetNiagaraTickGroup(TickGroup);
+	int32 ActualTickGroup = NiagaraWorldManagerInternal::GetNiagaraTickGroup(TickGroup);
 	if (ActiveNiagaraTickGroup == ActualTickGroup)
 	{
-		int32 DemotedTickGroup = FNiagaraUtilities::GetNiagaraTickGroup((ETickingGroup)(TickGroup + 1));
+		int32 DemotedTickGroup = NiagaraWorldManagerInternal::GetNiagaraTickGroup((ETickingGroup)(TickGroup + 1));
 		ActualTickGroup = DemotedTickGroup == ActualTickGroup ? 0 : DemotedTickGroup;
 	}
 
@@ -941,6 +952,7 @@ void FNiagaraWorldManager::OnRefreshOwnerAllowsScalability()
 void FNiagaraWorldManager::PreActorTick(ELevelTick InLevelTick, float InDeltaSeconds)
 {	
 	DataChannelManager->BeginFrame(InDeltaSeconds);
+	NiagaraWorldManagerInternal::ExecuteGlobalDeferredCallbacks();
 }
 
 void FNiagaraWorldManager::PostActorTick(float DeltaSeconds)
@@ -950,6 +962,8 @@ void FNiagaraWorldManager::PostActorTick(float DeltaSeconds)
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraWorldManTick);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraOverview_GT);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_NiagaraPostActorTick_GT);
+
+	NiagaraWorldManagerInternal::ExecuteGlobalDeferredCallbacks();
 
 	DeltaSeconds *= DebugPlaybackRate;
 
@@ -1151,13 +1165,16 @@ void FNiagaraWorldManager::Tick(ETickingGroup TickGroup, float DeltaSeconds, ELe
 {
 	check(TickGroup >= NiagaraFirstTickGroup && TickGroup <= NiagaraLastTickGroup);
 
-	DeferredMethods.ExecuteAndClear();
-
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
 	LLM_SCOPE(ELLMTag::Niagara);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraWorldManTick);
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraOverview_GT);
 
+	// Execute any global and local deferred functions
+	NiagaraWorldManagerInternal::ExecuteGlobalDeferredCallbacks();
+	DeferredMethods.ExecuteAndClear();
+
+	// Modify playback rate
 	DeltaSeconds *= DebugPlaybackRate;
 
 	//Tick DataChannel Manager.
@@ -1274,7 +1291,7 @@ void FNiagaraWorldManager::Tick(ETickingGroup TickGroup, float DeltaSeconds, ELe
 	}
 
 	// Now tick all system instances. 
-	const int ActualTickGroup = FNiagaraUtilities::GetNiagaraTickGroup(TickGroup);
+	const int ActualTickGroup = NiagaraWorldManagerInternal::GetNiagaraTickGroup(TickGroup);
 
 	ActiveNiagaraTickGroup = ActualTickGroup;
 
@@ -1984,6 +2001,12 @@ void FNiagaraWorldManager::PrimePool(UNiagaraSystem* System)
 	{
 		ComponentPool->PrimePool(System, World);
 	}
+}
+
+void FNiagaraWorldManager::EnqueueGlobalDeferredCallback(TFunction<void()>&& Callback)
+{
+	using namespace NiagaraWorldManagerInternal;
+	GlobalDeferredCallbacks.Enqueue(Callback);
 }
 
 bool FNiagaraWorldManager::IsComponentLocalPlayerLinked(const USceneComponent* InComponent)

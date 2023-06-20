@@ -7,6 +7,7 @@
 #include "NiagaraGpuReadbackManager.h"
 #include "NiagaraShaderParametersBuilder.h"
 #include "NiagaraSystemInstance.h"
+#include "NiagaraWorldManager.h"
 
 #include "Internationalization/Internationalization.h"
 #include "Async/Async.h"
@@ -113,10 +114,11 @@ struct FNDISimpleCounterProxy : public FNiagaraDataInterfaceProxyRW
 							[SystemInstanceID, WeakOwner=Proxy->WeakOwner, Proxy](TConstArrayView<TPair<void*, uint32>> ReadbackData)
 							{
 								const int32 CounterValue = *reinterpret_cast<const int32*>(ReadbackData[0].Key);
-								AsyncTask(
-									ENamedThreads::GameThread,
+								FNiagaraWorldManager::EnqueueGlobalDeferredCallback(
 									[SystemInstanceID, CounterValue, WeakOwner, Proxy]()
 									{
+										TRACE_CPUPROFILER_EVENT_SCOPE(NDISimpleCounterGTCallback);
+
 										// FNiagaraDataInterfaceProxy do not outlive UNiagaraDataInterface so if our Object is valid so is the proxy
 										// Equally because we do not share instance IDs (monotonically increasing number) we won't ever stomp something that has 'gone away'
 										if ( WeakOwner.Get() )
