@@ -265,6 +265,8 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 
 			bMaterialInvalidatesAnyView |= bMaterialInvalidates;
 
+			Cull.ScreenSize(DrawCommandDesc.MinScreenSize, DrawCommandDesc.MaxScreenSize);
+
 			Cull.GlobalClipPlane();
 
 			// A thing is considered to have moved (which causes it to render into cached pages) if:

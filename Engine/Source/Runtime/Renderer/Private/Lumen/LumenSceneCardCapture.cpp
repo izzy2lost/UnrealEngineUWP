@@ -781,6 +781,8 @@ void LumenScene::AddCardCaptureDraws(
 								CachedMeshDrawCommand.MeshCullMode,
 								CachedMeshDrawCommand.Flags,
 								CachedMeshDrawCommand.SortKey,
+								CachedMeshDrawCommand.CullingPayload,
+								EMeshDrawCommandCullingPayloadFlags::NoScreenSizeCull,
 								InstanceRunArray,
 								NumInstanceRuns);
 

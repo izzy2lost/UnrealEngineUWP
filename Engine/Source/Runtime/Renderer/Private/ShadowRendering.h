@@ -810,6 +810,7 @@ private:
 	TArray<FMeshBatchAndRelevance,SceneRenderingAllocator> DynamicSubjectTranslucentMeshElements;
 
 	TArray<const FStaticMeshBatch*, SceneRenderingAllocator> SubjectMeshCommandBuildRequests;
+	TArray<EMeshDrawCommandCullingPayloadFlags, SceneRenderingAllocator> SubjectMeshCommandBuildFlags;
 
 	/** Number of elements of DynamicSubjectMeshElements meshes. */
 	int32 NumDynamicSubjectMeshElements;
@@ -874,10 +875,12 @@ private:
 		const FPrimitiveSceneInfo* InPrimitiveSceneInfo,
 		const FStaticMeshBatchRelevance& RESTRICT StaticMeshRelevance,
 		const FStaticMeshBatch& StaticMesh,
+		EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags,
 		const FScene* Scene,
 		EMeshPass::Type PassType,
 		FMeshCommandOneFrameArray& VisibleMeshCommands,
 		TArray<const FStaticMeshBatch*, SceneRenderingAllocator>& MeshCommandBuildRequests,
+		TArray<EMeshDrawCommandCullingPayloadFlags, SceneRenderingAllocator> MeshCommandBuildFlags,
 		int32& NumMeshCommandBuildRequestElements);
 
 	void AddCachedMeshDrawCommands_AnyThread(

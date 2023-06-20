@@ -100,8 +100,8 @@ public:
 
 	static RENDERER_API const TRDGUniformBufferRef<FInstanceCullingGlobalUniforms> CreateDummyInstanceCullingUniformBuffer(FRDGBuilder& GraphBuilder);
 
+	static bool IsGPUCullingEnabled();
 	static bool IsOcclusionCullingEnabled();
-	
 
 	/**
 	 * Call to empty out the culling commands & other culling data.
@@ -188,16 +188,6 @@ public:
 	 * Helper function to add a pass to zero the instance count in the indirect args.
 	 */
 	static void AddClearIndirectArgInstanceCountPass(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap, FRDGBufferRef DrawIndirectArgsBuffer, TFunction<int32()> NumIndirectArgsCallback = TFunction<int32()>());
-
-
-	void SetupDrawCommands(
-		TArrayView<const FStateBucketAuxData> StateBucketsAuxData,
-		FMeshCommandOneFrameArray& VisibleMeshDrawCommandsInOut,
-		bool bCompactIdenticalCommands,
-		// Stats
-		int32& MaxInstancesOut,
-		int32& VisibleMeshDrawCommandsNumOut,
-		int32& NewPassVisibleMeshDrawCommandsNumOut);
 
 	void SetupDrawCommands(
 		FMeshCommandOneFrameArray& VisibleMeshDrawCommandsInOut,

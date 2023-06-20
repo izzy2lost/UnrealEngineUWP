@@ -75,6 +75,13 @@ IMPLEMENT_HIT_PROXY(HInstancedStaticMeshInstance, HHitProxy);
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FInstancedStaticMeshVertexFactoryUniformShaderParameters, "InstanceVF");
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FInstancedStaticMeshVFLooseUniformShaderParameters, "InstancedVFLooseParameters");
 
+TAutoConsoleVariable<int32> CVarGpuLodSelection(
+	TEXT("r.InstancedStaticMeshes.GpuLod"),
+	1,
+	TEXT("Whether to enable GPU LOD selection on InstancedStaticMesh."),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable) { FGlobalComponentRecreateRenderStateContext Context; }),
+	ECVF_RenderThreadSafe);
+
 TAutoConsoleVariable<int32> CVarMinLOD(
 	TEXT("foliage.MinLOD"),
 	-1,
@@ -1811,7 +1818,12 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(UInstancedStaticMeshComponent* I
 	bSupportRayTracing = InComponent->GetStaticMesh()->bSupportRayTracing;
 #endif
 
-	if (UseGPUScene(GetScene().GetShaderPlatform(), GetScene().GetFeatureLevel()))
+	const bool bUseGPUScene = UseGPUScene(GetScene().GetShaderPlatform(), GetScene().GetFeatureLevel());
+	
+	const bool bEnableGpuLodSelection = CVarGpuLodSelection.GetValueOnAnyThread() != 0;
+	bUseGpuLodSelection = InComponent->bUseGpuLodSelection && bUseGPUScene && bEnableGpuLodSelection;
+
+	if (bUseGPUScene)
 	{
 		const TArray<int32>& InstanceReorderTable = InComponent->InstanceReorderTable;
 
@@ -2147,6 +2159,13 @@ bool FInstancedStaticMeshSceneProxy::GetInstanceDrawDistanceMinMax(FVector2f& Ou
 		OutDistanceMinMax = FVector2f(0.0f);
 		return false;
 	}
+}
+
+float FInstancedStaticMeshSceneProxy::GetGpuLodInstanceRadius() const
+{
+	// Note that StaticMeshBounds.SphereRadius is a better fit, but doesn't match the value on the GPU used for LOD culling.
+	// That's because GPUScene drops the bounds sphere radius and uses the box. So we end up with the sphere encompassing the box, encompassing the sphere :(
+	return bUseGpuLodSelection ? StaticMeshBounds.BoxExtent.Length() : 0.f;
 }
 
 #if RHI_RAYTRACING

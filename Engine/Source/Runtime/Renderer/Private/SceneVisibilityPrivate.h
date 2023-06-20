@@ -559,6 +559,7 @@ namespace EMarkMaskBits
 
 using FPassDrawCommandArray = TArray<FVisibleMeshDrawCommand>;
 using FPassDrawCommandBuildRequestArray = TArray<const FStaticMeshBatch*>;
+using FPassDrawCommandBuildFlagsArray = TArray<EMeshDrawCommandCullingPayloadFlags>;
 
 struct FDrawCommandRelevancePacket
 {
@@ -566,6 +567,7 @@ struct FDrawCommandRelevancePacket
 
 	FPassDrawCommandArray VisibleCachedDrawCommands[EMeshPass::Num];
 	FPassDrawCommandBuildRequestArray DynamicBuildRequests[EMeshPass::Num];
+	FPassDrawCommandBuildFlagsArray DynamicBuildFlags[EMeshPass::Num];
 	int32 NumDynamicBuildRequestElements[EMeshPass::Num];
 	bool bUseCachedMeshDrawCommands;
 
@@ -574,6 +576,7 @@ struct FDrawCommandRelevancePacket
 		const FPrimitiveSceneInfo* InPrimitiveSceneInfo,
 		const FStaticMeshBatchRelevance& RESTRICT StaticMeshRelevance,
 		const FStaticMeshBatch& RESTRICT StaticMesh,
+		EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags,
 		const FScene& Scene,
 		bool bCanCache,
 		EMeshPass::Type PassType);

@@ -106,7 +106,7 @@ ViewState ResolveView(FNaniteView NaniteView)
 	// HACK: This fixes some material nodes for shadows, as shadow views borrow some view uniforms from the closest
 	// camera view, rather than exposing their own parameters.
 	Ret.WorldCameraOrigin = LWCNegate(NaniteView.PreViewTranslation);
-	Ret.WorldCameraOrigin.Offset += NaniteView.DrawDistanceOriginTranslatedWorld;
+	Ret.WorldCameraOrigin.Offset += NaniteView.CullingViewOriginTranslatedWorld;
 
 	return Ret;
 }

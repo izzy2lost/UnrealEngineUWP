@@ -45,6 +45,7 @@ public:
 	TStaticArray<FMeshCommandOneFrameArray, EMeshPass::Num> MeshCommands;
 	TStaticArray<int32, EMeshPass::Num> NumDynamicMeshCommandBuildRequestElements;
 	TStaticArray<TArray<const FStaticMeshBatch*, SceneRenderingAllocator>, EMeshPass::Num> DynamicMeshCommandBuildRequests;
+	TStaticArray<TArray<EMeshDrawCommandCullingPayloadFlags, SceneRenderingAllocator>, EMeshPass::Num> DynamicMeshCommandBuildFlags;
 };
 
 class IVisibilityTaskData

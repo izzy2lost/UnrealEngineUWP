@@ -548,6 +548,7 @@ public:
 	}
 
 	bool bAnySegmentUsesWorldPositionOffset = false;
+	bool bUseGpuLodSelection = false;
 
 #if RHI_RAYTRACING
 	virtual bool IsRayTracingStaticRelevant() const override
@@ -593,10 +594,9 @@ public:
 
 	ENGINE_API virtual bool GetInstanceDrawDistanceMinMax(FVector2f& OutDistanceMinMax) const override;
 
-	virtual bool IsDetailMesh() const override
-	{
-		return true;
-	}
+	virtual float GetGpuLodInstanceRadius() const override;
+
+	virtual bool IsDetailMesh() const override { return true; }
 
 protected:
 	ENGINE_API FInstancedStaticMeshVFLooseUniformShaderParametersRef CreateLooseUniformBuffer(const FSceneView* View, const FInstancingUserData* InstancingUserData, uint32 InstancedLODRange, uint32 InstancedLODIndex, EUniformBufferUsage UniformBufferUsage) const;

@@ -864,6 +864,33 @@ FLODMask ComputeLODForMeshes(const TArray<class FStaticMeshBatchRelevance>& Stat
 	return LODToRender;
 }
 
+FLODMask ComputeLODForMeshes(const TArray<class FStaticMeshBatchRelevance>& StaticMeshRelevances, const FSceneView& View, const FVector4& BoundsOrigin, float BoundsSphereRadius, float InstanceSphereRadius, int32 ForcedLODLevel, float& OutScreenRadiusSquared, int8 CurFirstLODIdx, float ScreenSizeScale)
+{
+	if (ForcedLODLevel >= 0 || InstanceSphereRadius <= 0.f)
+	{
+		return ComputeLODForMeshes(StaticMeshRelevances, View, BoundsOrigin, BoundsSphereRadius, ForcedLODLevel, OutScreenRadiusSquared, CurFirstLODIdx, ScreenSizeScale, false);
+	}
+
+	// The bounds origin and radius are for a group of instances.
+	// Compute the range of possible LODs within that bounds.
+	// todo: InstanceSphereRadius isn't enough. Need to take into account maximum and minimum instance scale.
+	const FSceneView& LODView = GetLODView(View);
+	const FVector CameraPosition = LODView.ViewMatrices.GetViewOrigin();
+	const FVector BoundsOriginToCamera = CameraPosition - BoundsOrigin;
+	const float Distance = BoundsOriginToCamera.Length();
+	const FVector BoundsOriginToCameraNorm = BoundsOriginToCamera / Distance;
+	const float AdjustedBoundsSphereRadius = FMath::Max(BoundsSphereRadius - InstanceSphereRadius, 0.f);
+	const FVector FarInstanceOrigin = BoundsOrigin - AdjustedBoundsSphereRadius * BoundsOriginToCameraNorm;
+	const FVector NearInstanceOrigin = (Distance <= AdjustedBoundsSphereRadius) ? CameraPosition : (FVector)BoundsOrigin + AdjustedBoundsSphereRadius * BoundsOriginToCameraNorm;
+
+	FLODMask MaxLod = ComputeLODForMeshes(StaticMeshRelevances, View, FarInstanceOrigin, InstanceSphereRadius, -1, OutScreenRadiusSquared, CurFirstLODIdx, ScreenSizeScale, false);
+	FLODMask MinLod = ComputeLODForMeshes(StaticMeshRelevances, View, NearInstanceOrigin, InstanceSphereRadius, -1, OutScreenRadiusSquared, CurFirstLODIdx, ScreenSizeScale, false);
+
+	FLODMask Result;
+	Result.SetLODRange(MinLod.LODIndex0, MaxLod.LODIndex0);
+	return Result;
+}
+
 FMobileDirectionalLightShaderParameters::FMobileDirectionalLightShaderParameters()
 {
 	FMemory::Memzero(*this);

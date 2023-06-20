@@ -16,6 +16,7 @@
 #include "InstanceCullingLoadBalancer.h"
 #include "InstanceCullingMergedContext.h"
 #include "RenderCore.h"
+#include "UnrealEngine.h"
 
 static TAutoConsoleVariable<int32> CVarCullInstances(
 	TEXT("r.CullInstances"),
@@ -23,10 +24,9 @@ static TAutoConsoleVariable<int32> CVarCullInstances(
 	TEXT("CullInstances."),
 	ECVF_RenderThreadSafe);
 
-static int32 GOcclusionCullInstances = 0;
-static FAutoConsoleVariableRef CVarOcclusionCullInstances(
+static TAutoConsoleVariable<int32> CVarOcclusionCullInstances(
 	TEXT("r.InstanceCulling.OcclusionCull"),
-	GOcclusionCullInstances,
+	0,
 	TEXT("Whether to do per instance occlusion culling for GPU instance culling."),
 	ECVF_RenderThreadSafe);
 
@@ -54,10 +54,21 @@ static bool IsInstanceOrderPreservationAllowed(ERHIFeatureLevel::Type FeatureLev
 	return GInstanceCullingAllowOrderPreservation && FeatureLevel > ERHIFeatureLevel::ES3_1;
 }
 
-static uint32 PackDrawCommandDesc(bool bMaterialUsesWorldPositionOffset, uint32 MeshLODIndex)
+static uint32 PackDrawCommandDesc(bool bMaterialUsesWorldPositionOffset, FMeshDrawCommandCullingPayload CullingPayload, EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags)
 {
+	const float LodScale = GetCachedScalabilityCVars().StaticMeshLODDistanceScale;
+
+	// See UnpackDrawCommandDesc() in shader code.
 	uint32 PackedData = bMaterialUsesWorldPositionOffset ? 1U : 0U;
-	PackedData |= ((MeshLODIndex & 0x000000FFU) << 1U);
+	PackedData |= CullingPayload.LodIndex << 1;
+	if (EnumHasAnyFlags(CullingPayloadFlags, EMeshDrawCommandCullingPayloadFlags::MinScreenSizeCull))
+	{
+		PackedData |= FMeshDrawCommandCullingPayload::PackScreenSize(FMeshDrawCommandCullingPayload::UnpackScreenSize(CullingPayload.MinScreenSize) * LodScale) << 5;
+	}
+	if (EnumHasAnyFlags(CullingPayloadFlags, EMeshDrawCommandCullingPayloadFlags::MaxScreenSizeCull))
+	{
+		PackedData |= FMeshDrawCommandCullingPayload::PackScreenSize(FMeshDrawCommandCullingPayload::UnpackScreenSize(CullingPayload.MaxScreenSize) * LodScale) << 17;
+	}
 	return PackedData;
 }
 
@@ -108,11 +119,15 @@ FInstanceCullingContext::FInstanceCullingContext(ERHIFeatureLevel::Type InFeatur
 {
 }
 
-bool FInstanceCullingContext::IsOcclusionCullingEnabled()
+bool FInstanceCullingContext::IsGPUCullingEnabled()
 {
-	return GOcclusionCullInstances != 0;
+	return CVarCullInstances.GetValueOnAnyThread() != 0;
 }
 
+bool FInstanceCullingContext::IsOcclusionCullingEnabled()
+{
+	return IsGPUCullingEnabled() && CVarOcclusionCullInstances.GetValueOnAnyThread() != 0;
+}
 
 FInstanceCullingContext::~FInstanceCullingContext()
 {
@@ -1218,17 +1233,6 @@ void FInstanceCullingContext::AddClearIndirectArgInstanceCountPass(FRDGBuilder& 
 	}
 }
 
-void FInstanceCullingContext::SetupDrawCommands(
-	FMeshCommandOneFrameArray& VisibleMeshDrawCommandsInOut,
-	bool bCompactIdenticalCommands,
-	int32& MaxInstances,
-	int32& VisibleMeshDrawCommandsNum,
-	int32& NewPassVisibleMeshDrawCommandsNum)
-{
-	TArrayView<const FStateBucketAuxData> StateBucketsAuxData;
-	SetupDrawCommands(StateBucketsAuxData, VisibleMeshDrawCommandsInOut, bCompactIdenticalCommands, MaxInstances, VisibleMeshDrawCommandsNum, NewPassVisibleMeshDrawCommandsNum);
-}
-
 /**
  * Allocate indirect arg slots for all meshes to use instancing,
  * add commands that populate the indirect calls and index & id buffers, and
@@ -1236,7 +1240,6 @@ void FInstanceCullingContext::SetupDrawCommands(
  * NOTE: VisibleMeshDrawCommandsInOut can only become shorter.
  */
 void FInstanceCullingContext::SetupDrawCommands(
-	TArrayView<const FStateBucketAuxData> StateBucketsAuxData,
 	FMeshCommandOneFrameArray& VisibleMeshDrawCommandsInOut,
 	bool bCompactIdenticalCommands,
 	// Stats
@@ -1334,12 +1337,7 @@ void FInstanceCullingContext::SetupDrawCommands(
 				
 				CurrentIndirectArgsOffset = AllocateIndirectArgs(MeshDrawCommand);
 				
-				uint32 MeshLODIndex = 0;
-				if (StateBucketsAuxData.IsValidIndex(VisibleMeshDrawCommand.StateBucketId))
-				{
-					MeshLODIndex = StateBucketsAuxData[VisibleMeshDrawCommand.StateBucketId].MeshLODIndex;
-				}
-				DrawCommandDescs.Add(PackDrawCommandDesc(bMaterialUsesWorldPositionOffset, MeshLODIndex));
+				DrawCommandDescs.Add(PackDrawCommandDesc(bMaterialUsesWorldPositionOffset, VisibleMeshDrawCommand.CullingPayload, VisibleMeshDrawCommand.CullingPayloadFlags));
 				
 				if (bUseIndirectDraw)
 				{

@@ -175,6 +175,7 @@ FPrimitiveSceneInfo::FPrimitiveSceneInfo(UPrimitiveComponent* InComponent, FScen
 	LightList(NULL),
 	Scene(InScene),
 	NumMobileDynamicLocalLights(0),
+	GpuLodInstanceRadius(0),
 	PackedIndex(INDEX_NONE),
 	PersistentIndex(FPersistentPrimitiveIndex{ INDEX_NONE }),
 	ComponentForDebuggingOnly(InComponent),
@@ -244,6 +245,11 @@ FPrimitiveSceneInfo::FPrimitiveSceneInfo(UPrimitiveComponent* InComponent, FScen
 	RayTracingGeometries = InComponent->SceneProxy->MoveRayTracingGeometries();
 	CachedRayTracingGeometry = nullptr;
 #endif
+
+	if (FInstanceCullingContext::IsGPUCullingEnabled())
+	{
+		GpuLodInstanceRadius = InComponent->SceneProxy->GetGpuLodInstanceRadius();
+	}
 }
 
 FPrimitiveSceneInfo::~FPrimitiveSceneInfo()
@@ -517,13 +523,6 @@ void FPrimitiveSceneInfo::RemoveCachedMeshDrawCommands()
 				if (StateBucketCount.Num == 0)
 				{
 					Scene->CachedMeshDrawCommandStateBuckets[PassIndex].RemoveByElementId(CachedCommand.StateBucketId);
-				}
-
-				// shrink MDC AuxData array in sync with MDC StateBuckets 
-				int32 StateBucketsNum = Scene->CachedMeshDrawCommandStateBuckets[PassIndex].GetMaxIndex() + 1;
-				if (Scene->CachedStateBucketsAuxData[PassIndex].Num() > StateBucketsNum) 
-				{
-					Scene->CachedStateBucketsAuxData[PassIndex].SetNum(StateBucketsNum, true);
 				}
 			}
 

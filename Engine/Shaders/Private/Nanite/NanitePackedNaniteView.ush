@@ -26,7 +26,7 @@ struct FPackedNaniteView
 	float		ViewTilePositionY;
 	float3		RelativeWorldCameraOrigin;
 	float		ViewTilePositionZ;
-	float3		DrawDistanceOriginTranslatedWorld;
+	float3		CullingViewOriginTranslatedWorld;
 	float		RangeBasedCullingDistance;
 	float3		ViewForward;
 	float 		NearPlane;
@@ -34,7 +34,7 @@ struct FPackedNaniteView
 	float4		TranslatedGlobalClipPlane; // Not actually used unless project setting is enabled
 
 	float3		MatrixTilePosition;
-	float		Padding1;
+	float		CullingViewScreenMultiple;
 
 	float2		LODScales;
 	float		MinBoundsRadiusSq;

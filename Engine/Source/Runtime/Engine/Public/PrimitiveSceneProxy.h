@@ -1104,6 +1104,9 @@ public:
 
 	virtual uint8 GetCurrentFirstLODIdx_RenderThread() const { return 0; }
 
+	/** Returns the instance radius to use for per instance GPU LOD calculation. Returns 0.f if GPU LOD isn't enabled on the primitive. */
+	virtual float GetGpuLodInstanceRadius() const { return 0.f; }
+
 	/** 
 	 * Get the custom primitive data for this scene proxy.
 	 * @return The payload of custom data that will be set on the primitive and accessible in the material through a material expression.

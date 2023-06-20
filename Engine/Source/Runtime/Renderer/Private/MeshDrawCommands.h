@@ -81,6 +81,7 @@ public:
 	FMeshCommandOneFrameArray MeshDrawCommands;
 	FMeshCommandOneFrameArray MobileBasePassCSMMeshDrawCommands;
 	TArray<const FStaticMeshBatch*, SceneRenderingAllocator> DynamicMeshCommandBuildRequests;
+	TArray<EMeshDrawCommandCullingPayloadFlags, SceneRenderingAllocator> DynamicMeshCommandBuildFlags;
 	TArray<const FStaticMeshBatch*, SceneRenderingAllocator> MobileBasePassCSMDynamicMeshCommandBuildRequests;
 	FDynamicMeshDrawCommandStorage MeshDrawCommandStorage;
 	FGraphicsMinimalPipelineStateSet MinimalPipelineStatePassSet;
@@ -144,6 +145,7 @@ public:
 		const TArray<FMeshPassMask, SceneRenderingAllocator>* DynamicMeshElementsPassRelevance,
 		int32 NumDynamicMeshElements,
 		TArray<const FStaticMeshBatch*, SceneRenderingAllocator>& InOutDynamicMeshCommandBuildRequests,
+		TArray<EMeshDrawCommandCullingPayloadFlags, SceneRenderingAllocator> InOutDynamicMeshCommandBuildFlags,
 		int32 NumDynamicMeshCommandBuildRequestElements,
 		FMeshCommandOneFrameArray& InOutMeshDrawCommands,
 		FMeshPassProcessor* MobileBasePassCSMMeshPassProcessor = nullptr, // Required only for the mobile base pass.

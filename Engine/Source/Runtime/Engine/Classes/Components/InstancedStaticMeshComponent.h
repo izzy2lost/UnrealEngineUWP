@@ -132,6 +132,10 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Culling)
 	int32 InstanceEndCullDistance;
 
+	/** If true, this component will use GPU LOD selection. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Culling)
+	uint8 bUseGpuLodSelection : 1;
+
 	/** Mapping from PerInstanceSMData order to instance render buffer order. If empty, the PerInstanceSMData order is used. */
 	UPROPERTY()
 	TArray<int32> InstanceReorderTable;

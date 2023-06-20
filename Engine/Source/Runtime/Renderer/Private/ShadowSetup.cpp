@@ -1122,15 +1122,32 @@ void FProjectedShadowInfo::SetupClipmapProjection(FLightSceneInfo* InLightSceneI
 	TranslatedWorldToClipOuterMatrix = FMatrix44f(TranslatedWorldToView * ViewToClipOuter);
 }
 
+static EMeshDrawCommandCullingPayloadFlags GetCullingPayloadFlags(bool bIsLODRange, bool bIsMinLODInRange, bool bIsMaxLODInRange)
+{
+	// When we apply LOD selection on GPU we submit a range of LODs and then cull each one according to screen size.
+	// At both ends of a LOD range we only want to cull by screen size in one direction. This ensures that all possible screen sizes map to one LOD in the range.
+	EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags = EMeshDrawCommandCullingPayloadFlags::Default;
+	CullingPayloadFlags |= bIsLODRange && !bIsMaxLODInRange ? EMeshDrawCommandCullingPayloadFlags::MinScreenSizeCull : (EMeshDrawCommandCullingPayloadFlags)0;
+	CullingPayloadFlags |= bIsLODRange && !bIsMinLODInRange ? EMeshDrawCommandCullingPayloadFlags::MaxScreenSizeCull : (EMeshDrawCommandCullingPayloadFlags)0;
+	return CullingPayloadFlags;
+}
+
+static EMeshDrawCommandCullingPayloadFlags GetCullingPayloadFlags(FLODMask LODMask, int8 LODIndex)
+{
+	return GetCullingPayloadFlags(LODMask.IsLODRange(), LODMask.IsMinLODInRange(LODIndex), LODMask.IsMaxLODInRange(LODIndex));
+}
+
 void FProjectedShadowInfo::AddCachedMeshDrawCommandsForPass(
 	const FMeshDrawCommandPrimitiveIdInfo& PrimitiveIdInfo, 
 	const FPrimitiveSceneInfo* InPrimitiveSceneInfo,
 	const FStaticMeshBatchRelevance& RESTRICT StaticMeshRelevance,
 	const FStaticMeshBatch& StaticMesh,
+	EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags,
 	const FScene* Scene,
 	EMeshPass::Type PassType,
 	FMeshCommandOneFrameArray& VisibleMeshCommands,
 	TArray<const FStaticMeshBatch*, SceneRenderingAllocator>& MeshCommandBuildRequests,
+	TArray<EMeshDrawCommandCullingPayloadFlags, SceneRenderingAllocator> MeshCommandBuildFlags,
 	int32& NumMeshCommandBuildRequestElements)
 {
 	const EShadingPath ShadingPath = Scene->GetShadingPath();
@@ -1158,7 +1175,9 @@ void FProjectedShadowInfo::AddCachedMeshDrawCommandsForPass(
 				CachedMeshDrawCommand.MeshFillMode,
 				CachedMeshDrawCommand.MeshCullMode,
 				CachedMeshDrawCommand.Flags,
-				CachedMeshDrawCommand.SortKey);
+				CachedMeshDrawCommand.SortKey,
+				CachedMeshDrawCommand.CullingPayload, 
+				CullingPayloadFlags);
 
 			VisibleMeshCommands.Add(NewVisibleMeshDrawCommand);
 		}
@@ -1167,6 +1186,7 @@ void FProjectedShadowInfo::AddCachedMeshDrawCommandsForPass(
 	{
 		NumMeshCommandBuildRequestElements += StaticMeshRelevance.NumElements;
 		MeshCommandBuildRequests.Add(&StaticMesh);
+		MeshCommandBuildFlags.Add(CullingPayloadFlags);
 	}
 }
 
@@ -1335,6 +1355,7 @@ struct FAddSubjectPrimitiveResult
 			uint32 bFadingIn : 1;
 			uint32 bAddOnRenderThread : 1;
 			uint32 bShouldRecordShadowSubjectsForMobile : 1;
+			uint32 bIsLODRange : 1;
 
 			union
 			{
@@ -1554,13 +1575,13 @@ FLODMask FProjectedShadowInfo::CalcAndUpdateLODToRender(FViewInfo& CurrentView, 
 
 	FLODMask ShadowLODToRender = CurrentView.PrimitivesLODMask[PrimitiveId];
 	// calculate it it's not set OR if LOD is overridden
-	if (ForcedLOD > -1 || ShadowLODToRender.ContainsLOD(MAX_int8))
+	if (ForcedLOD > -1 || !ShadowLODToRender.IsValid())
 	{
 		float MeshScreenSizeSquared = 0;
 		const int8 CurFirstLODIdx = PrimitiveSceneInfo->Proxy->GetCurrentFirstLODIdx_RenderThread();
 
 		const float LODScale = CurrentView.LODDistanceFactor * GetCachedScalabilityCVars().StaticMeshLODDistanceScale;
-		ShadowLODToRender = ComputeLODForMeshes(PrimitiveSceneInfo->StaticMeshRelevances, CurrentView, Bounds.Origin, Bounds.SphereRadius, ForcedLOD, MeshScreenSizeSquared, CurFirstLODIdx, LODScale);
+		ShadowLODToRender = ComputeLODForMeshes(PrimitiveSceneInfo->StaticMeshRelevances, CurrentView, Bounds.Origin, Bounds.SphereRadius, PrimitiveSceneInfo->GpuLodInstanceRadius, ForcedLOD, MeshScreenSizeSquared, CurFirstLODIdx, LODScale);
 
 		CurrentView.PrimitivesLODMask[PrimitiveId] = ShadowLODToRender;
 	}
@@ -1569,7 +1590,6 @@ FLODMask FProjectedShadowInfo::CalcAndUpdateLODToRender(FViewInfo& CurrentView, 
 	if (bPreShadow && GPreshadowsForceLowestLOD)
 	{
 		int8 LODToRenderScan = -MAX_int8;
-		FLODMask LODToRender;
 
 		for (int32 Index = 0; Index < PrimitiveSceneInfo->StaticMeshRelevances.Num(); Index++)
 		{
@@ -1583,15 +1603,18 @@ FLODMask FProjectedShadowInfo::CalcAndUpdateLODToRender(FViewInfo& CurrentView, 
 
 	if (CascadeSettings.bFarShadowCascade)
 	{
-		extern ENGINE_API int32 GFarShadowStaticMeshLODBias;
-		int8 LODToRenderScan = ShadowLODToRender.DitheredLODIndices[0] + GFarShadowStaticMeshLODBias;
-
-		for (int32 Index = PrimitiveSceneInfo->StaticMeshRelevances.Num() - 1; Index >= 0; Index--)
+		if (!ShadowLODToRender.IsLODRange()) // todo: GPU LOD doesn't support this bias.
 		{
-			if (LODToRenderScan == PrimitiveSceneInfo->StaticMeshRelevances[Index].LODIndex)
+			extern ENGINE_API int32 GFarShadowStaticMeshLODBias;
+			int8 LODToRenderScan = ShadowLODToRender.LODIndex0 + GFarShadowStaticMeshLODBias;
+
+			for (int32 Index = PrimitiveSceneInfo->StaticMeshRelevances.Num() - 1; Index >= 0; Index--)
 			{
-				ShadowLODToRender.SetLOD(LODToRenderScan);
-				break;
+				if (LODToRenderScan == PrimitiveSceneInfo->StaticMeshRelevances[Index].LODIndex)
+				{
+					ShadowLODToRender.SetLOD(LODToRenderScan);
+					break;
+				}
 			}
 		}
 	}
@@ -1641,6 +1664,8 @@ bool FProjectedShadowInfo::ShouldDrawStaticMeshes(FViewInfo& InCurrentView, FPri
 
 				if (ShouldDrawStaticMesh(StaticMeshRelevance, ShadowLODToRender, bDrawingStaticMeshes))
 				{
+					const EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags = GetCullingPayloadFlags(ShadowLODToRender, StaticMeshRelevance.LODIndex);
+
 					if (GetShadowDepthType() == CSMShadowDepthType && bCanCache)
 					{
 						AddCachedMeshDrawCommandsForPass(
@@ -1648,16 +1673,19 @@ bool FProjectedShadowInfo::ShouldDrawStaticMeshes(FViewInfo& InCurrentView, FPri
 							InPrimitiveSceneInfo,
 							StaticMeshRelevance,
 							StaticMesh,
+							CullingPayloadFlags,
 							InPrimitiveSceneInfo->Scene,
 							MeshPassTargetType,
 							ShadowDepthPassVisibleCommands,
 							SubjectMeshCommandBuildRequests,
+							SubjectMeshCommandBuildFlags,
 							NumSubjectMeshCommandBuildRequestElements);
 					}
 					else
 					{
 						NumSubjectMeshCommandBuildRequestElements += StaticMeshRelevance.NumElements;
 						SubjectMeshCommandBuildRequests.Add(&StaticMesh);
+						SubjectMeshCommandBuildFlags.Add(CullingPayloadFlags);
 					}
 				}
 			}
@@ -1673,6 +1701,7 @@ bool FProjectedShadowInfo::ShouldDrawStaticMeshes(FViewInfo& InCurrentView, FPri
 				{
 					NumSubjectMeshCommandBuildRequestElements += StaticMeshRelevance.NumElements;
 					SubjectMeshCommandBuildRequests.Add(&StaticMesh);
+					SubjectMeshCommandBuildFlags.Add(GetCullingPayloadFlags(ShadowLODToRender, StaticMeshRelevance.LODIndex));
 				}
 			}
 		}
@@ -1699,6 +1728,7 @@ bool FProjectedShadowInfo::ShouldDrawStaticMeshes_AnyThread(
 		const int32 ForcedLOD = CurrentView.Family->EngineShowFlags.LOD ? (GetCVarForceLODShadow_AnyThread() != -1 ? GetCVarForceLODShadow_AnyThread() : GetCVarForceLOD_AnyThread()) : -1;
 
 		FLODMask ShadowLODToRender = CalcAndUpdateLODToRender(CurrentView, FBoxSphereBounds(PrimitiveSceneInfoCompact.Bounds), PrimitiveSceneInfo, ForcedLOD);
+		const bool bIsLODRange = ShadowLODToRender.IsLODRange();
 
 		if (WholeSceneDirectionalShadow)
 		{
@@ -1722,6 +1752,8 @@ bool FProjectedShadowInfo::ShouldDrawStaticMeshes_AnyThread(
 						++OutStats.NumMDCBuildRequests;
 						OutResult.AcceptMesh(NumAcceptedStaticMeshes++, MeshIndex, OverflowBuffer);
 					}
+
+					OutResult.bIsLODRange = bIsLODRange;
 				}
 			}
 		}
@@ -1739,6 +1771,8 @@ bool FProjectedShadowInfo::ShouldDrawStaticMeshes_AnyThread(
 					check(MeshIndex < MAX_uint16);
 					++OutStats.NumMDCBuildRequests;
 					OutResult.AcceptMesh(NumAcceptedStaticMeshes++, MeshIndex, OverflowBuffer);
+
+					OutResult.bIsLODRange = bIsLODRange;
 				}
 			}
 		}
@@ -2111,6 +2145,7 @@ void FProjectedShadowInfo::PresizeSubjectPrimitiveArrays(const FAddSubjectPrimit
 {
 	ShadowDepthPassVisibleCommands.Reserve(ShadowDepthPassVisibleCommands.Num() + Stats.NumDeferredPrimitives * 2 + Stats.NumCachedMDCCopies);
 	SubjectMeshCommandBuildRequests.Reserve(SubjectMeshCommandBuildRequests.Num() + Stats.NumMDCBuildRequests);
+	SubjectMeshCommandBuildFlags.Reserve(SubjectMeshCommandBuildFlags.Num() + Stats.NumMDCBuildRequests);
 	DynamicSubjectPrimitives.Reserve(DynamicSubjectPrimitives.Num() + Stats.NumDeferredPrimitives + Stats.NumDynamicSubs);
 	SubjectTranslucentPrimitives.Reserve(SubjectTranslucentPrimitives.Num() + Stats.NumTranslucentSubs);
 }
@@ -2189,9 +2224,20 @@ void FProjectedShadowInfo::FinalizeAddSubjectPrimitive(
 				&Scene->CachedDrawLists[MeshPassTargetType].MeshDrawCommands[CmdInfo.CommandIndex];
 			const int32 PrimIdx = PrimitiveSceneInfo->GetIndex();
 			const int32 InstanceSceneDataOffset = PrimitiveSceneInfo->GetInstanceSceneDataOffset();
+			// Assumption: We have one command per LOD in order of increasing LOD index.
+			const EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags = GetCullingPayloadFlags(Result.bIsLODRange, Idx == 0, Idx == NumMDCs - 1);
 
 			FVisibleMeshDrawCommand& VisibleCmd = ShadowDepthPassVisibleCommands[ShadowDepthPassVisibleCommands.AddUninitialized()];
-			VisibleCmd.Setup(CachedCmd, FMeshDrawCommandPrimitiveIdInfo(PrimIdx, InstanceSceneDataOffset), CmdInfo.StateBucketId, CmdInfo.MeshFillMode, CmdInfo.MeshCullMode, CmdInfo.Flags, CmdInfo.SortKey);
+			VisibleCmd.Setup(
+				CachedCmd, 
+				FMeshDrawCommandPrimitiveIdInfo(PrimIdx, InstanceSceneDataOffset), 
+				CmdInfo.StateBucketId, 
+				CmdInfo.MeshFillMode, 
+				CmdInfo.MeshCullMode, 
+				CmdInfo.Flags, 
+				CmdInfo.SortKey, 
+				CmdInfo.CullingPayload,
+				CullingPayloadFlags);
 		}
 	}
 
@@ -2210,6 +2256,8 @@ void FProjectedShadowInfo::FinalizeAddSubjectPrimitive(
 
 			NumSubjectMeshCommandBuildRequestElements += MeshRelevance.NumElements;
 			SubjectMeshCommandBuildRequests.Add(&MeshBatch);
+			// Assumption: We have one mesh batch per LOD in order of increasing LOD index.
+			SubjectMeshCommandBuildFlags.Add(GetCullingPayloadFlags(Result.bIsLODRange, Idx == 0, Idx == NumMeshes - 1));
 		}
 	}
 
@@ -2238,6 +2286,18 @@ void FProjectedShadowInfo::AddReceiverPrimitive(FPrimitiveSceneInfo* PrimitiveSc
 {
 	// Add the primitive to the receiver primitive list.
 	ReceiverPrimitives.Add(PrimitiveSceneInfo);
+}
+
+/** Sets values required for the culling manager views, based on the 'main view'.  */
+static void OverrideViewParamsForShadowMainView(FViewInfo const* InView, Nanite::FPackedViewParams& OutParams)
+{
+	if (InView != nullptr)
+	{
+		// Culling uses main view for distance and screen size.
+		OutParams.bUseCullingViewOverrides = true;
+		OutParams.CullingViewOrigin = InView->ViewMatrices.GetViewOrigin();
+		OutParams.CullingViewScreenMultiple = FMath::Max(InView->ViewMatrices.GetProjectionMatrix().M[0][0], InView->ViewMatrices.GetProjectionMatrix().M[1][1]);
+	}
 }
 
 void FProjectedShadowInfo::SetupMeshDrawCommandsForShadowDepth(FSceneRenderer& Renderer, FInstanceCullingManager& InstanceCullingManager)
@@ -2277,6 +2337,7 @@ void FProjectedShadowInfo::SetupMeshDrawCommandsForShadowDepth(FSceneRenderer& R
 				Params.ViewRect = ShadowViewRect;
 				Params.RasterContextSize = FIntPoint(ResolutionX, ResolutionY);
 				Params.MaxPixelsPerEdgeMultipler = 1.0f;
+				OverrideViewParamsForShadowMainView(ShadowDepthView, Params);
 				ViewIds[CubemapFaceIndex] = InstanceCullingManager.RegisterView(Params);
 			}
 		}
@@ -2292,6 +2353,7 @@ void FProjectedShadowInfo::SetupMeshDrawCommandsForShadowDepth(FSceneRenderer& R
 		Params.ViewRect = GetInnerViewRect();
 		Params.RasterContextSize = FIntPoint(ResolutionX, ResolutionY);
 		Params.MaxPixelsPerEdgeMultipler = 1.0f;
+		OverrideViewParamsForShadowMainView(ShadowDepthView, Params);
 		ViewIds.Add(InstanceCullingManager.RegisterView(Params));
 	}
 	else
@@ -2307,6 +2369,7 @@ void FProjectedShadowInfo::SetupMeshDrawCommandsForShadowDepth(FSceneRenderer& R
 			Params.Flags &= ~NANITE_VIEW_FLAG_NEAR_CLIP;
 		}
 		Params.MaxPixelsPerEdgeMultipler = 1.0f;
+		OverrideViewParamsForShadowMainView(ShadowDepthView, Params);
 		ViewIds.Add(InstanceCullingManager.RegisterView(Params));
 	}
 	// GPUCULL_TODO: Pass along any custom culling planes or whatever here (e.g., cascade bounds):
@@ -2330,6 +2393,7 @@ void FProjectedShadowInfo::SetupMeshDrawCommandsForShadowDepth(FSceneRenderer& R
 		nullptr,
 		NumDynamicSubjectMeshElements * InstanceFactor,
 		SubjectMeshCommandBuildRequests,
+		SubjectMeshCommandBuildFlags,
 		NumSubjectMeshCommandBuildRequestElements * InstanceFactor,
 		ShadowDepthPassVisibleCommands);
 
@@ -2605,6 +2669,7 @@ void FProjectedShadowInfo::ClearTransientArrays()
 	ShadowDepthPass.WaitForTasksAndEmpty();
 
 	SubjectMeshCommandBuildRequests.Empty();
+	SubjectMeshCommandBuildFlags.Empty();
 
 	for (auto ProjectionStencilingPass : ProjectionStencilingPasses)
 	{

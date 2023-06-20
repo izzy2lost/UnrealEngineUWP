@@ -1388,6 +1388,61 @@ struct FMeshDrawCommandPrimitiveIdInfo
 	uint32 bIsDynamicPrimitive : 1;
 };
 
+/**
+ * Container for mesh command data required by instance culling.
+ */
+struct FMeshDrawCommandCullingPayload
+{
+	union
+	{
+		uint32 PackedData = 0;
+		struct
+		{
+			uint32 LodIndex : 4;
+			uint32 MinScreenSize : 12;
+			uint32 MaxScreenSize : 12;
+		};
+	};
+
+	// Pack screen sizes into fixed point 3.9
+	static uint32 PackScreenSize(float ScreenSize)
+	{
+		constexpr float MaxExpressibleValue = (float)(0xFFFU) / (float)(1 << 9);
+		ScreenSize = FMath::Clamp(ScreenSize, 0.f, MaxExpressibleValue);
+		return (uint32)(ScreenSize * (1 << 9)) & 0xFFF;
+	}
+
+	static float UnpackScreenSize(uint32 PackedScreenSize)
+	{
+		return (float)(PackedScreenSize & 0xFFFU) / (float)(1 << 9);
+	}
+};
+
+static FMeshDrawCommandCullingPayload CreateCullingPayload(FMeshBatch const& MeshBatch, FMeshBatchElement const& MeshBatchElement)
+{
+	FMeshDrawCommandCullingPayload CullingPayload;
+	CullingPayload.LodIndex = MeshBatch.LODIndex;
+	CullingPayload.MinScreenSize = FMeshDrawCommandCullingPayload::PackScreenSize(MeshBatchElement.MinScreenSize);
+	CullingPayload.MaxScreenSize = FMeshDrawCommandCullingPayload::PackScreenSize(MeshBatchElement.MaxScreenSize);
+	return CullingPayload;
+}
+
+/**
+ * Flags stored on visible mesh commands to indicate how to interpret the culling payload.
+ */
+enum class EMeshDrawCommandCullingPayloadFlags : uint8
+{
+	Default = 0U,
+	MinScreenSizeCull = 1U, // Cull when below a minimum screen space size.
+	MaxScreenSizeCull = 2U, // Cull when above a maximum screen space size.
+	
+	NoScreenSizeCull = Default,
+	All = MinScreenSizeCull | MaxScreenSizeCull,
+	NumBits = 2U
+};
+ENUM_CLASS_FLAGS(EMeshDrawCommandCullingPayloadFlags);
+static_assert(uint32(EMeshDrawCommandCullingPayloadFlags::All) < (1U << uint32(EMeshDrawCommandCullingPayloadFlags::NumBits)), "EMeshDrawCommandCullingPayloadFlags::NumBits too small to represent all flags in EMeshDrawCommandCullingPayloadFlags.");
+
 
 /** Interface for the different types of draw lists. */
 class FMeshPassDrawListContext
@@ -1437,6 +1492,8 @@ public:
 		ERasterizerCullMode InMeshCullMode,
 		EFVisibleMeshDrawCommandFlags InFlags,
 		FMeshDrawCommandSortKey InSortKey,
+		FMeshDrawCommandCullingPayload InCullingPayload,
+		EMeshDrawCommandCullingPayloadFlags InCullingPayloadFlags,
 		const uint32* InRunArray = nullptr,
 		int32 InNumRuns = 0)
 	{
@@ -1448,6 +1505,8 @@ public:
 		MeshCullMode = InMeshCullMode;
 		SortKey = InSortKey;
 		Flags = InFlags;
+		CullingPayload = InCullingPayload;
+		CullingPayloadFlags = InCullingPayloadFlags;
 		RunArray = InRunArray;
 		NumRuns = InNumRuns;
 	}
@@ -1471,6 +1530,10 @@ public:
 	// Used for passing sub-selection of instances through to the culling
 	const uint32* RunArray;
 	int32 NumRuns;
+
+	// Used for passing LOD info to the culling
+	FMeshDrawCommandCullingPayload CullingPayload;
+	EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags : uint32(EMeshDrawCommandCullingPayloadFlags::NumBits);
 
 	// Needed for view overrides
 	ERasterizerFillMode MeshFillMode : ERasterizerFillMode_NumBits + 1;
@@ -1554,6 +1617,8 @@ public:
 		// Currently dynamic path draws will not get dynamic instancing, but they will be roughly sorted by state
 		const FMeshBatchElement& MeshBatchElement = MeshBatch.Elements[BatchElementIndex];
 		NewVisibleMeshDrawCommand.Setup(&MeshDrawCommand, IdInfo, -1, MeshFillMode, MeshCullMode, Flags, SortKey,
+			CreateCullingPayload(MeshBatch, MeshBatchElement),
+			EMeshDrawCommandCullingPayloadFlags::NoScreenSizeCull,
 			MeshBatchElement.bIsInstanceRuns ? MeshBatchElement.InstanceRuns : nullptr,
 			MeshBatchElement.bIsInstanceRuns ? MeshBatchElement.NumInstances : 0
 			);
@@ -1606,6 +1671,9 @@ public:
 
 	// Stores the index into FScene::CachedMeshDrawCommandStateBuckets of the corresponding FMeshDrawCommand, or -1 if not stored there
 	int32 StateBucketId;
+
+	// Used for passing LOD info to the culling
+	FMeshDrawCommandCullingPayload CullingPayload;
 
 	// Needed for easier debugging and faster removal of cached mesh draw commands.
 	EMeshPass::Type MeshPass : EMeshPass::NumBits + 1;
@@ -1671,20 +1739,6 @@ struct MeshDrawCommandKeyFuncs : TDefaultMapHashableKeyFuncs<FMeshDrawCommand, F
 using FDrawCommandIndices = TArray<int32, TInlineAllocator<5>>;
 using FStateBucketMap = Experimental::TRobinHoodHashMap<FMeshDrawCommand, FMeshDrawCommandCount, MeshDrawCommandKeyFuncs>;
 
-struct FStateBucketAuxData
-{
-	FStateBucketAuxData()
-		: MeshLODIndex(0)
-	{}
-
-	explicit FStateBucketAuxData(const FMeshBatch& MeshBatch)
-		: MeshLODIndex(MeshBatch.LODIndex)
-	{
-	}
-
-	uint8 MeshLODIndex;
-};
-
 class FCachedPassMeshDrawListContext : public FMeshPassDrawListContext
 {
 public:
@@ -1739,7 +1793,6 @@ protected:
 	EMeshPass::Type CurrMeshPass = EMeshPass::Num;
 	bool bUseGPUScene = false;
 	bool bAnyLooseParameterBuffers = false;
-	bool bUseStateBucketsAuxData = false;
 };
 
 class FCachedPassMeshDrawListContextImmediate : public FCachedPassMeshDrawListContext
@@ -1782,7 +1835,6 @@ public:
 private:
 	TArray<FMeshDrawCommand> DeferredCommands;
 	TArray<Experimental::FHashType> DeferredCommandHashes;
-	TArray<FStateBucketAuxData> DeferredStateBucketsAuxData;
 };
 
 template<typename VertexType, typename PixelType, typename GeometryType = FMeshMaterialShader, typename RayTracingType = FMeshMaterialShader, typename ComputeType = FMeshMaterialShader>

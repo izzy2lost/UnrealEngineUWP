@@ -525,6 +525,8 @@ static void BuildMeshDrawCommandPrimitiveIdBuffer(
 						VisibleMeshDrawCommand.MeshCullMode,
 						VisibleMeshDrawCommand.Flags,
 						VisibleMeshDrawCommand.SortKey,
+						VisibleMeshDrawCommand.CullingPayload,
+						VisibleMeshDrawCommand.CullingPayloadFlags,
 						VisibleMeshDrawCommand.RunArray,
 						VisibleMeshDrawCommand.NumRuns);
 
@@ -584,6 +586,7 @@ void GenerateDynamicMeshDrawCommands(
 	const TArray<FMeshPassMask, SceneRenderingAllocator>* DynamicMeshElementsPassRelevance,
 	int32 MaxNumDynamicMeshElements,
 	const TArray<const FStaticMeshBatch*, SceneRenderingAllocator>& DynamicMeshCommandBuildRequests,
+	const TArray<EMeshDrawCommandCullingPayloadFlags, SceneRenderingAllocator> DynamicMeshCommandBuildFlags,
 	int32 MaxNumBuildRequestElements,
 	FMeshCommandOneFrameArray& VisibleCommands,
 	FDynamicMeshDrawCommandStorage& MeshDrawCommandStorage,
@@ -631,6 +634,7 @@ void GenerateDynamicMeshDrawCommands(
 		{
 			const FStaticMeshBatch* StaticMeshBatch = DynamicMeshCommandBuildRequests[MeshIndex];
 			const uint64 DefaultBatchElementMask = ~0ul;
+			const int32 StartCommandIndex = VisibleCommands.Num();
 
 			if (StaticMeshBatch->bViewDependentArguments)
 			{
@@ -641,6 +645,18 @@ void GenerateDynamicMeshDrawCommands(
 			else
 			{
 				PassMeshProcessor->AddMeshBatch(*StaticMeshBatch, DefaultBatchElementMask, StaticMeshBatch->PrimitiveSceneInfo->Proxy, StaticMeshBatch->Id);
+			}
+
+			// Patch the culling payload flags for the generated visible mesh commands.
+			// Might be better to pass CullingPayloadFlags through AddMeshBatch() but that will involve a lot of plumbing.
+			const EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags = DynamicMeshCommandBuildFlags.IsValidIndex(MeshIndex) ? DynamicMeshCommandBuildFlags[MeshIndex] : EMeshDrawCommandCullingPayloadFlags::NoScreenSizeCull;
+			if (CullingPayloadFlags != EMeshDrawCommandCullingPayloadFlags::NoScreenSizeCull)
+			{
+				const int32 EndCommandIndex = VisibleCommands.Num();
+				for (int32 CommandIndex = StartCommandIndex; CommandIndex < EndCommandIndex; ++CommandIndex)
+				{
+					VisibleCommands[CommandIndex].CullingPayloadFlags = CullingPayloadFlags;
+				}
 			}
 		}
 
@@ -664,6 +680,7 @@ void GenerateMobileBasePassDynamicMeshDrawCommands(
 	const TArray<FMeshPassMask, SceneRenderingAllocator>* DynamicMeshElementsPassRelevance,
 	int32 MaxNumDynamicMeshElements,
 	const TArray<const FStaticMeshBatch*, SceneRenderingAllocator>& DynamicMeshCommandBuildRequests,
+	const TArray<EMeshDrawCommandCullingPayloadFlags, SceneRenderingAllocator> DynamicMeshCommandBuildFlags,
 	int32 MaxNumBuildRequestElements,
 	FMeshCommandOneFrameArray& VisibleCommands,
 	FDynamicMeshDrawCommandStorage& MeshDrawCommandStorage,
@@ -727,6 +744,7 @@ void GenerateMobileBasePassDynamicMeshDrawCommands(
 			const FStaticMeshBatch* StaticMeshBatch = DynamicMeshCommandBuildRequests[MeshIndex];
 			const int32 StaticMeshBatchId = StaticMeshBatch->Id;
 			const FPrimitiveSceneProxy* Proxy = StaticMeshBatch->PrimitiveSceneInfo->Proxy;
+			const int32 StartCommandIndex = VisibleCommands.Num();
 
 			const FMeshBatch* MeshBatch = StaticMeshBatch;
 			if (MeshBatch->bViewDependentArguments)
@@ -748,6 +766,18 @@ void GenerateMobileBasePassDynamicMeshDrawCommands(
 			{
 				const uint64 DefaultBatchElementMask = ~0ul;
 				PassMeshProcessor->AddMeshBatch(*MeshBatch, DefaultBatchElementMask, Proxy, StaticMeshBatchId);
+			}
+
+			// Patch the culling payload flags for the generated visible mesh commands.
+			// Might be better to pass CullingPayloadFlags through AddMeshBatch() but that will involve a lot of plumbing.
+			const EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags = DynamicMeshCommandBuildFlags.IsValidIndex(MeshIndex) ? DynamicMeshCommandBuildFlags[MeshIndex] : EMeshDrawCommandCullingPayloadFlags::NoScreenSizeCull;
+			if (CullingPayloadFlags != EMeshDrawCommandCullingPayloadFlags::NoScreenSizeCull)
+			{
+				const int32 EndCommandIndex = VisibleCommands.Num();
+				for (int32 CommandIndex = StartCommandIndex; CommandIndex < EndCommandIndex; ++CommandIndex)
+				{
+					VisibleCommands[CommandIndex].CullingPayloadFlags = CullingPayloadFlags;
+				}
 			}
 		}
 
@@ -816,6 +846,8 @@ void ApplyViewOverridesToMeshDrawCommands(
 					VisibleMeshDrawCommand.MeshCullMode,
 					VisibleMeshDrawCommand.Flags,
 					VisibleMeshDrawCommand.SortKey,
+					VisibleMeshDrawCommand.CullingPayload,
+					VisibleMeshDrawCommand.CullingPayloadFlags,
 					VisibleMeshDrawCommand.RunArray,
 					VisibleMeshDrawCommand.NumRuns);
 
@@ -920,6 +952,7 @@ public:
 				Context.DynamicMeshElementsPassRelevance,
 				Context.NumDynamicMeshElements,
 				Context.DynamicMeshCommandBuildRequests,
+				Context.DynamicMeshCommandBuildFlags,
 				Context.NumDynamicMeshCommandBuildRequestElements,
 				Context.MeshDrawCommands,
 				Context.MeshDrawCommandStorage,
@@ -938,6 +971,7 @@ public:
 				Context.DynamicMeshElementsPassRelevance,
 				Context.NumDynamicMeshElements,
 				Context.DynamicMeshCommandBuildRequests,
+				Context.DynamicMeshCommandBuildFlags,
 				Context.NumDynamicMeshCommandBuildRequestElements,
 				Context.MeshDrawCommands,
 				Context.MeshDrawCommandStorage,
@@ -999,14 +1033,7 @@ public:
 
 			if (Context.bUseGPUScene)
 			{
-				TArrayView<const FStateBucketAuxData> StateBucketsAuxData;
-				if (Context.PassType != EMeshPass::Num)
-				{
-					StateBucketsAuxData = Context.Scene->CachedStateBucketsAuxData[Context.PassType];
-				}
-				
 				Context.InstanceCullingContext.SetupDrawCommands(
-					StateBucketsAuxData,
 					Context.MeshDrawCommands, 
 					true, 
 					Context.MaxInstances, 
@@ -1205,6 +1232,7 @@ void FParallelMeshDrawCommandPass::DispatchPassSetup(
 	const TArray<FMeshPassMask, SceneRenderingAllocator>* DynamicMeshElementsPassRelevance,
 	int32 NumDynamicMeshElements,
 	TArray<const FStaticMeshBatch*, SceneRenderingAllocator>& InOutDynamicMeshCommandBuildRequests,
+	TArray<EMeshDrawCommandCullingPayloadFlags, SceneRenderingAllocator> InOutDynamicMeshCommandBuildFlags,
 	int32 NumDynamicMeshCommandBuildRequestElements,
 	FMeshCommandOneFrameArray& InOutMeshDrawCommands,
 	FMeshPassProcessor* MobileBasePassCSMMeshPassProcessor,
@@ -1264,6 +1292,7 @@ void FParallelMeshDrawCommandPass::DispatchPassSetup(
 
 	Swap(TaskContext.MeshDrawCommands, InOutMeshDrawCommands);
 	Swap(TaskContext.DynamicMeshCommandBuildRequests, InOutDynamicMeshCommandBuildRequests);
+	Swap(TaskContext.DynamicMeshCommandBuildFlags, InOutDynamicMeshCommandBuildFlags);
 
 	if (TaskContext.ShadingPath == EShadingPath::Mobile && TaskContext.PassType == EMeshPass::BasePass)
 	{

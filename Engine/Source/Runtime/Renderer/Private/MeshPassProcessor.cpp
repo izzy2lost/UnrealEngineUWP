@@ -1789,6 +1789,8 @@ void ApplyViewOverridesToMeshDrawCommands(const FSceneView& View, FMeshCommandOn
 				VisibleMeshDrawCommand.MeshCullMode,
 				VisibleMeshDrawCommand.Flags,
 				VisibleMeshDrawCommand.SortKey,
+				VisibleMeshDrawCommand.CullingPayload,
+				VisibleMeshDrawCommand.CullingPayloadFlags,
 				VisibleMeshDrawCommand.RunArray,
 				VisibleMeshDrawCommand.NumRuns);
 
@@ -1952,7 +1954,6 @@ bool FMeshPassProcessor::ShouldSkipMeshDrawCommand(const FMeshBatch& RESTRICT Me
 FCachedPassMeshDrawListContext::FCachedPassMeshDrawListContext(FScene& InScene)
 	: Scene(InScene)
 	, bUseGPUScene(UseGPUScene(GMaxRHIShaderPlatform, GMaxRHIFeatureLevel))
-	, bUseStateBucketsAuxData(InScene.GetShadingPath() == EShadingPath::Mobile)
 {
 }
 
@@ -2010,6 +2011,7 @@ void FCachedPassMeshDrawListContext::FinalizeCommandCommon(
 
 	CommandInfo = FCachedMeshDrawCommandInfo(CurrMeshPass);
 	CommandInfo.SortKey = SortKey;
+	CommandInfo.CullingPayload = CreateCullingPayload(MeshBatch, MeshBatch.Elements[BatchElementIndex]);
 	CommandInfo.MeshFillMode = MeshFillMode;
 	CommandInfo.MeshCullMode = MeshCullMode;
 	CommandInfo.Flags = Flags;
@@ -2091,13 +2093,6 @@ void FCachedPassMeshDrawListContextImmediate::FinalizeCommand(
 		}
 
 		CommandInfo.StateBucketId = SetId.GetIndex();
-
-		if (bUseStateBucketsAuxData)
-		{
-			// grow MDC AuxData array in sync with MDC StateBuckets
-			Scene.CachedStateBucketsAuxData[CurrMeshPass].SetNum(BucketMap.GetMaxIndex() + 1, false);
-			Scene.CachedStateBucketsAuxData[CurrMeshPass][CommandInfo.StateBucketId] = FStateBucketAuxData(MeshBatch);
-		}
 	}
 	else
 	{
@@ -2143,11 +2138,6 @@ void FCachedPassMeshDrawListContextDeferred::FinalizeCommand(
 		DeferredCommandHashes.Add(FStateBucketMap::ComputeHash(MeshDrawCommand));
 
 		CommandInfo.StateBucketId = Index;
-
-		if (bUseStateBucketsAuxData)
-		{
-			DeferredStateBucketsAuxData.Add(FStateBucketAuxData(MeshBatch));
-		}
 	}
 	else
 	{
@@ -2178,13 +2168,6 @@ void FCachedPassMeshDrawListContextDeferred::DeferredFinalizeMeshDrawCommands(co
 				DrawCount.Num++;
 
 				CmdInfo.StateBucketId = SetId.GetIndex();
-
-				if (bUseStateBucketsAuxData)
-				{
-					// grow MDC AuxData array in sync with MDC StateBuckets
-					Scene.CachedStateBucketsAuxData[CmdInfo.MeshPass].SetNum(BucketMap.GetMaxIndex() + 1, false);
-					Scene.CachedStateBucketsAuxData[CmdInfo.MeshPass][CmdInfo.StateBucketId] = DeferredStateBucketsAuxData[DeferredIndex];
-				}
 			}
 		}
 	}
@@ -2209,7 +2192,6 @@ void FCachedPassMeshDrawListContextDeferred::DeferredFinalizeMeshDrawCommands(co
 
 	DeferredCommands.Reset();
 	DeferredCommandHashes.Reset();
-	DeferredStateBucketsAuxData.Reset();
 }
 
 PassProcessorCreateFunction FPassProcessorManager::JumpTable[(int32)EShadingPath::Num][EMeshPass::Num] = {};

@@ -2768,61 +2768,119 @@ int8 ENGINE_API ComputeStaticMeshLOD(const FStaticMeshRenderData* RenderData, co
  */
 int8 ENGINE_API ComputeTemporalStaticMeshLOD( const FStaticMeshRenderData* RenderData, const FVector4& Origin, const float SphereRadius, const FSceneView& View, int32 MinLOD, float FactorScale, int32 SampleIndex );
 
-/**
- * Computes the LOD to render for the list of static meshes in the given view.
- * @param StaticMeshes - List of static meshes.
- * @param View - The view to render the LOD level for 
- * @param Origin - Origin of the bounds of the mesh in world space
- * @param SphereRadius - Radius of the sphere to use to calculate screen coverage
+/** 
+ * Contains LODs to render. 
+ * Interpretation of LODIndex0 and LODIndex1 depends on flags.
+ * By default the two LODs are the ones used in a dithered LOD transition.
+ * But they also be interpreted as the start and end of a range where we submit multiple LODs and select/cull on GPU.
  */
 struct FLODMask
 {
-	int8 DitheredLODIndices[2];
+	// Assumes a max lod index of 127.
+	// In fact MAX_STATIC_MESH_LODS is 8 so we could use 3 bits per LODIndex and fit in a uint8 here.
+	uint16 LODIndex0 : 7;
+	uint16 LODIndex1 : 7;
+	uint16 bIsValid : 1;
+	uint16 bIsRange : 1;
 
 	FLODMask()
+		: LODIndex0(0)
+		, LODIndex1(0)
+		, bIsValid(0)
+		, bIsRange(0)
 	{
-		DitheredLODIndices[0] = MAX_int8;
-		DitheredLODIndices[1] = MAX_int8;
 	}
 
-	void SetLOD(int32 LODIndex)
+	bool IsValid() const
 	{
-		DitheredLODIndices[0] = (int8)LODIndex;
-		DitheredLODIndices[1] = (int8)LODIndex;
+		return bIsValid;
 	}
-	void SetLODSample(int32 LODIndex, int32 SampleIndex)
+	void SetLOD(uint32 LODIndex)
 	{
-		DitheredLODIndices[SampleIndex] = (int8)LODIndex;
+		LODIndex0 = LODIndex1 = (uint8)LODIndex;
+		bIsValid = 1;
+		bIsRange = 0;
 	}
-	void ClampToFirstLOD(int8 FirstLODIdx)
+	void SetLODSample(uint32 LODIndex, uint32 SampleIndex)
 	{
-		DitheredLODIndices[0] = FMath::Max(DitheredLODIndices[0], FirstLODIdx);
-		DitheredLODIndices[1] = FMath::Max(DitheredLODIndices[1], FirstLODIdx);
+		if (SampleIndex == 0)
+		{
+			LODIndex0 = (uint8)LODIndex;
+		}
+		else if (SampleIndex == 1)
+		{
+			LODIndex1 = (uint8)LODIndex;
+		}
+		bIsValid = 1;
+		bIsRange = 0;
+	}
+	void SetLODRange(uint32 MinLODIndex, uint32 MaxLODIndex)
+	{
+		LODIndex0 = (uint8)MinLODIndex;
+		LODIndex1 = (uint8)MaxLODIndex;
+		bIsValid = 1;
+		bIsRange = 1;
+	}
+	void ClampToFirstLOD(uint32 FirstLODIdx)
+	{
+		LODIndex0 = LODIndex0 > (uint8)FirstLODIdx ? LODIndex0 : (uint8)FirstLODIdx;
+		LODIndex1 = LODIndex1 > (uint8)FirstLODIdx ? LODIndex1 : (uint8)FirstLODIdx;
+	}
+	bool IsDithered() const
+	{
+		return IsValid() && !bIsRange && LODIndex0 != LODIndex1;
+	}
+	bool IsLODRange() const
+	{
+		return IsValid() && bIsRange && LODIndex0 != LODIndex1;
 	}
 	bool ContainsLOD(int32 LODIndex) const
 	{
-		return DitheredLODIndices[0] == LODIndex || DitheredLODIndices[1] == LODIndex;
+		if (!IsValid())
+		{
+			return false;
+		}
+		if (bIsRange)
+		{
+			return (int32)LODIndex0 <= LODIndex && (int32)LODIndex1 >= LODIndex;
+		}
+		return (int32)LODIndex0 == LODIndex || (int32)LODIndex1 == LODIndex;
+	}
+	bool IsMinLODInRange(int32 LODIndex) const
+	{
+		return IsLODRange() && LODIndex == LODIndex0;
+	}
+	bool IsMaxLODInRange(int32 LODIndex) const
+	{
+		return IsLODRange() && LODIndex == LODIndex1;
 	}
 
 	//#dxr_todo UE-72106: We should probably add both LoDs but mask them based on their 
 	//LodFade value within the BVH based on the LodFadeMask in the GBuffer
-	bool ContainsRayTracedLOD(int32 LODIndex) const
+	int8 GetRayTracedLOD() const
 	{
-		return DitheredLODIndices[1] == LODIndex;
-	}
-
-	int8 GetRayTracedLOD()
-	{
-		return DitheredLODIndices[1];
-	}
-
-	bool IsDithered() const
-	{
-		return DitheredLODIndices[0] != DitheredLODIndices[1];
+		return LODIndex1;
 	}
 };
+
+/**
+ * Computes the LOD to render for the list of static meshes in the given view.
+ * @param StaticMeshes - List of static meshes.
+ * @param View - The view to render the LOD level for
+ * @param Origin - Origin of the bounds of the primitive in world space
+ * @param SphereRadius - Radius of the sphere bounds of the primitive in world space
+ */
 FLODMask ENGINE_API ComputeLODForMeshes(const TArray<class FStaticMeshBatchRelevance>& StaticMeshRelevances, const FSceneView& View, const FVector4& Origin, float SphereRadius, int32 ForcedLODLevel, float& OutScreenRadiusSquared, int8 CurFirstLODIdx, float ScreenSizeScale = 1.0f, bool bDitheredLODTransition = true);
-FLODMask ENGINE_API ComputeFastLODForMeshes(const TArray<float>& ScreenSizes, const FSceneView& View, const FVector4& Origin, float SphereRadius, int32 ForcedLODLevel, float& OutScreenRadiusSquared, float ScreenSizeScale = 1.0f, bool bDitheredLODTransition = true);
+
+/**
+ * Computes the LOD to render for the list of static meshes in the given view.
+ * @param StaticMeshes - List of static meshes.
+ * @param View - The view to render the LOD level for
+ * @param Origin - Origin of the bounds of the primitive in world space
+ * @param SphereRadius - Radius of the sphere bounds of the primitive in world space
+ * @param InstanceSphereRadius - Radius of the sphere bounds for a single mesh instance in the primitive. If not 0.f then the return FLODMask will contain a range of LODs ready for LOD selection on the GPU
+ */
+FLODMask ENGINE_API ComputeLODForMeshes(const TArray<class FStaticMeshBatchRelevance>& StaticMeshRelevances, const FSceneView& View, const FVector4& Origin, float SphereRadius, float InstanceSphereRadius, int32 ForcedLODLevel, float& OutScreenRadiusSquared, int8 CurFirstLODIdx, float ScreenSizeScale = 1.0f);
 
 class FSharedSamplerState : public FRenderResource
 {

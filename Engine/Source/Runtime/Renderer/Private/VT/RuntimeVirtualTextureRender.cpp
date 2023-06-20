@@ -1019,7 +1019,9 @@ namespace RuntimeVirtualTexture
 								CachedMeshDrawCommand.MeshFillMode,
 								CachedMeshDrawCommand.MeshCullMode,
 								CachedMeshDrawCommand.Flags,
-								CachedMeshDrawCommand.SortKey);
+								CachedMeshDrawCommand.SortKey,
+								CachedMeshDrawCommand.CullingPayload,
+								EMeshDrawCommandCullingPayloadFlags::NoScreenSizeCull);
 
 							DynamicMeshPassContext->AddVisibleMeshDrawCommand(NewVisibleMeshDrawCommand);
 							bCachedDraw = true;

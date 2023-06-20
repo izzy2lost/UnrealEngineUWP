@@ -3974,6 +3974,7 @@ void FSceneRenderer::SetupMeshPass(FViewInfo& View, FExclusiveDepthStencil::Type
 				&View.DynamicMeshElementsPassRelevance,
 				View.NumVisibleDynamicMeshElements[PassType],
 				ViewCommands.DynamicMeshCommandBuildRequests[PassType],
+				ViewCommands.DynamicMeshCommandBuildFlags[PassType],
 				ViewCommands.NumDynamicMeshCommandBuildRequestElements[PassType],
 				ViewCommands.MeshCommands[PassIndex]);
 		}

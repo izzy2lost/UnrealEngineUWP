@@ -3191,8 +3191,8 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const TSharedPtr<FVirtualShadowMap
 	BaseParams.TargetMipLevel = 0;
 	BaseParams.TargetMipCount = 1;	// No mips for clipmaps
 	BaseParams.Flags = 0u;
-	BaseParams.bOverrideDrawDistanceOrigin = true;
-	BaseParams.DrawDistanceOrigin = CullingViewOrigin;
+	BaseParams.bUseCullingViewOverrides = true;
+	BaseParams.CullingViewOrigin = CullingViewOrigin;
 
 	const TSharedPtr<FVirtualShadowMapPerLightCacheEntry>& CacheEntry = Clipmap->GetCacheEntry();
 	if (CacheEntry.IsValid())
@@ -3281,8 +3281,8 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const FProjectedShadowInfo* Projec
 		}
 	}
 
-	BaseParams.bOverrideDrawDistanceOrigin = true;
-	BaseParams.DrawDistanceOrigin = ClosestCullingViewOrigin;
+	BaseParams.bUseCullingViewOverrides = true;
+	BaseParams.CullingViewOrigin = ClosestCullingViewOrigin;
 
 	TSharedPtr<FVirtualShadowMapPerLightCacheEntry> CacheEntry = ProjectedShadowInfo->VirtualShadowMapPerLightCacheEntry;
 	check(CacheEntry.IsValid())

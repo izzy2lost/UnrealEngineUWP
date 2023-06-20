@@ -50,7 +50,7 @@ struct FPackedView
 	float		ViewTilePositionY;
 	FVector3f	RelativeWorldCameraOrigin;
 	float		ViewTilePositionZ;
-	FVector3f	DrawDistanceOriginTranslatedWorld;
+	FVector3f	CullingViewOriginTranslatedWorld;
 	float		RangeBasedCullingDistance;
 	FVector3f	ViewForward;
 	float		NearPlane;
@@ -58,7 +58,7 @@ struct FPackedView
 	FVector4f	TranslatedGlobalClipPlane;
 
 	FVector3f	MatrixTilePosition;
-	uint32		Padding1;
+	float		CullingViewScreenMultiple;
 
 	FVector2f	LODScales;
 	float		MinBoundsRadiusSq;
@@ -151,8 +151,9 @@ struct FPackedViewParams
 
 	float MaxPixelsPerEdgeMultipler = 1.0f;
 
-	bool bOverrideDrawDistanceOrigin = false;
-	FVector DrawDistanceOrigin = FVector::ZeroVector;
+	bool bUseCullingViewOverrides = false;
+	FVector CullingViewOrigin = FVector::ZeroVector;
+	float CullingViewScreenMultiple = -1.0f;
 
 	FPlane GlobalClippingPlane = {0.0f, 0.0f, 0.0f, 0.0f};
 };

@@ -197,7 +197,7 @@ struct FBoxCull
 				bIsVisible = length2( CenterTranslatedWorld ) <= Square( NaniteView.RangeBasedCullingDistance + Radius );
 			}
 
-			const float InstanceDrawDistSq = length2( CenterTranslatedWorld - NaniteView.DrawDistanceOriginTranslatedWorld );
+			const float InstanceDrawDistSq = length2( CenterTranslatedWorld - NaniteView.CullingViewOriginTranslatedWorld);
 
 			// Check to cull the instance based on its distance from the main view's location (per-primitive setting)
 			BRANCH
@@ -228,6 +228,25 @@ struct FBoxCull
 		bIsVisible		= bIsVisible && FrustumCull.bIsVisible;
 		bNeedsClipping	= bNeedsClipping || FrustumCull.bCrossesNearPlane || FrustumCull.bCrossesFarPlane;
 		return FrustumCull;
+	}
+
+	bool ScreenSize(float MinScreenSize, float MaxScreenSize)
+	{
+		BRANCH
+		if (bIsVisible && MinScreenSize != MaxScreenSize)
+		{
+			// Needs to match C++ logic in ComputeLODForMeshes() and ComputeBoundsScreenRadiusSquared() so that culling matches the submitted range of Lods.
+			float3 CenterTranslatedWorld = mul(float4(LocalBoxCenter, 1.0f), LocalToTranslatedWorld).xyz;
+			float InstanceDrawDistSq = length2(CenterTranslatedWorld - NaniteView.CullingViewOriginTranslatedWorld);
+			float RadiusSq = length2(LocalBoxExtent);
+			float ScreenMultiple = NaniteView.CullingViewScreenMultiple;
+			float ScreenSizeSq = ScreenMultiple * ScreenMultiple * RadiusSq / max(InstanceDrawDistSq, 1.0f);
+			float MinScreenSizeSq = MinScreenSize * MinScreenSize;
+			float MaxScreenSizeSq = MaxScreenSize * MaxScreenSize;
+			bIsVisible = ScreenSizeSq >= MinScreenSizeSq && (MaxScreenSize == 0 || ScreenSizeSq < MaxScreenSizeSq);
+		}
+
+		return bIsVisible;
 	}
 
 	void HZB( FFrustumCullData FrustumCull, bool bClampToPageLevel )

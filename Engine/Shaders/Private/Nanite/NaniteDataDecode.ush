@@ -140,7 +140,7 @@ struct FNaniteView
 	FLWCVector3	PreViewTranslation;
 	FLWCVector3	PrevPreViewTranslation;
 	FLWCVector3	WorldCameraOrigin;
-	float3		DrawDistanceOriginTranslatedWorld;
+	float3		CullingViewOriginTranslatedWorld;
 	float3		ViewForward;
 	float3		ViewTilePosition;
 	float3		MatrixTilePosition;
@@ -156,6 +156,7 @@ struct FNaniteView
 	int			TargetPrevLayerIndex;
 	float		RangeBasedCullingDistance;
 	int4		HZBTestViewRect;
+	float		CullingViewScreenMultiple;
 };
 
 struct FInstanceDraw
@@ -705,12 +706,13 @@ FNaniteView UnpackNaniteView(FPackedNaniteView PackedView)
 	NaniteView.PreViewTranslation			= MakeLWCVector3(-ViewTilePosition, PackedView.RelativePreViewTranslation);
 	NaniteView.PrevPreViewTranslation		= MakeLWCVector3(-ViewTilePosition, PackedView.RelativePrevPreViewTranslation);
 	NaniteView.WorldCameraOrigin			= MakeLWCVector3(ViewTilePosition, PackedView.RelativeWorldCameraOrigin);
-	NaniteView.DrawDistanceOriginTranslatedWorld = PackedView.DrawDistanceOriginTranslatedWorld;
+	NaniteView.CullingViewOriginTranslatedWorld = PackedView.CullingViewOriginTranslatedWorld;
 	NaniteView.ViewForward					= PackedView.ViewForward;
 	NaniteView.NearPlane					= PackedView.NearPlane;
 	NaniteView.LODScale						= PackedView.LODScales.x;
 	NaniteView.LODScaleHW					= PackedView.LODScales.y;
 	NaniteView.MinBoundsRadiusSq			= PackedView.MinBoundsRadiusSq;
+	NaniteView.CullingViewScreenMultiple	= PackedView.CullingViewScreenMultiple;
 	NaniteView.StreamingPriorityCategory	= PackedView.StreamingPriorityCategory_AndFlags & NANITE_STREAMING_PRIORITY_CATEGORY_MASK;
 	NaniteView.Flags						= PackedView.StreamingPriorityCategory_AndFlags >> NANITE_NUM_STREAMING_PRIORITY_CATEGORY_BITS;
 	

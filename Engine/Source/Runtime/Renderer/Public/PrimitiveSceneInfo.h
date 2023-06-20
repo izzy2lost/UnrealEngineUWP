@@ -397,6 +397,9 @@ public:
 	/** The number of local lights with dynamic lighting for mobile */
 	int32 NumMobileDynamicLocalLights;
 
+	/** The sphere radius to use for per instance GPU Lodding. Will be 0.f if GPU LOD isn't enabled on this primitive. */
+	float GpuLodInstanceRadius;
+
 	/** Initialization constructor. */
 	FPrimitiveSceneInfo(UPrimitiveComponent* InPrimitive,FScene* InScene);
 
