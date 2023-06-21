@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reservekd.
 
-#include "Graph/SControlRigGraphPinNameListValueWidget.h"
+#include "Widgets/SRigVMGraphPinNameListValueWidget.h"
 #include "DetailLayoutBuilder.h"
 #include "Framework/Application/SlateUser.h"
 #include "Framework/Application/SlateApplication.h"
 
 #define LOCTEXT_NAMESPACE "GraphPinNameListValueWidget"
 
-void SControlRigGraphPinNameListValueWidget::Construct(const FArguments& InArgs)
+void SRigVMGraphPinNameListValueWidget::Construct(const FArguments& InArgs)
 {
 	this->OnComboBoxOpening = InArgs._OnComboBoxOpening;
 	this->OnSelectionChanged = InArgs._OnSelectionChanged;
@@ -29,20 +29,20 @@ void SControlRigGraphPinNameListValueWidget::Construct(const FArguments& InArgs)
 			[
 				SAssignNew(this->SearchField, SEditableTextBox)
 				.HintText(InArgs._SearchHintText)
-				.OnTextChanged(this, &SControlRigGraphPinNameListValueWidget::OnSearchTextChanged)
-				.OnTextCommitted(this, &SControlRigGraphPinNameListValueWidget::OnSearchTextCommitted)
-				.OnKeyDownHandler(this, &SControlRigGraphPinNameListValueWidget::OnSearchTextKeyDown)
+				.OnTextChanged(this, &SRigVMGraphPinNameListValueWidget::OnSearchTextChanged)
+				.OnTextCommitted(this, &SRigVMGraphPinNameListValueWidget::OnSearchTextCommitted)
+				.OnKeyDownHandler(this, &SRigVMGraphPinNameListValueWidget::OnSearchTextKeyDown)
 			]
 
 			+ SVerticalBox::Slot()
 			[
 				SAssignNew(this->ComboListView, SComboListType)
 				.ListItemsSource(OptionsSource)
-				.OnGenerateRow(this, &SControlRigGraphPinNameListValueWidget::GenerateMenuItemRow)
-				.OnSelectionChanged(this, &SControlRigGraphPinNameListValueWidget::OnSelectionChanged_Internal, false)
+				.OnGenerateRow(this, &SRigVMGraphPinNameListValueWidget::GenerateMenuItemRow)
+				.OnSelectionChanged(this, &SRigVMGraphPinNameListValueWidget::OnSelectionChanged_Internal, false)
 				.SelectionMode(ESelectionMode::Single)
 				.ExternalScrollbar(InArgs._CustomScrollbar)
-				.OnKeyDownHandler(this, &SControlRigGraphPinNameListValueWidget::OnComboListKeyDown)
+				.OnKeyDownHandler(this, &SRigVMGraphPinNameListValueWidget::OnComboListKeyDown)
 			]
 		];
 
@@ -51,7 +51,7 @@ void SControlRigGraphPinNameListValueWidget::Construct(const FArguments& InArgs)
 	if (InArgs._Content.Widget == SNullWidget::NullWidget)
 	{
 		SAssignNew(ButtonContent, STextBlock)
-			.Text(NSLOCTEXT("SControlRigGraphPinNameListValueWidget", "ContentWarning", "No Content Provided"))
+			.Text(NSLOCTEXT("SRigVMGraphPinNameListValueWidget", "ContentWarning", "No Content Provided"))
 			.ColorAndOpacity(FLinearColor::Red);
 	}
 
@@ -68,7 +68,7 @@ void SControlRigGraphPinNameListValueWidget::Construct(const FArguments& InArgs)
 		]
 		.HasDownArrow(InArgs._HasDownArrow)
 		.ContentPadding(InArgs._ContentPadding)
-		.OnMenuOpenChanged(this, &SControlRigGraphPinNameListValueWidget::OnMenuOpenChanged)
+		.OnMenuOpenChanged(this, &SRigVMGraphPinNameListValueWidget::OnMenuOpenChanged)
 		.IsFocusable(true)
 		);
 	SetMenuContentWidgetToFocus(ComboListView);
@@ -83,12 +83,12 @@ void SControlRigGraphPinNameListValueWidget::Construct(const FArguments& InArgs)
 
 }
 
-void SControlRigGraphPinNameListValueWidget::ClearSelection()
+void SRigVMGraphPinNameListValueWidget::ClearSelection()
 {
 	ComboListView->ClearSelection();
 }
 
-void SControlRigGraphPinNameListValueWidget::SetSelectedItem(TSharedPtr<FString> InSelectedItem)
+void SRigVMGraphPinNameListValueWidget::SetSelectedItem(TSharedPtr<FString> InSelectedItem)
 {
 	if (TListTypeTraits<TSharedPtr<FString>>::IsPtrValid(InSelectedItem))
 	{
@@ -100,19 +100,19 @@ void SControlRigGraphPinNameListValueWidget::SetSelectedItem(TSharedPtr<FString>
 	}
 }
 
-void SControlRigGraphPinNameListValueWidget::SetOptionsSource(const TArray<TSharedPtr<FString>>* InOptionsSource)
+void SRigVMGraphPinNameListValueWidget::SetOptionsSource(const TArray<TSharedPtr<FString>>* InOptionsSource)
 {
 	check(InOptionsSource);
 	OptionsSource = InOptionsSource;
 	ComboListView->SetItemsSource(OptionsSource);
 }
 
-TSharedPtr<FString> SControlRigGraphPinNameListValueWidget::GetSelectedItem()
+TSharedPtr<FString> SRigVMGraphPinNameListValueWidget::GetSelectedItem()
 {
 	return SelectedItem;
 }
 
-void SControlRigGraphPinNameListValueWidget::RefreshOptions()
+void SRigVMGraphPinNameListValueWidget::RefreshOptions()
 {
 	if (!ComboListView->IsPendingRefresh())
 	{
@@ -120,7 +120,7 @@ void SControlRigGraphPinNameListValueWidget::RefreshOptions()
 	}
 }
 
-TSharedRef<ITableRow> SControlRigGraphPinNameListValueWidget::GenerateMenuItemRow(TSharedPtr<FString> InItem, const TSharedRef<STableViewBase>& OwnerTable)
+TSharedRef<ITableRow> SRigVMGraphPinNameListValueWidget::GenerateMenuItemRow(TSharedPtr<FString> InItem, const TSharedRef<STableViewBase>& OwnerTable)
 {
 	if (OnGenerateWidget.IsBound())
 	{
@@ -151,7 +151,7 @@ TSharedRef<ITableRow> SControlRigGraphPinNameListValueWidget::GenerateMenuItemRo
 	}
 }
 
-void SControlRigGraphPinNameListValueWidget::OnMenuOpenChanged(bool bOpen)
+void SRigVMGraphPinNameListValueWidget::OnMenuOpenChanged(bool bOpen)
 {
 	if (bOpen == false)
 	{
@@ -174,11 +174,11 @@ void SControlRigGraphPinNameListValueWidget::OnMenuOpenChanged(bool bOpen)
 	}
 	else
 	{
-		RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateSP(this, &SControlRigGraphPinNameListValueWidget::SetFocusPostConstruct));
+		RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateSP(this, &SRigVMGraphPinNameListValueWidget::SetFocusPostConstruct));
 	}
 }
 
-EActiveTimerReturnType SControlRigGraphPinNameListValueWidget::SetFocusPostConstruct(double InCurrentTime, float InDeltaTime)
+EActiveTimerReturnType SRigVMGraphPinNameListValueWidget::SetFocusPostConstruct(double InCurrentTime, float InDeltaTime)
 {
 	if (SearchField.IsValid())
 	{
@@ -196,7 +196,7 @@ EActiveTimerReturnType SControlRigGraphPinNameListValueWidget::SetFocusPostConst
 	return EActiveTimerReturnType::Continue;
 }
 
-void SControlRigGraphPinNameListValueWidget::OnSelectionChanged_Internal(TSharedPtr<FString> ProposedSelection, ESelectInfo::Type SelectInfo, bool bForce)
+void SRigVMGraphPinNameListValueWidget::OnSelectionChanged_Internal(TSharedPtr<FString> ProposedSelection, ESelectInfo::Type SelectInfo, bool bForce)
 {
 	// Ensure that the proposed selection is different
 	if (SelectInfo != ESelectInfo::OnNavigation || bForce)
@@ -212,7 +212,7 @@ void SControlRigGraphPinNameListValueWidget::OnSelectionChanged_Internal(TShared
 	}
 }
 
-void SControlRigGraphPinNameListValueWidget::OnSearchTextChanged(const FText& ChangedText)
+void SRigVMGraphPinNameListValueWidget::OnSearchTextChanged(const FText& ChangedText)
 {
 	FString SearchToken = ChangedText.ToString().ToLower();
 	FString SearchTokenUnderscores = SearchToken.Replace(TEXT(" "), TEXT("_"));
@@ -251,7 +251,7 @@ void SControlRigGraphPinNameListValueWidget::OnSearchTextChanged(const FText& Ch
 	SelectedItem = TSharedPtr< FString >();
 }
 
-void SControlRigGraphPinNameListValueWidget::OnSearchTextCommitted(const FText& ChangedText, ETextCommit::Type CommitType)
+void SRigVMGraphPinNameListValueWidget::OnSearchTextCommitted(const FText& ChangedText, ETextCommit::Type CommitType)
 {
 	if (CommitType == ETextCommit::OnEnter)
 	{
@@ -274,7 +274,7 @@ void SControlRigGraphPinNameListValueWidget::OnSearchTextCommitted(const FText& 
 	}
 }
 
-FReply SControlRigGraphPinNameListValueWidget::OnSearchTextKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+FReply SRigVMGraphPinNameListValueWidget::OnSearchTextKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
 {
 	if (InKeyEvent.GetKey() == EKeys::Down)
 	{
@@ -302,7 +302,7 @@ FReply SControlRigGraphPinNameListValueWidget::OnSearchTextKeyDown(const FGeomet
 	return FReply::Unhandled();
 }
 
-FReply SControlRigGraphPinNameListValueWidget::OnComboListKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+FReply SRigVMGraphPinNameListValueWidget::OnComboListKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
 {
 	if (InKeyEvent.GetKey() == EKeys::Enter)
 	{
@@ -318,7 +318,7 @@ FReply SControlRigGraphPinNameListValueWidget::OnComboListKeyDown(const FGeometr
 }
 
 
-FReply SControlRigGraphPinNameListValueWidget::OnButtonClicked()
+FReply SRigVMGraphPinNameListValueWidget::OnButtonClicked()
 {
 	// if user clicked to close the combo menu
 	if (this->IsOpen())
