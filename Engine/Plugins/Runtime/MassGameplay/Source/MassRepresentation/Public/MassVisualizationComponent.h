@@ -9,6 +9,9 @@
 
 #include "MassVisualizationComponent.generated.h"
 
+
+class UInstancedStaticMeshComponent;
+
 /** 
  * This component handles all the static mesh instances for a MassRepresentationProcessor and is an actor component off a MassVisualizer actor.
  * Meant to be created at runtime and owned by an MassVisualizer actor. Will ensure if placed on a different type of actor. 
@@ -25,6 +28,12 @@ public:
 	 * @return The index of the visual type 
 	 */
 	int16 FindOrAddVisualDesc(const FStaticMeshInstanceVisualizationDesc& Desc);
+
+	/** 
+	 * Creates a dedicated visual type described by host Desc and ties ISMComponent to it.
+	 * @return The index of the visual type 
+	 */
+	int16 AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent);
 
 	/** @todo: need to add removal API at some point for visual types */
 
@@ -48,13 +57,24 @@ public:
 	void EndVisualChanges();
 
 protected:
+	/** 
+	 * Applies changes accumulated in SharedData while manually updating the Instance ID mapping. This approach is done in preparation 
+	 * to upcoming ISM changes to keep the mapping management more secure (by making mapping private and fully component-owned).
+	 */
+	void HandleChangesWithExternalIDTracking(UInstancedStaticMeshComponent& ISMComponent, const FMassISMCSharedData& SharedData);
+
 	/** Recreate all the static mesh components from the InstancedStaticMeshInfos */
 	void ConstructStaticMeshComponents();
 
 	/** Overridden to make sure this component is only added to a MassVisualizer actor */
 	virtual void PostInitProperties() override;
 
-	void BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info);
+	/**
+	 * Creates LODSignificance ranges for all the meshes indicated by Info
+	 * @param ForcedStaticMeshRefKey if set to anything other than 0 will be used when adding individual FMassStaticMeshInstanceVisualizationMeshDesc
+	 *	instances to LOD significance ranges.
+	 */
+	void BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, const uint32 ForcedStaticMeshRefKey = 0);
 
 	/** The information of all the instanced static meshes */
 	UPROPERTY(Transient)

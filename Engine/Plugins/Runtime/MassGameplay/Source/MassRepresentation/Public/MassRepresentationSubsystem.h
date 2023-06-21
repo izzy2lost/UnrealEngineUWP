@@ -37,6 +37,12 @@ public:
 	 */
 	int16 FindOrAddStaticMeshDesc(const FStaticMeshInstanceVisualizationDesc& Desc);
 
+	/**
+	 * Creates a dedicated visual type described by host Desc and ties ISMComponent to it.
+	 * @return The index of the visual type
+	 */
+	int16 AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent);
+
 	/** @todo: need to add a release API at some point for static mesh types */
 
 	/** 

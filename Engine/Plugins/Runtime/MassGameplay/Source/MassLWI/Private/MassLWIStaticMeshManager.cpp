@@ -5,7 +5,6 @@
 #include "MassLWISubsystem.h"
 #include "MassLWITypes.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
-#include "MassInstancedStaticMeshComponent.h"
 #include "MassCommonFragments.h"
 #include "MassEntitySubsystem.h"
 #include "MassEntityView.h"
@@ -16,14 +15,17 @@
 #include "MassSpawnLocationProcessor.h"
 #include "MassVisualizationTrait.h"
 #include "VisualLogger/VisualLogger.h"
+#include "MassDebugger.h"
 
 
 namespace UE::Mass::Tweakables
 {
 	bool bDestroyEntitiesOnEndPlay = true;
+	bool bReuseLWIISMComponents = true;
 
 	FAutoConsoleVariableRef CLWIVars[] = {
 		{TEXT("mass.LWI.DestroyEntitiesOnEndPlay"), bDestroyEntitiesOnEndPlay, TEXT("Whether we should destroy LWI-sources entities when the original LWI manager ends play")},
+		{TEXT("mass.LWI.ReuseManagersISMComponents"), bReuseLWIISMComponents, TEXT("Whether we should reuse the LWIManager-owned ISM components for Mass visualization")},
 	};
 }
 
@@ -118,9 +120,16 @@ void AMassLWIStaticMeshManager::TransferDataToMass(FMassEntityManager& EntityMan
 		InstanceTransforms.Reset();
 		ValidIndices.Reset();
 		FreeIndices.Reset();
+		RenderingIndicesToDataIndices.SetNum(Entities.Num());
+		DataIndicesToRenderingIndices.SetNum(Entities.Num());
+		for (int32 Index = 0; Index < Entities.Num(); ++Index)
+		{
+			RenderingIndicesToDataIndices[Index] = Index;
+			DataIndicesToRenderingIndices[Index] = Index;
+		}
 		
-		InstancedStaticMeshComponent->UnregisterComponent();
-		InstancedStaticMeshComponent->DestroyComponent();
+		InstancedStaticMeshComponent->ClearInstances();
+		InstancedStaticMeshComponent->BuildTreeIfOutdated(false, true);
 	}
 }
 
@@ -134,15 +143,18 @@ void AMassLWIStaticMeshManager::StoreMassDataInActor(FMassEntityManager& EntityM
 	FMassEntityQuery LocationQuery;
 	LocationQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 
+	const FTransform WorldTransform = InstancedStaticMeshComponent ? InstancedStaticMeshComponent->GetComponentTransform() : GetActorTransform();
+	
 	FMassExecutionContext ExecutionContext(EntityManager);
 	for (FMassArchetypeEntityCollection& Collection : EntityCollectionsToDestroy)
 	{
-		LocationQuery.ForEachEntityChunk(Collection, EntityManager, ExecutionContext, [this](FMassExecutionContext& Context)
+		LocationQuery.ForEachEntityChunk(Collection, EntityManager, ExecutionContext, [this, WorldTransform](FMassExecutionContext& Context)
 		{
 			TConstArrayView<FTransformFragment> TransformsList = Context.GetFragmentView<FTransformFragment>();
 			for (const FTransformFragment& Fragment : TransformsList)
 			{
-				InstanceTransforms.Add(Fragment.GetTransform());
+				const FTransform LocalTransform = Fragment.GetTransform().GetRelativeTransform(WorldTransform);
+				InstanceTransforms.Add(LocalTransform);
 			}
 		});
 
@@ -234,7 +246,7 @@ void AMassLWIStaticMeshManager::CreateMassTemplate(FMassEntityManager& EntityMan
 
 	if (!MeshDesc.ISMComponentClass)
 	{
-		MeshDesc.ISMComponentClass = UMassInstancedStaticMeshComponent::StaticClass();
+		MeshDesc.ISMComponentClass = UInstancedStaticMeshComponent::StaticClass();
 	}
 
 	// forcing the "full range" since we only ever expect there to be one mesh for the relevant ISM component
@@ -264,11 +276,18 @@ void AMassLWIStaticMeshManager::CreateMassTemplate(FMassEntityManager& EntityMan
 	if (RepresentationSubsystem)
 	{
 		FMassRepresentationFragment& RepresentationFragment = NewTemplate.AddFragment_GetRef<FMassRepresentationFragment>();
-		RepresentationFragment.StaticMeshDescIndex = RepresentationSubsystem->FindOrAddStaticMeshDesc(StaticMeshInstanceDesc);
+		if (UE::Mass::Tweakables::bReuseLWIISMComponents)
+		{
+			RepresentationFragment.StaticMeshDescIndex = RepresentationSubsystem->AddVisualDescWithISMComponent(StaticMeshInstanceDesc, *InstancedStaticMeshComponent);
+		}
+		else
+		{
+			RepresentationFragment.StaticMeshDescIndex = RepresentationSubsystem->FindOrAddStaticMeshDesc(StaticMeshInstanceDesc);
+		}
+
 		const int32 TemplateActorIndex = RepresentationSubsystem->FindOrAddTemplateActor(RepresentedClass);
 		RepresentationFragment.HighResTemplateActorIndex = TemplateActorIndex;
-		// leaving for reference here, since at some point we probably will need to set it.
-		//RepresentationFragment.LowResTemplateActorIndex = TemplateActorIndex;
+		RepresentationFragment.LowResTemplateActorIndex = TemplateActorIndex;
 	}
 
 	FMassLWIManagerSharedFragment LWIManagerSharedFragment;

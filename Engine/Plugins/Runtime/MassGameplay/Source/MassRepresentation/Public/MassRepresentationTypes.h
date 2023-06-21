@@ -141,10 +141,13 @@ class UInstancedStaticMeshComponent;
 
 struct MASSREPRESENTATION_API FMassISMCSharedData
 {
-	FMassISMCSharedData() = default;
+	FMassISMCSharedData() 
+		: bRequiresExternalInstanceIDTracking(false)
+	{		
+	}
 
-	FMassISMCSharedData(UInstancedStaticMeshComponent* InISMC)
-		: ISMC(InISMC)
+	explicit FMassISMCSharedData(UInstancedStaticMeshComponent* InISMC, bool bInRequiresExternalInstanceIDTracking = false)
+		: ISMC(InISMC), bRequiresExternalInstanceIDTracking(bInRequiresExternalInstanceIDTracking)
 	{
 	}
 
@@ -168,11 +171,19 @@ struct MASSREPRESENTATION_API FMassISMCSharedData
 		WriteIterator = 0;
 	}
 
+	bool HasUpdatesToApply() const { return UpdateInstanceIds.Num() || RemoveInstanceIds.Num(); }
 	TConstArrayView<int32> GetUpdateInstanceIds() const { return UpdateInstanceIds; }
 	TConstArrayView<FTransform> GetStaticMeshInstanceTransforms() const { return StaticMeshInstanceTransforms; }
+	/** 
+	 * this function is a flavor we need to interact with older engine API that's using TArray references. 
+	 * Use GetStaticMeshInstanceTransforms instead whenever possible. 
+	 */
+	const TArray<FTransform>& GetStaticMeshInstanceTransformsArray() const { return StaticMeshInstanceTransforms; }
 	TConstArrayView<FTransform> GetStaticMeshInstancePrevTransforms() const { return StaticMeshInstancePrevTransforms; }
 	TConstArrayView<int32> GetRemoveInstanceIds() const { return RemoveInstanceIds; }
 	TConstArrayView<float> GetStaticMeshInstanceCustomFloats() const { return StaticMeshInstanceCustomFloats; }
+	
+	bool RequiresExternalInstanceIDTracking() const { return bRequiresExternalInstanceIDTracking; }
 
 protected:
 	friend FMassLODSignificanceRange;
@@ -191,6 +202,14 @@ protected:
 
 	UInstancedStaticMeshComponent* ISMC = nullptr;
 	int32 RefCount = 0;
+
+	/** 
+	 * When set to true will result in MassVisualizationComponent manually perform Instance ID-related operations 
+	 * instead of relying on ISMComponent's internal ID operations. 
+	 * @note this mechanism has been added in preparation of changes to ISM component to change access to its internal 
+	 *	instance ID logic. WIP as of Jun 17th 2023 
+	 */
+	uint8 bRequiresExternalInstanceIDTracking : 1;
 };
 
 using FMassISMCSharedDataMap = TMap<uint32, FMassISMCSharedData>;

@@ -26,6 +26,12 @@ int16 UMassRepresentationSubsystem::FindOrAddStaticMeshDesc(const FStaticMeshIns
 	return VisualizationComponent->FindOrAddVisualDesc(Desc);
 }
 
+int16 UMassRepresentationSubsystem::AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent)
+{
+	check(VisualizationComponent);
+	return VisualizationComponent->AddVisualDescWithISMComponent(Desc, ISMComponent);
+}
+
 FMassInstancedStaticMeshInfoArrayView UMassRepresentationSubsystem::GetMutableInstancedStaticMeshInfos()
 {
 	check(VisualizationComponent);

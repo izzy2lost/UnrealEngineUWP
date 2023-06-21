@@ -10,9 +10,9 @@
 #include "RenderUtils.h"
 #include "SceneInterface.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
-#include "MassInstancedStaticMeshComponent.h"
 #include "VisualLogger/VisualLogger.h"
 #include "Rendering/NaniteResources.h"
+#include "AI/NavigationSystemBase.h"
 
 //---------------------------------------------------------------
 // UMassVisualizationComponent
@@ -39,18 +39,52 @@ int16 UMassVisualizationComponent::FindOrAddVisualDesc(const FStaticMeshInstance
 	int32 VisualIndex = InstancedStaticMeshInfos.IndexOfByPredicate([&Desc](const FMassInstancedStaticMeshInfo& Info) { return Info.GetDesc() == Desc; });
 	if (VisualIndex == INDEX_NONE)
 	{
-		VisualIndex = InstancedStaticMeshInfos.Emplace(Desc);
+		bool bValidDescription = false;
 
 		for (const FMassStaticMeshInstanceVisualizationMeshDesc& MeshDesc : Desc.Meshes)
 		{
-			ISMCSharedData.FindOrAdd(GetTypeHash(MeshDesc), FMassISMCSharedData());
+			if (MeshDesc.Mesh)
+			{
+				ISMCSharedData.FindOrAdd(GetTypeHash(MeshDesc), FMassISMCSharedData());
+				bValidDescription = true;
+			}
 		}
 
-		BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualIndex]);
+		if (bValidDescription)
+		{
+			VisualIndex = InstancedStaticMeshInfos.Emplace(Desc);
+			BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualIndex]);
 
-		bNeedStaticMeshComponentConstruction = true;
+			bNeedStaticMeshComponentConstruction = true;
+		}
 	}
-	check(VisualIndex < INT16_MAX);
+	checkf(VisualIndex < INT16_MAX, TEXT("%hs resulting VisualIndex is out of expected bounds"), __FUNCTION__);
+	return (int16)VisualIndex;
+}
+
+int16 UMassVisualizationComponent::AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent)
+{
+	checkf(Desc.Meshes.Num() > 0, TEXT("%hs is expected to be used when there's exactly one mesh description contained"), __FUNCTION__);
+	ensureMsgf(Desc.Meshes.Num() == 1, TEXT("%hs is expected to be used when there's exactly one mesh description contained"), __FUNCTION__);
+
+	const FMassStaticMeshInstanceVisualizationMeshDesc& MeshDesc = Desc.Meshes[0];
+	if (MeshDesc.Mesh == nullptr)
+	{
+		// invalid description, bail out
+		return (int16)INDEX_NONE;
+	}
+	
+	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
+
+	const int32 VisualIndex = InstancedStaticMeshInfos.Emplace(Desc);
+	const uint32 MeshDescHash = GetTypeHash(MeshDesc);
+	const uint32 CombinedHash = PointerHash(&ISMComponent, MeshDescHash);
+	FMassISMCSharedData& NewData = ISMCSharedData.FindOrAdd(CombinedHash, FMassISMCSharedData(&ISMComponent, 1));
+	InstancedStaticMeshInfos[VisualIndex].AddISMComponent(NewData);
+
+	BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualIndex], CombinedHash);
+
+	checkf(VisualIndex < INT16_MAX, TEXT("%hs resulting VisualIndex is out of expected bounds"), __FUNCTION__);
 	return (int16)VisualIndex;
 }
 
@@ -124,7 +158,7 @@ void UMassVisualizationComponent::ConstructStaticMeshComponents()
 	}
 }
 
-void UMassVisualizationComponent::BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info)
+void UMassVisualizationComponent::BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, const uint32 ForcedStaticMeshRefKey)
 {
 	TArray<float> AllLODSignificances;
 	auto UniqueInsertOrdered = [&AllLODSignificances](const float Significance)
@@ -166,7 +200,7 @@ void UMassVisualizationComponent::BuildLODSignificanceForInfo(FMassInstancedStat
 				const bool bAddMeshInRange = (Range.MinSignificance >= MeshDesc.MinLODSignificance && Range.MinSignificance < MeshDesc.MaxLODSignificance);
 				if (bAddMeshInRange)
 				{
-					Range.StaticMeshRefs.Add(GetTypeHash(MeshDesc));
+					Range.StaticMeshRefs.Add(ForcedStaticMeshRefKey ? ForcedStaticMeshRefKey : GetTypeHash(MeshDesc));
 				}
 			}
 		}
@@ -219,6 +253,248 @@ void UMassVisualizationComponent::BeginVisualChanges()
 	}
 }
 
+void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstancedStaticMeshComponent& ISMComponent, const FMassISMCSharedData& SharedData)
+{
+	constexpr float EqualTolerance = 1e-6;
+
+	if (SharedData.HasUpdatesToApply() == false)
+	{
+		return;
+	}
+
+	UHierarchicalInstancedStaticMeshComponent* HISMComp = Cast<UHierarchicalInstancedStaticMeshComponent>(&ISMComponent);
+	bool bAutoReset = HISMComp ? HISMComp->bAutoRebuildTreeOnInstanceChanges : false;
+
+	if (SharedData.GetUpdateInstanceIds().Num())
+	{
+		TConstArrayView<int32> InstanceIds = SharedData.GetUpdateInstanceIds();
+		const TArray<FTransform>& InstanceTransforms = SharedData.GetStaticMeshInstanceTransformsArray();
+		const int32 InNumCustomDataFloats = SharedData.GetStaticMeshInstanceCustomFloats().Num();
+		TConstArrayView<float> CustomFloatData = SharedData.GetStaticMeshInstanceCustomFloats();
+
+		const int32 StartingCount = ISMComponent.PerInstanceSMData.Num();
+		check(ISMComponent.InstanceIdToInstanceIndexMap.Num() == StartingCount);
+
+		// if these are the first entities we're adding we need to set NumCustomDataFloats so that the PerInstanceSMCustomData
+		// gets populated properly by the AddInstancesInternal call below
+		if (StartingCount == 0 && CustomFloatData.Num() && ISMComponent.Mobility != EComponentMobility::Static)
+		{
+			ISMComponent.NumCustomDataFloats = InNumCustomDataFloats;
+		}
+
+		check(InstanceIds.Num() == InstanceTransforms.Num());
+		TArray<int32> NewIndices = ISMComponent.AddInstances(InstanceTransforms, /*bShouldReturnIndices=*/true, /*bWorldSpace=*/true);
+		
+		check(InstanceIds.Num() == NewIndices.Num());
+		ISMComponent.PerInstanceIds.AddDefaulted(ISMComponent.PerInstanceSMData.Num() - ISMComponent.PerInstanceIds.Num());
+
+		for (int32 i = 0; i < InstanceIds.Num(); ++i)
+		{
+			checkfSlow(ISMComponent.InstanceIdToInstanceIndexMap.Find(InstanceIds[i]) == nullptr
+				, TEXT("This occuring signals trouble. None of the InstanceIds is expected to have already been added to this MassISM component instance."));
+
+			ISMComponent.InstanceIdToInstanceIndexMap.Add(InstanceIds[i], NewIndices[i]);
+			ISMComponent.PerInstanceIds[NewIndices[i]] = InstanceIds[i];
+		}
+
+		ensureMsgf(CustomFloatData.Num() == 0, TEXT("Custom floats not supported with this set up just yet."));
+#if 0 // CustomFloatData support below
+		if (CustomFloatData.Num() && ISMComponent.Mobility != EComponentMobility::Static)
+		{
+			checkf(ISMComponent.NumCustomDataFloats == InNumCustomDataFloats, TEXT("Adding instances with a Custrom Floats count inconsisntent with previously added instances"));
+
+			for (int32 i = 0; i < NewIndices.Num(); ++i)
+			{
+				const int32 InstanceIndex = NewIndices[i];
+				const int32 TargetCustomDataOffset = InstanceIndex * ISMComponent.NumCustomDataFloats;
+				const int32 SrcCustomDataOffset = i * ISMComponent.NumCustomDataFloats;
+				for (int32 FloatIndex = 0; FloatIndex < ISMComponent.NumCustomDataFloats; ++FloatIndex)
+				{
+					// we're making a change only if any of the input data differs of the currently stored ones
+					if (FMath::Abs(CustomFloatData[SrcCustomDataOffset + FloatIndex] - ISMComponent.PerInstanceSMCustomData[TargetCustomDataOffset + FloatIndex]) > EqualTolerance)
+					{
+						// Update the component's data in place.
+						FMemory::Memcpy(&ISMComponent.PerInstanceSMCustomData[TargetCustomDataOffset], &CustomFloatData[SrcCustomDataOffset], ISMComponent.NumCustomDataFloats * sizeof(float));
+
+						// Record in a command buffer for future use.
+						// Using AddInstance here rather than SetCustomData because AddInstancesInternal we used to create 
+						// instances doesn't add commands to InstanceUpdateCmdBuffer
+						ISMComponent.InstanceUpdateCmdBuffer.AddInstance(InstanceIds[i], InstanceTransforms[i].ToMatrixWithScale(), FMatrix()
+							, MakeArrayView((const float*)&CustomFloatData[SrcCustomDataOffset], ISMComponent.NumCustomDataFloats));
+
+						break;
+					}
+				}
+			}
+		}
+		else 
+		{
+			const FTransform& ComponentTransform = ISMComponent.GetComponentTransform();
+			// since AddInstancesInternal called above doesn't add any commands we need to add them here.
+			// The "there are custom floats" path is using a different, command flavor
+			for (const FTransform& InstanceTransform : InstanceTransforms)
+			{
+				ISMComponent.InstanceUpdateCmdBuffer.AddInstance(InstanceTransform.GetRelativeTransform(ComponentTransform).ToMatrixWithScale());
+			}
+		}
+#endif // 0
+	}
+
+	if (SharedData.GetRemoveInstanceIds().Num())
+	{
+		//RemoveInstanceWithIds(SharedData.GetRemoveInstanceIds());
+		TConstArrayView<int32> InstanceIds = SharedData.GetRemoveInstanceIds();
+
+		TArray<int32> InstanceIndices;
+		InstanceIndices.Reserve(InstanceIds.Num());
+		// Inform the cmd buffer which instances were removed.
+		for (const int32 InstanceId : InstanceIds)
+		{
+			const int32* InstanceIndexPtr = ISMComponent.InstanceIdToInstanceIndexMap.Find(InstanceId);
+			if (InstanceIndexPtr)
+			{
+				if (*InstanceIndexPtr != INDEX_NONE)
+				{
+					InstanceIndices.Add(*InstanceIndexPtr);
+				}
+				ISMComponent.InstanceIdToInstanceIndexMap.Remove(InstanceId);
+			}
+		}
+
+		if (InstanceIndices.Num() == 0)
+		{
+			return;
+		}
+
+		// below is a reimplementation of ISMComponent.RemoveInstances since the original doesn't support keeping 
+		// ISMComponent.InstanceIdToInstanceIndexMap up to date and since ISMComponent.InstanceIdToInstanceIndexMap 
+		// mechanics are to be reimplemented there's no point in adding this to the original function. This code is 
+		// a stop-gap until the ISM changes come online
+
+		InstanceIndices.Sort(TGreater<int32>());
+
+		if (!ISMComponent.PerInstanceSMData.IsValidIndex(InstanceIndices[0]) || !ISMComponent.PerInstanceSMData.IsValidIndex(InstanceIndices.Last()))
+		{
+			return;
+		}
+
+		// update the Id <-> Index mappings
+		for (int32 Index : InstanceIndices)
+		{
+			ISMComponent.InstanceUpdateCmdBuffer.HideInstance(Index);
+
+			if (Index == ISMComponent.PerInstanceIds.Num() - 1)
+			{
+				ISMComponent.PerInstanceIds.RemoveAt(Index, 1, /*bAllowShrinking=*/false);
+			}
+			else
+			{
+				ISMComponent.PerInstanceIds.RemoveAtSwap(Index, 1, /*bAllowShrinking=*/false);
+				const int32 NewIdAtIndex = ISMComponent.PerInstanceIds[Index];
+				ISMComponent.InstanceIdToInstanceIndexMap.FindChecked(NewIdAtIndex) = Index;
+			}
+		}
+
+		for (const int32 InstanceIndex : InstanceIndices)
+		{
+#if WITH_EDITOR
+			ISMComponent.DeletionState = UInstancedStaticMeshComponent::EInstanceDeletionReason::EntryRemoval;
+#endif
+
+			const int32 LastInstanceIndex = ISMComponent.PerInstanceSMData.Num() - 1;
+
+			// remove instance
+			if (ISMComponent.PerInstanceSMData.IsValidIndex(InstanceIndex))
+			{
+				ISMComponent.PerInstanceSMData.RemoveAtSwap(InstanceIndex, 1, false);
+				ISMComponent.PerInstanceSMCustomData.RemoveAt(InstanceIndex * ISMComponent.NumCustomDataFloats, ISMComponent.NumCustomDataFloats, false);
+			}
+
+#if WITH_EDITOR
+			// remove selection flag if array is filled in
+			if (ISMComponent.SelectedInstances.IsValidIndex(InstanceIndex))
+			{
+				ISMComponent.SelectedInstances.RemoveAtSwap(InstanceIndex);
+			}
+#endif
+
+			// update the physics state
+			if (ISMComponent.IsPhysicsStateCreated() && ISMComponent.InstanceBodies.IsValidIndex(InstanceIndex))
+			{
+				// Clean up physics for removed instance
+				if (ISMComponent.InstanceBodies[InstanceIndex])
+				{
+					ISMComponent.InstanceBodies[InstanceIndex]->TermBody();
+					delete ISMComponent.InstanceBodies[InstanceIndex];
+				}
+
+				if (InstanceIndex == LastInstanceIndex)
+				{
+					// If we removed the last instance in the array we just need to remove it from the InstanceBodies array too.
+					ISMComponent.InstanceBodies.RemoveAt(InstanceIndex);
+				}
+				else
+				{
+					if (ISMComponent.InstanceBodies[LastInstanceIndex])
+					{                      
+						// term physics for swapped instance
+						ISMComponent.InstanceBodies[LastInstanceIndex]->TermBody();
+					}
+
+					// swap in the last instance body if we have one
+					ISMComponent.InstanceBodies.RemoveAtSwap(InstanceIndex, 1, false);
+
+					// recreate physics for the instance we swapped in the removed item's place
+					// a bit hacky update to FBodyInstance - the FBodyInstance.InstanceBodyIndex needs to match InstanceIndex
+					if (ISMComponent.InstanceBodies[InstanceIndex])
+					{
+						ISMComponent.InstanceBodies[InstanceIndex]->InstanceBodyIndex = InstanceIndex;
+					}
+				}
+			}
+
+			// Notify that these instances have been removed/relocated
+			if (FInstancedStaticMeshDelegates::OnInstanceIndexUpdated.IsBound())
+			{
+				TArray<FInstancedStaticMeshDelegates::FInstanceIndexUpdateData, TInlineAllocator<2>> IndexUpdates;
+				IndexUpdates.Reserve(1 + (ISMComponent.PerInstanceSMData.Num() - InstanceIndex));
+
+				IndexUpdates.Add(FInstancedStaticMeshDelegates::FInstanceIndexUpdateData{ FInstancedStaticMeshDelegates::EInstanceIndexUpdateType::Removed, InstanceIndex });
+				if (InstanceIndex != LastInstanceIndex)
+				{
+					// ISMs use swap remove, so the last index has been moved to the spot we removed from
+					IndexUpdates.Add(FInstancedStaticMeshDelegates::FInstanceIndexUpdateData{ FInstancedStaticMeshDelegates::EInstanceIndexUpdateType::Relocated, InstanceIndex, LastInstanceIndex });
+				}
+
+				FInstancedStaticMeshDelegates::OnInstanceIndexUpdated.Broadcast(&ISMComponent, IndexUpdates);
+			}
+
+			// Force recreation of the render data
+			ISMComponent.InstanceUpdateCmdBuffer.Edit();
+#if WITH_EDITOR
+			ISMComponent.DeletionState = UInstancedStaticMeshComponent::EInstanceDeletionReason::NotDeleting;
+#endif
+		}
+	}
+
+	ISMComponent.MarkRenderStateDirty();
+
+	if (bNavigationRelevant && ISMComponent.GetInstanceCount() == 0)
+	{
+		FNavigationSystem::UnregisterComponent(ISMComponent);
+	}
+	else
+	{
+		FNavigationSystem::UpdateComponentData(ISMComponent);
+	}
+
+	if (HISMComp)
+	{
+		HISMComp->bAutoRebuildTreeOnInstanceChanges = bAutoReset;
+		HISMComp->BuildTreeIfOutdated(true, false);
+	}
+}
+
 void UMassVisualizationComponent::EndVisualChanges()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("MassVisualizationComponent EndVisualChanges")
@@ -229,75 +505,71 @@ void UMassVisualizationComponent::EndVisualChanges()
 		FMassISMCSharedData& SharedData = It.Value();
 		if (UInstancedStaticMeshComponent* InstancedStaticMeshComponent = SharedData.GetISMComponent())
 		{
-			if (UMassInstancedStaticMeshComponent* MassISMComponent = Cast<UMassInstancedStaticMeshComponent>(InstancedStaticMeshComponent))
+			if (SharedData.RequiresExternalInstanceIDTracking())
 			{
-				MassISMComponent->ApplyVisualChanges(SharedData);
-				continue;
-			}
-
-			const int32 NumCustomDataFloats = SharedData.StaticMeshInstanceCustomFloats.Num() / (FMath::Max(1, SharedData.UpdateInstanceIds.Num()));
-
-			// Ensure InstanceCustomData is passed if NumCustomDataFloats > 0. If it is, also make sure
-			// its length is NumCustomDataFloats * InstanceTransforms.Num()
-			ensure(NumCustomDataFloats == 0 || (SharedData.StaticMeshInstanceCustomFloats.Num() == NumCustomDataFloats * SharedData.UpdateInstanceIds.Num()));
-
-			// Resize PerInstanceSMData & PerInstanceSMCustomData to new (possibly culled or expanded) transform batch length
-			const int32 NewNumInstances = SharedData.StaticMeshInstanceTransforms.Num();
-
-			// Update PerInstanceSMData transforms
-			if ((bool)UE::MassRepresentation::GCallUpdateInstances)
-			{
-				InstancedStaticMeshComponent->UpdateInstances(SharedData.UpdateInstanceIds, SharedData.StaticMeshInstanceTransforms, SharedData.StaticMeshInstancePrevTransforms, NumCustomDataFloats, SharedData.StaticMeshInstanceCustomFloats);
-				if (UHierarchicalInstancedStaticMeshComponent* HISMComp = Cast<UHierarchicalInstancedStaticMeshComponent>(InstancedStaticMeshComponent))
-				{
-					HISMComp->BuildTreeIfOutdated(true, false);
-				}
+				HandleChangesWithExternalIDTracking(*InstancedStaticMeshComponent, SharedData);
 			}
 			else
 			{
-				// Update NumCustomDataFloats
-				InstancedStaticMeshComponent->NumCustomDataFloats = NumCustomDataFloats;
-				if (NumCustomDataFloats > 0)
-				{
-					InstancedStaticMeshComponent->PerInstanceSMCustomData = SharedData.StaticMeshInstanceCustomFloats;
-				}
+				const int32 NumCustomDataFloats = SharedData.StaticMeshInstanceCustomFloats.Num() / (FMath::Max(1, SharedData.UpdateInstanceIds.Num()));
 
-				InstancedStaticMeshComponent->PerInstanceSMData.SetNum(NewNumInstances, /*bAllowShrinking*/false);
-				InstancedStaticMeshComponent->PerInstancePrevTransform.SetNum(NewNumInstances, /*bAllowShrinking*/false);
+				// Ensure InstanceCustomData is passed if NumCustomDataFloats > 0. If it is, also make sure
+				// its length is NumCustomDataFloats * InstanceTransforms.Num()
+				ensure(NumCustomDataFloats == 0 || (SharedData.StaticMeshInstanceCustomFloats.Num() == NumCustomDataFloats * SharedData.UpdateInstanceIds.Num()));
+
+				// Resize PerInstanceSMData & PerInstanceSMCustomData to new (possibly culled or expanded) transform batch length
+				const int32 NewNumInstances = SharedData.StaticMeshInstanceTransforms.Num();
 
 				// Update PerInstanceSMData transforms
-				InstancedStaticMeshComponent->BatchUpdateInstancesTransforms(/*StartInstanceIndex*/0, SharedData.StaticMeshInstanceTransforms, SharedData.StaticMeshInstancePrevTransforms, /*bWorldSpace*/false, /*bMarkRenderStateDirty*/false);
-
-				// Nanite ISMC? 
-				TObjectPtr<UStaticMesh> StaticMeshObjectPtr = InstancedStaticMeshComponent->GetStaticMesh();
-				FStaticMeshRenderData* StaticMeshRenderData = nullptr;
-				if (UStaticMesh* StaticMesh = StaticMeshObjectPtr.Get())
+				if ((bool)UE::MassRepresentation::GCallUpdateInstances)
 				{
-					StaticMeshRenderData = StaticMesh->GetRenderData();
+					InstancedStaticMeshComponent->UpdateInstances(SharedData.UpdateInstanceIds, SharedData.StaticMeshInstanceTransforms, SharedData.StaticMeshInstancePrevTransforms, NumCustomDataFloats, SharedData.StaticMeshInstanceCustomFloats);
+					if (UHierarchicalInstancedStaticMeshComponent* HISMComp = Cast<UHierarchicalInstancedStaticMeshComponent>(InstancedStaticMeshComponent))
+					{
+						HISMComp->BuildTreeIfOutdated(true, false);
+					}
 				}
-				const bool bNaniteISMC = UseNanite(InstancedStaticMeshComponent->GetScene()->GetShaderPlatform()) && StaticMeshRenderData && StaticMeshRenderData->HasValidNaniteData();
-				if (bNaniteISMC)
+				else
 				{
-					// ISMC currently rebuilds PerInstanceRenderData regardless of whether it's using a 
-					// Nanite::FSceneProxy which doesn't actually use this data. So to skip that we 
-					// reset the InstanceUpdateCmdBuffer here after BatchUpdateInstancesTransforms has
-					// marked it dirty but before CreateSceneProxy checks it
-					// @todo This should be in ISMC code
-					InstancedStaticMeshComponent->InstanceUpdateCmdBuffer.Cmds.Reset();
-					InstancedStaticMeshComponent->InstanceUpdateCmdBuffer.NumAdds = 0;
-					InstancedStaticMeshComponent->InstanceUpdateCmdBuffer.NumEdits = 0;
-				}
+					// Update NumCustomDataFloats
+					InstancedStaticMeshComponent->NumCustomDataFloats = NumCustomDataFloats;
+					if (NumCustomDataFloats > 0)
+					{
+						InstancedStaticMeshComponent->PerInstanceSMCustomData = SharedData.StaticMeshInstanceCustomFloats;
+					}
 
-				// Dirty render state
-				InstancedStaticMeshComponent->MarkRenderStateDirty();
+					InstancedStaticMeshComponent->PerInstanceSMData.SetNum(NewNumInstances, /*bAllowShrinking*/false);
+					InstancedStaticMeshComponent->PerInstancePrevTransform.SetNum(NewNumInstances, /*bAllowShrinking*/false);
+
+					// Update PerInstanceSMData transforms
+					InstancedStaticMeshComponent->BatchUpdateInstancesTransforms(/*StartInstanceIndex*/0, SharedData.StaticMeshInstanceTransforms, SharedData.StaticMeshInstancePrevTransforms, /*bWorldSpace*/false, /*bMarkRenderStateDirty*/false);
+
+					// Nanite ISMC? 
+					TObjectPtr<UStaticMesh> StaticMeshObjectPtr = InstancedStaticMeshComponent->GetStaticMesh();
+					FStaticMeshRenderData* StaticMeshRenderData = nullptr;
+					if (UStaticMesh* StaticMesh = StaticMeshObjectPtr.Get())
+					{
+						StaticMeshRenderData = StaticMesh->GetRenderData();
+					}
+					const bool bNaniteISMC = UseNanite(InstancedStaticMeshComponent->GetScene()->GetShaderPlatform()) && StaticMeshRenderData && StaticMeshRenderData->HasValidNaniteData();
+					if (bNaniteISMC)
+					{
+						// ISMC currently rebuilds PerInstanceRenderData regardless of whether it's using a 
+						// Nanite::FSceneProxy which doesn't actually use this data. So to skip that we 
+						// reset the InstanceUpdateCmdBuffer here after BatchUpdateInstancesTransforms has
+						// marked it dirty but before CreateSceneProxy checks it
+						// @todo This should be in ISMC code
+						InstancedStaticMeshComponent->InstanceUpdateCmdBuffer.Cmds.Reset();
+						InstancedStaticMeshComponent->InstanceUpdateCmdBuffer.NumAdds = 0;
+						InstancedStaticMeshComponent->InstanceUpdateCmdBuffer.NumEdits = 0;
+					}
+
+					// Dirty render state
+					InstancedStaticMeshComponent->MarkRenderStateDirty();
+				}
 			}
 		}
-	}
-
-	// Reset instance transform scratch buffers
-	for (auto It = ISMCSharedData.CreateIterator(); It; ++It)
-	{
-		FMassISMCSharedData& SharedData = It.Value();
+		
 		SharedData.ResetAccumulatedData();
 	}
 }
