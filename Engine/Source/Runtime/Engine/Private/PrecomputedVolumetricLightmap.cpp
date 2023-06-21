@@ -522,9 +522,12 @@ ENGINE_API void FPrecomputedVolumetricLightmapData::AddToSceneData(FPrecomputedV
 				uint8 Value = (uint8)IndexInCPUSubLevelBrickDataList;
 				SceneData->CPUSubLevelBrickDataList[IndexInCPUSubLevelBrickDataList] = this;
 
+				const int32 PaddedBrickSize = BrickSize + 1;
+				const FIntVector BrickLayoutDimensions = BrickDataDimensions / PaddedBrickSize;
+
 				for (int32 BrickIndex = 0; BrickIndex < SubLevelBrickPositions.Num(); BrickIndex++)
 				{
-					const FIntVector BrickLayoutPosition = ComputeBrickLayoutPosition(BrickIndex, BrickDataDimensions);
+					const FIntVector BrickLayoutPosition = ComputeBrickLayoutPosition(BrickIndex, BrickLayoutDimensions);
 
 					const FIntVector IndirectionDestDataCoordinate = SubLevelBrickPositions[BrickIndex];
 					const int32 IndirectionDestDataIndex =
@@ -620,7 +623,7 @@ ENGINE_API void FPrecomputedVolumetricLightmapData::RemoveFromSceneData(FPrecomp
 								*(IndirectionVoxelPtr + 0) = OriginalValue.R;
 								*(IndirectionVoxelPtr + 1) = OriginalValue.G;
 								*(IndirectionVoxelPtr + 2) = OriginalValue.B;
-								*(IndirectionVoxelPtr + 3) = 1;
+								*(IndirectionVoxelPtr + 3) = OriginalValue.A;
 							}
 
 							{
