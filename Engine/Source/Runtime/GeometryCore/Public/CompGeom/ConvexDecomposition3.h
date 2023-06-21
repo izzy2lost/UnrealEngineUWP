@@ -42,8 +42,10 @@ struct FNegativeSpaceSampleSettings
 
 	enum class ESampleMethod
 	{
-		Uniform
-		// TODO: Consider e.g. sampling based on local search / floodfill
+		// Place sample spheres in a uniform grid pattern
+		Uniform,
+		// Use voxel-based subtraction and offsetting methods to specifically target concavities
+		VoxelSearch
 	};
 
 	// Method used to place samples

@@ -231,6 +231,18 @@ public:
 	UE::Geometry::FSphereCovering Spheres;
 };
 
+//~ Dataflow-specific copy of the negative space sampling method enum in ConvexDecomposition3.h,
+//~ so that it can be exposed as a UENUM
+// Method to distribute sampling spheres
+UENUM()
+enum class ENegativeSpaceSampleMethodDataflowEnum : uint8
+{
+	// Place sample spheres in a uniform grid pattern
+	Uniform,
+	// Use voxel-based subtraction and offsetting methods to specifically target concavities
+	VoxelSearch
+};
+
 /**
  *
  * Generates cluster convex hulls for leafs hulls
@@ -277,6 +289,10 @@ public:
 	/** Whether to use a sphere cover to define negative space that should not be covered by convex hulls */
 	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (DataflowInput))
 	bool bProtectNegativeSpace = false;
+
+	/** Method to use to find and sample negative space */
+	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (EditCondition = "bProtectNegativeSpace", EditConditionHides))
+	ENegativeSpaceSampleMethodDataflowEnum SampleMethod = ENegativeSpaceSampleMethodDataflowEnum::Uniform;
 
 	/** Approximate number of spheres to consider when covering negative space */
 	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (DataflowInput, ClampMin = 1, EditCondition = "bProtectNegativeSpace", EditConditionHides))
@@ -343,6 +359,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (DataflowInput))
 	bool bProtectNegativeSpace = false;
 
+	/** Method to use to find and sample negative space */
+	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (EditCondition = "bProtectNegativeSpace", EditConditionHides))
+	ENegativeSpaceSampleMethodDataflowEnum SampleMethod = ENegativeSpaceSampleMethodDataflowEnum::Uniform;
+
 	/** Approximate number of spheres to consider when covering negative space */
 	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (DataflowInput, ClampMin = 1, EditCondition = "bProtectNegativeSpace", EditConditionHides))
 	int32 TargetNumSamples = 50;
@@ -400,6 +420,10 @@ public:
 	/** Whether to use a sphere cover to define negative space that should not be covered by convex hulls */
 	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (DataflowInput))
 	bool bProtectNegativeSpace = false;
+
+	/** Method to use to find and sample negative space */
+	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (EditCondition = "bProtectNegativeSpace", EditConditionHides))
+	ENegativeSpaceSampleMethodDataflowEnum SampleMethod = ENegativeSpaceSampleMethodDataflowEnum::Uniform;
 
 	/** Approximate number of spheres to consider when covering negative space */
 	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (DataflowInput, ClampMin = 1, EditCondition = "bProtectNegativeSpace", EditConditionHides))
