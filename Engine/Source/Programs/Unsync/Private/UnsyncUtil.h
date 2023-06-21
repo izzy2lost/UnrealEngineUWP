@@ -176,6 +176,13 @@ MakeView(const T* Ptr, size_t Count)
 	return TArrayView{Ptr, Ptr + Count};
 }
 
+template<typename T>
+TArrayView<T>
+MakeView(const std::vector<T>& Container)
+{
+	return MakeView(Container.data(), Container.size());
+}
+
 inline uint64
 AlignDownToMultiplePow2(uint64 X, uint64 MultiplePow2)
 {

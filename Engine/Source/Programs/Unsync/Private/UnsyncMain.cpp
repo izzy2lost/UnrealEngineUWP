@@ -6,6 +6,7 @@
 #include "UnsyncCmdPush.h"
 #include "UnsyncCmdSync.h"
 #include "UnsyncCmdQuery.h"
+#include "UnsyncCmdMount.h"
 #include "UnsyncCore.h"
 #include "UnsyncFile.h"
 #include "UnsyncMemory.h"
@@ -103,6 +104,12 @@ InnerMain(int Argc, char** Argv)
 	};
 #endif // UNSYNC_USE_TLS
 
+	auto AddProxyOptions = [&RemoteAddressUtf8](CLI::App* App) {
+		App->add_option("--proxy, --remote",
+							RemoteAddressUtf8,
+							"FProxy server address ([transport://]address[:port][/request][#namespace])");
+	};
+
 	CLI::App* SubHash = Cli.add_subcommand("hash", "Generate hash manifest for a file or directory");
 	SubHash->add_option("Input", InputFilenameUtf8, "Input file or directory path")->required();
 	SubHash->add_flag("-f, --force", bForceOperation, "Force the operation even if hash is already computed for the input");
@@ -171,9 +178,7 @@ InnerMain(int Argc, char** Argv)
 		->required();
 	SubSync->add_option("Target", TargetFilenameUtf8, "Target path")->required();
 	SubSync->add_option("-m, --manifest", SourceManifestFilenameUtf8, "Override manifest path for Source");
-	SubSync->add_option("--proxy, --remote",
-						RemoteAddressUtf8,
-						"FProxy server address ([transport://]address[:port][/request][#namespace])");
+	AddProxyOptions(SubSync);
 	SubSync->add_option("--dfs", PreferredDfsUtf8, "Preferred DFS mirror (matched by sub-string)");
 	SubSync->add_option("--overlay", OverlayArrayUtf8, "Additional source directory to sync (keep unique files from all sources, overwrite conflicting files with overlay source)");
 	SubSync->add_option("--include", IncludeFilterArrayUtf8, "Include filenames that contain specified words (comma separated). If this is not present, all files will be included.");
@@ -242,13 +247,21 @@ InnerMain(int Argc, char** Argv)
 
 	CLI::App* SubQuery = Cli.add_subcommand("query", "Run a query command on the remote server");
 	SubQuery->add_option("QueryString", QueryStringUtf8, "Query")->required();
-	SubQuery->add_option("--proxy, --remote",
-					RemoteAddressUtf8,
-					"FProxy server address ([transport://]address[:port][/request][#namespace])")->required();
+	AddProxyOptions(SubQuery);
+
 #if UNSYNC_USE_TLS
 	AddTlsOptions(SubQuery);
 #endif // UNSYNC_USE_TLS
 	SubCommands.push_back(SubQuery);
+
+	CLI::App* SubMount = Cli.add_subcommand("mount", "Mount directory manifest as a virtual file system (EXPERIMENTAL)");
+	SubMount
+		->add_option("Source",
+					 SourceFilenameUtf8,
+					 "Source path, object name, hash or full URL ([transport://]address[:port]#namespace/object)")
+		->required();
+	AddProxyOptions(SubMount);
+	SubCommands.push_back(SubMount);
 
 	for (CLI::App* Subcommand : SubCommands)
 	{
@@ -722,6 +735,12 @@ InnerMain(int Argc, char** Argv)
 		QueryOptions.Query	= QueryStringUtf8;
 		QueryOptions.Remote = RemoteDesc;
 		return CmdQuery(QueryOptions);
+	}
+	else if (Cli.got_subcommand(SubMount))
+	{
+		FCmdMountOptions MountOptions;
+		MountOptions.Path = SourceFilename;
+		return CmdMount(MountOptions);
 	}
 
 	return 0;
