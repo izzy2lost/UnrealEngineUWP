@@ -78,6 +78,8 @@ private:
 	FReply OnRetryConnection();
 	FReply OnSkip();
 
+	void OnUrlClicked() const;
+
 	TWeakPtr<SWindow> WindowWidget;
 
 	TSharedPtr<SEditableTextBox> PortTextWidget;
