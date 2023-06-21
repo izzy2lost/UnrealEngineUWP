@@ -46,7 +46,7 @@ UE_AUTORTFM_FORCEINLINE autortfm_result TransactThenOpenImpl(void (*Work)(void* 
 		}));
 }
 
-FORCENOINLINE extern "C" bool autortfm_is_transactional()
+extern "C" UE_AUTORTFM_NOAUTORTFM bool autortfm_is_transactional()
 {
 	if (GAutoRTFMRuntimeEnabled)
 	{
@@ -56,13 +56,13 @@ FORCENOINLINE extern "C" bool autortfm_is_transactional()
 	return false;
 }
 
-FORCENOINLINE extern "C" bool autortfm_is_closed()
+extern "C" UE_AUTORTFM_NOAUTORTFM bool autortfm_is_closed()
 {
     return false;
 }
 
 // First Part - the API exposed outside transactions.
-FORCENOINLINE extern "C" autortfm_result autortfm_transact(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_result autortfm_transact(void (*Work)(void* Arg), void* Arg)
 {
 	if (GAutoRTFMRuntimeEnabled)
 	{
@@ -73,48 +73,48 @@ FORCENOINLINE extern "C" autortfm_result autortfm_transact(void (*Work)(void* Ar
 	return autortfm_committed;
 }
 
-FORCENOINLINE extern "C" autortfm_result autortfm_transact_then_open(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_result autortfm_transact_then_open(void (*Work)(void* Arg), void* Arg)
 {
     return TransactThenOpenImpl(Work, Arg);
 }
 
-FORCENOINLINE extern "C" void autortfm_commit(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_commit(void (*Work)(void* Arg), void* Arg)
 {
     autortfm_result Result = autortfm_transact(Work, Arg);
 	UE_CLOG(Result != autortfm_committed, LogAutoRTFM, Fatal, TEXT("Unexpected transaction result: %u."), Result);
 }
 
-FORCENOINLINE extern "C" void autortfm_abort()
+extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_abort()
 {
 	UE_CLOG(!FContext::IsTransactional(), LogAutoRTFM, Fatal, TEXT("The function `autortfm_abort` was called from outside a transaction."));
 	FContext::Get()->AbortByRequestAndThrow();
 }
 
-FORCENOINLINE extern "C" bool autortfm_start_transaction()
+extern "C" UE_AUTORTFM_NOAUTORTFM bool autortfm_start_transaction()
 {
 	UE_CLOG(!FContext::IsTransactional(), LogAutoRTFM, Fatal, TEXT("The function `autortfm_start_transaction` was called from outside a transact."));
 	return FContext::Get()->StartTransaction();
 }
 
-FORCENOINLINE extern "C" autortfm_result autortfm_commit_transaction()
+extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_result autortfm_commit_transaction()
 {
 	UE_CLOG(!FContext::IsTransactional(), LogAutoRTFM, Fatal, TEXT("The function `autortfm_commit_transaction` was called from outside a transact."));
 	return static_cast<autortfm_result>(FContext::Get()->CommitTransaction());
 }
 
-FORCENOINLINE extern "C" autortfm_result autortfm_abort_transaction()
+extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_result autortfm_abort_transaction()
 {
 	UE_CLOG(!FContext::IsTransactional(), LogAutoRTFM, Fatal, TEXT("The function `autortfm_abort_transaction` was called from outside a transact."));
 	return static_cast<autortfm_result>(FContext::Get()->AbortTransaction(false));
 }
 
-FORCENOINLINE extern "C" void autortfm_clear_transaction_status()
+extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_clear_transaction_status()
 {
 	ASSERT(FContext::Get()->IsAborting());
 	FContext::Get()->ClearTransactionStatus();
 }
 
-FORCENOINLINE extern "C" bool autortfm_is_aborting()
+extern "C" UE_AUTORTFM_NOAUTORTFM bool autortfm_is_aborting()
 {
 	if (GAutoRTFMRuntimeEnabled)
 	{
@@ -124,27 +124,27 @@ FORCENOINLINE extern "C" bool autortfm_is_aborting()
 	return false;
 }
 
-FORCENOINLINE extern "C" bool autortfm_current_nest_throw()
+extern "C" UE_AUTORTFM_NOAUTORTFM bool autortfm_current_nest_throw()
 {
 	FContext::Get()->Throw();
 	return true;
 }
 
-FORCENOINLINE extern "C" void autortfm_abort_if_transactional()
+extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_abort_if_transactional()
 {
 	UE_CLOG(FContext::IsTransactional(), LogAutoRTFM, Fatal, TEXT("The function `autortfm_abort_if_transactional` was called from an open inside a transaction."));
 }
 
-FORCENOINLINE extern "C" void autortfm_abort_if_closed()
+extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_abort_if_closed()
 {
 }
 
-FORCENOINLINE extern "C" void autortfm_open(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_open(void (*Work)(void* Arg), void* Arg)
 {
 	Work(Arg);
 }
 
-FORCENOINLINE extern "C" autortfm_status autortfm_close(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_status autortfm_close(void (*Work)(void* Arg), void* Arg)
 {
 	autortfm_status Result = autortfm_status_ontrack;
 
@@ -167,42 +167,42 @@ FORCENOINLINE extern "C" autortfm_status autortfm_close(void (*Work)(void* Arg),
 	return Result;
 }
 
-FORCENOINLINE extern "C" void autortfm_record_open_write(void* Ptr, size_t Size)
+extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_record_open_write(void* Ptr, size_t Size)
 {
     FContext::Get()->CheckOpenRecordWrite(Ptr);
 	FContext::Get()->RecordWrite(Ptr, Size);
 }
 
-FORCENOINLINE extern "C" void autortfm_register_open_function(void* OriginalFunction, void* NewFunction)
+extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_register_open_function(void* OriginalFunction, void* NewFunction)
 {
 	UE_LOG(LogAutoRTFM, Verbose, TEXT("Registering open %p->%p"), OriginalFunction, NewFunction);
     FunctionMapAdd(OriginalFunction, NewFunction);
 }
 
-void OpenCommit(TFunction<void()>&& Work)
+UE_AUTORTFM_NOAUTORTFM void OpenCommit(TFunction<void()>&& Work)
 {
     Work();
 }
 
-void OpenAbort(TFunction<void()>&& Work)
+UE_AUTORTFM_NOAUTORTFM void OpenAbort(TFunction<void()>&& Work)
 {
 }
 
-FORCENOINLINE extern "C" void autortfm_open_commit(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_open_commit(void (*Work)(void* Arg), void* Arg)
 {
     Work(Arg);
 }
 
-FORCENOINLINE extern "C" void autortfm_open_abort(void (*Work)(void* arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_open_abort(void (*Work)(void* arg), void* Arg)
 {
 }
 
-FORCENOINLINE extern "C" void* autortfm_did_allocate(void* Ptr, size_t Size)
+extern "C" UE_AUTORTFM_NOAUTORTFM void* autortfm_did_allocate(void* Ptr, size_t Size)
 {
     return Ptr;
 }
 
-FORCENOINLINE extern "C" void autortfm_check_consistency_assuming_no_races()
+extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_check_consistency_assuming_no_races()
 {
     if (FContext::IsTransactional())
     {
@@ -210,7 +210,7 @@ FORCENOINLINE extern "C" void autortfm_check_consistency_assuming_no_races()
     }
 }
 
-FORCENOINLINE extern "C" void autortfm_check_abi(void* const Ptr, const size_t Size)
+extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_check_abi(void* const Ptr, const size_t Size)
 {
     struct FConstants final
     {

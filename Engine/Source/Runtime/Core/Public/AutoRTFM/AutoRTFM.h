@@ -14,6 +14,12 @@
 	#define UE_PRAGMA_AUTORTFM
 #endif
 
+#if UE_AUTORTFM
+#define UE_AUTORTFM_NOAUTORTFM [[clang::noautortfm, clang::noinline]]
+#else
+#define UE_AUTORTFM_NOAUTORTFM
+#endif
+
 #if defined(_MSC_VER)
 #define UE_AUTORTFM_FORCEINLINE __forceinline
 #elif defined(__clang__)
