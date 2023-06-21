@@ -71,7 +71,7 @@ struct FRuntimePartitionStreamingData
 	FName Name;
 
 	UPROPERTY()
-	float LoadingRange;
+	float LoadingRange = 0.0f;
 
 	UPROPERTY()
 	TArray<TObjectPtr<UWorldPartitionRuntimeCell>> RuntimeCells;
