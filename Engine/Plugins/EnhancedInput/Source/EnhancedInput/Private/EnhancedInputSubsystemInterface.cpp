@@ -827,6 +827,7 @@ void IEnhancedInputSubsystemInterface::RebuildControlMappings()
 	// Clear existing mappings, but retain the mapping array for later processing
 	TArray<FEnhancedActionKeyMapping> OldMappings(MoveTemp(PlayerInput->EnhancedActionMappings));
 	PlayerInput->ClearAllMappings();
+	PlayerInput->KeyConsumptionData.Reset();
 	AppliedContextRedirects.Reset();
 
 	// Order contexts by priority
@@ -923,6 +924,13 @@ void IEnhancedInputSubsystemInterface::RebuildControlMappings()
 			{
 				Mapping.Key = PlayerMappedKey;
 
+				// If this Input Action is flagged to consume input, then mark it's key state as being consumed every tick.
+				// This has the affect where the base UPlayerInput class will not fire any legacy bindings
+				if (Mapping.Action->bConsumesActionAndAxisMappings)
+				{
+					PlayerInput->KeyConsumptionData.Add(Mapping.Action, { Mapping.Key, static_cast<ETriggerEvent>(Mapping.Action->TriggerEventsThatConsumeLegacyKeys) });	
+				}
+				
 				if (Mapping.Action && !AppliedKeys.Contains(Mapping.Key))
 				{
 					// TODO: Wasteful query as we've already established chord state within ReorderMappings. Store TOptional bConsumeInput per mapping, allowing override? Query override via delegate?
@@ -931,7 +939,7 @@ void IEnhancedInputSubsystemInterface::RebuildControlMappings()
 						return Cast<const UInputTriggerChordAction>(Trigger) != nullptr;
 					};
 					bool bHasActionChords = HasTriggerWith(IsChord, Mapping.Action->Triggers);
-					bool bHasChords = HasTriggerWith(IsChord, Mapping.Triggers) || bHasActionChords;
+					bool bHasChords = bHasActionChords || HasTriggerWith(IsChord, Mapping.Triggers);
 
 					// Chorded actions can't consume input or they would hide the action they are chording.
 					if (!bHasChords && Mapping.Action->bConsumeInput)
