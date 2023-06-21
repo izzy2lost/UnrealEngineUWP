@@ -338,6 +338,11 @@ void FZenStoreWriter::WriteAdditionalFile(const FAdditionalFileInfo& Info, const
 
 	auto WriteToFile = [](const FString& Filename, const FIoBuffer& FileData)
 	{
+		ON_SCOPE_EXIT
+		{
+			UE::SavePackageUtilities::DecrementOutstandingAsyncWrites();
+		};
+
 		IFileManager& FileManager = IFileManager::Get();
 		int64 DataSize = IntCastChecked<int64>(FileData.DataSize());
 
@@ -364,6 +369,7 @@ void FZenStoreWriter::WriteAdditionalFile(const FAdditionalFileInfo& Info, const
 		UE_LOG(LogZenStoreWriter, Fatal, TEXT("Could not write to %s!"), *Filename);
 	};
 
+	UE::SavePackageUtilities::IncrementOutstandingAsyncWrites();
 	FileEntry.CompressedPayload = Async(EAsyncExecution::TaskGraph, [this, Info, FileData, WriteToFile]()
 	{
 		WriteToFile(Info.Filename, FileData);

@@ -5755,7 +5755,7 @@ void UCookOnTheFlyServer::SaveCookedPackage(UE::Cook::FSaveCookedPackageContext&
 			SaveArgs.SavePackageContext = Context.SavePackageContext;
 
 			Context.PackageWriter->UpdateSaveArguments(SaveArgs);
-			do
+			for(;;)
 			{
 				try
 				{
@@ -5769,7 +5769,19 @@ void UCookOnTheFlyServer::SaveCookedPackage(UE::Cook::FSaveCookedPackageContext&
 						*Package->GetName(), *TargetPlatform->PlatformName());
 					Context.SavePackageResult = ESavePackageResult::Error;
 				}
-			} while (Context.PackageWriter->IsAnotherSaveNeeded(Context.SavePackageResult, SaveArgs));
+
+				if (Context.PackageWriter->IsAnotherSaveNeeded(Context.SavePackageResult, SaveArgs))
+				{
+					// We must not try a second save of a package while the first save is still in flight.
+					// The optimal solution is to wait for ONLY the package that needs a second save, but we don't
+					// have the bookkeeping data to do that, so we have to wait for all async package writes to complete.
+					UPackage::WaitForAsyncFileWrites();
+				}
+				else
+				{
+					break;
+				}
+			}
 
 			// If package was actually saved check with asset manager to make sure it wasn't excluded for being a
 			// development or never cook package. But skip sending the warnings from this check if it was editor-only.
