@@ -165,10 +165,12 @@ void MeshRepresentation::SetupEmbreeScene(
 	}
 #endif
 
+	/*
 	if (LODModel.Sections.Num() > SectionData.Num())
 	{
 		UE_LOG(LogMeshUtilities, Warning, TEXT("Unexpected number of mesh sections when setting up Embree Scene for %s."), *MeshName);
 	}
+	*/
 
 	TArray<int32> FilteredTriangles;
 	FilteredTriangles.Empty(NumTriangles);
