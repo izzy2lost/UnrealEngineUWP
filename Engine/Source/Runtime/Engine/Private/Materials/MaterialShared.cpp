@@ -2382,39 +2382,39 @@ void FMaterial::SetupMaterialEnvironment(
 			// For example IsTranslucentBlendMode doesn't check IsMasked
 			if(!WritesEveryPixel())
 			{
-				OutEnvironment.SetDefine(TEXT("MATERIALBLENDING_MASKED"),TEXT("1"));
+				SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_MASKED, 1);
 			}
 			else
 			{
-				OutEnvironment.SetDefine(TEXT("MATERIALBLENDING_SOLID"),TEXT("1"));
+				SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_SOLID, 1);
 			}
 			break;
 		}
 		case BLEND_AlphaComposite:
 		{
 			// Blend mode will reuse MATERIALBLENDING_TRANSLUCENT
-			OutEnvironment.SetDefineAndCompileArgument(TEXT("MATERIALBLENDING_ALPHACOMPOSITE"), true);
-			OutEnvironment.SetDefineAndCompileArgument(TEXT("MATERIALBLENDING_TRANSLUCENT"), true);
+			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_ALPHACOMPOSITE, true);
+			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_TRANSLUCENT, true);
 			break;
 		}
 		case BLEND_AlphaHoldout:
 		{
 			// Blend mode will reuse MATERIALBLENDING_TRANSLUCENT
-			OutEnvironment.SetDefine(TEXT("MATERIALBLENDING_ALPHAHOLDOUT"), TEXT("1"));
-			OutEnvironment.SetDefineAndCompileArgument(TEXT("MATERIALBLENDING_TRANSLUCENT"), true);
+			SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_ALPHAHOLDOUT, 1);
+			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_TRANSLUCENT, true);
 			break;
 		}
 		case BLEND_TranslucentColoredTransmittance:
 		case BLEND_Translucent:
-			OutEnvironment.SetDefineAndCompileArgument(TEXT("MATERIALBLENDING_TRANSLUCENT"), true); 
+			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_TRANSLUCENT, true);
 			break;
 
-		case BLEND_Additive: OutEnvironment.SetDefineAndCompileArgument(TEXT("MATERIALBLENDING_ADDITIVE"), true); break;
-		case BLEND_Modulate: OutEnvironment.SetDefineAndCompileArgument(TEXT("MATERIALBLENDING_MODULATE"), true); break;
+		case BLEND_Additive: SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_ADDITIVE, true); break;
+		case BLEND_Modulate: SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_MODULATE, true); break;
 
 		default: 
 			UE_LOG(LogMaterial, Warning, TEXT("Unknown material blend mode: %u  Setting to BLEND_Opaque"),(int32)GetBlendMode());
-			OutEnvironment.SetDefine(TEXT("MATERIALBLENDING_SOLID"),TEXT("1"));
+			SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_SOLID, 1);
 		}
 	}
 	else
@@ -2423,8 +2423,8 @@ void FMaterial::SetupMaterialEnvironment(
 		{
 		case BLEND_Opaque:
 		{
-			OutEnvironment.SetDefine(TEXT("MATERIALBLENDING_SOLID"), TEXT("1"));
-			OutEnvironment.SetDefine(TEXT("STRATA_BLENDING_OPAQUE"), TEXT("1"));
+			SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_SOLID, 1);
+			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_OPAQUE, 1);
 			break;
 		}
 		case BLEND_Masked:
@@ -2434,56 +2434,56 @@ void FMaterial::SetupMaterialEnvironment(
 			// For example IsTranslucentBlendMode doesn't check IsMasked
 			if(!WritesEveryPixel())
 			{
-				OutEnvironment.SetDefine(TEXT("MATERIALBLENDING_MASKED"),TEXT("1"));
+				SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_MASKED, 1);
 			}
 			else
 			{
-				OutEnvironment.SetDefine(TEXT("MATERIALBLENDING_SOLID"),TEXT("1"));
+				SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_SOLID, 1);
 			}
-			OutEnvironment.SetDefine(TEXT("STRATA_BLENDING_MASKED"), TEXT("1"));
+			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_MASKED, 1);
 			break;
 		}
 		case BLEND_Additive:
 		{
-			OutEnvironment.SetDefine(TEXT("MATERIALBLENDING_ADDITIVE"),TEXT("1"));
-			OutEnvironment.SetDefine(TEXT("STRATA_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE"), TEXT("1"));
+			SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_ADDITIVE, 1);
+			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE, 1);
 			break;
 		}
 		case BLEND_AlphaComposite:
 		{
-			OutEnvironment.SetDefineAndCompileArgument(TEXT("MATERIALBLENDING_ALPHACOMPOSITE"), true);
-			OutEnvironment.SetDefineAndCompileArgument(TEXT("MATERIALBLENDING_TRANSLUCENT"), true);
-			OutEnvironment.SetDefine(TEXT("STRATA_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE"), TEXT("1"));
+			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_ALPHACOMPOSITE, true);
+			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_TRANSLUCENT, true);
+			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE, 1);
 			break;
 		}
 		case BLEND_TranslucentGreyTransmittance:
 		{
-			OutEnvironment.SetDefineAndCompileArgument(TEXT("MATERIALBLENDING_TRANSLUCENT"), true);
-			OutEnvironment.SetDefine(TEXT("STRATA_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE"), TEXT("1"));
+			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_TRANSLUCENT, true);
+			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_TRANSLUCENT_GREYTRANSMITTANCE, 1);
 			break;
 		}
 		case BLEND_TranslucentColoredTransmittance:
 		{
-			OutEnvironment.SetDefineAndCompileArgument(TEXT("MATERIALBLENDING_TRANSLUCENT"), true);
-			OutEnvironment.SetDefine(TEXT("STRATA_BLENDING_TRANSLUCENT_COLOREDTRANSMITTANCE"), TEXT("1"));
+			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_TRANSLUCENT, true);
+			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_TRANSLUCENT_COLOREDTRANSMITTANCE, 1);
 			break;
 		}
 		case BLEND_ColoredTransmittanceOnly:
 		{
-			OutEnvironment.SetDefineAndCompileArgument(TEXT("MATERIALBLENDING_MODULATE"), true);
-			OutEnvironment.SetDefine(TEXT("STRATA_BLENDING_COLOREDTRANSMITTANCEONLY"), TEXT("1"));
+			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_MODULATE, true);
+			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_COLOREDTRANSMITTANCEONLY, 1);
 			break;
 		}
 		case BLEND_AlphaHoldout:
 		{
-			OutEnvironment.SetDefineAndCompileArgument(TEXT("MATERIALBLENDING_TRANSLUCENT"), true);
-			OutEnvironment.SetDefine(TEXT("MATERIALBLENDING_ALPHAHOLDOUT"), TEXT("1"));
-			OutEnvironment.SetDefine(TEXT("STRATA_BLENDING_ALPHAHOLDOUT"), TEXT("1"));
+			SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(OutEnvironment, MATERIALBLENDING_TRANSLUCENT, true);
+			SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_ALPHAHOLDOUT, 1);
+			SET_SHADER_DEFINE(OutEnvironment, STRATA_BLENDING_ALPHAHOLDOUT, 1);
 			break;
 		}
 		default:
 			UE_LOG(LogMaterial, Error, TEXT("%s: Unkown Strata material blend mode could not be converted to Starta. (Asset: %s) Setting to BLEND_Opaque"), *GetFriendlyName(), *GetAssetName());
-			OutEnvironment.SetDefine(TEXT("MATERIALBLENDING_SOLID"), TEXT("1"));
+			SET_SHADER_DEFINE(OutEnvironment, MATERIALBLENDING_SOLID, 1);
 		}
 	}
 
@@ -2507,44 +2507,44 @@ void FMaterial::SetupMaterialEnvironment(
 				check(0);
 		}
 
-		OutEnvironment.SetDefine(TEXT("MATERIALDECALRESPONSEMASK"), MaterialDecalResponseMask);
+		SET_SHADER_DEFINE(OutEnvironment, MATERIALDECALRESPONSEMASK, MaterialDecalResponseMask);
 	}
 
 	switch(GetRefractionMode())
 	{
-	case RM_IndexOfRefraction:	OutEnvironment.SetDefine(TEXT("REFRACTION_USE_INDEX_OF_REFRACTION"),	TEXT("1")); break;
-	case RM_PixelNormalOffset:	OutEnvironment.SetDefine(TEXT("REFRACTION_USE_PIXEL_NORMAL_OFFSET"),	TEXT("1")); break;
-	case RM_2DOffset:			OutEnvironment.SetDefine(TEXT("REFRACTION_USE_2D_OFFSET"),				TEXT("1")); break;
-	case RM_None:				OutEnvironment.SetDefine(TEXT("REFRACTION_USE_NONE"),					TEXT("1")); break;
+	case RM_IndexOfRefraction:	SET_SHADER_DEFINE(OutEnvironment, REFRACTION_USE_INDEX_OF_REFRACTION,	1); break;
+	case RM_PixelNormalOffset:	SET_SHADER_DEFINE(OutEnvironment, REFRACTION_USE_PIXEL_NORMAL_OFFSET,	1); break;
+	case RM_2DOffset:			SET_SHADER_DEFINE(OutEnvironment, REFRACTION_USE_2D_OFFSET,				1); break;
+	case RM_None:				SET_SHADER_DEFINE(OutEnvironment, REFRACTION_USE_NONE,					1); break;
 	default: 
 		UE_LOG(LogMaterial, Warning, TEXT("Unknown material refraction mode: %u  Setting to RM_IndexOfRefraction"),(int32)GetRefractionMode());
-		OutEnvironment.SetDefine(TEXT("REFRACTION_USE_INDEX_OF_REFRACTION"),TEXT("1"));
+		SET_SHADER_DEFINE(OutEnvironment, REFRACTION_USE_INDEX_OF_REFRACTION, 1);
 	}
-	OutEnvironment.SetDefine(TEXT("REFRACTION_ROOT_NODE_OVERRIDES_DEFAULT"), GetRootNodeOverridesDefaultRefraction() ? 1 : 0);
+	SET_SHADER_DEFINE(OutEnvironment, REFRACTION_ROOT_NODE_OVERRIDES_DEFAULT, GetRootNodeOverridesDefaultRefraction() ? 1 : 0);
 
-	OutEnvironment.SetDefine(TEXT("USE_DITHERED_LOD_TRANSITION_FROM_MATERIAL"), IsDitheredLODTransition());
-	OutEnvironment.SetDefine(TEXT("MATERIAL_TWOSIDED"), IsTwoSided());
-	OutEnvironment.SetDefine(TEXT("MATERIAL_ISTHINSURFACE"), IsThinSurface());
-	OutEnvironment.SetDefine(TEXT("MATERIAL_TANGENTSPACENORMAL"), IsTangentSpaceNormal());
-	OutEnvironment.SetDefine(TEXT("GENERATE_SPHERICAL_PARTICLE_NORMALS"),ShouldGenerateSphericalParticleNormals());
-	OutEnvironment.SetDefine(TEXT("MATERIAL_USES_SCENE_COLOR_COPY"), RequiresSceneColorCopy_GameThread());
-	OutEnvironment.SetDefine(TEXT("MATERIAL_USE_PREINTEGRATED_GF"), IsUsingPreintegratedGFForSimpleIBL());
-	OutEnvironment.SetDefine(TEXT("MATERIAL_HQ_FORWARD_REFLECTION_CAPTURES"), IsUsingHQForwardReflections());
-	OutEnvironment.SetDefine(TEXT("MATERIAL_FORWARD_BLENDS_SKYLIGHT_CUBEMAPS"), GetForwardBlendsSkyLightCubemaps());
-	OutEnvironment.SetDefine(TEXT("MATERIAL_PLANAR_FORWARD_REFLECTIONS"), IsUsingPlanarForwardReflections());
-	OutEnvironment.SetDefine(TEXT("MATERIAL_NONMETAL"), IsNonmetal());
-	OutEnvironment.SetDefine(TEXT("MATERIAL_USE_LM_DIRECTIONALITY"), UseLmDirectionality());
-	OutEnvironment.SetDefine(TEXT("MATERIAL_SSR"), ShouldDoSSR() && IsTranslucentBlendMode(GetBlendMode()));
-	OutEnvironment.SetDefine(TEXT("MATERIAL_CONTACT_SHADOWS"), ShouldDoContactShadows() && IsTranslucentBlendMode(GetBlendMode()));
-	OutEnvironment.SetDefine(TEXT("MATERIAL_DITHER_OPACITY_MASK"), IsDitherMasked());
-	OutEnvironment.SetDefine(TEXT("MATERIAL_NORMAL_CURVATURE_TO_ROUGHNESS"), UseNormalCurvatureToRoughness() ? TEXT("1") : TEXT("0"));
-	OutEnvironment.SetDefine(TEXT("MATERIAL_ALLOW_NEGATIVE_EMISSIVECOLOR"), AllowNegativeEmissiveColor());
-	OutEnvironment.SetDefine(TEXT("MATERIAL_OUTPUT_OPACITY_AS_ALPHA"), GetBlendableOutputAlpha());
-	OutEnvironment.SetDefine(TEXT("TRANSLUCENT_SHADOW_WITH_MASKED_OPACITY"), GetCastDynamicShadowAsMasked());
-	OutEnvironment.SetDefine(TEXT("TRANSLUCENT_WRITING_VELOCITY"), IsTranslucencyWritingVelocity());
-	OutEnvironment.SetDefine(TEXT("TRANSLUCENT_WRITING_FRONT_LAYER_TRANSPARENCY"), IsTranslucencyWritingFrontLayerTransparency());
-	OutEnvironment.SetDefine(TEXT("MATERIAL_USE_ALPHA_TO_COVERAGE"), IsUsingAlphaToCoverage());
-	OutEnvironment.SetDefine(TEXT("MOBILE_HIGH_QUALITY_BRDF"), IsMobileHighQualityBRDFEnabled());
+	SET_SHADER_DEFINE(OutEnvironment, USE_DITHERED_LOD_TRANSITION_FROM_MATERIAL, IsDitheredLODTransition());
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_TWOSIDED, IsTwoSided());
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_ISTHINSURFACE, IsThinSurface());
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_TANGENTSPACENORMAL, IsTangentSpaceNormal());
+	SET_SHADER_DEFINE(OutEnvironment, GENERATE_SPHERICAL_PARTICLE_NORMALS,ShouldGenerateSphericalParticleNormals());
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_USES_SCENE_COLOR_COPY, RequiresSceneColorCopy_GameThread());
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_USE_PREINTEGRATED_GF, IsUsingPreintegratedGFForSimpleIBL());
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_HQ_FORWARD_REFLECTION_CAPTURES, IsUsingHQForwardReflections());
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_FORWARD_BLENDS_SKYLIGHT_CUBEMAPS, GetForwardBlendsSkyLightCubemaps());
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_PLANAR_FORWARD_REFLECTIONS, IsUsingPlanarForwardReflections());
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_NONMETAL, IsNonmetal());
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_USE_LM_DIRECTIONALITY, UseLmDirectionality());
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_SSR, ShouldDoSSR() && IsTranslucentBlendMode(GetBlendMode()));
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_CONTACT_SHADOWS, ShouldDoContactShadows() && IsTranslucentBlendMode(GetBlendMode()));
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_DITHER_OPACITY_MASK, IsDitherMasked());
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_NORMAL_CURVATURE_TO_ROUGHNESS, UseNormalCurvatureToRoughness() ? 1 : 0);
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_ALLOW_NEGATIVE_EMISSIVECOLOR, AllowNegativeEmissiveColor());
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_OUTPUT_OPACITY_AS_ALPHA, GetBlendableOutputAlpha());
+	SET_SHADER_DEFINE(OutEnvironment, TRANSLUCENT_SHADOW_WITH_MASKED_OPACITY, GetCastDynamicShadowAsMasked());
+	SET_SHADER_DEFINE(OutEnvironment, TRANSLUCENT_WRITING_VELOCITY, IsTranslucencyWritingVelocity());
+	SET_SHADER_DEFINE(OutEnvironment, TRANSLUCENT_WRITING_FRONT_LAYER_TRANSPARENCY, IsTranslucencyWritingFrontLayerTransparency());
+	SET_SHADER_DEFINE(OutEnvironment, MATERIAL_USE_ALPHA_TO_COVERAGE, IsUsingAlphaToCoverage());
+	SET_SHADER_DEFINE(OutEnvironment, MOBILE_HIGH_QUALITY_BRDF, IsMobileHighQualityBRDFEnabled());
 
 	bool bFullPrecisionInMaterial = false;
 	bool bFullPrecisionInPS = false;
@@ -2553,50 +2553,50 @@ void FMaterial::SetupMaterialEnvironment(
 
 	if (bFullPrecisionInMaterial)
 	{
-		OutEnvironment.SetDefine(TEXT("FORCE_MATERIAL_FLOAT_FULL_PRECISION"), TEXT("1"));
+		SET_SHADER_DEFINE(OutEnvironment, FORCE_MATERIAL_FLOAT_FULL_PRECISION, 1);
 	}
 
 	OutEnvironment.FullPrecisionInPS |= bFullPrecisionInPS;
 
 	switch(GetMaterialDomain())
 	{
-		case MD_Surface:				OutEnvironment.SetDefine(TEXT("MATERIAL_DOMAIN_SURFACE"),			TEXT("1")); break;
-		case MD_DeferredDecal:			OutEnvironment.SetDefine(TEXT("MATERIAL_DOMAIN_DEFERREDDECAL"),		TEXT("1")); break;
-		case MD_LightFunction:			OutEnvironment.SetDefine(TEXT("MATERIAL_DOMAIN_LIGHTFUNCTION"),		TEXT("1")); break;
-		case MD_Volume:					OutEnvironment.SetDefine(TEXT("MATERIAL_DOMAIN_VOLUME"),			TEXT("1")); break;
-		case MD_PostProcess:			OutEnvironment.SetDefine(TEXT("MATERIAL_DOMAIN_POSTPROCESS"),		TEXT("1")); break;
-		case MD_UI:						OutEnvironment.SetDefine(TEXT("MATERIAL_DOMAIN_UI"),				TEXT("1")); break;
+		case MD_Surface:				SET_SHADER_DEFINE(OutEnvironment, MATERIAL_DOMAIN_SURFACE,			1); break;
+		case MD_DeferredDecal:			SET_SHADER_DEFINE(OutEnvironment, MATERIAL_DOMAIN_DEFERREDDECAL,	1); break;
+		case MD_LightFunction:			SET_SHADER_DEFINE(OutEnvironment, MATERIAL_DOMAIN_LIGHTFUNCTION,	1); break;
+		case MD_Volume:					SET_SHADER_DEFINE(OutEnvironment, MATERIAL_DOMAIN_VOLUME,			1); break;
+		case MD_PostProcess:			SET_SHADER_DEFINE(OutEnvironment, MATERIAL_DOMAIN_POSTPROCESS,		1); break;
+		case MD_UI:						SET_SHADER_DEFINE(OutEnvironment, MATERIAL_DOMAIN_UI,				1); break;
 		default:
 			UE_LOG(LogMaterial, Warning, TEXT("Unknown material domain: %u  Setting to MD_Surface"),(int32)GetMaterialDomain());
-			OutEnvironment.SetDefine(TEXT("MATERIAL_DOMAIN_SURFACE"),TEXT("1"));
+			SET_SHADER_DEFINE(OutEnvironment, MATERIAL_DOMAIN_SURFACE, 1);
 	};
 
 	if (IsTranslucentBlendMode(GetBlendMode()))
 	{
 		switch(GetTranslucencyLightingMode())
 		{
-		case TLM_VolumetricNonDirectional: OutEnvironment.SetDefine(TEXT("TRANSLUCENCY_LIGHTING_VOLUMETRIC_NONDIRECTIONAL"),TEXT("1")); break;
-		case TLM_VolumetricDirectional: OutEnvironment.SetDefine(TEXT("TRANSLUCENCY_LIGHTING_VOLUMETRIC_DIRECTIONAL"),TEXT("1")); break;
-		case TLM_VolumetricPerVertexNonDirectional: OutEnvironment.SetDefine(TEXT("TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_NONDIRECTIONAL"),TEXT("1")); break;
-		case TLM_VolumetricPerVertexDirectional: OutEnvironment.SetDefine(TEXT("TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_DIRECTIONAL"),TEXT("1")); break;
-		case TLM_Surface: OutEnvironment.SetDefine(TEXT("TRANSLUCENCY_LIGHTING_SURFACE_LIGHTINGVOLUME"),TEXT("1")); break;
-		case TLM_SurfacePerPixelLighting: OutEnvironment.SetDefine(TEXT("TRANSLUCENCY_LIGHTING_SURFACE_FORWARDSHADING"),TEXT("1")); break;
+		case TLM_VolumetricNonDirectional: SET_SHADER_DEFINE(OutEnvironment, TRANSLUCENCY_LIGHTING_VOLUMETRIC_NONDIRECTIONAL, 1); break;
+		case TLM_VolumetricDirectional: SET_SHADER_DEFINE(OutEnvironment, TRANSLUCENCY_LIGHTING_VOLUMETRIC_DIRECTIONAL, 1); break;
+		case TLM_VolumetricPerVertexNonDirectional: SET_SHADER_DEFINE(OutEnvironment, TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_NONDIRECTIONAL, 1); break;
+		case TLM_VolumetricPerVertexDirectional: SET_SHADER_DEFINE(OutEnvironment, TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_DIRECTIONAL, 1); break;
+		case TLM_Surface: SET_SHADER_DEFINE(OutEnvironment, TRANSLUCENCY_LIGHTING_SURFACE_LIGHTINGVOLUME, 1); break;
+		case TLM_SurfacePerPixelLighting: SET_SHADER_DEFINE(OutEnvironment, TRANSLUCENCY_LIGHTING_SURFACE_FORWARDSHADING, 1); break;
 
 		default: 
 			UE_LOG(LogMaterial, Warning, TEXT("Unknown lighting mode: %u"),(int32)GetTranslucencyLightingMode());
-			OutEnvironment.SetDefine(TEXT("TRANSLUCENCY_LIGHTING_VOLUMETRIC_NONDIRECTIONAL"),TEXT("1")); break;
+			SET_SHADER_DEFINE(OutEnvironment, TRANSLUCENCY_LIGHTING_VOLUMETRIC_NONDIRECTIONAL, 1); break;
 		};
 	}
 
 	if( IsUsedWithEditorCompositing() )
 	{
-		OutEnvironment.SetDefine(TEXT("EDITOR_PRIMITIVE_MATERIAL"),TEXT("1"));
+		SET_SHADER_DEFINE(OutEnvironment, EDITOR_PRIMITIVE_MATERIAL, 1);
 	}
 
 	if (IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5))
 	{	
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.StencilForLODDither"));
-		OutEnvironment.SetDefine(TEXT("USE_STENCIL_LOD_DITHER_DEFAULT"), CVar->GetValueOnAnyThread() != 0 ? 1 : 0);
+		SET_SHADER_DEFINE(OutEnvironment, USE_STENCIL_LOD_DITHER_DEFAULT, CVar->GetValueOnAnyThread() != 0 ? 1 : 0);
 	}
 
 	if (GetShadingRate() != MSR_1x1)
@@ -2607,11 +2607,11 @@ void FMaterial::SetupMaterialEnvironment(
 	{
 		switch (GetMaterialDomain())
 		{
-			case MD_Surface:		OutEnvironment.SetDefine(TEXT("MATERIALDOMAIN_SURFACE"), 1u); break;
-			case MD_DeferredDecal:	OutEnvironment.SetDefine(TEXT("MATERIALDOMAIN_DEFERREDDECAL"), 1u); break;
-			case MD_LightFunction:	OutEnvironment.SetDefine(TEXT("MATERIALDOMAIN_LIGHTFUNCTION"), 1u); break;
-			case MD_PostProcess:	OutEnvironment.SetDefine(TEXT("MATERIALDOMAIN_POSTPROCESS"), 1u); break;
-			case MD_UI:				OutEnvironment.SetDefine(TEXT("MATERIALDOMAIN_UI"), 1u); break;
+			case MD_Surface:		SET_SHADER_DEFINE(OutEnvironment, MATERIALDOMAIN_SURFACE, 1); break;
+			case MD_DeferredDecal:	SET_SHADER_DEFINE(OutEnvironment, MATERIALDOMAIN_DEFERREDDECAL, 1); break;
+			case MD_LightFunction:	SET_SHADER_DEFINE(OutEnvironment, MATERIALDOMAIN_LIGHTFUNCTION, 1); break;
+			case MD_PostProcess:	SET_SHADER_DEFINE(OutEnvironment, MATERIALDOMAIN_POSTPROCESS, 1); break;
+			case MD_UI:				SET_SHADER_DEFINE(OutEnvironment, MATERIALDOMAIN_UI, 1); break;
 		}
 	}
 }

@@ -56,6 +56,11 @@ namespace CrossCompiler
 		ConvertByteArrayToAnsiString(TCHAR_TO_ANSI(*InString), InString.Len(), OutString);
 	}
 
+	static void ConvertFStringViewToAnsiString(const FStringView& InString, TArray<ANSICHAR>& OutString)
+	{
+		ConvertByteArrayToAnsiString(TCHAR_TO_ANSI(InString.GetData()), InString.Len(), OutString);
+	}
+
 	// Copies the NULL-terminated string 'InString' to 'OutString'. Also copies the '\0' character at the end.
 	static void CopyAnsiString(const ANSICHAR* InString, TArray<ANSICHAR>& OutString)
 	{
@@ -241,14 +246,14 @@ namespace CrossCompiler
 	}
 
 	// Converts a map of string pairs to a C-Style macro defines array
-	static void ConvertStringMapToMacroDefines(const TMap<FString,FString>& InPairs, TArray<TPair<TArray<ANSICHAR>, TArray<ANSICHAR>>>& OutPairs, TArray<ShaderConductor::MacroDefine>& OutPairRefs)
+	static void ConvertDefineMapToMacroDefines(const FShaderCompilerDefinitions& Definitions, TArray<TPair<TArray<ANSICHAR>, TArray<ANSICHAR>>>& OutPairs, TArray<ShaderConductor::MacroDefine>& OutPairRefs)
 	{
 		// Convert map into an array container
 		TArray<ANSICHAR> Name, Value;
-		for (const TPair<FString, FString>& Iter : InPairs)
+		for (FShaderCompilerDefinitions::FConstIterator Iter(Definitions); Iter; ++Iter)
 		{
-			ConvertFStringToAnsiString(Iter.Key, Name);
-			ConvertFStringToAnsiString(Iter.Value, Value);
+			ConvertFStringViewToAnsiString(FStringView(Iter.Key()), Name);
+			ConvertFStringViewToAnsiString(FStringView(Iter.Value()), Value);
 			OutPairs.Emplace(MoveTemp(Name), MoveTemp(Value));
 		}
 
@@ -285,7 +290,7 @@ namespace CrossCompiler
 		}
 
 		// Convert flags map into an array container
-		ConvertStringMapToMacroDefines(InTarget.CompileFlags.GetDefinitionMap(), Intermediates.Flags, Intermediates.FlagRefs);
+		ConvertDefineMapToMacroDefines(InTarget.CompileFlags, Intermediates.Flags, Intermediates.FlagRefs);
 
 		OutTargetDesc.options = Intermediates.FlagRefs.GetData();
 		OutTargetDesc.numOptions = static_cast<uint32>(Intermediates.FlagRefs.Num());
@@ -495,7 +500,7 @@ namespace CrossCompiler
 		// Convert macro definitions map into an array container
 		if (Definitions != nullptr)
 		{
-			ConvertStringMapToMacroDefines(Definitions->GetDefinitionMap(), Intermediates->Defines, Intermediates->DefineRefs);
+			ConvertDefineMapToMacroDefines(*Definitions, Intermediates->Defines, Intermediates->DefineRefs);
 		}
 
 		if (ExtraDxcArgs && ExtraDxcArgs->Num() > 0)
@@ -519,7 +524,7 @@ namespace CrossCompiler
 		// Convert macro definitions map into an array container
 		if (Definitions != nullptr)
 		{
-			ConvertStringMapToMacroDefines(Definitions->GetDefinitionMap(), Intermediates->Defines, Intermediates->DefineRefs);
+			ConvertDefineMapToMacroDefines(*Definitions, Intermediates->Defines, Intermediates->DefineRefs);
 		}
 
 		if (ExtraDxcArgs && ExtraDxcArgs->Num() > 0)

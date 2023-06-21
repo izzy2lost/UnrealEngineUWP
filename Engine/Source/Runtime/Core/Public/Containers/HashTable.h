@@ -216,6 +216,8 @@ public:
 	// Average # of compares per search
 	CORE_API float	AverageSearch() const;
 
+	FHashTable&		operator=(const FHashTable& Other);
+
 protected:
 	// Avoids allocating hash until first add
 	CORE_API static uint32	EmptyHash[1];
@@ -264,6 +266,24 @@ FORCEINLINE FHashTable::FHashTable( const FHashTable& Other )
 		FMemory::Memcpy( Hash, Other.Hash, HashSize * 4 );
 		FMemory::Memcpy( NextIndex, Other.NextIndex, IndexSize * 4 );
 	}
+}
+
+FORCEINLINE FHashTable& FHashTable::operator=(const FHashTable& Other)
+{
+	Free();
+	HashSize = Other.HashSize;
+	HashMask = Other.HashMask;
+	IndexSize = Other.IndexSize;
+
+	if (IndexSize)
+	{
+		Hash = new uint32[HashSize];
+		NextIndex = new uint32[IndexSize];
+
+		FMemory::Memcpy(Hash, Other.Hash, HashSize * 4);
+		FMemory::Memcpy(NextIndex, Other.NextIndex, IndexSize * 4);
+	}
+	return *this;
 }
 
 FORCEINLINE FHashTable::~FHashTable()

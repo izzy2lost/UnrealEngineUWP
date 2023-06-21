@@ -24,22 +24,25 @@ namespace
 }
 
 static void AddStbDefine(stb_arena* MacroArena, macro_definition**& StbDefines, const TCHAR* Name, const TCHAR* Value);
-static void AddStbDefines(stb_arena* MacroArena, macro_definition**& StbDefines, TMap<FString, FString> DefinitionsMap);
+static void AddStbDefines(stb_arena* MacroArena, macro_definition**& StbDefines, const FShaderCompilerDefinitions& Defines);
 
 class FShaderPreprocessorUtilities
 {
 public:
 	static void DumpShaderDefinesAsCommentedCode(const FShaderCompilerEnvironment& Environment, FString* OutDefines)
 	{
-		const TMap<FString, FString>& Definitions = Environment.Definitions.GetDefinitionMap();
-		TArray<FString> Keys;
-		Definitions.GetKeys(/* out */ Keys);
-		Keys.Sort();
+		TArray<FString> DefinesLines;
+		DefinesLines.Reserve(Environment.Definitions.Num());
+		for (FShaderCompilerDefinitions::FConstIterator DefineIt(Environment.Definitions); DefineIt; ++DefineIt)
+		{
+			DefinesLines.Add(FString::Printf(TEXT("// #define %s %s\n"), DefineIt.Key(), DefineIt.Value()));
+		}
+		DefinesLines.Sort();
 
 		FString Defines;
-		for (const FString& Key : Keys)
+		for (const FString& DefineLine : DefinesLines)
 		{
-			Defines += FString::Printf(TEXT("// #define %s %s\n"), *Key, *Definitions[Key]);
+			Defines += DefineLine;
 		}
 
 		*OutDefines += MakeInjectedShaderCodeBlock(TEXT("DumpShaderDefinesAsCommentedCode"), Defines);
@@ -47,8 +50,8 @@ public:
 
 	static void PopulateDefines(const FShaderCompilerEnvironment& Environment, const FShaderCompilerDefinitions& AdditionalDefines, stb_arena* MacroArena, macro_definition**& OutDefines)
 	{
-		AddStbDefines(MacroArena, OutDefines, Environment.Definitions.GetDefinitionMap());
-		AddStbDefines(MacroArena, OutDefines, AdditionalDefines.GetDefinitionMap());
+		AddStbDefines(MacroArena, OutDefines, Environment.Definitions);
+		AddStbDefines(MacroArena, OutDefines, AdditionalDefines);
 	}
 };
 
@@ -299,11 +302,11 @@ static void AddStbDefine(stb_arena* MacroArena, macro_definition**& StbDefines, 
 	arrput(StbDefines, pp_define(MacroArena, (ANSICHAR*)ConvertedDefine.Get()));
 }
 
-static void AddStbDefines(stb_arena* MacroArena, macro_definition**& StbDefines, TMap<FString, FString> DefinitionsMap)
+static void AddStbDefines(stb_arena* MacroArena, macro_definition**& StbDefines, const FShaderCompilerDefinitions& Defines)
 {
-	for (TMap<FString, FString>::TConstIterator It(DefinitionsMap); It; ++It)
+	for (FShaderCompilerDefinitions::FConstIterator It(Defines); It; ++It)
 	{
-		AddStbDefine(MacroArena, StbDefines, *It.Key(), *It.Value());
+		AddStbDefine(MacroArena, StbDefines, It.Key(), It.Value());
 	}
 }
 

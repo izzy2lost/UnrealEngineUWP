@@ -69,6 +69,14 @@ TMap<FHashedName, FShaderParametersMetadata*>& FShaderParametersMetadata::GetNam
 	return NameStructMap;
 }
 
+#if WITH_EDITOR
+TMap<FString, FShaderParametersMetadata*>& FShaderParametersMetadata::GetStringStructMap()
+{
+	static TMap<FString, FShaderParametersMetadata*> StringStructMap;
+	return StringStructMap;
+}
+#endif  // WITH_EDITOR
+
 void FShaderParametersMetadata::FMember::GenerateShaderParameterType(
 	FString& Result,
 	bool bSupportsPrecisionModifier,
@@ -459,6 +467,10 @@ FShaderParametersMetadata::~FShaderParametersMetadata()
 
 void FShaderParametersMetadata::InitializeAllUniformBufferStructs()
 {
+#if WITH_EDITOR
+	TMap<FString, FShaderParametersMetadata*>& StringStructMap = FShaderParametersMetadata::GetStringStructMap();
+#endif // WITH_EDITOR
+
 	for (TLinkedList<FShaderParametersMetadata*>::TIterator StructIt(FShaderParametersMetadata::GetStructList()); StructIt; StructIt.Next())
 	{
 #if WITH_EDITOR
@@ -466,6 +478,8 @@ void FShaderParametersMetadata::InitializeAllUniformBufferStructs()
 		{
 			StructIt->InitializeUniformBufferDeclaration();
 		}
+
+		StringStructMap.Add(StructIt->GetShaderVariableName(), *StructIt);
 #endif // WITH_EDITOR
 
 		if (!StructIt->IsLayoutInitialized())

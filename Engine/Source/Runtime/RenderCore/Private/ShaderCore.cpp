@@ -116,6 +116,322 @@ DEFINE_STAT(STAT_Shaders_ShaderPreloadMemory);
 DEFINE_STAT(STAT_Shaders_NumShadersRegistered);
 DEFINE_STAT(STAT_Shaders_NumShadersDuplicated);
 
+/**
+ * Singleton initial set of defines added when constructing a defines structure with bIncludeInitialDefines==true.  The
+ * advantage of using preset defines is that the index of the initial define can be cached in the FShaderCompilerDefineNameCache
+ * class, allowing direct lookup by index, bypassing the hash table.  This optimization is applied to system level defines used
+ * by every shader (ones referenced by FShaderCompileUtilities::ApplyDerivedDefines).
+ */
+FShaderCompilerDefinitions* FShaderCompilerDefinitions::GInitialDefines = nullptr;
+
+FShaderCompilerDefinitions::FShaderCompilerDefinitions(bool bIncludeInitialDefines)
+	: InitialDefineCount(0), ValueCount(0)
+{
+	if (bIncludeInitialDefines && GInitialDefines)
+	{
+		*this = *GInitialDefines;
+	}
+	else
+	{
+		Pairs.Reserve(16);
+		ValueTypes.Reserve(16);
+	}
+}
+
+void FShaderCompilerDefinitions::InitializeInitialDefines(const FShaderCompilerDefinitions& InDefines)
+{
+	check(GInitialDefines == nullptr);
+	GInitialDefines = new FShaderCompilerDefinitions;
+	*GInitialDefines = InDefines;
+	GInitialDefines->InitialDefineCount = InDefines.Pairs.Num();
+}
+
+int32 FShaderCompilerDefinitions::FindMapIndex(FName Key, uint32 KeyHash) const
+{
+	for (uint32 KeyIndex = KeyHashTable.First(KeyHash); KeyHashTable.IsValid(KeyIndex); KeyIndex = KeyHashTable.Next(KeyIndex))
+	{
+		if (Pairs[KeyIndex].Key == Key)
+		{
+			return KeyIndex;
+		}
+	}
+	return INDEX_NONE;
+}
+
+int32 FShaderCompilerDefinitions::FindOrAddMapIndex(FName Name)
+{
+	uint32 KeyHash = GetTypeHash(Name);
+	int32 KeyIndex = FindMapIndex(Name, KeyHash);
+	if (KeyIndex == INDEX_NONE)
+	{
+		KeyIndex = Pairs.Add(FPairType({ Name, {0} }));
+		ValueTypes.Add(EShaderCompilerDefineVariant::None);
+		KeyHashTable.Add(KeyHash, KeyIndex);
+	}
+	return KeyIndex;
+}
+
+int32 FShaderCompilerDefinitions::FindOrAddMapIndex(FShaderCompilerDefineNameCache& NameCache)
+{
+	// Check if this is an initial define, meaning it has a fixed map index.  If Name.MapIndex is INDEX_NONE
+	// (MapIndex not initialized yet) or InitialDefineCount is zero (FShaderCompilerDefinitions constructed without
+	// initial state), this condition will be false, and continue to the rest of the function.
+	if ((uint32)NameCache.MapIndex < InitialDefineCount)
+	{
+		return NameCache.MapIndex;
+	}
+
+	uint32 KeyHash = GetTypeHash(NameCache.Name);
+	int32 KeyIndex = FindMapIndex(NameCache.Name, KeyHash);
+	if (KeyIndex == INDEX_NONE)
+	{
+		KeyIndex = Pairs.Add(FPairType({ NameCache.Name, {0} }));
+		ValueTypes.Add(EShaderCompilerDefineVariant::None);
+		KeyHashTable.Add(KeyHash, KeyIndex);
+	}
+
+	// Initialize MapIndex if necessary.
+	if (InitialDefineCount && NameCache.MapIndex == INDEX_NONE)
+	{
+		NameCache.MapIndex = KeyIndex;
+	}
+	return KeyIndex;
+}
+
+void FShaderCompilerDefinitions::InternalSetValue(int32 Index, const TCHAR* Value)
+{
+	if (Value[0] >= '0' && Value[0] <= '9' && Value[1] == 0)
+	{
+		// If the string is a single digit integer, treat it as an integer.  Most usages of string define values are cases where
+		// clients inadvertently pass bools as text, like TEXT("0") or TEXT("1"), and we can trivially optimize that.
+		SetValueType(Index, EShaderCompilerDefineVariant::Integer);
+		Pairs[Index].ValueInteger = Value[0] - '0';
+	}
+	else if (ValueTypes[Index] == EShaderCompilerDefineVariant::String)
+	{
+		// Value was already a string variant, overwrite it with new value, rather than allocating new string
+		StringValues[Pairs[Index].ValueInteger] = Value;
+	}
+	else
+	{
+		// Set to string variant type, allocate and fill in the string
+		SetValueType(Index, EShaderCompilerDefineVariant::String);
+		Pairs[Index].ValueInteger = StringValues.Add(Value);
+	}
+}
+
+int32 FShaderCompilerDefinitions::GetIntegerValue(FName Name) const
+{
+	int32 Result = 0;
+	int32 KeyIndex = FindMapIndex(Name, GetTypeHash(Name));
+	if (KeyIndex != INDEX_NONE)
+	{
+		// For None, Integer, or Unsigned, return ValueInteger (None will have a default of zero)
+		if (ValueTypes[KeyIndex] <= EShaderCompilerDefineVariant::Unsigned)
+		{
+			Result = Pairs[KeyIndex].ValueInteger;
+		}
+		else if (ValueTypes[KeyIndex] == EShaderCompilerDefineVariant::String)
+		{
+			Result = FCString::Atoi(*StringValues[Pairs[KeyIndex].ValueInteger]);
+		}
+		else
+		{
+			// EShaderCompilerDefineVariant::Float
+			Result = (int32)Pairs[KeyIndex].ValueFloat;
+		}
+	}
+	return Result;
+}
+
+int32 FShaderCompilerDefinitions::GetIntegerValue(FShaderCompilerDefineNameCache& NameCache, int32 ResultIfNotFound) const
+{
+	int32 Result = ResultIfNotFound;
+	int32 KeyIndex;
+
+	// Check if this is an initial define, meaning it has a fixed map index.  If Name.MapIndex is INDEX_NONE
+	// (MapIndex not initialized yet) or InitialDefineCount is zero (FShaderCompilerDefinitions constructed without
+	// initial state), this condition will be false, and continue to the rest of the function.
+	if ((uint32)NameCache.MapIndex < InitialDefineCount)
+	{
+		KeyIndex = NameCache.MapIndex;
+	}
+	else
+	{
+		KeyIndex = FindMapIndex(NameCache.Name, GetTypeHash(NameCache.Name));
+	}
+
+	if (KeyIndex != INDEX_NONE)
+	{
+		// Initialize MapIndex if necessary.  If the define is not an initial define, its index will be greater than
+		// or equal to InitialDefineCount, indicating that it doesn't have a fixed map index.
+		if (InitialDefineCount && NameCache.MapIndex == INDEX_NONE)
+		{
+			NameCache.MapIndex = KeyIndex;
+		}
+
+		EShaderCompilerDefineVariant ValueType = ValueTypes[KeyIndex];
+		if (ValueType == EShaderCompilerDefineVariant::Integer ||
+			ValueType == EShaderCompilerDefineVariant::Unsigned)
+		{
+			Result = Pairs[KeyIndex].ValueInteger;
+		}
+		else if (ValueType == EShaderCompilerDefineVariant::String)
+		{
+			Result = FCString::Atoi(*StringValues[Pairs[KeyIndex].ValueInteger]);
+		}
+		else if (ValueType == EShaderCompilerDefineVariant::Float)
+		{
+			// EShaderCompilerDefineVariant::Float
+			Result = (int32)Pairs[KeyIndex].ValueFloat;
+		}
+	}
+	return Result;
+}
+
+RENDERCORE_API void FShaderCompilerDefinitions::Empty()
+{
+	if (ValueCount)
+	{
+		KeyHashTable.Free();
+		Pairs.Empty();
+		ValueTypes.Empty();
+		StringValues.Empty();
+		ValueCount = 0;
+
+		// Re-copy initial defines if originally constructed with initial defines
+		if (InitialDefineCount)
+		{
+			*this = *GInitialDefines;
+		}
+	}
+}
+
+void FShaderCompilerDefinitions::Merge(const FShaderCompilerDefinitions& Other)
+{
+	for (FConstIterator OtherIt(Other); OtherIt; ++OtherIt)
+	{
+		int32 OtherIndex = OtherIt.GetIndex();
+		switch (Other.ValueTypes[OtherIndex])
+		{
+		case EShaderCompilerDefineVariant::Integer:
+			SetDefine(OtherIt.Key(), Other.Pairs[OtherIndex].ValueInteger);
+			break;
+		case EShaderCompilerDefineVariant::Unsigned:
+			SetDefine(OtherIt.Key(), Other.Pairs[OtherIndex].ValueUnsigned);
+			break;
+		case EShaderCompilerDefineVariant::Float:
+			SetDefine(OtherIt.Key(), Other.Pairs[OtherIndex].ValueFloat);
+			break;
+		case EShaderCompilerDefineVariant::String:
+			SetDefine(OtherIt.Key(), OtherIt.Value());
+			break;
+		}
+	}
+}
+
+RENDERCORE_API FShaderCompilerDefinitions& FShaderCompilerDefinitions::operator=(const FShaderCompilerDefinitions& Other)
+{
+	KeyHashTable = Other.KeyHashTable;
+	Pairs = Other.Pairs;
+	ValueTypes = Other.ValueTypes;
+	StringValues = Other.StringValues;
+	InitialDefineCount = Other.InitialDefineCount;
+	ValueCount = Other.ValueCount;
+	return *this;
+}
+
+FArchive& operator<<(FArchive& Ar, FShaderCompilerDefinitions& Defs)
+{
+	if (Ar.IsSaving())
+	{
+		// Only write set values in the map
+		Ar << Defs.ValueCount;
+		for (FShaderCompilerDefinitions::FConstIterator DefineIt(Defs); DefineIt; ++DefineIt)
+		{
+			int32 Index = DefineIt.GetIndex();
+			Ar << Defs.Pairs[Index];
+			Ar << Defs.ValueTypes[Index];
+		}
+		Ar << Defs.StringValues;
+	}
+	else if (Ar.IsLoading())
+	{
+		Ar << Defs.ValueCount;
+		for (uint32 ValueIndex = 0; ValueIndex < Defs.ValueCount; ValueIndex++)
+		{
+			FShaderCompilerDefinitions::FPairType Pair;
+			Ar << Pair;
+			int32 Index = Defs.FindOrAddMapIndex(Pair.Key);
+			Defs.Pairs[Index] = Pair;
+			Ar << Defs.ValueTypes[Index];
+		}
+		Ar << Defs.StringValues;
+	}
+	return Ar;
+}
+
+RENDERCORE_API FShaderCompilerDefinitions::FConstIterator::FConstIterator(const FShaderCompilerDefinitions& InDefines)
+	: Defines(InDefines), Index(-1)
+{
+	// NULL terminate these strings to start
+	KeyStringBuffer[0] = 0;
+	ValueStringBuffer[0] = 0;
+
+	// Index set to -1 above, advance to first valid element
+	++(*this);
+}
+
+RENDERCORE_API const TCHAR* FShaderCompilerDefinitions::FConstIterator::Value()
+{
+	const TCHAR* Result;
+
+	if (Defines.ValueTypes[Index] == EShaderCompilerDefineVariant::Integer)
+	{
+		int32 ValueInteger = Defines.Pairs[Index].ValueInteger;
+		if (ValueInteger >= 0 && ValueInteger <= 9)
+		{
+			ValueStringBuffer[0] = (TCHAR)ValueInteger + '0';
+			ValueStringBuffer[1] = 0;
+		}
+		else
+		{
+			FCString::Sprintf(ValueStringBuffer, TEXT("%d"), ValueInteger);
+		}
+		Result = ValueStringBuffer;
+	}
+	else if (Defines.ValueTypes[Index] == EShaderCompilerDefineVariant::Unsigned)
+	{
+		uint32 ValueUnsigned = Defines.Pairs[Index].ValueUnsigned;
+		if (ValueUnsigned >= 0 && ValueUnsigned <= 9)
+		{
+			ValueStringBuffer[0] = (TCHAR)ValueUnsigned + '0';
+			ValueStringBuffer[1] = 0;
+		}
+		else
+		{
+			FCString::Sprintf(ValueStringBuffer, TEXT("%u"), ValueUnsigned);
+		}
+		Result = ValueStringBuffer;
+	}
+	else if (Defines.ValueTypes[Index] == EShaderCompilerDefineVariant::Float)
+	{
+		// Make sure the printed value perfectly matches the given number
+		FCString::Sprintf(ValueStringBuffer, TEXT("%#.9gf"), Defines.Pairs[Index].ValueFloat);
+		Result = ValueStringBuffer;
+	}
+	else
+	{
+		check(Defines.ValueTypes[Index] == EShaderCompilerDefineVariant::String);
+		Result = *Defines.StringValues[Defines.Pairs[Index].ValueInteger];
+	}
+
+	return Result;
+}
+
+
+
+
 // Apply lock striping as we're mostly reader lock bound.
 constexpr int32 GSHADERFILECACHE_BUCKETS = 31; /* prime number for best distribution using modulo */
 
@@ -754,13 +1070,6 @@ void FShaderResourceTableMap::FixupOnLoad(const TMap<FString, FUniformBufferEntr
 			}
 		}
 	}
-}
-
-void FShaderCompilerDefinitions::SetFloatDefine(const TCHAR* Name, float Value)
-{
-	// Make sure the printed value perfectly matches the given number
-	FString Define = FString::Printf(TEXT("%#.9gf"), Value);
-	Definitions.Add(Name, MoveTemp(Define));
 }
 
 void FShaderCompilerOutput::GenerateOutputHash()
@@ -2109,6 +2418,11 @@ void BuildShaderFileToUniformBufferMap(TMap<FString, TArray<const TCHAR*> >& Sha
 				SearchKeyWithSpace(FString(ShaderVariable).ToUpper() + TEXT(" ."))
 			{}
 
+			bool operator<(const FShaderVariable& Other) const
+			{
+				return FCString::Strcmp(OriginalShaderVariable, Other.OriginalShaderVariable) < 0;
+			}
+
 			const TCHAR* OriginalShaderVariable;
 			FString SearchKey;
 			FString SearchKeyWithSpace;
@@ -2119,6 +2433,10 @@ void BuildShaderFileToUniformBufferMap(TMap<FString, TArray<const TCHAR*> >& Sha
 		{
 			SearchKeys.Add(FShaderVariable(StructIt->GetShaderVariableName()));
 		}
+
+		// Sort SearchKeys for determinism in the generated ShaderFileToUniformBufferVariables maps, to improve consistency for A/B testing.
+		// Order of items in FShaderParametersMetadata::GetStructList() is otherwise dependent on arbitrary startup constructor order.
+		SearchKeys.Sort();
 
 		TArray<UE::Tasks::TTask<void>> Tasks;
 		Tasks.Reserve(ShaderSourceFiles.Num());

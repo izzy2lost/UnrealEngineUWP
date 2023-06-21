@@ -14,12 +14,6 @@
 #include "HAL/PlatformFileManager.h"
 #include "RenderUtils.h"
 #include "SceneManagement.h"
-
-
-#if WITH_EDITOR
-#endif
-
-
 #include "ShaderMaterial.h"
 
 static TAutoConsoleVariable<int32> CVarShaderUseGBufferRefactor(
@@ -41,26 +35,19 @@ bool NeedsVelocityDepth(EShaderPlatform TargetPlatform)
 
 #if WITH_EDITOR
 
-int FShaderCompileUtilities::FetchCompileInt(const FShaderCompilerEnvironment& OutEnvironment, const char* SrcName)
-{
-	int32 Ret = 0;
-	if (OutEnvironment.Definitions.GetDefinitionMap().Contains(SrcName))
-	{
-		const FString* Str = OutEnvironment.Definitions.GetDefinitionMap().Find(SrcName);
+#define SET_COMPILE_BOOL_IF_TRUE(X) { if (DerivedDefines.X) { OutEnvironment.SetDefine(TEXT(#X), 1); } }
 
-		Ret = atoi((const char*)Str->GetCharArray().GetData());
-	}
+#define FETCH_COMPILE_BOOL(X) {																\
+	static FShaderCompilerDefineNameCache Cache_##X(TEXT(#X));								\
+	SrcDefines.X = Environment.GetIntegerValue(Cache_##X, SrcDefines.X) != 0 ? 1 : 0; }
 
-	return Ret;
-}
+#define FETCH_COMPILE_INT(X) {																\
+	static FShaderCompilerDefineNameCache Cache_##X(TEXT(#X));								\
+	SrcDefines.X = Environment.GetIntegerValue(Cache_##X, SrcDefines.X); }
 
 
-#define SET_COMPILE_BOOL_IF_TRUE(X) { if (DerivedDefines.X) { OutEnvironment.SetDefine(TEXT(#X),TEXT("1")); } }
-
-#define FETCH_COMPILE_BOOL(X) { if (Environment.Definitions.GetDefinitionMap().Contains(#X)) SrcDefines.X = FetchCompileInt(Environment,#X) != 0 ? 1 : 0; }
-#define FETCH_COMPILE_INT(X) { if (Environment.Definitions.GetDefinitionMap().Contains(#X)) SrcDefines.X = FetchCompileInt(Environment,#X); }
-
-void FShaderCompileUtilities::ApplyFetchEnvironment(FShaderGlobalDefines& SrcDefines, const FShaderCompilerEnvironment& Environment, const EShaderPlatform Platform)
+template<typename EnvironmentType>
+void ApplyFetchEnvironmentInternal(FShaderGlobalDefines& SrcDefines, const EnvironmentType& Environment)
 {
 	FETCH_COMPILE_BOOL(GBUFFER_HAS_VELOCITY);
 	FETCH_COMPILE_BOOL(GBUFFER_HAS_TANGENT);
@@ -85,15 +72,10 @@ void FShaderCompileUtilities::ApplyFetchEnvironment(FShaderGlobalDefines& SrcDef
 	FETCH_COMPILE_BOOL(PLATFORM_SUPPORTS_DISTANCE_FIELDS);
 	FETCH_COMPILE_BOOL(COMPILE_SHADERS_FOR_DEVELOPMENT_ALLOWED);
 	FETCH_COMPILE_BOOL(PLATFORM_ALLOW_SCENE_DATA_COMPRESSED_TRANSFORMS);
-
-	// note that we are doing an if so that if we call ApplyFetchEnvironment() twice, we get the logical OR of bSupportsDualBlending support
-	if (RHISupportsDualSourceBlending(Platform))
-	{
-		SrcDefines.bSupportsDualBlending = true;
-	}
 }
 
-void FShaderCompileUtilities::ApplyFetchEnvironment(FShaderLightmapPropertyDefines& SrcDefines, const FShaderCompilerEnvironment& Environment)
+template<typename EnvironmentType>
+void ApplyFetchEnvironmentInternal(FShaderLightmapPropertyDefines& SrcDefines, const EnvironmentType& Environment)
 {
 	FETCH_COMPILE_BOOL(LQ_TEXTURE_LIGHTMAP);
 	FETCH_COMPILE_BOOL(HQ_TEXTURE_LIGHTMAP);
@@ -120,7 +102,8 @@ void FShaderCompileUtilities::ApplyFetchEnvironment(FShaderLightmapPropertyDefin
 
 }
 
-void FShaderCompileUtilities::ApplyFetchEnvironment(FShaderMaterialPropertyDefines& SrcDefines, const FShaderCompilerEnvironment& Environment)
+template<typename EnvironmentType>
+void ApplyFetchEnvironmentInternal(FShaderMaterialPropertyDefines& SrcDefines, const EnvironmentType& Environment)
 {
 	FETCH_COMPILE_BOOL(MATERIAL_ENABLE_TRANSLUCENCY_FOGGING);
 	FETCH_COMPILE_BOOL(MATERIALBLENDING_ANY_TRANSLUCENT);
@@ -236,7 +219,8 @@ void FShaderCompileUtilities::ApplyFetchEnvironment(FShaderMaterialPropertyDefin
 	FETCH_COMPILE_INT(GBUFFER_LAYOUT);
 }
 
-void FShaderCompileUtilities::ApplyFetchEnvironment(FShaderCompilerDefines& SrcDefines, const FShaderCompilerEnvironment& Environment)
+template<typename EnvironmentType>
+void ApplyFetchEnvironmentInternal(FShaderCompilerDefines& SrcDefines, const EnvironmentType& Environment)
 {
 	FETCH_COMPILE_BOOL(COMPILER_GLSL_ES3_1);
 	FETCH_COMPILE_BOOL(ES3_1_PROFILE);
@@ -252,6 +236,71 @@ void FShaderCompileUtilities::ApplyFetchEnvironment(FShaderCompilerDefines& SrcD
 
 	FETCH_COMPILE_BOOL(PLATFORM_SUPPORTS_DEVELOPMENT_SHADERS);
 }
+
+
+void FShaderCompileUtilities::ApplyFetchEnvironment(FShaderGlobalDefines& SrcDefines, const FShaderCompilerEnvironment& Environment, const EShaderPlatform Platform)
+{
+	ApplyFetchEnvironmentInternal(SrcDefines, Environment);
+
+	// note that we are doing an if so that if we call ApplyFetchEnvironment() twice, we get the logical OR of bSupportsDualBlending support
+	if (RHISupportsDualSourceBlending(Platform))
+	{
+		SrcDefines.bSupportsDualBlending = true;
+	}
+}
+void FShaderCompileUtilities::ApplyFetchEnvironment(FShaderLightmapPropertyDefines& SrcDefines, const FShaderCompilerEnvironment& Environment)
+{
+	ApplyFetchEnvironmentInternal(SrcDefines, Environment);
+}
+void FShaderCompileUtilities::ApplyFetchEnvironment(FShaderMaterialPropertyDefines& SrcDefines, const FShaderCompilerEnvironment& Environment)
+{
+	ApplyFetchEnvironmentInternal(SrcDefines, Environment);
+}
+void FShaderCompileUtilities::ApplyFetchEnvironment(FShaderCompilerDefines& SrcDefines, const FShaderCompilerEnvironment& Environment)
+{
+	ApplyFetchEnvironmentInternal(SrcDefines, Environment);
+}
+
+/** Dummy "environment" used to gather names of defines used in the ApplyFetchEnvironmentInternal functions */
+struct FDefineNameGatherEnvironment
+{
+	mutable TArray<FName> Names;
+
+	FORCEINLINE int32 GetIntegerValue(FShaderCompilerDefineNameCache& Cache, int32 DefaultValue) const
+	{
+		Names.Add(Cache);
+		return 0;
+	}
+};
+
+/** Singleton to initialize initial defines at startup */
+struct FShaderInitialDefinesInitializer
+{
+	FShaderInitialDefinesInitializer()
+	{
+		FShaderMaterialPropertyDefines MaterialDefines = {};
+		FShaderLightmapPropertyDefines LightmapDefines = {};
+		FShaderGlobalDefines GlobalDefines = {};
+		FShaderCompilerDefines CompilerDefines = {};
+
+		FDefineNameGatherEnvironment GatherNames;
+
+		ApplyFetchEnvironmentInternal(GlobalDefines, GatherNames);
+		ApplyFetchEnvironmentInternal(MaterialDefines, GatherNames);
+		ApplyFetchEnvironmentInternal(LightmapDefines, GatherNames);
+		ApplyFetchEnvironmentInternal(CompilerDefines, GatherNames);
+
+		FShaderCompilerDefinitions InitialDefines;
+		for (FName DefineKey : GatherNames.Names)
+		{
+			// Add a key, leaving the value unset (EShaderCompilerDefineVariant::None)
+			InitialDefines.FindOrAddMapIndex(DefineKey);
+		}
+		FShaderCompilerDefinitions::InitializeInitialDefines(InitialDefines);
+	}
+};
+static FShaderInitialDefinesInitializer GInitialDefinesInitializer;
+
 
 // if we change the logic, increment this number to force a DDC key change
 static const int32 GBufferGeneratorVersion = 5;
@@ -2111,7 +2160,7 @@ void FShaderCompileUtilities::GenerateBrdfHeaders(const FName& ShaderFormat)
 
 EGBufferLayout FShaderCompileUtilities::FetchGBufferLayout(const FShaderCompilerEnvironment& Environment)
 {
-	const uint32 Layout = FetchCompileInt(Environment, "GBUFFER_LAYOUT");
+	const uint32 Layout = Environment.Definitions.GetIntegerValue(TEXT("GBUFFER_LAYOUT"));
 	if (Layout >= GBL_Num)
 	{
 		return GBL_Default;
@@ -2150,7 +2199,7 @@ FGBufferParams FShaderCompileUtilities::FetchGBufferParamsPipeline(EShaderPlatfo
 	return Ret;
 }
 
-#endif
+#endif  // WITH_EDITOR
 
 FGBufferParams FShaderCompileUtilities::FetchGBufferParamsRuntime(EShaderPlatform Platform, EGBufferLayout Layout)
 {

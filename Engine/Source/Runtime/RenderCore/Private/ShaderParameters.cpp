@@ -360,8 +360,14 @@ FString UE::ShaderParameters::CreateUniformBufferShaderDeclaration(const TCHAR* 
 	return CreateHLSLUniformBufferDeclaration(Name, UniformBufferStruct);
 }
 
-static FShaderParametersMetadata* FindShaderParametersMetadataWithVariableName(const TCHAR* InVariableName)
+static FShaderParametersMetadata* FindShaderParametersMetadataWithVariableName(uint32 InVariableNameHash, FStringView InVariableNameView)
 {
+#if WITH_EDITOR
+	TMap<FString, FShaderParametersMetadata*>& StringStructMap = FShaderParametersMetadata::GetStringStructMap();
+
+	FShaderParametersMetadata** FoundMetadata = StringStructMap.FindByHash(InVariableNameHash, InVariableNameView);
+	return FoundMetadata ? *FoundMetadata : nullptr;
+#else // WITH_EDITOR
 	for (FShaderParametersMetadata* Metadata : *FShaderParametersMetadata::GetStructList())
 	{
 		if (InVariableName == Metadata->GetShaderVariableName())
@@ -369,6 +375,7 @@ static FShaderParametersMetadata* FindShaderParametersMetadataWithVariableName(c
 			return Metadata;
 		}
 	}
+#endif
 	return nullptr;
 }
 
@@ -381,7 +388,10 @@ void CacheUniformBufferIncludes(TMap<const TCHAR*, FCachedUniformBufferDeclarati
 		FCachedUniformBufferDeclaration& BufferDeclaration = It.Value();
 		check(BufferDeclaration.Declaration.Get() == NULL);
 
-		if (const FShaderParametersMetadata* Metadata = FindShaderParametersMetadataWithVariableName(UniformBufferName))
+		FStringView UniformBufferNameView(UniformBufferName);
+		uint32 UniformBufferNameHash = GetTypeHash(UniformBufferNameView);
+
+		if (const FShaderParametersMetadata* Metadata = FindShaderParametersMetadataWithVariableName(UniformBufferNameHash, UniformBufferNameView))
 		{
 			FString* NewDeclaration = new FString(UE::ShaderParameters::CreateUniformBufferShaderDeclaration(UniformBufferName, *Metadata));
 			check(!NewDeclaration->IsEmpty());
@@ -399,9 +409,10 @@ void UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(FShaderCompiler
 	for (const TCHAR* UniformBufferName : InUniformBufferNames)
 	{
 		FStringView UniformBufferNameView(UniformBufferName);
-		if (!OutEnvironment.UniformBufferMap.FindByHash(FCrc::Strihash_DEPRECATED(UniformBufferName), UniformBufferName))
+		uint32 UniformBufferNameHash = GetTypeHash(UniformBufferNameView);
+		if (!OutEnvironment.UniformBufferMap.FindByHash(UniformBufferNameHash, UniformBufferNameView))
 		{
-			if (const FShaderParametersMetadata* Metadata = FindShaderParametersMetadataWithVariableName(UniformBufferName))
+			if (const FShaderParametersMetadata* Metadata = FindShaderParametersMetadataWithVariableName(UniformBufferNameHash, UniformBufferNameView))
 			{
 				const FThreadSafeSharedStringPtr UniformBufferDeclaration = Metadata->GetUniformBufferDeclarationPtr();
 

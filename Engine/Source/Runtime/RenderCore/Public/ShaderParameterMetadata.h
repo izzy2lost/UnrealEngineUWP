@@ -372,6 +372,9 @@ public:
 	static RENDERCORE_API TLinkedList<FShaderParametersMetadata*>*& GetStructList();
 	/** Speed up finding the uniform buffer by its name */
 	static RENDERCORE_API TMap<FHashedName, FShaderParametersMetadata*>& GetNameStructMap();
+#if WITH_EDITOR
+	static RENDERCORE_API TMap<FString, FShaderParametersMetadata*>& GetStringStructMap();
+#endif // WITH_EDITOR
 
 	/** Initialize all the global shader parameter structs. */
 	static RENDERCORE_API void InitializeAllUniformBufferStructs();
