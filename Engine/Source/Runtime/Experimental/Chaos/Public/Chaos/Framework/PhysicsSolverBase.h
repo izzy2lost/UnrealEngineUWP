@@ -751,6 +751,9 @@ namespace Chaos
 			MarshallingManager.RegisterSimCallbackObject_External(SimCallbackObject);
 		}
 
+		// Number of ending solver task that has not been executed or that are still being executed
+		TAtomic<int32> NumPendingSolverAdvanceTasks;
+
 		/** 
 		 * Whether this solver is paused. Paused solvers will still 'tick' however they will receive a Dt of zero so they can still
 		 * build acceleration structures or accept inputs from external threads 
