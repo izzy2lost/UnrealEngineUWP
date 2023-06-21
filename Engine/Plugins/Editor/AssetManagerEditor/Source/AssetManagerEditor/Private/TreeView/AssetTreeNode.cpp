@@ -26,9 +26,14 @@ const FSlateBrush* FAssetTreeNode::GetIcon(EStyle Style) const
 	{
 		default:
 		case EStyle::EDefault:
-		case EStyle::EAsset:
 		{
 			return UE::Insights::FInsightsStyle::GetBrush("Icons.Leaf.TreeItem");
+			break;
+		}
+
+		case EStyle::EAsset:
+		{
+			return UE::Insights::FInsightsStyle::GetBrush("Icons.Asset.TreeItem");
 			break;
 		}
 				
