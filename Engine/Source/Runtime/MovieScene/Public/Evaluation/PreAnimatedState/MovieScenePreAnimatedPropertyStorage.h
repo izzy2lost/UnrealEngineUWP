@@ -198,12 +198,14 @@ struct TPreAnimatedPropertyStorageImpl<PropertyTraits, TPropertyMetaData<MetaDat
 				continue;
 			}
 
-			FPreAnimatedStateEntry Entry = this->MakeEntry(BoundObject, PropertyBindings[Index].PropertyPath);
-
-			if (!this->TrackCaptureSource(Entry, EPreAnimatedCaptureSourceTracking::CacheIfTracked))
+			if (!this->ShouldTrackCaptureSource(EPreAnimatedCaptureSourceTracking::CacheIfTracked, BoundObject, PropertyBindings[Index].PropertyPath))
 			{
 				continue;
 			}
+
+			FPreAnimatedStateEntry Entry = this->MakeEntry(BoundObject, PropertyBindings[Index].PropertyPath);
+
+			this->TrackCaptureSource(Entry, EPreAnimatedCaptureSourceTracking::CacheIfTracked);
 
 			EPreAnimatedStorageRequirement StorageRequirement = this->ParentExtension->GetStorageRequirement(Entry);
 			if (!this->IsStorageRequirementSatisfied(Entry.ValueHandle.StorageIndex, StorageRequirement))

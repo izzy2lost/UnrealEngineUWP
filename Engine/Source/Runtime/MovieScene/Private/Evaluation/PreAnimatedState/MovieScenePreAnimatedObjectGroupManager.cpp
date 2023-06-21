@@ -2,6 +2,7 @@
 
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedObjectGroupManager.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedStorageID.inl"
+#include "EntitySystem/BuiltInComponentTypes.h"
 
 namespace UE
 {
@@ -46,6 +47,17 @@ void FPreAnimatedObjectGroupManager::GetGroupsByClass(UClass* GeneratedClass, TA
 		if (Object && Object->IsA(GeneratedClass))
 		{
 			OutGroupHandles.Add(It.Value());
+		}
+	}
+}
+
+void FPreAnimatedObjectGroupManager::GatherStaleStorageGroups(TArray<FPreAnimatedStorageGroupHandle>& StaleGroupStorage) const
+{
+	for (auto It = StorageGroupsByKey.CreateConstIterator(); It; ++It)
+	{
+		if (FBuiltInComponentTypes::IsBoundObjectGarbage(It.Key().ResolveObjectPtr()))
+		{
+			StaleGroupStorage.Add(It.Value());
 		}
 	}
 }

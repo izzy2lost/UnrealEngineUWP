@@ -396,6 +396,27 @@ void FPreAnimatedStateExtension::RestoreGlobalState(const FRestoreStateParams& P
 	bEntriesInvalidated = true;
 }
 
+void FPreAnimatedStateExtension::DiscardStaleObjectState()
+{
+	TArray<FPreAnimatedStorageGroupHandle> StaleStorageGroups;
+	// Gather any groups from the group managers whose keys (e.g. FObjectKeys have become invalid)
+	for (auto It = GroupManagers.CreateIterator(); It; ++It)
+	{
+		TWeakPtr<IPreAnimatedStateGroupManager> GroupManager = It.Value();
+		if (auto GroupManagerPtr = GroupManager.Pin())
+		{
+			GroupManagerPtr->GatherStaleStorageGroups(StaleStorageGroups);
+		}
+	}
+	// Discard the state for such groups
+	for (FPreAnimatedStorageGroupHandle GroupHandle : StaleStorageGroups)
+	{
+		DiscardStateForGroup(GroupHandle);
+	}
+
+	bEntriesInvalidated = true;
+}
+
 void FPreAnimatedStateExtension::DiscardTransientState()
 {
 	if (FPreAnimatedEntityCaptureSource* EntityMetaData = GetEntityMetaData())

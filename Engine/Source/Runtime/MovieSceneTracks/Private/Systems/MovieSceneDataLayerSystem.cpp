@@ -52,6 +52,14 @@ struct FPreAnimatedDataLayerStorageTraits : FBoundObjectPreAnimatedStateTraits
 
 	/** Called when a previously animated data layer needs to be restored */
 	static void RestorePreAnimatedValue(const TObjectKey<UDataLayerInstance>& InKey, EDataLayerRuntimeState PreviousState, const FRestoreStateParams& Params);
+
+	template<typename... T>
+	FPreAnimatedStorageGroupHandle FindGroup(const UDataLayerInstance* BoundObject, T&&... Unused)
+	{
+		return FindGroupImpl(BoundObject);
+	}
+
+	FPreAnimatedStorageGroupHandle FindGroupImpl(const UDataLayerInstance* BoundObject);
 };
 
 /** Container class for all pre-animated data layer state */
@@ -65,8 +73,10 @@ struct FPreAnimatedDataLayerStorage
 	/*~ IPreAnimatedStateGroupManager */
 	void InitializeGroupManager(FPreAnimatedStateExtension* Extension) override;
 	void OnGroupDestroyed(FPreAnimatedStorageGroupHandle Group) override;
+	void GatherStaleStorageGroups(TArray<FPreAnimatedStorageGroupHandle>& StaleGroupStorage) const override {}
 
 	/** Make an entry for the specified data layer */
+	FPreAnimatedStateEntry FindEntry(const UDataLayerInstance* InDataLayer);
 	FPreAnimatedStateEntry MakeEntry(const UDataLayerInstance* InDataLayer);
 
 	/** Save the value of a data layer. Should only be used for runtime / PIE worlds */
@@ -143,6 +153,11 @@ void FPreAnimatedDataLayerStorageTraits::RestorePreAnimatedValue(const TObjectKe
 	}
 }
 
+FPreAnimatedStorageGroupHandle FPreAnimatedDataLayerStorageTraits::FindGroupImpl(const UDataLayerInstance* BoundObject)
+{
+	return ObjectGroupManager->FindGroupForKey(BoundObject);
+}
+
 // ---------------------------------------------------------------------
 // FPreAnimatedDataLayerStorage definitions
 TAutoRegisterPreAnimatedStorageID<FPreAnimatedDataLayerStorage> FPreAnimatedDataLayerStorage::StorageID;
@@ -157,6 +172,16 @@ void FPreAnimatedDataLayerStorage::OnGroupDestroyed(FPreAnimatedStorageGroupHand
 	GroupHandle = FPreAnimatedStorageGroupHandle();
 }
 
+FPreAnimatedStateEntry FPreAnimatedDataLayerStorage::FindEntry(const UDataLayerInstance* InDataLayer)
+{
+	if (!GroupHandle)
+	{
+		return FPreAnimatedStateEntry();
+	}
+	FPreAnimatedStorageIndex StorageIndex = FindStorageIndex(InDataLayer);
+	return FPreAnimatedStateEntry{ GroupHandle, FPreAnimatedStateCachedValueHandle{ StorageID, StorageIndex } };
+}
+
 FPreAnimatedStateEntry FPreAnimatedDataLayerStorage::MakeEntry(const UDataLayerInstance* InDataLayer)
 {
 	if (!GroupHandle)
@@ -169,7 +194,15 @@ FPreAnimatedStateEntry FPreAnimatedDataLayerStorage::MakeEntry(const UDataLayerI
 
 void FPreAnimatedDataLayerStorage::SavePreAnimatedState(const UDataLayerInstance* DataLayer)
 {
-	FPreAnimatedStateEntry         Entry              = MakeEntry(DataLayer);
+	if (!this->ShouldTrackCaptureSource(EPreAnimatedCaptureSourceTracking::CacheIfTracked, DataLayer))
+	{
+		return;
+	}
+
+	FPreAnimatedStateEntry Entry = MakeEntry(DataLayer);
+
+	this->TrackCaptureSource(Entry, EPreAnimatedCaptureSourceTracking::CacheIfTracked);
+
 	EPreAnimatedStorageRequirement StorageRequirement = this->ParentExtension->GetStorageRequirement(Entry);
 
 	if (!IsStorageRequirementSatisfied(Entry.ValueHandle.StorageIndex, StorageRequirement))
@@ -185,7 +218,14 @@ void FPreAnimatedDataLayerStorage::SavePreAnimatedState(const UDataLayerInstance
 #if WITH_EDITOR
 void FPreAnimatedDataLayerStorage::SavePreAnimatedStateInEditor(const UDataLayerInstance* DataLayer)
 {
-	FPreAnimatedStateEntry         Entry              = MakeEntry(DataLayer);
+	if (!this->ShouldTrackCaptureSource(EPreAnimatedCaptureSourceTracking::CacheIfTracked, DataLayer))
+	{
+		return;
+	}
+
+	FPreAnimatedStateEntry Entry = MakeEntry(DataLayer);
+	this->TrackCaptureSource(Entry, EPreAnimatedCaptureSourceTracking::CacheIfTracked);
+
 	EPreAnimatedStorageRequirement StorageRequirement = this->ParentExtension->GetStorageRequirement(Entry);
 
 	if (!IsStorageRequirementSatisfied(Entry.ValueHandle.StorageIndex, StorageRequirement))
@@ -664,6 +704,12 @@ void UMovieSceneDataLayerSystem::BeginTrackingEntities()
 		TRead<FMovieSceneDataLayerComponentData> ComponentData)
 	{
 		const bool bRestoreState = Item.GetAllocationType().Contains(FBuiltInComponentTypes::Get()->Tags.RestoreState);
+
+		if (!this->GetLinker()->PreAnimatedState.IsCapturingGlobalState() && !bRestoreState)
+		{
+			return;
+		}
+
 		for (int32 Index = 0; Index < Item.GetAllocation()->Num(); ++Index)
 		{
 			const UMovieSceneDataLayerSection* Section = ComponentData[Index].Section.Get();
@@ -692,11 +738,6 @@ void UMovieSceneDataLayerSystem::BeginTrackingEntities()
 	};
 
 	FComponentMask Filter{ BuiltInComponents->Tags.NeedsLink };
-	if (!Linker->PreAnimatedState.IsCapturingGlobalState())
-	{
-		// If we're not capturing global state, only visit entities with the RestoreState tag
-		Filter.Set(BuiltInComponents->Tags.RestoreState);
-	}
 
 	// Iterate any data layer components that need link
 	FEntityTaskBuilder()

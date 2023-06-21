@@ -390,6 +390,9 @@ void UMovieSceneEntitySystemLinker::CleanGarbage()
 {
 	using namespace UE::MovieScene;
 
+	// Cleanup any stale preanimated state. This can exist even without Entities being marked as NeedsUnlink.
+	PreAnimatedState.DiscardStaleObjectState();
+
 	FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 	FComponentTypeID NeedsUnlink = BuiltInComponents->Tags.NeedsUnlink;
 	if (!EntityManager.ContainsComponent(NeedsUnlink))
@@ -410,6 +413,7 @@ void UMovieSceneEntitySystemLinker::CleanGarbage()
 	//       since systems are able to (and more likely to) cause additional entities to be unlinked in response
 	//       to finding entities tagged NeedsUnlink.
 	Events.CleanTaggedGarbage.Broadcast(this);
+
 
 	TArray<FMovieSceneEntityID> UnresolvedEntities;
 

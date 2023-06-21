@@ -84,6 +84,14 @@ static void GetFlattenedHierarchy(USceneComponent* SceneComponent, TArray<UScene
 	}
 }
 
+FPreAnimatedStateEntry FPreAnimatedComponentMobilityStorage::FindEntry(USceneComponent* InSceneComponent)
+{
+	FPreAnimatedStorageGroupHandle GroupHandle = this->Traits.ObjectGroupManager->FindGroupForKey(InSceneComponent);
+	FPreAnimatedStorageIndex       StorageIndex = FindStorageIndex(InSceneComponent);
+
+	return FPreAnimatedStateEntry{ GroupHandle, FPreAnimatedStateCachedValueHandle{ StorageID, StorageIndex } };
+}
+
 FPreAnimatedStateEntry FPreAnimatedComponentMobilityStorage::MakeEntry(USceneComponent* InSceneComponent)
 {
 	FPreAnimatedStorageGroupHandle GroupHandle  = this->Traits.ObjectGroupManager->MakeGroupForKey(InSceneComponent);
@@ -183,6 +191,11 @@ void UMovieSceneComponentMobilitySystem::SavePreAnimatedState(const FPreAnimatio
 		const FEntityAllocation* Allocation = Item.GetAllocation();
 		const bool bWantsRestore = Item.GetAllocationType().Contains(FBuiltInComponentTypes::Get()->Tags.RestoreState);
 
+		if (!Extension->IsCapturingGlobalState() && !bWantsRestore)
+		{
+			return;
+		}
+
 		FCachePreAnimatedValueParams CacheValueParams;
 		CacheValueParams.bForcePersist = Item.GetAllocationType().Contains(FMovieSceneTracksComponentTypes::Get()->AttachParent);
 
@@ -204,7 +217,7 @@ void UMovieSceneComponentMobilitySystem::SavePreAnimatedState(const FPreAnimatio
 			for (USceneComponent* CurrentSceneComponent : FlatHierarchy)
 			{
 				FPreAnimatedStateEntry Entry = ComponentMobilityStorage->MakeEntry(CurrentSceneComponent);
-
+				
 				EntityMetaData->BeginTrackingEntity(Entry, EntityID, InstanceHandle, bWantsRestore);
 				ComponentMobilityStorage->CachePreAnimatedValue(CacheValueParams, Entry, CurrentSceneComponent);
 			}

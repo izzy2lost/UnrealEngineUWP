@@ -51,6 +51,7 @@ struct IPreAnimatedStateGroupManager
 	virtual ~IPreAnimatedStateGroupManager(){}
 	virtual void InitializeGroupManager(FPreAnimatedStateExtension* Extension) = 0;
 	virtual void OnGroupDestroyed(FPreAnimatedStorageGroupHandle Group) = 0;
+	virtual void GatherStaleStorageGroups(TArray<FPreAnimatedStorageGroupHandle>& StaleGroupStorage) const = 0;
 };
 
 
@@ -237,9 +238,15 @@ public:
 	MOVIESCENE_API void RestoreStateForGroup(FPreAnimatedStorageGroupHandle GroupHandle, const FRestoreStateParams& Params);
 
 	/**
+	* Called during Garbage Collection to clean up preanimated state on invalid bound objects. Does not restore state.
+	*/
+	void DiscardStaleObjectState();
+
+	/**
 	 * Called during blueprint re-instancing to replace the object bound to a specific group handle with another.
 	 */
 	MOVIESCENE_API void ReplaceObjectForGroup(FPreAnimatedStorageGroupHandle GroupHandle, const FObjectKey& OldObject, const FObjectKey& NewObject);
+
 
 	/**
 	 * Discard any transient state and all meta-data for any currently animating objects, whilst preserving the cached values internally.
@@ -387,6 +394,12 @@ struct TPreAnimatedStateGroupManager : IPreAnimatedStateGroupManager, TSharedFro
 
 		StorageGroupsByKey.Remove(Temp);
 		StorageGroupsToKey.Remove(Group);
+	}
+
+	
+	virtual void GatherStaleStorageGroups(TArray<FPreAnimatedStorageGroupHandle>& StaleGroupStorage) const override
+	{
+		
 	}
 
 	FPreAnimatedStorageGroupHandle FindGroupForKey(const KeyType& InKey) const
