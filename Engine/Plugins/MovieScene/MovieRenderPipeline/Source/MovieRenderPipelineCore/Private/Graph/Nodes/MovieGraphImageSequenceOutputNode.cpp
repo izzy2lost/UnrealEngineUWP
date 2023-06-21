@@ -35,7 +35,7 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 	check(InRawFrameData);
 
 	// Gather the passes that need to be composited
-	TArray<TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>> CompositingPasses;
+	TArray<TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>> CompositedPasses;
 	for (TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& RenderData : InRawFrameData->ImageOutputData)
 	{
 		UE::MovieGraph::FMovieGraphSampleState* Payload = RenderData.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
@@ -48,8 +48,22 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>> CompositePass;
 		CompositePass.Key = RenderData.Key;
 		CompositePass.Value = RenderData.Value->CopyImageData();
-		CompositingPasses.Add(MoveTemp(CompositePass));
+		CompositedPasses.Add(MoveTemp(CompositePass));
 	}
+
+	// Sort composited passes if multiple were found. Passes with a smaller sort order go to the end of the array so they
+	// get composited on top of passes with a higher sort order.
+	CompositedPasses.Sort([](
+		const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& PassA,
+		const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& PassB)
+	{
+		const UE::MovieGraph::FMovieGraphSampleState* PayloadA = PassA.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
+		const UE::MovieGraph::FMovieGraphSampleState* PayloadB = PassB.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
+		check(PayloadA);
+		check(PayloadB);
+
+		return PayloadA->CompositingSortOrder > PayloadB->CompositingSortOrder;
+	});
 
 	// ToDo:
 	// The ImageWriteQueue is set up in a fire-and-forget manner. This means that the data needs to be placed in the WriteQueue
@@ -68,7 +82,7 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 	{
 		// If this pass is composited, skip it for now
 		bool bSkip = false;
-		for (TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& CompositedPass : CompositingPasses)
+		for (TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& CompositedPass : CompositedPasses)
 		{
 			if (CompositedPass.Key == RenderData.Key)
 			{
@@ -166,10 +180,10 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 
 		EImagePixelType PixelType = TileImageTask->PixelData->GetType();
 
-		// Perform compositing if any compositing passes were found earlier
-		for (TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& CompositedPass : CompositingPasses)
+		// Perform compositing if any composited passes were found earlier
+		for (TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& CompositedPass : CompositedPasses)
 		{
-			// This compositing pass will only composite on top of renders w/ the same branch and camera
+			// This composited pass will only composite on top of renders w/ the same branch and camera
 			const FMovieGraphRenderDataIdentifier& Id = CompositedPass.Key;
 			if ((Id.CameraName != RenderData.Key.CameraName) || (Id.RootBranchName != RenderData.Key.RootBranchName))
 			{

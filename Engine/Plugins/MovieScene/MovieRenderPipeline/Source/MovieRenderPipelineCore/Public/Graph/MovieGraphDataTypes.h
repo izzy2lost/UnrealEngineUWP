@@ -221,6 +221,7 @@ namespace UE::MovieGraph
 			, bRequiresAccumulator(false)
 			, bFetchFromAccumulator(false)
 			, bCompositeOnOtherRenders(false)
+			, CompositingSortOrder(0)
 		{}
 
 		/** The traversal context used to read graph values at the time of submission. */
@@ -246,6 +247,12 @@ namespace UE::MovieGraph
 
 		/** Set this to true if this pass should be composited on top of other renders. */
 		bool bCompositeOnOtherRenders;
+
+		/**
+		* If multiple passes are composited on top of a render, the sort order determines the order in which they're composited.
+		* Passes with a low sort order will composite on top of passes with a higher sort order.
+		*/
+		int32 CompositingSortOrder;
 	};
 
 	/**
