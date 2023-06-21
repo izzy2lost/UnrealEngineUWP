@@ -197,6 +197,17 @@ void UReferenceViewerSettings::SetEnableCollectionFilter(bool bEnabled)
 	SaveConfig();
 }
 
+bool UReferenceViewerSettings::GetEnablePluginFilter() const
+{
+	return bEnablePluginFilter;
+}
+
+void UReferenceViewerSettings::SetEnablePluginFilter(bool bEnabled)
+{
+	bEnablePluginFilter = bEnabled;
+	SaveConfig();
+}
+
 bool UReferenceViewerSettings::IsShowPath() const
 {
 	return bIsShowPath;

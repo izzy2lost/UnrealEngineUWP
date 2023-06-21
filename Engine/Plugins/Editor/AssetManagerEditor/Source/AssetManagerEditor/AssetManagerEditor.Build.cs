@@ -25,8 +25,8 @@ public class AssetManagerEditor : ModuleRules
 			new string[] {
 				"Slate",
 				"SlateCore",
-                "ApplicationCore",
-                "InputCore",
+				"ApplicationCore",
+				"InputCore",
 				"EditorFramework",
 				"UnrealEd",
 				"AssetRegistry",
@@ -50,7 +50,7 @@ public class AssetManagerEditor : ModuleRules
 				"SourceControl",
 				"SourceControlWindows",
 				"UncontrolledChangelists",
-				"Projects"
+				"Projects",
 			}
 		);
 	}

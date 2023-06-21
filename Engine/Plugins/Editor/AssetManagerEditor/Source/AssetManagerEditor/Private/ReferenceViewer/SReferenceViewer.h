@@ -8,6 +8,7 @@
 #include "CollectionManagerTypes.h"
 
 class FUICommandList;
+class SCheckBox;
 class SComboButton;
 class SReferenceViewerFilterBar;
 class SSearchBox;
@@ -128,6 +129,12 @@ private:
 	void HandleCollectionFilterChanged(TSharedPtr<FName> Item, ESelectInfo::Type SelectInfo);
 	FText GetCollectionFilterText() const;
 
+	void OnEnablePluginFilterChanged(ECheckBoxState NewState);
+	ECheckBoxState IsEnablePluginFilterChecked() const;
+	void PluginFilterAddMenuEntry(FMenuBuilder& MenuBuilder, const FName& PluginName);
+	TSharedRef<SWidget> BuildPluginFilterMenu();
+	FText GetPluginComboButtonText() const;
+
 	void OnShowSoftReferencesChanged();
 	bool IsShowSoftReferencesChecked() const;
 	void OnShowHardReferencesChanged();
@@ -232,6 +239,10 @@ private:
 	/** List of collection filter options */
 	TArray<TSharedPtr<FName>> CollectionsComboList;
 
+	/** Combo box for plugin filter options */
+	TSharedPtr<SCheckBox> PluginFilterCheckbox;
+	TSharedPtr<SComboButton> PluginsComboButton;
+
 	/**
 	 * Whether to visually show to the user the option of "Search Depth Limit" or hide it and fix it to a default value:
 	 * - If 0 or negative, it will show to the user the option of "Search Depth Limit".
@@ -246,6 +257,8 @@ private:
 	int32 FixAndHideSearchBreadthLimit;
 	/** Whether to visually show to the user the option of "Collection Filter" */
 	bool bShowCollectionFilter;
+	/** Whether to visually show to the user the option of "Plugin Filter" */
+	bool bShowPluginFilter;
 	/** Whether to visually show to the user the options of "Show Soft/Hard/Management References" */
 	bool bShowShowReferencesOptions;
 	/** Whether to visually show to the user the option of "Show Searchable Names" */

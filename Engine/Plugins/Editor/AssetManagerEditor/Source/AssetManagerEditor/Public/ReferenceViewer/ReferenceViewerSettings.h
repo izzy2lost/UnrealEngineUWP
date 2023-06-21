@@ -62,6 +62,9 @@ public:
 	bool GetEnableCollectionFilter() const;
 	void SetEnableCollectionFilter(bool bEnabled);
 
+	bool GetEnablePluginFilter() const;
+	void SetEnablePluginFilter(bool bEnabled);
+
 	bool IsShowSoftReferences() const;
 	void SetShowSoftReferencesEnabled(bool bNewEnabled);
 
@@ -136,6 +139,10 @@ private:
 	/* Whether or not to filter from a collection */
 	UPROPERTY(config)
 	bool bEnableCollectionFilter;
+	
+	/* Whether or not to filter for assets by plugins. */
+	UPROPERTY(config)
+	bool bEnablePluginFilter;
 	
 	/* Show/Hide Soft References */
 	UPROPERTY(config)

@@ -1039,6 +1039,8 @@ struct FReferenceViewerParams
 	int32 FixAndHideSearchBreadthLimit;
 	/** Whether to visually show to the user the option of "Collection Filter" */
 	bool bShowCollectionFilter;
+	/** Whether to visually show to the user the option of "Plugin Filter" */
+	bool bShowPluginFilter;
 	/** Whether to visually show to the user the options of "Show Soft/Hard/Management References" */
 	bool bShowShowReferencesOptions;
 	/** Whether to visually show to the user the option of "Show Searchable Names" */
