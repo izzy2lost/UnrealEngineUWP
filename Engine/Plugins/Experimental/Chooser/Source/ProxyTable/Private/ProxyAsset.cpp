@@ -122,3 +122,20 @@ UObject* UProxyAsset::FindProxyObject(FChooserEvaluationContext& Context) const
 	
 	return nullptr;
 }
+
+FObjectChooserBase::EIteratorStatus UProxyAsset::FindProxyObjectMulti(FChooserEvaluationContext &Context, FObjectChooserBase::FObjectChooserIteratorCallback Callback) const
+{
+	if (ProxyTable.IsValid())
+	{
+		const UProxyTable* Table;
+		if (ProxyTable.Get<FChooserParameterProxyTableBase>().GetValue(Context, Table))
+		{
+			if(Table)
+			{
+				return Table->FindProxyObjectMulti(Guid, Context, Callback);
+			}
+		}
+	}
+	
+	return FObjectChooserBase::EIteratorStatus::Continue;
+}

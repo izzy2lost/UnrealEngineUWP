@@ -39,6 +39,7 @@ USTRUCT()
 struct PROXYTABLE_API FLookupProxy : public FObjectChooserBase
 {
 	GENERATED_BODY()
+	virtual EIteratorStatus ChooseMulti(FChooserEvaluationContext &Context, FObjectChooserIteratorCallback Callback) const final override;
 	virtual UObject* ChooseObject(FChooserEvaluationContext& Context) const final override;
 
 	FLookupProxy();
@@ -56,6 +57,7 @@ USTRUCT(meta=(Hidden))
 struct PROXYTABLE_API FLookupProxyWithOverrideTable : public FObjectChooserBase
 {
 	GENERATED_BODY()
+	virtual EIteratorStatus ChooseMulti(FChooserEvaluationContext &Context, FObjectChooserIteratorCallback Callback) const final override;
 	virtual UObject* ChooseObject(FChooserEvaluationContext& Context) const final override;
 	
 	public:

@@ -163,6 +163,43 @@ void UProxyTable::PostTransacted(const FTransactionObjectEvent& TransactionEvent
 
 #endif
 
+static void OutputStructData(const FRuntimeProxyValue& EntryValueData, FChooserEvaluationContext& Context)
+{
+	for (const FProxyStructOutput& StructOutput : EntryValueData.OutputStructData)
+	{
+		const void* Container = nullptr;
+		const UStruct* StructType;
+
+		// copy each struct output value
+
+		if (StructOutput.Binding.PropertyBindingChain.IsEmpty())
+		{
+			if(Context.Params.IsValidIndex((StructOutput.Binding.ContextIndex)))
+			{
+				// directly bound to context struct
+				if (Context.Params[StructOutput.Binding.ContextIndex].GetScriptStruct() == StructOutput.Value.GetScriptStruct())
+				{
+					void* TargetData = Context.Params[StructOutput.Binding.ContextIndex].GetMutableMemory();
+					StructOutput.Value.GetScriptStruct()->CopyScriptStruct(TargetData, StructOutput.Value.GetMemory());
+				}
+			}
+		}
+		else if (UE::Chooser::ResolvePropertyChain(Context, StructOutput.Binding, Container, StructType))
+		{
+			if (FStructProperty* Property = FindFProperty<FStructProperty>(StructType, StructOutput.Binding.PropertyBindingChain.Last()))
+			{
+				// const cast is here just because ResolvePropertyChain expects a const void*&
+				void* TargetData = Property->ContainerPtrToValuePtr<void>(const_cast<void*>(Container));
+				
+				if (Property->Struct == StructOutput.Value.GetScriptStruct())
+				{
+					Property->Struct->CopyScriptStruct(TargetData, StructOutput.Value.GetMemory());
+				}
+			}
+		}
+	}
+}
+
 UObject* UProxyTable::FindProxyObject(const FGuid& Key, FChooserEvaluationContext& Context) const
 {
 	const int FoundIndex = Algo::BinarySearch(Keys, Key);
@@ -173,44 +210,30 @@ UObject* UProxyTable::FindProxyObject(const FGuid& Key, FChooserEvaluationContex
 
 		UObject* Result = EntryValue.ChooseObject(Context);
 
-		for (const FProxyStructOutput& StructOutput : EntryValueData.OutputStructData)
-		{
-			const void* Container = nullptr;
-			const UStruct* StructType;
-
-			// copy each struct output value
-
-			if (StructOutput.Binding.PropertyBindingChain.IsEmpty())
-			{
-				if(Context.Params.IsValidIndex((StructOutput.Binding.ContextIndex)))
-				{
-					// directly bound to context struct
-					if (Context.Params[StructOutput.Binding.ContextIndex].GetScriptStruct() == StructOutput.Value.GetScriptStruct())
-					{
-						void* TargetData = Context.Params[StructOutput.Binding.ContextIndex].GetMutableMemory();
-						StructOutput.Value.GetScriptStruct()->CopyScriptStruct(TargetData, StructOutput.Value.GetMemory());
-					}
-				}
-			}
-			else if (UE::Chooser::ResolvePropertyChain(Context, StructOutput.Binding, Container, StructType))
-			{
-				if (FStructProperty* Property = FindFProperty<FStructProperty>(StructType, StructOutput.Binding.PropertyBindingChain.Last()))
-				{
-					// const cast is here just because ResolvePropertyChain expects a const void*&
-					void* TargetData = Property->ContainerPtrToValuePtr<void>(const_cast<void*>(Container));
-					
-					if (Property->Struct == StructOutput.Value.GetScriptStruct())
-					{
-						Property->Struct->CopyScriptStruct(TargetData, StructOutput.Value.GetMemory());
-					}
-				}
-			}
-		}
+		OutputStructData(EntryValueData, Context);
 
 		return Result;
 	}
 	
 	return nullptr;
+}
+
+FObjectChooserBase::EIteratorStatus UProxyTable::FindProxyObjectMulti(const FGuid& Key, FChooserEvaluationContext &Context, FObjectChooserBase::FObjectChooserIteratorCallback Callback) const
+{
+		const int FoundIndex = Algo::BinarySearch(Keys, Key);
+    	if (FoundIndex != INDEX_NONE)
+    	{
+    		const FRuntimeProxyValue& EntryValueData = RuntimeValues[FoundIndex];
+    		const FObjectChooserBase &EntryValue = EntryValueData.Value.Get<const FObjectChooserBase>();
+    
+    		FObjectChooserBase::EIteratorStatus Result = EntryValue.ChooseMulti(Context, Callback);
+    
+			OutputStructData(EntryValueData, Context);
+    
+    		return Result;
+    	}
+    	
+    	return FObjectChooserBase::EIteratorStatus::Continue;
 }
 
 UProxyTable::UProxyTable(const FObjectInitializer& Initializer)

@@ -76,7 +76,8 @@ public:
 
 	UPROPERTY()
 	TArray<FRuntimeProxyValue> RuntimeValues;
-	
+
+	FObjectChooserBase::EIteratorStatus FindProxyObjectMulti(const FGuid& Key, FChooserEvaluationContext &Context, FObjectChooserBase::FObjectChooserIteratorCallback Callback) const;
 	UObject* FindProxyObject(const FGuid& Key, FChooserEvaluationContext& Context) const;
 
 #if WITH_EDITORONLY_DATA

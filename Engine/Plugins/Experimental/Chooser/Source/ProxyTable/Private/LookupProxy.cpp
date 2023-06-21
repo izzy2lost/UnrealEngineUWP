@@ -9,6 +9,27 @@ FLookupProxy::FLookupProxy()
 	ProxyTable.InitializeAs(FProxyTableContextProperty::StaticStruct());
 }
 
+FObjectChooserBase::EIteratorStatus FLookupProxy::ChooseMulti(FChooserEvaluationContext& Context, FObjectChooserIteratorCallback Callback) const
+{
+	if (Proxy)
+	{
+		if (const FChooserParameterProxyTableBase* ProxyTableParameter = ProxyTable.GetPtr<FChooserParameterProxyTableBase>())
+		{
+			const UProxyTable* Table = nullptr;
+			if (ProxyTableParameter->GetValue(Context, Table))
+			{
+				if (Table)
+				{
+					return Table->FindProxyObjectMulti(Proxy->Guid, Context, Callback);
+				}
+			}
+		}
+		// fallback codepath will look up the table from the property binding on the proxy asset
+		return Proxy->FindProxyObjectMulti(Context, Callback);
+	}
+	return FObjectChooserBase::EIteratorStatus::Continue;
+}
+
 UObject* FLookupProxy::ChooseObject(FChooserEvaluationContext& Context) const
 {
 	if (Proxy)
@@ -37,6 +58,15 @@ UObject* FLookupProxyWithOverrideTable::ChooseObject(FChooserEvaluationContext& 
 		return OverrideProxyTable->FindProxyObject(Proxy->Guid, Context);
 	}
 	return nullptr;
+}
+
+FObjectChooserBase::EIteratorStatus FLookupProxyWithOverrideTable::ChooseMulti(FChooserEvaluationContext& Context, FObjectChooserIteratorCallback Callback) const
+{
+	if (Proxy && OverrideProxyTable)
+	{
+		return OverrideProxyTable->FindProxyObjectMulti(Proxy->Guid, Context, Callback);
+	}
+	return FObjectChooserBase::EIteratorStatus::Continue;
 }
 
 bool FProxyTableContextProperty::GetValue(FChooserEvaluationContext& Context, const UProxyTable*& OutResult) const

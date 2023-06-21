@@ -8,6 +8,7 @@
 #include "InstancedStruct.h"
 #include "InstancedStructContainer.h"
 #include "Misc/Guid.h"
+#include "IObjectChooser.h"
 #include "ProxyAsset.generated.h"
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FProxyTypeChanged, const UClass* OutputObjectType);
@@ -47,7 +48,8 @@ public:
 	FGuid Guid;
 
 	virtual TConstArrayView<FInstancedStruct> GetContextData() const override { return ContextData; }
-	UObject* FindProxyObject(FChooserEvaluationContext& Context) const;
+	UObject* FindProxyObject(struct FChooserEvaluationContext& Context) const;
+	FObjectChooserBase::EIteratorStatus FindProxyObjectMulti(FChooserEvaluationContext &Context, FObjectChooserBase::FObjectChooserIteratorCallback Callback) const;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
