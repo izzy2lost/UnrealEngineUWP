@@ -4277,6 +4277,16 @@
             Opposite of Rmdir.
             </summary>
         </member>
+        <member name="F:EpicGames.Perforce.ClientOptions.AltSync">
+            <summary>
+            If set, and a Helix Core Virtual File Service (P4VFS) application is installed to make use of P4ALTSYNC, the client can create, delete, or update placeholders of the file metadata instead of always taking time to download the full file content. 
+            </summary>
+        </member>
+        <member name="F:EpicGames.Perforce.ClientOptions.NoAltSync">
+            <summary>
+            Opposite of AltSync.
+            </summary>
+        </member>
         <member name="T:EpicGames.Perforce.ClientRecord">
             <summary>
             Represents a Perforce clientspec
@@ -6020,9 +6030,14 @@
             Record returned by the opened command
             </summary>
         </member>
+        <member name="P:EpicGames.Perforce.OpenedRecord.Stream">
+            <summary>
+            The stream spec opened for edit
+            </summary>
+        </member>
         <member name="P:EpicGames.Perforce.OpenedRecord.DepotFile">
             <summary>
-            Depot path to file
+            Depot path to file. May be unset if this record describes a stream spec.
             </summary>
         </member>
         <member name="P:EpicGames.Perforce.OpenedRecord.ClientFile">
