@@ -1963,33 +1963,6 @@ inline FRHIPooledRenderQuery::~FRHIPooledRenderQuery()
 	ReleaseQuery();
 }
 
-class FRHIComputeFence final : public FRHIResource
-{
-public:
-
-	FRHIComputeFence(FName InName)
-		: FRHIResource(RRT_ComputeFence)
-		, Name(InName)
-	{}
-
-	FORCEINLINE FName GetName() const
-	{
-		return Name;
-	}
-
-	FORCEINLINE bool GetWriteEnqueued() const
-	{
-		return Transition != nullptr;
-	}
-
-private:
-	//debug name of the label.
-	FName Name;
-
-public:
-	const FRHITransition* Transition = nullptr;
-};
-
 class FRHIViewport : public FRHIResource 
 {
 public:

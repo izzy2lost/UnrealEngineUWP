@@ -425,7 +425,6 @@ static const FRHIResourceTypeName GRHIResourceTypeNames[] =
 	RHI_RESOURCE_TYPE_DEF(GPUFence),
 	RHI_RESOURCE_TYPE_DEF(RenderQuery),
 	RHI_RESOURCE_TYPE_DEF(RenderQueryPool),
-	RHI_RESOURCE_TYPE_DEF(ComputeFence),
 	RHI_RESOURCE_TYPE_DEF(Viewport),
 	RHI_RESOURCE_TYPE_DEF(UnorderedAccessView),
 	RHI_RESOURCE_TYPE_DEF(ShaderResourceView),

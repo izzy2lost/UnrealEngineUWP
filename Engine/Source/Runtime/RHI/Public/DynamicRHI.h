@@ -200,18 +200,6 @@ public:
 		return new FDefaultRHIRenderQueryPool(QueryType, this, NumQueries);
 	}
 
-	/**
-	* Creates a compute fence.  Compute fences are named GPU fences which can be written to once before resetting.
-	* A command to write the fence must be enqueued before any commands to wait on them.  This is enforced on the CPU to avoid GPU hangs.
-	* @param Name - Friendly name for the Fence.  e.g. ReflectionEnvironmentComplete
-	* @return The new Fence.
-	*/
-	// FlushType: Thread safe, but varies depending on the RHI	
-	inline FComputeFenceRHIRef RHICreateComputeFence(const FName& Name)
-	{
-		return new FRHIComputeFence(Name);
-	}
-
 	virtual FGPUFenceRHIRef RHICreateGPUFence(const FName &Name)
 	{
 		return new FGenericRHIGPUFence(Name);
@@ -427,9 +415,6 @@ public:
 	// FlushType: Thread safe
 	virtual FTextureRHIRef RHIAsyncCreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, ERHIAccess InResourceState, void** InitialMipData, uint32 NumInitialMips, FGraphEventRef& OutCompletionEvent) = 0;
 
-	UE_DEPRECATED(5.2, "RHIAsyncCreateTexture2D now requires a completion callback. Using the old version in a critical section can lead to deadlock. Please switch to the new function signature.")
-	FTextureRHIRef RHIAsyncCreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, ERHIAccess InResourceState, void** InitialMipData, uint32 NumInitialMips);
-
 	/** Create a texture reference. InReferencedTexture can be null. */
 	RHI_API virtual FTextureReferenceRHIRef RHICreateTextureReference(FRHITexture* InReferencedTexture);
 
@@ -441,8 +426,6 @@ public:
 	* Generates mip maps for a texture.
 	*/
 	// FlushType: Flush Immediate (NP: this should be queued on the command list for RHI thread execution, not flushed)
-
-	//UE_DEPRECATED(4.23, "This function is deprecated and will be removed in future releases. Renderer version implemented.")
 	virtual void RHIGenerateMips(FRHITexture* Texture) {}
 
 	/**
@@ -1075,12 +1058,6 @@ FORCEINLINE FComputeShaderRHIRef RHICreateComputeShader(TArrayView<const uint8> 
 {
 	LLM_SCOPE(ELLMTag::Shaders);
 	return GDynamicRHI->RHICreateComputeShader(Code, Hash);
-}
-
-UE_DEPRECATED(5.2, "Compute fences are deprecated. Use RHI transitions instead.")
-FORCEINLINE FComputeFenceRHIRef RHICreateComputeFence(const FName& Name)
-{
-	return GDynamicRHI->RHICreateComputeFence(Name);
 }
 
 FORCEINLINE FGPUFenceRHIRef RHICreateGPUFence(const FName& Name)

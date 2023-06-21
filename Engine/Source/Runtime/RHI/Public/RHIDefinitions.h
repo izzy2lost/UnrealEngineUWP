@@ -865,7 +865,6 @@ enum ERHIResourceType : uint8
 	RRT_GPUFence,
 	RRT_RenderQuery,
 	RRT_RenderQueryPool,
-	RRT_ComputeFence,
 	RRT_Viewport,
 	RRT_UnorderedAccessView,
 	RRT_ShaderResourceView,
