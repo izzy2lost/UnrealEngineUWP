@@ -196,6 +196,7 @@ namespace Horde.Server.Jobs
 			options.UpdateIssues = updateIssues;
 			options.Claims.AddRange(User.Claims.Select(x => new AclClaimConfig(x)));
 			options.Arguments.AddRange(arguments);
+			options.JobOptions ??= create.JobOptions;
 
 			foreach ((string key, string value) in environment)
 			{

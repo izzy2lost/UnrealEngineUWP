@@ -13,6 +13,7 @@ using Horde.Server.Streams;
 using Horde.Server.Users;
 using Horde.Server.Utilities;
 using HordeCommon;
+using HordeCommon.Rpc.Tasks;
 
 namespace Horde.Server.Jobs
 {
@@ -83,6 +84,11 @@ namespace Horde.Server.Jobs
 		/// The preflight changelist number
 		/// </summary>
 		public int? PreflightChange { get; set; }
+		
+		/// <summary>
+		/// Job options
+		/// </summary>
+		public JobOptions? JobOptions { get; set; }
 
 		/// <summary>
 		/// Priority for the job
