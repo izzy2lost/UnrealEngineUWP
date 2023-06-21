@@ -11558,7 +11558,9 @@ bool FHLSLMaterialTranslator::FStrataCompilationContext::StrataGenerateDerivedMa
 
 	if (!StrataSimplificationStatus.bRunFullSimplification)
 	{
-		// Generate LayerDepth value for all operators/bsdfs
+		//
+		// Generate LayerDepth value for all operators/bsdfs for progressive material simplification
+		//
 		int VOpTopBranchCountTaken = 0;
 		int VOpBottomBranchCountTaken = 0;
 		std::function<void(FStrataOperator&)> WalkOperatorsForDepth = [&](FStrataOperator& CurrentOperator) -> void
@@ -11637,16 +11639,32 @@ bool FHLSLMaterialTranslator::FStrataCompilationContext::StrataGenerateDerivedMa
 	bool bFirstLoop = true;
 	do 
 	{
-		if (!bFirstLoop && !StrataSimplificationStatus.bRunFullSimplification && !StrataSimplificationStatus.bMaterialFitsInMemoryBudget && StrataSimplificationStatus.OperatorSimplificationOrder.Num() > 0)
+		if (!bFirstLoop && !StrataSimplificationStatus.bFullSimplificationStepHasBeenRun && !StrataSimplificationStatus.bMaterialFitsInMemoryBudget && StrataSimplificationStatus.OperatorSimplificationOrder.Num() > 0)
 		{
 			// Mark the deepest operator for parameter blending
 			FStrataSimplificationStatus::FOperatorToSimplify& OperatorToSimplify = StrataSimplificationStatus.OperatorSimplificationOrder.Top();
 			StrataMaterialExpressionRegisteredOperators[OperatorToSimplify.Data.Index].bNodeRequestParameterBlending = true;
 			StrataSimplificationStatus.OperatorSimplificationOrder.Pop(/*bAllowShrinking*/false);
+
+			// Mark that this is similar to have run full simplification
+			StrataSimplificationStatus.bFullSimplificationStepHasBeenRun |= StrataSimplificationStatus.OperatorSimplificationOrder.Num() == 0;
 		}
-		else if (!bFirstLoop && !StrataSimplificationStatus.bRunFullSimplification && !StrataSimplificationStatus.bMaterialFitsInMemoryBudget && StrataSimplificationStatus.OperatorSimplificationOrder.Num() == 0)
+		else if (!bFirstLoop && StrataSimplificationStatus.bFullSimplificationStepHasBeenRun && !StrataSimplificationStatus.bMaterialFitsInMemoryBudget && StrataSimplificationStatus.OperatorSimplificationOrder.Num() == 0 && !StrataSimplificationStatus.bSlabSimplificationStepHasBeenRun)
 		{
-			StrataSimplificationStatus.bRunFullSimplification = !StrataSimplificationStatus.bMaterialFitsInMemoryBudget;
+			for (auto& It : StrataMaterialExpressionRegisteredOperators)
+			{
+				// Disable all optional features for now to fit.
+				// STRATA_TODO we will need to refine that to account for platforms supporting SSS for instance.
+				It.bBSDFHasSSS = false;
+				It.bBSDFHasMFPPluggedIn = false;
+				It.bBSDFHasEdgeColor = false;
+				It.bBSDFHasFuzz = false;
+				It.bBSDFHasSecondRoughnessOrSimpleClearCoat = false;
+				It.bBSDFHasAnisotropy = false;
+				It.bBSDFHasGlint = false;
+				It.bBSDFHasSpecularProfile = false;
+			}
+			StrataSimplificationStatus.bSlabSimplificationStepHasBeenRun = true;
 		}
 		else if (bFirstLoop)
 		{
@@ -12153,7 +12171,7 @@ bool FHLSLMaterialTranslator::FStrataCompilationContext::StrataGenerateDerivedMa
 			}
 
 			StrataSimplificationStatus.bMaterialFitsInMemoryBudget = StrataMaterialRequestedSizeByte <= StrataBytePerPixel;
-			if (!StrataSimplificationStatus.bMaterialFitsInMemoryBudget && StrataSimplificationStatus.bRunFullSimplification)
+			if (!StrataSimplificationStatus.bMaterialFitsInMemoryBudget && StrataSimplificationStatus.bFullSimplificationStepHasBeenRun && StrataSimplificationStatus.bSlabSimplificationStepHasBeenRun)
 			{
 				// If we have already run the full simplification but the material still does not fit in memory, we must fail the material compilation.
 				Compiler->Errorf(TEXT("Material %s could not be simplified to fit in strata per pixel (asset: %s).\r\n"), *CompilerMaterial->GetDebugName(), *CompilerMaterial->GetAssetPath().ToString());
@@ -12164,6 +12182,7 @@ bool FHLSLMaterialTranslator::FStrataCompilationContext::StrataGenerateDerivedMa
 				// Record the original requested byte size before simplification, only for the first pass.
 				StrataSimplificationStatus.OriginalRequestedByteSize = StrataMaterialRequestedSizeByte;
 			}
+			StrataSimplificationStatus.bFullSimplificationStepHasBeenRun |= StrataSimplificationStatus.bRunFullSimplification;
 
 			const uint32 RequestedSizeInUint = FMath::DivideAndRoundUp(StrataMaterialRequestedSizeByte, 4u);
 			check(RequestedSizeInUint < 256u);

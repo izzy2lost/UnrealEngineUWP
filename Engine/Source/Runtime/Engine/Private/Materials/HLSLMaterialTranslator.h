@@ -436,6 +436,9 @@ protected:
 
 		uint32 OriginalRequestedByteSize = 0;
 		bool bRunFullSimplification = false;	// Simple implementation for now: if the material does not fit, we simply everything.
+		bool bFullSimplificationStepHasBeenRun = false;
+
+		bool bSlabSimplificationStepHasBeenRun = false;
 
 		struct FOperatorToSimplify
 		{
