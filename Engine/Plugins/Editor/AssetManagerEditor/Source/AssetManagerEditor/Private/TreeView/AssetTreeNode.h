@@ -54,6 +54,7 @@ protected:
 		EDefault,
 		EGroup,
 		EAsset,
+		EDependencies,
 		EPlugin,
 	};
 

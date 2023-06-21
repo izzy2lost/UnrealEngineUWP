@@ -43,6 +43,12 @@ const FSlateBrush* FAssetTreeNode::GetIcon(EStyle Style) const
 			break;
 		}	
 
+		case EStyle::EDependencies:
+		{
+			return UE::Insights::FInsightsStyle::GetBrush("Icons.Dependencies.TreeItem");
+			break;
+		}
+
 		case EStyle::EPlugin:
 		{
 			return UE::Insights::FInsightsStyle::GetBrush("Icons.Plugin.TreeItem");
@@ -72,6 +78,12 @@ FLinearColor FAssetTreeNode::GetColor(EStyle Style) const
 		case EStyle::EGroup:
 		{
 			return FLinearColor(1.0f, 1.0f, 0.5f, 1.0f);
+			break;
+		}
+
+		case EStyle::EDependencies:
+		{
+			return FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
 			break;
 		}
 
@@ -313,7 +325,7 @@ bool FPluginDependenciesGroupNode::OnLazyCreateChildren(TSharedPtr<class UE::Ins
 
 FAssetTreeNode::EStyle FPluginDependenciesGroupNode::GetStyle() const
 {
-	return EStyle::EGroup;
+	return EStyle::EDependencies;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
