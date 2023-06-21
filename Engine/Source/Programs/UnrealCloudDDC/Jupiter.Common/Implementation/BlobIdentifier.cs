@@ -156,12 +156,12 @@ namespace Jupiter.Implementation
 
         public static BlobIdentifier FromBlobLocator(BlobLocator locator)
         {
-            return new BlobIdentifier(Encoding.UTF8.GetBytes(locator.BlobId.ToString()));
+            return new BlobIdentifier(Encoding.UTF8.GetBytes(locator.ToString()));
         }
 
         public BlobLocator AsBlobLocator()
         {
-            return new BlobLocator(HostId.Empty, new BlobId(Encoding.UTF8.GetString(HashData)));
+            return new BlobLocator(Encoding.UTF8.GetString(HashData));
         }
     }
 
