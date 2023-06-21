@@ -817,7 +817,6 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	FRDGExternalAccessQueue ExternalAccessQueue;
 
-	bRequiresDistanceField = true;
 	if (bRequiresDistanceField)
 	{
 		PrepareDistanceFieldScene(GraphBuilder, ExternalAccessQueue);
