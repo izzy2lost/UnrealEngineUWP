@@ -20,7 +20,7 @@
 	#include "Misc/Guid.h"
 #endif
 
-#include "../../WmfMedia/Public/IWmfMediaModule.h"
+#include "IWmfMediaModule.h"
 
 
 DEFINE_LOG_CATEGORY(LogWmfMediaFactory);

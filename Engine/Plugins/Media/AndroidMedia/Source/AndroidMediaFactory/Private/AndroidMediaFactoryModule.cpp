@@ -9,7 +9,7 @@
 #include "IMediaModule.h"
 #include "IMediaPlayerFactory.h"
 
-#include "../../AndroidMedia/Public/IAndroidMediaModule.h"
+#include "IAndroidMediaModule.h"
 
 
 DEFINE_LOG_CATEGORY(LogAndroidMediaFactory);

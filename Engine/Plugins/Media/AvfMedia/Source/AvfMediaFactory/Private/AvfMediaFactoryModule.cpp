@@ -21,7 +21,7 @@
 
 #include "AvfMediaSettings.h"
 
-#include "../../AvfMedia/Public/IAvfMediaModule.h"
+#include "IAvfMediaModule.h"
 
 
 DEFINE_LOG_CATEGORY(LogAvfMediaFactory);
