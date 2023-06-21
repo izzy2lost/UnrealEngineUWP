@@ -849,6 +849,30 @@ FString UMaterialEditingLibrary::GetMaterialPropertyInputNodeOutputName(UMateria
 	return FString();
 }
 
+TArray<FString> UMaterialEditingLibrary::GetMaterialExpressionInputNames(UMaterialExpression* MaterialExpression)
+{
+	TArray<FString> InputNames;
+
+	TArrayView<FExpressionInput*> Inputs = MaterialExpression->GetInputsView();
+	for (int InputIdx = 0; InputIdx < Inputs.Num(); InputIdx++)
+	{
+		FName Name;
+		if (UMaterialExpressionMaterialFunctionCall* FuncCall = Cast<UMaterialExpressionMaterialFunctionCall>(MaterialExpression))
+		{
+			// If a function call, don't want to compare string with type postfix
+			Name = FuncCall->GetInputNameWithType(InputIdx, false);
+		}
+		else
+		{
+			const FName ExpressionInputName = MaterialExpression->GetInputName(InputIdx);
+			Name = UMaterialGraphNode::GetShortenPinName(ExpressionInputName);
+		}
+
+		InputNames.Add(Name.ToString());
+	}
+	return InputNames;
+}
+
 TArray<UMaterialExpression*> UMaterialEditingLibrary::GetInputsForMaterialExpression(UMaterial* Material, UMaterialExpression* MaterialExpression)
 {
 	TArray<UMaterialExpression*> MaterialExpressions;

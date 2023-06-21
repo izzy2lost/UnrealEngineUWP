@@ -201,6 +201,10 @@ public:
 
 	/** Get the set of nodes acting as inputs to a node from an active material editor */
 	UFUNCTION(BlueprintPure, Category = "MaterialEditing")
+	static TArray<FString> GetMaterialExpressionInputNames(UMaterialExpression* MaterialExpression);
+
+	/** Get the set of nodes acting as inputs to a node from an active material editor */
+	UFUNCTION(BlueprintPure, Category = "MaterialEditing")
 	static TArray<UMaterialExpression*> GetInputsForMaterialExpression(UMaterial* Material, UMaterialExpression* MaterialExpression);
 
 	/** Get the output name of input node connected to MaterialExpression from an active material editor */
