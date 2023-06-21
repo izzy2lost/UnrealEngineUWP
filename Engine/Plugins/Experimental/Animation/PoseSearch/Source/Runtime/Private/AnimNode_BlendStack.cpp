@@ -8,6 +8,7 @@
 #include "Animation/BlendSpace.h"
 #include "Animation/AnimMontage.h"
 #include "PoseSearch/PoseSearchDefines.h"
+#include "PoseSearch/AnimNode_BlendStackInput.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_BlendStack)
 
@@ -18,7 +19,7 @@ TAutoConsoleVariable<int32> CVarAnimBlendStackPruningEnable(TEXT("a.AnimNode.Ble
 
 /////////////////////////////////////////////////////
 // FPoseSearchAnimPlayer
-void FPoseSearchAnimPlayer::Initialize(UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop, bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, FVector BlendParameters, float PlayRate)
+void FPoseSearchAnimPlayer::Initialize(UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop, bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, FVector BlendParameters, float PlayRate, int32 InPoseLinkIdx)
 {
 	check(AnimationAsset);
 
@@ -104,6 +105,7 @@ void FPoseSearchAnimPlayer::Initialize(UAnimationAsset* AnimationAsset, float Ac
 	}
 
 	UpdateSourceLinkNode();
+	PoseLinkIndex = InPoseLinkIdx;
 }
 
 void FPoseSearchAnimPlayer::UpdatePlayRate(float PlayRate)
@@ -182,13 +184,10 @@ void FPoseSearchAnimPlayer::Evaluate_AnyThread(FPoseContext& Output)
 	}
 }
 
-void FPoseSearchAnimPlayer::Update_AnyThread(const FAnimationUpdateContext& Context, float BlendWeight)
+void FPoseSearchAnimPlayer::Update_AnyThread(const FAnimationUpdateContext& Context)
 {
-	const FAnimationUpdateContext AnimPlayerContext = Context.FractionalWeightAndRootMotion(BlendWeight, BlendWeight);
-
 	UpdateSourceLinkNode();
-	MirrorNode.Update_AnyThread(AnimPlayerContext);
-	CurrentBlendInTime += AnimPlayerContext.GetDeltaTime();
+	MirrorNode.Update_AnyThread(Context);
 }
 
 float FPoseSearchAnimPlayer::GetAccumulatedTime() const
@@ -275,8 +274,8 @@ bool FPoseSearchAnimPlayer::GetBlendInWeights(TArray<float>& Weights) const
 			}
 			else
 			{
-				const float unclampedLinearWeight = CurrentBlendInTime / TotalBlendInTimeBoneIdx;
-				Weights[BoneIdx] = FAlphaBlend::AlphaToBlendOption(unclampedLinearWeight, BlendOption);
+				const float UnclampedLinearWeight = CurrentBlendInTime / TotalBlendInTimeBoneIdx;
+				Weights[BoneIdx] = FAlphaBlend::AlphaToBlendOption(UnclampedLinearWeight, BlendOption);
 			}
 		}
 		return true;
@@ -300,9 +299,9 @@ void FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(FPoseContext& Output)
 	}
 	else if (BlendStackSize == 1)
 	{
-		AnimPlayers.First().Evaluate_AnyThread(Output);
+		EvaluateSample(Output, 0);
 	}
-	else if (RequestedMaxActiveBlends <= 0 
+	else if (MaxActiveBlends <= 0 
 #if ENABLE_ANIM_DEBUG
 		|| !CVarAnimBlendStackEnable.GetValueOnAnyThread()
 #endif // ENABLE_ANIM_DEBUG
@@ -313,13 +312,13 @@ void FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(FPoseContext& Output)
 		{
 			AnimPlayers.PopLast();
 		}
-		AnimPlayers.First().Evaluate_AnyThread(Output);
+		EvaluateSample(Output, 0);
 	}
 	else
 	{
 		// evaluating the last AnimPlayer into Output...
-		AnimPlayers[BlendStackSize - 1].Evaluate_AnyThread(Output);
-		 
+		EvaluateSample(Output, BlendStackSize - 1);
+
 		FPoseContext EvaluationPoseContext(Output);
 		FPoseContext BlendedPoseContext(Output); // @todo: this should not be necessary (but FBaseBlendedCurve::InitFrom complains about "ensure(&InCurveToInitFrom != this)"): optimize it away!
 		FAnimationPoseData BlendedAnimationPoseData(BlendedPoseContext);
@@ -331,49 +330,102 @@ void FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(FPoseContext& Output)
 		const int32 NumSkeletonBones = RefSkeleton.GetNum();
 		TArray<float> Weights;
 
-		// evaluating from the second last to the first into EvaluationPoseContext and then blend it with the with the Output (initialized with the last AnimPlayer evaluation)
-		for (int32 i = BlendStackSize - 2; i >= 0; --i)
+		auto EvaluateAndBlendPlayerByIndex = [this, &EvaluationPoseContext, &BlendedAnimationPoseData, &Output, &Weights, &BlendedPoseContext](int32 PlayerIndex)
 		{
-			AnimPlayers[i].Evaluate_AnyThread(EvaluationPoseContext);
-			
-			if (AnimPlayers[i].GetBlendInWeights(Weights))
+			// Evaluate into EvaluationPoseContext and then blend it with the Output (initialized with the last AnimPlayer evaluation)
+			EvaluateSample(EvaluationPoseContext, PlayerIndex);
+			if (AnimPlayers[PlayerIndex].GetBlendInWeights(Weights))
 			{
 				// @todo: have BlendTwoPosesTogetherPerBone using a TArrayView for the Weights to avoid allocations
 				FAnimationRuntime::BlendTwoPosesTogetherPerBone(FAnimationPoseData(Output), FAnimationPoseData(EvaluationPoseContext), Weights, BlendedAnimationPoseData);
 			}
 			else
 			{
-				const float Weight = 1.f - FAlphaBlend::AlphaToBlendOption(AnimPlayers[i].GetBlendInPercentage(), AnimPlayers[i].GetBlendOption());
+				const float Weight = 1.f - FAlphaBlend::AlphaToBlendOption(AnimPlayers[PlayerIndex].GetBlendInPercentage(), AnimPlayers[PlayerIndex].GetBlendOption());
 				FAnimationRuntime::BlendTwoPosesTogether(FAnimationPoseData(Output), FAnimationPoseData(EvaluationPoseContext), Weight, BlendedAnimationPoseData);
 			}
 			Output = BlendedPoseContext; // @todo: this should not be necessary either: optimize it away!
+		};
 
-			if (i >= RequestedMaxActiveBlends
 #if ENABLE_ANIM_DEBUG
-				&& CVarAnimBlendStackPruningEnable.GetValueOnAnyThread()
+			const bool bEnablePruning = CVarAnimBlendStackPruningEnable.GetValueOnAnyThread() > 0;
+#else
+			const bool bEnablePruning = true;
 #endif // ENABLE_ANIM_DEBUG
-				)
-			{
-				// too many AnimPlayers! we don't have enough available blends to hold them all, so we accumulate the blended poses into Output / BlendedPoseContext, until...
-				AnimPlayers.PopLast();
-				
-				if (i == RequestedMaxActiveBlends)
-				{
-					check(AnimPlayers.Num() == RequestedMaxActiveBlends + 1);
 
-					// we can store Output / BlendedPoseContext into the last AnimPlayer, that will hold a static pose, no longer an animation playing
-					AnimPlayers[i].StorePoseContext(Output);
-				}
+		// Evaluate our players from the second last to the first.
+		int32 PlayerIndex = BlendStackSize - 2;
+		// Start evaluating with our least significant players.
+		for (; PlayerIndex >= MaxActiveBlends; --PlayerIndex)
+		{
+			EvaluateAndBlendPlayerByIndex(PlayerIndex);
+
+			if (bEnablePruning)
+			{
+				// too many AnimPlayers! we don't have enough available blends to hold them all, so we accumulate the blended poses into Output / BlendedPoseContext.
+				AnimPlayers.PopLast();
 			}
 		}
 
-		const int32 ActiveBlends = AnimPlayers.Num() - 1;
-		if (ActiveBlends > RequestedMaxActiveBlends)
+		// Even if we're not pruning, we must use the stored pose if we have a limited number of graphs to execute.
+		const bool bNeedsStoredPose = (bEnablePruning || !SampleGraphPoseLinks.IsEmpty()) && (PlayerIndex == (MaxActiveBlends - 1));
+		if (bNeedsStoredPose)
 		{
-			UE_LOG(LogPoseSearch, Display, TEXT("FAnimNode_BlendStack_Standalone NumBlends/MaxNumBlends %d / %d"), ActiveBlends, RequestedMaxActiveBlends);
+			check(AnimPlayers.Num() == MaxActiveBlends + 1);
+
+			// We store Output / BlendedPoseContext into the last AnimPlayer, that will hold a static pose, no longer an animation playing.
+			AnimPlayers.Last().StorePoseContext(Output);
+
+			if (!SampleGraphPoseLinks.IsEmpty())
+			{
+				const int32 PoseLinkIdx = AnimPlayers[MaxActiveBlends].GetPoseLinkIndex();
+				FBlendStack_SampleGraphPoseLink& PoseLink = SampleGraphPoseLinks[PoseLinkIdx];
+				// No players should have evaluated a graph before this point.
+				// Evaluate the graph on the blended result.
+				PoseLink.EvaluatePlayer(Output, AnimPlayers[MaxActiveBlends]);
+			}
+		}
+
+		// Continue with our most significant players.
+		for (; PlayerIndex >= 0; --PlayerIndex)
+		{
+			EvaluateAndBlendPlayerByIndex(PlayerIndex);
+		}
+
+		const int32 ActiveBlends = AnimPlayers.Num() - 1;
+		if (ActiveBlends > MaxActiveBlends)
+		{
+			UE_LOG(LogPoseSearch, Display, TEXT("FAnimNode_BlendStack_Standalone NumBlends/MaxNumBlends %d / %d"), ActiveBlends, MaxActiveBlends);
 		}
 	}
 }
+
+void FAnimNode_BlendStack_Standalone::Initialize_AnyThread(const FAnimationInitializeContext& Context)
+{
+	Super::Initialize_AnyThread(Context);
+
+	IAnimClassInterface* AnimBlueprintClass = Context.GetAnimClass();
+	if (SampleGraphPoseLinks.IsEmpty() == false)
+	{
+		// Patch our pose links
+		for (FBlendStack_SampleGraphPoseLink& GraphPoseLink : SampleGraphPoseLinks)
+		{
+			if (GraphPoseLink.InputPoseNodeIndex != INDEX_NONE)
+			{
+				GraphPoseLink.InputPose.LinkID = AnimBlueprintClass->GetAnimNodeProperties().Num() - 1 - GraphPoseLink.InputPoseNodeIndex;
+				GraphPoseLink.InputPose.AttemptRelink(Context);
+			}
+
+			if (GraphPoseLink.RootNodeIndex != INDEX_NONE)
+			{
+				GraphPoseLink.Root.LinkID = AnimBlueprintClass->GetAnimNodeProperties().Num() - 1 - GraphPoseLink.RootNodeIndex;
+			}
+
+			GraphPoseLink.CacheBoneCounter.Reset();
+		}
+	}
+}
+
 
 void FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(const FAnimationUpdateContext& Context)
 {
@@ -400,8 +452,8 @@ void FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(const FAnimationUpdateCo
 			break;
 		}
 
-		AnimPlayer.Update_AnyThread(Context, AnimPlayerBlendWeight);
-
+		const FAnimationUpdateContext AnimPlayerContext = Context.FractionalWeightAndRootMotion(BlendWeight, BlendWeight);
+		UpdateSample(AnimPlayerContext, AnimPlayerIndex);
 		CurrentWeightMultiplier *= (1.f - BlendInPercentage);
 	}
 
@@ -413,16 +465,116 @@ void FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(const FAnimationUpdateCo
 	}
 }
 
+bool FAnimNode_BlendStack_Standalone::IsSampleGraphAvailableForPlayer(const int32 PlayerIndex)
+{
+	// If we have any sample graphs, our player has been assigned a pose link index.
+	// If we are within X most relelvant players, then the graph is available.
+	return !SampleGraphPoseLinks.IsEmpty() && (PlayerIndex < MaxActiveBlends);
+}
+
+void FAnimNode_BlendStack_Standalone::EvaluateSample(FPoseContext& Output, const int32 PlayerIndex)
+{
+	FPoseSearchAnimPlayer& SamplePlayer = AnimPlayers[PlayerIndex];
+	// If we have any sample graphs, our player has been assigned a pose link index.
+	// If we are within X most relelvant players, then the graph is available.
+	// If PlayerIndex == MaxActiveBlends, don't evaluate that graph. It's reserved for the stored pose.
+	const bool bIsSampleGraphAvailable = !SampleGraphPoseLinks.IsEmpty() && (PlayerIndex < MaxActiveBlends);
+	if (!bIsSampleGraphAvailable)
+	{
+		// If we have no sample graph, evaluate the player directly.
+		SamplePlayer.Evaluate_AnyThread(Output);
+		return;
+	}
+
+	FBlendStack_SampleGraphPoseLink& PoseLink = SampleGraphPoseLinks[SamplePlayer.GetPoseLinkIndex()];
+	PoseLink.EvaluatePlayer(Output, SamplePlayer);
+}
+
+void FBlendStack_SampleGraphPoseLink::EvaluatePlayer(FPoseContext& Output, FPoseSearchAnimPlayer& SamplePlayer)
+{
+	SetInputPosePlayer(SamplePlayer);
+
+	// Make sure CacheBones has been called before evaluating.
+	ConditionalCacheBones(Output);
+	// The anim player may or may not have its Evaluate_AnyThread called through the graph update. 
+	Root.Evaluate(Output);
+}
+
+void FBlendStack_SampleGraphPoseLink::ConditionalCacheBones(const FAnimationBaseContext& Context)
+{
+	// Only call CacheBones when needed.
+	if (!CacheBoneCounter.IsSynchronized_Counter(Context.AnimInstanceProxy->GetCachedBonesCounter()))
+	{
+		// Keep track of samples that have had CacheBones called on.
+		CacheBoneCounter.SynchronizeWith(Context.AnimInstanceProxy->GetCachedBonesCounter());
+
+		FAnimationCacheBonesContext CacheBoneContext(Context.AnimInstanceProxy);
+		Root.CacheBones(CacheBoneContext);
+	}
+}
+
+void FAnimNode_BlendStack_Standalone::UpdateSample(const FAnimationUpdateContext& Context, const int32 PlayerIndex)
+{
+	FPoseSearchAnimPlayer& SamplePlayer = AnimPlayers[PlayerIndex];
+
+	// If we have any sample graphs, our player has been assigned a pose link index.
+	// If we are within X most relelvant players, then the graph is available.
+	// @todo: If PlayerIndex == MaxActiveBlends, this will likely become a stored pose. What do we update that graph with? 
+	// For now, just use the same player.
+	const bool bHasSampleGraph = !SampleGraphPoseLinks.IsEmpty() && (PlayerIndex <= MaxActiveBlends);
+	if (bHasSampleGraph)
+	{
+		FBlendStack_SampleGraphPoseLink& PoseLink = SampleGraphPoseLinks[SamplePlayer.GetPoseLinkIndex()];
+		PoseLink.SetInputPosePlayer(SamplePlayer);
+		// The anim player may or may not have its Update_AnyThread called through the graph update. 
+		PoseLink.Root.Update(Context);
+	}
+	else
+	{
+		// If we have no sample graph, update the player directly.
+		SamplePlayer.Update_AnyThread(Context);
+	}
+
+	// Advance the blend-in time regardless of whether or not the player was updated.
+	SamplePlayer.AdvanceBlendInTime(Context.GetDeltaTime());
+}
+
+void FAnimNode_BlendStack_Standalone::InitializeSample(const FAnimationInitializeContext& Context, FPoseSearchAnimPlayer& SamplePlayer)
+{
+	if (SamplePlayer.GetPoseLinkIndex() != INDEX_NONE)
+	{
+		FBlendStack_SampleGraphPoseLink& PoseLink = SampleGraphPoseLinks[SamplePlayer.GetPoseLinkIndex()];
+		PoseLink.Root.Initialize(Context);
+	}
+}
+
 float FAnimNode_BlendStack_Standalone::GetAccumulatedTime() const
 {
 	return AnimPlayers.IsEmpty() ? 0.f : AnimPlayers.First().GetAccumulatedTime();
 }
 
-void FAnimNode_BlendStack_Standalone::BlendTo(UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop, bool bMirrored, UMirrorDataTable* MirrorDataTable, int32 MaxActiveBlends, float BlendTime, float RootBoneBlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption, FVector BlendParameters, float PlayRate)
+void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop, bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption, FVector BlendParameters, float PlayRate)
 {
-	RequestedMaxActiveBlends = MaxActiveBlends;
 	AnimPlayers.PushFirst(FPoseSearchAnimPlayer());
-	AnimPlayers.First().Initialize(AnimationAsset, AccumulatedTime, bLoop, bMirrored, MirrorDataTable, BlendTime, RootBoneBlendTime, BlendProfile, BlendOption, BlendParameters, PlayRate);
+	FPoseSearchAnimPlayer& AnimPlayer = AnimPlayers.First();
+	AnimPlayer.Initialize(AnimationAsset, AccumulatedTime, bLoop, bMirrored, MirrorDataTable, BlendTime, RootBoneBlendTime, BlendProfile, BlendOption, BlendParameters, PlayRate, GetNextPoseLinkIndex());
+
+	FAnimationInitializeContext InitContext(Context.AnimInstanceProxy, Context.SharedContext);
+	InitializeSample(InitContext, AnimPlayer);
+}
+
+int32 FAnimNode_BlendStack_Standalone::GetNextPoseLinkIndex()
+{
+	if (SampleGraphPoseLinks.IsEmpty())
+	{
+		return INDEX_NONE;
+	}
+
+	const int32 NumPoseLinks = SampleGraphPoseLinks.Num();
+	CurrentSamplePoseLink = ++CurrentSamplePoseLink;
+	if (CurrentSamplePoseLink == NumPoseLinks) { CurrentSamplePoseLink = 0; }
+
+	return CurrentSamplePoseLink;
 }
 
 void FAnimNode_BlendStack_Standalone::UpdatePlayRate(float PlayRate)
@@ -493,11 +645,21 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 
 		if (bExecuteBlendTo)
 		{
-			BlendTo(AnimationAsset, AnimationTime, bLoop, bMirrored, MirrorDataTable.Get(), MaxActiveBlends, BlendTime, RootBoneBlendTime, BlendProfile, BlendOption, BlendParameters, WantedPlayRate);
+			BlendTo(Context, AnimationAsset, AnimationTime, bLoop, bMirrored, MirrorDataTable.Get(), BlendTime, RootBoneBlendTime, BlendProfile, BlendOption, BlendParameters, WantedPlayRate);
 		}
 	}
 	
 	UpdatePlayRate(WantedPlayRate);
 
 	Super::UpdateAssetPlayer(Context);
+}
+
+void FBlendStack_SampleGraphPoseLink::SetInputPosePlayer(FPoseSearchAnimPlayer& Player)
+{
+	// Because our anim players may get reallocated, or change indices due to push/pops,
+	// we must call this before every operation that might end up needing the anim player through the graph's input node.
+	// @todo: There's probably a better way to do this.
+	FAnimNode_BlendStackInput* InputNode = static_cast<FAnimNode_BlendStackInput*>(InputPose.GetLinkNode());
+	// Link our anim player to the input pose node.
+	InputNode->Player = &Player;
 }

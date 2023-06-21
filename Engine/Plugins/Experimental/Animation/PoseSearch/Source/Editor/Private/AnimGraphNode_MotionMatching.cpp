@@ -26,33 +26,10 @@ FText UAnimGraphNode_MotionMatching::GetMenuCategory() const
 	return LOCTEXT("NodeCategory", "Pose Search");
 }
 
-void UAnimGraphNode_MotionMatching::GetOutputLinkAttributes(FNodeAttributeArray& OutAttributes) const
-{
-	if (UE::Anim::IAnimRootMotionProvider::Get())
-	{
-		OutAttributes.Add(UE::Anim::IAnimRootMotionProvider::AttributeName);
-	}
-}
-
 void UAnimGraphNode_MotionMatching::BakeDataDuringCompilation(class FCompilerResultsLog& MessageLog)
 {
 	UAnimBlueprint* AnimBlueprint = GetAnimBlueprint();
 	AnimBlueprint->FindOrAddGroup(Node.GetGroupName());
-}
-
-bool UAnimGraphNode_MotionMatching::DoesSupportTimeForTransitionGetter() const
-{
-	return true;
-}
-
-UAnimationAsset* UAnimGraphNode_MotionMatching::GetAnimationAsset() const
-{
-	return nullptr;
-}
-
-const TCHAR* UAnimGraphNode_MotionMatching::GetTimePropertyName() const
-{
-	return TEXT("InternalTimeAccumulator");
 }
 
 UScriptStruct* UAnimGraphNode_MotionMatching::GetTimePropertyStruct() const

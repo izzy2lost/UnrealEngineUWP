@@ -15,10 +15,10 @@ struct FPoseSearchAnimPlayer
 {
 	GENERATED_BODY()
 	
-	void Initialize(UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop, bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, FVector BlendParameters, float PlayRate);
+	void Initialize(UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop, bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, FVector BlendParameters, float PlayRate, int32 InPoseLinkIdx);
 	void UpdatePlayRate(float PlayRate);
 	void Evaluate_AnyThread(FPoseContext& Output);
-	void Update_AnyThread(const FAnimationUpdateContext& Context, float BlendWeight);
+	void Update_AnyThread(const FAnimationUpdateContext& Context);
 	float GetAccumulatedTime() const;
 	
 	float GetBlendInPercentage() const;
@@ -28,14 +28,16 @@ struct FPoseSearchAnimPlayer
 
 	float GetTotalBlendInTime() const { return TotalBlendInTime; }
 	float GetCurrentBlendInTime() const { return CurrentBlendInTime; }
+	void AdvanceBlendInTime(const float DeltaTime) { CurrentBlendInTime += DeltaTime; }
 	bool GetMirror() const { return MirrorNode.GetMirror(); }
 	FVector GetBlendParameters() const;
 	FString GetAnimationName() const;
 	const UAnimationAsset* GetAnimationAsset() const;
 
 	FAnimNode_Mirror_Standalone& GetMirrorNode() { return MirrorNode; }
+	int32 GetPoseLinkIndex() const { return PoseLinkIndex; }
 
-protected:
+public:
 	void RestorePoseContext(FPoseContext& PoseContext) const;
 	void UpdateSourceLinkNode();
 
@@ -56,7 +58,7 @@ protected:
 	UE::Anim::FHeapAttributeContainer StoredAttributes;
 
 	EAlphaBlendOption BlendOption = EAlphaBlendOption::Linear;
-
+	int32 PoseLinkIndex = INDEX_NONE;
 	TCustomBoneIndexArray<float, FSkeletonPoseBoneIndex> TotalBlendInTimePerBone;
 
 	float TotalBlendInTime = 0.f;
@@ -64,25 +66,63 @@ protected:
 };
 
 USTRUCT(BlueprintInternalUseOnly)
+struct FBlendStack_SampleGraphPoseLink
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	int32 InputPoseNodeIndex;
+	UPROPERTY()
+	int32 RootNodeIndex;
+
+	FPoseLink InputPose;
+	FPoseLink Root;
+	FGraphTraversalCounter CacheBoneCounter;
+
+	void SetInputPosePlayer(FPoseSearchAnimPlayer& Player);
+	void EvaluatePlayer(FPoseContext& Output, FPoseSearchAnimPlayer& SamplePlayer);
+	void ConditionalCacheBones(const FAnimationBaseContext& Output);
+};
+
+USTRUCT(BlueprintInternalUseOnly)
 struct POSESEARCH_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPlayerBase
 {
 	GENERATED_BODY()
 
+	UPROPERTY()
+	TArray<FBlendStack_SampleGraphPoseLink> SampleGraphPoseLinks;
+	int32 CurrentSamplePoseLink = -1;
+
 	TDeque<FPoseSearchAnimPlayer> AnimPlayers;
-	int32 RequestedMaxActiveBlends = 0;
 
 	// FAnimNode_Base interface
 	virtual void Evaluate_AnyThread(FPoseContext& Output) override;
+	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
 	virtual void GatherDebugData(FNodeDebugData& DebugData) override;
 	// End of FAnimNode_Base interface
 
-	void BlendTo(UAnimationAsset* AnimationAsset, float AccumulatedTime = 0.f, bool bLoop = false, bool bMirrored = false, UMirrorDataTable* MirrorDataTable = nullptr, int32 MaxActiveBlends = 3, float BlendTime = 0.2f, float RootBoneBlendTime = -1.f, const UBlendProfile* BlendProfile = nullptr, EAlphaBlendOption BlendOption = EAlphaBlendOption::Linear, FVector BlendParameters = FVector::Zero(), float PlayRate = 1.f);
+	void BlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime = 0.f, bool bLoop = false, bool bMirrored = false, UMirrorDataTable* MirrorDataTable = nullptr, float BlendTime = 0.2f, float RootBoneBlendTime = -1.f, const UBlendProfile* BlendProfile = nullptr, EAlphaBlendOption BlendOption = EAlphaBlendOption::Linear, FVector BlendParameters = FVector::Zero(), float PlayRate = 1.f);
 	void UpdatePlayRate(float PlayRate);
 
 	// FAnimNode_AssetPlayerBase interface
 	virtual float GetAccumulatedTime() const override;
 	virtual void UpdateAssetPlayer(const FAnimationUpdateContext& Context) override;
 	// End of FAnimNode_AssetPlayerBase interface
+
+	int32 GetNextPoseLinkIndex();
+
+private:
+
+	void InitializeSample(const FAnimationInitializeContext& Context, FPoseSearchAnimPlayer& SamplePlayer);
+	void EvaluateSample(FPoseContext& Output, const int32 PlayerIndex);
+	void UpdateSample(const FAnimationUpdateContext& Context, const int32 PlayerIndex);
+	bool IsSampleGraphAvailableForPlayer(const int32 PlayerIndex);
+
+	// Number of max active blending animation in the blend stack. If MaxActiveBlends is zero then blend stack is disabled
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (ClampMin = "0"))
+	int32 MaxActiveBlends = 4;
+
+	friend class UAnimGraphNode_BlendStack_Base;
 };
 
 
@@ -123,10 +163,6 @@ struct POSESEARCH_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standal
 	// (animation desynchronized from the requested time) the blend stack will force a blend into the same animation
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault))
 	float MaxAnimationDeltaTime = -1.f;
-
-	// Number of max active blending animation in the blend stack. If MaxActiveBlends is zero then blend stack is disabled
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault, ClampMin = "0"))
-	int32 MaxActiveBlends = 4;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault, UseAsBlendProfile = true))
 	TObjectPtr<UBlendProfile> BlendProfile;

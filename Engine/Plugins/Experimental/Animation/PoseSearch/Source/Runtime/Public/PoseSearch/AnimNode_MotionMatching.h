@@ -68,7 +68,7 @@ private:
 	float BlendTime = 0.2f;
 
 	// Number of max active animation segments being blended together in the blend stack. If MaxActiveBlends is zero then the blend stack is disabled.
-	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, ClampMin="0"))
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (ClampMin="0"))
 	int32 MaxActiveBlends = 4;
 
 	// Set Blend Profiles (editable in the skeleton) to determine how the blending is distributed among your character's bones. It could be used to differentiate between upper body and lower body to blend timing.
@@ -114,6 +114,7 @@ private:
 	UPROPERTY(EditAnywhere, Category = RootMotion, meta = (PinHiddenByDefault))
 	float YawFromAnimationBlendRate = -1.f;
 
+	UPROPERTY()
 	FAnimNode_BlendStack_Standalone BlendStackNode;
 
 	// Encapsulated motion matching algorithm and internal state
@@ -137,4 +138,6 @@ private:
 	UPROPERTY(EditAnywhere, Category = Relevancy, meta = (FoldProperty, PinHiddenByDefault))
 	bool bIgnoreForRelevancyTest = false;
 #endif // WITH_EDITORONLY_DATA
+
+	friend class UAnimGraphNode_MotionMatching;
 };

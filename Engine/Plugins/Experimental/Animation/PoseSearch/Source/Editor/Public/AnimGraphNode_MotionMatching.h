@@ -4,13 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
-#include "AnimGraphNode_AssetPlayerBase.h"
+#include "AnimGraphNode_BlendStack.h"
 #include "PoseSearch/AnimNode_MotionMatching.h"
 #include "AnimGraphNode_MotionMatching.generated.h"
 
 
 UCLASS(MinimalAPI, Experimental)
-class UAnimGraphNode_MotionMatching : public UAnimGraphNode_AssetPlayerBase
+class UAnimGraphNode_MotionMatching : public UAnimGraphNode_BlendStack_Base
 {
 	GENERATED_BODY()
 
@@ -21,11 +21,9 @@ class UAnimGraphNode_MotionMatching : public UAnimGraphNode_AssetPlayerBase
 	virtual FText GetTooltipText() const override;
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	virtual FText GetMenuCategory() const override;
-	virtual void GetOutputLinkAttributes(FNodeAttributeArray& OutAttributes) const override;
-
-	virtual void BakeDataDuringCompilation(class FCompilerResultsLog& MessageLog) override;
-	virtual bool DoesSupportTimeForTransitionGetter() const override;
-	virtual UAnimationAsset* GetAnimationAsset() const override;
-	virtual const TCHAR* GetTimePropertyName() const override;
 	virtual UScriptStruct* GetTimePropertyStruct() const override;
+	virtual void BakeDataDuringCompilation(class FCompilerResultsLog& MessageLog) override;
+
+	virtual int32 GetMaxActiveBlends() const override { return Node.MaxActiveBlends; }
+	virtual FAnimNode_BlendStack_Standalone* GetBlendStackNode() const override { return (FAnimNode_BlendStack_Standalone*)(&Node.BlendStackNode); }
 };
