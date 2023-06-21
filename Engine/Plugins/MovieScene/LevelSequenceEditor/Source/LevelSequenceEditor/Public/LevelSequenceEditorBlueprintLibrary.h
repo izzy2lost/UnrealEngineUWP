@@ -167,11 +167,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Level Sequence Editor")
 	static TArray<UMovieSceneFolder*> GetSelectedFolders();
 
-	/** Gets the currently selected Object Guids*/
-	UE_DEPRECATED(5.1, "GetSelectedObjects is deprecated, please use GetSelectedBindings which returns an array of FMovieSceneBindingProxy")
-	UFUNCTION(BlueprintPure, Category = "Level Sequence Editor", meta = (DeprecatedFunction, DeprecationMessage="GetSelectedObjects is deprecated, please use GetSelectedBindings which returns an array of FMovieSceneBindingProxy"))
-	static TArray<FGuid> GetSelectedObjects();
-
 	/** Gets the currently selected object bindings */
 	UFUNCTION(BlueprintPure, Category = "Level Sequence Editor")
 	static TArray<FMovieSceneBindingProxy> GetSelectedBindings();
@@ -191,11 +186,6 @@ public:
 	/** Select folders */
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	static void SelectFolders(const TArray<UMovieSceneFolder*>& Folders);
-
-	/** Select objects by GUID */
-	UE_DEPRECATED(5.1, "SelectObjects is deprecated, please use SelectBindings which takes an FMovieSceneBindingProxy")
-	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor", meta=(DeprecatedFunction, DeprecationMessage="SelectObjects is deprecated, please use SelectBindings which takes an FMovieSceneBindingProxy"))
-	static void SelectObjects(TArray<FGuid> ObjectBinding);
 
 	/** Select bindings */
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")

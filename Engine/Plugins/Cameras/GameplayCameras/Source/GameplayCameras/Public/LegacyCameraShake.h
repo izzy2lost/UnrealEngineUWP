@@ -312,13 +312,6 @@ private:
 	virtual void TeardownShakePatternImpl() override;
 };
 
-/** Backwards compatible name for the legacy camera shake, for C++ code. */
-UE_DEPRECATED(4.26, "Please use ULegacyCameraShake")
-typedef ULegacyCameraShake UCameraShake;
-
-UE_DEPRECATED(5.1, "Please use ULegacyCameraShake")
-typedef ULegacyCameraShake UMatineeCameraShake;
-
 /**
  * Blueprint function library for autocasting from a base camera shake to a legacy camera shake.
  * This prevents breaking Blueprints now that APlayerCameraManager::StartCameraShake returns the base class.

@@ -251,16 +251,6 @@ TArray<UMovieSceneFolder*> ULevelSequenceEditorBlueprintLibrary::GetSelectedFold
 	return OutSelectedFolders;
 }
 
-TArray<FGuid> ULevelSequenceEditorBlueprintLibrary::GetSelectedObjects()
-{
-	TArray<FGuid> OutSelectedGuids;
-	if (CurrentSequencer.IsValid())
-	{
-		CurrentSequencer.Pin()->GetSelectedObjects(OutSelectedGuids);
-	}
-	return OutSelectedGuids;
-}
-
 TArray<FMovieSceneBindingProxy> ULevelSequenceEditorBlueprintLibrary::GetSelectedBindings()
 {
 	TArray<FMovieSceneBindingProxy> OutSelectedBindings;
@@ -325,17 +315,6 @@ void ULevelSequenceEditorBlueprintLibrary::SelectFolders(const TArray<UMovieScen
 		for (UMovieSceneFolder* Folder : Folders)
 		{
 			CurrentSequencer.Pin()->SelectFolder(Folder);
-		}
-	}
-}
-
-void ULevelSequenceEditorBlueprintLibrary::SelectObjects(TArray<FGuid> ObjectBindings)
-{
-	if (CurrentSequencer.IsValid())
-	{
-		for (FGuid ObjectBinding : ObjectBindings)
-		{
-			CurrentSequencer.Pin()->SelectObject(ObjectBinding);
 		}
 	}
 }
