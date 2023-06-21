@@ -5,19 +5,12 @@
 #include "UnsyncThread.h"
 #include "UnsyncUtil.h"
 
+#include <float.h>
 #include <algorithm>
 #include <json11.hpp>
-#include <float.h>
 
 namespace unsync {
 
-struct FMirrorInfo
-{
-	std::string Name;
-	std::string Address;
-	uint16		Port = UNSYNC_DEFAULT_PORT;
-	double		Ping = 0;
-};
 using FMirrorInfoResult = TResult<std::vector<FMirrorInfo>>;
 
 // Runs a basic HTTP request against the remote server and returns the time it took to get the response, -1 if connection could not be
@@ -46,7 +39,7 @@ RunHttpPing(std::string_view Address, uint16 Port)
 FMirrorInfoResult
 RunQueryMirrors(const FRemoteDesc& RemoteDesc)
 {
-	const char* Url = "/api/v1/mirrors";
+	const char*	  Url	   = "/api/v1/mirrors";
 	FHttpResponse Response = HttpRequest(RemoteDesc, EHttpMethod::GET, Url);
 
 	if (!Response.Success())
@@ -149,6 +142,35 @@ CmdQuery(const FCmdQueryOptions& Options)
 		UNSYNC_ERROR(L"Unknown query command");
 		return 1;
 	}
+}
+
+TResult<FMirrorInfo>
+FindClosestMirror(const FRemoteDesc& Remote)
+{
+	FMirrorInfoResult MirrorsResult = RunQueryMirrors(Remote);
+	if (MirrorsResult.IsError())
+	{
+		return FError(MirrorsResult.GetError());
+	}
+
+	std::vector<FMirrorInfo> Mirrors = MirrorsResult.GetData();
+	ParallelForEach(Mirrors.begin(), Mirrors.end(), [](FMirrorInfo& Mirror) { Mirror.Ping = RunHttpPing(Mirror.Address, Mirror.Port); });
+
+	std::sort(Mirrors.begin(), Mirrors.end(), [](const FMirrorInfo& InA, const FMirrorInfo& InB) {
+		double A = InA.Ping > 0 ? InA.Ping : FLT_MAX;
+		double B = InB.Ping > 0 ? InB.Ping : FLT_MAX;
+		return A < B;
+	});
+
+	for (const FMirrorInfo& Mirror : Mirrors)
+	{
+		if (Mirror.Ping > 0)
+		{
+			return ResultOk(Mirror);
+		}
+	}
+
+	return AppError("No reachable mirror found");
 }
 
 }  // namespace unsync

@@ -15,4 +15,14 @@ struct FCmdQueryOptions
 
 int32 CmdQuery(const FCmdQueryOptions& Options);
 
+struct FMirrorInfo
+{
+	std::string Name;
+	std::string Address;
+	uint16		Port = UNSYNC_DEFAULT_PORT;
+	double		Ping = 0;
+};
+
+TResult<FMirrorInfo> FindClosestMirror(const FRemoteDesc& Remote);
+
 } // namespace unsync
