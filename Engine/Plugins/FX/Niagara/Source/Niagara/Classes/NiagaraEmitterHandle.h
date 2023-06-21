@@ -91,6 +91,10 @@ public:
 	static NIAGARA_API const FNiagaraEmitterHandle InvalidHandle;
 
 private:
+	/** The display name for this emitter in the System. */
+	UPROPERTY()
+	FName Name;
+	
 	/** The id of this emitter handle. */
 	UPROPERTY(VisibleAnywhere, Category="Emitter ID")
 	FGuid Id;
@@ -103,10 +107,6 @@ private:
 	/** Whether or not this emitter is enabled within the System.  Disabled emitters aren't simulated. */
 	UPROPERTY()
 	bool bIsEnabled;
-	
-	/** The display name for this emitter in the System. */
-	UPROPERTY()
-	FName Name;
 
 #if WITH_EDITORONLY_DATA
 	/** The source emitter this emitter handle was built from. */
