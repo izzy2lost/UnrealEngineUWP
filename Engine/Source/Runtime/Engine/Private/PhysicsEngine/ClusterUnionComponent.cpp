@@ -1257,3 +1257,19 @@ int32 UClusterUnionComponent::NumChildClusterComponents() const
 {
 	return PendingComponentSync.Num() + ComponentToPhysicsObjects.Num();
 }
+
+bool UClusterUnionComponent::DoCustomNavigableGeometryExport(FNavigableGeometryExport& GeomExport) const
+{
+	bool bHasData = false;
+	VisitAllCurrentChildComponents(
+		[&bHasData, &GeomExport](UPrimitiveComponent* Component)
+		{
+			if (Component)
+			{
+				bHasData |= Component->DoCustomNavigableGeometryExport(GeomExport);
+			}
+			return true;
+		}
+	);
+	return bHasData;
+}
