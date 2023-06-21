@@ -606,7 +606,11 @@ void UEnhancedPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>
 					{
 						if (static_cast<uint8>(ConsumptionData->EventsToCauseConsumption & Delegate->GetTriggerEvent()) != 0)
 						{
-							ConsumeKey(ConsumptionData->KeyToConsume);
+							// Consume all keys that are mapped to this input action with the proper trigger values
+							for (const FKey& KeyToConsume : ConsumptionData->KeysToConsume)
+							{
+								ConsumeKey(KeyToConsume);	
+							}
 						}
 					}
 					Delegate->Execute(*ActionData);

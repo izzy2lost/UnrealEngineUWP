@@ -928,7 +928,9 @@ void IEnhancedInputSubsystemInterface::RebuildControlMappings()
 				// This has the affect where the base UPlayerInput class will not fire any legacy bindings
 				if (Mapping.Action->bConsumesActionAndAxisMappings)
 				{
-					PlayerInput->KeyConsumptionData.Add(Mapping.Action, { Mapping.Key, static_cast<ETriggerEvent>(Mapping.Action->TriggerEventsThatConsumeLegacyKeys) });	
+					FKeyConsumptionOptions& Opts = PlayerInput->KeyConsumptionData.FindOrAdd(Mapping.Action);
+					Opts.KeysToConsume.AddUnique(Mapping.Key);
+					Opts.EventsToCauseConsumption |= static_cast<ETriggerEvent>(Mapping.Action->TriggerEventsThatConsumeLegacyKeys);
 				}
 				
 				if (Mapping.Action && !AppliedKeys.Contains(Mapping.Key))

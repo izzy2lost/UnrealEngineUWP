@@ -31,8 +31,8 @@ struct FKeyConsumptionOptions
 {
 	GENERATED_BODY()
 	
-	/** The key that should be consumed if the trigger state is reached */
-	FKey KeyToConsume = EKeys::Invalid;
+	/** Keys that should be consumed if the trigger state is reached */
+	TArray<FKey> KeysToConsume;
 		
 	/** A bitmask of trigger events that when reached, should cause the key to be marked as consumed. */
 	ETriggerEvent EventsToCauseConsumption = ETriggerEvent::None;

@@ -2052,11 +2052,8 @@ void UPlayerInput::Tick(float DeltaTime)
 
 void UPlayerInput::ConsumeKey(FKey Key)
 {
-	FKeyState* const KeyState = KeyStateMap.Find(Key);
-	if (KeyState)
-	{
-		KeyState->bConsumed = true;
-	}
+	FKeyState& KeyState = KeyStateMap.FindOrAdd(Key);
+	KeyState.bConsumed = true;
 }
 
 bool UPlayerInput::KeyEventOccurred(FKey Key, EInputEvent Event, TArray<uint32>& InEventIndices, const FKeyState* KeyState) const
