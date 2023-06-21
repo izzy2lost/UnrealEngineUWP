@@ -203,8 +203,10 @@ void UEditorUtilitySubsystem::ReleaseInstanceOfAsset(UObject* Asset)
 
 UEditorUtilityWidget* UEditorUtilitySubsystem::SpawnAndRegisterTabAndGetID(UEditorUtilityWidgetBlueprint* InBlueprint, FName& NewTabID)
 {
-	RegisterTabAndGetID(InBlueprint, NewTabID);
-	SpawnRegisteredTabByID(NewTabID);
+	FName TabID;
+	RegisterTabAndGetID(InBlueprint, TabID);
+	SpawnRegisteredTabByID(TabID);
+	NewTabID = TabID;
 	return FindUtilityWidgetFromBlueprint(InBlueprint);
 }
 
