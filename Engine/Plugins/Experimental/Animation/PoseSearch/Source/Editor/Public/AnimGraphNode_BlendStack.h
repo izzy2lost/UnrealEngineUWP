@@ -7,7 +7,7 @@
 #include "AnimGraphNode_BlendStack.generated.h"
 
 
-UCLASS(MinimalAPI, Experimental)
+UCLASS(MinimalAPI, Abstract, Experimental)
 class UAnimGraphNode_BlendStack_Base : public UAnimGraphNode_AssetPlayerBase
 {
 	GENERATED_BODY()
