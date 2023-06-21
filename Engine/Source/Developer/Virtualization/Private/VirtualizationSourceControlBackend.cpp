@@ -10,6 +10,7 @@
 #include "ISourceControlProvider.h"
 #include "Interfaces/IPluginManager.h"
 #include "Logging/MessageLog.h"
+#include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/PathViews.h"
@@ -1075,6 +1076,12 @@ bool FSourceControlBackend::TryApplySettingsFromConfigFiles(const FString& Confi
 
 	{
 		FParse::Bool(*ConfigEntry, TEXT("UseRetryConnectionDialog="), bUseRetryConnectionDialog);
+
+		if (FParse::Param(FCommandLine::Get(), TEXT("VADisableDialog")))
+		{
+			bUseRetryConnectionDialog = false;
+		}
+
 		UE_LOG(LogVirtualization, Log, TEXT("[%s] Showing a reconnect dialog on initial failure %s"), *GetDebugName(), bUseRetryConnectionDialog ? TEXT("enabled") : TEXT("disabled"));
 	}
 
