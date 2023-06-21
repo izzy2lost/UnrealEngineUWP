@@ -2857,7 +2857,6 @@ void STableTreeView::ShowColumn(FTableColumn& Column)
 			.VAlignCell(VAlign_Fill)
 			.InitialSortMode(Column.GetInitialSortMode())
 			.SortMode(this, &STableTreeView::GetSortModeForColumn, Column.GetId())
-			.OnSort(this, &STableTreeView::OnSortModeChanged)
 			.FillWidth(Column.GetInitialWidth())
 			//.FixedWidth(Column.IsFixedWidth() ? Column.GetInitialWidth() : TOptional<float>())
 			.HeaderContent()
@@ -2875,6 +2874,11 @@ void STableTreeView::ShowColumn(FTableColumn& Column)
 			[
 				TreeViewHeaderRow_GenerateColumnMenu(Column)
 			];
+
+		if (Column.CanBeSorted())
+		{
+			ColumnArgs.OnSort(this, &STableTreeView::OnSortModeChanged);
+		}
 
 		int32 ColumnIndex = 0;
 		const int32 NewColumnPosition = Table->GetColumnPositionIndex(Column.GetId());
