@@ -9,6 +9,7 @@
 #include "VulkanLLM.h"
 #include "ShaderParameterStruct.h"
 #include "RHIUniformBufferDataShared.h"
+#include "VulkanDescriptorSets.h"
 
 static int32 GVulkanAllowUniformUpload = 1;
 static FAutoConsoleVariableRef CVarVulkanAllowUniformUpload(
@@ -188,6 +189,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FVulkanUniformBuffer::~FVulkanUniformBuffer()
 {
+	if (BindlessHandle.IsValid())
+	{
+		Device->GetBindlessDescriptorManager()->Unregister(BindlessHandle);
+	}
+
 	Device->GetMemoryManager().FreeUniformBuffer(Allocation);
 }
 
@@ -212,6 +218,26 @@ void FVulkanUniformBuffer::UpdateResourceTable(FRHIResource** Resources, int32 R
 	}
 }
 
+FRHIDescriptorHandle FVulkanUniformBuffer::GetBindlessHandle()
+{
+	// :todo-jn: temporary code to refresh as needed, only used by raytracing
+	const VkDeviceAddress CurrentAddress = GetDeviceAddress();
+	if (!BindlessHandle.IsValid() || (CachedDeviceAddress == 0) || (CurrentAddress != CachedDeviceAddress))
+	{
+		if (BindlessHandle.IsValid())
+		{
+			Device->GetBindlessDescriptorManager()->Unregister(BindlessHandle);
+		}
+
+		BindlessHandle = Device->GetBindlessDescriptorManager()->ReserveDescriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+		Device->GetBindlessDescriptorManager()->UpdateBuffer(BindlessHandle, CurrentAddress, GetSize(), true);
+
+		CachedDeviceAddress = CurrentAddress;
+	}
+
+	return BindlessHandle;
+}
+
 VkDeviceAddress FVulkanUniformBuffer::GetDeviceAddress() const
 {
 	// :todo-jn: there will be more and more churn on this, cache the value
@@ -222,7 +248,6 @@ VkDeviceAddress FVulkanUniformBuffer::GetDeviceAddress() const
 	BufferAddress += GetOffset();
 	return BufferAddress;
 }
-
 
 FUniformBufferRHIRef FVulkanDynamicRHI::RHICreateUniformBuffer(const void* Contents, const FRHIUniformBufferLayout* Layout, EUniformBufferUsage Usage, EUniformBufferValidation Validation)
 {

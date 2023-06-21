@@ -4568,6 +4568,56 @@ void FWrapLayer::GetDescriptorEXT(VkResult Result, VkDevice Device, const VkDesc
 	}
 }
 
+void FWrapLayer::CreateDeferredOperationKHR(VkResult Result, VkDevice Device, const VkAllocationCallbacks* Allocator, VkDeferredOperationKHR* DeferredOperation)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBeginResult(FString::Printf(TEXT("CreateDeferredOperationKHR(Device=0x%p, DeferredOperation=0x%p)"), Device, DeferredOperation));
+#endif
+	}
+}
+
+void FWrapLayer::DestroyDeferredOperationKHR(VkResult Result, VkDevice Device, VkDeferredOperationKHR DeferredOperation, const VkAllocationCallbacks* Allocator)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBeginResult(FString::Printf(TEXT("DestroyDeferredOperationKHR(Device=0x%p, DeferredOperation=0x%p)"), Device, DeferredOperation));
+#endif
+	}
+}
+
+void FWrapLayer::DeferredOperationJoinKHR(VkResult Result, VkDevice Device, VkDeferredOperationKHR DeferredOperation)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBeginResult(FString::Printf(TEXT("DeferredOperationJoinKHR(Device=0x%p, DeferredOperation=0x%p)"), Device, DeferredOperation));
+#endif
+	}
+}
+
+void FWrapLayer::GetDeferredOperationMaxConcurrencyKHR(VkResult Result, VkDevice Device, VkDeferredOperationKHR DeferredOperation)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBeginResult(FString::Printf(TEXT("GetDeferredOperationMaxConcurrencyKHR(Device=0x%p, DeferredOperation=0x%p)"), Device, DeferredOperation));
+#endif
+	}
+}
+
+void FWrapLayer::GetDeferredOperationResultKHR(VkResult Result, VkDevice Device, VkDeferredOperationKHR DeferredOperation)
+{
+	if (Result == VK_RESULT_MAX_ENUM)
+	{
+#if VULKAN_ENABLE_DUMP_LAYER
+		PrintfBeginResult(FString::Printf(TEXT("GetDeferredOperationResultKHR(Device=0x%p, DeferredOperation=0x%p)"), Device, DeferredOperation));
+#endif
+	}
+}
+
 void FWrapLayer::GetDeviceFaultInfoEXT(VkResult Result, VkDevice Device, VkDeviceFaultCountsEXT* FaultCounts, VkDeviceFaultInfoEXT* FaultInfo)
 {
 	if (Result == VK_RESULT_MAX_ENUM)

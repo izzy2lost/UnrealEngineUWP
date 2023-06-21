@@ -1180,12 +1180,16 @@ public:
 		NewAlloc.Swap(Allocation);
 	}
 	
+	FRHIDescriptorHandle GetBindlessHandle();
 	VkDeviceAddress GetDeviceAddress() const;
 
 public:
 	FVulkanDevice* Device;
 	VulkanRHI::FVulkanAllocation Allocation;
 	EUniformBufferUsage Usage;
+
+	FRHIDescriptorHandle BindlessHandle;
+	VkDeviceAddress CachedDeviceAddress = 0;
 };
 
 class FVulkanUnorderedAccessView final : public FRHIUnorderedAccessView, public FVulkanLinkedView
