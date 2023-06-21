@@ -21,6 +21,7 @@
 #include "Engine/Console.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformTime.h"
+#include "Interfaces/IPluginManager.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "Misc/CommandLine.h"
 #include "Misc/CoreMiscDefines.h"
@@ -3073,6 +3074,29 @@ void FPackageDatas::ClearCookedPlatforms()
 		PackageData->ResetReachable();
 		PackageData->ClearCookResults();
 	});
+}
+
+void FPackageDatas::ClearCookResultsForPlugin(const FString& InPluginName)
+{
+	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(InPluginName);
+	if (Plugin.IsValid())
+	{
+		FString PluginPath = Plugin->GetMountedAssetPath();
+		int AffectedPackagesCount = 0;
+
+		LockAndEnumeratePackageDatas([PluginPath, &AffectedPackagesCount](FPackageData* PackageData)
+			{
+				// Does this PackageData belong to the plugin?
+				const FName& PackageName = PackageData->GetPackageName();
+				if (PackageName.ToString().StartsWith(PluginPath))
+				{
+					PackageData->ClearCookResults();
+					AffectedPackagesCount++;
+				}
+			});
+
+		UE_LOG(LogCook, Display, TEXT("Cleared the cook results of %d packages because plugin '%s' was requested to be recooked."), AffectedPackagesCount, *InPluginName);
+	}
 }
 
 void FPackageDatas::OnRemoveSessionPlatform(const ITargetPlatform* TargetPlatform)

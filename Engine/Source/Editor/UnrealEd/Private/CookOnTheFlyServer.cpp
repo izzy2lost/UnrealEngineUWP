@@ -11236,6 +11236,12 @@ void UCookOnTheFlyServer::RecordDLCPackagesFromBaseGame(FBeginCookContext& Begin
 			}
 		}
 	}
+
+	if (IsCookingDLC() && (!!(CookOptions & ECookByTheBookOptions::DlcRecook)))
+	{
+		// Mark all the packages in the DLC as not cooked to force them to be cooked again.
+		PackageDatas->ClearCookResultsForPlugin(CookByTheBookOptions->DlcName);
+	}
 }
 
 void UCookOnTheFlyServer::BeginCookPackageWriters(FBeginCookContext& BeginContext)

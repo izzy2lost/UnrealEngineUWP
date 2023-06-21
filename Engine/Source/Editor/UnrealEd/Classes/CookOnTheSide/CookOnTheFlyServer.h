@@ -93,7 +93,7 @@ enum class ECookByTheBookOptions
 	DlcLoadMainAssetRegistry =			0x00020000, // If cooking DLC, populate the main game asset registry
 	ZenStore =							0x00040000, // Store cooked data in Zen Store
 	DlcReevaluateUncookedAssets =		0x00080000, // If cooking DLC, ignore assets in the base asset registry that were not cooked, so that this cook has an opportunity to cook the assets
-
+	DlcRecook =							0x00100000,	// If cooking DLC, force all the assets in the DLC to be cooked even if they are marked as already cooked.
 };
 ENUM_CLASS_FLAGS(ECookByTheBookOptions);
 
