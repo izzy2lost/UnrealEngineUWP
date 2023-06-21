@@ -854,7 +854,7 @@ TArray<FString> UMaterialEditingLibrary::GetMaterialExpressionInputNames(UMateri
 	TArray<FString> InputNames;
 
 	TArrayView<FExpressionInput*> Inputs = MaterialExpression->GetInputsView();
-	for (int InputIdx = 0; InputIdx < Inputs.Num(); InputIdx++)
+	for (int32 InputIdx = 0; InputIdx < Inputs.Num(); InputIdx++)
 	{
 		FName Name;
 		if (UMaterialExpressionMaterialFunctionCall* FuncCall = Cast<UMaterialExpressionMaterialFunctionCall>(MaterialExpression))
@@ -871,6 +871,18 @@ TArray<FString> UMaterialEditingLibrary::GetMaterialExpressionInputNames(UMateri
 		InputNames.Add(Name.ToString());
 	}
 	return InputNames;
+}
+
+TArray<int32> UMaterialEditingLibrary::GetMaterialExpressionInputTypes(UMaterialExpression* MaterialExpression)
+{
+	TArray<int32> InputTypes;
+
+	const int32 NumInputs = MaterialExpression->GetInputsView().Num();
+	for (int32 InputIdx = 0; InputIdx < NumInputs; InputIdx++)
+	{
+		InputTypes.Add(MaterialExpression->GetInputType(InputIdx));
+	}
+	return InputTypes;
 }
 
 TArray<UMaterialExpression*> UMaterialEditingLibrary::GetInputsForMaterialExpression(UMaterial* Material, UMaterialExpression* MaterialExpression)
