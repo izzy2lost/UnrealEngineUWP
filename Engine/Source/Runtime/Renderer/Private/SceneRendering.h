@@ -2547,6 +2547,8 @@ protected:
 		EVelocityPass VelocityPass,
 		bool bForceVelocity);
 
+	void RenderMeshDistanceFieldVisualization(FRDGBuilder& GraphBuilder, const FMinimalSceneTextures& SceneTextures);
+
 protected:
 	FGPUSceneDynamicContext GPUSceneDynamicContext;
 

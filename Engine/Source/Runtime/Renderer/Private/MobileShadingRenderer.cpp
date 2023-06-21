@@ -817,6 +817,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	FRDGExternalAccessQueue ExternalAccessQueue;
 
+	bRequiresDistanceField = true;
 	if (bRequiresDistanceField)
 	{
 		PrepareDistanceFieldScene(GraphBuilder, ExternalAccessQueue);
@@ -1087,6 +1088,11 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		const FPlanarReflectionSceneProxy* PlanarReflectionSceneProxy = Scene ? Scene->GetForwardPassGlobalPlanarReflection() : nullptr;
 
 		RenderPixelProjectedReflection(GraphBuilder, SceneTextures.Color.Resolve, SceneTextures.Depth.Resolve, SceneTextures.PixelProjectedReflection, PlanarReflectionSceneProxy);
+	}
+
+	if (ViewFamily.EngineShowFlags.VisualizeMeshDistanceFields || ViewFamily.EngineShowFlags.VisualizeGlobalDistanceField)
+	{
+		RenderMeshDistanceFieldVisualization(GraphBuilder, SceneTextures);
 	}
 	
 	if (bUseVirtualTexturing)

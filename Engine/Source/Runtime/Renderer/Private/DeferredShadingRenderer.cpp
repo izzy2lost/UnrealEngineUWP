@@ -4273,7 +4273,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		// Draw visualizations just before use to avoid target contamination
 		if (ViewFamily.EngineShowFlags.VisualizeMeshDistanceFields || ViewFamily.EngineShowFlags.VisualizeGlobalDistanceField)
 		{
-			RenderMeshDistanceFieldVisualization(GraphBuilder, SceneTextures, FDistanceFieldAOParameters(Scene->DefaultMaxDistanceFieldOcclusionDistance));
+			RenderMeshDistanceFieldVisualization(GraphBuilder, SceneTextures);
 		}
 
 		if (bRenderDeferredLighting)
