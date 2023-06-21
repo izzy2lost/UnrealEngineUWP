@@ -14,6 +14,8 @@
 
 #include "Render/Viewport/Containers/DisplayClusterViewport_PostRenderSettings.h"
 
+#include "Components/DisplayClusterCameraComponent.h"
+
 #include "EngineUtils.h"
 #include "SceneView.h"
 
@@ -21,11 +23,67 @@
 
 #include "Misc/DisplayClusterLog.h"
 
+namespace UE::DisplayCluster::Viewport::Math
+{
+	/**
+	 * Calculates the ViewOffset for the eye from the view location and changes the value of the view location to the eye position.
+	 * 
+	 * @param PassOffsetSwap - Distance to the eye from the midpoint between the eyes.
+	 * @param InOutViewLocation - (in, out) view location
+	 * @param InViewRotation (in) - rotation of the view (from this rotator we get the direction to the eye)
+	 * 
+	 * @return - the distance to the eye from the original ViewLocation
+	 */
+	static inline FVector ImplGetViewOffset(const float PassOffsetSwap, FVector& InOutViewLocation, const FRotator& InViewRotation)
+	{
+		// Apply computed offset to the view location
+		const FQuat EyeQuat = InViewRotation.Quaternion();
+		FVector ViewOffset = EyeQuat.RotateVector(FVector(0.0f, PassOffsetSwap, 0.0f));
+		
+		InOutViewLocation += ViewOffset;
+
+		return ViewOffset;
+	}
+};
+using namespace UE::DisplayCluster::Viewport::Math;
 ///////////////////////////////////////////////////////////////////////////////////////
 //          FDisplayClusterViewport
 ///////////////////////////////////////////////////////////////////////////////////////
+FVector2D FDisplayClusterViewport::GetClippingPlanes() const
+{
+	const float NCP = GNearClippingPlane;
+	const float FCP = NCP; // nDisplay does not use the far plane of the clipping
 
-bool FDisplayClusterViewport::CalculateView(const uint32 InContextNum, FVector& InOutViewLocation, FRotator& InOutViewRotation, const FVector& ViewOffset, const float WorldToMeters, const float NCP, const float FCP)
+	// Supports custom near clipping plane
+	float ZNear = NCP;
+	float ZFar = FCP;
+	if (CustomNearClippingPlane >= 0)
+	{
+		ZNear = CustomNearClippingPlane;
+		ZFar = (NCP == FCP) ? ZNear : ZFar;
+	}
+
+	return FVector2D(ZNear, ZFar);
+}
+
+bool FDisplayClusterViewport::GetViewPointCameraEye(const uint32 InContextNum, FVector& OutViewLocation, FRotator& OutViewRotation, FVector& OutViewOffset)
+{
+	// Here we use the ViewPoint component as the eye position
+	if (UDisplayClusterCameraComponent* ViewPoint = GetViewPointCameraComponent())
+	{
+		OutViewLocation = ViewPoint->GetComponentLocation();
+		OutViewRotation = ViewPoint->GetComponentRotation();
+
+		// Calculate stereo ViewOffset:
+		OutViewOffset = ImplGetViewOffset(GetStereoEyeOffsetDistance(InContextNum), OutViewLocation, OutViewRotation);
+
+		return true;
+	}
+
+	return false;
+}
+
+bool FDisplayClusterViewport::CalculateView(const uint32 InContextNum, FVector& InOutViewLocation, FRotator& InOutViewRotation, const float WorldToMeters)
 {
 	if (Contexts.IsValidIndex(InContextNum))
 	{
@@ -46,7 +104,11 @@ bool FDisplayClusterViewport::CalculateView(const uint32 InContextNum, FVector& 
 
 				return true;
 			}
-			else if (ProjectionPolicy.IsValid() && ProjectionPolicy->CalculateView(this, InContextNum, InOutViewLocation, InOutViewRotation, ViewOffset, WorldToMeters, NCP, FCP))
+
+			// Calculate stereo ViewOffset:
+			const FVector ViewOffset = ImplGetViewOffset(GetStereoEyeOffsetDistance(InContextNum), InOutViewLocation, InOutViewRotation);
+			const FVector2D ClipingPlanes = GetClippingPlanes();
+			if (ProjectionPolicy.IsValid() && ProjectionPolicy->CalculateView(this, InContextNum, InOutViewLocation, InOutViewRotation, ViewOffset, WorldToMeters, ClipingPlanes.X, ClipingPlanes.Y))
 			{
 				Contexts[InContextNum].WorldToMeters = WorldToMeters;
 
@@ -57,11 +119,9 @@ bool FDisplayClusterViewport::CalculateView(const uint32 InContextNum, FVector& 
 
 				return true;
 			}
-			else
-			{
-				// ProjectionPolicy->CalculateView() returns false, this view is invalid
-				EnumAddFlags(Contexts[InContextNum].ContextState, EDisplayClusterViewportContextState::InvalidViewPoint);
-			}
+
+			// ProjectionPolicy->CalculateView() returns false, this view is invalid
+			EnumAddFlags(Contexts[InContextNum].ContextState, EDisplayClusterViewportContextState::InvalidViewPoint);
 		}
 	}
 

@@ -175,6 +175,12 @@ public:
 public:
 	void GetReferencedMeshNames(TArray<FString>& OutMeshNames) const;
 
+	/** The viewport object will only be created or updated if this function returns true.*/
+	bool IsViewportEnabled() const
+	{
+		return bAllowRendering;
+	}
+
 #if WITH_EDITOR
 	/** Enable the preview texture. Only should be called by the object managing the preview texture state. */
 	void EnablePreviewTexture();

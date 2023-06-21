@@ -7,12 +7,17 @@
 
 #include "DisplayClusterRootActor.h"
 #include "Components/DisplayClusterCameraComponent.h"
+#include "Components/DisplayClusterICVFXCameraComponent.h"
+#include "CineCameraComponent.h"
 
 #include "SceneView.h"
 
 #include "Misc/DisplayClusterLog.h"
 
-namespace UE::DisplayClusterViewport
+#include "GameFramework/PlayerController.h"
+#include "Camera/CameraComponent.h"
+
+namespace UE::DisplayCluster::Viewport::ViewPoint
 {
 	enum EDisplayClusterEyeType : int32
 	{
@@ -22,7 +27,83 @@ namespace UE::DisplayClusterViewport
 		COUNT
 	};
 };
-using namespace UE::DisplayClusterViewport;
+using namespace UE::DisplayCluster::Viewport::ViewPoint;
+
+///////////////////////////////////////////////////////////////////////////////////////
+// IDisplayClusterViewport
+///////////////////////////////////////////////////////////////////////////////////////
+bool IDisplayClusterViewport::GetCameraComponentView(UCameraComponent* InCameraComponent, const float InDeltaTime, const bool bUseCameraPostprocess, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane)
+{
+	if (!InCameraComponent)
+	{
+		// Required camera component
+		return false;
+	}
+
+	InCameraComponent->GetCameraView(InDeltaTime, InOutViewInfo);
+
+	if(!bUseCameraPostprocess)
+	{
+		InOutViewInfo.PostProcessSettings = FPostProcessSettings();
+		InOutViewInfo.PostProcessBlendWeight = 0.0f;
+	}
+
+	// Get custom NCP from CineCamera component:
+	if (OutCustomNearClippingPlane)
+	{
+		*OutCustomNearClippingPlane = -1;
+
+		// Get settings from this cinecamera component
+		if (UCineCameraComponent* CineCameraComponent = Cast<UCineCameraComponent>(InCameraComponent))
+		{
+			// Supports ICVFX camera component as input
+			if (UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent = Cast<UDisplayClusterICVFXCameraComponent>(CineCameraComponent))
+			{
+				// Getting settings from the actual CineCamera component
+				CineCameraComponent = ICVFXCameraComponent->GetActualCineCameraComponent();
+			}
+
+			if (CineCameraComponent && CineCameraComponent->bOverride_CustomNearClippingPlane)
+			{
+				*OutCustomNearClippingPlane = CineCameraComponent->CustomNearClippingPlane;
+			}
+		}
+	}
+
+	return true;
+}
+
+bool IDisplayClusterViewport::GetPlayerCameraView(UWorld* InWorld, const bool bUseCameraPostprocess, FMinimalViewInfo& InOutViewInfo)
+{
+	if (InWorld)
+	{
+		if (APlayerController* const CurPlayerController = InWorld->GetFirstPlayerController())
+		{
+			if (APlayerCameraManager* const CurPlayerCameraManager = CurPlayerController->PlayerCameraManager)
+			{
+				InOutViewInfo = CurPlayerCameraManager->GetCameraCacheView(); // Get desired view with postprocess from player camera
+
+				if (!bUseCameraPostprocess)
+				{
+					InOutViewInfo.PostProcessSettings = FPostProcessSettings();
+					InOutViewInfo.PostProcessBlendWeight = 0.0f;
+				}
+
+				InOutViewInfo.FOV = CurPlayerCameraManager->GetFOVAngle();
+				CurPlayerCameraManager->GetCameraViewPoint(/*out*/ InOutViewInfo.Location, /*out*/ InOutViewInfo.Rotation);
+
+				if (!bUseCameraPostprocess)
+				{
+					InOutViewInfo.PostProcessBlendWeight = 0.0f;
+				}
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////
 //          FDisplayClusterViewport
@@ -73,12 +154,18 @@ bool FDisplayClusterViewport::SetupViewPoint(FMinimalViewInfo& InOutViewInfo)
 {
 	if (UDisplayClusterCameraComponent* ViewCamera = GetViewPointCameraComponent())
 	{
-		// First try to get the viewpoint from the projection policy
-		if (!ProjectionPolicy->GetViewPoint(this, InOutViewInfo.Rotation, InOutViewInfo.Location))
+		// Get ViewPoint from DCRA component
+		ViewCamera->GetDesiredView(InOutViewInfo, &CustomNearClippingPlane);
+
+		// The projection policy can override these ViewPoint data.
+		if (ProjectionPolicy.IsValid())
 		{
-			// if unsuccessful, get the viewport from the viewport camera
-			InOutViewInfo.Location = ViewCamera->GetComponentLocation();
-			InOutViewInfo.Rotation = ViewCamera->GetComponentRotation();
+			float DeltaTime = 0.0f;
+			if (ADisplayClusterRootActor* RootActor = GetRootActor())
+			{
+				DeltaTime = RootActor->GetWorldDeltaSeconds();
+			}
+			ProjectionPolicy->SetupProjectionViewPoint(this, DeltaTime, InOutViewInfo, &CustomNearClippingPlane);
 		}
 
 		return true;
@@ -93,47 +180,41 @@ float FDisplayClusterViewport::GetStereoEyeOffsetDistance(const uint32 InContext
 
 	if (UDisplayClusterCameraComponent* ViewCamera = GetViewPointCameraComponent())
 	{
-		// First try to get the eye offset distance from the projection policy
-		if (!ProjectionPolicy->GetStereoEyeOffsetDistance(this, InContextNum, StereoEyeOffsetDistance))
+		// Calculate eye offset considering the world scale
+		const float CfgEyeDist = ViewCamera->GetInterpupillaryDistance();
+		const float EyeOffset = CfgEyeDist / 2.f;
+		const float EyeOffsetValues[] = { -EyeOffset, 0.f, EyeOffset };
+
+		// Decode current eye type
+		const EDisplayClusterEyeType EyeType = (Contexts.Num() == 1)
+			? EDisplayClusterEyeType::Mono
+			: (InContextNum == 0) ? EDisplayClusterEyeType::StereoLeft : EDisplayClusterEyeType::StereoRight;
+
+		float PassOffset = 0.f;
+
+		if (EyeType == EDisplayClusterEyeType::Mono)
 		{
-			// if failed, get from the viewport camera
+			// For monoscopic camera let's check if the "force offset" feature is used
+			// * Force left (-1) ==> 0 left eye
+			// * Force right (1) ==> 2 right eye
+			// * Default (0) ==> 1 mono
+			const EDisplayClusterEyeStereoOffset CfgEyeOffset = ViewCamera->GetStereoOffset();
+			const int32 EyeOffsetIdx =
+				(CfgEyeOffset == EDisplayClusterEyeStereoOffset::None ? 0 :
+					(CfgEyeOffset == EDisplayClusterEyeStereoOffset::Left ? -1 : 1));
 
-			// Calculate eye offset considering the world scale
-			const float CfgEyeDist = ViewCamera->GetInterpupillaryDistance();
-			const float EyeOffset = CfgEyeDist / 2.f;
-			const float EyeOffsetValues[] = { -EyeOffset, 0.f, EyeOffset };
+			PassOffset = EyeOffsetValues[EyeOffsetIdx + 1];
+			// Eye swap is not available for monoscopic so just save the value
+			StereoEyeOffsetDistance = PassOffset;
+		}
+		else
+		{
+			// For stereo camera we can only swap eyes if required (no "force offset" allowed)
+			PassOffset = EyeOffsetValues[EyeType];
 
-			// Decode current eye type
-			const EDisplayClusterEyeType EyeType = (Contexts.Num() == 1)
-				? EDisplayClusterEyeType::Mono
-				: (InContextNum == 0) ? EDisplayClusterEyeType::StereoLeft : EDisplayClusterEyeType::StereoRight;
-
-			float PassOffset = 0.f;
-
-			if (EyeType == EDisplayClusterEyeType::Mono)
-			{
-				// For monoscopic camera let's check if the "force offset" feature is used
-				// * Force left (-1) ==> 0 left eye
-				// * Force right (1) ==> 2 right eye
-				// * Default (0) ==> 1 mono
-				const EDisplayClusterEyeStereoOffset CfgEyeOffset = ViewCamera->GetStereoOffset();
-				const int32 EyeOffsetIdx =
-					(CfgEyeOffset == EDisplayClusterEyeStereoOffset::None ? 0 :
-						(CfgEyeOffset == EDisplayClusterEyeStereoOffset::Left ? -1 : 1));
-
-				PassOffset = EyeOffsetValues[EyeOffsetIdx + 1];
-				// Eye swap is not available for monoscopic so just save the value
-				StereoEyeOffsetDistance = PassOffset;
-			}
-			else
-			{
-				// For stereo camera we can only swap eyes if required (no "force offset" allowed)
-				PassOffset = EyeOffsetValues[EyeType];
-
-				// Apply eye swap
-				const bool  CfgEyeSwap = ViewCamera->GetSwapEyes();
-				StereoEyeOffsetDistance = (CfgEyeSwap ? -PassOffset : PassOffset);
-			}
+			// Apply eye swap
+			const bool  CfgEyeSwap = ViewCamera->GetSwapEyes();
+			StereoEyeOffsetDistance = (CfgEyeSwap ? -PassOffset : PassOffset);
 		}
 	}
 

@@ -176,13 +176,27 @@ public:
 	*/
 	virtual IDisplayClusterViewport* FindViewport(const int32 StereoViewIndex, uint32* OutContextNum = nullptr) const = 0;
 	
+	UE_DEPRECATED(5.3, "This function has been deprecated. Please use 'GetCurrentRenderFrameViewports'.")
+	virtual const TArrayView<IDisplayClusterViewport*> GetViewports() const
+	{
+		return TArrayView<IDisplayClusterViewport*>();
+	}
+
 	/**
-	* Return all exist viewports objects
+	* Return all exist viewports objects for current cluster node
 	* [Game thread func]
 	*
 	* @return - arrays with viewport objects refs
 	*/
-	virtual const TArrayView<TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>> GetViewports() const = 0;
+	virtual const TArrayView<TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>> GetCurrentRenderFrameViewports() const = 0;
+
+	/**
+	* Return entire cluster viewports objects
+	* [Game thread func]
+	*
+	* @return - arrays with viewport objects refs
+	*/
+	virtual const TArrayView<TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>> GetEntireClusterViewports() const = 0;
 
 	/**
 	* Mark the geometry of the referenced component(s) as dirty (ProceduralMesh, etc)

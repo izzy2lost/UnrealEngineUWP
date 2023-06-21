@@ -64,15 +64,44 @@ public:
 	virtual void Tick(IDisplayClusterViewportManager* InViewportManager, float DeltaSeconds)
 	{ }
 
+	/** Should override frustum for viewport context
+	 * 
+	 * @param InViewport - a owner viewport
+	 * @param ContextNum - viewport eye context index
+	 * 
+	 * @return - true, if the CalcFrustumOverrideFunc() function will be used
+	 */
+	virtual bool ShouldOverrideCalcFrustum(IDisplayClusterViewport* InViewport)
+	{
+		return false;
+	}
+
 	/** Override frustum for viewport context
+	 * This function is called only when the ShouldOverrideCalcFrustum() function returns true
 	 * 
 	 * @param InViewport - a owner viewport
 	 * @param ContextNum - viewport eye context index
 	 * 
 	 * @return - true if frustum overrided.
 	 */
-	virtual bool CalcFrustum(IDisplayClusterViewport* InViewport, const uint32 ContextNum)
+	virtual bool OverrideCalcFrustum(IDisplayClusterViewport* InViewport, const uint32 ContextNum)
 	{
 		return false;
 	}
+
+	/** Call before CalcFrustum()
+	 *
+	 * @param InViewport - a owner viewport
+	 * @param ContextNum - viewport eye context index
+	 */
+	virtual void BeginCalcFrustum(IDisplayClusterViewport* InViewport, const uint32 ContextNum)
+	{ }
+
+	/** Call after CalcFrustum()
+	 *
+	 * @param InViewport - a owner viewport
+	 * @param ContextNum - viewport eye context index
+	 */
+	virtual void EndCalcFrustum(IDisplayClusterViewport* InViewport, const uint32 ContextNum)
+	{ }
 };

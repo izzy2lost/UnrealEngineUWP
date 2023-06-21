@@ -473,17 +473,44 @@ bool FDisplayClusterViewportConfigurationHelpers_ICVFX::GetCameraContext(ADispla
 	}
 
 	// Initialize camera policy with camera component and settings
-	if (!ImplUpdateCameraProjectionSettings(CameraProjectionPolicy, RootActor, CameraSettings, InCameraComponent.GetCameraComponent()))
+	if (!ImplUpdateCameraProjectionSettings(CameraProjectionPolicy, RootActor, CameraSettings, &InCameraComponent))
 	{
 		return false;
 	}
 
 	// Get camera pos-rot-prj from policy
-	const float WorldToMeters = 100.f;
-	const float CfgNCP = 1.0f;
+
+	// Use default clipping planes
+	const float NCP = GNearClippingPlane;
+	const float FCP = NCP; // nDisplay does not use the far plane of the clipping
+
+	// Applying the correct sequence of steps to use the projection policy math:
+	// SetupProjectionViewPoint()->CalculateView()->GetProjectionMatrix()
+	FMinimalViewInfo CameraViewInfo;
+	float CustomNearClippingPlane = -1; // a value less than zero means ignoring.
+	CameraProjectionPolicy->SetupProjectionViewPoint(nullptr, RootActor.GetWorldDeltaSeconds(), CameraViewInfo, &CustomNearClippingPlane);
+
+	OutCameraContext.ViewLocation = CameraViewInfo.Location;
+	OutCameraContext.ViewRotation = CameraViewInfo.Rotation;
+
+	// Todo: Here we need to calculate the correct ViewOffset so that ICVFX can support stereo rendering.
 	const FVector ViewOffset = FVector::ZeroVector;
 
-	if (CameraProjectionPolicy->CalculateView(nullptr, 0, OutCameraContext.ViewLocation, OutCameraContext.ViewRotation, ViewOffset, WorldToMeters, CfgNCP, CfgNCP) &&
+	// Todo: maybe it makes sense to get the scaling value of WorldToMeters the right way?
+	// By default, this value is taken from the PlayerController in the LocalPlayer file.
+	// But ICVFX can use another data source for this value.
+	float WorldToMeters = 100.f;
+
+	// Supports custom near clipping plane
+	float ZNear = NCP;
+	float ZFar = FCP;
+	if (CustomNearClippingPlane >= 0)
+	{
+		ZNear = CustomNearClippingPlane;
+		ZFar = (NCP == FCP) ? ZNear : ZFar;
+	}
+
+	if (CameraProjectionPolicy->CalculateView(nullptr, 0, OutCameraContext.ViewLocation, OutCameraContext.ViewRotation, ViewOffset, WorldToMeters, ZNear, ZFar) &&
 		CameraProjectionPolicy->GetProjectionMatrix(nullptr, 0, OutCameraContext.PrjMatrix))
 	{
 		return true;
@@ -510,7 +537,7 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraViewportSett
 	}
 
 	// Update camera viewport projection policy settings
-	ImplUpdateCameraProjectionSettings(DstViewport.ProjectionPolicy, RootActor, CameraSettings, InCameraComponent.GetCameraComponent());
+	ImplUpdateCameraProjectionSettings(DstViewport.ProjectionPolicy, RootActor, CameraSettings, &InCameraComponent);
 
 	// Update OCIO for Camera Viewport
 	FDisplayClusterViewportConfigurationHelpers_OpenColorIO::UpdateCameraViewport(DstViewport, RootActor, InCameraComponent);

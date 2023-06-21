@@ -196,6 +196,7 @@ bool FDisplayClusterViewportConfiguration::ImplUpdateConfiguration(EDisplayClust
 {
 	check(IsInGameThread());
 
+
 	ADisplayClusterRootActor* RootActor = GetRootActor();
 	if (RootActor)
 	{
@@ -203,7 +204,7 @@ bool FDisplayClusterViewportConfiguration::ImplUpdateConfiguration(EDisplayClust
 		FDisplayClusterViewportManager* ViewportManager = GetViewportManager();
 		if (ConfigurationData && ViewportManager)
 		{
-			FDisplayClusterViewportConfigurationBase ConfigurationBase(*ViewportManager, *RootActor, *ConfigurationData);
+			FDisplayClusterViewportConfigurationBase ConfigurationBase(*ViewportManager, *RootActor, *ConfigurationData, RenderFrameSettings);
 			FDisplayClusterViewportConfigurationICVFX ConfigurationICVFX(*RootActor);
 			FDisplayClusterViewportConfigurationProjectionPolicy ConfigurationProjectionPolicy(*ViewportManager, *RootActor, *ConfigurationData);
 
@@ -211,7 +212,6 @@ bool FDisplayClusterViewportConfiguration::ImplUpdateConfiguration(EDisplayClust
 
 			// Set current rendering mode
 			RenderFrameSettings.RenderMode = InRenderMode;
-			RenderFrameSettings.ClusterNodeId = InClusterNodeId;
 
 			// Support alpha channel capture
 			RenderFrameSettings.AlphaChannelCaptureMode = GetAlphaChannelCaptureMode();
@@ -254,11 +254,11 @@ bool FDisplayClusterViewportConfiguration::ImplUpdateConfiguration(EDisplayClust
 
 			if (InViewportNames)
 			{
-				ConfigurationBase.Update(*InViewportNames, RenderFrameSettings);
+				ConfigurationBase.UpdateCustomViewports(*InViewportNames);
 			}
 			else
 			{
-				ConfigurationBase.Update(InClusterNodeId);
+				ConfigurationBase.UpdateClusterNodeViewports(InClusterNodeId);
 			}
 
 			ConfigurationICVFX.Update();
@@ -274,10 +274,10 @@ bool FDisplayClusterViewportConfiguration::ImplUpdateConfiguration(EDisplayClust
 
 			ImplUpdateConfigurationVisibility(*RootActor, *ConfigurationData);
 
-			if (!InClusterNodeId.IsEmpty())
+			if (!InViewportNames)
 			{
-				// support postprocess only for per-node render
-				ConfigurationBase.UpdateClusterNodePostProcess(InClusterNodeId, RenderFrameSettings);
+				// Update postprocess for current cluster node
+				ConfigurationBase.UpdateClusterNodePostProcess(InClusterNodeId);
 			}
 
 			ImplPostUpdateRenderFrameConfiguration();
@@ -302,32 +302,8 @@ bool FDisplayClusterViewportConfiguration::UpdateCustomConfiguration(EDisplayClu
 #if WITH_EDITOR
 bool FDisplayClusterViewportConfiguration::UpdatePreviewConfiguration(EDisplayClusterRenderFrameMode InRenderMode, const FString& InClusterNodeId, const FDisplayClusterPreviewSettings& InPreviewSettings)
 {
-	if (InClusterNodeId.Equals(DisplayClusterConfigurationStrings::gui::preview::PreviewNodeAll, ESearchCase::IgnoreCase))
-	{
-		check(!InPreviewSettings.bIsPIE);
-
-		// initialize all nodes
-		ADisplayClusterRootActor* RootActor = GetRootActor();
-		if (RootActor != nullptr)
-		{
-			const UDisplayClusterConfigurationData* ConfigurationData = RootActor->GetConfigData();
-			if (ConfigurationData != nullptr && ConfigurationData->Cluster != nullptr)
-			{
-				TArray<FString> ClusterNodesIDs;
-				ConfigurationData->Cluster->GetNodeIds(ClusterNodesIDs);
-				for (const FString& ClusterNodeIdIt : ClusterNodesIDs)
-				{
-					ImplUpdateConfiguration(InRenderMode, ClusterNodeIdIt, &InPreviewSettings, nullptr);
-				}
-
-				// all cluster nodes viewports updated
-				return true;
-			}
-		}
-
-		return false;
-	}
-
+	// Special cluster node names are now supported in the lower classes.
+	// Therefore, we don't need to go through the cluster nodes to initialize the whole cluster.
 	return ImplUpdateConfiguration(InRenderMode, InClusterNodeId, &InPreviewSettings, nullptr);
 }
 #endif

@@ -16,4 +16,7 @@ struct FDisplayClusterProjectionCameraPolicySettings
 
 	// When enabled, ignore all next updates, until null cam ref not assigned (UE-137222)
 	bool bCameraOverrideDefaults = false;
+
+	// Allow to use camera postprocess
+	bool bUseCameraPostprocess = true;
 };

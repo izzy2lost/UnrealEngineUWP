@@ -560,23 +560,13 @@ IDisplayClusterViewport* UDisplayClusterMoviePipelineViewportPassBase::GetAndCal
 			OutView.ViewRotation = ViewInfo.Rotation;
 			OutView.ViewLocation = ViewInfo.Location;
 			
-			const float PassOffsetSwap = DCViewport->GetStereoEyeOffsetDistance(InContextNum);
-
-			FVector ViewOffset = FVector::ZeroVector;
-			const float CfgNCP = GNearClippingPlane;
-			{
-				// Apply computed offset to the view location
-				const FQuat EyeQuat = OutView.ViewRotation.Quaternion();
-				ViewOffset = EyeQuat.RotateVector(FVector(0.0f, PassOffsetSwap, 0.0f));
-				OutView.ViewLocation += ViewOffset;
-			}
-
 			const AWorldSettings* WorldSettings = CurrentWorld->GetWorldSettings();
 			const float InWorldToMeters = (WorldSettings) ? WorldSettings->WorldToMeters : 100.f;
 
 			bool bResult = false;
+			// Obtaining the offset of the stereo eye and the values of the projection clipping plane for the given viewport was moved inside CalculateView().
 			// Perform view calculations on a policy side
-			if (DCViewport->CalculateView(InContextNum, OutView.ViewLocation, OutView.ViewRotation, ViewOffset, InWorldToMeters, CfgNCP, CfgNCP))
+			if (DCViewport->CalculateView(InContextNum, OutView.ViewLocation, OutView.ViewRotation, InWorldToMeters))
 			{
 				OutView.ProjectionMatrix = FMatrix::Identity;
 

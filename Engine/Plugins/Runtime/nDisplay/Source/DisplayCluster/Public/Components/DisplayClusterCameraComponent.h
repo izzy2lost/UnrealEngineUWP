@@ -10,7 +10,8 @@
 
 class UBillboardComponent;
 class UTexture2D;
-
+class IDisplayClusterViewportManager;
+class IDisplayClusterWarpPolicy;
 
 UENUM()
 enum class EDisplayClusterEyeStereoOffset : uint8
@@ -33,6 +34,31 @@ class DISPLAYCLUSTER_API UDisplayClusterCameraComponent
 
 public:
 	UDisplayClusterCameraComponent(const FObjectInitializer& ObjectInitializer);
+
+	/** Return ViewPoint for this component
+	 * If the component logic supports postprocess, it will also be in the ViewInfo structure.
+	 * 
+	 * @param InOutViewInfo - ViewInfo data
+	 * @param OutCustomNearClippingPlane - Custom NCP, or a value less than zero if not defined.
+	 */
+	virtual void GetDesiredView(FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane = nullptr);
+
+	/**
+	 * All cluster viewports that reference this component will be created in the background on the current cluster node if the function returns true.
+	 */
+	virtual bool ShouldUseEntireClusterViewports(IDisplayClusterViewportManager* InViewportManager) const
+	{
+		return false;
+	}
+
+	/**
+	 * Get the warp policy instance used by this compoenent.
+	 * From the DC ViewportManager, these policies will be assigned to the viewports that use this viewpoint component.
+	 */
+	virtual IDisplayClusterWarpPolicy* GetWarpPolicy(IDisplayClusterViewportManager* InViewportManager)
+	{
+		return nullptr;
+	}
 
 public:
 	/**

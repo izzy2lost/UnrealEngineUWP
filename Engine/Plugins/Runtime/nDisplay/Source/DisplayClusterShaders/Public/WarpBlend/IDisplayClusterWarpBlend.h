@@ -7,6 +7,7 @@
 #include "DisplayClusterWarpEnums.h"
 #include "DisplayClusterWarpContext.h"
 
+class IDisplayClusterViewport;
 class IDisplayClusterRenderTexture;
 class UStaticMeshComponent;
 class USceneComponent;
@@ -26,7 +27,7 @@ public:
 	*
 	* @return - true if the context calculated successfully
 	*/
-	virtual bool CalcFrustumContext(class IDisplayClusterViewport* InViewport, const uint32 InContextNum, const FDisplayClusterWarpEye& InEye, FDisplayClusterWarpContext& OutWarpContext) = 0;
+	virtual bool CalcFrustumContext(IDisplayClusterViewport* InViewport, const uint32 InContextNum, const FDisplayClusterWarpEye& InEye, FDisplayClusterWarpContext& OutWarpContext) = 0;
 
 	// Access to resources
 	virtual class FRHITexture* GetTexture(EDisplayClusterWarpBlendTextureType TextureType) const = 0;
@@ -50,4 +51,7 @@ public:
 	* @return - true, if there is a marked.
 	*/
 	virtual bool MarkWarpGeometryComponentDirty(const FName& InComponentName) = 0;
+
+	/** Returns true if this warpblend supports ICVFX rendering */
+	virtual bool ShouldSupportICVFX(IDisplayClusterViewport* InViewport) const = 0;
 };

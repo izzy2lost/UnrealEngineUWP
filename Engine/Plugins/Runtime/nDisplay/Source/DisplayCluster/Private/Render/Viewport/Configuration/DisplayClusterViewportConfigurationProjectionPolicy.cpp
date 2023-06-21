@@ -34,9 +34,16 @@ void FDisplayClusterViewportConfigurationProjectionPolicy::Update()
 		if (ViewportIt.IsValid() && !EnumHasAnyFlags(ViewportIt->GetRenderSettingsICVFX().RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::InternalResource))
 		{
 			// Support advanced logic for 'camera' projection policy
-			if (ViewportIt->ProjectionPolicy.IsValid() && ViewportIt->ProjectionPolicy->GetType().Compare(DisplayClusterProjectionStrings::projection::Camera) == 0)
+			if (ViewportIt->ProjectionPolicy.IsValid())
 			{
-				UpdateCameraPolicy(*ViewportIt);
+				if (ViewportIt->ProjectionPolicy->GetType().Compare(DisplayClusterProjectionStrings::projection::Camera) == 0)
+				{
+					UpdateCameraPolicy(*ViewportIt);
+				}
+
+				// Projection policies can override postprocess settings
+				// The camera PP override code has been moved from FDisplayClusterViewportConfigurationProjectionPolicy::UpdateCameraPolicy_Base() to the projection policy new function:
+				ViewportIt->ProjectionPolicy->UpdatePostProcessSettings(ViewportIt.Get());
 			}
 		}
 	}
@@ -94,11 +101,7 @@ bool FDisplayClusterViewportConfigurationProjectionPolicy::UpdateCameraPolicy_Ba
 	check(InCameraComponent);
 
 	// add camera's post processing materials
-	FMinimalViewInfo DesiredView;
-	const float DeltaTime = RootActor.GetWorldDeltaSeconds();
-	InCameraComponent->GetCameraView(DeltaTime, DesiredView);
-
-	DstViewport.CustomPostProcessSettings.AddCustomPostProcess(IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::Override, DesiredView.PostProcessSettings, 1.0, true);
+	// Moved to IDisplayClusterProjectionPolicy::UpdatePostProcessSettings()
 
 	FDisplayClusterProjectionCameraPolicySettings PolicyCameraSettings;
 	PolicyCameraSettings.FOVMultiplier = FOVMultiplier;

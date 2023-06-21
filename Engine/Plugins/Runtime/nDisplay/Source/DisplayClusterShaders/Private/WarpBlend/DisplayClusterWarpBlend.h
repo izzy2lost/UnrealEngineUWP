@@ -50,6 +50,12 @@ public:
 		return GeometryContext.ProfileType;
 	}
 
+	virtual bool ShouldSupportICVFX(IDisplayClusterViewport* InViewport) const override
+	{
+		// only A3D supports ICVFX
+		return GeometryContext.ProfileType == EDisplayClusterWarpProfileType::warp_A3D;
+	}
+
 	// return current warp resource type
 	virtual EDisplayClusterWarpGeometryType GetWarpGeometryType() const override
 	{

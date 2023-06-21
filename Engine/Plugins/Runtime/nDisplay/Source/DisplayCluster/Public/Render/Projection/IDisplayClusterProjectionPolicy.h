@@ -10,8 +10,9 @@ class IDisplayClusterViewportProxy;
 class IDisplayClusterWarpBlend;
 class IDisplayClusterWarpPolicy;
 class UMeshComponent;
+class USceneComponent;
 struct FDisplayClusterConfigurationProjection;
-
+struct FMinimalViewInfo;
 
 /**
  * nDisplay projection policy
@@ -35,7 +36,7 @@ public:
 	/**
 	* Return projection policy type
 	*/
-	UE_DEPRECATED(5.1, "This function has beend deprecated. Please use 'GetType'.")
+	UE_DEPRECATED(5.1, "This function has been deprecated. Please use 'GetType'.")
 	virtual const FString GetTypeId() const
 	{
 		return GetType();
@@ -45,6 +46,16 @@ public:
 	* Return projection policy configuration
 	*/
 	virtual const TMap<FString, FString>& GetParameters() const = 0;
+
+	/**
+	 * Return Origin point component used by this viewport
+	 * This component is used to convert from the local DCRA space to the local projection policy space,
+	 * which contains the calibrated geometry data used for the warp.
+	 */
+	virtual const USceneComponent* const GetOriginComponent() const
+	{
+		return nullptr;
+	}
 
 	/**
 	* Send projection policy game thread data to render thread proxy
@@ -113,7 +124,17 @@ public:
 	}
 
 	// This policy can support ICVFX rendering
+	UE_DEPRECATED(5.3, "This function has been deprecated. Please use 'ShouldSupportICVFX(IDisplayClusterViewport*)'.")
 	virtual bool ShouldSupportICVFX() const
+	{
+		return false;
+	}
+
+	/** Returns true if this policy supports ICVFX rendering
+	 * 
+	 * @param InViewport - a owner viewport
+	 */
+	virtual bool ShouldSupportICVFX(IDisplayClusterViewport* InViewport) const
 	{
 		return false;
 	}
@@ -134,33 +155,19 @@ public:
 	*/
 	virtual bool IsConfigurationChanged(const struct FDisplayClusterConfigurationProjection* InConfigurationProjectionPolicy) const = 0;
 
-	/** Get viewpoint for this projection policy
+	/** Override view from this projection policy
 	 *
-	 * @param OutViewRotation - viewpoint rotation
-	 * @param OutViewLocation - viewpoint location
-	 *
-	 * @return - true, if the viewpoint values have changed
+	 * @param InViewport                 - the viewport of this projection policy
+	 * @param InDeltaTime                - delta time in current frame
+	 * @param InOutViewInfo              - ViewInfo data
+	 * @param OutCustomNearClippingPlane - Custom NCP, or a value less than zero if not defined.
 	 */
-	virtual bool GetViewPoint(IDisplayClusterViewport* InViewport, FRotator& InOutViewRotation, FVector& InOutViewLocation)
-	{
-		return false;
-	}
-
-	/** Projection policy can override PP */
-	virtual void OverridePostProcessSettings(IDisplayClusterViewport* InViewport)
+	virtual void SetupProjectionViewPoint(IDisplayClusterViewport* InViewport, const float InDeltaTime, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane = nullptr)
 	{ }
 
-	 /** Get the distance from the eye to the viewpoint location
-	 *
-	 * @param InContextNum - eye context of this viewport
-	 * @param OutStereoEyeOffsetDistance - new eye distance
-	 *
-	 * @return - true, if the offset distance of the stereo eye has changed
-	 */
-	virtual bool GetStereoEyeOffsetDistance(IDisplayClusterViewport* InViewport, const uint32 InContextNum, float& InOutStereoEyeOffsetDistance)
-	{
-		return false;
-	}
+	/** Projection policy can override PP */
+	virtual void UpdatePostProcessSettings(IDisplayClusterViewport* InViewport)
+	{ }
 
 	/**
 	* @param ViewIdx           - Index of view that is being processed for this viewport
@@ -262,11 +269,35 @@ public:
 
 	/**
 	* Build preview mesh
+	* This MeshComponent cannot be moved freely.
+	* This MeshComponent is attached to the geometry from the real world via Origin.
+	* When the screen geometry in the real world changes position, the position of this component must also be changed.
 	*
 	* @param InViewport - Projection specific parameters.
 	* @param bOutIsRootActorComponent - return true, if used custom root actor component. return false, if created unique temporary component
 	*/
 	virtual UMeshComponent* GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent)
+	{
+		return nullptr;
+	}
+
+	/**
+	* Ask projection policy instance if it has any movable mesh based preview
+	*
+	* @return - True if mesh based preview is available
+	*/
+	virtual bool HasPreviewMovableMesh()
+	{
+		return false;
+	}
+
+	/**
+	* Build preview movable mesh
+	* This MeshComponent is a copy of the preview mesh and can be moved freely with the UI visualization.
+	*
+	* @param InViewport - Projection specific parameters.
+	*/
+	virtual UMeshComponent* GetOrCreatePreviewMovableMeshComponent(IDisplayClusterViewport* InViewport)
 	{
 		return nullptr;
 	}

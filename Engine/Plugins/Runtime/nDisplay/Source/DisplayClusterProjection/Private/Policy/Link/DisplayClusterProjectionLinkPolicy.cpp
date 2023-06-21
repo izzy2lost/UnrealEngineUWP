@@ -27,6 +27,21 @@ const FString& FDisplayClusterProjectionLinkPolicy::GetType() const
 	return Type;
 }
 
+void FDisplayClusterProjectionLinkPolicy::SetupProjectionViewPoint(IDisplayClusterViewport* InViewport, const float InDeltaTime, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane)
+{
+	// Getting the right data from a parent
+	if (IDisplayClusterViewportManager* ViewportManager = InViewport->GetViewportManager())
+	{
+		if (IDisplayClusterViewport* ParentViewport = ViewportManager->FindViewport(InViewport->GetRenderSettings().GetParentViewportId()))
+		{
+			if (ParentViewport->GetProjectionPolicy().IsValid())
+			{
+				ParentViewport->GetProjectionPolicy()->SetupProjectionViewPoint(ParentViewport, InDeltaTime, InOutViewInfo, OutCustomNearClippingPlane);
+			}
+		}
+	}
+}
+
 bool FDisplayClusterProjectionLinkPolicy::CalculateView(IDisplayClusterViewport* InViewport, const uint32 InContextNum, FVector& InOutViewLocation, FRotator& InOutViewRotation, const FVector& ViewOffset, const float WorldToMeters, const float NCP, const float FCP)
 {
 	check(IsInGameThread());

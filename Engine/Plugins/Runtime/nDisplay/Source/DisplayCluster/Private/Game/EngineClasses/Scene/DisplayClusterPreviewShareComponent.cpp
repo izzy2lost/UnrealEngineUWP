@@ -724,7 +724,7 @@ void UDisplayClusterPreviewShareComponent::SyncIcvxCamerasFromSourceActor(const 
 		check(SrcIcvfxCameraComponent);
 
 		// This one sould be the actual source camera, e.g. the camera component of the referenced cine camera.
-		const UCameraComponent* SrcCameraComponent = SrcIcvfxCameraComponent->GetCameraComponent();
+		const UCineCameraComponent* SrcCameraComponent = SrcIcvfxCameraComponent->GetActualCineCameraComponent();
 		check(SrcCameraComponent);
 		
 		// Get the source camera transform with respect to the Source root actor
@@ -732,7 +732,7 @@ void UDisplayClusterPreviewShareComponent::SyncIcvxCamerasFromSourceActor(const 
 
 		// Apply this transform to the destination camera
 
-		UCameraComponent* DstCameraComponent = DstIcvfxCameraComponent->GetCameraComponent();
+		UCineCameraComponent* DstCameraComponent = DstIcvfxCameraComponent->GetActualCineCameraComponent();
 
 		AActor* DstCameraOwnerActor = DstCameraComponent->GetOwner();
 		

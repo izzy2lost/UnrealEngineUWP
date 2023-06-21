@@ -33,7 +33,7 @@ static bool ImplUpdatePerViewportColorGrading(FDisplayClusterViewport& DstViewpo
 	const FDisplayClusterConfigurationICVFX_StageSettings& StageSettings = RootActor.GetStageSettings();
 
 	// enable entire cluster only when global settings is on
-	bool bUseEntireClusterPostProcess = StageSettings.EntireClusterColorGrading.bEnableEntireClusterColorGrading & PerViewportColorGrading.bIsEntireClusterEnabled;
+	const bool bUseEntireClusterPostProcess = StageSettings.EntireClusterColorGrading.bEnableEntireClusterColorGrading && PerViewportColorGrading.bIsEntireClusterEnabled;
 	
 	FDisplayClusterConfigurationViewport_CustomPostprocessSettings FinalPerViewportColorGrading;
 	FinalPerViewportColorGrading.bIsEnabled = true;
@@ -90,8 +90,8 @@ static bool ImplUpdateIncameraPerNodeColorGrading(FDisplayClusterViewport& DstVi
 	FinalPerNodeColorGrading.bIsOneFrame = true;
 	FinalPerNodeColorGrading.BlendWeight = 1;
 
-	const bool bIncludeUseEntireClusterPostProcess = StageSettings.EntireClusterColorGrading.bEnableEntireClusterColorGrading & PerNodeColorGrading.bEntireClusterColorGrading;
-	const bool bIncludeAllNodesColorGrading = AllNodesColorGrading.bEnableInnerFrustumAllNodesColorGrading & PerNodeColorGrading.bAllNodesColorGrading;
+	const bool bIncludeUseEntireClusterPostProcess = StageSettings.EntireClusterColorGrading.bEnableEntireClusterColorGrading && PerNodeColorGrading.bEntireClusterColorGrading;
+	const bool bIncludeAllNodesColorGrading = AllNodesColorGrading.bEnableInnerFrustumAllNodesColorGrading && PerNodeColorGrading.bAllNodesColorGrading;
 
 	if (bIncludeUseEntireClusterPostProcess)
 	{
@@ -147,7 +147,7 @@ static bool ImplUpdateIncameraAllNodesColorGrading(FDisplayClusterViewport& DstV
 	const FDisplayClusterConfigurationICVFX_StageSettings& StageSettings = RootActor.GetStageSettings();
 
 	// enable entire cluster only when global settings is on
-	const bool bEnableEntireClusterColorGrading = StageSettings.EntireClusterColorGrading.bEnableEntireClusterColorGrading & AllNodesColorGrading.bEnableEntireClusterColorGrading;
+	const bool bEnableEntireClusterColorGrading = StageSettings.EntireClusterColorGrading.bEnableEntireClusterColorGrading && AllNodesColorGrading.bEnableEntireClusterColorGrading;
 
 	if (bEnableEntireClusterColorGrading)
 	{
@@ -286,41 +286,27 @@ bool FDisplayClusterViewportConfigurationHelpers_Postprocess::ImplUpdateViewport
 
 void FDisplayClusterViewportConfigurationHelpers_Postprocess::UpdateCameraPostProcessSettings(FDisplayClusterViewport& DstViewport, ADisplayClusterRootActor& RootActor, UDisplayClusterICVFXCameraComponent& InCameraComponent)
 {
-	FDisplayClusterConfigurationViewport_CustomPostprocessSettings CameraPPS;
-	CameraPPS.bIsOneFrame = true;
-	CameraPPS.BlendWeight = 1.f;
-
 	const FDisplayClusterConfigurationICVFX_CameraSettings& CameraSettings = InCameraComponent.GetCameraSettingsICVFX();
-	if (CameraSettings.RenderSettings.bUseCameraComponentPostprocess)
-	{
-		FMinimalViewInfo DesiredView;
-		InCameraComponent.GetDesiredView(DesiredView);
-
-		// Send camera postprocess to override
-		CameraPPS.bIsEnabled = true;
-		CameraPPS.PostProcessSettings = DesiredView.PostProcessSettings;
-	}
-
-	const FDisplayClusterConfigurationICVFX_CameraMotionBlurOverridePPS& OverrideMotionBlurPPS = CameraSettings.CameraMotionBlur.MotionBlurPPS;
-	if (OverrideMotionBlurPPS.bReplaceEnable)
-	{
-		// Send camera postprocess to override
-		CameraPPS.bIsEnabled = true;
-
-		CameraPPS.PostProcessSettings.MotionBlurAmount = OverrideMotionBlurPPS.MotionBlurAmount;
-		CameraPPS.PostProcessSettings.bOverride_MotionBlurAmount = true;
-
-		CameraPPS.PostProcessSettings.MotionBlurMax = OverrideMotionBlurPPS.MotionBlurMax;
-		CameraPPS.PostProcessSettings.bOverride_MotionBlurMax = true;
-		
-		CameraPPS.PostProcessSettings.MotionBlurPerObjectSize = OverrideMotionBlurPPS.MotionBlurPerObjectSize;
-		CameraPPS.PostProcessSettings.bOverride_MotionBlurPerObjectSize = true;
-	}
-
 	const FDisplayClusterConfigurationICVFX_StageSettings& StageSettings = RootActor.GetStageSettings();
 	// check if frustum color grading is enabled	
 	if (StageSettings.EnableColorGrading && CameraSettings.EnableInnerFrustumColorGrading)
 	{
+		FDisplayClusterConfigurationViewport_CustomPostprocessSettings CameraPPS;
+		CameraPPS.bIsOneFrame = true;
+		CameraPPS.BlendWeight = 1.f;
+
+		const bool bUseCameraPostprocess = true; // use internal rules of UDisplayClusterICVFXCameraComponent
+
+		// All logic was moved to the UDisplayClusterICVFXCameraComponent::GetCameraView() virtual function.
+		FMinimalViewInfo DesiredView;
+		IDisplayClusterViewport::GetCameraComponentView(&InCameraComponent, RootActor.GetWorldDeltaSeconds(), bUseCameraPostprocess, DesiredView);
+		if (DesiredView.PostProcessBlendWeight > 0)
+		{
+			// Send camera postprocess to override
+			CameraPPS.bIsEnabled = true;
+			CameraPPS.PostProcessSettings = DesiredView.PostProcessSettings;
+		}
+
 		ImplUpdateCustomPostprocess(DstViewport, CameraPPS.bIsEnabled, CameraPPS, IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::Override);
 
 		if (!ImplUpdateInnerFrustumColorGrading(DstViewport, RootActor, InCameraComponent))

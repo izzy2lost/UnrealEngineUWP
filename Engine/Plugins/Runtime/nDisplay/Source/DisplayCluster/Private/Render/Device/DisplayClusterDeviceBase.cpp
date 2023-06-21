@@ -260,20 +260,9 @@ void FDisplayClusterDeviceBase::CalculateStereoViewOffset(const int32 ViewIndex,
 	}
 
 	// The camera position has already been determined from the SetupViewPoint() function
-	// Obtaining the stereo eye offset for a given viewport
-	const float PassOffsetSwap = ViewportPtr->GetStereoEyeOffsetDistance(ViewportContextNum);
-
-	FVector ViewOffset = FVector::ZeroVector;
-	{
-		// Apply computed offset to the view location
-		const FQuat EyeQuat = ViewRotation.Quaternion();
-		ViewOffset = EyeQuat.RotateVector(FVector(0.0f, PassOffsetSwap, 0.0f));
-		ViewLocation += ViewOffset;
-	}
-
+	// Obtaining the offset of the stereo eye and the values of the projection clipping plane for the given viewport was moved inside CalculateView().
 	// Perform view calculations on a policy side
-	const float CfgNCP = GNearClippingPlane;
-	if (ViewportPtr->CalculateView(ViewportContextNum, ViewLocation, ViewRotation, ViewOffset, WorldToMeters, CfgNCP, CfgNCP) == false)
+	if (ViewportPtr->CalculateView(ViewportContextNum, ViewLocation, ViewRotation, WorldToMeters) == false)
 	{
 #if WITH_EDITOR
 		// Hide spam in logs when configuring VP in editor [UE-114493]

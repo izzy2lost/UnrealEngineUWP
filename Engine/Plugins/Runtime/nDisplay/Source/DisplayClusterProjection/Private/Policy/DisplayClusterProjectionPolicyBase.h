@@ -40,6 +40,11 @@ public:
 		PolicyOriginComponentRef.SetSceneComponent(OriginComp);
 	}
 
+	virtual const USceneComponent* const GetOriginComponent() const override
+	{
+		return GetOriginComp();
+	}
+
 	virtual const TMap<FString, FString>& GetParameters() const override
 	{
 		return Parameters;

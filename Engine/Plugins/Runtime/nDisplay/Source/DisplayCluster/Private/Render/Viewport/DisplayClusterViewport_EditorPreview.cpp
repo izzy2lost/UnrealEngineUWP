@@ -222,18 +222,9 @@ bool FDisplayClusterViewport::ImplPreview_CalculateStereoViewOffset(const uint32
 	ViewLocation = ViewInfo.Location;
 	ViewRotation = ViewInfo.Rotation;
 
-	const float PassOffsetSwap = GetStereoEyeOffsetDistance(InContextNum);
-
-	FVector ViewOffset = FVector::ZeroVector;
-
-	// Apply computed offset to the view location
-	const FQuat EyeQuat = ViewRotation.Quaternion();
-	ViewOffset = EyeQuat.RotateVector(FVector(0.0f, PassOffsetSwap, 0.0f));
-	ViewLocation += ViewOffset;
-
+	// Obtaining the offset of the stereo eye and the values of the projection clipping plane for the given viewport was moved inside CalculateView().
 	// Perform view calculations on a policy side
-	const float CfgNCP = GNearClippingPlane;
-	if (!CalculateView(InContextNum, ViewLocation, ViewRotation, ViewOffset, WorldToMeters, CfgNCP, CfgNCP))
+	if (!CalculateView(InContextNum, ViewLocation, ViewRotation, WorldToMeters))
 	{
 		if (!bProjectionPolicyCalculateViewWarningOnce)
 		{

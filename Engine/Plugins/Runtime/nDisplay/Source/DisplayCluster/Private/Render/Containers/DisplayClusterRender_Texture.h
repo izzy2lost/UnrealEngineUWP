@@ -77,6 +77,13 @@ public:
 	{
 		return UniqueTextureName;
 	}
+
+	/** Method for releasing a cached data item, called before its destructor. */
+	inline void ReleaseDataCacheItem()
+	{
+		SetTextureResource(nullptr);
+	}
+
 	// ~~ End TDisplayClusterDataCache
 
 protected:

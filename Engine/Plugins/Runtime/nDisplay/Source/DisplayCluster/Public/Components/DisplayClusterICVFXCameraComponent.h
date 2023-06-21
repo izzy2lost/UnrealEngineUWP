@@ -48,6 +48,12 @@ public:
 public:
 	FDisplayClusterViewport_CameraMotionBlur GetMotionBlurParameters();
 
+	/**
+	 * Return the actual source camera, e.g. the camera component of the referenced cine camera.
+	 * Use GetCameraView() function to get viewinfo with actual camera position, postprocess and ICVFX postprocess
+	 */
+	UCineCameraComponent* GetActualCineCameraComponent();
+
 	// Returns true if this camera is active
 	bool IsICVFXEnabled() const;
 
@@ -59,8 +65,10 @@ public:
 		return CameraSettings;
 	}
 
-	UCameraComponent* GetCameraComponent();
-	void GetDesiredView(FMinimalViewInfo& DesiredView);
+	/** Obtaining view information for the actual camera, such as the camera component to which the cine-camera is referencing.
+	 * The data from the CameraSettings variable is used in postprocess settings (EnableCameraPP, OverrideMotionBlur, etc.).
+	 */
+	virtual void GetCameraView(float DeltaTime, FMinimalViewInfo& InOutViewInfo) override;
 
 	// UActorComponent interface
 	virtual void OnRegister() override;

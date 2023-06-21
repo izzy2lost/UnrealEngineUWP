@@ -30,6 +30,22 @@ UDisplayClusterCameraComponent::UDisplayClusterCameraComponent(const FObjectInit
 #endif
 }
 
+void UDisplayClusterCameraComponent::GetDesiredView(FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane)
+{
+	// Use this component as a camera
+	InOutViewInfo.Location = GetComponentLocation();
+	InOutViewInfo.Rotation = GetComponentRotation();
+
+	// Ignore PP, because this component has no such settings
+	InOutViewInfo.PostProcessBlendWeight = 0.f;
+
+	if (OutCustomNearClippingPlane)
+	{
+		// Value less than zero means: don't override the NCP value
+		*OutCustomNearClippingPlane = -1.f;
+	}
+}
+
 #if WITH_EDITOR
 void UDisplayClusterCameraComponent::SetVisualizationScale(float Scale)
 {

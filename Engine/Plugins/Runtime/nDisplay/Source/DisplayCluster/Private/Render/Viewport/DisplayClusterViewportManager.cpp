@@ -21,7 +21,7 @@
 #include "Render/Viewport/Postprocess/DisplayClusterViewportPostProcessManager.h"
 #include "Render/Viewport/Postprocess/DisplayClusterViewportPostProcessOutputRemap.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
-#include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationBase.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationInstanceData.h"
 #include "Render/Viewport/DisplayClusterViewportStrings.h"
 
 #include "WarpBlend/IDisplayClusterWarpBlend.h"
@@ -956,7 +956,7 @@ void FDisplayClusterViewportManager::RenderFrame(FViewport* InViewport)
 	ViewportManagerProxy->ImplRenderFrame_GameThread(InViewport);
 }
 
-bool FDisplayClusterViewportManager::CreateViewport(const FString& InViewportId, const class UDisplayClusterConfigurationViewport& ConfigurationViewport)
+FDisplayClusterViewport* FDisplayClusterViewportManager::CreateViewport(const FString& InViewportId, const class UDisplayClusterConfigurationViewport& ConfigurationViewport)
 {
 	check(IsInGameThread());
 
@@ -964,7 +964,7 @@ bool FDisplayClusterViewportManager::CreateViewport(const FString& InViewportId,
 	if (InViewportId.IsEmpty())
 	{
 		UE_LOG(LogDisplayClusterViewport, Warning, TEXT("Wrong viewport ID"));
-		return false;
+		return nullptr;
 	}
 
 	// ID must be unique
@@ -972,7 +972,7 @@ bool FDisplayClusterViewportManager::CreateViewport(const FString& InViewportId,
 	{
 		UE_LOG(LogDisplayClusterViewport, Warning, TEXT("Viewport '%s' already exists"), *InViewportId);
 
-		return false;
+		return nullptr;
 	}
 
 	ADisplayClusterRootActor* RootActorPtr = GetRootActor();
@@ -980,7 +980,7 @@ bool FDisplayClusterViewportManager::CreateViewport(const FString& InViewportId,
 	{
 		UE_LOG(LogDisplayClusterViewport, Error, TEXT("Can't create viewport '%s': DCRA not defined"), *InViewportId);
 
-		return false;
+		return nullptr;
 	}
 
 	// Create projection policy for viewport
@@ -991,15 +991,15 @@ bool FDisplayClusterViewportManager::CreateViewport(const FString& InViewportId,
 		TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe> NewViewport = ImplCreateViewport(InViewportId, NewProjectionPolicy);
 		if (NewViewport.IsValid())
 		{
-			FDisplayClusterViewportConfigurationBase::UpdateViewportConfiguration(*NewViewport , *this, *RootActorPtr, ConfigurationViewport);
+			FDisplayClusterViewportConfigurationInstanceData::UpdateViewportConfiguration(*NewViewport , *this, *RootActorPtr, ConfigurationViewport);
 
-			return true;
+			return NewViewport.Get();
 		}
 	}
 
 	UE_LOG(LogDisplayClusterViewport, Error, TEXT("Viewports '%s' not created."), *InViewportId);
 
-	return false;
+	return nullptr;
 }
 
 IDisplayClusterViewport* FDisplayClusterViewportManager::FindViewport(const FString& InViewportId) const
@@ -1021,7 +1021,7 @@ TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe> FDisplayClusterViewport
 	return (DesiredViewport && DesiredViewport->IsValid()) ? *DesiredViewport : nullptr;
 }
 
-IDisplayClusterViewport* FDisplayClusterViewportManager::CreateViewport(const FString& ViewportId, const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& InProjectionPolicy)
+FDisplayClusterViewport* FDisplayClusterViewportManager::CreateViewport(const FString& ViewportId, const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& InProjectionPolicy)
 {
 	check(IsInGameThread());
 

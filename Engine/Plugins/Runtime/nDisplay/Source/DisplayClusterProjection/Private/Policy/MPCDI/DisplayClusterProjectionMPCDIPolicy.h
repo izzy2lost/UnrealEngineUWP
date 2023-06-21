@@ -33,15 +33,10 @@ public:
 	}
 
 	// This policy can support ICVFX rendering
-	virtual bool ShouldSupportICVFX() const
-	{
-		return true;
-	}
+	virtual bool ShouldSupportICVFX(IDisplayClusterViewport* InViewport) const override;
 
 public:
-	//////////////////////////////////////////////////////////////////////////////////////////////
-	// IDisplayClusterProjectionPolicy
-	//////////////////////////////////////////////////////////////////////////////////////////////
+	//~Begin IDisplayClusterProjectionPolicy
 	virtual const FString& GetType() const override;
 
 	virtual bool HandleStartScene(IDisplayClusterViewport* InViewport) override;
@@ -70,15 +65,23 @@ public:
 
 	virtual void UpdateProxyData(IDisplayClusterViewport* InViewport) override;
 
+	virtual void SetWarpPolicy(IDisplayClusterWarpPolicy* InWarpPolicy) override;
+	virtual IDisplayClusterWarpPolicy* GetWarpPolicy() const override;
+	virtual IDisplayClusterWarpPolicy* GetWarpPolicy_RenderThread() const override;
+
+	//~~End IDisplayClusterProjectionPolicy
+
 protected:
 	bool CreateWarpBlendFromConfig(IDisplayClusterViewport* InViewport);
 	void ImplRelease();
 
 protected:
 	TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlendInterface;
+	TSharedPtr<IDisplayClusterWarpPolicy, ESPMode::ThreadSafe> WarpPolicyInterface;
 	TArray<FDisplayClusterWarpContext> WarpBlendContexts;
 
 	TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlendInterface_Proxy;
+	TSharedPtr<IDisplayClusterWarpPolicy, ESPMode::ThreadSafe> WarpPolicyInterface_Proxy;
 	TArray<FDisplayClusterWarpContext> WarpBlendContexts_Proxy;
 
 private:

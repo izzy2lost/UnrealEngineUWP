@@ -99,14 +99,17 @@ public:
 		Contexts.Append(InContexts);
 	}
 
+	virtual FVector2D GetClippingPlanes() const override;
+
 	virtual void CalculateProjectionMatrix(const uint32 InContextNum, float Left, float Right, float Top, float Bottom, float ZNear, float ZFar, bool bIsAnglesInput) override;
 
-	virtual bool    CalculateView(const uint32 InContextNum, FVector& InOutViewLocation, FRotator& InOutViewRotation, const FVector& ViewOffset, const float WorldToMeters, const float NCP, const float FCP) override;
+	virtual bool    CalculateView(const uint32 InContextNum, FVector& InOutViewLocation, FRotator& InOutViewRotation, const float WorldToMeters) override;
 	virtual bool    GetProjectionMatrix(const uint32 InContextNum, FMatrix& OutPrjMatrix)  override;
 
 	virtual bool SetupViewPoint(FMinimalViewInfo& InOutViewInfo) override;
 	virtual float GetStereoEyeOffsetDistance(const uint32 InContextNum) override;
 	virtual class UDisplayClusterCameraComponent* GetViewPointCameraComponent() const override;
+	virtual bool GetViewPointCameraEye(const uint32 InContextNum, FVector& OutViewLocation, FRotator& OutViewRotation, FVector& OutViewOffset) override;
 
 	virtual const FDisplayClusterViewport_RenderSettingsICVFX& GetRenderSettingsICVFX() const override
 	{
@@ -339,4 +342,9 @@ protected:
 
 private:
 	bool bProjectionPolicyCalculateViewWarningOnce = false;
+
+	// Near clipping plane value (obtained from the GetDesiredView() functions).
+	// If the value is less than zero, it does not apply to this viewport.
+	// This value is changed in the SetupViewPoint() function, called at the beginning from LocalPlayer.
+	float CustomNearClippingPlane = -1;
 };

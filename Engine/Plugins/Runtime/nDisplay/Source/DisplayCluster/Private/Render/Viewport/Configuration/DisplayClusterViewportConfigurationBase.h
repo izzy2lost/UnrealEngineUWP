@@ -3,33 +3,41 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
-
-class FDisplayClusterViewportManager;
-class FDisplayClusterViewport;
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationInstanceData.h"
 
 class UDisplayClusterConfigurationData;
-class UDisplayClusterConfigurationViewport;
 
-class ADisplayClusterRootActor;
-
+/**
+ * A helper class that creates/updates/deletes viewports for the current rendering frame.
+ */
 struct FDisplayClusterViewportConfigurationBase
 {
 public:
-	FDisplayClusterViewportConfigurationBase(FDisplayClusterViewportManager& InViewportManager,
-		ADisplayClusterRootActor& InRootActor, const UDisplayClusterConfigurationData& InConfigurationData)
+	FDisplayClusterViewportConfigurationBase(FDisplayClusterViewportManager& InViewportManager, ADisplayClusterRootActor& InRootActor, const UDisplayClusterConfigurationData& InConfigurationData, FDisplayClusterRenderFrameSettings& InRenderFrameSettings)
 		: RootActor(InRootActor)
 		, ViewportManager(InViewportManager)
+		, RenderFrameSettings(InRenderFrameSettings)
 		, ConfigurationData(InConfigurationData)
 	{}
 
 public:
-	void Update(const FString& ClusterNodeId);
-	void Update(const TArray<FString>& InViewportNames, FDisplayClusterRenderFrameSettings& InOutRenderFrameSettings);
-	void UpdateClusterNodePostProcess(const FString& ClusterNodeId, const FDisplayClusterRenderFrameSettings& InRenderFrameSettings);
+	/** Updates the list of viewports for the specified cluster node name, using ConfigurationData.
+	 * 
+	 * @param ClusterNodeId - cluster node name (special names are supported)
+	 */
+	void UpdateClusterNodeViewports(const FString& ClusterNodeId);
 
-public:
-	static bool UpdateViewportConfiguration(FDisplayClusterViewport& DstViewport, FDisplayClusterViewportManager& ViewportManager, ADisplayClusterRootActor& RootActor, const UDisplayClusterConfigurationViewport& ConfigurationViewport);
+	/** Updates only the viewports for the specified list with the names of the viewports using ConfigurationData.
+	 * 
+	 * @param InViewportNames - a list of viewport names to create or update.
+	 */
+	void UpdateCustomViewports(const TArray<FString>& InViewportNames);
+
+	/** Update postprocess for cluster node.
+	 * 
+	 * @param ClusterNodeId - cluster node name (special names are supported)
+	 */
+	void UpdateClusterNodePostProcess(const FString& ClusterNodeId);
 
 protected:
 	/**
@@ -43,8 +51,25 @@ protected:
 	void AddInternalPostprocess(const FString& InPostprocessName);
 
 private:
+	/** Update viewports instances in ViewportManager. */
+	void ImplUpdateViewports();
+
+	/** Update all viewports warp policies. */
+	void ImplUpdateViewportsWarpPolicy();
+
+	/** Initialize variable EntireClusterViewports from configuration. */
+	void ImplInitializeEntireClusterViewportsList();
+
+	/** Find the data of the viewport instance by name in the entire cluster. */
+	FDisplayClusterViewportConfigurationInstanceData const* ImplFindViewportInEntireCluster(const FString& InViewportId) const;
+
+	/** Find the viewport instance data by name in the current rendering frame. */
+	FDisplayClusterViewportConfigurationInstanceData const* ImplFindCurrentFrameViewports(const FString& InViewportId) const;
+
+private:
 	ADisplayClusterRootActor& RootActor;
 	FDisplayClusterViewportManager& ViewportManager;
+	FDisplayClusterRenderFrameSettings& RenderFrameSettings;
 	const UDisplayClusterConfigurationData& ConfigurationData;
 
 	/**
@@ -60,4 +85,10 @@ private:
 	 * This post-processing list is updated at runtime. See AddInternalPostprocess()
 	 */
 	TArray<FString> InternalPostprocessNames;
+
+	// The entire cluster viewports
+	TArray<FDisplayClusterViewportConfigurationInstanceData> EntireClusterViewports;
+
+	// the viewports of the current rendering frame (determined from the cluster node name or from the user's list of viewport names)
+	TArray<FDisplayClusterViewportConfigurationInstanceData> CurrentFrameViewports;
 };

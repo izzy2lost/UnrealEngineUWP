@@ -243,23 +243,11 @@ void FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(FDis
 
 void FDisplayClusterViewportConfigurationHelpers::UpdateProjectionPolicy(FDisplayClusterViewport& DstViewport, const FDisplayClusterConfigurationProjection* InConfigurationProjectionPolicy)
 {
-	bool bNeedUpdateProjectionPolicy = false;
-
 	// Runtime update projection policy
-	if (InConfigurationProjectionPolicy)
-	{
-		if (DstViewport.ProjectionPolicy.IsValid())
-		{
-			// Current projection policy valid
-			bNeedUpdateProjectionPolicy = DstViewport.ProjectionPolicy->IsConfigurationChanged(InConfigurationProjectionPolicy);
-		}
-		else
-		if (DstViewport.UninitializedProjectionPolicy.IsValid())
-		{
-			// Current projection policy valid
-			bNeedUpdateProjectionPolicy = DstViewport.UninitializedProjectionPolicy->IsConfigurationChanged(InConfigurationProjectionPolicy);
-		}
-	}
+	const bool bNeedUpdateProjectionPolicy = InConfigurationProjectionPolicy && (
+			(DstViewport.ProjectionPolicy.IsValid() && DstViewport.ProjectionPolicy->IsConfigurationChanged(InConfigurationProjectionPolicy))
+		||  (DstViewport.UninitializedProjectionPolicy.IsValid() && DstViewport.UninitializedProjectionPolicy->IsConfigurationChanged(InConfigurationProjectionPolicy))
+		);
 
 	if (bNeedUpdateProjectionPolicy)
 	{
@@ -271,23 +259,12 @@ void FDisplayClusterViewportConfigurationHelpers::UpdateProjectionPolicy(FDispla
 
 		// Create new projection type interface
 		DstViewport.UninitializedProjectionPolicy = FDisplayClusterViewportManager::CreateProjectionPolicy(DstViewport.GetId(), InConfigurationProjectionPolicy);
-		DstViewport.HandleStartScene();
 	}
-	else
-	{
-		if (!DstViewport.ProjectionPolicy.IsValid())
-		{
-			if (DstViewport.IsSceneOpened())
+
+	// If the projection policy is not initialized and the scene is open, initialize it immediately
+	if (!DstViewport.ProjectionPolicy.IsValid() && DstViewport.IsSceneOpened())
 			{
 				// Try initialize proj policy every tick (mesh deferred load, etc)
 				DstViewport.HandleStartScene();
 			}
 		}
-	}
-
-	// Override PostProcess from projection policy
-	if (DstViewport.ProjectionPolicy.IsValid())
-	{
-		DstViewport.ProjectionPolicy->OverridePostProcessSettings(&DstViewport);
-	}
-}

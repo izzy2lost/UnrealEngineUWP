@@ -53,20 +53,52 @@ void UDisplayClusterICVFXCameraComponent::PostLoad()
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-void UDisplayClusterICVFXCameraComponent::GetDesiredView(FMinimalViewInfo& DesiredView)
+void UDisplayClusterICVFXCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& InOutViewInfo)
 {
-	if (ADisplayClusterRootActor* RootActor = Cast<ADisplayClusterRootActor>(GetOwner()))
+	if (CameraSettings.ExternalCameraActor.IsValid())
 	{
-		UCineCameraComponent* const CineCameraComponent = CameraSettings.ExternalCameraActor.IsValid() ? CameraSettings.ExternalCameraActor->GetCineCameraComponent() : this;
+		// Get ViewInfo from external CineCamera
+		CameraSettings.ExternalCameraActor->GetCineCameraComponent()->GetCameraView(DeltaTime, InOutViewInfo);
+	}
+	else
+	{
+		// Get ViewInfo from this component
+		UCineCameraComponent::GetCameraView(DeltaTime, InOutViewInfo);
+	}
 
-		const float DeltaTime = RootActor->GetWorldDeltaSeconds();
-		CineCameraComponent->GetCameraView(DeltaTime, DesiredView);
+	// CameraSettings can disable posprocess from this camera
+	if(!CameraSettings.RenderSettings.bUseCameraComponentPostprocess)
+	{
+		InOutViewInfo.PostProcessSettings = FPostProcessSettings();
+		InOutViewInfo.PostProcessBlendWeight = 0.0f;
+	}
+
+	// Add postprocess blur settings to viewinfo PP
+	const FDisplayClusterConfigurationICVFX_CameraMotionBlurOverridePPS& OverrideMotionBlurPPS = CameraSettings.CameraMotionBlur.MotionBlurPPS;
+	if (OverrideMotionBlurPPS.bReplaceEnable)
+	{
+		// Send camera postprocess to override
+		InOutViewInfo.PostProcessBlendWeight = 1.0f;
+
+		InOutViewInfo.PostProcessSettings.MotionBlurAmount = OverrideMotionBlurPPS.MotionBlurAmount;
+		InOutViewInfo.PostProcessSettings.bOverride_MotionBlurAmount = true;
+
+		InOutViewInfo.PostProcessSettings.MotionBlurMax = OverrideMotionBlurPPS.MotionBlurMax;
+		InOutViewInfo.PostProcessSettings.bOverride_MotionBlurMax = true;
+
+		InOutViewInfo.PostProcessSettings.MotionBlurPerObjectSize = OverrideMotionBlurPPS.MotionBlurPerObjectSize;
+		InOutViewInfo.PostProcessSettings.bOverride_MotionBlurPerObjectSize = true;
 	}
 }
 
-UCameraComponent* UDisplayClusterICVFXCameraComponent::GetCameraComponent()
+UCineCameraComponent* UDisplayClusterICVFXCameraComponent::GetActualCineCameraComponent()
 {
-	return CameraSettings.ExternalCameraActor.IsValid() ? CameraSettings.ExternalCameraActor->GetCineCameraComponent() : this;
+	if (UCineCameraComponent* ExternalCineCameraComponent = CameraSettings.ExternalCameraActor.IsValid() ? CameraSettings.ExternalCameraActor->GetCineCameraComponent() : nullptr)
+	{
+		return ExternalCineCameraComponent;
+	}
+
+	return this;
 }
 
 FString UDisplayClusterICVFXCameraComponent::GetCameraUniqueId() const

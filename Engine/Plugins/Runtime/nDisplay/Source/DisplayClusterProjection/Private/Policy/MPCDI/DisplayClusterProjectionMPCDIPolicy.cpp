@@ -25,6 +25,7 @@
 #include "WarpBlend/IDisplayClusterWarpBlend.h"
 #include "WarpBlend/IDisplayClusterWarpBlendManager.h"
 
+#include "Render/Warp/IDisplayClusterWarpPolicy.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_RenderSettingsICVFX.h"
 
 #include "ShaderParameters/DisplayClusterShaderParameters_WarpBlend.h"
@@ -64,6 +65,47 @@ void FDisplayClusterProjectionMPCDIPolicy::UpdateProxyData(IDisplayClusterViewpo
 			}
 		}
 	});
+}
+
+bool FDisplayClusterProjectionMPCDIPolicy::ShouldSupportICVFX(IDisplayClusterViewport* InViewport) const
+{
+	check(IsInGameThread());
+	check(InViewport);
+
+	if (!WarpBlendInterface.IsValid() || !WarpBlendInterface->ShouldSupportICVFX(InViewport))
+	{
+		// WarpBlend does not support the ICVFX pipeline (mpcdi 2D,3D,SL profiles)
+		return false;
+	}
+
+	if (WarpPolicyInterface.IsValid() && !WarpPolicyInterface->ShouldSupportICVFX(InViewport))
+	{
+		// The warp policy is used for this projection and does not support the ICVFX pipeline
+		return false;
+	}
+
+	return true;
+}
+
+void FDisplayClusterProjectionMPCDIPolicy::SetWarpPolicy(IDisplayClusterWarpPolicy* InWarpPolicy)
+{
+	check(IsInGameThread());
+
+	WarpPolicyInterface = InWarpPolicy ? InWarpPolicy->ToSharedPtr() : nullptr;
+}
+
+IDisplayClusterWarpPolicy* FDisplayClusterProjectionMPCDIPolicy::GetWarpPolicy() const
+{
+	check(IsInGameThread());
+
+	return WarpPolicyInterface.Get();
+}
+
+IDisplayClusterWarpPolicy* FDisplayClusterProjectionMPCDIPolicy::GetWarpPolicy_RenderThread() const
+{
+	check(IsInRenderingThread());
+
+	return WarpPolicyInterface_Proxy.Get();
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -155,7 +197,7 @@ bool FDisplayClusterProjectionMPCDIPolicy::GetWarpBlendInterface_RenderThread(TS
 	return false;
 }
 
-bool FDisplayClusterProjectionMPCDIPolicy::CalculateView(IDisplayClusterViewport* InViewport, const uint32 InContextNum, FVector& InOutViewLocation, FRotator& InOutViewRotation, const FVector& ViewOffset, const float WorldToMeters, const float NCP, const float FCP)
+bool FDisplayClusterProjectionMPCDIPolicy::CalculateView(IDisplayClusterViewport* InViewport, const uint32 InContextNum, FVector& InOutViewLocation, FRotator& InOutViewRotation, const FVector& InViewOffset, const float WorldToMeters, const float NCP, const float FCP)
 {
 	check(IsInGameThread());
 
@@ -166,6 +208,14 @@ bool FDisplayClusterProjectionMPCDIPolicy::CalculateView(IDisplayClusterViewport
 			UE_LOG(LogDisplayClusterProjectionMPCDI, Warning, TEXT("Invalid warp data for viewport '%s'"), *InViewport->GetId());
 		}
 
+		return false;
+	}
+
+	// Override viewpoint
+	// MPCDI always expects the location of the viewpoint component (eye location from the real world)
+	FVector ViewOffset = FVector::ZeroVector;
+	if (!InViewport || !InViewport->GetViewPointCameraEye(InContextNum, InOutViewLocation, InOutViewRotation, ViewOffset))
+	{
 		return false;
 	}
 

@@ -2,10 +2,13 @@
 
 #include "DisplayClusterViewportConfigurationBase.h"
 
+#include "Render/Projection/IDisplayClusterProjectionPolicy.h"
+
 #include "Render/Viewport/DisplayClusterViewport.h"
 #include "Render/Viewport/DisplayClusterViewportManager.h"
 #include "Render/Viewport/Postprocess/DisplayClusterViewportPostProcessManager.h"
 #include "Render/Viewport/Postprocess/DisplayClusterViewportPostProcessOutputRemap.h"
+#include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
 
 #include "DisplayClusterViewportConfigurationHelpers.h"
 #include "DisplayClusterConfigurationTypes.h"
@@ -16,6 +19,8 @@
 #include "ProceduralMeshComponent.h"
 
 #include "Misc/DisplayClusterLog.h"
+
+#include "Components/DisplayClusterCameraComponent.h"
 
 ///////////////////////////////////////////////////////////////////
 // Copied from "TextureShareDisplayCluster/Misc/TextureShareDisplayClusterStrings.h"
@@ -32,147 +37,215 @@ namespace TextureShareDisplayClusterStrings
 	}
 };
 
+namespace UE::DisplayCluster::Viewport::Configuration
+{
+	/**
+	 * Getting a valid cluster node name.
+	 * An empty cluster node name means using the viewports of the entire cluster.
+	 */
+	static inline FString GetValidClusterNodeId(const FString& InClusterNodeId)
+	{
+		// when InClusterNodeId==PreviewNodeAll, means that it is an undefined cluster node
+		const FString ClusterNodeId = InClusterNodeId == DisplayClusterConfigurationStrings::gui::preview::PreviewNodeAll ? TEXT("") : InClusterNodeId;
+
+		return ClusterNodeId;
+	}
+};
+using namespace UE::DisplayCluster::Viewport::Configuration;
+
+TArray<FString> FDisplayClusterViewportConfigurationBase::DisabledPostprocessNames;
+
 ///////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportConfigurationBase
 ///////////////////////////////////////////////////////////////////
-TArray<FString> FDisplayClusterViewportConfigurationBase::DisabledPostprocessNames;
-
-void FDisplayClusterViewportConfigurationBase::Update(const FString& ClusterNodeId)
+void FDisplayClusterViewportConfigurationBase::UpdateClusterNodeViewports(const FString& InClusterNodeId)
 {
-	TMap<FString, UDisplayClusterConfigurationViewport*> DesiredViewports;
+	// The input cluster node name may contain special values. Obtain a valid value.
+	const FString ClusterNodeId = GetValidClusterNodeId(InClusterNodeId);
 
-	// Get render viewports for cluster node
-	const UDisplayClusterConfigurationClusterNode* ClusterNodeConfiguration = ConfigurationData.Cluster->GetNode(ClusterNodeId);
-	if (ClusterNodeConfiguration)
+	// Initialize variable EntireClusterViewports from configuration
+	ImplInitializeEntireClusterViewportsList();
+
+	if (ClusterNodeId.IsEmpty())
 	{
-		for (const TPair<FString, TObjectPtr<UDisplayClusterConfigurationViewport>>& ViewportIt : ClusterNodeConfiguration->Viewports)
+		// If the cluster node name is empty, we use the viewports of the entire cluster 
+		CurrentFrameViewports = EntireClusterViewports;
+	}
+	else
+	{
+		// Otherwise, we only use the viewports for one cluster node
+		CurrentFrameViewports.Reset();
+		for (const FDisplayClusterViewportConfigurationInstanceData& ViewportData : EntireClusterViewports)
 		{
-			if (ViewportIt.Key.Len() && ViewportIt.Value)
+			if (ViewportData.ClusterNodeId == ClusterNodeId)
 			{
-				DesiredViewports.Add(ViewportIt.Key, ViewportIt.Value);
+				CurrentFrameViewports.Add(ViewportData);
 			}
 		}
 	}
 
-	// Collect unused viewports and delete
-	{
-		TArray<FString> ExistClusterNodesIDs;
-		ConfigurationData.Cluster->GetNodeIds(ExistClusterNodesIDs);
+	// Create or update viewports from CurrentFrameViewports
+	ImplUpdateViewports();
 
-		TArray<TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>> UnusedViewports;
-		for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : ViewportManager.ImplGetCurrentRenderFrameViewports())
+	// Updates warp policies only if the cluster node name is not empty.
+	if (!ClusterNodeId.IsEmpty())
+	{
+		// when the cluster node name is empty, it means that the DCRA preview right now is initializing for the entire cluster.
+		ImplUpdateViewportsWarpPolicy();
+	}
+
+	// Use only valid values of cluster node id
+	RenderFrameSettings.ClusterNodeId = ClusterNodeId;
+}
+
+void FDisplayClusterViewportConfigurationBase::UpdateCustomViewports(const TArray<FString>& InViewportNames)
+{
+	// Initialize variable EntireClusterViewports from configuration
+	ImplInitializeEntireClusterViewportsList();
+
+	// Get the list of viewport instance data for the specified InViewportNames
+	for (const FDisplayClusterViewportConfigurationInstanceData& ViewportData : EntireClusterViewports)
+	{
+		if (InViewportNames.Contains(ViewportData.ViewportId))
 		{
-			if (ViewportIt.IsValid())
+			CurrentFrameViewports.Add(ViewportData);
+		}
+	}
+
+	// Create or update viewports from CurrentFrameViewports
+	ImplUpdateViewports();
+
+	// Do not use the cluster node name for this pass type
+	RenderFrameSettings.ClusterNodeId.Empty();
+}
+
+void FDisplayClusterViewportConfigurationBase::ImplUpdateViewports()
+{
+	// Delete an existing viewport when it is removed from the configuration or its configuration state is set as disabled.
+	const TArray<TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>> EntireClusterDCViewports = ViewportManager.ImplGetEntireClusterViewports();
+	for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport : EntireClusterDCViewports)
+	{
+		// ignore internal resources
+		if (Viewport.IsValid() && !EnumHasAnyFlags(Viewport->GetRenderSettingsICVFX().RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::InternalResource))
+		{
+			// Delete an existing viewport when it is removed from the configuration
+			if (!ImplFindViewportInEntireCluster(Viewport->GetId()))
 			{
-				// ignore ICVFX internal resources
-				if (!EnumHasAllFlags(ViewportIt->GetRenderSettingsICVFX().RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::InternalResource))
+				// we can safely remove viewports in a loop, because we use our own local array
+				ViewportManager.ImplDeleteViewport(Viewport);
+			}
+		}
+	}
+
+	// Create or update viewports for current rendering frame
+	for (FDisplayClusterViewportConfigurationInstanceData& ViewportData : CurrentFrameViewports)
+	{
+		ViewportData.CreateOrUpdateViewportInstance(RootActor, ViewportManager, RenderFrameSettings);
+	}
+
+	// Clear viewports warp policies for entire cluster
+	for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport : ViewportManager.ImplGetEntireClusterViewports())
+	{
+		FDisplayClusterViewportConfigurationInstanceData::SetViewportWarpPolicy(Viewport, nullptr);
+	}
+}
+
+void FDisplayClusterViewportConfigurationBase::ImplUpdateViewportsWarpPolicy()
+{
+	// Collect DC origin components used in current frame
+	TArray<UDisplayClusterCameraComponent*> CurrentFrameViewPointCameraComponent;
+	for (const FDisplayClusterViewportConfigurationInstanceData& ViewportData : CurrentFrameViewports)
+	{
+		if (ViewportData.ViewPointCameraComponent)
+		{
+			CurrentFrameViewPointCameraComponent.AddUnique(ViewportData.ViewPointCameraComponent);
+		}
+	}
+
+	// Create reffered viewports from other cluster nodes and update warp policy on it
+	for (UDisplayClusterCameraComponent* ViewPointComponent : CurrentFrameViewPointCameraComponent)
+	{
+		// The viewpoint camera component expects all viewports (from the entire cluster) that refer to them to be exists (created)  and updated.
+		// this is for cluster rendering
+		if (ViewPointComponent->ShouldUseEntireClusterViewports(&ViewportManager))
+		{
+			if (IDisplayClusterWarpPolicy* WarpPolicy = ViewPointComponent->GetWarpPolicy(&ViewportManager))
+			{
+				// Find the viewports that use this ViewPointComponent in the entire cluster.
+				TArray<FDisplayClusterViewportConfigurationInstanceData> ViewPointViewports;
+				const FString ViewPointComponentId = ViewPointComponent->GetName();
+				for (const FDisplayClusterViewportConfigurationInstanceData& ViewportData : EntireClusterViewports)
 				{
-					// Only viewports from cluster node in render
-					if (ClusterNodeId.IsEmpty() || ViewportIt->GetClusterNodeId() == ClusterNodeId)
+					if (ViewportData.Configuration.Camera == ViewPointComponentId)
 					{
-						if (!DesiredViewports.Contains(ViewportIt->GetId()))
-						{
-							UnusedViewports.Add(ViewportIt);
-						}
-					}
-					else
-					{
-						if (ExistClusterNodesIDs.Find(ViewportIt->GetClusterNodeId()) == INDEX_NONE)
-						{
-							// also remove viewports for deleted cluster nodes
-							UnusedViewports.Add(ViewportIt);
-						}
+						ViewPointViewports.Add(ViewportData);
 					}
 				}
-			}
-		}
 
-		// Delete unused viewports
-		for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& UnusedViewportIt : UnusedViewports)
-		{
-			if (UnusedViewportIt.IsValid())
-			{
-				ViewportManager.ImplDeleteViewport(UnusedViewportIt);
-			}
-		}
-	}
+				// Initialize the warp policy for all found viewports:
+				for (FDisplayClusterViewportConfigurationInstanceData& ViewportData : ViewPointViewports)
+				{
+					// If the viewport already exists in the current rendering frame, we simply assign a warp policy
+					if (FDisplayClusterViewportConfigurationInstanceData const* CurrentFrameViewportData = ImplFindCurrentFrameViewports(ViewportData.ViewportId))
+					{
+						// Set the warp projection for the viewport from the current cluster node
+						FDisplayClusterViewportConfigurationInstanceData::SetViewportWarpPolicy(CurrentFrameViewportData->Viewport, WarpPolicy);
+					}
+					else
+					// when the viewport is on another cluster node, we must create it, because the warp policy requires viewports from the whole cluster.
+					{
+						// Create or update this viewport from another cluster node
+						ViewportData.CreateOrUpdateViewportInstance(RootActor, ViewportManager, RenderFrameSettings);
 
-	// Update and Create new viewports
-	for (TPair<FString, UDisplayClusterConfigurationViewport*>& CfgIt : DesiredViewports)
-	{
-		if (const UDisplayClusterConfigurationViewport* ConfigurationViewport = CfgIt.Value)
-		{
-			const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe> ExistViewport = ViewportManager.ImplFindViewport(CfgIt.Key);
-			if (ExistViewport.IsValid())
-			{
-				FDisplayClusterViewportConfigurationBase::UpdateViewportConfiguration(*ExistViewport, ViewportManager, RootActor, *ConfigurationViewport);
-			}
-			else
-			{
-				ViewportManager.CreateViewport(CfgIt.Key, *ConfigurationViewport);
+						// Set the warp projection for the viewport from another cluster node
+						FDisplayClusterViewportConfigurationInstanceData::SetViewportWarpPolicy(ViewportData.Viewport, WarpPolicy);
+					}
+				}
 			}
 		}
 	}
 }
 
-void FDisplayClusterViewportConfigurationBase::Update(const TArray<FString>& InViewportNames, FDisplayClusterRenderFrameSettings& InOutRenderFrameSettings)
+void FDisplayClusterViewportConfigurationBase::ImplInitializeEntireClusterViewportsList()
 {
-	// Collect unused viewports and delete
+	if (ConfigurationData.Cluster)
 	{
-		TArray<TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>> UnusedViewports;
-		for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : ViewportManager.ImplGetCurrentRenderFrameViewports())
+		// Update and Create new viewports
+		for (const TPair<FString, TObjectPtr<UDisplayClusterConfigurationClusterNode>>& ClusterNodeConfigurationIt : ConfigurationData.Cluster->Nodes)
 		{
-			if (ViewportIt.IsValid())
+			if (const UDisplayClusterConfigurationClusterNode* ClusterNodeConfiguration = ClusterNodeConfigurationIt.Value)
 			{
-				// ignore ICVFX internal resources
-				if (!EnumHasAllFlags(ViewportIt->GetRenderSettingsICVFX().RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::InternalResource))
+				for (const TPair<FString, TObjectPtr<UDisplayClusterConfigurationViewport>>& ViewportIt : ClusterNodeConfiguration->Viewports)
 				{
-					if (InViewportNames.Find(ViewportIt->GetId()) == INDEX_NONE)
+					if (const UDisplayClusterConfigurationViewport* ConfigurationViewport = ViewportIt.Value)
 					{
-						UnusedViewports.Add(ViewportIt);
-					}
-				}
-			}
-		}
-
-		// Delete unused viewports
-		for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& DeleteIt : UnusedViewports)
-		{
-			ViewportManager.ImplDeleteViewport(DeleteIt);
-		}
-	}
-
-	// Update and Create new viewports
-	for (const TPair<FString, TObjectPtr<UDisplayClusterConfigurationClusterNode>>& ClusterNodeConfigurationIt : ConfigurationData.Cluster->Nodes)
-	{
-		if (const UDisplayClusterConfigurationClusterNode* ClusterNodeConfiguration = ClusterNodeConfigurationIt.Value)
-		{
-			// Assign the cluster node name to viewport internals
-			InOutRenderFrameSettings.ClusterNodeId = ClusterNodeConfigurationIt.Key;
-
-			for (const TPair<FString, TObjectPtr<UDisplayClusterConfigurationViewport>>& ViewportIt : ClusterNodeConfiguration->Viewports)
-			{
-				if (const UDisplayClusterConfigurationViewport* ConfigurationViewport = ViewportIt.Value)
-				{
-					if (ViewportIt.Key.Len() && ViewportIt.Value && InViewportNames.Find(ViewportIt.Key) != INDEX_NONE)
-					{
-						const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe> ExistViewport = ViewportManager.ImplFindViewport(ViewportIt.Key);
-						if (ExistViewport.IsValid())
+						const FString& ClusterNodeId = ClusterNodeConfigurationIt.Key;
+						const FString& ViewportId = ViewportIt.Key;
+						if (!ClusterNodeId.IsEmpty() && !ViewportId.IsEmpty() && ConfigurationViewport->IsViewportEnabled())
 						{
-							FDisplayClusterViewportConfigurationBase::UpdateViewportConfiguration(*ExistViewport, ViewportManager, RootActor, *ConfigurationViewport);
-						}
-						else
-						{
-							ViewportManager.CreateViewport(ViewportIt.Key, *ConfigurationViewport);
+							EntireClusterViewports.Add(FDisplayClusterViewportConfigurationInstanceData(ClusterNodeId, ViewportId, *ConfigurationViewport));
 						}
 					}
 				}
 			}
 		}
 	}
+}
 
-	// Do not use the cluster node name for this pass type
-	InOutRenderFrameSettings.ClusterNodeId.Empty();
+FDisplayClusterViewportConfigurationInstanceData const* FDisplayClusterViewportConfigurationBase::ImplFindViewportInEntireCluster(const FString& InViewportId) const
+{
+	return EntireClusterViewports.FindByPredicate([InViewportId](const FDisplayClusterViewportConfigurationInstanceData& ViewportItem)
+		{
+			return ViewportItem.ViewportId == InViewportId;
+		});
+}
+
+FDisplayClusterViewportConfigurationInstanceData const* FDisplayClusterViewportConfigurationBase::ImplFindCurrentFrameViewports(const FString& InViewportId) const
+{
+	return CurrentFrameViewports.FindByPredicate([InViewportId](const FDisplayClusterViewportConfigurationInstanceData& ViewportItem)
+		{
+			return ViewportItem.ViewportId == InViewportId;
+		});
 }
 
 void FDisplayClusterViewportConfigurationBase::AddInternalPostprocess(const FString& InPostprocessName)
@@ -183,18 +256,25 @@ void FDisplayClusterViewportConfigurationBase::AddInternalPostprocess(const FStr
 	}
 }
 
-void FDisplayClusterViewportConfigurationBase::UpdateClusterNodePostProcess(const FString& InClusterNodeId, const FDisplayClusterRenderFrameSettings& InRenderFrameSettings)
+void FDisplayClusterViewportConfigurationBase::UpdateClusterNodePostProcess(const FString& InClusterNodeId)
 {
-	check(!InClusterNodeId.IsEmpty());
+	// The input cluster node name may contain special values. Obtain a valid value.
+	const FString ClusterNodeId = GetValidClusterNodeId(InClusterNodeId);
 
-	const UDisplayClusterConfigurationClusterNode* ClusterNode = ConfigurationData.Cluster->GetNode(InClusterNodeId);
+	if (ClusterNodeId.IsEmpty())
+	{
+		// this function expects a exists cluster node name
+		return;
+	}
+
+	const UDisplayClusterConfigurationClusterNode* ClusterNode = ConfigurationData.Cluster->GetNode(ClusterNodeId);
 	if (ClusterNode)
 	{
 		TSharedPtr<FDisplayClusterViewportPostProcessManager, ESPMode::ThreadSafe> PPManager = ViewportManager.GetPostProcessManager();
 		if (PPManager.IsValid())
 		{
 			// Add TextureShare postprocess:
-			if (ClusterNode->bEnableTextureShare && !InRenderFrameSettings.bIsPreviewRendering)
+			if (ClusterNode->bEnableTextureShare && !RenderFrameSettings.bIsPreviewRendering)
 			{
 				AddInternalPostprocess(TextureShareDisplayClusterStrings::Postprocess::TextureShare);
 			}
@@ -241,7 +321,7 @@ void FDisplayClusterViewportConfigurationBase::UpdateClusterNodePostProcess(cons
 						// Can't create... Disable this postprocess
 						DisabledPostprocessNames.AddUnique(InternalPostprocessId);
 
-						UE_LOG(LogDisplayClusterViewport, Error, TEXT("Can't create postprocess '%s' required by cluster node '%s': Disabled"), *InternalPostprocessId, *InClusterNodeId);
+						UE_LOG(LogDisplayClusterViewport, Error, TEXT("Can't create postprocess '%s' required by cluster node '%s': Disabled"), *InternalPostprocessId, *ClusterNodeId);
 					}
 				}
 			}
@@ -313,13 +393,3 @@ void FDisplayClusterViewportConfigurationBase::UpdateClusterNodePostProcess(cons
 	}
 }
 
-// Assign new configuration to this viewport <Runtime>
-bool FDisplayClusterViewportConfigurationBase::UpdateViewportConfiguration(FDisplayClusterViewport& DstViewport, FDisplayClusterViewportManager& ViewportManager, ADisplayClusterRootActor& RootActor, const UDisplayClusterConfigurationViewport& ConfigurationViewport)
-{
-	check(IsInGameThread());
-
-	FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(DstViewport, RootActor, ConfigurationViewport);
-	FDisplayClusterViewportConfigurationHelpers::UpdateProjectionPolicy(DstViewport, &(ConfigurationViewport.ProjectionPolicy));
-
-	return true;
-}

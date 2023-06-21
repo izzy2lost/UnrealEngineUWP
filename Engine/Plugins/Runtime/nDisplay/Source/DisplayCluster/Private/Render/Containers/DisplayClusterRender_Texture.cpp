@@ -28,9 +28,7 @@ FDisplayClusterRender_Texture::FDisplayClusterRender_Texture(const FString& InUn
 { }
 
 FDisplayClusterRender_Texture::~FDisplayClusterRender_Texture()
-{
-	SetTextureResource(nullptr);
-}
+{ }
 
 const TSharedPtr<FDisplayClusterRender_TextureResource, ESPMode::ThreadSafe>& FDisplayClusterRender_Texture::GetTextureResource() const
 {
