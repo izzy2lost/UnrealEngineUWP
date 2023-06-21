@@ -62,7 +62,7 @@ public:
 
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Input)
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Output)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputFloat4)
 
 		SHADER_PARAMETER_STRUCT(FEyeAdaptationParameters, EyeAdaptation)
@@ -153,8 +153,8 @@ void AddApplyLocalExposurePass(
 	FRDGBufferRef EyeAdaptationBuffer,
 	FRDGTextureRef LocalExposureTexture,
 	FRDGTextureRef BlurredLogLuminanceTexture,
-	FScreenPassTexture Input,
-	FScreenPassTexture Output,
+	FScreenPassTextureSlice Input,
+	FScreenPassTextureSlice Output,
 	ERDGPassFlags PassFlags)
 {
 	check(Input.IsValid() && Output.IsValid());
@@ -167,8 +167,18 @@ void AddApplyLocalExposurePass(
 	PassParameters->Input = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(Input));
 	PassParameters->Output = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(Output));
 
-	PassParameters->InputTexture = Input.Texture;
-	PassParameters->OutputFloat4 = GraphBuilder.CreateUAV(Output.Texture);
+	PassParameters->InputTexture = Input.TextureSRV;
+	{
+		FRDGTextureUAVDesc OutputDesc(Output.TextureSRV->Desc.Texture);
+		if (Output.TextureSRV->Desc.Texture->Desc.IsTextureArray())
+		{
+			OutputDesc.DimensionOverride = ETextureDimension::Texture2D;
+			OutputDesc.FirstArraySlice = Output.TextureSRV->Desc.FirstArraySlice;
+			OutputDesc.NumArraySlices = 1;
+		}
+
+		PassParameters->OutputFloat4 = GraphBuilder.CreateUAV(OutputDesc);
+	}
 
 	PassParameters->EyeAdaptation = EyeAdaptationParameters;
 	PassParameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(EyeAdaptationBuffer);

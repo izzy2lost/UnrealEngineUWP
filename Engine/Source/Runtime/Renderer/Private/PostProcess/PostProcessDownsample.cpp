@@ -15,11 +15,11 @@ BEGIN_SHADER_PARAMETER_STRUCT(FDownsampleParameters, )
 	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 	SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Input)
 	SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Output)
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)
+	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputTexture)
 	SHADER_PARAMETER_SAMPLER(SamplerState, InputSampler)
 END_SHADER_PARAMETER_STRUCT()
 
-FDownsampleParameters GetDownsampleParameters(const FViewInfo& View, FScreenPassTexture Output, FScreenPassTexture Input, EDownsampleQuality DownsampleMethod)
+FDownsampleParameters GetDownsampleParameters(const FViewInfo& View, FScreenPassTexture Output, FScreenPassTextureSlice Input, EDownsampleQuality DownsampleMethod)
 {
 	check(Output.IsValid());
 	check(Input.IsValid());
@@ -31,7 +31,7 @@ FDownsampleParameters GetDownsampleParameters(const FViewInfo& View, FScreenPass
 	Parameters.ViewUniformBuffer = View.ViewUniformBuffer;
 	Parameters.Input = InputParameters;
 	Parameters.Output = OutputParameters;
-	Parameters.InputTexture = Input.Texture;
+	Parameters.InputTexture = Input.TextureSRV;
 	Parameters.InputSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	return Parameters;
 }
@@ -145,7 +145,7 @@ FScreenPassTexture AddDownsamplePass(
 		PermutationVector.Set<FDownsampleQualityDimension>(Inputs.Quality);
 
 		FDownsamplePS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDownsamplePS::FParameters>();
-		PassParameters->Common = GetDownsampleParameters(View, Output, Inputs.SceneColor, Inputs.Quality);
+		PassParameters->Common = GetDownsampleParameters(View, Output, FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, Inputs.SceneColor), Inputs.Quality);
 		PassParameters->RenderTargets[0] = Output.GetRenderTargetBinding();
 
 		TShaderMapRef<FDownsamplePS> PixelShader(View.ShaderMap, PermutationVector);
@@ -165,7 +165,7 @@ FScreenPassTexture AddDownsamplePass(
 	return MoveTemp(Output);
 }
 
-void AddDownsampleComputePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture Input, FScreenPassTexture Output, EDownsampleQuality Quality, ERDGPassFlags PassFlags)
+void AddDownsampleComputePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTextureSlice Input, FScreenPassTexture Output, EDownsampleQuality Quality, ERDGPassFlags PassFlags)
 {
 	check(PassFlags == ERDGPassFlags::Compute || PassFlags == ERDGPassFlags::AsyncCompute);
 
@@ -189,6 +189,11 @@ void AddDownsampleComputePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 		ComputeShader,
 		PassParameters,
 		FComputeShaderUtils::GetGroupCount(Output.ViewRect.Size(), FIntPoint(GDownsampleTileSizeX, GDownsampleTileSizeY)));
+}
+
+void AddDownsampleComputePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture Input, FScreenPassTexture Output, EDownsampleQuality Quality, ERDGPassFlags PassFlags)
+{
+	return AddDownsampleComputePass(GraphBuilder, View, FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, Input), Output, Quality, PassFlags);
 }
 
 void FSceneDownsampleChain::Init(

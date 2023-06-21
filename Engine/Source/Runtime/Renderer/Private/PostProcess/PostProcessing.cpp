@@ -1032,21 +1032,21 @@ void AddPostProcessingPasses(
 				LensFlareSceneDownsampleChain = &SceneDownsampleChain;
 
 				float InputResolutionFraction;
-				FScreenPassTexture InputSceneColor;
+				FScreenPassTextureSlice InputSceneColor;
 
 				if (FFTBloomResolutionFraction <= 0.25f)
 				{
-					InputSceneColor = QuarterResSceneColor;
+					InputSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, QuarterResSceneColor);
 					InputResolutionFraction = 0.25f;
 				}
 				else if (FFTBloomResolutionFraction <= 0.5f)
 				{
-					InputSceneColor = HalfResSceneColor;
+					InputSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, HalfResSceneColor);
 					InputResolutionFraction = 0.5f;
 				}
 				else
 				{
-					InputSceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, SceneColorSlice); // TODO
+					InputSceneColor = SceneColorSlice;
 					InputResolutionFraction = 1.0f;
 				}
 

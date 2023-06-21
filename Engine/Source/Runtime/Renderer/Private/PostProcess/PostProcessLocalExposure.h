@@ -19,6 +19,6 @@ void AddApplyLocalExposurePass(
 	FRDGBufferRef EyeAdaptationBuffer,
 	FRDGTextureRef LocalExposureTexture,
 	FRDGTextureRef BlurredLogLuminanceTexture,
-	FScreenPassTexture Input,
-	FScreenPassTexture Output,
+	FScreenPassTextureSlice Input,
+	FScreenPassTextureSlice Output,
 	ERDGPassFlags PassFlags);
