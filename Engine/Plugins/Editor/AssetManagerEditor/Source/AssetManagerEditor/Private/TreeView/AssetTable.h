@@ -125,6 +125,7 @@ struct FAssetTableColumns
 	static const FName ChunksColumnId;
 	static const FName NativeClassColumnId;
 	static const FName PluginNameColumnId;
+	static const FName PluginInclusiveSizeColumnId;
 };
 
 struct FAssetTableDependencySizes
@@ -133,12 +134,38 @@ struct FAssetTableDependencySizes
 	int64 SharedDependenciesSize = 0;
 };
 
-struct FAssetTablePluginInfo
+class FAssetTablePluginInfo
 {
-	TSet<int32> PluginDependencies;
-	TSet<int32> DiscoveredPluginDependencies;
+	friend class FAssetTable;
+	friend class SAssetTableTreeView;
+
+public:
+	const TCHAR* GetName() const { return PluginName; }
+
+	int32 GetNumDependencies() const { return PluginDependencies.Num(); }
+	const TArray<int32>& GetDependencies() const { return PluginDependencies; }
+	int32 GetNumReferencers() const { return PluginReferencers.Num(); }
+	const TArray<int32>& GetReferencers() const { return PluginReferencers; }
+	int64 GetSize() const { return Size; }
+
+	int64 GetOrComputeTotalSizeInclusiveOfDependencies(const FAssetTable& OwningTable) const;
+
+	// This is the total size of all dependencies which are not used by any plugin that is not this plugin or one of its other dependencies
+	int64 GetOrComputeTotalSizeUniqueDependencies(const FAssetTable& OwningTable) const;
+	// This is the total size of all dependencies which are used by some plugin not referenced (directly or indirectly) by this plugin
+	int64 GetOrComputeTotalSizeSharedDependencies(const FAssetTable& OwningTable) const;
+
+private:
+	void ComputeDependencySizes(const FAssetTable& OwningTable) const;
+
+	TArray<int32> PluginDependencies;
+	TArray<int32> DiscoveredPluginDependencies;
+	TArray<int32> PluginReferencers;
 	const TCHAR* PluginName = nullptr;
-	int64 Size = -1;
+	int64 Size = 0;
+	mutable int64 InclusiveSize = -1;
+	mutable int64 UniqueDependenciesSize = -1;
+	mutable int64 SharedDependenciesSize = -1;
 };
 
 class FAssetTableRow
@@ -237,6 +264,7 @@ public:
 	FAssetTablePluginInfo& GetOrCreatePluginInfo(const TCHAR* StoredPluginName);
 
 	const FAssetTablePluginInfo& GetPluginInfoByIndex(int32 PluginIndex) const { return Plugins[PluginIndex]; }
+	FAssetTablePluginInfo& GetPluginInfoByIndex(int32 PluginIndex) { return Plugins[PluginIndex]; }
 	const FAssetTablePluginInfo& GetPluginInfoByIndexChecked(int32 PluginIndex) const { check(IsValidPluginIndex(PluginIndex)); return Plugins[PluginIndex]; }
 	int32 GetIndexForPlugin(const TCHAR* StoredPluginName) const;
 	int32 GetNumPlugins() const { return Plugins.Num(); }

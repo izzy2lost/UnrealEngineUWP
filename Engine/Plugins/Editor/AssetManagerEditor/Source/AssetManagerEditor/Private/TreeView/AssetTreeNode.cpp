@@ -97,7 +97,7 @@ FLinearColor FAssetTreeNode::GetColor(EStyle Style) const
 
 FAssetTreeNode::EStyle FAssetTreeNode::GetStyle() const
 {
-	return IsValidAsset() ? EStyle::EAsset : ( IsGroup() ? EStyle::EGroup : EStyle::EDefault );
+	return IsGroup() ? EStyle::EGroup : (IsValidAsset() ? EStyle::EAsset : EStyle::EDefault);
 }
 
 const FSlateBrush* FAssetTreeNode::GetIcon() const
@@ -118,7 +118,7 @@ FLinearColor FAssetTreeNode::GetColor() const
 
 FAssetTreeNode::EStyle FAssetDependenciesGroupTreeNode::GetStyle() const
 {
-	return EStyle::EGroup;
+	return EStyle::EDependencies;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -282,14 +282,6 @@ bool FPluginDependenciesGroupNode::OnLazyCreateChildren(TSharedPtr<class UE::Ins
 	// |       +-- [asset:{Asset1b}]
 	// |       ...
 	// |
-	// +-- [group:{DependentPlugin2}] (self, no further dependencies) // FPluginSimpleGroupNode
-	// |   |
-	// |   +-- [asset:{Asset2a}]
-	// |   |
-	// |   +-- [asset:{Asset2b}]
-	// |   ...
-	// |
-	// ...
 
 	FAssetTable& AssetTable = GetAssetTableChecked();
 	if (AssetTable.IsValidPluginIndex(PluginIndex))
@@ -297,24 +289,15 @@ bool FPluginDependenciesGroupNode::OnLazyCreateChildren(TSharedPtr<class UE::Ins
 		const FAssetTablePluginInfo& PluginInfo = AssetTable.GetPluginInfoByIndex(PluginIndex);
 
 		// Add dependent plugins.
-		for (int32 DependentPluginIndex : PluginInfo.PluginDependencies)
+		for (int32 DependentPluginIndex : PluginInfo.GetDependencies())
 		{
 			if (AssetTable.IsValidPluginIndex(DependentPluginIndex))
 			{
 				FName PluginGroupName = AssetTable.GetNameForPlugin(DependentPluginIndex);
 				const FAssetTablePluginInfo& DependentPluginInfo = AssetTable.GetPluginInfoByIndex(DependentPluginIndex);
-				if (DependentPluginInfo.PluginDependencies.Num() > 0)
-				{
-					TSharedPtr<FPluginAndDependenciesGroupNode> PluginGroup = MakeShared<FPluginAndDependenciesGroupNode>(PluginGroupName, GetAssetTableWeak(), DependentPluginIndex);
-					PluginGroup->CreateChildren()->AddAssetChildrenNodes();
-					AddChildAndSetParent(PluginGroup);
-				}
-				else
-				{
-					TSharedPtr<FPluginSimpleGroupNode> PluginGroup = MakeShared<FPluginSimpleGroupNode>(PluginGroupName, GetAssetTableWeak(), DependentPluginIndex);
-					PluginGroup->AddAssetChildrenNodes();
-					AddChildAndSetParent(PluginGroup);
-				}
+				TSharedPtr<FPluginAndDependenciesGroupNode> PluginGroup = MakeShared<FPluginAndDependenciesGroupNode>(PluginGroupName, GetAssetTableWeak(), DependentPluginIndex);
+				PluginGroup->CreateChildren()->AddAssetChildrenNodes();
+				AddChildAndSetParent(PluginGroup);
 			}
 		}
 	}

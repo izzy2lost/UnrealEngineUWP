@@ -56,10 +56,6 @@ void FAssetDependencyGrouping::GroupNodes(const TArray<UE::Insights::FTableTreeN
 
 		// For each (visible) asset, we will create the following hierarchy:
 
-		// If the asset does not have dependencies, the asset node is added directly (no group node is created).
-		// |
-		// +-- [asset:{AssetName}]
-
 		// By default, the "Dependencies" node is collapsed.
 		// |
 		// +-- [group:{AssetName}] (self + dependencies)
@@ -240,23 +236,13 @@ void FPluginDependencyGrouping::GroupNodes(const TArray<UE::Insights::FTableTree
 			// Plugin group node (simple or with dependencies) was already created. Just add the current asset to it.
 			PluginGroup->AddChildAndSetParent(NodePtr);
 		}
-		else if (PluginInfo.PluginDependencies.Num() > 0)
+		else
 		{
 			// Create the Plugin Self+Dependencies group node and add the current asset to the Self group.
 			FName PluginAndDependenciesGroupName = AssetTable->GetNameForPlugin(PluginIndex);
 			TSharedPtr<FPluginAndDependenciesGroupNode> PluginAndDependenciesGroup = MakeShared<FPluginAndDependenciesGroupNode>(PluginAndDependenciesGroupName, AssetTable, PluginIndex);
 			ParentGroup.AddChildAndSetParent(PluginAndDependenciesGroup);
 			PluginGroup = PluginAndDependenciesGroup->CreateChildren().Get();
-			PluginGroup->AddChildAndSetParent(NodePtr);
-			PluginIndexToGroupNodeMap.Add(PluginIndex, PluginGroup);
-		}
-		else
-		{
-			// Create a simple Plugin group node and add the current asset to it.
-			FName PluginGroupName = AssetTable->GetNameForPlugin(PluginIndex);
-			TSharedPtr<FPluginSimpleGroupNode> PluginGroupPtr = MakeShared<FPluginSimpleGroupNode>(PluginGroupName, AssetTable, PluginIndex);
-			ParentGroup.AddChildAndSetParent(PluginGroupPtr);
-			PluginGroup = PluginGroupPtr.Get();
 			PluginGroup->AddChildAndSetParent(NodePtr);
 			PluginIndexToGroupNodeMap.Add(PluginIndex, PluginGroup);
 		}

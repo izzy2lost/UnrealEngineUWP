@@ -128,6 +128,8 @@ public:
 
 	void AddAssetChildrenNodes();
 
+	int32 GetPluginIndex() const { return PluginIndex; }
+
 protected:
 	int32 PluginIndex;
 };
