@@ -330,6 +330,29 @@ extern FName LLMGetTagStat(ELLMTag Tag);
  */
 #define LLM_SCOPE(Tag)												FLLMScope SCOPE_NAME(Tag, false /* bIsStatTag */, ELLMTagSet::None, ELLMTracker::Default);\
 																	UE_MEMSCOPE(Tag) 
+#define LLM_SCOPE_DYNAMIC(UniqueName, Tracker, TagSet, Constructor) \
+	FLLMScopeDynamic SCOPE_NAME(Tracker, TagSet); \
+	UE_MEMSCOPE_UNINITIALIZED(__LINE__); \
+	do \
+	{ \
+		if (SCOPE_NAME.IsEnabled()) \
+		{ \
+			FName UniqueNameEvaluated(UniqueName); \
+			if (!UniqueNameEvaluated.IsNone()) \
+			{ \
+				if (SCOPE_NAME.TryFindTag(UniqueNameEvaluated)) \
+				{ \
+					SCOPE_NAME.Activate(); \
+				} \
+				else \
+				{ \
+					SCOPE_NAME.TryAddTagAndActivate(UniqueNameEvaluated, Constructor); \
+				} \
+				UE_MEMSCOPE_ACTIVATE(__LINE__, UniqueNameEvaluated); \
+			} \
+		} \
+	} while (false) /* do/while is added to require a semicolon */
+
 #define LLM_TAGSET_SCOPE(Tag, TagSet)								FLLMScope SCOPE_NAME(Tag, false /* bIsStaTag */, TagSet, ELLMTracker::Default);
 #define LLM_SCOPE_BYNAME(Tag) 										static FName PREPROCESSOR_JOIN(LLMScope_Name,__LINE__)(Tag);\
 																	FLLMScope SCOPE_NAME(PREPROCESSOR_JOIN(LLMScope_Name,__LINE__), false /* bIsStatTag */, ELLMTagSet::None, ELLMTracker::Default);\
@@ -737,11 +760,13 @@ private:
 
 	CORE_API const UE::LLMPrivate::FTagData* FindOrAddTagData(ELLMTag EnumTag, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
 	CORE_API const UE::LLMPrivate::FTagData* FindOrAddTagData(FName Name, ELLMTagSet TagSet, bool bIsStatData=false, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
+	CORE_API const UE::LLMPrivate::FTagData* FindOrAddTagData(FName Name, ELLMTagSet TagSet, FName StatName, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
 	CORE_API const UE::LLMPrivate::FTagData* FindTagData(ELLMTag EnumTag, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
 	CORE_API const UE::LLMPrivate::FTagData* FindTagData(FName Name, ELLMTagSet TagSet, UE::LLMPrivate::ETagReferenceSource ReferenceSource = UE::LLMPrivate::ETagReferenceSource::FunctionAPI);
 
 	friend class FLLMPauseScope;
 	friend class FLLMScope;
+	friend class FLLMScopeDynamic;
 	friend class FLLMScopeFromPtr;
 	friend class UE::LLMPrivate::FLLMCsvWriter;
 	friend class UE::LLMPrivate::FLLMTracker;
@@ -829,8 +854,76 @@ protected:
 	CORE_API void Init(const UE::LLMPrivate::FTagData* TagData, bool bIsStatTag, ELLMTagSet InTagSet, ELLMTracker InTracker, bool bOverride = true);
 	CORE_API void Destruct();
 
-	ELLMTracker Tracker{};
-	bool bEnabled = false;
+	// All fields other than bEnabled are not initialized by constructor unless bEnabled is true
+	ELLMTracker Tracker;
+	bool bEnabled = false;  // Needs to be a uint8 rather than a bitfield to minimize ALU operations
+	ELLMTagSet TagSet;
+};
+
+/**
+ * Provides arguments for TagConstruction that are passed through a LLM_SCOPE_DYNAMIC macro and should
+ * only be evaluated on the first LLM_SCOPE_DYNAMIC call.
+ */
+class ILLMDynamicTagConstructor
+{
+public:
+	virtual ~ILLMDynamicTagConstructor() = default;
+	virtual FString GetStatName() const
+	{
+		return FString();
+	}
+	virtual bool NeedsStatConstruction() const
+	{
+		return true;
+	}
+};
+
+/** ILLMDynamicTagConstructor that provides a string to pass to CreateMemoryStatId. */
+class FLLMDynamicTagConstructorStatString : public ILLMDynamicTagConstructor
+{
+public:
+	FLLMDynamicTagConstructorStatString(FString InStatName) : StatName(MoveTemp(InStatName)) {}
+	virtual FString GetStatName() const override { return StatName; }
+	FString StatName;
+};
+
+/**
+ * LLM scope for tracking memory for a dynamically-created tag. Like some normal tags, dynamically-created tags
+ * are created by Name, rather than a compile-time constant like ELLMTag or LLM_DECLARE_TAG, and they are
+ * created on demand by the first scope that uses them.
+ * Unlike normal tags, dynamically-created tags also provide the ability to create stats when first called.
+ */
+class FLLMScopeDynamic
+{
+public:
+	FLLMScopeDynamic(ELLMTracker InTracker, ELLMTagSet InTagSet)
+	{
+		if (!FLowLevelMemTracker::bIsDisabled)
+		{
+			Init(InTracker, InTagSet);
+		}
+	}
+	bool IsEnabled() const { return bEnabled; }
+	CORE_API bool TryFindTag(FName UniqueName); // Set name separately so the calculation of name can be skipped if TagSet is disabled
+	CORE_API bool TryAddTagAndActivate(FName UniqueName, const ILLMDynamicTagConstructor& Constructor);
+	CORE_API void Activate();
+
+	~FLLMScopeDynamic()
+	{
+		if (bEnabled)
+		{
+			Destruct();
+		}
+	}
+
+protected:
+	CORE_API void Init(ELLMTracker InTracker, ELLMTagSet InTagSet);
+	CORE_API void Destruct();
+
+	// All fields other than bEnabled are not initialized by constructor unless bEnabled is true
+	const UE::LLMPrivate::FTagData* TagData;
+	ELLMTracker Tracker;
+	bool bEnabled = false; // Needs to be a uint8 rather than a bitfield to minimize ALU operations
 	ELLMTagSet TagSet;
 };
 
@@ -913,6 +1006,7 @@ struct FLLMTagSetAllocationFilter
 #define LLM(...)
 #define LLM_IF_ENABLED(...)
 #define LLM_SCOPE(...)
+#define LLM_SCOPE_DYNAMIC(...)
 #define LLM_TAGSET_SCOPE(...)
 #define LLM_SCOPE_BYNAME(...)
 #define LLM_SCOPE_BYTAG(...)

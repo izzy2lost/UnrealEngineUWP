@@ -2377,6 +2377,12 @@ const UE::LLMPrivate::FTagData* FLowLevelMemTracker::FindOrAddTagData(ELLMTag En
 const UE::LLMPrivate::FTagData* FLowLevelMemTracker::FindOrAddTagData(FName TagName, ELLMTagSet TagSet, bool bIsStatTag,
 	UE::LLMPrivate::ETagReferenceSource ReferenceSource)
 {
+	return FindOrAddTagData(TagName, TagSet, bIsStatTag ? TagName : NAME_None, ReferenceSource);
+}
+
+const UE::LLMPrivate::FTagData* FLowLevelMemTracker::FindOrAddTagData(FName TagName, ELLMTagSet TagSet, FName StatName,
+	UE::LLMPrivate::ETagReferenceSource ReferenceSource)
+{
 	using namespace UE::LLMPrivate;
 
 	{
@@ -2396,12 +2402,12 @@ const UE::LLMPrivate::FTagData* FLowLevelMemTracker::FindOrAddTagData(FName TagN
 		FinishInitialise();
 		// Reeneter this function so that we retry the find above; note we avoid infinite recursion because
 		// bFullyInitialised is now true.
-		return FindOrAddTagData(TagName, TagSet, bIsStatTag, ReferenceSource);
+		return FindOrAddTagData(TagName, TagSet, StatName, ReferenceSource);
 	}
 	LLMCheckf(!bIsBootstrapping, TEXT("LLM Error: Invalid use of FName tag when initialising tags."));
 
 	// Add the new Tag
-	FName StatName = bIsStatTag ? TagName : NAME_None;
+	bool bIsStatTag = !StatName.IsNone() && StatName == TagName;
 	FTagData* TagData = &RegisterTagData(TagName, NAME_None, NAME_None, StatName, NAME_None, false,
 		ELLMTag::CustomName, bIsStatTag, ReferenceSource, TagSet);
 	{
@@ -2512,7 +2518,7 @@ void FLLMScope::Init(const UE::LLMPrivate::FTagData* TagData, bool bInIsStatTag,
 {
 	FLowLevelMemTracker& LLMRef = FLowLevelMemTracker::Get();
 	// We have to check bIsDisabled again after calling Get, because the constructor is called from Get, and will set
-	// bIsDisabled=false if the platform doesn't support it.
+	// bIsDisabled=true if the platform doesn't support it.
 	if (FLowLevelMemTracker::bIsDisabled)
 	{
 		bEnabled = false;
@@ -2537,6 +2543,91 @@ void FLLMScope::Destruct()
 	FLowLevelMemTracker& LLMRef = FLowLevelMemTracker::Get();
 	LLMRef.GetTracker(Tracker)->PopTag(TagSet);
 }
+
+void FLLMScopeDynamic::Init(ELLMTracker InTracker, ELLMTagSet InTagSet)
+{
+	FLowLevelMemTracker& LLMRef = FLowLevelMemTracker::Get();
+	// We have to check bIsDisabled again after calling Get, because the constructor is called from Get, and will set
+	// bIsDisabled=true if the platform doesn't support it.
+	if (FLowLevelMemTracker::bIsDisabled)
+	{
+		bEnabled = false;
+		return;
+	}
+	LLMRef.BootstrapInitialise();
+	if (!LLMRef.IsTagSetActive(InTagSet))
+	{
+		bEnabled = false;
+		return;
+	}
+	bEnabled = true;
+	TagData = nullptr;
+	Tracker = InTracker;
+	TagSet = InTagSet;
+}
+
+bool FLLMScopeDynamic::TryFindTag(FName TagName)
+{
+	FLowLevelMemTracker& LLMRef = FLowLevelMemTracker::Get();
+	TagData = LLMRef.FindTagData(TagName, TagSet, UE::LLMPrivate::ETagReferenceSource::Scope);
+	return TagData != nullptr;
+}
+
+bool FLLMScopeDynamic::TryAddTagAndActivate(FName TagName, const ILLMDynamicTagConstructor& Constructor)
+{
+	FLowLevelMemTracker& LLMRef = FLowLevelMemTracker::Get();
+	FName StatFullName = NAME_None;
+#if LLM_ENABLED_STAT_TAGS && STATS
+	FString StatConstructorName = Constructor.GetStatName();
+	if (!StatConstructorName.IsEmpty())
+	{
+		if (Constructor.NeedsStatConstruction())
+		{
+			switch (TagSet)
+			{
+			case ELLMTagSet::None:
+				StatFullName = FDynamicStats::CreateMemoryStatId<FStatGroup_STATGROUP_LLMFULL>(
+					StatConstructorName).GetName();
+				break;
+			case ELLMTagSet::Assets:
+				StatFullName = FDynamicStats::CreateMemoryStatId<FStatGroup_STATGROUP_LLMAssets>(
+					StatConstructorName).GetName();
+				break;
+			case ELLMTagSet::AssetClasses:
+				StatFullName = FDynamicStats::CreateMemoryStatId<FStatGroup_STATGROUP_LLMAssets>(
+					StatConstructorName).GetName();
+				break;
+			default:
+				checkNoEntry();
+				break;
+			}
+		}
+		else
+		{
+			StatFullName = FName(*StatConstructorName);
+		}
+	}
+#endif
+	TagData = LLMRef.FindOrAddTagData(TagName, TagSet, StatFullName, UE::LLMPrivate::ETagReferenceSource::Scope);
+	LLMRef.GetTracker(Tracker)->PushTag(TagData, TagSet);
+	return true;
+}
+
+void FLLMScopeDynamic::Activate()
+{
+	FLowLevelMemTracker& LLMRef = FLowLevelMemTracker::Get();
+	LLMRef.GetTracker(Tracker)->PushTag(TagData, TagSet);
+}
+
+void FLLMScopeDynamic::Destruct()
+{
+	if (TagData)
+	{
+		FLowLevelMemTracker& LLMRef = FLowLevelMemTracker::Get();
+		LLMRef.GetTracker(Tracker)->PopTag(TagSet);
+	}
+}
+
 
 FLLMPauseScope::FLLMPauseScope(FName TagName, bool bIsStatTag, uint64 Amount, ELLMTracker TrackerToPause,
 	ELLMAllocType InAllocType)
@@ -3202,7 +3293,7 @@ FTagData::FTagData(FName InName, ELLMTagSet InTagSet, FName InDisplayName, FName
 	: Name(InName), DisplayName(InDisplayName), ParentName(InParentName), StatName(InStatName)
 	, SummaryStatName(InSummaryStatName), EnumTag(InEnumTag), ReferenceSource(InReferenceSource)
 	, TagSet(InTagSet), bIsFinishConstructed(false), bParentIsName(true), bHasEnumTag(bInHasEnumTag)
-	, bIsReportable(InTagSet == ELLMTagSet::None)
+	, bIsReportable(true)
 {
 }
 
@@ -3338,6 +3429,11 @@ int32 FTagData::GetIndex() const
 }
 
 bool FTagData::IsReportable() const
+{
+	return bIsReportable && TagSet == ELLMTagSet::None;
+}
+
+bool FTagData::IsStatsReportable() const
 {
 	return bIsReportable;
 }
@@ -3902,7 +3998,7 @@ void FLLMTracker::PublishStats(UE::LLM::ESizeParams SizeParams)
 	for (const TPair<const FTagData*, FTrackerTagSizeData>& It : TagSizes)
 	{
 		const FTagData* TagData = It.Key;
-		if (!TagData->IsReportable())
+		if (!TagData->IsStatsReportable())
 		{
 			continue;
 		}

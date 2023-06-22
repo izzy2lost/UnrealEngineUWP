@@ -37,6 +37,10 @@ UE_TRACE_EVENT_END()
 thread_local int32 GActiveTag;
 
 ////////////////////////////////////////////////////////////////////////////////
+FMemScope::FMemScope()
+{
+}
+
 FMemScope::FMemScope(int32 InTag, bool bShouldActivate /*= true*/)
 {
 	if (UE_TRACE_CHANNELEXPR_IS_ENABLED(MemAllocChannel) & bShouldActivate)
@@ -56,6 +60,11 @@ FMemScope::FMemScope(ELLMTag InTag, bool bShouldActivate /*= true*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 FMemScope::FMemScope(const FName& InName, bool bShouldActivate /*= true*/)
+{
+	SetTagAndActivate(InName, bShouldActivate);
+}
+
+void FMemScope::SetTagAndActivate(const FName& InName, bool bShouldActivate /*= true*/)
 {
 	if (UE_TRACE_CHANNELEXPR_IS_ENABLED(MemAllocChannel) & bShouldActivate)
 	{

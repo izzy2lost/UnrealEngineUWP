@@ -3162,8 +3162,8 @@ void FAsyncPackage::EventDrivenCreateExport(int32 LocalExportIndex)
 
 	const UClass* Class = CastEventDrivenIndexToObject<UClass>(Export.ClassIndex, false);
 	LLM_SCOPE(ELLMTag::AsyncLoading);
-	LLM_SCOPED_TAG_WITH_OBJECT_IN_SET(GetLinkerRoot(), ELLMTagSet::Assets);
-	LLM_SCOPED_TAG_WITH_OBJECT_IN_SET(Class, ELLMTagSet::AssetClasses);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetLinkerRoot(), ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Class, ELLMTagSet::AssetClasses);
    	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(Export.ObjectName, Class->GetFName(), GetLinkerRoot()->GetFName());
 
 	// Check whether we already loaded the object and if not whether the context flags allow loading it.
@@ -3449,8 +3449,8 @@ void FAsyncPackage::EventDrivenSerializeExport(int32 LocalExportIndex)
 	FObjectExport& Export = Linker->ExportMap[LocalExportIndex];
 
 	const UClass* Class = CastEventDrivenIndexToObject<UClass>(Export.ClassIndex, false);
-	LLM_SCOPED_TAG_WITH_OBJECT_IN_SET(GetLinkerRoot(), ELLMTagSet::Assets);
-	LLM_SCOPED_TAG_WITH_OBJECT_IN_SET(Class, ELLMTagSet::AssetClasses);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetLinkerRoot(), ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Class, ELLMTagSet::AssetClasses);
 
 	UObject* Object = Export.Object;
 	if (Object && Object->HasAnyFlags(RF_NeedLoad))
