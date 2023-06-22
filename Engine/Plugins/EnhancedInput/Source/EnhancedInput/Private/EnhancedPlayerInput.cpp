@@ -570,6 +570,19 @@ void UEnhancedPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>
 						TriggeredActionsThisTick.Add(ActionData->GetSourceAction());
 					}
 				}
+
+				// If this delegate is bound to an action that has an event and is flagged to consume legacy keys, then mark it as such.
+				if (const FKeyConsumptionOptions* const ConsumptionData = KeyConsumptionData.Find(ActionData->GetSourceAction()))
+				{
+					if (static_cast<uint8>(ConsumptionData->EventsToCauseConsumption & ActionData->TriggerEvent) != 0)
+					{
+						// Consume all keys that are mapped to this input action with the proper trigger values
+						for (const FKey& KeyToConsume : ConsumptionData->KeysToConsume)
+						{
+							ConsumeKey(KeyToConsume);
+						}
+					}
+				}
 			}
 		}
 
@@ -601,18 +614,6 @@ void UEnhancedPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>
 				// Search for the action instance data a second time as a previous delegate call may have deleted it.
 				if (const FInputActionInstance* ActionData = FindActionInstanceData(DelegateAction))
 				{
-					// If this enhanced input delegate has triggered and is flagged to consume legacy keys, then mark it as such.
-					if (const FKeyConsumptionOptions* ConsumptionData = KeyConsumptionData.Find(ActionData->GetSourceAction()))
-					{
-						if (static_cast<uint8>(ConsumptionData->EventsToCauseConsumption & Delegate->GetTriggerEvent()) != 0)
-						{
-							// Consume all keys that are mapped to this input action with the proper trigger values
-							for (const FKey& KeyToConsume : ConsumptionData->KeysToConsume)
-							{
-								ConsumeKey(KeyToConsume);	
-							}
-						}
-					}
 					Delegate->Execute(*ActionData);
 				}
 			}
