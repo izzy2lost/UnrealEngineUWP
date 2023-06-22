@@ -98,6 +98,7 @@ public:
 	const TManagedArray<int32>& GetSimulationType() const { return SimulationTypeAttribute.Get(); }
 	const TManagedArray<bool>& GetVisible() const { return VisibleAttribute.Get(); }
 
+	bool IsValidBoneIndex(int32 BoneIndex) const;
 	FString GetBoneName(int32 Index) const;
 	float GetRelativeSize(int32 Index) const;
 	float GetVolumetricUnit(int32 Index) const;
@@ -210,6 +211,7 @@ public:
 	TSharedRef<SWidget> MakeConvexCountColumnWidget() const;
 	TSharedRef<SWidget> MakeEmptyColumnWidget() const;
 	virtual void GetChildren(FGeometryCollectionTreeItemList& OutChildren) override;
+	bool IsValidBone() const;
 	virtual int32 GetBoneIndex() const override { return BoneIndex; }
 	virtual UGeometryCollectionComponent* GetComponent() const { return ParentComponentItem->GetComponent(); }
 	bool HasChildren() const;

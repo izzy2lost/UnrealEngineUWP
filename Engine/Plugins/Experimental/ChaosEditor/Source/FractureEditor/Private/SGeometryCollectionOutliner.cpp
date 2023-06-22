@@ -192,6 +192,11 @@ UOutlinerSettings::UOutlinerSettings(const FObjectInitializer& ObjInit)
 
 TSharedRef<SWidget> SGeometryCollectionOutlinerRow::GenerateWidgetForColumn(const FName& ColumnName)
 {
+	if (!ensure(Item->IsValidBone()))
+	{
+		return Item->MakeEmptyColumnWidget();
+	}
+
 	if (ColumnName == SGeometryCollectionOutlinerColumnID::BoneIndex)
 	{
 		const TSharedPtr<SWidget> NameWidget = Item->MakeBoneIndexColumnWidget();
@@ -647,6 +652,11 @@ template <typename T>
 static T GetAttributeValue(const TManagedArrayAccessor<T>& Attribute, int32 Index, T Default)
 {
 	return (Attribute.IsValid()) ? Attribute.Get()[Index] : Default;
+}
+
+bool FGeometryCollectionItemDataFacade::IsValidBoneIndex(int32 BoneIndex) const
+{
+	return BoneIndex >= 0 && BoneIndex < BoneNameAttribute.Num();
 }
 
 FString FGeometryCollectionItemDataFacade::GetBoneName(int32 Index) const
@@ -1114,6 +1124,12 @@ TSharedRef<ITableRow> FGeometryCollectionTreeItemBone::MakeTreeRowWidget(const T
 			];
 	}
 	return SNew(SGeometryCollectionOutlinerRow, InOwnerTable, SharedThis(this));
+}
+
+bool FGeometryCollectionTreeItemBone::IsValidBone() const
+{
+	const FGeometryCollectionItemDataFacade& DataCollectionFacade = GetDataCollectionFacade();
+	return DataCollectionFacade.IsValidBoneIndex(BoneIndex);
 }
 
 TSharedRef<SWidget> FGeometryCollectionTreeItemBone::MakeBoneIndexColumnWidget() const
