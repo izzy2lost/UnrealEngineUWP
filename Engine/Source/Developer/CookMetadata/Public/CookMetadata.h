@@ -14,10 +14,98 @@ namespace UE::Cook
 enum class ECookMetadataStateVersion : uint8
 {
 	PluginHierarchy = 1,
+	PostWritebackHash = 2,
 
 	// Add new versions above this.
 	VersionCount,
 	LatestVersion = VersionCount - 1
+};
+
+/**
+*	We classify various bits of the plugin data based on how it will be delivered to the end user in order to
+*	more appropriately track the user's experience.
+* 
+*	Each iostore chunk (note: NOT pak chunk!) gets compressed during staging and unreal pak will update the size
+*	for the plugin based on how the chunk gets deployed.
+*/
+enum class EPluginSizeTypes : uint8
+{
+	// The iostore chunks will be deployed to servers for downloading on-demand by the game using the Individual Asset Streaming
+	// system.
+	Streaming,
+	// The iostore chunks are written to normal iostore containers that are expected to be distributed with the game. This
+	// includes the required global iostore container.
+	Installed,
+	// The iostore chunks are written to a separate container that isn't required to be distributed with the game. This is where e.g.
+	// OptionalMips go for textures. They appear as .uptnl files in the Cooked directory (if cooking to Loose Files),
+	// The CopyBuildToStagingDirectory script manually assigns the iostore chunk to a corresponding pak chunk with the name
+	// ending in "optional", e.g. pakChunk0optional.pak/ucas/utoc/sig. The only way to catch this in UnrealPak
+	// is to parse the filename.
+	Optional,
+	// These are sidecar files for distributing EditorOnly data for Cooked Editor builds. When cooking to loose files
+	// they will contain ".o" inside their filename, e.g. "myasset.o.ubulk". They are never intended to be shipped with
+	// a game.
+	OptionalSegment,
+	COUNT
+};
+constexpr uint8 EPluginSizeTypesCount = (uint8)EPluginSizeTypes::COUNT;
+
+struct FPluginSizeInfo
+{
+	uint64 Sizes[EPluginSizeTypesCount] = {};
+
+	void AddSizes(uint64 SizesPerType[EPluginSizeTypesCount])
+	{
+		for (uint8 Type = 0; Type < EPluginSizeTypesCount; Type++)
+		{
+			Sizes[Type] += SizesPerType[Type];
+		}
+	}
+	void Add(const FPluginSizeInfo& Other)
+	{
+		for (uint8 Type = 0; Type < EPluginSizeTypesCount; Type++)
+		{
+			Sizes[Type] += Other.Sizes[Type];
+		}
+	}
+	uint64 TotalSize() const
+	{
+		uint64 Total = 0;
+		for (uint8 Type = 0; Type < EPluginSizeTypesCount; Type++)
+		{
+			Total += Sizes[Type];
+		}
+		return Total;
+	}
+
+	friend FArchive& operator<<(FArchive& Ar, FPluginSizeInfo& SizeInfo)
+	{
+		for (uint8 i = 0; i < EPluginSizeTypesCount; i++)
+		{
+			Ar << SizeInfo.Sizes[i];
+		}
+		return Ar;
+	}
+
+	uint64& operator[](EPluginSizeTypes InType) { return Sizes[(uint8)InType]; }
+	const uint64& operator[](EPluginSizeTypes InType) const { return Sizes[(uint8)InType]; }
+};
+
+/*
+*	Unrealpak doesn't compress the data for all platforms. In those cases, the data written back
+*	during staging isn't compressed and is not representative of the final sizes that occurs after
+*	the corresponding SDK tools process them for deployment.
+*/
+enum class ECookMetadataSizesPresent
+{
+	// staging has not occured, or writeback wasn't enabled in project packaing settings.
+	NotPresent,
+
+	// unrealpak compressed the iostore chunks and the data we have is compressed sizes
+	Compressed,
+
+	// the selected platform isn't compressed by unrealpak, or package compression was disabled.
+	Uncompressed
 };
 
 
@@ -35,14 +123,24 @@ struct COOKMETADATA_API FCookMetadataPluginEntry
 	//		const UE::Cook::FCookMetadataPluginEntry& DependentPlugin = PluginHierarchy.PluginsEnabledAtCook[PluginHierarchy.PluginDependencies[DependencyIndex]];
 	//	}
 	//
-	uint16 DependencyIndexStart;
-	uint16 DependencyIndexEnd;
+	uint16 DependencyIndexStart = 0;
+	uint16 DependencyIndexEnd = 0;
+
+	//
+	// Theses sizes are set during staging by unrealpak if the option in project packaging is set.
+	// To determine if they are set, check FCookMetadataState::GetSizesPresent(). Inclusive contains
+	// the size of the plugin and all of its dependencies listed in its uplugin file.
+	//
+	FPluginSizeInfo InclusiveSizes;
+	FPluginSizeInfo ExclusiveSizes;
 
 	uint16 DependencyCount() const { return DependencyIndexEnd - DependencyIndexStart; }
 
 	friend FArchive& operator<<(FArchive& Ar, FCookMetadataPluginEntry& Entry)
 	{
-		return Ar << Entry.Name << Entry.DependencyIndexStart << Entry.DependencyIndexEnd;
+		Ar << Entry.Name << Entry.DependencyIndexStart << Entry.DependencyIndexEnd;
+		Ar << Entry.InclusiveSizes << Entry.ExclusiveSizes;
+		return Ar;
 	}
 };
 
@@ -88,6 +186,9 @@ public:
 	// Plugin hierarchy information
 	void SetPluginHierarchyInfo(FCookMetadataPluginHierarchy&& InPluginHierarchy) { PluginHierarchy = MoveTemp(InPluginHierarchy); }
 	const FCookMetadataPluginHierarchy& GetPluginHierarchy() const { return PluginHierarchy; }
+	
+	// So that unrealpak can update the sizes.
+	FCookMetadataPluginHierarchy& GetMutablePluginHierarchy() { return PluginHierarchy; }
 
 	/**
 	*	Associated DevAR Hash.
@@ -98,19 +199,54 @@ public:
 	*	Use this to ensure that the files you are working with were produced by the same cook and didn't
 	*	get out of sync somehow.
 	* 
+	*	*IMPORTANT* If asset registry writeback is enabled during staging, then the hash of the development
+	*	asset registry changes, and you'll need to check against GetAssociatedDevelopmentAssetRegistryHashPostWriteback.
+	*	If you don't know which one you have, check both - they are both valid.
+	* 
 	*	e.g.
 	*	uint64 CheckHash = GetAssociatedDevelopmentAssetRegistryHash();
 	*	bValidDevAr = ComputeHashOfDevelopmentAssetRegistry(MakeMemoryView(SerializedAssetRegistry)) == CheckHash;
 	*/
 	void SetAssociatedDevelopmentAssetRegistryHash(uint64 InHash) { AssociatedDevelopmentAssetRegistryHash = InHash; }
+	void SetAssociatedDevelopmentAssetRegistryHashPostWriteback(uint64 InHash) { AssociatedDevelopmentAssetRegistryHashPostWriteback = InHash; }
+
 	uint64 GetAssociatedDevelopmentAssetRegistryHash() const { return AssociatedDevelopmentAssetRegistryHash; }
+	uint64 GetAssociatedDevelopmentAssetRegistryHashPostWriteback() const { return AssociatedDevelopmentAssetRegistryHashPostWriteback; }
+
+	void SetPlatformAndBuildVersion(const FString& InPlatform, const TCHAR* InBuildVersion) { Platform = InPlatform; BuildVersion = FString(InBuildVersion); }
+	const FString& GetPlatform() const { return Platform; }
+	const FString GetBuildVersion() const { return BuildVersion; }
+
+	void SetHordeJobId(FString&& InHordeJobId) { HordeJobId = MoveTemp(InHordeJobId); }
+	const FString& GetHordeJobId() const { return HordeJobId; }
 
 	static uint64 ComputeHashOfDevelopmentAssetRegistry(FMemoryView InSerializedDevelopmentAssetRegistry);
+
+	// Returns what size information is present in FCookMetadataPluginEntry. This varies based on the platform
+	// and settings. 
+	ECookMetadataSizesPresent GetSizesPresent() const { return SizesPresent; }
+	void SetSizesPresent(ECookMetadataSizesPresent InSizesPresent) { SizesPresent = InSizesPresent; }
 private:
+
 	ECookMetadataStateVersion Version;
 	FCookMetadataPluginHierarchy PluginHierarchy;
 
-	uint64 AssociatedDevelopmentAssetRegistryHash;
+	uint64 AssociatedDevelopmentAssetRegistryHash = 0;
+
+	// Asset registry size writeback changes the AR, so we have a separate hash for that DevAR that this
+	// also matches.
+	uint64 AssociatedDevelopmentAssetRegistryHashPostWriteback = 0;
+
+	FString Platform;
+
+	// BUILD_VERSION definition from definitions.h for the cook.
+	FString BuildVersion;
+
+	// If cooked on Horde, this is the job id that cooked it.
+	FString HordeJobId;
+
+	// Updated by unrealpak when plugin size information is added.
+	ECookMetadataSizesPresent SizesPresent;
 };
 
 COOKMETADATA_API const FString& GetCookMetadataFilename();

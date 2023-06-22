@@ -327,6 +327,12 @@ public:
 	EAssetRegistryWritebackMethod WriteBackMetadataToAssetRegistry;
 
 	/**
+	* Whether or not to write a json summary file that contains size information to the cooked Metadata/PluginJsons directory
+	*/
+	UPROPERTY(config, EditAnywhere, Category = Packaging, AdvancedDisplay, meta = (EditCondition = "WriteBackMetadataToAssetRegistry != EAssetRegistryWritebackMethod::Disabled"))
+	bool bWritePluginSizeSummaryJsons;
+
+	/**
 	 * Create compressed cooked packages (decreased deployment size)
 	 */
 	UPROPERTY(config, EditAnywhere, Category=Packaging, AdvancedDisplay, meta=(DisplayName="Create compressed cooked packages"))

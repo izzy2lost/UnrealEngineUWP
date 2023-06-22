@@ -3585,6 +3585,13 @@ namespace AutomationScripts
 					{
 						AdditionalArgs += " -WriteBackMetadataToAssetRegistry=" + WriteBackMetadataToAssetRegistry;
 					}
+
+					bool bWritePluginSizeSummaryJsons = false;
+					if (PlatformGameConfig.GetBool("/Script/UnrealEd.ProjectPackagingSettings", "bWritePluginSizeSummaryJsons", out bWritePluginSizeSummaryJsons) &&
+						bWritePluginSizeSummaryJsons)
+					{
+						AdditionalArgs += " -WritePluginSizeSummaryJsons";
+					}
 				}
 
 

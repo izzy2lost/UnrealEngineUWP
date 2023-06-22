@@ -9269,9 +9269,15 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 	TArray<TSharedRef<IPlugin>> EnabledPlugins = IPluginManager::Get().GetEnabledPlugins();
 
 	// Remove any plugins that don't support the target platform.
-	EnabledPlugins.RemoveAllSwap([InTargetPlatform](const TSharedRef<IPlugin>& Plugin)
+	// NOTE: We can't use IsEnabledForPlugin because it has an issue with the AllowTargets list where preventing a plugin on
+	// a target at the uproject level doesn't get overridden by a dependent plugins' reference, so we remove plugins that
+	// are actually enabled.
+	// We switch to just directly checking the plugin if it's enabled for the platform. This won't handle transitive disabling,
+	// and also won't handle any direct disabling... however disabling should have already been taken care of by using GetEnabledPlugins
+	// as our base list.
+	EnabledPlugins.RemoveAllSwap([&PlatformNameString](const TSharedRef<IPlugin>& Plugin)
 	{
-		return InTargetPlatform->IsEnabledForPlugin(Plugin.Get()) == false;
+		return Plugin->GetDescriptor().SupportsTargetPlatform(PlatformNameString) == false;
 	});
 
 	// Filter to the DLC plugin + dependencies if we are a DLC cook.
@@ -9329,9 +9335,10 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 		}
 	}
 
-	if (IntFitsIn<uint16>(EnabledPlugins.Num()) == false)
+	constexpr int32 AdditionalPseudoPlugins = 2; // /Engine and /Game.
+	if (IntFitsIn<uint16>(EnabledPlugins.Num() + AdditionalPseudoPlugins) == false)
 	{
-		UE_LOG(LogCook, Warning, TEXT("Number of plugins exceeds 64k, unable to write cook metadata file (count = %d"), EnabledPlugins.Num());
+		UE_LOG(LogCook, Warning, TEXT("Number of plugins exceeds 64k, unable to write cook metadata file (count = %d"), EnabledPlugins.Num() + AdditionalPseudoPlugins);
 	}
 	else
 	{
@@ -9395,6 +9402,10 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 			}
 		}
 
+		// Add the /Engine and /Game pseudo plugins. These are placeholders for holding size information when unrealpak runs.
+		PluginsToAdd.AddDefaulted_GetRef().Name = TEXT("Engine");
+		PluginsToAdd.AddDefaulted_GetRef().Name = TEXT("Game");
+
 		if (IntFitsIn<uint16>(PluginChildArray.Num()) == false)
 		{
 			UE_LOG(LogCook, Warning, TEXT("Number of child plugins exceeds 64k, unable to write cook metadata file (count = %d)"), PluginChildArray.Num());
@@ -9411,9 +9422,15 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 			MetadataState.SetPluginHierarchyInfo(MoveTemp(PluginHierarchy));
 			MetadataState.SetAssociatedDevelopmentAssetRegistryHash(InDevelopmentAssetRegistryHash);
 
+			MetadataState.SetPlatformAndBuildVersion(PlatformNameString, FApp::GetBuildVersion());
+			MetadataState.SetHordeJobId(FPlatformMisc::GetEnvironmentVariable(TEXT("UE_HORDE_JOBID")));
+
 			FArrayWriter SerializedCookMetadata;
 			MetadataState.Serialize(SerializedCookMetadata);
-			FFileHelper::SaveArrayToFile(SerializedCookMetadata, *GetCookedCookMetadataFilename(PlatformNameString));
+			if (FFileHelper::SaveArrayToFile(SerializedCookMetadata, *GetCookedCookMetadataFilename(PlatformNameString)) == false)
+			{
+				UE_LOG(LogCook, Error, TEXT("Failed to write cook metadata file (%s)"), *GetCookedCookMetadataFilename(PlatformNameString));
+			}
 		}
 	}
 }

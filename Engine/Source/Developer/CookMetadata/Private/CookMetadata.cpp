@@ -35,6 +35,10 @@ bool FCookMetadataState::Serialize(FArchive& Ar)
 	Ar << Version;
 	Ar << PluginHierarchy;
 	Ar << AssociatedDevelopmentAssetRegistryHash;
+	Ar << AssociatedDevelopmentAssetRegistryHashPostWriteback;
+	Ar << Platform;
+	Ar << BuildVersion;
+	Ar << HordeJobId;
 
 	return true;
 }
