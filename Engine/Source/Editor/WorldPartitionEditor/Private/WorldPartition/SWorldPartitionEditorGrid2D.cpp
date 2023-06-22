@@ -17,6 +17,7 @@
 #include "LocationVolume.h"
 #include "Modules/ModuleManager.h"
 #include "Rendering/SlateRenderer.h"
+#include "ScopedTransaction.h"
 #include "SWorldPartitionViewportWidget.h"
 #include "TextureResource.h"
 #include "Widgets/Input/SButton.h"
