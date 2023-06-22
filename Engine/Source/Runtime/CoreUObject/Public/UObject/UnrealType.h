@@ -6971,7 +6971,8 @@ private:
 		None = 0x0,
 		IsMatch = 0x01,
 
-		ContainerMask = 0xF0,
+		ContainerMask = 0xF8,
+		IsOptional = 0x08,
 		IsArray = 0x10,
 		IsMap = 0x20,
 		IsSet = 0x40,
