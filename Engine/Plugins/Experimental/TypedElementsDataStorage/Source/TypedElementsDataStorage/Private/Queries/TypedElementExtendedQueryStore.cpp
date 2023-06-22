@@ -140,7 +140,7 @@ void FTypedElementExtendedQueryStore::ListAliveEntries(const ListAliveEntriesCal
 	Queries.ListAliveEntries(Callback);
 }
 
-ITypedElementDataStorageInterface::FQueryResult FTypedElementExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, Handle Query)
+TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, Handle Query)
 {
 	using ActionType = ITypedElementDataStorageInterface::FQueryDescription::EActionType;
 	using CompletionType = ITypedElementDataStorageInterface::FQueryResult::ECompletion;
@@ -180,8 +180,9 @@ ITypedElementDataStorageInterface::FQueryResult FTypedElementExtendedQueryStore:
 	return Result;
 }
 
-ITypedElementDataStorageInterface::FQueryResult FTypedElementExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, Handle Query,
-	ITypedElementDataStorageInterface::DirectQueryCallbackRef Callback)
+template<typename CallbackReference>
+TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQueryCallbackCommon(FMassEntityManager& EntityManager, Handle Query,
+	CallbackReference Callback)
 {
 	using ActionType = ITypedElementDataStorageInterface::FQueryDescription::EActionType;
 	using CompletionType = ITypedElementDataStorageInterface::FQueryResult::ECompletion;
@@ -209,6 +210,62 @@ ITypedElementDataStorageInterface::FQueryResult FTypedElementExtendedQueryStore:
 		case ActionType::Count:
 			// Only the count is requested so no need to trigger the callback.
 			Result.Count = QueryData->NativeQuery.GetNumMatchingEntities(EntityManager);
+			Result.Completed = CompletionType::Fully;
+			break;
+		default:
+			Result.Completed = CompletionType::Unsupported;
+			break;
+		}
+	}
+	else
+	{
+		Result.Completed = CompletionType::Unavailable;
+	}
+
+	return Result;
+}
+
+TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, Handle Query,
+	TypedElementDataStorage::DirectQueryCallbackRef Callback)
+{
+	return RunQueryCallbackCommon(EntityManager, Query, Callback);
+}
+
+TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, Handle Query,
+	TypedElementDataStorage::SubqueryCallbackRef Callback)
+{
+	return RunQueryCallbackCommon(EntityManager, Query, Callback);
+}
+
+TypedElementDataStorage::FQueryResult FTypedElementExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager, Handle Query,
+	TypedElementRowHandle Row, TypedElementDataStorage::SubqueryCallbackRef Callback)
+{
+	using ActionType = ITypedElementDataStorageInterface::FQueryDescription::EActionType;
+	using CompletionType = ITypedElementDataStorageInterface::FQueryResult::ECompletion;
+
+	ITypedElementDataStorageInterface::FQueryResult Result;
+
+	if (FTypedElementExtendedQuery* QueryData = Get(Query))
+	{
+		switch (QueryData->Description.Action)
+		{
+		case ActionType::None:
+			Result.Completed = CompletionType::Fully;
+			break;
+		case ActionType::Select:
+			if (!QueryData->Processor.IsValid())
+			{
+				Result = FTypedElementQueryProcessorData::Execute(
+					Callback, QueryData->Description, Row, QueryData->NativeQuery, EntityManager);
+			}
+			else
+			{
+				Result.Completed = CompletionType::Unsupported;
+			}
+			break;
+		case ActionType::Count:
+			// Only the count is requested so no need to trigger the callback.
+			Result.Count = 1;
 			Result.Completed = CompletionType::Fully;
 			break;
 		default:

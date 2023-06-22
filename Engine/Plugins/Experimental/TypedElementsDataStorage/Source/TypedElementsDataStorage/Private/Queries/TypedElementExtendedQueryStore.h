@@ -80,9 +80,13 @@ public:
 	 * @section Execution
 	 * @description Various functions to run queries.
 	 */
-	ITypedElementDataStorageInterface::FQueryResult RunQuery(FMassEntityManager& EntityManager, Handle Query);
-	ITypedElementDataStorageInterface::FQueryResult RunQuery(FMassEntityManager& EntityManager, Handle Query,
-		ITypedElementDataStorageInterface::DirectQueryCallbackRef Callback);
+	TypedElementDataStorage::FQueryResult RunQuery(FMassEntityManager& EntityManager, Handle Query);
+	TypedElementDataStorage::FQueryResult RunQuery(FMassEntityManager& EntityManager, Handle Query,
+		TypedElementDataStorage::DirectQueryCallbackRef Callback);
+	TypedElementDataStorage::FQueryResult RunQuery(FMassEntityManager& EntityManager, Handle Query,
+		TypedElementDataStorage::SubqueryCallbackRef Callback);
+	TypedElementDataStorage::FQueryResult RunQuery(FMassEntityManager& EntityManager, Handle Query,
+		TypedElementRowHandle Row, TypedElementDataStorage::SubqueryCallbackRef Callback);
 	void RunPhasePreambleQueries(FMassEntityManager& EntityManager, ITypedElementDataStorageInterface::EQueryTickPhase Phase, float DeltaTime);
 	void RunPhasePostambleQueries(FMassEntityManager& EntityManager, ITypedElementDataStorageInterface::EQueryTickPhase Phase, float DeltaTime);
 
@@ -108,6 +112,9 @@ private:
 		TArray<FName> AfterGroups;
 		bool bRequiresMainThread{ false };
 	};
+
+	template<typename CallbackReference>
+	TypedElementDataStorage::FQueryResult RunQueryCallbackCommon(FMassEntityManager& EntityManager, Handle Query, CallbackReference Callback);
 
 	FMassEntityQuery& SetupNativeQuery(ITypedElementDataStorageInterface::FQueryDescription& Query, FTypedElementExtendedQuery& StoredQuery);
 	bool SetupSelectedColumns(ITypedElementDataStorageInterface::FQueryDescription& Query, FMassEntityQuery& NativeQuery);

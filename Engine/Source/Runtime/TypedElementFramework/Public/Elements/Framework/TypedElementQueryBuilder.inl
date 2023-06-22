@@ -219,6 +219,18 @@ namespace TypedElementQueryBuilder
 		return ParentContext.RunSubquery(SubqueryIndex);
 	}
 
+	TypedElementDataStorage::FQueryResult FQueryContextForwarder::RunSubquery(int32 SubqueryIndex,
+		TypedElementDataStorage::SubqueryCallbackRef Callback)
+	{
+		return ParentContext.RunSubquery(SubqueryIndex, Callback);
+	}
+
+	TypedElementDataStorage::FQueryResult FQueryContextForwarder::RunSubquery(int32 SubqueryIndex,
+		TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::SubqueryCallbackRef Callback)
+	{
+		return ParentContext.RunSubquery(SubqueryIndex, Row, Callback);
+	}
+
 	//
 	// FCachedQueryContext
 	//
@@ -1179,7 +1191,7 @@ e.g. void(IDirectQueryContext& Context, TypedElementRowHandle Row, ColumnType0& 
 	}
 
 	template<typename Function>
-	TypedElementDataStorage::DirectQueryCallback CreateSubqueryCallbackBinding(Function&& Callback)
+	TypedElementDataStorage::SubqueryCallback CreateSubqueryCallbackBinding(Function&& Callback)
 	{
 		static_assert(Internal::IsValidSelectFunctionSignature<ITypedElementDataStorageInterface::ISubqueryContext, Function>(),
 			R"(The function provided to the Query Builder's CreateSubqueryCallbackBinding call wasn't invocable or doesn't contain a supported combination of arguments.

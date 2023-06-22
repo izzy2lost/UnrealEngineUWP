@@ -41,10 +41,21 @@ struct FTypedElementQueryProcessorData
 	static EMassProcessingPhase MapToMassProcessingPhase(ITypedElementDataStorageInterface::EQueryTickPhase Phase);
 	FString GetProcessorName() const;
 
-	static ITypedElementDataStorageInterface::FQueryResult Execute(
-		ITypedElementDataStorageInterface::DirectQueryCallbackRef& Callback,
-		ITypedElementDataStorageInterface::FQueryDescription& Description, 
+	static TypedElementDataStorage::FQueryResult Execute(
+		TypedElementDataStorage::DirectQueryCallbackRef& Callback,
+		TypedElementDataStorage::FQueryDescription& Description,
 		FMassEntityQuery& NativeQuery, 
+		FMassEntityManager& EntityManager);
+	static TypedElementDataStorage::FQueryResult Execute(
+		TypedElementDataStorage::SubqueryCallbackRef& Callback,
+		TypedElementDataStorage::FQueryDescription& Description,
+		FMassEntityQuery& NativeQuery,
+		FMassEntityManager& EntityManager);
+	static TypedElementDataStorage::FQueryResult Execute(
+		TypedElementDataStorage::SubqueryCallbackRef& Callback,
+		TypedElementDataStorage::FQueryDescription& Description,
+		TypedElementDataStorage::RowHandle RowHandle,
+		FMassEntityQuery& NativeQuery,
 		FMassEntityManager& EntityManager);
 	void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context);
 

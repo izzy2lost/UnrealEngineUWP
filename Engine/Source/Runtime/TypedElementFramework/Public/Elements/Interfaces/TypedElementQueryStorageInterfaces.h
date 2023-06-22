@@ -13,6 +13,12 @@ class UScriptStruct;
 
 namespace TypedElementDataStorage
 {
+	struct FQueryDescription; 
+	struct ISubqueryContext;
+
+	using SubqueryCallback = TFunction<void(const FQueryDescription&, ISubqueryContext&)>;
+	using SubqueryCallbackRef = TFunctionRef<void(const FQueryDescription&, ISubqueryContext&)>;
+
 	/**
 	 * Base interface for any contexts provided to query callbacks.
 	 */
@@ -124,10 +130,26 @@ namespace TypedElementDataStorage
 		/**
 		 * Runs a previously created query. This version takes an arbitrary query, but is limited to running queries that do not directly
 		 * access data from rows such as count queries.
+		 * The returned result is a snap shot and values may change between phases.
 		 */
 		virtual FQueryResult RunQuery(QueryHandle Query) = 0;
-		/** Runs a subquery registered with the current query. The subquery index is in the order of registration with the query. */
+		/** 
+		 * Runs a subquery registered with the current query. The subquery index is in the order of registration with the query. Subqueries
+		 * are executed as part of their parent query and are not scheduled separately.
+		 */
 		virtual FQueryResult RunSubquery(int32 SubqueryIndex) = 0;
+		/** 
+		 * Runs the provided callback on a subquery registered with the current query. The subquery index is in the order of registration 
+		 * with the query. Subqueries are executed as part of their parent query and are not scheduled separately.
+		 */
+		virtual FQueryResult RunSubquery(int32 SubqueryIndex, SubqueryCallbackRef Callback) = 0;
+		/** 
+		 * Runs the provided callback on a subquery registered with the current query for the exact provided row. The subquery index is in 
+		 * the order of registration with the query. If the row handle is in a table that doesn't match the selected subquery the callback
+		 * will not be called. Check the count in the returned results to determine if the callback was called or not. Subqueries
+		 * are executed as part of their parent query and are not scheduled separately.
+		 */
+		virtual FQueryResult RunSubquery(int32 SubqueryIndex, RowHandle Row, SubqueryCallbackRef Callback) = 0;
 
 
 

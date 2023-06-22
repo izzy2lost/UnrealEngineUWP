@@ -3,25 +3,41 @@
 #include "Processors/TypedElementProcessorAdaptors.h"
 
 #include <utility>
+#include "Elements/Common/TypedElementQueryTypes.h"
 #include "MassCommonTypes.h"
+#include "MassEntityView.h"
 #include "MassExecutionContext.h"
 #include "Queries/TypedElementExtendedQueryStore.h"
 #include "TypedElementDatabase.h"
 
-struct FMassContextForwarderShared
+template<typename T>
+struct FMassContextCommon : public T
 {
-	static const void* GetColumn(const FMassExecutionContext& Context, const UScriptStruct* ColumnType)
+	~FMassContextCommon() override = default;
+
+	const void* GetColumn(const UScriptStruct* ColumnType) const override
 	{
 		return Context.GetFragmentView(ColumnType).GetData();
 	}
 
-	static void* GetMutableColumn(FMassExecutionContext& Context, const UScriptStruct* ColumnType)
+	void* GetMutableColumn(const UScriptStruct* ColumnType) override
 	{
 		return Context.GetMutableFragmentView(ColumnType).GetData();
 	}
 
-	static void GetColumnsUnguarded(FMassExecutionContext& Context, int32 TypeCount, char** RetrievedAddresses,
-		const TWeakObjectPtr<const UScriptStruct>* ColumnTypes, const ITypedElementDataStorageInterface::EQueryAccessType* AccessTypes)
+	void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
+		TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override
+	{
+		checkf(RetrievedAddresses.Num() == ColumnTypes.Num(), TEXT("Unable to retrieve a batch of columns as the number of addresses "
+			"doesn't match the number of requested column."));
+		checkf(RetrievedAddresses.Num() == AccessTypes.Num(), TEXT("Unable to retrieve a batch of columns as the number of addresses "
+			"doesn't match the number of access types."));
+
+		GetColumnsUnguarded(ColumnTypes.Num(), RetrievedAddresses.GetData(), ColumnTypes.GetData(), AccessTypes.GetData());
+	}
+	
+	void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes,
+		const TypedElementDataStorage::EQueryAccessType* AccessTypes) override
 	{
 		for (int32 Index = 0; Index < TypeCount; ++Index)
 		{
@@ -36,24 +52,12 @@ struct FMassContextForwarderShared
 		}
 	}
 
-	static void GetColumns(FMassExecutionContext& Context, TArrayView<char*> RetrievedAddresses, 
-		TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
-		TConstArrayView<ITypedElementDataStorageInterface::EQueryAccessType> AccessTypes)
-	{
-		checkf(RetrievedAddresses.Num() == ColumnTypes.Num(), TEXT("Unable to retrieve a batch of columns as the number of addresses "
-			"doesn't match the number of requested column."));
-		checkf(RetrievedAddresses.Num() == AccessTypes.Num(), TEXT("Unable to retrieve a batch of columns as the number of addresses "
-			"doesn't match the number of access types."));
-
-		GetColumnsUnguarded(Context, ColumnTypes.Num(), RetrievedAddresses.GetData(), ColumnTypes.GetData(), AccessTypes.GetData());
-	}
-
-	static uint32 GetRowCount(const FMassExecutionContext& Context)
+	uint32 GetRowCount() const override
 	{
 		return Context.GetNumEntities();
 	}
-
-	static TConstArrayView<TypedElementRowHandle> GetRowHandles(const FMassExecutionContext& Context)
+	
+	TConstArrayView<TypedElementRowHandle> GetRowHandles() const override
 	{
 		static_assert(
 			sizeof(TypedElementRowHandle) == sizeof(FMassEntityHandle) && alignof(TypedElementRowHandle) == alignof(FMassEntityHandle),
@@ -61,40 +65,97 @@ struct FMassContextForwarderShared
 		TConstArrayView<FMassEntityHandle> Entities = Context.GetEntities();
 		return TConstArrayView<TypedElementRowHandle>(reinterpret_cast<const TypedElementRowHandle*>(Entities.GetData()), Entities.Num());
 	}
-};
 
-struct FMassContextForwarder final : public ITypedElementDataStorageInterface::IQueryContext
-{
-	FMassContextForwarder(ITypedElementDataStorageInterface::FQueryDescription& InQueryDescription, FMassExecutionContext& InContext, 
-		FTypedElementExtendedQueryStore& InQueryStore)
-		: QueryDescription(InQueryDescription)
-		, Context(InContext)
-		, QueryStore(InQueryStore)
+protected:
+	explicit FMassContextCommon(FMassExecutionContext& InContext)
+		: Context(InContext)
 	{}
 
-	~FMassContextForwarder() override = default;
+	FMassExecutionContext& Context;
+};
+
+struct FMassDirectContextForwarder final : public FMassContextCommon<ITypedElementDataStorageInterface::IDirectQueryContext>
+{
+	explicit FMassDirectContextForwarder(FMassExecutionContext& InContext)
+		: FMassContextCommon(InContext)
+	{}
+
+	~FMassDirectContextForwarder() override = default;
+};
+
+struct FMassSubqueryContextForwarder final : public FMassContextCommon<ITypedElementDataStorageInterface::ISubqueryContext>
+{
+	explicit FMassSubqueryContextForwarder(FMassExecutionContext& InContext)
+		: FMassContextCommon(InContext)
+	{}
+
+	~FMassSubqueryContextForwarder() override = default;
+};
+
+struct FMassSingleRowSubqueryContextForwarder final : public ITypedElementDataStorageInterface::ISubqueryContext
+{
+	FMassSingleRowSubqueryContextForwarder(FMassEntityManager& InEntityManager, TypedElementDataStorage::RowHandle InRowHandle)
+		: EntityManager(InEntityManager)
+		, RowHandle(InRowHandle)
+	{}
+
+	~FMassSingleRowSubqueryContextForwarder() override = default;
 
 	const void* GetColumn(const UScriptStruct* ColumnType) const override
 	{
-		return FMassContextForwarderShared::GetColumn(Context, ColumnType);
+		return EntityManager.GetFragmentDataStruct(FMassEntityHandle::FromNumber(RowHandle), ColumnType).GetMemory();
 	}
 
 	void* GetMutableColumn(const UScriptStruct* ColumnType) override
 	{
-		return FMassContextForwarderShared::GetMutableColumn(Context, ColumnType);
+		return EntityManager.GetFragmentDataStruct(FMassEntityHandle::FromNumber(RowHandle), ColumnType).GetMemory();
 	}
 
 	void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
-		TConstArrayView<ITypedElementDataStorageInterface::EQueryAccessType> AccessTypes) override
+		TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override
 	{
-		FMassContextForwarderShared::GetColumns(Context, RetrievedAddresses, ColumnTypes, AccessTypes);
+		checkf(RetrievedAddresses.Num() == ColumnTypes.Num(), TEXT("Unable to retrieve a batch of columns as the number of addresses "
+			"doesn't match the number of requested column."));
+		checkf(RetrievedAddresses.Num() == AccessTypes.Num(), TEXT("Unable to retrieve a batch of columns as the number of addresses "
+			"doesn't match the number of access types."));
+
+		GetColumnsUnguarded(ColumnTypes.Num(), RetrievedAddresses.GetData(), ColumnTypes.GetData(), AccessTypes.GetData());
 	}
 
 	void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes,
-		const ITypedElementDataStorageInterface::EQueryAccessType* AccessTypes) override
+		const TypedElementDataStorage::EQueryAccessType*) override
 	{
-		FMassContextForwarderShared::GetColumnsUnguarded(Context, TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes);
+		for (int32 Index = 0; Index < TypeCount; ++Index)
+		{
+			checkf(ColumnTypes->IsValid(), TEXT("Attempting to retrieve a column that is not available."));
+			*RetrievedAddresses = reinterpret_cast<char*>(GetMutableColumn(ColumnTypes->Get()));
+
+			++RetrievedAddresses;
+			++ColumnTypes;
+		}
 	}
+
+	uint32 GetRowCount() const override { return 1; }
+	TConstArrayView<TypedElementDataStorage::RowHandle> GetRowHandles() const override
+	{
+		return TConstArrayView<TypedElementDataStorage::RowHandle>(&RowHandle, 1);
+	}
+
+private:
+	FMassEntityManager& EntityManager;
+	TypedElementDataStorage::RowHandle RowHandle;
+};
+
+struct FMassContextForwarder final : public FMassContextCommon<ITypedElementDataStorageInterface::IQueryContext>
+{
+	FMassContextForwarder(ITypedElementDataStorageInterface::FQueryDescription& InQueryDescription, FMassExecutionContext& InContext, 
+		FTypedElementExtendedQueryStore& InQueryStore)
+		: FMassContextCommon(InContext)
+		, QueryDescription(InQueryDescription)
+		, QueryStore(InQueryStore)
+	{}
+
+	~FMassContextForwarder() override = default;
 
 	UObject* GetMutableDependency(const UClass* DependencyClass) override
 	{
@@ -129,16 +190,6 @@ struct FMassContextForwarder final : public ITypedElementDataStorageInterface::I
 			++DependencyTypes;
 			++AccessTypes;
 		}
-	}
-
-	uint32 GetRowCount() const override
-	{
-		return FMassContextForwarderShared::GetRowCount(Context);
-	}
-
-	TConstArrayView<TypedElementRowHandle> GetRowHandles() const
-	{
-		return FMassContextForwarderShared::GetRowHandles(Context);
 	}
 
 	void RemoveRow(TypedElementRowHandle Row) override
@@ -226,7 +277,7 @@ struct FMassContextForwarder final : public ITypedElementDataStorageInterface::I
 		}
 	}
 
-	ITypedElementDataStorageInterface::FQueryResult RunQuery(TypedElementQueryHandle Query) override
+	TypedElementDataStorage::FQueryResult RunQuery(TypedElementQueryHandle Query) override
 	{
 		FTypedElementExtendedQueryStore::Handle Handle;
 		Handle.Handle = Query;
@@ -234,60 +285,47 @@ struct FMassContextForwarder final : public ITypedElementDataStorageInterface::I
 		return QueryStore.RunQuery(Context.GetEntityManagerChecked(), Handle);
 	}
 
-	ITypedElementDataStorageInterface::FQueryResult RunSubquery(int32 SubqueryIndex) override
+	TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex) override
 	{
 		return SubqueryIndex < QueryDescription.Subqueries.Num() ?
 			RunQuery(QueryDescription.Subqueries[SubqueryIndex]) :
-			ITypedElementDataStorageInterface::FQueryResult{};
+			TypedElementDataStorage::FQueryResult{};
+	}
+
+	TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::SubqueryCallbackRef Callback) override
+	{
+		if (SubqueryIndex < QueryDescription.Subqueries.Num())
+		{
+			FTypedElementExtendedQueryStore::Handle Handle;
+			Handle.Handle = QueryDescription.Subqueries[SubqueryIndex];
+			return QueryStore.RunQuery(Context.GetEntityManagerChecked(), Handle, Callback);
+		}
+		else
+		{
+			return TypedElementDataStorage::FQueryResult{};
+		}
+	}
+
+	TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::RowHandle Row,
+		TypedElementDataStorage::SubqueryCallbackRef Callback) override
+	{
+		if (SubqueryIndex < QueryDescription.Subqueries.Num())
+		{
+			FTypedElementExtendedQueryStore::Handle Handle;
+			Handle.Handle = QueryDescription.Subqueries[SubqueryIndex];
+			return QueryStore.RunQuery(Context.GetEntityManagerChecked(), Handle, Row, Callback);
+		}
+		else
+		{
+			return TypedElementDataStorage::FQueryResult{};
+		}
 	}
 
 	ITypedElementDataStorageInterface::FQueryDescription& QueryDescription;
-	FMassExecutionContext& Context;
 	FTypedElementExtendedQueryStore& QueryStore;
 };
 
-struct FMassDirectContextForwarder final : public ITypedElementDataStorageInterface::IDirectQueryContext
-{
-	explicit FMassDirectContextForwarder(FMassExecutionContext& Context)
-		: Context(Context)
-	{}
 
-	~FMassDirectContextForwarder() override = default;
-
-	FMassExecutionContext& Context;
-
-	const void* GetColumn(const UScriptStruct* ColumnType) const override
-	{
-		return FMassContextForwarderShared::GetColumn(Context, ColumnType);
-	}
-
-	void* GetMutableColumn(const UScriptStruct* ColumnType) override
-	{
-		return FMassContextForwarderShared::GetMutableColumn(Context, ColumnType);
-	}
-
-	void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
-		TConstArrayView<ITypedElementDataStorageInterface::EQueryAccessType> AccessTypes) override
-	{
-		FMassContextForwarderShared::GetColumns(Context, RetrievedAddresses, ColumnTypes, AccessTypes);
-	}
-
-	void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes,
-		const ITypedElementDataStorageInterface::EQueryAccessType* AccessTypes) override
-	{
-		FMassContextForwarderShared::GetColumnsUnguarded(Context, TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes);
-	}
-
-	uint32 GetRowCount() const override
-	{
-		return FMassContextForwarderShared::GetRowCount(Context);
-	}
-
-	TConstArrayView<TypedElementRowHandle> GetRowHandles() const
-	{
-		return FMassContextForwarderShared::GetRowHandles(Context);
-	}
-};
 
 
 
@@ -408,28 +446,29 @@ bool FTypedElementQueryProcessorData::PrepareCachedDependenciesOnQuery(
 		checkf(Types->IsValid(), TEXT("Attempting to retrieve a dependency type that's no longer available."));
 		
 		if (EnumHasAnyFlags(*Flags, ITypedElementDataStorageInterface::EQueryDependencyFlags::AlwaysRefresh) || !Caches->IsValid())
-		*Caches = EnumHasAnyFlags(*Flags, ITypedElementDataStorageInterface::EQueryDependencyFlags::ReadOnly)
-			? const_cast<USubsystem*>(Context.GetSubsystem<USubsystem>(const_cast<UClass*>(Types->Get())))
-			: Context.GetMutableSubsystem<USubsystem>(const_cast<UClass*>(Types->Get()));
-
-		if (*Caches != nullptr)
 		{
-			++Types;
-			++Flags;
-			++Caches;
-		}
-		else
-		{
-			checkf(false, TEXT("Unable to retrieve instance of depencendy '%s'."), *((*Types)->GetName()));
-			return false;
+			*Caches = EnumHasAnyFlags(*Flags, ITypedElementDataStorageInterface::EQueryDependencyFlags::ReadOnly)
+				? const_cast<USubsystem*>(Context.GetSubsystem<USubsystem>(const_cast<UClass*>(Types->Get())))
+				: Context.GetMutableSubsystem<USubsystem>(const_cast<UClass*>(Types->Get()));
+			if (*Caches != nullptr)
+			{
+				++Types;
+				++Flags;
+				++Caches;
+			}
+			else
+			{
+				checkf(false, TEXT("Unable to retrieve instance of dependency '%s'."), *((*Types)->GetName()));
+				return false;
+			}
 		}
 	}
 	return true;
 }
 
-ITypedElementDataStorageInterface::FQueryResult FTypedElementQueryProcessorData::Execute(
-	ITypedElementDataStorageInterface::DirectQueryCallbackRef& Callback,
-	ITypedElementDataStorageInterface::FQueryDescription& Description, 
+TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
+	TypedElementDataStorage::DirectQueryCallbackRef& Callback,
+	TypedElementDataStorage::FQueryDescription& Description,
 	FMassEntityQuery& NativeQuery, 
 	FMassEntityManager& EntityManager)
 {
@@ -440,18 +479,58 @@ ITypedElementDataStorageInterface::FQueryResult FTypedElementQueryProcessorData:
 	NativeQuery.ForEachEntityChunk(EntityManager, Context,
 		[&Result, &Callback, &Description](FMassExecutionContext& Context)
 		{
-			if (PrepareCachedDependenciesOnQuery(Description, Context))
-			{
-				FMassDirectContextForwarder QueryContext(Context);
-				Callback(Description, QueryContext);
-				Result.Count += Context.GetNumEntities();
-			}
-			else
-			{
-				Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::MissingDependency;
-			}
+			// No need to cache any subsystem dependencies as these are not accessible from a direct query.
+			FMassDirectContextForwarder QueryContext(Context);
+			Callback(Description, QueryContext);
+			Result.Count += Context.GetNumEntities();
 		}
 	);
+	return Result;
+}
+
+TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
+	TypedElementDataStorage::SubqueryCallbackRef& Callback,
+	TypedElementDataStorage::FQueryDescription& Description,
+	FMassEntityQuery& NativeQuery,
+	FMassEntityManager& EntityManager)
+{
+	FMassExecutionContext Context(EntityManager);
+	ITypedElementDataStorageInterface::FQueryResult Result;
+	Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::Fully;
+
+	NativeQuery.ForEachEntityChunk(EntityManager, Context,
+		[&Result, &Callback, &Description](FMassExecutionContext& Context)
+		{
+			// No need to cache any subsystem dependencies as these are not accessible from a subquery.
+			FMassSubqueryContextForwarder QueryContext(Context);
+			Callback(Description, QueryContext);
+			Result.Count += Context.GetNumEntities();
+		}
+	);
+	return Result;
+}
+
+TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
+	TypedElementDataStorage::SubqueryCallbackRef& Callback,
+	TypedElementDataStorage::FQueryDescription& Description,
+	TypedElementDataStorage::RowHandle RowHandle,
+	FMassEntityQuery& NativeQuery,
+	FMassEntityManager& EntityManager)
+{
+	ITypedElementDataStorageInterface::FQueryResult Result;
+	Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::Fully;
+
+	FMassEntityHandle NativeEntity = FMassEntityHandle::FromNumber(RowHandle);
+	if (EntityManager.IsEntityActive(NativeEntity))
+	{
+		FMassArchetypeHandle NativeArchetype = EntityManager.GetArchetypeForEntityUnsafe(NativeEntity);
+		if (NativeQuery.DoesArchetypeMatchRequirements(NativeArchetype))
+		{
+			FMassSingleRowSubqueryContextForwarder QueryContext(EntityManager, RowHandle);
+			Callback(Description, QueryContext);
+			Result.Count = 1;
+		}
+	}
 	return Result;
 }
 

@@ -253,8 +253,11 @@ namespace TypedElementQueryBuilder
 		inline void RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override;
 		inline void RemoveColumns(TConstArrayView<TypedElementRowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override;
 
-		inline ITypedElementDataStorageInterface::FQueryResult RunQuery(TypedElementQueryHandle Query) override;
-		inline ITypedElementDataStorageInterface::FQueryResult RunSubquery(int32 SubqueryIndex) override;
+		inline TypedElementDataStorage::FQueryResult RunQuery(TypedElementQueryHandle Query) override;
+		inline TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex) override;
+		inline TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::SubqueryCallbackRef Callback) override;
+		inline TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::RowHandle Row,
+			TypedElementDataStorage::SubqueryCallbackRef Callback) override;
 
 		ITypedElementDataStorageInterface::IQueryContext& ParentContext;
 		const ITypedElementDataStorageInterface::FQueryDescription& Description;
@@ -317,9 +320,9 @@ namespace TypedElementQueryBuilder
 	};
 
 	template<typename Function>
-	ITypedElementDataStorageInterface::DirectQueryCallback CreateDirectQueryCallbackBinding(Function&& Callback);
+	TypedElementDataStorage::DirectQueryCallback CreateDirectQueryCallbackBinding(Function&& Callback);
 	template<typename Function>
-	ITypedElementDataStorageInterface::DirectQueryCallback CreateSubqueryCallbackBinding(Function&& Callback);
+	TypedElementDataStorage::SubqueryCallback CreateSubqueryCallbackBinding(Function&& Callback);
 
 } // namespace TypedElementQueryBuilder
 
