@@ -1,0 +1,93 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "TSRCommon.ush"
+
+
+//------------------------------------------------------- CONFIG
+
+#define TILE_SIZE 8
+
+
+
+//------------------------------------------------------- PARAMETERS
+
+float4x4 ClipToResurrectionClip;
+
+Texture2D<float> ClosestDepthTexture;
+
+Texture2D<tsr_half4> PrevGuideTexture;
+Texture2D<tsr_half4> PrevMoireTexture;
+Texture2D<tsr_half2> PrevRejectionTexture;
+
+Texture2D<tsr_half4> ResurrectedGuideTexture;
+Texture2D<tsr_half4> ResurrectedMoireTexture;
+Texture2D<tsr_half2> ResurrectedRejectionTexture;
+
+RWTexture2D<tsr_half4> HistoryGuideOutput;
+RWTexture2D<tsr_half4> HistoryMoireOutput;
+RWTexture2D<tsr_half2> HistoryRejectionOutput;
+RWTexture2D<tsr_half> HistoryResurrectionMaskOutput;
+RWTexture2D<float2> DilatedVelocityOutput;
+
+
+//------------------------------------------------------- ENTRY POINT
+
+[numthreads(TILE_SIZE * TILE_SIZE, 1, 1)]
+void MainCS(
+	uint2 GroupId : SV_GroupID,
+	uint GroupThreadIndex : SV_GroupIndex)
+{
+	uint GroupWaveIndex = GetGroupWaveIndex(GroupThreadIndex, /* GroupSize = */ TILE_SIZE * TILE_SIZE);
+
+	float4 Debug = 0.0;
+	
+	tsr_short2 InputPixelPos = (
+		tsr_short2(InputPixelPosMin) +
+		tsr_short2(GroupId) * tsr_short2(TILE_SIZE, TILE_SIZE) +
+		Map8x8Tile2x2Lane(GroupThreadIndex));
+	
+	tsr_half2 PrevRejection = PrevRejectionTexture[InputPixelPos];
+	tsr_half2 ResurrectedRejection = ResurrectedRejectionTexture[InputPixelPos];
+
+	bool bIsResurrectionBetter = all(ResurrectedRejection.g > PrevRejection.g + 0.5);
+
+	//Debug.r = float(bIsResurrectionBetter);
+	//Debug.rg = saturate(ResurrectedRejection.rg - PrevRejection.rg);
+	Debug.b = bIsResurrectionBetter;
+
+	BRANCH
+	if (bIsResurrectionBetter)
+	{
+		float2 ResurrectedEncodedScreenVelocity;
+		{
+			float DeviceZ = ClosestDepthTexture[InputPixelPos];
+
+			float2 ScreenPos = ApplyScreenTransform(float2(InputPixelPos), InputPixelPosToScreenPos);
+
+			float4 ThisClip = float4(ScreenPos, DeviceZ, 1);
+			float4 ResurrectionClip = mul(ThisClip, ClipToResurrectionClip); 
+			float2 ResurrectionScreen = ResurrectionClip.xy / ResurrectionClip.w;
+			
+			ResurrectedEncodedScreenVelocity = EncodeVelocityToTexture(float3(ScreenPos - ResurrectionScreen, 0.0)).xy;
+		}
+	
+		HistoryGuideOutput[InputPixelPos]     = ResurrectedGuideTexture[InputPixelPos];
+		HistoryMoireOutput[InputPixelPos]     = ResurrectedMoireTexture[InputPixelPos];
+		HistoryRejectionOutput[InputPixelPos] = ResurrectedRejection;
+		DilatedVelocityOutput[InputPixelPos]  = ResurrectedEncodedScreenVelocity;
+	}
+	else
+	{
+		HistoryGuideOutput[InputPixelPos]     = PrevGuideTexture[InputPixelPos];
+		HistoryMoireOutput[InputPixelPos]     = PrevMoireTexture[InputPixelPos];
+		HistoryRejectionOutput[InputPixelPos] = PrevRejection;
+	}
+	
+	HistoryResurrectionMaskOutput[InputPixelPos] = bIsResurrectionBetter ? tsr_half(1.0) : tsr_half(0.0);
+
+	#if DEBUG_OUTPUT
+	{
+		DebugOutput[tsr_short3(InputPixelPos, 0)] = Debug;
+	}
+	#endif
+}

@@ -994,27 +994,31 @@ struct FTemporalAAHistory
 struct FTSRHistory
 {
 	// Output resolution.
-	TRefCountPtr<IPooledRenderTarget> Output;
 	TRefCountPtr<IPooledRenderTarget> ColorArray;
-	TRefCountPtr<IPooledRenderTarget> Metadata;
-	TRefCountPtr<IPooledRenderTarget> TranslucencyAlpha;
+	TRefCountPtr<IPooledRenderTarget> MetadataArray;
 
 	// Input resolution representation of the output
 	TRefCountPtr<IPooledRenderTarget> SubpixelDepth;
-	TRefCountPtr<IPooledRenderTarget> Guide;
-	TRefCountPtr<IPooledRenderTarget> Moire;
+	TRefCountPtr<IPooledRenderTarget> GuideArray;
+	TRefCountPtr<IPooledRenderTarget> MoireArray;
 
 	// Frame's input and output resolution.
 	FIntRect InputViewportRect;
 	FIntRect OutputViewportRect;
 
-	// Previous frame's informations.
-	FIntRect PrevOutputViewportRect;
-	FVector2f PrevTemporalJitterPixels;
-	float PrevSceneColorPreExposure = 1.0f;
-
 	// Format of the history for auto camera cut when setting change.
 	uint32 FormatBit = 0;
+
+	// Number of frame in history.
+	int32 FrameStorageCount = 1;
+	int32 FrameStoragePeriod = 1;
+	int32 AccumulatedFrameCount = 1;
+	int32 LastFrameRollingIndex = 0;
+
+	// All the information the previous frames for resurrection.
+	TArray<FViewMatrices> ViewMatrices;
+	TArray<float> SceneColorPreExposures;
+	TArray<FIntRect> InputViewportRects;
 
 
 	void SafeRelease()
@@ -1024,7 +1028,7 @@ struct FTSRHistory
 
 	bool IsValid() const
 	{
-		return Metadata.IsValid();
+		return MetadataArray.IsValid();
 	}
 
 	uint64 GetGPUSizeBytes(bool bLogSizes) const;
