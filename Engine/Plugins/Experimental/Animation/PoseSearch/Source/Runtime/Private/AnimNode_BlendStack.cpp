@@ -452,7 +452,7 @@ void FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(const FAnimationUpdateCo
 			break;
 		}
 
-		const FAnimationUpdateContext AnimPlayerContext = Context.FractionalWeightAndRootMotion(BlendWeight, BlendWeight);
+		const FAnimationUpdateContext AnimPlayerContext = Context.FractionalWeightAndRootMotion(AnimPlayerBlendWeight, AnimPlayerBlendWeight);
 		UpdateSample(AnimPlayerContext, AnimPlayerIndex);
 		CurrentWeightMultiplier *= (1.f - BlendInPercentage);
 	}
