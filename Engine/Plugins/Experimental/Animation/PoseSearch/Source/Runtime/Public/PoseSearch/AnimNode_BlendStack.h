@@ -71,9 +71,9 @@ struct FBlendStack_SampleGraphPoseLink
 	GENERATED_BODY()
 
 	UPROPERTY()
-	int32 InputPoseNodeIndex;
+	int32 InputPoseNodeIndex = INDEX_NONE;
 	UPROPERTY()
-	int32 RootNodeIndex;
+	int32 RootNodeIndex = INDEX_NONE;
 
 	FPoseLink InputPose;
 	FPoseLink Root;
