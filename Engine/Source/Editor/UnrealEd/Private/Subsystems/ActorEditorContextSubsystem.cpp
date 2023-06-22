@@ -50,6 +50,11 @@ void UActorEditorContextSubsystem::UnregisterClient(IActorEditorContextClient* C
 
 void UActorEditorContextSubsystem::ApplyContext(AActor* InActor)
 {
+	if (GIsReinstancing)
+	{
+		return;
+	}
+
 	UWorld* World = GetWorld();
 	if (Clients.IsEmpty() || !World)
 	{
