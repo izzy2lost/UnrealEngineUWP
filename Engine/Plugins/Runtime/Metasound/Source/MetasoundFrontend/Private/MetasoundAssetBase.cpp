@@ -143,6 +143,11 @@ namespace Metasound
 					return MakeUnique<FNodeRegistryEntry>(Name, PreprocessedDoc, ClassInfo.AssetPath);
 				}
 
+				virtual TSet<FMetasoundFrontendVersion>* GetImplementedInterfaces() const override
+				{
+					return &PreprocessedDoc->Interfaces;
+				}
+
 				virtual bool IsNative() const override
 				{
 					return false;
