@@ -1175,7 +1175,7 @@ TSharedRef<SWidget> SReferenceViewer::BuildPluginFilterMenu()
 
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("PluginFilterSelectAll", "Select All"),
-		LOCTEXT("PluginFilterSelectAll", "Select all plugins."),
+		LOCTEXT("PluginFilterSelectAllPlugins", "Select all plugins."),
 		FSlateIcon(),
 		FExecuteAction::CreateLambda([this]()
 		{
@@ -1189,7 +1189,7 @@ TSharedRef<SWidget> SReferenceViewer::BuildPluginFilterMenu()
 	
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("PluginFilterSelectNone", "Select None"),
-		LOCTEXT("PluginFilterSelectNone", "Select no plugins."),
+		LOCTEXT("PluginFilterSelectNoPlugins", "Select no plugins."),
 		FSlateIcon(),
 		FExecuteAction::CreateLambda([this]()
 		{
