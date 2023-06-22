@@ -25,14 +25,14 @@ static TAutoConsoleVariable<int32> CVarLumenShortRangeAOHardwareRayTracing(
 	0,
 	TEXT("0. Screen space tracing for the full resolution Bent Normal (directional occlusion).")
 	TEXT("1. Enable hardware ray tracing of the full resolution Bent Normal (directional occlusion). (Default)\n"),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 static TAutoConsoleVariable<float> CVarLumenShortRangeAOHardwareRayTracingNormalBias(
 	TEXT("r.Lumen.ScreenProbeGather.ShortRangeAO.HardwareRayTracing.NormalBias"),
 	.1f,
 	TEXT("Bias for HWRT Bent Normal to avoid self intersection"),
-	ECVF_RenderThreadSafe
+	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 namespace Lumen
