@@ -148,6 +148,12 @@ static TAutoConsoleVariable<bool> CVarDebugDumpJobDiagnostics(
 	TEXT("If true, all diagnostic messages (errors and warnings) for each shader job will be dumped alongside other debug data (in Diagnostics.txt)"),
 	ECVF_ReadOnly);
 
+static TAutoConsoleVariable<bool> CVarDebugDumpShaderCode(
+	TEXT("r.ShaderCompiler.DebugDumpShaderCode"),
+	false,
+	TEXT("If true, each shader job will dump a ShaderCode.bin containing the contents of the output shader code object (the contents of this can differ for each shader format; note that this is the data that is hashed to produce the OutputHash.txt file)"),
+	ECVF_ReadOnly);
+
 static TAutoConsoleVariable<bool> CVarCompileParallelInProcess(
 	TEXT("r.ShaderCompiler.ParallelInProcess"),
 	false,
@@ -4385,6 +4391,11 @@ EShaderDebugInfoFlags FShaderCompilingManager::GetDumpShaderDebugInfoFlags() con
 	if (CVarDebugDumpJobDiagnostics.GetValueOnAnyThread())
 	{
 		Flags |= EShaderDebugInfoFlags::Diagnostics;
+	}
+
+	if (CVarDebugDumpShaderCode.GetValueOnAnyThread())
+	{
+		Flags |= EShaderDebugInfoFlags::ShaderCodeBinary;
 	}
 
 	return Flags;

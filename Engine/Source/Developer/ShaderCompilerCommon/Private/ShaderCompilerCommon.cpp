@@ -1448,11 +1448,6 @@ namespace UE::ShaderCompilerCommon
 		{
 			FFileHelper::SaveStringToFile(CreateShaderCompilerWorkerDirectCommandLine(Input), *GetDebugFileName(Input, Options, TEXT("DirectCompile.txt")));
 		}
-
-		for (const FDebugShaderDataOptions::FAdditionalOutput& AdditionalOutput : Options.AdditionalOutputs)
-		{
-			FFileHelper::SaveStringToFile(AdditionalOutput.Data, *GetDebugFileName(Input, Options, AdditionalOutput.BaseFileName));
-		}
 	}
 
 	void DumpExtendedDebugShaderData(
@@ -1481,6 +1476,23 @@ namespace UE::ShaderCompilerCommon
 		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::InputHash))
 		{
 			FFileHelper::SaveStringToFile(LexToString(Input.Hash), *GetDebugFileName(Input, Options, TEXT("InputHash.txt")), FFileHelper::EEncodingOptions::ForceAnsi);
+		}
+
+		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::ShaderCodeBinary))
+		{
+			FString ShaderCodeFileName = *GetDebugFileName(Input, Options, TEXT("ShaderCode.bin"));
+			if (Output.ShaderCode.IsCompressed())
+			{
+				// always output decompressed code as it's slightly more useful for A/B comparisons
+				TArray<uint8> DecompressedCode;
+				DecompressedCode.SetNum(Output.ShaderCode.GetUncompressedSize());
+				bool bSucceed = FCompression::UncompressMemory(NAME_Oodle, DecompressedCode.GetData(), DecompressedCode.Num(), Output.ShaderCode.GetReadAccess().GetData(), Output.ShaderCode.GetShaderCodeSize());
+				FFileHelper::SaveArrayToFile(DecompressedCode, *ShaderCodeFileName);
+			}
+			else
+			{
+				FFileHelper::SaveArrayToFile(Output.ShaderCode.GetReadAccess(), *ShaderCodeFileName);
+			}
 		}
 
 		for (const FDebugShaderDataOptions::FAdditionalOutput& AdditionalOutput : Options.AdditionalOutputs)
