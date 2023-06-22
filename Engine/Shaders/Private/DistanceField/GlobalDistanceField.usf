@@ -349,7 +349,7 @@ void AllocatePagesCS(
 		uint CullGridObjectNum = CullGridObjectHeader[CullGridLinearIndex * 2 + 0];
 		uint CullGridObjectOffset = CullGridObjectHeader[CullGridLinearIndex * 2 + 1];
 
-		for (uint IndexInCullCell = ThreadIndex; IndexInCullCell < CullGridObjectNum; IndexInCullCell += 64)
+		for (uint IndexInCullCell = ThreadIndex; IndexInCullCell < CullGridObjectNum; IndexInCullCell += THREADGROUP_SIZE_X)
 		{
 			uint ObjectIndex = CullGridObjectArray[CullGridObjectOffset + IndexInCullCell];
 

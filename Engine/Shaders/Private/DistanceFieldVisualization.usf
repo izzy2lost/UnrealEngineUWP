@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Common.ush"
+#include "Visualization.ush"
 #include "DeferredShadingCommon.ush"
 #include "DistanceFieldLightingShared.ush"
 #include "DistanceFieldAOShared.ush"
@@ -248,6 +249,9 @@ void VisualizeMeshDistanceFieldCS(
 
 		Lighting += GetSkySHDiffuse(WorldHitNormal) * View.SkyLightColor.rgb;
 		float3 Albedo = .05f;
+#if !USE_GLOBAL_DISTANCE_FIELD
+		Albedo = 0.1f * IntToColor(HitCulledObjectIndex + 1);
+#endif
 		Lighting *= Albedo;
 	}
 	else if (ReflectionStruct.SkyLightParameters.y > 0)
