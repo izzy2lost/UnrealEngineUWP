@@ -3348,7 +3348,7 @@ static void WritePluginMetadataJsons(const FString& InAssetRegistryFileName, TMa
 		PluginEntry.InclusiveSize = PluginEntry.ExclusiveSize;
 		for (const UE::Cook::FCookMetadataPluginEntry* Dependency : PluginEntry.TotalDependencies)
 		{
-			PluginEntry.InclusiveSize.Add(Dependency->InclusiveSizes);
+			PluginEntry.InclusiveSize.Add(Dependency->ExclusiveSizes);
 		}
 	}
 
