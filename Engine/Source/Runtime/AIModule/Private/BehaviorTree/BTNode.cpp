@@ -7,6 +7,7 @@
 #include "BehaviorTree/BehaviorTree.h"
 #include "GameplayTasksComponent.h"
 #include "UObject/Package.h"
+#include "Styling/AppStyle.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(BTNode)
 
