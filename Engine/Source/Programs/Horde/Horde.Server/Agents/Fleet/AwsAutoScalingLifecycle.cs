@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -15,7 +16,11 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using EpicGames.Core;
 using Horde.Server.Server;
+using Horde.Server.Utilities;
 using HordeCommon;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -248,6 +253,49 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IDisposable
 			return false;
 		}
 	}
+	
+	/// <summary>
+	/// Get instances available for termination.
+	/// An AWS Lambda function is set to handle termination policy queries from an auto-scaling group
+	/// That function is configured to call Horde server and invoke this method
+	/// </summary>
+	/// <param name="e">Event as received from AWS API</param>
+	/// <param name="cancellationToken">Cancellation token</param>
+	/// <returns>A list of instance IDs that can be terminated</returns>
+	public async Task<List<string>> GetInstancesAvailableForTermination(TerminationPolicyEvent e, CancellationToken cancellationToken)
+	{
+		using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AwsAutoScalingLifecycleService)}.{nameof(GetInstancesAvailableForTermination)}");
+		span.SetAttribute("asgName", e.AutoScalingGroupName);
+		span.SetAttribute("instancesCount", e.Instances.Count);
+		span.SetAttribute("capacityCount", e.CapacityToTerminate.Count);
+		
+		List<string> asgInstanceIds = e.Instances
+			.Select(x => x.InstanceId)
+			.OfType<string>()
+			.ToList();
+		
+		bool IsAgentSuggestedByAsg(IAgent agent, [NotNullWhen(true)] out string? instanceId)
+		{
+			instanceId = asgInstanceIds.FirstOrDefault(asgInstanceId => agent.HasProperty($"{KnownPropertyNames.AwsInstanceId}={asgInstanceId}"));
+			return instanceId != null;
+		}
+		
+		List<string> validInstanceIds = new();
+		List<IAgent> agents = await _agentService.FindAgentsAsync(null, null, null, null, null);
+		foreach (IAgent agent in agents)
+		{
+			if (IsAgentSuggestedByAsg(agent, out string? instanceId))
+			{
+				if (agent.Leases.Count == 0)
+				{
+					validInstanceIds.Add(instanceId);
+				}
+			}
+		}
+
+		span.SetAttribute("validInstanceIds", validInstanceIds.Count);
+		return validInstanceIds;
+	}
 
 	private async Task TrackAgentLifecycleAsync(AgentId agentId, LifecycleActionEvent e)
 	{
@@ -369,6 +417,42 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IDisposable
 }
 
 /// <summary>
+/// Controller handling callbacks for AWS auto-scaling
+/// </summary>
+[ApiController]
+[Authorize]
+[Route("[controller]")]
+public class AwsAutoScalingLifecycleController : HordeControllerBase
+{
+	private readonly AwsAutoScalingLifecycleService _lifecycleService;
+
+	/// <summary>
+	/// Constructor
+	/// </summary>
+	public AwsAutoScalingLifecycleController(AwsAutoScalingLifecycleService lifecycleService)
+	{
+		_lifecycleService = lifecycleService;
+	}
+	
+	/// <summary>
+	/// Called by AWS auto-scaling group to get which instance IDs are valid for termination
+	/// <see cref="AwsAutoScalingLifecycleService.GetInstancesAvailableForTermination" />
+	/// </summary>
+	/// <param name="tpe">Event</param>
+	/// <param name="cancellationToken">Cancellation token</param>
+	/// <returns>List of instance IDs the AWS auto-scaling group is allowed to terminate</returns>
+	[HttpPost]
+	[Route("/api/v1/aws/asg-termination-policy")]
+	[ProducesResponseType(StatusCodes.Status200OK)]
+	public async Task<ActionResult> TerminationPolicyAsync([FromBody] TerminationPolicyEvent tpe, CancellationToken cancellationToken)
+	{
+		List<string> instanceIds = await _lifecycleService.GetInstancesAvailableForTermination(tpe, cancellationToken);
+		return new JsonResult(instanceIds);
+	}
+}
+
+
+/// <summary>
 /// Lifecycle action event from AWS auto-scaling group
 /// The property names are explicitly set to highlight these are not controlled by Horde but sent from AWS API.
 /// </summary>
@@ -404,3 +488,102 @@ public class LifecycleActionEvent
 	/// </summary>
 	[JsonPropertyName("Origin")] public string Origin { get; set; } = "";
 }
+
+/// <summary>
+/// Instance referenced by <see cref="TerminationPolicyEvent" />
+/// </summary>
+public class TerminationPolicyInstance
+{
+	/// <summary>
+	/// Availability zone of the instance (such as 'us-east-1c')
+	/// </summary>
+	[JsonPropertyName("AvailabilityZone")] public string AvailabilityZone { get; set; } = "";
+	
+	/// <summary>
+	/// Capacity to terminate (number of instances)
+	/// </summary>
+	[JsonPropertyName("Capacity")] public int? Capacity { get; set; }
+	
+	/// <summary>
+	/// Instance ID (such as 'i-123456789')
+	/// </summary>
+	[JsonPropertyName("InstanceId")] public string? InstanceId { get; set; }
+	
+	/// <summary>
+	/// Instance type (such as 'm5.xlarge')
+	/// </summary>
+	[JsonPropertyName("InstanceType")] public string? InstanceType { get; set; }
+	
+	/// <summary>
+	/// Instance market options (such as 'on-demand' or 'spot')
+	/// </summary>
+	[JsonPropertyName("InstanceMarketOption")] public string InstanceMarketOption { get; set; } = "";
+
+	/// <summary>
+	/// Constructor
+	/// </summary>
+	public TerminationPolicyInstance()
+	{
+	}
+
+	/// <summary>
+	/// Constructor
+	/// </summary>
+	/// <param name="capacity"></param>
+	/// <param name="availabilityZone"></param>
+	/// <param name="instanceMarketOption"></param>
+	public TerminationPolicyInstance(int capacity, string availabilityZone = "us-east-1a", string instanceMarketOption = "on-demand")
+	{
+		AvailabilityZone = availabilityZone;
+		Capacity = capacity;
+		InstanceMarketOption = instanceMarketOption;
+	}
+	
+	/// <summary>
+	/// Constructor
+	/// </summary>
+	/// <param name="instanceId"></param>
+	/// <param name="availabilityZone"></param>
+	/// <param name="instanceType"></param>
+	/// <param name="instanceMarketOption"></param>
+	public TerminationPolicyInstance(string instanceId, string availabilityZone = "us-east-1a", string instanceType = "m5.large", string instanceMarketOption = "on-demand")
+	{
+		AvailabilityZone = availabilityZone;
+		InstanceId = instanceId;
+		InstanceType = instanceType;
+		InstanceMarketOption = instanceMarketOption;
+	}
+}
+
+/// <summary>
+/// Termination policy event from AWS auto-scaling group
+/// The property names are explicitly set to highlight these are not controlled by Horde but sent from AWS API.
+/// </summary>
+public class TerminationPolicyEvent
+{
+	/// <summary>
+	/// ARN of the auto-scaling group
+	/// </summary>
+	[JsonPropertyName("AutoScalingGroupARN")] public string AutoScalingGroupArn { get; set; } = "";
+	
+	/// <summary>
+	/// Name of the auto-scaling group
+	/// </summary>
+	[JsonPropertyName("AutoScalingGroupName")] public string AutoScalingGroupName { get; set; } = "";
+	
+	/// <summary>
+	/// Capacity that's been requested to be terminated
+	/// </summary>
+	[JsonPropertyName("CapacityToTerminate")] public List<TerminationPolicyInstance> CapacityToTerminate { get; set; } = new ();
+	
+	/// <summary>
+	/// Instances available to terminate
+	/// </summary>
+	[JsonPropertyName("Instances")] public List<TerminationPolicyInstance> Instances { get; set; } = new ();
+	
+	/// <summary>
+	/// Cause of the termination (such as 'SCALE_IN' or 'INSTANCE_REFRESH')
+	/// </summary>
+	[JsonPropertyName("Cause")] public string Cause { get; set; } = "";
+}
+

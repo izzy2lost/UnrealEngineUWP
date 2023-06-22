@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Text.Json;
 using System.Threading;
@@ -10,11 +11,13 @@ using Amazon.AutoScaling;
 using Amazon.AutoScaling.Model;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Fleet;
+using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Pools;
 using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using MongoDB.Bson;
 using Moq;
 
 namespace Horde.Server.Tests.Fleet;
@@ -135,6 +138,50 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	}
 	
 	[TestMethod]
+	public async Task GetInstancesAvailableForTermination_IdleAgent_ReturnsInstanceId()
+	{
+		// Arrange
+		IAgent agent = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-1000");
+		TerminationPolicyEvent e = CreateTerminationPolicyEvent("i-1000");
+
+		// Act
+		List<string> instanceIds = await _asgLifecycleService.GetInstancesAvailableForTermination(e, CancellationToken.None);
+
+		// Assert
+		CollectionAssert.AreEqual(new List<string> () { "i-1000"}, instanceIds);
+	}
+	
+	[TestMethod]
+	public async Task GetInstancesAvailableForTermination_IdleAgentsInMixedAsgs_OnlyReturnInstanceIdFromSameAsg()
+	{
+		// Arrange
+		IAgent agent1 = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-1000");
+		IAgent agent2 = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-2000");
+		TerminationPolicyEvent e = CreateTerminationPolicyEvent("i-1000");
+
+		// Act
+		List<string> instanceIds = await _asgLifecycleService.GetInstancesAvailableForTermination(e, CancellationToken.None);
+
+		// Assert
+		CollectionAssert.AreEqual(new List<string> () { "i-1000"}, instanceIds);
+	}
+	
+	[TestMethod]
+	public async Task GetInstancesAvailableForTermination_AgentRunningJob_ReturnsNoInstanceId()
+	{
+		// Arrange
+		AgentLease lease = new(new LeaseId(ObjectId.GenerateNewId()), "test-lease", null, null, null, LeaseState.Active, null, false, null);
+		IAgent agent = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-1000", lease: lease);
+		TerminationPolicyEvent e = CreateTerminationPolicyEvent("i-1000");
+
+		// Act
+		List<string> instanceIds = await _asgLifecycleService.GetInstancesAvailableForTermination(e, CancellationToken.None);
+
+		// Assert
+		Assert.AreEqual(0, instanceIds.Count);
+	}
+	
+	[TestMethod]
 	public void DeserializeLifecycleActionEvent()
 	{
 		string rawText = @"
@@ -161,6 +208,59 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 		Assert.AreEqual("autoscaling:EC2_INSTANCE_TERMINATING", ev.LifecycleTransition);
 		Assert.AreEqual("AutoScalingGroup", ev.Origin);
 	}
+	
+	[TestMethod]
+	public void DeserializeTerminationPolicyEvent()
+	{
+		string rawText = @"
+{
+	""AutoScalingGroupARN"": ""my-asg-arn"",
+	""AutoScalingGroupName"": ""my-asg-name"",
+	""CapacityToTerminate"": [{
+		""AvailabilityZone"": ""us-east-1a"",
+		""Capacity"": 5,
+		""InstanceMarketOption"": ""on-demand""
+	}],
+	""Instances"": [{
+		""AvailabilityZone"": ""us-east-1b"",
+		""InstanceId"": ""i-10001"",
+		""InstanceType"": ""m5d.large"",
+		""InstanceMarketOption"": ""on-demand""
+	}, {
+		""AvailabilityZone"": ""us-east-1c"",
+		""InstanceId"": ""i-10002"",
+		""InstanceType"": ""m6i.large"",
+		""InstanceMarketOption"": ""spot""
+	}],
+	""Cause"": ""SCALE_IN""
+}
+";
+
+		TerminationPolicyEvent? ev = JsonSerializer.Deserialize<TerminationPolicyEvent>(rawText);
+		Assert.AreEqual("my-asg-arn", ev!.AutoScalingGroupArn);
+		Assert.AreEqual("my-asg-name", ev.AutoScalingGroupName);
+		Assert.AreEqual("SCALE_IN", ev.Cause);
+
+		{
+			Assert.AreEqual(1, ev.CapacityToTerminate.Count);
+			Assert.AreEqual("us-east-1a", ev.CapacityToTerminate[0].AvailabilityZone);
+			Assert.AreEqual(5, ev.CapacityToTerminate[0].Capacity);
+			Assert.AreEqual("on-demand", ev.CapacityToTerminate[0].InstanceMarketOption);
+		}
+		
+		{
+			Assert.AreEqual(2, ev.Instances.Count);
+			Assert.AreEqual("us-east-1b", ev.Instances[0].AvailabilityZone);
+			Assert.AreEqual("i-10001", ev.Instances[0].InstanceId);
+			Assert.AreEqual("m5d.large", ev.Instances[0].InstanceType);
+			Assert.AreEqual("on-demand", ev.Instances[0].InstanceMarketOption);
+			
+			Assert.AreEqual("us-east-1c", ev.Instances[1].AvailabilityZone);
+			Assert.AreEqual("i-10002", ev.Instances[1].InstanceId);
+			Assert.AreEqual("m6i.large", ev.Instances[1].InstanceType);
+			Assert.AreEqual("spot", ev.Instances[1].InstanceMarketOption);
+		}
+	}
 
 	private static void AssertLifecycleUpdate(LifecycleActionEvent expectedEvent, string expectedResult, CompleteLifecycleActionRequest actual)
 	{
@@ -169,5 +269,15 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 		Assert.AreEqual(expectedEvent.LifecycleActionToken, actual.LifecycleActionToken);
 		Assert.AreEqual(expectedEvent.LifecycleHookName, actual.LifecycleHookName);
 		Assert.AreEqual(expectedEvent.AutoScalingGroupName, actual.AutoScalingGroupName);
+	}
+	
+	private static TerminationPolicyEvent CreateTerminationPolicyEvent(params string[] instanceIds)
+	{
+		return new()
+		{
+			AutoScalingGroupArn = "test-asg-arn", AutoScalingGroupName = "test-asg-name", Cause = "SCALE_IN",
+			CapacityToTerminate = new () { new (1) },
+			Instances = new(instanceIds.Select(x => new TerminationPolicyInstance(x)))
+		};
 	}
 }

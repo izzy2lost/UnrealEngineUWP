@@ -358,19 +358,44 @@ namespace Horde.Server.Tests
 			return CreateAgentAsync(pool.Id, enabled, requestShutdown, properties, adjustClockBy);
 		}
 		
-		public async Task<IAgent> CreateAgentAsync(PoolId poolId, bool enabled = true, bool requestShutdown = false, List<string>? properties = null, TimeSpan? adjustClockBy = null)
+		/// <summary>
+		/// Helper function for setting up agents to be used in tests
+		/// </summary>
+		/// <param name="poolId">Pool ID which the agent should belong to</param>
+		/// <param name="enabled">Whether set the agent as enabled</param>
+		/// <param name="requestShutdown">Mark it with a request for shutdown</param>
+		/// <param name="properties">Any properties to assign</param>
+		/// <param name="adjustClockBy">Time span to temporarily skew the clock when creating the agent</param>
+		/// <param name="awsInstanceId">AWS instance ID for the agent (will be set in properties)</param>
+		/// <param name="lease">A lease to assign the agent</param>
+		/// <returns>A new agent</returns>
+		public async Task<IAgent> CreateAgentAsync(
+			PoolId poolId, bool enabled = true, bool requestShutdown = false, List<string>? properties = null,
+			TimeSpan? adjustClockBy = null, string? awsInstanceId = null, AgentLease? lease = null)
 		{
 			DateTime now = Clock.UtcNow;
 			if (adjustClockBy != null)
 			{
 				Clock.UtcNow = now + adjustClockBy.Value;
 			}
+
+			Dictionary<string,int> resources = new ();
+			List<string> tempProps = new(properties ?? new List<string>());
+			if (awsInstanceId != null)
+			{
+				tempProps.Add(KnownPropertyNames.AwsInstanceId + "=" + awsInstanceId);
+			}
 			
 			IAgent agent = await AgentService.CreateAgentAsync("TestAgent" + s_agentIdCounter++, enabled, new List<PoolId> { poolId });
-			agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, properties ?? new List<string>(), new Dictionary<string, int>(), null);
+			agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, tempProps, resources, null);
 			if (requestShutdown)
 			{
 				await AgentCollection.TryUpdateSettingsAsync(agent, requestShutdown: true);
+			}
+
+			if (lease != null)
+			{
+				await AgentCollection.TryAddLeaseAsync(agent, lease);
 			}
 			
 			Clock.UtcNow = now;
