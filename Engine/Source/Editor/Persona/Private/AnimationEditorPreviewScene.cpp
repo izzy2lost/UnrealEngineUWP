@@ -1171,7 +1171,7 @@ void FAnimationEditorPreviewScene::SetAllowMeshHitProxies(bool bState)
 
 void FAnimationEditorPreviewScene::FlagTickable()
 {
-	// Set the last tick time so we tick kwhen we are visible in a viewport
+	// Set the last tick time so we tick when we are visible in a viewport
 	LastTickTime = FPlatformTime::Seconds();
 }
 
