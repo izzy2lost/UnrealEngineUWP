@@ -98,6 +98,11 @@ public:
 		{
 			Value.bIsSet = true;
 		}
+		else
+		{
+			// Ensure that a user doesn't emplace an unset state into the optional
+			checkf(IsSet(), TEXT("TOptional::TOptional(EInPlace, ...) - optionals should not be unset by emplacement"));
+		}
 	}
 	
 	/** Construct an OptionalType with an invalid value. */
@@ -274,6 +279,11 @@ public:
 		if constexpr (!bUsingIntrusiveUnsetState)
 		{
 			Value.bIsSet = true;
+		}
+		else
+		{
+			// Ensure that a user doesn't emplace an unset state into the optional
+			checkf(IsSet(), TEXT("TOptional::Emplace(...) - optionals should not be unset by an emplacement"));
 		}
 
 		return *Result;
