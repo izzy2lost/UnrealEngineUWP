@@ -730,8 +730,7 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, USta
 bool FStaticMeshBuilder::BuildMeshVertexPositions(
 	UStaticMesh* StaticMesh,
 	TArray<uint32>& BuiltIndices,
-	TArray<FVector3f>& BuiltVertices,
-	FStaticMeshSectionArray& Sections)
+	TArray<FVector3f>& BuiltVertices)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FStaticMeshBuilder::BuildMeshVertexPositions);
 
@@ -743,62 +742,59 @@ bool FStaticMeshBuilder::BuildMeshVertexPositions(
 		return false;
 	}
 
-	FMeshDescription MeshDescription;
-	const bool bIsMeshDescriptionValid = SourceModel.CloneMeshDescription(MeshDescription);
-	check(bIsMeshDescriptionValid);
-
-	FMeshBuildSettings& BuildSettings = StaticMesh->GetSourceModel(0).BuildSettings;
-
-	FMeshDescriptionHelper MeshDescriptionHelper(&BuildSettings);
-	MeshDescriptionHelper.SetupRenderMeshDescription(StaticMesh, MeshDescription, false, false);
-
-	const FPolygonGroupArray& PolygonGroups = MeshDescription.PolygonGroups();
-
-	// Build new vertex buffers
-	FMeshBuildVertexData BuildVertexData;
-
-	Sections.Empty(PolygonGroups.Num());
-
-	TArray<int32> RemapVerts; //Because we will remove MeshVertex that are redundant, we need a remap
-	//Render data Wedge map is only set for LOD 0???
-
-	TArray<int32> WedgeMap;
-
-	// Prepare the PerSectionIndices array so we can optimize the index buffer for the GPU
-	TArray<TArray<uint32>> PerSectionIndices;
-	PerSectionIndices.AddDefaulted(MeshDescription.PolygonGroups().Num());
-
-	FBoxSphereBounds LODBounds;
-
-	// Build the vertex and index buffer
-	UE::Private::StaticMeshBuilder::BuildVertexBuffer(
-		StaticMesh,
-		MeshDescription,
-		BuildSettings,
-		WedgeMap,
-		Sections,
-		PerSectionIndices,
-		BuildVertexData,
-		MeshDescriptionHelper.GetOverlappingCorners(),
-		RemapVerts,
-		LODBounds,
-		false /* bNeedTangents */,
-		false /* bNeedWedgeMap */
-	);
-
-	BuiltVertices = BuildVertexData.Position;
-
-	// Release MeshDescription memory since we don't need it anymore
-	MeshDescription.Empty();
-
-	// Concatenate the per-section index buffers.
-	bool bNeeds32BitIndices = false;
-	UE::Private::StaticMeshBuilder::BuildCombinedSectionIndices(PerSectionIndices, Sections, BuiltIndices, bNeeds32BitIndices);
-
-	// Apply section remapping
-	for (int32 SectionIndex = 0; SectionIndex < Sections.Num(); SectionIndex++)
+	const int32 NumSourceModels = StaticMesh->GetNumSourceModels();
+	if (NumSourceModels > 0)
 	{
-		Sections[SectionIndex].MaterialIndex = StaticMesh->GetSectionInfoMap().Get(0, SectionIndex).MaterialIndex;
+		FMeshDescription MeshDescription;
+		const bool bIsMeshDescriptionValid = SourceModel.CloneMeshDescription(MeshDescription);
+		if (bIsMeshDescriptionValid)
+		{
+			FElementIDRemappings Remappings;
+			if (MeshDescription.NeedsCompact())
+			{
+				MeshDescription.Compact(Remappings);
+			}
+
+			const FMeshBuildSettings& BuildSettings = SourceModel.BuildSettings;
+
+			const FStaticMeshConstAttributes Attributes(MeshDescription);
+			TArrayView<const FVector3f> VertexPositions = Attributes.GetVertexPositions().GetRawArray();
+			TArrayView<const FVertexID> VertexIndices = Attributes.GetTriangleVertexIndices().GetRawArray();
+			const FVector3f BuildScale3D = (FVector3f)BuildSettings.BuildScale3D;
+
+			BuiltVertices.Reserve(VertexPositions.Num());
+			for (int32 VertexIndex = 0; VertexIndex < VertexPositions.Num(); ++VertexIndex)
+			{
+				BuiltVertices.Add(VertexPositions[VertexIndex] * BuildScale3D);
+			}
+
+			BuiltIndices.Reserve(VertexIndices.Num());
+			for (int32 TriangleIndex = 0; TriangleIndex < VertexIndices.Num() / 3; ++TriangleIndex)
+			{
+				const uint32 I0 = VertexIndices[TriangleIndex * 3 + 0];
+				const uint32 I1 = VertexIndices[TriangleIndex * 3 + 1];
+				const uint32 I2 = VertexIndices[TriangleIndex * 3 + 2];
+
+				if (!ensureMsgf(I0 != INDEX_NONE && I1 != INDEX_NONE && I2 != INDEX_NONE,
+					TEXT("Mesh '%s' has triangles with uninitialized vertex indices"), *StaticMesh->GetName()))
+				{
+					continue;
+				}
+
+				const FVector3f V0 = BuiltVertices[I0];
+				const FVector3f V1 = BuiltVertices[I1];
+				const FVector3f V2 = BuiltVertices[I2];
+
+				const FVector3f TriangleNormal = ((V1 - V2) ^ (V0 - V2));
+				const bool bDegenerateTriangle = TriangleNormal.SizeSquared() < SMALL_NUMBER;
+				if (!bDegenerateTriangle)
+				{
+					BuiltIndices.Add(I0);
+					BuiltIndices.Add(I1);
+					BuiltIndices.Add(I2);
+				}
+			}
+		}
 	}
 
 	return true;

@@ -98,7 +98,7 @@ FCardRepresentationAsyncQueue* GCardRepresentationAsyncQueue = NULL;
 #if WITH_EDITOR
 
 // DDC key for card representation data, must be changed when modifying the generation code or data format
-#define CARDREPRESENTATION_DERIVEDDATA_VER TEXT("5A576281-130D-4159-B20C-9A9880228C88")
+#define CARDREPRESENTATION_DERIVEDDATA_VER TEXT("FF1E9B99-1837-4F13-A892-13BD62922D0B")
 
 FString BuildCardRepresentationDerivedDataKey(const FString& InMeshKey, int32 MaxLumenMeshCards)
 {
@@ -116,8 +116,6 @@ FString BuildCardRepresentationDerivedDataKey(const FString& InMeshKey, int32 Ma
 #endif
 
 #if WITH_EDITORONLY_DATA
-
-extern void BuildSignedDistanceFieldBuildSectionData(UStaticMesh* Mesh, uint32 LODIndex, TArray<FSignedDistanceFieldBuildSectionData>& OutData);
 
 void BeginCacheMeshCardRepresentation(const ITargetPlatform* TargetPlatform, UStaticMesh* StaticMeshAsset, FStaticMeshRenderData& RenderData, const FString& DistanceFieldKey, FSourceMeshDataForDerivedDataTask* OptionalSourceMeshData)
 {
@@ -175,9 +173,31 @@ void FCardRepresentationData::CacheDerivedData(const FString& InDDCKey, const IT
 		NewTask->GeneratedCardRepresentation = new FCardRepresentationData();
 		NewTask->MaxLumenMeshCards = MaxLumenMeshCards;
 		NewTask->bGenerateDistanceFieldAsIfTwoSided = bGenerateDistanceFieldAsIfTwoSided;
+		NewTask->MaterialBlendModes.SetNum(Mesh->GetStaticMaterials().Num());
 
+		const TArray<FStaticMaterial>& StaticMaterials = Mesh->GetStaticMaterials();
+		const FMeshSectionInfoMap& SectionInfoMap = Mesh->GetSectionInfoMap();
 		const uint32 LODIndex = 0;
-		BuildSignedDistanceFieldBuildSectionData(Mesh, LODIndex, NewTask->SectionData);
+
+		for (int32 SectionIndex = 0; SectionIndex < SectionInfoMap.GetSectionNumber(LODIndex); SectionIndex++)
+		{
+			const FMeshSectionInfo& Section = SectionInfoMap.Get(LODIndex, SectionIndex);
+
+			if (!NewTask->MaterialBlendModes.IsValidIndex(Section.MaterialIndex))
+			{
+				continue;
+			}
+
+			FSignedDistanceFieldBuildMaterialData& MaterialData = NewTask->MaterialBlendModes[Section.MaterialIndex];
+			MaterialData.bAffectDistanceFieldLighting = Section.bAffectDistanceFieldLighting;
+
+			UMaterialInterface* MaterialInterface = StaticMaterials[Section.MaterialIndex].MaterialInterface;
+			if (MaterialInterface)
+			{
+				MaterialData.BlendMode = MaterialInterface->GetBlendMode();
+				MaterialData.bTwoSided = MaterialInterface->IsTwoSided();
+			}
+		}
 
 		// Nanite overrides source static mesh with a coarse representation. Need to load original data before we build the mesh SDF.
 		if (OptionalSourceMeshData)
@@ -187,7 +207,7 @@ void FCardRepresentationData::CacheDerivedData(const FString& InDDCKey, const IT
 		else if (Mesh->IsNaniteEnabled())
 		{
 			IMeshBuilderModule& MeshBuilderModule = IMeshBuilderModule::GetForPlatform(TargetPlatform);
-			if (!MeshBuilderModule.BuildMeshVertexPositions(Mesh, NewTask->SourceMeshData.TriangleIndices, NewTask->SourceMeshData.VertexPositions, NewTask->SourceMeshData.Sections))
+			if (!MeshBuilderModule.BuildMeshVertexPositions(Mesh, NewTask->SourceMeshData.TriangleIndices, NewTask->SourceMeshData.VertexPositions))
 			{
 				UE_LOG(LogStaticMesh, Error, TEXT("Failed to build static mesh. See previous line(s) for details."));
 			}
@@ -652,7 +672,7 @@ void FCardRepresentationAsyncQueue::Build(FAsyncCardRepresentationTask* Task, FQ
 			Task->SourceMeshData,
 			LODModel,
 			BuildThreadPool,
-			Task->SectionData,
+			Task->MaterialBlendModes,
 			Task->GenerateSource->GetRenderData()->Bounds,
 			Task->GenerateSource->GetRenderData()->LODResources[0].DistanceFieldData,
 			Task->MaxLumenMeshCards,

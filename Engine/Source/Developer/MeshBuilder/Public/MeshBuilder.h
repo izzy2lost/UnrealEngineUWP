@@ -38,8 +38,7 @@ public:
 	virtual bool BuildMeshVertexPositions(
 		UStaticMesh* StaticMesh,
 		TArray<uint32>& Indices,
-		TArray<FVector3f>& Vertices,
-		FStaticMeshSectionArray& Sections) = 0;
+		TArray<FVector3f>& Vertices) = 0;
 
 	/**
 	 * Build function should be override and is the starting point for skeletal mesh builders

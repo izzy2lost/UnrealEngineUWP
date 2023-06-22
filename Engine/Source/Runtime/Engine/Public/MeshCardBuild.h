@@ -12,7 +12,7 @@
 #include <atomic>
 
 class UStaticMesh;
-struct FSignedDistanceFieldBuildSectionData;
+class FSignedDistanceFieldBuildMaterialData;
 
 class FLumenCardBuildData
 {
@@ -190,7 +190,7 @@ public:
 	bool bSuccess = false;
 
 #if WITH_EDITOR
-	TArray<FSignedDistanceFieldBuildSectionData> SectionData;
+	TArray<FSignedDistanceFieldBuildMaterialData> MaterialBlendModes;
 #endif
 
 	FSourceMeshDataForDerivedDataTask SourceMeshData;

@@ -159,7 +159,7 @@ namespace MeshRepresentation
 	void SetupEmbreeScene(FString MeshName,
 		const FSourceMeshDataForDerivedDataTask& SourceMeshData,
 		const FStaticMeshLODResources& LODModel,
-		const TArray<FSignedDistanceFieldBuildSectionData>& SectionData,
+		const TArray<FSignedDistanceFieldBuildMaterialData>& MaterialBlendModes,
 		bool bGenerateAsIfTwoSided,
 		FEmbreeScene& EmbreeScene);
 

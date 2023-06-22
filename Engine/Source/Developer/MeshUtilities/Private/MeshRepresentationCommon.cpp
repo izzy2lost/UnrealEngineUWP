@@ -126,16 +126,14 @@ void MeshRepresentation::SetupEmbreeScene(
 	FString MeshName,
 	const FSourceMeshDataForDerivedDataTask& SourceMeshData,
 	const FStaticMeshLODResources& LODModel,
-	const TArray<FSignedDistanceFieldBuildSectionData>& SectionData,
+	const TArray<FSignedDistanceFieldBuildMaterialData>& MaterialBlendModes,
 	bool bGenerateAsIfTwoSided,
 	FEmbreeScene& EmbreeScene)
 {
-	const uint32 NumVertices = SourceMeshData.IsValid() ? SourceMeshData.GetNumVertices() : LODModel.VertexBuffers.PositionVertexBuffer.GetNumVertices();
 	const uint32 NumIndices = SourceMeshData.IsValid() ? SourceMeshData.GetNumIndices() : LODModel.IndexBuffer.GetNumIndices();
 	const int32 NumTriangles = NumIndices / 3;
+	const uint32 NumVertices = SourceMeshData.IsValid() ? SourceMeshData.GetNumVertices() : LODModel.VertexBuffers.PositionVertexBuffer.GetNumVertices();
 	EmbreeScene.NumIndices = NumTriangles;
-
-	const FStaticMeshSectionArray& Sections = SourceMeshData.IsValid() ? SourceMeshData.Sections : LODModel.Sections;
 
 	TArray<FkDOPBuildCollisionTriangle<uint32> > BuildTriangles;
 
@@ -167,68 +165,67 @@ void MeshRepresentation::SetupEmbreeScene(
 	}
 #endif
 
-	/*
-	if (LODModel.Sections.Num() > SectionData.Num())
-	{
-		UE_LOG(LogMeshUtilities, Warning, TEXT("Unexpected number of mesh sections when setting up Embree Scene for %s."), *MeshName);
-	}
-	*/
-
 	TArray<int32> FilteredTriangles;
 	FilteredTriangles.Empty(NumTriangles);
 
-	for (int32 TriangleIndex = 0; TriangleIndex < NumTriangles; ++TriangleIndex)
+	if (SourceMeshData.IsValid())
 	{
-		FVector3f V0, V1, V2;
-
-		if (SourceMeshData.IsValid())
+		for (int32 TriangleIndex = 0; TriangleIndex < NumTriangles; ++TriangleIndex)
 		{
 			const uint32 I0 = SourceMeshData.TriangleIndices[TriangleIndex * 3 + 0];
 			const uint32 I1 = SourceMeshData.TriangleIndices[TriangleIndex * 3 + 1];
 			const uint32 I2 = SourceMeshData.TriangleIndices[TriangleIndex * 3 + 2];
 
-			V0 = SourceMeshData.VertexPositions[I0];
-			V1 = SourceMeshData.VertexPositions[I1];
-			V2 = SourceMeshData.VertexPositions[I2];
+			const FVector3f V0 = SourceMeshData.VertexPositions[I0];
+			const FVector3f V1 = SourceMeshData.VertexPositions[I1];
+			const FVector3f V2 = SourceMeshData.VertexPositions[I2];
+
+			const FVector3f TriangleNormal = ((V1 - V2) ^ (V0 - V2));
+			const bool bDegenerateTriangle = TriangleNormal.SizeSquared() < SMALL_NUMBER;
+			if (!bDegenerateTriangle)
+			{
+				FilteredTriangles.Add(TriangleIndex);
+			}
 		}
-		else
+	}
+	else
+	{
+		for (int32 TriangleIndex = 0; TriangleIndex < NumTriangles; ++TriangleIndex)
 		{
 			const FIndexArrayView Indices = LODModel.IndexBuffer.GetArrayView();
 			const uint32 I0 = Indices[TriangleIndex * 3 + 0];
 			const uint32 I1 = Indices[TriangleIndex * 3 + 1];
 			const uint32 I2 = Indices[TriangleIndex * 3 + 2];
 
-			V0 = LODModel.VertexBuffers.PositionVertexBuffer.VertexPosition(I0);
-			V1 = LODModel.VertexBuffers.PositionVertexBuffer.VertexPosition(I1);
-			V2 = LODModel.VertexBuffers.PositionVertexBuffer.VertexPosition(I2);
-		}
+			const FVector3f V0 = LODModel.VertexBuffers.PositionVertexBuffer.VertexPosition(I0);
+			const FVector3f V1 = LODModel.VertexBuffers.PositionVertexBuffer.VertexPosition(I1);
+			const FVector3f V2 = LODModel.VertexBuffers.PositionVertexBuffer.VertexPosition(I2);
 
-		const FVector3f TriangleNormal = ((V1 - V2) ^ (V0 - V2));
-		const bool bDegenerateTriangle = TriangleNormal.SizeSquared() < SMALL_NUMBER;
-		if (!bDegenerateTriangle)
-		{
-			//FilteredTriangles.Add(TriangleIndex);
-
-			bool bTriangleIsOpaqueOrMasked = false;
-
-			for (int32 SectionIndex = 0; SectionIndex < Sections.Num(); SectionIndex++)
+			const FVector3f TriangleNormal = ((V1 - V2) ^ (V0 - V2));
+			const bool bDegenerateTriangle = TriangleNormal.SizeSquared() < SMALL_NUMBER;
+			if (!bDegenerateTriangle)
 			{
-				const FStaticMeshSection& Section = Sections[SectionIndex];
+				bool bTriangleIsOpaqueOrMasked = false;
 
-				if ((uint32)(TriangleIndex * 3) >= Section.FirstIndex && (uint32)(TriangleIndex * 3) < Section.FirstIndex + Section.NumTriangles * 3)
+				for (int32 SectionIndex = 0; SectionIndex < LODModel.Sections.Num(); SectionIndex++)
 				{
-					if (SectionData.IsValidIndex(SectionIndex))
+					const FStaticMeshSection& Section = LODModel.Sections[SectionIndex];
+
+					if ((uint32)(TriangleIndex * 3) >= Section.FirstIndex && (uint32)(TriangleIndex * 3) < Section.FirstIndex + Section.NumTriangles * 3)
 					{
-						bTriangleIsOpaqueOrMasked = !IsTranslucentBlendMode(SectionData[SectionIndex].BlendMode) && SectionData[SectionIndex].bAffectDistanceFieldLighting;
+						if (MaterialBlendModes.IsValidIndex(Section.MaterialIndex))
+						{
+							bTriangleIsOpaqueOrMasked = !IsTranslucentBlendMode(MaterialBlendModes[Section.MaterialIndex].BlendMode) && MaterialBlendModes[Section.MaterialIndex].bAffectDistanceFieldLighting;
+						}
+
+						break;
 					}
-
-					break;
 				}
-			}
 
-			if (bTriangleIsOpaqueOrMasked)
-			{
-				FilteredTriangles.Add(TriangleIndex);
+				if (bTriangleIsOpaqueOrMasked)
+				{
+					FilteredTriangles.Add(TriangleIndex);
+				}
 			}
 		}
 	}
@@ -276,15 +273,15 @@ void MeshRepresentation::SetupEmbreeScene(
 
 		bool bTriangleIsTwoSided = false;
 
-		for (int32 SectionIndex = 0; SectionIndex < Sections.Num(); SectionIndex++)
+		for (int32 SectionIndex = 0; SectionIndex < LODModel.Sections.Num(); SectionIndex++)
 		{
-			const FStaticMeshSection& Section = Sections[SectionIndex];
+			const FStaticMeshSection& Section = LODModel.Sections[SectionIndex];
 
 			if ((uint32)(TriangleIndex * 3) >= Section.FirstIndex && (uint32)(TriangleIndex * 3) < Section.FirstIndex + Section.NumTriangles * 3)
 			{
-				if (SectionData.IsValidIndex(SectionIndex))
+				if (MaterialBlendModes.IsValidIndex(Section.MaterialIndex))
 				{
-					bTriangleIsTwoSided = SectionData[SectionIndex].bTwoSided;
+					bTriangleIsTwoSided = MaterialBlendModes[Section.MaterialIndex].bTwoSided;
 				}
 
 				break;
@@ -353,15 +350,15 @@ void MeshRepresentation::SetupEmbreeScene(
 		uint32 NumTrianglesTotal = 0;
 		uint32 NumTwoSidedTriangles = 0;
 
-		for (int32 SectionIndex = 0; SectionIndex < Sections.Num(); SectionIndex++)
+		for (int32 SectionIndex = 0; SectionIndex < LODModel.Sections.Num(); SectionIndex++)
 		{
-			const FStaticMeshSection& Section = Sections[SectionIndex];
+			const FStaticMeshSection& Section = LODModel.Sections[SectionIndex];
 
-			if (SectionData.IsValidIndex(SectionIndex))
+			if (MaterialBlendModes.IsValidIndex(Section.MaterialIndex))
 			{
 				NumTrianglesTotal += Section.NumTriangles;
 
-				if (SectionData[SectionIndex].bTwoSided)
+				if (MaterialBlendModes[Section.MaterialIndex].bTwoSided)
 				{
 					NumTwoSidedTriangles += Section.NumTriangles;
 				}

@@ -334,7 +334,7 @@ public:
 	FAsyncDistanceFieldTask();
 
 #if WITH_EDITOR
-	TArray<FSignedDistanceFieldBuildSectionData> SectionData;
+	TArray<FSignedDistanceFieldBuildMaterialData> MaterialBlendModes;
 #endif
 	FSourceMeshDataForDerivedDataTask SourceMeshData;
 	UStaticMesh* StaticMesh;

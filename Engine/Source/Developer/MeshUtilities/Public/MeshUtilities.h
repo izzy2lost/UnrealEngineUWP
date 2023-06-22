@@ -48,8 +48,9 @@ namespace ETangentOptions
 	};
 };
 
-struct FSignedDistanceFieldBuildSectionData
+class FSignedDistanceFieldBuildMaterialData
 {
+public:
 	EBlendMode BlendMode = BLEND_Opaque;
 	bool bTwoSided = false;
 	bool bAffectDistanceFieldLighting = true;
@@ -129,7 +130,7 @@ public:
 		const FSourceMeshDataForDerivedDataTask& SourceMeshData,
 		const FStaticMeshLODResources& LODModel,
 		class FQueuedThreadPool& ThreadPool,
-		const TArray<FSignedDistanceFieldBuildSectionData>& SectionData,
+		const TArray<FSignedDistanceFieldBuildMaterialData>& MaterialBlendModes,
 		const FBoxSphereBounds& Bounds,
 		float DistanceFieldResolutionScale,
 		bool bGenerateAsIfTwoSided,
@@ -140,7 +141,7 @@ public:
 		const FSourceMeshDataForDerivedDataTask& SourceMeshData,
 		const FStaticMeshLODResources& LODModel,
 		class FQueuedThreadPool& ThreadPool,
-		const TArray<FSignedDistanceFieldBuildSectionData>& SectionData,
+		const TArray<FSignedDistanceFieldBuildMaterialData>& MaterialBlendModes,
 		const FBoxSphereBounds& Bounds,
 		const class FDistanceFieldVolumeData* DistanceFieldVolumeData,
 		int32 MaxLumenMeshCards,
