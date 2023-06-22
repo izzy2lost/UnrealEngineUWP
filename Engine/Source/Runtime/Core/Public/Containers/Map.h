@@ -689,6 +689,23 @@ public:
 	}
 
 	/**
+	 * Find the value associated with a specified key.
+	 *
+	 * @param Key The key to search for.
+	 * @param DefaultValue The fallback value if the key is not found.
+	 * @return The value associated with the specified key, or DefaultValue if the key isn't contained in this map.
+	 */
+	FORCEINLINE ValueType FindRef(KeyConstPointerType Key, ValueType DefaultValue) const
+	{
+		if (const auto* Pair = Pairs.Find(Key))
+		{
+			return Pair->Value;
+		}
+
+		return DefaultValue;
+	}
+
+	/**
 	 * Check if map contains the specified key.
 	 *
 	 * @param Key The key to check for.
