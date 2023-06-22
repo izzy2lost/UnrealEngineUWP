@@ -869,7 +869,13 @@ TSharedPtr<SToolTip> SGraphNode_BehaviorTree::GetComplexTooltip()
 const FSlateBrush* SGraphNode_BehaviorTree::GetNameIcon() const
 {	
 	UBehaviorTreeGraphNode* BTGraphNode = Cast<UBehaviorTreeGraphNode>(GraphNode);
-	return BTGraphNode != nullptr ? FAppStyle::GetBrush(BTGraphNode->GetNameIcon()) : FAppStyle::GetBrush(TEXT("BTEditor.Graph.BTNode.Icon"));
+	if (BTGraphNode != nullptr)
+	{
+		// #RED_BTNodeCustomIconStyleSet kristof.morva 2023-04-07
+		return BTGraphNode->GetNameIconStyleSet().GetBrush(BTGraphNode->GetNameIcon());
+	}
+
+	return FAppStyle::GetBrush(TEXT("BTEditor.Graph.BTNode.Icon"));
 }
 
 static UBehaviorTreeGraphNode* GetParentNode(UEdGraphNode* GraphNode)

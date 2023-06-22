@@ -205,6 +205,11 @@ void UBTNode::DescribeRuntimeValues(const UBehaviorTreeComponent& OwnerComp, uin
 
 #if WITH_EDITOR
 
+const ISlateStyle& UBTNode::GetNodeIconStyleSet() const
+{
+	return FAppStyle::Get();
+}
+
 FName UBTNode::GetNodeIconName() const
 {
 	return NAME_None;

@@ -390,6 +390,14 @@ void UBehaviorTreeGraphNode::ClearDebuggerState()
 	DebuggerRuntimeDescription.Empty();
 }
 
+// < #RED_BTNodeCustomIconStyleSet kristof.morva 2023-04-07
+const ISlateStyle& UBehaviorTreeGraphNode::GetNameIconStyleSet() const
+{
+	const UBTNode* BTNodeInstance = Cast<UBTNode>(NodeInstance);
+	return BTNodeInstance != nullptr ? BTNodeInstance->GetNodeIconStyleSet() : FAppStyle::Get();
+}
+// > #RED_BTNodeCustomIconStyleSet kristof.morva 2023-04-07
+
 FName UBehaviorTreeGraphNode::GetNameIcon() const
 {
 	UBTNode* BTNodeInstance = Cast<UBTNode>(NodeInstance);

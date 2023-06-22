@@ -148,6 +148,9 @@ class UBTNode : public UObject, public IGameplayTaskOwnerInterface
 	AIMODULE_API virtual FString GetStaticDescription() const;
 
 #if WITH_EDITOR
+	/** Get the style set from which GetNodeIconName is queried */
+	AIMODULE_API virtual const ISlateStyle& GetNodeIconStyleSet() const;
+
 	/** Get the name of the icon used to display this node in the editor */
 	AIMODULE_API virtual FName GetNodeIconName() const;
 

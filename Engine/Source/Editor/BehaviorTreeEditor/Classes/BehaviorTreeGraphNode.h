@@ -21,7 +21,7 @@ class UObject;
 template <typename T> struct TObjectPtr;
 
 UCLASS()
-class UBehaviorTreeGraphNode : public UAIGraphNode
+class BEHAVIORTREEEDITOR_API UBehaviorTreeGraphNode : public UAIGraphNode
 {
 	GENERATED_UCLASS_BODY()
 
@@ -58,6 +58,10 @@ class UBehaviorTreeGraphNode : public UAIGraphNode
 	virtual bool CanPlaceBreakpoints() const { return false; }
 
 	void ClearDebuggerState();
+
+	// #RED_BTNodeCustomIconStyleSet kristof.morva 2023-04-07
+	/** gets the style set from which GetNameIcon is queried */
+	virtual const ISlateStyle& GetNameIconStyleSet() const;
 
 	/** gets icon resource name for title bar */
 	virtual FName GetNameIcon() const;
