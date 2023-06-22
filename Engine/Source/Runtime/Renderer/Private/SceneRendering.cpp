@@ -4117,7 +4117,7 @@ bool FSceneRenderer::ShouldCompositeDebugPrimitivesInPostProcess(const FViewInfo
 }
 #endif
 
-void FSceneRenderer::UpdatePrimitiveIndirectLightingCacheBuffers()
+void FSceneRenderer::UpdatePrimitiveIndirectLightingCacheBuffers(FRHICommandListBase& RHICmdList)
 {
 	// Use a bit array to prevent primitives from being updated more than once.
 	FSceneBitArray UpdatedPrimitiveMap;
@@ -4134,7 +4134,7 @@ void FSceneRenderer::UpdatePrimitiveIndirectLightingCacheBuffers()
 			FBitReference bInserted = UpdatedPrimitiveMap[PrimitiveSceneInfo->GetIndex()];
 			if (!bInserted)
 			{
-				PrimitiveSceneInfo->UpdateIndirectLightingCacheBuffer();
+				PrimitiveSceneInfo->UpdateIndirectLightingCacheBuffer(RHICmdList);
 				bInserted = true;
 			}
 			else

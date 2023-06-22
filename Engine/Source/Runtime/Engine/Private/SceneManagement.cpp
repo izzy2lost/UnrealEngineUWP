@@ -1117,7 +1117,7 @@ void FLightCacheInterface::CreatePrecomputedLightingUniformBuffer_RenderingThrea
 		if (PrecomputedLightingUniformBuffer)
 		{
 			// Don't recreate the buffer if it already exists
-			RHIUpdateUniformBuffer(PrecomputedLightingUniformBuffer, &Parameters);
+			FRHICommandListImmediate::Get().UpdateUniformBuffer(PrecomputedLightingUniformBuffer, &Parameters);
 		}
 		else
 		{
