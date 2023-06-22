@@ -186,7 +186,7 @@ namespace EpicGames.Horde.Compute
 	/// </summary>
 	/// <param name="Name">Path to extract the files to</param>
 	/// <param name="Locator">Locator for the tree to extract</param>
-	public record struct UploadFilesMessage(string Name, NodeLocator Locator);
+	public record struct UploadFilesMessage(string Name, BundleNodeLocator Locator);
 
 	/// <summary>
 	/// Deletes files or directories in the remote
@@ -338,7 +338,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="locator">Location of a <see cref="DirectoryNode"/> describing contents of the sandbox</param>
 		/// <param name="storage">Storage for the sandbox data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async Task UploadFilesAsync(this AgentMessageChannel channel, string path, NodeLocator locator, IStorageClient storage, CancellationToken cancellationToken = default)
+		public static async Task UploadFilesAsync(this AgentMessageChannel channel, string path, BundleNodeLocator locator, IStorageClient storage, CancellationToken cancellationToken = default)
 		{
 			using (IAgentMessageBuilder request = await channel.CreateMessageAsync(AgentMessageType.WriteFiles, cancellationToken))
 			{
@@ -360,7 +360,7 @@ namespace EpicGames.Horde.Compute
 		public static UploadFilesMessage ParseUploadFilesMessage(this AgentMessage message)
 		{
 			string name = message.ReadString();
-			NodeLocator locator = message.ReadNodeLocator();
+			BundleNodeLocator locator = message.ReadNodeLocator();
 			return new UploadFilesMessage(name, locator);
 		}
 

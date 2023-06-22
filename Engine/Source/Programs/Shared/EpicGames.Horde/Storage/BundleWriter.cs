@@ -57,12 +57,12 @@ namespace EpicGames.Horde.Storage
 	public sealed class FlushedNodeHandle : BlobHandle
 	{
 		readonly BundleReader _reader;
-		readonly NodeLocator _locator;
+		readonly BundleNodeLocator _locator;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FlushedNodeHandle(BundleReader reader, NodeLocator locator)
+		public FlushedNodeHandle(BundleReader reader, BundleNodeLocator locator)
 			: base(locator.Hash)
 		{
 			_reader = reader;
@@ -73,7 +73,7 @@ namespace EpicGames.Horde.Storage
 		public override bool HasLocator() => true;
 
 		/// <inheritdoc/>
-		public override NodeLocator GetLocator() => _locator;
+		public override BundleNodeLocator GetLocator() => _locator;
 
 		/// <inheritdoc/>
 		public override void AddWriteCallback(BlobWriteCallback callback) => callback.OnWrite();
@@ -82,7 +82,7 @@ namespace EpicGames.Horde.Storage
 		public override ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => _reader.ReadNodeDataAsync(_locator, cancellationToken);
 
 		/// <inheritdoc/>
-		public override ValueTask<NodeLocator> FlushAsync(CancellationToken cancellationToken = default) => new ValueTask<NodeLocator>(_locator);
+		public override ValueTask<BundleNodeLocator> FlushAsync(CancellationToken cancellationToken = default) => new ValueTask<BundleNodeLocator>(_locator);
 	}
 
 	/// <summary>
@@ -157,7 +157,7 @@ namespace EpicGames.Horde.Storage
 
 			object LockObject => _reader;
 
-			NodeLocator _locator;
+			BundleNodeLocator _locator;
 			PendingBundle? _pendingBundle;
 
 			public readonly NodeKey Key;
@@ -186,7 +186,7 @@ namespace EpicGames.Horde.Storage
 			public override bool HasLocator() => _locator.IsValid();
 
 			/// <inheritdoc/>
-			public override NodeLocator GetLocator()
+			public override BundleNodeLocator GetLocator()
 			{
 				if (!_locator.IsValid())
 				{
@@ -195,7 +195,7 @@ namespace EpicGames.Horde.Storage
 				return _locator;
 			}
 
-			public void MarkAsWritten(NodeLocator locator)
+			public void MarkAsWritten(BundleNodeLocator locator)
 			{
 				lock (LockObject)
 				{
@@ -238,7 +238,7 @@ namespace EpicGames.Horde.Storage
 			}
 
 			/// <inheritdoc/>
-			public override async ValueTask<NodeLocator> FlushAsync(CancellationToken cancellationToken = default)
+			public override async ValueTask<BundleNodeLocator> FlushAsync(CancellationToken cancellationToken = default)
 			{
 				if (_locator.IsValid())
 				{
@@ -539,7 +539,7 @@ namespace EpicGames.Horde.Storage
 
 					for (int idx = 0; idx < _queue.Count; idx++)
 					{
-						NodeLocator nodeLocator = new NodeLocator(_queue[idx].Key.Hash, locator, idx);
+						BundleNodeLocator nodeLocator = new BundleNodeLocator(_queue[idx].Key.Hash, locator, idx);
 						traceLogger?.LogInformation("Updated pending node {Hash} with locator {Locator}", _queue[idx].Key.Hash, nodeLocator);
 						_queue[idx].MarkAsWritten(nodeLocator);
 					}
@@ -601,7 +601,7 @@ namespace EpicGames.Horde.Storage
 						BundleExportRef exportRef;
 						if (!nodeHandleToExportRef.TryGetValue(handle, out exportRef))
 						{
-							NodeLocator locator = handle.GetLocator();
+							BundleNodeLocator locator = handle.GetLocator();
 
 							int importIdx = FindOrAddItemIndex(locator.Blob, imports, importToIndex);
 							exportRef = new BundleExportRef(importIdx, locator.ExportIdx, handle.Hash);

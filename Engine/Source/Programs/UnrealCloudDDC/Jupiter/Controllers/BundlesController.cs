@@ -328,7 +328,7 @@ namespace Jupiter.Controllers
                 return result;
             }
             IStorageClientJupiter client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
-            NodeLocator target = new NodeLocator(request.Hash, request.Blob, request.ExportIdx);
+            BundleNodeLocator target = new BundleNodeLocator(request.Hash, request.Blob, request.ExportIdx);
             await client.WriteRefTargetAsync(refName, target, request.Options, cancellationToken);
 
             return Ok();
@@ -466,7 +466,7 @@ namespace Jupiter.Controllers
 
             object content;
 
-            BlobData nodeData = await reader.ReadNodeDataAsync(new NodeLocator(IoHash.Zero, locator, exportIdx), cancellationToken);
+            BlobData nodeData = await reader.ReadNodeDataAsync(new BundleNodeLocator(IoHash.Zero, locator, exportIdx), cancellationToken);
 
             Node node = Node.Deserialize(nodeData);
             switch (node)

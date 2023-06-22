@@ -21,7 +21,7 @@ public interface IStorageClientJupiter : IStorageClient
     Task<(BlobLocator Locator, Uri UploadUrl)?> GetWriteRedirectAsync(string prefix, CancellationToken cancellationToken);
     bool SupportsRedirects { get; set; }
     Task<Uri?> GetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken);
-    Task WriteRefTargetAsync(RefName refName, NodeLocator target, RefOptions? requestOptions, CancellationToken cancellationToken);
+    Task WriteRefTargetAsync(RefName refName, BundleNodeLocator target, RefOptions? requestOptions, CancellationToken cancellationToken);
 }
 
 public interface IStorageService
@@ -176,7 +176,7 @@ public class StorageClient : IStorageClientJupiter
             BlobLocator blobLocator = new BlobLocator(inlinePayload.BlobLocator);
             int exportId = inlinePayload.ExportId;
 
-            return new FlushedNodeHandle(_treeReader, new NodeLocator(nodeHash, blobLocator, exportId));
+            return new FlushedNodeHandle(_treeReader, new BundleNodeLocator(nodeHash, blobLocator, exportId));
         }
         catch (ObjectNotFoundException )
         {
@@ -187,7 +187,7 @@ public class StorageClient : IStorageClientJupiter
     public async Task<BlobHandle> WriteRefAsync(RefName name, Bundle bundle, int exportIdx, Utf8String prefix = default, RefOptions? options = null, CancellationToken cancellationToken = default)
     {
         BlobLocator locator = await this.WriteBundleAsync(bundle, prefix, cancellationToken);
-        BlobHandle target = new FlushedNodeHandle(_treeReader, new NodeLocator(bundle.Header.Exports[exportIdx].Hash, locator, exportIdx));
+        BlobHandle target = new FlushedNodeHandle(_treeReader, new BundleNodeLocator(bundle.Header.Exports[exportIdx].Hash, locator, exportIdx));
         await WriteRefTargetAsync(name, target, options, cancellationToken);
 
         return target;
@@ -198,7 +198,7 @@ public class StorageClient : IStorageClientJupiter
         return WriteRefTargetAsync(refName, target.GetLocator(), requestOptions, cancellationToken);
     }
 
-    public async Task WriteRefTargetAsync(RefName refName, NodeLocator target, RefOptions? requestOptions, CancellationToken cancellationToken)
+    public async Task WriteRefTargetAsync(RefName refName, BundleNodeLocator target, RefOptions? requestOptions, CancellationToken cancellationToken)
     {
         BlobIdentifier bundleBlob = BlobIdentifier.FromBlobLocator(target.Blob);
         IoHashKey refKey = IoHashKey.FromName(refName.ToString());

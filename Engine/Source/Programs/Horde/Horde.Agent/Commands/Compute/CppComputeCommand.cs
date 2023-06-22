@@ -55,7 +55,7 @@ namespace Horde.Agent.Commands.Compute
 
 			// Create a sandbox from the data to be uploaded
 			MemoryStorageClient storage = new MemoryStorageClient();
-			NodeLocator sandbox = await CreateSandboxAsync(TaskFile, storage, cancellationToken);
+			BundleNodeLocator sandbox = await CreateSandboxAsync(TaskFile, storage, cancellationToken);
 
 			// Open a socket and upload the sandbox
 			using (AgentMessageChannel channel = lease.Socket.CreateAgentMessageChannel(ControlChannelId, 4 * 1024 * 1024, _logger))
@@ -75,7 +75,7 @@ namespace Horde.Agent.Commands.Compute
 			return true;
 		}
 
-		static async Task<NodeLocator> CreateSandboxAsync(FileReference taskFile, IStorageClient storage, CancellationToken cancellationToken)
+		static async Task<BundleNodeLocator> CreateSandboxAsync(FileReference taskFile, IStorageClient storage, CancellationToken cancellationToken)
 		{
 			await using IStorageWriter writer = storage.CreateWriter();
 

@@ -129,7 +129,7 @@ namespace Horde.Server.Tools
 		/// <summary>
 		/// Node for downloading this deployment
 		/// </summary>
-		public NodeLocator Locator { get; }
+		public BundleNodeLocator Locator { get; }
 
 		/// <summary>
 		/// Constructor
@@ -304,7 +304,7 @@ namespace Horde.Server.Tools
 
 			ToolDeploymentConfig options = new ToolDeploymentConfig { Version = request.Version, Duration = TimeSpan.FromMinutes(request.Duration ?? 0.0), CreatePaused = request.CreatePaused ?? false };
 
-			tool = await _toolCollection.CreateDeploymentAsync(tool, options, NodeLocator.Parse(request.Node), _globalConfig.Value, cancellationToken);
+			tool = await _toolCollection.CreateDeploymentAsync(tool, options, BundleNodeLocator.Parse(request.Node), _globalConfig.Value, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);

@@ -43,7 +43,7 @@ namespace EpicGames.Horde.Storage.Backends
 		public async ValueTask<BlobHandle> ReadRefAsync(FileReference file)
 		{
 			string text = await FileReference.ReadAllTextAsync(file);
-			return new FlushedNodeHandle(TreeReader, NodeLocator.Parse(text));
+			return new FlushedNodeHandle(TreeReader, BundleNodeLocator.Parse(text));
 		}
 
 		FileReference GetRefFile(RefName name) => FileReference.Combine(_rootDir, name.ToString() + ".ref");
@@ -128,7 +128,7 @@ namespace EpicGames.Horde.Storage.Backends
 
 			_logger.LogInformation("Reading {File}", file);
 			string text = await FileReference.ReadAllTextAsync(file, cancellationToken);
-			return new FlushedNodeHandle(TreeReader, NodeLocator.Parse(text));
+			return new FlushedNodeHandle(TreeReader, BundleNodeLocator.Parse(text));
 		}
 
 		/// <inheritdoc/>
@@ -138,7 +138,7 @@ namespace EpicGames.Horde.Storage.Backends
 			DirectoryReference.CreateDirectory(file.Directory);
 			_logger.LogInformation("Writing {File}", file);
 
-			NodeLocator locator = await target.FlushAsync(cancellationToken);
+			BundleNodeLocator locator = await target.FlushAsync(cancellationToken);
 			for (int attempt = 0; ; attempt++)
 			{
 				try

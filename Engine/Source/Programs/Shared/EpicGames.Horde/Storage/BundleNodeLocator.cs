@@ -15,10 +15,10 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Locates a node in storage
 	/// </summary>
-	[JsonConverter(typeof(NodeLocatorJsonConverter))]
-	[TypeConverter(typeof(NodeLocatorTypeConverter))]
-	[CbConverter(typeof(NodeLocatorCbConverter))]
-	public struct NodeLocator : IEquatable<NodeLocator>
+	[JsonConverter(typeof(BundleNodeLocatorJsonConverter))]
+	[TypeConverter(typeof(BundleNodeLocatorTypeConverter))]
+	[CbConverter(typeof(BundleNodeLocatorCbConverter))]
+	public struct BundleNodeLocator : IEquatable<BundleNodeLocator>
 	{
 		/// <summary>
 		/// Hash of the referenced node
@@ -38,7 +38,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public NodeLocator(IoHash hash, BlobLocator blob, int exportIdx)
+		public BundleNodeLocator(IoHash hash, BlobLocator blob, int exportIdx)
 		{
 			Hash = hash;
 			Blob = blob;
@@ -55,14 +55,14 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="text">Text to parse</param>
 		/// <returns></returns>
-		public static NodeLocator Parse(ReadOnlySpan<char> text)
+		public static BundleNodeLocator Parse(ReadOnlySpan<char> text)
 		{
 			int hashLength = IoHash.NumBytes * 2;
 
 			IoHash hash;
 			if (text.Length == hashLength && IoHash.TryParse(text, out hash))
 			{
-				return new NodeLocator(hash, default, 0);
+				return new BundleNodeLocator(hash, default, 0);
 			}
 
 			if (text[hashLength] == '@')
@@ -84,14 +84,14 @@ namespace EpicGames.Horde.Storage
 
 			int exportIdx = Int32.Parse(text.Slice(hashIdx + 1), NumberStyles.None, CultureInfo.InvariantCulture);
 			BlobLocator blobLocator = new BlobLocator(new Utf8String(text.Slice(0, hashIdx)));
-			return new NodeLocator(hash, blobLocator, exportIdx);
+			return new BundleNodeLocator(hash, blobLocator, exportIdx);
 		}
 
 		/// <inheritdoc/>
-		public override bool Equals([NotNullWhen(true)] object? obj) => obj is NodeLocator locator && Equals(locator);
+		public override bool Equals([NotNullWhen(true)] object? obj) => obj is BundleNodeLocator locator && Equals(locator);
 
 		/// <inheritdoc/>
-		public bool Equals(NodeLocator other) => Blob == other.Blob && ExportIdx == other.ExportIdx;
+		public bool Equals(BundleNodeLocator other) => Blob == other.Blob && ExportIdx == other.ExportIdx;
 
 		/// <inheritdoc/>
 		public override int GetHashCode() => HashCode.Combine(Blob, ExportIdx);
@@ -100,28 +100,28 @@ namespace EpicGames.Horde.Storage
 		public override string ToString() => $"{Hash}@{Blob}#{ExportIdx}";
 
 		/// <inheritdoc/>
-		public static bool operator ==(NodeLocator left, NodeLocator right) => left.Equals(right);
+		public static bool operator ==(BundleNodeLocator left, BundleNodeLocator right) => left.Equals(right);
 
 		/// <inheritdoc/>
-		public static bool operator !=(NodeLocator left, NodeLocator right) => !left.Equals(right);
+		public static bool operator !=(BundleNodeLocator left, BundleNodeLocator right) => !left.Equals(right);
 	}
 
 	/// <summary>
-	/// Type converter for <see cref="NodeLocator"/> to and from JSON
+	/// Type converter for <see cref="BundleNodeLocator"/> to and from JSON
 	/// </summary>
-	sealed class NodeLocatorJsonConverter : JsonConverter<NodeLocator>
+	sealed class BundleNodeLocatorJsonConverter : JsonConverter<BundleNodeLocator>
 	{
 		/// <inheritdoc/>
-		public override NodeLocator Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => NodeLocator.Parse(reader.GetString() ?? String.Empty);
+		public override BundleNodeLocator Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => BundleNodeLocator.Parse(reader.GetString() ?? String.Empty);
 
 		/// <inheritdoc/>
-		public override void Write(Utf8JsonWriter writer, NodeLocator value, JsonSerializerOptions options) => writer.WriteStringValue(value.ToString());
+		public override void Write(Utf8JsonWriter writer, BundleNodeLocator value, JsonSerializerOptions options) => writer.WriteStringValue(value.ToString());
 	}
 
 	/// <summary>
-	/// Type converter from strings to <see cref="NodeLocator"/> objects
+	/// Type converter from strings to <see cref="BundleNodeLocator"/> objects
 	/// </summary>
-	sealed class NodeLocatorTypeConverter : TypeConverter
+	sealed class BundleNodeLocatorTypeConverter : TypeConverter
 	{
 		/// <inheritdoc/>
 		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
@@ -132,23 +132,23 @@ namespace EpicGames.Horde.Storage
 		/// <inheritdoc/>
 		public override object ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object? value)
 		{
-			return NodeLocator.Parse((string)value!);
+			return BundleNodeLocator.Parse((string)value!);
 		}
 	}
 
 	/// <summary>
 	/// Type converter to compact binary
 	/// </summary>
-	sealed class NodeLocatorCbConverter : CbConverterBase<NodeLocator>
+	sealed class BundleNodeLocatorCbConverter : CbConverterBase<BundleNodeLocator>
 	{
 		/// <inheritdoc/>
-		public override NodeLocator Read(CbField field) => NodeLocator.Parse(field.AsString());
+		public override BundleNodeLocator Read(CbField field) => BundleNodeLocator.Parse(field.AsString());
 
 		/// <inheritdoc/>
-		public override void Write(CbWriter writer, NodeLocator value) => writer.WriteUtf8StringValue(value.ToString());
+		public override void Write(CbWriter writer, BundleNodeLocator value) => writer.WriteUtf8StringValue(value.ToString());
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, NodeLocator value) => writer.WriteUtf8String(name, value.ToString());
+		public override void WriteNamed(CbWriter writer, Utf8String name, BundleNodeLocator value) => writer.WriteUtf8String(name, value.ToString());
 	}
 
 	/// <summary>
@@ -161,9 +161,9 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="reader">Reader to deserialize from</param>
 		/// <returns>The node id that was read</returns>
-		public static NodeLocator ReadNodeLocator(this IMemoryReader reader)
+		public static BundleNodeLocator ReadNodeLocator(this IMemoryReader reader)
 		{
-			return NodeLocator.Parse(reader.ReadString());
+			return BundleNodeLocator.Parse(reader.ReadString());
 		}
 
 		/// <summary>
@@ -171,7 +171,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="writer">Writer to serialize to</param>
 		/// <param name="value">Value to serialize</param>
-		public static void WriteNodeLocator(this IMemoryWriter writer, NodeLocator value)
+		public static void WriteNodeLocator(this IMemoryWriter writer, BundleNodeLocator value)
 		{
 			writer.WriteString(value.ToString());
 		}

@@ -33,7 +33,7 @@ namespace EpicGames.Horde.Storage
 		/// Gets the node locator. May throw if the node has not been written to storage yet.
 		/// </summary>
 		/// <returns>Locator for the node</returns>
-		public abstract NodeLocator GetLocator();
+		public abstract BundleNodeLocator GetLocator();
 
 		/// <summary>
 		/// Adds a callback to be executed once the node has been written. Triggers immediately if the node has already been written.
@@ -96,7 +96,7 @@ namespace EpicGames.Horde.Storage
 		/// Flush the node to storage and retrieve its locator
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public abstract ValueTask<NodeLocator> FlushAsync(CancellationToken cancellationToken = default);
+		public abstract ValueTask<BundleNodeLocator> FlushAsync(CancellationToken cancellationToken = default);
 
 		/// <inheritdoc/>
 		public override string ToString() => HasLocator()? GetLocator().ToString() : Hash.ToString();
