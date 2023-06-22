@@ -746,7 +746,7 @@ namespace EpicGames.Horde.Storage
 			int length = 0;
 			foreach (BlobLocator locator in locators)
 			{
-				length += sizeof(int) + locator.Inner.Length + 1;
+				length += sizeof(int) + locator.Path.Length + 1;
 			}
 			return length;
 		}
@@ -764,14 +764,14 @@ namespace EpicGames.Horde.Storage
 			foreach(BlobLocator locator in locators)
 			{
 				BinaryPrimitives.WriteInt32LittleEndian(next, offset);
-				offset += locator.Inner.Length + 1;
+				offset += locator.Path.Length + 1;
 				next = next.Slice(sizeof(int));
 			}
 
 			foreach (BlobLocator locator in locators)
 			{
-				locator.Inner.Span.CopyTo(next);
-				next = next.Slice(locator.Inner.Length);
+				locator.Path.Span.CopyTo(next);
+				next = next.Slice(locator.Path.Length);
 
 				next[0] = 0;
 				next = next.Slice(1);

@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -46,7 +47,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		FileReference GetRefFile(RefName name) => FileReference.Combine(_rootDir, name.ToString() + ".ref");
-		FileReference GetBlobFile(BlobLocator id) => FileReference.Combine(_rootDir, id.Inner.ToString() + ".blob");
+		FileReference GetBlobFile(BlobLocator id) => FileReference.Combine(_rootDir, id.Path.ToString() + ".blob");
 
 		#region Blobs
 
@@ -69,7 +70,7 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <inheritdoc/>
 		public override async Task<BlobLocator> WriteBlobAsync(Stream stream, Utf8String prefix = default, CancellationToken cancellationToken = default)
 		{
-			BlobLocator id = BlobLocator.Create(HostId.Empty, prefix);
+			BlobLocator id = BlobLocator.CreateUnique(prefix);
 			FileReference file = GetBlobFile(id);
 			DirectoryReference.CreateDirectory(file.Directory);
 			_logger.LogInformation("Writing {File}", file);

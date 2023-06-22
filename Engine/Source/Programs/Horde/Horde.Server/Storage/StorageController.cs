@@ -256,7 +256,7 @@ namespace Horde.Server.Storage
 			{
 				return NotFound(namespaceId);
 			}
-			if (!namespaceConfig.Authorize(StorageAclAction.ReadBlobs, User) && !HasPathClaim(User, HordeClaimTypes.ReadNamespace, namespaceId, locator.Inner.ToString()))
+			if (!namespaceConfig.Authorize(StorageAclAction.ReadBlobs, User) && !HasPathClaim(User, HordeClaimTypes.ReadNamespace, namespaceId, locator.Path.ToString()))
 			{
 				return Forbid(StorageAclAction.ReadBlobs, namespaceId);
 			}

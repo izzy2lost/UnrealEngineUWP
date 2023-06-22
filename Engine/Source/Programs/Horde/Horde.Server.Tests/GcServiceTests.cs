@@ -30,7 +30,6 @@ namespace Horde.Server.Tests
 		{
 			await StorageService.StartAsync(CancellationToken.None);
 
-			BlobId.UseDeterministicIds();
 			SetupNamespace();
 			IStorageClientImpl store = await StorageService.GetClientAsync(new NamespaceId("default"), CancellationToken.None);
 
@@ -51,7 +50,7 @@ namespace Horde.Server.Tests
 
 			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
 
-			BlobLocator[] remaining = await store.Backend.EnumerateAsync().Select(x => new BlobLocator(HostId.Empty, StorageBackend.GetBlobIdFromPath(x))).ToArrayAsync();
+			BlobLocator[] remaining = await store.Backend.EnumerateAsync().Select(x => new BlobLocator(StorageBackend.GetBlobPathFromFileName(x))).ToArrayAsync();
 			Assert.AreEqual(nodes.Count, remaining.Length);
 			Assert.IsTrue(remaining.All(x => nodes.Contains(x)));
 		}

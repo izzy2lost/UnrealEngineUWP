@@ -164,7 +164,7 @@ public abstract class BundlesTests
 
     protected const string SmallFileContents = "Small file contents";
 
-    protected BlobLocator SmallFileLocator { get; } = BlobLocator.Create(HostId.Empty);
+    protected BlobLocator SmallFileLocator { get; } = BlobLocator.CreateUnique(String.Empty);
 
     [TestInitialize]
     public async Task Setup()

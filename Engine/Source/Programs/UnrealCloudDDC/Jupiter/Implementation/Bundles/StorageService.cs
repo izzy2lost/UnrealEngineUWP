@@ -68,7 +68,7 @@ public class StorageClient : IStorageClientJupiter
 
     public async Task<(BlobLocator Locator, Uri UploadUrl)?> GetWriteRedirectAsync(string prefix, CancellationToken cancellationToken)
     {
-        BlobLocator locator = BlobLocator.Create(HostId.Empty, prefix);
+        BlobLocator locator = BlobLocator.CreateUnique(prefix);
         BlobIdentifier blobIdentifier = BlobIdentifier.FromBlobLocator(locator);
         Uri? redirectUri = await _blobService.MaybePutObjectWithRedirect(_namespaceId, blobIdentifier);
         if (redirectUri == null)
@@ -80,7 +80,7 @@ public class StorageClient : IStorageClientJupiter
 
     public async Task<BlobLocator> WriteBlobAsync(Stream stream, Utf8String prefix, CancellationToken cancellationToken)
     {
-        BlobLocator locator = BlobLocator.Create(HostId.Empty, prefix);
+        BlobLocator locator = BlobLocator.CreateUnique(prefix);
         BlobIdentifier blobIdentifier = BlobIdentifier.FromBlobLocator(locator);
         await using MemoryStream ms = new MemoryStream();
         await stream.CopyToAsync(ms, cancellationToken);

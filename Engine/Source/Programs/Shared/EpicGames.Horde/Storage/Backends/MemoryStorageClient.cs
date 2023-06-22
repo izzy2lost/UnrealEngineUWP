@@ -70,7 +70,7 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <inheritdoc/>
 		public override async Task<BlobLocator> WriteBlobAsync(Stream stream, Utf8String prefix = default, CancellationToken cancellationToken = default)
 		{
-			BlobLocator locator = BlobLocator.Create(HostId.Empty, prefix);
+			BlobLocator locator = BlobLocator.CreateUnique(prefix);
 			Bundle bundle = await Bundle.FromStreamAsync(stream, cancellationToken);
 			_blobs[locator] = bundle;
 

@@ -4,10 +4,12 @@ using EpicGames.Core;
 using EpicGames.Serialization;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
+using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 
 namespace EpicGames.Horde.Storage
 {
@@ -39,190 +41,177 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Identifier for the blob
 		/// </summary>
-		public Utf8String Inner { get; }
+		public Utf8String Path { get; }
 
 		/// <summary>
-		/// Gets the server id for this blob
+		/// Constructor
 		/// </summary>
-		/// <returns>Server id</returns>
-		public HostId HostId
+		public BlobLocator(string path)
+			: this(path.AsSpan())
 		{
-			get
-			{
-				int colonIdx = Inner.LastIndexOf((byte)':');
-				return (colonIdx == -1) ? HostId.Empty : new HostId(Inner.Substring(0, colonIdx), HostId.Sanitize.None);
-			}
-		}
-
-		/// <summary>
-		/// Gets the content id for this blob
-		/// </summary>
-		/// <returns>Content id</returns>
-		public BlobId BlobId
-		{
-			get
-			{
-				int colonIdx = Inner.LastIndexOf((byte)':');
-				return new BlobId(Inner.Substring(colonIdx + 1), BlobId.Validate.None);
-			}
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="inner"></param>
-		public BlobLocator(Utf8String inner)
+		/// <param name="path">Path to the blob</param>
+		public BlobLocator(ReadOnlySpan<char> path)
+			: this(new Utf8String(path))
 		{
-			if (inner.Length == 0)
-			{
-				Inner = default;
-			}
-			else
-			{
-				Inner = inner;
-				ValidateArgument(nameof(inner), inner);
-			}
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="hostId"></param>
-		/// <param name="blobId"></param>
-		public BlobLocator(HostId hostId, BlobId blobId)
+		public BlobLocator(Utf8String path)
 		{
-			if (hostId.IsValid())
-			{
-				byte[] buffer = new byte[hostId.Inner.Length + 1 + blobId.Inner.Length];
-
-				hostId.Inner.Span.CopyTo(buffer);
-				buffer[hostId.Inner.Length] = (byte)':';
-				blobId.Inner.Span.CopyTo(buffer.AsSpan(hostId.Inner.Length + 1));
-
-				Inner = new Utf8String(buffer);
-			}
-			else
-			{
-				Inner = blobId.Inner;
-			}
+			Path = path;
+			ValidatePathArgument(nameof(path), path.Span);
 		}
 
 		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="hostId"></param>
-		/// <param name="blobId"></param>
-		public BlobLocator(ReadOnlySpan<byte> hostId, ReadOnlySpan<byte> blobId)
-		{
-			if (hostId.Length > 0)
-			{
-				byte[] buffer = new byte[hostId.Length + 1 + blobId.Length];
-
-				hostId.CopyTo(buffer);
-				buffer[hostId.Length] = (byte)':';
-				blobId.CopyTo(buffer.AsSpan(hostId.Length + 1));
-
-				Inner = new Utf8String(buffer);
-			}
-			else
-			{
-				Inner = new Utf8String(blobId.ToArray());
-			}
-		}
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="inner"></param>
-		/// <param name="sanitize"></param>
-		public BlobLocator(Utf8String inner, Sanitize sanitize)
-		{
-			Inner = inner;
-			_ = sanitize;
-		}
-
-		/// <summary>
-		/// Create a unique content id, optionally including a ref name
-		/// </summary>
-		/// <param name="serverId">The server id</param>
-		/// <param name="prefix">Prefix for blob names. Follows the same restrictions as for content ids.</param>
-		/// <returns>New content id</returns>
-		public static BlobLocator Create(HostId serverId, Utf8String prefix = default)
-		{
-			int length = 24;
-			if (serverId.IsValid())
-			{
-				length += serverId.Inner.Length + 1;
-			}
-			if (prefix.Length > 0)
-			{
-				length += prefix.Length + 1;
-			}
-
-			byte[] buffer = new byte[length];
-			Span<byte> span = buffer;
-
-			if (serverId.IsValid())
-			{
-				serverId.Inner.Span.CopyTo(span);
-				span = span.Slice(serverId.Inner.Length);
-
-				span[0] = (byte)':';
-				span = span.Slice(1);
-			}
-			if (prefix.Length > 0)
-			{
-				BlobId.ValidateArgument(nameof(prefix), prefix);
-
-				prefix.Span.CopyTo(span);
-				span = span.Slice(prefix.Length);
-
-				span[0] = (byte)'/';
-				span = span.Slice(1);
-			}
-
-			BlobId.GenerateUniqueId(span);
-			return new BlobLocator(new Utf8String(buffer), Sanitize.None);
-		}
-
-		/// <summary>
-		/// Validates a given string as a content id
+		/// Validates a given string as a blob id
 		/// </summary>
 		/// <param name="name">Name of the argument</param>
 		/// <param name="text">String to validate</param>
-		public static void ValidateArgument(string name, Utf8String text)
+		public static void ValidatePathArgument(string name, ReadOnlySpan<byte> text)
 		{
 			if (text.Length == 0)
 			{
-				throw new ArgumentException("Blob identifiers cannot be empty", name);
+				throw new ArgumentException("Blob paths cannot be empty", name);
 			}
-
-			int colonIdx = text.LastIndexOf((byte)':');
-			if (colonIdx != -1)
+			if (text[^1] == '/')
 			{
-				HostId.ValidateArgument(name, text.Substring(0, colonIdx));
+				throw new ArgumentException("Blob paths cannot start or end with a slash", name);
 			}
 
-			BlobId.ValidateArgument(name, text.Substring(colonIdx + 1));
+			int lastSlashIdx = -1;
+
+			for (int idx = 0; idx < text.Length; idx++)
+			{
+				if (text[idx] == '/')
+				{
+					if (lastSlashIdx == idx - 1)
+					{
+						throw new ArgumentException("Leading and consecutive slashes are not permitted in blob paths", name);
+					}
+					else
+					{
+						lastSlashIdx = idx;
+					}
+				}
+				else
+				{
+					if (!IsValidChar(text[idx]))
+					{
+						throw new ArgumentException($"'{(char)text[idx]} is not a valid blob path character", name);
+					}
+				}
+			}
 		}
+
+		static readonly uint[] s_validChars = CreateValidCharsArray();
+
+		static uint[] CreateValidCharsArray()
+		{
+			const string ValidChars = "0123456789abcdefghijklmnopqrstuvwxyz_#/$%-";
+
+			uint[] validChars = new uint[256 / 8];
+			for (int idx = 0; idx < ValidChars.Length; idx++)
+			{
+				int index = ValidChars[idx];
+				validChars[index / 32] |= 1U << (index & 31);
+			}
+
+			return validChars;
+		}
+
+		static bool IsValidChar(byte character)
+		{
+			return (s_validChars[character / 32] & (1U << (character & 31))) != 0;
+		}
+
+		static bool IsValidChar(char character) => (uint)character < 0x80 && IsValidChar((byte)character);
 
 		/// <summary>
 		/// Checks whether this blob id is valid
 		/// </summary>
 		/// <returns>True if the identifier is valid</returns>
-		public bool IsValid() => Inner.Length > 0;
+		public bool IsValid() => Path.Length > 0;
+
+		static ulong s_uniqueId = GetUniqueIdSeed();
+
+		/// <summary>
+		/// Static constructor
+		/// </summary>
+		static ulong GetUniqueIdSeed()
+		{
+			Random rnd = new Random(HashCode.Combine(DateTime.UtcNow.Ticks, Environment.ProcessId, Environment.TickCount64, Environment.MachineName.GetHashCode(StringComparison.Ordinal)));
+
+			Span<byte> process = stackalloc byte[8];
+			rnd.NextBytes(process);
+
+			return BinaryPrimitives.ReadUInt64LittleEndian(process);
+		}
+
+		/// <summary>
+		/// Create a unique locator with the given prefix
+		/// </summary>
+		/// <param name="basePath">Prefix for the locator</param>
+		public static BlobLocator CreateUnique(Utf8String basePath) => CreateUnique(basePath, DateTime.UtcNow);
+
+		/// <summary>
+		/// Create a unique locator with the given prefix
+		/// </summary>
+		/// <param name="basePath">Path prefix for the new locator</param>
+		/// <param name="utcNow">Current time</param>
+		public static BlobLocator CreateUnique(Utf8String basePath, DateTime utcNow)
+		{
+			byte[] data;
+			if (basePath.Length == 0)
+			{
+				data = new byte[24];
+			}
+			else
+			{
+				data = new byte[basePath.Length + 1 + 24];
+				basePath.Span.CopyTo(data);
+				data[basePath.Length] = (byte)'/';
+			}
+
+			Span<byte> output = data.AsSpan(data.Length - 24);
+
+			uint timestamp = (uint)((utcNow - DateTime.UnixEpoch).Ticks / TimeSpan.TicksPerSecond);
+			StringUtils.FormatUtf8HexString(timestamp, output);
+
+			ulong seed = Interlocked.Increment(ref s_uniqueId);
+			StringUtils.FormatUtf8HexString(seed, output.Slice(8));
+
+			return new BlobLocator(new Utf8String(data));
+		}
 
 		/// <inheritdoc/>
-		public override bool Equals(object? obj) => obj is BlobLocator blobId && Equals(blobId);
+		public override bool Equals(object? obj) => obj is BlobLocator other && Equals(other);
 
 		/// <inheritdoc/>
-		public override int GetHashCode() => Inner.GetHashCode();
+		public bool Equals(BlobLocator locator) => Path == locator.Path;
 
 		/// <inheritdoc/>
-		public bool Equals(BlobLocator locator) => Inner == locator.Inner;
+		public override int GetHashCode() => Path.GetHashCode();
+
+		/// <summary>
+		/// Checks whether this blob is within the given folder
+		/// </summary>
+		/// <param name="folderName">Name of the folder</param>
+		/// <returns>True if the the blob id is within the given folder</returns>
+		public bool WithinFolder(Utf8String folderName)
+		{
+			Utf8String path = Path;
+			return path.Length > folderName.Length && path.StartsWith(folderName) && path[folderName.Length] == '/';
+		}
 
 		/// <inheritdoc/>
-		public override string ToString() => Inner.ToString();
+		public override string ToString() => Path.ToString();
 
 		/// <inheritdoc/>
 		public static bool operator ==(BlobLocator lhs, BlobLocator rhs) => lhs.Equals(rhs);
@@ -240,7 +229,7 @@ namespace EpicGames.Horde.Storage
 		public override BlobLocator Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => new BlobLocator(new Utf8String(reader.GetUtf8String().ToArray()));
 
 		/// <inheritdoc/>
-		public override void Write(Utf8JsonWriter writer, BlobLocator value, JsonSerializerOptions options) => writer.WriteStringValue(value.Inner.Span);
+		public override void Write(Utf8JsonWriter writer, BlobLocator value, JsonSerializerOptions options) => writer.WriteStringValue(value.Path.Span);
 	}
 
 	/// <summary>
@@ -270,10 +259,10 @@ namespace EpicGames.Horde.Storage
 		public override BlobLocator Read(CbField field) => new BlobLocator(field.AsUtf8String());
 
 		/// <inheritdoc/>
-		public override void Write(CbWriter writer, BlobLocator value) => writer.WriteUtf8StringValue(value.Inner);
+		public override void Write(CbWriter writer, BlobLocator value) => writer.WriteUtf8StringValue(value.Path);
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, BlobLocator value) => writer.WriteUtf8String(name, value.Inner);
+		public override void WriteNamed(CbWriter writer, Utf8String name, BlobLocator value) => writer.WriteUtf8String(name, value.Path);
 	}
 
 	/// <summary>
@@ -298,7 +287,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="value">Value to serialize</param>
 		public static void WriteBlobLocator(this IMemoryWriter writer, BlobLocator value)
 		{
-			writer.WriteUtf8String(value.Inner);
+			writer.WriteUtf8String(value.Path);
 		}
 	}
 }

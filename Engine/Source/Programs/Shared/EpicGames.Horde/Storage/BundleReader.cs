@@ -44,7 +44,7 @@ namespace EpicGames.Horde.Storage
 			public readonly BlobLocator Blob;
 			public readonly TaskCompletionSource<BundleInfo> CompletionSource = new TaskCompletionSource<BundleInfo>();
 
-			public BlobId BlobId => Blob.BlobId;
+			public Utf8String Path => Blob.Path;
 
 			public QueuedHeader(BlobLocator blob)
 			{
@@ -61,7 +61,7 @@ namespace EpicGames.Horde.Storage
 			public readonly int PacketIdx;
 			public readonly TaskCompletionSource<ReadOnlyMemory<byte>> CompletionSource = new TaskCompletionSource<ReadOnlyMemory<byte>>();
 
-			public BlobId BlobId => Bundle.Locator.BlobId;
+			public Utf8String Path => Bundle.Locator.Path;
 
 			public QueuedPacket(BundleInfo bundle, int packetIdx)
 			{
@@ -101,9 +101,9 @@ namespace EpicGames.Horde.Storage
 
 		#region Bundles
 
-		static string GetBundleInfoCacheKey(BlobId blobId) => $"bundle:{blobId}";
-		static string GetEncodedPacketCacheKey(BlobId blobId, int packetIdx) => $"encoded-packet:{blobId}#{packetIdx}";
-		static string GetDecodedPacketCacheKey(BlobId blobId, int packetIdx) => $"decoded-packet:{blobId}#{packetIdx}";
+		static string GetBundleInfoCacheKey(BlobLocator locator) => $"bundle:{locator}";
+		static string GetEncodedPacketCacheKey(BlobLocator locator, int packetIdx) => $"encoded-packet:{locator}#{packetIdx}";
+		static string GetDecodedPacketCacheKey(BlobLocator locator, int packetIdx) => $"decoded-packet:{locator}#{packetIdx}";
 
 		/// <summary>
 		/// Adds an object to the storage cache
@@ -142,7 +142,7 @@ namespace EpicGames.Horde.Storage
 		{
 			const int MaxConcurrentReads = 4;
 
-			List<(BlobId BlobId, Task Task)> currentTasks = new List<(BlobId, Task)>();
+			List<(Utf8String Path, Task Task)> currentTasks = new List<(Utf8String, Task)>();
 			for (; ; )
 			{
 				// Start any new reads
@@ -150,23 +150,23 @@ namespace EpicGames.Horde.Storage
 				{
 					while (currentTasks.Count < MaxConcurrentReads)
 					{
-						HashSet<BlobId> currentBlobIds = new HashSet<BlobId>(currentTasks.Select(x => x.BlobId));
+						HashSet<Utf8String> currentPaths = new HashSet<Utf8String>(currentTasks.Select(x => x.Path));
 
 						// Try to start another header read
-						QueuedHeader? queuedHeader = _queuedHeaders.FirstOrDefault(x => !currentBlobIds.Contains(x.BlobId));
+						QueuedHeader? queuedHeader = _queuedHeaders.FirstOrDefault(x => !currentPaths.Contains(x.Path));
 						if (queuedHeader != null)
 						{
 							Task task = Task.Run(() => PerformHeaderReadGuardedAsync(queuedHeader, cancellationToken), cancellationToken);
-							currentTasks.Add((queuedHeader.BlobId, task));
+							currentTasks.Add((queuedHeader.Path, task));
 							continue;
 						}
 
 						// Try to start another packet read
-						QueuedPacket? queuedPacket = _queuedPackets.FirstOrDefault(x => !currentBlobIds.Contains(x.BlobId));
+						QueuedPacket? queuedPacket = _queuedPackets.FirstOrDefault(x => !currentPaths.Contains(x.Path));
 						if (queuedPacket != null)
 						{
 							Task task = Task.Run(() => PerformPacketReadGuardedAsync(queuedPacket, cancellationToken), cancellationToken);
-							currentTasks.Add((queuedPacket.BlobId, task));
+							currentTasks.Add((queuedPacket.Path, task));
 							continue;
 						}
 
@@ -193,7 +193,7 @@ namespace EpicGames.Horde.Storage
 					{
 						if (task.Exception != null)
 						{
-							_logger.LogError(task.Exception, "Exception while reading from blob {BlobId}.", currentTasks[idx].BlobId);
+							_logger.LogError(task.Exception, "Exception while reading from blob {BlobId}.", currentTasks[idx].Path);
 						}
 						currentTasks.RemoveAt(idx--);
 					}
@@ -263,13 +263,13 @@ namespace EpicGames.Horde.Storage
 							}
 
 							ReadOnlyMemory<byte> packetData = memory.Slice(packetOffset, packetLength).ToArray();
-							AddToCache(GetEncodedPacketCacheKey(queuedHeader.Blob.BlobId, packetIdx), packetData, packetData.Length);
+							AddToCache(GetEncodedPacketCacheKey(queuedHeader.Blob, packetIdx), packetData, packetData.Length);
 							packets.Add(packetData);
 							packetOffset += packetLength;
 						}
 
 						// Add the info to the cache
-						string cacheKey = GetBundleInfoCacheKey(queuedHeader.Blob.BlobId);
+						string cacheKey = GetBundleInfoCacheKey(queuedHeader.Blob);
 						AddToCache(cacheKey, bundleInfo, headerSize);
 					}
 
@@ -338,7 +338,7 @@ namespace EpicGames.Horde.Storage
 				{
 					for (int idx = minPacketIdx; idx < maxPacketIdx; idx++)
 					{
-						string cacheKey = GetEncodedPacketCacheKey(bundleInfo.Locator.BlobId, idx);
+						string cacheKey = GetEncodedPacketCacheKey(bundleInfo.Locator, idx);
 						ReadOnlyMemory<byte> data = buffer.Slice(bundleInfo.Header.Packets[idx].EncodedOffset - bundleInfo.Header.Packets[minPacketIdx].EncodedOffset, bundleInfo.Header.Packets[idx].EncodedLength).ToArray();
 						packets[idx - minPacketIdx] = data;
 						AddToCache(cacheKey, data, data.Length);
@@ -349,7 +349,7 @@ namespace EpicGames.Horde.Storage
 				List<QueuedPacket> updatePackets = new List<QueuedPacket>();
 				lock (_queueLock)
 				{
-					updatePackets.AddRange(_queuedPackets.Where(x => x.BlobId == bundleInfo.Locator.BlobId && (x.PacketIdx >= minPacketIdx && x.PacketIdx < maxPacketIdx)));
+					updatePackets.AddRange(_queuedPackets.Where(x => x.Path == bundleInfo.Locator.Path && (x.PacketIdx >= minPacketIdx && x.PacketIdx < maxPacketIdx)));
 				}
 
 				// Mark them all as complete
@@ -393,7 +393,7 @@ namespace EpicGames.Horde.Storage
 		{
 			Debug.Assert(locator.IsValid());
 
-			string cacheKey = GetBundleInfoCacheKey(locator.BlobId);
+			string cacheKey = GetBundleInfoCacheKey(locator);
 			if (_cache != null && _cache.TryGetValue(cacheKey, out BundleInfo bundleInfo))
 			{
 				return bundleInfo;
@@ -409,7 +409,7 @@ namespace EpicGames.Horde.Storage
 				}
 
 				// Find or start the read
-				queuedHeader = _queuedHeaders.FirstOrDefault(x => x.Blob.BlobId == locator.BlobId);
+				queuedHeader = _queuedHeaders.FirstOrDefault(x => x.Blob == locator);
 				if (queuedHeader == null)
 				{
 					queuedHeader = new QueuedHeader(locator);
@@ -429,7 +429,7 @@ namespace EpicGames.Horde.Storage
 		/// <returns>The decoded data</returns>
 		async ValueTask<ReadOnlyMemory<byte>> ReadBundlePacketAsync(BundleInfo bundleInfo, int packetIdx, CancellationToken cancellationToken)
 		{
-			char c = bundleInfo.Locator.BlobId.ToString()[0];
+			char c = bundleInfo.Locator.ToString()[0];
 			Debug.Assert(Char.IsLetterOrDigit(c));
 
 			if (packetIdx < 0 || packetIdx >= bundleInfo.Header.Packets.Count)
@@ -437,7 +437,7 @@ namespace EpicGames.Horde.Storage
 				throw new ArgumentException("Packet index is out of range", nameof(packetIdx));
 			}
 
-			string decodedCacheKey = GetDecodedPacketCacheKey(bundleInfo.Locator.BlobId, packetIdx);
+			string decodedCacheKey = GetDecodedPacketCacheKey(bundleInfo.Locator, packetIdx);
 			if (_cache != null && _cache.TryGetValue(decodedCacheKey, out ReadOnlyMemory<byte> decodedPacket))
 			{
 				return decodedPacket;
@@ -477,7 +477,7 @@ namespace EpicGames.Horde.Storage
 
 			BundleData.Decompress(packet.CompressionFormat, encodedPacket, decodedPacket);
 
-			string decodedCacheKey = GetDecodedPacketCacheKey(bundleInfo.Locator.BlobId, packetIdx);
+			string decodedCacheKey = GetDecodedPacketCacheKey(bundleInfo.Locator, packetIdx);
 			AddToCache(decodedCacheKey, (ReadOnlyMemory<byte>)decodedPacket, decodedPacket.Length);
 
 			lock (_queueLock)
@@ -496,7 +496,7 @@ namespace EpicGames.Horde.Storage
 		/// <returns>The encoded packet data</returns>
 		async ValueTask<ReadOnlyMemory<byte>> ReadEncodedPacketAsync(BundleInfo bundleInfo, int packetIdx)
 		{
-			char c = bundleInfo.Locator.BlobId.ToString()[0];
+			char c = bundleInfo.Locator.ToString()[0];
 			Debug.Assert(Char.IsLetterOrDigit(c));
 
 			if (packetIdx < 0 || packetIdx >= bundleInfo.Header.Packets.Count)
@@ -504,7 +504,7 @@ namespace EpicGames.Horde.Storage
 				throw new ArgumentException("Packet index is out of range", nameof(packetIdx));
 			}
 
-			string encodedCacheKey = GetEncodedPacketCacheKey(bundleInfo.Locator.BlobId, packetIdx);
+			string encodedCacheKey = GetEncodedPacketCacheKey(bundleInfo.Locator, packetIdx);
 			if (_cache != null && _cache.TryGetValue(encodedCacheKey, out ReadOnlyMemory<byte> encodedPacket))
 			{
 				return encodedPacket;
@@ -520,7 +520,7 @@ namespace EpicGames.Horde.Storage
 				}
 
 				// Add a read to the queue
-				queuedPacket = _queuedPackets.FirstOrDefault(x => x.Bundle.Locator.BlobId == bundleInfo.Locator.BlobId && x.PacketIdx == packetIdx);
+				queuedPacket = _queuedPackets.FirstOrDefault(x => x.Bundle.Locator == bundleInfo.Locator && x.PacketIdx == packetIdx);
 				if (queuedPacket == null)
 				{
 					queuedPacket = new QueuedPacket(bundleInfo, packetIdx);

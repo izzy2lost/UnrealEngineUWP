@@ -184,7 +184,7 @@ namespace Horde.Server.Artifacts
 			{
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
 			}
-			if (!locator.BlobId.WithinFolder(artifact.RefName.Text))
+			if (!locator.WithinFolder(artifact.RefName.Text))
 			{
 				return BadRequest("Invalid blob id for artifact");
 			}

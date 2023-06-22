@@ -559,7 +559,7 @@ namespace Horde.Server.Tools
 				return Forbid(ToolAclAction.DownloadTool, id);
 			}
 
-			if (!locator.BlobId.WithinFolder(tool.Id.Id.Text))
+			if (!locator.WithinFolder(tool.Id.Id.Text))
 			{
 				return BadRequest("Invalid blob id for tool");
 			}

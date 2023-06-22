@@ -154,39 +154,39 @@ namespace Horde.Server.Storage
 		/// </summary>
 		/// <param name="path">Path to the blob</param>
 		/// <returns>Path to the blob</returns>
-		public static BlobId GetBlobIdFromPath(string path)
+		public static Utf8String GetBlobPathFromFileName(string path)
 		{
-			BlobId blobId;
-			if (!TryGetBlobIdFromPath(path, out blobId))
+			Utf8String blobPath;
+			if (!TryGetBlobPathFromFileName(path, out blobPath))
 			{
 				throw new ArgumentException("Path is not a valid blob identifier", nameof(path));
 			}
-			return blobId;
+			return blobPath;
 		}
 
 		/// <summary>
 		/// Gets the path to a blob
 		/// </summary>
-		/// <param name="blobId">Blob identifier</param>
+		/// <param name="blobPath">Blob identifier</param>
 		/// <returns>Path to the blob</returns>
-		public static string GetBlobPath(BlobId blobId) => $"{blobId}{BlobExtension}";
+		public static string GetBlobFileName(Utf8String blobPath) => $"{blobPath}{BlobExtension}";
 
 		/// <summary>
 		/// Gets a blob id from a path within the storage backend
 		/// </summary>
 		/// <param name="path">Path to the file</param>
-		/// <param name="blobId">Receives the blob id on success</param>
+		/// <param name="blobPath">Receives the blob id on success</param>
 		/// <returns>True on success</returns>
-		public static bool TryGetBlobIdFromPath(string path, out BlobId blobId)
+		public static bool TryGetBlobPathFromFileName(string path, out Utf8String blobPath)
 		{
 			if (path.EndsWith(BlobExtension, StringComparison.Ordinal))
 			{
-				blobId = new BlobId(path.Substring(0, path.Length - BlobExtension.Length));
+				blobPath = new Utf8String(path.Substring(0, path.Length - BlobExtension.Length));
 				return true;
 			}
 			else
 			{
-				blobId = default;
+				blobPath = default;
 				return false;
 			}
 		}

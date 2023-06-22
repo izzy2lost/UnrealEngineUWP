@@ -251,11 +251,34 @@ namespace EpicGames.Core
 		/// <inheritdoc/>
 		public override int GetHashCode() => (int)_a;
 
-		/// <inheritdoc/>
-		public Utf8String ToUtf8String() => StringUtils.FormatUtf8HexString(ToByteArray());
+		/// <summary>
+		/// Format the hash as a utf8 string
+		/// </summary>
+		public Utf8String ToUtf8String()
+		{
+			Span<byte> buffer = stackalloc byte[IoHash.NumBytes];
+			CopyTo(buffer);
+			return StringUtils.FormatUtf8HexString(buffer);
+		}
+
+		/// <summary>
+		/// Formats the hash as a utf8 string
+		/// </summary>
+		/// <param name="chars">Output buffer for the converted string</param>
+		public void ToUtf8String(Span<byte> chars)
+		{
+			Span<byte> buffer = stackalloc byte[IoHash.NumBytes];
+			CopyTo(buffer);
+			StringUtils.FormatUtf8HexString(buffer, chars);
+		}
 
 		/// <inheritdoc/>
-		public override string ToString() => StringUtils.FormatHexString(ToByteArray());
+		public override string ToString()
+		{
+			Span<byte> buffer = stackalloc byte[IoHash.NumBytes];
+			CopyTo(buffer);
+			return StringUtils.FormatHexString(buffer);
+		}
 
 		/// <summary>
 		/// Convert this hash to a byte array

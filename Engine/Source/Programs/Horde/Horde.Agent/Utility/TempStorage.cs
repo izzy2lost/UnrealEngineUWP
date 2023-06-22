@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
@@ -543,7 +544,30 @@ namespace Horde.Storage.Utility
 		/// <returns></returns>
 		public static RefName GetRefNameForNode(string refPrefix, string nodeName)
 		{
-			return new RefName(RefName.Sanitize($"{refPrefix}/steps/{nodeName}"));
+			byte[] name = Encoding.UTF8.GetBytes($"{refPrefix}/steps/{nodeName}");
+
+			int outputIdx = 0;
+			for (int idx = 0; idx < name.Length; idx++)
+			{
+				if (name[idx] >= 'A' && name[idx] <= 'Z')
+				{
+					name[outputIdx++] = (byte)(name[idx] + 'a' - 'A');
+				}
+				else if ((name[idx] >= 'a' && name[idx] <= 'z') || (name[idx] >= '0' && name[idx] <= '9') || name[idx] == '+')
+				{
+					name[outputIdx++] = name[idx];
+				}
+				else if (name[idx] == '/' && outputIdx > 0)
+				{
+					name[outputIdx++] = (byte)'/';
+				}
+				else if (name.Length > 0 && name[name.Length - 1] != '-')
+				{
+					name[outputIdx++] = (byte)'-';
+				}
+			}
+
+			return new RefName(new Utf8String(name.AsMemory(0, outputIdx)));
 		}
 
 		/// <summary>

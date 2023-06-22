@@ -122,14 +122,14 @@ namespace Horde.Server.Storage
 				}
 			}
 
-			string GetBlobPath(BlobId blobId) => $"{_prefix}{blobId}.blob";
+			string GetBlobPath(BlobLocator locator) => $"{_prefix}{locator.Path}.blob";
 
 			#region Blobs
 
 			/// <inheritdoc/>
 			public override async Task<Stream> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 			{
-				string path = GetBlobPath(locator.BlobId);
+				string path = GetBlobPath(locator);
 
 				Stream? stream = await Backend.TryReadAsync(path, cancellationToken);
 				if (stream == null)
@@ -141,12 +141,12 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
-			public ValueTask<Uri?> GetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) => Backend.TryGetReadRedirectAsync(GetBlobPath(locator.BlobId), cancellationToken);
+			public ValueTask<Uri?> GetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) => Backend.TryGetReadRedirectAsync(GetBlobPath(locator), cancellationToken);
 
 			/// <inheritdoc/>
 			public override async Task<Stream> ReadBlobRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default)
 			{
-				string path = GetBlobPath(locator.BlobId);
+				string path = GetBlobPath(locator);
 
 				Stream? stream = await Backend.TryReadAsync(path, offset, length, cancellationToken);
 				if (stream == null)
@@ -176,7 +176,7 @@ namespace Horde.Server.Storage
 						locator = await _outer.AddBlobAsync(NamespaceId, prefix, null, cancellationToken);
 
 						// Write it to the backend
-						string path = GetBlobPath(locator.BlobId);
+						string path = GetBlobPath(locator);
 						memoryStream.Position = 0;
 						await Backend.WriteAsync(path, memoryStream, cancellationToken);
 					}
@@ -187,7 +187,7 @@ namespace Horde.Server.Storage
 					locator = await _outer.AddBlobAsync(NamespaceId, prefix, null, cancellationToken);
 
 					// Write it to the backend
-					string path = GetBlobPath(locator.BlobId);
+					string path = GetBlobPath(locator);
 					await Backend.WriteAsync(path, stream, cancellationToken);
 				}
 				return locator;
@@ -202,7 +202,7 @@ namespace Horde.Server.Storage
 				}
 
 				BlobLocator locator = await _outer.AddBlobAsync(NamespaceId, prefix, null, cancellationToken);
-				string path = GetBlobPath(locator.BlobId);
+				string path = GetBlobPath(locator);
 
 				Uri? url = await Backend.TryGetWriteRedirectAsync(path, cancellationToken);
 				if (url == null)
@@ -213,9 +213,9 @@ namespace Horde.Server.Storage
 				return (locator, url);
 			}
 
-			public async Task DeleteBlobAsync(BlobId blobId, CancellationToken cancellationToken = default)
+			public async Task DeleteBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 			{
-				string path = GetBlobPath(blobId);
+				string path = GetBlobPath(locator);
 				await Backend.DeleteAsync(path, cancellationToken);
 			}
 
@@ -340,11 +340,8 @@ namespace Horde.Server.Storage
 			[BsonElement("ns")]
 			public NamespaceId NamespaceId { get; set; }
 
-			[BsonElement("host")]
-			public HostId HostId { get; set; }
-
 			[BsonElement("blob")]
-			public BlobId BlobId { get; set; }
+			public string Path { get; set; }
 
 			[BsonElement("imp"), BsonIgnoreIfNull]
 			public List<ObjectId>? Imports { get; set; }
@@ -353,18 +350,18 @@ namespace Horde.Server.Storage
 			public List<ExportInfo>? Exports { get; set; }
 
 			[BsonIgnore]
-			public BlobLocator Locator => new BlobLocator(HostId, BlobId);
+			public BlobLocator Locator => new BlobLocator(Path);
 
 			public BlobInfo()
 			{
+				Path = String.Empty;
 			}
 
-			public BlobInfo(ObjectId id, NamespaceId namespaceId, HostId hostId, BlobId blobId)
+			public BlobInfo(ObjectId id, NamespaceId namespaceId, BlobLocator locator)
 			{
 				Id = id;
 				NamespaceId = namespaceId;
-				HostId = hostId;
-				BlobId = blobId;
+				Path = locator.Path.ToString();
 			}
 		}
 
@@ -481,7 +478,7 @@ namespace Horde.Server.Storage
 
 			List<MongoIndex<BlobInfo>> blobIndexes = new List<MongoIndex<BlobInfo>>();
 			blobIndexes.Add(keys => keys.Ascending(x => x.Imports));
-			blobIndexes.Add(keys => keys.Ascending(x => x.NamespaceId).Ascending(x => x.BlobId), unique: true);
+			blobIndexes.Add(keys => keys.Ascending(x => x.NamespaceId).Ascending(x => x.Path), unique: true);
 			blobIndexes.Add(keys => keys.Ascending(x => x.NamespaceId).Ascending($"{nameof(BlobInfo.Exports)}.{nameof(ExportInfo.Alias)}"));
 			_blobCollection = mongoService.GetCollection<BlobInfo>("Storage.Blobs", blobIndexes);
 
@@ -611,16 +608,14 @@ namespace Horde.Server.Storage
 		/// <inheritdoc/>
 		async Task<BlobLocator> AddBlobAsync(NamespaceId namespaceId, Utf8String prefix = default, List<ExportInfo>? exports = null, CancellationToken cancellationToken = default)
 		{
-			HostId hostId = HostId.Empty;
-
 			ObjectId id = ObjectId.GenerateNewId(_clock.UtcNow);
-			BlobId blobId = (prefix.Length > 0) ? new BlobId($"{prefix}/{id}") : new BlobId(id.ToString());
+			BlobLocator blobId = (prefix.Length > 0) ? new BlobLocator($"{prefix}/{id}") : new BlobLocator(id.ToString());
 
-			BlobInfo blobInfo = new BlobInfo(id, namespaceId, hostId, blobId);
+			BlobInfo blobInfo = new BlobInfo(id, namespaceId, blobId);
 			blobInfo.Exports = exports;
 			await _blobCollection.InsertOneAsync(blobInfo, new InsertOneOptions { }, cancellationToken);
 
-			return new BlobLocator(hostId, blobId);
+			return blobId;
 		}
 
 		/// <inheritdoc/>
@@ -678,8 +673,8 @@ namespace Horde.Server.Storage
 								List<ObjectId> importInfoIds = new List<ObjectId>();
 								foreach (BlobLocator import in header.Imports)
 								{
-									FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == blobInfo.NamespaceId && x.BlobId == import.BlobId);
-									UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.SetOnInsert(x => x.HostId, import.HostId);
+									FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == blobInfo.NamespaceId && x.Path == import.Path);
+									UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.SetOnInsert(x => x.Imports, null);
 									BlobInfo blobInfoDoc = await _blobCollection.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<BlobInfo> { IsUpsert = true, ReturnDocument = ReturnDocument.After }, cancellationToken);
 									importInfoIds.Add(blobInfoDoc.Id);
 								}
@@ -709,7 +704,7 @@ namespace Horde.Server.Storage
 		/// <returns>Sequence of thandles</returns>
 		async Task AddAliasAsync(NamespaceId namespaceId, Utf8String alias, NodeLocator target, CancellationToken cancellationToken = default)
 		{
-			BlobInfo? blobInfo = await _blobCollection.Find(x => x.NamespaceId == namespaceId && x.BlobId == target.Blob.BlobId).FirstOrDefaultAsync(cancellationToken);
+			BlobInfo? blobInfo = await _blobCollection.Find(x => x.NamespaceId == namespaceId && x.Path == target.Blob.Path).FirstOrDefaultAsync(cancellationToken);
 			if (blobInfo == null)
 			{
 				throw new KeyNotFoundException($"Missing blob {target.Blob}");
@@ -720,7 +715,7 @@ namespace Horde.Server.Storage
 				return;
 			}
 
-			FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == blobInfo.NamespaceId && x.BlobId == target.Blob.BlobId);
+			FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Expr(x => x.NamespaceId == blobInfo.NamespaceId && x.Path == target.Blob.Path);
 			UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.Push(x => x.Exports, new ExportInfo(alias.ToString(), target.Hash, target.ExportIdx));
 			await _blobCollection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
 		}
@@ -881,10 +876,10 @@ namespace Horde.Server.Storage
 		/// <inheritdoc/>
 		async Task WriteRefTargetAsync(NamespaceId namespaceId, RefName name, NodeLocator target, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
-			BlobInfo? newBlobInfo = await _blobCollection.Find(x => x.NamespaceId == namespaceId && x.BlobId == target.Blob.BlobId).FirstOrDefaultAsync(cancellationToken);
+			BlobInfo? newBlobInfo = await _blobCollection.Find(x => x.NamespaceId == namespaceId && x.Path == target.Blob.Path).FirstOrDefaultAsync(cancellationToken);
 			if (newBlobInfo == null)
 			{
-				throw new Exception($"Invalid/unknown blob identifier '{target.Blob.BlobId}' in namespace {namespaceId}");
+				throw new Exception($"Invalid/unknown blob identifier '{target.Blob.Path}' in namespace {namespaceId}");
 			}
 
 			RefInfo newRefInfo = new RefInfo(namespaceId, name, target, newBlobInfo.Id);
@@ -1032,7 +1027,7 @@ namespace Horde.Server.Storage
 							_ = _redisService.GetDatabase().SortedSetAddAsync(checkSet, entries, flags: CommandFlags.FireAndForget);
 							score = Math.BitIncrement(score);
 						}
-						await namespaceInfo.Client.DeleteBlobAsync(info.BlobId, cancellationToken);
+						await namespaceInfo.Client.DeleteBlobAsync(info.Locator, cancellationToken);
 					}
 				}
 				_ = _redisService.GetDatabase().SortedSetRemoveAsync(checkSet, values[0], CommandFlags.FireAndForget);
