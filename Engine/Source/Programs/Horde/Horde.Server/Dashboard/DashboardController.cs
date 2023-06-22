@@ -140,6 +140,8 @@ namespace Horde.Server.Dashboard
 			dashboardConfigResponse.HelpEmailAddress = _settings.HelpEmailAddress;
 			dashboardConfigResponse.HelpSlackChannel = _settings.HelpSlackChannel;
 
+			dashboardConfigResponse.DeviceProblemCooldownMinutes = _settings.DeviceProblemCooldownMinutes;
+
 			return dashboardConfigResponse;
 		}
 

@@ -737,6 +737,17 @@ namespace Horde.Server
 		public int SharedDeviceCheckoutDays { get; set; } = 3;
 
 		/// <summary>
+		/// The number of cooldown minutes for device problems
+		/// </summary>
+		public int DeviceProblemCooldownMinutes { get; set; } = 10;
+
+		/// <summary>
+		/// Channel to send device reports to
+		/// </summary>
+		public string? DeviceReportChannel { get; set; }
+
+
+		/// <summary>
 		/// Default agent pool sizing strategy for pools that doesn't have one explicitly configured
 		/// </summary>
 		public PoolSizeStrategy DefaultAgentPoolSizeStrategy { get; set; } = PoolSizeStrategy.LeaseUtilization;

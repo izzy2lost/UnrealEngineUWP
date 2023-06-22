@@ -298,6 +298,23 @@ namespace Horde.Server.Notifications
 			EnqueueTasks(sink => sink.NotifyDeviceServiceAsync(message, device, pool, streamConfig, job, step, node, user));
 		}
 
+		/// <inheritdoc/>
+		public async Task SendDeviceIssueReportAsync(DeviceIssueReport report)
+		{
+			foreach (INotificationSink sink in _sinks)
+			{
+				try
+				{
+					await sink.SendDeviceIssueReportAsync(report);
+				}
+				catch (Exception e)
+				{
+					_logger.LogError(e, "Failed sending issue report to {Channel}", report.Channel);
+				}
+			}
+		}
+
+
 		/// <summary>
 		/// Enqueues an async task
 		/// </summary>

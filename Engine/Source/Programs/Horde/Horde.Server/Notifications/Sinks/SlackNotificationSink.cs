@@ -14,14 +14,12 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Timers;
 using EpicGames.Core;
 using EpicGames.Redis;
 using EpicGames.Redis.Utility;
 using EpicGames.Slack;
 using EpicGames.Slack.Blocks;
 using EpicGames.Slack.Elements;
-using Horde.Server.Agents;
 using Horde.Server.Configuration;
 using Horde.Server.Devices;
 using Horde.Server.Issues;
@@ -35,6 +33,7 @@ using Horde.Server.Users;
 using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -2118,6 +2117,110 @@ namespace Horde.Server.Notifications.Sinks
 		#endregion
 
 		#region Device notifications
+
+		/// <inheritdoc/>
+		public async Task SendDeviceIssueReportAsync(DeviceIssueReport report)
+		{			
+			if (report.PoolReports.Count > 0)
+			{
+				SlackMessage headerMessage = new SlackMessage();
+				headerMessage.AddHeader($"Device Pool Health Summary");
+				await SendMessageAsync(report.Channel, headerMessage);
+
+				foreach (DevicePoolReport pool in report.PoolReports)
+				{
+					List<SlackAttachment> attachments = new List<SlackAttachment>();
+					foreach (DevicePoolMetrics metrics in pool.Metrics)
+					{
+						
+						double totalPct = (((double)metrics.Disabled + (double)metrics.Maintenance + (double)metrics.Problems) / (double)metrics.Total) * 100.0;
+
+						StringBuilder builder = new StringBuilder("   ");
+
+						string color = "#eeeeee";
+
+						if (totalPct >= 40)
+						{
+							color = "#ff0000";
+						}
+						else if (totalPct >= 20)
+						{
+							color = "#ffff00";
+						}
+						else
+						{
+							continue;
+						}
+
+						builder.Append($"*{metrics.PlatformName}* - ");
+
+						if (metrics.Problems > 0)
+						{
+							builder.Append($"Problems: { metrics.Problems}, ");
+						}
+
+						builder.Append($"Devices: {metrics.Total}, Disabled: {metrics.Disabled}, Maintenance: {metrics.Maintenance}");
+
+						SlackAttachment attachment = new SlackAttachment();
+						attachment.FallbackText = builder.ToString();
+						attachment.Color = color;
+						attachment.AddSection(builder.ToString());
+						attachments.Add(attachment);
+					}
+					if (attachments.Count > 0)
+					{
+						SlackMessage message = new SlackMessage();
+						message.Attachments.AddRange(attachments);
+						message.Markdown = true;
+						message.Text = $"*{pool.PoolName}*";
+						await SendMessageAsync(report.Channel, message);
+					}					
+				}
+
+				SlackMessage divider = new SlackMessage();
+				divider.AddDivider();
+				await SendMessageAsync(report.Channel, divider);
+
+			}
+
+			if (report.PlatformReports.Count > 0)
+			{
+				SlackMessage headerMessage = new SlackMessage();
+				headerMessage.AddHeader($"Device Problems Since Last Update");
+				await SendMessageAsync(report.Channel, headerMessage);
+
+				foreach (DevicePlatformReport platform in report.PlatformReports)
+				{
+					SlackMessage message = new SlackMessage();
+					message.Markdown = true;
+					message.Text = $"*{platform.PlatformName}*";					
+
+					SlackAttachment attachment = new SlackAttachment();
+
+					foreach (DeviceReport device in platform.DeviceReports.OrderByDescending(r => r.ProblemDelta))
+					{
+						StringBuilder builder = new StringBuilder($"   {device.DeviceName} / {device.DeviceAddress}");
+
+						builder.Append($" / Problems: {device.ProblemDelta}");
+						
+						if (!String.IsNullOrEmpty(device.LastProblemURL))
+						{						
+							builder.Append($" - <{device.LastProblemURL}|{device.LastProblemDesc ?? "??"}>");
+						}
+
+						attachment.FallbackText = builder.ToString();
+						attachment.AddSection(builder.ToString());
+					}
+
+					message.Attachments.Add(attachment);
+					await SendMessageAsync(report.Channel, message);
+				}
+
+				SlackMessage divider = new SlackMessage();
+				divider.AddDivider();
+				await SendMessageAsync(report.Channel, divider);
+			}
+		}
 
 		/// <inheritdoc/>
 		public async Task NotifyDeviceServiceAsync(string message, IDevice? device = null, IDevicePool? pool = null, StreamConfig? streamConfig = null, IJob? job = null, IJobStep? step = null, INode? node = null, IUser? user = null)

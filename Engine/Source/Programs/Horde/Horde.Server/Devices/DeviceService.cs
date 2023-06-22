@@ -186,7 +186,7 @@ namespace Horde.Server.Devices
 			{
 				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(DeviceService)}.{nameof(TickTelemetryAsync)}");
 				_logger.LogInformation("Updating pool telemetry");
-				await _devices.CreatePoolTelemetrySnapshot();
+				await _devices.CreatePoolTelemetrySnapshot(_settings.CurrentValue.DeviceProblemCooldownMinutes);
 			}
 		}
 
@@ -441,7 +441,7 @@ namespace Horde.Server.Devices
 				}
 			}
 
-			return await _devices.TryAddReservationAsync(pool, request, hostname, reservationDetails, streamId, jobId, stepId, jobName, stepName);
+			return await _devices.TryAddReservationAsync(pool, request, _settings.CurrentValue.DeviceProblemCooldownMinutes, hostname, reservationDetails, streamId, jobId, stepId, jobName, stepName);
 		}
 
 		/// <summary>

@@ -701,6 +701,7 @@ namespace Horde.Server
 				services.AddHostedService<PoolUpdateService>();
 				services.AddHostedService<TelemetryService>();
 				services.AddHostedService(provider => provider.GetRequiredService<DeviceService>());
+				services.AddHostedService<DeviceReportService>();
 				services.AddHostedService(provider => provider.GetRequiredService<TestDataService>());
 				
 				if (settings.Commits.ReplicateMetadata)

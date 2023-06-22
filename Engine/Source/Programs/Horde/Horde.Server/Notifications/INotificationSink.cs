@@ -118,6 +118,14 @@ namespace Horde.Server.Notifications
 		/// <param name="user"></param>
 		/// <returns></returns>
 		Task NotifyDeviceServiceAsync(string message, IDevice? device = null, IDevicePool? pool = null, StreamConfig? streamConfig = null, IJob? job = null, IJobStep? step = null, INode? node = null, IUser? user = null);
-    }
+
+		/// <summary>
+		/// Notify the status of devices
+		/// </summary>
+		/// <param name="report"></param>
+		/// <returns></returns>
+		Task SendDeviceIssueReportAsync(DeviceIssueReport report);
+
+	}
 }
 

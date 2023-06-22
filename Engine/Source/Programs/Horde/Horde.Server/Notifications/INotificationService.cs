@@ -151,6 +151,12 @@ namespace Horde.Server.Notifications
 		void NotifyDeviceService(string message, IDevice? device = null, IDevicePool? pool = null, StreamConfig? streamConfig = null, IJob? job = null, IJobStep? step = null, INode? node = null, IUser? user = null);
 
 		/// <summary>
+		/// Post a notification for device issues
+		/// </summary>
+		/// <param name="report">The report data to send</param>
+		Task SendDeviceIssueReportAsync(DeviceIssueReport report);
+
+		/// <summary>
 		/// Post a notification for the open issues in a stream
 		/// </summary>
 		/// <param name="report">The report data to send</param>

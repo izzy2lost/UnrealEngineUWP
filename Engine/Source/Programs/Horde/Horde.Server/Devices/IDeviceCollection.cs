@@ -176,6 +176,7 @@ namespace Horde.Server.Devices
 		/// </summary>
 		/// <param name="poolId">The pool of devices to use for the new reservation</param>
 		/// <param name="request">The requested devices for the reservation</param>
+		/// <param name="problemCooldown">The configured problem device cooldown in minutes</param>
 		/// <param name="hostname">The hostname of the machine making the reservation</param>
 		/// <param name="reservationDetails">The details of the reservation</param>
 		/// <param name="streamId">The Stream Id associated with the job</param>
@@ -183,7 +184,7 @@ namespace Horde.Server.Devices
 		/// <param name="stepId">The Step Id associated with the job</param>
 		/// <param name="jobName">The Job name associated with the job</param>
 		/// <param name="stepName">The Step name associated with the job</param>		
-		Task<IDeviceReservation?> TryAddReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, string? hostname, string? reservationDetails, string? streamId, string? jobId, string? stepId, string? jobName, string? stepName);
+		Task<IDeviceReservation?> TryAddReservationAsync(DevicePoolId poolId, List<DeviceRequestData> request, int problemCooldown, string? hostname, string? reservationDetails, string? streamId, string? jobId, string? stepId, string? jobName, string? stepName);
 
 		/// <summary>
 		/// Gets a reservation by guid for legacy clients
@@ -246,7 +247,7 @@ namespace Horde.Server.Devices
 		/// Creates a device pool telemetry snapshot
 		/// </summary>
 		/// <returns></returns>
-		public Task CreatePoolTelemetrySnapshot();
+		public Task CreatePoolTelemetrySnapshot(int poolCooldown);
 
 		/// <summary>
 		/// Gets pool telemetry for an optional date range

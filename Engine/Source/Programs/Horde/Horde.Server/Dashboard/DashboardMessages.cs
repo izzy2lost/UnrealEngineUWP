@@ -34,6 +34,11 @@ namespace Horde.Server.Dashboard
 		/// Help slack channel that users can use for issues
 		/// </summary>
 		public string? HelpSlackChannel { get; set; }
+
+		/// <summary>
+		/// Device problem cooldown in minutes
+		/// </summary>
+		public int DeviceProblemCooldownMinutes { get; set; }
 	}
 
 	/// <summary>
