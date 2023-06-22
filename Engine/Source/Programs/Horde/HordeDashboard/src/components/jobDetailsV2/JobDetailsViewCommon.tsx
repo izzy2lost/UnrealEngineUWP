@@ -615,7 +615,7 @@ export class JobDetailsV2 extends PollBase {
 
       const initialRequest = !this.jobData;
 
-      requests.push(backend.getJob(this.jobId));
+      requests.push(backend.getJob(this.jobId, undefined, true, true));
 
       let results: any;
 
@@ -623,6 +623,10 @@ export class JobDetailsV2 extends PollBase {
          console.error(reason);
          this.jobError = reason;
       });
+
+      if (!this.jobError && !results?.length) {
+         this.jobError = "Not Found";
+      }
 
       if (this.jobError) {
          this.setRootUpdated();

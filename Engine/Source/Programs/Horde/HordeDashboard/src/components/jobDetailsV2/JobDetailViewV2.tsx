@@ -53,11 +53,7 @@ const JobBreadCrumbs: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ jobDe
          return <Breadcrumbs items={[{ text: "Loading Job" }]} title={"Loading Job"} spinner={true} />
       }
       else {
-         ErrorHandler.set({
-            reason: `Error loading job data`,
-            title: `Unable to Load Job`,
-            message: `Job ${jobDetails.jobId} could not be loaded.\n\nPlease check that you are on the network and the job stream exists.`
-         }, true);
+         console.error(`Unable to load job ${jobDetails.jobId}: ${jobDetails.jobError}` )
       }
 
       return null;

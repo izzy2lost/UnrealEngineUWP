@@ -251,12 +251,13 @@ export class Backend {
 
     }
 
-    getJob(id: string, query?: JobQuery, includeGraph = true): Promise<JobData> {
+    getJob(id: string, query?: JobQuery, includeGraph = true, show404Error = false): Promise<JobData> {
 
         return new Promise<JobData>((resolve, reject) => {
 
             this.backend.get(`/api/v1/jobs/${id}`, {
-                params: query
+                params: query,
+                show404Error: show404Error
             }).then((value) => {
 
                 const response = value.data as JobData;

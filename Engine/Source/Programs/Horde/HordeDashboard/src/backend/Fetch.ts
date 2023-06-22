@@ -13,7 +13,10 @@ export interface FetchRequestConfig {
     formData?: boolean;
     responseBlob?: boolean;
     params?: Record<string, string | string[] | number | boolean | undefined>;
+    // does not report 404 error
     suppress404?: boolean;
+    // shows error dialog for 404, in addition to logging it
+    show404Error?: boolean;
 }
 
 export type FetchResponse = {
@@ -53,6 +56,25 @@ export class Fetch {
                         });
                         return null;
                     }
+
+
+                    if (!response.ok && response.status === 404 && config?.show404Error) {
+                        response.json().then(o => {
+                            handleError({
+                                response: response,
+                                title: "404 Not Found",
+                                reason: "404 Not Found",
+                                mode: "GET",
+                                url: url,
+                                message: o?.message ?? "Malformed json on response object"
+                            }, true);            
+                        }).catch(reason => {
+                            console.error("Unable to parse response json on 404: ", reason)
+                        });
+                        return null;
+                    }
+
+
                     return response;
                 });
 
