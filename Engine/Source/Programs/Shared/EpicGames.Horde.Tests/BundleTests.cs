@@ -213,7 +213,7 @@ namespace EpicGames.Horde.Tests
 
 			// Should be stored inline
 			Assert.AreEqual(1, store.Refs.Count);
-			Assert.AreEqual(1, store.Blobs.Count);
+			Assert.AreEqual(1, store.Bundles.Count);
 
 			// Check the ref
 			Storage.BlobHandle refTarget = await store.ReadRefTargetAsync(refName);
@@ -242,7 +242,7 @@ namespace EpicGames.Horde.Tests
 		public async Task DedupTests()
 		{
 			Assert.AreEqual(0, _storage.Refs.Count);
-			Assert.AreEqual(0, _storage.Blobs.Count);
+			Assert.AreEqual(0, _storage.Bundles.Count);
 
 			BundleOptions options = new BundleOptions();
 			options.MaxBlobSize = 1;
@@ -263,7 +263,7 @@ namespace EpicGames.Horde.Tests
 			}
 
 			Assert.AreEqual(1, _storage.Refs.Count);
-			Assert.AreEqual(2, _storage.Blobs.Count);
+			Assert.AreEqual(2, _storage.Bundles.Count);
 		}
 
 		[TestMethod]
@@ -288,7 +288,7 @@ namespace EpicGames.Horde.Tests
 				}
 
 				Assert.AreEqual(1, _storage.Refs.Count);
-				Assert.AreEqual(5, _storage.Blobs.Count);
+				Assert.AreEqual(5, _storage.Bundles.Count);
 			}
 
 			{

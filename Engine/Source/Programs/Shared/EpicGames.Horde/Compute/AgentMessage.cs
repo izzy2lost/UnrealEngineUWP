@@ -502,7 +502,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="length">Length of data to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Stream containing the blob data</returns>
-		public static async Task<Stream> ReadBlobAsync(this AgentMessageChannel channel, BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default)
+		public static async Task<ReadOnlyMemory<byte>> ReadBlobAsync(this AgentMessageChannel channel, BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default)
 		{
 			using (IAgentMessageBuilder request = await channel.CreateMessageAsync(AgentMessageType.ReadBlob, cancellationToken))
 			{
@@ -528,13 +528,6 @@ namespace EpicGames.Horde.Compute
 					int chunkLength = response.Data.Length - 8;
 					int totalLength = BinaryPrimitives.ReadInt32LittleEndian(response.Data.Span.Slice(4, 4));
 
-					if (chunkOffset == 0 && chunkLength == totalLength)
-					{
-						BlobDataStream stream = new BlobDataStream(response);
-						response = null;
-						return stream;
-					}
-
 					buffer ??= new byte[totalLength];
 					response.Data.Slice(8).CopyTo(buffer.AsMemory(chunkOffset));
 
@@ -550,7 +543,7 @@ namespace EpicGames.Horde.Compute
 				}
 			}
 
-			return new ReadOnlyMemoryStream(buffer);
+			return buffer;
 		}
 
 		/// <summary>
@@ -576,35 +569,27 @@ namespace EpicGames.Horde.Compute
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static async Task SendBlobDataAsync(this AgentMessageChannel channel, BlobLocator locator, int offset, int length, IStorageClient storage, CancellationToken cancellationToken = default)
 		{
-			byte[] data;
+			ReadOnlySequence<byte> data;
 			if (offset == 0 && length == 0)
 			{
-				using (Stream stream = await storage.ReadBlobAsync(locator, cancellationToken))
-				{
-					using MemoryStream target = new MemoryStream();
-					await stream.CopyToAsync(target, cancellationToken);
-					data = target.ToArray();
-				}
+				Bundle bundle = await storage.ReadBundleAsync(locator, cancellationToken);
+				data = bundle.AsSequence();
 			}
 			else
 			{
-				using (Stream stream = await storage.ReadBlobRangeAsync(locator, offset, length, cancellationToken))
-				{
-					using MemoryStream target = new MemoryStream();
-					await stream.CopyToAsync(target, cancellationToken);
-					data = target.ToArray();
-				}
+				ReadOnlyMemory<byte> range = await storage.ReadBundleRangeAsync(locator, offset, length, cancellationToken);
+				data = new ReadOnlySequence<byte>(range);
 			}
 
 			const int MaxChunkSize = 512 * 1024;
 			for (int chunkOffset = 0; chunkOffset < data.Length;)
 			{
-				int chunkLength = Math.Min(data.Length - chunkOffset, MaxChunkSize);
+				int chunkLength = (int)Math.Min(data.Length - chunkOffset, MaxChunkSize);
 				using (IAgentMessageBuilder response = await channel.CreateMessageAsync(AgentMessageType.ReadBlobResponse, chunkLength + 128, cancellationToken))
 				{
 					response.WriteInt32(chunkOffset);
-					response.WriteInt32(data.Length);
-					response.WriteFixedLengthBytes(data.AsSpan(chunkOffset, chunkLength));
+					response.WriteInt32((int)data.Length);
+					response.WriteFixedLengthBytes(data.Slice(chunkOffset, chunkLength));
 					response.Send();
 				}
 				chunkOffset += chunkLength;

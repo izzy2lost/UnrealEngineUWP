@@ -73,7 +73,7 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public interface IStorageClient
 	{
-		#region Blobs
+		#region Bundles
 
 		/// <summary>
 		/// Reads raw data for a blob from the store
@@ -81,7 +81,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="locator">The blob locator</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Stream containing the data</returns>
-		Task<Stream> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default);
+		Task<Bundle> ReadBundleAsync(BlobLocator locator, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Reads a ranged chunk from a blob
@@ -90,16 +90,16 @@ namespace EpicGames.Horde.Storage
 		/// <param name="offset">Starting offset for the data to read</param>
 		/// <param name="length">Length of the data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<Stream> ReadBlobRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default);
+		Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes a new blob to the store
 		/// </summary>
-		/// <param name="stream">Blob data</param>
+		/// <param name="bundle">The bundle to write</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <param name="prefix">Prefix for blob names. While the returned BlobId is guaranteed to be unique, this name can be used as a prefix to aid debugging.</param>
 		/// <returns>Unique identifier for the blob</returns>
-		Task<BlobLocator> WriteBlobAsync(Stream stream, Utf8String prefix = default, CancellationToken cancellationToken = default);
+		Task<BlobLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default);
 
 		#endregion
 
@@ -287,22 +287,11 @@ namespace EpicGames.Horde.Storage
 		/// <param name="memory">Buffer to read into</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The data that was read</returns>
-		public static async Task<Memory<byte>> ReadBlobRangeAsync(this IStorageClient store, BlobLocator locator, int offset, Memory<byte> memory, CancellationToken cancellationToken = default)
+		public static async Task<Memory<byte>> ReadBundleRangeAsync(this IStorageClient store, BlobLocator locator, int offset, Memory<byte> memory, CancellationToken cancellationToken = default)
 		{
-			using (Stream stream = await store.ReadBlobRangeAsync(locator, offset, memory.Length, cancellationToken))
-			{
-				int length = 0;
-				while (length < memory.Length)
-				{
-					int readBytes = await stream.ReadAsync(memory.Slice(length), cancellationToken);
-					if (readBytes == 0)
-					{
-						break;
-					}
-					length += readBytes;
-				}
-				return memory.Slice(0, length);
-			}
+			ReadOnlyMemory<byte> buffer = await store.ReadBundleRangeAsync(locator, offset, memory.Length, cancellationToken);
+			buffer.CopyTo(memory);
+			return memory.Slice(0, buffer.Length);
 		}
 
 		#endregion

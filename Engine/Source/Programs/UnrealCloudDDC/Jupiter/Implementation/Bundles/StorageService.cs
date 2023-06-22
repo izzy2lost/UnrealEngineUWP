@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -78,39 +79,22 @@ public class StorageClient : IStorageClientJupiter
         return (locator, redirectUri);
     }
 
-    public async Task<BlobLocator> WriteBlobAsync(Stream stream, Utf8String prefix, CancellationToken cancellationToken)
+    public async Task<BlobLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix, CancellationToken cancellationToken)
     {
         BlobLocator locator = BlobLocator.CreateUnique(prefix);
         BlobIdentifier blobIdentifier = BlobIdentifier.FromBlobLocator(locator);
-        await using MemoryStream ms = new MemoryStream();
-        await stream.CopyToAsync(ms, cancellationToken);
-        byte[] blob = ms.ToArray();
-        await _blobService.PutObject(_namespaceId, blob, blobIdentifier);
+        await _blobService.PutObject(_namespaceId, bundle.AsSequence().ToArray(), blobIdentifier);
 
-        bool isBundle;
-        try
+        await using ReadOnlySequenceStream bundleStream = new ReadOnlySequenceStream(bundle.AsSequence());
+        BundleHeader bundleHeader = await BundleHeader.FromStreamAsync(bundleStream, cancellationToken);
+        List<Task> addReferencesTasks = new List<Task>();
+        foreach (BlobLocator import in bundleHeader.Imports)
         {
-            BundleHeader.ReadPrelude(blob);
-            isBundle = true;
-        }
-        catch (InvalidDataException)
-        {
-            isBundle = false;
+            BlobIdentifier dependentBlob = BlobIdentifier.FromBlobLocator(import);
+            addReferencesTasks.Add(_blobIndex.AddBlobReferences(_namespaceId, dependentBlob, blobIdentifier));
         }
 
-        if (isBundle)
-        {
-            await using MemoryStream bundleStream = new MemoryStream(blob);
-            BundleHeader bundleHeader = await BundleHeader.FromStreamAsync(bundleStream, cancellationToken);
-            List<Task> addReferencesTasks = new List<Task>();
-            foreach (BlobLocator import in bundleHeader.Imports)
-            {
-                BlobIdentifier dependentBlob = BlobIdentifier.FromBlobLocator(import);
-                addReferencesTasks.Add(_blobIndex.AddBlobReferences(_namespaceId, dependentBlob, blobIdentifier));
-            }
-
-            await Task.WhenAll(addReferencesTasks);
-        }
+        await Task.WhenAll(addReferencesTasks);
         
         return locator;
     }
@@ -141,22 +125,24 @@ public class StorageClient : IStorageClientJupiter
         return redirectUri;
     }
 
-    public async Task<Stream> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken)
+    public async Task<Bundle> ReadBundleAsync(BlobLocator locator, CancellationToken cancellationToken)
     {
         BlobIdentifier blobIdentifier = BlobIdentifier.FromBlobLocator(locator);
         BlobContents blobContents = await _blobService.GetObject(_namespaceId, blobIdentifier);
-        return blobContents.Stream;
+        return await Bundle.FromStreamAsync(blobContents.Stream, cancellationToken);
     }
 
-    public async Task<Stream> ReadBlobRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken)
+    public async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken)
     {
-        await using Stream stream = await ReadBlobAsync(locator, cancellationToken);
-        using BinaryReader br = new BinaryReader(stream);
-        // skip in the stream, TODO: will fail if stream is very large
-        br.ReadBytes(offset);
-        byte[] data = br.ReadBytes(length);
-        return new MemoryStream(data);
+        ReadOnlySequence<byte> sequence = await ReadBundleAsync(locator, cancellationToken);
+		sequence = sequence.Slice(offset);
 
+		if(sequence.Length > length)
+		{
+			sequence = sequence.Slice(0, length);
+		}
+
+        return sequence.AsSingleSegment();
     }
 
     public async Task<BlobHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)

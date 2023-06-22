@@ -231,11 +231,14 @@ namespace Horde.Server.Storage
 			}
 			else
 			{
+				Bundle bundle;
 				using (Stream stream = file.OpenReadStream())
 				{
-					BlobLocator locator = await storageClient.WriteBlobAsync(stream, prefix: (prefix == null) ? Utf8String.Empty : new Utf8String(prefix), cancellationToken: cancellationToken);
-					return new WriteBlobResponse { Blob = locator, SupportsRedirects = storageClientImpl?.SupportsRedirects };
+					bundle = await Bundle.FromStreamAsync(stream, cancellationToken);
 				}
+
+				BlobLocator locator = await storageClient.WriteBundleAsync(bundle, prefix: (prefix == null) ? Utf8String.Empty : new Utf8String(prefix), cancellationToken: cancellationToken);
+				return new WriteBlobResponse { Blob = locator, SupportsRedirects = storageClientImpl?.SupportsRedirects };
 			}
 		}
 
@@ -292,11 +295,13 @@ namespace Horde.Server.Storage
 			Stream stream;
 			if (offset == null && length == null)
 			{
-				stream = await storageClient.ReadBlobAsync(locator, cancellationToken);
+				Bundle bundle = await storageClient.ReadBundleAsync(locator, cancellationToken);
+				stream = new ReadOnlySequenceStream(bundle.AsSequence());
 			}
 			else if (offset != null && length != null)
 			{
-				stream = await storageClient.ReadBlobRangeAsync(locator, offset.Value, length.Value, cancellationToken);
+				ReadOnlyMemory<byte> memory = await storageClient.ReadBundleRangeAsync(locator, offset.Value, length.Value, cancellationToken);
+				stream = new ReadOnlyMemoryStream(memory);
 			}
 			else
 			{

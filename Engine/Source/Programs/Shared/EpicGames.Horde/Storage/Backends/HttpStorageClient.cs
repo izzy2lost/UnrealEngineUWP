@@ -102,7 +102,7 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Blobs
 
 		/// <inheritdoc/>
-		public override async Task<Stream> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
+		public override async Task<Bundle> ReadBundleAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 		{
 			_logger.LogDebug("Reading {Locator}", locator);
 			using (HttpClient httpClient = _createClient())
@@ -111,13 +111,15 @@ namespace EpicGames.Horde.Storage.Backends
 				{
 					HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
 					response.EnsureSuccessStatusCode();
-					return await response.Content.ReadAsStreamAsync(cancellationToken);
+
+					byte[] data = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+					return new Bundle(data);
 				}
 			}
 		}
 
 		/// <inheritdoc/>
-		public override async Task<Stream> ReadBlobRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default)
+		public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default)
 		{
 			_logger.LogDebug("Reading {Locator} ({Offset}+{Length})", locator, offset, length);
 			using (HttpClient httpClient = _createClient())
@@ -126,15 +128,15 @@ namespace EpicGames.Horde.Storage.Backends
 				{
 					HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
 					response.EnsureSuccessStatusCode();
-					return await response.Content.ReadAsStreamAsync(cancellationToken);
+					return await response.Content.ReadAsByteArrayAsync(cancellationToken);
 				}
 			}
 		}
 
 		/// <inheritdoc/>
-		public override async Task<BlobLocator> WriteBlobAsync(Stream stream, Utf8String prefix = default, CancellationToken cancellationToken = default)
+		public override async Task<BlobLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
 		{
-			using StreamContent streamContent = new StreamContent(stream);
+			using StreamContent streamContent = new StreamContent(new ReadOnlySequenceStream(bundle.AsSequence()));
 
 			if (_supportsUploadRedirects)
 			{

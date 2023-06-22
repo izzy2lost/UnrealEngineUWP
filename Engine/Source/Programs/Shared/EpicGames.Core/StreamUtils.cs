@@ -57,6 +57,19 @@ namespace EpicGames.Core
 		/// Read the contents of a file async using double buffering
 		/// </summary>
 		/// <param name="stream">Data to compute the hash for</param>
+		/// <param name="cancellationToken">Cancellation token used to terminate processing</param>
+		/// <returns>New content hash instance containing the hash of the data</returns>
+		public static async Task<byte[]> ReadAllBytesAsync(this Stream stream, CancellationToken cancellationToken = default)
+		{
+			using MemoryStream memoryStream = new MemoryStream();
+			await stream.CopyToAsync(memoryStream, cancellationToken);
+			return memoryStream.ToArray();
+		}
+
+		/// <summary>
+		/// Read the contents of a file async using double buffering
+		/// </summary>
+		/// <param name="stream">Data to compute the hash for</param>
 		/// <param name="fileSizeHint">If available, the file size so an appropriate buffer size can be used</param>
 		/// <param name="minBufferSize">Minimum size of the buffer</param>
 		/// <param name="maxBufferSize">Maximum size of the buffer</param>

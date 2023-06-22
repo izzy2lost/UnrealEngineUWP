@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -52,23 +53,31 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Blobs
 
 		/// <inheritdoc/>
-		public override Task<Stream> ReadBlobAsync(BlobLocator id, CancellationToken cancellationToken = default)
+		public override async Task<Bundle> ReadBundleAsync(BlobLocator id, CancellationToken cancellationToken = default)
 		{
 			FileReference file = GetBlobFile(id);
 			_logger.LogInformation("Reading {File}", file);
-			return Task.FromResult<Stream>(FileReference.Open(file, FileMode.Open, FileAccess.Read, FileShare.Read));
+
+			byte[] data = await FileReference.ReadAllBytesAsync(file, cancellationToken);
+			return new Bundle(data);
 		}
 
 		/// <inheritdoc/>
-		public override async Task<Stream> ReadBlobRangeAsync(BlobLocator id, int offset, int length, CancellationToken cancellationToken = default)
+		public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BlobLocator id, int offset, int length, CancellationToken cancellationToken = default)
 		{
-			Stream stream = await ReadBlobAsync(id, cancellationToken);
-			stream.Seek(offset, SeekOrigin.Begin);
-			return stream;
+			Bundle bundle = await ReadBundleAsync(id, cancellationToken);
+
+			ReadOnlySequence<byte> sequence = bundle.AsSequence().Slice(offset);
+			if (sequence.Length > length)
+			{
+				sequence = sequence.Slice(0, length);
+			}
+
+			return sequence.AsSingleSegment();
 		}
 
 		/// <inheritdoc/>
-		public override async Task<BlobLocator> WriteBlobAsync(Stream stream, Utf8String prefix = default, CancellationToken cancellationToken = default)
+		public override async Task<BlobLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
 		{
 			BlobLocator id = BlobLocator.CreateUnique(prefix);
 			FileReference file = GetBlobFile(id);
@@ -77,7 +86,10 @@ namespace EpicGames.Horde.Storage.Backends
 
 			using (FileStream fileStream = FileReference.Open(file, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
 			{
-				await stream.CopyToAsync(fileStream, cancellationToken);
+				foreach (ReadOnlyMemory<byte> segment in bundle.AsSequence())
+				{
+					await fileStream.WriteAsync(segment, cancellationToken);
+				}
 			}
 
 			return id;

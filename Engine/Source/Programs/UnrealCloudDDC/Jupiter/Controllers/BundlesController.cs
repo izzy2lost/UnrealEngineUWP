@@ -226,7 +226,8 @@ namespace Jupiter.Controllers
             {
                 using (Stream stream = file.OpenReadStream())
                 {
-                    BlobLocator locator = await client.WriteBlobAsync(stream, prefix: (prefix == null) ? Utf8String.Empty : new Utf8String(prefix), cancellationToken: cancellationToken);
+                    Bundle bundle = await Bundle.FromStreamAsync(stream, cancellationToken);
+                    BlobLocator locator = await client.WriteBundleAsync(bundle, prefix: (prefix == null) ? Utf8String.Empty : new Utf8String(prefix), cancellationToken: cancellationToken);
                     return new WriteBlobResponse { Blob = locator, SupportsRedirects = client.SupportsRedirects? (bool?)true : null };
                 }
             }
@@ -263,19 +264,19 @@ namespace Jupiter.Controllers
             Stream stream;
             if (offset == null && length == null)
             {
-                stream = await client.ReadBlobAsync(locator, cancellationToken);
+                Bundle bundle = await client.ReadBundleAsync(locator, cancellationToken);
+                stream = new ReadOnlySequenceStream(bundle.AsSequence());
             }
             else if (offset != null && length != null)
             {
-                stream = await client.ReadBlobRangeAsync(locator, offset.Value, length.Value, cancellationToken);
-
-                return File(stream, MediaTypeNames.Application.Octet);
+                ReadOnlyMemory<byte> memory = await client.ReadBundleRangeAsync(locator, offset.Value, length.Value, cancellationToken);
+                stream = new ReadOnlyMemoryStream(memory);
             }
             else
             {
                 return BadRequest("Offset and length must both be specified as query parameters for ranged reads");
             }
-            return File(stream, "application/octet-stream");
+            return File(stream, MediaTypeNames.Application.Octet);
 #pragma warning restore CA2000 // Dispose objects before losing scope
         }
 

@@ -25,7 +25,7 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <summary>
 		/// Map of blob id to blob data
 		/// </summary>
-		readonly ConcurrentDictionary<BlobLocator, Bundle> _blobs = new ConcurrentDictionary<BlobLocator, Bundle>();
+		readonly ConcurrentDictionary<BlobLocator, Bundle> _bundles = new ConcurrentDictionary<BlobLocator, Bundle>();
 
 		/// <summary>
 		/// Map of ref name to ref data
@@ -37,8 +37,8 @@ namespace EpicGames.Horde.Storage.Backends
 		/// </summary>
 		readonly ConcurrentDictionary<Utf8String, ExportEntry> _exports = new ConcurrentDictionary<Utf8String, ExportEntry>();
 
-		/// <inheritdoc cref="_blobs"/>
-		public IReadOnlyDictionary<BlobLocator, Bundle> Blobs => _blobs;
+		/// <inheritdoc cref="_bundles"/>
+		public IReadOnlyDictionary<BlobLocator, Bundle> Bundles => _bundles;
 
 		/// <inheritdoc cref="_refs"/>
 		public IReadOnlyDictionary<RefName, BundleNodeLocator> Refs => _refs;
@@ -54,27 +54,29 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Blobs
 
 		/// <inheritdoc/>
-		public override Task<Stream> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
+		public override Task<Bundle> ReadBundleAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 		{
-			Stream stream = new ReadOnlySequenceStream(_blobs[locator].AsSequence());
-			return Task.FromResult(stream);
+			Bundle bundle = _bundles[locator];
+			return Task.FromResult(bundle);
 		}
 
 		/// <inheritdoc/>
-		public override Task<Stream> ReadBlobRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default)
+		public override Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default)
 		{
-			Stream stream = new ReadOnlySequenceStream(_blobs[locator].AsSequence().Slice(offset));
-			return Task.FromResult(stream);
+			ReadOnlySequence<byte> sequence = _bundles[locator].AsSequence().Slice(offset);
+			if (sequence.Length > length)
+			{
+				sequence = sequence.Slice(0, length);
+			}
+			return Task.FromResult(sequence.AsSingleSegment());
 		}
 
 		/// <inheritdoc/>
-		public override async Task<BlobLocator> WriteBlobAsync(Stream stream, Utf8String prefix = default, CancellationToken cancellationToken = default)
+		public override Task<BlobLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
 		{
 			BlobLocator locator = BlobLocator.CreateUnique(prefix);
-			Bundle bundle = await Bundle.FromStreamAsync(stream, cancellationToken);
-			_blobs[locator] = bundle;
-
-			return locator;
+			_bundles[locator] = new Bundle(bundle.AsSequence().ToArray());
+			return Task.FromResult(locator);
 		}
 
 		#endregion

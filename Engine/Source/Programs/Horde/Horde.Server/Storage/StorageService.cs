@@ -127,7 +127,7 @@ namespace Horde.Server.Storage
 			#region Blobs
 
 			/// <inheritdoc/>
-			public override async Task<Stream> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
+			public override async Task<Bundle> ReadBundleAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 			{
 				string path = GetBlobPath(locator);
 
@@ -137,14 +137,14 @@ namespace Horde.Server.Storage
 					throw new StorageException($"Unable to read data from {path}");
 				}
 
-				return stream;
+				return await Bundle.FromStreamAsync(stream, cancellationToken);
 			}
 
 			/// <inheritdoc/>
 			public ValueTask<Uri?> GetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) => Backend.TryGetReadRedirectAsync(GetBlobPath(locator), cancellationToken);
 
 			/// <inheritdoc/>
-			public override async Task<Stream> ReadBlobRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default)
+			public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default)
 			{
 				string path = GetBlobPath(locator);
 
@@ -154,42 +154,20 @@ namespace Horde.Server.Storage
 					throw new StorageException($"Unable to read data from {path}");
 				}
 
-				return stream;
+				return await stream.ReadAllBytesAsync(cancellationToken);
 			}
 
 			/// <inheritdoc/>
-			public override async Task<BlobLocator> WriteBlobAsync(Stream stream, Utf8String prefix = default, CancellationToken cancellationToken = default)
+			public override async Task<BlobLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
 			{
-				BlobLocator locator;
-				if (Config.EnableAliases)
-				{
-					using (MemoryStream memoryStream = new MemoryStream())
-					{
-						// Read the blob into memory
-						await stream.CopyToAsync(memoryStream, cancellationToken);
+				// Add the blob record
+				BlobLocator locator = await _outer.AddBlobAsync(NamespaceId, prefix, null, cancellationToken);
 
-						// Reset the position back to zero and read the header
-						memoryStream.Position = 0;
-						BundleHeader header = await BundleHeader.FromStreamAsync(memoryStream, cancellationToken);
+				// Write it to the backend
+				string path = GetBlobPath(locator);
+				using ReadOnlySequenceStream memoryStream = new ReadOnlySequenceStream(bundle.AsSequence());
+				await Backend.WriteAsync(path, memoryStream, cancellationToken);
 
-						// Add the blob record
-						locator = await _outer.AddBlobAsync(NamespaceId, prefix, null, cancellationToken);
-
-						// Write it to the backend
-						string path = GetBlobPath(locator);
-						memoryStream.Position = 0;
-						await Backend.WriteAsync(path, memoryStream, cancellationToken);
-					}
-				}
-				else
-				{
-					// Add the blob record
-					locator = await _outer.AddBlobAsync(NamespaceId, prefix, null, cancellationToken);
-
-					// Write it to the backend
-					string path = GetBlobPath(locator);
-					await Backend.WriteAsync(path, stream, cancellationToken);
-				}
 				return locator;
 			}
 
@@ -1041,40 +1019,23 @@ namespace Horde.Server.Storage
 			int fetchSize = 64 * 1024;
 			for (; ; )
 			{
-				using (IMemoryOwner<byte> owner = MemoryPool<byte>.Shared.Rent(fetchSize))
+				// Read the start of the blob
+				ReadOnlyMemory<byte> memory = await store.ReadBundleRangeAsync(locator, 0, fetchSize, cancellationToken);
+				if (memory.Length < BundleHeader.PreludeLength)
 				{
-					using (Stream? stream = await store.ReadBlobRangeAsync(locator, 0, fetchSize, cancellationToken))
-					{
-						if (stream == null)
-						{
-							_logger.LogError("Unable to read blob {Blob}", locator);
-							return null;
-						}
-
-						// Read the start of the blob
-						Memory<byte> memory = owner.Memory.Slice(0, fetchSize);
-
-						int length = await stream.ReadGreedyAsync(memory, cancellationToken);
-						if (length < BundleHeader.PreludeLength)
-						{
-							_logger.LogError("Blob {Blob} does not have a valid prelude", locator);
-							return null;
-						}
-
-						memory = memory.Slice(0, length);
-
-						// Make sure it's large enough to hold the header
-						int headerSize = BundleHeader.ReadPrelude(memory.Span);
-						if (headerSize <= fetchSize)
-						{
-							byte[] data = memory.ToArray(); // Need to copy data since rented memory will be disposed
-							return BundleHeader.Read(data);
-						}
-
-						// Increase the fetch size and retry
-						fetchSize = headerSize;
-					}
+					_logger.LogError("Blob {Blob} does not have a valid prelude", locator);
+					return null;
 				}
+
+				// Make sure it's large enough to hold the header
+				int headerSize = BundleHeader.ReadPrelude(memory.Span);
+				if (headerSize <= fetchSize)
+				{
+					return BundleHeader.Read(memory);
+				}
+
+				// Increase the fetch size and retry
+				fetchSize = headerSize;
 			}
 		}
 

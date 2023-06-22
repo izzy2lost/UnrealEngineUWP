@@ -232,7 +232,7 @@ namespace EpicGames.Horde.Storage
 				{
 					// Read the prefetch size from the blob
 					Memory<byte> memory = owner.Memory.Slice(0, prefetchSize);
-					memory = await _store.ReadBlobRangeAsync(queuedHeader.Blob, 0, memory, cancellationToken);
+					memory = await _store.ReadBundleRangeAsync(queuedHeader.Blob, 0, memory, cancellationToken);
 
 					// Make sure it's large enough to hold the header
 					int headerSize = BundleHeader.ReadPrelude(memory.Span);
@@ -330,7 +330,7 @@ namespace EpicGames.Horde.Storage
 			using (IMemoryOwner<byte> owner = MemoryPool<byte>.Shared.Rent(readLength))
 			{
 				Memory<byte> buffer = owner.Memory.Slice(0, readLength);
-				buffer = await _store.ReadBlobRangeAsync(bundleInfo.Locator, bundleInfo.HeaderLength + bundleInfo.Header.Packets[minPacketIdx].EncodedOffset, buffer, cancellationToken);
+				buffer = await _store.ReadBundleRangeAsync(bundleInfo.Locator, bundleInfo.HeaderLength + bundleInfo.Header.Packets[minPacketIdx].EncodedOffset, buffer, cancellationToken);
 
 				// Copy all the packets that have been read into separate buffers, so we can cache them individually.
 				ReadOnlyMemory<byte>?[] packets = new ReadOnlyMemory<byte>?[maxPacketIdx - minPacketIdx];
@@ -429,9 +429,6 @@ namespace EpicGames.Horde.Storage
 		/// <returns>The decoded data</returns>
 		async ValueTask<ReadOnlyMemory<byte>> ReadBundlePacketAsync(BundleInfo bundleInfo, int packetIdx, CancellationToken cancellationToken)
 		{
-			char c = bundleInfo.Locator.ToString()[0];
-			Debug.Assert(Char.IsLetterOrDigit(c));
-
 			if (packetIdx < 0 || packetIdx >= bundleInfo.Header.Packets.Count)
 			{
 				throw new ArgumentException("Packet index is out of range", nameof(packetIdx));
@@ -496,9 +493,6 @@ namespace EpicGames.Horde.Storage
 		/// <returns>The encoded packet data</returns>
 		async ValueTask<ReadOnlyMemory<byte>> ReadEncodedPacketAsync(BundleInfo bundleInfo, int packetIdx)
 		{
-			char c = bundleInfo.Locator.ToString()[0];
-			Debug.Assert(Char.IsLetterOrDigit(c));
-
 			if (packetIdx < 0 || packetIdx >= bundleInfo.Header.Packets.Count)
 			{
 				throw new ArgumentException("Packet index is out of range", nameof(packetIdx));
