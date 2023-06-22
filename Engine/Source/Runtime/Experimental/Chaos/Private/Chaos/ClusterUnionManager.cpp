@@ -666,7 +666,7 @@ namespace Chaos
 		// Position the internal cluster at the CoM of the children
 		if (bRecomputeMassOrientation)
 		{
-			MoveClusterToMassOffset(ClusterUnion.InternalCluster, EMassOffsetType::EPosition);
+			MoveClusterToMassOffset(ClusterUnion.InternalCluster, EMassOffsetType::Position);
 			ClusterUnion.bNeedsXRInitialization = false;
 		}
 

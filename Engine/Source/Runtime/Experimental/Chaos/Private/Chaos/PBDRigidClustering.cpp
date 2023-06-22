@@ -220,7 +220,7 @@ namespace Chaos
 		
 		if (ForceMassOrientation == nullptr)
 		{
-			MoveClusterToMassOffset(NewParticle, EMassOffsetType::EPosition);
+			MoveClusterToMassOffset(NewParticle, EMassOffsetType::Position);
 		}
 		UpdateKinematicProperties(NewParticle, MChildren, MEvolution);
 		UpdateGeometry(NewParticle, ChildrenSet, MChildren, ProxyGeometry, Parameters);
@@ -442,7 +442,7 @@ namespace Chaos
 		TSet<FPBDRigidParticleHandle*> ChildrenSet(ChildrenArray);
 
 		UpdateClusterMassProperties(NewParticle, ChildrenSet);
-		MoveClusterToMassOffset(NewParticle, EMassOffsetType::EPosition);
+		MoveClusterToMassOffset(NewParticle, EMassOffsetType::Position);
 
 		UpdateKinematicProperties(NewParticle, MChildren, MEvolution);
 

@@ -60,7 +60,7 @@ bool FDerivedDataGeometryCollectionCooker::Build(TArray<uint8>& OutData)
 
 const TCHAR* FDerivedDataGeometryCollectionCooker::GetVersionString() const
 {
-	const TCHAR* VersionString = TEXT("E223057731B4465BBF7087001AF7ACBD");
+	const TCHAR* VersionString = TEXT("8F01FCF89D8449A09F53B80A15F1ED06");
 	return VersionString;
 }
 

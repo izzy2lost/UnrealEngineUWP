@@ -115,6 +115,12 @@ FAutoConsoleVariableRef CVarGeometryCollectionAreaBasedDamageThresholdMode(
 	GeometryCollectionAreaBasedDamageThresholdMode,
 	TEXT("Area based damage threshold computation mode (0: sum of areas | 1: max of areas | 2: min of areas | 3: average of areas) [def: 0]"));
 
+int32 GeometryCollectionLocalInertiaDropOffDiagonalTerms = 0;
+FAutoConsoleVariableRef CVarGeometryCollectionLocalInertiaDropOffDiagonalTerms(
+	TEXT("p.GeometryCollection.LocalInertiaDropOffDiagonalTerms"),
+	GeometryCollectionLocalInertiaDropOffDiagonalTerms,
+	TEXT("When true, force diagonal inertia for GCs in their local space by simply dropping off-diagonal terms"));
+
 DEFINE_LOG_CATEGORY_STATIC(UGCC_LOG, Error, All);
 
 static const FSharedSimulationSizeSpecificData& GetSizeSpecificData(const TArray<FSharedSimulationSizeSpecificData>& SizeSpecificData, const FGeometryCollection& RestCollection, const int32 TransformIndex, const FBox& BoundingBox);
@@ -4435,16 +4441,23 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 				// store them on ClusterHandle based on the combined mass properties of its children.
 				UpdateClusterMassProperties(ClusterHandle, ChildrenIndices);
 
-				// Store the relative transform from the particle's configuration space to its
-				// MassToLocal because GeometryCollections assume that the particle's XR is at its
-				// CoM and RoM - MassToLocal accounts for this offset.
-				const FRigidTransform3 MassToLocal = FRigidTransform3(ClusterHandle->CenterOfMass(), ClusterHandle->RotationOfMass());
-				CollectionMassToLocal[ClusterTransformIdx] = MassToLocal;
+				// NOTE: This method will is used to force an axis-aligned inertia tensor in local space,
+				// (ie, zero rotation of inertia) which avoids a problem with generating bounds for GCs
+				// when there's a mass rotation. The problem should go away once we remove MassToLocal
+				// and replace it with regular old CenterOfMass and RotationOfMass.
+				if (GeometryCollectionLocalInertiaDropOffDiagonalTerms)
+				{
+					AdjustClusterInertia(ClusterHandle, EInertiaOperations::LocalInertiaDropOffDiagonalTerms);
+				}
 
 				// Zero out CoM and RoM, and update XR accordingly so that when UpdateClusterMassProperties
 				// is called in the next level up with ClusterHandle as one of the the children it's XR will
 				// be correct.
-				MoveClusterToMassOffset(ClusterHandle, EMassOffsetType::EPosition | EMassOffsetType::ERotation);
+				//
+				// Store the relative transform from the particle's configuration space to its
+				// MassToLocal because GeometryCollections assume that the particle's XR is at its
+				// CoM and RoM - MassToLocal accounts for this offset.
+				CollectionMassToLocal[ClusterTransformIdx] = MoveClusterToMassOffset(ClusterHandle, EMassOffsetType::Position | EMassOffsetType::Rotation);
 
 				//update geometry
 				//merge children meshes and move them into cluster's mass space

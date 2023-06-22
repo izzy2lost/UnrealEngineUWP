@@ -89,21 +89,39 @@ namespace Chaos
 			: FReal(1) / Inertia;
 	}
 
-	void MoveClusterToMassOffset(FPBDRigidClusteredParticleHandle* Cluster, const EMassOffsetType MassOffsetTypes)
+	void AdjustClusterInertia(FPBDRigidClusteredParticleHandle* Cluster, const EInertiaOperations InertiaOperations)
 	{
-		if (MassOffsetTypes | EMassOffsetType::EPosition)
+		if ((InertiaOperations & EInertiaOperations::LocalInertiaDropOffDiagonalTerms) != EInertiaOperations::None)
 		{
+			// Discard off-diagonal terms in inertia transformed into a particle's local space, and
+			// zero out the Rotation of Inertia parameter.
+			const FMatrix33 LocalSpaceInertia = Utilities::ComputeWorldSpaceInertia(Cluster->RotationOfMass(), Cluster->I());
+			Cluster->SetI(LocalSpaceInertia.GetDiagonal());
+			Cluster->SetRotationOfMass(FQuat::Identity);
+		}
+	}
+
+	FRigidTransform3 MoveClusterToMassOffset(FPBDRigidClusteredParticleHandle* Cluster, const EMassOffsetType MassOffsetTypes)
+	{
+		FRigidTransform3 MassToLocal = FRigidTransform3::Identity;
+
+		if ((MassOffsetTypes & EMassOffsetType::Position) != EMassOffsetType::None)
+		{
+			MassToLocal.SetTranslation(Cluster->CenterOfMass());
 			Cluster->SetX(Cluster->XCom());
 			Cluster->SetP(Cluster->X());
 			Cluster->SetCenterOfMass(FVec3::ZeroVector);
 		}
 
-		if (MassOffsetTypes | EMassOffsetType::ERotation)
+		if ((MassOffsetTypes & EMassOffsetType::Rotation) != EMassOffsetType::None)
 		{
+			MassToLocal.SetRotation(Cluster->RotationOfMass());
 			Cluster->SetR(Cluster->RCom());
 			Cluster->SetQ(Cluster->R());
 			Cluster->SetRotationOfMass(FQuat::Identity);
 		}
+
+		return MassToLocal;
 	}
 
 	DECLARE_CYCLE_STAT(TEXT("TPBDRigidClustering<>::UpdateKinematicProperties()"), STAT_UpdateKinematicProperties, STATGROUP_Chaos);
