@@ -21,9 +21,10 @@ FRigVMEditorModule& FRigVMEditorModule::Get()
 void FRigVMEditorModule::StartupModule()
 {
 	FRigVMExecutionStackCommands::Register();
-	FRigVMEditorStyle::Get();
+	FRigVMEditorStyle::Register();
 }
 
 void FRigVMEditorModule::ShutdownModule()
 {
+	FRigVMEditorStyle::Unregister();
 }

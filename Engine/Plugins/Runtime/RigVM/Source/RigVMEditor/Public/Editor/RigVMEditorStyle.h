@@ -30,7 +30,6 @@ class RIGVMEDITOR_API FRigVMEditorStyle final
 		FString PreviousContentRoot;
 	};
 	
-public:
 	FRigVMEditorStyle()
 		: FSlateStyleSet("RigVMEditorStyle")
 	{
@@ -89,20 +88,23 @@ public:
 			Set("RigVM.Node.PinTree.Arrow_Expanded_Right", new IMAGE_BRUSH("Slate/RigVM_TreeArrow_Expanded_Right", Icon10x10, DefaultForeground));
 			Set("RigVM.Node.PinTree.Arrow_Expanded_Hovered_Right", new IMAGE_BRUSH("Slate/RigVM_TreeArrow_Expanded_Hovered_Right", Icon10x10, DefaultForeground));
 		}
-
-		FSlateStyleRegistry::RegisterSlateStyle(*this);
 	}
+public:
 
 	static FRigVMEditorStyle& Get()
 	{
 		static FRigVMEditorStyle Inst;
+		
 		return Inst;
 	}
-	
-	~FRigVMEditorStyle()
+
+	static void Register()
 	{
-		FSlateStyleRegistry::UnRegisterSlateStyle(*this);
+		FSlateStyleRegistry::RegisterSlateStyle(Get());
 	}
 
-	FSlateColor SpacePickerSelectColor;
+	static void Unregister()
+	{
+		FSlateStyleRegistry::UnRegisterSlateStyle(Get());
+	}
 };
