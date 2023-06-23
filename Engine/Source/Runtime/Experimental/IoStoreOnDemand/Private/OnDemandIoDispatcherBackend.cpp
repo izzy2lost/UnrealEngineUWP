@@ -37,21 +37,21 @@
 ///////////////////////////////////////////////////////////////////////////////
 int32 GIoDispatcherMaxHttpConnectionCount = 8;
 static FAutoConsoleVariableRef CVar_IoDispatcherMaxHttpConnectionCount (
-	TEXT("s.IasMaxHttpConnectionCount"),
+	TEXT("ias.MaxHttpConnectionCount"),
 	GIoDispatcherMaxHttpConnectionCount,
 	TEXT("Max number of open HTTP connections to the on demand endpoint(s).")
 );
 
 int32 GIoDispatcherMaxHttpRetryCount = 2;
 static FAutoConsoleVariableRef CVar_IoDispatcherMaxHttpRetryCount (
-	TEXT("s.IasMaxHttpRetryCount"),
+	TEXT("ias.MaxHttpRetryCount"),
 	GIoDispatcherMaxHttpRetryCount,
 	TEXT("Max number of HTTP request retries before failing the I/O request.")
 );
 
 int32 GIoDispatcherHttpPollTimeoutMs = 0;
 static FAutoConsoleVariableRef CVar_IoDispatcherMaxHttpPollTimeoutMs (
-	TEXT("s.IasHttpPollTimeout"),
+	TEXT("ias.HttpPollTimeout"),
 	GIoDispatcherHttpPollTimeoutMs,
 	TEXT("Tick() poll timeout in milliseconds")
 );
