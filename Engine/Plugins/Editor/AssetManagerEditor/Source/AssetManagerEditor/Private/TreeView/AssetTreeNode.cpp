@@ -70,8 +70,7 @@ FLinearColor FAssetTreeNode::GetColor(EStyle Style) const
 
 		case EStyle::EAsset:
 		{
-			//return GetAssetChecked().GetColor();
-			return FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
+			return GetAssetChecked().GetColor();
 			break;
 		}
 
