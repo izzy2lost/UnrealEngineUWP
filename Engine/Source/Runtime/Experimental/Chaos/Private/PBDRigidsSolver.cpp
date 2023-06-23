@@ -1679,6 +1679,7 @@ namespace Chaos
 		//for example a particle may not be created until marshalling occurs, and then a command could explicitly modify something like a collision setting
 		for (FSimCallbackCommandObject* SimCallbackObject : PushData.SimCommands)
 		{
+			SimCallbackObject->SetSimAndDeltaTime_Internal(GetSolverTime(), MLastDt);
 			SimCallbackObject->PreSimulate_Internal();
 			delete SimCallbackObject;
 		}
