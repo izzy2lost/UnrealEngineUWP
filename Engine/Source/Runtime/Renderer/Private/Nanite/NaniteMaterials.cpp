@@ -65,7 +65,7 @@ static FAutoConsoleVariableRef CVarNaniteComputeMaterialsSort(
 );
 
 // TODO: Heavily work in progress / experimental - do not use!
-static int32 GBinningTechnique = 2;
+static int32 GBinningTechnique = 1;
 static FAutoConsoleVariableRef CVarNaniteBinningTechnique(
 	TEXT("r.Nanite.BinningTechnique"),
 	GBinningTechnique,
