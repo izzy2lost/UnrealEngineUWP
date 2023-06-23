@@ -116,8 +116,6 @@ void ClearTiles(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 		UNROLL
 		for (uint Export = 0; Export < NUM_EXPORTS; ++Export)
 		{
-			uint MaskIndex = 0;
-
 			// Remaps from compacted (valid) targets to sparse write mask indices
 			// i.e. Export0 can be MRT1 which is represented as bit index 1 in ValidWriteMask
 			//   - 0 is MRT0/SceneColor which isn't valid to export
