@@ -227,8 +227,8 @@ float4 LoadPrimitivePrimitiveSceneDataElement(uint PrimitiveIndex, uint ItemInde
 // Fetch from scene primitive buffer
 FPrimitiveSceneData GetPrimitiveData(uint PrimitiveId)
 {
-#if (FEATURE_LEVEL == FEATURE_LEVEL_ES3_1 && VERTEXSHADER)
-	// Vertex shaders do not have access to GPUScene on mobile. Use GetPrimitiveData(FVertexFactoryIntermediates Intermediates)
+#if (VERTEXSHADER && !PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS)
+	// Vertex shaders may not have access to GPUScene on mobile. Use GetPrimitiveData(FVertexFactoryIntermediates Intermediates)
 	// TODO: need a way to report invalid usage, after all dead code elimination
 	return (FPrimitiveSceneData)0;
 #else

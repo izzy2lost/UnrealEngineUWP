@@ -476,6 +476,12 @@
 #define PLATFORM_SUPPORTS_4COMPONENT_UAV_READ_WRITE (XBOXONE_PROFILE || COMPILER_METAL)
 #endif
 
+// Whether the platform supports binding SRVs to the vertex shader stage.
+// This is generally available on high-end platforms and not available on mobile outside of some exceptions.
+// The real value is expected to be set based on DataDrivenShaderPlatformInfo in GlobalBeginCompileShader().
+#ifndef PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS
+#define PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS (FEATURE_LEVEL >= FEATURE_LEVEL_SM5)
+#endif
 
 // ---------------------------------------------------- Compiler specific defaults and fallbacks
 
