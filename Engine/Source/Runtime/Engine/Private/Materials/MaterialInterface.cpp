@@ -33,6 +33,7 @@
 #include "MaterialDomain.h"
 #include "MaterialShaderQualitySettings.h"
 #include "Materials/MaterialRenderProxy.h"
+#include "ProfilingDebugging/CookStats.h"
 #include "ShaderPlatformQualitySettings.h"
 #include "ObjectCacheContext.h"
 #include "MaterialCachedData.h"
@@ -46,6 +47,20 @@
 #endif
 
 #define LOCTEXT_NAMESPACE "MaterialInterface"
+
+#if ENABLE_COOK_STATS
+namespace MaterialCookStats
+{
+	static int32 NumMaterialsCooked = 0;
+
+	static FCookStatsManager::FAutoRegisterCallback RegisterCookStats([](FCookStatsManager::AddStatFuncRef AddStat)
+	{
+		AddStat(TEXT("Material"), FCookStatsManager::CreateKeyValueArray(
+			TEXT("NumMaterialsCooked"), NumMaterialsCooked
+		));
+	});
+}
+#endif
 
 /**
  * This is used to deprecate data that has been built with older versions.
@@ -1628,6 +1643,12 @@ void UMaterialInterface::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	}
 #endif // WITH_EDITORONLY_DATA
 
+#if WITH_EDITOR
+	if (ObjectSaveContext.IsCooking())
+	{
+		COOK_STAT(MaterialCookStats::NumMaterialsCooked++);
+	}
+#endif // WITH_EDITOR
 }
 
 void UMaterialInterface::AddAssetUserData(UAssetUserData* InUserData)
