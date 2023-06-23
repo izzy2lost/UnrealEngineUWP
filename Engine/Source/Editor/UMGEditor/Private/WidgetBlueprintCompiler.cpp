@@ -447,6 +447,11 @@ void FWidgetBlueprintCompilerContext::SaveSubObjectsFromCleanAndSanitizeClass(FS
 			SubObjectsToSave.AddObject(CDONamedSlotBinding.Content);
 		}
 	}
+
+	UWidgetBlueprintExtension::ForEachExtension(WidgetBlueprint(), [&SubObjectsToSave, LocalClass = NewWidgetBlueprintClass](UWidgetBlueprintExtension* InExtension)
+		{
+			SubObjectsToSave.AddObjects(InExtension->SaveSubObjectsFromCleanAndSanitizeClass(LocalClass));
+		});
 }
 
 void FWidgetBlueprintCompilerContext::CreateClassVariablesFromBlueprint()
