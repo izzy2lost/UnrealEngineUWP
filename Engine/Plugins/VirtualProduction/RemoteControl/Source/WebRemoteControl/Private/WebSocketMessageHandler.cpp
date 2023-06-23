@@ -1003,15 +1003,18 @@ void FWebSocketMessageHandler::ProcessChangedProperties()
 				const int64 SequenceNumber = GetSequenceNumber(ClientToEventsPair.Key);
 
 				//Check if multiple booleans properties want to be sent and send them since multiple booleans have problem with the common workflow.
-				if(!TrySendMultipleBoolProperties(Preset, ClientToEventsPair.Key, ClassToEventsPair.Value, SequenceNumber))
+				if (ClassToEventsPair.Key == FBoolProperty::StaticClass())
 				{
-					TArray<uint8> WorkingBuffer;
-					if (ClientToEventsPair.Value.Num() && WritePropertyChangeEventPayload(Preset, { ClassToEventsPair.Value }, SequenceNumber, WorkingBuffer))
-					{
-						TArray<uint8> Payload;
-						WebRemoteControlUtils::ConvertToUTF8(WorkingBuffer, Payload);
-						Server->Send(ClientToEventsPair.Key, Payload);
-					}
+					TrySendMultipleBoolProperties(Preset, ClientToEventsPair.Key, ClassToEventsPair.Value, SequenceNumber);
+					continue;
+				}
+
+				TArray<uint8> WorkingBuffer;
+				if (ClientToEventsPair.Value.Num() && WritePropertyChangeEventPayload(Preset, { ClassToEventsPair.Value }, SequenceNumber, WorkingBuffer))
+				{
+					TArray<uint8> Payload;
+					WebRemoteControlUtils::ConvertToUTF8(WorkingBuffer, Payload);
+					Server->Send(ClientToEventsPair.Key, Payload);
 				}
 			}
 		}
