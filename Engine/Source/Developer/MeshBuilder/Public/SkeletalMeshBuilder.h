@@ -28,7 +28,8 @@ public:
 	virtual bool BuildMeshVertexPositions(
 		UStaticMesh* StaticMesh,
 		TArray<uint32>& Indices,
-		TArray<FVector3f>& Vertices) override
+		TArray<FVector3f>& Vertices,
+		FStaticMeshSectionArray& Sections) override
 	{
 		bool No_Support_For_StaticMesh_Build_In_FSkeletalMeshBuilder_Class = false;
 		check(No_Support_For_StaticMesh_Build_In_FSkeletalMeshBuilder_Class);

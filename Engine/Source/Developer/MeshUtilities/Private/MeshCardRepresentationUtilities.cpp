@@ -1054,7 +1054,7 @@ bool FMeshUtilities::GenerateCardRepresentationData(
 	const FSourceMeshDataForDerivedDataTask& SourceMeshData,
 	const FStaticMeshLODResources& LODModel,
 	class FQueuedThreadPool& ThreadPool,
-	const TArray<FSignedDistanceFieldBuildMaterialData>& MaterialBlendModes,
+	const TArray<FSignedDistanceFieldBuildSectionData>& SectionData,
 	const FBoxSphereBounds& Bounds,
 	const FDistanceFieldVolumeData* DistanceFieldVolumeData,
 	int32 MaxLumenMeshCards,
@@ -1072,7 +1072,7 @@ bool FMeshUtilities::GenerateCardRepresentationData(
 		MeshRepresentation::SetupEmbreeScene(MeshName,
 			SourceMeshData,
 			LODModel,
-			MaterialBlendModes,
+			SectionData,
 			bGenerateAsIfTwoSided,
 			EmbreeScene);
 
