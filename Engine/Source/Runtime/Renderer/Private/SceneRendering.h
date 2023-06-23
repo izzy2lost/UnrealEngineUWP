@@ -1110,6 +1110,11 @@ struct FPreviousViewInfo
 	TRefCountPtr<IPooledRenderTarget> HZB;
 	TRefCountPtr<IPooledRenderTarget> NaniteHZB;
 
+	// Bit mask used to interpret per-instance occlusion query results for this view.
+	// Expected to contain a single active bit or zero if instance occlusion query data is not available.
+	// See FInstanceCullingOcclusionQueryRenderer.
+	uint32 InstanceOcclusionQueryMask = 0;
+
 	// Compressed scene textures for bandwidth efficient bilateral kernel rejection.
 	// DeviceZ as float16, and normal in view space.
 	TRefCountPtr<IPooledRenderTarget> CompressedDepthViewNormal;

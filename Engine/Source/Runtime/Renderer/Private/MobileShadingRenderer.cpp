@@ -56,6 +56,7 @@
 #include "MobileDeferredShadingPass.h"
 #include "PlanarReflectionSceneProxy.h"
 #include "InstanceCulling/InstanceCullingManager.h"
+#include "InstanceCulling/InstanceCullingOcclusionQuery.h"
 #include "SceneOcclusion.h"
 #include "VariableRateShadingImageManager.h"
 #include "SceneTextureReductions.h"
@@ -424,6 +425,13 @@ void FMobileSceneRenderer::InitViews(
 	check(Scene);
 
 	PreVisibilityFrameSetup(GraphBuilder);
+
+	if (InstanceCullingManager.IsEnabled()
+		&& Scene->InstanceCullingOcclusionQueryRenderer
+		&& Scene->InstanceCullingOcclusionQueryRenderer->InstanceOcclusionQueryBuffer)
+	{
+		InstanceCullingManager.InstanceOcclusionQueryBuffer = GraphBuilder.RegisterExternalBuffer(Scene->InstanceCullingOcclusionQueryRenderer->InstanceOcclusionQueryBuffer);
+	}
 
 	// Create GPU-side representation of the view for instance culling.
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
@@ -1133,6 +1141,11 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	PollOcclusionQueriesPass(GraphBuilder);
 
 	QueueSceneTextureExtractions(GraphBuilder, SceneTextures);
+
+	if (Scene->InstanceCullingOcclusionQueryRenderer)
+	{
+		Scene->InstanceCullingOcclusionQueryRenderer->EndFrame(GraphBuilder);
+	}
 }
 
 void FMobileSceneRenderer::BuildInstanceCullingDrawParams(FRDGBuilder& GraphBuilder, FViewInfo& View, FMobileRenderPassParameters* PassParameters)
@@ -1996,6 +2009,13 @@ void FMobileSceneRenderer::RenderHZB(FRDGBuilder& GraphBuilder, FRDGTextureRef S
 					View.ViewState->PrevFrameViewInfo.HZB = nullptr;
 				}
 			}
+		}
+
+		if (Scene->InstanceCullingOcclusionQueryRenderer && View.ViewState)
+		{
+			// Render per-instance occlusion queries and save the mask to interpret results on the next frame
+			const uint32 OcclusionQueryMaskForThisView = Scene->InstanceCullingOcclusionQueryRenderer->Render(GraphBuilder, Scene->GPUScene, View);
+			View.ViewState->PrevFrameViewInfo.InstanceOcclusionQueryMask = OcclusionQueryMaskForThisView;
 		}
 	}
 }

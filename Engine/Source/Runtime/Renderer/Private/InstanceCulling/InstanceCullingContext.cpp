@@ -15,6 +15,7 @@
 #include "InstanceCulling/InstanceCullingManager.h"
 #include "InstanceCullingLoadBalancer.h"
 #include "InstanceCullingMergedContext.h"
+#include "InstanceCullingOcclusionQuery.h"
 #include "RenderCore.h"
 #include "UnrealEngine.h"
 
@@ -446,6 +447,8 @@ public:
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, InstanceIdOffsetBuffer)
 
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, InstanceOcclusionQueryBuffer)
+
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, InstanceIdsBufferOut)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, InstanceIdsBufferOutMobile)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, DrawIndirectArgsBufferOut)
@@ -724,6 +727,16 @@ void FInstanceCullingContext::BuildRenderingCommandsInternal(
 		PassParametersTmp.HZBSampler = TStaticSamplerState< SF_Point, AM_Clamp, AM_Clamp, AM_Clamp >::GetRHI();
 	}
 
+	if (InstanceCullingManager && InstanceCullingManager->InstanceOcclusionQueryBuffer)
+	{
+		PassParametersTmp.InstanceOcclusionQueryBuffer = GraphBuilder.CreateSRV(InstanceCullingManager->InstanceOcclusionQueryBuffer, PF_R32_UINT);
+	}
+	else
+	{
+		FRDGBufferRef DummyBuffer = GSystemTextures.GetDefaultBuffer(GraphBuilder, 4, 0u);
+		PassParametersTmp.InstanceOcclusionQueryBuffer = GraphBuilder.CreateSRV(DummyBuffer, PF_R32_UINT);
+	}
+
 	for (uint32 Mode = 0U; Mode < uint32(EBatchProcessingMode::Num); ++Mode)
 	{
 		FInstanceProcessingGPULoadBalancer* LoadBalancer = LoadBalancers[Mode];
@@ -951,7 +964,7 @@ FInstanceCullingDeferredContext *FInstanceCullingContext::CreateDeferredContext(
 		AddClearUAVPass(GraphBuilder, CompactionBlockCountsUAV, 0);
 	}
 
-	FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FParameters PassParametersTmp;
+	FBuildInstanceIdBufferAndCommandsFromPrimitiveIdsCs::FParameters PassParametersTmp = {};
 
 	FRDGBufferRef DrawCommandDescsRDG = CreateStructuredBuffer(INST_CULL_CREATE_STRUCT_BUFF_ARGS(DrawCommandDescs));
 	FRDGBufferRef InstanceCullingPayloadsRDG = CreateStructuredBuffer(INST_CULL_CREATE_STRUCT_BUFF_ARGS(PayloadData));
@@ -1020,6 +1033,16 @@ FInstanceCullingDeferredContext *FInstanceCullingContext::CreateDeferredContext(
 	PassParametersTmp.DrawCommandCompactionData = DrawCommandCompactionDataSRV;
 	PassParametersTmp.CompactInstanceIdsBufferOut = CompactInstanceIdsUAV;
 	PassParametersTmp.CompactionBlockCounts = CompactionBlockCountsUAV;
+
+	if (InstanceCullingManager && InstanceCullingManager->InstanceOcclusionQueryBuffer)
+	{
+		PassParametersTmp.InstanceOcclusionQueryBuffer = GraphBuilder.CreateSRV(InstanceCullingManager->InstanceOcclusionQueryBuffer, PF_R32_UINT);
+	}
+	else
+	{
+		FRDGBufferRef DummyBuffer = GSystemTextures.GetDefaultBuffer(GraphBuilder, 4, 0u);
+		PassParametersTmp.InstanceOcclusionQueryBuffer = GraphBuilder.CreateSRV(DummyBuffer, PF_R32_UINT);
+	}
 
 	// Record the number of culling views to be able to check that no views referencing out-of bounds views are queued up
 	DeferredContext->NumCullingViews = InstanceCullingManager->CullingIntermediate.NumViews;

@@ -157,6 +157,7 @@ struct FNaniteView
 	float		RangeBasedCullingDistance;
 	int4		HZBTestViewRect;
 	float		CullingViewScreenMultiple;
+	uint		InstanceOcclusionQueryMask;
 };
 
 struct FInstanceDraw
@@ -723,6 +724,7 @@ FNaniteView UnpackNaniteView(FPackedNaniteView PackedView)
 	NaniteView.RangeBasedCullingDistance	= PackedView.RangeBasedCullingDistance;
 
 	NaniteView.HZBTestViewRect				= PackedView.HZBTestViewRect;
+	NaniteView.InstanceOcclusionQueryMask	= PackedView.InstanceOcclusionQueryMask;
 
 	return NaniteView;
 }
@@ -776,6 +778,8 @@ FNaniteView GetNaniteView( uint ViewIndex )
 	NaniteView.RangeBasedCullingDistance = 0.0f;
 
 	NaniteView.HZBTestViewRect				= NaniteView.ViewRect;
+	NaniteView.InstanceOcclusionQueryMask	= 0;
+
 
 #else // !NANITE_USE_VIEW_UNIFORM_BUFFER
 

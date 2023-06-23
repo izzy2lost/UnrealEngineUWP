@@ -95,6 +95,10 @@ public:
 
 	const TArray<Nanite::FPackedView>& GetCullingViews() { return CullingViews; }
 
+
+	// Reference to a buffer owned by FInstanceCullingOcclusionQueryRenderer
+	FRDGBufferRef InstanceOcclusionQueryBuffer = {};
+
 private:
 
 	friend class FInstanceCullingContext;

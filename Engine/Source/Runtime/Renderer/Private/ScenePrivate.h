@@ -3569,6 +3569,8 @@ public:
 
 	FSceneCulling* SceneCulling = nullptr;
 
+	class FInstanceCullingOcclusionQueryRenderer* InstanceCullingOcclusionQueryRenderer = nullptr;
+
 	/**
 	 * Light scene change delegates, may be used to hook in subsystems that need to respond to light scene changes.
 	 * Note, all the light scene changes are applied _before_ all the primitive scene infos are updated.

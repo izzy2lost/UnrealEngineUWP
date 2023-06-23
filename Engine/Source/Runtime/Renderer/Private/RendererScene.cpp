@@ -74,6 +74,7 @@
 #include "Materials/MaterialRenderProxy.h"
 #include "ProfilingDebugging/CountersTrace.h"
 #include "SceneCulling/SceneCulling.h"
+#include "InstanceCulling/InstanceCullingOcclusionQuery.h"
 
 #if RHI_RAYTRACING
 #include "Nanite/NaniteRayTracing.h"
@@ -1783,6 +1784,11 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 
 	GPUScene.SetEnabled(FeatureLevel);
 
+	if (GPUScene.IsEnabled())
+	{
+		InstanceCullingOcclusionQueryRenderer = new FInstanceCullingOcclusionQueryRenderer;
+	}
+
 	if (World->FXSystem)
 	{
 		FFXSystemInterface::Destroy(World->FXSystem);
@@ -1855,6 +1861,8 @@ FScene::~FScene()
 	checkf(RemovedPrimitiveSceneInfos.Num() == 0, TEXT("All pending primitive removal operations are expected to be flushed when the scene is destroyed. Remaining operations are likely to cause a memory leak."));
 	checkf(AddedPrimitiveSceneInfos.Num() == 0, TEXT("All pending primitive addition operations are expected to be flushed when the scene is destroyed. Remaining operations are likely to cause a memory leak."));
 	checkf(Primitives.Num() == 0, TEXT("All primitives are expected to be removed before the scene is destroyed. Remaining primitives are likely to cause a memory leak."));
+
+	delete InstanceCullingOcclusionQueryRenderer;
 
 	// Unlink any view states from the scene
 	for (FSceneViewState* ViewState : ViewStates)

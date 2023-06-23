@@ -68,6 +68,7 @@
 #include "Experimental/Containers/SherwoodHashTable.h"
 #include "RayTracingGeometryManager.h"
 #include "InstanceCulling/InstanceCullingManager.h"
+#include "InstanceCulling/InstanceCullingOcclusionQuery.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Engine/SubsurfaceProfile.h"
 #include "Engine/SpecularProfile.h"
@@ -626,6 +627,13 @@ bool FDeferredShadingSceneRenderer::RenderHzb(FRDGBuilder& GraphBuilder, FRDGTex
 		{
 			check(ViewState->HZBOcclusionTests.IsValidFrame(ViewState->OcclusionFrameCounter));
 			ViewState->HZBOcclusionTests.Submit(GraphBuilder, View);
+		}
+
+		if (Scene->InstanceCullingOcclusionQueryRenderer && View.ViewState)
+		{
+			// Render per-instance occlusion queries and save the mask to interpret results on the next frame
+			const uint32 OcclusionQueryMaskForThisView = Scene->InstanceCullingOcclusionQueryRenderer->Render(GraphBuilder, Scene->GPUScene, View);
+			View.ViewState->PrevFrameViewInfo.InstanceOcclusionQueryMask = OcclusionQueryMaskForThisView;
 		}
 	}
 
@@ -4471,6 +4479,11 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	{
 		NaniteBasePassVisibility.Visibility->FinishVisibilityFrame();
 		NaniteBasePassVisibility.Visibility = nullptr;
+	}
+
+	if (Scene->InstanceCullingOcclusionQueryRenderer)
+	{
+		Scene->InstanceCullingOcclusionQueryRenderer->EndFrame(GraphBuilder);
 	}
 }
 

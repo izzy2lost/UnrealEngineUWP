@@ -166,6 +166,8 @@ FPackedView CreatePackedView( const FPackedViewParams& Params )
 
 	FPlane TranslatedPlane(Params.GlobalClippingPlane.TranslateBy(Params.ViewMatrices.GetPreViewTranslation()));
 	PackedView.TranslatedGlobalClipPlane = FVector4f(TranslatedPlane.X, TranslatedPlane.Y, TranslatedPlane.Z, -TranslatedPlane.W);
+	
+	PackedView.InstanceOcclusionQueryMask = Params.InstanceOcclusionQueryMask;
 
 	return PackedView;
 

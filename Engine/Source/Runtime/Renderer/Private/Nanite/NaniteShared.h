@@ -26,6 +26,7 @@ struct FDBufferTextures;
 namespace Nanite
 {
 
+// Counterpart to FPackedNaniteView in NanitePackedNaniteView.ush
 struct FPackedView
 {
 	FMatrix44f	SVPositionToTranslatedWorld;
@@ -67,6 +68,9 @@ struct FPackedView
 	FIntVector4 TargetLayerIdX_AndMipLevelY_AndNumMipLevelsZ;
 
 	FIntVector4	HZBTestViewRect;	// In full resolution
+
+	uint32 InstanceOcclusionQueryMask;
+	uint32 Padding[3];
 
 	/**
 	 * Calculates the LOD scales assuming view size and projection is already set up.
@@ -156,6 +160,10 @@ struct FPackedViewParams
 	float CullingViewScreenMultiple = -1.0f;
 
 	FPlane GlobalClippingPlane = {0.0f, 0.0f, 0.0f, 0.0f};
+
+	// Identifies the bit in the GPUScene::InstanceVisibilityMaskBuffer associated with the current view.
+	// Visibility mask buffer may be used if this is non-zero.
+	uint32 InstanceOcclusionQueryMask = 0;
 };
 
 FPackedView CreatePackedView(const FPackedViewParams& Params);

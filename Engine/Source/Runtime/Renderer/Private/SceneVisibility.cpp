@@ -42,6 +42,7 @@
 #include "ProfilingDebugging/CountersTrace.h"
 #include "Algo/Unique.h"
 #include "InstanceCulling/InstanceCullingManager.h"
+#include "InstanceCulling/InstanceCullingOcclusionQuery.h"
 #include "PostProcess/TemporalAA.h"
 #include "RayTracing/RayTracingInstanceCulling.h"
 #include "HeterogeneousVolumes/HeterogeneousVolumes.h"
@@ -4849,6 +4850,13 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 	}
 
 	FRHICommandListImmediate& RHICmdList = GraphBuilder.RHICmdList;
+
+	if (InstanceCullingManager.IsEnabled()
+		&& Scene->InstanceCullingOcclusionQueryRenderer
+		&& Scene->InstanceCullingOcclusionQueryRenderer->InstanceOcclusionQueryBuffer)
+	{
+		InstanceCullingManager.InstanceOcclusionQueryBuffer = GraphBuilder.RegisterExternalBuffer(Scene->InstanceCullingOcclusionQueryRenderer->InstanceOcclusionQueryBuffer);
+	}
 
 	// Create GPU-side representation of the view for instance culling.
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)

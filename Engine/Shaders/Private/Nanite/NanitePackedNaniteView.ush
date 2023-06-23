@@ -2,6 +2,7 @@
 
 #pragma once
 
+// Counterpart to Nanite::FPackedView in NaniteShared.h
 struct FPackedNaniteView
 {
 	float4x4	SVPositionToTranslatedWorld;
@@ -43,4 +44,7 @@ struct FPackedNaniteView
 	int4		TargetLayerIdX_AndMipLevelY_AndNumMipLevelsZ;
 
 	int4		HZBTestViewRect;
+
+	uint		InstanceOcclusionQueryMask;
+	uint		Padding[3];
 };

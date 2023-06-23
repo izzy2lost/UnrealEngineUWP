@@ -46,6 +46,8 @@ int32 FInstanceCullingManager::RegisterView(const FViewInfo& ViewInfo)
 	Params.RasterContextSize = ViewInfo.ViewRect.Size();
 	Params.HZBTestViewRect = FIntRect(0, 0, ViewInfo.PrevViewInfo.ViewRect.Width(), ViewInfo.PrevViewInfo.ViewRect.Height());	// needs to be in HZB space, which is 0,0-based for any view, even stereo/splitscreen ones
 	Params.MaxPixelsPerEdgeMultipler = 1.0f;
+	Params.InstanceOcclusionQueryMask = ViewInfo.PrevViewInfo.InstanceOcclusionQueryMask;
+
 	return RegisterView(Params);
 }
 

@@ -61,6 +61,9 @@ StructuredBuffer<FPackedDrawCommandCompactionData> DrawCommandCompactionData;
 RWStructuredBuffer<uint> CompactInstanceIdsBufferOut;
 RWStructuredBuffer<uint> CompactionBlockCounts;
 
+// uint per instance with 1 bit per view identified by NaniteView::InstanceOcclusionQueryMask
+Buffer<uint> InstanceOcclusionQueryBuffer;
+
 // this is just to avoid compiling packing code for unrelated shaders
 #define USES_PACKED_INSTANCE_DATA (FEATURE_LEVEL == FEATURE_LEVEL_ES3_1 && VF_SUPPORTS_PRIMITIVE_SCENE_DATA)
 
@@ -200,7 +203,7 @@ bool ShouldRenderInstance(FPrimitiveSceneData PrimitiveData, FInstanceSceneData 
 	return true;
 }
 
-bool IsInstanceVisible(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, uint ViewIdIndex, FDrawCommandDesc DrawCommandDesc, inout uint CullingFlags)
+bool IsInstanceVisible(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, uint InstanceId, uint ViewIdIndex, FDrawCommandDesc DrawCommandDesc, inout uint CullingFlags)
 {
 	CullingFlags = INSTANCE_CULLING_FLAGS_DEFAULT;
 
@@ -284,6 +287,15 @@ bool IsInstanceVisible(FPrimitiveSceneData PrimitiveData, FInstanceSceneData Ins
 			{
 				FScreenRect PrevRect = GetScreenRect( NaniteView.HZBTestViewRect, PrevCull, 4 );
 				Cull.bIsVisible = IsVisibleHZB( PrevRect, true );
+			}
+
+			BRANCH
+			if (NaniteView.InstanceOcclusionQueryMask && Cull.bIsVisible)
+			{
+				if ((InstanceOcclusionQueryBuffer[InstanceId] & NaniteView.InstanceOcclusionQueryMask) == 0)
+				{
+					Cull.bIsVisible = false;
+				}
 			}
 		}
 #endif // OCCLUSION_CULL_INSTANCES
@@ -377,8 +389,8 @@ void InstanceCullBuildInstanceIdBufferCS(uint3 GroupId : SV_GroupID, int GroupTh
 #if STEREO_CULLING_MODE
 	uint CullingFlags0 = 0;
 	uint CullingFlags1 = 0;
-	const bool bVisible = IsInstanceVisible(PrimitiveData, InstanceData, BatchInfo.ViewIdsOffset + 0U, DrawCommandDesc, CullingFlags0) ||
-					      IsInstanceVisible(PrimitiveData, InstanceData, BatchInfo.ViewIdsOffset + 1U, DrawCommandDesc, CullingFlags1);
+	const bool bVisible = IsInstanceVisible(PrimitiveData, InstanceData, InstanceId, BatchInfo.ViewIdsOffset + 0U, DrawCommandDesc, CullingFlags0) ||
+					      IsInstanceVisible(PrimitiveData, InstanceData, InstanceId, BatchInfo.ViewIdsOffset + 1U, DrawCommandDesc, CullingFlags1);
 	const uint CullingFlags = CullingFlags0 | CullingFlags1;
 	NumVisibleInstances += bVisible ? 2 : 0;
 	
@@ -402,7 +414,8 @@ void InstanceCullBuildInstanceIdBufferCS(uint3 GroupId : SV_GroupID, int GroupTh
 	{
 		// Culling is disabled for multi-view
 		uint CullingFlags = 0;
-		const bool bVisible = IsInstanceVisible(PrimitiveData, InstanceData, BatchInfo.ViewIdsOffset + ViewIdIndex, DrawCommandDesc, CullingFlags);
+		bool bVisible = IsInstanceVisible(PrimitiveData, InstanceData, InstanceId, BatchInfo.ViewIdsOffset + ViewIdIndex, DrawCommandDesc, CullingFlags);
+
 		NumVisibleInstances += bVisible ? 1 : 0;
 		
 		BRANCH
