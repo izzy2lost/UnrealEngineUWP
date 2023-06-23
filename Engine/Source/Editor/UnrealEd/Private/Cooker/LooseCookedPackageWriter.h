@@ -26,9 +26,10 @@ class FAsyncIODelete;
 class FAssetRegistryState;
 class FLargeMemoryWriter;
 class FMD5;
-class IPlugin;
 class ITargetPlatform;
 template <typename ReferencedType> class TRefCountPtr;
+namespace UE::Cook { class FCookSandbox; }
+namespace UE::Cook { struct FCookSandboxConvertCookedPathToPackageNameContext; }
 
 /** A CookedPackageWriter that saves cooked packages in separate .uasset,.uexp,.ubulk files in the Saved\Cooked\[Platform] directory. */
 class FLooseCookedPackageWriter : public TPackageWriterToSharedBuffer<ICookedPackageWriter>
@@ -38,7 +39,7 @@ public:
 
 	FLooseCookedPackageWriter(const FString& OutputPath, const FString& MetadataDirectoryPath,
 		const ITargetPlatform* TargetPlatform, FAsyncIODelete& InAsyncIODelete,
-		const TArray<TSharedRef<IPlugin>>& InPluginsToRemap, FBeginCacheCallback&& InBeginCacheCallback);
+		UE::Cook::FCookSandbox& InSandboxFile, FBeginCacheCallback&& InBeginCacheCallback);
 	~FLooseCookedPackageWriter();
 
 	virtual FCookCapabilities GetCookCapabilities() const override
@@ -71,9 +72,6 @@ public:
 	virtual FPackageWriterRecords::FPackage* ConstructRecord() override;
 
 	static EPackageExtension BulkDataTypeToExtension(FBulkDataInfo::EType BulkDataType);
-	static bool TryConvertUncookedFilenameToCookedRemappedPluginFilename(
-		FStringView FileName, TConstArrayView<TSharedRef<IPlugin>> InPluginsToRemap,
-		FStringView SandboxDirectory, FString& OutCookedFileName);
 
 private:
 
@@ -133,15 +131,6 @@ private:
 	void GetAllCookedFiles();
 	void FindAndDeleteCookedFilesForPackages(TConstArrayView<FName> PackageNames);
 
-	FName ConvertCookedPathToPackageName(
-		const FString& SandboxRootDir, const FString& RelativeRootDir,
-		const FString& SandboxProjectDir, const FString& RelativeProjectDir,
-		const FString& CookedPath, FString& ScratchFileName, FString& ScratchPackageName) const;
-	FString ConvertPackageNameToCookedPath(
-		const FString& SandboxRootDir, const FString& RelativeRootDir,
-		const FString& SandboxProjectDir, const FString& RelativeProjectDir,
-		FStringView PackageName) const;
-
 	void RemoveCookedPackagesByPackageName(TArrayView<const FName> PackageNamesToRemove, bool bRemoveRecords);
 	void AsyncSave(FRecord& Record, const FCommitPackageInfo& Info);
 
@@ -173,7 +162,7 @@ private:
 	FString MetadataDirectoryPath;
 	const ITargetPlatform& TargetPlatform;
 	TMap<FName, FOplogPackageInfo> Oplog;
-	const TArray<TSharedRef<IPlugin>>& PluginsToRemap;
+	UE::Cook::FCookSandbox& SandboxFile;
 	FAsyncIODelete& AsyncIODelete;
 	FBeginCacheCallback BeginCacheCallback;
 	bool bIterateSharedBuild = false;

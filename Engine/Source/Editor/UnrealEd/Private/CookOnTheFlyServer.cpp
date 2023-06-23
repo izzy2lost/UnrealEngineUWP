@@ -29,6 +29,7 @@
 #include "Cooker/CookProfiling.h"
 #include "Cooker/CookRequestCluster.h"
 #include "Cooker/CookRequests.h"
+#include "Cooker/CookSandbox.h"
 #include "Cooker/CookTypes.h"
 #include "Cooker/CookWorkerClient.h"
 #include "Cooker/DiffPackageWriter.h"
@@ -8768,41 +8769,19 @@ void UCookOnTheFlyServer::SaveGlobalShaderMapFiles(const TArrayView<const ITarge
 
 FString UCookOnTheFlyServer::GetSandboxDirectory( const FString& PlatformName ) const
 {
-	FString Result;
-	Result = SandboxFile->GetSandboxDirectory();
-
-	Result.ReplaceInline(TEXT("[Platform]"), *PlatformName);
-
-	return Result;
+	return SandboxFile->GetSandboxDirectory(PlatformName);
 }
 
 FString UCookOnTheFlyServer::ConvertToFullSandboxPath( const FString &FileName, bool bForWrite ) const
 {
-	check( SandboxFile );
-
-	FString Result;
-	if (bForWrite)
-	{
-		if (FLooseCookedPackageWriter::TryConvertUncookedFilenameToCookedRemappedPluginFilename(
-			FileName, PluginsToRemap, SandboxFile->GetSandboxDirectory(), Result))
-		{
-			return Result;
-		}
-		Result = SandboxFile->ConvertToAbsolutePathForExternalAppForWrite(*FileName);
-	}
-	else
-	{
-		Result = SandboxFile->ConvertToAbsolutePathForExternalAppForRead(*FileName);
-	}
-
-	return Result;
+	check(SandboxFile);
+	return SandboxFile->ConvertToFullSandboxPath(FileName, bForWrite);
 }
 
 FString UCookOnTheFlyServer::ConvertToFullSandboxPath( const FString &FileName, bool bForWrite, const FString& PlatformName ) const
 {
-	FString Result = ConvertToFullSandboxPath( FileName, bForWrite );
-	Result.ReplaceInline(TEXT("[Platform]"), *PlatformName);
-	return Result;
+	check(SandboxFile);
+	return SandboxFile->ConvertToFullPlatformSandboxPath(FileName, bForWrite, PlatformName);
 }
 
 FString UCookOnTheFlyServer::GetSandboxAssetRegistryFilename()
@@ -10108,13 +10087,9 @@ void UCookOnTheFlyServer::CreateSandboxFile(FBeginCookContext& BeginContext)
 		SandboxFile.Reset();
 	}
 
-	// Local sandbox file wrapper. This will be used to handle path conversions, but will not be used to actually
-	// write/read files so we can safely use [Platform] token in the sandbox directory name and then replace it
-	// with the actual platform name.
 	// Filename lookups in the cooker must Use this SandboxFile to do path conversion to properly handle sandbox paths
 	// (outside of standard paths in particular).
-	SandboxFile = FSandboxPlatformFile::Create(false);
-	SandboxFile->Initialize(&FPlatformFileManager::Get().GetPlatformFile(), *FString::Printf(TEXT("-sandbox=\"%s\""), *OutputDirectory));
+	SandboxFile.Reset(new UE::Cook::FCookSandbox(OutputDirectory, PluginsToRemap));
 	SandboxFileOutputDirectory = OutputDirectory;
 
 }
@@ -10428,7 +10403,7 @@ UE::Cook::FCookSavePackageContext* UCookOnTheFlyServer::CreateSaveContext(const 
 	else
 	{
 		PackageWriter = new FLooseCookedPackageWriter(ResolvedRootPath, ResolvedMetadataPath, TargetPlatform,
-			GetAsyncIODelete(), PluginsToRemap, MoveTemp(BeginCacheCallback));
+			GetAsyncIODelete(), *SandboxFile, MoveTemp(BeginCacheCallback));
 		WriterDebugName = TEXT("LooseCookedPackageWriter");
 	}
 

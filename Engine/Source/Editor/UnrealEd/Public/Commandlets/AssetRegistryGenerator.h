@@ -18,7 +18,6 @@
 #include "UObject/SoftObjectPath.h"
 #include "UObject/UObjectHash.h"
 
-class FSandboxPlatformFile;
 class IAssetRegistry;
 class ITargetPlatform;
 class IChunkDataGenerator;
@@ -27,6 +26,7 @@ struct FChunkDependencyTreeNode;
 struct FCookTagList;
 struct FSoftObjectPath;
 namespace UE::Cook { class FAssetRegistryPackageMessage; }
+namespace UE::Cook { class FCookSandbox; }
 namespace UE::Cook { class FCookWorkerClient; }
 namespace UE::Cook { struct FPackageData; }
 
@@ -156,7 +156,7 @@ public:
 	 *        and a manifest of packagenames is written for each chunk
 	 */
 	void FinalizeChunkIDs(const TSet<FName>& CookedPackages, const TSet<FName>& DevelopmentOnlyPackages,
-		FSandboxPlatformFile& InSandboxFile, bool bGenerateStreamingInstallManifest);
+		UE::Cook::FCookSandbox& InSandboxFile, bool bGenerateStreamingInstallManifest);
 
 	/**
 	 * Register a chunk data generator with this generator.
@@ -204,7 +204,7 @@ public:
 	 * @param InManifestSubDir If non-null, the manifests are written into this subpath
 	 *        of the usual location.
 	 */
-	bool SaveManifests(FSandboxPlatformFile& InSandboxFile, int64 InOverrideChunkSize = 0,
+	bool SaveManifests(UE::Cook::FCookSandbox& InSandboxFile, int64 InOverrideChunkSize = 0,
 		const TCHAR* InManifestSubDir = nullptr);
 
 	/**
@@ -215,7 +215,7 @@ public:
 	/** 
 	 * Writes out CookerOpenOrder.log file 
 	 */
-	bool WriteCookerOpenOrder(FSandboxPlatformFile& InSandboxFile);
+	bool WriteCookerOpenOrder(UE::Cook::FCookSandbox& InSandboxFile);
 
 	/**
 	 * Follows an assets dependency chain to build up a list of package names in the same order as the runtime would attempt to load them
@@ -401,7 +401,7 @@ private:
 	 * 
 	 * @param the InSandboxFile used during cook
 	 */
-	void FixupPackageDependenciesForChunks(FSandboxPlatformFile& InSandboxFile);
+	void FixupPackageDependenciesForChunks(UE::Cook::FCookSandbox& InSandboxFile);
 
 	/**
 	 * Attaches encryption key guids into the registry data for encrypted primary assets
@@ -409,7 +409,7 @@ private:
 	void InjectEncryptionData(FAssetRegistryState& TargetState);
 
 	void AddPackageToChunk(FChunkPackageSet& ThisPackageSet, FName InPkgName,
-		const FString& InSandboxFile, int32 PakchunkIndex, FSandboxPlatformFile& SandboxPlatformFile);
+		const FString& InSandboxFile, int32 PakchunkIndex, UE::Cook::FCookSandbox& SandboxPlatformFile);
 
 	/**
 	 * Returns the path of the temporary packaging directory for the specified platform.
@@ -430,7 +430,7 @@ private:
 
 	/** Calculate the final ChunkIds used by the package and store the package in the manifest for each of those chunks. */
 	void CalculateChunkIdsAndAssignToManifest(const FName& PackageFName, const FString& PackagePathName,
-		const FString& SandboxFilename, const FString& LastLoadedMapName, FSandboxPlatformFile& InSandboxFile);
+		const FString& SandboxFilename, const FString& LastLoadedMapName, UE::Cook::FCookSandbox& InSandboxFile);
 
 	/** Deletes the temporary packaging directory for the specified platform */
 	bool CleanTempPackagingDirectory(const FString& Platform) const;
@@ -440,7 +440,7 @@ private:
 
 	/** Generates and saves streaming install chunk manifest */
 	bool GenerateStreamingInstallManifest(int64 InOverrideChunkSize, const TCHAR* InManifestSubDir,
-		FSandboxPlatformFile& InSandboxFile);
+		UE::Cook::FCookSandbox& InSandboxFile);
 
 	/** Gather a list of dependencies required by to completely load this package */
 	bool GatherAllPackageDependencies(FName PackageName, TArray<FName>& DependentPackageNames);

@@ -8,7 +8,6 @@
 #include "CookPackageSplitter.h"
 #include "HAL/PlatformMemory.h"
 #include "INetworkFileSystemModule.h"
-#include "IPlatformFileSandboxWrapper.h"
 #include "Misc/EnumClassFlags.h"
 #include "Misc/Optional.h"
 #include "Misc/PackageAccessTracking.h"
@@ -157,6 +156,7 @@ namespace UE::Cook
 	class FBuildDefinitions;
 	class FCachedDependencies;
 	class FCookDirector;
+	class FCookSandbox;
 	class FCookWorkerClient;
 	class FCookWorkerServer;
 	class FDiagnostics;
@@ -370,7 +370,7 @@ private:
 	int32 LoadBatchSize;
 
 	ECookInitializationFlags CookFlags = ECookInitializationFlags::None;
-	TUniquePtr<class FSandboxPlatformFile> SandboxFile;
+	TUniquePtr<UE::Cook::FCookSandbox> SandboxFile;
 	FString SandboxFileOutputDirectory;
 	TUniquePtr<FAsyncIODelete> AsyncIODelete; // Helper for deleting the old cook directory asynchronously
 	bool bIsSavingPackage = false; // used to stop recursive mark package dirty functions
