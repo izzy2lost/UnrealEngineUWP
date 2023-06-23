@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "IHasContext.h"
+#include "IObjectChooser.h"
 #include "IChooserParameterBase.generated.h"
 
 USTRUCT()
