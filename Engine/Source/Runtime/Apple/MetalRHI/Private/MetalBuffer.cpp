@@ -1193,7 +1193,7 @@ uint32 FMetalBufferPoolPolicyData::GetPoolBucketSize(uint32 Bucket)
 	return BucketSizes[Index];
 }
 
-FMetalBuffer FMetalBufferPoolPolicyData::CreateResource(CreationArguments Args)
+FMetalBuffer FMetalBufferPoolPolicyData::CreateResource(FRHICommandListBase&, CreationArguments Args)
 {
 	check(Args.Device);	
 	uint32 BufferSize = GetPoolBucketSize(GetPoolBucketIndex(Args));
@@ -1522,7 +1522,7 @@ FMetalBuffer FMetalResourceHeap::CreateBuffer(uint32 Size, uint32 Alignment, EBu
 				 }
 				 else
 				 {
-                    Buffer = ManagedBuffers.CreatePooledResource(FMetalPooledBufferArgs(Queue->GetDevice(), BlockSize, Flags, StorageMode, CpuMode));
+                    Buffer = ManagedBuffers.CreatePooledResource(FRHICommandListExecutor::GetImmediateCommandList(), FMetalPooledBufferArgs(Queue->GetDevice(), BlockSize, Flags, StorageMode, CpuMode));
 					if (GMetalResourcePurgeInPool)
 					{
 						Buffer.SetPurgeableState(mtlpp::PurgeableState::NonVolatile);
@@ -1599,7 +1599,7 @@ FMetalBuffer FMetalResourceHeap::CreateBuffer(uint32 Size, uint32 Alignment, EBu
 				else
 				{
 					FScopeLock Lock(&Mutex);
-                    Buffer = Buffers[Storage].CreatePooledResource(FMetalPooledBufferArgs(Queue->GetDevice(), BlockSize, Flags, StorageMode, CpuMode));
+                    Buffer = Buffers[Storage].CreatePooledResource(FRHICommandListExecutor::GetImmediateCommandList(), FMetalPooledBufferArgs(Queue->GetDevice(), BlockSize, Flags, StorageMode, CpuMode));
 					if (GMetalResourcePurgeInPool)
 					{
                    		Buffer.SetPurgeableState(mtlpp::PurgeableState::NonVolatile);

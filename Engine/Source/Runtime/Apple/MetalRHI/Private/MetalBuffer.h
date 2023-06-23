@@ -241,7 +241,7 @@ public:
 	 * @param Args The buffer size in bytes.
 	 * @returns A suitably sized buffer or NULL on failure.
 	 */
-	FMetalBuffer CreateResource(CreationArguments Args);
+	FMetalBuffer CreateResource(FRHICommandListBase& RHICmdList, CreationArguments Args);
 	
 	/** Gets the arguments used to create resource
 	 * @param Resource The buffer to get data for.

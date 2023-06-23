@@ -185,7 +185,7 @@ public:
 				this->StaticMeshVertexBuffers.StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(VertexFactoryPtr, Data);
 				this->StaticMeshVertexBuffers.StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactoryPtr, Data, 0);
 				this->StaticMeshVertexBuffers.ColorVertexBuffer.BindColorVertexBuffer(VertexFactoryPtr, Data);
-				VertexFactoryPtr->SetData(Data);
+				VertexFactoryPtr->SetData(RHICmdList, Data);
 
 				VertexFactoryPtr->UpdateRHI(RHICmdList);
 			});
