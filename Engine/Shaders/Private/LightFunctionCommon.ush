@@ -58,11 +58,12 @@ float3 GetLightFunctionColor(float3 LightVector, float3 TranslatedWorldSpace)
 
 #if STRATA_ENABLED
 
-  #if COMPUTESHADER
-	return StrataGetBSDFEmissive(MaterialParameters.StrataTree.BSDFs[0]); // Unused code path?
-  #else
-	return StrataGetBSDFEmissive(PixelMaterialInputs.FrontMaterial.InlinedBSDF);
-  #endif
+	// Light function node forces a single unlit BSDF. We get the raw data from light function node from the raw BSDF on the tree.
+	FStrataPixelHeader StrataPixelHeader = MaterialParameters.GetFrontStrataHeader();
+	FStrataBSDF UnlitBSDF = StrataPixelHeader.StrataTree.BSDFs[0];
+	UnlitBSDF.StrataSanitizeBSDF(); // required wehen not calling StrataUpdateTreeUnlit
+
+	return StrataGetBSDFEmissive(UnlitBSDF);
 
 #else // STRATA_ENABLED
 

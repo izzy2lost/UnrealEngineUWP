@@ -236,17 +236,29 @@ void GetMaterialPayload(
 	bool bStrataSubsurfaceEnable = false;
 	const float3 WorldBentNormal0 = GetWorldBentNormalZero(MaterialParameters);
 
-  #if STRATA_OPTIMIZED_UNLIT
-	FStrataBSDF UnlitBSDF = PixelMaterialInputs.FrontMaterial.InlinedBSDF;
-	UnlitBSDF.StrataSanitizeBSDF();
-	EmissiveLuminance = BSDF_GETEMISSIVE(UnlitBSDF);
-	#if !STRATA_OPAQUE_MATERIAL
-	TotalCoverage = UnlitBSDF.Coverage;
-	#endif
-  #else // STRATA_OPTIMIZED_UNLIT
 	// Initialise a Strata header with normal in registers
 	FStrataData StrataData = PixelMaterialInputs.GetFrontStrataData();
 	FStrataPixelHeader StrataPixelHeader = MaterialParameters.GetFrontStrataHeader();
+
+  #if STRATA_OPTIMIZED_UNLIT	
+	// Unlit BSDF goes through the StrataTree to support weighting operations. Technically, layering and mixing could also be supported.
+	float3	UnlitSurfaceLuminancePostCoverage = 0.0f;
+	float	UnlitSurfaceCoverage = 0.0f;
+	float3	UnlitSurfaceTransmittancePreCoverage = 0.0f;
+	float3	UnlitSurfaceNormal = 0.0f;
+	StrataPixelHeader.StrataUpdateTreeUnlit(
+		uint2(MaterialParameters.SvPosition.xy),
+		MaterialParameters.CameraVector,
+		StrataData,
+		UnlitSurfaceLuminancePostCoverage,
+		UnlitSurfaceCoverage,
+		UnlitSurfaceTransmittancePreCoverage,
+		UnlitSurfaceNormal);
+	EmissiveLuminance = UnlitSurfaceLuminancePostCoverage;
+	#if !STRATA_OPAQUE_MATERIAL
+	TotalCoverage = UnlitSurfaceCoverage;
+	#endif
+  #else // STRATA_OPTIMIZED_UNLIT
 	StrataPixelHeader.IrradianceAO.MaterialAO = GetMaterialAmbientOcclusion(PixelMaterialInputs);
 	StrataPixelHeader.SetCastContactShadow(GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_CAST_CONTACT_SHADOW);
 	StrataPixelHeader.SetDynamicIndirectShadowCasterRepresentation(GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_CAPSULE_REPRESENTATION);

@@ -99,17 +99,25 @@ void Main(
 
 #if STRATA_OPTIMIZED_UNLIT
 
-	// Unlit forces a single BSDF
-	FStrataBSDF UnlitBSDF = PixelMaterialInputs.FrontMaterial.InlinedBSDF;
-	UnlitBSDF.StrataSanitizeBSDF();
+	// Unlit BSDF goes through the StrataTree to support weighting operations. Technically, layering and mixing could also be supported.
+	float3	UnlitSurfaceLuminancePostCoverage = 0.0f;
+	float	UnlitSurfaceCoverage = 0.0f;
+	float3	UnlitSurfaceTransmittancePreCoverage = 0.0f;
+	StrataPixelHeader.StrataUpdateTreeUnlit(
+		uint2(SvPosition.xy),
+		MaterialParameters.CameraVector,
+		StrataData,
+		UnlitSurfaceLuminancePostCoverage,
+		UnlitSurfaceCoverage,
+		UnlitSurfaceTransmittancePreCoverage,
+		RefractionWorldNormal);
 
-	RefractionWorldNormal = UNLIT_NORMAL(UnlitBSDF);
 	const float MaterialIOR = GetMaterialRefractionIOR(RefractionData); // Unlit does not have any surface F0 so we only use the root node input.
 
 	const bool TryToClip = true; // In this case rough refractions are not supported, we can thus always clip.
 
 #if DISTORTION_ACCOUNT_FOR_COVERAGE
-	const float RefractionCoverage = UnlitBSDF.Coverage;	// Coverage of the material. STRATA_TODO allow coverage operator with unlit material to make this not 1 (allowed by legacy)
+	const float RefractionCoverage = UnlitSurfaceCoverage;	// Coverage of the material.
 #else
 	const float RefractionCoverage = 1.0;					// Behavior where coverage is always ignored (legacy support)
 #endif

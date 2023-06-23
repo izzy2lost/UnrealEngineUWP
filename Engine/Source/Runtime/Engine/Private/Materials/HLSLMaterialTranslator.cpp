@@ -11696,6 +11696,7 @@ bool FHLSLMaterialTranslator::FStrataCompilationContext::StrataGenerateDerivedMa
 			int VOpBottomBranchCountTaken = 0;
 			bool bStrataUsesVerticalLayering = false;
 			bool bOperatorEncountered = false;
+			bool bOperatorEncounteredButNotWeight = false;
 
 			std::function<void(FStrataOperator&, bool)> WalkOperators = [&](FStrataOperator& CurrentOperator, bool bInsideParameterBlendingSubTree) -> void
 			{
@@ -11713,6 +11714,7 @@ bool FHLSLMaterialTranslator::FStrataCompilationContext::StrataGenerateDerivedMa
 					WalkOperators(StrataMaterialExpressionRegisteredOperators[CurrentOperator.LeftIndex], bUseParameterBlending);
 					WalkOperators(StrataMaterialExpressionRegisteredOperators[CurrentOperator.RightIndex], bUseParameterBlending);
 					bOperatorEncountered = true;
+					bOperatorEncounteredButNotWeight = true;
 					break;
 				}
 				case STRATA_OPERATOR_HORIZONTAL:
@@ -11721,6 +11723,7 @@ bool FHLSLMaterialTranslator::FStrataCompilationContext::StrataGenerateDerivedMa
 					WalkOperators(StrataMaterialExpressionRegisteredOperators[CurrentOperator.LeftIndex], bUseParameterBlending);
 					WalkOperators(StrataMaterialExpressionRegisteredOperators[CurrentOperator.RightIndex], bUseParameterBlending);
 					bOperatorEncountered = true;
+					bOperatorEncounteredButNotWeight = true;
 					break;
 				}
 				case STRATA_OPERATOR_WEIGHT:
@@ -11775,7 +11778,9 @@ bool FHLSLMaterialTranslator::FStrataCompilationContext::StrataGenerateDerivedMa
 				// Even though we could support Unlit with slab.
 			}
 
-			if ((bHasUnlit || bHasVFogCloud || bHasHair || bHasEye || bHasSLW) && bOperatorEncountered)
+			if (((bHasVFogCloud || bHasHair || bHasEye || bHasSLW) && bOperatorEncountered)
+				|| (bHasUnlit && bOperatorEncounteredButNotWeight)
+				)
 			{
 				Compiler->Errorf(TEXT("Unlit, Fog/Cloud, Hair or SingleLayerWater cannot be used with operators. See %s (asset: %s).\r\n"), *CompilerMaterial->GetDebugName(), *CompilerMaterial->GetAssetPath().ToString());
 				// This is because it will results in simpler lighting loops focusin on slab.
@@ -12622,8 +12627,22 @@ int32 FHLSLMaterialTranslator::StrataVolumetricFogCloudBSDF(int32 Albedo, int32 
 	);
 }
 
-int32 FHLSLMaterialTranslator::StrataUnlitBSDF(int32 EmissiveColor, int32 TransmittanceColor, int32 Normal)
+int32 FHLSLMaterialTranslator::StrataUnlitBSDF(int32 EmissiveColor, int32 TransmittanceColor, int32 Normal, FStrataOperator* PromoteToOperator)
 {
+	if (PromoteToOperator)
+	{
+		return AddCodeChunk(
+			MCT_Strata, TEXT("Parameters.%s.PromoteParameterBlendedBSDFToOperator(GetStrataUnlitBSDF(%s, %s, %s), %u, %u, %u, %u)"),
+			*GetParametersStrataTreeName(CurrentStrataCompilationContext),
+			*StrataGetCastParameterCode(EmissiveColor,		MCT_Float3),
+			*StrataGetCastParameterCode(TransmittanceColor, MCT_Float3),
+			*StrataGetCastParameterCode(Normal,				MCT_Float3),
+			PromoteToOperator->Index,
+			PromoteToOperator->BSDFIndex,
+			PromoteToOperator->LayerDepth,
+			PromoteToOperator->bIsBottom ? 1 : 0);
+	}
+	
 	return AddCodeChunk(
 		MCT_Strata, TEXT("GetStrataUnlitBSDF(%s, %s, %s)"),
 		*StrataGetCastParameterCode(EmissiveColor,		MCT_Float3),

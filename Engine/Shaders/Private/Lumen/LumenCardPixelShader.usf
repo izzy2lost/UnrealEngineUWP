@@ -74,15 +74,25 @@ void Main(
 	float3 Emissive      = 0;
 	float TotalCoverage  = 1.f;
 
-  #if STRATA_OPTIMIZED_UNLIT
-	FStrataBSDF UnlitBSDF = PixelMaterialInputs.FrontMaterial.InlinedBSDF;
-	UnlitBSDF.StrataSanitizeBSDF();
-	Emissive = BSDF_GETEMISSIVE(UnlitBSDF);
-	TotalCoverage = UnlitBSDF.Coverage;
-  #else // STRATA_OPTIMIZED_UNLIT
 	// Initialise a Strata header with normal in registers
 	FStrataData StrataData = PixelMaterialInputs.GetFrontStrataData();
 	FStrataPixelHeader StrataPixelHeader = MaterialParameters.GetFrontStrataHeader();
+
+  #if STRATA_OPTIMIZED_UNLIT
+
+	// Unlit BSDF goes through the StrataTree to support weighting operations. Technically, layering and mixing could also be supported.
+	float3	UnlitSurfaceTransmittancePreCoverage = 0.0f;
+	float3	UnlitSurfaceNormal = 0.0f;
+	StrataPixelHeader.StrataUpdateTreeUnlit(
+		uint2(SvPosition.xy),
+		MaterialParameters.CameraVector,
+		StrataData,
+		Emissive,
+		TotalCoverage,
+		UnlitSurfaceTransmittancePreCoverage,
+		UnlitSurfaceNormal);
+
+  #else // STRATA_OPTIMIZED_UNLIT
 	StrataPixelHeader.IrradianceAO.MaterialAO = GetMaterialAmbientOcclusion(PixelMaterialInputs);
 	
 	if (StrataPixelHeader.StrataTree.BSDFCount > 0)

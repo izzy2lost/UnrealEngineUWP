@@ -164,9 +164,10 @@ half4 GetMaterialColor( VertexToPixelInterpolants InVertex, float2 MeshUV )
 	
 #if STRATA_ENABLED
 
-	// UI element are always rendered with a unlit BSDF behind the scene
-	FStrataBSDF UnlitBSDF = PixelMaterialInputs.FrontMaterial.InlinedBSDF;
-	UnlitBSDF.StrataSanitizeBSDF();
+	// UI node forces a single unlit BSDF. We get the raw data from light function node from the raw BSDF on the tree.
+	FStrataPixelHeader StrataPixelHeader = Parameters.GetFrontStrataHeader();
+	FStrataBSDF UnlitBSDF = StrataPixelHeader.StrataTree.BSDFs[0];
+	UnlitBSDF.StrataSanitizeBSDF(); // required wehen not calling StrataUpdateTreeUnlit
 
 #if ((STRATA_OPAQUE_DEFERRED || (STRATA_OPAQUE_MATERIAL && STRATA_FORWARD_SHADING)))
 

@@ -219,12 +219,25 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 #if STRATA_ENABLED
 
 #if MATERIAL_IS_STRATA
+	FStrataPixelHeader StrataPixelHeader = MaterialParameters.GetFrontStrataHeader();
 	FStrataData StrataData = PixelMaterialInputs.GetFrontStrataData();
 
 #if STRATA_OPTIMIZED_UNLIT
-	const float3 Transparency = saturate(StrataData.InlinedBSDF.Coverage + (1.0 - StrataData.InlinedBSDF.Coverage) * UNLIT_TRANSMITTANCE(StrataData.InlinedBSDF));
+	// Unlit BSDF goes through the StrataTree to support weighting operations. Technically, layering and mixing could also be supported.
+	float3	UnlitSurfaceLuminancePostCoverage = 0.0f;
+	float	UnlitSurfaceCoverage = 0.0f;
+	float3	UnlitSurfaceTransmittancePreCoverage = 0.0f;
+	float3	UnlitSurfaceNormal = 0.0f;
+	StrataPixelHeader.StrataUpdateTreeUnlit(
+		uint2(SvPosition.xy),
+		MaterialParameters.CameraVector,
+		StrataData,
+		UnlitSurfaceLuminancePostCoverage,
+		UnlitSurfaceCoverage,
+		UnlitSurfaceTransmittancePreCoverage,
+		UnlitSurfaceNormal);
+	const float3 Transparency = saturate(UnlitSurfaceCoverage + (1.0 - UnlitSurfaceCoverage) * UnlitSurfaceTransmittancePreCoverage);
 #else
-	FStrataPixelHeader StrataPixelHeader = MaterialParameters.GetFrontStrataHeader();
 	// STRATA_TODO: These should actually be initialized via the corresponding cvars. To do this properly would require binding FStrataSceneData in the path tracing shaders
 	// For now, simply match the default substrate settings
 	FStrataIntegrationSettings IntegrationSettings = InitStrataIntegrationSettings(
@@ -546,13 +559,14 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 #if MATERIAL_IS_STRATA // This can become false if the material is invalid
 
 #if STRATA_OPTIMIZED_UNLIT
-	Payload.Radiance = BSDF_GETEMISSIVE(StrataData.InlinedBSDF);
+
+	Payload.Radiance = UnlitSurfaceLuminancePostCoverage;
 #if STRATA_OPAQUE_MATERIAL
 	Payload.BSDFOpacity = 1;
 	Payload.TransparencyColor = 0;
 #else
-	Payload.BSDFOpacity = StrataData.InlinedBSDF.Coverage;
-	Payload.TransparencyColor = UNLIT_TRANSMITTANCE(StrataData.InlinedBSDF);
+	Payload.BSDFOpacity = UnlitSurfaceCoverage;
+	Payload.TransparencyColor = UnlitSurfaceTransmittancePreCoverage;
 #endif
 
 #else // STRATA_OPTIMIZED_UNLIT

@@ -24264,11 +24264,12 @@ UMaterialExpressionStrataLightFunction::UMaterialExpressionStrataLightFunction(c
 #if WITH_EDITOR
 int32 UMaterialExpressionStrataLightFunction::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
+	FStrataOperator& StrataOperator = Compiler->StrataCompilationGetOperator(Compiler->StrataTreeStackGetPathUniqueId());
 	int32 OutputCodeChunk = Compiler->StrataUnlitBSDF(
 		CompileWithDefaultFloat3(Compiler, Color, 0.0f, 0.0f, 0.0f),
 		Compiler->Constant(1.0f),				// Opacity / Transmittance is ignored by light functions.
-		Compiler->Constant3(0.0f, 0.0f, 1.0f));	// place holder normal
-
+		Compiler->Constant3(0.0f, 0.0f, 1.0f),	// place holder normal
+		&StrataOperator);
 	return OutputCodeChunk;
 }
 
@@ -24336,11 +24337,12 @@ int32 UMaterialExpressionStrataPostProcess::Compile(class FMaterialCompiler* Com
 	int OpacityCodeChunk = CompileWithDefaultFloat1(Compiler, Opacity, 0.0f);
 	int TransmittanceCodeChunk = Compiler->Saturate(Compiler->Sub(Compiler->Constant(1.0f), OpacityCodeChunk));
 
+	FStrataOperator& StrataOperator = Compiler->StrataCompilationGetOperator(Compiler->StrataTreeStackGetPathUniqueId());
 	int32 OutputCodeChunk = Compiler->StrataUnlitBSDF(
 		CompileWithDefaultFloat3(Compiler, Color, 0.0f, 0.0f, 0.0f),
 		TransmittanceCodeChunk,
-		Compiler->Constant3(0.0f, 0.0f, 1.0f));	// place holder normal
-
+		Compiler->Constant3(0.0f, 0.0f, 1.0f),	// place holder normal
+		&StrataOperator);
 	return OutputCodeChunk;
 }
 
@@ -24411,11 +24413,12 @@ int32 UMaterialExpressionStrataUI::Compile(class FMaterialCompiler* Compiler, in
 	int OpacityCodeChunk = CompileWithDefaultFloat1(Compiler, Opacity, 0.0f);
 	int TransmittanceCodeChunk = Compiler->Saturate(Compiler->Sub(Compiler->Constant(1.0f), OpacityCodeChunk));
 
+	FStrataOperator& StrataOperator = Compiler->StrataCompilationGetOperator(Compiler->StrataTreeStackGetPathUniqueId());
 	int32 OutputCodeChunk = Compiler->StrataUnlitBSDF(
 		CompileWithDefaultFloat3(Compiler, Color, 0.0f, 0.0f, 0.0f),
 		TransmittanceCodeChunk,
-		Compiler->Constant3(0.0f, 0.0f, 1.0f));	// place holder normal
-
+		Compiler->Constant3(0.0f, 0.0f, 1.0f),	// place holder normal
+		&StrataOperator);
 	return OutputCodeChunk;
 }
 
@@ -24607,11 +24610,12 @@ UMaterialExpressionStrataUnlitBSDF::UMaterialExpressionStrataUnlitBSDF(const FOb
 #if WITH_EDITOR
 int32 UMaterialExpressionStrataUnlitBSDF::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
+	FStrataOperator& StrataOperator = Compiler->StrataCompilationGetOperator(Compiler->StrataTreeStackGetPathUniqueId());
 	int32 OutputCodeChunk = Compiler->StrataUnlitBSDF(
 		CompileWithDefaultFloat3(Compiler, EmissiveColor, 0.0f, 0.0f, 0.0f),
 		CompileWithDefaultFloat3(Compiler, TransmittanceColor, 1.0f, 1.0f, 1.0f),
-		CompileWithDefaultNormalWS(Compiler, Normal));
-
+		CompileWithDefaultNormalWS(Compiler, Normal),
+		&StrataOperator);
 	return OutputCodeChunk;
 }
 

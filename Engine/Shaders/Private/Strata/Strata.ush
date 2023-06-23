@@ -1871,6 +1871,37 @@ STRATA_TOP_LAYER_TYPE StrataLoadTopLayerData(FStrataTopLayerDataContainer Contai
 #endif // STRATA_MATERIALCONTAINER_IS_VIEWRESOURCE
 
 ///////////////////////////////////////////////////////////////////////////////
+// Integration settings
+
+struct FStrataIntegrationSettings
+{
+	bool bForceFullyRough;
+	bool bRoughDiffuseEnabled;
+	bool bRoughnessTracking;
+
+	// Embbeded debug settings
+	int  SliceStoringDebugStrataTreeData;
+	int  PeelLayersAboveDepth;
+};
+
+FStrataIntegrationSettings InitStrataIntegrationSettings(bool bForceFullyRough, bool bRoughDiffuseEnabled, int PeelLayersAboveDepth, bool bRoughnessTracking)
+{
+	FStrataIntegrationSettings Out;
+	Out.bForceFullyRough = bForceFullyRough;
+	Out.bRoughDiffuseEnabled = bRoughDiffuseEnabled;
+	Out.bRoughnessTracking = bRoughnessTracking;
+
+	Out.PeelLayersAboveDepth = PeelLayersAboveDepth;
+	Out.SliceStoringDebugStrataTreeData = -1;
+	return Out;
+}
+
+FStrataIntegrationSettings InitStrataIntegrationSettings()
+{
+	return InitStrataIntegrationSettings(false, true, -1, false);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // Shared local bases
 
 #define STRATA_BASIS_TYPE_NORMAL 0u
@@ -1937,6 +1968,27 @@ struct FStrataPixelHeader
 		FStrataIntegrationSettings Settings,
 		inout float OutCoverage,
 		inout float3 OutTransmittancePreCoverage);
+
+#if STRATA_OPTIMIZED_UNLIT
+	void StrataUpdateTreeUnlit(
+		in		uint2	PixelPos,
+		in		float3	V,
+		in		FStrataData StrataData,
+		inout	float3	OutEmissiveLuminance,
+		inout	float	OutDualBlendSurfaceCoverage,
+		inout	float3	OutDualBlendSurfaceTransmittancePreCoverage,
+		inout	float3	OutNormal)
+	{
+		FStrataIntegrationSettings Settings = InitStrataIntegrationSettings(false /*bForceFullyRough*/, false /*StrataStruct.bRoughDiffuse*/, -1/*StrataStruct.PeelLayersAboveDepth*/, false/*StrataStruct.bRoughnessTracking*/);
+		FStrataAddressing NullStrataAddressing = (FStrataAddressing)0;
+		this.StrataUpdateTree(NullStrataAddressing, StrataData, V, Settings, OutDualBlendSurfaceCoverage, OutDualBlendSurfaceTransmittancePreCoverage);
+
+		FStrataBSDF UnlitBSDF = this.StrataTree.BSDFs[0];
+		OutEmissiveLuminance = BSDF_GETEMISSIVE(UnlitBSDF) * UnlitBSDF.LuminanceWeightV;
+		OutNormal = UNLIT_NORMAL(UnlitBSDF);
+	}
+	//STRATA_TODO version with emissive only
+#endif // STRATA_OPTIMIZED_UNLIT
 
 #endif
 
@@ -3573,37 +3625,6 @@ void FStrataPixelHeader::StrataConvertFromDBuffer(
 	OutData.InlinedBSDF.Emissive = In.Emissive;
 	OutData.InlinedBSDF.Coverage = In.Coverage;
 #endif
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// Integration settings
-
-struct FStrataIntegrationSettings
-{
-	bool bForceFullyRough;
-	bool bRoughDiffuseEnabled;
-	bool bRoughnessTracking;
-
-	// Embbeded debug settings
-	int  SliceStoringDebugStrataTreeData;
-	int  PeelLayersAboveDepth;
-};
-
-FStrataIntegrationSettings InitStrataIntegrationSettings(bool bForceFullyRough, bool bRoughDiffuseEnabled, int PeelLayersAboveDepth, bool bRoughnessTracking)
-{
-	FStrataIntegrationSettings Out;
-	Out.bForceFullyRough = bForceFullyRough;
-	Out.bRoughDiffuseEnabled = bRoughDiffuseEnabled;
-	Out.bRoughnessTracking = bRoughnessTracking;
-
-	Out.PeelLayersAboveDepth = PeelLayersAboveDepth;
-	Out.SliceStoringDebugStrataTreeData = -1;
-	return Out;
-}
-
-FStrataIntegrationSettings InitStrataIntegrationSettings()
-{
-	return InitStrataIntegrationSettings(false, true, -1, false);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

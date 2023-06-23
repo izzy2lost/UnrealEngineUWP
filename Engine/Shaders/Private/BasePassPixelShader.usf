@@ -902,13 +902,15 @@ void FPixelShaderInOut_MainPS(
 #endif
 #endif // !STRATA_ENABLED
 
-#if STRATA_ENABLED && !STRATA_OPTIMIZED_UNLIT
+#if STRATA_ENABLED
 	// Initialise a Strata header with normal in registers
 	FStrataData StrataData = PixelMaterialInputs.GetFrontStrataData();
 	FStrataPixelHeader StrataPixelHeader = MaterialParameters.GetFrontStrataHeader();
+#if !STRATA_OPTIMIZED_UNLIT
 	StrataPixelHeader.IrradianceAO.MaterialAO = MaterialAO;
 	StrataPixelHeader.SetCastContactShadow(GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_CAST_CONTACT_SHADOW);
 	StrataPixelHeader.SetDynamicIndirectShadowCasterRepresentation(GetPrimitiveData(MaterialParameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_CAPSULE_REPRESENTATION);
+#endif 
 #endif
 
 #if STRATA_ENABLED && STRATA_INLINE_SINGLELAYERWATER
@@ -1401,7 +1403,7 @@ void FPixelShaderInOut_MainPS(
 	#endif
 #endif
 
-#if MATERIAL_WORKS_WITH_DUAL_SOURCE_COLOR_BLENDING || STRATA_TRANSLUCENT_MATERIAL || STRATA_FORWARD_SHADING || STRATA_MATERIAL_EXPORT_EXECUTED
+#if MATERIAL_WORKS_WITH_DUAL_SOURCE_COLOR_BLENDING || STRATA_TRANSLUCENT_MATERIAL || STRATA_FORWARD_SHADING || STRATA_MATERIAL_EXPORT_EXECUTED || STRATA_OPTIMIZED_UNLIT
 	float3 DualBlendSurfaceLuminancePostCoverage	= 0.0f;
 	float3 DualBlendSurfaceTransmittancePreCoverage = 1.0f;
 	float DualBlendSurfaceCoverage					= 1.0f;
@@ -1735,12 +1737,18 @@ void FPixelShaderInOut_MainPS(
 
 #elif STRATA_ENABLED && STRATA_OPTIMIZED_UNLIT
 
-	// Unlit forces a single BSDF
-	FStrataBSDF UnlitBSDF = PixelMaterialInputs.FrontMaterial.InlinedBSDF;
-	UnlitBSDF.StrataSanitizeBSDF();
+	// Unlit BSDF goes through the StrataTree to support weighting operations. Technically, layering and mixing could also be supported.
+	float3	UnlitSurfaceNormal = 0.0f;
+	StrataPixelHeader.StrataUpdateTreeUnlit(
+		uint2(In.SvPosition.xy),
+		MaterialParameters.CameraVector,
+		StrataData,
+		Color,
+		DualBlendSurfaceCoverage,
+		DualBlendSurfaceTransmittancePreCoverage,
+		UnlitSurfaceNormal);
 
 #if ((STRATA_OPAQUE_DEFERRED || (STRATA_OPAQUE_MATERIAL && STRATA_FORWARD_SHADING))) && !STRATA_MATERIAL_EXPORT_FROM_TRANSLUCENT
-	Color = BSDF_GETEMISSIVE(UnlitBSDF);
 	Opacity = 1.0f;
 
 #if   STRATA_MATERIAL_EXPORT_TYPE == STRATA_MATERIAL_EXPORT_DIFFUSE_COLOR
@@ -1756,9 +1764,8 @@ void FPixelShaderInOut_MainPS(
 #endif
 
 #else // STRATA_TRANSLUCENT_FORWARD || STRATA_FORWARD_SHADING || STRATA_MATERIAL_EXPORT_FROM_TRANSLUCENT
-	DualBlendSurfaceLuminancePostCoverage		= BSDF_GETEMISSIVE(UnlitBSDF);
-	DualBlendSurfaceTransmittancePreCoverage	= UNLIT_TRANSMITTANCE(UnlitBSDF);
-	DualBlendSurfaceCoverage					= UnlitBSDF.Coverage;
+	DualBlendSurfaceLuminancePostCoverage = Color;
+	// DualBlendSurfaceTransmittancePreCoverage and DualBlendSurfaceCoverage were fetch during StrataUpdateTree
 	Color = 0.0f;
 	Opacity = 1.0f;
 

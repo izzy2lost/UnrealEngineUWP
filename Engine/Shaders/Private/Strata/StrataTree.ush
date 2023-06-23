@@ -50,7 +50,7 @@ void FStrataTree::UpdateSingleBSDFOperatorCoverageTransmittance(
 	CurrentBSDF.StrataSanitizeBSDF();
 
 	// Distortion and translucency passes accumnulate pass calls for colored transmittance, coverage and TopDownRefractionLobeStat to be setup correctly.
-#if STRATA_COMPLEXPATH || MATERIALBLENDING_ANY_TRANSLUCENT
+#if (STRATA_COMPLEXPATH || MATERIALBLENDING_ANY_TRANSLUCENT) && !STRATA_OPTIMIZED_UNLIT
 
 	// Extract the true thickness of the BSDF before it is cast into the normalised Slab thickness we used.
 	// for opaque rough refraction, we are only interested in thickness of non bottom layers.
@@ -107,7 +107,25 @@ void FStrataTree::UpdateSingleBSDFOperatorCoverageTransmittance(
 		Op.BottomUpRefractionLobeStat = RefractedLobe;
 	}
 
-#else // STRATA_COMPLEXPATH
+#elif STRATA_OPTIMIZED_UNLIT
+
+	CurrentBSDF.LuminanceWeightV		= CurrentBSDFCoverage;
+	CurrentBSDF.CoverageAboveAlongN		= 0.0f;
+	CurrentBSDF.TransmittanceAboveAlongN= float3(1.0f, 1.0f, 1.0f);
+	CurrentBSDF.TopLayerDataWeight		= 1.0f;
+
+	Op.OpaqueRoughRefractThicknessCm	= 0.0;
+	Op.OpaqueRoughRefractCoverage		= CurrentBSDFCoverage;
+	Op.OpaqueRoughRefractTopRoughness	= Roughness;
+
+	Op.Coverage				= CurrentBSDFCoverage;
+	Op.ThroughputAlongV		= UNLIT_TRANSMITTANCE(CurrentBSDF);
+	Op.TransmittanceAlongN	= UNLIT_TRANSMITTANCE(CurrentBSDF);
+
+	Op.TopDownRefractionLobeStat = StrataGetNullLobe();
+	Op.BottomUpRefractionLobeStat = StrataGetNullLobe();
+
+#else //
 
 	CurrentBSDF.LuminanceWeightV		= CurrentBSDFCoverage;
 	CurrentBSDF.CoverageAboveAlongN		= 0.0f;
@@ -171,6 +189,8 @@ void FStrataTree::UpdateSingleOperatorCoverageTransmittance(int OpIndex)
 		Op.OpaqueRoughRefractTopRoughness = OpA.OpaqueRoughRefractTopRoughness;
 		break;
 	}
+
+#if !STRATA_OPTIMIZED_UNLIT
 
 	case STRATA_OPERATOR_VERTICAL:
 	{
@@ -286,6 +306,8 @@ void FStrataTree::UpdateSingleOperatorCoverageTransmittance(int OpIndex)
 		Op.OpaqueRoughRefractTopRoughness = lerp(OpA.OpaqueRoughRefractTopRoughness, OpB.OpaqueRoughRefractTopRoughness, 0.5f);
 		break;
 	}
+
+#endif // !STRATA_OPTIMIZED_UNLIT
 
 	}
 

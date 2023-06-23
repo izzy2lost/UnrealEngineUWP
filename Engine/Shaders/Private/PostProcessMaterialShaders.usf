@@ -251,9 +251,10 @@ void MainPS(
 	float3 EmissiveColor = 0.0f;
 #if STRATA_ENABLED
 
-	// Unlit forces a single BSDF
-	FStrataBSDF UnlitBSDF = PixelMaterialInputs.FrontMaterial.InlinedBSDF;
-	UnlitBSDF.StrataSanitizeBSDF();
+	// Post process node forces a single unlit BSDF. We get the raw data from light function node from the raw BSDF on the tree.
+	FStrataPixelHeader StrataPixelHeader = Parameters.GetFrontStrataHeader();
+	FStrataBSDF UnlitBSDF = StrataPixelHeader.StrataTree.BSDFs[0];
+	UnlitBSDF.StrataSanitizeBSDF(); // required wehen not calling StrataUpdateTreeUnlit
 
 	half3 PPColor = BSDF_GETEMISSIVE(UnlitBSDF);
 	half  PPAlpha = saturate(1.0 - UNLIT_TRANSMITTANCE(UnlitBSDF).x);	// The current interface only allows legacy opacity transformed to transmittance as 1-Opacity. See UMaterialExpressionStrataPostProcess.
