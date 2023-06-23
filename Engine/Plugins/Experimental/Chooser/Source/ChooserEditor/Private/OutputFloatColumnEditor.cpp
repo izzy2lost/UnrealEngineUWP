@@ -8,6 +8,7 @@
 #include "Widgets/Images/SImage.h"
 #include "GraphEditorSettings.h"
 #include "SPropertyAccessChainWidget.h"
+#include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "OutputBoolColumnEditor"
 
