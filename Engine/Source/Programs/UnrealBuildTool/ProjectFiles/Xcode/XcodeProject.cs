@@ -73,6 +73,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		public bool bSupportsMac => Supports(UnrealTargetPlatform.Mac);
 		public bool bSupportsIOS => Supports(UnrealTargetPlatform.IOS);
 		public bool bSupportsTVOS => Supports(UnrealTargetPlatform.TVOS);
+		public bool bSupportsVisionOS => Supports(UnrealTargetPlatform.VisionOS);
 		public bool Supports(UnrealTargetPlatform? Platform)
 		{
 			return UnrealData.Supports(Platform) && (ProjectTarget == null || Platform == null || ProjectTarget.SupportedPlatforms.Contains((UnrealTargetPlatform)Platform));
@@ -337,6 +338,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		// settings read from project configs
 		public IOSProjectSettings? IOSProjectSettings;
 		public TVOSProjectSettings? TVOSProjectSettings;
+		public VisionOSProjectSettings? VisionOSProjectSettings;
 
 		// Name of the product (usually the project name, but UE5.xcodeproj is actually UnrealGame product)
 		public string ProductName;
@@ -378,6 +380,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		public static bool bSupportsMac => Supports(UnrealTargetPlatform.Mac);
 		public static bool bSupportsIOS => Supports(UnrealTargetPlatform.IOS);
 		public static bool bSupportsTVOS => Supports(UnrealTargetPlatform.TVOS);
+		public static bool bSupportsVisionOS => Supports(UnrealTargetPlatform.VisionOS);
 		public static bool Supports(UnrealTargetPlatform? Platform)
 		{
 			return Platform == null || XcodeProjectFileGenerator.XcodePlatforms.Contains((UnrealTargetPlatform)Platform);
@@ -385,9 +388,9 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 
 		public bool IsAppBundle(UnrealTargetPlatform Platform)
 		{
-			if (Platform == UnrealTargetPlatform.IOS || Platform == UnrealTargetPlatform.TVOS)
+			if (Platform != UnrealTargetPlatform.Mac)
 			{
-				// iOS and TvOS always need app bundles
+				// mobile always need app bundles
 				return true;
 			}
 			return bIsAppBundle;
@@ -519,6 +522,12 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				TVOSProjectSettings = TVOSPlatform.ReadProjectSettings(UProjectFileLocation);
 			}
 
+			if (AllConfigs.Any(x => x.bSupportsVisionOS))
+			{
+				VisionOSPlatform VisionOSPlatform = ((VisionOSPlatform)UEBuildPlatform.GetBuildPlatform(UnrealTargetPlatform.VisionOS));
+				VisionOSProjectSettings = VisionOSPlatform.ReadProjectSettings(UProjectFileLocation);
+			}
+
 			return true;
 		}
 
@@ -529,7 +538,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			ConfigHierarchy SharedPlatformIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, UProjectFileLocation?.Directory, UnrealTargetPlatform.Mac);
 			SharedPlatformIni.TryGetValue("/Script/MacTargetPlatform.XcodeProjectSettings", "bUseAutomaticCodeSigning", out bUseAutomaticSigning);
 
-			Metadata = new Metadata(ProductDirectory, XcodeProjectFileLocation, SharedPlatformIni, bSupportsMac, bSupportsIOS || bSupportsTVOS, Logger);
+			Metadata = new Metadata(ProductDirectory, XcodeProjectFileLocation, SharedPlatformIni, bSupportsMac, bSupportsIOS || bSupportsTVOS || bSupportsVisionOS, Logger);
 		}
 
 		public string? FindFile(List<string> Paths, UnrealTargetPlatform Platform, bool bMakeRelative)
@@ -617,7 +626,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				{
 					foreach (UnrealTargetPlatform Platform in Platforms)
 					{
-						if (InstalledPlatformInfo.IsValidPlatform(Platform, EProjectType.Code) && (Platform == UnrealTargetPlatform.Mac || Platform == UnrealTargetPlatform.IOS || Platform == UnrealTargetPlatform.TVOS)) // @todo support other platforms
+						if (InstalledPlatformInfo.IsValidPlatform(Platform, EProjectType.Code) && Platform.IsInGroup(UnrealPlatformGroup.Apple)) // @todo support other platforms
 						{
 							UEBuildPlatform? BuildPlatform;
 							if (UEBuildPlatform.TryGetBuildPlatform(Platform, out BuildPlatform) && (BuildPlatform.HasRequiredSDKsInstalled() == SDKStatus.Valid))
@@ -996,7 +1005,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			Content.WriteLine(3, "buildSettings = {");
 			if (bIncludeAllPlatforms)
 			{
-				Content.WriteLine(4, $"SUPPORTED_PLATFORMS = \"macosx iphonesimulator iphoneos appletvsimulator appletvos\";");
+				Content.WriteLine(4, $"SUPPORTED_PLATFORMS = \"macosx iphonesimulator iphoneos appletvsimulator appletvos xros xrsimulator\";");
 				Content.WriteLine(4, $"ONLY_ACTIVE_ARCH = YES;");
 			}
 			Content.WriteLine(3, "};");
@@ -1016,6 +1025,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		public bool bSupportsMac => Supports(UnrealTargetPlatform.Mac);
 		public bool bSupportsIOS => Supports(UnrealTargetPlatform.IOS);
 		public bool bSupportsTVOS => Supports(UnrealTargetPlatform.TVOS);
+		public bool bSupportsVisionOS => Supports(UnrealTargetPlatform.VisionOS);
 		public bool Supports(UnrealTargetPlatform? Platform)
 		{
 			return this.Platform == Platform || (this.Platform == null && BuildConfigs.Any(x => x.Info.Supports(Platform)));
@@ -1682,13 +1692,28 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 						ExtraConfigLines.Add($"INFOPLIST_KEY_UIRequiresFullScreen_iPad = false");
 					}
 				}
-				else // tvos
+				else if (Platform == UnrealTargetPlatform.TVOS) // tvos
 				{
 					SDKRoot = "appletvos";
 					SupportedPlatforms = "appletvos"; // appletvsimulator
 					DeploymentTargetKey = "TVOS_DEPLOYMENT_TARGET";
 					SupportedDevices = UnrealData.TVOSProjectSettings!.RuntimeDevices;
 					DeploymentTarget = UnrealData.TVOSProjectSettings.RuntimeVersion;
+				}
+				else if (Platform == UnrealTargetPlatform.VisionOS)
+				{
+					SDKRoot = "xros";
+					SupportedPlatforms = "xrsimulator"; // xros
+					DeploymentTargetKey = "XROS_DEPLOYMENT_TARGET";
+					SupportedDevices = UnrealData.VisionOSProjectSettings!.RuntimeDevices;
+					DeploymentTarget = UnrealData.VisionOSProjectSettings.RuntimeVersion;
+
+					ExtraConfigLines.Add($"VALID_ARCHS = arm64");
+					ExtraConfigLines.Add($"ARCHS = arm64");
+				}
+				else
+				{
+					throw new BuildException($"Unsupported platform {Platform}");
 				}
 			}
 

@@ -174,6 +174,9 @@ bool FIOSPlatformRHIFramePacer::IsEnabled()
 
 uint32 FIOSPlatformRHIFramePacer::GetMaxRefreshRate()
 {
+#if PLATFORM_VISIONOS
+	return IOSDisplayConstants::MaxRefreshRate;
+#else
 	static bool bEnableDynamicMaxFPS = false;
 	static bool bInitialized = false;
 	
@@ -184,6 +187,7 @@ uint32 FIOSPlatformRHIFramePacer::GetMaxRefreshRate()
 	}
 	
 	return bEnableDynamicMaxFPS ? [UIScreen mainScreen].maximumFramesPerSecond : IOSDisplayConstants::MaxRefreshRate;
+#endif
 }
 
 bool FIOSPlatformRHIFramePacer::SupportsFramePace(int32 QueryFramePace)

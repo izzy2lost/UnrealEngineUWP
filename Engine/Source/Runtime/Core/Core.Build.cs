@@ -107,7 +107,7 @@ public class Core : ModuleRules
 				PublicAdditionalLibraries.Add(XcodeRoot + "/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/PrivateFrameworks/MultitouchSupport.framework/Versions/Current/MultitouchSupport.tbd");
 			}
 		}
-		else if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
+		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
 		{
 			AddEngineThirdPartyPrivateStaticDependencies(Target,
 				"zlib"
@@ -119,6 +119,10 @@ public class Core : ModuleRules
 				AddEngineThirdPartyPrivateStaticDependencies(Target,
 					"PLCrashReporter"
 					);
+			}
+			if (Target.Platform == UnrealTargetPlatform.VisionOS)
+			{
+				PublicFrameworks.Add("CoreMotion");
 			}
 
 			PrivateIncludePathModuleNames.Add("ApplicationCore");
@@ -168,10 +172,9 @@ public class Core : ModuleRules
 		PublicDefinitions.Add("UE_ENABLE_ICU=" + (Target.bCompileICU ? "1" : "0")); // Enable/disable (=1/=0) ICU usage in the codebase. NOTE: This flag is for use while integrating ICU and will be removed afterward.
 
 		// If we're compiling with the engine, then add Core's engine dependencies
-		if (Target.bCompileAgainstEngine && !Target.bBuildRequiresCookedData)
+		if (Target.bCompileAgainstEngine && Target.IsInPlatformGroup(UnrealPlatformGroup.Desktop))
 		{
-			DynamicallyLoadedModuleNames.AddRange(new string[] { "DerivedDataCache" });
-			DynamicallyLoadedModuleNames.AddRange(new string[] { "Virtualization" });
+			DynamicallyLoadedModuleNames.Add("Virtualization");
 		}
 
 		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Desktop))
@@ -272,8 +275,8 @@ public class Core : ModuleRules
 			PublicDefinitions.Add("WITH_DIRECTXMATH=0");
 		}
 
-		if ((Target.Platform == UnrealTargetPlatform.Mac) || (Target.Platform == UnrealTargetPlatform.IOS) || (Target.Platform == UnrealTargetPlatform.TVOS) 
-			|| (Target.Platform == UnrealTargetPlatform.Android))
+		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Apple) ||
+			Target.Platform == UnrealTargetPlatform.Android)
 		{
 			PublicDefinitions.Add("IS_RUNNING_GAMETHREAD_ON_EXTERNAL_THREAD=1");
 		}

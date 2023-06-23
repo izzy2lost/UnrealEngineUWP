@@ -88,6 +88,11 @@ public class OodleNetworkHandlerComponent : ModuleRules
 			ReleaseLib = "liboo2nettvos.a";
 			DebugLib = "liboo2nettvos_dbg.a";
 		}
+		else if (Target.Platform == UnrealTargetPlatform.VisionOS)
+		{
+			ReleaseLib = "liboo2netios.a";
+			DebugLib = "liboo2netios_dbg.a";
+		}
 		else
 		{
 			// the subclass will return the library names

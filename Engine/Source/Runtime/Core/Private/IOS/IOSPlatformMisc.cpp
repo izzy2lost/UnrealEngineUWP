@@ -35,8 +35,8 @@
 
 #include "Apple/PreAppleSystemHeaders.h"
 
-#if !PLATFORM_TVOS
-#include <AdSupport/ASIdentifierManager.h> 
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
+#include <AdSupport/ASIdentifierManager.h>
 #endif // !PLATFORM_TVOS
 
 #import <DeviceCheck/DeviceCheck.h>
@@ -46,7 +46,9 @@
 #include <netinet/in.h>
 #include <SystemConfiguration/SystemConfiguration.h>
 #import <StoreKit/StoreKit.h>
+#if !PLATFORM_VISIONOS
 #import <UserNotifications/UserNotifications.h>
+#endif
 
 #include "Apple/PostAppleSystemHeaders.h"
 
@@ -235,7 +237,7 @@ int FIOSPlatformMisc::GetBatteryLevel()
 
 float FIOSPlatformMisc::GetBrightness()
 {
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
 	return (float)[[[IOSAppDelegate GetDelegate] window] screen].brightness;
 #else
 	return 1.0f;
@@ -244,7 +246,7 @@ float FIOSPlatformMisc::GetBrightness()
 
 void FIOSPlatformMisc::SetBrightness(float Brightness)
 {
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
 	dispatch_async(dispatch_get_main_queue(), ^{
 		[[[IOSAppDelegate GetDelegate] window] screen].brightness = Brightness;
 	});
@@ -280,7 +282,7 @@ bool FIOSPlatformMisc::IsInLowPowerMode()
 }
 
 
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
 UIInterfaceOrientationMask GetUIInterfaceOrientationMask(EDeviceScreenOrientation ScreenOrientation)
 {
 	switch (ScreenOrientation)
@@ -323,7 +325,7 @@ UIInterfaceOrientationMask GetUIInterfaceOrientationMask(EDeviceScreenOrientatio
 
 EDeviceScreenOrientation FIOSPlatformMisc::GetDeviceOrientation()
 {
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
 	IOSAppDelegate* AppDelegate = [IOSAppDelegate GetDelegate];
 	if (AppDelegate.InterfaceOrientation == UIInterfaceOrientationUnknown)
 	{
@@ -345,7 +347,7 @@ void FIOSPlatformMisc::SetAllowedDeviceOrientation(EDeviceScreenOrientation NewA
 {
 	AllowedDeviceOrientation = NewAllowedDeviceOrientation;
 
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
 	[IOSAppDelegate GetDelegate].IOSView->SupportedInterfaceOrientations = GetUIInterfaceOrientationMask(NewAllowedDeviceOrientation);
 #endif
 }
@@ -438,6 +440,10 @@ FIOSPlatformMisc::EIOSDevice FIOSPlatformMisc::GetIOSDeviceType()
 
     FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Device Type: %s") LINE_TERMINATOR, *DeviceIDString);
 
+#if PLATFORM_VISIONOS
+	DeviceType = IOS_RealityPro;
+#else
+	
     // iPods
 	if (DeviceIDString.StartsWith(TEXT("iPod")))
 	{
@@ -757,7 +763,8 @@ FIOSPlatformMisc::EIOSDevice FIOSPlatformMisc::GetIOSDeviceType()
 			}
 		}
 	}
-
+#endif
+	
 	// if this is unknown at this point, we have a problem
 	if (DeviceType == IOS_Unknown)
 	{
@@ -898,7 +905,7 @@ bool FIOSPlatformMisc::IsUpdateAvailable()
 */
 FString FIOSPlatformMisc::GetUniqueAdvertisingId()
 {
-#if !PLATFORM_TVOS && ENABLE_ADVERTISING_IDENTIFIER
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS && ENABLE_ADVERTISING_IDENTIFIER
 	// Check to see if this OS has this function
 	if ([[ASIdentifierManager sharedManager] respondsToSelector:@selector(advertisingIdentifier)])
 	{
@@ -951,14 +958,14 @@ class IPlatformChunkInstall* FIOSPlatformMisc::GetPlatformChunkInstall()
 
 bool FIOSPlatformMisc::SupportsForceTouchInput()
 {
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
 	return [[[IOSAppDelegate GetDelegate].IOSView traitCollection] forceTouchCapability];
 #else
 	return false;
 #endif
 }
 
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
 static UIFeedbackGenerator* GFeedbackGenerator = nullptr;
 #endif // !PLATFORM_TVOS
 static EMobileHapticsType GHapticsType;
@@ -967,7 +974,7 @@ void FIOSPlatformMisc::PrepareMobileHaptics(EMobileHapticsType Type)
 	// these functions must run on the main IOS thread
 	dispatch_async(dispatch_get_main_queue(), ^
 	{
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
 		if (GFeedbackGenerator != nullptr)
 		{
             UE_LOG(LogIOS, Warning, TEXT("Multiple haptics were prepared at once! Implement a stack of haptics types, or a wrapper object that is returned, with state"));
@@ -1014,7 +1021,7 @@ void FIOSPlatformMisc::TriggerMobileHaptics()
 {
 	dispatch_async(dispatch_get_main_queue(), ^
 	{
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
 		if (GFeedbackGenerator == nullptr)
 		{
 			return;
@@ -1052,7 +1059,7 @@ void FIOSPlatformMisc::ReleaseMobileHaptics()
 {
 	dispatch_async(dispatch_get_main_queue(), ^
 	{
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
 		if (GFeedbackGenerator == nullptr)
 		{
 			return;
@@ -1189,7 +1196,7 @@ void FIOSPlatformMisc::RegisterForRemoteNotifications()
 	}
 
     dispatch_async(dispatch_get_main_queue(), ^{
-#if !PLATFORM_TVOS && NOTIFICATIONS_ENABLED
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS && NOTIFICATIONS_ENABLED
 		UNUserNotificationCenter *Center = [UNUserNotificationCenter currentNotificationCenter];
 		[Center requestAuthorizationWithOptions:(UNAuthorizationOptionBadge | UNAuthorizationOptionSound | UNAuthorizationOptionAlert)
 							  completionHandler:^(BOOL granted, NSError * _Nullable error) {
@@ -1224,7 +1231,7 @@ bool FIOSPlatformMisc::IsRegisteredForRemoteNotifications()
 
 bool FIOSPlatformMisc::IsAllowedRemoteNotifications()
 {
-#if !PLATFORM_TVOS && NOTIFICATIONS_ENABLED
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS && NOTIFICATIONS_ENABLED
 	checkf(false, TEXT("For min iOS version >= 10 use FIOSLocalNotificationService::CheckAllowedNotifications."));
 	return true;
 #else
@@ -1455,6 +1462,8 @@ void FIOSPlatformMisc::GetValidTargetPlatforms(TArray<FString>& TargetPlatformNa
 	// this is only used to cook with the proper TargetPlatform with COTF, it's not the runtime platform (which is just IOS for both)
 #if PLATFORM_TVOS
 	TargetPlatformNames.Add(TEXT("TVOS"));
+#elif PLATFORM_VISIONOS
+	TargetPlatformNames.Add(TEXT("VISIONOS"));
 #else
 	TargetPlatformNames.Add(FIOSPlatformProperties::PlatformName());
 #endif
@@ -1521,6 +1530,8 @@ void FIOSPlatformMisc::GetOSVersions(FString& out_OSVersionLabel, FString& out_O
 {
 #if PLATFORM_TVOS
 	out_OSVersionLabel = TEXT("TVOS");
+#elif PLATFORM_VISIONOS
+	out_OSVersionLabel = TEXT("VisionOS");
 #else
 	out_OSVersionLabel = TEXT("IOS");
 #endif
@@ -1772,7 +1783,7 @@ void FIOSPlatformMisc::SetCrashHandler(void (* CrashHandler)(const FGenericCrash
     
     GCrashHandlerPointer = CrashHandler;
     
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
     if (!FIOSApplicationInfo::CrashReporter && !FIOSApplicationInfo::CrashMalloc)
     {
         // configure the crash handler malloc zone to reserve a little memory for itself
@@ -1860,7 +1871,11 @@ void FIOSPlatformMisc::RequestExitWithStatus(bool Force, uint8 ReturnCode, const
 
 int32 FIOSPlatformMisc::GetMaxRefreshRate()
 {
+#if PLATFORM_VISIONOS
+	return 60;
+#else
 	return [UIScreen mainScreen].maximumFramesPerSecond;
+#endif
 }
 
 void FIOSPlatformMisc::GPUAssert()
@@ -1935,7 +1950,7 @@ void ReportEnsure( const TCHAR* ErrorMessage, int NumStackFramesToIgnore )
     
     bReentranceGuard = true;
     
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
     if(FIOSApplicationInfo::CrashReporter != nil)
     {
         siginfo_t Signal;

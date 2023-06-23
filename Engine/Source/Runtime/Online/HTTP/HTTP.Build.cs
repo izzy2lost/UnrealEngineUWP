@@ -112,7 +112,7 @@ public class HTTP : ModuleRules
 			PrivateDefinitions.Add("WITH_SSL=0");
 		}
 
-		if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS || Target.Platform == UnrealTargetPlatform.Mac)
+		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Apple))
 		{
 			PublicFrameworks.Add("Security");
 		}

@@ -63,21 +63,17 @@ public class UElibPNG : ModuleRules
 		{
 			PublicAdditionalLibraries.Add(Path.Combine(LibPNGPath, "Mac", "libpng.a"));
 		}
-		else if (Target.Platform == UnrealTargetPlatform.IOS)
+		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
 		{
-			LibDir = (Target.Architecture == UnrealArch.IOSSimulator)
+			LibDir = (Target.Architecture == UnrealArch.IOSSimulator || Target.Architecture == UnrealArch.TVOSSimulator)
 				? "Simulator"
 				: "Device";
 
-			PublicAdditionalLibraries.Add(Path.Combine(LibPNGPath, "ios", LibDir, "libpng152.a"));
-		}
-		else if (Target.Platform == UnrealTargetPlatform.TVOS)
-		{
-			LibDir = (Target.Architecture == UnrealArch.TVOSSimulator)
-				? "Simulator"
-				: "Device";
-
-			PublicAdditionalLibraries.Add(Path.Combine(LibPNGPath, "TVOS", LibDir, "libpng152.a"));
+			if (Target.Platform == UnrealTargetPlatform.VisionOS)
+			{
+				LibDir = "Device";
+			}
+			PublicAdditionalLibraries.Add(Path.Combine(LibPNGPath, Target.Platform.ToString(), LibDir, "libpng152.a"));
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Android))
 		{

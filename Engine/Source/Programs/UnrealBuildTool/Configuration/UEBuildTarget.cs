@@ -279,6 +279,11 @@ namespace UnrealBuildTool
 		/// TVOS
 		/// </summary>
 		public static UnrealTargetPlatform TVOS = FindOrAddByName("TVOS");
+
+		/// <summary>
+		/// VisionOS
+		/// </summary>
+		public static UnrealTargetPlatform VisionOS = FindOrAddByName("VisionOS");
 	}
 
 	internal class UnrealTargetPlatformTypeConverter : TypeConverter

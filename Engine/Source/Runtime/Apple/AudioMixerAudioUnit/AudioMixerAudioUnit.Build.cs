@@ -52,7 +52,7 @@ public class AudioMixerAudioUnit : ModuleRules
 
 		PublicDefinitions.Add("WITH_OGGVORBIS=1");
 
-		if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
+		if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
 		{
 			PrecompileForTargets = PrecompileTargetsType.Any;
 		}

@@ -13,7 +13,7 @@ namespace UnrealBuildTool.Rules
 				return Target.Platform.IsInGroup(UnrealPlatformGroup.Windows)
 					|| Target.Platform.IsInGroup(UnrealPlatformGroup.Android)
 					|| Target.IsInPlatformGroup(UnrealPlatformGroup.Unix)
-					|| Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS || Target.Platform == UnrealTargetPlatform.Mac;
+					|| Target.IsInPlatformGroup(UnrealPlatformGroup.Apple);
 			}
 		}
 
@@ -91,7 +91,7 @@ namespace UnrealBuildTool.Rules
 
 				AddEngineThirdPartyPrivateStaticDependencies(Target, "libav");
 			}
-			else if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS || Target.Platform == UnrealTargetPlatform.Mac)
+			else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Apple))
 			{
 				PublicFrameworks.AddRange(
 				new string[] {
