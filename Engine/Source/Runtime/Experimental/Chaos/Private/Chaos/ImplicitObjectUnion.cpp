@@ -11,14 +11,23 @@ namespace Chaos
 {
 	namespace CVars
 	{
-		int32 ChaosUnionBVHMinShapes = 32;
-		int32 ChaosUnionBVHMaxDepth = 8;
-		FRealSingle ChaosUnionBVHSplitBias = 0.1f;
+		// Set to false to prevent BVHs from being created in collision detection (or used, if disabled in the runtime after creation)
 		bool bChaosUnionBVHEnabled = true;
-		FAutoConsoleVariableRef CVarChaosUnionBVHMinShapes(TEXT("p.Chaos.Collision.UnionBVH.NumShapes"), ChaosUnionBVHMinShapes, TEXT("If a geometry hierarchy has this many shapes, wrap it in a BVH for collision detection (negative to disable BVH)"));
-		FAutoConsoleVariableRef CVarChaosUnionBVHMaxDepth(TEXT("p.Chaos.Collision.UnionBVH.MaxDepth"), ChaosUnionBVHMaxDepth, TEXT("The allowed depth of the BVH when used to wrap a shape hiererchy"));
-		FAutoConsoleVariableRef CVarChaosUnionBVHSplitBias(TEXT("p.Chaos.Collision.UnionBVH.SplitBias"), ChaosUnionBVHSplitBias, TEXT(""));
 		FAutoConsoleVariableRef CVarChaosUnionBVHEnabled(TEXT("p.Chaos.Collision.UnionBVH.Enabled"), bChaosUnionBVHEnabled, TEXT("Set to false to disable use of BVH during collision detection (without affecting creations and serialization)"));
+
+		// If a geometry hierarchy has more shapes than this, create a BVH around it
+		int32 ChaosUnionBVHMinShapes = 10;
+		FAutoConsoleVariableRef CVarChaosUnionBVHMinShapes(TEXT("p.Chaos.Collision.UnionBVH.NumShapes"), ChaosUnionBVHMinShapes, TEXT("If a geometry hierarchy has this many shapes, wrap it in a BVH for collision detection (negative to disable BVH)"));
+
+		// Maximum BVH depth. In general we want the BVH to generate leafs with a single item in them
+		int32 ChaosUnionBVHMaxDepth = 14;
+		FAutoConsoleVariableRef CVarChaosUnionBVHMaxDepth(TEXT("p.Chaos.Collision.UnionBVH.MaxDepth"), ChaosUnionBVHMaxDepth, TEXT("The allowed depth of the BVH when used to wrap a shape hiererchy"));
+
+		// A common case if objects arranged in a regular grid which is bad for the splitting algorithm.
+		// This prevents objects exactly in the middle of the bounds of a cell from being assigned to 
+		// a random child. See FImplicitBVH::Partition.
+		FRealSingle ChaosUnionBVHSplitBias = 0.1f;
+		FAutoConsoleVariableRef CVarChaosUnionBVHSplitBias(TEXT("p.Chaos.Collision.UnionBVH.SplitBias"), ChaosUnionBVHSplitBias, TEXT(""));
 	}
 
 inline FAABB3 CalculateObjectsBounds(const TArrayView<TUniquePtr<FImplicitObject>>& Objects)
@@ -150,11 +159,11 @@ void FImplicitObjectUnion::FindAllIntersectingObjects(TArray<Pair<const FImplici
 	if (BVH.IsValid() && CVars::bChaosUnionBVHEnabled)
 	{
 		BVH->VisitOverlappingNodes(LocalBounds,
-			[this, &Out](const Private::FImplicitBVHNode& Node)
+			[this, &Out](const int32 NodeIndex)
 			{
-				if (Node.IsLeaf())
+				if (BVH->NodeIsLeaf(NodeIndex))
 				{
-					BVH->VisitNodeObjects(Node,
+					BVH->VisitNodeObjects(NodeIndex,
 						[&Out](const FImplicitObject* Implicit, const FRigidTransform3f& RelativeTransformf, const FAABB3f& RelativeBoundsf, const int32 RootObjectIndex, const int32 LeafObjectIndex) -> void
 						{
 							Out.Add(MakePair(Implicit, FRigidTransform3(RelativeTransformf)));
@@ -169,6 +178,20 @@ void FImplicitObjectUnion::FindAllIntersectingObjects(TArray<Pair<const FImplici
 			Object->FindAllIntersectingObjects(Out, LocalBounds);
 		}
 	}
+}
+
+int32 FImplicitObjectUnion::CountObjectsInHierarchyImpl() const
+{
+	// Self
+	int32 NumObjects = 1;
+
+	// Children
+	for (int32 BVHObjectIndex = 0; BVHObjectIndex < MObjects.Num(); ++BVHObjectIndex)
+	{
+		NumObjects += MObjects[BVHObjectIndex]->CountObjectsInHierarchy();
+	}
+
+	return NumObjects;
 }
 
 void FImplicitObjectUnion::VisitOverlappingLeafObjectsImpl(
@@ -268,7 +291,6 @@ bool FImplicitObjectUnion::IsOverlappingBoundsImpl(const FAABB3& LocalBounds) co
 
 	return false;
 }
-
 
 TUniquePtr<FImplicitObject> FImplicitObjectUnion::Copy() const
 {
@@ -477,11 +499,11 @@ FImplicitObjectUnionClustered::FindAllIntersectingChildren(const FAABB3& LocalBo
 	if (BVH.IsValid())
 	{
 		BVH->VisitOverlappingNodes(LocalBounds,
-			[this, &IntersectingChildren](const Private::FImplicitBVHNode& Node)
+			[this, &IntersectingChildren](const int32 NodeIndex)
 			{
-				if (Node.IsLeaf())
+				if (BVH->NodeIsLeaf(NodeIndex))
 				{
-					BVH->VisitNodeObjects(Node,
+					BVH->VisitNodeObjects(NodeIndex,
 						[this, &IntersectingChildren](const FImplicitObject* Implicit, const FRigidTransform3f& RelativeTransformf, const FAABB3f& RelativeBoundsf, const int32 RootObjectIndex, const int32 LeafObjectIndex) -> void
 						{
 							if (ensure(MOriginalParticleLookupHack.IsValidIndex(LeafObjectIndex)))

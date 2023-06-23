@@ -3,10 +3,10 @@
 
 #include "Chaos/Array.h"
 #include "Chaos/ImplicitObject.h"
+#include "Chaos/ImplicitObjectTransformed.h"
 #include "Chaos/ISpatialAcceleration.h"
 #include "Chaos/GeometryParticles.h"
 
-#include "ImplicitObjectTransformed.h"
 #include "ChaosArchive.h"
 
 namespace Chaos
@@ -252,6 +252,8 @@ protected:
 		}
 		return ClosestIntersection;
 	}
+
+	CHAOS_API virtual int32 CountObjectsInHierarchyImpl() const override final;
 
 	CHAOS_API virtual void VisitOverlappingLeafObjectsImpl(
 		const FAABB3& LocalBounds,

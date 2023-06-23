@@ -362,6 +362,11 @@ public:
 	}
 
 protected:
+	virtual int32 CountObjectsInHierarchyImpl() const override final
+	{
+		return 1 + MObject->CountObjectsInHierarchy();
+	}
+
 	virtual void VisitOverlappingLeafObjectsImpl(
 		const FAABB3& InLocalBounds,
 		const FRigidTransform3& ObjectTransform,

@@ -83,6 +83,8 @@ TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_NumUpdatedManifoldPoints, TEXT("Chao
 TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_NumJoints, TEXT("Chaos/Solver/Joints/NumConstraints"));
 TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_NumCharacterGroundConstraints, TEXT("Chaos/Solver/Character/NumConstraints"));
 
+TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_MidPhase_NumShapePair, TEXT("Chaos/Solver/MidPhase/NumShapePair"));
+TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_MidPhase_NumGeneric, TEXT("Chaos/Solver/MidPhase/NumGeneric"));
 
 // Stat Iteration counters
 DECLARE_DWORD_COUNTER_STAT(TEXT("NumPositionIterations"), STAT_ChaosCounter_NumPositionIterations, STATGROUP_ChaosCounters);
@@ -388,6 +390,8 @@ namespace Chaos
 		{
 			LLM_SCOPE(ELLMTag::ChaosUpdate);
 			UE_LOG(LogPBDRigidsSolver, Verbose, TEXT("AdvanceOneTimeStepTask::DoWork()"));
+
+			MSolver->ResetStatCounters();
 
 			if (FRewindData* RewindData = MSolver->GetRewindData())
 			{
@@ -1998,13 +2002,18 @@ namespace Chaos
 		return GetEvolution()->GetCollisionConstraints().NumConstraints();
 	}
 
+	void FPBDRigidsSolver::ResetStatCounters()
+	{
+		TRACE_COUNTER_SET(ChaosTraceCounter_MidPhase_NumShapePair, 0);
+		TRACE_COUNTER_SET(ChaosTraceCounter_MidPhase_NumGeneric, 0);
+	}
+
 #ifndef CHAOS_COUNTER_STAT
 #define CHAOS_COUNTER_STAT(Name, Value)\
 SET_DWORD_STAT(STAT_ChaosCounter_##Name, Value); \
 CSV_CUSTOM_STAT(PhysicsCounters, Name, Value, ECsvCustomStatOp::Set); \
 TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 #endif
-
 
 	void FPBDRigidsSolver::UpdateStatCounters() const
 	{

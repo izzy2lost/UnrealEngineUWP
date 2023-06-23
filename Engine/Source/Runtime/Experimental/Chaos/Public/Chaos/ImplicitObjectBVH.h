@@ -42,8 +42,9 @@ namespace Chaos
 			FRigidTransform3 GetTransform() const { return FRigidTransform3(FVec3(GetX()), FRotation3(GetR())); }
 
 			// A unique index for this object in the hierarchy. E.g., if the same FImplicitObject is referenced 
-			// multiple times in the hierarchy in a union of transformed objects, each will have a different ObjectIndex 
-			// (it is the index into the pre-order depth first traversal).
+			// multiple times in the hierarchy in a union of transformed objects, each will have a different ObjectIndex.
+			// This is the ObjectIndex assigned when visiting the hierarchy via FImplicitObject::VisitHierachy and other 
+			// visit methods and can be used to index arrays initialized via those visitors.
 			int32 GetObjectIndex() const { return ObjectIndex; }
 
 			// The index of our most distant ancestor. I.e., the index in the root Union. This is used to map
@@ -143,45 +144,42 @@ namespace Chaos
 			template<typename TVisitor>
 			void VisitAllIntersections(const FAABB3& LocalBounds, const TVisitor& ObjectVisitor) const
 			{
-				const auto& NodeVisitor = [this, &ObjectVisitor](const FImplicitBVHNode& Node)
+				const auto& NodeVisitor = [this, &ObjectVisitor](const int32 NodeIndex)
 				{
-					if (Node.IsLeaf())
+					if (NodeIsLeaf(NodeIndex))
 					{
-						VisitNodeObjects(Node, ObjectVisitor);
+						VisitNodeObjects(NodeIndex, ObjectVisitor);
 					}
 				};
 
-				VisitOverlappingNodes(LocalBounds, NodeVisitor);
+				VisitOverlappingNodesStack(FAABB3f(LocalBounds), NodeVisitor);
 			}
 
 			// Calls the visitor for every overlapping leaf.
-			// @tparam TVisitor void(const FImplicitBVHNode& Node)
+			// @tparam TVisitor void(const int32 NodeIndex)
 			template<typename TVisitor>
 			void VisitOverlappingNodes(const FAABB3& LocalBounds, const TVisitor& NodeVisitor) const
 			{
-				if (!Nodes.IsEmpty())
-				{
-					VisitOverlappingNodesRecursive(Nodes[0], FAABB3f(LocalBounds), NodeVisitor);
-				}
+				VisitOverlappingNodesStack(FAABB3f(LocalBounds), NodeVisitor);
 			}
 
 			// Recursively visit all nodes in the hierarchy. Will stop visiting children
 			// if the visitor returns false. Leaf will be null when visiting an internal node.
-			// @param NodeVisitor (const FAABB3f& NodeBounds, const int32 NodeDepth, const FImplicitBVHNode& Node) -> void
+			// @param NodeVisitor (const FAABB3f& NodeBounds, const int32 NodeDepth, const int32 NodeIndex) -> void
 			template<typename TVisitor>
-			void VisitHierarchy(const TVisitor& NodeVisitor) const
+			void VisitNodes(const TVisitor& NodeVisitor) const
 			{
-				if (!Nodes.IsEmpty())
-				{
-					VisitHierarchyRecursive(Nodes[0], 0, NodeVisitor);
-				}
+				VisitNodesStack(NodeVisitor);
 			}
+
 
 			// Visit all the items in the specified leaf node (which is probably obtained from VisitHierarchy)
 			// @param ObjectVisitor (const FImplicitObject* Implicit, const FRigidTransform3f& RelativeTransformf, const FAABB3f& RelativeBoundsf, const int32 RootObjectIndex, const int32 LeafObjectIndex) -> void
 			template<typename TVisitor>
-			void VisitNodeObjects(const FImplicitBVHNode& Node, const TVisitor& ObjectVisitor) const
+			void VisitNodeObjects(const int32 NodeIndex, const TVisitor& ObjectVisitor) const
 			{
+				const FImplicitBVHNode& Node = Nodes[NodeIndex];
+
 				for (int32 NodeObjectIndex = Node.ObjectBeginIndex; NodeObjectIndex < Node.ObjectEndIndex; ++NodeObjectIndex)
 				{
 					const FImplicitBVHObject& Object = Objects[NodeObjectIndices[NodeObjectIndex]];
@@ -193,11 +191,28 @@ namespace Chaos
 			// Does the bounding box overlap any leaf nodes with items in it
 			bool IsOverlappingBounds(const FAABB3& LocalBounds) const
 			{
-				if (!Nodes.IsEmpty())
-				{
-					return IsOverlappingBoundsRecursive(Nodes[0], FAABB3f(LocalBounds));
-				}
-				return false;
+				return IsOverlappingBoundsStack(FAABB3f(LocalBounds));
+			}
+
+			template<typename TVisitor>
+			static void VisitOverlappingLeafNodes(const FImplicitBVH& BVHA, const FImplicitBVH& BVHB, const FRigidTransform3& TransformBToA, const TVisitor& LeafPairVisitor)
+			{
+				VisitOverlappingLeafNodesStack(BVHA, BVHB, TransformBToA, LeafPairVisitor);
+			}
+
+			int32 GetNumNodes() const
+			{
+				return Nodes.Num();
+			}
+
+			const FAABB3f& GetNodeBounds(const int32 NodeIndex) const
+			{
+				return Nodes[NodeIndex].Bounds;
+			}
+
+			bool NodeIsLeaf(const int32 NodeIndex) const
+			{
+				return Nodes[NodeIndex].IsLeaf();
 			}
 
 		private:
@@ -210,58 +225,185 @@ namespace Chaos
 			void Init(FObjects&& InObjects, const int32 MaxDepth, const int32 MaxLeafObjects);
 
 			template<typename TVisitor>
-			void VisitOverlappingNodesRecursive(const FImplicitBVHNode& Node, const FAABB3f& LocalBounds, const TVisitor& NodeVisitor) const
+			void VisitOverlappingNodesStack(const FAABB3f& LocalBounds, const TVisitor& NodeVisitor) const
 			{
-				if (!Node.Bounds.Intersects(LocalBounds))
+				if (Nodes.IsEmpty())
 				{
 					return;
 				}
 
-				if (Node.IsLeaf())
+				FMemMark Mark(FMemStack::Get());
+				TArray<int32> NodeStack;
+				NodeStack.Reserve(GetNumObjects());
+
+				int32 NodeIndex = 0;
+				while (true)
 				{
-					NodeVisitor(Node);
-				}
-				else
-				{
-					VisitOverlappingNodesRecursive(Nodes[Node.ChildNodeIndices[0]], LocalBounds, NodeVisitor);
-					VisitOverlappingNodesRecursive(Nodes[Node.ChildNodeIndices[1]], LocalBounds, NodeVisitor);
+					const FImplicitBVHNode& Node = Nodes[NodeIndex];
+
+					if (Node.Bounds.Intersects(LocalBounds))
+					{
+						if (Node.IsLeaf())
+						{
+							NodeVisitor(NodeIndex);
+						}
+						else
+						{
+							NodeIndex = Node.ChildNodeIndices[0];
+							NodeStack.Push(Node.ChildNodeIndices[1]);
+							continue;
+						}
+					}
+
+					if (NodeStack.IsEmpty())
+					{
+						break;
+					}
+
+					NodeIndex = NodeStack.Pop(false);
 				}
 			}
 
 			template<typename TVisitor>
-			void VisitHierarchyRecursive(const FImplicitBVHNode& Node, const int32 NodeDepth, const TVisitor& NodeVisitor) const
+			void VisitNodesStack(const TVisitor& NodeVisitor) const
 			{
-				// Visit this (non-leaf) node
-				const bool bVisitChildren = NodeVisitor(Node.Bounds, NodeDepth, Node);
-
-				// Visit children
-				if (bVisitChildren && !Node.IsLeaf())
+				if (Nodes.IsEmpty())
 				{
-					VisitHierarchyRecursive(Nodes[Node.ChildNodeIndices[0]], NodeDepth + 1, NodeVisitor);
-					VisitHierarchyRecursive(Nodes[Node.ChildNodeIndices[1]], NodeDepth + 1, NodeVisitor);
+					return;
+				}
+
+				FMemMark Mark(FMemStack::Get());
+				TArray<TPair<int32, int32>> NodeStack;	// NodeIndex, NodeDepth
+				NodeStack.Reserve(GetNumObjects());
+
+				int32 NodeIndex = 0;
+				int32 NodeDepth = 0;
+				while (true)
+				{
+					const FImplicitBVHNode& Node = Nodes[NodeIndex];
+
+					const bool bVisitChildren = NodeVisitor(Node.Bounds, NodeDepth, NodeIndex);
+
+					if (bVisitChildren && !Node.IsLeaf())
+					{
+						const int32 ChildNodeIndexL = Node.ChildNodeIndices[0];
+						const int32 ChildNodeIndexR = Node.ChildNodeIndices[1];
+						NodeDepth = NodeDepth + 1;
+						NodeIndex = ChildNodeIndexL;
+						NodeStack.Push({ ChildNodeIndexR, NodeDepth });
+						continue;
+					}
+
+					if (NodeStack.IsEmpty())
+					{
+						break;
+					}
+
+					NodeIndex = NodeStack.Top().Key;
+					NodeDepth = NodeStack.Top().Value;
+					NodeStack.Pop(false);
 				}
 			}
 
-			bool IsOverlappingBoundsRecursive(const FImplicitBVHNode& Node, const FAABB3f& LocalBounds) const
+			template<typename TVisitor>
+			static void VisitOverlappingLeafNodesStack(const FImplicitBVH& BVHA, const FImplicitBVH& BVHB, const FRigidTransform3& TransformBToA, const TVisitor& LeafPairVisitor)
 			{
-				if (Node.Bounds.Intersects(LocalBounds))
+				if (BVHA.Nodes.IsEmpty() || BVHB.Nodes.IsEmpty())
 				{
-					// If we hit a leaf, we have an overlap
-					if (Node.IsLeaf())
+					return;
+				}
+
+				// The node pair stack
+				FMemMark Mark(FMemStack::Get());
+				TArray<TVec2<int32>> NodePairStack;
+				NodePairStack.Reserve(FMath::Max(BVHA.GetNumObjects(), BVHB.GetNumObjects()));	// Can we make a better estimate of required size?
+
+				int32 NodeIndexA = 0;
+				int32 NodeIndexB = 0;
+
+				while (true)
+				{
+					const FImplicitBVHNode& NodeA = BVHA.Nodes[NodeIndexA];
+					const FImplicitBVHNode& NodeB = BVHB.Nodes[NodeIndexB];
+
+					const FAABB3f& BoundsA = NodeA.Bounds;
+					FAABB3f BoundsBInA = NodeB.Bounds.TransformedAABB(TransformBToA);
+
+					if (BoundsA.Intersects(BoundsBInA))
 					{
-						return true;
+						if (NodeA.IsLeaf() && NodeB.IsLeaf())
+						{
+							LeafPairVisitor(NodeIndexA, NodeIndexB);
+						}
+						else
+						{
+							// @todo(chaos): rule to choose whether to descend into A or B first
+							// Descend into B first, until we reach its leaf nodes
+							const bool bDescendA = NodeB.IsLeaf();
+							if (bDescendA)
+							{
+								// Descend A
+								NodeIndexA = NodeA.ChildNodeIndices[0];
+								NodePairStack.Push({ NodeA.ChildNodeIndices[1], NodeIndexB });
+								continue;
+							}
+							else
+							{
+								// Descend B
+								NodeIndexB = NodeB.ChildNodeIndices[0];
+								NodePairStack.Push({ NodeIndexA, NodeB.ChildNodeIndices[1] });
+								continue;
+							}
+						}
 					}
 
-					// Check children, stopping if we get an overlap
-					if (IsOverlappingBoundsRecursive(Nodes[Node.ChildNodeIndices[0]], LocalBounds))
+					// If we get here we just processed a leaf or did not overlap,
+					// and need to pop an item off the stack to continue
+					if (NodePairStack.IsEmpty())
 					{
-						return true;
+						break;
 					}
-					if (IsOverlappingBoundsRecursive(Nodes[Node.ChildNodeIndices[1]], LocalBounds))
-					{
-						return true;
-					}
+					NodeIndexA = NodePairStack.Top()[0];
+					NodeIndexB = NodePairStack.Top()[1];
+					NodePairStack.Pop(false);
 				}
+			}
+
+			bool IsOverlappingBoundsStack(const FAABB3f& LocalBounds) const
+			{
+				if (Nodes.IsEmpty())
+				{
+					return false;
+				}
+
+				FMemMark Mark(FMemStack::Get());
+				TArray<int32> NodeStack;
+				NodeStack.Reserve(GetNumObjects());
+
+				int32 NodeIndex = 0;
+				while (true)
+				{
+					const FImplicitBVHNode& Node = Nodes[NodeIndex];
+
+					if (Node.Bounds.Intersects(LocalBounds))
+					{
+						if (Node.IsLeaf())
+						{
+							return true;
+						}
+
+						NodeIndex = Node.ChildNodeIndices[0];
+						NodeStack.Push(Node.ChildNodeIndices[1]);
+						continue;
+					}
+
+					if (NodeStack.IsEmpty())
+					{
+						break;
+					}
+					NodeIndex = NodeStack.Pop(false);
+				}
+
 				return false;
 			}
 

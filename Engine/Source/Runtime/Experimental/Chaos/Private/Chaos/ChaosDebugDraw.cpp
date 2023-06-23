@@ -793,10 +793,10 @@ namespace Chaos
 			int32 LeafIndex = 0;
 
 			const auto& NodeVisitor = 
-				[Particle, &ShapeTransform, BVH, &LeafIndex, BoundsDrawShrink, &Duration, &Settings](const FAABB3f& NodeBounds, const int32 NodeDepth, const Private::FImplicitBVHNode& Node) -> bool
+				[Particle, &ShapeTransform, BVH, &LeafIndex, BoundsDrawShrink, &Duration, &Settings](const FAABB3f& NodeBounds, const int32 NodeDepth, const int32 NodeIndex) -> bool
 				{
 					// Draw the node if it is at the level we are asked to draw, or it is a leaf and we want to draw leaves.
-					if ((NodeDepth == ChaosDebugDebugDrawBVHLevel) || (Node.IsLeaf() && ((ChaosDebugDebugDrawBVHLevel == INDEX_NONE) || (ChaosDebugDebugDrawBVHLevel > NodeDepth))))
+					if ((NodeDepth == ChaosDebugDebugDrawBVHLevel) || (BVH->NodeIsLeaf(NodeIndex) && ((ChaosDebugDebugDrawBVHLevel == INDEX_NONE) || (ChaosDebugDebugDrawBVHLevel > NodeDepth))))
 					{
 						const FColor Color = GetIndexColor(LeafIndex++);
 
@@ -809,7 +809,7 @@ namespace Chaos
 
 						if (bChaosDebugDebugDrawBVHShapes)
 						{
-							BVH->VisitNodeObjects(Node, 
+							BVH->VisitNodeObjects(NodeIndex, 
 								[Particle, &ShapeTransform, &Color, Duration, &Settings](const FImplicitObject * Implicit, const FRigidTransform3f& RelativeTransformf, const FAABB3f& RelativeBoundsf, const int32 RootObjectIndex, const int32 LeafObjectIndex) -> void
 								{
 									const int32 ShapeIndex = (RootObjectIndex != INDEX_NONE) ? RootObjectIndex : 0;
@@ -821,7 +821,7 @@ namespace Chaos
 					return true;
 				};
 
-			BVH->VisitHierarchy(NodeVisitor);
+			BVH->VisitNodes(NodeVisitor);
 		}
 
 		void DrawParticleBVHImpl(const FRigidTransform3& SpaceTransform, const FGeometryParticleHandle* Particle, const FColor& InColor, const FChaosDebugDrawSettings& Settings)

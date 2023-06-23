@@ -7,6 +7,7 @@
 #include "Chaos/Collision/CollisionKeys.h"
 #include "Chaos/Collision/CollisionVisitor.h"
 #include "Chaos/Collision/PBDCollisionConstraint.h"
+#include "Chaos/ImplicitFwd.h"
 #include "Chaos/ParticleHandleFwd.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 
@@ -542,33 +543,38 @@ namespace Chaos
 		CHAOS_API virtual void InjectCollisionImpl(const FPBDCollisionConstraint& Constraint, const FCollisionContext& Context) override final;
 
 	private:
+		// BVH on ParticleA versus BVH on ParticleB
+		CHAOS_API void GenerateCollisionsBVHBVH(
+			FGeometryParticleHandle* ParticleA, const Private::FImplicitBVH* BVHA,
+			FGeometryParticleHandle* ParticleB, const Private::FImplicitBVH* BVHB,
+			const FReal CullDistance,
+			const FReal Dt,
+			const FCollisionContext& Context);
+
 		// BVH on ParticleA versus implicit hierarchy of ParticleB
-		CHAOS_API void GenerateCollisionsBVH(
+		CHAOS_API void GenerateCollisionsBVHImplicitHierarchy(
 			FGeometryParticleHandle* ParticleA, const Private::FImplicitBVH* BVHA,
 			FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB,
 			const FReal CullDistance,
 			const FReal Dt,
 			const FCollisionContext& Context);
 
-		// Implicit hierarchy of particle A versus implicit hierarchy of ParticleB (used when no BVHs present)
-		CHAOS_API void GenerateCollisionsImplicit(
+		// Implicit hierarchy of particle A versus implicit hierarchy of ParticleB (used when no BVH present on either)
+		CHAOS_API void GenerateCollisionsImplicitHierarchyImplicitHierarchy(
 			FGeometryParticleHandle* ParticleA, const FImplicitObject* RootImplicitA,
 			FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB,
 			const FReal CullDistance,
 			const FReal Dt,
 			const FCollisionContext& Context);
 
-		// Leaf Implicit on ParticleA versus implicit hierarchy of ParticleB
-		CHAOS_API void GenerateCollisionsShapeHierarchy(
-			FGeometryParticleHandle* ParticleA, const FImplicitObject* ImplicitA, const FRigidTransform3 ParticleWorldTransformA, const FRigidTransform3& RelativeTransformA, const FAABB3& RelativeBoundsA, const int32 RootObjectIndexA, const int32 LeafObjectIndexA,
-			FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB, const FRigidTransform3 ParticleWorldTransformB,
-			const FRigidTransform3 ParticleTransformAToB,
-			const FReal CullDistance,
-			const FReal Dt,
-			const FCollisionContext& Context);
+		// BVH on particle A versus a Leaf Implicit of ParticleB
+		CHAOS_API void GenerateCollisionsBVHImplicitLeaf(
+			FGeometryParticleHandle* ParticleA, const Private::FImplicitBVH* BVHA,
+			FGeometryParticleHandle* ParticleB, const FImplicitObject* ImplicitB, const FShapeInstance* ShapeInstanceB, const FRigidTransform3& RelativeTransformB, const int32 LeafObjectIndexB,
+			const FReal CullDistance, const FReal Dt, const FCollisionContext& Context);
 
 		// Leaf Implicit on ParticleA versus Leaf Implicit of ParticleB
-		CHAOS_API void GenerateCollisionsShapeShape(
+		CHAOS_API void GenerateCollisionsImplicitLeafImplicitLeaf(
 			FGeometryParticleHandle* ParticleA, const FImplicitObject* ImplicitA, const FShapeInstance* ShapeInstanceA, const FRigidTransform3 ParticleWorldTransformA, const FRigidTransform3& RelativeTransformA, const int32 LeafObjectIndexA,
 			FGeometryParticleHandle* ParticleB, const FImplicitObject* ImplicitB, const FShapeInstance* ShapeInstanceB, const FRigidTransform3 ParticleWorldTransformB, const FRigidTransform3& RelativeTransformB, const int32 LeafObjectIndexB,
 			const FReal CullDistance,

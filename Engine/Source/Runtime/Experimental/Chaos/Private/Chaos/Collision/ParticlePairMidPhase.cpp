@@ -7,6 +7,7 @@
 #include "Chaos/Collision/ContactTriangles.h"
 #include "Chaos/Collision/PBDCollisionConstraint.h"
 #include "Chaos/CollisionResolution.h"
+#include "Chaos/HeightField.h"
 #include "Chaos/ImplicitObject.h"
 #include "Chaos/ImplicitObjectBVH.h"
 #include "Chaos/ParticleHandle.h"
@@ -14,7 +15,10 @@
 #include "Chaos/PBDCollisionConstraints.h"
 #include "ChaosStats.h"
 #include "Misc/MemStack.h"
+#include "ProfilingDebugging/CountersTrace.h"
 
+TRACE_DECLARE_INT_COUNTER_EXTERN(ChaosTraceCounter_MidPhase_NumShapePair);
+TRACE_DECLARE_INT_COUNTER_EXTERN(ChaosTraceCounter_MidPhase_NumGeneric);
 
 extern bool Chaos_Collision_NarrowPhase_AABBBoundsCheck;
 
@@ -804,9 +808,6 @@ namespace Chaos
 		const FReal Dt,
 		const FCollisionContext& Context)
 	{
-		//SCOPE_CYCLE_COUNTER(STAT_Collisions_GenerateCollisions);
-		PHYSICS_CSV_SCOPED_EXPENSIVE(PhysicsVerbose, DetectCollisions_NarrowPhase);
-
 		if (!IsValid())
 		{
 			return;
@@ -990,6 +991,8 @@ namespace Chaos
 		const FReal Dt,
 		const FCollisionContext& Context)
 	{
+		TRACE_COUNTER_INCREMENT(ChaosTraceCounter_MidPhase_NumShapePair);
+
 		int32 NumActive = 0;
 		if (Flags.bIsCCD)
 		{
@@ -1065,6 +1068,8 @@ namespace Chaos
 		const FReal Dt,
 		const FCollisionContext& Context)
 	{
+		TRACE_COUNTER_INCREMENT(ChaosTraceCounter_MidPhase_NumGeneric);
+
 		const FImplicitObject* Implicit0 = GetParticle0()->Geometry().Get();
 		const FImplicitObject* Implicit1 = GetParticle1()->Geometry().Get();
 
@@ -1086,17 +1091,21 @@ namespace Chaos
 		// Create constraints for all the shape pairs whose bounds overlap.
 		// If we have a BVH, use it. Otherwise run a recursive hierarchy sweep.
 		// @todo(chaos): if we have 2 BVHs select the deepest one as BVHA?
-		if (BVH0 != nullptr)
+		if ((BVH0 != nullptr) && (BVH1 != nullptr))
 		{
-			GenerateCollisionsBVH(GetParticle0(), BVH0, GetParticle1(), Implicit1, CullDistance, Dt, Context);
+			GenerateCollisionsBVHBVH(GetParticle0(), BVH0, GetParticle1(), BVH1, CullDistance, Dt, Context);
+		}
+		else if (BVH0 != nullptr)
+		{
+			GenerateCollisionsBVHImplicitHierarchy(GetParticle0(), BVH0, GetParticle1(), Implicit1, CullDistance, Dt, Context);
 		}
 		else if (BVH1 != nullptr)
 		{
-			GenerateCollisionsBVH(GetParticle1(), BVH1, GetParticle0(), Implicit0, CullDistance, Dt, Context);
+			GenerateCollisionsBVHImplicitHierarchy(GetParticle1(), BVH1, GetParticle0(), Implicit0, CullDistance, Dt, Context);
 		}
 		else
 		{
-			GenerateCollisionsImplicit(GetParticle0(), Implicit0, GetParticle1(), Implicit1, CullDistance, Dt, Context);
+			GenerateCollisionsImplicitHierarchyImplicitHierarchy(GetParticle0(), Implicit0, GetParticle1(), Implicit1, CullDistance, Dt, Context);
 		}
 
 		// Generate manifolds for each constraint we created/recovered and (re)activate if necessary
@@ -1108,84 +1117,82 @@ namespace Chaos
 		return NumActive;
 	}
 
-	// Detect collisions betweena BVH and some other implicit object (which may be a hierarchy)
-	void FGenericParticlePairMidPhase::GenerateCollisionsBVH(
+	// Detect collisions between two BVHs
+	void FGenericParticlePairMidPhase::GenerateCollisionsBVHBVH(
 		FGeometryParticleHandle* ParticleA, const Private::FImplicitBVH* BVHA,
-		FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB,
+		FGeometryParticleHandle* ParticleB, const Private::FImplicitBVH* BVHB,
 		const FReal CullDistance,
 		const FReal Dt,
 		const FCollisionContext& Context)
 	{
-		const FConstGenericParticleHandle PA = ParticleA;
-		const FConstGenericParticleHandle PB = ParticleB;
+		const FRigidTransform3 ParticleWorldTransformA = FConstGenericParticleHandle(ParticleA)->GetTransformPQ();
+		const FRigidTransform3 ParticleWorldTransformB = FConstGenericParticleHandle(ParticleB)->GetTransformPQ();
+		const FRigidTransform3 ParticleTransformBToA = ParticleWorldTransformB.GetRelativeTransform(ParticleWorldTransformA);
 
-		// Particle transforms
-		const FRigidTransform3 ParticleWorldTransformA = PA->GetTransformPQ();
-		const FRigidTransform3 ParticleWorldTransformB = PB->GetTransformPQ();
-		const FRigidTransform3 ParticleTransformAToB = ParticleWorldTransformA.GetRelativeTransform(ParticleWorldTransformB);
+		const FShapeInstanceArray& ShapeInstancesA = ParticleA->ShapeInstances();
+		const FShapeInstanceArray& ShapeInstancesB = ParticleB->ShapeInstances();
 
-		FMemMark Mark(FMemStack::Get());
-		TArray<bool, TMemStackAllocator<alignof(bool)>> bIsVisitedA;
-		bIsVisitedA.SetNumZeroed(BVHA->GetNumObjects());
-
-		// Visitor for FImplicitBVH::VisitNodeObjects
-		// Given an ImplicitObject from ParticleA (which we know overlaps the bounds of some parts of ParticleB),
-		// run collision detection on ImplicitA against the implicit object hierarchy of ParticleB.
-		// NOTE: may be called with the same ImplicitA multiple times because implicits may be in many BVH leaves
-		const auto& ObjectVisitorA = 
-			[this, ParticleA, &ParticleWorldTransformA, ParticleB, RootImplicitB, &ParticleWorldTransformB, &ParticleTransformAToB, &bIsVisitedA, CullDistance, Dt, &Context](const FImplicitObject* ImplicitA, const FRigidTransform3f& RelativeTransformfA, const FAABB3f& RelativeBoundsfA, const int32 RootObjectIndexA, const int32 LeafObjectIndexA) -> void
+		// Visit all overlapping leaf node pairs in BVHA and BVHB
+		Private::FImplicitBVH::VisitOverlappingLeafNodes(*BVHA, *BVHB, ParticleTransformBToA, 
+			[this, ParticleA, BVHA, &ParticleWorldTransformA, &ShapeInstancesA, ParticleB,
+			BVHB, &ParticleWorldTransformB, &ShapeInstancesB,
+			CullDistance, Dt, &Context]
+			(const int32 NodeIndexA, const int32 NodeIndexB)
 			{
-				if (bIsVisitedA[LeafObjectIndexA])
-				{
-					return;
-				}
+				// If we get here, BVHA(NodeIndexA) and BVHB(NodeIndexB) overlap so we must collide all object pairs in the two nodes
+				BVHA->VisitNodeObjects(NodeIndexA,
+					[this, ParticleA, &ParticleWorldTransformA, &ShapeInstancesA, ParticleB,
+					BVHB, &ParticleWorldTransformB, &ShapeInstancesB, NodeIndexB,
+					CullDistance, Dt, &Context]
+					(const FImplicitObject* ImplicitA, const FRigidTransform3f& RelativeTransformfA, const FAABB3f& RelativeBoundsfA, const int32 RootObjectIndexA, const int32 LeafObjectIndexA) -> void
+					{
+						const FRigidTransform3 RelativeTransformA = FRigidTransform3(RelativeTransformfA);
+						const FShapeInstance* ShapeInstanceA = GetShapeInstance(ShapeInstancesA, RootObjectIndexA);
 
-				bIsVisitedA[LeafObjectIndexA] = true;
+						BVHB->VisitNodeObjects(NodeIndexB,
+							[this, ParticleA, ImplicitA, ShapeInstanceA, &ParticleWorldTransformA, &RelativeTransformA, LeafObjectIndexA,
+							ParticleB, BVHB, &ParticleWorldTransformB, &ShapeInstancesB,
+							CullDistance, Dt, &Context]
+							(const FImplicitObject* ImplicitB, const FRigidTransform3f& RelativeTransformfB, const FAABB3f& RelativeBoundsfB, const int32 RootObjectIndexB, const int32 LeafObjectIndexB) -> void
+							{
+								const FRigidTransform3 RelativeTransformB = FRigidTransform3(RelativeTransformfB);
+								const FShapeInstance* ShapeInstanceB = GetShapeInstance(ShapeInstancesB, RootObjectIndexB);
 
-				// @todo(chaos): remove this float to double conversion and use floats where possible
-				const FRigidTransform3& RelativeTransformA = FRigidTransform3(RelativeTransformfA);
-				const FAABB3& RelativeBoundsA = FAABB3(RelativeBoundsfA);
-
-				// If this is the first time we have seen ImplicitA, run the collision detection against ParticleB
-				GenerateCollisionsShapeHierarchy(
-					ParticleA, ImplicitA, ParticleWorldTransformA, RelativeTransformA, RelativeBoundsA, RootObjectIndexA, LeafObjectIndexA,
-					ParticleB, RootImplicitB, ParticleWorldTransformB,
-					ParticleTransformAToB,
-					CullDistance, Dt, Context);
-			};
-
-		// Visitor for FImplicitBVH::VisitHierarchy
-		// This will be passed the nodes of the BVH on ParticleA and its bounds and contents. If the bounds overlap something in ParticleB
-		// we will keep recursing into the BVH. When we hit a leaf, run collision detection between the leaf contents and ParticleB.
-		const auto& NodeVisitorA = 
-			[BVHA, RootImplicitB, &ParticleTransformAToB, &ObjectVisitorA, CullDistance](const FAABB3f& NodeBoundsAf, const int32 NodeDepthA, const Private::FImplicitBVHNode& NodeA) -> bool
-			{
-				const FAABB3 NodeBoundsAInB = FAABB3(NodeBoundsAf).TransformedAABB(ParticleTransformAToB).ThickenSymmetrically(FVec3(CullDistance));
-
-				// Does this Node in A overlap anything in B?
-				// NOTE: IsOverlappingBounds performs a deep bounds check, including checking for node overlaps in BVH, Heightfield and TriMesh
-				if (!RootImplicitB->IsOverlappingBounds(NodeBoundsAInB))
-				{
-					// No overlap - stop recursing down this branch
-					return false;
-				}
-
-				// If we are at a leaf of A, we need to check all objects in the node against B
-				if (NodeA.IsLeaf())
-				{
-					BVHA->VisitNodeObjects(NodeA, ObjectVisitorA);
-				}
-
-				// Keep recursing
-				return true;
-			};
-
-		// Visit all the nodes in BVHA and detect collisions with ParticleB
-		BVHA->VisitHierarchy(NodeVisitorA);
+								// Detect collisions between the single implicit object pair
+								GenerateCollisionsImplicitLeafImplicitLeaf(
+									ParticleA, ImplicitA, ShapeInstanceA, ParticleWorldTransformA, RelativeTransformA, LeafObjectIndexA,
+									ParticleB, ImplicitB, ShapeInstanceB, ParticleWorldTransformB, RelativeTransformB, LeafObjectIndexB,
+									CullDistance, Dt, Context);
+							});
+					});
+			});
 	}
 
-	// Detect collisions between two implicits, where either or both may be a hierarchy
-	void FGenericParticlePairMidPhase::GenerateCollisionsImplicit(
+	// Detect collisions between a BVH and some other implicit object (which may be a hierarchy)
+	void FGenericParticlePairMidPhase::GenerateCollisionsBVHImplicitHierarchy(
+		FGeometryParticleHandle* ParticleA, const Private::FImplicitBVH* BVHA,
+		FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB,
+		const FReal CullDistance, const FReal Dt, const FCollisionContext& Context)
+	{
+		const FShapeInstanceArray& ShapeInstancesB = ParticleB->ShapeInstances();
+
+		// Visit all the leaf implicits in RootImplicitB and collide against the BVH
+		RootImplicitB->VisitLeafObjects(
+			[this, ParticleA, BVHA, ParticleB, &ShapeInstancesB, CullDistance, Dt, &Context]
+			(const FImplicitObject* ImplicitB, const FRigidTransform3& RelativeTransformB, const int32 RootObjectIndexB, const int32 ObjectIndexB, const int32 LeafObjectIndexB) -> void
+			{
+				const FShapeInstance* ShapeInstanceB = GetShapeInstance(ShapeInstancesB, RootObjectIndexB);
+
+				// ImplicitB is a single object. We perform the bounds tests in A space
+				GenerateCollisionsBVHImplicitLeaf(
+					ParticleA, BVHA,
+					ParticleB, ImplicitB, ShapeInstanceB, RelativeTransformB, LeafObjectIndexB,
+					CullDistance, Dt, Context);
+			});
+	}
+
+	// Detect collisions between two implicits, where either or both may be a hierarchy, but neither has a BVH
+	void FGenericParticlePairMidPhase::GenerateCollisionsImplicitHierarchyImplicitHierarchy(
 		FGeometryParticleHandle* ParticleA, const FImplicitObject* RootImplicitA,
 		FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB,
 		const FReal CullDistance,
@@ -1194,70 +1201,132 @@ namespace Chaos
 	{
 		const FConstGenericParticleHandle PA = ParticleA;
 		const FConstGenericParticleHandle PB = ParticleB;
+		const FShapeInstanceArray& ShapeInstancesA = ParticleA->ShapeInstances();
+		const FShapeInstanceArray& ShapeInstancesB = ParticleB->ShapeInstances();
 
 		// Particle transforms
 		const FRigidTransform3 ParticleWorldTransformA = PA->GetTransformPQ();
 		const FRigidTransform3 ParticleWorldTransformB = PB->GetTransformPQ();
-
-		// Calculate the overlapping volume in each particle's space
 		const FRigidTransform3 ParticleTransformAToB = ParticleWorldTransformA.GetRelativeTransform(ParticleWorldTransformB);
 
-		// Visitor for FImplicitBVH::VisitNodeObjects
+		// Detect collisons between Implicit Hierarchy of ParticleA and Implicit Hierarchy of ParticleB
 		// Given an ImplicitObject from ParticleA (which we know overlaps the bounds of some parts of ParticleB),
 		// run collision detection on ImplicitA against the implicit object hierarchy of ParticleB.
-		// NOTE: may be called with the same ImplicitA multiple times because implicits may be in many BVH leaves
-		const auto& ObjectVisitorA =
-			[this, ParticleA, &ParticleWorldTransformA, ParticleB, RootImplicitB, &ParticleWorldTransformB, &ParticleTransformAToB, CullDistance, Dt, &Context]
+		RootImplicitA->VisitLeafObjects(
+			[this, ParticleA, &ShapeInstancesA, &ParticleWorldTransformA,
+			ParticleB, &ShapeInstancesB, RootImplicitB, &ParticleWorldTransformB, &ParticleTransformAToB,
+			CullDistance, Dt, &Context]
 			(const FImplicitObject* ImplicitA, const FRigidTransform3& RelativeTransformA, const int32 RootObjectIndexA, const int32 ObjectIndex, const int32 LeafObjectIndexA)
 			{
 				const FAABB3 RelativeBoundsA = ImplicitA->CalculateTransformedBounds(RelativeTransformA);
+				const FAABB3 ShapeBoundsAInB = RelativeBoundsA.TransformedAABB(ParticleTransformAToB).ThickenSymmetrically(FVec3(CullDistance));
 
-				// If this is the first time we have seen ImplicitA, run the collision detection against ParticleB
-				GenerateCollisionsShapeHierarchy(
-					ParticleA, ImplicitA, ParticleWorldTransformA, RelativeTransformA, RelativeBoundsA, RootObjectIndexA, LeafObjectIndexA,
-					ParticleB, RootImplicitB, ParticleWorldTransformB,
-					ParticleTransformAToB,
-					CullDistance, Dt, Context);
-			};
+				const FShapeInstance* ShapeInstanceA = GetShapeInstance(ShapeInstancesA, RootObjectIndexA);
 
-		// Detect collisons between Implicit Hierarchy of ParticleA and Implicit Hierarchy of ParticleB
-		RootImplicitA->VisitLeafObjects(ObjectVisitorA);
+				// Detect collisons between ImplicitA and Implicit Hierarchy of ParticleB
+				RootImplicitB->VisitOverlappingLeafObjects(ShapeBoundsAInB,
+					[this, ParticleA, ImplicitA, ShapeInstanceA, &ParticleWorldTransformA, &RelativeTransformA, LeafObjectIndexA,
+					ParticleB, &ParticleWorldTransformB, &ShapeInstancesB,
+					CullDistance, Dt, &Context]
+					(const FImplicitObject* ImplicitB, const FRigidTransform3& RelativeTransformB, const int32 RootObjectIndexB, const int32 ObjectIndexB, const int32 LeafObjectIndexB)
+					{
+						const FShapeInstance* ShapeInstanceB = GetShapeInstance(ShapeInstancesB, RootObjectIndexB);
+
+						// Detect collisons between ImplicitA and ImplicitB (both leaf implicits)
+						GenerateCollisionsImplicitLeafImplicitLeaf(
+							ParticleA, ImplicitA, ShapeInstanceA, ParticleWorldTransformA, RelativeTransformA, LeafObjectIndexA,
+							ParticleB, ImplicitB, ShapeInstanceB, ParticleWorldTransformB, RelativeTransformB, LeafObjectIndexB,
+							CullDistance, Dt, Context);
+					});
+			});
 	}
 
-	// Generate collisions between lesf (non-hierarchy) implicit and some other (maybe hierarchy) implicit
-	void FGenericParticlePairMidPhase::GenerateCollisionsShapeHierarchy(
-		FGeometryParticleHandle* ParticleA, const FImplicitObject* ImplicitA, const FRigidTransform3 ParticleWorldTransformA, const FRigidTransform3& RelativeTransformA, const FAABB3& RelativeBoundsA, const int32 RootObjectIndexA, const int32 LeafObjectIndexA,
-		FGeometryParticleHandle* ParticleB, const FImplicitObject* RootImplicitB, const FRigidTransform3 ParticleWorldTransformB,
-		const FRigidTransform3 ParticleTransformAToB,
-		const FReal CullDistance,
-		const FReal Dt,
-		const FCollisionContext& Context)
+	// Detect collisions between a BVH and a leaf implicit object (not a hierarchy)
+	void FGenericParticlePairMidPhase::GenerateCollisionsBVHImplicitLeaf(
+		FGeometryParticleHandle* ParticleA, const Private::FImplicitBVH* BVHA,
+		FGeometryParticleHandle* ParticleB, const FImplicitObject* ImplicitB, const FShapeInstance* ShapeInstanceB, const FRigidTransform3& RelativeTransformB, const int32 LeafObjectIndexB,
+		const FReal CullDistance, const FReal Dt, const FCollisionContext& Context)
 	{
+		const FConstGenericParticleHandle PA = ParticleA;
+		const FConstGenericParticleHandle PB = ParticleB;
+
+		// Particle transforms
+		const FRigidTransform3 ParticleWorldTransformA = PA->GetTransformPQ();
+		const FRigidTransform3 ParticleWorldTransformB = PB->GetTransformPQ();
 		const FShapeInstanceArray& ShapeInstancesA = ParticleA->ShapeInstances();
-		const FShapeInstanceArray& ShapeInstancesB = ParticleB->ShapeInstances();
 
-		const FShapeInstance* ShapeInstanceA = GetShapeInstance(ShapeInstancesA, RootObjectIndexA);
+		// ImplicitB transforms/bounds
+		const FRigidTransform3 ImplicitTransformB = RelativeTransformB * ParticleWorldTransformB;
+		const FRigidTransform3 ImplicitTransformBToA = ImplicitTransformB.GetRelativeTransform(ParticleWorldTransformA);
+		const FAABB3 ImplicitBoundsBInA = ImplicitB->CalculateTransformedBounds(ImplicitTransformBToA);
 
-		const FAABB3 ShapeBoundsAInB = FAABB3(RelativeBoundsA).TransformedAABB(ParticleTransformAToB).ThickenSymmetrically(FVec3(CullDistance));
+		// If ImplicitB has a built-in BVH (Heightfield or TriMesh) we handle the test against the BVH differently
+		const bool bHasInternalBVHB = ImplicitB->template IsA<FHeightField>();
 
-		const auto& OverlappingLeafVisitor = 
-			[this, ParticleA, ImplicitA, ShapeInstanceA, &ParticleWorldTransformA, &RelativeTransformA, LeafObjectIndexA, ParticleB, &ParticleWorldTransformB, &ShapeInstancesB, CullDistance, Dt, &Context]
-			(const FImplicitObject* ImplicitB, const FRigidTransform3& RelativeTransformB, const int32 RootObjectIndexB, const int32 ObjectIndexB, const int32 LeafObjectIndexB)
+		// Visitor for FImplicitBVH::VisitNodeObjects
+		// Given an ImplicitObject from ParticleA (which we know overlaps the bounds of ImplicitB),
+		// run collision detection on ImplicitA against ImplicitB.
+		const auto& NodeObjectVisitorA =
+			[this, ParticleA, &ShapeInstancesA, &ParticleWorldTransformA, 
+			ParticleB, ImplicitB, ShapeInstanceB, &ParticleWorldTransformB, &RelativeTransformB, LeafObjectIndexB, 
+			CullDistance, Dt, &Context]
+			(const FImplicitObject* ImplicitA, const FRigidTransform3f& RelativeTransformfA, const FAABB3f& RelativeBoundsfA, const int32 RootObjectIndexA, const int32 LeafObjectIndexA) -> void
 			{
-				const FShapeInstance* ShapeInstanceB = GetShapeInstance(ShapeInstancesB, RootObjectIndexB);
+				const FShapeInstance* ShapeInstanceA = GetShapeInstance(ShapeInstancesA, RootObjectIndexA);
+				const FRigidTransform3 RelativeTransformA = FRigidTransform3(RelativeTransformfA);
 
-				GenerateCollisionsShapeShape(
+				GenerateCollisionsImplicitLeafImplicitLeaf(
 					ParticleA, ImplicitA, ShapeInstanceA, ParticleWorldTransformA, RelativeTransformA, LeafObjectIndexA,
 					ParticleB, ImplicitB, ShapeInstanceB, ParticleWorldTransformB, RelativeTransformB, LeafObjectIndexB,
 					CullDistance, Dt, Context);
 			};
 
-		// Detect collisons between ImplicitA and Implicit Hierarchy of ParticleB
-		RootImplicitB->VisitOverlappingLeafObjects(ShapeBoundsAInB, OverlappingLeafVisitor);
+		// Visitor for FImplicitBVH::VisitNodes
+		// This will be passed the nodes of the BVH on ParticleA and its bounds and contents. If the bounds overlap something in ParticleB
+		// we will keep recursing into the BVH. When we hit a leaf, run collision detection between the leaf contents and ParticleB.
+		const auto& NodeVisitorA =
+			[BVHA, ImplicitB, &ImplicitBoundsBInA, &ImplicitTransformBToA, bHasInternalBVHB, &NodeObjectVisitorA]
+			(const FAABB3f& RelativeNodeBoundsfA, const int32 NodeDepthA, const int32 NodeIndexA) -> bool
+			{
+				const FAABB3 RelativeNodeBoundsA = FAABB3(RelativeNodeBoundsfA);
+
+				if (bHasInternalBVHB)
+				{
+					// ImplicitB has an internal BVH (e.g., HeightField). We perform the bounds tests in B space
+					// NOTE: IsOverlappingBounds performs a deep bounds test, using any internal BVH present on ImplicitB
+					const FAABB3 NodeBoundsAInB = RelativeNodeBoundsA.InverseTransformedAABB(ImplicitTransformBToA);
+					if (!ImplicitB->IsOverlappingBounds(NodeBoundsAInB))
+					{
+						return false;
+					}
+				}
+				else
+				{
+					// ImplicitB is a single object. We perform the bounds tests in A space to avoid the node bounds transform
+					if (!ImplicitBoundsBInA.Intersects(RelativeNodeBoundsA))
+					{
+						return false;
+					}
+				}
+
+				// Is this node is a leaf, or is entirely contained in B visit all objects in the node and collide against ImplicitB
+				// @todo(chaos): support full containment check (calculated in branch above)
+				const bool bIsLeafA = BVHA->NodeIsLeaf(NodeIndexA);
+				if (bIsLeafA)
+				{
+					BVHA->VisitNodeObjects(NodeIndexA, NodeObjectVisitorA);
+				}
+
+				// Keep recursing
+				return true;
+			};
+
+		// Visit all the nodes in BVHA and detect collisions with ParticleB
+		BVHA->VisitNodes(NodeVisitorA);
 	}
 
-	// Generate collisions between two leaf (not hierahcies) implicits
-	void FGenericParticlePairMidPhase::GenerateCollisionsShapeShape(
+	// Generate collisions between two leaf (not hierarchy) implicits
+	void FGenericParticlePairMidPhase::GenerateCollisionsImplicitLeafImplicitLeaf(
 		FGeometryParticleHandle* ParticleA, const FImplicitObject* ImplicitA, const FShapeInstance* ShapeInstanceA, const FRigidTransform3 ParticleWorldTransformA, const FRigidTransform3& RelativeTransformA, const int32 LeafObjectIndexA,
 		FGeometryParticleHandle* ParticleB, const FImplicitObject* ImplicitB, const FShapeInstance* ShapeInstanceB, const FRigidTransform3 ParticleWorldTransformB, const FRigidTransform3& RelativeTransformB, const int32 LeafObjectIndexB,
 		const FReal CullDistance,
@@ -1395,16 +1464,19 @@ namespace Chaos
 		// shapes may be some children in the implicit hierarchy. The particles could be in the opposite order though, and
 		// this will depend on the shape types involved. E.g., with two particles each with a sphere and a box in a union
 		// would require up to two Sphere-Box contacts, with the particles in opposite orders.
+#if !UE_BUILD_TEST && !UE_BUILD_SHIPPING
 		if (!ensure(((InParticle0 == Particle0) && (InParticle1 == Particle1)) || ((InParticle0 == Particle1) && (InParticle1 == Particle0))))
 		{
 			// We somehow received a callback for the wrong particle pair...this should not happen
 			return nullptr;
 		}
+#endif
 
 		const FCollisionParticlePairConstraintKey CollisionKey = FCollisionParticlePairConstraintKey(InShape0, InImplicit0, InImplicitId0, InBVHParticles0, InShape1, InImplicit1, InImplicitId1, InBVHParticles1);
 		FPBDCollisionConstraint* Constraint = FindConstraint(CollisionKey);
 
 		// @todo(chaos): fix key uniqueness guarantee.  We need a truly unique key gen function
+#if !UE_BUILD_TEST && !UE_BUILD_SHIPPING
 		const bool bIsKeyCollision = (Constraint != nullptr) && ((Constraint->GetImplicit0() != InImplicit0) || (Constraint->GetImplicit1() != InImplicit1) || (Constraint->GetCollisionParticles0() != InBVHParticles0) || (Constraint->GetCollisionParticles1() != InBVHParticles1));
 		if (bIsKeyCollision)
 		{
@@ -1416,6 +1488,7 @@ namespace Chaos
 			ensure(false);
 			return nullptr;
 		}
+#endif
 
 		if (Constraint == nullptr)
 		{

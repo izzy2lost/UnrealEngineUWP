@@ -315,6 +315,7 @@ namespace Chaos
 		CHAOS_API void FieldForcesUpdateCallback();
 
 		// Update the counter in Stats and the CSV profiler
+		CHAOS_API void ResetStatCounters();
 		CHAOS_API void UpdateStatCounters() const;
 		CHAOS_API void UpdateExpensiveStatCounters() const;
 

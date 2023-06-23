@@ -398,6 +398,11 @@ public:
 
 	virtual uint16 GetMaterialIndex(uint32 HintIndex) const { return 0; }
 
+	int32 CountObjectsInHierarchy() const
+	{
+		return CountObjectsInHierarchyImpl();
+	}
+
 	/**
 	* Visit all the leaf objects in the hierarchy that overlap the specified local-space bounds.
 	* NOTE: Templated decorators like Instanced and Scaled cound as leafs, but object decorators like Transformed do not.
@@ -448,6 +453,12 @@ public:
 
 //protected:
 	// This should not be public, but it needs to be callable by derived classes on another instance
+	virtual int32 CountObjectsInHierarchyImpl() const
+	{
+		return 1;
+	}
+
+	// This should not be public, but it needs to be callable by derived classes on another instance
 	virtual void VisitOverlappingLeafObjectsImpl(
 		const FAABB3& LocalBounds,
 		const FRigidTransform3& ObjectTransform,
@@ -485,9 +496,10 @@ public:
 		int32& LeafObjectIndex,
 		const FImplicitHierarchyVisitorBool& VisitorFunc) const
 	{
-		return VisitorFunc(this, ObjectTransform, RootObjectIndex, ObjectIndex, LeafObjectIndex);
+		const bool bResult = VisitorFunc(this, ObjectTransform, RootObjectIndex, ObjectIndex, LeafObjectIndex);
 		++ObjectIndex;
 		++LeafObjectIndex;
+		return bResult;
 	}
 
 	// This should not be public, but it needs to be callable by derived classes on another instance
