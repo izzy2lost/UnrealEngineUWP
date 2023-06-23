@@ -514,11 +514,10 @@ void MainCS(
 		
 		tsr_simd_half RawRejection      = min3(RawFactor[0], RawFactor[1], RawFactor[2]);
 		tsr_simd_half FilteredRejection = min3(FilteredFactor[0], FilteredFactor[1], FilteredFactor[2]);
-		
-		RejectionBlendFinal = saturate(FilteredRejection + tsr_simd_half::Const(1.0) - bIsValid);
+
+		RejectionBlendFinal = saturate(FilteredRejection);
 		
 		RejectionClampBlend = Median3x3(RawRejection);
-		RejectionClampBlend = saturate(RejectionClampBlend + tsr_simd_half::Const(1.0) - bIsValid);
 		RejectionClampBlend = Min3x3(RejectionClampBlend);
 	}
 	#endif

@@ -850,13 +850,11 @@ uint64 FTemporalAAHistory::GetGPUSizeBytes(bool bLogSizes) const
 uint64 FTSRHistory::GetGPUSizeBytes(bool bLogSizes) const
 {
 	return
-		GetRenderTargetGPUSizeBytes(Output, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(ColorArray, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(Metadata, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(TranslucencyAlpha, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(MetadataArray, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(SubpixelDepth, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(Guide, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(Moire, bLogSizes);
+		GetRenderTargetGPUSizeBytes(GuideArray, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(MoireArray, bLogSizes);
 }
 
 uint64 FScreenSpaceDenoiserHistory::GetGPUSizeBytes(bool bLogSizes) const
