@@ -13,6 +13,10 @@ class URuntimePartition : public UObject
 
 public:
 #if WITH_EDITOR
+	//~ Begin UObject Interface.
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	//~ End UObject Interface.
+
 	struct FCellDesc
 	{
 		FName Name;
@@ -22,6 +26,9 @@ public:
 		bool bClientOnlyVisible;
 		FGuid ContentBundleID;
 		int32 Priority;
+
+		/** Optional level value that can be used to filter debug display */
+		int32 Level;
 
 		TArray<IStreamingGenerationContext::FActorInstance> ActorInstances;
 	};
@@ -45,7 +52,7 @@ public:
 	int32 Priority;
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
-	float LoadingRange;
+	int32 LoadingRange;
 
 	UPROPERTY()
 	bool bIsHLODSetup;

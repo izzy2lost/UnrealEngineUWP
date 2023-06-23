@@ -3,11 +3,16 @@
 #include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeHashSet.h"
 #include "WorldPartition/RuntimeHashSet/RuntimePartition.h"
 #include "WorldPartition/RuntimeHashSet/RuntimePartitionPersistent.h"
+#include "WorldPartition/ContentBundle/ContentBundleWorldSubsystem.h"
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
+#include "WorldPartition/ContentBundle/ContentBundleBase.h"
+#include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
 #include "WorldPartition/WorldPartitionRuntimeSpatialHash.h"
 #include "WorldPartition/WorldPartitionStreamingPolicy.h"
 #include "WorldPartition/WorldPartitionStreamingSource.h"
+#include "WorldPartition/WorldPartitionDraw2DContext.h"
+#include "WorldPartition/WorldPartitionDebugHelper.h"
 #include "WorldPartition/DataLayer/DataLayersID.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "Algo/ForEach.h"
@@ -22,6 +27,18 @@ FAutoConsoleCommand WorldPartitionRuntimeHashSetEnable(
 		UWorldPartitionRuntimeHashSet::StaticClass()->ClassFlags &= ~CLASS_HideDropDown;
 	})
 );
+
+static int32 GShowRuntimeHashSetDebugDisplayLevel = 0;
+static FAutoConsoleVariableRef CVarShowRuntimeHashSetDebugDisplayLevel(
+	TEXT("wp.Runtime.HashSet.ShowtDebugDisplayLevel"),
+	GShowRuntimeHashSetDebugDisplayLevel,
+	TEXT("Used to choose which level to display when showing world partition partitions."));
+
+static int32 GShowRuntimeHashSetDebugDisplayLevelCount = 1;
+static FAutoConsoleVariableRef CVarShowRuntimeHashSetDebugDisplayLevelCount(
+	TEXT("wp.Runtime.HashSet.ShowDebugDisplayLevelCount"),
+	GShowRuntimeHashSetDebugDisplayLevelCount,
+	TEXT("Used to choose how many levels to display when showing world partition runtime partitions."));
 
 #if WITH_EDITOR
 void FRuntimePartitionDesc::UpdateHLODPartitionLayers()
@@ -139,6 +156,256 @@ void UWorldPartitionRuntimeHashSet::PostLoad()
 }
 
 #if WITH_EDITOR
+static EWorldPartitionRuntimeCellVisualizeMode GetStreamingCellVisualizeMode()
+{
+	const EWorldPartitionRuntimeCellVisualizeMode VisualizeMode = FWorldPartitionDebugHelper::IsRuntimeSpatialHashCellStreamingPriorityShown() ? EWorldPartitionRuntimeCellVisualizeMode::StreamingPriority : EWorldPartitionRuntimeCellVisualizeMode::StreamingStatus;
+	return VisualizeMode;
+}
+
+static TMap<FName, FColor> GetDataLayerDebugColors(const UWorldPartition* InWorldPartition)
+{
+	TMap<FName, FColor> DebugColors;
+	if (const UDataLayerManager* DataLayerManager = InWorldPartition->GetDataLayerManager())
+	{
+		DataLayerManager->ForEachDataLayerInstance([&DebugColors](UDataLayerInstance* DataLayerInstance)
+		{
+			DebugColors.Add(DataLayerInstance->GetDataLayerFName(), DataLayerInstance->GetDebugColor());
+			return true;
+		});
+	}
+	return DebugColors;
+}
+
+bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawContext) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UWorldPartitionRuntimeHashSet::Draw2D);
+
+	const UWorldPartition* WorldPartition = GetOuterUWorldPartition();
+	const TArray<FWorldPartitionStreamingSource>& Sources = WorldPartition->GetStreamingSources();
+	
+	if (!Sources.Num())
+	{
+		return false;
+	}
+
+	TMap<FName, TArray<const FRuntimePartitionStreamingData*>> FilteredStreamingObjects;
+	ForEachStreamingObject([&FilteredStreamingObjects](const URuntimeHashSetExternalStreamingObject* CurStreamingObject)
+	{
+		for (const FRuntimePartitionStreamingData& RuntimeStreamingData : CurStreamingObject->RuntimeStreamingData)
+		{
+			if (FWorldPartitionDebugHelper::IsDebugRuntimeHashGridShown(RuntimeStreamingData.Name))
+			{
+				FilteredStreamingObjects.FindOrAdd(RuntimeStreamingData.Name).Add(&RuntimeStreamingData);
+			}
+		}
+	});
+
+	if (!FilteredStreamingObjects.Num())
+	{
+		return false;
+	}
+
+	const FTransform WorldPartitionTransform = WorldPartition->GetInstanceTransform();
+	const FTransform2D LocalWPToGlobal(FQuat2D(FMath::DegreesToRadians(WorldPartitionTransform.Rotator().Yaw)), FVector2D(WorldPartitionTransform.GetLocation()));
+	const FTransform2D GlobalToLocalWP = LocalWPToGlobal.Inverse();
+	const FBox2D& WorldRegion = DrawContext.GetWorldRegion();
+	const FVector2D WorldRegionSize = WorldRegion.GetSize();
+	TArray<FVector2D> Points;
+	Points.Add(GlobalToLocalWP.TransformPoint(WorldRegion.Min));
+	Points.Add(GlobalToLocalWP.TransformPoint(WorldRegion.Min + FVector2D(WorldRegionSize.X, 0)));
+	Points.Add(GlobalToLocalWP.TransformPoint(WorldRegion.Min + WorldRegionSize));
+	Points.Add(GlobalToLocalWP.TransformPoint(WorldRegion.Min + FVector2D(0, WorldRegionSize.Y)));
+	const FBox2D LocalRegion(Points);
+
+	const FBox2D& CanvasRegion = DrawContext.GetCanvasRegion();
+	const int32 GridScreenWidthDivider = DrawContext.IsDetailedMode() ? FilteredStreamingObjects.Num() : 1;
+	const float GridScreenWidthShrinkSize = GridScreenWidthDivider > 1 ? 20.f : 0.f;
+	const float CanvasMaxScreenWidth = CanvasRegion.GetSize().X;
+	const float GridMaxScreenWidth = CanvasMaxScreenWidth / GridScreenWidthDivider;
+	const float GridEffectiveScreenWidth = FMath::Min(GridMaxScreenWidth, CanvasRegion.GetSize().Y) - GridScreenWidthShrinkSize;
+	const FVector2D PartitionCanvasSize = FVector2D(CanvasRegion.GetSize().GetMin());
+	const FVector2D GridScreenExtent = FVector2D(GridEffectiveScreenWidth, GridEffectiveScreenWidth);
+	const FVector2D GridScreenHalfExtent = 0.5f * GridScreenExtent;
+	const FVector2D GridScreenInitialOffset = CanvasRegion.Min;
+
+	auto DrawStreamingData = [this](const FRuntimePartitionStreamingData* StreamingData, const FBox2D& Region2D, const FBox2D& GridScreenBounds, TFunctionRef<FVector2D(const FVector2D&, bool)> InWorldToScreen, FWorldPartitionDraw2DContext& DrawContext)
+	{
+		const UWorldPartition* WorldPartition = GetOuterUWorldPartition();
+		const TArray<FWorldPartitionStreamingSource>& Sources = WorldPartition->GetStreamingSources();
+
+		const FBox Region(FVector(Region2D.Min.X, Region2D.Min.Y, 0), FVector(Region2D.Max.X, Region2D.Max.Y, 0));
+		const UWorld* OwningWorld = WorldPartition->GetWorld();
+		const EWorldPartitionRuntimeCellVisualizeMode VisualizeMode = GetStreamingCellVisualizeMode();
+		const UContentBundleManager* ContentBundleManager = OwningWorld->ContentBundleManager;
+		TMap<FName, FColor> DataLayerDebugColors = GetDataLayerDebugColors(WorldPartition);
+
+		auto WorldToScreen = [&](const FVector2D& Pos, bool bIsLocal = true)
+		{
+			return InWorldToScreen(Pos, bIsLocal);
+		};
+
+		auto LocalDrawTile = [&](const FVector2D& Min, const FVector2D& Size, const FLinearColor& Color)
+		{
+			const FVector2D ScreenMin = WorldToScreen(Min);
+			const FVector2D ScreenMax = WorldToScreen(Min + Size);
+			DrawContext.PushDrawTile(GridScreenBounds, ScreenMin, ScreenMax, Color);
+		};
+
+		auto LocalDrawBox = [&](const FVector2D& Min, const FVector2D& Size, const FLinearColor& Color, float LineThickness, const FBox2D* CustomGridScreenBounds = nullptr)
+		{
+			const FVector2D ScreenMin = WorldToScreen(Min);
+			const FVector2D ScreenMax = WorldToScreen(Min + Size);
+			DrawContext.PushDrawBox(GridScreenBounds, ScreenMin, ScreenMax, Color, LineThickness);
+		};
+
+		auto LocalDrawSegment = [&](const FVector2D& Start, const FVector2D& End, const FLinearColor& Color, float LineThickness)
+		{
+			const FVector2D ScreenStart = WorldToScreen(Start);
+			const FVector2D ScreenEnd = WorldToScreen(End);
+			DrawContext.PushDrawSegment(GridScreenBounds, ScreenStart, ScreenEnd, Color, LineThickness);
+		};
+
+		TArray<const UWorldPartitionRuntimeCell*> FilteredCells;
+		const FBox Region3D(FVector(Region.Min.X, Region.Min.Y, -HALF_WORLD_MAX), FVector(Region.Max.X, Region.Max.Y, HALF_WORLD_MAX));		
+		StreamingData->SpatialIndex->ForEachIntersectingElement(Region3D, [&FilteredCells](UWorldPartitionRuntimeCell* Cell)
+		{
+			UWorldPartitionRuntimeCellDataSpatialHashSet* RuntimeCellDataHashSet = CastChecked<UWorldPartitionRuntimeCellDataSpatialHashSet>(Cell->RuntimeCellData);
+
+			if ((RuntimeCellDataHashSet->Level >= GShowRuntimeHashSetDebugDisplayLevel) && (RuntimeCellDataHashSet->Level < (GShowRuntimeHashSetDebugDisplayLevel + GShowRuntimeHashSetDebugDisplayLevelCount)))
+			{
+				FilteredCells.Add(Cell);
+			}
+		});
+
+		if (FilteredCells.Num())
+		{
+			for (const UWorldPartitionRuntimeCell* Cell : FilteredCells)
+			{
+				const FVector2D CellBoundsSize = FVector2D(Cell->GetCellBounds().GetSize());
+				const FVector2D CellBoundsMin = FVector2D(Cell->GetCellBounds().Min);
+				LocalDrawTile(CellBoundsMin, CellBoundsSize, Cell->GetDebugColor(VisualizeMode).CopyWithNewOpacity(0.25f));
+				LocalDrawBox(CellBoundsMin, CellBoundsSize, FLinearColor::Black, 1);
+			}
+		}
+
+		// Draw X/Y Axis
+		if (DrawContext.GetDrawGridAxis())
+		{
+			DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(FVector2D(-1638400.f, 0.f), false), WorldToScreen(FVector2D(1638400.f, 0.f), false), FLinearColor::Red, 3);
+			DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(FVector2D(0.f, -1638400.f), false), WorldToScreen(FVector2D(0.f, 1638400.f), false), FLinearColor::Green, 3);
+		}
+
+		// Draw Grid Bounds
+		if (DrawContext.GetDrawGridBounds())
+		{
+			const FBox2D Bounds = GridScreenBounds.ExpandBy(FVector2D(10));
+			const FVector2D Size = GridScreenBounds.GetSize();
+			DrawContext.PushDrawBox(Bounds, GridScreenBounds.Min, GridScreenBounds.Max, FLinearColor::White, 1);
+		}
+
+		// Draw Streaming Sources
+		for (const FWorldPartitionStreamingSource& Source : Sources)
+		{
+			const FColor Color = Source.GetDebugColor();
+			// @todo_jfd
+			const FSoftObjectPath HLODLayer;
+			Source.ForEachShape(StreamingData->LoadingRange, StreamingData->Name, HLODLayer, true, [&Color, &WorldToScreen, &GridScreenBounds, &DrawContext, this](const FSphericalSector& Shape)
+			{
+				check(!Shape.IsNearlyZero())
+
+				// Spherical Sector
+				const FVector2D Center2D(FVector2D(Shape.GetCenter()));
+				const FSphericalSector::FReal Angle = Shape.GetAngle();
+				const int32 MaxSegments = FMath::Max(4, FMath::CeilToInt(64 * Angle / 360.f));
+				const float AngleIncrement = Angle / MaxSegments;
+				const FVector2D Axis = FVector2D(Shape.GetAxis());
+				const FVector Startup = FRotator(0, -0.5f * Angle, 0).RotateVector(Shape.GetScaledAxis());
+
+				FVector2D LineStart = FVector2D(Startup);
+				if (!Shape.IsSphere())
+				{
+					// Draw sector start axis
+					DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(Center2D), WorldToScreen(Center2D + LineStart), Color, 2);
+				}
+				// Draw sector Arc
+				for (int32 i = 1; i <= MaxSegments; i++)
+				{
+					FVector2D LineEnd = FVector2D(FRotator(0, AngleIncrement * i, 0).RotateVector(Startup));
+					DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(Center2D + LineStart), WorldToScreen(Center2D + LineEnd), Color, 2);
+					LineStart = LineEnd;
+				}
+				// If sphere, close circle, else draw sector end axis
+				DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(Center2D + LineStart), WorldToScreen(Center2D + (Shape.IsSphere() ? FVector2D(Startup) : FVector2D::ZeroVector)), Color, 2);
+
+				// Draw direction vector
+				DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(Center2D), WorldToScreen(Center2D + Axis * Shape.GetRadius()), Color, 2);
+			});
+		}
+	};
+
+	FBox GridsShapeBounds(ForceInit);
+	FBox2D GridsBounds(ForceInit);
+	int32 GridIndex = 0;
+	for (auto& [Name, StreamingDataList] : FilteredStreamingObjects)
+	{
+		for (const FWorldPartitionStreamingSource& Source : Sources)
+		{
+			// @todo_jfd
+			const FSoftObjectPath HLODLayer;
+			Source.ForEachShape(StreamingDataList[0]->LoadingRange, Name, HLODLayer, true, [&GridsShapeBounds](const FSphericalSector& Shape) { GridsShapeBounds += Shape.CalcBounds(); });
+		}
+
+		const FVector2D GridReferenceWorldPos = FVector2D(WorldRegion.GetCenter());
+		const FVector2D WorldRegionExtent = FVector2D(WorldRegion.GetExtent().GetMax());
+		const FVector2D GridScreenOffset = GridScreenInitialOffset + ((float)GridIndex * FVector2D(GridMaxScreenWidth, 0.f)) + GridScreenHalfExtent + FVector2D(GridScreenWidthShrinkSize * 0.5f);
+		const FVector2D WorldToScreenScale = GridScreenHalfExtent / WorldRegionExtent;
+		const FBox2D GridScreenBounds(GridScreenOffset - GridScreenHalfExtent, GridScreenOffset + GridScreenHalfExtent);
+
+		auto WorldToScreen = [&](const FVector2D& LocalWorldPos, bool bIsLocalWorldPos = true)
+		{
+			FVector2D GlocalPos = bIsLocalWorldPos ? LocalWPToGlobal.TransformPoint(LocalWorldPos) : LocalWorldPos;
+			return (WorldToScreenScale * (GlocalPos - GridReferenceWorldPos)) + GridScreenOffset;
+		};
+
+		for (const FRuntimePartitionStreamingData* StreamingData : StreamingDataList)
+		{
+			DrawStreamingData(StreamingData, LocalRegion, GridScreenBounds, WorldToScreen, DrawContext);
+		}
+
+		GridsBounds += GridScreenBounds;
+
+		if (DrawContext.IsDetailedMode())
+		{
+			FVector2D GridInfoPos = GridScreenOffset - GridScreenHalfExtent;
+			FWorldPartitionCanvasMultiLineText MultiLineText;
+			MultiLineText.Emplace(UWorld::RemovePIEPrefix(FPaths::GetBaseFilename(WorldPartition->GetPackage()->GetName())), FLinearColor::White);
+			FString GridInfoText = FString::Printf(TEXT("%s | %d m"), *Name.ToString(), int32(StreamingDataList[0]->LoadingRange * 0.01f));
+			MultiLineText.Emplace(GridInfoText, FLinearColor::Yellow);
+			FWorldPartitionCanvasMultiLineTextItem Item(GridInfoPos, MultiLineText);
+			DrawContext.PushDrawText(Item);
+			++GridIndex;
+		}
+	}
+
+	FBox2D DesiredWorldBounds(ForceInit);
+	if (GridsShapeBounds.IsValid)
+	{
+		// Convert to 2D
+		FBox2D GridsShapeBounds2D = FBox2D(FVector2D(GridsShapeBounds.Min.X, GridsShapeBounds.Min.Y), FVector2D(GridsShapeBounds.Max.X, GridsShapeBounds.Max.Y));
+		FVector2D CenterGlobalPos = LocalWPToGlobal.TransformPoint(GridsShapeBounds2D.GetCenter());
+		// Use max extent of X/Y
+		FVector2D Extent = FVector2D(GridsShapeBounds2D.GetExtent().GetMax());
+		// Transform to global space
+		GridsShapeBounds2D = FBox2D(CenterGlobalPos - Extent, CenterGlobalPos + Extent);
+		// Expand by 10% computed bounds
+		DesiredWorldBounds = GridsShapeBounds2D.ExpandBy(GridsShapeBounds2D.GetExtent() * 0.1f);
+	}
+	DrawContext.SetDesiredWorldBounds(DesiredWorldBounds);
+	DrawContext.SetUsedCanvasBounds(GridsBounds);
+
+	return true;
+}
+
 void UWorldPartitionRuntimeHashSet::SetDefaultValues()
 {
 }
@@ -316,7 +583,10 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 		RuntimeCell->SetBlockOnSlowLoading(CellDesc.bBlockOnSlowStreaming);
 		RuntimeCell->SetIsHLOD(false);
 		RuntimeCell->SetGuid(CellGuid);
-		RuntimeCell->RuntimeCellData->DebugName = CellObjectName;
+
+		UWorldPartitionRuntimeCellDataSpatialHashSet* RuntimeCellDataHashSet = CastChecked<UWorldPartitionRuntimeCellDataSpatialHashSet>(RuntimeCell->RuntimeCellData);
+		RuntimeCellDataHashSet->DebugName = CellObjectName;
+		RuntimeCellDataHashSet->Level = CellDesc.Level;
 
 		return RuntimeCell;
 	};
@@ -325,7 +595,7 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 	TMap<URuntimePartition*, FRuntimePartitionStreamingData> RuntimePartitionsStreamingData;
 	for (const FCellDescInstance& CellDescInstance : RuntimeCellDescsInstances)
 	{
-		UWorldPartitionRuntimeCell* RuntimeCell = RuntimeCells.Emplace_GetRef(CreateRuntimeCellFromCellDesc(CellDescInstance, CellDescInstance.DataLayers, StreamingPolicy->GetRuntimeCellClass(), UWorldPartitionRuntimeCellData::StaticClass()));
+		UWorldPartitionRuntimeCell* RuntimeCell = RuntimeCells.Emplace_GetRef(CreateRuntimeCellFromCellDesc(CellDescInstance, CellDescInstance.DataLayers, StreamingPolicy->GetRuntimeCellClass(), UWorldPartitionRuntimeCellDataSpatialHashSet::StaticClass()));
 		PopulateRuntimeCell(RuntimeCell, CellDescInstance.ActorInstances, nullptr);
 
 		// Override the cell bounds if the runtime partition provided one
@@ -597,7 +867,7 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 	UWorldPartitionRuntimeHash::FStreamingSourceCells ActivateStreamingSourceCells;
 	UWorldPartitionRuntimeHash::FStreamingSourceCells LoadStreamingSourceCells;
 
-	auto ForEachStreamingCells = [this, &Sources, &Func, &ActivateStreamingSourceCells, &LoadStreamingSourceCells](FStaticSpatialIndexType* InSpatialIndex, float InLoadingRange, FName InGridName)
+	auto ForEachStreamingCells = [this, &Sources, &Func, &ActivateStreamingSourceCells, &LoadStreamingSourceCells](FStaticSpatialIndexType* InSpatialIndex, int32 InLoadingRange, FName InGridName)
 	{
 		if (InSpatialIndex)
 		{

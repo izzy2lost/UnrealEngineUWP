@@ -67,6 +67,7 @@ bool URuntimePartitionLevelStreaming::GenerateStreaming(const TArray<const IStre
 			CellDesc.bBlockOnSlowStreaming = bBlockOnSlowStreaming;
 			CellDesc.bClientOnlyVisible = bClientOnlyVisible;
 			CellDesc.Priority = Priority;
+			CellDesc.Level = 0;
 			CellDesc.ActorInstances = SubLevelActorSetInstances;
 
 			for (const IStreamingGenerationContext::FActorInstance& ActorInstance : CellDesc.ActorInstances)

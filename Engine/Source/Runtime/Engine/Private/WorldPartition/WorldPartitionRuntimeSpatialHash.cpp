@@ -803,27 +803,23 @@ void FSpatialHashStreamingGrid::Draw2D(const UWorldPartitionRuntimeSpatialHash* 
 
 	auto LocalDrawTile = [&](const FVector2D& Min, const FVector2D& Size, const FLinearColor& Color)
 	{
-		FVector2D A = WorldToScreen(Min);
-		FVector2D B = WorldToScreen(Min + FVector2D(Size.X, 0));
-		FVector2D C = WorldToScreen(Min + Size);
-		FVector2D D = WorldToScreen(Min + FVector2D(0, Size.Y));
-		DrawContext.PushDrawTile(GridScreenBounds, A, B, C, D, Color);
+		const FVector2D ScreenMin = WorldToScreen(Min);
+		const FVector2D ScreenMax = WorldToScreen(Min + Size);
+		DrawContext.PushDrawTile(GridScreenBounds, ScreenMin, ScreenMax, Color);
 	};
 
 	auto LocalDrawBox = [&](const FVector2D& Min, const FVector2D& Size, const FLinearColor& Color, float LineThickness, const FBox2D* CustomGridScreenBounds = nullptr)
 	{
-		FVector2D A = WorldToScreen(Min);
-		FVector2D B = WorldToScreen(Min + FVector2D(Size.X, 0));
-		FVector2D C = WorldToScreen(Min + Size);
-		FVector2D D = WorldToScreen(Min + FVector2D(0, Size.Y));
-		DrawContext.PushDrawBox(GridScreenBounds, A, B, C, D, Color, LineThickness);
+		const FVector2D ScreenMin = WorldToScreen(Min);
+		const FVector2D ScreenMax = WorldToScreen(Min + Size);
+		DrawContext.PushDrawBox(GridScreenBounds, ScreenMin, ScreenMax, Color, LineThickness);
 	};
 
 	auto LocalDrawSegment = [&](const FVector2D& Start, const FVector2D& End, const FLinearColor& Color, float LineThickness)
 	{
-		FVector2D A = WorldToScreen(Start);
-		FVector2D B = WorldToScreen(End);
-		DrawContext.PushDrawSegment(GridScreenBounds, A, B, Color, LineThickness);
+		const FVector2D ScreenStart = WorldToScreen(Start);
+		const FVector2D ScreenEnd = WorldToScreen(End);
+		DrawContext.PushDrawSegment(GridScreenBounds, ScreenStart, ScreenEnd, Color, LineThickness);
 	};
 
 	TArray<const UWorldPartitionRuntimeCell*> FilteredCells;
@@ -853,7 +849,7 @@ void FSpatialHashStreamingGrid::Draw2D(const UWorldPartitionRuntimeSpatialHash* 
 					// Draw Cell using its debug color
 					FVector2D StartPos = CellWorldBounds.Min + CellOffset;
 					{
-						LocalDrawTile(StartPos, CellBoundsSize, Cell->GetDebugColor(VisualizeMode));
+						LocalDrawTile(StartPos, CellBoundsSize, Cell->GetDebugColor(VisualizeMode).CopyWithNewOpacity(0.25f));
 					}
 
 					CellOffset.Y += CellBoundsSize.Y;
@@ -907,7 +903,7 @@ void FSpatialHashStreamingGrid::Draw2D(const UWorldPartitionRuntimeSpatialHash* 
 	{
 		FBox2D Bounds = GridScreenBounds.ExpandBy(FVector2D(10));
 		FVector2D Size = GridScreenBounds.GetSize();
-		DrawContext.PushDrawBox(Bounds, GridScreenBounds.Min, GridScreenBounds.Min + FVector2D(Size.X, 0), GridScreenBounds.Max, GridScreenBounds.Min + FVector2D(0, Size.Y), DebugColor, 1);
+		DrawContext.PushDrawBox(Bounds, GridScreenBounds.Min, GridScreenBounds.Max, DebugColor, 1);
 	}
 
 	// Draw WorldBounds

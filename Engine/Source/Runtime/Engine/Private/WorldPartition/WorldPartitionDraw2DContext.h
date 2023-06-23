@@ -165,28 +165,25 @@ public:
 		return false;
 	};
 
-	bool PushDrawBox(const FBox2D& InBounds, const FVector2D& A, const FVector2D& B, const FVector2D& C, const FVector2D& D, const FLinearColor& InColor, float InLineThickness)
+	bool PushDrawBox(const FBox2D& InBounds, const FVector2D& Min, const FVector2D& Max, const FLinearColor& InColor, float InLineThickness)
 	{
-		PushDrawSegment(InBounds, A, B, InColor, InLineThickness);
-		PushDrawSegment(InBounds, B, C, InColor, InLineThickness);
-		PushDrawSegment(InBounds, C, D, InColor, InLineThickness);
-		PushDrawSegment(InBounds, A, D, InColor, InLineThickness);
+		PushDrawSegment(InBounds, Min, FVector2D(Max.X, Min.Y), InColor, InLineThickness);
+		PushDrawSegment(InBounds, FVector2D(Max.X, Min.Y), Max, InColor, InLineThickness);
+		PushDrawSegment(InBounds, Max, FVector2D(Min.X, Max.Y), InColor, InLineThickness);
+		PushDrawSegment(InBounds, FVector2D(Min.X, Max.Y), Min, InColor, InLineThickness);
 		return true;
 	};
 
-	bool PushDrawTile(const FBox2D& InBounds, const FVector2D& A, const FVector2D& B, const FVector2D& C, const FVector2D& D, const FLinearColor& InColor)
+	bool PushDrawTile(const FBox2D& InBounds, const FVector2D& Min, const FVector2D& Max, const FLinearColor& InColor)
 	{
-		if (!InBounds.IsInside(A) ||
-			!InBounds.IsInside(B) ||
-			!InBounds.IsInside(C) ||
-			!InBounds.IsInside(D))
+		const FBox2D ClipBox = InBounds.Overlap(FBox2D(Min, Max));
+		if (ClipBox.bIsValid)
 		{
-			return false;
+			FWorldPartitionCanvasBoxItem Box(ClipBox.Min, FVector2D(ClipBox.Max.X, ClipBox.Min.Y), ClipBox.Max, FVector2D(ClipBox.Min.X, ClipBox.Max.Y), InColor);
+			CanvasItems.AddBox(Box);
+			return true;
 		}
-
-		FWorldPartitionCanvasBoxItem Box(A, B, C, D, InColor);
-		CanvasItems.AddBox(Box);
-		return true;
+		return false;
 	};
 
 	bool PushDrawText(FWorldPartitionCanvasMultiLineTextItem& InMultiLineText)

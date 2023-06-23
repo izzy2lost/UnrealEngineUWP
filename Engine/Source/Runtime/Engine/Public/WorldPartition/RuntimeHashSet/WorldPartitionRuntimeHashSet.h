@@ -71,7 +71,7 @@ struct FRuntimePartitionStreamingData
 	FName Name;
 
 	UPROPERTY()
-	float LoadingRange = 0.0f;
+	int32 LoadingRange = 0;
 
 	UPROPERTY()
 	TArray<TObjectPtr<UWorldPartitionRuntimeCell>> RuntimeCells;
@@ -109,6 +109,16 @@ public:
 	TArray<FRuntimePartitionStreamingData> RuntimeStreamingData;
 };
 
+UCLASS(Within = WorldPartitionRuntimeCell, MinimalAPI)
+class UWorldPartitionRuntimeCellDataSpatialHashSet : public UWorldPartitionRuntimeCellData
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	int32 Level;
+};
+
 UCLASS(HideDropdown, MinimalAPI)
 class UWorldPartitionRuntimeHashSet : public UWorldPartitionRuntimeHash
 {
@@ -123,6 +133,8 @@ class UWorldPartitionRuntimeHashSet : public UWorldPartitionRuntimeHash
 
 public:
 #if WITH_EDITOR
+	ENGINE_API virtual bool Draw2D(FWorldPartitionDraw2DContext& DrawContext) const override;
+
 	// Streaming generation interface
 	ENGINE_API virtual void SetDefaultValues() override;
 	ENGINE_API virtual bool SupportsHLODs() const override;

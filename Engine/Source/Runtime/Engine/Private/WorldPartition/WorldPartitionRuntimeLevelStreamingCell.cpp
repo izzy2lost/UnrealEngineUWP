@@ -201,9 +201,7 @@ FLinearColor UWorldPartitionRuntimeLevelStreamingCell::GetDebugColor(EWorldParti
 		case EWorldPartitionRuntimeCellVisualizeMode::StreamingStatus:
 		{
 			// Return streaming status color
-			FLinearColor Color = LevelStreaming ? ULevelStreaming::GetLevelStreamingStatusColor(GetStreamingStatus()) : FLinearColor::Black;
-			Color.A = 0.25f;
-			return Color;
+			return LevelStreaming ? ULevelStreaming::GetLevelStreamingStatusColor(LevelStreaming->GetLevelStreamingStatus()) : FLinearColor::Black;
 		}
 		default:
 		{
