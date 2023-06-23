@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PluginManager.h"
+#include "ICoreUObjectPluginManager.h"
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/PlatformFileManager.h"
 #include "HAL/FileManager.h"
@@ -42,6 +43,14 @@ DEFINE_LOG_CATEGORY_STATIC( LogPluginManager, Log, All );
 
 namespace UE::PluginManager::Private
 {
+
+ICoreUObjectPluginManager* CoreUObjectPluginHandler = nullptr;
+
+void SetCoreUObjectPluginManager(ICoreUObjectPluginManager& Handler)
+{
+	CoreUObjectPluginHandler = &Handler;
+}
+	
 TArray<FString> GetPluginPathsByEnv( const TCHAR* EnvVariable )
 {
 	TArray<FString> AdditionalPaths;
@@ -2683,7 +2692,7 @@ TArray<TSharedRef<IPlugin>> FPluginManager::GetEnabledPluginsWithVerse() const
 	{
 		const TSharedRef<FPlugin>& PluginRef = DiscoveredPluginMapUtils::ResolvePluginFromMapVal(PluginPair.Value);
 		const FPlugin& Plugin = *PluginRef;
-		if (Plugin.IsEnabled() && Plugin.CanContainVerse())
+		if (Plugin.IsEnabled() && Plugin.CanContainVerse() && Plugin.IsMounted())
 		{
 			Plugins.Add(PluginRef);
 		}
@@ -2923,12 +2932,6 @@ void FPluginManager::MountPluginFromExternalSource(const TSharedRef<FPlugin>& Pl
 	}
 }
 
-bool FPluginManager::UnmountExplicitlyLoadedPlugin(const FString& PluginName, FText* OutReason)
-{
-	TSharedPtr<FPlugin> Plugin = FindPluginInstance(PluginName);
-	return UnmountPluginFromExternalSource(Plugin, OutReason);
-}
-
 bool FPluginManager::GetPluginDependencies(const FString& PluginName, TArray<FPluginReferenceDescriptor>& PluginDependencies)
 {
 	const TSharedPtr<FPlugin> Plugin = FindPluginInstance(PluginName);
@@ -2962,8 +2965,9 @@ bool FPluginManager::GetPluginDependencies_FromDescriptor(const FPluginReference
 	return false;
 }
 
-bool FPluginManager::UnmountPluginFromExternalSource(const TSharedPtr<FPlugin>& Plugin, FText* OutReason)
+bool FPluginManager::UnmountExplicitlyLoadedPlugin(const FString& PluginName, FText* OutReason)
 {
+	TSharedPtr<FPlugin> Plugin = FindPluginInstance(PluginName);
 	TRACE_CPUPROFILER_EVENT_SCOPE(UnmountPluginFromExternalSource);
 	if (!Plugin.IsValid() || Plugin->bEnabled == false)
 	{
@@ -3011,11 +3015,16 @@ bool FPluginManager::UnmountPluginFromExternalSource(const TSharedPtr<FPlugin>& 
 			}
 		}
 
-		UnRegisterMountPointDelegate.Execute(Plugin->GetMountedAssetPath(), Plugin->GetContentDir());
-
 		if (PluginUnmountedEvent.IsBound())
 		{
 			PluginUnmountedEvent.Broadcast(*Plugin);
+		}
+
+		UnRegisterMountPointDelegate.Execute(Plugin->GetMountedAssetPath(), Plugin->GetContentDir());
+
+		if (UE::PluginManager::Private::CoreUObjectPluginHandler)
+		{
+			UE::PluginManager::Private::CoreUObjectPluginHandler->OnPluginUnload(*Plugin);
 		}
 	}
 
