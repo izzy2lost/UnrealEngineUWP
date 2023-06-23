@@ -133,7 +133,7 @@ export class DeviceHandler extends PollBase {
             const d = moment.duration(end.diff(moment(device.problemTime)));
 
             // note this must match reservation selection for problem time in backend
-            if (d.asMinutes() < 30) {
+            if (d.asMinutes() < dashboard.deviceProblemCooldownMinutes) {
                 return DeviceStatus.Problem;
             }
         }

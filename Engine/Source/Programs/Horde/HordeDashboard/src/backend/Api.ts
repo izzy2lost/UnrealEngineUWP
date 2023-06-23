@@ -393,6 +393,10 @@ export type GetDashboardConfigResponse = {
 
 	/** Help slack channel that users can use for issues */
 	helpSlackChannel?: string;
+
+	/** Device problem cooldown in minutes */ 
+	deviceProblemCooldownMinutes?: number
+
 }
 
 /**Parameters to register a new agent */

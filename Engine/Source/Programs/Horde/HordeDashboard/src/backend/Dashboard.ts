@@ -158,6 +158,10 @@ export class Dashboard {
         return this.config?.helpSlackChannel;
     }
 
+    get deviceProblemCooldownMinutes(): number {
+        return this.config?.deviceProblemCooldownMinutes ?? 30;
+    }
+
     get swarmUrl(): string | undefined {
         return this.config?.perforceSwarmUrl;
     }
