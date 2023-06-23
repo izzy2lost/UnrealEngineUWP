@@ -99,9 +99,7 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 		CompiledBinding = nullptr;
 		return;
 	}
-	
-	CompiledBinding->TargetType = StructType;
-	
+		
 	FCompiledBindingCacheId Id;
 	Id.Type = StructType;
 	Id.BindingPath = GetUniqueId();
@@ -139,7 +137,8 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 
 	TSharedPtr<UE::Chooser::FCompiledBinding> NewCompiledBinding = MakeShared<UE::Chooser::FCompiledBinding>();
 	UE::Chooser::FCompiledBinding& OutCompiledBinding = *NewCompiledBinding.Get();
-	
+
+	OutCompiledBinding.TargetType = StructType;
 	OutCompiledBinding.CompiledChain.SetNum(0);
 	OutCompiledBinding.ContextIndex = ContextIndex;
 	
