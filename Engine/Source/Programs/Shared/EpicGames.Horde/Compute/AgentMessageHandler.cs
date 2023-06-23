@@ -64,6 +64,9 @@ namespace EpicGames.Horde.Compute
 						case AgentMessageType.None:
 							await Task.WhenAll(childTasks);
 							return;
+						case AgentMessageType.Ping:
+							await channel.PingAsync(cancellationToken);
+							break;
 						case AgentMessageType.Fork:
 							{
 								ForkMessage fork = message.ParseForkMessage();

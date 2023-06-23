@@ -24,6 +24,11 @@ namespace EpicGames.Horde.Compute
 		None = 0x00,
 
 		/// <summary>
+		/// No-op message sent to keep the connection alive. Remote should reply with the same message.
+		/// </summary>
+		Ping = 0x01,
+
+		/// <summary>
 		/// Sent in place of a regular response if an error occurs on the remote
 		/// </summary>
 		Exception = 0x02,
@@ -232,6 +237,15 @@ namespace EpicGames.Horde.Compute
 		public static async ValueTask CloseAsync(this AgentMessageChannel channel, CancellationToken cancellationToken = default)
 		{
 			using IAgentMessageBuilder message = await channel.CreateMessageAsync(AgentMessageType.None, cancellationToken);
+			message.Send();
+		}
+
+		/// <summary>
+		/// Sends a ping message to the remote
+		/// </summary>
+		public static async ValueTask PingAsync(this AgentMessageChannel channel, CancellationToken cancellationToken = default)
+		{
+			using IAgentMessageBuilder message = await channel.CreateMessageAsync(AgentMessageType.Ping, cancellationToken);
 			message.Send();
 		}
 
