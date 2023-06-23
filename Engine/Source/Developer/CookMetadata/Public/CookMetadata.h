@@ -13,6 +13,7 @@ namespace UE::Cook
 
 enum class ECookMetadataStateVersion : uint8
 {
+	InvalidVersion = 0,
 	PluginHierarchy = 1,
 	PostWritebackHash = 2,
 
@@ -173,13 +174,15 @@ class COOKMETADATA_API FCookMetadataState
 {
 public:
 	FCookMetadataState() = default;
-	FCookMetadataState(const FCookMetadataState&) = delete;
-	FCookMetadataState(FCookMetadataState&& Rhs) = delete;
+	FCookMetadataState(const FCookMetadataState&) = default;
+	FCookMetadataState(FCookMetadataState&& Rhs) = default;
 	~FCookMetadataState() = default;
 
-	FCookMetadataState& operator=(const FCookMetadataState&) = delete;
-	FCookMetadataState& operator=(FCookMetadataState&& O) = delete;
+	FCookMetadataState& operator=(const FCookMetadataState&) = default;
+	FCookMetadataState& operator=(FCookMetadataState&& O) = default;
 
+	bool IsValid() const { return Version == ECookMetadataStateVersion::LatestVersion; }
+	void Reset() { *this = FCookMetadataState(); }
 	
 	bool Serialize(FArchive& Ar);
 
@@ -228,7 +231,7 @@ public:
 	void SetSizesPresent(ECookMetadataSizesPresent InSizesPresent) { SizesPresent = InSizesPresent; }
 private:
 
-	ECookMetadataStateVersion Version;
+	ECookMetadataStateVersion Version = ECookMetadataStateVersion::InvalidVersion;
 	FCookMetadataPluginHierarchy PluginHierarchy;
 
 	uint64 AssociatedDevelopmentAssetRegistryHash = 0;
