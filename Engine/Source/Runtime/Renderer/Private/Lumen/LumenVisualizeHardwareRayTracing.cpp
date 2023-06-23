@@ -178,7 +178,7 @@ class FLumenVisualizeCreateTilesCS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Input
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenVisualizeSceneParameters, VisualizeParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(LumenVisualize::FSceneParameters, VisualizeParameters)
 
 		// Output
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWTileAllocator)
@@ -215,7 +215,7 @@ class FLumenVisualizeCreateRaysCS : public FGlobalShader
 		// Input
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenVisualizeSceneParameters, VisualizeParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(LumenVisualize::FSceneParameters, VisualizeParameters)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, TileAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<LumenVisualize::FTileDataPacked>, TileDataPacked)
 		SHADER_PARAMETER(float, MaxTraceDistance)
@@ -400,7 +400,7 @@ class FLumenVisualizeHardwareRayTracing : public FLumenHardwareRayTracingShaderB
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Input
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHardwareRayTracingShaderBase::FSharedParameters, SharedParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenVisualizeSceneParameters, VisualizeParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(LumenVisualize::FSceneParameters, VisualizeParameters)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, RayAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<LumenVisualize::FRayDataPacked>, RayDataPacked)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<LumenVisualize::FTraceDataPacked>, TraceDataPacked)
@@ -521,7 +521,7 @@ void LumenVisualize::VisualizeHardwareRayTracing(
 	const FLumenSceneFrameTemporaries& FrameTemporaries,
 	const FLumenCardTracingParameters& TracingParameters,
 	FLumenIndirectTracingParameters& IndirectTracingParameters,
-	FLumenVisualizeSceneParameters& VisualizeParameters,
+	LumenVisualize::FSceneParameters& VisualizeParameters,
 	FRDGTextureRef SceneColor,
 	bool bVisualizeModeWithHitLighting,
 	bool bLumenGIEnabled)
