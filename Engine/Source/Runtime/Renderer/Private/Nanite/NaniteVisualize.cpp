@@ -800,31 +800,27 @@ void AddVisualizationPasses(
 		int32& PickingBufferWriteIndex = Nanite::GGlobalResources.PickingBufferWriteIndex;
 		int32& PickingBufferNumPending = Nanite::GGlobalResources.PickingBufferNumPending;
 
-		TArray<FRHIGPUBufferReadback*>& PickingBuffers = Nanite::GGlobalResources.PickingBuffers;
+		TArray<TUniquePtr<FRHIGPUBufferReadback>>& PickingBuffers = Nanite::GGlobalResources.PickingBuffers;
 
 		// Skip when queue is full. It is NOT safe to EnqueueCopy on a buffer that already has a pending copy
-		if (PickingBufferNumPending != MaxPickingBuffers)
+		if (PickingBufferNumPending < MaxPickingBuffers)
 		{
-			if (PickingBuffers[PickingBufferWriteIndex] == nullptr)
+			TUniquePtr<FRHIGPUBufferReadback>* GPUBufferReadback = &PickingBuffers[PickingBufferWriteIndex];
+			if (!GPUBufferReadback->IsValid())
 			{
-				FRHIGPUBufferReadback* GPUBufferReadback = new FRHIGPUBufferReadback(TEXT("Nanite.PickingFeedback"));
-				PickingBuffers[PickingBufferWriteIndex] = GPUBufferReadback;
+				static const FName PickingFeedbackName(TEXT("Nanite.PickingFeedback"));
+				PickingBuffers[PickingBufferWriteIndex] = MakeUnique<FRHIGPUBufferReadback>(PickingFeedbackName);
+				GPUBufferReadback = &PickingBuffers[PickingBufferWriteIndex];
 			}
 
-			FRHIGPUBufferReadback* PickingReadback = PickingBuffers[PickingBufferWriteIndex];
-
-			AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("Readback"), PickingBuffer,
-				[PickingReadback, PickingBuffer](FRHICommandList& RHICmdList)
-				{
-					PickingReadback->EnqueueCopy(RHICmdList, PickingBuffer->GetRHI(), 0u);
-				});
+			AddEnqueueCopyPass(GraphBuilder, GPUBufferReadback->Get(), PickingBuffer, 0);
 
 			PickingBufferWriteIndex = (PickingBufferWriteIndex + 1) % MaxPickingBuffers;
 			PickingBufferNumPending = FMath::Min(PickingBufferNumPending + 1, MaxPickingBuffers);
 		}
 
 		{
-			FRHIGPUBufferReadback* LatestPickingBuffer = nullptr;
+			TUniquePtr<FRHIGPUBufferReadback>* LatestPickingBuffer = nullptr;
 
 			// Find latest buffer that is ready
 			while (PickingBufferNumPending > 0)
@@ -833,7 +829,7 @@ void AddVisualizationPasses(
 				if (PickingBuffers[Index]->IsReady())
 				{
 					--PickingBufferNumPending;
-					LatestPickingBuffer = PickingBuffers[Index];
+					LatestPickingBuffer = &PickingBuffers[Index];
 				}
 				else
 				{
@@ -841,11 +837,15 @@ void AddVisualizationPasses(
 				}
 			}
 
-			if (LatestPickingBuffer != nullptr)
+			if (LatestPickingBuffer && LatestPickingBuffer->IsValid())
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(LockBuffer);
-				PickingFeedback = *((const FNanitePickingFeedback*)LatestPickingBuffer->Lock(sizeof(FNanitePickingFeedback)));
-				LatestPickingBuffer->Unlock();
+				const FNanitePickingFeedback* DataPtr = (const FNanitePickingFeedback*)(*LatestPickingBuffer)->Lock(sizeof(FNanitePickingFeedback));
+				if (DataPtr)
+				{
+					PickingFeedback = *DataPtr;
+					(*LatestPickingBuffer)->Unlock();
+				}
 			}
 		}
 	}

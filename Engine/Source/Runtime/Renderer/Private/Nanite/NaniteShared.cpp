@@ -254,15 +254,6 @@ void FGlobalResources::ReleaseRHI()
 	{
 		LLM_SCOPE_BYTAG(Nanite);
 
-		for (int32 BufferIndex = 0; BufferIndex < PickingBuffers.Num(); ++BufferIndex)
-		{
-			if (PickingBuffers[BufferIndex])
-			{
-				delete PickingBuffers[BufferIndex];
-				PickingBuffers[BufferIndex] = nullptr;
-			}
-		}
-
 		PickingBuffers.Reset();
 
 		SplitWorkQueueBuffer.SafeRelease();

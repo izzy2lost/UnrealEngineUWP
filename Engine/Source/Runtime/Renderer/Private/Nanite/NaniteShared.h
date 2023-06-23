@@ -221,7 +221,7 @@ public:
 	const int32 MaxPickingBuffers = 4;
 	int32 PickingBufferWriteIndex = 0;
 	int32 PickingBufferNumPending = 0;
-	TArray<FRHIGPUBufferReadback*> PickingBuffers;
+	TArray<TUniquePtr<FRHIGPUBufferReadback>> PickingBuffers;
 
 	TRefCountPtr<FRDGPooledBuffer>	SplitWorkQueueBuffer;
 	TRefCountPtr<FRDGPooledBuffer>	OccludedPatchesBuffer;
