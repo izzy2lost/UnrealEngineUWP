@@ -43,10 +43,11 @@ public:
 	void OnCachePendingBytes(uint64 TotalSize) IAS_STATISTICS_IMPL()
 	void OnCachePersistedBytes(uint64 TotalSize) IAS_STATISTICS_IMPL()
 
-	void OnHttpRequestEnqueue() IAS_STATISTICS_IMPL()
-	void OnHttpRequestDequeue() IAS_STATISTICS_IMPL()
-	void OnHttpRequestComplete(uint64 InSize) IAS_STATISTICS_IMPL()
-	void OnHttpRequestFail() IAS_STATISTICS_IMPL()
+	void OnHttpEnqueue() IAS_STATISTICS_IMPL()
+	void OnHttpDequeue() IAS_STATISTICS_IMPL()
+	void OnHttpGet(uint64 InSize) IAS_STATISTICS_IMPL()
+	void OnHttpRetry() IAS_STATISTICS_IMPL()
+	void OnHttpError() IAS_STATISTICS_IMPL()
 };
 
 #undef IAS_STATISTICS_IMPL

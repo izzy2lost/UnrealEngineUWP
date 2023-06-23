@@ -304,7 +304,9 @@ public:
 	bool Tick();
 
 private:
-	void Issue(UE::HTTP::FRequest&& Request, FIoReadCallback&& Callback, FAnsiStringView Url = FAnsiStringView());
+	void Issue(FAnsiStringView Url,
+		FIoReadCallback&& Callback,
+		FIoOffsetAndLength Range = FIoOffsetAndLength());
 
 	FString SvcsUrl;
 	int32 MaxConnections;
@@ -324,27 +326,23 @@ FHttpClient::FHttpClient(const FString& ServiceUrl, int32 MaxConnectionCount)
 
 void FHttpClient::Get(FAnsiStringView Url, const FIoOffsetAndLength& Range, FIoReadCallback&& Callback)
 {
-	const uint64 RangeStart = Range.GetOffset();
-	const uint64 RangeEnd = Range.GetOffset() + Range.GetLength();
-	UE::HTTP::FRequest Request = EventLoop.Get(Url, *ConnectionPool);
-	Request.Header(ANSITEXTVIEW("Range"), WriteToAnsiString<64>(ANSITEXTVIEW("bytes="), RangeStart, ANSITEXTVIEW("-"), RangeEnd));
-	
-	Issue(MoveTemp(Request), MoveTemp(Callback), Url);
+	Issue(Url, MoveTemp(Callback), Range);
 }
 
 void FHttpClient::Get(FAnsiStringView Url, FIoReadCallback&& Callback)
 {
-	Issue(EventLoop.Get(Url, *ConnectionPool), MoveTemp(Callback), Url);
+	Issue(Url, MoveTemp(Callback));
 }
 
-void FHttpClient::Issue(UE::HTTP::FRequest&& Request, FIoReadCallback&& Callback, FAnsiStringView DebugUrl)
+void FHttpClient::Issue(FAnsiStringView Url, FIoReadCallback&& Callback, FIoOffsetAndLength Range)
 {
 	using namespace UE::HTTP;
-	
+
 	auto Sink = [
 		Buffer = FIoBuffer(),
 		Callback = MoveTemp(Callback),
-		Url = FString(DebugUrl),
+		Url = FString(Url),
+		Offset = Range.GetOffset(),
 		StartTime = FPlatformTime::Cycles64(),
 		StatusCode = uint32(0)]
 		(const FTicketStatus& Status) mutable
@@ -363,14 +361,16 @@ void FHttpClient::Issue(UE::HTTP::FRequest&& Request, FIoReadCallback&& Callback
 				if (const FIoBuffer& Content = Status.GetContent(); bSuccessful && Content.GetSize() > 0)
 				{
 					UE_LOG(LogIas, VeryVerbose, TEXT("%s"),
-						*WriteToString<256>(TEXT("HTTP GET - "), Url, TEXT(" ("), StatusCode, TEXT(" "), Duration, TEXT("ms "), Content.GetSize(), TEXT(" Bytes)")));
+						*WriteToString<256>(TEXT("HTTP GET - "), Url, TEXT("("), StatusCode, TEXT(" "),
+						Duration, TEXT("ms "), Offset, TEXT(" Offset "), Content.GetSize(), TEXT(" Bytes)")));
 
 					Callback(Content);
 				}
 				else
 				{
-					UE_LOG(LogIas, VeryVerbose, TEXT("%s"),
-						*WriteToString<256>(TEXT("HTTP GET - "), Url, TEXT(" ("), StatusCode, TEXT(" "), Duration, TEXT("ms)")));
+					UE_LOG(LogIas, Warning, TEXT("%s"),
+						*WriteToString<256>(TEXT("HTTP GET - "), Url, TEXT("("), StatusCode, TEXT(" "),
+						Duration, TEXT("ms "), Offset, TEXT(" Offset 0 Bytes) : Invalid Content : "), StatusCode));
 					
 					Callback(FIoStatus(EIoErrorCode::NotFound, TEXTVIEW("Invalid Content")));
 				}
@@ -378,13 +378,22 @@ void FHttpClient::Issue(UE::HTTP::FRequest&& Request, FIoReadCallback&& Callback
 			else if (FTicketStatus::EId::Error == Status.GetId())
 			{
 				const uint64 Duration = (uint64)FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - StartTime);
-				UE_LOG(LogIas, VeryVerbose, TEXT("%s"),
-					*WriteToString<256>(TEXT("HTTP GET - "), Url, TEXT(" ("), StatusCode, TEXT(" "), Duration, TEXTVIEW("ms) : "), Status.GetErrorReason()));
+				UE_LOG(LogIas, Warning, TEXT("%s"),
+					*WriteToString<256>(TEXT("HTTP GET - "), Url, TEXT(" ("), StatusCode, TEXT(" "),
+					Duration, TEXTVIEW("ms "), Offset, TEXT(" Offset) : "), Status.GetErrorReason()));
 
 				Callback(FIoStatus(EIoErrorCode::ReadError, TEXTVIEW("HTTP Error")));
 			}
 		};
 
+	UE::HTTP::FRequest Request = EventLoop.Get(Url, *ConnectionPool);
+	const uint64 RangeStart = Range.GetOffset();
+	const uint64 RangeEnd = Range.GetOffset() + Range.GetLength();
+	if (RangeStart > 0 || RangeEnd > 0)
+	{
+		Request.Header(ANSITEXTVIEW("Range"), WriteToAnsiString<64>(ANSITEXTVIEW("bytes="), RangeStart, ANSITEXTVIEW("-"), RangeEnd));
+	}
+	
 	EventLoop.Send(MoveTemp(Request), MoveTemp(Sink));
 }
 
@@ -1039,7 +1048,7 @@ bool FOnDemandIoBackend::Resolve(FIoRequestImpl* Request)
 			return CompleteRequest(ChunkRequest);
 		}
 
-		Stats.OnHttpRequestEnqueue();
+		Stats.OnHttpEnqueue();
 		HttpRequests.Enqueue(ChunkRequest);
 		TickBackendEvent->Trigger();
 	};
@@ -1275,7 +1284,7 @@ uint32 FOnDemandIoBackend::Run()
 				NextChunkRequest = ChunkRequest->NextRequest;
 				ChunkRequest->NextRequest = nullptr;
 
-				Stats.OnHttpRequestDequeue();
+				Stats.OnHttpDequeue();
 
 				TAnsiStringBuilder<256> Url;
 				ChunkRequest->Params.GetUrl(Url);
@@ -1290,8 +1299,8 @@ uint32 FOnDemandIoBackend::Run()
 						{
 							if (++ChunkRequest->HttpRetryCount <= GIoDispatcherMaxHttpRetryCount)
 							{
-								Stats.OnHttpRequestFail();
-								Stats.OnHttpRequestEnqueue();
+								Stats.OnHttpRetry();
+								Stats.OnHttpEnqueue();
 								return HttpRequests.Enqueue(ChunkRequest); 
 							}
 						}
@@ -1299,11 +1308,15 @@ uint32 FOnDemandIoBackend::Run()
 						if (Status.IsOk())
 						{
 							ChunkRequest->Chunk = Status.ConsumeValueOrDie();
-							Stats.OnHttpRequestComplete(ChunkRequest->Chunk.DataSize());
+							Stats.OnHttpGet(ChunkRequest->Chunk.DataSize());
 						}
 						else
 						{
-							Stats.OnHttpRequestFail();
+							TAnsiStringBuilder<256> Url;
+							ChunkRequest->Params.GetUrl(Url);
+							UE_LOG(LogIas, Error, TEXT("%s"),
+								*WriteToString<256>(TEXT("HTTP FAILED - "), Url, TEXT(" ("), ChunkRequest->Params.ChunkRange.GetOffset(), TEXT(" Offset)")));
+							Stats.OnHttpError();
 						}
 
 						Launch(UE_SOURCE_LOCATION, [this, ChunkRequest]()
