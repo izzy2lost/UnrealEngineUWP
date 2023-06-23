@@ -179,10 +179,10 @@ public:
 	 * Batches are collected as we walk through the main render setup and are executed when RDG Execute or Drain is called.
 	 * This implicitly ends the deferred context, so if Drain is used, it should be paired with a new call to BeginDeferredCulling.
 	 */
-	static FInstanceCullingDeferredContext *CreateDeferredContext(
+	static FInstanceCullingDeferredContext* CreateDeferredContext(
 		FRDGBuilder& GraphBuilder,
 		FGPUScene& GPUScene,
-		FInstanceCullingManager* InstanceCullingManager);
+		FInstanceCullingManager& InstanceCullingManager);
 
 	/**
 	 * Helper function to add a pass to zero the instance count in the indirect args.
