@@ -1707,33 +1707,18 @@ void ActivateClusters(Chaos::FRigidClustering& Clustering, Chaos::TPBDRigidClust
 	Clustering.DeactivateClusterParticle(Cluster);
 }
 
-void UGeometryCollectionComponent::ResetRepDataCommon()
-{
-	OneOffActivatedProcessed = 0;
-	VersionProcessed = INDEX_NONE;
-	LastHardsnapTimeInMs = 0;
-}
-
 void UGeometryCollectionComponent::ResetRepData()
 {
 	ClustersToRep.Reset();
 	RepData.Reset();
 
-	if (GetNetMode() == ENetMode::NM_Client)
-	{
-		// Reset on the Physics Thread no to read/write on the client from different thread
-		if (Chaos::FPhysicsSolver* CurrSolver = GetSolver(*this))
-		{
-			CurrSolver->EnqueueCommandImmediate([this]()
-				{
-					ResetRepDataCommon();
-				});
-		}
-	}
-	else
-	{
-		ResetRepDataCommon();
-	}
+	// Those following data are initialized here from the Game Thread, 
+	// but they are read and written from the Physics Thread
+	// This function ResetRepData is only called when the component is destroyed and so the PhysicsProxy become null
+	// so at this point those data won't be changed on the Physics Thread. 
+	OneOffActivatedProcessed = 0;
+	VersionProcessed = INDEX_NONE;
+	LastHardsnapTimeInMs = 0;
 }
 
 void UGeometryCollectionComponent::UpdateRepData()
@@ -2832,13 +2817,10 @@ void UGeometryCollectionComponent::AsyncPhysicsTickComponent(float DeltaTime, fl
 		return;
 	}
 #endif
+	check(GetNetMode() != ENetMode::NM_Client);
 
 	Super::AsyncPhysicsTickComponent(DeltaTime, SimTime);
-
-	if (GetNetMode() != ENetMode::NM_Client)
-	{
-		UpdateRepData();
-	}
+	UpdateRepData();
 }
 
 void UGeometryCollectionComponent::OnHiddenInGameChanged()

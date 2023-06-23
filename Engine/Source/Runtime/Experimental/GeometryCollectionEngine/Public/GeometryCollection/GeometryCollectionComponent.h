@@ -1313,7 +1313,6 @@ protected:
 
 private:
 	GEOMETRYCOLLECTIONENGINE_API void ProcessRepDataOnPT();
-	GEOMETRYCOLLECTIONENGINE_API void ResetRepDataCommon();
 
 	bool bRenderStateDirty;
 	bool bEnableBoneSelection;
