@@ -4,19 +4,7 @@
 
 bool FGameplayTagContextProperty::GetValue(FChooserEvaluationContext& Context, const FGameplayTagContainer*& OutResult) const
 {
-	const UStruct* StructType = nullptr;
-	const void* Container = nullptr;
-	
-	if (UE::Chooser::ResolvePropertyChain(Context, Binding, Container, StructType))
-	{
-		if (const FStructProperty* Property = FindFProperty<FStructProperty>(StructType, Binding.PropertyBindingChain.Last()))
-		{
-			OutResult = Property->ContainerPtrToValuePtr<FGameplayTagContainer>(Container);
-			return true;
-		}
-	}
-
-	return false;
+	return Binding.GetValuePtr(Context, OutResult);
 }
 
 FGameplayTagColumn::FGameplayTagColumn()

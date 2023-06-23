@@ -21,8 +21,6 @@ struct CHOOSER_API FStructContextProperty : public FChooserParameterStructBase
 	virtual bool SetValue(FChooserEvaluationContext& Context, const FInstancedStruct &Value) const override;
 
 #if WITH_EDITOR
-	void SetBinding(const UObject* OuterObject, const TArray<FBindingChainElement>& InBindingChain);
-
 	virtual void GetDisplayName(FText& OutName) const override
 	{
 		if (!Binding.DisplayName.IsEmpty())

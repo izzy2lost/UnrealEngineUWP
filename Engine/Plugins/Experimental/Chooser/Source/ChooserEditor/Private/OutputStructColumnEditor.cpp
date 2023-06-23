@@ -62,14 +62,7 @@ TSharedRef<SWidget> CreateStructPropertyWidget(bool bReadOnly, UObject* Transact
 
 	return SNew(SPropertyAccessChainWidget).ContextClassOwner(HasContextClass).BindingColor("StructPinTypeColor").TypeFilter("struct")
 		.PropertyBindingValue(&ContextProperty->Binding)
-		.OnAddBinding_Lambda(
-    		[ContextProperty, TransactionObject, ValueChanged](FName InPropertyName, const TArray<FBindingChainElement>& InBindingChain)
-    		{
-    			const FScopedTransaction Transaction(NSLOCTEXT("ContextPropertyWidget", "Change Property Binding", "Change Property Binding"));
-    			TransactionObject->Modify(true);
-    			ContextProperty->SetBinding(TransactionObject, InBindingChain);
-    			ValueChanged.ExecuteIfBound();
-    		});
+		.OnValueChanged(ValueChanged);
 }
 	
 void RegisterStructWidgets()

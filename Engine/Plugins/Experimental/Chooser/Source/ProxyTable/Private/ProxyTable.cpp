@@ -167,6 +167,13 @@ static void OutputStructData(const FRuntimeProxyValue& EntryValueData, FChooserE
 {
 	for (const FProxyStructOutput& StructOutput : EntryValueData.OutputStructData)
 	{
+		// todo: should be updated to the following, but ProxyTable needs to trigger compiling of it's output struct bindings first
+		// void* TargetData;
+		// if (StructOutput.Binding.GetValuePtr(Context, TargetData))
+		// {
+		// 	StructOutput.Value.GetScriptStruct()->CopyScriptStruct(TargetData, StructOutput.Value.GetMemory());
+		// }	
+		
 		const void* Container = nullptr;
 		const UStruct* StructType;
 

@@ -9,83 +9,16 @@
 
 bool FStructContextProperty::SetValue(FChooserEvaluationContext& Context, const FInstancedStruct& InValue) const
 {
-	const UStruct* StructType = nullptr;
-	const void* Container = nullptr;
-
-	if (Binding.PropertyBindingChain.IsEmpty())
+	void* TargetData;
+	if (Binding.GetValuePtr(Context, TargetData))
 	{
-		if(Context.Params.IsValidIndex((Binding.ContextIndex)))
-		{
-			// directly bound to context struct
-			if (Context.Params[Binding.ContextIndex].GetScriptStruct() == InValue.GetScriptStruct())
-			{
-				void* TargetData = Context.Params[Binding.ContextIndex].GetMutableMemory();
-				InValue.GetScriptStruct()->CopyScriptStruct(TargetData, InValue.GetMemory());
-			}
-		}
+		InValue.GetScriptStruct()->CopyScriptStruct(TargetData, InValue.GetMemory());
+		return true;
 	}
-	else if (UE::Chooser::ResolvePropertyChain(Context, Binding, Container, StructType))
-	{
-		if (FStructProperty* Property = FindFProperty<FStructProperty>(StructType, Binding.PropertyBindingChain.Last()))
-		{
-			// const cast is here just because ResolvePropertyChain expects a const void*&
-			void* TargetData = Property->ContainerPtrToValuePtr<void>(const_cast<void*>(Container));
-			
-			if (Property->Struct == InValue.GetScriptStruct())
-			{
-				Property->Struct->CopyScriptStruct(TargetData, InValue.GetMemory());
-			}
-
-			return true;
-		}
-	}
-
 	return false;
 }
 
 #if WITH_EDITOR
-
-void FStructContextProperty::SetBinding(const UObject* OuterObject, const TArray<FBindingChainElement>& InBindingChain)
-{
-	Binding.StructType = nullptr;
-
-	UE::Chooser::CopyPropertyChain(InBindingChain, Binding);
-
-	if (Binding.PropertyBindingChain.Num() == 0)
-	{
-		// binding directly to context struct, get struct type from there
-	    if (const IHasContextClass* HasContextClass = Cast<IHasContextClass>(OuterObject))
-	    {
-	    	TConstArrayView<FInstancedStruct> ContextData = HasContextClass->GetContextData();
-	    	if (ContextData.IsValidIndex(Binding.ContextIndex))
-		    {
-	    		if (const FContextObjectTypeStruct* StructContextData = ContextData[Binding.ContextIndex].GetPtr<FContextObjectTypeStruct>())
-	    		{
-					Binding.StructType = StructContextData->Struct;
-	    			Binding.DisplayName = StructContextData->Struct->GetAuthoredName();
-	    		}
-		    }
-	    }
-	}
-	else
-	{
-		const FField* Field = InBindingChain.Last().Field.ToField();
-		if (const FStructProperty* StructProperty = CastField<FStructProperty>(Field))
-		{
-			Binding.StructType = StructProperty->Struct;
-			Binding.DisplayName = StructProperty->GetAuthoredName();
-			if (InBindingChain.Num() > 2)
-			{
-				// add the parent struct name to the display name if there is one
-				
-				if (const FField* NextToLastField = InBindingChain[InBindingChain.Num()-2].Field.ToField())
-				{
-					Binding.DisplayName = NextToLastField->GetAuthoredName() + "." + Binding.DisplayName;
-				}
-			}
-		}
-	}
-}
 
 void FOutputStructColumn::StructTypeChanged()
 {

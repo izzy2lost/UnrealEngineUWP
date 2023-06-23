@@ -71,17 +71,41 @@ FObjectChooserBase::EIteratorStatus FLookupProxyWithOverrideTable::ChooseMulti(F
 
 bool FProxyTableContextProperty::GetValue(FChooserEvaluationContext& Context, const UProxyTable*& OutResult) const
 {
-	const UStruct* StructType = nullptr;
-	const void* Container = nullptr;
-	
-	if (UE::Chooser::ResolvePropertyChain(Context, Binding,Container, StructType))
+	if (Binding.CompiledBinding)
 	{
-		if (const FObjectProperty* Property = FindFProperty<FObjectProperty>(StructType, Binding.PropertyBindingChain.Last()))
+		UProxyTable** ProxyTableReference;
+		return Binding.GetValuePtr(Context, ProxyTableReference);
+		OutResult = *ProxyTableReference;
+	}
+	else
+	{
+		// for temporary backwards compatibility: ProxyTableContextProperties on UProxyAsset are being phased out,
+		// but they don't get compiled so we need to keep this code-path temporarily
+		const UStruct* StructType = nullptr;
+		const void* Container = nullptr;
+	
+		if (UE::Chooser::ResolvePropertyChain(Context, Binding,Container, StructType))
 		{
-			OutResult = *Property->ContainerPtrToValuePtr<UProxyTable*>(Container);
-			return true;
+			if (const FObjectProperty* Property = FindFProperty<FObjectProperty>(StructType, Binding.PropertyBindingChain.Last()))
+			{
+				OutResult = *Property->ContainerPtrToValuePtr<UProxyTable*>(Container);
+				return true;
+			}
 		}
 	}
+	
 
 	return false;
+}
+
+void FLookupProxy::Compile(IHasContextClass* HasContext, bool bForce)
+{
+	if (Proxy)
+	{
+		if (FChooserParameterBase* ProxyTableParam = ProxyTable.GetMutablePtr<FChooserParameterBase>())
+		{
+			// todo: should also validate here that the ProxyAsset context is compatible with the passed in HasContext
+			ProxyTableParam->Compile(Proxy, bForce);
+		}
+	}
 }

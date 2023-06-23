@@ -10,6 +10,7 @@
 #include "SEnumCombo.h"
 #include "TransactionCommon.h"
 #include "Widgets/Input/SButton.h"
+#include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "EnumColumnEditor"
 
@@ -278,14 +279,7 @@ TSharedRef<SWidget> CreateEnumPropertyWidget(bool bReadOnly, UObject* Transactio
 
 	return SNew(SPropertyAccessChainWidget).ContextClassOwner(HasContextClass).AllowFunctions(false).BindingColor("BytePinTypeColor").TypeFilter("enum")
 	.PropertyBindingValue(&ContextProperty->Binding)
-	.OnAddBinding_Lambda(
-		[ContextProperty, TransactionObject, ValueChanged](FName InPropertyName, const TArray<FBindingChainElement>& InBindingChain)
-		{
-			const FScopedTransaction Transaction(NSLOCTEXT("ContextPropertyWidget", "Change Property Binding", "Change Property Binding"));
-			TransactionObject->Modify(true);
-			ContextProperty->SetBinding(InBindingChain);
-			ValueChanged.ExecuteIfBound();
-		});
+	.OnValueChanged(ValueChanged);
 }
 	
 void RegisterEnumWidgets()

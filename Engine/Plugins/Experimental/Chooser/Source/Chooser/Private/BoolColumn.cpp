@@ -5,55 +5,12 @@
 
 bool FBoolContextProperty::GetValue(FChooserEvaluationContext& Context, bool& OutResult) const
 {
-	
-	const UStruct* StructType = nullptr;
-	const void* Container = nullptr;
-	
-	if (UE::Chooser::ResolvePropertyChain(Context, Binding, Container, StructType))
-	{
-		if (const FBoolProperty* Property = FindFProperty<FBoolProperty>(StructType, Binding.PropertyBindingChain.Last()))
-		{
-			OutResult = *Property->ContainerPtrToValuePtr<bool>(Container);
-			return true;
-		}
-		
-	    if (const UClass* ClassType = Cast<const UClass>(StructType))
-	    {
-			if (UFunction* Function = ClassType->FindFunctionByName(Binding.PropertyBindingChain.Last()))
-			{
-				UObject* Object = reinterpret_cast<UObject*>(const_cast<void*>(Container));
-				if (Function->IsNative())
-				{
-					FFrame Stack(Object, Function, nullptr, nullptr, Function->ChildProperties);
-					Function->Invoke(Object, Stack, &OutResult);
-				}
-				else
-				{
-					Object->ProcessEvent(Function, &OutResult);
-				}
-			} 
-		}
-	}
-
-	return false;
+	return Binding.GetValue(Context, OutResult);
 }
 
 bool FBoolContextProperty::SetValue(FChooserEvaluationContext& Context, bool InValue) const
 {
-	const UStruct* StructType = nullptr;
-	const void* Container = nullptr;
-	
-	if (UE::Chooser::ResolvePropertyChain(Context, Binding, Container, StructType))
-	{
-		if (FBoolProperty* Property = FindFProperty<FBoolProperty>(StructType, Binding.PropertyBindingChain.Last()))
-		{
-			// const cast is here just because ResolvePropertyChain expects a const void*&
-			*Property->ContainerPtrToValuePtr<bool>(const_cast<void*>(Container)) = InValue;
-			return true;
-		}
-	}
-
-	return false;
+	return Binding.SetValue(Context, InValue);
 }
 
 FBoolColumn::FBoolColumn()

@@ -21,18 +21,11 @@ public:
 	FChooserPropertyBinding Binding;
 
 	virtual bool GetValue(FChooserEvaluationContext& Context, const UProxyTable*& OutResult) const override;
-
-#if WITH_EDITOR
-	static bool CanBind(const FProperty& Property)
+	
+	virtual void Compile(IHasContextClass* Owner, bool bForce) override
 	{
-		return Property.GetCPPType() == "UProxyTable*";
-	}
-
-	void SetBinding(const TArray<FBindingChainElement>& InBindingChain)
-	{
-		UE::Chooser::CopyPropertyChain(InBindingChain, Binding);
-	}
-#endif
+		Binding.Compile(Owner, bForce);
+	};
 };
 
 USTRUCT()
@@ -43,6 +36,8 @@ struct PROXYTABLE_API FLookupProxy : public FObjectChooserBase
 	virtual UObject* ChooseObject(FChooserEvaluationContext& Context) const final override;
 
 	FLookupProxy();
+	
+	virtual void Compile(IHasContextClass* HasContext, bool bForce) override;
 	
 	public:
 	

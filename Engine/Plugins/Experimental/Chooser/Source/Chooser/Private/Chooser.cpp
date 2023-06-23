@@ -2,8 +2,12 @@
 #include "Chooser.h"
 #include "ChooserFunctionLibrary.h"
 #include "ChooserPropertyAccess.h"
+#include "Engine/UserDefinedStruct.h"
+#include "Engine/Blueprint.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Chooser)
+
+DEFINE_LOG_CATEGORY(LogChooser)
 
 UChooserTable::UChooserTable(const FObjectInitializer& Initializer)
 	:Super(Initializer)
@@ -11,52 +15,11 @@ UChooserTable::UChooserTable(const FObjectInitializer& Initializer)
 
 }
 
-#if WITH_EDITOR
-void UChooserTable::PostEditUndo()
-{
-	UObject::PostEditUndo();
-
-	if (CachedPreviousOutputObjectType != OutputObjectType || CachedPreviousResultType != ResultType)
-	{
-		OnOutputObjectTypeChanged.Broadcast(OutputObjectType);
-		CachedPreviousOutputObjectType = OutputObjectType;
-		CachedPreviousResultType = ResultType;
-	}
-	OnContextClassChanged.Broadcast();
-}
-
-void UChooserTable::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	UObject::PostEditChangeProperty(PropertyChangedEvent);
-	
-	static FName OutputObjectTypeName = "OutputObjectType";
-	static FName ResultTypeName = "ResultType";
-	if (PropertyChangedEvent.Property->GetName() == OutputObjectTypeName)
-	{
-		if (CachedPreviousOutputObjectType != OutputObjectType)
-		{
-			OnOutputObjectTypeChanged.Broadcast(OutputObjectType);
-			CachedPreviousOutputObjectType = OutputObjectType;
-		}
-	}
-	else if (PropertyChangedEvent.Property->GetName() == ResultTypeName)
-	{
-		if (CachedPreviousResultType != ResultType)
-		{
-			OnOutputObjectTypeChanged.Broadcast(OutputObjectType);
-			CachedPreviousResultType = ResultType;
-		}
-	}
-	else
-	{
-		OnContextClassChanged.Broadcast();
-	}
-}
-
 void UChooserTable::PostLoad()
 {
 	Super::PostLoad();
 
+#if WITH_EDITOR
 	CachedPreviousOutputObjectType = OutputObjectType;
 	CachedPreviousResultType = ResultType;
 
@@ -101,17 +64,96 @@ void UChooserTable::PostLoad()
 		Results_DEPRECATED.SetNum(0);
 		Columns_DEPRECATED.SetNum(0);
 	}
+#endif
 
-	// call PostLoad on Columns
+	Compile();
+}
+
+#if WITH_EDITOR
+
+void UChooserTable::AddCompileDependency(const UStruct* InStructType)
+{
+	UStruct* StructType = const_cast<UStruct*>(InStructType);
+	if (!CompileDependencies.Contains(StructType))
+	{
+		if (UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(StructType))
+		{
+			UserDefinedStruct->ChangedEvent.AddUObject(this, &UChooserTable::OnDependentStructChanged);
+		}
+		else if (UClass* Class = Cast<UClass>(StructType))
+		{
+			if(UBlueprint* Blueprint = Cast<UBlueprint>(Class->ClassGeneratedBy))
+			{
+				Blueprint->OnCompiled().AddUObject(this, &UChooserTable::OnDependencyCompiled);
+				CompileDependencies.Add(StructType);
+			}
+		}
+	}
+}
+
+#endif
+
+void UChooserTable::Compile(bool bForce)
+{
 	for (FInstancedStruct& ColumnData : ColumnsStructs)
 	{
 		if (ColumnData.IsValid())
 		{
 			FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
-			Column.PostLoad();
+			Column.Compile(this, bForce);
 		}
 	}
-		
+
+	for(FInstancedStruct& ResultData : ResultsStructs)
+	{
+		if (ResultData.IsValid())
+		{
+			FObjectChooserBase& Result = ResultData.GetMutable<FObjectChooserBase>();
+			Result.Compile(this, bForce);
+		}
+	}
+}
+
+#if WITH_EDITOR
+void UChooserTable::PostEditUndo()
+{
+	UObject::PostEditUndo();
+
+	if (CachedPreviousOutputObjectType != OutputObjectType || CachedPreviousResultType != ResultType)
+	{
+		OnOutputObjectTypeChanged.Broadcast(OutputObjectType);
+		CachedPreviousOutputObjectType = OutputObjectType;
+		CachedPreviousResultType = ResultType;
+	}
+	OnContextClassChanged.Broadcast();
+}
+
+void UChooserTable::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	UObject::PostEditChangeProperty(PropertyChangedEvent);
+	
+	static FName OutputObjectTypeName = "OutputObjectType";
+	static FName ResultTypeName = "ResultType";
+	if (PropertyChangedEvent.Property->GetName() == OutputObjectTypeName)
+	{
+		if (CachedPreviousOutputObjectType != OutputObjectType)
+		{
+			OnOutputObjectTypeChanged.Broadcast(OutputObjectType);
+			CachedPreviousOutputObjectType = OutputObjectType;
+		}
+	}
+	else if (PropertyChangedEvent.Property->GetName() == ResultTypeName)
+	{
+		if (CachedPreviousResultType != ResultType)
+		{
+			OnOutputObjectTypeChanged.Broadcast(OutputObjectType);
+			CachedPreviousResultType = ResultType;
+		}
+	}
+	else
+	{
+		OnContextClassChanged.Broadcast();
+	}
 }
 
 void UChooserTable::IterateRecentContextObjects(TFunction<void(const UObject*)> Callback) const
@@ -150,6 +192,8 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 
 FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvaluationContext& Context, const UChooserTable* Chooser, FObjectChooserBase::FObjectChooserIteratorCallback Callback)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(EvaluateChooser);
+	
 	if (Chooser == nullptr)
 	{
 		return FObjectChooserBase::EIteratorStatus::Continue;
@@ -158,7 +202,10 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 	// todo validate that parameter types in context data match
 
 #if WITH_EDITOR
-	Chooser->UpdateDebugging(Context);
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(EvaluateChooser_Debugging);
+		Chooser->UpdateDebugging(Context);
+	}
 #endif
 
 	TArray<uint32> Indices1;

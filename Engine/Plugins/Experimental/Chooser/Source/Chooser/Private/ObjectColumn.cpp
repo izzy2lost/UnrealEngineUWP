@@ -11,6 +11,7 @@ bool FObjectContextProperty::GetValue(FChooserEvaluationContext& Context, FSoftO
 	const UStruct* StructType = nullptr;
 	const void* Container = nullptr;
 
+	// todo: update this to use the compiled property chain
 	if (UE::Chooser::ResolvePropertyChain(Context, Binding, Container, StructType))
 	{
 		if (const FObjectPropertyBase* ObjectProperty = FindFProperty<FObjectPropertyBase>(StructType, Binding.PropertyBindingChain.Last()))
@@ -32,24 +33,6 @@ bool FObjectContextProperty::GetValue(FChooserEvaluationContext& Context, FSoftO
 
 	return false;
 }
-
-#if WITH_EDITOR
-
-void FObjectContextProperty::SetBinding(const TArray<FBindingChainElement>& InBindingChain)
-{
-	const UClass* PreviousClass = Binding.AllowedClass;
-	Binding.AllowedClass = nullptr;
-
-	UE::Chooser::CopyPropertyChain(InBindingChain, Binding);
-
-	const FField* Field = InBindingChain.Last().Field.ToField();
-	if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Field))
-	{
-		Binding.AllowedClass = ObjectProperty->PropertyClass;
-	}
-}
-
-#endif // WITH_EDITOR
 
 FObjectColumn::FObjectColumn()
 {

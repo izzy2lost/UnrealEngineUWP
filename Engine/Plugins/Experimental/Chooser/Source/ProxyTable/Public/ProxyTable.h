@@ -3,9 +3,8 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
-#include "IChooserParameterProxyTable.h"
+#include "ChooserPropertyAccess.h"
 #include "InstancedStruct.h"
-#include "InstancedStructContainer.h"
 #include "Misc/Guid.h"
 #include "ProxyAsset.h"
 #include "ProxyTable.generated.h"

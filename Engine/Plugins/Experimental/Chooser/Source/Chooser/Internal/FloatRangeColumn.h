@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include <IHasContext.h>
+
 #include "CoreMinimal.h"
 #include "IChooserColumn.h"
 #include "IChooserParameterFloat.h"
@@ -29,25 +31,21 @@ struct CHOOSER_API FFloatContextProperty :  public FChooserParameterFloatBase
 			Binding.PropertyBindingChain = PropertyBindingChain_DEPRECATED;
 			PropertyBindingChain_DEPRECATED.SetNum(0);
 		}
-	}	
-
-#if WITH_EDITOR
-	static bool CanBind(const FProperty& Property)
-	{
-		static FString DoubleTypeName = "double";
-		static FString FloatTypeName = "float";
-		const FString& TypeName = Property.GetCPPType();
-		return TypeName == FloatTypeName || TypeName == DoubleTypeName;
 	}
 	
-	void SetBinding(const TArray<FBindingChainElement>& InBindingChain)
+	virtual void Compile(IHasContextClass* Owner, bool bForce) override
 	{
-		UE::Chooser::CopyPropertyChain(InBindingChain, Binding);
-	}
+		Binding.Compile(Owner, bForce);
+	};
 
+#if WITH_EDITOR
 	virtual void GetDisplayName(FText& OutName) const override
 	{
-		if (!Binding.PropertyBindingChain.IsEmpty())
+		if (!Binding.DisplayName.IsEmpty())
+		{
+			OutName = FText::FromString(Binding.DisplayName);
+		} 
+		else if (!Binding.PropertyBindingChain.IsEmpty())
 		{
 			OutName = FText::FromName(Binding.PropertyBindingChain.Last());
 		}
@@ -105,7 +103,7 @@ struct CHOOSER_API FFloatRangeColumn : public FChooserColumnBase
 			InputValue.GetMutable<FChooserParameterBase>().PostLoad();
 		}
 	}
-	
+
 	CHOOSER_COLUMN_BOILERPLATE(FChooserParameterFloatBase);
 
 };

@@ -6,7 +6,10 @@
 #include "IObjectChooser.h"
 #include "InstancedStruct.h"
 #include "IChooserColumn.h"
-#include "ChooserPropertyAccess.h"
+#include "IHasContext.h"
+#if WITH_EDITOR
+#include "Kismet2/StructureEditorUtils.h"
+#endif
 
 #include "Chooser.generated.h"
 
@@ -17,12 +20,16 @@ class CHOOSER_API UChooserTable : public UObject, public IHasContextClass
 public:
 	UChooserTable() {}
 
+	virtual void PostLoad() override;
+	virtual void Compile(bool bForce = false) override;
 #if WITH_EDITOR
+	void OnDependentStructChanged(UUserDefinedStruct* Blueprint) { Compile(true); }
+	void OnDependencyCompiled(UBlueprint* Blueprint) { Compile(true); }
+	virtual void AddCompileDependency(const UStruct* Struct) override;
 	FChooserOutputObjectTypeChanged OnOutputObjectTypeChanged;
 	
 	virtual void PostEditUndo() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	virtual void PostLoad() override;
 	
 	void SetDebugSelectedRow(int32 Index) const { DebugSelectedRow = Index; }
 	int32 GetDebugSelectedRow() const { return DebugSelectedRow; }
@@ -49,6 +56,8 @@ private:
 	TWeakObjectPtr<const UObject> DebugTarget;
 	// Row which was selected last time this chooser was evaluated on DebugTarget
 	mutable int32 DebugSelectedRow = -1;
+
+	TArray<TWeakObjectPtr<UStruct>> CompileDependencies;
 #endif
 
 public:

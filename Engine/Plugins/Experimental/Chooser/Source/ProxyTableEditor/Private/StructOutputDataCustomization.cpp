@@ -75,7 +75,7 @@ void FStructOutputDataCustomization::CustomizeHeader(TSharedRef<IPropertyHandle>
 		{
 			void* data;
 			BindingHandle->GetValueData(data);
-			return reinterpret_cast<const FChooserPropertyBinding*>(data);
+			return reinterpret_cast<FChooserPropertyBinding*>(data);
 		})
 		.OnAddBinding_Lambda([HasContext, ValueHandle, BindingHandle](FName InPropertyName, const TArray<FBindingChainElement>& InBindingChain)
          	 	{
@@ -96,6 +96,7 @@ void FStructOutputDataCustomization::CustomizeHeader(TSharedRef<IPropertyHandle>
          	 				
          	 				OuterObjects[i]->Modify(true);
          	 				Chooser::CopyPropertyChain(InBindingChain, *PropertyValue);
+         	 				PropertyValue->Compile(HasContext);
          	
 							FChooserStructPropertyBinding* StructPropertyBinding = static_cast<FChooserStructPropertyBinding*>(PropertyValue);
 

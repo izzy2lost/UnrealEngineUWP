@@ -4,20 +4,7 @@
 
 bool FRandomizeContextProperty::GetValue(FChooserEvaluationContext& Context, const FChooserRandomizationContext*& OutResult) const
 {
-	
-	const UStruct* StructType = nullptr;
-	const void* Container = nullptr;
-	
-	if (UE::Chooser::ResolvePropertyChain(Context, Binding, Container, StructType))
-	{
-		if (FStructProperty* Property = FindFProperty<FStructProperty>(StructType, Binding.PropertyBindingChain.Last()))
-		{
-			OutResult = Property->ContainerPtrToValuePtr<FChooserRandomizationContext>(Container);
-			return true;
-		}
-	}
-
-	return false;
+	return Binding.GetValuePtr(Context,OutResult);
 }
 
 FRandomizeColumn::FRandomizeColumn()

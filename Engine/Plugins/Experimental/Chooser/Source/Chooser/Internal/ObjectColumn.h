@@ -21,13 +21,6 @@ struct CHOOSER_API FObjectContextProperty : public FChooserParameterObjectBase
 	virtual bool GetValue(FChooserEvaluationContext& Context, FSoftObjectPath& OutResult) const override;
 
 #if WITH_EDITOR
-	static bool CanBind(const FProperty& Property)
-	{
-		return Property.IsA<FObjectPropertyBase>() && !(Property.IsA<FClassProperty>() || Property.IsA<FSoftClassProperty>());
-	}
-
-	void SetBinding(const TArray<FBindingChainElement>& InBindingChain);
-
 	virtual void GetDisplayName(FText& OutName) const override
 	{
 		if (!Binding.PropertyBindingChain.IsEmpty())
