@@ -111,28 +111,18 @@ void ClearTiles(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 		const uint2 TileCoord = PixelPos / 8u;
 		ComputeCMaskIndexAndShift(TileCoord, Index, Shift);
 
+		uint Mask = ValidWriteMask;
+
 		UNROLL
 		for (uint Export = 0; Export < NUM_EXPORTS; ++Export)
 		{
-			uint FoundBits = 0;
 			uint MaskIndex = 0;
 
 			// Remaps from compacted (valid) targets to sparse write mask indices
 			// i.e. Export0 can be MRT1 which is represented as bit index 1 in ValidWriteMask
 			//   - 0 is MRT0/SceneColor which isn't valid to export
-			while (true)
-			{
-				if (BitFieldExtractU32(ValidWriteMask, 1u, MaskIndex) != 0u)
-				{
-					FoundBits++;
-					if (FoundBits == Export + 1u)
-					{
-						break;
-					}
-				}
-
-				MaskIndex++;
-			}
+			uint MaskIndex = firstbitlow(Mask);
+			Mask &= Mask - 1u;
 
 			// If all lanes in the 8x8 indicate they write through this particular MRT, it's safe to optimize the meta data.
 			BRANCH
