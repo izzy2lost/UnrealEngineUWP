@@ -269,7 +269,7 @@ void FApplePlatformHttp::InitWithNSUrlSession()
 
 void FApplePlatformHttp::ShutdownWithNSUrlSession()
 {
-	[Session finishTasksAndInvalidate];
+	[Session invalidateAndCancel];
 	[Session release];
 	Session = nil;
 }
