@@ -25,41 +25,6 @@ using Microsoft.Win32;
 
 namespace UnrealGameSync
 {
-	public class UncontrolledChangelist
-	{
-		public string Guid { get; set; } = String.Empty;
-		public string Name { get; set; } = String.Empty;
-		public List<string> Files { get; } = new List<string>();
-	}
-
-	public class UncontrolledChangelistPersistency
-	{
-		public int Version { get; set; }
-		public List<UncontrolledChangelist> Changelists { get; } = new List<UncontrolledChangelist>();
-	}
-
-	interface IWorkspaceControlOwner
-	{
-		ToolUpdateMonitor ToolUpdateMonitor { get; }
-
-		void EditSelectedProject(WorkspaceControl workspace);
-		void RequestProjectChange(WorkspaceControl workspace, UserSelectedProjectSettings project, bool modal);
-		void ShowAndActivate();
-		void StreamChanged(WorkspaceControl workspace);
-		void SetTabNames(TabLabels tabNames);
-		void SetupScheduledSync();
-		void UpdateProgress();
-		void ModifyApplicationSettings();
-		void UpdateAlertWindows();
-		void UpdateTintColors();
-
-		IssueMonitor CreateIssueMonitor(string? apiUrl, string userName);
-		void ReleaseIssueMonitor(IssueMonitor issueMonitor);
-	}
-
-	delegate void WorkspaceStartupCallback(WorkspaceControl workspace, bool cancel);
-	delegate void WorkspaceUpdateCallback(WorkspaceUpdateResult result);
-
 	partial class WorkspaceControl : UserControl, IMainWindowTabPanel
 	{
 		enum HorizontalAlignment
@@ -6450,4 +6415,39 @@ namespace UnrealGameSync
 			}
 		}
 	}
+
+	public class UncontrolledChangelist
+	{
+		public string Guid { get; set; } = String.Empty;
+		public string Name { get; set; } = String.Empty;
+		public List<string> Files { get; } = new List<string>();
+	}
+
+	public class UncontrolledChangelistPersistency
+	{
+		public int Version { get; set; }
+		public List<UncontrolledChangelist> Changelists { get; } = new List<UncontrolledChangelist>();
+	}
+
+	interface IWorkspaceControlOwner
+	{
+		ToolUpdateMonitor ToolUpdateMonitor { get; }
+
+		void EditSelectedProject(WorkspaceControl workspace);
+		void RequestProjectChange(WorkspaceControl workspace, UserSelectedProjectSettings project, bool modal);
+		void ShowAndActivate();
+		void StreamChanged(WorkspaceControl workspace);
+		void SetTabNames(TabLabels tabNames);
+		void SetupScheduledSync();
+		void UpdateProgress();
+		void ModifyApplicationSettings();
+		void UpdateAlertWindows();
+		void UpdateTintColors();
+
+		IssueMonitor CreateIssueMonitor(string? apiUrl, string userName);
+		void ReleaseIssueMonitor(IssueMonitor issueMonitor);
+	}
+
+	delegate void WorkspaceStartupCallback(WorkspaceControl workspace, bool cancel);
+	delegate void WorkspaceUpdateCallback(WorkspaceUpdateResult result);	
 }
