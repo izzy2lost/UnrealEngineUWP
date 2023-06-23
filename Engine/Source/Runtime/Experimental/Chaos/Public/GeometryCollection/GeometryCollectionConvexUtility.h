@@ -248,18 +248,24 @@ public:
 	 */
 	static CHAOS_API void CopyChildConvexes(const FGeometryCollection* FromCollection, const TArrayView<const int32>& FromTransformIdx, FGeometryCollection* ToCollection, const TArrayView<const int32>& ToTransformIdx, bool bLeafOnly);
 
-	// Compute just the hulls of the leaf / rigid nodes that hold geometry directly, with no cluster hulls and no overlap removal by cutting
-	// This is an initial step of several algorithms: The CreateNonOverlappingConvexHullData function as well as convex-based proximity detection (TODO: and the auto-embed algorithm?)
-	// (TODO: Make auto-embed use this instead of the full hulls?)
-	// @param GlobalTransformArray		GeometryCollection's transforms to global space, as computed by GeometryCollectionAlgo::GlobalMatrices
-	static CHAOS_API UE::GeometryCollectionConvexUtility::FConvexHulls ComputeLeafHulls(FGeometryCollection* GeometryCollection, const TArray<FTransform>& GlobalTransformArray, double SimplificationDistanceThreshold = 0.0, double OverlapRemovalShrinkPercent = 0.0,
-		TFunction<bool(int32)> SkipBoneFn = nullptr, const FConvexDecompositionSettings* OptionalDecompositionSettings = nullptr);
-
 	struct FTransformedConvex
 	{
 		TSharedPtr<Chaos::FConvex> Convex;
 		FTransform Transform;
 	};
+
+	// Compute just the hulls of the leaf / rigid nodes that hold geometry directly, with no cluster hulls and no overlap removal by cutting
+	// This is an initial step of several algorithms: The CreateNonOverlappingConvexHullData function as well as convex-based proximity detection (TODO: and the auto-embed algorithm?)
+	// (TODO: Make auto-embed use this instead of the full hulls?)
+	// @param GlobalTransformArray				GeometryCollection's transforms to global space, as computed by GeometryCollectionAlgo::GlobalMatrices
+	// @param SkipBoneFn						Indicator function returns true for transform indices that do not need a convex hull to be computed, if non-null
+	// @param OptionalDecompositionSettings		Optionally generate multiple convex hulls per transform, if these settings are provided
+	// @param OptionalIntersectConvexHulls		Convex hulls to optionally intersect with the computed hulls, so that the resulting hulls will not extend outside of these provided hulls.
+	// @param OptionalTransformToIntersectHulls	Mapping from transforms to the OptionalIntersectConvexHulls
+	static CHAOS_API UE::GeometryCollectionConvexUtility::FConvexHulls ComputeLeafHulls(FGeometryCollection* GeometryCollection, const TArray<FTransform>& GlobalTransformArray, double SimplificationDistanceThreshold = 0.0, double OverlapRemovalShrinkPercent = 0.0,
+		TFunction<bool(int32)> SkipBoneFn = nullptr, const FConvexDecompositionSettings* OptionalDecompositionSettings = nullptr,
+		const TArray<FTransformedConvex>* OptionalIntersectConvexHulls = nullptr,
+		const TArray<TSet<int32>>* OptionalTransformToIntersectHulls = nullptr);
 
 	// generate a list of convex out of a hierarchy of implciit shapes
 	// suported shapes are scaled / transformed implicits as well as Boxes, convexes, spheres and capsules
