@@ -16,6 +16,7 @@ enum class ECookMetadataStateVersion : uint8
 	InvalidVersion = 0,
 	PluginHierarchy = 1,
 	PostWritebackHash = 2,
+	FixSerialization = 3,
 
 	// Add new versions above this.
 	VersionCount,
@@ -249,7 +250,7 @@ private:
 	FString HordeJobId;
 
 	// Updated by unrealpak when plugin size information is added.
-	ECookMetadataSizesPresent SizesPresent;
+	ECookMetadataSizesPresent SizesPresent = ECookMetadataSizesPresent::NotPresent;
 };
 
 COOKMETADATA_API const FString& GetCookMetadataFilename();

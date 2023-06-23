@@ -31,15 +31,25 @@ bool FCookMetadataState::Serialize(FArchive& Ar)
 	{
 		MagicHeader = COOK_METADATA_HEADER_MAGIC;
 		Ar << MagicHeader;
+
+		Version = ECookMetadataStateVersion::LatestVersion;
 	}
+
 	Ar << Version;
+	if (Ar.IsLoading())
+	{
+		if (Version != ECookMetadataStateVersion::LatestVersion)
+		{
+			return false; // invalid version - current we don't support backcompat
+		}
+	}
 	Ar << PluginHierarchy;
 	Ar << AssociatedDevelopmentAssetRegistryHash;
 	Ar << AssociatedDevelopmentAssetRegistryHashPostWriteback;
 	Ar << Platform;
 	Ar << BuildVersion;
 	Ar << HordeJobId;
-
+	Ar << SizesPresent;
 	return true;
 }
 
