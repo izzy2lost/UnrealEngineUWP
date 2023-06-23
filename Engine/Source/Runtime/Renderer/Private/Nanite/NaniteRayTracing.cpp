@@ -825,7 +825,7 @@ namespace Nanite
 
 			BuildParams.Add(Params);
 
-			FRayTracingAccelerationStructureSize SizeInfo = RHICalcRayTracingGeometrySize(Initializer);
+			FRayTracingAccelerationStructureSize SizeInfo = GraphBuilder.RHICmdList.CalcRayTracingGeometrySize(Initializer);
 			BLASScratchSize = Align(BLASScratchSize + SizeInfo.BuildScratchSize, GRHIRayTracingScratchBufferAlignment);
 
 			Data.bUpdating = false;

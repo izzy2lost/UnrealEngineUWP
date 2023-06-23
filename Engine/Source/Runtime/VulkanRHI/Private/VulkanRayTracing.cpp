@@ -335,7 +335,7 @@ FVulkanRayTracingGeometry::FVulkanRayTracingGeometry(FRHICommandListBase& RHICmd
 
 	checkf(!Initializer.IndexBuffer || (IndexBufferStride == 2 || IndexBufferStride == 4), TEXT("Index buffer must be 16 or 32 bit if in use."));
 
-	SizeInfo = RHICalcRayTracingGeometrySize(Initializer);
+	SizeInfo = RHICmdList.CalcRayTracingGeometrySize(Initializer);
 
 	// If this RayTracingGeometry going to be used as streaming destination 
 	// we don't want to allocate its memory as it will be replaced later by streamed version
@@ -1079,7 +1079,7 @@ FRayTracingAccelerationStructureSize FVulkanDynamicRHI::RHICalcRayTracingSceneSi
 	return Result;
 }
 
-FRayTracingAccelerationStructureSize FVulkanDynamicRHI::RHICalcRayTracingGeometrySize(const FRayTracingGeometryInitializer& Initializer)
+FRayTracingAccelerationStructureSize FVulkanDynamicRHI::RHICalcRayTracingGeometrySize(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& Initializer)
 {	
 	FVkRtBLASBuildData BuildData;
 	GetBLASBuildData(

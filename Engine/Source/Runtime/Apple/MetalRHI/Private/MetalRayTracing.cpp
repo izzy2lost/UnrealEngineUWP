@@ -307,7 +307,7 @@ static FRayTracingAccelerationStructureSize CalcRayTracingGeometrySize(mtlpp::Ac
 	return SizeInfo;
 }
 
-FRayTracingAccelerationStructureSize FMetalDynamicRHI::RHICalcRayTracingGeometrySize(const FRayTracingGeometryInitializer& Initializer)
+FRayTracingAccelerationStructureSize FMetalDynamicRHI::RHICalcRayTracingGeometrySize(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& Initializer)
 {
 	@autoreleasepool
 	{

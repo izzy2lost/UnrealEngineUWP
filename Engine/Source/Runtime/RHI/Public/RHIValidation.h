@@ -1279,9 +1279,9 @@ public:
 		return RHI->RHICalcRayTracingSceneSize(MaxInstances, Flags);
 	}
 
-	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingGeometrySize(const FRayTracingGeometryInitializer& Initializer) override final
+	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingGeometrySize(FRHICommandListBase& RHICmdList, const FRayTracingGeometryInitializer& Initializer) override final
 	{
-		return RHI->RHICalcRayTracingGeometrySize(Initializer);
+		return RHI->RHICalcRayTracingGeometrySize(RHICmdList, Initializer);
 	}
 
 	void RHITransferRayTracingGeometryUnderlyingResource(FRHIRayTracingGeometry* DestGeometry, FRHIRayTracingGeometry* SrcGeometry) override final

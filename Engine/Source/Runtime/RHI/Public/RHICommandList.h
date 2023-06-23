@@ -957,7 +957,13 @@ public:
 	{
 		return GDynamicRHI->RHICreateRayTracingGeometry(*this, Initializer);
 	}
+
+	FORCEINLINE FRayTracingAccelerationStructureSize CalcRayTracingGeometrySize(const FRayTracingGeometryInitializer& Initializer)
+	{
+		return GDynamicRHI->RHICalcRayTracingGeometrySize(*this, Initializer);
+	}
 #endif
+
 
 	inline FRHIBatchedShaderParameters& GetScratchShaderParameters()
 	{
@@ -5142,6 +5148,11 @@ FORCEINLINE void RHIUnlockStagingBuffer(FRHIStagingBuffer* StagingBuffer)
 FORCEINLINE FRayTracingGeometryRHIRef RHICreateRayTracingGeometry(const FRayTracingGeometryInitializer& Initializer)
 {
 	return FRHICommandListExecutor::GetImmediateCommandList().CreateRayTracingGeometry(Initializer);
+}
+
+FORCEINLINE FRayTracingAccelerationStructureSize RHICalcRayTracingGeometrySize(const FRayTracingGeometryInitializer& Initializer)
+{
+	return FRHICommandListExecutor::GetImmediateCommandList().CalcRayTracingGeometrySize(Initializer);
 }
 #endif
 

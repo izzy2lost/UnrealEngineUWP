@@ -878,7 +878,7 @@ void FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry(FSkeletalMeshLODRender
 			RayTracingGeometry.SetInitializer(Initializer);
 
 			// Get the scratch sizes used for build & update
-			RayTracingGeometryStructureSize = RHICalcRayTracingGeometrySize(Initializer);
+			RayTracingGeometryStructureSize = RHICmdList.CalcRayTracingGeometrySize(Initializer);
 
 			// Only create RHI object but enqueue actual BLAS creation so they can be accumulated
 			RayTracingGeometry.CreateRayTracingGeometry(RHICmdList, ERTAccelerationStructureBuildPriority::Skip);
