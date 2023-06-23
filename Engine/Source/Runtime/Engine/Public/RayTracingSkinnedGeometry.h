@@ -44,6 +44,7 @@ private:
 		uint32 ScratchSize;
 	};
 
+	FCriticalSection CS;
 	TMap<FRayTracingGeometry*, FRayTracingUpdateInfo> ToUpdate;
 	
 	/** Estimate of current memory overhead from objects awaiting RHI release. */

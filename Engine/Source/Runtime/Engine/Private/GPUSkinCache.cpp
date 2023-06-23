@@ -1872,7 +1872,7 @@ void FGPUSkinCache::ProcessRayTracingGeometryToUpdate(FRHICommandListImmediate& 
 		check(LODIndex < SkelMeshRenderData.LODRenderData.Num());
 		FSkeletalMeshLODRenderData& LODModel = SkelMeshRenderData.LODRenderData[LODIndex];
 
- 		SkinCacheEntry->GPUSkin->UpdateRayTracingGeometry(LODModel, LODIndex, VertexBufffers);
+ 		SkinCacheEntry->GPUSkin->UpdateRayTracingGeometry(RHICmdList, LODModel, LODIndex, VertexBufffers);
 	}
 }
 

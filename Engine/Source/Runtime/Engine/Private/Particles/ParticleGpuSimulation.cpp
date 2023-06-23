@@ -2654,6 +2654,8 @@ public:
 	{
 		auto FeatureLevel = ViewFamily.GetFeatureLevel();
 
+		FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+
 		if (RHISupportsGPUParticles())
 		{
 			SCOPE_CYCLE_COUNTER(STAT_GPUSpritePreRenderTime);
@@ -2674,14 +2676,12 @@ public:
 
 				if (bUseLocalSpace == false)
 				{
-					Proxy->UpdateWorldSpacePrimitiveUniformBuffer();
+					Proxy->UpdateWorldSpacePrimitiveUniformBuffer(RHICmdList);
 				}
 
 				const bool bTranslucent = RendersWithTranslucentMaterial();
 				const bool bAllowSorting = FXConsoleVariables::bAllowGPUSorting
 					&& bTranslucent;
-
-				FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
 
 				// Iterate over views and assign parameters for each.
 				FParticleSimulationResources* SimulationResources = FXSystem->GetParticleSimulationResources();

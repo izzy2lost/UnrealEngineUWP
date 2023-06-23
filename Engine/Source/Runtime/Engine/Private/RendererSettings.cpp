@@ -529,10 +529,10 @@ void URendererSettings::UpdateWorkingColorSpaceAndChromaticities()
 	FColorSpace UpdatedColorSpace = FColorSpace::GetWorking();
 
 	ENQUEUE_RENDER_COMMAND(WorkingColorSpaceCommand)(
-		[UpdatedColorSpace](FRHICommandList&)
+		[UpdatedColorSpace](FRHICommandList& RHICmdList)
 		{
 			// Set or update the global uniform buffer for Working Color Space conversions.
-			GDefaultWorkingColorSpaceUniformBuffer.Update(UpdatedColorSpace);
+			GDefaultWorkingColorSpaceUniformBuffer.Update(RHICmdList, UpdatedColorSpace);
 		});
 }
 

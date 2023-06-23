@@ -139,9 +139,9 @@ public:
 			return;
 		}
 
-		InitOrUpdateResource(&this->PositionVertexBuffer);
-		InitOrUpdateResource(&this->StaticMeshVertexBuffer);
-		InitOrUpdateResource(&this->ColorVertexBuffer);
+		InitOrUpdateResource(RHICmdList, &this->PositionVertexBuffer);
+		InitOrUpdateResource(RHICmdList, &this->StaticMeshVertexBuffer);
+		InitOrUpdateResource(RHICmdList, &this->ColorVertexBuffer);
 
 		FLocalVertexFactory::FDataType Data;
 		this->PositionVertexBuffer.BindPositionVertexBuffer(&this->VertexFactory, Data);
@@ -150,9 +150,9 @@ public:
 		// currently no lightmaps support
 		//this->StaticMeshVertexBuffer.BindLightMapVertexBuffer(&this->VertexFactory, Data, LightMapIndex);
 		this->ColorVertexBuffer.BindColorVertexBuffer(&this->VertexFactory, Data);
-		this->VertexFactory.SetData(Data);
+		this->VertexFactory.SetData(RHICmdList, Data);
 
-		InitOrUpdateResource(&this->VertexFactory);
+		InitOrUpdateResource(RHICmdList, &this->VertexFactory);
 		PositionVertexBuffer.InitResource(RHICmdList);
 		StaticMeshVertexBuffer.InitResource(RHICmdList);
 		ColorVertexBuffer.InitResource(RHICmdList);
@@ -180,15 +180,15 @@ public:
 	void UploadIndexBufferUpdate()
 	{
 		// todo: can this be done with RHI locking and memcpy, like in TransferVertexUpdateToGPU?
+		FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
 
-		check(IsInRenderingThread());
 		if (IndexBuffer.Indices.Num() > 0)
 		{
-			InitOrUpdateResource(&IndexBuffer);
+			InitOrUpdateResource(RHICmdList, &IndexBuffer);
 		}
 		if (bEnableSecondaryIndexBuffer && SecondaryIndexBuffer.Indices.Num() > 0)
 		{
-			InitOrUpdateResource(&SecondaryIndexBuffer);
+			InitOrUpdateResource(RHICmdList, &SecondaryIndexBuffer);
 		}
 
 		InvalidateRayTracingData();
@@ -208,24 +208,24 @@ public:
 		// are any situations where we would change vertex buffer size w/o also updating the index
 		// buffers (in which case we are fully rebuilding the buffers...)
 
-		check(IsInRenderingThread());
-
 		if (TriangleCount == 0)
 		{
 			return;
 		}
 
+		FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+
 		if (bPositions)
 		{
-			InitOrUpdateResource(&this->PositionVertexBuffer);
+			InitOrUpdateResource(RHICmdList, &this->PositionVertexBuffer);
 		}
 		if (bMeshAttribs)
 		{
-			InitOrUpdateResource(&this->StaticMeshVertexBuffer);
+			InitOrUpdateResource(RHICmdList, &this->StaticMeshVertexBuffer);
 		}
 		if (bColors)
 		{
-			InitOrUpdateResource(&this->ColorVertexBuffer);
+			InitOrUpdateResource(RHICmdList, &this->ColorVertexBuffer);
 		}
 
 		FLocalVertexFactory::FDataType Data;
@@ -233,9 +233,9 @@ public:
 		this->StaticMeshVertexBuffer.BindTangentVertexBuffer(&this->VertexFactory, Data);
 		this->StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(&this->VertexFactory, Data);
 		this->ColorVertexBuffer.BindColorVertexBuffer(&this->VertexFactory, Data);
-		this->VertexFactory.SetData(Data);
+		this->VertexFactory.SetData(RHICmdList, Data);
 
-		InitOrUpdateResource(&this->VertexFactory);
+		InitOrUpdateResource(RHICmdList, &this->VertexFactory);
 
 		InvalidateRayTracingData();
 		ValidateRayTracingData();		// currently we are immediately validating. This may be revisited in future.
@@ -364,10 +364,8 @@ protected:
 	 * Initializes a render resource, or update it if already initialized.
 	 * @warning This function can only be called on the Render Thread
 	 */
-	void InitOrUpdateResource(FRenderResource* Resource)
+	void InitOrUpdateResource(FRHICommandListBase& RHICmdList, FRenderResource* Resource)
 	{
-		FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
-
 		if (!Resource->IsInitialized())
 		{
 			Resource->InitResource(RHICmdList);

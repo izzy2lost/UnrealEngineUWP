@@ -47,7 +47,7 @@ void FRayTracingGeometry::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batc
 	}
 }
 
-void FRayTracingGeometry::CreateRayTracingGeometryFromCPUData(TResourceArray<uint8>& OfflineData)
+void FRayTracingGeometry::CreateRayTracingGeometryFromCPUData(FRHICommandList& RHICmdList, TResourceArray<uint8>& OfflineData)
 {
 	check(OfflineData.Num() == 0 || Initializer.OfflineData == nullptr);
 	if (OfflineData.Num())
@@ -62,24 +62,33 @@ void FRayTracingGeometry::CreateRayTracingGeometryFromCPUData(TResourceArray<uin
 	}
 
 	SetRequiresBuild(Initializer.OfflineData == nullptr);
-	RayTracingGeometryRHI = RHICreateRayTracingGeometry(Initializer);
+	RayTracingGeometryRHI = RHICmdList.CreateRayTracingGeometry(Initializer);
 }
 
-void FRayTracingGeometry::RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority InBuildPriority)
+void FRayTracingGeometry::CreateRayTracingGeometryFromCPUData(TResourceArray<uint8>& OfflineData)
+{
+	CreateRayTracingGeometryFromCPUData(FRHICommandListImmediate::Get(), OfflineData);
+}
+
+void FRayTracingGeometry::RequestBuildIfNeeded(FRHICommandList& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority)
 {
 	RayTracingGeometryRHI->SetInitializer(Initializer);
 
 	if (GetRequiresBuild())
 	{
-		RayTracingBuildRequestIndex = GRayTracingGeometryManager.RequestBuildAccelerationStructure(this, InBuildPriority);
+		RayTracingBuildRequestIndex = GRayTracingGeometryManager.RequestBuildAccelerationStructure(RHICmdList, this, InBuildPriority);
 		SetRequiresBuild(false);
 	}
 }
 
-void FRayTracingGeometry::InitRHIForDynamicRayTracing()
+void FRayTracingGeometry::RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority InBuildPriority)
+{
+	RequestBuildIfNeeded(FRHICommandListImmediate::Get(), InBuildPriority);
+}
+
+void FRayTracingGeometry::InitRHIForDynamicRayTracing(FRHICommandList& RHICmdList)
 {
 	check(GetRayTracingMode() == ERayTracingMode::Dynamic);
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
 
 	// Streaming BLAS needs special handling to not get their "streaming" type wiped out as it will cause issues down the line.	
 	// We only have to do this if the geometry was marked to be streamed in.
@@ -103,14 +112,14 @@ void FRayTracingGeometry::InitRHIForDynamicRayTracing()
 			FRayTracingGeometryInitializer IntermediateInitializer = Initializer;
 			IntermediateInitializer.Type = ERayTracingGeometryInitializerType::StreamingSource;
 
-			FRayTracingGeometryRHIRef IntermediateRayTracingGeometry = RHICreateRayTracingGeometry(IntermediateInitializer);
+			FRayTracingGeometryRHIRef IntermediateRayTracingGeometry = RHICmdList.CreateRayTracingGeometry(IntermediateInitializer);
 			InitRHIForStreaming(IntermediateRayTracingGeometry, Batcher);
 
 			// When Batcher goes out of scope it will add commands to copy the BLAS buffers on RHI thread.
 			// We need to do it before we build the current geometry (also on RHI thread).
 		}
 
-		RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority::Normal);
+		RequestBuildIfNeeded(RHICmdList, ERTAccelerationStructureBuildPriority::Normal);
 	}
 	else
 	{
@@ -118,7 +127,12 @@ void FRayTracingGeometry::InitRHIForDynamicRayTracing()
 	}
 }
 
-void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandListBase& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority)
+void FRayTracingGeometry::InitRHIForDynamicRayTracing()
+{
+	InitRHIForDynamicRayTracing(FRHICommandListImmediate::Get());
+}
+
+void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandList& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority)
 {
 	// Release previous RHI object if any
 	ReleaseRHI();
@@ -178,7 +192,7 @@ void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandListBase& RHICmdLi
 			{
 				if (IsRayTracingEnabled())
 				{
-					RayTracingBuildRequestIndex = GRayTracingGeometryManager.RequestBuildAccelerationStructure(this, InBuildPriority);
+					RayTracingBuildRequestIndex = GRayTracingGeometryManager.RequestBuildAccelerationStructure(RHICmdList, this, InBuildPriority);
 				}
 				SetRequiresBuild(false);
 			}
@@ -198,6 +212,11 @@ void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandListBase& RHICmdLi
 	}
 }
 
+void FRayTracingGeometry::CreateRayTracingGeometry(ERTAccelerationStructureBuildPriority InBuildPriority)
+{
+	CreateRayTracingGeometry(FRHICommandListImmediate::Get(), InBuildPriority);
+}
+
 bool FRayTracingGeometry::IsValid() const
 {
 	return RayTracingGeometryRHI != nullptr && Initializer.TotalPrimitiveCount > 0 && EnumHasAnyFlags(GeometryState, EGeometryStateFlags::Valid);
@@ -211,7 +230,7 @@ void FRayTracingGeometry::InitRHI(FRHICommandListBase& RHICmdList)
 	ERTAccelerationStructureBuildPriority BuildPriority = Initializer.Type != ERayTracingGeometryInitializerType::Rendering
 		? ERTAccelerationStructureBuildPriority::Skip
 		: ERTAccelerationStructureBuildPriority::Normal;
-	CreateRayTracingGeometry(RHICmdList, BuildPriority);
+	CreateRayTracingGeometry(FRHICommandList::Get(RHICmdList), BuildPriority);
 }
 
 void FRayTracingGeometry::ReleaseRHI()

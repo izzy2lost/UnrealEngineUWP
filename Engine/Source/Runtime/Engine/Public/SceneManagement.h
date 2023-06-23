@@ -314,7 +314,7 @@ class FDefaultWorkingColorSpaceUniformBuffer : public TUniformBuffer<FWorkingCol
 	typedef TUniformBuffer<FWorkingColorSpaceShaderParameters> Super;
 public:
 
-	void Update(const UE::Color::FColorSpace& InColorSpace);
+	void Update(FRHICommandListBase& RHICmdList, const UE::Color::FColorSpace& InColorSpace);
 };
 
 ENGINE_API extern TGlobalResource<FDefaultWorkingColorSpaceUniformBuffer> GDefaultWorkingColorSpaceUniformBuffer;

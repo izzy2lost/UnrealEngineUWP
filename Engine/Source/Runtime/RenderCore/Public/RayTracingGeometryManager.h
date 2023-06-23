@@ -6,7 +6,7 @@
 
 #include "RHI.h"
 #include "RHIResources.h"
-#include "DynamicRHI.h"
+#include "RHICommandList.h"
 
 #if RHI_RAYTRACING
 
@@ -24,19 +24,36 @@ public:
 
 	FRayTracingGeometryManager() {}
 	~FRayTracingGeometryManager() {}
+	BuildRequestIndex RequestBuildAccelerationStructure(FRHICommandList& RHICmdList, FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority)
+	{
+		return RequestBuildAccelerationStructure(RHICmdList, InGeometry, InPriority, EAccelerationStructureBuildMode::Build);
+	}	
+	RENDERCORE_API BuildRequestIndex RequestBuildAccelerationStructure(FRHICommandList& RHICmdList, FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority, EAccelerationStructureBuildMode InBuildMode);
 
+	UE_DEPRECATED(5.4, "RequestBuildAccelerationStructure requires a command list.")
 	BuildRequestIndex RequestBuildAccelerationStructure(FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority)
 	{
-		return RequestBuildAccelerationStructure(InGeometry, InPriority, EAccelerationStructureBuildMode::Build);
-	}	
-	RENDERCORE_API BuildRequestIndex RequestBuildAccelerationStructure(FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority, EAccelerationStructureBuildMode InBuildMode);
+		return RequestBuildAccelerationStructure(FRHICommandListImmediate::Get(), InGeometry, InPriority, EAccelerationStructureBuildMode::Build);
+	}
+
+	UE_DEPRECATED(5.4, "RequestBuildAccelerationStructure requires a command list.")
+	BuildRequestIndex RequestBuildAccelerationStructure(FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority, EAccelerationStructureBuildMode InBuildMode)
+	{
+		return RequestBuildAccelerationStructure(FRHICommandListImmediate::Get(), InGeometry, InPriority, InBuildMode);
+	}
 
 	RENDERCORE_API void RemoveBuildRequest(BuildRequestIndex InRequestIndex);
 	RENDERCORE_API void BoostPriority(BuildRequestIndex InRequestIndex, float InBoostValue);
 	RENDERCORE_API void ForceBuildIfPending(FRHIComputeCommandList& InCmdList, const TArrayView<const FRayTracingGeometry*> InGeometries);
 	RENDERCORE_API void ProcessBuildRequests(FRHIComputeCommandList& InCmdList, bool bInBuildAll = false);
 
-	RENDERCORE_API void Tick(bool bHasRayTracingEnableChanged);
+	RENDERCORE_API void Tick(FRHICommandList& RHICmdList, bool bHasRayTracingEnableChanged);
+
+	UE_DEPRECATED(5.4, "Tick requires a command list.")
+	void Tick(bool bHasRayTracingEnableChanged)
+	{
+		Tick(FRHICommandListImmediate::Get(), bHasRayTracingEnableChanged);
+	}
 
 	RENDERCORE_API RayTracingGeometryHandle RegisterRayTracingGeometry(FRayTracingGeometry* InGeometry);
 	RENDERCORE_API void ReleaseRayTracingGeometryHandle(RayTracingGeometryHandle Handle);

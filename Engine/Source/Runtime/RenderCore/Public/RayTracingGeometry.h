@@ -9,6 +9,8 @@
 #include "RHI.h"
 #endif
 
+class FRHICommandListBase;
+
 enum class ERTAccelerationStructureBuildPriority
 {
 	Immediate,
@@ -100,14 +102,27 @@ public:
 	RENDERCORE_API void InitRHIForStreaming(FRHIRayTracingGeometry* IntermediateGeometry, FRHIResourceUpdateBatcher& Batcher);
 	RENDERCORE_API void ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Batcher);
 
-	RENDERCORE_API void CreateRayTracingGeometryFromCPUData(TResourceArray<uint8>& OfflineData);
-	RENDERCORE_API void RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority InBuildPriority);
+	RENDERCORE_API void CreateRayTracingGeometryFromCPUData(FRHICommandList& RHICmdList, TResourceArray<uint8>& OfflineData);
 
+	UE_DEPRECATED(5.4, "CreateRayTracingGeometryFromCPUData now requires a command list.")
+	RENDERCORE_API void CreateRayTracingGeometryFromCPUData(TResourceArray<uint8>& OfflineData);
+
+	RENDERCORE_API void RequestBuildIfNeeded(FRHICommandList& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority);
+
+	UE_DEPRECATED(5.4, "RequestBuildIfNeeded now requires a command list.")
+	RENDERCORE_API void RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority InBuildPriority);
+	
 	// That function is only supposed to be used when dynamic ray tracing is enabled
+	RENDERCORE_API void InitRHIForDynamicRayTracing(FRHICommandList& RHICmdList);
+
+	UE_DEPRECATED(5.4, "InitRHIForDynamicRayTracing now requires a command list.")
 	RENDERCORE_API void InitRHIForDynamicRayTracing();
 
-	RENDERCORE_API void CreateRayTracingGeometry(FRHICommandListBase& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority);
+	RENDERCORE_API void CreateRayTracingGeometry(FRHICommandList& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority);
 
+	UE_DEPRECATED(5.4, "CreateRayTracingGeometry now requires a command list.")
+	RENDERCORE_API void CreateRayTracingGeometry(ERTAccelerationStructureBuildPriority InBuildPriority);
+	
 	bool HasPendingBuildRequest() const
 	{
 		return RayTracingBuildRequestIndex != INDEX_NONE;

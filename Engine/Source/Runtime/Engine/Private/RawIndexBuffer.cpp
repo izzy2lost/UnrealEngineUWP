@@ -320,8 +320,7 @@ FIndexArrayView FRawStaticIndexBuffer::GetArrayView() const
 	return FIndexArrayView(IndexStorage.GetData(),NumIndices,b32Bit);
 }
 
-template <bool bRenderThread>
-FBufferRHIRef FRawStaticIndexBuffer::CreateRHIBuffer_Internal()
+FBufferRHIRef FRawStaticIndexBuffer::CreateRHIBuffer(FRHICommandListBase& RHICmdList)
 {
 	const uint32 IndexStride = b32Bit ? sizeof(uint32) : sizeof(uint16);
 	const uint32 SizeInBytes = IndexStorage.Num();
@@ -342,35 +341,27 @@ FBufferRHIRef FRawStaticIndexBuffer::CreateRHIBuffer_Internal()
 		const static FLazyName ClassName16(TEXT("FRawStaticIndexBuffer16"));
 
 		// Create the index buffer.
-		FBufferRHIRef Ret;
 		FRHIResourceCreateInfo CreateInfo(Is32Bit() ? TEXT("FRawStaticIndexBuffer32") : TEXT("FRawStaticIndexBuffer16"), &IndexStorage);
 		CreateInfo.ClassName = Is32Bit() ? ClassName32 : ClassName16;
 		CreateInfo.OwnerName = GetOwnerName();
 		CreateInfo.bWithoutNativeResource = !SizeInBytes;
-		if (bRenderThread)
-		{
-			Ret = FRHICommandListImmediate::Get().CreateIndexBuffer(IndexStride, SizeInBytes, BufferFlags, CreateInfo);
-		}
-		else
-		{
-			FRHIAsyncCommandList CommandList;
-			Ret = CommandList->CreateBuffer(SizeInBytes, BufferFlags | EBufferUsageFlags::IndexBuffer, IndexStride, ERHIAccess::SRVMask, CreateInfo);
-		}
 
-		Ret->SetOwnerName(GetOwnerName());
-		return Ret;
+		FBufferRHIRef Buffer = RHICmdList.CreateBuffer(SizeInBytes, BufferFlags | EBufferUsageFlags::IndexBuffer, IndexStride, ERHIAccess::VertexOrIndexBuffer, CreateInfo);
+		Buffer->SetOwnerName(GetOwnerName());
+		return Buffer;
 	}
 	return nullptr;
 }
 
 FBufferRHIRef FRawStaticIndexBuffer::CreateRHIBuffer_RenderThread()
 {
-	return CreateRHIBuffer_Internal<true>();
+	return CreateRHIBuffer(FRHICommandListExecutor::GetImmediateCommandList());
 }
 
 FBufferRHIRef FRawStaticIndexBuffer::CreateRHIBuffer_Async()
 {
-	return CreateRHIBuffer_Internal<false>();
+	FRHIAsyncCommandList CommandList;
+	return CreateRHIBuffer(*CommandList);
 }
 
 void FRawStaticIndexBuffer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher)
@@ -392,7 +383,7 @@ void FRawStaticIndexBuffer::ReleaseRHIForStreaming(FRHIResourceUpdateBatcher& Ba
 void FRawStaticIndexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRawStaticIndexBuffer::InitRHI);
-	IndexBufferRHI = CreateRHIBuffer_RenderThread();
+	IndexBufferRHI = CreateRHIBuffer(RHICmdList);
 }
 
 void FRawStaticIndexBuffer::Serialize(FArchive& Ar, bool bNeedsCPUAccess)
@@ -480,13 +471,13 @@ void FRawStaticIndexBuffer16or32Interface::ReleaseRHIForStreaming(FRHIResourceUp
 }
 
 FBufferRHIRef FRawStaticIndexBuffer16or32Interface::CreateRHIIndexBufferInternal(
+	FRHICommandListBase& RHICmdList,
 	const TCHAR* InDebugName,
 	const FName& InOwnerName,
 	int32 IndexCount,
 	size_t IndexSize,
 	FResourceArrayInterface* ResourceArray,
-	bool bNeedSRV,
-	bool bRenderThread
+	bool bNeedSRV
 )
 {
 	// Create the index buffer.
@@ -501,21 +492,12 @@ FBufferRHIRef FRawStaticIndexBuffer16or32Interface::CreateRHIIndexBufferInternal
 		Flags |= EBufferUsageFlags::ShaderResource;
 	}
 
-	FBufferRHIRef Ret;
 	const uint32 Size = IndexCount * IndexSize;
 	CreateInfo.bWithoutNativeResource = !Size;
-	if (bRenderThread)
-	{
-		Ret = FRHICommandListImmediate::Get().CreateIndexBuffer(IndexSize, Size, Flags, CreateInfo);
-	}
-	else
-	{
-		FRHIAsyncCommandList CommandList;
-		Ret = CommandList->CreateBuffer(Size, Flags | EBufferUsageFlags::IndexBuffer, IndexSize, ERHIAccess::SRVMask, CreateInfo);
-	}
 
-	Ret->SetOwnerName(InOwnerName);
-	return Ret;
+	FBufferRHIRef Buffer = RHICmdList.CreateBuffer(Size, Flags | EBufferUsageFlags::IndexBuffer, IndexSize, ERHIAccess::VertexOrIndexBuffer, CreateInfo);
+	Buffer->SetOwnerName(InOwnerName);
+	return Buffer;
 }
 
 /*-----------------------------------------------------------------------------

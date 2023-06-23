@@ -105,7 +105,7 @@ public:
 	/** Creates the resource 
 	 * @param Args The buffer size in bytes.
 	 */
-	FVertexBufferAndSRV CreateResource(FSharedPoolPolicyData::CreationArguments Args);
+	FVertexBufferAndSRV CreateResource(FRHICommandListBase& RHICmdList, FSharedPoolPolicyData::CreationArguments Args);
 	
 	/** Gets the arguments used to create resource
 	 * @param Resource The buffer to get data for.
@@ -137,7 +137,7 @@ public:
 	/** Creates the resource 
 	 * @param Args The buffer size in bytes.
 	 */
-	FVertexBufferAndSRV CreateResource(FSharedPoolPolicyData::CreationArguments Args);
+	FVertexBufferAndSRV CreateResource(FRHICommandListBase& RHICmdList, FSharedPoolPolicyData::CreationArguments Args);
 };
 
 /** A pool for vertex buffers with consistent usage, bucketed for efficiency. */

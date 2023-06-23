@@ -603,8 +603,7 @@ void FSkinWeightProfilesData::ReleaseCPUResources()
 	ResetGPUReadback();
 }
 
-template <bool bRenderThread>
-void FSkinWeightProfilesData::CreateRHIBuffers_Internal(TArray<TPair<FName, FSkinWeightRHIInfo>>& OutBuffers)
+void FSkinWeightProfilesData::CreateRHIBuffers(FRHICommandListBase& RHICmdList, TArray<TPair<FName, FSkinWeightRHIInfo>>& OutBuffers)
 {
 	const int32 NumActiveProfiles = ProfileNameToBuffer.Num();
 	check(BaseBuffer || !NumActiveProfiles);
@@ -614,14 +613,7 @@ void FSkinWeightProfilesData::CreateRHIBuffers_Internal(TArray<TPair<FName, FSki
 		const FName& ProfileName = It->Key;
 		FSkinWeightVertexBuffer* OverrideBuffer = It->Value;
 		ApplyOverrideProfile(OverrideBuffer, ProfileName);
-		if (bRenderThread)
-		{
-			OutBuffers.Emplace(ProfileName, OverrideBuffer->CreateRHIBuffer_RenderThread());
-		}
-		else
-		{
-			OutBuffers.Emplace(ProfileName, OverrideBuffer->CreateRHIBuffer_Async());
-		}
+		OutBuffers.Emplace(ProfileName, OverrideBuffer->CreateRHIBuffer(RHICmdList));
 	}
 }
 
@@ -757,12 +749,13 @@ void FSkinWeightProfilesData::ApplyOverrideProfile(FSkinWeightVertexBuffer* Over
 
 void FSkinWeightProfilesData::CreateRHIBuffers_RenderThread(TArray<TPair<FName, FSkinWeightRHIInfo>>& OutBuffers)
 {
-	CreateRHIBuffers_Internal<true>(OutBuffers);
+	CreateRHIBuffers(FRHICommandListImmediate::Get(), OutBuffers);
 }
 
 void FSkinWeightProfilesData::CreateRHIBuffers_Async(TArray<TPair<FName, FSkinWeightRHIInfo>>& OutBuffers)
 {
-	CreateRHIBuffers_Internal<false>(OutBuffers);
+	FRHIAsyncCommandList CommandList;
+	CreateRHIBuffers(*CommandList, OutBuffers);
 }
 
 void FSkinWeightProfilesData::InitRHIForStreaming(const TArray<TPair<FName, FSkinWeightRHIInfo>>& IntermediateBuffers, FRHIResourceUpdateBatcher& Batcher)

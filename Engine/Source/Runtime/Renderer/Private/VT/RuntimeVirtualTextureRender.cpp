@@ -82,7 +82,7 @@ namespace RuntimeVirtualTexture
 			Parameters.RGB_DISTANCE_TABLES[6] = FVector4f(-106, -33, 33, 106);
 			Parameters.RGB_DISTANCE_TABLES[7] = FVector4f(-183, -47, 47, 183);
 
-			SetContents(Parameters);
+			SetContentsNoUpdate(Parameters);
 		}
 	};
 

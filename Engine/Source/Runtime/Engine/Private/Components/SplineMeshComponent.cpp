@@ -292,11 +292,11 @@ void FSplineMeshSceneProxy::InitVertexFactory(USplineMeshComponent* InComponent,
 	int32 LightMapCoordinateIndex = Parent->GetLightMapCoordinateIndex();
 	// Initialize the static mesh's vertex factory.
 	ENQUEUE_RENDER_COMMAND(InitSplineMeshVertexFactory)(
-		[VertexFactory, RenderData2, bOverrideColorVertexBuffer, LightMapCoordinateIndex](FRHICommandListImmediate& RHICmdList)
+		[VertexFactory, RenderData2, bOverrideColorVertexBuffer, LightMapCoordinateIndex](FRHICommandListBase& RHICmdList)
 	{
 		FLocalVertexFactory::FDataType Data;
 		InitSplineMeshVertexFactoryComponents(RenderData2->VertexBuffers, VertexFactory, LightMapCoordinateIndex, bOverrideColorVertexBuffer, Data);
-		VertexFactory->SetData(Data);
+		VertexFactory->SetData(RHICmdList, Data);
 		VertexFactory->InitResource(RHICmdList);
 	});
 }

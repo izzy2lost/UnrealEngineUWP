@@ -299,14 +299,14 @@ public:
 	/**
 	 * An implementation of the interface used by TSynchronizedResource to update the resource with new data from the game thread.
 	 */
-	void SetData(const FDataType& InData, const FInstancedStaticMeshDataType* InInstanceData)
+	void SetData(FRHICommandListBase& RHICmdList, const FDataType& InData, const FInstancedStaticMeshDataType* InInstanceData)
 	{
 		Data = InData;
 		if (InInstanceData)
 		{
 			InstanceData = *InInstanceData;
 		}
-		UpdateRHI(FRenderResource::GetCommandList());
+		UpdateRHI(RHICmdList);
 	}
 
 	/**
@@ -477,7 +477,7 @@ public:
 	/** Feature level used when creating instance data */
 	ERHIFeatureLevel::Type FeatureLevel;
 
-	ENGINE_API void BindBuffersToVertexFactories();
+	ENGINE_API void BindBuffersToVertexFactories(FRHICommandListBase& RHICmdList);
 
 private:
 	void InitVertexFactories();
@@ -527,7 +527,7 @@ public:
 
 	ENGINE_API virtual void OnTransformChanged() override;
 
-	ENGINE_API virtual void UpdateInstances_RenderThread(const FInstanceUpdateCmdBuffer& CmdBuffer, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, const FBoxSphereBounds& InStaticMeshBounds) override;
+	ENGINE_API virtual void UpdateInstances_RenderThread(FRHICommandListBase& RHICmdList, const FInstanceUpdateCmdBuffer& CmdBuffer, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, const FBoxSphereBounds& InStaticMeshBounds) override;
 
 	virtual FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override
 	{

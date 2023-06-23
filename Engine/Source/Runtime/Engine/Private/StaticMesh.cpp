@@ -979,7 +979,7 @@ void FStaticMeshVertexFactories::InitVertexFactory(
 			Data.bIsCoarseProxy			= Params.bIsCoarseProxy;
 			Data.StaticMesh				= Params.StaticMesh;
 		#endif
-			Params.VertexFactory->SetData(Data);
+			Params.VertexFactory->SetData(RHICmdList, Data);
 			Params.VertexFactory->InitResource(RHICmdList);
 		});
 }
@@ -1087,10 +1087,8 @@ float FStaticMeshAreaWeightedSectionSampler::GetWeights(TArray<float>& OutWeight
 	return Total;
 }
 
-static inline void InitOrUpdateResource(FRenderResource* Resource)
+static inline void InitOrUpdateResource(FRHICommandListBase& RHICmdList, FRenderResource* Resource)
 {
-	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
-
 	if (!Resource->IsInitialized())
 	{
 		Resource->InitResource(RHICmdList);
@@ -1146,9 +1144,9 @@ void FStaticMeshVertexBuffers::InitModelVF(FLocalVertexFactory* VertexFactory)
 		Self->StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(VertexFactory, Data);
 		Self->StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactory, Data, 1);
 		FColorVertexBuffer::BindDefaultColorVertexBuffer(VertexFactory, Data, FColorVertexBuffer::NullBindStride::ZeroForDefaultBufferBind);
-		VertexFactory->SetData(Data);
+		VertexFactory->SetData(RHICmdList, Data);
 
-		InitOrUpdateResource(VertexFactory);
+		InitOrUpdateResource(RHICmdList, VertexFactory);
 	});
 }
 
@@ -1166,9 +1164,9 @@ void FStaticMeshVertexBuffers::InitWithDummyData(FLocalVertexFactory* VertexFact
 	ENQUEUE_RENDER_COMMAND(StaticMeshVertexBuffersLegacyInit)(
 		[VertexFactory, Self, LightMapIndex](FRHICommandListImmediate& RHICmdList)
 	{
-		InitOrUpdateResource(&Self->PositionVertexBuffer);
-		InitOrUpdateResource(&Self->StaticMeshVertexBuffer);
-		InitOrUpdateResource(&Self->ColorVertexBuffer);
+		InitOrUpdateResource(RHICmdList, &Self->PositionVertexBuffer);
+		InitOrUpdateResource(RHICmdList, &Self->StaticMeshVertexBuffer);
+		InitOrUpdateResource(RHICmdList, &Self->ColorVertexBuffer);
 
 		FLocalVertexFactory::FDataType Data;
 		Self->PositionVertexBuffer.BindPositionVertexBuffer(VertexFactory, Data);
@@ -1176,9 +1174,9 @@ void FStaticMeshVertexBuffers::InitWithDummyData(FLocalVertexFactory* VertexFact
 		Self->StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(VertexFactory, Data);
 		Self->StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactory, Data, LightMapIndex);
 		Self->ColorVertexBuffer.BindColorVertexBuffer(VertexFactory, Data);
-		VertexFactory->SetData(Data);
+		VertexFactory->SetData(RHICmdList, Data);
 
-		InitOrUpdateResource(VertexFactory);
+		InitOrUpdateResource(RHICmdList, VertexFactory);
 	});
 }
 
@@ -1224,9 +1222,9 @@ void FStaticMeshVertexBuffers::InitFromDynamicVertex(FLocalVertexFactory* Vertex
 	ENQUEUE_RENDER_COMMAND(StaticMeshVertexBuffersLegacyInit)(
 		[VertexFactory, Self, LightMapIndex](FRHICommandListImmediate& RHICmdList)
 		{
-			InitOrUpdateResource(&Self->PositionVertexBuffer);
-			InitOrUpdateResource(&Self->StaticMeshVertexBuffer);
-			InitOrUpdateResource(&Self->ColorVertexBuffer);
+			InitOrUpdateResource(RHICmdList, &Self->PositionVertexBuffer);
+			InitOrUpdateResource(RHICmdList, &Self->StaticMeshVertexBuffer);
+			InitOrUpdateResource(RHICmdList, &Self->ColorVertexBuffer);
 
 			FLocalVertexFactory::FDataType Data;
 			Self->PositionVertexBuffer.BindPositionVertexBuffer(VertexFactory, Data);
@@ -1234,9 +1232,9 @@ void FStaticMeshVertexBuffers::InitFromDynamicVertex(FLocalVertexFactory* Vertex
 			Self->StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(VertexFactory, Data);
 			Self->StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactory, Data, LightMapIndex);
 			Self->ColorVertexBuffer.BindColorVertexBuffer(VertexFactory, Data);
-			VertexFactory->SetData(Data);
+			VertexFactory->SetData(RHICmdList, Data);
 
-			InitOrUpdateResource(VertexFactory);
+			InitOrUpdateResource(RHICmdList, VertexFactory);
 		});
 };
 

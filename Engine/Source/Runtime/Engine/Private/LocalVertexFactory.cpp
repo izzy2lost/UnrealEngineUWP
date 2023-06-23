@@ -378,23 +378,17 @@ void FLocalVertexFactory::GetVertexElements(ERHIFeatureLevel::Type FeatureLevel,
 
 void FLocalVertexFactory::SetData(const FDataType& InData)
 {
-	{
-		//const int NumTexCoords = InData.NumTexCoords;
-		//const int LightMapCoordinateIndex = InData.LightMapCoordinateIndex;
-		//check(NumTexCoords > 0);
-		//check(LightMapCoordinateIndex < NumTexCoords && LightMapCoordinateIndex >= 0);
-		//check(InData.PositionComponentSRV);
-		//check(InData.TangentsSRV);
-		//check(InData.TextureCoordinatesSRV);
-		//check(InData.ColorComponentsSRV);
-	}
+	SetData(FRHICommandListImmediate::Get(), InData);
+}
 
+void FLocalVertexFactory::SetData(FRHICommandListBase& RHICmdList, const FDataType& InData)
+{
 	// The shader code makes assumptions that the color component is a FColor, performing swizzles on ES3 and Metal platforms as necessary
 	// If the color is sent down as anything other than VET_Color then you'll get an undesired swizzle on those platforms
 	check((InData.ColorComponent.Type == VET_None) || (InData.ColorComponent.Type == VET_Color));
 
 	Data = InData;
-	UpdateRHI(FRHICommandListImmediate::Get());
+	UpdateRHI(RHICmdList);
 }
 
 /**

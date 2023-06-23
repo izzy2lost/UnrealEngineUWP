@@ -198,31 +198,6 @@ FArchive& operator<<(FArchive& Ar, FClothBufferIndexMapping& ClothBufferIndexMap
 		<< ClothBufferIndexMapping.LODBiasStride;
 }
 
-void FreeSkeletalMeshBuffersSinkCallback()
-{
-	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.FreeSkeletalMeshBuffers"));
-	static bool bPreviousFreeSkeletalMeshBuffers = false;
-	const bool bFreeSkeletalMeshBuffers = CVar->GetValueOnGameThread() == 1;
-
-	// We previously relied on this sink occurring periodically to free helper structures, so run it if we're not using the new logic that frees on submit.
-	if (!GFreeStructuresOnRHIBufferCreation || (bPreviousFreeSkeletalMeshBuffers != bFreeSkeletalMeshBuffers))
-	{
-		bPreviousFreeSkeletalMeshBuffers = bFreeSkeletalMeshBuffers;
-		if (bFreeSkeletalMeshBuffers)
-		{
-			FlushRenderingCommands();
-			for (TObjectIterator<USkeletalMesh> It; It; ++It)
-			{
-				USkeletalMesh* SkeletalMesh = *It;
-				if (!SkeletalMesh->HasPendingInitOrStreaming() && !SkeletalMesh->GetResourceForRendering()->RequiresCPUSkinning(GMaxRHIFeatureLevel))
-				{
-					SkeletalMesh->ReleaseCPUResources();
-				}
-			}
-		}
-	}
-}
-
 /*-----------------------------------------------------------------------------
 	FClothingAssetData
 -----------------------------------------------------------------------------*/

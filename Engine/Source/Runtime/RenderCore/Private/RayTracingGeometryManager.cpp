@@ -49,13 +49,13 @@ static float GetInitialBuildPriority(ERTAccelerationStructureBuildPriority InBui
 	}
 }
 
-FRayTracingGeometryManager::BuildRequestIndex FRayTracingGeometryManager::RequestBuildAccelerationStructure(FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority, EAccelerationStructureBuildMode InBuildMode)
+FRayTracingGeometryManager::BuildRequestIndex FRayTracingGeometryManager::RequestBuildAccelerationStructure(FRHICommandList& RHICmdList, FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority, EAccelerationStructureBuildMode InBuildMode)
 {
 	// If immediate then enqueue command directly on the immediate command list
 	if (GRayTracingMaxBuiltPrimitivesPerFrame <= 0 || InPriority == ERTAccelerationStructureBuildPriority::Immediate)
 	{
 		check(InBuildMode == EAccelerationStructureBuildMode::Build);
-		FRHICommandListExecutor::GetImmediateCommandList().BuildAccelerationStructure(InGeometry->RayTracingGeometryRHI);
+		RHICmdList.BuildAccelerationStructure(InGeometry->RayTracingGeometryRHI);
 		return INDEX_NONE;
 	}
 	else
@@ -109,7 +109,7 @@ void FRayTracingGeometryManager::ReleaseRayTracingGeometryHandle(RayTracingGeome
 	}	
 }
 
-void FRayTracingGeometryManager::Tick(bool bHasRayTracingEnableChanged)
+void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList, bool bHasRayTracingEnableChanged)
 {
 	if (GetRayTracingMode() != ERayTracingMode::Dynamic)
 	{
@@ -150,7 +150,7 @@ void FRayTracingGeometryManager::Tick(bool bHasRayTracingEnableChanged)
 		{
 			if (Geometry->RayTracingGeometryRHI == nullptr)
 			{
-				Geometry->InitRHIForDynamicRayTracing();
+				Geometry->InitRHIForDynamicRayTracing(RHICmdList);
 			}
 		}
 	}

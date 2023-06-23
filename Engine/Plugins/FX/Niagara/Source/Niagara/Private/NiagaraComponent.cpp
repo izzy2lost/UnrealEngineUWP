@@ -305,6 +305,8 @@ const FVector3f& FNiagaraSceneProxy::GetLWCRenderTile() const
 
 TUniformBuffer<FPrimitiveUniformShaderParameters>* FNiagaraSceneProxy::GetCustomUniformBufferResource(bool bHasVelocity, const FBox& InstanceBounds) const
 {
+	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+
 	// Use a hash to determine if we can re-use any uniform buffer
 	uint32 KeyHash = HashCombine(bHasVelocity, InstanceBounds.IsValid);
 
@@ -373,8 +375,8 @@ TUniformBuffer<FPrimitiveUniformShaderParameters>* FNiagaraSceneProxy::GetCustom
 		}
 
 		CustomUBRef = new TUniformBuffer<FPrimitiveUniformShaderParameters>();
-		CustomUBRef->SetContents(UBBuilder.Build());
-		CustomUBRef->InitResource(FRHICommandListImmediate::Get());
+		CustomUBRef->SetContents(RHICmdList, UBBuilder.Build());
+		CustomUBRef->InitResource(RHICmdList);
 	}
 
 	return CustomUBRef;

@@ -396,7 +396,7 @@ public:
 		FDistanceCullFadeUniformShaderParameters Parameters;
 		Parameters.FadeTimeScaleBias.X = 0.0f;
 		Parameters.FadeTimeScaleBias.Y = 1.0f;
-		SetContents(Parameters);
+		SetContents(FRenderResource::GetImmediateCommandList(), Parameters);
 	}
 };
 
@@ -413,7 +413,7 @@ public:
 	{
 		FDitherUniformShaderParameters Parameters;
 		Parameters.LODFactor = 0.0f;
-		SetContents(Parameters);
+		SetContents(FRenderResource::GetImmediateCommandList(), Parameters);
 	}
 };
 

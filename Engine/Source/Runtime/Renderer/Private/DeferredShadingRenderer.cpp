@@ -2588,7 +2588,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		// Initialize ray tracing flags, in case they weren't initialized in the CreateSceneRenderers code path
 		InitializeRayTracingFlags_RenderThread();
 
-		GRayTracingGeometryManager.Tick(bHasRayTracingEnableChanged);
+		GRayTracingGeometryManager.Tick(GraphBuilder.RHICmdList, bHasRayTracingEnableChanged);
 
 		if ((GetRayTracingMode() == ERayTracingMode::Dynamic) && bHasRayTracingEnableChanged)
 		{

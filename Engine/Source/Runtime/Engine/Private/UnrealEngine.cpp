@@ -1072,12 +1072,9 @@ void RefreshSamplerStatesCallback()
 
 void RefreshEngineSettings()
 {
-	extern void FreeSkeletalMeshBuffersSinkCallback();
-
 	HDRSettingChangedSinkCallback();
 	RefreshSamplerStatesCallback();
 	ScalabilityCVarsSinkCallback();
-	FreeSkeletalMeshBuffersSinkCallback();
 	SystemResolutionSinkCallback();
 }
 

@@ -1222,12 +1222,9 @@ void InitInstancedStaticMeshVertexFactoryComponents(
 	}
 }
 
-void FInstancedStaticMeshRenderData::BindBuffersToVertexFactories()
+void FInstancedStaticMeshRenderData::BindBuffersToVertexFactories(FRHICommandListBase& RHICmdList)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("FInstancedStaticMeshRenderData::BindBuffersToVertexFactories");
-
-	check(IsInRenderingThread());
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
 
 	FStaticMeshInstanceBuffer* InstanceBuffer = nullptr;
 	const bool bRHISupportsManualVertexFetch = RHISupportsManualVertexFetch(GShaderPlatformForFeatureLevel[FeatureLevel]);
@@ -1252,7 +1249,7 @@ void FInstancedStaticMeshRenderData::BindBuffersToVertexFactories()
 			ColorVertexBuffer = Component->LODData[LODIndex].OverrideVertexColors;
 		}
 		InitInstancedStaticMeshVertexFactoryComponents(RenderData->VertexBuffers, ColorVertexBuffer, InstanceBuffer, &VertexFactory, LightMapCoordinateIndex, bRHISupportsManualVertexFetch, Data, InstanceData);
-		VertexFactory.SetData(Data, InstanceBuffer ? &InstanceData : nullptr);
+		VertexFactory.SetData(RHICmdList, Data, InstanceBuffer ? &InstanceData : nullptr);
 		VertexFactory.InitResource(RHICmdList);
 	}
 }
@@ -1266,9 +1263,9 @@ void FInstancedStaticMeshRenderData::InitVertexFactories()
 	}
 
 	ENQUEUE_RENDER_COMMAND(InstancedStaticMeshRenderData_InitVertexFactories)(
-		[this](FRHICommandListImmediate& RHICmdList)
+		[this](FRHICommandListBase& RHICmdList)
 		{
-			BindBuffersToVertexFactories();
+			BindBuffersToVertexFactories(RHICmdList);
 		});
 }
 
@@ -2033,12 +2030,12 @@ void FInstancedStaticMeshSceneProxy::OnTransformChanged()
 	}
 }
 
-void FInstancedStaticMeshSceneProxy::UpdateInstances_RenderThread(const FInstanceUpdateCmdBuffer& CmdBuffer, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, const FBoxSphereBounds& InStaticMeshBounds)
+void FInstancedStaticMeshSceneProxy::UpdateInstances_RenderThread(FRHICommandListBase& RHICmdList, const FInstanceUpdateCmdBuffer& CmdBuffer, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, const FBoxSphereBounds& InStaticMeshBounds)
 {
 	// This will flush GPU instance data, create buffers, srvs and vertex factories.
-	InstancedRenderData.BindBuffersToVertexFactories();
+	InstancedRenderData.BindBuffersToVertexFactories(RHICmdList);
 
-	return FPrimitiveSceneProxy::UpdateInstances_RenderThread(CmdBuffer, InBounds, InLocalBounds, InStaticMeshBounds);
+	return FPrimitiveSceneProxy::UpdateInstances_RenderThread(RHICmdList, CmdBuffer, InBounds, InLocalBounds, InStaticMeshBounds);
 }
 
 void FInstancedStaticMeshSceneProxy::SetupInstancedMeshBatch(int32 LODIndex, int32 BatchIndex, FMeshBatch& OutMeshBatch) const

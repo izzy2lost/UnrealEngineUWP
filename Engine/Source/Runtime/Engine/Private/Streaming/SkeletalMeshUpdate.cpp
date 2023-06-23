@@ -58,28 +58,32 @@ FSkeletalMeshUpdate::FSkeletalMeshUpdate(const USkeletalMesh* InMesh)
 
 void FSkeletalMeshStreamIn::FIntermediateBuffers::CreateFromCPUData_RenderThread(FSkeletalMeshLODRenderData& LODResource)
 {
+	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+
 	FStaticMeshVertexBuffers& VBs = LODResource.StaticVertexBuffers;
-	TangentsVertexBuffer = VBs.StaticMeshVertexBuffer.CreateTangentsRHIBuffer_RenderThread();
-	TexCoordVertexBuffer = VBs.StaticMeshVertexBuffer.CreateTexCoordRHIBuffer_RenderThread();
-	PositionVertexBuffer = VBs.PositionVertexBuffer.CreateRHIBuffer_RenderThread();
-	ColorVertexBuffer = VBs.ColorVertexBuffer.CreateRHIBuffer_RenderThread();
-	LODResource.SkinWeightProfilesData.CreateRHIBuffers_RenderThread(AltSkinWeightVertexBuffers);
-	SkinWeightVertexBuffer = LODResource.SkinWeightVertexBuffer.CreateRHIBuffer_RenderThread();
-	ClothVertexBuffer = LODResource.ClothVertexBuffer.CreateRHIBuffer_RenderThread();
-	IndexBuffer = LODResource.MultiSizeIndexContainer.CreateRHIBuffer_RenderThread();
+	TangentsVertexBuffer = VBs.StaticMeshVertexBuffer.CreateTangentsRHIBuffer(RHICmdList);
+	TexCoordVertexBuffer = VBs.StaticMeshVertexBuffer.CreateTexCoordRHIBuffer(RHICmdList);
+	PositionVertexBuffer = VBs.PositionVertexBuffer.CreateRHIBuffer(RHICmdList);
+	ColorVertexBuffer = VBs.ColorVertexBuffer.CreateRHIBuffer(RHICmdList);
+	LODResource.SkinWeightProfilesData.CreateRHIBuffers(RHICmdList, AltSkinWeightVertexBuffers);
+	SkinWeightVertexBuffer = LODResource.SkinWeightVertexBuffer.CreateRHIBuffer(RHICmdList);
+	ClothVertexBuffer = LODResource.ClothVertexBuffer.CreateRHIBuffer(RHICmdList);
+	IndexBuffer = LODResource.MultiSizeIndexContainer.CreateRHIBuffer(RHICmdList);
 }
 
 void FSkeletalMeshStreamIn::FIntermediateBuffers::CreateFromCPUData_Async(FSkeletalMeshLODRenderData& LODResource)
 {
+	FRHIAsyncCommandList RHICmdList;
+
 	FStaticMeshVertexBuffers& VBs = LODResource.StaticVertexBuffers;
-	TangentsVertexBuffer = VBs.StaticMeshVertexBuffer.CreateTangentsRHIBuffer_Async();
-	TexCoordVertexBuffer = VBs.StaticMeshVertexBuffer.CreateTexCoordRHIBuffer_Async();
-	PositionVertexBuffer = VBs.PositionVertexBuffer.CreateRHIBuffer_Async();
-	ColorVertexBuffer = VBs.ColorVertexBuffer.CreateRHIBuffer_Async();
-	LODResource.SkinWeightProfilesData.CreateRHIBuffers_Async(AltSkinWeightVertexBuffers);
-	SkinWeightVertexBuffer = LODResource.SkinWeightVertexBuffer.CreateRHIBuffer_Async();
-	ClothVertexBuffer = LODResource.ClothVertexBuffer.CreateRHIBuffer_Async();
-	IndexBuffer = LODResource.MultiSizeIndexContainer.CreateRHIBuffer_Async();
+	TangentsVertexBuffer = VBs.StaticMeshVertexBuffer.CreateTangentsRHIBuffer(*RHICmdList);
+	TexCoordVertexBuffer = VBs.StaticMeshVertexBuffer.CreateTexCoordRHIBuffer(*RHICmdList);
+	PositionVertexBuffer = VBs.PositionVertexBuffer.CreateRHIBuffer(*RHICmdList);
+	ColorVertexBuffer = VBs.ColorVertexBuffer.CreateRHIBuffer(*RHICmdList);
+	LODResource.SkinWeightProfilesData.CreateRHIBuffers(*RHICmdList, AltSkinWeightVertexBuffers);
+	SkinWeightVertexBuffer = LODResource.SkinWeightVertexBuffer.CreateRHIBuffer(*RHICmdList);
+	ClothVertexBuffer = LODResource.ClothVertexBuffer.CreateRHIBuffer(*RHICmdList);
+	IndexBuffer = LODResource.MultiSizeIndexContainer.CreateRHIBuffer(*RHICmdList);
 }
 
 void FSkeletalMeshStreamIn::FIntermediateBuffers::SafeRelease()

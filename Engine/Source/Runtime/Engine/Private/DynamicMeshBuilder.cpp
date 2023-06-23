@@ -97,7 +97,7 @@ public:
 	 * @param Args The buffer size in bytes.
 	 * @returns A suitably sized buffer or NULL on failure.
 	 */
-	FBufferRHIRef CreateResource(FGlobalDynamicMeshPoolPolicy::CreationArguments Args)
+	FBufferRHIRef CreateResource(FRHICommandListBase& RHICmdList, FGlobalDynamicMeshPoolPolicy::CreationArguments Args)
 	{
 		FGlobalDynamicMeshPoolPolicy::CreationArguments BufferSize = GetPoolBucketSize(GetPoolBucketIndex(Args));
 		// The use of BUF_Static is deliberate - on OS X the buffer backing-store orphaning & reallocation will dominate execution time
@@ -155,7 +155,7 @@ public:
 	 * @param Args The buffer size in bytes.
 	 * @returns A suitably sized buffer or NULL on failure.
 	 */
-	FBufferRHIRef CreateResource(FGlobalDynamicMeshPoolPolicy::CreationArguments Args)
+	FBufferRHIRef CreateResource(FRHICommandListBase& RHICmdList, FGlobalDynamicMeshPoolPolicy::CreationArguments Args)
 	{
 		FGlobalDynamicMeshPoolPolicy::CreationArguments BufferSize = GetPoolBucketSize(GetPoolBucketIndex(Args));
 		FRHIResourceCreateInfo CreateInfo(TEXT("FGlobalDynamicMeshVertexPolicy"));
@@ -607,7 +607,7 @@ public:
 				Data.TangentBasisComponents[1] = FVertexStreamComponent(&PooledVertexBuffer->TangentBuffer, sizeof(FPackedNormal), 2 * sizeof(FPackedNormal), VET_PackedNormal, EVertexStreamUsage::ManualFetch);
 				Data.ColorComponent = FVertexStreamComponent(&PooledVertexBuffer->ColorBuffer, 0, sizeof(FColor), VET_Color, EVertexStreamUsage::ManualFetch);
 			}
-			VertexFactory->SetData(Data);
+			VertexFactory->SetData(RHICmdList, Data);
 		});
 
 		FLocalVertexFactory::InitResource(RHICmdList);
@@ -864,7 +864,7 @@ void FDynamicMeshBuilder::GetMesh(
 			}
 			else
 			{
-				OneFrameResources->PrimitiveUniformBuffer->SetContents(PrimitiveParams);
+				OneFrameResources->PrimitiveUniformBuffer->SetContents(RHICmdList, PrimitiveParams);
 			}
 
 			OneFrameResources->PrimitiveUniformBuffer->InitResource(RHICmdList);
@@ -955,7 +955,7 @@ void FDynamicMeshBuilder::GetMeshElement(const FPrimitiveUniformShaderParameters
 			}
 			else
 			{
-				OneFrameResource.PrimitiveUniformBuffer->SetContents(PrimitiveParams);
+				OneFrameResource.PrimitiveUniformBuffer->SetContents(RHICmdList, PrimitiveParams);
 			}
 
 			OneFrameResource.PrimitiveUniformBuffer->InitResource(RHICmdList);
@@ -1025,7 +1025,7 @@ void FDynamicMeshBuilder::Draw(FPrimitiveDrawInterface* PDI,const FMatrix& Local
 		}
 		else
 		{
-			PrimitiveUniformBuffer->SetContents(PrimitiveParams);
+			PrimitiveUniformBuffer->SetContents(FRHICommandListImmediate::Get(), PrimitiveParams);
 		}
 		PDI->RegisterDynamicResource(PrimitiveUniformBuffer);
 

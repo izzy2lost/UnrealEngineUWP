@@ -46,7 +46,7 @@ void FBoneMapVertexBuffer::AllocateData(bool bInNeedsCPUAccess)
 void FBoneMapVertexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 {
 	const bool bHadData = BoneMapData != nullptr;
-	VertexBufferRHI = CreateRHIBuffer<true>(BoneMapData, NumVertices, BUF_Static | BUF_ShaderResource | BUF_SourceCopy, TEXT("FBoneMapVertexBuffer")); 
+	VertexBufferRHI = FRenderResource::CreateRHIBuffer(RHICmdList, BoneMapData, NumVertices, BUF_Static | BUF_ShaderResource | BUF_SourceCopy, TEXT("FBoneMapVertexBuffer")); 
 	if (VertexBufferRHI != nullptr)
 	{
 		VertexBufferSRV = RHICmdList.CreateShaderResourceView(FShaderResourceViewInitializer(bHadData ? VertexBufferRHI : nullptr, PixelFormat));

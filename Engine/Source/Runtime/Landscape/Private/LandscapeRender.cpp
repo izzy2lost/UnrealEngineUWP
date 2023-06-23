@@ -1421,14 +1421,14 @@ void FLandscapeComponentSceneProxy::CreateRenderThreadResources()
 	LandscapeFixedGridUniformShaderParameters.AddDefaulted(NumMips);
 	for (int32 LodIndex = 0; LodIndex < NumMips; ++LodIndex)
 	{
-		LandscapeFixedGridUniformShaderParameters[LodIndex].InitResource(RHICmdList);
 		FLandscapeFixedGridUniformShaderParameters Parameters;
 		Parameters.LodValues = FVector4f(
 			static_cast<float>(LodIndex),
 			0.f,
 			(float)((SubsectionSizeVerts >> LodIndex) - 1),
 			1.f / (float)((SubsectionSizeVerts >> LodIndex) - 1));
-		LandscapeFixedGridUniformShaderParameters[LodIndex].SetContents(Parameters);
+		LandscapeFixedGridUniformShaderParameters[LodIndex].SetContents(RHICmdList, Parameters);
+		LandscapeFixedGridUniformShaderParameters[LodIndex].InitResource(RHICmdList);
 	}
 
 #if WITH_EDITOR
@@ -1998,7 +1998,7 @@ void FLandscapeComponentSceneProxy::OnTransformChanged()
 		LandscapeParams.XYOffsetmapTextureSampler = GBlackTexture->SamplerStateRHI;
 	}
 
-	LandscapeUniformShaderParameters.SetContents(LandscapeParams);
+	LandscapeUniformShaderParameters.SetContents(FRHICommandListImmediate::Get(), LandscapeParams);
 
 	// Recache mesh draw commands for changed uniform buffers
 	GetScene().UpdateCachedRenderStates(this);

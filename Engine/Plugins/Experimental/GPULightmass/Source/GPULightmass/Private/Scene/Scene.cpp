@@ -1291,7 +1291,7 @@ void FScene::AddGeometryInstanceFromComponent(ULandscapeComponent* InComponent)
 				0.f,
 				(float)((InstanceRenderStateRef->SubsectionSizeVerts >> LodIndex) - 1),
 				1.f / (float)((InstanceRenderStateRef->SubsectionSizeVerts >> LodIndex) - 1));
-			InstanceRenderStateRef->LandscapeFixedGridUniformShaderParameters[LodIndex].SetContents(Parameters);
+			InstanceRenderStateRef->LandscapeFixedGridUniformShaderParameters[LodIndex].SetContents(RHICmdList, Parameters);
 		}
 
 		{
@@ -1355,8 +1355,8 @@ void FScene::AddGeometryInstanceFromComponent(ULandscapeComponent* InComponent)
 			LandscapeParams.XYOffsetmapTextureSampler = GBlackTexture->SamplerStateRHI;
 
 			InstanceRenderStateRef->LandscapeUniformShaderParameters = MakeUnique<TUniformBuffer<FLandscapeUniformShaderParameters>>();
+			InstanceRenderStateRef->LandscapeUniformShaderParameters->SetContents(RHICmdList, LandscapeParams);
 			InstanceRenderStateRef->LandscapeUniformShaderParameters->InitResource(RHICmdList);
-			InstanceRenderStateRef->LandscapeUniformShaderParameters->SetContents(LandscapeParams);
 		}
 
 		for (int32 LODIndex = 0; LODIndex < InstanceLightmapRenderStateInitializers.Num(); LODIndex++)

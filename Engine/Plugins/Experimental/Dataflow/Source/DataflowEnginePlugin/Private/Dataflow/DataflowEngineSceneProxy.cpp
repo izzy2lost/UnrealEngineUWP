@@ -243,7 +243,7 @@ void FDataflowEngineSceneProxy::CreateMeshRenderThreadResources()
 	VertexBuffers.StaticMeshVertexBuffer.BindTangentVertexBuffer(&VertexFactory, Data);
 	VertexBuffers.StaticMeshVertexBuffer.BindTexCoordVertexBuffer(&VertexFactory, Data);
 	VertexBuffers.ColorVertexBuffer.BindColorVertexBuffer(&VertexFactory, Data);
-	VertexFactory.SetData(Data);
+	VertexFactory.SetData(RHICmdList, Data);
 
 	VertexFactory.InitResource(RHICmdList);
 	IndexBuffer.InitResource(RHICmdList);
@@ -396,7 +396,7 @@ void FDataflowEngineSceneProxy::CreateInstancedVertexRenderThreadResources()
 				BoxVertexBuffers.StaticMeshVertexBuffer.BindTangentVertexBuffer(&VertexFactory, Data);
 				BoxVertexBuffers.StaticMeshVertexBuffer.BindTexCoordVertexBuffer(&VertexFactory, Data);
 				BoxVertexBuffers.ColorVertexBuffer.BindColorVertexBuffer(&VertexFactory, Data);
-				BoxVertexFactory.SetData(Data);
+				BoxVertexFactory.SetData(RHICmdList, Data);
 
 				BoxVertexFactory.InitResource(RHICmdList);
 				BoxIndexBuffer.InitResource(RHICmdList);

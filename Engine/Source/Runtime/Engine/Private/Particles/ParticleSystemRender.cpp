@@ -813,6 +813,8 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(const FParticleSys
 
 	const auto FeatureLevel = View->GetFeatureLevel();
 
+	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+
 	// Sort and generate particles for this view.
 	const FDynamicSpriteEmitterReplayDataBase* SourceData = GetSourceData();
 
@@ -844,11 +846,11 @@ void FDynamicSpriteEmitterData::GetDynamicMeshElementsEmitter(const FParticleSys
 			SpriteVertexFactory->SetParticleFactoryType(PVFT_Sprite);
 			SpriteVertexFactory->SetNumVertsInInstanceBuffer(SourceData->RequiredModule->bCutoutTexureIsValid ? SourceData->RequiredModule->NumBoundingVertices : 4);
 			SpriteVertexFactory->SetUsesDynamicParameter(bUsesDynamicParameter, bUsesDynamicParameter ? GetDynamicParameterVertexStride() : 0);
-			SpriteVertexFactory->InitResource(FRHICommandListImmediate::Get());
+			SpriteVertexFactory->InitResource(RHICmdList);
 
 			if (SourceData->bUseLocalSpace == false)
 			{
-				Proxy->UpdateWorldSpacePrimitiveUniformBuffer();
+				Proxy->UpdateWorldSpacePrimitiveUniformBuffer(RHICmdList);
 			}
 
 			FGlobalDynamicVertexBuffer& DynamicVertexBuffer = Collector.GetDynamicVertexBuffer();
@@ -1439,7 +1441,7 @@ void FDynamicMeshEmitterData::GetDynamicMeshElementsEmitter(const FParticleSyste
 			MeshVertexFactory->SetInstanceBuffer(Allocation.VertexBuffer, Allocation.VertexOffset, InstanceVertexStride);
 			MeshVertexFactory->SetDynamicParameterBuffer(DynamicParameterAllocation.VertexBuffer, DynamicParameterAllocation.VertexOffset, GetDynamicParameterVertexStride());
 
-			Proxy->UpdateWorldSpacePrimitiveUniformBuffer();
+			Proxy->UpdateWorldSpacePrimitiveUniformBuffer(RHICmdList);
 			MeshVertexFactory->GetInstanceVerticesCPU() = InstanceVerticesCPU;
 
 			const bool bIsWireframe = AllowDebugViewmodes() && View->Family->EngineShowFlags.Wireframe;
@@ -2369,6 +2371,9 @@ void FDynamicBeam2EmitterData::GetDynamicMeshElementsEmitter(const FParticleSyst
 	{
 		return;
 	}
+
+	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+
 	FIndexBuffer* IndexBuffer = nullptr;
 	uint32 FirstIndex = 0;
 	int32 OutTriangleCount = 0;
@@ -2393,7 +2398,7 @@ void FDynamicBeam2EmitterData::GetDynamicMeshElementsEmitter(const FParticleSyst
 
 	if (Source.bUseLocalSpace == false)
 	{
-		Proxy->UpdateWorldSpacePrimitiveUniformBuffer();
+		Proxy->UpdateWorldSpacePrimitiveUniformBuffer(RHICmdList);
 	}
 
 	auto FeatureLevel = View->GetFeatureLevel();
@@ -2401,7 +2406,7 @@ void FDynamicBeam2EmitterData::GetDynamicMeshElementsEmitter(const FParticleSyst
 	FParticleBeamTrailVertexFactory* BeamTrailVertexFactory = &CollectorResources.VertexFactory;
 	BeamTrailVertexFactory->SetParticleFactoryType(PVFT_BeamTrail);
 	BeamTrailVertexFactory->SetUsesDynamicParameter(bUsesDynamicParameter);
-	BeamTrailVertexFactory->InitResource(FRHICommandListImmediate::Get());
+	BeamTrailVertexFactory->InitResource(RHICmdList);
 
 	// Create and set the uniform buffer for this emitter.
 	BeamTrailVertexFactory->SetBeamTrailUniformBuffer(CreateBeamTrailUniformBuffer(Proxy, &Source, View));
@@ -5123,6 +5128,9 @@ void FDynamicTrailsEmitterData::GetDynamicMeshElementsEmitter(const FParticleSys
 	{
 		return;
 	}
+
+	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+
 	const bool bIsWireframe = ViewFamily.EngineShowFlags.Wireframe;
 	FIndexBuffer* IndexBuffer = nullptr;
 	uint32 FirstIndex = 0;
@@ -5153,14 +5161,14 @@ void FDynamicTrailsEmitterData::GetDynamicMeshElementsEmitter(const FParticleSys
 
 	if (SourcePointer->bUseLocalSpace == false)
 	{
-		Proxy->UpdateWorldSpacePrimitiveUniformBuffer();
+		Proxy->UpdateWorldSpacePrimitiveUniformBuffer(RHICmdList);
 	}
 
 	FDynamicBeamTrailCollectorResources& CollectorResources = Collector.AllocateOneFrameResource<FDynamicBeamTrailCollectorResources>(FeatureLevel);
 	FParticleBeamTrailVertexFactory* BeamTrailVertexFactory = &CollectorResources.VertexFactory;
 	BeamTrailVertexFactory->SetParticleFactoryType(PVFT_BeamTrail);
 	BeamTrailVertexFactory->SetUsesDynamicParameter(bUsesDynamicParameter);
-	BeamTrailVertexFactory->InitResource(FRHICommandListImmediate::Get());
+	BeamTrailVertexFactory->InitResource(RHICmdList);
 
 	// Create and set the uniform buffer for this emitter.
 	BeamTrailVertexFactory->SetBeamTrailUniformBuffer(CreateBeamTrailUniformBuffer(Proxy, SourcePointer, View));
@@ -6839,7 +6847,7 @@ void FParticleSystemSceneProxy::OnTransformChanged()
 	WorldSpaceUBHash = 0;
 }
 
-void FParticleSystemSceneProxy::UpdateWorldSpacePrimitiveUniformBuffer() const
+void FParticleSystemSceneProxy::UpdateWorldSpacePrimitiveUniformBuffer(FRHICommandListBase& RHICmdList) const
 {
 	// Hash custom floats because we need to invalidate this UB if they don't match otherwise updates to the buffer won't work
 	uint32 NewWorldSpaceUBHash = 0;
@@ -6855,6 +6863,7 @@ void FParticleSystemSceneProxy::UpdateWorldSpacePrimitiveUniformBuffer() const
 	{
 		WorldSpaceUBHash = NewWorldSpaceUBHash;
 		WorldSpacePrimitiveUniformBuffer.SetContents(
+			RHICmdList,
 			FPrimitiveUniformShaderParametersBuilder{}
 			.Defaults()
 				.LocalToWorld(FMatrix::Identity)
@@ -6873,7 +6882,7 @@ void FParticleSystemSceneProxy::UpdateWorldSpacePrimitiveUniformBuffer() const
 
 	if ( bNeedsInit)
 	{
-		WorldSpacePrimitiveUniformBuffer.InitResource(FRHICommandListImmediate::Get());
+		WorldSpacePrimitiveUniformBuffer.InitResource(RHICmdList);
 	}
 }
 

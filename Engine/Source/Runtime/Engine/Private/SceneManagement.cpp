@@ -129,7 +129,7 @@ FFrozenSceneViewMatricesGuard::~FFrozenSceneViewMatricesGuard()
 IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(WorkingColorSpace);
 IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FWorkingColorSpaceShaderParameters, "WorkingColorSpace", WorkingColorSpace);
 
-void FDefaultWorkingColorSpaceUniformBuffer::Update(const UE::Color::FColorSpace& InColorSpace)
+void FDefaultWorkingColorSpaceUniformBuffer::Update(FRHICommandListBase& RHICmdList, const UE::Color::FColorSpace& InColorSpace)
 {
 	using namespace UE::Color;
 
@@ -147,7 +147,7 @@ void FDefaultWorkingColorSpaceUniformBuffer::Update(const UE::Color::FColorSpace
 
 	Parameters.bIsSRGB = InColorSpace.IsSRGB();
 
-	SetContents(Parameters);
+	SetContents(RHICmdList, Parameters);
 }
 
 TGlobalResource<FDefaultWorkingColorSpaceUniformBuffer> GDefaultWorkingColorSpaceUniformBuffer;
@@ -480,8 +480,9 @@ void FDynamicPrimitiveUniformBuffer::Set(
 	bool bOutputVelocity,
 	const FCustomPrimitiveData* CustomPrimitiveData)
 {
-	check(IsInRenderingThread());
+	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
 	UniformBuffer.SetContents(
+		RHICmdList,
 		FPrimitiveUniformShaderParametersBuilder{}
 		.Defaults()
 			.LocalToWorld(LocalToWorld)
@@ -496,7 +497,7 @@ void FDynamicPrimitiveUniformBuffer::Set(
 			.CustomPrimitiveData(CustomPrimitiveData)
 		.Build()
 	);
-	UniformBuffer.InitResource(FRHICommandListImmediate::Get());
+	UniformBuffer.InitResource(RHICmdList);
 }
 
 void FDynamicPrimitiveUniformBuffer::Set(
@@ -1265,7 +1266,7 @@ void FDefaultLightmapResourceClusterUniformBuffer::InitRHI(FRHICommandListBase& 
 {
 	FLightmapResourceClusterShaderParameters Parameters;
 	GetLightmapClusterResourceParameters(GMaxRHIFeatureLevel, FLightmapClusterResourceInput(), nullptr, Parameters);
-	SetContents(Parameters);
+	SetContentsNoUpdate(Parameters);
 	Super::InitRHI(RHICmdList);
 }
 
@@ -1547,7 +1548,7 @@ void FDefaultMobileReflectionCaptureUniformBuffer::InitRHI(FRHICommandListBase& 
 	Parameters.Params = FVector4f(1.f, 0.f, 0.f, 0.f);
 	Parameters.Texture = GBlackTextureCube->TextureRHI;
 	Parameters.TextureSampler = GBlackTextureCube->SamplerStateRHI;
-	SetContents(Parameters);
+	SetContentsNoUpdate(Parameters);
 	Super::InitRHI(RHICmdList);
 }
 

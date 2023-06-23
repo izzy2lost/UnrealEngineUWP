@@ -207,7 +207,7 @@ static void InitVertexFactory(FLocalVertexFactory* VertexFactory, const FMRMeshP
 			NewData.ColorComponent = FVertexStreamComponent(&MRMeshSection.ColorBuffer, 0, sizeof(FColor), VET_Color, EVertexStreamUsage::ManualFetch);
 		}
 
-		VertexFactory->SetData(NewData);
+		VertexFactory->SetData(RHICmdList, NewData);
 		VertexFactory->InitResource(RHICmdList);
 	});
 }

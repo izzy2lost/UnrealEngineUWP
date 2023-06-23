@@ -35,7 +35,7 @@ void FCanvasTileRendererItem::FTileVertexFactory::InitResource(FRHICommandListBa
 	VertexBuffers->StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(this, VertexData);
 	VertexBuffers->StaticMeshVertexBuffer.BindLightMapVertexBuffer(this, VertexData, 0);
 	VertexBuffers->ColorVertexBuffer.BindColorVertexBuffer(this, VertexData);
-	SetData(VertexData);
+	SetData(RHICmdList, VertexData);
 
 	FLocalVertexFactory::InitResource(RHICmdList);
 }

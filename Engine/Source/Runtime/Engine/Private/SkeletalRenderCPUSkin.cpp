@@ -312,7 +312,7 @@ void FSkeletalMeshObjectCPUSkin::CacheVertices(int32 LODIndex, bool bForce) cons
 			MeshLODptr->StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactoryPtr, Data, 0);
 			MeshLODptr->MeshObjectColorBuffer->BindColorVertexBuffer(VertexFactoryPtr, Data);
 
-			VertexFactoryPtr->SetData(Data);
+			VertexFactoryPtr->SetData(RHICmdList, Data);
 			VertexFactoryPtr->InitResource(RHICmdList);
 		});
 	}
@@ -364,7 +364,7 @@ void FSkeletalMeshObjectCPUSkin::FSkeletalMeshObjectLOD::InitResources(FSkelMesh
 			Self->StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactoryPtr, Data, 0);
 			Self->MeshObjectColorBuffer->BindColorVertexBuffer(VertexFactoryPtr, Data);
 
-			VertexFactoryPtr->SetData(Data);
+			VertexFactoryPtr->SetData(RHICmdList, Data);
 			VertexFactoryPtr->InitResource(RHICmdList);
 		});
 

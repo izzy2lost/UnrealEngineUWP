@@ -36,6 +36,7 @@ FAutoConsoleVariableRef CVarSkinnedGeometryMaxRayTracingPrimitivesPerCmdList(
 
 void FRayTracingSkinnedGeometryUpdateQueue::Add(FRayTracingGeometry* InRayTracingGeometry, const FRayTracingAccelerationStructureSize& StructureSize, EAccelerationStructureBuildMode InBuildMode)
 {
+	FScopeLock Lock(&CS);
 	FRayTracingUpdateInfo* CurrentUpdateInfo = ToUpdate.Find(InRayTracingGeometry);
 	if (CurrentUpdateInfo == nullptr)
 	{
@@ -54,6 +55,7 @@ void FRayTracingSkinnedGeometryUpdateQueue::Add(FRayTracingGeometry* InRayTracin
 
 void FRayTracingSkinnedGeometryUpdateQueue::Remove(FRayTracingGeometry* RayTracingGeometry, uint32 EstimatedMemory)
 {
+	FScopeLock Lock(&CS);
 	if (ToUpdate.Find(RayTracingGeometry) != nullptr)
 	{
 		ToUpdate.Remove(RayTracingGeometry);
@@ -86,6 +88,8 @@ void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRHICommandListImmediate & RH
 
 	if (ToUpdate.Num())
 	{
+		FScopeLock Lock(&CS);
+
 		// If we have more deferred deleted data than set limit then force flush to make sure all pending releases have actually been freed
 		// before reallocating a lot of new BLAS data
 		if (EstimatedMemoryPendingRelease >= GMemoryLimitForBatchedRayTracingGeometryUpdates * 1024ull * 1024ull)

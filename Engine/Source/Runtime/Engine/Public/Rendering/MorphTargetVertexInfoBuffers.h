@@ -107,10 +107,6 @@ protected:
 
 	friend class FSkeletalMeshLODRenderData;
 	ENGINE_API friend FArchive& operator<<(FArchive& Ar, FMorphTargetVertexInfoBuffers& MorphTargetVertexInfoBuffers);
-
-private:
-	template <bool bRenderThread>
-	FBufferRHIRef CreateMorphRHIBuffer_Internal();
 };
 
 ENGINE_API FArchive& operator<<(FArchive& Ar, FMorphTargetVertexInfoBuffers& MorphTargetVertexInfoBuffers);

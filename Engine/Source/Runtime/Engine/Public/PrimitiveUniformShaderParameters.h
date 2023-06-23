@@ -90,7 +90,7 @@ class FIdentityPrimitiveUniformBuffer : public TUniformBuffer<FPrimitiveUniformS
 public:
 	void InitContents()
 	{
-		SetContents(GetIdentityPrimitiveParameters());
+		SetContents(FRenderResource::GetImmediateCommandList(), GetIdentityPrimitiveParameters());
 	}
 };
 

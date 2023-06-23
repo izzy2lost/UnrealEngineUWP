@@ -103,6 +103,8 @@ void FNiagaraRendererVolumes::CreateRenderThreadResources()
 {
 	FNiagaraRenderer::CreateRenderThreadResources();
 
+	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+
 	FLocalVertexFactory::FDataType VFData;
 	VFData.PositionComponent = FVertexStreamComponent(&GNullVertexBuffer, 0, 0, VET_Float3);
 	VFData.PositionComponentSRV = GNullVertexBuffer.VertexBufferSRV;
@@ -118,8 +120,8 @@ void FNiagaraRendererVolumes::CreateRenderThreadResources()
 	VFData.ColorComponent = FVertexStreamComponent(&GNullColorVertexBuffer, 0, 0, VET_Color, EVertexStreamUsage::ManualFetch);
 	VFData.ColorComponentsSRV = GNullColorVertexBuffer.VertexBufferSRV;
 
-	VertexFactory.SetData(VFData);
-	VertexFactory.InitResource(FRHICommandListImmediate::Get());
+	VertexFactory.SetData(RHICmdList, VFData);
+	VertexFactory.InitResource(RHICmdList);
 }
 
 void FNiagaraRendererVolumes::ReleaseRenderThreadResources()

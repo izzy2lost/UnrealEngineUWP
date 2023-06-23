@@ -255,13 +255,13 @@ void FPaperRenderSceneProxy::RecreateCachedRenderData(FRHICommandListBase& RHICm
 			//When the buffer reallocates, the factory needs to bind the buffers and SRV again, we just init again.
 			if (bFactoryRequiresReInitialization)
 			{
-				VertexFactory.Init(&VertexBuffer);
+				VertexFactory.Init(RHICmdList, &VertexBuffer);
 			}
 		}
 		else
 		{
 			VertexBuffer.InitResource(RHICmdList);
-			VertexFactory.Init(&VertexBuffer);
+			VertexFactory.Init(RHICmdList, &VertexBuffer);
 		}
 	}
 }
@@ -270,11 +270,12 @@ void FPaperRenderSceneProxy::CreateRenderThreadResources()
 {
 	if (bSpritesUseVertexBufferPath && (Vertices.Num() > 0))
 	{
+		FRHICommandList& RHICmdList = FRHICommandListImmediate::Get();
 		VertexBuffer.Vertices = Vertices;
 
 		// Init the resources
-		VertexBuffer.InitResource(FRHICommandListImmediate::Get());
-		VertexFactory.Init(&VertexBuffer);
+		VertexBuffer.InitResource(RHICmdList);
+		VertexFactory.Init(RHICmdList, &VertexBuffer);
 	}
 }
 

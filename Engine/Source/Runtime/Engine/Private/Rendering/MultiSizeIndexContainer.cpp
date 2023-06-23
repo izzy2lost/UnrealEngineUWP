@@ -4,6 +4,7 @@
 #include "EngineLogs.h"
 #include "RawIndexBuffer.h"
 #include "Stats/Stats.h"
+#include "RenderingThread.h"
 
 FMultiSizeIndexContainer::~FMultiSizeIndexContainer()
 {
@@ -193,36 +194,31 @@ void FMultiSizeIndexContainer::SerializeMetaData(FArchive& Ar, bool bNeedsCPUAcc
 	IndexBuffer->SerializeMetaData(Ar);
 }
 
-FBufferRHIRef FMultiSizeIndexContainer::CreateRHIBuffer_RenderThread()
+FBufferRHIRef FMultiSizeIndexContainer::CreateRHIBuffer(FRHICommandListBase& RHICmdList)
 {
 	if (IndexBuffer)
 	{
 		if (DataTypeSize == sizeof(uint16))
 		{
-			return static_cast<FRawStaticIndexBuffer16or32<uint16>*>(IndexBuffer)->CreateRHIBuffer_RenderThread();
+			return static_cast<FRawStaticIndexBuffer16or32<uint16>*>(IndexBuffer)->CreateRHIBuffer(RHICmdList);
 		}
 		else
 		{
-			return static_cast<FRawStaticIndexBuffer16or32<uint32>*>(IndexBuffer)->CreateRHIBuffer_RenderThread();
+			return static_cast<FRawStaticIndexBuffer16or32<uint32>*>(IndexBuffer)->CreateRHIBuffer(RHICmdList);
 		}
 	}
 	return nullptr;
 }
 
+FBufferRHIRef FMultiSizeIndexContainer::CreateRHIBuffer_RenderThread()
+{
+	return CreateRHIBuffer(FRHICommandListImmediate::Get());
+}
+
 FBufferRHIRef FMultiSizeIndexContainer::CreateRHIBuffer_Async()
 {
-	if (IndexBuffer)
-	{
-		if (DataTypeSize == sizeof(uint16))
-		{
-			return static_cast<FRawStaticIndexBuffer16or32<uint16>*>(IndexBuffer)->CreateRHIBuffer_Async();
-		}
-		else
-		{
-			return static_cast<FRawStaticIndexBuffer16or32<uint32>*>(IndexBuffer)->CreateRHIBuffer_Async();
-		}
-	}
-	return nullptr;
+	FRHIAsyncCommandList RHICmdList;
+	return CreateRHIBuffer(*RHICmdList);
 }
 
 void FMultiSizeIndexContainer::InitRHIForStreaming(FRHIBuffer* IntermediateBuffer, FRHIResourceUpdateBatcher& Batcher)

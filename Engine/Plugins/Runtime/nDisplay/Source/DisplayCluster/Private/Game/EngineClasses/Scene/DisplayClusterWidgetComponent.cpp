@@ -57,7 +57,7 @@ public:
 			this->StaticMeshVertexBuffers.StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(&this->VertexFactory, Data);
 			this->StaticMeshVertexBuffers.StaticMeshVertexBuffer.BindLightMapVertexBuffer(&this->VertexFactory, Data, 0);
 			this->StaticMeshVertexBuffers.ColorVertexBuffer.BindColorVertexBuffer(&this->VertexFactory, Data);
-			this->VertexFactory.SetData(Data);
+			this->VertexFactory.SetData(RHICmdList, Data);
 
 			this->VertexFactory.InitResource(RHICmdList);
 		});

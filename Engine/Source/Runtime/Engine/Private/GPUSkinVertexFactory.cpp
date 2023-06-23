@@ -178,9 +178,8 @@ uint32 FSharedPoolPolicyData::BucketSizes[NumPoolBucketSizes] = {
 /*-----------------------------------------------------------------------------
  FBoneBufferPoolPolicy
  -----------------------------------------------------------------------------*/
-FVertexBufferAndSRV FBoneBufferPoolPolicy::CreateResource(CreationArguments Args)
+FVertexBufferAndSRV FBoneBufferPoolPolicy::CreateResource(FRHICommandListBase& RHICmdList, CreationArguments Args)
 {
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
 	uint32 BufferSize = GetPoolBucketSize(GetPoolBucketIndex(Args));
 	// in VisualStudio the copy constructor call on the return argument can be optimized out
 	// see https://msdn.microsoft.com/en-us/library/ms364057.aspx#nrvo_cpp05_topic3
@@ -200,9 +199,8 @@ void FBoneBufferPoolPolicy::FreeResource(FVertexBufferAndSRV Resource)
 {
 }
 
-FVertexBufferAndSRV FClothBufferPoolPolicy::CreateResource(CreationArguments Args)
+FVertexBufferAndSRV FClothBufferPoolPolicy::CreateResource(FRHICommandListBase& RHICmdList, CreationArguments Args)
 {
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
 	uint32 BufferSize = GetPoolBucketSize(GetPoolBucketIndex(Args));
 	// in VisualStudio the copy constructor call on the return argument can be optimized out
 	// see https://msdn.microsoft.com/en-us/library/ms364057.aspx#nrvo_cpp05_topic3

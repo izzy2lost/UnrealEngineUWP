@@ -2459,7 +2459,7 @@ public:
 	 * world space primitive uniform buffer is up-to-date.
 	 * Only called in the rendering thread.
 	 */
-	void UpdateWorldSpacePrimitiveUniformBuffer() const;
+	void UpdateWorldSpacePrimitiveUniformBuffer(FRHICommandListBase& RHICmdList) const;
 
 	/** Object position in post projection space. */
 	void GetObjectPositionAndScale(const FSceneView& View, FVector2D& ObjectNDCPosition, FVector2D& ObjectMacroUVScales) const;

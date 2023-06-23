@@ -18,11 +18,6 @@
 /** Whether to enable mip-level fading or not: +1.0f if enabled, -1.0f if disabled. */
 float GEnableMipLevelFading = 1.0f;
 
-bool GFreeStructuresOnRHIBufferCreation = true;
-FAutoConsoleVariableRef CVarFreeStructuresOnRHIBufferCreation(
-	TEXT("r.FreeStructuresOnRHIBufferCreation"),
-	GFreeStructuresOnRHIBufferCreation,
-	TEXT("Toggles experimental method for freeing helper structures that own the resource arrays after submitting to RHI instead of in the callback sink."));
 
 class FRenderResourceList
 {
@@ -164,7 +159,7 @@ void FRenderResource::ChangeFeatureLevel(ERHIFeatureLevel::Type NewFeatureLevel)
 	});
 }
 
-FRHICommandListBase& FRenderResource::GetCommandList()
+FRHICommandListBase& FRenderResource::GetImmediateCommandList()
 {
 	check(IsInRenderingThread());
 	return FRHICommandListExecutor::GetImmediateCommandList();
@@ -256,16 +251,16 @@ FRenderResource::~FRenderResource()
 
 bool FRenderResource::ShouldFreeResourceObject(void* ResourceObject, FResourceArrayInterface* ResourceArray)
 {
-	return GFreeStructuresOnRHIBufferCreation && ResourceObject && (!ResourceArray || !ResourceArray->GetResourceDataSize());
+	return ResourceObject && (!ResourceArray || !ResourceArray->GetResourceDataSize());
 }
 
 FBufferRHIRef FRenderResource::CreateRHIBufferInternal(
+	FRHICommandListBase& RHICmdList,
 	const TCHAR* InDebugName,
 	const FName& InOwnerName,
 	uint32 ResourceCount,
 	EBufferUsageFlags InBufferUsageFlags,
 	FResourceArrayInterface* ResourceArray,
-	bool bRenderThread,
 	bool bWithoutNativeResource)
 {
 	const uint32 SizeInBytes = ResourceArray ? ResourceArray->GetResourceDataSize() : 0;
@@ -274,16 +269,7 @@ FBufferRHIRef FRenderResource::CreateRHIBufferInternal(
 	CreateInfo.OwnerName = InOwnerName;
 	CreateInfo.bWithoutNativeResource = bWithoutNativeResource;
 
-	FBufferRHIRef Buffer;
-	if (bRenderThread)
-	{
-		Buffer = FRHICommandListImmediate::Get().CreateVertexBuffer(SizeInBytes, InBufferUsageFlags, CreateInfo);
-	}
-	else
-	{
-		FRHIAsyncCommandList CommandList;
-		Buffer = CommandList->CreateBuffer(SizeInBytes, InBufferUsageFlags | EBufferUsageFlags::VertexBuffer, 0, ERHIAccess::SRVMask, CreateInfo);
-	}
+	FBufferRHIRef Buffer = RHICmdList.CreateBuffer(SizeInBytes, InBufferUsageFlags | EBufferUsageFlags::VertexBuffer, 0, ERHIAccess::VertexOrIndexBuffer, CreateInfo);
 
 	Buffer->SetOwnerName(InOwnerName);
 	return Buffer;

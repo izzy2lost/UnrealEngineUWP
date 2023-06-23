@@ -107,7 +107,7 @@ public:
 			Self->StaticMeshVertexBuffers.StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(&Self->VertexFactory, Data);
 			Self->StaticMeshVertexBuffers.StaticMeshVertexBuffer.BindLightMapVertexBuffer(&Self->VertexFactory, Data, 0);
 			Self->StaticMeshVertexBuffers.ColorVertexBuffer.BindColorVertexBuffer(&Self->VertexFactory, Data);
-			Self->VertexFactory.SetData(Data);
+			Self->VertexFactory.SetData(RHICmdList, Data);
 
 			Self->VertexFactory.InitResource(RHICmdList);
 		});
@@ -252,9 +252,7 @@ public:
 				Self->StaticMeshVertexBuffers.StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(VertexFactoryPtr, Data);
 				Self->StaticMeshVertexBuffers.StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactoryPtr, Data, 0);
 				Self->StaticMeshVertexBuffers.ColorVertexBuffer.BindColorVertexBuffer(VertexFactoryPtr, Data);
-				VertexFactoryPtr->SetData(Data);
-
-				VertexFactoryPtr->UpdateRHI(RHICmdList);
+				VertexFactoryPtr->SetData(RHICmdList, Data);
 			});
 		}
 	}

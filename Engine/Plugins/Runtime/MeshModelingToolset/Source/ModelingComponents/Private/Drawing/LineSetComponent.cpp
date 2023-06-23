@@ -124,7 +124,7 @@ public:
 			VertexBuffers.StaticMeshVertexBuffer.BindTangentVertexBuffer(&VertexFactory, Data);
 			VertexBuffers.StaticMeshVertexBuffer.BindTexCoordVertexBuffer(&VertexFactory, Data);
 			VertexBuffers.ColorVertexBuffer.BindColorVertexBuffer(&VertexFactory, Data);
-			VertexFactory.SetData(Data);
+			VertexFactory.SetData(RHICmdList, Data);
 
 			VertexFactory.InitResource(RHICmdList);
 			IndexBuffer.InitResource(RHICmdList);

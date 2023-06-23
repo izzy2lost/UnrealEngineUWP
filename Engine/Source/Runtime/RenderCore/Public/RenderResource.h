@@ -39,9 +39,6 @@
 class FRDGPooledBuffer;
 class FResourceArrayInterface;
 
-/** Experimental: whether we free helper structures after submitting to RHI. */
-extern RENDERCORE_API bool GFreeStructuresOnRHIBufferCreation;
-
 enum class ERenderResourceState : uint8
 {
 	Default,
@@ -134,7 +131,7 @@ public:
 	RENDERCORE_API virtual void InitResource(FRHICommandListBase& RHICmdList);
 
 	UE_DEPRECATED(5.3, "InitResource now requires a command list.")
-	virtual void InitResource() final { InitResource(GetCommandList()); }
+	virtual void InitResource() final { InitResource(GetImmediateCommandList()); }
 
 	/**
 	 * Prepares the resource for deletion.
@@ -170,18 +167,15 @@ protected:
 	FORCEINLINE bool HasValidFeatureLevel() const { return FeatureLevel < ERHIFeatureLevel::Num; }
 
 	// Helper for submitting a resource array to RHI and freeing eligible CPU memory
-	template<bool bRenderThread, typename T>
-	FBufferRHIRef CreateRHIBuffer(T& InOutResourceObject, const uint32 ResourceCount, EBufferUsageFlags InBufferUsageFlags, const TCHAR* InDebugName)
+	template<typename T>
+	FBufferRHIRef CreateRHIBuffer(FRHICommandListBase& RHICmdList, T& InOutResourceObject, uint32 ResourceCount, EBufferUsageFlags InBufferUsageFlags, const TCHAR* InDebugName)
 	{
 		FBufferRHIRef Buffer;
+
 		FResourceArrayInterface* RESTRICT ResourceArray = InOutResourceObject ? InOutResourceObject->GetResourceArray() : nullptr;
 		if (ResourceCount != 0)
 		{
-			Buffer = CreateRHIBufferInternal(InDebugName, GetOwnerName(), ResourceCount, InBufferUsageFlags, ResourceArray, bRenderThread, InOutResourceObject == nullptr);
-			if (!bRenderThread)
-			{
-				return Buffer;
-			}
+			Buffer = CreateRHIBufferInternal(RHICmdList, InDebugName, GetOwnerName(), ResourceCount, InBufferUsageFlags, ResourceArray, InOutResourceObject == nullptr);
 		}
 
 		// If the buffer creation emptied the resource array, delete the containing structure as well
@@ -194,7 +188,7 @@ protected:
 		return Buffer;
 	}
 
-	static RENDERCORE_API FRHICommandListBase& GetCommandList();
+	static RENDERCORE_API FRHICommandListBase& GetImmediateCommandList();
 
 	void SetInitPhase(EInitPhase InInitPhase)
 	{
@@ -206,12 +200,12 @@ protected:
 private:
 	static RENDERCORE_API bool ShouldFreeResourceObject(void* ResourceObject, FResourceArrayInterface* ResourceArray);
 	static RENDERCORE_API FBufferRHIRef CreateRHIBufferInternal(
+		FRHICommandListBase& RHICmdList,
 		const TCHAR* InDebugName,
 		const FName& InOwnerName,
 		uint32 ResourceCount,
 		EBufferUsageFlags InBufferUsageFlags,
 		FResourceArrayInterface* ResourceArray,
-		bool bRenderThread,
 		bool bWithoutNativeResource
 	);
 
@@ -561,7 +555,7 @@ private:
 		if (IsInRenderingThread())
 		{
 			// If the resource is constructed in the rendering thread, directly initialize it.
-			((ResourceType*)this)->InitResource(FRenderResource::GetCommandList());
+			((ResourceType*)this)->InitResource(FRenderResource::GetImmediateCommandList());
 		}
 		else
 		{
