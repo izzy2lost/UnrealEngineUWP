@@ -818,7 +818,7 @@ protected:
 			// (ie, something is actively animating this and wants restore state)
 			if (FPreAnimatedStateEntry Entry = FindEntry(InKeyArgs...))
 			{
-				ensureMsgf(this->ParentExtension->MetaDataExists(Entry), TEXT("PreAnimatedStateEntry has allocated storage but no metadata exists to track it."));
+				return ensureMsgf(this->ParentExtension->MetaDataExists(Entry), TEXT("PreAnimatedStateEntry has allocated storage but no metadata exists to track it."));
 			}
 			return false;
 		}
