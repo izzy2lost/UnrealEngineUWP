@@ -99,8 +99,7 @@ void Main(
 	{
 		const FStrataIntegrationSettings Settings = InitStrataIntegrationSettings(true /*bForceFullyRough*/, true /*bRoughDiffuseEnabled*/, 0 /*PeelLayersAboveDepth*/, false/*bRoughnessTracking*/);
 		float3 TotalTransmittancePreCoverage = 0;
-		FStrataAddressing NullStrataAddressing = (FStrataAddressing)0;	// Fake unused in StrataCreateBSDFContext when using Forward inline shading
-		StrataPixelHeader.StrataUpdateTree(NullStrataAddressing, StrataData, V, Settings, TotalCoverage, TotalTransmittancePreCoverage);
+		StrataPixelHeader.StrataUpdateTree(StrataData, V, Settings, TotalCoverage, TotalTransmittancePreCoverage);
 
 
 		// Extract averaged DiffuseAlbedo / SpecularColor
@@ -110,6 +109,7 @@ void Main(
 			#define CurrentBSDF StrataPixelHeader.StrataTree.BSDFs[BSDFIdx]
 			if (StrataIsBSDFVisible(CurrentBSDF))
 			{
+				FStrataAddressing NullStrataAddressing = (FStrataAddressing)0;	// Fake unused in StrataCreateBSDFContext when using Forward inline shading
 				FStrataBSDFContext StrataBSDFContext = StrataCreateBSDFContext(StrataPixelHeader, CurrentBSDF, NullStrataAddressing, V, L);
 				FStrataEnvLightResult StrataEnvLight = StrataEvaluateForEnvLight(StrataBSDFContext, true /*bEnableSpecular*/, Settings);
 

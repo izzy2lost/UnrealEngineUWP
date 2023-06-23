@@ -1053,7 +1053,6 @@ struct FStrataTree
 		FStrataPixelHeader StrataPixelHeader,
 		int BSDFIndex,
 		FStrataIntegrationSettings Settings,
-		FStrataAddressing NullStrataAddressing,
 		float3 V);
 
 	void UpdateSingleOperatorCoverageTransmittance(
@@ -1947,22 +1946,20 @@ struct FStrataPixelHeader
 	FStrataIrradianceAndOcclusion IrradianceAO;
 
 	// Generated according to the compiled material. It is convenient to have them here in order to avoid expenssive compilation resulting from isolated function taking as input large strucutre using inout qualifier.
-	void PreUpdateAllBSDFWithBottomUpOperatorVisit(FStrataAddressing NullStrataAddressing, float3 V);
-	void UpdateAllBSDFsOperatorCoverageTransmittance(FStrataIntegrationSettings Settings, FStrataAddressing NullStrataAddressing, float3 V);
+	void PreUpdateAllBSDFWithBottomUpOperatorVisit(float3 V);
+	void UpdateAllBSDFsOperatorCoverageTransmittance(FStrataIntegrationSettings Settings, float3 V);
 	void UpdateAllOperatorsCoverageTransmittance();
 	void UpdateAllBSDFWithBottomUpOperatorVisit();
-	void PreUpdateAllBSDFWithBottomUpOperatorVisit_FullySimplified(FStrataAddressing NullStrataAddressing, float3 V);
-	void UpdateAllBSDFsOperatorCoverageTransmittance_FullySimplified(FStrataIntegrationSettings Settings, FStrataAddressing NullStrataAddressing, float3 V);
+	void PreUpdateAllBSDFWithBottomUpOperatorVisit_FullySimplified(float3 V);
+	void UpdateAllBSDFsOperatorCoverageTransmittance_FullySimplified(FStrataIntegrationSettings Settings, float3 V);
 	void UpdateAllOperatorsCoverageTransmittance_FullySimplified();
 	void UpdateAllBSDFWithBottomUpOperatorVisit_FullySimplified();
 
 	void StrataUpdateTree(
-		inout FStrataAddressing StrataAddressing,
 		float3 V,
 		FStrataIntegrationSettings Settings);
 
 	void StrataUpdateTree(
-		inout FStrataAddressing StrataAddressing,
 		in FStrataData StrataData,
 		float3 V,
 		FStrataIntegrationSettings Settings,
@@ -1980,8 +1977,7 @@ struct FStrataPixelHeader
 		inout	float3	OutNormal)
 	{
 		FStrataIntegrationSettings Settings = InitStrataIntegrationSettings(false /*bForceFullyRough*/, false /*StrataStruct.bRoughDiffuse*/, -1/*StrataStruct.PeelLayersAboveDepth*/, false/*StrataStruct.bRoughnessTracking*/);
-		FStrataAddressing NullStrataAddressing = (FStrataAddressing)0;
-		this.StrataUpdateTree(NullStrataAddressing, StrataData, V, Settings, OutDualBlendSurfaceCoverage, OutDualBlendSurfaceTransmittancePreCoverage);
+		this.StrataUpdateTree(StrataData, V, Settings, OutDualBlendSurfaceCoverage, OutDualBlendSurfaceTransmittancePreCoverage);
 
 		FStrataBSDF UnlitBSDF = this.StrataTree.BSDFs[0];
 		OutEmissiveLuminance = BSDF_GETEMISSIVE(UnlitBSDF) * UnlitBSDF.LuminanceWeightV;
@@ -2071,7 +2067,7 @@ FStrataPixelHeader InitialiseStrataPixelHeader()
 	return Out;
 }
 
-float3x3 StrataGetBSDFSharedBasis_InlineShading(in FStrataPixelHeader StrataPixelHeader, in FStrataBSDF BSDF, in FStrataAddressing StrataAddressing)
+float3x3 StrataGetBSDFSharedBasis_InlineShading(in FStrataPixelHeader StrataPixelHeader, in FStrataBSDF BSDF)
 {
 #if STRATA_INLINE_SHADING
 	// Assume Normal & Tangent are already been normalized
@@ -2120,7 +2116,7 @@ float3x3 StrataGetBSDFSharedBasis_DeferredShading(in FStrataPixelHeader StrataPi
 float3x3 StrataGetBSDFSharedBasis(in FStrataPixelHeader StrataPixelHeader, in FStrataBSDF BSDF, in FStrataAddressing StrataAddressing)
 {
 #if STRATA_INLINE_SHADING
-	return StrataGetBSDFSharedBasis_InlineShading(StrataPixelHeader, BSDF, StrataAddressing);
+	return StrataGetBSDFSharedBasis_InlineShading(StrataPixelHeader, BSDF);
 #else 
 	return StrataGetBSDFSharedBasis_DeferredShading(StrataPixelHeader, BSDF, StrataAddressing);
 #endif
@@ -3634,7 +3630,6 @@ void FStrataPixelHeader::StrataConvertFromDBuffer(
 
 // Update all Coverage/Transmittance/Weights for all BSDFs based on material topology
 void FStrataPixelHeader::StrataUpdateTree(
-	inout FStrataAddressing StrataAddressing,
 	float3 V,
 	FStrataIntegrationSettings Settings)
 {
@@ -3644,12 +3639,12 @@ void FStrataPixelHeader::StrataUpdateTree(
 		//
 		// Pre-Update the BSDF by traversing up the strata tree until the root node. This allows to modify BSDF's parameters based on operators (i.e., thin-film coating)
 		//
-		this.PreUpdateAllBSDFWithBottomUpOperatorVisit_FullySimplified(StrataAddressing, V);
+		this.PreUpdateAllBSDFWithBottomUpOperatorVisit_FullySimplified(V);
 
 		//
 		// Update the coverage/transmittance of each leaves (==BSDFs) of the strata tree.
 		//
-		this.UpdateAllBSDFsOperatorCoverageTransmittance_FullySimplified(Settings, StrataAddressing, V);
+		this.UpdateAllBSDFsOperatorCoverageTransmittance_FullySimplified(Settings, V);
 
 		//
 		// Propagate up the coverage/transmittance of each node in the strata tree.
@@ -3666,12 +3661,12 @@ void FStrataPixelHeader::StrataUpdateTree(
 		//
 		// Pre-Update the BSDF by traversing up the strata tree until the root node. This allows to modify BSDF's parameters based on operators (i.e., thin-film coating)
 		//
-		this.PreUpdateAllBSDFWithBottomUpOperatorVisit(StrataAddressing, V);
+		this.PreUpdateAllBSDFWithBottomUpOperatorVisit(V);
 
 		//
 		// Update the coverage/transmittance of each leaves (==BSDFs) of the strata tree.
 		//
-		this.UpdateAllBSDFsOperatorCoverageTransmittance(Settings, StrataAddressing, V);
+		this.UpdateAllBSDFsOperatorCoverageTransmittance(Settings, V);
 
 		//
 		// Propagate up the coverage/transmittance of each node in the strata tree.
@@ -3687,7 +3682,6 @@ void FStrataPixelHeader::StrataUpdateTree(
 }
 
 void FStrataPixelHeader::StrataUpdateTree(
-	inout FStrataAddressing StrataAddressing,
 	in FStrataData StrataData,		// This could be int RootOperatorIndex
 	float3 V,
 	FStrataIntegrationSettings Settings,
@@ -3695,7 +3689,6 @@ void FStrataPixelHeader::StrataUpdateTree(
 	inout float3 OutTransmittancePreCoverage)
 {
 	this.StrataUpdateTree(
-		StrataAddressing,
 		V,
 		Settings);
 

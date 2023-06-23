@@ -61,8 +61,6 @@ void Main(
 
 
 	#if STRATA_ENABLED
-		FStrataAddressing NullStrataAddressing = (FStrataAddressing)0;	// Fake unused in StrataCreateBSDFContext when using Forward inline shading
-
 		FStrataData StrataData = PixelMaterialInputs.GetFrontStrataData();
 		FStrataPixelHeader StrataPixelHeader = MaterialParameters.GetFrontStrataHeader();
 
@@ -72,7 +70,7 @@ void Main(
 			// Update tree (coverage/transmittance/luminace weights)
 			const FStrataIntegrationSettings Settings = InitStrataIntegrationSettings();
 			const float3 V = MaterialParameters.CameraVector;
-			StrataPixelHeader.StrataUpdateTree(NullStrataAddressing, V, Settings);
+			StrataPixelHeader.StrataUpdateTree(V, Settings);
 
 			MaterialOpacity = StrataPixelHeader.StrataTree.Operators[StrataData.OperatorIndex].Coverage;
 		}

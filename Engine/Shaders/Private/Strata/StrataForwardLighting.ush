@@ -68,8 +68,6 @@ float3 StrataForwardLighting(
 	const float3 LightingPositionOffset = MaterialParameters.LightingPositionOffset;
 	float3 V = MaterialParameters.CameraVector;
 
-	FStrataAddressing NullStrataAddressing = (FStrataAddressing)0;	// Fake unused in StrataCreateBSDFContext when using Forward inline shading
-
 	float3 Color = 0;
 	OutCoverage = 0.0f;
 	OutTransmittancePreCoverage = 1.0f;
@@ -179,7 +177,7 @@ float3 StrataForwardLighting(
 		#endif
 
 		// Update tree (coverage/transmittance/luminace weights)
-		StrataPixelHeader.StrataUpdateTree(NullStrataAddressing, StrataData, V, Settings, OutCoverage, OutTransmittancePreCoverage);
+		StrataPixelHeader.StrataUpdateTree(StrataData, V, Settings, OutCoverage, OutTransmittancePreCoverage);
 
 		//
 		// Forward lighting
@@ -191,6 +189,7 @@ float3 StrataForwardLighting(
 
 			if (StrataIsBSDFVisible(CurrentBSDF))
 			{
+				FStrataAddressing NullStrataAddressing = (FStrataAddressing)0;	// Fake unused in StrataCreateBSDFContext when using Forward inline shading
 				// Starting with environment lighting, the context does not specify a light
 				FStrataBSDFContext StrataBSDFContext = StrataCreateBSDFContext(StrataPixelHeader, CurrentBSDF, NullStrataAddressing, V);
 					

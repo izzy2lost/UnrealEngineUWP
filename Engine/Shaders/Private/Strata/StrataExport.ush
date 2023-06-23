@@ -140,8 +140,7 @@ void PackStrataOut(
 	if (StrataPixelHeader.StrataTree.BSDFCount > 0)
 	{
 		// Update tree (coverage/transmittance/luminace weights)
-		FStrataAddressing NullStrataAddressing = (FStrataAddressing)0;	// Fake unused in StrataCreateBSDFContext when using Forward inline shading
-		StrataPixelHeader.StrataUpdateTree(NullStrataAddressing, V, Settings);
+		StrataPixelHeader.StrataUpdateTree(V, Settings);
 
 		const uint RootOperatorIndex = Strata.OperatorIndex;
 
@@ -284,7 +283,7 @@ void PackStrataOut(
 					}
 					}
 
-					float3x3 TangentBasis = StrataGetBSDFSharedBasis_InlineShading(StrataPixelHeader, BSDF, StrataAddressing);
+					float3x3 TangentBasis = StrataGetBSDFSharedBasis_InlineShading(StrataPixelHeader, BSDF);
 					float3 N = TangentBasis[2];
 					TopLayerData.WorldNormal += N * BSDF.TopLayerDataWeight;
 
@@ -885,8 +884,6 @@ void StrataMaterialExportOut(
 	inout float3 OutWorldNormal,
 	inout float3 OutEmissiveLuminance)
 {
-	FStrataAddressing NullStrataAddressing = (FStrataAddressing)0;
-
 	// Align V with N to not have any view dependent effect when exporting material data.
 	const float3 FakeV = SurfaceWorldNormal;
 
@@ -899,7 +896,7 @@ void StrataMaterialExportOut(
 	if (StrataPixelHeader.StrataTree.BSDFCount > 0)
 	{
 		// Update tree (coverage/transmittance/luminace weights)
-		StrataPixelHeader.StrataUpdateTree(NullStrataAddressing, StrataData, FakeV, Settings, OutCoverage, OutTransmittancePreCoverage);
+		StrataPixelHeader.StrataUpdateTree(StrataData, FakeV, Settings, OutCoverage, OutTransmittancePreCoverage); 
 
 		//
 		// Forward lighting
@@ -911,7 +908,7 @@ void StrataMaterialExportOut(
 
 			if (StrataIsBSDFVisible(CurrentBSDF))
 			{
-				const float3x3 TangentBasis = StrataGetBSDFSharedBasis_InlineShading(StrataPixelHeader, CurrentBSDF, NullStrataAddressing);
+				const float3x3 TangentBasis = StrataGetBSDFSharedBasis_InlineShading(StrataPixelHeader, CurrentBSDF);
 				const float3 N = TangentBasis[2];
 
 				const float GreyScaleWeight = dot(CurrentBSDF.LuminanceWeightV * CurrentBSDF.TransmittanceAboveAlongN, (1.0/3.0).xxx);

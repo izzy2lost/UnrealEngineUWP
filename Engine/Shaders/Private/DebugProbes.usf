@@ -20,12 +20,12 @@ uint MaxBytesPerPixel;
 uint bRoughDiffuse;
 
 // Default functions for PackStrataOut to function properly
-void FStrataPixelHeader::PreUpdateAllBSDFWithBottomUpOperatorVisit(FStrataAddressing NullStrataAddressing, float3 V) {}
-void FStrataPixelHeader::UpdateAllBSDFsOperatorCoverageTransmittance(FStrataIntegrationSettings Settings, FStrataAddressing NullStrataAddressing, float3 V) {}
+void FStrataPixelHeader::PreUpdateAllBSDFWithBottomUpOperatorVisit(float3 V) {}
+void FStrataPixelHeader::UpdateAllBSDFsOperatorCoverageTransmittance(FStrataIntegrationSettings Settings, float3 V) {}
 void FStrataPixelHeader::UpdateAllOperatorsCoverageTransmittance() {}
 void FStrataPixelHeader::UpdateAllBSDFWithBottomUpOperatorVisit() {}
-void FStrataPixelHeader::PreUpdateAllBSDFWithBottomUpOperatorVisit_FullySimplified(FStrataAddressing NullStrataAddressing, float3 V) {}
-void FStrataPixelHeader::UpdateAllBSDFsOperatorCoverageTransmittance_FullySimplified(FStrataIntegrationSettings Settings, FStrataAddressing NullStrataAddressing, float3 V) {}
+void FStrataPixelHeader::PreUpdateAllBSDFWithBottomUpOperatorVisit_FullySimplified(float3 V) {}
+void FStrataPixelHeader::UpdateAllBSDFsOperatorCoverageTransmittance_FullySimplified(FStrataIntegrationSettings Settings, float3 V) {}
 void FStrataPixelHeader::UpdateAllOperatorsCoverageTransmittance_FullySimplified() {}
 void FStrataPixelHeader::UpdateAllBSDFWithBottomUpOperatorVisit_FullySimplified() {}
 

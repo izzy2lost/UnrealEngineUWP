@@ -139,12 +139,11 @@ void FPixelShaderInOut_MainPS(
 	float Coverage = 0.0;
 	if (StrataHeader.StrataTree.BSDFCount > 0)
 	{
-		FStrataAddressing NullStrataAddressing = (FStrataAddressing)0;	// Fake unused in StrataCreateBSDFContext when using Forward inline shading
 		const float3 V = MaterialParameters.CameraVector;
 
 		// Update tree (coverage/transmittance/luminace weights)
 		const FStrataIntegrationSettings Settings = InitStrataIntegrationSettings(false /*bForceFullyRough*/, false /*bRoughDiffuseEnabled*/, 0, false/*bRoughnessTracking*/);
-		StrataHeader.StrataUpdateTree(NullStrataAddressing, V, Settings);
+		StrataHeader.StrataUpdateTree(V, Settings);
 
 		// Either propagate the BSDF opacity, or use the one for AlphaComposite (premultiplied alpha)
 		float CoverageOverBackground = StrataHeader.StrataTree.BSDFs[0].Coverage;

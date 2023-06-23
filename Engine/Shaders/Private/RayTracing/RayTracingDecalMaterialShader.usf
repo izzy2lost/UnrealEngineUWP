@@ -66,12 +66,11 @@ FDecalData GetDecalData(FPixelMaterialInputs PixelMaterialInputs, FMaterialPixel
 
 	if (StrataHeader.StrataTree.BSDFCount > 0)
 	{
-		FStrataAddressing NullStrataAddressing = (FStrataAddressing)0;	// Fake unused in StrataCreateBSDFContext when using Forward inline shading
 		const float3 V = MaterialParameters.CameraVector;
 
 		// Update tree (coverage/transmittance/luminace weights)
 		const FStrataIntegrationSettings Settings = InitStrataIntegrationSettings(false /*bForceFullyRough*/, false /*bRoughDiffuseEnabled*/, 0, false/*bRoughnessTracking*/);
-		StrataHeader.StrataUpdateTree(NullStrataAddressing, V, Settings);
+		StrataHeader.StrataUpdateTree(V, Settings);
 
 		// Since the Convert-To-Decal node forces parameter blending for the entire Strata tree, the BSDF we are interested in will be in 0.
 		FStrataDBuffer DBuffer = StrataHeader.StrataConvertToDBuffer(StrataHeader.StrataTree.BSDFs[0]);

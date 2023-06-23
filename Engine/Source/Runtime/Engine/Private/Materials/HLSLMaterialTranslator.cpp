@@ -1706,7 +1706,7 @@ bool FHLSLMaterialTranslator::Translate()
 						check(StrataCtx.StrataMaterialRootOperator);
 						int32 RootMaximumDistanceToLeaves = StrataCtx.StrataMaterialRootOperator->MaxDistanceFromLeaves;
 
-						ResourcesString += FString::Printf(TEXT("void  FStrataPixelHeader::PreUpdateAllBSDFWithBottomUpOperatorVisit%s(FStrataAddressing NullStrataAddressing, float3 V)\n"), *TreeFunctionPostFix);
+						ResourcesString += FString::Printf(TEXT("void  FStrataPixelHeader::PreUpdateAllBSDFWithBottomUpOperatorVisit%s(float3 V)\n"), *TreeFunctionPostFix);
 						ResourcesString += "{\n";
 						for (uint32 BSDFIndex = 0; BSDFIndex < StrataCtx.StrataMaterialBSDFCount; ++BSDFIndex)
 						{
@@ -1730,7 +1730,7 @@ bool FHLSLMaterialTranslator::Translate()
 										}
 										case STRATA_OPERATOR_VERTICAL:
 										{
-											// example ResourcesString += FString::Printf(TEXT("\t PreUpdateAllBSDFWithBottomUpOperatorVisit_Vertical(this, StrataTree, StrataTree.BSDFs[%d], NullStrataAddressing, V, %d /*Op index*/, %d /*PreviousIsInputA*/);\n"), BSDFIndex, CurrentOperator.Index, CurrentOperator.LeftIndex == PreviousOperatorIndex ? 1 : 0);
+											// example ResourcesString += FString::Printf(TEXT("\t PreUpdateAllBSDFWithBottomUpOperatorVisit_Vertical(this, StrataTree, StrataTree.BSDFs[%d], V, %d /*Op index*/, %d /*PreviousIsInputA*/);\n"), BSDFIndex, CurrentOperator.Index, CurrentOperator.LeftIndex == PreviousOperatorIndex ? 1 : 0);
 											break; // NOP
 										}
 										case STRATA_OPERATOR_ADD:
@@ -1767,11 +1767,11 @@ bool FHLSLMaterialTranslator::Translate()
 
 					// Update the coverage/transmittance of each leaves (==BSDFs) of the strata tree.
 					{
-						ResourcesString += FString::Printf(TEXT("void FStrataPixelHeader::UpdateAllBSDFsOperatorCoverageTransmittance%s(FStrataIntegrationSettings Settings, FStrataAddressing NullStrataAddressing, float3 V)\n"), *TreeFunctionPostFix);
+						ResourcesString += FString::Printf(TEXT("void FStrataPixelHeader::UpdateAllBSDFsOperatorCoverageTransmittance%s(FStrataIntegrationSettings Settings, float3 V)\n"), *TreeFunctionPostFix);
 						ResourcesString += "{\n";
 						for (uint32 BSDFIndex = 0; BSDFIndex < StrataCtx.StrataMaterialBSDFCount; ++BSDFIndex)
 						{
-							ResourcesString += FString::Printf(TEXT("\t StrataTree.UpdateSingleBSDFOperatorCoverageTransmittance(this, %d, Settings, NullStrataAddressing, V);\n"), BSDFIndex);
+							ResourcesString += FString::Printf(TEXT("\t StrataTree.UpdateSingleBSDFOperatorCoverageTransmittance(this, %d, Settings, V);\n"), BSDFIndex);
 						}
 						ResourcesString += "}\n";
 					}
@@ -1882,12 +1882,12 @@ bool FHLSLMaterialTranslator::Translate()
 
 				// Adde default strata functions
 				ResourcesString += "#if TEMPLATE_USES_STRATA\n";
-				ResourcesString += "void PreUpdateAllBSDFWithBottomUpOperatorVisit(FStrataAddressing NullStrataAddressing, float3 V) {}\n";
-				ResourcesString += "void UpdateAllBSDFsOperatorCoverageTransmittance(FStrataIntegrationSettings Settings, FStrataAddressing NullStrataAddressing, float3 V) {}\n";
+				ResourcesString += "void PreUpdateAllBSDFWithBottomUpOperatorVisit(float3 V) {}\n";
+				ResourcesString += "void UpdateAllBSDFsOperatorCoverageTransmittance(FStrataIntegrationSettings Settings, float3 V) {}\n";
 				ResourcesString += "void UpdateAllOperatorsCoverageTransmittance(inout FStrataTree StrataTree) {}\n";
 				ResourcesString += "void UpdateAllBSDFWithBottomUpOperatorVisit(inout FStrataTree StrataTree) {}\n";
-				ResourcesString += "void PreUpdateAllBSDFWithBottomUpOperatorVisit_FullySimplified(FStrataAddressing NullStrataAddressing, float3 V) {}\n";
-				ResourcesString += "void UpdateAllBSDFsOperatorCoverageTransmittance_FullySimplified(FStrataIntegrationSettings Settings, FStrataAddressing NullStrataAddressing, float3 V) {}\n";
+				ResourcesString += "void PreUpdateAllBSDFWithBottomUpOperatorVisit_FullySimplified(float3 V) {}\n";
+				ResourcesString += "void UpdateAllBSDFsOperatorCoverageTransmittance_FullySimplified(FStrataIntegrationSettings Settings, float3 V) {}\n";
 				ResourcesString += "void UpdateAllOperatorsCoverageTransmittance_FullySimplified(inout FStrataTree StrataTree) {}\n";
 				ResourcesString += "void UpdateAllBSDFWithBottomUpOperatorVisit_FullySimplified(inout FStrataTree StrataTree) {}\n";
 				ResourcesString += "#endif\n";

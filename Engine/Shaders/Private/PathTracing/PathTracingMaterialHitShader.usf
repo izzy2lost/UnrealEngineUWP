@@ -246,7 +246,6 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 		-1    /* StrataStruct.PeelLayersAboveDepth */,
 		true  /* StrataStruct.bRoughnessTracking */
 	);
-	FStrataAddressing NullStrataAddressing = (FStrataAddressing)0;	// Fake unused in StrataCreateBSDFContext when using Forward inline shading
 #if STRATA_BLENDING_COLOREDTRANSMITTANCEONLY
 	const uint BSDFCount = 0;
 #else
@@ -255,7 +254,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(PathTracingMaterialCHS,
 	float TotalCoverage = 1;
 	float3 TotalTransmittancePreCoverage = 0;
 	const float3 V_World = MaterialParameters.CameraVector;
-	StrataPixelHeader.StrataUpdateTree(NullStrataAddressing, StrataData, V_World, IntegrationSettings, TotalCoverage, TotalTransmittancePreCoverage);
+	StrataPixelHeader.StrataUpdateTree(StrataData, V_World, IntegrationSettings, TotalCoverage, TotalTransmittancePreCoverage);
 #if REFRACTION_USE_INDEX_OF_REFRACTION
 	// transparency is only used for coverage, transmittance happens through refraction (except for shadows potentially, which is handled below)
 	float3 Transparency = 1 - TotalCoverage; 

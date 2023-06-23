@@ -23,7 +23,6 @@ void FStrataTree::UpdateSingleBSDFOperatorCoverageTransmittance(
 	FStrataPixelHeader StrataPixelHeader,
 	int BSDFIndex,
 	FStrataIntegrationSettings Settings,
-	FStrataAddressing NullStrataAddressing,
 	float3 V)
 {
 #if STRATA_INLINE_SHADING
@@ -40,7 +39,7 @@ void FStrataTree::UpdateSingleBSDFOperatorCoverageTransmittance(
 
 	float CurrentBSDFCoverage = CurrentBSDF.Coverage;
 	float Roughness = StrataGetBSDFRoughness(CurrentBSDF);
-	float3x3 TangentBasis = StrataGetBSDFSharedBasis_InlineShading(StrataPixelHeader, CurrentBSDF, NullStrataAddressing);
+	float3x3 TangentBasis = StrataGetBSDFSharedBasis_InlineShading(StrataPixelHeader, CurrentBSDF);
 
 #if USE_DEVELOPMENT_SHADERS
 	Roughness = Settings.bRoughnessTracking ? Roughness : 0.0;
@@ -63,6 +62,7 @@ void FStrataTree::UpdateSingleBSDFOperatorCoverageTransmittance(
 
 	// Compute current BSDF transmittance
 	float3 LEqualN = TangentBasis[2];
+	FStrataAddressing NullStrataAddressing = (FStrataAddressing)0;
 	FStrataBSDFContext StrataBSDFContext = StrataCreateBSDFContext(StrataPixelHeader, CurrentBSDF, NullStrataAddressing, V, LEqualN);
 	FStrataEvaluateResult BSDFEvaluate = StrataEvaluateBSDF(StrataBSDFContext, Settings);
 
