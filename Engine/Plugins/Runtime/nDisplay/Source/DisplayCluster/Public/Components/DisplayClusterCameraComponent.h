@@ -12,6 +12,7 @@ class UBillboardComponent;
 class UTexture2D;
 class IDisplayClusterViewportManager;
 class IDisplayClusterWarpPolicy;
+struct FMinimalViewInfo;
 
 UENUM()
 enum class EDisplayClusterEyeStereoOffset : uint8
