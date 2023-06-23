@@ -133,7 +133,7 @@ private:
 SLATE_IMPLEMENT_WIDGET(STransformQuickDisplay)
 void STransformQuickDisplay::PrivateRegisterAttributes(FSlateAttributeInitializer&) {}
 
-static void UpdateTransformHeadsUpDisplay(ITypedElementDataStorageInterface& DataStorage, FTypedElementSlateWidgetReferenceColumn& Widget, InternalTransformHelpers::EAbnormalTransformTypes AbnormalTransformFlags)
+static void UpdateTransformHeadsUpDisplay(FTypedElementSlateWidgetReferenceColumn& Widget, InternalTransformHelpers::EAbnormalTransformTypes AbnormalTransformFlags)
 {
 	TSharedPtr<SWidget> WidgetPointer = Widget.Widget.Pin();
 	checkf(WidgetPointer, TEXT("Referenced widget is not valid. A constructed widget may not have been cleaned up. This can "
@@ -156,33 +156,34 @@ void UTypedElementTransformHeadsUpWidgetFactory::RegisterQueries(ITypedElementDa
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
+	namespace DS = TypedElementDataStorage;
 		
+	TypedElementQueryHandle UpdateTransformWidget = DataStorage.RegisterQuery(
+		Select()
+			.ReadOnly<FTypedElementLocalTransformColumn>()
+		.Where()
+			.Any<FTypedElementSyncFromWorldTag, FTypedElementSyncBackToWorldTag>()
+		.Compile());
 
 	DataStorage.RegisterQuery(
 		Select(TEXT("Sync Transform column to heads up display"),
 		FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncWidgets))
 			.ForceToGameThread(true),
-			[](FCachedQueryContext<UTypedElementDataStorageSubsystem>& Context,
+			[](DS::IQueryContext& Context,
 				FTypedElementSlateWidgetReferenceColumn& Widget,
 				const FTypedElementRowReferenceColumn& ReferenceColumn)
 			{
-				UTypedElementDataStorageSubsystem& Subsystem = Context.GetCachedMutableDependency<UTypedElementDataStorageSubsystem>();
-				DSI* DataStorage = Subsystem.Get();
-				checkf(DataStorage, TEXT("FTypedElementsDataStorageUiModule tried to process widgets before the "
-					"Typed Elements Data Storage interface is available."));
-
-				if (DataStorage->HasColumns<FTypedElementSyncFromWorldTag>(ReferenceColumn.Row)
-					|| DataStorage->HasColumns<FTypedElementSyncBackToWorldTag>(ReferenceColumn.Row))
-				{
-					if (const FTypedElementLocalTransformColumn* TransformColumn = DataStorage->GetColumn<FTypedElementLocalTransformColumn>(ReferenceColumn.Row))
+				Context.RunSubquery(0, ReferenceColumn.Row, CreateSubqueryCallbackBinding(
+					[&Widget](const FTypedElementLocalTransformColumn& Transform)
 					{
-						UpdateTransformHeadsUpDisplay(*DataStorage, Widget, InternalTransformHelpers::GetAbnormalTransformTypes(TransformColumn->Transform));
-					}
-				}
+						UpdateTransformHeadsUpDisplay(Widget, InternalTransformHelpers::GetAbnormalTransformTypes(Transform.Transform));
+					}));
 			}
 		)
 	.Where()
 		.All<FTypedElementTransformHeadsUpWidgetTag>()
+	.DependsOn()
+		.SubQuery(UpdateTransformWidget)
 	.Compile());
 
 }
@@ -231,7 +232,8 @@ bool FTypedElementTransformHeadsUpWidgetConstructor::FinalizeWidget(
 	FTypedElementRowReferenceColumn& RefColumn = *DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row);
 	if (const FTypedElementLocalTransformColumn* TransformColumn = DataStorage->GetColumn<FTypedElementLocalTransformColumn>(RefColumn.Row))
 	{
-		UpdateTransformHeadsUpDisplay(*DataStorage, *DataStorage->GetColumn<FTypedElementSlateWidgetReferenceColumn>(Row), InternalTransformHelpers::GetAbnormalTransformTypes(TransformColumn->Transform));
+		UpdateTransformHeadsUpDisplay(*DataStorage->GetColumn<FTypedElementSlateWidgetReferenceColumn>(Row), 
+			InternalTransformHelpers::GetAbnormalTransformTypes(TransformColumn->Transform));
 	}
 
 	return true;

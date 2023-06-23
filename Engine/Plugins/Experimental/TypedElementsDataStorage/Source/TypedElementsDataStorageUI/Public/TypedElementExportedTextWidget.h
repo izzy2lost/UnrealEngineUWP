@@ -18,9 +18,10 @@ class TYPEDELEMENTSDATASTORAGEUI_API UTypedElementExportedTextWidgetFactory : pu
 public:
 	~UTypedElementExportedTextWidgetFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const override;
 	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
+
+	TSet<TWeakObjectPtr<const UScriptStruct>> RegisteredTypes;
 };
 
 USTRUCT()

@@ -66,28 +66,52 @@ void UTypedElementLabelWidgetFactory::RegisterQueries(ITypedElementDataStorageIn
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
+	
+
+	TypedElementQueryHandle UpdateLabelWidget = DataStorage.RegisterQuery(
+		Select()
+			.ReadOnly<FTypedElementLabelColumn>()
+		.Where()
+			.Any<FTypedElementSyncFromWorldTag, FTypedElementSyncBackToWorldTag>()
+			.None<FTypedElementLabelHashColumn>()
+		.Compile());
+
+	TypedElementQueryHandle UpdateLabelAndHashWidget = DataStorage.RegisterQuery(
+		Select()
+			.ReadOnly<FTypedElementLabelColumn, FTypedElementLabelHashColumn>()
+		.Where()
+			.Any<FTypedElementSyncFromWorldTag, FTypedElementSyncBackToWorldTag>()
+		.Compile());
 
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync label to widget"),
 			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncWidgets))
 				.ForceToGameThread(true),
-			[](	FCachedQueryContext<UTypedElementDataStorageSubsystem>& Context, 
+			[](
+				DSI::IQueryContext& Context, 
 				FTypedElementSlateWidgetReferenceColumn& Widget,
 				FTypedElementU64IntValueCacheColumn& TextHash,
 				const FTypedElementLabelWidgetColumn& Config,
 				const FTypedElementRowReferenceColumn& Target)
 			{
-				DSI* DataStorage = Context.GetCachedMutableDependency<UTypedElementDataStorageSubsystem>().Get();
-				checkf(DataStorage, TEXT("FTypedElementsDataStorageUiModule tried to process widgets before the "
-					"Typed Elements Data Storage interface is available."));
-				
-				if (DataStorage->HasColumns<FTypedElementSyncFromWorldTag>(Target.Row) ||
-					DataStorage->HasColumns<FTypedElementSyncBackToWorldTag>(Target.Row))
-				{
-					SyncColumnsToWidget(DataStorage, Target.Row, TextHash, Widget.Widget, Config.bShowHashInTooltip);
-				}
+				Context.RunSubquery(0, Target.Row, CreateSubqueryCallbackBinding(
+					[&Widget](const FTypedElementLabelColumn& Label)
+					{
+						UpdateTextWidget(Widget.Widget, Label, nullptr);
+					}));
+				Context.RunSubquery(1, Target.Row, CreateSubqueryCallbackBinding(
+					[&Widget, &TextHash, &Config](const FTypedElementLabelColumn& Label, const FTypedElementLabelHashColumn& Hash)
+					{
+						if (Hash.LabelHash != TextHash.Value)
+						{
+							UpdateTextWidget(Widget.Widget, Label, Config.bShowHashInTooltip ? &Hash.LabelHash : nullptr);
+							TextHash.Value = Hash.LabelHash;
+						}
+					}));
 			})
+		.DependsOn()
+			.SubQuery({ UpdateLabelWidget, UpdateLabelAndHashWidget })
 		.Compile()
 	);
 }

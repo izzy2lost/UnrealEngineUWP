@@ -38,9 +38,9 @@ FAutoConsoleCommandWithOutputDevice PrintActorLabelsConsoleCommand(
 				{
 					FString Message;
 					Output.Log(TEXT("The Typed Elements Data Storage has the following actors:"));
-					DataStorage->RunQuery(LabelQuery, [&Output, &Message](const DSI::FQueryDescription&, DSI::IDirectQueryContext& Context)
+					DataStorage->RunQuery(LabelQuery, CreateDirectQueryCallbackBinding(
+						[&Output, &Message](DSI::IDirectQueryContext& Context, const FTypedElementLabelColumn* Labels)
 						{
-							const FTypedElementLabelColumn* Labels = Context.GetColumn<FTypedElementLabelColumn>();
 							const uint32 Count = Context.GetRowCount();
 
 							const FTypedElementLabelColumn* LabelsIt = Labels;
@@ -63,7 +63,7 @@ FAutoConsoleCommandWithOutputDevice PrintActorLabelsConsoleCommand(
 							}
 
 							Output.Log(Message);
-						});
+						}));
 					Output.Log(TEXT("End of Typed Elements Data Storage actors list."));
 				}
 			}
