@@ -29,21 +29,19 @@
 /** Whether to compile the moire reprojection. */
 #define CONFIG_MOIRE_REPROJECTION (DIM_MOIRE_REPROJECTION)
 
-/** Whether to compile the resurrection reprojection. */
-#define CONFIG_RESURRECTION_REPROJECTION (DIM_RESURRECTION_REPROJECTION)
-
 
 //------------------------------------------------------- PARAMETERS
 
 float4x4 RotationalClipToPrevClip;
+float2 CurrentToPrevInputJitter;
 
 Texture2D<float2> DilatedVelocityTexture;
 Texture2D<float> ClosestDepthTexture;
 Texture2D<uint> PrevUseCountTexture;
 Texture2D<uint> PrevClosestDepthTexture;
 
-Texture2DArray<tsr_halfC> PrevHistoryGuide;
-Texture2DArray<tsr_half4> PrevHistoryMoire;
+Texture2D<tsr_halfC> PrevHistoryGuide;
+Texture2D<tsr_half4> PrevHistoryMoire;
 Texture2D<float2> PrevVelocityTexture;
 float2 PrevGuideInfo_Extent;
 float2 PrevGuideInfo_ExtentInverse;
@@ -55,28 +53,16 @@ float2 PrevGuideInfo_UVViewportBilinearMin;
 float2 PrevGuideInfo_UVViewportBilinearMax;
 FScreenTransform InputPixelPosToReprojectScreenPos;
 FScreenTransform ScreenPosToPrevHistoryGuideBufferUV;
-FScreenTransform ScreenPosToResurrectionGuideBufferUV;
-float2 ResurrectionGuideUVViewportBilinearMin;
-float2 ResurrectionGuideUVViewportBilinearMax;
 float3 HistoryGuideQuantizationError;
-float ResurrectionFrameIndex;
-float PrevFrameIndex;
-float4x4 ClipToResurrectionClip;
 
-RWTexture2DArray<tsr_half4> ReprojectedHistoryGuideOutput;
-RWTexture2DArray<tsr_half4> ReprojectedHistoryMoireOutput;
+
+RWTexture2D<tsr_half4> ReprojectedHistoryGuideOutput;
+RWTexture2D<tsr_half4> ReprojectedHistoryMoireOutput;
 
 RWTexture2D<float2> HoleFilledVelocityOutput;
+RWTexture2D<float2> GrandHoleFilledVelocityOutput;
 RWTexture2D<tsr_half2> HoleFilledVelocityMaskOutput;
 RWTexture2D<tsr_half> ParallaxRejectionMaskOutput;
-RWTexture2D<tsr_half> HistoryResurrectionMaskOutput;
-
-
-//------------------------------------------------------- DEBUG
-
-#define DEBUG_ARRAY_SIZE 2
-
-static float4 Debug[DEBUG_ARRAY_SIZE];
 
 
 //------------------------------------------------------- LDS
@@ -329,7 +315,7 @@ void ProcessPrevAtomicTexturesSamples(
 
 // Sample a texture with a catrom kernel
 template<typename Type>
-Type SampleTextureCatrom(Texture2DArray<Type> InTexture, float2 TextureUV, float FrameIndex, float2 MinUV, float2 MaxUV)
+Type SampleTextureCatrom(Texture2D<Type> InTexture, float2 TextureUV)
 {
 	FCatmullRomSamples Samples = GetBicubic2DCatmullRomSamples(TextureUV, PrevGuideInfo_Extent, PrevGuideInfo_ExtentInverse);
 
@@ -337,12 +323,12 @@ Type SampleTextureCatrom(Texture2DArray<Type> InTexture, float2 TextureUV, float
 	for (uint i = 0; i < Samples.Count; i++)
 	{
 		float2 SampleUV = Samples.UV[i];
-		SampleUV = fastClamp(
+		SampleUV = clamp(
 			SampleUV,
-			MinUV,
-			MaxUV);
+			PrevGuideInfo_UVViewportBilinearMin,
+			PrevGuideInfo_UVViewportBilinearMax);
 
-		Color += InTexture.SampleLevel(GlobalBilinearClampedSampler, float3(SampleUV, FrameIndex), 0) * tsr_half(Samples.Weight[i]);
+		Color += InTexture.SampleLevel(GlobalBilinearClampedSampler, SampleUV, 0) * tsr_half(Samples.Weight[i]);
 	}
 	Color *= tsr_half(Samples.FinalMultiplier);
 
@@ -350,7 +336,7 @@ Type SampleTextureCatrom(Texture2DArray<Type> InTexture, float2 TextureUV, float
 }
 
 // Correct pre exposure of the guide color.
-tsr_halfC CorrectGuideColorExposure(tsr_halfC ReprojectedHistoryGuideColor, const float PreExposureCorrection)
+tsr_halfC CorrectGuideColorExposure(tsr_halfC ReprojectedHistoryGuideColor)
 {
 	tsr_halfC LinearReprojectedHistoryGuideColor = ReprojectedHistoryGuideColor * rcp(tsr_half(1.0) - ReprojectedHistoryGuideColor) * tsr_half(HistoryPreExposureCorrection);
 				
@@ -364,12 +350,12 @@ tsr_halfC CorrectGuideColorExposure(tsr_halfC ReprojectedHistoryGuideColor, cons
 
 // Sample previous moire history
 #if CONFIG_MOIRE_REPROJECTION
-tsr_half4 ReprojectPrevHistoryMoire(tsr_ushort2 InputPixelPos, float2 TextureUV, float FrameIndex)
+tsr_half4 ReprojectPrevHistoryMoire(tsr_ushort2 InputPixelPos, float2 TextureUV)
 {
 	uint2 Random = Rand3DPCG16(int3(InputPixelPos - InputInfo_ViewportMin, View.StateFrameIndexMod8)).xy;
 	float2 E = Hammersley16(0, 1, Random).xy;
 
-	return PrevHistoryMoire.SampleLevel(GlobalPointClampedSampler, float3(TextureUV + (E - 0.5) * PrevGuideInfo_ExtentInverse, FrameIndex), 0);
+	return PrevHistoryMoire.SampleLevel(GlobalPointClampedSampler, TextureUV + (E - 0.5) * PrevGuideInfo_ExtentInverse, 0);
 }
 #endif
 
@@ -381,10 +367,7 @@ void MainCS(
 	uint2 GroupId : SV_GroupID,
 	uint GroupThreadIndex : SV_GroupIndex)
 {
-	for (uint DebugId = 0; DebugId < DEBUG_ARRAY_SIZE; DebugId++)
-	{
-		Debug[DebugId] = 0.0;
-	}
+	float4 Debug = 0;
 
 	// Sample current frame informations.
 	float2 EncodedScreenVelocity;
@@ -409,7 +392,6 @@ void MainCS(
 				EncodedScreenVelocity = DilatedVelocityTexture[InputPixelPos];
 			#else // CONFIG_VELOCITY_SAMPLES != 1
 				LoadVelocityNeighborhood(InputPixelPos, /* out */ EncodedVelocityNeighborhood);
-				EncodedScreenVelocity = EncodedVelocityNeighborhood[0];
 			#endif // CONFIG_VELOCITY_SAMPLES != 1
 		}
 
@@ -446,12 +428,6 @@ void MainCS(
 	#if CONFIG_MOIRE_REPROJECTION
 		tsr_half4 ReprojectedHistoryMoireColor;
 	#endif
-	#if CONFIG_RESURRECTION_REPROJECTION
-		tsr_halfC ResurrectedHistoryGuideColor;
-		#if CONFIG_MOIRE_REPROJECTION
-			tsr_half4 ResurrectedHistoryMoireColor;
-		#endif
-	#endif
 	bool bIsOffScreen;
 
 	// Issues all the history texture fetches
@@ -479,44 +455,14 @@ void MainCS(
 				
 			float2 KernelHistoryBufferUV = ApplyScreenTransform(PrevOutputScreenPos, ScreenPosToPrevHistoryGuideBufferUV);
 
-			ReprojectedHistoryGuideColor = SampleTextureCatrom(
-				PrevHistoryGuide,
-				KernelHistoryBufferUV,
-				PrevFrameIndex,
-				PrevGuideInfo_UVViewportBilinearMin,
-				PrevGuideInfo_UVViewportBilinearMax);
-			ReprojectedHistoryGuideColor = CorrectGuideColorExposure(ReprojectedHistoryGuideColor, HistoryPreExposureCorrection);
+			ReprojectedHistoryGuideColor = SampleTextureCatrom(PrevHistoryGuide, KernelHistoryBufferUV);
+			ReprojectedHistoryGuideColor = CorrectGuideColorExposure(ReprojectedHistoryGuideColor);
 			#if CONFIG_MOIRE_REPROJECTION
 			{
-				ReprojectedHistoryMoireColor = ReprojectPrevHistoryMoire(InputPixelPos, KernelHistoryBufferUV, PrevFrameIndex);
+				ReprojectedHistoryMoireColor = ReprojectPrevHistoryMoire(InputPixelPos, KernelHistoryBufferUV);
 			}
 			#endif
 		}
-
-		#if CONFIG_RESURRECTION_REPROJECTION
-		{
-			float2 OutputScreenPos = ApplyScreenTransform(float2(InputPixelPos), InputPixelPosToReprojectScreenPos);
-
-			float4 ThisClip = float4(OutputScreenPos, DeviceZ, 1);
-			float4 ResurrectionClip = mul(ThisClip, ClipToResurrectionClip); 
-			float2 ResurrectionScreen = ResurrectionClip.xy / ResurrectionClip.w;
-
-			float2 KernelHistoryBufferUV = ApplyScreenTransform(ResurrectionScreen, ScreenPosToResurrectionGuideBufferUV);
-
-			ResurrectedHistoryGuideColor = SampleTextureCatrom(
-				PrevHistoryGuide,
-				KernelHistoryBufferUV,
-				ResurrectionFrameIndex,
-				ResurrectionGuideUVViewportBilinearMin,
-				ResurrectionGuideUVViewportBilinearMax);
-			ResurrectedHistoryGuideColor = CorrectGuideColorExposure(ResurrectedHistoryGuideColor, ResurrectionPreExposureCorrection);
-			#if CONFIG_MOIRE_REPROJECTION
-			{
-				ResurrectedHistoryMoireColor = ReprojectPrevHistoryMoire(InputPixelPos, KernelHistoryBufferUV, ResurrectionFrameIndex);
-			}
-			#endif
-		}
-		#endif
 	}
 	
 	// Process the history samples
@@ -558,7 +504,6 @@ void MainCS(
 		bool bIsOffscreenOrParallaxRejected = ParallaxRejectionMask < tsr_half(PARALLAX_REJECTION_MASK_THRESHOLD);
 	
 		// Hole fill the velocity.
-		bool bAllowResurrection = false;
 		{
 			float2 HoleFillingPixelVelocity;
 			float HoleFillingOutOfRange;
@@ -576,13 +521,6 @@ void MainCS(
 				float VelocityDelta = length(ScreenPixelVelocity - HoleFillingPixelVelocity);
 
 				float2 HoleFillingVelocity = HoleFillingPixelVelocity * InputPixelVelocityToScreenVelocity;
-				
-				#if CONFIG_RESURRECTION_REPROJECTION
-					bAllowResurrection = (
-						ResurrectionFrameIndex != PrevFrameIndex &&
-						length2(ScreenPixelVelocity - HoleFillingPixelVelocity) > pow(3.0, 2.0) &&
-						length2(ScreenPixelVelocity) < pow(100.0, 2.0));
-				#endif
 
 				EncodedScreenVelocity = EncodeVelocityToTexture(float3(HoleFillingVelocity, 0.0)).xy;
 				//HoleFilledVelocityMask = tsr_half(HoleFillingOutOfRange) * tsr_half(saturate(MaxHollFillPixelVelocity - VelocityDelta));
@@ -608,38 +546,22 @@ void MainCS(
 		
 		tsr_short2 OutputPixelPos = InvalidateOutputPixelPos(InputPixelPos, InputInfo_ViewportMax);
 
-		{
-			#if CONFIG_SCENE_COLOR_ALPHA
-				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 0)] = ReprojectedHistoryGuideColor;
-			#else
-				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 0)] = tsr_half4(ReprojectedHistoryGuideColor.xyz, tsr_half(1.0));
-			#endif
-			#if CONFIG_MOIRE_REPROJECTION
-				ReprojectedHistoryMoireOutput[tsr_short3(OutputPixelPos, 0)] = ReprojectedHistoryMoireColor;
-			#endif
-		}
-
-		#if CONFIG_RESURRECTION_REPROJECTION
-		{
-			#if CONFIG_SCENE_COLOR_ALPHA
-				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 1)] = ResurrectedHistoryGuideColor;
-			#else
-				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 1)] = tsr_half4(ResurrectedHistoryGuideColor.xyz, tsr_half(1.0));
-			#endif
-			#if CONFIG_MOIRE_REPROJECTION
-				ReprojectedHistoryMoireOutput[tsr_short3(OutputPixelPos, 1)] = ResurrectedHistoryMoireColor;
-			#endif
-		}
+		#if CONFIG_SCENE_COLOR_ALPHA
+			ReprojectedHistoryGuideOutput[OutputPixelPos] = ReprojectedHistoryGuideColor;
+		#else
+			ReprojectedHistoryGuideOutput[OutputPixelPos] = tsr_half4(ReprojectedHistoryGuideColor.xyz, tsr_half(1.0));
 		#endif
 
+		#if CONFIG_MOIRE_REPROJECTION
+			ReprojectedHistoryMoireOutput[OutputPixelPos] = ReprojectedHistoryMoireColor;
+		#endif
 		HoleFilledVelocityOutput[OutputPixelPos] = EncodedScreenVelocity;
 		HoleFilledVelocityMaskOutput[InputPixelPos] = tsr_half2(0.0, RejectHighFrequency);
 		ParallaxRejectionMaskOutput[OutputPixelPos] = ParallaxRejectionMask;
 
 		#if DEBUG_OUTPUT
-		for (uint DebugId = 0; DebugId < DEBUG_ARRAY_SIZE; DebugId++)
 		{
-			DebugOutput[tsr_short3(OutputPixelPos, DebugId)] = Debug[DebugId];
+			DebugOutput[tsr_short3(OutputPixelPos, 0)] = Debug;
 		}
 		#endif
 	}

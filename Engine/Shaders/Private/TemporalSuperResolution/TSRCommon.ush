@@ -286,7 +286,6 @@ float2 PrevHistoryInfo_UVViewportBilinearMin;
 float2 PrevHistoryInfo_UVViewportBilinearMax;
 FScreenTransform ScreenPosToPrevHistoryBufferUV;
 float HistoryPreExposureCorrection;
-float ResurrectionPreExposureCorrection;
 
 uint bCameraCut;
 
