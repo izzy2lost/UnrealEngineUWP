@@ -19,7 +19,7 @@ namespace Horde.Server.Tests
 	[TestClass]
 	public class BlobStoreTests : TestSetup
 	{
-		async Task<IStorageClientImpl> CreateStorageClientAsync()
+		async Task<StorageClient> CreateStorageClientAsync()
 		{
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Storage.Backends.Add(new BackendConfig { Id = new BackendId("default-backend"), Type = StorageBackendType.Memory });
@@ -65,7 +65,7 @@ namespace Horde.Server.Tests
 			return new Bundle(header, new[] { data });
 		}
 
-		static async Task<Blob> ReadBlobAsync(IStorageClient store, BlobLocator locator)
+		static async Task<Blob> ReadBlobAsync(StorageClient store, BlobLocator locator)
 		{
 			Bundle bundle = await store.ReadBundleAsync(locator);
 			return ExtractBlobFromBundle(bundle);
@@ -82,7 +82,7 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task LeafTest()
 		{
-			IStorageClient store = await CreateStorageClientAsync();
+			StorageClient store = await CreateStorageClientAsync();
 
 			byte[] input = CreateTestData(256, 0);
 			BlobLocator locator = await store.WriteBundleAsync(CreateTestBundle(input, Array.Empty<BlobLocator>()));
@@ -94,7 +94,7 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task ReferenceTest()
 		{
-			IStorageClientImpl store = await CreateStorageClientAsync();
+			StorageClient store = await CreateStorageClientAsync();
 
 			byte[] input1 = CreateTestData(256, 1);
 			Bundle bundle1 = CreateTestBundle(input1, Array.Empty<BlobLocator>());
@@ -129,7 +129,7 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task RefExpiryTest()
 		{
-			IStorageClientImpl store = await CreateStorageClientAsync();
+			StorageClient store = await CreateStorageClientAsync();
 
 			Bundle bundle1 = CreateTestBundle(new byte[] { 1, 2, 3 }, Array.Empty<BlobLocator>());
 			BlobLocator locator1 = await store.WriteBundleAsync(bundle1);

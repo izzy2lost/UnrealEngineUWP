@@ -42,7 +42,6 @@ namespace Horde.Commands.Bundles
 			}
 
 			using MemoryCache cache = new MemoryCache(new MemoryCacheOptions());
-			BundleReader reader = new BundleReader(store, cache, logger);
 
 			Stopwatch timer = Stopwatch.StartNew();
 

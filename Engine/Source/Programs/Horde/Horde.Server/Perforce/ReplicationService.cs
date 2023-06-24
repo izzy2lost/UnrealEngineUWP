@@ -138,7 +138,7 @@ namespace Horde.Server.Perforce
 		{
 			RefName refName = new RefName(streamConfig.Id.ToString());
 
-			IStorageClientImpl store = await _storageService.GetClientAsync(Namespace.Perforce, cancellationToken);
+			StorageClient store = await _storageService.GetClientAsync(Namespace.Perforce, cancellationToken);
 
 			CommitNode? lastCommitNode = await store.TryReadNodeAsync<CommitNode>(refName, cancellationToken: cancellationToken);
 			ICommitCollection commits = _perforceService.GetCommits(streamConfig);

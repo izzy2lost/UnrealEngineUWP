@@ -203,7 +203,7 @@ namespace Jupiter.Controllers
                 return result;
             }
 
-            IStorageClientJupiter client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
+            StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
             // disable redirected responses for upload so that we can parse the blobs for references
             // TODO: Add way to parse objects after upload similar to BlobTick in Horde
             /*if (file == null)
@@ -251,7 +251,7 @@ namespace Jupiter.Controllers
                 return result;
             }
 
-            IStorageClientJupiter client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
+            StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 
             Uri? redirectUrl = await client.GetReadRedirectAsync(locator, cancellationToken);
             if (redirectUrl != null)
@@ -328,7 +328,7 @@ namespace Jupiter.Controllers
             {
                 return result;
             }
-            IStorageClientJupiter client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
+            StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
             BundleNodeLocator target = new BundleNodeLocator(request.Hash, request.Blob, request.ExportIdx);
             await client.WriteRefTargetAsync(refName, target, request.Options, cancellationToken);
 
@@ -383,7 +383,7 @@ namespace Jupiter.Controllers
                 return result;
             }
 
-            IStorageClient storageClient = await _storageService.GetClientAsync(namespaceId, cancellationToken);
+            StorageClient storageClient = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 
             BundleReader reader = new BundleReader(storageClient, _memoryCache, _logger);
 
@@ -459,7 +459,7 @@ namespace Jupiter.Controllers
                 return result;
             }
 
-            IStorageClient storageClient = await _storageService.GetClientAsync(namespaceId, cancellationToken);
+            StorageClient storageClient = await _storageService.GetClientAsync(namespaceId, cancellationToken);
             BundleReader reader = new BundleReader(storageClient, _memoryCache, _logger);
 
             BundleHeader header = await reader.ReadBundleHeaderAsync(locator, cancellationToken);

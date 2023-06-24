@@ -30,7 +30,6 @@ namespace Horde.Commands.Vcs
 			IStorageClient store = await GetStorageClientAsync();
 
 			using MemoryCache cache = new MemoryCache(new MemoryCacheOptions());
-			BundleReader reader = new BundleReader(store, cache, logger);
 
 			List<CommitNode> commits = new List<CommitNode>();
 

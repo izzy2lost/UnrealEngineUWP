@@ -249,7 +249,7 @@ namespace Horde.Server.Tools
 				return Forbid(ToolAclAction.UploadTool, id);
 			}
 
-			IStorageClient storageClient = await _toolCollection.GetStorageClientAsync(tool, cancellationToken);
+			BundleStorageClient storageClient = await _toolCollection.GetStorageClientAsync(tool, cancellationToken);
 			return await StorageController.WriteBlobAsync(storageClient, file, cancellationToken: cancellationToken);
 		}
 
@@ -564,7 +564,7 @@ namespace Horde.Server.Tools
 				return BadRequest("Invalid blob id for tool");
 			}
 
-			IStorageClient storageClient = await _toolCollection.GetStorageClientAsync(tool, cancellationToken);
+			BundleStorageClient storageClient = await _toolCollection.GetStorageClientAsync(tool, cancellationToken);
 			return StorageController.ReadBlobInternalAsync(storageClient, locator, offset, length, cancellationToken);
 		}
 

@@ -73,36 +73,6 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public interface IStorageClient
 	{
-		#region Bundles
-
-		/// <summary>
-		/// Reads raw data for a blob from the store
-		/// </summary>
-		/// <param name="locator">The blob locator</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Stream containing the data</returns>
-		Task<Bundle> ReadBundleAsync(BlobLocator locator, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Reads a ranged chunk from a blob
-		/// </summary>
-		/// <param name="locator">Locator for the blob</param>
-		/// <param name="offset">Starting offset for the data to read</param>
-		/// <param name="length">Length of the data</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Writes a new blob to the store
-		/// </summary>
-		/// <param name="bundle">The bundle to write</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <param name="prefix">Prefix for blob names. While the returned BlobId is guaranteed to be unique, this name can be used as a prefix to aid debugging.</param>
-		/// <returns>Unique identifier for the blob</returns>
-		Task<BlobLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default);
-
-		#endregion
-
 		#region Nodes
 
 		/// <summary>
@@ -276,26 +246,6 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public static class StorageClientExtensions
 	{
-		#region Blobs
-
-		/// <summary>
-		/// Utility method to read a blob into a buffer
-		/// </summary>
-		/// <param name="store">Store to read from</param>
-		/// <param name="locator">Blob location</param>
-		/// <param name="offset">Offset within the blob</param>
-		/// <param name="memory">Buffer to read into</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>The data that was read</returns>
-		public static async Task<Memory<byte>> ReadBundleRangeAsync(this IStorageClient store, BlobLocator locator, int offset, Memory<byte> memory, CancellationToken cancellationToken = default)
-		{
-			ReadOnlyMemory<byte> buffer = await store.ReadBundleRangeAsync(locator, offset, memory.Length, cancellationToken);
-			buffer.CopyTo(memory);
-			return memory.Slice(0, buffer.Length);
-		}
-
-		#endregion
-
 		#region Refs
 
 		/// <summary>

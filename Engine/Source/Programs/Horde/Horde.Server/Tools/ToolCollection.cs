@@ -280,7 +280,7 @@ namespace Horde.Server.Tools
 			ToolDeploymentId deploymentId = ToolDeploymentId.GenerateNewId();
 			RefName refName = new RefName($"{tool.Id}/{deploymentId}");
 
-			IStorageClientImpl client = await _storageService.GetClientAsync(Namespace.Tools, cancellationToken);
+			StorageClient client = await _storageService.GetClientAsync(Namespace.Tools, cancellationToken);
 			await client.WriteRefTargetAsync(refName, locator, cancellationToken: cancellationToken);
 
 			return await CreateDeploymentInternalAsync(tool, deploymentId, options, refName, globalConfig, cancellationToken);
@@ -413,7 +413,7 @@ namespace Horde.Server.Tools
 		/// <param name="tool">Identifier for the tool</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Storage client for the data</returns>
-		public async Task<IStorageClient> GetStorageClientAsync(ITool tool, CancellationToken cancellationToken)
+		public async Task<BundleStorageClient> GetStorageClientAsync(ITool tool, CancellationToken cancellationToken)
 		{
 			if (tool.Config is BundledToolConfig bundledConfig)
 			{

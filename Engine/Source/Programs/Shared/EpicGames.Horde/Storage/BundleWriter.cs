@@ -504,7 +504,7 @@ namespace EpicGames.Horde.Storage
 			}
 
 			// Mark the bundle as complete
-			public void MarkAsComplete(IStorageClient store, Utf8String prefix, ILogger? traceLogger)
+			public void MarkAsComplete(BundleStorageClient store, Utf8String prefix, ILogger? traceLogger)
 			{
 				if (!IsReadOnly)
 				{
@@ -516,7 +516,7 @@ namespace EpicGames.Horde.Storage
 				}
 			}
 
-			async Task CompleteAsync(Task prevWriteTask, IStorageClient store, Utf8String prefix, ILogger? traceLogger)
+			async Task CompleteAsync(Task prevWriteTask, BundleStorageClient store, Utf8String prefix, ILogger? traceLogger)
 			{
 				try
 				{
@@ -652,7 +652,7 @@ namespace EpicGames.Horde.Storage
 
 		static readonly BundleOptions s_defaultOptions = new BundleOptions();
 
-		readonly IStorageClient _store;
+		readonly BundleStorageClient _store;
 		readonly BundleReader _reader;
 		readonly BundleOptions _options;
 		readonly RefName _refName;
@@ -681,7 +681,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="options">Options for the writer</param>
 		/// <param name="nodeCache">Cache of nodes for deduplication</param>
 		/// <param name="traceLogger">Optional logger for trace information</param>
-		public BundleWriter(IStorageClient store, BundleReader reader, RefName refName, BundleOptions? options = null, NodeCache? nodeCache = null, ILogger? traceLogger = null)
+		public BundleWriter(BundleStorageClient store, BundleReader reader, RefName refName, BundleOptions? options = null, NodeCache? nodeCache = null, ILogger? traceLogger = null)
 		{
 			_store = store;
 			_reader = reader;

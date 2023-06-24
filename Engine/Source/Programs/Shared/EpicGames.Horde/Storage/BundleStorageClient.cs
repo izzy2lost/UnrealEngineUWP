@@ -37,6 +37,21 @@ namespace EpicGames.Horde.Storage
 		/// <inheritdoc/>
 		public abstract Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default);
 
+		/// <summary>
+		/// Utility method to read a blob into a buffer
+		/// </summary>
+		/// <param name="locator">Blob location</param>
+		/// <param name="offset">Offset within the blob</param>
+		/// <param name="memory">Buffer to read into</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>The data that was read</returns>
+		public async Task<Memory<byte>> ReadBundleRangeAsync(BlobLocator locator, int offset, Memory<byte> memory, CancellationToken cancellationToken = default)
+		{
+			ReadOnlyMemory<byte> buffer = await ReadBundleRangeAsync(locator, offset, memory.Length, cancellationToken);
+			buffer.CopyTo(memory);
+			return memory.Slice(0, buffer.Length);
+		}
+
 		/// <inheritdoc/>
 		public abstract Task<BlobLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default);
 

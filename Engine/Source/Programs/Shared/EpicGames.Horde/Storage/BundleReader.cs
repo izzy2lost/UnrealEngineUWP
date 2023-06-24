@@ -76,7 +76,7 @@ namespace EpicGames.Horde.Storage
 		// When reader is uncached, use a smaller default fetch size
 		const int DefaultUncachedFetchSize = 1 * 1024 * 1024;
 
-		readonly IStorageClient _store;
+		readonly BundleStorageClient _store;
 		readonly IMemoryCache? _cache;
 		readonly ILogger _logger;
 
@@ -92,7 +92,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="store"></param>
 		/// <param name="cache">Cache for data</param>
 		/// <param name="logger">Logger for output</param>
-		public BundleReader(IStorageClient store, IMemoryCache? cache, ILogger logger)
+		public BundleReader(BundleStorageClient store, IMemoryCache? cache, ILogger logger)
 		{
 			_store = store;
 			_cache = cache;

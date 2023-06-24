@@ -4,7 +4,6 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,17 +16,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Jupiter.Implementation.Bundles;
 
-public interface IStorageClientJupiter : IStorageClient
-{
-    Task<(BlobLocator Locator, Uri UploadUrl)?> GetWriteRedirectAsync(string prefix, CancellationToken cancellationToken);
-    bool SupportsRedirects { get; set; }
-    Task<Uri?> GetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken);
-    Task WriteRefTargetAsync(RefName refName, BundleNodeLocator target, RefOptions? requestOptions, CancellationToken cancellationToken);
-}
-
 public interface IStorageService
 {
-    Task<IStorageClientJupiter> GetClientAsync(NamespaceId namespaceId, CancellationToken cancellationToken);
+    Task<StorageClient> GetClientAsync(NamespaceId namespaceId, CancellationToken cancellationToken);
 }
 
 public class StorageService : IStorageService
@@ -40,14 +31,14 @@ public class StorageService : IStorageService
         _provider = provider;
     }
 
-    public Task<IStorageClientJupiter> GetClientAsync(NamespaceId namespaceId, CancellationToken cancellationToken)
+    public Task<StorageClient> GetClientAsync(NamespaceId namespaceId, CancellationToken cancellationToken)
     {
-        IStorageClientJupiter storageClient = _backends.GetOrAdd(namespaceId, x => ActivatorUtilities.CreateInstance<StorageClient>(_provider, namespaceId));
+        StorageClient storageClient = _backends.GetOrAdd(namespaceId, x => ActivatorUtilities.CreateInstance<StorageClient>(_provider, namespaceId));
         return Task.FromResult(storageClient);
     }
 }
 
-public class StorageClient : IStorageClientJupiter
+public class StorageClient : BundleStorageClient
 {
     private readonly NamespaceId _namespaceId;
     private readonly IBlobService _blobService;
@@ -59,6 +50,7 @@ public class StorageClient : IStorageClientJupiter
     public bool SupportsRedirects { get; set; } = true;
 
     public StorageClient(NamespaceId namespaceId, IBlobService blobService, IReferencesStore refStore, IBlobIndex blobIndex)
+        : base(null, NullLogger.Instance)
     {
         _namespaceId = namespaceId;
         _blobService = blobService;
@@ -79,7 +71,7 @@ public class StorageClient : IStorageClientJupiter
         return (locator, redirectUri);
     }
 
-    public async Task<BlobLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix, CancellationToken cancellationToken)
+    public override async Task<BlobLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix, CancellationToken cancellationToken)
     {
         BlobLocator locator = BlobLocator.CreateUnique(prefix);
         BlobIdentifier blobIdentifier = BlobIdentifier.FromBlobLocator(locator);
@@ -99,19 +91,19 @@ public class StorageClient : IStorageClientJupiter
         return locator;
     }
 
-    public async Task AddAliasAsync(Utf8String name, BlobHandle handle, CancellationToken cancellationToken = default)
+    public override async Task AddAliasAsync(Utf8String name, BlobHandle handle, CancellationToken cancellationToken = default)
     {
         // TODO: Implement aliases
         await Task.CompletedTask;
     }
 
-    public async Task RemoveAliasAsync(Utf8String name, BlobHandle handle, CancellationToken cancellationToken = default)
+    public override async Task RemoveAliasAsync(Utf8String name, BlobHandle handle, CancellationToken cancellationToken = default)
     {
         // TODO: Implement aliases
         await Task.CompletedTask;
     }
 
-    public async IAsyncEnumerable<BlobHandle> FindNodesAsync(Utf8String name, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public override async IAsyncEnumerable<BlobHandle> FindNodesAsync(Utf8String name, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         // TODO: Implement aliases
         await Task.CompletedTask;
@@ -125,16 +117,17 @@ public class StorageClient : IStorageClientJupiter
         return redirectUri;
     }
 
-    public async Task<Bundle> ReadBundleAsync(BlobLocator locator, CancellationToken cancellationToken)
+    public override async Task<Bundle> ReadBundleAsync(BlobLocator locator, CancellationToken cancellationToken)
     {
         BlobIdentifier blobIdentifier = BlobIdentifier.FromBlobLocator(locator);
         BlobContents blobContents = await _blobService.GetObject(_namespaceId, blobIdentifier);
         return await Bundle.FromStreamAsync(blobContents.Stream, cancellationToken);
     }
 
-    public async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken)
+    public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken)
     {
-        ReadOnlySequence<byte> sequence = await ReadBundleAsync(locator, cancellationToken);
+        Bundle bundle = await ReadBundleAsync(locator, cancellationToken);
+        ReadOnlySequence<byte> sequence = bundle.AsSequence();
 		sequence = sequence.Slice(offset);
 
 		if(sequence.Length > length)
@@ -145,7 +138,7 @@ public class StorageClient : IStorageClientJupiter
         return sequence.AsSingleSegment();
     }
 
-    public async Task<BlobHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+    public override async Task<BlobHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
     {
         // TODO: Cache time is ignored
         try
@@ -172,14 +165,14 @@ public class StorageClient : IStorageClientJupiter
 
     public async Task<BlobHandle> WriteRefAsync(RefName name, Bundle bundle, int exportIdx, Utf8String prefix = default, RefOptions? options = null, CancellationToken cancellationToken = default)
     {
-        BlobLocator locator = await this.WriteBundleAsync(bundle, prefix, cancellationToken);
+        BlobLocator locator = await WriteBundleAsync(bundle, prefix, cancellationToken);
         BlobHandle target = new FlushedNodeHandle(_treeReader, new BundleNodeLocator(bundle.Header.Exports[exportIdx].Hash, locator, exportIdx));
         await WriteRefTargetAsync(name, target, options, cancellationToken);
 
         return target;
     }
 
-    public Task WriteRefTargetAsync(RefName refName, BlobHandle target, RefOptions? requestOptions, CancellationToken cancellationToken)
+    public override Task WriteRefTargetAsync(RefName refName, BlobHandle target, RefOptions? requestOptions, CancellationToken cancellationToken)
     {
         return WriteRefTargetAsync(refName, target.GetLocator(), requestOptions, cancellationToken);
     }
@@ -200,17 +193,10 @@ public class StorageClient : IStorageClientJupiter
         await _refStore.Put(_namespaceId, _defaultBucket, refKey, blobIdentifier, payload, isFinalized: true); 
     }
 
-    public  async Task DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
+    public override async Task DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
     {
         await _refStore.Delete(_namespaceId, _defaultBucket, IoHashKey.FromName(name.ToString()));
     }
-
-    public BundleWriter CreateWriter(RefName refName = default, BundleOptions? options = null)
-    {
-        return new BundleWriter(this, _treeReader, refName, options);
-    }
-
-    IStorageWriter IStorageClient.CreateWriter(RefName refName) => CreateWriter(refName);
 }
 
 public class RefInlinePayload
