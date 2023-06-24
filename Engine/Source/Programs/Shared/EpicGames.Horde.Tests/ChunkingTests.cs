@@ -72,7 +72,7 @@ namespace EpicGames.Horde.Tests
 			using MemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 
 			MemoryStorageClient store = new MemoryStorageClient();
-			BundleReader reader = new BundleReader(store, cache, NullLogger.Instance);
+
 			await using IStorageWriter writer = store.CreateWriter();
 
 			byte[] data = new byte[4096];
@@ -114,10 +114,10 @@ namespace EpicGames.Horde.Tests
 				Assert.IsTrue(spanData.Span.SequenceEqual(data));
 			}
 
-			await CheckSizes(reader, root, options, true);
+			await CheckSizes(root, options, true);
 		}
 
-		async Task CheckSizes(BundleReader reader, ChunkedDataNode node, ChunkingOptions options, bool rightmost)
+		async Task CheckSizes(ChunkedDataNode node, ChunkingOptions options, bool rightmost)
 		{
 			if (node is LeafChunkedDataNode leafNode)
 			{
@@ -135,7 +135,7 @@ namespace EpicGames.Horde.Tests
 				for (int idx = 0; idx < childCount; idx++)
 				{
 					ChunkedDataNode childNode = await interiorNode.Children[idx].ExpandAsync(CancellationToken.None);
-					await CheckSizes(reader, childNode, options, idx == childCount - 1);
+					await CheckSizes(childNode, options, idx == childCount - 1);
 				}
 			}
 		}

@@ -10,6 +10,7 @@ using EpicGames.Horde.Compute.Buffers;
 using EpicGames.Horde.Compute.Clients;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
+using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.OIDC;
 using Microsoft.Extensions.Configuration;

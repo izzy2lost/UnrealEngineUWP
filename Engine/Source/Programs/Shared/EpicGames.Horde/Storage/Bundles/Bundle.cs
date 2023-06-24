@@ -18,7 +18,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace EpicGames.Horde.Storage
+namespace EpicGames.Horde.Storage.Bundles
 {
 	/// <summary>
 	/// Bundle version number

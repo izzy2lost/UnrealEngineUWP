@@ -8,7 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 
-namespace EpicGames.Horde.Storage
+namespace EpicGames.Horde.Storage.Bundles
 {
 	/// <summary>
 	/// Handle to a blob stored in a bundle

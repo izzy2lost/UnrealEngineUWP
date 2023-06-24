@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using EpicGames.Horde.Storage.Bundles;
 
 namespace EpicGames.Horde.Storage.Backends
 {

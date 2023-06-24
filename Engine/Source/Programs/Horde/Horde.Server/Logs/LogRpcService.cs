@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using Horde.Server.Utilities;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
 using Horde.Server.Storage;
 using Microsoft.Extensions.Logging;
 using System.Threading;

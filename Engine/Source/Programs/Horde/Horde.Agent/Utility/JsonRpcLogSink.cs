@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
 using Google.Protobuf;
 using Grpc.Core;
 using Horde.Common.Rpc;

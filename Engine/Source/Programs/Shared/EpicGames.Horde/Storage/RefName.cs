@@ -36,7 +36,69 @@ namespace EpicGames.Horde.Storage
 		public RefName(Utf8String text)
 		{
 			Text = text;
-			BundleLocator.ValidatePathArgument(nameof(text), text.Span);
+			ValidatePathArgument(nameof(text), text.Span);
+		}
+
+		/// <summary>
+		/// Validates a given string as a blob id
+		/// </summary>
+		/// <param name="name">Name of the argument</param>
+		/// <param name="text">String to validate</param>
+		public static void ValidatePathArgument(string name, ReadOnlySpan<byte> text)
+		{
+			if (text.Length == 0)
+			{
+				throw new ArgumentException("Ref names cannot be empty", name);
+			}
+			if (text[^1] == '/')
+			{
+				throw new ArgumentException("Ref names cannot start or end with a slash", name);
+			}
+
+			int lastSlashIdx = -1;
+
+			for (int idx = 0; idx < text.Length; idx++)
+			{
+				if (text[idx] == '/')
+				{
+					if (lastSlashIdx == idx - 1)
+					{
+						throw new ArgumentException("Leading and consecutive slashes are not permitted in ref names", name);
+					}
+					else
+					{
+						lastSlashIdx = idx;
+					}
+				}
+				else
+				{
+					if (!IsValidChar(text[idx]))
+					{
+						throw new ArgumentException($"'{(char)text[idx]} is not a valid ref name character", name);
+					}
+				}
+			}
+		}
+
+		static readonly uint[] s_validChars = CreateValidCharsArray();
+
+		static uint[] CreateValidCharsArray()
+		{
+			const string ValidChars = "0123456789abcdefghijklmnopqrstuvwxyz_/-";
+
+			uint[] validChars = new uint[256 / 8];
+			for (int idx = 0; idx < ValidChars.Length; idx++)
+			{
+				int index = ValidChars[idx];
+				validChars[index / 32] |= 1U << (index & 31);
+			}
+
+			return validChars;
+		}
+
+		static bool IsValidChar(byte character)
+		{
+			return (s_validChars[character / 32] & (1U << (character & 31))) != 0;
 		}
 
 		/// <inheritdoc/>

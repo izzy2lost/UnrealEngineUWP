@@ -10,7 +10,7 @@ using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Serialization;
 
-namespace EpicGames.Horde.Storage
+namespace EpicGames.Horde.Storage.Bundles
 {
 	/// <summary>
 	/// Locates a node in storage

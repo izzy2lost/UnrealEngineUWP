@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
 using Horde.Server.Server;
 using Horde.Server.Storage;
 

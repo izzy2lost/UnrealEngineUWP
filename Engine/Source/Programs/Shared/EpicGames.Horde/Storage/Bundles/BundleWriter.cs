@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace EpicGames.Horde.Storage
+namespace EpicGames.Horde.Storage.Bundles
 {
 	/// <summary>
 	/// Options for configuring a bundle serializer

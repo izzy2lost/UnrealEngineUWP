@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Blake3;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Serialization;
 
 namespace Jupiter.Implementation

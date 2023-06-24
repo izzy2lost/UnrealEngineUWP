@@ -103,6 +103,7 @@ using Horde.Server.Jobs.Bisect;
 using Microsoft.AspNetCore.Diagnostics;
 using EpicGames.Horde;
 using EpicGames.Horde.Api;
+using EpicGames.Horde.Storage.Bundles;
 
 namespace Horde.Server
 {

@@ -12,6 +12,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using EpicGames.Horde.Storage.Bundles;
 
 namespace EpicGames.Horde.Compute
 {

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
 using Horde.Server.Storage;
 using System.Threading;
 using Horde.Server.Server;

@@ -14,6 +14,7 @@ using System.Xml;
 using UnrealBuildBase;
 using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage.Backends;
+using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
 using System.Threading;

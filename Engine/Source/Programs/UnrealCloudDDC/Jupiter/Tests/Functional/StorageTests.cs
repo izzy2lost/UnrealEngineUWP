@@ -20,6 +20,7 @@ using Amazon.S3.Model;
 using Azure.Storage.Blobs;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Serialization;
 using Jupiter.Controllers;
 using Jupiter.Implementation;

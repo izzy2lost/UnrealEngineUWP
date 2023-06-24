@@ -8,6 +8,7 @@ using EpicGames.Core;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MongoDB.Driver;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
 using System.Buffers;
 using System.Threading;
 using Horde.Server.Server;

@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis;
 using System.Diagnostics;
 
-namespace EpicGames.Horde.Storage
+namespace EpicGames.Horde.Storage.Bundles
 {
 	/// <summary>
 	/// Writes nodes from bundles in an <see cref="IStorageClient"/> instance.

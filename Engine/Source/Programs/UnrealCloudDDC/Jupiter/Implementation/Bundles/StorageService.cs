@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Serialization;
 using Jupiter.Implementation.Blob;
 using Microsoft.Extensions.DependencyInjection;
