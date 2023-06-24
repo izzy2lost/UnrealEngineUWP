@@ -25,23 +25,6 @@ namespace EpicGames.Horde.Storage
 		protected BlobHandle(IoHash hash) => Hash = hash;
 
 		/// <summary>
-		/// Determines if the node has been written to storage
-		/// </summary>
-		public abstract bool HasLocator();
-
-		/// <summary>
-		/// Gets the node locator. May throw if the node has not been written to storage yet.
-		/// </summary>
-		/// <returns>Locator for the node</returns>
-		public abstract BundleNodeLocator GetLocator();
-
-		/// <summary>
-		/// Adds a callback to be executed once the node has been written. Triggers immediately if the node has already been written.
-		/// </summary>
-		/// <param name="callback">Action to be executed after the write</param>
-		public abstract void AddWriteCallback(BlobWriteCallback callback);
-
-		/// <summary>
 		/// Gets the type of this blob
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
@@ -91,27 +74,5 @@ namespace EpicGames.Horde.Storage
 			data.Data.Slice(offset, length).CopyTo(buffer);
 			return length;
 		}
-
-		/// <summary>
-		/// Flush the node to storage and retrieve its locator
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public abstract ValueTask<BundleNodeLocator> FlushAsync(CancellationToken cancellationToken = default);
-
-		/// <inheritdoc/>
-		public override string ToString() => HasLocator()? GetLocator().ToString() : Hash.ToString();
-	}
-
-	/// <summary>
-	/// Object to receive notifications on a node being written
-	/// </summary>
-	public abstract class BlobWriteCallback
-	{
-		internal BlobWriteCallback? _next;
-
-		/// <summary>
-		/// Callback for the node being written
-		/// </summary>
-		public abstract void OnWrite();
 	}
 }

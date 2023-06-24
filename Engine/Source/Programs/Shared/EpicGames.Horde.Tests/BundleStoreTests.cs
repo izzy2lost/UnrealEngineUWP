@@ -59,10 +59,10 @@ namespace EpicGames.Horde.Tests
 		static async Task<Bundle> CreateBundleNormalAsync()
 		{
 			MemoryStorageClient store = new MemoryStorageClient();
-			await using IStorageWriter writer = store.CreateWriter(options: new BundleOptions { CompressionFormat = BundleCompressionFormat.None });
+			await using BundleWriter writer = store.CreateWriter(options: new BundleOptions { CompressionFormat = BundleCompressionFormat.None });
 
 			TextNode node = new TextNode("Hello world");
-			BlobHandle handle = await writer.FlushAsync(node, CancellationToken.None);
+			BundleNodeHandle handle = await writer.FlushAsync(node, CancellationToken.None);
 
 			return await store.ReadBundleAsync(handle.GetLocator().Blob);
 		}

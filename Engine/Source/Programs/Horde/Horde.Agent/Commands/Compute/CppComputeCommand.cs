@@ -75,14 +75,14 @@ namespace Horde.Agent.Commands.Compute
 			return true;
 		}
 
-		static async Task<BundleNodeLocator> CreateSandboxAsync(FileReference taskFile, IStorageClient storage, CancellationToken cancellationToken)
+		static async Task<BundleNodeLocator> CreateSandboxAsync(FileReference taskFile, BundleStorageClient storage, CancellationToken cancellationToken)
 		{
-			await using IStorageWriter writer = storage.CreateWriter();
+			await using BundleWriter writer = storage.CreateWriter();
 
 			DirectoryNode sandbox = new DirectoryNode();
 			await sandbox.CopyFromDirectoryAsync(taskFile.Directory.ToDirectoryInfo(), new ChunkingOptions(), writer, null, cancellationToken);
 
-			BlobHandle handle = await writer.FlushAsync(sandbox, cancellationToken);
+			BundleNodeHandle handle = await writer.FlushAsync(sandbox, cancellationToken);
 			return handle.GetLocator();
 		}
 	}

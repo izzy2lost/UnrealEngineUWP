@@ -91,19 +91,19 @@ public class StorageClient : BundleStorageClient
         return locator;
     }
 
-    public override async Task AddAliasAsync(Utf8String name, BlobHandle handle, CancellationToken cancellationToken = default)
+    public override async Task AddAliasAsync(Utf8String name, BundleNodeHandle handle, CancellationToken cancellationToken = default)
     {
         // TODO: Implement aliases
         await Task.CompletedTask;
     }
 
-    public override async Task RemoveAliasAsync(Utf8String name, BlobHandle handle, CancellationToken cancellationToken = default)
+    public override async Task RemoveAliasAsync(Utf8String name, BundleNodeHandle handle, CancellationToken cancellationToken = default)
     {
         // TODO: Implement aliases
         await Task.CompletedTask;
     }
 
-    public override async IAsyncEnumerable<BlobHandle> FindNodesAsync(Utf8String name, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public override async IAsyncEnumerable<BundleNodeHandle> FindNodesAsync(Utf8String name, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         // TODO: Implement aliases
         await Task.CompletedTask;
@@ -138,7 +138,7 @@ public class StorageClient : BundleStorageClient
         return sequence.AsSingleSegment();
     }
 
-    public override async Task<BlobHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+    public override async Task<BundleNodeHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
     {
         // TODO: Cache time is ignored
         try
@@ -172,7 +172,7 @@ public class StorageClient : BundleStorageClient
         return target;
     }
 
-    public override Task WriteRefTargetAsync(RefName refName, BlobHandle target, RefOptions? requestOptions, CancellationToken cancellationToken)
+    public override Task WriteRefTargetAsync(RefName refName, BundleNodeHandle target, RefOptions? requestOptions, CancellationToken cancellationToken)
     {
         return WriteRefTargetAsync(refName, target.GetLocator(), requestOptions, cancellationToken);
     }

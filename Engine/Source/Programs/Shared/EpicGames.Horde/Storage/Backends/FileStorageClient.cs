@@ -100,19 +100,19 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Aliases
 
 		/// <inheritdoc/>
-		public override Task AddAliasAsync(Utf8String name, BlobHandle locator, CancellationToken cancellationToken = default)
+		public override Task AddAliasAsync(Utf8String name, BundleNodeHandle locator, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("File storage client does not currently support aliases.");
 		}
 
 		/// <inheritdoc/>
-		public override Task RemoveAliasAsync(Utf8String name, BlobHandle locator, CancellationToken cancellationToken = default)
+		public override Task RemoveAliasAsync(Utf8String name, BundleNodeHandle locator, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("File storage client does not currently support aliases.");
 		}
 
 		/// <inheritdoc/>
-		public override IAsyncEnumerable<BlobHandle> FindNodesAsync(Utf8String alias, CancellationToken cancellationToken = default)
+		public override IAsyncEnumerable<BundleNodeHandle> FindNodesAsync(Utf8String alias, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("File storage client does not currently support aliases.");
 		}
@@ -130,7 +130,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public override async Task<BlobHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public override async Task<BundleNodeHandle?> TryReadRefTargetAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			FileReference file = GetRefFile(name);
 			if (!FileReference.Exists(file))
@@ -144,7 +144,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public override async Task WriteRefTargetAsync(RefName name, BlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public override async Task WriteRefTargetAsync(RefName name, BundleNodeHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			FileReference file = GetRefFile(name);
 			DirectoryReference.CreateDirectory(file.Directory);

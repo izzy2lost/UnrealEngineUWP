@@ -73,7 +73,7 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FindNodeResponse(BlobHandle target)
+		public FindNodeResponse(BundleNodeHandle target)
 		{
 			Hash = target.Hash;
 			Blob = target.GetLocator().Blob;
@@ -145,7 +145,7 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ReadRefResponse(BlobHandle target, string link)
+		public ReadRefResponse(BundleNodeHandle target, string link)
 		{
 			Hash = target.Hash;
 			Blob = target.GetLocator().Blob;
@@ -334,7 +334,7 @@ namespace Horde.Server.Storage
 			StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 
 			FindNodesResponse response = new FindNodesResponse();
-			await foreach (BlobHandle handle in client.FindNodesAsync(alias, cancellationToken))
+			await foreach (BundleNodeHandle handle in client.FindNodesAsync(alias, cancellationToken))
 			{
 				response.Nodes.Add(new FindNodeResponse(handle));
 			}
@@ -403,7 +403,7 @@ namespace Horde.Server.Storage
 		/// </summary>
 		internal static async Task<ActionResult<ReadRefResponse>> ReadRefInternalAsync(StorageService storageService, NamespaceId namespaceId, RefName refName, IHeaderDictionary headers, CancellationToken cancellationToken)
 		{
-			IStorageClient client = await storageService.GetClientAsync(namespaceId, cancellationToken);
+			StorageClient client = await storageService.GetClientAsync(namespaceId, cancellationToken);
 
 			RefCacheTime cacheTime = new RefCacheTime();
 			foreach (string entry in headers.CacheControl)
@@ -414,7 +414,7 @@ namespace Horde.Server.Storage
 				}
 			}
 
-			BlobHandle? target = await client.TryReadRefTargetAsync(refName, cacheTime, cancellationToken: cancellationToken);
+			BundleNodeHandle? target = await client.TryReadRefTargetAsync(refName, cacheTime, cancellationToken: cancellationToken);
 			if (target == null)
 			{
 				return new NotFoundResult();
@@ -588,27 +588,27 @@ namespace Horde.Server.Storage
 						List<object> directories = new List<object>();
 						foreach ((Utf8String name, DirectoryEntry entry) in directoryNode.NameToDirectory)
 						{
-							directories.Add(new { name = name.ToString(), length = entry.Length, hash = entry.Handle.Hash, link = GetNodeLink(linkBase, entry.Handle) });
+							directories.Add(new { name = name.ToString(), length = entry.Length, hash = entry.Handle.Hash, link = GetNodeLink(linkBase, (BundleNodeHandle)entry.Handle) });
 						}
 
 						List<object> files = new List<object>();
 						foreach ((Utf8String name, FileEntry entry) in directoryNode.NameToFile)
 						{
-							files.Add(new { name = name.ToString(), length = entry.Length, flags = entry.Flags, hash = entry.Hash, link = GetNodeLink(linkBase, entry.Handle) });
+							files.Add(new { name = name.ToString(), length = entry.Length, flags = entry.Flags, hash = entry.Hash, link = GetNodeLink(linkBase, (BundleNodeHandle)entry.Handle) });
 						}
 
 						content = new { directoryNode.Length, directories, files };
 					}
 					break;
 				default:
-					content = new { references = nodeData.Refs.Select(x => GetNodeLink(linkBase, x)) };
+					content = new { references = nodeData.Refs.Select(x => GetNodeLink(linkBase, (BundleNodeHandle)x)) };
 					break;
 			}
 
 			return new { bundle = $"{linkBase}/bundles/{locator}", export.Hash, export.Length, guid = header.Types[export.TypeIdx].Guid, type = node.GetType().Name, content = content };
 		}
 
-		static string GetNodeLink(string linkBase, BlobHandle handle) => GetNodeLink(linkBase, handle.GetLocator());
+		static string GetNodeLink(string linkBase, BundleNodeHandle handle) => GetNodeLink(linkBase, handle.GetLocator());
 		
 		static string GetNodeLink(string linkBase, BundleNodeLocator locator) => $"{linkBase}/nodes/{locator.Blob}?export={locator.ExportIdx}";
 

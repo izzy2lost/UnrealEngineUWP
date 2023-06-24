@@ -66,7 +66,7 @@ namespace Jupiter.Controllers
         /// <summary>
         /// Constructor
         /// </summary>
-        public FindNodeResponse(BlobHandle target)
+        public FindNodeResponse(BundleNodeHandle target)
         {
             Hash = target.Hash;
             Blob = target.GetLocator().Blob;
@@ -140,7 +140,7 @@ namespace Jupiter.Controllers
         /// <summary>
         /// Constructor
         /// </summary>
-        public ReadRefResponse(BlobHandle target, string link)
+        public ReadRefResponse(BundleNodeHandle target, string link)
         {
             Hash = target.Hash;
             Blob = target.GetLocator().Blob;
@@ -296,10 +296,10 @@ namespace Jupiter.Controllers
                 return result;
             }
 
-            IStorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
+            StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 
             FindNodesResponse response = new FindNodesResponse();
-            await foreach (BlobHandle handle in client.FindNodesAsync(alias, cancellationToken))
+            await foreach (BundleNodeHandle handle in client.FindNodesAsync(alias, cancellationToken))
             {
                 response.Nodes.Add(new FindNodeResponse(handle));
             }
@@ -351,9 +351,9 @@ namespace Jupiter.Controllers
                 return result;
             }
 
-            IStorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
+            StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 
-            BlobHandle? target = await client.TryReadRefTargetAsync(refName, cancellationToken: cancellationToken);
+            BundleNodeHandle? target = await client.TryReadRefTargetAsync(refName, cancellationToken: cancellationToken);
             if (target == null)
             {
                 return NotFound();
@@ -477,20 +477,20 @@ namespace Jupiter.Controllers
                         List<object> directories = new List<object>();
                         foreach ((Utf8String name, DirectoryEntry entry) in directoryNode.NameToDirectory)
                         {
-                            directories.Add(new { name = name.ToString(), length = entry.Length, hash = entry.Handle.Hash, link = Url.Action("GetNode", new { namespaceId = namespaceId, locator = entry.Handle!.GetLocator().Blob, export = entry.Handle!.GetLocator().ExportIdx})! });
+                            directories.Add(new { name = name.ToString(), length = entry.Length, hash = entry.Handle.Hash, link = Url.Action("GetNode", new { namespaceId = namespaceId, locator = ((BundleNodeHandle)entry.Handle)!.GetLocator().Blob, export = ((BundleNodeHandle)entry.Handle)!.GetLocator().ExportIdx})! });
                         }
 
                         List<object> files = new List<object>();
                         foreach ((Utf8String name, FileEntry entry) in directoryNode.NameToFile)
                         {
-                            files.Add(new { name = name.ToString(), length = entry.Length, flags = entry.Flags, hash = entry.Hash, link = Url.Action("GetNode", new { namespaceId = namespaceId, locator = entry.Handle!.GetLocator().Blob, export = entry.Handle!.GetLocator().ExportIdx})!});
+                            files.Add(new { name = name.ToString(), length = entry.Length, flags = entry.Flags, hash = entry.Hash, link = Url.Action("GetNode", new { namespaceId = namespaceId, locator = ((BundleNodeHandle)entry.Handle)!.GetLocator().Blob, export = ((BundleNodeHandle)entry.Handle)!.GetLocator().ExportIdx})!});
                         }
 
                         content = new { directoryNode.Length, directories, files };
                     }
                     break;
                 default:
-                    content = new { references = nodeData.Refs.Select(x => Url.Action("GetNode", new { namespaceId = namespaceId, locator = x.GetLocator().Blob, export = x.GetLocator().ExportIdx})!) };
+                    content = new { references = nodeData.Refs.Select(x => Url.Action("GetNode", new { namespaceId = namespaceId, locator = ((BundleNodeHandle)x).GetLocator().Blob, export = ((BundleNodeHandle)x).GetLocator().ExportIdx})!) };
                     break;
             }
 

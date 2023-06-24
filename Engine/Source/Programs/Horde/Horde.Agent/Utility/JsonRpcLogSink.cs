@@ -228,7 +228,7 @@ namespace Horde.Agent.Utility
 			if (request.Flush || _bufferLength > FlushLength)
 			{
 				NodeRef<LogNode> target = await _builder.FlushAsync(_writer, request.Flush, cancellationToken);
-				await UpdateLogAsync(target.Handle, _builder.LineCount, request.Flush, cancellationToken);
+				await UpdateLogAsync((BundleNodeHandle)target.Handle, _builder.LineCount, request.Flush, cancellationToken);
 				_bufferLength = 0;
 			}
 
@@ -237,7 +237,7 @@ namespace Horde.Agent.Utility
 
 		#region RPC calls
 
-		protected virtual async Task UpdateLogAsync(BlobHandle target, int lineCount, bool complete, CancellationToken cancellationToken)
+		protected virtual async Task UpdateLogAsync(BundleNodeHandle target, int lineCount, bool complete, CancellationToken cancellationToken)
 		{
 			_logger.LogInformation("Updating log {LogId} to line {LineCount}, target {Locator}", _logId, lineCount, target);
 

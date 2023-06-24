@@ -250,7 +250,7 @@ namespace Horde.Server.Tools
 			ToolDeploymentId deploymentId = ToolDeploymentId.GenerateNewId();
 			RefName refName = new RefName($"{tool.Id}/{deploymentId}");
 
-			IStorageClient client = await _storageService.GetClientAsync(Namespace.Tools, cancellationToken);
+			StorageClient client = await _storageService.GetClientAsync(Namespace.Tools, cancellationToken);
 
 			NodeRef<DirectoryNode> nodeRef;
 			await using (IStorageWriter writer = client.CreateWriter(refName))
@@ -260,7 +260,7 @@ namespace Horde.Server.Tools
 				nodeRef = await writer.WriteNodeAsync(directoryNode, cancellationToken);
 			}
 
-			BlobHandle handle = nodeRef.Handle;
+			BundleNodeHandle handle = (BundleNodeHandle)nodeRef.Handle;
 			await client.WriteRefTargetAsync(refName, handle, cancellationToken: cancellationToken);
 
 			return await CreateDeploymentAsync(tool, options, handle.GetLocator(), globalConfig, cancellationToken);

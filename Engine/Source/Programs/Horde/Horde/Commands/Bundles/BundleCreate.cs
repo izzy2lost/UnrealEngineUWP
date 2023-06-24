@@ -78,7 +78,7 @@ namespace Horde.Commands.Bundles
 				if (File != null)
 				{
 					logger.LogInformation("Writing {File}", File);
-					await FileReference.WriteAllTextAsync(File, nodeRef.Handle.ToString());
+					await FileReference.WriteAllTextAsync(File, nodeRef.Handle.ToString()!);
 				}
 				else
 				{

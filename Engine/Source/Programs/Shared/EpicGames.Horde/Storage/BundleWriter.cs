@@ -54,7 +54,7 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Implementation of <see cref="BlobHandle"/> for nodes which can be read from storage
 	/// </summary>
-	public sealed class FlushedNodeHandle : BlobHandle
+	public sealed class FlushedNodeHandle : BundleNodeHandle
 	{
 		readonly BundleReader _reader;
 		readonly BundleNodeLocator _locator;
@@ -151,7 +151,7 @@ namespace EpicGames.Horde.Storage
 	public sealed class BundleWriter : IStorageWriter
 	{
 		// Information about a unique output node. Note that multiple node refs may de-duplicate to the same output node.
-		internal class PendingNode : BlobHandle
+		internal class PendingNode : BundleNodeHandle
 		{
 			readonly BundleReader _reader;
 
@@ -164,11 +164,11 @@ namespace EpicGames.Horde.Storage
 			public readonly int Packet;
 			public readonly int Offset;
 			public readonly int Length;
-			public readonly BlobHandle[] Refs;
+			public readonly BundleNodeHandle[] Refs;
 
 			public PendingBundle? PendingBundle => _pendingBundle;
 
-			public PendingNode(BundleReader reader, NodeKey key, int packet, int offset, int length, IReadOnlyList<BlobHandle> refs, PendingBundle pendingBundle)
+			public PendingNode(BundleReader reader, NodeKey key, int packet, int offset, int length, IReadOnlyList<BundleNodeHandle> refs, PendingBundle pendingBundle)
 				: base(key.Hash)
 			{
 				_reader = reader;
@@ -245,7 +245,7 @@ namespace EpicGames.Horde.Storage
 					return _locator;
 				}
 
-				foreach (BlobHandle nodeRef in Refs)
+				foreach (BundleNodeHandle nodeRef in Refs)
 				{
 					await nodeRef.FlushAsync(cancellationToken);
 				}
@@ -428,7 +428,7 @@ namespace EpicGames.Horde.Storage
 				_currentPacketLength += size;
 				UncompressedLength += size;
 
-				PendingNode pendingNode = new PendingNode(_treeReader, nodeKey, _currentPacketIdx, offset, (int)size, refs, this);
+				PendingNode pendingNode = new PendingNode(_treeReader, nodeKey, _currentPacketIdx, offset, (int)size, refs.ConvertAll(x => (BundleNodeHandle)x), this);
 				_queue.Add(pendingNode);
 				_nodeKeyToInfo.Add(nodeKey, pendingNode);
 
@@ -596,7 +596,7 @@ namespace EpicGames.Horde.Storage
 					int typeIdx = FindOrAddItemIndex(nodeInfo.Key.Type, types, typeToIndex);
 
 					List<BundleExportRef> exportRefs = new List<BundleExportRef>();
-					foreach (BlobHandle handle in nodeInfo.Refs)
+					foreach (BundleNodeHandle handle in nodeInfo.Refs)
 					{
 						BundleExportRef exportRef;
 						if (!nodeHandleToExportRef.TryGetValue(handle, out exportRef))
@@ -837,6 +837,17 @@ namespace EpicGames.Horde.Storage
 			{
 				await WaitForWriteAsync(cancellationToken);
 			}
+		}
+
+		/// <summary>
+		/// Flushes all the current nodes to storage
+		/// </summary>
+		/// <param name="root">Root for the tree</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		public async Task<BundleNodeHandle> FlushAsync(Node root, CancellationToken cancellationToken = default)
+		{
+			return (BundleNodeHandle)await NodeRefExtensions.FlushAsync(this, root, cancellationToken);
 		}
 
 		/// <inheritdoc/>

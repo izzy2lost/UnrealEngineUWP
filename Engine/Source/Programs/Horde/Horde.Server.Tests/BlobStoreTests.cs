@@ -121,7 +121,7 @@ namespace Horde.Server.Tests
 			{
 				RefName refName = new RefName("hello");
 				await store.WriteRefTargetAsync(refName, new BundleNodeLocator(bundle3.Header.Exports[0].Hash, locator3, 0));
-				BlobHandle refTarget = await store.ReadRefTargetAsync(refName);
+				BundleNodeHandle refTarget = await store.ReadRefTargetAsync(refName);
 				Assert.AreEqual(locator3, refTarget.GetLocator().Blob);
 			}
 		}
@@ -162,9 +162,9 @@ namespace Horde.Server.Tests
 			Assert.AreEqual(default, await TryReadRefTargetAsync(store, "test-ref-3"));
 		}
 
-		static async Task<BundleNodeLocator> TryReadRefTargetAsync(IStorageClient store, RefName name)
+		static async Task<BundleNodeLocator> TryReadRefTargetAsync(BundleStorageClient store, RefName name)
 		{
-			BlobHandle? handle = await store.TryReadRefTargetAsync(name);
+			BundleNodeHandle? handle = await store.TryReadRefTargetAsync(name);
 			if (handle == null)
 			{
 				return default;

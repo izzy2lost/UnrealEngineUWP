@@ -216,7 +216,7 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(1, store.Bundles.Count);
 
 			// Check the ref
-			Storage.BlobHandle refTarget = await store.ReadRefTargetAsync(refName);
+			BundleNodeHandle refTarget =  await store.ReadRefTargetAsync(refName);
 			Bundle bundle = await store.ReadBundleAsync(refTarget.GetLocator().Blob);
 			Assert.AreEqual(0, bundle.Header.Imports.Count);
 			Assert.AreEqual(3, bundle.Header.Exports.Count);

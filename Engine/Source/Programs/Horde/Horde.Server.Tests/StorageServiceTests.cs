@@ -48,7 +48,7 @@ namespace Horde.Server.Tests
 			await client.AddAliasAsync("foo", new BundleNodeLocator(hash1, locator, 1));
 			await client.AddAliasAsync("bar", new BundleNodeLocator(hash2, locator, 2));
 
-			List<BlobHandle> handles;
+			List<BundleNodeHandle> handles;
 			
 			handles = await client.FindNodesAsync("foo").ToListAsync();
 			Assert.AreEqual(2, handles.Count);
