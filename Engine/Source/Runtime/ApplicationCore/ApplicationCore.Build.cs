@@ -71,7 +71,7 @@ public class ApplicationCore : ModuleRules
 				PrivateIncludePathModuleNames.Add("ImageWrapper");
 			}
 		}
-		else if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
+		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
 		{
 			PublicIncludePaths.AddRange(new string[] {"Runtime/ApplicationCore/Public/IOS"});
 			PublicIncludePaths.AddRange(new string[] {"Runtime/ApplicationCore/Private/Apple"});

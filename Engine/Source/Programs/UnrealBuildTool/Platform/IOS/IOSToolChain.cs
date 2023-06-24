@@ -268,7 +268,10 @@ namespace UnrealBuildTool
 
 			Arguments.Add($"-isysroot \"{Settings.Value.GetSDKPath(CompileEnvironment.Architecture)}\"");
 
-			Arguments.Add("-m" + GetXcodeMinVersionParam() + "=" + ProjectSettings.RuntimeVersion);
+			if (GetXcodeMinVersionParam() != "")
+			{
+				Arguments.Add("-m" + GetXcodeMinVersionParam() + "=" + ProjectSettings.RuntimeVersion);
+			}
 
 			// Add additional frameworks so that their headers can be found
 			foreach (UEBuildFramework Framework in CompileEnvironment.AdditionalFrameworks)
@@ -361,7 +364,10 @@ namespace UnrealBuildTool
 				Settings.Value.XcodeDeveloperDir, bIsDevice ? Settings.Value.DevicePlatformName : Settings.Value.SimulatorPlatformName, Settings.Value.IOSSDKVersion));
 
 			Arguments.Add("-dead_strip");
-			Arguments.Add("-m" + GetXcodeMinVersionParam() + "=" + ProjectSettings.RuntimeVersion);
+			if (GetXcodeMinVersionParam() != "")
+			{
+				Arguments.Add("-m" + GetXcodeMinVersionParam() + "=" + ProjectSettings.RuntimeVersion);
+			}
 			Arguments.Add("-Wl-no_pie");
 			Arguments.Add("-stdlib=libc++");
 			Arguments.Add("-ObjC");
@@ -1616,7 +1622,7 @@ namespace UnrealBuildTool
 								" -configuration \"" + ConfigName + "\"" +
 							" -scheme '" + SchemeName + "'" +
 								" -sdk " + GetCodesignPlatformName(Target.Platform) +
-							" -destination generic/platform=" + (Target.Platform == UnrealTargetPlatform.IOS ? "iOS" : "tvOS") +
+							" -destination generic/platform=" + AppleExports.GetDestinationPlatform(Target.Platform) +
 								" -derivedDataPath \"" + FrameworkDerivedDataDir + "\"" +
 							" CONFIGURATION_BUILD_DIR=\"" + FrameworkPayloadDirectory + "\"" +
 								(!String.IsNullOrEmpty(TeamUUID) ? " DEVELOPMENT_TEAM=" + TeamUUID : "");
@@ -1629,7 +1635,7 @@ namespace UnrealBuildTool
 								" -configuration \"" + ConfigName + "\"" +
 							" -scheme '" + SchemeName + "'" +
 								" -sdk " + GetCodesignPlatformName(Target.Platform) +
-							" -destination generic/platform=" + (Target.Platform == UnrealTargetPlatform.IOS ? "iOS" : "tvOS") +
+							" -destination generic/platform=" + AppleExports.GetDestinationPlatform(Target.Platform) +
 								(!String.IsNullOrEmpty(TeamUUID) ? " DEVELOPMENT_TEAM=" + TeamUUID : "");
 					}
 

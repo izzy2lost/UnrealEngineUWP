@@ -52,12 +52,12 @@ public class libOpus : ModuleRules
 			PublicAdditionalLibraries.Add(OpusPath);
 			PublicAdditionalLibraries.Add(SpeexPath);
 		}
-        else if (Target.Platform == UnrealTargetPlatform.IOS)
+        else if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.VisionOS)
         {
             string OpusPath = LibraryPath + "/IOS/libOpus.a";
             PublicAdditionalLibraries.Add(OpusPath);
         }
-	else if (Target.Platform == UnrealTargetPlatform.TVOS)
+		else if (Target.Platform == UnrealTargetPlatform.TVOS)
         {
             string OpusPath = LibraryPath + "/TVOS/libOpus.a";
             PublicAdditionalLibraries.Add(OpusPath);

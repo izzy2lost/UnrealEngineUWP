@@ -32,7 +32,7 @@ public:
 	/**
 	 * Default constructor.
 	 */
-	IOSTARGETPLATFORM_API FIOSTargetPlatform(bool bInISTVOS, bool bInIsClientOnly);
+	IOSTARGETPLATFORM_API FIOSTargetPlatform(bool bInISTVOS, bool bInIsVisionOS, bool bInIsClientOnly);
 
 	/**
 	 * Destructor.
@@ -125,6 +125,7 @@ private:
 	
 	// true if this is targeting TVOS vs IOS
 	bool bIsTVOS;
+	bool bIsVisionOS;
 
 	// Contains all discovered IOSTargetDevices over the network.
 	TMap<FTargetDeviceId, FIOSTargetDevicePtr> Devices;

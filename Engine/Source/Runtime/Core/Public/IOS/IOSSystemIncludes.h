@@ -54,10 +54,10 @@
 #include <malloc/malloc.h>
 
 // SIMD intrinsics
-#if WITH_SIMULATOR
-#include <xmmintrin.h>
-#else
+#if PLATFORM_CPU_ARM_FAMILY
 #include <arm_neon.h>
+#else
+#include <xmmintrin.h>
 #endif
 
 struct tagRECT

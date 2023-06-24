@@ -723,7 +723,7 @@ static IOSAppDelegate* CachedDelegate = nil;
 
 -(bool)HasRecordPermission
 {
-#if PLATFORM_TVOS
+#if PLATFORM_TVOS || PLATFORM_VISIONOS
 	// TVOS does not have sound recording capabilities.
 	return false;
 #else
@@ -838,9 +838,14 @@ static IOSAppDelegate* CachedDelegate = nil;
 
 - (void)LoadScreenResolutionModifiers
 {
+#if PLATFORM_VISIONOS
+	self.ScreenScale = 1.0f;
+	self.NativeScale = 1.0f;
+#else
 	// cache these UI thread sensitive vars for later use
 	self.ScreenScale = (float)[[UIScreen mainScreen] scale];
 	self.NativeScale = (float)[[UIScreen mainScreen] nativeScale];
+#endif
 
 	// need to cache the MobileContentScaleFactor for framebuffer creation.
 	static IConsoleVariable* CVarScale = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MobileContentScaleFactor"));
@@ -1000,14 +1005,18 @@ static FAutoConsoleVariableRef CVarGEnableThermalsReport(
 
 #if !BUILD_EMBEDDED_APP
     
-    
-    CGRect MainFrame = [[UIScreen mainScreen] bounds];
+#if PLATFORM_VISIONOS
+    CGRect MainFrame = CGRectMake(0, 0, 1000, 1000);
+#else
+	CGRect MainFrame = [[UIScreen mainScreen] bounds];
+#endif
     self.Window = [[UIWindow alloc] initWithFrame:MainFrame];
 
     [self.Window makeKeyAndVisible];
 
     FAppEntry::PreInit(self, application);
 
+#if !PLATFORM_VISIONOS
     UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"LaunchScreen" bundle:nil];
     if (storyboard != nil)
     {
@@ -1016,7 +1025,7 @@ static FAutoConsoleVariableRef CVarGEnableThermalsReport(
         [self.Window addSubview: self.viewController.view];
         GShowSplashScreen = true;
     }
-
+#endif
 
     timer = [NSTimer scheduledTimerWithTimeInterval: 0.05f target:self selector:@selector(timerForSplashScreen) userInfo:nil repeats:YES];
 
@@ -1026,7 +1035,7 @@ static FAutoConsoleVariableRef CVarGEnableThermalsReport(
 
 #endif
 	
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
 	UNUserNotificationCenter *Center = [UNUserNotificationCenter currentNotificationCenter];
 	Center.delegate = self;
 	// Register for device orientation changes
@@ -1241,7 +1250,7 @@ static FAutoConsoleVariableRef CVarGEnableThermalsReport(
 
 - (void) didRotate:(NSNotification *)notification
 {   
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS &&!PLATFORM_VISIONOS
 	// get the interface orientation
 	
 	NSLog(@"didRotate orientation = %d", (int)[self.Window.windowScene interfaceOrientation]);
@@ -1580,7 +1589,7 @@ extern double GCStartTime;
 
 #endif
 
-#if !PLATFORM_TVOS
+#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
 
 +(EDeviceScreenOrientation) ConvertFromUIInterfaceOrientation:(UIInterfaceOrientation)Orientation
 {

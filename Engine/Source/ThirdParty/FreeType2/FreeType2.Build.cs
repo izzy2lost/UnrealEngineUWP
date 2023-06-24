@@ -15,6 +15,7 @@ public class FreeType2 : ModuleRules
 				return "FreeType2-2.10.4";
 			}
 			else if (Target.Platform == UnrealTargetPlatform.IOS ||
+				Target.Platform == UnrealTargetPlatform.VisionOS ||
 				Target.Platform == UnrealTargetPlatform.Mac ||
 				Target.IsInPlatformGroup(UnrealPlatformGroup.Windows) ||
 				Target.IsInPlatformGroup(UnrealPlatformGroup.Unix)
@@ -98,7 +99,7 @@ public class FreeType2 : ModuleRules
 
 			PublicAdditionalLibraries.Add(Path.Combine(FreeType2LibPath, "Mac", LibPath));
 		}
-		else if (Target.Platform == UnrealTargetPlatform.IOS)
+		else if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.VisionOS)
 		{
 			LibPath = Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT
 				? Path.Combine("Debug", "libfreetyped.a")
