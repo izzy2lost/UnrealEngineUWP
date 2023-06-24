@@ -164,7 +164,7 @@ public abstract class BundlesTests
 
     protected const string SmallFileContents = "Small file contents";
 
-    protected BlobLocator SmallFileLocator { get; } = BlobLocator.CreateUnique(String.Empty);
+    protected BundleLocator SmallFileLocator { get; } = BundleLocator.CreateUnique(String.Empty);
 
     [TestInitialize]
     public async Task Setup()
@@ -295,7 +295,7 @@ public abstract class BundlesTests
 
         WriteBlobResponse? writeBlobResponse = await result.Content.ReadFromJsonAsync<WriteBlobResponse>();
         Assert.IsNotNull(writeBlobResponse);
-        BlobLocator bundleLocator = writeBlobResponse.Blob;
+        BundleLocator bundleLocator = writeBlobResponse.Blob;
 
         HttpResponseMessage getResult = await _httpClient!.GetAsync(new Uri($"api/v1/storage/{TestNamespaceName}/bundles/{bundleLocator}", UriKind.Relative));
         getResult.EnsureSuccessStatusCode();
@@ -363,7 +363,7 @@ public abstract class BundlesTests
         List<BundlePacket> packets = new List<BundlePacket>();
         packets.Add(new BundlePacket(BundleCompressionFormat.None, 0, payload.Length, payload.Length));
 
-        BundleHeader header = BundleHeader.Create(types, Array.Empty<BlobLocator>(), exports, packets);
+        BundleHeader header = BundleHeader.Create(types, Array.Empty<BundleLocator>(), exports, packets);
         return new Bundle(header, new List<ReadOnlyMemory<byte>> { payload });
     }
 

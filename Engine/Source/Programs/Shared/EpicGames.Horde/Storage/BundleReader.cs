@@ -24,11 +24,11 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		class BundleInfo
 		{
-			public readonly BlobLocator Locator;
+			public readonly BundleLocator Locator;
 			public readonly BundleHeader Header;
 			public readonly int HeaderLength;
 
-			public BundleInfo(BlobLocator locator, BundleHeader header, int headerLength)
+			public BundleInfo(BundleLocator locator, BundleHeader header, int headerLength)
 			{
 				Locator = locator;
 				Header = header;
@@ -41,12 +41,12 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		class QueuedHeader
 		{
-			public readonly BlobLocator Blob;
+			public readonly BundleLocator Blob;
 			public readonly TaskCompletionSource<BundleInfo> CompletionSource = new TaskCompletionSource<BundleInfo>();
 
 			public Utf8String Path => Blob.Path;
 
-			public QueuedHeader(BlobLocator blob)
+			public QueuedHeader(BundleLocator blob)
 			{
 				Blob = blob;
 			}
@@ -101,9 +101,9 @@ namespace EpicGames.Horde.Storage
 
 		#region Bundles
 
-		static string GetBundleInfoCacheKey(BlobLocator locator) => $"bundle:{locator}";
-		static string GetEncodedPacketCacheKey(BlobLocator locator, int packetIdx) => $"encoded-packet:{locator}#{packetIdx}";
-		static string GetDecodedPacketCacheKey(BlobLocator locator, int packetIdx) => $"decoded-packet:{locator}#{packetIdx}";
+		static string GetBundleInfoCacheKey(BundleLocator locator) => $"bundle:{locator}";
+		static string GetEncodedPacketCacheKey(BundleLocator locator, int packetIdx) => $"encoded-packet:{locator}#{packetIdx}";
+		static string GetDecodedPacketCacheKey(BundleLocator locator, int packetIdx) => $"decoded-packet:{locator}#{packetIdx}";
 
 		/// <summary>
 		/// Adds an object to the storage cache
@@ -377,7 +377,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="locator"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public async Task<BundleHeader> ReadBundleHeaderAsync(BlobLocator locator, CancellationToken cancellationToken = default)
+		public async Task<BundleHeader> ReadBundleHeaderAsync(BundleLocator locator, CancellationToken cancellationToken = default)
 		{
 			BundleInfo info = await GetBundleInfoAsync(locator, cancellationToken);
 			return info.Header;
@@ -389,7 +389,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="locator">The bundle location</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Information about the bundle</returns>
-		async ValueTask<BundleInfo> GetBundleInfoAsync(BlobLocator locator, CancellationToken cancellationToken = default)
+		async ValueTask<BundleInfo> GetBundleInfoAsync(BundleLocator locator, CancellationToken cancellationToken = default)
 		{
 			Debug.Assert(locator.IsValid());
 
@@ -541,7 +541,7 @@ namespace EpicGames.Horde.Storage
 			List<BlobHandle> refs = new List<BlobHandle>(export.References.Count);
 			foreach (BundleExportRef reference in export.References)
 			{
-				BlobLocator importBlob;
+				BundleLocator importBlob;
 				if (reference.ImportIdx == -1)
 				{
 					importBlob = locator.Blob;

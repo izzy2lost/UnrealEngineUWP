@@ -36,7 +36,7 @@ namespace EpicGames.Horde.Storage
 		public RefName(Utf8String text)
 		{
 			Text = text;
-			BlobLocator.ValidatePathArgument(nameof(text), text.Span);
+			BundleLocator.ValidatePathArgument(nameof(text), text.Span);
 		}
 
 		/// <inheritdoc/>

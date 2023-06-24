@@ -39,15 +39,15 @@ namespace Horde.Server.Tests
 		class Blob
 		{
 			public ReadOnlyMemory<byte> Data { get; set; } = ReadOnlyMemory<byte>.Empty;
-			public List<BlobLocator> References { get; set; } = new List<BlobLocator>();
+			public List<BundleLocator> References { get; set; } = new List<BundleLocator>();
 		}
 
-		static Bundle CreateTestBundle(ReadOnlyMemory<byte> data, IReadOnlyList<BlobLocator> refs)
+		static Bundle CreateTestBundle(ReadOnlyMemory<byte> data, IReadOnlyList<BundleLocator> refs)
 		{
 			List<BlobType> types = new List<BlobType>();
 			types.Add(new BlobType(Guid.Parse("{AFDF76A7-5333-4DEE-B837-B5F5CA511245}"), 1));
 
-			List<BlobLocator> imports = new List<BlobLocator>(refs);
+			List<BundleLocator> imports = new List<BundleLocator>(refs);
 
 			List<BundleExportRef> exportRefs = new List<BundleExportRef>();
 			for(int idx = 0; idx < refs.Count; idx++)
@@ -65,7 +65,7 @@ namespace Horde.Server.Tests
 			return new Bundle(header, new[] { data });
 		}
 
-		static async Task<Blob> ReadBlobAsync(StorageClient store, BlobLocator locator)
+		static async Task<Blob> ReadBlobAsync(StorageClient store, BundleLocator locator)
 		{
 			Bundle bundle = await store.ReadBundleAsync(locator);
 			return ExtractBlobFromBundle(bundle);
@@ -85,7 +85,7 @@ namespace Horde.Server.Tests
 			StorageClient store = await CreateStorageClientAsync();
 
 			byte[] input = CreateTestData(256, 0);
-			BlobLocator locator = await store.WriteBundleAsync(CreateTestBundle(input, Array.Empty<BlobLocator>()));
+			BundleLocator locator = await store.WriteBundleAsync(CreateTestBundle(input, Array.Empty<BundleLocator>()));
 
 			Bundle outputBundle = await store.ReadBundleAsync(locator);
 			Assert.IsTrue(outputBundle.Packets[0].Span.SequenceEqual(input));
@@ -97,25 +97,25 @@ namespace Horde.Server.Tests
 			StorageClient store = await CreateStorageClientAsync();
 
 			byte[] input1 = CreateTestData(256, 1);
-			Bundle bundle1 = CreateTestBundle(input1, Array.Empty<BlobLocator>());
-			BlobLocator locator1 = await store.WriteBundleAsync(bundle1);
+			Bundle bundle1 = CreateTestBundle(input1, Array.Empty<BundleLocator>());
+			BundleLocator locator1 = await store.WriteBundleAsync(bundle1);
 			Blob blob1 = await ReadBlobAsync(store, locator1);
 			Assert.IsTrue(blob1.Data.Span.SequenceEqual(input1));
-			Assert.IsTrue(blob1.References.SequenceEqual(Array.Empty<BlobLocator>()));
+			Assert.IsTrue(blob1.References.SequenceEqual(Array.Empty<BundleLocator>()));
 
 			byte[] input2 = CreateTestData(256, 2);
-			Bundle bundle2 = CreateTestBundle(input2, new BlobLocator[] { locator1 });
-			BlobLocator locator2 = await store.WriteBundleAsync(bundle2);
+			Bundle bundle2 = CreateTestBundle(input2, new BundleLocator[] { locator1 });
+			BundleLocator locator2 = await store.WriteBundleAsync(bundle2);
 			Blob blob2 = await ReadBlobAsync(store, locator2);
 			Assert.IsTrue(blob2.Data.Span.SequenceEqual(input2));
-			Assert.IsTrue(blob2.References.SequenceEqual(new BlobLocator[] { locator1 }));
+			Assert.IsTrue(blob2.References.SequenceEqual(new BundleLocator[] { locator1 }));
 
 			byte[] input3 = CreateTestData(256, 3);
-			Bundle bundle3 = CreateTestBundle(input3, new BlobLocator[] { locator1, locator2, locator1 });
-			BlobLocator locator3 = await store.WriteBundleAsync(bundle3);
+			Bundle bundle3 = CreateTestBundle(input3, new BundleLocator[] { locator1, locator2, locator1 });
+			BundleLocator locator3 = await store.WriteBundleAsync(bundle3);
 			Blob blob3 = await ReadBlobAsync(store, locator3);
 			Assert.IsTrue(blob3.Data.Span.SequenceEqual(input3));
-			Assert.IsTrue(blob3.References.SequenceEqual(new BlobLocator[] { locator1, locator2, locator1 }));
+			Assert.IsTrue(blob3.References.SequenceEqual(new BundleLocator[] { locator1, locator2, locator1 }));
 
 			for(int idx = 0; idx < 2; idx++)
 			{
@@ -131,8 +131,8 @@ namespace Horde.Server.Tests
 		{
 			StorageClient store = await CreateStorageClientAsync();
 
-			Bundle bundle1 = CreateTestBundle(new byte[] { 1, 2, 3 }, Array.Empty<BlobLocator>());
-			BlobLocator locator1 = await store.WriteBundleAsync(bundle1);
+			Bundle bundle1 = CreateTestBundle(new byte[] { 1, 2, 3 }, Array.Empty<BundleLocator>());
+			BundleLocator locator1 = await store.WriteBundleAsync(bundle1);
 			BundleNodeLocator target = new BundleNodeLocator(bundle1.Header.Exports[0].Hash, locator1, 0);
 
 			await store.WriteRefTargetAsync("test-ref-1", target);

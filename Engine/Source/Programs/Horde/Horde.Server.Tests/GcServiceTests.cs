@@ -34,9 +34,9 @@ namespace Horde.Server.Tests
 			StorageClient store = await StorageService.GetClientAsync(new NamespaceId("default"), CancellationToken.None);
 
 			Random random = new Random(0);
-			BlobLocator[] blobs = await CreateTestDataAsync(store, 30, 50, 30, 5, random);
+			BundleLocator[] blobs = await CreateTestDataAsync(store, 30, 50, 30, 5, random);
 
-			HashSet<BlobLocator> roots = new HashSet<BlobLocator>();
+			HashSet<BundleLocator> roots = new HashSet<BundleLocator>();
 			for (int idx = 0; idx < 10; idx++)
 			{
 				int blobIdx = (int)(random.NextDouble() * blobs.Length);
@@ -46,25 +46,25 @@ namespace Horde.Server.Tests
 				}
 			}
 
-			HashSet<BlobLocator> nodes = await FindNodes(store, roots);
+			HashSet<BundleLocator> nodes = await FindNodes(store, roots);
 
 			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
 
-			BlobLocator[] remaining = await store.Backend.EnumerateAsync().Select(x => new BlobLocator(StorageBackend.GetBlobPathFromFileName(x))).ToArrayAsync();
+			BundleLocator[] remaining = await store.Backend.EnumerateAsync().Select(x => new BundleLocator(StorageBackend.GetBlobPathFromFileName(x))).ToArrayAsync();
 			Assert.AreEqual(nodes.Count, remaining.Length);
 			Assert.IsTrue(remaining.All(x => nodes.Contains(x)));
 		}
 
-		async Task<HashSet<BlobLocator>> FindNodes(BundleStorageClient store, IEnumerable<BlobLocator> roots)
+		async Task<HashSet<BundleLocator>> FindNodes(BundleStorageClient store, IEnumerable<BundleLocator> roots)
 		{
-			HashSet<BlobLocator> nodes = new HashSet<BlobLocator>();
+			HashSet<BundleLocator> nodes = new HashSet<BundleLocator>();
 			await FindNodes(store, roots, nodes);
 			return nodes;
 		}
 
-		async Task FindNodes(BundleStorageClient store, IEnumerable<BlobLocator> roots, HashSet<BlobLocator> nodes)
+		async Task FindNodes(BundleStorageClient store, IEnumerable<BundleLocator> roots, HashSet<BundleLocator> nodes)
 		{
-			foreach (BlobLocator root in roots)
+			foreach (BundleLocator root in roots)
 			{
 				if (nodes.Add(root))
 				{
@@ -74,7 +74,7 @@ namespace Horde.Server.Tests
 			}
 		}
 
-		static async ValueTask<BlobLocator[]> CreateTestDataAsync(BundleStorageClient store, int numRoots, int numInterior, int numLeaves, int avgChildren, Random random)
+		static async ValueTask<BundleLocator[]> CreateTestDataAsync(BundleStorageClient store, int numRoots, int numInterior, int numLeaves, int avgChildren, Random random)
 		{
 			int firstRoot = 0;
 			int firstInterior = firstRoot + numRoots;
@@ -98,11 +98,11 @@ namespace Horde.Server.Tests
 				}
 			}
 
-			BlobLocator[] locators = new BlobLocator[children.Length];
+			BundleLocator[] locators = new BundleLocator[children.Length];
 			for (int idx = numNodes - 1; idx >= 0; idx--)
 			{
 				List<BlobType> types = new List<BlobType> { new BlobType(Guid.Parse("{AFDF76A7-5333-4DEE-B837-B5F5CA511245}"), 0) };
-				List<BlobLocator> imports = children[idx].ConvertAll(x => locators[x]);
+				List<BundleLocator> imports = children[idx].ConvertAll(x => locators[x]);
 				BundleHeader header = BundleHeader.Create(types, imports, Array.Empty<BundleExport>(), Array.Empty<BundlePacket>());
 				Bundle bundle = new Bundle(header, Array.Empty<ReadOnlyMemory<byte>>());
 				locators[idx] = await store.WriteBundleAsync(bundle, prefix: "gctest");

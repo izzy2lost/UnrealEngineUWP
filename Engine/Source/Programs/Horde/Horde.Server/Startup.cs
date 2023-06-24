@@ -903,16 +903,16 @@ namespace Horde.Server
 				.WaitAndRetryAsync(new[] { TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10) });
 		}
 		
-		public sealed class BlobLocatorBsonSerializer : SerializerBase<BlobLocator>
+		public sealed class BundleLocatorBsonSerializer : SerializerBase<BundleLocator>
 		{
 			/// <inheritdoc/>
-			public override BlobLocator Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
+			public override BundleLocator Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
 			{
-				return new BlobLocator(context.Reader.ReadString());
+				return new BundleLocator(context.Reader.ReadString());
 			}
 
 			/// <inheritdoc/>
-			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, BlobLocator value)
+			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, BundleLocator value)
 			{
 				context.Writer.WriteString(value.ToString());
 			}
@@ -994,7 +994,7 @@ namespace Horde.Server
 				ConventionRegistry.Register("Horde", conventionPack, type => true);
 
 				// Register the custom serializers
-				BsonSerializer.RegisterSerializer(new BlobLocatorBsonSerializer());
+				BsonSerializer.RegisterSerializer(new BundleLocatorBsonSerializer());
 				BsonSerializer.RegisterSerializer(new RefNameBsonSerializer());
 				BsonSerializer.RegisterSerializer(new IoHashBsonSerializer());
 				BsonSerializer.RegisterSerializer(new NamespaceIdBsonSerializer());

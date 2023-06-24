@@ -302,7 +302,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="imports">Imported bundles</param>
 		/// <param name="exports">Exports for nodes</param>
 		/// <param name="packets">Compression packets within the bundle</param>
-		public static BundleHeader Create(IReadOnlyList<BlobType> types, IReadOnlyList<BlobLocator> imports, IReadOnlyList<BundleExport> exports, IReadOnlyList<BundlePacket> packets)
+		public static BundleHeader Create(IReadOnlyList<BlobType> types, IReadOnlyList<BundleLocator> imports, IReadOnlyList<BundleExport> exports, IReadOnlyList<BundlePacket> packets)
 		{
 			// Find the size of all the sections
 			int typesLength = BundleTypeCollection.Measure(types);
@@ -468,12 +468,12 @@ namespace EpicGames.Horde.Storage
 
 			// Read the imports
 			int numImports = (int)reader.ReadUnsignedVarInt();
-			List<BlobLocator> imports = new List<BlobLocator>(numImports);
+			List<BundleLocator> imports = new List<BundleLocator>(numImports);
 			List<BundleExportRef> allExportReferences = new List<BundleExportRef>();
 
 			for (int importIdx = 0; importIdx < numImports; importIdx++)
 			{
-				BlobLocator locator = reader.ReadBlobLocator();
+				BundleLocator locator = reader.ReadBlobLocator();
 				imports.Add(locator);
 
 				int[] exportIndexes = reader.ReadVariableLengthArray(() => (int)reader.ReadUnsignedVarInt());
@@ -685,7 +685,7 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Collection of imported node references
 	/// </summary>
-	public struct BundleImportCollection : IReadOnlyList<BlobLocator>
+	public struct BundleImportCollection : IReadOnlyList<BundleLocator>
 	{
 		readonly ReadOnlyMemory<byte> _data;
 
@@ -698,7 +698,7 @@ namespace EpicGames.Horde.Storage
 		/// Constructor
 		/// </summary>
 		/// <param name="locators">Locators to write to the </param>
-		public BundleImportCollection(IReadOnlyCollection<BlobLocator> locators)
+		public BundleImportCollection(IReadOnlyCollection<BundleLocator> locators)
 		{
 			byte[] data = new byte[Measure(locators)];
 			Write(data, locators);
@@ -708,7 +708,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Retrieve a single import from the collection
 		/// </summary>
-		public BlobLocator this[int index]
+		public BundleLocator this[int index]
 		{
 			get
 			{
@@ -716,7 +716,7 @@ namespace EpicGames.Horde.Storage
 				ReadOnlySpan<byte> span = _data.Span;
 				int offset = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(index * sizeof(int)));
 				int length = span.Slice(offset).IndexOf((byte)0);
-				return new BlobLocator(new Utf8String(_data.Slice(offset, length)));
+				return new BundleLocator(new Utf8String(_data.Slice(offset, length)));
 			}
 		}
 
@@ -724,7 +724,7 @@ namespace EpicGames.Horde.Storage
 		public int Count => (_data.Length == 0)? 0 : BinaryPrimitives.ReadInt32LittleEndian(_data.Span) / sizeof(int);
 
 		/// <inheritdoc/>
-		public IEnumerator<BlobLocator> GetEnumerator()
+		public IEnumerator<BundleLocator> GetEnumerator()
 		{
 			int count = Count;
 			for(int idx = 0; idx < count; idx++)
@@ -741,10 +741,10 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="locators">Locators to write</param>
 		/// <returns>Size in bytes of the output buffer</returns>
-		public static int Measure(IReadOnlyCollection<BlobLocator> locators)
+		public static int Measure(IReadOnlyCollection<BundleLocator> locators)
 		{
 			int length = 0;
-			foreach (BlobLocator locator in locators)
+			foreach (BundleLocator locator in locators)
 			{
 				length += sizeof(int) + locator.Path.Length + 1;
 			}
@@ -756,19 +756,19 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="data">Output buffer for the serialized data</param>
 		/// <param name="locators">Locators to write</param>
-		public static void Write(Span<byte> data, IReadOnlyCollection<BlobLocator> locators)
+		public static void Write(Span<byte> data, IReadOnlyCollection<BundleLocator> locators)
 		{
 			Span<byte> next = data;
 
 			int offset = locators.Count * sizeof(int);
-			foreach(BlobLocator locator in locators)
+			foreach(BundleLocator locator in locators)
 			{
 				BinaryPrimitives.WriteInt32LittleEndian(next, offset);
 				offset += locator.Path.Length + 1;
 				next = next.Slice(sizeof(int));
 			}
 
-			foreach (BlobLocator locator in locators)
+			foreach (BundleLocator locator in locators)
 			{
 				locator.Path.Span.CopyTo(next);
 				next = next.Slice(locator.Path.Length);

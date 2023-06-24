@@ -2,7 +2,6 @@
 
 using EpicGames.Core;
 using EpicGames.Serialization;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Buffers.Binary;
 using System.ComponentModel;
@@ -17,10 +16,10 @@ namespace EpicGames.Horde.Storage
 	/// Unique identifier for a blob, as a utf-8 string. Clients should not assume any internal structure to this identifier; it only
 	/// has meaning to the <see cref="IStorageClient"/> implementation.
 	/// </summary>
-	[JsonConverter(typeof(BlobLocatorJsonConverter))]
-	[TypeConverter(typeof(BlobLocatorTypeConverter))]
-	[CbConverter(typeof(BlobLocatorCbConverter))]
-	public struct BlobLocator : IEquatable<BlobLocator>
+	[JsonConverter(typeof(BundleLocatorJsonConverter))]
+	[TypeConverter(typeof(BundleLocatorTypeConverter))]
+	[CbConverter(typeof(BundleLocatorCbConverter))]
+	public struct BundleLocator : IEquatable<BundleLocator>
 	{
 		/// <summary>
 		/// Dummy enum to allow invoking the constructor which takes a sanitized full path
@@ -36,7 +35,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Empty blob locator
 		/// </summary>
-		public static BlobLocator Empty { get; } = default;
+		public static BundleLocator Empty { get; } = default;
 
 		/// <summary>
 		/// Identifier for the blob
@@ -46,7 +45,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BlobLocator(string path)
+		public BundleLocator(string path)
 			: this(path.AsSpan())
 		{
 		}
@@ -55,7 +54,7 @@ namespace EpicGames.Horde.Storage
 		/// Constructor
 		/// </summary>
 		/// <param name="path">Path to the blob</param>
-		public BlobLocator(ReadOnlySpan<char> path)
+		public BundleLocator(ReadOnlySpan<char> path)
 			: this(new Utf8String(path))
 		{
 		}
@@ -63,7 +62,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BlobLocator(Utf8String path)
+		public BundleLocator(Utf8String path)
 		{
 			Path = path;
 			ValidatePathArgument(nameof(path), path.Span);
@@ -158,14 +157,14 @@ namespace EpicGames.Horde.Storage
 		/// Create a unique locator with the given prefix
 		/// </summary>
 		/// <param name="basePath">Prefix for the locator</param>
-		public static BlobLocator CreateUnique(Utf8String basePath) => CreateUnique(basePath, DateTime.UtcNow);
+		public static BundleLocator CreateUnique(Utf8String basePath) => CreateUnique(basePath, DateTime.UtcNow);
 
 		/// <summary>
 		/// Create a unique locator with the given prefix
 		/// </summary>
 		/// <param name="basePath">Path prefix for the new locator</param>
 		/// <param name="utcNow">Current time</param>
-		public static BlobLocator CreateUnique(Utf8String basePath, DateTime utcNow)
+		public static BundleLocator CreateUnique(Utf8String basePath, DateTime utcNow)
 		{
 			byte[] data;
 			if (basePath.Length == 0)
@@ -187,14 +186,14 @@ namespace EpicGames.Horde.Storage
 			ulong seed = Interlocked.Increment(ref s_uniqueId);
 			StringUtils.FormatUtf8HexString(seed, output.Slice(8));
 
-			return new BlobLocator(new Utf8String(data));
+			return new BundleLocator(new Utf8String(data));
 		}
 
 		/// <inheritdoc/>
-		public override bool Equals(object? obj) => obj is BlobLocator other && Equals(other);
+		public override bool Equals(object? obj) => obj is BundleLocator other && Equals(other);
 
 		/// <inheritdoc/>
-		public bool Equals(BlobLocator locator) => Path == locator.Path;
+		public bool Equals(BundleLocator locator) => Path == locator.Path;
 
 		/// <inheritdoc/>
 		public override int GetHashCode() => Path.GetHashCode();
@@ -214,28 +213,28 @@ namespace EpicGames.Horde.Storage
 		public override string ToString() => Path.ToString();
 
 		/// <inheritdoc/>
-		public static bool operator ==(BlobLocator lhs, BlobLocator rhs) => lhs.Equals(rhs);
+		public static bool operator ==(BundleLocator lhs, BundleLocator rhs) => lhs.Equals(rhs);
 
 		/// <inheritdoc/>
-		public static bool operator !=(BlobLocator lhs, BlobLocator rhs) => !lhs.Equals(rhs);
+		public static bool operator !=(BundleLocator lhs, BundleLocator rhs) => !lhs.Equals(rhs);
 	}
 
 	/// <summary>
 	/// Type converter for BlobId to and from JSON
 	/// </summary>
-	sealed class BlobLocatorJsonConverter : JsonConverter<BlobLocator>
+	sealed class BundleLocatorJsonConverter : JsonConverter<BundleLocator>
 	{
 		/// <inheritdoc/>
-		public override BlobLocator Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => new BlobLocator(new Utf8String(reader.GetUtf8String().ToArray()));
+		public override BundleLocator Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => new BundleLocator(new Utf8String(reader.GetUtf8String().ToArray()));
 
 		/// <inheritdoc/>
-		public override void Write(Utf8JsonWriter writer, BlobLocator value, JsonSerializerOptions options) => writer.WriteStringValue(value.Path.Span);
+		public override void Write(Utf8JsonWriter writer, BundleLocator value, JsonSerializerOptions options) => writer.WriteStringValue(value.Path.Span);
 	}
 
 	/// <summary>
 	/// Type converter from strings to BlobId objects
 	/// </summary>
-	sealed class BlobLocatorTypeConverter : TypeConverter
+	sealed class BundleLocatorTypeConverter : TypeConverter
 	{
 		/// <inheritdoc/>
 		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
@@ -246,23 +245,23 @@ namespace EpicGames.Horde.Storage
 		/// <inheritdoc/>
 		public override object ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object? value)
 		{
-			return new BlobLocator((string)value!);
+			return new BundleLocator((string)value!);
 		}
 	}
 
 	/// <summary>
 	/// Type converter to compact binary
 	/// </summary>
-	sealed class BlobLocatorCbConverter : CbConverterBase<BlobLocator>
+	sealed class BundleLocatorCbConverter : CbConverterBase<BundleLocator>
 	{
 		/// <inheritdoc/>
-		public override BlobLocator Read(CbField field) => new BlobLocator(field.AsUtf8String());
+		public override BundleLocator Read(CbField field) => new BundleLocator(field.AsUtf8String());
 
 		/// <inheritdoc/>
-		public override void Write(CbWriter writer, BlobLocator value) => writer.WriteUtf8StringValue(value.Path);
+		public override void Write(CbWriter writer, BundleLocator value) => writer.WriteUtf8StringValue(value.Path);
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, BlobLocator value) => writer.WriteUtf8String(name, value.Path);
+		public override void WriteNamed(CbWriter writer, Utf8String name, BundleLocator value) => writer.WriteUtf8String(name, value.Path);
 	}
 
 	/// <summary>
@@ -275,9 +274,9 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="reader">Reader to deserialize from</param>
 		/// <returns>The blob id that was read</returns>
-		public static BlobLocator ReadBlobLocator(this IMemoryReader reader)
+		public static BundleLocator ReadBlobLocator(this IMemoryReader reader)
 		{
-			return new BlobLocator(reader.ReadUtf8String());
+			return new BundleLocator(reader.ReadUtf8String());
 		}
 
 		/// <summary>
@@ -285,7 +284,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="writer">Writer to serialize to</param>
 		/// <param name="value">Value to serialize</param>
-		public static void WriteBlobLocator(this IMemoryWriter writer, BlobLocator value)
+		public static void WriteBlobLocator(this IMemoryWriter writer, BundleLocator value)
 		{
 			writer.WriteUtf8String(value.Path);
 		}

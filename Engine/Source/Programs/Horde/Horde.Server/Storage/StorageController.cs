@@ -37,7 +37,7 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Locator for the uploaded bundle
 		/// </summary>
-		public BlobLocator Blob { get; set; }
+		public BundleLocator Blob { get; set; }
 
 		/// <summary>
 		/// URL to upload the blob to.
@@ -63,7 +63,7 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Locator for the target blob
 		/// </summary>
-		public BlobLocator Blob { get; set; }
+		public BundleLocator Blob { get; set; }
 
 		/// <summary>
 		/// Export index for the ref
@@ -104,7 +104,7 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Locator for the target blob
 		/// </summary>
-		public BlobLocator Blob { get; set; }
+		public BundleLocator Blob { get; set; }
 
 		/// <summary>
 		/// Export index for the ref
@@ -130,7 +130,7 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Locator for the target blob
 		/// </summary>
-		public BlobLocator Blob { get; set; }
+		public BundleLocator Blob { get; set; }
 
 		/// <summary>
 		/// Export index for the ref
@@ -221,7 +221,7 @@ namespace Horde.Server.Storage
 					return new WriteBlobResponse { SupportsRedirects = false };
 				}
 
-				(BlobLocator Locator, Uri UploadUrl)? result = await storageClientImpl.GetWriteRedirectAsync(prefix ?? String.Empty, cancellationToken);
+				(BundleLocator Locator, Uri UploadUrl)? result = await storageClientImpl.GetWriteRedirectAsync(prefix ?? String.Empty, cancellationToken);
 				if (result == null)
 				{
 					return new WriteBlobResponse { SupportsRedirects = false };
@@ -237,7 +237,7 @@ namespace Horde.Server.Storage
 					bundle = await Bundle.FromStreamAsync(stream, cancellationToken);
 				}
 
-				BlobLocator locator = await storageClient.WriteBundleAsync(bundle, prefix: (prefix == null) ? Utf8String.Empty : new Utf8String(prefix), cancellationToken: cancellationToken);
+				BundleLocator locator = await storageClient.WriteBundleAsync(bundle, prefix: (prefix == null) ? Utf8String.Empty : new Utf8String(prefix), cancellationToken: cancellationToken);
 				return new WriteBlobResponse { Blob = locator, SupportsRedirects = storageClientImpl?.SupportsRedirects };
 			}
 		}
@@ -252,7 +252,7 @@ namespace Horde.Server.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		[HttpGet]
 		[Route("/api/v1/storage/{namespaceId}/blobs/{*locator}")]
-		public async Task<ActionResult> ReadBlobAsync(NamespaceId namespaceId, BlobLocator locator, [FromQuery] int? offset = null, [FromQuery] int? length = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult> ReadBlobAsync(NamespaceId namespaceId, BundleLocator locator, [FromQuery] int? offset = null, [FromQuery] int? length = null, CancellationToken cancellationToken = default)
 		{
 			NamespaceConfig? namespaceConfig;
 			if (!_globalConfig.Value.Storage.TryGetNamespace(namespaceId, out namespaceConfig))
@@ -270,7 +270,7 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Reads a blob from storage, without performing namespace access checks.
 		/// </summary>
-		internal static async Task<ActionResult> ReadBlobInternalAsync(StorageService storageService, NamespaceId namespaceId, BlobLocator locator, int? offset, int? length, CancellationToken cancellationToken)
+		internal static async Task<ActionResult> ReadBlobInternalAsync(StorageService storageService, NamespaceId namespaceId, BundleLocator locator, int? offset, int? length, CancellationToken cancellationToken)
 		{
 			StorageClient client = await storageService.GetClientAsync(namespaceId, cancellationToken);
 			return await ReadBlobInternalAsync(client, locator, offset, length, cancellationToken);
@@ -279,7 +279,7 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Reads a blob from storage, without performing namespace access checks.
 		/// </summary>
-		internal static async Task<ActionResult> ReadBlobInternalAsync(BundleStorageClient storageClient, BlobLocator locator, int? offset, int? length, CancellationToken cancellationToken)
+		internal static async Task<ActionResult> ReadBlobInternalAsync(BundleStorageClient storageClient, BundleLocator locator, int? offset, int? length, CancellationToken cancellationToken)
 		{
 			if (storageClient is StorageClient storageClientImpl)
 			{
@@ -476,7 +476,7 @@ namespace Horde.Server.Storage
 		/// <returns></returns>
 		[HttpGet]
 		[Route("/api/v1/storage/{namespaceId}/bundles/{*locator}")]
-		public async Task<ActionResult<object>> GetBundleAsync(NamespaceId namespaceId, BlobLocator locator, [FromQuery(Name = "imports")] bool includeImports = false, [FromQuery(Name = "exports")] bool includeExports = true, [FromQuery(Name = "packets")] bool includePackets = false, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<object>> GetBundleAsync(NamespaceId namespaceId, BundleLocator locator, [FromQuery(Name = "imports")] bool includeImports = false, [FromQuery(Name = "exports")] bool includeExports = true, [FromQuery(Name = "packets")] bool includePackets = false, CancellationToken cancellationToken = default)
 		{
 			NamespaceConfig? namespaceConfig;
 			if (!_globalConfig.Value.Storage.TryGetNamespace(namespaceId, out namespaceConfig))
@@ -499,7 +499,7 @@ namespace Horde.Server.Storage
 			if (includeImports)
 			{
 				responseImports = new List<object>();
-				foreach (BlobLocator import in header.Imports)
+				foreach (BundleLocator import in header.Imports)
 				{
 					responseImports.Add($"{linkBase}/bundles/{import}");
 				}
@@ -556,7 +556,7 @@ namespace Horde.Server.Storage
 		/// <returns></returns>
 		[HttpGet]
 		[Route("/api/v1/storage/{namespaceId}/nodes/{*locator}")]
-		public async Task<ActionResult<object>> GetNodeAsync(NamespaceId namespaceId, BlobLocator locator, [FromQuery(Name = "export")] int exportIdx, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<object>> GetNodeAsync(NamespaceId namespaceId, BundleLocator locator, [FromQuery(Name = "export")] int exportIdx, CancellationToken cancellationToken = default)
 		{
 			NamespaceConfig? namespaceConfig;
 			if (!_globalConfig.Value.Storage.TryGetNamespace(namespaceId, out namespaceConfig))

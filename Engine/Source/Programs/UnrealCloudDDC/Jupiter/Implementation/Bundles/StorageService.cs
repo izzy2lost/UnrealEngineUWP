@@ -59,9 +59,9 @@ public class StorageClient : BundleStorageClient
         _treeReader = new BundleReader(this, null, NullLogger.Instance);
     }
 
-    public async Task<(BlobLocator Locator, Uri UploadUrl)?> GetWriteRedirectAsync(string prefix, CancellationToken cancellationToken)
+    public async Task<(BundleLocator Locator, Uri UploadUrl)?> GetWriteRedirectAsync(string prefix, CancellationToken cancellationToken)
     {
-        BlobLocator locator = BlobLocator.CreateUnique(prefix);
+        BundleLocator locator = BundleLocator.CreateUnique(prefix);
         BlobIdentifier blobIdentifier = BlobIdentifier.FromBlobLocator(locator);
         Uri? redirectUri = await _blobService.MaybePutObjectWithRedirect(_namespaceId, blobIdentifier);
         if (redirectUri == null)
@@ -71,16 +71,16 @@ public class StorageClient : BundleStorageClient
         return (locator, redirectUri);
     }
 
-    public override async Task<BlobLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix, CancellationToken cancellationToken)
+    public override async Task<BundleLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix, CancellationToken cancellationToken)
     {
-        BlobLocator locator = BlobLocator.CreateUnique(prefix);
+        BundleLocator locator = BundleLocator.CreateUnique(prefix);
         BlobIdentifier blobIdentifier = BlobIdentifier.FromBlobLocator(locator);
         await _blobService.PutObject(_namespaceId, bundle.AsSequence().ToArray(), blobIdentifier);
 
         await using ReadOnlySequenceStream bundleStream = new ReadOnlySequenceStream(bundle.AsSequence());
         BundleHeader bundleHeader = await BundleHeader.FromStreamAsync(bundleStream, cancellationToken);
         List<Task> addReferencesTasks = new List<Task>();
-        foreach (BlobLocator import in bundleHeader.Imports)
+        foreach (BundleLocator import in bundleHeader.Imports)
         {
             BlobIdentifier dependentBlob = BlobIdentifier.FromBlobLocator(import);
             addReferencesTasks.Add(_blobIndex.AddBlobReferences(_namespaceId, dependentBlob, blobIdentifier));
@@ -110,21 +110,21 @@ public class StorageClient : BundleStorageClient
         yield break;
     }
 
-    public async Task<Uri?> GetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken)
+    public async Task<Uri?> GetReadRedirectAsync(BundleLocator locator, CancellationToken cancellationToken)
     {
         BlobIdentifier blobIdentifier = BlobIdentifier.FromBlobLocator(locator);
         Uri? redirectUri = await _blobService.GetObjectWithRedirect(_namespaceId, blobIdentifier);
         return redirectUri;
     }
 
-    public override async Task<Bundle> ReadBundleAsync(BlobLocator locator, CancellationToken cancellationToken)
+    public override async Task<Bundle> ReadBundleAsync(BundleLocator locator, CancellationToken cancellationToken)
     {
         BlobIdentifier blobIdentifier = BlobIdentifier.FromBlobLocator(locator);
         BlobContents blobContents = await _blobService.GetObject(_namespaceId, blobIdentifier);
         return await Bundle.FromStreamAsync(blobContents.Stream, cancellationToken);
     }
 
-    public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken)
+    public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator locator, int offset, int length, CancellationToken cancellationToken)
     {
         Bundle bundle = await ReadBundleAsync(locator, cancellationToken);
         ReadOnlySequence<byte> sequence = bundle.AsSequence();
@@ -152,7 +152,7 @@ public class StorageClient : BundleStorageClient
 
             RefInlinePayload inlinePayload = CbSerializer.Deserialize<RefInlinePayload>(record.InlinePayload);
             IoHash nodeHash = inlinePayload.BlobHash;
-            BlobLocator blobLocator = new BlobLocator(inlinePayload.BlobLocator);
+            BundleLocator blobLocator = new BundleLocator(inlinePayload.BlobLocator);
             int exportId = inlinePayload.ExportId;
 
             return new FlushedNodeHandle(_treeReader, new BundleNodeLocator(nodeHash, blobLocator, exportId));
@@ -165,7 +165,7 @@ public class StorageClient : BundleStorageClient
 
     public async Task<BlobHandle> WriteRefAsync(RefName name, Bundle bundle, int exportIdx, Utf8String prefix = default, RefOptions? options = null, CancellationToken cancellationToken = default)
     {
-        BlobLocator locator = await WriteBundleAsync(bundle, prefix, cancellationToken);
+        BundleLocator locator = await WriteBundleAsync(bundle, prefix, cancellationToken);
         BlobHandle target = new FlushedNodeHandle(_treeReader, new BundleNodeLocator(bundle.Header.Exports[exportIdx].Hash, locator, exportIdx));
         await WriteRefTargetAsync(name, target, options, cancellationToken);
 

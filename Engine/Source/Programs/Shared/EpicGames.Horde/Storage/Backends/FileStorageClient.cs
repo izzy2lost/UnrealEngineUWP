@@ -48,12 +48,12 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		FileReference GetRefFile(RefName name) => FileReference.Combine(_rootDir, name.ToString() + ".ref");
-		FileReference GetBlobFile(BlobLocator id) => FileReference.Combine(_rootDir, id.Path.ToString() + ".blob");
+		FileReference GetBlobFile(BundleLocator id) => FileReference.Combine(_rootDir, id.Path.ToString() + ".blob");
 
 		#region Blobs
 
 		/// <inheritdoc/>
-		public override async Task<Bundle> ReadBundleAsync(BlobLocator id, CancellationToken cancellationToken = default)
+		public override async Task<Bundle> ReadBundleAsync(BundleLocator id, CancellationToken cancellationToken = default)
 		{
 			FileReference file = GetBlobFile(id);
 			_logger.LogInformation("Reading {File}", file);
@@ -63,7 +63,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BlobLocator id, int offset, int length, CancellationToken cancellationToken = default)
+		public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator id, int offset, int length, CancellationToken cancellationToken = default)
 		{
 			Bundle bundle = await ReadBundleAsync(id, cancellationToken);
 
@@ -77,9 +77,9 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public override async Task<BlobLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
+		public override async Task<BundleLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
 		{
-			BlobLocator id = BlobLocator.CreateUnique(prefix);
+			BundleLocator id = BundleLocator.CreateUnique(prefix);
 			FileReference file = GetBlobFile(id);
 			DirectoryReference.CreateDirectory(file.Directory);
 			_logger.LogInformation("Writing {File}", file);

@@ -154,14 +154,14 @@ namespace Jupiter.Implementation
             return new IoHash(HashData);
         }
 
-        public static BlobIdentifier FromBlobLocator(BlobLocator locator)
+        public static BlobIdentifier FromBlobLocator(BundleLocator locator)
         {
             return new BlobIdentifier(Encoding.UTF8.GetBytes(locator.ToString()));
         }
 
-        public BlobLocator AsBlobLocator()
+        public BundleLocator AsBlobLocator()
         {
-            return new BlobLocator(Encoding.UTF8.GetString(HashData));
+            return new BundleLocator(Encoding.UTF8.GetString(HashData));
         }
     }
 

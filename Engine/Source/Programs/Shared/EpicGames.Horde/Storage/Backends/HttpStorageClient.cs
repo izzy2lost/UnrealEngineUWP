@@ -29,7 +29,7 @@ namespace EpicGames.Horde.Storage.Backends
 
 		class WriteBlobResponse
 		{
-			public BlobLocator Blob { get; set; }
+			public BundleLocator Blob { get; set; }
 			public Uri? UploadUrl { get; set; }
 			public bool? SupportsRedirects { get; set; }
 		}
@@ -37,7 +37,7 @@ namespace EpicGames.Horde.Storage.Backends
 		class FindNodeResponse
 		{
 			public IoHash Hash { get; set; }
-			public BlobLocator Blob { get; set; }
+			public BundleLocator Blob { get; set; }
 			public int ExportIdx { get; set; }
 		}
 
@@ -49,7 +49,7 @@ namespace EpicGames.Horde.Storage.Backends
 		class ReadRefResponse
 		{
 			public IoHash Hash { get; set; }
-			public BlobLocator Blob { get; set; }
+			public BundleLocator Blob { get; set; }
 			public int ExportIdx { get; set; }
 		}
 
@@ -102,7 +102,7 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Blobs
 
 		/// <inheritdoc/>
-		public override async Task<Bundle> ReadBundleAsync(BlobLocator locator, CancellationToken cancellationToken = default)
+		public override async Task<Bundle> ReadBundleAsync(BundleLocator locator, CancellationToken cancellationToken = default)
 		{
 			_logger.LogDebug("Reading {Locator}", locator);
 			using (HttpClient httpClient = _createClient())
@@ -119,7 +119,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default)
+		public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator locator, int offset, int length, CancellationToken cancellationToken = default)
 		{
 			_logger.LogDebug("Reading {Locator} ({Offset}+{Length})", locator, offset, length);
 			using (HttpClient httpClient = _createClient())
@@ -134,7 +134,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public override async Task<BlobLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
+		public override async Task<BundleLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
 		{
 			using StreamContent streamContent = new StreamContent(new ReadOnlySequenceStream(bundle.AsSequence()));
 

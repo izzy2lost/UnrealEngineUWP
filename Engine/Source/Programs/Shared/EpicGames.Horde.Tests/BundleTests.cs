@@ -140,9 +140,9 @@ namespace EpicGames.Horde.Tests
 				List<BlobType> types = new List<BlobType>();
 				types.Add(new BlobType(Guid.NewGuid(), 0));
 
-				List<BlobLocator> imports = new List<BlobLocator>();
-				imports.Add(new BlobLocator("import1"));
-				imports.Add(new BlobLocator("import2"));
+				List<BundleLocator> imports = new List<BundleLocator>();
+				imports.Add(new BundleLocator("import1"));
+				imports.Add(new BundleLocator("import2"));
 
 				List<BundleExport> exports = new List<BundleExport>();
 				exports.Add(new BundleExport(0, IoHash.Compute(Encoding.UTF8.GetBytes("export1")), 0, 0, 2, new BundleExportRef[] { new BundleExportRef(0, 5, IoHash.Zero), new BundleExportRef(0, 6, IoHash.Zero) }));

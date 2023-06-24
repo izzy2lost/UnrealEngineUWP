@@ -25,7 +25,7 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <summary>
 		/// Map of blob id to blob data
 		/// </summary>
-		readonly ConcurrentDictionary<BlobLocator, Bundle> _bundles = new ConcurrentDictionary<BlobLocator, Bundle>();
+		readonly ConcurrentDictionary<BundleLocator, Bundle> _bundles = new ConcurrentDictionary<BundleLocator, Bundle>();
 
 		/// <summary>
 		/// Map of ref name to ref data
@@ -38,7 +38,7 @@ namespace EpicGames.Horde.Storage.Backends
 		readonly ConcurrentDictionary<Utf8String, ExportEntry> _exports = new ConcurrentDictionary<Utf8String, ExportEntry>();
 
 		/// <inheritdoc cref="_bundles"/>
-		public IReadOnlyDictionary<BlobLocator, Bundle> Bundles => _bundles;
+		public IReadOnlyDictionary<BundleLocator, Bundle> Bundles => _bundles;
 
 		/// <inheritdoc cref="_refs"/>
 		public IReadOnlyDictionary<RefName, BundleNodeLocator> Refs => _refs;
@@ -54,14 +54,14 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Blobs
 
 		/// <inheritdoc/>
-		public override Task<Bundle> ReadBundleAsync(BlobLocator locator, CancellationToken cancellationToken = default)
+		public override Task<Bundle> ReadBundleAsync(BundleLocator locator, CancellationToken cancellationToken = default)
 		{
 			Bundle bundle = _bundles[locator];
 			return Task.FromResult(bundle);
 		}
 
 		/// <inheritdoc/>
-		public override Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BlobLocator locator, int offset, int length, CancellationToken cancellationToken = default)
+		public override Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator locator, int offset, int length, CancellationToken cancellationToken = default)
 		{
 			ReadOnlySequence<byte> sequence = _bundles[locator].AsSequence().Slice(offset);
 			if (sequence.Length > length)
@@ -72,9 +72,9 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public override Task<BlobLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
+		public override Task<BundleLocator> WriteBundleAsync(Bundle bundle, Utf8String prefix = default, CancellationToken cancellationToken = default)
 		{
-			BlobLocator locator = BlobLocator.CreateUnique(prefix);
+			BundleLocator locator = BundleLocator.CreateUnique(prefix);
 			_bundles[locator] = new Bundle(bundle.AsSequence().ToArray());
 			return Task.FromResult(locator);
 		}

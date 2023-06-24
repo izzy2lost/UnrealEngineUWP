@@ -30,7 +30,7 @@ namespace Jupiter.Controllers
         /// <summary>
         /// Locator for the uploaded bundle
         /// </summary>
-        public BlobLocator Blob { get; set; }
+        public BundleLocator Blob { get; set; }
 
         /// <summary>
         /// URL to upload the blob to.
@@ -56,7 +56,7 @@ namespace Jupiter.Controllers
         /// <summary>
         /// Locator for the target blob
         /// </summary>
-        public BlobLocator Blob { get; set; }
+        public BundleLocator Blob { get; set; }
 
         /// <summary>
         /// Export index for the ref
@@ -99,7 +99,7 @@ namespace Jupiter.Controllers
         /// <summary>
         /// Locator for the target blob
         /// </summary>
-        public BlobLocator Blob { get; set; }
+        public BundleLocator Blob { get; set; }
 
         /// <summary>
         /// Export index for the ref
@@ -125,7 +125,7 @@ namespace Jupiter.Controllers
         /// <summary>
         /// Locator for the target blob
         /// </summary>
-        public BlobLocator Blob { get; set; }
+        public BundleLocator Blob { get; set; }
 
         /// <summary>
         /// Export index for the ref
@@ -149,7 +149,7 @@ namespace Jupiter.Controllers
         }
 
         [JsonConstructor]
-        public ReadRefResponse(IoHash hash, BlobLocator blob, int exportIdx, string link)
+        public ReadRefResponse(IoHash hash, BundleLocator blob, int exportIdx, string link)
         {
             Hash = hash;
             Blob = blob;
@@ -227,7 +227,7 @@ namespace Jupiter.Controllers
                 using (Stream stream = file.OpenReadStream())
                 {
                     Bundle bundle = await Bundle.FromStreamAsync(stream, cancellationToken);
-                    BlobLocator locator = await client.WriteBundleAsync(bundle, prefix: (prefix == null) ? Utf8String.Empty : new Utf8String(prefix), cancellationToken: cancellationToken);
+                    BundleLocator locator = await client.WriteBundleAsync(bundle, prefix: (prefix == null) ? Utf8String.Empty : new Utf8String(prefix), cancellationToken: cancellationToken);
                     return new WriteBlobResponse { Blob = locator, SupportsRedirects = client.SupportsRedirects? (bool?)true : null };
                 }
             }
@@ -243,7 +243,7 @@ namespace Jupiter.Controllers
         /// <param name="cancellationToken">Cancellation token for the operation</param>
         [HttpGet]
         [Route("{namespaceId}/blobs/{*locator}")]
-        public async Task<ActionResult> ReadBlobAsync(NamespaceId namespaceId, BlobLocator locator, [FromQuery] int? offset = null, [FromQuery] int? length = null, CancellationToken cancellationToken = default)
+        public async Task<ActionResult> ReadBlobAsync(NamespaceId namespaceId, BundleLocator locator, [FromQuery] int? offset = null, [FromQuery] int? length = null, CancellationToken cancellationToken = default)
         {
             ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { AclAction.ReadObject });
             if (result != null)
@@ -375,7 +375,7 @@ namespace Jupiter.Controllers
         /// <returns></returns>
         [HttpGet]
         [Route("{namespaceId}/bundles/{*locator}")]
-        public async Task<ActionResult<object>> GetBundleAsync(NamespaceId namespaceId, BlobLocator locator, [FromQuery(Name = "imports")] bool includeImports = false, [FromQuery(Name = "exports")] bool includeExports = true, [FromQuery(Name = "packets")] bool includePackets = false, CancellationToken cancellationToken = default)
+        public async Task<ActionResult<object>> GetBundleAsync(NamespaceId namespaceId, BundleLocator locator, [FromQuery(Name = "imports")] bool includeImports = false, [FromQuery(Name = "exports")] bool includeExports = true, [FromQuery(Name = "packets")] bool includePackets = false, CancellationToken cancellationToken = default)
         {
             ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { AclAction.ReadObject });
             if (result != null)
@@ -393,7 +393,7 @@ namespace Jupiter.Controllers
             if (includeImports)
             {
                 responseImports = new List<object>();
-                foreach (BlobLocator import in header.Imports)
+                foreach (BundleLocator import in header.Imports)
                 {
                     string link = Url.Action("GetBundle", new { namespaceId = namespaceId, locator = import })!;
                     responseImports.Add(link);
@@ -451,7 +451,7 @@ namespace Jupiter.Controllers
         /// <returns></returns>
         [HttpGet]
         [Route("{namespaceId}/nodes/{*locator}")]
-        public async Task<ActionResult<object>> GetNodeAsync(NamespaceId namespaceId, BlobLocator locator, [FromQuery(Name = "export")] int exportIdx, CancellationToken cancellationToken = default)
+        public async Task<ActionResult<object>> GetNodeAsync(NamespaceId namespaceId, BundleLocator locator, [FromQuery(Name = "export")] int exportIdx, CancellationToken cancellationToken = default)
         {
             ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { AclAction.ReadObject });
             if (result != null)

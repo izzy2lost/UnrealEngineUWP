@@ -69,7 +69,7 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
-	/// Base interface for a low-level storage backend. Blobs added to this store are not content addressed, but referenced by <see cref="BlobLocator"/>.
+	/// Base interface for a low-level storage backend. Blobs added to this store are not content addressed, but referenced by <see cref="BundleLocator"/>.
 	/// </summary>
 	public interface IStorageClient
 	{
