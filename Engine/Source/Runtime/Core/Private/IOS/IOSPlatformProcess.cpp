@@ -41,9 +41,6 @@ FRunnableThread* FIOSPlatformProcess::CreateRunnableThread()
 
 void FIOSPlatformProcess::LaunchURL( const TCHAR* URL, const TCHAR* Parms, FString* Error )
 {
-#if PLATFORM_VISIONOS
-	*Error = TEXT("LaunchURL is not supported on VisionOS");
-#else
 	UE_LOG(LogIOS, Log,  TEXT("LaunchURL %s %s"), URL, Parms?Parms:TEXT("") );
 
 	if (FCoreDelegates::ShouldLaunchUrl.IsBound() && !FCoreDelegates::ShouldLaunchUrl.Execute(URL))
@@ -63,7 +60,6 @@ void FIOSPlatformProcess::LaunchURL( const TCHAR* URL, const TCHAR* Parms, FStri
 	{
 		*Error = Result ? TEXT("") : TEXT("unable to open url");
 	}
-#endif
 }
 
 bool FIOSPlatformProcess::CanLaunchURL(const TCHAR* URL)

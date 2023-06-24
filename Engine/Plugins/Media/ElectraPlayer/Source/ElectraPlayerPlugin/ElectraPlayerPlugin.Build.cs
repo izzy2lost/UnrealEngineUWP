@@ -35,7 +35,12 @@ namespace UnrealBuildTool.Rules
 				PrivateDependencyModuleNames.Add("Engine");
 			}
 
-			if (Target.IsInPlatformGroup(UnrealPlatformGroup.Apple))
+			if (Target.Platform == UnrealTargetPlatform.Mac)
+			{
+				PrivateDependencyModuleNames.Add("MetalRHI");
+			}
+
+			if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
 			{
 				PrivateDependencyModuleNames.Add("MetalRHI");
 			}

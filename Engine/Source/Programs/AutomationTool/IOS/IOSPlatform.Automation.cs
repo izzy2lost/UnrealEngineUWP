@@ -1112,7 +1112,7 @@ public class IOSPlatform : ApplePlatform
 		Arguments += SchemeName != null ? SchemeName : GameName;
 		Arguments += "'";
 		Arguments += " -configuration \"" + (SchemeConfiguration != null ? SchemeConfiguration : TargetConfig.ToString()) + "\"";
-		Arguments += " -destination generic/platform=" + AppleExports.GetDestinationPlatform(TargetPlatformType);
+		Arguments += " -destination generic/platform=" + (PlatformName == "TVOS" ? "tvOS" : "iOS");
 		Arguments += " -sdk " + SDKName;
 
 		if (bAutomaticSigning)

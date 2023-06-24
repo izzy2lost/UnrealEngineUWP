@@ -458,10 +458,6 @@ namespace UnrealBuildTool
 				{
 					XcodePlatforms.Add(UnrealTargetPlatform.TVOS);
 				}
-				if (InstalledPlatformInfo.IsValidPlatform(UnrealTargetPlatform.VisionOS, EProjectType.Code))
-				{
-					XcodePlatforms.Add(UnrealTargetPlatform.VisionOS);
-				}
 			}
 
 			if (PerPlatformMode == XcodePerPlatformMode.OneWorkspacePerPlatform)
@@ -503,12 +499,7 @@ namespace UnrealBuildTool
 		protected override void AddAdditionalNativeTargetInformation(PlatformProjectGeneratorCollection PlatformProjectGenerators, List<Tuple<ProjectFile, ProjectTarget>> Targets, ILogger Logger)
 		{
 			DateTime MainStart = DateTime.UtcNow;
-
-			ParallelOptions Options = new ParallelOptions
-			{
-				//MaxDegreeOfParallelism=1,
-			};
-			Parallel.ForEach(Targets, Options, TargetPair =>
+			Parallel.ForEach(Targets, TargetPair =>
 			{
 				// don't bother if we aren't interested in this target
 				if (SingleTargetName != null && !TargetPair.Item2.Name.Equals(SingleTargetName, StringComparison.InvariantCultureIgnoreCase))
@@ -579,9 +570,9 @@ namespace UnrealBuildTool
 							}
 						}
 					}
-					catch (Exception Ex)
+					catch (Exception)
 					{
-						Logger.LogDebug("Failed to build target {Target} for {Platform}. Skipping it for GettingNativeInfo. Exception:\n{Exception}", TargetProjectFile.ProjectFilePath.GetFileNameWithoutAnyExtensions(), Platform, Ex.Message);
+
 					}
 
 					Logger.LogDebug("GettingNativeInfo [{Project} / {Platform}] {TimeMs}ms", TargetProjectFile.ProjectFilePath.GetFileNameWithoutAnyExtensions(), Platform, (DateTime.UtcNow - Start).TotalMilliseconds);

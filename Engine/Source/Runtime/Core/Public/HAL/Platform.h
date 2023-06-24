@@ -23,9 +23,6 @@
 #if !defined(PLATFORM_TVOS)
 	#define PLATFORM_TVOS 0
 #endif
-#if !defined(PLATFORM_VISIONOS)
-	#define PLATFORM_VISIONOS 0
-#endif
 #if !defined(PLATFORM_ANDROID)
 	#define PLATFORM_ANDROID 0
 #endif

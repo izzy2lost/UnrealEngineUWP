@@ -318,14 +318,10 @@ static void MainThreadInit()
 {
 	IOSAppDelegate* AppDelegate = [IOSAppDelegate GetDelegate];
 
-#if PLATFORM_VISIONOS
-	CGRect MainFrame = CGRectMake(0, 0, 1000, 1000);
-#else
 	// Size the view appropriately for any potentially dynamically attached displays,
 	// prior to creating any framebuffers
 	CGRect MainFrame = [[UIScreen mainScreen] bounds];
-#endif
-	
+
 	// @todo: use code similar for presizing for secondary screens
 // 	CGRect FullResolutionRect =
 // 		CGRectMake(

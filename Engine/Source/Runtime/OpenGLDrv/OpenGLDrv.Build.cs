@@ -51,9 +51,9 @@ public class OpenGLDrv : ModuleRules
 		}
 
         if (!Target.IsInPlatformGroup(UnrealPlatformGroup.Windows)
-			&& !Target.IsInPlatformGroup(UnrealPlatformGroup.IOS)
-			&& Target.Platform != UnrealTargetPlatform.Android
-			&& !Target.IsInPlatformGroup(UnrealPlatformGroup.Linux))
+			&& Target.Platform != UnrealTargetPlatform.IOS && Target.Platform != UnrealTargetPlatform.Android
+			&& !Target.IsInPlatformGroup(UnrealPlatformGroup.Linux)
+			&& Target.Platform != UnrealTargetPlatform.TVOS)
 		{
 			PrecompileForTargets = PrecompileTargetsType.None;
 		}

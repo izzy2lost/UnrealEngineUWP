@@ -33,7 +33,7 @@ public class StandaloneRenderer : ModuleRules
 		{
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "SDL2");
 		}
-		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
+		else if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
 		{
 			PublicFrameworks.AddRange(new string[] { "OpenGLES", "GLKit" });
 			// weak for IOS8 support since CAMetalLayer is in QuartzCore

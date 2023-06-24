@@ -46,7 +46,7 @@ public class UnrealInsights : ModuleRules
 		{
 			PrivateDependencyModuleNames.Add("VisualStudioSourceCodeAccess");
 		}
-		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
+		else if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
 		{
 			PrivateDependencyModuleNames.AddRange(
 				new string [] {

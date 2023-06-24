@@ -1233,7 +1233,11 @@ namespace UnrealBuildTool
 			bool bIsBuildingAppBundle = !BinaryLinkEnvironment.bIsBuildingDLL && !BinaryLinkEnvironment.bIsBuildingLibrary && !BinaryLinkEnvironment.bIsBuildingConsoleApplication;
 			if (bIsBuildingAppBundle)
 			{
-				if (!bUseModernXcode)
+				if (bUseModernXcode)
+				{
+					OutputFiles.Add(UpdateVersionFile(BinaryLinkEnvironment, FileItem.GetItemByFileReference(BinaryLinkEnvironment.OutputFilePath), Graph));
+				}
+				else
 				{
 					OutputFiles.Add(FinalizeAppBundle(Target, BinaryLinkEnvironment, Executable, Graph));
 				}

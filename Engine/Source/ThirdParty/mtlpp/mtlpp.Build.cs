@@ -9,9 +9,21 @@ public class MTLPP : ModuleRules
 
 		string MTLPPPath = Target.UEThirdPartySourceDirectory + "mtlpp/mtlpp-master-7efad47/";
 
-		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Apple))
+		if (Target.Platform == UnrealTargetPlatform.Mac || Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
 		{
-			string PlatformName = Target.Platform.ToString();
+			string PlatformName = "";
+			if (Target.Platform == UnrealTargetPlatform.Mac)
+			{
+				PlatformName = "Mac";
+			}
+			else if (Target.Platform == UnrealTargetPlatform.IOS)
+			{
+				PlatformName = "IOS";
+			}
+			else if (Target.Platform == UnrealTargetPlatform.TVOS)
+			{
+				PlatformName = "TVOS";
+			}
 		
 			PublicSystemIncludePaths.Add(MTLPPPath + "src");
 			PublicSystemIncludePaths.Add(MTLPPPath + "interpose");

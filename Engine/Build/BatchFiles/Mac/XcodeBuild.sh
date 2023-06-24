@@ -64,13 +64,6 @@ else
 	TRAILINGARGS=${@:5}
 fi
 
-if [[ $ARCHS ]]; then
-	# convert the space in xcode's multiple architecture (arm64 x86_64) argument into the standard + that UBT expects (arm64+x86_64)
-	UBT_ARCHFLAG="-architecture=${ARCHS/ /+}" 
-else
-	UBT_ARCHFLAG=""
-fi
-
 # Convert platform to UBT terms
 case $PLATFORM in
 	"iphoneos"|"IOS"|"iphonesimulator")
@@ -79,14 +72,17 @@ case $PLATFORM in
 	"appletvos")
 		PLATFORM="TVOS"
 	;;
-	"xros"|"xrsimulator")
-		PLATFORM="VisionOS"
-		UBT_ARCHFLAG="-architecture=iossimulator" 
-	;;
 	"macosx")
 		PLATFORM="Mac"
 	;;
 esac
+
+if [[ $ARCHS ]]; then
+	# convert the space in xcode's multiple architecture (arm64 x86_64) argument into the standard + that UBT expects (arm64+x86_64)
+	UBT_ARCHFLAG="-architecture=${ARCHS/ /+}" 
+else
+	UBT_ARCHFLAG=""
+fi
 
 echo "Processing $ACTION for Target=$TARGET Platform=$PLATFORM Configuration=$CONFIGURATION $UBT_ARCHFLAG $TRAILINGARGS "
 

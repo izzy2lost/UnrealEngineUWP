@@ -271,7 +271,6 @@ namespace UnrealBuildTool
 			FileItem BundleScript = FileItem.GetItemByFileReference(FileReference.Combine(Unreal.EngineDirectory, "Build/BatchFiles/Mac/UpdateVersionAfterBuild.sh"));
 			UpdateVersionAction.CommandArguments = $"\"{BundleScript.AbsolutePath}\" {ProductDirectory} {LinkEnvironment.Platform}";
 			UpdateVersionAction.PrerequisiteItems.Add(Prerequisite);
-			UpdateVersionAction.PrerequisiteItems.Add(BundleScript);
 			UpdateVersionAction.ProducedItems.Add(DestFile);
 			UpdateVersionAction.StatusDescription = $"Updating version file: {OutputVersionFile}";
 
@@ -544,8 +543,6 @@ namespace UnrealBuildTool
 
 				PostBuildAction.PrerequisiteItems.UnionWith(OutputFiles);
 				OutputFiles.AddRange(PostBuildAction.ProducedItems);
-
-				OutputFiles.Add(UpdateVersionFile(BinaryLinkEnvironment, FileItem.GetItemByFileReference(BinaryLinkEnvironment.OutputFilePath), Graph));
 			}
 
 			return OutputFiles;
@@ -644,7 +641,7 @@ namespace UnrealBuildTool
 				$"-workspace \"{XcodeProject.FullName}\"",
 				$"-scheme \"{SchemeName}\"",
 				$"-configuration \"{Configuration}\"",
-				$"-destination generic/platform={AppleExports.GetDestinationPlatform(Platform)}",
+				$"-destination generic/platform=" + (Platform == UnrealTargetPlatform.TVOS ? "tvOS" : Platform == UnrealTargetPlatform.Mac ? "macOS" : "iOS"),
 				"-hideShellScriptEnvironment",
 				// xcode gets confused it we _just_ wrote out entitlements while generating the temp project, and it thinks it was modified _during_ building
 				// but it wasn't, it was written before the build started
@@ -736,7 +733,7 @@ namespace UnrealBuildTool
 		private int PostBuildSync(ApplePostBuildSyncTarget Target, ILogger Logger)
 		{
 			// generate the IOS plist file every time
-			if (Target.Platform.IsInGroup(UnrealPlatformGroup.IOS))
+			if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
 			{
 				string GameName = Target.ProjectFile == null ? "UnrealGame" : Target.ProjectFile.GetFileNameWithoutAnyExtensions();
 				// most of these params are uused in modern

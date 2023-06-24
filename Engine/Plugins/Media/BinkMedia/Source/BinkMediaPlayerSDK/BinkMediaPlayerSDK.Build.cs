@@ -72,7 +72,7 @@ public class BinkMediaPlayerSDK : ModuleRules
 				Lib = "libBinkUnreal" + Platform + ".a";
 				PublicDependencyModuleNames.Add("MetalRHI");
 			}
-			else if (Target.Platform == UnrealTargetPlatform.TVOS || Target.Platform == UnrealTargetPlatform.VisionOS)
+			else if (Target.Platform == UnrealTargetPlatform.TVOS)
 			{
 				Lib = null; // Unsupported platform
 				PublicDependencyModuleNames.Add("MetalRHI");

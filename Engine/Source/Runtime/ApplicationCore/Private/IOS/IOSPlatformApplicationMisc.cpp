@@ -284,11 +284,7 @@ EScreenPhysicalAccuracy FIOSPlatformApplicationMisc::ComputePhysicalScreenDensit
 
 	// If it hasn't been set, assume that the density is a multiple of the 
 	// native Content Scaling Factor.  Won't be exact, but should be close enough.
-#if PLATFORM_VISIONOS
-	const double NativeScale = 1.0;
-#else
 	const double NativeScale =[[UIScreen mainScreen] scale];
-#endif
 	ScreenDensity = FMath::TruncToInt(163 * NativeScale);
 
 	// look up the current scale factor

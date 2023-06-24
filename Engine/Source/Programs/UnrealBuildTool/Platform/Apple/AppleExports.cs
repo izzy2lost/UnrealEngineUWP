@@ -72,33 +72,6 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
-		/// Convert UnrealTargetPlatform to the platform that Xcode uses for -destination
-		/// </summary>
-		/// <param name="Platform"></param>
-		/// <returns></returns>
-		public static string GetDestinationPlatform(UnrealTargetPlatform Platform)
-		{
-			if (Platform == UnrealTargetPlatform.Mac)
-			{
-				return "macOS";
-			}
-			else if (Platform == UnrealTargetPlatform.IOS)
-			{
-				return "iOS";
-			}
-			else if (Platform == UnrealTargetPlatform.TVOS)
-			{
-				return "tvOS";
-			}
-			else if (Platform == UnrealTargetPlatform.VisionOS)
-			{
-				return "xrOS";
-			}
-
-			throw new BuildException($"Unknown plaform {Platform}");
-		}
-
-		/// <summary>
 		/// Different ways that xcodebuild is run, so the scripts can behave appropriately
 		/// </summary>
 		public enum XcodeBuildMode

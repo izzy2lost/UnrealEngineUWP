@@ -1007,16 +1007,12 @@ self.accessibilityElements = @[Window.accessibilityContainer];
  */
 - (void) loadView
 {
-#if PLATFORM_VISIONOS
-	CGRect Frame = CGRectMake(0, 0, 1000, 1000);
-#else
 	// get the landcape size of the screen
 	CGRect Frame = [[UIScreen mainScreen] bounds];
 	if (![IOSAppDelegate GetDelegate].bDeviceInPortraitMode)
 	{
 		Swap(Frame.size.width, Frame.size.height);
 	}
-#endif
 
 	self.view = [[UIView alloc] initWithFrame:Frame];
 

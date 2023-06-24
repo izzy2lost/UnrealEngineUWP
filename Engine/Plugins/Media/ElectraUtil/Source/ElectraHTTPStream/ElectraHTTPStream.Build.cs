@@ -146,7 +146,7 @@ public class ElectraHTTPStream : ModuleRules
 		}
 
 		// Apple
-		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Apple))
+		if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS || Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			PublicDefinitions.Add("ELECTRA_HTTPSTREAM_APPLE=1");
 			PublicFrameworks.Add("Security");

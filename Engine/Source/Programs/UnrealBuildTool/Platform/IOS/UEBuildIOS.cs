@@ -1030,7 +1030,6 @@ namespace UnrealBuildTool
 						{
 							Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatform");
 							Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatform");
-							Rules.DynamicallyLoadedModuleNames.Add("VisionOSTargetPlatform");
 						}
 					}
 					else if (ModuleName == "TargetPlatform")
@@ -1052,7 +1051,6 @@ namespace UnrealBuildTool
 					{
 						Rules.DynamicallyLoadedModuleNames.Add("IOSTargetPlatform");
 						Rules.DynamicallyLoadedModuleNames.Add("TVOSTargetPlatform");
-						Rules.DynamicallyLoadedModuleNames.Add("VisionOSTargetPlatform");
 					}
 
 					if (bBuildShaderFormats)

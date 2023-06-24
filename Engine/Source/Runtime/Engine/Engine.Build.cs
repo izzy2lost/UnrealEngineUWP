@@ -453,7 +453,7 @@ public class Engine : ModuleRules
 			PrivateIncludePathModuleNames.Add("AndroidRuntimeSettings");
 		}
 
-		if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
+		if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
 		{
 			PublicIncludePathModuleNames.Add("IOSPlatformFeatures");
 			PrivateIncludePathModuleNames.Add("IOSRuntimeSettings");

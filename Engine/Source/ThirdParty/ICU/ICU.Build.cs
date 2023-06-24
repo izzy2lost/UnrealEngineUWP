@@ -20,7 +20,9 @@ public class ICU : ModuleRules
 	{
 		get
 		{
-			if (Target.IsInPlatformGroup(UnrealPlatformGroup.Apple) ||
+			if (Target.Platform == UnrealTargetPlatform.IOS ||
+				Target.Platform == UnrealTargetPlatform.TVOS ||
+				Target.Platform == UnrealTargetPlatform.Mac ||
 				Target.IsInPlatformGroup(UnrealPlatformGroup.Windows) ||
 				Target.IsInPlatformGroup(UnrealPlatformGroup.Android) ||
 				Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
@@ -115,7 +117,7 @@ public class ICU : ModuleRules
 		{
 			PublicAdditionalLibraries.Add(Path.Combine(ICULibPath, UseDebugLibs ? "libicud.a" : "libicu.a"));
 		}
-		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
+		else if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
 		{
 			PublicAdditionalLibraries.Add(Path.Combine(ICULibPath, UseDebugLibs ? "Debug" : "Release", "libicu.a"));
 		}

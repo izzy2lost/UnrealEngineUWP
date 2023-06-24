@@ -630,12 +630,6 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	GRHISupportsFirstInstance = false; // Supported on macOS & iOS but not tvOS.
 	GRHISupportsHDROutput = false;
 	GRHIHDRDisplayOutputFormat = PF_B8G8R8A8; // must have a default value for non-hdr, just like mac or ios
-#elif PLATFORM_VISIONOS
-	GRHISupportsBaseVertexIndex = true;
-	GRHISupportsFirstInstance = GRHISupportsBaseVertexIndex;
-	GRHISupportsHDROutput = true;
-	GRHIHDRDisplayOutputFormat = (GRHISupportsHDROutput) ? PF_PLATFORM_HDR_0 : PF_B8G8R8A8;
-	GMaxWorkGroupInvocations = 512;
 #else
 	// Only A9+ can support this, so for now we need to limit this to the desktop-forward renderer only.
 	GRHISupportsBaseVertexIndex = Device.SupportsFeatureSet(mtlpp::FeatureSet::iOS_GPUFamily3_v1) && (GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5);

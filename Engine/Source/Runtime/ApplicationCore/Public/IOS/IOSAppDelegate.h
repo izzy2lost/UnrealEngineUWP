@@ -5,9 +5,7 @@
 #import <UIKit/UIKit.h>
 #import <AVFoundation/AVAudioSession.h>
 #import <GameKit/GKGameCenterViewController.h>
-#if !PLATFORM_VISIONOS
 #import <UserNotifications/UserNotifications.h>
-#endif
 #include "Delegates/Delegate.h"
 #include "Logging/LogMacros.h"
 #include "Containers/UnrealString.h"
@@ -108,9 +106,7 @@ APPLICATIONCORE_API
 	UIGestureRecognizerDelegate,
 #endif
 	GKGameCenterControllerDelegate,
-#if !PLATFORM_VISIONOS
 	UNUserNotificationCenterDelegate,
-#endif
 	UITextFieldDelegate>
 {
     bool bForceExit;
@@ -218,7 +214,7 @@ APPLICATIONCORE_API
 -(float)GetBackgroundingMainThreadBlockTime;
 -(void)OverrideBackgroundingMainThreadBlockTime:(float)BlockTime;
 
-#if !PLATFORM_TVOS && !PLATFORM_VISIONOS
+#if !PLATFORM_TVOS
   +(EDeviceScreenOrientation) ConvertFromUIInterfaceOrientation:(UIInterfaceOrientation)Orientation;
 #endif
 
