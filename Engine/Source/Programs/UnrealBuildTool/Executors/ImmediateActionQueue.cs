@@ -800,27 +800,24 @@ namespace UnrealBuildTool
 
 		public int GetQueuedActionsCount(Func<LinkedAction, bool>? CanRunFunc = null)
 		{
-			lock (Actions)
+			int count = 0;
+
+			for (int actionIndex = _firstPendingAction; actionIndex != Actions.Length; ++actionIndex)
 			{
-				int count = 0;
 
-				for (int actionIndex = _firstPendingAction; actionIndex != Actions.Length; ++actionIndex)
+				if (Actions[actionIndex].Status != ActionStatus.Queued)
 				{
-
-					if (Actions[actionIndex].Status != ActionStatus.Queued)
-					{
-						continue;
-					}
-					
-					if (CanRunFunc != null && !CanRunFunc(Actions[actionIndex].Action))
-					{
-						continue;
-					}
-
-					++count;
+					continue;
 				}
-				return count;
+					
+				if (CanRunFunc != null && !CanRunFunc(Actions[actionIndex].Action))
+				{
+					continue;
+				}
+
+				++count;
 			}
+			return count;
 		}
 
 		/// <summary>
