@@ -10,11 +10,6 @@ struct FMassExecutionContext;
 class FOutputDevice;
 struct FMassArchetypeEntityCollection;
 
-namespace UE::Mass
-{
-	constexpr int32 ChunkSize = 128*1024;
-}
-
 // This is one chunk within an archetype
 struct FMassArchetypeChunk
 {
@@ -27,7 +22,7 @@ private:
 	FMassArchetypeSharedFragmentValues SharedFragmentValues;
 
 public:
-	explicit FMassArchetypeChunk(int32 InAllocSize, TConstArrayView<FInstancedStruct> InChunkFragmentTemplates, FMassArchetypeSharedFragmentValues InSharedFragmentValues)
+	explicit FMassArchetypeChunk(const int32 InAllocSize, TConstArrayView<FInstancedStruct> InChunkFragmentTemplates, FMassArchetypeSharedFragmentValues InSharedFragmentValues)
 		: AllocSize(InAllocSize)
 		, ChunkFragmentData(InChunkFragmentTemplates)
 		, SharedFragmentValues(InSharedFragmentValues)
@@ -177,12 +172,17 @@ private:
 
 	// Arrays of names the archetype is referred as.
 	TArray<FName> DebugNames;
+
+	// Defaults to UMassEntitySettings.ChunkMemorySize. In near future will support being set via constructor.
+	const int32 ChunkMemorySize;
 	
 	friend FMassEntityQuery;
 	friend FMassArchetypeEntityCollection;
 	friend FMassDebugger;
 
 public:
+	FMassArchetypeData();
+
 	TConstArrayView<FMassArchetypeFragmentConfig> GetFragmentConfigs() const { return FragmentConfigs; }
 	const FMassFragmentBitSet& GetFragmentBitSet() const { return CompositionDescriptor.Fragments; }
 	const FMassTagBitSet& GetTagBitSet() const { return CompositionDescriptor.Tags; }
@@ -229,10 +229,11 @@ public:
 
 	FORCEINLINE int32 GetInternalIndexForEntity(const int32 EntityIndex) const { return EntityMap.FindChecked(EntityIndex); }
 	int32 GetNumEntitiesPerChunk() const { return NumEntitiesPerChunk; }
+	int32 GetBytesPerEntity() const { return TotalBytesPerEntity; }
 
 	int32 GetNumEntities() const { return EntityMap.Num(); }
 
-	int32 GetChunkAllocSize() const { return UE::Mass::ChunkSize; }
+	int32 GetChunkAllocSize() const { return ChunkMemorySize; }
 
 	int32 GetChunkCount() const { return Chunks.Num(); }
 

@@ -49,7 +49,10 @@ protected:
 	void BuildProcessorList();
 
 public:
-	/** 
+	UPROPERTY(EditDefaultsOnly, Category = Mass, config, meta = (ClampMin = "8", UIMin = "8"), AdvancedDisplay)
+	int32 ChunkMemorySize = 128 * 1024;
+
+	/**
 	 * The name of the file to dump the processor dependency graph. T
 	 * The dot file will be put in the project log folder.
 	 * To generate a svg out of that file, simply run dot executable with following parameters: -Tsvg -O filename.dot 

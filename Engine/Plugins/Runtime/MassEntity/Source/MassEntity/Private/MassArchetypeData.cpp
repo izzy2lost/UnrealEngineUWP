@@ -3,10 +3,25 @@
 #include "MassArchetypeData.h"
 #include "MassEntityTypes.h"
 #include "MassExecutionContext.h"
+#include "MassEntitySettings.h"
 #include "Misc/StringBuilder.h"
+
+
+namespace UE::Mass::Private
+{
+	constexpr int32 UninitializedInt32 = -1;
+}
 
 //////////////////////////////////////////////////////////////////////
 // FMassArchetypeData
+FMassArchetypeData::FMassArchetypeData()
+	: NumEntitiesPerChunk(UE::Mass::Private::UninitializedInt32)
+	, TotalBytesPerEntity(UE::Mass::Private::UninitializedInt32)
+	, EntityListOffsetWithinChunk(UE::Mass::Private::UninitializedInt32)
+	, ChunkMemorySize(GET_MASS_CONFIG_VALUE(ChunkMemorySize))
+{
+	
+}
 
 void FMassArchetypeData::ForEachFragmentType(TFunction< void(const UScriptStruct* /*Fragment*/)> Function) const
 {
