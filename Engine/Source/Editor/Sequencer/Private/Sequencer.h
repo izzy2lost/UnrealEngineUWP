@@ -1056,6 +1056,9 @@ private:
 	/** Handles loading in previously recorded data. */
 	void OnLoadRecordedData();
 	
+	/** Adds the binding and selects the binding, throbs it. */
+	void OnAddBinding(const FGuid& ObjectBinding, UMovieScene* MovieScene) override;
+
 	/** Adds the track to the selected folder (if FGuid is invalid) and selects the track, throbs it, and notifies the sequence to rebuild any necessary data. */
 	void OnAddTrack(const TWeakObjectPtr<UMovieSceneTrack>& InTrack, const FGuid& ObjectBinding) override;
 

@@ -29,23 +29,10 @@ bool FSortingKey::ComparePriorityFirst(const FSortingKey& A, const FSortingKey& 
 			return Compare < 0;
 		}
 
-		if (A.CustomOrder >= 0 && B.CustomOrder >= 0)
-		{
-			// Both items have custom orders, use those
-			return A.CustomOrder < B.CustomOrder;
-		}
-		else if (A.CustomOrder >= 0 || B.CustomOrder >= 0)
-		{
-			// Only one item has a custom order, list it first
-			return A.CustomOrder > B.CustomOrder;
-		}
-		else
-		{
-			// Equal priorities and identifiers, and custom orders are unset
-			// Just compare unset custom orders (zero or negative values) to be consistent
-			// with the equality operator
-			return A.CustomOrder < B.CustomOrder;
-		}
+		// Note in this case, it's possible that one of the items does not have a custom order (ie. -1). 
+		// That's fine because -1 will be sorted to the top and generally if new items are added and 
+		// there is ambiguity, we would set a max custom order.
+		return A.CustomOrder < B.CustomOrder;
 	}
 	return A.Priority < B.Priority;
 }

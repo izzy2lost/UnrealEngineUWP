@@ -320,6 +320,11 @@ public:
 	virtual TArray<FGuid> AddActors(const TArray<TWeakObjectPtr<AActor> >& InActors, bool bSelectActors = true) = 0;
 
 	/**
+	 * Should be called after adding a binding to the MovieScene.
+	 */
+	virtual void OnAddBinding(const FGuid& ObjectBinding, UMovieScene* MovieScene) = 0;
+
+	/**
 	 * Should be called after adding a track to the MovieScene. This will set the specified track as your current selection
 	 * cause it to throb, notify the sequence to rebuild any data required. The track will be added to the selected folder
 	 * unless ObjectBinding points to a valid FGuid.

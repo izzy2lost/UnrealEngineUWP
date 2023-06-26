@@ -2438,6 +2438,8 @@ bool FSequencerUtilities::PasteBindings(const FString& TextToImport, TSharedRef<
 	for (auto BindingPasted : BindingsPasted)
 	{
 		OutBindings.Add(FMovieSceneBindingProxy(BindingPasted.GetObjectGuid(), Sequence));
+		
+		Sequencer->OnAddBinding(BindingPasted.GetObjectGuid(), MovieScene);
 	}
 
 	return true; 
@@ -2531,6 +2533,8 @@ FGuid FSequencerUtilities::CreateBinding(TSharedRef<ISequencer> Sequencer, UObje
 	{
 		Sequencer->OnActorAddedToSequencer().Broadcast(ParentActorAdded, ParentGuid);
 	}
+
+	Sequencer->OnAddBinding(PossessableGuid, OwnerMovieScene);
 
 	return PossessableGuid;
 }

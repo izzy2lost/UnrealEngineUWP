@@ -5630,6 +5630,8 @@ void FSequencer::PostUndo(bool bSuccess)
 		OwnerMovieScene->SortMarkedFrames();
 	}
 
+	NodeTree->SortAllNodesAndDescendants();
+
 	OnActivateSequenceEvent.Broadcast(ActiveTemplateIDs.Top());
 }
 
@@ -8837,18 +8839,93 @@ void FSequencer::OnAddFolder()
 	NotifyMovieSceneDataChanged( EMovieSceneDataChangeType::MovieSceneStructureItemAdded );
 }
 
-void FSequencer::OnAddTrack(const TWeakObjectPtr<UMovieSceneTrack>& InTrack, const FGuid& ObjectBinding)
+void FixSortingOrders(UMovieSceneTrack* InTrack, const TArray<UMovieSceneTrack*>& Tracks)
+{
+	// Fix the sorting orders if InTrack is going to conflict with any of the given Tracks (ie. same class and same name)
+	TOptional<int32> MaxSortingOrder;
+	for (UMovieSceneTrack* Track : Tracks)
+	{
+		if (Track != InTrack && Track->GetClass() == InTrack->GetClass() && Track->GetDisplayName().EqualTo(InTrack->GetDisplayName()))
+		{
+			if (MaxSortingOrder.IsSet())
+			{
+				MaxSortingOrder = FMath::Max(MaxSortingOrder.GetValue(), Track->GetSortingOrder());
+			}
+			else
+			{
+				MaxSortingOrder = Track->GetSortingOrder();
+			}
+		}
+	}
+
+	if (MaxSortingOrder.IsSet())
+	{
+		InTrack->Modify();
+		InTrack->SetSortingOrder(MaxSortingOrder.GetValue() + 1);
+	}
+}
+
+void FixSortingOrders(FMovieSceneBinding* InBinding, UMovieScene* MovieScene)
+{
+	// Fix the sorting orders if InBinding is going to conflict with any of the existing bindings (ie. same class and same name)
+	TOptional<int32> MaxSortingOrder;
+	for (const FMovieSceneBinding& Binding : MovieScene->GetBindings())
+	{
+		if (&Binding != InBinding && Binding.GetName() == InBinding->GetName())
+		{
+			if (MaxSortingOrder.IsSet())
+			{
+				MaxSortingOrder = FMath::Max(MaxSortingOrder.GetValue(), Binding.GetSortingOrder());
+			}
+			else
+			{
+				MaxSortingOrder = Binding.GetSortingOrder();
+			}
+		}
+	}
+
+	if (MaxSortingOrder.IsSet())
+	{
+		InBinding->SetSortingOrder(MaxSortingOrder.GetValue() + 1);
+	}
+}
+
+void FSequencer::OnAddBinding(const FGuid& ObjectBinding, UMovieScene* MovieScene)
+{
+	FMovieSceneBinding* Binding = MovieScene->FindBinding(ObjectBinding);
+	if (Binding)
+	{
+		FixSortingOrders(Binding, MovieScene);
+	}
+
+	NodeTree->SortAllNodesAndDescendants();
+}
+
+void FSequencer::OnAddTrack(const TWeakObjectPtr<UMovieSceneTrack>&InTrack, const FGuid & ObjectBinding)
 {
 	if (!ensureAlwaysMsgf(InTrack.IsValid(), TEXT("Attempted to add a null UMovieSceneTrack to Sequencer. This should never happen.")))
 	{
 		return;
 	}
 
+	UMovieSceneSequence* Sequence = GetFocusedMovieSceneSequence();
+	UMovieScene* MovieScene = Sequence->GetMovieScene();
+
+	FMovieSceneBinding* Binding = MovieScene->FindBinding(ObjectBinding);
+	if (Binding)
+	{
+		FixSortingOrders(InTrack.Get(), Binding->GetTracks());
+	}
+	else if (MovieScene->ContainsTrack(*InTrack))
+	{	
+		FixSortingOrders(InTrack.Get(), MovieScene->GetTracks());
+	}
+
 	FString NewNodePath;
 
 	// If they specified an object binding it's being added to, we don't add it to a folder since we can't have it existing
 	// as a children of two places at once.
-	if(!GetFocusedMovieSceneSequence()->GetMovieScene()->FindBinding(ObjectBinding))
+	if(!Binding)
 	{
 		TArray<UMovieSceneFolder*> SelectedParentFolders;
 		CalculateSelectedFolderAndPath(SelectedParentFolders, NewNodePath);
@@ -8873,6 +8950,8 @@ void FSequencer::OnAddTrack(const TWeakObjectPtr<UMovieSceneTrack>& InTrack, con
 		SelectSection(InTrack->GetAllSections()[0]);
 	}
 	ThrobSectionSelection();
+
+	NodeTree->SortAllNodesAndDescendants();
 }
 
 
