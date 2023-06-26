@@ -26,7 +26,7 @@ void VerifyClustersAssumptions();
 void VerifyObjectFlagMirroring();
 
 /** Verifies Reachability assumptions */
-void VerifyUnreachableObjects();
+void VerifyNoUnreachableObjects();
 
 #endif // VERIFY_DISREGARD_GC_ASSUMPTIONS
 

@@ -434,7 +434,7 @@ public:
 	}
 };
 
-void VerifyUnreachableObjects()
+void VerifyNoUnreachableObjects()
 {
 	const double StartTime = FPlatformTime::Seconds();
 	const int32 MaxNumberOfReachableObjects = GUObjectArray.GetObjectArrayNum() - GUObjectArray.GetFirstGCIndex();
@@ -442,7 +442,7 @@ void VerifyUnreachableObjects()
 	const int32 NumberOfObjectsPerThread = (MaxNumberOfReachableObjects / NumThreads) + 1;
 	std::atomic<uint32> NumErrors(0);
 
-	ParallelFor(TEXT("GC.VerifyUnreachableObjects"), NumThreads, 1, [&NumErrors, NumberOfObjectsPerThread, NumThreads, MaxNumberOfReachableObjects](int32 ThreadIndex)
+	ParallelFor(TEXT("GC.VerifyNoUnreachableObjects"), NumThreads, 1, [&NumErrors, NumberOfObjectsPerThread, NumThreads, MaxNumberOfReachableObjects](int32 ThreadIndex)
 	{
 		int32 FirstObjectIndex = ThreadIndex * NumberOfObjectsPerThread;
 		int32 NumObjects = (ThreadIndex < (NumThreads - 1)) ? NumberOfObjectsPerThread : (MaxNumberOfReachableObjects - (NumThreads - 1)*NumberOfObjectsPerThread);
@@ -468,7 +468,7 @@ void VerifyUnreachableObjects()
 
 	UE_CLOG(NumErrors > 0, LogGarbage, Fatal, TEXT("Encountered %d unreachable object(s) that are still reachable."), NumErrors.load());
 
-	UE_LOG(LogGarbage, Log, TEXT("%f ms for VerifyUnreachableObjects"), (FPlatformTime::Seconds() - StartTime) * 1000);
+	UE_LOG(LogGarbage, Log, TEXT("%f ms for VerifyNoUnreachableObjects"), (FPlatformTime::Seconds() - StartTime) * 1000);
 }
 
 #endif // VERIFY_DISREGARD_GC_ASSUMPTIONS

@@ -247,10 +247,10 @@ static FAutoConsoleVariableRef CVarIncrementalReachabilityTimeLimit(
 );
 
 #if VERIFY_DISREGARD_GC_ASSUMPTIONS
-static int32 GVerifyUnreachableObjects = 0;
-static FAutoConsoleVariableRef CVarVerifyUnreachableObjects(
-	TEXT("gc.VerifyUnreachableObjects"),
-	GVerifyUnreachableObjects,
+static int32 GVerifyNoUnreachableObjects = 0;
+static FAutoConsoleVariableRef CVarVerifyNoUnreachableObjects(
+	TEXT("gc.VerifyNoUnreachableObjects"),
+	GVerifyNoUnreachableObjects,
 	TEXT("Enables or disables no unreachable objects are reachable verification"),
 	ECVF_Default
 );
@@ -4890,10 +4890,10 @@ void PostCollectGarbageImpl(EObjectFlags KeepFlags)
 	if (!GIsIncrementalReachabilityPending)
 	{
 #if VERIFY_DISREGARD_GC_ASSUMPTIONS
-		if (GVerifyUnreachableObjects != 0 && GUnreachableObjects.Num() > 0)
+		if (GVerifyNoUnreachableObjects != 0 && GUnreachableObjects.Num() > 0)
 		{
-			DECLARE_SCOPE_CYCLE_COUNTER(TEXT("CollectGarbageInternal.VerifyUnreachableObjects"), STAT_CollectGarbageInternal_VerifyUnreachableObjects, STATGROUP_GC);
-			VerifyUnreachableObjects();
+			DECLARE_SCOPE_CYCLE_COUNTER(TEXT("CollectGarbageInternal.VerifyNoUnreachableObjects"), STAT_CollectGarbageInternal_VerifyNoUnreachableObjects, STATGROUP_GC);
+			VerifyNoUnreachableObjects();
 		}
 #endif // VERIFY_DISREGARD_GC_ASSUMPTIONS
 
