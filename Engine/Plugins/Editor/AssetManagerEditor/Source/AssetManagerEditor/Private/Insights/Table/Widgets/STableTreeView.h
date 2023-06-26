@@ -533,7 +533,7 @@ protected:
 	TSet<FTableTreeNodePtr> ExpandedNodes;
 
 	static constexpr int32 MaxNodesToAutoExpand = 1000;
-	static constexpr int32 MaxDepthToAutoExpand = 3;
+	static constexpr int32 MaxDepthToAutoExpand = 1;
 	static constexpr int32 MaxNodesToExpand = 1000000;
 	static constexpr int32 MaxDepthToExpand = 100;
 
