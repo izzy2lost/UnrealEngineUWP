@@ -771,6 +771,23 @@ COREUOBJECT_API bool IsIncrementalPurgePending();
 COREUOBJECT_API void GatherUnreachableObjects(bool bForceSingleThreaded);
 
 /**
+ * Returns whether an incremental reachability analysis is still pending/ in progress.
+ *
+ * @return	true if incremental reachability analysis needs to be kicked off or is currently in progress, false othwerise.
+ */
+COREUOBJECT_API bool IsIncrementalReachabilityAnalysisPending();
+
+/**
+ * Incrementally purge garbage by deleting all unreferenced objects after routing Destroy.
+ *
+ * Calling code needs to be EXTREMELY careful when and how to call this function as
+ * RF_Unreachable cannot change on any objects unless any pending purge has completed!
+ *
+ * @param	bUseTimeLimit	whether the time limit parameter should be used
+ */
+COREUOBJECT_API void PerformIncrementalReachabilityAnalysis();
+
+/**
  * Incrementally purge garbage by deleting all unreferenced objects after routing Destroy.
  *
  * Calling code needs to be EXTREMELY careful when and how to call this function as 
@@ -3766,6 +3783,13 @@ enum class EDataValidationResult : uint8
  * @return	Returns the combined data validation result
  */
 COREUOBJECT_API EDataValidationResult CombineDataValidationResults(EDataValidationResult Result1, EDataValidationResult Result2);
+
+
+namespace UE::GC::Private
+{
+	/** true if incremental reachability analysis is in progress (global for faster access in low level structs and functions otherwise use IsIncrementalReachabilityAnalisysPending()) */
+	extern COREUOBJECT_API bool GIsIncrementalReachabilityPending;
+}
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"

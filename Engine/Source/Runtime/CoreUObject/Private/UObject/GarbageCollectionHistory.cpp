@@ -53,6 +53,19 @@ static FAutoConsoleCommand CmdSetHistorySize(
 		})
 );
 
+/** Dummy class to represent GC barrier inside of GC history object graph */
+class UGCBarrier : public UObject
+{
+	DECLARE_CLASS_INTRINSIC(UGCBarrier,
+		UObject,
+		CLASS_Transient,
+		TEXT("/Script/CoreUObject"));
+};
+
+IMPLEMENT_CORE_INTRINSIC_CLASS(UGCBarrier, UObject,
+	{
+	});
+
 FGCHistory::~FGCHistory()
 {
 	Cleanup();
@@ -84,6 +97,7 @@ void FGCHistory::Cleanup()
 	{
 		Cleanup(Snapshot);
 	}
+	GCBarrier = nullptr;
 	Snapshots.Empty();
 	MostRecentSnapshotIndex = -1;	
 }
@@ -98,6 +112,18 @@ void FGCHistory::SetHistorySize(int32 HistorySize)
 		{
 			Snapshots.AddDefaulted(HistorySize);
 		}		
+	}
+	if (HistorySize > 0)
+	{
+		if (!GCBarrier)
+		{
+			GCBarrier = NewObject<UGCBarrier>(GetTransientPackage(), TEXT("GC_Barrier"), RF_Transient);
+			GCBarrier->AddToRoot();
+		}
+	}
+	else if (GCBarrier)
+	{
+		GCBarrier->RemoveFromRoot();
 	}
 }
 

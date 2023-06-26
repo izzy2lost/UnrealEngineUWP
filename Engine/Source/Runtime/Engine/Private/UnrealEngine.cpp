@@ -1552,6 +1552,12 @@ static TAutoConsoleVariable<int32> CVarCollectGarbageEveryFrame(
 	0,
 	TEXT("Used to debug garbage collection...Collects garbage every frame if the value is > 0."));
 
+
+static TAutoConsoleVariable<int32> CVarContinuousIncrementalGC(
+	TEXT("gc.ContinuousIncrementalGC"),
+	0,
+	TEXT("Used to debug garbage collection...Kicks off Incremental Garbage Collection as soon as the previous one finishes."));
+
 static float GTimeBetweenPurgingPendingKillObjects = 60.0f;
 static FAutoConsoleVariableRef CVarTimeBetweenPurgingPendingKillObjects(
 	TEXT("gc.TimeBetweenPurgingPendingKillObjects"),
@@ -1798,6 +1804,11 @@ void UEngine::ConditionalCollectGarbage()
 					{
 						bShouldDelayGarbageCollect = false;
 					}
+					else if (IsIncrementalReachabilityAnalysisPending())
+					{
+						SCOPE_CYCLE_COUNTER(STAT_GCMarkTime);
+						PerformIncrementalReachabilityAnalysis();
+					}
 					// Perform incremental purge update if it's pending or in progress.
 					else if (!IsIncrementalPurgePending()
 						// Purge reference to pending kill objects every now and so often.
@@ -1827,12 +1838,20 @@ void UEngine::ConditionalCollectGarbage()
 			}
 		}
 
-		if (CVarCollectGarbageEveryFrame.GetValueOnGameThread() > 0)
+		if (CVarCollectGarbageEveryFrame.GetValueOnGameThread())
 		{
 			ForceGarbageCollection(true);
 		}
+		else if (CVarContinuousIncrementalGC.GetValueOnGameThread() > 0 && !IsIncrementalReachabilityAnalysisPending() && !IsIncrementalUnhashPending() && !IsIncrementalPurgePending())
+		{
+			ForceGarbageCollection(false);
+		}
 
 		LastGCFrame = GFrameCounter;
+	}
+	else if (IsIncrementalReachabilityAnalysisPending())
+	{
+		PerformIncrementalReachabilityAnalysis();
 	}
 }
 

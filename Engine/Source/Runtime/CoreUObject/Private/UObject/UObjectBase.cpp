@@ -243,6 +243,10 @@ void UObjectBase::LowLevelRename(FName NewName,UObject *NewOuter)
 		OuterPrivate = NewOuter;
 	}
 	HashObject(this);
+	if (UE::GC::Private::GIsIncrementalReachabilityPending)
+	{
+		static_cast<UObject*>(this)->MarkAsReachable();
+	}
 }
 
 UPackage* UObjectBase::GetExternalPackage() const

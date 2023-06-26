@@ -972,6 +972,21 @@ FEDLCookChecker::FEDLNodeHash::FEDLNodeHash()
 {
 }
 
+FEDLCookChecker::FEDLNodeHash::FEDLNodeHash(const FEDLNodeHash& Other)
+{
+	bIsNode = Other.bIsNode;
+	if (bIsNode)
+	{
+		Nodes = Other.Nodes;
+	}
+	else
+	{
+		Object = Other.Object;
+	}
+	NodeID = Other.NodeID;
+	ObjectEvent = Other.ObjectEvent;
+}
+
 FEDLCookChecker::FEDLNodeHash::FEDLNodeHash(const TArray<FEDLNodeData>* InNodes, FEDLNodeID InNodeID, EObjectEvent InObjectEvent)
 	: Nodes(InNodes)
 	, NodeID(InNodeID)
@@ -1011,6 +1026,23 @@ bool FEDLCookChecker::FEDLNodeHash::operator==(const FEDLNodeHash& Other) const
 		OtherName = ObjectNameNext(Other, OtherNodeID, OtherObject);
 	} while (!LocalName.IsNone() && !OtherName.IsNone());
 	return LocalName.IsNone() == OtherName.IsNone();
+}
+
+FEDLCookChecker::FEDLNodeHash& FEDLCookChecker::FEDLNodeHash::operator=(const FEDLNodeHash& Other)
+{
+	bIsNode = Other.bIsNode;
+	if (bIsNode)
+	{
+		Nodes = Other.Nodes;
+	}
+	else
+	{
+		Object = Other.Object;
+	}
+	NodeID = Other.NodeID;
+	ObjectEvent = Other.ObjectEvent;
+
+	return *this;
 }
 
 uint32 GetTypeHash(const FEDLCookChecker::FEDLNodeHash& A)
