@@ -7,6 +7,7 @@
 #include "Insights/Common/InsightsStyle.h"
 #include "Insights/Table/Widgets/STableTreeView.h"
 #include "Internationalization/Internationalization.h"
+#include "Styling/StyleColors.h"
 
 #define LOCTEXT_NAMESPACE "FAssetTreeNode"
 
