@@ -184,7 +184,7 @@ FSlateColor STableTreeViewCell::GetIconColorAndOpacity() const
 
 	return bIsHoveredOrSelected ?
 		TableTreeNodePtr->GetIconColor() :
-		TableTreeNodePtr->GetIconColor().CopyWithNewOpacity(0.5f);
+		TableTreeNodePtr->GetIconColor().CopyWithNewOpacity(0.8f);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
