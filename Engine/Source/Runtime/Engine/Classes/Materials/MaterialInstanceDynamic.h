@@ -153,14 +153,9 @@ class UMaterialInstanceDynamic : public UMaterialInstance
 	ENGINE_API void CopyInterpParameters(UMaterialInstance* Source);
 
 	/**
-	 * Create a material instance dynamic parented to the specified material.
-	 */
-	static ENGINE_API UMaterialInstanceDynamic* Create(class UMaterialInterface* ParentMaterial, class UObject* InOuter);
-
-	/**
-	* Create a material instance dynamic parented to the specified material with the specified name.
+	* Create a material instance dynamic parented to the specified material. [Optional] Specify name.
 	*/
-	static ENGINE_API UMaterialInstanceDynamic* Create( class UMaterialInterface* ParentMaterial, class UObject* InOuter, FName Name );
+	static ENGINE_API UMaterialInstanceDynamic* Create( class UMaterialInterface* ParentMaterial, class UObject* InOuter, FName Name = NAME_None);
 
 	/**
 	 * Set the value of the given font parameter.  

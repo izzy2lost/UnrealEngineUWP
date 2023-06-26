@@ -1704,7 +1704,7 @@ void FMeshDrawCommand::SetDebugData(const FPrimitiveSceneProxy* PrimitiveScenePr
 	DebugData.VertexFactoryType = VertexFactory->GetType();
 	DebugData.MeshPassType = MeshPassType;
 	DebugData.ResourceName =  PrimitiveSceneProxy ? PrimitiveSceneProxy->GetResourceName() : FName();
-	DebugData.MaterialName = Material->GetAssetName();
+	DebugData.MaterialName = MaterialRenderProxy->GetMaterialName();
 }
 #endif
 
