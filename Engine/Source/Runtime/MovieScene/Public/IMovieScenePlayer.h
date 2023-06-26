@@ -338,6 +338,15 @@ public:
 		State.ClearObjectCaches(*this);
 	}
 
+	/**
+	 * Discard all pre-animated state without restoring it
+	 */
+	void DiscardPreAnimatedState()
+	{
+		PreAnimatedState.DiscardPreAnimatedState();
+		State.ClearObjectCaches(*this);
+	}
+
 
 	/**
 	 * Invalidate any cached state contained within this player causing all entities to be forcibly re-linked and evaluated

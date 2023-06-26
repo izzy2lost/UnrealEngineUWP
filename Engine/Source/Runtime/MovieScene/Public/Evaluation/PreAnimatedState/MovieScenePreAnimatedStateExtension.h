@@ -230,6 +230,13 @@ public:
 	MOVIESCENE_API void RestoreGlobalState(const FRestoreStateParams& Params);
 
 	/**
+	 * Discards any state for any persistent tokens captured during the course of evaluation without restoring it.
+	 *
+	 * @param Params    Parameters for restoration - if TerminalInstanceHandle is invalid then _all_ state will be discarded, regardless of the instance it was cached from
+	 */
+	MOVIESCENE_API void DiscardGlobalState(const FRestoreStateParams& Params);
+
+	/**
 	 * Restore any state cached for the specified group
 	 *
 	 * @params GroupHandle  Handle to the group to restore

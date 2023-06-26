@@ -32,6 +32,15 @@ template<> struct TStructOpsTypeTraits<FMovieSceneSequenceLoopCount> : public TS
 	enum { WithStructuredSerializeFromMismatchedTag = true };
 };
 
+/* Whether to override track sections' default completion mode when a sequence finishes.*/
+UENUM(BlueprintType)
+enum class EMovieSceneCompletionModeOverride
+{
+	None,
+	ForceKeepState,
+	ForceRestoreState
+};
+
 
 /**
  * Settings for the level sequence player actor.
@@ -44,7 +53,7 @@ struct FMovieSceneSequencePlaybackSettings
 		, PlayRate(1.f)
 		, StartTime(0.f)
 		, bRandomStartTime(false)
-		, bRestoreState(false)
+		, bRestoreState_DEPRECATED(false)
 		, bDisableMovementInput(false)
 		, bDisableLookAtInput(false)
 		, bHidePlayer(false)
@@ -81,9 +90,11 @@ struct FMovieSceneSequencePlaybackSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Playback")
 	uint32 bRandomStartTime : 1;
 
-	/** Flag used to specify whether actor states should be restored on stop */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Playback")
-	uint32 bRestoreState : 1;
+	/** Flag used to specify whether actor states should be restored on stop. 
+	* This has been deprecated in favor of FinishCompletionStateOverride.
+	*/
+	UPROPERTY()
+	uint32 bRestoreState_DEPRECATED : 1;
 
 	/** Disable Input from player during play */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Cinematic")
@@ -104,6 +115,13 @@ struct FMovieSceneSequencePlaybackSettings
 	/** Disable camera cuts */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Cinematic")
 	uint32 bDisableCameraCuts : 1;
+	
+	/* If set to something other than none, when a sequence ends, the completion mode of any track sections still active will be overridden
+	* by the chosen value, either keep state or restore state. Otherwise, completion mode will be determined by each track section.
+	* Note that any track sections that finish before the end of a sequence will have their completion mode determined by the section settings rather than this override.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Cinematic")
+	EMovieSceneCompletionModeOverride FinishCompletionStateOverride = EMovieSceneCompletionModeOverride::None;
 
 	/** Pause the sequence when playback reaches the end rather than stopping it */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Playback")
@@ -116,6 +134,7 @@ struct FMovieSceneSequencePlaybackSettings
 	/** Whether to enable dynamic weighting on this player or not */
 	UPROPERTY(EditAnywhere, Category="Playback")
 	uint32 bDynamicWeighting : 1;
+
 
 	MOVIESCENE_API bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
 };

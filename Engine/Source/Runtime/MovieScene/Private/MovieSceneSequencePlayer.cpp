@@ -263,7 +263,7 @@ void UMovieSceneSequencePlayer::PlayInternal()
 		}
 
 		// Update now
-		if (PlaybackSettings.bRestoreState)
+		if (PlaybackSettings.FinishCompletionStateOverride == EMovieSceneCompletionModeOverride::ForceRestoreState)
 		{
 			RootTemplateInstance.EnableGlobalPreAnimatedStateCapture();
 		}
@@ -412,9 +412,13 @@ void UMovieSceneSequencePlayer::StopInternal(FFrameTime TimeToResetTo)
 		// Reset loop count on stop so that it doesn't persist to the next call to play
 		PlaybackSettings.LoopCount.Value = 0;
 
-		if (PlaybackSettings.bRestoreState)
+		if (PlaybackSettings.FinishCompletionStateOverride == EMovieSceneCompletionModeOverride::ForceRestoreState)
 		{
 			RestorePreAnimatedState();
+		}
+		else if (PlaybackSettings.FinishCompletionStateOverride == EMovieSceneCompletionModeOverride::ForceKeepState)
+		{
+			DiscardPreAnimatedState();
 		}
 
 		// Lambda that is invoked when the request to finish this sequence has been fulfilled
@@ -469,9 +473,13 @@ void UMovieSceneSequencePlayer::StopInternal(FFrameTime TimeToResetTo)
 	}
 	else if (RootTemplateInstance.IsValid() && RootTemplateInstance.HasEverUpdated())
 	{
-		if (PlaybackSettings.bRestoreState)
+		if (PlaybackSettings.FinishCompletionStateOverride == EMovieSceneCompletionModeOverride::ForceRestoreState)
 		{
 			RestorePreAnimatedState();
+		}
+		else if (PlaybackSettings.FinishCompletionStateOverride == EMovieSceneCompletionModeOverride::ForceKeepState)
+		{
+			DiscardPreAnimatedState();
 		}
 
 		TSharedPtr<FMovieSceneEntitySystemRunner> Runner = RootTemplateInstance.GetRunner();
@@ -634,9 +642,9 @@ void UMovieSceneSequencePlayer::SetPlaybackPosition(FMovieSceneSequencePlaybackP
 
 void UMovieSceneSequencePlayer::RestoreState()
 {
-	if (!PlaybackSettings.bRestoreState)
+	if (PlaybackSettings.FinishCompletionStateOverride != EMovieSceneCompletionModeOverride::ForceRestoreState)
 	{
-		UE_LOG(LogMovieScene, Warning, TEXT("Attempting to restore pre-animated state for a player that was not set to capture pre-animated state. Please enable PlaybackSettings.bRestoreState"));
+		UE_LOG(LogMovieScene, Warning, TEXT("Attempting to restore pre-animated state for a player that was not set to capture pre-animated state. Please set PlaybackSettings.FinishCompletionStateOverride to ForceRestoreState"));
 	}
 
 	RestorePreAnimatedState();

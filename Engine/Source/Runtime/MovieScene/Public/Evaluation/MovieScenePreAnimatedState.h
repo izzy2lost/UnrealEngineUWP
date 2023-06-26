@@ -104,6 +104,9 @@ public:
 
 	MOVIESCENE_API void RestorePreAnimatedState(UObject& Object, TFunctionRef<bool(FMovieSceneAnimTypeID)> InFilter);
 
+	// Discards all pre-animated state without restoring it.
+	MOVIESCENE_API void DiscardPreAnimatedState();
+
 	/**
 	 * Discard any tokens that relate to entity animation (ie sections or tracks) without restoring the values.
 	 * Any global pre-animated state tokens (that reset the animation when saving a map, for instance) will remain.

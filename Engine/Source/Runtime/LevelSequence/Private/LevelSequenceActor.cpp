@@ -212,6 +212,13 @@ void ALevelSequenceActor::PostLoad()
 		bAutoPlay_DEPRECATED = false;
 	}
 
+	// If we previously were using bRestoreState on our PlaybackSettings, upgrade to the enum version.
+	if (PlaybackSettings.bRestoreState_DEPRECATED)
+	{
+		PlaybackSettings.FinishCompletionStateOverride = EMovieSceneCompletionModeOverride::ForceRestoreState;
+		PlaybackSettings.bRestoreState_DEPRECATED = false;
+	}
+
 	SequencePlayer->SetPlaybackSettings(PlaybackSettings);
 
 #if WITH_EDITORONLY_DATA

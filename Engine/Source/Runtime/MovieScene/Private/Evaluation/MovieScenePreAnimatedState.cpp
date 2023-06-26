@@ -135,6 +135,17 @@ void FMovieScenePreAnimatedState::RestorePreAnimatedState()
 	}
 }
 
+void FMovieScenePreAnimatedState::DiscardPreAnimatedState()
+{
+	using namespace UE::MovieScene;
+
+	UMovieSceneEntitySystemLinker* Linker = WeakLinker.Get();
+	if (Linker)
+	{
+		Linker->PreAnimatedState.DiscardGlobalState(FRestoreStateParams{ Linker, InstanceHandle });
+	}
+}
+
 void FMovieScenePreAnimatedState::OnFinishedEvaluating(const FMovieSceneEvaluationKey& Key)
 {
 	if (TemplateMetaData)

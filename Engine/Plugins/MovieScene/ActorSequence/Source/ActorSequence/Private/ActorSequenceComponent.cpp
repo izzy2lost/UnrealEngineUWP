@@ -86,3 +86,14 @@ void UActorSequenceComponent::TickComponent(float DeltaSeconds, enum ELevelTick 
 	Super::TickComponent(DeltaSeconds, TickType, ThisTickFunction);
 }
 
+void UActorSequenceComponent::PostLoad()
+{
+	Super::PostLoad();
+	// If we previously were using bRestoreState on our PlaybackSettings, upgrade to the enum version.
+	if (PlaybackSettings.bRestoreState_DEPRECATED)
+	{
+		PlaybackSettings.FinishCompletionStateOverride = EMovieSceneCompletionModeOverride::ForceRestoreState;
+		PlaybackSettings.bRestoreState_DEPRECATED = false;
+	}
+}
+

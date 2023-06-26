@@ -901,7 +901,7 @@ void UMoviePipeline::InitializeLevelSequenceActor()
 	LevelSequenceActor->PlaybackSettings.LoopCount.Value = 0;
 	LevelSequenceActor->PlaybackSettings.bAutoPlay = false;
 	LevelSequenceActor->PlaybackSettings.bPauseAtEnd = true;
-	LevelSequenceActor->PlaybackSettings.bRestoreState = true;
+	LevelSequenceActor->PlaybackSettings.FinishCompletionStateOverride = EMovieSceneCompletionModeOverride::ForceRestoreState;
 
 	// Use our duplicated sequence
 	LevelSequenceActor->SetSequence(TargetSequence);
