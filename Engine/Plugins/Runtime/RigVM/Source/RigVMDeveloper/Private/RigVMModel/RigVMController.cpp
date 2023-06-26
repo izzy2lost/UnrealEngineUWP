@@ -16907,7 +16907,7 @@ bool URigVMController::UpdateTemplateNodePinTypes(URigVMTemplateNode* InNode, bo
 			Template->Resolve(OutTypeMap, OutPermutations, false);
 			if (TRigVMTypeIndex* TypeIndex = OutTypeMap.Find(Pin->GetFName()))
 			{
-				if (*TypeIndex != INDEX_NONE)
+				if (*TypeIndex != INDEX_NONE && !Registry.IsWildCardType(*TypeIndex))
 				{
 					PreferredType = *TypeIndex;
 					TypesFoundInReduced = 1;
