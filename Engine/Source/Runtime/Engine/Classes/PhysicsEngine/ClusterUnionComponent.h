@@ -36,14 +36,8 @@ struct FClusteredComponentData
 {
 	GENERATED_BODY()
 
-	// Set of physics objects that we actually added into the cluster union.
-	TSet<Chaos::FPhysicsObjectHandle> PhysicsObjects;
-
 	// Set of bone Ids that we actually added into the cluster union.
 	TSet<int32> BoneIds;
-
-	// Every physics object associated with this particular component.
-	TArray<Chaos::FPhysicsObjectHandle> AllPhysicsObjects;
 
 	// Cached acceleration structure handles - needed to properly cleanup the component from the accel structure.
 	TSet<FExternalSpatialAccelerationPayload> CachedAccelerationPayloads;
@@ -52,6 +46,9 @@ struct FClusteredComponentData
 	// and we don't want to get into a situation where a circular reference occurs.
 	UPROPERTY()
 	TWeakObjectPtr<UClusterUnionReplicatedProxyComponent> ReplicatedProxyComponent;
+
+	UPROPERTY()
+	TWeakObjectPtr<AActor> Owner;
 
 	UPROPERTY()
 	bool bWasReplicating = true;
@@ -65,8 +62,7 @@ struct FClusteredActorData
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
-	TSet<TWeakObjectPtr<UPrimitiveComponent>> Components;
+	TSet<TObjectKey<UPrimitiveComponent>> Components;
 
 	UPROPERTY()
 	bool bWasReplicatingMovement = true;
@@ -94,22 +90,6 @@ struct FClusterUnionPendingAddData
 	
 	UPROPERTY()
 	TArray<FExternalSpatialAccelerationPayload> AccelerationPayloads;
-};
-
-/**
- * For every possible particle that could ever possibly be added into the cluster union,
- * keep track of its component and its bone id.
- */
-USTRUCT()
-struct FClusterUnionParticleCandidateData
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	TWeakObjectPtr<UPrimitiveComponent> Component;
-
-	UPROPERTY()
-	int32 BoneId = INDEX_NONE;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnClusterUnionAddedComponent, UPrimitiveComponent*, Component, const TSet<int32>&, BoneIds, bool, bIsNew);
@@ -165,7 +145,7 @@ public:
 	ENGINE_API void SyncClusterUnionFromProxy();
 
 	UFUNCTION()
-	bool IsComponentAdded(UPrimitiveComponent* Component) { return ComponentToPhysicsObjects.Contains(Component) || PendingComponentSync.Contains(Component); }
+	bool IsComponentAdded(UPrimitiveComponent* Component) { return PerComponentData.Contains(Component) || PendingComponentSync.Contains(Component); }
 
 	bool HasReceivedTransform() const { return bHasReceivedTransform; }
 
@@ -207,7 +187,7 @@ private:
 	// This way we know the right physics objects to pass when removing the component (because
 	// it's possible to get a different list of physics objects when we get to removal). A
 	// side benefit here is being able to track which components are clustered.
-	TMap<TObjectKey<UPrimitiveComponent>, FClusteredComponentData> ComponentToPhysicsObjects;
+	TMap<TObjectKey<UPrimitiveComponent>, FClusteredComponentData> PerComponentData;
 
 	// Also keep track of which actors we are clustering and their components. We make modifications on
 	// actors that get clustered so we need to make sure we undo those changes only once all its clustered
@@ -223,12 +203,6 @@ private:
 	// Before that happens, we need to perform operations on the GT assuming that the component was added already otherwise there'll be a few frames
 	// where the component hasn't been added to the cluster union on the GT causing a mismatch in behavior.
 	TMap<TObjectKey<UPrimitiveComponent>, FClusterUnionPendingAddData> PendingComponentSync;
-
-	// Given a unique index of a particle that we're adding to the cluster union - map it back to the component that owns it.
-	// This works decently because we assume that when we're using a cluster union component, we will only try to add to the
-	// cluster union via the GT so we can guarantee to have a decent mapping here.
-	UPROPERTY()
-	TMap<int32, FClusterUnionParticleCandidateData> UniqueIdxToComponent;
 
 	// Data that can be changed at runtime to keep state about the cluster union consistent between the server and client.
 	UPROPERTY(ReplicatedUsing=OnRep_RigidState)
@@ -267,7 +241,7 @@ private:
 	// These functions only get called when the physics thread syncs to the game thread thereby enforcing a physics thread authoritative view of
 	// what particles are currently contained within the cluster union.
 	ENGINE_API void HandleAddOrModifiedClusteredComponent(UPrimitiveComponent* ChangedComponent, const TMap<int32, FTransform>& PerBoneChildToParent);
-	ENGINE_API void HandleRemovedClusteredComponent(UPrimitiveComponent* ChangedComponent, bool bDestroyReplicatedProxy);
+	ENGINE_API void HandleRemovedClusteredComponent(TObjectKey<UPrimitiveComponent> ChangedComponent);
 
 	ENGINE_API TArray<UPrimitiveComponent*> GetAllCurrentChildComponents() const;
 	ENGINE_API TArray<AActor*> GetAllCurrentActors() const;

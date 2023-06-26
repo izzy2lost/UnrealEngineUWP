@@ -389,11 +389,15 @@ namespace Chaos
 
 		SyncedData_External.bIsAnchored = CurrentPullData.bIsAnchored;
 		SyncedData_External.ChildParticles.Empty(CurrentPullData.ChildParticles.Num());
+
+		// I question the need to do this individual copy one by one...maybe we should've used the same type for the synced data.
 		for (const FDirtyClusterUnionParticleData& InData : CurrentPullData.ChildParticles)
 		{
 			FClusterUnionChildData ConvertedData;
 			ConvertedData.ParticleIdx = InData.ParticleIdx;
 			ConvertedData.ChildToParent = InData.ChildToParent;
+			ConvertedData.Proxy = InData.Proxy;
+			ConvertedData.BoneId = InData.BoneId;
 			SyncedData_External.ChildParticles.Add(ConvertedData);
 		}
 
@@ -506,17 +510,29 @@ namespace Chaos
 					continue;
 				}
 
-				FDirtyClusterUnionParticleData Data;
-				Data.ParticleIdx = Particle->UniqueIdx();
-				if (FPBDRigidClusteredParticleHandle* ClusteredParticle = Particle->CastToClustered())
+				if (IPhysicsProxyBase* Proxy = Particle->PhysicsProxy())
 				{
-					Data.ChildToParent = ClusteredParticle->ChildToParent();
+					FDirtyClusterUnionParticleData Data;
+					Data.ParticleIdx = Particle->UniqueIdx();
+					if (FPBDRigidClusteredParticleHandle* ClusteredParticle = Particle->CastToClustered())
+					{
+						Data.ChildToParent = ClusteredParticle->ChildToParent();
+					}
+					else
+					{
+						Data.ChildToParent = FRigidTransform3::Identity;
+					}
+					Data.Proxy = Proxy;
+					
+					if (Proxy->GetType() == EPhysicsProxyType::GeometryCollectionType)
+					{
+						// A bit hacky, but the only way we can communicate what particle we care about back to the cluster union on the GT.
+						FGeometryCollectionPhysicsProxy* GCProxy = static_cast<FGeometryCollectionPhysicsProxy*>(Proxy);
+						Data.BoneId = GCProxy->GetTransformGroupIndexFromHandle(Particle);
+					}
+
+					BufferData.ChildParticles.Add(Data);
 				}
-				else
-				{
-					Data.ChildToParent = FRigidTransform3::Identity;
-				}
-				BufferData.ChildParticles.Add(Data);
 			}
 
 			BufferData.SharedGeometry = ClusterUnion->SharedGeometry;

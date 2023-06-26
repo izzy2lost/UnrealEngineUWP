@@ -98,6 +98,8 @@ struct FDirtyClusterUnionParticleData
 {
 	FUniqueIdx ParticleIdx;
 	FRigidTransform3 ChildToParent;
+	IPhysicsProxyBase* Proxy = nullptr;
+	int32 BoneId = INDEX_NONE;
 };
 
 struct FDirtyClusterUnionData : public TBasePullData<FClusterUnionPhysicsProxy, FClusterUnionProxyTimestamp>

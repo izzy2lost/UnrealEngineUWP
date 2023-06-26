@@ -21,6 +21,8 @@ namespace Chaos
 	{
 		FUniqueIdx ParticleIdx;
 		FTransform ChildToParent;
+		IPhysicsProxyBase* Proxy = nullptr;
+		int32 BoneId = INDEX_NONE;
 	};
 
 	struct FClusterUnionInitData
