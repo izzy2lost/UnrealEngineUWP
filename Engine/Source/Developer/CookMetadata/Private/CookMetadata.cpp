@@ -3,6 +3,7 @@
 #include "CookMetadata.h"
 
 #include "Hash/xxhash.h"
+#include "Internationalization/Internationalization.h"
 #include "Memory/MemoryView.h"
 
 namespace UE::Cook
@@ -59,5 +60,18 @@ uint64 FCookMetadataState::ComputeHashOfDevelopmentAssetRegistry(FMemoryView InS
 	return FXxHash64::HashBufferChunked(InSerializedDevelopmentAssetRegistry.GetData(), InSerializedDevelopmentAssetRegistry.GetSize(), 1ULL << 19).Hash;
 }
 
+FText FCookMetadataState::GetSizesPresentAsText() const
+{
+	// Uncapitalized, presentation-ready
+	static FText CookMetadataSizesPresentStrings[] =
+	{
+		NSLOCTEXT("CookMetadata", "CookMetadataNotPresent", "not present"),
+		NSLOCTEXT("CookMetadata", "CookMetadataCompressed", "compressed"),
+		NSLOCTEXT("CookMetadata", "CookMetadataUncompressed", "uncompressed")
+	};
+
+	static_assert(sizeof(CookMetadataSizesPresentStrings) / sizeof(CookMetadataSizesPresentStrings[0]) == static_cast<size_t>(ECookMetadataSizesPresent::Count));
+	return CookMetadataSizesPresentStrings[static_cast<size_t>(SizesPresent)];
+}
 
 } // end namespace

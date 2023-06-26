@@ -107,9 +107,10 @@ enum class ECookMetadataSizesPresent
 	Compressed,
 
 	// the selected platform isn't compressed by unrealpak, or package compression was disabled.
-	Uncompressed
-};
+	Uncompressed,
 
+	Count
+};
 
 /** The name and dependency information for a plugin that was enabled during cooking. */
 struct COOKMETADATA_API FCookMetadataPluginEntry
@@ -228,6 +229,7 @@ public:
 
 	// Returns what size information is present in FCookMetadataPluginEntry. This varies based on the platform
 	// and settings. 
+	FText GetSizesPresentAsText() const;
 	ECookMetadataSizesPresent GetSizesPresent() const { return SizesPresent; }
 	void SetSizesPresent(ECookMetadataSizesPresent InSizesPresent) { SizesPresent = InSizesPresent; }
 private:
