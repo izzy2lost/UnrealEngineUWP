@@ -603,6 +603,13 @@ protected:
 	bool bIsUpdateRunning = false;
 	bool bIsCloseScheduled = false;
 
+	// The AsyncOperationLock is used a little differently than typic for a RW lock. 
+	// Instead of thinking of it as allowing multiple readers or one writer, it can be thought of
+	// as multiple shared lockers or one exclusive locker. The async operations all take read/shared locks
+	// and the destructor of the tree view takes an exclusive lock. This ensure that all async ops finish before
+	// the destructor runs and cleans up the data they are using
+	TSharedPtr<FRWLock> AsyncOperationMutex;
+
 	TArray<FTableTreeNodePtr> DummyGroupNodes;
 	FGraphEventRef InProgressAsyncOperationEvent;
 	FGraphEventRef AsyncCompleteTaskEvent;
@@ -630,12 +637,43 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+ 
+class FScopedExclusiveRWLock
+{
+public:
+	FScopedExclusiveRWLock(TSharedPtr<FRWLock>& InLock)
+		: Lock(InLock) {
+		Lock->WriteLock();
+	}
+
+	~FScopedExclusiveRWLock() { Lock->WriteUnlock(); }
+
+private:
+	TSharedPtr<FRWLock> Lock;
+	};
+
+class FScopedSharedRWLock
+{
+public:
+	FScopedSharedRWLock(TSharedPtr<FRWLock>& InLock)
+		: Lock(InLock) {
+		Lock->ReadLock();
+	}
+
+	~FScopedSharedRWLock() { Lock->ReadUnlock(); }
+
+private:
+	TSharedPtr<FRWLock> Lock;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FTableTreeViewNodeFilteringAsyncTask
 {
 public:
-	FTableTreeViewNodeFilteringAsyncTask(STableTreeView* InPtr)
+	FTableTreeViewNodeFilteringAsyncTask(STableTreeView* InPtr, TSharedPtr<FRWLock>& InAsyncOpLock)
 	{
+		AsyncOpLock = InAsyncOpLock;
 		TableTreeViewPtr = InPtr;
 	}
 
@@ -645,14 +683,17 @@ public:
 
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
+		FScopedSharedRWLock SharedLock(AsyncOpLock);
 		if (TableTreeViewPtr)
 		{
 			TableTreeViewPtr->ApplyNodeFiltering();
 		}
+		AsyncOpLock.Reset();
 	}
 
 private:
 	STableTreeView* TableTreeViewPtr = nullptr;
+	TSharedPtr<FRWLock> AsyncOpLock;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -660,8 +701,9 @@ private:
 class FTableTreeViewHierarchyFilteringAsyncTask
 {
 public:
-	FTableTreeViewHierarchyFilteringAsyncTask(STableTreeView* InPtr)
+	FTableTreeViewHierarchyFilteringAsyncTask(STableTreeView* InPtr, TSharedPtr<FRWLock> InAsyncOpLock)
 	{
+		AsyncOpLock = InAsyncOpLock;
 		TableTreeViewPtr = InPtr;
 	}
 
@@ -671,14 +713,17 @@ public:
 
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
+		FScopedSharedRWLock ScopedLock(AsyncOpLock);
 		if (TableTreeViewPtr)
 		{
 			TableTreeViewPtr->ApplyHierarchyFiltering();
 		}
+		AsyncOpLock.Reset();
 	}
 
 private:
 	STableTreeView* TableTreeViewPtr = nullptr;
+	TSharedPtr<FRWLock> AsyncOpLock;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -686,8 +731,9 @@ private:
 class FTableTreeViewSortingAsyncTask
 {
 public:
-	FTableTreeViewSortingAsyncTask(STableTreeView* InPtr, ITableCellValueSorter* InSorter, EColumnSortMode::Type InColumnSortMode)
+	FTableTreeViewSortingAsyncTask(STableTreeView* InPtr, ITableCellValueSorter* InSorter, EColumnSortMode::Type InColumnSortMode, TSharedPtr<FRWLock>& InAsyncOpLock)
 	{
+		AsyncOpLock = InAsyncOpLock;
 		TableTreeViewPtr = InPtr;
 		Sorter = InSorter;
 		ColumnSortMode = InColumnSortMode;
@@ -699,16 +745,19 @@ public:
 
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
+		FScopedSharedRWLock ScopedLock(AsyncOpLock);
 		if (TableTreeViewPtr)
 		{
 			TableTreeViewPtr->SortTreeNodes(Sorter, ColumnSortMode);
 		}
+		AsyncOpLock.Reset();
 	}
 
 private:
 	STableTreeView* TableTreeViewPtr;
 	ITableCellValueSorter* Sorter;
 	EColumnSortMode::Type ColumnSortMode;
+	TSharedPtr<FRWLock> AsyncOpLock;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -716,8 +765,9 @@ private:
 class FTableTreeViewGroupingAsyncTask
 {
 public:
-	FTableTreeViewGroupingAsyncTask(STableTreeView* InPtr, TArray<TSharedPtr<FTreeNodeGrouping>>* InGroupings)
+	FTableTreeViewGroupingAsyncTask(STableTreeView* InPtr, TArray<TSharedPtr<FTreeNodeGrouping>>* InGroupings, TSharedPtr<FRWLock>& InAsyncOpLock)
 	{
+		AsyncOpLock = InAsyncOpLock;
 		TableTreeViewPtr = InPtr;
 		Groupings = InGroupings;
 	}
@@ -728,15 +778,18 @@ public:
 
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
+		FScopedSharedRWLock ScopedLock(AsyncOpLock);
 		if (TableTreeViewPtr)
 		{
 			TableTreeViewPtr->CreateGroups(*Groupings);
 		}
+		AsyncOpLock.Reset();
 	}
 
 private:
 	STableTreeView* TableTreeViewPtr = nullptr;
 	TArray<TSharedPtr<FTreeNodeGrouping>>* Groupings;
+	TSharedPtr<FRWLock> AsyncOpLock;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -773,9 +826,10 @@ private:
 class FSearchForItemToSelectTask
 {
 public:
-	FSearchForItemToSelectTask(TSharedPtr<FTableTaskCancellationToken> InToken, TSharedPtr<STableTreeView> InPtr)
+	FSearchForItemToSelectTask(TSharedPtr<FTableTaskCancellationToken> InToken, TSharedPtr<STableTreeView> InPtr, TSharedPtr<FRWLock> InAsyncOpLock)
 		: CancellationToken(InToken)
 		, TableTreeViewPtr(InPtr)
+		, AsyncOpLock(InAsyncOpLock)
 	{}
 
 	FORCEINLINE TStatId GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(FSearchForItemToSelectTask, STATGROUP_TaskGraphTasks); }
@@ -784,12 +838,18 @@ public:
 
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
-		TableTreeViewPtr->SearchForItem(CancellationToken);
+		FScopedSharedRWLock ScopedLock(AsyncOpLock);
+		if (TableTreeViewPtr)
+		{
+			TableTreeViewPtr->SearchForItem(CancellationToken);
+		}
+		AsyncOpLock.Reset();
 	}
 
 private:
 	TSharedPtr<FTableTaskCancellationToken> CancellationToken;
 	TSharedPtr<STableTreeView> TableTreeViewPtr;
+	TSharedPtr<FRWLock> AsyncOpLock;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -797,9 +857,10 @@ private:
 class FSelectNodeByTableRowIndexTask
 {
 public:
-	FSelectNodeByTableRowIndexTask(TSharedPtr<FTableTaskCancellationToken> InToken, TSharedPtr<STableTreeView> InPtr, uint32 InRowIndex)
+	FSelectNodeByTableRowIndexTask(TSharedPtr<FTableTaskCancellationToken> InToken, TSharedPtr<STableTreeView> InPtr, uint32 InRowIndex, TSharedPtr<FRWLock> InAsyncOpLock)
 		: CancellationToken(InToken)
 		, TableTreeViewPtr(InPtr)
+		, AsyncOpLock(InAsyncOpLock)
 		, RowIndex(InRowIndex)
 		{}
 
@@ -809,15 +870,18 @@ public:
 
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
-		if (!CancellationToken->ShouldCancel())
+		FScopedSharedRWLock ScopedLock(AsyncOpLock);
+		if (!CancellationToken->ShouldCancel() && TableTreeViewPtr)
 		{
 			TableTreeViewPtr->SelectNodeByTableRowIndex(RowIndex);
 		}
+		AsyncOpLock.Reset();
 	}
 
 private:
 	TSharedPtr< FTableTaskCancellationToken> CancellationToken;
 	TSharedPtr<STableTreeView> TableTreeViewPtr;
+	TSharedPtr<FRWLock> AsyncOpLock;
 	uint32 RowIndex;
 };
 

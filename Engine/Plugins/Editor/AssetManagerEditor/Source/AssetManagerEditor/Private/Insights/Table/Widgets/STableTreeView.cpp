@@ -142,13 +142,16 @@ STableTreeView::STableTreeView()
 	, ColumnBeingSorted(GetDefaultColumnBeingSorted())
 	, ColumnSortMode(GetDefaultColumnSortMode())
 {
+	AsyncOperationMutex = MakeShared<FRWLock>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 STableTreeView::~STableTreeView()
 {
-	ensureMsgf(bIsCloseScheduled, TEXT("TableTreeView running in async mode was closed but OnClose() was not called. This can lead to a crash. Call OnClose() from the owner tab/window."));
+	CancelCurrentAsyncOp();
+
+	FScopedExclusiveRWLock AsyncOpLock(AsyncOperationMutex);
 
 	if (CurrentAsyncOpFilterConfigurator)
 	{
@@ -998,7 +1001,7 @@ FGraphEventRef STableTreeView::StartNodeFilteringTask(FGraphEventRef Prerequisit
 		Prerequisites.Add(DispatchEvent);
 	}
 
-	return TGraphTask<FTableTreeViewNodeFilteringAsyncTask>::CreateTask(&Prerequisites).ConstructAndDispatchWhenReady(this);
+	return TGraphTask<FTableTreeViewNodeFilteringAsyncTask>::CreateTask(&Prerequisites).ConstructAndDispatchWhenReady(this, AsyncOperationMutex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1263,7 +1266,7 @@ FGraphEventRef STableTreeView::StartHierarchyFilteringTask(FGraphEventRef Prereq
 		Prerequisites.Add(DispatchEvent);
 	}
 
-	return TGraphTask<FTableTreeViewHierarchyFilteringAsyncTask>::CreateTask(&Prerequisites).ConstructAndDispatchWhenReady(this);
+	return TGraphTask<FTableTreeViewHierarchyFilteringAsyncTask>::CreateTask(&Prerequisites).ConstructAndDispatchWhenReady(this, AsyncOperationMutex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1661,7 +1664,7 @@ FGraphEventRef STableTreeView::StartGroupingTask(FGraphEventRef Prerequisite)
 		Prerequisites.Add(DispatchEvent);
 	}
 
-	return TGraphTask<FTableTreeViewGroupingAsyncTask>::CreateTask(&Prerequisites).ConstructAndDispatchWhenReady(this, &CurrentAsyncOpGroupings);
+	return TGraphTask<FTableTreeViewGroupingAsyncTask>::CreateTask(&Prerequisites).ConstructAndDispatchWhenReady(this, &CurrentAsyncOpGroupings, AsyncOperationMutex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2536,6 +2539,11 @@ void STableTreeView::UpdateAggregatedValuesSingleNode(FTableTreeNode& InOutGroup
 
 void STableTreeView::UpdateAggregatedValuesRec(FTableTreeNode& InOutGroupNode)
 {
+	if (AsyncOperationProgress.ShouldCancelAsyncOp())
+	{
+		return;
+	}
+
 	STableTreeView::UpdateAggregatedValues<true>(Table, InOutGroupNode);
 }
 
@@ -2662,7 +2670,7 @@ FGraphEventRef STableTreeView::StartSortingTask(FGraphEventRef Prerequisite)
 		Prerequisites.Add(DispatchEvent);
 	}
 
-	return TGraphTask<FTableTreeViewSortingAsyncTask>::CreateTask(&Prerequisites).ConstructAndDispatchWhenReady(this, CurrentAsyncOpSorter, CurrentAsyncOpColumnSortMode);
+	return TGraphTask<FTableTreeViewSortingAsyncTask>::CreateTask(&Prerequisites).ConstructAndDispatchWhenReady(this, CurrentAsyncOpSorter, CurrentAsyncOpColumnSortMode, AsyncOperationMutex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
