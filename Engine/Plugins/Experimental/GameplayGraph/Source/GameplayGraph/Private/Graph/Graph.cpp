@@ -369,6 +369,8 @@ void UGraph::RemoveEdge(const FGraphEdgeHandle& EdgeHandle, bool bHandleIslands)
 	}
 
 	TObjectPtr<UGraphEdge> Edge = EdgeHandle.GetEdge();
+	Edges.Remove(EdgeHandle);
+
 	if (!Edge)
 	{
 		return;
