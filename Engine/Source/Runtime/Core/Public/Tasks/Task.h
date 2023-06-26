@@ -80,6 +80,7 @@ namespace UE::Tasks
 			// @return true if the task is completed
 			bool Wait(FTimespan Timeout = FTimespan::MaxValue()) const
 			{
+				LLM_SCOPE_BYNAME(TEXT("Tasks/Wait"));
 				return !IsValid() || Pimpl->Wait(FTimeout{ Timeout });
 			}
 
@@ -88,6 +89,7 @@ namespace UE::Tasks
 			// @return true if the task is completed
 			bool BusyWait(FTimespan Timeout = FTimespan::MaxValue()) const
 			{
+				LLM_SCOPE_BYNAME(TEXT("Tasks/BusyWait"));
 				return !IsValid() || Pimpl->BusyWait(FTimeout{ Timeout });
 			}
 
@@ -97,6 +99,7 @@ namespace UE::Tasks
 			template<typename ConditionType>
 			bool BusyWait(ConditionType&& Condition) const
 			{
+				LLM_SCOPE_BYNAME(TEXT("Tasks/BusyWait"));
 				return !IsValid() || Pimpl->BusyWait(Forward<ConditionType>(Condition));
 			}
 
@@ -114,6 +117,8 @@ namespace UE::Tasks
 			)
 			{
 				check(!IsValid());
+
+				LLM_SCOPE_BYNAME(TEXT("Tasks/Launch"));
 
 				using FExecutableTask = Private::TExecutableTask<std::decay_t<TaskBodyType>>;
 				FExecutableTask* Task = FExecutableTask::Create(DebugName, Forward<TaskBodyType>(TaskBody), Priority, ExtendedPriority);
@@ -139,6 +144,8 @@ namespace UE::Tasks
 			)
 			{
 				check(!IsValid());
+
+				LLM_SCOPE_BYNAME(TEXT("Tasks/Launch"));
 
 				using FExecutableTask = Private::TExecutableTask<std::decay_t<TaskBodyType>>;
 				FExecutableTask* Task = FExecutableTask::Create(DebugName, Forward<TaskBodyType>(TaskBody), Priority, ExtendedPriority);
@@ -228,6 +235,7 @@ namespace UE::Tasks
 		template<typename PrerequisitesType>
 		void AddPrerequisites(const PrerequisitesType& Prerequisites)
 		{
+			LLM_SCOPE_BYNAME(TEXT("Tasks/FTaskEvent/AddPrerequisites"));
 			Pimpl->AddPrerequisites(Prerequisites);
 		}
 
@@ -235,6 +243,8 @@ namespace UE::Tasks
 		{
 			if (!IsCompleted()) // event can be triggered multiple times
 			{
+				LLM_SCOPE_BYNAME(TEXT("Tasks/FTaskEvent/Trigger"));
+
 				// An event is not "in the system" until it's triggered, and should be kept alive only by external references. Once it's triggered it's in the system 
 				// and can outlive external references, so we need to keep it alive by holding an internal reference. It will be released when the event is signalled
 				Pimpl->AddRef();
@@ -318,6 +328,7 @@ namespace UE::Tasks
 	template<typename TaskCollectionType>
 	bool Wait(const TaskCollectionType& Tasks, FTimespan InTimeout/* = FTimespan::MaxValue()*/)
 	{
+		LLM_SCOPE_BYNAME(TEXT("Tasks/Wait"));
 		TaskTrace::FWaitingScope WaitingScope(Private::GetTraceIds(Tasks));
 		TRACE_CPUPROFILER_EVENT_SCOPE(Tasks::Wait);
 
@@ -348,6 +359,7 @@ namespace UE::Tasks
 	template<typename TaskCollectionType>
 	bool BusyWait(const TaskCollectionType& Tasks, FTimespan InTimeout/* = FTimespan::MaxValue()*/)
 	{
+		LLM_SCOPE_BYNAME(TEXT("Tasks/BusyWait"));
 		TaskTrace::FWaitingScope WaitingScope(Private::GetTraceIds(Tasks));
 		TRACE_CPUPROFILER_EVENT_SCOPE(Tasks::BusyWait);
 
@@ -406,6 +418,7 @@ namespace UE::Tasks
 	template<typename TaskType>
 	void AddNested(const TaskType& Nested)
 	{
+		LLM_SCOPE_BYNAME(TEXT("Tasks/AddNested"));
 		Private::FTaskBase* Parent = Private::GetCurrentTask();
 		check(Parent != nullptr);
 		Parent->AddNested(*Nested.Pimpl);

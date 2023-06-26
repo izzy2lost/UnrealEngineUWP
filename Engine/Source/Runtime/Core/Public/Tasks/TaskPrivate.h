@@ -216,8 +216,6 @@ namespace UE::Tasks
 					return false;
 				}
 
-				LLM_SCOPE_BYNAME(TEXT("Tasks/FTaskBase/AddPrerequisites"));
-
 				Prerequisite.AddRef(); // keep it alive until this task's execution
 				Prerequisites.Push(&Prerequisite); // release memory order
 				return true;
@@ -274,7 +272,6 @@ namespace UE::Tasks
 
 					if (Prerequisite->AddSubsequent(*this)) // acq_rel memory order
 					{
-						LLM_SCOPE_BYNAME(TEXT("Tasks/FTaskBase/AddPrerequisites"));
 						Prerequisite->AddRef(); // keep it alive until this task's execution
 						Prerequisites.Push(Prerequisite); // release memory order
 					}
@@ -293,7 +290,6 @@ namespace UE::Tasks
 			// returns false if the task is already completed and the subsequent wasn't added
 			bool AddSubsequent(FTaskBase& Subsequent)
 			{
-				LLM_SCOPE_BYNAME(TEXT("Tasks/FTaskBase/AddSubsequent"));
 				TaskTrace::SubsequentAdded(GetTraceId(), Subsequent.GetTraceId()); // doesn't matter if we suceeded below, we need to record task dependency
 				return Subsequents.PushIfNotClosed(&Subsequent);
 			}
@@ -351,7 +347,6 @@ namespace UE::Tasks
 
 				if (Nested.AddSubsequent(*this)) // "release" memory order
 				{
-					LLM_SCOPE_BYNAME(TEXT("Tasks/FTaskBase/AddNested"));
 					Nested.AddRef(); // keep it alive as we store it in `Prerequisites` and we can need it to try to retract it. it's released on closing the task
 					Prerequisites.Push(&Nested);
 				}
@@ -521,7 +516,6 @@ namespace UE::Tasks
 							FTaskBase* PrevPipedTask = TryPushIntoPipe();
 							if (PrevPipedTask != nullptr) // the pipe is blocked
 							{
-								LLM_SCOPE_BYNAME(TEXT("Tasks/FTaskBase/AddPrerequisites"));
 								// the prev task in pipe's chain becomes this task's prerequisite, to enabled piped task retraction.
 								// its ref count already accounted for this ref. the ref will be released when the prereq is not needed anymore
 								Prerequisites.Push(PrevPipedTask);
@@ -735,7 +729,6 @@ namespace UE::Tasks
 			// a helper that deduces the template argument
 			static TExecutableTask* Create(const TCHAR* InDebugName, TaskBodyType&& TaskBody, ETaskPriority InPriority, EExtendedTaskPriority InExtendedPriority)
 			{
-				LLM_SCOPE_BYNAME(TEXT("Tasks/TExecutableTask/Create"));
 				return new TExecutableTask(InDebugName, MoveTemp(TaskBody), InPriority, InExtendedPriority);
 			}
 
@@ -761,7 +754,7 @@ namespace UE::Tasks
 		public:
 			static FTaskEventBase* Create(const TCHAR* DebugName)
 			{
-				LLM_SCOPE_BYNAME(TEXT("Tasks/FTaskEventBase/Create"));
+				LLM_SCOPE_BYNAME(TEXT("Tasks/FTaskEvent/Create"));
 				return new FTaskEventBase(DebugName);
 			}
 

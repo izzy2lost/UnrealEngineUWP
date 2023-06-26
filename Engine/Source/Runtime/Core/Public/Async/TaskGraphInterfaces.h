@@ -508,6 +508,8 @@ public:
 			return;
 		}
 
+		LLM_SCOPE_BYNAME(TEXT("Tasks/FGraphEvent/DontCompleteUntil"));
+
 		if (GetExtendedPriority() == UE::Tasks::EExtendedTaskPriority::TaskEvent)
 		{	// TaskEvent can't have nested tasks, add it as a prerequisite instead
 			AddPrerequisites(*NestedTask);

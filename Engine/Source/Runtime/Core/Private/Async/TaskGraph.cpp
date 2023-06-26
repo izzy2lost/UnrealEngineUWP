@@ -1951,7 +1951,7 @@ public:
 private:
 	void QueueTask(class FBaseGraphTask* Task, bool bWakeUpWorker, ENamedThreads::Type InThreadToExecuteOn, ENamedThreads::Type InCurrentThreadIfKnown) override
 	{
-		LLM_SCOPE_BYNAME(TEXT("Tasks/Scheduler/QueueTask"));
+		LLM_SCOPE_BYNAME(TEXT("Tasks/QueueTask"));
 
 		if (ENamedThreads::GetThreadIndex(InThreadToExecuteOn) == ENamedThreads::AnyThread)
 		{
@@ -2081,6 +2081,7 @@ private:
 
 	void WaitUntilTasksComplete(const FGraphEventArray& Tasks, ENamedThreads::Type CurrentThreadIfKnown = ENamedThreads::AnyThread) final override
 	{
+		LLM_SCOPE_BYNAME(TEXT("Tasks/WaitUntilTasksComplete"));
 		TaskTrace::FWaitingScope WaitingScope(GetTraceIds(Tasks));
 		TRACE_CPUPROFILER_EVENT_SCOPE(WaitUntilTasksComplete);
 
