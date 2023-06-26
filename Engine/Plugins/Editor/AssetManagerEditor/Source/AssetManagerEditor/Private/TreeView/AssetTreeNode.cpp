@@ -28,70 +28,65 @@ const FSlateBrush* FAssetTreeNode::GetIcon(EStyle Style) const
 		case EStyle::EDefault:
 		{
 			return UE::Insights::FInsightsStyle::GetBrush("Icons.Leaf.TreeItem");
-			break;
 		}
 
 		case EStyle::EAsset:
 		{
 			return UE::Insights::FInsightsStyle::GetBrush("Icons.Asset.TreeItem");
-			break;
 		}
 				
 		case EStyle::EGroup:
 		{
 			return UE::Insights::FInsightsStyle::GetBrush("Icons.Group.TreeItem");
-			break;
 		}	
 
 		case EStyle::EDependencies:
 		{
 			return UE::Insights::FInsightsStyle::GetBrush("Icons.Dependencies.TreeItem");
-			break;
 		}
 
 		case EStyle::EPlugin:
 		{
 			return UE::Insights::FInsightsStyle::GetBrush("Icons.Plugin.TreeItem");
-			break;
 		}
 	}
 }
 
-FLinearColor FAssetTreeNode::GetColor(EStyle Style) const 
+FLinearColor FAssetTreeNode::GetIconColor(EStyle Style) const
 {
 	switch (Style)
 	{
 		default:
 		case EStyle::EDefault:
 		{
-			return FLinearColor(1.0f, 1.0f, 0.5f, 1.0f);
-			break;
+			return USlateThemeManager::Get().GetColor(EStyleColor::AccentWhite);
 		}
 
 		case EStyle::EAsset:
 		{
 			return GetAssetChecked().GetColor();
-			break;
 		}
 
 		case EStyle::EGroup:
 		{
-			return FLinearColor(1.0f, 1.0f, 0.5f, 1.0f);
-			break;
+			return USlateThemeManager::Get().GetColor(EStyleColor::AccentYellow);
 		}
 
 		case EStyle::EDependencies:
 		{
-			return FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
-			break;
+			return USlateThemeManager::Get().GetColor(EStyleColor::AccentWhite);
 		}
 
 		case EStyle::EPlugin:
 		{
-			return FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
-			break;
-		}	
-	}	
+			return USlateThemeManager::Get().GetColor(EStyleColor::AccentGreen);
+		}
+	}
+}
+
+FLinearColor FAssetTreeNode::GetColor(EStyle Style) const 
+{
+	return USlateThemeManager::Get().GetColor(EStyleColor::AccentWhite);
 }
 
 FAssetTreeNode::EStyle FAssetTreeNode::GetStyle() const
@@ -102,6 +97,11 @@ FAssetTreeNode::EStyle FAssetTreeNode::GetStyle() const
 const FSlateBrush* FAssetTreeNode::GetIcon() const
 {
 	return GetIcon(GetStyle());
+}
+
+FLinearColor FAssetTreeNode::GetIconColor() const
+{
+	return GetIconColor(GetStyle());
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -44,6 +44,7 @@ public:
 	const FAssetTableRow& GetAssetChecked() const { return AssetTablePtr->GetAssetChecked(RowId.RowIndex); }
 
 	virtual const FSlateBrush* GetIcon() const final;
+	virtual FLinearColor GetIconColor() const final;
 	virtual FLinearColor GetColor() const final;
 	
 protected:
@@ -60,6 +61,7 @@ protected:
 
 	virtual EStyle GetStyle() const;
 	const FSlateBrush* GetIcon(EStyle Style) const;
+	FLinearColor GetIconColor(EStyle Style) const;
 	FLinearColor GetColor(EStyle Style) const;
 
 private:
