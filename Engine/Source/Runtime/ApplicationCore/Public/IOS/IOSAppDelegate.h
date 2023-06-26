@@ -5,12 +5,12 @@
 #import <UIKit/UIKit.h>
 #import <AVFoundation/AVAudioSession.h>
 #import <GameKit/GKGameCenterViewController.h>
-#if !PLATFORM_VISIONOS
-#import <UserNotifications/UserNotifications.h>
-#endif
 #include "Delegates/Delegate.h"
 #include "Logging/LogMacros.h"
 #include "Containers/UnrealString.h"
+#if !PLATFORM_VISIONOS
+#import <UserNotifications/UserNotifications.h>
+#endif
 
 #define USE_MUTE_SWITCH_DETECTION 0
 
