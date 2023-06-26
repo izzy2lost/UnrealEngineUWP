@@ -32,6 +32,9 @@ public:
 	FTransform LocalTransform;
 
 	UPROPERTY()
+	FVector PreferredEulerAngle;
+
+	UPROPERTY()
 	float CurveValue;
 };
 

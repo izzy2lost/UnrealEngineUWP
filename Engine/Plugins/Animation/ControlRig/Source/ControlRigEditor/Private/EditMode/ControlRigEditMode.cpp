@@ -2914,7 +2914,7 @@ void FControlRigEditMode::ResetTransforms(bool bSelectionOnly)
 				}
 			}
 			
-			const FTransform InitialLocalTransform = ControlRig->GetHierarchy()->GetInitialLocalTransform(ElementToReset);
+			const FTransform InitialLocalTransform = ControlRig->GetInitialLocalTransform(ElementToReset);
 			ControlRig->Modify();
 			if (bHasNonDefaultParent == true) //possibly not at default parent so switch to it
 			{
@@ -4103,8 +4103,10 @@ void FControlRigEditMode::MoveControlShape(AControlRigShapeActor* ShapeActor, co
 					bPrintPythonCommands = World->IsPreviewWorld();
 				}
 
-				SetControlShapeTransform(ShapeActor, NewTransform, ToWorldTransform, Context, bPrintPythonCommands);			
-				
+				ControlRig->Evaluate_AnyThread();
+				SetControlShapeTransform(ShapeActor, NewTransform, ToWorldTransform, Context, bPrintPythonCommands);
+				NotifyDrivenControls(ControlRig, ShapeActor->GetElementKey());
+				ControlRig->Evaluate_AnyThread();
 				ShapeActor->SetGlobalTransform(CurrentTransform);
 				if (bCalcLocal)
 				{
@@ -4112,9 +4114,6 @@ void FControlRigEditMode::MoveControlShape(AControlRigShapeActor* ShapeActor, co
 					InOutLocal = NewLocal.GetRelativeTransform(InOutLocal);
 				}
 
-				ControlRig->Evaluate_AnyThread();
-
-				NotifyDrivenControls(ControlRig, ShapeActor->GetElementKey());
 			}
 		}
 	}
@@ -4630,7 +4629,7 @@ void FControlRigEditMode::NotifyDrivenControls(UControlRig* InControlRig, const 
 			{
 				if(DrivenKey.Type == ERigElementType::Control)
 				{
-					const FTransform DrivenTransform = InControlRig->GetHierarchy()->GetLocalTransform(DrivenKey);
+					const FTransform DrivenTransform = InControlRig->GetControlLocalTransform(DrivenKey.Name);
 					InControlRig->SetControlLocalTransform(DrivenKey.Name, DrivenTransform, true, Context, false /*undo*/, true/* bFixEulerFlips*/);
 				}
 			}

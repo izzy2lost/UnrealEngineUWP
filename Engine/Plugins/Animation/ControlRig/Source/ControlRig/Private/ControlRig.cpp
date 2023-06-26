@@ -319,6 +319,96 @@ bool UControlRig::InitializeVM(const FName& InEventName)
 	return true;
 }
 
+void UControlRig::Evaluate_AnyThread()
+{
+	if (bIsAdditive && !bRequiresInitExecution)
+	{
+		// we can have other systems trying to poke into running instances of Control Rigs
+		// on the anim thread and query data, such as
+		// URigVMHostSkeletalMeshComponent::RebuildDebugDrawSkeleton,
+		// using a lock here to prevent them from having an inconsistent view of the rig at some
+		// intermediate stage of evaluation, for example, during evaluate, we can have a call
+		// to copy hierarchy, which empties the hierarchy for a short period of time
+		// and we don't want other systems to see that.
+		FScopeLock EvaluateLock(&GetEvaluateMutex());
+
+		if (PoseBeforeBackwardsSolve.Num() == 0)
+		{
+			// If the pose is empty, this is an indication that a new pose is coming in
+			PoseBeforeBackwardsSolve = GetHierarchy()->GetPose(false, ERigElementType::Bone, TArrayView<const FRigElementKey>());
+		}
+		else
+		{
+			// Restore the pose from the anim sequence
+			DynamicHierarchy->SetPose(PoseBeforeBackwardsSolve);
+		}
+		
+		// Backwards solve
+		{
+			TGuardValue<bool> UpdatePreferredAngles(DynamicHierarchy->bUpdatePreferedEulerAngleWhenSettingTransform, false);
+			Execute(FRigUnit_InverseExecution::EventName);
+		}
+
+		// Store control pose after backwards solve to figure out additive local transforms based on animation
+		ControlsAfterBackwardsSolve = GetHierarchy()->GetPose(false, ERigElementType::Control, TArrayView<const FRigElementKey>());
+
+		// Apply additive controls
+		for (TPair<FRigElementKey, FRigSetControlValueInfo>& Value : ControlValues)
+		{
+			if (FRigBaseElement* Element = GetHierarchy()->Find(Value.Key))
+			{
+				if (FRigControlElement* Control = Cast<FRigControlElement>(Element))
+				{
+					FRigSetControlValueInfo& Info = Value.Value;
+
+					// Transform from animation
+					const FRigControlValue PreviousValue = GetHierarchy()->GetControlValue(Control, ERigControlValueType::Current);
+					const FTransform PreviousTransform = PreviousValue.GetAsTransform(Control->Settings.ControlType, Control->Settings.PrimaryAxis);
+
+					// Additive transform from controls
+					const FRigControlValue& AdditiveValue = Info.Value;
+					const FTransform AdditiveTransform = AdditiveValue.GetAsTransform(Control->Settings.ControlType, Control->Settings.PrimaryAxis);
+
+					// Add them to find the final value
+					FTransform FinalTransform = AdditiveTransform * PreviousTransform;
+
+					FRigControlValue FinalValue;
+					FinalValue.SetFromTransform(FinalTransform, Control->Settings.ControlType, Control->Settings.PrimaryAxis);
+					
+					GetHierarchy()->SetControlValue(Control, FinalValue, ERigControlValueType::Current, Info.bSetupUndo, false, Info.bPrintPythonCommnds, false);
+					GetHierarchy()->SetPreferredEulerAnglesFromValue(Control, AdditiveValue, ERigControlValueType::Current, Info.bFixEulerFlips);
+					
+					if (Info.bNotify && OnControlModified.IsBound())
+					{
+						OnControlModified.Broadcast(this, Control, Info.Context);
+						Info.bNotify = false;
+					}
+				}
+			}
+		}
+		
+		// Forward solve
+		{
+			TGuardValue<bool> UpdatePreferredAngles(DynamicHierarchy->bUpdatePreferedEulerAngleWhenSettingTransform, false);
+			Execute(FRigUnit_BeginExecution::EventName);
+		}
+	}
+	else
+	{
+		Super::Evaluate_AnyThread();
+	}
+}
+
+void UControlRig::ResetControlValues()
+{
+	ControlValues.Reset();
+}
+
+void UControlRig::ClearPoseBeforeBackwardsSolve()
+{
+	PoseBeforeBackwardsSolve.Reset();
+}
+
 void UControlRig::InitializeFromCDO()
 {
 	Super::InitializeFromCDO();
@@ -856,8 +946,11 @@ bool UControlRig::Execute(const FName& InEventName)
 
 	if (ExecutedEvent.IsBound())
 	{
-		FControlRigBracketScope BracketScope(ExecuteBracket);
-		ExecutedEvent.Broadcast(this, InEventName);
+		if (!IsAdditive() || InEventName != FRigUnit_InverseExecution::EventName)
+		{
+			FControlRigBracketScope BracketScope(ExecuteBracket);
+			ExecutedEvent.Broadcast(this, InEventName);
+		}
 	}
 
 	// close remaining undo brackets from hierarchy
@@ -1518,6 +1611,53 @@ FTransform UControlRig::GetControlGlobalTransform(const FName& InControlName) co
 	return DynamicHierarchy->GetGlobalTransform(FRigElementKey(InControlName, ERigElementType::Control), false);
 }
 
+FRigControlValue UControlRig::GetControlValue(FRigControlElement* InControl, const ERigControlValueType& InValueType)
+{
+	if (bIsAdditive && InValueType == ERigControlValueType::Current)
+	{
+		const int32 ControlIndex = ControlsAfterBackwardsSolve.GetIndex(InControl->GetKey());
+		if (ControlIndex != INDEX_NONE)
+		{
+			// return local space control value (the one to be added after backwards solve)
+			const FRigPoseElement& AnimPose = ControlsAfterBackwardsSolve[ControlIndex];
+			const FRigControlValue& CurrentValue = GetHierarchy()->GetControlValue(InControl, InValueType);
+			const FTransform FinalTransform = CurrentValue.GetAsTransform(InControl->Settings.ControlType, InControl->Settings.PrimaryAxis);
+			const FTransform AdditiveTransform = FinalTransform * AnimPose.LocalTransform.Inverse();
+			FRigControlValue AdditiveValue;
+			AdditiveValue.SetFromTransform(AdditiveTransform, InControl->Settings.ControlType, InControl->Settings.PrimaryAxis);
+			return AdditiveValue;
+		}
+	}
+	return GetHierarchy()->GetControlValue(InControl, InValueType);
+}
+
+void UControlRig::SetControlValueImpl(const FName& InControlName, const FRigControlValue& InValue, bool bNotify,
+	const FRigControlModifiedContext& Context, bool bSetupUndo, bool bPrintPythonCommnds, bool bFixEulerFlips)
+{
+	const FRigElementKey Key(InControlName, ERigElementType::Control);
+
+	FRigControlElement* ControlElement = DynamicHierarchy->Find<FRigControlElement>(Key);
+	if(ControlElement == nullptr)
+	{
+		return;
+	}
+	if (bIsAdditive)
+	{
+		// Store the value to apply it after the backwards solve
+		FRigSetControlValueInfo Info = {InValue, bNotify, Context, bSetupUndo, bPrintPythonCommnds, bFixEulerFlips};
+		ControlValues.Add(ControlElement->GetKey(), Info);
+	}
+	else
+	{
+		DynamicHierarchy->SetControlValue(ControlElement, InValue, ERigControlValueType::Current, bSetupUndo, false, bPrintPythonCommnds, bFixEulerFlips);
+
+		if (bNotify && OnControlModified.IsBound())
+		{
+			OnControlModified.Broadcast(this, ControlElement, Context);
+		}
+	}
+}
+
 bool UControlRig::SetControlGlobalTransform(const FName& InControlName, const FTransform& InGlobalTransform, bool bNotify, const FRigControlModifiedContext& Context, bool bSetupUndo, bool bPrintPythonCommands, bool bFixEulerFlips)
 {
 	FTransform GlobalTransform = InGlobalTransform;
@@ -1556,8 +1696,21 @@ FRigControlValue UControlRig::GetControlValueFromGlobalTransform(const FName& In
 	{
 		if(DynamicHierarchy)
 		{
-			FTransform Transform = DynamicHierarchy->ComputeLocalControlValue(ControlElement, InGlobalTransform, InTransformType);
-			Value.SetFromTransform(Transform, ControlElement->Settings.ControlType, ControlElement->Settings.PrimaryAxis);
+			if (bIsAdditive)
+			{
+				const int32 ControlIndex = ControlsAfterBackwardsSolve.GetIndex(ControlElement->GetKey());
+				if (ControlIndex != INDEX_NONE)
+				{
+					const FTransform& AnimGlobalTransform = ControlsAfterBackwardsSolve[ControlIndex].GlobalTransform;
+					const FTransform AdditiveTransform = InGlobalTransform.GetRelativeTransform(AnimGlobalTransform);					
+					Value.SetFromTransform(AdditiveTransform, ControlElement->Settings.ControlType, ControlElement->Settings.PrimaryAxis);
+				}
+			}
+			else
+			{
+				FTransform Transform = DynamicHierarchy->ComputeLocalControlValue(ControlElement, InGlobalTransform, InTransformType);
+				Value.SetFromTransform(Transform, ControlElement->Settings.ControlType, ControlElement->Settings.PrimaryAxis);
+			}
 
 			if (ShouldApplyLimits())
 			{
@@ -1590,6 +1743,17 @@ FTransform UControlRig::GetControlLocalTransform(const FName& InControlName)
 	if(DynamicHierarchy == nullptr)
 	{
 		return FTransform::Identity;
+	}
+	if (bIsAdditive)
+	{
+		FRigElementKey ControlKey (InControlName, ERigElementType::Control);
+		if (FRigBaseElement* Element = DynamicHierarchy->Find(ControlKey))
+		{
+			if (FRigControlElement* ControlElement = Cast<FRigControlElement>(Element))
+			{
+				return GetControlValue(ControlElement, ERigControlValueType::Current).GetAsTransform(ControlElement->Settings.ControlType, ControlElement->Settings.PrimaryAxis);
+			}
+		}
 	}
 	return DynamicHierarchy->GetLocalTransform(FRigElementKey(InControlName, ERigElementType::Control));
 }

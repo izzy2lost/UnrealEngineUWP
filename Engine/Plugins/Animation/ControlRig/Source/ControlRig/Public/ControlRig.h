@@ -103,6 +103,16 @@ public:
 	/** Initialize the VM */
 	virtual bool InitializeVM(const FName& InEventName) override;
 
+	/** Evaluates the ControlRig */
+	virtual void Evaluate_AnyThread() override;
+
+	/** Removes any stored additive control values */
+	void ResetControlValues();
+
+	/** Resets the stored pose coming from the anim sequence.
+	 * This usually indicates a new pose should be stored. */
+	void ClearPoseBeforeBackwardsSolve();
+
 	/** Setup bindings to a runtime object (or clear by passing in nullptr). */
 	void SetObjectBinding(TSharedPtr<IControlRigObjectBinding> InObjectBinding)
 	{
@@ -184,27 +194,30 @@ public:
 	FRigControlValue GetControlValue(const FName& InControlName)
 	{
 		const FRigElementKey Key(InControlName, ERigElementType::Control);
+		if (FRigBaseElement* Element = DynamicHierarchy->Find(Key))
+		{
+			if (FRigControlElement* ControlElement = Cast<FRigControlElement>(Element))
+			{
+				return GetControlValue(ControlElement, ERigControlValueType::Current);
+			}
+		}
 		return DynamicHierarchy->GetControlValue(Key);
 	}
 
+	FRigControlValue GetControlValue(FRigControlElement* InControl, const ERigControlValueType& InValueType);
+
 	// Sets the relative value of a Control
 	virtual void SetControlValueImpl(const FName& InControlName, const FRigControlValue& InValue, bool bNotify = true,
-		const FRigControlModifiedContext& Context = FRigControlModifiedContext(), bool bSetupUndo = true, bool bPrintPythonCommnds = false, bool bFixEulerFlips = false)
+		const FRigControlModifiedContext& Context = FRigControlModifiedContext(), bool bSetupUndo = true, bool bPrintPythonCommnds = false, bool bFixEulerFlips = false);
+
+	FTransform GetInitialLocalTransform(const FRigElementKey &InKey)
 	{
-		const FRigElementKey Key(InControlName, ERigElementType::Control);
-
-		FRigControlElement* ControlElement = DynamicHierarchy->Find<FRigControlElement>(Key);
-		if(ControlElement == nullptr)
+		if (bIsAdditive)
 		{
-			return;
+			// The initial value of all additive controls is always Identity
+			return FTransform::Identity;
 		}
-
-		DynamicHierarchy->SetControlValue(ControlElement, InValue, ERigControlValueType::Current, bSetupUndo, false, bPrintPythonCommnds, bFixEulerFlips);
-
-		if (bNotify && OnControlModified.IsBound())
-		{
-			OnControlModified.Broadcast(this, ControlElement, Context);
-		}
+		return GetHierarchy()->GetInitialLocalTransform(InKey);
 	}
 
 	bool SetControlGlobalTransform(const FName& InControlName, const FTransform& InGlobalTransform, bool bNotify = true, const FRigControlModifiedContext& Context = FRigControlModifiedContext(), bool bSetupUndo = true, bool bPrintPythonCommands = false, bool bFixEulerFlips = false);
@@ -569,6 +582,25 @@ private:
 
 #endif
 
+	/** An additive contrrl rig runs a backwards solve before applying additive control values
+	 * and running the forward solve
+	 */
+	UPROPERTY(transient)
+	bool bIsAdditive = false;
+
+	struct FRigSetControlValueInfo
+	{
+		FRigControlValue Value;
+		bool bNotify;
+		FRigControlModifiedContext Context;
+		bool bSetupUndo;
+		bool bPrintPythonCommnds;
+		bool bFixEulerFlips;
+	};
+	FRigPose PoseBeforeBackwardsSolve;
+	FRigPose ControlsAfterBackwardsSolve;
+	TMap<FRigElementKey, FRigSetControlValueInfo> ControlValues; // Additive values in local space (to add after backwards solve)
+
 	float DebugBoneRadiusMultiplier;
 	
 #if WITH_EDITOR	
@@ -579,7 +611,13 @@ public:
 	void SetControlsVisible(const bool bIsVisible) { bControlsVisible = bIsVisible; }
 	bool GetControlsVisible()const { return bControlsVisible;}
 
-#endif	
+#endif
+	
+	bool IsAdditive() const { return bIsAdditive; }
+	void SetIsAdditive(const bool bInIsAdditive)
+	{
+		bIsAdditive = bInIsAdditive;
+	}
 
 private:
 

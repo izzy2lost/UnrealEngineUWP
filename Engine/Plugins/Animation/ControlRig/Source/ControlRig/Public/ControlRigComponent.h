@@ -291,11 +291,11 @@ public:
 
 	/** Adds a series of mapped bones to the rig, should not be used before OnPreInitialize Event */
 	UFUNCTION(BlueprintCallable, Category = "ControlRig", meta = (DisplayName = "Add Mapped Skeletal Mesh Bone Array", UnsafeDuringActorConstruction = "true"))
-	void AddMappedSkeletalMesh(USkeletalMeshComponent* SkeletalMeshComponent, TArray<FControlRigComponentMappedBone> Bones, TArray<FControlRigComponentMappedCurve> Curves);
+	void AddMappedSkeletalMesh(USkeletalMeshComponent* SkeletalMeshComponent, TArray<FControlRigComponentMappedBone> Bones, TArray<FControlRigComponentMappedCurve> Curves, const EControlRigComponentMapDirection InDirection = EControlRigComponentMapDirection::Output);
 
 	/** Adds all matching bones to the rig, should not be used before OnPreInitialize Event */
 	UFUNCTION(BlueprintCallable, Category = "ControlRig", meta = (DisplayName = "Add Mapped Skeletal Mesh", UnsafeDuringActorConstruction = "true"))
-	void AddMappedCompleteSkeletalMesh(USkeletalMeshComponent* SkeletalMeshComponent);
+	void AddMappedCompleteSkeletalMesh(USkeletalMeshComponent* SkeletalMeshComponent, const EControlRigComponentMapDirection InDirection = EControlRigComponentMapDirection::Output);
 
 	/** Setup the initial transforms / ref pose of the bones based on a skeletal mesh */
 	UFUNCTION(BlueprintCallable, Category = "ControlRig", meta = (DisplayName = "Set Bone Initial Transforms From Skeletal Mesh"))

@@ -3,6 +3,7 @@
 #include "ControlRigComponent.h"
 #include "Engine/SkeletalMesh.h"
 #include "Units/Execution/RigUnit_BeginExecution.h"
+#include "Units/Execution/RigUnit_InverseExecution.h"
 #include "Units/Execution/RigUnit_Hierarchy.h"
 
 #include "SkeletalDebugRendering.h"
@@ -351,7 +352,11 @@ void UControlRigComponent::Initialize()
 
 	TGuardValue<bool> InitializeBracket(bIsInsideInitializeBracket, true);
 	
-	ClearMappedElements();
+	if (!UserDefinedElements.IsEmpty())
+	{
+		MappedElements = UserDefinedElements;
+	}
+	ValidateMappingData();
 
 #if WITH_EDITOR
 	if (bUpdateInEditor)
@@ -482,6 +487,11 @@ void UControlRigComponent::Update(float DeltaTime)
 				}
 #endif
 
+				// Animation will only evaluate if DeltaTime > 0
+				if (CR->IsAdditive() && DeltaTime > 0)
+				{
+					CR->ClearPoseBeforeBackwardsSolve();
+				}
 				CR->Evaluate_AnyThread();
 
 #if WITH_EDITOR
@@ -614,7 +624,8 @@ void UControlRigComponent::AddMappedComponents(TArray<FControlRigComponentMapped
 	AddMappedElements(ElementsToMap);
 }
 
-void UControlRigComponent::AddMappedSkeletalMesh(USkeletalMeshComponent* SkeletalMeshComponent, TArray<FControlRigComponentMappedBone> Bones, TArray<FControlRigComponentMappedCurve> Curves)
+void UControlRigComponent::AddMappedSkeletalMesh(USkeletalMeshComponent* SkeletalMeshComponent, TArray<FControlRigComponentMappedBone> Bones, TArray<
+                                                 FControlRigComponentMappedCurve> Curves, const EControlRigComponentMapDirection InDirection)
 {
 	if (SkeletalMeshComponent == nullptr)
 	{
@@ -706,6 +717,7 @@ void UControlRigComponent::AddMappedSkeletalMesh(USkeletalMeshComponent* Skeleta
 		ElementToMap.ElementName = BoneToMap.Source;
 		ElementToMap.ElementType = ERigElementType::Bone;
 		ElementToMap.TransformName = BoneToMap.Target;
+		ElementToMap.Direction = InDirection;
 
 		ElementsToMap.Add(ElementToMap);
 	}
@@ -732,9 +744,9 @@ void UControlRigComponent::AddMappedSkeletalMesh(USkeletalMeshComponent* Skeleta
 	AddMappedElements(ElementsToMap);
 }
 
-void UControlRigComponent::AddMappedCompleteSkeletalMesh(USkeletalMeshComponent* SkeletalMeshComponent)
+void UControlRigComponent::AddMappedCompleteSkeletalMesh(USkeletalMeshComponent* SkeletalMeshComponent, const EControlRigComponentMapDirection InDirection)
 {
-	AddMappedSkeletalMesh(SkeletalMeshComponent, TArray<FControlRigComponentMappedBone>(), TArray<FControlRigComponentMappedCurve>());
+	AddMappedSkeletalMesh(SkeletalMeshComponent, TArray<FControlRigComponentMappedBone>(), TArray<FControlRigComponentMappedCurve>(), InDirection);
 }
 
 void UControlRigComponent::SetBoneInitialTransformsFromSkeletalMesh(USkeletalMesh* InSkeletalMesh)
@@ -1509,98 +1521,140 @@ void UControlRigComponent::TransferOutputs()
 {
 	if (ControlRig)
 	{
-		USceneComponent* LastComponent = nullptr;
-		FControlRigAnimInstanceProxy* Proxy = nullptr;
-
-		for (const FControlRigComponentMappedElement& MappedElement : MappedElements)
+		if (ControlRig->IsAdditive())
 		{
-			if (LastComponent != MappedElement.SceneComponent || Proxy == nullptr)
+			if (MappedElements.Num() > 0)
 			{
-				Proxy = MappedElement.GetAnimProxyOnGameThread();
-				if (Proxy)
+				if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(MappedElements[0].SceneComponent))
 				{
-					Proxy->StoredTransforms.Reset();
-					Proxy->StoredCurves.Reset();
-					LastComponent = MappedElement.SceneComponent;
+					if (USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMeshAsset())
+					{
+						TArray<FTransform> BoneSpaceTransforms;
+						BoneSpaceTransforms.SetNumUninitialized(SkeletalMesh->GetRefSkeleton().GetNum());
+						for (const FControlRigComponentMappedElement& MappedElement : MappedElements)
+						{
+							if (MappedElement.ElementIndex == INDEX_NONE || MappedElement.Direction == EControlRigComponentMapDirection::Input)
+							{
+								continue;
+							}
+
+							if (MappedElement.ElementType == ERigElementType::Bone ||
+								MappedElement.ElementType == ERigElementType::Control ||
+								MappedElement.ElementType == ERigElementType::Null)
+							{
+								if (MappedElement.SubIndex >= 0 && BoneSpaceTransforms.IsValidIndex(MappedElement.SubIndex))
+								{
+									FTransform Transform = ControlRig->GetHierarchy()->GetLocalTransform(MappedElement.ElementIndex);
+									BoneSpaceTransforms[MappedElement.SubIndex] = Transform;
+								}
+							}
+						}
+
+						TArray<FTransform> OutSpaceBases;
+						OutSpaceBases.SetNumUninitialized(BoneSpaceTransforms.Num());
+						SkeletalMesh->FillComponentSpaceTransforms(BoneSpaceTransforms, SkeletalMeshComponent->FillComponentSpaceTransformsRequiredBones, SkeletalMeshComponent->GetEditableComponentSpaceTransforms());
+#if WITH_EDITOR
+						SkeletalMeshComponent->ApplyEditedComponentSpaceTransforms();
+#endif
+					}
 				}
 			}
 		}
-
-		for (const FControlRigComponentMappedElement& MappedElement : MappedElements)
+		else
 		{
-			if (MappedElement.ElementIndex == INDEX_NONE || MappedElement.Direction == EControlRigComponentMapDirection::Input)
+			USceneComponent* LastComponent = nullptr;
+			FControlRigAnimInstanceProxy* Proxy = nullptr;
+
+			for (const FControlRigComponentMappedElement& MappedElement : MappedElements)
 			{
-				continue;
-			}
-
-			if (MappedElement.ElementType == ERigElementType::Bone ||
-				MappedElement.ElementType == ERigElementType::Control ||
-				MappedElement.ElementType == ERigElementType::Null)
-			{
-				FTransform Transform = ControlRig->GetHierarchy()->GetGlobalTransform(MappedElement.ElementIndex);
-				ConvertTransformFromRigSpace(Transform, MappedElement.Space);
-
-				Transform = Transform * MappedElement.Offset;
-
-				if (MappedElement.SubIndex >= 0)
+				if (LastComponent != MappedElement.SceneComponent || Proxy == nullptr)
 				{
-					if (LastComponent != MappedElement.SceneComponent || Proxy == nullptr)
-					{
-						Proxy = MappedElement.GetAnimProxyOnGameThread();
-						if (Proxy)
-						{
-							LastComponent = MappedElement.SceneComponent;
-						}
-					}
-
-					if (Proxy && (MappedElement.SceneComponent != nullptr))
-					{
-						if(MappedElement.Space == EControlRigComponentSpace::WorldSpace)
-						{
-							Transform = Transform.GetRelativeTransform(MappedElement.SceneComponent->GetComponentToWorld());
-						}
-						Proxy->StoredTransforms.FindOrAdd(FMeshPoseBoneIndex(MappedElement.SubIndex)) = Transform;
-					}
-					else if (UInstancedStaticMeshComponent* InstancingComponent = Cast<UInstancedStaticMeshComponent>(MappedElement.SceneComponent))
-					{
-						if (MappedElement.SubIndex < InstancingComponent->GetNumRenderInstances())
-						{
-							if (MappedElement.Weight < 1.f - SMALL_NUMBER)
-							{
-								FTransform Previous = FTransform::Identity;
-								InstancingComponent->GetInstanceTransform(MappedElement.SubIndex, Previous, true);
-								Transform = FControlRigMathLibrary::LerpTransform(Previous, Transform, FMath::Clamp<float>(MappedElement.Weight, 0.f, 1.f));
-							}
-							InstancingComponent->UpdateInstanceTransform(MappedElement.SubIndex, Transform, true, true, true);
-						}
-					}
-				}
-				else
-				{
-					if (MappedElement.Weight < 1.f - SMALL_NUMBER)
-					{
-						FTransform Previous = MappedElement.SceneComponent->GetComponentToWorld();
-						Transform = FControlRigMathLibrary::LerpTransform(Previous, Transform, FMath::Clamp<float>(MappedElement.Weight, 0.f, 1.f));
-					}
-					MappedElement.SceneComponent->SetWorldTransform(Transform);
-				}
-			}
-			else if (MappedElement.ElementType == ERigElementType::Curve)
-			{
-				if (MappedElement.SubIndex >= 0)
-				{
-					if (LastComponent != MappedElement.SceneComponent || Proxy == nullptr)
-					{
-						Proxy = MappedElement.GetAnimProxyOnGameThread();
-						if (Proxy)
-						{
-							LastComponent = MappedElement.SceneComponent;
-						}
-					}
-
+					Proxy = MappedElement.GetAnimProxyOnGameThread();
 					if (Proxy)
 					{
-						Proxy->StoredCurves.FindOrAdd(MappedElement.TransformName) = ControlRig->GetHierarchy()->GetCurveValue(MappedElement.ElementIndex);
+						Proxy->StoredTransforms.Reset();
+						Proxy->StoredCurves.Reset();
+						LastComponent = MappedElement.SceneComponent;
+					}
+				}
+			}
+
+			for (const FControlRigComponentMappedElement& MappedElement : MappedElements)
+			{
+				if (MappedElement.ElementIndex == INDEX_NONE || MappedElement.Direction == EControlRigComponentMapDirection::Input)
+				{
+					continue;
+				}
+
+				if (MappedElement.ElementType == ERigElementType::Bone ||
+					MappedElement.ElementType == ERigElementType::Control ||
+					MappedElement.ElementType == ERigElementType::Null)
+				{
+					FTransform Transform = ControlRig->GetHierarchy()->GetGlobalTransform(MappedElement.ElementIndex);
+					ConvertTransformFromRigSpace(Transform, MappedElement.Space);
+
+					Transform = Transform * MappedElement.Offset;
+
+					if (MappedElement.SubIndex >= 0)
+					{
+						if (LastComponent != MappedElement.SceneComponent || Proxy == nullptr)
+						{
+							Proxy = MappedElement.GetAnimProxyOnGameThread();
+							if (Proxy)
+							{
+								LastComponent = MappedElement.SceneComponent;
+							}
+						}
+
+						if (Proxy && (MappedElement.SceneComponent != nullptr))
+						{
+							if(MappedElement.Space == EControlRigComponentSpace::WorldSpace)
+							{
+								Transform = Transform.GetRelativeTransform(MappedElement.SceneComponent->GetComponentToWorld());
+							}
+							Proxy->StoredTransforms.FindOrAdd(FMeshPoseBoneIndex(MappedElement.SubIndex)) = Transform;
+						}
+						else if (UInstancedStaticMeshComponent* InstancingComponent = Cast<UInstancedStaticMeshComponent>(MappedElement.SceneComponent))
+						{
+							if (MappedElement.SubIndex < InstancingComponent->GetNumRenderInstances())
+							{
+								if (MappedElement.Weight < 1.f - SMALL_NUMBER)
+								{
+									FTransform Previous = FTransform::Identity;
+									InstancingComponent->GetInstanceTransform(MappedElement.SubIndex, Previous, true);
+									Transform = FControlRigMathLibrary::LerpTransform(Previous, Transform, FMath::Clamp<float>(MappedElement.Weight, 0.f, 1.f));
+								}
+								InstancingComponent->UpdateInstanceTransform(MappedElement.SubIndex, Transform, true, true, true);
+							}
+						}
+					}
+					else
+					{
+						if (MappedElement.Weight < 1.f - SMALL_NUMBER)
+						{
+							FTransform Previous = MappedElement.SceneComponent->GetComponentToWorld();
+							Transform = FControlRigMathLibrary::LerpTransform(Previous, Transform, FMath::Clamp<float>(MappedElement.Weight, 0.f, 1.f));
+						}
+						MappedElement.SceneComponent->SetWorldTransform(Transform);
+					}
+				}
+				else if (MappedElement.ElementType == ERigElementType::Curve)
+				{
+					if (MappedElement.SubIndex >= 0)
+					{
+						if (LastComponent != MappedElement.SceneComponent || Proxy == nullptr)
+						{
+							Proxy = MappedElement.GetAnimProxyOnGameThread();
+							if (Proxy)
+							{
+								LastComponent = MappedElement.SceneComponent;
+							}
+						}
+
+						if (Proxy)
+						{
+							Proxy->StoredCurves.FindOrAdd(MappedElement.TransformName) = ControlRig->GetHierarchy()->GetCurveValue(MappedElement.ElementIndex);
+						}
 					}
 				}
 			}

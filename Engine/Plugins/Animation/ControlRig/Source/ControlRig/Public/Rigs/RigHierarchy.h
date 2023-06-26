@@ -3626,6 +3626,9 @@ public:
 	 */
 	FRigControlValue GetControlValue(FRigControlElement* InControlElement, ERigControlValueType InValueType) const;
 
+	void SetPreferredEulerAnglesFromValue(FRigControlElement* InControlElement, const FRigControlValue& InValue,
+	                                      const ERigControlValueType& InValueType, bool bFixEulerFlips);
+
 	template<typename T>
 	T GetControlValue(FRigControlElement* InControlElement, ERigControlValueType InValueType) const
 	{

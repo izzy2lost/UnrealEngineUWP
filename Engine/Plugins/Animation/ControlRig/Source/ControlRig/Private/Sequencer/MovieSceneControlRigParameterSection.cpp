@@ -63,7 +63,7 @@ struct FParameterFloatChannelEditorData
 			FRigControlElement* ControlElement = ControlRig->FindControl(ParameterName);
 			if (ControlElement)
 			{
-				return ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<float>();
+				return ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<float>();
 			}
 		}
 		return TOptional<float>();
@@ -184,18 +184,17 @@ struct FParameterVectorChannelEditorData
 		
 				if (NumChannels == 2)
 				{
-					const FVector3f Vector = ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
+					const FVector3f Vector = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
 					return FVector4(Vector.X, Vector.Y, 0.f, 0.f);
 				}
 				else if (NumChannels == 3)
 				{
-					const FVector3f Vector = ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
+					const FVector3f Vector = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
 					return FVector4(Vector.X, Vector.Y, Vector.Z, 0.f);
 				}
 				else
 				{
-					const FRigControlValue::FTransform_Float Storage = ControlRig->GetHierarchy()
-						->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransform_Float>();
+					const FRigControlValue::FTransform_Float Storage = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransform_Float>();
 #if ENABLE_VECTORIZED_TRANSFORM
 					return FVector4(Storage.TranslationX, Storage.TranslationY, Storage.TranslationZ, Storage.TranslationW);
 #else
@@ -574,21 +573,21 @@ struct FParameterTransformChannelEditorData
 				if (ControlElement->Settings.ControlType == ERigControlType::Transform)
 				{
 					const FRigControlValue::FTransform_Float Transform = 
-						ControlRig->GetHierarchy()
+						ControlRig
 						->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransform_Float>();
 					return FVector(Transform.GetTranslation());
 				}
 				else if  (ControlElement->Settings.ControlType == ERigControlType::TransformNoScale)
 				{
 					const FRigControlValue::FTransformNoScale_Float Transform = 
-						ControlRig->GetHierarchy()
+						ControlRig
 						->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransformNoScale_Float>();
 					return FVector(Transform.GetTranslation());
 				}
 				else if (ControlElement->Settings.ControlType == ERigControlType::EulerTransform)
 				{
 					const FRigControlValue::FEulerTransform_Float Euler = 
-						ControlRig->GetHierarchy()
+						ControlRig
 						->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FEulerTransform_Float>();
 
 					// switch translation to constraint space if needed
@@ -603,7 +602,7 @@ struct FParameterTransformChannelEditorData
 				}
 				else if(ControlElement->Settings.ControlType == ERigControlType::Position)
 				{
-					FVector3f Vector = ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
+					FVector3f Vector = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
 					return FVector(Vector.X, Vector.Y, Vector.Z);
 				}
 			}
@@ -648,14 +647,14 @@ struct FParameterTransformChannelEditorData
 				if (ControlElement->Settings.ControlType == ERigControlType::Transform)
 				{
 					const FRigControlValue::FTransform_Float Transform = 
-						ControlRig->GetHierarchy()
+						ControlRig
 						->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransform_Float>();
 					return FVector(Transform.GetScale3D());
 				}
 				else if (ControlElement->Settings.ControlType == ERigControlType::EulerTransform)
 				{
 					const FRigControlValue::FEulerTransform_Float Transform = 
-						ControlRig->GetHierarchy()
+						ControlRig
 						->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FEulerTransform_Float>();
 
 					// switch scale to constraint space if needed
@@ -670,7 +669,7 @@ struct FParameterTransformChannelEditorData
 				}
 				else if (ControlElement->Settings.ControlType == ERigControlType::Scale)
 				{
-					FVector3f Vector = ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
+					FVector3f Vector = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
 					return FVector(Vector.X, Vector.Y, Vector.Z);
 				}
 			}
@@ -1691,10 +1690,11 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 			}
 		};
 #endif
-		
+
+		URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
 		for (FRigControlElement* ControlElement : SortedControls)
 		{
-			if (!ControlRig->GetHierarchy()->IsAnimatable(ControlElement))
+			if (!Hierarchy->IsAnimatable(ControlElement))
 			{
 				continue;
 			}
@@ -1702,9 +1702,9 @@ void UMovieSceneControlRigParameterSection::ReconstructChannelProxy()
 			FName ParentControlName = NAME_None;
 			FText Group;
 
-			if(ControlRig->GetHierarchy()->ShouldBeGrouped(ControlElement))
+			if(Hierarchy->ShouldBeGrouped(ControlElement))
 			{
-				if(const FRigControlElement* ParentControlElement = Cast<FRigControlElement>(ControlRig->GetHierarchy()->GetFirstParent(ControlElement)))
+				if(const FRigControlElement* ParentControlElement = Cast<FRigControlElement>(Hierarchy->GetFirstParent(ControlElement)))
 				{
 					ParentControlName = ParentControlElement->GetName();
 					Group = FText::FromName(ParentControlElement->GetDisplayName());
@@ -2428,6 +2428,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 	ControlRig->GetControlsInOrder(SortedControls);
 
 	TMap<FName, FName> CurveControlNameRemapping;
+	URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
 	if (GetLinkerCustomVersion(FUE5MainStreamObjectVersion::GUID) < FUE5MainStreamObjectVersion::FKControlNamingScheme)
 	{
 		for (FRigControlElement* ControlElement : SortedControls)
@@ -2439,7 +2440,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 				// Ensure name is valid, and curve actually exists in the hierarchy,
 				// this means we could not be renaming some controls for which the curves do not exist anymore, which ties back to comment at the top op the function
 				// with regards to non-associated curves
-				if (TargetCurveName != NAME_None && ControlRig->GetHierarchy()->Find(CurveKey))
+				if (TargetCurveName != NAME_None && Hierarchy->Find(CurveKey))
 				{
 					// Add mapping from old to new control naming scheme (previous was using uniform naming for both bones and curves)
 					CurveControlNameRemapping.Add(ControlElement->GetName(), UFKControlRig::GetControlName(TargetCurveName, ERigElementType::Bone));
@@ -2450,12 +2451,12 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 
 	for (FRigControlElement* ControlElement : SortedControls)
 	{
-		if (!ControlRig->GetHierarchy()->IsAnimatable(ControlElement))
+		if (!Hierarchy->IsAnimatable(ControlElement))
 		{
 			continue;
 		}
 
-		FName PreviousName = ControlRig->GetHierarchy()->GetPreviousName(ControlElement->GetKey());
+		FName PreviousName = Hierarchy->GetPreviousName(ControlElement->GetKey());
 		if (PreviousName != NAME_None && PreviousName != ControlElement->GetKey().Name)
 		{
 			RenameParameterName(PreviousName, ControlElement->GetKey().Name);
@@ -2474,7 +2475,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 			if (bSetDefault)
 			{
 				//or use IntialValue?
-				DefaultValue = ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<float>();
+				DefaultValue = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<float>();
 			}
 			AddScalarParameter(ControlElement->GetName(), DefaultValue, false);
 			break;
@@ -2485,7 +2486,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 			//only add bools,int, enums and space onto first sections, which is the same as the default one
 			if (bSetDefault)
 			{
-				DefaultValue = ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<bool>();
+				DefaultValue = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<bool>();
 				AddBoolParameter(ControlElement->GetName(), DefaultValue, false);
 
 			}
@@ -2499,7 +2500,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 				//only add bools,int, enums and space onto first sections, which is the same as the default one
 				if (bSetDefault)
 				{
-					DefaultValue = (uint8)ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<int32>();
+					DefaultValue = (uint8)ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<int32>();
 					AddEnumParameter(ControlElement->GetName(), ControlElement->Settings.ControlEnum, DefaultValue, false);
 				}
 			}
@@ -2509,7 +2510,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 				//only add bools,int, enums and space onto first sections, which is the same as the default one
 				if (bSetDefault)
 				{
-					DefaultValue = ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<int32>();
+					DefaultValue = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<int32>();
 					AddIntegerParameter(ControlElement->GetName(), DefaultValue, false);
 				}
 			}
@@ -2521,7 +2522,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 			if (bSetDefault)
 			{
 				//or use IntialValue?
-				const FVector3f TempValue = ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
+				const FVector3f TempValue = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
 				DefaultValue = FVector2D(TempValue.X, TempValue.Y);
 			}
 			AddVector2DParameter(ControlElement->GetName(), DefaultValue, false);
@@ -2536,7 +2537,7 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 			if (bSetDefault)
 			{
 				//or use IntialValue?
-				DefaultValue = (FVector)ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
+				DefaultValue = (FVector)ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
 			}
 			AddVectorParameter(ControlElement->GetName(), DefaultValue, false);
 			//mz todo specify rotator special so we can do quat interps
@@ -2552,21 +2553,21 @@ void UMovieSceneControlRigParameterSection::RecreateWithThisControlRig(UControlR
 				if (ControlElement->Settings.ControlType == ERigControlType::Transform)
 				{
 					DefaultValue = FEulerTransform(
-						ControlRig->GetHierarchy()->
+						ControlRig->
 						GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransform_Float>().ToTransform());
 				}
 				else if (ControlElement->Settings.ControlType == ERigControlType::EulerTransform)
 
 				{
 					FEulerTransform Euler = 
-						ControlRig->GetHierarchy()->
+						ControlRig->
 						GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FEulerTransform_Float>().ToTransform();
 					DefaultValue = Euler;
 				}
 				else
 				{
 					FTransformNoScale NoScale = 
-						ControlRig->GetHierarchy()->
+						ControlRig->
 						GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransformNoScale_Float>().ToTransform();
 					DefaultValue = FEulerTransform(NoScale.Rotation.Rotator(), NoScale.Location, FVector::OneVector);
 				}
@@ -2882,7 +2883,7 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 			{
 				case ERigControlType::Bool:
 				{
-					bool Val = ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<bool>();
+					bool Val = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<bool>();
 					if (bSetDefault)
 					{
 						BoolChannels[ChannelIndex]->SetDefault(Val);
@@ -2894,7 +2895,7 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 				{
 					if (ControlElement->Settings.ControlEnum)
 					{
-						uint8 Val = (uint8)ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<uint8>();
+						uint8 Val = (uint8)ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<uint8>();
 						if (bSetDefault)
 						{
 							EnumChannels[ChannelIndex]->SetDefault(Val);
@@ -2903,7 +2904,7 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 					}
 					else
 					{
-						int32 Val = ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<int32>();
+						int32 Val = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<int32>();
 						if (bSetDefault)
 						{
 							IntChannels[ChannelIndex]->SetDefault(Val);
@@ -2914,7 +2915,7 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 				}
 				case ERigControlType::Float:
 				{
-					float Val = ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<float>();
+					float Val = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<float>();
 					if (bSetDefault)
 					{
 						FloatChannels[ChannelIndex]->SetDefault(Val);
@@ -2940,7 +2941,7 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 				}
 				case ERigControlType::Vector2D:
 				{
-					FVector3f Val = ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
+					FVector3f Val = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
 					if (bSetDefault)
 					{
 						FloatChannels[ChannelIndex]->SetDefault(Val.X);
@@ -2972,7 +2973,7 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 				case ERigControlType::Scale:
 				case ERigControlType::Rotator:
 				{
-					FVector3f Val = ControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
+					FVector3f Val = ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
 					if (ControlElement->Settings.ControlType == ERigControlType::Rotator &&
 						FloatChannels[ChannelIndex]->GetNumKeys() > 0)
 					{
@@ -3003,21 +3004,19 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 					if (ControlElement->Settings.ControlType == ERigControlType::TransformNoScale)
 					{
 						FTransformNoScale NoScale = 
-							ControlRig->GetHierarchy()
-							->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransformNoScale_Float>().ToTransform();
+							ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransformNoScale_Float>().ToTransform();
 						Val = NoScale;
 					}
 					else if (ControlElement->Settings.ControlType == ERigControlType::EulerTransform)
 					{
 						FEulerTransform Euler = 
-							ControlRig->GetHierarchy()
-							->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FEulerTransform_Float>().ToTransform();
+							ControlRig->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FEulerTransform_Float>().ToTransform();
 						Val = Euler.ToFTransform();
 					}
 					else
 					{
 						Val = 
-							ControlRig->GetHierarchy()
+							ControlRig
 							->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransform_Float>().ToTransform();
 					}
 					FVector CurrentVector = Val.GetTranslation();

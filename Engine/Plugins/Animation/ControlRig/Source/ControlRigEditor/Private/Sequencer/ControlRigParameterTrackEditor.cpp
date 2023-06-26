@@ -65,6 +65,7 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Units/Execution/RigUnit_InverseExecution.h"
+#include "Units/Execution/RigUnit_BeginExecution.h"
 #include "Tracks/MovieSceneSkeletalAnimationTrack.h"
 #include "Exporters/AnimSeqExportOption.h"
 #include "SBakeToControlRigDialog.h"
@@ -477,6 +478,8 @@ void FControlRigParameterTrackEditor::UnbindControlRig(UControlRig* ControlRig)
 			Binding->OnControlRigBind().RemoveAll(this);
 		}
 		ControlRig->ControlRigBound().RemoveAll(this);
+		ControlRig->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		ControlRig->MarkAsGarbage();
 		
 		BoundControlRigs.Remove(ControlRig);
 		ClearOutAllSpaceAndConstraintDelegates(ControlRig);
@@ -485,25 +488,13 @@ void FControlRigParameterTrackEditor::UnbindControlRig(UControlRig* ControlRig)
 void FControlRigParameterTrackEditor::UnbindAllControlRigs()
 {
 	ClearOutAllSpaceAndConstraintDelegates();
-	for (TWeakObjectPtr<UControlRig>& ObjectPtr : BoundControlRigs)
+	TArray<TWeakObjectPtr<UControlRig>> ControlRigs = BoundControlRigs;
+	for (TWeakObjectPtr<UControlRig>& ObjectPtr : ControlRigs)
 	{
 		if (ObjectPtr.IsValid())
 		{
 			UControlRig* ControlRig = ObjectPtr.Get();
-			UMovieSceneControlRigParameterTrack* Track = FindTrack(ControlRig);
-			if (Track)
-			{
-				Track->SpaceChannelAdded().RemoveAll(this);
-				Track->ConstraintChannelAdded().RemoveAll(this);
-			}
-			ControlRig->ControlModified().RemoveAll(this);
-			ControlRig->OnInitialized_AnyThread().RemoveAll(this);
-			ControlRig->ControlSelected().RemoveAll(this);
-			if (const TSharedPtr<IControlRigObjectBinding> Binding = ControlRig->GetObjectBinding())
-			{
-				Binding->OnControlRigBind().RemoveAll(this);
-			}
-			ControlRig->ControlRigBound().RemoveAll(this);
+			UnbindControlRig(ControlRig);
 		}
 	}
 	BoundControlRigs.SetNum(0);
@@ -638,6 +629,16 @@ void FControlRigParameterTrackEditor::BuildObjectBindingContextMenu(FMenuBuilder
 					LOCTEXT("ConvertToFKControlRigTooltip", "Convert to FK Control Rig and add a track for it"),
 					FSlateIcon(),
 					FUIAction(FExecuteAction::CreateRaw(this, &FControlRigParameterTrackEditor::ConvertToFKControlRig, ObjectBindings[0], BoundObject, SkelMeshComp, Skeleton)),
+					NAME_None,
+					EUserInterfaceActionType::Button);
+
+				MenuBuilder.AddMenuEntry(
+					LOCTEXT("AddAdditiveControlRig", "Add Additive Control Rig"),
+					LOCTEXT("AddAdditiveControlRigTooltip", "Add additive Control Rig and add a track for it"),
+					FSlateIcon(),
+					FUIAction(
+						FExecuteAction::CreateRaw(this, &FControlRigParameterTrackEditor::AddAdditiveControlRig, ObjectBindings[0], BoundObject, SkelMeshComp, Skeleton),
+						FCanExecuteAction::CreateRaw(this, &FControlRigParameterTrackEditor::CanAddAdditiveConrolRig)),
 					NAME_None,
 					EUserInterfaceActionType::Button);
 
@@ -817,6 +818,358 @@ public:
 void FControlRigParameterTrackEditor::ConvertToFKControlRig(FGuid ObjectBinding, UObject* BoundObject, USkeletalMeshComponent* SkelMeshComp, USkeleton* Skeleton)
 {
 	BakeToControlRig(UFKControlRig::StaticClass(), ObjectBinding, BoundObject, SkelMeshComp, Skeleton);
+}
+
+class SAddAdditiveControlRigOptionsWindow : public SCompoundWidget
+{
+public:
+	SLATE_BEGIN_ARGS(SAddAdditiveControlRigOptionsWindow)
+		: _ControlRigClass(nullptr)
+		, _Skeleton(nullptr)
+		, _WidgetWindow()
+	{}
+
+		SLATE_ARGUMENT(TSubclassOf<UControlRig>*, ControlRigClass)
+		SLATE_ARGUMENT(USkeleton*, Skeleton)
+		SLATE_ARGUMENT(TSharedPtr<SWindow>, WidgetWindow)
+		SLATE_END_ARGS()
+
+public:
+	void Construct(const FArguments& InArgs);
+
+	void OnAdd(UClass* InClass)
+	{
+		if (WidgetWindow.IsValid())
+		{
+			WidgetWindow.Pin()->RequestDestroyWindow();
+		}
+		*ControlRigClass = TSubclassOf<UControlRig>(InClass);
+		return;
+	}
+
+	FReply OnCancel()
+	{
+		if (WidgetWindow.IsValid())
+		{
+			WidgetWindow.Pin()->RequestDestroyWindow();
+		}
+		return FReply::Handled();
+	}
+
+	SAddAdditiveControlRigOptionsWindow()
+		: ControlRigClass(nullptr)
+		, Skeleton(nullptr)
+	{}
+
+private:
+	TSubclassOf<UControlRig>* ControlRigClass;
+	USkeleton* Skeleton;
+	TWeakPtr< SWindow > WidgetWindow;
+};
+
+
+void SAddAdditiveControlRigOptionsWindow::Construct(const FArguments& InArgs)
+{
+	ControlRigClass = InArgs._ControlRigClass;
+	Skeleton = InArgs._Skeleton;
+	WidgetWindow = InArgs._WidgetWindow;
+
+	FText CancelText = LOCTEXT("AnimSequenceOptions_Cancel", "Cancel");
+	FText CancelTooltipText = LOCTEXT("AnimSequenceOptions_Cancel_ToolTip", "Cancel control rig creation");
+
+	TSharedPtr<SBox> HeaderToolBox;
+	TSharedPtr<SHorizontalBox> AnimHeaderButtons;
+	TSharedPtr<SBox> InspectorBox;
+	this->ChildSlot
+	[
+		SNew(SBox)
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(2)
+			[
+				SAssignNew(HeaderToolBox, SBox)
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(2)
+			[
+				SNew(SBorder)
+				.Padding(FMargin(3))
+				.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						SNew(STextBlock)
+						.Font(FAppStyle::GetFontStyle("CurveEd.LabelFont"))
+						.Text(LOCTEXT("Export_CurrentFileTitle", "Current File: "))
+					]
+				]
+			]
+			+ SVerticalBox::Slot()
+			.FillHeight(1.0f)
+			.Padding(2)
+			[
+				SAssignNew(InspectorBox, SBox)
+			]
+		]
+	];
+
+	//todo move to .h for ue5
+	class FControlRigClassFilter : public IClassViewerFilter
+	{
+	public:
+		FControlRigClassFilter(bool bInCheckSkeleton, bool bInCheckAnimatable, bool bInCheckInversion, USkeleton* InSkeleton) :
+			bFilterAssetBySkeleton(bInCheckSkeleton),
+			bFilterExposesAnimatableControls(bInCheckAnimatable),
+			bFilterInversion(bInCheckInversion),
+			AssetRegistry(FModuleManager::GetModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get())
+		{
+			if (InSkeleton)
+			{
+				SkeletonName = FAssetData(InSkeleton).GetExportTextName();
+			}
+		}
+		bool bFilterAssetBySkeleton;
+		bool bFilterExposesAnimatableControls;
+		bool bFilterInversion;
+
+		FString SkeletonName;
+		const IAssetRegistry& AssetRegistry;
+
+		bool MatchesFilter(const FAssetData& AssetData)
+		{
+			bool bExposesAnimatableControls = AssetData.GetTagValueRef<bool>(TEXT("bExposesAnimatableControls"));
+			if (bFilterExposesAnimatableControls == true && bExposesAnimatableControls == false)
+			{
+				return false;
+			}
+			if (bFilterInversion)
+			{
+				bool bHasInversion = false;
+				FAssetDataTagMapSharedView::FFindTagResult Tag = AssetData.TagsAndValues.FindTag(TEXT("SupportedEventNames"));
+				if (Tag.IsSet())
+				{
+					FString EventString = FRigUnit_InverseExecution::EventName.ToString();
+					FString OldEventString = FString(TEXT("Inverse"));
+					TArray<FString> SupportedEventNames;
+					Tag.GetValue().ParseIntoArray(SupportedEventNames, TEXT(","), true);
+
+					for (const FString& Name : SupportedEventNames)
+					{
+						if (Name.Contains(EventString) || Name.Contains(OldEventString))
+						{
+							bHasInversion = true;
+							break;
+						}
+					}
+					if (bHasInversion == false)
+					{
+						return false;
+					}
+				}
+			}
+			if (bFilterAssetBySkeleton)
+			{
+				FString PreviewSkeletalMesh = AssetData.GetTagValueRef<FString>(TEXT("PreviewSkeletalMesh"));
+				if (PreviewSkeletalMesh.Len() > 0)
+				{
+					FAssetData SkelMeshData = AssetRegistry.GetAssetByObjectPath(FSoftObjectPath(PreviewSkeletalMesh));
+					FString PreviewSkeleton = SkelMeshData.GetTagValueRef<FString>(TEXT("Skeleton"));
+					if (PreviewSkeleton == SkeletonName)
+					{
+						return true;
+					}
+				}
+				FString PreviewSkeleton = AssetData.GetTagValueRef<FString>(TEXT("PreviewSkeleton"));
+				if (PreviewSkeleton == SkeletonName)
+				{
+					return true;
+				}
+				FString SourceHierarchyImport = AssetData.GetTagValueRef<FString>(TEXT("SourceHierarchyImport"));
+				if (SourceHierarchyImport == SkeletonName)
+				{
+					return true;
+				}
+				FString SourceCurveImport = AssetData.GetTagValueRef<FString>(TEXT("SourceCurveImport"));
+				if (SourceCurveImport == SkeletonName)
+				{
+					return true;
+				}
+				return false;
+			}
+			return true;
+
+		}
+		bool IsClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const UClass* InClass, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
+		{
+			if (InClass)
+			{
+				const bool bChildOfObjectClass = InClass->IsChildOf(UControlRig::StaticClass());
+				const bool bMatchesFlags = !InClass->HasAnyClassFlags(CLASS_Hidden | CLASS_HideDropDown | CLASS_Deprecated | CLASS_Abstract);
+				const bool bNotNative = !InClass->IsNative();
+
+				if (bChildOfObjectClass && bMatchesFlags && bNotNative)
+				{
+					FAssetData AssetData(InClass);
+					return MatchesFilter(AssetData);
+				}
+			}
+			return false;
+		}
+
+		virtual bool IsUnloadedClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const TSharedRef< const IUnloadedBlueprintData > InUnloadedClassData, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
+		{
+			const bool bChildOfObjectClass = InUnloadedClassData->IsChildOf(UControlRig::StaticClass());
+			const bool bMatchesFlags = !InUnloadedClassData->HasAnyClassFlags(CLASS_Hidden | CLASS_HideDropDown | CLASS_Deprecated | CLASS_Abstract);
+			if (bChildOfObjectClass && bMatchesFlags)
+			{
+				FString GeneratedClassPathString = InUnloadedClassData->GetClassPathName().ToString();
+				FString BlueprintPath = GeneratedClassPathString.LeftChop(2); // Chop off _C
+				FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(FSoftObjectPath(BlueprintPath));
+				return MatchesFilter(AssetData);
+
+			}
+			return false;
+		}
+
+	};
+
+	FClassViewerInitializationOptions Options;
+	Options.bShowUnloadedBlueprints = true;
+	Options.NameTypeToDisplay = EClassViewerNameTypeToDisplay::DisplayName;
+
+	TSharedPtr<FControlRigClassFilter> ClassFilter = MakeShareable(new FControlRigClassFilter(true, false, true, Skeleton));
+	Options.ClassFilters.Add(ClassFilter.ToSharedRef());
+	Options.bShowNoneOption = false;
+
+	FClassViewerModule& ClassViewerModule = FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer");
+	TSharedRef<SWidget> ClassViewer = ClassViewerModule.CreateClassViewer(Options, FOnClassPicked::CreateRaw(this, &SAddAdditiveControlRigOptionsWindow::OnAdd));
+	InspectorBox->SetContent(ClassViewer->AsShared());
+}
+
+void FControlRigParameterTrackEditor::AddAdditiveControlRig(FGuid ObjectBinding, UObject* BoundActor, USkeletalMeshComponent* SkelMeshComp, USkeleton* Skeleton)
+{
+	FSlateApplication::Get().DismissAllMenus();
+
+	TSharedPtr<SWindow> ParentWindow;
+	if (FModuleManager::Get().IsModuleLoaded("MainFrame"))
+	{
+		IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
+		ParentWindow = MainFrame.GetParentWindow();
+	}
+
+	TSharedRef<SWindow> Window = SNew(SWindow)
+				.Title(LOCTEXT("AnimSeqTitle", "Choose Additive Rig"))
+				.SizingRule(ESizingRule::UserSized)
+				.AutoCenter(EAutoCenter::PrimaryWorkArea)
+				.ClientSize(FVector2D(500, 445));
+
+	TSharedPtr<SAddAdditiveControlRigOptionsWindow> OptionWindow;
+	TSubclassOf<UControlRig> ControlRigClass;
+	Window->SetContent
+	(
+		SAssignNew(OptionWindow, SAddAdditiveControlRigOptionsWindow)
+		.ControlRigClass(&ControlRigClass)
+		.Skeleton(Skeleton)
+		.WidgetWindow(Window)
+	);
+
+	FSlateApplication::Get().AddModalWindow(Window, ParentWindow, false);
+	
+	
+	const TSharedPtr<ISequencer> SequencerParent = GetSequencer();
+
+	if (ControlRigClass && SequencerParent.IsValid())
+	{
+		UMovieSceneSequence* OwnerSequence = GetSequencer()->GetFocusedMovieSceneSequence();
+		SequencerParent->PreAnimatedState.DiscardAndRemoveEntityTokensForObject(*SkelMeshComp);
+		UMovieScene* OwnerMovieScene = OwnerSequence->GetMovieScene();
+		{
+			const TSharedPtr<ISequencer> ParentSequencer = GetSequencer();
+			FMovieSceneSequenceIDRef Template = ParentSequencer->GetFocusedTemplateID();
+			FMovieSceneSequenceTransform RootToLocalTransform = ParentSequencer->GetFocusedMovieSceneSequenceTransform();
+			
+			OwnerMovieScene->Modify();
+			UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(AddTrack(OwnerMovieScene, ObjectBinding, UMovieSceneControlRigParameterTrack::StaticClass(), NAME_None));
+			if (Track)
+			{
+				Track->Modify();
+
+				FString ObjectName = ControlRigClass->GetName();
+				ObjectName.RemoveFromEnd(TEXT("_C"));
+				const FString AdditiveObjectName = ObjectName + "_Additive";
+
+				AActor* Actor = Cast<AActor>(BoundActor);
+				if (!Actor)
+				{
+					OwnerMovieScene->RemoveTrack(*Track);
+					return;
+				}
+				
+				UControlRigComponent* CRComponent = Cast<UControlRigComponent>(Actor->AddComponentByClass(UControlRigComponent::StaticClass(), false, FTransform::Identity, false));
+				check(CRComponent);
+				CRComponent->SetControlRigClass(ControlRigClass);
+				CRComponent->RegisterComponent();
+				CRComponent->AttachToComponent(SkelMeshComp, FAttachmentTransformRules::SnapToTargetIncludingScale);
+				
+				CRComponent->AddMappedCompleteSkeletalMesh(SkelMeshComp, EControlRigComponentMapDirection::Input);
+				CRComponent->AddMappedCompleteSkeletalMesh(SkelMeshComp, EControlRigComponentMapDirection::Output);
+				
+				UControlRig* ControlRig = CRComponent->GetControlRig();
+				ControlRig->SetIsAdditive(true);
+				if (!ControlRig->SupportsEvent(FRigUnit_InverseExecution::EventName))
+				{
+					OwnerMovieScene->RemoveTrack(*Track);
+					return;
+				}
+
+				FControlRigEditMode* ControlRigEditMode = GetEditMode();
+				if (!ControlRigEditMode)
+				{
+					ControlRigEditMode = GetEditMode(true);
+				}
+				
+				ControlRig->Modify();
+				ControlRig->SetBoneInitialTransformsFromSkeletalMeshComponent(SkelMeshComp, true);
+				ControlRig->Evaluate_AnyThread();
+
+				const bool bSequencerOwnsControlRig = true;
+				UMovieSceneSection* NewSection = Track->CreateControlRigSection(0, ControlRig, bSequencerOwnsControlRig);
+				UMovieSceneControlRigParameterSection* ParamSection = Cast<UMovieSceneControlRigParameterSection>(NewSection);
+
+				//mz todo need to have multiple rigs with same class
+				Track->SetTrackName(FName(*ObjectName));
+				Track->SetDisplayName(FText::FromString(ObjectName));
+
+				GetSequencer()->EmptySelection();
+				GetSequencer()->SelectSection(NewSection);
+				GetSequencer()->ThrobSectionSelection();
+				GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
+				
+				//Finish Setup
+				if (ControlRigEditMode)
+				{
+					ControlRigEditMode->AddControlRigObject(ControlRig, GetSequencer());
+				}
+				BindControlRig(ControlRig);
+
+				GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
+			}
+		}
+	}
+}
+
+bool FControlRigParameterTrackEditor::CanAddAdditiveConrolRig()
+{
+	if (FControlRigEditMode* ControlRigEditMode = GetEditMode())
+	{
+		return ControlRigEditMode->GetControlRigsArray(false).IsEmpty();
+	}
+	return true;
 }
 
 void FControlRigParameterTrackEditor::BakeToControlRigSubMenu(FMenuBuilder& MenuBuilder, FGuid ObjectBinding, UObject* BoundObject, USkeletalMeshComponent* SkelMeshComp, USkeleton* Skeleton)
@@ -1797,8 +2150,8 @@ static void EvaluateThisControl(UMovieSceneControlRigParameterSection* Section, 
 					{
 						const FEulerTransform& Euler = Value.GetValue();
 						FVector EulerAngle(Euler.Rotation.Roll, Euler.Rotation.Pitch, Euler.Rotation.Yaw);
-						FQuat Quat = ControlRig->GetHierarchy()->GetControlQuaternion(ControlElement, EulerAngle);
-						ControlRig->GetHierarchy()->SetControlSpecifiedEulerAngle(ControlElement, EulerAngle);
+						FQuat Quat = RigHierarchy->GetControlQuaternion(ControlElement, EulerAngle);
+						RigHierarchy->SetControlSpecifiedEulerAngle(ControlElement, EulerAngle);
 						FRotator UERotator(Quat);
 						FEulerTransform Transform = Euler;
 						Transform.Rotation = UERotator;
@@ -2627,7 +2980,7 @@ void FControlRigParameterTrackEditor::ClearOutAllSpaceAndConstraintDelegates(con
 					for (FConstraintAndActiveChannel& Channel: ConstraintChannels)
 					{
 						Channel.ActiveChannel.OnKeyMovedEvent().Clear();
-						Channel.ActiveChannel.OnKeyDeletedEvent().Clear();							
+						Channel.ActiveChannel.OnKeyDeletedEvent().Clear();
 					}
 
 					if (CRSection->OnConstraintRemovedHandle.IsValid())
@@ -3258,6 +3611,7 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 	{
 		ChannelsToKey = EControlRigContextChannelToKey::AllTransform;
 	}
+	URigHierarchy* Hierarchy = InControlRig->GetHierarchy();
 
 	//Need seperate index fo bools,ints and enums and floats since there are seperate entries for each later when they are accessed by the set key stuff.
 	int32 SpaceChannelIndex = 0;
@@ -3266,7 +3620,7 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 		FRigControlElement* ControlElement = Controls[ControlIndex];
 		check(ControlElement);
 
-		if (!InControlRig->GetHierarchy()->IsAnimatable(ControlElement))
+		if (!Hierarchy->IsAnimatable(ControlElement))
 		{
 			continue;
 		}
@@ -3279,7 +3633,7 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 			bool bMaskKeyOut = (ControlIndex >= ControlsMask.Num() || ControlsMask[ControlIndex] == false);
 			bool bSetKey = ControlElement->GetName() == ParameterName && !bMaskKeyOut;
 
-			FRigControlValue ControlValue = InControlRig->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current);
+			FRigControlValue ControlValue = InControlRig->GetControlValue(ControlElement, ERigControlValueType::Current);
 
 			switch (ControlElement->Settings.ControlType)
 			{
@@ -3363,7 +3717,7 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 			case ERigControlType::EulerTransform:
 			{
 				FVector Translation, Scale(1.0f, 1.0f, 1.0f);
-				FVector Vector = InControlRig->GetHierarchy()->GetControlSpecifiedEulerAngle(ControlElement);
+				FVector Vector = Hierarchy->GetControlSpecifiedEulerAngle(ControlElement);
 				FRotator Rotation = FRotator(Vector.Y, Vector.Z, Vector.X);
 				if (ControlElement->Settings.ControlType == ERigControlType::TransformNoScale)
 				{
@@ -3396,7 +3750,7 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 							FVector Angle = Rotation.Euler();
 							//need to wind rotators still
 							ControlElement->PreferredEulerAngles.SetAngles(Angle, false, ControlElement->PreferredEulerAngles.RotationOrder, true);
-							Angle = InControlRig->GetHierarchy()->GetControlSpecifiedEulerAngle(ControlElement);
+							Angle = Hierarchy->GetControlSpecifiedEulerAngle(ControlElement);
 							Rotation = FRotator(Vector.Y, Vector.Z, Vector.X);
 						}
 						else

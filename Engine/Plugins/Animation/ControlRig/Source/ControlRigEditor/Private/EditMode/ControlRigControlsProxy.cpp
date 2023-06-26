@@ -224,7 +224,7 @@ void UControlRigTransformControlProxy::ValueChanged()
 		Modify();
 		const FName PropertyName("Transform");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
-		const FTransform NewTransform = ControlRig.Get()->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransform_Float>().ToTransform();
+		const FTransform NewTransform = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransform_Float>().ToTransform();
 		FEulerTransform EulerTransform(NewTransform);
 		EulerTransform.Rotation = ControlRig->GetHierarchy()->GetControlPreferredRotator(ControlElement);
 		Binding.CallFunction<FEulerTransform>(*this, EulerTransform);
@@ -304,7 +304,7 @@ void UControlRigTransformNoScaleControlProxy::ValueChanged()
 		Modify();
 		const FName PropertyName("Transform");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
-		const FTransformNoScale NewTransform = ControlRig.Get()->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransformNoScale_Float>().ToTransform();
+		const FTransformNoScale NewTransform = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FTransformNoScale_Float>().ToTransform();
 		Binding.CallFunction<FTransformNoScale>(*this, NewTransform);
 	}
 }
@@ -358,9 +358,10 @@ void UControlRigEulerTransformControlProxy::PostEditChangeChainProperty(struct F
 		FRigControlElement* ControlElement = GetControlElement();
 		if (ControlElement && ControlRig.IsValid())
 		{
+			URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
 			FVector EulerAngle(Transform.Rotation.Roll, Transform.Rotation.Pitch, Transform.Rotation.Yaw);
-			FQuat Quat = ControlRig->GetHierarchy()->GetControlQuaternion(ControlElement, EulerAngle);
-			ControlRig->GetHierarchy()->SetControlSpecifiedEulerAngle(ControlElement, EulerAngle);
+			FQuat Quat = Hierarchy->GetControlQuaternion(ControlElement, EulerAngle);
+			Hierarchy->SetControlSpecifiedEulerAngle(ControlElement, EulerAngle);
 			FRotator UERotator(Quat);
 			FEulerTransform UETransform = Transform;
 			UETransform.Rotation = UERotator;
@@ -380,7 +381,7 @@ void UControlRigEulerTransformControlProxy::ValueChanged()
 		Modify();
 		const FName PropertyName("Transform");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
-		FEulerTransform NewTransform = ControlRig.Get()->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FEulerTransform_Float>().ToTransform();
+		FEulerTransform NewTransform = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FRigControlValue::FEulerTransform_Float>().ToTransform();
 		NewTransform.Rotation = ControlRig->GetHierarchy()->GetControlPreferredRotator(ControlElement);
 		Binding.CallFunction<FEulerTransform>(*this, NewTransform);
 
@@ -450,7 +451,7 @@ void UControlRigFloatControlProxy::ValueChanged()
 		Modify();
 		const FName PropertyName("Float");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
-		const float Val = ControlRig.Get()->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<float>();
+		const float Val = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<float>();
 		Binding.CallFunction<float>(*this, Val);
 	}
 }
@@ -500,7 +501,7 @@ void UControlRigIntegerControlProxy::ValueChanged()
 		Modify();
 		const FName PropertyName("Integer");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
-		const int32 Val = ControlRig.Get()->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<int32>();
+		const int32 Val = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<int32>();
 		Binding.CallFunction<int32>(*this, Val);
 	}
 }
@@ -553,7 +554,7 @@ void UControlRigEnumControlProxy::ValueChanged()
 
 		FControlRigEnumControlProxyValue Val;
 		Val.EnumType = ControlElement->Settings.ControlEnum;
-		Val.EnumIndex = ControlRig.Get()->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<int32>();
+		Val.EnumIndex = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<int32>();
 
 		Binding.CallFunction<FControlRigEnumControlProxyValue>(*this, Val);
 	}
@@ -617,7 +618,7 @@ void UControlRigVectorControlProxy::ValueChanged()
 		Modify();
 		const FName PropertyName("Vector");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
-		FVector3f Val = ControlRig.Get()->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
+		FVector3f Val = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
 		if (ControlElement->Settings.ControlType == ERigControlType::Rotator)
 		{ 
 			FVector DVector = ControlRig->GetHierarchy()->GetControlSpecifiedEulerAngle(ControlElement);
@@ -738,7 +739,7 @@ void UControlRigVector2DControlProxy::ValueChanged()
 		Modify();
 		const FName PropertyName("Vector2D");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
-		const FVector3f TempValue = ControlRig.Get()->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
+		const FVector3f TempValue = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
 		const FVector2D Val(TempValue.X, TempValue.Y);
 		Binding.CallFunction<FVector2D>(*this, Val);
 	}
@@ -800,7 +801,7 @@ void UControlRigBoolControlProxy::ValueChanged()
 		Modify();
 		const FName PropertyName("Bool");
 		FTrackInstancePropertyBindings Binding(PropertyName, PropertyName.ToString());
-		const bool Val = ControlRig.Get()->GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<bool>();
+		const bool Val = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<bool>();
 		Binding.CallFunction<bool>(*this, Val);
 	}
 }
