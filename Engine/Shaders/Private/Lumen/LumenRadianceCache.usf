@@ -969,18 +969,34 @@ void FilterProbeRadianceWithGatherCS(
 					float3 NeighborWorldPosition = GetProbeWorldPosition(NeighborCoord, ClipmapIndex, NeighborProbeIndex);
 
 					float OcclusionWeight = 1.0f;
+			
+					// Test whether probe can see neighbor probe's ray starting point and if occluded then discard the neighbor radiance to reduce leaking.
+					// Need to offset starting point as all probe traces start after GetRadianceProbeTMin and there's no depth information in the region where probe TMin spheres intersect.
+					// That offset can't be also too large due to limited probe angular resolution making it pretty inaccurate at connecting paths at larger distances.
+					// Also run this test in reverse by checking whether neighbor probe can see probe's ray starting point, which improves chances of finding a thin wall between two probes.
+					float OcclusionTestOffset = 2.0f * GetRadianceProbeTMin(ClipmapIndex);
 
+					// Probe to NeighborProbe's ray
 					{
-						// Test a nearby position along the neighbor ray's path, if occluded then discard the neighbor radiance to reduce leaking
-						// We can't test occlusion of the neighbor probe, because it is closer than GetRadianceProbeTMin
-						float VoxelRadius = sqrt(3.0f) / GetWorldPositionToRadianceProbeCoordScale(ClipmapIndex);
-						float OcclusionDistance = max(GetRadianceProbeTMin(ClipmapIndex), VoxelRadius);
-						float3 NeighborOcclusionTestPosition = NeighborWorldPosition + 2 * OcclusionDistance * WorldConeDirection;
+						float3 NeighborOcclusionTestPosition = NeighborWorldPosition + OcclusionTestOffset * WorldConeDirection;
 						float3 ToNeighborOcclusionPosition = NeighborOcclusionTestPosition - ProbeWorldCenter;
 						uint2 ProbeTexelCoordForNeighborOcclusionPosition = InverseEquiAreaSphericalMapping(ToNeighborOcclusionPosition) * RadianceProbeResolution;
 						float ProbeDepthForNeighborOcclusionPosition = DepthProbeAtlasTexture[ProbeTexelCoordForNeighborOcclusionPosition + ProbeAtlasBaseCoord];
 
 						if (ProbeDepthForNeighborOcclusionPosition * ProbeDepthForNeighborOcclusionPosition < dot(ToNeighborOcclusionPosition, ToNeighborOcclusionPosition))
+						{
+							OcclusionWeight = 0.0f;
+						}
+					}
+
+					// NeighborProbe to Probe's ray
+					{
+						float3 OcclusionTestPosition = ProbeWorldCenter + OcclusionTestOffset * WorldConeDirection;
+						float3 ToOcclusionPosition = OcclusionTestPosition - NeighborWorldPosition;
+						uint2 NeighborProbeTexelCoordForOcclusionPosition = InverseEquiAreaSphericalMapping(ToOcclusionPosition) * RadianceProbeResolution;
+						float NeighborProbeDepthForNeighborOcclusionPosition = DepthProbeAtlasTexture[NeighborProbeTexelCoordForOcclusionPosition + NeighborProbeAtlasBaseCoord];
+
+						if (NeighborProbeDepthForNeighborOcclusionPosition * NeighborProbeDepthForNeighborOcclusionPosition < dot(ToOcclusionPosition, ToOcclusionPosition))
 						{
 							OcclusionWeight = 0.0f;
 						}
