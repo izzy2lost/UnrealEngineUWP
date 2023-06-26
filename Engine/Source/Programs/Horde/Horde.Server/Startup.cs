@@ -739,9 +739,10 @@ namespace Horde.Server
 			services.AddHostedService(provider => provider.GetRequiredService<IExternalIssueService>());
 
 			// Task sources. Order of registration is important here; it dictates the priority in which sources are served.
+			services.AddSingleton<JobTaskSource>();
+
 			if (!settings.DatabaseReadOnlyMode)
 			{
-				services.AddSingleton<JobTaskSource>();
 				services.AddHostedService<JobTaskSource>(provider => provider.GetRequiredService<JobTaskSource>());
 				services.AddSingleton<ConformTaskSource>();
 				services.AddHostedService<ConformTaskSource>(provider => provider.GetRequiredService<ConformTaskSource>());
