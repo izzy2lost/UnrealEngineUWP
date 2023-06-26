@@ -126,7 +126,7 @@ namespace GameFeatureVersePathMapper
 		FString AppDomain;
 		if (!GConfig->GetString(TEXT("Verse"), TEXT("AppDomain"), AppDomain, GGameIni))
 		{
-			AppDomain = FPaths::Combine(TEXTVIEW("/"), FApp::GetProjectName());
+			AppDomain = FPaths::Combine(TEXTVIEW("/"), FString(FApp::GetProjectName()) + TEXTVIEW(".com"));
 		}
 
 		return FPaths::Combine(AppDomain, TEXTVIEW("GameFeatures"));

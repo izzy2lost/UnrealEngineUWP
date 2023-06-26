@@ -39,7 +39,7 @@ namespace GameFeatureVersePathMapper
 
 		bool bIncludeVirtualNodes = false;
 
-		GAMEFEATURES_API bool Visit(FName Plugin, TFunctionRef<void(FName, const FString&)> AddOutput);
+		bool Visit(FName Plugin, TFunctionRef<void(FName, const FString&)> AddOutput);
 
 	public:
 		/**
