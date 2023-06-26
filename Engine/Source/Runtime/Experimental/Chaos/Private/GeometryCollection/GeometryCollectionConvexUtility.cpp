@@ -24,9 +24,6 @@ FAutoConsoleVariableRef CVarUseVolumeToComputeRelativeSize(TEXT("p.gc.UseVolumeT
 bool UseLargestClusterToComputeRelativeSize = false;
 FAutoConsoleVariableRef CVarUseMaxClusterToComputeRelativeSize(TEXT("p.gc.UseLargestClusterToComputeRelativeSize"), UseVolumeToComputeRelativeSize, TEXT("Use the largest Cluster as reference for the releative size instead of the largest child (def: false)"));
 
-bool bComputeIntersectionsBeforeHull = true;
-FAutoConsoleVariableRef CVarComputeIntersectionsBeforeHull(TEXT("p.gc.ComputeConvexExternalIntersectionBeforeComputingHulls"), bComputeIntersectionsBeforeHull, TEXT("When computing convex hulls by intersection w/ an external collision shape, do this intersection on the geometry before computing hulls (def: true)"));
-
 static const Chaos::FVec3f IcoSphere_Subdiv0[] =
 {
 	{  0.000000f,  0.000000f, -1.000000f },
@@ -1858,8 +1855,8 @@ void FGeometryCollectionConvexUtility::GenerateLeafConvexHulls(FGeometryCollecti
 			};
 		}
 		ComputedHulls = ComputeLeafHulls(&Collection, IdentityTransformArray, Settings.SimplificationDistanceThreshold, 0, SkipBoneFn, &Settings.DecompositionSettings,
-			bComputeIntersectionsBeforeHull ? &ExternalHulls : nullptr, 
-			bComputeIntersectionsBeforeHull ? &TransformToExternalHullsIndices : nullptr);
+			Settings.bComputeIntersectionsBeforeHull ? &ExternalHulls : nullptr, 
+			Settings.bComputeIntersectionsBeforeHull ? &TransformToExternalHullsIndices : nullptr);
 
 		if (!bUseIntersect)
 		{
@@ -1908,7 +1905,7 @@ void FGeometryCollectionConvexUtility::GenerateLeafConvexHulls(FGeometryCollecti
 			}
 
 			// We've already computed the hulls w/ external geo intersection; just move it to the output
-			if (bComputeIntersectionsBeforeHull)
+			if (Settings.bComputeIntersectionsBeforeHull)
 			{
 				for (int32 GeoHullIdx : GeoHulls)
 				{
@@ -1918,8 +1915,8 @@ void FGeometryCollectionConvexUtility::GenerateLeafConvexHulls(FGeometryCollecti
 				continue;
 			}
 
-			// legacy !bComputeIntersectionsBeforeHull path; TODO: if we remove this cvar, remove this path
-			checkSlow(!bComputeIntersectionsBeforeHull);
+			// The !bComputeIntersectionsBeforeHull path
+			checkSlow(!Settings.bComputeIntersectionsBeforeHull);
 			for (int32 GeoHullIdx : GeoHulls)
 			{
 				if (TransformToExternalHullsIndices.IsEmpty())

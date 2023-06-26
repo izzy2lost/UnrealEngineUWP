@@ -210,6 +210,10 @@ public:
 
 		// Convex decomposition settings, applied to convex hulls generated from geometry
 		FConvexDecompositionSettings DecompositionSettings;
+
+		// For GenerateMethod == IntersectExternalWithComputed, whether to compute the intersection before computing convex hulls
+		// Note: It seems more logical for this setting to be true, but we expose it as an option because in some special cases the results when it was false were preferred
+		bool bComputeIntersectionsBeforeHull = true;
 	};
 	
 	static CHAOS_API void GenerateLeafConvexHulls(FGeometryCollection& Collection, bool bRestrictToSelection, const TArrayView<const int32> TransformSubset, const FLeafConvexHullSettings& Settings);
