@@ -2034,11 +2034,12 @@ namespace Chaos
 		{
 			ParentParticle = ClusteredParticle->Parent();
 
+			// Need to also check if the particle is a cluster union and remove from that as well.
+			// This needs to be before the call to clear our ClusterIds since HandleRemoveOperationWithClusterLookup needs to use the particle's parent to find the right cluster union.
+			ClusterUnionManager.HandleRemoveOperationWithClusterLookup({ ClusteredParticle }, EClusterUnionOperationTiming::Defer);
+
 			ClusteredParticle->ClusterIds() = ClusterId();
 			ClusteredParticle->ClusterGroupIndex() = 0;
-
-			// Need to also check if the particle is a cluster union and remove from that as well.
-			ClusterUnionManager.HandleRemoveOperationWithClusterLookup({ ClusteredParticle }, EClusterUnionOperationTiming::Defer);
 
 			if (MChildren.Contains(ParentParticle))
 			{
@@ -2047,8 +2048,8 @@ namespace Chaos
 				// disconnect from your parents children list
 				Children.Remove(ClusteredParticle);
 
-				// disable internal parents that have lost all their children
-				if (!MChildren[ParentParticle].Num() && ParentParticle->InternalCluster())
+				// disable internal parents that have lost all their children - do not try to disable cluster unions.
+				if (!MChildren[ParentParticle].Num() && ParentParticle->InternalCluster() && !ClusterUnionManager.IsClusterUnionParticle(ParentParticle))
 				{
 					DisableCluster(ClusteredParticle);
 				}

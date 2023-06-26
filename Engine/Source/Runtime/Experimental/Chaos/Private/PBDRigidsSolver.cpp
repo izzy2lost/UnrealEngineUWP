@@ -786,12 +786,17 @@ namespace Chaos
 				{
 					if (Handle)
 					{
-						MEvolution->DisableParticle(Handle);
-
 						// It should be safe to defer here without an immediate call to HandleDeferredClusterUnionUpdateProperties.
 						// This change doesn't really have to go through until FClusterUnionManager::FlushPendingOperations which happens
 						// prior to trying to advance the frame.
 						ClusterUnionManager.HandleRemoveOperationWithClusterLookup({ Handle }, EClusterUnionOperationTiming::Defer);
+
+						// Need to use FRigidClustering::DisableCluster instead of the evolution's to also handle the fact that the GC particle could be in the top level strained sets
+						// which would make it get considered in the breaking model which is undesirable.
+						MEvolution->DisableParticle(Handle);
+
+						// This ensures that this particle won't have any intercluster edges on it. This way no connectivity operations will try to add it into a cluster union.
+						MEvolution->GetRigidClustering().RemoveNodeConnections(Handle);
 					}
 				}
 
