@@ -509,6 +509,11 @@ namespace Horde.Server.Agents.Pools
 		public List<GetAgentWorkspaceResponse> Workspaces { get; set; }
 
 		/// <summary>
+		/// AutoSDK configuration for the pool 
+		/// </summary>
+		public AutoSdkConfig? AutoSdkConfig { get; set; }
+
+		/// <summary>
 		/// Arbitrary properties for this pool.
 		/// </summary>
 		public IReadOnlyDictionary<string, string> Properties { get; set; }
@@ -535,6 +540,7 @@ namespace Horde.Server.Agents.Pools
 			MinAgents = pool.MinAgents;
 			NumReserveAgents = pool.NumReserveAgents;
 			Workspaces = pool.Workspaces.Select(x => new GetAgentWorkspaceResponse(x)).ToList();
+			AutoSdkConfig = pool.AutoSdkConfig;
 			Properties = pool.Properties;
 		}
 	}
