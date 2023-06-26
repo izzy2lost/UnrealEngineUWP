@@ -63,7 +63,8 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 			uint8 FrameType = EventData.GetValue<uint8>("FrameType");
 			if (static_cast<ETraceFrameType>(FrameType) == TraceFrameType_Game)
 			{
-				if (FChaosVDGameFrameData* CurrentFrameData = ChaosVDTraceProvider->GetLastGameFrame())
+				FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
+				if (FChaosVDGameFrameData* CurrentFrameData = ChaosVDTraceProvider->GetLastGameFrame_AssumesLocked())
 				{
 					CurrentFrameData->LastCycle = EventData.GetValue<uint64>("Cycle");
 				}
@@ -94,8 +95,9 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 		{
 			const int32 SolverID = EventData.GetValue<int32>("SolverID");
 
+			FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
 			// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
-			if (FChaosVDSolverFrameData* FrameData  = ChaosVDTraceProvider->GetLastSolverFrame(SolverID))
+			if (FChaosVDSolverFrameData* FrameData  = ChaosVDTraceProvider->GetLastSolverFrame_AssumesLocked(SolverID))
 			{
 				// Add an empty step. It will be filled out by the particle (and later on other objects/elements) events
 				FChaosVDStepData& StepData = FrameData->SolverSteps.AddDefaulted_GetRef();
@@ -115,7 +117,8 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 		{
 			const int32 SolverID = EventData.GetValue<int32>("SolverID");
 
-			if (FChaosVDSolverFrameData* FrameData = ChaosVDTraceProvider->GetLastSolverFrame(SolverID))
+			FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
+			if (FChaosVDSolverFrameData* FrameData = ChaosVDTraceProvider->GetLastSolverFrame_AssumesLocked(SolverID))
 			{
 				int32 ParticleDestroyedID = EventData.GetValue<int32>("ParticleID");
 
@@ -171,28 +174,29 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 			break;
 		}
 	case RouteId_ChaosVDSolverSimulationSpace:
-	{
-		const int32 SolverID = EventData.GetValue<int32>("SolverID");
-
-		FVector Position;
-		Position.X = EventData.GetValue<float>("PositionX");
-		Position.Y = EventData.GetValue<float>("PositionY");
-		Position.Z = EventData.GetValue<float>("PositionZ");
-
-		FQuat Rotation;
-		Rotation.X = EventData.GetValue<float>("RotationX");
-		Rotation.Y = EventData.GetValue<float>("RotationY");
-		Rotation.Z = EventData.GetValue<float>("RotationZ");
-		Rotation.W = EventData.GetValue<float>("RotationW");
-
-		// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
-		if (FChaosVDSolverFrameData* FrameData = ChaosVDTraceProvider->GetLastSolverFrame(SolverID))
 		{
-			FrameData->SimulationTransform.SetLocation(Position);
-			FrameData->SimulationTransform.SetRotation(Rotation);
+			const int32 SolverID = EventData.GetValue<int32>("SolverID");
+
+			FVector Position;
+			Position.X = EventData.GetValue<float>("PositionX");
+			Position.Y = EventData.GetValue<float>("PositionY");
+			Position.Z = EventData.GetValue<float>("PositionZ");
+
+			FQuat Rotation;
+			Rotation.X = EventData.GetValue<float>("RotationX");
+			Rotation.Y = EventData.GetValue<float>("RotationY");
+			Rotation.Z = EventData.GetValue<float>("RotationZ");
+			Rotation.W = EventData.GetValue<float>("RotationW");
+
+			FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
+			// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
+			if (FChaosVDSolverFrameData* FrameData = ChaosVDTraceProvider->GetLastSolverFrame_AssumesLocked(SolverID))
+			{
+				FrameData->SimulationTransform.SetLocation(Position);
+				FrameData->SimulationTransform.SetRotation(Rotation);
+			}
+			break;
 		}
-		break;
-	}
 	default:
 		break;
 	}

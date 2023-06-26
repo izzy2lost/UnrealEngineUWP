@@ -54,11 +54,10 @@ public:
 	void DeleteRecordingInstanceForSession();
 	void AddSolverFrame(const int32 InSolverGUID, FChaosVDSolverFrameData&& FrameData);
 	void AddGameFrame(FChaosVDGameFrameData&& FrameData);
-	FChaosVDSolverFrameData* GetSolverFrame(const int32 InSolverGUID, const int32 FrameNumber) const;
-	FChaosVDSolverFrameData* GetLastSolverFrame(const int32 InSolverGUID) const;
-
-	FChaosVDGameFrameData* GetSolverFrame(uint64 FrameStartCycle) const;
-	FChaosVDGameFrameData* GetLastGameFrame() const;
+	FChaosVDSolverFrameData* GetSolverFrame_AssumesLocked(const int32 InSolverGUID, const int32 FrameNumber) const;
+	FChaosVDSolverFrameData* GetLastSolverFrame_AssumesLocked(const int32 InSolverGUID) const;
+	
+	FChaosVDGameFrameData* GetLastGameFrame_AssumesLocked() const;
 
 	FChaosVDBinaryDataContainer& FindOrAddUnprocessedData(const int32 DataID);
 
@@ -67,6 +66,8 @@ public:
 	TSharedPtr<FChaosVDRecording> GetRecordingForSession() const;
 
 	void RegisterDataProcessor(TSharedPtr<IChaosVDDataProcessor> InDataProcessor);
+
+	FRWLock& GetDataLock();
 
 private:
 

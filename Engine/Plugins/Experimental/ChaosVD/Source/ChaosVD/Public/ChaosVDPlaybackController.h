@@ -3,9 +3,12 @@
 #pragma once
 
 #include "ChaosVDRecording.h"
+#include "Containers/Queue.h"
+#include "Containers/Ticker.h"
 #include "Templates/SharedPointer.h"
 #include "Delegates/DelegateCombinations.h"
 #include "Delegates/Delegate.h"
+#include "HAL/ThreadSafeBool.h"
 
 struct FChaosVDTrackInfo;
 class FChaosVDScene;
@@ -36,6 +39,12 @@ struct FChaosVDTrackInfo
 	FString TrackName;
 };
 
+struct FChaosVDQueuedTrackInfoUpdate
+{
+	FChaosVDTrackInfo TrackInfo;
+	FGuid InstigatorID;
+};
+
 /** Flags used to control how the unload of a recording is performed */
 enum class EChaosVDUnloadRecordingFlags : uint8
 {
@@ -48,7 +57,7 @@ ENUM_CLASS_FLAGS(EChaosVDUnloadRecordingFlags)
 typedef TMap<int32, TSharedPtr<FChaosVDTrackInfo>> TrackInfoByIDMap;
 
 /** Loads,unloads and owns a Chaos VD recording file */
-class FChaosVDPlaybackController : public TSharedFromThis<FChaosVDPlaybackController>
+class FChaosVDPlaybackController : public TSharedFromThis<FChaosVDPlaybackController>, public FTSTickerObjectBase
 {
 public:
 
@@ -56,7 +65,7 @@ public:
 	static constexpr int32 GameTrackID  = 0 ;
 
 	FChaosVDPlaybackController(const TWeakPtr<FChaosVDScene>& InSceneToControl);
-	~FChaosVDPlaybackController();
+	virtual ~FChaosVDPlaybackController() override;
 
 	/** Loads a recording using a Trace Session Name */
 	bool LoadChaosVDRecordingFromTraceSession(const FString& InSessionName);
@@ -81,6 +90,7 @@ public:
 	 * @param Step Step number to go
 	 */
 	void GoToTrackFrame(FGuid InstigatorID, EChaosVDTrackType TrackType, int32 InTrackID, int32 FrameNumber, int32 Step);
+	void GoToTrackFrame_AssumesLocked(FGuid InstigatorID, EChaosVDTrackType TrackType, int32 InTrackID, int32 FrameNumber, int32 Step);
 
 	/**
 	 * Gets the number of available steps in a track at the specified frame
@@ -89,7 +99,7 @@ public:
 	 * @param FrameNumber Frame number to evaluate
 	 * @return Number of available steps
 	 */
-	int32 GetTrackStepsNumberAtFrame(EChaosVDTrackType TrackType, int32 InTrackID, int32 FrameNumber) const;
+	int32 GetTrackStepsNumberAtFrame_AssumesLocked(EChaosVDTrackType TrackType, int32 InTrackID, int32 FrameNumber) const;
 
 	/**
 	 * Gets the available steps container in a track at the specified frame
@@ -98,7 +108,7 @@ public:
 	 * @param FrameNumber Frame number to evaluate
 	 * @return Ptr to the steps data container
 	 */
-	const FChaosVDStepsContainer* GetTrackStepsDataAtFrame(EChaosVDTrackType TrackType, int32 InTrackID, int32 FrameNumber) const;
+	const FChaosVDStepsContainer* GetTrackStepsDataAtFrame_AssumesLocked(EChaosVDTrackType TrackType, int32 InTrackID, int32 FrameNumber) const;
 
 	/**
 	 * Gets the number of available frames for the specified track
@@ -171,7 +181,6 @@ public:
 	 */
 	FChaosVDTrackInfo* GetMutableTrackInfo(EChaosVDTrackType TrackType, int32 TrackID);
 
-
 	/**
 	 * Locks the steps timeline of a given track so each time you move between frames, it will automatically scrub to the locked in step
 	 * @param TrackType Type of the track to find
@@ -194,6 +203,8 @@ public:
 
 	/** Called when a frame on a track is updated */
 	FChaosVDPlaybackControllerFrameUpdated& OnTrackFrameUpdated() { return ControllerFrameUpdatedDelegate; }
+	
+	virtual bool Tick(float DeltaTime) override;
 
 protected:
 
@@ -201,17 +212,20 @@ protected:
 	void UpdateSolverTracksData();
 
 	/** Updates the controlled scene with the loaded data at specified game frame */
-	void GoToRecordedGameFrame(int32 FrameNumber, FGuid InstigatorID);
+	void GoToRecordedGameFrame_AssumesLocked(int32 FrameNumber, FGuid InstigatorID);
 
 	/** Updates the controlled scene with the loaded data at specified solver frame and solver step */
-	void GoToRecordedSolverStep(int32 InTrackID, int32 FrameNumber, int32 Step, FGuid InstigatorID);
+	void GoToRecordedSolverStep_AssumesLocked(int32 InTrackID, int32 FrameNumber, int32 Step, FGuid InstigatorID);
 
 	/** Handles any data changes on the loaded recording - Usually called during Trace analysis */
 	void HandleCurrentRecordingUpdated();
 
 	/** Finds the closest Key frame to the provided frame number, and plays all the following frames until the specified frame number (no inclusive) */
-	void PlayFromClosestKeyFrame(int32 InTrackID, int32 FrameNumber, FChaosVDScene& InSceneToControl);
+	void PlayFromClosestKeyFrame_AssumesLocked(int32 InTrackID, int32 FrameNumber, FChaosVDScene& InSceneToControl);
 
+	/** Add the provided track info update to the queue. The update will be broadcast in the game thread */
+	void EnqueueTrackInfoUpdate(const FChaosVDTrackInfo& InTrackInfo, FGuid InstigatorID);
+	
 	/** Map containing all track info, by track type*/
 	TMap<EChaosVDTrackType, TrackInfoByIDMap> TrackInfoPerType;
 
@@ -226,4 +240,12 @@ protected:
 
 	/** Delegate called when the a in a track changes */
 	FChaosVDPlaybackControllerFrameUpdated ControllerFrameUpdatedDelegate;
+
+	/** Set to true when the recording data controlled by this Playback Controller is updated, the update delegate will be called on the GT */
+	FThreadSafeBool bHasPendingGTUpdateBroadcast;
+
+	/** Queue with a copy of all Track Info Updates that needs to be done in the Game thread */
+	TQueue<FChaosVDQueuedTrackInfoUpdate, EQueueMode::Mpsc> TrackInfoUpdateGTQueue;
+
+	bool bPlayedFirsFrame = false;
 };

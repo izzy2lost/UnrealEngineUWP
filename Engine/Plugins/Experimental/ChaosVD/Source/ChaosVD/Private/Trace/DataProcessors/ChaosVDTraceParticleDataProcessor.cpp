@@ -27,8 +27,9 @@ bool FChaosVDTraceParticleDataProcessor::ProcessRawData(const TArray<uint8>& InD
 	FChaosVDParticleDataWrapper ParticleData;
 	ParticleData.Serialize(Ar);
 
+	FWriteScopeLock WriteLock(ProviderSharedPtr->GetDataLock());
 	// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
-	if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetLastSolverFrame(ParticleData.SolverID))
+	if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetLastSolverFrame_AssumesLocked(ParticleData.SolverID))
 	{
 		if (ensureMsgf(FrameData->SolverSteps.Num() > 0, TEXT("A particle was traced without a valid step scope")))
 		{

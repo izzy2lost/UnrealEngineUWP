@@ -3,7 +3,26 @@
 #include "ChaosVDRecording.h"
 #include "Chaos/ImplicitObject.h"
 
+int32 FChaosVDRecording::GetAvailableGameFramesNumber() const
+{
+	FReadScopeLock ReadLock(RecordingDataLock);
+	
+	return GetAvailableGameFramesNumber_AssumesLocked();
+}
+
+int32 FChaosVDRecording::GetAvailableGameFramesNumber_AssumesLocked() const
+{
+	return GameFrames.Num(); 
+}
+
 int32 FChaosVDRecording::GetAvailableSolverFramesNumber(const int32 SolverID) const
+{
+	FReadScopeLock ReadLock(RecordingDataLock);
+
+	return GetAvailableSolverFramesNumber_AssumesLocked(SolverID);
+}
+
+int32 FChaosVDRecording::GetAvailableSolverFramesNumber_AssumesLocked(int32 SolverID) const
 {
 	if (const TArray<FChaosVDSolverFrameData>* SolverData = RecordedFramesDataPerSolver.Find(SolverID))
 	{
@@ -16,6 +35,8 @@ int32 FChaosVDRecording::GetAvailableSolverFramesNumber(const int32 SolverID) co
 FString FChaosVDRecording::GetSolverName(int32 SolverID)
 {
 	static FString DefaultName(TEXT("Invalid"));
+
+	FReadScopeLock ReadLock(RecordingDataLock);
 
 	// Currently we don't create an entry per solver, so we need to get the name from the frame data
 	// TODO: Record Solver specific data per instance and not per frame
@@ -30,7 +51,7 @@ FString FChaosVDRecording::GetSolverName(int32 SolverID)
 	return DefaultName;
 }
 
-FChaosVDSolverFrameData* FChaosVDRecording::GetSolverFrameData(const int32 SolverID, const int32 FrameNumber)
+FChaosVDSolverFrameData* FChaosVDRecording::GetSolverFrameData_AssumesLocked(const int32 SolverID, const int32 FrameNumber)
 {
 	if (TArray<FChaosVDSolverFrameData>* SolverFrames = RecordedFramesDataPerSolver.Find(SolverID))
 	{
@@ -41,7 +62,7 @@ FChaosVDSolverFrameData* FChaosVDRecording::GetSolverFrameData(const int32 Solve
 	return nullptr;
 }
 
-FChaosVDSolverFrameData* FChaosVDRecording::GetSolverFrameDataAtCycle(int32 SolverID, uint64 Cycle)
+FChaosVDSolverFrameData* FChaosVDRecording::GetSolverFrameDataAtCycle_AssumesLocked(int32 SolverID, uint64 Cycle)
 {
 	if (TArray<FChaosVDSolverFrameData>* SolverFramesPtr = RecordedFramesDataPerSolver.Find(SolverID))
 	{
@@ -55,6 +76,13 @@ FChaosVDSolverFrameData* FChaosVDRecording::GetSolverFrameDataAtCycle(int32 Solv
 
 int32 FChaosVDRecording::GetLowestSolverFrameNumberAtCycle(int32 SolverID, uint64 Cycle)
 {
+	FReadScopeLock ReadLock(RecordingDataLock);
+
+	return GetLowestSolverFrameNumberAtCycle_AssumesLocked(SolverID, Cycle);
+}
+
+int32 FChaosVDRecording::GetLowestSolverFrameNumberAtCycle_AssumesLocked(int32 SolverID, uint64 Cycle)
+{
 	if (TArray<FChaosVDSolverFrameData>* SolverFramesPtr = RecordedFramesDataPerSolver.Find(SolverID))
 	{
 		TArray<FChaosVDSolverFrameData>& SolverFrames = *SolverFramesPtr;
@@ -64,7 +92,7 @@ int32 FChaosVDRecording::GetLowestSolverFrameNumberAtCycle(int32 SolverID, uint6
 	return INDEX_NONE;
 }
 
-int32 FChaosVDRecording::FindFirstSolverKeyFrameNumberFromFrame(int32 SolverID, int32 StartFrameNumber)
+int32 FChaosVDRecording::FindFirstSolverKeyFrameNumberFromFrame_AssumesLocked(int32 SolverID, int32 StartFrameNumber)
 {
 	if (TArray<int32>* KeyFrameNumbersPtr = RecordedKeyFramesNumberPerSolver.Find(SolverID))
 	{
@@ -104,6 +132,7 @@ int32 FChaosVDRecording::FindFirstSolverKeyFrameNumberFromFrame(int32 SolverID, 
 
 int32 FChaosVDRecording::GetLowestSolverFrameNumberGameFrame(int32 SolverID, int32 GameFrame)
 {
+	FReadScopeLock ReadLock(RecordingDataLock);
 	if (!GameFrames.IsValidIndex(GameFrame))
 	{
 		return INDEX_NONE;
@@ -121,6 +150,7 @@ int32 FChaosVDRecording::GetLowestSolverFrameNumberGameFrame(int32 SolverID, int
 
 int32 FChaosVDRecording::GetLowestGameFrameAtSolverFrameNumber(int32 SolverID, int32 SolverFrame)
 {
+	FReadScopeLock ReadLock(RecordingDataLock);
 	if (TArray<FChaosVDSolverFrameData>* SolverFramesPtr = RecordedFramesDataPerSolver.Find(SolverID))
 	{
 		TArray<FChaosVDSolverFrameData>& SolverFrames = *SolverFramesPtr;
@@ -136,6 +166,7 @@ int32 FChaosVDRecording::GetLowestGameFrameAtSolverFrameNumber(int32 SolverID, i
 
 void FChaosVDRecording::AddKeyFrameNumberForSolver(const int32 SolverID, int32 FrameNumber)
 {
+	FWriteScopeLock WriteLock(RecordingDataLock);
 	if (TArray<int32>* KeyFrameNumber = RecordedKeyFramesNumberPerSolver.Find(SolverID))
 	{
 		KeyFrameNumber->Add(FrameNumber);
@@ -150,16 +181,21 @@ void FChaosVDRecording::AddFrameForSolver(const int32 SolverID, FChaosVDSolverFr
 {
 	int32 FrameNumber;
 	const bool bIsKeyFrame = InFrameData.bIsKeyFrame;
-	if (TArray<FChaosVDSolverFrameData>* SolverFrames = RecordedFramesDataPerSolver.Find(SolverID))
-	{
-		FrameNumber = SolverFrames->Num();
 
-		SolverFrames->Add(MoveTemp(InFrameData));	
-	}
-	else
-	{	
-		FrameNumber = 0;
-		RecordedFramesDataPerSolver.Add(SolverID, { MoveTemp(InFrameData) });
+	{
+		FWriteScopeLock WriteLock(RecordingDataLock);
+
+		if (TArray<FChaosVDSolverFrameData>* SolverFrames = RecordedFramesDataPerSolver.Find(SolverID))
+		{
+			FrameNumber = SolverFrames->Num();
+
+			SolverFrames->Add(MoveTemp(InFrameData));	
+		}
+		else
+		{	
+			FrameNumber = 0;
+			RecordedFramesDataPerSolver.Add(SolverID, { MoveTemp(InFrameData) });
+		}
 	}
 
 	if (bIsKeyFrame)
@@ -172,10 +208,11 @@ void FChaosVDRecording::AddFrameForSolver(const int32 SolverID, FChaosVDSolverFr
 
 void FChaosVDRecording::AddGameFrameData(FChaosVDGameFrameData&& InFrameData)
 {
+	FWriteScopeLock WriteLock(RecordingDataLock);
 	GameFrames.Add(MoveTemp(InFrameData));
 }
 
-FChaosVDGameFrameData* FChaosVDRecording::GetGameFrameDataAtCycle(uint64 Cycle)
+FChaosVDGameFrameData* FChaosVDRecording::GetGameFrameDataAtCycle_AssumesLocked(uint64 Cycle)
 {
 	int32 FrameIndex = Algo::BinarySearchBy(GameFrames, Cycle, &FChaosVDGameFrameData::FirstCycle);
 
@@ -187,22 +224,30 @@ FChaosVDGameFrameData* FChaosVDRecording::GetGameFrameDataAtCycle(uint64 Cycle)
 	return nullptr;
 }
 
-FChaosVDGameFrameData* FChaosVDRecording::GetGameFrameData(int32 FrameNumber)
+FChaosVDGameFrameData* FChaosVDRecording::GetGameFrameData_AssumesLocked(int32 FrameNumber)
 {
 	return GameFrames.IsValidIndex(FrameNumber) ? &GameFrames[FrameNumber] : nullptr;
 }
 
-FChaosVDGameFrameData* FChaosVDRecording::GetLastGameFrameData()
+FChaosVDGameFrameData* FChaosVDRecording::GetLastGameFrameData_AssumesLocked()
 {
 	return GameFrames.Num() > 0 ? &GameFrames.Last() : nullptr;
 }
 
 int32 FChaosVDRecording::GetLowestGameFrameNumberAtCycle(uint64 Cycle)
 {
+	FReadScopeLock ReadLock(RecordingDataLock);
 	return Algo::LowerBoundBy(GameFrames, Cycle, &FChaosVDGameFrameData::FirstCycle);
 }
 
 void FChaosVDRecording::GetAvailableSolverIDsAtGameFrameNumber(int32 FrameNumber, TArray<int32>& OutSolversID)
+{
+	FReadScopeLock ReadLock(RecordingDataLock);
+
+	return GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(FrameNumber, OutSolversID);
+}
+
+void FChaosVDRecording::GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(int32 FrameNumber, TArray<int32>& OutSolversID)
 {
 	if (!GameFrames.IsValidIndex(FrameNumber))
 	{
@@ -236,6 +281,7 @@ void FChaosVDRecording::GetAvailableSolverIDsAtGameFrameNumber(int32 FrameNumber
 
 void FChaosVDRecording::AddImplicitObject(const uint32 ID, const TSharedPtr<Chaos::FImplicitObject>& InImplicitObject)
 {
+	FWriteScopeLock WriteLock(RecordingDataLock);
 	if (!ImplicitObjects.Contains(ID))
 	{
 		AddImplicitObject_Internal(ID, InImplicitObject);
@@ -244,6 +290,7 @@ void FChaosVDRecording::AddImplicitObject(const uint32 ID, const TSharedPtr<Chao
 
 void FChaosVDRecording::AddImplicitObject(const uint32 ID, const Chaos::FImplicitObject* InImplicitObject)
 {
+	FWriteScopeLock WriteLock(RecordingDataLock);
 	if (!ImplicitObjects.Contains(ID))
 	{
 		// Only take ownership after we know we will add it to the map

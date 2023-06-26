@@ -53,22 +53,24 @@ struct FChaosVDGameFrameData
 struct CHAOSVDDATA_API FChaosVDRecording
 {	
 	/** Returns the current available recorded solvers number */
-	int32 GetAvailableSolversNumber() const { return RecordedFramesDataPerSolver.Num(); }
+	int32 GetAvailableSolversNumber_AssumesLocked() const { return RecordedFramesDataPerSolver.Num(); }
 	
 	/** Returns the current available Game Frames */
-	int32 GetAvailableGameFramesNumber() const { return GameFrames.Num(); }
+	int32 GetAvailableGameFramesNumber() const;
+	int32 GetAvailableGameFramesNumber_AssumesLocked() const;
 
 	/** Returns a reference to the array holding all the available game frames */
-	const TArray<FChaosVDGameFrameData>& GetAvailableGameFrames() const { return GameFrames; }
+	const TArray<FChaosVDGameFrameData>& GetAvailableGameFrames_AssumesLocked() const { return GameFrames; }
 
 	/** Returns a reference to the map containing the available solver data */
-	const TMap<int32, TArray<FChaosVDSolverFrameData>>& GetAvailableSolvers() const { return RecordedFramesDataPerSolver; }
+	const TMap<int32, TArray<FChaosVDSolverFrameData>>& GetAvailableSolvers_AssumesLocked() const { return RecordedFramesDataPerSolver; }
 
 	/**
 	 * Returns the number of available frame data for the specified solver ID
 	 * @param SolverID ID of the solver 
 	 */
 	int32 GetAvailableSolverFramesNumber(int32 SolverID) const;
+	int32 GetAvailableSolverFramesNumber_AssumesLocked(int32 SolverID) const;
 	
 	/**
 	 * Returns the name of the specified solver id
@@ -82,7 +84,7 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	 * @param FrameNumber Frame number
 	 * @return Ptr to the existing solver frame data from the specified ID and Frame number - It is a ptr to the array element, Do not store
 	 */
-	FChaosVDSolverFrameData* GetSolverFrameData(int32 SolverID, int32 FrameNumber);
+	FChaosVDSolverFrameData* GetSolverFrameData_AssumesLocked(int32 SolverID, int32 FrameNumber);
 	
 	/**
 	 * Return a ptr to the existing solver frame data from the specified ID and Frame number
@@ -90,7 +92,7 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	 * @param Cycle Platform cycle at which the solver frame was recorded
 	 * @return Ptr to the existing solver frame data from the specified ID and Frame number - It is a ptr to the array element, Do not store
 	 */
-	FChaosVDSolverFrameData* GetSolverFrameDataAtCycle(int32 SolverID, uint64 Cycle);
+	FChaosVDSolverFrameData* GetSolverFrameDataAtCycle_AssumesLocked(int32 SolverID, uint64 Cycle);
 
 	/**
 	 * Searches and returns the lowest frame number of a solver at the specified cycle
@@ -99,8 +101,9 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	 * @return Found frame number. INDEX_NONE if no frame is found for the specified cycle
 	 */
 	int32 GetLowestSolverFrameNumberAtCycle(int32 SolverID, uint64 Cycle);
+	int32 GetLowestSolverFrameNumberAtCycle_AssumesLocked(int32 SolverID, uint64 Cycle);
 
-	int32 FindFirstSolverKeyFrameNumberFromFrame(int32 SolverID, int32 StartFrameNumber);
+	int32 FindFirstSolverKeyFrameNumberFromFrame_AssumesLocked(int32 SolverID, int32 StartFrameNumber);
 	
 	/**
 	 * Searches and returns the lowest frame number of a solver at the specified cycle
@@ -142,17 +145,17 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	 * @param Cycle Platform Cycle to be used in the search
 	 * @return A ptr to the recorded game frame data - This is a ptr to the array element. Do not store
 	 */
-	FChaosVDGameFrameData* GetGameFrameDataAtCycle(uint64 Cycle);
+	FChaosVDGameFrameData* GetGameFrameDataAtCycle_AssumesLocked(uint64 Cycle);
 
 	/**
 	 * Searches for a recorded Game frame at the specified cycle 
 	 * @param FrameNumber Frame Number
 	 * @return A ptr to the recorded game frame data - This is a ptr to the array element. Do not store
 	 */
-	FChaosVDGameFrameData* GetGameFrameData(int32 FrameNumber);
+	FChaosVDGameFrameData* GetGameFrameData_AssumesLocked(int32 FrameNumber);
 
 	/** Returns a ptr to the last recorded game frame - This is a ptr to the array element. Do not store */
-	FChaosVDGameFrameData* GetLastGameFrameData();
+	FChaosVDGameFrameData* GetLastGameFrameData_AssumesLocked();
 
 	/**
 	 * Searches and returns the lowest game frame number at the specified cycle
@@ -167,6 +170,7 @@ struct CHAOSVDDATA_API FChaosVDRecording
      * @param OutSolversID Solver's ID array to be filled with any IDs found
      */
 	void GetAvailableSolverIDsAtGameFrameNumber(int32 FrameNumber, TArray<int32>& OutSolversID);
+	void GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(int32 FrameNumber, TArray<int32>& OutSolversID);
 
 	/** Returns a reference to the GeometryID-ImplicitObject map of this recording */
 	const TMap<uint32, TSharedPtr<const Chaos::FImplicitObject>>& GetGeometryDataMap() const { return ImplicitObjects; };
@@ -176,6 +180,8 @@ struct CHAOSVDDATA_API FChaosVDRecording
 
 	/** Session name of the trace session used to re-build this recording */
 	FString SessionName;
+
+	FRWLock& GetRecordingDataLock() { return RecordingDataLock; }
 
 protected:
 
@@ -197,6 +203,8 @@ protected:
 
 	/** Id to Ptr map of all shared geometry data required to visualize */
 	TMap<uint32, TSharedPtr<const Chaos::FImplicitObject>> ImplicitObjects;
+
+	mutable FRWLock RecordingDataLock;
 
 	friend class FChaosVDTraceProvider;
 	friend class FChaosVDTraceImplicitObjectProcessor;

@@ -46,54 +46,55 @@ void FChaosVDTraceProvider::AddGameFrame(FChaosVDGameFrameData&& FrameData)
 	if (InternalRecording.IsValid())
 	{
 		// In PIE, we can have a lot of empty frames at the beginning, so we discard them here
-		if (InternalRecording->GetAvailableSolvers().IsEmpty())
 		{
-			if (FChaosVDGameFrameData* GameFrame = InternalRecording->GetLastGameFrameData())
+			// This is a kind of made up number, this includes RBAN solvers so we have more than 1 for sure.
+			constexpr int32 MinSolverIDsExpected = 10;
+			
+			static TArray<int32> SolverIDs;
+			SolverIDs.Reserve(MinSolverIDsExpected);
+			
+			FWriteScopeLock WriteLock(GetDataLock());
+			const int32 AvailableGameFrames = InternalRecording->GetAvailableGameFramesNumber_AssumesLocked();
+			InternalRecording->GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(AvailableGameFrames -1, SolverIDs);
+			if (SolverIDs.IsEmpty())
 			{
-				GameFrame = &FrameData;
-				return;
+				if (FChaosVDGameFrameData* GameFrame = InternalRecording->GetLastGameFrameData_AssumesLocked())
+				{
+					*GameFrame = FrameData;
+					return;
+				}
 			}
+
+			SolverIDs.Reset();
 		}
 
 		InternalRecording->AddGameFrameData(MoveTemp(FrameData));
 	}
 }
 
-FChaosVDSolverFrameData* FChaosVDTraceProvider::GetSolverFrame(const int32 InSolverID, const int32 FrameNumber) const
+FChaosVDSolverFrameData* FChaosVDTraceProvider::GetSolverFrame_AssumesLocked(const int32 InSolverID, const int32 FrameNumber) const
 {
-	return InternalRecording.IsValid() ? InternalRecording->GetSolverFrameData(InSolverID, FrameNumber) : nullptr;
+	return InternalRecording.IsValid() ? InternalRecording->GetSolverFrameData_AssumesLocked(InSolverID, FrameNumber) : nullptr;
 }
 
-FChaosVDSolverFrameData* FChaosVDTraceProvider::GetLastSolverFrame(const int32 InSolverID) const
+FChaosVDSolverFrameData* FChaosVDTraceProvider::GetLastSolverFrame_AssumesLocked(const int32 InSolverID) const
 {
-	if (InternalRecording.IsValid() && InternalRecording->GetAvailableSolverFramesNumber(InSolverID) > 0)
+	if (InternalRecording.IsValid())
 	{
-		const int32 AvailableFramesNumber = InternalRecording->GetAvailableSolverFramesNumber(InSolverID);
+		const int32 AvailableFramesNumber = InternalRecording->GetAvailableSolverFramesNumber_AssumesLocked(InSolverID);
 
-		if (AvailableFramesNumber != INDEX_NONE)
+		if (AvailableFramesNumber > 0)
 		{
-			return GetSolverFrame(InSolverID, InternalRecording->GetAvailableSolverFramesNumber(InSolverID) - 1);
+			return GetSolverFrame_AssumesLocked(InSolverID, AvailableFramesNumber - 1);
 		}
 	}
 
 	return nullptr;
 }
 
-FChaosVDGameFrameData* FChaosVDTraceProvider::GetSolverFrame(uint64 FrameStartCycle) const
+FChaosVDGameFrameData* FChaosVDTraceProvider::GetLastGameFrame_AssumesLocked() const
 {
-	FChaosVDGameFrameData* FoundFrameData = nullptr;
-
-	if (InternalRecording.IsValid() && InternalRecording->GetAvailableGameFrames().Num() > 0)
-	{
-		return InternalRecording->GetGameFrameDataAtCycle(FrameStartCycle);
-	}
-	
-	return FoundFrameData;
-}
-
-FChaosVDGameFrameData* FChaosVDTraceProvider::GetLastGameFrame() const
-{
-	return InternalRecording.IsValid() ? InternalRecording->GetLastGameFrameData() : nullptr;
+	return InternalRecording.IsValid() ? InternalRecording->GetLastGameFrameData_AssumesLocked() : nullptr;
 }
 
 FChaosVDBinaryDataContainer& FChaosVDTraceProvider::FindOrAddUnprocessedData(const int32 DataID)
@@ -163,6 +164,12 @@ TSharedPtr<FChaosVDRecording> FChaosVDTraceProvider::GetRecordingForSession() co
 void FChaosVDTraceProvider::RegisterDataProcessor(TSharedPtr<IChaosVDDataProcessor> InDataProcessor)
 {
 	RegisteredDataProcessors.Add(InDataProcessor->GetCompatibleTypeName(), InDataProcessor);
+}
+
+FRWLock& FChaosVDTraceProvider::GetDataLock()
+{
+	check(InternalRecording.IsValid());
+	return InternalRecording->GetRecordingDataLock();
 }
 
 void FChaosVDTraceProvider::RegisterDefaultDataProcessorsIfNeeded()
