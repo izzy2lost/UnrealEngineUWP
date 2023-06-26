@@ -144,7 +144,7 @@ namespace Chaos
 			ScatterOutput(Dt);
 		}
 
-		CVD_TRACE_PARTICLES_SOA(Particles);
+		CVD_TRACE_PARTICLES(Particles.GetParticleHandles());
 	}
 
 	// A opportunity for systems to allocate buffers for the duration of the tick, if they have enough info to do so
