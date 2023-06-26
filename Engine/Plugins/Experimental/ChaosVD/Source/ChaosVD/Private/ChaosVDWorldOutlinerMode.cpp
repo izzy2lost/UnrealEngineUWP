@@ -3,6 +3,7 @@
 #include "ChaosVDWorldOutlinerMode.h"
 
 #include "ActorTreeItem.h"
+#include "ChaosVDModule.h"
 #include "ChaosVDScene.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 
@@ -91,8 +92,16 @@ void FChaosVDWorldOutlinerMode::HandlePostSelectionChange(const UTypedElementSel
 	{
 		// We don't support multi selection yet
 		ensure(SelectedActors.Num() == 1);
-
-		FSceneOutlinerTreeItemPtr ObjectItem = SceneOutliner->GetTreeItem(SelectedActors[0]);
-		SceneOutliner->SetItemSelection(ObjectItem, true, ESelectInfo::OnMouseClick);
+		AActor* SelectedActor = SelectedActors[0];
+		
+		if (FSceneOutlinerTreeItemPtr TreeItem = SceneOutliner->GetTreeItem(SelectedActor, false))
+		{
+			SceneOutliner->ScrollItemIntoView(TreeItem);
+			SceneOutliner->SetItemSelection(TreeItem, true, ESelectInfo::OnMouseClick);
+		}
+		else
+		{
+			UE_LOG(LogChaosVDEditor, Verbose, TEXT("Selected actor is not in the outliner. It might be filtered out"))	
+		}
 	}
 }
