@@ -58,8 +58,6 @@ class FGCHistory
 	TArray<FGCSnapshot> Snapshots;
 	/** Index of the last recorded snapshot in the Snapshots array */
 	int32 MostRecentSnapshotIndex = -1;
-	/** Object representing GC barrier */
-	UObject* GCBarrier = nullptr;
 
 	COREUOBJECT_API ~FGCHistory();
 
@@ -110,12 +108,6 @@ public:
 
 	/** Returns the number of bytes allocated by GC history */
 	COREUOBJECT_API int64 GetAllocatedSize() const;
-
-	/** Returns an object representing GC Barrier */
-	FORCEINLINE UObject* GetBarrierObject() const
-	{
-		return GCBarrier;
-	}
 };
 
 #endif // ENABLE_GC_HISTORY

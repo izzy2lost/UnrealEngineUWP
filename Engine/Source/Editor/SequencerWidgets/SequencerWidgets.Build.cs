@@ -21,7 +21,6 @@ public class SequencerWidgets : ModuleRules
         PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
-				"CoreUObject",
 				"InputCore",
 				"Slate",
 				"SlateCore",

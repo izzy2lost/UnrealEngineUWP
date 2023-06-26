@@ -9,8 +9,7 @@ public class PListEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[] { 
 				"Core",
-				"CoreUObject",
-				"InputCore",
+                "InputCore",
 				"Slate",
 				"SlateCore",
 				"DesktopPlatform",

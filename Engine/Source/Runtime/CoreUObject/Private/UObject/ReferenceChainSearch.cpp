@@ -255,10 +255,6 @@ namespace UE::ReferenceChainSearch
 					}
 				}
 			}
-			FORCEINLINE bool IsTimeLimitExceeded() const
-			{
-				return false;
-			}
 		};
 
 		class FCollector final: public FReferenceCollector
@@ -1274,12 +1270,6 @@ FString FReferenceChainSearch::GetObjectFlags(FGCObjectInfo* InObject)
 	{
 		Flags += TEXT("(ClusterRoot) ");
 	}
-
-	if (InObject->HasAnyInternalFlags(EInternalObjectFlags::MaybeUnreachable))
-	{
-		Flags += TEXT("(MaybeUnreachable) ");
-	}
-
 	if (InObject->GetOwnerIndex() > 0)
 	{
 		Flags += TEXT("(Clustered) ");

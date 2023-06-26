@@ -326,7 +326,7 @@ public:
 	/** Checks if the object is unreachable. */
 	FORCEINLINE bool IsUnreachable() const
 	{
-		return GUObjectArray.IndexToObject(InternalIndex)->HasAnyFlags(EInternalObjectFlags::Unreachable);
+		return GUObjectArray.IndexToObject(InternalIndex)->IsUnreachable();
 	}
 
 	/** Checks if the object is pending kill or unreachable. INTERNAL USE ONLY! If you want to check if your object is valid use IsValid(Object)/IsValidObjectChecked(Object)/GetValid(Object) instead. */

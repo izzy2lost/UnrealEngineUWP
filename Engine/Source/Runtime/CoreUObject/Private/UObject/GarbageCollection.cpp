@@ -39,9 +39,6 @@
 #include "UObject/GarbageCollectionHistory.h"
 #include "UObject/GarbageCollectionTesting.h"
 #include "UObject/PropertyOptional.h"
-#include "UObject/ExpandingChunkedList.h"
-#include "UObject/ReachabilityAnalysisState.h"
-#include "UObject/ReachabilityAnalysis.h"
 
 #include <atomic>
 
@@ -196,16 +193,24 @@ static FAutoConsoleVariableRef CMultithreadedDestructionEnabled(
 	ECVF_Default
 );
 
-static TArray<UObjectReachabilityStressData*> GReachabilityStressData;
+static UObjectReachabilityStressData* GReachabilityStressData;
 static void AllocateReachabilityStressData(FOutputDevice&)
 {
-	GenerateReachabilityStressData(GReachabilityStressData);
+	if (GReachabilityStressData)
+	{
+		return;
+	}
+	GReachabilityStressData = GenerateReachabilityStressData();
 }
 
 static void UnlinkReachabilityStressData(FOutputDevice&)
 {
+	if (!GReachabilityStressData)
+	{
+		return;
+	}
 	UnlinkReachabilityStressData(GReachabilityStressData);
-	GReachabilityStressData.Empty();
+	GReachabilityStressData = nullptr;
 }
 
 static FAutoConsoleCommandWithOutputDevice GGenerateReachabilityStressDataCmd(TEXT("gc.GenerateReachabilityStressData"),
@@ -229,32 +234,6 @@ static FAutoConsoleVariableRef CGarbageReferenceTrackingEnabled(
 	ECVF_Default
 );
 #endif // UE_BUILD_SHIPPING
-
-static int32 GAllowIncrementalReachability = 0;
-static FAutoConsoleVariableRef CVarAllowIncrementalGC(
-	TEXT("gc.AllowIncrementalReachability"),
-	GAllowIncrementalReachability,
-	TEXT("Set to control incremental Reachability Analysis (experimental)"),
-	ECVF_Default
-);
-
-static float GIncrementalReachabilityTimeLimit = 0.005f;
-static FAutoConsoleVariableRef CVarIncrementalReachabilityTimeLimit(
-	TEXT("gc.IncrementalReachabilityTimeLimit"),
-	GIncrementalReachabilityTimeLimit,
-	TEXT("Time in seconds (game time) we should allow for incremental GC (experimental)."),
-	ECVF_Default
-);
-
-#if VERIFY_DISREGARD_GC_ASSUMPTIONS
-static int32 GVerifyNoUnreachableObjects = 0;
-static FAutoConsoleVariableRef CVarVerifyNoUnreachableObjects(
-	TEXT("gc.VerifyNoUnreachableObjects"),
-	GVerifyNoUnreachableObjects,
-	TEXT("Enables or disables no unreachable objects are reachable verification"),
-	ECVF_Default
-);
-#endif // VERIFY_DISREGARD_GC_ASSUMPTIONS
 
 namespace UE::GC
 {
@@ -468,11 +447,6 @@ namespace UE::GC
 	}
 }
 
-namespace UE::GC::Private
-{
-	static TExpandingChunkedList<UObject*> GReachableObjects;
-	bool GIsIncrementalReachabilityPending = false;
-}
 
 /**
  * Helper class for destroying UObjects on a worker thread
@@ -849,8 +823,6 @@ void FContextPoolScope::ReturnToPool(FWorkerContext* Context)
 	--Pool.NumAllocated;
 	Context->FreeWorkerIndex();
 	Context->Stats = {};
-	Context->IncrementalStructs = {};
-	Context->bIsSuspended = false;
 	Pool.Reusable.Emplace(Context);
 }
 
@@ -905,9 +877,9 @@ static bool MarkClusterMutableObjectsAsReachable(FUObjectCluster& Cluster, Conta
 				if (!ReferencedMutableObjectItem->HasAnyFlags(EInternalObjectFlags::PendingKill | EInternalObjectFlags::Garbage))
 				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				{
-					if (ReferencedMutableObjectItem->IsMaybeUnreachable())
+					if (ReferencedMutableObjectItem->IsUnreachable())
 					{
-						if (ReferencedMutableObjectItem->ThisThreadAtomicallyClearedMaybeUnreachable())
+						if (ReferencedMutableObjectItem->ThisThreadAtomicallyClearedRFUnreachable())
 						{
 							// Needs doing because this is either a normal unclustered object (clustered objects are never unreachable) or a cluster root
 							ObjectsToSerialize.Add(static_cast<UObject*>(ReferencedMutableObjectItem->Object));
@@ -926,10 +898,10 @@ static bool MarkClusterMutableObjectsAsReachable(FUObjectCluster& Cluster, Conta
 						{
 							// Needs doing, we need to get its cluster root and process it too
 							FUObjectItem* ReferencedMutableObjectsClusterRootItem = GUObjectArray.IndexToObjectUnsafeForGC(ReferencedMutableObjectItem->GetOwnerIndex());
-							if (ReferencedMutableObjectsClusterRootItem->IsMaybeUnreachable())
+							if (ReferencedMutableObjectsClusterRootItem->IsUnreachable())
 							{
 								// The root is also maybe unreachable so process it and all the referenced clusters
-								if (ReferencedMutableObjectsClusterRootItem->ThisThreadAtomicallyClearedMaybeUnreachable())
+								if (ReferencedMutableObjectsClusterRootItem->ThisThreadAtomicallyClearedRFUnreachable())
 								{
 									MarkReferencedClustersAsReachable<Options>(ReferencedMutableObjectsClusterRootItem->GetClusterIndex(), ObjectsToSerialize);
 								}
@@ -967,9 +939,9 @@ static bool MarkClusterMutableObjectsAsReachable(FUObjectCluster& Cluster, Conta
 						
 					// If the root is also unreachable, process it and all its referenced clusters
 					FUObjectItem* ReferencedMutableObjectsClusterRootItem = GUObjectArray.IndexToObjectUnsafeForGC(ReferencedMutableObjectItem->GetOwnerIndex());
-					if (ReferencedMutableObjectsClusterRootItem->IsMaybeUnreachable())
+					if (ReferencedMutableObjectsClusterRootItem->IsUnreachable())
 					{
-						ReferencedMutableObjectsClusterRootItem->ClearFlags(EInternalObjectFlags::MaybeUnreachable);
+						ReferencedMutableObjectsClusterRootItem->ClearFlags(EInternalObjectFlags::Unreachable);
 						MarkReferencedClustersAsReachable<Options>(ReferencedMutableObjectsClusterRootItem->GetClusterIndex(), ObjectsToSerialize);
 					}
 				}
@@ -1012,11 +984,11 @@ static FORCENOINLINE void MarkReferencedClustersAsReachable(int32 ClusterIndex, 
 				{
 					if constexpr (IsParallel(Options))
 					{
-						ReferencedClusterRootObjectItem->ThisThreadAtomicallyClearedFlag(EInternalObjectFlags::MaybeUnreachable);
+						ReferencedClusterRootObjectItem->ThisThreadAtomicallyClearedFlag(EInternalObjectFlags::Unreachable);
 					}
 					else
 					{
-						ReferencedClusterRootObjectItem->ClearFlags(EInternalObjectFlags::MaybeUnreachable);
+						ReferencedClusterRootObjectItem->ClearFlags(EInternalObjectFlags::Unreachable);
 					}
 				}
 			}
@@ -1106,7 +1078,9 @@ struct FReferenceMetadata
 
 //////////////////////////////////////////////////////////////////////////
 
-static constexpr int32 MaxWorkers = FReachabilityAnalysisState::MaxWorkers;
+// Work-stealing algorithms are O(N^2), everyone steals from everyone.
+// Might want to improve that before going much wider.
+static constexpr int32 MaxWorkers = 16;
 
 int32 GetNumSlowAROs();
 
@@ -1332,6 +1306,7 @@ template<class RefType> RefType				MakeReference(UObject*& Object);
 template<> FORCEINLINE FImmutableReference	MakeReference(UObject*& Object) { return {Object}; }
 template<> FORCEINLINE FMutableReference	MakeReference(UObject*& Object) { return {&Object}; }
 
+using FStructArray = Private::FStructArray;
 using FStridedReferenceArray = Private::FStridedReferenceArray;
 using FStridedReferenceView = Private::FStridedReferenceView;
 
@@ -1654,28 +1629,16 @@ class FStructBlockifier
 {
 	UE_NONCOPYABLE(FStructBlockifier);
 public:
-	explicit FStructBlockifier(FWorkerContext& Context)
-	: WorkerIndex(Context.GetWorkerIndex())
+	explicit FStructBlockifier(int32 WorkerIdx)
+	: WorkerIndex(WorkerIdx)
 	{
-		if (Context.IncrementalStructs.ContainsBatchData())
-		{
-			Wip = Context.IncrementalStructs.Wip;
-			WipIt = Context.IncrementalStructs.WipIt;
-			Context.IncrementalStructs = {};
-		}
-		else
-		{
-			AllocateWipBlock(nullptr);
-		}
+		AllocateWipBlock(nullptr);
 	}
 
 	~FStructBlockifier()
 	{
-		if (Wip)
-		{
-			check(!CanPop());
-			FreeBlock(Wip);
-		}
+		check(!CanPop());
+		FreeBlock(Wip);
 	}
 	
 	void Push(FStructArray AoS)
@@ -1734,14 +1697,6 @@ public:
 	void FreeBlock(FStructArrayBlock* Block)
 	{
 		GScratchPages.ReturnWorkerPage(WorkerIndex, Block);
-	}
-
-	FSuspendedStructBatch Suspend()
-	{
-		FSuspendedStructBatch SuspendData = { Wip, WipIt };
-		Wip = nullptr;
-		WipIt = nullptr;
-		return SuspendData;
 	}
 
 private:
@@ -1808,7 +1763,7 @@ class FStructBatcher : public FBatcherBase
 	alignas (PLATFORM_CACHE_LINE_SIZE)	FStructBlockifier										ValidatedStructArrays;			// Drained by ProcessStructs, which feed back into TReferenceBatcher
 
 public:
-	explicit FStructBatcher(FWorkerContext& Context) : ValidatedStructArrays(Context) {}
+	explicit FStructBatcher(int32 WorkerIdx) : ValidatedStructArrays(WorkerIdx) {}
 
 	FORCEINLINE_DEBUGGABLE void PushSparseStructArray(FSchemaView Schema, FScriptSparseArray& Array)
 	{
@@ -1839,13 +1794,6 @@ public:
 	}
 
 	FStructBlockifier& GetUnboundedQueue() { return ValidatedStructArrays;	}
-
-	FSuspendedStructBatch Suspend()
-	{
-		FlushBoundedQueues();
-		return ValidatedStructArrays.Suspend();
-	}
-
 private:
 	FORCEINLINE_DEBUGGABLE void DrainSparseStructArrays(uint32 Num)
 	{
@@ -2753,9 +2701,9 @@ constexpr FORCEINLINE EKillable MayKill(EOrigin Origin, bool bAllowKill)
 }
 
 // Return whether flag was cleared. Only thread-safe for concurrent clear, not concurrent set+clear. Don't use during mark phase.
-FORCEINLINE static bool ClearMaybeUnreachableInterlocked(int32& Flags)
+FORCEINLINE static bool ClearUnreachableInterlocked(int32& Flags)
 {
-	static constexpr int32 FlagToClear = int32(EInternalObjectFlags::MaybeUnreachable);
+	static constexpr int32 FlagToClear = int32(EInternalObjectFlags::Unreachable);
 	if (FPlatformAtomics::AtomicRead_Relaxed(&Flags) & FlagToClear)
 	{
 		int32 Old = FPlatformAtomics::InterlockedAnd(&Flags, ~FlagToClear);
@@ -2765,7 +2713,8 @@ FORCEINLINE static bool ClearMaybeUnreachableInterlocked(int32& Flags)
 	return false;
 }
 
-FReachabilityAnalysisState GReachabilityState;
+
+
 
 template <EGCOptions InOptions>
 class TReachabilityProcessor 
@@ -2786,11 +2735,6 @@ public:
 		UE::GC::GStats.LogDetailedStatsSummary();
 	}
 
-	FORCEINLINE bool IsTimeLimitExceeded() const
-	{
-		return IsWithIncrementalReachabilityAnalysis() && GReachabilityState.IsTimeLimitExceeded();
-	}
-
 	static constexpr EGCOptions Options = InOptions;
 
 	static constexpr FORCEINLINE bool IsWithPendingKill() {	return !!(Options & EGCOptions::WithPendingKill);}
@@ -2800,8 +2744,6 @@ public:
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	constexpr static FORCEINLINE EKillable MayKill(EOrigin Origin, bool bAllowKill) { return UE::GC::MayKill<Options>(Origin, bAllowKill); }	
-
-	static constexpr FORCEINLINE bool IsWithIncrementalReachabilityAnalysis() { return !!(Options & EGCOptions::IncrementalReachability); }
 
 	static FORCEINLINE void ProcessReferenceDirectly(FWorkerContext& Context, FPermanentObjectPoolExtents PermanentPool, const UObject* ReferencingObject, UObject*& Object, FMemberId MemberId, EKillable Killable)
 	{
@@ -2867,7 +2809,7 @@ public:
 
 	FORCEINLINE static bool HandleValidReference(FWorkerContext& Context, FImmutableReference Reference, FReferenceMetadata Metadata)
 	{
-		if (ClearMaybeUnreachableInterlocked(Metadata.ObjectItem->Flags))
+		if (ClearUnreachableInterlocked(Metadata.ObjectItem->Flags))
 		{
 			// Objects that are part of a GC cluster should never have the unreachable flag set!
 			checkSlow(Metadata.ObjectItem->GetOwnerIndex() <= 0);
@@ -2906,7 +2848,7 @@ public:
 				{
 					if constexpr (IsParallel(Options))
 					{
-						if (ClearMaybeUnreachableInterlocked(RootObjectItem->Flags))
+						if (ClearUnreachableInterlocked(RootObjectItem->Flags))
 						{
 							// Make sure all referenced clusters are marked as reachable too
 							MarkReferencedClustersAsReachableThunk<Options>(RootObjectItem->GetClusterIndex(), Context.ObjectsToSerialize);
@@ -2948,7 +2890,7 @@ struct TBatchDispatcher
 	, Collector(InCollector)
 	, KillableBatcher(InContext)
 	, ImmutableBatcher(InContext)
-	, StructBatcher(InContext)
+	, StructBatcher(InContext.GetWorkerIndex())
 	{}
 
 	// ProcessObjectArray API
@@ -3077,12 +3019,6 @@ struct TBatchDispatcher
 			}
 		}
 	}
-
-	void Suspend()
-	{
-		FlushQueuedReferences();
-		Context.IncrementalStructs = StructBatcher.Suspend();
-	}
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -3193,18 +3129,7 @@ public:
 		UE::GC::GStats.LogDetailedStatsSummary();
 	}
 
-	FORCEINLINE bool IsTimeLimitExceeded() const
-	{
-		if (IsWithIncrementalReachabilityAnalysis() && bTrackHistory && !bTrackGarbage)
-		{
-			return GReachabilityState.IsTimeLimitExceeded();
-		}
-		return false;
-	}
-
 	static constexpr EGCOptions Options = InOptions;
-
-	static constexpr FORCEINLINE bool IsWithIncrementalReachabilityAnalysis() { return !!(Options & EGCOptions::IncrementalReachability); }
 
 	TDebugReachabilityProcessor()
 	: bTrackGarbage(GGarbageReferenceTrackingEnabled != 0)
@@ -3560,14 +3485,13 @@ void FReferenceFinder::HandleObjectReference( UObject*& InObject, const UObject*
 namespace UE::GC
 {
 
-
 class FRealtimeGC : public FGarbageCollectionTracer
 {
 	typedef void(FRealtimeGC::*MarkObjectsFn)(EObjectFlags);
 	typedef void(FRealtimeGC::*ReachabilityAnalysisFn)(FWorkerContext&);
 
 	/** Pointers to functions used for Marking objects as unreachable */
-	MarkObjectsFn MarkObjectsFunctions[2];
+	MarkObjectsFn MarkObjectsFunctions[4];
 	/** Pointers to functions used for Reachability Analysis */
 	ReachabilityAnalysisFn ReachabilityAnalysisFunctions[8];
 
@@ -3600,21 +3524,6 @@ class FRealtimeGC : public FGarbageCollectionTracer
 		return InitialReferences;
 	}
 
-	template<class CollectorType, class ProcessorType>
-	FORCEINLINE void CollectReferencesForGC(ProcessorType& Processor, UE::GC::FWorkerContext& Context)
-	{
-		using FastReferenceCollector = TFastReferenceCollector<ProcessorType, CollectorType>;
-
-		if constexpr (IsParallel(ProcessorType::Options))
-		{
-			ProcessAsync([](void* P, FWorkerContext& C) { FastReferenceCollector(*reinterpret_cast<ProcessorType*>(P)).ProcessObjectArray(C); }, &Processor, Context);
-		}
-		else
-		{
-			FastReferenceCollector(Processor).ProcessObjectArray(Context);
-		}
-	}
-
 	template <EGCOptions Options>
 	void PerformReachabilityAnalysisOnObjectsInternal(FWorkerContext& Context)
 	{
@@ -3625,21 +3534,20 @@ class FRealtimeGC : public FGarbageCollectionTracer
 		if (DebugProcessor.TracksHistory() | 
 			DebugProcessor.TracksGarbage() & Stats.bFoundGarbageRef)
 		{
-			CollectReferencesForGC<TDebugReachabilityCollector<Options>>(DebugProcessor, Context);
+			CollectReferences<TDebugReachabilityCollector<Options>>(DebugProcessor, Context);
 			return;
 		}
 #endif
 		
 		TReachabilityProcessor<Options> Processor;
-		CollectReferencesForGC<TReachabilityCollector<Options>>(Processor, Context);
+		CollectReferences<TReachabilityCollector<Options>>(Processor, Context);
 	}
 
 	/** Calculates GC function index based on current settings */
 	static FORCEINLINE int32 GetGCFunctionIndex(EGCOptions InOptions)
 	{
 		return (!!(InOptions & EGCOptions::Parallel)) |
-			(!!(InOptions & EGCOptions::WithPendingKill) << 1) |
-			(!!(InOptions & EGCOptions::IncrementalReachability) << 2);
+			(!!(InOptions & EGCOptions::WithPendingKill) << 1);
 	}
 
 public:
@@ -3647,19 +3555,13 @@ public:
 	FRealtimeGC()
 	{
 		MarkObjectsFunctions[GetGCFunctionIndex(EGCOptions::None)] = &FRealtimeGC::MarkObjectsAsUnreachable<false>;
-		MarkObjectsFunctions[GetGCFunctionIndex(EGCOptions::Parallel)] = &FRealtimeGC::MarkObjectsAsUnreachable<true>;
+		MarkObjectsFunctions[GetGCFunctionIndex(EGCOptions::Parallel | EGCOptions::None)] = &FRealtimeGC::MarkObjectsAsUnreachable<true>;
 
 		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::None)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::None | EGCOptions::None>;
 		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::Parallel | EGCOptions::None)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::Parallel | EGCOptions::None>;
 
 		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::None | EGCOptions::WithPendingKill)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::None | EGCOptions::WithPendingKill>;
 		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::Parallel | EGCOptions::WithPendingKill)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::Parallel | EGCOptions::WithPendingKill>;
-
-		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::None | EGCOptions::IncrementalReachability)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::None | EGCOptions::IncrementalReachability>;
-		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::Parallel | EGCOptions::IncrementalReachability)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::Parallel | EGCOptions::IncrementalReachability>;
-
-		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::WithPendingKill | EGCOptions::IncrementalReachability)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::None | EGCOptions::WithPendingKill | EGCOptions::IncrementalReachability>;
-		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::Parallel | EGCOptions::WithPendingKill | EGCOptions::IncrementalReachability)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::Parallel | EGCOptions::WithPendingKill | EGCOptions::IncrementalReachability>;
 
 		FGCObject::StaticInit();
 	}
@@ -3718,9 +3620,6 @@ public:
 							GObjIncrementalPurgeIsInProgress,
 							GObjFinishDestroyHasBeenRoutedToAllObjects,
 							GGCObjectsPendingDestructionCount);
-
-					// Objects may still be marked as MaybeUnreachable if we forced a full purge in the middle of incremental GC
-					checkf(UE::GC::Private::GIsIncrementalReachabilityPending || !ObjectItem->IsMaybeUnreachable() || bIsRerun, TEXT("%s"), *Object->GetFullName());
 
 					// Keep track of how many objects are around.
 					ObjectCountDuringMarkPhase++;
@@ -3788,7 +3687,7 @@ public:
 						}
 						else
 						{
-							ObjectItem->SetFlags(EInternalObjectFlags::MaybeUnreachable);
+							ObjectItem->SetFlags(EInternalObjectFlags::Unreachable);
 						}
 					}					
 				}
@@ -3843,9 +3742,9 @@ public:
 						FUObjectItem* RootObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(OwnerIndex);
 						checkSlow(RootObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot));
 						// if it is reachable via keep flags we will do this below (or maybe already have)
-						if (RootObjectItem->HasAnyFlags(EInternalObjectFlags::MaybeUnreachable)) 
+						if (RootObjectItem->IsUnreachable()) 
 						{
-							RootObjectItem->ClearFlags(EInternalObjectFlags::MaybeUnreachable);
+							RootObjectItem->ClearFlags(EInternalObjectFlags::Unreachable);
 							// Make sure all referenced clusters are marked as reachable too
 							MarkReferencedClustersAsReachable<EGCOptions::None>(RootObjectItem->GetClusterIndex(), InitialObjects);
 						}
@@ -3862,37 +3761,20 @@ public:
 		}
 	}
 
-private:
-
-	void ConditionallyAddBarrierReferencesToHistory(FWorkerContext& Context)
+	/**
+	 * Performs reachability analysis.
+	 *
+	 * @param KeepFlags		Objects with these flags will be kept regardless of being referenced or not
+	 */
+	void PerformReachabilityAnalysis(EObjectFlags KeepFlags, const EGCOptions Options)
 	{
-#if !UE_BUILD_SHIPPING && ENABLE_GC_HISTORY
-		if (FGCHistory::Get().IsActive())
-		{
-			FGCDirectReference BarrierReference;
-			BarrierReference.ReferencerName = TEXT("Barrier");
-			TArray<FGCDirectReference>*& DirectReferences = Context.History.FindOrAdd(FGCHistory::Get().GetBarrierObject());
-			if (DirectReferences == nullptr)
-			{
-				DirectReferences = new TArray<FGCDirectReference>();
-				DirectReferences->Reserve(InitialObjects.Num());
-			}
-			for (UObject* BarrierObject : InitialObjects)
-			{
-				BarrierReference.ReferencedObject = BarrierObject;
-				DirectReferences->Add(BarrierReference);
-			}
-		}
-#endif // !UE_BUILD_SHIPPING && ENABLE_GC_HISTORY
-	}
+		LLM_SCOPE(ELLMTag::GC);
 
-	void StartReachabilityAnalysis(EObjectFlags KeepFlags, const EGCOptions Options)
-	{
 		BeginInitialReferenceCollection(Options);
 
 		// Reset object count.
 		GObjectCountDuringLastMarkPhase.Reset();
-
+		
 		InitialObjects.Reset();
 
 		// Make sure GC referencer object is checked for references to other objects even if it resides in permanent object pool
@@ -3904,73 +3786,25 @@ private:
 		{
 			const double StartTime = FPlatformTime::Seconds();
 			// Mark phase doesn't care about PendingKill being enabled or not so there's just fewer compiled in functions
-			const EGCOptions OptionsForMarkPhase = Options & ~(EGCOptions::WithPendingKill | EGCOptions::IncrementalReachability);
+			const EGCOptions OptionsForMarkPhase = Options & ~EGCOptions::WithPendingKill;
 			(this->*MarkObjectsFunctions[GetGCFunctionIndex(OptionsForMarkPhase)])(KeepFlags);
 			UE_LOG(LogGarbage, Verbose, TEXT("%f ms for MarkObjectsAsUnreachable Phase (%d Objects To Serialize)"), (FPlatformTime::Seconds() - StartTime) * 1000, InitialObjects.Num());
-		}
-	}
-
-	void PerformReachabilityAnalysisPass(const EGCOptions Options)
-	{
-		FContextPoolScope Pool;
-		FWorkerContext* Context = nullptr;
-
-		if (GReachabilityState.IsSuspended())
-		{
-			Context = GReachabilityState.GetContextArray()[0];
-		}
-		else
-		{
-			Context = Pool.AllocateFromPool();
-
-			if (!Private::GReachableObjects.IsEmpty())
-			{
-				InitialObjects.Reset();
-				Private::GReachableObjects.PopAllAndEmpty(InitialObjects);
-				UE_LOG(LogGarbage, Log, TEXT("GC restarting reachability due to Reachable Objects list not being empty (%d objects to process)"), InitialObjects.Num());
-				ConditionallyAddBarrierReferencesToHistory(*Context);
-			}
-			else
-			{
-				Context->InitialNativeReferences = GetInitialReferences(Options);
-			}
-
-			Context->SetInitialObjectsUnpadded(InitialObjects);
-		}
-
-		PerformReachabilityAnalysisOnObjects(Context, Options);
-
-		if (!GReachabilityState.CheckIfAnyContextIsSuspended())
-		{
-			Stats = Context->Stats;
-			Pool.ReturnToPool(Context);
-			GReachabilityState.UpdateStats(Stats);
-		}
-	}
-
-public:
-
-	/**
-	 * Performs reachability analysis.
-	 *
-	 * @param KeepFlags		Objects with these flags will be kept regardless of being referenced or not
-	 */
-	void PerformReachabilityAnalysis(EObjectFlags KeepFlags, const EGCOptions Options)
-	{
-		LLM_SCOPE(ELLMTag::GC);
-
-		if (!GReachabilityState.IsSuspended())
-		{
-			StartReachabilityAnalysis(KeepFlags, Options);
 		}
 
 		{
 			const double StartTime = FPlatformTime::Seconds();
+		
+			FContextPoolScope Pool;
+			FWorkerContext* Context = Pool.AllocateFromPool();
+			Context->InitialNativeReferences = GetInitialReferences(Options);
+			Context->SetInitialObjectsUnpadded(InitialObjects);
 
-			do
-			{
-				PerformReachabilityAnalysisPass(Options);
-			} while (!Private::GReachableObjects.IsEmpty() && !GReachabilityState.IsSuspended());
+			PerformReachabilityAnalysisOnObjects(Context, Options);
+
+			Stats = Context->Stats;
+			Context->ResetInitialObjects();
+			Context->InitialNativeReferences = TConstArrayView<UObject**>();
+			Pool.ReturnToPool(Context);
 
 			UE_LOG(LogGarbage, Verbose, TEXT("%f ms for Reachability Analysis"), (FPlatformTime::Seconds() - StartTime) * 1000);
 		}
@@ -3978,10 +3812,7 @@ public:
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		// Allowing external systems to add object roots. This can't be done through AddReferencedObjects
 		// because it may require tracing objects (via FGarbageCollectionTracer) multiple times
-		if (!GReachabilityState.IsSuspended())
-		{
-			FCoreUObjectDelegates::TraceExternalRootsForReachabilityAnalysis.Broadcast(*this, KeepFlags, !(Options & EGCOptions::Parallel));
-		}
+		FCoreUObjectDelegates::TraceExternalRootsForReachabilityAnalysis.Broadcast(*this, KeepFlags, !(Options & EGCOptions::Parallel));
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
@@ -4205,8 +4036,7 @@ bool IncrementalDestroyGarbage(bool bUseTimeLimit, double TimeLimit)
 
 				//@todo UE - A prefetch was removed here. Re-add it. It wasn't right anyway, since it was ten items ahead and the consoles on have 8 prefetch slots
 
-				check(!ObjectItem->IsMaybeUnreachable());
-				if (ObjectItem->IsUnreachable())
+				check(ObjectItem->IsUnreachable());
 				{
 					UObject* Object = static_cast<UObject*>(ObjectItem->Object);
 					// Object should always have had BeginDestroy called on it and never already be destroyed
@@ -4267,7 +4097,7 @@ bool IncrementalDestroyGarbage(bool bUseTimeLimit, double TimeLimit)
 					UObject* Object = GGCObjectsPendingDestruction[ CurPendingObjIndex ];
 
 					// Object should never have been added to the list if it failed this criteria
-					check( Object != nullptr && Object->IsUnreachable() );
+					check( Object != NULL && Object->IsUnreachable() );
 
 					// Object should always have had BeginDestroy called on it and never already be destroyed
 					check( Object->HasAnyFlags( RF_BeginDestroyed ) && !Object->HasAnyFlags( RF_FinishDestroyed ) );
@@ -4524,10 +4354,8 @@ void GatherUnreachableObjects(bool bForceSingleThreaded)
 		for (int32 ObjectIndex = FirstObjectIndex; ObjectIndex <= LastObjectIndex; ++ObjectIndex)
 		{
 			FUObjectItem* ObjectItem = &GUObjectArray.GetObjectItemArrayUnsafe()[ObjectIndex];
-			if (ObjectItem->HasAnyFlags(EInternalObjectFlags::MaybeUnreachable | EInternalObjectFlags::Unreachable))
+			if (ObjectItem->IsUnreachable())
 			{
-				ObjectItem->ClearMaybeUnreachable();
-				ObjectItem->SetUnreachable();
 				ThisThreadUnreachableObjects.Add(ObjectItem);
 				if (ObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot))
 				{
@@ -4562,7 +4390,7 @@ void GatherUnreachableObjects(bool bForceSingleThreaded)
 
 				if (!ClusterObjectItem->HasAnyFlags(EInternalObjectFlags::ReachableInCluster))
 				{
-					ClusterObjectItem->SetUnreachable();
+					ClusterObjectItem->SetFlags(EInternalObjectFlags::Unreachable);
 					ClusterObjects++;
 					GUnreachableObjects.Add(ClusterObjectItem);
 				}
@@ -4706,21 +4534,16 @@ FORCEINLINE void CollectGarbageInternal(EObjectFlags KeepFlags, bool bPerformFul
 {
 	const double StartTime = FPlatformTime::Seconds();
 
-	GReachabilityState.CollectGarbage(KeepFlags, bPerformFullPurge);
+	if (bPerformFullPurge)
+	{
+		CollectGarbageFull(KeepFlags);
+	}
+	else
+	{
+		CollectGarbageIncremental(KeepFlags);
+	}
 
 	GTimingInfo.LastGCDuration = FPlatformTime::Seconds() - StartTime;
-}
-
-EGCOptions GetReferenceCollectorOptions(bool bPerformFullPurge)
-{
-	return
-		// Fall back to single threaded GC if processor count is 1 or parallel GC is disabled
-		// or detailed per class gc stats are enabled (not thread safe)
-		(ShouldForceSingleThreadedGC() ? EGCOptions::None : EGCOptions::Parallel) |
-		// Toggle between PendingKill enabled or disabled
-		(UObjectBaseUtility::IsPendingKillEnabled() ? EGCOptions::WithPendingKill : EGCOptions::None) |
-		// Toggle between Incremental Reachability enabled or disabled
-		((GAllowIncrementalReachability && !bPerformFullPurge) ? EGCOptions::IncrementalReachability : EGCOptions::None);
 }
 
 /** 
@@ -4730,10 +4553,8 @@ EGCOptions GetReferenceCollectorOptions(bool bPerformFullPurge)
  * @param	bPerformFullPurge	if true, perform a full purge after the mark pass
  */
 template<bool bPerformFullPurge>
-void PreCollectGarbageImpl(EObjectFlags KeepFlags)
+void CollectGarbageImpl(EObjectFlags KeepFlags)
 {
-	using namespace UE::GC::Private;
-
 	FGCCSyncObject::Get().ResetGCIsWaiting();
 
 #if defined(WITH_CODE_GUARD_HANDLER) && WITH_CODE_GUARD_HANDLER
@@ -4751,7 +4572,7 @@ void PreCollectGarbageImpl(EObjectFlags KeepFlags)
 	GNumAttemptsSinceLastGC = 0;
 
 	// Flush streaming before GC if requested
-	if (!GIsIncrementalReachabilityPending && GFlushStreamingOnGC && IsAsyncLoading())
+	if (GFlushStreamingOnGC && IsAsyncLoading())
 	{
 		UE_LOG(LogGarbage, Log, TEXT("CollectGarbageInternal() is flushing async loading"));
 		ReleaseGCLock();
@@ -4761,7 +4582,6 @@ void PreCollectGarbageImpl(EObjectFlags KeepFlags)
 
 	// Route callbacks so we can ensure that we are e.g. not in the middle of loading something by flushing
 	// the async loading, etc...
-	if (!GIsIncrementalReachabilityPending)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastPreGarbageCollect);
 		FCoreUObjectDelegates::GetPreGarbageCollectDelegate().Broadcast();
@@ -4769,7 +4589,13 @@ void PreCollectGarbageImpl(EObjectFlags KeepFlags)
 	GLastGCFrame = GFrameCounter;
 
 	{
-		GIsGarbageCollecting = true;
+		LLM_SCOPE(ELLMTag::GC);
+
+		// Set 'I'm garbage collecting' flag - might be checked inside various functions.
+		// This has to be unlocked before we call post GC callbacks
+		TGuardValue<bool> GuardIsGarbageCollecting(GIsGarbageCollecting, true);
+
+		UE_LOG(LogGarbage, Log, TEXT("Collecting garbage%s"), IsAsyncLoading() ? TEXT(" while async loading") : TEXT(""));
 
 		// Make sure previous incremental purge has finished or we do a full purge pass in case we haven't kicked one
 		// off yet since the last call to garbage collection.
@@ -4782,17 +4608,12 @@ void PreCollectGarbageImpl(EObjectFlags KeepFlags)
 			}
 		}
 
-
-		UE_LOG(LogGarbage, Log, TEXT("%sCollecting garbage%s"),
-			(!bPerformFullPurge && GAllowIncrementalReachability) ? TEXT("Incrementally ") : TEXT(""),
-			IsAsyncLoading() ? TEXT(" while async loading") : TEXT(""));
-
-		// The hash tables are only locked during this scope of reachability analysis.
-		GIsGarbageCollectingAndLockingUObjectHashTables = true;
-		LockUObjectHashTables();
-
-		if (!GIsIncrementalReachabilityPending)
+		// Reachability analysis.
+		// When exiting this scope all objects to be destroyed have been marked unreachable and any weak references have been cleared.
 		{
+			// With the new FGCLockBehavior::Default behavior hash tables are only locked during this scope of reachability analysis.
+			FGCHashTableScopeLock GCHashTableLock;
+
 			check(!GObjIncrementalPurgeIsInProgress);
 			check(!GObjPurgeIsRequired);
 
@@ -4820,82 +4641,73 @@ void PreCollectGarbageImpl(EObjectFlags KeepFlags)
 				UE_LOG(LogGarbage, Log, TEXT("%f ms for Verify GC Assumptions"), (FPlatformTime::Seconds() - StartTime) * 1000);
 			}
 #endif
-		}
-	}
-}
 
-template<bool bPerformFullPurge>
-void CollectGarbageImpl(EObjectFlags KeepFlags)
-{
-	{
-		// Reachability analysis.
-		{
-			const EGCOptions Options = GetReferenceCollectorOptions(bPerformFullPurge);
+			const EGCOptions Options = 
+				// Fall back to single threaded GC if processor count is 1 or parallel GC is disabled
+				// or detailed per class gc stats are enabled (not thread safe)
+				(ShouldForceSingleThreadedGC() ? EGCOptions::None : EGCOptions::Parallel) |
+				// Toggle between PendingKill enabled or disabled
+				(UObjectBaseUtility::IsPendingKillEnabled() ? EGCOptions::WithPendingKill : EGCOptions::None);
 
 			// Perform reachability analysis.
-			FRealtimeGC GC;
-			GC.PerformReachabilityAnalysis(KeepFlags, Options);
+			{
+				FRealtimeGC GC;
+				{
+					SCOPED_NAMED_EVENT(FRealtimeGC_PerformReachabilityAnalysis, FColor::Red);
+					DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FRealtimeGC::PerformReachabilityAnalysis"), STAT_FArchiveRealtimeGC_PerformReachabilityAnalysis, STATGROUP_GC);
+					const double StartTime = FPlatformTime::Seconds();
+					GC.PerformReachabilityAnalysis(KeepFlags, Options);
+					const double Ms = (FPlatformTime::Seconds() - StartTime) * 1000;
+					UE_LOG(LogGarbage, Log, TEXT("%.2f ms for GC - %d refs/ms while processing %d references from %d objects with %d clusters"),
+							Ms, (int32)(GC.Stats.NumReferences / Ms), GC.Stats.NumReferences, GC.Stats.NumObjects, GUObjectClusters.GetNumAllocatedClusters());
+				}
+
+				if (GC.Stats.bFoundGarbageRef && GGarbageReferenceTrackingEnabled > 0)
+				{
+					
+					CSV_SCOPED_TIMING_STAT_EXCLUSIVE(GarbageCollectionDebug);
+					SCOPED_NAMED_EVENT(FRealtimeGC_PerformReachabilityAnalysisRerun, FColor::Orange);
+					DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FRealtimeGC::PerformReachabilityAnalysisRerun"), STAT_FArchiveRealtimeGC_PerformReachabilityAnalysisRerun, STATGROUP_GC);
+					const double StartTime = FPlatformTime::Seconds();
+					GC.PerformReachabilityAnalysis(KeepFlags, Options);
+					UE_LOG(LogGarbage, Log, TEXT("%.2f ms for GC rerun to track garbage references (gc.GarbageReferenceTrackingEnabled=%d)"), (FPlatformTime::Seconds() - StartTime) * 1000, GGarbageReferenceTrackingEnabled);
+				}
+			}
+
+
+			FContextPoolScope ContextPool;
+			TConstArrayView<TUniquePtr<FWorkerContext>> AllContexts = ContextPool.PeekFree();
+			// This needs to happen before clusters get dissolved otherwisise cluster information will be missing from history
+			UpdateGCHistory(AllContexts);
+
+			// Reconstruct clusters if needed
+			if (GUObjectClusters.ClustersNeedDissolving())
+			{
+				const double StartTime = FPlatformTime::Seconds();
+				GUObjectClusters.DissolveClusters();
+				UE_LOG(LogGarbage, Log, TEXT("%f ms for dissolving GC clusters"), (FPlatformTime::Seconds() - StartTime) * 1000);
+			}
+
+			DumpGarbageReferencers(AllContexts);
+
+			GatherUnreachableObjects(!(Options & EGCOptions::Parallel));
+
+
+			// This needs to happen after GatherUnreachableObjects since it can mark more objects as unreachable
+			ClearWeakReferences(AllContexts);
+
+			if (bPerformFullPurge)
+			{
+				ContextPool.Cleanup();
+			}
+
+			NotifyUnreachableObjects(GUnreachableObjects);
 		}
-	}
-}
 
-template<bool bPerformFullPurge>
-void PostCollectGarbageImpl(EObjectFlags KeepFlags)
-{
-	using namespace UE::GC::Private;
-
-	if (!GIsIncrementalReachabilityPending)
-	{
-		FContextPoolScope ContextPool;
-		TConstArrayView<TUniquePtr<FWorkerContext>> AllContexts = ContextPool.PeekFree();
-		// This needs to happen before clusters get dissolved otherwisise cluster information will be missing from history
-		UpdateGCHistory(AllContexts);
-
-		// Reconstruct clusters if needed
-		if (GUObjectClusters.ClustersNeedDissolving())
-		{
-			const double StartTime = FPlatformTime::Seconds();
-			GUObjectClusters.DissolveClusters();
-			UE_LOG(LogGarbage, Log, TEXT("%f ms for dissolving GC clusters"), (FPlatformTime::Seconds() - StartTime) * 1000);
-		}
-
-		DumpGarbageReferencers(AllContexts);
-
-		GatherUnreachableObjects(!(GetReferenceCollectorOptions(bPerformFullPurge) & EGCOptions::Parallel));
-
-		// This needs to happen after GatherUnreachableObjects since it can mark more objects as unreachable
-		ClearWeakReferences(AllContexts);
-
-		if (bPerformFullPurge)
-		{
-			ContextPool.Cleanup();
-		}
-	}
-
-	GIsGarbageCollectingAndLockingUObjectHashTables = false;
-	UnlockUObjectHashTables();
-
-	GIsGarbageCollecting = false;
-
-	if (!GIsIncrementalReachabilityPending)
-	{
-		NotifyUnreachableObjects(GUnreachableObjects);
-	}
-
-	// The hash tables lock was released when reachability analysis was done.
-	// BeginDestroy, FinishDestroy, destructors and callbacks are allowed to call functions like StaticAllocateObject and StaticFindObject.
-	// Now release the GC lock to allow async loading and other threads to perform UObject operations under the FGCScopeGuard.
-	ReleaseGCLock();
-
-	if (!GIsIncrementalReachabilityPending)
-	{
-#if VERIFY_DISREGARD_GC_ASSUMPTIONS
-		if (GVerifyNoUnreachableObjects != 0 && GUnreachableObjects.Num() > 0)
-		{
-			DECLARE_SCOPE_CYCLE_COUNTER(TEXT("CollectGarbageInternal.VerifyNoUnreachableObjects"), STAT_CollectGarbageInternal_VerifyNoUnreachableObjects, STATGROUP_GC);
-			VerifyNoUnreachableObjects();
-		}
-#endif // VERIFY_DISREGARD_GC_ASSUMPTIONS
+		// The hash tables lock was released when exiting the reachability analysis scope above.
+		// BeginDestroy, FinishDestroy, destructors and callbacks are allowed to call functions like StaticAllocateObject and StaticFindObject.
+		// Now release the GC lock to allow async loading and other threads to perform UObject operations under the FGCScopeGuard.
+		ReleaseGCLock();
 
 		// Fire post-reachability analysis hooks
 		{
@@ -4930,206 +4742,19 @@ void PostCollectGarbageImpl(EObjectFlags KeepFlags)
 		{
 			FMemory::Trim();
 		}
+	}
 
-		// Route callbacks to verify GC assumptions
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastPostGarbageCollect);
-			FCoreUObjectDelegates::GetPostGarbageCollect().Broadcast();
-		}
+	// Route callbacks to verify GC assumptions
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastPostGarbageCollect);
+		FCoreUObjectDelegates::GetPostGarbageCollect().Broadcast();
 	}
 
 	GTimingInfo.LastGCTime = FPlatformTime::Seconds();
-	STAT_ADD_CUSTOMMESSAGE_NAME(STAT_NamedMarker, TEXT("GarbageCollection - End"));
-}
-
-void FReachabilityAnalysisState::CollectGarbage(EObjectFlags KeepFlags, bool bFullPurge)
-{
-	using namespace UE::GC::Private;
-
-	if (GIsIncrementalReachabilityPending)
-	{
-		// Something triggered a new GC run but we're in the middle of incremental reachability analysis.
-		// Finish the current GC pass (including purging all unreachable objects) and then kick off another GC run as requested
-		bPerformFullPurge = true;
-		PerformReachabilityAnalysisAndConditionallyPurgeGarbage(/*bReachabilityUsingTimeLimit =*/ false);
-
-		checkf(!GIsIncrementalReachabilityPending, TEXT("Flushing incremental reachability analysis did not complete properly"));
-
-		// Need to acquire GC lock again as it was released in PerformReachabilityAnalysisAndConditionallyPurgeGarbage() -> UE::GC::PostCollectGarbageImpl()
-		AcquireGCLock();
-	}
-
-	ObjectKeepFlags = KeepFlags;
-	bPerformFullPurge = bFullPurge;
-
-	const bool bReachabilityUsingTimeLimit = !bFullPurge && GAllowIncrementalReachability;
-	PerformReachabilityAnalysisAndConditionallyPurgeGarbage(bReachabilityUsingTimeLimit);
-}
-
-void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurgeGarbage(bool bReachabilityUsingTimeLimit)
-{
-	using namespace UE::GC::Private;
-
-	LLM_SCOPE(ELLMTag::GC);
-
-	if (bPerformFullPurge)
-	{
-		UE::GC::PreCollectGarbageImpl<true>(ObjectKeepFlags);
-	}
-	else
-	{
-		UE::GC::PreCollectGarbageImpl<false>(ObjectKeepFlags);
-	}	
-	
-	const bool bForceNonIncrementalReachability = 
-		!GIsIncrementalReachabilityPending &&
-		(bPerformFullPurge || !GAllowIncrementalReachability);
-
-	{
-		// When incremental reachability is enabled we start the timer before acquiring GC lock
-		// and here we keep track of reference processing time only
-		const double ReferenceProcessingStartTime = FPlatformTime::Seconds();
-		// When performing the first iteration of reachability analysis start the timer when we actually start processing
-		// iteration as we don't have control over various callbacks being fired in PreCollectGarbageImpl and can't be responsible for any hitches in them
-		if (IterationStartTime == 0.0)
-		{
-			IterationStartTime = ReferenceProcessingStartTime;
-			IterationTimeLimit = bReachabilityUsingTimeLimit ? GIncrementalReachabilityTimeLimit : 0.0;
-		}
-
-		SCOPED_NAMED_EVENT(FRealtimeGC_PerformReachabilityAnalysis, FColor::Red);
-		DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FRealtimeGC::PerformReachabilityAnalysis"), STAT_FArchiveRealtimeGC_PerformReachabilityAnalysis, STATGROUP_GC);
-
-		if (bForceNonIncrementalReachability)
-		{
-			IncrementalMarkPhaseTotalTime = 0.0;
-			ReferenceProcessingTotalTime = 0.0;
-			PerformReachabilityAnalysis();
-		}
-		else
-		{
-			if (!GIsIncrementalReachabilityPending)
-			{
-				UE_LOG(LogGarbage, Log, TEXT("Starting incremental GC"));
-				ReferenceProcessingTotalTime = 0.0;
-				IncrementalMarkPhaseTotalTime = 0.0;
-			}
-			else
-			{
-				UE_LOG(LogGarbage, Log, TEXT("Resuming incremental GC"));
-			}
-
-			PerformReachabilityAnalysis();
-		}
-
-		GIsIncrementalReachabilityPending = GReachabilityState.IsSuspended();
-
-		const double CurrentTime = FPlatformTime::Seconds();
-		const double ReferenceProcessingElapsedTime = CurrentTime - ReferenceProcessingStartTime;
-		const double ElapsedTime = CurrentTime - IterationStartTime;
-		ReferenceProcessingTotalTime += ReferenceProcessingElapsedTime;
-		IncrementalMarkPhaseTotalTime += ElapsedTime;
-
-		if (GIsIncrementalReachabilityPending)
-		{
-			UE_LOG(LogGarbage, Log, TEXT("GC Reachability Analysis iteration time: %f.2 ms (%f.2 ms on reference traversal)"), ElapsedTime * 1000, ReferenceProcessingElapsedTime * 1000);
-			const double SuspendLatency = CurrentTime - (IterationStartTime + IterationTimeLimit);
-			UE_LOG(LogGarbage, Log, TEXT("GC suspend latency: %f ms"), SuspendLatency * 1000.0);
-		}
-		else
-		{
-			const double ReferenceProcessingTotalTimeMs = ReferenceProcessingTotalTime * 1000;
-			const double IncrementalMarkPhaseTotalTimeMs = IncrementalMarkPhaseTotalTime * 1000;			
-			UE_LOG(LogGarbage, Log, TEXT("GC Reachability Analysis total time: %f.2 ms (%f.2 ms on reference traversal)"), IncrementalMarkPhaseTotalTimeMs, ReferenceProcessingTotalTimeMs);
-			UE_LOG(LogGarbage, Log, TEXT("%.2f ms for %sGC - %d refs/ms while processing %d references from %d objects with %d clusters"),
-				IncrementalMarkPhaseTotalTimeMs,
-				bForceNonIncrementalReachability ? TEXT("") : TEXT("Incremental "),
-				(int32)(Stats.NumReferences / ReferenceProcessingTotalTimeMs),
-				Stats.NumReferences, 
-				Stats.NumObjects, 
-				GUObjectClusters.GetNumAllocatedClusters());			
-		}
-
-		// Reset timer and the time limit. These values will be set to their target values in the next iteration but we don't want 
-		// them to be set before the debug reachability run below
-		IterationTimeLimit = 0.0;
-		IterationStartTime = 0.0;
-	}
-
-	if (!GIsIncrementalReachabilityPending && Stats.bFoundGarbageRef && GGarbageReferenceTrackingEnabled > 0)
-	{
-		CSV_SCOPED_TIMING_STAT_EXCLUSIVE(GarbageCollectionDebug);
-		SCOPED_NAMED_EVENT(FRealtimeGC_PerformReachabilityAnalysisRerun, FColor::Orange);
-		DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FRealtimeGC::PerformReachabilityAnalysisRerun"), STAT_FArchiveRealtimeGC_PerformReachabilityAnalysisRerun, STATGROUP_GC);		
-		const double StartTime = FPlatformTime::Seconds();
-		{
-			TGuardValue<bool> GuardReachabilityUsingTimeLimit(bReachabilityUsingTimeLimit, false);
-			FRealtimeGC GC;
-			GC.Stats = Stats; // This is to pass Stats.bFoundGarbageRef to CG
-			GC.PerformReachabilityAnalysis(ObjectKeepFlags, GetReferenceCollectorOptions(bPerformFullPurge));
-		}
-		UE_LOG(LogGarbage, Log, TEXT("%.2f ms for GC rerun to track garbage references (gc.GarbageReferenceTrackingEnabled=%d)"), (FPlatformTime::Seconds() - StartTime) * 1000, GGarbageReferenceTrackingEnabled);
-	}
-	// Maybe purge garbage (if we're done with incremental reachability and there's still time left)
-
-	if (bPerformFullPurge)
-	{
-		UE::GC::PostCollectGarbageImpl<true>(ObjectKeepFlags);
-	}
-	else
-	{
-		UE::GC::PostCollectGarbageImpl<false>(ObjectKeepFlags);
-	}
-}
-
-void FReachabilityAnalysisState::PerformReachabilityAnalysis()
-{
-	if (bPerformFullPurge)
-	{
-		UE::GC::CollectGarbageFull(ObjectKeepFlags);
-	}
-	else
-	{
-		UE::GC::CollectGarbageIncremental(ObjectKeepFlags);
-	}
+	STAT_ADD_CUSTOMMESSAGE_NAME( STAT_NamedMarker, TEXT( "GarbageCollection - End" ) );
 }
 
 } // namespace UE::GC
-
-void SetIncrementalReachabilityAnalysisEnabled(bool bEnabled)
-{
-	GAllowIncrementalReachability = bEnabled;
-}
-
-bool GetIncrementalReachabilityAnalysisEnabled()
-{
-	return !!GAllowIncrementalReachability;
-}
-
-void SetReachabilityAnalysisTimeLimit(float TimeLimitSeconds)
-{
-	GIncrementalReachabilityTimeLimit = TimeLimitSeconds;
-}
-
-float GetReachabilityAnalysisTimeLimit()
-{
-	return GIncrementalReachabilityTimeLimit;
-}
-
-bool IsIncrementalReachabilityAnalysisPending()
-{
-	return UE::GC::Private::GIsIncrementalReachabilityPending;
-}
-
-void PerformIncrementalReachabilityAnalysis()
-{
-	checkf(UE::GC::Private::GIsIncrementalReachabilityPending, TEXT("Incremental reachability must be pending to perform its next iteration"));
-	// When performing Reachability Analysis iterations start the internal timer before acquiring GC lock 
-	// so that we don't spend more time than GIncrementalReachabilityTimeLimit on fully completing an iteration
-	UE::GC::GReachabilityState.StartTimer(GIncrementalReachabilityTimeLimit);
-	AcquireGCLock();	
-	UE::GC::GReachabilityState.PerformReachabilityAnalysisAndConditionallyPurgeGarbage(/*bReachabilityUsingTimeLimit = */ true);
-}
 
 FString FGarbageReferenceInfo::GetReferencingObjectInfo() const
 {
@@ -5262,34 +4887,32 @@ bool TryCollectGarbage(EObjectFlags KeepFlags, bool bPerformFullPurge)
 		return false;
 	}
 
-	// No other thread may be performing UObject operations while we're running so try to acquire GC lock
-	if (UE::GC::Private::GIsIncrementalReachabilityPending)
-	{
-		// Since we're already in the middle of a previous GC acquire GC lock even if it means we have to block main thread
-		AcquireGCLock();
-	}	
-	else if (!FGCCSyncObject::Get().TryGCLock())
+	// No other thread may be performing UObject operations while we're running
+	bool bCanRunGC = FGCCSyncObject::Get().TryGCLock();
+	if (!bCanRunGC)
 	{
 		if (GNumRetriesBeforeForcingGC > 0 && GNumAttemptsSinceLastGC > GNumRetriesBeforeForcingGC)
 		{
-			// Force acquire GC lock and block main thread		
+			// Force GC and block main thread			
 			UE_LOG(LogGarbage, Warning, TEXT("TryCollectGarbage: forcing GC after %d skipped attempts."), GNumAttemptsSinceLastGC);
 			GNumAttemptsSinceLastGC = 0;
 			AcquireGCLock();
-		}
-		else
-		{
-			++GNumAttemptsSinceLastGC;
-			return false;
+			bCanRunGC = true;
 		}
 	}
+	if (bCanRunGC)
+	{ 
+		// Perform actual garbage collection
+		UE::GC::CollectGarbageInternal(KeepFlags, bPerformFullPurge);
 
-	// Perform actual garbage collection
-	UE::GC::CollectGarbageInternal(KeepFlags, bPerformFullPurge);
+		// GC lock was released after reachability analysis inside CollectGarbageInternal
+	}
+	else
+	{
+		GNumAttemptsSinceLastGC++;
+	}
 
-	// GC lock was released after reachability analysis inside CollectGarbageInternal
-
-	return true;
+	return bCanRunGC;
 }
 
 void UObject::CallAddReferencedObjects(FReferenceCollector& Collector)
@@ -5305,23 +4928,6 @@ void UObject::AddReferencedObjects(UObject*, FReferenceCollector&)
 bool UObject::IsDestructionThreadSafe() const
 {
 	return false;
-}
-
-void UObject::MarkAsReachable() const
-{	
-	using namespace UE::GC::Private;
-
-	FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(const_cast<UObject*>(this));
-	if (ObjectItem->IsMaybeUnreachable())
-	{
-		checkf(GIsIncrementalReachabilityPending, TEXT("%s is marked as MaybeUnreachable but Incremental Reachability Analysis is not in progress"), *GetFullName());
-		if (ObjectItem->ThisThreadAtomicallyClearedMaybeUnreachable())
-		{
-			// This object became reachable so add it to a list of new objects to process in the next iteration of incremental GC because
-			// we need to mark objects it's referencing as reachable too
-			GReachableObjects.Push(const_cast<UObject*>(this));
-		}
-	}
 }
 
 /*-----------------------------------------------------------------------------
@@ -5831,11 +5437,6 @@ public:
 		return false;
 	}
 
-	void Suspend()
-	{
-		++NumStopped;
-	}
-
 	FORCENOINLINE void SpinUntilAllStopped()
 	{
 		while (NumStopped.load() < Contexts.Num())
@@ -5845,13 +5446,7 @@ public:
 	}
 };
 
-void SuspendWork(FWorkerContext& Context)
-{
-	Context.bIsSuspended = true;
-	Context.Coordinator->Suspend();
-}
-
-ELoot StealWork(FWorkerContext& Context, FReferenceCollector& Collector, FWorkBlock*& OutBlock, EGCOptions Options)
+ELoot StealWork(FWorkerContext& Context, FReferenceCollector& Collector, FWorkBlock*& OutBlock)
 {
 	FWorkBlockifier& RemainingObjects = Context.ObjectsToSerialize;
 	FWorkCoordinator& Tailspin = *Context.Coordinator;
@@ -5864,32 +5459,22 @@ ELoot StealWork(FWorkerContext& Context, FReferenceCollector& Collector, FWorkBl
 	{
 		return ELoot::ARO;
 	}
-	else if (!(Options & EGCOptions::IncrementalReachability))
+	else if (FWorkerContext* StolenContext = Tailspin.StealContext())
 	{
-		if (FWorkerContext* StolenContext = Tailspin.StealContext())
-		{
-			Context.InitialNativeReferences = StolenContext->InitialNativeReferences;
-			Context.SetInitialObjectsPrepadded(StolenContext->GetInitialObjects());
-			return ELoot::Context;
-		}
+		Context.InitialNativeReferences = StolenContext->InitialNativeReferences;
+		Context.SetInitialObjectsPrepadded(StolenContext->GetInitialObjects());
+		return ELoot::Context;
 	}
-	if (Tailspin.ReportOutOfWork())
+	else if (Tailspin.ReportOutOfWork())
 	{
 		while (Tailspin.KeepSpinning())
 		{
 			FPlatformProcess::Yield();
-
 			OutBlock = RemainingObjects.StealFullBlock();
 			if (OutBlock || FSlowARO::ProcessAllCalls(Context, Collector))
 			{
 				Tailspin.ReportBackToWork();
 				return OutBlock ? ELoot::Block : ELoot::ARO;
-			}
-
-			if (GReachabilityState.IsTimeLimitExceeded())
-			{
-				SuspendWork(Context);
-				break;
 			}
 		}
 	}
@@ -5897,10 +5482,8 @@ ELoot StealWork(FWorkerContext& Context, FReferenceCollector& Collector, FWorkBl
 	return ELoot::Nothing;
 }
 
-TArrayView<FWorkerContext*> InitializeAsyncProcessingContexts(FWorkerContext& InContext)
+void ProcessAsync(void (*ProcessSync)(void*, FWorkerContext&), void* Processor, FWorkerContext& InContext)
 {
-	FContextPoolScope ContextPool;
-
 	checkf(InContext.ObjectsToSerialize.IsUnused(), TEXT("Use InitialObjects instead, ObjectsToSerialize.Add() may only be called during reference processing"));
 	check(InContext.Stats.NumObjects == 0 && InContext.Stats.NumReferences == 0 && InContext.Stats.bFoundGarbageRef == false);
 
@@ -5909,24 +5492,24 @@ TArrayView<FWorkerContext*> InitializeAsyncProcessingContexts(FWorkerContext& In
 
 	int32 NumTaskgraphWorkers = FTaskGraphInterface::Get().GetNumWorkerThreads();
 	const int32 NumWorkers = FMath::Clamp(NumTaskgraphWorkers, 1, MaxWorkers);
-	const int32 ObjPerWorker = (InitialObjects.Num() + NumWorkers - 1) / NumWorkers;
-	const int32 RefPerWorker = (InitialReferences.Num() + NumWorkers - 1) / NumWorkers;
+	const int32 ObjPerWorker =  (InitialObjects.Num() + NumWorkers - 1) / NumWorkers;
+	const int32 RefPerWorker =  (InitialReferences.Num() + NumWorkers - 1) / NumWorkers;
 
-	GReachabilityState.InitReachabilityAnalysis(NumWorkers);
-
-	// Allocate contexts	
+	// Allocate contexts
+	FContextPoolScope ContextPool;
 	checkf(ContextPool.NumAllocated() == 1, TEXT("Other contexts forbidden during parallel reference collection. Work-stealing from all live contexts. "));
-
-	TArrayView<FWorkerContext*> Contexts = MakeArrayView(GReachabilityState.GetContextArray(), GReachabilityState.GetNumWorkers());
+	
+	FWorkerContext* ContextArray[MaxWorkers];
+	TArrayView<FWorkerContext*> Contexts = MakeArrayView(ContextArray, NumWorkers);
 	Contexts[0] = &InContext;
 	for (FWorkerContext*& Context : Contexts.RightChop(1))
 	{
 		Context = ContextPool.AllocateFromPool();
 	}
 
-	GSlowARO.GetPostInit().SetupWorkerQueues(NumWorkers);
-
 	// Setup work-stealing queues and distribute initial workload across worker contexts
+	TSharedRef<FWorkCoordinator> Coordinator = MakeShared<FWorkCoordinator>(Contexts, NumTaskgraphWorkers);
+	GSlowARO.GetPostInit().SetupWorkerQueues(NumWorkers);
 	for (FWorkerContext* Context : Contexts)
 	{
 		int32 Idx = Context->GetWorkerIndex();
@@ -5935,62 +5518,15 @@ TArrayView<FWorkerContext*> InitializeAsyncProcessingContexts(FWorkerContext& In
 		// Initial objects is already padded at the end and its safe to prefetch in the middle too
 		Context->SetInitialObjectsPrepadded(InitialObjects.Mid(Idx * ObjPerWorker, ObjPerWorker));
 		Context->InitialNativeReferences = InitialReferences.Mid(Idx * RefPerWorker, RefPerWorker);
-		checkf(!Context->IncrementalStructs.ContainsBatchData(), TEXT("Reachability analysis is done but worker context holds suspended dispatcher state"));
-	}
-
-	return Contexts;
-}
-
-void ReleaseAsyncProcessingContexts(FWorkerContext& InContext, TArrayView<FWorkerContext*> Contexts)
-{
-	FContextPoolScope ContextPool;
-
-	// Tear down contexts and work-stealing queues
-	for (FWorkerContext* Context : Contexts)
-	{
-		Context->Coordinator = nullptr;
-		GWorkstealingManager.Queues[Context->GetWorkerIndex()].CheckEmpty();
-		Context->ObjectsToSerialize.ResetAsyncQueue();
-	}
-
-	GSlowARO.GetPostInit().ResetWorkerQueues();
-
-	for (FWorkerContext* Context : Contexts.RightChop(1))
-	{
-		InContext.Stats.AddStats(Context->Stats);
-		ContextPool.ReturnToPool(Context);
-	}
-
-	GReachabilityState.FinishReachabilityAnalysis();
-}
-
-void ProcessAsync(void (*ProcessSync)(void*, FWorkerContext&), void* Processor, FWorkerContext& InContext)
-{
-	using namespace UE::GC;
-
-	TArrayView<FWorkerContext*> Contexts;
-	if (!GReachabilityState.IsSuspended())
-	{
-		Contexts = InitializeAsyncProcessingContexts(InContext);
-	}
-	else
-	{
-		Contexts = MakeArrayView(GReachabilityState.GetContextArray(), GReachabilityState.GetNumWorkers());
+		Context->Coordinator = &Coordinator.Get();
 	}
 	
-	TSharedRef<FWorkCoordinator> WorkCoordinator = MakeShared<FWorkCoordinator>(Contexts, FTaskGraphInterface::Get().GetNumWorkerThreads());
-	for (FWorkerContext* Context : Contexts)
-	{
-		Context->bIsSuspended = false;
-		Context->Coordinator = &WorkCoordinator.Get();
-	}
-
 	// Kick workers
-	for (int32 Idx = 1; Idx < GReachabilityState.GetNumWorkers(); ++Idx)
+	for (int32 Idx = 1; Idx < NumWorkers; ++Idx)
 	{
 		Tasks::Launch(TEXT("CollectReferences"), [=]() 
 			{
-				if (FWorkerContext* Context = WorkCoordinator->TryStartWorking(Idx))
+				if (FWorkerContext* Context = Coordinator->TryStartWorking(Idx))
 				{
 					ProcessSync(Processor, *Context);
 				}
@@ -5998,25 +5534,31 @@ void ProcessAsync(void (*ProcessSync)(void*, FWorkerContext&), void* Processor, 
 	}
 
 	// Start working ourselves
-	if (FWorkerContext* Context = WorkCoordinator->TryStartWorking(0))
+	if (FWorkerContext* Context = Coordinator->TryStartWorking(0))
 	{
 		ProcessSync(Processor, *Context);
 	}
 
 	// Wait until all work is complete. Current thread can steal and complete everything 
 	// alone if task workers are busy with long-running tasks.
-	WorkCoordinator->SpinUntilAllStopped();
+	Coordinator->SpinUntilAllStopped();
 
-	// Reset initial object sets so that we don't process again them in the next iteration or when we're done processing references
+	// Tear down contexts and work-stealing queues
 	for (FWorkerContext* Context : Contexts)
 	{
-		Context->ResetInitialObjects();
+		Context->Coordinator = nullptr;
 		Context->InitialNativeReferences = TConstArrayView<UObject**>();
+		Context->ResetInitialObjects();
+		GWorkstealingManager.Queues[Context->GetWorkerIndex()].CheckEmpty();
+		Context->ObjectsToSerialize.ResetAsyncQueue();
 	}
+	
+	GSlowARO.GetPostInit().ResetWorkerQueues();
 
-	if (!GReachabilityState.CheckIfAnyContextIsSuspended())
+	for (FWorkerContext* Context : Contexts.RightChop(1))
 	{
-		ReleaseAsyncProcessingContexts(InContext, Contexts);		
+		InContext.Stats.AddStats(Context->Stats);
+		ContextPool.ReturnToPool(Context);
 	}
 }
 

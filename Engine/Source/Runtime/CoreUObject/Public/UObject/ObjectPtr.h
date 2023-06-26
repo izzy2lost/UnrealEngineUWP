@@ -17,10 +17,6 @@
 	#define UE_OBJPTR_DEPRECATED(Version, Message) 
 #endif
 
-#ifndef UE_OBJECT_PTR_GC_BARRIER
-	#define UE_OBJECT_PTR_GC_BARRIER 0
-#endif
-
 /** 
  * Wrapper macro for use in places where code needs to allow for a pointer type that could be a TObjectPtr<T> or a raw object pointer during a transitional period.
  * The coding standard disallows general use of the auto keyword, but in wrapping it in this macro, we have a record
@@ -102,45 +98,13 @@ public:
 		return UE::CoreUObject::Private::ResolveObjectHandleClass(Handle);
 	}
 
-
-#if UE_OBJECT_PTR_GC_BARRIER
-	FObjectPtr(FObjectPtr&& InOther)
-		: Handle(MoveTemp(InOther.Handle))
-	{
-		ConditionallyMarkAsReachable(*this);
-	}
-
-	FObjectPtr(const FObjectPtr& InOther)
-		: Handle(InOther.Handle)
-	{
-		ConditionallyMarkAsReachable(*this);
-	}
-
-	FObjectPtr& operator=(FObjectPtr&& InOther)
-	{
-		ConditionallyMarkAsReachable(InOther);
-		Handle = MoveTemp(InOther.Handle);
-		return *this;
-	}
-
-	FObjectPtr& operator=(const FObjectPtr& InOther)
-	{
-		ConditionallyMarkAsReachable(InOther);
-		Handle = InOther.Handle;
-		return *this;
-	}
-#else
 	FObjectPtr(FObjectPtr&&) = default;
 	FObjectPtr(const FObjectPtr&) = default;
 	FObjectPtr& operator=(FObjectPtr&&) = default;
 	FObjectPtr& operator=(const FObjectPtr&) = default;
-#endif // UE_OBJECT_PTR_GC_BARRIER
 
 	FObjectPtr& operator=(UObject* Other)
 	{
-#if UE_OBJECT_PTR_GC_BARRIER
-		ConditionallyMarkAsReachable(Other);
-#endif // UE_OBJECT_PTR_GC_BARRIER
 		Handle = UE::CoreUObject::Private::MakeObjectHandle(Other);
 		return *this;
 	}
@@ -271,26 +235,6 @@ private:
 		// is an odd/uneven number, that means the object reference is unresolved and you will not be able to dereference it successfully.
 		UObject* DebugPtr;
 	};
-
-#if UE_OBJECT_PTR_GC_BARRIER
-	FORCEINLINE void ConditionallyMarkAsReachable(const FObjectPtr& InPtr) const
-	{
-		if (UE::GC::Private::GIsIncrementalReachabilityPending && InPtr.IsResolved())
-		{
-			if (UObject* Obj = UE::CoreUObject::Private::ReadObjectHandlePointerNoCheck(InPtr.GetHandleRef()))
-			{
-				Obj->MarkAsReachable();
-			}
-		}
-	}
-	FORCEINLINE void ConditionallyMarkAsReachable(const UObject* InObj) const
-	{
-		if (UE::GC::Private::GIsIncrementalReachabilityPending && InObj)
-		{
-			InObj->MarkAsReachable();
-		}
-	}
-#endif // UE_OBJECT_PTR_GC_BARRIER
 };
 
 template <typename T>
@@ -421,19 +365,8 @@ public:
 	{
 	}
 
-#if UE_OBJECT_PTR_GC_BARRIER
-	TObjectPtr(TObjectPtr<T>&& Other)
-		: ObjectPtr(MoveTemp(Other.ObjectPtr))
-	{
-	}
-	TObjectPtr(const TObjectPtr<T>& Other)
-		: ObjectPtr(Other.ObjectPtr)
-	{
-	}
-#else
 	TObjectPtr(TObjectPtr<T>&& Other) = default;
 	TObjectPtr(const TObjectPtr<T>& Other) = default;
-#endif // UE_OBJECT_PTR_GC_BARRIER
 
 	explicit FORCEINLINE TObjectPtr(ENoInit)
 		: ObjectPtr(NoInit)
@@ -482,21 +415,8 @@ public:
 	{
 	}
 
-#if UE_OBJECT_PTR_GC_BARRIER
-	TObjectPtr<T>& operator=(TObjectPtr<T>&& Other)
-	{
-		ObjectPtr = MoveTemp(Other.ObjectPtr);
-		return *this;
-	}
-	TObjectPtr<T>& operator=(const TObjectPtr<T>& Other)
-	{
-		ObjectPtr = Other.ObjectPtr;
-		return *this;
-	}
-#else
 	TObjectPtr<T>& operator=(TObjectPtr<T>&&) = default;
 	TObjectPtr<T>& operator=(const TObjectPtr<T>&) = default;
-#endif // UE_OBJECT_PTR_GC_BARRIER
 
 	FORCEINLINE TObjectPtr<T>& operator=(TYPE_OF_NULLPTR)
 	{
@@ -1003,7 +923,7 @@ struct TIsZeroConstructType<TObjectPtr<T>>
 template <typename T>
 struct TIsBitwiseConstructible<TObjectPtr<T>, T*>
 {
-	enum { Value = !UE_OBJECT_PTR_GC_BARRIER };
+	enum { Value = true };
 };
 
 template <typename T, class PREDICATE_CLASS>
@@ -1298,12 +1218,7 @@ namespace UE::Core::Private // private facilities; not for direct use
 	{
 		static void Close(ViewType& View)
 		{
-#if UE_OBJECT_PTR_GC_BARRIER
-			if (UE::GC::Private::GIsIncrementalReachabilityPending && View)
-			{
-				View->MarkAsReachable();
-			}
-#endif // UE_OBJECT_PTR_GC_BARRIER
+			// TODO: Run GC barrier here
 		}
 	};
 	
@@ -1312,19 +1227,8 @@ namespace UE::Core::Private // private facilities; not for direct use
 	{
 		static void Close(ViewType& View)
 		{
-#if UE_OBJECT_PTR_GC_BARRIER
-			if (UE::GC::Private::GIsIncrementalReachabilityPending)
-			{
-				const UObject* const* Data = reinterpret_cast<const UObject* const*>(View.GetData());
-				for (int32 Index = 0; Index < View.Num(); ++Index)
-				{
-					if (Data[Index])
-					{
-						Data[Index]->MarkAsReachable();
-					}
-				}
-			}
-#endif // UE_OBJECT_PTR_GC_BARRIER
+			// TODO: reenable this once GC Barriers merge
+			//RunGCBarriers(reinterpret_cast<const UObject* const*>(View.GetData()), View.Num());
 		}
 	};
 

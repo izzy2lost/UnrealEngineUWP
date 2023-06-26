@@ -1310,11 +1310,6 @@ UObject* StaticLoadObjectInternal(UClass* ObjectClass, UObject* InOuter, const T
 				UObjectRedirector* Redirector = FindObjectFast<UObjectRedirector>(InOuter, *StrName);
 				if (Redirector && Redirector->DestinationObject && Redirector->DestinationObject->IsA(ObjectClass ? ObjectClass : UObject::StaticClass()))
 				{
-					if (UE::GC::Private::GIsIncrementalReachabilityPending)
-					{
-						Redirector->MarkAsReachable();
-						Redirector->DestinationObject->MarkAsReachable();
-					}
 					return Redirector->DestinationObject;
 				}
 			}
@@ -1337,10 +1332,6 @@ UObject* StaticLoadObjectInternal(UClass* ObjectClass, UObject* InOuter, const T
 	}
 #endif
 
-	if (Result && UE::GC::Private::GIsIncrementalReachabilityPending)
-	{
-		Result->MarkAsReachable();
-	}
 	return Result;
 }
 

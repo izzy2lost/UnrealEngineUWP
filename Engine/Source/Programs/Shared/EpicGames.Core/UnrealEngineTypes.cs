@@ -648,11 +648,6 @@ namespace EpicGames.Core
 		//~ All the other bits are reserved, DO NOT ADD NEW FLAGS HERE!
 
 		/// <summary>
-		/// Flag set on all non-root objects at the beginning of Reachability Analysis
-		/// </summary>
-		MaybeUnreachable = 1 << 19,
-
-		/// <summary>
 		/// Object is ready to be imported by another package during loading
 		/// </summary>
 		LoaderImport = 1 << 20,
@@ -710,7 +705,7 @@ namespace EpicGames.Core
 		GarbageCollectionKeepFlags = Native | Async | AsyncLoading | LoaderImport,
 
 		//~ Make sure this is up to date!
-		AllFlags = MaybeUnreachable | LoaderImport | Garbage | ReachableInCluster | ClusterRoot | Native | Async | AsyncLoading | Unreachable | PendingKill | RootSet | PendingConstruction
+		AllFlags = LoaderImport | Garbage | ReachableInCluster | ClusterRoot | Native | Async | AsyncLoading | Unreachable | PendingKill | RootSet | PendingConstruction
 	};
 
 	/// <summary>

@@ -17,45 +17,17 @@
 
 static void GenerateReachabilityStressData(int Levels, UObjectReachabilityStressData* Data);
 
-static int32 CanAllocateMoreUObjects()
+UObjectReachabilityStressData* GenerateReachabilityStressData()
 {
-	const int32 MinAvailableObjectCount = 64 * 1024;
-	return GUObjectArray.GetObjectArrayEstimatedAvailable() >= MinAvailableObjectCount;
-}
-
-static UObjectReachabilityStressData* ConditionallyAllocateNewStressDataObject()
-{
-	if (CanAllocateMoreUObjects())
-	{
-		return NewObject<UObjectReachabilityStressData>();
-	}
-	return nullptr;
-}
-
-void GenerateReachabilityStressData(TArray<UObjectReachabilityStressData*>& Data)
-{
-	// Roughly NumRootObjects * 2^SubLevels of objects
-	const int32 NumRootObjects = 50;
-	const int32 SubLevels = 13;
-
-	for (int32 Index = 0; Index < NumRootObjects; ++Index)
-	{
-		UObjectReachabilityStressData* RootData = ConditionallyAllocateNewStressDataObject();
-		if (RootData)
-		{
-			Data.Add(RootData);
-			RootData->AddToRoot();
-			GenerateReachabilityStressData(SubLevels, RootData);
-		}
-		else
-		{
-			break;
-		}
-	}
+	UObjectReachabilityStressData* Data = NewObject<UObjectReachabilityStressData>();
+	GenerateReachabilityStressData(20, Data);
+	return Data;
 }
 
 static void GenerateReachabilityStressData(int Levels, UObjectReachabilityStressData* Data)
 {
+	Data->AddToRoot();
+
 	if (Levels == 0)
 	{
 		return;
@@ -64,24 +36,18 @@ static void GenerateReachabilityStressData(int Levels, UObjectReachabilityStress
 	const int N = 2;
 	for (int I = 0; I < N; ++I)
 	{
-		UObjectReachabilityStressData* Child = ConditionallyAllocateNewStressDataObject();
-		if (Child)
-		{
-			GenerateReachabilityStressData(Levels - 1, Child);
-			Data->Children.Add(Child);
-		}
-		else
-		{
-			break;
-		}
+		UObjectReachabilityStressData* Child = NewObject<UObjectReachabilityStressData>();
+		GenerateReachabilityStressData(Levels - 1, Child);
+		Data->Children.Add(Child);
 	}
 }
 
-void UnlinkReachabilityStressData(TArray<UObjectReachabilityStressData*>& Data)
+void UnlinkReachabilityStressData(UObjectReachabilityStressData* Data)
 {
-	for (UObjectReachabilityStressData* RootData : Data)
+	Data->RemoveFromRoot();
+	for (const auto Child : Data->Children)
 	{
-		RootData->RemoveFromRoot();
+		UnlinkReachabilityStressData(Child);
 	}
 }
 

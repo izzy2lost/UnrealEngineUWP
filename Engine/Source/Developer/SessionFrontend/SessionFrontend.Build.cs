@@ -11,7 +11,6 @@ public class SessionFrontend : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
-				"CoreUObject",
 				"Slate",
 			}
 		);
