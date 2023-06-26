@@ -23,66 +23,56 @@ struct TNetRewindHistory : public Chaos::TDatasRewindHistory<DatasType>
 {
 	using Super = Chaos::TDatasRewindHistory<DatasType>;
 
-	FORCEINLINE TNetRewindHistory(const int32 FrameCount, const bool bIsHistoryLocal, UPackageMap* InPackageMap) :
+	FORCEINLINE TNetRewindHistory(const int32 FrameCount, const bool bIsHistoryLocal) :
 		Super(FrameCount, bIsHistoryLocal)
 	{
-		DatasWriter.SetAllowResize(true);
-		SetPackageMap(InPackageMap);
 	}
 
 	FORCEINLINE virtual ~TNetRewindHistory() {}
 
-	/** Set the package map for serialization */
-	FORCEINLINE virtual void SetPackageMap(class UPackageMap* InPackageMap) override
+	virtual TUniquePtr<Chaos::FBaseRewindHistory> CreateNew() const
 	{
-		PackageMap = InPackageMap;
+		TUniquePtr<TNetRewindHistory> Copy = MakeUnique<TNetRewindHistory>(0, Super::bIsLocalHistory);
 
-		DatasWriter.PackageMap = PackageMap;
-		DatasReader.PackageMap = PackageMap;
+		return Copy;
 	}
 
-	/** Serialize the datas to the archive */
-	FORCEINLINE virtual void SerializeDatas(const uint32 StartFrame, const uint32 EndFrame, TArray<uint8>& ArchiveDatas, const int32 FrameOffset) const override
+	virtual TUniquePtr<Chaos::FBaseRewindHistory> Clone() const
 	{
-		if (FrameOffset >= 0)
+		return MakeUnique<TNetRewindHistory>(*this);
+	}
+
+	virtual TUniquePtr<Chaos::FBaseRewindHistory> CopyFramesWithOffset(const uint32 StartFrame, const uint32 EndFrame, const int32 FrameOffset) override
+	{
+		uint32 FramesCount = (uint32)Super::NumValidDatas(StartFrame, EndFrame);
+			
+		TUniquePtr<TNetRewindHistory> Copy = MakeUnique<TNetRewindHistory>(FramesCount, Super::bIsLocalHistory);
+
+		DatasType FrameDatas;
+		for (uint32 FrameIndex = StartFrame; FrameIndex < EndFrame; ++FrameIndex)
 		{
-			DatasWriter.Reset();
-
-			uint32 FramesCount = (uint32)Super::NumValidDatas(StartFrame, EndFrame);
-			DatasWriter << FramesCount;
-
-			DatasType FrameDatas;
-			for (uint32 FrameIndex = StartFrame; FrameIndex < EndFrame; ++FrameIndex)
+			const int32 LocalFrame = FrameIndex % Super::NumFrames;
+			if (FrameIndex == Super::DatasArray[LocalFrame].LocalFrame)
 			{
-				const int32 LocalFrame = FrameIndex % Super::NumFrames;
-				if (FrameIndex == Super::DatasArray[LocalFrame].LocalFrame)
-				{
-					FrameDatas = Super::DatasArray[LocalFrame];
-					FrameDatas.ServerFrame = FrameDatas.LocalFrame + FrameOffset;
-					NetSerializeDatas(FrameDatas, DatasWriter);
-				}
+				FrameDatas = Super::DatasArray[LocalFrame];
+				FrameDatas.ServerFrame = FrameDatas.LocalFrame + FrameOffset;
+				Copy->RecordDatas(LocalFrame, &FrameDatas);
 			}
-
-			ArchiveDatas = *DatasWriter.GetBuffer();
 		}
+
+		return Copy;
 	}
 
-	/** Deserialize the datas from the archive */
-	FORCEINLINE virtual void DeserializeDatas(const TArray<uint8>& ArchiveDatas, const int32 FrameOffset) override
+	virtual void ReceiveNewDatas(Chaos::FBaseRewindHistory& NewDatas, const int32 FrameOffset) override
 	{
-		if ((FrameOffset >= 0) && !ArchiveDatas.IsEmpty())
+		TNetRewindHistory& NetNewDatas = static_cast<TNetRewindHistory&>(NewDatas);
+
+		if ((FrameOffset >= 0) && NetNewDatas.NumFrames > 0)
 		{
-			// TODO : temporary copy since the archive datas are const
-			TArray<uint8> LocalDatas = ArchiveDatas;
-			DatasReader.SetData(LocalDatas.GetData(), ArchiveDatas.Num() * 8);
-
-			uint32 FramesCount = 0;
-			DatasReader << FramesCount;
-
-			DatasType FrameDatas;
-			for (uint32 FrameIndex = 0; FrameIndex < FramesCount; ++FrameIndex)
+			for (int32 FrameIndex = 0; FrameIndex < NetNewDatas.NumFrames; ++FrameIndex)
 			{
-				NetSerializeDatas(FrameDatas, DatasReader);
+				DatasType& FrameDatas = NetNewDatas.DatasArray[FrameIndex];
+
 				FrameDatas.LocalFrame = FrameDatas.ServerFrame - FrameOffset;
 				if (FrameDatas.LocalFrame >= 0)
 				{
@@ -92,26 +82,43 @@ struct TNetRewindHistory : public Chaos::TDatasRewindHistory<DatasType>
 		}
 	}
 
-	/** Debug the datas from the archive */
-	FORCEINLINE virtual void DebugDatas(const TArray<uint8>& ArchiveDatas, TArray<int32>& LocalFrames, TArray<int32>& ServerFrames, TArray<int32>& InputFrames) override
+	virtual void NetSerialize(FArchive& Ar, UPackageMap* InPackageMap) override
 	{
-		if((PackageMap != nullptr) && !ArchiveDatas.IsEmpty())
+		Ar << Super::NumFrames;
+		
+		if (Super::NumFrames > GetMaxArraySize())
 		{
-			// TODO : temporary copy since the archive datas are const
-			TArray<uint8> LocalDatas = ArchiveDatas;
-			DatasReader.SetData(LocalDatas.GetData(), ArchiveDatas.Num() * 8);
+			UE_LOG(LogPhysics, Warning, TEXT("TNetRewindHistory: serialized array of size %d exceeds maximum size %d."), Super::NumFrames, GetMaxArraySize());
+			Ar.SetError();
+			return;
+		}
 
-			uint32 FramesCount = 0;
-			DatasReader << FramesCount;
+		if (Ar.IsLoading())
+		{
+			Super::DatasArray.SetNum(Super::NumFrames);
+		}
 
-			LocalFrames.SetNum(FramesCount);
-			ServerFrames.SetNum(FramesCount);
-			InputFrames.SetNum(FramesCount);
+		for (DatasType& Data : Super::DatasArray)
+		{
+			NetSerializeDatas(Data, Ar, InPackageMap);
+		}
+	}
+
+	/** Debug the datas from the archive */
+	FORCEINLINE virtual void DebugDatas(const Chaos::FBaseRewindHistory& NewDatas, TArray<int32>& LocalFrames, TArray<int32>& ServerFrames, TArray<int32>& InputFrames) override
+	{
+		const TNetRewindHistory& NewNetDatas = static_cast<const TNetRewindHistory&>(NewDatas);
+
+		if(NewNetDatas.NumFrames >= 0)
+		{
+			LocalFrames.SetNum(NewNetDatas.NumFrames);
+			ServerFrames.SetNum(NewNetDatas.NumFrames);
+			InputFrames.SetNum(NewNetDatas.NumFrames);
 
 			DatasType FrameDatas;
-			for (uint32 FrameIndex = 0; FrameIndex < FramesCount; ++FrameIndex)
+			for (int32 FrameIndex = 0; FrameIndex < NewNetDatas.NumFrames; ++FrameIndex)
 			{
-				NetSerializeDatas(FrameDatas, DatasReader);
+				FrameDatas = NewNetDatas.DatasArray[FrameIndex];
 				LocalFrames[FrameIndex] = FrameDatas.LocalFrame;
 				ServerFrames[FrameIndex] = FrameDatas.ServerFrame;
 				InputFrames[FrameIndex] = FrameDatas.InputFrame;
@@ -121,8 +128,15 @@ struct TNetRewindHistory : public Chaos::TDatasRewindHistory<DatasType>
 
 private :
 
+	/** Serialized array size limit to guard against invalid network data */
+	static int32 GetMaxArraySize()
+	{
+		static int32 MaxArraySize = UPhysicsSettings::Get()->GetPhysicsHistoryCount() * 4;
+		return MaxArraySize;
+	}
+
 	/** Use net serialize path to serialize datas  */
-	FORCEINLINE bool NetSerializeDatas(DatasType& FrameDatas, FBitArchive& Ar) const 
+	FORCEINLINE bool NetSerializeDatas(DatasType& FrameDatas, FArchive& Ar, UPackageMap* PackageMap) const 
 	{
 		bool bOutSuccess = false;
 		UScriptStruct* ScriptStruct = DatasType::StaticStruct();
@@ -149,15 +163,73 @@ private :
 		}
 		return bOutSuccess;
 	}
+};
 
-	// Datas bits writer to be used for serialization
-	mutable FNetBitWriter DatasWriter;
+/**
+ * Base struct for replicated rewind history properties
+ */
+USTRUCT()
+struct FNetworkPhysicsRewindDataProxy
+{
+	GENERATED_BODY()
 
-	// Datas bits reader to be used for serialization
-	mutable FNetBitReader DatasReader;
+	FNetworkPhysicsRewindDataProxy& operator=(const FNetworkPhysicsRewindDataProxy& Other);
 
-	// Package map used for the net bit writer/reader
-	UPackageMap* PackageMap = nullptr;
+	/** Causes the history to be serialized every time. If implemented, would prevent serializing if the history hasn't changed. */
+	bool operator==(const FNetworkPhysicsRewindDataProxy& Other) const { return false; }
+
+protected:
+	bool NetSerializeBase(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess, TUniqueFunction<TUniquePtr<Chaos::FBaseRewindHistory>()> CreateHistoryFunction);
+
+public:
+	/** The history to be serialized */
+	TUniquePtr<Chaos::FBaseRewindHistory> History;
+
+	/** Component that utilizes this data */
+	UPROPERTY()
+	TObjectPtr<UNetworkPhysicsComponent> Owner = nullptr;
+};
+
+/**
+ * Struct suitable for use as a replicated property to replicate input rewind history
+ */
+USTRUCT()
+struct FNetworkPhysicsRewindDataInputProxy : public FNetworkPhysicsRewindDataProxy
+{
+	GENERATED_BODY()
+		
+	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
+};
+
+template<>
+struct TStructOpsTypeTraits<FNetworkPhysicsRewindDataInputProxy> : public TStructOpsTypeTraitsBase2<FNetworkPhysicsRewindDataInputProxy>
+{
+	enum
+	{
+		WithNetSerializer = true,
+		WithIdenticalViaEquality = true
+	};
+};
+
+/**
+ * Struct suitable for use as a replicated property to replicate state rewind history
+ */
+USTRUCT()
+struct FNetworkPhysicsRewindDataStateProxy : public FNetworkPhysicsRewindDataProxy
+{
+	GENERATED_BODY()
+
+	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
+};
+
+template<>
+struct TStructOpsTypeTraits<FNetworkPhysicsRewindDataStateProxy> : public TStructOpsTypeTraitsBase2<FNetworkPhysicsRewindDataStateProxy>
+{
+	enum
+	{
+		WithNetSerializer = true,
+		WithIdenticalViaEquality = true
+	};
 };
 
 /**
@@ -306,8 +378,8 @@ public:
 	ENGINE_API void InitPhysics();
 
 	// Server RPC to receive inputs from client
-	UFUNCTION(Server, unreliable, WithValidation)
-	ENGINE_API void ServerReceiveInputsDatas(const TArray<uint8>& ClientInputs);
+	UFUNCTION(Server, unreliable)
+	ENGINE_API void ServerReceiveInputsDatas(const FNetworkPhysicsRewindDataInputProxy& ClientInputs);
 
 	// Async physics tick component function per frame from the solver
 	ENGINE_API virtual void AsyncPhysicsTickComponent(float DeltaTime, float SimTime) override;
@@ -363,9 +435,6 @@ public:
 
 protected : 
 
-	// Update the histories packagemap for serialization 
-	ENGINE_API void UpdatePackageMap();
-
 	// repnotify for the inputs on the client
 	UFUNCTION()
 	ENGINE_API void OnRep_SetReplicatedInputs();
@@ -376,17 +445,11 @@ protected :
 
 	// replicated physics inputs
 	UPROPERTY(Transient, ReplicatedUsing = OnRep_SetReplicatedInputs)
-	TArray<uint8> ReplicatedInputs;
+	FNetworkPhysicsRewindDataInputProxy ReplicatedInputs;
 
 	// replicated physics states 
 	UPROPERTY(Transient, ReplicatedUsing = OnRep_SetReplicatedStates)
-	TArray<uint8> ReplicatedStates;
-
-	// List of inputs that are processed locally
-	TArray<uint8> LocalInputs;
-
-	// List of states that are processed locally
-	TArray<uint8> LocalStates;
+	FNetworkPhysicsRewindDataStateProxy ReplicatedStates;
 
 	// Frame counter to compute the local to server offset
 	int32 FrameCounter = 0;
@@ -394,6 +457,8 @@ protected :
 private:
 
 	friend FNetworkPhysicsCallback;
+	friend struct FNetworkPhysicsRewindDataInputProxy;
+	friend struct FNetworkPhysicsRewindDataStateProxy;
 
 	// States history uses to rewind simulation 
 	TSharedPtr<Chaos::FBaseRewindHistory> StatesHistory;
@@ -436,14 +501,18 @@ FORCEINLINE void UNetworkPhysicsComponent::CreateDatasHistory(UActorComponent* H
 	const bool bIsLocalHistory = (Controller && Controller->IsLocalController());
 	const int32 NumFrames = UPhysicsSettings::Get()->GetPhysicsHistoryCount();
 	
-	UPackageMap* PackageMap = (Controller  && Controller->GetNetConnection())? Controller->GetNetConnection()->PackageMap : nullptr;
-
-	InputsHistory = MakeShared<TNetRewindHistory<typename PhysicsTraits::InputsType>>(NumFrames, bIsLocalHistory, PackageMap);
-	StatesHistory = MakeShared<TNetRewindHistory<typename PhysicsTraits::StatesType>>(NumFrames, bIsLocalHistory, PackageMap);
+	InputsHistory = MakeShared<TNetRewindHistory<typename PhysicsTraits::InputsType>>(NumFrames, bIsLocalHistory);
+	StatesHistory = MakeShared<TNetRewindHistory<typename PhysicsTraits::StatesType>>(NumFrames, bIsLocalHistory);
 
 	InputsDatas = MakeUnique<typename PhysicsTraits::InputsType>();
 	StatesDatas = MakeUnique<typename PhysicsTraits::StatesType>();
 
+	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::InputsType>>(NumFrames, bIsLocalHistory);
+	ReplicatedInputs.Owner = this;
+
+	ReplicatedStates.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::StatesType>>(NumFrames, bIsLocalHistory);
+	ReplicatedStates.Owner = this;
+	
 	ActorComponent = HistoryComponent;
 	
 	AddDatasHistory();

@@ -79,6 +79,63 @@ float DeQuantizeTimeDilation(int8 i)
 
 }
 
+
+bool FNetworkPhysicsRewindDataProxy::NetSerializeBase(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess, TUniqueFunction<TUniquePtr<Chaos::FBaseRewindHistory>()> CreateHistoryFunction)
+{
+	Ar << Owner;
+
+	bool bHasData = History.IsValid();
+	Ar.SerializeBits(&bHasData, 1);
+
+	if (bHasData)
+	{
+		if (Ar.IsLoading() && !History.IsValid())
+		{
+			if(ensureMsgf(Owner, TEXT("FNetRewindDataBase::NetSerialize: owner is null")))
+			{
+				History = CreateHistoryFunction();
+				if (!ensureMsgf(History.IsValid(), TEXT("FNetRewindDataBase::NetSerialize: failed to create history. Owner: %s"), *GetFullNameSafe(Owner)))
+				{
+					Ar.SetError();
+					bOutSuccess = false;
+					return true;
+				}
+			}
+			else
+			{
+				Ar.SetError();
+				bOutSuccess = false;
+				return true;
+			}
+		}
+
+		History->NetSerialize(Ar, Map);
+	}
+
+	return true;
+}
+
+FNetworkPhysicsRewindDataProxy& FNetworkPhysicsRewindDataProxy::operator=(const FNetworkPhysicsRewindDataProxy& Other)
+{
+	if (&Other != this)
+	{
+		Owner = Other.Owner;
+		History = Other.History ? Other.History->Clone() : nullptr;
+	}
+
+	return *this;
+}
+
+bool FNetworkPhysicsRewindDataInputProxy::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
+{
+	return NetSerializeBase(Ar, Map, bOutSuccess, [this]() { return Owner->ReplicatedInputs.History->CreateNew(); });
+}
+
+bool FNetworkPhysicsRewindDataStateProxy::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
+{
+	return NetSerializeBase(Ar, Map, bOutSuccess, [this]() { return Owner->ReplicatedStates.History->CreateNew(); });
+}
+
 // after presimulate internal (asyncinput internal simulation done and the output created)
 void FNetworkPhysicsCallback::ApplyCallbacks_Internal(int32 PhysicsStep, const TArray<Chaos::ISimCallbackObject*>& SimCallbackObjects)
 {
@@ -399,18 +456,6 @@ void UNetworkPhysicsComponent::GetLifetimeReplicatedProps(TArray< FLifetimePrope
 	DOREPLIFETIME_CONDITION_NOTIFY(UNetworkPhysicsComponent, ReplicatedStates, COND_None, REPNOTIFY_Always);
 }
 
-void UNetworkPhysicsComponent::UpdatePackageMap()
-{
-	APlayerController* Controller = GetPlayerController();
-	UPackageMap* PackageMap = (Controller && Controller->GetNetConnection()) ? Controller->GetNetConnection()->PackageMap : nullptr;
-
-	if(InputsHistory && StatesHistory)
-	{
-		InputsHistory->SetPackageMap(PackageMap);
-		StatesHistory->SetPackageMap(PackageMap);
-	}
-}
-
 void UNetworkPhysicsComponent::AsyncPhysicsTickComponent(float DeltaTime, float SimTime)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(NetworkPhysicsComponent_AsyncPhysicsTick);
@@ -420,7 +465,7 @@ void UNetworkPhysicsComponent::AsyncPhysicsTickComponent(float DeltaTime, float 
 	if(HasServerWorld() && !HasLocalController() && InputsHistory)
 	{
 		TArray<int32> LocalFrames, ServerFrames, InputFrames;
-		InputsHistory->DebugDatas(ReplicatedInputs, LocalFrames, ServerFrames, InputFrames);
+		InputsHistory->DebugDatas(*ReplicatedInputs.History, LocalFrames, ServerFrames, InputFrames);
 
 		UE_LOG(LogTemp, Log, TEXT("SERVER | PT | AsyncPhysicsTickComponent | Receiving %d inputs from CLIENT | Component = %s"), LocalFrames.Num(), *GetFullName());
 		for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
@@ -430,8 +475,6 @@ void UNetworkPhysicsComponent::AsyncPhysicsTickComponent(float DeltaTime, float 
 		}
 	}
 #endif
-	// Update the package map for serialization
-	UpdatePackageMap();
 
 	// Record the received states from the server into the history for future use
 	if (UWorld* World = GetWorld())
@@ -464,14 +507,11 @@ void UNetworkPhysicsComponent::SendLocalInputsDatas()
 		if (LocalOffset >= 0)
 		{
 			const int32 NextIndex = (InputsIndex + 1) % (InputsRedundancy + 1);
-			InputsHistory->SerializeDatas(InputsOffsets[NextIndex], InputsOffsets[InputsIndex], LocalInputs, LocalOffset);
 
-			if (HasServerWorld())
-			{
-				// if on server (Listen server) we should send the inputs onto all the clients through repnotify
-				ReplicatedInputs = LocalInputs;
-			}
-			else
+			// if on server (Listen server) we should send the inputs onto all the clients through repnotify
+			ReplicatedInputs.History = InputsHistory->CopyFramesWithOffset(InputsOffsets[NextIndex], InputsOffsets[InputsIndex], LocalOffset);
+			
+			if (!HasServerWorld())
 			{
 #if DEBUG_NETWORK_PHYSICS
 				if (APlayerController* PlayerController = GetPlayerController())
@@ -479,7 +519,7 @@ void UNetworkPhysicsComponent::SendLocalInputsDatas()
 					FAsyncPhysicsTimestamp Timestamp = PlayerController->GetAsyncPhysicsTimestamp();
 
 					TArray<int32> LocalFrames, ServerFrames, InputFrames;
-					InputsHistory->DebugDatas(LocalInputs, LocalFrames, ServerFrames, InputFrames);
+					InputsHistory->DebugDatas(*ReplicatedInputs.History, LocalFrames, ServerFrames, InputFrames);
 
 					UE_LOG(LogTemp, Log, TEXT("CLIENT | GT | SendLocalInputsDatas | Sending %d inputs from CLIENT | Component = %s"), LocalFrames.Num(), *GetFullName());
 					for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
@@ -492,7 +532,7 @@ void UNetworkPhysicsComponent::SendLocalInputsDatas()
 
 				// if on the client we should first send the replicated inputs onto the server
 				// the RPC will then resend them onto all the other clients (except the local ones)
-				ServerReceiveInputsDatas(LocalInputs);
+				ServerReceiveInputsDatas(ReplicatedInputs);
 			}
 		}
 	}
@@ -503,10 +543,9 @@ void UNetworkPhysicsComponent::SendLocalStatesDatas()
 	if (HasServerWorld() && StatesHistory)
 	{
 		const int32 NextIndex = (StatesIndex + 1) % (StatesRedundancy + 1);
-		StatesHistory->SerializeDatas(StatesOffsets[NextIndex], StatesOffsets[StatesIndex], LocalStates, 0);
 
 		// if on server we should send the states onto all the clients through repnotify
-		ReplicatedStates = LocalStates;
+		ReplicatedStates.History = StatesHistory->CopyFramesWithOffset(StatesOffsets[NextIndex], StatesOffsets[StatesIndex], 0);
 	}
 }
 
@@ -514,10 +553,8 @@ void UNetworkPhysicsComponent::CorrectServerToLocalOffset(const int32 LocalToSer
 {
 	if (HasLocalController() && !HasServerWorld() && StatesHistory)
 	{
-		const TArray<uint8> ReceivedStates = ReplicatedStates;
-
 		TArray<int32> LocalFrames, ServerFrames, InputFrames;
-		StatesHistory->DebugDatas(ReceivedStates, LocalFrames, ServerFrames, InputFrames);
+		StatesHistory->DebugDatas(*ReplicatedStates.History, LocalFrames, ServerFrames, InputFrames);
 
 		int32 ServerToLocalOffset = LocalToServerOffset;
 		for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
@@ -553,14 +590,14 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedStates()
 		{
 			if (FPhysScene* PhysScene = World->GetPhysicsScene())
 			{
-				const TArray<uint8> ReceivedStates = ReplicatedStates;
+				TSharedPtr<Chaos::FBaseRewindHistory> ReceivedStates = MakeShareable(ReplicatedStates.History->Clone().Release());
 				PhysScene->EnqueueAsyncPhysicsCommand(0, this, [this, PhysScene, ReceivedStates, LocalOffset]()
 				{
-					StatesHistory->DeserializeDatas(ReceivedStates, LocalOffset);
+					StatesHistory->ReceiveNewDatas(*ReceivedStates, LocalOffset);
 #if DEBUG_NETWORK_PHYSICS
 					{
 						TArray<int32> LocalFrames, ServerFrames, InputFrames;
-						StatesHistory->DebugDatas(ReceivedStates, LocalFrames, ServerFrames, InputFrames);
+						StatesHistory->DebugDatas(*ReceivedStates, LocalFrames, ServerFrames, InputFrames);
 
 						UE_LOG(LogTemp, Log, TEXT("CLIENT | PT | OnRep_SetReplicatedStates | Receiving %d states from SERVER | Local offset = %d | Component = %s "), LocalFrames.Num(), LocalOffset, *GetFullName());
 						for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
@@ -597,15 +634,15 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedInputs()
 		{
 			if (FPhysScene* PhysScene = World->GetPhysicsScene())
 			{
-				const TArray<uint8> ReceivedInputs = ReplicatedInputs;
+				TSharedPtr<Chaos::FBaseRewindHistory> ReceivedInputs = MakeShareable(ReplicatedInputs.History->Clone().Release());
 				PhysScene->EnqueueAsyncPhysicsCommand(0, this, [this, PhysScene, ReceivedInputs, LocalOffset]()
 				{
-					InputsHistory->DeserializeDatas(ReceivedInputs, LocalOffset);
+					InputsHistory->ReceiveNewDatas(*ReceivedInputs, LocalOffset);
 
 #if DEBUG_NETWORK_PHYSICS
 					{
 						TArray<int32> LocalFrames, ServerFrames, InputFrames;
-						InputsHistory->DebugDatas(ReceivedInputs, LocalFrames, ServerFrames, InputFrames);
+						InputsHistory->DebugDatas(*ReceivedInputs, LocalFrames, ServerFrames, InputFrames);
 
 						UE_LOG(LogTemp, Log, TEXT("CLIENT | PT | OnRep_SetReplicatedInputs | Receiving %d inputs from SERVER | Local offset = %d | Component = %s"), LocalFrames.Num(), LocalOffset, *GetFullName());
 						for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
@@ -620,12 +657,7 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedInputs()
 	}
 }
 
-bool UNetworkPhysicsComponent::ServerReceiveInputsDatas_Validate(const TArray<uint8>& ClientInputs)
-{
-	return true;
-}
-
-void UNetworkPhysicsComponent::ServerReceiveInputsDatas_Implementation(const TArray<uint8>& ClientInputs)
+void UNetworkPhysicsComponent::ServerReceiveInputsDatas_Implementation(const FNetworkPhysicsRewindDataInputProxy& ClientInputs)
 {
 	if(InputsHistory)
 	{ 
@@ -635,26 +667,28 @@ void UNetworkPhysicsComponent::ServerReceiveInputsDatas_Implementation(const TAr
 		// We could probably skip that test since the server RPC is on server
 		ensure(!HasLocalController());
 
-		ReplicatedInputs = ClientInputs;
-
 		// Record the received inputs from the client into the history for future use
+		ReplicatedInputs.History = ClientInputs.History->Clone();
+
 		if (UWorld* World = GetWorld())
 		{
 			if (FPhysScene* PhysScene = World->GetPhysicsScene())
 			{
-				const TArray<uint8> ReceivedInputs = ClientInputs;
+				// Make another copy of the client inputs for the physics thread to consume
+				TSharedPtr<Chaos::FBaseRewindHistory> ReceivedInputs = MakeShareable(ClientInputs.History->Clone().Release());
 				PhysScene->EnqueueAsyncPhysicsCommand(0, this, [this, ReceivedInputs, PhysScene]()
 				{
-					InputsHistory->DeserializeDatas(ReceivedInputs, 0);
+					InputsHistory->ReceiveNewDatas(*ReceivedInputs, 0);
+
 	#if DEBUG_NETWORK_PHYSICS
 					{
 						TArray<int32> LocalFrames, ServerFrames, InputFrames;
-						InputsHistory->DebugDatas(ReceivedInputs, LocalFrames, ServerFrames, InputFrames);
+						InputsHistory->DebugDatas(*ReceivedInputs, LocalFrames, ServerFrames, InputFrames);
 
 						const int32 CurrentFrame = PhysScene->GetSolver()->GetCurrentFrame();
 
 						const int32 EvalOffset = CurrentFrame - InputFrames[InputFrames.Num()-1] + 4;
-						UE_LOG(LogTemp, Log, TEXT("SERVER | PT | ServerReceiveInputsDatas | Receiving %d inputs from CLIENT | Inputs frame = %d | Server frame = %d | Eval Offset = %d | Component = %s | Num Bits = %d"), LocalFrames.Num(), InputFrames[InputFrames.Num() - 1], CurrentFrame, EvalOffset, *GetFullName(), ReceivedInputs.Num() * 8);
+						UE_LOG(LogTemp, Log, TEXT("SERVER | PT | ServerReceiveInputsDatas | Receiving %d inputs from CLIENT | Inputs frame = %d | Server frame = %d | Eval Offset = %d | Component = %s"), LocalFrames.Num(), InputFrames[InputFrames.Num() - 1], CurrentFrame, EvalOffset, *GetFullName());
 						for (int32 FrameIndex = 0; FrameIndex < LocalFrames.Num(); ++FrameIndex)
 						{
 							UE_LOG(LogTemp, Log, TEXT("		Recording replicated inputs at local frame = %d | server frame = %d | Solver offset = %d | Component = %s"), 

@@ -27,6 +27,12 @@ struct FBaseRewindHistory
 {
 	FORCEINLINE virtual ~FBaseRewindHistory() {}
 
+	/** Create a new, empty instance with the same concrete type as this object */
+	virtual TUniquePtr<FBaseRewindHistory> CreateNew() const = 0;
+
+	/** Create a polymorphic copy of the history */
+	virtual TUniquePtr<FBaseRewindHistory> Clone() const = 0;
+
 	/** Set the package map for serialization */
 	FORCEINLINE virtual void SetPackageMap(class UPackageMap* InPackageMap) {}
 
@@ -39,14 +45,17 @@ struct FBaseRewindHistory
 	/** Record datas into the history buffer at a given time */
 	FORCEINLINE virtual bool RecordDatas(const int32 RecordFrame, const void* HistoryDatas) { return true; }
 
-	/** Serialize the datas into an array of uint8 */
-	FORCEINLINE virtual void SerializeDatas(const uint32 StartFrame, const uint32 EndFrame, TArray<uint8>& ArchiveDatas, const int32 FrameOffset) const {}
+	/** Create a polymorphic copy of only a range of frames, applying the frame offset to the copies */
+	virtual TUniquePtr<FBaseRewindHistory> CopyFramesWithOffset(const uint32 StartFrame, const uint32 EndFrame, const int32 FrameOffset) = 0;
 
-	/** Deserialize the datas from the array of uint8 */
-	FORCEINLINE virtual void DeserializeDatas(const TArray<uint8>& ArchiveDatas, const int32 FrameOffset) {}
+	/** Copy new datas (received from the network) into this history */
+	virtual void ReceiveNewDatas(FBaseRewindHistory& NewDatas, const int32 FrameOffset) {}
+
+	/** Serialize the datas to or from a network archive */
+	virtual void NetSerialize(FArchive& Ar, UPackageMap* PackageMap) {}
 
 	/** Debug the datas from the array of uint8 that will be transferred from client to server */
-	FORCEINLINE virtual void DebugDatas(const TArray<uint8>& ArchiveDatas, TArray<int32>& LocalFrames, TArray<int32>& ServerFrames, TArray<int32>& InputFrames) {}
+	FORCEINLINE virtual void DebugDatas(const Chaos::FBaseRewindHistory& NewDatas, TArray<int32>& LocalFrames, TArray<int32>& ServerFrames, TArray<int32>& InputFrames) {}
 
 	/** Legacy interface to rewind states */
 	FORCEINLINE virtual bool RewindStates(const int32 RewindFrame, const bool bResetSolver) { return false; }
