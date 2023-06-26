@@ -140,13 +140,7 @@ namespace Horde.Server.Storage
 			public override async Task<Bundle> ReadBundleAsync(BundleLocator locator, CancellationToken cancellationToken = default)
 			{
 				string path = GetBlobPath(locator);
-
-				Stream? stream = await Backend.TryReadAsync(path, cancellationToken);
-				if (stream == null)
-				{
-					throw new StorageException($"Unable to read data from {path}");
-				}
-
+				Stream stream = await Backend.ReadAsync(path, cancellationToken);
 				return await Bundle.FromStreamAsync(stream, cancellationToken);
 			}
 
@@ -157,13 +151,7 @@ namespace Horde.Server.Storage
 			public override async Task<ReadOnlyMemory<byte>> ReadBundleRangeAsync(BundleLocator locator, int offset, int length, CancellationToken cancellationToken = default)
 			{
 				string path = GetBlobPath(locator);
-
-				Stream? stream = await Backend.TryReadAsync(path, offset, length, cancellationToken);
-				if (stream == null)
-				{
-					throw new StorageException($"Unable to read data from {path}");
-				}
-
+				Stream stream = await Backend.ReadAsync(path, offset, length, cancellationToken);
 				return await stream.ReadAllBytesAsync(cancellationToken);
 			}
 

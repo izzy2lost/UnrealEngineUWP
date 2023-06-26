@@ -63,39 +63,20 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public Task<Stream?> TryReadAsync(string path, CancellationToken cancellationToken)
+		public Task<Stream> ReadAsync(string path, CancellationToken cancellationToken)
 		{
-			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(FileSystemStorageBackend)}.{nameof(TryReadAsync)}");
+			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(FileSystemStorageBackend)}.{nameof(ReadAsync)}");
 			span.SetAttribute("path", path);
 			
 			FileReference location = FileReference.Combine(_baseDir, path);
-			if (!FileReference.Exists(location))
-			{
-				return Task.FromResult<Stream?>(null);
-			}
-
-			try
-			{
-				return Task.FromResult<Stream?>(FileReference.Open(location, FileMode.Open, FileAccess.Read, FileShare.Read));
-			}
-			catch (DirectoryNotFoundException)
-			{
-				return Task.FromResult<Stream?>(null);
-			}
-			catch (FileNotFoundException)
-			{
-				return Task.FromResult<Stream?>(null);
-			}
+			return Task.FromResult<Stream>(FileReference.Open(location, FileMode.Open, FileAccess.Read, FileShare.Read));
 		}
 
 		/// <inheritdoc/>
-		public async Task<Stream?> TryReadAsync(string path, int offset, int length, CancellationToken cancellationToken)
+		public async Task<Stream> ReadAsync(string path, int offset, int length, CancellationToken cancellationToken)
 		{
-			Stream? stream = await TryReadAsync(path, cancellationToken);
-			if (stream != null)
-			{
-				stream.Seek(offset, SeekOrigin.Begin);
-			}
+			Stream stream = await ReadAsync(path, cancellationToken);
+			stream.Seek(offset, SeekOrigin.Begin);
 			return stream;
 		}
 

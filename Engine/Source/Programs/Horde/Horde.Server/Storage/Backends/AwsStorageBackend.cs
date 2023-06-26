@@ -257,20 +257,20 @@ namespace Horde.Server.Storage.Backends
 		string GetFullPath(string path) => _pathPrefix + path;
 
 		/// <inheritdoc/>
-		public Task<Stream?> TryReadAsync(string path, CancellationToken cancellationToken)
+		public Task<Stream> ReadAsync(string path, CancellationToken cancellationToken)
 		{
-			return TryReadAsync(path, null, cancellationToken);
+			return ReadAsync(path, null, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public Task<Stream?> TryReadAsync(string path, int offset, int length, CancellationToken cancellationToken)
+		public Task<Stream> ReadAsync(string path, int offset, int length, CancellationToken cancellationToken)
 		{
-			return TryReadAsync(path, new ByteRange(offset, offset + length), cancellationToken);
+			return ReadAsync(path, new ByteRange(offset, offset + length), cancellationToken);
 		}
 
-		async Task<Stream?> TryReadAsync(string path, ByteRange? byteRange, CancellationToken cancellationToken)
+		async Task<Stream> ReadAsync(string path, ByteRange? byteRange, CancellationToken cancellationToken)
 		{
-			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(TryReadAsync)}");
+			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(ReadAsync)}");
 			span.SetAttribute("path", path);
 			
 			string fullPath = GetFullPath(path);
@@ -297,7 +297,7 @@ namespace Horde.Server.Storage.Backends
 				semaLock?.Dispose();
 				response?.Dispose();
 
-				return null;
+				throw new StorageException($"Unable to read {fullPath} from {_options.AwsBucketName}", ex);
 			}
 		}
 

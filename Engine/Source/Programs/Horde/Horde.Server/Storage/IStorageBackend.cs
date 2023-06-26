@@ -6,7 +6,6 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde.Storage;
 
 namespace Horde.Server.Storage
 {
@@ -26,7 +25,7 @@ namespace Horde.Server.Storage
 		/// <param name="path">Relative path within the bucket</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		Task<Stream?> TryReadAsync(string path, CancellationToken cancellationToken = default);
+		Task<Stream> ReadAsync(string path, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Attempts to open a read stream for the given path.
@@ -36,7 +35,7 @@ namespace Horde.Server.Storage
 		/// <param name="length">Length of data to read</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		Task<Stream?> TryReadAsync(string path, int offset, int length, CancellationToken cancellationToken = default);
+		Task<Stream> ReadAsync(string path, int offset, int length, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes a stream to the given path. If the stream throws an exception during read, the write will be aborted.
@@ -120,10 +119,10 @@ namespace Horde.Server.Storage
 			public void Dispose() => _inner.Dispose();
 
 			/// <inheritdoc/>
-			public Task<Stream?> TryReadAsync(string path, CancellationToken cancellationToken) => _inner.TryReadAsync(path, cancellationToken);
+			public Task<Stream> ReadAsync(string path, CancellationToken cancellationToken) => _inner.ReadAsync(path, cancellationToken);
 
 			/// <inheritdoc/>
-			public Task<Stream?> TryReadAsync(string path, int offset, int length, CancellationToken cancellationToken) => _inner.TryReadAsync(path, offset, length, cancellationToken);
+			public Task<Stream> ReadAsync(string path, int offset, int length, CancellationToken cancellationToken) => _inner.ReadAsync(path, offset, length, cancellationToken);
 
 			/// <inheritdoc/>
 			public Task WriteAsync(string path, Stream stream, CancellationToken cancellationToken) => _inner.WriteAsync(path, stream, cancellationToken);
@@ -209,51 +208,10 @@ namespace Horde.Server.Storage
 		/// <param name="path"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static async Task<Stream> ReadAsync(this IStorageBackend storageBackend, string path, CancellationToken cancellationToken = default)
+		public static async Task<ReadOnlyMemory<byte>> ReadBytesAsync(this IStorageBackend storageBackend, string path, CancellationToken cancellationToken = default)
 		{
-			Stream? stream = await storageBackend.TryReadAsync(path, cancellationToken);
-			if (stream == null)
+			using (Stream inputStream = await storageBackend.ReadAsync(path, cancellationToken))
 			{
-				throw new FileNotFoundException($"Unable to read from path {path}");
-			}
-			return stream;
-		}
-
-		/// <summary>
-		/// Writes a block of memory to storage
-		/// </summary>
-		/// <param name="storageBackend"></param>
-		/// <param name="path"></param>
-		/// <param name="offset">Offset of the data to read</param>
-		/// <param name="length">Length of the data to read</param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static async Task<Stream> ReadAsync(this IStorageBackend storageBackend, string path, int offset, int length, CancellationToken cancellationToken = default)
-		{
-			Stream? stream = await storageBackend.TryReadAsync(path, offset, length, cancellationToken);
-			if (stream == null)
-			{
-				throw new FileNotFoundException($"Unable to read from path {path}");
-			}
-			return stream;
-		}
-
-		/// <summary>
-		/// Writes a block of memory to storage
-		/// </summary>
-		/// <param name="storageBackend"></param>
-		/// <param name="path"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static async Task<ReadOnlyMemory<byte>?> ReadBytesAsync(this IStorageBackend storageBackend, string path, CancellationToken cancellationToken = default)
-		{
-			using (Stream? inputStream = await storageBackend.TryReadAsync(path, cancellationToken))
-			{
-				if (inputStream == null)
-				{
-					return null;
-				}
-
 				using (MemoryStream outputStream = new MemoryStream())
 				{
 					await inputStream.CopyToAsync(outputStream, cancellationToken);

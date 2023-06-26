@@ -417,7 +417,7 @@ namespace EpicGames.Horde.Storage.Bundles
 					StartReadTask();
 				}
 			}
-			return await queuedHeader.CompletionSource.Task.AbandonOnCancel(cancellationToken);
+			return await queuedHeader.CompletionSource.Task.WaitAsync(cancellationToken);
 		}
 
 		/// <summary>
@@ -456,7 +456,7 @@ namespace EpicGames.Horde.Storage.Bundles
 					_decodeTasks.Add(decodedCacheKey, decodeTask);
 				}
 			}
-			return await decodeTask.AbandonOnCancel(cancellationToken);
+			return await decodeTask.WaitAsync(cancellationToken);
 		}
 
 		/// <summary>

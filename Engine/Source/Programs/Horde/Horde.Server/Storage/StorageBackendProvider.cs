@@ -77,10 +77,10 @@ namespace Horde.Server.Storage
 			public IAsyncEnumerable<string> EnumerateAsync(CancellationToken cancellationToken = default) => _backend.EnumerateAsync(cancellationToken);
 
 			/// <inheritdoc/>
-			public Task<Stream?> TryReadAsync(string path, CancellationToken cancellationToken = default) => _backend.TryReadAsync(path, cancellationToken);
+			public Task<Stream> ReadAsync(string path, CancellationToken cancellationToken = default) => _backend.ReadAsync(path, cancellationToken);
 
 			/// <inheritdoc/>
-			public Task<Stream?> TryReadAsync(string path, int offset, int length, CancellationToken cancellationToken = default) => _backend.TryReadAsync(path, offset, length, cancellationToken);
+			public Task<Stream> ReadAsync(string path, int offset, int length, CancellationToken cancellationToken = default) => _backend.ReadAsync(path, offset, length, cancellationToken);
 
 			/// <inheritdoc/>
 			public Task WriteAsync(string path, Stream stream, CancellationToken cancellationToken = default) => _backend.WriteAsync(path, stream, cancellationToken);

@@ -29,27 +29,17 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public Task<Stream?> TryReadAsync(string path, CancellationToken cancellationToken)
+		public Task<Stream> ReadAsync(string path, CancellationToken cancellationToken)
 		{
-			byte[]? data;
-			if (_pathToData.TryGetValue(path, out data))
-			{
-				return Task.FromResult<Stream?>(new MemoryStream(data, false));
-			}
-			else
-			{
-				return Task.FromResult<Stream?>(null);
-			}
+			byte[] data = _pathToData[path];
+			return Task.FromResult<Stream>(new MemoryStream(data, false));
 		}
 
 		/// <inheritdoc/>
-		public async Task<Stream?> TryReadAsync(string path, int offset, int length, CancellationToken cancellationToken)
+		public async Task<Stream> ReadAsync(string path, int offset, int length, CancellationToken cancellationToken)
 		{
-			Stream? stream = await TryReadAsync(path, cancellationToken);
-			if (stream != null)
-			{
-				stream.Seek(offset, SeekOrigin.Begin);
-			}
+			Stream stream = await ReadAsync(path, cancellationToken);
+			stream.Seek(offset, SeekOrigin.Begin);
 			return stream;
 		}
 
