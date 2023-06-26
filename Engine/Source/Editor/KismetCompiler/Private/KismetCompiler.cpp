@@ -4802,25 +4802,6 @@ void FKismetCompilerContext::CompileClassLayout(EInternalCompilerFlags InternalF
 		}
 	}
 
-	{
-		// the following calls may mark the blueprint as dirty, but we know that these operations just cleaned up the BP 
-		// so dependencies can still be considered 'up to date'
-		TGuardValue<bool> LockDependenciesUpToDate(Blueprint->bCachedDependenciesUpToDate, Blueprint->bCachedDependenciesUpToDate);
-
-		// Make sure that this blueprint is up-to-date with regards to its parent functions
-		FBlueprintEditorUtils::ConformCallsToParentFunctions(Blueprint);
-
-		// Conform implemented events here, to ensure we generate custom events if necessary after reparenting
-		FBlueprintEditorUtils::ConformImplementedEvents(Blueprint);
-
-		// Conform implemented interfaces here, to ensure we generate all functions required by the interface as stubs
-		FBlueprintEditorUtils::ConformImplementedInterfaces(Blueprint);
-
-		// Make sure we don't have any signature graphs with no corresponding variable - some assets have
-		// managed to get into this state - the UI does not provide a way to fix these objects manually
-		FBlueprintEditorUtils::ConformDelegateSignatureGraphs(Blueprint);
-	}
-
 	IKismetCompilerInterface& KismetCompilerModule = FModuleManager::LoadModuleChecked<IKismetCompilerInterface>("KismetCompiler");
 	KismetCompilerModule.ValidateBPAndClassType(Blueprint, MessageLog);
 
