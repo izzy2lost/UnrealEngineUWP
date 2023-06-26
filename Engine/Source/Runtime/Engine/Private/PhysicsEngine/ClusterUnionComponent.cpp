@@ -639,6 +639,8 @@ void UClusterUnionComponent::HandleAddOrModifiedClusteredComponent(UPrimitiveCom
 					Owner->SetReplicatingMovement(false);
 				}
 			}
+
+			ComponentData.Owner = Owner;
 		}
 
 		ComponentData.bWasReplicating = ChangedComponent->GetIsReplicated();
