@@ -77,6 +77,11 @@ namespace ShaderPrint
 		TEXT("Lock the line drawing.\n"),
 		ECVF_Cheat | ECVF_RenderThreadSafe);
 
+	static TAutoConsoleVariable<int32> CVarDrawOccludedLines(
+		TEXT("r.ShaderPrint.DrawOccludedLines"),
+		1,
+		TEXT("Whether to draw occluded lines using checkboarding and lower opacity.\n"),
+		ECVF_Cheat | ECVF_RenderThreadSafe);
 
 	static TAutoConsoleVariable<int32> CVarDrawZoomEnable(
 		TEXT("r.ShaderPrint.Zoom"),
@@ -530,6 +535,7 @@ namespace ShaderPrint
 			SHADER_PARAMETER(FVector2f, OriginalViewSize)
 			SHADER_PARAMETER(FVector2f, OriginalBufferInvSize)
 			SHADER_PARAMETER(uint32, bCheckerboardEnabled)
+			SHADER_PARAMETER(uint32, bDrawOccludedLines)
 			SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DepthTexture)
 			SHADER_PARAMETER_SAMPLER(SamplerState, DepthSampler)
 			RENDER_TARGET_BINDING_SLOTS()
@@ -965,6 +971,7 @@ namespace ShaderPrint
 		PassParameters->PS.DepthTexture = DepthTexture;
 		PassParameters->PS.DepthSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 		PassParameters->PS.bCheckerboardEnabled = bLines ? 1u : 0u;
+		PassParameters->PS.bDrawOccludedLines = CVarDrawOccludedLines.GetValueOnRenderThread() != 0 ? 1 : 0;
 		PassParameters->VS.ShaderDrawDebugPrimitive = GraphBuilder.CreateSRV(ShaderPrintPrimitiveBuffer);
 		PassParameters->VS.IndirectBuffer = IndirectBuffer;
 		PassParameters->VS.Common = ShaderPrintData.UniformBuffer;
