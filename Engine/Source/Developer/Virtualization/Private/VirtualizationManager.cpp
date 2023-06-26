@@ -6,6 +6,7 @@
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformTime.h"
 #include "Logging/MessageLog.h"
+#include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/MessageDialog.h"
@@ -1120,6 +1121,25 @@ void FVirtualizationManager::ApplySettingsFromConfigFiles(const FConfigFile& Con
 
 #if UE_VIRTUALIZATION_CONNECTION_LAZY_INIT == 0
 	ConfigFile.GetBool(ConfigSection, TEXT("LazyInitConnections"), bLazyInitConnections);
+
+	if (bLazyInitConnections)
+	{
+		// Check if we should override the value of bLazyInitConnections depending on if the current process is interactive or not
+		bool bDisableLazyInitIfInteractive = false;
+		ConfigFile.GetBool(ConfigSection, TEXT("DisableLazyInitIfInteractive"), bDisableLazyInitIfInteractive);
+
+		const bool bIsUsingSlate = UE_VA_WITH_SLATE != 0;
+		const bool bIsUnattended = FApp::IsUnattended();
+		const bool bIsRunningCommandlet = IsRunningCommandlet();
+
+		const bool bIsInteractive = bIsUsingSlate && !bIsUnattended && !bIsRunningCommandlet;
+
+		if (bDisableLazyInitIfInteractive && bIsInteractive)
+		{
+			bLazyInitConnections = false;
+		}
+	}
+
 	UE_LOG(LogVirtualization, Display, TEXT("\tLazyInitConnections : %s"), bLazyInitConnections ? TEXT("true") : TEXT("false"));
 #else
 	bLazyInitConnections = true;

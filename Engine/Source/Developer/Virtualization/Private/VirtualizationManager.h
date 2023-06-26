@@ -114,6 +114,14 @@ struct FAnalyticsEventAttribute;
  *												This can remove lengthy connection steps from the process init phase and then only connect
  *												if we actually need that service. Note that if this is true then the connection can come from
  *												any thread, so custom backend code will need to take that into account. [Default=false]
+ * DisableLazyInitIfInteractive [bool]			When true 'LazyInitConnections' will be forced to false if slate is enabled. This exists because
+ *												some backends can show slate dialogs when their initial connection fails to prompt for the 
+ *												correct login values. When 'LazyInitConnections' is true, this request can come on any thread and
+ *												trying to marshal the slate request to the gamethread can often introduce thread locks. Setting
+ *												both this and 'LazyInitConnections' to true will allow tools that do not use slate to initialize
+ *												the VA connections on use, but force tools that can display the slate dialog to initialized 
+ *												during preinit on the game thread so that the dialog can be shown. Note that this only overrides
+												the setting of 'LazyInitConnections' via the config file, not cvar, cmdline or code [Default=false]
  * UseLegacyErrorHandling [bool]:				Controls how we deal with errors encountered when pulling payloads. When true a failed payload 
  *												pull will return an error and allow the process to carry on (the original error handling logic)
  *												and when false a dialog will be displayed to the user warning them about the failed pull and 
