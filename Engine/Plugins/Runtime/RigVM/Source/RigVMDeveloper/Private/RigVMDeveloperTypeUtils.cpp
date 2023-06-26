@@ -100,6 +100,11 @@ FEdGraphPinType RigVMTypeUtils::PinTypeFromCPPType(const FName& InCPPType, UObje
 		PinType.PinCategory = UEdGraphSchema_K2::PC_Byte;
 		PinType.PinSubCategoryObject = InCPPTypeObject;
 	}
+	else if (Cast<UClass>(InCPPTypeObject))
+	{
+		PinType.PinCategory = UEdGraphSchema_K2::PC_Object;
+		PinType.PinSubCategoryObject = InCPPTypeObject;
+	}
 
 	return PinType;
 }
@@ -144,6 +149,11 @@ FEdGraphPinType RigVMTypeUtils::PinTypeFromExternalVariable(const FRigVMExternal
 	else if (Cast<UEnum>(InExternalVariable.TypeObject))
 	{
 		PinType.PinCategory = UEdGraphSchema_K2::PC_Byte;
+		PinType.PinSubCategoryObject = InExternalVariable.TypeObject;
+	}
+	else if (Cast<UClass>(InExternalVariable.TypeObject))
+	{
+		PinType.PinCategory = UEdGraphSchema_K2::PC_Object;
 		PinType.PinSubCategoryObject = InExternalVariable.TypeObject;
 	}
 
@@ -497,7 +507,14 @@ bool RigVMTypeUtils::CPPTypeFromExternalVariable(const FRigVMExternalVariable& I
 	{
 		OutCPPType = Prefix + Enum->GetFName().ToString() + Suffix;
 		*OutCPPTypeObject = Enum;
-	}	
+	}
+	else if (UClass* Class = Cast<UClass>(InExternalVariable.TypeObject))
+	{
+		Prefix += TEXT("TObjectPtr<U");
+		Suffix += TEXT(">");
+		OutCPPType = Prefix + Class->GetFName().ToString() + Suffix;
+		*OutCPPTypeObject = Class;
+	}
 	else
 	{
 		check(false);

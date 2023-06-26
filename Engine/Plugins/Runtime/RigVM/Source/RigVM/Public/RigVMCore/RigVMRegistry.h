@@ -62,6 +62,9 @@ public:
 	// Register a predicate contained in the input struct
 	void RegisterPredicate(UScriptStruct* InStruct, const TCHAR* InName, const TArray<FRigVMFunctionArgument>& InArguments);
 
+	// Register a set of allowed object types
+	void RegisterObjectTypes(TConstArrayView<UClass*> InClasses);
+
 	// Initializes the registry by storing the defaults
 	void InitializeIfNeeded();
 	
@@ -320,10 +323,10 @@ private:
 		return RF_Public;
 	}
 
-	static bool IsAllowedType(const FProperty* InProperty);
-	static bool IsAllowedType(const UEnum* InEnum);
-	static bool IsAllowedType(const UStruct* InStruct);
-	static bool IsAllowedType(const UClass* InClass);
+	bool IsAllowedType(const FProperty* InProperty) const;
+	bool IsAllowedType(const UEnum* InEnum) const;
+	bool IsAllowedType(const UStruct* InStruct) const;
+	bool IsAllowedType(const UClass* InClass) const;
 
 	void RegisterTypeInCategory(FRigVMTemplateArgument::ETypeCategory InCategory, TRigVMTypeIndex InTypeIndex);
 	
@@ -377,6 +380,9 @@ private:
 	// When that happens, it won't be safe to reload deleted assets so only type names are reliable
 	TMap<FSoftObjectPath, TRigVMTypeIndex> UserDefinedTypeToIndex;
 	
+	// All allowed classes
+	TSet<TObjectPtr<const UClass>> AllowedClasses;
+
 	// Notifies other system that types have been added/removed, and template permutations have been updated
 	FOnRigVMRegistryChanged OnRigVMRegistryChangedDelegate;
 

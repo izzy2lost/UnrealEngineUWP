@@ -352,6 +352,15 @@ void FRigVMRegistry::RefreshEngineTypes()
 		}
 	}
 	
+	for (TObjectIterator<UClass> ClassIt; ClassIt; ++ClassIt)
+	{
+		UClass* Class = *ClassIt;
+		if (IsAllowedType(Class))
+		{
+			FindOrAddType(FRigVMTemplateArgumentType(Class));
+		}
+	}
+
 	// Register all dispatch factories only after all other types have been registered.
 	for (UScriptStruct* DispatchFactoryStruct: DispatchFactoriesToRegister)
 	{
@@ -1047,7 +1056,7 @@ TRigVMTypeIndex FRigVMRegistry::GetBaseTypeFromArrayTypeIndex(TRigVMTypeIndex In
 	return INDEX_NONE;
 }
 
-bool FRigVMRegistry::IsAllowedType(const FProperty* InProperty)
+bool FRigVMRegistry::IsAllowedType(const FProperty* InProperty) const
 {
 	if(InProperty->IsA<FBoolProperty>() ||
 		InProperty->IsA<FUInt32Property>() ||
@@ -1091,12 +1100,12 @@ bool FRigVMRegistry::IsAllowedType(const FProperty* InProperty)
 	return false;
 }
 
-bool FRigVMRegistry::IsAllowedType(const UEnum* InEnum)
+bool FRigVMRegistry::IsAllowedType(const UEnum* InEnum) const
 {
 	return !InEnum->HasAnyFlags(DisallowedFlags()) && InEnum->HasAllFlags(NeededFlags());
 }
 
-bool FRigVMRegistry::IsAllowedType(const UStruct* InStruct)
+bool FRigVMRegistry::IsAllowedType(const UStruct* InStruct) const
 {
 	if(InStruct->HasAnyFlags(DisallowedFlags()) || !InStruct->HasAllFlags(NeededFlags()))
 	{
@@ -1128,18 +1137,21 @@ bool FRigVMRegistry::IsAllowedType(const UStruct* InStruct)
 	return true;
 }
 
-bool FRigVMRegistry::IsAllowedType(const UClass* InClass)
+bool FRigVMRegistry::IsAllowedType(const UClass* InClass) const
 {
 	if(!InClass || InClass->HasAnyClassFlags(CLASS_Hidden | CLASS_Abstract))
 	{
 		return false;
 	}
 
-	// note: currently we don't allow UObjects
-	return false;
-	//return IsAllowedType(Cast<UStruct>(InClass));
-}
+	// Only allow native object types
+	if (!InClass->HasAnyClassFlags(CLASS_Native))
+	{
+		return false;
+	}
 
+	return AllowedClasses.Contains(InClass);
+}
 
 void FRigVMRegistry::Register(const TCHAR* InName, FRigVMFunctionPtr InFunctionPtr, UScriptStruct* InStruct, const TArray<FRigVMFunctionArgument>& InArguments)
 {
@@ -1277,6 +1289,24 @@ void FRigVMRegistry::RegisterPredicate(UScriptStruct* InStruct, const TCHAR* InN
 
 	FRigVMFunction Function(InName, nullptr, InStruct, Predicates.Num(), InArguments);
 	Predicates.Add(Function);
+}
+
+void FRigVMRegistry::RegisterObjectTypes(TConstArrayView<UClass*> InClasses)
+{
+	for (UClass* Class : InClasses)
+	{
+		// Only allow native object types
+		if (Class->HasAnyClassFlags(CLASS_Native))
+		{
+			// Add all child classes
+			TArray<UClass*> DerivedClasses({ Class });
+			GetDerivedClasses(Class, DerivedClasses, /*bRecursive=*/true);
+			for(UClass* DerivedClass : DerivedClasses)
+			{
+				AllowedClasses.Add(DerivedClass);
+			}
+		}
+	}
 }
 
 const FRigVMFunction* FRigVMRegistry::FindFunction(const TCHAR* InName) const
