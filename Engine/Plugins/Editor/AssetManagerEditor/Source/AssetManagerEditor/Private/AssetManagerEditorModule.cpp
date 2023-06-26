@@ -1352,7 +1352,7 @@ bool FAssetManagerEditorModule::GetStringValueForCustomColumn(const FAssetData& 
 		const FString& PackageNameString = AssetData.PackageName.ToString();
 		if (PackageNameString.StartsWith(TEXT("/Game/")))
 		{
-			OutValue = TEXT("BaseGame");
+			OutValue = TEXT("Game");
 			return true;
 		}
 		else if (PackageNameString.ParseIntoArray(ParsedPath, TEXT("/")) >= 1)
