@@ -16,7 +16,7 @@ UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWriteMaxPageSized(void* Logical
     WriteLog.Push(FWriteLogEntry(LogicalAddress, Size, CopyAddress));
 }
 
-inline void FTransaction::RecordWrite(void* LogicalAddress, size_t Size)
+UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress, size_t Size)
 {
     // If we are recording a stack address that is relative to our current
     // transactions stack location, we do not need to record the data in the
@@ -55,7 +55,35 @@ inline void FTransaction::RecordWrite(void* LogicalAddress, size_t Size)
     RecordWriteMaxPageSized(Address + I, Size - I);
 }
 
-inline void FTransaction::DidAllocate(void* LogicalAddress, size_t Size)
+template<unsigned SIZE> UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress)
+{
+    static_assert(SIZE <= FWriteLogBumpAllocator::MaxSize);
+
+    // If we are recording a stack address that is relative to our current
+    // transactions stack location, we do not need to record the data in the
+    // write log because if that transaction aborted, that memory will cease to
+    // be meaningful anyway!
+    if (Context->IsInnerTransactionStack(LogicalAddress))
+    {
+        Stats.Collect<EStatsKind::HitSetSkippedBecauseOfStackLocalMemory>();
+        return;
+    }
+
+    FMemoryLocation Key(LogicalAddress);
+    Key.SetTopTag(static_cast<uint16_t>(SIZE));
+
+    if (!HitSet.Insert(Key))
+    {
+        Stats.Collect<EStatsKind::HitSetHit>();
+        return;
+    }
+
+    Stats.Collect<EStatsKind::HitSetMiss>();
+
+    RecordWriteMaxPageSized(LogicalAddress, SIZE);
+}
+
+UE_AUTORTFM_FORCEINLINE void FTransaction::DidAllocate(void* LogicalAddress, size_t Size)
 {
     if ((0 < Size) && (Size <= FWriteLogBumpAllocator::MaxSize))
     {
@@ -67,12 +95,12 @@ inline void FTransaction::DidAllocate(void* LogicalAddress, size_t Size)
     }
 }
 
-inline void FTransaction::DeferUntilCommit(TFunction<void()>&& Callback)
+UE_AUTORTFM_FORCEINLINE void FTransaction::DeferUntilCommit(TFunction<void()>&& Callback)
 {
     CommitTasks.Add(MoveTemp(Callback));
 }
 
-inline void FTransaction::DeferUntilAbort(TFunction<void()>&& Callback)
+UE_AUTORTFM_FORCEINLINE void FTransaction::DeferUntilAbort(TFunction<void()>&& Callback)
 {
     AbortTasks.Add(MoveTemp(Callback));
 }

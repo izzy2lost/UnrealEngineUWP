@@ -24,6 +24,11 @@ UE_AUTORTFM_FORCEINLINE void FContext::RecordWrite(void* LogicalAddress, size_t 
     CurrentTransaction->RecordWrite(LogicalAddress, Size);
 }
 
+template<unsigned SIZE> UE_AUTORTFM_FORCEINLINE void FContext::RecordWrite(void* LogicalAddress)
+{
+    CurrentTransaction->RecordWrite<SIZE>(LogicalAddress);
+}
+
 UE_AUTORTFM_FORCEINLINE void FContext::DidAllocate(void* LogicalAddress, size_t Size)
 {
     CurrentTransaction->DidAllocate(LogicalAddress, Size);
