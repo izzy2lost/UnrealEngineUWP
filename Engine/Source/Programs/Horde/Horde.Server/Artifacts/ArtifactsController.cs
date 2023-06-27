@@ -164,7 +164,7 @@ namespace Horde.Server.Artifacts
 		}
 
 		/// <summary>
-		/// Retrieves blobs for a particular artifact
+		/// Retrieves bundles for a particular artifact
 		/// </summary>
 		/// <param name="id">Identifier of the artifact to retrieve</param>
 		/// <param name="locator">The blob locator</param>
@@ -174,6 +174,7 @@ namespace Horde.Server.Artifacts
 		/// <returns>Information about all the artifacts</returns>
 		[HttpGet]
 		[Route("/api/v2/artifacts/{id}/blobs/{*locator}")]
+		[Route("/api/v2/artifacts/{id}/bundles/{*locator}")]
 		public async Task<ActionResult<object>> ReadArtifactBlobAsync(ArtifactId id, BundleLocator locator, [FromQuery] int? offset = null, [FromQuery] int? length = null, CancellationToken cancellationToken = default)
 		{
 			IArtifact? artifact = await _artifactCollection.GetAsync(id, cancellationToken);
