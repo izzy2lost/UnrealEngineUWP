@@ -104,6 +104,9 @@ struct FRecastBuildConfig : public rcConfig
 	}
 
 	rcReal GetTileSizeUU() const { return tileSize * cs; }
+
+	/** Detects if we are using big cell size values in relation to the walkableClimb and walkableSlopeAngle. */
+	bool IsUsingCoarseCellSize() const;
 };
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS

@@ -251,6 +251,16 @@ struct FRecastGeometryExport : public FNavigableGeometryExport
 	virtual void SetNavDataPerInstanceTransformDelegate(const FNavDataPerInstanceTransformDelegate& InDelegate) override;
 };
 
+bool FRecastBuildConfig::IsUsingCoarseCellSize() const
+{
+	const rcReal MaxStepFromUniformSlope = cs * FMath::Tan(FMath::DegreesToRadians(walkableSlopeAngle));
+
+	// When filtering occurs, in rcFilterLedgeSpansImp, there can be a 2 steps vertical distance between neighbors ((asmax - asmin) > walkableClimb).
+	// This is why we compare with 2 times the max step.
+	const bool bIsUsingCoarseCellSize = (walkableClimb * ch) <= (2 * MaxStepFromUniformSlope);
+	return bIsUsingCoarseCellSize;
+}
+
 FRecastVoxelCache::FRecastVoxelCache(const uint8* Memory)
 {
 	uint8* BytesArr = (uint8*)Memory;
@@ -2963,7 +2973,7 @@ void FRecastTileGenerator::GenerateRecastFilter(FNavMeshBuildContext& BuildConte
 	{
 		SCOPE_CYCLE_COUNTER(STAT_Navigation_FilterLedgeSpans)
 
-		const bool bFilterNeighborSlope = TileConfig.walkableRadius > 1 || !UE::NavMesh::Private::bKeepSteepSlopeForSingleVoxelAgent;
+		const bool bFilterNeighborSlope = (TileConfig.walkableRadius > 1 || !UE::NavMesh::Private::bKeepSteepSlopeForSingleVoxelAgent) && !TileConfig.IsUsingCoarseCellSize();
 		rcFilterLedgeSpans(&BuildContext, TileConfig.walkableHeight, TileConfig.walkableClimb, bFilterNeighborSlope, *RasterContext.SolidHF);
 	}
 	if (!TileConfig.bMarkLowHeightAreas)
@@ -3010,7 +3020,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GenerateRecastFilterTimeSliced(FNavMe
 
 		bool DoIter = true;
 
-		const bool bFilterNeighborSlope = TileConfig.walkableRadius > 1 || !UE::NavMesh::Private::bKeepSteepSlopeForSingleVoxelAgent;
+		const bool bFilterNeighborSlope = (TileConfig.walkableRadius > 1 || !UE::NavMesh::Private::bKeepSteepSlopeForSingleVoxelAgent) && !TileConfig.IsUsingCoarseCellSize();
 
 		do
 		{
