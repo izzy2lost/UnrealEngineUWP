@@ -512,7 +512,8 @@ void FRewindData::AdvanceFrameImp(IResimCacheBase* ResimCache)
 
 	auto AdvanceHelper = [this, EarliestFrame, FrameAndPhase](auto& DirtyObjects, const auto& DesyncFunc, const auto& AdvanceDirtyFunc)
 	{
-		for (int32 DirtyIdx = DirtyObjects.Num() - 1; DirtyIdx >= 0; --DirtyIdx)
+		const int32 InitialNumDirtyObjects = DirtyObjects.Num();
+		for (int32 DirtyIdx = InitialNumDirtyObjects - 1; DirtyIdx >= 0; --DirtyIdx)
 		{
 			auto& Info = DirtyObjects.GetDenseAt(DirtyIdx);
 
@@ -521,7 +522,8 @@ void FRewindData::AdvanceFrameImp(IResimCacheBase* ResimCache)
 			//if hasn't changed in a while stop tracking
 			if (Info.LastDirtyFrame < EarliestFrame)
 			{
-				RemoveObject(Info.GetObjectPtr());
+				constexpr bool bAllowShrinking = false;
+				RemoveObject(Info.GetObjectPtr(), bAllowShrinking);
 			}
 			else
 			{
@@ -530,17 +532,21 @@ void FRewindData::AdvanceFrameImp(IResimCacheBase* ResimCache)
 
 				if (IsResim() && !Info.bResimAsFollower)
 				{
-						DesyncIfNecessary</*bSkipDynamics=*/false>(Info, FrameAndPhase);
+					DesyncIfNecessary</*bSkipDynamics=*/false>(Info, FrameAndPhase);
 				}
 
 				if (IsResim() && Handle->SyncState() != ESyncState::InSync && !SkipDesyncTest)
 				{
 					Handle->SetEnabledDuringResim(true);	//for now just mark anything out of sync as resim enabled. TODO: use bubble
-						DesyncFunc(Handle);
+					DesyncFunc(Handle);
 				}
 
 				AdvanceDirtyFunc(Info, Handle);
 			}
+		}
+		if (InitialNumDirtyObjects > 0)
+		{
+			DirtyObjects.Shrink();
 		}
 	};
 

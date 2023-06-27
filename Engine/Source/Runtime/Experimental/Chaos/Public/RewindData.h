@@ -1211,11 +1211,12 @@ public:
 		return nullptr;
 	}
 
-	void Remove(const TKey Key)
+	void Remove(const TKey Key, const bool bAllowShrinking)
 	{
 		if (const int32* Idx = KeyToIdx.Find(Key))
 		{
-			DenseVals.RemoveAtSwap(*Idx);
+			constexpr int32 Count = 1;
+			DenseVals.RemoveAtSwap(*Idx, Count, bAllowShrinking);
 
 			if(*Idx < DenseVals.Num())
 			{
@@ -1226,7 +1227,12 @@ public:
 			KeyToIdx.Remove(Key);
 		}
 	}
-	
+
+	void Shrink()
+	{
+		DenseVals.Shrink();
+	}
+
 	void Reset()
 	{
 		DenseVals.Reset();
@@ -1286,14 +1292,14 @@ public:
 		return Managers[Frame].DeltaTime;
 	}
 
-	void RemoveObject(const FGeometryParticleHandle* Particle)
+	void RemoveObject(const FGeometryParticleHandle* Particle, const bool bAllowShrinking=true)
 	{
-		DirtyParticles.Remove(Particle);
+		DirtyParticles.Remove(Particle, bAllowShrinking);
 	}
 
-	void RemoveObject(const FPBDJointConstraintHandle* Joint)
+	void RemoveObject(const FPBDJointConstraintHandle* Joint, const bool bAllowShrinking = true)
 	{
-		DirtyJoints.Remove(Joint);
+		DirtyJoints.Remove(Joint, bAllowShrinking);
 	}
 
 	int32 GetEarliestFrame_Internal() const { return CurFrame - FramesSaved; }
