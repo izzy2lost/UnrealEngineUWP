@@ -107,6 +107,13 @@ namespace UE::AssetRegistry
 {
 	const FName WildcardFName(TEXT("*"));
 	const FTopLevelAssetPath WildcardPathName(TEXT("/*"), TEXT("*"));
+
+	const FName Stage_ChunkCountFName(TEXT("Stage_ChunkCount"));
+	const FName Stage_ChunkSizeFName(TEXT("Stage_ChunkSize"));
+	const FName Stage_ChunkCompressedSizeFName(TEXT("Stage_ChunkCompressedSize"));
+	const FName Stage_ChunkInstalledSizeFName(TEXT("Stage_ChunkInstalledSize"));
+	const FName Stage_ChunkStreamingSizeFName(TEXT("Stage_ChunkStreamingSize"));
+	const FName Stage_ChunkOptionalSizeFName(TEXT("Stage_ChunkOptionalSize"));
 }
 
 namespace UE::AssetRegistry::Impl

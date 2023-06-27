@@ -109,8 +109,6 @@ const FName IAssetManagerEditorModule::ManagedDiskSizeName = FName("ManagedDiskS
 const FName IAssetManagerEditorModule::TotalUsageName = FName("TotalUsage");
 const FName IAssetManagerEditorModule::CookRuleName = FName("CookRule");
 const FName IAssetManagerEditorModule::ChunksName = FName("Chunks");
-const FName IAssetManagerEditorModule::StageChunkSizeName = FName("Stage_ChunkSize");
-const FName IAssetManagerEditorModule::StageChunkCompressedSizeName = FName("Stage_ChunkCompressedSize");
 const FName IAssetManagerEditorModule::PluginName = FName("GameFeaturePlugins");
 
 const FString FAssetManagerEditorRegistrySource::EditorSourceName = TEXT("Editor");
@@ -1371,7 +1369,7 @@ bool FAssetManagerEditorModule::GetDisplayTextForCustomColumn(const FAssetData& 
 
 	UAssetManager& AssetManager = UAssetManager::Get();
 
-	if (ColumnName == ManagedResourceSizeName || ColumnName == ManagedDiskSizeName || ColumnName == DiskSizeName || ColumnName == TotalUsageName || ColumnName == StageChunkSizeName || ColumnName == StageChunkCompressedSizeName)
+	if (ColumnName == ManagedResourceSizeName || ColumnName == ManagedDiskSizeName || ColumnName == DiskSizeName || ColumnName == TotalUsageName || ColumnName == UE::AssetRegistry::Stage_ChunkSizeFName || ColumnName == UE::AssetRegistry::Stage_ChunkCompressedSizeFName)
 	{
 		// Get integer, convert to string
 		int64 IntegerValue = 0;
@@ -1489,7 +1487,7 @@ bool FAssetManagerEditorModule::GetIntegerValueForCustomColumn(const FAssetData&
 	{
 		// If the asset registry has the staged sizes written back, then use that as an accurate representation of the
 		// actual chunks in the package.
-		if (RegistrySource->GetAssetTagByObjectPath(AssetData.GetSoftObjectPath(), StageChunkSizeName, OutValue))
+		if (RegistrySource->GetAssetTagByObjectPath(AssetData.GetSoftObjectPath(), UE::AssetRegistry::Stage_ChunkSizeFName, OutValue))
 		{
 			return true;
 		}

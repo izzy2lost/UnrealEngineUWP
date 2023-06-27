@@ -923,6 +923,30 @@ namespace AssetRegistry
 	extern ASSETREGISTRY_API const FName WildcardFName;
 	extern ASSETREGISTRY_API const FTopLevelAssetPath WildcardPathName;
 
+
+	/*
+	* Various FNames for asset tags that get added during staging if asset registry writeback is enabled.
+	* Note that these sizes refer to the package as a whole, and some packages have more than one asset per
+	* package. In that case, the data is stored on the asset returned by GetMostImportantAsset with IgnoreSkipClasses.
+	* 
+	* NOTE some platforms do not compress in UnrealPak. For those platforms, all compressed sizes are actually
+	* uncompressed!
+	* 
+	* Stage_ChunkCountFName						Total iostore chunks in the package.
+	* Stage_ChunkSizeFName						The total uncompressed size of the chunks in the package.
+	* Stage_ChunkCompressedSizeFName			The total compressed size of the chunks in the package. SEE NOTE ABOVE!
+	* Stage_ChunkInstalledSizeFName				The compressed size of all chunks that must be installed with the game/plugin.
+	* Stage_ChunkStreamingSizeFName				The compressed size of all chunks that are delivered using IAS.
+	* Stage_ChunkOptionalSizeFName				The compressed size of all chunks that are placed in an optional container.
+	* 
+	* See CookMetadata.h - UE::Cook::EPluginSizeTypes for more information on size types.
+	*/
+	extern ASSETREGISTRY_API const FName Stage_ChunkCountFName;
+	extern ASSETREGISTRY_API const FName Stage_ChunkSizeFName;
+	extern ASSETREGISTRY_API const FName Stage_ChunkCompressedSizeFName;
+	extern ASSETREGISTRY_API const FName Stage_ChunkInstalledSizeFName;
+	extern ASSETREGISTRY_API const FName Stage_ChunkStreamingSizeFName;
+	extern ASSETREGISTRY_API const FName Stage_ChunkOptionalSizeFName;
 } // namespace AssetRegistry
 } // namespace UE
 

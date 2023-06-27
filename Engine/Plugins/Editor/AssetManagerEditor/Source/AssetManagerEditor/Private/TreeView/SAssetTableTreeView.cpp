@@ -1689,7 +1689,7 @@ void SAssetTableTreeView::PopulateAssetTableRow(FAssetTableRow& OutRow, const FA
 		OutRow.PrimaryName = AssetTable.StoreStr(Str);
 	}
 
-	EditorModule->GetIntegerValueForCustomColumn(AssetData, IAssetManagerEditorModule::StageChunkCompressedSizeName, OutRow.StagedCompressedSize, &RegistrySource);
+	EditorModule->GetIntegerValueForCustomColumn(AssetData, UE::AssetRegistry::Stage_ChunkCompressedSizeFName, OutRow.StagedCompressedSize, &RegistrySource);
 	EditorModule->GetIntegerValueForCustomColumn(AssetData, IAssetManagerEditorModule::TotalUsageName, OutRow.TotalUsageCount, &RegistrySource);
 
 	if (EditorModule->GetStringValueForCustomColumn(AssetData, IAssetManagerEditorModule::ChunksName, Str, &RegistrySource))

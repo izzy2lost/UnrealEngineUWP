@@ -3493,20 +3493,23 @@ static void AddChunkInfoToAssetRegistry(TMap<FPackageId, TArray<FIoStoreChunkSou
 			continue;
 		}
 
+		UE::Cook::FPluginSizeInfo PackageCompressedSize;
+		UE::Cook::FPluginSizeInfo PackageSize;
 		int32 ChunkCount = 0;
-		int64 Size = 0;
-		int64 CompressedSize = 0;
 		for (const FIoStoreChunkSource& ChunkInfo : *PackageChunks)
 		{
 			ChunkCount++;
-			Size += ChunkInfo.ChunkInfo.Size;
-			CompressedSize += ChunkInfo.ChunkInfo.CompressedSize;
+			PackageSize[ChunkInfo.SizeType] += ChunkInfo.ChunkInfo.Size;
+			PackageCompressedSize[ChunkInfo.SizeType] += ChunkInfo.ChunkInfo.CompressedSize;
 		}
 
 		FAssetDataTagMap TagsAndValues;
-		TagsAndValues.Add("Stage_ChunkCount", LexToString(ChunkCount));
-		TagsAndValues.Add("Stage_ChunkSize", LexToString(Size));
-		TagsAndValues.Add("Stage_ChunkCompressedSize", LexToString(CompressedSize));
+		TagsAndValues.Add(UE::AssetRegistry::Stage_ChunkCountFName, LexToString(ChunkCount));
+		TagsAndValues.Add(UE::AssetRegistry::Stage_ChunkSizeFName, LexToString(PackageSize.TotalSize()));
+		TagsAndValues.Add(UE::AssetRegistry::Stage_ChunkCompressedSizeFName, LexToString(PackageCompressedSize.TotalSize()));
+		TagsAndValues.Add(UE::AssetRegistry::Stage_ChunkInstalledSizeFName, LexToString(PackageCompressedSize[UE::Cook::EPluginSizeTypes::Installed]));
+		TagsAndValues.Add(UE::AssetRegistry::Stage_ChunkStreamingSizeFName, LexToString(PackageCompressedSize[UE::Cook::EPluginSizeTypes::Streaming]));
+		TagsAndValues.Add(UE::AssetRegistry::Stage_ChunkOptionalSizeFName, LexToString(PackageCompressedSize[UE::Cook::EPluginSizeTypes::Optional]));
 		AssetRegistry.AddTagsToAssetData(AssetData->GetSoftObjectPath(), MoveTemp(TagsAndValues));
 
 		// We assign a package's chunks to a single asset, remove it from the list so that
@@ -3514,7 +3517,7 @@ static void AddChunkInfoToAssetRegistry(TMap<FPackageId, TArray<FIoStoreChunkSou
 		PackageToChunks.Remove(FPackageId::FromName(AssetPackage.Key));
 
 		UpdatedAssetCount++;
-		AssetsCompressedSize += CompressedSize;
+		AssetsCompressedSize += PackageCompressedSize.TotalSize();
 	}
 	
 	// PackageToChunks now has chunks that we never assigned to an asset, and so aren't accounted for.
