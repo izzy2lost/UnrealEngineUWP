@@ -2173,7 +2173,10 @@ TSharedRef<SWidget> SSequencer::MakeViewMenu()
 	};
 
 	// Menu Entry for Outliner Column Visibilities
-	MenuBuilder.AddSubMenu(LOCTEXT("ColumnVisibilityHeader", "Columns"), FText::GetEmpty(), FNewMenuDelegate::CreateRaw(this, &SSequencer::FillColumnVisibilityMenu));
+	if (OutlinerColumnVisibilities.Num() > 0)
+	{
+		MenuBuilder.AddSubMenu(LOCTEXT("ColumnVisibilityHeader", "Columns"), FText::GetEmpty(), FNewMenuDelegate::CreateRaw(this, &SSequencer::FillColumnVisibilityMenu));
+	}
 
 	MenuBuilder.AddWidget(
 		SNew(SHorizontalBox)
