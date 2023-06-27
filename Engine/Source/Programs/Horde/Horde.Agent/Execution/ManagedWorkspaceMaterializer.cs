@@ -67,7 +67,7 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	{
 		// ManagedWorkspace store synced files in a sub-directory from the top working dir.
 		DirectoryReference syncDir = DirectoryReference.Combine(_workingDir, _agentWorkspace.Identifier, "Sync");
-		return Task.FromResult(new WorkspaceMaterializerSettings(syncDir, _agentWorkspace.Identifier, _agentWorkspace.Stream));
+		return Task.FromResult(new WorkspaceMaterializerSettings(syncDir, _agentWorkspace.Identifier, _agentWorkspace.Stream, true));
 	}
 
 	/// <inheritdoc/>

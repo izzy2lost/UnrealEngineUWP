@@ -51,6 +51,13 @@ public class WorkspaceMaterializerSettings
 	/// Stream path inside Perforce
 	/// </summary>
 	public string StreamRoot { get; }
+	
+	/// <summary>
+	/// Whether the materialized workspace is a true Perforce workspace
+	/// This flag is provided as a stop-gap solution to allow replacing ManagedWorkspace with WorkspaceMaterializer.
+	/// It's *highly* recommended to set this to false for any new implementations of IWorkspaceMaterializer.
+	/// </summary>
+	public bool IsPerforceWorkspace { get; }
 
 	/// <summary>
 	/// Constructor
@@ -58,11 +65,13 @@ public class WorkspaceMaterializerSettings
 	/// <param name="directoryPath"></param>
 	/// <param name="identifier"></param>
 	/// <param name="streamRoot"></param>
-	public WorkspaceMaterializerSettings(DirectoryReference directoryPath, string identifier, string streamRoot)
+	/// <param name="isPerforceWorkspace"></param>
+	public WorkspaceMaterializerSettings(DirectoryReference directoryPath, string identifier, string streamRoot, bool isPerforceWorkspace)
 	{
 		DirectoryPath = directoryPath;
 		Identifier = identifier;
 		StreamRoot = streamRoot;
+		IsPerforceWorkspace = isPerforceWorkspace;
 	}
 }
 

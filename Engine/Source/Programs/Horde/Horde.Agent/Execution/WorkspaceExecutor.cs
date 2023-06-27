@@ -103,16 +103,18 @@ namespace Horde.Agent.Execution
 		protected override async Task<bool> SetupAsync(BeginStepResponse step, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Loop back to JobExecutor's SetupAsync again, but with workspace and shared storage dir set
-			DirectoryReference workspaceDir = (await _workspace.GetSettingsAsync(cancellationToken)).DirectoryPath;
-			return await SetupAsync(step, workspaceDir, _sharedStorageDir, false, logger, cancellationToken);
+			WorkspaceMaterializerSettings settings = await _workspace.GetSettingsAsync(cancellationToken);
+			DirectoryReference workspaceDir = settings.DirectoryPath;
+			return await SetupAsync(step, workspaceDir, _sharedStorageDir, settings.IsPerforceWorkspace, logger, cancellationToken);
 		}
 
 		/// <inheritdoc/>
 		protected override async Task<bool> ExecuteAsync(BeginStepResponse step, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Loop back to JobExecutor's ExecuteAsync again, but with workspace and shared storage dir set
-			DirectoryReference workspaceDir = (await _workspace.GetSettingsAsync(cancellationToken)).DirectoryPath;
-			return await ExecuteAsync(step, workspaceDir, _sharedStorageDir, false, logger, cancellationToken);
+			WorkspaceMaterializerSettings settings = await _workspace.GetSettingsAsync(cancellationToken);
+			DirectoryReference workspaceDir = settings.DirectoryPath;
+			return await ExecuteAsync(step, workspaceDir, _sharedStorageDir, settings.IsPerforceWorkspace, logger, cancellationToken);
 		}
 
 		/// <inheritdoc/>
