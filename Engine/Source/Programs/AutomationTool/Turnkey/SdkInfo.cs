@@ -41,6 +41,8 @@ namespace Turnkey
 
 			Device_AutoSoftwareUpdates_Disabled		= (1 << 15),
 			Device_AutoSoftwareUpdates_Enabled		= (1 << 16),
+
+			Host_Unsupported						= (1 << 17),
 		}
 
 		static public LocalAvailability GetLocalAvailability(AutomationTool.Platform AutomationPlatform, bool bAllowUpdatingPrerequisites, TurnkeyContextImpl TurnkeyContext)
@@ -52,6 +54,11 @@ namespace Turnkey
 			if (SDK == null)
 			{
 				return Result;
+			}
+
+			if (!SDK.bIsSdkAllowedOnHost)
+			{
+				return LocalAvailability.Host_Unsupported;
 			}
 
 			if (AutomationPlatform.UpdateHostPrerequisites(TurnkeyUtils.CommandUtilHelper, TurnkeyContext, !bAllowUpdatingPrerequisites))

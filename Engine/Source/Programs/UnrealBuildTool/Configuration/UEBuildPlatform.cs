@@ -240,7 +240,7 @@ namespace UnrealBuildTool
 
 			// check DDPI to see if the platform is enabled on this host platform
 			string IniPlatformName = ConfigHierarchy.GetIniPlatformName(Platform);
-			bool bIsEnabled = true; 
+			bool bIsEnabled = false; 
 			ConfigDataDrivenPlatformInfo? DDPI = DataDrivenPlatformInfo.GetDataDrivenInfoForPlatform(IniPlatformName);
 			if (DDPI != null)
 			{
@@ -427,7 +427,12 @@ namespace UnrealBuildTool
 		/// </summary>
 		public SDKStatus HasRequiredSDKsInstalled()
 		{
-			return UEBuildPlatform.GetSDK(Platform)!.HasRequiredSDKsInstalled();
+			UEBuildPlatformSDK? SDK = UEBuildPlatform.GetSDK(Platform);
+			if (SDK == null || !SDK.bIsSdkAllowedOnHost)
+			{
+				return SDKStatus.Invalid;
+			}
+			return SDK.HasRequiredSDKsInstalled();
 		}
 
 		/// <summary>

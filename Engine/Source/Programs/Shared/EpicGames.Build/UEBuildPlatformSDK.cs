@@ -325,7 +325,10 @@ namespace EpicGames.Core
 			bIsSdkAllowedOnHost = bInIsSdkAllowedOnHost;
 
 			// load the SDK config file
-			LoadJsonFile(PlatformName);
+			if (bIsSdkAllowedOnHost)
+			{
+				LoadJsonFile(PlatformName);
+			}
 
 			// if the parent set up autosdk, the env vars will be wrong, but we can still get the manual SDK version from before it was setup
 			string? ParentManualSDKVersions = Environment.GetEnvironmentVariable(GetPlatformManualSDKSetupEnvVar());
@@ -401,25 +404,28 @@ namespace EpicGames.Core
 		{
 			SDKCollection AllSdks = new SDKCollection(this);
 
-			// walk over each one version the platform supports, and get it's current installed info
-			foreach (SDKDescriptor Desc in GetValidVersions().Sdks)
+			if (bIsSdkAllowedOnHost)
 			{
-				AllSdks.SetupSDK(Desc.Name, Desc.Min, Desc.Max, CachedManualSDKVersions.GetValueOrDefault(Desc.Name), Desc.GroupName);
-			}
+				// walk over each one version the platform supports, and get it's current installed info
+				foreach (SDKDescriptor Desc in GetValidVersions().Sdks)
+				{
+					AllSdks.SetupSDK(Desc.Name, Desc.Min, Desc.Max, CachedManualSDKVersions.GetValueOrDefault(Desc.Name), Desc.GroupName);
+				}
 
-			// now get current AutoSDK version (if autosdk is set up, then the GetInstalledSDKVersion will return AutoSDK version)
-			bool bIsAutoSDK = false;
-			string? CurrentAutoSDKVersion = (PlatformSupportsAutoSDKs() && HasRequiredAutoSDKInstalled() == SDKStatus.Valid && HasSetupAutoSDK()) ? GetInstalledVersion(out bIsAutoSDK) : null;
-			AllSdks.SetupSDK("AutoSdk", GetMainVersion(), GetMainVersion(), CurrentAutoSDKVersion, null);
+				// now get current AutoSDK version (if autosdk is set up, then the GetInstalledSDKVersion will return AutoSDK version)
+				bool bIsAutoSDK = false;
+				string? CurrentAutoSDKVersion = (PlatformSupportsAutoSDKs() && HasRequiredAutoSDKInstalled() == SDKStatus.Valid && HasSetupAutoSDK()) ? GetInstalledVersion(out bIsAutoSDK) : null;
+				AllSdks.SetupSDK("AutoSdk", GetMainVersion(), GetMainVersion(), CurrentAutoSDKVersion, null);
 
-			// verify some assumptions
-			if (CurrentAutoSDKVersion != null && bIsAutoSDK == false)
-			{
-				throw new Exception($"AutoSDK was indicated to be setup ({CurrentAutoSDKVersion}), but GetInstalledSDKVersion returned false for bIsAutoSDK");
-			}
-			if (CurrentAutoSDKVersion != null && CurrentAutoSDKVersion != GetMainVersion())
-			{
-				throw new Exception($"AutoSDK was indicated to be setup, but the version if returned ({CurrentAutoSDKVersion}) doesn't equal the MainVersion ({GetMainVersion()}");
+				// verify some assumptions
+				if (CurrentAutoSDKVersion != null && bIsAutoSDK == false)
+				{
+					throw new Exception($"AutoSDK was indicated to be setup ({CurrentAutoSDKVersion}), but GetInstalledSDKVersion returned false for bIsAutoSDK");
+				}
+				if (CurrentAutoSDKVersion != null && CurrentAutoSDKVersion != GetMainVersion())
+				{
+					throw new Exception($"AutoSDK was indicated to be setup, but the version if returned ({CurrentAutoSDKVersion}) doesn't equal the MainVersion ({GetMainVersion()}");
+				}
 			}
 
 			return AllSdks;
@@ -596,11 +602,14 @@ namespace EpicGames.Core
 
 		protected virtual SDKCollection GetInstalledSDKVersions()
 		{
-			// if the platform doesn't override this, then it only has one sdk, so put it into the collection as the single sdk (this is very much the standard behavior)
-			string? Version = GetInstalledSDKVersion();
-			if (Version != null)
+			if (bIsSdkAllowedOnHost)
 			{
-				return new SDKCollection(Version, this);
+				// if the platform doesn't override this, then it only has one sdk, so put it into the collection as the single sdk (this is very much the standard behavior)
+				string? Version = GetInstalledSDKVersion();
+				if (Version != null)
+				{
+					return new SDKCollection(Version, this);
+				}
 			}
 
 			// if no manual version, then return an empty list of current sdks
