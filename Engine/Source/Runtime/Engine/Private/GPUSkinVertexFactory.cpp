@@ -245,7 +245,7 @@ static bool DeferSkeletalLockAndFillToRHIThread()
 	return IsRunningRHIInSeparateThread() && CVarRHICmdDeferSkeletalLockAndFillToRHIThread.GetValueOnRenderThread() > 0;
 }
 
-bool FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandListImmediate& RHICmdList, const TArray<FMatrix44f>& ReferenceToLocalMatrices,
+bool FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandList& RHICmdList, const TArray<FMatrix44f>& ReferenceToLocalMatrices,
 	const TArray<FBoneIndexType>& BoneMap, uint32 RevisionNumber, bool bPrevious, ERHIFeatureLevel::Type InFeatureLevel, bool bUseSkinCache, bool bForceUpdateImmediately, const FName& AssetPathName)
 {
 	// stat disabled by default due to low-value/high-frequency
@@ -259,8 +259,8 @@ bool FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandListI
 
 	if (SupportsBonesBufferSRV(InFeatureLevel))
 	{
-		check(IsInRenderingThread());
-		
+		check(IsInParallelRenderingThread());
+
 		// make sure current revision is up-to-date
 		SetCurrentRevisionNumber(RevisionNumber);
 
@@ -278,7 +278,7 @@ bool FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandListI
 			{
 				BoneBufferPool.ReleasePooledResource(*CurrentBoneBuffer);
 			}
-			*CurrentBoneBuffer = BoneBufferPool.CreatePooledResource(VectorArraySize);
+			*CurrentBoneBuffer = BoneBufferPool.CreatePooledResource(RHICmdList, VectorArraySize);
 			check(IsValidRef(*CurrentBoneBuffer));
 			CurrentBoneBuffer->VertexBufferRHI->SetOwnerName(AssetPathName);
 		}
@@ -287,7 +287,7 @@ bool FGPUBaseSkinVertexFactory::FShaderDataType::UpdateBoneData(FRHICommandListI
 			if (!bUseSkinCache && !bForceUpdateImmediately && DeferSkeletalLockAndFillToRHIThread())
 			{
 				FRHIBuffer* VertexBuffer = CurrentBoneBuffer->VertexBufferRHI;
-				RHICmdList.EnqueueLambda([VertexBuffer, VectorArraySize, &ReferenceToLocalMatrices, &BoneMap](FRHICommandListImmediate& InRHICmdList)
+				RHICmdList.EnqueueLambda([VertexBuffer, VectorArraySize, &ReferenceToLocalMatrices, &BoneMap](FRHICommandList& InRHICmdList)
 				{
 					QUICK_SCOPE_CYCLE_COUNTER(STAT_FRHICommandUpdateBoneBuffer_Execute);
 					FMatrix3x4* LambdaChunkMatrices = (FMatrix3x4*)InRHICmdList.LockBuffer(VertexBuffer, 0, VectorArraySize, RLM_WriteOnly);
@@ -523,6 +523,11 @@ int32 FGPUBaseSkinVertexFactory::GetBoneInfluenceLimitForAsset(int32 AssetProvid
 
 void FGPUBaseSkinVertexFactory::SetData(const FGPUSkinDataType* InData)
 {
+	SetData(FRHICommandListExecutor::GetImmediateCommandList(), InData);
+}
+
+void FGPUBaseSkinVertexFactory::SetData(FRHICommandListBase& RHICmdList, const FGPUSkinDataType* InData)
+{
 	check(InData);
 
 	if (!Data)
@@ -531,7 +536,7 @@ void FGPUBaseSkinVertexFactory::SetData(const FGPUSkinDataType* InData)
 	}
 
 	*Data = *InData;
-	UpdateRHI(FRHICommandListImmediate::Get());
+	UpdateRHI(RHICmdList);
 }
 
 void FGPUBaseSkinVertexFactory::CopyDataTypeForLocalVertexFactory(FLocalVertexFactory::FDataType& OutDestData) const
@@ -1049,14 +1054,14 @@ IMPLEMENT_TYPE_LAYOUT(TGPUSkinAPEXClothVertexFactoryShaderParameters);
 	TGPUSkinAPEXClothVertexFactory::ClothShaderType
 -----------------------------------------------------------------------------*/
 
-bool FGPUBaseSkinAPEXClothVertexFactory::ClothShaderType::UpdateClothSimulData(FRHICommandListImmediate& RHICmdList, const TArray<FVector3f>& InSimulPositions,
+bool FGPUBaseSkinAPEXClothVertexFactory::ClothShaderType::UpdateClothSimulData(FRHICommandList& RHICmdList, const TArray<FVector3f>& InSimulPositions,
 	const TArray<FVector3f>& InSimulNormals, uint32 RevisionNumber, ERHIFeatureLevel::Type FeatureLevel, bool bForceUpdateImmediately, const FName& AssetPathName)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FGPUBaseSkinAPEXClothVertexFactory_UpdateClothSimulData);
 
 	uint32 NumSimulVerts = InSimulPositions.Num();
 
-	check(IsInRenderingThread());
+	check(IsInParallelRenderingThread());
 	
 	SetCurrentRevisionNumber(RevisionNumber);
 	FVertexBufferAndSRV* CurrentClothBuffer = &GetClothBufferForWriting();
@@ -1071,7 +1076,7 @@ bool FGPUBaseSkinAPEXClothVertexFactory::ClothShaderType::UpdateClothSimulData(F
 		{
 			ClothSimulDataBufferPool.ReleasePooledResource(*CurrentClothBuffer);
 		}
-		*CurrentClothBuffer = ClothSimulDataBufferPool.CreatePooledResource(VectorArraySize);
+		*CurrentClothBuffer = ClothSimulDataBufferPool.CreatePooledResource(RHICmdList, VectorArraySize);
 		check(IsValidRef(*CurrentClothBuffer));
 		CurrentClothBuffer->VertexBufferRHI->SetOwnerName(AssetPathName);
 	}
@@ -1081,7 +1086,7 @@ bool FGPUBaseSkinAPEXClothVertexFactory::ClothShaderType::UpdateClothSimulData(F
 		if (!bForceUpdateImmediately && DeferSkeletalLockAndFillToRHIThread())
 		{
 			FRHIBuffer* VertexBuffer = CurrentClothBuffer->VertexBufferRHI;
-			RHICmdList.EnqueueLambda([VertexBuffer, VectorArraySize, &InSimulPositions, &InSimulNormals](FRHICommandListImmediate& InRHICmdList)
+			RHICmdList.EnqueueLambda([VertexBuffer, VectorArraySize, &InSimulPositions, &InSimulNormals](FRHICommandList& InRHICmdList)
 			{
 				QUICK_SCOPE_CYCLE_COUNTER(STAT_FRHICommandUpdateBoneBuffer_Execute);
 				float* RESTRICT Data = (float* RESTRICT)InRHICmdList.LockBuffer(VertexBuffer, 0, VectorArraySize, RLM_WriteOnly);
@@ -1243,7 +1248,7 @@ bool TGPUSkinAPEXClothVertexFactory<BoneInfluenceType>::ShouldCompilePermutation
 }
 
 template <GPUSkinBoneInfluenceType BoneInfluenceType>
-void TGPUSkinAPEXClothVertexFactory<BoneInfluenceType>::SetData(const FGPUSkinDataType* InData)
+void TGPUSkinAPEXClothVertexFactory<BoneInfluenceType>::SetData(FRHICommandListBase& RHICmdList, const FGPUSkinDataType* InData)
 {
 	const FGPUSkinAPEXClothDataType* InClothData = (const FGPUSkinAPEXClothDataType*)(InData);
 	check(InClothData);
@@ -1255,7 +1260,7 @@ void TGPUSkinAPEXClothVertexFactory<BoneInfluenceType>::SetData(const FGPUSkinDa
 	}
 
 	*ClothDataPtr = *InClothData;
-	FGPUBaseSkinVertexFactory::UpdateRHI(FRHICommandListImmediate::Get());
+	FGPUBaseSkinVertexFactory::UpdateRHI(RHICmdList);
 }
 
 /**
@@ -1439,8 +1444,11 @@ void FGPUSkinPassthroughVertexFactory::CreateLooseUniformBuffer(FRHICommandListB
 
 void FGPUSkinPassthroughVertexFactory::SetVertexAttributes(FGPUBaseSkinVertexFactory const* InSourceVertexFactory, FAddVertexAttributeDesc const& InDesc)
 {
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+	SetVertexAttributes(FRHICommandListImmediate::Get(), InSourceVertexFactory, InDesc);
+}
 
+void FGPUSkinPassthroughVertexFactory::SetVertexAttributes(FRHICommandListBase& RHICmdList, FGPUBaseSkinVertexFactory const* InSourceVertexFactory, FAddVertexAttributeDesc const& InDesc)
+{
 	// Check for new vertex attributes.
 	bool bNeedFullUpdate = false;
 	for (int32 Index = 0; Index < InDesc.VertexAttributes.Num(); ++Index)

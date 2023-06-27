@@ -397,7 +397,7 @@ public:
 			return IntermediateAccumulatedTangentBuffer;
 		}
 
-		void UpdateVertexFactoryDeclaration()
+		void UpdateVertexFactoryDeclaration(FRHICommandListBase& RHICmdList)
 		{
 			FGPUSkinPassthroughVertexFactory::FAddVertexAttributeDesc Desc;
 			Desc.FrameNumber = SourceVertexFactory->GetShaderData().UpdatedFrameNumber;
@@ -406,13 +406,13 @@ public:
 			Desc.SRVs[FGPUSkinPassthroughVertexFactory::Position] = GetPositionRWBuffer()->Buffer.SRV;
 			Desc.SRVs[FGPUSkinPassthroughVertexFactory::PreviousPosition] = GetPreviousPositionRWBuffer()->Buffer.SRV;
 			Desc.SRVs[FGPUSkinPassthroughVertexFactory::Tangent] = GetTangentRWBuffer()->Buffer.SRV;
-			TargetVertexFactory->SetVertexAttributes(SourceVertexFactory, Desc);
+			TargetVertexFactory->SetVertexAttributes(RHICmdList, SourceVertexFactory, Desc);
 		}
 	};
 
-	void UpdateVertexFactoryDeclaration(int32 Section)
+	void UpdateVertexFactoryDeclaration(FRHICommandListBase& RHICmdList, int32 Section)
 	{
-		DispatchData[Section].UpdateVertexFactoryDeclaration();
+		DispatchData[Section].UpdateVertexFactoryDeclaration(RHICmdList);
 	}
 
 	inline FCachedGeometry::Section GetCachedGeometry(int32 SectionIndex) const
@@ -1095,7 +1095,7 @@ class FRecomputeTangentsPerVertexPassCS : public FBaseRecomputeTangentsPerVertex
 IMPLEMENT_SHADER_TYPE(template<>, FRecomputeTangentsPerVertexPassCS<0>, TEXT("/Engine/Private/RecomputeTangentsPerVertexPass.usf"), TEXT("MainCS"), SF_Compute);
 IMPLEMENT_SHADER_TYPE(template<>, FRecomputeTangentsPerVertexPassCS<1>, TEXT("/Engine/Private/RecomputeTangentsPerVertexPass.usf"), TEXT("MainCS"), SF_Compute);
 
-void FGPUSkinCache::DispatchUpdateSkinTangents(FRHICommandListImmediate& RHICmdList, FGPUSkinCacheEntry* Entry, int32 SectionIndex, FSkinCacheRWBuffer*& StagingBuffer, bool bTrianglePass)
+void FGPUSkinCache::DispatchUpdateSkinTangents(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* Entry, int32 SectionIndex, FSkinCacheRWBuffer*& StagingBuffer, bool bTrianglePass)
 {
 	FGPUSkinCacheEntry::FSectionDispatchData& DispatchData = Entry->DispatchData[SectionIndex];
 
@@ -1234,7 +1234,7 @@ void FGPUSkinCache::DispatchUpdateSkinTangents(FRHICommandListImmediate& RHICmdL
 	}
 }
 
-FGPUSkinCache::FRWBuffersAllocation* FGPUSkinCache::TryAllocBuffer(uint32 NumVertices, bool WithTangnents, bool UseIntermediateTangents, uint32 NumTriangles, FRHICommandListImmediate& RHICmdList, const FName& OwnerName)
+FGPUSkinCache::FRWBuffersAllocation* FGPUSkinCache::TryAllocBuffer(uint32 NumVertices, bool WithTangnents, bool UseIntermediateTangents, uint32 NumTriangles, FRHICommandList& RHICmdList, const FName& OwnerName)
 {
 	uint64 MaxSizeInBytes = (uint64)(GSkinCacheSceneMemoryLimitInMB * 1024.0f * 1024.0f);
 	uint64 RequiredMemInBytes = FRWBuffersAllocation::CalculateRequiredMemory(NumVertices, WithTangnents, UseIntermediateTangents, NumTriangles);
@@ -1257,7 +1257,7 @@ FGPUSkinCache::FRWBuffersAllocation* FGPUSkinCache::TryAllocBuffer(uint32 NumVer
 
 DECLARE_GPU_STAT(GPUSkinCache);
 
-void FGPUSkinCache::MakeBufferTransitions(FRHICommandListImmediate& RHICmdList, TArray<FSkinCacheRWBuffer*>& Buffers, ERHIAccess ToState)
+void FGPUSkinCache::MakeBufferTransitions(FRHICommandList& RHICmdList, TArray<FSkinCacheRWBuffer*>& Buffers, ERHIAccess ToState)
 {
 	if (Buffers.Num() > 0)
 	{
@@ -1302,7 +1302,7 @@ void FGPUSkinCache::GetBufferUAVs(const TArray<FSkinCacheRWBuffer*>& InBuffers, 
 	}
 }
 
-void FGPUSkinCache::DoDispatch(FRHICommandListImmediate& RHICmdList)
+void FGPUSkinCache::DoDispatch(FRHICommandList& RHICmdList)
 {
 	int32 BatchCount = BatchDispatches.Num();
 	INC_DWORD_STAT_BY(STAT_GPUSkinCache_TotalNumChunks, BatchCount);
@@ -1562,7 +1562,7 @@ void FGPUSkinCache::DoDispatch(FRHICommandListImmediate& RHICmdList)
 		for (int32 i = 0; i < BatchCount; ++i)
 		{
 			FDispatchEntry& DispatchItem = BatchDispatches[i];
-			DispatchItem.SkinCacheEntry->UpdateVertexFactoryDeclaration(DispatchItem.Section);
+			DispatchItem.SkinCacheEntry->UpdateVertexFactoryDeclaration(RHICmdList, DispatchItem.Section);
 		}
 	}
 
@@ -1572,7 +1572,7 @@ void FGPUSkinCache::DoDispatch(FRHICommandListImmediate& RHICmdList)
 	}
 }
 
-void FGPUSkinCache::DoDispatch(FRHICommandListImmediate& RHICmdList, FGPUSkinCacheEntry* SkinCacheEntry, int32 Section, int32 RevisionNumber)
+void FGPUSkinCache::DoDispatch(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* SkinCacheEntry, int32 Section, int32 RevisionNumber)
 {
 	RenderCaptureInterface::FScopedCapture RenderCapture(GNumDispatchesToCapture > 0, &RHICmdList, TEXT("GPUSkinCache"));
 	GNumDispatchesToCapture = FMath::Max(GNumDispatchesToCapture - 1, 0);
@@ -1620,14 +1620,14 @@ void FGPUSkinCache::DoDispatch(FRHICommandListImmediate& RHICmdList, FGPUSkinCac
 		DispatchUpdateSkinTangents(RHICmdList, SkinCacheEntry, Section, StagingBuffer, false);
 	}
 
-	SkinCacheEntry->UpdateVertexFactoryDeclaration(Section);
+	SkinCacheEntry->UpdateVertexFactoryDeclaration(RHICmdList, Section);
 
 	TransitionAllToReadable(RHICmdList, BuffersToTransitionToRead);
 }
 
 bool FGPUSkinCache::ProcessEntry(
 	EGPUSkinCacheEntryMode Mode,
-	FRHICommandListImmediate& RHICmdList, 
+	FRHICommandList& RHICmdList, 
 	FGPUBaseSkinVertexFactory* VertexFactory,
 	FGPUSkinPassthroughVertexFactory* TargetVertexFactory, 
 	const FSkelMeshRenderSection& BatchElement, 
@@ -1860,7 +1860,7 @@ bool FGPUSkinCache::IsGPUSkinCacheRayTracingSupported()
 
 #if RHI_RAYTRACING
 
-void FGPUSkinCache::ProcessRayTracingGeometryToUpdate(FRHICommandListImmediate& RHICmdList, FGPUSkinCacheEntry* SkinCacheEntry)
+void FGPUSkinCache::ProcessRayTracingGeometryToUpdate(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* SkinCacheEntry)
 {
 	if (IsGPUSkinCacheRayTracingSupported() && SkinCacheEntry && SkinCacheEntry->GPUSkin && SkinCacheEntry->GPUSkin->bSupportRayTracing)
 	{
@@ -1878,14 +1878,14 @@ void FGPUSkinCache::ProcessRayTracingGeometryToUpdate(FRHICommandListImmediate& 
 
 #endif
 
-void FGPUSkinCache::BeginBatchDispatch(FRHICommandListImmediate& RHICmdList)
+void FGPUSkinCache::BeginBatchDispatch(FRHICommandList& RHICmdList)
 {
 	check(BatchDispatches.Num() == 0);
 	bShouldBatchDispatches = true;
 	DispatchCounter = 0;
 }
 
-void FGPUSkinCache::EndBatchDispatch(FRHICommandListImmediate& RHICmdList)
+void FGPUSkinCache::EndBatchDispatch(FRHICommandList& RHICmdList)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FGPUSkinCache::EndBatchDispatch);
 
@@ -2011,7 +2011,7 @@ void FGPUSkinCache::PrepareUpdateSkinning(FGPUSkinCacheEntry* Entry, int32 Secti
 	check(DispatchData.PreviousPositionBuffer != DispatchData.PositionBuffer);
 }
 
-void FGPUSkinCache::DispatchUpdateSkinning(FRHICommandListImmediate& RHICmdList, FGPUSkinCacheEntry* Entry, int32 Section, uint32 RevisionNumber, TArray<FSkinCacheRWBuffer*>& BuffersToTransitionToRead)
+void FGPUSkinCache::DispatchUpdateSkinning(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* Entry, int32 Section, uint32 RevisionNumber, TArray<FSkinCacheRWBuffer*>& BuffersToTransitionToRead)
 {
 	FGPUSkinCacheEntry::FSectionDispatchData& DispatchData = Entry->DispatchData[Section];
 	FGPUBaseSkinVertexFactory::FShaderDataType& ShaderData = DispatchData.SourceVertexFactory->GetShaderData();
@@ -2271,7 +2271,7 @@ void FGPUSkinCache::CVarSinkFunction()
 
 FAutoConsoleVariableSink FGPUSkinCache::CVarSink(FConsoleCommandDelegate::CreateStatic(&CVarSinkFunction));
 
-void FGPUSkinCache::IncrementDispatchCounter(FRHICommandListImmediate& RHICmdList)
+void FGPUSkinCache::IncrementDispatchCounter(FRHICommandList& RHICmdList)
 {
 	if (GSkinCacheMaxDispatchesPerCmdList > 0)
 	{

@@ -136,7 +136,7 @@ public:
 
 	bool ProcessEntry(
 		EGPUSkinCacheEntryMode Mode,
-		FRHICommandListImmediate& RHICmdList, 
+		FRHICommandList& RHICmdList, 
 		FGPUBaseSkinVertexFactory* VertexFactory,
 		FGPUSkinPassthroughVertexFactory* TargetVertexFactory, 
 		const FSkelMeshRenderSection& BatchElement, 
@@ -202,7 +202,7 @@ public:
 	{
 		friend struct FRWBufferTracker;
 
-		FRWBuffersAllocation(uint32 InNumVertices, bool InWithTangents, bool InUseIntermediateTangents, uint32 InIntermediateAccumulatedTangentsSize, FRHICommandListImmediate& RHICmdList, const FName& OwnerName)
+		FRWBuffersAllocation(uint32 InNumVertices, bool InWithTangents, bool InUseIntermediateTangents, uint32 InIntermediateAccumulatedTangentsSize, FRHICommandList& RHICmdList, const FName& OwnerName)
 			: NumVertices(InNumVertices), WithTangents(InWithTangents), UseIntermediateTangents(InUseIntermediateTangents), IntermediateAccumulatedTangentsSize(InIntermediateAccumulatedTangentsSize)
 		{
 			const static FLazyName PositionsName(TEXT("SkinCachePositions"));
@@ -417,16 +417,16 @@ public:
 	FCachedGeometry::Section GetCachedGeometry(FGPUSkinCacheEntry* InOutEntry, uint32 SectionId);
 
 #if RHI_RAYTRACING
-	void ProcessRayTracingGeometryToUpdate(FRHICommandListImmediate& RHICmdList, FGPUSkinCacheEntry* SkinCacheEntry);
+	void ProcessRayTracingGeometryToUpdate(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* SkinCacheEntry);
 #endif // RHI_RAYTRACING
 
-	void BeginBatchDispatch(FRHICommandListImmediate& RHICmdList);
-	void EndBatchDispatch(FRHICommandListImmediate& RHICmdList);
+	void BeginBatchDispatch(FRHICommandList& RHICmdList);
+	void EndBatchDispatch(FRHICommandList& RHICmdList);
 
 	inline ERHIFeatureLevel::Type GetFeatureLevel() const { return FeatureLevel; }
 
 protected:
-	void MakeBufferTransitions(FRHICommandListImmediate& RHICmdList, TArray<FSkinCacheRWBuffer*>& Buffers, ERHIAccess ToState);
+	void MakeBufferTransitions(FRHICommandList& RHICmdList, TArray<FSkinCacheRWBuffer*>& Buffers, ERHIAccess ToState);
 	void GetBufferUAVs(const TArray<FSkinCacheRWBuffer*>& InBuffers, TArray<FRHIUnorderedAccessView*>& OutUAVs);
 
 	TArray<FRWBuffersAllocation*> Allocations;
@@ -434,10 +434,10 @@ protected:
 	TSet<FGPUSkinCacheEntry*> PendingProcessRTGeometryEntries;
 	TArray<FDispatchEntry> BatchDispatches;
 
-	FRWBuffersAllocation* TryAllocBuffer(uint32 NumVertices, bool WithTangnents, bool UseIntermediateTangents, uint32 NumTriangles, FRHICommandListImmediate& RHICmdList, const FName& OwnerName);
-	void DoDispatch(FRHICommandListImmediate& RHICmdList);
-	void DoDispatch(FRHICommandListImmediate& RHICmdList, FGPUSkinCacheEntry* SkinCacheEntry, int32 Section, int32 RevisionNumber);
-	void DispatchUpdateSkinTangents(FRHICommandListImmediate& RHICmdList, FGPUSkinCacheEntry* Entry, int32 SectionIndex, FSkinCacheRWBuffer*& StagingBuffer, bool bTrianglePass);
+	FRWBuffersAllocation* TryAllocBuffer(uint32 NumVertices, bool WithTangnents, bool UseIntermediateTangents, uint32 NumTriangles, FRHICommandList& RHICmdList, const FName& OwnerName);
+	void DoDispatch(FRHICommandList& RHICmdList);
+	void DoDispatch(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* SkinCacheEntry, int32 Section, int32 RevisionNumber);
+	void DispatchUpdateSkinTangents(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* Entry, int32 SectionIndex, FSkinCacheRWBuffer*& StagingBuffer, bool bTrianglePass);
 
 	void PrepareUpdateSkinning(
 		FGPUSkinCacheEntry* Entry, 
@@ -447,7 +447,7 @@ protected:
 		);
 
 	void DispatchUpdateSkinning(
-		FRHICommandListImmediate& RHICmdList, 
+		FRHICommandList& RHICmdList, 
 		FGPUSkinCacheEntry* Entry, 
 		int32 Section, 
 		uint32 RevisionNumber,
@@ -474,7 +474,7 @@ protected:
 	static void CVarSinkFunction();
 	static FAutoConsoleVariableSink CVarSink;
 
-	void IncrementDispatchCounter(FRHICommandListImmediate& RHICmdList);
+	void IncrementDispatchCounter(FRHICommandList& RHICmdList);
 	int32 DispatchCounter = 0;
 
 	void PrintMemorySummary() const;

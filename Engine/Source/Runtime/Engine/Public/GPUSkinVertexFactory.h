@@ -211,14 +211,12 @@ public:
 		}
 
 		// @param FrameTime from GFrameTime
-		bool UpdateBoneData(FRHICommandListImmediate& RHICmdList, const TArray<FMatrix44f>& ReferenceToLocalMatrices,
+		bool UpdateBoneData(FRHICommandList& RHICmdList, const TArray<FMatrix44f>& ReferenceToLocalMatrices,
 			const TArray<FBoneIndexType>& BoneMap, uint32 RevisionNumber, bool bPrevious, ERHIFeatureLevel::Type FeatureLevel, 
 			bool bUseSkinCache, bool bForceUpdateImmediately, const FName& AssetPathName);
 
 		void ReleaseBoneData()
 		{
-			ensure(IsInRenderingThread());
-
 			UniformBuffer.SafeRelease();
 
 			for(uint32 i = 0; i < 2; ++i)
@@ -359,7 +357,10 @@ public:
 	* update the resource with new data from the game thread.
 	* @param	InData - new stream component data
 	*/
-	virtual void SetData(const FGPUSkinDataType* InData);
+	UE_DEPRECATED(5.3, "Use SetData with a command list.")
+	void SetData(const FGPUSkinDataType* InData);
+
+	virtual void SetData(FRHICommandListBase& RHICmdList, const FGPUSkinDataType* InData);
 
 	uint32 GetNumVertices() const
 	{
@@ -501,7 +502,7 @@ public:
 			Reset();
 		}
 
-		bool UpdateClothSimulData(FRHICommandListImmediate& RHICmdList, const TArray<FVector3f>& InSimulPositions, const TArray<FVector3f>& InSimulNormals, uint32 RevisionNumber, 
+		bool UpdateClothSimulData(FRHICommandList& RHICmdList, const TArray<FVector3f>& InSimulPositions, const TArray<FVector3f>& InSimulNormals, uint32 RevisionNumber, 
 									ERHIFeatureLevel::Type FeatureLevel, bool bForceUpdateImmediately, const FName& AssetPathName);
 
 		void ReleaseClothSimulData()
@@ -693,7 +694,7 @@ public:
 	* update the resource with new data from the game thread.
 	* @param	InData - new stream component data
 	*/
-	virtual void SetData(const FGPUSkinDataType* InData) override;
+	virtual void SetData(FRHICommandListBase& RHICmdList, const FGPUSkinDataType* InData) override;
 
 	virtual FGPUBaseSkinVertexFactory* GetVertexFactory() override
 	{
@@ -799,6 +800,9 @@ public:
 	 * The SRVs are cached per attribute. If any passed in SRV is changed from the cached value then we recreate the vertex factory uniform buffer here.
 	 * Note that on platforms that support manual vertex fetch, only Position will be in the final vertex stream and other attributes will be read through an SRV.
 	 */
+	void SetVertexAttributes(FRHICommandListBase& RHICmdList, FGPUBaseSkinVertexFactory const* InSourceVertexFactory, FAddVertexAttributeDesc const& InDesc);
+
+	UE_DEPRECATED(5.4, "SetVertexAttributes requires a command list.")
 	void SetVertexAttributes(FGPUBaseSkinVertexFactory const* InSourceVertexFactory, FAddVertexAttributeDesc const& InDesc);
 
 	/** 

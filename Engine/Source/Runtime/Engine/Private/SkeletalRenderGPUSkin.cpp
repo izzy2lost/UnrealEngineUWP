@@ -164,13 +164,12 @@ SIZE_T FMorphVertexBufferPool::GetResourceSize() const
 	return ResourceSize;
 }
 
-void FMorphVertexBufferPool::EnableDoubleBuffer()
+void FMorphVertexBufferPool::EnableDoubleBuffer(FRHICommandListBase& RHICmdList)
 {
-	check(IsInRenderingThread());
 	bDoubleBuffer = true;
 	if (!MorphVertexBuffers[1].VertexBufferRHI.IsValid())
 	{
-		MorphVertexBuffers[1].InitResource(FRHICommandListImmediate::Get());
+		MorphVertexBuffers[1].InitResource(RHICmdList);
 	}
 }
 
@@ -482,7 +481,7 @@ FORCEINLINE bool IsDeferredSkeletalDynamicDataUpdateEnabled()
 	return CVarDeferSkeletalDynamicDataUpdateUntilGDME.GetValueOnRenderThread() > 0;
 }
 
-void FSkeletalMeshObjectGPUSkin::UpdateDynamicData_RenderThread(FGPUSkinCache* GPUSkinCache, FRHICommandListImmediate& RHICmdList, FDynamicSkelMeshObjectDataGPUSkin* InDynamicData, FSceneInterface* Scene, uint64 FrameNumberToPrepare, uint32 RevisionNumber)
+void FSkeletalMeshObjectGPUSkin::UpdateDynamicData_RenderThread(FGPUSkinCache* GPUSkinCache, FRHICommandList& RHICmdList, FDynamicSkelMeshObjectDataGPUSkin* InDynamicData, FSceneInterface* Scene, uint64 FrameNumberToPrepare, uint32 RevisionNumber)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(GPUSkin::UpdateDynamicData_RT);
 
@@ -562,12 +561,12 @@ void FSkeletalMeshObjectGPUSkin::WaitForRHIThreadFenceForDynamicData()
 	if (RHIThreadFenceForDynamicData.GetReference())
 	{
 		FScopeCycleCounter Context(GetStatId());
-		FRHICommandListExecutor::WaitOnRHIThreadFence(RHIThreadFenceForDynamicData);
+		RHIThreadFenceForDynamicData->Wait();
 		RHIThreadFenceForDynamicData = nullptr;
 	}
 }
 
-void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(EGPUSkinCacheEntryMode Mode, FGPUSkinCache* GPUSkinCache, FRHICommandListImmediate& RHICmdList, uint32 FrameNumberToPrepare, uint32 RevisionNumber, bool bMorphNeedsUpdate, int32 LODIndex)
+void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(EGPUSkinCacheEntryMode Mode, FGPUSkinCache* GPUSkinCache, FRHICommandList& RHICmdList, uint32 FrameNumberToPrepare, uint32 RevisionNumber, bool bMorphNeedsUpdate, int32 LODIndex)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FSkeletalMeshObjectGPUSkin_ProcessUpdatedDynamicData);
 	bNeedsUpdateDeferred = false;
@@ -767,7 +766,7 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(EGPUSkinCacheEntryMod
 	if (bMorph && !bIsMobile && !SkinCacheEntry && Mode == EGPUSkinCacheEntryMode::Raster && !LOD.MorphVertexBufferPool.IsDoubleBuffered())
 	{
 		// Going through GPU skinned vertex factory, turn on double buffering for motion blur
-		LOD.MorphVertexBufferPool.EnableDoubleBuffer();
+		LOD.MorphVertexBufferPool.EnableDoubleBuffer(RHICmdList);
 	}
 }
 
@@ -1017,7 +1016,7 @@ static void CalculateMorphDeltaBoundsIncludingExternalMorphs(
 	);
 }
 
-void FSkeletalMeshObjectGPUSkin::UpdateMorphVertexBuffer(FRHICommandListImmediate& RHICmdList, EGPUSkinCacheEntryMode Mode, FSkeletalMeshObjectLOD& LOD, const FSkeletalMeshLODRenderData& LODData, 
+void FSkeletalMeshObjectGPUSkin::UpdateMorphVertexBuffer(FRHICommandList& RHICmdList, EGPUSkinCacheEntryMode Mode, FSkeletalMeshObjectLOD& LOD, const FSkeletalMeshLODRenderData& LODData, 
 															bool bGPUSkinCacheEnabled, FMorphVertexBuffer& MorphVertexBuffer)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FSkeletalMeshObjectGPUSkin_ProcessUpdatedDynamicData_UpdateMorphBuffer);
@@ -1089,7 +1088,7 @@ void FSkeletalMeshObjectGPUSkin::UpdateMorphVertexBuffer(FRHICommandListImmediat
 	else
 	{
 		// update the morph data for the lod (before SkinCache)
-		LOD.UpdateMorphVertexBufferCPU(DynamicData->ActiveMorphTargets, DynamicData->MorphTargetWeights, DynamicData->SectionIdsUseByActiveMorphTargets, bGPUSkinCacheEnabled, MorphVertexBuffer);
+		LOD.UpdateMorphVertexBufferCPU(RHICmdList, DynamicData->ActiveMorphTargets, DynamicData->MorphTargetWeights, DynamicData->SectionIdsUseByActiveMorphTargets, bGPUSkinCacheEnabled, MorphVertexBuffer);
 	}
 
 	if (LOD.MorphVertexBufferPool.IsDoubleBuffered())
@@ -1202,7 +1201,7 @@ void FGPUMorphNormalizeCS::UnsetParameters(FRHIBatchedShaderUnbinds& BatchedUnbi
 IMPLEMENT_SHADER_TYPE(, FGPUMorphNormalizeCS, TEXT("/Engine/Private/MorphTargets.usf"), TEXT("GPUMorphNormalizeCS"), SF_Compute);
 
 void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::UpdateMorphVertexBufferGPU(
-	FRHICommandListImmediate& RHICmdList, 
+	FRHICommandList& RHICmdList, 
 	const TArray<float>& MorphTargetWeights,
 	const FMorphTargetVertexInfoBuffers& MorphTargetVertexInfoBuffers,
 	const TArray<int32>& SectionIdsUseByActiveMorphTargets,
@@ -1222,7 +1221,7 @@ void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::UpdateMorphVertexBuffer
 		FSkeletalMeshLODRenderData& LodData = SkelMeshRenderData->LODRenderData[LODIndex];
 
 		const bool bUseGPUMorphTargets = UseGPUMorphTargets(FeatureLevel);
-		MorphVertexBuffer.RecreateResourcesIfRequired(bUseGPUMorphTargets);
+		MorphVertexBuffer.RecreateResourcesIfRequired(RHICmdList, bUseGPUMorphTargets);
 
 		SCOPED_GPU_STAT(RHICmdList, MorphTargets);
 
@@ -1363,11 +1362,10 @@ void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::UpdateSkinWeights(FSkel
 	
 }
 
-void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::UpdateMorphVertexBufferCPU(const FMorphTargetWeightMap& InActiveMorphTargets, const TArray<float>& MorphTargetWeights, 
+void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::UpdateMorphVertexBufferCPU(FRHICommandList& RHICmdList, const FMorphTargetWeightMap& InActiveMorphTargets, const TArray<float>& MorphTargetWeights, 
 																					const TArray<int32>& SectionIdsUseByActiveMorphTargets, bool bGPUSkinCacheEnabled, FMorphVertexBuffer& MorphVertexBuffer)
 {
 	SCOPE_CYCLE_COUNTER(STAT_MorphVertexBuffer_Update);
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
 
 	if (IsValidRef(MorphVertexBuffer.VertexBufferRHI))
 	{
@@ -1393,7 +1391,7 @@ void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::UpdateMorphVertexBuffer
 		bool bBlendTangentsOnCPU = !bAllSectionsDoGPURecomputeTangent;
 		
 		const bool bUseGPUMorphTargets = UseGPUMorphTargets(FeatureLevel);
-		MorphVertexBuffer.RecreateResourcesIfRequired(bUseGPUMorphTargets);
+		MorphVertexBuffer.RecreateResourcesIfRequired(RHICmdList, bUseGPUMorphTargets);
 
 		uint32 Size = LodData.GetNumVertices() * sizeof(FMorphGPUSkinVertex);
 
@@ -1817,7 +1815,7 @@ static FGPUBaseSkinVertexFactory* CreateVertexFactory(TArray<TUniquePtr<FGPUBase
 		{
 			FGPUSkinDataType Data;
 			InitGPUSkinVertexFactoryComponents(&Data, VertexUpdateData.VertexBuffers, VertexUpdateData.VertexFactory);
-			VertexUpdateData.VertexFactory->SetData(&Data);
+			VertexUpdateData.VertexFactory->SetData(RHICmdList, &Data);
 			VertexUpdateData.VertexFactory->InitResource(RHICmdList);
 		}
 	);
@@ -1839,11 +1837,11 @@ void UpdateVertexFactory(TArray<TUniquePtr<FGPUBaseSkinVertexFactory>>& VertexFa
 
 			// update vertex factory components and sync it
 			ENQUEUE_RENDER_COMMAND(UpdateGPUSkinVertexFactory)(
-				[VertexUpdateData](FRHICommandList& CmdList)
+				[VertexUpdateData](FRHICommandList& RHICmdList)
 			{
 				FGPUSkinDataType Data;
 				InitGPUSkinVertexFactoryComponents(&Data, VertexUpdateData.VertexBuffers, VertexUpdateData.VertexFactory);
-				VertexUpdateData.VertexFactory->SetData(&Data);
+				VertexUpdateData.VertexFactory->SetData(RHICmdList, &Data);
 			});
 		}
 	}
@@ -1897,7 +1895,7 @@ static void CreateVertexFactoryMorph(TArray<TUniquePtr<FGPUBaseSkinVertexFactory
 			FGPUSkinDataType Data;
 			InitGPUSkinVertexFactoryComponents(&Data, VertexUpdateData.VertexBuffers, VertexUpdateData.VertexFactory);
 			InitMorphVertexFactoryComponents(&Data, VertexUpdateData.VertexBuffers.MorphVertexBufferPool);
-			VertexUpdateData.VertexFactory->SetData(&Data);
+			VertexUpdateData.VertexFactory->SetData(RHICmdList, &Data);
 			VertexUpdateData.VertexFactory->InitResource(RHICmdList);
 		}
 	);
@@ -1922,7 +1920,7 @@ static void UpdateVertexFactoryMorph(TArray<TUniquePtr<FGPUBaseSkinVertexFactory
 				FGPUSkinDataType Data;
 				InitGPUSkinVertexFactoryComponents(&Data, VertexUpdateData.VertexBuffers, VertexUpdateData.VertexFactory);
 				InitMorphVertexFactoryComponents(&Data, VertexUpdateData.VertexBuffers.MorphVertexBufferPool);
-				VertexUpdateData.VertexFactory->SetData(&Data);
+				VertexUpdateData.VertexFactory->SetData(RHICmdList, &Data);
 			});
 		}
 	}
@@ -1976,7 +1974,7 @@ static void CreateVertexFactoryCloth(TArray<TUniquePtr<FGPUBaseSkinAPEXClothVert
 			FGPUSkinAPEXClothDataType Data;
 			InitGPUSkinVertexFactoryComponents(&Data, VertexUpdateData.VertexBuffers, VertexUpdateData.VertexFactory);
 			InitAPEXClothVertexFactoryComponents(&Data, VertexUpdateData.VertexBuffers);
-			VertexUpdateData.VertexFactory->SetData(&Data);
+			VertexUpdateData.VertexFactory->SetData(RHICmdList, &Data);
 			VertexUpdateData.VertexFactory->InitResource(RHICmdList);
 		}
 	);
@@ -2001,7 +1999,7 @@ static void UpdateVertexFactoryCloth(TArray<TUniquePtr<FGPUBaseSkinAPEXClothVert
 				FGPUSkinAPEXClothDataType Data;
 				InitGPUSkinVertexFactoryComponents(&Data, VertexUpdateData.VertexBuffers, VertexUpdateData.VertexFactory);
 				InitAPEXClothVertexFactoryComponents(&Data, VertexUpdateData.VertexBuffers);
-				VertexUpdateData.VertexFactory->SetData(&Data);
+				VertexUpdateData.VertexFactory->SetData(RHICmdList, &Data);
 			});
 		}
 	}
