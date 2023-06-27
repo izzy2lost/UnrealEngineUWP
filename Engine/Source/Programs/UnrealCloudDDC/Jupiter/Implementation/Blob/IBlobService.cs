@@ -583,7 +583,12 @@ public class BlobService : IBlobService
 
             PeerEndpoints peerEndpoint = peerStatus.Endpoints.First();
             using HttpClient httpClient = _httpClientFactory.CreateClient();
-            using HttpRequestMessage blobRequest = await BuildHttpRequest(HttpMethod.Get, new Uri($"{peerEndpoint.Url}/api/v1/blobs/{ns}/{blob}"));
+            string url = peerEndpoint.Url.ToString();
+            if (!url.EndsWith("/", StringComparison.InvariantCultureIgnoreCase))
+            {
+                url += "/";
+            }
+            using HttpRequestMessage blobRequest = await BuildHttpRequest(HttpMethod.Get, new Uri($"{url}api/v1/blobs/{ns}/{blob}"));
             HttpResponseMessage blobResponse = await httpClient.SendAsync(blobRequest, HttpCompletionOption.ResponseHeadersRead);
 
             if (blobResponse.StatusCode == HttpStatusCode.NotFound)

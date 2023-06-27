@@ -45,6 +45,12 @@ namespace Jupiter.FunctionalTests.Storage
                 message => { message.Content = new ReadOnlyMemoryContent(bytes);}
             ).Verifiable();
 
+            handler.SetupRequest($"http://siteA.com/internal/health/live").ReturnsResponse(HttpStatusCode.OK).Verifiable();
+            handler.SetupRequest($"http://siteA.com/public/health/live").ReturnsResponse(HttpStatusCode.OK).Verifiable();
+
+            handler.SetupRequest($"http://siteB.com/internal/health/live").ReturnsResponse(HttpStatusCode.OK).Verifiable();
+            handler.SetupRequest($"http://siteB.com/public/health/live").ReturnsResponse(HttpStatusCode.OK).Verifiable();
+
             IConfigurationRoot configuration = new ConfigurationBuilder()
                 // we are not reading the base appSettings here as we want exact control over what runs in the tests
                 .AddJsonFile("appsettings.Testing.json", true)
@@ -165,6 +171,12 @@ namespace Jupiter.FunctionalTests.Storage
             BlobIdentifier blobIdentifier = BlobIdentifier.FromBlob(bytes);
             
             Mock<HttpMessageHandler> handler = new Mock<HttpMessageHandler>();
+
+            handler.SetupRequest($"http://siteA.com/internal/health/live").ReturnsResponse(HttpStatusCode.OK).Verifiable();
+            handler.SetupRequest($"http://siteA.com/public/health/live").ReturnsResponse(HttpStatusCode.OK).Verifiable();
+
+            handler.SetupRequest($"http://siteB.com/internal/health/live").ReturnsResponse(HttpStatusCode.OK).Verifiable();
+            handler.SetupRequest($"http://siteB.com/public/health/live").ReturnsResponse(HttpStatusCode.OK).Verifiable();
 
             IConfigurationRoot configuration = new ConfigurationBuilder()
                 // we are not reading the base appSettings here as we want exact control over what runs in the tests
