@@ -5,15 +5,10 @@
 #include "Camera/CameraShakeBase.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 
-class UCameraShakeSourceComponent;
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-	#include "Evaluation/MovieSceneCameraShakeTemplate.h"
-#endif
-
 #include "LegacyCameraShake.generated.h"
 
 class AActor;
+class UCameraShakeSourceComponent;
 
 /************************************************************
  * Parameters for defining oscillating camera shakes

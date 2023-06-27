@@ -7,9 +7,6 @@
 #include "ShaderCompilerCore.h"
 #include "CrossCompilerDefinitions.h"
 #include "ShaderConductorContext.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "ShaderParameterParser.h"
-#endif
 #include "Templates/Function.h"
 #include "Interfaces/IShaderFormat.h"
 

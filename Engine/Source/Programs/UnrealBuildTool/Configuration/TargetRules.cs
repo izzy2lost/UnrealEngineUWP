@@ -155,20 +155,9 @@ namespace UnrealBuildTool
 	public enum EngineIncludeOrderVersion
 	{
 		/// <summary>
-		/// Include order used in Unreal 5.0
-		/// </summary>
-		[Obsolete("The Unreal 5.0 include order is deprecated and will be removed in 5.4.")]
-		Unreal5_0,
-
-		/// <summary>
-		/// Include order used in Unreal 5.1
-		/// </summary>
-		[Obsolete("The Unreal 5.1 include order is deprecated and will be removed in 5.4.")]
-		Unreal5_1,
-
-		/// <summary>
 		/// Include order used in Unreal 5.2
 		/// </summary>
+		[Obsolete("The Unreal 5.2 include order is deprecated and will be removed in 5.5.")]
 		Unreal5_2,
 
 		/// <summary>
@@ -192,7 +181,7 @@ namespace UnrealBuildTool
 		/// Contains the oldest version of include order that the engine supports.
 		/// </summary>
 #pragma warning disable CS0618 // Type or member is obsolete
-		Oldest = Unreal5_0,
+		Oldest = Unreal5_2,
 #pragma warning restore CS0618 // Type or member is obsolete
 	}
 
@@ -323,13 +312,9 @@ namespace UnrealBuildTool
 					return "UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4";
 				case EngineIncludeOrderVersion.Unreal5_3:
 					return "UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3";
+#pragma warning disable CS0618 // Type or member is obsolete
 				case EngineIncludeOrderVersion.Unreal5_2:
 					return "UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2";
-#pragma warning disable CS0618 // Type or member is obsolete
-				case EngineIncludeOrderVersion.Unreal5_1:
-					return "UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1";
-				case EngineIncludeOrderVersion.Unreal5_0:
-					return "UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_0";
 #pragma warning restore CS0618 // Type or member is obsolete
 			}
 		}
@@ -348,9 +333,8 @@ namespace UnrealBuildTool
 			return new List<string>()
 			{
 #pragma warning disable CS0618 // Type or member is obsolete
-				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_1),
-#pragma warning restore CS0618 // Type or member is obsolete
 				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_2),
+#pragma warning restore CS0618 // Type or member is obsolete
 				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_3),
 				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_4),
 			};
@@ -366,10 +350,10 @@ namespace UnrealBuildTool
 			return new List<string>()
 			{
 #pragma warning disable CS0618 // Type or member is obsolete
-				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_1, InVersion),
-#pragma warning restore CS0618 // Type or member is obsolete
 				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_2, InVersion),
+#pragma warning restore CS0618 // Type or member is obsolete
 				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_3, InVersion),
+				GetDeprecationDefine(EngineIncludeOrderVersion.Unreal5_4, InVersion),
 			};
 		}
 

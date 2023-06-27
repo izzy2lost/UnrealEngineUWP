@@ -9,16 +9,6 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-	#include "EntitySystem/MovieScenePropertySystemTypes.h"
-	#include "EntitySystem/TrackInstance/MovieSceneTrackInstance.h"
-	#include "Evaluation/IMovieSceneEvaluationHook.h"
-	#include "Evaluation/MovieSceneAnimTypeID.h"
-	#include "Evaluation/MovieSceneCompletionMode.h"
-	#include "Evaluation/MovieSceneEvaluationKey.h"
-	#include "Misc/TVariant.h"
-#endif
-
 class FMovieScenePreAnimatedState;
 class IMovieScenePlayer;
 class UClass;

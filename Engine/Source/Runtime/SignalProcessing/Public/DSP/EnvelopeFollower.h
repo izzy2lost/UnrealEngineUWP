@@ -7,11 +7,6 @@
 #include "DSP/Dsp.h"
 #include "HAL/Platform.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1 
-#include "CoreMinimal.h"
-#include "DSP/FloatArrayMath.h"
-#endif
-
 namespace Audio
 {
 	// Different modes for the envelope follower

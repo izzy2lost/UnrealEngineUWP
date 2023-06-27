@@ -32,19 +32,6 @@
 #include "UObject/ScriptInterface.h"
 #include "UObject/UObjectGlobals.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "EntitySystem/MovieSceneEntityBuilder.h"
-#include "Evaluation/MovieSceneEvaluationCustomVersion.h"
-#include "Evaluation/MovieSceneSequenceHierarchy.h"
-#include "Generators/MovieSceneEasingFunction.h"
-#include "KeyParams.h"
-#include "Misc/FrameTime.h"
-#include "MovieScene.h"
-#include "MovieSceneFrameMigration.h"
-#include "MovieSceneFwd.h"
-#include "UObject/ObjectMacros.h"
-#endif
-
 #include "MovieSceneSection.generated.h"
 
 class FArchive;

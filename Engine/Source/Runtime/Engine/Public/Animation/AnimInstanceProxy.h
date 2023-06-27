@@ -11,19 +11,7 @@
 #include "Animation/AnimClassInterface.h"
 #include "Animation/AnimTrace.h"
 #include "Animation/AnimSync.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "BoneContainer.h"
-#include "Animation/Skeleton.h"
-#include "BonePose.h"
-#include "Animation/AnimNotifyQueue.h"
-#include "Animation/PoseSnapshot.h"
-#include "Animation/AnimInstance.h"
-#include "Engine/PoseWatch.h"
-#include "Animation/AnimBlueprintGeneratedClass.h"
-#include "Logging/TokenizedMessage.h"
-#include "Animation/AnimSyncScope.h"
-#include "Animation/ActiveStateMachineScope.h"
-#endif
+
 #include "AnimInstanceProxy.generated.h"
 
 class UAnimInstance;

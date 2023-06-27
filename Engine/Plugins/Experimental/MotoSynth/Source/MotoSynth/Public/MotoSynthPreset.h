@@ -8,11 +8,6 @@
 
 class UMotoSynthPreset;
 struct FPropertyChangedEvent;
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "AudioDevice.h"
-#endif
-
 class UMotoSynthSource;
 class FMotoSynthEngine;
 

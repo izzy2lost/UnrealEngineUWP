@@ -25,10 +25,6 @@
 #include "UObject/UnrealNames.h"
 #include "UObject/UnrealType.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "MovieSceneSection.h"
-#endif
-
 #include "MovieSceneTrack.generated.h"
 
 class UMovieSceneSection;

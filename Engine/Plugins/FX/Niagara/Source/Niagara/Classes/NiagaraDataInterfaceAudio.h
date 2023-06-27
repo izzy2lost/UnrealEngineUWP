@@ -9,10 +9,6 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "NiagaraDataInterfaceAudio.generated.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "AudioDevice.h"
-#endif
-
 /** Class used to to capture the audio stream of an arbitrary submix. */
 class FNiagaraSubmixListener : public ISubmixBufferListener
 {

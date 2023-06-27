@@ -14,9 +14,6 @@
 #include "Misc/Guid.h"
 #include "Templates/SubclassOf.h"
 #include "Interfaces/Interface_AssetUserData.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "Engine/SkeletalMesh.h"
-#endif
 #include "AnimInterpFilter.h"
 #include "AnimEnums.h"
 #include "Interfaces/Interface_PreviewMeshProvider.h"

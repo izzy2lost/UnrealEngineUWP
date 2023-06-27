@@ -14,11 +14,6 @@
 #include "Templates/IsIntegral.h"
 #include "Templates/IsSigned.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1 
-#include "Runtime/AudioMixerCore/Public/AudioDefines.h"
-#include "CoreMinimal.h"
-#endif
-
 // Macros which can be enabled to cause DSP sample checking
 #if 0
 #define CHECK_SAMPLE(VALUE) 

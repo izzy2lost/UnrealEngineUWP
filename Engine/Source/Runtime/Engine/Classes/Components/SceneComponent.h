@@ -4,11 +4,6 @@
 
 #include "Math/BoxSphereBounds.h"
 #include "UObject/UObjectGlobals.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "Engine/EngineTypes.h"
-#include "Engine/OverlapInfo.h"
-#include "Engine/ScopedMovementUpdate.h"
-#endif
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "Engine/HitResult.h"
 #endif

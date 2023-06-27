@@ -14,10 +14,6 @@
 #include "LevelSequenceCameraSettings.h"
 #include "WorldPartition/IWorldPartitionObjectResolver.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-	#include "LevelSequencePlayer.h"
-#endif
-
 #include "LevelSequenceActor.generated.h"
 
 class ULevelSequenceBurnIn;

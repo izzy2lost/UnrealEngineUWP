@@ -15,10 +15,6 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/SoftObjectPtr.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "IMovieScenePlayer.h"
-#endif
-
 #include "MovieScenePossessable.generated.h"
 
 class IMovieScenePlayer;

@@ -30,9 +30,6 @@
 #include "HLOD/HLODLevelExclusion.h"
 #include "Stats/Stats2.h"
 #include "PSOPrecache.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "Engine/OverlapInfo.h"
-#endif
 #include "PrimitiveComponent.generated.h"
 
 DECLARE_CYCLE_STAT_EXTERN(TEXT("BeginComponentOverlap"), STAT_BeginComponentOverlap, STATGROUP_Game, ENGINE_API);

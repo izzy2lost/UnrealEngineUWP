@@ -29,10 +29,6 @@
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
 #endif
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-	#include "Animation/WidgetAnimation.h"
-#endif
-
 #include "UserWidget.generated.h"
 
 class Error;

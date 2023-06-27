@@ -2,14 +2,6 @@
 
 #pragma once
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "CoreMinimal.h"
-#include "Stats/Stats.h"
-#include "UObject/UObjectGlobals.h"
-#include "UObject/WeakObjectPtr.h"
-#include "AI/Navigation/NavigationDirtyElement.h"
-#endif //UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "UObject/Class.h"

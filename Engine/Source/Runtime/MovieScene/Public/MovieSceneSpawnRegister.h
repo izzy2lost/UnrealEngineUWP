@@ -24,10 +24,6 @@ class UClass;
 class UObject;
 template <typename FuncType> class TFunctionRef;
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "MovieSceneSpawnable.h"
-#endif
-
 enum class ESpawnOwnership : uint8;
 
 class IMovieScenePlayer;

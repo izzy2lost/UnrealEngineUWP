@@ -35,11 +35,6 @@
 #include "Subsystems/SubsystemCollection.h"
 #endif
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "DSP/SpectrumAnalyzer.h"
-#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-
-
 /**
  * Forward declares
  */

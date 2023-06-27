@@ -19,10 +19,6 @@
 #include "IMovieSceneSequencePlayerObserver.h"
 #include "EntitySystem/MovieSceneEntityIDs.h"
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-	#include "MovieSceneSequenceTickManager.h"
-#endif
-
 #include "MovieSceneSequencePlayer.generated.h"
 
 class UMovieSceneSequenceTickManager;

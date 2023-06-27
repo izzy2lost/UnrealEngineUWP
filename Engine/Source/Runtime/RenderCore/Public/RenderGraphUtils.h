@@ -35,9 +35,6 @@
 #include "Templates/RefCounting.h"
 #include "Templates/UnrealTemplate.h"
 #include "Templates/UnrealTypeTraits.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "RHIGPUReadback.h"
-#endif
 #include "PipelineStateCache.h"
 
 #include <initializer_list>

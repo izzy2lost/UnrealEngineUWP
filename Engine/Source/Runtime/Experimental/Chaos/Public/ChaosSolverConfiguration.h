@@ -3,10 +3,7 @@
 #pragma once
 
 #include "SolverEventFilters.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_1
-#include "Chaos/PBDRigidsEvolutionGBF.h"
-#include "PBDRigidsSolver.h"
-#endif
+
 #include "ChaosSolverConfiguration.generated.h"
 
 UENUM()
