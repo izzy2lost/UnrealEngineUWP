@@ -1063,7 +1063,7 @@ void FControlRigParameterTrackEditor::AddAdditiveControlRig(FGuid ObjectBinding,
 	}
 
 	TSharedRef<SWindow> Window = SNew(SWindow)
-				.Title(LOCTEXT("AnimSeqTitle", "Choose Additive Rig"))
+				.Title(LOCTEXT("AdditiveRigTitle", "Choose Additive Rig"))
 				.SizingRule(ESizingRule::UserSized)
 				.AutoCenter(EAutoCenter::PrimaryWorkArea)
 				.ClientSize(FVector2D(500, 445));
