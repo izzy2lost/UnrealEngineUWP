@@ -286,14 +286,15 @@ void UObjectBase::SetExternalPackage(UPackage* InPackage)
 		check(GetClass()->IsChildOf(UPackage::StaticClass()) && (InPackage == this || InPackage == nullptr));
 		return;
 	}
-	HashObjectExternalPackage(this, InPackage);
 	if (InPackage)
 	{
+		HashObjectExternalPackage(this, InPackage);
 		AtomicallySetFlags(RF_HasExternalPackage);
 	}
 	else
 	{
 		AtomicallyClearFlags(RF_HasExternalPackage);
+		UnhashObjectExternalPackage(this);
 	}
 }
 
