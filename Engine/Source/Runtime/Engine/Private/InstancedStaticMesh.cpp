@@ -1908,9 +1908,9 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(UInstancedStaticMeshComponent* I
 }
 
 
-void FInstancedStaticMeshSceneProxy::CreateRenderThreadResources()
+void FInstancedStaticMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
-	FStaticMeshSceneProxy::CreateRenderThreadResources();
+	FStaticMeshSceneProxy::CreateRenderThreadResources(RHICmdList);
 
 	const bool bCanUseGPUScene = UseGPUScene(GetScene().GetShaderPlatform(), GetScene().GetFeatureLevel());
 	
@@ -1920,7 +1920,7 @@ void FInstancedStaticMeshSceneProxy::CreateRenderThreadResources()
 		FStaticMeshInstanceBuffer& InstanceBuffer = InstancedRenderData.PerInstanceRenderData->InstanceBuffer;
 		if (!bCanUseGPUScene)
 		{
-			InstanceBuffer.FlushGPUUpload(FRHICommandListImmediate::Get());
+			InstanceBuffer.FlushGPUUpload(RHICmdList);
 		}
 	}
 

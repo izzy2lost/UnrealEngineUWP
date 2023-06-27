@@ -598,7 +598,7 @@ public:
 
 private:
 	// Begin FPrimitiveSceneProxy interface
-	virtual void CreateRenderThreadResources() override;
+	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	// End FPrimitiveSceneProxy interface
 
 	void ReleaseRenderThreadResources();
@@ -687,7 +687,7 @@ FTextRenderSceneProxy::~FTextRenderSceneProxy()
 	ReleaseRenderThreadResources();
 }
 
-void FTextRenderSceneProxy::CreateRenderThreadResources()
+void FTextRenderSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 	if(Font && Font->FontCacheType == EFontCacheType::Runtime)
 	{

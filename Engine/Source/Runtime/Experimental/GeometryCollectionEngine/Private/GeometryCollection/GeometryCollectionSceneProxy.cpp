@@ -297,10 +297,8 @@ void FGeometryCollectionSceneProxy::SetupVertexFactory(FRHICommandListBase& RHIC
 	}
 }
 
-void FGeometryCollectionSceneProxy::CreateRenderThreadResources()
+void FGeometryCollectionSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
-
 	if (bSupportsManualVertexFetch)
 	{
 		// Initialize transform buffers and upload rest transforms.

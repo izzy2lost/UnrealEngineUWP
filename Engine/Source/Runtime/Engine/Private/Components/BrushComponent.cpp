@@ -387,10 +387,10 @@ public:
 		return Result;
 	}
 
-	virtual void CreateRenderThreadResources() override
+	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override
 	{
 #if WITH_EDITORONLY_DATA
-		WireIndexBuffer.InitResource(FRHICommandListImmediate::Get());
+		WireIndexBuffer.InitResource(RHICmdList);
 #endif
 
 	}

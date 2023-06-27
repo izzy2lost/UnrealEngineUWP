@@ -134,11 +134,10 @@ FPointCloudSceneProxy::~FPointCloudSceneProxy()
 	PointCloudLocationVertexBuffer.ReleaseResource();
 }
 
-void FPointCloudSceneProxy::CreateRenderThreadResources()
+void FPointCloudSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 	SCOPE_CYCLE_COUNTER(STAT_PointCloud_CreateRenderThreadResources);
 
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
 	PointCloudVertexFactory.InitResource(RHICmdList);
 	PointCloudIndexBuffer.InitRHIWithSize(RHICmdList, Points.Num());
 

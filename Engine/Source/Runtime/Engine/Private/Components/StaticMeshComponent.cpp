@@ -2411,9 +2411,9 @@ void UStaticMeshComponent::SetEvaluateWorldPositionOffsetInRayTracing(bool NewVa
 	{
 		// Update render thread data
 		ENQUEUE_RENDER_COMMAND(UpdateEvaluateWPORTCmd)
-		([NewValue, Scene = GetScene(), PrimitiveSceneProxy = static_cast<FStaticMeshSceneProxy*>(SceneProxy)](FRHICommandList&)
+		([NewValue, Scene = GetScene(), PrimitiveSceneProxy = static_cast<FStaticMeshSceneProxy*>(SceneProxy)](FRHICommandList& RHICmdList)
 		{
-			PrimitiveSceneProxy->SetEvaluateWorldPositionOffsetInRayTracing(NewValue);
+			PrimitiveSceneProxy->SetEvaluateWorldPositionOffsetInRayTracing(RHICmdList, NewValue);
 		});
 	}
 }

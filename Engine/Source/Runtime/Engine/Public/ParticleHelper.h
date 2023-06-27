@@ -2418,7 +2418,7 @@ public:
 	 *	Called when the rendering thread adds the proxy to the scene.
 	 *	This function allows for generating renderer-side resources.
 	 */
-	virtual void CreateRenderThreadResources() override;
+	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 
 	/**
 	 *	Called when the rendering thread removes the dynamic data from the scene.

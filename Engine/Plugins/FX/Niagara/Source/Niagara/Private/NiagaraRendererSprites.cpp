@@ -201,10 +201,9 @@ void FNiagaraRendererSprites::ReleaseRenderThreadResources()
 #endif
 }
 
-void FNiagaraRendererSprites::CreateRenderThreadResources()
+void FNiagaraRendererSprites::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
-	FNiagaraRenderer::CreateRenderThreadResources();
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+	FNiagaraRenderer::CreateRenderThreadResources(RHICmdList);
 	CutoutVertexBuffer.InitResource(RHICmdList);
 
 #if RHI_RAYTRACING

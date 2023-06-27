@@ -18,7 +18,7 @@ protected:
 	//~ Begin FPrimitiveSceneProxy Interface
 	virtual SIZE_T GetTypeHash() const override;
 	virtual uint32 GetMemoryFootprint() const override;
-	virtual void CreateRenderThreadResources() override;
+	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	virtual void DestroyRenderThreadResources() override;
 	virtual void OnTransformChanged() override;
 	virtual bool HasSubprimitiveOcclusionQueries() const override;

@@ -34,13 +34,13 @@ FNiagaraSystemRenderData::~FNiagaraSystemRenderData()
 	}
 }
 
-void FNiagaraSystemRenderData::CreateRenderThreadResources()
+void FNiagaraSystemRenderData::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 	for (auto Renderer : EmitterRenderers_RT)
 	{
 		if (Renderer)
 		{
-			Renderer->CreateRenderThreadResources();
+			Renderer->CreateRenderThreadResources(RHICmdList);
 		}
 	}
 }

@@ -101,11 +101,9 @@ FNiagaraRendererVolumes::~FNiagaraRendererVolumes()
 {
 }
 
-void FNiagaraRendererVolumes::CreateRenderThreadResources()
+void FNiagaraRendererVolumes::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
-	FNiagaraRenderer::CreateRenderThreadResources();
-
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+	FNiagaraRenderer::CreateRenderThreadResources(RHICmdList);
 
 	FLocalVertexFactory::FDataType VFData;
 	VFData.PositionComponent = FVertexStreamComponent(&GNullVertexBuffer, 0, 0, VET_Float3);

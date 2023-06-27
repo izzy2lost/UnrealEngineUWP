@@ -521,7 +521,7 @@ public:
 	}
 
 	// FPrimitiveSceneProxy interface.
-	ENGINE_API virtual void CreateRenderThreadResources() override;
+	ENGINE_API virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 
 	ENGINE_API virtual void DestroyRenderThreadResources() override;
 

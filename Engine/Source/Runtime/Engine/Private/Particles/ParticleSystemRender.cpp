@@ -6617,7 +6617,7 @@ void FParticleSystemSceneProxy::GetDynamicMeshElements(const TArray<const FScene
 	}
 }
 
-void FParticleSystemSceneProxy::CreateRenderThreadResources()
+void FParticleSystemSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 	CreateRenderThreadResourcesForEmitterData();
 }

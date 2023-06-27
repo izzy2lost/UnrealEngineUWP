@@ -648,7 +648,7 @@ public:
 	SIZE_T GetTypeHash() const override;
 
 	FLandscapeMeshProxySceneProxy(UStaticMeshComponent* InComponent, const FGuid& InLandscapeGuid, const TArray<FIntPoint>& InProxySectionsBases, int8 InProxyLOD, uint32 InLODGroupKey);
-	virtual void CreateRenderThreadResources() override;
+	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	virtual void DestroyRenderThreadResources() override;
 	virtual bool OnLevelAddedToWorld_RenderThread() override;
 	virtual void OnLevelRemovedFromWorld_RenderThread() override;
@@ -859,7 +859,7 @@ public:
 	LANDSCAPE_API virtual bool CanBeOccluded() const override;
 	LANDSCAPE_API virtual void GetLightRelevance(const FLightSceneProxy* LightSceneProxy, bool& bDynamic, bool& bRelevant, bool& bLightMapped, bool& bShadowMapped) const override;
 	LANDSCAPE_API virtual void OnTransformChanged() override;
-	LANDSCAPE_API virtual void CreateRenderThreadResources() override;
+	LANDSCAPE_API virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	LANDSCAPE_API virtual void DestroyRenderThreadResources() override;
 	LANDSCAPE_API virtual bool OnLevelAddedToWorld_RenderThread() override;
 	LANDSCAPE_API virtual void OnLevelRemovedFromWorld_RenderThread() override;

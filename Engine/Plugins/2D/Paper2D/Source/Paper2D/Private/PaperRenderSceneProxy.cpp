@@ -266,11 +266,10 @@ void FPaperRenderSceneProxy::RecreateCachedRenderData(FRHICommandListBase& RHICm
 	}
 }
 
-void FPaperRenderSceneProxy::CreateRenderThreadResources()
+void FPaperRenderSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 	if (bSpritesUseVertexBufferPath && (Vertices.Num() > 0))
 	{
-		FRHICommandList& RHICmdList = FRHICommandListImmediate::Get();
 		VertexBuffer.Vertices = Vertices;
 
 		// Init the resources

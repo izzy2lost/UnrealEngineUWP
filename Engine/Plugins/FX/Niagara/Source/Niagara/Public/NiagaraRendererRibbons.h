@@ -304,7 +304,7 @@ public:
 	NIAGARA_API ~FNiagaraRendererRibbons();
 
 	// FNiagaraRenderer Interface 
-	NIAGARA_API virtual void CreateRenderThreadResources() override;
+	NIAGARA_API virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	NIAGARA_API virtual void ReleaseRenderThreadResources() override;
 
 	NIAGARA_API virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector, const FNiagaraSceneProxy *SceneProxy) const override;

@@ -413,7 +413,10 @@ public:
 	 *	This function allows for generating renderer-side resources.
 	 *	Called in the rendering thread.
 	 */
-	virtual void CreateRenderThreadResources() {}
+	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) {}
+
+	UE_DEPRECATED(5.4, "CreateRenderThreadResources now requires a command list.")
+	virtual void CreateRenderThreadResources() final {}
 
 	/**
 	 *	Called when the rendering thread removes the proxy from the scene.

@@ -248,7 +248,7 @@ public:
 	uint32 GetAllocatedSize() const;
 
 	SIZE_T GetTypeHash() const override;
-	void CreateRenderThreadResources() override;
+	void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	void DestroyRenderThreadResources() override;
 	void GetPreSkinnedLocalBounds(FBoxSphereBounds& OutBounds) const override;
 	FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override;

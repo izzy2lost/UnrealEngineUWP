@@ -2057,7 +2057,7 @@ void FScene::BatchAddPrimitives(TArrayView<UPrimitiveComponent*> InPrimitives)
 				SceneProxy->SetTransform(Params.RenderMatrix, Params.WorldBounds, Params.LocalBounds, Params.AttachmentRootPosition);
 
 				// Create any RenderThreadResources required.
-				SceneProxy->CreateRenderThreadResources();
+				SceneProxy->CreateRenderThreadResources(RHICmdList);
 
 				Scene->AddPrimitiveSceneInfo_RenderThread(Params.PrimitiveSceneInfo, Params.PreviousTransform);
 			}

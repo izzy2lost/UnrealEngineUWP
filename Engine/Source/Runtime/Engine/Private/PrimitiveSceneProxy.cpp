@@ -524,8 +524,6 @@ void FPrimitiveSceneProxy::OnLevelRemovedFromWorld_RenderThread()
 #if WITH_EDITOR
 void FPrimitiveSceneProxy::SetUsedMaterialForVerification(const TArray<UMaterialInterface*>& InUsedMaterialsForVerification)
 {
-	check(IsInRenderingThread());
-
 	UsedMaterialsForVerification = InUsedMaterialsForVerification;
 }
 #endif

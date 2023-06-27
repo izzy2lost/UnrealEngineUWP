@@ -48,7 +48,7 @@ public:
 	virtual bool CanBeOccluded() const override;
 	virtual uint32 GetMemoryFootprint() const override { return sizeof(*this) + GetAllocatedSize(); }
 	virtual SIZE_T GetTypeHash() const override;
-	virtual void CreateRenderThreadResources() override;
+	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	virtual void DestroyRenderThreadResources() override;
 	virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
 #if WITH_EDITOR
@@ -78,7 +78,7 @@ private:
 	FDynamicMeshIndexBuffer32 IndexBuffer;
 
 	/** Create rendering resources for surface selection data. */
-	void CreateMeshRenderThreadResources();
+	void CreateMeshRenderThreadResources(FRHICommandListBase& RHICmdList);
 	/** Destroy rendering resources for surface selection data. */
 	void DestroyMeshRenderThreadResources();
 	/** Build MeshElements for rendering surface selection data. */
@@ -96,7 +96,7 @@ private:
 	FDynamicMeshIndexBuffer32 BoxIndexBuffer;
 
 	/** Create rendering resources for vertex selection data. */
-	void CreateInstancedVertexRenderThreadResources();
+	void CreateInstancedVertexRenderThreadResources(FRHICommandListBase& RHICmdList);
 	/** Destroy rendering resources for vertex selection data. */
 	void DestroyInstancedVertexRenderThreadResources();
 	/** Build MeshElements for rendering vertex selection data. */

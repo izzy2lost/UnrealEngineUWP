@@ -438,7 +438,7 @@ void FVirtualHeightfieldMeshSceneProxy::OnTransformChanged()
 	DefaultOcclusionVolumes.Add(GetBounds());
 }
 
-void FVirtualHeightfieldMeshSceneProxy::CreateRenderThreadResources()
+void FVirtualHeightfieldMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 	if (RuntimeVirtualTexture != nullptr)
 	{
@@ -487,7 +487,7 @@ void FVirtualHeightfieldMeshSceneProxy::CreateRenderThreadResources()
 
 				// Create vertex factory.
 				VertexFactory = new FVirtualHeightfieldMeshVertexFactory(GetScene().GetFeatureLevel(), UniformParams);
-				VertexFactory->InitResource(FRHICommandListImmediate::Get());
+				VertexFactory->InitResource(RHICmdList);
 			}
 		}
 	}
@@ -513,7 +513,7 @@ void FVirtualHeightfieldMeshSceneProxy::OnVirtualTextureDestroyedCB(const FVirtu
 {
 	FVirtualHeightfieldMeshSceneProxy* SceneProxy = (FVirtualHeightfieldMeshSceneProxy*)Baton;
 	SceneProxy->DestroyRenderThreadResources();
-	SceneProxy->CreateRenderThreadResources();
+	SceneProxy->CreateRenderThreadResources(FRHICommandListImmediate::Get());
 }
 
 FPrimitiveViewRelevance FVirtualHeightfieldMeshSceneProxy::GetViewRelevance(const FSceneView* View) const

@@ -436,7 +436,7 @@ FStaticMeshSceneProxy::FStaticMeshSceneProxy(UStaticMeshComponent* InComponent, 
 	}
 }
 
-void FStaticMeshSceneProxy::SetEvaluateWorldPositionOffsetInRayTracing(bool NewValue)
+void FStaticMeshSceneProxy::SetEvaluateWorldPositionOffsetInRayTracing(FRHICommandListBase& RHICmdList, bool NewValue)
 {
 #if RHI_RAYTRACING
 	if (!IsRayTracingAllowed() || !bSupportRayTracing)
@@ -461,7 +461,7 @@ void FStaticMeshSceneProxy::SetEvaluateWorldPositionOffsetInRayTracing(bool NewV
 
 		if (bNeedsDynamicRayTracingGeometries)
 		{
-			CreateDynamicRayTracingGeometries();
+			CreateDynamicRayTracingGeometries(RHICmdList);
 		}
 	}
 	else if (!NewValue && bDynamicRayTracingGeometry)
@@ -735,7 +735,7 @@ bool FStaticMeshSceneProxy::GetMeshElement(
 }
 
 #if RHI_RAYTRACING
-void FStaticMeshSceneProxy::CreateDynamicRayTracingGeometries()
+void FStaticMeshSceneProxy::CreateDynamicRayTracingGeometries(FRHICommandListBase& RHICmdList)
 {
 	check(DynamicRayTracingGeometries.IsEmpty());
 
@@ -757,7 +757,7 @@ void FStaticMeshSceneProxy::CreateDynamicRayTracingGeometries()
 	for (int32 i = 0; i < DynamicRayTracingGeometries.Num(); i++)
 	{
 		auto& Geometry = DynamicRayTracingGeometries[i];
-		Geometry.InitResource(FRHICommandListImmediate::Get());
+		Geometry.InitResource(RHICmdList);
 	}
 }
 
@@ -772,13 +772,13 @@ void FStaticMeshSceneProxy::ReleaseDynamicRayTracingGeometries()
 }
 #endif
 
-void FStaticMeshSceneProxy::CreateRenderThreadResources()
+void FStaticMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 #if RHI_RAYTRACING
 	if(IsRayTracingAllowed() && bNeedsDynamicRayTracingGeometries)
 	{
 		check(bDynamicRayTracingGeometry);
-		CreateDynamicRayTracingGeometries();
+		CreateDynamicRayTracingGeometries(RHICmdList);
 	}
 	else
 	{

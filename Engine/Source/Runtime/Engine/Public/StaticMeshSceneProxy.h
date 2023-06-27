@@ -49,7 +49,7 @@ public:
 		bool bAllowPreCulledIndices,
 		FMeshBatch& OutMeshBatch) const;
 
-	ENGINE_API virtual void CreateRenderThreadResources() override;
+	ENGINE_API virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 
 	ENGINE_API virtual void DestroyRenderThreadResources() override;
 
@@ -65,7 +65,7 @@ public:
 		const FMaterialRenderProxy* RenderProxy,
 		FMeshBatch& OutMeshBatch) const;
 
-	ENGINE_API virtual void SetEvaluateWorldPositionOffsetInRayTracing(bool NewValue);
+	ENGINE_API virtual void SetEvaluateWorldPositionOffsetInRayTracing(FRHICommandListBase& RHICmdList, bool NewValue);
 
 	virtual uint8 GetCurrentFirstLODIdx_RenderThread() const final override
 	{
@@ -228,7 +228,7 @@ protected:
 	float OverlayMaterialMaxDrawDistance;
 
 #if RHI_RAYTRACING
-	ENGINE_API void CreateDynamicRayTracingGeometries();
+	ENGINE_API void CreateDynamicRayTracingGeometries(FRHICommandListBase& RHICmdList);
 	ENGINE_API void ReleaseDynamicRayTracingGeometries();
 
 	bool bSupportRayTracing : 1;

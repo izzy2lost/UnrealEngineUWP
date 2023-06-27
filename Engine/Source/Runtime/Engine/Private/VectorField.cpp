@@ -727,9 +727,9 @@ public:
 	 *	This function allows for generating renderer-side resources.
 	 *	Called in the rendering thread.
 	 */
-	virtual void CreateRenderThreadResources() override
+	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override
 	{
-		VisualizationVertexFactory.InitResource(FRHICommandListImmediate::Get());
+		VisualizationVertexFactory.InitResource(RHICmdList);
 	}
 
 	virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override

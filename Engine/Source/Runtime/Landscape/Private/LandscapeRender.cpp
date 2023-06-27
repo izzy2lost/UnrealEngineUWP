@@ -484,8 +484,6 @@ FLandscapeRenderSystem::~FLandscapeRenderSystem()
 
 void FLandscapeRenderSystem::CreateResources(FLandscapeSectionInfo* SectionInfo)
 {
-	check(IsInRenderingThread());
-
 	FLandscapeRenderSystem*& LandscapeRenderSystem = LandscapeRenderSystems.FindOrAdd(SectionInfo->LandscapeKey);
 	if (!LandscapeRenderSystem)
 	{
@@ -497,8 +495,6 @@ void FLandscapeRenderSystem::CreateResources(FLandscapeSectionInfo* SectionInfo)
 
 void FLandscapeRenderSystem::DestroyResources(FLandscapeSectionInfo* SectionInfo)
 {
-	check(IsInRenderingThread());
-
 	FLandscapeRenderSystem* LandscapeRenderSystem = LandscapeRenderSystems.FindChecked(SectionInfo->LandscapeKey);
 	LandscapeRenderSystem->DestroyResources_Internal(SectionInfo);
 
@@ -511,7 +507,6 @@ void FLandscapeRenderSystem::DestroyResources(FLandscapeSectionInfo* SectionInfo
 
 void FLandscapeRenderSystem::CreateResources_Internal(FLandscapeSectionInfo* SectionInfo)
 {
-	check(IsInRenderingThread());
 	check(SectionInfo != nullptr);
 	check(!SectionInfo->bRegistered);
 	check(!SectionInfo->bResourcesCreated);
@@ -1344,13 +1339,11 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 	UpdateVisibleInLumenScene();
 }
 
-void FLandscapeComponentSceneProxy::CreateRenderThreadResources()
+void FLandscapeComponentSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 	LLM_SCOPE(ELLMTag::Landscape);
 
 	check(HeightmapTexture != nullptr);
-
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
 
 	FLandscapeRenderSystem::CreateResources(this);
 
@@ -4248,9 +4241,9 @@ SIZE_T FLandscapeMeshProxySceneProxy::GetTypeHash() const
 }
 
 
-void FLandscapeMeshProxySceneProxy::CreateRenderThreadResources()
+void FLandscapeMeshProxySceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
-	FStaticMeshSceneProxy::CreateRenderThreadResources();
+	FStaticMeshSceneProxy::CreateRenderThreadResources(RHICmdList);
 
 	for (auto& Info : ProxySectionsInfos)
 	{

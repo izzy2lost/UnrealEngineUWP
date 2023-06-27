@@ -476,9 +476,9 @@ public:
 	 *	This function allows for generating renderer-side resources.
 	 *	Called in the rendering thread.
 	 */
-	virtual void CreateRenderThreadResources() 
+	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) 
 	{
-		FPrimitiveSceneProxy::CreateRenderThreadResources();
+		FPrimitiveSceneProxy::CreateRenderThreadResources(RHICmdList);
 
 		// Register the data to the scene
 		FSceneInterface& LocalScene = GetScene();

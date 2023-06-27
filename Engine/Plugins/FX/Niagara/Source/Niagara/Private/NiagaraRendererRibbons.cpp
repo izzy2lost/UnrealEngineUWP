@@ -721,11 +721,9 @@ FNiagaraRendererRibbons::~FNiagaraRendererRibbons()
 }
 
 // FPrimitiveSceneProxy interface.
-void FNiagaraRendererRibbons::CreateRenderThreadResources()
+void FNiagaraRendererRibbons::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
-	FNiagaraRenderer::CreateRenderThreadResources();
-
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
+	FNiagaraRenderer::CreateRenderThreadResources(RHICmdList);
 
 	{
 		// Initialize the shape vertex buffer. This doesn't change frame-to-frame, so we can set it up once

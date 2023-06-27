@@ -920,9 +920,9 @@ void FHierarchicalStaticMeshSceneProxy::SetupOcclusion(UHierarchicalInstancedSta
 	}
 }
 
-void FHierarchicalStaticMeshSceneProxy::CreateRenderThreadResources()
+void FHierarchicalStaticMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
-	FInstancedStaticMeshSceneProxy::CreateRenderThreadResources();
+	FInstancedStaticMeshSceneProxy::CreateRenderThreadResources(RHICmdList);
 	SceneProxyCreatedFrameNumberRenderThread = GFrameNumberRenderThread;
 }
 	

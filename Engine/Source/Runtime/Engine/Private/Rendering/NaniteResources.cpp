@@ -1088,7 +1088,7 @@ FSceneProxy::~FSceneProxy()
 	DEC_DWORD_STAT_BY(STAT_InstanceHasHierarchyOffset, bHasPerInstanceHierarchyOffset ? InstanceSceneData.Num() : 0);
 }
 
-void FSceneProxy::CreateRenderThreadResources()
+void FSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 	check(Resources->RuntimeResourceID != INDEX_NONE && Resources->HierarchyOffset != INDEX_NONE);
 }

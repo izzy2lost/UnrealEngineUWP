@@ -405,7 +405,7 @@ public:
 	}
 
 protected:
-	ENGINE_API virtual void CreateRenderThreadResources() override;
+	ENGINE_API virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 
 	ENGINE_API virtual void OnEvaluateWorldPositionOffsetChanged_RenderThread() override;
 

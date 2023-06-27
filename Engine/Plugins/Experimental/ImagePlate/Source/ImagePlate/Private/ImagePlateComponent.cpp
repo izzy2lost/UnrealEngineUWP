@@ -106,10 +106,8 @@ namespace
 #endif
 		}
 
-		virtual void CreateRenderThreadResources() override
+		virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override
 		{
-			FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
-
 			BuildMesh();
 			IndexBuffer.InitResource(RHICmdList);
 #if RHI_RAYTRACING

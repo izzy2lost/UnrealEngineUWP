@@ -68,7 +68,7 @@ private:
 	NIAGARA_API void ReleaseUniformBuffers(bool bEmpty);
 
 	//~ Begin FPrimitiveSceneProxy Interface.
-	NIAGARA_API virtual void CreateRenderThreadResources() override;
+	NIAGARA_API virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 
 	//virtual void OnActorPositionChanged() override;
 	NIAGARA_API virtual void OnTransformChanged() override;

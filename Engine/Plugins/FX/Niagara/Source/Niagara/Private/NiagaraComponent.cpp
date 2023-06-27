@@ -237,12 +237,12 @@ void FNiagaraSceneProxy::ReleaseRenderThreadResources()
 }
 
 // FPrimitiveSceneProxy interface.
-void FNiagaraSceneProxy::CreateRenderThreadResources()
+void FNiagaraSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 	if (RenderData)
 	{
 		LLM_SCOPE(ELLMTag::Niagara);
-		RenderData->CreateRenderThreadResources();
+		RenderData->CreateRenderThreadResources(RHICmdList);
 	}
 }
 

@@ -51,18 +51,17 @@ UMaterialInterface* FDataflowEngineSceneProxy::GetRenderMaterial() const
 	return RetRenderMaterial;
 }
 
-void FDataflowEngineSceneProxy::CreateRenderThreadResources()
+void FDataflowEngineSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 	check(ConstantData);
 	check(RenderMaterial);
-	check(IsInRenderingThread());
 
 #if WITH_EDITOR
 	SetUsedMaterialForVerification({RenderMaterial});
 #endif
 
-	CreateInstancedVertexRenderThreadResources();
-	CreateMeshRenderThreadResources();
+	CreateInstancedVertexRenderThreadResources(RHICmdList);
+	CreateMeshRenderThreadResources(RHICmdList);
 }
 
 
@@ -141,13 +140,11 @@ void FDataflowEngineSceneProxy::GetDynamicMeshElements(const TArray<const FScene
 // Mesh Selection Rendering
 //
 
-void FDataflowEngineSceneProxy::CreateMeshRenderThreadResources()
+void FDataflowEngineSceneProxy::CreateMeshRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 	GeometryCollection::Facades::FRenderingFacade Facade(*ConstantData);
 	const FDataflowSelectionState& State = DataflowComponent->GetSelectionState();
 	check(Facade.CanRenderSurface());
-
-	FRHICommandListBase& RHICmdList = FRHICommandListImmediate::Get();
 
 	const int32 NumTriangleVertices = Facade.NumTriangles();
 	const int32 NumTriangleIndices = Facade.NumTriangles();
@@ -309,7 +306,7 @@ void FDataflowEngineSceneProxy::GetMeshDynamicMeshElements(int32 ViewIndex, FMes
 // Vertex Selection Rendering
 //
 
-void FDataflowEngineSceneProxy::CreateInstancedVertexRenderThreadResources()
+void FDataflowEngineSceneProxy::CreateInstancedVertexRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 	const FDataflowSelectionState& State = DataflowComponent->GetSelectionState();
 	if (State.Mode == FDataflowSelectionState::EMode::DSS_Dataflow_Vertex)
@@ -330,9 +327,6 @@ void FDataflowEngineSceneProxy::CreateInstancedVertexRenderThreadResources()
 
 			if (NumRenderedVerts)
 			{
-				check(IsInRenderingThread());
-				FRHICommandListBase& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
 				BoxVertexBuffers.PositionVertexBuffer.Init(TotalNumElements);
 				BoxVertexBuffers.StaticMeshVertexBuffer.Init(TotalNumElements, NumTextureCoordinates);
 				BoxVertexBuffers.ColorVertexBuffer.Init(TotalNumElements);
