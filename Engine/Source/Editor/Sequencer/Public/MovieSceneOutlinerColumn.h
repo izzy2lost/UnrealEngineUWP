@@ -23,5 +23,4 @@ public:
 
 	virtual bool SupportsSequence(UMovieSceneSequence* InSequence) const override { return true; }
 
-	virtual TSharedRef<SWidget> CreateColumnWidget(UE::Sequencer::TViewModelPtr<UE::Sequencer::IOutlinerExtension> InOutlinerExtension) const = 0;
 };

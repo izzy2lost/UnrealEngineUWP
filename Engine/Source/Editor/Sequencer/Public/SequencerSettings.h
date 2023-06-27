@@ -80,6 +80,31 @@ public:
 	}
 };
 
+/** Struct for storing reorderable and hidden/visible outliner columns */
+USTRUCT(BlueprintType)
+struct FColumnVisibilitySetting
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category=General)
+	FName ColumnName;
+
+	UPROPERTY(EditAnywhere, Category=General)
+	bool bIsVisible;
+
+	bool operator==(const FColumnVisibilitySetting& Other) const
+	{
+		return ColumnName == Other.ColumnName && bIsVisible == Other.bIsVisible;
+	}
+
+	FColumnVisibilitySetting(FName InColumnName, bool InbIsVisible)
+		: ColumnName(InColumnName)
+		, bIsVisible(InbIsVisible)
+	{}
+
+	FColumnVisibilitySetting()
+	{}
+};
 
 /** Serializable options for sequencer. */
 UCLASS(config=EditorPerProjectUserSettings, PerObjectConfig)
@@ -420,6 +445,11 @@ public:
 	/** Sets whether the track filter should be enabled/disabled */
 	void SetTrackFilterEnabled(const FString& TrackFilter, bool bEnabled);
 
+	/** Get outliner column visibility in display order */
+	TArray<FColumnVisibilitySetting> GetOutlinerColumnSettings() const { return HiddenColumns; }
+	/** Sets the visibility of outliner columns in display order */
+	void SetOutlinerColumnVisibility(const TArray<FColumnVisibilitySetting>& InHiddenColumns);
+
 protected:
 
 	/** The auto change mode (auto-key, auto-track or none). */
@@ -671,6 +701,10 @@ protected:
 	/** The track filters that are enabled */
 	UPROPERTY(config, EditAnywhere, Category = General)
 	TArray<FString> TrackFilters;
+
+	/** List of all columns and their visibility, in the order to be displayed in the outliner view */
+	UPROPERTY(config, EditAnywhere, Category = General)
+	TArray<FColumnVisibilitySetting> HiddenColumns;
 
 	FOnEvaluateSubSequencesInIsolationChanged OnEvaluateSubSequencesInIsolationChangedEvent;
 	FOnShowSelectedNodesOnlyChanged OnShowSelectedNodesOnlyChangedEvent;

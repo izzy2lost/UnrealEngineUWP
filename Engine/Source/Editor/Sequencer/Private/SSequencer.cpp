@@ -308,6 +308,11 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 
 	TreeView->AddPinnedTreeView(PinnedTreeView);
 
+	if (GetSequencerSettings())
+	{
+		InitializeOutlinerColumns();
+	}
+
 	SequencerViewModel->GetTrackArea()->CastThisChecked<FSequencerTrackAreaViewModel>()->InitializeDefaultEditTools(*TrackArea);
 	SequencerViewModel->GetPinnedTrackArea()->CastThisChecked<FSequencerTrackAreaViewModel>()->InitializeDefaultEditTools(*PinnedTrackArea);
 
@@ -528,7 +533,6 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 						.Clipping(EWidgetClipping::ClipToBounds)
 						[
 							SNew(SHorizontalBox)
-
 							+ SHorizontalBox::Slot()
 							.AutoWidth()
 							.VAlign(VAlign_Center)
@@ -1072,6 +1076,72 @@ void SSequencer::InitializeTrackFilters()
 
 	// Sort by display name
 	AllTrackFilters.Sort([](const TSharedRef<FSequencerTrackFilter>& LHS, const TSharedRef<FSequencerTrackFilter>& RHS) { return LHS->GetDisplayName().ToString() < RHS->GetDisplayName().ToString(); });
+}
+
+void SSequencer::UpdateOutlinerViewColumns()
+{
+	// Save updated column list in settings
+	TArray<FColumnVisibilitySetting> ColumnVisibilitySettings;
+
+	for (FSequencerOutlinerColumnVisibility ColumnVisibility : OutlinerColumnVisibilities)
+	{
+		ColumnVisibilitySettings.Add(FColumnVisibilitySetting(ColumnVisibility.Column->GetColumnName(), ColumnVisibility.bIsColumnVisible));
+	}
+
+	GetSequencerSettings()->SetOutlinerColumnVisibility(ColumnVisibilitySettings);
+
+	// Filter out hidden columns to create a list of visible columns for the outliner views
+	TArray<TSharedPtr<ISequencerOutlinerColumn>> VisibleColumns;
+	for (FSequencerOutlinerColumnVisibility ColumnVisibility : OutlinerColumnVisibilities)
+	{
+		if (ColumnVisibility.bIsColumnVisible)
+		{
+			VisibleColumns.Add(ColumnVisibility.Column);
+		}
+	}
+
+	// Update both Outliner Views with updated visible outliner columns
+	PinnedTreeView->SetOutlinerColumns(VisibleColumns);
+	TreeView->SetOutlinerColumns(VisibleColumns);
+}
+
+void SSequencer::InitializeOutlinerColumns()
+{
+	using namespace UE::Sequencer;
+
+	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
+	if (!Sequencer.IsValid())
+	{
+		return;
+	}
+
+	const TMap<FName, TSharedPtr<ISequencerOutlinerColumn>>& RegisteredColumns = Sequencer->GetOutlinerColumns();
+	
+	// Retrieve previously saved column names and visibilities
+	TArray<FColumnVisibilitySetting> ColumnSettings = GetSequencerSettings()->GetOutlinerColumnSettings();
+	TSet<FName> ColumnNamesFoundInSettings;
+
+	// Add registered columns found in settings with their saved visibility state
+	for (const FColumnVisibilitySetting& ColumnVisibility : ColumnSettings)
+	{
+		const TSharedPtr<ISequencerOutlinerColumn>* OutlinerColumn = RegisteredColumns.Find(ColumnVisibility.ColumnName);
+		if (OutlinerColumn)
+		{
+			ColumnNamesFoundInSettings.Add(ColumnVisibility.ColumnName);
+			OutlinerColumnVisibilities.Add(FSequencerOutlinerColumnVisibility(*OutlinerColumn, ColumnVisibility.bIsVisible));
+		}
+	}
+
+	// Add registered columns not found in settings with their default visibility state
+	for (const TTuple<FName, TSharedPtr<ISequencerOutlinerColumn>>& RegisteredColumn : RegisteredColumns)
+	{
+		if (!ColumnNamesFoundInSettings.Contains(RegisteredColumn.Key))
+		{
+			OutlinerColumnVisibilities.Add(FSequencerOutlinerColumnVisibility(RegisteredColumn.Value));
+		}
+	}
+
+	UpdateOutlinerViewColumns();
 }
 
 /* SSequencer callbacks
@@ -2102,6 +2172,9 @@ TSharedRef<SWidget> SSequencer::MakeViewMenu()
 		GetSequencerSettings()->SetZeroPadFrames(NewValue);
 	};
 
+	// Menu Entry for Outliner Column Visibilities
+	MenuBuilder.AddSubMenu(LOCTEXT("ColumnVisibilityHeader", "Columns"), FText::GetEmpty(), FNewMenuDelegate::CreateRaw(this, &SSequencer::FillColumnVisibilityMenu));
+
 	MenuBuilder.AddWidget(
 		SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
@@ -2263,6 +2336,29 @@ void SSequencer::FillPlaybackSpeedMenu(FMenuBuilder& InMenuBarBuilder)
 			);
 	}
 	InMenuBarBuilder.EndSection();
+}
+
+void SSequencer::FillColumnVisibilityMenu(FMenuBuilder& InMenuBuilder)
+{
+	const bool bShouldCloseWindowAfterMenuSelection = true;
+	for (FSequencerOutlinerColumnVisibility& ColumnVisibility : OutlinerColumnVisibilities)
+	{
+		InMenuBuilder.AddMenuEntry(
+			ColumnVisibility.Column->GetColumnLabel(),
+			LOCTEXT("SetColumnVisibilityTooltip", "Enable or disable this outliner column"),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([this, &ColumnVisibility] {
+					ColumnVisibility.bIsColumnVisible = !ColumnVisibility.bIsColumnVisible;
+					UpdateOutlinerViewColumns();
+					}),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([this, ColumnVisibility] { return ColumnVisibility.bIsColumnVisible; })),
+				NAME_None,
+				EUserInterfaceActionType::ToggleButton
+			);
+	}
+	InMenuBuilder.EndSection();
 }
 
 void SSequencer::FillTimeDisplayFormatMenu(FMenuBuilder& MenuBuilder)

@@ -12,6 +12,7 @@
 #include "InputCoreTypes.h"
 #include "Internationalization/Internationalization.h"
 #include "Internationalization/Text.h"
+#include "ISequencerOutlinerColumn.h"
 #include "Layout/ChildrenBase.h"
 #include "Layout/Geometry.h"
 #include "Layout/Margin.h"
@@ -29,6 +30,7 @@
 #include "MVVM/ViewModels/ViewModelIterators.h"
 #include "MVVM/Selection/SequencerCoreSelection.h"
 #include "MVVM/Selection/SequencerOutlinerSelection.h"
+#include "MVVM/Views/SOutlinerColumnBorder.h"
 #include "MVVM/Views/STrackAreaView.h"
 #include "MVVM/Views/STrackLane.h"
 #include "MVVM/Views/TreeViewTraits.h"
@@ -47,6 +49,7 @@
 #include "Templates/Tuple.h"
 #include "Types/SlateStructs.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SSeparator.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Views/SHeaderRow.h"
 
@@ -270,7 +273,7 @@ void SOutlinerView::Construct(const FArguments& InArgs, TWeakPtr<FOutlinerViewMo
 
 	HeaderRow = SNew(SHeaderRow).Visibility(EVisibility::Collapsed);
 
-	SetupColumns(InArgs);
+	GenerateOutlinerColumns();
 
 	WeakOutliner.Pin()->OnRefreshed.AddSP(this, &SOutlinerView::Refresh);
 
@@ -467,11 +470,60 @@ float SOutlinerView::VirtualToPhysical(float InVirtual) const
 	return InVirtual;
 }
 
-void SOutlinerView::SetupColumns(const FArguments& InArgs)
+void SOutlinerView::GenerateOutlinerColumns()
 {
+	// Clear columns to ensure consistent order when building UI from Map
+	HeaderRow->ClearColumns();
+	Columns.Empty();
+	Columns.Compact();
+
 	TSharedPtr<FEditorViewModel> EditorViewModel = WeakOutliner.Pin()->GetEditor();
 
-	// Define a column for the Outliner
+	// Create Visible Outliner Columns (Pin/Mute/Solo...)
+	for (TSharedPtr<ISequencerOutlinerColumn> Column : OutlinerColumns)
+	{
+		auto GenerateToolColumn = [=](const TWeakViewModelPtr<IOutlinerExtension>& InWeakModel, const TSharedRef<SOutlinerViewRow>& InRow) -> TSharedRef<SWidget>
+		{
+			if (TViewModelPtr<IOutlinerExtension> OutlinerExtension = InWeakModel.ImplicitPin())
+			{
+				if (!OutlinerExtension.AsModel()->IsA<FOutlinerSpacer>())
+				{
+					return SNew(SOutlinerColumnBorder, FCreateOutlinerColumnParams(OutlinerExtension, EditorViewModel))
+						[	
+							Column->CreateColumnWidget(FCreateOutlinerColumnParams(OutlinerExtension, EditorViewModel))
+						];
+				}
+				else
+				{
+					return SNew(SBox).HeightOverride(10.f);
+				}
+			}
+
+			ensureMsgf(false, TEXT("Attempting to create an outliner column for a view model that is either dead, or not an outliner item."));
+			return SNew(SBox).HeightOverride(10.f);
+		};
+		Columns.Add(Column->GetColumnName(), FOutlinerViewColumn(GenerateToolColumn, 16.f, true));
+	}
+
+	// If there are any outliner columns, add a spacer between them and the outliner view
+	if (OutlinerColumns.Num() > 0)
+	{
+		auto GenerateSpacer = [=](const TWeakViewModelPtr<IOutlinerExtension>& InWeakModel, const TSharedRef<SOutlinerViewRow>& InRow) -> TSharedRef<SWidget>
+		{
+			return SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SNew(SSeparator)
+					.Orientation(Orient_Vertical)
+					.Thickness(1.0f)
+					.SeparatorImage(FAppStyle::Get().GetBrush("Separator"))
+				];
+		};
+		Columns.Add(FName(TEXT("OutlinerColumnSpacer")), FOutlinerViewColumn(GenerateSpacer, 1.f, true));
+	}
+
+	// Create Column for Outliner View (Track name / Keying)
 	auto GenerateOutliner = [=](const TWeakViewModelPtr<IOutlinerExtension>& InWeakModel, const TSharedRef<SOutlinerViewRow>& InRow) -> TSharedRef<SWidget>
 	{
 		if (TSharedPtr<IOutlinerExtension> OutlinerItem = InWeakModel.ImplicitPin())
@@ -490,10 +542,25 @@ void SOutlinerView::SetupColumns(const FArguments& InArgs)
 	{
 		if (Pair.Key != TrackNameColumn)
 		{
-			HeaderRow->AddColumn(
-				SHeaderRow::Column(Pair.Key)
-				.FillWidth(Pair.Value.Width)
-			);
+			if (Pair.Value.bIsFixedWidth)
+			{
+				TOptional<float> FixedWidth;
+				if (Pair.Value.Width.IsSet())
+				{
+					FixedWidth = Pair.Value.Width.Get();
+				}
+				HeaderRow->AddColumn(
+					SHeaderRow::Column(Pair.Key)
+					.FixedWidth(FixedWidth)
+				);
+			}
+			else
+			{
+				HeaderRow->AddColumn(
+					SHeaderRow::Column(Pair.Key)
+					.FillWidth(Pair.Value.Width)
+				);
+			}
 		}
 	}
 }
@@ -514,6 +581,13 @@ void SOutlinerView::AddPinnedTreeView(TSharedPtr<SOutlinerView> PinnedTreeView)
 {
 	PinnedTreeViews.Add(PinnedTreeView);
 	PinnedTreeView->SetPrimaryTreeView(SharedThis(this));
+}
+
+void SOutlinerView::SetOutlinerColumns(const TArray<TSharedPtr<ISequencerOutlinerColumn>>& InOutlinerColumns)
+{
+	// Reset the way rows are constructed with an updated list of Outliner Columns
+	OutlinerColumns = InOutlinerColumns;
+	GenerateOutlinerColumns();
 }
 
 void SOutlinerView::OnRightMouseButtonDown(const FPointerEvent& MouseEvent)

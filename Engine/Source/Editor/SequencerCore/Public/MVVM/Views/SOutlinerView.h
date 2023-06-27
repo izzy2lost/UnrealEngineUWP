@@ -32,6 +32,7 @@ class FPaintArgs;
 class FSlateRect;
 class FSlateWindowElementList;
 class FWidgetStyle;
+class ISequencerOutlinerColumn;
 class ITableRow;
 class SHeaderRow;
 class SScrollBar;
@@ -65,15 +66,17 @@ struct SEQUENCERCORE_API FOutlinerViewColumn
 {
 	typedef TFunction<TSharedRef<SWidget>(TViewModelPtr<IOutlinerExtension>, const TSharedRef<SOutlinerViewRow>&)> FOnGenerate;
 
-	FOutlinerViewColumn(const FOnGenerate& InOnGenerate, const TAttribute<float>& InWidth) : Generator(InOnGenerate), Width(InWidth) {}
-	FOutlinerViewColumn(FOnGenerate&& InOnGenerate, const TAttribute<float>& InWidth) : Generator(MoveTemp(InOnGenerate)), Width(InWidth) {}
+	FOutlinerViewColumn(const FOnGenerate& InOnGenerate, const TAttribute<float>& InWidth, const bool InIsFixedWidth) : Generator(InOnGenerate), Width(InWidth), bIsFixedWidth(InIsFixedWidth) {}
+	FOutlinerViewColumn(const FOnGenerate& InOnGenerate, const TAttribute<float>& InWidth) : Generator(InOnGenerate), Width(InWidth), bIsFixedWidth(false) {}
+	FOutlinerViewColumn(FOnGenerate&& InOnGenerate, const TAttribute<float>& InWidth) : Generator(MoveTemp(InOnGenerate)), Width(InWidth), bIsFixedWidth(false) {}
 
 	/** Function used to generate a cell for this column */
 	FOnGenerate Generator;
 	/** Attribute specifying the width of this column */
 	TAttribute<float> Width;
+	/** Attribute specifying whether or not to use the Width in percentage or fixed-width values */
+	bool bIsFixedWidth = false;
 };
-
 
 /** The tree view used in the sequencer */
 class SEQUENCERCORE_API SOutlinerView 
@@ -224,6 +227,9 @@ public:
 	/** Set whether this TreeView should show only pinned nodes or only non-pinned nodes  */
 	void SetShowPinned(bool bShowPinned) { bShowPinnedNodes = bShowPinned; }
 
+	/** Updates the list of visible outliner columns and regenerates columns in the outliner view */
+	void SetOutlinerColumns(const TArray<TSharedPtr<ISequencerOutlinerColumn>>& InOutlinerColumns);
+
 protected:
 
 	/** Linear, sorted array of nodes that we currently have generated widgets for */
@@ -231,8 +237,8 @@ protected:
 
 protected:
 
-	/** Populate the map of column definitions, and add relevant columns to the header row */
-	void SetupColumns(const FArguments& InArgs);
+	/** Populate the map of column definitions, and add relevant columns to the header row. Must be called when outliner columns change */
+	void GenerateOutlinerColumns();
 
 	FReply OnDragRow(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, TSharedRef<SOutlinerViewRow> InRow);
 
@@ -263,6 +269,9 @@ private:
 
 	/** The SOutlinerView object this SOutlinerView is pinned to, or nullptr if not pinned */
 	TWeakPtr<SOutlinerView> PrimaryTreeView;
+
+	/** Visible Outliner columns to display in the outliner view */
+	TArray<TSharedPtr<ISequencerOutlinerColumn>> OutlinerColumns;
 
 	float VirtualTop;
 

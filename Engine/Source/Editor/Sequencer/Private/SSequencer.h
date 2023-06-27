@@ -14,6 +14,7 @@
 #include "MovieSceneSequenceID.h"
 #include "ITimeSlider.h"
 #include "ISequencerModule.h"
+#include "ISequencerOutlinerColumn.h"
 #include "ToolMenu.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Widgets/Input/NumericTypeInterface.h"
@@ -106,6 +107,26 @@ struct FSequencerBreadcrumb
 		: BreadcrumbType(FSequencerBreadcrumb::ShotType)
 		, BreadcrumbName(CrumbName)
 	{ }
+};
+
+
+/**
+ * Holds an outliner column and its visibility state
+ */
+struct FSequencerOutlinerColumnVisibility
+{
+	TSharedPtr<ISequencerOutlinerColumn> Column;
+	bool bIsColumnVisible = false;
+
+	FSequencerOutlinerColumnVisibility(TSharedPtr<ISequencerOutlinerColumn> InColumn)
+		: Column(InColumn)
+		, bIsColumnVisible(InColumn->IsColumnVisibleByDefault())
+	{}
+
+	FSequencerOutlinerColumnVisibility(TSharedPtr<ISequencerOutlinerColumn> InColumn, bool bInIsColumnVisible)
+		: Column(InColumn)
+		, bIsColumnVisible(bInIsColumnVisible)
+	{}
 };
 
 
@@ -399,6 +420,10 @@ private:
 	/** Initalizes a list of all track filter objects */
 	void InitializeTrackFilters();
 
+
+	/** Initializes outliner column list from settings and SequencerCore */
+	void InitializeOutlinerColumns();
+
 	/** Handles key selection changes. */
 	void HandleKeySelectionChanged();
 
@@ -461,6 +486,9 @@ private:
 	/** Makes the playback speed menu for the toolbar. */
 	void FillPlaybackSpeedMenu(FMenuBuilder& InMenuBuilder);
 
+	/** Makes the column visibility menu for the toolbar. */
+	void FillColumnVisibilityMenu(FMenuBuilder& InMenuBuilder);
+
 	/** Return the current sequencer settings */ 
 	USequencerSettings* GetSequencerSettings() const;
 
@@ -494,6 +522,12 @@ private:
 
 	void OnEnableAllNodeGroupFilters(bool bEnableAll);
 	void OnNodeGroupFilterClicked(UMovieSceneNodeGroup* NodeGroup);
+
+	/**
+	 * Called when any outliner column's visibily is modified.
+	 * Updates SequencerSettings and visible outliner columns in Outliner View.
+	 */
+	void UpdateOutlinerViewColumns();
 
 	/**
 	* Called when the time snap interval changes.
@@ -708,6 +742,9 @@ private:
 
 	/** The fill coefficients of each column in the grid. */
 	float ColumnFillCoefficients[2];
+
+	/** List of registered outliner columns with their visibility states */
+	TArray<FSequencerOutlinerColumnVisibility> OutlinerColumnVisibilities;
 
 	TSharedPtr<class SSequencerSplitterOverlay> TreeViewSplitter;
 

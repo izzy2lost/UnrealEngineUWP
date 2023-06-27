@@ -993,3 +993,12 @@ void USequencerSettings::SetTrackFilterEnabled(const FString & TrackFilter, bool
 		}
 	}
 }
+
+void USequencerSettings::SetOutlinerColumnVisibility(const TArray<FColumnVisibilitySetting>& InHiddenColumns)
+{
+	if (InHiddenColumns != HiddenColumns)
+	{
+		HiddenColumns = InHiddenColumns;
+		SaveConfig();
+	}
+}
