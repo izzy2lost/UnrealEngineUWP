@@ -617,13 +617,13 @@ namespace Chaos
 
 		CHAOS_API void PruneConstraints(const int32 CurrentEpoch);
 
-		CHAOS_API void UpdateCollision(
+		CHAOS_API bool UpdateCollision(
 			FPBDCollisionConstraint* Constraint,
 			const FReal CullDistance,
 			const FReal Dt,
 			const FCollisionContext& Context);
 
-		CHAOS_API void UpdateCollisionCCD(
+		CHAOS_API bool UpdateCollisionCCD(
 			FPBDCollisionConstraint* Constraint,
 			const FReal CullDistance,
 			const FReal Dt,
