@@ -2232,7 +2232,10 @@ void FControlRigEditor::Compile()
 
 		// default to always reset all bone modifications 
 		ResetAllBoneModification(); 
-		
+
+		// remove the current host from the editor
+		SetHost(nullptr);
+
 		{
 			TGuardValue<bool> GuardCompileReEntry(bIsCompilingThroughUI, true);
 			FBlueprintEditor::Compile();
@@ -4297,6 +4300,11 @@ void FControlRigEditor::UpdateControlRig()
 				if(TestDataStrongPtr.IsValid())
 				{
 					TestDataStrongPtr->ReleaseReplay();
+				}
+
+				if(!IsValid(CurrentHost))
+				{
+					SetHost(nullptr);
 				}
 				
 				// if this control rig is from a temporary step,

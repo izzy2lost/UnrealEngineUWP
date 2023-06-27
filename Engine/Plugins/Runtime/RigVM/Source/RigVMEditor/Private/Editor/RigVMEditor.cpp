@@ -32,7 +32,7 @@ void FRigVMEditor::HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMG
 void FRigVMEditor::SetHost(URigVMHost* InHost)
 {
 	Host = InHost;
-	if(Host)
+	if(Host && IsValid(Host))
 	{
 		OnPreviewHostUpdated().Broadcast(this);
 	}
