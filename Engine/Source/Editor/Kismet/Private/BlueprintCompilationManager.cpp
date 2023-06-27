@@ -30,6 +30,7 @@
 #include "KismetCompiler.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/DataValidation.h"
+#include "Misc/PackageAccessTrackingOps.h"
 #include "ProfilingDebugging/ScopedTimers.h"
 #include "Serialization/ArchiveHasReferences.h"
 #include "Serialization/ArchiveReplaceObjectRef.h"
@@ -1217,6 +1218,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 			DECLARE_SCOPE_HIERARCHICAL_COUNTER(ReconstructNodes)
 
 			UBlueprint* BP = CompilerData.BP;
+			UE_TRACK_REFERENCING_PACKAGE_SCOPED(BP, PackageAccessTrackingOps::NAME_CookerBuildObject);
 
 			ConformToParentAndInterfaces(BP);
 

@@ -5837,7 +5837,7 @@ void UCookOnTheFlyServer::SaveCookedPackage(UE::Cook::FSaveCookedPackageContext&
 
 bool UCookOnTheFlyServer::IsDebugRecordUnsolicited() const
 {
-	return bOnlyEditorOnlyDebug;
+	return bOnlyEditorOnlyDebug | bHiddenDependenciesDebug;
 }
 
 namespace UE::Cook
@@ -6264,11 +6264,11 @@ void FSaveCookedPackageContext::FinishPackage()
 			}
 		}
 	}
-	if (COTFS.bOnlyEditorOnlyDebug)
+	if (COTFS.IsDebugRecordUnsolicited())
 	{
 		COTFS.ProcessUnsolicitedPackages();
-		FDiagnostics::AnalyzeOnlyEditorOnlySave(COTFS, PackageData, PackageData.DetachUnsolicited(),
-			SaveReferences, ReachablePlatforms);
+		FDiagnostics::AnalyzeHiddenDependencies(COTFS, PackageData, PackageData.DetachUnsolicited(),
+			SaveReferences, ReachablePlatforms, COTFS.bOnlyEditorOnlyDebug, COTFS.bHiddenDependenciesDebug);
 	}
 
 	if (!bHasRetryErrorCode)
@@ -6632,6 +6632,11 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 	bHiddenDependenciesDebug = FParse::Param(FCommandLine::Get(), TEXT("HiddenDependenciesDebug"));
 	if (bHiddenDependenciesDebug)
 	{
+		UE_LOG(LogCook, Display, TEXT("HiddenDependenciesDebug is enabled."));
+
+		// HiddenDependencies diagnostics rely on using SkipOnlyEditorOnly
+		bSkipOnlyEditorOnly = true;
+
 		FScopeLock HiddenDependenciesScopeLock(&HiddenDependenciesLock);
 
 		FString ClassPathListStr;
@@ -12241,6 +12246,8 @@ void UCookOnTheFlyServer::OnDiscoveredPackageDebug(FName PackageName, const UE::
 	ReportHiddenDependency(Instigator.Referencer, PackageName);
 }
 
+FName EngineTransientName(TEXT("/Engine/Transient"));
+
 void UCookOnTheFlyServer::OnObjectHandleReadDebug(TArrayView<const UObject*const> ReadObjects)
 {
 	using namespace UE::Cook;
@@ -12257,6 +12264,22 @@ void UCookOnTheFlyServer::OnObjectHandleReadDebug(TArrayView<const UObject*const
 	}
 
 	FName ReferencerPackageName = AccumulatedScopeData->PackageName;
+	if (ReferencerPackageName.IsNone() || ReferencerPackageName == EngineTransientName)
+	{
+		return;
+	}
+	TStringBuilder<256> ReferencerPackageNameStr;
+	ReferencerPackageName.ToString(ReferencerPackageNameStr);
+	if (FPackageName::IsTempPackage(ReferencerPackageNameStr) ||
+		FPackageName::IsVersePackage(ReferencerPackageNameStr))
+	{
+		return;
+	}
+
+	// Accelerate analysis and make hitting breakpoints more unique by ignoring dependencies that we have already
+	// logged for the most-recently-used referencer
+	static FName LastReferencer;
+	static TSet<FName> HandledDependencies;
 
 	TArray<FName, TInlineAllocator<16>> DependencyPackageNames;
 	for (const UObject* ReadObject : ReadObjects)
@@ -12275,8 +12298,22 @@ void UCookOnTheFlyServer::OnObjectHandleReadDebug(TArrayView<const UObject*const
 		{
 			continue;
 		}
+		if (ReferencerPackageName != LastReferencer)
+		{
+			LastReferencer = ReferencerPackageName;
+			HandledDependencies.Reset();
+		}
+		bool bAlreadyExists;
+		HandledDependencies.Add(DependencyPackageName, &bAlreadyExists);
+		if (bAlreadyExists)
+		{
+			continue;
+		}
 
-		if (FPackageName::IsScriptPackage(WriteToString<256>(DependencyPackageName)))
+		TStringBuilder<256> DependencyPackageNameStr;
+		DependencyPackageName.ToString(DependencyPackageNameStr);
+		if (FPackageName::IsScriptPackage(DependencyPackageNameStr) ||
+			FPackageName::IsTempPackage(DependencyPackageNameStr))
 		{
 			continue;
 		}
@@ -12394,8 +12431,14 @@ void UCookOnTheFlyServer::ReportHiddenDependency(FName Referencer, FName Depende
 				*PrimaryAssetData->AssetClassPath.ToString());
 		}
 	}
-	UE_LOG(LogCook, Warning, TEXT("Hidden dependency discovered: %s depends on %s%s."),
-		*Referencer.ToString(), *Dependency.ToString(), *PrimaryAssetClassPath);
+	FPackageData* ReferencerPackageData = PackageDatas->TryAddPackageDataByFileName(Referencer);
+	FPackageData* DependencyPackageData = PackageDatas->TryAddPackageDataByFileName(Dependency);
+	if (!ReferencerPackageData || !DependencyPackageData)
+	{
+		return;
+	}
+	TMap<FPackageData*, EInstigator>& Unsolicited = ReferencerPackageData->CreateOrGetUnsolicited();
+	Unsolicited.Add(DependencyPackageData, EInstigator::Unsolicited);
 }
 
 static
