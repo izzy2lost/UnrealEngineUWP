@@ -108,7 +108,7 @@ namespace Horde.Server.Tests.Fleet
 			placeholderJobTask.JobName = "placeholderJobName";
 			byte[] payload = Any.Pack(placeholderJobTask).ToByteArray();
 
-			ILease lease = await LeaseCollection.AddAsync(LeaseId.GenerateNewId(), "placeholderLease", agent.Id, agent.SessionId!.Value, new StreamId("placeholderStream"), pool.Id, null, startTime, payload);
+			ILease lease = await LeaseCollection.AddAsync(LeaseId.GenerateNewId(), null, "placeholderLease", agent.Id, agent.SessionId!.Value, new StreamId("placeholderStream"), pool.Id, null, startTime, payload);
 			bool wasModified = await LeaseCollection.TrySetOutcomeAsync(lease.Id, startTime + duration, LeaseOutcome.Success, null);
 			Assert.IsTrue(wasModified);
 			return lease;

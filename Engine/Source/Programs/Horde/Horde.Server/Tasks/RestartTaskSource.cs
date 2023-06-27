@@ -48,7 +48,7 @@ namespace Horde.Server.Tasks
 
 			byte[] payload = Any.Pack(task).ToByteArray();
 
-			return Lease(new AgentLease(leaseId, "Restart", null, null, log.Id, LeaseState.Pending, null, true, payload));
+			return Lease(new AgentLease(leaseId, null, "Restart", null, null, log.Id, LeaseState.Pending, null, true, payload));
 		}
 	}
 }

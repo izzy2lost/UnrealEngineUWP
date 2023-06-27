@@ -7,7 +7,6 @@ using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Logs;
 using Horde.Server.Streams;
-using Horde.Server.Utilities;
 using HordeCommon;
 
 namespace Horde.Server.Agents.Leases
@@ -21,6 +20,11 @@ namespace Horde.Server.Agents.Leases
 		/// The unique id of this lease
 		/// </summary>
 		public LeaseId Id { get; }
+
+		/// <summary>
+		/// Identifier for the parent lease. Used to terminate hierarchies of leases.
+		/// </summary>
+		public LeaseId? ParentId { get; }
 
 		/// <summary>
 		/// Name of this lease

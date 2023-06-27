@@ -27,6 +27,10 @@ namespace Horde.Server.Agents.Leases
 		class LeaseDocument : ILease
 		{
 			public LeaseId Id { get; set; }
+
+			[BsonIgnoreIfNull]
+			public LeaseId? ParentId { get; set; }
+
 			public string Name { get; set; }
 			public AgentId AgentId { get; set; }
 			public SessionId SessionId { get; set; }
@@ -51,9 +55,10 @@ namespace Horde.Server.Agents.Leases
 				Payload = null!;
 			}
 
-			public LeaseDocument(LeaseId id, string name, AgentId agentId, SessionId sessionId, StreamId? streamId, PoolId? poolId, LogId? logId, DateTime startTime, byte[] payload)
+			public LeaseDocument(LeaseId id, LeaseId? parentId, string name, AgentId agentId, SessionId sessionId, StreamId? streamId, PoolId? poolId, LogId? logId, DateTime startTime, byte[] payload)
 			{
 				Id = id;
+				ParentId = parentId;
 				Name = name;
 				AgentId = agentId;
 				SessionId = sessionId;
@@ -75,6 +80,7 @@ namespace Horde.Server.Agents.Leases
 		public LeaseCollection(MongoService mongoService)
 		{
 			List<MongoIndex<LeaseDocument>> indexes = new List<MongoIndex<LeaseDocument>>();
+			indexes.Add(keys => keys.Ascending(x => x.ParentId), sparse: true);
 			indexes.Add(keys => keys.Ascending(x => x.AgentId));
 			indexes.Add(keys => keys.Ascending(x => x.SessionId));
 			indexes.Add(keys => keys.Ascending(x => x.StartTime));
@@ -85,9 +91,9 @@ namespace Horde.Server.Agents.Leases
 		}
 
 		/// <inheritdoc/>
-		public async Task<ILease> AddAsync(LeaseId id, string name, AgentId agentId, SessionId sessionId, StreamId? streamId, PoolId? poolId, LogId? logId, DateTime startTime, byte[] payload)
+		public async Task<ILease> AddAsync(LeaseId id, LeaseId? parentId, string name, AgentId agentId, SessionId sessionId, StreamId? streamId, PoolId? poolId, LogId? logId, DateTime startTime, byte[] payload)
 		{
-			LeaseDocument lease = new LeaseDocument(id, name, agentId, sessionId, streamId, poolId, logId, startTime, payload);
+			LeaseDocument lease = new LeaseDocument(id, parentId, name, agentId, sessionId, streamId, poolId, logId, startTime, payload);
 			await _leases.ReplaceOneAsync(x => x.Id == id, lease, new ReplaceOptions { IsUpsert = true });
 			return lease;
 		}
@@ -105,12 +111,16 @@ namespace Horde.Server.Agents.Leases
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<ILease>> FindLeasesAsync(AgentId? agentId, SessionId? sessionId, DateTime? minTime, DateTime? maxTime, int? index, int? count, string? indexHint = null, bool consistentRead = true)
+		public async Task<List<ILease>> FindLeasesAsync(LeaseId? parentId, AgentId? agentId, SessionId? sessionId, DateTime? minTime, DateTime? maxTime, int? index, int? count, string? indexHint = null, bool consistentRead = true)
 		{
 			IMongoCollection<LeaseDocument> collection = consistentRead ? _leases : _leases.WithReadPreference(ReadPreference.SecondaryPreferred);
 			
 			FilterDefinitionBuilder<LeaseDocument> filterBuilder = Builders<LeaseDocument>.Filter;
 			FilterDefinition<LeaseDocument> filter = FilterDefinition<LeaseDocument>.Empty;
+			if (parentId != null)
+			{
+				filter &= filterBuilder.Eq(x => x.ParentId, parentId.Value);
+			}
 			if (agentId != null)
 			{
 				filter &= filterBuilder.Eq(x => x.AgentId, agentId.Value);
@@ -160,7 +170,7 @@ namespace Horde.Server.Agents.Leases
 		/// <inheritdoc/>
 		public async Task<List<ILease>> FindLeasesAsync(DateTime? minTime, DateTime? maxTime)
 		{
-			return await FindLeasesAsync(null, null, minTime, maxTime, null, null, _finishTimeStartTimeCompoundIndex.Name, false);
+			return await FindLeasesAsync(null, null, null, minTime, maxTime, null, null, _finishTimeStartTimeCompoundIndex.Name, false);
 		}
 
 		/// <inheritdoc/>

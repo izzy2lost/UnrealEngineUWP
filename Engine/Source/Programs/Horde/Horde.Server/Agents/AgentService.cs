@@ -800,7 +800,7 @@ namespace Horde.Server.Agents
 		{
 			try
 			{
-				return _leases.AddAsync(agentLease.Id, agentLease.Name, agent.Id, agent.SessionId!.Value, agentLease.StreamId, agentLease.PoolId, agentLease.LogId, agentLease.StartTime, agentLease.Payload!);
+				return _leases.AddAsync(agentLease.Id, agentLease.ParentId, agentLease.Name, agent.Id, agent.SessionId!.Value, agentLease.StreamId, agentLease.PoolId, agentLease.LogId, agentLease.StartTime, agentLease.Payload!);
 			}
 			catch (Exception ex)
 			{
@@ -828,7 +828,7 @@ namespace Horde.Server.Agents
 			span.SetAttribute("FinishTime", finishTime?.ToString());
 			span.SetAttribute("Index", index);
 			span.SetAttribute("Count", count);
-			return _leases.FindLeasesAsync(agentId, sessionId, startTime, finishTime, index, count);
+			return _leases.FindLeasesAsync(null, agentId, sessionId, startTime, finishTime, index, count);
 		}
 
 		/// <summary>
@@ -898,6 +898,25 @@ namespace Horde.Server.Agents
 
 			// Update the lease
 			await _leases.TrySetOutcomeAsync(lease.Id, finishTime, outcome, output);
+
+			// Terminate any child leases
+			List<ILease> childLeases = await _leases.FindLeasesAsync(parentId: lease.Id);
+			foreach (ILease childLease in childLeases)
+			{
+				if (childLease.Outcome == LeaseOutcome.Unspecified)
+				{
+					IAgent? otherAgent = await GetAgentAsync(childLease.AgentId);
+					if (otherAgent != null)
+					{
+						AgentLease? otherLease = otherAgent.Leases.FirstOrDefault(x => x.Id == childLease.Id);
+						if (otherLease != null)
+						{
+							_logger.LogInformation("Terminating child lease {LeaseId} with parent {ParentLeaseId}", otherLease.Id, lease.Id);
+							await RemoveLeaseAsync(otherAgent, otherLease, utcNow, LeaseOutcome.Failed, null);
+						}
+					}
+				}
+			}
 		}
 
 		/// <summary>

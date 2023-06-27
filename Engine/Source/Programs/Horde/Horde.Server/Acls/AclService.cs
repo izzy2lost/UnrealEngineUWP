@@ -118,6 +118,19 @@ namespace Horde.Server.Acls
 			return user.HasClaim(HordeClaimTypes.AgentSessionId, sessionId.ToString());
 		}
 
+		public static LeaseId? GetLeaseClaim(this ClaimsPrincipal user)
+		{
+			Claim? claim = user.FindFirst(HordeClaimTypes.Lease);
+			if (claim == null || !LeaseId.TryParse(claim.Value, out LeaseId leaseIdValue))
+			{
+				return null;
+			}
+			else
+			{
+				return leaseIdValue;
+			}
+		}
+
 		public static SessionId? GetSessionClaim(this ClaimsPrincipal user)
 		{
 			Claim? claim = user.FindFirst(HordeClaimTypes.AgentSessionId);

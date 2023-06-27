@@ -39,7 +39,7 @@ namespace Horde.Server.Tests
 		{
 			LeaseId id = LeaseId.GenerateNewId();
 			SessionId sessionId = SessionId.GenerateNewId();
-			ILease lease = await LeaseCollection.AddAsync(id, "myLease", new AgentId("agent-1"), sessionId, null, null, null, startTime, Array.Empty<byte>());
+			ILease lease = await LeaseCollection.AddAsync(id, null, "myLease", new AgentId("agent-1"), sessionId, null, null, null, startTime, Array.Empty<byte>());
 			await LeaseCollection.TrySetOutcomeAsync(id, startTime + duration, LeaseOutcome.Success, null);
 			return lease;
 		}

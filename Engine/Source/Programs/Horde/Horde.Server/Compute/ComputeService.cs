@@ -38,8 +38,7 @@ namespace Horde.Server.Compute
 		/// <summary>
 		/// Allocates a compute resource
 		/// </summary>
-		/// <returns></returns>
-		public async Task<ComputeResource?> TryAllocateResource(Requirements requirements)
+		public async Task<ComputeResource?> TryAllocateResource(Requirements requirements, LeaseId? parentLeaseId)
 		{
 			List<IAgent> agents = await _agentCollection.FindAsync();
 			foreach (IAgent agent in agents)
@@ -50,7 +49,7 @@ namespace Horde.Server.Compute
 					ComputeTask computeTask = CreateComputeTask(assignedResources);
 
 					byte[] payload = Any.Pack(computeTask).ToByteArray();
-					AgentLease lease = new AgentLease(LeaseId.GenerateNewId(), "Compute task", null, null, null, LeaseState.Pending, assignedResources, requirements.Exclusive, payload);
+					AgentLease lease = new AgentLease(LeaseId.GenerateNewId(), parentLeaseId, "Compute task", null, null, null, LeaseState.Pending, assignedResources, requirements.Exclusive, payload);
 
 					ComputeResource? resource = TryAssign(agent, computeTask);
 					if (resource != null)

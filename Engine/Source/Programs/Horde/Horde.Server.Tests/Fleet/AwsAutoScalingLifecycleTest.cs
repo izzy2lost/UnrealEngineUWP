@@ -170,7 +170,7 @@ public class AwsAutoScalingLifecycleServiceTest : TestSetup
 	public async Task GetInstancesAvailableForTermination_AgentRunningJob_ReturnsNoInstanceId()
 	{
 		// Arrange
-		AgentLease lease = new(new LeaseId(ObjectId.GenerateNewId()), "test-lease", null, null, null, LeaseState.Active, null, false, null);
+		AgentLease lease = new(new LeaseId(ObjectId.GenerateNewId()), null, "test-lease", null, null, null, LeaseState.Active, null, false, null);
 		IAgent agent = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-1000", lease: lease);
 		TerminationPolicyEvent e = CreateTerminationPolicyEvent("i-1000");
 

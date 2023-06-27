@@ -273,6 +273,11 @@ namespace Horde.Server.Agents
 		public LeaseId Id { get; set; }
 
 		/// <summary>
+		/// The parent lease id
+		/// </summary>
+		public LeaseId? ParentId { get; set; }
+
+		/// <summary>
 		/// Name of this lease
 		/// </summary>
 		public string Name { get; set; }
@@ -341,6 +346,7 @@ namespace Horde.Server.Agents
 		/// Constructor
 		/// </summary>
 		/// <param name="id">Identifier for the lease</param>
+		/// <param name="parentId">The parent lease id</param>
 		/// <param name="name">Name of this lease</param>
 		/// <param name="streamId"></param>
 		/// <param name="poolId"></param>
@@ -349,9 +355,10 @@ namespace Horde.Server.Agents
 		/// <param name="resources">Resources required for this lease</param>
 		/// <param name="exclusive">Whether to reserve the entire device</param>
 		/// <param name="payload">Encoded "any" protobuf describing the contents of the payload</param>
-		public AgentLease(LeaseId id, string name, StreamId? streamId, PoolId? poolId, LogId? logId, LeaseState state, IReadOnlyDictionary<string, int>? resources, bool exclusive, byte[]? payload)
+		public AgentLease(LeaseId id, LeaseId? parentId, string name, StreamId? streamId, PoolId? poolId, LogId? logId, LeaseState state, IReadOnlyDictionary<string, int>? resources, bool exclusive, byte[]? payload)
 		{
 			Id = id;
+			ParentId = parentId;
 			Name = name;
 			StreamId = streamId;
 			PoolId = poolId;

@@ -21,6 +21,7 @@ namespace Horde.Server.Agents.Leases
 		/// Adds a lease to the collection
 		/// </summary>
 		/// <param name="id">The lease id</param>
+		/// <param name="parentId">The parent lease id</param>
 		/// <param name="name">Name of the lease</param>
 		/// <param name="agentId">The agent id</param>
 		/// <param name="sessionId">The agent session handling the lease</param>
@@ -30,7 +31,7 @@ namespace Horde.Server.Agents.Leases
 		/// <param name="startTime">Start time of the lease</param>
 		/// <param name="payload">Payload for the lease</param>
 		/// <returns>Async task</returns>
-		Task<ILease> AddAsync(LeaseId id, string name, AgentId agentId, SessionId sessionId, StreamId? streamId, PoolId? poolId, LogId? logId, DateTime startTime, byte[] payload);
+		Task<ILease> AddAsync(LeaseId id, LeaseId? parentId, string name, AgentId agentId, SessionId sessionId, StreamId? streamId, PoolId? poolId, LogId? logId, DateTime startTime, byte[] payload);
 
 		/// <summary>
 		/// Deletes a lease from the collection
@@ -49,6 +50,7 @@ namespace Horde.Server.Agents.Leases
 		/// <summary>
 		/// Finds all leases matching a set of criteria
 		/// </summary>
+		/// <param name="parentId">The parent lease id</param>
 		/// <param name="agentId">Unqiue id of the agent executing this lease</param>
 		/// <param name="sessionId">Unique id of the agent session</param>
 		/// <param name="minTime">Start of the window to include leases</param>
@@ -58,7 +60,7 @@ namespace Horde.Server.Agents.Leases
 		/// <param name="indexHint">Name of index to be specified as a hint to the database query planner</param>
 		/// <param name="consistentRead">If the database read should be made to the replica server</param>
 		/// <returns>List of leases matching the given criteria</returns>
-		Task<List<ILease>> FindLeasesAsync(AgentId? agentId = null, SessionId? sessionId = null, DateTime? minTime = null, DateTime? maxTime = null, int? index = null, int? count = null, string? indexHint = null, bool consistentRead = true);
+		Task<List<ILease>> FindLeasesAsync(LeaseId? parentId = null, AgentId? agentId = null, SessionId? sessionId = null, DateTime? minTime = null, DateTime? maxTime = null, int? index = null, int? count = null, string? indexHint = null, bool consistentRead = true);
 
 		/// <summary>
 		/// Finds all leases by finish time
