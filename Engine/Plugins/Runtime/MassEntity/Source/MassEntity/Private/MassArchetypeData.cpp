@@ -7,20 +7,35 @@
 #include "Misc/StringBuilder.h"
 
 
-namespace UE::Mass::Private
+namespace UE::Mass
 {
-	constexpr int32 UninitializedInt32 = -1;
+	namespace Private
+	{
+		constexpr int32 UninitializedInt32 = -1;
+		constexpr int32 MinChunkMemorySize = 1024;
+		constexpr int32 MaxChunkMemorySize = 512 * 1024;
+	}
+
+	int32 SanitizeChunkMemorySize(const int32 InChunkMemorySize, const bool bLogMismatch)
+	{
+		const int32 SanitizedSize = FMath::Clamp(InChunkMemorySize, Private::MinChunkMemorySize, Private::MaxChunkMemorySize);
+		UE_CLOG(bLogMismatch && SanitizedSize != InChunkMemorySize, LogMass, Warning
+			, TEXT("ChunkMemorySize sanitization resulted in changing value. Old: %d, modified: %d")
+			, InChunkMemorySize, SanitizedSize);
+		return SanitizedSize;
+	}
 }
 
 //////////////////////////////////////////////////////////////////////
 // FMassArchetypeData
-FMassArchetypeData::FMassArchetypeData()
+
+FMassArchetypeData::FMassArchetypeData(const FMassArchetypeCreationParams& CreationParams)
 	: NumEntitiesPerChunk(UE::Mass::Private::UninitializedInt32)
 	, TotalBytesPerEntity(UE::Mass::Private::UninitializedInt32)
 	, EntityListOffsetWithinChunk(UE::Mass::Private::UninitializedInt32)
-	, ChunkMemorySize(GET_MASS_CONFIG_VALUE(ChunkMemorySize))
+	, ChunkMemorySize(UE::Mass::SanitizeChunkMemorySize(CreationParams.ChunkMemorySize ? CreationParams.ChunkMemorySize : GET_MASS_CONFIG_VALUE(ChunkMemorySize)))
 {
-	
+	DebugNames.Add(CreationParams.DebugName);
 }
 
 void FMassArchetypeData::ForEachFragmentType(TFunction< void(const UScriptStruct* /*Fragment*/)> Function) const

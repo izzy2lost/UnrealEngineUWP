@@ -5,6 +5,7 @@
 #include "VisualLogger/VisualLogger.h"
 #include "UObject/UObjectHash.h"
 #include "Misc/CoreDelegates.h"
+#include "MassArchetypeData.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MassEntitySettings)
 
@@ -25,6 +26,12 @@ UMassEntitySettings::UMassEntitySettings(const FObjectInitializer& ObjectInitial
 	}
 
 	FCoreDelegates::OnPostEngineInit.AddUObject(this, &UMassEntitySettings::OnPostEngineInit);
+}
+
+void UMassEntitySettings::PostInitProperties()
+{
+	Super::PostInitProperties();
+	ChunkMemorySize = UE::Mass::SanitizeChunkMemorySize(ChunkMemorySize);
 }
 
 void UMassEntitySettings::BeginDestroy()
@@ -165,6 +172,7 @@ TConstArrayView<FMassProcessingPhaseConfig> UMassEntitySettings::GetProcessingPh
 void UMassEntitySettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	static const FName ProcessorCDOsName = GET_MEMBER_NAME_CHECKED(UMassEntitySettings, ProcessorCDOs);
+	static const FName ChunkMemorySizeName = GET_MEMBER_NAME_CHECKED(UMassEntitySettings, ChunkMemorySize);
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
@@ -180,6 +188,10 @@ void UMassEntitySettings::PostEditChangeProperty(FPropertyChangedEvent& Property
 		if (PropName == ProcessorCDOsName)
 		{
 			BuildProcessorList();
+		}
+		else if (PropName == ChunkMemorySizeName)
+		{
+			ChunkMemorySize = UE::Mass::SanitizeChunkMemorySize(ChunkMemorySize);
 		}
 
 		BuildPhases();

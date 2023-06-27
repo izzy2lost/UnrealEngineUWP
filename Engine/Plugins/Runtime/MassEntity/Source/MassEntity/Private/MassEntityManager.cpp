@@ -180,32 +180,32 @@ void FMassEntityManager::Deinitialize()
 	}
 }
 
-FMassArchetypeHandle FMassEntityManager::CreateArchetype(TConstArrayView<const UScriptStruct*> FragmentsAndTagsList, const FName ArchetypeDebugName)
+FMassArchetypeHandle FMassEntityManager::CreateArchetype(TConstArrayView<const UScriptStruct*> FragmentsAndTagsList, const FMassArchetypeCreationParams& CreationParams)
 {
 	FMassArchetypeCompositionDescriptor Composition;
 	InternalAppendFragmentsAndTagsToArchetypeCompositionDescriptor(Composition, FragmentsAndTagsList);
-	return CreateArchetype(Composition, ArchetypeDebugName);
+	return CreateArchetype(Composition, CreationParams);
 }
 
 FMassArchetypeHandle FMassEntityManager::CreateArchetype(FMassArchetypeHandle SourceArchetype,
-	TConstArrayView<const UScriptStruct*> FragmentsAndTagsList, const FName ArchetypeDebugName)
+	TConstArrayView<const UScriptStruct*> FragmentsAndTagsList, const FMassArchetypeCreationParams& CreationParams)
 {
 	const FMassArchetypeData& ArchetypeData = FMassArchetypeHelper::ArchetypeDataFromHandleChecked(SourceArchetype);
 	FMassArchetypeCompositionDescriptor Composition = ArchetypeData.GetCompositionDescriptor();
 	InternalAppendFragmentsAndTagsToArchetypeCompositionDescriptor(Composition, FragmentsAndTagsList);
-	return CreateArchetype(Composition, ArchetypeDebugName);
+	return CreateArchetype(Composition, CreationParams);
 }
 
-FMassArchetypeHandle FMassEntityManager::CreateArchetype(const TSharedPtr<FMassArchetypeData>& SourceArchetype, const FMassFragmentBitSet& AddedFragments, const FName ArchetypeDebugName)
+FMassArchetypeHandle FMassEntityManager::CreateArchetype(const TSharedPtr<FMassArchetypeData>& SourceArchetype, const FMassFragmentBitSet& AddedFragments, const FMassArchetypeCreationParams& CreationParams)
 {
 	check(SourceArchetype.IsValid());
 	checkf(AddedFragments.IsEmpty() == false, TEXT("%hs Adding an empty fragment list to an archetype is not supported."), __FUNCTION__);
 
 	const FMassArchetypeCompositionDescriptor Composition(AddedFragments + SourceArchetype->GetFragmentBitSet(), SourceArchetype->GetTagBitSet(), SourceArchetype->GetChunkFragmentBitSet(), SourceArchetype->GetSharedFragmentBitSet());
-	return CreateArchetype(Composition, ArchetypeDebugName);
+	return CreateArchetype(Composition, CreationParams);
 }
 
-FMassArchetypeHandle FMassEntityManager::CreateArchetype(const FMassArchetypeCompositionDescriptor& Composition, const FName ArchetypeDebugName)
+FMassArchetypeHandle FMassEntityManager::CreateArchetype(const FMassArchetypeCompositionDescriptor& Composition, const FMassArchetypeCreationParams& CreationParams)
 {
 	const uint32 TypeHash = Composition.CalculateHash();
 
@@ -217,9 +217,14 @@ FMassArchetypeHandle FMassEntityManager::CreateArchetype(const FMassArchetypeCom
 		if (Ptr->IsEquivalent(Composition))
 		{
 			// Keep track of all names for this archetype.
-			if (!ArchetypeDebugName.IsNone())
+			if (!CreationParams.DebugName.IsNone())
 			{
-				Ptr->AddUniqueDebugName(ArchetypeDebugName);
+				Ptr->AddUniqueDebugName(CreationParams.DebugName);
+			}
+			if (CreationParams.ChunkMemorySize > 0 && CreationParams.ChunkMemorySize != Ptr->GetChunkAllocSize())
+			{
+				UE_LOG(LogMass, Warning, TEXT("Reusing existing Archetype, but the requested ChunkMemorySize is different. Requested %d, existing: %d")
+					, CreationParams.ChunkMemorySize, Ptr->GetChunkAllocSize());
 			}
 			ArchetypeDataPtr = Ptr;
 			break;
@@ -232,12 +237,8 @@ FMassArchetypeHandle FMassEntityManager::CreateArchetype(const FMassArchetypeCom
 		++ArchetypeDataVersion;
 
 		// Create a new archetype
-		FMassArchetypeData* NewArchetype = new FMassArchetypeData();
+		FMassArchetypeData* NewArchetype = new FMassArchetypeData(CreationParams);
 		NewArchetype->Initialize(Composition, ArchetypeDataVersion);
-		if (!ArchetypeDebugName.IsNone())
-		{
-			NewArchetype->AddUniqueDebugName(ArchetypeDebugName);
-		}
 		ArchetypeDataPtr = HashRow.Add_GetRef(MakeShareable(NewArchetype));
 
 		for (const FMassArchetypeFragmentConfig& FragmentConfig : NewArchetype->GetFragmentConfigs())
@@ -388,13 +389,13 @@ FMassEntityHandle FMassEntityManager::CreateEntity(const FMassArchetypeHandle& A
 	return Entity;
 }
 
-FMassEntityHandle FMassEntityManager::CreateEntity(TConstArrayView<FInstancedStruct> FragmentInstanceList, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const FName ArchetypeDebugName)
+FMassEntityHandle FMassEntityManager::CreateEntity(TConstArrayView<FInstancedStruct> FragmentInstanceList, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const FMassArchetypeCreationParams& CreationParams)
 {
 	checkf(IsProcessing() == false, TEXT("Synchronous API function %hs called during mass processing. Use asynchronous API instead."), __FUNCTION__);
 	check(FragmentInstanceList.Num() > 0);
 
 	const FMassArchetypeHandle& ArchetypeHandle = CreateArchetype(FMassArchetypeCompositionDescriptor(FragmentInstanceList,
-		FMassTagBitSet(), FMassChunkFragmentBitSet(), FMassSharedFragmentBitSet()), ArchetypeDebugName);
+		FMassTagBitSet(), FMassChunkFragmentBitSet(), FMassSharedFragmentBitSet()), CreationParams);
 	check(ArchetypeHandle.IsValid());
 
 	const FMassEntityHandle Entity = ReserveEntity();
@@ -459,7 +460,8 @@ void FMassEntityManager::BuildEntity(FMassEntityHandle Entity, TConstArrayView<F
 	EntityData.CurrentArchetype->SetFragmentsData(Entity, FragmentInstanceList);
 }
 
-void FMassEntityManager::BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload, const FMassFragmentBitSet& FragmentsAffected, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const FName ArchetypeDebugName)
+void FMassEntityManager::BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload
+	, const FMassFragmentBitSet& FragmentsAffected, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const FMassArchetypeCreationParams& CreationParams)
 {
 	checkf(IsProcessing() == false, TEXT("Synchronous API function %hs called during mass processing. Use asynchronous API instead."), __FUNCTION__);
 	check(SharedFragmentValues.IsSorted());
@@ -474,11 +476,11 @@ void FMassEntityManager::BatchBuildEntities(const FMassArchetypeEntityCollection
 		Composition.SharedFragments.Add(*SharedFragment.GetScriptStruct());
 	}
 
-	BatchBuildEntities(EncodedEntitiesWithPayload, MoveTemp(Composition), SharedFragmentValues, ArchetypeDebugName);
+	BatchBuildEntities(EncodedEntitiesWithPayload, MoveTemp(Composition), SharedFragmentValues, CreationParams);
 }
 
 void FMassEntityManager::BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload, FMassArchetypeCompositionDescriptor&& Composition
-	, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const FName ArchetypeDebugName)
+	, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const FMassArchetypeCreationParams& CreationParams)
 {
 	checkf(IsProcessing() == false, TEXT("Synchronous API function %hs called during mass processing. Use asynchronous API instead."), __FUNCTION__);
 
@@ -487,7 +489,7 @@ void FMassEntityManager::BatchBuildEntities(const FMassArchetypeEntityCollection
 	FMassArchetypeEntityCollection::FEntityRangeArray TargetArchetypeEntityRanges;
 
 	// "built" entities case, this is verified during FMassArchetypeEntityCollectionWithPayload construction
-	FMassArchetypeHandle TargetArchetypeHandle = CreateArchetype(Composition, ArchetypeDebugName);
+	FMassArchetypeHandle TargetArchetypeHandle = CreateArchetype(Composition, CreationParams);
 	check(TargetArchetypeHandle.IsValid());
 
 	// there are some extra steps in creating EncodedEntities from the original given entity handles and then back
@@ -1410,7 +1412,7 @@ void FMassEntityManager::FlushCommands(const TSharedPtr<FMassCommandBuffer>& InC
 
 	if (InCommandBuffer)
 	{
-		if(InCommandBuffer->HasPendingCommands())
+		if (InCommandBuffer->HasPendingCommands())
 		{
 			FlushedCommandBufferQueue.Enqueue(InCommandBuffer);
 		}
@@ -1554,3 +1556,58 @@ void FMassEntityManager::DebugGetArchetypeStrings(const FMassArchetypeHandle& Ar
 }
 
 #endif // WITH_MASSENTITY_DEBUG
+
+
+//-----------------------------------------------------------------------------
+// DEPRECATED
+//-----------------------------------------------------------------------------
+FMassArchetypeHandle FMassEntityManager::CreateArchetype(TConstArrayView<const UScriptStruct*> FragmentsAndTagsList, const FName ArchetypeDebugName)
+{
+	FMassArchetypeCreationParams Params;
+	Params.DebugName = ArchetypeDebugName;
+	return CreateArchetype(FragmentsAndTagsList, Params);
+}
+
+FMassArchetypeHandle FMassEntityManager::CreateArchetype(FMassArchetypeHandle SourceArchetype, TConstArrayView<const UScriptStruct*> FragmentsAndTagsList, const FName ArchetypeDebugName)
+{
+	FMassArchetypeCreationParams Params;
+	Params.DebugName = ArchetypeDebugName;
+	return CreateArchetype(SourceArchetype, FragmentsAndTagsList, Params);
+}
+
+FMassArchetypeHandle FMassEntityManager::CreateArchetype(const FMassArchetypeCompositionDescriptor& Composition, const FName ArchetypeDebugName)
+{
+	FMassArchetypeCreationParams Params;
+	Params.DebugName = ArchetypeDebugName;
+	return CreateArchetype(Composition, Params);
+}
+
+FMassArchetypeHandle FMassEntityManager::CreateArchetype(const TSharedPtr<FMassArchetypeData>& SourceArchetype, const FMassFragmentBitSet& InFragments, const FName ArchetypeDebugName)
+{
+	FMassArchetypeCreationParams Params;
+	Params.DebugName = ArchetypeDebugName;
+	return CreateArchetype(SourceArchetype, InFragments, Params);
+}
+
+FMassEntityHandle FMassEntityManager::CreateEntity(TConstArrayView<FInstancedStruct> FragmentInstanceList, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const FName ArchetypeDebugName)
+{
+	FMassArchetypeCreationParams Params;
+	Params.DebugName = ArchetypeDebugName;
+	return CreateEntity(FragmentInstanceList, SharedFragmentValues, Params);
+}
+
+void FMassEntityManager::BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload, const FMassFragmentBitSet& FragmentsAffected
+	, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const FName ArchetypeDebugName)
+{
+	FMassArchetypeCreationParams Params;
+	Params.DebugName = ArchetypeDebugName;
+	BatchBuildEntities(EncodedEntitiesWithPayload, FragmentsAffected, SharedFragmentValues, Params);
+}
+
+void FMassEntityManager::BatchBuildEntities(const FMassArchetypeEntityCollectionWithPayload& EncodedEntitiesWithPayload, FMassArchetypeCompositionDescriptor&& Composition
+	, const FMassArchetypeSharedFragmentValues& SharedFragmentValues, const FName ArchetypeDebugName)
+{
+	FMassArchetypeCreationParams Params;
+	Params.DebugName = ArchetypeDebugName;
+	BatchBuildEntities(EncodedEntitiesWithPayload, MoveTemp(Composition), SharedFragmentValues, Params);
+}

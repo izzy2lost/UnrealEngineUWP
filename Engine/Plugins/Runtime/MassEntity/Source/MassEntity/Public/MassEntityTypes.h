@@ -553,3 +553,13 @@ namespace UE::Mass
 	};
 
 } // UE::Mass
+
+
+struct FMassArchetypeCreationParams
+{
+	/** Created archetype will have chunks of this size. 0 denotes "use default" (see UE::Mass::ChunkSize) */
+	int32 ChunkMemorySize = 0;
+
+	/** Name to identify the archetype while debugging*/
+	FName DebugName;
+};

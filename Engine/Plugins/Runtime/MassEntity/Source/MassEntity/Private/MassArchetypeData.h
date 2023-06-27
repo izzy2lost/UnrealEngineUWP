@@ -5,10 +5,16 @@
 #include "MassEntityManager.h"
 #include "MassArchetypeTypes.h"
 
+
 struct FMassEntityQuery;
 struct FMassExecutionContext;
 class FOutputDevice;
 struct FMassArchetypeEntityCollection;
+
+namespace UE::Mass
+{
+	int32 SanitizeChunkMemorySize(const int32 InChunkMemorySize, const bool bLogMismatch = true);
+}
 
 // This is one chunk within an archetype
 struct FMassArchetypeChunk
@@ -181,7 +187,7 @@ private:
 	friend FMassDebugger;
 
 public:
-	FMassArchetypeData();
+	explicit FMassArchetypeData(const FMassArchetypeCreationParams& CreationParams = FMassArchetypeCreationParams());
 
 	TConstArrayView<FMassArchetypeFragmentConfig> GetFragmentConfigs() const { return FragmentConfigs; }
 	const FMassFragmentBitSet& GetFragmentBitSet() const { return CompositionDescriptor.Fragments; }

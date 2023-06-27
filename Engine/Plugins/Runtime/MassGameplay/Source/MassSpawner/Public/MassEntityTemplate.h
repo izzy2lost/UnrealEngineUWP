@@ -277,6 +277,8 @@ struct MASSSPAWNER_API FMassEntityTemplateData
 	 *  @Note that the function can be slow, depending on how elaborate the template is. This function is meant for debugging purposes. */
 	bool SlowIsEquivalent(const FMassEntityTemplateData& Other) const;
 
+	FMassArchetypeCreationParams& GetArchetypeCreationParams() { return CreationParams; }
+	
 protected:
 	FMassArchetypeCompositionDescriptor Composition;
 	FMassArchetypeSharedFragmentValues SharedFragmentValues;
@@ -286,6 +288,8 @@ protected:
 
 	// These functions will be called to initialize entity's UObject-based fragments
 	TArray<FObjectFragmentInitializerFunction> ObjectInitializers;
+
+	FMassArchetypeCreationParams CreationParams;
 
 	FString TemplateName;
 };

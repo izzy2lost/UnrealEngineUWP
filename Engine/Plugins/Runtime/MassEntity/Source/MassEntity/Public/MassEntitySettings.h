@@ -42,6 +42,7 @@ protected:
 	virtual void PostEditChangeChainProperty(struct FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif // WITH_EDITOR
 
+	virtual void PostInitProperties() override;
 	virtual void BeginDestroy() override;
 
 	void OnPostEngineInit();
@@ -49,7 +50,7 @@ protected:
 	void BuildProcessorList();
 
 public:
-	UPROPERTY(EditDefaultsOnly, Category = Mass, config, meta = (ClampMin = "8", UIMin = "8"), AdvancedDisplay)
+	UPROPERTY(EditDefaultsOnly, Category = Mass, config, AdvancedDisplay)
 	int32 ChunkMemorySize = 128 * 1024;
 
 	/**
