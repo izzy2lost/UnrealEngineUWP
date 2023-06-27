@@ -2457,8 +2457,7 @@ void FScene::RemovePrimitiveSceneInfo_RenderThread(FPrimitiveSceneInfo* Primitiv
 			};
 
 			BeginCleanup(new DeferDeleteHitProxies(MoveTemp(PrimitiveSceneInfo->HitProxies)));
-			delete PrimitiveSceneInfo->Proxy;
-			delete PrimitiveSceneInfo;
+			PrimitiveSceneInfosToDelete.Emplace(PrimitiveSceneInfo);
 		}
 	}
 	else
@@ -5492,6 +5491,8 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	TArray<int32> RemovedPrimitiveIndices;
 	RemovedPrimitiveIndices.SetNumUninitialized(RemovedLocalPrimitiveSceneInfos.Num());
 
+	bool bNeedPathTracedInvalidation = false;
+
 	GPUScene.ResizeDirtyState(Primitives.Num());
 	{
 		CSV_SCOPED_TIMING_STAT_EXCLUSIVE(RemovePrimitiveSceneInfos);
@@ -5701,6 +5702,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 				}
 #endif
 
+				bNeedPathTracedInvalidation = bNeedPathTracedInvalidation || IsPrimitiveRelevantToPathTracing(PrimitiveSceneInfo);
 				DeletedSceneInfos.Add(PrimitiveSceneInfo);
 
 				const int32 PersistentIndex = PrimitiveSceneInfo->PersistentIndex.Index;
@@ -5712,8 +5714,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 		}
 	
 	}
-
-	bool bNeedPathTracedInvalidation = false;
 
 	const int32 SceneInfosContainerReservedSize = AddedPrimitiveSceneInfos.Num() + UpdatedTransforms.Num() + UpdatedInstances.Num();
 
@@ -6460,12 +6460,12 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	// Need to do this here since we delete the proxy next 
 	// TODO: should refactor to add this as a dependency for a proxy-deletion task instead.
 	SceneCullingUpdater.GetAsyncProxyUseTaskHandle().Wait();
+
+	GraphBuilder.AddSetupTask([this, DeletedSceneInfos = MoveTemp(DeletedSceneInfos)]
 	{
 		SCOPED_NAMED_EVENT(FScene_DeletePrimitiveSceneInfo, FColor::Red);
 		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : DeletedSceneInfos)
 		{
-			bNeedPathTracedInvalidation = bNeedPathTracedInvalidation || IsPrimitiveRelevantToPathTracing(PrimitiveSceneInfo);
-
 			// It is possible that the HitProxies list isn't empty if PrimitiveSceneInfo was Added/Removed in same frame
 			// Delete the PrimitiveSceneInfo on the game thread after the rendering thread has processed its removal.
 			// This must be done on the game thread because the hit proxy references (and possibly other members) need to be freed on the game thread.
@@ -6480,7 +6480,16 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 			delete PrimitiveSceneInfo->Proxy;
 			delete PrimitiveSceneInfo;
 		}
-	}
+
+		// Delete scene primitives that were removed without ever being added.
+		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : PrimitiveSceneInfosToDelete)
+		{
+			delete PrimitiveSceneInfo->Proxy;
+			delete PrimitiveSceneInfo;
+		}
+		PrimitiveSceneInfosToDelete.Empty();
+	});
+
 	if (bNeedPathTracedInvalidation)
 	{
 		InvalidatePathTracedOutput();

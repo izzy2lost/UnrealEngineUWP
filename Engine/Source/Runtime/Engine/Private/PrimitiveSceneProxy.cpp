@@ -532,7 +532,6 @@ void FPrimitiveSceneProxy::SetUsedMaterialForVerification(const TArray<UMaterial
 
 FPrimitiveSceneProxy::~FPrimitiveSceneProxy()
 {
-	check(IsInRenderingThread());
 }
 
 HHitProxy* FPrimitiveSceneProxy::CreateHitProxies(UPrimitiveComponent* Component,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies)

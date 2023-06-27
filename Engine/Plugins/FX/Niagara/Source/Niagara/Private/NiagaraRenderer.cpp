@@ -423,7 +423,6 @@ FPrimitiveViewRelevance FNiagaraRenderer::GetViewRelevance(const FSceneView* Vie
 
 void FNiagaraRenderer::SetDynamicData_RenderThread(FNiagaraDynamicDataBase* NewDynamicData)
 {
-	check(IsInRenderingThread());
 	if (DynamicDataRender)
 	{
 		delete DynamicDataRender;

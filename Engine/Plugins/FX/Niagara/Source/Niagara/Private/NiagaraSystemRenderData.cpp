@@ -73,8 +73,6 @@ void FNiagaraSystemRenderData::DestroyRenderState_Concurrent()
 
 void FNiagaraSystemRenderData::Destroy_RenderThread()
 {
-	check(IsInRenderingThread());
-
 	// Delete the renderers
 	for (auto Renderer : EmitterRenderers_RT)
 	{

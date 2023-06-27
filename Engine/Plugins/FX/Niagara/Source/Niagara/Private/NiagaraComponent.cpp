@@ -217,8 +217,6 @@ void FNiagaraSceneProxy::DestroyRenderState_Concurrent()
 
 FNiagaraSceneProxy::~FNiagaraSceneProxy()
 {
-	check(IsInRenderingThread());
-
 	if (RenderData)
 	{
 		delete RenderData;
