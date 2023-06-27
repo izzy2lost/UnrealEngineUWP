@@ -6611,6 +6611,7 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 	// Debugging hidden dependencies
 	bOnlyEditorOnlyDebug = FParse::Param(FCommandLine::Get(), TEXT("OnlyEditorOnlyDebug"));
 	bSkipOnlyEditorOnly = false;
+#if 0
 	GConfig->GetBool(TEXT("CookSettings"), TEXT("SkipOnlyEditorOnly"), bSkipOnlyEditorOnly, GEditorIni);
 	FString ParamText;
 	if (FParse::Value(FCommandLine::Get(), TEXT("-SkipOnlyEditorOnly="), ParamText))
@@ -6621,6 +6622,7 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 	{
 		bSkipOnlyEditorOnly = true;
 	}
+#endif
 	bSkipOnlyEditorOnly |= bOnlyEditorOnlyDebug;
 	if (bSkipOnlyEditorOnly)
 	{
