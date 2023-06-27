@@ -801,27 +801,6 @@ void FSpatialHashStreamingGrid::Draw2D(const UWorldPartitionRuntimeSpatialHash* 
 		return InWorldToScreen(Pos, bIsLocal);
 	};
 
-	auto LocalDrawTile = [&](const FVector2D& Min, const FVector2D& Size, const FLinearColor& Color)
-	{
-		const FVector2D ScreenMin = WorldToScreen(Min);
-		const FVector2D ScreenMax = WorldToScreen(Min + Size);
-		DrawContext.PushDrawTile(GridScreenBounds, ScreenMin, ScreenMax, Color);
-	};
-
-	auto LocalDrawBox = [&](const FVector2D& Min, const FVector2D& Size, const FLinearColor& Color, float LineThickness, const FBox2D* CustomGridScreenBounds = nullptr)
-	{
-		const FVector2D ScreenMin = WorldToScreen(Min);
-		const FVector2D ScreenMax = WorldToScreen(Min + Size);
-		DrawContext.PushDrawBox(GridScreenBounds, ScreenMin, ScreenMax, Color, LineThickness);
-	};
-
-	auto LocalDrawSegment = [&](const FVector2D& Start, const FVector2D& End, const FLinearColor& Color, float LineThickness)
-	{
-		const FVector2D ScreenStart = WorldToScreen(Start);
-		const FVector2D ScreenEnd = WorldToScreen(End);
-		DrawContext.PushDrawSegment(GridScreenBounds, ScreenStart, ScreenEnd, Color, LineThickness);
-	};
-
 	TArray<const UWorldPartitionRuntimeCell*> FilteredCells;
 	for (int32 GridLevel = MinGridLevel; GridLevel <= MaxGridLevel; ++GridLevel)
 	{
@@ -849,7 +828,7 @@ void FSpatialHashStreamingGrid::Draw2D(const UWorldPartitionRuntimeSpatialHash* 
 					// Draw Cell using its debug color
 					FVector2D StartPos = CellWorldBounds.Min + CellOffset;
 					{
-						LocalDrawTile(StartPos, CellBoundsSize, Cell->GetDebugColor(VisualizeMode).CopyWithNewOpacity(0.25f));
+						DrawContext.LocalDrawTile(GridScreenBounds, StartPos, CellBoundsSize, Cell->GetDebugColor(VisualizeMode).CopyWithNewOpacity(0.25f), WorldToScreen);
 					}
 
 					CellOffset.Y += CellBoundsSize.Y;
@@ -865,7 +844,7 @@ void FSpatialHashStreamingGrid::Draw2D(const UWorldPartitionRuntimeSpatialHash* 
 							for (const FName& DataLayer : Cell->GetDataLayers())
 							{
 								const FColor& DataLayerColor = DataLayerDebugColors[DataLayer];
-								LocalDrawTile(StartPos + DataLayerOffset, DataLayerColoredBoxSize, DataLayerColor);
+								DrawContext.LocalDrawTile(GridScreenBounds, StartPos + DataLayerOffset, DataLayerColoredBoxSize, DataLayerColor, WorldToScreen);
 								DataLayerOffset.X += DataLayerColoredBoxSize.X;
 							}
 						}
@@ -879,14 +858,14 @@ void FSpatialHashStreamingGrid::Draw2D(const UWorldPartitionRuntimeSpatialHash* 
 								FVector2D BoxSize = CellBoundsSize;
 								BoxSize.X /= 5; // Use 20% of cell's width
 								FVector2D ContentBundleOffset(CellBoundsSize.X - BoxSize.X, 0);
-								LocalDrawTile(StartPos + ContentBundleOffset, BoxSize, ContentBundle->GetDescriptor()->GetDebugColor());
+								DrawContext.LocalDrawTile(GridScreenBounds, StartPos + ContentBundleOffset, BoxSize, ContentBundle->GetDescriptor()->GetDebugColor(), WorldToScreen);
 							}
 						}
 					}
 				}
 
 				// Draw cell bounds
-				LocalDrawBox(CellWorldBounds.Min, CellWorldBounds.GetSize(), FLinearColor::Black, 1);
+				DrawContext.LocalDrawBox(GridScreenBounds, CellWorldBounds.Min, CellWorldBounds.GetSize(), FLinearColor::Black, 1, WorldToScreen);
 			}
 		});
 	}
@@ -903,13 +882,13 @@ void FSpatialHashStreamingGrid::Draw2D(const UWorldPartitionRuntimeSpatialHash* 
 	{
 		FBox2D Bounds = GridScreenBounds.ExpandBy(FVector2D(10));
 		FVector2D Size = GridScreenBounds.GetSize();
-		DrawContext.PushDrawBox(Bounds, GridScreenBounds.Min, GridScreenBounds.Max, DebugColor, 1);
+		DrawContext.PushDrawBox(Bounds, GridScreenBounds.Min, GridScreenBounds.Min + FVector2D(Size.X, 0), GridScreenBounds.Max, GridScreenBounds.Min + FVector2D(0, Size.Y), DebugColor, 1);
 	}
 
 	// Draw WorldBounds
 	if (DrawContext.IsDetailedMode())
 	{
-		LocalDrawBox(FVector2D(WorldBounds.Min), FVector2D(WorldBounds.GetSize()), FLinearColor::Yellow, 1);
+		DrawContext.LocalDrawBox(GridScreenBounds, FVector2D(WorldBounds.Min), FVector2D(WorldBounds.GetSize()), FLinearColor::Yellow, 1, WorldToScreen);
 	}
 
 	// Draw Streaming Sources

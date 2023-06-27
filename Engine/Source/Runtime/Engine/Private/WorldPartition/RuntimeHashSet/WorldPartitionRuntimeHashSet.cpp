@@ -245,27 +245,6 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 			return InWorldToScreen(Pos, bIsLocal);
 		};
 
-		auto LocalDrawTile = [&](const FVector2D& Min, const FVector2D& Size, const FLinearColor& Color)
-		{
-			const FVector2D ScreenMin = WorldToScreen(Min);
-			const FVector2D ScreenMax = WorldToScreen(Min + Size);
-			DrawContext.PushDrawTile(GridScreenBounds, ScreenMin, ScreenMax, Color);
-		};
-
-		auto LocalDrawBox = [&](const FVector2D& Min, const FVector2D& Size, const FLinearColor& Color, float LineThickness, const FBox2D* CustomGridScreenBounds = nullptr)
-		{
-			const FVector2D ScreenMin = WorldToScreen(Min);
-			const FVector2D ScreenMax = WorldToScreen(Min + Size);
-			DrawContext.PushDrawBox(GridScreenBounds, ScreenMin, ScreenMax, Color, LineThickness);
-		};
-
-		auto LocalDrawSegment = [&](const FVector2D& Start, const FVector2D& End, const FLinearColor& Color, float LineThickness)
-		{
-			const FVector2D ScreenStart = WorldToScreen(Start);
-			const FVector2D ScreenEnd = WorldToScreen(End);
-			DrawContext.PushDrawSegment(GridScreenBounds, ScreenStart, ScreenEnd, Color, LineThickness);
-		};
-
 		TArray<const UWorldPartitionRuntimeCell*> FilteredCells;
 		const FBox Region3D(FVector(Region.Min.X, Region.Min.Y, -HALF_WORLD_MAX), FVector(Region.Max.X, Region.Max.Y, HALF_WORLD_MAX));		
 		StreamingData->SpatialIndex->ForEachIntersectingElement(Region3D, [&FilteredCells](UWorldPartitionRuntimeCell* Cell)
@@ -284,8 +263,8 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 			{
 				const FVector2D CellBoundsSize = FVector2D(Cell->GetCellBounds().GetSize());
 				const FVector2D CellBoundsMin = FVector2D(Cell->GetCellBounds().Min);
-				LocalDrawTile(CellBoundsMin, CellBoundsSize, Cell->GetDebugColor(VisualizeMode).CopyWithNewOpacity(0.25f));
-				LocalDrawBox(CellBoundsMin, CellBoundsSize, FLinearColor::Black, 1);
+				DrawContext.LocalDrawTile(GridScreenBounds, CellBoundsMin, CellBoundsSize, Cell->GetDebugColor(VisualizeMode).CopyWithNewOpacity(0.25f), WorldToScreen);
+				DrawContext.LocalDrawBox(GridScreenBounds, CellBoundsMin, CellBoundsSize, FLinearColor::Black, 1, WorldToScreen);
 			}
 		}
 
@@ -301,7 +280,7 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 		{
 			const FBox2D Bounds = GridScreenBounds.ExpandBy(FVector2D(10));
 			const FVector2D Size = GridScreenBounds.GetSize();
-			DrawContext.PushDrawBox(Bounds, GridScreenBounds.Min, GridScreenBounds.Max, FLinearColor::White, 1);
+			DrawContext.PushDrawBox(Bounds, GridScreenBounds.Min, GridScreenBounds.Min + FVector2D(Size.X, 0), GridScreenBounds.Max, GridScreenBounds.Min + FVector2D(0, Size.Y), FLinearColor::White, 1);
 		}
 
 		// Draw Streaming Sources
