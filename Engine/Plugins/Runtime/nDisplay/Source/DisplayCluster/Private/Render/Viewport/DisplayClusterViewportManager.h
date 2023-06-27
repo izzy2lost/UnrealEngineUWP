@@ -79,19 +79,17 @@ public:
 	) const override;
 
 	virtual void ConfigureViewFamily(const FDisplayClusterRenderFrameTarget& InFrameTarget, const FDisplayClusterRenderFrameTargetViewFamily& InFrameViewFamily, FSceneViewFamilyContext& InOutViewFamily) override;
-	
 	virtual void RenderFrame(FViewport* InViewport) override;
+	virtual bool RenderInEditor(FDisplayClusterRenderFrame& InRenderFrame, FViewport* InViewport, const uint32 InFirstViewportNum, const int32 InViewportsAmount, int32& OutViewportsAmount, bool& bOutFrameRendered) override;
 
 #if WITH_EDITOR
-	virtual bool RenderInEditor(FDisplayClusterRenderFrame& InRenderFrame, FViewport* InViewport, const uint32 InFirstViewportNum, const int32 InViewportsAmount, int32& OutViewportsAmount, bool& bOutFrameRendered) override;
-	
 	void ImplUpdatePreviewRTTResources();
+#endif
 
 private:
 	/** Called before garbage collection is run */
 	void OnPreGarbageCollect();
 
-#endif
 public:
 
 	virtual IDisplayClusterViewport* FindViewport(const FString& InViewportId) const override;

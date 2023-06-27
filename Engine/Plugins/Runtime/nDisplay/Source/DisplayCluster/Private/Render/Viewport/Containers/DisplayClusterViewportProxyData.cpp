@@ -29,21 +29,8 @@ FDisplayClusterViewportProxyData::FDisplayClusterViewportProxyData(const TShared
 	ProjectionPolicy = SrcViewport->ProjectionPolicy;
 	Contexts         = SrcViewport->Contexts;
 
-	// Save resources ptrs into container
-	RenderTargets    = SrcViewport->RenderTargets;
-
-	OutputFrameTargetableResources     = SrcViewport->OutputFrameTargetableResources;
-	AdditionalFrameTargetableResources = SrcViewport->AdditionalFrameTargetableResources;
-
-
-#if WITH_EDITOR
-	OutputPreviewTargetableResource = SrcViewport->OutputPreviewTargetableResource;
+	Resources = SrcViewport->Resources;
 	ViewStates = SrcViewport->ViewStates;
-#endif
-
-	InputShaderResources = SrcViewport->InputShaderResources;
-	AdditionalTargetableResources = SrcViewport->AdditionalTargetableResources;
-	MipsShaderResources = SrcViewport->MipsShaderResources;
 }
 
 void FDisplayClusterViewportProxyData::UpdateProxy_RenderThread() const
@@ -78,17 +65,6 @@ void FDisplayClusterViewportProxyData::UpdateProxy_RenderThread() const
 	}
 
 	// Update viewport proxy resources from container
-	DstViewportProxy->RenderTargets    = RenderTargets;
-
-	DstViewportProxy->OutputFrameTargetableResources = OutputFrameTargetableResources;
-	DstViewportProxy->AdditionalFrameTargetableResources = AdditionalFrameTargetableResources;
-
-#if WITH_EDITOR
-	DstViewportProxy->OutputPreviewTargetableResource = OutputPreviewTargetableResource;
+	DstViewportProxy->Resources = Resources;
 	DstViewportProxy->ViewStates = ViewStates;
-#endif
-
-	DstViewportProxy->InputShaderResources = InputShaderResources;
-	DstViewportProxy->AdditionalTargetableResources = AdditionalTargetableResources;
-	DstViewportProxy->MipsShaderResources = MipsShaderResources;
 }

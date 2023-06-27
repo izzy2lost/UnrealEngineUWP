@@ -18,6 +18,7 @@
 #include "Render/Viewport/Containers/DisplayClusterViewportReadPixels.h"
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
 #include "Render/Viewport/DisplayClusterViewportHelpers.h"
+#include "Render/Viewport/Resource/DisplayClusterViewportResourceSettings.h"
 
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -418,9 +419,12 @@ bool UDisplayClusterPreviewComponent::GetPreviewTextureSettings(FIntPoint& OutSi
 			// The viewport size is already capped for RenderSettings
 			if (!Viewport->GetContexts().IsEmpty())
 			{
-				DisplayClusterViewportHelpers::GetPreviewRenderTargetDesc_Editor(ViewportManager->GetRenderFrameSettings(), OutTextureFormat, OutGamma, bOutSRGB);
+				FDisplayClusterViewportResourceSettings DefaultResourceSettings(ViewportManager->GetRenderFrameSettings(), nullptr);
 
 				OutSize = Viewport->GetContexts()[0].FrameTargetRect.Size();
+				OutTextureFormat = DefaultResourceSettings.GetFormat();
+				OutGamma = DefaultResourceSettings.GetDisplayGamma();
+				bOutSRGB = EnumHasAnyFlags(DefaultResourceSettings.GetResourceFlags(), EDisplayClusterViewportResourceSettingsFlags::ShouldUseSRGB);
 
 				check(OutSize.X > 0);
 				check(OutSize.Y > 0);

@@ -13,11 +13,12 @@
 #include "CommonRenderResources.h"
 #include "PostProcess/PostProcessMaterialInputs.h"
 
-namespace DisplayClusterViewportManagerViewExtensionHelpers
+///////////////////////////////////////////////////////////////////////////////////////
+namespace UE::DisplayCluster::ViewportManagerViewExtension
 {
 	static const FName RendererModuleName(TEXT("Renderer"));
 };
-using namespace DisplayClusterViewportManagerViewExtensionHelpers;
+using namespace UE::DisplayCluster::ViewportManagerViewExtension;
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportManagerViewExtension

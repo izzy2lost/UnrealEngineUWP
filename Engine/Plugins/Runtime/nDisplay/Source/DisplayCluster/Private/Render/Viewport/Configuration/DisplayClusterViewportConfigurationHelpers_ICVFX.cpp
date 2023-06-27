@@ -56,7 +56,7 @@ static FAutoConsoleVariableRef CVarDisplayClusterPreviewEnableReuseViewportInClu
 );
 
 ////////////////////////////////////////////////////////////////////////////////
-namespace DisplayClusterViewportConfigurationHelpers_ICVFX_Impl
+namespace UE::DisplayCluster::Viewport::ConfigurationHelpers_ICVFX
 {
 	// Initialize camera policy with camera component and settings
 	static bool ImplUpdateCameraProjectionSettings(TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe>& InOutCameraProjection, ADisplayClusterRootActor& RootActor, const FDisplayClusterConfigurationICVFX_CameraSettings& CameraSettings, UCameraComponent* const CameraComponent)
@@ -97,8 +97,7 @@ namespace DisplayClusterViewportConfigurationHelpers_ICVFX_Impl
 	}
 #endif
 };
-
-using namespace DisplayClusterViewportConfigurationHelpers_ICVFX_Impl;
+using namespace UE::DisplayCluster::Viewport::ConfigurationHelpers_ICVFX;
 
 ////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportConfigurationHelpers_ICVFX
@@ -221,7 +220,7 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::ReuseUVLightCardViewport
 	{
 		for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : ViewportManager->ImplGetEntireClusterViewports())
 		{
-			if (ViewportIt.IsValid() && ViewportIt != InUVLightCardViewport.AsShared() && !ViewportIt->RenderSettings.IsViewportOverrided()
+			if (ViewportIt.IsValid() && ViewportIt != InUVLightCardViewport.AsShared() && !ViewportIt->RenderSettings.IsViewportOverridden()
 				&& EnumHasAnyFlags(ViewportIt->RenderSettingsICVFX.RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::UVLightcard))
 			{
 				if (ViewportIt->IsOpenColorIOEquals(InUVLightCardViewport))
@@ -251,8 +250,8 @@ TArray<TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>> FDisplayCluster
 		{
 			if (ViewportIt.IsValid()
 				&& EnumHasAnyFlags(ViewportIt->RenderSettingsICVFX.RuntimeFlags, InRuntimeFlagsMask)
-				&& (ViewportIt->InputShaderResources.Num() > 0 && ViewportIt->InputShaderResources[0] != nullptr && ViewportIt->Contexts.Num() > 0)
-				&& (!ViewportIt->RenderSettings.IsViewportOverrided()))
+				&& (ViewportIt->Resources[EDisplayClusterViewportResource::InputShaderResources].Num() > 0 && ViewportIt->Resources[EDisplayClusterViewportResource::InputShaderResources][0] != nullptr && ViewportIt->Contexts.Num() > 0)
+				&& (!ViewportIt->RenderSettings.IsViewportOverridden()))
 			{
 				// this is incamera viewport. Check by name
 				const FString RequiredViewportId = ImplGetNameICVFX(ViewportIt->GetClusterNodeId(), ICVFXCameraId, ViewportTypeId);

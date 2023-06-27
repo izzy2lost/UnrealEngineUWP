@@ -78,9 +78,27 @@ static FAutoConsoleVariableRef CVarDisplayClusterShadersICVFXFXAAChromakey(
 	ECVF_RenderThreadSafe
 );
 
+// Enable/disable warp&blend
+int32 GDisplayClusterRenderWarpBlendEnabled = 1;
+static FAutoConsoleVariableRef CVarDisplayClusterRenderWarpBlendEnabled(
+	TEXT("nDisplay.render.WarpBlendEnabled"),
+	GDisplayClusterRenderWarpBlendEnabled,
+	TEXT("Warp & Blend status\n")
+	TEXT("0 : disabled\n")
+	TEXT("1 : enabled\n"),
+	ECVF_RenderThreadSafe
+);
+
 ///////////////////////////////////////////////////////////////////////////////////////
-namespace DisplayClusterViewportProxyHelpers
+namespace UE::DisplayCluster::ViewportProxy
 {
+	static IDisplayClusterShaders& GetShadersAPI()
+	{
+		static IDisplayClusterShaders& ShadersAPISingleton = IDisplayClusterShaders::Get();
+
+		return ShadersAPISingleton;
+	}
+
 	// The viewport override has the maximum depth. This protects against a link cycle
 	static const int32 DisplayClusterViewportProxyResourcesOverrideRecursionDepthMax = 4;
 
@@ -114,75 +132,8 @@ namespace DisplayClusterViewportProxyHelpers
 		// No FXAA
 		return false;
 	}
-
-	/**
-	* Get viewport RHI resources
-	*
-	* @param InResources - Array with DC resources (for mono num=1, for stereo num=2)
-	* @param OutResources - Array with RHI resources
-	*
-	* @return true, if all resources are valid
-	*/
-	static bool GetViewportRHIResourcesImpl_RenderThread(const TArrayView<FDisplayClusterViewportResource*>& InResources, TArray<FRHITexture2D*>& OutResources)
-	{
-		OutResources.Reset();
-
-		for (FDisplayClusterViewportResource* ViewportResourceIt : InResources)
-		{
-			if (FRHITexture2D* RHITexture2D = ViewportResourceIt ? ViewportResourceIt->GetViewportResource2DRHI() : nullptr)
-			{
-				// Collects only valid resources.
-				OutResources.Add(RHITexture2D);
-			}
-		}
-
-		if (OutResources.Num() != InResources.Num())
-		{
-			// Some resources lost
-			OutResources.Reset();
-		}
-
-		// returns success if the number of output resources is equal to the input and is not empty
-		return !OutResources.IsEmpty();
-	}
-
-	static bool GetViewportRHIResourcesImpl_RenderThread(const TArray<FDisplayClusterViewportTextureResource*>& InResources, TArray<FRHITexture2D*>& OutResources)
-	{
-		return GetViewportRHIResourcesImpl_RenderThread(TArrayView<FDisplayClusterViewportResource*>((FDisplayClusterViewportResource**)(InResources.GetData()), InResources.Num()), OutResources);
-	}
-
-	static bool GetViewportRHIResourcesImpl_RenderThread(const TArray<FDisplayClusterViewportRenderTargetResource*>& InResources, TArray<FRHITexture2D*>& OutResources)
-	{
-		return GetViewportRHIResourcesImpl_RenderThread(TArrayView<FDisplayClusterViewportResource*>((FDisplayClusterViewportResource**)(InResources.GetData()), InResources.Num()), OutResources);
-	}
-
-	// Reset reference to deleted resource
-	static void HandleResourceDeleteImpl_RenderThread(TArray<FDisplayClusterViewportTextureResource*>& InResources, const FDisplayClusterViewportResource* InDeletedResourcePtr)
-	{
-		for (int32 Index = 0; Index < InResources.Num(); Index++)
-		{
-			if (InResources[Index] == InDeletedResourcePtr)
-			{
-				// remove references to a deleted resource
-				InResources[Index] = nullptr;
-			}
-		}
-	}
-
-	// Reset reference to deleted resource
-	static void HandleResourceDeleteImpl_RenderThread(TArray<FDisplayClusterViewportRenderTargetResource*>& InResources, const FDisplayClusterViewportResource* InDeletedResourcePtr)
-	{
-		for (int32 Index = 0; Index < InResources.Num(); Index++)
-		{
-			if (InResources[Index] == InDeletedResourcePtr)
-			{
-				// remove references to a deleted resource
-				InResources[Index] = nullptr;
-			}
-		}
-	}
 };
-using namespace DisplayClusterViewportProxyHelpers;
+using namespace UE::DisplayCluster::ViewportProxy;
 
 ///////////////////////////////////////////////////////////////////////////////////////
 FDisplayClusterViewportProxy::FDisplayClusterViewportProxy(const FDisplayClusterViewport& RenderViewport)
@@ -191,13 +142,85 @@ FDisplayClusterViewportProxy::FDisplayClusterViewportProxy(const FDisplayCluster
 	, RenderSettings(RenderViewport.RenderSettings)
 	, ProjectionPolicy(RenderViewport.UninitializedProjectionPolicy)
 	, ViewportManagerProxyWeakRef(RenderViewport.GetViewportManagerProxyRefImpl())
-	, ShadersAPI(IDisplayClusterShaders::Get())
 {
 	check(ProjectionPolicy.IsValid());
 }
 
 FDisplayClusterViewportProxy::~FDisplayClusterViewportProxy()
 {
+}
+
+EDisplayClusterViewportResourceType FDisplayClusterViewportProxy::GetResourceType_RenderThread(const EDisplayClusterViewportResourceType& InResourceType) const
+{
+	check(IsInRenderingThread());
+
+	switch (InResourceType)
+	{
+	case EDisplayClusterViewportResourceType::BeforeWarpBlendTargetableResource:
+		return EDisplayClusterViewportResourceType::InputShaderResource;
+
+	case EDisplayClusterViewportResourceType::AfterWarpBlendTargetableResource:
+		return ShouldApplyWarpBlend_RenderThread() ? EDisplayClusterViewportResourceType::AdditionalTargetableResource : EDisplayClusterViewportResourceType::InputShaderResource;
+
+	case EDisplayClusterViewportResourceType::OutputTargetableResource:
+
+		/**
+		* Output textures for preview rendering.
+		*/
+		if (GetRenderMode() == EDisplayClusterRenderFrameMode::PreviewInScene)
+		{
+			// [warp] -> OutputPreviewTargetableResource
+			return EDisplayClusterViewportResourceType::OutputPreviewTargetableResource;
+		}
+
+		/**
+		* Output 'Frame' textures for cluster rendering
+		*/
+		if (RemapMesh.IsValid())
+		{
+			const IDisplayClusterRender_MeshComponentProxy* MeshProxy = RemapMesh->GetMeshComponentProxy_RenderThread();
+			if (MeshProxy != nullptr && MeshProxy->IsEnabled_RenderThread())
+			{
+				// In this case render to additional frame targetable
+				// to minimize the rendering steps:
+				// [warp] -> AdditionalFrameTargetableResource -> [OutputRemap] -> OutputFrameTargetableResource
+				return EDisplayClusterViewportResourceType::AdditionalFrameTargetableResource;
+			}
+		}
+
+		// [warp] -> OutputFrameTargetableResource
+		return EDisplayClusterViewportResourceType::OutputFrameTargetableResource;
+
+
+	default:
+		// return the same value
+		break;
+	}
+
+	return InResourceType;
+}
+
+bool FDisplayClusterViewportProxy::ShouldApplyWarpBlend_RenderThread() const
+{
+	if (GDisplayClusterRenderWarpBlendEnabled == 0)
+	{
+		return false;
+	}
+
+	if (GetPostRenderSettings_RenderThread().Replace.IsEnabled())
+	{
+		// When used override texture, disable warp blend
+		return false;
+	}
+
+	const FDisplayClusterRenderFrameSettings* RenderFrameSettings = GetRenderFrameSettings_RenderThread();
+	if (!RenderFrameSettings || !RenderFrameSettings->bAllowWarpBlend)
+	{
+		return false;
+	}
+
+	// Ask current projection policy if it's warp&blend compatible
+	return ProjectionPolicy.IsValid() && ProjectionPolicy->IsWarpBlendSupported();
 }
 
 const FDisplayClusterRenderFrameSettings* FDisplayClusterViewportProxy::GetRenderFrameSettings_RenderThread() const
@@ -235,29 +258,16 @@ EDisplayClusterRenderFrameMode FDisplayClusterViewportProxy::GetRenderMode() con
 	return EDisplayClusterRenderFrameMode::Unknown;
 }
 
-void FDisplayClusterViewportProxy::HandleResourceDelete_RenderThread(FDisplayClusterViewportResource* InDeletedResourcePtr)
-{
-	// Reset all references to deleted resource
-	HandleResourceDeleteImpl_RenderThread(RenderTargets, InDeletedResourcePtr);
-	HandleResourceDeleteImpl_RenderThread(OutputFrameTargetableResources, InDeletedResourcePtr);
-	HandleResourceDeleteImpl_RenderThread(AdditionalFrameTargetableResources, InDeletedResourcePtr);
-
-	HandleResourceDeleteImpl_RenderThread(InputShaderResources, InDeletedResourcePtr);
-	HandleResourceDeleteImpl_RenderThread(AdditionalTargetableResources, InDeletedResourcePtr);
-	HandleResourceDeleteImpl_RenderThread(MipsShaderResources, InDeletedResourcePtr);
-}
-
-
-bool FDisplayClusterViewportProxy::ShouldOverrideViewportResource(const EDisplayClusterViewportResourceType InResourceType) const
+bool FDisplayClusterViewportProxy::ShouldOverrideViewportResource(const EDisplayClusterViewportResourceType InExtResourceType) const
 {
 	// Override resources from other viewport
-	if (RenderSettings.IsViewportOverrided())
+	if (RenderSettings.IsViewportOverridden())
 	{
-		switch (RenderSettings.ViewportOverrideMode)
+		switch (RenderSettings.GetViewportOverrideMode())
 		{
 		case EDisplayClusterViewportOverrideMode::All:
 		{
-			switch (InResourceType)
+			switch (GetResourceType_RenderThread(InExtResourceType))
 			{
 			case EDisplayClusterViewportResourceType::InternalRenderTargetResource:
 			case EDisplayClusterViewportResourceType::InputShaderResource:
@@ -273,7 +283,7 @@ bool FDisplayClusterViewportProxy::ShouldOverrideViewportResource(const EDisplay
 
 		case EDisplayClusterViewportOverrideMode::InernalRTT:
 		{
-			switch (InResourceType)
+			switch (GetResourceType_RenderThread(InExtResourceType))
 			{
 			case EDisplayClusterViewportResourceType::InternalRenderTargetResource:
 				return true;
@@ -293,20 +303,20 @@ bool FDisplayClusterViewportProxy::ShouldOverrideViewportResource(const EDisplay
 }
 
 //  Return viewport scene proxy resources by type
-bool FDisplayClusterViewportProxy::GetResources_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture2D*>& OutResources) const
+bool FDisplayClusterViewportProxy::GetResources_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture2D*>& OutResources) const
 {
-	return ImplGetResources_RenderThread(InResourceType, OutResources, false);
+	return ImplGetResources_RenderThread(InExtResourceType, OutResources, false);
 }
 
 const FDisplayClusterViewportProxy& FDisplayClusterViewportProxy::GetRenderingViewportProxy() const
 {
-	switch (RenderSettings.ViewportOverrideMode)
+	switch (RenderSettings.GetViewportOverrideMode())
 	{
 	case EDisplayClusterViewportOverrideMode::All:
 	case EDisplayClusterViewportOverrideMode::InernalRTT:
 		if (FDisplayClusterViewportManagerProxy* ViewportManagerProxy = GetViewportManagerProxyImpl_RenderThread())
 		{
-			if (FDisplayClusterViewportProxy const* OverrideViewportProxy = ViewportManagerProxy->ImplFindViewportProxy_RenderThread(RenderSettings.ViewportOverrideId))
+			if (FDisplayClusterViewportProxy const* OverrideViewportProxy = ViewportManagerProxy->ImplFindViewportProxy_RenderThread(RenderSettings.GetViewportOverrideId()))
 			{
 				return *OverrideViewportProxy;
 			}
@@ -332,19 +342,21 @@ bool FDisplayClusterViewportProxy::IsInputRenderTargetResourceExists() const
 		return true;
 	}
 
-	return !RenderTargets.IsEmpty();
+	return !Resources[EDisplayClusterViewportResource::RenderTargets].IsEmpty();
 }
 
-bool FDisplayClusterViewportProxy::ImplGetResources_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture2D*>& OutResources, const int32 InRecursionDepth) const
+bool FDisplayClusterViewportProxy::ImplGetResources_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture2D*>& OutResources, const int32 InRecursionDepth) const
 {
 	check(IsInRenderingThread());
+
+	const EDisplayClusterViewportResourceType InResourceType = GetResourceType_RenderThread(InExtResourceType);
 
 	// Override resources from other viewport
 	if (ShouldOverrideViewportResource(InResourceType))
 	{
 		if (InRecursionDepth < DisplayClusterViewportProxyResourcesOverrideRecursionDepthMax)
 		{
-			return GetRenderingViewportProxy().ImplGetResources_RenderThread(InResourceType, OutResources, InRecursionDepth + 1);
+			return GetRenderingViewportProxy().ImplGetResources_RenderThread(InExtResourceType, OutResources, InRecursionDepth + 1);
 		}
 
 		return false;
@@ -401,7 +413,7 @@ bool FDisplayClusterViewportProxy::ImplGetResources_RenderThread(const EDisplayC
 			// 3. Finally Use InternalRTT
 			if (!bResult)
 			{
-				bResult = GetViewportRHIResourcesImpl_RenderThread(RenderTargets, OutResources);
+				bResult = Resources.GetRHIResources_RenderThread(EDisplayClusterViewportResource::RenderTargets, OutResources);
 			}
 		}
 
@@ -414,38 +426,22 @@ bool FDisplayClusterViewportProxy::ImplGetResources_RenderThread(const EDisplayC
 	}
 
 	case EDisplayClusterViewportResourceType::InputShaderResource:
-		return GetViewportRHIResourcesImpl_RenderThread(InputShaderResources, OutResources);
+		return Resources.GetRHIResources_RenderThread(EDisplayClusterViewportResource::InputShaderResources, OutResources);
 
 	case EDisplayClusterViewportResourceType::AdditionalTargetableResource:
-		return GetViewportRHIResourcesImpl_RenderThread(AdditionalTargetableResources, OutResources);
+		return Resources.GetRHIResources_RenderThread(EDisplayClusterViewportResource::AdditionalTargetableResources, OutResources);
 
 	case EDisplayClusterViewportResourceType::MipsShaderResource:
-		return GetViewportRHIResourcesImpl_RenderThread(MipsShaderResources, OutResources);
+		return Resources.GetRHIResources_RenderThread(EDisplayClusterViewportResource::MipsShaderResources, OutResources);
 
 	case EDisplayClusterViewportResourceType::OutputFrameTargetableResource:
-		return GetViewportRHIResourcesImpl_RenderThread(OutputFrameTargetableResources, OutResources);
+		return Resources.GetRHIResources_RenderThread(EDisplayClusterViewportResource::OutputFrameTargetableResources, OutResources);
 
 	case EDisplayClusterViewportResourceType::AdditionalFrameTargetableResource:
-		return GetViewportRHIResourcesImpl_RenderThread(AdditionalFrameTargetableResources, OutResources);
+		return Resources.GetRHIResources_RenderThread(EDisplayClusterViewportResource::AdditionalFrameTargetableResources, OutResources);
 
-#if WITH_EDITOR
-		// Support preview:
 	case EDisplayClusterViewportResourceType::OutputPreviewTargetableResource:
-	{
-		// Get external resource:
-		if (OutputPreviewTargetableResource.IsValid())
-		{
-			FRHITexture* Texture = OutputPreviewTargetableResource;
-			FRHITexture2D* Texture2D = static_cast<FRHITexture2D*>(Texture);
-			if (Texture2D != nullptr)
-			{
-				OutResources.Add(Texture2D);
-				return true;
-			}
-		}
-		break;
-	}
-#endif
+		return Resources.GetRHIResources_RenderThread(EDisplayClusterViewportResource::OutputPreviewTargetableResources, OutResources);
 
 	default:
 		break;
@@ -495,23 +491,23 @@ void FDisplayClusterViewportProxy::ImplViewportRemap_RenderThread(FRHICommandLis
 		const IDisplayClusterRender_MeshComponentProxy* MeshProxy = RemapMesh->GetMeshComponentProxy_RenderThread();
 		if (MeshProxy!=nullptr && MeshProxy->IsEnabled_RenderThread())
 		{
-			if (AdditionalFrameTargetableResources.Num() != OutputFrameTargetableResources.Num())
+			if (Resources[EDisplayClusterViewportResource::AdditionalFrameTargetableResources].Num() != Resources[EDisplayClusterViewportResource::OutputFrameTargetableResources].Num())
 			{
 				// error
 				return;
 			}
 
-			for (int32 ContextIt = 0; ContextIt < AdditionalFrameTargetableResources.Num(); ContextIt++)
+			for (int32 ContextIt = 0; ContextIt < Resources[EDisplayClusterViewportResource::AdditionalFrameTargetableResources].Num(); ContextIt++)
 			{
-				FDisplayClusterViewportTextureResource* Src = AdditionalFrameTargetableResources[ContextIt];
-				FDisplayClusterViewportTextureResource* Dst = OutputFrameTargetableResources[ContextIt];
+				const TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>& Src = Resources[EDisplayClusterViewportResource::AdditionalFrameTargetableResources][ContextIt];
+				const TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe>& Dst = Resources[EDisplayClusterViewportResource::OutputFrameTargetableResources][ContextIt];
 
-				FRHITexture2D* Input = Src ? Src->GetViewportResource2DRHI() : nullptr;
-				FRHITexture2D* Output = Dst ? Dst->GetViewportResource2DRHI() : nullptr;
+				FRHITexture2D* Input = Src.IsValid() ? Src->GetViewportResourceRHI() : nullptr;
+				FRHITexture2D* Output = Dst.IsValid() ? Dst->GetViewportResourceRHI() : nullptr;
 
 				if (Input && Output)
 				{
-					ShadersAPI.RenderPostprocess_OutputRemap(RHICmdList, Input, Output, *MeshProxy);
+					GetShadersAPI().RenderPostprocess_OutputRemap(RHICmdList, Input, Output, *MeshProxy);
 				}
 			}
 		}
@@ -527,7 +523,7 @@ void FDisplayClusterViewportProxy::ImplPreviewReadPixels_RenderThread(FRHIComman
 	}
 
 	// Now try to read until success:
-	if (bPreviewReadPixels && Contexts.Num() > 0 && OutputPreviewTargetableResource.IsValid())
+	if (bPreviewReadPixels && Contexts.Num() > 0 && !Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources].IsEmpty() && Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources][0].IsValid())
 	{
 		const FDisplayClusterRenderFrameSettings* RenderFrameSettings = GetRenderFrameSettings_RenderThread();
 		check(RenderFrameSettings && RenderFrameSettings->RenderMode == EDisplayClusterRenderFrameMode::PreviewInScene);
@@ -538,8 +534,7 @@ void FDisplayClusterViewportProxy::ImplPreviewReadPixels_RenderThread(FRHIComman
 		if (PreviewPixels.IsValid() == false)
 		{
 			// Read pixels from this texture
-			FRHITexture* Texture = OutputPreviewTargetableResource;
-			if (FRHITexture2D* Texture2D = static_cast<FRHITexture2D*>(Texture))
+			if (FRHITexture2D* Texture2D = Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources][0]->GetViewportResourceRHI())
 			{
 				
 				// Clear deferred read flag
@@ -548,7 +543,7 @@ void FDisplayClusterViewportProxy::ImplPreviewReadPixels_RenderThread(FRHIComman
 				TSharedPtr<FDisplayClusterViewportReadPixelsData, ESPMode::ThreadSafe> ReadData = MakeShared<FDisplayClusterViewportReadPixelsData, ESPMode::ThreadSafe>();
 
 				RHICmdList.ReadSurfaceData(
-					Texture,
+					Texture2D,
 					FIntRect(FIntPoint(0, 0), Texture2D->GetSizeXY()),
 					ReadData->Pixels,
 					FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX)
@@ -583,49 +578,27 @@ bool FDisplayClusterViewportProxy::GetPreviewPixels_GameThread(TSharedPtr<FDispl
 }
 #endif
 
-EDisplayClusterViewportResourceType FDisplayClusterViewportProxy::GetOutputResourceType_RenderThread() const
+bool FDisplayClusterViewportProxy::GetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture2D*>& OutResources, TArray<FIntRect>& OutResourceRects) const
 {
-	check(IsInRenderingThread());
-
-#if WITH_EDITOR
-	if(GetRenderMode() == EDisplayClusterRenderFrameMode::PreviewInScene)
-	{
-		return EDisplayClusterViewportResourceType::OutputPreviewTargetableResource;
-	}
-#endif
-
-	if (RemapMesh.IsValid())
-	{
-		const IDisplayClusterRender_MeshComponentProxy* MeshProxy = RemapMesh->GetMeshComponentProxy_RenderThread();
-		if (MeshProxy!=nullptr && MeshProxy->IsEnabled_RenderThread())
-		{
-			// In this case render to additional frame targetable
-			return EDisplayClusterViewportResourceType::AdditionalFrameTargetableResource;
-		}
-	}
-
-	return EDisplayClusterViewportResourceType::OutputFrameTargetableResource;
+	return ImplGetResourcesWithRects_RenderThread(InExtResourceType, OutResources, OutResourceRects, false);
 }
 
-bool FDisplayClusterViewportProxy::GetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture2D*>& OutResources, TArray<FIntRect>& OutResourceRects) const
-{
-	return ImplGetResourcesWithRects_RenderThread(InResourceType, OutResources, OutResourceRects, false);
-}
-
-bool FDisplayClusterViewportProxy::ImplGetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture2D*>& OutResources, TArray<FIntRect>& OutResourceRects, const int32 InRecursionDepth) const
+bool FDisplayClusterViewportProxy::ImplGetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InExtResourceType, TArray<FRHITexture2D*>& OutResources, TArray<FIntRect>& OutResourceRects, const int32 InRecursionDepth) const
 {
 	check(IsInRenderingThread());
 
 	// Override resources from other viewport
-	if(ShouldOverrideViewportResource(InResourceType))
+	if(ShouldOverrideViewportResource(InExtResourceType))
 	{
 		if (InRecursionDepth < DisplayClusterViewportProxyResourcesOverrideRecursionDepthMax)
 		{
-			return GetRenderingViewportProxy().ImplGetResourcesWithRects_RenderThread(InResourceType, OutResources, OutResourceRects, InRecursionDepth + 1);
+			return GetRenderingViewportProxy().ImplGetResourcesWithRects_RenderThread(InExtResourceType, OutResources, OutResourceRects, InRecursionDepth + 1);
 		}
 
 		return false;
 	}
+
+	const EDisplayClusterViewportResourceType InResourceType = GetResourceType_RenderThread(InExtResourceType);
 
 	if (!GetResources_RenderThread(InResourceType, OutResources))
 	{
@@ -678,7 +651,7 @@ void FDisplayClusterViewportProxy::UpdateDeferredResources(FRHICommandListImmedi
 		return;
 	}
 
-	if (RenderSettings.IsViewportOverrided() && RenderSettings.ViewportOverrideMode == EDisplayClusterViewportOverrideMode::All)
+	if (RenderSettings.GetViewportOverrideMode() == EDisplayClusterViewportOverrideMode::All)
 	{
 		// Disable deferred update for clone viewports
 		return;
@@ -744,7 +717,7 @@ void FDisplayClusterViewportProxy::UpdateDeferredResources(FRHICommandListImmedi
 			// Render postprocess blur:
 			for (int32 ContextNum = 0; ContextNum < InShaderResources.Num(); ContextNum++)
 			{
-				ShadersAPI.RenderPostprocess_Blur(RHICmdList, InShaderResources[ContextNum], OutTargetableResources[ContextNum], PostRenderSettings.PostprocessBlur);
+				GetShadersAPI().RenderPostprocess_Blur(RHICmdList, InShaderResources[ContextNum], OutTargetableResources[ContextNum], PostRenderSettings.PostprocessBlur);
 			}
 
 			// Copy result back to input
@@ -764,7 +737,7 @@ void FDisplayClusterViewportProxy::UpdateDeferredResources(FRHICommandListImmedi
 			// Generate mips
 			for (FRHITexture2D*& ResourceIt : InOutMipsResources)
 			{
-				ShadersAPI.GenerateMips(RHICmdList, ResourceIt, PostRenderSettings.GenerateMips);
+				GetShadersAPI().GenerateMips(RHICmdList, ResourceIt, PostRenderSettings.GenerateMips);
 			}
 		}
 	}
@@ -871,10 +844,12 @@ void ImplResolveResource(FRHICommandListImmediate& RHICmdList, FRHITexture2D* In
 	}
 }
 
-FIntRect FDisplayClusterViewportProxy::GetFinalContextRect(const EDisplayClusterViewportResourceType InputResourceType, const FIntRect& InRect) const
+FIntRect FDisplayClusterViewportProxy::GetFinalContextRect(const EDisplayClusterViewportResourceType InExtResourceType, const FIntRect& InRect) const
 {
+	const EDisplayClusterViewportResourceType InResourceType = GetResourceType_RenderThread(InExtResourceType);
+
 	// When resolving without warp, apply overscan
-	switch (InputResourceType)
+	switch (InResourceType)
 	{
 	case EDisplayClusterViewportResourceType::InternalRenderTargetResource:
 		if (OverscanSettings.bIsEnabled && CVarDisplayClusterRenderOverscanResolve.GetValueOnRenderThread() != 0)
@@ -891,53 +866,53 @@ FIntRect FDisplayClusterViewportProxy::GetFinalContextRect(const EDisplayCluster
 }
 
 // Resolve resource contexts
-bool FDisplayClusterViewportProxy::ResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, const EDisplayClusterViewportResourceType InputResourceType, const EDisplayClusterViewportResourceType OutputResourceType, const int32 InContextNum) const
+bool FDisplayClusterViewportProxy::ResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, const EDisplayClusterViewportResourceType InExtResourceType, const EDisplayClusterViewportResourceType OutExtResourceType, const int32 InContextNum) const
 {
-	return ImplResolveResources_RenderThread(RHICmdList, this, InputResourceType, OutputResourceType, InContextNum);
+	return ImplResolveResources_RenderThread(RHICmdList, this, InExtResourceType, OutExtResourceType, InContextNum);
 }
 
-bool FDisplayClusterViewportProxy::ImplResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, FDisplayClusterViewportProxy const* SourceProxy, const EDisplayClusterViewportResourceType InputResourceType, const EDisplayClusterViewportResourceType OutputResourceType, const int32 InContextNum) const
+bool FDisplayClusterViewportProxy::ImplResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, FDisplayClusterViewportProxy const* SourceProxy, const EDisplayClusterViewportResourceType InExtResourceType, const EDisplayClusterViewportResourceType OutExtResourceType, const int32 InContextNum) const
 {
 	check(IsInRenderingThread());
+	check(SourceProxy);
 
-	if (InputResourceType == EDisplayClusterViewportResourceType::MipsShaderResource) {
+	const EDisplayClusterViewportResourceType InResourceType = SourceProxy->GetResourceType_RenderThread(InExtResourceType);
+	const EDisplayClusterViewportResourceType OutResourceType = GetResourceType_RenderThread(OutExtResourceType);
+
+	if (InResourceType == EDisplayClusterViewportResourceType::MipsShaderResource) {
 		// RenderTargetMips not allowved for resolve op
 		return false;
 	}
 
-	bool bOutputIsMipsResource = OutputResourceType == EDisplayClusterViewportResourceType::MipsShaderResource;
+	bool bOutputIsMipsResource = OutResourceType == EDisplayClusterViewportResourceType::MipsShaderResource;
 
-#if WITH_EDITOR
 	// This resolve pattern always called once for preview. This flag force to invert alpha (at this point alpha from engine is inverted)
-	const bool bOutputIsPreviewResource = InputResourceType == EDisplayClusterViewportResourceType::InputShaderResource && OutputResourceType == EDisplayClusterViewportResourceType::OutputPreviewTargetableResource;
-#else
-	const bool bOutputIsPreviewResource = false;
-#endif
+	const bool bOutputIsPreviewResource = InResourceType == EDisplayClusterViewportResourceType::InputShaderResource && OutResourceType == EDisplayClusterViewportResourceType::OutputPreviewTargetableResource;
 
 	TArray<FRHITexture2D*> SrcResources, DestResources;
 	TArray<FIntRect> SrcResourcesRect, DestResourcesRect;
-	if (SourceProxy->GetResourcesWithRects_RenderThread(InputResourceType, SrcResources, SrcResourcesRect) && GetResourcesWithRects_RenderThread(OutputResourceType, DestResources, DestResourcesRect))
+	if (SourceProxy->GetResourcesWithRects_RenderThread(InExtResourceType, SrcResources, SrcResourcesRect) && GetResourcesWithRects_RenderThread(OutExtResourceType, DestResources, DestResourcesRect))
 	{
 		const int32 SrcResourcesAmount = FMath::Min(SrcResources.Num(), DestResources.Num());
 		for (int32 SrcResourceContextIndex = 0; SrcResourceContextIndex < SrcResourcesAmount; SrcResourceContextIndex++)
 		{
 			// Get context num to copy
 			const int32 SrcContextNum = (InContextNum == INDEX_NONE) ? SrcResourceContextIndex : InContextNum;
-			const FIntRect SrcRect = GetFinalContextRect(InputResourceType, SrcResourcesRect[SrcContextNum]);
+			const FIntRect SrcRect = SourceProxy->GetFinalContextRect(InExtResourceType, SrcResourcesRect[SrcContextNum]);
 
 			if ((SrcContextNum + 1) == SrcResourcesAmount)
 			{
 				// last input mono -> stereo outputs
 				for (int32 DestResourceContextIndex = SrcContextNum; DestResourceContextIndex < DestResources.Num(); DestResourceContextIndex++)
 				{
-					const FIntRect DestRect = GetFinalContextRect(OutputResourceType, DestResourcesRect[DestResourceContextIndex]);
+					const FIntRect DestRect = GetFinalContextRect(OutResourceType, DestResourcesRect[DestResourceContextIndex]);
 					ImplResolveResource(RHICmdList, SrcResources[SrcContextNum], SrcRect, DestResources[DestResourceContextIndex], DestRect, bOutputIsMipsResource, bOutputIsPreviewResource);
 				}
 				break;
 			}
 			else
 			{
-				const FIntRect DestRect = GetFinalContextRect(OutputResourceType, DestResourcesRect[SrcContextNum]);
+				const FIntRect DestRect = GetFinalContextRect(OutResourceType, DestResourcesRect[SrcContextNum]);
 				ImplResolveResource(RHICmdList, SrcResources[SrcContextNum], SrcRect, DestResources[SrcContextNum], DestRect, bOutputIsMipsResource, bOutputIsPreviewResource);
 			}
 
@@ -954,11 +929,11 @@ bool FDisplayClusterViewportProxy::ImplResolveResources_RenderThread(FRHICommand
 	return false;
 }
 
-bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphBuilder, const EDisplayClusterTextureCopyMode InCopyMode, const int32 InContextNum, const EDisplayClusterViewportResourceType InSrcResourceType, const EDisplayClusterViewportResourceType InDestResourceType)
+bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphBuilder, const EDisplayClusterTextureCopyMode InCopyMode, const int32 InContextNum, const EDisplayClusterViewportResourceType InExtSrcResourceType, const EDisplayClusterViewportResourceType InExtDestResourceType)
 {
 	TArray<FRHITexture2D*> SrcResources;
 	TArray<FIntRect> SrcResourceRects;
-	if (GetResourcesWithRects_RenderThread(InSrcResourceType, SrcResources, SrcResourceRects))
+	if (GetResourcesWithRects_RenderThread(InExtSrcResourceType, SrcResources, SrcResourceRects))
 	{
 		check(SrcResources.IsValidIndex(InContextNum));
 		check(SrcResourceRects.IsValidIndex(InContextNum));
@@ -968,7 +943,7 @@ bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphB
 		FRDGTextureRef SrcTextureRef = RegisterExternalTexture(GraphBuilder, SrcResources[InContextNum]->GetTexture2D(), TEXT("DCViewportProxyCopySrcResource"));
 		GraphBuilder.SetTextureAccessFinal(SrcTextureRef, ERHIAccess::SRVGraphics);
 
-		return CopyResource_RenderThread(GraphBuilder, InCopyMode, InContextNum, SrcTextureRef, SrcRect, InDestResourceType);
+		return CopyResource_RenderThread(GraphBuilder, InCopyMode, InContextNum, SrcTextureRef, SrcRect, InExtDestResourceType);
 	}
 
 	return false;
@@ -979,11 +954,11 @@ RDG_TEXTURE_ACCESS(Input, ERHIAccess::CopySrc)
 RDG_TEXTURE_ACCESS(Output, ERHIAccess::CopyDest)
 END_SHADER_PARAMETER_STRUCT()
 
-bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphBuilder, const EDisplayClusterTextureCopyMode InCopyMode, const int32 InContextNum, FRDGTextureRef InSrcTextureRef, const FIntRect& InSrcRect, const EDisplayClusterViewportResourceType InDestResourceType)
+bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphBuilder, const EDisplayClusterTextureCopyMode InCopyMode, const int32 InContextNum, FRDGTextureRef InSrcTextureRef, const FIntRect& InSrcRect, const EDisplayClusterViewportResourceType InExtDestResourceType)
 {
 	TArray<FRHITexture2D*> DestResources;
 	TArray<FIntRect> DestResourceRects;
-	if (HasBeenProduced(InSrcTextureRef) && GetResourcesWithRects_RenderThread(InDestResourceType, DestResources, DestResourceRects))
+	if (HasBeenProduced(InSrcTextureRef) && GetResourcesWithRects_RenderThread(InExtDestResourceType, DestResources, DestResourceRects))
 	{
 		check(DestResources.IsValidIndex(InContextNum));
 		check(DestResourceRects.IsValidIndex(InContextNum));
@@ -1011,11 +986,11 @@ bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphB
 	return false;
 }
 
-bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphBuilder, const EDisplayClusterTextureCopyMode InCopyMode, const int32 InContextNum, const EDisplayClusterViewportResourceType InSrcResourceType, FRDGTextureRef InDestTextureRef, const FIntRect& InDestRect)
+bool FDisplayClusterViewportProxy::CopyResource_RenderThread(FRDGBuilder& GraphBuilder, const EDisplayClusterTextureCopyMode InCopyMode, const int32 InContextNum, const EDisplayClusterViewportResourceType InExtSrcResourceType, FRDGTextureRef InDestTextureRef, const FIntRect& InDestRect)
 {
 	TArray<FRHITexture2D*> SrcResources;
 	TArray<FIntRect> SrcResourceRects;
-	if (HasBeenProduced(InDestTextureRef) && GetResourcesWithRects_RenderThread(InSrcResourceType, SrcResources, SrcResourceRects))
+	if (HasBeenProduced(InDestTextureRef) && GetResourcesWithRects_RenderThread(InExtSrcResourceType, SrcResources, SrcResourceRects))
 	{
 		check(SrcResources.IsValidIndex(InContextNum));
 		check(SrcResourceRects.IsValidIndex(InContextNum));
@@ -1195,9 +1170,9 @@ void FDisplayClusterViewportProxy::OnPostRenderViewFamily_RenderThread(FRDGBuild
 		{
 			// Restore alpha channed
 			EFXAAQuality FXAAQuality = EFXAAQuality::Q0;
-			if (GetFXAAQuality(RenderSettings.CaptureMode, FXAAQuality) && InputShaderResources.IsValidIndex(InContextNum))
+			if (GetFXAAQuality(RenderSettings.CaptureMode, FXAAQuality) && Resources[EDisplayClusterViewportResource::InputShaderResources].IsValidIndex(InContextNum))
 			{
-				if (FRHITexture2D* InputTextureRHI = InputShaderResources[InContextNum] ? InputShaderResources[InContextNum]->GetViewportResource2DRHI() : nullptr)
+				if (FRHITexture2D* InputTextureRHI = Resources[EDisplayClusterViewportResource::InputShaderResources][InContextNum] ? Resources[EDisplayClusterViewportResource::InputShaderResources][InContextNum]->GetViewportResourceRHI() : nullptr)
 				{
 					// Apply FXAA for RGB only
 					// Note: Add AA for alpha channel

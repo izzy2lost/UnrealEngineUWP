@@ -82,7 +82,7 @@ public:
 	 * @param InViewport - a owner viewport
 	 * @param ContextNum - viewport eye context index
 	 * 
-	 * @return - true if frustum overrided.
+	 * @return - true if frustum is overridden.
 	 */
 	virtual bool OverrideCalcFrustum(IDisplayClusterViewport* InViewport, const uint32 ContextNum)
 	{

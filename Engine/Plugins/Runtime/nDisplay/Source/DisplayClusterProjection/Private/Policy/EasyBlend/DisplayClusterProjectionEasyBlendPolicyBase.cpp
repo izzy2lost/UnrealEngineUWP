@@ -118,7 +118,7 @@ void FDisplayClusterProjectionEasyBlendPolicyBase::ApplyWarpBlend_RenderThread(F
 		if (!ViewAdapter->ApplyWarpBlend_RenderThread(RHICmdList, InViewportProxy))
 		{
 			// Warpbled failed, just copy unwarped rtt for frame output
-			InViewportProxy->ResolveResources_RenderThread(RHICmdList, EDisplayClusterViewportResourceType::InputShaderResource, InViewportProxy->GetOutputResourceType_RenderThread());
+			InViewportProxy->ResolveResources_RenderThread(RHICmdList, EDisplayClusterViewportResourceType::InputShaderResource, EDisplayClusterViewportResourceType::OutputTargetableResource);
 		}
 	}
 }

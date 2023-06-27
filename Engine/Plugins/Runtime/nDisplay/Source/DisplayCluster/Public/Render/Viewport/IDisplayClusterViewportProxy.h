@@ -76,7 +76,11 @@ public:
 	virtual bool ResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, const EDisplayClusterViewportResourceType InputResourceType, const EDisplayClusterViewportResourceType OutputResourceType, const int32 InContextNum = INDEX_NONE) const = 0;
 
 	/** Return output resource type (support preview, remap, etc). */
-	virtual EDisplayClusterViewportResourceType   GetOutputResourceType_RenderThread() const = 0;
+	UE_DEPRECATED(5.3, "This function has beend deprecate. Please use the new enumeration values.")
+	virtual EDisplayClusterViewportResourceType GetOutputResourceType_RenderThread() const
+	{
+		return EDisplayClusterViewportResourceType::OutputTargetableResource;
+	}
 
 	/** Returns ptr to ViewportManagerProxy (the owner of this viewport proxy) if it still exists. */
 	virtual const class IDisplayClusterViewportManagerProxy* GetViewportManagerProxy_RenderThread() const = 0;

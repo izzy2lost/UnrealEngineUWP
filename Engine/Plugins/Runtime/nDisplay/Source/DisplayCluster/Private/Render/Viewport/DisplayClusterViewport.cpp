@@ -307,16 +307,12 @@ void FDisplayClusterViewport::HandleEndScene()
 		ProjectionPolicy.Reset();
 	}
 
-#if WITH_EDITOR
 	CleanupViewState();
-#endif
 }
 
 void FDisplayClusterViewport::AddReferencedObjects(FReferenceCollector& Collector)
 {
-#if WITH_EDITOR
 	// ViewStates released on rendering thread from viewport proxy object
-#endif
 }
 
 bool FDisplayClusterViewport::ShouldUseAdditionalTargetableResource() const
@@ -437,8 +433,8 @@ inline void AdjustRect(FIntRect& InOutRect, const float multX, const float multY
 FIntRect FDisplayClusterViewport::GetValidRect(const FIntRect& InRect, const TCHAR* DbgSourceName)
 {
 	// The target always needs be within GMaxTextureDimensions, larger dimensions are not supported by the engine
-	const int32 MaxTextureSize = DisplayClusterViewportHelpers::GetMaxTextureDimension();
-	const int32 MinTextureSize = DisplayClusterViewportHelpers::GetMinTextureDimension();
+	const int32 MaxTextureSize = FDisplayClusterViewportHelpers::GetMaxTextureDimension();
+	const int32 MinTextureSize = FDisplayClusterViewportHelpers::GetMinTextureDimension();
 
 	int32 Width  = FMath::Max(MinTextureSize, InRect.Width());
 	int32 Height = FMath::Max(MinTextureSize, InRect.Height());
@@ -458,7 +454,7 @@ FIntRect FDisplayClusterViewport::GetValidRect(const FIntRect& InRect, const TCH
 	OutRect.Min.X = FMath::Min(OutRect.Min.X, MaxTextureSize);
 	OutRect.Min.Y = FMath::Min(OutRect.Min.Y, MaxTextureSize);
 
-	const FIntPoint ScaledRectMax = DisplayClusterViewportHelpers::ScaleTextureSize(OutRect.Max, RectScale);
+	const FIntPoint ScaledRectMax = FDisplayClusterViewportHelpers::ScaleTextureSize(OutRect.Max, RectScale);
 
 	OutRect.Max.X = FMath::Clamp(ScaledRectMax.X, OutRect.Min.X, MaxTextureSize);
 	OutRect.Max.Y = FMath::Clamp(ScaledRectMax.Y, OutRect.Min.Y, MaxTextureSize);
@@ -489,13 +485,13 @@ FIntPoint FDisplayClusterViewport::GetDesiredContextSize(const FIntPoint& InSize
 	const float ClusterRenderTargetRatioMult = GetClusterRenderTargetRatioMult(InFrameSettings);
 
 	// Check size multipliers in order bellow:
-	const float RenderTargetAdaptRatio = DisplayClusterViewportHelpers::GetValidSizeMultiplier(InSize, RenderSettings.RenderTargetAdaptRatio, ClusterRenderTargetRatioMult * RenderSettings.RenderTargetRatio);
-	const float RenderTargetRatio = DisplayClusterViewportHelpers::GetValidSizeMultiplier(InSize, RenderSettings.RenderTargetRatio, ClusterRenderTargetRatioMult * RenderTargetAdaptRatio);
-	const float ClusterMult = DisplayClusterViewportHelpers::GetValidSizeMultiplier(InSize, ClusterRenderTargetRatioMult, RenderTargetRatio * RenderTargetAdaptRatio);
+	const float RenderTargetAdaptRatio = FDisplayClusterViewportHelpers::GetValidSizeMultiplier(InSize, RenderSettings.RenderTargetAdaptRatio, ClusterRenderTargetRatioMult * RenderSettings.RenderTargetRatio);
+	const float RenderTargetRatio = FDisplayClusterViewportHelpers::GetValidSizeMultiplier(InSize, RenderSettings.RenderTargetRatio, ClusterRenderTargetRatioMult * RenderTargetAdaptRatio);
+	const float ClusterMult = FDisplayClusterViewportHelpers::GetValidSizeMultiplier(InSize, ClusterRenderTargetRatioMult, RenderTargetRatio * RenderTargetAdaptRatio);
 
-	FIntPoint DesiredContextSize = DisplayClusterViewportHelpers::ScaleTextureSize(InSize, FMath::Max(RenderTargetAdaptRatio * RenderTargetRatio * ClusterMult, 0.f));
+	FIntPoint DesiredContextSize = FDisplayClusterViewportHelpers::ScaleTextureSize(InSize, FMath::Max(RenderTargetAdaptRatio * RenderTargetRatio * ClusterMult, 0.f));
 
-	const int32 MaxTextureSize = DisplayClusterViewportHelpers::GetMaxTextureDimension();
+	const int32 MaxTextureSize = FDisplayClusterViewportHelpers::GetMaxTextureDimension();
 	DesiredContextSize.X = FMath::Min(DesiredContextSize.X, MaxTextureSize);
 	DesiredContextSize.Y = FMath::Min(DesiredContextSize.Y, MaxTextureSize);
 
@@ -525,23 +521,7 @@ float FDisplayClusterViewport::GetCustomBufferRatio(const FDisplayClusterRenderF
 
 void FDisplayClusterViewport::ResetFrameContexts()
 {
-
-#if WITH_EDITOR
-	OutputPreviewTargetableResource.SafeRelease();
-#endif
-
-	// Discard resources that are not used in frame composition
-	RenderTargets.Empty();
-	OutputFrameTargetableResources.Empty();
-	AdditionalFrameTargetableResources.Empty();
-
-	// Release old contexts
-	Contexts.Empty();
-
-	// Free internal resources
-	InputShaderResources.Empty();
-	AdditionalTargetableResources.Empty();
-	MipsShaderResources.Empty();
+	Resources.Release();
 }
 
 bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex, const FDisplayClusterRenderFrameSettings& InFrameSettings)
@@ -591,24 +571,18 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	// Special case mono->stereo
 	const uint32 ViewportContextAmount = RenderSettings.bForceMono ? 1 : FrameTargetsAmount;
 
-#if WITH_EDITOR
-	OutputPreviewTargetableResource.SafeRelease();
-#endif
-
-	// Discard resources that are not used in frame composition
-	RenderTargets.Empty();
-	OutputFrameTargetableResources.Empty();
-	AdditionalFrameTargetableResources.Empty();
+	// Release only part of the resources, leaving resources that can be used by other viewports (viewport override feature)
+	Resources.Release(false);
 
 	// Freeze the image in the viewport only after the frame has been rendered
 	if (RenderSettings.bFreezeRendering && RenderSettings.bEnable)
 	{
 		// Freeze only when all resources valid
-		if (Contexts.Num() > 0 && Contexts.Num() == InputShaderResources.Num())
+		if (Contexts.Num() > 0 && Contexts.Num() == Resources[EDisplayClusterViewportResource::InputShaderResources].Num())
 		{
-			DisplayClusterViewportHelpers::FreezeRenderingOfViewportTextureResources(InputShaderResources);
-			DisplayClusterViewportHelpers::FreezeRenderingOfViewportTextureResources(AdditionalTargetableResources);
-			DisplayClusterViewportHelpers::FreezeRenderingOfViewportTextureResources(MipsShaderResources);
+			Resources.FreezeRendering(EDisplayClusterViewportResource::InputShaderResources);
+			Resources.FreezeRendering(EDisplayClusterViewportResource::AdditionalTargetableResources);
+			Resources.FreezeRendering(EDisplayClusterViewportResource::MipsShaderResources);
 
 			// Update context links for freezed viewport
 			for (FDisplayClusterViewport_Context& ContextIt : Contexts)
@@ -626,10 +600,8 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	// Release old contexts
 	Contexts.Empty();
 
-	// Free internal resources
-	InputShaderResources.Empty();
-	AdditionalTargetableResources.Empty();
-	MipsShaderResources.Empty();
+	// Free all resources
+	Resources.Release();
 
 	if (RenderSettings.bEnable == false)
 	{
@@ -665,7 +637,7 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	{
 	case EDisplayClusterRenderFrameMode::PreviewInScene:
 		{
-			DesiredContextSize = DisplayClusterViewportHelpers::GetTextureSizeLessThanMax(DesiredContextSize, InFrameSettings.PreviewMaxTextureDimension);
+			DesiredContextSize = FDisplayClusterViewportHelpers::GetTextureSizeLessThanMax(DesiredContextSize, InFrameSettings.PreviewMaxTextureDimension);
 		}
 		break;
 	default:
@@ -694,7 +666,7 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	const float BaseCustomBufferRatio = GetCustomBufferRatio(InFrameSettings);
 
 	// Fix buffer ratio value vs MaxTextureSize:
-	const float CustomBufferRatio = DisplayClusterViewportHelpers::GetValidSizeMultiplier(RenderTargetRect.Size(), BaseCustomBufferRatio, 1.f);
+	const float CustomBufferRatio = FDisplayClusterViewportHelpers::GetValidSizeMultiplier(RenderTargetRect.Size(), BaseCustomBufferRatio, 1.f);
 
 	// Setup resource usage logic:
 	bool bDisableRender = false;
@@ -710,9 +682,9 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 		bDisableRender = true;
 	}
 
-	if (RenderSettings.IsViewportOverrided())
+	if (RenderSettings.IsViewportOverridden())
 	{
-		switch (RenderSettings.ViewportOverrideMode)
+		switch (RenderSettings.GetViewportOverrideMode())
 		{
 		case EDisplayClusterViewportOverrideMode::InernalRTT:
 			bDisableRender = true;
@@ -828,27 +800,33 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	}
 
 	// Reserve for resources
+	if (InFrameSettings.RenderMode == EDisplayClusterRenderFrameMode::PreviewInScene)
+	{
+		// reserve preview texture resource
+		Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources].AddZeroed(FrameTargetsAmount);
+	}
+
 	if (!bDisableRender)
 	{
-		RenderTargets.AddZeroed(FrameTargetsAmount);
+		Resources[EDisplayClusterViewportResource::RenderTargets].AddZeroed(FrameTargetsAmount);
 	}
 
 	if (!bDisableInternalResources)
 	{
-		InputShaderResources.AddZeroed(FrameTargetsAmount);
+		Resources[EDisplayClusterViewportResource::InputShaderResources].AddZeroed(FrameTargetsAmount);
 
 		if (ShouldUseAdditionalTargetableResource())
 		{
-			AdditionalTargetableResources.AddZeroed(FrameTargetsAmount);
+			Resources[EDisplayClusterViewportResource::AdditionalTargetableResources].AddZeroed(FrameTargetsAmount);
 		}
 
 		// Setup Mips resources:
 		for (FDisplayClusterViewport_Context& ContextIt : Contexts)
 		{
-			ContextIt.NumMips = DisplayClusterViewportHelpers::GetMaxTextureNumMips(InFrameSettings, PostRenderSettings.GenerateMips.GetRequiredNumMips(ContextIt.ContextSize));
+			ContextIt.NumMips = FDisplayClusterViewportHelpers::GetMaxTextureNumMips(InFrameSettings, PostRenderSettings.GenerateMips.GetRequiredNumMips(ContextIt.ContextSize));
 			if (ContextIt.NumMips > 1)
 			{
-				MipsShaderResources.AddZeroed(1);
+				Resources[EDisplayClusterViewportResource::MipsShaderResources].AddZeroed(1);
 			}
 		}
 	}

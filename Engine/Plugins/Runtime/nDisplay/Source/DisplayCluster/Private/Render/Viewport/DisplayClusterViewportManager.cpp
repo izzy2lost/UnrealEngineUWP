@@ -510,7 +510,7 @@ void FDisplayClusterViewportManager::ImplUpdateClusterNodeViewports(const EDispl
 				continue;
 			}
 
-			if (Viewport->RenderSettings.IsViewportOverrided())
+			if (Viewport->RenderSettings.IsViewportOverridden())
 			{
 				OverriddenViewports.Add(Viewport);
 			}
@@ -669,8 +669,8 @@ bool FDisplayClusterViewportManager::BeginNewFrame(FViewport* InViewport, UWorld
 			for (FDisplayClusterViewport_Context& ContextIt : ViewportIt->Contexts)
 			{
 				// Get Context Display gamma
-				const FDisplayClusterViewportRenderTargetResource* ContextRTT = ViewportIt->RenderTargets.IsValidIndex(ContextIt.ContextNum) ? ViewportIt->RenderTargets[ContextIt.ContextNum] : nullptr;
-				const float ViewportDisplayGamma = ContextRTT ? ContextRTT->GetDisplayGamma() : DefaultDisplayGamma;
+				const TSharedPtr<FDisplayClusterViewportResource, ESPMode::ThreadSafe> ContextRTT = ViewportIt->Resources[EDisplayClusterViewportResource::RenderTargets].IsValidIndex(ContextIt.ContextNum) ? ViewportIt->Resources[EDisplayClusterViewportResource::RenderTargets][ContextIt.ContextNum] : nullptr;
+				const float ViewportDisplayGamma = ContextRTT.IsValid() ? ContextRTT->GetResourceSettings().GetDisplayGamma() : DefaultDisplayGamma;
 
 				ContextIt.RenderThreadData.EngineDisplayGamma = ViewportDisplayGamma;
 

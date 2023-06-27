@@ -88,12 +88,8 @@ public:
 	// Special capture modes (chromakey, lightcard) change RTT format and render flags
 	EDisplayClusterViewportCaptureMode CaptureMode = EDisplayClusterViewportCaptureMode::Default;
 
-	// Override resources from this viewport
-	EDisplayClusterViewportOverrideMode ViewportOverrideMode = EDisplayClusterViewportOverrideMode::None;
-	FString ViewportOverrideId;
-
 public:
-	// Reset runtime values from prev frame
+	/** Resets the viewport settings. This function is called every frame at the beginning of the frame. */
 	inline void BeginUpdateSettings()
 	{
 		bVisible = true;
@@ -108,54 +104,84 @@ public:
 		ViewportOverrideId.Empty();
 	}
 
+	/** Finishes setting the viewport in the game thread. Called once per frame at the end. */
 	inline void FinishUpdateSettings()
 	{
 		bPreviewReadPixels = false;
 	}
 
-	inline const FString& GetParentViewportId() const
-	{
-		return ParentViewportId;
-	}
-
+	/** Returns true if the viewport is assigned to a parent viewport. */
 	inline bool IsViewportHasParent() const
 	{
 		return !ParentViewportId.IsEmpty();
 	}
 
+	/** Get the name of the parent viewport. */
+	inline const FString& GetParentViewportId() const
+	{
+		return ParentViewportId;
+	}
+
+	/** Assign parent viewport to this.
+	* The main idea is copiing some render settings and math from the parent viewport.
+	* This is used for a 'link' projection policy to render LC and CK from the same frustum assigned as the parent (outer for LC, incamera for CK).
+	* Also, child viewports are only updated when the parent viewport is updated (sorted in ViewportManager/Proxy).
+	* 
+	* @param InParentViewportId - parent viewport name
+	* @param InParentSettings   - parent viewport rendering settings.
+	*/
+	inline void AssignParentViewport(const FString& InParentViewportId, const FDisplayClusterViewport_RenderSettings& InParentSettings)
+	{
+		ParentViewportId = InParentViewportId;
+
+		// Inherit values from parent viewport:
+		CameraId = InParentSettings.CameraId;
+		Rect = InParentSettings.Rect;
+
+		bForceMono = InParentSettings.bForceMono;
+
+		GPUIndex = (GPUIndex < 0) ? InParentSettings.GPUIndex : GPUIndex;
+		StereoGPUIndex = (StereoGPUIndex < 0) ? InParentSettings.StereoGPUIndex : StereoGPUIndex;
+
+		RenderFamilyGroup = (RenderFamilyGroup < 0) ? InParentSettings.RenderFamilyGroup : RenderFamilyGroup;
+	}
+
+	/** The viewport can be overridden from another viewport. This function returns true if it is. */
+	inline bool IsViewportOverridden() const
+	{
+		return ViewportOverrideMode != EDisplayClusterViewportOverrideMode::None && !ViewportOverrideId.IsEmpty();
+	}
+
+	/** Getting the override mode that is currently in use. */
+	inline EDisplayClusterViewportOverrideMode GetViewportOverrideMode() const
+	{
+		return IsViewportOverridden() ? ViewportOverrideMode : EDisplayClusterViewportOverrideMode::None;
+	}
+
+	/** Get the name of the viewport used as the image source. */
+	inline const FString& GetViewportOverrideId() const
+	{
+		return ViewportOverrideId;
+	}
+
+	/** Set an override for viewport images from another viewport.
+	* 
+	* @param InViewportOverrideId   - The name of the viewport used as the image source.
+	* @param InViewportOverrideMode - Override mode, which defines its rules.
+	*/
 	inline void SetViewportOverride(const FString& InViewportOverrideId, const EDisplayClusterViewportOverrideMode InViewportOverrideMode = EDisplayClusterViewportOverrideMode::All)
 	{
 		ViewportOverrideMode = InViewportOverrideMode;
 		ViewportOverrideId = InViewportOverrideId;
 	}
 
-	inline bool IsViewportOverrided() const
-	{
-		return ViewportOverrideMode != EDisplayClusterViewportOverrideMode::None && !ViewportOverrideId.IsEmpty();
-	}
-
-	// Call this after UpdateSettings()
-	inline void AssignParentViewport(const FString& InParentViewportId, const FDisplayClusterViewport_RenderSettings& InParentSettings, bool Inherit = true)
-	{
-		ParentViewportId = InParentViewportId;
-
-		// Inherit values from parent viewport:
-		if (Inherit)
-		{
-			CameraId = InParentSettings.CameraId;
-			Rect = InParentSettings.Rect;
-
-			bForceMono = InParentSettings.bForceMono;
-
-			GPUIndex = (GPUIndex < 0) ? InParentSettings.GPUIndex : GPUIndex;
-			StereoGPUIndex = (StereoGPUIndex < 0) ? InParentSettings.StereoGPUIndex : StereoGPUIndex;
-
-			RenderFamilyGroup = (RenderFamilyGroup < 0) ? InParentSettings.RenderFamilyGroup : RenderFamilyGroup;
-		}
-	}
-
 protected:
 	// Parent viewport name
 	FString ParentViewportId;
-};
 
+	// Override resources from another viewport. The name of the viewport used as the image source.
+	FString ViewportOverrideId;
+
+	// Override mode, which defines its rules.
+	EDisplayClusterViewportOverrideMode ViewportOverrideMode = EDisplayClusterViewportOverrideMode::None;
+};

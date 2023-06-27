@@ -71,7 +71,7 @@ public:
 	void UpdateDeferredResources_RenderThread(FRHICommandListImmediate& RHICmdList) const;
 
 	/** Apply WarpBlend and resolve to frame resources. */
-	void UpdateFrameResources_RenderThread(FRHICommandListImmediate& RHICmdList, bool bWarpBlendEnabled) const;
+	void UpdateFrameResources_RenderThread(FRHICommandListImmediate& RHICmdList) const;
 
 	/** Release all referenced objects and resources. */
 	void Release_RenderThread();
@@ -81,9 +81,6 @@ public:
 
 	/** Unregister exist viewport proxy. */
 	void DeleteViewport_RenderThread(const TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>& InViewportProxy);
-
-	/** Reset all references to InDeletedResourcePtr for all viewport proxies and delete the resource. */
-	void DeleteResource_RenderThread(FDisplayClusterViewportResource* InDeletedResourcePtr);
 
 	/** Initialize ViewportManagerProxy from ViewportManager. */
 	void Initialize(FDisplayClusterViewportManager& InViewportManager);

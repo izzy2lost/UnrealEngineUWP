@@ -142,7 +142,7 @@ bool FDisplayClusterRenderFrameManager::BuildSimpleFrame(FViewport* InViewport, 
 				FDisplayClusterRenderFrameTarget FrameRenderTarget;
 				{
 					// Simple frame use unique RTT  for each viewport, so disable RTT when viewport rendering disabled
-					FrameRenderTarget.bShouldUseRenderTarget = ViewportIt->RenderTargets.Num() > 0;
+					FrameRenderTarget.bShouldUseRenderTarget = ViewportIt->Resources[EDisplayClusterViewportResource::RenderTargets].Num() > 0;
 
 					FrameRenderTarget.ViewFamilies.Add(FrameViewFamily);
 

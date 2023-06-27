@@ -10,10 +10,9 @@
 #include "Templates/SharedPointer.h"
 
 #include "Render/Viewport/IDisplayClusterViewportProxy.h"
+#include "Render/Viewport/DisplayClusterViewportResources.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_OverscanSettings.h"
 
-class FDisplayClusterViewportRenderTargetResource;
-class FDisplayClusterViewportTextureResource;
 class FDisplayClusterViewportProxyData;
 class IDisplayClusterViewportManagerProxy;
 class FDisplayClusterViewportManagerProxy;
@@ -143,7 +142,6 @@ public:
 	// Resolve resource contexts
 	virtual bool ResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, const EDisplayClusterViewportResourceType InputResourceType, const EDisplayClusterViewportResourceType OutputResourceType, const int32 InContextNum = INDEX_NONE) const override;
 
-	virtual EDisplayClusterViewportResourceType GetOutputResourceType_RenderThread() const override;
 
 	virtual const class IDisplayClusterViewportManagerProxy* GetViewportManagerProxy_RenderThread() const override;
 
@@ -153,8 +151,22 @@ public:
 	// ~IDisplayClusterViewportProxy
 	///////////////////////////////
 
-	/** Release internal resource refs. */
-	void HandleResourceDelete_RenderThread(class FDisplayClusterViewportResource* InDeletedResourcePtr);
+	/** Get valid resource type
+	 * 
+	 * @param InResourceType - the requested resource type from the entire namespace
+	 * 
+	 * @return - the type of resource actually used, depending on the current configuration of the rendering pipeline
+	 */
+	EDisplayClusterViewportResourceType GetResourceType_RenderThread(const EDisplayClusterViewportResourceType& InResourceType) const;
+
+	/** Get actual region for viewport context
+	 * 
+	 * @param InResourceType - the requested resource type from the entire namespace
+	 * @param InRect - viewport context region
+	 * 
+	 * @return - InRect with applied overscan for RTT
+	 */
+	FIntRect GetFinalContextRect(const EDisplayClusterViewportResourceType InResourceType, const FIntRect& InRect) const;
 
 	/** Resolve viewport RTT: render OCIO, PP, generate MIPS, etc.
 	 *
@@ -262,7 +274,9 @@ public:
 		return false;
 	}
 
-	FIntRect GetFinalContextRect(const EDisplayClusterViewportResourceType InputResourceType, const FIntRect& InRect) const;
+public:
+	/* Returns true if the warp can be applied to this viewport. */
+	bool ShouldApplyWarpBlend_RenderThread() const;
 
 private:
 	bool ImplGetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture2D*>& OutResources, TArray<FIntRect>& OutResourceRects, const int32 InRecursionDepth) const;
@@ -357,29 +371,17 @@ protected:
 	// Viewport contexts (left/center/right eyes)
 	mutable TArray<FDisplayClusterViewport_Context> Contexts;
 
-	// View family render to this resources
-	TArray<FDisplayClusterViewportRenderTargetResource*> RenderTargets;
+	// Unified repository of viewport resources
+	FDisplayClusterViewportResources Resources;
 
-	// Projection policy output resources
-	TArray<FDisplayClusterViewportTextureResource*> OutputFrameTargetableResources;
-	TArray<FDisplayClusterViewportTextureResource*> AdditionalFrameTargetableResources;
-
-#if WITH_EDITOR
-	FTextureRHIRef OutputPreviewTargetableResource;
+	// Used ViewStates
 	TArray<TSharedPtr<FSceneViewStateReference, ESPMode::ThreadSafe>> ViewStates;
 	
+#if WITH_EDITOR
 	mutable bool bPreviewReadPixels = false;
 	mutable FCriticalSection PreviewPixelsCSGuard;
 	mutable TSharedPtr<FDisplayClusterViewportReadPixelsData, ESPMode::ThreadSafe> PreviewPixels;
 #endif
 
-	// unique viewport resources
-	TArray<FDisplayClusterViewportTextureResource*> InputShaderResources;
-	TArray<FDisplayClusterViewportTextureResource*> AdditionalTargetableResources;
-	TArray<FDisplayClusterViewportTextureResource*> MipsShaderResources;
-
 	TWeakPtr<FDisplayClusterViewportManagerProxy, ESPMode::ThreadSafe> ViewportManagerProxyWeakRef;
-
-	IDisplayClusterShaders& ShadersAPI;
 };
-

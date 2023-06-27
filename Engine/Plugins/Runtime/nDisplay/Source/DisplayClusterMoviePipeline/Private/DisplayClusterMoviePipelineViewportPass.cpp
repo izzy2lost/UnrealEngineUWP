@@ -18,7 +18,7 @@
 #include "RHIUtilities.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-namespace DisplayClusterMoviePipelineHelpers
+namespace UE::DisplayCluster::MoviePipelineViewportPass
 {
 	static void DisplayClusterWarpBlendImpl_RenderThread(FRHICommandListImmediate& RHICmdList, const FTextureRHIRef& RenderTargetRHI, IDisplayClusterViewportManagerProxy* InViewportManagerProxy, const FString& InViewportId, const FIntPoint& OffsetMin, const FIntPoint& OffsetMax)
 	{
@@ -80,7 +80,7 @@ namespace DisplayClusterMoviePipelineHelpers
 		}
 	}
 };
-using namespace DisplayClusterMoviePipelineHelpers;
+using namespace UE::DisplayCluster::MoviePipelineViewportPass;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // UDisplayClusterMoviePipelineViewportPassBase

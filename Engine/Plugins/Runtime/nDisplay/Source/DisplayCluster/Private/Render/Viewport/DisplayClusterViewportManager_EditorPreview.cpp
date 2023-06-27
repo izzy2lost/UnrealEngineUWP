@@ -3,8 +3,6 @@
 #include "Render/Viewport/DisplayClusterViewportManager.h"
 #include "Render/Viewport/DisplayClusterViewportManagerProxy.h"
 
-#if WITH_EDITOR
-
 #include "EngineModule.h"
 #include "CanvasTypes.h"
 #include "LegacyScreenPercentageDriver.h"
@@ -18,6 +16,7 @@
 #include "Render/Projection/IDisplayClusterProjectionPolicy.h"
 #include "Render/Viewport/DisplayClusterViewport.h"
 #include "Render/Viewport/DisplayClusterViewport_CustomPostProcessSettings.h"
+#include "Render/Viewport/Resource/DisplayClusterViewportResource.h"
 
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrame.h"
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
@@ -32,6 +31,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportManager
 ///////////////////////////////////////////////////////////////////////////////////////
+#if WITH_EDITOR
 void FDisplayClusterViewportManager::ImplUpdatePreviewRTTResources()
 {
 	check(IsInGameThread());
@@ -81,10 +81,12 @@ void FDisplayClusterViewportManager::ImplUpdatePreviewRTTResources()
 		if (DesiredViewport.IsValid())
 		{
 			FTextureRHIRef& PreviewRTT = PreviewRenderTargetableTextures[ViewportIndex];
-			if (PreviewRTT.IsValid())
+			if (PreviewRTT.IsValid()
+				&& !DesiredViewport->Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources].IsEmpty()
+				&& DesiredViewport->Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources][0].IsValid())
 			{
 				// Use mapped preview viewport
-				DesiredViewport->OutputPreviewTargetableResource = PreviewRTT;
+				DesiredViewport->Resources[EDisplayClusterViewportResource::OutputPreviewTargetableResources][0]->SetExternalViewportResourceRHI(PreviewRTT);
 			}
 			else
 			{
@@ -94,6 +96,7 @@ void FDisplayClusterViewportManager::ImplUpdatePreviewRTTResources()
 		}
 	}
 }
+#endif
 
 void FDisplayClusterViewportManager::OnPreGarbageCollect()
 {
@@ -119,11 +122,14 @@ bool FDisplayClusterViewportManager::RenderInEditor(FDisplayClusterRenderFrame& 
 	}
 
 	const ADisplayClusterRootActor* RootActor = GetRootActor();
+
+#if WITH_EDITOR
 	if (RootActor && !RootActor->IsEditorRenderEnabled())
 	{
 		bOutFrameRendered = true;
 		return true;
 	}
+#endif
 	
 	FSceneInterface* PreviewScene = CurrentWorld->Scene;
 	FEngineShowFlags EngineShowFlags = FEngineShowFlags(EShowFlagInitMode::ESFIM_Game);
@@ -169,9 +175,12 @@ bool FDisplayClusterViewportManager::RenderInEditor(FDisplayClusterRenderFrame& 
 				ConfigureViewFamily(RenderTargetIt, ViewFamiliesIt, ViewFamily);
 
 				if (RenderTargetIt.CaptureMode == EDisplayClusterViewportCaptureMode::Default
+#if WITH_EDITOR
 					&& RootActor
 					&& !RootActor->bPreviewEnablePostProcess
-					&& RootActor->DoObserversNeedPostProcessRenderTarget())
+					&& RootActor->DoObserversNeedPostProcessRenderTarget()
+#endif
+				)
 				{
 					if (ViewFamily.EngineShowFlags.TemporalAA)
 					{
@@ -276,5 +285,3 @@ bool FDisplayClusterViewportManager::RenderInEditor(FDisplayClusterRenderFrame& 
 
 	return true;
 }
-
-#endif

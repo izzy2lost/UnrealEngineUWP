@@ -2,14 +2,14 @@
 
 #pragma once
 
+#include "Render/Viewport/DisplayClusterViewportResources.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_RenderSettings.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_RenderSettingsICVFX.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_PostRenderSettings.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_OverscanSettings.h"
 
 class IDisplayClusterProjectionPolicy;
-class FDisplayClusterViewportTextureResource;
-class FDisplayClusterViewportRenderTargetResource;
+class FDisplayClusterViewportResource;
 class FDisplayClusterViewport;
 class FDisplayClusterViewportProxy;
 class FDisplayClusterViewport_Context;
@@ -49,21 +49,9 @@ private:
 	// Viewport contexts (left/center/right eyes)
 	TArray<FDisplayClusterViewport_Context>      Contexts;
 
-	// View family render to this resources
-	TArray<FDisplayClusterViewportRenderTargetResource*> RenderTargets;
+	// Unified repository of viewport resources
+	FDisplayClusterViewportResources Resources;
 
-	// Projection policy output resources
-	TArray<FDisplayClusterViewportTextureResource*> OutputFrameTargetableResources;
-	TArray<FDisplayClusterViewportTextureResource*> AdditionalFrameTargetableResources;
-
-#if WITH_EDITOR
-	FTextureRHIRef OutputPreviewTargetableResource;
+	// Used ViewStates
 	TArray<TSharedPtr<FSceneViewStateReference, ESPMode::ThreadSafe>> ViewStates;
-#endif
-
-	// unique viewport resources
-	TArray<FDisplayClusterViewportTextureResource*> InputShaderResources;
-	TArray<FDisplayClusterViewportTextureResource*> AdditionalTargetableResources;
-	TArray<FDisplayClusterViewportTextureResource*> MipsShaderResources;
 };
-

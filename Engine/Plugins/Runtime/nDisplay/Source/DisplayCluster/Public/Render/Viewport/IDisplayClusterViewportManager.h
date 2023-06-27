@@ -137,7 +137,6 @@ public:
 	/** Add internal DCVM objects to the reference collector. */
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) = 0;
 
-#if WITH_EDITOR
 	/**
 	* Render in editor (preview)
 	* [Game thread func]
@@ -152,7 +151,6 @@ public:
 	* @return - true, if render success
 	*/
 	virtual bool RenderInEditor(FDisplayClusterRenderFrame& InRenderFrame, FViewport* InViewport, const uint32 InFirstViewportNum, const int32 InViewportsAmount, int32& OutViewportsAmount, bool& bOutFrameRendered) = 0;
-#endif
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/**

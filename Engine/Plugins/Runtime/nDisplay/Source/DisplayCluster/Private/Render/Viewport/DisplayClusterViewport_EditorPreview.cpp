@@ -7,8 +7,6 @@
 
 #include "Misc/DisplayClusterLog.h"
 
-#if WITH_EDITOR
-
 #include "EngineModule.h"
 #include "CanvasTypes.h"
 #include "LegacyScreenPercentageDriver.h"
@@ -257,6 +255,8 @@ FMatrix FDisplayClusterViewport::ImplPreview_GetStereoProjectionMatrix(const uin
 
 	return PrjMatrix;
 }
+
+#if WITH_EDITOR
 
 bool FDisplayClusterViewport::GetPreviewPixels(TSharedPtr<FDisplayClusterViewportReadPixelsData, ESPMode::ThreadSafe>& OutPixelsData) const
 {

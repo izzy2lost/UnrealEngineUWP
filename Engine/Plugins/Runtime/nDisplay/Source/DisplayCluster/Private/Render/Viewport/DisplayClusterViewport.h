@@ -13,14 +13,13 @@
 #include "Render/Viewport/DisplayClusterViewport_CustomPostProcessSettings.h"
 #include "Render/Viewport/DisplayClusterViewport_VisibilitySettings.h"
 #include "Render/Viewport/DisplayClusterViewport_OpenColorIO.h"
+#include "Render/Viewport/DisplayClusterViewportResources.h"
 
 #include "SceneViewExtension.h"
 #include "SceneViewExtensionContext.h"
 
 #include "Templates/SharedPointer.h"
 
-class FDisplayClusterViewportRenderTargetResource;
-class FDisplayClusterViewportTextureResource;
 class FDisplayClusterViewportManager;
 class FDisplayClusterViewportManagerProxy;
 class FDisplayClusterRenderTargetManager;
@@ -168,11 +167,11 @@ public:
 	FDisplayClusterViewportManager* GetViewportManagerImpl() const;
 	FDisplayClusterViewportManagerProxy* GetViewportManagerProxyImpl() const;
 
-#if WITH_EDITOR
 	FSceneView* ImplCalcScenePreview(class FSceneViewFamilyContext& InOutViewFamily, uint32 ContextNum);
 	bool    ImplPreview_CalculateStereoViewOffset(const uint32 InContextNum, FRotator& ViewRotation, const float WorldToMeters, FVector& ViewLocation);
 	FMatrix ImplPreview_GetStereoProjectionMatrix(const uint32 InContextNum);
 
+#if WITH_EDITOR
 	bool GetPreviewPixels(TSharedPtr<class FDisplayClusterViewportReadPixelsData, ESPMode::ThreadSafe>& OutPixelsData) const;
 #endif //WITH_EDITOR
 
@@ -249,17 +248,12 @@ private:
 	FIntPoint GetDesiredContextSize(const FIntPoint& InSize, const FDisplayClusterRenderFrameSettings& InFrameSettings) const;
 	float GetCustomBufferRatio(const FDisplayClusterRenderFrameSettings& InFrameSettings) const;
 
-#if WITH_EDITOR
-	// Support view states for preview
 private:
+	// Support view states for preview
 	FSceneViewStateInterface* GetViewState(uint32 ViewIndex);
 
 public:
 	void CleanupViewState();
-
-private:
-	TArray<TSharedPtr<FSceneViewStateReference, ESPMode::ThreadSafe>> ViewStates;
-#endif
 
 public:
 	/** nDisplay OpenColorIO object. */
@@ -281,6 +275,9 @@ public:
 
 	// viewport OutputRemap feature
 	FDisplayClusterViewportRemap ViewportRemap;
+
+	// Unified repository of viewport resources
+	FDisplayClusterViewportResources Resources;
 
 protected:
 	friend FDisplayClusterViewportProxy;
@@ -318,29 +315,15 @@ protected:
 	// Viewport contexts (left/center/right eyes)
 	TArray<FDisplayClusterViewport_Context> Contexts;
 
-	// View family render to this resources
-	TArray<FDisplayClusterViewportRenderTargetResource*> RenderTargets;
-	
-	// Projection policy output resources
-	TArray<FDisplayClusterViewportTextureResource*> OutputFrameTargetableResources;
-	TArray<FDisplayClusterViewportTextureResource*> AdditionalFrameTargetableResources;
-
-#if WITH_EDITOR
-	friend class UDisplayClusterPreviewComponent;
-
-	FTextureRHIRef OutputPreviewTargetableResource;
-#endif
-
-	// unique viewport resources
-	TArray<FDisplayClusterViewportTextureResource*> InputShaderResources;
-	TArray<FDisplayClusterViewportTextureResource*> AdditionalTargetableResources;
-	TArray<FDisplayClusterViewportTextureResource*> MipsShaderResources;
-
 	// viewport owners
 	TWeakPtr<FDisplayClusterViewportManager, ESPMode::ThreadSafe> ViewportManagerWeakPtr;
 	TWeakPtr<FDisplayClusterViewportManagerProxy, ESPMode::ThreadSafe> ViewportManagerProxyWeakPtr;
 
 private:
+	// View states (preview only)
+	TArray<TSharedPtr<FSceneViewStateReference, ESPMode::ThreadSafe>> ViewStates;
+
+	// Auxiliary variable for the log
 	bool bProjectionPolicyCalculateViewWarningOnce = false;
 
 	// Near clipping plane value (obtained from the GetDesiredView() functions).
