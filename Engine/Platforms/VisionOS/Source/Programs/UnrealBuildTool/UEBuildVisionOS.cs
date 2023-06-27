@@ -59,14 +59,16 @@ namespace UnrealBuildTool
 				return;
 			}
 
-			if ((Target.Platform == UnrealTargetPlatform.Win64) || (Target.Platform == UnrealTargetPlatform.Mac))
+			if (!Target.bBuildRequiresCookedData)
 			{
-				// allow standalone tools to use targetplatform modules, without needing Engine
-				if (Target.bForceBuildTargetPlatforms)
-				{
-					// @todo visionos: Make the module
-					// InModule.AddPlatformSpecificDynamicallyLoadedModule("VisionOSTargetPlatform");
-				}
+			    if (Target.Platform == UnrealTargetPlatform.Mac || Target.Platform == UnrealTargetPlatform.Win64)
+			    {
+				    if ((ModuleName == "Engine" && Target.bBuildDeveloperTools) ||
+					    (ModuleName == "TargetPlatform" && Target.bForceBuildTargetPlatforms))
+				    {
+					    Rules.DynamicallyLoadedModuleNames.Add("VisionOSTargetPlatform");
+				    }
+			    }
 			}
 		}
 

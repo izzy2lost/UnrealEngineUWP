@@ -446,21 +446,12 @@ namespace UnrealBuildTool
 			else
 			{
 				// add platforms that have synced platform support
-				if (InstalledPlatformInfo.IsValidPlatform(UnrealTargetPlatform.Mac, EProjectType.Code))
+				foreach (UnrealTargetPlatform ApplePlatform in UEBuildPlatform.GetPlatformsInGroup(UnrealPlatformGroup.Apple))
 				{
-					XcodePlatforms.Add(UnrealTargetPlatform.Mac);
-				}
-				if (InstalledPlatformInfo.IsValidPlatform(UnrealTargetPlatform.IOS, EProjectType.Code))
-				{
-					XcodePlatforms.Add(UnrealTargetPlatform.IOS);
-				}
-				if (InstalledPlatformInfo.IsValidPlatform(UnrealTargetPlatform.TVOS, EProjectType.Code))
-				{
-					XcodePlatforms.Add(UnrealTargetPlatform.TVOS);
-				}
-				if (InstalledPlatformInfo.IsValidPlatform(UnrealTargetPlatform.VisionOS, EProjectType.Code))
-				{
-					XcodePlatforms.Add(UnrealTargetPlatform.VisionOS);
+					if (InstalledPlatformInfo.IsValidPlatform(ApplePlatform, EProjectType.Code) && UEBuildPlatform.TryGetBuildPlatform(ApplePlatform, out _))
+					{
+						XcodePlatforms.Add(ApplePlatform);
+					}
 				}
 			}
 

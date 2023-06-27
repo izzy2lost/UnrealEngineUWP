@@ -337,8 +337,8 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 
 		// settings read from project configs
 		public IOSProjectSettings? IOSProjectSettings;
-		public TVOSProjectSettings? TVOSProjectSettings;
-		public VisionOSProjectSettings? VisionOSProjectSettings;
+		public IOSProjectSettings? TVOSProjectSettings;
+		public IOSProjectSettings? VisionOSProjectSettings;
 
 		// Name of the product (usually the project name, but UE5.xcodeproj is actually UnrealGame product)
 		public string ProductName;
@@ -524,8 +524,13 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 
 			if (AllConfigs.Any(x => x.bSupportsVisionOS))
 			{
-				VisionOSPlatform VisionOSPlatform = ((VisionOSPlatform)UEBuildPlatform.GetBuildPlatform(UnrealTargetPlatform.VisionOS));
-				VisionOSProjectSettings = VisionOSPlatform.ReadProjectSettings(UProjectFileLocation);
+				// this may not exist since it's a PlatformExtension and the VisionOS files may not be preset
+				UEBuildPlatform? BuildPlatform;
+				if (UEBuildPlatform.TryGetBuildPlatform(UnrealTargetPlatform.VisionOS, out BuildPlatform))
+				{
+					IOSPlatform VisionOSPlatform = (IOSPlatform)BuildPlatform;
+					VisionOSProjectSettings = VisionOSPlatform.ReadProjectSettings(UProjectFileLocation);
+				}
 			}
 
 			return true;
