@@ -773,6 +773,11 @@ public:
 	COREUOBJECT_API void CallAddReferencedObjects(FReferenceCollector& Collector);
 
 	/**
+	* Marks the object as Reachable if it's currently marked as MaybeUnreachable by incremental GC.
+	*/
+	COREUOBJECT_API void MarkAsReachable() const;
+
+	/**
 	 * Save information for StaticAllocateObject in the case of overwriting an existing object.
 	 * StaticAllocateObject will call delete on the result after calling Restore()
 	 *
@@ -1807,6 +1812,22 @@ const T* GetValid(const T* Test)
 {
 	static_assert(std::is_base_of<UObject, T>::value, "GetValid can only work with UObject-derived classes");
 	return IsValid(Test) ? Test : nullptr;
+}
+
+/**
+* Helper function to mark object as reachable when performing Incremental GC
+*
+* @param	Object			Object to mark as reachable
+* @return	The same Object pointer that was passed to the function
+*/
+template <typename T>
+FORCEINLINE T* MarkAsReachable(T* Object)
+{
+	if (Object)
+	{
+		Object->MarkAsReachable();
+	}
+	return Object;
 }
 
 #if WITH_EDITOR

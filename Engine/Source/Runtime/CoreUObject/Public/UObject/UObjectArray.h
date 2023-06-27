@@ -167,19 +167,34 @@ struct FUObjectItem
 	{
 		ThisThreadAtomicallySetFlag(EInternalObjectFlags::Unreachable);
 	}
+	FORCEINLINE void SetMaybeUnreachable()
+	{
+		ThisThreadAtomicallySetFlag(EInternalObjectFlags::MaybeUnreachable);
+	}
 	FORCEINLINE void ClearUnreachable()
 	{
 		ThisThreadAtomicallyClearedFlag(EInternalObjectFlags::Unreachable);
+	}
+	FORCEINLINE void ClearMaybeUnreachable()
+	{
+		ThisThreadAtomicallyClearedFlag(EInternalObjectFlags::MaybeUnreachable);
 	}
 	FORCEINLINE bool IsUnreachable() const
 	{
 		return !!(GetFlagsInternal() & int32(EInternalObjectFlags::Unreachable));
 	}
+	FORCEINLINE bool IsMaybeUnreachable() const
+	{
+		return !!(Flags & int32(EInternalObjectFlags::MaybeUnreachable));
+	}
 	FORCEINLINE bool ThisThreadAtomicallyClearedRFUnreachable()
 	{
 		return ThisThreadAtomicallyClearedFlag(EInternalObjectFlags::Unreachable);
 	}
-
+	FORCEINLINE bool ThisThreadAtomicallyClearedMaybeUnreachable()
+	{
+		return ThisThreadAtomicallyClearedFlag(EInternalObjectFlags::MaybeUnreachable);
+	}
 	FORCEINLINE void SetPendingKill()
 	{
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS

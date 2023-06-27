@@ -811,6 +811,10 @@ UObject* StaticFindObjectFastInternalThreadSafe(FUObjectHashTables& ThreadHash, 
 		}
 	}
 	// Not found.
+	if (Result && UE::GC::Private::GIsIncrementalReachabilityPending)
+	{
+		Result->MarkAsReachable();
+	}
 	return Result;
 }
 
@@ -1135,6 +1139,10 @@ void GetObjectsWithOuter(const class UObjectBase* Outer, TArray<UObject *>& Resu
 			UObject *Object = static_cast<UObject *>(*It);
 			if (!Object->HasAnyFlags(ExclusionFlags) && !Object->HasAnyInternalFlags(ExclusionInternalFlags))
 			{
+				if (UE::GC::Private::GIsIncrementalReachabilityPending)
+				{
+					Object->MarkAsReachable();
+				}
 				Results.Add(Object);
 			}
 		}
@@ -1154,6 +1162,10 @@ void GetObjectsWithOuter(const class UObjectBase* Outer, TArray<UObject *>& Resu
 						UObject *Object = static_cast<UObject *>(*It);
 						if (!Object->HasAnyFlags(ExclusionFlags) && !Object->HasAnyInternalFlags(ExclusionInternalFlags))
 						{
+							if (UE::GC::Private::GIsIncrementalReachabilityPending)
+							{
+								Object->MarkAsReachable();
+							}
 							Results.Add(Object);
 						}
 					}
@@ -1202,6 +1214,10 @@ void ForEachObjectWithOuterBreakable(const class UObjectBase* Outer, TFunctionRe
 			UObject *Object = static_cast<UObject*>(*It);
 			if (!Object->HasAnyFlags(ExclusionFlags) && !Object->HasAnyInternalFlags(ExclusionInternalFlags))
 			{
+				if (UE::GC::Private::GIsIncrementalReachabilityPending)
+				{
+					Object->MarkAsReachable();
+				}
 				if (!Operation(Object))
 				{
 					AllInners.Empty();
@@ -1254,6 +1270,10 @@ UObjectBase* FindObjectWithOuter(const class UObjectBase* Outer, const class UCl
 				}
 				Result = Object;
 				break;
+			}
+			if (Result && UE::GC::Private::GIsIncrementalReachabilityPending)
+			{
+				Result->MarkAsReachable();
 			}
 		}
 	}
@@ -1312,6 +1332,10 @@ void ForEachObjectWithPackage(const class UPackage* Package, TFunctionRef<bool(U
 				!Object->HasAnyInternalFlags(ExclusionInternalFlags) &&
 				bIsInPackage)
 			{
+				if (UE::GC::Private::GIsIncrementalReachabilityPending)
+				{
+					Object->MarkAsReachable();
+				}
 				if (!Operation(Object))
 				{
 					AllInners.Empty(AllInners.Max());
@@ -1400,6 +1424,10 @@ FORCEINLINE void ForEachObjectOfClasses_Implementation(FUObjectHashTables& Threa
 				UObject* Object = static_cast<UObject*>(*ObjectIt);
 				if (!Object->HasAnyFlags(ExcludeFlags) && !Object->HasAnyInternalFlags(ExclusionInternalFlags))
 				{
+					if (UE::GC::Private::GIsIncrementalReachabilityPending)
+					{
+						Object->MarkAsReachable();
+					}
 					Operation(Object);
 				}
 			}

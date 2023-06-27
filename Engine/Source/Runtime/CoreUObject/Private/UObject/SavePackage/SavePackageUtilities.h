@@ -190,7 +190,9 @@ public: // FEDLNodeHash is public only so that GetTypeHash can be defined
 		FEDLNodeHash(); // creates an uninitialized node; only use this to provide as an out parameter
 		FEDLNodeHash(const TArray<FEDLNodeData>* InNodes, FEDLNodeID InNodeID, EObjectEvent InObjectEvent);
 		FEDLNodeHash(TObjectPtr<UObject> InObject, EObjectEvent InObjectEvent);
+		FEDLNodeHash(const FEDLNodeHash& Other);
 		bool operator==(const FEDLNodeHash& Other) const;
+		FEDLNodeHash& operator=(const FEDLNodeHash& Other);
 		friend uint32 GetTypeHash(const FEDLNodeHash& A);
 
 		FName GetName() const;

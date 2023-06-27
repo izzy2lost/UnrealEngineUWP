@@ -34,6 +34,7 @@ enum class EGCOptions : uint32
 	Parallel = 1 << 0,					// Use all task workers to collect references, must be started on main thread
 	AutogenerateSchemas = 1 << 1,		// Assemble schemas for new UClasses
 	WithPendingKill = 1 << 2,			// Internal flag used by reachability analysis
+	IncrementalReachability = 1 << 3	// Run Reachability Analysis incrementally
 };
 ENUM_CLASS_FLAGS(EGCOptions);
 
@@ -59,6 +60,8 @@ public:
 
 namespace UE::GC
 {
+
+struct FStructArrayBlock;
 
 static constexpr uint32 ObjectLookahead = 16;
 
@@ -240,6 +243,26 @@ struct FProcessorStats
 	}
 };
 
+struct FStructArray
+{
+	FSchemaView Schema{ NoInit };
+	uint8* Data;
+	int32 Num;
+	uint32 Stride;
+};
+
+struct FSuspendedStructBatch
+{
+	FStructArrayBlock* Wip = nullptr;
+	FStructArray* WipIt = nullptr;
+
+	FORCEINLINE bool ContainsBatchData() const
+	{
+		return !!Wip;
+	}
+};
+
+
 /** Thread-local context containing initial objects and references to collect */
 struct alignas(PLATFORM_CACHE_LINE_SIZE) FWorkerContext
 {
@@ -268,6 +291,9 @@ public:
 #if ENABLE_GC_HISTORY
 	TMap<const UObject*, TArray<FGCDirectReference>*> History;
 #endif
+
+	FSuspendedStructBatch IncrementalStructs;
+	bool bIsSuspended = false;
 
 	FORCEINLINE UObject* GetReferencingObject()	{ return ReferencingObject;	}
 
@@ -319,14 +345,6 @@ struct FMemberWordUnpacked
 {
 	FMemberWordUnpacked(const FMemberPacked In[4]) : Members{In[0], In[1], In[2], In[3]} {}
 	FMemberUnpacked Members[4];
-};
-
-struct FStructArray
-{
-	FSchemaView Schema{NoInit};
-	uint8* Data;
-	int32 Num;
-	uint32 Stride;
 };
 
 struct FStridedReferenceArray
@@ -624,6 +642,10 @@ struct TDirectDispatcher
 	{
 		HandleKillableReferences(ToView(Array), MemberId, Origin);
 	}
+
+	void Suspend()
+	{
+	}
 };
 
 // Default implementation is to create new direct dispatcher
@@ -643,7 +665,9 @@ struct TGetDispatcherType
 //////////////////////////////////////////////////////////////////////////
 
 enum class ELoot { Nothing, Block, ARO, Context };
-COREUOBJECT_API ELoot StealWork(FWorkerContext& Context, FReferenceCollector& Collector, FWorkBlock*& OutBlock);
+COREUOBJECT_API ELoot StealWork(FWorkerContext& Context, FReferenceCollector& Collector, FWorkBlock*& OutBlock, EGCOptions Options);
+
+COREUOBJECT_API void SuspendWork(FWorkerContext& Context);
 
 /** Allocates contexts and coordinator, kicks worker tasks that also call ProcessSync. Processor is type-erased to void* to avoid templated code. */
 COREUOBJECT_API void ProcessAsync(void (*ProcessSync)(void*, FWorkerContext&), void* Processor, FWorkerContext& InitialContext);
@@ -694,6 +718,13 @@ StoleContext:
 				Context.ObjectsToSerialize.FreeOwningBlock(CurrentObjects.GetData());
 			}
 
+			if (Processor.IsTimeLimitExceeded())
+			{
+				Dispatcher.Suspend();
+				SuspendWork(Context);				
+				return;
+			}
+
 			int32 BlockSize = FWorkBlock::ObjectCapacity;
 			FWorkBlockifier& RemainingObjects = Context.ObjectsToSerialize;
 			FWorkBlock* Block = RemainingObjects.PopFullBlock<Options>();
@@ -719,7 +750,7 @@ StoleARO:
 				else if (Block = RemainingObjects.PopPartialBlock(/* out if successful */ BlockSize); Block);
 				else if (bIsParallel) // if constexpr yields MSVC unreferenced label warning
 				{
-					switch (StealWork(/* in-out */ Context, Collector, /* out */ Block))
+					switch (StealWork(/* in-out */ Context, Collector, /* out */ Block, Options))
 					{
 						case ELoot::Nothing:	break;				// Done, stop working
 						case ELoot::Block:		break;				// Stole full block, process it
@@ -837,6 +868,11 @@ public:
 	void UpdateDetailedStats(UObject* CurrentObject) {}
 	void LogDetailedStatsSummary() {}
 
+	FORCEINLINE bool IsTimeLimitExceeded() const
+	{
+		return false;
+	}
+
 	// Implement this in your derived class, don't make this virtual as it will affect performance!
 	//FORCEINLINE void HandleTokenStreamObjectReference(FWorkerContext& Context, UObject* ReferencingObject, UObject*& Object, FMemberId MemberId, EOrigin Origin, bool bAllowReferenceElimination)
 };
@@ -848,7 +884,7 @@ FORCEINLINE static void CollectReferences(ProcessorType& Processor, UE::GC::FWor
 	using namespace UE::GC;
 	using FastReferenceCollector = TFastReferenceCollector<ProcessorType, CollectorType>;
 	
-	if constexpr (IsParallel(ProcessorType::Options))
+	if (IsParallel(ProcessorType::Options) && !UE::GC::Private::GIsIncrementalReachabilityPending)
 	{
 		ProcessAsync([](void* P, FWorkerContext& C) { FastReferenceCollector(*reinterpret_cast<ProcessorType*>(P)).ProcessObjectArray(C); }, &Processor, Context);
 	}
