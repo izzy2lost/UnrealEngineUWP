@@ -71,14 +71,16 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 	UPROPERTY(EditAnywhere, Category=Settings, meta=(ClampMin="0.0"))
 	float RotationInterpSpeed = 10.f;
 
-	UPROPERTY(EditAnywhere, Category = Experimental, meta=(PinHiddenByDefault, ClampMin="0.0", ClampMax="1.0"))
-	float WarpingAlpha = 1.0f;
+	// Max correction we're allowed to do per-second when using interpolation.
+	// This minimizes pops when we have a large difference between current and target orientation.
+	UPROPERTY(EditAnywhere, Category=Settings, meta=(ClampMin="0.0", EditCondition="RotationInterpSpeed > 0.0f"))
+	float MaxCorrectionRateDegrees = 720.f;
 
-	UPROPERTY(EditAnywhere, Category = Experimental, meta=(PinHiddenByDefault, ClampMin="0.0", ClampMax="1.0"))
-	float OffsetAlpha = 0.0f;
-
-	UPROPERTY(EditAnywhere, Category = Experimental, meta=(PinHiddenByDefault, ClampMin="0.0", ClampMax="180.0"))
-	float MaxOffsetAngle = 70.0f;
+	// Whether to counter compensate interpolation by the animated root motion angle change over time.
+	// This helps to conserve the motion from our animation.
+	// Disable this if your root motion is expected to be jittery, and you want orientation warping to smooth it out.
+	UPROPERTY(EditAnywhere, Category=Settings, meta=(EditCondition="RotationInterpSpeed > 0.0f"))
+	bool bCounterCompenstateInterpolationByRootMotion = true;
 
 #if WITH_EDITORONLY_DATA
 	// Scale all debug drawing visualization by a factor
@@ -151,22 +153,12 @@ private:
 
 	// Computed IK bone indices for the specified foot definitions 
 	FOrientationWarpingFootData IKFootData;
-
-	// Internal previous frame root motion delta direction
-	FVector PreviousRootMotionDeltaDirection = FVector::ZeroVector;
-
-	// Internal previous frame orientation warping angle
-	float PreviousOrientationAngle = 0.f;
 	
+	// Internal current frame root motion delta direction
+	FVector RootMotionDeltaDirection = FVector::ZeroVector;
+
 	// Internal orientation warping angle
-	float ActualOrientationAngle = 0.f;
-
-	// Our component's heading
-	float ComponentHeading = 0.0;
-
-	// Our accumulated heading offset based on component frame deltas
-	float HeadingOffset = 0.0;
-	float LastOffsetAlpha = 0.0f;
+	float ActualOrientationAngleRad = 0.f;
 
 	FGraphTraversalCounter UpdateCounter;
 	bool bIsFirstUpdate = false;
