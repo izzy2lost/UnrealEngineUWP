@@ -1270,8 +1270,12 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		ETSRHistoryFormatBits(InputHistory.FormatBit) != HistoryFormatBits ||
 		false;
 
-	RDG_EVENT_SCOPE(GraphBuilder, "TemporalSuperResolution(%s) %dx%d -> %dx%d",
-		bSupportsAlpha ? TEXT("Alpha") : TEXT(""),
+	static auto CVarAntiAliasingQuality = IConsoleManager::Get().FindConsoleVariable(TEXT("sg.AntiAliasingQuality"));
+	check(CVarAntiAliasingQuality);
+
+	RDG_EVENT_SCOPE(GraphBuilder, "TemporalSuperResolution(sg.AntiAliasingQuality=%d%s) %dx%d -> %dx%d",
+		CVarAntiAliasingQuality->GetInt(),
+		bSupportsAlpha ? TEXT(" Alpha") : TEXT(""),
 		InputRect.Width(), InputRect.Height(),
 		OutputRect.Width(), OutputRect.Height());
 	RDG_GPU_STAT_SCOPE(GraphBuilder, TemporalSuperResolution);
