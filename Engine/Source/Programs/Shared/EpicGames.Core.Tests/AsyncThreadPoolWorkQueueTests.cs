@@ -22,8 +22,16 @@ public sealed class AsyncThreadPoolWorkQueueTests : IDisposable
 	public async Task ExecuteEnqueuedTasks()
 	{
 		int c = 0;
-		await _queue.EnqueueAsync((_) => { c++; return Task.CompletedTask; });
-		await _queue.EnqueueAsync((_) => { c++; return Task.CompletedTask; });
+		await _queue.EnqueueAsync((_) => 
+		{ 
+			c++; 
+			return Task.CompletedTask; 
+		});
+		await _queue.EnqueueAsync((_) => 
+		{ 
+			c++; 
+			return Task.CompletedTask; 
+		});
 		await _queue.ExecuteAsync();
 		Assert.AreEqual(2, c);
 	}
@@ -36,7 +44,11 @@ public sealed class AsyncThreadPoolWorkQueueTests : IDisposable
 		
 		for (int i = 0; i < numTasks; i++)
 		{
-			await _queue.EnqueueAsync((_) => { Interlocked.Increment(ref c); return Task.CompletedTask; });	
+			await _queue.EnqueueAsync((_) => 
+			{ 
+				Interlocked.Increment(ref c); 
+				return Task.CompletedTask; 
+			});	
 		}
 
 		await _queue.ExecuteAsync();
@@ -83,7 +95,12 @@ public sealed class AsyncThreadPoolWorkQueueTests : IDisposable
 		HashSet<int> uniqueTaskIds = new(NumTasks);
 		for (int i = 0; i < NumTasks; i++)
 		{
-			await queue.EnqueueAsync((_) => { uniqueTaskIds.Add(Task.CurrentId!.Value); Interlocked.Increment(ref c); return Task.CompletedTask; });	
+			await queue.EnqueueAsync((_) => 
+			{
+				uniqueTaskIds.Add(Task.CurrentId!.Value); 
+				Interlocked.Increment(ref c); 
+				return Task.CompletedTask; 
+			});
 		}
 		
 		await queue.ExecuteAsync();
