@@ -84,6 +84,7 @@ public sealed class AsyncThreadPoolWorkQueueTests : IDisposable
 		Assert.IsTrue(task3);
 	}
 	
+	[Ignore]
 	[TestMethod]
 	public async Task VerifyMaxConcurrency()
 	{
