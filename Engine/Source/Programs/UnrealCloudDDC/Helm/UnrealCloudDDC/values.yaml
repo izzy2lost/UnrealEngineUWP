@@ -410,3 +410,13 @@ worker:
     ##   - e2e-az2
     ##
     values: []
+
+
+## Prepare Nvme filesystem configuration
+## Optional feature that can be enabled to run a initContainer that prepares a already attached nvme drive
+## This works well with VMs with locally attached nvme drives
+## If you enable it you should set the list of drives that you expect to be enabled
+## if more then 1 drive is specified we raid0 these together into a single drive
+prepareNvmeFilesystem:
+  enabled: false
+  drives: []

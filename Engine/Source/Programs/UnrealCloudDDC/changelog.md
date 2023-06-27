@@ -1,7 +1,7 @@
 # Unreleased
 
 * Migration options from `0.3.0` have been updated to assume you have migrated by default.
-
+* Added `prepareNvmeFilesystem` section in Helm chart that creates a initContainer which will format a attached nvme drive.
 # 0.3.0
 * Azure blob storage now supports storage pools
 * Last access table refactoring - Moved the last accessing tracking out of the objects table and into a seperate table. Saves on compation work for Scylla. Set `Scylla.ListObjectsFromLastAccessTable` to migrate GC refs to use this new table (will be default in the next release).

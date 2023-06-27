@@ -44,8 +44,34 @@ spec:
       {{- if .Values.tolerations }}
       tolerations: {{- include "common.tplvalues.render" (dict "value" .Values.tolerations "context" $) | nindent 8 }}
       {{- end }}
+      {{- if or .Values.initContainers .Values.prepareNvmeFilesystem.enabled }}
+      initContainers: 
       {{- if .Values.initContainers }}
-      initContainers: {{- include "common.tplvalues.render" (dict "value" .Values.initContainers "context" $) | nindent 8 }}
+      {{- include "common.tplvalues.render" (dict "value" .Values.initContainers "context" $) | nindent 6 }}
+      {{- end }}
+      {{- if .Values.prepareNvmeFilesystem.enabled }}
+      {{- $drivesCount := len .Values.prepareNvmeFilesystem.drives }}
+      - name: nvme-mount
+        image: ubuntu
+        securityContext:
+          privileged: true
+        command: ["/bin/sh"]
+      {{- if eq $drivesCount 0 }}
+      {{ fail "You have to specify at least one drivepath to prepare when enabling the prepareNvmeFilesystem" }}
+      {{- else if gt $drivesCount 1 }}
+        args:
+        - -c
+        - "apt-get update && apt-get -y install mdadm && mdadm --create --verbose /dev/md0 --level=0 --raid-devices={{ $drivesCount }} {{ join " " .Values.prepareNvmeFilesystem.drives }} && mkfs.ext4 -E nodiscard /dev/md0 && mount /dev/md0 /data-nvme || exit 0"
+      {{- else }}
+        args: 
+        - -c
+        - mkfs.ext4 -E nodiscard {{ first .Values.prepareNvmeFilesystem.drives }} && mount {{ first .Values.prepareNvmeFilesystem.drives }} /data-nvme || exit 0
+      {{- end }}
+      {{- end }}   
+        volumeMounts:
+        - mountPath: /data-nvme
+          name: data
+          mountPropagation: Bidirectional
       {{- end }}
       containers:
       - name: {{ include "common.names.name" . }}
