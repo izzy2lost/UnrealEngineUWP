@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Horde.Agent.Execution;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Agent.Tests.Execution;
@@ -16,7 +17,7 @@ public class FakeWorkspaceMaterializerTest
 
 	public FakeWorkspaceMaterializerTest()
 	{
-		_settings = _wm.InitializeAsync(CancellationToken.None).Result;
+		_settings = _wm.InitializeAsync(NullLogger.Instance, CancellationToken.None).Result;
 	}
 
 	[TestCleanup]

@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Horde.Agent.Execution;
+using Microsoft.Extensions.Logging;
 
 namespace Horde.Agent.Tests.Execution;
 
@@ -32,7 +33,7 @@ public class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 	}
 	
 	/// <inheritdoc/>
-	public Task<WorkspaceMaterializerSettings> InitializeAsync(CancellationToken cancellationToken)
+	public Task<WorkspaceMaterializerSettings> InitializeAsync(ILogger logger, CancellationToken cancellationToken)
 	{
 		if (_isInitialized)
 		{
