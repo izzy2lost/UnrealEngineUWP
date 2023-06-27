@@ -14,7 +14,7 @@
 * multiple output formats at once (such as exr and jpeg).
 */
 UCLASS(Abstract)
-class UMovieGraphFileOutputNode : public UMovieGraphSettingNode
+class MOVIERENDERPIPELINECORE_API UMovieGraphFileOutputNode : public UMovieGraphSettingNode
 {
 	GENERATED_BODY()
 public:

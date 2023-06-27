@@ -134,7 +134,10 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 	}
 
 	// Copy the metadata in the parameters into the merged output version
-	OutMergedFormatArgs.FileMetadata = InParams.FileMetadata;
+	for (const TPair<FString, FString>& FileMetadata : InParams.FileMetadata)
+	{
+		OutMergedFormatArgs.FileMetadata.Add(FileMetadata.Key, FileMetadata.Value);
+	}
 
 	// We expect the incoming string to have a {file_dup} token where they want file duplication numbers to be handled
 	// but we don't actually want a value there (unless there's a collision). So we override it with an empty string by default.

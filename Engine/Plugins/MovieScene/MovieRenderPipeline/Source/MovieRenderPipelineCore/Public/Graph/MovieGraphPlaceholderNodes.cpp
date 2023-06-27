@@ -8,7 +8,6 @@
 #define LOCTEXT_NAMESPACE "MovieGraphNode"
 
 static const FText NodeCategory_Rendering = LOCTEXT("NodeCategory_Rendering", "Rendering");
-static const FText NodeCategory_OutputType = LOCTEXT("NodeCategory_OutputType", "Output Type");
 static const FText NodeCategory_Settings = LOCTEXT("NodeCategory_Settings", "Settings");
 
 #if WITH_EDITOR
@@ -35,33 +34,6 @@ FSlateIcon UMovieGraphPathTracedRendererNode::GetIconAndTint(FLinearColor& OutCo
 
 	OutColor = FLinearColor::White;
 	return DeferredRendererIcon;
-}
-#endif // WITH_EDITOR
-
-#if WITH_EDITOR
-FText UMovieGraphEXRSequenceNode::GetNodeTitle(const bool bGetDescriptive) const
-{
-	static const FText EXRSequenceNodeName = LOCTEXT("NodeName_EXRSequence", ".exr Sequence");
-	return EXRSequenceNodeName;
-}
-
-FText UMovieGraphEXRSequenceNode::GetMenuCategory() const
-{
-	return NodeCategory_OutputType;
-}
-
-FLinearColor UMovieGraphEXRSequenceNode::GetNodeTitleColor() const
-{
-	static const FLinearColor ImageSequenceNodeColor = FLinearColor(0.047f, 0.654f, 0.537f);
-	return ImageSequenceNodeColor;
-}
-
-FSlateIcon UMovieGraphEXRSequenceNode::GetIconAndTint(FLinearColor& OutColor) const
-{
-	static const FSlateIcon ImageSequenceIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Texture2D");
-
-	OutColor = FLinearColor::White;
-	return ImageSequenceIcon;
 }
 #endif // WITH_EDITOR
 

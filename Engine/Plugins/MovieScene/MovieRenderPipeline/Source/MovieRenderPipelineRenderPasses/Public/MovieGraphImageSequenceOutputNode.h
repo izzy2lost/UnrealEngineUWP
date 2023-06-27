@@ -1,10 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
 #include "Graph/Nodes/MovieGraphFileOutputNode.h"
+
 #include "IImageWrapper.h"
+#include "MoviePipelineEXROutput.h"
 #include "Styling/AppStyle.h"
 #include "Async/Future.h"
+
 #include "MovieGraphImageSequenceOutputNode.generated.h"
 
 // Forward Declare
@@ -37,6 +41,86 @@ protected:
 
 	/** A fence to keep track of when the Image Write queue has fully flushed. */
 	TFuture<void> FinalizeFence;
+};
+
+/**
+ * Image sequence output node that can write EXR files, which are optionally multi-layer.
+ */
+UCLASS()
+class UMovieGraphImageSequenceOutputNode_EXR : public UMovieGraphImageSequenceOutputNode
+{
+	GENERATED_BODY()
+
+public:
+	UMovieGraphImageSequenceOutputNode_EXR()
+	{
+		OutputFormat = EImageFormat::EXR;
+		Compression = EEXRCompressionFormat::PIZ;
+		bMultilayer = true;
+	}
+
+	virtual void OnReceiveImageDataImpl(UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const TSet<FMovieGraphRenderDataIdentifier>& InMask) override;
+
+#if WITH_EDITOR
+	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override 
+	{ 
+		static const FText EXRSequenceNodeName = NSLOCTEXT("MovieGraph", "NodeName_EXRSequence", ".exr Sequence");
+		return EXRSequenceNodeName;
+	}
+	
+	virtual FLinearColor GetNodeTitleColor() const override
+	{
+		return FLinearColor(0.047f, 0.654f, 0.537f);
+	}
+	
+	virtual FSlateIcon GetIconAndTint(FLinearColor& OutColor) const override
+	{
+		static const FSlateIcon ImageSequenceIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Texture2D");
+
+		OutColor = FLinearColor::White;
+		return ImageSequenceIcon;
+	}
+#endif
+	
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_Compression : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_bMultilayer : 1;
+	
+	/**
+	 * Which compression method should the resulting EXR file be compressed with.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(EditCondition="bOverride_Compression"), Category = "EXR")
+	EEXRCompressionFormat Compression;
+
+	/**
+	 * Whether all renders should be written to the same EXR file via multi-layer support. Not all software
+	 * supports reading multi-layer EXR files.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(EditCondition="bOverride_bMultilayer"), Category = "EXR")
+	bool bMultilayer;
+
+private:
+	/**
+	 * Generates filenames for each render pass (renderID), placed in OutFilenameToRenderIDs. Also provides the resolve
+	 * args that were created when resolving the filename in OutFilenameToResolveArgs. The generated mapping ensures
+	 * that each filename only points to renderIDs with a common resolution, since currently EXRs can only contain layers
+	 * with the same resolution.
+	 */
+	void GetFilenameToRenderIDMappings(
+		UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData,
+		TMap<FString, TArray<FMovieGraphRenderDataIdentifier>>& OutFilenameToRenderIDs,
+		TMap<FString, FMovieGraphResolveArgs>& OutFilenameToResolveArgs) const;
+	
+	/**
+	 * Generates the filename that the EXR will be written to, as well as the resulting resolve args via OutResolveArgs.
+	 * Use GetFilenameToRenderIDMappings() to guarantee that the filename respects EXR limitations.
+	 */
+	FString ResolveOutputFilename(
+		const UMovieGraphPipeline* InPipeline, const int32 ResolutionIndex, const UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData,
+		const FName& InBranchName, FMovieGraphResolveArgs& OutResolveArgs) const;
 };
 
 /**

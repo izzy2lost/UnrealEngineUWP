@@ -22,7 +22,8 @@ public class MovieRenderPipelineRenderPasses : ModuleRules
 				"ImageWrapper",				
 				"CinematicCamera", // For metadata
 				"MovieRenderPipelineSettings", // For settings
-				"ColorManagement"
+				"ColorManagement",
+				"SlateCore",
 			}
 		);
 
