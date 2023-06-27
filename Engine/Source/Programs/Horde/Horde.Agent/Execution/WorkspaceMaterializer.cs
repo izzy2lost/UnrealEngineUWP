@@ -114,7 +114,7 @@ public interface IWorkspaceMaterializer
 	/// <param name="cancellationToken">Cancellation token for the call</param>
 	/// <returns>Async task</returns>
 	public Task<WorkspaceMaterializerSettings> InitializeAsync(ILogger logger, CancellationToken cancellationToken);
-	
+
 	/// <summary>
 	/// Finalize and clean file system
 	/// </summary>
@@ -128,25 +128,18 @@ public interface IWorkspaceMaterializer
 	/// <param name="cancellationToken">Cancellation token for the call</param>
 	/// <returns>Settings for workspace materializer</returns>
 	public Task<WorkspaceMaterializerSettings> GetSettingsAsync(CancellationToken cancellationToken);
-	
+
 	/// <summary>
 	/// Materialize (or sync) a Perforce stream at a given change number
 	/// Once method has completed, file tree is available on disk.
 	/// </summary>
 	/// <param name="changeNum">Change number to materialize</param>
+	/// <param name="preflightChangeNum">Preflight change number to add</param>
 	/// <param name="options">Additional options</param>
 	/// <param name="cancellationToken">Cancellation token for the call</param>
 	/// <exception cref="Horde.Agent.Execution.WorkspaceMaterializationException">Thrown if syncing fails</exception>
 	/// <returns>Async task</returns>
-	public Task SyncAsync(int changeNum, SyncOptions options, CancellationToken cancellationToken);
-	
-	/// <summary>
-	/// Materializes all files from a shelved changelist
-	/// Any existing files will be clobbered. Usually run after a sync has been performed.
-	/// </summary>
-	/// <exception cref="Horde.Agent.Execution.WorkspaceMaterializationException">Thrown if unshelving fails</exception>
-	/// <returns>Async task</returns>
-	public Task UnshelveAsync(int changeNum, CancellationToken cancellationToken);
+	public Task SyncAsync(int changeNum, int preflightChangeNum, SyncOptions options, CancellationToken cancellationToken);
 }
 
 enum WorkspaceMaterializerType
@@ -172,13 +165,6 @@ interface IWorkspaceMaterializerFactory
 
 class WorkspaceMaterializerFactory : IWorkspaceMaterializerFactory
 {
-	private readonly ILoggerFactory _loggerFactory;
-	
-	public WorkspaceMaterializerFactory(ILoggerFactory loggerFactory)
-	{
-		_loggerFactory = loggerFactory;
-	}
-	
 	/// <inheritdoc/>
 	public IWorkspaceMaterializer CreateMaterializer(WorkspaceMaterializerType type, AgentWorkspace workspaceInfo, JobExecutorOptions options, bool forAutoSdk)
 	{
@@ -186,8 +172,8 @@ class WorkspaceMaterializerFactory : IWorkspaceMaterializerFactory
 		{
 			case WorkspaceMaterializerType.ManagedWorkspace:
 				return forAutoSdk
-					? new ManagedWorkspaceMaterializer(workspaceInfo, options.Session.WorkingDir, true, true)
-					: new ManagedWorkspaceMaterializer(workspaceInfo, options.Session.WorkingDir, false, false);
+					? new ManagedWorkspaceMaterializer(workspaceInfo, options.Session.WorkingDir, true)
+					: new ManagedWorkspaceMaterializer(workspaceInfo, options.Session.WorkingDir, false);
 
 			default:
 				throw new Exception("Unhandled materializer option: " + type);

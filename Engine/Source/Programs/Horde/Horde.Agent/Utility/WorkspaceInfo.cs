@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -291,21 +292,24 @@ namespace Horde.Agent.Utility
 		/// Removes the given cache file if it's invalid, and updates the metadata to reflect the version about to be synced
 		/// </summary>
 		/// <param name="cacheFile">Path to the cache file</param>
+		/// <returns>Async task</returns>
+		public static void RemoveLocalCacheMarker(FileReference cacheFile)
+		{
+			FileReference.Delete(cacheFile);
+			FileReference.Delete(cacheFile.ChangeExtension(".txt"));
+		}
+
+		/// <summary>
+		/// Removes the given cache file if it's invalid, and updates the metadata to reflect the version about to be synced
+		/// </summary>
+		/// <param name="cacheFile">Path to the cache file</param>
 		/// <param name="change">The current change being built</param>
 		/// <param name="preflightChange">The preflight changelist number</param>
 		/// <returns>Async task</returns>
-		public static async Task UpdateLocalCacheMarker(FileReference cacheFile, int change, int preflightChange)
+		public async Task UpdateLocalCacheMarkerAsync(FileReference cacheFile, int change, int preflightChange)
 		{
 			// Create the new cache file descriptor
-			string newDescriptor;
-			if(preflightChange <= 0)
-			{
-				newDescriptor = $"CL {change}";
-			}
-			else
-			{
-				newDescriptor = $"CL {preflightChange} with base CL {change}";
-			}
+			string newDescriptor = GetCacheMarkerDescriptor(change, preflightChange);
 
 			// Remove the cache file if the current descriptor doesn't match
 			FileReference descriptorFile = cacheFile.ChangeExtension(".txt");
@@ -314,7 +318,7 @@ namespace Horde.Agent.Utility
 				if (FileReference.Exists(descriptorFile))
 				{
 					string oldDescriptor = await FileReference.ReadAllTextAsync(descriptorFile);
-					if (oldDescriptor == newDescriptor)
+					if (oldDescriptor.Equals(newDescriptor, StringComparison.Ordinal))
 					{
 						return;
 					}
@@ -328,6 +332,33 @@ namespace Horde.Agent.Utility
 
 			// Write the new descriptor file
 			await FileReference.WriteAllTextAsync(descriptorFile, newDescriptor);
+		}
+
+		string GetCacheMarkerDescriptor(int change, int preflightChange)
+		{
+			StringBuilder descriptor = new StringBuilder();
+			if (preflightChange <= 0)
+			{
+				descriptor.AppendLine($"CL {change}");
+			}
+			else
+			{
+				descriptor.AppendLine($"CL {preflightChange} with base CL {change}");
+			}
+
+			descriptor.AppendLine();
+			foreach (PerforceViewMapEntry streamViewEntry in StreamView.Entries)
+			{
+				descriptor.AppendLine($"StreamView: {streamViewEntry}");
+			}
+
+			descriptor.AppendLine();
+			foreach (string viewLine in View)
+			{
+				descriptor.AppendLine($"View: {viewLine}");
+			}
+
+			return descriptor.ToString();
 		}
 
 		/// <summary>
@@ -357,7 +388,7 @@ namespace Horde.Agent.Utility
 		/// </summary>
 		/// <param name="change">Change number to unshelve</param>
 		/// <param name="cancellationToken">Cancellation token</param>
-		public async Task UnshelveAsync(int change, CancellationToken cancellationToken)
+		async Task UnshelveAsync(int change, CancellationToken cancellationToken)
 		{
 			if (change > 0)
 			{

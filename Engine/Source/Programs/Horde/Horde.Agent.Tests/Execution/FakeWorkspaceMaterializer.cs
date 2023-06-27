@@ -75,7 +75,7 @@ public class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 	}
 
 	/// <inheritdoc/>
-	public Task SyncAsync(int changeNum, SyncOptions options, CancellationToken cancellationToken)
+	public Task SyncAsync(int changeNum, int preflightChangeNum, SyncOptions options, CancellationToken cancellationToken)
 	{
 		if (!_isInitialized || _rootDir == null)
 		{
@@ -93,13 +93,12 @@ public class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 		}
 
 		WriteChangesToDisk(changeNum);
-		return Task.CompletedTask;
-	}
 
-	/// <inheritdoc/>
-	public Task UnshelveAsync(int changeNum, CancellationToken cancellationToken)
-	{
-		WriteChangesToDisk(changeNum);
+		if (preflightChangeNum > 0)
+		{
+			WriteChangesToDisk(preflightChangeNum);
+		}
+
 		return Task.CompletedTask;
 	}
 

@@ -30,7 +30,7 @@ public class FakeWorkspaceMaterializerTest
 	public async Task SingleFile()
 	{
 		_wm.SetFile(1, "readme.txt", "hello");
-		await _wm.SyncAsync(1, new SyncOptions(), CancellationToken.None);
+		await _wm.SyncAsync(1, -1, new SyncOptions(), CancellationToken.None);
 		AssertFile("readme.txt", "hello");
 	}
 	
@@ -38,7 +38,7 @@ public class FakeWorkspaceMaterializerTest
 	public async Task SubDir()
 	{
 		_wm.SetFile(1, "foo/bar/baz.txt", "fortnite");
-		await _wm.SyncAsync(1, new SyncOptions(), CancellationToken.None);
+		await _wm.SyncAsync(1, -1, new SyncOptions(), CancellationToken.None);
 		AssertFile("foo/bar/baz.txt", "fortnite");
 	}
 	
@@ -48,11 +48,11 @@ public class FakeWorkspaceMaterializerTest
 		_wm.SetFile(1, "foo/bar/baz.txt", "fortnite");
 		_wm.SetFile(2, "foo/main.cpp", "main");
 		
-		await _wm.SyncAsync(1, new SyncOptions(), CancellationToken.None);
+		await _wm.SyncAsync(1, -1, new SyncOptions(), CancellationToken.None);
 		AssertFile("foo/bar/baz.txt", "fortnite");
 		AssertFileDoesNotExist("foo/main.cpp");
 		
-		await _wm.SyncAsync(2, new SyncOptions(), CancellationToken.None);
+		await _wm.SyncAsync(2, -1, new SyncOptions(), CancellationToken.None);
 		AssertFile("foo/bar/baz.txt", "fortnite");
 		AssertFile("foo/main.cpp", "main");
 	}
@@ -64,12 +64,12 @@ public class FakeWorkspaceMaterializerTest
 		_wm.SetFile(2, "foo/main.cpp", "main");
 		File.WriteAllText(Path.Join(_settings.DirectoryPath.FullName, "external.txt"), "external");
 		
-		await _wm.SyncAsync(1, new SyncOptions(), CancellationToken.None);
+		await _wm.SyncAsync(1, -1, new SyncOptions(), CancellationToken.None);
 		AssertFile("foo/bar/baz.txt", "fortnite");
 		AssertFile("external.txt", "external");
 		AssertFileDoesNotExist("foo/main.cpp");
 		
-		await _wm.SyncAsync(2, new SyncOptions { RemoveUntracked = true }, CancellationToken.None);
+		await _wm.SyncAsync(2, -1, new SyncOptions { RemoveUntracked = true }, CancellationToken.None);
 		AssertFileDoesNotExist("foo/bar/baz.txt");
 		AssertFileDoesNotExist("external.txt");
 		AssertFile("foo/main.cpp", "main");

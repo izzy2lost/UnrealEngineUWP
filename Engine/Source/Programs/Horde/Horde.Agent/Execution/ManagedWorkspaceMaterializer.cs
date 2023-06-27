@@ -21,7 +21,6 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 {
 	private readonly AgentWorkspace _agentWorkspace;
 	private readonly DirectoryReference _workingDir;
-	private readonly bool _useSyncMarker;
 	private readonly bool _useCacheFile;
 	private WorkspaceInfo? _workspace;
 	
@@ -30,17 +29,14 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	/// </summary>
 	/// <param name="agentWorkspace">Workspace configuration</param>
 	/// <param name="workingDir">Where to put synced Perforce files and any cached data/metadata</param>
-	/// <param name="useSyncMarker">Whether to use a sync marker for identifying last synced change number</param>
 	/// <param name="useCacheFile">Whether to use a cache file during syncs</param>
 	public ManagedWorkspaceMaterializer(
 		AgentWorkspace agentWorkspace,
 		DirectoryReference workingDir,
-		bool useSyncMarker,
 		bool useCacheFile)
 	{
 		_agentWorkspace = agentWorkspace;
 		_workingDir = workingDir;
-		_useSyncMarker = useSyncMarker;
 		_useCacheFile = useCacheFile;
 	}
 
@@ -93,7 +89,7 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	}
 
 	/// <inheritdoc/>
-	public async Task SyncAsync(int changeNum, SyncOptions options, CancellationToken cancellationToken)
+	public async Task SyncAsync(int changeNum, int preflightChangeNum, SyncOptions options, CancellationToken cancellationToken)
 	{
 		using IScope scope = CreateTraceSpan("ManagedWorkspaceMaterializer.SyncAsync");
 		scope.Span.SetTag("ChangeNum", changeNum);
@@ -104,97 +100,17 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 			throw new WorkspaceMaterializationException("Workspace not initialized");
 		}
 
-		if (!IsAlreadySynced(changeNum))
+		FileReference cacheFile = FileReference.Combine(_workspace.MetadataDir, "Contents.dat");
+		if (_useCacheFile)
 		{
-			FileReference? cacheFile = _useCacheFile ? FileReference.Combine(_workspace.MetadataDir, "Contents.dat") : null;
-			await _workspace.SyncAsync(changeNum, 0, cacheFile, cancellationToken);
-			MarkChangeNumSynced(changeNum);
+			await _workspace.UpdateLocalCacheMarkerAsync(cacheFile, changeNum, preflightChangeNum);
 		}
-	}
-
-	private FileReference GetSyncMarkerFile()
-	{
-		if (_workspace == null)
+		else
 		{
-			throw new WorkspaceMaterializationException("Workspace not initialized");
+			WorkspaceInfo.RemoveLocalCacheMarker(cacheFile);
 		}
 
-		return FileReference.Combine(_workspace.MetadataDir, "Synced.txt");
-	}
-
-	private (FileReference file, string fileContent) GetSyncMarker(int changeNum)
-	{
-		if (_workspace == null)
-		{
-			throw new WorkspaceMaterializationException("Workspace not initialized");
-		}
-
-		StringBuilder content = new StringBuilder();
-		content.AppendLine($"Synced to CL {changeNum}");
-		foreach (PerforceViewMapEntry streamViewEntry in _workspace.StreamView.Entries)
-		{
-			content.AppendLine($"StreamView: {streamViewEntry}");
-		}
-		foreach (string viewLine in _workspace.View)
-		{
-			content.AppendLine($"View: {viewLine}");
-		}
-
-		return (GetSyncMarkerFile(), content.ToString());
-	}
-	
-	/// <summary>
-	/// Check if workspace is already synced to given change number
-	/// </summary>
-	/// <param name="changeNum">Change number to check</param>
-	/// <returns>True if already synced</returns>
-	private bool IsAlreadySynced(int changeNum)
-	{
-		if (!_useSyncMarker)
-		{
-			return false;
-		}
-
-		(FileReference syncFile, string syncText) = GetSyncMarker(changeNum);
-		if (!FileReference.Exists(syncFile) || FileReference.ReadAllText(syncFile) != syncText)
-		{
-			FileReference.Delete(syncFile);
-			return false;
-		}
-
-		return true;
-	}
-	
-	/// <summary>
-	/// Mark a change number as synced with a file on disk
-	/// </summary>
-	/// <param name="changeNum">Change number to mark</param>
-	/// <returns>True if already synced</returns>
-	private void MarkChangeNumSynced(int changeNum)
-	{
-		if (!_useSyncMarker)
-		{
-			return;
-		}
-		
-		(FileReference syncFile, string syncText) = GetSyncMarker(changeNum);
-		FileReference.WriteAllText(syncFile, syncText);
-	}
-
-	/// <inheritdoc/>
-	public async Task UnshelveAsync(int changeNum, CancellationToken cancellationToken)
-	{
-		using IScope scope = CreateTraceSpan("ManagedWorkspaceMaterializer.UnshelveAsync");
-		scope.Span.SetTag("ChangeNum", changeNum);
-		
-		if (_workspace == null)
-		{
-			throw new WorkspaceMaterializationException("Workspace not initialized");
-		}
-		
-		await _workspace.UnshelveAsync(changeNum, cancellationToken);
-
-		FileReference.Delete(GetSyncMarkerFile());
+		await _workspace.SyncAsync(changeNum, preflightChangeNum, cacheFile, cancellationToken);
 	}
 
 	private IScope CreateTraceSpan(string operationName)

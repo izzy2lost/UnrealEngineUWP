@@ -50,7 +50,7 @@ namespace Horde.Agent.Execution
 				int autoSdkChangeNumber = _batch.Change;
 
 				SyncOptions syncOptions = new();
-				await _autoSdkWorkspace.SyncAsync(autoSdkChangeNumber, syncOptions, cancellationToken);
+				await _autoSdkWorkspace.SyncAsync(autoSdkChangeNumber, -1, syncOptions, cancellationToken);
 			}
 			
 			// Sync the regular workspace
@@ -61,15 +61,9 @@ namespace Horde.Agent.Execution
 				scope.Span.SetTag(Datadog.Trace.OpenTracing.DatadogTags.ResourceName, workspaceSettings.Identifier);
 				
 				int preflightChange = (_batch.ClonedPreflightChange != 0) ? _batch.ClonedPreflightChange : _batch.PreflightChange;
-				await _workspace.SyncAsync(_batch.Change, new SyncOptions(), cancellationToken);
+				await _workspace.SyncAsync(_batch.Change, preflightChange, new SyncOptions(), cancellationToken);
 				
 				// TODO: Purging of cache for ManagedWorkspace did happen here in WorkspaceInfo
-				
-				// Any shelved CL to apply on top of already synced files
-				if (preflightChange > 0)
-				{
-					await _workspace.UnshelveAsync(preflightChange, cancellationToken);
-				}
 
 				DeleteCachedBuildGraphManifests(workspaceSettings.DirectoryPath, logger);
 			}
