@@ -258,7 +258,7 @@ FSearchContext::FSearchContext(const FPoseSearchQueryTrajectory* InTrajectory, c
 	if (CurrentResult.IsValid())
 	{
 		const FSearchIndex& SearchIndex = CurrentResult.Database->GetSearchIndex();
-		if (SearchIndex.Values.IsEmpty())
+		if (SearchIndex.IsValuesEmpty())
 		{
 			const int32 NumDimensions = CurrentResult.Database->Schema->SchemaCardinality;
 			CurrentResultPoseVectorData.AddUninitialized(NumDimensions);

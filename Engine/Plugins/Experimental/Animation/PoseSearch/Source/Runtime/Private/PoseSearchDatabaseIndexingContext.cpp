@@ -123,21 +123,14 @@ bool FDatabaseIndexingContext::IndexDatabase(FSearchIndexBase& SearchIndexBase, 
 	}
 
 	// allocating Values and PoseMetadata
-	SearchIndexBase.Values.Reset();
-	SearchIndexBase.PoseMetadata.Reset();
-
-	SearchIndexBase.Values.SetNumZeroed(Schema->SchemaCardinality * TotalPoses);
-	SearchIndexBase.PoseMetadata.SetNumZeroed(TotalPoses);
+	SearchIndexBase.AllocateData(Schema->SchemaCardinality, TotalPoses);
 
 	// assigning local data to each Indexer
 	TotalPoses = 0;
 	for (int32 AssetIdx = 0; AssetIdx != SearchIndexBase.Assets.Num(); ++AssetIdx)
 	{
-		const int32 NumIndexedPoses = Indexers[AssetIdx].GetNumIndexedPoses();
-		Indexers[AssetIdx].AssignWorkingData(
-			MakeArrayView(SearchIndexBase.Values.GetData() + Schema->SchemaCardinality * TotalPoses, Schema->SchemaCardinality * NumIndexedPoses),
-			MakeArrayView(SearchIndexBase.PoseMetadata.GetData() + TotalPoses, NumIndexedPoses));
-		TotalPoses += NumIndexedPoses;
+		Indexers[AssetIdx].AssignWorkingData(TotalPoses, SearchIndexBase.EditValues(), SearchIndexBase.PoseMetadata);
+		TotalPoses += Indexers[AssetIdx].GetNumIndexedPoses();
 	}
 
 	if (Owner.IsCanceled())

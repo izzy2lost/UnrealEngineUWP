@@ -18,32 +18,50 @@ POSESEARCH_API float CompareFeatureVectors(TConstArrayView<float> A, TConstArray
 struct FPoseMetadata
 {
 private:
-	// bits 0-30 represent the AssetIndex, bit 31 represents bBlockTransition
-	uint32 Data = 0;
-	float CostAddend = 0.f;
+	enum { ValueOffsetNumBits = 27 };
+	enum { AssetIndexNumBits = 20 };
+	enum { BlockTransitionNumBits = 1 };
+
+	uint32 ValueOffset : ValueOffsetNumBits = 0;
+	uint32 AssetIndex : AssetIndexNumBits = 0;
+	bool bBlockTransition : BlockTransitionNumBits = 0;
+	FFloat16 CostAddend = 0.f;
 
 public:
-	void Init(uint32 AssetIndex, bool bBlockTransition, float InCostAddend)
+	FPoseMetadata(uint32 InValueOffset = 0, uint32 InAssetIndex = 0, bool bInBlockTransition = false, float InCostAddend = 0.f)
+	: ValueOffset(InValueOffset)
+	, AssetIndex(InAssetIndex)
+	, bBlockTransition(bInBlockTransition)
+	, CostAddend(InCostAddend)
 	{
-		check((AssetIndex & (1 << 31)) == 0);
-		Data = AssetIndex | (bBlockTransition ? 1 << 31 : 0);
-
-		CostAddend = InCostAddend;
+		// checking for overflowing inputs
+		check(InValueOffset < (1 << ValueOffsetNumBits));
+		check(InValueOffset < (1 << AssetIndexNumBits));
 	}
 
 	bool IsBlockTransition() const
 	{
-		return Data & (1 << 31);
+		return bBlockTransition;
 	}
 
 	uint32 GetAssetIndex() const
 	{
-		return Data & ~(1 << 31);
+		return AssetIndex;
 	}
 
 	float GetCostAddend() const
 	{
 		return CostAddend;
+	}
+
+	uint32 GetValueOffset() const
+	{
+		return ValueOffset;
+	}
+
+	void SetValueOffset(uint32 Value)
+	{
+		ValueOffset = Value;
 	}
 
 	friend FArchive& operator<<(FArchive& Ar, FPoseMetadata& Metadata);
@@ -161,7 +179,10 @@ struct FSearchStats
 */
 struct FSearchIndexBase
 {
+private:
 	TAlignedArray<float> Values;
+
+public:
 	TAlignedArray<FPoseMetadata> PoseMetadata;
 	bool bAnyBlockTransition = false;
 	TAlignedArray<FSearchIndexAsset> Assets;
@@ -173,14 +194,38 @@ struct FSearchIndexBase
 	FSearchStats Stats;
 
 	int32 GetNumPoses() const { return PoseMetadata.Num(); }
+	int32 GetNumValuesVectors(int32 DataCardinality) const
+	{
+		check(DataCardinality > 0);
+		check(Values.Num() % DataCardinality == 0);
+		return Values.Num() / DataCardinality;
+	}
+
 	bool IsValidPoseIndex(int32 PoseIdx) const { return PoseIdx < GetNumPoses(); }
 	bool IsEmpty() const;
+	bool IsValuesEmpty() const { return Values.IsEmpty(); }
+
+	void ResetValues() { Values.Reset(); }
+	void AllocateData(int32 DataCardinality, int32 NumPoses);
+	
+	const TAlignedArray<float>& GetValues() const { return Values; }
+	TAlignedArray<float>& EditValues() { return Values; }
 
 	const FSearchIndexAsset& GetAssetForPose(int32 PoseIdx) const;
 	POSESEARCH_API const FSearchIndexAsset* GetAssetForPoseSafe(int32 PoseIdx) const;
 
 	void Reset();
 	
+	void PruneDuplicateValues(float SimilarityThreshold, int32 DataCardinality);
+
+	TConstArrayView<float> GetPoseValuesBase(int32 PoseIdx, int32 DataCardinality) const
+	{
+		check(!IsValuesEmpty() && PoseIdx >= 0 && PoseIdx < GetNumPoses());
+		check(Values.Num() % DataCardinality == 0);
+		const int32 ValueOffset = PoseMetadata[PoseIdx].GetValueOffset();
+		return MakeArrayView(&Values[ValueOffset], DataCardinality);
+	}
+
 	friend FArchive& operator<<(FArchive& Ar, FSearchIndexBase& Index);
 };
 

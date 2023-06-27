@@ -86,10 +86,13 @@ FAssetIndexer::FAssetIndexer(const FBoneContainer& InBoneContainer, const FSearc
 {
 }
 
-void FAssetIndexer::AssignWorkingData(TArrayView<float> InOutFeatureVectorTable, TArrayView<FPoseMetadata> InOutPoseMetadata)
+void FAssetIndexer::AssignWorkingData(int32 InStartPoseIdx, TArrayView<float> InOutFeatureVectorTable, TArrayView<FPoseMetadata> InOutPoseMetadata)
 {
-	FeatureVectorTable = InOutFeatureVectorTable;
-	PoseMetadata = InOutPoseMetadata;
+	const int32 NumIndexedPoses = GetNumIndexedPoses();
+
+	StartPoseIdx = InStartPoseIdx;
+	FeatureVectorTable = MakeArrayView(InOutFeatureVectorTable.GetData() + Schema.SchemaCardinality * StartPoseIdx, Schema.SchemaCardinality * NumIndexedPoses);
+	PoseMetadata = MakeArrayView(InOutPoseMetadata.GetData() + StartPoseIdx, NumIndexedPoses);
 }
 
 void FAssetIndexer::Process(int32 AssetIdx)
@@ -126,7 +129,9 @@ void FAssetIndexer::Process(int32 AssetIdx)
 			CostAddend += Schema.LoopingCostBias;
 		}
 
-		PoseMetadata[GetVectorIdx(SampleIdx)].Init(AssetIdx, bBlockTransition, CostAddend);
+		const int32 ValueOffset = (StartPoseIdx + GetVectorIdx(SampleIdx)) * Schema.SchemaCardinality;
+		check(ValueOffset >= 0 && AssetIdx >= 0);
+		PoseMetadata[GetVectorIdx(SampleIdx)] = FPoseMetadata(ValueOffset, AssetIdx, bBlockTransition, CostAddend);
 	}
 
 	// Generate pose features data

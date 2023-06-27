@@ -302,6 +302,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Performance")
 	bool bSkipSearchIfPossible = true;
 
+	// if two poses values (multi dimensional point with the schema cardinality) are closer than PosePruningSimilarityThreshold,
+	// only one will be saved into the database (to save memory) and accessed by the two different pose indexes
+	UPROPERTY(EditAnywhere, Category = "Performance")
+	float PosePruningSimilarityThreshold = 0.f;
+
 #if WITH_EDITORONLY_DATA
 	// This optional asset defines a list of databases you want to normalize together. Without it, it would be difficult to compare costs from separately normalized databases containing different types of animation,
 	// like only idles versus only runs animations, given that the range of movement would be dramatically different.

@@ -130,8 +130,18 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 		}
 		SearchableFrames = NumOfSearchablePoses;
 		SearchableTime = FText::Format(TimeFormat, static_cast<double>(NumOfSearchablePoses) / SampleRate);
-	
+
 		ConfigCardinality = PoseSearchDatabase->Schema->SchemaCardinality;
+
+		if (ConfigCardinality > 0)
+		{
+			const int32 TotalAnimationFeatureVectors = SearchIndex.GetValues().Num() / ConfigCardinality;
+			PrunedFrames = TotalAnimationPosesInFrames - TotalAnimationFeatureVectors;
+		}
+		else
+		{
+			PrunedFrames = 0;
+		}
 
 		// Kinematic Information
 	
@@ -148,7 +158,7 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 		// Memory Information
 			
 		{
-			const uint32 ValuesBytesSize = SearchIndex.Values.GetAllocatedSize();
+			const uint32 ValuesBytesSize = SearchIndex.GetValues().GetAllocatedSize();
 			const uint32 PCAValuesBytesSize = SearchIndex.PCAValues.GetAllocatedSize();
 			const uint32 KDTreeBytesSize = SearchIndex.KDTree.GetAllocatedSize();
 			const uint32 PoseMetadataBytesSize = SearchIndex.PoseMetadata.GetAllocatedSize();

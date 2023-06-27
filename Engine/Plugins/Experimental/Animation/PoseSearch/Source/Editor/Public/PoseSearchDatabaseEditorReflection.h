@@ -198,6 +198,10 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "General Information")
 	FText SearchableTime;
 
+	// Amount of animation frames (database poses) pose feature data that has been pruned out because close to each other more than PosePruningSimilartyThreshod
+	UPROPERTY(VisibleAnywhere, Category = "General Information")
+	uint32 PrunedFrames;
+
 	// Cardinality for the database config (how many floats per pose to store the pose features data)
 	UPROPERTY(VisibleAnywhere, Category = "General Information")
 	uint32 ConfigCardinality;

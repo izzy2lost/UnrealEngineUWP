@@ -89,8 +89,18 @@ float CompareFeatureVectors(TConstArrayView<float> A, TConstArrayView<float> B)
 // FPoseMetadata
 FArchive& operator<<(FArchive& Ar, FPoseMetadata& Metadata)
 {
-	Ar << Metadata.Data;
-	Ar << Metadata.CostAddend;
+	// storing more data than necessary for now to avoid to deal with endiannes
+	uint32 ValueOffset = Metadata.GetValueOffset();
+	uint32 AssetIndex = Metadata.GetAssetIndex();
+	bool bInBlockTransition = Metadata.IsBlockTransition();
+	FFloat16 CostAddend = Metadata.CostAddend;
+	
+	Ar << ValueOffset;
+	Ar << AssetIndex;
+	Ar << bInBlockTransition;
+	Ar << CostAddend;
+
+	Metadata = FPoseMetadata(ValueOffset, AssetIndex, bInBlockTransition, CostAddend);
 	return Ar;
 }
 
@@ -150,6 +160,173 @@ void FSearchIndexBase::Reset()
 	*this = FSearchIndexBase();
 }
 
+void FSearchIndexBase::PruneDuplicateValues(float SimilarityThreshold, int32 DataCardinality)
+{
+	constexpr bool bParalleEvaluation = true;
+
+	const int32 NumPoses = GetNumPoses();
+	if (SimilarityThreshold > 0.f && NumPoses >= 2)
+	{
+		struct FPosePair
+		{
+			int32 PoseIdxA = 0;
+			int32 PoseIdxB = 0;
+		};
+		struct FPosePairSimilarity : public FPosePair
+		{
+			float Similarity = 0.f;
+		};
+		TArray<FPosePairSimilarity> PosePairSimilarities;
+		PosePairSimilarities.Reserve(1024 * 64);
+
+		// calculating a sparse proximity matrix with Similarity up to SimilarityThreshold (to perform something similar to hierarchical clustering)
+		if (bParalleEvaluation)
+		{
+			// @todo: we should use a smarter approach, knowing we need NumPoses * (NumPoses - 1) / 2 comparisons, and reconstruct the pose indexes from the comparison index...
+			
+			// doing it in batches of items to avoid using too much memory
+			constexpr int32 BatchSize = 1024 * 1024;
+
+			TArray<FPosePair> PosePairs;
+			PosePairs.Reserve(BatchSize);
+			FPosePair PosePair;
+			FCriticalSection Mutex;
+
+			auto EvaluatePosePairs = [this, DataCardinality, SimilarityThreshold, &PosePairs, &PosePairSimilarities, &Mutex]()
+			{
+				ParallelFor(PosePairs.Num(), [this, DataCardinality, SimilarityThreshold, &PosePairs, &PosePairSimilarities, &Mutex](int32 ComparisonIndex)
+				{
+					const int PoseIdxA = PosePairs[ComparisonIndex].PoseIdxA;
+					const int PoseIdxB = PosePairs[ComparisonIndex].PoseIdxB;
+					TConstArrayView<float> ValuesA = GetPoseValuesBase(PoseIdxA, DataCardinality);
+					TConstArrayView<float> ValuesB = GetPoseValuesBase(PoseIdxB, DataCardinality);
+					const float Similarity = CompareFeatureVectors(ValuesA, ValuesB);
+					if (Similarity < SimilarityThreshold)
+					{
+						// since this condition doesn't happen often, we're not gonna spend too much time in mutex contention
+						FScopeLock Lock(&Mutex);
+						FPosePairSimilarity PosePairSimilarity;
+						PosePairSimilarity.PoseIdxA = PoseIdxA;
+						PosePairSimilarity.PoseIdxB = PoseIdxB;
+						PosePairSimilarity.Similarity = Similarity;
+						PosePairSimilarities.Emplace(PosePairSimilarity);
+					}
+				});
+			};
+
+			for (PosePair.PoseIdxA = 0; PosePair.PoseIdxA < NumPoses; ++PosePair.PoseIdxA)
+			{
+				for (PosePair.PoseIdxB = PosePair.PoseIdxA + 1; PosePair.PoseIdxB < NumPoses; ++PosePair.PoseIdxB)
+				{
+					PosePairs.Add(PosePair);
+					if (PosePairs.Num() == BatchSize)
+					{
+						EvaluatePosePairs();
+
+						PosePairs.Reset();
+					}
+				}
+			}
+
+			EvaluatePosePairs();
+		}
+		else
+		{
+			for (int32 PoseIdxA = 0; PoseIdxA < NumPoses; ++PoseIdxA)
+			{
+				TConstArrayView<float> ValuesA = GetPoseValuesBase(PoseIdxA, DataCardinality);
+				for (int32 PoseIdxB = PoseIdxA + 1; PoseIdxB < NumPoses; ++PoseIdxB)
+				{
+					TConstArrayView<float> ValuesB = GetPoseValuesBase(PoseIdxB, DataCardinality);
+					const float Similarity = CompareFeatureVectors(ValuesA, ValuesB);
+					if (Similarity < SimilarityThreshold)
+					{
+						FPosePairSimilarity PosePairSimilarity;
+						PosePairSimilarity.PoseIdxA = PoseIdxA;
+						PosePairSimilarity.PoseIdxB = PoseIdxB;
+						PosePairSimilarity.Similarity = Similarity;
+						PosePairSimilarities.Emplace(PosePairSimilarity);
+					}
+				}
+			}
+		}
+
+		if (!PosePairSimilarities.IsEmpty())
+		{
+			PosePairSimilarities.Sort([](const FPosePairSimilarity& A, const FPosePairSimilarity& B)
+			{
+				return A.Similarity < B.Similarity;
+			});
+
+			// mapping between the one value offset and all the poses sharing it
+			TMap<uint32, TArray<int32>> ValueOffsetToPoses;
+			for (int32 PoseIdx = 0; PoseIdx < NumPoses; ++PoseIdx)
+			{
+				const uint32 ValueOffset = PoseMetadata[PoseIdx].GetValueOffset();
+				// FindOrAdd to support the eventuality of having multiple poses already sharing the same value offset
+				ValueOffsetToPoses.FindOrAdd(ValueOffset).Add(PoseIdx);
+			}
+
+			// at this point ValueOffsetToPoses is fully populated with all the possible value offset, and since we're not adding, but eventually removing entries we can just use the [] operator
+			int32 LastValidPoseIdx = NumPoses - 1;
+			for (int32 PosePairSimilarityIdx = 0; PosePairSimilarityIdx < PosePairSimilarities.Num(); ++PosePairSimilarityIdx)
+			{
+				const FPosePairSimilarity& PosePairSimilarity = PosePairSimilarities[PosePairSimilarityIdx];
+				const uint32 ValueOffsetA = PoseMetadata[PosePairSimilarity.PoseIdxA].GetValueOffset();
+				const uint32 ValueOffsetB = PoseMetadata[PosePairSimilarity.PoseIdxB].GetValueOffset();
+				
+				// if the two poses don't point already to the same value offset, we can remove one of them
+				if (ValueOffsetA != ValueOffsetB)
+				{
+					// transferring all the poses associated to ValueOffsetB to ValueOffsetA
+					TArray<int32>& PosesAtValueOffsetA = ValueOffsetToPoses[ValueOffsetA];
+					TArray<int32>& PosesAtValueOffsetB = ValueOffsetToPoses[ValueOffsetB];
+
+					for (int32 PoseAtValueOffsetB : PosesAtValueOffsetB)
+					{
+						PoseMetadata[PoseAtValueOffsetB].SetValueOffset(ValueOffsetA);
+						PosesAtValueOffsetA.Add(PoseAtValueOffsetB);
+					}
+
+					// moving the LastValidPoseIdx values into the location ValueOffsetB, that we just free up
+					const uint32 ValueOffsetLast = LastValidPoseIdx * DataCardinality;
+					if (ValueOffsetB != ValueOffsetLast)
+					{
+						FMemory::Memcpy(&Values[ValueOffsetB], &Values[ValueOffsetLast], DataCardinality * sizeof(float));
+						TArray<int32>& PosesAtValueOffsetLast = ValueOffsetToPoses[ValueOffsetLast];
+						
+						for (int32 PoseAtValueOffsetLast : PosesAtValueOffsetLast)
+						{
+							PoseMetadata[PoseAtValueOffsetLast].SetValueOffset(ValueOffsetB);
+						}
+
+						PosesAtValueOffsetB = PosesAtValueOffsetLast;
+						PosesAtValueOffsetLast.Reset();
+					}
+					else
+					{
+						PosesAtValueOffsetB.Reset();
+					}
+
+					--LastValidPoseIdx;
+				}
+			}
+
+			// resizing the Values array  
+			Values.SetNum((LastValidPoseIdx + 1) * DataCardinality);
+		}
+	}
+}
+
+void FSearchIndexBase::AllocateData(int32 DataCardinality, int32 NumPoses)
+{
+	Values.Reset();
+	PoseMetadata.Reset();
+
+	Values.SetNumZeroed(DataCardinality * NumPoses);
+	PoseMetadata.SetNumZeroed(NumPoses);
+}
+
 FArchive& operator<<(FArchive& Ar, FSearchIndexBase& Index)
 {
 	Ar << Index.Values;
@@ -194,10 +371,7 @@ void FSearchIndex::Reset()
 
 TConstArrayView<float> FSearchIndex::GetPoseValues(int32 PoseIdx) const
 {
-	const int32 NumDimensions = WeightsSqrt.Num();
-	check(!Values.IsEmpty() && PoseIdx >= 0 && PoseIdx < GetNumPoses() && NumDimensions > 0);
-	const int32 ValueOffset = PoseIdx * NumDimensions;
-	return MakeArrayView(&Values[ValueOffset], NumDimensions);
+	return GetPoseValuesBase(PoseIdx, WeightsSqrt.Num());
 }
 
 TConstArrayView<float> FSearchIndex::GetReconstructedPoseValues(int32 PoseIdx, TArrayView<float> BufferUsedForReconstruction) const
@@ -258,7 +432,7 @@ TArray<float> FSearchIndex::GetPoseValuesSafe(int32 PoseIdx) const
 	TArray<float> PoseValues;
 	if (PoseIdx >= 0 && PoseIdx < GetNumPoses())
 	{
-		if (Values.IsEmpty())
+		if (IsValuesEmpty())
 		{
 			const int32 NumDimensions = WeightsSqrt.Num();
 			PoseValues.SetNumUninitialized(NumDimensions);

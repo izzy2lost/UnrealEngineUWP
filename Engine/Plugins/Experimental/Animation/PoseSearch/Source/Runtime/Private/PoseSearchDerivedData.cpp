@@ -118,32 +118,37 @@ private:
 		const int32 Cardinality = Entries[0].Channel->GetChannelCardinality();
 		check(Cardinality > 0);
 
-		int32 TotalNumPoses = 0;
-		for (int32 EntryIdx = 0; EntryIdx < EntriesNum; ++EntryIdx)
-		{
-			TotalNumPoses += SearchIndexBases[Entries[EntryIdx].SchemaIndex].GetNumPoses();
-		}
-
-		int32 AccumulatedNumPoses = 0;
-		RowMajorMatrix CenteredSubPoseMatrix(TotalNumPoses, Cardinality);
+		int32 TotalNumValuesVectors = 0;
 		for (int32 EntryIdx = 0; EntryIdx < EntriesNum; ++EntryIdx)
 		{
 			const FEntry& Entry = Entries[EntryIdx];
 			check(Cardinality == Entry.Channel->GetChannelCardinality());
 
 			const int32 DataSetIdx = Entry.SchemaIndex;
+			const UPoseSearchSchema* Schema = Schemas[DataSetIdx];
+			const FSearchIndexBase& SearchIndexBase = SearchIndexBases[DataSetIdx];
+
+			TotalNumValuesVectors += SearchIndexBase.GetNumValuesVectors(Schema->SchemaCardinality);
+		}
+
+		int32 AccumulatedNumValuesVectors = 0;
+		RowMajorMatrix CenteredSubPoseMatrix(TotalNumValuesVectors, Cardinality);
+		for (int32 EntryIdx = 0; EntryIdx < EntriesNum; ++EntryIdx)
+		{
+			const FEntry& Entry = Entries[EntryIdx];
+			const int32 DataSetIdx = Entry.SchemaIndex;
 
 			const UPoseSearchSchema* Schema = Schemas[DataSetIdx];
-			const FSearchIndexBase& SearchIndex = SearchIndexBases[DataSetIdx];
+			const FSearchIndexBase& SearchIndexBase = SearchIndexBases[DataSetIdx];
 
-			const int32 NumPoses = SearchIndex.GetNumPoses();
+			const int32 NumValuesVectors = SearchIndexBase.GetNumValuesVectors(Schema->SchemaCardinality);
 
-			// Map input buffer with NumPoses as rows and NumDimensions	as cols
-			RowMajorMatrixMapConst PoseMatrixSourceMap(SearchIndex.Values.GetData(), NumPoses, Schema->SchemaCardinality);
+			// Map input buffer with NumValuesVectors as rows and NumDimensions	as cols
+			RowMajorMatrixMapConst PoseMatrixSourceMap(SearchIndexBase.GetValues().GetData(), NumValuesVectors, Schema->SchemaCardinality);
 
 			// Given the sub matrix for the features, find the average distance to the feature's centroid.
-			CenteredSubPoseMatrix.block(AccumulatedNumPoses, 0, NumPoses, Cardinality) = PoseMatrixSourceMap.block(0, Entry.Channel->GetChannelDataOffset(), NumPoses, Cardinality);
-			AccumulatedNumPoses += NumPoses;
+			CenteredSubPoseMatrix.block(AccumulatedNumValuesVectors, 0, NumValuesVectors, Cardinality) = PoseMatrixSourceMap.block(0, Entry.Channel->GetChannelDataOffset(), NumValuesVectors, Cardinality);
+			AccumulatedNumValuesVectors += NumValuesVectors;
 		}
 
 		RowMajorVector SampleMean = CenteredSubPoseMatrix.colwise().mean();
@@ -431,8 +436,16 @@ static void PreprocessSearchIndexPCAData(FSearchIndex& SearchIndex, int32 NumDim
 		SearchIndex.Mean.AddZeroed(NumDimensions);
 		SearchIndex.PCAProjectionMatrix.AddZeroed(NumDimensions * NumberOfPrincipalComponents);
 
+		// recreating the full pose values data to have a 1:1 mapping between PCAValues/NumDimensions and PoseIdx
+		TArray<float> AllValuesWithDuplicateData;
+		AllValuesWithDuplicateData.SetNum(NumPoses * NumDimensions);
+		for (int32 PoseIdx = 0; PoseIdx < NumPoses; ++PoseIdx)
+		{
+			FMemory::Memcpy(AllValuesWithDuplicateData.GetData() + PoseIdx * NumDimensions, SearchIndex.GetPoseValuesBase(PoseIdx, NumDimensions).GetData(), NumDimensions * sizeof(float));
+		}
+
 		const RowMajorVectorMapConst MapWeightsSqrt(SearchIndex.WeightsSqrt.GetData(), 1, NumDimensions);
-		const RowMajorMatrixMapConst MapValues(SearchIndex.Values.GetData(), NumPoses, NumDimensions);
+		const RowMajorMatrixMapConst MapValues(AllValuesWithDuplicateData.GetData(), NumPoses, NumDimensions);
 		const RowMajorMatrix WeightedValues = MapValues.array().rowwise() * MapWeightsSqrt.array();
 		RowMajorMatrixMap MapPCAValues(SearchIndex.PCAValues.GetData(), NumPoses, NumberOfPrincipalComponents);
 
@@ -573,7 +586,7 @@ static void PreprocessSearchIndexKDTree(FSearchIndex& SearchIndex, int32 NumDime
 				ResultDistanceSqr.SetNum(KDTreeQueryNumNeighbors + 1);
 				FKDTree::KNNResultSet ResultSet(KDTreeQueryNumNeighbors, ResultIndexes, ResultDistanceSqr);
 
-				const RowMajorVectorMapConst MapValues(&SearchIndex.Values[PointIndex * NumDimensions], 1, NumDimensions);
+				const RowMajorVectorMapConst MapValues(SearchIndex.GetPoseValuesBase(PointIndex, NumDimensions).GetData(), 1, NumDimensions);
 				const RowMajorVectorMapConst MapWeightsSqrt(SearchIndex.WeightsSqrt.GetData(), 1, NumDimensions);
 				const RowMajorVectorMapConst Mean(SearchIndex.Mean.GetData(), 1, NumDimensions);
 				const ColMajorMatrixMapConst PCAProjectionMatrix(SearchIndex.PCAProjectionMatrix.GetData(), NumDimensions, NumberOfPrincipalComponents);
@@ -976,6 +989,8 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 
 				static_cast<FSearchIndexBase&>(SearchIndex) = SearchIndexBases[0];
 				
+				SearchIndex.PruneDuplicateValues(Database->PosePruningSimilarityThreshold, Database->Schema->SchemaCardinality);
+
 				TArray<float> Deviation = FMeanDeviationCalculator::Calculate(SearchIndexBases, Schemas);
 
 				// Building FSearchIndex
@@ -1006,7 +1021,7 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 				// removing SearchIndex.Values and relying on FSearchIndex::GetReconstructedPoseValues to reconstruct the Values data from the PCAValues
 				if (Database->PoseSearchMode == EPoseSearchMode::PCAKDTree && Database->KDTreeQueryNumNeighbors <= 1)
 				{
-					SearchIndex.Values.Reset();
+					SearchIndex.ResetValues();
 				}
 
 				UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Succeeded"), *LexToString(FullIndexKey.Hash), *Database->GetName());
