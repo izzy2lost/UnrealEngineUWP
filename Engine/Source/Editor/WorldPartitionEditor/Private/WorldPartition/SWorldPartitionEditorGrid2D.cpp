@@ -1804,7 +1804,7 @@ int32 SWorldPartitionEditorGrid2D::PaintMinimap(const FGeometry& AllottedGeometr
 				{
 					const IWorldPartitionActorLoaderInterface::ILoaderAdapter* LoaderAdapter = LoaderInterface->GetLoaderAdapter();
 
-					if (LoaderAdapter->GetBoundingBox().IsSet())
+					if (LoaderAdapter->IsLoaded() && LoaderAdapter->GetBoundingBox().IsSet())
 					{
 						const FBox AdapterBounds = *LoaderAdapter->GetBoundingBox();
 
