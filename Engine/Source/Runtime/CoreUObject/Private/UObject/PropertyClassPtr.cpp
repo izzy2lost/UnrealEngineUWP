@@ -89,7 +89,7 @@ uint32 FClassPtrProperty::GetValueTypeHashInternal(const void* Src) const
 
 void FClassPtrProperty::CopySingleValueToScriptVM( void* Dest, void const* Src ) const
 {
-	*(UObject**)Dest = ((const FObjectPtr*)Src)->Get();
+	*(FObjectPtr*)Dest = ((const FObjectPtr*)Src)->Get();
 }
 
 void FClassPtrProperty::CopySingleValueFromScriptVM( void* Dest, void const* Src ) const

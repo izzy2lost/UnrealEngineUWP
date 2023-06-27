@@ -94,6 +94,9 @@ DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("FindObjectFast"),STAT_FindObjectFast,STA
 #define	INVALID_OBJECT	(UObject*)-1
 #define PERF_TRACK_DETAILED_ASYNC_STATS (0)
 
+#ifndef UE_GC_RUN_WEAKPTR_BARRIERS
+#define UE_GC_RUN_WEAKPTR_BARRIERS 0
+#endif
 
 // Private system wide variables.
 
