@@ -171,19 +171,22 @@ void UpdateHistoryDepthRejectionPS(
 	float4 ThisClip = float4( UVAndScreenPos.zw, ConvertToDeviceZ(SceneDepth), 1 );
 	float4 PrevClip = mul( ThisClip, View.ClipToPrevClip );
 	float2 PrevScreen = PrevClip.xy / PrevClip.w;
-	float2 Screenvelocity = UVAndScreenPos.zw - PrevScreen;
-		
-	float2 FullResTexel = UVAndScreenPos.xy - .5f * View.BufferSizeAndInvSize.zw;
+	float2 ScreenVelocity = UVAndScreenPos.zw - PrevScreen;
+		 
+	// The scene velocity texture is rendered as a texture atlas for all views,
+	// so first convert the vertex shader's UV coordinates to the size of the view rect and offset into the atlas
+	// before converting back to the correct UV coordinates.
+	float2 FullResTexel = (UVAndScreenPos.xy * View.ViewSizeAndInvSize.xy + View.ViewRectMin.xy - .5f) * View.BufferSizeAndInvSize.zw;
 	float4 EncodedVelocity = Texture2DSampleLevel(VelocityTexture, VelocityTextureSampler, FullResTexel, 0);
 		
 	if (EncodedVelocity.x > 0.0)
 	{
-		Screenvelocity = DecodeVelocityFromTexture(EncodedVelocity).xy;
+		ScreenVelocity = DecodeVelocityFromTexture(EncodedVelocity).xy;
 	}
 		
-	float PixelSpeed = 0.5 * length(Screenvelocity);
+	float PixelSpeed = 0.5 * length(ScreenVelocity);
 
-	float2 OldScreenPosition = (UVAndScreenPos.zw - Screenvelocity);
+	float2 OldScreenPosition = (UVAndScreenPos.zw - ScreenVelocity);
 	float2 OldDistanceFieldUVs = OldScreenPosition * HistoryScreenPositionScaleBias.xy + HistoryScreenPositionScaleBias.wz;
 
 	float EffectiveHistoryWeight = HistoryWeight;
@@ -201,8 +204,8 @@ void UpdateHistoryDepthRejectionPS(
 #define MANUAL_HISTORY_RESAMPLE 0
 #if MANUAL_HISTORY_RESAMPLE
 
-		float2 HistoryBufferSize = floor(View.BufferSizeAndInvSize.xy / DOWNSAMPLE_FACTOR);
-		float2 HistoryTexelSize = View.BufferSizeAndInvSize.zw * DOWNSAMPLE_FACTOR;
+		float2 HistoryBufferSize = floor(View.ViewSizeAndInvSize.xy / DOWNSAMPLE_FACTOR);
+		float2 HistoryTexelSize = View.ViewSizeAndInvSize.zw * DOWNSAMPLE_FACTOR;
 		float2 OldDistanceFieldUVsCorner00 = HistoryTexelSize * (floor(OldDistanceFieldUVs * HistoryBufferSize - .5f) + .5f);
 		float2 OldDistanceFieldUVsCorner01 = OldDistanceFieldUVsCorner00 + float2(0, HistoryTexelSize.y);
 		float2 OldDistanceFieldUVsCorner11 = OldDistanceFieldUVsCorner00 + HistoryTexelSize;
@@ -299,10 +302,6 @@ void FilterHistoryPS(
 {
 	float2 BufferUV = UVAndScreenPos.xy;
 
-	#if MANUALLY_CLAMP_UV
-		BufferUV = min(BufferUV, MaxSampleBufferUV);
-	#endif
-
 	float4 HistoryValue = Texture2DSampleLevel(BentNormalAOTexture, BentNormalAOSampler, BufferUV, 0);
 
 	// Only do the spatial search for pixels who discarded their history value
@@ -317,11 +316,6 @@ void FilterHistoryPS(
 			for (float x = -HALF_HISTORY_FILL_KERNEL_SIZE; x <= HALF_HISTORY_FILL_KERNEL_SIZE; x++)
 			{
 				float2 SampleBufferUV = UVAndScreenPos.xy + BentNormalAOTexelSize * float2(x, y);
-
-				#if MANUALLY_CLAMP_UV
-					// Distance field AO was computed at 0,0 regardless of viewrect min.
-					SampleBufferUV = min(SampleBufferUV, MaxSampleBufferUV);
-				#endif
 
 				float4 TextureValue = Texture2DSampleLevel(BentNormalAOTexture, BentNormalAOSampler, SampleBufferUV, 0);
 
@@ -365,7 +359,8 @@ void AOUpsamplePS(
 	,out float4 OutSceneColor : SV_Target0
 	)
 {
-	FGBufferData GBuffer = GetGBufferData(UVAndScreenPos.xy);
+	const float2 GBufferUV = UVAndScreenPos.xy * View.BufferBilinearUVMinMax.zw;
+	FGBufferData GBuffer = GetGBufferData(GBufferUV);
 
 	float3 BentNormal = UpsampleDFAO(UVAndScreenPos.xy, GBuffer.Depth, GBuffer.WorldNormal);
 
@@ -374,6 +369,5 @@ void AOUpsamplePS(
 	OutSceneColor = Visibility;
 #else
 	OutSceneColor = float4(length(BentNormal).xxx, 1.0f);
-
 #endif
 }
