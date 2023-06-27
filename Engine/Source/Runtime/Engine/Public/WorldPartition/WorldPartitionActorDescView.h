@@ -104,8 +104,11 @@ public:
 	ENGINE_API bool GetProperty(FName PropertyName, FName* PropertyValue) const;
 	ENGINE_API bool HasProperty(FName PropertyName) const;
 
+	ENGINE_API void SetParentView(const FWorldPartitionActorDescView* InParentView);
+
 protected:
 	const FWorldPartitionActorDesc* ActorDesc;
+	const FWorldPartitionActorDescView* ParentView;
 	bool bIsForcedNonSpatiallyLoaded;
 	bool bIsForcedNoRuntimeGrid;
 	bool bInvalidDataLayers;	

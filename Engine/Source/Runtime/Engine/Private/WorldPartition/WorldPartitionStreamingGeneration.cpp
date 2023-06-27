@@ -339,6 +339,14 @@ class FWorldPartitionStreamingGenerator
 		}
 	}
 
+	void ResolveParentView(FWorldPartitionActorDescView& ActorDescView, const FActorDescViewMap& ActorDescViewMap)
+	{
+		if (FGuid ParentGuid = ActorDescView.GetParentActor(); ParentGuid.IsValid())
+		{
+			ActorDescView.SetParentView(ActorDescViewMap.FindByGuid(ParentGuid));
+		}
+	}
+
 	void CreateActorDescViewMap(const FStreamingGenerationActorDescCollection& InActorDescCollection, FActorDescViewMap& OutActorDescViewMap, TSet<FGuid>& OutEditorOnlyActorDescMap, const FActorContainerID& InContainerID, TArray<FWorldPartitionActorDescView>& OutContainerInstances)
 	{
 		// Should we handle unsaved or newly created actors?
@@ -626,6 +634,7 @@ class FWorldPartitionStreamingGenerator
 			ResolveRuntimeSpatiallyLoaded(ActorDescView);
 			ResolveRuntimeGrid(ActorDescView);
 			ResolveRuntimeDataLayers(ActorDescView, ContainerCollectionDescriptor.ActorDescViewMap);
+			ResolveParentView(ActorDescView, ContainerCollectionDescriptor.ActorDescViewMap);
 		};
 
 		ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([this, &ResolveActorDescView](FWorldPartitionActorDescView& ActorDescView)

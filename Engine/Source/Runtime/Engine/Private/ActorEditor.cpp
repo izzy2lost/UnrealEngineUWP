@@ -102,7 +102,7 @@ bool AActor::CanEditChange(const FProperty* PropertyThatWillChange) const
 				return false;
 			}
 
-			if (!OwningWorldPartition->IsStreamingEnabled())
+			if (!OwningWorldPartition->IsStreamingEnabled() || GetAttachParentActor())
 			{
 				if (bIsSpatiallyLoadedProperty || bIsRuntimeGridProperty)
 				{

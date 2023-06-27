@@ -12,6 +12,7 @@ FWorldPartitionActorDescView::FWorldPartitionActorDescView()
 
 FWorldPartitionActorDescView::FWorldPartitionActorDescView(const FWorldPartitionActorDesc* InActorDesc)
 	: ActorDesc(InActorDesc)
+	, ParentView(nullptr)
 	, bIsForcedNonSpatiallyLoaded(false)
 	, bIsForcedNoRuntimeGrid(false)
 	, bInvalidDataLayers(false)	
@@ -46,7 +47,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FName FWorldPartitionActorDescView::GetRuntimeGrid() const
 {
-	return bIsForcedNoRuntimeGrid ? NAME_None : ActorDesc->GetRuntimeGrid();
+	if (bIsForcedNoRuntimeGrid)
+	{
+		return NAME_None;
+	}
+
+	if (ParentView)
+	{
+		return ParentView->GetRuntimeGrid();
+	}
+
+	return ActorDesc->GetRuntimeGrid();
 }
 
 bool FWorldPartitionActorDescView::GetActorIsEditorOnly() const
@@ -61,7 +72,17 @@ bool FWorldPartitionActorDescView::GetActorIsRuntimeOnly() const
 
 bool FWorldPartitionActorDescView::GetIsSpatiallyLoaded() const
 {
-	return bIsForcedNonSpatiallyLoaded ? false : ActorDesc->GetIsSpatiallyLoaded();
+	if (bIsForcedNonSpatiallyLoaded)
+	{
+		return false;
+	}
+
+	if (ParentView)
+	{
+		return ParentView->GetIsSpatiallyLoaded();
+	}
+	
+	return ActorDesc->GetIsSpatiallyLoaded();
 }
 
 bool FWorldPartitionActorDescView::GetActorIsHLODRelevant() const
@@ -274,8 +295,16 @@ bool FWorldPartitionActorDescView::GetProperty(FName PropertyName, FName* Proper
 {
 	return ActorDesc->GetProperty(PropertyName, PropertyValue);
 }
+
 bool FWorldPartitionActorDescView::HasProperty(FName PropertyName) const
 {
 	return ActorDesc->HasProperty(PropertyName);
+}
+
+void FWorldPartitionActorDescView::SetParentView(const FWorldPartitionActorDescView* InParentView)
+{
+	check(!ParentView);
+	check(GetParentActor().IsValid());
+	ParentView = InParentView;
 }
 #endif
