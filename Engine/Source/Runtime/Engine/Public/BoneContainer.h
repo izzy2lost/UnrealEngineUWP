@@ -14,8 +14,6 @@
 #include "Animation/AnimBulkCurves.h"
 
 class USkeletalMesh;
-class USkeleton;
-class USkeletalMesh;
 struct FBoneContainer;
 struct FSkeletonRemapping;
 struct FBlendedCurve;
@@ -161,6 +159,27 @@ struct FCompactPoseBoneIndexReverseIterator
 	bool operator==(FCompactPoseBoneIndexReverseIterator& Rhs) { return Index == Rhs.Index; }
 	bool operator!=(FCompactPoseBoneIndexReverseIterator& Rhs) { return Index != Rhs.Index; }
 	FCompactPoseBoneIndex operator*() const { return FCompactPoseBoneIndex(Index); }
+};
+
+struct FRetargetSourceCachedDataKey
+{
+	FTopLevelAssetPath SourceSkeletonPath;
+	FName SourceRetargetName;
+ 
+	FRetargetSourceCachedDataKey(const UObject* Skeleton, const FName& InSourceRetargetName)
+		: SourceSkeletonPath(Skeleton)
+		, SourceRetargetName(InSourceRetargetName)
+	{
+	}
+ 
+	bool operator==(const FRetargetSourceCachedDataKey& Other) const
+	{
+		return SourceSkeletonPath == Other.SourceSkeletonPath && SourceRetargetName == Other.SourceRetargetName;
+	}
+	friend uint32 GetTypeHash(const FRetargetSourceCachedDataKey& Obj)
+	{
+		return HashCombine(GetTypeHash(Obj.SourceSkeletonPath), GetTypeHash(Obj.SourceRetargetName));
+	}
 };
 
 /**
@@ -679,7 +698,7 @@ private:
 	 * Runtime cached data for retargeting from a specific RetargetSource to this current SkelMesh LOD.
 	 * @todo: We could also cache this once per skelmesh per lod, rather than creating it at runtime for each skelmesh instance.
 	 */
-	mutable TMap<FName, FRetargetSourceCachedData> RetargetSourceCachedDataLUT;
+	mutable TMap<FRetargetSourceCachedDataKey, FRetargetSourceCachedData> RetargetSourceCachedDataLUT;
 
 	/** Initialize FBoneContainer. */
 	ENGINE_API void Initialize(const UE::Anim::FCurveFilterSettings& CurveFilterSettings);

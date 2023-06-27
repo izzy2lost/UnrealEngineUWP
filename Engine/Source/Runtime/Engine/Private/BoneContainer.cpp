@@ -407,13 +407,29 @@ const FRetargetSourceCachedData& FBoneContainer::GetRetargetSourceCachedData(con
 	return GetRetargetSourceCachedData(InRetargetSourceName, FSkeletonRemapping(), RetargetTransforms);
 }
 
-const FRetargetSourceCachedData& FBoneContainer::GetRetargetSourceCachedData(const FName& InSourceName, const FSkeletonRemapping& InRemapping, const TArray<FTransform>& InRetargetTransforms) const
+const FRetargetSourceCachedData& FBoneContainer::GetRetargetSourceCachedData(
+	const FName& InSourceName,
+	const FSkeletonRemapping& InRemapping,
+	const TArray<FTransform>& InRetargetTransforms) const
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/BoneContainer"));
-	FRetargetSourceCachedData* RetargetSourceCachedData = RetargetSourceCachedDataLUT.Find(InSourceName);
+	
+	const USkeleton* SourceSkeleton = InRemapping.IsValid() ? InRemapping.GetSourceSkeleton().Get() : AssetSkeleton.Get();
+	check(SourceSkeleton);
+	
+	// Invalid retarget source names (not found on the skeleton) are internally treated as None, so we do the same
+	FName RetargetSourceKey = InSourceName;
+	if (!SourceSkeleton->AnimRetargetSources.Contains(InSourceName))
+	{
+		RetargetSourceKey = NAME_None;
+	}
+	
+	// Construct a key from the skeleton and the retarget source since both are necessary for uniqueness
+	FRetargetSourceCachedDataKey LUTKey(Cast<UObject>(SourceSkeleton), RetargetSourceKey);
+	FRetargetSourceCachedData* RetargetSourceCachedData = RetargetSourceCachedDataLUT.Find(LUTKey);
 	if (!RetargetSourceCachedData)
 	{
-		RetargetSourceCachedData = &RetargetSourceCachedDataLUT.Add(InSourceName);
+		RetargetSourceCachedData = &RetargetSourceCachedDataLUT.Add(LUTKey);
 
 		// Build Cached Data for OrientAndScale retargeting.
 
@@ -428,7 +444,7 @@ const FRetargetSourceCachedData& FBoneContainer::GetRetargetSourceCachedData(con
 			const int32 TargetSkeletonBoneIndex = CompactPoseToSkeletonIndex[CompactBoneIndex];
 			const int32 SourceSkeletonBoneIndex = InRemapping.IsValid() ? InRemapping.GetSourceSkeletonBoneIndex(TargetSkeletonBoneIndex) : TargetSkeletonBoneIndex;
 
-			if (SourceSkeletonBoneIndex != INDEX_NONE && AssetSkeleton.GetEvenIfUnreachable()->GetBoneTranslationRetargetingMode(SourceSkeletonBoneIndex, bDisableRetargeting) == EBoneTranslationRetargetingMode::OrientAndScale)
+			if (AssetSkeleton.GetEvenIfUnreachable()->GetBoneTranslationRetargetingMode(TargetSkeletonBoneIndex, bDisableRetargeting) == EBoneTranslationRetargetingMode::OrientAndScale)
 			{
 				if(AuthoredOnRefSkeleton.IsValidIndex(SourceSkeletonBoneIndex))
 				{
