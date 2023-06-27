@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -53,6 +54,12 @@ public class WorkspaceMaterializerSettings
 	public string StreamRoot { get; }
 	
 	/// <summary>
+	/// Environment variables expected to be set for applications executing inside the workspace
+	/// Mostly intended for Perforce-specific variables when <see cref="IsPerforceWorkspace" /> is set to true
+	/// </summary>
+	public IReadOnlyDictionary<string, string> EnvironmentVariables { get; }
+	
+	/// <summary>
 	/// Whether the materialized workspace is a true Perforce workspace
 	/// This flag is provided as a stop-gap solution to allow replacing ManagedWorkspace with WorkspaceMaterializer.
 	/// It's *highly* recommended to set this to false for any new implementations of IWorkspaceMaterializer.
@@ -65,12 +72,14 @@ public class WorkspaceMaterializerSettings
 	/// <param name="directoryPath"></param>
 	/// <param name="identifier"></param>
 	/// <param name="streamRoot"></param>
+	/// <param name="envVars"></param>
 	/// <param name="isPerforceWorkspace"></param>
-	public WorkspaceMaterializerSettings(DirectoryReference directoryPath, string identifier, string streamRoot, bool isPerforceWorkspace)
+	public WorkspaceMaterializerSettings(DirectoryReference directoryPath, string identifier, string streamRoot, IReadOnlyDictionary<string, string> envVars, bool isPerforceWorkspace)
 	{
 		DirectoryPath = directoryPath;
 		Identifier = identifier;
 		StreamRoot = streamRoot;
+		EnvironmentVariables = envVars;
 		IsPerforceWorkspace = isPerforceWorkspace;
 	}
 }

@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -67,9 +68,28 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	/// <inheritdoc/>
 	public Task<WorkspaceMaterializerSettings> GetSettingsAsync(CancellationToken cancellationToken)
 	{
+		if (_workspace == null)
+		{
+			throw new WorkspaceMaterializationException("Workspace not initialized");
+		}
+		
 		// ManagedWorkspace store synced files in a sub-directory from the top working dir.
 		DirectoryReference syncDir = DirectoryReference.Combine(_workingDir, _agentWorkspace.Identifier, "Sync");
-		return Task.FromResult(new WorkspaceMaterializerSettings(syncDir, _agentWorkspace.Identifier, _agentWorkspace.Stream, true));
+
+		// Variables expected to be set for UAT/BuildGraph when Perforce is enabled (-P4 flag is set) 
+		Dictionary<string, string> envVars = new()
+			{
+				["uebp_PORT"] = _workspace.ServerAndPort,
+				["uebp_USER"] = _workspace.UserName,
+				["uebp_CLIENT"] = _workspace.ClientName,
+				["uebp_CLIENT_ROOT"] = $"//{_workspace.ClientName}"
+			};
+
+		// Perforce-specific variables
+		envVars["P4USER"] = _workspace.UserName;
+		envVars["P4CLIENT"] = _workspace.ClientName;
+
+		return Task.FromResult(new WorkspaceMaterializerSettings(syncDir, _agentWorkspace.Identifier, _agentWorkspace.Stream, envVars, true));
 	}
 
 	/// <inheritdoc/>

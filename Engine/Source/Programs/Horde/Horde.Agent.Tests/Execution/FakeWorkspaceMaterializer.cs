@@ -71,7 +71,7 @@ public class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 			throw new WorkspaceMaterializationException("Cannot get settings before initialization");
 		}
 		
-		return Task.FromResult(new WorkspaceMaterializerSettings(_rootDir, "fakeWorkspaceIdentifier", "fakeWorkspaceStreamRoot", false));
+		return Task.FromResult(new WorkspaceMaterializerSettings(_rootDir, "fakeWorkspaceIdentifier", "fakeWorkspaceStreamRoot", new Dictionary<string, string>(), false));
 	}
 
 	/// <inheritdoc/>

@@ -93,6 +93,12 @@ namespace Horde.Agent.Execution
 			_envVars["uebp_CL"] = _batch.Change.ToString();
 			_envVars["uebp_CodeCL"] = _batch.CodeChange.ToString();
 
+			WorkspaceMaterializerSettings settings = await _workspace.GetSettingsAsync(cancellationToken);
+			foreach ((string key, string value) in settings.EnvironmentVariables)
+			{
+				_envVars[key] = value;
+			}
+
 			if (autoSdkWorkspaceSettings != null)
 			{
 				_envVars["UE_SDKS_ROOT"] = autoSdkWorkspaceSettings.DirectoryPath.FullName;
