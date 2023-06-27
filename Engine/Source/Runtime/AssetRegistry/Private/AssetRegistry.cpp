@@ -631,7 +631,7 @@ EChunkProgressReportingType::Type GetChunkAvailabilityProgressType(EAssetAvailab
 	return ChunkReportType;
 }
 
-const TCHAR* GetDevelopmentAssetRegistryFilename()
+ASSETREGISTRY_API const TCHAR* GetDevelopmentAssetRegistryFilename()
 {
 	return TEXT("DevelopmentAssetRegistry.bin");
 }

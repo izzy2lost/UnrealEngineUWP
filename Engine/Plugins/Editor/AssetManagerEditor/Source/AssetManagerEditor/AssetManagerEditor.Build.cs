@@ -23,6 +23,7 @@ public class AssetManagerEditor : ModuleRules
 		
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
+				"CookMetadata",
 				"Slate",
 				"SlateCore",
 				"ApplicationCore",

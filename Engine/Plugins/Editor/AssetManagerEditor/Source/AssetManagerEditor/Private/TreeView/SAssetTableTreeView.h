@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "CookMetadata.h"
 #include "Delegates/DelegateCombinations.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "AssetManagerEditorModule.h"
@@ -73,12 +74,28 @@ public:
 	TSharedPtr<FAssetTreeNode> GetSingleSelectedAssetNode() const { return SelectedAssetNode; }
 
 private:
+
+	enum class ECheckFilesExistAndHashMatchesResult : uint8
+	{
+		Okay,
+		RegistryDoesNotExist,
+		CookMetadataDoesNotExist,
+		FailedToHashRegistry,
+		FailedToLoadCookMetadata,
+		FailedToLoadRegistry,
+		HashesDoNotMatch,
+		Unknown
+	};
+
 	virtual void InternalCreateGroupings() override;
 
 	virtual void ExtendMenu(FMenuBuilder& MenuBuilder) override;
 
 	void RequestOpenRegistry();
 	void OpenRegistry();
+
+	ECheckFilesExistAndHashMatchesResult CheckFilesExistAndHashMatches(const FString& MetadataFilename, const FString& RegistryFilename, UE::Cook::FCookMetadataState& MetadataTemporaryStorage);
+
 	FText GetOpenRegistryToolTipText() const;
 	bool CanChangeRegistry() const;
 	FReply OnClickedOpenRegistry();
@@ -109,7 +126,14 @@ private:
 	void RequestRefreshAssets();
 	void RefreshAssets();
 
+	void ClearTableAndTree();
+
+	typedef TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>> DeprecatedTCharSetType;
+	void DumpDifferencesBetweenDiscoveredDataAndLoadedMetadata(TMap<const TCHAR*, DeprecatedTCharSetType, FDefaultSetAllocator, TStringPointerMapKeyFuncs_DEPRECATED<const TCHAR*, DeprecatedTCharSetType>>& DiscoveredPluginDependencyEdges) const;
+
 	void RequestRebuildTree();
+
+	void UpdateRegistryInfoTextPostLoad(ECheckFilesExistAndHashMatchesResult StatusResult);
 
 private:
 	bool bNeedsToOpenRegistry = false;
@@ -135,9 +159,11 @@ private:
 	* Text block where we put the timestamp for the asset registry so the user knows
 	* if they are looking at super out of date data.
 	*/
-	TSharedPtr<STextBlock> RegistrySourceTimeText;
+	TSharedPtr<STextBlock> RegistryInfoText;
 
 	FAssetManagerEditorRegistrySource RegistrySource;
+
+	UE::Cook::FCookMetadataState CookMetadata;
 
 	/** Cached interfaces */
 	class IAssetRegistry* AssetRegistry;

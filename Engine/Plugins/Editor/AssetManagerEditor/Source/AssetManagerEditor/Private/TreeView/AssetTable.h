@@ -147,6 +147,7 @@ public:
 	int32 GetNumReferencers() const { return PluginReferencers.Num(); }
 	const TArray<int32>& GetReferencers() const { return PluginReferencers; }
 	int64 GetSize() const { return Size; }
+	bool GetIsRootPlugin() const { return IsRootPlugin; }
 
 	int64 GetOrComputeTotalSizeInclusiveOfDependencies(const FAssetTable& OwningTable) const;
 
@@ -159,13 +160,13 @@ private:
 	void ComputeDependencySizes(const FAssetTable& OwningTable) const;
 
 	TArray<int32> PluginDependencies;
-	TArray<int32> DiscoveredPluginDependencies;
 	TArray<int32> PluginReferencers;
 	const TCHAR* PluginName = nullptr;
 	int64 Size = 0;
 	mutable int64 InclusiveSize = -1;
 	mutable int64 UniqueDependenciesSize = -1;
 	mutable int64 SharedDependenciesSize = -1;
+	bool IsRootPlugin = false;
 };
 
 class FAssetTableRow

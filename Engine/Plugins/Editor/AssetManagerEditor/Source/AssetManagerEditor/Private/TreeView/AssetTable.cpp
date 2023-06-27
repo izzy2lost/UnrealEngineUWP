@@ -647,7 +647,16 @@ void FAssetTable::AddDefaultColumns()
 		public:
 			virtual const TOptional<FTableCellValue> GetValue(const FTableColumn& Column, const FBaseTreeNode& Node) const override
 			{
-				if (Node.Is<FAssetTreeNode>() && Node.As<FAssetTreeNode>().IsValidAsset())
+				if (Node.Is<FPluginSimpleGroupNode>() && !Node.Is<FPluginDependenciesGroupNode>())
+				{
+					// This is node represents a single plugin (it might be the plugin itself or the plugin+deps node for that plugin)
+					const FPluginSimpleGroupNode& PluginNode = Node.As<FPluginSimpleGroupNode>();
+					TSharedPtr<FTable> TablePtr = PluginNode.GetParentTable().Pin();
+					const FAssetTable& AssetTable = static_cast<const FAssetTable&>(*TablePtr);
+					const FAssetTablePluginInfo& PluginInfo = AssetTable.GetPluginInfoByIndexChecked(PluginNode.GetPluginIndex());
+					return FTableCellValue(PluginInfo.GetSize());
+				}
+				else if (Node.Is<FAssetTreeNode>() && Node.As<FAssetTreeNode>().IsValidAsset())
 				{
 					if (Node.Is<FAssetDependenciesGroupTreeNode>())
 					{
