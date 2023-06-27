@@ -508,29 +508,8 @@ SHADER_PRINT_OVERLOAD_NN(4, 4, float4x4)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Bool printing
 
-void PrintBool(inout FShaderPrintContext Ctx, bool In)
-{
-	if (In)
-	{
-		Print(Ctx, TEXT("Yes "), FontGreen);
-	}
-	else
-	{
-		Print(Ctx, TEXT("No  "), FontRed);
-	}
-}
-
-void PrintBool(inout FShaderPrintContext Ctx, bool In, FFontColor InColor)
-{
-	if (In)
-	{
-		Print(Ctx, TEXT("Yes "), InColor);
-	}
-	else
-	{
-		Print(Ctx, TEXT("No  "), InColor);
-	}
-}
+// Note: Use a define rather than a function to avoid unecessary TEXT() parsing during shader compilation, even for shader not using ShaderPrint.
+#define PrintBool(Ctx, In) { if (In) Print(Ctx, TEXT("Yes "), FontGreen); else Print(Ctx, TEXT("No  "), FontRed); }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Widgets (experimental)
