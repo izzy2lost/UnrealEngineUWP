@@ -1207,7 +1207,7 @@ bool FAutomationTestBase::AddErrorIfFalse(bool bCondition, const FString& InErro
 {
 	if (!bCondition)
 	{
-		AddError(InError, StackOffset);
+		AddError(InError, StackOffset + 1);
 	}
 	return bCondition;
 }
