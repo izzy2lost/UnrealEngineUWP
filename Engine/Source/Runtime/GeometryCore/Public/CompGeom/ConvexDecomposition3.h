@@ -103,6 +103,12 @@ public:
 		Radius.Reset();
 	}
 
+	void Append(const FSphereCovering& Other)
+	{
+		Position.Append(Other.Position);
+		Radius.Append(Other.Radius);
+	}
+
 private:
 	// Sphere centers
 	TArray<FVector3d> Position;

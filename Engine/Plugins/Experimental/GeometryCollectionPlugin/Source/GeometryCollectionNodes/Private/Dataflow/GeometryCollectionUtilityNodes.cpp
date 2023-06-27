@@ -407,33 +407,38 @@ void FMergeConvexHullsDataflowNode::Evaluate(Dataflow::FContext& Context, const 
 			SelectionArray = InOptionalSelectionFilter.AsArray();
 		}
 
-		bool bHasNegativeSpace = false;
+		bool bHasPrecomputedNegativeSpace = false;
 		UE::Geometry::FSphereCovering NegativeSpace;
-		if (GetValue(Context, &bProtectNegativeSpace))
+		bool bInProtectNegativeSpace = GetValue(Context, &bProtectNegativeSpace);
+		UE::Geometry::FNegativeSpaceSampleSettings NegativeSpaceSettings;
+		if (bInProtectNegativeSpace)
 		{
-			UE::Geometry::FNegativeSpaceSampleSettings NegativeSpaceSettings;
 			NegativeSpaceSettings.TargetNumSamples = GetValue(Context, &TargetNumSamples);
 			NegativeSpaceSettings.MinRadius = GetValue(Context, &MinRadius);
 			NegativeSpaceSettings.ReduceRadiusMargin = GetValue(Context, &NegativeSpaceTolerance);
 			NegativeSpaceSettings.MinSpacing = GetValue(Context, &MinSampleSpacing);
 			NegativeSpaceSettings.SampleMethod = ConvertNegativeSpaceSampleMethodDataflowEnum(SampleMethod);
 			NegativeSpaceSettings.Sanitize();
-			bHasNegativeSpace = UE::FractureEngine::Convex::ComputeConvexHullsNegativeSpace(InCollection, NegativeSpace, NegativeSpaceSettings, bHasSelectionFilter, SelectionArray, false);
+		}
+		if (bInProtectNegativeSpace && !bComputeNegativeSpacePerBone)
+		{
+			bHasPrecomputedNegativeSpace = UE::FractureEngine::Convex::ComputeConvexHullsNegativeSpace(InCollection, NegativeSpace, NegativeSpaceSettings, bHasSelectionFilter, SelectionArray, false);
 		}
 
 		const int32 InMaxConvexCount = GetValue(Context, &MaxConvexCount);
 		const double InErrorToleranceInCm = GetValue(Context, &ErrorTolerance);
 		FGeometryCollectionConvexUtility::FMergeConvexHullSettings HullMergeSettings;
-		HullMergeSettings.EmptySpace = bHasNegativeSpace ? &NegativeSpace : nullptr;
+		HullMergeSettings.EmptySpace = bHasPrecomputedNegativeSpace ? &NegativeSpace : nullptr;
 		HullMergeSettings.ErrorToleranceInCm = InErrorToleranceInCm;
 		HullMergeSettings.MaxConvexCount = InMaxConvexCount;
+		HullMergeSettings.ComputeEmptySpacePerBoneSettings = (bInProtectNegativeSpace && bComputeNegativeSpacePerBone) ? &NegativeSpaceSettings : nullptr;
 
-		FGeometryCollectionConvexUtility::MergeHullsOnTransforms(InCollection, HullMergeSettings, bHasSelectionFilter, SelectionArray);
+		UE::Geometry::FSphereCovering UsedNegativeSpace;
+		FGeometryCollectionConvexUtility::MergeHullsOnTransforms(InCollection, HullMergeSettings, bHasSelectionFilter, SelectionArray, &UsedNegativeSpace);
 
 		SetValue(Context, MoveTemp(InCollection), &Collection);
 
-		// Move the negative space to the output container at the end, after it is no longer needed
-		Spheres.Spheres = MoveTemp(NegativeSpace);
+		Spheres.Spheres = MoveTemp(UsedNegativeSpace);
 		SetValue(Context, MoveTemp(Spheres), &SphereCovering);
 	}
 }

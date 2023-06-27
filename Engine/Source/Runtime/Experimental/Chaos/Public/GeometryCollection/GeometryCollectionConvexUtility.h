@@ -17,6 +17,7 @@ namespace Chaos
 namespace UE::Geometry
 {
 	class FSphereCovering;
+	struct FNegativeSpaceSampleSettings;
 }
 
 UENUM()
@@ -136,10 +137,16 @@ public:
 	{
 		int32 MaxConvexCount = -1;
 		double ErrorToleranceInCm = 0.0;
+		// Optional externally-provided empty space, to be used for all hull merges
 		UE::Geometry::FSphereCovering* EmptySpace = nullptr;
+
+		// Optional settings to compute targeted empty space per-bone
+		UE::Geometry::FNegativeSpaceSampleSettings* ComputeEmptySpacePerBoneSettings = nullptr;
 	};
 	// Merge convex hulls that are currently on each (selected) transform. If convex hulls are not present, does nothing.
-	static CHAOS_API void MergeHullsOnTransforms(FManagedArrayCollection& Collection, const FGeometryCollectionConvexUtility::FMergeConvexHullSettings& Settings, bool bRestrictToSelection, const TArrayView<const int32> OptionalTransformSelection);
+	// @params OptionalSphereCoveringOut		If non-null, will be filled with spheres from all used sphere covering.
+	static CHAOS_API void MergeHullsOnTransforms(FManagedArrayCollection& Collection, const FGeometryCollectionConvexUtility::FMergeConvexHullSettings& Settings, bool bRestrictToSelection, const TArrayView<const int32> OptionalTransformSelection,
+		UE::Geometry::FSphereCovering* OptionalSphereCoveringOut = nullptr);
 
 	// Additional settings for filtering when the EGenerateConvexMethod::IntersectExternalWithComputed is applied
 	struct FIntersectionFilters

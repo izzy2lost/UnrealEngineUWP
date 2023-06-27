@@ -1213,7 +1213,7 @@ double ComputeGeometryVolume(
 }
 
 // Helper to append the triangles of a convex hull to a dynamic mesh
-static void AddConvexHullToCompactDynamicMesh(const ::Chaos::FConvex* InConvexHull, UE::Geometry::FDynamicMesh3& Mesh, const FTransform* OptionalTransform = nullptr)
+static void AddConvexHullToCompactDynamicMesh(const ::Chaos::FConvex* InConvexHull, UE::Geometry::FDynamicMesh3& Mesh, const FTransform* OptionalTransform = nullptr, bool bInvertFaces = true)
 {
 	check(Mesh.IsCompact());
 
@@ -1239,7 +1239,6 @@ static void AddConvexHullToCompactDynamicMesh(const ::Chaos::FConvex* InConvexHu
 		{
 			int32 V1 = StartV + ConvexStructure.GetPlaneVertex(PIdx, SubIdx);
 			int32 V2 = StartV + ConvexStructure.GetPlaneVertex(PIdx, SubIdx + 1);
-			constexpr bool bInvertFaces = true; // default-invert to match expected orientation of geometry meshes
 			if (bInvertFaces)
 			{
 				Swap(V1, V2);
@@ -2228,7 +2227,8 @@ void FGeometryCollectionConvexUtility::GenerateClusterConvexHullsFromLeafOrChild
 
 }
 
-void FGeometryCollectionConvexUtility::MergeHullsOnTransforms(FManagedArrayCollection& Collection, const FGeometryCollectionConvexUtility::FMergeConvexHullSettings& Settings, bool bRestrictToSelection, const TArrayView<const int32> OptionalTransformSelection)
+void FGeometryCollectionConvexUtility::MergeHullsOnTransforms(FManagedArrayCollection& Collection, const FGeometryCollectionConvexUtility::FMergeConvexHullSettings& Settings, bool bRestrictToSelection,
+	const TArrayView<const int32> OptionalTransformSelection, UE::Geometry::FSphereCovering* OptionalSphereCoveringOut)
 {
 	static FName ConvexGroupName("Convex");
 
@@ -2256,6 +2256,15 @@ void FGeometryCollectionConvexUtility::MergeHullsOnTransforms(FManagedArrayColle
 		{
 			TransformsToProcess.Add(Idx);
 		}
+	}
+
+	if (OptionalSphereCoveringOut)
+	{
+		OptionalSphereCoveringOut->Reset();
+	}
+	if (OptionalSphereCoveringOut && Settings.EmptySpace)
+	{
+		OptionalSphereCoveringOut->Append(*Settings.EmptySpace);
 	}
 
 	for (int32 TransformIndex : TransformsToProcess)
@@ -2289,7 +2298,32 @@ void FGeometryCollectionConvexUtility::MergeHullsOnTransforms(FManagedArrayColle
 		};
 		UE::Geometry::FConvexDecomposition3 ConvexDecomposition;
 		ConvexDecomposition.InitializeFromHulls(Hulls.Num(), GetHullVolume, GetHullNumVertices, GetHullVertex, HullProximity);
-		ConvexDecomposition.MergeBest(Settings.MaxConvexCount, Settings.ErrorToleranceInCm, 0, true /*bAllowCompact*/, false /*bRequireHullTriangles*/, Settings.MaxConvexCount /*MaxHulls*/, Settings.EmptySpace, &GlobalTransforms[TransformIndex]);
+		UE::Geometry::FSphereCovering LocalCovering;
+		UE::Geometry::FSphereCovering* UseCovering = Settings.EmptySpace;
+		if (Settings.ComputeEmptySpacePerBoneSettings)
+		{
+			UseCovering = &LocalCovering;
+			UE::Geometry::FDynamicMesh3 HullsMesh;
+			for (const ::Chaos::FConvex* Hull : Hulls)
+			{
+				constexpr bool bInvertFaces = false; // don't invert faces, to match orientation expected by AddNegativeSpace below
+				AddConvexHullToCompactDynamicMesh(Hull, HullsMesh, &GlobalTransforms[TransformIndex], bInvertFaces);
+			}
+			UE::Geometry::FDynamicMeshAABBTree3 HullsTree(&HullsMesh, true);
+			UE::Geometry::TFastWindingTree<UE::Geometry::FDynamicMesh3> HullsWinding(&HullsTree, true);
+			LocalCovering.AddNegativeSpace(HullsWinding, *Settings.ComputeEmptySpacePerBoneSettings);
+
+			if (Settings.EmptySpace)
+			{
+				LocalCovering.Append(*Settings.EmptySpace);
+			}
+
+			if (OptionalSphereCoveringOut)
+			{
+				OptionalSphereCoveringOut->Append(LocalCovering);
+			}
+		}
+		ConvexDecomposition.MergeBest(Settings.MaxConvexCount, Settings.ErrorToleranceInCm, 0, true /*bAllowCompact*/, false /*bRequireHullTriangles*/, Settings.MaxConvexCount /*MaxHulls*/, UseCovering, &GlobalTransforms[TransformIndex]);
 
 		if (!ensure(ConvexDecomposition.Decomposition.Num() > 0))
 		{
