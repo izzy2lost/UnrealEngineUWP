@@ -20,7 +20,6 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	private readonly DirectoryReference _workingDir;
 	private readonly bool _useSyncMarker;
 	private readonly bool _useCacheFile;
-	private readonly ILogger<ManagedWorkspaceMaterializer> _logger;
 	private WorkspaceInfo? _workspace;
 	
 	/// <summary>
@@ -30,28 +29,25 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	/// <param name="workingDir">Where to put synced Perforce files and any cached data/metadata</param>
 	/// <param name="useSyncMarker">Whether to use a sync marker for identifying last synced change number</param>
 	/// <param name="useCacheFile">Whether to use a cache file during syncs</param>
-	/// <param name="logger">Logger</param>
 	public ManagedWorkspaceMaterializer(
 		AgentWorkspace agentWorkspace,
 		DirectoryReference workingDir,
 		bool useSyncMarker,
-		bool useCacheFile,
-		ILogger<ManagedWorkspaceMaterializer> logger)
+		bool useCacheFile)
 	{
 		_agentWorkspace = agentWorkspace;
 		_workingDir = workingDir;
 		_useSyncMarker = useSyncMarker;
 		_useCacheFile = useCacheFile;
-		_logger = logger;
 	}
 
 	/// <inheritdoc/>
-	public async Task<WorkspaceMaterializerSettings> InitializeAsync(CancellationToken cancellationToken)
+	public async Task<WorkspaceMaterializerSettings> InitializeAsync(ILogger logger, CancellationToken cancellationToken)
 	{
 		using IScope scope = CreateTraceSpan("ManagedWorkspaceMaterializer.InitializeAsync");
 		
 		bool useHaveTable = WorkspaceInfo.ShouldUseHaveTable(_agentWorkspace.Method);
-		_workspace = await WorkspaceInfo.SetupWorkspaceAsync(_agentWorkspace, _workingDir, useHaveTable, _logger, cancellationToken);
+		_workspace = await WorkspaceInfo.SetupWorkspaceAsync(_agentWorkspace, _workingDir, useHaveTable, logger, cancellationToken);
 		return await GetSettingsAsync(cancellationToken);
 	}
 
@@ -111,7 +107,10 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	/// <returns>True if already synced</returns>
 	private bool IsAlreadySynced(int changeNum)
 	{
-		if (!_useSyncMarker) return false;
+		if (!_useSyncMarker)
+		{
+			return false;
+		}
 
 		(FileReference syncFile, string syncText) = GetSyncMarker(changeNum);
 		if (!FileReference.Exists(syncFile) || FileReference.ReadAllText(syncFile) != syncText)
@@ -130,7 +129,10 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	/// <returns>True if already synced</returns>
 	private void MarkChangeNumSynced(int changeNum)
 	{
-		if (!_useSyncMarker) return;
+		if (!_useSyncMarker)
+		{
+			return;
+		}
 		
 		(FileReference syncFile, string syncText) = GetSyncMarker(changeNum);
 		FileReference.WriteAllText(syncFile, syncText);

@@ -44,7 +44,7 @@ namespace Horde.Agent.Execution
 				using IScope _ = GlobalTracer.Instance.BuildSpan("Workspace").WithResourceName("AutoSDK").StartActive();
 				// TODO: Set type of workspace materializer as scope tag.
 
-				autoSdkWorkspaceSettings = await _autoSdkWorkspace.InitializeAsync(cancellationToken);
+				autoSdkWorkspaceSettings = await _autoSdkWorkspace.InitializeAsync(logger, cancellationToken);
 
 				// Match change for AutoSDK and actual job change
 				int autoSdkChangeNumber = _batch.Change;
@@ -57,7 +57,7 @@ namespace Horde.Agent.Execution
 			WorkspaceMaterializerSettings workspaceSettings;
 			using (IScope scope = GlobalTracer.Instance.BuildSpan("Workspace").StartActive())
 			{
-				workspaceSettings = await _workspace.InitializeAsync(cancellationToken);
+				workspaceSettings = await _workspace.InitializeAsync(logger, cancellationToken);
 				scope.Span.SetTag(Datadog.Trace.OpenTracing.DatadogTags.ResourceName, workspaceSettings.Identifier);
 				
 				int preflightChange = (_batch.ClonedPreflightChange != 0) ? _batch.ClonedPreflightChange : _batch.PreflightChange;

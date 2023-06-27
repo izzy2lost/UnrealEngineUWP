@@ -92,9 +92,10 @@ public interface IWorkspaceMaterializer
 	/// <summary>
 	/// Prepare file system for syncing
 	/// </summary>
+	/// <param name="logger">Logger for output</param>
 	/// <param name="cancellationToken">Cancellation token for the call</param>
 	/// <returns>Async task</returns>
-	public Task<WorkspaceMaterializerSettings> InitializeAsync(CancellationToken cancellationToken);
+	public Task<WorkspaceMaterializerSettings> InitializeAsync(ILogger logger, CancellationToken cancellationToken);
 	
 	/// <summary>
 	/// Finalize and clean file system
@@ -167,8 +168,8 @@ class WorkspaceMaterializerFactory : IWorkspaceMaterializerFactory
 		{
 			case WorkspaceMaterializerType.ManagedWorkspace:
 				return forAutoSdk
-					? new ManagedWorkspaceMaterializer(workspaceInfo, options.Session.WorkingDir, true, true, _loggerFactory.CreateLogger<ManagedWorkspaceMaterializer>())
-					: new ManagedWorkspaceMaterializer(workspaceInfo, options.Session.WorkingDir, false, false, _loggerFactory.CreateLogger<ManagedWorkspaceMaterializer>());
+					? new ManagedWorkspaceMaterializer(workspaceInfo, options.Session.WorkingDir, true, true)
+					: new ManagedWorkspaceMaterializer(workspaceInfo, options.Session.WorkingDir, false, false);
 
 			default:
 				throw new Exception("Unhandled materializer option: " + type);
