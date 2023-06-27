@@ -15,7 +15,7 @@ FWorldPartitionActorDescView::FWorldPartitionActorDescView(const FWorldPartition
 	, ParentView(nullptr)
 	, bIsForcedNonSpatiallyLoaded(false)
 	, bIsForcedNoRuntimeGrid(false)
-	, bInvalidDataLayers(false)	
+	, bIsForcedNoDataLayers(false)	
 {}
 
 const FGuid& FWorldPartitionActorDescView::GetGuid() const
@@ -103,29 +103,39 @@ void FWorldPartitionActorDescView::SetDataLayerInstanceNames(const TArray<FName>
 
 const TArray<FName>& FWorldPartitionActorDescView::GetDataLayerInstanceNames() const
 {
-	static TArray<FName> EmptyDataLayers;
-	if (bInvalidDataLayers)
+	if (bIsForcedNoDataLayers)
 	{
+		static TArray<FName> EmptyDataLayers;
 		return EmptyDataLayers;
 	}
-	else if (ResolvedDataLayerInstanceNames.IsSet())
+
+	if (ParentView)
+	{
+		return ParentView->GetDataLayerInstanceNames();
+	}
+	
+	if (ResolvedDataLayerInstanceNames.IsSet())
 	{
 		return ResolvedDataLayerInstanceNames.GetValue();
 	}
+
 	return ActorDesc->GetDataLayerInstanceNames();
 }
 
 const TArray<FName>& FWorldPartitionActorDescView::GetRuntimeDataLayerInstanceNames() const
 {
-	static TArray<FName> EmptyDataLayers;
-	if (!bInvalidDataLayers)
+	if (bIsForcedNoDataLayers || !ensure(RuntimeDataLayerInstanceNames.IsSet()))
 	{
-		if (ensure(RuntimeDataLayerInstanceNames.IsSet()))
-		{
-			return RuntimeDataLayerInstanceNames.GetValue();
-		}
+		static TArray<FName> EmptyDataLayers;
+		return EmptyDataLayers;
 	}
-	return EmptyDataLayers;
+
+	if (ParentView)
+	{
+		return ParentView->GetRuntimeDataLayerInstanceNames();
+	}
+
+	return RuntimeDataLayerInstanceNames.GetValue();
 }
 
 const TArray<FName>& FWorldPartitionActorDescView::GetTags() const
@@ -257,11 +267,11 @@ void FWorldPartitionActorDescView::SetForcedNoRuntimeGrid()
 	bIsForcedNoRuntimeGrid = true;	
 }
 
-void FWorldPartitionActorDescView::SetInvalidDataLayers()
+void FWorldPartitionActorDescView::SetForcedNoDataLayers()
 {
-	if (!bInvalidDataLayers)
+	if (!bIsForcedNoDataLayers)
 	{
-		bInvalidDataLayers = true;
+		bIsForcedNoDataLayers = true;
 		UE_LOG(LogWorldPartition, Verbose, TEXT("Actor '%s' data layers invalidated"), *GetActorLabelOrName().ToString());
 	}
 }

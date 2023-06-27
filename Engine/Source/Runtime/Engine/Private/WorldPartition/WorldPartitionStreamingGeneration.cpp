@@ -694,7 +694,7 @@ class FWorldPartitionStreamingGenerator
 					if (ActorDescView->GetRuntimeDataLayerInstanceNames().Num())
 					{
 						ErrorHandler->OnInvalidReferenceLevelScriptDataLayers(*ActorDescView);
-						ActorDescView->SetInvalidDataLayers();
+						ActorDescView->SetForcedNoDataLayers();
 					}
 				}
 			}
@@ -870,8 +870,8 @@ class FWorldPartitionStreamingGenerator
 								}
 								else
 								{
-									RefererActorDescView->SetInvalidDataLayers();
-									ReferenceActorDescView->SetInvalidDataLayers();
+									RefererActorDescView->SetForcedNoDataLayers();
+									ReferenceActorDescView->SetForcedNoDataLayers();
 								}
 
 								NbErrorsDetected++;
