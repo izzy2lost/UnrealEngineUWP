@@ -287,14 +287,14 @@ int32 FWorldPartitionEditorModule::GetMinimapLowQualityWorldUnitsPerPixelThresho
 	return GetDefault<UWorldPartitionEditorSettings>()->MinimapLowQualityWorldUnitsPerPixelThreshold;
 }
 
-bool FWorldPartitionEditorModule::GetDisableLoadingInEditor() const
+bool FWorldPartitionEditorModule::GetEnableLoadingInEditor() const
 {
-	return GetDefault<UWorldPartitionEditorSettings>()->bDisableLoadingInEditor;
+	return GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor;
 }
 
-void FWorldPartitionEditorModule::SetDisableLoadingInEditor(bool bInDisableLoadingInEditor)
+void FWorldPartitionEditorModule::SetEnableLoadingInEditor(bool bInEnableLoadingInEditor)
 {
-	GetMutableDefault<UWorldPartitionEditorSettings>()->bDisableLoadingInEditor = bInDisableLoadingInEditor;
+	GetMutableDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor = bInEnableLoadingInEditor;
 }
 
 bool FWorldPartitionEditorModule::GetDisablePIE() const
@@ -828,7 +828,7 @@ UWorldPartitionEditorSettings::UWorldPartitionEditorSettings()
 	CommandletClass = UWorldPartitionConvertCommandlet::StaticClass();
 	InstancedFoliageGridSize = 25600;
 	MinimapLowQualityWorldUnitsPerPixelThreshold = 12800;
-	bDisableLoadingInEditor = false;
+	bEnableLoadingInEditor = true;
 	bDisablePIE = false;
 	bDisableBugIt = false;
 	bAdvancedMode = true;

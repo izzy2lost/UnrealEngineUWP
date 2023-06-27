@@ -368,7 +368,7 @@ void SWorldPartitionEditorGrid2D::Construct(const FArguments& InArgs)
 			ToolbarBuilder.AddWidget(SNew(SCheckBox)
 				.ForegroundColor(FSlateColor::UseForeground())
 				.IsChecked(GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>()->GetBugItGoLoadRegion() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked)
-				.Visibility_Lambda([this]() { return GetDefault<UWorldPartitionEditorSettings>()->bDisableLoadingInEditor ? EVisibility::Hidden : EVisibility::Visible; })
+				.Visibility_Lambda([this]() { return GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor ? EVisibility::Visible : EVisibility::Hidden; })
 				.OnCheckStateChanged(FOnCheckStateChanged::CreateLambda([=](ECheckBoxState State) { GetMutableDefault<UWorldPartitionEditorPerProjectUserSettings>()->SetBugItGoLoadRegion(State == ECheckBoxState::Checked); }))
 				[
 					SNew(SBox)
@@ -415,7 +415,7 @@ void SWorldPartitionEditorGrid2D::Construct(const FArguments& InArgs)
 				.Text(LOCTEXT("FocusLoadedRegions", "Focus Loaded Regions"))
 				.OnClicked(this, &SWorldPartitionEditorGrid2D::FocusLoadedRegions)
 				.IsEnabled_Lambda([this]() { return IsInteractive() && GetWorldPartition() && GetWorldPartition()->HasLoadedUserCreatedRegions(); })
-				.Visibility_Lambda([this]() { return GetDefault<UWorldPartitionEditorSettings>()->bDisableLoadingInEditor ? EVisibility::Hidden : EVisibility::Visible; }));
+				.Visibility_Lambda([this]() { return GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor ? EVisibility::Visible : EVisibility::Hidden; }));
 		}
 
 		return ToolbarBuilder.MakeWidget();
@@ -782,7 +782,7 @@ FReply SWorldPartitionEditorGrid2D::OnMouseButtonUp(const FGeometry& MyGeometry,
 
 			const FEditorCommands& Commands = FEditorCommands::Get();
 
-			if (!GetDefault<UWorldPartitionEditorSettings>()->bDisableLoadingInEditor)
+			if (GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor)
 			{
 				MenuBuilder.BeginSection(NAME_None, LOCTEXT("WorldPartitionSelection", "Selection"));
 					MenuBuilder.AddMenuEntry(Commands.CreateRegionFromSelection);
@@ -807,7 +807,7 @@ FReply SWorldPartitionEditorGrid2D::OnMouseButtonUp(const FGeometry& MyGeometry,
 					MenuBuilder.AddMenuEntry(Commands.PlayFromHere);
 				}
 				
-				if (!GetDefault<UWorldPartitionEditorSettings>()->bDisableLoadingInEditor)
+				if (GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor)
 				{
 					MenuBuilder.AddMenuEntry(Commands.LoadFromHere);
 				}
@@ -890,7 +890,7 @@ FReply SWorldPartitionEditorGrid2D::OnMouseButtonDoubleClick(const FGeometry& In
 		{
 			MoveCameraHere();
 
-			if (InMouseEvent.IsControlDown() && !GetDefault<UWorldPartitionEditorSettings>()->bDisableLoadingInEditor)
+			if (InMouseEvent.IsControlDown() && GetDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor)
 			{
 				LoadFromHere();
 			}

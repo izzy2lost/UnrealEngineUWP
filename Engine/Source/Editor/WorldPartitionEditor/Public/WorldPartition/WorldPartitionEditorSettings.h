@@ -15,6 +15,8 @@ class WORLDPARTITIONEDITOR_API UWorldPartitionEditorSettings : public UDeveloper
 public:
 	UWorldPartitionEditorSettings();
 
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
 	UPROPERTY(Config, EditAnywhere, Category = MapConversion, Meta = (ToolTip = "Commandlet class to use for World Parition conversion"))
 	TSubclassOf<UWorldPartitionConvertCommandlet> CommandletClass;
 
@@ -25,7 +27,7 @@ public:
 	int32 MinimapLowQualityWorldUnitsPerPixelThreshold;
 
 	UPROPERTY(Config, EditAnywhere, Category = WorldPartition, Meta = (ToolTip = "Wheter to enable dynamic loading in the editor through loading regions"))
-	bool bDisableLoadingInEditor;
+	bool bEnableLoadingInEditor;
 
 	bool bDisableBugIt;
 	bool bDisablePIE;

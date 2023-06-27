@@ -563,7 +563,7 @@ void UWorldPartition::Initialize(UWorld* InWorld, const FTransform& InTransform)
 			PinnedActors = new FLoaderAdapterPinnedActors(OuterWorld);
 		
 			IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-			ForceLoadedActors = WorldPartitionEditorModule.GetDisableLoadingInEditor() ? new FLoaderAdapterActorList(OuterWorld) : nullptr;
+			ForceLoadedActors = WorldPartitionEditorModule.GetEnableLoadingInEditor() ? nullptr : new FLoaderAdapterActorList(OuterWorld);
 		}
 	}
 
@@ -866,7 +866,7 @@ void UWorldPartition::OnPostBugItGoCalled(const FVector& Loc, const FRotator& Ro
 		const FBox LoadCellsBox(Loc - LoadExtent, Loc + LoadExtent);
 
 		IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
-		if (!WorldPartitionEditorModule.GetDisableLoadingInEditor())
+		if (WorldPartitionEditorModule.GetEnableLoadingInEditor())
 		{
 			UWorldPartitionEditorLoaderAdapter* EditorLoaderAdapter = CreateEditorLoaderAdapter<FLoaderAdapterShape>(World, LoadCellsBox, TEXT("BugItGo"));
 			EditorLoaderAdapter->GetLoaderAdapter()->Load();
@@ -1315,6 +1315,36 @@ void UWorldPartition::OnEnableStreamingChanged()
 	if (WorldPartitionEditor)
 	{
 		WorldPartitionEditor->Reconstruct();
+	}
+}
+
+void UWorldPartition::OnEnableLoadingInEditorChanged()
+{
+	if (ForceLoadedActors)
+	{
+		delete ForceLoadedActors;
+		ForceLoadedActors = nullptr;
+	}
+
+	IWorldPartitionEditorModule& WorldPartitionEditorModule = FModuleManager::LoadModuleChecked<IWorldPartitionEditorModule>("WorldPartitionEditor");
+
+	if (!WorldPartitionEditorModule.GetEnableLoadingInEditor())
+	{
+		UWorld* OuterWorld = GetTypedOuter<UWorld>();
+		check(OuterWorld);
+
+		ForceLoadedActors = new FLoaderAdapterActorList(OuterWorld);
+
+		TArray<FGuid> ForceLoadedActorGuids;
+		for (FActorDescContainerCollection::TIterator<> ActorDescIterator(this); ActorDescIterator; ++ActorDescIterator)
+		{
+			ForceLoadedActorGuids.Add(ActorDescIterator->GetGuid());
+		}
+
+		if (ForceLoadedActorGuids.Num())
+		{
+			ForceLoadedActors->AddActors(ForceLoadedActorGuids);
+		}
 	}
 }
 

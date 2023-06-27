@@ -130,6 +130,7 @@ public:
 	void SetCanBeUsedByLevelInstance(bool bInCanBeUsedByLevelInstance) {}
 
 	ENGINE_API void OnEnableStreamingChanged();
+	ENGINE_API void OnEnableLoadingInEditorChanged();
 
 private:
 	ENGINE_API void SavePerUserSettings();
