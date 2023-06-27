@@ -75,7 +75,7 @@ namespace Horde.Server.Jobs
 			/// <summary>
 			/// Whether or not to use the AutoSDK.
 			/// </summary>
-			public AutoSdkConfig? _autoSdkConfig;
+			public bool _useAutoSdk;
 
 			/// <summary>
 			/// Task for creating a lease and assigning to a waiter
@@ -99,14 +99,14 @@ namespace Horde.Server.Jobs
 			/// <param name="batchIdx">The batch index to execute</param>
 			/// <param name="poolId">Unique id of the pool of machines to allocate from</param>
 			/// <param name="workspace">The workspace that this job should run in</param>
-			/// <param name="autoSdkConfig">Whether or not to use the AutoSDK</param>
-			public QueueItem(IJob job, int batchIdx, PoolId poolId, AgentWorkspace workspace, AutoSdkConfig? autoSdkConfig)
+			/// <param name="useAutoSdk">Whether or not to use the AutoSDK</param>
+			public QueueItem(IJob job, int batchIdx, PoolId poolId, AgentWorkspace workspace, bool useAutoSdk)
 			{
 				_job = job;
 				_batchIdx = batchIdx;
 				_poolId = poolId;
 				_workspace = workspace;
-				_autoSdkConfig = autoSdkConfig;
+				_useAutoSdk = useAutoSdk;
 			}
 		}
 
@@ -183,6 +183,7 @@ namespace Horde.Server.Jobs
 		readonly IJobStepRefCollection _jobStepRefs;
 		readonly IGraphCollection _graphs;
 		readonly IPoolCollection _poolCollection;
+		readonly PoolService _poolService;
 		readonly IUgsMetadataCollection _ugsMetadataCollection;
 		readonly PerforceLoadBalancer _perforceLoadBalancer;
 		readonly IClock _clock;
@@ -222,7 +223,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobTaskSource(AclService aclService, IAgentCollection agents, IJobCollection jobs, IJobStepRefCollection jobStepRefs, IGraphCollection graphs, IPoolCollection pools, IUgsMetadataCollection ugsMetadataCollection, IStreamCollection streamCollection, ILogFileService logFileService, PerforceLoadBalancer perforceLoadBalancer, IClock clock, IOptionsMonitor<ServerSettings> settings, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<JobTaskSource> logger)
+		public JobTaskSource(AclService aclService, IAgentCollection agents, IJobCollection jobs, IJobStepRefCollection jobStepRefs, IGraphCollection graphs, IPoolCollection pools, PoolService poolService, IUgsMetadataCollection ugsMetadataCollection, IStreamCollection streamCollection, ILogFileService logFileService, PerforceLoadBalancer perforceLoadBalancer, IClock clock, IOptionsMonitor<ServerSettings> settings, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<JobTaskSource> logger)
 		{
 			_aclService = aclService;
 			_agentsCollection = agents;
@@ -230,6 +231,7 @@ namespace Horde.Server.Jobs
 			_jobStepRefs = jobStepRefs;
 			_graphs = graphs;
 			_poolCollection = pools;
+			_poolService = poolService;
 			_ugsMetadataCollection = ugsMetadataCollection;
 			_streamCollection = streamCollection;
 			_logFileService = logFileService;
@@ -454,7 +456,7 @@ namespace Horde.Server.Jobs
 
 						if (newJob != null)
 						{
-							QueueItem newQueueItem = new QueueItem(newJob, batchIdx, agentType.Pool, workspace, autoSdkConfig);
+							QueueItem newQueueItem = new QueueItem(newJob, batchIdx, agentType.Pool, workspace, autoSdkConfig != null);
 							newQueue.Add(newQueueItem);
 							newBatchIdToQueueItem[(newJob.Id, batch.Id)] = newQueueItem;
 
@@ -628,7 +630,7 @@ namespace Horde.Server.Jobs
 								else
 								{
 									RemoveQueueItem(existingItem);
-									InsertQueueItem(job, batchIdx, existingItem._poolId, existingItem._workspace, existingItem._autoSdkConfig);
+									InsertQueueItem(job, batchIdx, existingItem._poolId, existingItem._workspace, existingItem._useAutoSdk);
 								}
 							}
 							continue;
@@ -643,7 +645,7 @@ namespace Horde.Server.Jobs
 						{
 							if (streamConfig.TryGetAgentWorkspace(agentType, out AgentWorkspace? agentWorkspace, out AutoSdkConfig? autoSdkConfig))
 							{
-								InsertQueueItem(job, batchIdx, agentType.Pool, agentWorkspace, autoSdkConfig);
+								InsertQueueItem(job, batchIdx, agentType.Pool, agentWorkspace, autoSdkConfig != null);
 							}
 						}
 					}
@@ -759,8 +761,16 @@ namespace Horde.Server.Jobs
 				}
 				leaseName.Append(CultureInfo.InvariantCulture, $" - {job.Name}");
 
+				// Get the autosdk workspace
+				AgentWorkspace? autoSdkWorkspace = null;
+				if (item._useAutoSdk)
+				{
+					PerforceCluster cluster = _globalConfig.CurrentValue.FindPerforceCluster(streamConfig.ClusterName)!;
+					autoSdkWorkspace = await _poolService.GetAutoSdkWorkspaceAsync(agent, cluster, DateTime.UtcNow - TimeSpan.FromSeconds(10.0), _globalConfig.CurrentValue);
+				}
+
 				// Encode the payload
-				ExecuteJobTask? task = await CreateExecuteJobTaskAsync(leaseId, streamConfig, job, batch, agent, item._workspace, item._autoSdkConfig, logId);
+				ExecuteJobTask? task = await CreateExecuteJobTaskAsync(leaseId, streamConfig, job, batch, agent, item._workspace, autoSdkWorkspace, logId);
 				if (task != null)
 				{
 					byte[] payload = Any.Pack(task).ToByteArray();
@@ -810,7 +820,7 @@ namespace Horde.Server.Jobs
 			return null;
 		}
 
-		async Task<ExecuteJobTask?> CreateExecuteJobTaskAsync(LeaseId leaseId, StreamConfig streamConfig, IJob job, IJobStepBatch batch, IAgent agent, AgentWorkspace workspace, AutoSdkConfig? autoSdkConfig, LogId logId)
+		async Task<ExecuteJobTask?> CreateExecuteJobTaskAsync(LeaseId leaseId, StreamConfig streamConfig, IJob job, IJobStepBatch batch, IAgent agent, AgentWorkspace workspace, AgentWorkspace? autoSdkWorkspace, LogId logId)
 		{
 			// Get the lease name
 			StringBuilder leaseName = new StringBuilder($"{streamConfig.Name} - ");
@@ -857,7 +867,6 @@ namespace Horde.Server.Jobs
 				return null;
 			}
 
-			AgentWorkspace? autoSdkWorkspace = (autoSdkConfig != null)? agent.GetAutoSdkWorkspace(cluster, autoSdkConfig) : null;
 			if (autoSdkWorkspace != null)
 			{
 				autoSdkWorkspace.Method = workspace.Method;
@@ -1095,13 +1104,13 @@ namespace Horde.Server.Jobs
 		/// <param name="batchIdx"></param>
 		/// <param name="poolId">The pool to use</param>
 		/// <param name="workspace">The workspace for this item to run in</param>
-		/// <param name="autoSdkConfig">Whether or not to use the AutoSDK</param>
+		/// <param name="useAutoSdk"></param>
 		/// <returns></returns>
-		void InsertQueueItem(IJob job, int batchIdx, PoolId poolId, AgentWorkspace workspace, AutoSdkConfig? autoSdkConfig)
+		void InsertQueueItem(IJob job, int batchIdx, PoolId poolId, AgentWorkspace workspace, bool useAutoSdk)
 		{
-			_logger.LogDebug("Adding queued job {JobId}, batch {BatchId} [Pool: {Pool}, Workspace: {Workspace}]", job.Id, job.Batches[batchIdx].Id, poolId, workspace.Identifier);
+			_logger.LogDebug("Adding queued job {JobId}, batch {BatchId} [Pool: {Pool}, Workspace: {Workspace}, AutoSdk: {AutoSdk}]", job.Id, job.Batches[batchIdx].Id, poolId, workspace.Identifier, useAutoSdk);
 
-			QueueItem newItem = new QueueItem(job, batchIdx, poolId, workspace, autoSdkConfig);
+			QueueItem newItem = new QueueItem(job, batchIdx, poolId, workspace, useAutoSdk);
 			_batchIdToQueueItem[newItem.Id] = newItem;
 			_queue.Add(newItem);
 

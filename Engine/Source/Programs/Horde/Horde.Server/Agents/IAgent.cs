@@ -788,29 +788,25 @@ namespace Horde.Server.Agents
 		}
 
 		/// <summary>
-		/// Gets all the autosdk workspaces required for an agent
+		/// Get the AutoSDK workspace required for an agent
 		/// </summary>
 		/// <param name="agent"></param>
-		/// <param name="globalConfig"></param>
-		/// <param name="autoSdkConfig">Config for autosdk workspaces</param>
-		/// <param name="workspaces"></param>
+		/// <param name="cluster">The perforce cluster to get a workspace for</param>
+		/// <param name="pools">Pools that the agent belongs to</param>
 		/// <returns></returns>
-		public static HashSet<AgentWorkspace> GetAutoSdkWorkspaces(this IAgent agent, GlobalConfig globalConfig, AutoSdkConfig autoSdkConfig, List<AgentWorkspace> workspaces)
+		public static AgentWorkspace? GetAutoSdkWorkspace(this IAgent agent, PerforceCluster cluster, IEnumerable<IPool> pools)
 		{
-			HashSet<AgentWorkspace> autoSdkWorkspaces = new HashSet<AgentWorkspace>();
-			foreach (string? clusterName in workspaces.Select(x => x.Cluster).Distinct())
+			AutoSdkConfig? autoSdkConfig = null;
+			foreach(IPool pool in pools)
 			{
-				PerforceCluster? cluster = globalConfig.FindPerforceCluster(clusterName);
-				if (cluster != null)
-				{
-					AgentWorkspace? autoSdkWorkspace = GetAutoSdkWorkspace(agent, cluster, autoSdkConfig);
-					if (autoSdkWorkspace != null)
-					{
-						autoSdkWorkspaces.Add(autoSdkWorkspace);
-					}
-				}
+				autoSdkConfig = AutoSdkConfig.Merge(autoSdkConfig, pool.AutoSdkConfig);
 			}
-			return autoSdkWorkspaces;
+			if (autoSdkConfig == null)
+			{
+				return null;
+			}
+
+			return GetAutoSdkWorkspace(agent, cluster, autoSdkConfig);
 		}
 
 		/// <summary>

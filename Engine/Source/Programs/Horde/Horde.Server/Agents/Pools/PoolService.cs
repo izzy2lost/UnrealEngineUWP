@@ -6,10 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde;
-using EpicGames.Horde.Common;
-using Horde.Server.Agents.Fleet;
 using Horde.Server.Server;
-using Horde.Server.Utilities;
 using HordeCommon;
 
 namespace Horde.Server.Agents.Pools
@@ -117,7 +114,7 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="poolId"></param>
 		/// <param name="validAtTime"></param>
 		/// <returns></returns>
-		public async Task<IPool?> GetCachedPoolAsync(PoolId poolId, DateTime validAtTime)
+		public async Task<IPool?> GetPoolAsync(PoolId poolId, DateTime validAtTime)
 		{
 			Dictionary<PoolId, IPool> poolMapping = await GetPoolLookupAsync(validAtTime);
 			poolMapping.TryGetValue(poolId, out IPool? pool);
@@ -130,7 +127,7 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="agent"></param>
 		/// <param name="validAtTime"></param>
 		/// <returns></returns>
-		public async Task<List<IPool>> GetCachedPoolsAsync(IAgent agent, DateTime validAtTime)
+		public async Task<List<IPool>> GetPoolsAsync(IAgent agent, DateTime validAtTime)
 		{
 			Dictionary<PoolId, IPool> poolMapping = await GetPoolLookupAsync(validAtTime);
 
@@ -155,8 +152,75 @@ namespace Horde.Server.Agents.Pools
 		/// <returns>List of workspaces</returns>
 		public async Task<HashSet<AgentWorkspace>> GetWorkspacesAsync(IAgent agent, DateTime validAtTime, GlobalConfig globalConfig)
 		{
-			AutoSdkConfig? autoSdkConfig = null;
+			List<IPool> pools = await GetPoolsAsync(agent, validAtTime);
+
 			HashSet<AgentWorkspace> workspaces = new HashSet<AgentWorkspace>();
+			foreach (IPool pool in pools)
+			{
+				workspaces.UnionWith(pool.Workspaces);
+			}
+
+			AutoSdkConfig? autoSdkConfig = GetAutoSdkConfig(pools);
+			if (autoSdkConfig != null)
+			{
+				foreach (string? clusterName in workspaces.Select(x => x.Cluster).Distinct())
+				{
+					PerforceCluster? cluster = globalConfig.FindPerforceCluster(clusterName);
+					if (cluster != null)
+					{
+						AgentWorkspace? autoSdkWorkspace = agent.GetAutoSdkWorkspace(cluster, autoSdkConfig);
+						if (autoSdkWorkspace != null)
+						{
+							workspaces.Add(autoSdkWorkspace);
+						}
+					}
+				}
+			}
+
+			return workspaces;
+		}
+
+		static AutoSdkConfig? GetAutoSdkConfig(IEnumerable<IPool> pools)
+		{
+			AutoSdkConfig? autoSdkConfig = null;
+			foreach(IPool pool in pools)
+			{
+				autoSdkConfig = AutoSdkConfig.Merge(autoSdkConfig, pool.AutoSdkConfig);
+			}
+			return autoSdkConfig;
+		}
+
+		/// <summary>
+		/// Gets all the autosdk workspaces required for an agent
+		/// </summary>
+		/// <param name="agent"></param>
+		/// <param name="cluster"></param>
+		/// <param name="globalConfig"></param>
+		/// <returns></returns>
+		public async Task<AgentWorkspace?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster cluster, GlobalConfig globalConfig)
+		{
+			List<IPool> pools = await GetPoolsAsync(agent, DateTime.UtcNow - TimeSpan.FromSeconds(10.0));
+
+			AutoSdkConfig? autoSdkConfig = GetAutoSdkConfig(pools);
+			if (autoSdkConfig == null)
+			{
+				return null;
+			}
+
+			return agent.GetAutoSdkWorkspace(cluster, autoSdkConfig);
+		}
+
+		/// <summary>
+		/// Get a list of workspaces for the given agent
+		/// </summary>
+		/// <param name="agent">The agent to return workspaces for</param>
+		/// <param name="perforceCluster">The P4 cluster to find a workspace for</param>
+		/// <param name="validAtTime">Absolute time at which we expect the results to be valid. Values may be cached as long as they are after this time.</param>
+		/// <param name="globalConfig">Current configuration</param>
+		/// <returns>List of workspaces</returns>
+		public async Task<AgentWorkspace?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster perforceCluster, DateTime validAtTime, GlobalConfig globalConfig)
+		{
+			AutoSdkConfig? autoSdkConfig = null;
 
 			Dictionary<PoolId, IPool> poolMapping = await GetPoolLookupAsync(validAtTime);
 			foreach (PoolId poolId in agent.GetPools())
@@ -164,17 +228,18 @@ namespace Horde.Server.Agents.Pools
 				IPool? pool;
 				if (poolMapping.TryGetValue(poolId, out pool))
 				{
-					workspaces.UnionWith(pool.Workspaces);
 					autoSdkConfig = AutoSdkConfig.Merge(autoSdkConfig, pool.AutoSdkConfig);
 				}
 			}
 
-			if (autoSdkConfig != null)
+			if (autoSdkConfig == null)
 			{
-				workspaces.UnionWith(agent.GetAutoSdkWorkspaces(globalConfig, autoSdkConfig, workspaces.ToList()));
+				return null;
 			}
-
-			return workspaces;
+			else
+			{
+				return agent.GetAutoSdkWorkspace(perforceCluster, autoSdkConfig);
+			}
 		}
 
 		/// <summary>
