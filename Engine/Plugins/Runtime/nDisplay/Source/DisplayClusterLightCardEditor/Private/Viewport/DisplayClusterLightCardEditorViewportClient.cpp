@@ -1762,22 +1762,24 @@ void FDisplayClusterLightCardEditorViewportClient::UpdatePreviewActor(ADisplayCl
 			for (const TObjectPtr<AActor>& ActorProxy : ActorProxiesCreated)
 			{
 				// Hack - CL 23230783 sets CCW meshes to hidden which causes problems with selection, so always add CCWs to the renderer.
-				bool bIsCCW = false;
+				// Updating to include all stage actors now that CCRs are also supported.
+				bool bIsStageActor = false;
 				for (const UClass* Class = ActorProxy->GetClass(); Class && (UObject::StaticClass() != Class); Class = Class->GetSuperClass())
 				{
-					if (Class->GetName() == TEXT("ColorCorrectionWindow"))
+					if (Class->ImplementsInterface(UDisplayClusterStageActor::StaticClass()))
 					{
-						bIsCCW = true;
+						bIsStageActor = true;
 						break;
 					}
 				}
 				
-				IDisplayClusterScenePreview::Get().AddActorToRenderer(PreviewRendererId, ActorProxy, [this, ActorProxy, bIsCCW](const UPrimitiveComponent* PrimitiveComponent)
+				IDisplayClusterScenePreview::Get().AddActorToRenderer(PreviewRendererId,
+					ActorProxy, [this, ActorProxy, bIsStageActor](const UPrimitiveComponent* PrimitiveComponent)
 				{
 					// Always add the light card mesh component to the renderer's scene even if it is marked hidden in game, since UV light cards will purposefully
 					// hide the light card mesh since it isn't supposed to exist in 3D space. The light card mesh will be appropriately filtered when the scene is
 					// rendered based on the projection mode
-					if (PrimitiveComponent->GetFName() == TEXT("LightCard") || bIsCCW)
+					if (PrimitiveComponent->GetFName() == TEXT("LightCard") || bIsStageActor)
 					{
 						return true;
 					}
