@@ -17,14 +17,34 @@ namespace PerfSummaries
 			public ExtraLink(string fileLine, string inLinkTemplateCsvId)
 			{
 				string[] Sections = fileLine.Split(',');
-				if (Sections.Length != 3)
+				if (Sections.Length < 3)
                 {
 					throw new Exception("Bad links line format: " + fileLine);
 				}
-                ReportText = Sections[0];
+				ReportText = Sections[0];
                 SummaryTableText = Sections[1];
 				LinkURL = Sections[2];
-				if (!LinkURL.StartsWith("http://") && !LinkURL.StartsWith("https://") && !LinkURL.StartsWith("/"))
+				bool bNeedsTemplate = true;
+				string linkTemplateMode = (Sections.Length >= 4) ? Sections[3] : null;
+				if (linkTemplateMode == null || linkTemplateMode == "auto")
+				{
+					// Auto detect if template is needed. If this is a web URL then we assume not
+					if (LinkURL.StartsWith("http://") || LinkURL.StartsWith("https://") )
+					{
+						bNeedsTemplate = false;
+					}
+				}
+				else if (linkTemplateMode == "noLinkTemplate")
+				{
+					bNeedsTemplate = false;
+				}
+				else if (linkTemplateMode != "linkTemplate")
+				{
+					throw new Exception("Bad link type in line: " + fileLine);
+				}
+
+				// If this is a file link then we'll need to template so it can be fixed up externally
+				if (bNeedsTemplate)
 				{
 					LinkTemplateCsvId = inLinkTemplateCsvId;
 				}
