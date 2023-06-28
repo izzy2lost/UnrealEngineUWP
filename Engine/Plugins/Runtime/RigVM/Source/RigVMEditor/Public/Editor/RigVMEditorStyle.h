@@ -94,7 +94,6 @@ public:
 	static FRigVMEditorStyle& Get()
 	{
 		static FRigVMEditorStyle Inst;
-		
 		return Inst;
 	}
 
