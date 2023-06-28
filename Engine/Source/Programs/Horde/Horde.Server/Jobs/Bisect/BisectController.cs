@@ -324,7 +324,7 @@ namespace Horde.Server.Jobs.Bisect
 						IJob? existingJob = await _jobCollection.FindBisectTaskJobsAsync(bisectTask.Id, true, cancellationToken).FirstOrDefaultAsync(cancellationToken);
 						if (existingJob != null && existingJob.AbortedByUserId == null)
 						{
-							await _jobService.UpdateJobAsync(existingJob, null, null, null, KnownUsers.System, null, null, null);
+							await _jobService.UpdateJobAsync(existingJob, null, null, null,  User.GetUserId() ?? KnownUsers.System, null, null, null);
 						}						
 					}
 					return Ok();
