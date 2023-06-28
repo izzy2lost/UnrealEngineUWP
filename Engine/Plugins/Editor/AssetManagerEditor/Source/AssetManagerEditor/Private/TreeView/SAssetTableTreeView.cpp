@@ -829,13 +829,13 @@ void SAssetTableTreeView::ExportDependencyData() const
 		void* ParentWindowHandle = (ParentWindow.IsValid() && ParentWindow->GetNativeWindow().IsValid()) ? ParentWindow->GetNativeWindow()->GetOSWindowHandle() : nullptr;
 
 		FString DefaultFileName;
-		if (SelectedIndices.Num() > 1)
+		if (SelectedAssetIndices.Num() > 1)
 		{
 			DefaultFileName = "Batch Dependency Export.csv";
 		}
 		else
 		{
-			int32 RootIndex = *SelectedIndices.CreateConstIterator();
+			int32 RootIndex = *SelectedAssetIndices.CreateConstIterator();
 			DefaultFileName = FString::Printf(TEXT("%s Dependencies.csv"), GetAssetTable()->GetAssetChecked(RootIndex).GetName());
 		}
 
@@ -859,11 +859,11 @@ void SAssetTableTreeView::ExportDependencyData() const
 
 		TSet<int32> ExternalDependencies;
 		TMap<int32, TArray<int32>> RouteMap;
-		FAssetTableRow::ComputeTotalSizeExternalDependencies(*GetAssetTable(), SelectedIndices, &ExternalDependencies, &RouteMap);
+		FAssetTableRow::ComputeTotalSizeExternalDependencies(*GetAssetTable(), SelectedAssetIndices, &ExternalDependencies, &RouteMap);
 
 		TSet<int32> UniqueDependencies;
 		TSet<int32> SharedDependencies;
-		FAssetTableRow::ComputeDependencySizes(*GetAssetTable(), SelectedIndices, &UniqueDependencies, &SharedDependencies);
+		FAssetTableRow::ComputeDependencySizes(*GetAssetTable(), SelectedAssetIndices, &UniqueDependencies, &SharedDependencies);
 
 		FString TimeSuffix = FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S"));
 
@@ -872,7 +872,7 @@ void SAssetTableTreeView::ExportDependencyData() const
 
 		StringBuilder.Appendf("Asset,Asset Type,Self Size,Dependency Type,Dependency Chain\n");
 		{
-			for (int32 RootIndex : SelectedIndices)
+			for (int32 RootIndex : SelectedAssetIndices)
 			{
 				WriteDependencyLine(*GetAssetTable(), RouteMap, RootIndex, &StringBuilder, DependencyFile.Get(), TEXT("Root"));
 			}
@@ -900,7 +900,7 @@ void SAssetTableTreeView::ExportDependencyData() const
 TArray<FAssetData> SAssetTableTreeView::GetAssetDataForSelection() const
 {
 	TArray<FAssetData> Assets;
-	for (int32 SelectionIndex : SelectedIndices)
+	for (int32 SelectionIndex : SelectedAssetIndices)
 	{
 		const FSoftObjectPath& SoftObjectPath = GetAssetTable()->GetAssetChecked(SelectionIndex).GetSoftObjectPath();
 		FAssetData AssetData;
@@ -920,12 +920,12 @@ void SAssetTableTreeView::ExtendMenu(FMenuBuilder& MenuBuilder)
 {
 	FCanExecuteAction HasSelectionAndCanExecute = FCanExecuteAction::CreateLambda([this]()
 		{
-			return GetAssetTable() && (SelectedIndices.Num() > 0);
+			return GetAssetTable() && (SelectedAssetIndices.Num() > 0);
 		});
 
 	FCanExecuteAction HasSelectionAndRegistrySourceAndCanExecute = FCanExecuteAction::CreateLambda([this]()
 		{
-			return IsRegistrySourceValid() && GetAssetTable() && (SelectedIndices.Num() > 0);
+			return IsRegistrySourceValid() && GetAssetTable() && (SelectedAssetIndices.Num() > 0);
 		});
 
 	MenuBuilder.BeginSection("Asset", LOCTEXT("ContextMenu_Section_Asset", "Asset"));
@@ -938,7 +938,7 @@ void SAssetTableTreeView::ExtendMenu(FMenuBuilder& MenuBuilder)
 		EditSelectedAssets.ExecuteAction = FExecuteAction::CreateLambda([this]()
 			{
 				TArray<FSoftObjectPath> AssetPaths;
-				for (int32 SelectionIndex : SelectedIndices)
+				for (int32 SelectionIndex : SelectedAssetIndices)
 				{
 					AssetPaths.Add(GetAssetTable()->GetAssetChecked(SelectionIndex).GetSoftObjectPath());
 				}
@@ -1235,6 +1235,7 @@ void SAssetTableTreeView::OpenRegistry()
 	}
 	else if (Success)
 	{
+		CookMetadata.Reset();
 		UpdateRegistryInfoTextPostLoad(ECheckFilesExistAndHashMatchesResult::CookMetadataDoesNotExist);
 	}
 	else
@@ -1493,38 +1494,67 @@ void SAssetTableTreeView::TreeView_OnSelectionChanged(UE::Insights::FTableTreeNo
 {
 	TArray<UE::Insights::FTableTreeNodePtr> SelectedNodes;
 	const int32 NumSelectedNodes = TreeView->GetSelectedItems(SelectedNodes);
-	int32 NumSelectedAssets = 0;
-	FAssetTreeNodePtr NewSelectedAssetNode;
 	int32 NewlySelectedAssetRowIndex = -1;
-	TSet<int32> SelectionSetIndices;
+	int32 NewlySelectedPluginIndex = -1;
+	SelectedAssetIndices.Empty();
+	SelectedPluginIndices.Empty();
 
 	for (const UE::Insights::FTableTreeNodePtr& Node : SelectedNodes)
 	{
-		if (Node->Is<FAssetTreeNode>() && Node->As<FAssetTreeNode>().IsValidAsset())
+		if (Node->Is<FPluginSimpleGroupNode>())
 		{
-			NewSelectedAssetNode = StaticCastSharedPtr<FAssetTreeNode>(Node);
-			NewlySelectedAssetRowIndex = NewSelectedAssetNode->GetRowIndex();
-			SelectionSetIndices.Add(NewlySelectedAssetRowIndex);
-			++NumSelectedAssets;
+			// A plugin or its wrapper is selected
+			const FPluginSimpleGroupNode& PluginNode = Node->As<FPluginSimpleGroupNode>();
+			NewlySelectedPluginIndex = PluginNode.GetPluginIndex();
+			SelectedPluginIndices.Add(NewlySelectedPluginIndex);
+		}
+		else if (Node->Is<FAssetTreeNode>())
+		{
+			if (Node->As<FAssetTreeNode>().IsValidAsset())
+			{
+				NewlySelectedAssetRowIndex = StaticCastSharedPtr<FAssetTreeNode>(Node)->GetRowIndex();
+				SelectedAssetIndices.Add(NewlySelectedAssetRowIndex);
+			}
 		}
 	}
+
+	int32 NumSelectedAssets = SelectedAssetIndices.Num();
+	int32 NumSelectedPlugins = SelectedPluginIndices.Num();
 
 	const int32 FilteredAssetCount = FilteredNodesPtr->Num();
 	const int32 VisibleAssetCount = GetAssetTable()->GetVisibleAssetCount();
 
 	if (NumSelectedAssets == 0)
 	{
-		if (FilteredAssetCount != VisibleAssetCount)
+		FooterCenterText1 = FText();
+		FooterCenterText2 = FText();
+
+		if (NumSelectedPlugins > 0)
 		{
-			FooterLeftText = FText::Format(LOCTEXT("FooterLeftTextFmt_NoSelected_Filtered", "{0} / {1} assets"), FText::AsNumber(FilteredAssetCount), FText::AsNumber(VisibleAssetCount));
+			FooterLeftText = FText::Format(LOCTEXT("FootLeftTextFmt_PluginsSelected", "{0} Plugins ({1} Selected)"),
+								FText::AsNumber(GetAssetTable()->GetNumPlugins()),
+								FText::AsNumber(NumSelectedPlugins));
+
+			int64 TotalSelfSize = 0;
+			int64 TotalInclusiveSize = 0;
+			FAssetTablePluginInfo::ComputeTotalSelfAndInclusiveSizes(*GetAssetTable(), SelectedPluginIndices, TotalSelfSize, TotalInclusiveSize);
+			FooterRightText1 = FText::Format(LOCTEXT("FooterRightTextFmt_PluginsSelected", "Self: {0} Inclusive: {1}"),
+								FText::AsMemory(TotalSelfSize),
+								FText::AsMemory(TotalInclusiveSize));
+
 		}
 		else
 		{
-			FooterLeftText = FText::Format(LOCTEXT("FooterLeftTextFmt_NoSelected_NoFiltered", "{0} assets"), FText::AsNumber(VisibleAssetCount));
+			if (FilteredAssetCount != VisibleAssetCount)
+			{
+				FooterLeftText = FText::Format(LOCTEXT("FooterLeftTextFmt_NoSelected_Filtered", "{0} / {1} assets"), FText::AsNumber(FilteredAssetCount), FText::AsNumber(VisibleAssetCount));
+			}
+			else
+			{
+				FooterLeftText = FText::Format(LOCTEXT("FooterLeftTextFmt_NoSelected_NoFiltered", "{0} assets"), FText::AsNumber(VisibleAssetCount));
+			}
+			FooterRightText1 = FText();
 		}
-		FooterCenterText1 = FText();
-		FooterCenterText2 = FText();
-		FooterRightText1 = FText();
 	}
 	else if (NumSelectedAssets == 1)
 	{
@@ -1553,7 +1583,7 @@ void SAssetTableTreeView::TreeView_OnSelectionChanged(UE::Insights::FTableTreeNo
 			// whether a FortWeaponRangedItemDefinition is comparable to a FortWeaponMeleeDualWieldItemDefinition
 			const TCHAR* FirstType = nullptr;
 			bool FirstIndex = true;
-			for (int32 SelectedNodeIndex : SelectionSetIndices)
+			for (int32 SelectedNodeIndex : SelectedAssetIndices)
 			{
 				const FAssetTableRow& AssetTableRow = GetAssetTable()->GetAssetChecked(SelectedNodeIndex);
 				const TCHAR* Type = AssetTableRow.GetType();
@@ -1571,11 +1601,11 @@ void SAssetTableTreeView::TreeView_OnSelectionChanged(UE::Insights::FTableTreeNo
 		}
 
 
-		int64 TotalExternalDependencySize = FAssetTableRow::ComputeTotalSizeExternalDependencies(*GetAssetTable(), SelectionSetIndices);
-		FAssetTableDependencySizes Sizes = FAssetTableRow::ComputeDependencySizes(*GetAssetTable(), SelectionSetIndices, nullptr, nullptr);
+		int64 TotalExternalDependencySize = FAssetTableRow::ComputeTotalSizeExternalDependencies(*GetAssetTable(), SelectedAssetIndices);
+		FAssetTableDependencySizes Sizes = FAssetTableRow::ComputeDependencySizes(*GetAssetTable(), SelectedAssetIndices, nullptr, nullptr);
 
 		int64 TotalSelfSize = 0;
-		for (int32 Index : SelectionSetIndices)
+		for (int32 Index : SelectedAssetIndices)
 		{
 			TotalSelfSize += GetAssetTable()->GetAssetChecked(Index).GetStagedCompressedSize();
 		}
@@ -1585,11 +1615,11 @@ void SAssetTableTreeView::TreeView_OnSelectionChanged(UE::Insights::FTableTreeNo
 		{
 			int64 TotalSizeMultiplyUsed = 0;
 			int64 TotalSizeSingleUse = 0;
-			CalculateBaseAndMarginalCostForSelection(SelectionSetIndices, &TotalSizeMultiplyUsed, &TotalSizeSingleUse);
+			CalculateBaseAndMarginalCostForSelection(SelectedAssetIndices, &TotalSizeMultiplyUsed, &TotalSizeSingleUse);
 
 			BaseAndMarginalCost = FText::Format(LOCTEXT("FooterLeft_BaseAndMarginalCost", " -- Base Cost: {0}  Per Asset Cost: {1}"),
 				FText::AsMemory(TotalSizeMultiplyUsed),
-				FText::AsMemory((TotalSelfSize + TotalSizeSingleUse) / SelectionSetIndices.Num()));
+				FText::AsMemory((TotalSelfSize + TotalSizeSingleUse) / SelectedAssetIndices.Num()));
 		}
 		else
 		{
@@ -1613,18 +1643,6 @@ void SAssetTableTreeView::TreeView_OnSelectionChanged(UE::Insights::FTableTreeNo
 			FText::AsMemory(Sizes.SharedDependenciesSize),
 			FText::AsMemory(TotalExternalDependencySize));
 	}
-
-	if (NumSelectedAssets != 1)
-	{
-		NewSelectedAssetNode.Reset();
-	}
-
-	if (SelectedAssetNode != NewSelectedAssetNode)
-	{
-		SelectedAssetNode = NewSelectedAssetNode;
-	}
-
-	SelectedIndices = SelectionSetIndices;
 
 	if (OnSelectionChanged.IsBound())
 	{
@@ -1904,7 +1922,11 @@ void SAssetTableTreeView::RefreshAssets()
 			{
 				if (CookMetadata.GetSizesPresent() != UE::Cook::ECookMetadataSizesPresent::NotPresent)
 				{
-					if (FMath::Abs((*SizePtr - PluginInfo.Size)) > static_cast<int64>(0.05 * FMath::Max(*SizePtr, PluginInfo.Size)))
+					int64 TotalSizeOfPluginInMetadata = PluginEntry.ExclusiveSizes[UE::Cook::EPluginSizeTypes::Streaming]
+														+ PluginEntry.ExclusiveSizes[UE::Cook::EPluginSizeTypes::Installed]
+														+ PluginEntry.ExclusiveSizes[UE::Cook::EPluginSizeTypes::Optional]
+														+ PluginEntry.ExclusiveSizes[UE::Cook::EPluginSizeTypes::OptionalSegment];
+					if (FMath::Abs((*SizePtr - TotalSizeOfPluginInMetadata)) > static_cast<int64>(0.05 * FMath::Max(*SizePtr, TotalSizeOfPluginInMetadata)))
 					{
 						UE_LOG(LogInsights, Warning, TEXT("Plugin %s found with ucookmetadata and asset calculation size delta > 5%%. Metadata size: %lld Calculated size: %lld"), 
 							StoredPluginName, PluginInfo.Size, *SizePtr);

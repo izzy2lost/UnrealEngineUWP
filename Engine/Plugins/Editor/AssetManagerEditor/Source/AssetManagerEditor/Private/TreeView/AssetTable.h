@@ -156,6 +156,8 @@ public:
 	// This is the total size of all dependencies which are used by some plugin not referenced (directly or indirectly) by this plugin
 	int64 GetOrComputeTotalSizeSharedDependencies(const FAssetTable& OwningTable) const;
 
+	static void ComputeTotalSelfAndInclusiveSizes(const FAssetTable& OwningTable, const TSet<int32>& RootPlugins, int64& OutTotalSelfSize, int64& OutTotalInclusiveSize);
+
 private:
 	void ComputeDependencySizes(const FAssetTable& OwningTable) const;
 

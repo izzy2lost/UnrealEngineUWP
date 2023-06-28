@@ -1710,6 +1710,35 @@ int64 FAssetTablePluginInfo::GetOrComputeTotalSizeSharedDependencies(const FAsse
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void FAssetTablePluginInfo::ComputeTotalSelfAndInclusiveSizes(const FAssetTable& OwningTable, const TSet<int32>& RootPlugins, int64& OutTotalSelfSize, int64& OutTotalInclusiveSize)
+{
+	TSet<int32> VisitedNodes;
+	TArray<int32> DependencyStack = RootPlugins.Array();
+	OutTotalSelfSize = 0;
+	OutTotalInclusiveSize = 0;
+
+	while (DependencyStack.Num() > 0)
+	{
+		int32 CurrentIndex = DependencyStack.Pop();
+
+		if (VisitedNodes.Contains(CurrentIndex))
+		{
+			continue;
+		}
+		VisitedNodes.Add(CurrentIndex);
+		
+		const FAssetTablePluginInfo& PluginInfo = OwningTable.GetPluginInfoByIndexChecked(CurrentIndex);
+		if (RootPlugins.Contains(CurrentIndex))
+		{
+			OutTotalSelfSize += PluginInfo.GetSize();
+		}
+		OutTotalInclusiveSize += PluginInfo.GetSize();
+		DependencyStack.Append(PluginInfo.GetDependencies());
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void FAssetTablePluginInfo::ComputeDependencySizes(const FAssetTable& OwningTable) const
 {
 	SharedDependenciesSize = 0;
@@ -1727,6 +1756,7 @@ void FAssetTablePluginInfo::ComputeDependencySizes(const FAssetTable& OwningTabl
 	{
 		int32 CurrentIndex = DependencyStack.Pop();
 		AllDependencies.Add(CurrentIndex);
+		// We'll end up processing some nodes twice but the real output here is AllDependencies (the set) not DependencyStack so it's ok
 		DependencyStack.Append(OwningTable.GetPluginInfoByIndex(CurrentIndex).GetDependencies());
 	}
 

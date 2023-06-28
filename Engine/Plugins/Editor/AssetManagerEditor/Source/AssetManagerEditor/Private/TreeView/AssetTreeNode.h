@@ -8,6 +8,7 @@
 #include "Insights/Table/ViewModels/TableTreeNode.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+class FPluginSimpleGroupNode;
 
 class FAssetTreeNode : public UE::Insights::FTableTreeNode
 {
@@ -47,6 +48,9 @@ public:
 	virtual FLinearColor GetIconColor() const final;
 	virtual FLinearColor GetColor() const final;
 	
+	bool IsPluginRelatedNode() const { return Is<FPluginSimpleGroupNode>(); }
+	bool IsAssetRelatedNode() const { return !IsPluginRelatedNode(); }
+
 protected:
 
 	// Set of UI style options for node types

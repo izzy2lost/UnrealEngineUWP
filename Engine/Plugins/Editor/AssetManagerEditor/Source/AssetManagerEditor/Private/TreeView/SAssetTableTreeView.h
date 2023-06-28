@@ -71,7 +71,6 @@ public:
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	TSharedPtr<FAssetTreeNode> GetSingleSelectedAssetNode() const { return SelectedAssetNode; }
 
 private:
 
@@ -149,8 +148,8 @@ private:
 
 	/** Delegate to invoke when selection changes. */
 	FOnSelectionChanged OnSelectionChanged;
-	TSharedPtr<FAssetTreeNode> SelectedAssetNode;
-	TSet<int32> SelectedIndices;
+	TSet<int32> SelectedAssetIndices;
+	TSet<int32> SelectedPluginIndices;
 
 	/** List of valid registry sources */
 	TArray<TSharedPtr<FString>> SourceComboList;
