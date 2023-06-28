@@ -148,6 +148,11 @@ TAutoConsoleVariable<int32> CVarTSRShadingTileOverscan(
 	TEXT(" anti-aliasing scalability settings."),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
+TAutoConsoleVariable<int32> CVarTSRShadingTileSize(
+	TEXT("r.TSR.ShadingRejection.TileSize"), 16,
+	TEXT(""),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
 TAutoConsoleVariable<float> CVarTSRShadingExposureOffset(
 	TEXT("r.TSR.ShadingRejection.ExposureOffset"), 3.0,
 	TEXT("The shading rejection needs to have a representative idea how bright a linear color pixel ends up displayed to the user. ")
@@ -615,6 +620,7 @@ class FTSRRejectShadingCS : public FTSRShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, HistoryGuideOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, HistoryMoireOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, HistoryRejectionOutput)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, InputSceneColorOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, InputSceneColorLdrLumaOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, DebugOutput)
 	END_SHADER_PARAMETER_STRUCT()
@@ -729,7 +735,6 @@ class FTSRSpatialAntiAliasingCS : public FTSRShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FTSRCommonParameters, CommonParameters)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputSceneColorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputSceneColorLdrLumaTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, AntiAliasingOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, NoiseFilteringOutput)
@@ -1907,6 +1912,13 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		DilatedVelocityTexture = HoleFilledVelocityTexture;
 	}
 
+	// Merge PostDOF translucency within same scene color.
+	FRDGTextureRef InputSceneColorTexture = nullptr;
+	if (!bHasSeparateTranslucency)
+	{
+		InputSceneColorTexture = PassInputs.SceneColor.Texture;
+	}
+
 	// Perform a history reject the history.
 	FRDGTextureRef InputSceneColorLdrLumaTexture = nullptr;
 	auto RejectReprojectedGuide = [&](
@@ -1915,10 +1927,22 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		FRDGTextureUAVRef HistoryGuideOutput,
 		FRDGTextureUAVRef HistoryMoireOutput) -> FRDGTextureRef
 	{
-		const int32 GroupTileSize = 16;
+		const int32 GroupTileSize = CVarTSRShadingTileSize.GetValueOnRenderThread();
 
-		const bool ComputeLdrLuma = InputSceneColorLdrLumaTexture == nullptr;
-		if (ComputeLdrLuma)
+		const bool bComputeInputSceneColorTexture = InputSceneColorLdrLumaTexture == nullptr;
+		if (bComputeInputSceneColorTexture)
+		{
+			FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
+				InputExtent,
+				HistoryColorFormat,
+				FClearValueBinding::None,
+				/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV);
+
+			InputSceneColorTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.SceneColor"));
+		}
+
+		const bool bComputeLdrLuma = InputSceneColorLdrLumaTexture == nullptr && RejectionAntiAliasingQuality > 0;
+		if (bComputeLdrLuma)
 		{
 			FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
 				InputExtent,
@@ -1977,10 +2001,12 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PassParameters->HistoryGuideOutput = HistoryGuideOutput;
 		PassParameters->HistoryMoireOutput = HistoryMoireOutput;
 		PassParameters->HistoryRejectionOutput = GraphBuilder.CreateUAV(HistoryRejectionTexture);
-		//PassParameters->InputSceneColorLdrLumaOutput = ComputeLdrLuma
-		//	? GraphBuilder.CreateUAV(InputSceneColorLdrLumaTexture)
-		//	: CreateDummyUAV(GraphBuilder, PF_R8);
-		PassParameters->InputSceneColorLdrLumaOutput = GraphBuilder.CreateUAV(InputSceneColorLdrLumaTexture);
+		PassParameters->InputSceneColorOutput = bComputeInputSceneColorTexture
+			? GraphBuilder.CreateUAV(InputSceneColorTexture)
+			: CreateDummyUAV(GraphBuilder, HistoryColorFormat);
+		PassParameters->InputSceneColorLdrLumaOutput = bComputeLdrLuma
+			? GraphBuilder.CreateUAV(InputSceneColorLdrLumaTexture)
+			: CreateDummyUAV(GraphBuilder, PF_R8);
 		PassParameters->DebugOutput = CreateDebugUAV(InputExtent, TEXT("Debug.TSR.RejectShading"));
 
 		int32 TileSize = GroupTileSize - 2 * PassParameters->TileOverscan;
@@ -2142,7 +2168,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		{
 			FTSRSpatialAntiAliasingCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTSRSpatialAntiAliasingCS::FParameters>();
 			PassParameters->CommonParameters = CommonParameters;
-			PassParameters->InputSceneColorTexture = PassInputs.SceneColor.Texture;
 			PassParameters->InputSceneColorLdrLumaTexture = InputSceneColorLdrLumaTexture;
 			PassParameters->AntiAliasingOutput = GraphBuilder.CreateUAV(RawAntiAliasingTexture);
 			PassParameters->NoiseFilteringOutput = GraphBuilder.CreateUAV(NoiseFilteringTexture);
@@ -2194,7 +2219,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 
 		FTSRUpdateHistoryCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTSRUpdateHistoryCS::FParameters>();
 		PassParameters->CommonParameters = CommonParameters;
-		PassParameters->InputSceneColorTexture = PassInputs.SceneColor.Texture;
+		PassParameters->InputSceneColorTexture = InputSceneColorTexture;
 		PassParameters->InputSceneStencilTexture = GraphBuilder.CreateSRV(
 			FRDGTextureSRVDesc::CreateWithPixelFormat(PassInputs.SceneDepth.Texture, PF_X24_G8));
 		PassParameters->InputSceneTranslucencyTexture = SeparateTranslucencyTexture;
