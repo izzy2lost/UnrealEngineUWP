@@ -27,8 +27,10 @@ struct POSESEARCH_API FPoseSearchTrajectorySample
 {
 	GENERATED_BODY()
 
+	// the data relative to the sampling time associated to this FPoseSearchTrajectorySample will be offsetted by Offset seconds.
+	// For example, Flags is Position, and Offset is 0.5, this channel will try to match the future position of the trajectory 0.5 seconds ahead
 	UPROPERTY(EditAnywhere, Category = Config)
-	float Offset = 0.f; // offset in time or distance depending on UPoseSearchFeatureChannel_Trajectory.Domain
+	float Offset = 0.f;
 
 	// This allows the user to define what information from the channel you want to compare to.
 	UPROPERTY(EditAnywhere, meta = (Bitmask, BitmaskEnum = "/Script/PoseSearch.EPoseSearchTrajectoryFlags"), Category = Config)

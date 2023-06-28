@@ -70,10 +70,10 @@ void UPoseSearchFeatureChannel_FilterCrashingLegs::BuildQuery(UE::PoseSearch::FS
 	}
 	else
 	{
-		const FVector RightThighPosition = SearchContext.GetSamplePosition(0.f, InOutQuery.GetSchema(), RightThighIdx);
-		const FVector LeftThighPosition = SearchContext.GetSamplePosition(0.f, InOutQuery.GetSchema(), LeftThighIdx);
-		const FVector RightFootPosition = SearchContext.GetSamplePosition(0.f, InOutQuery.GetSchema(), RightFootIdx);
-		const FVector LeftFootPosition = SearchContext.GetSamplePosition(0.f, InOutQuery.GetSchema(), LeftFootIdx);
+		const FVector RightThighPosition = SearchContext.GetSamplePosition(0.f, 0.f, InOutQuery.GetSchema(), RightThighIdx);
+		const FVector LeftThighPosition = SearchContext.GetSamplePosition(0.f, 0.f, InOutQuery.GetSchema(), LeftThighIdx);
+		const FVector RightFootPosition = SearchContext.GetSamplePosition(0.f, 0.f, InOutQuery.GetSchema(), RightFootIdx);
+		const FVector LeftFootPosition = SearchContext.GetSamplePosition(0.f, 0.f, InOutQuery.GetSchema(), LeftFootIdx);
 
 		const float CrashingLegsValue = ComputeCrashingLegsValue(RightThighPosition, LeftThighPosition, RightFootPosition, LeftFootPosition);
 
@@ -155,10 +155,10 @@ void UPoseSearchFeatureChannel_FilterCrashingLegs::IndexAsset(UE::PoseSearch::FA
 
 	for (int32 SampleIdx = Indexer.GetBeginSampleIdx(); SampleIdx != Indexer.GetEndSampleIdx(); ++SampleIdx)
 	{
-		const FVector RightThighPosition = Indexer.GetSamplePosition(0.f, SampleIdx, RightThighIdx);
-		const FVector LeftThighPosition = Indexer.GetSamplePosition(0.f, SampleIdx, LeftThighIdx);
-		const FVector RightFootPosition = Indexer.GetSamplePosition(0.f, SampleIdx, RightFootIdx);
-		const FVector LeftFootPosition = Indexer.GetSamplePosition(0.f, SampleIdx, LeftFootIdx);
+		const FVector RightThighPosition = Indexer.GetSamplePosition(0.f, 0.f, SampleIdx, RightThighIdx);
+		const FVector LeftThighPosition = Indexer.GetSamplePosition(0.f, 0.f, SampleIdx, LeftThighIdx);
+		const FVector RightFootPosition = Indexer.GetSamplePosition(0.f, 0.f, SampleIdx, RightFootIdx);
+		const FVector LeftFootPosition = Indexer.GetSamplePosition(0.f, 0.f, SampleIdx, LeftFootIdx);
 
 		const float CrashingLegsValue = ComputeCrashingLegsValue(RightThighPosition, LeftThighPosition, RightFootPosition, LeftFootPosition);
 

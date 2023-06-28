@@ -356,7 +356,7 @@ float FAssetIndexer::CalculateSampleTime(int32 SampleIdx) const
 	return SampleIdx / float(Schema.SampleRate);
 }
 
-FQuat FAssetIndexer::GetSampleRotation(float SampleTimeOffset, int32 SampleIdx, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, EPermutationTimeType PermutationTimeType)
+FQuat FAssetIndexer::GetSampleRotation(float SampleTimeOffset, float OriginTimeOffset, int32 SampleIdx, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, EPermutationTimeType PermutationTimeType)
 {
 	float PermutationSampleTimeOffset = 0.f;
 	float PermutationOriginTimeOffset = 0.f;
@@ -364,7 +364,7 @@ FQuat FAssetIndexer::GetSampleRotation(float SampleTimeOffset, int32 SampleIdx, 
 
 	const float Time = CalculateSampleTime(SampleIdx);
 	const float SampleTime = Time + SampleTimeOffset + PermutationSampleTimeOffset;
-	const float OriginTime = Time + PermutationOriginTimeOffset;
+	const float OriginTime = Time + OriginTimeOffset + PermutationOriginTimeOffset;
 
 	// @todo: add support for SchemaSampleBoneIdx
 	if (!Schema.IsRootBone(SchemaOriginBoneIdx))
@@ -388,7 +388,7 @@ FQuat FAssetIndexer::GetSampleRotation(float SampleTimeOffset, int32 SampleIdx, 
 	return BoneTransform.GetRotation();
 }
 
-FVector FAssetIndexer::GetSamplePosition(float SampleTimeOffset, int32 SampleIdx, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, EPermutationTimeType PermutationTimeType)
+FVector FAssetIndexer::GetSamplePosition(float SampleTimeOffset, float OriginTimeOffset, int32 SampleIdx, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, EPermutationTimeType PermutationTimeType)
 {
 	float PermutationSampleTimeOffset = 0.f;
 	float PermutationOriginTimeOffset = 0.f;
@@ -396,7 +396,7 @@ FVector FAssetIndexer::GetSamplePosition(float SampleTimeOffset, int32 SampleIdx
 
 	const float Time = CalculateSampleTime(SampleIdx);
 	const float SampleTime = Time + SampleTimeOffset + PermutationSampleTimeOffset;
-	const float OriginTime = Time + PermutationOriginTimeOffset;
+	const float OriginTime = Time + OriginTimeOffset + PermutationOriginTimeOffset;
 	
 	bool bUnused;
 	return GetSamplePositionInternal(SampleTime, OriginTime, bUnused, SchemaSampleBoneIdx, SchemaOriginBoneIdx);
@@ -433,7 +433,7 @@ FVector FAssetIndexer::GetSamplePositionInternal(float SampleTime, float OriginT
 	return RootBoneTransform.InverseTransformVector(DeltaBoneTranslation);
 }
 
-FVector FAssetIndexer::GetSampleVelocity(float SampleTimeOffset, int32 SampleIdx, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, bool bUseCharacterSpaceVelocities, EPermutationTimeType PermutationTimeType)
+FVector FAssetIndexer::GetSampleVelocity(float SampleTimeOffset, float OriginTimeOffset, int32 SampleIdx, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, bool bUseCharacterSpaceVelocities, EPermutationTimeType PermutationTimeType)
 {
 	float PermutationSampleTimeOffset = 0.f;
 	float PermutationOriginTimeOffset = 0.f;
@@ -441,7 +441,7 @@ FVector FAssetIndexer::GetSampleVelocity(float SampleTimeOffset, int32 SampleIdx
 
 	const float Time = CalculateSampleTime(SampleIdx);
 	const float SampleTime = Time + SampleTimeOffset + PermutationSampleTimeOffset;
-	const float OriginTime = Time + PermutationOriginTimeOffset;
+	const float OriginTime = Time + OriginTimeOffset + PermutationOriginTimeOffset;
 	const float FiniteDelta = SamplingContext.FiniteDelta;
 
 	bool bClampedPast, bClampedPresent;

@@ -50,7 +50,7 @@ namespace UE::PoseSearch
 		BonePositions.AddDefaulted(NumSamples);
 		for (int32 SampleIdx = 0; SampleIdx != NumSamples; ++SampleIdx)
 		{
-			BonePositions[SampleIdx] = Indexer.GetSamplePosition(0.f, SampleIdx, SchemaBoneIdx);
+			BonePositions[SampleIdx] = Indexer.GetSamplePosition(0.f, 0.f, SampleIdx, SchemaBoneIdx, RootSchemaBoneIdx, EPermutationTimeType::UseSampleTime);
 		}
 	}
 

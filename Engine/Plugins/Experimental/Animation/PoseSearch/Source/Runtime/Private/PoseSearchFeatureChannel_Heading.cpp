@@ -62,7 +62,7 @@ void UPoseSearchFeatureChannel_Heading::BuildQuery(UE::PoseSearch::FSearchContex
 	else
 	{
 		// calculating the BoneRotation in component space for the bone indexed by SchemaBoneIdx
-		const FQuat BoneRotation = SearchContext.GetSampleRotation(SampleTimeOffset, InOutQuery.GetSchema(), SchemaBoneIdx, RootSchemaBoneIdx, !bIsRootBone);
+		const FQuat BoneRotation = SearchContext.GetSampleRotation(SampleTimeOffset, OriginTimeOffset, InOutQuery.GetSchema(), SchemaBoneIdx, RootSchemaBoneIdx, !bIsRootBone);
 		FFeatureVectorHelper::EncodeVector(InOutQuery.EditValues(), ChannelDataOffset, GetAxis(BoneRotation), ComponentStripping);
 	}
 }
@@ -96,7 +96,7 @@ void UPoseSearchFeatureChannel_Heading::IndexAsset(UE::PoseSearch::FAssetIndexer
 
 	for (int32 SampleIdx = Indexer.GetBeginSampleIdx(); SampleIdx != Indexer.GetEndSampleIdx(); ++SampleIdx)
 	{
-		const FVector Heading = GetAxis(Indexer.GetSampleRotation(SampleTimeOffset, SampleIdx, SchemaBoneIdx));
+		const FVector Heading = GetAxis(Indexer.GetSampleRotation(SampleTimeOffset, OriginTimeOffset, SampleIdx, SchemaBoneIdx));
 		FFeatureVectorHelper::EncodeVector(Indexer.GetPoseVector(SampleIdx), ChannelDataOffset, Heading, ComponentStripping);
 	}
 }
@@ -142,6 +142,12 @@ FString UPoseSearchFeatureChannel_Heading::GetLabel() const
 	}
 
 	Label.Appendf(TEXT(" %.2f"), SampleTimeOffset);
+
+	if (!FMath::IsNearlyZero(OriginTimeOffset))
+	{
+		Label.Appendf(TEXT("-%.2f"), OriginTimeOffset);
+	}
+
 	return Label.ToString();
 }
 #endif
