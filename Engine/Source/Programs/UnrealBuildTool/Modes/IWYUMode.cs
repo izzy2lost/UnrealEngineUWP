@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -203,6 +204,12 @@ namespace UnrealBuildTool
 	class IWYUMode : ToolMode
 	{
 		/// <summary>
+		/// Specifies the file to use for logging.
+		/// </summary>
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		public string? IWYUBaseLogFileName;
+
+		/// <summary>
 		/// Will check out files from p4 and write to disk
 		/// </summary>
 		[CommandLine("-Write")]
@@ -348,6 +355,26 @@ namespace UnrealBuildTool
 			Logger.LogInformation($"====================================================");
 
 			Arguments.ApplyTo(this);
+
+			// Fixup the log path if it wasn't overridden by a config file
+			if (IWYUBaseLogFileName == null)
+			{
+				IWYUBaseLogFileName = FileReference.Combine(Unreal.EngineProgramSavedDirectory, "UnrealBuildTool", "IWYULog.txt").FullName;
+			}
+
+			// Create the log file, and flush the startup listener to it
+			if (!Arguments.HasOption("-NoLog") && !Log.HasFileWriter())
+			{
+				Log.AddFileWriter("DefaultLogTraceListener", FileReference.FromString(IWYUBaseLogFileName));
+			}
+			else
+			{
+				IEnumerable<StartupTraceListener> StartupListeners = Trace.Listeners.OfType<StartupTraceListener>();
+				if (StartupListeners.Any())
+				{
+					Trace.Listeners.Remove(StartupListeners.First());
+				}
+			}
 
 			// Create the build configuration object, and read the settings
 			CommandLineArguments BuildArguments = Arguments.Append(new[] { "-IWYU" }); // Add in case it is not added (it is needed for iwyu toolchain)
