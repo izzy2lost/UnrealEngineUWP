@@ -82,6 +82,8 @@ private:
 
 	void ChangeTabWorld(UWorld* World, EMapChangeType MapChangeType);
 
+	void MarkTransientRecursive(UEditorUtilityWidget* UtilityWidget);
+
 private:
 	// Should the widget be enabled when running PIE
 	UPROPERTY(Category = Settings, EditDefaultsOnly)
