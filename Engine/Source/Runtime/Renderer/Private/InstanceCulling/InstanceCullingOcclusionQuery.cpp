@@ -17,6 +17,7 @@
 #include "ShaderParameterStruct.h"
 #include "SceneRendering.h"
 #include "ScenePrivate.h"
+#include "UnifiedBuffer.h"
 #include "HAL/IConsoleManager.h"
 #include "DataDrivenShaderPlatformInfo.h"
 
@@ -396,6 +397,31 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 	}
 
 	return ViewMask;
+}
+
+void FInstanceCullingOcclusionQueryRenderer::MarkInstancesVisible(FRDGBuilder& GraphBuilder, TConstArrayView<FGPUSceneInstanceRange> Ranges)
+{
+	if (!InstanceOcclusionQueryBuffer)
+	{
+		// Previous frame buffer does not exist, nothing to clear
+		return;
+	}
+
+	FRDGBufferRef Buffer = GraphBuilder.RegisterExternalBuffer(InstanceOcclusionQueryBuffer);
+
+	// Consecutive uses of the UAV will run in parallel.
+	// Allocating a unique RDG UAV here will still ensure that a barrier is inserted before the first dispatch.
+	FRDGBufferUAVRef UAV = GraphBuilder.CreateUAV(Buffer, PF_R32_UINT, ERDGUnorderedAccessViewFlags::SkipBarrier);
+
+	// NOTE: It is possible to make this more efficient using a specialized GPU scatter shader, if we see many small batches here in practice
+	for (FGPUSceneInstanceRange Range : Ranges)
+	{
+		FMemsetResourceParams MemsetParams;
+		MemsetParams.Value = 0xFFFFFFFF; // Mark instance visible in all views
+		MemsetParams.Count = Range.NumInstanceSceneDataEntries;
+		MemsetParams.DstOffset = Range.InstanceSceneDataOffset;
+		MemsetResource(GraphBuilder, UAV, MemsetParams);
+	}
 }
 
 void FInstanceCullingOcclusionQueryRenderer::EndFrame(FRDGBuilder& GraphBuilder)

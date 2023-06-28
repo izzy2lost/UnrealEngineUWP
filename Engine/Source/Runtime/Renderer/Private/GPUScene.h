@@ -22,6 +22,7 @@ class FLightSceneInfoCompact;
 class FGPUScene;
 class FGPUSceneDynamicContext;
 class FViewUniformShaderParameters;
+class FInstanceCullingOcclusionQueryRenderer;
 
 BEGIN_SHADER_PARAMETER_STRUCT(FGPUSceneResourceParameters, RENDERER_API)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, GPUSceneInstanceSceneData)
@@ -181,6 +182,12 @@ struct FGPUSceneBufferState
 	uint32 LightMapDataBufferSize = 0;
 
 	FRDGBuffer* LightDataBuffer = nullptr;
+};
+
+struct FGPUSceneInstanceRange
+{
+	uint32 InstanceSceneDataOffset;
+	uint32 NumInstanceSceneDataEntries;
 };
 
 class FGPUScene
@@ -353,11 +360,7 @@ public:
 	TRefCountPtr<FRDGPooledBuffer> LightmapDataBuffer;
 	FRDGAsyncScatterUploadBuffer   LightmapUploadBuffer;
 
-	struct FInstanceRange
-	{
-		uint32 InstanceSceneDataOffset;
-		uint32 NumInstanceSceneDataEntries;
-	};
+	using FInstanceRange = FGPUSceneInstanceRange;
 
 	TArray<FInstanceRange> DynamicPrimitiveInstancesToInvalidate;
 
@@ -426,7 +429,7 @@ private:
 
 	void AddUpdatePrimitiveIdsPass(FRDGBuilder& GraphBuilder, FInstanceGPULoadBalancer& IdOnlyUpdateItems);
 
-	void AddClearInstancesPass(FRDGBuilder& GraphBuilder);
+	void AddClearInstancesPass(FRDGBuilder& GraphBuilder, FInstanceCullingOcclusionQueryRenderer* OcclusionQueryRenderer = nullptr);
 
 
 #if !UE_BUILD_SHIPPING

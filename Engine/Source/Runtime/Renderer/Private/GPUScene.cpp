@@ -26,6 +26,7 @@
 #include "SceneDefinitions.h"
 #include "PrimitiveSceneShaderData.h"
 #include "RendererOnScreenNotification.h"
+#include "InstanceCulling/InstanceCullingOcclusionQuery.h"
 
 // Defaults to being disabled, enable using the command line argument: -CsvCategory GPUScene
 CSV_DEFINE_CATEGORY(GPUScene, false);
@@ -764,7 +765,7 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 	UpdateBufferState(GraphBuilder, SceneUB, Scene, Adapter, true);
 
 	// Run a pass that clears (Sets ID to invalid) any instances that need it
-	AddClearInstancesPass(GraphBuilder);
+	AddClearInstancesPass(GraphBuilder, Scene.InstanceCullingOcclusionQueryRenderer);
 
 	// Pull out instances needing only primitive ID update, they still have to go to the general update such that the primitive gets updated (as it moved)
 	{
@@ -1592,7 +1593,7 @@ void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& Gra
 		UpdateBufferState(GraphBuilder, View.GetSceneUniforms(), Scene, UploadAdapter, false);
 
 		// Run a pass that clears (Sets ID to invalid) any instances that need it.
-		AddClearInstancesPass(GraphBuilder);
+		AddClearInstancesPass(GraphBuilder, Scene.InstanceCullingOcclusionQueryRenderer);
 
 		UploadGeneral<FUploadDataSourceAdapterDynamicPrimitives>(GraphBuilder, Scene, ExternalAccessQueue, UploadAdapter);
 	}
@@ -1729,6 +1730,21 @@ void FGPUScene::UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilde
 	}
 }
 
+// Grow the last entry in the Output using the given Range if trivial merge is possible (typical case)
+inline void AddOrMergeInstanceRange(TArray<FGPUSceneInstanceRange>& Output, FGPUSceneInstanceRange Range)
+{
+	if (!Output.IsEmpty())
+	{
+		FGPUSceneInstanceRange& Last = Output.Last();
+		if (Range.InstanceSceneDataOffset == Last.InstanceSceneDataOffset + Last.NumInstanceSceneDataEntries)
+		{
+			Last.NumInstanceSceneDataEntries += Range.NumInstanceSceneDataEntries;
+			return;
+		}
+	}
+	Output.Add(Range);
+}
+
 int32 FGPUScene::AllocateInstanceSceneDataSlots(int32 NumInstanceSceneDataEntries)
 {
 	LLM_SCOPE_BYTAG(GPUScene);
@@ -1738,7 +1754,7 @@ int32 FGPUScene::AllocateInstanceSceneDataSlots(int32 NumInstanceSceneDataEntrie
 		if (NumInstanceSceneDataEntries > 0)
 		{
 			int32 InstanceSceneDataOffset = InstanceSceneDataAllocator.Allocate(NumInstanceSceneDataEntries);
-			InstanceRangesToClear.Add(FInstanceRange{ uint32(InstanceSceneDataOffset), uint32(NumInstanceSceneDataEntries) });
+			AddOrMergeInstanceRange(InstanceRangesToClear, FInstanceRange{ uint32(InstanceSceneDataOffset), uint32(NumInstanceSceneDataEntries) });
 #if LOG_INSTANCE_ALLOCATIONS
 			UE_LOG(LogTemp, Warning, TEXT("AllocateInstanceSceneDataSlots: [%6d,%6d)"), InstanceSceneDataOffset, InstanceSceneDataOffset + NumInstanceSceneDataEntries);
 #endif
@@ -1757,7 +1773,7 @@ void FGPUScene::FreeInstanceSceneDataSlots(int32 InstanceSceneDataOffset, int32 
 	if (bIsEnabled)
 	{
 		InstanceSceneDataAllocator.Free(InstanceSceneDataOffset, NumInstanceSceneDataEntries);
-		InstanceRangesToClear.Add(FInstanceRange{ uint32(InstanceSceneDataOffset), uint32(NumInstanceSceneDataEntries) });
+		AddOrMergeInstanceRange(InstanceRangesToClear, FInstanceRange{ uint32(InstanceSceneDataOffset), uint32(NumInstanceSceneDataEntries) });
 #if LOG_INSTANCE_ALLOCATIONS
 		UE_LOG(LogTemp, Warning, TEXT("FreeInstanceSceneDataSlots: [%6d,%6d)"), InstanceSceneDataOffset, InstanceSceneDataOffset + NumInstanceSceneDataEntries);
 #endif
@@ -2182,7 +2198,7 @@ void FGPUSceneCompactInstanceData::Init(const FScene* Scene, int32 PrimitiveId)
 	InstanceAuxData			= FVector4f(0);
 }
 
-void FGPUScene::AddClearInstancesPass(FRDGBuilder& GraphBuilder)
+void FGPUScene::AddClearInstancesPass(FRDGBuilder& GraphBuilder, FInstanceCullingOcclusionQueryRenderer* OcclusionQueryRenderer)
 {
 	FInstanceGPULoadBalancer ClearIdData;
 #if LOG_INSTANCE_ALLOCATIONS
@@ -2203,6 +2219,13 @@ void FGPUScene::AddClearInstancesPass(FRDGBuilder& GraphBuilder)
 #endif
 		}
 	}
+
+	if (OcclusionQueryRenderer)
+	{
+		// Invalidate last frame occlusion query slots
+		OcclusionQueryRenderer->MarkInstancesVisible(GraphBuilder, InstanceRangesToClear);
+	}
+
 #if LOG_INSTANCE_ALLOCATIONS
 	UE_LOG(LogTemp, Warning, TEXT("AddClearInstancesPass: \n%s"), *RangesStr);
 #endif

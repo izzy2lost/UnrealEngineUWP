@@ -6,11 +6,13 @@
 #include "RenderGraphFwd.h"
 #include "RenderGraphResources.h"
 #include "Containers/Array.h"
+#include "Containers/ArrayView.h"
 
 class FRDGBuilder;
 class FGPUScene;
 class FViewInfo;
 struct IPooledRenderTarget;
+struct FGPUSceneInstanceRange;
 
 /** 
 * Implements accurate per-instance occlusion culling similar to FOcclusionFeedback, except using GPUScene.
@@ -24,6 +26,13 @@ public:
 	* Returns view-specific bit mask that should be used when interpreting query result buffer, since it contains 1 bit per view.
 	*/	
 	uint32 Render(FRDGBuilder& GraphBuilder, FGPUScene& GPUScene, FViewInfo& View);
+
+	/**
+	* Mark blocks of occlusion query buffer entries as visible in all views.
+	* Required, for example, when GPUScene instances are invalidated betwen frames,
+	* i.e. when when GPUScene instance buffer slot is re-allocated.
+	*/
+	void MarkInstancesVisible(FRDGBuilder& GraphBuilder, TConstArrayView<FGPUSceneInstanceRange> Ranges);
 
 	/**
 	* Perform various book-keeping tasks that must run at the end of each frame
