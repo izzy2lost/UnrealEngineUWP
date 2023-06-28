@@ -177,7 +177,7 @@ void FPhysicsReplication::SetReplicatedTarget(UPrimitiveComponent* Component, FN
 			// which does not get updated until the component's transform is directly set.
 			// Until that flag is set, it's root particle will be in a disabled state and not
 			// have any children, therefore replication will be dead in the water.
-			Component->SetWorldTransform(FTransform(ReplicatedTarget.Quaternion, ReplicatedTarget.Position, Component->GetRelativeScale3D()));
+			Component->SetWorldTransform(FTransform(ReplicatedTarget.Quaternion, ReplicatedTarget.Position, Component->GetRelativeScale3D()), false, nullptr, ETeleportType::TeleportPhysics);
 			Component->SetPhysicsLinearVelocity(ReplicatedTarget.LinVel);
 			Component->SetAllPhysicsAngularVelocityInDegrees(ReplicatedTarget.AngVel);
 		}
