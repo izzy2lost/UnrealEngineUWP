@@ -455,7 +455,9 @@ namespace EpicGames.Perforce.Managed
 			{
 				Stopwatch timer = Stopwatch.StartNew();
 
-				_workspace.Refresh(removeUntracked, out filesToDelete, out directoriesToDelete);
+				(FileInfo[] filesToDelete, DirectoryInfo[] directoriesToDelete) refreshResult = await _workspace.Refresh(removeUntracked, MaxFileConcurrency);
+				filesToDelete = refreshResult.filesToDelete;
+				directoriesToDelete = refreshResult.directoriesToDelete;
 
 				status.Progress = $"({timer.Elapsed.TotalSeconds:0.0}s)";
 			}
@@ -756,14 +758,14 @@ namespace EpicGames.Perforce.Managed
 		/// <summary>
 		/// Prints information about the repository state
 		/// </summary>
-		public void Status()
+		public async Task Status()
 		{
 			// Print size stats
 			_logger.LogInformation("Cache contains {NumFiles:n0} files, {TotalSize:n1}mb", _contentIdToTrackedFile.Count, _contentIdToTrackedFile.Values.Sum(x => x.Length) / (1024.0 * 1024.0));
 			_logger.LogInformation("Stage contains {NumFiles:n0} files, {TotalSize:n1}mb", _workspace.GetFiles().Count, _workspace.GetFiles().Sum(x => x._length) / (1024.0 * 1024.0));
 
 			// Print the contents of the workspace
-			string[] differences = _workspace.FindDifferences();
+			string[] differences = await _workspace.FindDifferencesAsync(MaxFileConcurrency);
 			if (differences.Length > 0)
 			{
 				_logger.LogInformation("Local changes:");
@@ -1719,7 +1721,7 @@ namespace EpicGames.Perforce.Managed
 			{
 				Stopwatch timer = Stopwatch.StartNew();
 
-				transaction = new RemoveTransaction(_workspace, contents, _contentIdToTrackedFile);
+				transaction = await RemoveTransaction.CreateAsync(_workspace, contents, _contentIdToTrackedFile, MaxFileConcurrency);
 
 				scope.Progress = $"({timer.Elapsed.TotalSeconds:0.0}s)";
 			}
@@ -1855,7 +1857,7 @@ namespace EpicGames.Perforce.Managed
 			{
 				Stopwatch timer = Stopwatch.StartNew();
 
-				transaction = new AddTransaction(_workspace, stream, _contentIdToTrackedFile);
+				transaction = await AddTransaction.CreateAsync(_workspace, stream, _contentIdToTrackedFile, MaxFileConcurrency);
 				_workspace = transaction._newWorkspaceRootDir;
 				await SaveAsync(TransactionState.Dirty, cancellationToken);
 

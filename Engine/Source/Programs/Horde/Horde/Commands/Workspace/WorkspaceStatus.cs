@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Perforce;
 using EpicGames.Perforce.Managed;
@@ -11,10 +10,9 @@ namespace Horde.Commands.Workspace
 	[Command("workspace", "status", "Prints information about the state of the cache and workspace")]
 	class WorkspaceStatus : WorkspaceBase
 	{
-		protected override Task ExecuteAsync(IPerforceConnection perforce, ManagedWorkspace repo, ILogger logger)
+		protected override async Task ExecuteAsync(IPerforceConnection perforce, ManagedWorkspace repo, ILogger logger)
 		{
-			repo.Status();
-			return Task.CompletedTask;
+			await repo.Status();
 		}
 	}
 }

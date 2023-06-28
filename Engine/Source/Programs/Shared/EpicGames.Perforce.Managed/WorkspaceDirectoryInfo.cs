@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using EpicGames.Core;
 
 namespace EpicGames.Perforce.Managed
@@ -125,18 +126,15 @@ namespace EpicGames.Perforce.Managed
 		/// Refresh the state of the workspace on disk
 		/// </summary>
 		/// <param name="removeUntracked">Whether to remove files that are not part of the stream</param>
-		/// <param name="filesToDelete">Receives an array of files to delete</param>
-		/// <param name="directoriesToDelete">Recevies an array of directories to delete</param>
-		public void Refresh(bool removeUntracked, out FileInfo[] filesToDelete, out DirectoryInfo[] directoriesToDelete)
+		/// <param name="numWorkers">Number of concurrent workers to use when refreshing</param>
+		public async Task<(FileInfo[] filesToDelete, DirectoryInfo[] directoriesToDelete)> Refresh(bool removeUntracked, int numWorkers)
 		{
 			ConcurrentQueue<FileInfo> concurrentFilesToDelete = new ConcurrentQueue<FileInfo>();
 			ConcurrentQueue<DirectoryInfo> concurrentDirectoriesToDelete = new ConcurrentQueue<DirectoryInfo>();
-			using (ThreadPoolWorkQueue queue = new ThreadPoolWorkQueue())
-			{
-				queue.Enqueue(() => Refresh(new DirectoryInfo(GetFullName()), removeUntracked, concurrentFilesToDelete, concurrentDirectoriesToDelete, queue));
-			}
-			directoriesToDelete = concurrentDirectoriesToDelete.ToArray();
-			filesToDelete = concurrentFilesToDelete.ToArray();
+			using AsyncThreadPoolWorkQueue queue = new (numWorkers);
+			await queue.EnqueueAsync(_ => Refresh(new DirectoryInfo(GetFullName()), removeUntracked, concurrentFilesToDelete, concurrentDirectoriesToDelete, queue));
+			await queue.ExecuteAsync();
+			return (concurrentFilesToDelete.ToArray(), concurrentDirectoriesToDelete.ToArray());
 		}
 
 		/// <summary>
@@ -147,7 +145,7 @@ namespace EpicGames.Perforce.Managed
 		/// <param name="filesToDelete"></param>
 		/// <param name="directoriesToDelete"></param>
 		/// <param name="queue"></param>
-		void Refresh(DirectoryInfo info, bool removeUntracked, ConcurrentQueue<FileInfo> filesToDelete, ConcurrentQueue<DirectoryInfo> directoriesToDelete, ThreadPoolWorkQueue queue)
+		async Task Refresh(DirectoryInfo info, bool removeUntracked, ConcurrentQueue<FileInfo> filesToDelete, ConcurrentQueue<DirectoryInfo> directoriesToDelete, AsyncThreadPoolWorkQueue queue)
 		{
 			// Recurse through subdirectories
 			Dictionary<Utf8String, WorkspaceDirectoryInfo> newNameToSubDirectory = new Dictionary<Utf8String, WorkspaceDirectoryInfo>(NameToSubDirectory.Count, NameToSubDirectory.Comparer);
@@ -157,7 +155,7 @@ namespace EpicGames.Perforce.Managed
 				if (NameToSubDirectory.TryGetValue(subDirectoryInfo.Name, out subDirectory))
 				{
 					newNameToSubDirectory.Add(subDirectory.Name, subDirectory);
-					queue.Enqueue(() => subDirectory.Refresh(subDirectoryInfo, removeUntracked, filesToDelete, directoriesToDelete, queue));
+					await queue.EnqueueAsync(_ => subDirectory.Refresh(subDirectoryInfo, removeUntracked, filesToDelete, directoriesToDelete, queue));
 				}
 				else if (removeUntracked)
 				{
@@ -208,13 +206,12 @@ namespace EpicGames.Perforce.Managed
 		/// Builds a list of differences from the working directory
 		/// </summary>
 		/// <returns></returns>
-		public string[] FindDifferences()
+		public async Task<string[]> FindDifferencesAsync(int numWorkers)
 		{
-			ConcurrentQueue<string> paths = new ConcurrentQueue<string>();
-			using (ThreadPoolWorkQueue queue = new ThreadPoolWorkQueue())
-			{
-				queue.Enqueue(() => FindDifferences(new DirectoryInfo(GetFullName()), "/", paths, queue));
-			}
+			ConcurrentQueue<string> paths = new ();
+			using AsyncThreadPoolWorkQueue queue = new (numWorkers);
+			await queue.EnqueueAsync(_ => FindDifferencesAsync(new DirectoryInfo(GetFullName()), "/", paths, queue));
+			await queue.ExecuteAsync();
 			return paths.OrderBy(x => x).ToArray();
 		}
 
@@ -225,7 +222,7 @@ namespace EpicGames.Perforce.Managed
 		/// <param name="path"></param>
 		/// <param name="paths"></param>
 		/// <param name="queue"></param>
-		void FindDifferences(DirectoryInfo directory, string path, ConcurrentQueue<string> paths, ThreadPoolWorkQueue queue)
+		async Task FindDifferencesAsync(DirectoryInfo directory, string path, ConcurrentQueue<string> paths, AsyncThreadPoolWorkQueue queue)
 		{
 			// Recurse through subdirectories
 			HashSet<Utf8String> remainingSubDirectoryNames = new HashSet<Utf8String>(NameToSubDirectory.Keys);
@@ -235,7 +232,7 @@ namespace EpicGames.Perforce.Managed
 				if (NameToSubDirectory.TryGetValue(subDirectory.Name, out stagedSubDirectory))
 				{
 					remainingSubDirectoryNames.Remove(subDirectory.Name);
-					queue.Enqueue(() => stagedSubDirectory.FindDifferences(subDirectory, String.Format("{0}{1}/", path, subDirectory.Name), paths, queue));
+					await queue.EnqueueAsync(_ => stagedSubDirectory.FindDifferencesAsync(subDirectory, String.Format("{0}{1}/", path, subDirectory.Name), paths, queue));
 					continue;
 				}
 				paths.Enqueue(String.Format("+{0}{1}/...", path, subDirectory.Name));
