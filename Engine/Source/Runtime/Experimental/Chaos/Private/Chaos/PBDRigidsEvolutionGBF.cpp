@@ -255,7 +255,7 @@ void CheckParticleViewsForDupes(FPBDRigidsSOAs& Particles)
 		CheckParticleViewForDupes(TEXT("NonDisabledView"), Particles.GetNonDisabledView());
 		CheckParticleViewForDupes(TEXT("NonDisabledClusteredView"), Particles.GetNonDisabledClusteredView());
 		CheckParticleViewForDupes(TEXT("ActiveParticlesView"), Particles.GetActiveParticlesView());
-		//CheckParticleViewForDupes(TEXT("DirtyParticlesView"), Particles.GetDirtyParticlesView());
+		CheckParticleViewForDupes(TEXT("DirtyParticlesView"), Particles.GetDirtyParticlesView());
 		CheckParticleViewForDupes(TEXT("AllParticlesView"), Particles.GetAllParticlesView());
 		CheckParticleViewForDupes(TEXT("ActiveKinematicParticlesView"), Particles.GetActiveKinematicParticlesView());
 		CheckParticleViewForDupes(TEXT("ActiveMovingKinematicParticlesView"), Particles.GetActiveMovingKinematicParticlesView());

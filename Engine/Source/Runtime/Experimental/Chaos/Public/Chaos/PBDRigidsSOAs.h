@@ -522,7 +522,7 @@ public:
 						RemoveGeometryCollectionParticle(PBDRigidGC);
 						InsertGeometryCollectionParticle(PBDRigidGC);
 					}
-
+					check(PBDRigid->ObjectState() == EObjectStateType::Dynamic);
 					AddToActiveArray(PBDRigid);
 
 					if(!DeferUpdateViews)
@@ -722,6 +722,8 @@ public:
 		if (FPBDRigidParticleHandle* Rigid = Particle->CastToRigidParticle())
 		{
 			MovingKinematicsMapArray.Insert(Rigid);
+			// Remove from TransientDirtyMapArray to be sure not have have particle in both lists
+			TransientDirtyMapArray.Remove(Rigid);
 		}
 	}
 
@@ -1068,8 +1070,6 @@ private:
 			{
 				{&ActiveParticlesMapArray.GetArray()},
 				{&MovingKinematicsMapArray.GetArray()},
-				{&KinematicGeometryCollectionArray.GetArray()},
-				{&DynamicGeometryCollectionArray.GetArray()},
 				{&SleepingGeometryCollectionArray.GetArray()},
 				{&TransientDirtyMapArray.GetArray()}
 			};
