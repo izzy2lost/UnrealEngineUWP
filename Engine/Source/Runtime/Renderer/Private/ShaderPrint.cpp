@@ -201,6 +201,7 @@ namespace ShaderPrint
 		OutParameters.MaxStateCount = InSetup.MaxStateCount;
 		OutParameters.MaxLineCount = InSetup.MaxLineCount;
 		OutParameters.MaxTriangleCount = InSetup.MaxTriangleCount;
+		OutParameters.IsDrawLocked = InSetup.bIsDrawLocked ? 1 : 0;
 		OutParameters.TranslatedWorldOffset = FVector3f(InSetup.PreViewTranslation);
 	}
 
@@ -604,6 +605,7 @@ namespace ShaderPrint
 		MaxStateCount = bEnabled ? GetMaxWidgetCount() : 0;
 		MaxLineCount = bEnabled ? GetMaxLineCount() : 0;
 		MaxTriangleCount = bEnabled ? GetMaxTriangleCount(): 0;
+		bIsDrawLocked = false;
 	}
 
 	FShaderPrintSetup::FShaderPrintSetup(FSceneView const& View)
@@ -621,6 +623,7 @@ namespace ShaderPrint
 		MaxStateCount = bEnabled ? GetMaxWidgetCount() : 0;
 		MaxLineCount = bEnabled ? GetMaxLineCount() : 0;
 		MaxTriangleCount = bEnabled ? GetMaxTriangleCount() : 0;
+		bIsDrawLocked = View.State ? ((const FSceneViewState*)View.State)->ShaderPrintStateData.bIsLocked : false;
 	}
 
 	FShaderPrintData CreateShaderPrintData(FRDGBuilder& GraphBuilder, FShaderPrintSetup const& InSetup, FSceneViewState* InViewState)

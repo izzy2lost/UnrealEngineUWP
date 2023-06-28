@@ -35,6 +35,7 @@ namespace ShaderPrint
 		SHADER_PARAMETER(uint32, MaxStateCount)
 		SHADER_PARAMETER(uint32, MaxLineCount)
 		SHADER_PARAMETER(uint32, MaxTriangleCount)
+		SHADER_PARAMETER(uint32, IsDrawLocked)
 	END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 	// ShaderPrint parameter struct declaration
@@ -115,6 +116,8 @@ namespace ShaderPrint
 		uint32 MaxLineCount = 0;
 		/** Initial size of triangle buffer. Will also be increased by RequestSpaceForLines(). */
 		uint32 MaxTriangleCount = 0;
+		// Whether current draw is locked or not. Useful to stop rendering new stuff on top of the history. */
+		bool bIsDrawLocked = false;
 	};
 
 	/** Fill the ShaderPrintCommonParameters uniform buffer structure for our setup. */
