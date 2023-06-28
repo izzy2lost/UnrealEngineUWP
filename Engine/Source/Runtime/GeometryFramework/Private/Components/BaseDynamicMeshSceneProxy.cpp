@@ -28,9 +28,6 @@ FBaseDynamicMeshSceneProxy::FBaseDynamicMeshSceneProxy(UBaseDynamicMeshComponent
 
 FBaseDynamicMeshSceneProxy::~FBaseDynamicMeshSceneProxy()
 {
-	// we are assuming in code below that this is always called from the rendering thread
-	check(IsInRenderingThread());
-
 	// destroy all existing renderbuffers
 	for (FMeshRenderBufferSet* BufferSet : AllocatedBufferSets)
 	{
