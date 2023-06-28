@@ -403,6 +403,11 @@ public:
 	virtual FNewPluginMountedEvent& OnNewPluginMounted() = 0;
 
 	/**
+	 * Event for being notified that a new plugin and its content have been mounted
+	 */
+	virtual FNewPluginMountedEvent& OnNewPluginContentMounted() = 0;
+
+	/**
 	 * Event for being notified that a plugin has been edited
 	 */
 	virtual FNewPluginMountedEvent& OnPluginEdited() = 0;

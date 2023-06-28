@@ -170,6 +170,7 @@ public:
 	virtual TArray<TSharedRef<IPlugin>> GetPluginsWithPakFile() const override;
 	virtual FNewPluginMountedEvent& OnNewPluginCreated() override;
 	virtual FNewPluginMountedEvent& OnNewPluginMounted() override;
+	virtual FNewPluginMountedEvent& OnNewPluginContentMounted() override;
 	virtual FNewPluginMountedEvent& OnPluginEdited() override;
 	virtual FNewPluginMountedEvent& OnPluginUnmounted() override;
 	virtual void MountNewlyCreatedPlugin(const FString& PluginName) override;
@@ -317,6 +318,7 @@ private:
 	/** Callback for notifications that a new plugin was mounted */
 	FNewPluginMountedEvent NewPluginCreatedEvent;
 	FNewPluginMountedEvent NewPluginMountedEvent;
+	FNewPluginMountedEvent NewPluginContentMountedEvent;
 	FNewPluginMountedEvent PluginEditedEvent;
 	FNewPluginMountedEvent PluginUnmountedEvent;
 

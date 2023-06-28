@@ -1886,7 +1886,12 @@ bool FPluginManager::ConfigureEnabledPlugins()
 						FString ContentDir = Plugin.GetContentDir();
 						RegisterMountPointDelegate.Execute(Plugin.GetMountedAssetPath(), ContentDir);
 					}
-				}				
+
+					if (NewPluginContentMountedEvent.IsBound())
+					{
+						NewPluginContentMountedEvent.Broadcast(Plugin);
+					}
+				}
 			}
 		}
 
@@ -2777,6 +2782,11 @@ IPluginManager::FNewPluginMountedEvent& FPluginManager::OnNewPluginMounted()
 	return NewPluginMountedEvent;
 }
 
+IPluginManager::FNewPluginMountedEvent& FPluginManager::OnNewPluginContentMounted()
+{
+	return NewPluginContentMountedEvent;
+}
+
 IPluginManager::FNewPluginMountedEvent& FPluginManager::OnPluginEdited()
 {
 	return PluginEditedEvent;
@@ -2873,7 +2883,8 @@ void FPluginManager::MountPluginFromExternalSource(const TSharedRef<FPlugin>& Pl
 	Plugin->bEnabled = true;
 
 	// Mount the plugin content directory
-	if ((Plugin->CanContainContent() || Plugin->CanContainVerse()) && ensure(RegisterMountPointDelegate.IsBound()))
+	const bool bHasContentOrVerse = (Plugin->CanContainContent() || Plugin->CanContainVerse()) && ensure(RegisterMountPointDelegate.IsBound());
+	if (bHasContentOrVerse)
 	{
 		if (NewPluginMountedEvent.IsBound())
 		{
@@ -2925,6 +2936,12 @@ void FPluginManager::MountPluginFromExternalSource(const TSharedRef<FPlugin>& Pl
 	}
 
 	Plugin->SetIsMounted(true);
+
+	// Notify listeners that the plugin is completely mounted now
+	if (bHasContentOrVerse && NewPluginContentMountedEvent.IsBound())
+	{
+		NewPluginContentMountedEvent.Broadcast(*Plugin);
+	}
 
 	if (GWarn)
 	{
