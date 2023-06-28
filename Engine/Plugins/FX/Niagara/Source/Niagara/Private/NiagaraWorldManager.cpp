@@ -252,6 +252,7 @@ FDelegateHandle FNiagaraWorldManager::OnWorldCleanupHandle;
 FDelegateHandle FNiagaraWorldManager::OnPostWorldCleanupHandle;
 FDelegateHandle FNiagaraWorldManager::OnPreWorldFinishDestroyHandle;
 FDelegateHandle FNiagaraWorldManager::OnWorldBeginTearDownHandle;
+FDelegateHandle FNiagaraWorldManager::TickWorldStartHandle;
 FDelegateHandle FNiagaraWorldManager::TickWorldHandle;
 FDelegateHandle FNiagaraWorldManager::OnWorldPreActorTickHandle;
 FDelegateHandle FNiagaraWorldManager::OnWorldPreSendAllEndOfFrameUpdatesHandle;
@@ -401,6 +402,7 @@ void FNiagaraWorldManager::OnStartup()
 	OnPostWorldCleanupHandle = FWorldDelegates::OnPostWorldCleanup.AddStatic(&FNiagaraWorldManager::OnPostWorldCleanup);
 	OnPreWorldFinishDestroyHandle = FWorldDelegates::OnPreWorldFinishDestroy.AddStatic(&FNiagaraWorldManager::OnPreWorldFinishDestroy);
 	OnWorldBeginTearDownHandle = FWorldDelegates::OnWorldBeginTearDown.AddStatic(&FNiagaraWorldManager::OnWorldBeginTearDown);
+	TickWorldStartHandle = FWorldDelegates::OnWorldTickStart.AddStatic(&FNiagaraWorldManager::TickWorldStart);
 	TickWorldHandle = FWorldDelegates::OnWorldPostActorTick.AddStatic(&FNiagaraWorldManager::TickWorld);
 	OnWorldPreActorTickHandle = FWorldDelegates::OnWorldPreActorTick.AddStatic(&FNiagaraWorldManager::OnWorldPreActorTick);
 	OnWorldPreSendAllEndOfFrameUpdatesHandle = FWorldDelegates::OnWorldPreSendAllEndOfFrameUpdates.AddLambda(
@@ -916,6 +918,11 @@ void FNiagaraWorldManager::DestroyAllSystemSimulations(class UNiagaraSystem* Sys
 	}
 }
 
+void FNiagaraWorldManager::TickWorldStart(UWorld* World, ELevelTick TickType, float DeltaSeconds)
+{
+	Get(World)->TickStart(DeltaSeconds);
+}
+
 void FNiagaraWorldManager::TickWorld(UWorld* World, ELevelTick TickType, float DeltaSeconds)
 {
 	Get(World)->PostActorTick(DeltaSeconds);
@@ -966,9 +973,17 @@ void FNiagaraWorldManager::OnRefreshOwnerAllowsScalability()
 	}
 }
 
+void FNiagaraWorldManager::TickStart(float DeltaSeconds)
+{
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Effects);
+	LLM_SCOPE(ELLMTag::Niagara);
+	SCOPE_CYCLE_COUNTER(STAT_NiagaraWorldManTick);
+
+	DataChannelManager->BeginFrame(DeltaSeconds);
+}
+
 void FNiagaraWorldManager::PreActorTick(ELevelTick InLevelTick, float InDeltaSeconds)
 {	
-	DataChannelManager->BeginFrame(InDeltaSeconds);
 	NiagaraWorldManagerInternal::ExecuteGlobalDeferredCallbacks();
 }
 
@@ -1044,6 +1059,7 @@ void FNiagaraWorldManager::PostActorTick(float DeltaSeconds)
 	// Tick debug HUD for the world
 	if (NiagaraDebugHud != nullptr)
 	{
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_NiagaraDebugHUD);
 		NiagaraDebugHud->GatherSystemInfo();
 	}
 #endif

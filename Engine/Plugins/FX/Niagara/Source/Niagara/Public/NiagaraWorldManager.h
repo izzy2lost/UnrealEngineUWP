@@ -122,6 +122,9 @@ public:
 	void MarkSimulationForPostActorWork(FNiagaraSystemSimulation* SystemSimulation);
 	void MarkSimulationsForEndOfFrameWait(FNiagaraSystemSimulation* SystemSimulation);
 
+	/** Called at the very beginning of world ticking. */
+	void TickStart(float DeltaSeconds);
+
 	void Tick(ETickingGroup TickGroup, float DeltaSeconds, ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent);
 
 	void PreActorTick(ELevelTick InLevelTick, float InDeltaSeconds);
@@ -298,6 +301,9 @@ private:
 	static void OnWorldPreActorTick(UWorld* InWorld, ELevelTick InLevelTick, float InDeltaSeconds);
 
 	// Callback for when a world is ticked.
+	static void TickWorldStart(UWorld* World, ELevelTick TickType, float DeltaSeconds);
+
+	// Callback for when a world is ticked.
 	static void TickWorld(UWorld* World, ELevelTick TickType, float DeltaSeconds);
 
 	// Callback to handle any pre GC processing needed.
@@ -334,6 +340,7 @@ private:
 	static FDelegateHandle OnPostWorldCleanupHandle;
 	static FDelegateHandle OnPreWorldFinishDestroyHandle;
 	static FDelegateHandle OnWorldBeginTearDownHandle;
+	static FDelegateHandle TickWorldStartHandle;
 	static FDelegateHandle TickWorldHandle;
 	static FDelegateHandle OnWorldPreActorTickHandle;
 	static FDelegateHandle OnWorldPreSendAllEndOfFrameUpdatesHandle;
