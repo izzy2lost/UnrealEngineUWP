@@ -393,6 +393,7 @@ namespace Horde.Server.Server
 					catch (Exception ex)
 					{
 						_logger.LogError(ex, "Swallowed exception while updating session for {AgentId}.", request.AgentId);
+						throw new StructuredRpcException(StatusCode.Internal, "Failed updating session. Reason: {Reason}", ex.Message);
 					}
 				}
 
