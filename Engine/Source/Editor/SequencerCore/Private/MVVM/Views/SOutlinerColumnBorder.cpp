@@ -177,5 +177,3 @@ FSlateColor SOutlinerColumnBorder::GetBackgroundTint() const
 
 } // namespace UE::Sequencer
 
-#undef LOCTEXT_NAMESPACE
-
