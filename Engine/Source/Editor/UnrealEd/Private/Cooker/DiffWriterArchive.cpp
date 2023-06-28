@@ -16,6 +16,7 @@
 #include "UObject/LinkerLoad.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Package.h"
+#include "UObject/PropertyOptional.h"
 #include "UObject/PropertyTempVal.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UObjectGlobals.h"
@@ -580,6 +581,11 @@ namespace
 			{
 				return true;
 			}
+		}
+
+		if (FOptionalProperty* OptionalProp = CastField<FOptionalProperty>(Prop))
+		{
+			return ShouldDumpPropertyValueState(OptionalProp->GetValueProperty());
 		}
 
 		return false;
