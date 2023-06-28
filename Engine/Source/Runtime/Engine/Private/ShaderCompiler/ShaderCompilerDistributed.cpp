@@ -322,18 +322,21 @@ int32 FShaderCompileDistributedThreadRunnable_Interface::CompilingLoop()
 		if (Result.bCompleted)
 		{
 			// Check the output file exists. If it does, attempt to open it and serialize in the completed jobs.
+			bool bCompileJobsSucceeded = false;
+
 			if (IFileManager::Get().FileExists(*Task->OutputFilePath))
 			{
-				FArchive* OutputFileAr = IFileManager::Get().CreateFileReader(*Task->OutputFilePath, FILEREAD_Silent);
-				if (OutputFileAr)
+				if (TUniquePtr<FArchive> OutputFileAr = TUniquePtr<FArchive>(IFileManager::Get().CreateFileReader(*Task->OutputFilePath, FILEREAD_Silent)))
 				{
 					bOutputFileReadFailed = false;
-					FShaderCompileUtilities::DoReadTaskResults(Task->ShaderJobs, *OutputFileAr);
-					delete OutputFileAr;
+					if (FShaderCompileUtilities::DoReadTaskResults(Task->ShaderJobs, *OutputFileAr) == FSCWErrorCode::Success)
+					{
+						bCompileJobsSucceeded = true;
+					}
 				}
 			}
 
-			if (bOutputFileReadFailed)
+			if (!bCompileJobsSucceeded)
 			{
 				// Reading result from XGE job failed, so recompile shaders in current job batch locally
 				UE_LOG(LogShaderCompilers, Log, TEXT("Rescheduling shader compilation to run locally after distributed job failed: %s"), *Task->OutputFilePath);

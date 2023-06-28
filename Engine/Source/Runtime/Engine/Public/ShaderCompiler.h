@@ -367,7 +367,7 @@ class FShaderCompileUtilities
 {
 public:
 	static bool DoWriteTasks(const TArray<FShaderCommonCompileJobPtr>& QueuedJobs, FArchive& TransferFile, IDistributedBuildController* BuildDistributionController = nullptr, bool bUseRelativePaths = false, bool bCompressTaskFile = false);
-	static void DoReadTaskResults(const TArray<FShaderCommonCompileJobPtr>& QueuedJobs, FArchive& OutputFile);
+	static FSCWErrorCode::ECode DoReadTaskResults(const TArray<FShaderCommonCompileJobPtr>& QueuedJobs, FArchive& OutputFile);
 
 	/** Execute the specified (single or pipeline) shader compile job. */
 	static void ExecuteShaderCompileJob(FShaderCommonCompileJob& Job);
@@ -769,6 +769,16 @@ public:
 	bool IsCompiling() const
 	{
 		return GetNumOutstandingJobs() > 0 || HasShaderJobs() || GetNumPendingJobs() > 0 || NumExternalJobs > 0;
+	}
+
+	/**
+	 * Returns whether remote compiling is enabled. Otherwise, only the local machine is used for shader compilation.
+	 * This depends on command line argument '-NoRemoteShaderCompile', CVar 'r.ShaderCompiler.AllowDistributedCompilation',
+	 * and whether the target platform supports remote compilin; see ITargetPlatform::CanSupportRemoteShaderCompile().
+	 */
+	bool IsRemoteCompilingEnabled() const
+	{
+		return BuildDistributionController != nullptr;
 	}
 
 	/**

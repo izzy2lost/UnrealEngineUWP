@@ -1276,26 +1276,6 @@ static void ReissueShaderCompileJobs(const TArray<FShaderCommonCompileJob*>& Sou
 // Make functions so the crash reporter can disambiguate the actual error because of the different callstacks
 namespace ShaderCompileWorkerError
 {
-	static bool TryReissueShaderCompileJobs(const TArray<FShaderCommonCompileJobPtr>& SourceJobs)
-	{
-		// Reschedule all queued shader compile jobs when a worker crashed due to running out of memory.
-		TArray<FShaderCommonCompileJob*> ReissueSourceJobs;
-		ReissueSourceJobs.Reserve(SourceJobs.Num());
-		for (const FShaderCommonCompileJobPtr& Job : SourceJobs)
-		{
-			// Switch to local thread. If the worker already is a local thread, we cannot recover from this error.
-			FShaderCommonCompileJob* CurrentJob = Job.GetReference();
-			if (CurrentJob->CurrentWorker == EShaderCompilerWorkerType::LocalThread)
-			{
-				return false;
-			}
-			CurrentJob->CurrentWorker = EShaderCompilerWorkerType::LocalThread;
-			ReissueSourceJobs.Add(CurrentJob);
-		}
-		ReissueShaderCompileJobs(ReissueSourceJobs);
-		return true;
-	}
-
 	void HandleGeneralCrash(const TCHAR* ExceptionInfo, const TCHAR* Callstack)
 	{
 		GLog->Panic();
@@ -1382,10 +1362,10 @@ namespace ShaderCompileWorkerError
 			MemoryStats.PeakUsedVirtual
 		);
 
-		if (TryReissueShaderCompileJobs(QueuedJobs))
+		if (GShaderCompilingManager->IsRemoteCompilingEnabled())
 		{
-			// We recovered from this error
-			UE_LOG(LogShaderCompilers, Warning, TEXT("%s\nReissue %d shader compile %s to remaining workers"), *ErrorReport, QueuedJobs.Num(), (QueuedJobs.Num() == 1 ? TEXT("job") : TEXT("jobs")));
+			// Remote shader compiler supports re-compiling jobs on local machine
+			UE_LOG(LogShaderCompilers, Warning, TEXT("%s\nRecompile %d shader compile %s locally"), *ErrorReport, QueuedJobs.Num(), (QueuedJobs.Num() == 1 ? TEXT("job") : TEXT("jobs")));
 			return true;
 		}
 		else
@@ -2072,8 +2052,9 @@ struct FSCWOutputFileContext
 	}
 };
 
-// Process results from Worker Process
-void FShaderCompileUtilities::DoReadTaskResults(const TArray<FShaderCommonCompileJobPtr>& QueuedJobs, FArchive& OutputFile)
+// Process results from Worker Process.
+// Returns false if reading the tasks failed but we were able to recover from handing a crash report. In this case, all jobs must be submitted/processed again.
+FSCWErrorCode::ECode FShaderCompileUtilities::DoReadTaskResults(const TArray<FShaderCommonCompileJobPtr>& QueuedJobs, FArchive& OutputFile)
 {
 	FSCWOutputFileContext OutputFileContext(OutputFile);
 
@@ -2119,7 +2100,7 @@ void FShaderCompileUtilities::DoReadTaskResults(const TArray<FShaderCommonCompil
 		if (HandleWorkerCrash(QueuedJobs, OutputFile, OutputVersion, OutputFileContext.FileSize, (FSCWErrorCode::ECode)ErrorCode, NumProcessedJobs, CallstackLength, ExceptionInfoLength, HostnameLength))
 		{
 			FSCWErrorCode::Reset();
-			return;
+			return (FSCWErrorCode::ECode)ErrorCode;
 		}
 	}
 
@@ -2212,6 +2193,8 @@ void FShaderCompileUtilities::DoReadTaskResults(const TArray<FShaderCommonCompil
 	
 	// Requeue any jobs we wish to run again
 	ReissueShaderCompileJobs(ReissueSourceJobs);
+
+	return FSCWErrorCode::Success;
 }
 
 #if WITH_EDITOR
