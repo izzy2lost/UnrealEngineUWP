@@ -43,8 +43,6 @@
 #include "WorldPartition/LoaderAdapter/LoaderAdapterPinnedActors.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/Cook/WorldPartitionCookPackageContextInterface.h"
-#include "WorldPartition/ContentBundle/ContentBundleEditorSubsystemInterface.h"
-#include "WorldPartition/ContentBundle/ContentBundleEditor.h"
 #include "Modules/ModuleManager.h"
 #include "GameDelegates.h"
 #else
@@ -353,13 +351,8 @@ void UWorldPartition::OnPackageDirtyStateChanged(UPackage* Package)
 		{
 			if (Package->IsDirty())
 			{
-				DirtyActors.Add(FDirtyActor(ActorHandle.ToReference(), Actor));
+				DirtyActors.Add(ActorHandle.ToReference(), Actor);
 			}
-		}
-		else
-		{
-			// This is handling a new actor (unsaved).
-			DirtyActors.Add(FDirtyActor(Actor));
 		}
 	}
 }
@@ -904,7 +897,6 @@ void UWorldPartition::RegisterDelegates()
 			GEditor->OnPostBugItGoCalled().AddUObject(this, &UWorldPartition::OnPostBugItGoCalled);
 			GEditor->OnEditorClose().AddUObject(this, &UWorldPartition::SavePerUserSettings);
 			FWorldDelegates::OnPostWorldRename.AddUObject(this, &UWorldPartition::OnWorldRenamed);
-			IContentBundleEditorSubsystemInterface::Get()->OnContentBundleRemovedContent().AddUObject(this, &UWorldPartition::OnContentBundleRemovedContent);
 		}
 
 		if (!IsRunningCommandlet())
@@ -936,11 +928,6 @@ void UWorldPartition::UnregisterDelegates()
 	{
 		if (IsMainWorldPartition())
 		{
-			if (IContentBundleEditorSubsystemInterface* ContentBundleEditorSubsystem = IContentBundleEditorSubsystemInterface::Get())
-			{
-				ContentBundleEditorSubsystem->OnContentBundleRemovedContent().RemoveAll(this);
-			}
-
 			FWorldDelegates::OnPostWorldRename.RemoveAll(this);
 			FEditorDelegates::PreBeginPIE.RemoveAll(this);
 			FEditorDelegates::PrePIEEnded.RemoveAll(this);
@@ -1229,7 +1216,7 @@ void UWorldPartition::OnActorDescAdded(FWorldPartitionActorDesc* NewActorDesc)
 
 	if (AActor* NewActor = NewActorDesc->GetActor())
 	{
-		DirtyActors.Add(FDirtyActor(FWorldPartitionReference(NewActorDesc->GetContainer(), NewActorDesc->GetGuid()), NewActor));
+		DirtyActors.Add(FWorldPartitionReference(NewActorDesc->GetContainer(), NewActorDesc->GetGuid()), NewActor);
 	}
 
 	if (ForceLoadedActors)
@@ -1380,33 +1367,6 @@ void UWorldPartition::UnhashActorDesc(FWorldPartitionActorDesc* ActorDesc)
 	FWorldPartitionHandle ActorHandle(this, ActorDesc->GetGuid());
 	EditorHash->UnhashActor(ActorHandle);
 }
-
-void UWorldPartition::OnContentBundleRemovedContent(const FContentBundleEditor* ContentBundle)
-{
-	check(ContentBundle);
-	
-	const TWeakObjectPtr<UActorDescContainer>& ContentBundleActorDescContainer = ContentBundle->GetActorDescContainer();
-	if (!ContentBundleActorDescContainer.IsValid())
-	{
-		return;
-	}
-
-	if (Contains(ContentBundleActorDescContainer.Get()->GetContainerPackage()))
-	{
-		// This is handling a new actor (unsaved) from Content Bundle.
-		for (TSet<FDirtyActor>::TIterator DirtyActorIt(DirtyActors); DirtyActorIt; ++DirtyActorIt)
-		{
-			const FDirtyActor& DirtyActor = *DirtyActorIt;
-			if (!DirtyActor.WorldPartitionRef.IsSet())
-			{
-				if (DirtyActor.ActorPtr.IsValid() && DirtyActor.ActorPtr->GetContentBundleGuid() == ContentBundleActorDescContainer.Get()->GetContentBundleGuid())
-				{
-					DirtyActorIt.RemoveCurrent();
-				}
-			}
-		}
-	}
-}
 #endif
 
 void UWorldPartition::Serialize(FArchive& Ar)
@@ -1515,10 +1475,7 @@ void UWorldPartition::AddReferencedObjects(UObject* InThis, FReferenceCollector&
 		Collector.AllowEliminatingReferences(false);
 		for (auto& [ActorReference, Actor] : This->DirtyActors)
 		{
-			if (ActorReference.IsSet() || Actor.IsValid())
-			{
-				Collector.AddReferencedObject(Actor);
-			}
+			Collector.AddReferencedObject(Actor);
 		}
 		Collector.AllowEliminatingReferences(true);
 	}
@@ -1540,43 +1497,21 @@ void UWorldPartition::Tick(float DeltaSeconds)
 		EditorHash->Tick(DeltaSeconds);
 	}
 
-	for (TSet<FDirtyActor>::TIterator DirtyActorIt(DirtyActors); DirtyActorIt; ++DirtyActorIt)
+	for (TMap<FWorldPartitionReference, TObjectPtr<AActor>>::TIterator DirtyActorIt(DirtyActors); DirtyActorIt; ++DirtyActorIt)
 	{
-		const FDirtyActor& DirtyActor = *DirtyActorIt;
-		if (DirtyActor.WorldPartitionRef.IsSet())
+		if (!DirtyActorIt.Key().IsValid())
 		{
-			const FWorldPartitionReference& Ref = DirtyActor.WorldPartitionRef.GetValue();
-
-			if (!Ref.IsValid())
-			{
-				DirtyActorIt.RemoveCurrent();
-			}
-			else if (DirtyActor.ActorPtr.IsValid() && !DirtyActor.ActorPtr->GetPackage()->IsDirty())
-			{
-				// Transfer ownership of the last ref if actor can be pinned
-				if (Ref->GetHardRefCount() <= 1 && PinnedActors && FLoaderAdapterPinnedActors::SupportsPinning(Ref.Get()))
-				{
-					PinnedActors->AddActors({ Ref.ToHandle() });
-					DirtyActorIt.RemoveCurrent();
-				} // Clean up if a loader took a reference on the actor (ILoaderAdapter::RefreshLoadedState was called since)
-				else if (Ref->GetHardRefCount() > 1)
-				{
-					DirtyActorIt.RemoveCurrent();
-				}
-			}
+			DirtyActorIt.RemoveCurrent();
 		}
-		else
+		else if (!DirtyActorIt.Value()->GetPackage()->IsDirty())
 		{
-			// This is handling a new actor (unsaved).
-			if (DirtyActor.ActorPtr.IsValid())
+			// Transfer ownership of the last ref if actor can be pinned
+			if (DirtyActorIt.Key()->GetHardRefCount() <= 1 && PinnedActors && FLoaderAdapterPinnedActors::SupportsPinning(DirtyActorIt.Key().Get()))
 			{
-				if (!DirtyActor.ActorPtr->GetPackage()->IsDirty())
-				{
-					DirtyActorIt.RemoveCurrent();
-				}
-			}
-			// In this case, we know that the DirtyActor is not in the transaction buffer anymore and this is fine removing it.
-			else if ((!DirtyActor.ActorPtr.IsValid(true)))
+				PinnedActors->AddActors({ DirtyActorIt.Key().ToHandle() });
+				DirtyActorIt.RemoveCurrent();
+			} // Clean up if a loader took a reference on the actor (ILoaderAdapter::RefreshLoadedState was called since)
+			else if (DirtyActorIt.Key()->GetHardRefCount() > 1)
 			{
 				DirtyActorIt.RemoveCurrent();
 			}
@@ -2008,15 +1943,11 @@ bool UWorldPartition::UnregisterActorDescContainer(UActorDescContainer* InActorD
 			{
 				ActorGuids.Add(It->GetGuid());
 
-				for (TSet<FDirtyActor>::TIterator DirtyActorIt(DirtyActors); DirtyActorIt; ++DirtyActorIt)
+				for (TMap<FWorldPartitionReference, TObjectPtr<AActor>>::TIterator DirtyActorIt(DirtyActors); DirtyActorIt; ++DirtyActorIt)
 				{
-					const FDirtyActor& DirtyActor = *DirtyActorIt;
-					if (DirtyActor.WorldPartitionRef.IsSet())
+					if (DirtyActorIt.Key() == ActorHandle)
 					{
-						if (DirtyActor.WorldPartitionRef.GetValue() == ActorHandle)
-						{
-							DirtyActorIt.RemoveCurrent();
-						}
+						DirtyActorIt.RemoveCurrent();
 					}
 				}
 			}
