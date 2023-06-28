@@ -12,6 +12,10 @@ const getJobKeywords = (job: GetJobResponse): string[] => {
 
     let keywords: string[] = [];
 
+    if (job.name) {
+        keywords.push(job.name);
+    }
+
     if (job.change) {
         keywords.push(job.change.toString());
     }
