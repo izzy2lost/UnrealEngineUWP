@@ -63,16 +63,16 @@ struct FPhysicsRepAsyncInputData
 {
 	FRigidBodyState TargetState;
 	Chaos::FSingleParticlePhysicsProxy* Proxy; // Used for legacy (BodyInstance) flow
-	Chaos::FPhysicsObject* PhysicsObject;
+	Chaos::FConstPhysicsObjectHandle PhysicsObject;
 	TOptional<FPhysicsRepErrorCorrectionData> ErrorCorrection;
 	EPhysicsReplicationMode RepMode;
 	int32 ServerFrame;
 	int32 FrameOffset;
 	float LatencyOneWay;
 
-	FPhysicsRepAsyncInputData()
+	FPhysicsRepAsyncInputData(Chaos::FConstPhysicsObjectHandle POHandle)
 		: Proxy(nullptr)
-		, PhysicsObject(nullptr)
+		, PhysicsObject(POHandle)
 		, RepMode(EPhysicsReplicationMode::Default)
 	{};
 };
@@ -90,10 +90,10 @@ struct FPhysicsReplicationAsyncInput : public Chaos::FSimCallbackInput
 
 struct FReplicatedPhysicsTargetAsync
 {
-	FReplicatedPhysicsTargetAsync()
+	FReplicatedPhysicsTargetAsync(Chaos::FConstPhysicsObjectHandle POHandle)
 		: AccumulatedErrorSeconds(0.0f)
 		, ServerFrame(0)
-		, PhysicsObject(nullptr)
+		, PhysicsObject(POHandle)
 	{ }
 
 	/** The target state replicated by server */
@@ -112,7 +112,7 @@ struct FReplicatedPhysicsTargetAsync
 	int32 FrameOffset;
 
 	/** Index of physics object on component */
-	Chaos::FPhysicsObject* PhysicsObject;
+	Chaos::FConstPhysicsObjectHandle PhysicsObject;
 
 	/** The replication mode this PhysicsObject should use */
 	EPhysicsReplicationMode RepMode;
@@ -146,7 +146,7 @@ class FPhysicsReplicationAsync : public Chaos::TSimCallbackObject<
 private:
 	float LatencyOneWay;
 	FRigidBodyErrorCorrection ErrorCorrectionDefault;
-	TMap<Chaos::FPhysicsObject*, FReplicatedPhysicsTargetAsync> ObjectToTarget;
+	TMap<Chaos::FConstPhysicsObjectHandle, FReplicatedPhysicsTargetAsync> ObjectToTarget;
 
 private:
 	void UpdateAsyncTarget(const FPhysicsRepAsyncInputData& Input);
@@ -165,11 +165,11 @@ public:
 
 struct FReplicatedPhysicsTarget
 {
-	FReplicatedPhysicsTarget()
+	FReplicatedPhysicsTarget(Chaos::FConstPhysicsObjectHandle POHandle = nullptr)
 		: ArrivedTimeSeconds(0.0f)
 		, AccumulatedErrorSeconds(0.0f)
 		, ServerFrame(0)
-		, PhysicsObject(nullptr)
+		, PhysicsObject(POHandle)
 	{ }
 
 	/** The target state replicated by server */
@@ -192,7 +192,7 @@ struct FReplicatedPhysicsTarget
 	int32 ServerFrame;
 
 	/** Index of physics object on component */
-	Chaos::FPhysicsObject* PhysicsObject;
+	Chaos::FConstPhysicsObjectHandle PhysicsObject;
 
 	/** The replication mode the target should be used with */
 	EPhysicsReplicationMode ReplicationMode;
@@ -219,7 +219,7 @@ public:
 	virtual void SetReplicatedTarget(UPrimitiveComponent* Component, FName BoneName, const FRigidBodyState& ReplicatedTarget) { SetReplicatedTarget(Component, BoneName, ReplicatedTarget, 0); }
 	ENGINE_API virtual void SetReplicatedTarget(UPrimitiveComponent* Component, FName BoneName, const FRigidBodyState& ReplicatedTarget, int32 ServerFrame) override;
 private:
-	ENGINE_API void SetReplicatedTarget(Chaos::FPhysicsObject* PhysicsObject, const FRigidBodyState& ReplicatedTarget, int32 ServerFrame, EPhysicsReplicationMode ReplicationMode = EPhysicsReplicationMode::Default);
+	ENGINE_API void SetReplicatedTarget(Chaos::FConstPhysicsObjectHandle PhysicsObject, const FRigidBodyState& ReplicatedTarget, int32 ServerFrame, EPhysicsReplicationMode ReplicationMode = EPhysicsReplicationMode::Default);
 
 public:
 	/** Remove the replicated target*/
