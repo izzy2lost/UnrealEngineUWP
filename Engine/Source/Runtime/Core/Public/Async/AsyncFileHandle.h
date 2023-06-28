@@ -96,6 +96,15 @@ public:
 		return PollCompletion();
 	}
 
+	/**
+	* Waits for the request to complete, with an additional guarantee that the second consecutive call won't ever block, which is not a case for
+	* WaitCompletion().
+	*/
+	virtual void EnsureCompletion()
+	{
+		unimplemented();
+	}
+
 	/** Cancel the request. This is a non-blocking async call and so does not ensure completion! **/
 	FORCEINLINE void Cancel()
 	{

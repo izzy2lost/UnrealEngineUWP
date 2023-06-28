@@ -96,6 +96,17 @@ public:
 			}
 		}
 	}
+
+	virtual void EnsureCompletion() override
+	{
+		if (Task)
+		{
+			Task->EnsureCompletion();
+			delete Task;
+			Task = nullptr;
+		}
+	}
+
 	virtual void CancelImpl() override
 	{
 		if (Task)

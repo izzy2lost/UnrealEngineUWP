@@ -558,7 +558,7 @@ public:
 		if (Request)
 		{
 			check(!Memory);
-			Request->WaitCompletion();
+			Request->EnsureCompletion();
 		}
 	}
 
