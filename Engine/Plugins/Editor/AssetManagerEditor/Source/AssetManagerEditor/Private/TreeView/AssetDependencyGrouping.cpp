@@ -163,7 +163,7 @@ void FPluginDependencyGrouping::GroupNodes(const TArray<UE::Insights::FTableTree
 	{
 		const FAssetTablePluginInfo& PluginInfo = AssetTable->GetPluginInfoByIndex(PluginIndex);
 
-		if (PluginInfo.GetIsRootPlugin())
+		if (PluginInfo.IsRootPlugin())
 		{
 			FName PluginAndDependenciesGroupName = AssetTable->GetNameForPlugin(PluginIndex);
 			TSharedPtr<FPluginAndDependenciesGroupNode> PluginAndDependenciesGroup = MakeShared<FPluginAndDependenciesGroupNode>(PluginAndDependenciesGroupName, AssetTable, PluginIndex);
@@ -283,7 +283,7 @@ void FPluginDependencyGrouping::GroupNodes(const TArray<UE::Insights::FTableTree
 			// A root plugin never has assets (by definition), so don't
 			if (NonRootPlugins.IsValid())
 			{
-				if (PluginInfo.GetIsRootPlugin())
+				if (PluginInfo.IsRootPlugin())
 				{
 					UE_LOG(LogInsights, Error, TEXT("Plugin %s contains assets but is marked as a root plugin."), PluginName);
 				}
