@@ -1635,6 +1635,12 @@ void FBulkData::MakeSureBulkDataIsLoaded()
 	}
 
 	const int64 BulkDataSize = GetBulkDataSize();
+
+	if (BulkDataSize == 0)
+	{
+		return;
+	}
+
 	void* Dest = ReallocateData(BulkDataSize);
 
 	if (TryLoadDataIntoMemory(FIoBuffer(FIoBuffer::Wrap, Dest, BulkDataSize)) == false)
