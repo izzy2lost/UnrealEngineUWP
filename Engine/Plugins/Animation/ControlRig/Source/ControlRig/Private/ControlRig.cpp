@@ -2531,7 +2531,15 @@ const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 	}
 
 	CombinedAssetUserData.Reset();
-	CombinedAssetUserData.Append(AssetUserData);
+
+	if (UControlRig* CDO = Cast<UControlRig>(GetClass()->GetDefaultObject(false)))
+	{
+		CombinedAssetUserData.Append(CDO->AssetUserData);
+	}
+	else
+	{
+		CombinedAssetUserData.Append(AssetUserData);
+	}
 
 	if(OuterSceneComponent.IsValid())
 	{
