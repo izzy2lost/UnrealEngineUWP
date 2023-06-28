@@ -1958,7 +1958,7 @@ void SAssetTableTreeView::RefreshAssets()
 			const TCHAR* StoredPluginName = AssetTable->StoreStr(PluginEntry.Name);
 			FAssetTablePluginInfo& PluginInfo = AssetTable->GetOrCreatePluginInfo(StoredPluginName);
 			UE_LOG(LogInsights, Warning, TEXT("Found root plugin %s"), StoredPluginName);
-			PluginInfo.IsRootPlugin = true;
+			PluginInfo.bIsRootPlugin = true;
 		}
 	}
 	else
