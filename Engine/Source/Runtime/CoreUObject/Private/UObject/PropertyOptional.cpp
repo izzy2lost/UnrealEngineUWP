@@ -174,6 +174,19 @@ void FOptionalProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Data
 
 	FStructuredArchive::FRecord Record = Slot.EnterRecord();
 
+	if (UnderlyingArchive.UseUnversionedPropertySerialization())
+	{
+		// UPS only calls SerializeItem on set optionals, just need to serialize the inner property
+		checkf(bIsLoading || IsSet(Data), TEXT("UPS should never call SerializeItem to save an empty Optional"));
+
+		FStructuredArchive::FSlot ValueSlot = Record.EnterField(TEXT("Value"));
+		const void* ValueDefaults = Defaults ? GetValuePointerForReadIfSet(Defaults) : nullptr;
+		void* ValueData = bIsLoading ? MarkSetAndGetInitializedValuePointerToReplace(Data) : GetValuePointerForReadOrReplace(Data);
+		GetValueProperty()->SerializeItem(ValueSlot, ValueData, ValueDefaults);
+
+		return;
+	}
+
 	// Use an optional field slot to encode whether the optional was set or not.
 	TOptional<FStructuredArchiveSlot> MaybeTaggedValueSlot = Record.TryEnterField(TEXT("TaggedValue"), IsSet(Data));
 	if (MaybeTaggedValueSlot.IsSet())
@@ -182,16 +195,7 @@ void FOptionalProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Data
 		
 		const void* ValueDefaults = Defaults ? GetValuePointerForReadIfSet(Defaults) : nullptr;
 
-		if (Slot.GetArchiveState().UseUnversionedPropertySerialization())
-		{
-			// Simply serialize the inner value if using unversioned property serialization.
-			FStructuredArchive::FSlot ValueSlot = TaggedValueRecord.EnterField(TEXT("Value"));
-			void* ValueData = bIsLoading
-				? MarkSetAndGetInitializedValuePointerToReplace(Data)
-				: GetValuePointerForReadOrReplace(Data);
-			GetValueProperty()->SerializeItem(ValueSlot, ValueData, ValueDefaults);
-		}
-		else if (bIsLoading)
+		if (bIsLoading)
 		{
 			// Serialize the value's tag.
 			FPropertyTag ValueTag;
