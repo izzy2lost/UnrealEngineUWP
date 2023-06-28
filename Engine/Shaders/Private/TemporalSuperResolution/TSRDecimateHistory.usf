@@ -331,7 +331,7 @@ void ProcessPrevAtomicTexturesSamples(
 template<typename Type>
 Type SampleTextureCatrom(Texture2DArray<Type> InTexture, float2 TextureUV, float FrameIndex, float2 MinUV, float2 MaxUV)
 {
-	FCatmullRomSamples Samples = GetBicubic2DCatmullRomSamples(TextureUV, PrevGuideInfo_Extent, PrevGuideInfo_ExtentInverse);
+	FCatmullRomSamples Samples = GetBicubic2DCatmullRomSamples_Stubbe(TextureUV, PrevGuideInfo_Extent, PrevGuideInfo_ExtentInverse);
 
 	Type Color = tsr_half(0.0);
 	for (uint i = 0; i < Samples.Count; i++)
@@ -344,7 +344,6 @@ Type SampleTextureCatrom(Texture2DArray<Type> InTexture, float2 TextureUV, float
 
 		Color += InTexture.SampleLevel(GlobalBilinearClampedSampler, float3(SampleUV, FrameIndex), 0) * tsr_half(Samples.Weight[i]);
 	}
-	Color *= tsr_half(Samples.FinalMultiplier);
 
 	return Color;
 }
