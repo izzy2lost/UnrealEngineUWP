@@ -14,15 +14,8 @@ bool URuntimePartitionPersistent::GenerateStreaming(const TArray<const IStreamin
 	TArray<IStreamingGenerationContext::FActorInstance> CellActorInstances;
 	if (PopulateCellActorInstances(ActorSetInstances, bIsMainWorldPartition, true, CellActorInstances))
 	{
-		FCellDesc& CellDesc = OutRuntimeCellDescs.Emplace_GetRef();
-
-		CellDesc.Name = NAME_PersistentLevel;
-		CellDesc.bIsSpatiallyLoaded = false;
-		CellDesc.ContentBundleID = CellActorInstances[0].ActorSetInstance->ContentBundleID;
-		CellDesc.bBlockOnSlowStreaming = bBlockOnSlowStreaming;
-		CellDesc.bClientOnlyVisible = bClientOnlyVisible;
-		CellDesc.Priority = Priority;
-		CellDesc.ActorInstances = CellActorInstances;
+		const FString CellName(TEXT("Persistent"));
+		OutRuntimeCellDescs.Emplace(CreateCellDesc(CellName, false, CellActorInstances[0].ActorSetInstance->ContentBundleID, 0, CellActorInstances));
 	}
 
 	return true;

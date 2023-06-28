@@ -59,26 +59,7 @@ bool URuntimePartitionLevelStreaming::GenerateStreaming(const TArray<const IStre
 
 		for (auto& [SubLevelName, SubLevelActorSetInstances] : SubLevelsActorInstances)
 		{
-			FCellDesc& CellDesc = OutRuntimeCellDescs.Emplace_GetRef();
-
-			CellDesc.Name = SubLevelName;
-			CellDesc.bIsSpatiallyLoaded = true;
-			CellDesc.ContentBundleID = SubLevelActorSetInstances[0].ActorSetInstance->ContentBundleID;
-			CellDesc.bBlockOnSlowStreaming = bBlockOnSlowStreaming;
-			CellDesc.bClientOnlyVisible = bClientOnlyVisible;
-			CellDesc.Priority = Priority;
-			CellDesc.Level = 0;
-			CellDesc.ActorInstances = SubLevelActorSetInstances;
-
-			for (const IStreamingGenerationContext::FActorInstance& ActorInstance : CellDesc.ActorInstances)
-			{
-				const FWorldPartitionActorDescView& ActorDescView = ActorInstance.GetActorDescView();
-				const FBox RuntimeBounds = ActorDescView.GetRuntimeBounds();
-				if (RuntimeBounds.IsValid)
-				{
-					CellDesc.Bounds += RuntimeBounds.TransformBy(ActorInstance.GetTransform());
-				}
-			}
+			OutRuntimeCellDescs.Emplace(CreateCellDesc(SubLevelName.ToString(), true, SubLevelActorSetInstances[0].ActorSetInstance->ContentBundleID, 0, SubLevelActorSetInstances));
 		}
 	}
 

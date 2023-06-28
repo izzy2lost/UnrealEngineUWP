@@ -462,6 +462,7 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 	//
 	TArray<FCellDescInstance> RuntimeCellDescsInstances;
 	{
+		TSet<FName> CellDescsNames;
 		for (auto [RuntimePartition, ActorSetInstances] : RuntimePartitionsToActorSetMap)
 		{
 			// Gather runtime partition cell descs
@@ -475,6 +476,10 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 			for (const URuntimePartition::FCellDesc& RuntimeCellDesc : RuntimeCellDescs)
 			{
 				TMap<FDataLayersID, FCellDescInstance> RuntimeCellDescsInstancesSet;
+
+				bool bCellNameExists;
+				CellDescsNames.Add(RuntimeCellDesc.Name, &bCellNameExists);
+				check(!bCellNameExists);
 
 				for (const IStreamingGenerationContext::FActorInstance& ActorInstance : RuntimeCellDesc.ActorInstances)
 				{
