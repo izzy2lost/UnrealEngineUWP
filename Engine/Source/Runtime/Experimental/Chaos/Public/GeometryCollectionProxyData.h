@@ -173,6 +173,22 @@ public:
 		, bEnableStrainOnCollision(false)
 	{}
 
+	FGeometryCollectioPerFrameData(const FSimulationParameters& Parameters)
+		: bIsWorldTransformDirty(false)
+		, bIsCollisionFilterDataDirty(false)
+		, bIsNotificationDataDirty(false)
+		, bIsDamageSettingsDataDirty(false)
+		, bNotifyBreakings(Parameters.bGenerateBreakingData)
+		, bNotifyRemovals(false)
+		, bNotifyCrumblings(Parameters.bGenerateCrumblingData)
+		, bCrumblingEventIncludesChildren(Parameters.bGenerateCrumblingChildrenData)
+		, bNotifyGlobalBreakings(Parameters.bGenerateGlobalBreakingData)
+		, bNotifyGlobalRemovals(false)
+		, bNotifyGlobalCrumblings(Parameters.bGenerateGlobalCrumblingData)
+		, bGlobalCrumblingEventIncludesChildren(Parameters.bGenerateGlobalCrumblingChildrenData)
+		, bEnableStrainOnCollision(false)
+	{}
+
 	const FTransform& GetWorldTransform() const { return WorldTransform; }
 
 	void SetWorldTransform(const FTransform& InWorldTransform)
