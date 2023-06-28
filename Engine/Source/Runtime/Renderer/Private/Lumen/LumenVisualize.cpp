@@ -255,7 +255,7 @@ FAutoConsoleVariableRef CVarCardInterpolateInfluenceRadius(
 
 static TAutoConsoleVariable<int> CVarVisualizeUseShaderPrintForTraces(
 	TEXT("r.Lumen.Visualize.UseShaderPrintForTraces"),
-	0,
+	1,
 	TEXT("Whether to use ShaderPrint or custom line renderer for trace visualization."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
