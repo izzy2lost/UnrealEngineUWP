@@ -202,7 +202,7 @@ public class GooglePlayStoreHelper implements StoreHelper, PurchasesUpdatedListe
 			return false;
 		}
 
-		if (CommonProductType == BillingClient.ProductType.SUBS && ProductIds.length > 1)
+		if (CommonProductType.equals(BillingClient.ProductType.SUBS) && ProductIds.length > 1)
 		{
 			// This condition was added because the error produced by BillingClient.launchBillingFlow was not informative
 			Log.debug("[GooglePlayStoreHelper] - BeginPurchase - Failed! Purchasing multiple subscriptions at once is not supported");
@@ -393,6 +393,7 @@ public class GooglePlayStoreHelper implements StoreHelper, PurchasesUpdatedListe
 				@Override
 				public void onProductDetailsResponse(@NonNull BillingResult Result, @NonNull List<ProductDetails> ProductDetailsList)
 				{
+					int responseCode = Result.getResponseCode();
 					if (responseCode == BillingClient.BillingResponseCode.OK)
 					{
 						Set<String> SubscriptionProductIds = GetSubscriptionStoreProductIds(ProductDetailsList);
@@ -805,8 +806,6 @@ public class GooglePlayStoreHelper implements StoreHelper, PurchasesUpdatedListe
 				return "BillingResponseCode.USER_CANCELED";
 			case BillingClient.BillingResponseCode.SERVICE_UNAVAILABLE:
 				return "BillingResponseCode.SERVICE_UNAVAILABLE";
-			case BillingClient.BillingResponseCode.SERVICE_TIMEOUT:
-				return "BillingResponseCode.SERVICE_TIMEOUT";
 			case BillingClient.BillingResponseCode.SERVICE_DISCONNECTED:
 				return "BillingResponseCode.SERVICE_DISCONNECTED";
 			case BillingClient.BillingResponseCode.BILLING_UNAVAILABLE:
