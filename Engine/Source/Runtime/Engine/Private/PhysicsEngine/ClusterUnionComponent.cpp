@@ -354,14 +354,19 @@ void UClusterUnionComponent::OnCreatePhysicsState()
 
 	FChaosUserData::Set<UPrimitiveComponent>(&PhysicsUserData, this);
 
+	const bool bHasAuthority = GetOwner()->HasAuthority();
+
 	Chaos::FClusterUnionInitData InitData;
 	InitData.UserData = static_cast<void*>(&PhysicsUserData);
 	InitData.ActorId = GetOwner()->GetUniqueID();
 	InitData.ComponentId = GetUniqueID();
-	InitData.bNeedsClusterXRInitialization = GetOwner()->HasAuthority();
+	InitData.bNeedsClusterXRInitialization = bHasAuthority;
+
+	// Client needs to be set to unbreakable so the server is authoritative.
+	InitData.bUnbreakable = !bHasAuthority;
 
 	// Only need to check connectivity on the server and have the client rely on replication to get the memo on when to release from cluster union.
-	InitData.bCheckConnectivity = GetOwner()->HasAuthority();
+	InitData.bCheckConnectivity = bHasAuthority;
 
 	bHasReceivedTransform = false;
 	PhysicsProxy = new Chaos::FClusterUnionPhysicsProxy{ this, Parameters, InitData };

@@ -32,6 +32,7 @@ namespace Chaos
 		uint32 ComponentId = INDEX_NONE;
 		bool bNeedsClusterXRInitialization = true;
 		bool bCheckConnectivity = true;
+		bool bUnbreakable = false;
 	};
 
 	/**

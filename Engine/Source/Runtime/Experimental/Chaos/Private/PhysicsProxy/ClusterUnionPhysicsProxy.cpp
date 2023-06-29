@@ -122,6 +122,7 @@ namespace Chaos
 			Particle_Internal = ClusterUnion->InternalCluster;
 			Particle_Internal->SetPhysicsProxy(this);
 			Particle_Internal->GTGeometryParticle() = Particle_External.Get();
+			Particle_Internal->SetUnbreakable(InitData.bUnbreakable);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 			Particle_Internal->SetDebugName(MakeShared<FString, ESPMode::ThreadSafe>(FString::Printf(TEXT("%s"), *GetOwner()->GetName())));
