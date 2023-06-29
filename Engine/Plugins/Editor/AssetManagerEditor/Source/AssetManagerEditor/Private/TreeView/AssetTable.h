@@ -117,7 +117,7 @@ struct FAssetTableColumns
 	static const FName PathColumnId;
 	static const FName PrimaryTypeColumnId;
 	static const FName PrimaryNameColumnId;
-	static const FName StagedCompressedSizeColumnId;
+	static const FName StagedCompressedSizeRequiredInstallColumnId;
 	static const FName TotalSizeUniqueDependenciesColumnId;
 	static const FName TotalSizeSharedDependenciesColumnId;
 	static const FName TotalSizeExternalDependenciesColumnId;
@@ -191,7 +191,7 @@ public:
 	const TCHAR* GetPath() const { return Path; }
 	const TCHAR* GetPrimaryType() const { return PrimaryType; }
 	const TCHAR* GetPrimaryName() const { return PrimaryName; }
-	int64 GetStagedCompressedSize() const { return StagedCompressedSize; }
+	int64 GetStagedCompressedSizeRequiredInstall() const { return StagedCompressedSizeRequiredInstall; }
 	int64 GetOrComputeTotalSizeUniqueDependencies(const FAssetTable& OwningTable, int32 ThisIndex) const;
 	int64 GetOrComputeTotalSizeSharedDependencies(const FAssetTable& OwningTable, int32 ThisIndex) const; 
 	int64 GetOrComputeTotalSizeExternalDependencies(const FAssetTable& OwningTable, int32 ThisIndex) const; 
@@ -226,7 +226,7 @@ private:
 	const TCHAR* Path = nullptr;
 	const TCHAR* PrimaryType = nullptr;
 	const TCHAR* PrimaryName = nullptr;
-	int64 StagedCompressedSize = 0;
+	int64 StagedCompressedSizeRequiredInstall = 0;
 	mutable int64 TotalSizeUniqueDependencies = -1; // Lazily calculated
 	mutable int64 TotalSizeSharedDependencies = -1; // Lazily calculated
 	mutable int64 TotalSizeExternalDependencies = -1; // Lazily calculated

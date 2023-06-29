@@ -27,7 +27,7 @@ const FName FAssetTableColumns::NameColumnId(TEXT("Name"));
 const FName FAssetTableColumns::PathColumnId(TEXT("Path"));
 const FName FAssetTableColumns::PrimaryTypeColumnId(TEXT("PrimaryType"));
 const FName FAssetTableColumns::PrimaryNameColumnId(TEXT("PrimaryName"));
-const FName FAssetTableColumns::StagedCompressedSizeColumnId(TEXT("StagedCompressedSize"));
+const FName FAssetTableColumns::StagedCompressedSizeRequiredInstallColumnId(TEXT("StagedCompressedSizeRequiredInstall"));
 const FName FAssetTableColumns::TotalSizeUniqueDependenciesColumnId(TEXT("TotalSizeUniqueDependencies"));
 const FName FAssetTableColumns::TotalSizeSharedDependenciesColumnId(TEXT("TotalSizeSharedDependencies"));
 const FName FAssetTableColumns::TotalSizeExternalDependenciesColumnId(TEXT("TotalSizeExternalDependencies"));
@@ -203,7 +203,7 @@ FAssetTable::FAssetTable()
 		Asset.PrimaryType = StoreStr(FString::Printf(TEXT("PT_%02d"), Id2 % 10));
 		Asset.PrimaryName = StoreStr(FString::Printf(TEXT("PN%d"), Id2));
 		Asset.TotalUsageCount = 10;
-		Asset.StagedCompressedSize = 1;
+		Asset.StagedCompressedSizeRequiredInstall = 1;
 		Asset.NativeClass = StoreStr(FString::Printf(TEXT("NativeClass%02d"), (Id * Id * Id) % 8));
 		Asset.PluginName = StoreStr(TEXT("MockGFP"));
 	}
@@ -626,14 +626,14 @@ void FAssetTable::AddDefaultColumns()
 	//////////////////////////////////////////////////
 	// Staged Compressed Size Column
 	{
-		TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FAssetTableColumns::StagedCompressedSizeColumnId);
+		TSharedRef<FTableColumn> ColumnRef = MakeShared<FTableColumn>(FAssetTableColumns::StagedCompressedSizeRequiredInstallColumnId);
 		FTableColumn& Column = *ColumnRef;
 
 		Column.SetIndex(ColumnIndex++);
 
-		Column.SetShortName(LOCTEXT("StagedCompressedSizeColumnName", "Self Size"));
-		Column.SetTitleName(LOCTEXT("StagedCompressedSizeColumnTitle", "Self Size (Compressed)"));
-		Column.SetDescription(LOCTEXT("StagedCompressedSizeColumnDesc", "Compressed size of iostore chunks for this asset's package. Only visible after staging."));
+		Column.SetShortName(LOCTEXT("StagedCompressedSizeRequiredInstallColumnName", "Self Size"));
+		Column.SetTitleName(LOCTEXT("StagedCompressedSizeRequiredInstallColumnTitle", "Self Size (Compressed, Required Install)"));
+		Column.SetDescription(LOCTEXT("StagedCompressedSizeRequiredInstallColumnDesc", "Compressed size of required install iostore chunks for this asset's package. Only visible after staging."));
 
 		Column.SetFlags(ETableColumnFlags::ShouldBeVisible | ETableColumnFlags::CanBeHidden | ETableColumnFlags::CanBeFiltered | ETableColumnFlags::IsDynamic);
 
@@ -664,7 +664,7 @@ void FAssetTable::AddDefaultColumns()
 					}
 					const FAssetTreeNode& TreeNode = Node.As<FAssetTreeNode>();
 					const FAssetTableRow& Asset = TreeNode.GetAssetChecked();
-					return FTableCellValue(static_cast<int64>(Asset.GetStagedCompressedSize()));
+					return FTableCellValue(static_cast<int64>(Asset.GetStagedCompressedSizeRequiredInstall()));
 				}
 				else if (Node.IsGroup() && !Node.Is<FPluginDependenciesGroupNode>())
 				{
@@ -1505,7 +1505,7 @@ void FAssetTable::AddDefaultColumns()
 
 	for (int32 Index : UniqueDependencies)
 	{
-		Result.UniqueDependenciesSize += OwningTable.GetAssetChecked(Index).GetStagedCompressedSize();
+		Result.UniqueDependenciesSize += OwningTable.GetAssetChecked(Index).GetStagedCompressedSizeRequiredInstall();
 	}
 	if (OutUniqueDependencies != nullptr)
 	{
@@ -1532,7 +1532,7 @@ void FAssetTable::AddDefaultColumns()
 			continue;
 		}
 
-		int64 DependencySize = OwningTable.GetAssetChecked(CurrentIndex).GetStagedCompressedSize();
+		int64 DependencySize = OwningTable.GetAssetChecked(CurrentIndex).GetStagedCompressedSizeRequiredInstall();
 		Result.SharedDependenciesSize += DependencySize;
 		if (OutSharedDependencies != nullptr)
 		{
@@ -1577,7 +1577,7 @@ void FAssetTable::AddDefaultColumns()
 			{
 				OutExternalDependencies->Add(Index);
 			}
-			TotalSizeExternalDependencies += Row.StagedCompressedSize;
+			TotalSizeExternalDependencies += Row.StagedCompressedSizeRequiredInstall;
 			NumDependenciesIncluded++;
 		}
 	}
