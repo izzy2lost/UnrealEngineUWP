@@ -76,14 +76,8 @@ static bool IsEqualOrBroadcastable(TConstArrayView<T> ShapeA, TConstArrayView<T>
     return true;
 }
 
-static bool CheckElementwiseTensor(ENNETensorDataType DataType, const NNE::FSymbolicTensorShape& TensorShape)
+static bool CheckGenericTensor(ENNETensorDataType DataType, const NNE::FSymbolicTensorShape& TensorShape)
 {
-    if (DataType != ENNETensorDataType::Float)
-    {
-        UE_LOG(LogNNE, Warning, TEXT("Invalid DML tensor data type"));
-        return false;
-    }
-
     if(!TensorShape.IsConcrete())
     {
         UE_LOG(LogNNE, Warning, TEXT("DML tensor shape must be concrete"));
@@ -101,6 +95,22 @@ static bool CheckElementwiseTensor(ENNETensorDataType DataType, const NNE::FSymb
     if (TensorShape.Rank() < MinTensorRank || TensorShape.Rank() > MaxTensorRank)
     {
         UE_LOG(LogNNE, Warning, TEXT("Invalid DML tensor rank: %d [%d,%d]"), TensorShape.Rank(), MinTensorRank, MaxTensorRank);
+        return false;
+    }
+
+    return true;
+}
+
+static bool CheckElementwiseTensor(ENNETensorDataType DataType, const NNE::FSymbolicTensorShape& TensorShape)
+{
+    if (DataType != ENNETensorDataType::Float)
+    {
+        UE_LOG(LogNNE, Warning, TEXT("Invalid DML tensor data type"));
+        return false;
+    }
+
+    if(!CheckGenericTensor(DataType, TensorShape))
+    {
         return false;
     }
 

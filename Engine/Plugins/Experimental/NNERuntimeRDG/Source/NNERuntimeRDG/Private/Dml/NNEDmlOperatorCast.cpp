@@ -19,7 +19,17 @@ public:
 
 	static bool Validate(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputShapes)
 	{
-		//TODO
+		if(InputShapes.Num() != 1)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("There must be only 1 DML input tensor"));
+        	return false;
+		}
+
+		if(!CheckGenericTensor(InputTypes[0], InputShapes[0]))
+		{
+			return false;
+		}
+
 		return true;
 	}
 
