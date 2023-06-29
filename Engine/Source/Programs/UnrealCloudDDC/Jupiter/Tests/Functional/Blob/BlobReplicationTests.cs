@@ -19,6 +19,7 @@ using Moq;
 using Moq.Contrib.HttpClient;
 using Serilog;
 using Logger = Serilog.Core.Logger;
+using Jupiter.Common;
 
 namespace Jupiter.FunctionalTests.Storage
 {
