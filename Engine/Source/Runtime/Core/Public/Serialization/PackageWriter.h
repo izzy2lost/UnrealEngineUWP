@@ -308,10 +308,14 @@ public:
 	 */
 	virtual void RemoveCookedPackages() = 0;
 
+	UE_DEPRECATED(5.4, "No longer called; override UpdatePackageModificationStatus instead")
+	virtual void MarkPackagesUpToDate(TArrayView<const FName> UpToDatePackages) {}
 	/**
-	 * Signal the given cooked package(s) have been checked for changes and have not been modified since the last cook.
+	 * During iterative cooking, signal the cooked package has been checked for changes,
+	 * and decide whether it should be iteratively skipped.
 	 */
-	virtual void MarkPackagesUpToDate(TArrayView<const FName> UpToDatePackages) = 0;
+	virtual void UpdatePackageModificationStatus(FName PackageName, bool bIterativelyUnmodified,
+		bool& bInOutShouldIterativelySkip) = 0;
 
 	struct FPreviousCookedBytesData
 	{

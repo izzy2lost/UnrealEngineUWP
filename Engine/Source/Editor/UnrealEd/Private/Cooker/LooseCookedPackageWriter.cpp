@@ -842,7 +842,8 @@ void FLooseCookedPackageWriter::RemoveCookedPackagesByPackageName(TArrayView<con
 	}
 }
 
-void FLooseCookedPackageWriter::MarkPackagesUpToDate(TArrayView<const FName> UpToDatePackages)
+void FLooseCookedPackageWriter::UpdatePackageModificationStatus(FName PackageName,
+	bool bIterativelyUnmodified, bool& bInOutShouldIterativelySkip)
 {
 }
 

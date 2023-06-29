@@ -175,8 +175,8 @@ struct FPackagePlatformData
 	void MarkCookableForWorker(FCookWorkerClient& CookWorkerClient);
 
 	/** The package was found to be unmodified in the current iterative cook. */
-	bool IsIterativelySkipped() const { return bIterativelySkipped != 0; }
-	void SetIterativelySkipped(bool bValue) { bIterativelySkipped = (uint32)bValue; }
+	bool IsIterativelyUnmodified() const { return bIterativelyUnmodified != 0; }
+	void SetIterativelyUnmodified(bool bValue) { bIterativelyUnmodified = (uint32)bValue; }
 
 	ECookResult GetCookResults() const { return (ECookResult)CookResults; }
 	bool IsCookAttempted() const { return CookResults != (uint32)ECookResult::NotAttempted; }
@@ -196,7 +196,7 @@ private:
 	uint32 bCookable : 1;
 	uint32 bExplorable : 1;
 	uint32 bExplorableOverride : 1;
-	uint32 bIterativelySkipped : 1;
+	uint32 bIterativelyUnmodified : 1;
 	uint32 bRegisteredForCachedObjectsInOuter : 1;
 	uint32 CookResults : (int)ECookResult::NumBits;
 };
@@ -814,7 +814,7 @@ public:
 	 * incremental cooks handle invalidation by querying the TargetDomainDigest during the RequestCluster.
 	 */
 	void IterativeCookValidateOrClear(FGeneratorPackage& Generator,
-		TConstArrayView<const ITargetPlatform*> RequestedPlatforms, const FGuid& PreviousGuid, bool& bOutIdentical);
+		TConstArrayView<const ITargetPlatform*> RequestedPlatforms, const FGuid& PreviousGuid, bool& bOutIterativelyUnmodified);
 
 	TConstArrayView<FAssetDependency> GetDependencies() const { return PackageDependencies; }
 

@@ -60,7 +60,8 @@ public:
 	virtual FCbObject GetOplogAttachment(FName PackageName, FUtf8StringView AttachmentKey) override;
 	virtual void RemoveCookedPackages(TArrayView<const FName> PackageNamesToRemove) override;
 	virtual void RemoveCookedPackages() override;
-	virtual void MarkPackagesUpToDate(TArrayView<const FName> UpToDatePackages) override;
+	virtual void UpdatePackageModificationStatus(FName PackageName, bool bIterativelyUnmodified,
+		bool& bInOutShouldIterativelySkip) override;
 	virtual TFuture<FCbObject> WriteMPCookMessageForPackage(FName PackageName) override;
 	virtual bool TryReadMPCookMessageForPackage(FName PackageName, FCbObjectView Message) override;
 	virtual bool GetPreviousCookedBytes(const FPackageInfo& Info, FPreviousCookedBytesData& OutData) override;

@@ -1095,21 +1095,16 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 
 			const FCookAttachments& PlatformAttachments = QueryPlatformData.CookAttachments;
 			bool bFoundBuildDefinitions = false;
+			bool bIterativelyUnmodified = false;
+			ICookedPackageWriter* PackageWriter = FetchPlatformData.Writer;
 			if (IsCookAttachmentsValid(PackageName, PlatformAttachments))
 			{
-				ICookedPackageWriter* PackageWriter = FetchPlatformData.Writer;
 				if (!Cluster.bFullBuild && Cluster.COTFS.bHybridIterativeEnabled)
 				{
 					if (IsIterativeEnabled(PackageName, Cluster.COTFS.bHybridIterativeAllowAllClasses))
 					{
-						if (PlatformIndex == FirstSessionPlatformIndex)
-						{
-							COOK_STAT(++DetailedCookStats::NumPackagesIterativelySkipped);
-						}
-						PackageData.SetPlatformCooked(TargetPlatform, ECookResult::Succeeded);
-						PackageWriter->MarkPackagesUpToDate({ PackageName });
-						// Declare the package to the EDLCookInfo verification so we don't warn about missing exports from it
-						UE::SavePackageUtilities::EDLCookInfoAddIterativelySkippedPackage(PackageName);
+						bIterativelyUnmodified = true;
+						PackageData.FindOrAddPlatformData(TargetPlatform).SetIterativelyUnmodified(true);
 					}
 					AddPlatformDependencyRange(PlatformAttachments.BuildDependencies, PlatformIndex,
 						true /* bHardDependency */);
@@ -1127,6 +1122,19 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 					}
 				}
 			}
+			bool bShouldIterativelySkip = bIterativelyUnmodified;
+			PackageWriter->UpdatePackageModificationStatus(PackageName, bIterativelyUnmodified, bShouldIterativelySkip);
+			if (bShouldIterativelySkip)
+			{
+				PackageData.SetPlatformCooked(TargetPlatform, ECookResult::Succeeded);
+				if (PlatformIndex == FirstSessionPlatformIndex)
+				{
+					COOK_STAT(++DetailedCookStats::NumPackagesIterativelySkipped);
+				}
+				// Declare the package to the EDLCookInfo verification so we don't warn about missing exports from it
+				UE::SavePackageUtilities::EDLCookInfoAddIterativelySkippedPackage(PackageName);
+			}
+
 			if (Cluster.bPreQueueBuildDefinitions && !bFoundBuildDefinitions)
 			{
 				if (PlatformAgnosticQueryPlatformData.bActive &&

@@ -91,9 +91,10 @@ public:
 	{
 		Inner->RemoveCookedPackages();
 	}
-	virtual void MarkPackagesUpToDate(TArrayView<const FName> UpToDatePackages) override
+	virtual void UpdatePackageModificationStatus(FName PackageName, bool bIterativelyUnmodified,
+		bool& bInOutShouldIterativelySkip) override
 	{
-		Inner->MarkPackagesUpToDate(UpToDatePackages);
+		Inner->UpdatePackageModificationStatus(PackageName, bIterativelyUnmodified, bInOutShouldIterativelySkip);
 	}
 	virtual EPackageWriterResult BeginCacheForCookedPlatformData(FBeginCacheForCookedPlatformDataInfo& Info) override
 	{
@@ -113,7 +114,8 @@ public:
 	{
 		return Inner->GetPackageHashes();
 	}
-private:
+
+protected:
 	void ParseCmds();
 	void ParseDumpObjList(FString InParams);
 	void ParseDumpObjects(FString InParams);
@@ -236,9 +238,10 @@ public:
 	{
 		Inner->RemoveCookedPackages();
 	}
-	virtual void MarkPackagesUpToDate(TArrayView<const FName> UpToDatePackages) override
+	virtual void UpdatePackageModificationStatus(FName PackageName, bool bIterativelyUnmodified,
+		bool& bInOutShouldIterativelySkip) override
 	{
-		Inner->MarkPackagesUpToDate(UpToDatePackages);
+		Inner->UpdatePackageModificationStatus(PackageName, bIterativelyUnmodified, bInOutShouldIterativelySkip);
 	}
 	virtual EPackageWriterResult BeginCacheForCookedPlatformData(FBeginCacheForCookedPlatformDataInfo& Info) override
 	{

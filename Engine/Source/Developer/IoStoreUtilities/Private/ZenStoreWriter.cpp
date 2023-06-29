@@ -1210,32 +1210,28 @@ void FZenStoreWriter::RemoveCookedPackages()
 	PackageNameToIndex.Empty();
 }
 
-void FZenStoreWriter::MarkPackagesUpToDate(TArrayView<const FName> UpToDatePackages)
+void FZenStoreWriter::UpdatePackageModificationStatus(FName PackageName, bool bIterativelyUnmodified,
+	bool& bInOutShouldIterativelySkip)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FZenStoreWriter::MarkPackagesUpToDate);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FZenStoreWriter::UpdatePackageModificationStatus);
 
 	IPackageStoreWriter::FMarkUpToDateEventArgs MarkUpToDateEventArgs;
 
-	MarkUpToDateEventArgs.PackageIndexes.Reserve(UpToDatePackages.Num());
-
 	{
 		FWriteScopeLock _(EntriesLock);
-		for (FName PackageName : UpToDatePackages)
+		int32* Index = PackageNameToIndex.Find(PackageName);
+		if (!Index)
 		{
-			int32* Index = PackageNameToIndex.Find(PackageName);
-			if (!Index)
+			if (!FPackageName::IsScriptPackage(WriteToString<128>(PackageName)))
 			{
-				if (!FPackageName::IsScriptPackage(WriteToString<128>(PackageName)))
-				{
-					UE_LOG(LogZenStoreWriter, Warning, TEXT("MarkPackagesUpToDate called with package %s that is not in the oplog."),
-						*PackageName.ToString());
-				}
-				continue;
+				UE_LOG(LogZenStoreWriter, Verbose, TEXT("UpdatePackageModificationStatus called with package %s that is not in the oplog."),
+					*PackageName.ToString());
 			}
-
-			MarkUpToDateEventArgs.PackageIndexes.Add(*Index);
-			CookedPackagesInfo[*Index].bUpToDate = true;
+			return;
 		}
+
+		MarkUpToDateEventArgs.PackageIndexes.Add(*Index);
+		CookedPackagesInfo[*Index].bUpToDate = true;
 	}
 	if (MarkUpToDateEventArgs.PackageIndexes.Num())
 	{

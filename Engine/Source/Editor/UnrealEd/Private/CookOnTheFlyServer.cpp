@@ -34,6 +34,7 @@
 #include "Cooker/CookWorkerClient.h"
 #include "Cooker/DiffPackageWriter.h"
 #include "Cooker/IoStoreCookOnTheFlyRequestManager.h"
+#include "Cooker/IterativeValidatePackageWriter.h"
 #include "Cooker/LooseCookedPackageWriter.h"
 #include "Cooker/NetworkFileCookOnTheFlyRequestManager.h"
 #include "Cooker/PackageTracker.h"
@@ -2628,6 +2629,10 @@ void UCookOnTheFlyServer::DemoteToIdle(UE::Cook::FPackageData& PackageData, UE::
 
 			// Reachability: Suppress the diagnostic that were found via cookload reference traversal but are not reachable on the target platforms
 			bPrintDiagnostic &= (PackageData.HasInstigator() || Reason != ESuppressCookReason::OnlyEditorOnly);
+
+			// Iterative cooks: suppress the diagnostic for packages that were iteratively skipped
+			bPrintDiagnostic &= !PackageData.HasAllCookedPlatforms(PlatformManager->GetSessionPlatforms(), true /* bIncludeFailed */);
+
 			if (bPrintDiagnostic)
 			{
 				UE_CLOG((GCookProgressDisplay & (int32)ECookProgressDisplayMode::Instigators), LogCook, Display,
@@ -5678,7 +5683,7 @@ public:
 	void InitializePackageWriter(ICookedPackageWriter*& CookedPackageWriter)
 	{
 		Initialize();
-		if (!bDiffEnabled && !bLinkerDiffEnabled)
+		if (!bAnyDiffModeEnabled)
 		{
 			return;
 		}
@@ -5686,9 +5691,9 @@ public:
 		ICookedPackageWriter::FCookCapabilities Capabilities = CookedPackageWriter->GetCookCapabilities();
 		if (!Capabilities.bDiffModeSupported)
 		{
-			const TCHAR* CommandLineArg = bDiffEnabled ? TEXT("-DIFFONLY") : TEXT("-LINKERDIFF");
-			UE_LOG(LogCook, Fatal, TEXT("%s was enabled, but -iostore is also enabled and iostore PackageWriters do not support %s."),
-				CommandLineArg, CommandLineArg);
+			// All current PackageWriters support bDiffModeSupported; log a fatal error in case a new one is added.
+			UE_LOG(LogCook, Fatal, 
+				TEXT("A DiffMode was enabled, but the current PackageWriter has bDiffModeSupported=false."));
 		}
 
 		if (bDiffEnabled)
@@ -5696,10 +5701,14 @@ public:
 			// Wrap the incoming writer inside a FDiffPackageWriter
 			CookedPackageWriter = new FDiffPackageWriter(TUniquePtr<ICookedPackageWriter>(CookedPackageWriter));
 		}
+		else if (bLinkerDiffEnabled)
+		{
+			CookedPackageWriter = new FLinkerDiffPackageWriter(TUniquePtr<ICookedPackageWriter>(CookedPackageWriter));
+		}
 		else
 		{
-			check(bLinkerDiffEnabled);
-			CookedPackageWriter = new FLinkerDiffPackageWriter(TUniquePtr<ICookedPackageWriter>(CookedPackageWriter));
+			check(bIterativeValidateEnabled);
+			CookedPackageWriter = new FIterativeValidatePackageWriter(TUniquePtr<ICookedPackageWriter>(CookedPackageWriter));
 		}
 	}
 
@@ -5711,20 +5720,26 @@ private:
 			return;
 		}
 
-		bDiffEnabled = FParse::Param(FCommandLine::Get(), TEXT("DIFFONLY"));
-		FString Value;
-		bLinkerDiffEnabled = FParse::Value(FCommandLine::Get(), TEXT("-LINKERDIFF="), Value);
-		if (bDiffEnabled && bLinkerDiffEnabled)
+		const TCHAR* CommandLine = FCommandLine::Get();
+		bDiffEnabled = FParse::Param(CommandLine, TEXT("DIFFONLY"));
+		bLinkerDiffEnabled = false;
+		FParse::Bool(CommandLine, TEXT("-LINKERDIFF="), bLinkerDiffEnabled);
+		bIterativeValidateEnabled = FParse::Param(CommandLine, TEXT("ITERATIVEVALIDATE"));
+		int32 NumEnabled = (bDiffEnabled ? 1 : 0) + (bLinkerDiffEnabled ? 1 : 0) + (bIterativeValidateEnabled ? 1 : 0);
+		if (NumEnabled > 1)
 		{
-			UE_LOG(LogCook, Fatal, TEXT("-DiffOnly and -LinkerDiff are mutually exclusive."));
+			UE_LOG(LogCook, Fatal, TEXT("-DiffOnly, -LinkerDiff, and -IterativeValidate are mutually exclusive."));
 		}
+		bAnyDiffModeEnabled = NumEnabled >= 1;
 
 		bInitialized = true;
 	}
 
 	bool bInitialized = false;
+	bool bAnyDiffModeEnabled = false;
 	bool bDiffEnabled = false;
 	bool bLinkerDiffEnabled = false;
+	bool bIterativeValidateEnabled = false;
 };
 
 #if OUTPUT_COOKTIMING
@@ -7971,39 +7986,63 @@ void UCookOnTheFlyServer::PopulateCookedPackages(TArrayView<const ITargetPlatfor
 			int32 ModifiedCookedNum = 0;
 			int32 RemovedCookedNum = 0;
 
-			auto AddCookedPackage =
-				[this, TargetPlatform](const FName PackageName, ECookResult CookResult, bool bRequireExists)
+			auto AddPlaceholderPackage =
+				[this, TargetPlatform](const FName PackageName, ECookResult CookResult)
 				{
-					FPackageData* PackageData = PackageDatas->TryAddPackageDataByPackageName(PackageName, bRequireExists);
+					FPackageData* PackageData = PackageDatas->TryAddPackageDataByPackageName(PackageName, true /* bRequireExists */);
 					if (PackageData)
 					{
 						PackageData->SetPlatformCooked(TargetPlatform, CookResult);
-						PackageData->FindOrAddPlatformData(TargetPlatform).SetIterativelySkipped(true);
 					}
-				};
-			auto AddIdenticalCookedPackage =
-				[&AddCookedPackage, &IdenticalCooked](const FName PackageName, bool bRequireExists)
-				{
-					IdenticalCooked.Add(PackageName);
-					AddCookedPackage(PackageName, ECookResult::Succeeded, bRequireExists);
-					// Declare the package to the EDLCookInfo verification so we don't warn about missing exports from it
-					UE::SavePackageUtilities::EDLCookInfoAddIterativelySkippedPackage(PackageName);
 				};
 			bool bCookByTheBook = IsCookByTheBookMode();
-			auto AddRequestForModifiedPackage = [this, TargetPlatform, bCookByTheBook](const FName PackageName)
+			auto UpdateCookedPackage = [this, TargetPlatform, bCookByTheBook, &Difference, &IdenticalCookedNum,
+				&ModifiedCookedNum, &PackageWriter, &bFirstPlatform, &PackagesToRemove]
+			(const FName PackageName, bool bRequireExists, bool bIterativelyUnmodified)
 			{
-				if (bCookByTheBook)
+				++(bIterativelyUnmodified ? IdenticalCookedNum : ModifiedCookedNum);
+				FPackageData* PackageData = PackageDatas->TryAddPackageDataByPackageName(PackageName, bRequireExists);
+				if (PackageData)
 				{
-					// cook on the fly will queue packages when it needs them, but for cook by the book we force cook the modified files
-					// so that the output set of packages is up to date (even if the user is currently cooking only a subset)
-					FPackageData* PackageData = PackageDatas->TryAddPackageDataByPackageName(PackageName);
-					if (PackageData)
+					if (bIterativelyUnmodified)
 					{
-						WorkerRequests->AddStartCookByTheBookRequest(FFilePlatformRequest(PackageData->GetFileName(),
-							EInstigator::IterativeCook, TConstArrayView<const ITargetPlatform*>{ TargetPlatform }));
+						PackageData->FindOrAddPlatformData(TargetPlatform).SetIterativelyUnmodified(true);
+					}
+					bool bShouldIterativelySkip = bIterativelyUnmodified;
+					PackageWriter.UpdatePackageModificationStatus(PackageName, bIterativelyUnmodified,
+						bShouldIterativelySkip);
+					if (bShouldIterativelySkip && !bIterativelyUnmodified)
+					{
+						// Override the PackageWriter's request to iteratively skip a modified generator package, because we
+						// need to cook the generator packages to evaluate whether their generated packages should be skipped.
+						EDifference* GeneratorDifference = Difference.Packages.Find(PackageName);
+						if (GeneratorDifference)
+						{
+							bShouldIterativelySkip = false;
+						}
+					}
+					if (bShouldIterativelySkip)
+					{
+						PackageData->SetPlatformCooked(TargetPlatform, ECookResult::Succeeded);
+						if (bFirstPlatform)
+						{
+							COOK_STAT(++DetailedCookStats::NumPackagesIterativelySkipped);
+						}
+						// Declare the package to the EDLCookInfo verification so we don't warn about missing exports from it
+						UE::SavePackageUtilities::EDLCookInfoAddIterativelySkippedPackage(PackageName);
+					}
+					else
+					{
+						if (bCookByTheBook)
+						{
+							// cook on the fly will queue packages when it needs them, but for cook by the book we force cook the modified files
+							// so that the output set of packages is up to date (even if the user is currently cooking only a subset)
+							WorkerRequests->AddStartCookByTheBookRequest(FFilePlatformRequest(PackageData->GetFileName(),
+								EInstigator::IterativeCook, TConstArrayView<const ITargetPlatform*>{ TargetPlatform }));
+						}
+						PackagesToRemove.Add(PackageName);
 					}
 				}
-
 			};
 
 			// Add CookedPackages for any identical packages, delete from disk any modified packages
@@ -8014,19 +8053,17 @@ void UCookOnTheFlyServer::PopulateCookedPackages(TArrayView<const ITargetPlatfor
 				switch (Pair.Value)
 				{
 				case EDifference::IdenticalCooked:
-					AddIdenticalCookedPackage(PackageName, true /* bRequireExists */);
+					UpdateCookedPackage(PackageName, true /* bRequireExists */, true /* bIterativelyUnmodified */);
 					break;
 				case EDifference::ModifiedCooked:
-					AddRequestForModifiedPackage(PackageName);
-					PackagesToRemove.Add(PackageName);
-					++ModifiedCookedNum;
+					UpdateCookedPackage(PackageName, true /* bRequireExists */, false /* bIterativelyUnmodified */);
 					break;
 				case EDifference::RemovedCooked:
 					PackagesToRemove.Add(PackageName);
 					++RemovedCookedNum;
 					break;
 				case EDifference::IdenticalUncooked:
-					AddCookedPackage(PackageName, ECookResult::Failed, true /* bRequireExists */);
+					AddPlaceholderPackage(PackageName, ECookResult::Failed);
 					PackagesToRemove.Add(PackageName);
 					break;
 				case EDifference::ModifiedUncooked:
@@ -8036,7 +8073,7 @@ void UCookOnTheFlyServer::PopulateCookedPackages(TArrayView<const ITargetPlatfor
 					PackagesToRemove.Add(PackageName);
 					break;
 				case EDifference::IdenticalNeverCookPlaceholder:
-					AddCookedPackage(PackageName, ECookResult::NeverCookPlaceholder, true /* bRequireExists */);
+					AddPlaceholderPackage(PackageName, ECookResult::NeverCookPlaceholder);
 					PackagesToRemove.Add(PackageName);
 					break;
 				case EDifference::ModifiedNeverCookPlaceholder:
@@ -8057,12 +8094,12 @@ void UCookOnTheFlyServer::PopulateCookedPackages(TArrayView<const ITargetPlatfor
 				Iter; ++Iter)
 			{
 				FName Generator = Iter->Key;
-				EDifference* GeneratorDifference = Difference.Packages.Find(Generator);
-				if (GeneratorDifference && *GeneratorDifference == EDifference::IdenticalCooked)
+				FPackageData* PackageData = PackageDatas->TryAddPackageDataByPackageName(Generator, false /* bRequireExists */);
+				if (PackageData && PackageData->FindOrAddPlatformData(TargetPlatform).IsCookAttempted())
 				{
 					for (const TPair<FName, FGuid>& GeneratedPair : Iter->Value.Generated)
 					{
-						AddIdenticalCookedPackage(GeneratedPair.Key, false /* bRequireExists */);
+						UpdateCookedPackage(GeneratedPair.Key, false /* bRequireExists */, true /* bIterativelyUnmodified */);
 					}
 					Iter.RemoveCurrent();
 				}
@@ -8075,14 +8112,9 @@ void UCookOnTheFlyServer::PopulateCookedPackages(TArrayView<const ITargetPlatfor
 			int32 CookedNum = IdenticalCooked.Num() + ModifiedCookedNum + RemovedCookedNum + DeferredEvaluateGeneratedNum;
 			UE_LOG(LogCook, Display, TEXT("Found %d cooked package(s) in package store."), CookedNum);
 			UE_LOG(LogCook, Display, TEXT("Keeping %d. Recooking %d. Removing %d. %d generated packages to be evaluated for iterative skipping later."),
-				IdenticalCooked.Num(), ModifiedCookedNum, RemovedCookedNum, DeferredEvaluateGeneratedNum);
-			if (bFirstPlatform)
-			{
-				COOK_STAT(DetailedCookStats::NumPackagesIterativelySkipped += IdenticalCooked.Num());
-				bFirstPlatform = false;
-			}
+				IdenticalCookedNum, ModifiedCookedNum, RemovedCookedNum, DeferredEvaluateGeneratedNum);
+			bFirstPlatform = false;
 
-			PackageWriter.MarkPackagesUpToDate(IdenticalCooked);
 			PackageWriter.RemoveCookedPackages(PackagesToRemove);
 		}
 
@@ -10237,7 +10269,7 @@ void UCookOnTheFlyServer::LoadBeginCookIterativeFlagsLocal(FBeginCookContext& Be
 		const ITargetPlatform* TargetPlatform = PlatformContext.TargetPlatform;
 		UE::Cook::FPlatformData* PlatformData = PlatformContext.PlatformData;
 		const ICookedPackageWriter* PackageWriterPtr = FindPackageWriter(TargetPlatform);
-		check(PackageWriterPtr); // PackageContexts should have been created by SelectSessoinPlatforms or by FindOrCreateSaveContexts in AddCookOnTheFlyPlatformFromGameThread
+		check(PackageWriterPtr); // PackageContexts should have been created by SelectSessionPlatforms or by FindOrCreateSaveContexts in AddCookOnTheFlyPlatformFromGameThread
 		const ICookedPackageWriter& PackageWriter(*PackageWriterPtr);
 		bool bIterateSharedBuild = false;
 		if (bIterative && bIsSharedIterativeCook && !PlatformData->bIsSandboxInitialized)

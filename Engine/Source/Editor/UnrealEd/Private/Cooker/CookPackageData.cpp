@@ -55,7 +55,7 @@ static FAutoConsoleVariableRef CVarPollAsyncPeriod(
 // FPackageData
 FPackagePlatformData::FPackagePlatformData()
 	: bReachable(0), bVisitedByCluster(0), bSaveTimedOut(0), bCookable(1), bExplorable(1), bExplorableOverride(0)
-	, bIterativelySkipped(0), bRegisteredForCachedObjectsInOuter(0), CookResults((uint8)ECookResult::NotAttempted)
+	, bIterativelyUnmodified(0), bRegisteredForCachedObjectsInOuter(0), CookResults((uint8)ECookResult::NotAttempted)
 {
 }
 
@@ -1590,10 +1590,10 @@ bool FGeneratorPackage::TryGenerateList(UObject* OwnerObject, FPackageDatas& Pac
 	OwnerPackageData.GetPlatformsNeedingCooking(PlatformsToCook);
 	bool bHybridIterativeEnabled = COTFS.bHybridIterativeEnabled;
 
+	int32 NumIterativeUnmodified = 0;
 	int32 NumIterativeModified = 0; 
 	int32 NumIterativeRemoved = 0;
 	int32 NumIterativePrevious = PreviousGeneratedPackages.Num();
-	TArray<FName> IdenticalGenerated;
 
 	for (ICookPackageSplitter::FGeneratedPackage& SplitterData : GeneratorDatas)
 	{
@@ -1657,16 +1657,9 @@ bool FGeneratorPackage::TryGenerateList(UObject* OwnerObject, FPackageDatas& Pac
 		FGuid PreviousGuid;
 		if (PreviousGeneratedPackages.RemoveAndCopyValue(PackageFName, PreviousGuid) && !bHybridIterativeEnabled)
 		{
-			bool bIdentical;
-			GeneratedInfo.IterativeCookValidateOrClear(*this, PlatformsToCook, PreviousGuid, bIdentical);
-			if (bIdentical)
-			{
-				IdenticalGenerated.Add(PackageFName);
-			}
-			else
-			{
-				++NumIterativeModified;
-			}
+			bool bIterativelyUnmodified;
+			GeneratedInfo.IterativeCookValidateOrClear(*this, PlatformsToCook, PreviousGuid, bIterativelyUnmodified);
+			++(bIterativelyUnmodified ? NumIterativeUnmodified : NumIterativeModified);
 		}
 	}
 	if (!PreviousGeneratedPackages.IsEmpty())
@@ -1686,13 +1679,7 @@ bool FGeneratorPackage::TryGenerateList(UObject* OwnerObject, FPackageDatas& Pac
 		UE_LOG(LogCook, Display, TEXT("Found %d cooked package(s) in package store for generator package %s."),
 			NumIterativePrevious, *WriteToString<256>(GetOwner().GetPackageName()));
 		UE_LOG(LogCook, Display, TEXT("Keeping %d. Recooking %d. Removing %d."),
-			IdenticalGenerated.Num(), NumIterativeModified, NumIterativeRemoved);
-		COOK_STAT(DetailedCookStats::NumPackagesIterativelySkipped += IdenticalGenerated.Num());
-
-		for (const ITargetPlatform* TargetPlatform : PlatformsToCook)
-		{
-			COTFS.FindOrCreatePackageWriter(TargetPlatform).MarkPackagesUpToDate(IdenticalGenerated);
-		}
+			NumIterativeUnmodified, NumIterativeModified, NumIterativeRemoved);
 	}
 
 	RemainingToPopulate = GeneratorDatas.Num() + 1; // GeneratedPackaged plus one for the Generator
@@ -2235,11 +2222,11 @@ void FCookGenerationInfo::CreateGuid()
 }
 
 void FCookGenerationInfo::IterativeCookValidateOrClear(FGeneratorPackage& Generator,
-	TConstArrayView<const ITargetPlatform*> RequestedPlatforms, const FGuid& PreviousGuid, bool& bOutIdentical)
+	TConstArrayView<const ITargetPlatform*> RequestedPlatforms, const FGuid& PreviousGuid, bool& bOutIterativelyUnmodified)
 {
 	UCookOnTheFlyServer& COTFS = Generator.GetOwner().GetPackageDatas().GetCookOnTheFlyServer();
-	bOutIdentical = PreviousGuid == this->Guid;
-	if (bOutIdentical)
+	bOutIterativelyUnmodified = PreviousGuid == this->Guid;
+	if (bOutIterativelyUnmodified)
 	{
 		// If not directly modified, mark it as indirectly modified if any of its dependencies
 		// were detected as modified during PopulateCookedPackages.
@@ -2248,39 +2235,51 @@ void FCookGenerationInfo::IterativeCookValidateOrClear(FGeneratorPackage& Genera
 			FPackageData* DependencyData = COTFS.PackageDatas->FindPackageDataByPackageName(Dependency.AssetId.PackageName);
 			if (!DependencyData)
 			{
-				bOutIdentical = false;
+				bOutIterativelyUnmodified = false;
 				break;
 			}
 			for (const ITargetPlatform* TargetPlatform : RequestedPlatforms)
 			{
 				FPackagePlatformData* DependencyPlatformData = DependencyData->FindPlatformData(TargetPlatform);
-				if (!DependencyPlatformData || !DependencyPlatformData->IsIterativelySkipped())
+				if (!DependencyPlatformData || !DependencyPlatformData->IsIterativelyUnmodified())
 				{
-					bOutIdentical = false;
+					bOutIterativelyUnmodified = false;
 					break;
 				}
 			}
-			if (!bOutIdentical)
+			if (!bOutIterativelyUnmodified)
 			{
 				break;
 			}
 		}
 	}
 
-	if (bOutIdentical)
+	bool bFirstPlatform = true;
+	for (const ITargetPlatform* TargetPlatform : RequestedPlatforms)
 	{
-		for (const ITargetPlatform* TargetPlatform : RequestedPlatforms)
+		if (bOutIterativelyUnmodified)
+		{
+			PackageData->FindOrAddPlatformData(TargetPlatform).SetIterativelyUnmodified(true);
+		}
+		bool bShouldIterativelySkip = bOutIterativelyUnmodified;
+		ICookedPackageWriter& PackageWriter = COTFS.FindOrCreatePackageWriter(TargetPlatform);
+		PackageWriter.UpdatePackageModificationStatus(PackageData->GetPackageName(), bOutIterativelyUnmodified,
+			bShouldIterativelySkip);
+		if (bShouldIterativelySkip)
 		{
 			PackageData->SetPlatformCooked(TargetPlatform, ECookResult::Succeeded);
-			PackageData->FindOrAddPlatformData(TargetPlatform).SetIterativelySkipped(true);
+			if (bFirstPlatform)
+			{
+				COOK_STAT(++DetailedCookStats::NumPackagesIterativelySkipped);
+			}
+			// Declare the package to the EDLCookInfo verification so we don't warn about missing exports from it
+			UE::SavePackageUtilities::EDLCookInfoAddIterativelySkippedPackage(PackageData->GetPackageName());
 		}
-	}
-	else
-	{
-		for (const ITargetPlatform* TargetPlatform : RequestedPlatforms)
+		else
 		{
 			COTFS.DeleteOutputForPackage(PackageData->GetPackageName(), TargetPlatform);
 		}
+		bFirstPlatform = false;
 	}
 }
 
