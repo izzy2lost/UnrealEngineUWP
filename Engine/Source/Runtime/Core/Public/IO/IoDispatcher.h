@@ -517,7 +517,7 @@ struct FIoStoreWriterResult
 	uint64 ModifiedChunksCount = 0;
 	uint64 ModifiedChunksSize = 0;
 	FName CompressionMethod = NAME_None;
-	EIoContainerFlags ContainerFlags;
+	EIoContainerFlags ContainerFlags = EIoContainerFlags::None;
 };
 
 struct FIoWriteOptions
