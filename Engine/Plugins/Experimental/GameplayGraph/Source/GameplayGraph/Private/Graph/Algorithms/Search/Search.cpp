@@ -71,14 +71,14 @@ namespace Graph::Algorithms
 			while (!WorkQueue.IsEmpty())
 			{
 				FGraphVertexHandle Next = GetNextAndAdvance<TDataStructure>(WorkQueue);
-				if (!Next.IsComplete())
-				{
-					continue;
-				}
-
 				if (Callback(Next))
 				{
 					return Next;
+				}
+
+				if (!Next.IsComplete())
+				{
+					continue;
 				}
 
 				// Get neighbors and add to the queue.

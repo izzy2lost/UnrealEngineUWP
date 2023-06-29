@@ -9,6 +9,8 @@ class UGraphVertex;
 class UGraphEdge;
 class UGraphIsland;
 
+DECLARE_LOG_CATEGORY_EXTERN(LogGameplayGraph, Log, All);
+
 /**
  * For persistence, every node in a graph is given a unique index.
  * A FGraphHandle encapsulates that index to make it easy to go from

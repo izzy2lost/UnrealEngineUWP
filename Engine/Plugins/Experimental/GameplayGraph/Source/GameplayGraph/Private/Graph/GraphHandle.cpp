@@ -8,6 +8,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GraphHandle)
 
+DEFINE_LOG_CATEGORY(LogGameplayGraph)
+
 FGraphHandle::FGraphHandle()
 {
 
