@@ -305,7 +305,7 @@ struct RIGVM_API FRigVMGraphFunctionIdentifier
 	UPROPERTY()
 	FSoftObjectPath LibraryNode;
 
-	// A path to the IRigVMGraphFunctionHost that stores the function information, and compilation data (e.g. ControlRigBlueprintGeneratedClass)
+	// A path to the IRigVMGraphFunctionHost that stores the function information, and compilation data (e.g. RigVMBlueprintGeneratedClass)
 	UPROPERTY()
 	FSoftObjectPath HostObject;
 
