@@ -133,6 +133,9 @@ public:
 	ENGINE_API void RemoveComponentFromCluster(UPrimitiveComponent* InComponent);
 
 	UFUNCTION(BlueprintCallable, Category = "Cluster Union")
+	ENGINE_API void RemoveComponentBonesFromCluster(UPrimitiveComponent* InComponent, const TArray<int32>& BoneIds);
+
+	UFUNCTION(BlueprintCallable, Category = "Cluster Union")
 	ENGINE_API TArray<UPrimitiveComponent*> GetPrimitiveComponents();
 
 	UFUNCTION(BlueprintCallable, Category = "Cluster Union")

@@ -78,6 +78,7 @@ private:
 
 	UPROPERTY(ReplicatedUsing=OnRep_ParticleBoneIds)
 	TArray<int32> ParticleBoneIds;
+	TSet<int32> LastSyncedBoneIds;
 
 	UPROPERTY()
 	bool bNetUpdateParticleBoneIds;
