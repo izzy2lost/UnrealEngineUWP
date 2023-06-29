@@ -58,8 +58,11 @@ void FMassRuntimePipeline::Initialize(UObject& Owner)
 	{
 		if (Proc)
 		{
-			REDIRECT_OBJECT_TO_VLOG(Proc, &Owner);
-			Proc->Initialize(Owner);
+			if (Proc->IsInitialized() == false)
+			{
+				REDIRECT_OBJECT_TO_VLOG(Proc, &Owner);
+				Proc->Initialize(Owner);
+			}
 		}
 		else
 		{

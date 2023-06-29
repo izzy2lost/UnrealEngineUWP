@@ -158,7 +158,7 @@ void FMassPhaseProcessorConfigurationHelper::Configure(TArrayView<UMassProcessor
 
 	Solver.ResolveDependencies(SortedProcessors, EntityManager, OutOptionalResult);
 
-	PhaseProcessor.Populate(SortedProcessors);
+	PhaseProcessor.UpdateProcessorsCollection(SortedProcessors);
 
 #if WITH_MASSENTITY_DEBUG
 	for (const FMassProcessorOrderInfo& ProcessorOrderInfo : SortedProcessors)

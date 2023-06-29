@@ -357,7 +357,7 @@ void UMassCompositeProcessor::SetProcessors(TArrayView<UMassProcessor*> InProces
 	TArray<FMassProcessorOrderInfo> SortedProcessors;
 	Solver.ResolveDependencies(SortedProcessors, EntityManager);
 
-	Populate(SortedProcessors);
+	UpdateProcessorsCollection(SortedProcessors);
 
 	if (Solver.IsSolvingForSingleThread() == false)
 	{
@@ -420,21 +420,41 @@ void UMassCompositeProcessor::BuildFlatProcessingGraph(TConstArrayView<FMassProc
 #endif // WITH_MASSENTITY_DEBUG
 }
 
-void UMassCompositeProcessor::Populate(TConstArrayView<FMassProcessorOrderInfo> OrderedProcessors)
+void UMassCompositeProcessor::UpdateProcessorsCollection(TArrayView<FMassProcessorOrderInfo> InOutOrderedProcessors)
 {
+	TArray<TObjectPtr<UMassProcessor>> ExistingProcessors(ChildPipeline.GetMutableProcessors());
 	ChildPipeline.Reset();
 
 	const UWorld* World = GetWorld();
 	const EProcessorExecutionFlags WorldExecutionFlags = World ? UE::Mass::Utils::GetProcessorExecutionFlagsForWorld(*World) : EProcessorExecutionFlags::All;
 	const FMassProcessingPhaseConfig& PhaseConfig = GET_MASS_CONFIG_VALUE(GetProcessingPhaseConfig(ProcessingPhase));
 
-	for (const FMassProcessorOrderInfo& ProcessorInfo : OrderedProcessors)
+	for (FMassProcessorOrderInfo& ProcessorInfo : InOutOrderedProcessors)
 	{
 		if (ensureMsgf(ProcessorInfo.NodeType == FMassProcessorOrderInfo::EDependencyNodeType::Processor, TEXT("Encountered unexpected FMassProcessorOrderInfo::EDependencyNodeType while populating %s"), *GetGroupName().ToString()))
 		{
 			checkSlow(ProcessorInfo.Processor);
 			if (ProcessorInfo.Processor->ShouldExecute(WorldExecutionFlags))
 			{
+				// we want to reuse existing processors to maintain state. It's recommended to keep processors state-less
+				// but we already have processors that do have some state, like signaling processors.
+				// the following search only makes sense for "single instance" processors
+				if (ProcessorInfo.Processor->ShouldAllowMultipleInstances() == false)
+				{
+					TObjectPtr<UMassProcessor>* FoundProcessor = ExistingProcessors.FindByPredicate([ProcessorClass = ProcessorInfo.Processor->GetClass()](TObjectPtr<UMassProcessor>& Element)
+						{
+							return Element && (Element->GetClass() == ProcessorClass);
+						});
+
+					if (FoundProcessor)
+					{
+						// overriding the stored value since the InOutOrderedProcessors can get used after the call and it 
+						// needs to reflect the actual work performed
+						ProcessorInfo.Processor = FoundProcessor->Get();
+					}
+				}
+
+				CA_ASSUME(ProcessorInfo.Processor);
 				ChildPipeline.AppendProcessor(*ProcessorInfo.Processor);
 			}
 		}
@@ -515,3 +535,11 @@ UMassCompositeProcessor* UMassCompositeProcessor::FindOrAddGroupProcessor(FName 
 	return GroupProcessor;
 }
 
+//-----------------------------------------------------------------------------
+// DEPRECATED
+//-----------------------------------------------------------------------------
+void UMassCompositeProcessor::Populate(TConstArrayView<FMassProcessorOrderInfo> OrderedProcessors)
+{
+	TArray<FMassProcessorOrderInfo> OrderedProcessorsCopy(OrderedProcessors);
+	UpdateProcessorsCollection(OrderedProcessorsCopy);
+}
