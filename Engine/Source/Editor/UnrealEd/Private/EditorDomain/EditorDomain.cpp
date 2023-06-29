@@ -118,6 +118,7 @@ FEditorDomain::FEditorDomain()
 
 	bEditorDomainReadEnabled = !FParse::Param(FCommandLine::Get(), TEXT("noeditordomainread"))
 	 && !FParse::Param(FCommandLine::Get(), TEXT("testeditordomaindeterminism"));
+	bEditorDomainWriteEnabled = !FParse::Param(FCommandLine::Get(), TEXT("noeditordomainwrite"));
 
 	ELoadingPhase::Type CurrentPhase = IPluginManager::Get().GetLastCompletedLoadingPhase();
 	if (CurrentPhase == ELoadingPhase::None || CurrentPhase < ELoadingPhase::PostEngineInit)
@@ -610,7 +611,7 @@ void FEditorDomain::Tick(float DeltaTime)
 
 void FEditorDomain::OnEndLoadPackage(const FEndLoadPackageContext& Context)
 {
-	if (bExternalSave)
+	if (bExternalSave || !bEditorDomainWriteEnabled)
 	{
 		return;
 	}
@@ -640,7 +641,7 @@ void FEditorDomain::OnPostEngineInit()
 	{
 		FScopeLock ScopeLock(&Locks->Lock);
 		bHasPassedPostEngineInit = true;
-		if (bExternalSave)
+		if (bExternalSave || !bEditorDomainWriteEnabled)
 		{
 			return;
 		}

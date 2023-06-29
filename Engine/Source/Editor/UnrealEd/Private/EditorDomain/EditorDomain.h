@@ -267,6 +267,8 @@ private:
 
 	/** True by default, set to false when reading is disabled for testing. */
 	bool bEditorDomainReadEnabled = true;
+	/** True by default, set to false when writing is disabled for testing. */
+	bool bEditorDomainWriteEnabled = true;
 	/** If true, use an out-of-process EditorDomainSaveServer for saves, else save in process in EndLoad */
 	bool bExternalSave = false;
 	/** Marker for whether our PostEngineInit callback has been called */
