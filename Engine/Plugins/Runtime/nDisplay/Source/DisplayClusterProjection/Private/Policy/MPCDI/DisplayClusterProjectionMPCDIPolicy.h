@@ -3,10 +3,8 @@
 #pragma once
 
 #include "Policy/DisplayClusterProjectionPolicyBase.h"
-
-#include "WarpBlend/IDisplayClusterWarpBlend.h"
-#include "WarpBlend/DisplayClusterWarpContext.h"
-
+#include "Containers/DisplayClusterWarpContext.h"
+#include "IDisplayClusterWarpBlend.h"
 
 /**
  * MPCDI projection policy
@@ -16,22 +14,10 @@ class FDisplayClusterProjectionMPCDIPolicy
 	: public FDisplayClusterProjectionPolicyBase
 {
 public:
-	enum class EWarpType : uint8
-	{
-		mpcdi = 0,
-		mesh
-	};
-
-public:
 	FDisplayClusterProjectionMPCDIPolicy(const FString& ProjectionPolicyId, const FDisplayClusterConfigurationProjection* InConfigurationProjectionPolicy);
 	virtual ~FDisplayClusterProjectionMPCDIPolicy();
 
 public:
-	virtual EWarpType GetWarpType() const
-	{
-		return EWarpType::mpcdi;
-	}
-
 	// This policy can support ICVFX rendering
 	virtual bool ShouldSupportICVFX(IDisplayClusterViewport* InViewport) const override;
 
@@ -76,12 +62,16 @@ protected:
 	void ImplRelease();
 
 protected:
+	// GameThread: WarpBlend and WarpPolicy interfaces
 	TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlendInterface;
 	TSharedPtr<IDisplayClusterWarpPolicy, ESPMode::ThreadSafe> WarpPolicyInterface;
-	TArray<FDisplayClusterWarpContext> WarpBlendContexts;
 
+	// RenderingThread: WarpBlend and WarpPolicy interfaces
 	TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlendInterface_Proxy;
 	TSharedPtr<IDisplayClusterWarpPolicy, ESPMode::ThreadSafe> WarpPolicyInterface_Proxy;
+
+	// Context for both game and rendering threads
+	TArray<FDisplayClusterWarpContext> WarpBlendContexts;
 	TArray<FDisplayClusterWarpContext> WarpBlendContexts_Proxy;
 
 private:

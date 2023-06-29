@@ -24,7 +24,7 @@
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationInstanceData.h"
 #include "Render/Viewport/DisplayClusterViewportStrings.h"
 
-#include "WarpBlend/IDisplayClusterWarpBlend.h"
+#include "IDisplayClusterWarpBlend.h"
 
 #include "SceneViewExtension.h"
 

@@ -19,7 +19,7 @@
 #include "ShaderParameterStruct.h"
 
 #include "Render/Containers/IDisplayClusterRender_MeshComponentProxy.h"
-#include "WarpBlend/IDisplayClusterWarpBlend.h"
+#include "IDisplayClusterWarpBlend.h"
 
 #include "ShaderParameters/DisplayClusterShaderParameters_WarpBlend.h"
 

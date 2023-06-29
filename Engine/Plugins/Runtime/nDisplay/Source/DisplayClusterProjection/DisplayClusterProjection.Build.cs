@@ -10,7 +10,8 @@ public class DisplayClusterProjection : ModuleRules
 		PublicIncludePathModuleNames.AddRange(
 			new string[] {
 				"DisplayClusterConfiguration",
-				"DisplayClusterShaders"
+				"DisplayClusterShaders",
+				"DisplayClusterWarp"
 			});
 
 		PublicDependencyModuleNames.AddRange(

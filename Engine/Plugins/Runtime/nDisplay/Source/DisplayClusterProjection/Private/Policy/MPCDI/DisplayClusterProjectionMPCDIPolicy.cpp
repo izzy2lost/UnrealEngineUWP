@@ -8,6 +8,9 @@
 
 #include "IDisplayCluster.h"
 #include "IDisplayClusterCallbacks.h"
+#include "IDisplayClusterShaders.h"
+#include "IDisplayClusterWarp.h"
+
 #include "Config/IDisplayClusterConfigManager.h"
 #include "Game/IDisplayClusterGameManager.h"
 
@@ -20,20 +23,36 @@
 #include "Render/Viewport/IDisplayClusterViewportManagerProxy.h"
 #include "Render/Viewport/IDisplayClusterViewport.h"
 #include "Render/Viewport/IDisplayClusterViewportProxy.h"
-
-#include "IDisplayClusterShaders.h"
-#include "WarpBlend/IDisplayClusterWarpBlend.h"
-#include "WarpBlend/IDisplayClusterWarpBlendManager.h"
-
-#include "Render/Warp/IDisplayClusterWarpPolicy.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_RenderSettingsICVFX.h"
+#include "Render/Warp/IDisplayClusterWarpPolicy.h"
 
 #include "ShaderParameters/DisplayClusterShaderParameters_WarpBlend.h"
+#include "Blueprints/DisplayClusterWarpGeometry.h"
 
-#include "Blueprints/MPCDIGeometryData.h"
 #include "DisplayClusterRootActor.h"
 
 
+namespace UE::DisplayClusterProjection::MPCDIPolicy
+{
+	static IDisplayClusterWarp& GetWarpAPI()
+	{
+		static IDisplayClusterWarp& DisplayClusterWarpAPISingleton = IDisplayClusterWarp::Get();
+
+		return DisplayClusterWarpAPISingleton;
+	}
+
+	static inline IDisplayClusterShaders& GetShadersAPI()
+	{
+		IDisplayClusterShaders& ShadersAPISingleton = IDisplayClusterShaders::Get();
+
+		return ShadersAPISingleton;
+	}
+};
+using namespace UE::DisplayClusterProjection::MPCDIPolicy;
+
+//---------------------------------------------------------------------------------------------
+// FDisplayClusterProjectionMPCDIPolicy
+//---------------------------------------------------------------------------------------------
 FDisplayClusterProjectionMPCDIPolicy::FDisplayClusterProjectionMPCDIPolicy(const FString& ProjectionPolicyId, const FDisplayClusterConfigurationProjection* InConfigurationProjectionPolicy)
 	: FDisplayClusterProjectionPolicyBase(ProjectionPolicyId, InConfigurationProjectionPolicy)
 {
@@ -44,49 +63,6 @@ FDisplayClusterProjectionMPCDIPolicy::~FDisplayClusterProjectionMPCDIPolicy()
 	ImplRelease();
 }
 
-void FDisplayClusterProjectionMPCDIPolicy::UpdateProxyData(IDisplayClusterViewport* InViewport)
-{
-	check(InViewport);
-
-	const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe> ProjectionPolicyPtr = InViewport->GetProjectionPolicy();
-	const TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlendInterfacePtr = WarpBlendInterface;
-
-	ENQUEUE_RENDER_COMMAND(DisplayClusterProjectionMPCDIPolicy_UpdateProxyData)(
-		[ProjectionPolicyPtr, WarpBlendInterfacePtr, Contexts = WarpBlendContexts](FRHICommandListImmediate& RHICmdList)
-	{
-		IDisplayClusterProjectionPolicy* ProjectionPolicy = ProjectionPolicyPtr.Get();
-		if (ProjectionPolicy)
-		{
-			FDisplayClusterProjectionMPCDIPolicy* MPCDIPolicy = static_cast<FDisplayClusterProjectionMPCDIPolicy*>(ProjectionPolicy);
-			if (MPCDIPolicy)
-			{
-				MPCDIPolicy->WarpBlendInterface_Proxy = WarpBlendInterfacePtr;
-				MPCDIPolicy->WarpBlendContexts_Proxy = Contexts;
-			}
-		}
-	});
-}
-
-bool FDisplayClusterProjectionMPCDIPolicy::ShouldSupportICVFX(IDisplayClusterViewport* InViewport) const
-{
-	check(IsInGameThread());
-	check(InViewport);
-
-	if (!WarpBlendInterface.IsValid() || !WarpBlendInterface->ShouldSupportICVFX(InViewport))
-	{
-		// WarpBlend does not support the ICVFX pipeline (mpcdi 2D,3D,SL profiles)
-		return false;
-	}
-
-	if (WarpPolicyInterface.IsValid() && !WarpPolicyInterface->ShouldSupportICVFX(InViewport))
-	{
-		// The warp policy is used for this projection and does not support the ICVFX pipeline
-		return false;
-	}
-
-	return true;
-}
-
 void FDisplayClusterProjectionMPCDIPolicy::SetWarpPolicy(IDisplayClusterWarpPolicy* InWarpPolicy)
 {
 	check(IsInGameThread());
@@ -95,17 +71,60 @@ void FDisplayClusterProjectionMPCDIPolicy::SetWarpPolicy(IDisplayClusterWarpPoli
 }
 
 IDisplayClusterWarpPolicy* FDisplayClusterProjectionMPCDIPolicy::GetWarpPolicy() const
-{
+			{
 	check(IsInGameThread());
 
 	return WarpPolicyInterface.Get();
-}
+		}
 
 IDisplayClusterWarpPolicy* FDisplayClusterProjectionMPCDIPolicy::GetWarpPolicy_RenderThread() const
 {
 	check(IsInRenderingThread());
 
 	return WarpPolicyInterface_Proxy.Get();
+}
+
+bool FDisplayClusterProjectionMPCDIPolicy::ShouldSupportICVFX(IDisplayClusterViewport* InViewport) const
+{
+	check(IsInGameThread());
+	check(InViewport);
+
+	if (!WarpBlendInterface.IsValid() || !WarpBlendInterface->ShouldSupportICVFX())
+	{
+		// WarpBlend does not support the ICVFX pipeline (mpcdi 2D,3D,SL profiles)
+		return false;
+	}
+
+	if (WarpPolicyInterface.IsValid() && !WarpPolicyInterface->ShouldSupportICVFX(InViewport))
+	{
+		// Warp policy does not support the ICVFX pipeline
+		return false;
+	}
+
+	return true;
+}
+
+void FDisplayClusterProjectionMPCDIPolicy::UpdateProxyData(IDisplayClusterViewport* InViewport)
+{
+	check(InViewport);
+
+	ENQUEUE_RENDER_COMMAND(DisplayClusterProjectionMPCDIPolicy_UpdateProxyData)(
+		[ProjectionPolicy = InViewport->GetProjectionPolicy(), WarpBlendInterfacePtr = WarpBlendInterface, WarPolicyInterfacePtr = WarpPolicyInterface, Contexts = WarpBlendContexts](FRHICommandListImmediate& RHICmdList)
+{
+		if (ProjectionPolicy.IsValid())
+{
+			FDisplayClusterProjectionMPCDIPolicy* MPCDIPolicy = static_cast<FDisplayClusterProjectionMPCDIPolicy*>(ProjectionPolicy.Get());
+			if (MPCDIPolicy)
+			{
+				MPCDIPolicy->WarpBlendInterface_Proxy = WarpBlendInterfacePtr;
+				MPCDIPolicy->WarpPolicyInterface_Proxy = WarPolicyInterfacePtr;
+				MPCDIPolicy->WarpBlendContexts_Proxy = Contexts;
+			}
+		}
+	});
+
+	// reset warp policy after game thread is done
+	WarpPolicyInterface.Reset();
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -183,7 +202,7 @@ bool FDisplayClusterProjectionMPCDIPolicy::GetWarpBlendInterface(TSharedPtr<IDis
 	return false;
 }
 
-bool FDisplayClusterProjectionMPCDIPolicy::GetWarpBlendInterface_RenderThread(TSharedPtr<class IDisplayClusterWarpBlend, ESPMode::ThreadSafe>& OutWarpBlendInterfaceProxy) const
+bool FDisplayClusterProjectionMPCDIPolicy::GetWarpBlendInterface_RenderThread(TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe>& OutWarpBlendInterfaceProxy) const
 {
 	check(IsInRenderingThread());
 
@@ -224,33 +243,37 @@ bool FDisplayClusterProjectionMPCDIPolicy::CalculateView(IDisplayClusterViewport
 
 	// Get view location in local space
 	const USceneComponent* const OriginComp = GetOriginComp();
-	const FTransform& World2LocalTransform = (OriginComp ? OriginComp->GetComponentTransform() : FTransform::Identity);
-
-	// Get our base camera location and view offset in local space (MPCDI space)
-	const FVector LocalOrigin    = World2LocalTransform.InverseTransformPosition(InOutViewLocation - ViewOffset);
-	const FVector LocalEyeOrigin = World2LocalTransform.InverseTransformPosition(InOutViewLocation);
 
 	// Initialize frustum
-	FDisplayClusterWarpEye Eye;
-	Eye.OriginLocation  = LocalOrigin;
-	Eye.OriginEyeOffset = LocalEyeOrigin - LocalOrigin;
-	Eye.WorldScale = WorldScale;
-	Eye.ZNear = NCP;
-	Eye.ZFar  = FCP;
+	TSharedPtr<FDisplayClusterWarpEye, ESPMode::ThreadSafe> WarpEye = MakeShared<FDisplayClusterWarpEye, ESPMode::ThreadSafe>(InViewport->ToSharedPtr(), InContextNum);
+
+	WarpEye->World2LocalTransform = (OriginComp ? OriginComp->GetComponentTransform() : FTransform::Identity);
+
+	// Get our base camera location and view offset in local space (MPCDI space)
+	WarpEye->ViewPoint.Location  = WarpEye->World2LocalTransform.InverseTransformPosition(InOutViewLocation - ViewOffset);
+	WarpEye->ViewPoint.EyeOffset = WarpEye->World2LocalTransform.InverseTransformPosition(InOutViewLocation) - WarpEye->ViewPoint.Location;
+	WarpEye->ViewPoint.Rotation  = WarpEye->World2LocalTransform.InverseTransformRotation(InOutViewRotation.Quaternion()).Rotator();
+
+	WarpEye->WorldScale = WorldScale;
+
+	// Use current warp policy
+	WarpEye->WarpPolicy = WarpPolicyInterface;
+
+	// discard current context
+	WarpBlendContexts[InContextNum].bIsValid = false;
 
 	// Compute frustum
-	if (!WarpBlendInterface->CalcFrustumContext(InViewport, InContextNum, Eye, WarpBlendContexts[InContextNum]))
+	if (!WarpBlendInterface->CalcFrustumContext(WarpEye))
 	{
 		return false;
 	}
 
-	// Get rotation in warp space
-	const FRotator MpcdiRotation = WarpBlendContexts[InContextNum].OutCameraRotation;
-	const FVector  MpcdiOrigin  = WarpBlendContexts[InContextNum].OutCameraOrigin;
+	// Readback warp context
+	WarpBlendContexts[InContextNum] = WarpBlendInterface->GetWarpData(InContextNum).WarpContext;
 
-	// Transform rotation to world space
-	InOutViewRotation = World2LocalTransform.TransformRotation(MpcdiRotation.Quaternion()).Rotator();
-	InOutViewLocation = World2LocalTransform.TransformPosition(MpcdiOrigin);
+	// Transform viewpoint back to world space
+	InOutViewRotation = WarpEye->World2LocalTransform.TransformRotation(WarpBlendContexts[InContextNum].Rotation.Quaternion()).Rotator();
+	InOutViewLocation = WarpEye->World2LocalTransform.TransformPosition(WarpBlendContexts[InContextNum].Location);
 
 	WarpBlendContexts[InContextNum].bIsValid = true;
 
@@ -311,8 +334,6 @@ void FDisplayClusterProjectionMPCDIPolicy::ApplyWarpBlend_RenderThread(FRHIComma
 	{
 		return;
 	}
-
-	IDisplayClusterShaders& ShadersAPI = IDisplayClusterShaders::Get();
 
 	const FDisplayClusterViewport_RenderSettingsICVFX& SettingsICVFX = InViewportProxy->GetRenderSettingsICVFX_RenderThread();
 	if (EnumHasAllFlags(SettingsICVFX.RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::Target))
@@ -385,7 +406,7 @@ void FDisplayClusterProjectionMPCDIPolicy::ApplyWarpBlend_RenderThread(FRHIComma
 			IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPreProcessIcvfx_RenderThread().Broadcast(RHICmdList, InViewportProxy, WarpBlendParameters, ShaderICVFX);
 
 			// Start ICVFX pipeline
-			if (!ShadersAPI.RenderWarpBlend_ICVFX(RHICmdList, WarpBlendParameters, ShaderICVFX))
+			if (!GetShadersAPI().RenderWarpBlend_ICVFX(RHICmdList, WarpBlendParameters, ShaderICVFX))
 			{
 				if (!IsEditorOperationMode_RenderThread(InViewportProxy))
 				{
@@ -415,7 +436,7 @@ void FDisplayClusterProjectionMPCDIPolicy::ApplyWarpBlend_RenderThread(FRHIComma
 		
 		WarpBlendParameters.bRenderAlphaChannel = InViewportProxy->GetRenderSettings_RenderThread().bWarpBlendRenderAlphaChannel;
 
-		if (!ShadersAPI.RenderWarpBlend_MPCDI(RHICmdList, WarpBlendParameters))
+		if (!GetShadersAPI().RenderWarpBlend_MPCDI(RHICmdList, WarpBlendParameters))
 		{
 			if (!IsEditorOperationMode_RenderThread(InViewportProxy))
 			{
@@ -452,6 +473,17 @@ UMeshComponent* FDisplayClusterProjectionMPCDIPolicy::GetOrCreatePreviewMeshComp
 		return nullptr;
 	}
 
+	// MPCDI can use a static mesh component instead of a warpmap (2D)
+	if (WarpBlendInterface.IsValid())
+	{
+		if (UMeshComponent* StaticMeshComponentRef = WarpBlendInterface->GetStaticMeshComponent())
+		{
+			bOutIsRootActorComponent = true;
+
+			return StaticMeshComponentRef;
+		}
+	}
+
 	// used created mesh component
 	bOutIsRootActorComponent = false;
 
@@ -474,8 +506,8 @@ UMeshComponent* FDisplayClusterProjectionMPCDIPolicy::GetOrCreatePreviewMeshComp
 	const uint32 PreviewGeometryDimLimit = 128;
 
 	// Create new WarpMesh component
-	FMPCDIGeometryExportData MeshData;
-	if (WarpBlendInterface->ExportWarpMapGeometry(&MeshData, PreviewGeometryDimLimit))
+	FDisplayClusterWarpGeometryOBJ MeshData;
+	if (WarpBlendInterface->ExportWarpMapGeometry(MeshData, PreviewGeometryDimLimit))
 	{
 		const FString CompName = FString::Printf(TEXT("MPCDI_%s_impl"), *GetId());
 
@@ -508,11 +540,9 @@ bool FDisplayClusterProjectionMPCDIPolicy::CreateWarpBlendFromConfig(IDisplayClu
 
 	bool bResult = false;
 
-	FConfigParser CfgData;
-	if (CfgData.ImplLoadConfig(InViewport, GetParameters()))
+	FDisplayClusterProjectionMPCDIPolicy_ConfigParser CfgData(InViewport, GetParameters());
+	if (CfgData.IsValid())
 	{
-		IDisplayClusterShaders& ShadersAPI = IDisplayClusterShaders::Get();
-
 		// Support custom origin node
 		InitializeOriginComponent(InViewport, CfgData.OriginType);
 
@@ -538,12 +568,27 @@ bool FDisplayClusterProjectionMPCDIPolicy::CreateWarpBlendFromConfig(IDisplayClu
 				return false;
 			}
 
-			FDisplayClusterWarpBlendConstruct::FLoadMPCDIFile CreateParameters;
+			if (CfgData.ScreenComponent == nullptr)
+			{
+				FDisplayClusterWarpInitializer_MPCDIFile CreateParameters;
 			CreateParameters.MPCDIFileName = CfgData.MPCDIFileName;
 			CreateParameters.BufferId = CfgData.BufferId;
 			CreateParameters.RegionId = CfgData.RegionId;
 
-			if (!ShadersAPI.GetWarpBlendManager().Create(CreateParameters, WarpBlendInterface))
+				WarpBlendInterface = GetWarpAPI().Create(CreateParameters);
+			}
+			else
+			{
+				FDisplayClusterWarpInitializer_MPCDIFile_Profile2DScreen CreateParameters;
+			CreateParameters.MPCDIFileName = CfgData.MPCDIFileName;
+			CreateParameters.BufferId = CfgData.BufferId;
+			CreateParameters.RegionId = CfgData.RegionId;
+				CreateParameters.StaticMeshComponent = CfgData.ScreenComponent;
+
+				WarpBlendInterface = GetWarpAPI().Create(CreateParameters);
+			}
+
+			if (!WarpBlendInterface.IsValid())
 			{
 				UE_LOG(LogDisplayClusterProjectionMPCDI, Warning, TEXT("Couldn't load MPCDI file: %s"), *CfgData.MPCDIFileName);
 				return false;
@@ -553,8 +598,9 @@ bool FDisplayClusterProjectionMPCDIPolicy::CreateWarpBlendFromConfig(IDisplayClu
 			return true;
 		}
 
-		FDisplayClusterWarpBlendConstruct::FLoadPFMFile CreateParameters;
-		CreateParameters.ProfileType = CfgData.MPCDIType;
+		FDisplayClusterWarpInitializer_PFMFile CreateParameters;
+
+		CreateParameters.MPCDIAttributes = CfgData.MPCDIAttributes;
 		CreateParameters.PFMFileName = CfgData.PFMFile;
 
 		CreateParameters.PFMScale = CfgData.PFMFileScale;
@@ -565,7 +611,9 @@ bool FDisplayClusterProjectionMPCDIPolicy::CreateWarpBlendFromConfig(IDisplayClu
 
 		CreateParameters.BetaMapFileName = CfgData.BetaFile;
 
-		if (!ShadersAPI.GetWarpBlendManager().Create(CreateParameters, WarpBlendInterface))
+		WarpBlendInterface = GetWarpAPI().Create(CreateParameters);
+
+		if (!WarpBlendInterface.IsValid())
 		{
 			UE_LOG(LogDisplayClusterProjectionMPCDI, Error, TEXT("Failed to load PFM from file: %s"), *CfgData.PFMFile);
 			return false;

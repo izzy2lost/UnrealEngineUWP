@@ -754,6 +754,12 @@ void FDisplayClusterConfiguratorProjectionCustomization::CreateMPCDIPolicy(UDisp
 			DisplayClusterProjectionStrings::cfg::mpcdi::Region,
 			Blueprint,
 			ConfigurationViewports));
+
+		CustomPolicyParameters.Add(MakeShared<FPolicyParameterInfoText>(
+			"Screen",
+			DisplayClusterProjectionStrings::cfg::mpcdi::Component,
+			Blueprint,
+			ConfigurationViewports));
 	}
 	else if (Setting == TypePFM)
 	{

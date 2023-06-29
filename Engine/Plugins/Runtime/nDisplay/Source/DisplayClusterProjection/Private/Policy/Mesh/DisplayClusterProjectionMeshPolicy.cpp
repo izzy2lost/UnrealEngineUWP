@@ -11,13 +11,36 @@
 #include "Render/Viewport/IDisplayClusterViewport.h"
 
 #include "IDisplayClusterShaders.h"
-#include "WarpBlend/IDisplayClusterWarpBlend.h"
-#include "WarpBlend/IDisplayClusterWarpBlendManager.h"
+#include "IDisplayClusterWarp.h"
 
 #include "Components/StaticMeshComponent.h"
 #include "ProceduralMeshComponent.h"
 
+/**
+ * WarpBlend configuration
+ */
+struct FDisplayClusterProjectionMeshPolicyConfiguration
+{
+	// StaticMesh component with source geometry
+	UStaticMeshComponent* StaticMeshComponent = nullptr;
 
+	// StaticMesh geometry LOD
+	int32 StaticMeshComponentLODIndex = 0;
+
+	// ProceduralMesh component with source geometry
+	UProceduralMeshComponent* ProceduralMeshComponent = nullptr;
+
+	// ProceduralMesh section index
+	int32 ProceduralMeshComponentSectionIndex = 0;
+
+	// Customize source geometry UV channels
+	int32 BaseUVIndex = INDEX_NONE;
+	int32 ChromakeyUVIndex = INDEX_NONE;
+};
+
+//------------------------------------------------------------------------------------------
+// FDisplayClusterProjectionMeshPolicy
+//------------------------------------------------------------------------------------------
 FDisplayClusterProjectionMeshPolicy::FDisplayClusterProjectionMeshPolicy(const FString& ProjectionPolicyId, const FDisplayClusterConfigurationProjection* InConfigurationProjectionPolicy)
 	: FDisplayClusterProjectionMPCDIPolicy(ProjectionPolicyId, InConfigurationProjectionPolicy)
 {
@@ -27,10 +50,10 @@ bool FDisplayClusterProjectionMeshPolicy::CreateWarpMeshInterface(IDisplayCluste
 {
 	check(IsInGameThread());
 
-	if (WarpBlendInterface.IsValid() == false)
+	if (!WarpBlendInterface.IsValid())
 	{
 		// Read configuration from config
-		FWarpMeshConfiguration WarpCfg;
+		FDisplayClusterProjectionMeshPolicyConfiguration WarpCfg;
 		if (!GetWarpMeshConfiguration(InViewport, WarpCfg))
 		{
 			return false;
@@ -39,12 +62,11 @@ bool FDisplayClusterProjectionMeshPolicy::CreateWarpMeshInterface(IDisplayCluste
 		// The mesh always uses DCRootActor as its origin because all geometry is in UE space.
 		InitializeOriginComponent(InViewport, TEXT(""));
 
-		IDisplayClusterShaders& ShadersAPI = IDisplayClusterShaders::Get();
-		bool bResult = false;
+		static IDisplayClusterWarp& DisplayClusterWarpAPI = IDisplayClusterWarp::Get();
 
 		if (WarpCfg.StaticMeshComponent != nullptr)
 		{
-			FDisplayClusterWarpBlendConstruct::FAssignWarpStaticMesh CreateParameters;
+			FDisplayClusterWarpInitializer_StaticMesh CreateParameters;
 
 			CreateParameters.OriginComponent = GetOriginComp();
 
@@ -54,11 +76,11 @@ bool FDisplayClusterProjectionMeshPolicy::CreateWarpMeshInterface(IDisplayCluste
 			CreateParameters.BaseUVIndex      = WarpCfg.BaseUVIndex;
 			CreateParameters.ChromakeyUVIndex = WarpCfg.ChromakeyUVIndex;
 
-			bResult = ShadersAPI.GetWarpBlendManager().Create(CreateParameters, WarpBlendInterface);
+			WarpBlendInterface = DisplayClusterWarpAPI.Create(CreateParameters);
 		}
 		else
 		{
-			FDisplayClusterWarpBlendConstruct::FAssignWarpProceduralMesh CreateParameters;
+			FDisplayClusterWarpInitializer_ProceduralMesh CreateParameters;
 
 			CreateParameters.OriginComponent = GetOriginComp();
 
@@ -68,10 +90,10 @@ bool FDisplayClusterProjectionMeshPolicy::CreateWarpMeshInterface(IDisplayCluste
 			CreateParameters.BaseUVIndex      = WarpCfg.BaseUVIndex;
 			CreateParameters.ChromakeyUVIndex = WarpCfg.ChromakeyUVIndex;
 
-			bResult = ShadersAPI.GetWarpBlendManager().Create(CreateParameters, WarpBlendInterface);
+			WarpBlendInterface = DisplayClusterWarpAPI.Create(CreateParameters);
 		}
 
-		if (!bResult)
+		if (!WarpBlendInterface.IsValid())
 		{
 			if (!IsEditorOperationMode(InViewport))
 			{
@@ -116,7 +138,7 @@ bool FDisplayClusterProjectionMeshPolicy::HandleStartScene(IDisplayClusterViewpo
 	return true;
 }
 
-bool FDisplayClusterProjectionMeshPolicy::GetWarpMeshConfiguration(IDisplayClusterViewport* InViewport, FWarpMeshConfiguration& OutWarpCfg)
+bool FDisplayClusterProjectionMeshPolicy::GetWarpMeshConfiguration(IDisplayClusterViewport* InViewport, FDisplayClusterProjectionMeshPolicyConfiguration& OutWarpCfg)
 {
 	check(InViewport);
 
@@ -233,20 +255,11 @@ bool FDisplayClusterProjectionMeshPolicy::GetWarpMeshConfiguration(IDisplayClust
 #if WITH_EDITOR
 UMeshComponent* FDisplayClusterProjectionMeshPolicy::GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent)
 {
-	bOutIsRootActorComponent = true;
-
-	FWarpMeshConfiguration WarpCfg;
-	if (GetWarpMeshConfiguration(InViewport, WarpCfg))
-	{
-		if(WarpCfg.StaticMeshComponent != nullptr)
+	if (WarpBlendInterface.IsValid())
 		{
-			return WarpCfg.StaticMeshComponent;
-		}
+		bOutIsRootActorComponent = true;
 
-		if (WarpCfg.ProceduralMeshComponent != nullptr)
-		{
-			return WarpCfg.ProceduralMeshComponent;
-		}
+		return WarpBlendInterface->GetStaticMeshComponent();
 	}
 
 	return nullptr;
