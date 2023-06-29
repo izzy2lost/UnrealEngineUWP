@@ -6,11 +6,9 @@ import { GetJobsTabResponse } from "../../backend/Api";
 import { useWindowSize } from "../../base/utilities/hooks";
 import { hordeClasses, modeColors } from "../../styles/Styles";
 import { BreadcrumbItem, Breadcrumbs } from "../Breadcrumbs";
-import ErrorHandler from "../ErrorHandler";
 import { useQuery } from "../JobDetailCommon";
 import { TopNav } from "../TopNav";
 import { HealthPanel } from "./JobDetailHealthV2";
-import { StepTrendsPanel } from "./JobDetailStepTrends";
 import { JobDataView, JobDetailsV2 } from "./JobDetailsViewCommon";
 import { TimelinePanel } from "./JobDetailTimeline";
 import { StepsPanelV2 } from "./JobDetailViewSteps";
@@ -305,8 +303,6 @@ const DetailsViewOverview: React.FC<{ jobDetails: JobDetailsV2 }> = ({ jobDetail
       <StepsPanelV2 jobDetails={details} />
       <HealthPanel jobDetails={details} />
       <TimelinePanel jobDetails={details} />
-      { false &&<StepTrendsPanel jobDetails={details} /> }
-
    </Stack>
 };
 
