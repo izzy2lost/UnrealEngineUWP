@@ -63,6 +63,11 @@ struct FNegativeSpaceSampleSettings
 	// Ignore spheres with smaller radius than this
 	double MinRadius = 10.0;
 
+	// Currently only applies to VoxelSearch.
+	// Whether to require that all candidate sample locations identified by Voxel Search are covered by negative space samples, up to the specified Min Sample Spacing.
+	// Note: This takes priority over TargetNumSamples if the TargetNumSamples did not achieve the required coverage.
+	bool bRequireSearchSampleCoverage = false;
+
 	// Make sure the settings values are in valid ranges
 	void Sanitize()
 	{

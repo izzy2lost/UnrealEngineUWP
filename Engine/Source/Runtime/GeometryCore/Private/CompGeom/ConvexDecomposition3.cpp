@@ -265,6 +265,31 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 				int32 VID = Ordering.Order[SampleIdx];
 				AddSample(MorphologyMesh.GetVertex(VID));
 			}
+
+			if (SampleSettings.bRequireSearchSampleCoverage)
+			{
+				double SpacingThresholdSq = SampleSettings.MinSpacing * SampleSettings.MinSpacing;
+				for (int32 SampleIdx = NumSamples; SampleIdx < Ordering.Order.Num(); ++SampleIdx)
+				{
+					int32 VID = Ordering.Order[SampleIdx];
+					FVector3d Pos = MorphologyMesh.GetVertex(VID);
+					// TODO: Consider accelerating this coverage search w/ e.g. a sparse dynamic octree representation of the sphere covering
+					bool bFoundCover = false;
+					for (int32 SphereIdx = 0; SphereIdx < Position.Num(); ++SphereIdx)
+					{
+						double ThreshSq = FMath::Max(SpacingThresholdSq, Radius[SphereIdx] * Radius[SphereIdx]);
+						if (FVector3d::DistSquared(Position[SphereIdx], Pos) < ThreshSq)
+						{
+							bFoundCover = true;
+							break;
+						}
+					}
+					if (!bFoundCover)
+					{
+						AddSample(Pos);
+					}
+				}
+			}
 		}
 		else
 		{
