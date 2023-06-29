@@ -396,13 +396,6 @@ namespace Jupiter.Implementation
         }
     }
 
-    public class ObjectHashMismatchException : Exception
-    {
-        public ObjectHashMismatchException(NamespaceId ns, BucketId bucket, IoHashKey name, BlobIdentifier suppliedHash, BlobIdentifier actualHash) : base($"Object {name} in bucket {bucket} and namespace {ns} did not reference hash {suppliedHash} was referencing {actualHash}")
-        {
-        }
-    }
-
     public class ScyllaBlobIdentifier
     {
         public ScyllaBlobIdentifier()
