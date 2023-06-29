@@ -103,6 +103,8 @@ struct FColumnVisibilitySetting
 	{}
 
 	FColumnVisibilitySetting()
+		: ColumnName(NAME_None)
+		, bIsVisible(false)
 	{}
 };
 
