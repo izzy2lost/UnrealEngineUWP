@@ -31,8 +31,6 @@
 
 DEFINE_LOG_CATEGORY(LogIas);
 
-UE_DISABLE_OPTIMIZATION
-
 namespace UE::IO::Private
 {
 
@@ -1355,5 +1353,3 @@ void FIoStoreOnDemandModule::StartupModule()
 void FIoStoreOnDemandModule::ShutdownModule()
 {
 }
-
-UE_ENABLE_OPTIMIZATION
