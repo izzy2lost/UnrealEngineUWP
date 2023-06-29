@@ -74,7 +74,7 @@ void SGameplayTagQueryEntryBox::Construct(const FArguments& InArgs)
 		.MaxWidth(InArgs._DescriptionMaxWidth)
 		[
 			SNew(SButton)
-			.IsEnabled(!bIsReadOnly)
+			.IsEnabled(this, &SGameplayTagQueryEntryBox::IsValueEnabled)
 			.VAlign(VAlign_Center)
 			.HAlign(HAlign_Center)
 			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
@@ -96,7 +96,7 @@ void SGameplayTagQueryEntryBox::Construct(const FArguments& InArgs)
 		.VAlign(VAlign_Top)
 		[
 			SNew(SButton)
-			.IsEnabled(!bIsReadOnly)
+			.IsEnabled(this, &SGameplayTagQueryEntryBox::IsValueEnabled)
 			.ToolTipText(LOCTEXT("GameplayTagQueryEntryBox_Edit", "Edit Gameplay Tag Query."))
 			.VAlign(VAlign_Center)
 			.HAlign(HAlign_Center)
@@ -186,6 +186,16 @@ bool SGameplayTagQueryEntryBox::HasAnyValidQueries() const
 		}
 	}
 	return false;
+}
+
+bool SGameplayTagQueryEntryBox::IsValueEnabled() const
+{
+	if (PropertyHandle.IsValid())
+	{
+		return !PropertyHandle->IsEditConst();
+	}
+
+	return !bIsReadOnly;
 }
 
 EVisibility SGameplayTagQueryEntryBox::GetQueryDescVisibility() const

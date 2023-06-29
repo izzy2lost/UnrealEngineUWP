@@ -65,6 +65,7 @@ private:
 	FReply OnClearAllButtonClicked();
 	EVisibility GetQueryDescVisibility() const;
 	bool HasAnyValidQueries() const;
+	bool IsValueEnabled() const;
 	FText GetQueryDescText() const;
 	FText GetQueryDescTooltip() const;
 	void OnQueriesCommitted(const TArray<FGameplayTagQuery>& TagQueries);
