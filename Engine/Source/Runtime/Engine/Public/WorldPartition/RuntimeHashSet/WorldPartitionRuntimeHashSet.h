@@ -66,6 +66,9 @@ struct FRuntimePartitionStreamingData
 {
 	GENERATED_USTRUCT_BODY()
 
+	void CreatePartitionsSpatialIndex() const;
+	void DestroyPartitionsSpatialIndex() const;
+
 	/** Name of the runtime partition, currently maps to target grids. */
 	UPROPERTY()
 	FName Name;
@@ -74,7 +77,10 @@ struct FRuntimePartitionStreamingData
 	int32 LoadingRange = 0;
 
 	UPROPERTY()
-	TArray<TObjectPtr<UWorldPartitionRuntimeCell>> RuntimeCells;
+	TArray<TObjectPtr<UWorldPartitionRuntimeCell>> StreamingCells;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UWorldPartitionRuntimeCell>> NonStreamingCells;
 
 	// Transient
 	mutable TUniquePtr<FStaticSpatialIndexType> SpatialIndex;
@@ -101,9 +107,6 @@ public:
 
 	void CreatePartitionsSpatialIndex() const;
 	void DestroyPartitionsSpatialIndex() const;
-
-	UPROPERTY()
-	TArray<TObjectPtr<UWorldPartitionRuntimeCell>> NonSpatiallyLoadedRuntimeCells;
 
 	UPROPERTY()
 	TArray<FRuntimePartitionStreamingData> RuntimeStreamingData;
@@ -166,7 +169,7 @@ private:
 	void UpdateHLODPartitionLayers();
 #endif
 
-	ENGINE_API void ForEachStreamingObject(TFunctionRef<void(const URuntimeHashSetExternalStreamingObject*)> Func) const;
+	ENGINE_API void ForEachStreamingData(TFunctionRef<void(const FRuntimePartitionStreamingData&)> Func) const;
 
 public:
 #if WITH_EDITORONLY_DATA
@@ -180,5 +183,5 @@ public:
 	TArray<FRuntimePartitionDesc> RuntimePartitions;
 
 	UPROPERTY()
-	TObjectPtr<URuntimeHashSetExternalStreamingObject> StreamingObject;
+	TArray<FRuntimePartitionStreamingData> RuntimeStreamingData;
 };

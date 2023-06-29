@@ -33,6 +33,7 @@ public:
 		TArray<IStreamingGenerationContext::FActorInstance> ActorInstances;
 	};
 
+	virtual void SetDefaultValues();
 	virtual bool SupportsHLODs() const PURE_VIRTUAL(URuntimePartition::SupportsHLODs, return false;);
 	virtual bool IsValidGrid(FName InGridName) const PURE_VIRTUAL(URuntimePartition::IsValidGrid, return false;);
 	virtual bool GenerateStreaming(const TArray<const IStreamingGenerationContext::FActorSetInstance*>& InActorSetInstances, TArray<FCellDesc>& OutRuntimeCellDescs) PURE_VIRTUAL(URuntimePartition::GenerateStreaming, return false;);

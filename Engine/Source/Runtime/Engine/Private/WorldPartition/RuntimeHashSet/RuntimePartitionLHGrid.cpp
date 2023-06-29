@@ -67,6 +67,12 @@ void URuntimePartitionLHGrid::PostEditChangeProperty(FPropertyChangedEvent& Prop
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
+void URuntimePartitionLHGrid::SetDefaultValues()
+{
+	Super::SetDefaultValues();
+	CellSize = LoadingRange / 2;
+}
+
 bool URuntimePartitionLHGrid::SupportsHLODs() const
 {
 	return true;

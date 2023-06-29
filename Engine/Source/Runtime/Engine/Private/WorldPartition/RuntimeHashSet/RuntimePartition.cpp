@@ -3,6 +3,16 @@
 #include "WorldPartition/RuntimeHashSet/RuntimePartition.h"
 
 #if WITH_EDITOR
+void URuntimePartition::SetDefaultValues()
+{
+	Name = GetClass()->GetFName();
+	bBlockOnSlowStreaming = false;
+	bClientOnlyVisible = false;
+	Priority = 0;
+	LoadingRange = 25600;
+	bIsHLODSetup = false;
+}
+
 void URuntimePartition::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	const FName PropertyName = InPropertyChangedEvent.GetPropertyName();

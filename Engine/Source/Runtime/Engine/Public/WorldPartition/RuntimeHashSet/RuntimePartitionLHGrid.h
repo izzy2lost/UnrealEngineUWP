@@ -16,9 +16,12 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	//~ End UObject Interface.
 
+	//~ Begin URuntimePartition interface
+	virtual void SetDefaultValues() override;
 	virtual bool SupportsHLODs() const override;
 	virtual bool IsValidGrid(FName GridName) const override;
 	virtual bool GenerateStreaming(const TArray<const IStreamingGenerationContext::FActorSetInstance*>& ActorSetInstances, TArray<FCellDesc>& OutRuntimeCellDescs) override;
+	//~ End URuntimePartition interface
 #endif
 
 private:
