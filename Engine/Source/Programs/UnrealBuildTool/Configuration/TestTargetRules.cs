@@ -15,6 +15,12 @@ namespace UnrealBuildTool
 	public class TestTargetRules : TargetRules
 	{
 		/// <summary>
+		/// Configuration mapping to control build graph test metadata generation during project files generation.
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "LowLevelTestsSettings")]
+		public bool bUpdateBuildGraphPropertiesFile = false;
+
+		/// <summary>
 		/// Keeps track if low level tests executable must build with the Editor.
 		/// </summary>
 		internal bool bTestsRequireEditor = false;
@@ -57,7 +63,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// If set to true, it will not compile against ApplicationCore even if "ApplicationCore" is in the dependency graph.
 		/// </summary>
-		public static bool bNeverCompileAgainstApplicationCore = false;
+		public bool bNeverCompileAgainstApplicationCore = false;
 
 		/// <summary>
 		/// Test target override for bCompileAgainstCoreUObject.
@@ -72,7 +78,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// If set to true, it will not compile against CoreUObject even if "CoreUObject" is in the dependency graph.
 		/// </summary>
-		public static bool bNeverCompileAgainstCoreUObject = false;
+		public bool bNeverCompileAgainstCoreUObject = false;
 
 		/// <summary>
 		/// Test target override for bCompileAgainstEngine.
@@ -87,7 +93,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// If set to true, it will not compile against engine even if "Engine" is in the dependency graph.
 		/// </summary>
-		public static bool bNeverCompileAgainstEngine = false;
+		public bool bNeverCompileAgainstEngine = false;
 
 		/// <summary>
 		/// Test target override for bCompileAgainstEditor.
@@ -102,7 +108,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// If set to true, it will not compile against editor even if "UnrealEd" is in the dependency graph.
 		/// </summary>
-		public static bool bNeverCompileAgainstEditor = false;
+		public bool bNeverCompileAgainstEditor = false;
 
 		/// <summary>
 		/// Whether to stub the platform file.

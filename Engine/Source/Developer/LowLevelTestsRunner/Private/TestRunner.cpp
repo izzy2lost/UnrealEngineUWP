@@ -210,7 +210,7 @@ void FTestRunner::ParseCommandLine(TConstArrayView<const ANSICHAR*> Args)
 		}
 		else if (Arg == ANSITEXTVIEW("--no-wait"))
 		{
-			bWaitForInputToTerminate = true;
+			bWaitForInputToTerminate = false;
 		}
 		else if (Arg == ANSITEXTVIEW("--attach-to-debugger"))
 		{
