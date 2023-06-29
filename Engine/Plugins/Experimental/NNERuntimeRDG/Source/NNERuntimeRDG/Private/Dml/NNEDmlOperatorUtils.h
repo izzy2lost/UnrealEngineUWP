@@ -39,6 +39,43 @@ static EAutoPad AutoPadFromString(FStringView StringVal)
     }
 }
 
+template<typename T>
+static bool IsEqualOrBroadcastable(TConstArrayView<T> ShapeA, TConstArrayView<T> ShapeB)
+{
+    if(ShapeA.Num() < ShapeB.Num())
+    {
+        return false;
+    }
+
+    int32 BIdx = 0;
+
+    for(int32 Idx = 0; Idx < ShapeA.Num() && BIdx < ShapeB.Num(); ++Idx)
+    {
+        if(BIdx != 0)
+        {
+            if(ShapeA[Idx] != ShapeB[BIdx])
+            {
+                if(ShapeB[BIdx] != 1)
+                {
+                    return false;
+                }
+            }
+            ++BIdx;
+        }
+        if(BIdx == 0 && ShapeA[Idx] == ShapeB[BIdx])
+        {
+            ++BIdx;
+        }
+    }
+
+    if(BIdx == 0)
+    {
+        return false;
+    }
+
+    return true;
+}
+
 static bool CheckElementwiseTensor(ENNETensorDataType DataType, const NNE::FSymbolicTensorShape& TensorShape)
 {
     if (DataType != ENNETensorDataType::Float)
