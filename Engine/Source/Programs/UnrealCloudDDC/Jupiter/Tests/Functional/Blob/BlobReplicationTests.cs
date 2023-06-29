@@ -125,9 +125,9 @@ namespace Jupiter.FunctionalTests.Storage
                                     {
                                         new AclEntry()
                                         {
-                                            Actions = new List<AclAction>()
+                                            Actions = new List<JupiterAclAction>()
                                             {
-                                                AclAction.ReadObject,
+                                                JupiterAclAction.ReadObject,
                                             },
                                             Claims = new List<string>()
                                             {

@@ -32,7 +32,7 @@ namespace Jupiter.Controllers
             [FromRoute] [Required] NamespaceId ns
             )
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -48,7 +48,7 @@ namespace Jupiter.Controllers
         {
             NamespacePolicy policy = _namespacePolicyResolver.GetPoliciesForNs(ns);
 
-            List<AclAction> allowedActions = new List<AclAction>();
+            List<JupiterAclAction> allowedActions = new List<JupiterAclAction>();
             foreach (AclEntry acl in policy.Acls)
             {
                 allowedActions.AddRange(acl.Resolve(User));
@@ -67,6 +67,6 @@ namespace Jupiter.Controllers
     public class ActionsResult
     {
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Used by serialization")]
-        public List<AclAction> Actions { get; set; } = new List<AclAction>();
+        public List<JupiterAclAction> Actions { get; set; } = new List<JupiterAclAction>();
     }
 }

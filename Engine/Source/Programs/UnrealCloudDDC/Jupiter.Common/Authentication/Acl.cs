@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace Jupiter;
 
-public enum AclAction
+public enum JupiterAclAction
 {
     /// <summary>
     /// General read access to refs / blobs and so on
@@ -59,11 +59,11 @@ public class AclEntry
     /// The actions granted if the claims match
     /// </summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Used by the configuration system")]
-    public List<AclAction> Actions { get; set; } = new List<AclAction>();
+    public List<JupiterAclAction> Actions { get; set; } = new List<JupiterAclAction>();
 
-    public IEnumerable<AclAction> Resolve(ClaimsPrincipal user)
+    public IEnumerable<JupiterAclAction> Resolve(ClaimsPrincipal user)
     {
-        List<AclAction> allowedActions = new List<AclAction>();
+        List<JupiterAclAction> allowedActions = new List<JupiterAclAction>();
 
         bool allClaimsFound = true;
         // These are ANDed, e.g. all claims needs to be present
@@ -103,7 +103,7 @@ public class AclEntry
         return allowedActions;
     }
 
-    public IEnumerable<AclAction> Resolve(AuthorizationHandlerContext context)
+    public IEnumerable<JupiterAclAction> Resolve(AuthorizationHandlerContext context)
     {
         return Resolve(context.User);
     }

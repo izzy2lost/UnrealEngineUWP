@@ -34,7 +34,7 @@ namespace Jupiter.Controllers
             [Required] NamespaceId ns
         )
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.ReadTransactionLog });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadTransactionLog });
             if (result != null)
             {
                 return result;
@@ -77,7 +77,7 @@ namespace Jupiter.Controllers
             [Required] long offset
         )
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.WriteTransactionLog });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteTransactionLog });
             if (result != null)
             {
                 return result;
@@ -115,7 +115,7 @@ namespace Jupiter.Controllers
             [Required] [FromBody] NewReplicationState replicationState
         )
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.WriteTransactionLog });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteTransactionLog });
             if (result != null)
             {
                 return result;
@@ -158,7 +158,7 @@ namespace Jupiter.Controllers
             [Required] NamespaceId ns
         )
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.WriteTransactionLog });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteTransactionLog });
             if (result != null)
             {
                 return result;

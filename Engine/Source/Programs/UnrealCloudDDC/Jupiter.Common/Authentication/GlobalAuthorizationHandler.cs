@@ -11,7 +11,7 @@ namespace Jupiter
 {
     public class GlobalAccessRequest
     {
-        public AclAction[] Actions { get; init; } = Array.Empty<AclAction>();
+        public JupiterAclAction[] Actions { get; init; } = Array.Empty<JupiterAclAction>();
     }
 
     /// <summary>
@@ -40,14 +40,14 @@ namespace Jupiter
                 return Task.CompletedTask;
             }
 
-            List<AclAction> allowedActions = new List<AclAction>();
+            List<JupiterAclAction> allowedActions = new List<JupiterAclAction>();
             foreach (AclEntry acl in _authSettings.CurrentValue.Acls)
             {
                 allowedActions.AddRange(acl.Resolve(context));
             }
 
             bool haveAccessToActions = true;
-            foreach (AclAction requiredAction in accessRequest.Actions)
+            foreach (JupiterAclAction requiredAction in accessRequest.Actions)
             {
                 if (!allowedActions.Contains(requiredAction))
                 {

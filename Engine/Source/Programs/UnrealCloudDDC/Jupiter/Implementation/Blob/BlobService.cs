@@ -264,7 +264,7 @@ public class BlobService : IBlobService
                     throw;
                 }
 
-                ActionResult? result = await _requestHelper.HasAccessToNamespace(user, request, policy.FallbackNamespace.Value, new [] { AclAction.ReadObject });
+                ActionResult? result = await _requestHelper.HasAccessToNamespace(user, request, policy.FallbackNamespace.Value, new [] { JupiterAclAction.ReadObject });
                 if (result != null)
                 {
                     _logger.LogInformation("Authorization error when attempting to fallback to namespace {FallbackNamespace}. This may be confusing for users that as they had access to original namespace {Namespace}", policy.FallbackNamespace.Value, ns);

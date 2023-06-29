@@ -14,7 +14,7 @@ namespace Jupiter
     public class NamespaceAccessRequest
     {
         public NamespaceId Namespace { get; init; }
-        public AclAction[] Actions { get; init; } = Array.Empty<AclAction>();
+        public JupiterAclAction[] Actions { get; init; } = Array.Empty<JupiterAclAction>();
     }
 
     // verifies that you have access to a namespace by checking if you have a corresponding claim to that namespace
@@ -48,7 +48,7 @@ namespace Jupiter
                 
                 NamespacePolicy policy = _namespacePolicyResolver.GetPoliciesForNs(namespaceName);
 
-                List<AclAction> allowedActions = new List<AclAction>();
+                List<JupiterAclAction> allowedActions = new List<JupiterAclAction>();
                 foreach (AclEntry acl in policy.Acls)
                 {
                     allowedActions.AddRange(acl.Resolve(context));
@@ -61,7 +61,7 @@ namespace Jupiter
                 }
 
                 bool haveAccessToActions = true;
-                foreach (AclAction requiredAction in accessRequest.Actions)
+                foreach (JupiterAclAction requiredAction in accessRequest.Actions)
                 {
                     if (!allowedActions.Contains(requiredAction))
                     {

@@ -37,7 +37,7 @@ namespace Jupiter.Controllers
         [ProducesResponseType(type: typeof(ProblemDetails), 400)]
         public async Task<IActionResult> Resolve(NamespaceId ns, ContentId contentId)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -64,7 +64,7 @@ namespace Jupiter.Controllers
         [ProducesResponseType(type: typeof(ProblemDetails), 400)]
         public async Task<IActionResult> UpdateContentIdMapping(NamespaceId ns, ContentId contentId, BlobIdentifier blobIdentifier, int contentWeight)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.WriteObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
             if (result != null)
             {
                 return result;

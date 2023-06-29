@@ -53,7 +53,7 @@ namespace Jupiter.Controllers
             [Required] NamespaceId ns,
             [Required] BlobIdentifier id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -77,7 +77,7 @@ namespace Jupiter.Controllers
             [Required] NamespaceId ns,
             [Required] BlobIdentifier id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -99,7 +99,7 @@ namespace Jupiter.Controllers
             [Required] NamespaceId ns,
             [Required] [FromQuery] List<BlobIdentifier> id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -125,7 +125,7 @@ namespace Jupiter.Controllers
             [Required] NamespaceId ns,
             [FromBody] BlobIdentifier[] bodyIds)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -151,7 +151,7 @@ namespace Jupiter.Controllers
             [Required] NamespaceId ns,
             [Required] BlobIdentifier id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.WriteObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
             if (result != null)
             {
                 return result;
@@ -176,7 +176,7 @@ namespace Jupiter.Controllers
             [Required] NamespaceId ns,
             [Required] BlobIdentifier id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -228,7 +228,7 @@ namespace Jupiter.Controllers
             [Required] NamespaceId ns,
             [Required] BlobIdentifier id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.DeleteObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.DeleteObject });
             if (result != null)
             {
                 return result;
@@ -246,7 +246,7 @@ namespace Jupiter.Controllers
         public async Task<IActionResult> DeleteNamespace(
             [Required] NamespaceId ns)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { AclAction.DeleteNamespace });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.DeleteNamespace });
             if (result != null)
             {
                 return result;

@@ -198,7 +198,7 @@ namespace Jupiter.Controllers
         [Route("{namespaceId}/blobs")]
         public async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(NamespaceId namespaceId, IFormFile? file, [FromForm] string? prefix = default, CancellationToken cancellationToken = default)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { AclAction.WriteObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { JupiterAclAction.WriteObject });
             if (result != null)
             {
                 return result;
@@ -246,7 +246,7 @@ namespace Jupiter.Controllers
         [Route("{namespaceId}/blobs/{*locator}")]
         public async Task<ActionResult> ReadBlobAsync(NamespaceId namespaceId, BundleLocator locator, [FromQuery] int? offset = null, [FromQuery] int? length = null, CancellationToken cancellationToken = default)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { AclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { JupiterAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -291,7 +291,7 @@ namespace Jupiter.Controllers
         [Route("{namespaceId}/nodes")]
         public async Task<ActionResult<FindNodesResponse>> FindNodesAsync(NamespaceId namespaceId, string alias, CancellationToken cancellationToken = default)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { AclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { JupiterAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -324,7 +324,7 @@ namespace Jupiter.Controllers
         [Route("{namespaceId}/refs/{*refName}")]
         public async Task<ActionResult> WriteRefAsync(NamespaceId namespaceId, RefName refName, [FromBody] WriteRefRequest request, CancellationToken cancellationToken)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { AclAction.WriteObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { JupiterAclAction.WriteObject });
             if (result != null)
             {
                 return result;
@@ -346,7 +346,7 @@ namespace Jupiter.Controllers
         [Route("{namespaceId}/refs/{*refName}")]
         public async Task<ActionResult<ReadRefResponse>> ReadRefAsync(NamespaceId namespaceId, RefName refName, CancellationToken cancellationToken)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { AclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { JupiterAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -378,7 +378,7 @@ namespace Jupiter.Controllers
         [Route("{namespaceId}/bundles/{*locator}")]
         public async Task<ActionResult<object>> GetBundleAsync(NamespaceId namespaceId, BundleLocator locator, [FromQuery(Name = "imports")] bool includeImports = false, [FromQuery(Name = "exports")] bool includeExports = true, [FromQuery(Name = "packets")] bool includePackets = false, CancellationToken cancellationToken = default)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { AclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { JupiterAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -454,7 +454,7 @@ namespace Jupiter.Controllers
         [Route("{namespaceId}/nodes/{*locator}")]
         public async Task<ActionResult<object>> GetNodeAsync(NamespaceId namespaceId, BundleLocator locator, [FromQuery(Name = "export")] int exportIdx, CancellationToken cancellationToken = default)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { AclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { JupiterAclAction.ReadObject });
             if (result != null)
             {
                 return result;
