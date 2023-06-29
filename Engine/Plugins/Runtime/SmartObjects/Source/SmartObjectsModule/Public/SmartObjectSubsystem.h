@@ -70,6 +70,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SmartObject)
 	bool bShouldEvaluateConditions = true;
 
+	/** If true, this search will contain claimed slots. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SmartObject)
+	bool bShouldIncludeClaimedSlots = false;
+
+	/** If true, this search will contain disabled slots. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SmartObject)
+	bool bShouldIncludeDisabledSlots = false;
+
 	/** Is set, will filter out any SmartObject that does not pass the predicate. */
 	TFunction<bool(FSmartObjectHandle)> Predicate;
 

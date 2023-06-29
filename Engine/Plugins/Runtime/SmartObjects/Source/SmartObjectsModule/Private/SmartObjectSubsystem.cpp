@@ -1908,8 +1908,14 @@ void USmartObjectSubsystem::FindSlots(const FSmartObjectRuntime& SmartObjectRunt
 	// Build list of available slot indices (filter out occupied or reserved slots or disabled slots)
 	for (const int32 SlotIndex : ValidSlotIndices)
 	{
-		const FSmartObjectRuntimeSlot& RuntimeSlot = RuntimeSlots.FindChecked(SmartObjectRuntime.SlotHandles[SlotIndex]); 
-		if (!RuntimeSlot.CanBeClaimed())
+		const FSmartObjectRuntimeSlot& RuntimeSlot = RuntimeSlots.FindChecked(SmartObjectRuntime.SlotHandles[SlotIndex]);
+
+		if (!Filter.bShouldIncludeDisabledSlots && !RuntimeSlot.IsEnabled())
+		{
+			continue;
+		}
+
+		if (!Filter.bShouldIncludeClaimedSlots && RuntimeSlot.GetState() != ESmartObjectSlotState::Free)
 		{
 			continue;
 		}
