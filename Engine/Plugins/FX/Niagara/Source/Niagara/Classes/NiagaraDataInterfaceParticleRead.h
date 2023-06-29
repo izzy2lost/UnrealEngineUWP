@@ -5,6 +5,7 @@
 #include "NiagaraDataInterfaceRW.h"
 #include "NiagaraCommon.h"
 #include "NiagaraEmitterInstance.h"
+#include "NiagaraDataInterfaceEmitterBinding.h"
 #include "NiagaraDataInterfaceParticleRead.generated.h"
 
 UCLASS(EditInlineNew, Category = "ParticleRead", CollapseCategories, meta = (DisplayName = "Particle Attribute Reader"), MinimalAPI)
@@ -28,11 +29,13 @@ class UNiagaraDataInterfaceParticleRead : public UNiagaraDataInterfaceRWBase
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
-	UPROPERTY(EditAnywhere, Category = "ParticleRead")
-	FString EmitterName;
+	/** Selects which emitter the data interface will bind to, i.e the emitter we are contained within or a named emitter. */
+	UPROPERTY(EditAnywhere, Category = "Emitter")
+	FNiagaraDataInterfaceEmitterBinding EmitterBinding;
 
 	//UObject Interface
-	NIAGARA_API virtual void PostInitProperties()override;
+	NIAGARA_API virtual void PostInitProperties() override;
+	NIAGARA_API virtual void PostLoad() override;
 #if WITH_EDITOR
 	NIAGARA_API virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent);
 #endif
@@ -100,4 +103,9 @@ protected:
 	NIAGARA_API void GetPersistentIDFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions);
 	NIAGARA_API void GetIndexFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions);
 	NIAGARA_API virtual bool CopyToInternal(UNiagaraDataInterface* Destination) const override;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FString EmitterName_DEPRECATED;
+#endif
 };

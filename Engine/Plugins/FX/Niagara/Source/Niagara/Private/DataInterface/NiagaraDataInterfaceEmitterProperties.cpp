@@ -332,7 +332,7 @@ void UNiagaraDataInterfaceEmitterProperties::GetFeedback(UNiagaraSystem* Asset, 
 	// See if we are resolve the source emitter
 	if ( EmitterBinding.BindingMode == ENiagaraDataInterfaceEmitterBindingMode::Other )
 	{
-		UNiagaraEmitter* NiagaraEmitter = EmitterBinding.Resolve(Asset);
+		UNiagaraEmitter* NiagaraEmitter = EmitterBinding.Resolve(this);
 		if (NiagaraEmitter == nullptr)
 		{
 			OutWarnings.Emplace(

@@ -396,6 +396,22 @@ void UNiagaraDataInterfaceParticleRead::PostInitProperties()
 	}
 }
 
+void UNiagaraDataInterfaceParticleRead::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITORONLY_DATA
+	if (!EmitterName_DEPRECATED.IsEmpty())
+	{
+		// We aren't going to search to see if this should be self, as we don't know the user intention and it could be confusing if we switched to this mode
+		EmitterBinding.BindingMode = ENiagaraDataInterfaceEmitterBindingMode::Other;
+		EmitterBinding.EmitterName = FName(*EmitterName_DEPRECATED);
+
+		EmitterName_DEPRECATED.Empty();
+	}
+#endif
+}
+
 #if WITH_EDITOR
 void UNiagaraDataInterfaceParticleRead::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
@@ -407,7 +423,7 @@ void UNiagaraDataInterfaceParticleRead::PostEditChangeProperty(struct FPropertyC
 		PropertyName = PropertyChangedEvent.Property->GetFName();
 	}
 
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UNiagaraDataInterfaceParticleRead, EmitterName))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UNiagaraDataInterfaceParticleRead, EmitterBinding))
 	{
 		UNiagaraSystem::RecomputeExecutionOrderForDataInterface(this);
 	}
@@ -416,7 +432,7 @@ void UNiagaraDataInterfaceParticleRead::PostEditChangeProperty(struct FPropertyC
 
 bool UNiagaraDataInterfaceParticleRead::HasInternalAttributeReads(const UNiagaraEmitter* OwnerEmitter, const UNiagaraEmitter* Provider) const
 {
-	return Provider && Provider->GetUniqueEmitterName() == EmitterName;
+	return Provider == EmitterBinding.Resolve(this);
 }
 
 bool UNiagaraDataInterfaceParticleRead::InitPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance)
@@ -424,13 +440,17 @@ bool UNiagaraDataInterfaceParticleRead::InitPerInstanceData(void* PerInstanceDat
 	FNDIParticleRead_InstanceData* PIData = new (PerInstanceData) FNDIParticleRead_InstanceData;
 	PIData->SystemInstance = SystemInstance;
 	PIData->EmitterInstance = nullptr;
-	for (TSharedPtr<FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstance : SystemInstance->GetEmitters())
+
+	if ( UNiagaraEmitter* OwnerEmitter = EmitterBinding.Resolve(this) )
 	{
-		const FVersionedNiagaraEmitter& CachedEmitter = EmitterInstance->GetCachedEmitter();
-		if (CachedEmitter.Emitter && (EmitterName == CachedEmitter.Emitter->GetUniqueEmitterName()))
+		for (TSharedPtr<FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstance : SystemInstance->GetEmitters())
 		{
-			PIData->EmitterInstance = EmitterInstance.Get();
-			break;
+			const FVersionedNiagaraEmitter& CachedEmitter = EmitterInstance->GetCachedEmitter();
+			if (OwnerEmitter == CachedEmitter.Emitter)
+			{
+				PIData->EmitterInstance = EmitterInstance.Get();
+				break;
+			}
 		}
 	}
 
@@ -438,14 +458,14 @@ bool UNiagaraDataInterfaceParticleRead::InitPerInstanceData(void* PerInstanceDat
 	{
 		if (FNiagaraUtilities::LogVerboseWarnings())
 		{
-			UE_LOG(LogNiagara, Warning, TEXT("Source emitter '%s' not found. System: %s"), *EmitterName, *GetFullNameSafe(SystemInstance->GetSystem()));
+			UE_LOG(LogNiagara, Warning, TEXT("Source emitter '%s' not found. System: %s"), *EmitterBinding.ResolveUniqueName(this), *GetFullNameSafe(SystemInstance->GetSystem()));
 		}
 	}
 
 	FString DebugSourceName;
 	if ( UNiagaraSystem* NiagaraSystem = PIData->SystemInstance->GetSystem() )
 	{
-		DebugSourceName = FString::Printf(TEXT("%s.%s"), *NiagaraSystem->GetName(), *EmitterName);
+		DebugSourceName = FString::Printf(TEXT("%s.%s"), *NiagaraSystem->GetName(), *EmitterBinding.ResolveUniqueName(this));
 	}
 
 	FNiagaraDataInterfaceProxyParticleRead* ThisProxy = GetProxyAs<FNiagaraDataInterfaceProxyParticleRead>();
@@ -1175,7 +1195,7 @@ void UNiagaraDataInterfaceParticleRead::GetVMExternalFunction(const FVMExternalF
 	{
 		UNiagaraSystem* NiagaraSystem = PIData->SystemInstance ? PIData->SystemInstance->GetSystem() : nullptr;
 		UNiagaraEmitter* NiagaraEmitter = PIData->EmitterInstance ? PIData->EmitterInstance->GetCachedEmitter().Emitter : nullptr;
-		UE_LOG(LogNiagara, Warning, TEXT("ParticleRead: Failed to '%s' attribute '%s' System '%s' Emitter '%s'! Check that the attribute is named correctly."), *BindingInfo.Name.ToString(), *AttributeToRead.ToString(), *GetNameSafe(NiagaraSystem), *EmitterName);
+		UE_LOG(LogNiagara, Warning, TEXT("ParticleRead: Failed to '%s' attribute '%s' System '%s' Emitter '%s'! Check that the attribute is named correctly."), *BindingInfo.Name.ToString(), *AttributeToRead.ToString(), *GetNameSafe(NiagaraSystem), *EmitterBinding.ResolveUniqueName(this));
 	}
 }
 
@@ -1668,7 +1688,7 @@ bool UNiagaraDataInterfaceParticleRead::Equals(const UNiagaraDataInterface* Othe
 	{
 		return false;
 	}
-	return CastChecked<UNiagaraDataInterfaceParticleRead>(Other)->EmitterName == EmitterName;
+	return CastChecked<UNiagaraDataInterfaceParticleRead>(Other)->EmitterBinding == EmitterBinding;
 }
 
 bool UNiagaraDataInterfaceParticleRead::CopyToInternal(UNiagaraDataInterface* Destination) const
@@ -1677,7 +1697,7 @@ bool UNiagaraDataInterfaceParticleRead::CopyToInternal(UNiagaraDataInterface* De
 	{
 		return false;
 	}
-	CastChecked<UNiagaraDataInterfaceParticleRead>(Destination)->EmitterName = EmitterName;
+	CastChecked<UNiagaraDataInterfaceParticleRead>(Destination)->EmitterBinding = EmitterBinding;
 	return true;
 }
 
@@ -2369,21 +2389,16 @@ void UNiagaraDataInterfaceParticleRead::GetFeedback(UNiagaraSystem* Asset, UNiag
 	}
 
 	FVersionedNiagaraEmitter FoundSourceEmitter;
-	for (const FNiagaraEmitterHandle& EmitterHandle : Asset->GetEmitterHandles())
+	if (const FNiagaraEmitterHandle* EmitterHandle = EmitterBinding.ResolveHandle(this))
 	{
-		FVersionedNiagaraEmitter EmitterInstance = EmitterHandle.GetInstance();
-		if (EmitterInstance.Emitter && EmitterInstance.Emitter->GetUniqueEmitterName() == EmitterName)
-		{
-			FoundSourceEmitter = EmitterInstance;
-			break; 
-		}
+		FoundSourceEmitter = EmitterHandle->GetInstance();
 	}
 
 	if (!FoundSourceEmitter.Emitter)
 	{
 		Warnings.Emplace(
 			LOCTEXT("SourceEmitterNotFound", "Source emitter was not found."),
-			FText::Format(LOCTEXT("SourceEmitterNotFoundSummary", "Source emitter '{0}' could not be found"), FText::FromString(EmitterName)),
+			FText::Format(LOCTEXT("SourceEmitterNotFoundSummary", "Source emitter '{0}' could not be found"), FText::FromString(EmitterBinding.ResolveUniqueName(this))),
 			FNiagaraDataInterfaceFix()
 		);
 	}
@@ -2551,22 +2566,17 @@ void UNiagaraDataInterfaceParticleRead::GetEmitterDependencies(UNiagaraSystem* A
 		return;
 	}
 
-	for (const FNiagaraEmitterHandle& EmitterHandle : Asset->GetEmitterHandles())
+	if (const FNiagaraEmitterHandle* ResolvedEmitterHandle = EmitterBinding.ResolveHandle(this))
 	{
-		FVersionedNiagaraEmitter EmitterInstance = EmitterHandle.GetInstance();
-		if (EmitterInstance.Emitter && EmitterInstance.Emitter->GetUniqueEmitterName() == EmitterName)
-		{
-			Dependencies.Add(EmitterInstance);
-			return;
-		}
+		Dependencies.Add(ResolvedEmitterHandle->GetInstance());
 	}
 }
 
 void UNiagaraDataInterfaceParticleRead::GetEmitterReferencesByName(TArray<FString>& EmitterReferences) const
 {
-	if (!EmitterName.IsEmpty())
+	if (const UNiagaraEmitter* ResolvedEmitter = EmitterBinding.Resolve(this))
 	{
-		EmitterReferences.AddUnique(EmitterName);
+		EmitterReferences.AddUnique(ResolvedEmitter->GetUniqueEmitterName());
 	}
 }
 
