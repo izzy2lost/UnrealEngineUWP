@@ -2,6 +2,7 @@
 
 #include "Data/PCGTextureData.h"
 
+#include "PCGTextureReadback.h"
 #include "Data/PCGPointData.h"
 #include "Helpers/PCGAsync.h"
 #include "Helpers/PCGHelpers.h"
@@ -267,82 +268,101 @@ void UPCGBaseTextureData::CopyBaseTextureData(UPCGBaseTextureData* NewTextureDat
 	NewTextureData->Width = Width;
 }
 
-void UPCGTextureData::Initialize(UTexture2D* InTexture, const FTransform& InTransform)
+void UPCGTextureData::Initialize(UTexture2D* InTexture, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGTextureData::Initialize);
+
 	Texture = InTexture;
 	Transform = InTransform;
 	Width = 0;
 	Height = 0;
 
-	if (InTexture)
-	{
-		if (IsSupported(InTexture))
-		{
-			FTexturePlatformData* PlatformData = Texture->GetPlatformData();
-			if (PlatformData)
-			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(UPCGTextureData::Initialize::ReadData);
-
-				if (const uint8_t* BulkData = reinterpret_cast<const uint8_t*>(PlatformData->Mips[0].BulkData.LockReadOnly()))
-				{
-					Width = PlatformData->SizeX;
-					Height = PlatformData->SizeY;
-					const int32 PixelCount = Width * Height;
-					ColorData.SetNum(PixelCount);
-
-					if (PlatformData->PixelFormat == PF_B8G8R8A8)
-					{
-						// Memory representation of FColor is BGRA
-						const FColor* FormattedImageData = reinterpret_cast<const FColor*>(BulkData);
-						for (int32 D = 0; D < PixelCount; ++D)
-						{
-							ColorData[D] = FormattedImageData[D].ReinterpretAsLinear();
-						}
-					}
-					else if (PlatformData->PixelFormat == PF_R8G8B8A8)
-					{
-						// Since the memory representation is BGRA, we just need to swap B & R to obtain RGBA 
-						const FColor* FormattedImageData = reinterpret_cast<const FColor*>(BulkData);
-						for (int32 D = 0; D < PixelCount; ++D)
-						{
-							ColorData[D] = FormattedImageData[D].ReinterpretAsLinear();
-							Swap(ColorData[D].R, ColorData[D].B);
-						}
-					}
-					else if (PlatformData->PixelFormat == PF_G8)
-					{
-						for (int32 D = 0; D < PixelCount; ++D)
-						{
-							ColorData[D] = FColor(BulkData[D], BulkData[D], BulkData[D]).ReinterpretAsLinear();
-						}
-					}
-				}
-				else
-				{
-					UE_LOG(LogPCG, Error, TEXT("PCGTextureData unable to get bulk data from '%s'"), *Texture->GetFName().ToString());
-				}
-
-				PlatformData->Mips[0].BulkData.Unlock();
-			}
-		}
-		else
-		{
-			UE_LOG(LogPCG, Error, TEXT("PCGTextureData does not support the format of '%s'"), *Texture->GetFName().ToString());
-		}
-	}
-
 	Bounds = FBox(EForceInit::ForceInit);
 	Bounds += FVector(-1.0f, -1.0f, 0.0f);
 	Bounds += FVector(1.0f, 1.0f, 0.0f);
 	Bounds = Bounds.TransformBy(Transform);
+
+	if (!InTexture)
+	{
+		PostInitializeCallback();
+		return;
+	}
+
+	if (!IsSupported(InTexture))
+	{
+		UE_LOG(LogPCG, Error, TEXT("PCGTextureData does not support one or more settings on '%s'"), *Texture->GetFName().ToString());
+
+		PostInitializeCallback();
+		return;
+	}
+
+#if WITH_EDITOR
+	// Force a wait on any incomplete async texture compilation and caching operations
+	Texture->FinishCachePlatformData();
+#endif
+
+	// TODO: Forcing a resource update is problematic. Clears cooked platform data and may break other usages of this texture
+	// But it is necessary to force the texture memory to be present on the first dispatch
+	Texture->UpdateResource();
+	Texture->WaitForPendingInitOrStreaming();
+
+	FTexturePlatformData* PlatformData = Texture->GetPlatformData();
+	FTextureResource* TextureResource = InTexture->GetResource();
+
+	if (PlatformData && TextureResource && TextureResource->TextureRHI)
+	{
+		FPCGTextureReadbackDispatchParams Params;
+		Params.SourceTexture = TextureResource->TextureRHI;
+		Params.SourceSampler = TextureResource->SamplerStateRHI;
+		Params.SourceDimensions = FIntPoint(PlatformData->SizeX, PlatformData->SizeY);
+
+		FPCGTextureReadbackInterface::Dispatch(Params, [this, PlatformData, PostInitializeCallback](void* OutBuffer, int32 ReadbackWidth, int32 ReadbackHeight)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(UPCGTextureData::Initialize::DispatchCallback);
+
+			const int32 PixelCount = ReadbackWidth * ReadbackHeight;
+
+			if (PlatformData->SizeX * PlatformData->SizeY != PixelCount)
+			{
+				UE_LOG(LogPCG, Error,
+					TEXT("PCGTextureData readback has different dimensions than the source texture '%s'. Expected (%d, %d), received (%d, %d)."),
+					*Texture->GetFName().ToString(),
+					PlatformData->SizeX, PlatformData->SizeY,
+					ReadbackWidth, ReadbackHeight);
+			}
+
+			if (const FColor* FormattedImageData = reinterpret_cast<const FColor*>(OutBuffer))
+			{
+				Width = ReadbackWidth;
+				Height = ReadbackHeight;
+				ColorData.SetNum(PixelCount);
+
+				for (int32 D = 0; D < PixelCount; ++D)
+				{
+					ColorData[D] = FormattedImageData[D].ReinterpretAsLinear();
+				}
+			}
+			else
+			{
+				UE_LOG(LogPCG, Error, TEXT("PCGTextureData unable to get readback results from '%s'"), *Texture->GetFName().ToString());
+			}
+
+			PostInitializeCallback();
+		});
+	}
+	else
+	{
+		UE_LOG(LogPCG, Error, TEXT("PCGTextureData failed to acquire texture resource for '%s'"), *Texture->GetFName().ToString());
+
+		PostInitializeCallback();
+	}
 }
 
 bool UPCGTextureData::IsSupported(UTexture2D* InTexture)
 {
-	const FTexturePlatformData* PlatformData = InTexture ? InTexture->GetPlatformData() : nullptr;
-
-	return PlatformData && PlatformData->Mips.Num() > 0 &&
-		(PlatformData->PixelFormat == PF_B8G8R8A8 || PlatformData->PixelFormat == PF_R8G8B8A8 || PlatformData->PixelFormat == PF_G8);
+	// TODO: GPU readback seems to support all textures, but future implementations (such as UBitmap) may have
+	// some limitations, so we will avoid removing this trivial function from the API for now
+	return true;
 }
 
 UPCGSpatialData* UPCGTextureData::CopyInternal() const

@@ -29,9 +29,21 @@ FPCGElementPtr UPCGTextureSamplerSettings::CreateElement() const
 	return MakeShared<FPCGTextureSamplerElement>();
 }
 
-bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* Context) const
+bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGTextureSamplerElement::Execute);
+
+	FPCGTextureSamplerContext* Context = static_cast<FPCGTextureSamplerContext*>(InContext);
+
+	if (Context->bIsPaused)
+	{
+		return false;
+	}
+
+	if (Context->bTextureReadbackDone)
+	{
+		return true;
+	}
 
 	const UPCGTextureSamplerSettings* Settings = Context->GetInputSettings<UPCGTextureSamplerSettings>();
 	check(Settings);
@@ -42,6 +54,7 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* Context) const
 	}
 
 	UTexture2D* Texture = Settings->Texture.LoadSynchronous();
+
 	if (!Texture)
 	{
 		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("CouldNotResolveTexture", "Texture at path '{0}' could not be loaded"), FText::FromString(Settings->Texture.ToString())));
@@ -50,7 +63,7 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* Context) const
 
 	if (!UPCGTextureData::IsSupported(Texture))
 	{
-		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("UnsupportedTextureFormat", "Texture '{0}' has unsupported texture format, currently supported formats are B8G8R8A8, R8G8B8A8 and G8. Also ensure mipmap generation is disabled and sRGB is disabled."), FText::FromName(Texture->GetFName())));
+		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("UnsupportedTextureFormat", "Texture '{0}' has unsupported settings"), FText::FromName(Texture->GetFName())));
 		return true;
 	}
 
@@ -79,13 +92,27 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* Context) const
 	{
 		FTransform OriginalActorTransform = OriginalActor->GetTransform();
 		FinalTransform = Transform * OriginalActorTransform;
-		
+
 		FBox OriginalActorLocalBounds = PCGHelpers::GetActorLocalBounds(OriginalActor);
 		FinalTransform.SetScale3D(FinalTransform.GetScale3D() * 0.5 * (OriginalActorLocalBounds.Max - OriginalActorLocalBounds.Min));
 	}
 
 	// Initialize & set properties
-	TextureData->Initialize(Texture, FinalTransform);
+	Context->bIsPaused = true;
+
+	auto PostInitializeCallback = [Context, TextureData]()
+	{
+		Context->bIsPaused = false;
+		Context->bTextureReadbackDone = true;
+
+		if (!TextureData->IsValid())
+		{
+			PCGE_LOG_C(Error, GraphAndLog, Context, LOCTEXT("TextureDataInitFailed", "Texture data failed to initialize, check log for more information"));
+		}
+	};
+
+	TextureData->Initialize(Texture, FinalTransform, PostInitializeCallback);
+
 	TextureData->DensityFunction = DensityFunction;
 	TextureData->ColorChannel = ColorChannel;
 	TextureData->TexelSize = TexelSize;
@@ -96,12 +123,17 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* Context) const
 	TextureData->bUseTileBounds = bUseTileBounds;
 	TextureData->TileBounds = FBox2D(TileBoundsMin, TileBoundsMax);
 
-	if (!TextureData->IsValid())
-	{
-		PCGE_LOG(Error, GraphAndLog, LOCTEXT("TextureDataInitFailed", "Texture data failed to initialize, check log for more information"));
-	}
+	return false;
+}
 
-	return true;
+FPCGContext* FPCGTextureSamplerElement::Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node)
+{
+	FPCGTextureSamplerContext* Context = new FPCGTextureSamplerContext();
+	Context->InputData = InputData;
+	Context->SourceComponent = SourceComponent;
+	Context->Node = Node;
+
+	return Context;
 }
 
 void FPCGTextureSamplerElement::GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const

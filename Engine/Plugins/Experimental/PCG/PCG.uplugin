@@ -24,8 +24,12 @@
 			"Name": "PCGEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "PCGCompute",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit"
 		}
-
 	],
 	"Plugins": [
 		{

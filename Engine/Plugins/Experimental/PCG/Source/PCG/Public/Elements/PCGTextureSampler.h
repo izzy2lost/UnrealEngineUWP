@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "PCGContext.h"
 #include "PCGPin.h"
 #include "PCGSettings.h"
 #include "Data/PCGTextureData.h"
@@ -74,11 +75,17 @@ public:
 	FVector2D TileBoundsMax = FVector2D(0.5, 0.5);
 };
 
+struct PCG_API FPCGTextureSamplerContext : public FPCGContext
+{
+	bool bTextureReadbackDone = false;
+};
+
 class FPCGTextureSamplerElement : public FSimplePCGElement
 {
 public:
+	virtual FPCGContext* Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node) override;
 	virtual void GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const override;
 
 protected:
-	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
 };

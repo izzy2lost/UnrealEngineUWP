@@ -104,8 +104,7 @@ public:
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Texture; }
 	// ~End UPCGData interface
 
-	UFUNCTION(BlueprintCallable, Category = Texture)
-	void Initialize(UTexture2D* InTexture, const FTransform& InTransform);
+	void Initialize(UTexture2D* InTexture, const FTransform& InTransform, const TFunction<void()>& PostInitializeCallback);
 
 	/** Returns true if the format of InTexture is compatible and can be loaded. Will load texture if not already loaded. */
 	static bool IsSupported(UTexture2D* InTexture);

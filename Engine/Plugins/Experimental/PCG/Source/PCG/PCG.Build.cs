@@ -26,6 +26,7 @@ namespace UnrealBuildTool.Rules
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
+					"PCGCompute",
 					"Voronoi",
 				}
 			);
@@ -41,10 +42,6 @@ namespace UnrealBuildTool.Rules
 					}
 				);
 			}
-
-			PrivateIncludePaths.AddRange(
-				new string[] {
-				});
 		}
 	}
 }
