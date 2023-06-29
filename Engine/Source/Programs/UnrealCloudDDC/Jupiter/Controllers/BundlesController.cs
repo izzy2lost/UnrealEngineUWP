@@ -168,7 +168,7 @@ namespace Jupiter.Controllers
     public class StorageController : ControllerBase
     {
         readonly IStorageService _storageService;
-        private readonly RequestHelper _requestHelper;
+        private readonly IRequestHelper _requestHelper;
         readonly IMemoryCache _memoryCache;
         readonly ILogger<StorageController> _logger;
 
@@ -179,7 +179,7 @@ namespace Jupiter.Controllers
         /// <param name="requestHelper"></param>
         /// <param name="memoryCache"></param>
         /// <param name="logger"></param>
-        public StorageController(IStorageService storageService, RequestHelper requestHelper, IMemoryCache memoryCache, ILogger<StorageController> logger)
+        public StorageController(IStorageService storageService, IRequestHelper requestHelper, IMemoryCache memoryCache, ILogger<StorageController> logger)
         {
             _storageService = storageService;
             _requestHelper = requestHelper;

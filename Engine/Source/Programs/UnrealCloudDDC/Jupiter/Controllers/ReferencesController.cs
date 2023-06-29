@@ -50,14 +50,14 @@ namespace Jupiter.Controllers
         private readonly BufferedPayloadFactory _bufferedPayloadFactory;
         private readonly IReferenceResolver _referenceResolver;
         private readonly NginxRedirectHelper _nginxRedirectHelper;
-        private readonly RequestHelper _requestHelper;
+        private readonly IRequestHelper _requestHelper;
         private readonly Tracer _tracer;
 
         private readonly ILogger _logger;
         private readonly IObjectService _objectService;
         private readonly IBlobService _blobStore;
 
-        public ReferencesController(IObjectService objectService, IBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, RequestHelper requestHelper, Tracer tracer, ILogger<ReferencesController> logger)
+        public ReferencesController(IObjectService objectService, IBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<ReferencesController> logger)
         {
             _objectService = objectService;
             _blobStore = blobStore;

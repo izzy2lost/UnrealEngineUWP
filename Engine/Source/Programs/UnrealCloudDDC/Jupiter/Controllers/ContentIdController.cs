@@ -18,10 +18,10 @@ namespace Jupiter.Controllers
     [Authorize]
     public class ContentIdController : ControllerBase
     {
-        private readonly RequestHelper _requestHelper;
+        private readonly IRequestHelper _requestHelper;
         private readonly IContentIdStore _contentIdStore;
 
-        public ContentIdController(RequestHelper requestHelper, IContentIdStore contentIdStore)
+        public ContentIdController(IRequestHelper requestHelper, IContentIdStore contentIdStore)
         {
             _requestHelper = requestHelper;
             _contentIdStore = contentIdStore;

@@ -22,9 +22,9 @@ namespace Jupiter.Controllers
         private readonly LastAccessServiceReferences _lastAccessService;
         private readonly IRefCleanup _refCleanup;
         private readonly IConfiguration _configuration;
-        private readonly RequestHelper _requestHelper;
+        private readonly IRequestHelper _requestHelper;
 
-        public AdminController(LastAccessServiceReferences lastAccessService, IRefCleanup refCleanup, IConfiguration configuration, RequestHelper requestHelper)
+        public AdminController(LastAccessServiceReferences lastAccessService, IRefCleanup refCleanup, IConfiguration configuration, IRequestHelper requestHelper)
         {
             _lastAccessService = lastAccessService;
             _refCleanup = refCleanup;

@@ -31,13 +31,13 @@ namespace Jupiter.Controllers
     {
         private readonly IBlobService _storage;
         private readonly IDiagnosticContext _diagnosticContext;
-        private readonly RequestHelper _requestHelper;
+        private readonly IRequestHelper _requestHelper;
         private readonly IReferenceResolver _referenceResolver;
         private readonly BufferedPayloadFactory _bufferedPayloadFactory;
 
         private readonly ILogger _logger;
 
-        public ObjectController(IBlobService storage, IDiagnosticContext diagnosticContext, RequestHelper requestHelper, IReferenceResolver referenceResolver, BufferedPayloadFactory bufferedPayloadFactory, ILogger<ObjectController> logger)
+        public ObjectController(IBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, IReferenceResolver referenceResolver, BufferedPayloadFactory bufferedPayloadFactory, ILogger<ObjectController> logger)
         {
             _storage = storage;
             _diagnosticContext = diagnosticContext;

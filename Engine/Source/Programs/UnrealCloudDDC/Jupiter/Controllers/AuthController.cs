@@ -16,11 +16,11 @@ namespace Jupiter.Controllers
     [Authorize]
     public class AuthController : ControllerBase
     {
-        private readonly RequestHelper _requestHelper;
+        private readonly IRequestHelper _requestHelper;
         private readonly INamespacePolicyResolver _namespacePolicyResolver;
         private readonly IOptionsMonitor<AuthSettings> _authSettings;
 
-        public AuthController(RequestHelper requestHelper, INamespacePolicyResolver namespacePolicyResolver, IOptionsMonitor<AuthSettings> authSettings)
+        public AuthController(IRequestHelper requestHelper, INamespacePolicyResolver namespacePolicyResolver, IOptionsMonitor<AuthSettings> authSettings)
         {
             _requestHelper = requestHelper;
             _namespacePolicyResolver = namespacePolicyResolver;

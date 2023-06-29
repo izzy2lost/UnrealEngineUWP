@@ -14,7 +14,7 @@ using OpenTelemetry.Trace;
 
 namespace Jupiter.Controllers;
 
-public class RequestHelper
+public class RequestHelper : IRequestHelper
 {
     private readonly IAuthorizationService _authorizationService;
     private readonly INamespacePolicyResolver _namespacePolicyResolver;

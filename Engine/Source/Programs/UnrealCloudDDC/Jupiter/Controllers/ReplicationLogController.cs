@@ -26,11 +26,11 @@ namespace Jupiter.Controllers
     public class ReplicationLogController : ControllerBase
     {
         private readonly IServiceProvider _provider;
-        private readonly RequestHelper _requestHelper;
+        private readonly IRequestHelper _requestHelper;
         private readonly IReplicationLog _replicationLog;
         private readonly IOptionsMonitor<SnapshotSettings> _snapshotSettings;
 
-        public ReplicationLogController(IServiceProvider provider, RequestHelper requestHelper, IReplicationLog replicationLog, IOptionsMonitor<SnapshotSettings> snapshotSettings)
+        public ReplicationLogController(IServiceProvider provider, IRequestHelper requestHelper, IReplicationLog replicationLog, IOptionsMonitor<SnapshotSettings> snapshotSettings)
         {
             _provider = provider;
             _requestHelper = requestHelper;

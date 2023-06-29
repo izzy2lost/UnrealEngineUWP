@@ -32,11 +32,11 @@ namespace Jupiter.Controllers
     {
         private readonly IBlobService _storage;
         private readonly IDiagnosticContext _diagnosticContext;
-        private readonly RequestHelper _requestHelper;
+        private readonly IRequestHelper _requestHelper;
         private readonly BufferedPayloadFactory _bufferedPayloadFactory;
         private readonly NginxRedirectHelper _nginxRedirectHelper;
 
-        public BlobsController(IBlobService storage, IDiagnosticContext diagnosticContext, RequestHelper requestHelper, BufferedPayloadFactory bufferedPayloadFactory, NginxRedirectHelper nginxRedirectHelper)
+        public BlobsController(IBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, BufferedPayloadFactory bufferedPayloadFactory, NginxRedirectHelper nginxRedirectHelper)
         {
             _storage = storage;
             _diagnosticContext = diagnosticContext;

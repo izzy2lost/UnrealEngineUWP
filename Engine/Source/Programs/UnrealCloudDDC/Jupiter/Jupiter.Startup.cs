@@ -155,7 +155,7 @@ namespace Jupiter
 
             services.AddSingleton(serviceType: typeof(ILeaderElection), CreateLeaderElection);
 
-            services.AddTransient<RequestHelper>();
+            services.AddTransient<IRequestHelper, RequestHelper>();
 
             services.AddSingleton(Configuration);
 
