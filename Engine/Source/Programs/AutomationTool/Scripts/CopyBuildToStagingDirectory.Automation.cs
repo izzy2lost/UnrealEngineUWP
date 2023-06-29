@@ -4237,6 +4237,7 @@ namespace AutomationScripts
 									if (!string.IsNullOrEmpty(EncryptionKeyOverrideGuid))
 									{
 										TargetChunk.EncryptionKeyGuid = EncryptionKeyOverrideGuid;
+										TargetChunk.RequestedEncryptionKeyGuid = EncryptionKeyOverrideGuid;
 									}
 								}
 							}
