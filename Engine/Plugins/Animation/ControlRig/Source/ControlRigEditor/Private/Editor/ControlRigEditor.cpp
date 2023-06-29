@@ -112,13 +112,6 @@
 
 TAutoConsoleVariable<bool> CVarControlRigShowTestingToolbar(TEXT("ControlRig.Test.EnableTestingToolbar"), false, TEXT("When true we'll show the testing toolbar in Control Rig Editor."));
 
-namespace ControlRigEditorTabs
-{
-	const FName DetailsTab(TEXT("DetailsTab"));
-// 	const FName ViewportTab(TEXT("Viewport"));
-// 	const FName AdvancedPreviewTab(TEXT("AdvancedPreviewTab"));
-};
-
 const FName FControlRigEditorModes::ControlRigEditorMode = TEXT("Rigging");
 const TArray<FName> FControlRigEditor::ForwardsSolveEventQueue = {FRigUnit_BeginExecution::EventName};
 const TArray<FName> FControlRigEditor::BackwardsSolveEventQueue = {FRigUnit_InverseExecution::EventName};
@@ -235,9 +228,6 @@ void FControlRigEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSh
 		
 		PersonaToolkit->GetPreviewScene()->SetRemoveAttachedComponentFilter(FOnRemoveAttachedComponentFilter::CreateSP(EditMode, &FControlRigEditMode::CanRemoveFromPreviewScene));
 	}
-
-	// Post-layout initialization
-	PostLayoutBlueprintEditorInitialization();
 
 	{
 		// listening to the BP's event instead of BP's Hierarchy's Event ensure a propagation order of

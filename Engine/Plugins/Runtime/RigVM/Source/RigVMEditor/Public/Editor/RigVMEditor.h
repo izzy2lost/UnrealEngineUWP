@@ -12,6 +12,28 @@ class FRigVMEditor;
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FRigVMEditorClosed, const FRigVMEditor*, URigVMBlueprint*);
 
+struct FRigVMEditorModes
+{
+	// Mode constants
+	static const FName RigVMEditorMode;
+	static FText GetLocalizedMode(const FName InMode)
+	{
+		static TMap< FName, FText > LocModes;
+
+		if (LocModes.Num() == 0)
+		{
+			LocModes.Add(RigVMEditorMode, NSLOCTEXT("RigVMEditorModes", "RigVMEditorMode", "RigVM"));
+		}
+
+		check(InMode != NAME_None);
+		const FText* OutDesc = LocModes.Find(InMode);
+		check(OutDesc);
+		return *OutDesc;
+	}
+private:
+	FRigVMEditorModes() {}
+};
+
 class RIGVMEDITOR_API FRigVMEditor : public FBlueprintEditor
 {
 public:
@@ -289,8 +311,11 @@ private:
 	bool bSuspendDetailsPanelRefresh;
 	bool bAllowBulkEdits;
 	bool bIsSettingObjectBeingDebugged;
+
+protected:
 	bool bRigVMEditorInitialized;
-	
+
+private:
 	/** Are we currently compiling through the user interface */
 	bool bIsCompilingThroughUI;
 

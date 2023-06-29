@@ -1395,6 +1395,10 @@ void URigVMEdGraphNode::GetNodeContextMenuActions(class UToolMenu* Menu, class U
 {
 #if WITH_EDITOR
 	const URigVMEdGraphSchema* Schema = Cast<URigVMEdGraphSchema>(GetSchema());
+	if(const URigVMBlueprint* Blueprint = GetBlueprint())
+	{
+		return Blueprint->GetEditorModule()->GetContextMenuActions(Schema, Menu, Context);
+	}
 	IRigVMEditorModule::Get().GetContextMenuActions(Schema, Menu, Context);
 #endif
 }

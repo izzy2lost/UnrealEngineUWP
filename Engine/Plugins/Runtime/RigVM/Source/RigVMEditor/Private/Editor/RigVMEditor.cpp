@@ -41,8 +41,11 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Framework/Docking/TabManager.h"
 #include "ScopedTransaction.h"
+#include "Editor/RigVMEditorMode.h"
 
 #define LOCTEXT_NAMESPACE "RigVMEditor"
+
+const FName FRigVMEditorModes::RigVMEditorMode = TEXT("RigVM");
 
 FRigVMEditor::FRigVMEditor()
 	: Host(nullptr)
@@ -365,14 +368,12 @@ const FName FRigVMEditor::GetEditorAppName() const
 
 const FName FRigVMEditor::GetEditorModeName() const
 {
-	const FName EditorMode("VisualProgramming");
-	return EditorMode;
+	return FRigVMEditorModes::RigVMEditorMode;
 }
 
 TSharedPtr<FApplicationMode> FRigVMEditor::CreateEditorMode()
 {
-	static TSharedPtr<FApplicationMode> EmptyMode;
-	return EmptyMode;
+	return MakeShareable(new FRigVMEditorMode(SharedThis(this)));
 }
 
 UBlueprint* FRigVMEditor::GetBlueprintObj() const

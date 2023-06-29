@@ -914,7 +914,7 @@ void URigVMHost::PostInitInstance(URigVMHost* InCDO)
 void URigVMHost::HandleExecutionReachedExit(const FName& InEventName)
 {
 #if WITH_EDITOR
-	if (EventQueueToRun.Last() == InEventName)
+	if (EventQueueToRun.IsEmpty() || EventQueueToRun.Last() == InEventName)
 	{
 		if(URigVM* SnapShotVM = GetSnapshotVM(false))
 		{
