@@ -2641,7 +2641,8 @@ private:
 	 */
 	static bool CheckForTimedPauseInstruction()
 	{
-#if PLATFORM_SEH_EXCEPTIONS_DISABLED
+		// _tpause isn't defined for Arm64EC
+#if PLATFORM_SEH_EXCEPTIONS_DISABLED || defined(_M_ARM64EC)
 		return false;
 #else
 		bool bSupportsTpause = false;
