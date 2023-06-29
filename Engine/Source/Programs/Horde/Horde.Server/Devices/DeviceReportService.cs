@@ -189,7 +189,7 @@ namespace Horde.Server.Devices
 
 			DeviceReportState state = await _state.GetAsync();
 			DateTime currentTime = _clock.UtcNow;
-			DateTime lastReportTime = state.ReportTime == DateTime.MinValue ? DateTime.Now : state.ReportTime;
+			DateTime lastReportTime = state.ReportTime == DateTime.MinValue ? DateTime.Now.Subtract(TimeSpan.FromMinutes(_reportIntervalMinutes + 1)) : state.ReportTime;
 
 			if ((currentTime - lastReportTime).TotalMinutes <= _reportIntervalMinutes)
 			{
