@@ -5462,6 +5462,11 @@ bool ExecuteUnrealPak(const TCHAR* CmdLine)
 		{
 			return UploadIoStoreContainerFiles(*IoStoreArg) == 0;
 		}
+
+		if (FParse::Value(CmdLine, TEXT("-Download="), IoStoreArg))
+		{
+			return DownloadIoStoreContainerFiles(*IoStoreArg) == 0;
+		}
 	}
 
 	// Parse all the non-option arguments from the command line

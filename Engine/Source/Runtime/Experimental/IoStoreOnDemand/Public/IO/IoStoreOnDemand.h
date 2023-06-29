@@ -136,6 +136,25 @@ UE_API TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 	TConstArrayView<FString> ContainerFiles,
 	const TMap<FGuid, FAES::FAESKey>& EncryptionKeys);
 
+////////////////////////////////////////////////////////////////////////////////
+struct FIoStoreDownloadParams
+{
+	FString Directory;
+	FString ServiceUrl;
+	FString Bucket;
+	FString Region; 
+	FString AccessKey;
+	FString SecretKey;
+	FString SessionToken;
+	FString CredentialsFile;
+	FString CredentialsFileKeyName;
+	int32 MaxConcurrentDownloads = 16;
+	
+	UE_API static TIoStatusOr<FIoStoreDownloadParams> Parse(const TCHAR* CommandLine);
+};
+
+UE_API FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, const FString& TocPath);
+
 #endif // (IS_PROGRAM || WITH_EDITOR)
 
 } // namespace UE

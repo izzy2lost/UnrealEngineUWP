@@ -53,4 +53,6 @@ IOSTOREUTILITIES_API bool ProcessFilesFromIoStoreContainer(
 
 IOSTOREUTILITIES_API bool SignIoStoreContainer(const TCHAR* InContainerFilename, const FRSAKeyHandle InSigningKey);
 
-IOSTOREUTILITIES_API bool UploadIoStoreContainerFiles(const TCHAR* Params); 
+IOSTOREUTILITIES_API bool UploadIoStoreContainerFiles(const TCHAR* ContainerPathOrWildcard); 
+
+IOSTOREUTILITIES_API bool DownloadIoStoreContainerFiles(const TCHAR* TocPath);
