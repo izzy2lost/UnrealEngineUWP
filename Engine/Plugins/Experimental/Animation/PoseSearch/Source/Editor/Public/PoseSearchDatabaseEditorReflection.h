@@ -198,9 +198,13 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "General Information")
 	FText SearchableTime;
 
-	// Amount of animation frames (database poses) pose feature data that has been pruned out because close to each other more than PosePruningSimilartyThreshod
+	// Amount of animation frames (database poses) of pose features data that has been pruned out because close to each other more than PosePruningSimilarityThreshold
 	UPROPERTY(VisibleAnywhere, Category = "General Information")
 	uint32 PrunedFrames;
+
+	// Amount of animation frames projected in PCA space (database poses) of pose PCA feature data (used to construct the kdtree) that has been pruned out because close to each other more than PCAValuesPruningSimilarityThreshold
+	UPROPERTY(VisibleAnywhere, Category = "General Information")
+	uint32 PrunedPCAFrames;
 
 	// Cardinality for the database config (how many floats per pose to store the pose features data)
 	UPROPERTY(VisibleAnywhere, Category = "General Information")

@@ -135,12 +135,22 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 
 		if (ConfigCardinality > 0)
 		{
-			const int32 TotalAnimationFeatureVectors = SearchIndex.GetValues().Num() / ConfigCardinality;
+			const int32 TotalAnimationFeatureVectors = SearchIndex.Values.Num() / ConfigCardinality;
 			PrunedFrames = TotalAnimationPosesInFrames - TotalAnimationFeatureVectors;
 		}
 		else
 		{
 			PrunedFrames = 0;
+		}
+
+		if (PoseSearchDatabase->GetNumberOfPrincipalComponents() > 0)
+		{
+			const int32 TotalAnimationPCAFeatureVectors = SearchIndex.PCAValues.Num() / PoseSearchDatabase->GetNumberOfPrincipalComponents();
+			PrunedPCAFrames = TotalAnimationPosesInFrames - TotalAnimationPCAFeatureVectors;
+		}
+		else
+		{
+			PrunedPCAFrames = 0;
 		}
 
 		// Kinematic Information
@@ -158,13 +168,15 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 		// Memory Information
 			
 		{
-			const uint32 ValuesBytesSize = SearchIndex.GetValues().GetAllocatedSize();
+			const uint32 ValuesBytesSize = SearchIndex.Values.GetAllocatedSize();
 			const uint32 PCAValuesBytesSize = SearchIndex.PCAValues.GetAllocatedSize();
 			const uint32 KDTreeBytesSize = SearchIndex.KDTree.GetAllocatedSize();
+			const uint32 PCAValuesVectorToPoseIndexesBytesSize = SearchIndex.PCAValuesVectorToPoseIndexes.GetAllocatedSize();
+
 			const uint32 PoseMetadataBytesSize = SearchIndex.PoseMetadata.GetAllocatedSize();
 			const uint32 AssetsBytesSize = SearchIndex.Assets.GetAllocatedSize();
 			const uint32 OtherBytesSize = SearchIndex.PCAProjectionMatrix.GetAllocatedSize() + SearchIndex.Mean.GetAllocatedSize() + SearchIndex.WeightsSqrt.GetAllocatedSize();
-			const uint32 EstimatedDatabaseBytesSize = ValuesBytesSize + PCAValuesBytesSize + KDTreeBytesSize + PoseMetadataBytesSize + AssetsBytesSize + OtherBytesSize;
+			const uint32 EstimatedDatabaseBytesSize = ValuesBytesSize + PCAValuesBytesSize + KDTreeBytesSize + PCAValuesVectorToPoseIndexesBytesSize + PoseMetadataBytesSize + AssetsBytesSize + OtherBytesSize;
 				
 			ValuesSize = FText::AsMemory(ValuesBytesSize);
 			PCAValuesSize = FText::AsMemory(PCAValuesBytesSize);

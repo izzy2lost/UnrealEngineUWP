@@ -54,9 +54,9 @@ struct POSESEARCH_API FKDTree
 		const float* Data = nullptr;
 	};
 
-	struct KNNResultSet
+	struct FKNNResultSet
 	{
-		inline KNNResultSet(size_t InNumNeighbors, TArrayView<size_t> InIndexes, TArrayView<float> InDistances, TConstArrayView<size_t> InExcludeFromSearchIndexes = TConstArrayView<size_t>())
+		inline FKNNResultSet(size_t InNumNeighbors, TArrayView<size_t> InIndexes, TArrayView<float> InDistances, TConstArrayView<size_t> InExcludeFromSearchIndexes = TConstArrayView<size_t>())
 		: Indexes(InIndexes)
 		, Distances(InDistances)
 		, NumNeighbors(InNumNeighbors)
@@ -121,9 +121,72 @@ struct POSESEARCH_API FKDTree
 		size_t Count;
 		TConstArrayView<size_t> ExcludeFromSearchIndexes; // sorted array view
 	};
+
+	struct FRadiusResultSet
+	{
+		inline FRadiusResultSet(float Radius, size_t MaxNumNeighbors, TArrayView<size_t> InIndexes, TArrayView<float> InDistances)
+		: Indexes(InIndexes)
+		, Distances(InDistances)
+		, NumNeighbors(MaxNumNeighbors)
+		, Count(0)
+		{
+			// by having IndexesView and DistancesView cardinality bigger than NumNeighbors, we can skip some if statements in the addPoint method
+			check(NumNeighbors > 0);
+			check(InIndexes.Num() > NumNeighbors);
+			check(InDistances.Num() > NumNeighbors);
+
+			Distances[NumNeighbors - 1] = Radius;
+		}
+
+		inline size_t Num() const
+		{
+			return Count;
+		}
+
+		inline bool full() const
+		{
+			return Count == NumNeighbors;
+		}
+
+		inline bool addPoint(float dist, size_t index)
+		{
+			if (dist < worstDist())
+			{
+				// shifting Distances[i] and Indexes[i] to make space for "dist" and "index" at the right "i"th slot
+				size_t i;
+				for (i = Count; (i > 0) && (Distances[i - 1] > dist); --i)
+				{
+					// no need to check "if (i < capacity)" since dists and indices can contains more items than capacity_ 
+					Distances[i] = Distances[i - 1];
+					Indexes[i] = Indexes[i - 1];
+				}
+
+				// inserting "dist" and "index" in a sorted manner
+				// no need to check "if (i < capacity)" since dists and indices can contains more items than capacity_ 
+				Distances[i] = dist;
+				Indexes[i] = index;
+
+				if (Count < NumNeighbors)
+				{
+					Count++;
+				}
+			}
+			
+			// tell caller that the search shall continue
+			return true;
+		}
+
+		inline float worstDist() const { return Distances[NumNeighbors - 1]; }
+
+	private:
+		TArrayView<size_t> Indexes;
+		TArrayView<float> Distances;
+		size_t NumNeighbors;
+		size_t Count;
+	};
 	
 
-	FKDTree(int32 Count, int32 Dim, const float* Data, int32 MaxLeafSize);
+	FKDTree(int32 Count, int32 Dim, const float* Data, int32 MaxLeafSize = 16);
 	FKDTree();
 	FKDTree(const FKDTree& Other);
 	FKDTree(FKDTree&& Other) = delete;
@@ -134,8 +197,9 @@ struct POSESEARCH_API FKDTree
 	FKDTree& operator=(FKDTree&& Other) = delete;
 
 	void Reset();
-	void Construct(int32 Count, int32 Dim, const float* Data, int32 MaxLeafSize);
-	bool FindNeighbors(KNNResultSet& Result, const float* Query) const;
+	void Construct(int32 Count, int32 Dim, const float* Data, int32 MaxLeafSize = 16);
+	bool FindNeighbors(FKNNResultSet& Result, const float* Query) const;
+	bool FindNeighbors(FRadiusResultSet& Result, const float* Query) const;
 	SIZE_T GetAllocatedSize() const;
 
 	FDataSource DataSource;

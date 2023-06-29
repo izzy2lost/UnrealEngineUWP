@@ -129,7 +129,7 @@ bool FDatabaseIndexingContext::IndexDatabase(FSearchIndexBase& SearchIndexBase, 
 	TotalPoses = 0;
 	for (int32 AssetIdx = 0; AssetIdx != SearchIndexBase.Assets.Num(); ++AssetIdx)
 	{
-		Indexers[AssetIdx].AssignWorkingData(TotalPoses, SearchIndexBase.EditValues(), SearchIndexBase.PoseMetadata);
+		Indexers[AssetIdx].AssignWorkingData(TotalPoses, SearchIndexBase.Values, SearchIndexBase.PoseMetadata);
 		TotalPoses += Indexers[AssetIdx].GetNumIndexedPoses();
 	}
 

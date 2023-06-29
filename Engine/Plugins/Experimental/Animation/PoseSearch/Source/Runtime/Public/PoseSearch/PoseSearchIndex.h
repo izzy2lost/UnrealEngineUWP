@@ -174,15 +174,119 @@ struct FSearchStats
 	friend FArchive& operator<<(FArchive& Ar, FSearchStats& Stats);
 };
 
+// compact representation of an array of arrays
+template <typename Type = uint32>
+struct FSparsePoseMultiMap
+{
+	FSparsePoseMultiMap(Type InMaxKey = Type(0), Type InMaxValue = Type(0))
+	: MaxKey(InMaxKey)
+	, MaxValue(InMaxValue)
+	, DeltaKeyValue(InMaxValue >= InMaxKey ? InMaxValue - InMaxKey + 1 : 0)
+	{
+		// @todo: maybe expose this initial allocation budget
+		DataValues.Reserve(InMaxKey * 2);
+		for (Type Index = 0; Index < InMaxKey; ++Index)
+		{
+			DataValues.Add(Type(INDEX_NONE));
+		}
+	}
+
+	void Insert(Type Key, TConstArrayView<Type> Values)
+	{
+#if DO_CHECK
+		// key must be valid..
+		check(Key != Type(INDEX_NONE));
+
+		// ..and within range of acceptance
+		check(Key >= 0 && Key < MaxKey);
+
+		// DataValues[Key] should be empty - inserting the same key multiple times is not allowed
+		check(DataValues[Key] == Type(INDEX_NONE));
+
+		// Values must contains at least one element..
+		check(!Values.IsEmpty());
+
+		// ..and none of the elements should be an invalid value (or it'll confuse the key/value decoding)
+		for (Type Value : Values)
+		{
+			check(Value <= MaxValue && Value != Type(INDEX_NONE));
+		}
+#endif //DO_CHECK
+
+		// if Values contains only one element we store it directly at the location referenced by key
+		if (Values.Num() == 1)
+		{
+			DataValues[Key] = Values[0];
+		}
+		// else we store the offset of the beginning of the encoded array (where the first element is the array size, followed by all the Values[i] elements
+		else
+		{
+			// checking for overflow
+			check((DataValues.Num() + 1 + Values.Num()) < (1 << (sizeof(Type) * 4 - 1)));
+			check(int(MaxKey) <= DataValues.Num());
+
+			// adding DeltaKeyValue to DataValues.Num() to making sure DataValues[Key] > MaxValue
+			DataValues[Key] = DataValues.Num() + DeltaKeyValue;
+			check(DataValues[Key] > MaxValue);
+
+			// encoding Values at the end of DataValues, by storing its size.. 
+			DataValues.Add(Values.Num());
+			// ..and its data right after
+			DataValues.Append(Values);
+		}
+	}
+
+	TConstArrayView<Type> operator [](Type Key) const
+	{
+		check(Key != Type(INDEX_NONE) && Key < MaxKey);
+		const Type Value = DataValues[Key];
+		if (Value <= MaxValue)
+		{
+			return MakeArrayView(DataValues.GetData() + Key, 1);
+		}
+
+		check(Value >= DeltaKeyValue);
+		const Type DecodedArrayStartLocation = Value - DeltaKeyValue;
+
+		// decoding the array at location DecodedArrayStartLocation: its size is stored at DecodedArrayStartLocation offset..
+		const Type Size = DataValues[DecodedArrayStartLocation];
+		// ..and it's data starts at the next location DecodedArrayStartLocation + 1
+		const Type DataOffset = DecodedArrayStartLocation + 1;
+		check(int32(DataOffset + Size) <= DataValues.Num());
+		return MakeArrayView(DataValues.GetData() + DataOffset, Size);
+	}
+
+	Type Num() const
+	{
+		return MaxKey;
+	}
+
+	SIZE_T GetAllocatedSize() const
+	{
+		return sizeof(MaxKey) + sizeof(MaxValue) + sizeof(DeltaKeyValue) + DataValues.GetAllocatedSize();
+	}
+
+	friend FArchive& operator<<(FArchive& Ar, FSparsePoseMultiMap& SparsePoseMultiMap)
+	{
+		Ar << SparsePoseMultiMap.MaxKey;
+		Ar << SparsePoseMultiMap.MaxValue;
+		Ar << SparsePoseMultiMap.DeltaKeyValue;
+		Ar << SparsePoseMultiMap.DataValues;
+		return Ar;
+	}
+
+	Type MaxKey = Type(0);
+	Type MaxValue = Type(0);
+	Type DeltaKeyValue = Type(0);
+	TArray<Type> DataValues;
+};
+
 /**
 * case class for FSearchIndex. building block used to gather data for data mining and calculate weights, pca, kdtree stuff
 */
 struct FSearchIndexBase
 {
-private:
 	TAlignedArray<float> Values;
-
-public:
 	TAlignedArray<FPoseMetadata> PoseMetadata;
 	bool bAnyBlockTransition = false;
 	TAlignedArray<FSearchIndexAsset> Assets;
@@ -208,9 +312,6 @@ public:
 	void ResetValues() { Values.Reset(); }
 	void AllocateData(int32 DataCardinality, int32 NumPoses);
 	
-	const TAlignedArray<float>& GetValues() const { return Values; }
-	TAlignedArray<float>& EditValues() { return Values; }
-
 	const FSearchIndexAsset& GetAssetForPose(int32 PoseIdx) const;
 	POSESEARCH_API const FSearchIndexAsset* GetAssetForPoseSafe(int32 PoseIdx) const;
 
@@ -242,6 +343,7 @@ struct FSearchIndex : public FSearchIndexBase
 	// since (VA - VB).square() could lead to big numbers, and VW being multiplied by the variance of the dataset
 	TAlignedArray<float> WeightsSqrt;
 	TAlignedArray<float> PCAValues;
+	FSparsePoseMultiMap<uint32> PCAValuesVectorToPoseIndexes;
 	TAlignedArray<float> PCAProjectionMatrix;
 	TAlignedArray<float> Mean;
 
@@ -266,6 +368,8 @@ struct FSearchIndex : public FSearchIndexBase
 	POSESEARCH_API TConstArrayView<float> GetPCAPoseValues(int32 PoseIdx) const;
 	POSESEARCH_API FPoseSearchCost ComparePoses(int32 PoseIdx, float ContinuingPoseCostBias, TConstArrayView<float> PoseValues, TConstArrayView<float> QueryValues) const;
 	POSESEARCH_API FPoseSearchCost CompareAlignedPoses(int32 PoseIdx, float ContinuingPoseCostBias, TConstArrayView<float> PoseValues, TConstArrayView<float> QueryValues) const;
+
+	void PruneDuplicatePCAValues(float SimilarityThreshold, int32 NumberOfPrincipalComponents);
 
 	friend FArchive& operator<<(FArchive& Ar, FSearchIndex& Index);
 };

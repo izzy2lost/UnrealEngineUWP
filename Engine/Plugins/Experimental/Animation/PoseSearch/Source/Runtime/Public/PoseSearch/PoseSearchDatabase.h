@@ -294,7 +294,7 @@ public:
 	int32 KDTreeMaxLeafSize = 16;
 	
 	// Out of a kdtree search, results will have only an approximate cost, so the database search will select the best “KDTree Query Num Neighbors” poses to perform the full cost analysis, and be able to elect the best pose.
-	UPROPERTY(EditAnywhere, Category = "Performance", meta = (EditCondition = "PoseSearchMode != EPoseSearchMode::BruteForce", EditConditionHides, ClampMin = "1", ClampMax = "600", UIMin = "1", UIMax = "600"))
+	UPROPERTY(EditAnywhere, Category = "Performance", meta = (EditCondition = "PoseSearchMode != EPoseSearchMode::BruteForce", EditConditionHides, ClampMin = "1", ClampMax = "600", UIMin = "1"))
 	int32 KDTreeQueryNumNeighbors = 200;
 
 	// When evaluating multiple searches, including the continuing pose search, the system keeps track of the best pose and associated cost.
@@ -303,10 +303,20 @@ public:
 	bool bSkipSearchIfPossible = true;
 
 	// if two poses values (multi dimensional point with the schema cardinality) are closer than PosePruningSimilarityThreshold,
-	// only one will be saved into the database (to save memory) and accessed by the two different pose indexes
+	// only one will be saved into the database FSearchIndexBase (to save memory) and accessed by the two different pose indexes
 	UPROPERTY(EditAnywhere, Category = "Performance")
 	float PosePruningSimilarityThreshold = 0.f;
 
+	// if two PCA values (multi dimensional point with the GetNumberOfPrincipalComponents cardinality) are closer than PCAValuesPruningSimilarityThreshold,
+	// only one will be saved into the database FSearchIndex (to save memory).
+	UPROPERTY(EditAnywhere, Category = "Performance")
+	float PCAValuesPruningSimilarityThreshold = 0.f;
+
+	// if PCAValuesPruningSimilarityThreshold > 0 the kdtree will remove duplicates, every result out of the KDTreeQueryNumNeighbors could potentially references multiple poses.
+	// KDTreeQueryNumNeighborsWithDuplicates is the upper bound number of poses the system will perform the full cost evaluation. if KDTreeQueryNumNeighborsWithDuplicates is zero then there's no upper bound
+	UPROPERTY(EditAnywhere, Category = "Performance", meta = (EditCondition = "PoseSearchMode != EPoseSearchMode::BruteForce && PCAValuesPruningSimilarityThreshold > 0", EditConditionHides, ClampMin = "0", ClampMax = "600", UIMin = "1"))
+	int32 KDTreeQueryNumNeighborsWithDuplicates = 0;
+	
 #if WITH_EDITORONLY_DATA
 	// This optional asset defines a list of databases you want to normalize together. Without it, it would be difficult to compare costs from separately normalized databases containing different types of animation,
 	// like only idles versus only runs animations, given that the range of movement would be dramatically different.

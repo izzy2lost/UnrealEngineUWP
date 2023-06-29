@@ -526,11 +526,12 @@ int32 UPoseSearchDatabase::GetNumberOfPrincipalComponents() const
 
 bool UPoseSearchDatabase::GetSkipSearchIfPossible() const
 {
+#if WITH_EDITOR
 	if (PoseSearchMode == EPoseSearchMode::PCAKDTree_Validate || PoseSearchMode == EPoseSearchMode::PCAKDTree_Compare)
 	{
 		return false;
 	}
-
+#endif // WITH_EDITOR
 	return bSkipSearchIfPossible;
 }
 
@@ -653,9 +654,13 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::Search(UE::PoseSearch::FSearc
 	{
 		return Result;
 	}
-#endif
+#endif // WITH_EDITOR
 
-	if (PoseSearchMode == EPoseSearchMode::BruteForce || PoseSearchMode == EPoseSearchMode::PCAKDTree_Compare)
+	if (PoseSearchMode == EPoseSearchMode::BruteForce
+#if WITH_EDITOR
+		|| PoseSearchMode == EPoseSearchMode::PCAKDTree_Compare
+#endif // WITH_EDITOR
+		)
 	{
 		Result = SearchBruteForce(SearchContext);
 	}
@@ -672,7 +677,14 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::Search(UE::PoseSearch::FSearc
 		Result.BruteForcePoseCost = BruteForcePoseCost;
 		if (PoseSearchMode == EPoseSearchMode::PCAKDTree_Compare)
 		{
-			check(Result.BruteForcePoseCost.GetTotalCost() <= Result.PoseCost.GetTotalCost());
+			const float BruteForceTotalCost = Result.BruteForcePoseCost.GetTotalCost();
+			const float PCAKDTreeTotalCost = Result.PoseCost.GetTotalCost();
+			check(BruteForceTotalCost <= PCAKDTreeTotalCost);
+
+			if (!FMath::IsNearlyEqual(BruteForceTotalCost, PCAKDTreeTotalCost))
+			{
+				UE_LOG(LogPoseSearch, Warning, TEXT("PCAKDTree_Compare %f (PCAKDTreeTotalCost %f, BruteForceTotalCost %f)"), PCAKDTreeTotalCost - BruteForceTotalCost, PCAKDTreeTotalCost, BruteForceTotalCost);
+			}
 		}
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 	}
@@ -804,42 +816,19 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 	const int32 NumDimensions = Schema->SchemaCardinality;
 	const FSearchIndex& SearchIndex = GetSearchIndex();
 
-	const uint32 ClampedNumberOfPrincipalComponents = GetNumberOfPrincipalComponents();
-	const uint32 ClampedKDTreeQueryNumNeighbors = FMath::Clamp<uint32>(KDTreeQueryNumNeighbors, 1, SearchIndex.GetNumPoses());
-
-	//stack allocated temporaries
-	TArrayView<size_t> ResultIndexes((size_t*)FMemory_Alloca((ClampedKDTreeQueryNumNeighbors + 1) * sizeof(size_t)), ClampedKDTreeQueryNumNeighbors + 1);
-	TArrayView<float> ResultDistanceSqr((float*)FMemory_Alloca((ClampedKDTreeQueryNumNeighbors + 1) * sizeof(float)), ClampedKDTreeQueryNumNeighbors + 1);
-	TArrayView<float> ProjectedQueryValues((float*)FMemory_Alloca(ClampedNumberOfPrincipalComponents * sizeof(float)), ClampedNumberOfPrincipalComponents);
-
-#if DO_CHECK
-	// KDTree in PCA space search
-	if (PoseSearchMode == EPoseSearchMode::PCAKDTree_Validate)
-	{
-		// testing the KDTree is returning the proper searches for all the original points transformed in pca space
-		for (int32 PoseIdx = 0; PoseIdx < SearchIndex.GetNumPoses(); ++PoseIdx)
-		{
-			FKDTree::KNNResultSet ResultSet(ClampedKDTreeQueryNumNeighbors, ResultIndexes, ResultDistanceSqr);
-			SearchIndex.KDTree.FindNeighbors(ResultSet, SearchIndex.PCAProject(SearchIndex.GetPoseValues(PoseIdx), ProjectedQueryValues).GetData());
-
-			size_t ResultIndex = 0;
-			for (; ResultIndex < ResultSet.Num(); ++ResultIndex)
-			{
-				if (PoseIdx == ResultIndexes[ResultIndex])
-				{
-					check(ResultDistanceSqr[ResultIndex] < UE_KINDA_SMALL_NUMBER);
-					break;
-				}
-			}
-			check(ResultIndex < ResultSet.Num());
-		}
-	}
-#endif //DO_CHECK
-
 	// since any PoseCost calculated here is at least SearchIndex.MinCostAddend,
 	// there's no point in performing the search if CurrentBestTotalCost is already better than that
 	if (!GetSkipSearchIfPossible() || SearchContext.GetCurrentBestTotalCost() > SearchIndex.MinCostAddend)
 	{
+		const uint32 ClampedNumberOfPrincipalComponents = GetNumberOfPrincipalComponents();
+		const uint32 ClampedKDTreeQueryNumNeighbors = FMath::Clamp<uint32>(KDTreeQueryNumNeighbors, 1, SearchIndex.GetNumPoses());
+		const bool bArePCAValuesPruned = SearchIndex.PCAValuesVectorToPoseIndexes.Num() > 0;
+
+		//stack allocated temporaries
+		TArrayView<size_t> ResultIndexes((size_t*)FMemory_Alloca((ClampedKDTreeQueryNumNeighbors + 1) * sizeof(size_t)), ClampedKDTreeQueryNumNeighbors + 1);
+		TArrayView<float> ResultDistanceSqr((float*)FMemory_Alloca((ClampedKDTreeQueryNumNeighbors + 1) * sizeof(float)), ClampedKDTreeQueryNumNeighbors + 1);
+		TArrayView<float> ProjectedQueryValues((float*)FMemory_Alloca(ClampedNumberOfPrincipalComponents * sizeof(float)), ClampedNumberOfPrincipalComponents);
+	
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema).GetValues();
 
 		FNonSelectableIdx NonSelectableIdx;
@@ -848,17 +837,52 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 			, QueryValues
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 		);
-		FKDTree::KNNResultSet ResultSet(ClampedKDTreeQueryNumNeighbors, ResultIndexes, ResultDistanceSqr, NonSelectableIdx);
+
+		// if bArePCAValuesPruned we filter out the NonSelectableIdx after kdtree search, otherwise during kdtree search
+		FKDTree::FKNNResultSet ResultSet(ClampedKDTreeQueryNumNeighbors, ResultIndexes, ResultDistanceSqr, bArePCAValuesPruned ? TConstArrayView<size_t>() : NonSelectableIdx);
 
 		check(QueryValues.Num() == NumDimensions);
 		// projecting QueryValues into the PCA space ProjectedQueryValues and query the KDTree
 		SearchIndex.KDTree.FindNeighbors(ResultSet, SearchIndex.PCAProject(QueryValues, ProjectedQueryValues).GetData());
 
 		// NonSelectableIdx are already filtered out inside the kdtree search
-		const FSearchFilters SearchFilters(Schema, TConstArrayView<size_t>(), SearchIndex.bAnyBlockTransition);
+		const FSearchFilters SearchFilters(Schema, bArePCAValuesPruned ? NonSelectableIdx : TConstArrayView<size_t>(), SearchIndex.bAnyBlockTransition);
 		
+		// are the PCAValues pruned out of duplicates (multiple poses are associated with the same PCAValuesVector)
+		if (bArePCAValuesPruned)
+		{
+			// @todo: reconstruction is not yet supported with pruned PCAValues
+			check(!SearchIndex.IsValuesEmpty());
+			
+			const int32 MaxNumEvaluatePoseKernelCalls = KDTreeQueryNumNeighborsWithDuplicates > 0 ? KDTreeQueryNumNeighborsWithDuplicates : INT32_MAX;
+
+			if (NumDimensions % 4 == 0)
+			{
+				int32 NumEvaluatePoseKernelCalls = 0;
+				for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
+				{
+					const TConstArrayView<uint32> PoseIndexes = SearchIndex.PCAValuesVectorToPoseIndexes[ResultIndexes[ResultIndex]];
+					for (int Index = 0; Index < PoseIndexes.Num() && NumEvaluatePoseKernelCalls < MaxNumEvaluatePoseKernelCalls; ++Index, ++NumEvaluatePoseKernelCalls)
+					{
+						EvaluatePoseKernel<false, true>(Result, SearchIndex, QueryValues, TArrayView<float>(), PoseIndexes[Index], SearchFilters, SearchContext, this, true, ResultIndex);
+					}
+				}
+			}
+			else
+			{
+				int32 NumEvaluatePoseKernelCalls = 0;
+				for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
+				{
+					const TConstArrayView<uint32> PoseIndexes = SearchIndex.PCAValuesVectorToPoseIndexes[ResultIndexes[ResultIndex]];
+					for (int Index = 0; Index < PoseIndexes.Num() && NumEvaluatePoseKernelCalls < MaxNumEvaluatePoseKernelCalls; ++Index, ++NumEvaluatePoseKernelCalls)
+					{
+						EvaluatePoseKernel<false, false>(Result, SearchIndex, QueryValues, TArrayView<float>(), PoseIndexes[Index], SearchFilters, SearchContext, this, true, ResultIndex);
+					}
+				}
+			}
+		}
 		// do we need to reconstruct pose values?
-		if (SearchIndex.IsValuesEmpty())
+		else if (SearchIndex.IsValuesEmpty())
 		{
 			// FMemory_Alloca is forced 16 bytes aligned
 			TArrayView<float> ReconstructedPoseValuesBuffer((float*)FMemory_Alloca(NumDimensions * sizeof(float)), NumDimensions);

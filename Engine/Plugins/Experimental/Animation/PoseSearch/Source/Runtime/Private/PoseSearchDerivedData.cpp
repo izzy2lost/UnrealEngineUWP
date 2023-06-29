@@ -144,7 +144,7 @@ private:
 			const int32 NumValuesVectors = SearchIndexBase.GetNumValuesVectors(Schema->SchemaCardinality);
 
 			// Map input buffer with NumValuesVectors as rows and NumDimensions	as cols
-			RowMajorMatrixMapConst PoseMatrixSourceMap(SearchIndexBase.GetValues().GetData(), NumValuesVectors, Schema->SchemaCardinality);
+			RowMajorMatrixMapConst PoseMatrixSourceMap(SearchIndexBase.Values.GetData(), NumValuesVectors, Schema->SchemaCardinality);
 
 			// Given the sub matrix for the features, find the average distance to the feature's centroid.
 			CenteredSubPoseMatrix.block(AccumulatedNumValuesVectors, 0, NumValuesVectors, Cardinality) = PoseMatrixSourceMap.block(0, Entry.Channel->GetChannelDataOffset(), NumValuesVectors, Cardinality);
@@ -450,11 +450,11 @@ static void PreprocessSearchIndexPCAData(FSearchIndex& SearchIndex, int32 NumDim
 		RowMajorMatrixMap MapPCAValues(SearchIndex.PCAValues.GetData(), NumPoses, NumberOfPrincipalComponents);
 
 		// calculating the mean
-		RowMajorVectorMap Mean(SearchIndex.Mean.GetData(), 1, NumDimensions);
-		Mean = WeightedValues.colwise().mean();
+		RowMajorVectorMap MapMean(SearchIndex.Mean.GetData(), 1, NumDimensions);
+		MapMean = WeightedValues.colwise().mean();
 
 		// use the mean to center the data points
-		const RowMajorMatrix CenteredValues = WeightedValues.rowwise() - Mean;
+		const RowMajorMatrix CenteredValues = WeightedValues.rowwise() - MapMean;
 
 		// estimating the covariance matrix (with dimensionality of NumDimensions, NumDimensions)
 		// formula: https://en.wikipedia.org/wiki/Covariance_matrix#Estimation
@@ -473,7 +473,7 @@ static void PreprocessSearchIndexPCAData(FSearchIndex& SearchIndex, int32 NumDim
 			const RowMajorMatrix ProjectedValues = CenteredValues * EigenVectors;
 			for (Eigen::Index RowIndex = 0; RowIndex < MapValues.rows(); ++RowIndex)
 			{
-				const RowMajorVector WeightedReconstructedPoint = ProjectedValues.row(RowIndex) * EigenVectors.transpose() + Mean;
+				const RowMajorVector WeightedReconstructedPoint = ProjectedValues.row(RowIndex) * EigenVectors.transpose() + MapMean;
 				const RowMajorVector ReconstructedPoint = WeightedReconstructedPoint.array() * ReciprocalWeightsSqrt.array();
 				const float Error = (ReconstructedPoint - MapValues.row(RowIndex)).squaredNorm();
 				check(Error < UE_KINDA_SMALL_NUMBER);
@@ -489,9 +489,9 @@ static void PreprocessSearchIndexPCAData(FSearchIndex& SearchIndex, int32 NumDim
 			Indexer.Push(DimensionIndex);
 		}
 		Indexer.Sort([&EigenValues](size_t a, size_t b)
-			{
-				return EigenValues[a] > EigenValues[b];
-			});
+		{
+			return EigenValues[a] > EigenValues[b];
+		});
 
 		// composing the PCA projection matrix with the PCANumComponents most significant EigenVectors
 		ColMajorMatrixMap PCAProjectionMatrix(SearchIndex.PCAProjectionMatrix.GetData(), NumDimensions, NumberOfPrincipalComponents);
@@ -514,7 +514,7 @@ static void PreprocessSearchIndexPCAData(FSearchIndex& SearchIndex, int32 NumDim
 			const RowMajorVector ReciprocalWeightsSqrt = MapWeightsSqrt.cwiseInverse();
 			for (Eigen::Index RowIndex = 0; RowIndex < MapValues.rows(); ++RowIndex)
 			{
-				const RowMajorVector WeightedReconstructedValues = MapPCAValues.row(RowIndex) * PCAProjectionMatrix.transpose() + Mean;
+				const RowMajorVector WeightedReconstructedValues = MapPCAValues.row(RowIndex) * PCAProjectionMatrix.transpose() + MapMean;
 				const RowMajorVector ReconstructedValues = WeightedReconstructedValues.array() * ReciprocalWeightsSqrt.array();
 				const float Error = (ReconstructedValues - MapValues.row(RowIndex)).squaredNorm();
 				check(Error < UE_KINDA_SMALL_NUMBER);
@@ -538,64 +538,69 @@ static void PreprocessSearchIndexPCAData(FSearchIndex& SearchIndex, int32 NumDim
 	}
 }
 
-static void PreprocessSearchIndexKDTree(FSearchIndex& SearchIndex, int32 NumDimensions, uint32 NumberOfPrincipalComponents, EPoseSearchMode PoseSearchMode, int32 KDTreeMaxLeafSize, int32 KDTreeQueryNumNeighbors)
+static void PreprocessSearchIndexKDTree(FSearchIndex& SearchIndex, const UPoseSearchDatabase* Database)
 {
+	const int32 NumDimensions = Database->Schema->SchemaCardinality;
+	const EPoseSearchMode PoseSearchMode = Database->PoseSearchMode;
+
 	SearchIndex.KDTree.Reset();
 	if (PoseSearchMode != EPoseSearchMode::BruteForce && NumDimensions > 0)
 	{
-		const int32 NumPoses = SearchIndex.GetNumPoses();
-		SearchIndex.KDTree.Construct(NumPoses, NumberOfPrincipalComponents, SearchIndex.PCAValues.GetData(), KDTreeMaxLeafSize);
+		const uint32 NumberOfPrincipalComponents = Database->GetNumberOfPrincipalComponents();
+		const int32 KDTreeMaxLeafSize = Database->KDTreeMaxLeafSize;
 
-		if (PoseSearchMode == EPoseSearchMode::PCAKDTree_Validate)
+		check(SearchIndex.PCAValues.Num() % NumberOfPrincipalComponents == 0);
+
+		const int32 NumPCAValuesVectors = SearchIndex.PCAValues.Num() / NumberOfPrincipalComponents;
+		SearchIndex.KDTree.Construct(NumPCAValuesVectors, NumberOfPrincipalComponents, SearchIndex.PCAValues.GetData(), KDTreeMaxLeafSize);
+
+		// testing the KDTree is returning the proper searches for all the points in pca space
+		const int32 KDTreeQueryNumNeighbors = Database->KDTreeQueryNumNeighbors;
+
+		TArray<size_t> ResultIndexes;
+		TArray<float> ResultDistanceSqr;
+		ResultIndexes.SetNum(NumPCAValuesVectors + 1);
+		ResultDistanceSqr.SetNum(NumPCAValuesVectors + 1);
+
+		size_t MaxNumNeighborToFindAPoint = 0;
+		for (size_t PointIndex = 0; PointIndex < NumPCAValuesVectors; ++PointIndex)
 		{
-			// testing the KDTree is returning the proper searches for all the points in pca space
-			int32 NumberOfFailingPoints = 0;
-			for (size_t PointIndex = 0; PointIndex < NumPoses; ++PointIndex)
-			{
-				TArray<size_t> ResultIndexes;
-				TArray<float> ResultDistanceSqr;
-				ResultIndexes.SetNum(KDTreeQueryNumNeighbors + 1);
-				ResultDistanceSqr.SetNum(KDTreeQueryNumNeighbors + 1);
-				FKDTree::KNNResultSet ResultSet(KDTreeQueryNumNeighbors, ResultIndexes, ResultDistanceSqr);
-				SearchIndex.KDTree.FindNeighbors(ResultSet, &SearchIndex.PCAValues[PointIndex * NumberOfPrincipalComponents]);
+			// searching the kdtree for PointIndex
+			FKDTree::FRadiusResultSet ResultSet(UE_SMALL_NUMBER, NumPCAValuesVectors, ResultIndexes, ResultDistanceSqr);
+			SearchIndex.KDTree.FindNeighbors(ResultSet, &SearchIndex.PCAValues[PointIndex * NumberOfPrincipalComponents]);
 
-				size_t ResultIndex = 0;
-				for (; ResultIndex < ResultSet.Num(); ++ResultIndex)
+			bool bFound = false;
+			for (size_t ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
+			{
+				if (PointIndex == ResultIndexes[ResultIndex])
 				{
-					if (PointIndex == ResultIndexes[ResultIndex])
-					{
-						check(ResultDistanceSqr[ResultIndex] < UE_KINDA_SMALL_NUMBER);
-						break;
-					}
-				}
-				if (ResultIndex == ResultSet.Num())
-				{
-					++NumberOfFailingPoints;
+					// PointIndex is the ResultIndex-th candidates out of the kdtree. if ResultIndex-th is greater than KDTreeQueryNumNeighbors,
+					// we wouldn't have found it in a runtime search, so we log the errot (later on only once, with the worst case scenario)
+					check(ResultDistanceSqr[ResultIndex] < UE_KINDA_SMALL_NUMBER);
+					MaxNumNeighborToFindAPoint = FMath::Max(MaxNumNeighborToFindAPoint, ResultIndex);
+					bFound = true;
+					break;
 				}
 			}
+			check(bFound);
+		}
 
-			check(NumberOfFailingPoints == 0);
+		if (MaxNumNeighborToFindAPoint >= KDTreeQueryNumNeighbors)
+		{
+			UE_LOG(LogPoseSearch, Warning, TEXT("Not enough 'KDTreeQueryNumNeighbors' (%d) for database '%s'. Pose values projected in PCA space have too many duplicates, so try to prune duplicates by tuning 'PCAValuesPruningSimilarityThreshold' or increase 'KDTreeQueryNumNeighbors' at least to %d"), KDTreeQueryNumNeighbors, *Database->GetName(), MaxNumNeighborToFindAPoint);
+		}
 
+		// if bArePCAValuesPruned PointIndex is the index of the point in the kdtree, NOT necessary the pose index, so doing the PCAProject would lead to the wrong data
+		const bool bArePCAValuesPruned = SearchIndex.PCAValuesVectorToPoseIndexes.Num() > 0;
+		if (!bArePCAValuesPruned && PoseSearchMode == EPoseSearchMode::PCAKDTree_Validate)
+		{
 			// testing the KDTree is returning the proper searches for all the original points transformed in pca space
-			NumberOfFailingPoints = 0;
-			for (size_t PointIndex = 0; PointIndex < NumPoses; ++PointIndex)
+			int32 NumberOfFailingPoints = 0;
+			TArrayView<float> ProjectedValues((float*)FMemory_Alloca(NumberOfPrincipalComponents * sizeof(float)), NumberOfPrincipalComponents);
+			for (size_t PointIndex = 0; PointIndex < NumPCAValuesVectors; ++PointIndex)
 			{
-				TArray<size_t> ResultIndexes;
-				TArray<float> ResultDistanceSqr;
-				ResultIndexes.SetNum(KDTreeQueryNumNeighbors + 1);
-				ResultDistanceSqr.SetNum(KDTreeQueryNumNeighbors + 1);
-				FKDTree::KNNResultSet ResultSet(KDTreeQueryNumNeighbors, ResultIndexes, ResultDistanceSqr);
-
-				const RowMajorVectorMapConst MapValues(SearchIndex.GetPoseValuesBase(PointIndex, NumDimensions).GetData(), 1, NumDimensions);
-				const RowMajorVectorMapConst MapWeightsSqrt(SearchIndex.WeightsSqrt.GetData(), 1, NumDimensions);
-				const RowMajorVectorMapConst Mean(SearchIndex.Mean.GetData(), 1, NumDimensions);
-				const ColMajorMatrixMapConst PCAProjectionMatrix(SearchIndex.PCAProjectionMatrix.GetData(), NumDimensions, NumberOfPrincipalComponents);
-
-				const RowMajorMatrix WeightedValues = MapValues.array() * MapWeightsSqrt.array();
-				const RowMajorMatrix CenteredValues = WeightedValues - Mean;
-				const RowMajorVector ProjectedValues = CenteredValues * PCAProjectionMatrix;
-
-				SearchIndex.KDTree.FindNeighbors(ResultSet, ProjectedValues.data());
+				FKDTree::FKNNResultSet ResultSet(KDTreeQueryNumNeighbors, ResultIndexes, ResultDistanceSqr);
+				SearchIndex.KDTree.FindNeighbors(ResultSet, SearchIndex.PCAProject(SearchIndex.GetPoseValuesBase(PointIndex, NumDimensions), ProjectedValues).GetData());
 
 				size_t ResultIndex = 0;
 				for (; ResultIndex < ResultSet.Num(); ++ResultIndex)
@@ -1010,7 +1015,15 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					return;
 				}
 
-				PreprocessSearchIndexKDTree(SearchIndex, Database->Schema->SchemaCardinality, Database->GetNumberOfPrincipalComponents(), Database->PoseSearchMode, Database->KDTreeMaxLeafSize, Database->KDTreeQueryNumNeighbors);
+				SearchIndex.PruneDuplicatePCAValues(Database->PCAValuesPruningSimilarityThreshold, Database->GetNumberOfPrincipalComponents());
+				if (Owner.IsCanceled())
+				{
+					UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *Database->GetName());
+					SearchIndex.Reset();
+					return;
+				}
+
+				PreprocessSearchIndexKDTree(SearchIndex, Database.Get());
 				if (Owner.IsCanceled())
 				{
 					UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *Database->GetName());
@@ -1166,8 +1179,6 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 		{
 			Tasks[TaskIndex]->Update(Mutex);
 		}
-			
-		// @todo: check key validity every few ticks, or perhaps delete unused for a long time Tasks
 	}
 }
 
