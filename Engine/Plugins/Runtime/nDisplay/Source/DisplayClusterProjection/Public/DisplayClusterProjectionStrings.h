@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 
 /**
-* Textual contants used by projection policies.
+* Text constants used by the projection policies.
 */
 namespace DisplayClusterProjectionStrings
 {
