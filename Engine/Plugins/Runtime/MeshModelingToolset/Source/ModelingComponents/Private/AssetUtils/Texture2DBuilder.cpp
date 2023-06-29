@@ -158,9 +158,6 @@ bool FTexture2DBuilder::InitializeInternal(ETextureType BuildTypeIn, FImageDimen
 		RawTexture2D->SRGB = false;
 		RawTexture2D->LODGroup = TEXTUREGROUP_WorldNormalMap;
 		//RawTexture2D->bFlipGreenChannel = true;
-#if WITH_EDITOR
-		RawTexture2D->MipGenSettings = TMGS_NoMipmaps;
-#endif
 		RawTexture2D->UpdateResource();
 	}
 
