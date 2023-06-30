@@ -1018,7 +1018,7 @@ static int MainKill(int ArgC, char** ArgV)
 	{
 		if (errno == ENOENT)
 		{
-			TS_LOG("All good. Ain't nuffin' running me ol' mucker.");
+			TS_LOG("All good. Ain't nuffin' running me ol' pal.");
 			return Result_Ok;
 		}
 
