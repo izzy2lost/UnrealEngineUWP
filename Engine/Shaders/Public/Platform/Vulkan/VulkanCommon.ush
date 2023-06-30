@@ -5,7 +5,7 @@
 =============================================================================*/
 
 // Update this GUID to improve shader recompilation for Vulkan only shaders
-// GUID = EEA3F6F8-2405-4093-9A65-5072C38494AC
+// GUID = 4BB75D9E-9229-4BB3-959A-36A81475A4FE
 
 #pragma once
 
@@ -62,4 +62,31 @@ void ImageInterlockedMaxUInt64(RWTexture2D<UlongType> Dest, uint2 Coord, UlongTy
 	// Create something unique we can read back from the shader, but that goes away on the rewrite
 	COMPILER_DEFINE VULKAN_WAVESIZE(N)
 	#define WAVESIZE(N) VULKAN_WAVESIZE(N)
+#endif
+
+#if PLATFORM_SUPPORTS_BINDLESS && (RAYCALLABLESHADER || RAYHITGROUPSHADER || RAYGENSHADER || RAYMISSSHADER)
+	#define OVERRIDE_RAY_TRACING_HIT_GROUP_SYSTEM_RESOURCES 1
+	#include "/Engine/Shared/RayTracingBuiltInResources.h"
+
+	// Combine the common FHitGroupSystemRootConstants with bindless parameters
+	// :todo-jn: must match with VulkanRayTracing.h decl until we create a common header like RayTracingBuiltInResources.h
+	struct FVulkanHitGroupSystemParameters
+	{
+		FHitGroupSystemRootConstants RootConstants;
+
+		uint BindlessHitGroupSystemIndexBuffer;
+		uint BindlessHitGroupSystemVertexBuffer;
+
+		uint BindlessUniformBuffers[VULKAN_MAX_BINDLESS_UNIFORM_BUFFERS_PER_STAGE];
+	};
+
+	[[vk::shader_record_ext]] ConstantBuffer<FVulkanHitGroupSystemParameters> VulkanHitGroupSystemParameters;
+
+	static const FHitGroupSystemRootConstants HitGroupSystemRootConstants = VulkanHitGroupSystemParameters.RootConstants;
+
+	static const uint BindlessResource_HitGroupSystemIndexBuffer = VulkanHitGroupSystemParameters.BindlessHitGroupSystemIndexBuffer;
+	UB_RESOURCE_MEMBER_RESOURCE(ByteAddressBuffer, HitGroupSystemIndexBuffer);
+	
+	static const uint BindlessResource_HitGroupSystemVertexBuffer = VulkanHitGroupSystemParameters.BindlessHitGroupSystemVertexBuffer;
+	UB_RESOURCE_MEMBER_RESOURCE(ByteAddressBuffer, HitGroupSystemVertexBuffer);
 #endif

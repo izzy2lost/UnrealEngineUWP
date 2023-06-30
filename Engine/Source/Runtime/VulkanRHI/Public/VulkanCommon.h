@@ -114,7 +114,7 @@ namespace ShaderStage
 
 namespace VulkanBindless
 {
-	static constexpr uint32 MaxUniformBuffersPerStage = 8;
+	static constexpr uint32 MaxUniformBuffersPerStage = 16;
 
 	enum EDescriptorSets
 	{

@@ -16,7 +16,7 @@
 #if defined(__cplusplus)
 	#define INCLUDED_FROM_CPP_CODE  1
 	#define INCLUDED_FROM_HLSL_CODE 0
-#elif defined(SM5_PROFILE)
+#elif defined(SM5_PROFILE) || defined(VULKAN_PROFILE_SM6)
 	// #dxr_todo: we should use a built-in macro to detect if this shader is compiled using DXC (depends on https://github.com/Microsoft/DirectXShaderCompiler/issues/1686)
 	#define INCLUDED_FROM_CPP_CODE  0
 	#define INCLUDED_FROM_HLSL_CODE 1
