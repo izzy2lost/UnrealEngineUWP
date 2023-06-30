@@ -637,7 +637,7 @@ class FShadingBinBuildCS : public FNaniteGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(FUint32Vector4, ViewRect)
 		SHADER_PARAMETER(uint32, ValidWriteMask)
-		SHADER_PARAMETER(FUint32Vector2, QuadDispatchDim)
+		SHADER_PARAMETER(FUint32Vector2, DispatchOffsetTL)
 		SHADER_PARAMETER(uint32, ShadingBinCount)
 		SHADER_PARAMETER(uint32, ShadingRateTileSize)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadingRateImage)
@@ -3269,6 +3269,8 @@ FShadeBinning ShadeBinning(
 	const FIntVector  QuadDispatchDim = FComputeShaderUtils::GetGroupCount(FIntPoint(QuadWidth, QuadHeight), GroupDim);
 	const FIntVector   BinDispatchDim = FComputeShaderUtils::GetGroupCount(ShadingBinCount, 64u);
 
+	const FUint32Vector2 DispatchOffsetTL = FUint32Vector2(InViewRect.Min.X, InViewRect.Min.Y);
+
 	FMetaBufferArray MetaBufferData;
 	MetaBufferData.SetNumZeroed(ShadingBinCount);
 
@@ -3306,10 +3308,15 @@ FShadeBinning ShadeBinning(
 
 	// Shading Bin Count
 	{
+		const bool bOptimizeWriteMask = (ValidClearTargets.Num() > 0);
+
+		const FUint32Vector2 AlignedDispatchOffsetTL = FUint32Vector2(	InViewRect.Min.X & ~7u, InViewRect.Min.Y & ~7u);
+
+
 		FShadingBinBuildCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadingBinBuildCS::FParameters>();
 		PassParameters->ViewRect = ViewRect;
 		PassParameters->ValidWriteMask = ValidWriteMask;
-		PassParameters->QuadDispatchDim = FUint32Vector2(QuadDispatchDim.X, QuadDispatchDim.Y);
+		PassParameters->DispatchOffsetTL = bOptimizeWriteMask ? AlignedDispatchOffsetTL : DispatchOffsetTL;
 		PassParameters->ShadingBinCount = ShadingBinCount;
 		PassParameters->ShadingRateTileSize = GetShadingRateTileSize();
 		PassParameters->ShadingRateImage = GetShadingRateImage(GraphBuilder, View);
@@ -3325,22 +3332,24 @@ FShadeBinning ShadeBinning(
 		PermutationVector.Set<FShadingBinBuildCS::FGatherStatsDim>(bGatherStats);
 		PermutationVector.Set<FShadingBinBuildCS::FQuadBinningDim>(bQuadBinning);
 		PermutationVector.Set<FShadingBinBuildCS::FVariableRateDim>(PassParameters->ShadingRateTileSize != 0u);
-		PermutationVector.Set<FShadingBinBuildCS::FOptimizeWriteMaskDim>(ValidClearTargets.Num() > 0);
+		PermutationVector.Set<FShadingBinBuildCS::FOptimizeWriteMaskDim>(bOptimizeWriteMask);
 		PermutationVector.Set<FShadingBinBuildCS::FNumExports>(FMath::Max(1, ValidClearTargets.Num()));
 		auto ComputeShader = View.ShaderMap->GetShader<FShadingBinBuildCS>(PermutationVector);
 
-		if (ValidClearTargets.Num() > 0)
+		if (bOptimizeWriteMask)
 		{
 			for (int32 TargetIndex = 0; TargetIndex < ValidClearTargets.Num(); ++TargetIndex)
 			{
 				PassParameters->OutCMaskBuffer[TargetIndex] = GraphBuilder.CreateUAV(FRDGTextureUAVDesc::CreateForMetaData(ValidClearTargets[TargetIndex], ERDGTextureMetaDataAccess::CMask));
 			}
 
+			const FIntVector AlignedQuadDispatchDim = FComputeShaderUtils::GetGroupCount(FIntPoint(InViewRect.Max.X - AlignedDispatchOffsetTL.X, InViewRect.Max.Y - AlignedDispatchOffsetTL.Y), GroupDim * 2);
+	
 			GraphBuilder.AddPass(
 				RDG_EVENT_NAME("ShadingCount"),
 				PassParameters,
 				ERDGPassFlags::Compute,
-				[QuadDispatchDim, ComputeShader, PassParameters](FRHIComputeCommandList& RHICmdList)
+				[AlignedQuadDispatchDim, ComputeShader, PassParameters](FRHIComputeCommandList& RHICmdList)
 				{
 					void* PlatformDataPtr = nullptr;
 					uint32 PlatformDataSize = 0;
@@ -3365,7 +3374,7 @@ FShadeBinning ShadeBinning(
 					SetComputePipelineState(RHICmdList, ComputeShader.GetComputeShader());
 					SetShaderParametersMixedCS(RHICmdList, ComputeShader, *PassParameters, PlatformDataPtr, PlatformDataSize);
 
-					RHICmdList.DispatchComputeShader(QuadDispatchDim.X, QuadDispatchDim.Y, QuadDispatchDim.Z);
+					RHICmdList.DispatchComputeShader(AlignedQuadDispatchDim.X, AlignedQuadDispatchDim.Y, AlignedQuadDispatchDim.Z);
 				}
 			);
 		}
@@ -3412,7 +3421,7 @@ FShadeBinning ShadeBinning(
 	{
 		FShadingBinBuildCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadingBinBuildCS::FParameters>();
 		PassParameters->ViewRect = ViewRect;
-		PassParameters->QuadDispatchDim = FUint32Vector2(QuadDispatchDim.X, QuadDispatchDim.Y);
+		PassParameters->DispatchOffsetTL = DispatchOffsetTL;
 		PassParameters->ShadingBinCount = ShadingBinCount;
 		PassParameters->ShadingRateTileSize = GetShadingRateTileSize();
 		PassParameters->ShadingRateImage = GetShadingRateImage(GraphBuilder, View);

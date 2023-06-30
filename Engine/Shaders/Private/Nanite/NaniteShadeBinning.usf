@@ -14,7 +14,7 @@ uint4 ViewRect;
 #if OPTIMIZE_WRITE_MASK
 uint ValidWriteMask;
 #endif
-uint2 QuadDispatchDim;
+uint2 DispatchOffsetTL;
 uint  ShadingBinCount;
 
 #if (SHADING_BIN_PASS == NANITE_SHADING_BIN_COUNT)
@@ -141,10 +141,7 @@ RWByteAddressBuffer OutCMaskBuffer_7;
 
 void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 {
-	const uint ViewWidth  = ViewRect.z - ViewRect.x;
-	const uint ViewHeight = ViewRect.w - ViewRect.y;
-
-	const uint2 QuadTLCoord = uint2(Coord << 1u) + uint2(ViewRect.xy);
+	const uint2 QuadTLCoord = uint2(Coord << 1u) + DispatchOffsetTL;
 
 	// .x = TL, .y = TR, .z = BL, .w = BR
 	const uint2 QuadCoords[4] =
@@ -171,10 +168,10 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 	FShadingMask ShadingMaskBR = UnpackShadingMask(QuadShadingMask.w);
 
 	const bool4 ValidMask = bool4(
-		QuadTLCoord.x < ViewWidth + ViewRect.x,
-		QuadTLCoord.y < ViewHeight + ViewRect.y,
-		QuadTLCoord.x < ViewWidth + ViewRect.x - 1u,
-		QuadTLCoord.y < ViewHeight + ViewRect.y - 1u
+		QuadTLCoord.x		>= ViewRect.x && QuadTLCoord.x		< ViewRect.z,
+		QuadTLCoord.y		>= ViewRect.y && QuadTLCoord.y		< ViewRect.w,
+		QuadTLCoord.x + 1u	>= ViewRect.x && QuadTLCoord.x + 1u < ViewRect.z,
+		QuadTLCoord.y + 1u	>= ViewRect.y && QuadTLCoord.y + 1u < ViewRect.w
 	);
 
 	bool4 ValidPixels = bool4(
@@ -410,15 +407,25 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 	};
 
 	// Fetch per pixel shading write masks and remove mask bits if they are not valid writes (i.e. no cmask for that export)
-	const uint WriteMaskTL = select(ValidPixels.x, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskTL.ShadingBin].MaterialFlags, 8u, 24u), 0x0u) & ValidWriteMask;
-	const uint WriteMaskTR = select(ValidPixels.y, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskTR.ShadingBin].MaterialFlags, 8u, 24u), 0x0u) & ValidWriteMask;
-	const uint WriteMaskBL = select(ValidPixels.z, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskBL.ShadingBin].MaterialFlags, 8u, 24u), 0x0u) & ValidWriteMask;
-	const uint WriteMaskBR = select(ValidPixels.w, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskBR.ShadingBin].MaterialFlags, 8u, 24u), 0x0u) & ValidWriteMask;
+	const uint WriteMaskTL = select(ValidPixels.x, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskTL.ShadingBin].MaterialFlags, 8u, 24u), 0x0u);
+	const uint WriteMaskTR = select(ValidPixels.y, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskTR.ShadingBin].MaterialFlags, 8u, 24u), 0x0u);
+	const uint WriteMaskBL = select(ValidPixels.z, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskBL.ShadingBin].MaterialFlags, 8u, 24u), 0x0u);
+	const uint WriteMaskBR = select(ValidPixels.w, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskBR.ShadingBin].MaterialFlags, 8u, 24u), 0x0u);
 
 	// NOTE: It should be only necessary to test the TL pixel's cmask index/shift, since a quad shouldn't be able to span multiple nibbles.
 	uint CMaskIndex;
 	uint CMaskShift;
 	ComputeCMaskIndexAndShift(QuadCoords[0] / 8u, CMaskIndex, CMaskShift);
+
+	const uint CMaskTileBitIndex = (ThreadIndex >> 2) & 3u;		// 4 threads cover 4x4 CMask tile. Assumes CMask tile order is the same as Morton order: TL, TR, BL, BR
+	const uint CMaskBitIndex = (CMaskIndex & 0x3) * 8u + CMaskShift + CMaskTileBitIndex;
+	const uint CMaskValue4x4 = 1u << CMaskBitIndex;
+
+	// Calculate 4x4 pixel write masks. Set bit means all 4x4 pixels are written
+	const uint WriteMaskQuad = WriteMaskTL & WriteMaskTR & WriteMaskBL & WriteMaskBR;
+	uint WriteMask4x4 = WriteMaskQuad;
+	WriteMask4x4 &= QuadReadAcrossX(WriteMask4x4);
+	WriteMask4x4 &= QuadReadAcrossY(WriteMask4x4);
 
 	uint Mask = ValidWriteMask;
 
@@ -431,41 +438,19 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 		uint MaskIndex = firstbitlow(Mask);
 		Mask &= Mask - 1u;
 
-		const bool bTLExport = BitFieldExtractU32(WriteMaskTL, 1u, MaskIndex) != 0u;
-		const bool bTRExport = BitFieldExtractU32(WriteMaskTR, 1u, MaskIndex) != 0u;
-		const bool bBLExport = BitFieldExtractU32(WriteMaskBL, 1u, MaskIndex) != 0u;
-		const bool bBRExport = BitFieldExtractU32(WriteMaskBR, 1u, MaskIndex) != 0u;
+		const bool bWriteCMask4x4 = BitFieldExtractU32(WriteMask4x4, 1, MaskIndex) != 0;
 
-		// Does entire 2x2 shading quad write this export?
-		const bool bQuadExport = bTLExport && bTRExport && bBLExport && bBRExport;
-
-		// TODO: Need to test more than bQuadExport for an 8x8, to avoid unsetting cmask when only a single quad exports in an 8x8!
-
-		bool bEvaluated = !bQuadExport;
-		while (WaveActiveAnyTrue(!bEvaluated))
+		uint CMaskValue = bWriteCMask4x4 ? CMaskValue4x4 : 0u;
+#if COMPILER_SUPPORTS_WAVE_SWIZZLE_GCN
+		// Combine CMask bits to form full 8x8 CMask tile to minimize number of atomics
+		CMaskValue |= WaveLaneSwizzleGCN(CMaskValue, 0x1F, 0x00, 0x04);
+		CMaskValue |= WaveLaneSwizzleGCN(CMaskValue, 0x1F, 0x00, 0x08);
+		if (CMaskValue != 0 && (ThreadIndex & 15) == 0)
+#else
+		if (CMaskValue != 0 && (ThreadIndex & 3) == 0)
+#endif
 		{
-			// Disable lanes that have already evaluated this export
-			if (!bEvaluated)
-			{
-				const uint VotedCMaskIndex = WaveReadLaneFirst(CMaskIndex);
-
-				// Disable lanes that are not exporting to this particular dword location
-				// Note: SM 6.5 WaveMatch or NV_shader_subgroup_partitioned would be *really* nice here...
-				if (CMaskIndex == VotedCMaskIndex)
-				{
-					// If all lanes in the 8x8 indicate they write through this particular MRT nibble (4bits), it's safe to optimize the meta data.
-					const uint BitOffset = (CMaskIndex & 0x3) * 8u;
-					const uint CMaskNibble = select(bQuadExport, 0xFu << (CMaskShift + BitOffset), 0x0u);
-					const uint CMaskValue = WaveActiveBitOr(CMaskNibble);
-
-					if (WaveIsFirstLane())
-					{
-						CMaskExports[Export].InterlockedOr(CMaskIndex, CMaskValue);
-					}
-
-					bEvaluated = true;
-				}
-			}
+			CMaskExports[Export].InterlockedOr(CMaskIndex, CMaskValue);
 		}
 	}
 #endif // OPTIMIZE_WRITE_MASK
