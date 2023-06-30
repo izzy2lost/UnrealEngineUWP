@@ -36,6 +36,7 @@ FName FChaosVDStyle::GetStyleSetName()
 
 const FVector2D Icon16x16(16.0f, 16.0f);
 const FVector2D Icon20x20(20.0f, 20.0f);
+const FVector2D Icon24x24(24.0f, 24.0f);
 const FVector2D Icon50x50(50.0f, 50.0f);
 
 TSharedRef< FSlateStyleSet > FChaosVDStyle::Create()
@@ -57,6 +58,8 @@ TSharedRef< FSlateStyleSet > FChaosVDStyle::Create()
 	
 	Style->Set("LockIcon", new IMAGE_BRUSH_SVG(TEXT("lock"), Icon16x16));
 	Style->Set("UnlockedIcon", new IMAGE_BRUSH_SVG(TEXT("lock-unlocked"), Icon16x16));
+	Style->Set("RecordIcon", new IMAGE_BRUSH(TEXT("CircleBox2"), Icon16x16));
+	Style->Set("ConnectionIcon", new IMAGE_BRUSH_SVG(TEXT("Connection"), Icon16x16));
 
 	return Style;
 }

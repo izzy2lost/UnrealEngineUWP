@@ -9,6 +9,7 @@
 #include "ChaosVDPlaybackController.h"
 #include "ChaosVDPlaybackViewportTab.h"
 #include "ChaosVDSolversTracksTab.h"
+#include "ChaosVDStyle.h"
 #include "ChaosVDTabsIDs.h"
 #include "ChaosVDWorldOutlinerTab.h"
 #include "DesktopPlatformModule.h"
@@ -21,8 +22,10 @@
 #include "StatusBarSubsystem.h"
 #include "Styling/StyleColors.h"
 #include "Styling/ToolBarStyle.h"
+#include "Widgets/SChaosVDRecordingControls.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SComboButton.h"
+#include "Widgets/Layout/SSeparator.h"
 #include "Widgets/SToolTip.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
@@ -49,6 +52,7 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 	check(StatusBarSubsystem);
 	TSharedRef<SWidget> StatusBarWidget = StatusBarSubsystem->MakeStatusBarWidget(StatusBarID, TabManager->GetOwnerTab().ToSharedRef());
 
+	// Status bars come with the output log and content browser drawers by default, therefore we need to remove them otherwise they will be on the tool's window
 	StatusBarSubsystem->UnregisterDrawer(StatusBarID, "ContentBrowser");
 	StatusBarSubsystem->UnregisterDrawer(StatusBarID, "OutputLog");
 	
@@ -70,7 +74,7 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 				+SHorizontalBox::Slot()
 				.VAlign(VAlign_Center)
 				.HAlign(HAlign_Left)
-				.Padding(FMargin(12, 7, 18, 7))
+				.Padding(FMargin(12, 7, 6, 7))
 				.AutoWidth()
 				[
 					SNew(SButton)
@@ -84,7 +88,7 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 					.Content()
 					[
 						SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot()
+						+SHorizontalBox::Slot()
 						.HAlign(HAlign_Center)
 						.VAlign(VAlign_Center)
 						[
@@ -92,7 +96,7 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 							.Image(FAppStyle::Get().GetBrush("Icons.Plus"))
 							.ColorAndOpacity(FStyleColors::AccentGreen)
 						]
-						+ SHorizontalBox::Slot()
+						+SHorizontalBox::Slot()
 						.Padding(FMargin(3, 0, 0, 0))
 						.VAlign(VAlign_Center)
 						.AutoWidth()
@@ -104,8 +108,73 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 					]
 				]
 
-				+ SHorizontalBox::Slot()
-				.Padding(0, 7, 0, 7)
+				// Remote Connection Button
+				+SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Left)
+				.Padding(FMargin(6, 7, 18, 7))
+				.AutoWidth()
+				[
+					SNew(SButton)
+					.ToolTip(SNew(SToolTip).Text(LOCTEXT("RemoteConnectionDesc", "Not Supported yet - Click here to connect to a remote debug session.")))
+					.ContentPadding(FMargin(0, 5.f, 0, 4.f))
+					.IsEnabled(false) // We don't support remote debugging yet
+					.OnClicked_Lambda([this]()
+					{
+						//TODO : Add a call to the method that will open the Trace Session Browser
+						return FReply::Handled();
+					})
+					.Content()
+					[
+						SNew(SHorizontalBox)
+						+SHorizontalBox::Slot()
+						.HAlign(HAlign_Center)
+						.VAlign(VAlign_Center)
+						[
+							SNew(SImage)
+							.Image(FChaosVDStyle::Get().GetBrush("ConnectionIcon"))
+							.ColorAndOpacity(FStyleColors::AccentGreen)
+						]
+						+SHorizontalBox::Slot()
+						.Padding(FMargin(3, 0, 0, 0))
+						.VAlign(VAlign_Center)
+						.AutoWidth()
+						[
+							SNew(STextBlock)
+							.TextStyle(FAppStyle::Get(), "SmallButtonText")
+							.Text(LOCTEXT("ConnectToSession", "Connect to Session"))
+						]
+					]
+				]
+
+
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(1.0f)
+				[
+					SNew(SSeparator)
+						.Orientation(Orient_Vertical)
+						.Thickness(2.0f)
+						.ColorAndOpacity(FColor::Black)
+						.SeparatorImage(FAppStyle::Get().GetBrush("Menu.Separator"))
+				]
+				
+				+SHorizontalBox::Slot()
+				[
+					
+					SNew(SChaosVDRecordingControls, StaticCastWeakPtr<SChaosVDMainTab>(AsWeak()))
+				]
+				
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(1.0f, 5.0f, 1.0f, 5.0f)
+				[
+					SNew(SSeparator)
+						.Orientation(Orient_Vertical)
+						.Thickness(2.0f)
+						.ColorAndOpacity(FColor::Black)
+						.SeparatorImage(FAppStyle::Get().GetBrush("Menu.Separator"))
+				]
 
 				// Settings button
 				+ SHorizontalBox::Slot()
@@ -117,6 +186,7 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 					SNew(SComboButton)
 					.ContentPadding(0)
 					.HasDownArrow(false)
+					.IsEnabled(false) // Disabled until we create content for it
 					.ForegroundColor(FSlateColor::UseForeground())
 					.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
 					.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ViewOptions")))

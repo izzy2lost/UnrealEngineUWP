@@ -92,6 +92,16 @@ bool FChaosVDRuntimeModule::RequestFullCapture(float DeltaTime)
 	return true;
 }
 
+bool FChaosVDRuntimeModule::RecordingTimerTick(float DeltaTime)
+{
+	if (bIsRecording)
+	{
+		AccumulatedRecordingTime += DeltaTime;
+	}
+	
+	return true;
+}
+
 void FChaosVDRuntimeModule::StartRecording(const TArray<FString>& Args)
 {
 	if (bIsRecording)
@@ -113,6 +123,8 @@ void FChaosVDRuntimeModule::StartRecording(const TArray<FString>& Args)
 
 	FullCaptureRequesterHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FChaosVDRuntimeModule::RequestFullCapture),
 		FMath::Clamp(ConfiguredTimeBetweenCaptures, MinAllowedTimeInSecondsBetweenCaptures, TNumericLimits<int32>::Max()));
+
+	RecordingTimerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FChaosVDRuntimeModule::RecordingTimerTick));
 
 #if UE_TRACE_ENABLED
 
@@ -140,10 +152,10 @@ void FChaosVDRuntimeModule::StartRecording(const TArray<FString>& Args)
 
 	if (Args.Num() == 0 || Args[0] == TEXT("File"))
 	{
-		FString RecordingFileName;
-		GenerateRecordingFileName(RecordingFileName);
+		ActiveRecordingFileName.Empty();
+		GenerateRecordingFileName(ActiveRecordingFileName);
 
-		bIsRecording = FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::File, *RecordingFileName);
+		bIsRecording = FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::File, *ActiveRecordingFileName);
 	}
 	else if(Args[0] == TEXT("Server"))
 	{
@@ -155,7 +167,9 @@ void FChaosVDRuntimeModule::StartRecording(const TArray<FString>& Args)
 		nullptr);
 	}
 #endif
-
+	
+	AccumulatedRecordingTime = 0.0f;
+	
 	ensure(bIsRecording);
 }
 
@@ -186,6 +200,7 @@ void FChaosVDRuntimeModule::StopRecording()
 	}
 
 	bIsRecording = false;
+	AccumulatedRecordingTime = 0.0f;
 }
 
 void FChaosVDRuntimeModule::HandleTraceStopRequest(FTraceAuxiliary::EConnectionType TraceType, const FString& TraceDestination)

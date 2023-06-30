@@ -34,7 +34,8 @@ public:
 	 * @param Args : Arguments array provided by the commandline. Used to determine if we want to record to file or a local trace server
 	 */
 	void StartRecording(const TArray<FString>& Args);
-	/**/
+	
+	/* Stops an active recording */
 	void StopRecording();
 
 	/** Returns true if we are currently recording a Physics simulation */
@@ -79,6 +80,12 @@ public:
 		return PerformFullCaptureDelegate.Remove(InDelegateToRemove);
 	}
 
+	/** Returns the accumulated recording time in seconds since the recording started */
+	float GetAccumulatedRecordingTime() const { return AccumulatedRecordingTime; }
+
+	/** Returns the relative file name path of the active recording */
+	const FString& GetActiveRecordingFileName() const { return ActiveRecordingFileName; }
+
 private:
 
 	/** Stops the current Trace session */
@@ -89,6 +96,9 @@ private:
 	/** Queues a full Capture of the simulation on the next frame */
 	bool RequestFullCapture(float DeltaTime);
 
+	/** Queues a full Capture of the simulation on the next frame */
+	bool RecordingTimerTick(float DeltaTime);
+
 	/** Used to handle stop requests to the active trace session that were not done by us
 	 * That is a possible scenario because Trace is shared by other In-Editor tools
 	 */
@@ -97,13 +107,18 @@ private:
 	bool bIsRecording = false;
 	bool bRequestedStop = false;
 
+	float AccumulatedRecordingTime = 0.0f;
+
 	FTSTicker::FDelegateHandle FullCaptureRequesterHandle;
+	FTSTicker::FDelegateHandle RecordingTimerHandle;
 
 	static FChaosVDRecordingStateChangedDelegate RecordingStartedDelegate;
 	static FChaosVDRecordingStateChangedDelegate RecordingStopDelegate;
 	static FChaosVDCaptureRequestDelegate PerformFullCaptureDelegate;
 
 	FThreadSafeCounter LastGeneratedID;
+
+	FString ActiveRecordingFileName;
 
 	static FRWLock DelegatesRWLock;
 };
