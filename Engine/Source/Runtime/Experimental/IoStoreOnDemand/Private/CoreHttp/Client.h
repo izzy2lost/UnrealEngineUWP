@@ -60,6 +60,8 @@ public:
 	{
 		int32				SetHostFromUrl(FAnsiStringView Url);
 		uint32				ConnectionCount;
+		int32				SendBufSize = -1;
+		int32				RecvBufSize = -1;
 		struct {
 			FAnsiStringView	Name;
 			uint32			Port = 80;
