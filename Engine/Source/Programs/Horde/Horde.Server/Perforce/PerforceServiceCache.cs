@@ -208,9 +208,9 @@ namespace Horde.Server.Perforce
 			_downtimeService = downtimeService;
 
 			List<MongoIndex<CachedCommitDoc>> indexes = new List<MongoIndex<CachedCommitDoc>>();
-			indexes.Add(MongoIndex.Create<CachedCommitDoc>(keys => keys.Ascending(x => x.StreamId).Descending(x => x.Number), false));
+			indexes.Add(MongoIndex.Create<CachedCommitDoc>(keys => keys.Ascending(x => x.StreamId).Descending(x => x.Number), true));
 			indexes.Add(MongoIndex.Create<CachedCommitDoc>(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.CommitTags).Descending(x => x.Number), true));
-			_commits = mongoService.GetCollection<CachedCommitDoc>("CommitsV2", indexes);
+			_commits = mongoService.GetCollection<CachedCommitDoc>("CommitsV3", indexes);
 
 			_globalConfig = globalConfig;
 			_logger = logger;
