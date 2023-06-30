@@ -180,7 +180,7 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 		{
 			FString ParameterName = FString::Printf(TEXT("%s%s"),*NamePrefix,Member.GetName());
 			Decl.ConstantBufferMembers += FString::Printf(TEXT("UB_MEMBER_UNIFORM_BLOCK(%s);\r\n"), *ParameterName);
-			Decl.StructMembers += FString::Printf(TEXT("\t%s %s;\r\n"), Member.GetShaderType(), Member.GetName());
+			Decl.StructMembers += FString::Printf(TEXT("UB_MEMBER_UNIFORM_BLOCK(%s);\r\n"), Member.GetName());
 			Decl.Initializer += FString::Printf(TEXT("%s,"),*ParameterName);
 		}
 		else if (Member.GetBaseType() == UBMT_INCLUDED_STRUCT)
