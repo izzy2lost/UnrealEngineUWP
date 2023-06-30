@@ -127,6 +127,43 @@ struct FAxisAlignedBox2i
 		Min.X -= Radius;
 		Min.Y -= Radius;
 	}
+
+	int32 Area() const
+	{
+		const int32 XLength = TMathUtil<int32>::Max(Max.X - Min.X, 0);
+		const int32 YLength = TMathUtil<int32>::Max(Max.Y - Min.Y, 0);
+		return XLength * YLength;
+	}
+
+	FVector2i Diagonal() const
+	{
+		return FVector2i(Max.X - Min.X, Max.Y - Min.Y);
+	}
+
+	bool Contains(const FVector2i& V) const
+	{
+		return (Min.X <= V.X) && (Min.Y <= V.Y) && (Max.X >= V.X) && (Max.Y >= V.Y);
+	}
+
+	void Contain(const FVector2i& V)
+	{
+		if (V.X < Min.X)
+		{
+			Min.X = V.X;
+		}
+		if (V.X > Max.X)
+		{
+			Max.X = V.X;
+		}
+		if (V.Y < Min.Y)
+		{
+			Min.Y = V.Y;
+		}
+		if (V.Y > Max.Y)
+		{
+			Max.Y = V.Y;
+		}
+	}
 };
 
 
