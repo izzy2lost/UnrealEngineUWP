@@ -126,6 +126,10 @@ static FFileIoCacheConfig GetFileIoCacheConfig(const TCHAR* CommandLine)
 	{
 		Ret.DropCache = true;
 	}
+	if (FParse::Param(CommandLine, TEXT("Ias.NoCache")))
+	{
+		Ret.DiskQuota = 0;
+	}
 #endif
 
 	return Ret;
@@ -1334,6 +1338,10 @@ void FIoStoreOnDemandModule::StartupModule()
 	if (FFileIoCacheConfig Config = GetFileIoCacheConfig(CommandLine); Config.DiskQuota > 0)
 	{
 		Cache = MakeShareable(MakeFileIoCache(Config).Release());
+	}
+	else
+	{
+		UE_LOG(LogIas, Log, TEXT("File cache disabled. Streaming only."));
 	}
 
 	TSharedPtr<UE::IOnDemandIoDispatcherBackend> Backend = UE::MakeOnDemandIoDispatcherBackend(Cache);
