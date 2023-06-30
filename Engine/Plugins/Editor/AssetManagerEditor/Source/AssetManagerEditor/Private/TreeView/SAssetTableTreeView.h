@@ -165,7 +165,6 @@ private:
 	UE::Cook::FCookMetadataState CookMetadata;
 
 	/** Cached interfaces */
-	class IAssetRegistry* AssetRegistry;
 	class UAssetManager* AssetManager;
 	class IAssetManagerEditorModule* EditorModule;
 };
