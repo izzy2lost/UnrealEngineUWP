@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Chaos/Collision/PBDCollisionConstraint.h"
 #include "Chaos/Collision/CollisionConstraintAllocator.h"
+#include "Chaos/Collision/CollisionUtil.h"
 #include "Chaos/Collision/PBDCollisionConstraintHandle.h"
 #include "Chaos/Collision/PBDCollisionContainerSolver.h"
 #include "Chaos/Collision/PBDCollisionSolver.h"
@@ -52,6 +53,9 @@ namespace Chaos
 	FRealSingle Chaos_Collision_Stiffness = -1.0f;
 	FAutoConsoleVariableRef CVarChaos_Collision_Stiffness(TEXT("p.Chaos.Collision.Stiffness"), Chaos_Collision_Stiffness, TEXT("Override the collision solver stiffness (if >= 0)"));
 
+	bool bChaos_Collision_EnableBoundsChecks = true;
+	FAutoConsoleVariableRef CVarChaos_Collision_EnableBoundsChecks(TEXT("p.Chaos.Collision.EnableBoundsChecks"), bChaos_Collision_EnableBoundsChecks, TEXT(""));
+
 	struct FCollisionTolerances
 	{
 		// Multiplied by the contact margin to produce a distance within which contacts are considered to be the same point
@@ -73,7 +77,6 @@ namespace Chaos
 	// @todo(chaos): put these tolerances on cvars
 	// @todo(chaos): tune the tolerances used in FPBDCollisionConstraint::UpdateAndTryRestoreManifold
 	FCollisionTolerances Chaos_Manifold_Tolerances;
-
 
 	FString FPBDCollisionConstraint::ToString() const
 	{
@@ -278,11 +281,14 @@ namespace Chaos
 
 		CullDistance = FRealSingle(InCullDistance);
 
-		// Initialize the is-probe and is-probe-unmodified flags to the same value.
-		// Contact modification may change bIsProbe but we want to store the unmodified value
-		// so that it can be reset between frames.
-		Flags.bIsProbe = (Shape[0] && Shape[0]->GetIsProbe()) || (Shape[1] && Shape[1]->GetIsProbe());
-		Flags.bIsProbeUnmodified = Flags.bIsProbe;
+		FRealSingle DistanceCheckSize = 0;
+		BoundsTestFlags = Private::CalculateImplicitBoundsTestFlags(
+			GetParticle0(), GetImplicit0(), GetShape0(),
+			GetParticle1(), GetImplicit1(), GetShape1(),
+			DistanceCheckSize);
+
+		// Contact modification may change bIsProbe. The original value is stored in BoundsTestFlags.
+		Flags.bIsProbe = BoundsTestFlags.bIsProbe;
 
 		// If this currently a CCD contact (this may change on later ticks)
 		Flags.bCCDEnabled = (InCCDType == ECollisionCCDType::Enabled);
@@ -290,8 +296,8 @@ namespace Chaos
 		// Initialize tolerances that depend on shape type etc, also the bIsQuadratic flags
 		const FRealSingle Margin0 = FRealSingle(GetImplicit0()->GetMargin());
 		const FRealSingle Margin1 = FRealSingle(GetImplicit1()->GetMargin());
-		const EImplicitObjectType ImplicitType0 = Collisions::GetImplicitCollisionType(GetParticle0(), GetImplicit0());
-		const EImplicitObjectType ImplicitType1 = Collisions::GetImplicitCollisionType(GetParticle1(), GetImplicit1());
+		const EImplicitObjectType ImplicitType0 = Private::GetImplicitCollisionType(GetParticle0(), GetImplicit0());
+		const EImplicitObjectType ImplicitType1 = Private::GetImplicitCollisionType(GetParticle1(), GetImplicit1());
 		InitMarginsAndTolerances(ImplicitType0, ImplicitType1, Margin0, Margin1);
 
 		// Are we allowing manifolds?

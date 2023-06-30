@@ -4,6 +4,7 @@
 #include "Chaos/Collision/CollisionConstraintAllocator.h"
 #include "Chaos/Collision/CollisionContext.h"
 #include "Chaos/Collision/CollisionFilter.h"
+#include "Chaos/Collision/CollisionUtil.h"
 #include "Chaos/Collision/ContactTriangles.h"
 #include "Chaos/Collision/PBDCollisionConstraint.h"
 #include "Chaos/CollisionResolution.h"
@@ -38,9 +39,6 @@ namespace Chaos
 
 	namespace CVars
 	{
-		bool bChaos_Collision_MidPhase_EnableBoundsChecks = true;
-		FAutoConsoleVariableRef CVarChaos_Collision_EnableBoundsChecks(TEXT("p.Chaos.Collision.EnableBoundsChecks"), bChaos_Collision_MidPhase_EnableBoundsChecks, TEXT(""));
-
 		Chaos::FRealSingle Chaos_Collision_CullDistanceScaleInverseSize = 0.01f;	// 100cm
 		Chaos::FRealSingle Chaos_Collision_MinCullDistanceScale = 1.0f;
 		FAutoConsoleVariableRef CVarChaos_Collision_CullDistanceReferenceSize(TEXT("p.Chaos.Collision.CullDistanceReferenceSize"), Chaos_Collision_CullDistanceScaleInverseSize, TEXT(""));
@@ -220,39 +218,15 @@ namespace Chaos
 		, SphereBoundsCheckSize(0)
 		, LastUsedEpoch(-1)
 		, ShapePairType(InShapePairType)
-		, Flags()
+		, BoundsTestFlags()
 	{
-		const FImplicitObject* Implicit0 = Shape0->GetLeafGeometry();
-		const FImplicitObject* Implicit1 = Shape1->GetLeafGeometry();
-		const bool bHasBounds0 = (Implicit0 != nullptr) && Implicit0->HasBoundingBox();
-		const bool bHasBounds1 = (Implicit1 != nullptr) && Implicit1->HasBoundingBox();
-		const EImplicitObjectType ImplicitType0 = (Implicit0 != nullptr) ? GetInnerType(Implicit0->GetCollisionType()) : ImplicitObjectType::Unknown;
-		const EImplicitObjectType ImplicitType1 = (Implicit1 != nullptr) ? GetInnerType(Implicit1->GetCollisionType()) : ImplicitObjectType::Unknown;
-		const bool bIsSphere0 = (ImplicitType0 == ImplicitObjectType::Sphere);
-		const bool bIsSphere1 = (ImplicitType1 == ImplicitObjectType::Sphere);
-		const bool bIsCapsule0 = (ImplicitType0 == ImplicitObjectType::Capsule);
-		const bool bIsCapsule1 = (ImplicitType1 == ImplicitObjectType::Capsule);
-		const bool bIsTriangle0 = (ImplicitType0 == ImplicitObjectType::TriangleMesh) || (ImplicitType0 == ImplicitObjectType::HeightField);
-		const bool bIsTriangle1 = (ImplicitType1 == ImplicitObjectType::TriangleMesh) || (ImplicitType1 == ImplicitObjectType::HeightField);
-		const bool bIsLevelSet = ((ShapePairType == EContactShapesType::LevelSetLevelSet) || (ShapePairType == EContactShapesType::Unknown));
+		const FImplicitObject* Implicit0 = InShape0->GetLeafGeometry();
+		const FImplicitObject* Implicit1 = InShape1->GetLeafGeometry();
 
-		const bool bAllowBoundsChecked = bChaos_Collision_MidPhase_EnableBoundsChecks && bHasBounds0 && bHasBounds1;
-		Flags.bEnableAABBCheck = bAllowBoundsChecked && !(bIsSphere0 && bIsSphere1);	// No AABB test if both are spheres
-		Flags.bEnableOBBCheck0 = bAllowBoundsChecked && !bIsSphere0;					// No OBB test for spheres
-		Flags.bEnableOBBCheck1 = bAllowBoundsChecked && !bIsSphere1;					// No OBB test for spheres
-
-		if (bAllowBoundsChecked && bIsSphere0 && bIsSphere1)
-		{
-			SphereBoundsCheckSize = FRealSingle(Implicit0->GetMargin() + Implicit1->GetMargin());	// Sphere-Sphere bounds test
-		}
-
-		// Do not try to reuse manifold points for capsules or spheres (against anything)
-		// NOTE: This can also be disabled for all shape types by the solver (see GenerateCollisionImpl and the Context)
-		Flags.bEnableManifoldUpdate = !bIsSphere0 && !bIsSphere1 && !bIsCapsule0 && !bIsCapsule1 && !bIsTriangle0 && !bIsTriangle1 && !bIsLevelSet;
-
-		// Mark probe flag now so we know which GenerateCollisions to use
-		// @todo(chaos): it looks like this can be changed by a collision modifier so we should not be caching it
-		Flags.bIsProbe = Shape0->GetIsProbe() || Shape1->GetIsProbe();
+		BoundsTestFlags = Private::CalculateImplicitBoundsTestFlags(
+			InParticle0, Implicit0, InShape0,
+			InParticle1, Implicit1, InShape1,
+			SphereBoundsCheckSize);
 	}
 
 	FSingleShapePairCollisionDetector::~FSingleShapePairCollisionDetector()
@@ -268,7 +242,7 @@ namespace Chaos
 		, Shape1(R.Shape1)
 		, SphereBoundsCheckSize(R.SphereBoundsCheckSize)
 		, ShapePairType(R.ShapePairType)
-		, Flags(R.Flags)
+		, BoundsTestFlags(R.BoundsTestFlags)
 	{
 	}
 
@@ -280,7 +254,7 @@ namespace Chaos
 		const FAABB3& ShapeWorldBounds1 = Shape1->GetWorldSpaceInflatedShapeBounds();
 
 		// World-space expanded bounds check
-		if (Flags.bEnableAABBCheck)
+		if (BoundsTestFlags.bEnableAABBCheck)
 		{
 			if (!ShapeWorldBounds0.Intersects(ShapeWorldBounds1))
 			{
@@ -289,7 +263,7 @@ namespace Chaos
 		}
 
 		// World-space sphere bounds check
-		if (SphereBoundsCheckSize > FRealSingle(0))
+		if (BoundsTestFlags.bEnableDistanceCheck && (SphereBoundsCheckSize > FRealSingle(0)))
 		{
 			const FVec3 Separation = ShapeWorldBounds0.GetCenter() - ShapeWorldBounds1.GetCenter();
 			const FReal SeparationSq = Separation.SizeSquared();
@@ -308,14 +282,14 @@ namespace Chaos
 		// we might call the narrow phase one time too many when shapes become separated.
 		const int32 LastEpoch = CurrentEpoch - 1;
 		const bool bCollidedLastTick = IsUsedSince(LastEpoch);
-		if ((Flags.bEnableOBBCheck0 || Flags.bEnableOBBCheck1) && !bCollidedLastTick)
+		if ((BoundsTestFlags.bEnableOBBCheck0 || BoundsTestFlags.bEnableOBBCheck1) && !bCollidedLastTick)
 		{
 			const FRigidTransform3& ShapeWorldTransform0 = Shape0->GetLeafWorldTransform(GetParticle0());
 			const FRigidTransform3& ShapeWorldTransform1 = Shape1->GetLeafWorldTransform(GetParticle1());
 			const FImplicitObject* Implicit0 = Shape0->GetLeafGeometry();
 			const FImplicitObject* Implicit1 = Shape1->GetLeafGeometry();
 
-			if (Flags.bEnableOBBCheck0)
+			if (BoundsTestFlags.bEnableOBBCheck0)
 			{
 				if (!ImplicitOverlapOBBToAABB(Implicit0, Implicit1, ShapeWorldTransform0, ShapeWorldTransform1, CullDistance))
 				{
@@ -323,7 +297,7 @@ namespace Chaos
 				}
 			}
 
-			if (Flags.bEnableOBBCheck1)
+			if (BoundsTestFlags.bEnableOBBCheck1)
 			{
 				if (!ImplicitOverlapOBBToAABB(Implicit1, Implicit0, ShapeWorldTransform1, ShapeWorldTransform0, CullDistance))
 				{
@@ -376,7 +350,7 @@ namespace Chaos
 		const FReal Dt,
 		const FCollisionContext& Context)
 	{
-		if (Flags.bIsProbe)
+		if (BoundsTestFlags.bIsProbe)
 		{
 			return GenerateCollisionProbeImpl(CullDistance, Dt, Context);
 		}
@@ -414,7 +388,7 @@ namespace Chaos
 			}
 			
 			bool bWasManifoldRestored = false;
-			const bool bAllowManifoldRestore = Context.GetSettings().bAllowManifoldReuse && Flags.bEnableManifoldUpdate;
+			const bool bAllowManifoldRestore = Context.GetSettings().bAllowManifoldReuse && BoundsTestFlags.bEnableManifoldUpdate;
 			if (bAllowManifoldRestore && bWasUpdatedLastTick && Constraint->GetCanRestoreManifold())
 			{
 				// Update the existing manifold. We can re-use as-is if none of the points have moved much and the bodies have not moved much
@@ -465,7 +439,7 @@ namespace Chaos
 		const FReal Dt,
 		const FCollisionContext& Context)
 	{
-		if (Flags.bIsProbe)
+		if (BoundsTestFlags.bIsProbe)
 		{
 			return GenerateCollisionProbeImpl(CullDistance, Dt, Context);
 		}
@@ -955,10 +929,10 @@ namespace Chaos
 	void FShapePairParticlePairMidPhase::TryAddShapePair(const FPerShapeData* Shape0, const FPerShapeData* Shape1)
 	{
 		const FImplicitObject* Implicit0 = Shape0->GetLeafGeometry();
-		const EImplicitObjectType ImplicitType0 = Collisions::GetImplicitCollisionType(Particle0, Implicit0);
+		const EImplicitObjectType ImplicitType0 = Private::GetImplicitCollisionType(Particle0, Implicit0);
 
 		const FImplicitObject* Implicit1 = Shape1->GetLeafGeometry();
-		const EImplicitObjectType ImplicitType1 = Collisions::GetImplicitCollisionType(Particle1, Implicit1);
+		const EImplicitObjectType ImplicitType1 = Private::GetImplicitCollisionType(Particle1, Implicit1);
 
 		const bool bDoPassFilter = ShapePairNarrowPhaseFilter(ImplicitType0, Shape0, ImplicitType1, Shape1);
 		if (bDoPassFilter)
@@ -1334,19 +1308,28 @@ namespace Chaos
 		const FCollisionContext& Context)
 	{
 		// Check the sim filter to see if these shapes collide
-		const EImplicitObjectType ImplicitTypeA = Collisions::GetImplicitCollisionType(ParticleA, ImplicitA);
-		const EImplicitObjectType ImplicitTypeB = Collisions::GetImplicitCollisionType(ParticleB, ImplicitB);
+		const EImplicitObjectType ImplicitTypeA = Private::GetImplicitCollisionType(ParticleA, ImplicitA);
+		const EImplicitObjectType ImplicitTypeB = Private::GetImplicitCollisionType(ParticleB, ImplicitB);
 		const bool bDoPassFilter = ShapePairNarrowPhaseFilter(ImplicitTypeA, ShapeInstanceA, ImplicitTypeB, ShapeInstanceB);
 		if (!bDoPassFilter)
 		{
 			return;
 		}
 
+		// Calculate which bounds tests we should run for this shape pair
+		// @todo(chaos): it is too expensive to call this all the time. We should probably build it into DoBoundsOverlap and only perform operation when we pass te AABB test
+		//Private::FImplicitBoundsTestFlags BoundsTestFlags = Private::CalculateImplicitBoundsTestFlags(ParticleA, ImplicitA, ShapeInstanceA, ParticleB, ImplicitB, ShapeInstanceB, DistanceCheckSize);
+		FRealSingle DistanceCheckSize = 0;
+		Private::FImplicitBoundsTestFlags BoundsTestFlags;
+		BoundsTestFlags.bEnableAABBCheck = true;
+		BoundsTestFlags.bEnableOBBCheck0 = true;
+		BoundsTestFlags.bEnableOBBCheck1 = true;
+
 		// Do the objects bounds overlap?
 		const bool bDoOverlap = DoBoundsOverlap(
 			ImplicitA, ParticleWorldTransformA, RelativeTransformA,
 			ImplicitB, ParticleWorldTransformB, RelativeTransformB,
-			CullDistance);
+			BoundsTestFlags, DistanceCheckSize, CullDistance);
 
 		if (!bDoOverlap)
 		{
@@ -1397,12 +1380,10 @@ namespace Chaos
 		const FImplicitObject* ImplicitB,
 		const FRigidTransform3& ParticleWorldTransformB,
 		const FRigidTransform3& ShapeRelativeTransformB,
+		const Private::FImplicitBoundsTestFlags BoundsTestFlags,
+		const FRealSingle DistanceCheckSize,
 		const FReal CullDistance)
 	{
-		const bool bEnableAABBCheck = true;
-		const bool bEnableOBBCheckA = true;
-		const bool bEnableOBBCheckB = true;
-
 		const FRigidTransform3 ShapeWorldTransformA = ShapeRelativeTransformA * ParticleWorldTransformA;
 		const FRigidTransform3 ShapeWorldTransformB = ShapeRelativeTransformB * ParticleWorldTransformB;
 
@@ -1411,7 +1392,7 @@ namespace Chaos
 		const FAABB3 ShapeWorldBoundsB = ImplicitB->CalculateTransformedBounds(ShapeWorldTransformB);
 
 		// World-space expanded bounds check
-		if (bEnableAABBCheck)
+		if (BoundsTestFlags.bEnableAABBCheck)
 		{
 			if (!ShapeWorldBoundsA.Intersects(ShapeWorldBoundsB))
 			{
@@ -1419,22 +1400,37 @@ namespace Chaos
 			}
 		}
 
-		// OBB-AABB test in both directions. This is beneficial for shapes which do not fit their AABBs very well,
-		// which includes boxes and other shapes that are not roughly spherical. It is especially beneficial when
-		// one shape is long and thin (i.e., it does not fit an AABB well when the shape is rotated).
-		if (bEnableOBBCheckA)
+		// World-space sphere bounds check
+		if (BoundsTestFlags.bEnableDistanceCheck && (DistanceCheckSize > FRealSingle(0)))
 		{
-			if (!ImplicitOverlapOBBToAABB(ImplicitA, ImplicitB, ShapeWorldTransformA, ShapeWorldTransformB, CullDistance))
+			const FVec3 Separation = ShapeWorldBoundsA.GetCenter() - ShapeWorldBoundsB.GetCenter();
+			const FReal SeparationSq = Separation.SizeSquared();
+			const FReal CullDistanceSq = FMath::Square(CullDistance + FReal(DistanceCheckSize));
+			if (SeparationSq > CullDistanceSq)
 			{
 				return false;
 			}
 		}
 
-		if (bEnableOBBCheckB)
+		if (BoundsTestFlags.bEnableOBBCheck0 || BoundsTestFlags.bEnableOBBCheck1)
 		{
-			if (!ImplicitOverlapOBBToAABB(ImplicitB, ImplicitA, ShapeWorldTransformB, ShapeWorldTransformA, CullDistance))
+			// OBB-AABB test in both directions. This is beneficial for shapes which do not fit their AABBs very well,
+			// which includes boxes and other shapes that are not roughly spherical. It is especially beneficial when
+			// one shape is long and thin (i.e., it does not fit an AABB well when the shape is rotated).
+			if (BoundsTestFlags.bEnableOBBCheck0)
 			{
-				return false;
+				if (!ImplicitOverlapOBBToAABB(ImplicitA, ImplicitB, ShapeWorldTransformA, ShapeWorldTransformB, CullDistance))
+				{
+					return false;
+				}
+			}
+
+			if (BoundsTestFlags.bEnableOBBCheck1)
+			{
+				if (!ImplicitOverlapOBBToAABB(ImplicitB, ImplicitA, ShapeWorldTransformB, ShapeWorldTransformA, CullDistance))
+				{
+					return false;
+				}
 			}
 		}
 
@@ -1494,12 +1490,10 @@ namespace Chaos
 		{
 			// NOTE: Using InParticle0 and InParticle1 here because the order may be different to what we have stored
 			Constraint = CreateConstraint(InParticle0, InImplicit0, InShape0, InBVHParticles0, InShapeRelativeTransform0, InParticle1, InImplicit1, InShape1, InBVHParticles1, InShapeRelativeTransform1, CullDistance, ShapePairType, bUseManifold, CollisionKey, Context);
-
-			// Is this a CCD constraint?
-			Constraint->SetCCDEnabled(IsCCD());
 		}
 
 		NewConstraints.Add(Constraint);
+
 		return Constraint;
 	}
 
@@ -1542,21 +1536,10 @@ namespace Chaos
 		Constraint->GetContainerCookie().bIsMultiShapePair = true;
 		Constraint->GetContainerCookie().CreationEpoch = CurrentEpoch;
 
-		return Constraints.Add(CollisionKey.GetKey(), MoveTemp(Constraint)).Get();
-	}
+		// Is this a CCD constraint?
+		Constraint->SetCCDEnabled(IsCCD());
 
-	void FGenericParticlePairMidPhase::WakeCollisionsImpl(const int32 SleepEpoch, const int32 CurrentEpoch)
-	{
-		for (auto& KVP : Constraints)
-		{
-			FPBDCollisionConstraintPtr& Constraint = KVP.Value;
-			if (Constraint->GetContainerCookie().LastUsedEpoch >= SleepEpoch)
-			{
-				Constraint->GetContainerCookie().LastUsedEpoch = CurrentEpoch;
-				Constraint->GetContainerCookie().ConstraintIndex = INDEX_NONE;
-				Constraint->GetContainerCookie().CCDConstraintIndex = INDEX_NONE;
-			}
-		}
+		return Constraints.Add(CollisionKey.GetKey(), MoveTemp(Constraint)).Get();
 	}
 
 	void PrefetchConstraint(const TArray<FPBDCollisionConstraint*>& Constraints, const int32 ConstraintIndex)
@@ -1588,19 +1571,29 @@ namespace Chaos
 				Constraint->SetCCDSweepEnabled(bUseCCDSweep);
 			}
 
-			bool bIsActive = false;
-			if (!bUseCCDSweep)
+			// NOTE: Probe constraints are always active and we run collision detection for them at the end opf the frame
+			bool bIsActive = true;
+
+			if (!Constraint->IsProbe())
 			{
-				bIsActive = UpdateCollision(Constraint, CullDistance, Dt, Context);
-			}
-			else
-			{
-				bIsActive = UpdateCollisionCCD(Constraint, CullDistance, Dt, Context);
+				if (!bUseCCDSweep)
+				{
+					bIsActive = UpdateCollision(Constraint, CullDistance, Dt, Context);
+				}
+				else
+				{
+					bIsActive = UpdateCollisionCCD(Constraint, CullDistance, Dt, Context);
+				}
 			}
 
 			if (bIsActive)
 			{
+				Context.GetAllocator()->ActivateConstraint(Constraint);
 				++NumActive;
+			}
+			else
+			{
+				Constraint->SetDisabled(true);
 			}
 		}
 
@@ -1637,15 +1630,14 @@ namespace Chaos
 		}
 
 		bool bWasManifoldRestored = false;
-		// @todo(chaos): enable manifold restore for Generic midphase
-		//if (Context.GetSettings().bAllowManifoldReuse && Flags.bEnableManifoldUpdate && bWasUpdatedLastTick)
-		//{
-		//	// Update the existing manifold. We can re-use as-is if none of the points have moved much and the bodies have not moved much
-		//	// NOTE: this can succeed in "restoring" even if we have no manifold points
-		//	// NOTE: this uses the transforms from SetLastShapeWorldTransforms, so we can only do this if we were updated last tick
-		//	bWasManifoldRestored = Constraint->UpdateAndTryRestoreManifold();
-		//}
-		//else
+		if (Context.GetSettings().bAllowManifoldReuse && bWasUpdatedLastTick && Constraint->GetCanRestoreManifold())
+		{
+			// Update the existing manifold. We can re-use as-is if none of the points have moved much and the bodies have not moved much
+			// NOTE: this can succeed in "restoring" even if we have no manifold points
+			// NOTE: this uses the transforms from SetLastShapeWorldTransforms, so we can only do this if we were updated last tick
+			bWasManifoldRestored = Constraint->TryRestoreManifold();
+		}
+		else
 		{
 			// We are not trying to reuse manifold points, so reset them but leave stored data intact (for friction)
 			Constraint->ResetActiveManifoldContacts();
@@ -1653,29 +1645,23 @@ namespace Chaos
 
 		if (!bWasManifoldRestored)
 		{
-			// We will be updating the manifold so update transforms used to check for movement in UpdateAndTryRestoreManifold on future ticks
-			Constraint->SetLastShapeWorldTransforms(ShapeWorldTransform0, ShapeWorldTransform1);
-
 			if (!Context.GetSettings().bDeferNarrowPhase)
 			{
 				Collisions::UpdateConstraint(*Constraint, Constraint->GetShapeWorldTransform0(), Constraint->GetShapeWorldTransform1(), Dt);
 			}
+
+			// We will be updating the manifold so update transforms used to check for movement in UpdateAndTryRestoreManifold on future ticks
+			// NOTE: We call this after Collisions::UpdateConstraint because it may reset the manifold and reset the bCanRestoreManifold flag.
+			// @todo(chaos): Collisions::UpdateConstraint does not need to reset the manifold - fix that
+			Constraint->SetLastShapeWorldTransforms(ShapeWorldTransform0, ShapeWorldTransform1);
 		}
 
 		// If we have a valid contact, add it to the active list
 		// We also add it to the active list if collision detection is deferred because the data will be filled in later and we
 		// don't know in advance whether we will pass the Phi check (deferred narrow phase is used with RBAN)
-		if (Constraint->GetPhi() <= CullDistance || Context.GetSettings().bDeferNarrowPhase)
-		{
-			if (Context.GetAllocator()->ActivateConstraint(Constraint))
-			{
-				return true;
-			}
-		}
+		const bool bIsActive = (Constraint->GetPhi() <= CullDistance || Context.GetSettings().bDeferNarrowPhase);
 
-		// If we get here, we did not activate the constraint and it should be disabled for this tick
-		Constraint->SetDisabled(true);
-		return false;
+		return bIsActive;
 	}
 
 
@@ -1744,7 +1730,6 @@ namespace Chaos
 			Constraint->SetCCDSweepEnabled(false);
 		}
 
-		Context.GetAllocator()->ActivateConstraint(Constraint);
 		return true;
 	}
 

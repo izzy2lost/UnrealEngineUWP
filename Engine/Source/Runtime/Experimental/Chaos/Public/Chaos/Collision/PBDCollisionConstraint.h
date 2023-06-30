@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Chaos/Core.h"
 
 #include "Chaos/BVHParticles.h"
@@ -98,6 +97,32 @@ namespace Chaos
 	// Renamed to FPBDCollisionConstraintMaterial
 	using FCollisionContact UE_DEPRECATED(5.1, "FCollisionContact was renamed to FPBDCollisionConstraintMaterial") = FPBDCollisionConstraintMaterial;
 
+	namespace Private
+	{
+
+		// Flags to specify what types of bounds tests should be run for a collision constraint
+		// NOTE: These are separate from the other constraint flags because the ShapePair MidPhase 
+		// stores a copy for use in determining whether to create a constraint in the first place.
+		union FImplicitBoundsTestFlags
+		{
+			FImplicitBoundsTestFlags() : Bits(0) {}
+			struct
+			{
+				uint8 bEnableAABBCheck : 1;
+				uint8 bEnableOBBCheck0 : 1;
+				uint8 bEnableOBBCheck1 : 1;
+				uint8 bEnableDistanceCheck : 1;
+				uint8 bEnableManifoldUpdate : 1;
+				uint8 bIsProbe : 1;
+			};
+			uint8 Bits;
+		};
+
+		CHAOS_API FImplicitBoundsTestFlags CalculateImplicitBoundsTestFlags(
+			FGeometryParticleHandle* Particle0, const FImplicitObject* Implicit0, const FPerShapeData* Shape0,
+			FGeometryParticleHandle* Particle1, const FImplicitObject* Implicit1, const FPerShapeData* Shape1,
+			FRealSingle& OutDistanceCheckSize);
+	}
 
 	/**
 	 * @brief Information used by the constraint allocator
@@ -417,7 +442,7 @@ namespace Chaos
 				Material.ResetMaterialModifications();
 
 				// Reset other properties which may have changed in contact modification last frame
-				Flags.bIsProbe = Flags.bIsProbeUnmodified;
+				Flags.bIsProbe = BoundsTestFlags.bIsProbe;
 
 				Flags.bModifierApplied = false;
 			}
@@ -554,7 +579,9 @@ namespace Chaos
 		{
 			LastShapeWorldPositionDelta = InShapeWorldTransform0.GetTranslation() - InShapeWorldTransform1.GetTranslation();
 			LastShapeWorldRotationDelta = InShapeWorldTransform0.GetRotation().Inverse() * InShapeWorldTransform1.GetRotation();
-			Flags.bCanRestoreManifold = true;
+
+			// NOTE: BoundsTestFlags.bEnableManifoldUpdate is false if the shape pair does not support manifold reuse
+			Flags.bCanRestoreManifold = BoundsTestFlags.bEnableManifoldUpdate;
 		}
 
 		bool GetCanRestoreManifold() const { return Flags.bCanRestoreManifold; }
@@ -699,6 +726,11 @@ namespace Chaos
 			return FCollisionParticlePairKey(GetParticle0(), GetParticle1());
 		}
 
+		Private::FImplicitBoundsTestFlags GetBoundsTestFlags() const
+		{
+			return BoundsTestFlags;
+		}
+
 	public:
 		const FPBDCollisionConstraintHandle* GetConstraintHandle() const { return this; }
 		FPBDCollisionConstraintHandle* GetConstraintHandle() { return this; }
@@ -775,23 +807,22 @@ namespace Chaos
 			FFlags() : Bits(0) {}
 			struct
 			{
-				uint32 bDisabled : 1;					// Is this contact disabled (by the user or because cull distance is exceeded)
-				uint32 bUseManifold : 1;				// Should we use contact manifolds or single points (faster but poor behaviour)
-				uint32 bUseIncrementalManifold : 1;		// Do we need to run incremental collision detection (only LavelSets now)
-				uint32 bCanRestoreManifold : 1;			// Can we try to restore the manifold this frame (set folowing narrowphase, cleared when reset for some reason)
-				uint32 bWasManifoldRestored : 1;		// Did we restore the manifold this frame
-				uint32 bIsQuadratic0 : 1;				// Is the first shape a sphere or capsule
-				uint32 bIsQuadratic1 : 1;				// Is the second shape a sphere or capsule
-				uint32 bIsProbeUnmodified : 1;			// Is this constraint a probe pre-contact-modification
-				uint32 bIsProbe : 1;					// Is this constraint currently a probe
-				uint32 bCCDEnabled : 1;					// Is CCD enabled for the current tick
-				uint32 bCCDSweepEnabled: 1;				// If this is a CCD constraint, do we want to enable the sweep/rewind phase?
-				uint32 bModifierApplied : 1;			// Was a constraint modifier applied this tick
-				uint32 bMaterialSet : 1;				// Has the material been set (or does it need to be reset)
+				uint16 bDisabled : 1;					// Is this contact disabled (by the user or because cull distance is exceeded)
+				uint16 bUseManifold : 1;				// Should we use contact manifolds or single points (faster but poor behaviour)
+				uint16 bUseIncrementalManifold : 1;		// Do we need to run incremental collision detection (only LavelSets now)
+				uint16 bCanRestoreManifold : 1;			// Can we try to restore the manifold this frame (set folowing narrowphase, cleared when reset for some reason)
+				uint16 bWasManifoldRestored : 1;		// Did we restore the manifold this frame
+				uint16 bIsQuadratic0 : 1;				// Is the first shape a sphere or capsule
+				uint16 bIsQuadratic1 : 1;				// Is the second shape a sphere or capsule
+				uint16 bIsProbe : 1;					// Is this constraint currently a probe
+				uint16 bCCDEnabled : 1;					// Is CCD enabled for the current tick
+				uint16 bCCDSweepEnabled: 1;				// If this is a CCD constraint, do we want to enable the sweep/rewind phase?
+				uint16 bModifierApplied : 1;			// Was a constraint modifier applied this tick
+				uint16 bMaterialSet : 1;				// Has the material been set (or does it need to be reset)
 			};
-			uint32 Bits;
+			uint16 Bits;
 		};
-		static_assert(sizeof(FFlags) == 4, "Unexpected size for FPBDCollisionConstraint::FFLags");
+		static_assert(sizeof(FFlags) == 2, "Unexpected size for FPBDCollisionConstraint::FFLags");
 
 		// Local-space transforms of the shape (relative to particle)
 		FRigidTransform3 ImplicitTransform[2];
@@ -840,6 +871,7 @@ namespace Chaos
 		FRealSingle Stiffness;
 
 		FFlags Flags;
+		Private::FImplicitBoundsTestFlags BoundsTestFlags;
 
 		TCArray<FSavedManifoldPoint, MaxManifoldPoints> SavedManifoldPoints;
 		TCArray<FManifoldPoint, MaxManifoldPoints> ManifoldPoints;

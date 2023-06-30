@@ -71,11 +71,6 @@ namespace CVars
 	extern CHAOS_API bool bDisallowSetKinematicTargetOnDynamics;
 }
 
-namespace Collisions
-{
-	void CHAOS_API ResetChaosCollisionCounters();
-}
-
 extern CHAOS_API int32 FixBadAccelerationStructureRemoval;
 
 class FChaosArchive;
@@ -734,8 +729,6 @@ public:
 
 	void PrepareTick()
 	{
-		Collisions::ResetChaosCollisionCounters();
-
 		for (FPBDConstraintContainer* Container : ConstraintContainers)
 		{
 			Container->PrepareTick();
