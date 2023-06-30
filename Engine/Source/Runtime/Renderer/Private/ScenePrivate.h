@@ -2695,6 +2695,13 @@ private:
 	FLumenSceneDataMap::TConstIterator NextSceneData;
 };
 
+struct FNaniteShadingCommands
+{
+	uint32 MaxShadingBin = 0u;
+	FShaderBundleRHIRef ShaderBundle;
+	TArray<TPimplPtr<FNaniteShadingCommand>> Commands;
+};
+
 /** 
  * Renderer scene which is private to the renderer module.
  * Ordinarily this is the renderer version of a UWorld, but an FScene can be created for previewing in editors which don't have a UWorld as well.
@@ -2736,7 +2743,7 @@ public:
 	FNaniteShadingPipelines NaniteShadingPipelines[ENaniteMeshPass::Num];
 
 	// TODO: Heavily work in progress / experimental - do not use!
-	TArray<TPimplPtr<FNaniteShadingCommand>> NaniteShadingCommands[ENaniteMeshPass::Num];
+	FNaniteShadingCommands NaniteShadingCommands[ENaniteMeshPass::Num];
 
 	/** Nanite material visibility references. These are stored on the scene as they are computed at FPrimitiveSceneInfo::AddToScene time. */
 	FNaniteVisibility NaniteVisibility[ENaniteMeshPass::Num];

@@ -10,6 +10,7 @@
 static constexpr uint32 NANITE_MAX_MATERIALS = 64;
 
 struct FNaniteMaterialPassCommand;
+struct FNaniteShadingCommands;
 struct FLumenMeshCaptureMaterialPass;
 class  FLumenCardPassUniformParameters;
 class  FCardPageRenderData;
@@ -560,7 +561,7 @@ FShadeBinning ShadeBinning(
 void BuildShadingCommands(
 	const FScene& Scene,
 	const FNaniteShadingPipelines& ShadingPipelines,
-	TArray<TPimplPtr<FNaniteShadingCommand>>& ShadingCommands
+	FNaniteShadingCommands& ShadingCommands
 );
 
 EGBufferLayout GetGBufferLayoutForMaterial(bool bMaterialUsesWorldPositionOffset);
