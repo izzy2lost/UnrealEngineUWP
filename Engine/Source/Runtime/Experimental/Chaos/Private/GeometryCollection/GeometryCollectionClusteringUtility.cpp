@@ -647,16 +647,16 @@ void FGeometryCollectionClusteringUtility::RecursivelyUpdateChildBoneNames(int32
 				if (ParentHasNumbers && FoundNumberIndex > 0)
 				{
 					FString ParentNumbers = ParentName.Right(ParentName.Len() - FoundNumberIndex);
-					NewName = CurrentName + ParentNumbers + ChunkNumberStr;
+					NewName = CurrentName + ParentNumbers + "_" + ChunkNumberStr;
 				}
 				else
 				{
-					NewName = CurrentName + ChunkNumberStr;
+					NewName = CurrentName + "_" + ChunkNumberStr;
 				}
 			}
 			else
 			{
-				NewName = ParentName + ChunkNumberStr;
+				NewName = ParentName + "_" + ChunkNumberStr;
 			}
 			BoneNames[ChildIndex] = NewName;
 			RecursivelyUpdateChildBoneNames(ChildIndex, Children, BoneNames, OverrideBoneNames);
