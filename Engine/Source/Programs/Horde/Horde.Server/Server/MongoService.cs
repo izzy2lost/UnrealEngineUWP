@@ -187,6 +187,11 @@ namespace Horde.Server.Server
 	}
 
 	/// <summary>
+	/// Task used to update indexes
+	/// </summary>
+	record class MongoUpgradeTask(Func<CancellationToken, Task> UpgradeAsync, TaskCompletionSource CompletionSource);
+
+	/// <summary>
 	/// Singleton for accessing the database
 	/// </summary>
 	public sealed class MongoService : IHealthCheck, IDisposable
@@ -252,7 +257,7 @@ namespace Horde.Server.Server
 		const int DefaultMongoPort = 27017;
 
 		readonly HashSet<string> _collectionNames = new HashSet<string>(StringComparer.Ordinal);
-		readonly Channel<Func<CancellationToken, Task>> _updateIndexesChannel = Channel.CreateUnbounded<Func<CancellationToken, Task>>();
+		readonly Channel<MongoUpgradeTask> _updateIndexesChannel = Channel.CreateUnbounded<MongoUpgradeTask>();
 
 		/// <summary>
 		/// Constructor
@@ -617,7 +622,7 @@ namespace Horde.Server.Server
 		/// <returns></returns>
 		public IMongoCollection<T> GetCollection<T>(string name)
 		{
-			return new MongoTracingCollection<T>(Database.GetCollection<T>(name), _tracer);
+			return GetCollection<T>(name, Enumerable.Empty<MongoIndex<T>>());
 		}
 
 		/// <summary>
@@ -644,20 +649,29 @@ namespace Horde.Server.Server
 		/// <returns></returns>
 		public IMongoCollection<T> GetCollection<T>(string name, IEnumerable<MongoIndex<T>> indexes)
 		{
-			IMongoCollection<T> collection = GetCollection<T>(name);
-			lock (_collectionNames)
+			IMongoCollection<T> collection = Database.GetCollection<T>(name);
+
+			Task upgradeTask = Task.CompletedTask;
+			if (indexes.Any())
 			{
-				_logger.LogDebug("Queuing update for collection {Name}", name);
-
-				if (!_collectionNames.Add(name))
+				lock (_collectionNames)
 				{
-					throw new NotImplementedException();
-				}
+					_logger.LogDebug("Queuing update for collection {Name}", name);
 
-				MongoIndex<T>[] indexesCopy = indexes.ToArray();
-				_updateIndexesChannel.Writer.TryWrite(ctx => UpdateIndexesAsync(name, collection, indexesCopy, ctx));
+					if (!_collectionNames.Add(name))
+					{
+						throw new NotImplementedException();
+					}
+
+					MongoIndex<T>[] indexesCopy = indexes.ToArray();
+
+					TaskCompletionSource tcs = new TaskCompletionSource();
+					_updateIndexesChannel.Writer.TryWrite(new MongoUpgradeTask(ctx => UpdateIndexesAsync(name, collection, indexesCopy, ctx), tcs));
+					upgradeTask = tcs.Task;
+				}
 			}
-			return collection;
+
+			return new MongoTracingCollection<T>(Database.GetCollection<T>(name), upgradeTask, _tracer);
 		}
 
 		/// <summary>
@@ -665,7 +679,7 @@ namespace Horde.Server.Server
 		/// </summary>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public ValueTask<Func<CancellationToken, Task>> ReadNextUpgradeTask(CancellationToken cancellationToken)
+		internal ValueTask<MongoUpgradeTask> ReadNextUpgradeTask(CancellationToken cancellationToken)
 		{
 			return _updateIndexesChannel.Reader.ReadAsync(cancellationToken);
 		}
@@ -965,14 +979,14 @@ namespace Horde.Server.Server
 			{
 				try
 				{
-					Func<CancellationToken, Task> updateIndexTask = await _mongoService.ReadNextUpgradeTask(cancellationToken);
+					MongoUpgradeTask upgradeTask = await _mongoService.ReadNextUpgradeTask(cancellationToken);
 					for (; ; )
 					{
 						using (RedisLock schemaLock = new(_redisService.GetDatabase(), s_schemaLockKey))
 						{
 							if (await schemaLock.AcquireAsync(TimeSpan.FromMinutes(5.0)))
 							{
-								await UpdateOneAsync(updateIndexTask, cancellationToken);
+								await UpdateOneAsync(upgradeTask, cancellationToken);
 								break;
 							}
 							else
@@ -995,22 +1009,25 @@ namespace Horde.Server.Server
 			}
 		}
 
-		async ValueTask UpdateOneAsync(Func<CancellationToken, Task> taskAsync, CancellationToken cancellationToken)
+		async ValueTask UpdateOneAsync(MongoUpgradeTask upgradeTask, CancellationToken cancellationToken)
 		{
 			try
 			{
 				if (await SetSchemaVersion(Program.Version))
 				{
-					await taskAsync(cancellationToken);
+					await upgradeTask.UpgradeAsync(cancellationToken);
 				}
+				upgradeTask.CompletionSource.SetResult();
 			}
 			catch (MongoCommandException ex)
 			{
 				_logger.LogError(ex, "Command exception while attempting to update indexes ({Code}): {Message}", ex.Code, ex.Message);
+				upgradeTask.CompletionSource.TrySetException(ex);
 			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Exception while attempting to update indexes: {Message}", ex.Message);
+				upgradeTask.CompletionSource.TrySetException(ex);
 			}
 		}
 
