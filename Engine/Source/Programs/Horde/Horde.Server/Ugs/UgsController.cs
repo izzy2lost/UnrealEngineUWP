@@ -99,7 +99,10 @@ namespace Horde.Server.Ugs
 			{
 				foreach (AddUgsBadgeRequest badge in request.Badges)
 				{
-					metadata = await _ugsMetadataCollection.UpdateBadgeAsync(metadata, badge.Name, badge.Url, badge.State);
+					if (!String.IsNullOrEmpty(badge.Name))
+					{
+						metadata = await _ugsMetadataCollection.UpdateBadgeAsync(metadata, badge.Name, badge.Url, badge.State);
+					}
 				}
 			}
 			return Ok();
