@@ -380,6 +380,19 @@ FString GetIOSDeviceIDString()
 		bCached = true;
 
 		free(DeviceID);
+		
+		// arm simulator
+		// @todo test intel simulator
+		if (CachedResult == "arm64")
+		{
+#if PLATFORM_VISIONOS
+			CachedResult = TEXT("VisionPro0,1");
+#elif PLATFORM_TVOS
+			CachedResult = TEXT("AppleTV0,1");
+#else
+			CachedResult = TEXT("iPhone0,1");
+#endif
+		}
 	}
 
 	return CachedResult;
