@@ -20,6 +20,7 @@
 #include "Misc/ScopedSlowTask.h"
 #include "Modules/ModuleManager.h"
 
+DEFINE_LOG_CATEGORY(LogLatentCommands)
 DEFINE_LOG_CATEGORY_STATIC(LogAutomationTest, Warning, All);
 
 namespace AutomationTest

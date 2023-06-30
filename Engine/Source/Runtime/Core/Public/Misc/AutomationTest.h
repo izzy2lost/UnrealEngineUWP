@@ -47,7 +47,7 @@
 
 #include <atomic>
 
-DEFINE_LOG_CATEGORY_STATIC(LogLatentCommands, Log, All);
+CORE_API DECLARE_LOG_CATEGORY_EXTERN(LogLatentCommands, Log, All);
 class FAutomationTestBase;
 
 #ifndef WITH_AUTOMATION_TESTS
