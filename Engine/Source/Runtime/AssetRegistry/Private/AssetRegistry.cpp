@@ -6,6 +6,7 @@
 #include "AssetDataGatherer.h"
 #include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetDependencyGatherer.h"
+#include "AssetRegistry/AssetRegistryTelemetry.h"
 #include "AssetRegistryConsoleCommands.h"
 #include "AssetRegistryPrivate.h"
 #include "Async/Async.h"
@@ -35,6 +36,7 @@
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryWriter.h"
 #include "Templates/UnrealTemplate.h"
+#include "TelemetryRouter.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UObject/CoreRedirects.h"
 #include "UObject/MetaData.h"
@@ -809,12 +811,14 @@ void FAssetRegistryImpl::Initialize(Impl::FInitializeContext& Context)
 	Utils::InitializeSerializationOptionsFromIni(SerializationOptions, FString());
 	Utils::InitializeSerializationOptionsFromIni(DevelopmentSerializationOptions, FString(), UE::AssetRegistry::ESerializationTarget::ForDevelopment);
 
+	bool bStartedAsyncGather = false;
 	if (ShouldSearchAllAssetsAtStart())
 	{
 		ConstructGatherer();
 		if (GlobalGatherer->IsAsyncEnabled())
 		{
 			SearchAllAssetsInitialAsync(Context.Events, Context.InheritanceContext);
+			bStartedAsyncGather = true;
 		}
 		else
 		{
@@ -826,7 +830,13 @@ void FAssetRegistryImpl::Initialize(Impl::FInitializeContext& Context)
 	ConsumeOrDeferPreloadedPremade(Context.UARI, Context.Events);
 
 	// Report startup time. This does not include DirectoryWatcher startup time.
-	UE_LOG(LogAssetRegistry, Log, TEXT("FAssetRegistry took %0.4f seconds to start up"), FPlatformTime::Seconds() - StartupStartTime);
+	double StartupDuration = FPlatformTime::Seconds() - StartupStartTime;
+	UE_LOG(LogAssetRegistry, Log, TEXT("FAssetRegistry took %0.4f seconds to start up"), StartupDuration);
+	
+	FTelemetryRouter::Get().ProvideTelemetry<UE::Telemetry::AssetRegistry::FStartupTelemetry>({
+		StartupDuration,
+		bStartedAsyncGather
+	});
 
 #if WITH_EDITOR
 	if (GConfig)
@@ -1554,6 +1564,7 @@ void FAssetRegistryImpl::ConstructGatherer()
 void FAssetRegistryImpl::SearchAllAssetsInitialAsync(Impl::FEventContext& EventContext,
 	Impl::FClassInheritanceContext& InheritanceContext)
 {
+	InitialSearchStartTime = FPlatformTime::Seconds();
 	bInitialSearchStarted = true;
 	bInitialSearchCompleted = false;
 	SearchAllAssets(EventContext, InheritanceContext, false /* bSynchronousSearch */);
@@ -1565,6 +1576,7 @@ void UAssetRegistryImpl::SearchAllAssets(bool bSynchronousSearch)
 {
 	using namespace UE::AssetRegistry::Impl;
 
+	double StartTime = FPlatformTime::Seconds();
 	FEventContext EventContext;
 	{
 		LLM_SCOPE(ELLMTag::AssetRegistry);
@@ -1580,7 +1592,7 @@ void UAssetRegistryImpl::SearchAllAssets(bool bSynchronousSearch)
 		GuardedData.SearchAllAssets(EventContext, InheritanceContext, bSynchronousSearch);
 		if (bSynchronousSearch)
 		{
-			GuardedData.LogSearchDiagnostics();
+			GuardedData.LogSearchDiagnostics(StartTime);
 		}
 	}
 #if WITH_EDITOR
@@ -3511,11 +3523,15 @@ void UAssetRegistryImpl::ScanPathsSynchronousInternal(const TArray<FString>& InD
 	UE::AssetRegistry::Impl::FScanPathContext Context(EventContext, InheritanceContext, InDirs, InFiles,
 		bForceRescan, bIgnoreDenyListScanFilters, nullptr /* OutFindAssets */);
 
+	bool bInitialSearchStarted;
+	bool bInitialSearchCompleted;
 	{
 		LLM_SCOPE(ELLMTag::AssetRegistry);
 		FWriteScopeLock InterfaceScopeLock(InterfaceLock);
 		GetInheritanceContextWithRequiredLock(InterfaceScopeLock, InheritanceContext, InheritanceBuffer);
 
+		bInitialSearchStarted = GuardedData.IsInitialSearchStarted();
+		bInitialSearchCompleted = GuardedData.IsInitialSearchCompleted();
 		// make sure any outstanding async preload is complete
 		GuardedData.ConditionalLoadPremadeAssetRegistry(*this, EventContext, InterfaceScopeLock);
 		GuardedData.ScanPathsSynchronous(Context);
@@ -3544,8 +3560,19 @@ void UAssetRegistryImpl::ScanPathsSynchronousInternal(const TArray<FString>& InD
 		PathsString = FString::Printf(TEXT("'%s'"), *Context.LocalPaths[0]);
 	}
 
+
+	double Duration = FPlatformTime::Seconds() - SearchStartTime;
+	UE::Telemetry::AssetRegistry::FSynchronousScanTelemetry Telemetry; 
+	Telemetry.Directories = MakeArrayView(InDirs);
+	Telemetry.Files = MakeArrayView(InFiles);
+	Telemetry.Flags = InScanFlags;
+	Telemetry.NumFoundAssets = Context.NumFoundAssets;
+	Telemetry.Duration = Duration;
+	Telemetry.bInitialSearchStarted = bInitialSearchStarted;
+	Telemetry.bInitialSearchCompleted = bInitialSearchCompleted;
+	FTelemetryRouter::Get().ProvideTelemetry(Telemetry);
 	UE_LOG(LogAssetRegistry, Verbose, TEXT("ScanPathsSynchronous completed scanning %s to find %d assets in %0.4f seconds"), *PathsString,
-		Context.NumFoundAssets, FPlatformTime::Seconds() - SearchStartTime);
+		Context.NumFoundAssets, Duration);
 }
 
 void UAssetRegistryImpl::PrioritizeSearchPath(const FString& PathToPrioritize)
@@ -4050,7 +4077,7 @@ Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FEventContext& EventC
 			UpdateRedirectCollector();
 #endif
 			RecordTimer();
-			LogSearchDiagnostics();
+			LogSearchDiagnostics(InitialSearchStartTime);
 			TRACE_END_REGION(TEXT("Asset Registry Scan"));
 
 			bInitialSearchCompleted = true;
@@ -4062,14 +4089,21 @@ Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FEventContext& EventC
 	return OutStatus;
 }
 
-void FAssetRegistryImpl::LogSearchDiagnostics() const
+void FAssetRegistryImpl::LogSearchDiagnostics(double StartTime) const
 {
-	float GatherTimeSeconds;
-	float DiscoveryTimeSeconds;
-	GlobalGatherer->GetDiagnostics(GatherTimeSeconds, DiscoveryTimeSeconds);
-	float Total = DiscoveryTimeSeconds + GatherTimeSeconds + StoreGatherResultsTimeSeconds;
+	FAssetGatherDiagnostics Diagnostics = GlobalGatherer->GetDiagnostics();
+	float Total = Diagnostics.DiscoveryTimeSeconds + Diagnostics.GatherTimeSeconds + StoreGatherResultsTimeSeconds;
+	UE::Telemetry::AssetRegistry::FGatherTelemetry Telemetry;
+	Telemetry.TotalSearchDurationSeconds = FPlatformTime::Seconds() - StartTime;
+	Telemetry.TotalWorkTimeSeconds = Total;
+	Telemetry.DiscoveryTimeSeconds = Diagnostics.DiscoveryTimeSeconds;
+	Telemetry.GatherTimeSeconds = Diagnostics.GatherTimeSeconds;
+	Telemetry.StoreTimeSeconds = StoreGatherResultsTimeSeconds;
+	Telemetry.NumCachedAssetFiles = Diagnostics.NumCachedAssetFiles;
+	Telemetry.NumUncachedAssetFiles = Diagnostics.NumUncachedAssetFiles;
+	FTelemetryRouter::Get().ProvideTelemetry(Telemetry);
 	UE_LOG(LogAssetRegistry, Log, TEXT("AssetRegistryGather time %.4fs: AssetDataDiscovery %0.4fs, AssetDataGather %0.4fs, StoreResults %0.4fs."),
-		Total, DiscoveryTimeSeconds, GatherTimeSeconds, StoreGatherResultsTimeSeconds);
+		Total, Diagnostics.DiscoveryTimeSeconds, Diagnostics.GatherTimeSeconds, StoreGatherResultsTimeSeconds);
 }
 
 void FAssetRegistryImpl::TickGatherPackage(Impl::FEventContext& EventContext, const FString& PackageName, const FString& LocalPath)
@@ -5516,6 +5550,8 @@ void UAssetRegistryImpl::OnDirectoryChanged(const TArray<FFileChangeData>& FileC
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UAssetRegistryImpl::OnDirectoryChanged);
 
+	double StartTime = FPlatformTime::Seconds();
+	
 	// Take local copy of FileChanges array as we wish to collapse pairs of 'Removed then Added' FileChangeData
 	// entries into a single 'Modified' entry.
 	TArray<FFileChangeData> FileChangesProcessed(FileChanges);
@@ -5544,15 +5580,26 @@ void UAssetRegistryImpl::OnDirectoryChanged(const TArray<FFileChangeData>& FileC
 	}
 
 	UE::AssetRegistry::Impl::FEventContext EventContext;
+	bool bInitialSearchStarted;
+	bool bInitialSearchCompleted;
 	{
 		LLM_SCOPE(ELLMTag::AssetRegistry);
 		FWriteScopeLock InterfaceScopeLock(InterfaceLock);
+		bInitialSearchStarted = GuardedData.IsInitialSearchStarted();
+		bInitialSearchCompleted = GuardedData.IsInitialSearchCompleted();
 		UE::AssetRegistry::Impl::FClassInheritanceContext InheritanceContext;
 		UE::AssetRegistry::Impl::FClassInheritanceBuffer InheritanceBuffer;
 		GetInheritanceContextWithRequiredLock(InterfaceScopeLock, InheritanceContext, InheritanceBuffer);
 		GuardedData.OnDirectoryChanged(EventContext, InheritanceContext, FileChangesProcessed);
 	}
 	Broadcast(EventContext);
+	
+	FTelemetryRouter::Get().ProvideTelemetry<UE::Telemetry::AssetRegistry::FDirectoryWatcherUpdateTelemetry>({
+		FileChanges,
+		FPlatformTime::Seconds() - StartTime,
+		bInitialSearchStarted,
+		bInitialSearchCompleted,
+	});
 }
 
 namespace UE::AssetRegistry
