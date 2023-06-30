@@ -80,7 +80,7 @@ namespace Horde.Server.Agents.Leases
 		public LeaseCollection(MongoService mongoService)
 		{
 			List<MongoIndex<LeaseDocument>> indexes = new List<MongoIndex<LeaseDocument>>();
-			indexes.Add(keys => keys.Ascending(x => x.ParentId), sparse: true);
+//			indexes.Add(keys => keys.Ascending(x => x.ParentId), sparse: true);
 			indexes.Add(keys => keys.Ascending(x => x.AgentId));
 			indexes.Add(keys => keys.Ascending(x => x.SessionId));
 			indexes.Add(keys => keys.Ascending(x => x.StartTime));
