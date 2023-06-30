@@ -22,8 +22,7 @@ FSimpleMeshDrawCommandPass::FSimpleMeshDrawCommandPass(const FSceneView& View, F
 		ViewIds.Add(ViewInfo->GetInstancedView()->GPUSceneViewId);
 	}
 
-	ERHIFeatureLevel::Type FeatureLevel = ViewInfo->GetFeatureLevel();
-	InstanceCullingContext = FInstanceCullingContext(FeatureLevel, InstanceCullingManager, ViewIds, nullptr, bUsingStereo ? EInstanceCullingMode::Stereo : EInstanceCullingMode::Normal);
+	InstanceCullingContext = FInstanceCullingContext(ViewInfo->GetShaderPlatform(), InstanceCullingManager, ViewIds, nullptr, bUsingStereo ? EInstanceCullingMode::Stereo : EInstanceCullingMode::Normal);
 
 	InstanceFactor = static_cast<uint32>(ViewIds.Num());
 }
@@ -80,8 +79,13 @@ void FSimpleMeshDrawCommandPass::SubmitDraw(FRHICommandList& RHICmdList, const F
 		}
 		else
 		{
-			const uint32 PrimitiveIdBufferStride = FInstanceCullingContext::GetInstanceIdBufferStride(InstanceCullingContext.FeatureLevel);
-			SubmitMeshDrawCommandsRange(VisibleMeshDrawCommands, GraphicsMinimalPipelineStateSet, PrimitiveIdVertexBuffer, PrimitiveIdBufferStride, 0, false, 0, VisibleMeshDrawCommands.Num(), InstanceFactor, RHICmdList);
+			FMeshDrawCommandSceneArgs SceneArgs;
+			SceneArgs.PrimitiveIdsBuffer = PrimitiveIdVertexBuffer;
+			SceneArgs.PrimitiveIdOffset = 0u;
+			SceneArgs.BatchedPrimitiveSlot = InstanceCullingContext.BatchedPrimitiveSlot;
+			const uint32 PrimitiveIdBufferStride = FInstanceCullingContext::GetInstanceIdBufferStride(InstanceCullingContext.ShaderPlatform);
+
+			SubmitMeshDrawCommandsRange(VisibleMeshDrawCommands, GraphicsMinimalPipelineStateSet, SceneArgs, PrimitiveIdBufferStride, false, 0, VisibleMeshDrawCommands.Num(), InstanceFactor, RHICmdList);
 		}
 	}
 }

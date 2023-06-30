@@ -754,8 +754,6 @@ protected:
 	/** The vertex streams used to render the factory. */
 	FVertexStreamList Streams;
 	
-	static constexpr int32 PrimitiveIdStreamStride = 0;
-
 private:
 
 	/** The position only vertex stream used to render the factory during depth only passes. */
@@ -811,22 +809,3 @@ public:
 };
 
 extern RENDERCORE_API TGlobalResource<FPrimitiveIdDummyBuffer> GPrimitiveIdDummy;
-
-class FPrimitiveIdDummyBufferMobile : public FVertexBuffer
-{
-public:
-	// float4 * 5
-	static constexpr uint32 BufferStride = 16u * 5u;
-
-	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
-
-	virtual void ReleaseRHI() override
-	{
-		VertexBufferSRV.SafeRelease();
-		FVertexBuffer::ReleaseRHI();
-	}
-
-	FShaderResourceViewRHIRef VertexBufferSRV;
-};
-
-extern RENDERCORE_API TGlobalResource<FPrimitiveIdDummyBufferMobile> GPrimitiveIdDummyMobile;

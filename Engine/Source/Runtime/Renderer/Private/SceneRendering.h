@@ -2693,14 +2693,14 @@ protected:
 		FVirtualTextureUpdater* VirtualTextureUpdater,
 		FInitViewTaskDatas& TaskDatas);
 
-	void RenderPrePass(FRHICommandList& RHICmdList, const FViewInfo& View);
+	void RenderPrePass(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams);
 	void RenderMaskedPrePass(FRHICommandList& RHICmdList, const FViewInfo& View);
 	void RenderFullDepthPrepass(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures);
 
 	void RenderLocalLightPrepass(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures);
 
 	/** Renders the opaque base pass for mobile. */
-	void RenderMobileBasePass(FRHICommandList& RHICmdList, const FViewInfo& View);
+	void RenderMobileBasePass(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams);
 
 	void PostRenderBasePass(FRHICommandList& RHICmdList, FViewInfo& View);
 
@@ -2784,8 +2784,12 @@ private:
 	ETranslucencyPass::Type StandardTranslucencyPass;
 	EMeshPass::Type StandardTranslucencyMeshPass;
 
-	// TODO: remove this after instance culling is specialized for mobile
-	FInstanceCullingDrawParams MeshPassInstanceCullingDrawParams[EMeshPass::Num];
+	// All mesh passes that can be fused into single render-pass
+	// Base mesh pass gets its culling parameters from a render-pass struct
+	FInstanceCullingDrawParams DepthPassInstanceCullingDrawParams;
+	FInstanceCullingDrawParams SkyPassInstanceCullingDrawParams;
+	FInstanceCullingDrawParams DebugViewModeInstanceCullingDrawParams;
+	FInstanceCullingDrawParams TranslucencyInstanceCullingDrawParams;
 
 	static FGlobalDynamicIndexBuffer DynamicIndexBuffer;
 	static FGlobalDynamicVertexBuffer DynamicVertexBuffer;

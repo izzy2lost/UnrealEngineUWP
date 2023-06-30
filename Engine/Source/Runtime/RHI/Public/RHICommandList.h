@@ -1979,6 +1979,32 @@ FRHICOMMAND_MACRO(FRHICommandSetStaticUniformBuffers)
 	RHI_API void Execute(FRHICommandListBase & CmdList);
 };
 
+FRHICOMMAND_MACRO(FRHICommandSetStaticUniformBuffer)
+{
+	FRHIUniformBuffer* Buffer;
+	FUniformBufferStaticSlot Slot;
+
+	FORCEINLINE_DEBUGGABLE FRHICommandSetStaticUniformBuffer(FUniformBufferStaticSlot InSlot, FRHIUniformBuffer* InBuffer)
+		: Buffer(InBuffer)
+		, Slot(InSlot)
+	{}
+
+	RHI_API void Execute(FRHICommandListBase & CmdList);
+};
+
+FRHICOMMAND_MACRO(FRHICommandSetUniformBufferDynamicOffset)
+{
+	uint32 Offset;
+	FUniformBufferStaticSlot Slot;
+
+	FORCEINLINE_DEBUGGABLE FRHICommandSetUniformBufferDynamicOffset(FUniformBufferStaticSlot InSlot, uint32 InOffset)
+		: Offset(InOffset)
+		, Slot(InSlot)
+	{
+	}
+	RHI_API void Execute(FRHICommandListBase& CmdList);
+};
+
 FRHICOMMAND_MACRO(FRHICommandBeginRenderQuery)
 {
 	FRHIRenderQuery* RenderQuery;
@@ -2413,6 +2439,26 @@ public:
 			return;
 		}
 		ALLOC_COMMAND(FRHICommandSetStaticUniformBuffers)(UniformBuffers);
+	}
+
+	FORCEINLINE_DEBUGGABLE void SetStaticUniformBuffer(FUniformBufferStaticSlot Slot, FRHIUniformBuffer* Buffer)
+	{
+		if (Bypass())
+		{
+			GetComputeContext().RHISetStaticUniformBuffer(Slot, Buffer);
+			return;
+		}
+		ALLOC_COMMAND(FRHICommandSetStaticUniformBuffer)(Slot, Buffer);
+	}
+
+	FORCEINLINE_DEBUGGABLE void SetUniformBufferDynamicOffset(FUniformBufferStaticSlot Slot, uint32 Offset)
+	{
+		if (Bypass())
+		{
+			GetContext().RHISetUniformBufferDynamicOffset(Slot, Offset);
+			return;
+		}
+		ALLOC_COMMAND(FRHICommandSetUniformBufferDynamicOffset)(Slot, Offset);
 	}
 
 	UE_DEPRECATED(5.3, "FRHIBatchedShaderParameters and SetBatchedShaderParameters should be used instead of setting individual parameters.")

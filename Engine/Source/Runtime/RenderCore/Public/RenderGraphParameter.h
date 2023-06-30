@@ -18,7 +18,7 @@ public:
 
 	bool IsSRV() const
 	{
-		return MemberType == UBMT_RDG_TEXTURE_SRV || MemberType == UBMT_RDG_BUFFER_SRV;
+		return MemberType == UBMT_RDG_TEXTURE_SRV || MemberType == UBMT_RDG_BUFFER_SRV || MemberType == UBMT_RDG_UNIFORM_BLOCK_SRV;
 	}
 
 	bool IsUAV() const
@@ -168,7 +168,7 @@ public:
 
 	FRDGBufferSRVRef GetAsBufferSRV() const
 	{
-		check(MemberType == UBMT_RDG_BUFFER_SRV);
+		check(MemberType == UBMT_RDG_BUFFER_SRV || MemberType == UBMT_RDG_UNIFORM_BLOCK_SRV);
 		return *GetAs<FRDGBufferSRVRef>();
 	}
 

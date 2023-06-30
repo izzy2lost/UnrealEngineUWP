@@ -654,7 +654,7 @@ bool FMobileSceneRenderer::ShouldRenderPrePass() const
 	return Scene->EarlyZPassMode == DDM_MaskedOnly || Scene->EarlyZPassMode == DDM_AllOpaque;
 }
 
-void FMobileSceneRenderer::RenderPrePass(FRHICommandList& RHICmdList, const FViewInfo& View)
+void FMobileSceneRenderer::RenderPrePass(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams)
 {
 	if (!ShouldRenderPrePass())
 	{
@@ -671,7 +671,7 @@ void FMobileSceneRenderer::RenderPrePass(FRHICommandList& RHICmdList, const FVie
 	SCOPED_GPU_STAT(RHICmdList, Prepass);
 
 	SetStereoViewport(RHICmdList, View);
-	View.ParallelMeshDrawCommandPasses[EMeshPass::DepthPass].DispatchDraw(nullptr, RHICmdList, &MeshPassInstanceCullingDrawParams[EMeshPass::DepthPass]);
+	View.ParallelMeshDrawCommandPasses[EMeshPass::DepthPass].DispatchDraw(nullptr, RHICmdList, InstanceCullingDrawParams);
 }
 
 void FDeferredShadingSceneRenderer::RenderPrePassHMD(FRDGBuilder& GraphBuilder, FRDGTextureRef DepthTexture)

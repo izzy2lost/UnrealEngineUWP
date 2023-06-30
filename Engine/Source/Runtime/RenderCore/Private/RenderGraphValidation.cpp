@@ -869,6 +869,7 @@ void FRDGUserValidation::ValidateAddPass(const FRDGPass* Pass, bool bSkipPassAcc
 		}
 		break;
 		case UBMT_RDG_BUFFER_SRV:
+		case UBMT_RDG_UNIFORM_BLOCK_SRV:
 		{
 			if (FRDGBufferSRVRef SRV = Parameter.GetAsBufferSRV())
 			{

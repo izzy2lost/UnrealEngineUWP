@@ -27,6 +27,7 @@
 #include "PrimitiveSceneShaderData.h"
 #include "RendererOnScreenNotification.h"
 #include "InstanceCulling/InstanceCullingOcclusionQuery.h"
+#include "PrimitiveUniformShaderParametersBuilder.h"
 
 // Defaults to being disabled, enable using the command line argument: -CsvCategory GPUScene
 CSV_DEFINE_CATEGORY(GPUScene, false);
@@ -2163,6 +2164,10 @@ void FGPUScene::AddUpdatePrimitiveIdsPass(FRDGBuilder& GraphBuilder, FInstanceGP
 void FGPUSceneCompactInstanceData::Init(const FGPUScenePrimitiveCollector* PrimitiveCollector, int32 PrimitiveId)
 {
 	FMatrix44f LocalToRelativeWorld = FMatrix44f::Identity;
+	FVector3f TilePosition = FVector3f::ZeroVector;
+	FVector3f InvNonUniformScale = FVector3f::OneVector;
+	float PrimitiveFlags = 0;
+
 	int32 DynamicPrimitiveId = PrimitiveId;
 	if (PrimitiveCollector && PrimitiveCollector->UploadData && !PrimitiveCollector->GetPrimitiveIdRange().IsEmpty())
 	{
@@ -2171,31 +2176,41 @@ void FGPUSceneCompactInstanceData::Init(const FGPUScenePrimitiveCollector* Primi
 		{
 			const FPrimitiveUniformShaderParameters& PrimitiveData = *PrimitiveCollector->UploadData->PrimitiveData[PrimitiveId].ShaderParams;
 			LocalToRelativeWorld = PrimitiveData.LocalToRelativeWorld;
+			TilePosition = PrimitiveData.TilePosition;
+			InvNonUniformScale = PrimitiveData.InvNonUniformScale;
+			PrimitiveFlags = *(float*)&PrimitiveData.Flags;
 		}
 	}
-	InstanceOriginAndId		= LocalToRelativeWorld.GetOrigin();
-	InstanceTransform1		= LocalToRelativeWorld.GetScaledAxis(EAxis::X);
-	InstanceTransform2		= LocalToRelativeWorld.GetScaledAxis(EAxis::Y);
-	InstanceTransform3		= LocalToRelativeWorld.GetScaledAxis(EAxis::Z);
-	InstanceOriginAndId.W	= *(float*)&DynamicPrimitiveId;
-	InstanceAuxData			= FVector4f(0);
+
+	// must match packing in SceneDataMobileWriter.ush
+	LocalToWorld0	= LocalToRelativeWorld.GetScaledAxis(EAxis::X);
+	LocalToWorld1	= LocalToRelativeWorld.GetScaledAxis(EAxis::Y);
+	LocalToWorld2	= LocalToRelativeWorld.GetScaledAxis(EAxis::Z);
+	LocalToWorld3	= LocalToRelativeWorld.GetOrigin();
+	LocalToWorld0.W = TilePosition.X;
+	LocalToWorld1.W = TilePosition.Y;
+	LocalToWorld2.W = TilePosition.Z;
+	InvNonUniformScaleAndFlags = FVector4f(InvNonUniformScale, PrimitiveFlags);
 }
 
 void FGPUSceneCompactInstanceData::Init(const FScene* Scene, int32 PrimitiveId)
 {
-	FMatrix44f LocalToRelativeWorld = FMatrix44f::Identity;
+	FPrimitiveUniformShaderParametersBuilder Builder = FPrimitiveUniformShaderParametersBuilder{}.Defaults();
 	if (Scene && PrimitiveId >= 0 && PrimitiveId < Scene->PrimitiveTransforms.Num())
 	{
-		const FMatrix LocalToWorld = Scene->PrimitiveTransforms[PrimitiveId];
-		const FLargeWorldRenderPosition AbsoluteOrigin(LocalToWorld.GetOrigin());
-		LocalToRelativeWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(AbsoluteOrigin.GetTileOffset(), LocalToWorld);
+		Builder.LocalToWorld(Scene->PrimitiveTransforms[PrimitiveId]);
 	}
-	InstanceOriginAndId		= LocalToRelativeWorld.GetOrigin();
-	InstanceTransform1		= LocalToRelativeWorld.GetScaledAxis(EAxis::X);
-	InstanceTransform2		= LocalToRelativeWorld.GetScaledAxis(EAxis::Y);
-	InstanceTransform3		= LocalToRelativeWorld.GetScaledAxis(EAxis::Z);
-	InstanceOriginAndId.W	= *(float*)&PrimitiveId;
-	InstanceAuxData			= FVector4f(0);
+	const FPrimitiveUniformShaderParameters PrimitiveData = Builder.Build();
+	
+	// must match packing in SceneDataMobileWriter.ush
+	LocalToWorld0	= PrimitiveData.LocalToRelativeWorld.GetScaledAxis(EAxis::X);
+	LocalToWorld1	= PrimitiveData.LocalToRelativeWorld.GetScaledAxis(EAxis::Y);
+	LocalToWorld2	= PrimitiveData.LocalToRelativeWorld.GetScaledAxis(EAxis::Z);
+	LocalToWorld3	= PrimitiveData.LocalToRelativeWorld.GetOrigin();
+	LocalToWorld0.W = PrimitiveData.TilePosition.X;
+	LocalToWorld1.W = PrimitiveData.TilePosition.Y;
+	LocalToWorld2.W = PrimitiveData.TilePosition.Z;
+	InvNonUniformScaleAndFlags = FVector4f(PrimitiveData.InvNonUniformScale, *(float*)&PrimitiveData.Flags);
 }
 
 void FGPUScene::AddClearInstancesPass(FRDGBuilder& GraphBuilder, FInstanceCullingOcclusionQueryRenderer* OcclusionQueryRenderer)

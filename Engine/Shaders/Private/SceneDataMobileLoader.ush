@@ -1,0 +1,222 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+#pragma once
+
+#ifndef PLATFORM_USES_PRIMITIVE_UBO
+	#define PLATFORM_USES_PRIMITIVE_UBO 0
+#endif
+
+float4 LoadPrimitiveDataElementUBO(uint DrawInstanceId, uint DataIdx)
+{
+#if PLATFORM_USES_PRIMITIVE_UBO
+	uint DataOffset = DrawInstanceId * BATCHED_PRIMITIVE_DATA_STRIDE_FLOAT4 + DataIdx;
+	return BatchedPrimitive.Data[DataOffset];
+#else
+	return (float4)0;
+#endif
+}
+
+FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
+{
+	FPrimitiveSceneData PrimitiveData = (FPrimitiveSceneData)0;
+
+	uint DataIdx = 0;
+
+	// LocalToWorld, TilePosition, Primitive.Flags
+	{
+		float4 LocalToRelativeWorld0 = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx + 0);
+		float4 LocalToRelativeWorld1 = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx + 1);
+		float4 LocalToRelativeWorld2 = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx + 2);
+		float4 LocalToRelativeWorld3 = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx + 3);
+		
+		PrimitiveData.TilePosition = float3(LocalToRelativeWorld0.w, LocalToRelativeWorld1.w, LocalToRelativeWorld2.w);
+		PrimitiveData.LocalToWorld = MakeLWCMatrix4x3(PrimitiveData.TilePosition, float4x4(LocalToRelativeWorld0, LocalToRelativeWorld1, LocalToRelativeWorld2, LocalToRelativeWorld3));
+		PrimitiveData.Flags = asuint(LocalToRelativeWorld3.w);
+		DataIdx += 4u;
+	}
+
+	// InvNonUniformScale, TODO .w
+	{
+		float4 Data = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0);
+		PrimitiveData.InvNonUniformScale = Data.xyz;
+		DataIdx += 1u;
+
+		// Computing it from InvScale should be fine?
+		PrimitiveData.NonUniformScale.xyz = rcp(PrimitiveData.InvNonUniformScale);
+		PrimitiveData.NonUniformScale.w	= max3(PrimitiveData.NonUniformScale.x, PrimitiveData.NonUniformScale.y, PrimitiveData.NonUniformScale.z);
+	}
+
+	// ObjectWorldPosition, Radius
+	{
+		float4 Data = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0);
+		PrimitiveData.ObjectWorldPosition = MakeLWCVector3(PrimitiveData.TilePosition, Data.xyz);
+		PrimitiveData.ObjectRadius = Data.w;
+		DataIdx += 1u;
+	}
+
+	// ActorWorldPosition, TODO .w
+	{
+		float4 Data = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0);
+		PrimitiveData.ActorWorldPosition = MakeLWCVector3(PrimitiveData.TilePosition, Data.xyz);
+		DataIdx += 1u;
+	}
+
+	// ObjectOrientation, ObjectBoundsX
+	{
+		float4 Data = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0);
+		PrimitiveData.ObjectOrientation = Data.xyz;
+		PrimitiveData.ObjectBoundsX = Data.w;
+		DataIdx += 1u;
+	}
+
+	// LocalObjectBoundsMin, ObjectBoundsY
+	{
+		float4 Data = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0);
+		PrimitiveData.LocalObjectBoundsMin = Data.xyz;
+		PrimitiveData.ObjectBoundsY = Data.w;
+		DataIdx += 1u;
+	}
+
+	// LocalObjectBoundsMax, ObjectBoundsZ
+	{
+		float4 Data = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0);
+		PrimitiveData.LocalObjectBoundsMax = Data.xyz;
+		PrimitiveData.ObjectBoundsZ = Data.w;
+		DataIdx += 1u;
+	}
+
+	// WorldToLocal, TODO compute from LocalToWorld?
+	{
+		float4x4 RelativeWorldToLocal = transpose(float4x4(
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0),
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+1),
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+2),
+			float4(0, 0, 0, 1)
+		));
+		PrimitiveData.WorldToLocal = MakeLWCInverseMatrix(PrimitiveData.TilePosition, RelativeWorldToLocal);
+		DataIdx += 3u;
+	}
+
+	// PreviousLocalToWorld, TODO make optional
+	{
+		float4x4 PreviousLocalToRelativeWorld = transpose(float4x4(
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0),
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+1),
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+2),
+			float4(0, 0, 0, 1)
+		));
+		PrimitiveData.PreviousLocalToWorld = MakeLWCMatrix4x3(PrimitiveData.TilePosition, PreviousLocalToRelativeWorld);
+		DataIdx += 3u;
+	}
+
+	// PreviousWorldToLocal, TODO make optional
+	{
+		float4x4 PreviousRelativeWorldToLocal = transpose(float4x4(
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0),
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+1),
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+2),
+			float4(0, 0, 0, 1)
+		));
+		PrimitiveData.PreviousWorldToLocal = MakeLWCInverseMatrix(PrimitiveData.TilePosition, PreviousRelativeWorldToLocal);
+		DataIdx += 3u;
+	}
+
+	// WorldToPreviousWorld, TODO make optional
+	{
+		PrimitiveData.WorldToPreviousWorld = transpose(float4x4(
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0),
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+1),
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+2),
+			float4(0, 0, 0, 1)
+		));
+		DataIdx += 3u;
+	}
+
+	// CustomData, TODO make optional
+	{
+		UNROLL
+		for (uint i = 0; i < NUM_CUSTOM_PRIMITIVE_DATA; ++i)
+		{
+			PrimitiveData.CustomPrimitiveData[i] = LoadPrimitiveDataElementUBO(DrawInstanceId,  DataIdx+i);
+		}
+		DataIdx += NUM_CUSTOM_PRIMITIVE_DATA;
+	}
+	return PrimitiveData;
+}
+
+float4 LoadInstanceDataElementUBO(uint DrawInstanceId, uint DataIdx)
+{
+#if PLATFORM_USES_PRIMITIVE_UBO
+	uint DataOffset = DrawInstanceId * BATCHED_INSTANCE_DATA_STRIDE_FLOAT4 + DataIdx;
+	return BatchedPrimitive.Data[DataOffset];
+#else
+	return (float4)0;
+#endif
+}
+
+FInstanceSceneData LoadInstanceDataUBO(uint DrawInstanceId)
+{
+	FInstanceSceneData InstanceData = (FInstanceSceneData)0;
+
+	uint DataIdx = 0;
+
+	// TilePosition, Flags
+	float3 TilePosition = 0;
+	{
+		float4 Data = LoadInstanceDataElementUBO(DrawInstanceId, DataIdx + 0);
+		TilePosition = Data.xyz;
+		InstanceData.Flags = asuint(Data.w);
+		DataIdx += 1u;
+	}
+		
+	// LocalToWorld
+	{
+		float4x4 LocalToRelativeWorld = transpose(float4x4(
+			LoadInstanceDataElementUBO(DrawInstanceId, DataIdx+0),
+			LoadInstanceDataElementUBO(DrawInstanceId, DataIdx+1),
+			LoadInstanceDataElementUBO(DrawInstanceId, DataIdx+2),
+			float4(0, 0, 0, 1)
+		));
+		InstanceData.LocalToWorld = MakeLWCMatrix4x3(TilePosition, LocalToRelativeWorld);
+		DataIdx += 3u;
+	}
+
+	// InvNonUniformScale, RandomID
+	{
+		float4 Data = LoadInstanceDataElementUBO(DrawInstanceId, DataIdx+0);
+		InstanceData.InvNonUniformScale = Data.xyz;
+		
+		#if USES_PER_INSTANCE_RANDOM || USE_DITHERED_LOD_TRANSITION
+		InstanceData.RandomID = Data.w;
+		#endif
+		// Computing it from InvScale should be fine?
+		InstanceData.NonUniformScale.xyz = rcp(InstanceData.InvNonUniformScale);
+		InstanceData.NonUniformScale.w	= max3(InstanceData.NonUniformScale.x, InstanceData.NonUniformScale.y, InstanceData.NonUniformScale.z);
+		DataIdx += 1u;
+	}
+
+	// PreviousLocalToWorld
+	{
+		float4x4 PreviousLocalToRelativeWorld = transpose(float4x4(
+			LoadInstanceDataElementUBO(DrawInstanceId, DataIdx+0),
+			LoadInstanceDataElementUBO(DrawInstanceId, DataIdx+1),
+			LoadInstanceDataElementUBO(DrawInstanceId, DataIdx+2),
+			float4(0, 0, 0, 1)
+		));
+		InstanceData.PrevLocalToWorld = MakeLWCMatrix4x3(TilePosition, PreviousLocalToRelativeWorld);
+		DataIdx += 3u;
+	}
+
+	return InstanceData;
+}
+
+float LoadInstanceCustomDataElementUBO(uint DrawInstanceId, uint CustomDataIdx, float DefaultValue)
+{
+	const uint CustomDataFloat4Offset = 8u; // where custom data starts in an Instance UBO
+	const uint Float4Index = (CustomDataIdx >> 2u);
+	if (Float4Index < NUM_BATCHED_INSTANCE_CUSTOM_DATA)
+	{
+		const float4 Float4Packed = LoadInstanceDataElementUBO(DrawInstanceId, Float4Index + CustomDataFloat4Offset);
+		return Float4Packed[CustomDataIdx & 0x3u];
+	}
+	return DefaultValue;
+}

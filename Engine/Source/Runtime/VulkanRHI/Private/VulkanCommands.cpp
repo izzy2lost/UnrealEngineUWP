@@ -454,6 +454,55 @@ void FVulkanCommandListContext::RHISetStaticUniformBuffers(const FUniformBufferS
 	}
 }
 
+void FVulkanCommandListContext::RHISetStaticUniformBuffer(FUniformBufferStaticSlot InSlot, FRHIUniformBuffer* InBuffer)
+{
+	GlobalUniformBuffers[InSlot] = InBuffer;
+}
+
+void FVulkanCommandListContext::RHISetUniformBufferDynamicOffset(FUniformBufferStaticSlot InSlot, uint32 InOffset)
+{
+	check(IsAligned(InOffset, Device->GetLimits().minUniformBufferOffsetAlignment));
+
+	FVulkanUniformBuffer* UniformBuffer = ResourceCast(GlobalUniformBuffers[InSlot]);
+	const FVulkanGfxPipelineDescriptorInfo& DescriptorInfo = PendingGfxState->CurrentState->GetGfxPipelineDescriptorInfo();
+
+	static const ShaderStage::EStage Stages[2] = 
+	{
+		ShaderStage::Vertex,
+		ShaderStage::Pixel
+	};
+
+	for (int32 i = 0; i < UE_ARRAY_COUNT(Stages); i++)
+	{
+		ShaderStage::EStage Stage = Stages[i];
+		FVulkanShader* Shader = PendingGfxState->CurrentPipeline->VulkanShaders[Stage];
+		if (Shader == nullptr)
+		{
+			continue;
+		}
+
+		const auto& StaticSlots = Shader->StaticSlots;
+
+		for (int32 BufferIndex = 0; BufferIndex < StaticSlots.Num(); ++BufferIndex)
+		{
+			const FUniformBufferStaticSlot Slot = StaticSlots[BufferIndex];
+			if (Slot == InSlot)
+			{
+				uint8 DescriptorSet;
+				uint32 BindingIndex;
+				if (DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::UniformBuffer, Stage, BufferIndex, DescriptorSet, BindingIndex))
+				{
+					// Uniform views always bind max supported range, so make sure Offset+Range is within buffer allocation
+					check((InOffset + PLATFORM_MAX_UNIFORM_BUFFER_RANGE) <= UniformBuffer->Allocation.Size);
+					uint32 DynamicOffset = InOffset + UniformBuffer->GetOffset();
+					PendingGfxState->CurrentState->SetUniformBufferDynamicOffset(DescriptorSet, BindingIndex, DynamicOffset);
+				}
+				break;
+			}
+		}
+	}
+}
+
 void FVulkanCommandListContext::RHISetShaderUniformBuffer(FRHIGraphicsShader* ShaderRHI, uint32 BufferIndex, FRHIUniformBuffer* BufferRHI)
 {
 #if VULKAN_ENABLE_AGGRESSIVE_STATS

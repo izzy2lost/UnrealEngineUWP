@@ -3952,7 +3952,7 @@ void FSceneRenderer::SetupMeshPass(FViewInfo& View, FExclusiveDepthStencil::Type
 			TArray<int32, TInlineAllocator<2> > ViewIds;
 			ViewIds.Add(View.GPUSceneViewId);
 			// Only apply instancing for ISR to main view passes
-			const bool bIsMainViewPass = PassType != EMeshPass::Num && (FPassProcessorManager::GetPassFlags(Scene->GetShadingPath(), PassType) & EMeshPassFlags::MainView) != EMeshPassFlags::None;
+			const bool bIsMainViewPass = PassType != EMeshPass::Num && (FPassProcessorManager::GetPassFlags(ShadingPath, PassType) & EMeshPassFlags::MainView) != EMeshPassFlags::None;
 
 			EInstanceCullingMode InstanceCullingMode = bIsMainViewPass && View.IsInstancedStereoPass() ? EInstanceCullingMode::Stereo : EInstanceCullingMode::Normal;
 			if (InstanceCullingMode == EInstanceCullingMode::Stereo)
@@ -3970,7 +3970,7 @@ void FSceneRenderer::SetupMeshPass(FViewInfo& View, FExclusiveDepthStencil::Type
 			Pass.DispatchPassSetup(
 				Scene,
 				View,
-				FInstanceCullingContext(FeatureLevel, &InstanceCullingManager, ViewIds, View.PrevViewInfo.HZB, InstanceCullingMode, CullingFlags),
+				FInstanceCullingContext(ShaderPlatform, &InstanceCullingManager, ViewIds, View.PrevViewInfo.HZB, InstanceCullingMode, CullingFlags),
 				PassType,
 				BasePassDepthStencilAccess,
 				MeshPassProcessor,

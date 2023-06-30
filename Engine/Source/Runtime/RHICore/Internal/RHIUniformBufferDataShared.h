@@ -52,6 +52,7 @@ namespace UE::RHICore
 		break;
 		case UBMT_RDG_TEXTURE_SRV:
 		case UBMT_RDG_BUFFER_SRV:
+		case UBMT_RDG_UNIFORM_BLOCK_SRV:
 		{
 			FRDGShaderResourceView* RDGShaderResourceView = Reader.Read<FRDGShaderResourceView*>(Resource);
 			if (RDGShaderResourceView)

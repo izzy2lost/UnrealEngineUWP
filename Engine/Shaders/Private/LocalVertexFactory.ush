@@ -100,7 +100,7 @@ struct FVertexFactoryInput
 	// Dynamic instancing related attributes with InstanceIdOffset : ATTRIBUTE13
 	VF_GPUSCENE_DECLARE_INPUT_BLOCK(13)
 
-#if (USE_INSTANCING || USE_INSTANCE_CULLING) && !MANUAL_VERTEX_FETCH && (VF_USE_PRIMITIVE_SCENE_DATA != 2)
+#if USE_INSTANCING && !MANUAL_VERTEX_FETCH
 	float4 InstanceOrigin : ATTRIBUTE8;  // per-instance random in w 
 	half4 InstanceTransform1 : ATTRIBUTE9;  // hitproxy.r + 256 * selected in .w
 	half4 InstanceTransform2 : ATTRIBUTE10; // hitproxy.g in .w
@@ -227,7 +227,7 @@ struct FPositionOnlyVertexFactoryInput
 	// Dynamic instancing related attributes with InstanceIdOffset : ATTRIBUTE1
 	VF_GPUSCENE_DECLARE_INPUT_BLOCK(1)
 
-#if (USE_INSTANCING || USE_INSTANCE_CULLING) && !MANUAL_VERTEX_FETCH && (VF_USE_PRIMITIVE_SCENE_DATA != 2)
+#if USE_INSTANCING && !MANUAL_VERTEX_FETCH
 	float4 InstanceOrigin : ATTRIBUTE8;  // per-instance random in w 
 	half4 InstanceTransform1 : ATTRIBUTE9;  // hitproxy.r + 256 * selected in .w
 	half4 InstanceTransform2 : ATTRIBUTE10; // hitproxy.g in .w
@@ -256,7 +256,7 @@ struct FPositionAndNormalOnlyVertexFactoryInput
 	// Dynamic instancing related attributes with InstanceIdOffset : ATTRIBUTE1
 	VF_GPUSCENE_DECLARE_INPUT_BLOCK(1)
 
-#if (USE_INSTANCING || USE_INSTANCE_CULLING) && !MANUAL_VERTEX_FETCH && (VF_USE_PRIMITIVE_SCENE_DATA != 2)
+#if USE_INSTANCING && !MANUAL_VERTEX_FETCH
 	float4 InstanceOrigin : ATTRIBUTE8;  // per-instance random in w 
 	half4 InstanceTransform1 : ATTRIBUTE9;  // hitproxy.r + 256 * selected in .w
 	half4 InstanceTransform2 : ATTRIBUTE10; // hitproxy.g in .w
@@ -946,7 +946,7 @@ FVertexFactoryIntermediates GetVertexFactoryIntermediates(FVertexFactoryInput In
 	const float InstanceViewDistSq = length2(LWCToFloat(LWCAdd(PrimitiveData.ObjectWorldPosition, ResolvedView.PreViewTranslation)));
 #endif // USE_INSTANCING
 
-#if !USE_INSTANCE_CULLING && USES_WORLD_POSITION_OFFSET
+#if !USE_INSTANCE_CULLING && USES_WORLD_POSITION_OFFSET && (FEATURE_LEVEL > FEATURE_LEVEL_ES3_1)
 	// In this case, we have to do the WPO disable distance check in the VS because it wasn't done in instance culling
 	if (Intermediates.bEvaluateWorldPositionOffset)
 	{

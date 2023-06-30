@@ -1183,6 +1183,9 @@ public:
 	FRHIDescriptorHandle GetBindlessHandle();
 	VkDeviceAddress GetDeviceAddress() const;
 
+protected:
+	bool SetupUniformBufferView(const FRHIUniformBufferLayout* InLayout, const void* Contents);
+
 public:
 	FVulkanDevice* Device;
 	VulkanRHI::FVulkanAllocation Allocation;
@@ -1190,6 +1193,7 @@ public:
 
 	FRHIDescriptorHandle BindlessHandle;
 	VkDeviceAddress CachedDeviceAddress = 0;
+	bool bUniformView = false;
 };
 
 class FVulkanUnorderedAccessView final : public FRHIUnorderedAccessView, public FVulkanLinkedView

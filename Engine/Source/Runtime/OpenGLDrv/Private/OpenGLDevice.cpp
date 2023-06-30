@@ -224,6 +224,7 @@ void FOpenGLDynamicRHI::RHIPerFrameRHIFlushComplete()
 	OpenGL_PollAllFences();
 
 	FMemory::Memset(PendingState.BoundUniformBuffers, 0, sizeof(PendingState.BoundUniformBuffers));
+	FMemory::Memset(PendingState.BoundUniformBuffersDynamicOffset, 0u, sizeof(PendingState.BoundUniformBuffersDynamicOffset));
 }
 
 
@@ -608,6 +609,7 @@ static EOpenGLFormatCapabilities GetOpenGLFormatCapabilities(const FOpenGLTextur
 	case GL_COMPRESSED_RED_RGTC1:
 	case GL_RG16:
 	case GL_RG16_SNORM:
+	case GL_COMPRESSED_RGBA_BPTC_UNORM:
 #endif
 
 	case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
@@ -1176,11 +1178,13 @@ static void InitRHICapabilitiesForGL()
 
 #if PLATFORM_DESKTOP
 	CA_SUPPRESS(6286);
-	if (PLATFORM_DESKTOP || FOpenGL::GetFeatureLevel() >= ERHIFeatureLevel::SM5)
+	if (PLATFORM_DESKTOP)
 	{
 		SetupTextureFormat( PF_V8U8,			FOpenGLTextureFormat( GL_RG8_SNORM,				GL_NONE,				GL_RG,			GL_BYTE,							false, false));
 		SetupTextureFormat( PF_BC5,				FOpenGLTextureFormat( GL_COMPRESSED_RG_RGTC2,	GL_COMPRESSED_RG_RGTC2,	GL_RG,			GL_UNSIGNED_BYTE,					true,	false));
 		SetupTextureFormat( PF_BC4,				FOpenGLTextureFormat( GL_COMPRESSED_RED_RGTC1,	GL_COMPRESSED_RED_RGTC1,GL_RED,			GL_UNSIGNED_BYTE,					true,	false));
+		
+		SetupTextureFormat( PF_BC7,				FOpenGLTextureFormat( GL_COMPRESSED_RGBA_BPTC_UNORM, GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM, GL_RGBA, GL_UNSIGNED_BYTE, true, false));
 
 		SetupTextureFormat( PF_G16R16,			FOpenGLTextureFormat(GL_RG16, GL_RG16, GL_RG, GL_UNSIGNED_SHORT, false, false));
 		SetupTextureFormat( PF_G16R16_SNORM,	FOpenGLTextureFormat(GL_RG16_SNORM, GL_RG16_SNORM, GL_RG, GL_SHORT, false, false));

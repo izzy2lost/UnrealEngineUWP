@@ -21,7 +21,7 @@
 //  
 // Required VF inputs to support dynamic instancing 
 //
-#if (VF_USE_PRIMITIVE_SCENE_DATA == 1)
+#if VF_USE_PRIMITIVE_SCENE_DATA
 	#define VF_GPUSCENE_DECLARE_INPUT_BLOCK(Attr0) \
 		uint InstanceIdOffset : ATTRIBUTE##Attr0; \
 		uint DrawInstanceId : SV_InstanceID;
@@ -32,10 +32,10 @@
 			VFInput.DrawInstanceId)
 
 	#define VF_GPUSCENE_GET_LIGHTMAP_UV_SCALE_BIAS(VFInput, LightmapDataIndex) \
-		GetLightmapData(LightmapDataIndex).LightMapCoordinateScaleBias
+		GetLightmapData(LightmapDataIndex, VFInput.DrawInstanceId).LightMapCoordinateScaleBias
 	
 	#define VF_GPUSCENE_GET_SHADOWMAP_UV_SCALE_BIAS(VFInput, LightmapDataIndex) \
-		GetLightmapData(LightmapDataIndex).ShadowMapCoordinateScaleBias
+		GetLightmapData(LightmapDataIndex, VFInput.DrawInstanceId).ShadowMapCoordinateScaleBias
 
 	// GPUCULL_TODO: Makes use of DynamicDraw workaround, should instead refactor VF interfaces and provide the instance ID data directly.
 	#define VF_GPUSCENE_SET_INPUT_FOR_RT(_VFInputOut_, _PrimitiveId_, _DrawInstanceId_) \
@@ -46,38 +46,6 @@
 
 	#undef GetInstanceIdFromVF
 	#define GetInstanceIdFromVF(VFInput)				(VFInput.DrawInstanceId)
-
-#elif (VF_USE_PRIMITIVE_SCENE_DATA == 2)	
-	#define VF_GPUSCENE_DECLARE_INPUT_BLOCK(Attr0) \
-		float4 InstanceOrigin : ATTRIBUTE8; \
-		float4 InstanceTransform1 : ATTRIBUTE9; \
-		float4 InstanceTransform2 : ATTRIBUTE10; \
-		float4 InstanceTransform3 : ATTRIBUTE11; \
-		float4 InstanceAuxData : ATTRIBUTE12; \
-		uint DrawInstanceId : SV_InstanceID;
-
-	#define VF_GPUSCENE_GET_INTERMEDIATES(VFInput) \
-		GetSceneDataIntermediates( \
-			VFInput.DrawInstanceId, \
-			VFInput.InstanceOrigin,\
-			VFInput.InstanceTransform1, \
-			VFInput.InstanceTransform2, \
-			VFInput.InstanceTransform3, \
-			VFInput.InstanceAuxData)
-
-	#define VF_GPUSCENE_GET_LIGHTMAP_UV_SCALE_BIAS(VFInput, LightmapDataIndex) \
-		float4(UnpackUnorm2x16(asuint(VFInput.InstanceAuxData.x)), UnpackSnorm2x16(asuint(VFInput.InstanceAuxData.y)))
-	
-	#define VF_GPUSCENE_GET_SHADOWMAP_UV_SCALE_BIAS(VFInput, LightmapDataIndex) \
-		float4(UnpackUnorm2x16(asuint(VFInput.InstanceAuxData.z)), UnpackSnorm2x16(asuint(VFInput.InstanceAuxData.w)))
-
-	#define VF_GPUSCENE_SET_INPUT_FOR_RT(_VFInputOut_, _PrimitiveId_, _DrawInstanceId_)
-
-	#define VF_INSTANCED_STEREO_DECLARE_INPUT_BLOCK()
-
-	#undef GetInstanceIdFromVF
-	#define GetInstanceIdFromVF(VFInput)				(VFInput.DrawInstanceId)
-
 #else
 	#define VF_GPUSCENE_DECLARE_INPUT_BLOCK(Attr0) 
 	#define VF_GPUSCENE_GET_INTERMEDIATES(VFInput) GetSceneDataIntermediates()

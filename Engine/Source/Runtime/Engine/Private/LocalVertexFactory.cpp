@@ -434,7 +434,7 @@ void FLocalVertexFactory::InitRHI(FRHICommandListBase& RHICmdList)
 				StreamElements.Add(AccessStreamComponent(Data.TangentBasisComponents[1], 2, InputStreamType));
 			}
 
-			AddPrimitiveIdStreamElement(InputStreamType, StreamElements, 1, 8);
+			AddPrimitiveIdStreamElement(InputStreamType, StreamElements, 1, 1);
 
 			InitDeclaration(StreamElements, InputStreamType);
 		};
@@ -445,7 +445,7 @@ void FLocalVertexFactory::InitRHI(FRHICommandListBase& RHICmdList)
 
 	FVertexDeclarationElementList Elements;
 	GetVertexElements(GetFeatureLevel(), EVertexInputStreamType::Default, bUseManualVertexFetch, Data, Elements, Streams, ColorStreamIndex);
-	AddPrimitiveIdStreamElement(EVertexInputStreamType::Default, Elements, 13, 8);
+	AddPrimitiveIdStreamElement(EVertexInputStreamType::Default, Elements, 13, 13);
 	check(Streams.Num() > 0);
 
 	InitDeclaration(Elements);

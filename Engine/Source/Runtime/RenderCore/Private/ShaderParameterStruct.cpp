@@ -535,6 +535,7 @@ void ValidateShaderParameters(const TShaderRef<FShader>& Shader, const FShaderPa
 			case UBMT_RDG_TEXTURE_UAV:
 			case UBMT_RDG_BUFFER_SRV:
 			case UBMT_RDG_BUFFER_UAV:
+			case UBMT_RDG_UNIFORM_BLOCK_SRV:
 			{
 				const FRDGResource* GraphResource = Reader.Read<const FRDGResource*>(Parameter);
 				if (!GraphResource)
@@ -660,6 +661,7 @@ FRHIShaderParameterResource ExtractShaderParameterResource(FShaderParameterReade
 	}
 	case UBMT_RDG_TEXTURE_SRV:
 	case UBMT_RDG_BUFFER_SRV:
+	case UBMT_RDG_UNIFORM_BLOCK_SRV:
 	{
 		FRDGShaderResourceView* RDGShaderResourceView = Reader.Read<FRDGShaderResourceView*>(Parameter);
 		checkSlow(RDGShaderResourceView);
@@ -857,6 +859,7 @@ void SetShaderParameters(
 		break;
 		case UBMT_RDG_TEXTURE_SRV:
 		case UBMT_RDG_BUFFER_SRV:
+		case UBMT_RDG_UNIFORM_BLOCK_SRV:
 		{
 			FRDGShaderResourceView* RDGShaderResourceView = Reader.Read<FRDGShaderResourceView*>(Parameter);
 			checkSlow(RDGShaderResourceView);

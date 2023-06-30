@@ -292,8 +292,9 @@ void SubmitNaniteIndirectMaterial(
 	FMeshDrawCommand::FMeshDrawEvent MeshEvent(MeshDrawCommand, InstanceFactor, RHICmdList);
 #endif
 
+	FMeshDrawCommandSceneArgs SceneArgs;
 	bool bAllowSkipDrawCommand = true;
-	if (!FMeshDrawCommand::SubmitDrawIndirectBegin(MeshDrawCommand, GraphicsMinimalPipelineStateSet, nullptr, 0, InstanceFactor, RHICmdList, StateCache, bAllowSkipDrawCommand))
+	if (!FMeshDrawCommand::SubmitDrawIndirectBegin(MeshDrawCommand, GraphicsMinimalPipelineStateSet, SceneArgs, InstanceFactor, RHICmdList, StateCache, bAllowSkipDrawCommand))
 	{
 		return;
 	}
@@ -310,7 +311,10 @@ void SubmitNaniteIndirectMaterial(
 	check(MaterialIndirectArgs == nullptr || MaterialSlot != INDEX_NONE);
 	const uint32 IndirectArgSize = sizeof(FRHIDrawIndexedIndirectParameters) + sizeof(FRHIDispatchIndirectParametersNoPadding);
 	const uint32 MaterialSlotIndirectOffset = MaterialIndirectArgs != nullptr ? IndirectArgSize * uint32(MaterialSlot) : 0;
-	FMeshDrawCommand::SubmitDrawIndirectEnd(MeshDrawCommand, InstanceFactor, RHICmdList, MaterialIndirectArgs, MaterialSlotIndirectOffset);
+	
+	SceneArgs.IndirectArgsBuffer = MaterialIndirectArgs;
+	SceneArgs.IndirectArgsByteOffset = MaterialSlotIndirectOffset;
+	FMeshDrawCommand::SubmitDrawIndirectEnd(MeshDrawCommand, SceneArgs, InstanceFactor, RHICmdList);
 }
 
 void SubmitNaniteMultiViewMaterial(
@@ -327,8 +331,9 @@ void SubmitNaniteMultiViewMaterial(
 	FMeshDrawCommand::FMeshDrawEvent MeshEvent(MeshDrawCommand, InstanceFactor, RHICmdList);
 #endif
 
+	FMeshDrawCommandSceneArgs SceneArgs;
 	bool bAllowSkipDrawCommand = true;
-	if (!FMeshDrawCommand::SubmitDrawBegin(MeshDrawCommand, GraphicsMinimalPipelineStateSet, nullptr, 0, InstanceFactor, RHICmdList, StateCache, bAllowSkipDrawCommand))
+	if (!FMeshDrawCommand::SubmitDrawBegin(MeshDrawCommand, GraphicsMinimalPipelineStateSet, SceneArgs, InstanceFactor, RHICmdList, StateCache, bAllowSkipDrawCommand))
 	{
 		return;
 	}
@@ -341,7 +346,7 @@ void SubmitNaniteMultiViewMaterial(
 		SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), Parameters);
 	}
 
-	FMeshDrawCommand::SubmitDrawEnd(MeshDrawCommand, InstanceFactor, RHICmdList);
+	FMeshDrawCommand::SubmitDrawEnd(MeshDrawCommand, SceneArgs, InstanceFactor, RHICmdList);
 }
 
 FNaniteMeshProcessor::FNaniteMeshProcessor(

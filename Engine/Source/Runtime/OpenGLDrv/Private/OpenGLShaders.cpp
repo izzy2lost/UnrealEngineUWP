@@ -1079,7 +1079,7 @@ static void MarkShaderParameterCachesDirty(FOpenGLShaderParameterCache* ShaderPa
 	}
 }
 
-void FOpenGLDynamicRHI::BindUniformBufferBase(FOpenGLContextState& ContextState, int32 NumUniformBuffers, FRHIUniformBuffer** BoundUniformBuffers, uint32 FirstUniformBuffer, bool ForceUpdate)
+void FOpenGLDynamicRHI::BindUniformBufferBase(FOpenGLContextState& ContextState, int32 NumUniformBuffers, FRHIUniformBuffer** BoundUniformBuffers, uint32* DynamicOffsets, uint32 FirstUniformBuffer, bool ForceUpdate)
 {
 	SCOPE_CYCLE_COUNTER_DETAILED(STAT_OpenGLUniformBindTime);
 	VERIFY_GL_SCOPE();
@@ -1103,10 +1103,10 @@ void FOpenGLDynamicRHI::BindUniformBufferBase(FOpenGLContextState& ContextState,
 				continue;
 			}
 
-			Size = GLUB->GetSize();
-#if SUBALLOCATED_CONSTANT_BUFFER
-			Offset = GLUB->Offset;
-#endif
+			Size = GLUB->RangeSize;
+			Offset = GLUB->Offset + DynamicOffsets[BufferIndex];
+			// make sure range is within bounds of the buffer
+			ensure(GLUB->AllocatedSize >= (Offset + Size));
 		}
 		else
 		{
@@ -1126,7 +1126,7 @@ void FOpenGLDynamicRHI::BindUniformBufferBase(FOpenGLContextState& ContextState,
 			Buffer = PendingState.ZeroFilledDummyUniformBuffer;
 		}
 
-		if (ForceUpdate || (Buffer != 0 && ContextState.UniformBuffers[BindIndex] != Buffer)|| ContextState.UniformBufferOffsets[BindIndex] != Offset)
+		if (ForceUpdate || (Buffer != 0 && ContextState.UniformBuffers[BindIndex] != Buffer) || ContextState.UniformBufferOffsets[BindIndex] != Offset)
 		{
 			FOpenGL::BindBufferRange(GL_UNIFORM_BUFFER, BindIndex, Buffer, Offset, Size);
 			ContextState.UniformBuffers[BindIndex] = Buffer;
@@ -3150,6 +3150,7 @@ void FOpenGLDynamicRHI::BindPendingShaderState( FOpenGLContextState& ContextStat
 				ContextState,
 				NumUniformBuffers[SF_Vertex],
 				PendingState.BoundUniformBuffers[SF_Vertex],
+				PendingState.BoundUniformBuffersDynamicOffset[SF_Vertex],
 				NextUniformBufferIndex,
 				ForceUniformBindingUpdate);
 		}
@@ -3161,6 +3162,7 @@ void FOpenGLDynamicRHI::BindPendingShaderState( FOpenGLContextState& ContextStat
 				ContextState,
 				NumUniformBuffers[SF_Pixel],
 				PendingState.BoundUniformBuffers[SF_Pixel],
+				PendingState.BoundUniformBuffersDynamicOffset[SF_Pixel],
 				NextUniformBufferIndex,
 				ForceUniformBindingUpdate);
 		}
@@ -3172,6 +3174,7 @@ void FOpenGLDynamicRHI::BindPendingShaderState( FOpenGLContextState& ContextStat
 				ContextState,
 				NumUniformBuffers[SF_Geometry],
 				PendingState.BoundUniformBuffers[SF_Geometry],
+				PendingState.BoundUniformBuffersDynamicOffset[SF_Geometry],
 				NextUniformBufferIndex,
 				ForceUniformBindingUpdate);
 			NextUniformBufferIndex += NumUniformBuffers[SF_Geometry];
@@ -3324,6 +3327,7 @@ void FOpenGLDynamicRHI::BindPendingComputeShaderState(FOpenGLContextState& Conte
 			ContextState,
 			ComputeShader->Bindings.NumUniformBuffers,
 			PendingState.BoundUniformBuffers[SF_Compute],
+			PendingState.BoundUniformBuffersDynamicOffset[SF_Compute],
 			OGL_FIRST_UNIFORM_BUFFER,
 			ForceUniformBindingUpdate);
 

@@ -197,6 +197,7 @@ const TCHAR* const kShaderParameterMacroNames[] = {
 	TEXT("SHADER_PARAMETER_RDG_BUFFER_SRV"), // UBMT_RDG_BUFFER_SRV,
 	TEXT("SHADER_PARAMETER_RDG_BUFFER_UAV"), // UBMT_RDG_BUFFER_UAV,
 	TEXT("SHADER_PARAMETER_RDG_UNIFORM_BUFFER"), // UBMT_RDG_UNIFORM_BUFFER,
+	TEXT("SHADER_PARAMETER_RDG_UNIFORM_BLOCK_SRV"), // UBMT_RDG_UNIFORM_BLOCK_SRV,
 
 	// Nested structure.
 	TEXT("SHADER_PARAMETER_STRUCT"), // UBMT_NESTED_STRUCT,
@@ -657,7 +658,8 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 				{
 					bIsValidBindingType = (
 						BaseType == UBMT_SRV ||
-						BaseType == UBMT_RDG_BUFFER_SRV);
+						BaseType == UBMT_RDG_BUFFER_SRV ||
+						BaseType == UBMT_RDG_UNIFORM_BLOCK_SRV);
 				}
 				else if (BindingType == EShaderCodeResourceBindingType::RaytracingAccelerationStructure)
 				{

@@ -598,6 +598,10 @@
 	#define PLATFORM_CONSOLE_DYNAMIC_LINK 0
 #endif
 
+#ifndef PLATFORM_MAX_UNIFORM_BUFFER_RANGE
+	#define PLATFORM_MAX_UNIFORM_BUFFER_RANGE (16u*1024u)
+#endif
+
 // deprecated, do not use
 #define PLATFORM_HAS_THREADSAFE_RHIGetRenderQueryResult	#
 #define PLATFORM_SUPPORTS_RHI_THREAD #

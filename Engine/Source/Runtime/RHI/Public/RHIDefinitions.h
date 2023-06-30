@@ -502,6 +502,7 @@ enum EUniformBufferBaseType : uint8
 	UBMT_RDG_BUFFER_SRV,
 	UBMT_RDG_BUFFER_UAV,
 	UBMT_RDG_UNIFORM_BUFFER,
+	UBMT_RDG_UNIFORM_BLOCK_SRV,
 
 	// Nested structure.
 	UBMT_NESTED_STRUCT,
@@ -777,6 +778,9 @@ enum class EBufferUsageFlags : uint32
 	/** The buffer is a placeholder for streaming, and does not contain an underlying GPU resource. */
 	NullResource = 1 << 20,
 
+	/** Buffer can be used as uniform buffer on platforms that do support uniform buffer objects. */
+	UniformBuffer = 1 << 21,
+
 	// Helper bit-masks
 	AnyDynamic = (Dynamic | Volatile),
 };
@@ -805,6 +809,7 @@ ENUM_CLASS_FLAGS(EBufferUsageFlags);
 #define BUF_MultiGPUAllocate       EBufferUsageFlags::MultiGPUAllocate
 #define BUF_MultiGPUGraphIgnore    EBufferUsageFlags::MultiGPUGraphIgnore
 #define BUF_NullResource           EBufferUsageFlags::NullResource
+#define BUF_UniformBuffer          EBufferUsageFlags::UniformBuffer
 
 enum class EGpuVendorId : uint32
 {
@@ -1221,7 +1226,8 @@ inline bool IsRDGBufferReferenceShaderParameterType(EUniformBufferBaseType BaseT
 		BaseType == UBMT_RDG_BUFFER_SRV ||
 		BaseType == UBMT_RDG_BUFFER_UAV ||
 		BaseType == UBMT_RDG_BUFFER_ACCESS ||
-		BaseType == UBMT_RDG_BUFFER_ACCESS_ARRAY;
+		BaseType == UBMT_RDG_BUFFER_ACCESS_ARRAY ||
+		BaseType == UBMT_RDG_UNIFORM_BLOCK_SRV;
 }
 
 /** Returns whether the shader parameter type is for RDG access and not actually for shaders. */
@@ -1249,6 +1255,7 @@ inline bool IsShaderParameterTypeForUniformBufferLayout(EUniformBufferBaseType B
 		BaseType == UBMT_SRV ||
 		BaseType == UBMT_SAMPLER ||
 		BaseType == UBMT_UAV ||
+		BaseType == UBMT_RDG_UNIFORM_BLOCK_SRV ||
 
 		// RHI is able to access RHI resources from RDG.
 		IsRDGResourceReferenceShaderParameterType(BaseType) ||

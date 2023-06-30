@@ -286,6 +286,7 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 	GET_SECTION_BOOL_HELPER(bSupportsClipDistance);
 	GET_SECTION_BOOL_HELPER(bSupportsNNEShaders);
 	GET_SECTION_BOOL_HELPER(bSupportsShaderPipelines);
+	GET_SECTION_BOOL_HELPER(bSupportsUniformBufferObjects);
 #undef GET_SECTION_BOOL_HELPER
 #undef GET_SECTION_INT_HELPER
 #undef GET_SECTION_SUPPORT_HELPER
@@ -431,6 +432,7 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				Infos[ShaderPlatform].bSupportsIntrinsicWaveOnce = false;
 				Infos[ShaderPlatform].bSupportsDOFHybridScattering = false;
 				Infos[ShaderPlatform].bSupports4ComponentUAVReadWrite = false;
+				Infos[ShaderPlatform].bSupportsUniformBufferObjects = Infos[EditorSPForPreviewMaxFeatureLevel].bSupportsUniformBufferObjects;
 				Infos[ShaderPlatform].bContainsValidPlatformInfo = true;
 			}
 		}

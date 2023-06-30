@@ -1627,6 +1627,11 @@ private:
 #define SHADER_PARAMETER_SRV_ARRAY(ShaderType,MemberName, ArrayDecl) \
 	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_SRV, TShaderResourceParameterTypeInfo<FRHIShaderResourceView* ArrayDecl>, FRHIShaderResourceView*,MemberName,ArrayDecl,,EShaderPrecisionModifier::Float,TEXT(#ShaderType),false)
 
+
+#define SHADER_PARAMETER_UNIFORM_BLOCK_SRV(MemberName) \
+	INTERNAL_SHADER_PARAMETER_EXPLICIT(UBMT_RDG_UNIFORM_BLOCK_SRV, TShaderResourceParameterTypeInfo<FRDGBufferSRV*>, FRDGBufferSRV*,MemberName,, = nullptr,EShaderPrecisionModifier::Float,TEXT("Buffer<float4>"),false)
+
+
 /** Adds an unordered access view.
  *
  * Example:

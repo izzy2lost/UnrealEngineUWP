@@ -409,6 +409,18 @@ void FRHICommandSetStaticUniformBuffers::Execute(FRHICommandListBase& CmdList)
 	INTERNAL_DECORATOR_COMPUTE(RHISetStaticUniformBuffers)(UniformBuffers);
 }
 
+void FRHICommandSetStaticUniformBuffer::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(SetStaticUniformBuffer);
+	INTERNAL_DECORATOR_COMPUTE(RHISetStaticUniformBuffer)(Slot, Buffer);
+}
+
+void FRHICommandSetUniformBufferDynamicOffset::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(SetUniformBufferDynamicOffset);
+	INTERNAL_DECORATOR(RHISetUniformBufferDynamicOffset)(Slot, Offset);
+}
+
 void FRHICommandBeginRenderQuery::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(BeginRenderQuery);

@@ -622,6 +622,9 @@ public:
 	/** The offset of the uniform buffer's contents in the resource. */
 	uint32 Offset;
 
+	/** The data range size of uniform buffer's contents in the resource. */
+	uint32 RangeSize;
+
 	/** When using a persistently mapped buffer this is a pointer to the CPU accessible data. */
 	uint8* PersistentlyMappedBuffer;
 
@@ -639,6 +642,9 @@ public:
 
 	/** True if the uniform buffer is emulated */
 	bool bIsEmulatedUniformBuffer;
+
+	/** True if Resource belongs to this UniformBuffer */
+	bool bOwnsResource;
 
 	/** Initialization constructor. */
 	FOpenGLUniformBuffer(const FRHIUniformBufferLayout* InLayout);

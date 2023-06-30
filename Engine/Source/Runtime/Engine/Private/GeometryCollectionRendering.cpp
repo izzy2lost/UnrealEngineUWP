@@ -136,7 +136,7 @@ void FGeometryCollectionVertexFactory::InitRHI(FRHICommandListBase& RHICmdList)
 				StreamElements.Add(AccessStreamComponent(Data.TangentBasisComponents[1], 2, InputStreamType));
 			}
 
-			AddPrimitiveIdStreamElement(InputStreamType, StreamElements, 1, 0xff); // TODO: support instancing on mobile
+			AddPrimitiveIdStreamElement(InputStreamType, StreamElements, 1, 1);
 
 			InitDeclaration(StreamElements, InputStreamType);
 		};
@@ -151,7 +151,7 @@ void FGeometryCollectionVertexFactory::InitRHI(FRHICommandListBase& RHICmdList)
 		Elements.Add(AccessStreamComponent(Data.PositionComponent, 0));
 	}
 
-	AddPrimitiveIdStreamElement(EVertexInputStreamType::Default, Elements, 13, 0xff);  // TODO: support instancing on mobile
+	AddPrimitiveIdStreamElement(EVertexInputStreamType::Default, Elements, 13, 13);
 
 	// Only the tangent and normal are used by the stream; the bitangent is derived in the shader.
 	uint8 TangentBasisAttributes[2] = { 1, 2 };

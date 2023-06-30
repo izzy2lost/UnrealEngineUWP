@@ -1296,8 +1296,7 @@ void FPrimitiveSceneProxy::EnableGPUSceneSupportFlags()
 	const bool bMobilePath = (FeatureLevel == ERHIFeatureLevel::ES3_1);
 
 	// Skip primitive uniform buffer if we will be using local vertex factory which gets it's data from GPUScene.
-	// Vertex shaders on mobile may still use PrimitiveUB with GPUScene enabled
-	bVFRequiresPrimitiveUniformBuffer = !bUseGPUScene || bMobilePath;
+	bVFRequiresPrimitiveUniformBuffer = !bUseGPUScene;
 	// For mobile we always assume that proxy does not support GPUScene, as it depends on vertex factory setup which happens later
 	bSupportsGPUScene = bMobilePath ? false : bUseGPUScene;
 }

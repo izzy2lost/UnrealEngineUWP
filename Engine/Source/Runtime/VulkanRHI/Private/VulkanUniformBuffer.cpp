@@ -101,10 +101,34 @@ static void UpdateUniformBufferHelper(FVulkanCommandListContext& Context, FVulka
 	}
 };
 
+bool FVulkanUniformBuffer::SetupUniformBufferView(const FRHIUniformBufferLayout* InLayout, const void* Contents)
+{
+	bUniformView = false;
+
+	if (InLayout->Resources.Num() == 1 &&
+		InLayout->Resources[0].MemberType == UBMT_RDG_UNIFORM_BLOCK_SRV)
+	{
+		FRHIShaderResourceView* SRV = (FRHIShaderResourceView*)GetShaderParameterResourceRHI(Contents, InLayout->Resources[0].MemberOffset, UBMT_RDG_UNIFORM_BLOCK_SRV);
+		ResourceTable.Empty(1);
+		ResourceTable.Add(SRV);
+		
+		FVulkanResourceMultiBuffer* Buffer = ResourceCast(SRV->GetBuffer());
+		const FRHIViewDesc::FBufferSRV& SRVInfo = SRV->GetDesc().Buffer.SRV;
+		
+		Allocation.Reference(Buffer->GetCurrentAllocation());
+		//Adjust Allocation.Size ???
+		Allocation.Offset += SRVInfo.OffsetInBytes;
+		bUniformView = true;
+	}
+	
+	return bUniformView;
+}
+
 FVulkanUniformBuffer::FVulkanUniformBuffer(FVulkanDevice& InDevice, const FRHIUniformBufferLayout* InLayout, const void* Contents, EUniformBufferUsage InUsage, EUniformBufferValidation Validation)
 	: FRHIUniformBuffer(InLayout)
 	, Device(&InDevice)
 	, Usage(InUsage)
+	, bUniformView(false)
 {
 #if VULKAN_ENABLE_AGGRESSIVE_STATS
 	SCOPE_CYCLE_COUNTER(STAT_VulkanUniformBufferCreateTime);
@@ -114,9 +138,14 @@ FVulkanUniformBuffer::FVulkanUniformBuffer(FVulkanDevice& InDevice, const FRHIUn
 	//	- If we have at least one resource, we also expect ResourceOffset to have an offset
 	//	- Meaning, there is always a uniform buffer with a size specified larged than 0 bytes
 	check(InLayout->Resources.Num() > 0 || InLayout->ConstantBufferSize > 0);
-
-	// Setup resource table
 	const uint32 NumResources = InLayout->Resources.Num();
+
+	if (SetupUniformBufferView(InLayout, Contents))
+	{
+		return;
+	}
+		
+	// Setup resource table
 	if (NumResources > 0)
 	{
 		// Transfer the resource table to an internal resource-array

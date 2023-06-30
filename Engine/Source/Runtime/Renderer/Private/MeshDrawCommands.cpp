@@ -95,7 +95,7 @@ FPrimitiveIdVertexBufferPoolEntry FPrimitiveIdVertexBufferPool::Allocate(FRHICom
 		NewEntry.LastDiscardId = DiscardId;
 		NewEntry.BufferSize = BufferSize;
 		FRHIResourceCreateInfo CreateInfo(TEXT("FPrimitiveIdVertexBufferPool"));
-		NewEntry.BufferRHI = RHICmdList.CreateBuffer(NewEntry.BufferSize, BUF_VertexBuffer | BUF_Volatile, 0, ERHIAccess::VertexOrIndexBuffer, CreateInfo);
+		NewEntry.BufferRHI = RHICmdList.CreateBuffer(NewEntry.BufferSize, BUF_VertexBuffer | BUF_Volatile | BUF_UniformBuffer, 0, ERHIAccess::VertexOrIndexBuffer, CreateInfo);
 
 		return NewEntry;
 	}
@@ -1148,22 +1148,23 @@ void SortAndMergeDynamicPassMeshDrawCommands(
 				DynamicPrimitiveIdMax = DynamicPrimitiveIdRange.GetUpperBoundValue();
 			}
 
-			const uint32 PrimitiveIdBufferStride = FInstanceCullingContext::GetInstanceIdBufferStride(FeatureLevel);
+			const uint32 PrimitiveIdBufferStride = FInstanceCullingContext::GetInstanceIdBufferStride(SceneView.GetShaderPlatform());
 			const int32 MaxNumPrimitives = InstanceFactor * NumDrawCommands;
 			const int32 PrimitiveIdBufferDataSize = MaxNumPrimitives * PrimitiveIdBufferStride;
 			FPrimitiveIdVertexBufferPoolEntry Entry = GPrimitiveIdVertexBufferPool.Allocate(RHICmdList, PrimitiveIdBufferDataSize);
 			OutPrimitiveIdVertexBuffer = Entry.BufferRHI;
 			void* PrimitiveIdBufferData = RHICmdList.LockBuffer(OutPrimitiveIdVertexBuffer, 0, PrimitiveIdBufferDataSize, RLM_WriteOnly);
 
-			if (FeatureLevel == ERHIFeatureLevel::ES3_1)
+			if (PlatformGPUSceneUsesUniformBufferView(SceneView.GetShaderPlatform()))
 			{
-				check(sizeof(FGPUSceneCompactInstanceData) == PrimitiveIdBufferStride);
-				
+				check(sizeof(FGPUSceneCompactInstanceData) <= PrimitiveIdBufferStride);
+
 				auto WritePrimitiveDataFn = [&](int32 PrimitiveIndex, int32 PrimitiveId) 
 				{
 					checkSlow(PrimitiveIndex < MaxNumPrimitives);
-					
-					FGPUSceneCompactInstanceData* PrimitiveData = reinterpret_cast<FGPUSceneCompactInstanceData*>(PrimitiveIdBufferData) + PrimitiveIndex;
+					uint8* PrimitiveIdBufferDataBytes = reinterpret_cast<uint8*>(PrimitiveIdBufferData) + (PrimitiveIndex * PrimitiveIdBufferStride);
+					FMemory::Memzero(PrimitiveIdBufferDataBytes, PrimitiveIdBufferStride);
+					FGPUSceneCompactInstanceData* PrimitiveData = reinterpret_cast<FGPUSceneCompactInstanceData*>(PrimitiveIdBufferDataBytes);
 
 					if ((PrimitiveId & GPrimIDDynamicFlag) != 0)
 					{
@@ -1600,7 +1601,8 @@ void FParallelMeshDrawCommandPass::DispatchDraw(FParallelCommandListSet* Paralle
 		}
 		else
 		{
-			SubmitMeshDrawCommandsRange(TaskContext.MeshDrawCommands, TaskContext.MinimalPipelineStatePassSet, nullptr, 0, 0, TaskContext.bDynamicInstancing, 0, TaskContext.MeshDrawCommands.Num(), TaskContext.InstanceFactor, RHICmdList);
+			FMeshDrawCommandSceneArgs SceneArgs;
+			SubmitMeshDrawCommandsRange(TaskContext.MeshDrawCommands, TaskContext.MinimalPipelineStatePassSet, SceneArgs, 0, TaskContext.bDynamicInstancing, 0, TaskContext.MeshDrawCommands.Num(), TaskContext.InstanceFactor, RHICmdList);
 		}
 	}
 }

@@ -1,0 +1,169 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+#pragma once
+
+#ifndef PLATFORM_USES_PRIMITIVE_UBO
+	#define PLATFORM_USES_PRIMITIVE_UBO 0
+#endif
+
+void WriteDataElementUBO(RWStructuredBuffer<float4> Output, uint Offset, uint DataIdx, float4 Data)
+{
+#if	PLATFORM_USES_PRIMITIVE_UBO
+	uint DataOffset = Offset + DataIdx;
+	Output[DataOffset] = Data;
+#endif
+}
+
+void WritePrimitiveDataUBO(RWStructuredBuffer<float4> Output, uint Offset, FPrimitiveSceneData PrimitiveData, uint MeshLODIndex)
+{
+	uint DataIdx = 0;
+	
+	// LocalToWorld, TilePosition, Primitive.Flags
+	{
+		float4 LocalToRelativeWorld0 = PrimitiveData.LocalToWorld.M[0];
+		float4 LocalToRelativeWorld1 = PrimitiveData.LocalToWorld.M[1];
+		float4 LocalToRelativeWorld2 = PrimitiveData.LocalToWorld.M[2];
+		float4 LocalToRelativeWorld3 = PrimitiveData.LocalToWorld.M[3];
+		LocalToRelativeWorld0.w = PrimitiveData.TilePosition.x;
+		LocalToRelativeWorld1.w = PrimitiveData.TilePosition.y;
+		LocalToRelativeWorld2.w = PrimitiveData.TilePosition.z;
+		LocalToRelativeWorld3.w = asfloat(PrimitiveData.Flags);
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, LocalToRelativeWorld0);
+		WriteDataElementUBO(Output, Offset, DataIdx + 1, LocalToRelativeWorld1);
+		WriteDataElementUBO(Output, Offset, DataIdx + 2, LocalToRelativeWorld2);
+		WriteDataElementUBO(Output, Offset, DataIdx + 3, LocalToRelativeWorld3);
+		DataIdx += 4u;
+	}
+	
+	// InvNonUniformScale, TODO .w
+	{
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.InvNonUniformScale, 0.0));
+		DataIdx += 1u;
+	}
+
+	// ObjectWorldPosition, Radius
+	{
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.ObjectWorldPosition.Offset, PrimitiveData.ObjectRadius));
+		DataIdx += 1u;
+	}
+
+	// ActorWorldPosition, TODO .w
+	{
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.ActorWorldPosition.Offset, 0.0));
+		DataIdx += 1u;
+	}
+
+	// ObjectOrientation, ObjectBoundsX
+	{
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.ObjectOrientation, PrimitiveData.ObjectBoundsX));
+		DataIdx += 1u;
+	}
+
+	// LocalObjectBoundsMin, ObjectBoundsY
+	{
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.LocalObjectBoundsMin, PrimitiveData.ObjectBoundsY));
+		DataIdx += 1u;
+	}
+
+	// LocalObjectBoundsMax, ObjectBoundsZ
+	{
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.LocalObjectBoundsMax, PrimitiveData.ObjectBoundsZ));
+		DataIdx += 1u;
+	}
+
+	// WorldToLocal, TODO compute from LocalToWorld?
+	{
+		float4x4 RelativeWorldToLocal = transpose(PrimitiveData.WorldToLocal.M);
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, RelativeWorldToLocal[0]);
+		WriteDataElementUBO(Output, Offset, DataIdx + 1, RelativeWorldToLocal[1]);
+		WriteDataElementUBO(Output, Offset, DataIdx + 2, RelativeWorldToLocal[2]);
+		DataIdx += 3u;
+	}
+
+	// PreviousLocalToWorld, TODO make optional
+	{
+		float4x4 PreviousLocalToWorld = transpose(PrimitiveData.PreviousLocalToWorld.M);
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, PreviousLocalToWorld[0]);
+		WriteDataElementUBO(Output, Offset, DataIdx + 1, PreviousLocalToWorld[1]);
+		WriteDataElementUBO(Output, Offset, DataIdx + 2, PreviousLocalToWorld[2]);
+		DataIdx += 3u;
+	}
+
+	// PreviousWorldToLocal, TODO make optional
+	{
+		float4x4 PreviousRelativeWorldToLocal = transpose(PrimitiveData.PreviousWorldToLocal.M);
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, PreviousRelativeWorldToLocal[0]);
+		WriteDataElementUBO(Output, Offset, DataIdx + 1, PreviousRelativeWorldToLocal[1]);
+		WriteDataElementUBO(Output, Offset, DataIdx + 2, PreviousRelativeWorldToLocal[2]);
+		DataIdx += 3u;
+	}
+
+	// WorldToPreviousWorld, TODO make optional
+	{
+		float4x4 WorldToPreviousWorld = transpose(PrimitiveData.WorldToPreviousWorld);
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, WorldToPreviousWorld[0]);
+		WriteDataElementUBO(Output, Offset, DataIdx + 1, WorldToPreviousWorld[1]);
+		WriteDataElementUBO(Output, Offset, DataIdx + 2, WorldToPreviousWorld[2]);
+		DataIdx += 3u;
+	}
+	
+	// 22u
+	// CustomData, TODO make optional
+	{
+		UNROLL
+		for (uint i = 0; i < NUM_CUSTOM_PRIMITIVE_DATA; ++i)
+		{
+			WriteDataElementUBO(Output, Offset, DataIdx + i, PrimitiveData.CustomPrimitiveData[i]);
+		}
+		DataIdx += NUM_CUSTOM_PRIMITIVE_DATA;
+	}
+}
+
+void WriteInstanceDataUBO(RWStructuredBuffer<float4> Output, uint Offset, uint InstanceId, FInstanceSceneData InstanceData, uint InstanceSceneDataSOAStride)
+{
+	uint DataIdx = 0;
+	// TilePosition, Flags
+	{
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(LWCGetTile(InstanceData.LocalToWorld), asfloat(InstanceData.Flags)));
+		DataIdx += 1u;
+	}
+	// LocalToWorld
+	{
+		float4x4 LocalToWorld = transpose(InstanceData.LocalToWorld.M);
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, LocalToWorld[0]);
+		WriteDataElementUBO(Output, Offset, DataIdx + 1, LocalToWorld[1]);
+		WriteDataElementUBO(Output, Offset, DataIdx + 2, LocalToWorld[2]);
+		DataIdx += 3u;
+	}
+	// InvNonUniformScale, RandomID
+	{
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(InstanceData.InvNonUniformScale, InstanceData.RandomID));
+		DataIdx += 1u;
+	}
+	// PreviousLocalToWorld
+	{
+		float4x4 PrevLocalToWorld = transpose(InstanceData.PrevLocalToWorld.M);
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, PrevLocalToWorld[0]);
+		WriteDataElementUBO(Output, Offset, DataIdx + 1, PrevLocalToWorld[1]);
+		WriteDataElementUBO(Output, Offset, DataIdx + 2, PrevLocalToWorld[2]);
+		DataIdx += 3u;
+	}
+
+	// TODO: make it optional, doubles instance data size
+	uint CustomDataCount = 0;
+	uint InstanceRelativeId = 0;
+	LoadInstanceRelativeIdAndCustomDataCount(InstanceId, InstanceSceneDataSOAStride, InstanceRelativeId, CustomDataCount);
+	if (CustomDataCount > 0)
+	{
+		// limited space for instance custom data
+		CustomDataCount = min(CustomDataCount, NUM_BATCHED_INSTANCE_CUSTOM_DATA);
+		FInstancePayloadDataOffsets Offsets	= GetInstancePayloadDataOffsets(InstanceData.PrimitiveId, InstanceData.Flags, InstanceRelativeId);
+		InstanceData.CustomDataCount = CustomDataCount;
+		InstanceData.CustomDataOffset = Offsets.CustomData;
+		UNROLL
+		for (uint i = 0; i < CustomDataCount; ++i)
+		{
+			float4 CustomData = LoadInstanceCustomDataElement(InstanceData, i);
+			WriteDataElementUBO(Output, Offset, DataIdx + i, CustomData);
+		}
+	}
+}

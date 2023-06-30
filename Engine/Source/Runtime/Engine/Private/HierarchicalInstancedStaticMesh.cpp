@@ -1332,6 +1332,7 @@ void FHierarchicalStaticMeshSceneProxy::FillDynamicMeshElements(const FSceneView
 					MeshBatchElement.InstancedLODRange = InstancedLODRange;
 					MeshBatchElement.PrimitiveUniformBuffer = GetUniformBuffer();
 					MeshBatchElement.LooseParametersUniformBuffer = LooseUniformBuffer;
+					MeshBatchElement.bForceInstanceCulling = true; // force ISM through Generic path even for a single instance cases
 
 					int32 TotalInstances = bDitherLODEnabled ? Params.TotalMultipleLODInstances[LODIndex] : Params.TotalSingleLODInstances[LODIndex];
 					{

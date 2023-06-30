@@ -981,19 +981,7 @@ void FInstancedStaticMeshVertexFactory::InitRHI(FRHICommandListBase& RHICmdList)
 	FVertexDeclarationElementList Elements;
 	GetVertexElements(ThisFeatureLevel, EVertexInputStreamType::Default, bUseManualVertexFetch, Data, InstanceData, Elements, Streams);
 
-	// on mobile with GPUScene enabled instanced attributes[8-12] are used for a general auto-instancing
-	// so we add them only for desktop or if mobile has GPUScene disabled
-	// FIXME mobile: instanced attributes encode some editor related data as well (selection etc), need to split it into separate SRV as it's not supported with auto-instancing
-	// FIXME: Need to capture PrimitiveId elements for PSO precaching
-	uint8 AutoInstancingAttr_Mobile = 8;
-	const bool bMobileUsesGPUScene = MobileSupportsGPUScene();
-	if (ThisFeatureLevel > ERHIFeatureLevel::ES3_1 || !bMobileUsesGPUScene)
-	{
-		// Do not add general auto-instancing attributes for mobile
-		AutoInstancingAttr_Mobile = 0xff;
-	}
-
-	AddPrimitiveIdStreamElement(EVertexInputStreamType::Default, Elements, 13, AutoInstancingAttr_Mobile);
+	AddPrimitiveIdStreamElement(EVertexInputStreamType::Default, Elements, 13, 13);
 
 	// we don't need per-vertex shadow or lightmap rendering
 	InitDeclaration(Elements);
@@ -1822,6 +1810,12 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(UInstancedStaticMeshComponent* I
 
 	if (bUseGPUScene)
 	{
+		if (PlatformGPUSceneUsesUniformBufferView(GetScene().GetShaderPlatform()))
+		{
+			// Only instance data comes from GPUScene on platforms that use uniform buffer views
+			bVFRequiresPrimitiveUniformBuffer = true;
+		}
+		
 		const TArray<int32>& InstanceReorderTable = InComponent->InstanceReorderTable;
 
 		// NumRenderInstances is the extent that the reorder table can map to.
@@ -2049,6 +2043,7 @@ void FInstancedStaticMeshSceneProxy::SetupInstancedMeshBatch(int32 LODIndex, int
 	BatchElement0.UserIndex = 0;
 	BatchElement0.PrimitiveUniformBuffer = GetUniformBuffer();
 	BatchElement0.LooseParametersUniformBuffer = LODLooseUniformBuffers[LODIndex];
+	BatchElement0.bForceInstanceCulling = true; // force ISM through Generic path even for a single instance cases
 	
 	if (OutMeshBatch.MaterialRenderProxy)
 	{

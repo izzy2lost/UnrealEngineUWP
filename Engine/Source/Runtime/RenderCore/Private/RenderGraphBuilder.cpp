@@ -277,6 +277,7 @@ void EnumerateBufferAccess(FRDGParameterStruct PassParameters, ERDGPassFlags Pas
 		}
 		break;
 		case UBMT_RDG_BUFFER_SRV:
+		case UBMT_RDG_UNIFORM_BLOCK_SRV:
 			if (FRDGBufferSRVRef SRV = Parameter.GetAsBufferSRV())
 			{
 				FRDGBufferRef Buffer = SRV->GetParent();
@@ -709,6 +710,7 @@ FRHIUniformBuffer* FRDGBuilder::ConvertToExternalUniformBuffer(FRDGUniformBuffer
 			}
 			break;
 			case UBMT_RDG_BUFFER_SRV:
+			case UBMT_RDG_UNIFORM_BLOCK_SRV:
 			{
 				ConvertBuffer(this, Param.GetAsBufferSRV()->Desc.Buffer);
 				InitRHI(Param.GetAsView());

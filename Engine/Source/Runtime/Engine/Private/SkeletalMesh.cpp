@@ -5771,13 +5771,16 @@ FSkeletalMeshSceneProxy::FSkeletalMeshSceneProxy(const USkinnedMeshComponent* Co
 		ShadowCapsuleBoneIndices.Sort();
 	}
 
-	EnableGPUSceneSupportFlags();
-	const bool bUseGPUScene = UseGPUScene(GMaxRHIShaderPlatform, FeatureLevel);
-
-	if (bUseGPUScene)
+	if (FeatureLevel > ERHIFeatureLevel::ES3_1) // TODO: support gpuscene for a mobile SkinVF
 	{
-		bSupportsInstanceDataBuffer = true;
-		UpdateDefaultInstanceSceneData();
+		EnableGPUSceneSupportFlags();
+		const bool bUseGPUScene = UseGPUScene(GMaxRHIShaderPlatform, FeatureLevel);
+
+		if (bUseGPUScene)
+		{
+			bSupportsInstanceDataBuffer = true;
+			UpdateDefaultInstanceSceneData();
+		}
 	}
 
 #if RHI_RAYTRACING

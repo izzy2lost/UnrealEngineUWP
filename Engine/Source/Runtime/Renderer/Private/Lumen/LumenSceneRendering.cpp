@@ -1925,7 +1925,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 			FInstanceCullingContext* InstanceCullingContext = nullptr;
 			if (Scene->GPUScene.IsEnabled())
 			{
-				InstanceCullingContext = GraphBuilder.AllocObject<FInstanceCullingContext>(Views[0].GetFeatureLevel(), nullptr, TArrayView<const int32>(&Views[0].GPUSceneViewId, 1), nullptr);
+				InstanceCullingContext = GraphBuilder.AllocObject<FInstanceCullingContext>(Views[0].GetShaderPlatform(), nullptr, TArrayView<const int32>(&Views[0].GPUSceneViewId, 1), nullptr);
 				
 				int32 MaxInstances = 0;
 				int32 VisibleMeshDrawCommandsNum = 0;
@@ -2105,12 +2105,14 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 							}
 							else
 							{
+								FMeshDrawCommandSceneArgs SceneArgs;
+								SceneArgs.PrimitiveIdsBuffer = PrimitiveIdVertexBuffer;
+								
 								SubmitMeshDrawCommandsRange(
 									LumenCardRenderer.MeshDrawCommands,
 									GraphicsMinimalPipelineStateSet,
-									PrimitiveIdVertexBuffer,
-									FInstanceCullingContext::GetInstanceIdBufferStride(Scene->GetFeatureLevel()),
-									0,
+									SceneArgs,
+									FInstanceCullingContext::GetInstanceIdBufferStride(Scene->GetShaderPlatform()),
 									false,
 									CardPageRenderData.StartMeshDrawCommandIndex,
 									CardPageRenderData.NumMeshDrawCommands,

@@ -511,14 +511,15 @@ void FMeshMaterialShader::GetElementShaderBindings(
 			VertexFactoryType->GetShaderParameterElementShaderBindings(GetFrequency(), VFParameters, Scene, ViewIfDynamicMeshCommand, this, InputStreamType, FeatureLevel, VertexFactory, BatchElement, ShaderBindings, VertexStreams);
 		}
 	}
-		
-	if (UseGPUScene(GMaxRHIShaderPlatform, FeatureLevel) && VertexFactory->GetPrimitiveIdStreamIndex(FeatureLevel, InputStreamType) >= 0 
-		&& !(FeatureLevel == ERHIFeatureLevel::ES3_1 && GetFrequency() == SF_Vertex)) // Allow Primitive UB for VS on mobile
+
+	EShaderPlatform ShaderPlatform = Scene ? Scene->GetShaderPlatform() : GMaxRHIShaderPlatform;
+	bool PlatformUsesPrimitiveUB = (BatchElement.bForceInstanceCulling && PlatformGPUSceneUsesUniformBufferView(ShaderPlatform));
+	if (UseGPUScene(ShaderPlatform, FeatureLevel) && VertexFactory->GetPrimitiveIdStreamIndex(FeatureLevel, InputStreamType) >= 0 && !PlatformUsesPrimitiveUB)
 	{
 		const FShaderType* ShaderType = GetType(PointerTable);
 		ensureMsgf(!GetUniformBufferParameter<FPrimitiveUniformShaderParameters>().IsBound(), TEXT("Shader %s attempted to bind the Primitive uniform buffer even though Vertex Factory computes a PrimitiveId per-instance.  This will break auto-instancing.  Shaders should use GetPrimitiveData(PrimitiveId).Member instead of Primitive.Member."), ShaderType->GetName());
 		// Some primitives may use several VFs with a mixed support for a GPUScene. In this case all mesh batches get Primitive UB assigned regardless of VF type 
-		ensureMsgf(!BatchElement.PrimitiveUniformBuffer || (FeatureLevel == ERHIFeatureLevel::ES3_1 || PrimitiveSceneProxy->DoesVFRequirePrimitiveUniformBuffer()), TEXT("FMeshBatchElement was assigned a PrimitiveUniformBuffer even though Vertex Factory %s fetches primitive shader data through a Scene buffer.  The assigned PrimitiveUniformBuffer cannot be respected.  Use PrimitiveUniformBufferResource instead for dynamic primitive data."), ShaderType->GetName());
+		ensureMsgf(!BatchElement.PrimitiveUniformBuffer || (PrimitiveSceneProxy->DoesVFRequirePrimitiveUniformBuffer()), TEXT("FMeshBatchElement was assigned a PrimitiveUniformBuffer even though Vertex Factory %s fetches primitive shader data through a Scene buffer.  The assigned PrimitiveUniformBuffer cannot be respected.  Use PrimitiveUniformBufferResource instead for dynamic primitive data."), ShaderType->GetName());
 	}
 	else
 	{

@@ -176,6 +176,13 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 			Decl.Initializer += TEXT("},");
 			Decl.StructMembers += FString::Printf(TEXT("} %s%s;\r\n"),Member.GetName(),*ArrayDim);
 		}
+		else if (Member.GetBaseType() == UBMT_RDG_UNIFORM_BLOCK_SRV)
+		{
+			FString ParameterName = FString::Printf(TEXT("%s%s"),*NamePrefix,Member.GetName());
+			Decl.ConstantBufferMembers += FString::Printf(TEXT("UB_MEMBER_UNIFORM_BLOCK(%s);\r\n"), *ParameterName);
+			Decl.StructMembers += FString::Printf(TEXT("\t%s %s;\r\n"), Member.GetShaderType(), Member.GetName());
+			Decl.Initializer += FString::Printf(TEXT("%s,"),*ParameterName);
+		}
 		else if (Member.GetBaseType() == UBMT_INCLUDED_STRUCT)
 		{
 			CreateHLSLUniformBufferStructMembersDeclaration(*Member.GetStructMetadata(), NamePrefix, StructOffset + Member.GetOffset(), Decl, HLSLBaseOffset);
@@ -306,6 +313,10 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 				Decl.ResourceMembers += FString::Printf(TEXT("UB_RESOURCE_MEMBER_RESOURCE(%s, %s);\r\n"), Member.GetShaderType(), *ParameterName);
 				Decl.StructMembers += FString::Printf(TEXT("\t%s %s;\r\n"), Member.GetShaderType(), Member.GetName());
 				Decl.Initializer += FString::Printf(TEXT("%s,"), *ParameterName);
+			}
+			else if (Member.GetBaseType() == UBMT_RDG_UNIFORM_BLOCK_SRV)
+			{
+				// do nothing
 			}
 			else
 			{

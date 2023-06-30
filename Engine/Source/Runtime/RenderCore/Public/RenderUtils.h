@@ -271,6 +271,8 @@ RENDERCORE_API FVertexDeclarationRHIRef& GetVertexDeclarationFVector2();
 
 RENDERCORE_API bool MobileSupportsGPUScene();
 
+RENDERCORE_API bool PlatformGPUSceneUsesUniformBufferView(const FStaticShaderPlatform Platform);
+
 RENDERCORE_API bool IsMobileDeferredShadingEnabled(const FStaticShaderPlatform Platform);
 
 RENDERCORE_API bool MobileRequiresSceneDepthAux(const FStaticShaderPlatform Platform);

@@ -479,6 +479,11 @@ RENDERCORE_API bool MobileSupportsGPUScene()
 	return (CVar && CVar->GetValueOnAnyThread() != 0) ? true : false;
 }
 
+RENDERCORE_API bool PlatformGPUSceneUsesUniformBufferView(const FStaticShaderPlatform Platform)
+{
+	return IsMobilePlatform(Platform) && FDataDrivenShaderPlatformInfo::GetSupportsUniformBufferObjects(Platform);
+}
+
 RENDERCORE_API bool IsMobileDeferredShadingEnabled(const FStaticShaderPlatform Platform)
 {
 	static FShaderPlatformCachedIniValue<bool> MobileShadingPathIniValue(TEXT("r.Mobile.ShadingPath"));

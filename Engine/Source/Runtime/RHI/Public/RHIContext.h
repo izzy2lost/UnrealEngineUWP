@@ -345,6 +345,16 @@ public:
 		/** empty default implementation. */
 	}
 
+	virtual void RHISetStaticUniformBuffer(FUniformBufferStaticSlot Slot, FRHIUniformBuffer* UniformBuffer)
+	{
+		/* empty default implementation */
+	}
+
+	virtual void RHISetUniformBufferDynamicOffset(FUniformBufferStaticSlot Slot, uint32 Offset)
+	{
+		/* empty default implementation */
+	}
+
 	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) = 0;
 
 	virtual void RHIPopEvent() = 0;

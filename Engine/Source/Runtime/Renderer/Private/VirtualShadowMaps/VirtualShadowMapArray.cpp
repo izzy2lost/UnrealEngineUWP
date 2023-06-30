@@ -2699,7 +2699,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 	uint32 TotalPrimaryViews = 0;
 	uint32 TotalViews = 0;
 
-	FInstanceCullingMergedContext InstanceCullingMergedContext(GPUScene.GetFeatureLevel(), true);
+	FInstanceCullingMergedContext InstanceCullingMergedContext(GPUScene.GetShaderPlatform(), true);
 	// We don't use the registered culling views (this redundancy should probably be addressed at some point), set the number to disable index range checking
 	InstanceCullingMergedContext.NumCullingViews = -1;
 	int32 TotalPreCullInstanceCount = 0;

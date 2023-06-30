@@ -114,6 +114,7 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 bSupportsClipDistance : 1;
 	uint32 bSupportsNNEShaders: 1;
 	uint32 bSupportsShaderPipelines : 1;
+	uint32 bSupportsUniformBufferObjects : 1;
 	// NOTE: When adding fields, you must also add to ParseDataDrivenShaderInfo!
 	uint32 bContainsValidPlatformInfo : 1;
 
@@ -730,7 +731,13 @@ public:
 		check(IsValid(Platform));
 		return Infos[Platform].bSupportsNNEShaders;
 	}
-
+	
+	static FORCEINLINE_DEBUGGABLE const bool GetSupportsUniformBufferObjects(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].bSupportsUniformBufferObjects;
+	}
+	
 	static FORCEINLINE_DEBUGGABLE const bool IsValid(const FStaticShaderPlatform Platform)
 	{
 		return Infos[Platform].bContainsValidPlatformInfo;

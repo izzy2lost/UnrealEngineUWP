@@ -348,6 +348,10 @@ static void GetVkStageAndAccessFlags(ERHIAccess RHIAccess, FRHITransitionInfo::E
 	{
 		StageFlags |= (GVulkanDevicePipelineStageBits & ~VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 		AccessFlags |= VK_ACCESS_SHADER_READ_BIT;
+		if ((UsageFlags & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) != 0)
+		{
+			AccessFlags |= VK_ACCESS_UNIFORM_READ_BIT;
+		}
 		Layout = SRVLayout;
 
 		ProcessedRHIFlags |= (uint32)ERHIAccess::SRVGraphics;

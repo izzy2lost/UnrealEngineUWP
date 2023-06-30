@@ -191,12 +191,10 @@ static void RenderOpaqueFX(
 
 BEGIN_SHADER_PARAMETER_STRUCT(FMobileRenderPassParameters, RENDERER_API)
 	SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FInstanceCullingDrawParams, InstanceCullingDrawParams)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FMobileBasePassUniformParameters, MobileBasePass)
 	SHADER_PARAMETER_STRUCT_REF(FMobileReflectionCaptureShaderData, ReflectionCapture)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, LocalHeightFogInstances)
-	RDG_BUFFER_ACCESS_ARRAY(DrawIndirectArgsBuffers)
-	RDG_BUFFER_ACCESS_ARRAY(InstanceIdOffsetBuffers)
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
@@ -298,8 +296,6 @@ FMobileSceneRenderer::FMobileSceneRenderer(const FSceneViewFamily* InViewFamily,
 		}
 	}
 
-	FMemory::Memzero(MeshPassInstanceCullingDrawParams);
-
 	NumMSAASamples = GetDefaultMSAACount(ERHIFeatureLevel::ES3_1);
 }
 
@@ -388,7 +384,7 @@ void FMobileSceneRenderer::SetupMobileBasePassAfterShadowInit(FExclusiveDepthSte
 		Pass.DispatchPassSetup(
 			Scene,
 			View,
-			FInstanceCullingContext(FeatureLevel, &InstanceCullingManager, ViewIds, nullptr, InstanceCullingMode),
+			FInstanceCullingContext(ShaderPlatform, &InstanceCullingManager, ViewIds, nullptr, InstanceCullingMode),
 			EMeshPass::BasePass,
 			BasePassDepthStencilAccess,
 			MeshPassProcessor,
@@ -702,23 +698,6 @@ void FMobileSceneRenderer::InitViews(
 	OnStartRender(RHICmdList);
 }
 
-static void BuildMeshPassInstanceCullingDrawParams(FRDGBuilder& GraphBuilder, const FGPUScene& GPUScene, FParallelMeshDrawCommandPass& MeshPass, FMobileRenderPassParameters& PassParameters, FInstanceCullingDrawParams& InstanceCullingDrawParams)
-{
-	// This manual resource handling is need since we can't include multiple FInstanceCullingDrawParams into RDG pass parameters,
-	// because FInstanceCullingDrawParams includes a global UB
-	MeshPass.BuildRenderingCommands(GraphBuilder, GPUScene, InstanceCullingDrawParams);
-	
-	if (InstanceCullingDrawParams.DrawIndirectArgsBuffer)
-	{
-		PassParameters.DrawIndirectArgsBuffers.Emplace(InstanceCullingDrawParams.DrawIndirectArgsBuffer, ERHIAccess::IndirectArgs);
-	}
-	
-	if (InstanceCullingDrawParams.InstanceIdOffsetBuffer)
-	{
-		PassParameters.InstanceIdOffsetBuffers.Emplace(InstanceCullingDrawParams.InstanceIdOffsetBuffer, ERHIAccess::VertexOrIndexBuffer);
-	}
-}
-
 static void BeginOcclusionScope(FRDGBuilder& GraphBuilder, TArray<FViewInfo>& Views)
 {
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
@@ -771,13 +750,9 @@ void FMobileSceneRenderer::RenderFullDepthPrepass(FRDGBuilder& GraphBuilder, FSc
 		auto* PassParameters = GraphBuilder.AllocParameters<FMobileRenderPassParameters>();
 		PassParameters->RenderTargets = BasePassRenderTargets;
 		PassParameters->View = View.GetShaderParameters();
-		PassParameters->Scene = GetSceneUniforms().GetBuffer(GraphBuilder);
 		PassParameters->MobileBasePass = CreateMobileBasePassUniformBuffer(GraphBuilder, View, EMobileBasePass::Opaque, EMobileSceneTextureSetupMode::None);
-
-		if (Scene->GPUScene.IsEnabled())
-		{
-			BuildMeshPassInstanceCullingDrawParams(GraphBuilder, Scene->GPUScene, View.ParallelMeshDrawCommandPasses[EMeshPass::DepthPass], *PassParameters, MeshPassInstanceCullingDrawParams[EMeshPass::DepthPass]);
-		}
+		
+		View.ParallelMeshDrawCommandPasses[EMeshPass::DepthPass].BuildRenderingCommands(GraphBuilder, Scene->GPUScene, PassParameters->InstanceCullingDrawParams);
 
 		// Render occlusion at the last view pass only, as they already loop through all views
 		bool bDoOcclusionQueries = (ViewContext.bIsLastView && DoOcclusionQueries());
@@ -788,7 +763,7 @@ void FMobileSceneRenderer::RenderFullDepthPrepass(FRDGBuilder& GraphBuilder, FSc
 			ERDGPassFlags::Raster,
 			[this, PassParameters, &View, bDoOcclusionQueries](FRHICommandList& RHICmdList)
 			{
-				RenderPrePass(RHICmdList, View);
+				RenderPrePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 
 				if (bDoOcclusionQueries)
 				{
@@ -805,7 +780,7 @@ void FMobileSceneRenderer::RenderMaskedPrePass(FRHICommandList& RHICmdList, cons
 {
 	if (bIsMaskedOnlyDepthPrepassEnabled)
 	{
-		RenderPrePass(RHICmdList, View);
+		RenderPrePass(RHICmdList, View, &DepthPassInstanceCullingDrawParams);
 	}
 }
 
@@ -1154,22 +1129,12 @@ void FMobileSceneRenderer::BuildInstanceCullingDrawParams(FRDGBuilder& GraphBuil
 	{
 		if (!bIsFullDepthPrepassEnabled)
 		{
-			BuildMeshPassInstanceCullingDrawParams(GraphBuilder, Scene->GPUScene, View.ParallelMeshDrawCommandPasses[EMeshPass::DepthPass], *PassParameters, MeshPassInstanceCullingDrawParams[EMeshPass::DepthPass]);
+			View.ParallelMeshDrawCommandPasses[EMeshPass::DepthPass].BuildRenderingCommands(GraphBuilder, Scene->GPUScene, DepthPassInstanceCullingDrawParams);
 		}
-		
-		const EMeshPass::Type BaseMeshPasses[] = 
-		{
-			EMeshPass::BasePass,
-			EMeshPass::SkyPass,
-			StandardTranslucencyMeshPass,
-			EMeshPass::DebugViewMode
-		};
-
-		for (int32 MeshPassIdx = 0; MeshPassIdx < UE_ARRAY_COUNT(BaseMeshPasses); ++MeshPassIdx)
-		{
-			const EMeshPass::Type PassType = BaseMeshPasses[MeshPassIdx];
-			BuildMeshPassInstanceCullingDrawParams(GraphBuilder, Scene->GPUScene, View.ParallelMeshDrawCommandPasses[PassType], *PassParameters, MeshPassInstanceCullingDrawParams[PassType]);
-		}
+		View.ParallelMeshDrawCommandPasses[EMeshPass::BasePass].BuildRenderingCommands(GraphBuilder, Scene->GPUScene, PassParameters->InstanceCullingDrawParams);
+		View.ParallelMeshDrawCommandPasses[EMeshPass::SkyPass].BuildRenderingCommands(GraphBuilder, Scene->GPUScene, SkyPassInstanceCullingDrawParams);
+		View.ParallelMeshDrawCommandPasses[StandardTranslucencyMeshPass].BuildRenderingCommands(GraphBuilder, Scene->GPUScene, TranslucencyInstanceCullingDrawParams);
+		View.ParallelMeshDrawCommandPasses[EMeshPass::DebugViewMode].BuildRenderingCommands(GraphBuilder, Scene->GPUScene, DebugViewModeInstanceCullingDrawParams);
 	}
 }
 
@@ -1266,7 +1231,6 @@ void FMobileSceneRenderer::RenderForward(FRDGBuilder& GraphBuilder, FRDGTextureR
 		EMobileSceneTextureSetupMode SetupMode = (bIsFullDepthPrepassEnabled ? EMobileSceneTextureSetupMode::SceneDepth : EMobileSceneTextureSetupMode::None) | EMobileSceneTextureSetupMode::CustomDepth;
 		FMobileRenderPassParameters* PassParameters = GraphBuilder.AllocParameters<FMobileRenderPassParameters>();
 		PassParameters->View = View.GetShaderParameters();
-		PassParameters->Scene = GetSceneUniforms().GetBuffer(GraphBuilder);
 		PassParameters->MobileBasePass = CreateMobileBasePassUniformBuffer(GraphBuilder, View, EMobileBasePass::Opaque, SetupMode, MobileBasePassTextures);
 		PassParameters->ReflectionCapture = View.MobileReflectionCaptureUniformBuffer;
 		PassParameters->RenderTargets = BasePassRenderTargets;
@@ -1312,7 +1276,7 @@ void FMobileSceneRenderer::RenderForwardSinglePass(FRDGBuilder& GraphBuilder, FM
 		RenderMaskedPrePass(RHICmdList, View);
 		// Opaque and masked
 		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Opaque));
-		RenderMobileBasePass(RHICmdList, View);
+		RenderMobileBasePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 		RenderMobileDebugView(RHICmdList, View);
 		RHICmdList.PollOcclusionQueries();
 		PostRenderBasePass(RHICmdList, View);
@@ -1370,7 +1334,7 @@ void FMobileSceneRenderer::RenderForwardMultiPass(FRDGBuilder& GraphBuilder, FMo
 		RenderMaskedPrePass(RHICmdList, View);
 		// Opaque and masked
 		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Opaque));
-		RenderMobileBasePass(RHICmdList, View);
+		RenderMobileBasePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 		RenderMobileDebugView(RHICmdList, View);
 		RHICmdList.PollOcclusionQueries();
 		PostRenderBasePass(RHICmdList, View);
@@ -1601,7 +1565,6 @@ void FMobileSceneRenderer::RenderDeferred(FRDGBuilder& GraphBuilder, const FSort
 		EMobileSceneTextureSetupMode SetupMode = (bIsFullDepthPrepassEnabled ? EMobileSceneTextureSetupMode::SceneDepth : EMobileSceneTextureSetupMode::None) | EMobileSceneTextureSetupMode::CustomDepth;
 		auto* PassParameters = GraphBuilder.AllocParameters<FMobileRenderPassParameters>();
 		PassParameters->View = View.GetShaderParameters();
-		PassParameters->Scene = GetSceneUniforms().GetBuffer(GraphBuilder);
 		PassParameters->MobileBasePass = CreateMobileBasePassUniformBuffer(GraphBuilder, View, EMobileBasePass::Opaque, SetupMode, MobileBasePassTextures);
 		PassParameters->ReflectionCapture = View.MobileReflectionCaptureUniformBuffer;
 		PassParameters->RenderTargets = BasePassRenderTargets;
@@ -1641,7 +1604,7 @@ void FMobileSceneRenderer::RenderDeferredSinglePass(FRDGBuilder& GraphBuilder, c
 		RenderMaskedPrePass(RHICmdList, View);
 		// Opaque and masked
 		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Opaque));
-		RenderMobileBasePass(RHICmdList, View);
+		RenderMobileBasePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 		RenderMobileDebugView(RHICmdList, View);
 		RHICmdList.PollOcclusionQueries();
 		PostRenderBasePass(RHICmdList, View);
@@ -1685,7 +1648,7 @@ void FMobileSceneRenderer::RenderDeferredMultiPass(FRDGBuilder& GraphBuilder, cl
 		RenderMaskedPrePass(RHICmdList, View);
 		// Opaque and masked
 		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Opaque));
-		RenderMobileBasePass(RHICmdList, View);
+		RenderMobileBasePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 		RenderMobileDebugView(RHICmdList, View);
 		RHICmdList.PollOcclusionQueries();
 		PostRenderBasePass(RHICmdList, View);
@@ -1780,7 +1743,7 @@ void FMobileSceneRenderer::RenderMobileDebugView(FRHICommandList& RHICmdList, co
 		DrawClearQuad(RHICmdList, FLinearColor::Black);
 
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
-		View.ParallelMeshDrawCommandPasses[EMeshPass::DebugViewMode].DispatchDraw(nullptr, RHICmdList, &MeshPassInstanceCullingDrawParams[EMeshPass::DebugViewMode]);
+		View.ParallelMeshDrawCommandPasses[EMeshPass::DebugViewMode].DispatchDraw(nullptr, RHICmdList, &DebugViewModeInstanceCullingDrawParams);
 	}
 #endif // WITH_DEBUG_VIEW_MODES
 }

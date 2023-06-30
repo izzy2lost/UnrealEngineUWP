@@ -1010,6 +1010,24 @@ struct FMeshDrawCommandOverrideArgs
 	}
 };
 
+struct FMeshDrawCommandSceneArgs
+{
+	FRHIBuffer* PrimitiveIdsBuffer;
+	FRHIBuffer* IndirectArgsBuffer;
+	uint32 PrimitiveIdOffset;
+	uint32 IndirectArgsByteOffset;
+	FUniformBufferStaticSlot BatchedPrimitiveSlot;
+
+	FMeshDrawCommandSceneArgs()
+	{
+		PrimitiveIdsBuffer = nullptr;
+		IndirectArgsBuffer = nullptr;
+		PrimitiveIdOffset = 0u;
+		IndirectArgsByteOffset = 0u;
+		BatchedPrimitiveSlot = MAX_UNIFORM_BUFFER_STATIC_SLOTS;
+	}
+};
+
 /** 
  * FMeshDrawCommand fully describes a mesh pass draw call, captured just above the RHI.  
 		FMeshDrawCommand should contain only data needed to draw.  For InitViews payloads, use FVisibleMeshDrawCommand.
@@ -1187,19 +1205,14 @@ public:
 	static bool SubmitDrawBegin(
 		const FMeshDrawCommand& RESTRICT MeshDrawCommand,
 		const FGraphicsMinimalPipelineStateSet& GraphicsMinimalPipelineStateSet,
-		// GPUCULL_TODO: Rename, and probably wrap in struct that links to GPU-Scene, maybe generalize (probably not)?
-		FRHIBuffer* ScenePrimitiveIdsBuffer,
-		int32 PrimitiveIdOffset,
+		const FMeshDrawCommandSceneArgs& SceneArgs,
 		uint32 InstanceFactor,
 		FRHICommandList& RHICmdList,
 		FMeshDrawCommandStateCache& RESTRICT StateCache,
 		bool bAllowSkipDrawCommand);
 
 	/** Submits just the draw primitive portion of the draw command. */
-	static void SubmitDrawEnd(const FMeshDrawCommand& MeshDrawCommand, uint32 InstanceFactor, FRHICommandList& RHICmdList,
-		// GPUCULL_TODO: Rename, and probably wrap in struct that links to GPU-Scene, maybe generalize (probably not)?
-		FRHIBuffer* IndirectArgsOverrideBuffer = nullptr,
-		uint32 IndirectArgsOverrideByteOffset = 0U);
+	static void SubmitDrawEnd(const FMeshDrawCommand& MeshDrawCommand, const FMeshDrawCommandSceneArgs& SceneArgs, uint32 InstanceFactor, FRHICommandList& RHICmdList);
 
 	/** 	 
 	 * Submits the state and shader bindings to the RHI command list, but does not invoke the draw indirect. 
@@ -1208,32 +1221,23 @@ public:
 	static bool SubmitDrawIndirectBegin(
 		const FMeshDrawCommand& RESTRICT MeshDrawCommand,
 		const FGraphicsMinimalPipelineStateSet& GraphicsMinimalPipelineStateSet,
-		// GPUCULL_TODO: Rename, and probably wrap in struct that links to GPU-Scene, maybe generalize (probably not)?
-		FRHIBuffer* ScenePrimitiveIdsBuffer,
-		int32 PrimitiveIdOffset,
+		const FMeshDrawCommandSceneArgs& SceneArgs,
 		uint32 InstanceFactor,
 		FRHICommandList& RHICmdList,
 		FMeshDrawCommandStateCache& RESTRICT StateCache,
 		bool bAllowSkipDrawCommand);
 
 	/** Submits just the draw indirect primitive portion of the draw command. */
-	static void SubmitDrawIndirectEnd(const FMeshDrawCommand& MeshDrawCommand, uint32 InstanceFactor, FRHICommandList& RHICmdList,
-		// GPUCULL_TODO: Rename, and probably wrap in struct that links to GPU-Scene, maybe generalize (probably not)?
-		FRHIBuffer* IndirectArgsOverrideBuffer,
-		uint32 IndirectArgsOverrideByteOffset);
+	static void SubmitDrawIndirectEnd(const FMeshDrawCommand& MeshDrawCommand, const FMeshDrawCommandSceneArgs& SceneArgs, uint32 InstanceFactor, FRHICommandList& RHICmdList);
 
 	/** Submits commands to the RHI Commandlist to draw the MeshDrawCommand. */
 	static void SubmitDraw(
 		const FMeshDrawCommand& RESTRICT MeshDrawCommand,
 		const FGraphicsMinimalPipelineStateSet& GraphicsMinimalPipelineStateSet,
-		// GPUCULL_TODO: Rename, and probably wrap in struct that links to GPU-Scene, maybe generalize (probably not)?
-		FRHIBuffer* ScenePrimitiveIdsBuffer,
-		int32 PrimitiveIdOffset,
+		const FMeshDrawCommandSceneArgs& SceneArgs,
 		uint32 InstanceFactor,
 		FRHICommandList& CommandList,
-		class FMeshDrawCommandStateCache& RESTRICT StateCache,
-		FRHIBuffer* IndirectArgsOverrideBuffer = nullptr,
-		uint32 IndirectArgsOverrideByteOffset = 0U);
+		class FMeshDrawCommandStateCache& RESTRICT StateCache);
 
 	/** Returns the pipeline state sort key, which can be used for sorting material draws to reduce context switches. */
 	uint64 GetPipelineStateSortingKey(FRHICommandList& RHICmdList, const FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo) const;
@@ -2163,9 +2167,8 @@ private:
 RENDERER_API extern void SubmitMeshDrawCommands(
 	const FMeshCommandOneFrameArray& VisibleMeshDrawCommands,
 	const FGraphicsMinimalPipelineStateSet& GraphicsMinimalPipelineStateSet, 
-	FRHIBuffer* PrimitiveIdsBuffer,
+	const FMeshDrawCommandSceneArgs& SceneArgs,
 	uint32 PrimitiveIdBufferStride,
-	int32 BasePrimitiveIdsOffset,
 	bool bDynamicInstancing,
 	uint32 InstanceFactor,
 	FRHICommandList& RHICmdList);
@@ -2173,9 +2176,8 @@ RENDERER_API extern void SubmitMeshDrawCommands(
 extern void SubmitMeshDrawCommandsRange(
 	const FMeshCommandOneFrameArray& VisibleMeshDrawCommands,
 	const FGraphicsMinimalPipelineStateSet& GraphicsMinimalPipelineStateSet,
-	FRHIBuffer* PrimitiveIdsBuffer,
+	const FMeshDrawCommandSceneArgs& SceneArgs,
 	uint32 PrimitiveIdBufferStride,
-	int32 BasePrimitiveIdsOffset,
 	bool bDynamicInstancing,
 	int32 StartIndex,
 	int32 NumMeshDrawCommands,

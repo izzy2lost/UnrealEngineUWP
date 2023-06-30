@@ -44,12 +44,18 @@ float4 LoadLightmapDataElement(uint Index)
 }
 
 // Fetch from scene lightmap data buffer
-FLightmapSceneData GetLightmapData(uint LightmapDataIndex) 
+FLightmapSceneData GetLightmapData(uint LightmapDataIndex, uint DrawInstanceId) 
 {
+	FLightmapSceneData LightmapData;
+
+#if PLATFORM_USES_PRIMITIVE_UBO
+	// FIXME: unpack relevant ligtmap data from Primitive UBO
+	LightmapData = (FLightmapSceneData)0;
+	LightmapData.LightMapCoordinateScaleBias = float4(1,1,0,0);
+	LightmapData.ShadowMapCoordinateScaleBias = float4(1,1,0,0);
+#else	
 	// Note: layout must match FLightmapSceneShaderData in C++
 	// Relying on optimizer to remove unused loads
-
-	FLightmapSceneData LightmapData;
 	uint LightmapDataBaseOffset = LightmapDataIndex * LIGHTMAP_SCENE_DATA_STRIDE;
 	LightmapData.StaticShadowMapMasks = LoadLightmapDataElement(LightmapDataBaseOffset + 0);
 	LightmapData.InvUniformPenumbraSizes = LoadLightmapDataElement(LightmapDataBaseOffset + 1);
@@ -61,14 +67,19 @@ FLightmapSceneData GetLightmapData(uint LightmapDataIndex)
 	LightmapData.LightMapAdd[1] = LoadLightmapDataElement(LightmapDataBaseOffset + 7);
 	LightmapData.LightmapVTPackedPageTableUniform[0] = asuint(LoadLightmapDataElement(LightmapDataBaseOffset + 8));
 	LightmapData.LightmapVTPackedPageTableUniform[1] = asuint(LoadLightmapDataElement(LightmapDataBaseOffset + 9));
-
 	UNROLL
 	for (uint i = 0u; i < 5u; ++i)
 	{
 		LightmapData.LightmapVTPackedUniform[i] = asuint(LoadLightmapDataElement(LightmapDataBaseOffset + 10 + i));
 	}
+#endif // PLATFORM_USES_PRIMITIVE_UBO
 
 	return LightmapData;
+}
+
+FLightmapSceneData GetLightmapData(uint LightmapDataIndex) 
+{
+	return GetLightmapData(LightmapDataIndex, 0); // FIXME: UBO path
 }
 
 #else 

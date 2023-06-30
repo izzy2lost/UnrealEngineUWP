@@ -698,6 +698,8 @@ const TCHAR* GetUniformBufferBaseTypeString(EUniformBufferBaseType BaseType)
 		return TEXT("UBMT_RDG_BUFFER_ACCESS_ARRAY");
 	case UBMT_RDG_BUFFER_SRV:
 		return TEXT("UBMT_RDG_BUFFER_SRV");
+	case UBMT_RDG_UNIFORM_BLOCK_SRV:
+		return TEXT("UBMT_RDG_UNIFORM_BLOCK_SRV");
 	case UBMT_RDG_BUFFER_UAV:
 		return TEXT("UBMT_RDG_BUFFER_UAV");
 	case UBMT_RDG_UNIFORM_BUFFER:

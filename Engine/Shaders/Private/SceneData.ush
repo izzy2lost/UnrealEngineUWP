@@ -35,15 +35,26 @@
 	#define VF_REQUIRES_PER_INSTANCE_CUSTOM_DATA 0
 #endif
 
-#define ENABLE_PER_INSTANCE_CUSTOM_DATA (USES_PER_INSTANCE_CUSTOM_DATA || VF_REQUIRES_PER_INSTANCE_CUSTOM_DATA)
+#ifndef ENABLE_PER_INSTANCE_CUSTOM_DATA
+	#define ENABLE_PER_INSTANCE_CUSTOM_DATA (USES_PER_INSTANCE_CUSTOM_DATA || VF_REQUIRES_PER_INSTANCE_CUSTOM_DATA)
+#endif
+
+#ifndef PLATFORM_USES_PRIMITIVE_UBO
+	#define PLATFORM_USES_PRIMITIVE_UBO (PLATFORM_SUPPORTS_UNIFORM_BUFFER_OBJECTS && FEATURE_LEVEL == FEATURE_LEVEL_ES3_1) 
+	#define BATCHED_PRIMITIVE_DATA_STRIDE 512u
+	#define BATCHED_INSTANCE_DATA_STRIDE 256u
+	#define BATCHED_PRIMITIVE_DATA_STRIDE_FLOAT4 (BATCHED_PRIMITIVE_DATA_STRIDE/16u)
+	#define BATCHED_INSTANCE_DATA_STRIDE_FLOAT4 (BATCHED_INSTANCE_DATA_STRIDE/16u)
+	#define NUM_BATCHED_INSTANCE_CUSTOM_DATA 8u // Num float4s used for the instance custom data when using UBO path
+#endif
+
+#ifndef SHADER_USES_PRIMITIVE_UBO
+	#define SHADER_USES_PRIMITIVE_UBO (PLATFORM_USES_PRIMITIVE_UBO && (PIXELSHADER || VERTEXSHADER) && !USE_GLOBAL_GPU_SCENE_DATA)
+#endif
 
 // Whether to fetch primitive values (eg LocalToWorld) by dynamically indexing a scene-wide buffer, or to reference a single Primitive uniform buffer
 #if VF_SUPPORTS_PRIMITIVE_SCENE_DATA
-	#if FEATURE_LEVEL == FEATURE_LEVEL_ES3_1
-		#define VF_USE_PRIMITIVE_SCENE_DATA 2
-	#else	
-		#define VF_USE_PRIMITIVE_SCENE_DATA 1
-	#endif
+	#define VF_USE_PRIMITIVE_SCENE_DATA 1
 #else
 	#define VF_USE_PRIMITIVE_SCENE_DATA 0
 #endif
@@ -88,7 +99,7 @@ uint GetDefaultPrimitiveVisibilityFlags()
 	static const uint InstanceTransformSizeFloat4Count = 3u; // encoded scale/rotation (uint4) and translation (float3)
 #endif
 
-#define NUM_CUSTOM_PRIMITIVE_DATA 9 // Num float4s used for custom data. Must match FCustomPrimitiveData::NumCustomPrimitiveDataFloat4s in SceneTypes.h
+#define NUM_CUSTOM_PRIMITIVE_DATA 9u // Num float4s used for custom data. Must match FCustomPrimitiveData::NumCustomPrimitiveDataFloat4s in SceneTypes.h
 
 struct FPrimitiveSceneData
 {
@@ -200,9 +211,57 @@ FPrimitiveSceneData GetPrimitiveDataFromUniformBuffer()
 	return PrimitiveData;
 }
 
+// Unpacked AoS layout - see FInstanceSceneShaderData::Setup() for SoA packed layout.
+#if USE_EDITOR_SHADERS
+struct FInstanceSceneEditorData
+{
+	float3 HitProxyId;
+	uint   HitProxyPacked;
+	bool bIsSelected;
+};
+#endif
+
+struct FInstanceSceneData
+{
+	FLWCMatrix LocalToWorld;
+	FLWCMatrix PrevLocalToWorld;
+	FLWCInverseMatrix WorldToLocal;
+	float4   NonUniformScale;
+	float3   InvNonUniformScale;
+	float    DeterminantSign;
+	float3   LocalBoundsCenter;
+	uint     PrimitiveId;
+	uint     RelativeId;
+	uint     PayloadDataOffset;
+	uint     PayloadExtensionOffset;
+	uint     PayloadExtensionSize;
+	float3   LocalBoundsExtent;
+	uint     LastUpdateSceneFrameNumber;
+	uint     NaniteRuntimeResourceID;
+	uint     NaniteHierarchyOffset;
+#if USES_PER_INSTANCE_RANDOM || USE_DITHERED_LOD_TRANSITION
+	float    RandomID;
+#endif
+#if ENABLE_PER_INSTANCE_CUSTOM_DATA
+	uint     CustomDataOffset;
+	uint     CustomDataCount;
+#endif
+#if 1 //NEEDS_LIGHTMAP_COORDINATE // TODO: Fix Me
+	float4   LightMapAndShadowMapUVBias;
+#endif
+	bool     ValidInstance;
+	uint     Flags;
+
+#if USE_EDITOR_SHADERS
+	FInstanceSceneEditorData EditorData;
+#endif
+};
+
 #if VF_USE_PRIMITIVE_SCENE_DATA
 
-#if USE_GLOBAL_GPU_SCENE_DATA
+#if SHADER_USES_PRIMITIVE_UBO
+// no access to global buffers
+#elif USE_GLOBAL_GPU_SCENE_DATA
 StructuredBuffer<float4> GPUScenePrimitiveSceneData;
 #elif USE_GLOBAL_GPU_SCENE_DATA_RW
 RWStructuredBuffer<float4> GPUScenePrimitiveSceneDataRW;
@@ -212,7 +271,9 @@ float4 LoadPrimitivePrimitiveSceneDataElement(uint PrimitiveIndex, uint ItemInde
 {
 	uint TargetIdx = PrimitiveIndex + ItemIndex;
 
-#if USE_GLOBAL_GPU_SCENE_DATA
+#if SHADER_USES_PRIMITIVE_UBO
+	return 0; // FIXME LoadPrimitivePrimitiveSceneDataElement for UBO case
+#elif USE_GLOBAL_GPU_SCENE_DATA
 	checkStructuredBufferAccessSlow(GPUScenePrimitiveSceneData, TargetIdx);
 	return GPUScenePrimitiveSceneData[TargetIdx];
 #elif USE_GLOBAL_GPU_SCENE_DATA_RW
@@ -224,10 +285,20 @@ float4 LoadPrimitivePrimitiveSceneDataElement(uint PrimitiveIndex, uint ItemInde
 #endif
 }
 
+#if SHADER_USES_PRIMITIVE_UBO
+#include "SceneDataMobileLoader.ush"
+#endif
+
 // Fetch from scene primitive buffer
 FPrimitiveSceneData GetPrimitiveData(uint PrimitiveId)
 {
-#if (VERTEXSHADER && !PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS)
+#if SHADER_USES_PRIMITIVE_UBO
+	#if USE_INSTANCE_CULLING
+		return GetPrimitiveDataFromUniformBuffer();
+	#else
+		return LoadPrimitiveDataUBO(PrimitiveId);
+	#endif
+#elif (VERTEXSHADER && !PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS)
 	// Vertex shaders may not have access to GPUScene on mobile. Use GetPrimitiveData(FVertexFactoryIntermediates Intermediates)
 	// TODO: need a way to report invalid usage, after all dead code elimination
 	return (FPrimitiveSceneData)0;
@@ -399,16 +470,6 @@ uint GetPrimitive_LightingChannelMask(FPrimitiveSceneData Primitive)
 }
 #endif
 
-// Unpacked AoS layout - see FInstanceSceneShaderData::Setup() for SoA packed layout.
-#if USE_EDITOR_SHADERS
-struct FInstanceSceneEditorData
-{
-	float3 HitProxyId;
-	uint   HitProxyPacked;
-	bool bIsSelected;
-};
-#endif
-
 float3 UnpackHitProxyId(uint HitProxyPacked)
 {
 	// BGR (dword) -> RGA (float)
@@ -431,43 +492,9 @@ struct FInstancePayloadDataOffsets
 	uint CustomData;
 };
 
-struct FInstanceSceneData
-{
-	FLWCMatrix LocalToWorld;
-	FLWCMatrix PrevLocalToWorld;
-	FLWCInverseMatrix WorldToLocal;
-	float4   NonUniformScale;
-	float3   InvNonUniformScale;
-	float    DeterminantSign;
-	float3   LocalBoundsCenter;
-	uint     PrimitiveId;
-	uint     RelativeId;
-	uint     PayloadDataOffset;
-	uint     PayloadExtensionOffset;
-	uint     PayloadExtensionSize;
-	float3   LocalBoundsExtent;
-	uint     LastUpdateSceneFrameNumber;
-	uint     NaniteRuntimeResourceID;
-	uint     NaniteHierarchyOffset;
-#if USES_PER_INSTANCE_RANDOM || USE_DITHERED_LOD_TRANSITION
-	float    RandomID;
-#endif
-#if ENABLE_PER_INSTANCE_CUSTOM_DATA
-	uint     CustomDataOffset;
-	uint     CustomDataCount;
-#endif
-#if 1 //NEEDS_LIGHTMAP_COORDINATE // TODO: Fix Me
-	float4   LightMapAndShadowMapUVBias;
-#endif
-	bool     ValidInstance;
-	uint     Flags;
-
-#if USE_EDITOR_SHADERS
-	FInstanceSceneEditorData EditorData;
-#endif
-};
-
-#if USE_GLOBAL_GPU_SCENE_DATA
+#if SHADER_USES_PRIMITIVE_UBO
+// no access to global buffers
+#elif USE_GLOBAL_GPU_SCENE_DATA
 StructuredBuffer<float4> GPUSceneInstanceSceneData;
 StructuredBuffer<float4> GPUSceneInstancePayloadData;
 uint GPUSceneFrameNumber;
@@ -488,7 +515,9 @@ uint GetGPUSceneFrameNumber()
 
 float4 LoadInstanceSceneDataElement(uint Index)
 {
-#if USE_GLOBAL_GPU_SCENE_DATA
+#if SHADER_USES_PRIMITIVE_UBO
+	return 0; // FIXME LoadInstanceSceneDataElement for UBO case
+#elif USE_GLOBAL_GPU_SCENE_DATA
 	return GPUSceneInstanceSceneData[Index];
 #elif USE_GLOBAL_GPU_SCENE_DATA_RW
 	return GPUSceneInstanceSceneDataRW[Index];
@@ -499,7 +528,9 @@ float4 LoadInstanceSceneDataElement(uint Index)
 
 float4 LoadInstancePayloadDataElement(uint Index)
 {
-#if USE_GLOBAL_GPU_SCENE_DATA
+#if SHADER_USES_PRIMITIVE_UBO
+	return 0; // FIXME LoadInstancePayloadDataElement for UBO case
+#elif USE_GLOBAL_GPU_SCENE_DATA
 	return GPUSceneInstancePayloadData[Index];
 #elif USE_GLOBAL_GPU_SCENE_DATA_RW
 	return GPUSceneInstancePayloadDataRW[Index];
@@ -864,7 +895,7 @@ void ComputeInstanceDerivedData(inout FInstanceSceneData InstanceData, float3 Ti
 	// Do not put any load operations here!
 	//
 
-#if (VF_USE_PRIMITIVE_SCENE_DATA == 2) || !PLATFORM_ALLOW_SCENE_DATA_COMPRESSED_TRANSFORMS
+#if !PLATFORM_ALLOW_SCENE_DATA_COMPRESSED_TRANSFORMS && !SHADER_USES_PRIMITIVE_UBO
 	// Non-uniform scale must be computed from the transform because it was not already computed when decoding it (see below in GetInstanceSceneData)
 	float3 Scale2;
 	Scale2.x = length2(LocalToRelativeWorld[0].xyz);
@@ -1082,11 +1113,33 @@ struct FSceneDataIntermediates
  * InstanceIdOffset - supplied as a vertex stream with 0 instance step rate (constant for all instances)
  * DrawInstanceId - the instance ID (SV_InstanceID) in the current draw
  */
-#if (VF_USE_PRIMITIVE_SCENE_DATA == 1)
+#if VF_USE_PRIMITIVE_SCENE_DATA
 FSceneDataIntermediates GetSceneDataIntermediates(uint InstanceIdOffset, uint DrawInstanceId)
 {
 	FSceneDataIntermediates Intermediates = (FSceneDataIntermediates)0;
-
+#if SHADER_USES_PRIMITIVE_UBO
+	#if USE_INSTANCE_CULLING
+		Intermediates.Primitive = GetPrimitiveDataFromUniformBuffer();
+		Intermediates.InstanceData = LoadInstanceDataUBO(DrawInstanceId);
+		ComputeInstanceDerivedData(Intermediates.InstanceData, LWCGetTile(Intermediates.InstanceData.LocalToWorld), Intermediates.InstanceData.LocalToWorld.M);
+	#else
+		Intermediates.Primitive = LoadPrimitiveDataUBO(DrawInstanceId);
+		// Populate instance data from primitive data
+		Intermediates.InstanceData.LocalToWorld = Intermediates.Primitive.LocalToWorld;
+		Intermediates.InstanceData.PrevLocalToWorld = Intermediates.Primitive.PreviousLocalToWorld;
+		Intermediates.InstanceData.WorldToLocal = Intermediates.Primitive.WorldToLocal;
+		Intermediates.InstanceData.NonUniformScale = Intermediates.Primitive.NonUniformScale;
+		Intermediates.InstanceData.InvNonUniformScale = Intermediates.Primitive.InvNonUniformScale;
+		Intermediates.InstanceData.DeterminantSign = GetPrimitive_DeterminantSign_FromFlags(Intermediates.InstanceData.Flags);
+	#endif
+	Intermediates.InstanceData.LocalBoundsCenter = (Intermediates.Primitive.LocalObjectBoundsMax + Intermediates.Primitive.LocalObjectBoundsMin) * 0.5f;
+	Intermediates.InstanceData.LocalBoundsExtent = (Intermediates.Primitive.LocalObjectBoundsMax - Intermediates.Primitive.LocalObjectBoundsMin) * 0.5f;
+	Intermediates.InstanceData.ValidInstance = true;
+	Intermediates.CullingFlags = INSTANCE_CULLING_FLAGS_DEFAULT;
+	Intermediates.ViewIndex = 0U;
+	Intermediates.PrimitiveId = DrawInstanceId;
+	Intermediates.InstanceId = 0U;
+#else
 	Intermediates.InstanceIdLoadIndex = InstanceIdOffset + DrawInstanceId;
 	// GPUCULL_TODO: workaround for the fact that DrawDynamicMeshPassPrivate et al. don't work with GPU-Scene instancing
 	//				 instead they mark the top bit in the primitive ID and disable auto instancing such that there is an 1:1:1
@@ -1115,128 +1168,9 @@ FSceneDataIntermediates GetSceneDataIntermediates(uint InstanceIdOffset, uint Dr
 	Intermediates.InstanceData = GetInstanceSceneData(Intermediates.InstanceId, Scene.GPUScene.InstanceDataSOAStride);
 	Intermediates.PrimitiveId = Intermediates.InstanceData.PrimitiveId;
 	Intermediates.Primitive = GetPrimitiveData(Intermediates.PrimitiveId);
+#endif //SHADER_USES_PRIMITIVE_UBO
 
 	return Intermediates;
-}
-#elif (VF_USE_PRIMITIVE_SCENE_DATA == 2)
-// Must match PackLocalBoundsCenter and PackLocalBoundsExtent
-float3 UnpackLocalBoundsCenter(float2 PackedCenter)
-{
-	float3 Result = 0;
-	// uses 21 bits for each component, rounded to a 1 unit
-	const uint SPLIT_MASK = (1u << 11u) - 1u;
-	const float CenterBias = (1u << 20u) - 1u;
-	uint p0 = asuint(PackedCenter.x);
-	uint p1 = asuint(PackedCenter.y);
-	Result.x = float(p0 >> 11u) - CenterBias;
-	Result.y = float(p1 >> 11u) - CenterBias;
-	Result.z = float((p0 & SPLIT_MASK) | ((p1 & SPLIT_MASK) << 11u)) - CenterBias;
-	return Result;
-}
-float3 UnpackLocalBoundsExtent(float2 PackedExtent)
-{
-	float3 Result = 0;
-	// uses 21 bits for each component, rounded to a 1 unit
-	const uint SPLIT_MASK = (1u << 11u) - 1u;
-	uint p0 = asuint(PackedExtent.x);
-	uint p1 = asuint(PackedExtent.y);
-	Result.x = float(p0 >> 11u);
-	Result.y = float(p1 >> 11u);
-	Result.z = float((p0 & SPLIT_MASK) | ((p1 & SPLIT_MASK) << 11u));
-	return Result;
-}
-
-FSceneDataIntermediates GetSceneDataIntermediates(uint DrawInstanceId, float4 InstanceOrigin, float4 InstanceTransform1, float4 InstanceTransform2, float4 InstanceTransform3, float4 InstanceAuxData)
-{
-	// Not all mobile devices can access storage buffers from a vertex shaders
-	// we supply some of primtive data using per-instance vertex data, and rest of primitive data comes from Primitive UB
-	// If vertex shader uses any of Primitive UB data associated drawcalls will not auto-instance
-	FPrimitiveSceneData Primitive = GetPrimitiveDataFromUniformBuffer();
-	
-	// TODO: add support for LWC, we should pack it as integer tile coordinates 
-	float3 TilePosition = float3(0,0,0);
-
-	// TODO: pack important primitive and instance flags here 
-	// (24 + 8)
-	const uint PackedPrimitiveFlags = asuint(InstanceTransform1.w);
-	const uint PrimitiveFlags = (PackedPrimitiveFlags & 0x00FFFFFF);
-	const uint InstanceFlags = (PackedPrimitiveFlags >> 24u);
-	
-	// See WritePackedInstanceData
-	uint PrimitiveIdAndCullingFlags = asuint(InstanceOrigin.w) >> 4;
-	const uint PrimitiveId = PrimitiveIdAndCullingFlags & PRIMITIVE_ID_MASK;
-	const uint CullingFlags = PrimitiveIdAndCullingFlags >> PRIMITIVE_ID_NUM_BITS;
-
-	// Reconstruct InstanceData from a packed data
-	FInstanceSceneData InstanceData = (FInstanceSceneData)0;
-
-	// Populate instance data from primitive data
-	InstanceData.LocalToWorld = Primitive.LocalToWorld;
-	InstanceData.PrevLocalToWorld = Primitive.PreviousLocalToWorld;
-	InstanceData.WorldToLocal = Primitive.WorldToLocal;
-	InstanceData.NonUniformScale = Primitive.NonUniformScale;
-	InstanceData.InvNonUniformScale = Primitive.InvNonUniformScale;
-	InstanceData.DeterminantSign = GetPrimitive_DeterminantSign_FromFlags(Primitive.Flags);
-	InstanceData.LocalBoundsCenter = (Primitive.LocalObjectBoundsMax + Primitive.LocalObjectBoundsMin) * 0.5f;
-	InstanceData.LocalBoundsExtent = (Primitive.LocalObjectBoundsMax - Primitive.LocalObjectBoundsMin) * 0.5f;
-	InstanceData.ValidInstance = true;
-
-	float4x4 LocalToRelativeWorld = float4x4(
-		float4(InstanceTransform1.xyz, 0.0f), 
-		float4(InstanceTransform2.xyz, 0.0f), 
-		float4(InstanceTransform3.xyz, 0.0f), 
-		float4(InstanceOrigin.xyz, 1.0f));
-	
-	InstanceData.LocalToWorld = MakeLWCMatrix(TilePosition, LocalToRelativeWorld);
-
-	InstanceData.Flags = InstanceFlags;
-	InstanceData.PrimitiveId = PrimitiveId;
-
-	ComputeInstanceDerivedData(InstanceData, TilePosition, LocalToRelativeWorld);
-
-	//
-	FSceneDataIntermediates Intermediates = (FSceneDataIntermediates)0;
-	Intermediates.InstanceData = InstanceData;
-	Intermediates.PrimitiveId = PrimitiveId;
-	Intermediates.CullingFlags = CullingFlags;
-	Intermediates.InstanceId = 0;
-	Intermediates.ViewIndex = 0;
-	Intermediates.InstanceIdLoadIndex = 0;
-
-	Intermediates.Primitive = Primitive;
-	// Primitive data that comes from per-instance vertex data
-	Intermediates.Primitive.Flags					= PrimitiveFlags;
-	Intermediates.Primitive.LocalToWorld			= Intermediates.InstanceData.LocalToWorld;
-	Intermediates.Primitive.InvNonUniformScale		= Intermediates.InstanceData.InvNonUniformScale;
-	Intermediates.Primitive.WorldToLocal			= Intermediates.InstanceData.WorldToLocal;
-	Intermediates.Primitive.NonUniformScale			= Intermediates.InstanceData.NonUniformScale;
-
-#if ALLOW_STATIC_LIGHTING 
-	Intermediates.Primitive.LightmapDataIndex = asuint(InstanceTransform2.w);
-	Intermediates.InstanceData.LightMapAndShadowMapUVBias = float4(
-		UnpackSnorm2x16(asuint(InstanceAuxData.y)), 
-		UnpackSnorm2x16(asuint(InstanceAuxData.w)));
-#else
-	Intermediates.InstanceData.LocalBoundsCenter = UnpackLocalBoundsCenter(InstanceAuxData.xy);
-	Intermediates.InstanceData.LocalBoundsExtent = UnpackLocalBoundsExtent(InstanceAuxData.zw);
-	Intermediates.Primitive.LocalObjectBoundsMin = Intermediates.InstanceData.LocalBoundsCenter - Intermediates.InstanceData.LocalBoundsExtent;
-	Intermediates.Primitive.LocalObjectBoundsMax = Intermediates.InstanceData.LocalBoundsCenter + Intermediates.InstanceData.LocalBoundsExtent;
-
-	float3 ObjectRelativeWorldPosition = mul(float4(Intermediates.InstanceData.LocalBoundsCenter.xyz, 0.0f), LocalToRelativeWorld).xyz;
-	Intermediates.Primitive.ObjectWorldPosition = MakeLWCVector3(TilePosition, ObjectRelativeWorldPosition);
-	Intermediates.Primitive.ObjectRadius = length(Intermediates.InstanceData.LocalBoundsExtent * Intermediates.InstanceData.NonUniformScale.xyz);
-#if USES_PER_INSTANCE_RANDOM || USE_DITHERED_LOD_TRANSITION
-	Intermediates.InstanceData.RandomID = InstanceTransform2.w;
-#endif
-#endif
-
-#if ENABLE_PER_INSTANCE_CUSTOM_DATA
-	uint PackedCustomDataCountAndOffset = asuint(InstanceTransform3.w);
-	Intermediates.InstanceData.CustomDataCount = uint(PackedCustomDataCountAndOffset & ((1 << INSTANCE_CUSTOM_DATA_COUNT_NUM_BITS) - 1));
-	Intermediates.InstanceData.CustomDataOffset = uint(PackedCustomDataCountAndOffset >> INSTANCE_CUSTOM_DATA_COUNT_NUM_BITS);
-#endif
-	
-	return Intermediates; 
 }
 #else
 FSceneDataIntermediates GetSceneDataIntermediates()

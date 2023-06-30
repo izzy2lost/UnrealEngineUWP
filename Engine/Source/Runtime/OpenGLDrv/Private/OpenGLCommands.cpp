@@ -1100,6 +1100,58 @@ void FOpenGLDynamicRHI::RHISetStaticUniformBuffers(const FUniformBufferStaticBin
 	}
 }
 
+void FOpenGLDynamicRHI::RHISetStaticUniformBuffer(FUniformBufferStaticSlot InSlot, FRHIUniformBuffer* InBuffer)
+{
+	GlobalUniformBuffers[InSlot] = InBuffer;
+}
+
+void FOpenGLDynamicRHI::RHISetUniformBufferDynamicOffset(FUniformBufferStaticSlot InSlot, uint32 InOffset)
+{
+	VERIFY_GL_SCOPE();
+
+	// FIXME: GLES does not seem to expose UBO offset aligments requirements, using worst case here 
+	check(IsAligned(InOffset, 256u));
+
+	static const EShaderFrequency ShaderStages[2] =
+	{
+		SF_Vertex,
+		SF_Pixel
+	};
+
+	FOpenGLShader* Shaders[2] =
+	{
+		PendingState.BoundShaderState->GetVertexShader(),
+		PendingState.BoundShaderState->GetPixelShader()
+	};
+
+	for (int32 ShaderIdx = 0; ShaderIdx < UE_ARRAY_COUNT(ShaderStages); ++ShaderIdx)
+	{
+		EShaderFrequency Stage = ShaderStages[ShaderIdx];
+		FOpenGLShader* Shader = Shaders[ShaderIdx];
+		if (Shader == nullptr)
+		{
+			continue;
+		}
+
+		TArray<FUniformBufferStaticSlot>& StaticSlots = Shader->StaticSlots;
+
+		for (int32 BufferIndex = 0; BufferIndex < StaticSlots.Num(); ++BufferIndex)
+		{
+			const FUniformBufferStaticSlot Slot = StaticSlots[BufferIndex];
+			if (InSlot == Slot)
+			{
+				FRHIUniformBuffer* Buffer = PendingState.BoundUniformBuffers[Stage][BufferIndex];
+				if (Buffer)
+				{
+					PendingState.BoundUniformBuffersDynamicOffset[Stage][BufferIndex] = InOffset;
+					PendingState.bAnyDirtyRealUniformBuffers[Stage] = true;
+				}
+				break;
+			}
+		}
+	}
+}
+
 void FOpenGLDynamicRHI::RHISetShaderUniformBuffer(FRHIGraphicsShader* ShaderRHI,uint32 BufferIndex, FRHIUniformBuffer* BufferRHI)
 {
 	VERIFY_GL_SCOPE();
@@ -1107,6 +1159,7 @@ void FOpenGLDynamicRHI::RHISetShaderUniformBuffer(FRHIGraphicsShader* ShaderRHI,
 	if (Stage != SF_NumFrequencies)
 	{
 		PendingState.BoundUniformBuffers[Stage][BufferIndex] = BufferRHI;
+		PendingState.BoundUniformBuffersDynamicOffset[Stage][BufferIndex] = 0u;
 		PendingState.DirtyUniformBuffers[Stage] |= 1 << BufferIndex;
 		PendingState.bAnyDirtyGraphicsUniformBuffers = true;
 		
@@ -1128,6 +1181,7 @@ void FOpenGLDynamicRHI::RHISetShaderUniformBuffer(FRHIComputeShader* ComputeShad
 {
 	VERIFY_GL_SCOPE();
 	PendingState.BoundUniformBuffers[SF_Compute][BufferIndex] = BufferRHI;
+	PendingState.BoundUniformBuffersDynamicOffset[SF_Compute][BufferIndex] = 0u;
 	PendingState.DirtyUniformBuffers[SF_Compute] |= 1 << BufferIndex;
 
 	if (!GUseEmulatedUniformBuffers || !((FOpenGLUniformBuffer*)BufferRHI)->bIsEmulatedUniformBuffer)

@@ -480,7 +480,7 @@
 // This is generally available on high-end platforms and not available on mobile outside of some exceptions.
 // The real value is expected to be set based on DataDrivenShaderPlatformInfo in GlobalBeginCompileShader().
 #ifndef PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS
-#define PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS (FEATURE_LEVEL >= FEATURE_LEVEL_SM5)
+#define PLATFORM_SUPPORTS_VERTEX_SHADER_SRVS 1
 #endif
 
 // ---------------------------------------------------- Compiler specific defaults and fallbacks
@@ -1278,3 +1278,14 @@ uint WaveGetActiveLaneIndexLast()
 #ifndef GET_SCALAR_ARRAY_ELEMENT
 #define GET_SCALAR_ARRAY_ELEMENT(PackedArray, ElementIndex) PackedArray[(uint)ElementIndex>>2u][(uint)ElementIndex&3u]
 #endif
+
+#ifndef PLATFORM_SUPPORTS_UNIFORM_BUFFER_OBJECTS
+#define PLATFORM_SUPPORTS_UNIFORM_BUFFER_OBJECTS 0
+#endif 
+
+// 16KB by default. Must match Platform.h
+#ifndef PLATFORM_MAX_UNIFORM_BUFFER_RANGE
+#define PLATFORM_MAX_UNIFORM_BUFFER_RANGE (16u*1024)
+#endif
+#define PLATFORM_MAX_UNIFORM_BUFFER_RANGE_FLOAT4 (PLATFORM_MAX_UNIFORM_BUFFER_RANGE/16u)
+

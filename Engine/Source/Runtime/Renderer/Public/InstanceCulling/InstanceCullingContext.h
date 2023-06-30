@@ -15,12 +15,17 @@ class FScene;
 class FGPUScenePrimitiveCollector;
 class FInstanceCullingDeferredContext;
 
+
 DECLARE_UNIFORM_BUFFER_STRUCT(FSceneUniformParameters, RENDERER_API)
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FInstanceCullingGlobalUniforms, RENDERER_API)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, InstanceIdsBuffer)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PageInfoBuffer)
 	SHADER_PARAMETER(uint32, BufferCapacity)
+END_GLOBAL_SHADER_PARAMETER_STRUCT()
+
+BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FBatchedPrimitiveParameters,RENDERER_API)
+	SHADER_PARAMETER_UNIFORM_BLOCK_SRV(Data)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FInstanceCullingDrawParams, )
@@ -30,6 +35,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FInstanceCullingDrawParams, )
 	SHADER_PARAMETER(uint32, IndirectArgsByteOffset) // offset into indirect args buffer
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FInstanceCullingGlobalUniforms, InstanceCulling)	
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FBatchedPrimitiveParameters, BatchedPrimitive)
 END_SHADER_PARAMETER_STRUCT()
 
 FMeshDrawCommandOverrideArgs GetMeshDrawCommandOverrideArgs(const FInstanceCullingDrawParams& InstanceCullingDrawParams);
@@ -75,11 +81,12 @@ public:
 		PreserveInstanceOrder		= 1 << 2
 	};
 
+	static constexpr uint32 UniformViewInstanceStride[2] = { 256u, 512u }; // One for each BatchProcessingMode
 	static constexpr uint32 IndirectArgsNumWords = 5;
 	static constexpr uint32 CompactionBlockNumInstances = 64;
-	RENDERER_API static uint32 GetInstanceIdBufferStride(ERHIFeatureLevel::Type FeatureLevel);
-	RENDERER_API static uint32 StepInstanceDataOffset(ERHIFeatureLevel::Type FeatureLevel, uint32 NumStepInstances, uint32 NumStepDraws);
-
+	RENDERER_API static uint32 GetInstanceIdBufferStride(EShaderPlatform ShaderPlatform);
+	RENDERER_API static FUniformBufferStaticSlot GetUniformBufferViewStaticSlot(EShaderPlatform ShaderPlatform);
+	
 	FInstanceCullingContext() {}
 
 	/**
@@ -88,7 +95,7 @@ public:
 	 *                  NOTE: only one PrevHZB target is allowed accross all passes currently, so either must be atlased or otherwise the same.
 	 */
 	RENDERER_API FInstanceCullingContext(
-		ERHIFeatureLevel::Type FeatureLevel,
+		EShaderPlatform ShaderPlatform,
 		FInstanceCullingManager* InInstanceCullingManager, 
 		TArrayView<const int32> InViewIds, 
 		const TRefCountPtr<IPooledRenderTarget>& InPrevHZB,
@@ -117,18 +124,25 @@ public:
 	 * Multiple commands may add to the same slot, ordering is not preserved.
 	 */
 	void AddInstancesToDrawCommand(uint32 IndirectArgsOffset, int32 InstanceDataOffset, uint32 RunOffset, uint32 NumInstances, EInstanceFlags InstanceFlags);
-
+	void AddInstancesToDrawCommand(uint32 IndirectArgsOffset, int32 InstanceDataOffset, uint32 RunOffset, uint32 NumInstances, EInstanceFlags InstanceFlags, uint32 MaxBatchSize);
+	
 	/**
 	 * Command that is executed in the per-view, post-cull pass to gather up the instances belonging to this primitive.
 	 * Multiple commands may add to the same slot, ordering is not preserved.
 	 */
-	void AddInstanceRunsToDrawCommand(uint32 IndirectArgsOffset, int32 InstanceDataOffset, const uint32* Runs, uint32 NumRuns, EInstanceFlags InstanceFlags);
+	void AddInstanceRunsToDrawCommand(uint32 IndirectArgsOffset, int32 InstanceDataOffset, const uint32* Runs, uint32 NumRuns, EInstanceFlags InstanceFlags, uint32 MaxBatchSize);
 
 	/*
 	 * Allocate space for indirect draw call argumens for a given MeshDrawCommand and initialize with draw command data.
 	 * TODO: support cached pre-allocated commands.
 	 */
 	uint32 AllocateIndirectArgs(const FMeshDrawCommand* MeshDrawCommand);
+
+	/*
+	* Computes instance data byte offset for a next draw command taking into account platform specifics
+	*/
+	uint32 StepInstanceDataOffsetBytes(uint32 NumStepDraws) const;
+	uint32 GetInstanceIdNumElements() const;
 
 	using SyncPrerequisitesFuncType = TFunction<void (FInstanceCullingContext &InstanceCullingContext)>;
 	
@@ -207,7 +221,7 @@ public:
 		FRHICommandList& RHICmdList) const;
 
 	FInstanceCullingManager* InstanceCullingManager = nullptr;
-	ERHIFeatureLevel::Type FeatureLevel = ERHIFeatureLevel::Num;
+	EShaderPlatform ShaderPlatform = SP_NumPlatforms;
 	TArray<int32, TInlineAllocator<6, SceneRenderingAllocator>> ViewIds;
 	TRefCountPtr<IPooledRenderTarget> PrevHZB = nullptr;
 	bool bIsEnabled = false;
@@ -239,6 +253,9 @@ public:
 		uint32 IndirectArgsOffsetOrNumInstances : 31U;
 		// offset into per-instance buffer
 		uint32 InstanceDataByteOffset;
+		//
+		uint32 NumBatches : 15u;
+		uint32 BatchDataStride : 17u;
 	};
 
 	struct FPayloadData
@@ -312,6 +329,11 @@ public:
 
 	// Processing mode to use for single-instance primitives, default to skip culling, as this is already done on CPU. 
 	EBatchProcessingMode SingleInstanceProcessingMode = EBatchProcessingMode::UnCulled;
+
+	// A valid uniform buffer slot in case shader platform supplies instance data trhough a global UB binding
+	FUniformBufferStaticSlot BatchedPrimitiveSlot;
+	// Whether current platform uses Uniform Buffer View path
+	bool bUsesUniformBufferView;
 };
 
 ENUM_CLASS_FLAGS(FInstanceCullingContext::EInstanceFlags)
