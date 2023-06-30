@@ -13,4 +13,14 @@ namespace Jupiter.Controllers
         public Task<ActionResult?> HasAccessToNamespace(ClaimsPrincipal user, HttpRequest request, NamespaceId ns, JupiterAclAction[] aclActions);
         public Task<ActionResult?> HasAccessForGlobalOperations(ClaimsPrincipal user, JupiterAclAction[] aclActions);
     }
+
+    public class AuthorizationException : Exception
+    {
+        public ActionResult Result { get; }
+
+        public AuthorizationException(ActionResult result, string errorMessage) : base(errorMessage)
+        {
+            Result = result;
+        }
+    }
 }

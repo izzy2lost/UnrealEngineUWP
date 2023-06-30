@@ -108,13 +108,3 @@ public class RequestHelper : IRequestHelper
         return null;
     }
 }
-
-public class AuthorizationException : Exception
-{
-    public ActionResult Result { get; }
-
-    public AuthorizationException(ActionResult result, string errorMessage) : base(errorMessage)
-    {
-        Result = result;
-    }
-}
