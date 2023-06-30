@@ -98,14 +98,22 @@ namespace Jupiter.Common.Implementation
         public long Length => _length;
     }
 
+    public class BufferedPayloadOptions
+    {
+        /// <summary>
+        /// If the request is smaller then MemoryBufferSize we buffer it in memory rather then as a file
+        /// </summary>
+        public long MemoryBufferSize { get; set; } = int.MaxValue;
+    }
+
     public class BufferedPayloadFactory
     {
-        private readonly IOptionsMonitor<JupiterSettings> _jupiterSettings;
+        private readonly IOptionsMonitor<BufferedPayloadOptions> _options;
         private readonly Tracer _tracer;
 
-        public BufferedPayloadFactory(IOptionsMonitor<JupiterSettings> jupiterSettings, Tracer tracer)
+        public BufferedPayloadFactory(IOptionsMonitor<BufferedPayloadOptions> options, Tracer tracer)
         {
-            _jupiterSettings = jupiterSettings;
+            _options = options;
             _tracer = tracer;
         }
 
@@ -124,7 +132,7 @@ namespace Jupiter.Common.Implementation
         public async Task<IBufferedPayload> CreateFromStream(Stream s, long contentLength)
         {
             // blob is small enough to fit into memory we just read it as is
-            if (contentLength < _jupiterSettings.CurrentValue.MemoryBufferSize)
+            if (contentLength < _options.CurrentValue.MemoryBufferSize)
             {
                 return await MemoryBufferedPayload.Create(_tracer, s);
             }

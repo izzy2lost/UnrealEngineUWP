@@ -15,6 +15,7 @@ using Amazon;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
 using Jupiter.Common;
+using Jupiter.Common.Implementation;
 using Jupiter.Implementation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -89,6 +90,7 @@ namespace Jupiter
             services.AddOptions<ServiceAccountAuthOptions>().Bind(Configuration.GetSection("ServiceAccounts")).ValidateDataAnnotations();
 
             services.AddOptions<JupiterSettings>().Bind(Configuration.GetSection("Jupiter")).ValidateDataAnnotations();
+            services.AddOptions<BufferedPayloadOptions>().Bind(Configuration.GetSection("Jupiter")).ValidateDataAnnotations();
             services.AddOptions<NamespaceSettings>().Bind(Configuration.GetSection("Namespaces")).ValidateDataAnnotations();
 
             services.AddSingleton(typeof(INamespacePolicyResolver), typeof(NamespacePolicyResolver));
@@ -667,11 +669,6 @@ namespace Jupiter
 
     public class JupiterSettings
     {
-        /// <summary>
-        /// If the request is smaller then MemoryBufferSize we buffer it in memory rather then as a file
-        /// </summary>
-        public long MemoryBufferSize { get; set; } = int.MaxValue;
-
         // enable to unhide potentially personal information, see https://aka.ms/IdentityModel/PII
         public bool ShowPII { get; set; } = false;
         public bool DisableHealthChecks { get; set; } = false;
