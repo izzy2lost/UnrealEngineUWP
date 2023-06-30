@@ -12,6 +12,7 @@
 #include "Rendering/NaniteResources.h"
 #include "Rendering/NaniteStreamingManager.h"
 #include "RHI.h"
+#include "RHICommandList.h"
 #include "SceneUtils.h"
 #include "ScenePrivate.h"
 #include "ScreenPass.h"
@@ -1479,8 +1480,6 @@ void DispatchBasePass(
 					Command.ShaderBundle = ShaderBundle;
 					Command.ArgumentBuffer = IndirectArgsBuffer;
 					Command.Dispatches.SetNum(ShaderBundle->NumRecords);
-
-					extern RHI_API FRHIComputePipelineState* ExecuteSetComputePipelineState(FComputePipelineState * ComputePipelineState);
 
 					const bool bParallel = true;
 					if (bParallel)
