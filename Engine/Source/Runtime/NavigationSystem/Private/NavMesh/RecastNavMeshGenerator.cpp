@@ -4627,6 +4627,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FRecastNavMeshGenerator::~FRecastNavMeshGenerator()
 {
+	UE_CLOG(RunningDirtyTiles.Num() > 0, LogNavigation, Log, TEXT("Discarding %d build tasks"), RunningDirtyTiles.Num());
+	CancelBuild();
 	DEC_DWORD_STAT_BY( STAT_NavigationMemory, sizeof(*this) );
 }
 
