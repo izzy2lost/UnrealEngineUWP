@@ -392,7 +392,7 @@ public:
 			}
 			else if (FPBDRigidClusteredParticleHandle* PBDRigidClustered = Particle->CastToClustered())
 			{
-				DynamicClusteredMapArray.Remove(PBDRigidClustered);
+				RemoveClusteredParticle(PBDRigidClustered);
 			}
 
 			// Check for sleep events referencing this particle
