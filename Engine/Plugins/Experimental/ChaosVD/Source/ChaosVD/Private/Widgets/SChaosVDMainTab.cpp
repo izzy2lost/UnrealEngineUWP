@@ -12,17 +12,21 @@
 #include "ChaosVDTabsIDs.h"
 #include "ChaosVDWorldOutlinerTab.h"
 #include "DesktopPlatformModule.h"
+#include "Editor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Application/SWindowTitleBar.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IDesktopPlatform.h"
+#include "StatusBarSubsystem.h"
 #include "Styling/StyleColors.h"
+#include "Styling/ToolBarStyle.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/SToolTip.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
+
 
 void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEngine> InChaosVDEngine)
 {
@@ -39,6 +43,15 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 	SolversTracksTab = MakeShared<FChaosVDSolversTracksTab>(FChaosVDTabID::SolversTrack, TabManager, this);
 	EditorSettingsTab = MakeShared<FChaosVDEditorSettingsTab>(FChaosVDTabID::CVDEditorSettings, TabManager, this);
 
+	StatusBarID = FName(FChaosVDTabID::StatusBar.ToString() + InChaosVDEngine->GetInstanceGuid().ToString());
+	
+	UStatusBarSubsystem* StatusBarSubsystem = GEditor ? GEditor->GetEditorSubsystem<UStatusBarSubsystem>() : nullptr;
+	check(StatusBarSubsystem);
+	TSharedRef<SWidget> StatusBarWidget = StatusBarSubsystem->MakeStatusBarWidget(StatusBarID, TabManager->GetOwnerTab().ToSharedRef());
+
+	StatusBarSubsystem->UnregisterDrawer(StatusBarID, "ContentBrowser");
+	StatusBarSubsystem->UnregisterDrawer(StatusBarID, "OutputLog");
+	
 	GenerateMainWindowMenu();
 
 	ChildSlot
@@ -137,12 +150,18 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 			]
 				
 		]
+		
 		// Main Visual Debugger Interface content
 		+SVerticalBox::Slot()
 		.Padding(FMargin(0.0f,5.0f,0.0f,0.0f))
 		[
 			TabManager->RestoreFrom(GenerateMainLayout(), TabManager->GetOwnerTab()->GetParentWindow()).ToSharedRef()
-			
+		]
+		+SVerticalBox::Slot()
+		.Padding(0.0f, 2.0f, 0.0f, 0.0f)
+		.AutoHeight()
+		[
+			StatusBarWidget
 		]
 	];
 

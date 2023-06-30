@@ -17,12 +17,22 @@
 #include "Engine/Engine.h"
 #include "Engine/LevelStreamingDynamic.h"
 #include "Engine/World.h"
+#include "Misc/ScopedSlowTask.h"
 
 #include "UObject/Package.h"
+
+#define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
 FChaosVDScene::FChaosVDScene() = default;
 
 FChaosVDScene::~FChaosVDScene() = default;
+
+namespace ChaosVDSceneUIOptions
+{
+	constexpr float DelayToShowProgressDialogThreshold = 1.5f;
+	constexpr bool bShowCancelButton = false;
+	constexpr bool bAllowInPIE = false;
+}
 
 void FChaosVDScene::Initialize()
 {
@@ -83,48 +93,57 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FStri
 	
 	TSet<int32> ParticlesIDsInRecordedStepData;
 	ParticlesIDsInRecordedStepData.Reserve(InRecordedStepData.RecordedParticlesData.Num());
-
-	// Go over existing Particle VD Instances and update them or create them if needed 
-	for (const FChaosVDParticleDataWrapper& Particle : InRecordedStepData.RecordedParticlesData)
+	
 	{
-		const int32 ParticleVDInstanceID = GetIDForRecordedParticleData(Particle);
-		ParticlesIDsInRecordedStepData.Add(ParticleVDInstanceID);
-
-		if (InRecordedStepData.ParticlesDestroyedIDs.Contains(ParticleVDInstanceID))
+		constexpr float AmountOfWork = 1.0f;
+		const float PercentagePerElement = 1.0f / InRecordedStepData.RecordedParticlesData.Num();
+		FScopedSlowTask UpdatingSceneSlowTask(AmountOfWork, LOCTEXT("ProcessingParticleData", "Processing Particle Data..."));
+		UpdatingSceneSlowTask.MakeDialogDelayed(ChaosVDSceneUIOptions::DelayToShowProgressDialogThreshold, ChaosVDSceneUIOptions::bShowCancelButton, ChaosVDSceneUIOptions::bAllowInPIE);
+	
+		// Go over existing Particle VD Instances and update them or create them if needed 
+		for (const FChaosVDParticleDataWrapper& Particle : InRecordedStepData.RecordedParticlesData)
 		{
-			// Do not process the particle if it was destroyed in the same step
-			continue;
-		}
+			const int32 ParticleVDInstanceID = GetIDForRecordedParticleData(Particle);
+			ParticlesIDsInRecordedStepData.Add(ParticleVDInstanceID);
 
-		if (AChaosVDParticleActor** ExistingParticleVDInstancePtrPtr = SolverParticlesByID.Find(ParticleVDInstanceID))
-		{
-			if (AChaosVDParticleActor* ExistingParticleVDInstancePtr = *ExistingParticleVDInstancePtrPtr)
+			if (InRecordedStepData.ParticlesDestroyedIDs.Contains(ParticleVDInstanceID))
 			{
-				ExistingParticleVDInstancePtr->UpdateFromRecordedParticleData(Particle, InFrameData.SimulationTransform);
+				// Do not process the particle if it was destroyed in the same step
+				continue;
+			}
+
+			if (AChaosVDParticleActor** ExistingParticleVDInstancePtrPtr = SolverParticlesByID.Find(ParticleVDInstanceID))
+			{
+				if (AChaosVDParticleActor* ExistingParticleVDInstancePtr = *ExistingParticleVDInstancePtrPtr)
+				{
+					ExistingParticleVDInstancePtr->UpdateFromRecordedParticleData(Particle, InFrameData.SimulationTransform);
+				}
+				else
+				{
+					//TODO: Handle this error
+					ensure(false);
+				}
 			}
 			else
 			{
-				//TODO: Handle this error
-				ensure(false);
-			}
-		}
-		else
-		{
-			if (AChaosVDParticleActor* NewParticleVDInstance = SpawnParticleFromRecordedData(Particle, InFrameData))
-			{
-				FStringFormatOrderedArguments Args {SolverName, FString::FromInt(SolverID)};
-				const FName FolderPath = *FPaths::Combine(FString::Format(TEXT("Solver {0} | ID {1}"), Args), UEnum::GetDisplayValueAsText(NewParticleVDInstance->GetParticleData()->Type).ToString());
+				if (AChaosVDParticleActor* NewParticleVDInstance = SpawnParticleFromRecordedData(Particle, InFrameData))
+				{
+					FStringFormatOrderedArguments Args {SolverName, FString::FromInt(SolverID)};
+					const FName FolderPath = *FPaths::Combine(FString::Format(TEXT("Solver {0} | ID {1}"), Args), UEnum::GetDisplayValueAsText(NewParticleVDInstance->GetParticleData()->Type).ToString());
 
-				NewParticleVDInstance->SetFolderPath(FolderPath);
+					NewParticleVDInstance->SetFolderPath(FolderPath);
 
-				// TODO: Precalculate the max num of entries we would see in the loaded file, and use that number to pre-allocate this map
-				SolverParticlesByID.Add(ParticleVDInstanceID, NewParticleVDInstance);
+					// TODO: Precalculate the max num of entries we would see in the loaded file, and use that number to pre-allocate this map
+					SolverParticlesByID.Add(ParticleVDInstanceID, NewParticleVDInstance);
+				}
+				else
+				{
+					//TODO: Handle this error
+					ensure(false);
+				}
 			}
-			else
-			{
-				//TODO: Handle this error
-				ensure(false);
-			}
+			
+			UpdatingSceneSlowTask.EnterProgressFrame(PercentagePerElement);
 		}
 	}
 
@@ -157,30 +176,48 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FStri
 	OnSceneUpdated().Broadcast();
 }
 
-
 void FChaosVDScene::UpdateParticlesCollisionData(const FChaosVDStepData& InRecordedStepData, int32 SolverID)
 {
-	FChaosVDParticlesByIDMap& SolverParticlesByID = ParticlesBySolverID.FindChecked(SolverID);
+	constexpr float AmountOfWork = 1.0f;
 	
-	for (const TPair<int32, TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>>& ParticleIDMidPhasePair : InRecordedStepData.RecordedMidPhasesByParticleID)
+	FChaosVDParticlesByIDMap& SolverParticlesByID = ParticlesBySolverID.FindChecked(SolverID);
 	{
-		if (AChaosVDParticleActor** ExistingParticleVDInstancePtrPtr = SolverParticlesByID.Find(ParticleIDMidPhasePair.Key))
+		FScopedSlowTask UpdatingSceneSlowTask(AmountOfWork, LOCTEXT("ProcessingMidphaseData", "Processing MidPhase Data..."));
+		UpdatingSceneSlowTask.MakeDialogDelayed(ChaosVDSceneUIOptions::DelayToShowProgressDialogThreshold,ChaosVDSceneUIOptions::bShowCancelButton, ChaosVDSceneUIOptions::bAllowInPIE);
+		
+		const float PercentagePerElement = 1.0f / InRecordedStepData.RecordedMidPhasesByParticleID.Num();
+		
+		for (const TPair<int32, TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>>& ParticleIDMidPhasePair : InRecordedStepData.RecordedMidPhasesByParticleID)
 		{
-			if (AChaosVDParticleActor* ExistingParticleVDInstancePtr = *ExistingParticleVDInstancePtrPtr)
+			if (AChaosVDParticleActor** ExistingParticleVDInstancePtrPtr = SolverParticlesByID.Find(ParticleIDMidPhasePair.Key))
 			{
-				ExistingParticleVDInstancePtr->UpdateCollisionData(ParticleIDMidPhasePair.Value);
+				if (AChaosVDParticleActor* ExistingParticleVDInstancePtr = *ExistingParticleVDInstancePtrPtr)
+				{
+					ExistingParticleVDInstancePtr->UpdateCollisionData(ParticleIDMidPhasePair.Value);
+				}
 			}
+
+			UpdatingSceneSlowTask.EnterProgressFrame(PercentagePerElement);
 		}
 	}
 
-	for (const TPair<int32, TArray<FChaosVDConstraint>>& ParticleIDMidPhasePair : InRecordedStepData.RecordedConstraintsByParticleID)
 	{
-		if (AChaosVDParticleActor** ExistingParticleVDInstancePtrPtr = SolverParticlesByID.Find(ParticleIDMidPhasePair.Key))
+		FScopedSlowTask UpdatingSceneSlowTask(AmountOfWork, LOCTEXT("ProcessingConstraingtData", "Processing Constraint Data..."));
+		UpdatingSceneSlowTask.MakeDialogDelayed(ChaosVDSceneUIOptions::DelayToShowProgressDialogThreshold, ChaosVDSceneUIOptions::bShowCancelButton, ChaosVDSceneUIOptions::bAllowInPIE);
+		
+		const float PercentagePerElement = 1.0f / InRecordedStepData.RecordedMidPhasesByParticleID.Num();
+		
+		for (const TPair<int32, TArray<FChaosVDConstraint>>& ParticleIDMidPhasePair : InRecordedStepData.RecordedConstraintsByParticleID)
 		{
-			if (AChaosVDParticleActor* ExistingParticleVDInstancePtr = *ExistingParticleVDInstancePtrPtr)
+			if (AChaosVDParticleActor** ExistingParticleVDInstancePtrPtr = SolverParticlesByID.Find(ParticleIDMidPhasePair.Key))
 			{
-				ExistingParticleVDInstancePtr->UpdateCollisionData(ParticleIDMidPhasePair.Value);
+				if (AChaosVDParticleActor* ExistingParticleVDInstancePtr = *ExistingParticleVDInstancePtrPtr)
+				{
+					ExistingParticleVDInstancePtr->UpdateCollisionData(ParticleIDMidPhasePair.Value);
+				}
 			}
+
+			UpdatingSceneSlowTask.EnterProgressFrame(PercentagePerElement);
 		}
 	}
 }
@@ -453,3 +490,5 @@ bool FChaosVDScene::IsObjectSelected(const UObject* Object)
 
 	return SelectionSet->IsElementSelected(GetSelectionHandleForObject(Object), FTypedElementIsSelectedOptions());;
 }
+
+#undef LOCTEXT_NAMESPACE

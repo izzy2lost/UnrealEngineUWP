@@ -68,12 +68,9 @@ UDynamicMesh* FChaosVDGeometryBuilder::CreateAndCacheDynamicMesh(const uint32 Ge
 {
 	{
 		FReadScopeLock ReadLock(RWLock);
-		//TODO: Make this return what is cached when the system is more robust
-		// For now this should not happen and we want to catch it and make it visually noticeable
-		if (DynamicMeshCacheMap.Contains(GeometryCacheKey))
+		if (TObjectPtr<UDynamicMesh>* DynamicMeshPtrPtr = DynamicMeshCacheMap.Find(GeometryCacheKey))
 		{
-			ensureMsgf(false, TEXT("Tried to create a new mesh with an existing Cache key"));
-			return nullptr;
+			return *DynamicMeshPtrPtr;
 		}
 	}
 
@@ -94,12 +91,9 @@ UStaticMesh* FChaosVDGeometryBuilder::CreateAndCacheStaticMesh(const uint32 Geom
 {
 	{
 		FReadScopeLock ReadLock(RWLock);
-		//TODO: Make this return what is cached when the system is more robust
-		// For now this should not happen and we want to catch it and make it visually noticeable
-		if (StaticMeshCacheMap.Contains(GeometryCacheKey))
+		if (TObjectPtr<UStaticMesh>* StaticMeshPtrPtr = StaticMeshCacheMap.Find(GeometryCacheKey))
 		{
-			ensureMsgf(false, TEXT("Tried to create a new mesh with an existing Cache key"));
-			return nullptr;
+			return *StaticMeshPtrPtr;
 		}
 	}
 
@@ -201,17 +195,30 @@ void FChaosVDGeometryBuilder::ApplyMeshToComponentFromKey(TWeakObjectPtr<UMeshCo
 
 bool FChaosVDGeometryBuilder::GameThreadTick(float DeltaTime)
 {
+	if (bHasPendingJobs)
+	{
+		FReadScopeLock ReadLock(RWLock);
+		int32 PendingJobs = MeshComponentsWaitingForGeometryByKey.Num();
+		GeometryGenerationNotification.Update(PendingJobs);
+		
+		if (PendingJobs == 0)
+		{
+			bHasPendingJobs = false;
+		}
+	}
+	
 	int32 CurrentGeometryProcessed = 0;
 	while (!GeometryReadyToApplyQueue.IsEmpty() && CurrentGeometryProcessed < CVarChaosVDGeometryToProcessPerTick->GetInt())
 	{
 		uint32 GeometryKey = 0;
 		GeometryReadyToApplyQueue.Dequeue(GeometryKey);
-		CurrentGeometryProcessed++;
 
+		CurrentGeometryProcessed++;
+		
 		TArray<TWeakObjectPtr<UMeshComponent>>* MeshComponentsWaiting = nullptr;
 		{
 			FReadScopeLock ReadLock(RWLock);
-			 MeshComponentsWaiting = MeshComponentsWaitingForGeometryByKey.Find(GeometryKey);
+			MeshComponentsWaiting = MeshComponentsWaitingForGeometryByKey.Find(GeometryKey);
 		}
 
 		if (MeshComponentsWaiting)
@@ -227,7 +234,7 @@ bool FChaosVDGeometryBuilder::GameThreadTick(float DeltaTime)
 			MeshComponentsWaitingForGeometryByKey.Remove(GeometryKey);
 		}
 	}
-
+	
 	return true;
 }
 
@@ -254,6 +261,7 @@ void FChaosVDGeometryBuilder::RegisterMeshComponentWaitingForGeometry(uint32 Geo
 		else
 		{
 			MeshComponentsWaitingForGeometryByKey.Add(GeometryKey, {MesComponent});
+			bHasPendingJobs = true;
 		}
 	}
 }

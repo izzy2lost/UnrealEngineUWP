@@ -27,6 +27,7 @@ public:
 	void Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEngine> InChaosVDEngine);
 
 	TSharedRef<FChaosVDEngine> GetChaosVDEngineInstance() const { return ChaosVDEngine.ToSharedRef(); };
+	const FName& GetStatusBarID() const { return StatusBarID; };
 
 private:
 
@@ -45,6 +46,8 @@ private:
 	TSharedPtr<FChaosVDSolversTracksTab> SolversTracksTab;
 	TSharedPtr<FChaosVDOutputLogTab> OutputLogTab;
 	TSharedPtr<FChaosVDEditorSettingsTab> EditorSettingsTab;
+
+	FName StatusBarID;
 
 	TSharedPtr<FTabManager> TabManager;
 };

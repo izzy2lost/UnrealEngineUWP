@@ -42,7 +42,8 @@ public class ChaosVD : ModuleRules
 				"DynamicMesh",
 				"SceneOutliner",
 				"TypedElementRuntime",
-				"TypedElementFramework"
+				"TypedElementFramework",
+				"StatusBar"
 			}
 			);
 

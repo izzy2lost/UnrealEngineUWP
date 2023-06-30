@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AsyncCompilationHelpers.h"
 #include "ChaosVDConvexMeshGenerator.h"
 #include "ChaosVDHeightfieldMeshGenerator.h"
 #include "ChaosVDTriMeshGenerator.h"
@@ -16,6 +17,7 @@
 #include "Generators/MinimalBoxMeshGenerator.h"
 #include "Generators/SphereGenerator.h"
 #include "UDynamicMesh.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "Tasks/Task.h"
 #include "UObject/GCObject.h"
 #include "UObject/UObjectGlobals.h"
@@ -40,7 +42,7 @@ class FChaosVDGeometryBuilder : public FGCObject, public TSharedFromThis<FChaosV
 {
 public:
 
-	FChaosVDGeometryBuilder()
+	FChaosVDGeometryBuilder() : GeometryGenerationNotification(NSLOCTEXT("ChaosVisualDebugger", "GeometryGenNotification","Particle Geometry"))
 	{
 		GameThreadTickDelegate = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FChaosVDGeometryBuilder::GameThreadTick));
 	}
@@ -182,6 +184,10 @@ private:
 
 	/** Queue of geometry keys already generated and waiting to be applied */
 	TQueue<uint32, EQueueMode::Mpsc> GeometryReadyToApplyQueue;
+
+	FAsyncCompilationNotification GeometryGenerationNotification;
+
+	FThreadSafeBool bHasPendingJobs = false;
 
 	friend class FGeometryGenerationTask;
 
