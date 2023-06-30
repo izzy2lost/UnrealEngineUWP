@@ -50,6 +50,7 @@ class INTERCHANGEPIPELINES_API UMaterialXPipelineSettings : public UDeveloperSet
 	GENERATED_BODY()
 
 public:
+
 	UPROPERTY(EditAnywhere, config, Category = "MaterialXPredefined", meta = (DisplayName = "MaterialX Predefined Surface Shaders"))
 	TMap<EInterchangeMaterialXShaders, FSoftObjectPath> PredefinedSurfaceShaders;
 

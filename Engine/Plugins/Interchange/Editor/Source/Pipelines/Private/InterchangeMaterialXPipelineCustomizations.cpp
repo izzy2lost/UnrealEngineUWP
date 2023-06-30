@@ -4,9 +4,10 @@
 
 #include "InterchangeMaterialDefinitions.h"
 #include "InterchangeMaterialXPipeline.h"
-#include "Materials/MaterialFunction.h"
 
 #include "DetailLayoutBuilder.h"
+#include "Engine/RendererSettings.h"
+#include "Materials/MaterialFunction.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyCustomizationHelpers.h"
 #include "Widgets/Text/STextBlock.h"
@@ -71,6 +72,25 @@ void FInterchangeMaterialXPipelineSettingsCustomization::CustomizeDetails(IDetai
 	if (!ensure(MaterialXSettings.IsValid()))
 	{
 		return;
+	}
+
+	// Init the PredefinedSurfaceShaders with Substrate assets, since the default value is set in BaseInterchange.ini and we have no way in the config file to conditionally init a property
+	if(GetDefault<URendererSettings>()->bEnableStrata)
+	{
+		static bool bFirstInit = true;
+		if(bFirstInit)
+		{
+			bFirstInit = false;
+			if(FString StandardSurfacePath = MaterialXSettings->GetAssetPathString(EInterchangeMaterialXShaders::StandardSurface); StandardSurfacePath == TEXT("/Interchange/Functions/MX_StandardSurface.MX_StandardSurface"))
+			{
+				MaterialXSettings->PredefinedSurfaceShaders.Add(EInterchangeMaterialXShaders::StandardSurface, FSoftObjectPath{ TEXT("/Interchange/Functions/MX_StandardSurface_Substrate.MX_StandardSurface_Substrate") });
+			}
+
+			if(FString TransmissionSurfacePath = MaterialXSettings->GetAssetPathString(EInterchangeMaterialXShaders::StandardSurfaceTransmission); TransmissionSurfacePath == TEXT("/Interchange/Functions/MX_TransmissionSurface.MX_TransmissionSurface"))
+			{
+				MaterialXSettings->PredefinedSurfaceShaders.Add(EInterchangeMaterialXShaders::StandardSurfaceTransmission, FSoftObjectPath{ TEXT("/Interchange/Functions/MX_TransmissionSurface_Substrate.MX_TransmissionSurface_Substrate") });
+			}
+		}
 	}
 
 	TSharedRef< IPropertyHandle > PairingsHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMaterialXPipelineSettings, PredefinedSurfaceShaders));

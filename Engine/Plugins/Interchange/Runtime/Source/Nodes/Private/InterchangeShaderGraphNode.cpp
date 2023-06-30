@@ -254,6 +254,16 @@ bool UInterchangeShaderGraphNode::SetCustomScreenSpaceReflections(const bool& At
 	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(ScreenSpaceReflections, bool);
 }
 
+bool UInterchangeShaderGraphNode::GetCustomBlendMode(int& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(BlendMode, int);
+}
+
+bool UInterchangeShaderGraphNode::SetCustomBlendMode(int AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(BlendMode, int);
+}
+
 FString UInterchangeFunctionCallShaderNode::GetTypeName() const
 {
 	const FString TypeName = TEXT("FunctionCallShaderNode");

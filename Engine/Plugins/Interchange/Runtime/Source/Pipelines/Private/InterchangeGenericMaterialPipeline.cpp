@@ -606,20 +606,6 @@ bool UInterchangeGenericMaterialPipeline::IsLambertModel(const UInterchangeShade
 	return bHasDiffuseInput;
 }
 
-bool UInterchangeGenericMaterialPipeline::IsStandardSurfaceModel(const UInterchangeShaderGraphNode* ShaderGraphNode) const
-{
-	using namespace UE::Interchange::Materials;
-	FString ShaderType;
-	ShaderGraphNode->GetCustomShaderType(ShaderType);
-
-	if(ShaderType == StandardSurface::Name.ToString())
-	{
-		return true;
-	}
-
-	return false;
-}
-
 bool UInterchangeGenericMaterialPipeline::IsSurfaceUnlitModel(const UInterchangeShaderGraphNode* ShaderGraphNode) const
 {
 	using namespace UE::Interchange::Materials;
@@ -2363,6 +2349,11 @@ UInterchangeMaterialFactoryNode* UInterchangeGenericMaterialPipeline::CreateMate
 {
 	UInterchangeMaterialFactoryNode* MaterialFactoryNode = Cast<UInterchangeMaterialFactoryNode>( CreateBaseMaterialFactoryNode(ShaderGraphNode, UInterchangeMaterialFactoryNode::StaticClass()) );
 
+	if(HandleSubstrate(ShaderGraphNode, MaterialFactoryNode))
+	{
+		return MaterialFactoryNode;
+	}
+
 	// Handle the case where the material will be connected through the material attributes input
 	if (HandleBxDFInput(ShaderGraphNode, MaterialFactoryNode))
 	{
@@ -2875,6 +2866,50 @@ bool UInterchangeGenericMaterialPipeline::HandleUnlitModel(const UInterchangeSha
 	if (bShadingModelHandled)
 	{
 		MaterialFactoryNode->SetCustomShadingModel(EMaterialShadingModel::MSM_Unlit);
+	}
+
+	return bShadingModelHandled;
+}
+
+bool UInterchangeGenericMaterialPipeline::HandleSubstrate(const UInterchangeShaderGraphNode* ShaderGraphNode, UInterchangeMaterialFactoryNode* MaterialFactoryNode)
+{
+	using namespace UE::Interchange::Materials;
+	bool bShadingModelHandled = false;
+
+	if(UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, Substrate::Parameters::FrontMaterial))
+	{
+		TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> FrontMaterialFactoryNode =
+			CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderGraphNode, Substrate::Parameters::FrontMaterial.ToString(), MaterialFactoryNode->GetUniqueID());
+		ensure(FrontMaterialFactoryNode.Get<0>());
+
+		if(FrontMaterialFactoryNode.Get<0>())
+		{
+			UInterchangeShaderPortsAPI::ConnectOuputToInputByName(MaterialFactoryNode, Substrate::Parameters::FrontMaterial.ToString(), FrontMaterialFactoryNode.Get<0>()->GetUniqueID(), FrontMaterialFactoryNode.Get<1>());
+		}
+
+		if(UInterchangeShaderPortsAPI::HasInput(ShaderGraphNode, Substrate::Parameters::OpacityMask))
+		{
+			TTuple<UInterchangeMaterialExpressionFactoryNode*, FString> OpacityMaskFactoryNode =
+				CreateMaterialExpressionForInput(MaterialFactoryNode, ShaderGraphNode, Substrate::Parameters::OpacityMask.ToString(), MaterialFactoryNode->GetUniqueID());
+			ensure(OpacityMaskFactoryNode.Get<0>());
+
+			if(OpacityMaskFactoryNode.Get<0>())
+			{
+				UInterchangeShaderPortsAPI::ConnectOuputToInputByName(MaterialFactoryNode, Substrate::Parameters::OpacityMask.ToString(), OpacityMaskFactoryNode.Get<0>()->GetUniqueID(), OpacityMaskFactoryNode.Get<1>());
+			}
+		}
+
+		if(EBlendMode BlendMode; ShaderGraphNode->GetCustomBlendMode(reinterpret_cast<int&>(BlendMode)))
+		{
+			MaterialFactoryNode->SetCustomBlendMode(BlendMode);
+			if(BlendMode == BLEND_TranslucentColoredTransmittance)
+			{
+				MaterialFactoryNode->SetCustomTranslucencyLightingMode(ETranslucencyLightingMode::TLM_SurfacePerPixelLighting);
+				MaterialFactoryNode->SetCustomRefractionMethod(ERefractionMode::RM_IndexOfRefraction);
+			}
+		}
+
+		bShadingModelHandled = true;
 	}
 
 	return bShadingModelHandled;
