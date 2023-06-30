@@ -98,7 +98,9 @@ public abstract class ApplePlatform : Platform
 					$"UE_OVERRIDE_STAGE_DIR=\"{SC.StageDirectory}\"";
 				if (!Params.IsCodeBasedProject)
 				{
-					ExtraOptions += $" PRODUCT_NAME={Params.ShortProjectName}";
+					// instead of staging an UnrealGame.app, stage something with the project name, like say MyProjectClient-IOS-Shipping.app
+					string ProductName = AppleExports.MakeBinaryFileName(SC.ShortProjectName, Target.Platform, Target.Configuration, Target.Architectures, UnrealTargetConfiguration.Development, null);
+					ExtraOptions += $" PRODUCT_NAME={ProductName}";
 				}
 
 				AppleExports.BuildWithStubXcodeProject(SC.RawProjectPath, Target.Platform, Target.Configuration, Target.TargetName, AppleExports.XcodeBuildMode.Stage, Logger, ExtraOptions);
