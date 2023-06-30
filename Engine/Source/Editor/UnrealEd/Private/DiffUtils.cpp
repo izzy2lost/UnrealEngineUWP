@@ -2,9 +2,11 @@
 
 #include "DiffUtils.h"
 
+#include "AssetDefinitionRegistry.h"
 #include "Components/ActorComponent.h"
 #include "Containers/BitArray.h"
 #include "EditorCategoryUtils.h"
+#include "IAssetTools.h"
 #include "Engine/Blueprint.h"
 #include "IAssetTypeActions.h"
 #include "ISourceControlModule.h"
@@ -30,19 +32,23 @@
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/PropertyPortFlags.h"
+#include "UObject/SavePackage.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STableViewBase.h"
 #include "Widgets/Views/STreeView.h"
+#include "HAL/PlatformFileManager.h"
+#include "UnrealEngine.h"
+#include "UObject/Linker.h"
 
 class ITableRow;
 class SWidget;
 
 namespace UEDiffUtils_Private
 {
-	FProperty* Resolve( const UStruct* Class, FName PropertyName )
+	static FProperty* Resolve( const UStruct* Class, FName PropertyName )
 	{
 		if(Class == nullptr )
 		{
@@ -60,9 +66,205 @@ namespace UEDiffUtils_Private
 		return nullptr;
 	}
 
-	FPropertySoftPathSet GetPropertyNameSet(const UStruct* ForStruct)
+	static FPropertySoftPathSet GetPropertyNameSet(const UStruct* ForStruct)
 	{
 		return FPropertySoftPathSet(DiffUtils::GetVisiblePropertiesInOrderDeclared(ForStruct));
+	}
+	
+	static const FString DiffSyntaxHelp = TEXT("format: 'diff <lhs> <rhs>");
+	static const FString MergeSyntaxHelp = TEXT("format: 'merge <remote> <local> <base> [-o out_path]' or 'merge <local> [-o out_path]'");
+	static void RunDiffCommand(const TArray<FString>& Args);
+	static void RunMergeCommand(const TArray<FString>& Args);
+
+	FAutoConsoleCommand DiffConsoleCommand(
+		TEXT("merge"),
+		*FString::Format(TEXT("Either merge three assets or a single conflicted asset.\n{0}"), {MergeSyntaxHelp}),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&RunMergeCommand),
+		ECVF_Default
+	);
+
+	FAutoConsoleCommand MergeConsoleCommand(
+		TEXT("diff"),
+		*FString::Format(TEXT("diff two assets against one another.\n{0}"), {DiffSyntaxHelp}),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&RunDiffCommand),
+		ECVF_Default
+	);
+}
+
+static UObject* LoadAssetFromExternalPath(FString Path)
+{
+	FPackagePath PackagePath;
+	if (!FPackagePath::TryFromPackageName(Path, PackagePath))
+	{
+		// copy to the temp directory so it can be loaded properly
+		FString File = FPaths::GetBaseFilename(Path) + TEXT("-");
+		for (const ANSICHAR Char : "#(){}[].")
+		{
+			File.ReplaceCharInline(Char, '-');
+		}
+		const FString Extension = TEXT(".") + FPaths::GetExtension(Path);
+		const FString SourcePath = Path;
+		FPlatformFileManager::Get().GetPlatformFile().CreateDirectory(*FPaths::DiffDir());
+		Path = FPaths::CreateTempFilename(*FPaths::DiffDir(), *File, *Extension);
+		Path = FPaths::ConvertRelativePathToFull(Path);
+		if (!FPlatformFileManager::Get().GetPlatformFile().CopyFile(*Path, *SourcePath))
+		{
+			UE_LOG(LogEngine, Display, TEXT("Failed to Copy %s"), *SourcePath);
+			return nullptr;
+		}
+		// load the temp package
+		PackagePath = FPackagePath::FromLocalPath(Path);
+	}
+	if (PackagePath.IsEmpty())
+	{
+		UE_LOG(LogEngine, Display, TEXT("Invalid Path: %s"), *Path);
+		return nullptr;
+	}
+	if (const UPackage* TempPackage = DiffUtils::LoadPackageForDiff(PackagePath, {}))
+	{
+		if (UObject* Object = TempPackage->FindAssetInPackage())
+		{
+			return Object;
+		}
+	}
+	UE_LOG(LogEngine, Display, TEXT("Failed to load: %s"), *Path);
+	return nullptr;
+}
+
+static void UEDiffUtils_Private::RunDiffCommand(const TArray<FString>& Args)
+{
+	if (Args.Num() != 2)
+	{
+		UE_LOG(LogEngine, Display, TEXT("%s"), *DiffSyntaxHelp);
+		return;
+	}
+	
+	UObject* LHS = LoadAssetFromExternalPath(Args[0]);
+	UObject* RHS = LoadAssetFromExternalPath(Args[1]);
+	if (LHS && RHS)
+	{
+		IAssetTools::Get().DiffAssets(LHS, RHS, {}, {});
+	}
+}
+
+namespace UE::CmdLink
+{
+	// CmdLinkServerModule will set these methods if loaded.
+	// they're used by the merge command because we need to keep the CmdLink client running until the user closes the merge window and saves the output
+	UNREALED_API void(*GBeginAsyncCommand)(const FString&, const TArray<FString>&) = [](const FString&, const TArray<FString>&){};
+	UNREALED_API void(*GEndAsyncCommand)(const FString&, const TArray<FString>&) = [](const FString&, const TArray<FString>&){};
+}
+
+static void UEDiffUtils_Private::RunMergeCommand(const TArray<FString>& Args)
+{
+	UObject* Local = nullptr;
+	UObject* Base = nullptr;
+	UObject* Remote = nullptr;
+	FString OutDirectory;
+	bool bThreeWayMerge = false;
+	bool bInvalidSyntax = false;
+	switch (Args.Num())
+	{
+	case 1: // merge <local>
+		Local = LoadAssetFromExternalPath(Args[0]);
+		bThreeWayMerge = false;
+		break;
+	case 3:
+		if (Args[1] == TEXT("-o")) // merge <local> -o <output_file>
+		{
+			Local = LoadAssetFromExternalPath(Args[0]);
+			OutDirectory = Args[2];
+			bThreeWayMerge = false;
+		}
+		else // merge <local> <base> <remote>
+		{
+			Remote = LoadAssetFromExternalPath(Args[0]);
+			Local = LoadAssetFromExternalPath(Args[1]);
+			Base = LoadAssetFromExternalPath(Args[2]);
+			bThreeWayMerge = true;
+		}
+		break;
+	case 5: // merge <local> <base> <remote> -o <output_file>
+		if (Args[3] == TEXT("-o"))
+		{
+			Remote = LoadAssetFromExternalPath(Args[0]);
+			Local = LoadAssetFromExternalPath(Args[1]);
+			Base = LoadAssetFromExternalPath(Args[2]);
+			OutDirectory = Args[4];
+			bThreeWayMerge = true;
+			break;
+		}
+
+		// 5 parameters requires output file at the end
+		bInvalidSyntax = true;
+		break;
+	default:
+		// unsupported parameter count
+		bInvalidSyntax = true;
+		break;
+	}
+
+	if (bInvalidSyntax)
+	{
+		// invalid syntax. display help.
+		UE_LOG(LogEngine, Display, TEXT("%s"), *MergeSyntaxHelp);
+		return;
+	}
+
+	const FOnAssetMergeResolved ResolutionCallback = FOnAssetMergeResolved::CreateLambda([Args, Local, OutDirectory](const FAssetMergeResults& Results)
+	{
+		if (!OutDirectory.IsEmpty() && Results.Result == EAssetMergeResult::Completed)
+		{
+			// save a copy of the asset to the output directory
+			
+			FSavePackageArgs SaveArgs;
+			SaveArgs.TopLevelFlags = RF_Standalone;
+			SaveArgs.Error = GLog;
+			UPackage::SavePackage(Results.MergedPackage, Local, *OutDirectory, SaveArgs);
+			ResetLoaders(Results.MergedPackage);
+		}
+		UE::CmdLink::GEndAsyncCommand(TEXT("merge"), Args);
+	});
+
+	if (bThreeWayMerge)
+	{
+		FAssetManualMergeArgs MergeArgs;
+		MergeArgs.LocalAsset = Local;
+		MergeArgs.BaseAsset = Base;
+		MergeArgs.RemoteAsset = Remote;
+		MergeArgs.ResolutionCallback = ResolutionCallback;
+		MergeArgs.Flags = MF_NONE;
+
+		if (MergeArgs.LocalAsset && MergeArgs.BaseAsset && MergeArgs.RemoteAsset)
+		{
+			const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForClass(Local->GetClass());
+			if (!AssetDefinition->CanMerge())
+			{
+				UE_LOG(LogEngine, Error, TEXT("%s of class type %s does not support merging"), *Local->GetName(), *Local->GetClass()->GetName());
+				return;
+			}
+			UE::CmdLink::GBeginAsyncCommand(TEXT("merge"), Args);
+			AssetDefinition->Merge(MergeArgs);
+		}
+	}
+	else
+	{
+		FAssetAutomaticMergeArgs MergeArgs;
+		MergeArgs.LocalAsset = Local;
+		MergeArgs.ResolutionCallback = ResolutionCallback;
+		MergeArgs.Flags = MF_NONE;
+		
+		if (MergeArgs.LocalAsset)
+		{
+			const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForClass(Local->GetClass());
+			if (!AssetDefinition->CanMerge())
+			{
+				UE_LOG(LogEngine, Error, TEXT("%s does not support merging"), *Local->GetName());
+				return;
+			}
+			UE::CmdLink::GBeginAsyncCommand(TEXT("merge"), Args);
+			AssetDefinition->Merge(MergeArgs);
+		}
 	}
 }
 
@@ -847,6 +1049,12 @@ TArray<FPropertyPath> DiffUtils::ResolveAll(const UObject* Object, const TArray<
 
 UPackage* DiffUtils::LoadPackageForDiff(const FPackagePath& InTempPackagePath, const FPackagePath& InOriginalPackagePath)
 {
+	// if this is a local asset, load it normally
+	if (!FPackageName::IsTempPackage(InTempPackagePath.GetPackageName()))
+	{
+		return LoadPackage(nullptr, *InTempPackagePath.GetPackageName(), LOAD_None);
+	}
+	
 	// set up instancing context
 	FLinkerInstancingContext Context;
 	if (!InOriginalPackagePath.GetLocalFullPath().IsEmpty())
