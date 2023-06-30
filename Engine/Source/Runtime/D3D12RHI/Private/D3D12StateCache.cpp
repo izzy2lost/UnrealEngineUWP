@@ -655,7 +655,8 @@ void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSign
 	if (CurrentShaderDirtyUAVSlots)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_D3D12ApplyStateSetUAVTime);
-		DescriptorCache.SetUAVs(UAVStage, pRootSignature, PipelineState.Common.UAVCache, CurrentShaderDirtyUAVSlots, NumUAVs, ViewHeapSlot);
+		const D3D12_GPU_DESCRIPTOR_HANDLE BindDescriptor = DescriptorCache.BuildUAVTable(UAVStage, pRootSignature, PipelineState.Common.UAVCache, CurrentShaderDirtyUAVSlots, NumUAVs, ViewHeapSlot);
+		DescriptorCache.SetUAVTable(UAVStage, pRootSignature, PipelineState.Common.UAVCache, NumUAVs, BindDescriptor);
 	}
 
 	// Shader resource views
@@ -667,7 +668,8 @@ void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSign
 		{
 			if (CurrentShaderDirtySRVSlots[Index])
 			{
-				DescriptorCache.SetSRVs(static_cast<EShaderFrequency>(Index), pRootSignature, SRVCache, CurrentShaderDirtySRVSlots[Index], NumSRVs[Index], ViewHeapSlot);
+				const D3D12_GPU_DESCRIPTOR_HANDLE BindDescriptor = DescriptorCache.BuildSRVTable(static_cast<EShaderFrequency>(Index), pRootSignature, SRVCache, CurrentShaderDirtySRVSlots[Index], NumSRVs[Index], ViewHeapSlot);
+				DescriptorCache.SetSRVTable(static_cast<EShaderFrequency>(Index), pRootSignature, SRVCache, NumSRVs[Index], BindDescriptor);
 			}
 		}
 	}
@@ -877,7 +879,8 @@ void FD3D12StateCache::ApplySamplers(const FD3D12RootSignature* const pRootSigna
 	{
 		if (CurrentShaderDirtySamplerSlots[Index])
 		{
-			DescriptorCache.SetSamplers(static_cast<EShaderFrequency>(Index), pRootSignature, Cache, CurrentShaderDirtySamplerSlots[Index], NumSamplers[Index], SamplerHeapSlot);
+			D3D12_GPU_DESCRIPTOR_HANDLE BindDescriptor = DescriptorCache.BuildSamplerTable(static_cast<EShaderFrequency>(Index), pRootSignature, Cache, CurrentShaderDirtySamplerSlots[Index], NumSamplers[Index], SamplerHeapSlot);
+			DescriptorCache.SetSamplerTable(static_cast<EShaderFrequency>(Index), pRootSignature, Cache, NumSamplers[Index], BindDescriptor);
 		}
 	}
 

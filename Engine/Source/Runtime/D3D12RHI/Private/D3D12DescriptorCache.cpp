@@ -218,7 +218,7 @@ void FD3D12DescriptorCache::SetVertexBuffers(FD3D12VertexBufferCache& Cache)
 	}
 }
 
-void FD3D12DescriptorCache::SetUAVs(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12UnorderedAccessViewCache& Cache, const UAVSlotMask& SlotsNeededMask, uint32 SlotsNeeded, uint32& HeapSlot)
+D3D12_GPU_DESCRIPTOR_HANDLE FD3D12DescriptorCache::BuildUAVTable(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12UnorderedAccessViewCache& Cache, const UAVSlotMask& SlotsNeededMask, uint32 SlotsNeeded, uint32& HeapSlot)
 {
 	UAVSlotMask& CurrentDirtySlotMask = Cache.DirtySlotMask[ShaderStage];
 	check(CurrentDirtySlotMask != 0);	// All dirty slots for the current shader stage.
@@ -262,16 +262,21 @@ void FD3D12DescriptorCache::SetUAVs(EShaderFrequency ShaderStage, const FD3D12Ro
 		SlotsNeeded, SrcDescriptors, nullptr /* sizes */,
 		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+	return BindDescriptor;
+}
+
+void FD3D12DescriptorCache::SetUAVTable(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12UnorderedAccessViewCache& Cache, uint32 SlotsNeeded, const D3D12_GPU_DESCRIPTOR_HANDLE& BindDescriptor)
+{
+	check(ShaderStage == SF_Compute || ShaderStage == SF_Pixel);
+	const uint32 RootParameterIndex = RootSignature->UAVRDTBindSlot(ShaderStage);
+
 	if (ShaderStage == SF_Pixel)
 	{
-		const uint32 RDTIndex = RootSignature->UAVRDTBindSlot(ShaderStage);
-		Context.GraphicsCommandList()->SetGraphicsRootDescriptorTable(RDTIndex, BindDescriptor);
+		Context.GraphicsCommandList()->SetGraphicsRootDescriptorTable(RootParameterIndex, BindDescriptor);
 	}
 	else
 	{
-		check(ShaderStage == SF_Compute);
-		const uint32 RDTIndex = RootSignature->UAVRDTBindSlot(ShaderStage);
-		Context.GraphicsCommandList()->SetComputeRootDescriptorTable(RDTIndex, BindDescriptor);
+		Context.GraphicsCommandList()->SetComputeRootDescriptorTable(RootParameterIndex, BindDescriptor);
 	}
 
 	// We changed the descriptor table, so all resources bound to slots outside of the table's range are now dirty.
@@ -326,7 +331,7 @@ void FD3D12DescriptorCache::SetRenderTargets(FD3D12RenderTargetView** RenderTarg
 	}
 }
 
-void FD3D12DescriptorCache::SetSamplers(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12SamplerStateCache& Cache, const SamplerSlotMask& SlotsNeededMask, uint32 SlotsNeeded, uint32& HeapSlot)
+D3D12_GPU_DESCRIPTOR_HANDLE FD3D12DescriptorCache::BuildSamplerTable(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12SamplerStateCache& Cache, const SamplerSlotMask& SlotsNeededMask, uint32 SlotsNeeded, uint32& HeapSlot)
 {
 	check(!UsingGlobalSamplerHeap());
 
@@ -408,15 +413,20 @@ void FD3D12DescriptorCache::SetSamplers(EShaderFrequency ShaderStage, const FD3D
 		}
 	}
 
+	return BindDescriptor;
+}
+
+void FD3D12DescriptorCache::SetSamplerTable(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12SamplerStateCache& Cache, uint32 SlotsNeeded, const D3D12_GPU_DESCRIPTOR_HANDLE& BindDescriptor)
+{
+	const uint32 RootParameterIndex = RootSignature->SamplerRDTBindSlot(ShaderStage);
+
 	if (ShaderStage == SF_Compute)
 	{
-		const uint32 RDTIndex = RootSignature->SamplerRDTBindSlot(ShaderStage);
-		Context.GraphicsCommandList()->SetComputeRootDescriptorTable(RDTIndex, BindDescriptor);
+		Context.GraphicsCommandList()->SetComputeRootDescriptorTable(RootParameterIndex, BindDescriptor);
 	}
 	else
 	{
-		const uint32 RDTIndex = RootSignature->SamplerRDTBindSlot(ShaderStage);
-		Context.GraphicsCommandList()->SetGraphicsRootDescriptorTable(RDTIndex, BindDescriptor);
+		Context.GraphicsCommandList()->SetGraphicsRootDescriptorTable(RootParameterIndex, BindDescriptor);
 	}
 
 	// We changed the descriptor table, so all resources bound to slots outside of the table's range are now dirty.
@@ -448,7 +458,7 @@ static D3D12_RESOURCE_STATES GetBindingResourceState(FD3D12CommandContext& Conte
 	return State;
 }
 
-void FD3D12DescriptorCache::SetSRVs(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12ShaderResourceViewCache& Cache, const SRVSlotMask& SlotsNeededMask, uint32 SlotsNeeded, uint32& HeapSlot)
+D3D12_GPU_DESCRIPTOR_HANDLE FD3D12DescriptorCache::BuildSRVTable(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12ShaderResourceViewCache& Cache, const SRVSlotMask& SlotsNeededMask, uint32 SlotsNeeded, uint32& HeapSlot)
 {
 	SRVSlotMask& CurrentDirtySlotMask = Cache.DirtySlotMask[ShaderStage];
 	check(CurrentDirtySlotMask != 0);	// All dirty slots for the current shader stage.
@@ -488,20 +498,24 @@ void FD3D12DescriptorCache::SetSRVs(EShaderFrequency ShaderStage, const FD3D12Ro
 	ID3D12Device* Device = GetParentDevice()->GetDevice();
 	Device->CopyDescriptors(1, &DestDescriptor, &SlotsNeeded, SlotsNeeded, SrcDescriptors, nullptr, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-
 	check((CurrentDirtySlotMask & SlotsNeededMask) == 0);	// Check all slots that needed to be set, were set.
 
 	const D3D12_GPU_DESCRIPTOR_HANDLE BindDescriptor = CurrentViewHeap->GetGPUSlotHandle(FirstSlotIndex);
 
+	return BindDescriptor;
+}
+
+void FD3D12DescriptorCache::SetSRVTable(EShaderFrequency ShaderStage, const FD3D12RootSignature* RootSignature, FD3D12ShaderResourceViewCache& Cache, uint32 SlotsNeeded, const D3D12_GPU_DESCRIPTOR_HANDLE& BindDescriptor)
+{
+	const uint32 RootParameterIndex = RootSignature->SRVRDTBindSlot(ShaderStage);
+
 	if (ShaderStage == SF_Compute)
 	{
-		const uint32 RDTIndex = RootSignature->SRVRDTBindSlot(ShaderStage);
-		Context.GraphicsCommandList()->SetComputeRootDescriptorTable(RDTIndex, BindDescriptor);
+		Context.GraphicsCommandList()->SetComputeRootDescriptorTable(RootParameterIndex, BindDescriptor);
 	}
 	else
 	{
-		const uint32 RDTIndex = RootSignature->SRVRDTBindSlot(ShaderStage);
-		Context.GraphicsCommandList()->SetGraphicsRootDescriptorTable(RDTIndex, BindDescriptor);
+		Context.GraphicsCommandList()->SetGraphicsRootDescriptorTable(RootParameterIndex, BindDescriptor);
 	}
 
 	// We changed the descriptor table, so all resources bound to slots outside of the table's range are now dirty.
