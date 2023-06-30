@@ -143,8 +143,19 @@ namespace UnrealBuildTool
 			return GetProjectArchitectures(ProjectFile, TargetName, true, false);
 		}
 
+		private static Dictionary<string, UnrealArchitectures> ProjectArchitectureCache = new();
 		private UnrealArchitectures GetProjectArchitectures(FileReference? ProjectFile, string? TargetName, bool bGetAllSupported, bool bIsDistributionMode)
 		{
+			string Key = $"{ProjectFile}{TargetName}{bGetAllSupported}{bIsDistributionMode}";
+			lock (ProjectArchitectureCache)
+			{
+				UnrealArchitectures? CachedArches;
+				if (ProjectArchitectureCache.TryGetValue(Key, out CachedArches))
+				{
+					return CachedArches;
+				}
+			}
+
 			bool bIsEditor = false;
 			bool bIsBuildMachine = Environment.GetEnvironmentVariable("IsBuildMachine") == "1";
 
@@ -240,7 +251,12 @@ namespace UnrealBuildTool
 				throw new BuildException($"Unknown {DefaultKey} value found ('{DefaultArchitecture}') in .ini");
 			}
 
-			return new UnrealArchitectures(Architectures);
+			UnrealArchitectures Result = new UnrealArchitectures(Architectures);
+			lock (ProjectArchitectureCache)
+			{
+				ProjectArchitectureCache.Add(Key, Result);
+			}
+			return Result;
 		}
 	}
 
@@ -299,7 +315,7 @@ namespace UnrealBuildTool
 			}
 
 			// Needs OS X 10.11 for Metal. The remote toolchain has not been initialized yet, so just assume it's a recent SDK.
-			if ((BuildHostPlatform.Current.Platform != UnrealTargetPlatform.Mac || MacToolChain.Settings.MacOSSDKVersionFloat >= 10.11f) && Target.bCompileAgainstEngine)
+			if ((BuildHostPlatform.Current.Platform != UnrealTargetPlatform.Mac || MacToolChain.Settings.SDKVersionFloat >= 10.11f) && Target.bCompileAgainstEngine)
 			{
 				Target.GlobalDefinitions.Add("HAS_METAL=1");
 				Target.ExtraModuleNames.Add("MetalRHI");

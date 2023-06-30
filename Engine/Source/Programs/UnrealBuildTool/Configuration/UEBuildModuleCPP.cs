@@ -2054,7 +2054,7 @@ namespace UnrealBuildTool
 		{
 			".h", ".ipsh",
 			".cpp", ".ixx", ".c", ".cc",
-			".m", ".mm",
+			".m", ".mm", ".swift",
 			".rc", ".ispc",
 		};
 
@@ -2113,7 +2113,7 @@ namespace UnrealBuildTool
 					SourceFiles.Add(InputFile);
 					InputFiles.CCFiles.Add(InputFile);
 				}
-				else if (InputFile.HasExtension(".m") || InputFile.HasExtension(".mm"))
+				else if (InputFile.HasExtension(".m") || InputFile.HasExtension(".mm") || InputFile.HasExtension(".swift"))
 				{
 					SourceFiles.Add(InputFile);
 					InputFiles.MMFiles.Add(InputFile);

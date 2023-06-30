@@ -1045,7 +1045,7 @@ namespace UnrealBuildTool
 
 			if (BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Mac)
 			{
-				AddText($".MacBaseSDKDir = '{MacToolChain.Settings.BaseSDKDir}'\n");
+				AddText($".MacBaseSDKDir = '{MacToolChain.Settings.GetSDKPath()}'\n");
 				AddText($".MacToolchainDir = '{MacToolChain.Settings.ToolchainDir}'\n");
 				AddText($"Compiler('UEAppleCompiler') \n{{\n");
 				AddText($"\t.Executable = '$MacToolchainDir$/clang++'\n");

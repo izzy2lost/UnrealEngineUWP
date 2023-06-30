@@ -15,12 +15,6 @@ namespace UnrealBuildTool
 	class MacToolChainSettings : AppleToolChainSettings
 	{
 		/// <summary>
-		/// Which version of the Mac OS SDK to target at build time
-		/// </summary>
-		public string MacOSSDKVersion = "latest";
-		public float MacOSSDKVersionFloat = 0.0f;
-
-		/// <summary>
 		/// Which version of the Mac OS X to allow at run time
 		/// </summary>
 		public string MacOSVersion = "10.15";
@@ -31,36 +25,18 @@ namespace UnrealBuildTool
 		public string MinMacOSVersion = "10.15.7";
 
 		/// <summary>
-		/// Directory for the developer binaries
-		/// </summary>
-		public string ToolchainDir = "";
-
-		/// <summary>
-		/// Location of the SDKs
-		/// </summary>
-		public string BaseSDKDir;
-
-		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="bVerbose">Whether to output verbose logging</param>
 		/// <param name="Logger">Logger for output</param>
-		public MacToolChainSettings(bool bVerbose, ILogger Logger) : base(bVerbose, Logger)
+		public MacToolChainSettings(bool bVerbose, ILogger Logger) 
+			: base("MacOSX", null, "macos", bVerbose, Logger)
 		{
-			BaseSDKDir = XcodeDeveloperDir + "Platforms/MacOSX.platform/Developer/SDKs";
-			ToolchainDir = XcodeDeveloperDir + "Toolchains/XcodeDefault.xctoolchain/usr/bin/";
+		}
 
-			SelectSDK(BaseSDKDir, "MacOSX", ref MacOSSDKVersion, bVerbose, Logger);
-
-			// convert to float for easy comparison
-			if (String.IsNullOrWhiteSpace(MacOSSDKVersion))
-			{
-				throw new BuildException("Unable to find installed MacOS SDK on remote agent.");
-			}
-			else if (!Single.TryParse(MacOSSDKVersion, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture.NumberFormat, out MacOSSDKVersionFloat))
-			{
-				throw new BuildException("Unable to parse installed MacOS version (\"{0}\")", MacOSSDKVersion);
-			}
+		public DirectoryReference GetSDKPath()
+		{
+			return GetSDKPath(UnrealArch.Host.Value);
 		}
 	}
 
@@ -70,15 +46,11 @@ namespace UnrealBuildTool
 	class MacToolChain : AppleToolChain
 	{
 		public MacToolChain(FileReference? InProjectFile, ClangToolChainOptions InOptions, ILogger InLogger)
-			: base(InProjectFile, InOptions, InLogger)
+			: base(InProjectFile, () => new MacToolChainSettings(false, InLogger), InOptions, InLogger)
 		{
 		}
 
-		public static Lazy<MacToolChainSettings> SettingsPrivate = new Lazy<MacToolChainSettings>(() => new MacToolChainSettings(false, Log.Logger));
-
-		public static MacToolChainSettings Settings => SettingsPrivate.Value;
-
-		public static string SDKPath => Settings.BaseSDKDir + "/MacOSX.sdk";
+		public static MacToolChainSettings Settings => new MacToolChainSettings(false, Log.Logger);
 
 		/// <summary>
 		/// Which compiler\linker frontend to use
@@ -92,13 +64,9 @@ namespace UnrealBuildTool
 
 		protected override ClangToolChainInfo GetToolChainInfo()
 		{
-			FileReference CompilerPath = new FileReference(Settings.ToolchainDir + MacCompiler);
-			FileReference ArchiverPath = new FileReference(Settings.ToolchainDir + MacArchiver);
+			FileReference CompilerPath = FileReference.Combine(Settings.ToolchainDir, MacCompiler);
+			FileReference ArchiverPath = FileReference.Combine(Settings.ToolchainDir, MacArchiver);
 			return new AppleToolChainInfo(CompilerPath, ArchiverPath, Logger);
-		}
-
-		private static void SetupXcodePaths(bool bVerbose)
-		{
 		}
 
 		public static DirectoryReference FindProductDirectory(FileReference? ProjectFile, DirectoryReference BinaryDir, string? NameIfProgram)
@@ -154,13 +122,6 @@ namespace UnrealBuildTool
 			}
 
 			return null;
-		}
-
-		public override void SetUpGlobalEnvironment(ReadOnlyTargetRules Target)
-		{
-			base.SetUpGlobalEnvironment(Target);
-
-			SetupXcodePaths(true);
 		}
 
 		/// <inheritdoc/>
@@ -237,7 +198,7 @@ namespace UnrealBuildTool
 
 			// Pass through architecture and OS info
 			Arguments.Add("" + FormatArchitectureArg(CompileEnvironment.Architectures));
-			Arguments.Add($"-isysroot \"{SDKPath}\"");
+			Arguments.Add($"-isysroot \"{Settings.GetSDKPath()}\"");
 			Arguments.Add("-mmacosx-version-min=" + (CompileEnvironment.bEnableOSX109Support ? "10.9" : Settings.MacOSVersion));
 
 			List<string> FrameworksSearchPaths = new List<string>();
@@ -268,7 +229,7 @@ namespace UnrealBuildTool
 		{
 			// Pass through architecture and OS info		
 			Arguments.Add(FormatArchitectureArg(LinkEnvironment.Architectures));
-			Arguments.Add(String.Format("-isysroot \"{0}\"", SDKPath));
+			Arguments.Add(String.Format("-isysroot \"{0}\"", ToolChainSettings.Value.GetSDKPath(LinkEnvironment.Architecture)));
 			Arguments.Add("-mmacosx-version-min=" + Settings.MacOSVersion);
 			Arguments.Add("-dead_strip");
 
@@ -1244,8 +1205,6 @@ namespace UnrealBuildTool
 
 		public void StripSymbols(FileReference SourceFile, FileReference TargetFile)
 		{
-			SetupXcodePaths(false);
-
 			StripSymbolsWithXcode(SourceFile, TargetFile, Settings.ToolchainDir);
 		}
 	};

@@ -289,6 +289,11 @@ void FAppEntry::DecrementAudioSuspendCounters()
     }
 }
 
+#if PLATFORM_VISIONOS
+// SwiftUI test integration
+#include "UESwift-Swift.h"
+#endif
+
 void FAppEntry::PreInit(IOSAppDelegate* AppDelegate, UIApplication* Application)
 {
 	// make a controller object
@@ -311,6 +316,15 @@ void FAppEntry::PreInit(IOSAppDelegate* AppDelegate, UIApplication* Application)
 #if !PLATFORM_TVOS
 	// reset badge count on launch
 	Application.applicationIconBadgeNumber = 0;
+#endif
+	
+#if PLATFORM_VISIONOS
+	UIViewController* HostingController = [HostingViewFactory MakeSwiftUIViewOnClick:
+	^{
+		// close on click
+		[[IOSController presentedViewController] dismissViewControllerAnimated:YES completion:nil];
+	}];
+	[IOSController presentViewController:HostingController animated:YES completion:nil];
 #endif
 }
 

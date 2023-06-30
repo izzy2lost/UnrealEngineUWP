@@ -6,7 +6,7 @@ namespace UnrealBuildTool
 {
 	class VisionOSToolChainSettings : IOSToolChainSettings
 	{
-		public VisionOSToolChainSettings(ILogger Logger) : base("XROS", "XRSimulator", Logger)
+		public VisionOSToolChainSettings(ILogger Logger) : base("XROS", "XRSimulator", "xros", Logger)
 		{
 		}
 	}

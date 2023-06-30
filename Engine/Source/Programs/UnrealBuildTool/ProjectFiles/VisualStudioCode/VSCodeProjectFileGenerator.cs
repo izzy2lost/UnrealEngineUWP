@@ -351,8 +351,8 @@ namespace UnrealBuildTool
 			else if (OperatingSystem.IsMacOS())
 			{
 				MacToolChainSettings Settings = new MacToolChainSettings(false, Logger);
-				CompilerPath = FileReference.FromString(Settings.ToolchainDir + "clang++");
-				SysRootPath = DirectoryReference.FromString(Settings.BaseSDKDir + "/MacOSX" + Settings.MacOSSDKVersion + ".sdk");
+				CompilerPath = FileReference.Combine(Settings.ToolchainDir, "clang++");
+				SysRootPath = Settings.GetSDKPath();
 			}
 			else
 			{
