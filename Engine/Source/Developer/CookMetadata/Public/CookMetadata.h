@@ -56,6 +56,7 @@ struct FPluginSizeInfo
 {
 	uint64 Sizes[EPluginSizeTypesCount] = {};
 
+	void Zero() { FMemory::Memzero(this, sizeof(*this)); }
 	void AddSizes(uint64 SizesPerType[EPluginSizeTypesCount])
 	{
 		for (uint8 Type = 0; Type < EPluginSizeTypesCount; Type++)
