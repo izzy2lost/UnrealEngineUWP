@@ -9,6 +9,10 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PhysicsControlActor)
 
+FInitialCharacterControls::FInitialCharacterControls() = default;
+FInitialCharacterControls::~FInitialCharacterControls() = default;
+
+
 //======================================================================================================================
 void UPhysicsControlInitializerComponent::CreateInitialCharacterControls(UPhysicsControlComponent* ControlComponent)
 {

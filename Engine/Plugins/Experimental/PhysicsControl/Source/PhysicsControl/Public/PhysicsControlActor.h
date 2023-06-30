@@ -153,7 +153,8 @@ struct PHYSICSCONTROL_API FInitialCharacterControls
 {
 	GENERATED_BODY()
 
-	FInitialCharacterControls() {}
+	FInitialCharacterControls();
+	~FInitialCharacterControls();
 
 	/** The owner of the character skeletal mesh */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)

@@ -29,10 +29,8 @@ enum class EDisplayClusterRootActorPreviewEvent : uint8
 class FDisplayClusterRootActorPreviewObject
 {
 public:
-	FDisplayClusterRootActorPreviewObject() = default;
-	FDisplayClusterRootActorPreviewObject(ADisplayClusterRootActor* InRootActor)
-		: RootActorWeakPtr(InRootActor)
-	{ }
+	FDisplayClusterRootActorPreviewObject();
+	FDisplayClusterRootActorPreviewObject(ADisplayClusterRootActor* InRootActor);
 
 public:
 	/** Returns true if the DCRA object still exists. */

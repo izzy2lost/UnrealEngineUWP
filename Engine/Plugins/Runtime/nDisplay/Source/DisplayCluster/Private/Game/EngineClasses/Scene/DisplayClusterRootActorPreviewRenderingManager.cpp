@@ -55,6 +55,13 @@ using namespace UE::DisplayCluster::DCRAPreview;
 //------------------------------------------------------------------
 // FDisplayClusterRootActorPreviewObject
 //------------------------------------------------------------------
+
+FDisplayClusterRootActorPreviewObject::FDisplayClusterRootActorPreviewObject() = default;
+FDisplayClusterRootActorPreviewObject::FDisplayClusterRootActorPreviewObject(ADisplayClusterRootActor* InRootActor)
+	: RootActorWeakPtr(InRootActor)
+{ }
+
+
 void FDisplayClusterRootActorPreviewObject::HandleRenderRequest()
 {
 	if (!GDisplayClusterRootActorPreviewRenderingEnable)

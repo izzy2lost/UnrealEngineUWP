@@ -2,8 +2,13 @@
 
 #pragma once
 
+#ifdef NNE_USE_DIRECTML
+
 #include "Containers/StringView.h"
-#include "NNEDmlOperator.h"
+#include "NNE.h"
+#include "NNETypes.h"
+#include "Dml/NNEDmlCommon.h"
+#include "Dml/NNEDmlOperator.h"
 
 namespace UE::NNERuntimeRDG::Private::Dml
 {
@@ -234,3 +239,5 @@ inline void SetDmlAxesFromOnnx(Util::FSmallUIntArray& DmlAxes, int32 Rank, TCons
 }
 
 }
+
+#endif // NNE_USE_DIRECTML

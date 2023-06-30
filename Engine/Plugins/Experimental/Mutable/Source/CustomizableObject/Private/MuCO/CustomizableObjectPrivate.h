@@ -4,6 +4,10 @@
 
 #include "Templates/SharedPointer.h"
 
+#if WITH_EDITOR
+#include "Misc/Guid.h"
+#endif
+
 namespace mu { class Model; }
 
 

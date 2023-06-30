@@ -4,6 +4,7 @@
 // ue
 #include "Containers/ArrayView.h"
 #include "Misc/Optional.h"
+#include "Templates/Function.h"
 
 // eossdk
 //#include "eos_platform_prereqs.h"

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Containers/DisplayClusterWarpAABB.h"
+#include "Render/Containers/IDisplayClusterRender_Texture.h"
 
 /**
  * Implement math for WarpMap texture as a source of geometry
