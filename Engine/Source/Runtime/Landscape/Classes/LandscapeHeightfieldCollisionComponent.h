@@ -156,6 +156,7 @@ public:
 	 *	Cooked HeightField data. Serialized only with cooked content 
 	 *	Stored as array instead of BulkData to take advantage of precaching during async loading
 	 */
+	bool CookedCollisionDataWasDeleted = false;
 	TArray<uint8>								CookedCollisionData;
 	
 	/** This is a list of physical materials that is actually used by a cooked HeightField */
