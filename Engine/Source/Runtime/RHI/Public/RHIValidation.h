@@ -1290,6 +1290,10 @@ public:
 	}
 #endif // RHI_RAYTRACING
 
+	virtual FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords) override final
+	{
+		return RHI->RHICreateShaderBundle(NumRecords);
+	}
 
 //protected:
 	static void ReportValidationFailure(const TCHAR* InMessage);

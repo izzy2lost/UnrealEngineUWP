@@ -984,6 +984,12 @@ public:
 	}
 #endif // RHI_RAYTRACING
 
+	virtual FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords)
+	{
+		checkNoEntry();
+		return nullptr;
+	}
+
 protected:
 	TArray<uint32> PixelFormatBlockBytes;
 	friend class FValidationRHI;
@@ -1474,6 +1480,11 @@ FORCEINLINE FRayTracingShaderRHIRef RHICreateRayTracingShader(TArrayView<const u
 }
 
 #endif // RHI_RAYTRACING
+
+FORCEINLINE FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords)
+{
+	return GDynamicRHI->RHICreateShaderBundle(NumRecords);
+}
 
 /**
 * Defragment the texture pool.

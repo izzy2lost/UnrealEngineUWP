@@ -14,6 +14,14 @@ namespace RHICore
 extern RHICORE_API void ValidateStaticUniformBuffer(FRHIUniformBuffer* UniformBuffer, FUniformBufferStaticSlot Slot, uint32 ExpectedHash);
 extern RHICORE_API void SetupShaderCodeValidationData(FRHIShader* RHIShader, class FShaderCodeReader& ShaderCodeReader);
 
+/** Common implementation of dispatch shader bundle emulation shared by RHIs */
+extern RHICORE_API void DispatchShaderBundleEmulation(
+	FRHIComputeCommandList& InRHICmdList,
+	FRHIShaderBundle* ShaderBundle,
+	FRHIBuffer* ArgumentBuffer,
+	TConstArrayView<FRHIShaderBundleDispatch> Dispatches
+);
+
 inline void InitStaticUniformBufferSlots(TArray<FUniformBufferStaticSlot>& StaticSlots, const FShaderResourceTable& ShaderResourceTable)
 {
 	StaticSlots.Reserve(ShaderResourceTable.ResourceTableLayoutHashes.Num());

@@ -69,6 +69,7 @@ class FRHISamplerState;
 class FRHIShader;
 class FRHIShaderLibrary;
 class FRHIShaderResourceView;
+class FRHIShaderBundle;
 class FRHIStagingBuffer;
 class FRHITexture;
 class FRHITextureReference;
@@ -108,6 +109,7 @@ using FRHIPipelineBinaryLibraryRef     = TRefCountPtr<FRHIPipelineBinaryLibrary>
 using FRHIShaderLibraryRef             = TRefCountPtr<FRHIShaderLibrary>;
 using FSamplerStateRHIRef              = TRefCountPtr<FRHISamplerState>;
 using FShaderResourceViewRHIRef        = TRefCountPtr<FRHIShaderResourceView>;
+using FShaderBundleRHIRef              = TRefCountPtr<FRHIShaderBundle>;
 using FStagingBufferRHIRef             = TRefCountPtr<FRHIStagingBuffer>;
 using FTextureReferenceRHIRef          = TRefCountPtr<FRHITextureReference>;
 using FTextureRHIRef                   = TRefCountPtr<FRHITexture>;

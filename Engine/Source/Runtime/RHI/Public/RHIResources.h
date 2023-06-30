@@ -902,6 +902,7 @@ private:
 	FExclusiveDepthStencil DSMode;
 #endif
 };
+
 class FRHIComputePipelineState : public FRHIResource
 {
 public:
@@ -913,6 +914,7 @@ public:
 private:
 	bool bIsValid = true;
 };
+
 class FRHIRayTracingPipelineState : public FRHIResource
 {
 public:
@@ -3065,6 +3067,22 @@ public:
 	}
 
 	virtual uint32 GetLayerBufferOffset(uint32 LayerIndex) const = 0;
+};
+
+class FRHIShaderBundle : public FRHIResource
+{
+public:
+	// Dispatch XYZ + Padding
+	static constexpr uint32 ArgumentByteStride = sizeof(uint32) * 4u;
+
+	const uint32 NumRecords = 0;
+
+public:
+	FRHIShaderBundle(uint32 InNumRecords)
+		: FRHIResource(RRT_ShaderBundle)
+		, NumRecords(InNumRecords)
+	{
+	}
 };
 
 /* Generic staging buffer class used by FRHIGPUMemoryReadback

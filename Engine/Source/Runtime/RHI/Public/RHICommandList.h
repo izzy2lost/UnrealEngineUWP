@@ -1681,6 +1681,25 @@ FRHICOMMAND_MACRO(FRHICommandDispatchIndirectComputeShader)
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
 
+FRHICOMMAND_MACRO(FRHICommandDispatchShaderBundle)
+{
+	FRHIShaderBundle* ShaderBundle;
+	FRHIBuffer* ArgumentBuffer;
+	TArray<FRHIShaderBundleDispatch> Dispatches;
+	FORCEINLINE_DEBUGGABLE FRHICommandDispatchShaderBundle()
+		: ShaderBundle(nullptr)
+		, ArgumentBuffer(nullptr)
+	{
+	}
+	FORCEINLINE_DEBUGGABLE FRHICommandDispatchShaderBundle(FRHIShaderBundle* InShaderBundle, FRHIBuffer* InArgumentBuffer, TConstArrayView<FRHIShaderBundleDispatch> InDispatches)
+		: ShaderBundle(InShaderBundle)
+		, ArgumentBuffer(InArgumentBuffer)
+		, Dispatches(InDispatches)
+	{
+	}
+	RHI_API void Execute(FRHICommandListBase& CmdList);
+};
+
 FRHICOMMAND_MACRO(FRHICommandBeginUAVOverlap)
 {
 	RHI_API void Execute(FRHICommandListBase& CmdList);
@@ -2790,6 +2809,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				SetTrackedAccess({ FRHITrackedAccessInfo(Resource, Info.AccessAfter) });
 			}
 		}
+	}
+
+	FORCEINLINE_DEBUGGABLE void DispatchShaderBundle(FRHIShaderBundle* ShaderBundle, FRHIBuffer* ArgumentBuffer, TConstArrayView<FRHIShaderBundleDispatch> Dispatches)
+	{
+		if (Bypass())
+		{
+			GetContext().RHIDispatchShaderBundle(ShaderBundle, ArgumentBuffer, Dispatches);
+			return;
+		}
+		ALLOC_COMMAND(FRHICommandDispatchShaderBundle)(ShaderBundle, ArgumentBuffer, Dispatches);
 	}
 
 	FORCEINLINE_DEBUGGABLE void BeginUAVOverlap()

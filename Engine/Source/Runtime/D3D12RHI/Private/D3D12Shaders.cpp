@@ -212,6 +212,12 @@ FRayTracingShaderRHIRef FD3D12DynamicRHI::RHICreateRayTracingShader(TArrayView<c
 
 #endif // D3D12_RHI_RAYTRACING
 
+FShaderBundleRHIRef FD3D12DynamicRHI::RHICreateShaderBundle(uint32 NumRecords)
+{
+	FD3D12ShaderBundle* ShaderBundle = new FD3D12ShaderBundle(GetRHIDevice(0), NumRecords);
+	return ShaderBundle;
+}
+
 void FD3D12CommandContext::RHISetMultipleViewports(uint32 Count, const FViewportBounds* Data)
 {
 	// Structures are chosen to be directly mappable

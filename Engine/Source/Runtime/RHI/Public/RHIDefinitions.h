@@ -878,6 +878,7 @@ enum ERHIResourceType : uint8
 	RRT_CustomPresent,
 	RRT_ShaderLibrary,
 	RRT_PipelineBinaryLibrary,
+	RRT_ShaderBundle,
 
 	RRT_Num
 };

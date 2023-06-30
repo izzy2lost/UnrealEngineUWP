@@ -557,6 +557,9 @@ struct FRHIGlobals
 	/** Whether current RHI supports overestimated conservative rasterization. */
 	bool SupportsConservativeRasterization = false;
 
+	/** Whether current RHI supports dispatching shader bundles. */
+	bool SupportsDispatchShaderBundle = false;
+
 	/** true if the RHI supports Mesh and Amplification shaders with tier0 capability */
 	bool SupportsMeshShadersTier0 = false;
 
@@ -740,6 +743,7 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHISupportsPipelineFileCache                          GRHIGlobals.SupportsPipelineFileCache
 #define GRHISupportsStencilRefFromPixelShader                  GRHIGlobals.SupportsStencilRefFromPixelShader
 #define GRHISupportsConservativeRasterization                  GRHIGlobals.SupportsConservativeRasterization
+#define GRHISupportsDispatchShaderBundle                       GRHIGlobals.SupportsDispatchShaderBundle
 #define GRHISupportsMeshShadersTier0                           GRHIGlobals.SupportsMeshShadersTier0
 #define GRHISupportsMeshShadersTier1                           GRHIGlobals.SupportsMeshShadersTier1
 #define GRHISupportsShaderTimestamp                            GRHIGlobals.SupportsShaderTimestamp

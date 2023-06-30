@@ -974,6 +974,18 @@ private:
 	uint32 ShadowBufferSize;
 };
 
+class FD3D12ShaderBundle : public FRHIShaderBundle
+{
+	friend class FD3D12CommandContext;
+	friend class FD3D12DynamicRHI;
+
+public:
+	FD3D12ShaderBundle(FD3D12Device* InDevice, uint32 InNumRecords)
+		: FRHIShaderBundle(InNumRecords)
+	{
+	}
+};
+
 class FD3D12GPUFence final : public FRHIGPUFence
 {
 public:
@@ -1038,7 +1050,11 @@ struct TD3D12ResourceTraits<FRHIStagingBuffer>
 {
 	typedef FD3D12StagingBuffer TConcreteType;
 };
-
+template<>
+struct TD3D12ResourceTraits<FRHIShaderBundle>
+{
+	typedef FD3D12ShaderBundle TConcreteType;
+};
 
 #if D3D12_RHI_RAYTRACING
 template<>

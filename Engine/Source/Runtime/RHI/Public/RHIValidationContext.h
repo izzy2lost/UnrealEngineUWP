@@ -165,6 +165,27 @@ public:
 		RHIContext->RHIClearUAVUint(UnorderedAccessViewRHI, Values);
 	}
 
+	virtual void RHIDispatchShaderBundle(FRHIShaderBundle* ShaderBundleRHI, FRHIBuffer* ArgumentBufferRHI, TConstArrayView<FRHIShaderBundleDispatch> Dispatches) final override
+	{
+		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
+		for (const FRHIShaderBundleDispatch& Dispatch : Dispatches)
+		{
+			State.bComputePSOSet = true;
+
+			// Reset the compute UAV tracker since the renderer must re-bind all resources after changing a shader.
+			Tracker->ResetUAVState(RHIValidation::EUAVMode::Compute);
+
+			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, Dispatch.Parameters.ResourceParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
+			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, Dispatch.Parameters.BindlessParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
+
+			const uint32 ArgumentOffset = (Dispatch.RecordIndex * FRHIShaderBundle::ArgumentByteStride);
+			FValidationRHI::ValidateDispatchIndirectArgsBuffer(ArgumentBufferRHI, ArgumentOffset);
+		}
+
+		Tracker->Assert(ArgumentBufferRHI->GetWholeResourceIdentity(), ERHIAccess::IndirectArgs);
+		RHIContext->RHIDispatchShaderBundle(ShaderBundleRHI, ArgumentBufferRHI, Dispatches);
+	}
+
 	virtual void RHIBeginUAVOverlap() final override
 	{
 		Tracker->AllUAVsOverlap(true);
@@ -471,6 +492,27 @@ public:
 		// @todo should we assert here? If the base RHI uses a compute shader via
 		// FRHICommandList_RecursiveHazardous then we might double-assert which breaks the tracking
 		RHIContext->RHIClearUAVUint(UnorderedAccessViewRHI, Values);
+	}
+
+	virtual void RHIDispatchShaderBundle(FRHIShaderBundle* ShaderBundleRHI, FRHIBuffer* ArgumentBufferRHI, TConstArrayView<FRHIShaderBundleDispatch> Dispatches) final override
+	{
+		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
+		for (const FRHIShaderBundleDispatch& Dispatch : Dispatches)
+		{
+			State.bComputePSOSet = true;
+
+			// Reset the compute UAV tracker since the renderer must re-bind all resources after changing a shader.
+			Tracker->ResetUAVState(RHIValidation::EUAVMode::Compute);
+
+			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, Dispatch.Parameters.ResourceParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
+			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, Dispatch.Parameters.BindlessParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
+
+			const uint32 ArgumentOffset = (Dispatch.RecordIndex * FRHIShaderBundle::ArgumentByteStride);
+			FValidationRHI::ValidateDispatchIndirectArgsBuffer(ArgumentBufferRHI, ArgumentOffset);
+		}
+
+		Tracker->Assert(ArgumentBufferRHI->GetWholeResourceIdentity(), ERHIAccess::IndirectArgs);
+		RHIContext->RHIDispatchShaderBundle(ShaderBundleRHI, ArgumentBufferRHI, Dispatches);
 	}
 
 	virtual void RHIBeginUAVOverlap() final override

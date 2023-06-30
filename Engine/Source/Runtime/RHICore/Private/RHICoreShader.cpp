@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RHICoreShader.h"
+#include "PipelineStateCache.h"
 
 #define RHI_VALIDATE_STATIC_UNIFORM_BUFFERS (!UE_BUILD_SHIPPING && !UE_BUILD_TEST)
 
@@ -78,6 +79,37 @@ void SetupShaderCodeValidationData(FRHIShader* RHIShader, FShaderCodeReader& Sha
 		}
 	}
 #endif
+}
+
+void DispatchShaderBundleEmulation(
+	FRHIComputeCommandList& InRHICmdList,
+	FRHIShaderBundle* ShaderBundle,
+	FRHIBuffer* ArgumentBuffer,
+	TConstArrayView<FRHIShaderBundleDispatch> Dispatches)
+{
+	for (const FRHIShaderBundleDispatch& Dispatch : Dispatches)
+	{
+		if (Dispatch.Shader == nullptr)
+		{
+			continue;
+		}
+
+		SetComputePipelineState(InRHICmdList, Dispatch.Shader);
+
+		if (Dispatch.Parameters.HasParameters())
+		{
+			InRHICmdList.SetShaderParameters(
+				Dispatch.Shader,
+				Dispatch.Parameters.ParametersData,
+				Dispatch.Parameters.Parameters,
+				Dispatch.Parameters.ResourceParameters,
+				Dispatch.Parameters.BindlessParameters
+			);
+		}
+
+		const uint32 IndirectOffset = (Dispatch.RecordIndex * FRHIShaderBundle::ArgumentByteStride);
+		InRHICmdList.DispatchIndirectComputeShader(ArgumentBuffer, IndirectOffset);
+	}
 }
 
 } //! RHICore
