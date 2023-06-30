@@ -553,7 +553,8 @@ FShadeBinning ShadeBinning(
 	const FScene& Scene,
 	const FViewInfo& View,
 	const FIntRect InViewRect,
-	const FRasterResults& RasterResults
+	const FRasterResults& RasterResults,
+	const TConstArrayView<FRDGTextureRef> ClearTargets
 );
 
 void BuildShadingCommands(

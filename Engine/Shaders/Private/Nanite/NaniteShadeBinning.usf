@@ -2,7 +2,18 @@
 
 #include "NaniteShadeCommon.ush"
 
+#ifdef OVERRIDE_RTWRITEMASKPROCESSING_USH
+#include "/Platform/Private/RTWriteMaskLookup.ush"
+#endif
+
+#ifndef OPTIMIZE_WRITE_MASK
+#define OPTIMIZE_WRITE_MASK 0
+#endif
+
 uint4 ViewRect;
+#if OPTIMIZE_WRITE_MASK
+uint ValidWriteMask;
+#endif
 uint2 QuadDispatchDim;
 uint  ShadingBinCount;
 
@@ -57,13 +68,13 @@ groupshared uint GroupWriteOffset;
 #if 1
 uint CalculateBinCoverage(uint4 VotingBins, uint VotingMask, uint VotedBin)
 {
-    uint MatchMask = 0;
-    UNROLL
-    for (uint PixelIndex = 0u; PixelIndex < 4u; ++PixelIndex)
-    {
-        MatchMask |= (VotingBins[PixelIndex] == VotedBin) ? (1u << PixelIndex) : 0u;
-    }
-    return VotingMask & MatchMask;
+	uint MatchMask = 0;
+	UNROLL
+	for (uint PixelIndex = 0u; PixelIndex < 4u; ++PixelIndex)
+	{
+		MatchMask |= (VotingBins[PixelIndex] == VotedBin) ? (1u << PixelIndex) : 0u;
+	}
+	return VotingMask & MatchMask;
 }
 #else
 uint CalculateBinCoverage(uint4 VotingBins, uint VotingMask, uint VotedBin)
@@ -88,6 +99,44 @@ uint CalculateBinCoverage(uint4 VotingBins, uint VotingMask, uint VotedBin)
 	}
 	return BinCoverage;
 }
+#endif
+
+#if OPTIMIZE_WRITE_MASK
+
+#ifndef NUM_EXPORTS
+#define NUM_EXPORTS 1
+#endif
+
+RWByteAddressBuffer OutCMaskBuffer_0;
+
+#if NUM_EXPORTS > 1
+RWByteAddressBuffer OutCMaskBuffer_1;
+#endif
+
+#if NUM_EXPORTS > 2
+RWByteAddressBuffer OutCMaskBuffer_2;
+#endif
+
+#if NUM_EXPORTS > 3
+RWByteAddressBuffer OutCMaskBuffer_3;
+#endif
+
+#if NUM_EXPORTS > 4
+RWByteAddressBuffer OutCMaskBuffer_4;
+#endif
+
+#if NUM_EXPORTS > 5
+RWByteAddressBuffer OutCMaskBuffer_5;
+#endif
+
+#if NUM_EXPORTS > 6
+RWByteAddressBuffer OutCMaskBuffer_6;
+#endif
+
+#if NUM_EXPORTS > 7
+RWByteAddressBuffer OutCMaskBuffer_7;
+#endif
+
 #endif
 
 void BinShadingQuad(uint2 Coord, uint ThreadIndex)
@@ -333,6 +382,93 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 	#endif // QUAD_BINNING
 	}
 #endif
+#if OPTIMIZE_WRITE_MASK
+	RWByteAddressBuffer CMaskExports[] = 
+	{
+		OutCMaskBuffer_0,
+	#if NUM_EXPORTS > 1
+		OutCMaskBuffer_1,
+	#endif
+	#if NUM_EXPORTS > 2
+		OutCMaskBuffer_2,
+	#endif
+	#if NUM_EXPORTS > 3
+		OutCMaskBuffer_3,
+	#endif
+	#if NUM_EXPORTS > 4
+		OutCMaskBuffer_4,
+	#endif
+	#if NUM_EXPORTS > 5
+		OutCMaskBuffer_5,
+	#endif
+	#if NUM_EXPORTS > 6
+		OutCMaskBuffer_6,
+	#endif
+	#if NUM_EXPORTS > 7
+		OutCMaskBuffer_7
+	#endif
+	};
+
+	// Fetch per pixel shading write masks and remove mask bits if they are not valid writes (i.e. no cmask for that export)
+	const uint WriteMaskTL = select(ValidPixels.x, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskTL.ShadingBin].MaterialFlags, 8u, 24u), 0x0u) & ValidWriteMask;
+	const uint WriteMaskTR = select(ValidPixels.y, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskTR.ShadingBin].MaterialFlags, 8u, 24u), 0x0u) & ValidWriteMask;
+	const uint WriteMaskBL = select(ValidPixels.z, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskBL.ShadingBin].MaterialFlags, 8u, 24u), 0x0u) & ValidWriteMask;
+	const uint WriteMaskBR = select(ValidPixels.w, BitFieldExtractU32(OutShadingBinMeta[ShadingMaskBR.ShadingBin].MaterialFlags, 8u, 24u), 0x0u) & ValidWriteMask;
+
+	// NOTE: It should be only necessary to test the TL pixel's cmask index/shift, since a quad shouldn't be able to span multiple nibbles.
+	uint CMaskIndex;
+	uint CMaskShift;
+	ComputeCMaskIndexAndShift(QuadCoords[0] / 8u, CMaskIndex, CMaskShift);
+
+	uint Mask = ValidWriteMask;
+
+	UNROLL
+	for (uint Export = 0; Export < NUM_EXPORTS; ++Export)
+	{
+		// Remaps from compacted (valid) targets to sparse write mask indices
+		// i.e. Export0 can be MRT1 which is represented as bit index 1 in ValidWriteMask
+		//   - 0 is MRT0/SceneColor which isn't valid to export
+		uint MaskIndex = firstbitlow(Mask);
+		Mask &= Mask - 1u;
+
+		const bool bTLExport = BitFieldExtractU32(WriteMaskTL, 1u, MaskIndex) != 0u;
+		const bool bTRExport = BitFieldExtractU32(WriteMaskTR, 1u, MaskIndex) != 0u;
+		const bool bBLExport = BitFieldExtractU32(WriteMaskBL, 1u, MaskIndex) != 0u;
+		const bool bBRExport = BitFieldExtractU32(WriteMaskBR, 1u, MaskIndex) != 0u;
+
+		// Does entire 2x2 shading quad write this export?
+		const bool bQuadExport = bTLExport && bTRExport && bBLExport && bBRExport;
+
+		// TODO: Need to test more than bQuadExport for an 8x8, to avoid unsetting cmask when only a single quad exports in an 8x8!
+
+		bool bEvaluated = !bQuadExport;
+		while (WaveActiveAnyTrue(!bEvaluated))
+		{
+			// Disable lanes that have already evaluated this export
+			if (!bEvaluated)
+			{
+				const uint VotedCMaskIndex = WaveReadLaneFirst(CMaskIndex);
+
+				// Disable lanes that are not exporting to this particular dword location
+				// Note: SM 6.5 WaveMatch or NV_shader_subgroup_partitioned would be *really* nice here...
+				if (CMaskIndex == VotedCMaskIndex)
+				{
+					// If all lanes in the 8x8 indicate they write through this particular MRT nibble (4bits), it's safe to optimize the meta data.
+					const uint BitOffset = (CMaskIndex & 0x3) * 8u;
+					const uint CMaskNibble = select(bQuadExport, 0xFu << (CMaskShift + BitOffset), 0x0u);
+					const uint CMaskValue = WaveActiveBitOr(CMaskNibble);
+
+					if (WaveIsFirstLane())
+					{
+						CMaskExports[Export].InterlockedOr(CMaskIndex, CMaskValue);
+					}
+
+					bEvaluated = true;
+				}
+			}
+		}
+	}
+#endif // OPTIMIZE_WRITE_MASK
 }
 
 uint2 LinearToSwizzled(uint LinearIndex)
@@ -345,42 +481,7 @@ uint2 LinearToSwizzled(uint LinearIndex)
 	return uint2(SwizzleX, SwizzleY);
 }
 
-#if BINNING_TECHNIQUE == 2
-
-// Binning at 32x32 macro tile granularity (64x64 super tiles)
-[numthreads(32, 32, 1)]
-void ShadingBinBuildCS(uint ThreadIndex : SV_GroupIndex, uint2 GroupId : SV_GroupID)
-{
-	const uint2 MacroTileDim = uint2(32u, 32u);
-	const uint2 MicroTileDim = uint2( 8u,  8u);
-
-	// Compute the starting 2x2 quad location of the 32x32 macro tile
-	const uint2 MacroTileBase = GroupId * MacroTileDim * uint2(2u, 2u);
-
-	// Compute linear index of 8x8 micro tile
-	// 0...1023 -> 0...15
-	const uint MicroTileIndex = ThreadIndex >> 6u;
-
-	// Compute index within 8x8 micro tile
-	const uint TileQuad = ThreadIndex - (MicroTileIndex * MicroTileDim.x * MicroTileDim.y);
-
-	const uint2 MicroTileStart = LinearToSwizzled(MicroTileIndex) * MicroTileDim;
-	const uint2 BaseCoord = MicroTileStart + LinearToSwizzled(TileQuad);
-
-	// TL MacroTile
-	BinShadingQuad(MacroTileBase + uint2(0, 0) + BaseCoord, ThreadIndex);
-
-	// TR MacroTile
-	BinShadingQuad(MacroTileBase + uint2(MacroTileDim.x, 0) + BaseCoord, ThreadIndex);
-
-	// BL MacroTile
-	BinShadingQuad(MacroTileBase + uint2(0, MacroTileDim.y) + BaseCoord, ThreadIndex);
-
-	// BR MacroTile
-	BinShadingQuad(MacroTileBase + MacroTileDim + BaseCoord, ThreadIndex);
-}
-
-#elif BINNING_TECHNIQUE == 1
+#if BINNING_TECHNIQUE == 1
 
 // Binning at 32x32 macro tile granularity
 [numthreads(32, 32, 1)]

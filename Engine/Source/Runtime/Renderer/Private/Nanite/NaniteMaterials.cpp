@@ -571,14 +571,29 @@ IMPLEMENT_GLOBAL_SHADER(FClassifyMaterialsCS, "/Engine/Private/Nanite/NaniteMate
 class FShadingBinBuildCS : public FNaniteGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FShadingBinBuildCS);
-	SHADER_USE_PARAMETER_STRUCT(FShadingBinBuildCS, FNaniteGlobalShader);
 
 	class FBuildPassDim : SHADER_PERMUTATION_SPARSE_INT("SHADING_BIN_PASS", NANITE_SHADING_BIN_COUNT, NANITE_SHADING_BIN_SCATTER);
-	class FTechniqueDim : SHADER_PERMUTATION_INT("BINNING_TECHNIQUE", 3);
+	class FTechniqueDim : SHADER_PERMUTATION_INT("BINNING_TECHNIQUE", 2);
 	class FGatherStatsDim : SHADER_PERMUTATION_BOOL("GATHER_STATS");
 	class FQuadBinningDim : SHADER_PERMUTATION_BOOL("QUAD_BINNING");
 	class FVariableRateDim : SHADER_PERMUTATION_BOOL("VARIABLE_SHADING_RATE");
-	using FPermutationDomain = TShaderPermutationDomain<FBuildPassDim, FTechniqueDim, FGatherStatsDim, FQuadBinningDim, FVariableRateDim>;
+	class FOptimizeWriteMaskDim : SHADER_PERMUTATION_BOOL("OPTIMIZE_WRITE_MASK");
+	class FNumExports : SHADER_PERMUTATION_RANGE_INT("NUM_EXPORTS", 1, MaxSimultaneousRenderTargets);
+	using FPermutationDomain = TShaderPermutationDomain<FBuildPassDim, FTechniqueDim, FGatherStatsDim, FQuadBinningDim, FVariableRateDim, FOptimizeWriteMaskDim, FNumExports>;
+
+	FShadingBinBuildCS() = default;
+	FShadingBinBuildCS(const ShaderMetaType::CompiledShaderInitializerType & Initializer)
+	: FNaniteGlobalShader(Initializer)
+	{
+		PlatformDataParam.Bind(Initializer.ParameterMap, TEXT("PlatformData"), SPF_Optional);
+		BindForLegacyShaderParameters<FParameters>(this, Initializer.PermutationId, Initializer.ParameterMap);
+	}
+
+	// Shader parameter structs don't have a way to push variable sized data yet. So the we use the old shader parameter API.
+	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const void* PlatformDataPtr, uint32 PlatformDataSize)
+	{
+		BatchedParameters.SetShaderParameter(PlatformDataParam.GetBufferIndex(), PlatformDataParam.GetBaseIndex(), PlatformDataSize, PlatformDataPtr);
+	}
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -593,6 +608,24 @@ class FShadingBinBuildCS : public FNaniteGlobalShader
 			return false;
 		}
 
+		if (PermutationVector.Get<FOptimizeWriteMaskDim>() && !RHISupportsRenderTargetWriteMask(Parameters.Platform))
+		{
+			return false;
+		}
+
+		if (PermutationVector.Get<FOptimizeWriteMaskDim>() && PermutationVector.Get<FBuildPassDim>() != NANITE_SHADING_BIN_COUNT)
+		{
+			// We only want one of the build passes to export out cmask, so we choose the 
+			// counting pass because it touches less memory already than scatter.
+			return false;
+		}
+
+		if (!PermutationVector.Get<FOptimizeWriteMaskDim>() && PermutationVector.Get<FNumExports>() > 1)
+		{
+			// The NUM_EXPORTS perm is only valid when optimizing the write mask.
+			return false;
+		}
+
 		return true;
 	}
 
@@ -603,16 +636,21 @@ class FShadingBinBuildCS : public FNaniteGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(FUint32Vector4, ViewRect)
+		SHADER_PARAMETER(uint32, ValidWriteMask)
 		SHADER_PARAMETER(FUint32Vector2, QuadDispatchDim)
 		SHADER_PARAMETER(uint32, ShadingBinCount)
 		SHADER_PARAMETER(uint32, ShadingRateTileSize)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadingRateImage)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadingMask)
 		SHADER_PARAMETER_SAMPLER(SamplerState, ShadingMaskSampler)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV_ARRAY(RWTextureMetadata, OutCMaskBuffer, [MaxSimultaneousRenderTargets])
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinMeta>, OutShadingBinMeta)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutShadingBinData)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OutShadingBinArgs)
 	END_SHADER_PARAMETER_STRUCT()
+
+private:
+	LAYOUT_FIELD(FShaderParameter, PlatformDataParam);
 };
 IMPLEMENT_GLOBAL_SHADER(FShadingBinBuildCS, "/Engine/Private/Nanite/NaniteShadeBinning.usf", "ShadingBinBuildCS", SF_Compute);
 
@@ -1187,8 +1225,6 @@ void DispatchBasePass(
 		return;
 	}
 
-	FShadeBinning Binning = ShadeBinning(GraphBuilder, Scene, View, InViewRect, RasterResults);
-
 	const int32 ViewWidth = InViewRect.Max.X - InViewRect.Min.X;
 	const int32 ViewHeight = InViewRect.Max.Y - InViewRect.Min.Y;
 	const FIntPoint ViewSize = FIntPoint(ViewWidth, ViewHeight);
@@ -1241,13 +1277,12 @@ void DispatchBasePass(
 	FRenderTargetBindingSlots BasePassBindings = GetRenderTargetBindings(ERenderTargetLoadAction::ELoad, BasePassTexturesView);
 	BasePassBindings.DepthStencil = BasePassRenderTargets.DepthStencil;
 
+	TArray<FRDGTextureRef, TInlineAllocator<MaxSimultaneousRenderTargets>> ClearTargetList;
+
 	// Fast tile clear prior to fast clear eliminate
 	const bool bFastTileClear = UseComputeMaterials() && GNaniteFastTileClear != 0 && RHISupportsRenderTargetWriteMask(GMaxRHIShaderPlatform);
 	if (bFastTileClear)
 	{
-		uint32 ValidWriteMask = 0x0u;
-
-		TArray<FRDGTextureRef, TInlineAllocator<MaxSimultaneousRenderTargets>> TargetList;
 		for (uint32 TargetIndex = 0; TargetIndex < MaxSimultaneousRenderTargets; ++TargetIndex)
 		{
 			if (FRDGTexture* TargetTexture = BasePassRenderTargets.Output[TargetIndex].GetTexture())
@@ -1255,77 +1290,29 @@ void DispatchBasePass(
 				if (!EnumHasAnyFlags(TargetTexture->Desc.Flags, TexCreate_DisableDCC))
 				{
 					// Skip any targets that do not explicitly disable DCC, as this clear would not work correctly for DCC
+					ClearTargetList.Add(nullptr);
 					continue;
 				}
 
 				if (EnumHasAnyFlags(TargetTexture->Desc.Flags, TexCreate_NoFastClear))
 				{
 					// Skip any targets that explicitly disable fast clear optimization
+					ClearTargetList.Add(nullptr);
 					continue;
 				}
 
-				TargetList.Add(TargetTexture);
-
-				// Compute a mask containing only set bits for MRT targets that are suitable for meta data optimization.
-				ValidWriteMask |= (1u << TargetIndex);
+				ClearTargetList.Add(TargetTexture);
 			}
-		}
-
-		//FRDGTextureUAVRef MaterialTextureArrayUAV = nullptr;
-		//if (Strata::IsStrataEnabled() && SceneRenderer.Scene)
-		//{
-			//MaterialTextureArrayUAV = GraphBuilder.CreateUAV(SceneRenderer.Scene->StrataSceneData.MaterialTextureArray, OutTargetFlags);
-		//}
-
-		if (TargetList.Num() > 0)
-		{
-			FClearTilesCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FClearTilesCS::FNumExports>(TargetList.Num());
-			auto ClearTilesComputeShader = View.ShaderMap->GetShader<FClearTilesCS>(PermutationVector);
-
-			FClearTilesCS::FParameters* ClearTilesPassParameters = GraphBuilder.AllocParameters<FClearTilesCS::FParameters>();
-			ClearTilesPassParameters->ValidWriteMask = ValidWriteMask;
-			ClearTilesPassParameters->ViewRect = ViewRect;
-			ClearTilesPassParameters->ShadingMask = GraphBuilder.CreateSRV(RasterResults.ShadingMask);
-			ClearTilesPassParameters->ShadingBinMeta = GraphBuilder.CreateSRV(Binning.ShadingBinMeta);
-
-			for (int32 TargetIndex = 0; TargetIndex < TargetList.Num(); ++TargetIndex)
-			{
-				ClearTilesPassParameters->OutCMaskBuffer[TargetIndex] = GraphBuilder.CreateUAV(FRDGTextureUAVDesc::CreateForMetaData(TargetList[TargetIndex], ERDGTextureMetaDataAccess::CMask));
-			}
-
-			const FIntVector DispatchDim = FComputeShaderUtils::GetGroupCount(InViewRect.Size(), 8u);
-
-			GraphBuilder.AddPass(
-				RDG_EVENT_NAME("NaniteTileClear"),
-				ClearTilesPassParameters,
-				ERDGPassFlags::Compute,
-				[DispatchDim, ClearTilesComputeShader, ClearTilesPassParameters](FRHIComputeCommandList& RHICmdList)
-				{
-					// Note: Assumes all targets match in resolution (which they should)
-					FRHITexture* TargetTextureRHI = ClearTilesPassParameters->OutCMaskBuffer[0]->GetParentRHI();
-
-					// Retrieve the platform specific data that the decode shader needs.
-					void* PlatformDataPtr = nullptr;
-					uint32 PlatformDataSize = 0;
-					TargetTextureRHI->GetWriteMaskProperties(PlatformDataPtr, PlatformDataSize);
-					check(PlatformDataSize > 0);
-
-					if (PlatformDataPtr == nullptr)
-					{
-						// If the returned pointer was null, the platform RHI wants us to allocate the memory instead.
-						PlatformDataPtr = alloca(PlatformDataSize);
-						TargetTextureRHI->GetWriteMaskProperties(PlatformDataPtr, PlatformDataSize);
-					}
-
-					SetComputePipelineState(RHICmdList, ClearTilesComputeShader.GetComputeShader());
-					SetShaderParametersMixedCS(RHICmdList, ClearTilesComputeShader, *ClearTilesPassParameters, PlatformDataPtr, PlatformDataSize);
-
-					RHICmdList.DispatchComputeShader(DispatchDim.X, DispatchDim.Y, DispatchDim.Z);
-				}
-			);
 		}
 	}
+
+	//FRDGTextureUAVRef MaterialTextureArrayUAV = nullptr;
+	//if (Strata::IsStrataEnabled() && SceneRenderer.Scene)
+	//{
+		//MaterialTextureArrayUAV = GraphBuilder.CreateUAV(SceneRenderer.Scene->StrataSceneData.MaterialTextureArray, OutTargetFlags);
+	//}
+
+	FShadeBinning Binning = ShadeBinning(GraphBuilder, Scene, View, InViewRect, RasterResults, ClearTargetList);
 
 	FNaniteShadingPassParameters* ShadingPassParameters = GraphBuilder.AllocParameters<FNaniteShadingPassParameters>();
 	*ShadingPassParameters = CreateNaniteShadingPassParams(
@@ -3218,7 +3205,8 @@ FShadeBinning ShadeBinning(
 	const FScene& Scene,
 	const FViewInfo& View,
 	const FIntRect InViewRect,
-	const FRasterResults& RasterResults
+	const FRasterResults& RasterResults,
+	const TConstArrayView<FRDGTextureRef> ClearTargets
 )
 {
 	FShadeBinning Binning = {};
@@ -3241,6 +3229,22 @@ FShadeBinning ShadeBinning(
 		return Binning;
 	}
 
+	TArray<FRDGTextureRef, TInlineAllocator<MaxSimultaneousRenderTargets>> ValidClearTargets;
+
+	uint32 ValidWriteMask = 0x0u;
+	if (ClearTargets.Num() > 0)
+	{
+		for (int32 TargetIndex = 0; TargetIndex < ClearTargets.Num(); ++TargetIndex)
+		{
+			if (ClearTargets[TargetIndex] != nullptr)
+			{
+				// Compute a mask containing only set bits for MRT targets that are suitable for meta data optimization.
+				ValidWriteMask |= (1u << uint32(TargetIndex));
+				ValidClearTargets.Add(ClearTargets[TargetIndex]);
+			}
+		}
+	}
+
 	// TODO: Optimize this (either tightly compact shading bins / defrag, or cache the max during add to scene)
 	uint32 MaxShadingBin = 0;
 	for (const TPimplPtr<FNaniteShadingCommand>& ShadingCommand : ShadingCommands)
@@ -3258,9 +3262,8 @@ FShadeBinning ShadeBinning(
 
 	const uint32 PixelCount = InViewRect.Width() * InViewRect.Height();
 
-	const int32 MacroTileLoops = GBinningTechnique == 2 ? 2 : 1; // 4x 32x32
-	const int32 QuadWidth = FMath::DivideAndRoundUp(InViewRect.Width(), 2 * MacroTileLoops);
-	const int32 QuadHeight = FMath::DivideAndRoundUp(InViewRect.Height(), 2 * MacroTileLoops);
+	const int32 QuadWidth = FMath::DivideAndRoundUp(InViewRect.Width(), 2);
+	const int32 QuadHeight = FMath::DivideAndRoundUp(InViewRect.Height(), 2);
 
 	const FIntPoint GroupDim = GBinningTechnique == 0 ? FIntPoint(8u, 8u) : FIntPoint(32u, 32u);
 	const FIntVector  QuadDispatchDim = FComputeShaderUtils::GetGroupCount(FIntPoint(QuadWidth, QuadHeight), GroupDim);
@@ -3305,6 +3308,7 @@ FShadeBinning ShadeBinning(
 	{
 		FShadingBinBuildCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadingBinBuildCS::FParameters>();
 		PassParameters->ViewRect = ViewRect;
+		PassParameters->ValidWriteMask = ValidWriteMask;
 		PassParameters->QuadDispatchDim = FUint32Vector2(QuadDispatchDim.X, QuadDispatchDim.Y);
 		PassParameters->ShadingBinCount = ShadingBinCount;
 		PassParameters->ShadingRateTileSize = GetShadingRateTileSize();
@@ -3317,19 +3321,64 @@ FShadeBinning ShadeBinning(
 
 		FShadingBinBuildCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FShadingBinBuildCS::FBuildPassDim>(NANITE_SHADING_BIN_COUNT);
-		PermutationVector.Set<FShadingBinBuildCS::FTechniqueDim>(FMath::Clamp<int32>(GBinningTechnique, 0, 2));
+		PermutationVector.Set<FShadingBinBuildCS::FTechniqueDim>(FMath::Clamp<int32>(GBinningTechnique, 0, 1));
 		PermutationVector.Set<FShadingBinBuildCS::FGatherStatsDim>(bGatherStats);
 		PermutationVector.Set<FShadingBinBuildCS::FQuadBinningDim>(bQuadBinning);
 		PermutationVector.Set<FShadingBinBuildCS::FVariableRateDim>(PassParameters->ShadingRateTileSize != 0u);
+		PermutationVector.Set<FShadingBinBuildCS::FOptimizeWriteMaskDim>(ValidClearTargets.Num() > 0);
+		PermutationVector.Set<FShadingBinBuildCS::FNumExports>(FMath::Max(1, ValidClearTargets.Num()));
 		auto ComputeShader = View.ShaderMap->GetShader<FShadingBinBuildCS>(PermutationVector);
 
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("ShadingCount"),
-			ComputeShader,
-			PassParameters,
-			QuadDispatchDim
-		);
+		if (ValidClearTargets.Num() > 0)
+		{
+			for (int32 TargetIndex = 0; TargetIndex < ValidClearTargets.Num(); ++TargetIndex)
+			{
+				PassParameters->OutCMaskBuffer[TargetIndex] = GraphBuilder.CreateUAV(FRDGTextureUAVDesc::CreateForMetaData(ValidClearTargets[TargetIndex], ERDGTextureMetaDataAccess::CMask));
+			}
+
+			GraphBuilder.AddPass(
+				RDG_EVENT_NAME("ShadingCount"),
+				PassParameters,
+				ERDGPassFlags::Compute,
+				[QuadDispatchDim, ComputeShader, PassParameters](FRHIComputeCommandList& RHICmdList)
+				{
+					void* PlatformDataPtr = nullptr;
+					uint32 PlatformDataSize = 0;
+
+					// Note: Assumes all targets match in resolution (which they should)
+					if (PassParameters->OutCMaskBuffer[0] != nullptr)
+					{
+						FRHITexture* TargetTextureRHI = PassParameters->OutCMaskBuffer[0]->GetParentRHI();
+
+						// Retrieve the platform specific data that the decode shader needs.
+						TargetTextureRHI->GetWriteMaskProperties(PlatformDataPtr, PlatformDataSize);
+						check(PlatformDataSize > 0);
+
+						if (PlatformDataPtr == nullptr)
+						{
+							// If the returned pointer was null, the platform RHI wants us to allocate the memory instead.
+							PlatformDataPtr = alloca(PlatformDataSize);
+							TargetTextureRHI->GetWriteMaskProperties(PlatformDataPtr, PlatformDataSize);
+						}
+					}
+
+					SetComputePipelineState(RHICmdList, ComputeShader.GetComputeShader());
+					SetShaderParametersMixedCS(RHICmdList, ComputeShader, *PassParameters, PlatformDataPtr, PlatformDataSize);
+
+					RHICmdList.DispatchComputeShader(QuadDispatchDim.X, QuadDispatchDim.Y, QuadDispatchDim.Z);
+				}
+			);
+		}
+		else
+		{
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("ShadingCount"),
+				ComputeShader,
+				PassParameters,
+				QuadDispatchDim
+			);
+		}
 	}
 
 	// Shading Bin Reserve
@@ -3377,10 +3426,12 @@ FShadeBinning ShadeBinning(
 
 		FShadingBinBuildCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FShadingBinBuildCS::FBuildPassDim>(NANITE_SHADING_BIN_SCATTER);
-		PermutationVector.Set<FShadingBinBuildCS::FTechniqueDim>(FMath::Clamp<int32>(GBinningTechnique, 0, 2));
+		PermutationVector.Set<FShadingBinBuildCS::FTechniqueDim>(FMath::Clamp<int32>(GBinningTechnique, 0, 1));
 		PermutationVector.Set<FShadingBinBuildCS::FGatherStatsDim>(false);
 		PermutationVector.Set<FShadingBinBuildCS::FQuadBinningDim>(bQuadBinning);
 		PermutationVector.Set<FShadingBinBuildCS::FVariableRateDim>(PassParameters->ShadingRateTileSize != 0u);
+		PermutationVector.Set<FShadingBinBuildCS::FOptimizeWriteMaskDim>(false);
+		PermutationVector.Set<FShadingBinBuildCS::FNumExports>(1);
 		auto ComputeShader = View.ShaderMap->GetShader<FShadingBinBuildCS>(PermutationVector);
 
 		FComputeShaderUtils::AddPass(
