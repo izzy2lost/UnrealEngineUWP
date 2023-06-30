@@ -1,17 +1,17 @@
 @echo off
 setlocal
 
-set USD_VERSION=23.02
+set USD_VERSION=23.05
 
 rem This path may be adjusted to point to wherever the USD source is located.
 rem It is typically obtained by either downloading a zip/tarball of the source
 rem code, or more commonly by cloning the GitHub repository, e.g. for the
 rem current engine USD version:
-rem     git clone --branch v23.02 https://github.com/PixarAnimationStudios/USD.git USD_src
+rem     git clone --branch v23.05 https://github.com/PixarAnimationStudios/USD.git USD_src
 rem We apply a patch for the usdMtlx plugin to ensure that we do not
 rem bake a hard-coded path to the MaterialX standard data libraries into the
 rem built plugin:
-rem     git apply USD_v2302_usdMtlx_undef_stdlib_dir.patch
+rem     git apply USD_v2305_usdMtlx_undef_stdlib_dir.patch
 rem Note also that this path may be emitted as part of USD error messages, so
 rem it is suggested that it not reveal any sensitive information.
 set USD_SOURCE_LOCATION=C:\USD_src

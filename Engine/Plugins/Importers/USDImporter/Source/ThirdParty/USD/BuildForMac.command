@@ -2,13 +2,13 @@
 
 set -e
 
-USD_VERSION=23.02
+USD_VERSION=23.05
 
 # This path may be adjusted to point to wherever the USD source is located.
 # It is typically obtained by either downloading a zip/tarball of the source
 # code, or more commonly by cloning the GitHub repository, e.g. for the
 # current engine USD version:
-#     git clone --branch v23.02 https://github.com/PixarAnimationStudios/USD.git USD_src
+#     git clone --branch v23.05 https://github.com/PixarAnimationStudios/USD.git USD_src
 # Note also that this path may be emitted as part of USD error messages, so
 # it is suggested that it not reveal any sensitive information.
 SOURCE_LOCATION="/tmp/USD_src"
