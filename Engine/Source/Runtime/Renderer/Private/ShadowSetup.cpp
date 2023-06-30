@@ -6221,13 +6221,9 @@ void FSceneRenderer::FinishInitDynamicShadows(FRDGBuilder& GraphBuilder, FDynami
 
 	FinishGatherShadowPrimitives(TaskData);
 
-	if (!SortedShadowsForShadowDepthPass.VirtualShadowMapShadows.IsEmpty())
-	{
-		ShadowSceneRenderer->DispatchVirtualShadowMapViewAndCullingSetup(GraphBuilder, SortedShadowsForShadowDepthPass.VirtualShadowMapShadows);
-	}
-
 	if (ShadowSceneRenderer)
 	{
+		ShadowSceneRenderer->DispatchVirtualShadowMapViewAndCullingSetup(GraphBuilder, SortedShadowsForShadowDepthPass.VirtualShadowMapShadows);
 		ShadowSceneRenderer->PostSetupDebugRender();
 	}
 

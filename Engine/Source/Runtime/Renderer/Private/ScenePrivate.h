@@ -726,9 +726,8 @@ public:
 
 	/**
 	 * The scene pointer may be NULL -- it's filled in by certain API calls that require a FSceneViewState and FScene to know about each other,
-	 * such as FSceneViewState::AddVirtualShadowMapCache.  Whenever a ViewState and Scene get linked, this pointer is set, and a pointer
-	 * to the ViewState is added to an array in the Scene.  The linking is necessary in cases where incremental FScene updates need to be
-	 * reflected in cached data stored in FSceneViewState.
+	 * Whenever a ViewState and Scene get linked, this pointer is set, and a pointer to the ViewState is added to an array in the Scene.
+	 * The linking is necessary in cases where incremental FScene updates need to be reflected in cached data stored in FSceneViewState.
 	 */
 	FScene* Scene;
 
@@ -1083,11 +1082,8 @@ public:
 
 	FGlintShadingLUTsStateData GlintShadingLUTsData;
 
-	bool bVirtualShadowMapCacheAdded;
 	bool bLumenSceneDataAdded;
 	float LumenSurfaceCacheResolution;
-
-	FVirtualShadowMapArrayCacheManager* ViewVirtualShadowMapCache;
 
 	// call after OnFrameRenderingSetup()
 	virtual uint32 GetCurrentTemporalAASampleIndex() const
@@ -1544,11 +1540,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		return SequencerState;
 	}
-
-	virtual void AddVirtualShadowMapCache(FSceneInterface* InScene) override;
-	virtual void RemoveVirtualShadowMapCache(FSceneInterface* InScene) override;
-	virtual bool HasVirtualShadowMapCache() const override;
-	virtual FVirtualShadowMapArrayCacheManager* GetVirtualShadowMapCache(const FScene* InScene) const override;
 
 	virtual void AddLumenSceneData(FSceneInterface* InScene, float SurfaceCacheResolution) override;
 	virtual void RemoveLumenSceneData(FSceneInterface* InScene) override;
@@ -2982,13 +2973,8 @@ public:
 	/** Preshadows that are currently cached in the PreshadowCache render target. */
 	TArray<TRefCountPtr<FProjectedShadowInfo> > CachedPreshadows;
 
-	/**
-	 * Virtual shadow maps can use a default cache stored in the FScene, or define a separate cache per view (AddVirtualShadowMapCache)
-	 * for improved performance.  A linked list of caches for the FScene is maintained to allow scene updates to be propagated to all
-	 * caches as needed.  If a cache is never used, the GPU resources for it are never allocated, so the overhead of the default cache
-	 * should be minimal when not in use.
-	 */
-	FVirtualShadowMapArrayCacheManager* DefaultVirtualShadowMapCache;
+	/**	Stores persistent virtual shadow map data */
+	FVirtualShadowMapArrayCacheManager* VirtualShadowMapCache;
 
 	/**
 	 * Stores scene-aspects needed for shadow rendering.
@@ -3230,8 +3216,7 @@ public:
 
 	virtual void RefreshNaniteRasterBins(FPrimitiveSceneInfo& PrimitiveSceneInfo) override;
 
-	FVirtualShadowMapArrayCacheManager* GetVirtualShadowMapCache(FSceneView& View) const;
-	void GetAllVirtualShadowMapCacheManagers(TArray<FVirtualShadowMapArrayCacheManager*, SceneRenderingAllocator>& OutCacheManagers) const;
+	FVirtualShadowMapArrayCacheManager* GetVirtualShadowMapCache() const { return VirtualShadowMapCache; }
 
 	FLumenSceneData* FindLumenSceneData(uint32 ViewKey, uint32 GPUIndex) const;
 	inline FLumenSceneData* GetLumenSceneData(const FViewInfo& View) const

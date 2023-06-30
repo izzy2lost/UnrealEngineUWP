@@ -391,11 +391,8 @@ FSceneViewState::FSceneViewState(ERHIFeatureLevel::Type FeatureLevel, FSceneView
 	GatherPointsResolution = FIntVector(0, 0, 0);
 #endif
 
-	bVirtualShadowMapCacheAdded = false;
 	bLumenSceneDataAdded = false;
 	LumenSurfaceCacheResolution = 1.0f;
-
-	ViewVirtualShadowMapCache = nullptr;
 
 	// OcclusionFeedback works only with mobile rendering atm
 	if (FeatureLevel == ERHIFeatureLevel::ES3_1)
@@ -442,13 +439,6 @@ FSceneViewState::~FSceneViewState()
 
 	HairStrandsViewStateData.Release();
 	ShaderPrintStateData.Release();
-
-	if (ViewVirtualShadowMapCache)
-	{
-		delete ViewVirtualShadowMapCache;
-		ViewVirtualShadowMapCache = nullptr;
-		bVirtualShadowMapCacheAdded = false;
-	}
 
 	if (Scene)
 	{
@@ -1160,10 +1150,6 @@ uint64 FSceneViewState::GetGPUSizeBytes(bool bLogSizes) const
 	TotalSize += GetBufferGPUSizeBytes(ShaderPrintStateData.StateBuffer, bLogSizes);
 	TotalSize += ShadingEnergyConservationData.GetGPUSizeBytes(bLogSizes);
 	TotalSize += GlintShadingLUTsData.GetGPUSizeBytes(bLogSizes);
-	if (ViewVirtualShadowMapCache)
-	{
-		TotalSize += ViewVirtualShadowMapCache->GetGPUSizeBytes(bLogSizes);
-	}
 
 	// Per-view Lumen scene data is stored in a map in the FScene
 	if (Scene && bLumenSceneDataAdded)
@@ -1178,82 +1164,6 @@ uint64 FSceneViewState::GetGPUSizeBytes(bool bLogSizes) const
 	}
 
 	return TotalSize;
-}
-
-void FSceneViewState::AddVirtualShadowMapCache(FSceneInterface* InScene)
-{
-	check(InScene);
-	if (!Scene)
-	{
-		Scene = (FScene*)InScene;
-
-		// Modification of scene structure needs to happen on render thread
-		ENQUEUE_RENDER_COMMAND(SceneViewStateAdd)(
-			[RenderScene = Scene, RenderViewState = this](FRHICommandList&)
-			{
-				RenderScene->ViewStates.Add(RenderViewState);
-			});
-	}
-
-	if (Scene == InScene)
-	{
-		// Don't add the cache if one has already been added.  We have a separate bool since the write to the cache
-		// pointer is deferred to the render thread.
-		if (!bVirtualShadowMapCacheAdded)
-		{
-			bVirtualShadowMapCacheAdded = true;
-
-			FVirtualShadowMapArrayCacheManager* ViewCache = new FVirtualShadowMapArrayCacheManager(Scene);
-
-			// Need to add reference to virtual shadow map cache in render thread
-			ENQUEUE_RENDER_COMMAND(LinkVirtualShadowMapCache)(
-				[this, ViewCache](FRHICommandListImmediate& RHICmdList)
-				{
-					this->ViewVirtualShadowMapCache = ViewCache;
-				});
-		} //-V773
-	}
-}
-
-void FSceneViewState::RemoveVirtualShadowMapCache(FSceneInterface* InScene)
-{
-	check(InScene);
-	if (Scene == InScene && bVirtualShadowMapCacheAdded)
-	{
-		bVirtualShadowMapCacheAdded = false;
-
-		ENQUEUE_RENDER_COMMAND(RemoveVirtualShadowMapCache)(
-			[this](FRHICommandListImmediate& RHICmdList)
-			{
-				delete ViewVirtualShadowMapCache;
-				ViewVirtualShadowMapCache = nullptr;
-			});
-	}
-}
-
-bool FSceneViewState::HasVirtualShadowMapCache() const
-{
-	return bVirtualShadowMapCacheAdded;
-}
-
-FVirtualShadowMapArrayCacheManager* FSceneViewState::GetVirtualShadowMapCache(const FScene* InScene) const
-{
-	// Per-view VSM cache can only be used for the Scene the view state was previously linked to
-	return Scene == InScene ? ViewVirtualShadowMapCache : nullptr;
-}
-
-FVirtualShadowMapArrayCacheManager* FScene::GetVirtualShadowMapCache(FSceneView& View) const
-{
-	FVirtualShadowMapArrayCacheManager* Result = DefaultVirtualShadowMapCache;
-	if (View.State)
-	{
-		FVirtualShadowMapArrayCacheManager* ViewCache = View.State->GetVirtualShadowMapCache(this);
-		if (ViewCache)
-		{
-			Result = ViewCache;
-		}
-	}
-	return Result;
 }
 
 void FSceneViewState::AddLumenSceneData(FSceneInterface* InScene, float InSurfaceCacheResolution)
@@ -1360,23 +1270,6 @@ FLumenSceneData* FScene::FindLumenSceneData(uint32 ViewKey, uint32 GPUIndex) con
 
 	// If both fail, return default
 	return DefaultLumenSceneData;
-}
-
-void FScene::GetAllVirtualShadowMapCacheManagers(TArray<FVirtualShadowMapArrayCacheManager*, SceneRenderingAllocator>& OutCacheManagers) const
-{
-	OutCacheManagers.Empty();
-	if (DefaultVirtualShadowMapCache)
-	{
-		OutCacheManagers.Add(DefaultVirtualShadowMapCache);
-	}
-	for (const FSceneViewState* ViewState : ViewStates)
-	{
-		// Per-view VSM cache can only be used for the Scene the view state was previously linked to
-		if (ViewState->ViewVirtualShadowMapCache && ViewState->Scene == this)
-		{
-			OutCacheManagers.Add(ViewState->ViewVirtualShadowMapCache);
-		}
-	}
 }
 
 void FScene::UpdateParameterCollections(const TArray<FMaterialParameterCollectionInstanceResource*>& InParameterCollections)
@@ -1831,9 +1724,7 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 
 	DefaultLumenSceneData = new FLumenSceneData(GShaderPlatformForFeatureLevel[InFeatureLevel], InWorld->WorldType);
 
-	// We use a default Virtual Shadow Map cache, if one hasn't been allocated for a specific view.  GPU resources for
-	// a cache aren't allocated until the cache is actually used, so this shouldn't waste any GPU memory when not in use.
-	DefaultVirtualShadowMapCache = new FVirtualShadowMapArrayCacheManager(this);
+	VirtualShadowMapCache = new FVirtualShadowMapArrayCacheManager(this);
 
 	SceneLightInfoUpdates = new FSceneLightInfoUpdates;
 
@@ -1867,20 +1758,14 @@ FScene::~FScene()
 	{
 		check(ViewState->Scene == this);
 		ViewState->Scene = nullptr;
-
-		if (ViewState->ViewVirtualShadowMapCache)
-		{
-			delete ViewState->ViewVirtualShadowMapCache;
-			ViewState->ViewVirtualShadowMapCache = nullptr;
-		}
 	}
 	ViewStates.Empty();
 
 	// Delete default cache
-	if (DefaultVirtualShadowMapCache)
+	if (VirtualShadowMapCache)
 	{
-		delete DefaultVirtualShadowMapCache;
-		DefaultVirtualShadowMapCache = nullptr;
+		delete VirtualShadowMapCache;
+		VirtualShadowMapCache = nullptr;
 	}
 	if (SceneCulling)
 	{
@@ -3939,15 +3824,7 @@ void FScene::RemoveLightSceneInfo_RenderThread(FLightSceneInfo* LightSceneInfo)
 	Lights.RemoveAt(LightSceneInfo->Id);
 
 	// TODO: move this work to FShadowScene & batch the light removals
-	{
-		TArray<FVirtualShadowMapArrayCacheManager*, SceneRenderingAllocator> VirtualShadowCacheManagers;
-		GetAllVirtualShadowMapCacheManagers(VirtualShadowCacheManagers);
-
-		for (FVirtualShadowMapArrayCacheManager* CacheManager : VirtualShadowCacheManagers)
-		{
-			CacheManager->OnLightRemoved(LightSceneInfo->Id);
-		}
-	}
+	GetVirtualShadowMapCache()->OnLightRemoved(LightSceneInfo->Id);
 
 	if (!LightSceneInfo->Proxy->HasStaticShadowing()
 		&& LightSceneInfo->Proxy->CastsDynamicShadow()
@@ -5433,47 +5310,42 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 
 	SceneCullingUpdater.OnPreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
 
-	TArray<FVirtualShadowMapArrayCacheManager*, SceneRenderingAllocator> VirtualShadowCacheManagers;
-
 	// Create a SceneUB that permits access to the scene for invalidation processing.
 	FSceneUniformBuffer SceneUB;
 	GPUScene.FillSceneUniformBuffer(GraphBuilder, SceneUB);
 
 	{
 		SCOPED_NAMED_EVENT(FScene_VirtualShadowCacheUpdate, FColor::Orange);
-		GetAllVirtualShadowMapCacheManagers(VirtualShadowCacheManagers);
+		FVirtualShadowMapArrayCacheManager* CacheManager = GetVirtualShadowMapCache();
 
-		for (FVirtualShadowMapArrayCacheManager* CacheManager : VirtualShadowCacheManagers)
+		FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector InvalidatingPrimitiveCollector(CacheManager);
+		InvalidatingPrimitiveCollector.AddDynamicAndGPUPrimitives();
+
+		// Primitives that are tracked as always invalidating shadows, pipe through as transform updates
+		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : ShadowScene->GetAlwaysInvalidatingPrimitives())
 		{
-			FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector InvalidatingPrimitiveCollector(CacheManager);
-			InvalidatingPrimitiveCollector.AddDynamicAndGPUPrimitives();
-
-			// Primitives that are tracked as always invalidating shadows, pipe through as transform updates
-			for (FPrimitiveSceneInfo* PrimitiveSceneInfo : ShadowScene->GetAlwaysInvalidatingPrimitives())
-			{
-				InvalidatingPrimitiveCollector.UpdatedTransform(PrimitiveSceneInfo);
-			}
-
-			// All removed primitives must invalidate their footprints in the VSM before leaving
-			for (FPrimitiveSceneInfo* PrimitiveSceneInfo : RemovedLocalPrimitiveSceneInfos)
-			{
-				InvalidatingPrimitiveCollector.Removed(PrimitiveSceneInfo);
-			}
-			// All updated instances must also before moving or re-allocating (TODO: filter out only those actually updated)
-			for (const auto& Instance : UpdatedInstances)
-			{
-				InvalidatingPrimitiveCollector.UpdatedInstances(Instance.Key->GetPrimitiveSceneInfo());
-			}
-			// As must all primitive updates, 
-			for (const auto& Transform : UpdatedTransforms)
-			{
-				InvalidatingPrimitiveCollector.UpdatedTransform(Transform.Key->GetPrimitiveSceneInfo());
-			}
-
-			InvalidatingPrimitiveCollector.Finalize();
-
-			CacheManager->ProcessInvalidations(GraphBuilder, SceneUB, InvalidatingPrimitiveCollector);
+			InvalidatingPrimitiveCollector.UpdatedTransform(PrimitiveSceneInfo);
 		}
+
+		// All removed primitives must invalidate their footprints in the VSM before leaving
+		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : RemovedLocalPrimitiveSceneInfos)
+		{
+			InvalidatingPrimitiveCollector.Removed(PrimitiveSceneInfo);
+		}
+		// All updated instances must also before moving or re-allocating (TODO: filter out only those actually updated)
+		for (const auto& Instance : UpdatedInstances)
+		{
+			InvalidatingPrimitiveCollector.UpdatedInstances(Instance.Key->GetPrimitiveSceneInfo());
+		}
+		// As must all primitive updates, 
+		for (const auto& Transform : UpdatedTransforms)
+		{
+			InvalidatingPrimitiveCollector.UpdatedTransform(Transform.Key->GetPrimitiveSceneInfo());
+		}
+
+		InvalidatingPrimitiveCollector.Finalize();
+
+		CacheManager->ProcessInvalidations(GraphBuilder, SceneUB, InvalidatingPrimitiveCollector);
 	}
 
 	TArray<FPrimitiveSceneInfo*> AddedLocalPrimitiveSceneInfos;
@@ -6205,10 +6077,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	FPrimitiveSceneInfo::AllocateGPUSceneInstances(this, PendingAllocateInstanceIds);
 
 	// handle scene changes
-	for (FVirtualShadowMapArrayCacheManager* CacheManager : VirtualShadowCacheManagers)
-	{
-		CacheManager->OnSceneChange();
-	}
+	GetVirtualShadowMapCache()->OnSceneChange();
 
 	if (SceneInfosWithAddToScene.Num() > 0)
 	{

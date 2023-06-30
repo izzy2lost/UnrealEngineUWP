@@ -245,14 +245,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual FLandscapeRayTracingStateList* GetLandscapeRayTracingStates() const = 0;
 #endif
 
-	/**
-	* Adds a per-view virtual shadow map cache, which can help performance, at a cost in memory.  Does nothing if one is already present.
-	* The cache only works for the first Scene this function is called for.
-	*/
-	virtual void AddVirtualShadowMapCache(FSceneInterface* InScene) {}
-	virtual void RemoveVirtualShadowMapCache(FSceneInterface* InScene) {}
-	virtual bool HasVirtualShadowMapCache() const = 0;
-
 	/** Similar to above, but adds Lumen Scene Data */
 	virtual void AddLumenSceneData(FSceneInterface* InScene, float SurfaceCacheResolution = 1.0f) {}
 	virtual void RemoveLumenSceneData(FSceneInterface* InScene) {}
@@ -282,7 +274,6 @@ protected:
 	uint8 bValidEyeAdaptationBuffer : 1;
 
 private:
-	virtual FVirtualShadowMapArrayCacheManager* GetVirtualShadowMapCache(const FScene* InScene) const { return nullptr; }
 	friend class FScene;
 };
 

@@ -618,9 +618,6 @@ void UDisplayClusterViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCa
 
 					View->CameraConstrainedViewRect = View->UnscaledViewRect;
 
-					// Enable per-view virtual shadow map caching
-					View->State->AddVirtualShadowMapCache(MyWorld->Scene);
-
 					// Enable per-view Lumen scene
 					if (GDisplayClusterLumenPerView)
 					{

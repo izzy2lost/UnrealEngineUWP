@@ -118,7 +118,7 @@ FVirtualShadowMapProjectionShaderData FShadowSceneRenderer::GetLocalLightProject
 
 	int32 VirtualShadowMapId = ProjectedShadowInfo->VirtualShadowMapId + MapIndex;
 	bool bIsSinglePageSM = FVirtualShadowMapArray::IsSinglePage(VirtualShadowMapId);
-	check(VirtualShadowMapId != INDEX_NONE && CacheEntry->Current.bIsDistantLight == bIsSinglePageSM);
+	check(VirtualShadowMapId != INDEX_NONE && CacheEntry->bIsDistantLight == bIsSinglePageSM);
 
 	uint32 Flags = bIsSinglePageSM ? VSM_PROJ_FLAG_CURRENT_DISTANT_LIGHT : 0U;
 	Flags |= CacheEntry->IsUncached() ? VSM_PROJ_FLAG_UNCACHED : 0U;
@@ -336,14 +336,20 @@ void FShadowSceneRenderer::DispatchVirtualShadowMapViewAndCullingSetup(FRDGBuild
 	// Don't want to run this more than once in a given frame.
 	check(SceneInstanceCullingQuery == nullptr);
 
-	// Set up view array and collect culling work at the same time.
-	SceneInstanceCullingQuery = SceneRenderer.SceneCullingRenderer.CreateInstanceQuery(GraphBuilder);
-	VirtualShadowMapViews = VirtualShadowMapArray.CreateVirtualShadowMapNaniteViews(GraphBuilder, SceneRenderer.Views, VirtualShadowMapShadows, ComputeNaniteShadowsLODScaleFactor(), SceneInstanceCullingQuery);
+	// Unconditionally update GPU physical pages (on all GPUs) with new VSM IDs/addresses
+	VirtualShadowMapArray.UpdatePhysicalPageAddresses(GraphBuilder);
 
-	// Dispatch collected query 
-	if (SceneInstanceCullingQuery)
+	if (!VirtualShadowMapShadows.IsEmpty())
 	{
-		SceneInstanceCullingQuery->Dispatch(GraphBuilder);
+		// Set up view array and collect culling work at the same time.
+		SceneInstanceCullingQuery = SceneRenderer.SceneCullingRenderer.CreateInstanceQuery(GraphBuilder);
+		VirtualShadowMapViews = VirtualShadowMapArray.CreateVirtualShadowMapNaniteViews(GraphBuilder, SceneRenderer.Views, VirtualShadowMapShadows, ComputeNaniteShadowsLODScaleFactor(), SceneInstanceCullingQuery);
+
+		// Dispatch collected query 
+		if (SceneInstanceCullingQuery)
+		{
+			SceneInstanceCullingQuery->Dispatch(GraphBuilder);
+		}
 	}
 }
 
@@ -361,7 +367,7 @@ void FShadowSceneRenderer::PostSetupDebugRender()
 			for (const FLocalLightShadowFrameSetup& LightSetup : LocalLights)
 			{			
 				FLinearColor Color = FLinearColor(FColor::Blue);
-				if (LightSetup.PerLightCacheEntry && LightSetup.PerLightCacheEntry->Current.bIsDistantLight)
+				if (LightSetup.PerLightCacheEntry && LightSetup.PerLightCacheEntry->bIsDistantLight)
 				{
 					++NumDistant;
 					int32 FramesSinceLastRender = int32(Scene.GetFrameNumber()) - int32(LightSetup.PerLightCacheEntry->GetLastScheduledFrameNumber());

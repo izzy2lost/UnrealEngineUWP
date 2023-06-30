@@ -674,17 +674,6 @@ void FScene::UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureC
 			Extension->SetupViewFamily(SceneRenderer->ViewFamily);
 		}
 
-		FSceneViewStateInterface* ViewStateInterface = CaptureComponent->GetViewState(0);
-
-		if (UseVirtualShadowMaps(SceneRenderer->ShaderPlatform, FeatureLevel) && ViewStateInterface)
-		{
-			ViewStateInterface->AddVirtualShadowMapCache(this);
-		}
-		else if (ViewStateInterface)
-		{
-			ViewStateInterface->RemoveVirtualShadowMapCache(this);
-		}
-
 		for (int32 ViewIndex = 0; ViewIndex < SceneCaptureViewInfo.Num(); ++ViewIndex)
 		{
 			FViewInfo& ViewInfo = SceneRenderer->Views[ViewIndex];

@@ -32,6 +32,7 @@ struct FVirtualShadowMapProjectionShaderData
 	int VirtualShadowMapId;	
 	bool bCurrentDistantLight; // Low detail == single page only
 	bool bUnCached; // see VSM_PROJ_FLAG_UNCACHED
+	bool bUnreferenced; // see VSM_PROJ_FLAG_UNREFERENCED
 };
 
 FVirtualShadowMapProjectionShaderData DecodeVirtualShadowMapProjectionData(ByteAddressBuffer ProjectionData, int VirtualShadowMapId)
@@ -84,6 +85,7 @@ FVirtualShadowMapProjectionShaderData DecodeVirtualShadowMapProjectionData(ByteA
 
 	Result.bCurrentDistantLight = (Result.Flags & VSM_PROJ_FLAG_CURRENT_DISTANT_LIGHT) != 0U;
 	Result.bUnCached = (Result.Flags & VSM_PROJ_FLAG_UNCACHED) != 0U;
+	Result.bUnreferenced = (Result.Flags & VSM_PROJ_FLAG_UNREFERENCED) != 0U;
 
 	return Result;
 }

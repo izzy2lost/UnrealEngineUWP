@@ -17,7 +17,6 @@
 #define VSM_LOG_STATIC_CACHING 0
 
 CSV_DECLARE_CATEGORY_EXTERN(VSM);
-DECLARE_DWORD_COUNTER_STAT(TEXT("VSM Unreferenced Lights"), STAT_VSMUnreferencedLights, STATGROUP_ShadowRendering);
 
 static TAutoConsoleVariable<int32> CVarAccumulateStats(
 	TEXT("r.Shadow.Virtual.AccumulateStats"),
@@ -71,11 +70,12 @@ static FAutoConsoleVariableRef  CVarForceInvalidateDirectionalVSM(
 	TEXT("Forces the clipmap to always invalidate, useful to emulate a moving sun to avoid misrepresenting cache performance."),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarCacheMaxUnreferencedLightAge(
-	TEXT("r.Shadow.Virtual.Cache.MaxUnreferencedLightAge"),
-	0,
-	TEXT("The number of frames to keep around cached pages from lights that are unreferenced (usually due to being offscreen or otherwise culled). 0=disabled.\n")
-	TEXT("Higher values potentially allow for more physical page reuse when cache space is available, but setting this too high can add overhead due to maintaining the extra entries."),
+// We give a little leeway here as occasionally the scene frame number is incremented multiple times between frames
+int32 GVSMMaxPageAgeSinceLastRequest = 3;
+FAutoConsoleVariableRef CVarVSMMaxPageAgeSinceLastRequest(
+	TEXT("r.Shadow.Virtual.Cache.MaxPageAgeSinceLastRequest"),
+	GVSMMaxPageAgeSinceLastRequest,
+	TEXT("The maximum number of frames to allow cached pages that aren't requested in the current frame to live. 0=disabled."),
 	ECVF_RenderThreadSafe
 );
 
@@ -192,7 +192,6 @@ void FVirtualShadowMapCacheEntry::SetHZBViewParams(Nanite::FPackedViewParams& Ou
 
 void FVirtualShadowMapPerLightCacheEntry::UpdateClipmap(const FVector& LightDirection, int FirstLevel)
 {
-	Prev.bIsUncached = Current.bIsUncached;
 	Prev.RenderedFrameNumber = FMath::Max(Prev.RenderedFrameNumber, Current.RenderedFrameNumber);
 	Current.RenderedFrameNumber = -1;
 
@@ -205,19 +204,20 @@ void FVirtualShadowMapPerLightCacheEntry::UpdateClipmap(const FVector& LightDire
 	ClipmapCacheKey.LightDirection = LightDirection;
 	ClipmapCacheKey.FirstLevel = FirstLevel;
 
-	Current.bIsUncached = GForceInvalidateDirectionalVSM != 0 || Prev.RenderedFrameNumber < 0;
+	bool bNewIsUncached = GForceInvalidateDirectionalVSM != 0 || Prev.RenderedFrameNumber < 0;
 
 	// On transition between uncached <-> cached we must invalidate since the static pages may not be initialized
-	if (Current.bIsUncached != Prev.bIsUncached)
+	if (bNewIsUncached != bIsUncached)
 	{
 		Prev.RenderedFrameNumber = -1;
 	}
+	bIsUncached = bNewIsUncached;
 }
 
-bool FVirtualShadowMapPerLightCacheEntry::UpdateLocal(const FProjectedShadowInitializer& InCacheKey, bool bIsDistantLight, bool bCacheEnabled, bool bAllowInvalidation)
+bool FVirtualShadowMapPerLightCacheEntry::UpdateLocal(const FProjectedShadowInitializer& InCacheKey, bool bNewIsDistantLight, bool bCacheEnabled, bool bAllowInvalidation)
 {
-	Prev.bIsUncached = Current.bIsUncached;
-	Prev.bIsDistantLight = Current.bIsDistantLight;
+	// TODO: The logic in this function is needlessly convoluted... clean up
+
 	Prev.RenderedFrameNumber = FMath::Max(Prev.RenderedFrameNumber, Current.RenderedFrameNumber);
 	Prev.ScheduledFrameNumber = FMath::Max(Prev.ScheduledFrameNumber, Current.ScheduledFrameNumber);
 
@@ -232,16 +232,23 @@ bool FVirtualShadowMapPerLightCacheEntry::UpdateLocal(const FProjectedShadowInit
 	}
 	LocalCacheKey = InCacheKey;
 
-	Current.bIsDistantLight = bIsDistantLight;
-	Current.RenderedFrameNumber = -1;
-	Current.ScheduledFrameNumber = -1;
-	Current.bIsUncached = Prev.RenderedFrameNumber < 0;
-
 	// On transition between uncached <-> cached we must invalidate since the static pages may not be initialized
-	if (Current.bIsUncached != Prev.bIsUncached)
+	bool bNewIsUncached = Prev.RenderedFrameNumber < 0;
+	if (bNewIsUncached != bIsUncached)
 	{
 		Prev.RenderedFrameNumber = -1;
 	}
+
+	// On transition between distant <-> regular we must invalidate
+	if (bNewIsDistantLight != bIsDistantLight)
+	{
+		Prev.RenderedFrameNumber = -1;
+	}
+
+	Current.RenderedFrameNumber = -1;
+	Current.ScheduledFrameNumber = -1;
+	bIsDistantLight = bNewIsDistantLight;
+	bIsUncached = bNewIsUncached;
 
 	return Prev.RenderedFrameNumber >= 0;
 }
@@ -673,16 +680,16 @@ void FVirtualShadowMapArrayCacheManager::SetPhysicalPoolSize(FRDGBuilder& GraphB
 		// Persistent, so we extract it immediately
 		PhysicalPageMetaData = GraphBuilder.ConvertToExternalBuffer(PhysicalPageMetaDataRDG);
 
-		Invalidate();
+		Invalidate(GraphBuilder);
 	}
 }
 
-void FVirtualShadowMapArrayCacheManager::FreePhysicalPool()
+void FVirtualShadowMapArrayCacheManager::FreePhysicalPool(FRDGBuilder& GraphBuilder)
 {
 	if (PhysicalPagePool)
 	{
 		PhysicalPagePool = nullptr;
-		Invalidate();
+		Invalidate(GraphBuilder);
 	}
 }
 
@@ -708,29 +715,29 @@ TRefCountPtr<IPooledRenderTarget> FVirtualShadowMapArrayCacheManager::SetHZBPhys
 	return HZBPhysicalPagePool;
 }
 
-void FVirtualShadowMapArrayCacheManager::FreeHZBPhysicalPool()
+void FVirtualShadowMapArrayCacheManager::FreeHZBPhysicalPool(FRDGBuilder& GraphBuilder)
 {
 	if (HZBPhysicalPagePool)
 	{
 		HZBPhysicalPagePool = nullptr;
-		Invalidate();
+		Invalidate(GraphBuilder);
 	}
 }
 
-void FVirtualShadowMapArrayCacheManager::Invalidate()
+void FVirtualShadowMapArrayCacheManager::Invalidate(FRDGBuilder& GraphBuilder)
 {
 	// Clear the cache
 	CacheEntries.Reset();
 
-	// Mark globally invalid until the next GPU allocation/metadata update
-	bCacheDataValid = false;
-
 	//UE_LOG(LogRenderer, Display, TEXT("Virtual shadow map cache invalidated."));
-}
 
-void FVirtualShadowMapArrayCacheManager::MarkCacheDataValid()
-{
-	bCacheDataValid = true;
+	// Clear the physical page metadata (on all GPUs)
+	if (PhysicalPageMetaData)
+	{
+		RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
+		FRDGBufferRef PhysicalPageMetaDataRDG = GraphBuilder.RegisterExternalBuffer(PhysicalPageMetaData);
+		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(PhysicalPageMetaDataRDG), 0);
+	}
 }
 
 bool FVirtualShadowMapArrayCacheManager::IsCacheEnabled()
@@ -741,7 +748,6 @@ bool FVirtualShadowMapArrayCacheManager::IsCacheEnabled()
 bool FVirtualShadowMapArrayCacheManager::IsCacheDataAvailable()
 {
 	return IsCacheEnabled() &&
-		bCacheDataValid &&
 		PrevBuffers.PageTable &&
 		PrevBuffers.PageFlags &&
 		PrevBuffers.PageRectBounds &&
@@ -768,7 +774,8 @@ TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FVirtualShadowMapArrayCacheManag
 
 		if (LightEntry->ShadowMapEntries.Num() == NumShadowMaps)
 		{
-			LightEntry->ReferencedRenderSequenceNumber = RenderSequenceNumber;
+			LightEntry->bReferencedThisRender = true;
+			LightEntry->LastReferencedFrameNumber = Scene->GetFrameNumberRenderThread();
 			return LightEntry;
 		}
 		else
@@ -782,7 +789,8 @@ TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FVirtualShadowMapArrayCacheManag
 
 	// Make new entry for this light
 	TSharedPtr<FVirtualShadowMapPerLightCacheEntry> LightEntry = MakeShared<FVirtualShadowMapPerLightCacheEntry>(Scene->GetMaxPersistentPrimitiveIndex(), NumShadowMaps);
-	LightEntry->ReferencedRenderSequenceNumber = RenderSequenceNumber;	
+	LightEntry->bReferencedThisRender = true;
+	LightEntry->LastReferencedFrameNumber = Scene->GetFrameNumberRenderThread();
 	CacheEntries.Add(CacheKey, LightEntry);
 
 	return LightEntry;
@@ -810,28 +818,21 @@ void FVirtualShadowMapPerLightCacheEntry::OnPrimitiveRendered(const FPrimitiveSc
 void FVirtualShadowMapArrayCacheManager::UpdateUnreferencedCacheEntries(
 	FVirtualShadowMapArray& VirtualShadowMapArray)
 {
-	const int64 MaxAge = CVarCacheMaxUnreferencedLightAge.GetValueOnRenderThread();
-	const bool bAllowUnreferencedEntries = IsCacheEnabled() && MaxAge > 0;
+	const uint32 SceneFrameNumber = Scene->GetFrameNumberRenderThread();
 
 	TArray<uint64, SceneRenderingAllocator> EntriesToRemove;
 	for (auto& LightEntry : CacheEntries)
 	{
 		TSharedPtr<FVirtualShadowMapPerLightCacheEntry> CacheEntry = LightEntry.Value;
-		// NOTE: We probably want to decouple the age from render calls at some point, but regardless we need to know
-		// in the first branch that the given light was referenced *this* render, and therefore has already been
-		// (re)allocated a current VSM ID.
-		int64 Age = RenderSequenceNumber - CacheEntry->ReferencedRenderSequenceNumber;
-		check(CacheEntry->ReferencedRenderSequenceNumber >= 0);
-		check(Age >= 0);
-		if (Age == 0)
+		// For this test we care if it is active *this render*, not just this scene frame number (which can include multiple renders)
+		if (CacheEntry->bReferencedThisRender)
 		{
-			// Referenced this frame still, leave it alone
+			// Active this render, leave it alone
 			check(CacheEntry->ShadowMapEntries.Last().CurrentVirtualShadowMapId < VirtualShadowMapArray.GetNumShadowMapSlots());
 		}
-		else if (bAllowUnreferencedEntries && Age < MaxAge)
+		else if (int32(SceneFrameNumber - CacheEntry->LastReferencedFrameNumber) <= GVSMMaxPageAgeSinceLastRequest)
 		{
-			INC_DWORD_STAT(STAT_VSMUnreferencedLights);
-
+			// Not active this render, but still recent enough to keep it and its pages alive
 			int PrevBaseVirtualShadowMapId = CacheEntry->ShadowMapEntries[0].CurrentVirtualShadowMapId;
 			bool bIsSinglePage = FVirtualShadowMapArray::IsSinglePage(PrevBaseVirtualShadowMapId);
 
@@ -841,9 +842,10 @@ void FVirtualShadowMapArrayCacheManager::UpdateUnreferencedCacheEntries(
 			for (int32 Map = 0; Map < NumMaps; ++Map)
 			{
 				CacheEntry->ShadowMapEntries[Map].Update(VirtualShadowMapArray, *CacheEntry, VirtualShadowMapId + Map);
-				// NOTE: Leave the ProjectionData as whatever it was before
-				// TODO: We may want to add a flag that this is unreferenced so we can prune it from the light grid and skip it in page marking, etc...?
-				// Except in theory if we are marking things from onscreen pixels then we wouldn't have culled it... (small light culling though)?
+				// Mark it as inactive for this frame/render
+				// NOTE: We currently recompute/overwrite the whole ProjectionData structure for referenced lights, but if that changes we
+				// will need to clear this flag again when they become referenced.
+				CacheEntry->ShadowMapEntries[Map].ProjectionData.Flags |= VSM_PROJ_FLAG_UNREFERENCED;
 			}
 		}
 		else
@@ -928,7 +930,7 @@ void FVirtualShadowMapArrayCacheManager::ExtractFrameData(
 		// We drop the physical page pool here as well to ensure that it disappears in the case where
 		// thumbnail rendering or similar creates multiple FSceneRenderers that never get deleted.
 		// Caching is disabled on these contexts intentionally to avoid these issues.
-		FreePhysicalPool();
+		FreePhysicalPool(GraphBuilder);
 	}
 	else if (bNewShadowData)
 	{
@@ -965,14 +967,11 @@ void FVirtualShadowMapArrayCacheManager::ExtractFrameData(
 
 		ExtractStats(GraphBuilder, VirtualShadowMapArray);
 	}
-	else
+	
+	// Clear out the referenced light flags since this render is finishing
+	for (auto& LightEntry : CacheEntries)
 	{
-		// Do nothing; maintain the data that we had
-		// This allows us to work around some cases where the renderer gets called multiple times in a given frame
-		// - such as scene captures - but does no shadow-related work in all but one of them. We do not want to drop
-		// all the cached data in this case otherwise we effectively get no caching at all.
-		// Ideally in the long run we want the cache itself to be more robust against rendering multiple views. but
-		// for now this at least provides a work-around for some common cases where only one view is rendering VSMs.
+		LightEntry.Value->bReferencedThisRender = false;
 	}
 
 	// Every once in a while zero out our recently removed primitive flags. This lets us ignore slots that
@@ -984,8 +983,6 @@ void FVirtualShadowMapArrayCacheManager::ExtractFrameData(
 		RecentlyRemovedReadIndex = 1 - RecentlyRemovedReadIndex;
 		RecentlyRemovedFrameCounter = 0;
 	}
-
-	++RenderSequenceNumber;
 }
 
 void FVirtualShadowMapArrayCacheManager::ExtractStats(FRDGBuilder& GraphBuilder, FVirtualShadowMapArray &VirtualShadowMapArray)
@@ -1234,17 +1231,6 @@ TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> FVirtualShadowMapArrayC
 	*VersionedParameters = PrevUniformParameters;
 	return GraphBuilder.CreateUniformBuffer(VersionedParameters);
 }
-
-#if WITH_MGPU
-void FVirtualShadowMapArrayCacheManager::UpdateGPUMask(FRHIGPUMask GPUMask)
-{
-	if (LastGPUMask != GPUMask)
-	{
-		LastGPUMask = GPUMask;
-		Invalidate();
-	}
-}
-#endif  // WITH_MGPU
 
 
 void FVirtualShadowMapArrayCacheManager::ProcessInvalidations(

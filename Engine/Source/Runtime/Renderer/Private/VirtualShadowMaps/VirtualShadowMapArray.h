@@ -142,6 +142,9 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
 	SHADER_PARAMETER(float, CoarsePagePixelThresholdStatic)
 	SHADER_PARAMETER(float, CoarsePagePixelThresholdDynamicNanite)
 
+	// For shadow page age calculations
+	SHADER_PARAMETER(uint32, SceneFrameNumber)
+
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ProjectionData)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PageTable)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PageFlags)
@@ -208,7 +211,7 @@ public:
 	FVirtualShadowMapArray(FScene& InScene);
 	~FVirtualShadowMapArray();
 
-	void Initialize(FRDGBuilder& GraphBuilder, FVirtualShadowMapArrayCacheManager* InCacheManager, bool bInEnabled, bool bIsSceneCapture);
+	void Initialize(FRDGBuilder& GraphBuilder, FVirtualShadowMapArrayCacheManager* InCacheManager, bool bInEnabled);
 
 	// Returns true if virtual shadow maps are enabled
 	bool IsEnabled() const
@@ -267,6 +270,8 @@ public:
 	static void SetShaderDefines(FShaderCompilerEnvironment& OutEnvironment);
 
 	void MergeStaticPhysicalPages(FRDGBuilder& GraphBuilder);
+
+	void UpdatePhysicalPageAddresses(FRDGBuilder& GraphBuilder);
 
 	void BuildPageAllocations(
 		FRDGBuilder& GraphBuilder,

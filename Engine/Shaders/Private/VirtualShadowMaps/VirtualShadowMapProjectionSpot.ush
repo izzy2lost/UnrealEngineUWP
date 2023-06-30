@@ -13,9 +13,6 @@ VirtualShadowMapProjectionSpot.ush:
 #include "VirtualShadowMapProjectionCommon.ush"
 #include "VirtualShadowMapSMRTCommon.ush"
 
-// Possibly parameterize this at some point, but tradeoffs are not always obvious
-#define VIRTUAL_SHADOW_MAP_MAX_SLOPE_BIAS 100.0f
-
 float2 ComputeDepthSlopeLocalUV(
 	int VirtualShadowMapId,
 	float3 ShadowTranslatedWorldPosition,

@@ -501,12 +501,16 @@ void MarkCoarsePages(uint DispatchThreadId : SV_DispatchThreadID)
 
 	FVirtualShadowMapProjectionShaderData ProjectionData = GetVirtualShadowMapProjectionData(VirtualShadowMapId);
 	checkSlow(ProjectionData.bCurrentDistantLight == IsSinglePageVirtualShadowMap(VirtualShadowMapId));
-
+		
 	// NOTE: Coarse pages are very large and tend to get invalidated a lot due to anything in the scene moving
 	// Rendering non-nanite geometry into these pages can be very expensive and thus isn't always desirable.
 	uint Flags = VSM_ALLOCATED_FLAG;
-
-	if (ProjectionData.LightType == LIGHT_TYPE_DIRECTIONAL)
+				
+	if (ProjectionData.bUnreferenced)
+	{
+		// Don't mark any pages for lights not referenced this render
+	}
+	else if (ProjectionData.LightType == LIGHT_TYPE_DIRECTIONAL)
 	{
 		// Idea here is the clipmaps already cover supersets of lower levels
 		// Thus to get coarser pages we can just mark the center page(s) offset by a level/LOD bias
