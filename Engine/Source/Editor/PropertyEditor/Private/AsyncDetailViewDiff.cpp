@@ -16,7 +16,7 @@ static const UObject* GetObject(const TSharedPtr<FDetailTreeNode>& TreeNode)
 
 static FResolvedProperty GetResolvedProperty(const TSharedPtr<FPropertyNode>& PropertyNode, const UObject* Object)
 {
-	if (PropertyNode)
+	if (PropertyNode && Object)
 	{
 		const TSharedRef<FPropertyPath> PropertyPath = FPropertyNode::CreatePropertyPath(PropertyNode.ToSharedRef());
 		if (PropertyPath->IsValid())

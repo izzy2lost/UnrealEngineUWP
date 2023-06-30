@@ -90,7 +90,38 @@ static bool TryGetDestinationContainer(TSharedPtr<FDetailTreeNode> DetailsNode, 
 	return false;
 }
 
-static void CopyPropertyValueForInsert(TSharedPtr<FDetailTreeNode> SourceDetailsNode, TSharedPtr<FDetailTreeNode> DestinationDetailsNode)
+static void SendPropertyChangeNotification(FPropertyNode* PropertyNode, UObject* OuterObject, EPropertyChangeType::Type ChangeType)
+{
+	// find an object to send the FPropertyChangedEvent to
+	FProperty* ChangedProperty = PropertyNode->GetProperty();
+	PropertyNode = PropertyNode->GetParentNode();
+	while(PropertyNode && !CastField<FObjectProperty>(PropertyNode->GetProperty()))
+	{
+		if (FProperty* Property = PropertyNode->GetProperty())
+		{
+			ChangedProperty = Property;
+		}
+		PropertyNode = PropertyNode->GetParentNode();
+	}
+
+	// send the notification
+	FPropertyChangedEvent ChangeEvent(ChangedProperty, ChangeType);
+	if (PropertyNode)
+	{
+		const FObjectProperty* AsObjectProperty = CastFieldChecked<FObjectProperty>(PropertyNode->GetProperty());
+		const FPropertySoftPath SoftPropertyPath(FPropertyNode::CreatePropertyPath(PropertyNode->AsShared()).Get());
+		const FResolvedProperty Resolved = SoftPropertyPath.Resolve(OuterObject);
+		UObject* InnerObject = AsObjectProperty->GetObjectPropertyValue(Resolved.Property->ContainerPtrToValuePtr<void>(Resolved.Object));
+		InnerObject->PostEditChangeProperty(ChangeEvent);
+	}
+	else
+	{
+		// if an FObjectProperty wasn't found, this property must be owned by OuterObject directly
+		OuterObject->PostEditChangeProperty(ChangeEvent);
+	}
+}
+
+static void CopyPropertyValueForInsert(const TSharedPtr<FDetailTreeNode>& SourceDetailsNode, const TSharedPtr<FDetailTreeNode>& DestinationDetailsNode)
 {
 	TUniquePtr<FScriptArrayHelper> SourceArray;
 	FPropertyNode* SourceArrayPropertyNode;
@@ -107,6 +138,10 @@ static void CopyPropertyValueForInsert(TSharedPtr<FDetailTreeNode> SourceDetails
 			const FArrayProperty* ArrayProperty = CastFieldChecked<FArrayProperty>(DestinationArrayPropertyNode->GetProperty());
 			const FProperty* ElementProperty = ArrayProperty->Inner;
 			ElementProperty->CopySingleValue(DestinationData, SourceData);
+			SendPropertyChangeNotification(
+				DestinationArrayPropertyNode,
+				DestinationDetailsNode->GetDetailsView()->GetSelectedObjects()[0].Get(),
+				EPropertyChangeType::ArrayAdd);
 		}
 	}
 	
@@ -121,6 +156,11 @@ static void CopyPropertyValueForInsert(TSharedPtr<FDetailTreeNode> SourceDetails
 		{
 			const void* SourceData = SourceSet->FindNthElementPtr(SourceDetailsNode->GetPropertyNode()->GetArrayIndex());
 			DestinationSet->AddElement(SourceData);
+			
+			SendPropertyChangeNotification(
+				DestinationPropertyNode,
+				DestinationDetailsNode->GetDetailsView()->GetSelectedObjects()[0].Get(),
+				EPropertyChangeType::ArrayAdd);
 		}
 	}
 	
@@ -137,11 +177,16 @@ static void CopyPropertyValueForInsert(TSharedPtr<FDetailTreeNode> SourceDetails
 			const void* SourceKey = SourceMap->GetKeyPtr(Index);
 			const void* SourceVal = SourceMap->GetValuePtr(Index);
 			DestinationMap->AddPair(SourceKey, SourceVal);
+			
+			SendPropertyChangeNotification(
+				DestinationPropertyNode,
+				DestinationDetailsNode->GetDetailsView()->GetSelectedObjects()[0].Get(),
+				EPropertyChangeType::ArrayAdd);
 		}
 	}
 }
 
-static void CopyPropertyValue(TSharedPtr<FDetailTreeNode> SourceDetailsNode, TSharedPtr<FDetailTreeNode> DestinationDetailsNode, ETreeDiffResult Diff)
+static void CopyPropertyValue(const TSharedPtr<FDetailTreeNode>& SourceDetailsNode, const TSharedPtr<FDetailTreeNode>& DestinationDetailsNode, ETreeDiffResult Diff)
 {
 	switch(Diff)
 	{
@@ -193,6 +238,10 @@ static void CopyPropertyValue(TSharedPtr<FDetailTreeNode> SourceDetailsNode, TSh
 		{
 			DestinationResolved.Property->CopyCompleteValue(DestinationData, SourceData);
 		}
+		SendPropertyChangeNotification(
+			DestinationDetailsNode->GetPropertyNode().Get(),
+			DestinationDetailsNode->GetDetailsView()->GetSelectedObjects()[0].Get(),
+			EPropertyChangeType::ValueSet);
 	}
 }
 
@@ -296,6 +345,11 @@ void SDetailsSplitter::AddSlot(const FSlot::FSlotArguments& SlotArgs, int32 Inde
 	}, Index);
 }
 
+void SDetailsSplitter::AddHighlights(const TMap<FString, TMap<FPropertySoftPath, FLinearColor>>& Highlights)
+{
+	CustomHighlights = Highlights;
+}
+
 SDetailsSplitter::FSlot::FSlotArguments SDetailsSplitter::Slot()
 {
 	return FSlot::FSlotArguments(MakeUnique<FSlot>());
@@ -328,7 +382,7 @@ int32 SDetailsSplitter::OnPaint(const FPaintArgs& Args, const FGeometry& Allotte
 			
 			Diff->ForEachRow([&](const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>& DiffNode, int32, int32)->ETreeTraverseControl
 			{
-				const FLinearColor Color = FLinearColor(0.f,1.f,1.f);
+				const FLinearColor Color = GetHighlightColor(DiffNode);
 				
 				FSlateRect LeftPropertyRect;
 				if (const TSharedPtr<FDetailTreeNode> LeftDetailNode = DiffNode->ValueA.Pin())
@@ -372,11 +426,10 @@ int32 SDetailsSplitter::OnPaint(const FPaintArgs& Args, const FGeometry& Allotte
 					
 					if (LeftPropertyRect.IsValid() && RightPropertyRect.IsValid() && DiffNode->DiffResult != ETreeDiffResult::Identical)
 					{
-						FLinearColor FillColor = Color.Desaturate(.3f) * FLinearColor(0.04f,0.04f,0.04f);
-						FillColor.A = 0.3f;
+						FLinearColor FillColor = Color.Desaturate(.3f) * FLinearColor(0.053f,0.053f,0.053f);
+						FillColor.A = 0.43f;
 			
-						FLinearColor OutlineColor = Color;
-						OutlineColor.A = 0.7f;
+						const FLinearColor OutlineColor = Color;
 						PaintPropertyConnector(OutDrawElements, MaxLayerId, LeftPropertyRect, RightPropertyRect, FillColor, OutlineColor);
 						++MaxLayerId;
 
@@ -409,8 +462,8 @@ int32 SDetailsSplitter::OnPaint(const FPaintArgs& Args, const FGeometry& Allotte
 
 	for (const auto& [PropertyRect, Color] : RowHighlights)
 	{
-		FLinearColor FillColor = Color.Desaturate(.3) * FLinearColor(0.04f,0.04f,0.04f);
-		FillColor.A = 0.3f;
+		FLinearColor FillColor = Color.Desaturate(.3f) * FLinearColor(0.053f,0.053f,0.053f);
+		FillColor.A = 0.43f;
 		
 		FPaintGeometry Geometry(
 			PropertyRect.GetTopLeft() + FVector2D{0.f,2.f},
@@ -761,4 +814,54 @@ void SDetailsSplitter::PaintCopyPropertyButton(FSlateWindowElementList& OutDrawE
 		ESlateDrawEffect::None,
 		ButtonColor
 	);
+}
+
+// find the inner-most object in the property path and shorten the path relative to that object
+static void ShortenToPathFromLastObject(const UObject*& InOutObject, FPropertyPath& InOutPath)
+{
+	TArray<FPropertyInfo> PathFromSubObjectReversed;
+	PathFromSubObjectReversed.Add(InOutPath.GetLeafMostProperty());
+	InOutPath = *InOutPath.TrimPath(1);
+	while (InOutPath.IsValid())
+	{
+		// Note that if we have perf issues, this could be made faster by writing a custom resolve function that stops
+		// at the last FObjectProperty. that way we wouldn't need to resolve multiple times
+		const FResolvedProperty Resolved = FPropertySoftPath(InOutPath).Resolve(InOutObject);
+		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Resolved.Property))
+		{
+			InOutObject = ObjectProperty->GetObjectPropertyValue(ObjectProperty->ContainerPtrToValuePtr<void>(Resolved.Object));
+			break;
+		}
+		PathFromSubObjectReversed.Add(InOutPath.GetLeafMostProperty());
+		InOutPath = *InOutPath.TrimPath(1);
+	}
+
+	InOutPath = {};
+	while(!PathFromSubObjectReversed.IsEmpty())
+	{
+		InOutPath.AddProperty(PathFromSubObjectReversed.Pop());
+	}
+}
+
+FLinearColor SDetailsSplitter::GetHighlightColor(const TUniquePtr<TDiffNode<TWeakPtr<FDetailTreeNode>>>& DiffNode) const
+{
+	const TSharedPtr<FDetailTreeNode> DetailNode = DiffNode->ValueA.IsValid() ? DiffNode->ValueA.Pin() : DiffNode->ValueB.Pin();
+	
+	FPropertyPath Path = DetailNode->GetPropertyPath();
+	const UObject* OwningObject = DetailNode->GetDetailsView()->GetSelectedObjects()[0].Get();
+	if (Path.IsValid())
+	{
+		FPropertyPath PathFromSubObject;
+		ShortenToPathFromLastObject(OwningObject, Path);
+		
+		if (const TMap<FPropertySoftPath, FLinearColor>* Highlights = CustomHighlights.Find(OwningObject->GetPathName(OwningObject->GetPackage())))
+		{
+			if (const FLinearColor* Highlight = Highlights->Find(FPropertySoftPath(Path)))
+			{
+				return *Highlight;
+			}
+		}
+	}
+	
+	return FLinearColor(0.f, 1.f, 1.f, .7f);
 }

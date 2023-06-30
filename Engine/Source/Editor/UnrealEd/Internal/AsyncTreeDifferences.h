@@ -15,8 +15,11 @@ enum class ETreeDiffResult
 
 enum class ETreeTraverseOrder
 {
-	PreOrder, // parent than children
-	PostOrder // children then parent
+	PreOrder, // parent then children
+	PostOrder, // children then parent
+	
+	ReversePreOrder, // parent then children in reverse order
+	ReversePostOrder // children in reverse order then parent
 };
 
 enum class ETreeTraverseControl
@@ -136,6 +139,8 @@ private:
 	
 	static bool PreOrderRecursive(const TUniquePtr<DiffNodeType>& Node, const TFunction<ETreeTraverseControl(const TUniquePtr<DiffNodeType>&)>& Method);
 	static bool PostOrderRecursive(const TUniquePtr<DiffNodeType>& Node, const TFunction<ETreeTraverseControl(const TUniquePtr<DiffNodeType>&)>& Method);
+	static bool ReversePreOrderRecursive(const TUniquePtr<DiffNodeType>& Node, const TFunction<ETreeTraverseControl(const TUniquePtr<DiffNodeType>&)>& Method);
+	static bool ReversePostOrderRecursive(const TUniquePtr<DiffNodeType>& Node, const TFunction<ETreeTraverseControl(const TUniquePtr<DiffNodeType>&)>& Method);
 
 	TArray<DiffNodeType*> UpdateQueue;
 	TAttribute<TArray<ValueType>> RootValuesA;
@@ -220,6 +225,12 @@ void TAsyncTreeDifferences<InNodeType>::ForEach(ETreeTraverseOrder TraversalOrde
 	case ETreeTraverseOrder::PostOrder:
 		PostOrderRecursive(Head, Method);
 		break;
+	case ETreeTraverseOrder::ReversePreOrder:
+		ReversePreOrderRecursive(Head, Method);
+		break;
+	case ETreeTraverseOrder::ReversePostOrder:
+		ReversePostOrderRecursive(Head, Method);
+		break;
 	default: check(false);
 	}
 }
@@ -253,6 +264,53 @@ bool TAsyncTreeDifferences<InNodeType>::PostOrderRecursive(const TUniquePtr<Diff
 	for (const TUniquePtr<DiffNodeType>& Child : Node->Children)
 	{
 		if (!PostOrderRecursive(Child, Method))
+		{
+			return false;
+		}
+	}
+	
+	if (Node->DiffResult != ETreeDiffResult::Invalid)
+	{
+		switch (Method(Node))
+		{
+			case ETreeTraverseControl::Break: return false;
+		}
+	}
+
+	return true;
+}
+
+template <typename InNodeType>
+bool TAsyncTreeDifferences<InNodeType>::ReversePreOrderRecursive(const TUniquePtr<DiffNodeType>& Node, const TFunction<ETreeTraverseControl(const TUniquePtr<DiffNodeType>&)>& Method)
+{
+	if (Node->DiffResult != ETreeDiffResult::Invalid)
+	{
+		switch (Method(Node))
+		{
+			case ETreeTraverseControl::Break: return false;
+			case ETreeTraverseControl::SkipChildren: return true;
+		}
+	}
+	
+	for (int32 I = Node->Children.Num() - 1; I >= 0; --I)
+	{
+		const TUniquePtr<DiffNodeType>& Child = Node->Children[I];
+		if (!ReversePreOrderRecursive(Child, Method))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+template <typename InNodeType>
+bool TAsyncTreeDifferences<InNodeType>::ReversePostOrderRecursive(const TUniquePtr<DiffNodeType>& Node, const TFunction<ETreeTraverseControl(const TUniquePtr<DiffNodeType>&)>& Method)
+{
+	for (int32 I = Node->Children.Num() - 1; I >= 0; --I)
+	{
+		const TUniquePtr<DiffNodeType>& Child = Node->Children[I];
+		if (!ReversePostOrderRecursive(Child, Method))
 		{
 			return false;
 		}

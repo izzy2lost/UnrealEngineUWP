@@ -41,6 +41,8 @@ public:
 	
 	void AddSlot(const FSlot::FSlotArguments& SlotArgs, int32 Index = INDEX_NONE);
 
+	void AddHighlights(const TMap<FString, TMap<FPropertySoftPath, FLinearColor>>& Highlights);
+
 private:
 	
 	struct FPanel
@@ -70,8 +72,11 @@ private:
 	
 	void PaintCopyPropertyButton(FSlateWindowElementList& OutDrawElements, int32 LayerId, const TUniquePtr<TDiffNode<TWeakPtr<FDetailTreeNode>>>& DiffNode,
 		const FSlateRect& LeftPropertyRect, const FSlateRect& RightPropertyRect, EPropertyCopyDirection CopyDirection) const;
+
+	FLinearColor GetHighlightColor(const TUniquePtr<TDiffNode<TWeakPtr<FDetailTreeNode>>>& DiffNode) const;
 	
 	TSharedPtr<SSplitter> Splitter;
 	TArray<FPanel> Panels;
 	FCopyPropertyButton HoveredCopyButton;
+	TMap<FString, TMap<FPropertySoftPath, FLinearColor>> CustomHighlights;
 };
