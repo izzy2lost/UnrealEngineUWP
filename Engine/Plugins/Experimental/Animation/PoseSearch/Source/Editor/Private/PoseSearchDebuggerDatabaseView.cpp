@@ -155,7 +155,7 @@ private:
 
 static void AddUnfilteredDatabaseRow(const UPoseSearchDatabase* Database, 
 	TArray<TSharedRef<FDebuggerDatabaseRowData>>& UnfilteredDatabaseRows, TSharedRef<FDebuggerDatabaseSharedData> SharedData,
-	int32 DbPoseIdx, EPoseCandidateFlags PoseCandidateFlags, const FPoseSearchCost& Cost = FPoseSearchCost())
+	int32 DbPoseIdx, EPoseCandidateFlags PoseCandidateFlags, TConstArrayView<uint32> PoseToPCAValuesVectorIndexes, const FPoseSearchCost& Cost = FPoseSearchCost())
 {
 	const FSearchIndex& SearchIndex = Database->GetSearchIndex();
 	if (const FSearchIndexAsset* SearchIndexAsset = SearchIndex.GetAssetForPoseSafe(DbPoseIdx))
@@ -203,7 +203,8 @@ static void AddUnfilteredDatabaseRow(const UPoseSearchDatabase* Database,
 
 		if (!SharedData->PCAQueryVector.IsEmpty())
 		{
-			TConstArrayView<float> PCAPoseValues = SearchIndex.GetPCAPoseValues(DbPoseIdx);
+			const int32 PCAValuesVectorIdx = PoseToPCAValuesVectorIndexes.IsEmpty() ? DbPoseIdx : PoseToPCAValuesVectorIndexes[DbPoseIdx];
+			TConstArrayView<float> PCAPoseValues = SearchIndex.GetPCAPoseValues(PCAValuesVectorIdx);
 			if (SharedData->PCAQueryVector.Num() == PCAPoseValues.Num())
 			{
 				Row->PosePCACost = CompareFeatureVectors(SharedData->PCAQueryVector, PCAPoseValues);
@@ -253,11 +254,15 @@ void SDebuggerDatabaseView::Update(const FTraceMotionMatchingStateMessage& State
 	UnfilteredDatabaseRows.Reset();
 
 	bool bAddPCACost = false;
+	TArray<uint32> PoseToPCAValuesVectorIndexes;
 	for (const FTraceMotionMatchingStateDatabaseEntry& DbEntry : State.DatabaseEntries)
 	{
 		const UPoseSearchDatabase* Database = FTraceMotionMatchingState::GetObjectFromId<UPoseSearchDatabase>(DbEntry.DatabaseId);
 		if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
 		{
+			const FSearchIndex& SearchIndex = Database->GetSearchIndex();
+			SearchIndex.GetPoseToPCAValuesVectorIndexes(PoseToPCAValuesVectorIndexes);
+
 			TSharedRef<FDebuggerDatabaseSharedData> SharedData = MakeShared<FDebuggerDatabaseSharedData>();
 			SharedData->SourceDatabase = Database;
 			SharedData->DatabaseName = Database->GetName();
@@ -273,7 +278,7 @@ void SDebuggerDatabaseView::Update(const FTraceMotionMatchingStateMessage& State
 
 			for (const FTraceMotionMatchingStatePoseEntry& PoseEntry : DbEntry.PoseEntries)
 			{
-				AddUnfilteredDatabaseRow(Database, UnfilteredDatabaseRows, SharedData, PoseEntry.DbPoseIdx, PoseEntry.PoseCandidateFlags, PoseEntry.Cost);
+				AddUnfilteredDatabaseRow(Database, UnfilteredDatabaseRows, SharedData, PoseEntry.DbPoseIdx, PoseEntry.PoseCandidateFlags, PoseToPCAValuesVectorIndexes, PoseEntry.Cost);
 			}
 
 			if (bShowAllPoses)
@@ -284,12 +289,11 @@ void SDebuggerDatabaseView::Update(const FTraceMotionMatchingStateMessage& State
 					PoseEntriesIdx.Add(PoseEntry.DbPoseIdx);
 				}
 
-				const FSearchIndex& SearchIndex = Database->GetSearchIndex();
 				for (int32 DbPoseIdx = 0; DbPoseIdx < SearchIndex.GetNumPoses(); ++DbPoseIdx)
 				{
 					if (!PoseEntriesIdx.Find(DbPoseIdx))
 					{
-						AddUnfilteredDatabaseRow(Database, UnfilteredDatabaseRows, SharedData, DbPoseIdx, EPoseCandidateFlags::DiscardedBy_Search);
+						AddUnfilteredDatabaseRow(Database, UnfilteredDatabaseRows, SharedData, DbPoseIdx, EPoseCandidateFlags::DiscardedBy_Search, PoseToPCAValuesVectorIndexes);
 					}
 				}
 			}

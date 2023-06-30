@@ -848,7 +848,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 		// NonSelectableIdx are already filtered out inside the kdtree search
 		const FSearchFilters SearchFilters(Schema, bArePCAValuesPruned ? NonSelectableIdx : TConstArrayView<size_t>(), SearchIndex.bAnyBlockTransition);
 		
-		// are the PCAValues pruned out of duplicates (multiple poses are associated with the same PCAValuesVector)
+		// are the PCAValues pruned out of duplicates (multiple poses are associated with the same PCAValuesVectorIdx)
 		if (bArePCAValuesPruned)
 		{
 			// @todo: reconstruction is not yet supported with pruned PCAValues

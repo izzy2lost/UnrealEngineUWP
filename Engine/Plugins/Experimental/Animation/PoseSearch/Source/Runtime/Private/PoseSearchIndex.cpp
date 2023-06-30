@@ -538,13 +538,13 @@ void FSearchIndex::PruneDuplicatePCAValues(float SimilarityThreshold, int32 Numb
 				[&PoseToPCAValueOffset](int32 PoseIdx) { return PoseToPCAValueOffset[PoseIdx]; },
 				[&PoseToPCAValueOffset](int32 PoseIdx, uint32 ValueOffset) { PoseToPCAValueOffset[PoseIdx] = ValueOffset; }))
 			{
-				// we pruned some PCAValues: we need to construct a mapping between PCAValuesVector to PoseIdx(s)
+				// we pruned some PCAValues: we need to construct a mapping between PCAValuesVectorIdx to PoseIdx(s)
 				TMap<uint32, TArray<uint32>> PCAValuesVectorToPoseIndexesMap;
 				for (uint32 PoseIdx = 0; PoseIdx < NumPoses; ++PoseIdx)
 				{
 					check(PoseToPCAValueOffset[PoseIdx] % NumberOfPrincipalComponents == 0);
-					const uint32 PCAValuesVector = PoseToPCAValueOffset[PoseIdx] / NumberOfPrincipalComponents;
-					TArray<uint32>& PoseIndexes = PCAValuesVectorToPoseIndexesMap.FindOrAdd(PCAValuesVector);
+					const uint32 PCAValuesVectorIdx = PoseToPCAValueOffset[PoseIdx] / NumberOfPrincipalComponents;
+					TArray<uint32>& PoseIndexes = PCAValuesVectorToPoseIndexesMap.FindOrAdd(PCAValuesVectorIdx);
 					check(!PoseIndexes.Contains(PoseIdx));
 					PoseIndexes.Add(PoseIdx);
 				}
@@ -565,15 +565,15 @@ void FSearchIndex::PruneDuplicatePCAValues(float SimilarityThreshold, int32 Numb
 				FSparsePoseMultiMap<uint32> SparsePoseMultiMap(PCAValuesVectorToPoseIndexesMap.Num(), NumPoses - 1);
 				for (const TPair<uint32, TArray<uint32>>& Pair : PCAValuesVectorToPoseIndexesMap)
 				{
-					const uint32 PCAValuesVector = Pair.Key;
+					const uint32 PCAValuesVectorIdx = Pair.Key;
 					const TArray<uint32>& PoseIndexes = Pair.Value;
-					SparsePoseMultiMap.Insert(PCAValuesVector, PoseIndexes);
+					SparsePoseMultiMap.Insert(PCAValuesVectorIdx, PoseIndexes);
 				}
 
-				for (uint32 PCAValuesVector = 0; PCAValuesVector < SparsePoseMultiMap.Num(); ++PCAValuesVector)
+				for (uint32 PCAValuesVectorIdx = 0; PCAValuesVectorIdx < SparsePoseMultiMap.Num(); ++PCAValuesVectorIdx)
 				{
-					const TConstArrayView<uint32> PoseIndexes = SparsePoseMultiMap[PCAValuesVector];
-					const TArray<uint32>& TestPoseIndexes = PCAValuesVectorToPoseIndexesMap[PCAValuesVector];
+					const TConstArrayView<uint32> PoseIndexes = SparsePoseMultiMap[PCAValuesVectorIdx];
+					const TArray<uint32>& TestPoseIndexes = PCAValuesVectorToPoseIndexesMap[PCAValuesVectorIdx];
 					check(PoseIndexes == TestPoseIndexes);
 				}
 
@@ -602,7 +602,7 @@ TArray<float> FSearchIndex::GetPoseValuesSafe(int32 PoseIdx) const
 	return PoseValues;
 }
 
-TConstArrayView<float> FSearchIndex::GetPCAPoseValues(int32 PoseIdx) const
+TConstArrayView<float> FSearchIndex::GetPCAPoseValues(int32 PCAValuesVectorIdx) const
 {
 	if (PCAValues.IsEmpty())
 	{
@@ -612,10 +612,14 @@ TConstArrayView<float> FSearchIndex::GetPCAPoseValues(int32 PoseIdx) const
 	const int32 NumDimensions = WeightsSqrt.Num();
 	const int32 NumberOfPrincipalComponents = PCAProjectionMatrix.Num() / NumDimensions;
 
-	check(PCAProjectionMatrix.Num() > 0 && PCAProjectionMatrix.Num() % NumDimensions == 0);
-	check(PoseIdx >= 0 && PoseIdx < GetNumPoses() && NumDimensions > 0);
+#if DO_CHECK
+	check(NumDimensions > 0 && PCAProjectionMatrix.Num() > 0 && PCAProjectionMatrix.Num() % NumDimensions == 0);
+	check(PCAValues.Num() % NumberOfPrincipalComponents == 0);
+	const int32 NumPCAValuesVectors = PCAValues.Num() / NumberOfPrincipalComponents;
+	check(PCAValuesVectorIdx >= 0 && PCAValuesVectorIdx < NumPCAValuesVectors );
+#endif // DO_CHECK
 
-	const int32 ValueOffset = PoseIdx * NumberOfPrincipalComponents;
+	const int32 ValueOffset = PCAValuesVectorIdx * NumberOfPrincipalComponents;
 	return MakeArrayView(&PCAValues[ValueOffset], NumberOfPrincipalComponents);
 }
 
@@ -637,6 +641,27 @@ FPoseSearchCost FSearchIndex::CompareAlignedPoses(int32 PoseIdx, float Continuin
 	// cost addend associated to Schema->BaseCostBias or overriden by UAnimNotifyState_PoseSearchModifyCost
 	const float NotifyAddend = PoseMetadata[PoseIdx].GetCostAddend();
 	return FPoseSearchCost(DissimilarityCost, NotifyAddend, ContinuingPoseCostBias);
+}
+
+void FSearchIndex::GetPoseToPCAValuesVectorIndexes(TArray<uint32>& PoseToPCAValuesVectorIndexes) const
+{
+	if (PCAValuesVectorToPoseIndexes.Num() > 0)
+	{
+		PoseToPCAValuesVectorIndexes.Init(uint32(INDEX_NONE), PCAValuesVectorToPoseIndexes.MaxValue + 1);
+		for (uint32 PCAValuesVectorIdx = 0; PCAValuesVectorIdx < PCAValuesVectorToPoseIndexes.Num(); ++PCAValuesVectorIdx)
+		{
+			for (uint32 PoseIdx : PCAValuesVectorToPoseIndexes[PCAValuesVectorIdx])
+			{
+				PoseToPCAValuesVectorIndexes[PoseIdx] = PCAValuesVectorIdx;
+			}
+		}
+
+		check(!PoseToPCAValuesVectorIndexes.Contains(uint32(INDEX_NONE)));
+	}
+	else
+	{
+		PoseToPCAValuesVectorIndexes.Reset();
+	}
 }
 
 FArchive& operator<<(FArchive& Ar, FSearchIndex& Index)
