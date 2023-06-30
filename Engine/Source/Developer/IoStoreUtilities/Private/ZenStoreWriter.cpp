@@ -778,6 +778,8 @@ void FZenStoreWriter::CommitPackage(FCommitPackageInfo&& Info)
 	}
 
 	TUniquePtr<FPendingPackageState> PackageState = RemovePendingPackage(Info.PackageName);
+	checkf(Info.Status != ECommitStatus::Success || !PackageState->PackageData.IsEmpty(),
+		TEXT("CommitPackage called with CommitStatus::Success but without first calling WritePackageData"));
 	FZenCommitInfo ZenCommitInfo{ Forward<FCommitPackageInfo>(Info), MoveTemp(PackageState) };
 	if (FPlatformProcess::SupportsMultithreading())
 	{
