@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "Containers/UnrealString.h"
+#include "Templates/SharedPointerFwd.h"
+
 struct FNNEModelRaw;
 namespace UE::NNE { class FAttributeMap; }
 

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "EOSShared.h" // IWYU pragma: keep
 #include "Logging/LogMacros.h"
 
 #if WITH_EOS_RTC

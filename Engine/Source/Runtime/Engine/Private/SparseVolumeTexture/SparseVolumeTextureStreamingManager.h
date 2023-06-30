@@ -80,6 +80,7 @@ class FStreamingManager : public FRenderResource, public IStreamingManager
 {
 public:
 	FStreamingManager();
+	~FStreamingManager();
 
 	//~ Begin FRenderResource Interface.
 	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
@@ -322,12 +323,12 @@ private:
 	TMap<FMipLevelKey, uint32> RequestsHashTable;
 	TArray<FPendingMipLevel> PendingMipLevels;
 #if WITH_EDITORONLY_DATA
-	TUniquePtr<UE::DerivedData::FRequestOwner> RequestOwner = nullptr;
-	TUniquePtr<UE::DerivedData::FRequestOwner> RequestOwnerBlocking = nullptr;
+	TUniquePtr<UE::DerivedData::FRequestOwner> RequestOwner;
+	TUniquePtr<UE::DerivedData::FRequestOwner> RequestOwnerBlocking;
 #endif
 
-	TUniquePtr<class FPageTableUpdater> PageTableUpdater = nullptr;
-	TUniquePtr<class FStreamingInfoBufferUpdater> StreamingInfoBufferUpdater = nullptr;
+	TUniquePtr<class FPageTableUpdater> PageTableUpdater;
+	TUniquePtr<class FStreamingInfoBufferUpdater> StreamingInfoBufferUpdater;
 	FGraphEventArray AsyncTaskEvents;
 	FAsyncState AsyncState;
 	int32 MaxPendingMipLevels = 0;

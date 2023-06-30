@@ -1,8 +1,9 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
 #include "HAL/Platform.h"
-#include "Containers/StringFwd.h"
+#include "Containers/StringView.h"
 
 /** Data Wrapper for used to Trace Implicit objects
  * @note This should not be templated. But making it so for now so this can live in the ChaosVDRuntime module without referencing Chaos types directly.

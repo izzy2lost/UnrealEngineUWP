@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CoreTypes.h"
+#include "HAL/PlatformProcess.h"
+#include "Math/UnrealMathUtility.h"
+#include "Misc/Paths.h"
 #include "ProfilingDebugging/ModuleDiagnostics.h"
 #include <link.h>
 

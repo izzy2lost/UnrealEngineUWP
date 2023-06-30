@@ -770,10 +770,10 @@ public:
 	FORCEINLINE TStatId				GetStatId() const { return TStatId(); }
 };
 
-FStreamingManager::FStreamingManager()
-{
+FStreamingManager::FStreamingManager() = default;
+// needed in module to forward declare some members
+FStreamingManager::~FStreamingManager() = default;
 
-}
 
 void FStreamingManager::InitRHI(FRHICommandListBase& RHICmdList)
 {

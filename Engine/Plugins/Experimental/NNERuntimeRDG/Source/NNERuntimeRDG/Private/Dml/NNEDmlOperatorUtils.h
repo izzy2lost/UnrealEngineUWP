@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Containers/StringView.h"
 #include "NNEDmlOperator.h"
 
 namespace UE::NNERuntimeRDG::Private::Dml
