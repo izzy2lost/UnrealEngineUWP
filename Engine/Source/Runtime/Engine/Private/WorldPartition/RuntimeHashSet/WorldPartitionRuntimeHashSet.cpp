@@ -279,8 +279,8 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 			{
 				const FVector2D CellBoundsSize = FVector2D(Cell->GetCellBounds().GetSize());
 				const FVector2D CellBoundsMin = FVector2D(Cell->GetCellBounds().Min);
-				
-				float CellOpacity;
+
+				float CellOpacity = 0.0f;;
 				TArray<FLinearColor> CellColors;
 
 				switch (GShowRuntimeHashSetDebugDisplayMode)
