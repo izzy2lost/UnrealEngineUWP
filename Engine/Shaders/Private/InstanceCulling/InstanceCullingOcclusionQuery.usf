@@ -231,3 +231,74 @@ void MainPS(
 	OutVisibilityMask[InstanceId] = 1;
 	OutColor = float4(1, 0, 0, 1);
 }
+
+// Debug utilities
+
+Buffer<uint> InstanceOcclusionQueryBuffer;
+
+void DebugMainVS(
+	float3 InPosition : ATTRIBUTE0,
+	uint InstanceId : SV_InstanceID,
+	out nointerpolation uint OutDebugVisibility : INSTANCE_DEBUG_VISIBILITY,
+	out float4 OutPosition : SV_POSITION
+)
+{
+	ResolvedView = ResolveView();
+
+	FInstanceSceneData InstanceData;
+	EInstanceVisibilityStatus VisibilityStatus = GetInstanceDataAndVisibility(InstanceId, /*out*/ InstanceData);
+	
+	if (InstanceData.ValidInstance)
+	{
+		float3 LocalPosition = (InPosition * InstanceData.LocalBoundsExtent * InstanceData.DeterminantSign) + InstanceData.LocalBoundsCenter;
+		float4 WorldPosition = TransformLocalToTranslatedWorld(LocalPosition, InstanceData.LocalToWorld);
+
+		OutPosition = mul(WorldPosition, ResolvedView.TranslatedWorldToClip);
+
+		const bool bWasVisibleLastFrame = InstanceOcclusionQueryBuffer[InstanceId] != 0; // YURIY_TODO: multi-view support
+
+		if (VisibilityStatus == IVS_PossiblyVisible)
+		{
+			OutDebugVisibility = bWasVisibleLastFrame ? 2 : 3;
+		}
+		else
+		{
+			OutDebugVisibility = bWasVisibleLastFrame ? 1 : 0;
+		}
+	}
+	else
+	{
+		OutPosition = asfloat(0xFFFFFFFF);
+		OutDebugVisibility = 0;
+	}
+}
+
+void DebugMainPS(
+	in nointerpolation uint DebugVisibility : INSTANCE_DEBUG_VISIBILITY,
+	out float4 OutColor : SV_Target0
+)
+{
+	switch (DebugVisibility)
+	{
+	default:
+	case 0:
+		// Definitely invisible due to HZB test.
+		// No occlusion query performed.
+		OutColor = float4(0.1, 0.0, 0.0, 0.0);
+		break;
+	case 1:
+		// Definitely visible due to near plane intersection or other heuristics.
+		// No occlusion query performed.
+		OutColor = float4(0.1, 0.1, 0.0, 0.0);
+		break;
+	case 2:
+		// Visible due to occlusion query.
+		OutColor = float4(0.0, 0.025, 0.0, 0.0);
+		break;
+	case 3:
+		// Invisible due to occlusion query.
+		OutColor = float4(0.25, 0.0, 0.25, 0.0);
+		break;
+	}
+}
+

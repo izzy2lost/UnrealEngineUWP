@@ -181,12 +181,18 @@ public:
 	{
 		static const uint16 BoxIndexBufferData[] =
 		{
+			// Tri list
 			0, 1, 2, 0, 2, 3,
 			4, 5, 6, 4, 6, 7,
 			1, 4, 7, 1, 7, 2,
 			5, 0, 3, 5, 3, 6,
 			5, 4, 1, 5, 1, 0,
 			3, 2, 7, 3, 7, 6,
+			// Line list
+			0, 1, 0, 3, 0, 5,
+			7, 2, 7, 6, 7, 4,
+			3, 2, 1, 2, 3, 6,
+			5, 6, 5, 4, 1, 4
 		};
 
 		static const FVector3f BoxVertexBufferData[] =
@@ -435,7 +441,7 @@ void FInstanceCullingOcclusionQueryRenderer::EndFrame(FRDGBuilder& GraphBuilder)
 	CurrentRenderedViewIDs.Empty();
 }
 
-uint32 FInstanceCullingOcclusionQueryRenderer::RegisterView(FViewInfo& View)
+uint32 FInstanceCullingOcclusionQueryRenderer::RegisterView(const FViewInfo& View)
 {
 	if (CurrentRenderedViewIDs.Num() < MaxViews)
 	{
@@ -449,10 +455,158 @@ uint32 FInstanceCullingOcclusionQueryRenderer::RegisterView(FViewInfo& View)
 	}
 }
 
-bool FInstanceCullingOcclusionQueryRenderer::IsCompatibleWithView(FViewInfo& View)
+bool FInstanceCullingOcclusionQueryRenderer::IsCompatibleWithView(const FViewInfo& View)
 {
 	return FDataDrivenShaderPlatformInfo::GetSupportsVertexShaderSRVs(View.GetShaderPlatform())
 		&& View.GetSceneTextures().Depth.Target
 		&& View.HZB
 		&& CVarInstanceCullingOcclusionQueries.GetValueOnRenderThread() != 0;
 }
+
+// Debugging utilities
+
+class FInstanceCullingOcclusionQueryDebugVS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FInstanceCullingOcclusionQueryDebugVS);
+	SHADER_USE_PARAMETER_STRUCT(FInstanceCullingOcclusionQueryDebugVS, FGlobalShader);
+
+public:
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return FDataDrivenShaderPlatformInfo::GetSupportsVertexShaderSRVs(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("USE_GLOBAL_GPU_SCENE_DATA"), 1);
+		OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, InstanceSceneDataSOAStride)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, GPUSceneInstanceSceneData)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, GPUSceneInstancePayloadData)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, GPUScenePrimitiveSceneData)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, InstanceOcclusionQueryBuffer)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HZBTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
+		SHADER_PARAMETER(FVector2f, HZBSize)
+		SHADER_PARAMETER(FIntVector4, ViewRect)
+	END_SHADER_PARAMETER_STRUCT()
+};
+
+class FInstanceCullingOcclusionQueryDebugPS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FInstanceCullingOcclusionQueryDebugPS);
+	SHADER_USE_PARAMETER_STRUCT(FInstanceCullingOcclusionQueryDebugPS, FGlobalShader);
+
+public:
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return FDataDrivenShaderPlatformInfo::GetSupportsVertexShaderSRVs(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+	END_SHADER_PARAMETER_STRUCT()
+};
+
+IMPLEMENT_GLOBAL_SHADER(FInstanceCullingOcclusionQueryDebugVS, "/Engine/Private/InstanceCulling/InstanceCullingOcclusionQuery.usf", "DebugMainVS", SF_Vertex);
+IMPLEMENT_GLOBAL_SHADER(FInstanceCullingOcclusionQueryDebugPS, "/Engine/Private/InstanceCulling/InstanceCullingOcclusionQuery.usf", "DebugMainPS", SF_Pixel);
+
+BEGIN_SHADER_PARAMETER_STRUCT(FOcclusionInstanceCullingDebugParameters, )
+	SHADER_PARAMETER_STRUCT_INCLUDE(FInstanceCullingOcclusionQueryDebugVS::FParameters, VS)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FInstanceCullingOcclusionQueryDebugPS::FParameters, PS)
+	RENDER_TARGET_BINDING_SLOTS()
+END_SHADER_PARAMETER_STRUCT()
+
+static void RenderInstanceOcclusionCullingDebug(
+	FRHICommandList& RHICmdList,
+	const FViewInfo& View,
+	FOcclusionInstanceCullingDebugParameters* PassParameters,
+	int32 NumInstances)
+{
+	TShaderMapRef<FInstanceCullingOcclusionQueryDebugVS> VertexShader(View.ShaderMap);
+	TShaderMapRef<FInstanceCullingOcclusionQueryDebugPS> PixelShader(View.ShaderMap);
+
+	FGraphicsPipelineStateInitializer GraphicsPSOInit;
+	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+
+	FIntVector4 ViewRect = PassParameters->VS.ViewRect;
+	RHICmdList.SetViewport(ViewRect.X, ViewRect.Y, 0.0f, ViewRect.Z, ViewRect.W, 1.0f);
+
+	GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GInstanceCullingOcclusionQueryBox.VertexDeclaration;
+	GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+	GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+	GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI(); // No depth test or write
+	GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_InverseSourceAlpha, BO_Add, BF_Zero, BF_One>::GetRHI(); // Premultiplied
+	GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
+	GraphicsPSOInit.PrimitiveType = PT_LineList;
+
+	SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+
+	ClearUnusedGraphResources(VertexShader, &PassParameters->VS);
+	ClearUnusedGraphResources(PixelShader, &PassParameters->PS);
+
+	SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), PassParameters->VS);
+	SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters->PS);
+
+	RHICmdList.SetStreamSource(0, GInstanceCullingOcclusionQueryBox.VertexBuffer, 0);
+
+	RHICmdList.DrawIndexedPrimitive(GInstanceCullingOcclusionQueryBox.IndexBuffer, 0, 0, 24, 36, 12, NumInstances);
+}
+
+void FInstanceCullingOcclusionQueryRenderer::RenderDebug(FRDGBuilder& GraphBuilder, FGPUScene& GPUScene, const FViewInfo& View, FSceneTextures& SceneTextures)
+{
+	if (!IsCompatibleWithView(View) || !InstanceOcclusionQueryBuffer)
+	{
+		return;
+	}
+
+	FRDGTextureRef SceneColor = View.GetSceneTextures().Color.Target;
+	FRDGTextureRef SceneDepth = View.GetSceneTextures().Depth.Target;
+	FRDGBufferRef InstanceOcclusionQueryBufferRDG = GraphBuilder.RegisterExternalBuffer(InstanceOcclusionQueryBuffer);
+
+	FRDGTextureRef DepthTexture = View.GetSceneTextures().Depth.Target;
+	FRDGTextureRef HZBTexture = View.HZB;
+
+	checkf(DepthTexture && HZBTexture,
+		TEXT("Occlusion query instance culling requires scene depth texture and HZB. See FInstanceCullingOcclusionQueryRenderer::IsCompatibleWithView()"));
+
+	const FIntVector HZBSize = HZBTexture->Desc.GetSize();
+
+	const int32 NumInstances = GPUScene.GetNumInstances();
+	const FGPUSceneResourceParameters GPUSceneParameters = GPUScene.GetShaderParameters();
+
+	FOcclusionInstanceCullingDebugParameters* PassParameters = GraphBuilder.AllocParameters<FOcclusionInstanceCullingDebugParameters>();
+
+	PassParameters->VS.ViewRect = FIntVector4(View.ViewRect.Min.X, View.ViewRect.Min.Y, View.ViewRect.Max.X, View.ViewRect.Max.Y);
+	PassParameters->VS.View = View.ViewUniformBuffer;
+	PassParameters->VS.InstanceSceneDataSOAStride = GPUSceneParameters.InstanceDataSOAStride;
+	PassParameters->VS.GPUSceneInstanceSceneData = GPUSceneParameters.GPUSceneInstanceSceneData;
+	PassParameters->VS.GPUSceneInstancePayloadData = GPUSceneParameters.GPUSceneInstancePayloadData;
+	PassParameters->VS.GPUScenePrimitiveSceneData = GPUSceneParameters.GPUScenePrimitiveSceneData;
+	PassParameters->VS.InstanceOcclusionQueryBuffer = GraphBuilder.CreateSRV(InstanceOcclusionQueryBufferRDG, PF_R32_UINT);
+	PassParameters->VS.HZBTexture = HZBTexture;
+	PassParameters->VS.HZBSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	PassParameters->VS.HZBSize = FVector2f(HZBSize.X, HZBSize.Y);
+	PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColor, ERenderTargetLoadAction::ELoad);
+	PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepth,
+		ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ENoAction,
+		FExclusiveDepthStencil::DepthRead_StencilNop);
+
+	GraphBuilder.AddPass(
+		RDG_EVENT_NAME("InstanceCullingOcclusionQueryRenderer_Draw"),
+		PassParameters, ERDGPassFlags::Raster | ERDGPassFlags::NeverCull,
+		[PassParameters, NumInstances, &View](FRHICommandList& RHICmdList)
+		{
+			RenderInstanceOcclusionCullingDebug(RHICmdList, View, PassParameters, NumInstances);
+		});
+
+}
+

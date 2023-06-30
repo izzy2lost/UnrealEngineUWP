@@ -28,6 +28,11 @@ public:
 	uint32 Render(FRDGBuilder& GraphBuilder, FGPUScene& GPUScene, FViewInfo& View);
 
 	/**
+	* Render object bounding boxes, color-coded based on visibility
+	*/
+	void RenderDebug(FRDGBuilder& GraphBuilder, FGPUScene& GPUScene, const FViewInfo& View, FSceneTextures& SceneTextures);
+
+	/**
 	* Mark blocks of occlusion query buffer entries as visible in all views.
 	* Required, for example, when GPUScene instances are invalidated betwen frames,
 	* i.e. when when GPUScene instance buffer slot is re-allocated.
@@ -50,7 +55,7 @@ public:
 	/*
 	* Returns true if per-instance occlusion queries can be rendered for the view.
 	*/
-	bool IsCompatibleWithView(FViewInfo& View);
+	bool IsCompatibleWithView(const FViewInfo& View);
 
 private:
 
@@ -59,7 +64,7 @@ private:
 	* Returns bit mask with a single set bit that should be used to access the occlusion results.
 	* Returns 0 if maximum number of supported views is reached, falling back to no-occlusion-query code path.
 	*/
-	uint32 RegisterView(FViewInfo& View);
+	uint32 RegisterView(const FViewInfo& View);
 
 	FRDGBufferRef CurrentInstanceOcclusionQueryBuffer = {};
 

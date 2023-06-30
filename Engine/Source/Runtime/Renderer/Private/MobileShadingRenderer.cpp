@@ -1077,6 +1077,15 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		RenderMeshDistanceFieldVisualization(GraphBuilder, SceneTextures);
 	}
 	
+	if (ViewFamily.EngineShowFlags.VisualizeInstanceOcclusionQueries
+		&& Scene->InstanceCullingOcclusionQueryRenderer)
+	{
+		for (FViewInfo& View : Views)
+		{
+			Scene->InstanceCullingOcclusionQueryRenderer->RenderDebug(GraphBuilder, Scene->GPUScene, View, SceneTextures);
+		}
+	}
+
 	if (bUseVirtualTexturing)
 	{
 		RDG_GPU_STAT_SCOPE(GraphBuilder, VirtualTextureUpdate);
@@ -1916,6 +1925,12 @@ bool FMobileSceneRenderer::ShouldRenderHZB()
 
 	// Mobile SSAO requests HZB
 	bool bIsFeatureRequested = bRequiresAmbientOcclusionPass && MobileAmbientOcclusionTechniqueCVar->GetValueOnRenderThread() == 1;
+
+	// Instance occlusion culling requires HZB
+	if (FInstanceCullingContext::IsOcclusionCullingEnabled())
+	{
+		bIsFeatureRequested = true;
+	}
 
 	bool bNeedsHZB = bIsFeatureRequested;
 

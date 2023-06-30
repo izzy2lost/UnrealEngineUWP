@@ -478,6 +478,7 @@ private:
 		SetVisualizeCalibrationCustom(false);
 		SetVisualizePostProcessStack(false);
 		SetVirtualTexturePrimitives(false);
+		SetVisualizeInstanceOcclusionQueries(false);
 		SetVisualizeVolumetricCloudConservativeDensity(false);
 		SetVisualizeVolumetricCloudEmptySpaceSkipping(false);
 		SetDrawOnlyVSMInvalidatingGeo(false);

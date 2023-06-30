@@ -4218,6 +4218,15 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			ShadingEnergyConservation::Debug(GraphBuilder, View, SceneTextures);
 		}
 
+		if (ViewFamily.EngineShowFlags.VisualizeInstanceOcclusionQueries
+			&& Scene->InstanceCullingOcclusionQueryRenderer)
+		{
+			for (FViewInfo& View : Views)
+			{
+				Scene->InstanceCullingOcclusionQueryRenderer->RenderDebug(GraphBuilder, Scene->GPUScene, View, SceneTextures);
+			}
+		}
+
 		Scene->ProcessAndRenderIlluminanceMeter(GraphBuilder, Views, SceneTextures.Color.Target);
 
 		if (!bHasRayTracedOverlay && ViewFamily.EngineShowFlags.LightShafts)
