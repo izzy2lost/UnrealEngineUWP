@@ -551,8 +551,7 @@ void FDiffWriterArchiveWriter::Compare(
 	const int64 MaxDiffsToLog,
 	int32& InOutDiffsLogged,
 	TMap<FName, FArchiveDiffStats>& OutStats,
-	const UE::DiffWriterArchive::FMessageCallback& MessageCallback,
-	bool bSuppressLogging)
+	const UE::DiffWriterArchive::FMessageCallback& MessageCallback)
 {
 	const int64 SourceSize = SourcePackage.Size - SourcePackage.StartOffset;
 	const int64 DestSize = DestPackage.Size - DestPackage.StartOffset;
@@ -561,11 +560,8 @@ void FDiffWriterArchiveWriter::Compare(
 	
 	if (SourceSize != DestSize)
 	{
-		if (!bSuppressLogging)
-		{
-			MessageCallback(ELogVerbosity::Warning, FString::Printf(
-				TEXT("%s: Size mismatch: on disk: %lld vs memory: %lld"), AssetFilename, SourceSize, DestSize));
-		}
+		MessageCallback(ELogVerbosity::Warning, FString::Printf(
+			TEXT("%s: Size mismatch: on disk: %lld vs memory: %lld"), AssetFilename, SourceSize, DestSize));
 		int64 SizeDiff = DestPackage.Size - SourcePackage.Size;
 		OutStats.FindOrAdd(AssetClass).DiffSize += SizeDiff;
 	}
@@ -608,11 +604,8 @@ void FDiffWriterArchiveWriter::Compare(
 
 			if (DifferenceCallstackoffsetIndex < 0)
 			{
-				if (!bSuppressLogging)
-				{
-					MessageCallback(ELogVerbosity::Warning, FString::Printf(
-						TEXT("%s: Difference at offset %lld (absolute offset: %lld), unknown callstack"), AssetFilename, LocalOffset, DestAbsoluteOffset));
-				}
+				MessageCallback(ELogVerbosity::Warning, FString::Printf(
+					TEXT("%s: Difference at offset %lld (absolute offset: %lld), unknown callstack"), AssetFilename, LocalOffset, DestAbsoluteOffset));
 				continue;
 			}
 
@@ -697,49 +690,50 @@ void FDiffWriterArchiveWriter::Compare(
 						+ FullStackText.RightChop(DebugDataIndex + 2);
 				}
 
-				if (!bSuppressLogging)
-				{
-					MessageCallback(ELogVerbosity::Warning, FString::Printf(
-						TEXT("%s: Difference at offset %lld%s (absolute offset: %lld): byte %d on disk, byte %d in memory, callstack:%s%s%s%s%s"),
-						AssetFilename,
-						CallstackAtOffset.Offset - DestPackage.StartOffset,
-						DestAbsoluteOffset > CallstackAtOffset.Offset ? *FString::Printf(TEXT("(+%lld)"), DestAbsoluteOffset - CallstackAtOffset.Offset) : TEXT(""),
-						DestAbsoluteOffset,
-						SourceByte, DestByte,
-						UE::DiffWriterArchive::NewLineToken,
-						UE::DiffWriterArchive::NewLineToken,
-						*DifferenceCallstackDataText,
-						*DiffValues,
-						*DebugDataStackText
-					));
-				}
+				MessageCallback(ELogVerbosity::Warning, FString::Printf(
+					TEXT("%s: Difference at offset %lld%s (absolute offset: %lld): byte %d on disk, byte %d in memory, callstack:%s%s%s%s%s"),
+					AssetFilename,
+					CallstackAtOffset.Offset - DestPackage.StartOffset,
+					DestAbsoluteOffset > CallstackAtOffset.Offset ? *FString::Printf(TEXT("(+%lld)"), DestAbsoluteOffset - CallstackAtOffset.Offset) : TEXT(""),
+					DestAbsoluteOffset,
+					SourceByte, DestByte,
+					UE::DiffWriterArchive::NewLineToken,
+					UE::DiffWriterArchive::NewLineToken,
+					*DifferenceCallstackDataText,
+					*DiffValues,
+					*DebugDataStackText
+				));
 
 				const int BytesToLog = 128;
-				if (!bSuppressLogging)
+				MessageCallback(ELogVerbosity::Display, FString::Printf(
+					TEXT("%s: Logging %d bytes around absolute offset: %lld (%016X) in the on disk (existing) package, (which corresponds to offset %lld (%016X) in the in-memory package)"),
+					AssetFilename,
+					BytesToLog,
+					SourceAbsoluteOffset,
+					SourceAbsoluteOffset,
+					DestAbsoluteOffset,
+					DestAbsoluteOffset
+				));
+				TArray<FString> HexDumpLines = FCompressionUtil::HexDumpLines(SourcePackage.Data, SourcePackage.Size,
+					SourceAbsoluteOffset - BytesToLog / 2, SourceAbsoluteOffset + BytesToLog / 2);
+				for (FString& Line : HexDumpLines)
 				{
-					MessageCallback(ELogVerbosity::Display, FString::Printf(
-						TEXT("%s: Logging %d bytes around absolute offset: %lld (%016X) in the on disk (existing) package, (which corresponds to offset %lld (%016X) in the in-memory package)"),
-						AssetFilename,
-						BytesToLog,
-						SourceAbsoluteOffset,
-						SourceAbsoluteOffset,
-						DestAbsoluteOffset,
-						DestAbsoluteOffset
-					));
+					MessageCallback(ELogVerbosity::Display, Line);
 				}
-				FCompressionUtil::LogHexDump(SourcePackage.Data, SourcePackage.Size, SourceAbsoluteOffset - BytesToLog / 2, SourceAbsoluteOffset + BytesToLog / 2);
 
-				if (!bSuppressLogging)
+				MessageCallback(ELogVerbosity::Display, FString::Printf(
+					TEXT("%s: Logging %d bytes around absolute offset: %lld (%016X) in the in memory (new) package"),
+					AssetFilename,
+					BytesToLog,
+					DestAbsoluteOffset,
+					DestAbsoluteOffset
+				));
+				HexDumpLines = FCompressionUtil::HexDumpLines(DestPackage.Data, DestPackage.Size, DestAbsoluteOffset - BytesToLog / 2,
+					DestAbsoluteOffset + BytesToLog / 2);
+				for (FString& Line : HexDumpLines)
 				{
-					MessageCallback(ELogVerbosity::Display, FString::Printf(
-						TEXT("%s: Logging %d bytes around absolute offset: %lld (%016X) in the in memory (new) package"),
-						AssetFilename,
-						BytesToLog,
-						DestAbsoluteOffset,
-						DestAbsoluteOffset
-					));
+					MessageCallback(ELogVerbosity::Display, Line);
 				}
-				FCompressionUtil::LogHexDump(DestPackage.Data, DestPackage.Size, DestAbsoluteOffset - BytesToLog / 2, DestAbsoluteOffset + BytesToLog / 2);
 
 				bDifferenceLogged = true;
 			}
@@ -767,20 +761,14 @@ void FDiffWriterArchiveWriter::Compare(
 	{
 		if (FirstUnreportedDiffIndex != -1)
 		{
-			if (!bSuppressLogging)
-			{
-				MessageCallback(ELogVerbosity::Warning, FString::Printf(
-					TEXT("%s: %lld difference(s) not logged (first at absolute offset: %lld)."),
-					AssetFilename, NumDiffsLocal - NumDiffsLoggedLocal, FirstUnreportedDiffIndex));
-			}
+			MessageCallback(ELogVerbosity::Warning, FString::Printf(
+				TEXT("%s: %lld difference(s) not logged (first at absolute offset: %lld)."),
+				AssetFilename, NumDiffsLocal - NumDiffsLoggedLocal, FirstUnreportedDiffIndex));
 		}
 		else
 		{
-			if (!bSuppressLogging)
-			{
-				MessageCallback(ELogVerbosity::Warning, FString::Printf(
-					TEXT("%s: %lld difference(s) not logged."), AssetFilename, NumDiffsLocal - NumDiffsLoggedLocal));
-			}
+			MessageCallback(ELogVerbosity::Warning, FString::Printf(
+				TEXT("%s: %lld difference(s) not logged."), AssetFilename, NumDiffsLocal - NumDiffsLoggedLocal));
 		}
 	}
 }

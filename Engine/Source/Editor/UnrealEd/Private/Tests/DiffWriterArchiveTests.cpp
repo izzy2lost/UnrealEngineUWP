@@ -166,7 +166,6 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 			FDiffWriterArchiveWriter::FPackageData NewData = ToPackageData(*NewMemory);
 			int32 DiffsLogged = 0;
 			TMap<FName, FArchiveDiffStats> DiffStats;
-			const bool bSuppressLogging = true; // Suppress warning logs when running tests on CI
 			UE::DiffWriterArchive::FMessageCallback MessageCallback =
 				[](ELogVerbosity::Type Verbosity, FStringView Message)
 			{};
@@ -180,8 +179,7 @@ bool FDiffWriterArchiveTestsBasic::RunTest(const FString& Parameters)
 				MaxDiffsToLog,
 				DiffsLogged,
 				DiffStats,
-				MessageCallback,
-				bSuppressLogging);
+				MessageCallback);
 
 			TestTrueExpr(DiffStats[NAME_None].NumDiffs == 2);
 		}

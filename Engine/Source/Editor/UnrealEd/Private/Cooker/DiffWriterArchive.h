@@ -259,8 +259,7 @@ public:
 		const int64 MaxDiffsToLog,
 		int32& InOutDiffsLogged,
 		TMap<FName, FArchiveDiffStats>& OutStats,
-		const UE::DiffWriterArchive::FMessageCallback& MessageCallback,
-		bool bSuppressLogging = false);
+		const UE::DiffWriterArchive::FMessageCallback& MessageCallback);
 
 	/** Creates map with mismatching callstacks. */
 	static bool GenerateDiffMap(
