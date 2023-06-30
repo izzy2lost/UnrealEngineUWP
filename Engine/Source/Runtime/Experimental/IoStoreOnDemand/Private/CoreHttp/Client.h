@@ -3,13 +3,9 @@
 #pragma once
 
 #if !defined(NO_UE_INCLUDES)
-#include "Containers/Array.h"
 #include "Containers/StringView.h"
-#include "HAL/CriticalSection.h"
 #include "Memory/MemoryView.h"
 #endif
-
-#include <atomic>
 
 #if !defined(COREHTTP_API)
 #	define COREHTTP_API IOSTOREONDEMAND_API
@@ -160,6 +156,8 @@ using FTicketSink = TFunction<void (const FTicketStatus&)>;
 ////////////////////////////////////////////////////////////////////////////////
 class COREHTTP_API FEventLoop
 {
+	class FImpl;
+
 public:
 	struct FRequestParams
 	{
@@ -170,23 +168,17 @@ public:
 	template <typename... T> [[nodiscard]] FRequest Get(T&&... t)  { return Request("GET",  Forward<T&&>(t)...); }
 	template <typename... T> [[nodiscard]] FRequest Post(T&&... t) { return Request("POST", Forward<T&&>(t)...); }
 
-							FEventLoop() = default;
+							FEventLoop();
 							~FEventLoop();
 	uint32					Tick(uint32 PollTimeoutMs=0);
 	bool					IsIdle() const;
 	void					Cancel(FTicket Ticket);
 	[[nodiscard]] FRequest	Request(FAnsiStringView Method, FAnsiStringView Url, const FRequestParams* Params=nullptr);
 	[[nodiscard]] FRequest	Request(FAnsiStringView Method, FAnsiStringView Path, FConnectionPool& Pool, const FRequestParams* Params=nullptr);
-	FTicket					Send(FRequest&& Request, FTicketSink Sink, UPTRINT Param=0);
+	FTicket					Send(FRequest&& Request, FTicketSink Sink, UPTRINT SinkParam=0);
 
 private:
-	FRequest				Request(FAnsiStringView Method, FAnsiStringView Path, FActivity* Activity);
-	FCriticalSection		Lock;
-	std::atomic<uint64>		FreeSlots		= ~0ull;
-	std::atomic<uint64>		Cancels			= 0;
-	uint64					PrevFreeSlots	= ~0ull;
-	TArray<FActivity*>		Pending;
-	TArray<FActivity*>		Active;
+	FImpl*					Impl;
 
 private:
 							FEventLoop(const FEventLoop&)	= delete;
