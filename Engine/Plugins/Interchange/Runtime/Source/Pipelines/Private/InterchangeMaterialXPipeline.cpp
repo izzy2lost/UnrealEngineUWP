@@ -11,7 +11,7 @@
 #include "Materials/MaterialFunction.h"
 #include "Misc/PackageName.h"
 
-static const bool bIsSubstrateEnabled = GetDefault<URendererSettings>()->bEnableStrata;
+static const bool bIsSubstrateEnabled = GetDefault<URendererSettings>() ? GetDefault<URendererSettings>()->bEnableStrata : false;
 
 TMap<FString, EInterchangeMaterialXShaders> UInterchangeMaterialXPipeline::PathToEnumMapping
 {
