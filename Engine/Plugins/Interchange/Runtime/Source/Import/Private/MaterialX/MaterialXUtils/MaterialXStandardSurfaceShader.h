@@ -19,11 +19,5 @@ public:
 	static TSharedRef<FMaterialXBase> MakeInstance(UInterchangeBaseNodeContainer& BaseNodeContainer);
 
 	virtual void Translate(MaterialX::NodePtr StandardSurfaceNode) override;
-
-private:
-
-	void ConnectToStandardSurface();
-
-	void ConnectToSubstrateStandardSurface();
 };
 #endif

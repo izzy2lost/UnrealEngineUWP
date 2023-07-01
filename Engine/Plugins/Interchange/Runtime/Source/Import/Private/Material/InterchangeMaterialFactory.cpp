@@ -783,57 +783,6 @@ void UInterchangeMaterialFactory::SetupMaterial(UMaterial* Material, const FImpo
 
 	FMaterialExpressionBuilder Builder(Material, nullptr, Arguments);
 
-	// Substrate
-	if(UInterchangeShaderPortsAPI::HasInput(MaterialFactoryNode, Substrate::Parameters::FrontMaterial))
-	{
-		// Front Material
-		{
-			FString ExpressionNodeUid;
-			FString OutputName;
-
-			UInterchangeShaderPortsAPI::GetInputConnection(MaterialFactoryNode, Substrate::Parameters::FrontMaterial.ToString(), ExpressionNodeUid, OutputName);
-
-			const UInterchangeMaterialExpressionFactoryNode* FrontMaterial = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(ExpressionNodeUid));
-
-			if(FrontMaterial)
-			{
-				if(UMaterialExpression* FrontMaterialExpression = Builder.CreateExpressionsForNode(*FrontMaterial))
-				{
-					if(FExpressionInput* FrontMaterialInput = Material->GetExpressionInputForProperty(MP_FrontMaterial))
-					{
-						FrontMaterialExpression->ConnectExpression(FrontMaterialInput, GetOutputIndex(*FrontMaterialExpression, OutputName));
-					}
-				}
-			}
-		}
-
-		// Opacity Mask
-		if(UInterchangeShaderPortsAPI::HasInput(MaterialFactoryNode, Substrate::Parameters::OpacityMask))
-		{
-			FString ExpressionNodeUid;
-			FString OutputName;
-
-			UInterchangeShaderPortsAPI::GetInputConnection(MaterialFactoryNode, Substrate::Parameters::FrontMaterial.ToString(), ExpressionNodeUid, OutputName);
-
-			const UInterchangeMaterialExpressionFactoryNode* OpacityMask = Cast<UInterchangeMaterialExpressionFactoryNode>(Arguments.NodeContainer->GetNode(ExpressionNodeUid));
-
-			if(OpacityMask)
-			{
-				if(UMaterialExpression* OpacityMaskExpression = Builder.CreateExpressionsForNode(*OpacityMask))
-				{
-					if(FExpressionInput* OpacityMaskInput = Material->GetExpressionInputForProperty(MP_OpacityMask))
-					{
-						OpacityMaskExpression->ConnectExpression(OpacityMaskInput, GetOutputIndex(*OpacityMaskExpression, OutputName));
-					}
-				}
-			}
-		}
-
-		UMaterialEditingLibrary::LayoutMaterialExpressions(Material);
-
-		return;
-	}
-
 	if (UInterchangeShaderPortsAPI::HasInput(MaterialFactoryNode, Common::Parameters::BxDF))
 	{
 		FString ExpressionNodeUid;
