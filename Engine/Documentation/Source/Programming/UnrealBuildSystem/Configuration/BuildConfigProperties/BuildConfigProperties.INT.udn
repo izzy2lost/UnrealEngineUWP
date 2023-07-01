@@ -106,7 +106,7 @@ $ bDisableModuleNumIncludedBytesPerUnityCPPOverride : Disables overrides that ar
 
 $ bStressTestUnity : Whether to stress test the C++ unity build robustness by including all C++ files files in a project from a single unified file.
 
-$ bDetailedUnityFiles : Whether to add additional information to the unity files, such as '_of_X' in the file name.
+$ bDetailedUnityFiles : Whether to add additional information to the unity files, such as '_of_X' in the file name. Not recommended.
 
 $ bDisableDebugInfo : Whether to globally disable debug info generation; see DebugInfoHeuristics.cs for per-config and per-platform options.
 
@@ -457,10 +457,6 @@ $ bIncludeDebugConfigs : Whether we should include configurations for "Debug" an
 $ bIncludeDevelopmentConfigs : Whether we should include configurations for "Development" in generated projects. Pass "-NoDevelopmentConfigs" to disable this.
 
 ### IOSToolChain
-
-$ IOSSDKVersion : The version of the iOS SDK to target at build time.
-
-$ BuildIOSVersion : The version of the iOS to allow at build time.
 
 $ bUseDangerouslyFastMode : If this is set, then we do not do any post-compile steps -- except moving the executable into the proper spot on Mac.
 
