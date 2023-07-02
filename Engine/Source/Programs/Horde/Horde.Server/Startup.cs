@@ -104,9 +104,15 @@ using Microsoft.AspNetCore.Diagnostics;
 using EpicGames.Horde;
 using EpicGames.Horde.Api;
 using EpicGames.Horde.Storage.Bundles;
+using Jupiter.Implementation;
+using Horde.Server.Ddc;
 
 namespace Horde.Server
 {
+	using ReferenceResolver = Jupiter.Implementation.ReferenceResolver;
+	using IStorageBackend = Horde.Server.Storage.IStorageBackend;
+	using ContentHash = EpicGames.Core.ContentHash;
+
 	class Startup
 	{
 		static Startup()
@@ -514,6 +520,14 @@ namespace Horde.Server
 			{
 				services.AddSingleton<IExternalIssueService, DefaultExternalIssueService>();
 			}
+
+			// DDC
+			services.AddSingleton<IBlobStore, BlobStore>();
+			services.AddSingleton<IBlobService, BlobService>();
+			services.AddSingleton<IObjectService, ObjectService>();
+			services.AddSingleton<IReferencesStore, ReferencesStore>();
+			services.AddSingleton<IReferenceResolver, ReferenceResolver>();
+			services.AddSingleton<IContentIdStore, ContentIdStore>();
 
 			// Secret providers
 			services.AddSingleton<SecretService>();
