@@ -13,9 +13,9 @@ using OpenTelemetry.Trace;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Implementation
+namespace Horde.Server.Ddc
 {
-    public class CompressedBufferUtils
+	public class CompressedBufferUtils
     {
         private readonly Tracer _tracer;
 

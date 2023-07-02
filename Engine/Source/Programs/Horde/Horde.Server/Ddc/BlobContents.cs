@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Implementation
+namespace Horde.Server.Ddc
 {
-    public sealed class BlobContents : IDisposable, IAsyncDisposable
+	public sealed class BlobContents : IDisposable, IAsyncDisposable
     {
         private readonly Stream? _stream;
 

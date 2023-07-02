@@ -6,9 +6,10 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Serialization;
 
-namespace EpicGames.Horde.Storage
+namespace Horde.Server.Ddc
 {
 	/// <summary>
 	/// Identifier for a storage bucket

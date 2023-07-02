@@ -7,9 +7,9 @@ using EpicGames.Horde.Storage;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Implementation
+namespace Horde.Server.Ddc
 {
-    public interface IReferencesStore
+	public interface IReferencesStore
     {
         Task<ObjectRecord> Get(NamespaceId ns, BucketId bucket, IoHashKey key, FieldFlags flags);
 

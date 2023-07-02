@@ -7,14 +7,13 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
-using Jupiter.Utils;
 using OpenTelemetry.Trace;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Implementation
+namespace Horde.Server.Ddc
 {
-    public abstract class Attachment
+	public abstract class Attachment
     {
         public abstract IoHash AsIoHash();
     }

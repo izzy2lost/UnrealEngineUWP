@@ -16,9 +16,9 @@ using EpicGames.Serialization;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Implementation
+namespace Horde.Server.Ddc
 {
-    [TypeConverter(typeof(BlobIdentifierTypeConverter))]
+	[TypeConverter(typeof(BlobIdentifierTypeConverter))]
     [JsonConverter(typeof(BlobIdentifierJsonConverter))]
     [CbConverter(typeof(BlobIdentifierCbConverter))]
     public class BlobIdentifier : JupiterContentHash,  IEquatable<BlobIdentifier>

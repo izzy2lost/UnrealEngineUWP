@@ -2,9 +2,9 @@
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Implementation
+namespace Horde.Server.Ddc
 {
-    public static class CommonHeaders
+	public static class CommonHeaders
     {
         public const string HashHeaderSHA1Name = "X-Jupiter-Sha1";
         public const string HashHeaderName = "X-Jupiter-IoHash";

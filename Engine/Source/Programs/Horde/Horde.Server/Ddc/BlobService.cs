@@ -5,8 +5,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
-using Jupiter.Common.Implementation;
-using Jupiter.Implementation;
 
 namespace Horde.Server.Ddc
 {

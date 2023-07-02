@@ -5,9 +5,9 @@ using System.Text;
 
 #pragma warning disable CS1591
 
-namespace Jupiter
+namespace Horde.Server.Ddc
 {
-    public static class StringUtils
+	public static class StringUtils
     {
         public static int GetHexVal(char hex)
         {

@@ -7,9 +7,9 @@ using Microsoft.AspNetCore.Http;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Utils
+namespace Horde.Server.Ddc
 {
-    public static class StreamUtils
+	public static class StreamUtils
     {
         public static async Task<byte[]> ToByteArray(this Stream s)
         {

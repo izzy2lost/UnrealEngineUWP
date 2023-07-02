@@ -104,14 +104,13 @@ using Microsoft.AspNetCore.Diagnostics;
 using EpicGames.Horde;
 using EpicGames.Horde.Api;
 using EpicGames.Horde.Storage.Bundles;
-using Jupiter.Implementation;
 using Horde.Server.Ddc;
 
 namespace Horde.Server
 {
-	using ReferenceResolver = Jupiter.Implementation.ReferenceResolver;
 	using IStorageBackend = Horde.Server.Storage.IStorageBackend;
 	using ContentHash = EpicGames.Core.ContentHash;
+	using ReferenceResolver = Horde.Server.Ddc.ReferenceResolver;
 
 	class Startup
 	{

@@ -9,9 +9,9 @@ using EpicGames.Horde.Storage;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Implementation
+namespace Horde.Server.Ddc
 {
-    public enum LastAccessTrackingFlags
+	public enum LastAccessTrackingFlags
     {
         DoTracking = 0,
         SkipTracking = 1,

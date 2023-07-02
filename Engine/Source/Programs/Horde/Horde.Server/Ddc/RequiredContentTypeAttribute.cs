@@ -7,9 +7,9 @@ using Microsoft.Extensions.Primitives;
 
 #pragma warning disable CS1591
 
-namespace Jupiter
+namespace Horde.Server.Ddc
 {
-    [AttributeUsage(AttributeTargets.Method)]
+	[AttributeUsage(AttributeTargets.Method)]
     public sealed class RequiredContentTypeAttribute : Attribute, IActionConstraint
     {
         private readonly string _mediaTypeName;

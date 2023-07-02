@@ -8,9 +8,9 @@ using EpicGames.Core;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Implementation
+namespace Horde.Server.Ddc
 {
-    [TypeConverter(typeof(ContentIdTypeConverter))]
+	[TypeConverter(typeof(ContentIdTypeConverter))]
     public class ContentId : JupiterContentHash, IEquatable<ContentId>
     {
         public ContentId(byte[] identifier) : base(identifier)

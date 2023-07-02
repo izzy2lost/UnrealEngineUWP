@@ -12,9 +12,9 @@ using EpicGames.Serialization;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Implementation
+namespace Horde.Server.Ddc
 {
-    [TypeConverter(typeof(ContentHashTypeConverter))]
+	[TypeConverter(typeof(ContentHashTypeConverter))]
     [JsonConverter(typeof(ContentHashJsonConverter))]
     [CbConverter(typeof(ContentHashCbConverter))]
     public class JupiterContentHash : IEquatable<JupiterContentHash>, IEquatable<byte[]>

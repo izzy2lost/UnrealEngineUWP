@@ -4,17 +4,14 @@ using System.Net.Mime;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
-using Jupiter.Implementation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 #pragma warning disable CS1591
 
-using ContentId = Jupiter.Implementation.ContentId;
-
-namespace Jupiter.Controllers
+namespace Horde.Server.Ddc
 {
-    [ApiController]
+	[ApiController]
     [FormatFilter]
     [Produces(MediaTypeNames.Application.Json, MediaTypeNames.Application.Octet, CustomMediaTypeNames.UnrealCompactBinary)]
     [Route("api/v1/content-id")]

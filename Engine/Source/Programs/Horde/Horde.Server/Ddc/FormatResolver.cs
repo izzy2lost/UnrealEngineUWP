@@ -11,9 +11,9 @@ using Microsoft.Extensions.Primitives;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Controllers
+namespace Horde.Server.Ddc
 {
-    public class FormatResolver
+	public class FormatResolver
     {
         private readonly IOptionsMonitor<MvcOptions> _mvcOptions;
 

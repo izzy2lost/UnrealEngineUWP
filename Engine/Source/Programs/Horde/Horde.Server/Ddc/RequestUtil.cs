@@ -9,9 +9,9 @@ using OpenTelemetry.Trace;
 
 #pragma warning disable CS1591
 
-namespace Jupiter
+namespace Horde.Server.Ddc
 {
-    public static class RequestUtil
+	public static class RequestUtil
     {
         public static async Task<byte[]> ReadRawBody(HttpRequest request)
         {

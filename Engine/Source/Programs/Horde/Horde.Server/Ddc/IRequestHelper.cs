@@ -9,9 +9,9 @@ using Microsoft.AspNetCore.Mvc;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Controllers
+namespace Horde.Server.Ddc
 {
-    public interface IRequestHelper
+	public interface IRequestHelper
     {
         public Task<ActionResult?> HasAccessToNamespace(ClaimsPrincipal user, HttpRequest request, NamespaceId ns, JupiterAclAction[] aclActions);
         public Task<ActionResult?> HasAccessForGlobalOperations(ClaimsPrincipal user, JupiterAclAction[] aclActions);

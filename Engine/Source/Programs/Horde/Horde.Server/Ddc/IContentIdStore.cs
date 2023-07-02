@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Implementation
+namespace Horde.Server.Ddc
 {
-    public interface IContentIdStore
+	public interface IContentIdStore
     {
         /// <summary>
         /// Resolve a content id from its hash into the actual blob (that can in turn be chunked into a set of blobs)

@@ -17,11 +17,7 @@ using EpicGames.AspNet;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
-using Jupiter.Implementation;
 using JetBrains.Annotations;
-using Jupiter.Common;
-using Jupiter.Common.Implementation;
-using Jupiter.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
@@ -32,13 +28,9 @@ using OpenTelemetry.Trace;
 
 #pragma warning disable CS1591
 
-using JupiterContentHash = Jupiter.Implementation.JupiterContentHash;
-using ContentId = Jupiter.Implementation.ContentId;
-
-namespace Jupiter.Controllers
+namespace Horde.Server.Ddc
 {
 	using IDiagnosticContext = Serilog.IDiagnosticContext;
-    using BlobNotFoundException = Jupiter.Implementation.BlobNotFoundException;
 
     [ApiController]
     [FormatFilter]

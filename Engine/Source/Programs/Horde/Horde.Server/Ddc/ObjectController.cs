@@ -11,19 +11,15 @@ using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
-using Jupiter.Implementation;
-using Jupiter.Common.Implementation;
-using Jupiter.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Controllers
+namespace Horde.Server.Ddc
 {
-    using IDiagnosticContext = Serilog.IDiagnosticContext;
-    using BlobNotFoundException = Jupiter.Implementation.BlobNotFoundException;
+	using IDiagnosticContext = Serilog.IDiagnosticContext;
 
     [ApiController]
     [Route("api/v1/objects", Order = 0)]

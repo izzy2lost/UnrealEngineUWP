@@ -3,16 +3,15 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using Jupiter.Utils;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Common.Implementation
+namespace Horde.Server.Ddc
 {
-    public interface IBufferedPayload : IDisposable
+	public interface IBufferedPayload : IDisposable
     {
         Stream GetStream();
         long Length { get; }

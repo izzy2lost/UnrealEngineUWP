@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 #pragma warning disable CS1591
 
-namespace Jupiter
+namespace Horde.Server.Ddc
 {
-    public static class Sha1Utils
+	public static class Sha1Utils
     {
         public static async Task<string> GetSHA1AsStringAsync(byte[] payload)
         {

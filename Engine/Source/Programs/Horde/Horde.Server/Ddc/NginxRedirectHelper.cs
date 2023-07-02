@@ -8,9 +8,9 @@ using Microsoft.Extensions.Options;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Implementation
+namespace Horde.Server.Ddc
 {
-    public class NginxRedirectHelper
+	public class NginxRedirectHelper
     {
         private readonly IOptionsMonitor<NginxSettings> _nginxSettings;
 

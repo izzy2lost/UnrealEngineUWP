@@ -5,9 +5,9 @@ using EpicGames.Horde.Storage;
 
 #pragma warning disable CS1591
 
-namespace Jupiter.Common
+namespace Horde.Server.Ddc
 {
-    public class NamespaceNotFoundException : Exception
+	public class NamespaceNotFoundException : Exception
     {
         public NamespaceId Namespace { get; }
 
