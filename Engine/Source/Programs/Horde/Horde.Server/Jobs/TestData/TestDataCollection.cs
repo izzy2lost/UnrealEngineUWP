@@ -523,7 +523,6 @@ namespace Horde.Server.Jobs.TestData
 			{
 				(string key, BsonDocument document) = data[i];
 				documents.Add(new TestDataDocument(job, step, key, document));
-				
 			}
 
 			await _testDataDocuments.InsertManyAsync(documents);
