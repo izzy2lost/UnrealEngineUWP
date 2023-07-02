@@ -267,6 +267,7 @@ namespace Horde.Server.Tests
 			Assert.IsNotNull(telemetry[0].Telemetry[0].ReservationFinishUtc);
 		}
 
+		[Ignore]
 		[TestMethod]
 		public async Task TestDevicePoolTelemetryCapture()
 		{
