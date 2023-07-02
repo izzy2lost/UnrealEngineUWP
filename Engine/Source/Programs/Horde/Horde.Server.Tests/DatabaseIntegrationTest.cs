@@ -176,13 +176,15 @@ namespace Horde.Server.Tests
 			{
 				if (_mongoService == null)
 				{
+					RedisService redisService = GetRedisServiceSingleton();
+
 					_mongoDbInstance = new MongoDbInstance();
 
 					ServerSettings ss = new ServerSettings();
 					ss.DatabaseName = _mongoDbInstance.DatabaseName;
 					ss.DatabaseConnectionString = _mongoDbInstance.ConnectionString;
 
-					_mongoService = new MongoService(Options.Create(ss), OpenTelemetryTracers.Horde, _loggerFactory.CreateLogger<MongoService>(), _loggerFactory);
+					_mongoService = new MongoService(Options.Create(ss), redisService, OpenTelemetryTracers.Horde, _loggerFactory.CreateLogger<MongoService>(), _loggerFactory);
 				}
 			}
 			return _mongoService;
