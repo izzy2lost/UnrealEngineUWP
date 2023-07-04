@@ -882,6 +882,7 @@ namespace UnrealBuildTool
 					{
 						Target.DisablePlugins.AddRange(new string[]
 						{
+							"Reflex",
 							"VirtualCamera", // WebRTC currently does not link properly
 						});
 					}
