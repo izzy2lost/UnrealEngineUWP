@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#pragma once
+
 #include "IMultiUserReplicationEditorModule.h"
 #include "Misc/AssetCategoryPath.h"
 
