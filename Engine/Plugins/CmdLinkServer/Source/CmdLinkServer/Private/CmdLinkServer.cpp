@@ -32,14 +32,16 @@ namespace UE::CmdLink
 
 	void OnCmdLinkEnabledChanged(IConsoleVariable* Var)
 	{
-		FCmdLinkServerModule* Server = FCmdLinkServerModule::Get();
-		if (Server && bEnabled)
+		if (FCmdLinkServerModule* Server = FCmdLinkServerModule::Get())
 		{
-			Server->Enable();
-		}
-		else
-		{
-			Server->Disable();
+			if (bEnabled)
+			{
+				Server->Enable();
+			}
+			else
+			{
+				Server->Disable();
+			}
 		}
 	}
 
