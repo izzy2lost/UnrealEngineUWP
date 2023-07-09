@@ -184,7 +184,7 @@ namespace UnrealBuildTool
 			{
 				using ImmediateActionQueue queue = CreateActionQueue(ActionsToExecute, actionArtifactCache, Logger);
 				int actionLimit = Math.Min(NumParallelProcesses, queue.TotalActions);
-				queue.CreateAutomaticRunner(action => RunAction(queue, action), bUseActionWeights, actionLimit, actionLimit);
+				queue.CreateAutomaticRunner(action => RunAction(queue, action), bUseActionWeights, actionLimit, NumParallelProcesses);
 				queue.Start();
 				queue.StartManyActions();
 				return await queue.RunTillDone();
