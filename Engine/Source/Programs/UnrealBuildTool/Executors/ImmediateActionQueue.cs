@@ -798,19 +798,24 @@ namespace UnrealBuildTool
 			}
 		}
 
-		public int GetQueuedActionsCount(Func<LinkedAction, bool>? CanRunFunc = null)
+		/// <summary>
+		/// Returns the number of queued actions left (not including ArtifactCheck actions)
+		/// Note, this method is lockless and will not always return accurate count
+		/// </summary>
+		/// <param name="filterFunc">Optional function to filter out actions. Return false if action should not be included</param>
+		public uint GetQueuedActionsCount(Func<LinkedAction, bool>? filterFunc = null)
 		{
-			int count = 0;
+			uint count = 0;
 
 			for (int actionIndex = _firstPendingAction; actionIndex != Actions.Length; ++actionIndex)
 			{
 
-				if (Actions[actionIndex].Status != ActionStatus.Queued)
+				if (Actions[actionIndex].Status != ActionStatus.Queued || Actions[actionIndex].Phase != ActionPhase.Compile)
 				{
 					continue;
 				}
 					
-				if (CanRunFunc != null && !CanRunFunc(Actions[actionIndex].Action))
+				if (filterFunc != null && !filterFunc(Actions[actionIndex].Action))
 				{
 					continue;
 				}

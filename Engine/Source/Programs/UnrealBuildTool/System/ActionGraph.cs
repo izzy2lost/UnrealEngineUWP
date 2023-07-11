@@ -356,7 +356,8 @@ namespace UnrealBuildTool
 			bool bAnySingleFile = TargetDescriptors.Any(Descriptor => Descriptor.SpecificFilesToCompile.Count == 1);
 			if (!bAnySingleFile && BuildConfiguration.bAllowBoxExecutor && BoxExecutor.IsAvailable(Logger))
 			{
-				return new BoxExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger);
+				CommandLineArguments? AdditionalArguments = TargetDescriptors.FirstOrDefault()?.AdditionalArguments;
+				return new BoxExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, AdditionalArguments);
 			}
 #endif // #if __BOXEXECUTOR_AVAILABLE__
 
