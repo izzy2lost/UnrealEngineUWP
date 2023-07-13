@@ -170,7 +170,7 @@ FURL::FURL( FURL* Base, const TCHAR* TextURL, ETravelType Type )
 		check(Base);
 		for( int32 i=0; i<Base->Op.Num(); i++ )
 		{
-			new(Op)FString(Base->Op[i]);
+			Op.Add(Base->Op[i]);
 		}
 	}
 
@@ -657,7 +657,7 @@ void FURL::AddOption( const TCHAR* Str )
 
 	if (i == Op.Num())
 	{
-		new(Op) FString(Str);
+		Op.Emplace(Str);
 	}
 	else
 	{

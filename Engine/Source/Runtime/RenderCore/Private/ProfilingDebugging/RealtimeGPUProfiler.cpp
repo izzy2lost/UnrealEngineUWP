@@ -486,7 +486,7 @@ public:
 
 			if (MaxNumQueries < 0 || QueryCount < (uint32)MaxNumQueries)
 			{
-				new (GpuProfilerEvents) FRealtimeGPUProfilerEvent(*RenderQueryPool);
+				GpuProfilerEvents.Emplace(*RenderQueryPool);
 				QueryCount += FRealtimeGPUProfilerEvent::GetNumRHIQueriesPerEvent();
 			}
 			else

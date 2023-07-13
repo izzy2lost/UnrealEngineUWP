@@ -436,8 +436,8 @@ void FRawStatStackNode::Encode(TArray<FStatMessage>& OutStats) const
 			FRawStatStackNode const* Child = It.Value();
 			Child->Encode(OutStats);
 		}
-		FStatMessage* EndStat = new (OutStats) FStatMessage(Meta);
-		EndStat->NameAndInfo.SetField<EStatOperation>(EStatOperation::ChildrenEnd);
+		FStatMessage& EndStat = OutStats.Emplace_GetRef(Meta);
+		EndStat.NameAndInfo.SetField<EStatOperation>(EStatOperation::ChildrenEnd);
 	}
 	else
 	{

@@ -316,7 +316,7 @@ void FCanvas::Construct()
 
 	const FIntPoint RenderTargetSizeXY = RenderTarget ? RenderTarget->GetSizeXY() : FIntPoint(1, 1);
 
-	new(TransformStack) FTransformEntry( 
+	TransformStack.Emplace( 
 		FMatrix( FScaleMatrix(GetDPIScale()) * CalcBaseTransform2D(RenderTargetSizeXY.X, RenderTargetSizeXY.Y) )
 		);
 
@@ -339,7 +339,7 @@ void FCanvas::SetBaseTransform(const FMatrix& Transform)
 	}
 	else
 	{
-		new(TransformStack) FTransformEntry(Transform);
+		TransformStack.Emplace(Transform);
 	}
 }
 
@@ -600,7 +600,7 @@ FCanvas::FCanvasSortElement& FCanvas::GetSortElement(int32 DepthSortKey)
 	// if it doesn't exist then add a new entry (no duplicates allowed)
 	else
 	{
-		new(SortedElements) FCanvasSortElement(DepthSortKey);
+		SortedElements.Emplace(DepthSortKey);
 		ElementIdx = SortedElements.Num()-1;
 		// keep track of newly added array index for later lookup
 		SortedElementLookupMap.Add( DepthSortKey, ElementIdx );

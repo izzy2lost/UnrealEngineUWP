@@ -118,7 +118,7 @@ TArray<FString> UTextureLODSettings::GetTextureGroupNames()
 	// TEXTUREGROUP_MAX is not actually Max, it's count
 	TextureGroupNames.Reserve(TEXTUREGROUP_MAX);
 
-#define GROUPNAMES(g) new(TextureGroupNames) FString(TEXT(#g));
+#define GROUPNAMES(g) TextureGroupNames.Emplace(TEXT(#g));
 	FOREACH_ENUM_TEXTUREGROUP(GROUPNAMES)
 #undef GROUPNAMES
 

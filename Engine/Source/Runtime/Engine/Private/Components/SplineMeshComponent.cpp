@@ -1282,7 +1282,7 @@ void USplineMeshComponent::RecreateCollision()
 			// Convert boxes to convex hulls to better respect distortion
 			for (FKBoxElem& BoxElem : BodySetup->AggGeom.BoxElems)
 			{
-				FKConvexElem& ConvexElem = *new(BodySetup->AggGeom.ConvexElems) FKConvexElem();
+				FKConvexElem& ConvexElem = BodySetup->AggGeom.ConvexElems.AddDefaulted_GetRef();
 
 				const FVector Radii = FVector(BoxElem.X / 2, BoxElem.Y / 2, BoxElem.Z / 2).ComponentMax(FVector(1.0f));
 				const FTransform ElementTM = BoxElem.GetTransform();

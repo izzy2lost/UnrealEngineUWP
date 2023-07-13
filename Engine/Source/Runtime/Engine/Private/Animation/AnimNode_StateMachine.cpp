@@ -230,12 +230,12 @@ void FAnimNode_StateMachine::Initialize_AnyThread(const FAnimationInitializeCont
 			for (int32 StateIndex = 0; StateIndex < Machine->States.Num(); ++StateIndex)
 			{
 				const FBakedAnimationState& State = Machine->States[StateIndex];
-				FPoseLink* StatePoseLink = new (StatePoseLinks) FPoseLink();
+				FPoseLink& StatePoseLink = StatePoseLinks.AddDefaulted_GetRef();
 
 				// because conduits don't contain bound graphs, this link is no longer guaranteed to be valid
 				if (State.StateRootNodeIndex != INDEX_NONE)
 				{
-					StatePoseLink->LinkID = AnimBlueprintClass->GetAnimNodeProperties().Num() - 1 - State.StateRootNodeIndex; //@TODO: Crazysauce
+					StatePoseLink.LinkID = AnimBlueprintClass->GetAnimNodeProperties().Num() - 1 - State.StateRootNodeIndex; //@TODO: Crazysauce
 				}
 
 				// also initialize transitions
@@ -1225,58 +1225,55 @@ void FAnimNode_StateMachine::TransitionToState(const FAnimationUpdateContext& Co
 		const float ExistingWeightOfNextState = GetStateWeight(NextState);
 
 		// Push the transition onto the stack
-		FAnimationActiveTransitionEntry* NewTransition = new (ActiveTransitionArray) FAnimationActiveTransitionEntry(NextState, ExistingWeightOfNextState, PreviousState, TransitionInfo, CrossFadeTimeAdjustment);
-		if (NewTransition)
+		FAnimationActiveTransitionEntry& NewTransition = ActiveTransitionArray.Emplace_GetRef(NextState, ExistingWeightOfNextState, PreviousState, TransitionInfo, CrossFadeTimeAdjustment);
+		if ((TransitionInfo.LogicType == ETransitionLogicType::TLT_Custom) && BakedExitTransition)
 		{
-			if ((TransitionInfo.LogicType == ETransitionLogicType::TLT_Custom) && BakedExitTransition)
-			{
-				NewTransition->InitializeCustomGraphLinks(Context, *BakedExitTransition);
-			}
+			NewTransition.InitializeCustomGraphLinks(Context, *BakedExitTransition);
+		}
 
-			// Initialize blend data if necessary
-			if (NewTransition->BlendProfile)
-			{
-				NewTransition->StateBlendData.AddZeroed(2);
-				NewTransition->StateBlendData[0].PerBoneBlendData.AddZeroed(NewTransition->BlendProfile->GetNumBlendEntries());
-				NewTransition->StateBlendData[1].PerBoneBlendData.AddZeroed(NewTransition->BlendProfile->GetNumBlendEntries());
-			}
+		// Initialize blend data if necessary
+		if (NewTransition.BlendProfile)
+		{
+			NewTransition.StateBlendData.AddZeroed(2);
+			NewTransition.StateBlendData[0].PerBoneBlendData.AddZeroed(NewTransition.BlendProfile->GetNumBlendEntries());
+			NewTransition.StateBlendData[1].PerBoneBlendData.AddZeroed(NewTransition.BlendProfile->GetNumBlendEntries());
+		}
 
-			if (TransitionInfo.LogicType == ETransitionLogicType::TLT_Inertialization)
+		if (TransitionInfo.LogicType == ETransitionLogicType::TLT_Inertialization)
+		{
+			UE::Anim::IInertializationRequester* InertializationRequester = Context.GetMessage<UE::Anim::IInertializationRequester>();
+			if (InertializationRequester)
 			{
-				UE::Anim::IInertializationRequester* InertializationRequester = Context.GetMessage<UE::Anim::IInertializationRequester>();
-				if (InertializationRequester)
-				{
-					FInertializationRequest Request;
-					Request.Duration = TransitionInfo.CrossfadeDuration;
-					Request.BlendProfile = TransitionInfo.BlendProfile;
-					Request.bUseBlendMode = true;
-					Request.BlendMode = TransitionInfo.BlendMode;
-					Request.CustomBlendCurve = TransitionInfo.CustomCurve;
+				FInertializationRequest Request;
+				Request.Duration = TransitionInfo.CrossfadeDuration;
+				Request.BlendProfile = TransitionInfo.BlendProfile;
+				Request.bUseBlendMode = true;
+				Request.BlendMode = TransitionInfo.BlendMode;
+				Request.CustomBlendCurve = TransitionInfo.CustomCurve;
 #if ANIM_TRACE_ENABLED
-					Request.Description = FText::Format(LOCTEXT("InertializationRequestDescription", 
-						"\"{0}\" Transition from \"{1}\" to \"{2}\""), 
-						FText::FromName(GetMachineDescription()->MachineName),
-						FText::FromName(GetStateInfo(TransitionInfo.PreviousState).StateName),
-						FText::FromName(GetStateInfo(TransitionInfo.NextState).StateName));
-					Request.NodeId = Context.GetCurrentNodeId();
-					Request.AnimInstance = Context.AnimInstanceProxy->GetAnimInstanceObject();
+				Request.Description = FText::Format(LOCTEXT("InertializationRequestDescription", 
+					"\"{0}\" Transition from \"{1}\" to \"{2}\""), 
+					FText::FromName(GetMachineDescription()->MachineName),
+					FText::FromName(GetStateInfo(TransitionInfo.PreviousState).StateName),
+					FText::FromName(GetStateInfo(TransitionInfo.NextState).StateName));
+				Request.NodeId = Context.GetCurrentNodeId();
+				Request.AnimInstance = Context.AnimInstanceProxy->GetAnimInstanceObject();
 #endif
 
-					InertializationRequester->RequestInertialization(Request);
-					InertializationRequester->AddDebugRecord(*Context.AnimInstanceProxy, Context.GetCurrentNodeId());
-				}
-				else
-				{
-					LogInertializationRequestError(Context, PreviousState, NextState);
-				}
+				InertializationRequester->RequestInertialization(Request);
+				InertializationRequester->AddDebugRecord(*Context.AnimInstanceProxy, Context.GetCurrentNodeId());
 			}
-
-			NewTransition->SourceTransitionIndices = SourceTransitionIndices;
-
-			if (!bFirstUpdate || (bFirstUpdate && !bSkipFirstUpdateTransition))
+			else
 			{
-				Context.AnimInstanceProxy->AddAnimNotifyFromGeneratedClass(NewTransition->StartNotify);
+				LogInertializationRequestError(Context, PreviousState, NextState);
 			}
+		}
+
+		NewTransition.SourceTransitionIndices = SourceTransitionIndices;
+
+		if (!bFirstUpdate || (bFirstUpdate && !bSkipFirstUpdateTransition))
+		{
+			Context.AnimInstanceProxy->AddAnimNotifyFromGeneratedClass(NewTransition.StartNotify);
 		}
 	}
 

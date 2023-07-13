@@ -144,29 +144,29 @@ void FBatchedElements::AddLine(const FVector& Start, const FVector& End, const F
 	{
 		if (DepthBias == 0.0f)
 		{
-			new(LineVertices) FSimpleElementVertex(Start, FVector2D::ZeroVector, OpaqueColor, HitProxyId);
-			new(LineVertices) FSimpleElementVertex(End, FVector2D::ZeroVector, OpaqueColor, HitProxyId);
+			LineVertices.Emplace(Start, FVector2D::ZeroVector, OpaqueColor, HitProxyId);
+			LineVertices.Emplace(End, FVector2D::ZeroVector, OpaqueColor, HitProxyId);
 		}
 		else
 		{
 			// Draw degenerate triangles in wireframe mode to support depth bias (d3d11 and opengl3 don't support depth bias on line primitives, but do on wireframes)
-			FBatchedWireTris* WireTri = new(WireTris) FBatchedWireTris();
-			WireTri->DepthBias = DepthBias;
-			new(WireTriVerts) FSimpleElementVertex(Start, FVector2D::ZeroVector, OpaqueColor, HitProxyId);
-			new(WireTriVerts) FSimpleElementVertex(End, FVector2D::ZeroVector, OpaqueColor, HitProxyId);
-			new(WireTriVerts) FSimpleElementVertex(End, FVector2D::ZeroVector, OpaqueColor, HitProxyId);
+			FBatchedWireTris& WireTri = WireTris.AddDefaulted_GetRef();
+			WireTri.DepthBias = DepthBias;
+			WireTriVerts.Emplace(Start, FVector2D::ZeroVector, OpaqueColor, HitProxyId);
+			WireTriVerts.Emplace(End, FVector2D::ZeroVector, OpaqueColor, HitProxyId);
+			WireTriVerts.Emplace(End, FVector2D::ZeroVector, OpaqueColor, HitProxyId);
 		}
 	}
 	else
 	{
-		FBatchedThickLines* ThickLine = new(ThickLines) FBatchedThickLines;
-		ThickLine->Start = Start;
-		ThickLine->End = End;
-		ThickLine->Thickness = Thickness;
-		ThickLine->Color = OpaqueColor;
-		ThickLine->HitProxyColor = HitProxyId.GetColor();
-		ThickLine->DepthBias = DepthBias;
-		ThickLine->bScreenSpace = bScreenSpace;
+		FBatchedThickLines& ThickLine = ThickLines.AddDefaulted_GetRef();
+		ThickLine.Start = Start;
+		ThickLine.End = End;
+		ThickLine.Thickness = Thickness;
+		ThickLine.Color = OpaqueColor;
+		ThickLine.HitProxyColor = HitProxyId.GetColor();
+		ThickLine.DepthBias = DepthBias;
+		ThickLine.bScreenSpace = bScreenSpace;
 	}
 }
 
@@ -176,29 +176,29 @@ void FBatchedElements::AddTranslucentLine(const FVector& Start, const FVector& E
 	{
 		if (DepthBias == 0.0f)
 		{
-			new(LineVertices) FSimpleElementVertex(Start, FVector2D::ZeroVector, Color, HitProxyId);
-			new(LineVertices) FSimpleElementVertex(End, FVector2D::ZeroVector, Color, HitProxyId);
+			LineVertices.Emplace(Start, FVector2D::ZeroVector, Color, HitProxyId);
+			LineVertices.Emplace(End, FVector2D::ZeroVector, Color, HitProxyId);
 		}
 		else
 		{
 			// Draw degenerate triangles in wireframe mode to support depth bias (d3d11 and opengl3 don't support depth bias on line primitives, but do on wireframes)
-			FBatchedWireTris* WireTri = new(WireTris) FBatchedWireTris();
-			WireTri->DepthBias = DepthBias;
-			new(WireTriVerts) FSimpleElementVertex(Start, FVector2D::ZeroVector, Color, HitProxyId);
-			new(WireTriVerts) FSimpleElementVertex(End, FVector2D::ZeroVector, Color, HitProxyId);
-			new(WireTriVerts) FSimpleElementVertex(End, FVector2D::ZeroVector, Color, HitProxyId);
+			FBatchedWireTris& WireTri = WireTris.AddDefaulted_GetRef();
+			WireTri.DepthBias = DepthBias;
+			WireTriVerts.Emplace(Start, FVector2D::ZeroVector, Color, HitProxyId);
+			WireTriVerts.Emplace(End, FVector2D::ZeroVector, Color, HitProxyId);
+			WireTriVerts.Emplace(End, FVector2D::ZeroVector, Color, HitProxyId);
 		}
 	}
 	else
 	{
-		FBatchedThickLines* ThickLine = new(ThickLines) FBatchedThickLines;
-		ThickLine->Start = Start;
-		ThickLine->End = End;
-		ThickLine->Thickness = Thickness;
-		ThickLine->Color = Color;
-		ThickLine->HitProxyColor = HitProxyId.GetColor();
-		ThickLine->DepthBias = DepthBias;
-		ThickLine->bScreenSpace = bScreenSpace;
+		FBatchedThickLines& ThickLine = ThickLines.AddDefaulted_GetRef();
+		ThickLine.Start = Start;
+		ThickLine.End = End;
+		ThickLine.Thickness = Thickness;
+		ThickLine.Color = Color;
+		ThickLine.HitProxyColor = HitProxyId.GetColor();
+		ThickLine.DepthBias = DepthBias;
+		ThickLine.bScreenSpace = bScreenSpace;
 
 	}
 }
@@ -209,24 +209,24 @@ void FBatchedElements::AddPoint(const FVector& Position,float Size,const FLinear
 	FLinearColor OpaqueColor(Color);
 	OpaqueColor.A = 1;
 
-	FBatchedPoint* Point = new(Points) FBatchedPoint;
-	Point->Position = Position;
-	Point->Size = Size;
-	Point->Color = OpaqueColor.ToFColor(true);
-	Point->HitProxyColor = HitProxyId.GetColor();
+	FBatchedPoint& Point = Points.AddDefaulted_GetRef();
+	Point.Position = Position;
+	Point.Size = Size;
+	Point.Color = OpaqueColor.ToFColor(true);
+	Point.HitProxyColor = HitProxyId.GetColor();
 }
 
 int32 FBatchedElements::AddVertex(const FVector4& InPosition, const FVector2D& InTextureCoordinate, const FLinearColor& InColor, FHitProxyId HitProxyId)
 {
 	int32 VertexIndex = MeshVertices.Num();
-	new(MeshVertices) FSimpleElementVertex(InPosition, InTextureCoordinate, InColor, HitProxyId);
+	MeshVertices.Emplace(InPosition, InTextureCoordinate, InColor, HitProxyId);
 	return VertexIndex;
 }
 
 int32 FBatchedElements::AddVertexf(const FVector4f& InPosition,const FVector2f& InTextureCoordinate,const FLinearColor& InColor,FHitProxyId HitProxyId)
 {
 	int32 VertexIndex = MeshVertices.Num();
-	new(MeshVertices) FSimpleElementVertex(InPosition,InTextureCoordinate,InColor,HitProxyId);
+	MeshVertices.Emplace(InPosition,InTextureCoordinate,InColor,HitProxyId);
 	return VertexIndex;
 }
 
@@ -311,7 +311,7 @@ void FBatchedElements::AddTriangleExtensive(int32 V0,int32 V1,int32 V2,FBatchedE
 		else
 		{
 			// Create a new mesh element for the texture if this is the first triangle encountered using it.
-			MeshElement = new(MeshElements) FBatchedMeshElement;
+			MeshElement = &MeshElements.AddDefaulted_GetRef();
 			MeshElement->Texture = Texture;
 			MeshElement->BatchedElementParameters = BatchedElementParameters;
 			MeshElement->BlendMode = BlendMode;
@@ -434,19 +434,19 @@ void FBatchedElements::AddSprite(
 {
 	check(Texture);
 
-	FBatchedSprite* Sprite = new(Sprites) FBatchedSprite;
-	Sprite->Position = Position;
-	Sprite->SizeX = SizeX;
-	Sprite->SizeY = SizeY;
-	Sprite->Texture = Texture;
-	Sprite->Color = Color;
-	Sprite->HitProxyColor = HitProxyId.GetColor();
-	Sprite->U = U;
-	Sprite->UL = UL == 0.f ? Texture->GetSizeX() : UL;
-	Sprite->V = V;
-	Sprite->VL = VL == 0.f ? Texture->GetSizeY() : VL;
-	Sprite->OpacityMaskRefVal = OpacityMaskRefVal;
-	Sprite->BlendMode = BlendMode;
+	FBatchedSprite& Sprite = Sprites.AddDefaulted_GetRef();
+	Sprite.Position = Position;
+	Sprite.SizeX = SizeX;
+	Sprite.SizeY = SizeY;
+	Sprite.Texture = Texture;
+	Sprite.Color = Color;
+	Sprite.HitProxyColor = HitProxyId.GetColor();
+	Sprite.U = U;
+	Sprite.UL = UL == 0.f ? Texture->GetSizeX() : UL;
+	Sprite.V = V;
+	Sprite.VL = VL == 0.f ? Texture->GetSizeY() : VL;
+	Sprite.OpacityMaskRefVal = OpacityMaskRefVal;
+	Sprite.BlendMode = BlendMode;
 }
 
 /** Translates a ESimpleElementBlendMode into a RHI state change for rendering a mesh with the blend mode normally. */

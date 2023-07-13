@@ -188,11 +188,11 @@ void FTextureSourceData::Init(UTexture& InTexture, TextureMipGenSettings InMipGe
 	Layers.Reserve(NumLayers);
 	for (int LayerIndex = 0; LayerIndex < NumLayers; ++LayerIndex)
 	{
-		FTextureSourceLayerData* LayerData = new(Layers) FTextureSourceLayerData();
+		FTextureSourceLayerData& LayerData = Layers.AddDefaulted_GetRef();
 
-		LayerData->ImageFormat = FImageCoreUtils::ConvertToRawImageFormat( InTexture.Source.GetFormat(LayerIndex) );
+		LayerData.ImageFormat = FImageCoreUtils::ConvertToRawImageFormat( InTexture.Source.GetFormat(LayerIndex) );
 
-		LayerData->SourceGammaSpace = InTexture.Source.GetGammaSpace(LayerIndex);
+		LayerData.SourceGammaSpace = InTexture.Source.GetGammaSpace(LayerIndex);
 	}
 
 	Blocks.Reserve(NumBlocks);
@@ -203,25 +203,25 @@ void FTextureSourceData::Init(UTexture& InTexture, TextureMipGenSettings InMipGe
 
 		if (SourceBlock.NumMips > 0 && SourceBlock.NumSlices > 0)
 		{
-			FTextureSourceBlockData* BlockData = new(Blocks) FTextureSourceBlockData();
-			BlockData->BlockX = SourceBlock.BlockX;
-			BlockData->BlockY = SourceBlock.BlockY;
-			BlockData->SizeX = SourceBlock.SizeX;
-			BlockData->SizeY = SourceBlock.SizeY;
-			BlockData->NumMips = SourceBlock.NumMips;
-			BlockData->NumSlices = SourceBlock.NumSlices;
+			FTextureSourceBlockData& BlockData = Blocks.AddDefaulted_GetRef();
+			BlockData.BlockX = SourceBlock.BlockX;
+			BlockData.BlockY = SourceBlock.BlockY;
+			BlockData.SizeX = SourceBlock.SizeX;
+			BlockData.SizeY = SourceBlock.SizeY;
+			BlockData.NumMips = SourceBlock.NumMips;
+			BlockData.NumSlices = SourceBlock.NumSlices;
 
 			if (InMipGenSettings != TMGS_LeaveExistingMips)
 			{
-				BlockData->NumMips = 1;
+				BlockData.NumMips = 1;
 			}
 
 			if (!bInCubeMap && !bInTextureArray && !bInVolumeTexture)
 			{
-				BlockData->NumSlices = 1;
+				BlockData.NumSlices = 1;
 			}
 
-			BlockData->MipsPerLayer.SetNum(NumLayers);
+			BlockData.MipsPerLayer.SetNum(NumLayers);
 
 			SizeInBlocksX = FMath::Max(SizeInBlocksX, SourceBlock.BlockX + 1);
 			SizeInBlocksY = FMath::Max(SizeInBlocksY, SourceBlock.BlockY + 1);
@@ -291,13 +291,13 @@ void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModu
 						int32 MipSizeZ = SourceBlock.NumSlices;
 						for (int32 MipIndex = 0; MipIndex < BlockData.NumMips; ++MipIndex)
 						{
-							FImage* SourceMip = new(BlockData.MipsPerLayer[LayerIndex]) FImage(
+							FImage& SourceMip = BlockData.MipsPerLayer[LayerIndex].Emplace_GetRef(
 								MipSizeX, MipSizeY, MipSizeZ,
 								LayerData.ImageFormat,
 								LayerData.SourceGammaSpace
 							);
 
-							if (!ScopedMipData.GetMipData(SourceMip->RawData, BlockIndex, LayerIndex, MipIndex))
+							if (!ScopedMipData.GetMipData(SourceMip.RawData, BlockIndex, LayerIndex, MipIndex))
 							{
 								UE_LOG(LogTexture, Warning, TEXT("Cannot retrieve source data for mip %d of %s"), MipIndex, *TextureFullName);
 								ReleaseMemory();
