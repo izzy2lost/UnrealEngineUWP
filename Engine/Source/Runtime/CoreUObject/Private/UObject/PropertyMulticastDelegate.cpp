@@ -566,6 +566,7 @@ void FMulticastSparseDelegateProperty::SerializeItem(FStructuredArchive::FSlot S
 {
 	FArchiveUObjectFromStructuredArchive Adapter(Slot);
 	SerializeItemInternal(Adapter.GetArchive(), Value, Defaults);
+	Adapter.Close();
 }
 
 void FMulticastSparseDelegateProperty::SerializeItemInternal(FArchive& Ar, void* Value, void const* Defaults) const
