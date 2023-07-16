@@ -718,6 +718,10 @@ BEGIN_SHADER_PARAMETER_STRUCT(FNaniteShadingPassParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget6)
 	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget7)
 	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, OutTargets)
+
+	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, RecordDataBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, RecordArgBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, ExecutionBuffer)
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FNaniteEmitGBufferParameters, )
@@ -929,15 +933,14 @@ void BuildShadingCommands(
 	}
 
 	// Create Shader Bundle
-#if 0 // TODO
 	if (!!GRHISupportsDispatchShaderBundle && ShadingCommands.Commands.Num() > 0)
 	{
+		const bool bEmulated = false;
 		const uint32 NumRecords = ShadingCommands.MaxShadingBin + 1u;
-		ShadingCommands.ShaderBundle = RHICreateShaderBundle(NumRecords);
+		ShadingCommands.ShaderBundle = RHICreateShaderBundle(NumRecords, bEmulated);
 		check(ShadingCommands.ShaderBundle != nullptr);
 	}
 	else
-#endif
 	{
 		ShadingCommands.ShaderBundle = nullptr;
 	}
@@ -1116,6 +1119,10 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 
 	const bool bShadeBinning = ShadeBinning.ShadingBinArgs != nullptr;
 	Result.MaterialIndirectArgs = bShadeBinning ? ShadeBinning.ShadingBinArgs : MaterialIndirectArgs;
+
+	Result.RecordArgBuffer = nullptr;
+	Result.RecordDataBuffer = nullptr;
+	Result.ExecutionBuffer = nullptr;
 
 	{
 		const FIntPoint ScaledSize = TileGridSize * 64;
@@ -1383,11 +1390,7 @@ void DispatchBasePass(
 	);
 
 	const bool bSkipBarriers = GNaniteBarrierTest != 0;
-#if 0 // TODO Implement
-	const bool bDispatchBundle = !!GRHISupportsDispatchShaderBundle;
-#else
-	const bool bDispatchBundle = false;
-#endif
+	const bool bDispatchBundle = !!GRHISupportsDispatchShaderBundle && false; // TODO: Disabled by default for now
 
 	auto ShadePassWork = []
 	(
@@ -1402,7 +1405,10 @@ void DispatchBasePass(
 		bool bDispatchBundle
 	)
 	{
-		ShadingPassParameters->MaterialIndirectArgs->MarkResourceAsUsed();
+		if (!bDispatchBundle || ShaderBundle->bEmulated)
+		{
+			ShadingPassParameters->MaterialIndirectArgs->MarkResourceAsUsed();
+		}
 
 		TArray<FRHIUnorderedAccessView*, TInlineAllocator<8>> OutputTargets;
 		auto GetOutputTargetRHI = [](const FRDGTextureUAVRef OutputTarget)
@@ -1438,7 +1444,7 @@ void DispatchBasePass(
 			0
 		);
 
-		FRHIBuffer* IndirectArgsBuffer = ShadingPassParameters->MaterialIndirectArgs->GetIndirectRHICallBuffer();
+		FRHIBuffer* IndirectArgsBuffer = (!bDispatchBundle || ShaderBundle->bEmulated) ? ShadingPassParameters->MaterialIndirectArgs->GetIndirectRHICallBuffer() : nullptr;
 
 		if (ParallelCommandListSet)
 		{
@@ -1479,13 +1485,17 @@ void DispatchBasePass(
 			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
 			check(!BatchedParameters.HasParameters());
 
-#if 0 // TODO Implement
 			if (bDispatchBundle && ShaderBundle.IsValid())
 			{
 				auto RecordDispatches = [&](FRHICommandDispatchShaderBundle& Command)
 				{
 					Command.ShaderBundle = ShaderBundle;
-					Command.ArgumentBuffer = IndirectArgsBuffer;
+					Command.RecordArgBufferSRV = ShadingPassParameters->RecordArgBuffer->GetRHI();
+					Command.RecordDataBufferSRV = ShadingPassParameters->RecordDataBuffer->GetRHI();
+					Command.ExecutionBufferUAV = ShadingPassParameters->ExecutionBuffer->GetRHI();
+
+					check(!ShaderBundle->bEmulated || Command.RecordArgBufferSRV->GetBuffer() == IndirectArgsBuffer);
+
 					Command.Dispatches.SetNum(ShaderBundle->NumRecords);
 
 					const bool bParallel = true;
@@ -1548,7 +1558,6 @@ void DispatchBasePass(
 				}
 			}
 			else // !bDispatchBundle
-#endif // TODO Implement
 			{
 				for (const TPimplPtr<FNaniteShadingCommand>& ShadingCommand : ShadingCommands)
 				{
@@ -1558,7 +1567,8 @@ void DispatchBasePass(
 		}
 	};
 
-	const bool bParallelDispatch = !bDispatchBundle && GRHICommandList.UseParallelAlgorithms() && CVarParallelBasePassBuild.GetValueOnRenderThread() != 0 && FParallelMeshDrawCommandPass::IsOnDemandShaderCreationEnabled();
+	const bool bParallelDispatch = !bDispatchBundle && GRHICommandList.UseParallelAlgorithms() && CVarParallelBasePassBuild.GetValueOnRenderThread() != 0 &&
+								   FParallelMeshDrawCommandPass::IsOnDemandShaderCreationEnabled();
 	if (bParallelDispatch)
 	{
 		GraphBuilder.AddPass(
@@ -1587,6 +1597,23 @@ void DispatchBasePass(
 	}
 	else
 	{
+		if (bDispatchBundle && ShaderBundle.IsValid())
+		{
+			uint32 RecordDataBufferSize = 0u;
+			uint32 ExecutionBufferSize = 0u;
+			ShaderBundle->CalcDispatchBufferSizes(RecordDataBufferSize, ExecutionBufferSize);
+
+			FRDGBufferRef RecordDataBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc(RecordDataBufferSize), TEXT("Nanite.RecordDataBuffer"));
+			FRDGBufferRef ExecutionBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateRawIndirectDesc(ExecutionBufferSize), TEXT("Nanite.ExecutionBuffer"));
+
+			AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(RecordDataBuffer), 0x80000000 /* NOP */); // TODO: Temp, need to populate via RHI backend
+
+			ShadingPassParameters->RecordArgBuffer = GraphBuilder.CreateSRV(Binning.ShadingBinArgs);
+			ShadingPassParameters->RecordDataBuffer = GraphBuilder.CreateSRV(RecordDataBuffer);
+			ShadingPassParameters->ExecutionBuffer = GraphBuilder.CreateUAV(ExecutionBuffer);
+			check(ShadingPassParameters->RecordArgBuffer != nullptr);
+		}
+
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
@@ -1594,6 +1621,13 @@ void DispatchBasePass(
 			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, &View, ViewRect, bSkipBarriers, bDispatchBundle]
 			(const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
 			{
+				if (bDispatchBundle)
+				{
+					ShadingPassParameters->RecordArgBuffer->MarkResourceAsUsed();
+					ShadingPassParameters->RecordDataBuffer->MarkResourceAsUsed();
+					ShadingPassParameters->ExecutionBuffer->MarkResourceAsUsed();
+				}
+
 				ShadePassWork(
 					nullptr,
 					ViewRect,
