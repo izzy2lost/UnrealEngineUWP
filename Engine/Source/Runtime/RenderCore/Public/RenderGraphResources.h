@@ -881,12 +881,37 @@ private:
 /** Descriptor for render graph tracked Buffer. */
 struct FRDGBufferDesc
 {
+	static FRDGBufferDesc CreateByteAddressDesc(uint32 NumBytes)
+	{
+		check(NumBytes % 4 == 0);
+		FRDGBufferDesc Desc;
+		Desc.Usage = EBufferUsageFlags::Static | EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::ShaderResource | EBufferUsageFlags::StructuredBuffer | EBufferUsageFlags::ByteAddressBuffer;
+		Desc.BytesPerElement = 4;
+		Desc.NumElements = NumBytes / 4;
+		return Desc;
+	}
+
+	template<typename ParameterStruct>
+	static FRDGBufferDesc CreateByteAddressDesc(uint32 NumElements)
+	{
+		FRDGBufferDesc Desc = CreateByteAddressDesc(sizeof(ParameterStruct) * NumElements);
+		Desc.Metadata = ParameterStruct::FTypeInfo::GetStructMetadata();
+		return Desc;
+	}
+
 	static FRDGBufferDesc CreateIndirectDesc(uint32 BytesPerElement, uint32 NumElements)
 	{
 		FRDGBufferDesc Desc;
 		Desc.Usage = EBufferUsageFlags::Static | EBufferUsageFlags::DrawIndirect | EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::ShaderResource | EBufferUsageFlags::VertexBuffer;
 		Desc.BytesPerElement = BytesPerElement;
 		Desc.NumElements = NumElements;
+		return Desc;
+	}
+
+	static FRDGBufferDesc CreateRawIndirectDesc(uint32 NumBytes)
+	{
+		FRDGBufferDesc Desc = CreateByteAddressDesc(NumBytes);
+		Desc.Usage |=  EBufferUsageFlags::DrawIndirect;
 		return Desc;
 	}
 
@@ -938,24 +963,6 @@ struct FRDGBufferDesc
 	static FRDGBufferDesc CreateBufferDesc(uint32 NumElements)
 	{
 		FRDGBufferDesc Desc = CreateBufferDesc(sizeof(ParameterStruct), NumElements);
-		Desc.Metadata = ParameterStruct::FTypeInfo::GetStructMetadata();
-		return Desc;
-	}
-
-	static FRDGBufferDesc CreateByteAddressDesc(uint32 NumBytes)
-	{
-		check(NumBytes % 4 == 0);
-		FRDGBufferDesc Desc;
-		Desc.Usage = EBufferUsageFlags::Static | EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::ShaderResource | EBufferUsageFlags::StructuredBuffer | EBufferUsageFlags::ByteAddressBuffer;
-		Desc.BytesPerElement = 4;
-		Desc.NumElements = NumBytes / 4;
-		return Desc;
-	}
-
-	template<typename ParameterStruct>
-	static FRDGBufferDesc CreateByteAddressDesc(uint32 NumElements)
-	{
-		FRDGBufferDesc Desc = CreateByteAddressDesc(sizeof(ParameterStruct) * NumElements);
 		Desc.Metadata = ParameterStruct::FTypeInfo::GetStructMetadata();
 		return Desc;
 	}

@@ -47,7 +47,7 @@ RWStructuredBuffer<FNaniteShadingBinMeta> OutShadingBinMeta;
 
 #if SHADING_BIN_RESERVE
 RWStructuredBuffer<uint> OutShadingBinAllocator;
-RWBuffer<uint> OutShadingBinArgs;
+RWByteAddressBuffer OutShadingBinArgs;
 #endif
 
 #if SHADING_BIN_SCATTER
@@ -560,8 +560,6 @@ void ShadingBinReserveCS(uint ShadingBin : SV_DispatchThreadID)
 			OutShadingBinMeta[ShadingBin].RangeStart = RangeStart;
 		}
 
-		const uint ArgsOffset = ShadingBin * 4u;
-
 	#if GATHER_STATS
 		const uint WaveBinPixelCount = WaveActiveSum(BinPixelCount);
 		if (WaveIsFirstLane())
@@ -571,10 +569,12 @@ void ShadingBinReserveCS(uint ShadingBin : SV_DispatchThreadID)
 	#endif
 #endif // QUAD_BINNING
 
-		OutShadingBinArgs[ArgsOffset + 0] = DivideAndRoundUp(BinPixelCount, 64u);	// ThreadGroupCountX
-		OutShadingBinArgs[ArgsOffset + 1] = 1;										// ThreadGroupCountY
-		OutShadingBinArgs[ArgsOffset + 2] = 1;										// ThreadGroupCountZ
-		OutShadingBinArgs[ArgsOffset + 3] = 0;										// padding
+		uint4 ShadingBinArgs;
+		ShadingBinArgs.x = DivideAndRoundUp(BinPixelCount, 64u);	// ThreadGroupCountX
+		ShadingBinArgs.y = 1u;										// ThreadGroupCountY
+		ShadingBinArgs.z = 1u;										// ThreadGroupCountZ
+		ShadingBinArgs.w = 0u;										// Reserved / Unused
+		OutShadingBinArgs.Store4(ShadingBin * 16u, ShadingBinArgs);
 	}
 }
 

@@ -647,7 +647,7 @@ class FShadingBinBuildCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV_ARRAY(RWTextureMetadata, OutCMaskBuffer, [MaxSimultaneousRenderTargets])
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinMeta>, OutShadingBinMeta)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutShadingBinData)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OutShadingBinArgs)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutShadingBinArgs)
 	END_SHADER_PARAMETER_STRUCT()
 
 private:
@@ -680,7 +680,7 @@ class FShadingBinReserveCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinStats>, OutShadingBinStats)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteShadingBinMeta>, OutShadingBinMeta)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutShadingBinAllocator)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OutShadingBinArgs)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutShadingBinArgs)
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FShadingBinReserveCS, "/Engine/Private/Nanite/NaniteShadeBinning.usf", "ShadingBinReserveCS", SF_Compute);
@@ -953,7 +953,7 @@ void RecordShadingParameters(
 	PassData.X = ShadingCommand.ShadingBin;
 
 	FRHIComputeShader* ComputeShaderRHI = ShadingCommand.ComputeShader.GetComputeShader();
-	
+
 	ShadingCommand.ShaderBindings.SetParameters(BatchedParameters, ComputeShaderRHI);
 
 	if (ComputeShaderRHI)
@@ -1159,7 +1159,7 @@ FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 		UniformParameters->VisBuffer64 = VisBuffer64;
 		UniformParameters->DbgBuffer64 = DbgBuffer64;
 		UniformParameters->DbgBuffer32 = DbgBuffer32;
-		
+
 		UniformParameters->ShadingMask = ShadingMask;
 		UniformParameters->MaterialDepthTable = MaterialCommands.GetMaterialDepthSRV();
 
@@ -1557,15 +1557,25 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, IndirectArgStride, &View, ViewRect, bSkipBarriers](const FRDGPass* RDGPass, FRHICommandListImmediate& RHICmdList)
+			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, IndirectArgStride, &View, ViewRect, bSkipBarriers]
+			(const FRDGPass* RDGPass, FRHICommandListImmediate& RHICmdList)
 			{
 				FParallelCommandListBindings CmdListBindings(ShadingPassParameters);
 				FRDGParallelCommandListSet ParallelCommandListSet(RDGPass, RHICmdList, GET_STATID(STAT_CLP_NaniteBasePass), View, CmdListBindings);
 				ParallelCommandListSet.SetHighPriority();
 
-				ShadePassWork(&ParallelCommandListSet, ViewRect, ShadingCommands, FShaderBundleRHIRef(), ShadingPassParameters, RHICmdList, IndirectArgStride, bSkipBarriers, false);
-			}
-		);
+				ShadePassWork(
+					&ParallelCommandListSet,
+					ViewRect,
+					ShadingCommands,
+					FShaderBundleRHIRef(),
+					ShadingPassParameters,
+					RHICmdList,
+					IndirectArgStride,
+					bSkipBarriers,
+					false
+				);
+			});
 	}
 	else
 	{
@@ -1573,11 +1583,21 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, &View, ViewRect, bSkipBarriers, bDispatchBundle](const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
+			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, &View, ViewRect, bSkipBarriers, bDispatchBundle]
+			(const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
 			{
-				ShadePassWork(nullptr, ViewRect, ShadingCommands, ShaderBundle, ShadingPassParameters, RHICmdList, IndirectArgStride, bSkipBarriers, bDispatchBundle);
-			}
-		);
+				ShadePassWork(
+					nullptr,
+					ViewRect,
+					ShadingCommands,
+					ShaderBundle,
+					ShadingPassParameters,
+					RHICmdList,
+					IndirectArgStride,
+					bSkipBarriers,
+					bDispatchBundle
+				);
+			});
 	}
 
 	ExtractShadingDebug(GraphBuilder, View, nullptr, Binning, ShadingBinCount);
@@ -1675,13 +1695,7 @@ void DrawBasePass(
 
 			const FIntVector DispatchDim = FComputeShaderUtils::GetGroupCount(PassParameters->MaterialSlotCount, 64);
 
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
-				RDG_EVENT_NAME("Initialize Materials"),
-				ComputeShader,
-				PassParameters,
-				DispatchDim
-			);
+			FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("Initialize Materials"), ComputeShader, PassParameters, DispatchDim);
 		}
 
 		// Material tile classification
@@ -1716,13 +1730,7 @@ void DrawBasePass(
 			FClassifyMaterialsCS::FPermutationDomain PermutationShadingMaskCS;
 			auto ComputeShader = View.ShaderMap->GetShader<FClassifyMaterialsCS>(PermutationShadingMaskCS);
 
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
-				RDG_EVENT_NAME("Classify Materials"),
-				ComputeShader,
-				PassParameters,
-				DispatchDim
-			);
+			FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("Classify Materials"), ComputeShader, PassParameters, DispatchDim);
 		}
 
 		// Finalize acceleration/indexing structures for tile classification
@@ -1735,13 +1743,7 @@ void DrawBasePass(
 
 			const FIntVector DispatchDim = FComputeShaderUtils::GetGroupCount(PassParameters->MaterialSlotCount, 64);
 
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
-				RDG_EVENT_NAME("Finalize Materials"),
-				ComputeShader,
-				PassParameters,
-				DispatchDim
-			);
+			FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("Finalize Materials"), ComputeShader, PassParameters, DispatchDim);
 		}
 	}
 
@@ -1800,8 +1802,7 @@ void DrawBasePass(
 				GBL_Default,		// EmitGBuffer
 				GBL_ForceVelocity	// EmitGBufferWithVelocity
 			};
-			static_assert(UE_ARRAY_COUNT(PassGBufferLayouts) == (uint32)ENaniteMaterialPass::Max,
-						  "Unhandled Nanite material pass");
+			static_assert(UE_ARRAY_COUNT(PassGBufferLayouts) == (uint32)ENaniteMaterialPass::Max, "Unhandled Nanite material pass");
 
 			TStaticArray<FTextureRenderTargetBinding, MaxSimultaneousRenderTargets> BasePassTextures;
 			uint32 BasePassTextureCount = SceneTextures.GetGBufferRenderTargets(BasePassTextures, PassGBufferLayouts[PassIndex]);
@@ -2013,13 +2014,7 @@ void EmitDepthTargets(
 		PermutationVectorCS.Set<FDepthExportCS::FShadingMaskExportDim>(true);
 		auto ComputeShader = View.ShaderMap->GetShader<FDepthExportCS>(PermutationVectorCS);
 
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("DepthExport"),
-			ComputeShader,
-			PassParameters,
-			DispatchDim
-		);
+		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("DepthExport"), ComputeShader, PassParameters, DispatchDim);
 	}
 	else
 	{
@@ -2801,7 +2796,7 @@ FNaniteCommandInfo FNaniteMaterialCommands::Register(FMeshDrawCommand& Command, 
 	FNaniteCommandInfo CommandInfo;
 
 	FCommandId CommandId = FindOrAddIdByHash(CommandHash, Command);
-	
+
 	CommandInfo.SetStateBucketId(CommandId.GetIndex());
 
 	FNaniteMaterialEntry& MaterialEntry = GetPayload(CommandId);
@@ -2858,7 +2853,7 @@ void FNaniteMaterialCommands::Unregister(const FNaniteCommandInfo& CommandInfo)
 			--NumMaterialDepthUpdates;
 			MaterialEntry.bNeedUpload = false;
 		}
-		
+
 		RemoveById(CommandInfo.GetStateBucketId());
 	}
 
@@ -2917,7 +2912,7 @@ FNaniteMaterialCommands::FUploader* FNaniteMaterialCommands::Begin(FRDGBuilder& 
 	check(HitProxyTableDataBuffer->GetSize() == PrimitiveUpdateReserve * sizeof(uint32));
 #endif
 #if WITH_DEBUG_VIEW_MODES
-	check(MaterialEditorDataBuffer)
+	check(MaterialEditorDataBuffer);
 	check(MaterialEditorDataBuffer->GetSize() == MaterialSlotReserve * sizeof(uint32));
 #endif
 	check(MaterialSlotDataBuffer);
@@ -2981,9 +2976,9 @@ void FNaniteMaterialCommands::FUploader::Lock(FRHICommandListBase& RHICmdList)
 	for (const FMaterialUploadEntry& MaterialEntry : DirtyMaterialEntries)
 	{
 		*static_cast<uint32*>(MaterialDepthUploader->Add_GetRef(MaterialEntry.MaterialSlot)) = MaterialEntry.MaterialId;
-#if WITH_DEBUG_VIEW_MODES
-		* static_cast<uint32*>(MaterialEditorUploader->Add_GetRef(MaterialEntry.MaterialSlot)) = MaterialEntry.InstructionCount;
-#endif
+	#if WITH_DEBUG_VIEW_MODES
+		*static_cast<uint32*>(MaterialEditorUploader->Add_GetRef(MaterialEntry.MaterialSlot)) = MaterialEntry.InstructionCount;
+	#endif
 	}
 	DirtyMaterialEntries.Empty();
 }
@@ -3045,7 +3040,7 @@ void FNaniteMaterialCommands::Finish(FRDGBuilder& GraphBuilder, FRDGExternalAcce
 	if (NumPrimitiveUpdates > 0)
 	{
 		UploadEnd(MaterialSlotUploadBuffer, Uploader->MaterialSlotUploader);
-#if WITH_EDITOR
+	#if WITH_EDITOR
 		UploadEnd(HitProxyTableUploadBuffer, Uploader->HitProxyTableUploader);
 	#endif
 	}
@@ -3053,7 +3048,7 @@ void FNaniteMaterialCommands::Finish(FRDGBuilder& GraphBuilder, FRDGExternalAcce
 	if (NumMaterialDepthUpdates > 0)
 	{
 		UploadEnd(MaterialDepthUploadBuffer, Uploader->MaterialDepthUploader);
-#if WITH_DEBUG_VIEW_MODES
+	#if WITH_DEBUG_VIEW_MODES
 		UploadEnd(MaterialEditorUploadBuffer, Uploader->MaterialEditorUploader);
 	#endif
 	}
@@ -3158,7 +3153,7 @@ void FNaniteRasterPipelines::Unregister(const FNaniteRasterBin& InRasterBin)
 	check(RasterBinId.IsValid());
 
 	FNaniteRasterEntry& RasterEntry = PipelineMap.GetByElementId(RasterBinId).Value;
-	
+
 	check(RasterEntry.ReferenceCount > 0);
 	--RasterEntry.ReferenceCount;
 	if (RasterEntry.ReferenceCount == 0)
@@ -3283,7 +3278,7 @@ void FNaniteShadingPipelines::Unregister(const FNaniteShadingBin& InShadingBin)
 	check(ShadingBinId.IsValid());
 
 	FNaniteShadingEntry& ShadingEntry = PipelineMap.GetByElementId(ShadingBinId).Value;
-	
+
 	check(ShadingEntry.ReferenceCount > 0);
 	--ShadingEntry.ReferenceCount;
 	if (ShadingEntry.ReferenceCount == 0)
@@ -3401,13 +3396,13 @@ FShadeBinning ShadeBinning(
 		sizeof(FNaniteShadingBinMeta) * MetaBufferData.Num()
 	);
 
-	Binning.ShadingBinArgs   = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc(ShadingBinCountPow2 * 4u /* XYZ and Padding */), TEXT("Nanite.ShadingBinArgs"));
+	Binning.ShadingBinArgs   = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateRawIndirectDesc(sizeof(FUint32Vector4) * ShadingBinCountPow2), TEXT("Nanite.ShadingBinArgs"));
 	Binning.ShadingBinData   = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), PixelCount), TEXT("Nanite.ShadingBinData"));
 	Binning.ShadingBinStats  = bGatherStats ? GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FNaniteShadingBinStats), 1u), TEXT("Nanite.ShadingBinStats")) : nullptr;
 
 	FRDGBufferUAVRef ShadingBinMetaUAV  = GraphBuilder.CreateUAV(Binning.ShadingBinMeta);
 	FRDGBufferUAVRef ShadingBinArgsUAV  = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Binning.ShadingBinArgs, PF_R32_UINT));
-	FRDGBufferUAVRef ShadingBinDataUAV = GraphBuilder.CreateUAV(Binning.ShadingBinData);
+	FRDGBufferUAVRef ShadingBinDataUAV  = GraphBuilder.CreateUAV(Binning.ShadingBinData);
 	FRDGBufferUAVRef ShadingBinStatsUAV = bGatherStats ? GraphBuilder.CreateUAV(Binning.ShadingBinStats) : nullptr;
 
 	if (bGatherStats)
@@ -3419,8 +3414,7 @@ FShadeBinning ShadeBinning(
 	{
 		const bool bOptimizeWriteMask = (ValidClearTargets.Num() > 0);
 
-		const FUint32Vector2 AlignedDispatchOffsetTL = FUint32Vector2(	InViewRect.Min.X & ~7u, InViewRect.Min.Y & ~7u);
-
+		const FUint32Vector2 AlignedDispatchOffsetTL = FUint32Vector2(InViewRect.Min.X & ~7u, InViewRect.Min.Y & ~7u);
 
 		FShadingBinBuildCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadingBinBuildCS::FParameters>();
 		PassParameters->ViewRect = ViewRect;
@@ -3489,13 +3483,7 @@ FShadeBinning ShadeBinning(
 		}
 		else
 		{
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
-				RDG_EVENT_NAME("ShadingCount"),
-				ComputeShader,
-				PassParameters,
-				QuadDispatchDim
-			);
+			FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("ShadingCount"), ComputeShader, PassParameters, QuadDispatchDim);
 		}
 	}
 
@@ -3517,13 +3505,7 @@ FShadeBinning ShadeBinning(
 		PermutationVector.Set<FShadingBinReserveCS::FQuadBinningDim>(bQuadBinning);
 		auto ComputeShader = View.ShaderMap->GetShader<FShadingBinReserveCS>(PermutationVector);
 
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("ShadingReserve"),
-			ComputeShader,
-			PassParameters,
-			BinDispatchDim
-		);
+		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("ShadingReserve"), ComputeShader, PassParameters, BinDispatchDim);
 	}
 
 	// Shading Bin Scatter
@@ -3552,19 +3534,13 @@ FShadeBinning ShadeBinning(
 		PermutationVector.Set<FShadingBinBuildCS::FNumExports>(1);
 		auto ComputeShader = View.ShaderMap->GetShader<FShadingBinBuildCS>(PermutationVector);
 
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("ShadingScatter"),
-			ComputeShader,
-			PassParameters,
-			QuadDispatchDim
-		);
+		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("ShadingScatter"), ComputeShader, PassParameters, QuadDispatchDim);
 	}
 
 	return Binning;
 }
 
-}
+}  // namespace Nanite
 
 /// END-TODO: Work in progress / experimental
 
