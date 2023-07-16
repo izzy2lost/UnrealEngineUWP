@@ -2133,6 +2133,11 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		}
 	}
 
+	if (RHISupportsShaderBundleDispatch(Platform))
+	{
+		KeyString += TEXT("_SHBD");
+	}
+
 	if (RHISupportsRenderTargetWriteMask(Platform))
 	{
 		KeyString += TEXT("_RTWM");

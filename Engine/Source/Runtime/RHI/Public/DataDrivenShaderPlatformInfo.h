@@ -42,6 +42,7 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 SupportsMultiViewport : int32(ERHIFeatureSupport::NumBits);
 	uint32 bSupportsMSAA : 1;
 	uint32 bSupports4ComponentUAVReadWrite : 1;
+	uint32 bSupportsShaderBundleDispatch : 1;
 	uint32 bSupportsRenderTargetWriteMask : 1;
 	uint32 bSupportsRayTracing : 1;
 	uint32 bSupportsRayTracingCallableShaders : 1;
@@ -304,6 +305,12 @@ public:
 	{
 		check(IsValid(Platform));
 		return Infos[Platform].bSupportsSwapchainUAVs;
+	}
+
+	static FORCEINLINE_DEBUGGABLE const bool GetSupportsShaderBundleDispatch(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].bSupportsShaderBundleDispatch;
 	}
 
 	static FORCEINLINE_DEBUGGABLE const bool GetSupportsRenderTargetWriteMask(const FStaticShaderPlatform Platform)
@@ -1091,6 +1098,12 @@ inline uint32 RHIMaxMeshShaderThreadGroupSize(const FStaticShaderPlatform Platfo
 inline bool RHISupportsWaveOperations(const FStaticShaderPlatform Platform)
 {
 	return FDataDrivenShaderPlatformInfo::GetSupportsWaveOperations(Platform) != ERHIFeatureSupport::Unsupported;
+}
+
+/** True if the given shader platform supports shader bundle dispatch */
+inline bool RHISupportsShaderBundleDispatch(const FStaticShaderPlatform Platform)
+{
+	return FDataDrivenShaderPlatformInfo::GetSupportsShaderBundleDispatch(Platform);
 }
 
 /** True if the given shader platform supports a render target write mask */
