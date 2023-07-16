@@ -1684,16 +1684,28 @@ FRHICOMMAND_MACRO(FRHICommandDispatchIndirectComputeShader)
 FRHICOMMAND_MACRO(FRHICommandDispatchShaderBundle)
 {
 	FRHIShaderBundle* ShaderBundle;
-	FRHIBuffer* ArgumentBuffer;
+	FRHIShaderResourceView* RecordArgBufferSRV;
+	FRHIShaderResourceView* RecordDataBufferSRV;
+	FRHIUnorderedAccessView* ExecutionBufferUAV;
 	TArray<FRHIShaderBundleDispatch> Dispatches;
 	FORCEINLINE_DEBUGGABLE FRHICommandDispatchShaderBundle()
 		: ShaderBundle(nullptr)
-		, ArgumentBuffer(nullptr)
+		, RecordArgBufferSRV(nullptr)
+		, RecordDataBufferSRV(nullptr)
+		, ExecutionBufferUAV(nullptr)
 	{
 	}
-	FORCEINLINE_DEBUGGABLE FRHICommandDispatchShaderBundle(FRHIShaderBundle* InShaderBundle, FRHIBuffer* InArgumentBuffer, TConstArrayView<FRHIShaderBundleDispatch> InDispatches)
+	FORCEINLINE_DEBUGGABLE FRHICommandDispatchShaderBundle(
+		FRHIShaderBundle* InShaderBundle,
+		FRHIShaderResourceView* InRecordArgBufferSRV,
+		FRHIShaderResourceView* InRecordDataBufferSRV,
+		FRHIUnorderedAccessView* InExecutionBufferUAV,
+		TConstArrayView<FRHIShaderBundleDispatch> InDispatches
+	)
 		: ShaderBundle(InShaderBundle)
-		, ArgumentBuffer(InArgumentBuffer)
+		, RecordArgBufferSRV(InRecordArgBufferSRV)
+		, RecordDataBufferSRV(InRecordDataBufferSRV)
+		, ExecutionBufferUAV(InExecutionBufferUAV)
 		, Dispatches(InDispatches)
 	{
 	}
@@ -2811,14 +2823,20 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
-	FORCEINLINE_DEBUGGABLE void DispatchShaderBundle(FRHIShaderBundle* ShaderBundle, FRHIBuffer* ArgumentBuffer, TConstArrayView<FRHIShaderBundleDispatch> Dispatches)
+	FORCEINLINE_DEBUGGABLE void DispatchShaderBundle(
+		FRHIShaderBundle* ShaderBundle,
+		FRHIShaderResourceView* RecordArgBufferSRV,
+		FRHIShaderResourceView* RecordDataBufferSRV,
+		FRHIUnorderedAccessView* ExecutionBufferUAV,
+		TConstArrayView<FRHIShaderBundleDispatch> Dispatches
+	)
 	{
 		if (Bypass())
 		{
-			GetContext().RHIDispatchShaderBundle(ShaderBundle, ArgumentBuffer, Dispatches);
+			GetContext().RHIDispatchShaderBundle(ShaderBundle, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches);
 			return;
 		}
-		ALLOC_COMMAND(FRHICommandDispatchShaderBundle)(ShaderBundle, ArgumentBuffer, Dispatches);
+		ALLOC_COMMAND(FRHICommandDispatchShaderBundle)(ShaderBundle, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches);
 	}
 
 	FORCEINLINE_DEBUGGABLE void BeginUAVOverlap()

@@ -1612,11 +1612,17 @@ void FD3D12CommandContext::CommitComputeResourceTables()
 	SetResourcesFromTables(ComputePSO->GetComputeShader());
 }
 
-void FD3D12CommandContext::RHIDispatchShaderBundle(FRHIShaderBundle* ShaderBundle, FRHIBuffer* ArgumentBuffer, TConstArrayView<FRHIShaderBundleDispatch> Dispatches)
+void FD3D12CommandContext::RHIDispatchShaderBundle(
+	FRHIShaderBundle* ShaderBundle,
+	FRHIShaderResourceView* RecordArgBufferSRV,
+	FRHIShaderResourceView* RecordDataBufferSRV,
+	FRHIUnorderedAccessView* ExecutionBufferUAV,
+	TConstArrayView<FRHIShaderBundleDispatch> Dispatches
+)
 {
-	check(ShaderBundle != nullptr && Dispatches.Num() > 0);
+	check(ShaderBundle != nullptr && Dispatches.Num() > 0 && ShaderBundle->bEmulated);
 	TRHICommandList_RecursiveHazardous<FD3D12CommandContext> RHICmdList(this);
-	UE::RHICore::DispatchShaderBundleEmulation(RHICmdList, ShaderBundle, ArgumentBuffer, Dispatches);
+	checkNoEntry();
 }
 
 void FD3D12CommandContext::RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances)

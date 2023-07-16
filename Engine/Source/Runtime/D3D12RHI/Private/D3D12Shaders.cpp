@@ -212,9 +212,10 @@ FRayTracingShaderRHIRef FD3D12DynamicRHI::RHICreateRayTracingShader(TArrayView<c
 
 #endif // D3D12_RHI_RAYTRACING
 
-FShaderBundleRHIRef FD3D12DynamicRHI::RHICreateShaderBundle(uint32 NumRecords)
+FShaderBundleRHIRef FD3D12DynamicRHI::RHICreateShaderBundle(uint32 NumRecords, bool bInEmulated)
 {
-	FD3D12ShaderBundle* ShaderBundle = new FD3D12ShaderBundle(GetRHIDevice(0), NumRecords);
+	check(GRHISupportsDispatchShaderBundle || bInEmulated);
+	FD3D12ShaderBundle* ShaderBundle = new FD3D12ShaderBundle(GetRHIDevice(0), NumRecords, bInEmulated);
 	return ShaderBundle;
 }
 

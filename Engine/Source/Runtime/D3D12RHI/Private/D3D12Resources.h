@@ -980,9 +980,21 @@ class FD3D12ShaderBundle : public FRHIShaderBundle
 	friend class FD3D12DynamicRHI;
 
 public:
-	FD3D12ShaderBundle(FD3D12Device* InDevice, uint32 InNumRecords)
-		: FRHIShaderBundle(InNumRecords)
+	FD3D12ShaderBundle(FD3D12Device* InDevice, uint32 InNumRecords, bool bInEmulated = false)
+		: FRHIShaderBundle(InNumRecords, bInEmulated)
 	{
+	}
+
+	virtual FUint32Vector4 GetPlatformData() const override
+	{
+		return FUint32Vector4(0u, 0u, 0u, 0u);
+	}
+
+	virtual void CalcDispatchBufferSizes(uint32& OutDataBufferSize, uint32& OutExecutionBufferSize) const override
+	{
+		checkNoEntry();
+		OutDataBufferSize = 0u;
+		OutExecutionBufferSize = 0u;
 	}
 };
 

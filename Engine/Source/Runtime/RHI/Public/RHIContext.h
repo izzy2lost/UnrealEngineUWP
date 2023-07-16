@@ -284,7 +284,12 @@ public:
 	*/
 	virtual void RHIClearUAVUint(FRHIUnorderedAccessView* UnorderedAccessViewRHI, const FUintVector4& Values) = 0;
 
-	virtual void RHIDispatchShaderBundle(FRHIShaderBundle* ShaderBundle, FRHIBuffer* ArgumentBuffer, TConstArrayView<FRHIShaderBundleDispatch> Dispatches) {}
+	virtual void RHIDispatchShaderBundle(
+		FRHIShaderBundle* ShaderBundle,
+		FRHIShaderResourceView* RecordArgBufferSRV,
+		FRHIShaderResourceView* RecordDataBufferSRV,
+		FRHIUnorderedAccessView* ExecutionBufferUAV,
+		TConstArrayView<FRHIShaderBundleDispatch> Dispatches) {}
 
 	virtual void RHIBeginUAVOverlap() {}
 	virtual void RHIEndUAVOverlap() {}

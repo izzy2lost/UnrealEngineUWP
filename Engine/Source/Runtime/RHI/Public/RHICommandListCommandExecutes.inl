@@ -250,7 +250,7 @@ void FRHICommandDispatchShaderBundle::Execute(FRHICommandListBase& CmdList)
 	{
 		Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
 	}
-	INTERNAL_DECORATOR_COMPUTE(RHIDispatchShaderBundle)(ShaderBundle, ArgumentBuffer, Dispatches);
+	INTERNAL_DECORATOR_COMPUTE(RHIDispatchShaderBundle)(ShaderBundle, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches);
 }
 
 void FRHICommandBeginUAVOverlap::Execute(FRHICommandListBase& CmdList)

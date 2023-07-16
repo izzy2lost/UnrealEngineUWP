@@ -929,6 +929,7 @@ void BuildShadingCommands(
 	}
 
 	// Create Shader Bundle
+#if 0 // TODO
 	if (!!GRHISupportsDispatchShaderBundle && ShadingCommands.Commands.Num() > 0)
 	{
 		const uint32 NumRecords = ShadingCommands.MaxShadingBin + 1u;
@@ -936,6 +937,7 @@ void BuildShadingCommands(
 		check(ShadingCommands.ShaderBundle != nullptr);
 	}
 	else
+#endif
 	{
 		ShadingCommands.ShaderBundle = nullptr;
 	}
@@ -1381,7 +1383,11 @@ void DispatchBasePass(
 	);
 
 	const bool bSkipBarriers = GNaniteBarrierTest != 0;
+#if 0 // TODO Implement
 	const bool bDispatchBundle = !!GRHISupportsDispatchShaderBundle;
+#else
+	const bool bDispatchBundle = false;
+#endif
 
 	auto ShadePassWork = []
 	(
@@ -1473,6 +1479,7 @@ void DispatchBasePass(
 			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
 			check(!BatchedParameters.HasParameters());
 
+#if 0 // TODO Implement
 			if (bDispatchBundle && ShaderBundle.IsValid())
 			{
 				auto RecordDispatches = [&](FRHICommandDispatchShaderBundle& Command)
@@ -1541,6 +1548,7 @@ void DispatchBasePass(
 				}
 			}
 			else // !bDispatchBundle
+#endif // TODO Implement
 			{
 				for (const TPimplPtr<FNaniteShadingCommand>& ShadingCommand : ShadingCommands)
 				{
