@@ -1,0 +1,31 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Common.ush"
+#include "WaveOpUtil.ush"
+
+#ifdef OVERRIDE_SHADERBUNDLE_USH
+#include "/Platform/Private/ShaderBundle.ush"
+
+uint RecordCount;
+uint4 PlatformData;
+ByteAddressBuffer RecordArgBuffer;
+ByteAddressBuffer RecordDataBuffer;
+RWByteAddressBuffer RWExecutionBuffer;
+
+#endif
+
+[numthreads(THREADGROUP_SIZEX, 1, 1)]
+void DispatchShaderBundleEntry(uint RecordIndex : SV_DispatchThreadID) 
+{
+#ifdef OVERRIDE_SHADERBUNDLE_USH
+	if (RecordIndex < RecordCount)
+	{
+		ProcessShaderBundleRecord(
+			PlatformData,
+			RecordIndex,
+			RecordArgBuffer,
+			RecordDataBuffer,
+			RWExecutionBuffer);
+	}
+#endif
+}

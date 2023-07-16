@@ -1622,7 +1622,7 @@ void FD3D12CommandContext::RHIDispatchShaderBundle(
 {
 	check(ShaderBundle != nullptr && Dispatches.Num() > 0 && ShaderBundle->bEmulated);
 	TRHICommandList_RecursiveHazardous<FD3D12CommandContext> RHICmdList(this);
-	checkNoEntry();
+	UE::RHICore::DispatchShaderBundleEmulation(RHICmdList, ShaderBundle, RecordArgBufferSRV->GetBuffer(), Dispatches);
 }
 
 void FD3D12CommandContext::RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances)

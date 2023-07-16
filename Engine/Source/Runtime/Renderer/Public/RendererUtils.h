@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
 #include "Containers/ArrayView.h"
 #include "GlobalShader.h"
 #include "HAL/Platform.h"
@@ -16,6 +17,7 @@ class FScene;
 class FGlobalShaderMap;
 class FRDGBuilder;
 class FRHICommandListImmediate;
+class FRHIShaderBundle;
 class FScene;
 struct IPooledRenderTarget;
 template <typename ReferencedType> class TRefCountPtr;
@@ -38,6 +40,18 @@ public:
 		FRDGTextureRef& OutRTWriteMask,
 		ETextureCreateFlags RTWriteMaskFastVRamConfig,
 		const TCHAR* RTWriteMaskDebugName);
+};
+
+class FDispatchShaderBundle
+{
+public:
+	static RENDERER_API void Dispatch(
+		FRHIShaderBundle* ShaderBundle,
+		FRHIComputeCommandList& RHICmdList,
+		FRHIShaderResourceView* RecordArgBufferSRV,
+		FRHIShaderResourceView* RecordDataBufferSRV,
+		FRHIUnorderedAccessView* ExecutionBufferUAV
+	);
 };
 
 class FDepthBounds
