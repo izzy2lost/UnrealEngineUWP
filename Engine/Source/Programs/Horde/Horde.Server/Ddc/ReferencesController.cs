@@ -17,6 +17,7 @@ using EpicGames.AspNet;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
+using Horde.Server.Acls;
 using JetBrains.Annotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -80,7 +81,7 @@ namespace Horde.Server.Ddc
             List<NamespaceId> namespacesWithAccess = new();
             foreach (NamespaceId ns in namespaces)
             {
-                ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+                ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
                 if (accessResult == null)
                 {
                     namespacesWithAccess.Add(ns);
@@ -105,7 +106,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] IoHashKey key,
             [FromRoute] string? format = null)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (accessResult != null)
             {
                 return accessResult;
@@ -436,7 +437,7 @@ namespace Horde.Server.Ddc
         [FromRoute] [Required] IoHashKey key,
         [FromQuery] string[] fields)
     {
-        ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+        ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
         if (accessResult != null)
         {
             return accessResult;
@@ -477,7 +478,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] BucketId bucket,
             [FromRoute] [Required] IoHashKey key)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (accessResult != null)
             {
                 return accessResult;
@@ -541,7 +542,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] NamespaceId ns,
             [FromQuery] [Required] List<string> names)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (accessResult != null)
             {
                 return accessResult;
@@ -610,7 +611,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] BucketId bucket,
             [FromRoute] [Required] IoHashKey key)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (accessResult != null)
             {
                 return accessResult;
@@ -713,7 +714,7 @@ namespace Horde.Server.Ddc
             [FromRoute][Required] BucketId bucket,
             [FromRoute][Required] IoHashKey key)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (accessResult != null)
             {
                 return accessResult;
@@ -771,7 +772,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] IoHashKey key,
             [FromRoute] [Required] BlobIdentifier hash)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (accessResult != null)
             {
                 return accessResult;
@@ -802,22 +803,22 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] NamespaceId ns,
             [FromBody] [Required] RefBatchOps ops)
         {
-            JupiterAclAction ActionForOp(RefBatchOps.RefBatchOp.RefOperation op)
+            AclAction ActionForOp(RefBatchOps.RefBatchOp.RefOperation op)
             {
                 switch (op)
                 {
                     case RefBatchOps.RefBatchOp.RefOperation.GET:
-                        return JupiterAclAction.ReadObject;
+                        return DdcAclAction.ReadObject;
                     case RefBatchOps.RefBatchOp.RefOperation.PUT:
-                        return JupiterAclAction.WriteObject;
+                        return DdcAclAction.WriteObject;
                     case RefBatchOps.RefBatchOp.RefOperation.HEAD:
-                        return JupiterAclAction.ReadObject;
+                        return DdcAclAction.ReadObject;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(op), op, null);
                 }
             }
 
-            JupiterAclAction[] requiredActions = ops.Ops.Select(op => ActionForOp(op.Op)).ToArray();
+            AclAction[] requiredActions = ops.Ops.Select(op => ActionForOp(op.Op)).ToArray();
 
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, requiredActions);
             if (accessResult != null)
@@ -1003,7 +1004,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] NamespaceId ns
         )
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.DeleteNamespace });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.DeleteNamespace });
             if (accessResult != null)
             {
                 return accessResult;
@@ -1032,7 +1033,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] NamespaceId ns,
             [FromRoute] [Required] BucketId bucket)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.DeleteBucket });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.DeleteBucket });
             if (accessResult != null)
             {
                 return accessResult;
@@ -1065,7 +1066,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] BucketId bucket,
             [FromRoute] [Required] IoHashKey key)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.DeleteObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.DeleteObject });
             if (accessResult != null)
             {
                 return accessResult;

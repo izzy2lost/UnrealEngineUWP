@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
+using Horde.Server.Acls;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -51,7 +52,7 @@ namespace Horde.Server.Ddc
             [Required] BlobIdentifier id,
             [FromQuery] List<string>? storageLayers = null)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -88,7 +89,7 @@ namespace Horde.Server.Ddc
             [Required] BlobIdentifier id,
             [FromQuery] List<string>? storageLayers = null)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -109,7 +110,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [Required] [FromQuery] List<BlobIdentifier> id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -135,7 +136,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [FromBody] BlobIdentifier[] bodyIds)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -179,7 +180,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [Required] BlobIdentifier id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (result != null)
             {
                 return result;
@@ -222,7 +223,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> Post(
             [Required] NamespaceId ns)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.WriteObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (result != null)
             {
                 return result;
@@ -254,7 +255,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [Required] BlobIdentifier id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.DeleteObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.DeleteObject });
             if (result != null)
             {
                 return result;
@@ -320,17 +321,17 @@ namespace Horde.Server.Ddc
         [HttpPost("")]
         public async Task<IActionResult> Post([FromBody] BatchCall batch)
         {
-            JupiterAclAction MapToAclAction(BatchOp.Operation op)
+            static AclAction MapToAclAction(BatchOp.Operation op)
             {
                 switch (op)
                 {
                     case BatchOp.Operation.GET:
                     case BatchOp.Operation.HEAD:
-                        return JupiterAclAction.ReadObject;
+                        return DdcAclAction.ReadObject;
                     case BatchOp.Operation.PUT:
-                        return JupiterAclAction.WriteObject;
+                        return DdcAclAction.WriteObject;
                     case BatchOp.Operation.DELETE:
-                        return JupiterAclAction.DeleteObject;
+                        return DdcAclAction.DeleteObject;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(op), op, null);
                 }
