@@ -198,7 +198,7 @@ namespace Horde.Server.Ddc
 
                             IoHash hash = binaryAttachmentField.AsBinaryAttachment();
 
-                            BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, BlobId.FromIoHash(hash));
+                            BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, new BlobId(hash));
 
                             if (_nginxRedirectHelper.CanRedirect(Request, referencedBlobContents))
                             {
@@ -236,7 +236,7 @@ namespace Horde.Server.Ddc
                         IAsyncEnumerable<Attachment> attachments = _referenceResolver.GetAttachmentsAsync(ns, cb);
 
                         using CbPackageBuilder writer = new CbPackageBuilder();
-                        writer.AddAttachment(objectRecord.BlobIdentifier.AsIoHash(), CbPackageAttachmentFlags.IsObject, blobMemory);
+                        writer.AddAttachment(objectRecord.BlobIdentifier.Hash, CbPackageAttachmentFlags.IsObject, blobMemory);
 
                         await Parallel.ForEachAsync(attachments, async (attachment, token) =>
                         {
@@ -629,7 +629,7 @@ namespace Horde.Server.Ddc
                 BlobId headerHash;
                 if (Request.Headers.ContainsKey(CommonHeaders.HashHeaderName))
                 {
-                    headerHash = new BlobId(Request.Headers[CommonHeaders.HashHeaderName]);
+                    headerHash = BlobId.Parse(Request.Headers[CommonHeaders.HashHeaderName]);
                 }
                 else
                 {
@@ -652,12 +652,12 @@ namespace Horde.Server.Ddc
                         // TODO: convert the json object into a compact binary instead
                         CbWriter writer = new CbWriter();
                         writer.BeginObject();
-                        writer.WriteBinaryAttachmentValue(blobHeader.AsIoHash());
+						writer.WriteBinaryAttachmentValue(blobHeader.Hash);
                         writer.EndObject();
 
                         byte[] blob = writer.ToByteArray();
                         payloadObject = new CbObject(blob);
-                        blobHeader = BlobId.FromBlob(blob);
+						blobHeader = new BlobId(IoHash.Compute(blob));
                         break;
                     }
                     case CustomMediaTypeNames.UnrealCompactBinary:
@@ -674,13 +674,13 @@ namespace Horde.Server.Ddc
 
                         CbWriter writer = new CbWriter();
                         writer.BeginObject();
-                        writer.WriteBinaryAttachment("RawHash", blobHeader.AsIoHash());
+						writer.WriteBinaryAttachment("RawHash", blobHeader.Hash);
                         writer.WriteInteger("RawSize", payload.Length);
                         writer.EndObject();
 
                         byte[] blob = writer.ToByteArray();
                         payloadObject = new CbObject(blob);
-                        blobHeader = BlobId.FromBlob(blob);
+						blobHeader = new BlobId(IoHash.Compute(blob));
                         break;
                     }
                     default:
@@ -701,8 +701,9 @@ namespace Horde.Server.Ddc
 
             (ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, blobHeader, payloadObject);
 
-            List<JupiterContentHash> missingHashes = new List<JupiterContentHash>(missingReferences);
-            missingHashes.AddRange(missingBlobs);
+			List<IoHash> missingHashes = new List<IoHash>();
+			missingHashes.AddRange(missingReferences.Select(x => x.Hash));
+            missingHashes.AddRange(missingBlobs.Select(x => x.Hash));
             return Ok(new PutObjectResponse(missingHashes.ToArray()));
         }
 
@@ -739,11 +740,11 @@ namespace Horde.Server.Ddc
                     if (entry.Flags.HasFlag(CbPackageAttachmentFlags.IsCompressed))
                     {
                         using MemoryBufferedPayload payload = new MemoryBufferedPayload(blob);
-                        await _blobStore.PutCompressedObject(ns, payload, ContentId.FromIoHash(entry.AttachmentHash), HttpContext.RequestServices);
+                        await _blobStore.PutCompressedObject(ns, payload, new ContentId(entry.AttachmentHash), HttpContext.RequestServices);
                     }
                     else
                     {
-                        await _blobStore.PutObjectAsync(ns, blob, BlobId.FromIoHash(entry.AttachmentHash));
+                        await _blobStore.PutObjectAsync(ns, blob, new BlobId(entry.AttachmentHash));
                     }
                 }
             }
@@ -756,13 +757,10 @@ namespace Horde.Server.Ddc
             }
             
             CbObject rootObject = packageReader.RootObject;
-            BlobId rootObjectHash = BlobId.FromIoHash(packageReader.RootHash);
+            BlobId rootObjectHash = new BlobId(packageReader.RootHash);
 
             (ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, rootObjectHash, rootObject);
-
-            List<JupiterContentHash> missingHashes = new List<JupiterContentHash>(missingReferences);
-            missingHashes.AddRange(missingBlobs);
-            return Ok(new PutObjectResponse(missingHashes.ToArray()));
+			return Ok(new PutObjectResponse(missingReferences, missingBlobs));
         }
 
 		static async Task<byte[]> ReadRawBodyAsync(HttpRequest request)
@@ -807,10 +805,7 @@ namespace Horde.Server.Ddc
             try
             {
                 (ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.FinalizeAsync(ns, bucket, key, hash);
-                List<JupiterContentHash> missingHashes = new List<JupiterContentHash>(missingReferences);
-                missingHashes.AddRange(missingBlobs);
-
-                return Ok(new PutObjectResponse(missingHashes.ToArray()));
+				return Ok(new PutObjectResponse(missingReferences, missingBlobs));
             }
             catch (ObjectHashMismatchException e)
             {
@@ -951,18 +946,17 @@ namespace Horde.Server.Ddc
                     {
                         throw new Exception($"Missing payload hash for operation: {op.OpId}");
                     }
-                    BlobId headerHash = BlobId.FromContentHash(op.PayloadHash);
-                    BlobId objectHash = BlobId.FromBlob(op.Payload.GetView().ToArray());
 
+                    IoHash headerHash = op.PayloadHash.Value;
+					IoHash objectHash = IoHash.Compute(op.Payload.GetView().Span);
+				
                     if (!headerHash.Equals(objectHash))
                     {
-                        throw new HashMismatchException(headerHash, objectHash);
+                        throw new HashMismatchException(op.PayloadHash.Value, objectHash);
                     }
 
-                    (ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, op.Bucket, op.Key, objectHash, op.Payload);
-                    List<JupiterContentHash> missingHashes = new List<JupiterContentHash>(missingReferences);
-
-                    return (CbSerializer.Serialize(new PutObjectResponse(missingHashes.ToArray())), HttpStatusCode.OK);
+                    (ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, op.Bucket, op.Key, new BlobId(objectHash), op.Payload);
+                    return (CbSerializer.Serialize(new PutObjectResponse(missingReferences, missingBlobs)), HttpStatusCode.OK);
                 }
                 catch (Exception e)
                 {
@@ -1205,7 +1199,7 @@ namespace Horde.Server.Ddc
             public CbObject? Payload { get; set; } = null;
 
             [CbField("payloadHash")] 
-            public JupiterContentHash? PayloadHash { get; set; } = null;
+            public IoHash? PayloadHash { get; set; } = null;
         }
 
         [CbField("ops")]
@@ -1245,7 +1239,6 @@ namespace Horde.Server.Ddc
     {
         public RefMetadataResponse()
         {
-            PayloadIdentifier = null!;
             InlinePayload = null!;
         }
 
@@ -1301,13 +1294,18 @@ namespace Horde.Server.Ddc
             Needs = null!;
         }
 
-        public PutObjectResponse(JupiterContentHash[] missingReferences)
+        public PutObjectResponse(IoHash[] missingReferences)
         {
             Needs = missingReferences;
         }
 
+		public PutObjectResponse(IEnumerable<ContentId> missingContentIds, IEnumerable<BlobId> missingBlobIds)
+			: this(Enumerable.Concat(missingContentIds.Select(x => x.Hash), missingBlobIds.Select(x => x.Hash)).ToArray())
+		{
+		}
+
         [CbField("needs")]
-        public JupiterContentHash[] Needs { get; set; }
+        public IoHash[] Needs { get; set; }
     }
 
     public class ExistCheckMultipleRefsResponse
@@ -1359,10 +1357,10 @@ namespace Horde.Server.Ddc
 
     public class HashMismatchException : Exception
     {
-        public JupiterContentHash SuppliedHash { get; }
-        public JupiterContentHash ContentHash { get; }
+        public IoHash SuppliedHash { get; }
+        public IoHash ContentHash { get; }
 
-        public HashMismatchException(JupiterContentHash suppliedHash, JupiterContentHash contentHash) : base($"ID was not a hash of the content uploaded. Supplied hash was: {suppliedHash} but hash of content was {contentHash}")
+        public HashMismatchException(IoHash suppliedHash, IoHash contentHash) : base($"ID was not a hash of the content uploaded. Supplied hash was: {suppliedHash} but hash of content was {contentHash}")
         {
             SuppliedHash = suppliedHash;
             ContentHash = contentHash;

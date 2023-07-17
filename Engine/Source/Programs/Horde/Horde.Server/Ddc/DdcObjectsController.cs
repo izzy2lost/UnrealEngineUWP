@@ -260,7 +260,6 @@ namespace Horde.Server.Ddc
     {
         public PutBlobResponse()
         {
-            Identifier = null!;
         }
 
         public PutBlobResponse(BlobId identifier)

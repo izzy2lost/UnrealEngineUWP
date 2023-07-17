@@ -29,7 +29,7 @@ namespace Horde.Server.Ddc
 
         public override IoHash AsIoHash()
         {
-            return Identifier.AsIoHash();
+			return Identifier.Hash;
         }
     }
 
@@ -44,7 +44,7 @@ namespace Horde.Server.Ddc
 
         public override IoHash AsIoHash()
         {
-            return Identifier.AsIoHash();
+			return Identifier.Hash;
         }
     }
 
@@ -61,7 +61,7 @@ namespace Horde.Server.Ddc
 
         public override IoHash AsIoHash()
         {
-            return Identifier.AsIoHash();
+			return Identifier.Hash;
         }
     }
 
@@ -119,8 +119,8 @@ namespace Horde.Server.Ddc
                     {
                         IoHash attachmentHash = field.AsAttachment();
 
-                        BlobId blobIdentifier = BlobId.FromIoHash(attachmentHash);
-                        ContentId contentId = ContentId.FromIoHash(attachmentHash);
+                        BlobId blobIdentifier = new BlobId(attachmentHash);
+                        ContentId contentId = new ContentId(attachmentHash);
 
                         if (field.IsBinaryAttachment())
                         {
@@ -145,14 +145,14 @@ namespace Horde.Server.Ddc
                 {
                     if (pendingContentIdResolve.IsCompleted)
                     {
-                        ContentId? contentId = null;
+                        ContentId contentId = default;
                         BlobId[]? resolvedBlobs = null;
-                        BlobId? blobIdentifier = null;
+                        BlobId blobIdentifier = default;
                         bool wasContentId = false;
                         try
                         {
                             (contentId, resolvedBlobs) = await pendingContentIdResolve;
-                            blobIdentifier = contentId.AsBlobIdentifier();
+							blobIdentifier = new BlobId(contentId.Hash);
                             wasContentId = !(resolvedBlobs is { Length: 1 } && resolvedBlobs[0].Equals(blobIdentifier));
                         }
                         catch (InvalidContentIdException)
@@ -166,11 +166,11 @@ namespace Horde.Server.Ddc
 
                         if (wasContentId && resolvedBlobs != null)
                         {
-                            attachments.Add(new ContentIdAttachment(contentId!, resolvedBlobs));
+                            attachments.Add(new ContentIdAttachment(contentId, resolvedBlobs));
                         }
                         else
                         {
-                            attachments.Add(new BlobAttachment(blobIdentifier!));
+                            attachments.Add(new BlobAttachment(blobIdentifier));
                         }
 
                         finishedContentIdResolves.Add(pendingContentIdResolve);

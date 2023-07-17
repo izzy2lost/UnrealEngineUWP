@@ -11,6 +11,7 @@ using System.Net.Mime;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
+using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
 using Horde.Server.Acls;
@@ -224,7 +225,7 @@ namespace Horde.Server.Ddc
 
                 await using Stream stream = payload.GetStream();
 
-                BlobId id = await BlobId.FromStream(stream);
+				BlobId id = new BlobId(await IoHash.ComputeAsync(stream));
                 await _storage.PutObjectKnownHashAsync(ns, payload, id);
                 
                 return Ok(new
@@ -356,7 +357,7 @@ namespace Horde.Server.Ddc
                             return BadRequest();
                         }
 
-                        tasks[index] = GetImpl(op.Namespace.Value, op.Id).ContinueWith((t, _) =>
+                        tasks[index] = GetImpl(op.Namespace.Value, op.Id.Value).ContinueWith((t, _) =>
                         {
                             // TODO: This is very allocation heavy but given that the end result is a json object we can not really stream this anyway
                             using BlobContents blobContents = t.Result;
@@ -374,7 +375,7 @@ namespace Horde.Server.Ddc
                             return BadRequest();
                         }
 
-                        tasks[index] = _storage.ExistsAsync(op.Namespace.Value, op.Id)
+                        tasks[index] = _storage.ExistsAsync(op.Namespace.Value, op.Id.Value)
                             .ContinueWith((t,_) => t.Result ? (object?) null : op.Id, null, TaskScheduler.Current);
                         break;
                     case BatchOp.Operation.PUT:
@@ -390,7 +391,7 @@ namespace Horde.Server.Ddc
                             }
 
                             using MemoryBufferedPayload payload = new MemoryBufferedPayload(op.Content);
-                            tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id).ContinueWith((t, _) => (object?) t.Result, null, TaskScheduler.Current);
+                            tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id.Value).ContinueWith((t, _) => (object?) t.Result, null, TaskScheduler.Current);
                             break;
                         }
                     case BatchOp.Operation.DELETE:
@@ -399,7 +400,7 @@ namespace Horde.Server.Ddc
                             return BadRequest();
                         }
 
-                        tasks[index] = DeleteImpl(op.Namespace.Value, op.Id).ContinueWith((t, _) => (object?) null, null, TaskScheduler.Current);
+                        tasks[index] = DeleteImpl(op.Namespace.Value, op.Id.Value).ContinueWith((t, _) => (object?) null, null, TaskScheduler.Current);
                         break;
                     default:
                         throw new NotImplementedException($"{op.Op} is not a support op type");

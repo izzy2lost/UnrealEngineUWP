@@ -6,9 +6,11 @@ using System.IO;
 using System.Net.Mime;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
+using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Trace;
+using OpenTracing.Util;
 
 #pragma warning disable CS1591
 
@@ -19,7 +21,6 @@ namespace Horde.Server.Ddc
 	/// </summary>
 	public interface IDdcBlobService
 	{
-		Task<JupiterContentHash> VerifyContentMatchesHashAsync(Stream content, JupiterContentHash identifier);
 		Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, BufferedPayload content, BlobId identifier);
 		Task<BlobId> PutObjectAsync(NamespaceId ns, BufferedPayload payload, BlobId identifier);
 		Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] payload, BlobId identifier);
@@ -100,6 +101,19 @@ namespace Horde.Server.Ddc
 
 	public static class BlobServiceExtensions
 	{
+		public static async Task VerifyContentMatchesHash(Stream stream, IoHash expectedHash, Tracer tracer)
+		{
+			IoHash hash;
+			using (TelemetrySpan _ = tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash"))
+			{
+				hash = await IoHash.ComputeAsync(stream);
+			}
+			if (hash != expectedHash)
+			{
+				throw new HashMismatchException(hash, expectedHash);
+			}
+		}
+
 		public static async Task<ContentId> PutCompressedObject(this IDdcBlobService blobService, NamespaceId ns, BufferedPayload payload, ContentId? id, IServiceProvider provider)
 		{
 			IDdcContentIdService contentIdStore = provider.GetService<IDdcContentIdService>()!;
@@ -111,28 +125,23 @@ namespace Horde.Server.Ddc
 			// TODO: we should add a overload for decompress content that can work on streams, otherwise we are still limited to 2GB compressed blobs
 			byte[] decompressedContent = compressedBufferUtils.DecompressContent(await decompressStream.ToByteArray());
 
-			await using MemoryStream decompressedStream = new MemoryStream(decompressedContent);
-			ContentId identifierDecompressedPayload;
-			if (id != null)
+			IoHash decompressedHash;
+			using (TelemetrySpan _ = tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash"))
 			{
-				identifierDecompressedPayload = ContentId.FromContentHash(await blobService.VerifyContentMatchesHashAsync(decompressedStream, id));
+				decompressedHash = IoHash.Compute(decompressedContent);
 			}
-			else
+			if (id != null && id.Value.Hash != decompressedHash)
 			{
-				JupiterContentHash blobHash;
-				{
-					using TelemetrySpan _ = tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
-					blobHash = await BlobId.FromStream(decompressedStream);
-				}
+				throw new HashMismatchException(decompressedHash, id.Value.Hash);
+			}
 
-				identifierDecompressedPayload = ContentId.FromContentHash(blobHash);
-			}
+			ContentId identifierDecompressedPayload = new ContentId(decompressedHash);
 
 			BlobId identifierCompressedPayload;
 			{
 				using TelemetrySpan _ = tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
 				await using Stream hashStream = payload.GetStream();
-				identifierCompressedPayload = await BlobId.FromStream(hashStream);
+				identifierCompressedPayload = new BlobId(await IoHash.ComputeAsync(hashStream));
 			}
 
 			// commit the mapping from the decompressed hash to the compressed hash, we run this in parallel with the blob store submit

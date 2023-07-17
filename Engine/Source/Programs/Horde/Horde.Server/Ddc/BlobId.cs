@@ -4,232 +4,139 @@ using System;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
-using Blake3;
 using EpicGames.Core;
-using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Serialization;
-
-#pragma warning disable CS1591
 
 namespace Horde.Server.Ddc
 {
+	/// <summary>
+	/// Identifier for a blob in the store
+	/// </summary>
 	[TypeConverter(typeof(BlobIdTypeConverter))]
-    [JsonConverter(typeof(BlobIdJsonConverter))]
-    [CbConverter(typeof(BlobIdCbConverter))]
-    public class BlobId : JupiterContentHash,  IEquatable<BlobId>
-    {
-        // multi thread the hashing for blobs larger then this size
-        private const int MultiThreadedSize = 1_000_000;
-        private string? _stringIdentifier;
+	[JsonConverter(typeof(BlobIdJsonConverter))]
+	[CbConverter(typeof(BlobIdCbConverter))]
+	public readonly struct BlobId : IEquatable<BlobId>
+	{
+		/// <summary>
+		/// Hash of the blob
+		/// </summary>
+		public IoHash Hash { get; }
 
-        public BlobId(byte[] identifier) : base(identifier)
-        {
-        }
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public BlobId(IoHash hash) => Hash = hash;
 
-        [JsonConstructor]
-        public BlobId(string identifier) : base(identifier)
-        {
+		/// <summary>
+		/// Parses a BlobId from a string
+		/// </summary>
+		public static BlobId Parse(string text) => new BlobId(IoHash.Parse(text));
 
-        }
+		/// <inheritdoc/>
+		public override readonly int GetHashCode() => Hash.GetHashCode();
 
-        public override int GetHashCode()
-        {
-			HashCode hashCode = new HashCode();
-			hashCode.AddBytes(Identifier);
-			return hashCode.ToHashCode();
-        }
+		/// <inheritdoc/>
+		public readonly bool Equals(BlobId other) => Hash.Equals(other.Hash);
 
-		public bool Equals(BlobId? other) => other != null && other.Identifier.AsSpan().SequenceEqual(other.Identifier);
+		/// <inheritdoc/>
+		public override readonly bool Equals(object? obj) => obj is BlobId blobId && Equals(blobId);
 
-        public override bool Equals(object? obj)
-        {
-            if (ReferenceEquals(null, obj))
-            {
-                return false;
-            }
+		/// <inheritdoc/>
+		public override readonly string ToString() => Hash.ToString();
 
-            if (ReferenceEquals(this, obj))
-            {
-                return true;
-            }
+		/// <inheritdoc cref="IoHash.op_Equality"/>
+		public static bool operator ==(BlobId left, BlobId right) => left.Hash == right.Hash;
 
-            if (obj.GetType() != GetType())
-            {
-                return false;
-            }
+		/// <inheritdoc cref="IoHash.op_Inequality"/>
+		public static bool operator !=(BlobId left, BlobId right) => !(left == right);
+	}
 
-            return Equals((BlobId) obj);
-        }
+	/// <summary>
+	/// Converts from <see cref="BlobId"/> instances to other types
+	/// </summary>
+	public class BlobIdTypeConverter : TypeConverter
+	{
+		/// <inheritdoc/>
+		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
+		{
+			if (sourceType == typeof(string))
+			{
+				return true;
+			}
+			return base.CanConvertFrom(context, sourceType);
+		}
 
-        public override string ToString()
-        {
-            if (_stringIdentifier == null)
-            {
-                _stringIdentifier = StringUtils.FormatHexString(Identifier);
-            }
+		/// <inheritdoc/>
+		public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
+		{
+			if (value is string s)
+			{
+				return BlobId.Parse(s);
+			}
 
-            return _stringIdentifier;
-        }
+			return base.ConvertFrom(context, culture, value);
+		}
 
-        public static new BlobId FromBlob(byte[] blobMemory)
-        {
-            Hash blake3Hash;
-            if (blobMemory.Length < MultiThreadedSize)
-            {
-                using Hasher hasher = Hasher.New();
-                hasher.Update(blobMemory);
-                blake3Hash = hasher.Finalize();
-            }
-            else
-            {
-                using Hasher hasher = Hasher.New();
-                hasher.UpdateWithJoin(blobMemory);
-                blake3Hash = hasher.Finalize();
-            }
-            
-            // we only keep the first 20 bytes of the Blake3 hash
-            Span<byte> hash = blake3Hash.AsSpanUnsafe().Slice(0, 20);
-            return new BlobId(hash.ToArray());
-        }
+		/// <inheritdoc/>
+		public override bool CanConvertTo(ITypeDescriptorContext? context, Type? destinationType)
+		{
+			if (destinationType == typeof(string))
+			{
+				return true;
+			}
+			return base.CanConvertTo(context, destinationType);
+		}
 
-        public static BlobId FromBlob(in Memory<byte> blobMemory)
-        {
-            Hash blake3Hash;
-            if (blobMemory.Length < MultiThreadedSize)
-            {
-                using Hasher hasher = Hasher.New();
-                hasher.Update(blobMemory.Span);
-                blake3Hash = hasher.Finalize();
-            }
-            else
-            {
-                using Hasher hasher = Hasher.New();
-                hasher.UpdateWithJoin(blobMemory.Span);
-                blake3Hash = hasher.Finalize();
-            }
+		/// <inheritdoc/>
+		public override object? ConvertTo(ITypeDescriptorContext? context, CultureInfo? culture, object? value, Type destinationType)
+		{
+			if (destinationType == typeof(string))
+			{
+				return value?.ToString();
+			}
 
-            // we only keep the first 20 bytes of the Blake3 hash
-            Span<byte> hash = blake3Hash.AsSpanUnsafe().Slice(0, 20);
-            return new BlobId(hash.ToArray());
-        }
+			return base.ConvertTo(context, culture, value, destinationType);
+		}
+	}
 
-        public static BlobId FromContentHash(JupiterContentHash testObjectHash)
-        {
-            return new BlobId(testObjectHash.HashData);
-        }
+	/// <summary>
+	/// Converts from <see cref="BlobId"/> instances to other types
+	/// </summary>
+	public class BlobIdJsonConverter : JsonConverter<BlobId>
+	{
+		/// <inheritdoc/>
+		public override BlobId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		{
+			string? str = reader.GetString();
+			if (str == null)
+			{
+				throw new InvalidDataException("Unable to parse blob identifier");
+			}
 
-        public static async Task<BlobId> FromStream(Stream stream)
-        {
-            using Hasher hasher = Hasher.New();
-            const int bufferSize = 1024 * 1024 * 5;
-            byte[] buffer = new byte[bufferSize];
-            int read = await stream.ReadAsync(buffer, 0, buffer.Length);
-            while (read > 0)
-            {
-                hasher.UpdateWithJoin(new ReadOnlySpan<byte>(buffer, 0, read));
-                read = await stream.ReadAsync(buffer, 0, buffer.Length);
-            }
-            Hash blake3Hash = hasher.Finalize();
+			return BlobId.Parse(str);
+		}
 
-            // we only keep the first 20 bytes of the Blake3 hash
-            byte[] hash = blake3Hash.AsSpanUnsafe().Slice(0, 20).ToArray();
-            return new BlobId(hash);
-        }
+		/// <inheritdoc/>
+		public override void Write(Utf8JsonWriter writer, BlobId value, JsonSerializerOptions options)
+		{
+			writer.WriteStringValue(value.ToString());
+		}
+	}
 
-        public static BlobId FromIoHash(IoHash blobIdentifier)
-        {
-            return new BlobId(blobIdentifier.ToByteArray());
-        }
+	/// <summary>
+	/// Serializes <see cref="BlobId"/> instances to compact binary
+	/// </summary>
+	public class BlobIdCbConverter : CbConverterBase<BlobId>
+	{
+		/// <inheritdoc/>
+		public override BlobId Read(CbField field) => new BlobId(field.AsHash());
 
-        public IoHash AsIoHash()
-        {
-            return new IoHash(HashData);
-        }
+		/// <inheritdoc/>
+		public override void Write(CbWriter writer, BlobId value) => writer.WriteBinaryAttachmentValue(value.Hash);
 
-        public static BlobId FromBlobLocator(BundleLocator locator)
-        {
-            return new BlobId(Encoding.UTF8.GetBytes(locator.ToString()));
-        }
-
-        public BundleLocator AsBlobLocator()
-        {
-            return new BundleLocator(Encoding.UTF8.GetString(HashData));
-        }
-    }
-
-    public class BlobIdTypeConverter : TypeConverter
-    {
-        public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
-        {  
-            if (sourceType == typeof(string))  
-            {  
-                return true;
-            }  
-            return base.CanConvertFrom(context, sourceType);
-        }  
-  
-        public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)  
-        {
-            if (value is string s)
-            {
-                return new BlobId(s);
-            }
-
-            return base.ConvertFrom(context, culture, value);  
-        }
-
-        public override bool CanConvertTo(ITypeDescriptorContext? context, Type? destinationType)
-        {
-            if (destinationType == typeof(string))
-            {
-                return true;
-            }
-            return base.CanConvertTo(context, destinationType);
-        }
-
-        public override object? ConvertTo(ITypeDescriptorContext? context, CultureInfo? culture, object? value, Type destinationType)
-        {
-            if (destinationType == typeof(string))
-            {
-                BlobId? identifier = (BlobId?)value;
-                return identifier?.ToString();
-            }
-            return base.ConvertTo(context, culture, value, destinationType);
-        }
-    }
-
-    public class BlobIdJsonConverter : JsonConverter<BlobId>
-    {
-        public override BlobId? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            string? str = reader.GetString();
-            if (str == null)
-            {
-                throw new InvalidDataException("Unable to parse blob identifier");
-            }
-
-            return new BlobId(str);
-        }
-
-        public override void Write(Utf8JsonWriter writer, BlobId value, JsonSerializerOptions options)
-        {
-            writer.WriteStringValue(value.ToString());
-        }
-    }
-
-    public class BlobIdCbConverter : CbConverterBase<BlobId>
-    {
-        public override BlobId Read(CbField field) => new BlobId(field.AsHash().ToByteArray());
-
-        /// <inheritdoc/>
-        public override void Write(CbWriter writer, BlobId value) => writer.WriteBinaryAttachmentValue(new IoHash(value.HashData));
-
-        /// <inheritdoc/>
-        public override void WriteNamed(CbWriter writer, Utf8String name, BlobId value) => writer.WriteBinaryAttachment(name, new IoHash(value.HashData));
-    }
+		/// <inheritdoc/>
+		public override void WriteNamed(CbWriter writer, Utf8String name, BlobId value) => writer.WriteBinaryAttachment(name, value.Hash);
+	}
 }

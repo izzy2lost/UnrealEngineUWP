@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using EpicGames.Horde.Storage;
 
 namespace Horde.Server.Ddc
@@ -90,7 +91,7 @@ namespace Horde.Server.Ddc
 			throw new NotImplementedException();
 		}
 
-		public Task<JupiterContentHash> VerifyContentMatchesHashAsync(Stream content, JupiterContentHash identifier)
+		public Task<IoHash> VerifyContentMatchesHashAsync(Stream content, IoHash identifier)
 		{
 			throw new NotImplementedException();
 		}

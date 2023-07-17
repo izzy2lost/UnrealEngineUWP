@@ -231,16 +231,13 @@ namespace Horde.Server.Ddc
             {
                 using TelemetrySpan _ = _tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash");
 
-                // only read the first 20 bytes of the hash field as IoHashes are 20 bytes and not 32 bytes
-                byte[] slicedHash = new byte[20];
-                Array.Copy(header.RawHash, 0, slicedHash, 0, 20);
+				// only read the first 20 bytes of the hash field as IoHashes are 20 bytes and not 32 bytes
+				IoHash slicedHash = new IoHash(header.RawHash.AsSpan(0, 20));
+                IoHash contentHash = IoHash.Compute(decompressedPayload);
 
-                BlobId headerIdentifier = new BlobId(slicedHash);
-                BlobId contentHash = BlobId.FromBlob(decompressedPayload);
-
-                if (!headerIdentifier.Equals(contentHash))
+                if (!slicedHash.Equals(contentHash))
                 {
-                    throw new Exception($"Payload was expected to be {headerIdentifier} but was {contentHash}");
+                    throw new Exception($"Payload was expected to be {slicedHash} but was {contentHash}");
                 }
             }
 
