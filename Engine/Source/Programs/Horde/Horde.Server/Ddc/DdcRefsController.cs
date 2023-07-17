@@ -49,12 +49,12 @@ namespace Horde.Server.Ddc
         private readonly Tracer _tracer;
 
         private readonly ILogger _logger;
-        private readonly IDdcRefService _objectService;
+        private readonly IDdcRefService _refService;
         private readonly IDdcBlobService _blobStore;
 
         public DdcRefsController(IDdcRefService objectService, IDdcBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<DdcRefsController> logger)
         {
-            _objectService = objectService;
+            _refService = objectService;
             _blobStore = blobStore;
             _diagnosticContext = diagnosticContext;
             _formatResolver = formatResolver;
@@ -75,7 +75,7 @@ namespace Horde.Server.Ddc
         [ProducesResponseType(type: typeof(ProblemDetails), 400)]
         public async Task<IActionResult> GetNamespaces()
         {
-            NamespaceId[] namespaces = await _objectService.GetNamespaces().ToArrayAsync();
+            NamespaceId[] namespaces = await _refService.GetNamespaces().ToArrayAsync();
 
             // filter namespaces down to only the namespaces the user has access to
             List<NamespaceId> namespacesWithAccess = new();
@@ -103,7 +103,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> Get(
             [FromRoute] [Required] NamespaceId ns,
             [FromRoute] [Required] BucketId bucket,
-            [FromRoute] [Required] IoHash key,
+            [FromRoute] [Required] RefId key,
             [FromRoute] string? format = null)
         {
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
@@ -114,7 +114,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                (ObjectRecord objectRecord, BlobContents? blob) = await _objectService.Get(ns, bucket, key, Array.Empty<string>());
+                (RefRecord objectRecord, BlobContents? blob) = await _refService.Get(ns, bucket, key, Array.Empty<string>());
 
                 if (blob == null)
                 {
@@ -411,7 +411,7 @@ namespace Horde.Server.Ddc
             {
                 return NotFound(new ProblemDetails {Title = $"Namespace {e.Namespace} did not exist"});
             }
-            catch (ObjectNotFoundException e)
+            catch (RefNotFoundException e)
             {
                 return NotFound(new ProblemDetails { Title = $"Object {e.Bucket} {e.Key} did not exist" });
             }
@@ -434,7 +434,7 @@ namespace Horde.Server.Ddc
     public async Task<IActionResult> GetMetadata(
         [FromRoute] [Required] NamespaceId ns,
         [FromRoute] [Required] BucketId bucket,
-        [FromRoute] [Required] IoHash key,
+        [FromRoute] [Required] RefId key,
         [FromQuery] string[] fields)
     {
         ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
@@ -445,7 +445,7 @@ namespace Horde.Server.Ddc
 
         try
         {
-            (ObjectRecord objectRecord, BlobContents? _) = await _objectService.Get(ns, bucket, key, fields);
+            (RefRecord objectRecord, BlobContents? _) = await _refService.Get(ns, bucket, key, fields);
 
             return Ok(new RefMetadataResponse(objectRecord));
         }
@@ -453,7 +453,7 @@ namespace Horde.Server.Ddc
         {
             return NotFound(new ProblemDetails {Title = $"Namespace {e.Namespace} did not exist"});
         }
-        catch (ObjectNotFoundException e)
+        catch (RefNotFoundException e)
         {
             return NotFound(new ProblemDetails { Title = $"Object {e.Bucket} {e.Key} did not exist" });
         }
@@ -476,7 +476,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> Head(
             [FromRoute] [Required] NamespaceId ns,
             [FromRoute] [Required] BucketId bucket,
-            [FromRoute] [Required] IoHash key)
+            [FromRoute] [Required] RefId key)
         {
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (accessResult != null)
@@ -486,7 +486,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                (ObjectRecord record, BlobContents? blob) = await _objectService.Get(ns, bucket, key, new string[] {"blobIdentifier", "IsFinalized"});
+                (RefRecord record, BlobContents? blob) = await _refService.Get(ns, bucket, key, new string[] {"blobIdentifier", "IsFinalized"});
                 Response.Headers[CommonHeaders.HashHeaderName] = record.BlobIdentifier.ToString();
 
                 if (!record.IsFinalized)
@@ -520,7 +520,7 @@ namespace Horde.Server.Ddc
             {
                 return NotFound(new ProblemDetails { Title = $"Blob {e.Blob} in namespace {ns} did not exist" });
             }
-            catch (ObjectNotFoundException e)
+            catch (RefNotFoundException e)
             {
                 return NotFound(new ProblemDetails {Title = $"Object {e.Bucket} {e.Key} in namespace {e.Namespace} did not exist"});
             }
@@ -548,9 +548,9 @@ namespace Horde.Server.Ddc
                 return accessResult;
             }
 
-            ConcurrentBag<(BucketId, IoHash)> missingObject = new ();
+            ConcurrentBag<(BucketId, RefId)> missingObject = new ();
 
-            List<(BucketId, IoHash)> requestedNames = new List<(BucketId, IoHash)>();
+            List<(BucketId, RefId)> requestedNames = new List<(BucketId, RefId)>();
             foreach (string name in names)
             {
                 int separatorIndex = name.IndexOf(".", StringComparison.Ordinal);
@@ -560,17 +560,17 @@ namespace Horde.Server.Ddc
                 }
 
                 BucketId bucket = new BucketId(name.Substring(0, separatorIndex));
-				IoHash key = IoHash.Parse(name.Substring(separatorIndex + 1));
+				RefId key = RefId.Parse(name.Substring(separatorIndex + 1));
                 requestedNames.Add((bucket, key));
             }
 
             IEnumerable<Task> tasks = requestedNames.Select(async pair =>
             {
-                (BucketId bucket, IoHash key) = pair;
+                (BucketId bucket, RefId key) = pair;
                 try
                 {
-                    (ObjectRecord record, BlobContents? blob) =
-                        await _objectService.Get(ns, bucket, key, new string[] { "blobIdentifier" });
+                    (RefRecord record, BlobContents? blob) =
+                        await _refService.Get(ns, bucket, key, new string[] { "blobIdentifier" });
 
                     blob ??= await _blobStore.GetObject(ns, record.BlobIdentifier);
 
@@ -582,7 +582,7 @@ namespace Horde.Server.Ddc
                     IAsyncEnumerable<BlobIdentifier> references = _referenceResolver.GetReferencedBlobs(ns, cb);
                     List<BlobIdentifier>? _ = await references.ToListAsync();
                 }
-                catch (ObjectNotFoundException)
+                catch (RefNotFoundException)
                 {
                     missingObject.Add((bucket, key));
                 }
@@ -609,7 +609,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> PutObject(
             [FromRoute] [Required] NamespaceId ns,
             [FromRoute] [Required] BucketId bucket,
-            [FromRoute] [Required] IoHash key)
+            [FromRoute] [Required] RefId key)
         {
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (accessResult != null)
@@ -699,7 +699,7 @@ namespace Horde.Server.Ddc
                 return Problem(e.Message, null, (int)HttpStatusCode.RequestTimeout);
             }
 
-            (ContentId[] missingReferences, BlobIdentifier[] missingBlobs) = await _objectService.Put(ns, bucket, key, blobHeader, payloadObject);
+            (ContentId[] missingReferences, BlobIdentifier[] missingBlobs) = await _refService.Put(ns, bucket, key, blobHeader, payloadObject);
 
             List<JupiterContentHash> missingHashes = new List<JupiterContentHash>(missingReferences);
             missingHashes.AddRange(missingBlobs);
@@ -712,7 +712,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> PutPackage(
             [FromRoute][Required] NamespaceId ns,
             [FromRoute][Required] BucketId bucket,
-            [FromRoute][Required] IoHash key)
+            [FromRoute][Required] RefId key)
         {
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (accessResult != null)
@@ -758,7 +758,7 @@ namespace Horde.Server.Ddc
             CbObject rootObject = packageReader.RootObject;
             BlobIdentifier rootObjectHash = BlobIdentifier.FromIoHash(packageReader.RootHash);
 
-            (ContentId[] missingReferences, BlobIdentifier[] missingBlobs) = await _objectService.Put(ns, bucket, key, rootObjectHash, rootObject);
+            (ContentId[] missingReferences, BlobIdentifier[] missingBlobs) = await _refService.Put(ns, bucket, key, rootObjectHash, rootObject);
 
             List<JupiterContentHash> missingHashes = new List<JupiterContentHash>(missingReferences);
             missingHashes.AddRange(missingBlobs);
@@ -795,7 +795,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> FinalizeObject(
             [FromRoute] [Required] NamespaceId ns,
             [FromRoute] [Required] BucketId bucket,
-            [FromRoute] [Required] IoHash key,
+            [FromRoute] [Required] RefId key,
             [FromRoute] [Required] BlobIdentifier hash)
         {
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
@@ -806,7 +806,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                (ContentId[] missingReferences, BlobIdentifier[] missingBlobs) = await _objectService.IDdcRefService(ns, bucket, key, hash);
+                (ContentId[] missingReferences, BlobIdentifier[] missingBlobs) = await _refService.Finalize(ns, bucket, key, hash);
                 List<JupiterContentHash> missingHashes = new List<JupiterContentHash>(missingReferences);
                 missingHashes.AddRange(missingBlobs);
 
@@ -816,7 +816,7 @@ namespace Horde.Server.Ddc
             {
                 return BadRequest(e.Message);
             }
-            catch (ObjectNotFoundException e)
+            catch (RefNotFoundException e)
             {
                 return NotFound(e.Message);
             }
@@ -867,7 +867,7 @@ namespace Horde.Server.Ddc
             {
                 try
                 {
-                    (ObjectRecord objectRecord, BlobContents? blob) = await _objectService.Get(ns, op.Bucket, op.Key, Array.Empty<string>());
+                    (RefRecord objectRecord, BlobContents? blob) = await _refService.Get(ns, op.Bucket, op.Key, Array.Empty<string>());
 
                     if (!objectRecord.IsFinalized)
                     {
@@ -889,7 +889,7 @@ namespace Horde.Server.Ddc
 
                     return (cb, HttpStatusCode.OK);
                 }
-                catch (Exception ex) when( ex is ObjectNotFoundException or PartialReferenceResolveException or ReferenceIsMissingBlobsException)
+                catch (Exception ex) when( ex is RefNotFoundException or PartialReferenceResolveException or ReferenceIsMissingBlobsException)
                 {
                     return ToErrorResult(ex, HttpStatusCode.NotFound);
                 }
@@ -903,7 +903,7 @@ namespace Horde.Server.Ddc
             {
                 try
                 {
-                    (ObjectRecord record, BlobContents? blob) = await _objectService.Get(ns, op.Bucket, op.Key, new string[] { "blobIdentifier" });
+                    (RefRecord record, BlobContents? blob) = await _refService.Get(ns, op.Bucket, op.Key, new string[] { "blobIdentifier" });
 
                     if (!record.IsFinalized)
                     {
@@ -928,7 +928,7 @@ namespace Horde.Server.Ddc
 
                     return (CbObject.Build(writer => writer.WriteBool("exists", true)), HttpStatusCode.OK);
                 }
-                catch (Exception ex) when( ex is ObjectNotFoundException or PartialReferenceResolveException or ReferenceIsMissingBlobsException)
+                catch (Exception ex) when( ex is RefNotFoundException or PartialReferenceResolveException or ReferenceIsMissingBlobsException)
                 {
                     return (CbObject.Build(writer => writer.WriteBool("exists", false)), HttpStatusCode.NotFound);
                 }
@@ -959,7 +959,7 @@ namespace Horde.Server.Ddc
                         throw new HashMismatchException(headerHash, objectHash);
                     }
 
-                    (ContentId[] missingReferences, BlobIdentifier[] missingBlobs) = await _objectService.Put(ns, op.Bucket, op.Key, objectHash, op.Payload);
+                    (ContentId[] missingReferences, BlobIdentifier[] missingBlobs) = await _refService.Put(ns, op.Bucket, op.Key, objectHash, op.Payload);
                     List<JupiterContentHash> missingHashes = new List<JupiterContentHash>(missingReferences);
 
                     return (CbSerializer.Serialize(new PutObjectResponse(missingHashes.ToArray())), HttpStatusCode.OK);
@@ -1038,7 +1038,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                await _objectService.DropNamespace(ns);
+                await _refService.DropNamespace(ns);
             }
             catch (NamespaceNotFoundException e)
             {
@@ -1068,7 +1068,7 @@ namespace Horde.Server.Ddc
             long countOfDeletedRecords;
             try
             {
-                countOfDeletedRecords = await _objectService.DeleteBucket(ns, bucket);
+                countOfDeletedRecords = await _refService.DeleteBucket(ns, bucket);
             }
             catch (NamespaceNotFoundException e)
             {
@@ -1090,7 +1090,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> Delete(
             [FromRoute] [Required] NamespaceId ns,
             [FromRoute] [Required] BucketId bucket,
-            [FromRoute] [Required] IoHash key)
+            [FromRoute] [Required] RefId key)
         {
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.DeleteObject });
             if (accessResult != null)
@@ -1100,7 +1100,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                bool deleted = await _objectService.Delete(ns, bucket, key);
+                bool deleted = await _refService.Delete(ns, bucket, key);
                 if (!deleted)
                 {
                     return NotFound(new ProblemDetails { Title = $"Object {key} in bucket {bucket} and namespace {ns} did not exist" });
@@ -1111,7 +1111,7 @@ namespace Horde.Server.Ddc
             {
                 return NotFound(new ProblemDetails { Title = $"Namespace {e.Namespace} did not exist" });
             }
-            catch (ObjectNotFoundException)
+            catch (RefNotFoundException)
             {
                 return NotFound(new ProblemDetails { Title = $"Object {key} in bucket {bucket} and namespace {ns} did not exist" });
             }
@@ -1196,7 +1196,7 @@ namespace Horde.Server.Ddc
 
             [Required]
             [CbField("key")]
-            public IoHash Key { get; set; }
+            public RefId Key { get; set; }
 
             [CbField("resolveAttachments")]
             public bool? ResolveAttachments { get; set; } = null;
@@ -1250,7 +1250,7 @@ namespace Horde.Server.Ddc
         }
 
         [JsonConstructor]
-        public RefMetadataResponse(NamespaceId ns, BucketId bucket, IoHash name, BlobIdentifier payloadIdentifier, DateTime lastAccess, bool isFinalized, byte[]? inlinePayload)
+        public RefMetadataResponse(NamespaceId ns, BucketId bucket, RefId name, BlobIdentifier payloadIdentifier, DateTime lastAccess, bool isFinalized, byte[]? inlinePayload)
         {
             Ns = ns;
             Bucket = bucket;
@@ -1261,7 +1261,7 @@ namespace Horde.Server.Ddc
             InlinePayload = inlinePayload;
         }
 
-        public RefMetadataResponse(ObjectRecord objectRecord)
+        public RefMetadataResponse(RefRecord objectRecord)
         {
             Ns = objectRecord.Namespace;
             Bucket = objectRecord.Bucket;
@@ -1279,7 +1279,7 @@ namespace Horde.Server.Ddc
         public BucketId Bucket { get; set; }
 
         [CbField("name")]
-        public IoHash Name { get; set; }
+        public RefId Name { get; set; }
 
         [CbField("payloadIdentifier")]
         public BlobIdentifier PayloadIdentifier { get; set; }
@@ -1312,11 +1312,11 @@ namespace Horde.Server.Ddc
 
     public class ExistCheckMultipleRefsResponse
     {
-        public ExistCheckMultipleRefsResponse(List<(BucketId, IoHash)> missing)
+        public ExistCheckMultipleRefsResponse(List<(BucketId, RefId)> missing)
         {
             Missing = missing.Select(pair =>
             {
-                (BucketId bucketId, IoHash ioHashKey) = pair;
+                (BucketId bucketId, RefId ioHashKey) = pair;
                 return new MissingReference()
                 {
                     Bucket = bucketId,
@@ -1342,7 +1342,7 @@ namespace Horde.Server.Ddc
             public BucketId Bucket { get; set; }
 
             [CbField("key")]
-            public IoHash Key { get; set; }
+            public RefId Key { get; set; }
         }
     }
 
