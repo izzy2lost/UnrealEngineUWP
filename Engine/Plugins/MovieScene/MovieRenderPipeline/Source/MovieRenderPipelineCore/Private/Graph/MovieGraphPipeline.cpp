@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/MovieGraphPipeline.h"
+
+#include "Graph/MovieGraphCVarManager.h"
 #include "Graph/MovieGraphDataTypes.h"
 #include "Graph/MovieGraphOutputMerger.h"
 #include "Graph/Nodes/MovieGraphFileOutputNode.h"
@@ -76,6 +78,7 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 	CurrentJob = InJob;
 	CurrentShotIndex = 0;
 	GraphInitializationTime = FDateTime::UtcNow();
+	CVarManager = MakeShared<UE::MovieGraph::Private::FMovieGraphCVarManager>();
 
 	// Now that we've created our various systems, we will start using them. First thing we do is cache data about
 	// the world, job, player viewport, etc, before we make any modifications. These will be restored at the end
@@ -217,7 +220,6 @@ void UMovieGraphPipeline::TickProducingFrames()
 	GraphTimeStepInstance->TickProducingFrames();
 }
 
-
 void UMovieGraphPipeline::TickFinalizeOutputContainers(const bool bInForceFinish)
 {
 	// Tick all containers until they all report that they have finalized.
@@ -344,6 +346,13 @@ void UMovieGraphPipeline::SetupShot(UMoviePipelineExecutorShot* InShot)
 	//	}
 	//}
 
+	const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
+	const UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepData.EvaluatedConfig;
+
+	// Apply cvars for the shot
+	CVarManager->AddEvaluatedGraph(EvaluatedConfig);
+	CVarManager->ApplyAllCVars();
+
 	// Setup required rendering architecture for all passes in this shot.
 	GraphRendererInstance->SetupRenderingPipelineForShot(InShot);
 }
@@ -356,6 +365,9 @@ void UMovieGraphPipeline::TeardownShot(UMoviePipelineExecutorShot* InShot)
 	// some other stuff
 
 	CurrentShotIndex++;
+
+	// Revert the cvar values that were initially applied for the shot
+	CVarManager->RevertAllCVars();
 
 	// Check to see if this was the last shot in the Pipeline, otherwise on the next
 	// tick the new shot will be initialized and processed.

@@ -18,6 +18,11 @@ class IImageWriteQueue;
 namespace UE::MovieGraph
 {
 	typedef TTuple<TFuture<bool>, UE::MovieGraph::FMovieGraphOutputFutureData> FMovieGraphOutputFuture;
+
+	namespace Private
+	{
+		class FMovieGraphCVarManager;
+	}
 }
 
 UCLASS(BlueprintType)
@@ -160,4 +165,7 @@ protected:
 	* rendering (and is only pushed to once the file is actually on disk), and does not store pixel data.
 	*/
 	TArray<FMovieGraphRenderOutputData> GeneratedOutputData;
+
+	/** Responsible for managing cvars throughout the lifetime of the pipeline. */
+	TSharedPtr<UE::MovieGraph::Private::FMovieGraphCVarManager> CVarManager;
 };

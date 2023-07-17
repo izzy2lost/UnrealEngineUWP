@@ -5,6 +5,16 @@
 #include "Graph/MovieGraphConfig.h"
 #include "Styling/AppStyle.h"
 
+FString UMovieGraphSetCVarValueNode::GetNodeInstanceName() const
+{
+	return Name;
+}
+
+EMovieGraphBranchRestriction UMovieGraphSetCVarValueNode::GetBranchRestriction() const
+{
+	return EMovieGraphBranchRestriction::Globals;
+}
+
 #if WITH_EDITOR
 FText UMovieGraphSetCVarValueNode::GetNodeTitle(const bool bGetDescriptive) const
 {
