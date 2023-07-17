@@ -165,7 +165,7 @@ namespace Audio
 			ENGINE_API void Init(FDeviceId InDeviceId, FName InParameterName, bool bInIsBuffered = false, bool bInValueNormalized = false);
 
 			/** returns whether or not destination references an active modulator */
-			ENGINE_API bool IsActive();
+			ENGINE_API bool IsActive() const;
 
 			/* Updates internal value (or buffer if set to bIsBuffered) to current modulated result using the provided value as the base carrier value to modulate.
 			 * Returns true if value was updated.

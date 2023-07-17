@@ -488,6 +488,8 @@ namespace Audio
 		, MixerDevice(static_cast<FMixerDevice*>(InAudioDevice))
 		, MixerBuffer(nullptr)
 		, MixerSourceVoice(nullptr)
+		, BinauralVolModulators(nullptr)
+		, BinauralDryModulators(nullptr)
 		, bPreviousBusEnablement(false)
 		, bPreviousBaseSubmixEnablement(false)
 		, PreviousAzimuth(-1.0f)
@@ -741,6 +743,11 @@ namespace Audio
 						UE_LOG(LogAudioMixer, Warning, TEXT("Ignoring soundfield Base Submix destination being set on SoundWave (%s) because spatializaition method is set to Binaural.")
 							, *InWaveInstance->GetName());
 					}
+					
+					// Get the modulation info associated with the SubmixPtr here
+					// The audio never goes to this submix, but we can still use this to modulate the volume ourselves later
+					BinauralVolModulators = SubmixPtr->GetOutputVolumeDestination();
+					BinauralDryModulators = SubmixPtr->GetDryVolumeDestination();
 				}
 			}
 
@@ -1606,7 +1613,17 @@ namespace Audio
 			CurrentVolume *= WaveInstance->GetVolume();
 			CurrentVolume *= WaveInstance->GetDynamicVolume();
 
-			// 3. Apply editor gain stage(s)
+			// 3. Submix Volume Modulation (this only happens if the asset is binaural and we're sending to an external submix)
+			if (BinauralVolModulators)
+			{
+				CurrentVolume *= BinauralVolModulators->GetValue();
+			}
+			if (BinauralDryModulators)
+			{
+				CurrentVolume *= BinauralDryModulators->GetValue();
+			}
+
+			// 4. Apply editor gain stage(s)
 			CurrentVolume = FMath::Clamp<float>(GetDebugVolume(CurrentVolume), 0.0f, MAX_VOLUME);
 
 			FActiveSound* ActiveSound = WaveInstance->ActiveSound;

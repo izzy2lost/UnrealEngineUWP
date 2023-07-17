@@ -127,6 +127,10 @@ namespace Audio
 		FMixerSourceVoice* MixerSourceVoice;
 		IAudioLinkFactory::FAudioLinkSourcePushedSharedPtr AudioLink;
 
+		// These modulators are obtained from the submix and used only on binaural assets
+		FModulationDestination* BinauralVolModulators;
+		FModulationDestination* BinauralDryModulators;
+
 		uint32 bPreviousBusEnablement;
 		uint32 bPreviousBaseSubmixEnablement;
 

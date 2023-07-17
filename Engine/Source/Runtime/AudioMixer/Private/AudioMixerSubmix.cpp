@@ -1099,6 +1099,18 @@ namespace Audio
 			}
 		}
 
+		// Query Modulation; if any of the submix's Modulation Destinations are being modulated they need to be processed,
+		// because binaural sources still use these Destinations when the submix is set
+		{
+			if (MixerDevice->IsModulationPluginEnabled() && MixerDevice->ModulationInterface.IsValid())
+			{
+				if (DryLevelMod.IsActive() || VolumeMod.IsActive())
+				{
+					return true;
+				}
+			}
+		}
+
 		// If this submix is not rendering any sources directly and silence has been detected, we need to check it's children submixes
 		if (MixerSourceVoices.Num() == 0 && SilenceTimeStartSeconds >= 0.0)
 		{
@@ -2348,6 +2360,16 @@ namespace Audio
 		VolumeModBaseDb = InVolumeModBaseDb;
 		WetModBaseDb = InWetModBaseDb;
 		DryModBaseDb = InDryModBaseDb;
+	}
+
+	FModulationDestination* FMixerSubmix::GetOutputVolumeDestination()
+	{
+		return &VolumeMod;
+	}
+
+	FModulationDestination* FMixerSubmix::GetDryVolumeDestination()
+	{
+		return &DryLevelMod;
 	}
 
 	void FMixerSubmix::BroadcastDelegates()

@@ -147,7 +147,7 @@ namespace Audio
 		ResetHandles();
 	}
 
-	bool FModulationDestination::IsActive()
+	bool FModulationDestination::IsActive() const
 	{
 		FScopeLock Lock(&HandleCritSection);
 		return Algo::AnyOf(Handles, [](const FModulatorHandle& Handle) { return Handle.IsValid(); });

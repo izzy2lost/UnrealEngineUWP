@@ -147,6 +147,10 @@ namespace Audio
 		// Update modulation settings of the submix with Decibel values
 		AUDIOMIXER_API void SetModulationBaseLevels(float InVolumeModBaseDb, float InWetModeBaseDb, float InDryModBaseDb);
 
+		FModulationDestination* GetOutputVolumeDestination();
+
+		FModulationDestination* GetDryVolumeDestination();
+
 		// Gets the submix channels channels
 		AUDIOMIXER_API int32 GetSubmixChannels() const;
 
