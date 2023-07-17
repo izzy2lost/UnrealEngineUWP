@@ -8,7 +8,6 @@
 #include "CollectionManagerTypes.h"
 
 class FUICommandList;
-class SCheckBox;
 class SComboButton;
 class SReferenceViewerFilterBar;
 class SSearchBox;
@@ -240,7 +239,6 @@ private:
 	TArray<TSharedPtr<FName>> CollectionsComboList;
 
 	/** Combo box for plugin filter options */
-	TSharedPtr<SCheckBox> PluginFilterCheckbox;
 	TSharedPtr<SComboButton> PluginsComboButton;
 
 	/**

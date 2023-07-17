@@ -493,7 +493,7 @@ void SReferenceViewer::Construct(const FArguments& InArgs)
 						.VAlign(VAlign_Center)
 						.Padding(2.f)
 						[
-							SAssignNew(PluginFilterCheckbox, SCheckBox)
+							SNew(SCheckBox)
 							.OnCheckStateChanged( this, &SReferenceViewer::OnEnablePluginFilterChanged )
 							.IsChecked( this, &SReferenceViewer::IsEnablePluginFilterChecked )
 						]

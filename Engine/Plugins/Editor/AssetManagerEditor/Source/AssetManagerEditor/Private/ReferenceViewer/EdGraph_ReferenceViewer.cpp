@@ -214,7 +214,6 @@ UEdGraphNode_Reference* UEdGraph_ReferenceViewer::ConstructNodes(const TArray<FA
 		}
 
 		// Prepare for plugin filtering.
-		if (ShouldFilterByPlugin())
 		{
 			// Collect plugin names from assets reachable in the graph if the graph had been unfiltered.
 			EncounteredPluginsAmongNodes.Empty();
