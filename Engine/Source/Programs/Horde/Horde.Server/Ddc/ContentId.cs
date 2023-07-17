@@ -25,18 +25,12 @@ namespace Horde.Server.Ddc
 
         public override int GetHashCode()
         {
-            return Comparer.GetHashCode(Identifier);
+			HashCode hashCode = new HashCode();
+			hashCode.AddBytes(Identifier);
+			return hashCode.ToHashCode();
         }
 
-        public bool Equals(ContentId? other)
-        {
-            if (other == null)
-            {
-                return false;
-            }
-
-            return Comparer.Equals(Identifier, other.Identifier);
-        }
+        public bool Equals(ContentId? other) => other != null && other.Identifier.AsSpan().SequenceEqual(Identifier);
 
         public override bool Equals(object? obj)
         {

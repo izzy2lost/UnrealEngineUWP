@@ -19,7 +19,6 @@ namespace Horde.Server.Ddc
     [CbConverter(typeof(ContentHashCbConverter))]
     public class JupiterContentHash : IEquatable<JupiterContentHash>, IEquatable<byte[]>
     {
-        protected ByteArrayComparer Comparer { get; } = new ByteArrayComparer();
         protected byte[] Identifier { get; init; }
         public const int HashLength = 20;
 
@@ -51,28 +50,14 @@ namespace Horde.Server.Ddc
 
         public override int GetHashCode()
         {
-            return Comparer.GetHashCode(Identifier);
+			HashCode hashCode = new HashCode();
+			hashCode.AddBytes(Identifier);
+			return hashCode.ToHashCode();
         }
 
-        public bool Equals(JupiterContentHash? other)
-        {
-            if (other == null)
-            {
-                return false;
-            }
+        public bool Equals(JupiterContentHash? other) => other != null && Identifier.AsSpan().SequenceEqual(other.Identifier);
 
-            return Comparer.Equals(Identifier, other.Identifier);
-        }
-
-        public bool Equals(byte[]? other)
-        {
-            if (other == null)
-            {
-                return false;
-            }
-
-            return Comparer.Equals(Identifier, other);
-        }
+		public bool Equals(byte[]? other) => other != null && Identifier.AsSpan().SequenceEqual(other);
 
         public override bool Equals(object? obj)
         {
