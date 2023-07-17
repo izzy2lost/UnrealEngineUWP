@@ -15,7 +15,6 @@ namespace Horde.Server.Ddc
 	public interface IRequestHelper
     {
         public Task<ActionResult?> HasAccessToNamespaceAsync(ClaimsPrincipal user, HttpRequest request, NamespaceId ns, AclAction[] aclActions);
-        public Task<ActionResult?> HasAccessForGlobalOperationsAsync(ClaimsPrincipal user, AclAction[] aclActions);
     }
 
     public class AuthorizationException : Exception

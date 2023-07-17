@@ -17,11 +17,7 @@ namespace Horde.Server.Ddc
         Task<(ContentId[], BlobId[])> PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload);
         Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash);
 
-        IAsyncEnumerable<NamespaceId> GetNamespacesAsync();
-
         Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key);
-        Task<long> DropNamespaceAsync(NamespaceId ns);
-        Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket);
 
         Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key);
         Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key);
