@@ -65,7 +65,7 @@ namespace Horde.Server.Ddc
 			throw new NotImplementedException();
 		}
 
-		public Task<BlobId> PutObjectAsync(NamespaceId ns, IBufferedPayload payload, BlobId identifier)
+		public Task<BlobId> PutObjectAsync(NamespaceId ns, BufferedPayload payload, BlobId identifier)
 		{
 			throw new NotImplementedException();
 		}
@@ -75,7 +75,7 @@ namespace Horde.Server.Ddc
 			throw new NotImplementedException();
 		}
 
-		public Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, IBufferedPayload content, BlobId identifier)
+		public Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, BufferedPayload content, BlobId identifier)
 		{
 			throw new NotImplementedException();
 		}

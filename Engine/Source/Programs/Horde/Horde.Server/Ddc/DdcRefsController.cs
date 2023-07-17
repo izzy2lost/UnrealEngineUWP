@@ -624,7 +624,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
+                using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
                 BlobId headerHash;
                 if (Request.Headers.ContainsKey(CommonHeaders.HashHeaderName))

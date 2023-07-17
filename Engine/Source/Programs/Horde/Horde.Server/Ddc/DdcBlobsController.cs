@@ -187,7 +187,7 @@ namespace Horde.Server.Ddc
                         RedirectUri = uri,
                     });
                 }
-                using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
+                using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
                 BlobId identifier = await _storage.PutObjectAsync(ns, payload, id);
                 return Ok(new
@@ -220,7 +220,7 @@ namespace Horde.Server.Ddc
             _diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
             try
             {
-                using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
+                using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
                 await using Stream stream = payload.GetStream();
 
