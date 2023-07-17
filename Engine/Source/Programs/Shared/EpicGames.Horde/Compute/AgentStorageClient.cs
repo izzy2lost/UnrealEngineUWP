@@ -83,7 +83,7 @@ namespace EpicGames.Horde.Compute
 		}
 
 		/// <inheritdoc/>
-		public override IAsyncEnumerable<BundleNodeHandle> FindNodesAsync(Utf8String name, CancellationToken cancellationToken = default)
+		public override IAsyncEnumerable<BundleNodeHandle> FindAliasAsync(Utf8String name, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException();
 		}

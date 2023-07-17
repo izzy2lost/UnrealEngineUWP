@@ -108,7 +108,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="name">Alias for the node</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Nodes matching the given handle</returns>
-		IAsyncEnumerable<BlobHandle> FindNodesAsync(Utf8String name, CancellationToken cancellationToken = default);
+		IAsyncEnumerable<BlobHandle> FindAliasAsync(Utf8String name, CancellationToken cancellationToken = default);
 
 		#endregion
 

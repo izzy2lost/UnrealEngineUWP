@@ -289,7 +289,7 @@ namespace Jupiter.Controllers
         /// <param name="cancellationToken">Cancellation token for the operation</param>
         [HttpGet]
         [Route("{namespaceId}/nodes")]
-        public async Task<ActionResult<FindNodesResponse>> FindNodesAsync(NamespaceId namespaceId, string alias, CancellationToken cancellationToken = default)
+        public async Task<ActionResult<FindNodesResponse>> FindAliasAsync(NamespaceId namespaceId, string alias, CancellationToken cancellationToken = default)
         {
             ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, namespaceId, new [] { JupiterAclAction.ReadObject });
             if (result != null)
@@ -300,7 +300,7 @@ namespace Jupiter.Controllers
             StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 
             FindNodesResponse response = new FindNodesResponse();
-            await foreach (BundleNodeHandle handle in client.FindNodesAsync(alias, cancellationToken))
+            await foreach (BundleNodeHandle handle in client.FindAliasAsync(alias, cancellationToken))
             {
                 response.Nodes.Add(new FindNodeResponse(handle));
             }

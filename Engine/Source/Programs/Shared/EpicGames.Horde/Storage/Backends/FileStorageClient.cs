@@ -113,7 +113,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public override IAsyncEnumerable<BundleNodeHandle> FindNodesAsync(Utf8String alias, CancellationToken cancellationToken = default)
+		public override IAsyncEnumerable<BundleNodeHandle> FindAliasAsync(Utf8String alias, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("File storage client does not currently support aliases.");
 		}

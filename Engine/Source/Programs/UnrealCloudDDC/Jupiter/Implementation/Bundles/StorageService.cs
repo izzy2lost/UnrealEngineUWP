@@ -104,7 +104,7 @@ public class StorageClient : BundleStorageClient
         await Task.CompletedTask;
     }
 
-    public override async IAsyncEnumerable<BundleNodeHandle> FindNodesAsync(Utf8String name, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public override async IAsyncEnumerable<BundleNodeHandle> FindAliasAsync(Utf8String name, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         // TODO: Implement aliases
         await Task.CompletedTask;

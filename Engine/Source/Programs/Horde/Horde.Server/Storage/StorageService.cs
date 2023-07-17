@@ -226,7 +226,7 @@ namespace Horde.Server.Storage
 			public override Task RemoveAliasAsync(Utf8String name, BundleNodeLocator locator, CancellationToken cancellationToken = default) => _outer.RemoveAliasAsync(NamespaceId, name, locator, cancellationToken);
 
 			/// <inheritdoc/>
-			public override async IAsyncEnumerable<BundleNodeHandle> FindNodesAsync(Utf8String alias, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+			public override async IAsyncEnumerable<BundleNodeHandle> FindAliasAsync(Utf8String alias, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 			{
 				await foreach (BundleNodeLocator locator in _outer.FindNodesAsync(NamespaceId, alias, cancellationToken))
 				{

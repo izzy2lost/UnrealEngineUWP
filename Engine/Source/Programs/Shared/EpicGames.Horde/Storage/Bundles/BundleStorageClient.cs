@@ -86,16 +86,16 @@ namespace EpicGames.Horde.Storage.Bundles
 		public abstract Task RemoveAliasAsync(Utf8String name, BundleNodeHandle handle, CancellationToken cancellationToken = default);
 
 		/// <inheritdoc/>
-		async IAsyncEnumerable<BlobHandle> IStorageClient.FindNodesAsync(Utf8String name, [EnumeratorCancellation] CancellationToken cancellationToken)
+		async IAsyncEnumerable<BlobHandle> IStorageClient.FindAliasAsync(Utf8String name, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
-			await foreach (BundleNodeHandle handle in FindNodesAsync(name, cancellationToken))
+			await foreach (BundleNodeHandle handle in FindAliasAsync(name, cancellationToken))
 			{
 				yield return handle;
 			}
 		}
 
 		/// <inheritdoc/>
-		public abstract IAsyncEnumerable<BundleNodeHandle> FindNodesAsync(Utf8String name, CancellationToken cancellationToken = default);
+		public abstract IAsyncEnumerable<BundleNodeHandle> FindAliasAsync(Utf8String name, CancellationToken cancellationToken = default);
 
 		#endregion
 
