@@ -191,7 +191,8 @@ private:
 	
 	ENGINE_API const FLevelInstanceEdit* GetLevelInstanceEdit(const ILevelInstanceInterface* LevelInstance) const;
 	ENGINE_API bool IsLevelInstanceEditDirty(const FLevelInstanceEdit* LevelInstanceEdit) const;
-	
+	ENGINE_API bool PromptUserForCommit(const FLevelInstanceEdit* InLevelInstanceEdit, bool& bOutDiscard, bool bForceCommit = false) const;
+
 	struct FLevelsToRemoveScope
 	{
 		FLevelsToRemoveScope(ULevelInstanceSubsystem* InOwner);
