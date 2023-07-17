@@ -5687,10 +5687,19 @@ void UCookOnTheFlyServer::TickRecompileShaderRequestsPrivate()
 class FDiffModeCookServerUtils
 {
 public:
-	void InitializePackageWriter(ICookedPackageWriter*& CookedPackageWriter)
+	enum class EDiffMode
+	{
+		None,
+		DiffOnly,
+		LinkerDiff,
+		IterativeValidateFirstCook,
+		IterativeValidateFinalCook,
+	};
+
+	void InitializePackageWriter(ICookedPackageWriter*& CookedPackageWriter, const FString& ResolvedMetadataPath)
 	{
 		Initialize();
-		if (!bAnyDiffModeEnabled)
+		if (DiffMode == EDiffMode::None)
 		{
 			return;
 		}
@@ -5703,19 +5712,28 @@ public:
 				TEXT("A DiffMode was enabled, but the current PackageWriter has bDiffModeSupported=false."));
 		}
 
-		if (bDiffEnabled)
+		// Wrap the incoming writer inside the feature-specific-functionality writer
+		switch (DiffMode)
 		{
-			// Wrap the incoming writer inside a FDiffPackageWriter
+		case EDiffMode::DiffOnly:
 			CookedPackageWriter = new FDiffPackageWriter(TUniquePtr<ICookedPackageWriter>(CookedPackageWriter));
-		}
-		else if (bLinkerDiffEnabled)
-		{
+			break;
+		case EDiffMode::LinkerDiff:
 			CookedPackageWriter = new FLinkerDiffPackageWriter(TUniquePtr<ICookedPackageWriter>(CookedPackageWriter));
-		}
-		else
-		{
-			check(bIterativeValidateEnabled);
-			CookedPackageWriter = new FIterativeValidatePackageWriter(TUniquePtr<ICookedPackageWriter>(CookedPackageWriter));
+			break;
+		case EDiffMode::IterativeValidateFirstCook:
+			CookedPackageWriter = new FIterativeValidatePackageWriter(
+				TUniquePtr<ICookedPackageWriter>(CookedPackageWriter), FIterativeValidatePackageWriter::EPhase::FirstCook,
+				ResolvedMetadataPath);
+			break;
+		case EDiffMode::IterativeValidateFinalCook:
+			CookedPackageWriter = new FIterativeValidatePackageWriter(
+				TUniquePtr<ICookedPackageWriter>(CookedPackageWriter), FIterativeValidatePackageWriter::EPhase::FinalCook,
+				ResolvedMetadataPath);
+			break;
+		default:
+			checkNoEntry();
+			break;
 		}
 	}
 
@@ -5727,26 +5745,42 @@ private:
 			return;
 		}
 
+		DiffMode = EDiffMode::None;
 		const TCHAR* CommandLine = FCommandLine::Get();
-		bDiffEnabled = FParse::Param(CommandLine, TEXT("DIFFONLY"));
-		bLinkerDiffEnabled = false;
-		FParse::Bool(CommandLine, TEXT("-LINKERDIFF="), bLinkerDiffEnabled);
-		bIterativeValidateEnabled = FParse::Param(CommandLine, TEXT("ITERATIVEVALIDATE"));
-		int32 NumEnabled = (bDiffEnabled ? 1 : 0) + (bLinkerDiffEnabled ? 1 : 0) + (bIterativeValidateEnabled ? 1 : 0);
-		if (NumEnabled > 1)
+		auto EnsureMutualExclusion = [this]()
 		{
-			UE_LOG(LogCook, Fatal, TEXT("-DiffOnly, -LinkerDiff, and -IterativeValidate are mutually exclusive."));
-		}
-		bAnyDiffModeEnabled = NumEnabled >= 1;
+			if (DiffMode != EDiffMode::None)
+			{
+				UE_LOG(LogCook, Fatal, TEXT("-DiffOnly, -LinkerDiff, and -IterativeValidate* are mutually exclusive."));
+			}
+		};
 
+		bool bValue;
+		if (FParse::Param(CommandLine, TEXT("DIFFONLY")))
+		{
+			EnsureMutualExclusion();
+			DiffMode = EDiffMode::DiffOnly;
+		}
+		if (FParse::Bool(CommandLine, TEXT("-LINKERDIFF="), bValue) && bValue)
+		{
+			EnsureMutualExclusion();
+			DiffMode = EDiffMode::LinkerDiff;
+		}
+		if (FParse::Param(CommandLine, TEXT("IterativeValidatePrePass")))
+		{
+			EnsureMutualExclusion();
+			DiffMode = EDiffMode::IterativeValidateFirstCook;
+		}
+		if (FParse::Param(CommandLine, TEXT("IterativeValidate")))
+		{
+			EnsureMutualExclusion();
+			DiffMode = EDiffMode::IterativeValidateFinalCook;
+		}
 		bInitialized = true;
 	}
 
 	bool bInitialized = false;
-	bool bAnyDiffModeEnabled = false;
-	bool bDiffEnabled = false;
-	bool bLinkerDiffEnabled = false;
-	bool bIterativeValidateEnabled = false;
+	EDiffMode DiffMode = EDiffMode::None;
 };
 
 #if OUTPUT_COOKTIMING
@@ -10469,7 +10503,7 @@ UE::Cook::FCookSavePackageContext* UCookOnTheFlyServer::CreateSaveContext(const 
 		WriterDebugName = TEXT("LooseCookedPackageWriter");
 	}
 
-	DiffModeHelper->InitializePackageWriter(PackageWriter);
+	DiffModeHelper->InitializePackageWriter(PackageWriter, ResolvedMetadataPath);
 
 	// Setup save package settings (i.e. validation)
 	FSavePackageSettings SavePackageSettings = FSavePackageSettings::GetDefaultSettings();

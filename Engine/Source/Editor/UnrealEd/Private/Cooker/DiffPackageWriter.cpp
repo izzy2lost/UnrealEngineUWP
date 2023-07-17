@@ -122,6 +122,7 @@ void FDiffPackageWriter::RemoveParam(FString& InOutParams, const TCHAR* InParamT
 void FDiffPackageWriter::BeginPackage(const FBeginPackageInfo& Info)
 {
 	bIsDifferent = false;
+	bNewPackage = false;
 	bDiffCallstack = false;
 	bHasStartedSecondSave = false;
 	DiffMap[0].Reset();
@@ -190,6 +191,7 @@ void FDiffPackageWriter::WritePackageData(const FPackageInfo& Info, FLargeMemory
 		check(LocalInfo.MultiOutputIndex < 2);
 		ExportsDiffMapOffset[LocalInfo.MultiOutputIndex] = LocalInfo.HeaderSize;
 
+		bNewPackage = PreviousPackageData.Size == 0;
 		bIsDifferent = !Writer.GenerateDiffMap(PreviousPackageData, LocalInfo.HeaderSize, MaxDiffsToLog, DiffMap[LocalInfo.MultiOutputIndex]);
 	}
 
@@ -206,12 +208,16 @@ UE::DiffWriterArchive::FMessageCallback FDiffPackageWriter::GetDiffWriterMessage
 
 void FDiffPackageWriter::OnDiffWriterMessage(ELogVerbosity::Type Verbosity, FStringView Message)
 {
+	FMsg::Logf(__FILE__, __LINE__, LogDiff.GetCategoryName(), Verbosity, TEXT("%s"), *ResolveText(Message));
+}
+
+FString FDiffPackageWriter::ResolveText(FStringView Message)
+{
 	FString ResolvedText(Message);
 	check(this->Indent && this->NewLine);
 	ResolvedText.ReplaceInline(UE::DiffWriterArchive::IndentToken, this->Indent);
 	ResolvedText.ReplaceInline(UE::DiffWriterArchive::NewLineToken, this->NewLine);
-
-	FMsg::Logf(__FILE__, __LINE__, LogDiff.GetCategoryName(), Verbosity, TEXT("%s"), *ResolvedText);
+	return ResolvedText;
 }
 
 TUniquePtr<FLargeMemoryWriter> FDiffPackageWriter::CreateLinkerArchive(FName PackageName, UObject* Asset, uint16 MultiOutputIndex)
@@ -299,7 +305,7 @@ bool FDiffPackageWriter::IsAnotherSaveNeeded(FSavePackageResultStruct& PreviousR
 	if (!bHasStartedSecondSave)
 	{
 		bHasStartedSecondSave = true;
-		if (PreviousResult.Result == ESavePackageResult::Success && bIsDifferent)
+		if (PreviousResult.Result == ESavePackageResult::Success && bIsDifferent && !bNewPackage)
 		{
 			bDiffCallstack = true;
 

@@ -125,6 +125,7 @@ protected:
 	void ConditionallyDumpObjects();
 	UE::DiffWriterArchive::FMessageCallback GetDiffWriterMessageCallback();
 	virtual void OnDiffWriterMessage(ELogVerbosity::Type Verbosity, FStringView Message);
+	FString ResolveText(FStringView Message);
 
 	FDiffWriterDiffMap DiffMap[2];
 	TUniquePtr<FDiffWriterCallstacks> ExportsCallstacks;
@@ -140,6 +141,7 @@ protected:
 	bool bDiffOptional = false;
 	bool bIgnoreHeaderDiffs = false;
 	bool bIsDifferent = false;
+	bool bNewPackage = false;
 	bool bDiffCallstack = false;
 	bool bHasStartedSecondSave = false;
 	bool bDumpObjList = false;
