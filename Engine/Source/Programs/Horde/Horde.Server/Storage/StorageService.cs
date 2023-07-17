@@ -556,6 +556,18 @@ namespace Horde.Server.Storage
 			return namespaceInfo.Client;
 		}
 
+		/// <summary>
+		/// Attempts to gets a storage client for the given namespace
+		/// </summary>
+		/// <param name="namespaceId">Namespace identifier</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		public async ValueTask<StorageClient?> TryGetClientAsync(NamespaceId namespaceId, CancellationToken cancellationToken)
+		{
+			NamespaceInfo? namespaceInfo = await TryGetNamespaceInfoAsync(namespaceId, cancellationToken);
+			return namespaceInfo?.Client;
+		}
+
 		/// <inheritdoc/>
 		async ValueTask<IStorageClient> IStorageClientFactory.GetClientAsync(NamespaceId namespaceId, CancellationToken cancellationToken) => await GetClientAsync(namespaceId, cancellationToken);
 

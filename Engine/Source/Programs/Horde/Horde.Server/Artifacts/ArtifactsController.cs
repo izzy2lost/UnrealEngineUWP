@@ -191,7 +191,8 @@ namespace Horde.Server.Artifacts
 				return BadRequest("Invalid blob id for artifact");
 			}
 
-			return StorageController.ReadBlobInternalAsync(_storageService, artifact.NamespaceId, locator, offset, length, cancellationToken);
+			StorageClient storageClient = await _storageService.GetClientAsync(artifact.NamespaceId, cancellationToken);
+			return StorageController.ReadBlobInternalAsync(storageClient, locator, offset, length, cancellationToken);
 		}
 
 		/// <summary>

@@ -3,6 +3,7 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
@@ -52,13 +53,13 @@ namespace Horde.Server.Ddc
     /// </summary>
     public sealed class MemoryBufferedPayload : BufferedPayload
     {
-        private readonly byte[] _buffer;
+        private readonly ReadOnlyMemory<byte> _buffer;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-        public MemoryBufferedPayload(byte[] source)
-			: base(source.LongLength)
+        public MemoryBufferedPayload(ReadOnlyMemory<byte> source)
+			: base(source.Length)
         {
             _buffer = source;
         }
@@ -76,7 +77,7 @@ namespace Horde.Server.Ddc
         }
 
 		/// <inheritdoc/>
-		public override Stream GetStream() => new MemoryStream(_buffer);
+		public override Stream GetStream() => new ReadOnlyMemoryStream(_buffer);
     }
 
     /// <summary>

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Mime;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Core;
@@ -21,17 +22,20 @@ namespace Horde.Server.Ddc
 	/// </summary>
 	public interface IDdcBlobService
 	{
-		Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, BufferedPayload content, BlobId identifier);
-		Task<Uri?> MaybePutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier);
+		Task VerifyContentMatchesHashAsync(Stream stream, IoHash expectedHash, CancellationToken cancellationToken = default);
+		Task<BlobId> PutObjectAsync(NamespaceId ns, BufferedPayload payload, BlobId identifier, CancellationToken cancellationToken = default);
+		Task<BlobId> PutObjectAsync(NamespaceId ns, ReadOnlyMemory<byte> payload, BlobId identifier, CancellationToken cancellationToken = default);
+		Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, BufferedPayload content, BlobId identifier, CancellationToken cancellationToken = default);
+		Task<Uri?> MaybePutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier, CancellationToken cancellationToken = default);
 
-		Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false);
+		Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false, CancellationToken cancellationToken = default);
 
-		Task<Uri?> GetObjectWithRedirectAsync(NamespaceId ns, BlobId blobIdentifier, List<string>? storageLayers = null);
+		Task<Uri?> GetObjectWithRedirectAsync(NamespaceId ns, BlobId blobIdentifier, List<string>? storageLayers = null, CancellationToken cancellationToken = default);
 
-		Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null);
+		Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, CancellationToken cancellationToken = default);
 
-		Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobs);
-		Task<BlobContents> GetObjectsAsync(NamespaceId ns, BlobId[] refRequestBlobReferences);
+		Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobs, CancellationToken cancellationToken = default);
+		Task<BlobContents> GetObjectsAsync(NamespaceId ns, BlobId[] refRequestBlobReferences, CancellationToken cancellationToken = default);
 	}
 
 	public class BlobNotFoundException : Exception
@@ -93,39 +97,6 @@ namespace Horde.Server.Ddc
 
 	public static class BlobServiceExtensions
 	{
-		public static async Task VerifyContentMatchesHashAsync(Stream stream, IoHash expectedHash, Tracer tracer)
-		{
-			IoHash hash;
-			using (TelemetrySpan _ = tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash"))
-			{
-				hash = await IoHash.ComputeAsync(stream);
-			}
-			if (hash != expectedHash)
-			{
-				throw new HashMismatchException(hash, expectedHash);
-			}
-		}
-
-		public static async Task<BlobId> PutObjectAsync(this IDdcBlobService blobService, NamespaceId ns, BufferedPayload payload, BlobId identifier, Tracer tracer)
-		{
-			using TelemetrySpan scope = tracer.StartActiveSpan("put_blob")
-				.SetAttribute("operation.name", "put_blob")
-				.SetAttribute("resource.name", identifier.ToString())
-				.SetAttribute("Content-Length", payload.Length.ToString());
-
-			await using Stream hashStream = payload.GetStream();
-			await VerifyContentMatchesHashAsync(hashStream, identifier.Hash, tracer);
-
-			await blobService.PutObjectKnownHashAsync(ns, payload, identifier);
-			return identifier;
-		}
-
-		public static Task<BlobId> PutObjectAsync(this IDdcBlobService blobService, NamespaceId ns, byte[] payload, BlobId identifier, Tracer tracer)
-		{
-			using MemoryBufferedPayload bufferedPayload = new MemoryBufferedPayload(payload);
-			return PutObjectAsync(blobService, ns, bufferedPayload, identifier, tracer);
-		}
-
 		public static async Task<ContentId> PutCompressedObject(this IDdcBlobService blobService, NamespaceId ns, BufferedPayload payload, ContentId? id, IServiceProvider provider)
 		{
 			IDdcContentIdService contentIdStore = provider.GetService<IDdcContentIdService>()!;

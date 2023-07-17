@@ -7,6 +7,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Net;
 using System.Net.Mime;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
@@ -149,7 +150,8 @@ namespace Horde.Server.Ddc
         [RequiredContentType(CustomMediaTypeNames.UnrealCompactBinary)]
         public async Task<IActionResult> Put(
             [Required] NamespaceId ns,
-            [Required] BlobId id)
+            [Required] BlobId id,
+			CancellationToken cancellationToken)
         {
             ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (result != null)
@@ -162,7 +164,7 @@ namespace Horde.Server.Ddc
             {
                 using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
-                BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, _tracer);
+                BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, cancellationToken);
                 return Ok(new PutBlobResponse(identifier));
             }
             catch (ClientSendSlowException e)

@@ -584,7 +584,8 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> PutObject(
             [FromRoute] [Required] NamespaceId ns,
             [FromRoute] [Required] BucketId bucket,
-            [FromRoute] [Required] RefId key)
+            [FromRoute] [Required] RefId key,
+			CancellationToken cancellationToken)
         {
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (accessResult != null)
@@ -622,7 +623,7 @@ namespace Horde.Server.Ddc
                     {
                         // TODO: define a scheme for how a json object specifies references
 
-                        blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, _tracer);
+                        blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, cancellationToken);
 
                         // TODO: convert the json object into a compact binary instead
                         CbWriter writer = new CbWriter();
@@ -639,13 +640,13 @@ namespace Horde.Server.Ddc
                     {
                         await using MemoryStream ms = new MemoryStream();
                         await using Stream payloadStream = payload.GetStream();
-                        await payloadStream.CopyToAsync(ms);
+                        await payloadStream.CopyToAsync(ms, cancellationToken);
                         payloadObject = new CbObject(ms.ToArray());
                         break;
                     }
                     case MediaTypeNames.Application.Octet:
                     {
-                        blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, _tracer);
+                        blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, cancellationToken);
 
                         CbWriter writer = new CbWriter();
                         writer.BeginObject();
@@ -688,7 +689,8 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> PutPackage(
             [FromRoute][Required] NamespaceId ns,
             [FromRoute][Required] BucketId bucket,
-            [FromRoute][Required] RefId key)
+            [FromRoute][Required] RefId key,
+			CancellationToken cancellationToken)
         {
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (accessResult != null)
@@ -719,7 +721,7 @@ namespace Horde.Server.Ddc
                     }
                     else
                     {
-                        await _blobStore.PutObjectAsync(ns, blob, new BlobId(entry.AttachmentHash), _tracer);
+                        await _blobStore.PutObjectAsync(ns, blob, new BlobId(entry.AttachmentHash), cancellationToken);
                     }
                 }
             }

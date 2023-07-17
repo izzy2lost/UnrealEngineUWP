@@ -191,17 +191,16 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/bundles")]
 		public async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(NamespaceId namespaceId, IFormFile? file, [FromForm] string? prefix = default, CancellationToken cancellationToken = default)
 		{
-			NamespaceConfig? namespaceConfig;
-			if (!_globalConfig.Value.Storage.TryGetNamespace(namespaceId, out namespaceConfig))
+			StorageClient? storageClient = await _storageService.TryGetClientAsync(namespaceId, cancellationToken);
+			if (storageClient == null)
 			{
 				return NotFound(namespaceId);
 			}
-			if (!namespaceConfig.Authorize(StorageAclAction.WriteBlobs, User) && !HasPathClaim(User, HordeClaimTypes.WriteNamespace, namespaceId, prefix ?? String.Empty))
+			if (!storageClient.Config.Authorize(StorageAclAction.WriteBlobs, User) && !HasPathClaim(User, HordeClaimTypes.WriteNamespace, namespaceId, prefix ?? String.Empty))
 			{
 				return Forbid(StorageAclAction.WriteBlobs, namespaceId);
 			}
 
-			StorageClient storageClient = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 			return await WriteBlobAsync(storageClient, file, prefix, cancellationToken);
 		}
 
@@ -257,25 +256,16 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/bundles/{*locator}")]
 		public async Task<ActionResult> ReadBlobAsync(NamespaceId namespaceId, BundleLocator locator, [FromQuery] int? offset = null, [FromQuery] int? length = null, CancellationToken cancellationToken = default)
 		{
-			NamespaceConfig? namespaceConfig;
-			if (!_globalConfig.Value.Storage.TryGetNamespace(namespaceId, out namespaceConfig))
+			StorageClient? client = await _storageService.TryGetClientAsync(namespaceId, cancellationToken);
+			if (client == null)
 			{
 				return NotFound(namespaceId);
 			}
-			if (!namespaceConfig.Authorize(StorageAclAction.ReadBlobs, User) && !HasPathClaim(User, HordeClaimTypes.ReadNamespace, namespaceId, locator.Path.ToString()))
+			if (!client.Config.Authorize(StorageAclAction.ReadBlobs, User) && !HasPathClaim(User, HordeClaimTypes.ReadNamespace, namespaceId, locator.Path.ToString()))
 			{
 				return Forbid(StorageAclAction.ReadBlobs, namespaceId);
 			}
 
-			return await ReadBlobInternalAsync(_storageService, namespaceId, locator, offset, length, cancellationToken);
-		}
-
-		/// <summary>
-		/// Reads a blob from storage, without performing namespace access checks.
-		/// </summary>
-		internal static async Task<ActionResult> ReadBlobInternalAsync(StorageService storageService, NamespaceId namespaceId, BundleLocator locator, int? offset, int? length, CancellationToken cancellationToken)
-		{
-			StorageClient client = await storageService.GetClientAsync(namespaceId, cancellationToken);
 			return await ReadBlobInternalAsync(client, locator, offset, length, cancellationToken);
 		}
 
@@ -324,17 +314,15 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/nodes")]
 		public async Task<ActionResult<FindNodesResponse>> FindNodesAsync(NamespaceId namespaceId, string alias, CancellationToken cancellationToken = default)
 		{
-			NamespaceConfig? namespaceConfig;
-			if (!_globalConfig.Value.Storage.TryGetNamespace(namespaceId, out namespaceConfig))
+			StorageClient? client = await _storageService.TryGetClientAsync(namespaceId, cancellationToken);
+			if (client == null)
 			{
 				return NotFound(namespaceId);
 			}
-			if (!namespaceConfig.Authorize(StorageAclAction.ReadBlobs, User))
+			if (!client.Config.Authorize(StorageAclAction.ReadBlobs, User))
 			{
 				return Forbid(StorageAclAction.ReadBlobs, namespaceId);
 			}
-
-			StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 
 			FindNodesResponse response = new FindNodesResponse();
 			await foreach (BundleNodeHandle handle in client.FindAliasAsync(alias, cancellationToken))
@@ -361,17 +349,16 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/refs/{*refName}")]
 		public async Task<ActionResult> WriteRefAsync(NamespaceId namespaceId, RefName refName, [FromBody] WriteRefRequest request, CancellationToken cancellationToken)
 		{
-			NamespaceConfig? namespaceConfig;
-			if (!_globalConfig.Value.Storage.TryGetNamespace(namespaceId, out namespaceConfig))
+			StorageClient? client = await _storageService.TryGetClientAsync(namespaceId, cancellationToken);
+			if (client == null)
 			{
 				return NotFound(namespaceId);
 			}
-			if (!namespaceConfig.Authorize(StorageAclAction.WriteRefs, User) && !HasPathClaim(User, HordeClaimTypes.WriteNamespace, namespaceId, refName.ToString()))
+			if (!client.Config.Authorize(StorageAclAction.WriteRefs, User) && !HasPathClaim(User, HordeClaimTypes.WriteNamespace, namespaceId, refName.ToString()))
 			{
 				return Forbid(StorageAclAction.WriteRefs, namespaceId);
 			}
 
-			StorageClient client = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 			BundleNodeLocator target = new BundleNodeLocator(request.Hash, request.Blob, request.ExportIdx);
 			await client.WriteRefTargetAsync(refName, target, request.Options, cancellationToken);
 
@@ -481,17 +468,16 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/bundleinfo/{*locator}")]
 		public async Task<ActionResult<object>> GetBundleAsync(NamespaceId namespaceId, BundleLocator locator, [FromQuery(Name = "imports")] bool includeImports = false, [FromQuery(Name = "exports")] bool includeExports = true, [FromQuery(Name = "packets")] bool includePackets = false, CancellationToken cancellationToken = default)
 		{
-			NamespaceConfig? namespaceConfig;
-			if (!_globalConfig.Value.Storage.TryGetNamespace(namespaceId, out namespaceConfig))
+			StorageClient? storageClient = await _storageService.TryGetClientAsync(namespaceId, cancellationToken);
+			if (storageClient == null)
 			{
 				return NotFound(namespaceId);
 			}
-			if (!namespaceConfig.Authorize(StorageAclAction.ReadBlobs, User))
+			if (!storageClient.Config.Authorize(StorageAclAction.ReadBlobs, User))
 			{
 				return Forbid(StorageAclAction.ReadBlobs, namespaceId);
 			}
 
-			StorageClient storageClient = await _storageService.GetClientAsync(namespaceId, cancellationToken);
 			BundleReader reader = new BundleReader(storageClient, _memoryCache, _logger);
 
 			BundleHeader header = await reader.ReadBundleHeaderAsync(locator, cancellationToken);

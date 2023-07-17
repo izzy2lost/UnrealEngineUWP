@@ -9,6 +9,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Mime;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Core;
@@ -170,7 +171,8 @@ namespace Horde.Server.Ddc
         [DisableRequestSizeLimit]
         public async Task<IActionResult> Put(
             [Required] NamespaceId ns,
-            [Required] BlobId id)
+            [Required] BlobId id,
+			CancellationToken cancellationToken)
         {
             ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (result != null)
@@ -193,7 +195,7 @@ namespace Horde.Server.Ddc
                 }
                 using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
-                BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, _tracer);
+                BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, cancellationToken);
                 return Ok(new
                 {
                     Identifier = identifier.ToString()
@@ -273,7 +275,7 @@ namespace Horde.Server.Ddc
         // ReSharper restore UnusedAutoPropertyAccessor.Global
 
         [HttpPost("")]
-        public async Task<IActionResult> Post([FromBody] BatchCall batch)
+        public async Task<IActionResult> Post([FromBody] BatchCall batch, CancellationToken cancellationToken)
         {
             static AclAction MapToAclAction(BatchOp.Operation op)
             {
@@ -354,7 +356,7 @@ namespace Horde.Server.Ddc
                             }
 
                             using MemoryBufferedPayload payload = new MemoryBufferedPayload(op.Content);
-                            tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id.Value, _tracer).ContinueWith((t, _) => (object?) t.Result, null, TaskScheduler.Current);
+                            tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id.Value, cancellationToken).ContinueWith((t, _) => (object?) t.Result, null, TaskScheduler.Current);
                             break;
                         }
                     default:
