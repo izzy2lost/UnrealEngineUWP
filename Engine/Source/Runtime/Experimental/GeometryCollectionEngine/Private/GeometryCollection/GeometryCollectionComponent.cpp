@@ -3355,7 +3355,7 @@ void UGeometryCollectionComponent::UpdateRenderSystemsIfNeeded(bool bDynamicColl
 
 void UGeometryCollectionComponent::UpdateNavigationDataIfNeeded(bool bDynamicCollectionDirty)
 {
-	if (bDynamicCollectionDirty)
+	if (bUpdateNavigationInTick && bDynamicCollectionDirty)
 	{
 		const UWorld* MyWorld = GetWorld();
 		if (MyWorld && MyWorld->IsGameWorld())
