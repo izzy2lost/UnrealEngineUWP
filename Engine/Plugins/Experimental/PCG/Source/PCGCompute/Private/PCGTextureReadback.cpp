@@ -129,3 +129,5 @@ void FPCGTextureReadbackInterface::Dispatch(const FPCGTextureReadbackDispatchPar
 		Dispatch_GameThread(Params, AsyncCallback);
 	}
 }
+
+#undef LOCTEXT_NAMESPACE
