@@ -32,12 +32,6 @@ namespace Horde.Server.Ddc
 
 		Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null);
 
-		// Delete a object
-		Task DeleteObjectAsync(NamespaceId ns, BlobId blob);
-
-		// delete the whole namespace
-		Task DeleteNamespaceAsync(NamespaceId ns);
-
 		Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobs);
 		Task<BlobContents> GetObjectsAsync(NamespaceId ns, BlobId[] refRequestBlobReferences);
 	}

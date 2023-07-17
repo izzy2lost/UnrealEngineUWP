@@ -239,43 +239,6 @@ namespace Horde.Server.Ddc
             }
         }
 
-        [HttpDelete("{ns}/{id}")]
-        public async Task<IActionResult> Delete(
-            [Required] NamespaceId ns,
-            [Required] BlobId id)
-        {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.DeleteObject });
-            if (result != null)
-            {
-                return result;
-            }
-
-            await DeleteImpl(ns, id);
-
-            return NoContent();
-        }
-
-        
-        [HttpDelete("{ns}")]
-        public async Task<IActionResult> DeleteNamespace(
-            [Required] NamespaceId ns)
-        {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.DeleteNamespace });
-            if (result != null)
-            {
-                return result;
-            }
-
-            await  _storage.DeleteNamespaceAsync(ns);
-
-            return NoContent();
-        }
-
-        private async Task DeleteImpl(NamespaceId ns, BlobId id)
-        {
-            await _storage.DeleteObjectAsync(ns, id);
-        }
-
         // ReSharper disable UnusedAutoPropertyAccessor.Global
         // ReSharper disable once ClassNeverInstantiated.Global
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Used by serialization")]
@@ -287,7 +250,6 @@ namespace Horde.Server.Ddc
                 INVALID,
                 GET,
                 PUT,
-                DELETE,
                 HEAD
             }
 
@@ -319,8 +281,6 @@ namespace Horde.Server.Ddc
                         return DdcAclAction.ReadObject;
                     case BatchOp.Operation.PUT:
                         return DdcAclAction.WriteObject;
-                    case BatchOp.Operation.DELETE:
-                        return DdcAclAction.DeleteObject;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(op), op, null);
                 }
@@ -394,14 +354,6 @@ namespace Horde.Server.Ddc
                             tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id.Value).ContinueWith((t, _) => (object?) t.Result, null, TaskScheduler.Current);
                             break;
                         }
-                    case BatchOp.Operation.DELETE:
-                        if (op.Id == null)
-                        {
-                            return BadRequest();
-                        }
-
-                        tasks[index] = DeleteImpl(op.Namespace.Value, op.Id.Value).ContinueWith((t, _) => (object?) null, null, TaskScheduler.Current);
-                        break;
                     default:
                         throw new NotImplementedException($"{op.Op} is not a support op type");
                 }

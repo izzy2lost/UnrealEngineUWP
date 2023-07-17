@@ -220,40 +220,6 @@ namespace Horde.Server.Ddc
                 return BadRequest(new ValidationProblemDetails {Title = $"Object {id} is missing blobs", Detail = $"Following blobs are missing: {string.Join(",", e.MissingBlobs)}"});
             }
         }
-
-        [HttpDelete("{ns}/{id}")]
-        public async Task<IActionResult> Delete(
-            [Required] NamespaceId ns,
-            [Required] BlobId id)
-        {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.DeleteObject });
-            if (result != null)
-            {
-                return result;
-            }
-
-            await _storage.DeleteObjectAsync(ns, id);
-
-            return Ok( new DeletedResponse
-            {
-                DeletedCount = 1
-            });
-        }
-
-        [HttpDelete("{ns}")]
-        public async Task<IActionResult> DeleteNamespace(
-            [Required] NamespaceId ns)
-        {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.DeleteNamespace });
-            if (result != null)
-            {
-                return result;
-            }
-
-            await _storage.DeleteNamespaceAsync(ns);
-
-            return Ok();
-        }
     }
 
     public class PutBlobResponse
