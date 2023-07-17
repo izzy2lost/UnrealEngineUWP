@@ -103,7 +103,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> Get(
             [FromRoute] [Required] NamespaceId ns,
             [FromRoute] [Required] BucketId bucket,
-            [FromRoute] [Required] IoHashKey key,
+            [FromRoute] [Required] IoHash key,
             [FromRoute] string? format = null)
         {
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
@@ -434,7 +434,7 @@ namespace Horde.Server.Ddc
     public async Task<IActionResult> GetMetadata(
         [FromRoute] [Required] NamespaceId ns,
         [FromRoute] [Required] BucketId bucket,
-        [FromRoute] [Required] IoHashKey key,
+        [FromRoute] [Required] IoHash key,
         [FromQuery] string[] fields)
     {
         ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
@@ -476,7 +476,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> Head(
             [FromRoute] [Required] NamespaceId ns,
             [FromRoute] [Required] BucketId bucket,
-            [FromRoute] [Required] IoHashKey key)
+            [FromRoute] [Required] IoHash key)
         {
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (accessResult != null)
@@ -548,9 +548,9 @@ namespace Horde.Server.Ddc
                 return accessResult;
             }
 
-            ConcurrentBag<(BucketId, IoHashKey)> missingObject = new ();
+            ConcurrentBag<(BucketId, IoHash)> missingObject = new ();
 
-            List<(BucketId, IoHashKey)> requestedNames = new List<(BucketId, IoHashKey)>();
+            List<(BucketId, IoHash)> requestedNames = new List<(BucketId, IoHash)>();
             foreach (string name in names)
             {
                 int separatorIndex = name.IndexOf(".", StringComparison.Ordinal);
@@ -560,13 +560,13 @@ namespace Horde.Server.Ddc
                 }
 
                 BucketId bucket = new BucketId(name.Substring(0, separatorIndex));
-                IoHashKey key = new IoHashKey(name.Substring(separatorIndex + 1));
+				IoHash key = IoHash.Parse(name.Substring(separatorIndex + 1));
                 requestedNames.Add((bucket, key));
             }
 
             IEnumerable<Task> tasks = requestedNames.Select(async pair =>
             {
-                (BucketId bucket, IoHashKey key) = pair;
+                (BucketId bucket, IoHash key) = pair;
                 try
                 {
                     (ObjectRecord record, BlobContents? blob) =
@@ -609,7 +609,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> PutObject(
             [FromRoute] [Required] NamespaceId ns,
             [FromRoute] [Required] BucketId bucket,
-            [FromRoute] [Required] IoHashKey key)
+            [FromRoute] [Required] IoHash key)
         {
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (accessResult != null)
@@ -712,7 +712,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> PutPackage(
             [FromRoute][Required] NamespaceId ns,
             [FromRoute][Required] BucketId bucket,
-            [FromRoute][Required] IoHashKey key)
+            [FromRoute][Required] IoHash key)
         {
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (accessResult != null)
@@ -795,7 +795,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> FinalizeObject(
             [FromRoute] [Required] NamespaceId ns,
             [FromRoute] [Required] BucketId bucket,
-            [FromRoute] [Required] IoHashKey key,
+            [FromRoute] [Required] IoHash key,
             [FromRoute] [Required] BlobIdentifier hash)
         {
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
@@ -1090,7 +1090,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> Delete(
             [FromRoute] [Required] NamespaceId ns,
             [FromRoute] [Required] BucketId bucket,
-            [FromRoute] [Required] IoHashKey key)
+            [FromRoute] [Required] IoHash key)
         {
             ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.DeleteObject });
             if (accessResult != null)
@@ -1196,7 +1196,7 @@ namespace Horde.Server.Ddc
 
             [Required]
             [CbField("key")]
-            public IoHashKey Key { get; set; }
+            public IoHash Key { get; set; }
 
             [CbField("resolveAttachments")]
             public bool? ResolveAttachments { get; set; } = null;
@@ -1250,7 +1250,7 @@ namespace Horde.Server.Ddc
         }
 
         [JsonConstructor]
-        public RefMetadataResponse(NamespaceId ns, BucketId bucket, IoHashKey name, BlobIdentifier payloadIdentifier, DateTime lastAccess, bool isFinalized, byte[]? inlinePayload)
+        public RefMetadataResponse(NamespaceId ns, BucketId bucket, IoHash name, BlobIdentifier payloadIdentifier, DateTime lastAccess, bool isFinalized, byte[]? inlinePayload)
         {
             Ns = ns;
             Bucket = bucket;
@@ -1279,7 +1279,7 @@ namespace Horde.Server.Ddc
         public BucketId Bucket { get; set; }
 
         [CbField("name")]
-        public IoHashKey Name { get; set; }
+        public IoHash Name { get; set; }
 
         [CbField("payloadIdentifier")]
         public BlobIdentifier PayloadIdentifier { get; set; }
@@ -1312,11 +1312,11 @@ namespace Horde.Server.Ddc
 
     public class ExistCheckMultipleRefsResponse
     {
-        public ExistCheckMultipleRefsResponse(List<(BucketId,IoHashKey)> missing)
+        public ExistCheckMultipleRefsResponse(List<(BucketId, IoHash)> missing)
         {
             Missing = missing.Select(pair =>
             {
-                (BucketId bucketId, IoHashKey ioHashKey) = pair;
+                (BucketId bucketId, IoHash ioHashKey) = pair;
                 return new MissingReference()
                 {
                     Bucket = bucketId,
@@ -1342,7 +1342,7 @@ namespace Horde.Server.Ddc
             public BucketId Bucket { get; set; }
 
             [CbField("key")]
-            public IoHashKey Key { get; set; }
+            public IoHash Key { get; set; }
         }
     }
 

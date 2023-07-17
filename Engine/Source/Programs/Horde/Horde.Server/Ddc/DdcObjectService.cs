@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
 
@@ -9,7 +10,7 @@ namespace Horde.Server.Ddc
 {
 	class ObjectService : IDdcObjectService
 	{
-		public Task<bool> Delete(NamespaceId ns, BucketId bucket, IoHashKey key)
+		public Task<bool> Delete(NamespaceId ns, BucketId bucket, IoHash key)
 		{
 			throw new System.NotImplementedException();
 		}
@@ -24,17 +25,17 @@ namespace Horde.Server.Ddc
 			throw new System.NotImplementedException();
 		}
 
-		public Task<bool> Exists(NamespaceId ns, BucketId bucket, IoHashKey key)
+		public Task<bool> Exists(NamespaceId ns, BucketId bucket, IoHash key)
 		{
 			throw new System.NotImplementedException();
 		}
 
-		public Task<(ContentId[], BlobIdentifier[])> Finalize(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobHash)
+		public Task<(ContentId[], BlobIdentifier[])> Finalize(NamespaceId ns, BucketId bucket, IoHash key, BlobIdentifier blobHash)
 		{
 			throw new System.NotImplementedException();
 		}
 
-		public Task<(ObjectRecord, BlobContents?)> Get(NamespaceId ns, BucketId bucket, IoHashKey key, string[] fields, bool doLastAccessTracking = true)
+		public Task<(ObjectRecord, BlobContents?)> Get(NamespaceId ns, BucketId bucket, IoHash key, string[] fields, bool doLastAccessTracking = true)
 		{
 			throw new System.NotImplementedException();
 		}
@@ -44,12 +45,12 @@ namespace Horde.Server.Ddc
 			throw new System.NotImplementedException();
 		}
 
-		public Task<List<BlobIdentifier>> GetReferencedBlobs(NamespaceId ns, BucketId bucket, IoHashKey key)
+		public Task<List<BlobIdentifier>> GetReferencedBlobs(NamespaceId ns, BucketId bucket, IoHash key)
 		{
 			throw new System.NotImplementedException();
 		}
 
-		public Task<(ContentId[], BlobIdentifier[])> Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobHash, CbObject payload)
+		public Task<(ContentId[], BlobIdentifier[])> Put(NamespaceId ns, BucketId bucket, IoHash key, BlobIdentifier blobHash, CbObject payload)
 		{
 			throw new System.NotImplementedException();
 		}
