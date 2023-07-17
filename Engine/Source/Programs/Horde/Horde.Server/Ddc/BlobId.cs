@@ -18,21 +18,21 @@ using EpicGames.Serialization;
 
 namespace Horde.Server.Ddc
 {
-	[TypeConverter(typeof(BlobIdentifierTypeConverter))]
-    [JsonConverter(typeof(BlobIdentifierJsonConverter))]
-    [CbConverter(typeof(BlobIdentifierCbConverter))]
-    public class BlobIdentifier : JupiterContentHash,  IEquatable<BlobIdentifier>
+	[TypeConverter(typeof(BlobIdTypeConverter))]
+    [JsonConverter(typeof(BlobIdJsonConverter))]
+    [CbConverter(typeof(BlobIdCbConverter))]
+    public class BlobId : JupiterContentHash,  IEquatable<BlobId>
     {
         // multi thread the hashing for blobs larger then this size
         private const int MultiThreadedSize = 1_000_000;
         private string? _stringIdentifier;
 
-        public BlobIdentifier(byte[] identifier) : base(identifier)
+        public BlobId(byte[] identifier) : base(identifier)
         {
         }
 
         [JsonConstructor]
-        public BlobIdentifier(string identifier) : base(identifier)
+        public BlobId(string identifier) : base(identifier)
         {
 
         }
@@ -44,7 +44,7 @@ namespace Horde.Server.Ddc
 			return hashCode.ToHashCode();
         }
 
-		public bool Equals(BlobIdentifier? other) => other != null && other.Identifier.AsSpan().SequenceEqual(other.Identifier);
+		public bool Equals(BlobId? other) => other != null && other.Identifier.AsSpan().SequenceEqual(other.Identifier);
 
         public override bool Equals(object? obj)
         {
@@ -63,7 +63,7 @@ namespace Horde.Server.Ddc
                 return false;
             }
 
-            return Equals((BlobIdentifier) obj);
+            return Equals((BlobId) obj);
         }
 
         public override string ToString()
@@ -76,7 +76,7 @@ namespace Horde.Server.Ddc
             return _stringIdentifier;
         }
 
-        public static new BlobIdentifier FromBlob(byte[] blobMemory)
+        public static new BlobId FromBlob(byte[] blobMemory)
         {
             Hash blake3Hash;
             if (blobMemory.Length < MultiThreadedSize)
@@ -94,10 +94,10 @@ namespace Horde.Server.Ddc
             
             // we only keep the first 20 bytes of the Blake3 hash
             Span<byte> hash = blake3Hash.AsSpanUnsafe().Slice(0, 20);
-            return new BlobIdentifier(hash.ToArray());
+            return new BlobId(hash.ToArray());
         }
 
-        public static BlobIdentifier FromBlob(in Memory<byte> blobMemory)
+        public static BlobId FromBlob(in Memory<byte> blobMemory)
         {
             Hash blake3Hash;
             if (blobMemory.Length < MultiThreadedSize)
@@ -115,15 +115,15 @@ namespace Horde.Server.Ddc
 
             // we only keep the first 20 bytes of the Blake3 hash
             Span<byte> hash = blake3Hash.AsSpanUnsafe().Slice(0, 20);
-            return new BlobIdentifier(hash.ToArray());
+            return new BlobId(hash.ToArray());
         }
 
-        public static BlobIdentifier FromContentHash(JupiterContentHash testObjectHash)
+        public static BlobId FromContentHash(JupiterContentHash testObjectHash)
         {
-            return new BlobIdentifier(testObjectHash.HashData);
+            return new BlobId(testObjectHash.HashData);
         }
 
-        public static async Task<BlobIdentifier> FromStream(Stream stream)
+        public static async Task<BlobId> FromStream(Stream stream)
         {
             using Hasher hasher = Hasher.New();
             const int bufferSize = 1024 * 1024 * 5;
@@ -138,12 +138,12 @@ namespace Horde.Server.Ddc
 
             // we only keep the first 20 bytes of the Blake3 hash
             byte[] hash = blake3Hash.AsSpanUnsafe().Slice(0, 20).ToArray();
-            return new BlobIdentifier(hash);
+            return new BlobId(hash);
         }
 
-        public static BlobIdentifier FromIoHash(IoHash blobIdentifier)
+        public static BlobId FromIoHash(IoHash blobIdentifier)
         {
-            return new BlobIdentifier(blobIdentifier.ToByteArray());
+            return new BlobId(blobIdentifier.ToByteArray());
         }
 
         public IoHash AsIoHash()
@@ -151,9 +151,9 @@ namespace Horde.Server.Ddc
             return new IoHash(HashData);
         }
 
-        public static BlobIdentifier FromBlobLocator(BundleLocator locator)
+        public static BlobId FromBlobLocator(BundleLocator locator)
         {
-            return new BlobIdentifier(Encoding.UTF8.GetBytes(locator.ToString()));
+            return new BlobId(Encoding.UTF8.GetBytes(locator.ToString()));
         }
 
         public BundleLocator AsBlobLocator()
@@ -162,7 +162,7 @@ namespace Horde.Server.Ddc
         }
     }
 
-    public class BlobIdentifierTypeConverter : TypeConverter
+    public class BlobIdTypeConverter : TypeConverter
     {
         public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
         {  
@@ -177,7 +177,7 @@ namespace Horde.Server.Ddc
         {
             if (value is string s)
             {
-                return new BlobIdentifier(s);
+                return new BlobId(s);
             }
 
             return base.ConvertFrom(context, culture, value);  
@@ -196,16 +196,16 @@ namespace Horde.Server.Ddc
         {
             if (destinationType == typeof(string))
             {
-                BlobIdentifier? identifier = (BlobIdentifier?)value;
+                BlobId? identifier = (BlobId?)value;
                 return identifier?.ToString();
             }
             return base.ConvertTo(context, culture, value, destinationType);
         }
     }
 
-    public class BlobIdentifierJsonConverter : JsonConverter<BlobIdentifier>
+    public class BlobIdJsonConverter : JsonConverter<BlobId>
     {
-        public override BlobIdentifier? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override BlobId? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             string? str = reader.GetString();
             if (str == null)
@@ -213,23 +213,23 @@ namespace Horde.Server.Ddc
                 throw new InvalidDataException("Unable to parse blob identifier");
             }
 
-            return new BlobIdentifier(str);
+            return new BlobId(str);
         }
 
-        public override void Write(Utf8JsonWriter writer, BlobIdentifier value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, BlobId value, JsonSerializerOptions options)
         {
             writer.WriteStringValue(value.ToString());
         }
     }
 
-    public class BlobIdentifierCbConverter : CbConverterBase<BlobIdentifier>
+    public class BlobIdCbConverter : CbConverterBase<BlobId>
     {
-        public override BlobIdentifier Read(CbField field) => new BlobIdentifier(field.AsHash().ToByteArray());
+        public override BlobId Read(CbField field) => new BlobId(field.AsHash().ToByteArray());
 
         /// <inheritdoc/>
-        public override void Write(CbWriter writer, BlobIdentifier value) => writer.WriteBinaryAttachmentValue(new IoHash(value.HashData));
+        public override void Write(CbWriter writer, BlobId value) => writer.WriteBinaryAttachmentValue(new IoHash(value.HashData));
 
         /// <inheritdoc/>
-        public override void WriteNamed(CbWriter writer, Utf8String name, BlobIdentifier value) => writer.WriteBinaryAttachment(name, new IoHash(value.HashData));
+        public override void WriteNamed(CbWriter writer, Utf8String name, BlobId value) => writer.WriteBinaryAttachment(name, new IoHash(value.HashData));
     }
 }

@@ -20,9 +20,9 @@ namespace Horde.Server.Ddc
 
     public class BlobAttachment : Attachment
     {
-        public BlobIdentifier Identifier { get; }
+        public BlobId Identifier { get; }
 
-        public BlobAttachment(BlobIdentifier blobIdentifier)
+        public BlobAttachment(BlobId blobIdentifier)
         {
             Identifier = blobIdentifier;
         }
@@ -35,9 +35,9 @@ namespace Horde.Server.Ddc
 
     public class ObjectAttachment : Attachment
     {
-        public BlobIdentifier Identifier { get; }
+        public BlobId Identifier { get; }
 
-        public ObjectAttachment(BlobIdentifier blobIdentifier)
+        public ObjectAttachment(BlobId blobIdentifier)
         {
             Identifier = blobIdentifier;
         }
@@ -51,9 +51,9 @@ namespace Horde.Server.Ddc
     public class ContentIdAttachment : Attachment
     {
         public ContentId Identifier { get; }
-        public BlobIdentifier[] ReferencedBlobs { get; }
+        public BlobId[] ReferencedBlobs { get; }
 
-        public ContentIdAttachment(ContentId contentId, BlobIdentifier[] referencedBlobs)
+        public ContentIdAttachment(ContentId contentId, BlobId[] referencedBlobs)
         {
             Identifier = contentId;
             ReferencedBlobs = referencedBlobs;
@@ -75,7 +75,7 @@ namespace Horde.Server.Ddc
         /// <param name="ns">The namespace to check</param>
         /// <param name="cb">The compact binary object to resolve references for</param>
         /// <returns></returns>
-        IAsyncEnumerable<BlobIdentifier> GetReferencedBlobs(NamespaceId ns, CbObject cb);
+        IAsyncEnumerable<BlobId> GetReferencedBlobs(NamespaceId ns, CbObject cb);
 
         /// <summary>
         /// Returns which attachments exist in the cb object or any children
@@ -104,10 +104,10 @@ namespace Horde.Server.Ddc
         {
             Queue<CbObject> objectsToVisit = new Queue<CbObject>();
             objectsToVisit.Enqueue(cb);
-            List<BlobIdentifier> unresolvedBlobReferences = new List<BlobIdentifier>();
+            List<BlobId> unresolvedBlobReferences = new List<BlobId>();
 
             List<Task<CbObject>> pendingCompactBinaryAttachments = new();
-            List<Task< (ContentId, BlobIdentifier[]?)>> pendingContentIdResolves = new();
+            List<Task< (ContentId, BlobId[]?)>> pendingContentIdResolves = new();
 
             while (pendingCompactBinaryAttachments.Count != 0 || pendingContentIdResolves.Count != 0 || objectsToVisit.Count != 0)
             {
@@ -119,12 +119,12 @@ namespace Horde.Server.Ddc
                     {
                         IoHash attachmentHash = field.AsAttachment();
 
-                        BlobIdentifier blobIdentifier = BlobIdentifier.FromIoHash(attachmentHash);
+                        BlobId blobIdentifier = BlobId.FromIoHash(attachmentHash);
                         ContentId contentId = ContentId.FromIoHash(attachmentHash);
 
                         if (field.IsBinaryAttachment())
                         {
-                            Task<(ContentId, BlobIdentifier[]?)> resolveContentId = ResolveContentId(ns, contentId);
+                            Task<(ContentId, BlobId[]?)> resolveContentId = ResolveContentId(ns, contentId);
                             pendingContentIdResolves.Add(resolveContentId);
                         }
                         else if (field.IsObjectAttachment())
@@ -140,14 +140,14 @@ namespace Horde.Server.Ddc
                 }
 
                 // check for any content id resolves to finish
-                List<Task<(ContentId, BlobIdentifier[]?)>> finishedContentIdResolves = new();
-                foreach (Task<(ContentId, BlobIdentifier[]?)> pendingContentIdResolve in pendingContentIdResolves)
+                List<Task<(ContentId, BlobId[]?)>> finishedContentIdResolves = new();
+                foreach (Task<(ContentId, BlobId[]?)> pendingContentIdResolve in pendingContentIdResolves)
                 {
                     if (pendingContentIdResolve.IsCompleted)
                     {
                         ContentId? contentId = null;
-                        BlobIdentifier[]? resolvedBlobs = null;
-                        BlobIdentifier? blobIdentifier = null;
+                        BlobId[]? resolvedBlobs = null;
+                        BlobId? blobIdentifier = null;
                         bool wasContentId = false;
                         try
                         {
@@ -178,7 +178,7 @@ namespace Horde.Server.Ddc
                 }
 
                 // cleanup finished tasks
-                foreach (Task<(ContentId, BlobIdentifier[]?)> finishedTask in finishedContentIdResolves)
+                foreach (Task<(ContentId, BlobId[]?)> finishedTask in finishedContentIdResolves)
                 {
                     pendingContentIdResolves.Remove(finishedTask);
                 }
@@ -234,12 +234,12 @@ namespace Horde.Server.Ddc
             }
         }
 
-        public async IAsyncEnumerable<BlobIdentifier> GetReferencedBlobs(NamespaceId ns, CbObject cb)
+        public async IAsyncEnumerable<BlobId> GetReferencedBlobs(NamespaceId ns, CbObject cb)
         {
-            List<Task<(BlobIdentifier, bool)>> pendingBlobExistsChecks = new();
+            List<Task<(BlobId, bool)>> pendingBlobExistsChecks = new();
             List<Task<(ContentIdAttachment, bool)>> pendingContentIdChecks = new();
             List<ContentId> unresolvedContentIdReferences = new List<ContentId>();
-            List<BlobIdentifier> unresolvedBlobReferences = new List<BlobIdentifier>();
+            List<BlobId> unresolvedBlobReferences = new List<BlobId>();
 
             // Resolve all the attachments
             await foreach (Attachment attachment in GetAttachments(ns, cb))
@@ -265,9 +265,9 @@ namespace Horde.Server.Ddc
             }
 
             // return any verified blobs
-            foreach (Task<(BlobIdentifier, bool)> pendingBlobExistsTask in pendingBlobExistsChecks)
+            foreach (Task<(BlobId, bool)> pendingBlobExistsTask in pendingBlobExistsChecks)
             {
-                (BlobIdentifier blob, bool exists) = await pendingBlobExistsTask;
+                (BlobId blob, bool exists) = await pendingBlobExistsTask;
                 if (exists)
                 {
                     yield return blob;
@@ -288,7 +288,7 @@ namespace Horde.Server.Ddc
                     continue;
                 }
 
-                foreach (BlobIdentifier b in contentIdAttachment.ReferencedBlobs)
+                foreach (BlobId b in contentIdAttachment.ReferencedBlobs)
                 {
                     yield return b;
                 }
@@ -309,9 +309,9 @@ namespace Horde.Server.Ddc
         private async Task<(ContentIdAttachment, bool)> CheckContentIdExists(NamespaceId ns, ContentIdAttachment contentIdAttachment)
         {
             bool allBlobsExist = true;
-            foreach (BlobIdentifier b in contentIdAttachment.ReferencedBlobs)
+            foreach (BlobId b in contentIdAttachment.ReferencedBlobs)
             {
-                (BlobIdentifier _, bool exists) = await CheckBlobExists(ns, b);
+                (BlobId _, bool exists) = await CheckBlobExists(ns, b);
 
                 if (!exists)
                 {
@@ -323,7 +323,7 @@ namespace Horde.Server.Ddc
             return (contentIdAttachment, allBlobsExist);
         }
 
-        private async Task<CbObject> ParseCompactBinaryAttachment(NamespaceId ns, BlobIdentifier blobIdentifier)
+        private async Task<CbObject> ParseCompactBinaryAttachment(NamespaceId ns, BlobId blobIdentifier)
         {
             BlobContents contents = await _blobStore.GetObject(ns, blobIdentifier);
             byte[] data = await contents.Stream.ToByteArray();
@@ -332,16 +332,16 @@ namespace Horde.Server.Ddc
             return childBinaryObject;
         }
 
-        private async Task<(ContentId, BlobIdentifier[]?)> ResolveContentId(NamespaceId ns, ContentId contentId)
+        private async Task<(ContentId, BlobId[]?)> ResolveContentId(NamespaceId ns, ContentId contentId)
         {
             using TelemetrySpan scope = _tracer.StartActiveSpan("ReferenceResolver.ResolveContentId")
                 .SetAttribute("operation.name", "ReferenceResolver.ResolveContentId")
                 .SetAttribute("resource.name", contentId.ToString());
-            BlobIdentifier[]? resolvedBlobs = await _contentIdStore.Resolve(ns, contentId);
+            BlobId[]? resolvedBlobs = await _contentIdStore.Resolve(ns, contentId);
             return (contentId, resolvedBlobs);
         }
 
-        private async Task<(BlobIdentifier, bool)> CheckBlobExists(NamespaceId ns, BlobIdentifier blob)
+        private async Task<(BlobId, bool)> CheckBlobExists(NamespaceId ns, BlobId blob)
         {
             return (blob, await _blobStore.Exists(ns, blob));
         }
@@ -359,9 +359,9 @@ namespace Horde.Server.Ddc
 
     public class ReferenceIsMissingBlobsException : Exception
     {
-        public List<BlobIdentifier> MissingBlobs { get; }
+        public List<BlobId> MissingBlobs { get; }
 
-        public ReferenceIsMissingBlobsException(List<BlobIdentifier> missingBlobs) : base($"References is missing these blobs: {string.Join(',', missingBlobs)}")
+        public ReferenceIsMissingBlobsException(List<BlobId> missingBlobs) : base($"References is missing these blobs: {string.Join(',', missingBlobs)}")
         {
             MissingBlobs = missingBlobs;
         }

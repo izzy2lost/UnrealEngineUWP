@@ -42,7 +42,7 @@ namespace Horde.Server.Ddc
             {
                 return result;
             }
-            BlobIdentifier[]? blobs = await _contentIdStore.Resolve(ns, contentId, mustBeContentId: true);
+            BlobId[]? blobs = await _contentIdStore.Resolve(ns, contentId, mustBeContentId: true);
 
             if (blobs == null)
             {
@@ -62,7 +62,7 @@ namespace Horde.Server.Ddc
         [HttpPut("{ns}/{contentId}/update/{blobIdentifier}/{contentWeight}", Order = 500)]
         [ProducesDefaultResponseType]
         [ProducesResponseType(type: typeof(ProblemDetails), 400)]
-        public async Task<IActionResult> UpdateContentIdMapping(NamespaceId ns, ContentId contentId, BlobIdentifier blobIdentifier, int contentWeight)
+        public async Task<IActionResult> UpdateContentIdMapping(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
         {
             ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (result != null)
@@ -77,9 +77,9 @@ namespace Horde.Server.Ddc
 
     public class ResolvedContentIdResponse
     {
-        public BlobIdentifier[] Blobs { get; set; }
+        public BlobId[] Blobs { get; set; }
 
-        public ResolvedContentIdResponse(BlobIdentifier[] blobs)
+        public ResolvedContentIdResponse(BlobId[] blobs)
         {
             Blobs = blobs;
         }

@@ -49,7 +49,7 @@ namespace Horde.Server.Ddc
         [ProducesDefaultResponseType]
         public async Task<IActionResult> Get(
             [Required] NamespaceId ns,
-            [Required] BlobIdentifier id,
+            [Required] BlobId id,
             [FromQuery] List<string>? storageLayers = null)
         {
             ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
@@ -86,7 +86,7 @@ namespace Horde.Server.Ddc
         [ProducesDefaultResponseType]
         public async Task<IActionResult> Head(
             [Required] NamespaceId ns,
-            [Required] BlobIdentifier id,
+            [Required] BlobId id,
             [FromQuery] List<string>? storageLayers = null)
         {
             ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
@@ -108,7 +108,7 @@ namespace Horde.Server.Ddc
         [ProducesDefaultResponseType]
         public async Task<IActionResult> ExistsMultiple(
             [Required] NamespaceId ns,
-            [Required] [FromQuery] List<BlobIdentifier> id)
+            [Required] [FromQuery] List<BlobId> id)
         {
             ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (result != null)
@@ -116,7 +116,7 @@ namespace Horde.Server.Ddc
                 return result;
             }
 
-            ConcurrentBag<BlobIdentifier> missingBlobs = new ConcurrentBag<BlobIdentifier>();
+            ConcurrentBag<BlobId> missingBlobs = new ConcurrentBag<BlobId>();
 
             IEnumerable<Task> tasks = id.Select(async blob =>
             {
@@ -134,7 +134,7 @@ namespace Horde.Server.Ddc
         [ProducesDefaultResponseType]
         public async Task<IActionResult> ExistsBody(
             [Required] NamespaceId ns,
-            [FromBody] BlobIdentifier[] bodyIds)
+            [FromBody] BlobId[] bodyIds)
         {
             ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (result != null)
@@ -142,7 +142,7 @@ namespace Horde.Server.Ddc
                 return result;
             }
 
-            ConcurrentBag<BlobIdentifier> missingBlobs = new ConcurrentBag<BlobIdentifier>();
+            ConcurrentBag<BlobId> missingBlobs = new ConcurrentBag<BlobId>();
 
             IEnumerable<Task> tasks = bodyIds.Select(async blob =>
             {
@@ -156,7 +156,7 @@ namespace Horde.Server.Ddc
             return Ok(new HeadMultipleResponse { Needs = missingBlobs.ToArray()});
         }
 
-        private async Task<BlobContents> GetImpl(NamespaceId ns, BlobIdentifier blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
+        private async Task<BlobContents> GetImpl(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
         {
             try
             {
@@ -178,7 +178,7 @@ namespace Horde.Server.Ddc
         [DisableRequestSizeLimit]
         public async Task<IActionResult> Put(
             [Required] NamespaceId ns,
-            [Required] BlobIdentifier id)
+            [Required] BlobId id)
         {
             ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (result != null)
@@ -201,7 +201,7 @@ namespace Horde.Server.Ddc
                 }
                 using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
-                BlobIdentifier identifier = await _storage.PutObject(ns, payload, id);
+                BlobId identifier = await _storage.PutObject(ns, payload, id);
                 return Ok(new
                 {
                     Identifier = identifier.ToString()
@@ -236,7 +236,7 @@ namespace Horde.Server.Ddc
 
                 await using Stream stream = payload.GetStream();
 
-                BlobIdentifier id = await BlobIdentifier.FromStream(stream);
+                BlobId id = await BlobId.FromStream(stream);
                 await _storage.PutObjectKnownHash(ns, payload, id);
                 
                 return Ok(new
@@ -253,7 +253,7 @@ namespace Horde.Server.Ddc
         [HttpDelete("{ns}/{id}")]
         public async Task<IActionResult> Delete(
             [Required] NamespaceId ns,
-            [Required] BlobIdentifier id)
+            [Required] BlobId id)
         {
             ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.DeleteObject });
             if (result != null)
@@ -282,7 +282,7 @@ namespace Horde.Server.Ddc
             return NoContent();
         }
 
-        private async Task DeleteImpl(NamespaceId ns, BlobIdentifier id)
+        private async Task DeleteImpl(NamespaceId ns, BlobId id)
         {
             await _storage.DeleteObject(ns, id);
         }
@@ -304,7 +304,7 @@ namespace Horde.Server.Ddc
 
             [Required] public NamespaceId? Namespace { get; set; }
 
-            public BlobIdentifier? Id { get; set; }
+            public BlobId? Id { get; set; }
 
             [Required] public Operation Op { get; set; }
 
@@ -429,6 +429,6 @@ namespace Horde.Server.Ddc
     public class HeadMultipleResponse
     {
         [CbField("needs")]
-        public BlobIdentifier[] Needs { get; set; } = null!;
+        public BlobId[] Needs { get; set; } = null!;
     }
 }

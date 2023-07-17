@@ -235,8 +235,8 @@ namespace Horde.Server.Ddc
                 byte[] slicedHash = new byte[20];
                 Array.Copy(header.RawHash, 0, slicedHash, 0, 20);
 
-                BlobIdentifier headerIdentifier = new BlobIdentifier(slicedHash);
-                BlobIdentifier contentHash = BlobIdentifier.FromBlob(decompressedPayload);
+                BlobId headerIdentifier = new BlobId(slicedHash);
+                BlobId contentHash = BlobId.FromBlob(decompressedPayload);
 
                 if (!headerIdentifier.Equals(contentHash))
                 {
