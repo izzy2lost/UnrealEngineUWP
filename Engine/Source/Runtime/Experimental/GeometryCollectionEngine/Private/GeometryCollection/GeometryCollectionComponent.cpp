@@ -5258,7 +5258,7 @@ void UGeometryCollectionComponent::ApplyBreakingAngularVelocity(int32 ItemIndex,
 {
 	if (PhysicsProxy)
 	{
-		PhysicsProxy->ApplyBreakingLinearVelocity_External(FGeometryCollectionItemIndex::CreateFromExistingItemIndex(ItemIndex), AngularVelocity);
+		PhysicsProxy->ApplyBreakingAngularVelocity_External(FGeometryCollectionItemIndex::CreateFromExistingItemIndex(ItemIndex), AngularVelocity);
 	}
 }
 
