@@ -28,15 +28,15 @@ namespace Horde.Server.Ddc
     [Route("api/v1/s", Order = 1)]
     [Route("api/v1/blobs", Order = 0)]
     [Authorize]
-    public class BlobsController : ControllerBase
+    public class DdcBlobsController : ControllerBase
     {
-        private readonly IBlobService _storage;
+        private readonly IDdcBlobService _storage;
         private readonly IDiagnosticContext _diagnosticContext;
         private readonly IRequestHelper _requestHelper;
         private readonly BufferedPayloadFactory _bufferedPayloadFactory;
         private readonly NginxRedirectHelper _nginxRedirectHelper;
 
-        public BlobsController(IBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, BufferedPayloadFactory bufferedPayloadFactory, NginxRedirectHelper nginxRedirectHelper)
+        public DdcBlobsController(IDdcBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, BufferedPayloadFactory bufferedPayloadFactory, NginxRedirectHelper nginxRedirectHelper)
         {
             _storage = storage;
             _diagnosticContext = diagnosticContext;
@@ -271,7 +271,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> DeleteNamespace(
             [Required] NamespaceId ns)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { JupiterAclAction.DeleteNamespace });
+            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.DeleteNamespace });
             if (result != null)
             {
                 return result;

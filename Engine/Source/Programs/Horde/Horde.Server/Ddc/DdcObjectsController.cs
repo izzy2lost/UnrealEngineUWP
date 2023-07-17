@@ -25,9 +25,9 @@ namespace Horde.Server.Ddc
     [Route("api/v1/objects", Order = 0)]
     [Authorize]
     [Produces(CustomMediaTypeNames.UnrealCompactBinary, MediaTypeNames.Application.Json)]
-    public class ObjectController : ControllerBase
+    public class DdcObjectsController : ControllerBase
     {
-        private readonly IBlobService _storage;
+        private readonly IDdcBlobService _storage;
         private readonly IDiagnosticContext _diagnosticContext;
         private readonly IRequestHelper _requestHelper;
         private readonly IReferenceResolver _referenceResolver;
@@ -35,7 +35,7 @@ namespace Horde.Server.Ddc
 
         private readonly ILogger _logger;
 
-        public ObjectController(IBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, IReferenceResolver referenceResolver, BufferedPayloadFactory bufferedPayloadFactory, ILogger<ObjectController> logger)
+        public DdcObjectsController(IDdcBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, IReferenceResolver referenceResolver, BufferedPayloadFactory bufferedPayloadFactory, ILogger<DdcObjectsController> logger)
         {
             _storage = storage;
             _diagnosticContext = diagnosticContext;

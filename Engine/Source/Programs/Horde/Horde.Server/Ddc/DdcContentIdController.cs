@@ -16,12 +16,12 @@ namespace Horde.Server.Ddc
     [Produces(MediaTypeNames.Application.Json, MediaTypeNames.Application.Octet, CustomMediaTypeNames.UnrealCompactBinary)]
     [Route("api/v1/content-id")]
     [Authorize]
-    public class ContentIdController : ControllerBase
+    public class DdcContentIdController : ControllerBase
     {
         private readonly IRequestHelper _requestHelper;
-        private readonly IContentIdStore _contentIdStore;
+        private readonly IDdcContentIdStore _contentIdStore;
 
-        public ContentIdController(IRequestHelper requestHelper, IContentIdStore contentIdStore)
+        public DdcContentIdController(IRequestHelper requestHelper, IDdcContentIdStore contentIdStore)
         {
             _requestHelper = requestHelper;
             _contentIdStore = contentIdStore;

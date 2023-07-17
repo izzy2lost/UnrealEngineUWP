@@ -7,7 +7,7 @@ using EpicGames.Serialization;
 
 namespace Horde.Server.Ddc
 {
-	class ObjectService : IObjectService
+	class ObjectService : IDdcObjectService
 	{
 		public Task<bool> Delete(NamespaceId ns, BucketId bucket, IoHashKey key)
 		{

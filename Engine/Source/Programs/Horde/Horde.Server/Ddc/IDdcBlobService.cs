@@ -14,7 +14,7 @@ using OpenTelemetry.Trace;
 
 namespace Horde.Server.Ddc
 {
-	public interface IBlobService
+	public interface IDdcBlobService
 	{
 		Task<JupiterContentHash> VerifyContentMatchesHash(Stream content, JupiterContentHash identifier);
 		Task<BlobIdentifier> PutObjectKnownHash(NamespaceId ns, IBufferedPayload content, BlobIdentifier identifier);
@@ -52,11 +52,68 @@ namespace Horde.Server.Ddc
 		bool ShouldFetchBlobOnDemand(NamespaceId ns);
 	}
 
+	public class BlobNotFoundException : Exception
+	{
+		public NamespaceId Ns { get; }
+		public BlobIdentifier Blob { get; }
+
+		public BlobNotFoundException(NamespaceId ns, BlobIdentifier blob) : base($"No Blob in Namespace {ns} with id {blob}")
+		{
+			Ns = ns;
+			Blob = blob;
+		}
+
+		public BlobNotFoundException(NamespaceId ns, BlobIdentifier blob, string message) : base(message)
+		{
+			Ns = ns;
+			Blob = blob;
+		}
+	}
+
+	public class BlobReplicationException : BlobNotFoundException
+	{
+		public BlobReplicationException(NamespaceId ns, BlobIdentifier blob, string message) : base(ns, blob, message)
+		{
+		}
+	}
+
+	public class BlobTooLargeException : Exception
+	{
+		public BlobIdentifier Blob { get; }
+
+		public BlobTooLargeException(BlobIdentifier blob) : base($"Blob {blob} was to large to cache")
+		{
+			Blob = blob;
+		}
+	}
+
+	public class ResourceHasToManyRequestsException : Exception
+	{
+		public ResourceHasToManyRequestsException(Exception originalException) : base($"To many requests to resource", originalException)
+		{
+		}
+	}
+
+	public class NamespaceNotFoundException : Exception
+	{
+		public NamespaceId Namespace { get; }
+
+		public NamespaceNotFoundException(NamespaceId @namespace) : base($"Could not find namespace {@namespace}")
+		{
+			Namespace = @namespace;
+		}
+
+		public NamespaceNotFoundException(NamespaceId @namespace, string message) : base(message)
+		{
+			Namespace = @namespace;
+		}
+	}
+
 	public static class BlobServiceExtensions
 	{
-		public static async Task<ContentId> PutCompressedObject(this IBlobService blobService, NamespaceId ns, IBufferedPayload payload, ContentId? id, IServiceProvider provider)
+		public static async Task<ContentId> PutCompressedObject(this IDdcBlobService blobService, NamespaceId ns, IBufferedPayload payload, ContentId? id, IServiceProvider provider)
 		{
-			IContentIdStore contentIdStore = provider.GetService<IContentIdStore>()!;
+			IDdcContentIdStore contentIdStore = provider.GetService<IDdcContentIdStore>()!;
 			CompressedBufferUtils compressedBufferUtils = provider.GetService<CompressedBufferUtils>()!;
 			Tracer tracer = provider.GetService<Tracer>()!;
 
@@ -104,9 +161,9 @@ namespace Horde.Server.Ddc
 			return identifierDecompressedPayload;
 		}
 
-		public static async Task<(BlobContents, string)> GetCompressedObject(this IBlobService blobService, NamespaceId ns, ContentId contentId, IServiceProvider provider, bool supportsRedirectUri = false)
+		public static async Task<(BlobContents, string)> GetCompressedObject(this IDdcBlobService blobService, NamespaceId ns, ContentId contentId, IServiceProvider provider, bool supportsRedirectUri = false)
 		{
-			IContentIdStore contentIdStore = provider.GetService<IContentIdStore>()!;
+			IDdcContentIdStore contentIdStore = provider.GetService<IDdcContentIdStore>()!;
 			Tracer tracer = provider.GetService<Tracer>()!;
 
 			BlobIdentifier[]? chunks = await contentIdStore.Resolve(ns, contentId, mustBeContentId: false);

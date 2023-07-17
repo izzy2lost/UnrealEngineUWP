@@ -38,7 +38,7 @@ namespace Horde.Server.Ddc
     [Produces(MediaTypeNames.Application.Json, MediaTypeNames.Application.Octet, CustomMediaTypeNames.UnrealCompactBinary)]
     [Route("api/v1/refs")]
     [Authorize]
-    public class ReferencesController : ControllerBase
+    public class DdcRefsController : ControllerBase
     {
         private readonly IDiagnosticContext _diagnosticContext;
         private readonly FormatResolver _formatResolver;
@@ -49,10 +49,10 @@ namespace Horde.Server.Ddc
         private readonly Tracer _tracer;
 
         private readonly ILogger _logger;
-        private readonly IObjectService _objectService;
-        private readonly IBlobService _blobStore;
+        private readonly IDdcObjectService _objectService;
+        private readonly IDdcBlobService _blobStore;
 
-        public ReferencesController(IObjectService objectService, IBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<ReferencesController> logger)
+        public DdcRefsController(IDdcObjectService objectService, IDdcBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<DdcRefsController> logger)
         {
             _objectService = objectService;
             _blobStore = blobStore;

@@ -10,7 +10,7 @@ using EpicGames.Serialization;
 
 namespace Horde.Server.Ddc
 {
-	public interface IObjectService
+	public interface IDdcObjectService
     {
         Task<(ObjectRecord, BlobContents?)> Get(NamespaceId ns, BucketId bucket, IoHashKey key, string[] fields, bool doLastAccessTracking = true);
         Task<(ContentId[], BlobIdentifier[])> Put(NamespaceId ns, BucketId bucket, IoHashKey key, BlobIdentifier blobHash, CbObject payload);
@@ -26,7 +26,43 @@ namespace Horde.Server.Ddc
         Task<List<BlobIdentifier>> GetReferencedBlobs(NamespaceId ns, BucketId bucket, IoHashKey key);
     }
 
-    public class ObjectHashMismatchException : Exception
+	public class ObjectRecord
+	{
+		public ObjectRecord(NamespaceId ns, BucketId bucket, IoHashKey name, DateTime lastAccess, byte[]? inlinePayload, BlobIdentifier blobIdentifier, bool isFinalized)
+		{
+			Namespace = ns;
+			Bucket = bucket;
+			Name = name;
+			LastAccess = lastAccess;
+			InlinePayload = inlinePayload;
+			BlobIdentifier = blobIdentifier;
+			IsFinalized = isFinalized;
+		}
+
+		public NamespaceId Namespace { get; }
+		public BucketId Bucket { get; }
+		public IoHashKey Name { get; }
+		public DateTime LastAccess { get; }
+		public byte[]? InlinePayload { get; set; }
+		public BlobIdentifier BlobIdentifier { get; set; }
+		public bool IsFinalized { get; }
+	}
+
+	public class ObjectNotFoundException : Exception
+	{
+		public ObjectNotFoundException(NamespaceId ns, BucketId bucket, IoHashKey key) : base($"Object not found {key} in bucket {bucket} namespace {ns}")
+		{
+			Namespace = ns;
+			Bucket = bucket;
+			Key = key;
+		}
+
+		public NamespaceId Namespace { get; }
+		public BucketId Bucket { get; }
+		public IoHashKey Key { get; }
+	}
+
+	public class ObjectHashMismatchException : Exception
     {
         public ObjectHashMismatchException(NamespaceId ns, BucketId bucket, IoHashKey name, BlobIdentifier suppliedHash, BlobIdentifier actualHash) : base($"Object {name} in bucket {bucket} and namespace {ns} did not reference hash {suppliedHash} was referencing {actualHash}")
         {

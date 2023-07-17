@@ -521,12 +521,10 @@ namespace Horde.Server
 			}
 
 			// DDC
-			services.AddSingleton<IBlobStore, BlobStore>();
-			services.AddSingleton<IBlobService, BlobService>();
-			services.AddSingleton<IObjectService, ObjectService>();
-			services.AddSingleton<IReferencesStore, ReferencesStore>();
+			services.AddSingleton<IDdcBlobService, BlobService>();
+			services.AddSingleton<IDdcObjectService, ObjectService>();
 			services.AddSingleton<IReferenceResolver, ReferenceResolver>();
-			services.AddSingleton<IContentIdStore, ContentIdStore>();
+			services.AddSingleton<IDdcContentIdStore, ContentIdStore>();
 
 			// Secret providers
 			services.AddSingleton<SecretService>();

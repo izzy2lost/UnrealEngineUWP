@@ -8,7 +8,7 @@ using EpicGames.Horde.Storage;
 
 namespace Horde.Server.Ddc
 {
-	class BlobService : IBlobService
+	class BlobService : IDdcBlobService
 	{
 		public Task DeleteNamespace(NamespaceId ns)
 		{
