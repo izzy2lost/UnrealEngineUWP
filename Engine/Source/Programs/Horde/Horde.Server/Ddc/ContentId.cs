@@ -57,14 +57,14 @@ namespace Horde.Server.Ddc
             return new ContentId(contentHash.HashData);
         }
 
-        public static ContentId FromBlobIdentifier(BlobIdentifier blobIdentifier)
+        public static ContentId FromBlobIdentifier(BlobId blobIdentifier)
         {
             return new ContentId(blobIdentifier.HashData);
         }
 
-        public BlobIdentifier AsBlobIdentifier()
+        public BlobId AsBlobIdentifier()
         {
-            return new BlobIdentifier(HashData);
+            return new BlobId(HashData);
         }
 
         public static ContentId FromIoHash(IoHash ioHash)

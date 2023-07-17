@@ -10,47 +10,47 @@ namespace Horde.Server.Ddc
 {
 	class DdcRefService : IDdcRefService
 	{
-		public Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key)
+		public Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			throw new System.NotImplementedException();
 		}
 
-		public Task<long> DeleteBucket(NamespaceId ns, BucketId bucket)
+		public Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket)
 		{
 			throw new System.NotImplementedException();
 		}
 
-		public Task<long> DropNamespace(NamespaceId ns)
+		public Task<long> DropNamespaceAsync(NamespaceId ns)
 		{
 			throw new System.NotImplementedException();
 		}
 
-		public Task<bool> Exists(NamespaceId ns, BucketId bucket, RefId key)
+		public Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			throw new System.NotImplementedException();
 		}
 
-		public Task<(ContentId[], BlobIdentifier[])> Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobIdentifier blobHash)
+		public Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash)
 		{
 			throw new System.NotImplementedException();
 		}
 
-		public Task<(RefRecord, BlobContents?)> Get(NamespaceId ns, BucketId bucket, RefId key, string[] fields, bool doLastAccessTracking = true)
+		public Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[] fields, bool doLastAccessTracking = true)
 		{
 			throw new System.NotImplementedException();
 		}
 
-		public IAsyncEnumerable<NamespaceId> GetNamespaces()
+		public IAsyncEnumerable<NamespaceId> GetNamespacesAsync()
 		{
 			throw new System.NotImplementedException();
 		}
 
-		public Task<List<BlobIdentifier>> GetReferencedBlobs(NamespaceId ns, BucketId bucket, RefId key)
+		public Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			throw new System.NotImplementedException();
 		}
 
-		public Task<(ContentId[], BlobIdentifier[])> Put(NamespaceId ns, BucketId bucket, RefId key, BlobIdentifier blobHash, CbObject payload)
+		public Task<(ContentId[], BlobId[])> PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload)
 		{
 			throw new System.NotImplementedException();
 		}

@@ -10,77 +10,77 @@ namespace Horde.Server.Ddc
 {
 	class DdcBlobService : IDdcBlobService
 	{
-		public Task DeleteNamespace(NamespaceId ns)
+		public Task DeleteNamespaceAsync(NamespaceId ns)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task DeleteObject(NamespaceId ns, BlobIdentifier blob)
+		public Task DeleteObjectAsync(NamespaceId ns, BlobId blob)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<bool> Exists(NamespaceId ns, BlobIdentifier blob, List<string>? storageLayers = null)
+		public Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<bool> ExistsInRootStore(NamespaceId ns, BlobIdentifier blob)
+		public Task<bool> ExistsInRootStore(NamespaceId ns, BlobId blob)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<BlobIdentifier[]> FilterOutKnownBlobs(NamespaceId ns, IEnumerable<BlobIdentifier> blobs)
+		public Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobs)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<BlobIdentifier[]> FilterOutKnownBlobs(NamespaceId ns, IAsyncEnumerable<BlobIdentifier> blobs)
+		public Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IAsyncEnumerable<BlobId> blobs)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<BlobContents> GetObject(NamespaceId ns, BlobIdentifier blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
+		public Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<BlobContents> GetObjects(NamespaceId ns, BlobIdentifier[] refRequestBlobReferences)
+		public Task<BlobContents> GetObjectsAsync(NamespaceId ns, BlobId[] refRequestBlobReferences)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<Uri?> GetObjectWithRedirect(NamespaceId ns, BlobIdentifier blobIdentifier, List<string>? storageLayers = null)
+		public Task<Uri?> GetObjectWithRedirectAsync(NamespaceId ns, BlobId blobIdentifier, List<string>? storageLayers = null)
 		{
 			throw new NotImplementedException();
 		}
 
-		public IAsyncEnumerable<(BlobIdentifier, DateTime)> ListObjects(NamespaceId ns)
+		public IAsyncEnumerable<(BlobId, DateTime)> ListObjects(NamespaceId ns)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<Uri?> MaybePutObjectWithRedirect(NamespaceId ns, BlobIdentifier identifier)
+		public Task<Uri?> MaybePutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<BlobIdentifier> PutObject(NamespaceId ns, IBufferedPayload payload, BlobIdentifier identifier)
+		public Task<BlobId> PutObjectAsync(NamespaceId ns, IBufferedPayload payload, BlobId identifier)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<BlobIdentifier> PutObject(NamespaceId ns, byte[] payload, BlobIdentifier identifier)
+		public Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] payload, BlobId identifier)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<BlobIdentifier> PutObjectKnownHash(NamespaceId ns, IBufferedPayload content, BlobIdentifier identifier)
+		public Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, IBufferedPayload content, BlobId identifier)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<BlobContents> ReplicateObject(NamespaceId ns, BlobIdentifier blob, bool force = false)
+		public Task<BlobContents> ReplicateObjectAsync(NamespaceId ns, BlobId blob, bool force = false)
 		{
 			throw new NotImplementedException();
 		}
@@ -90,7 +90,7 @@ namespace Horde.Server.Ddc
 			throw new NotImplementedException();
 		}
 
-		public Task<JupiterContentHash> VerifyContentMatchesHash(Stream content, JupiterContentHash identifier)
+		public Task<JupiterContentHash> VerifyContentMatchesHashAsync(Stream content, JupiterContentHash identifier)
 		{
 			throw new NotImplementedException();
 		}

@@ -13,23 +13,23 @@ namespace Horde.Server.Ddc
 {
 	public interface IDdcRefService
     {
-        Task<(RefRecord, BlobContents?)> Get(NamespaceId ns, BucketId bucket, RefId key, string[] fields, bool doLastAccessTracking = true);
-        Task<(ContentId[], BlobIdentifier[])> Put(NamespaceId ns, BucketId bucket, RefId key, BlobIdentifier blobHash, CbObject payload);
-        Task<(ContentId[], BlobIdentifier[])> Finalize(NamespaceId ns, BucketId bucket, RefId key, BlobIdentifier blobHash);
+        Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[] fields, bool doLastAccessTracking = true);
+        Task<(ContentId[], BlobId[])> PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload);
+        Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash);
 
-        IAsyncEnumerable<NamespaceId> GetNamespaces();
+        IAsyncEnumerable<NamespaceId> GetNamespacesAsync();
 
-        Task<bool> Delete(NamespaceId ns, BucketId bucket, RefId key);
-        Task<long> DropNamespace(NamespaceId ns);
-        Task<long> DeleteBucket(NamespaceId ns, BucketId bucket);
+        Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key);
+        Task<long> DropNamespaceAsync(NamespaceId ns);
+        Task<long> DeleteBucketAsync(NamespaceId ns, BucketId bucket);
 
-        Task<bool> Exists(NamespaceId ns, BucketId bucket, RefId key);
-        Task<List<BlobIdentifier>> GetReferencedBlobs(NamespaceId ns, BucketId bucket, RefId key);
+        Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key);
+        Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key);
     }
 
 	public class RefRecord
 	{
-		public RefRecord(NamespaceId ns, BucketId bucket, RefId name, DateTime lastAccess, byte[]? inlinePayload, BlobIdentifier blobIdentifier, bool isFinalized)
+		public RefRecord(NamespaceId ns, BucketId bucket, RefId name, DateTime lastAccess, byte[]? inlinePayload, BlobId blobIdentifier, bool isFinalized)
 		{
 			Namespace = ns;
 			Bucket = bucket;
@@ -45,7 +45,7 @@ namespace Horde.Server.Ddc
 		public RefId Name { get; }
 		public DateTime LastAccess { get; }
 		public byte[]? InlinePayload { get; set; }
-		public BlobIdentifier BlobIdentifier { get; set; }
+		public BlobId BlobIdentifier { get; set; }
 		public bool IsFinalized { get; }
 	}
 
@@ -65,7 +65,7 @@ namespace Horde.Server.Ddc
 
 	public class ObjectHashMismatchException : Exception
     {
-        public ObjectHashMismatchException(NamespaceId ns, BucketId bucket, IoHash name, BlobIdentifier suppliedHash, BlobIdentifier actualHash) : base($"Object {name} in bucket {bucket} and namespace {ns} did not reference hash {suppliedHash} was referencing {actualHash}")
+        public ObjectHashMismatchException(NamespaceId ns, BucketId bucket, IoHash name, BlobId suppliedHash, BlobId actualHash) : base($"Object {name} in bucket {bucket} and namespace {ns} did not reference hash {suppliedHash} was referencing {actualHash}")
         {
         }
     }

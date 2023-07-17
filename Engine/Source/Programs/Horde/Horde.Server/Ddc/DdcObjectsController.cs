@@ -51,7 +51,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [Required] BlobId id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -59,7 +59,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                BlobContents blobContents = await _storage.GetObject(ns, id);
+                BlobContents blobContents = await _storage.GetObjectAsync(ns, id);
 
                 return File(blobContents.Stream, CustomMediaTypeNames.UnrealCompactBinary);
             }
@@ -75,13 +75,13 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [Required] BlobId id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (result != null)
             {
                 return result;
             }
 
-            bool exists = await _storage.Exists(ns, id);
+            bool exists = await _storage.ExistsAsync(ns, id);
 
             if (!exists)
             {
@@ -97,7 +97,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [Required] [FromQuery] List<BlobId> id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -107,7 +107,7 @@ namespace Horde.Server.Ddc
 
             IEnumerable<Task> tasks = id.Select(async blob =>
             {
-                if (!await _storage.Exists(ns, blob))
+                if (!await _storage.ExistsAsync(ns, blob))
                 {
                     missingBlobs.Add(blob);
                 }
@@ -123,7 +123,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [FromBody] BlobId[] bodyIds)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -133,7 +133,7 @@ namespace Horde.Server.Ddc
 
             IEnumerable<Task> tasks = bodyIds.Select(async blob =>
             {
-                if (!await _storage.Exists(ns, blob))
+                if (!await _storage.ExistsAsync(ns, blob))
                 {
                     missingBlobs.Add(blob);
                 }
@@ -149,7 +149,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [Required] BlobId id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (result != null)
             {
                 return result;
@@ -160,7 +160,7 @@ namespace Horde.Server.Ddc
             {
                 using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
-                BlobId identifier = await _storage.PutObject(ns, payload, id);
+                BlobId identifier = await _storage.PutObjectAsync(ns, payload, id);
                 return Ok(new PutBlobResponse(identifier));
             }
             catch (ClientSendSlowException e)
@@ -174,7 +174,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [Required] BlobId id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (result != null)
             {
                 return result;
@@ -183,7 +183,7 @@ namespace Horde.Server.Ddc
             BlobContents blob;
             try
             {
-                blob = await _storage.GetObject(ns, id);
+                blob = await _storage.GetObjectAsync(ns, id);
             }
             catch (BlobNotFoundException e)
             {
@@ -208,7 +208,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                BlobId[] references = await _referenceResolver.GetReferencedBlobs(ns, compactBinaryObject).ToArrayAsync();
+                BlobId[] references = await _referenceResolver.GetReferencedBlobsAsync(ns, compactBinaryObject).ToArrayAsync();
                 return Ok(new ResolvedReferencesResult(references));
             }
             catch (PartialReferenceResolveException e)
@@ -226,13 +226,13 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [Required] BlobId id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.DeleteObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.DeleteObject });
             if (result != null)
             {
                 return result;
             }
 
-            await _storage.DeleteObject(ns, id);
+            await _storage.DeleteObjectAsync(ns, id);
 
             return Ok( new DeletedResponse
             {
@@ -244,13 +244,13 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> DeleteNamespace(
             [Required] NamespaceId ns)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.DeleteNamespace });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.DeleteNamespace });
             if (result != null)
             {
                 return result;
             }
 
-            await _storage.DeleteNamespace(ns);
+            await _storage.DeleteNamespaceAsync(ns);
 
             return Ok();
         }

@@ -8,12 +8,12 @@ namespace Horde.Server.Ddc
 {
 	class ContentIdStore : IDdcContentIdService
 	{
-		public Task<BlobId[]?> Resolve(NamespaceId ns, ContentId contentId, bool mustBeContentId = false)
+		public Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId = false)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task Put(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
+		public Task PutAsync(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
 		{
 			throw new NotImplementedException();
 		}

@@ -14,42 +14,31 @@ using OpenTelemetry.Trace;
 
 namespace Horde.Server.Ddc
 {
+	/// <summary>
+	/// Interface for the DDC blobs service
+	/// </summary>
 	public interface IDdcBlobService
 	{
-		Task<JupiterContentHash> VerifyContentMatchesHash(Stream content, JupiterContentHash identifier);
-		Task<BlobId> PutObjectKnownHash(NamespaceId ns, IBufferedPayload content, BlobId identifier);
-		Task<BlobId> PutObject(NamespaceId ns, IBufferedPayload payload, BlobId identifier);
-		Task<BlobId> PutObject(NamespaceId ns, byte[] payload, BlobId identifier);
-		Task<Uri?> MaybePutObjectWithRedirect(NamespaceId ns, BlobId identifier);
+		Task<JupiterContentHash> VerifyContentMatchesHashAsync(Stream content, JupiterContentHash identifier);
+		Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, IBufferedPayload content, BlobId identifier);
+		Task<BlobId> PutObjectAsync(NamespaceId ns, IBufferedPayload payload, BlobId identifier);
+		Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] payload, BlobId identifier);
+		Task<Uri?> MaybePutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier);
 
-		Task<BlobContents> GetObject(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false);
+		Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false);
 
-		Task<Uri?> GetObjectWithRedirect(NamespaceId ns, BlobId blobIdentifier, List<string>? storageLayers = null);
+		Task<Uri?> GetObjectWithRedirectAsync(NamespaceId ns, BlobId blobIdentifier, List<string>? storageLayers = null);
 
-		Task<BlobContents> ReplicateObject(NamespaceId ns, BlobId blob, bool force = false);
-
-		Task<bool> Exists(NamespaceId ns, BlobId blob, List<string>? storageLayers = null);
-
-		/// <summary>
-		/// Checks that the blob exists in the root store, the store which is last in the list and thus is intended to have every blob in it
-		/// </summary>
-		/// <param name="ns">The namespace</param>
-		/// <param name="blob">The identifier of the blob</param>
-		/// <returns></returns>
-		Task<bool> ExistsInRootStore(NamespaceId ns, BlobId blob);
+		Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null);
 
 		// Delete a object
-		Task DeleteObject(NamespaceId ns, BlobId blob);
+		Task DeleteObjectAsync(NamespaceId ns, BlobId blob);
 
 		// delete the whole namespace
-		Task DeleteNamespace(NamespaceId ns);
+		Task DeleteNamespaceAsync(NamespaceId ns);
 
-		IAsyncEnumerable<(BlobId, DateTime)> ListObjects(NamespaceId ns);
-		Task<BlobId[]> FilterOutKnownBlobs(NamespaceId ns, IEnumerable<BlobId> blobs);
-		Task<BlobId[]> FilterOutKnownBlobs(NamespaceId ns, IAsyncEnumerable<BlobId> blobs);
-		Task<BlobContents> GetObjects(NamespaceId ns, BlobId[] refRequestBlobReferences);
-
-		bool ShouldFetchBlobOnDemand(NamespaceId ns);
+		Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobs);
+		Task<BlobContents> GetObjectsAsync(NamespaceId ns, BlobId[] refRequestBlobReferences);
 	}
 
 	public class BlobNotFoundException : Exception
@@ -126,7 +115,7 @@ namespace Horde.Server.Ddc
 			ContentId identifierDecompressedPayload;
 			if (id != null)
 			{
-				identifierDecompressedPayload = ContentId.FromContentHash(await blobService.VerifyContentMatchesHash(decompressedStream, id));
+				identifierDecompressedPayload = ContentId.FromContentHash(await blobService.VerifyContentMatchesHashAsync(decompressedStream, id));
 			}
 			else
 			{
@@ -149,11 +138,11 @@ namespace Horde.Server.Ddc
 			// commit the mapping from the decompressed hash to the compressed hash, we run this in parallel with the blob store submit
 			// TODO: let users specify weight of the blob compared to previously submitted content ids
 			int contentIdWeight = (int)payload.Length;
-			Task contentIdStoreTask = contentIdStore.Put(ns, identifierDecompressedPayload, identifierCompressedPayload, contentIdWeight);
+			Task contentIdStoreTask = contentIdStore.PutAsync(ns, identifierDecompressedPayload, identifierCompressedPayload, contentIdWeight);
 
 			// we still commit the compressed buffer to the object store using the hash of the compressed content
 			{
-				await blobService.PutObjectKnownHash(ns, payload, identifierCompressedPayload);
+				await blobService.PutObjectKnownHashAsync(ns, payload, identifierCompressedPayload);
 			}
 
 			await contentIdStoreTask;
@@ -166,7 +155,7 @@ namespace Horde.Server.Ddc
 			IDdcContentIdService contentIdStore = provider.GetService<IDdcContentIdService>()!;
 			Tracer tracer = provider.GetService<Tracer>()!;
 
-			BlobId[]? chunks = await contentIdStore.Resolve(ns, contentId, mustBeContentId: false);
+			BlobId[]? chunks = await contentIdStore.ResolveAsync(ns, contentId, mustBeContentId: false);
 			if (chunks == null || chunks.Length == 0)
 			{
 				throw new ContentIdResolveException(contentId);
@@ -183,7 +172,7 @@ namespace Horde.Server.Ddc
 					mimeType = MediaTypeNames.Application.Octet;
 				}
 
-				return (await blobService.GetObject(ns, blobToReturn, supportsRedirectUri: supportsRedirectUri), mimeType);
+				return (await blobService.GetObjectAsync(ns, blobToReturn, supportsRedirectUri: supportsRedirectUri), mimeType);
 			}
 
 			// chunked content, combine the chunks into a single stream
@@ -192,7 +181,7 @@ namespace Horde.Server.Ddc
 			for (int i = 0; i < chunks.Length; i++)
 			{
 				// even if it was requested to support redirect, since we need to combine the chunks using redirects is not possible
-				tasks[i] = blobService.GetObject(ns, chunks[i], supportsRedirectUri: false);
+				tasks[i] = blobService.GetObjectAsync(ns, chunks[i], supportsRedirectUri: false);
 			}
 
 			MemoryStream ms = new MemoryStream();

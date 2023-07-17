@@ -75,13 +75,13 @@ namespace Horde.Server.Ddc
         [ProducesResponseType(type: typeof(ProblemDetails), 400)]
         public async Task<IActionResult> GetNamespaces()
         {
-            NamespaceId[] namespaces = await _refService.GetNamespaces().ToArrayAsync();
+            NamespaceId[] namespaces = await _refService.GetNamespacesAsync().ToArrayAsync();
 
             // filter namespaces down to only the namespaces the user has access to
             List<NamespaceId> namespacesWithAccess = new();
             foreach (NamespaceId ns in namespaces)
             {
-                ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
+                ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
                 if (accessResult == null)
                 {
                     namespacesWithAccess.Add(ns);
@@ -106,7 +106,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] RefId key,
             [FromRoute] string? format = null)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (accessResult != null)
             {
                 return accessResult;
@@ -114,7 +114,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                (RefRecord objectRecord, BlobContents? blob) = await _refService.Get(ns, bucket, key, Array.Empty<string>());
+                (RefRecord objectRecord, BlobContents? blob) = await _refService.GetAsync(ns, bucket, key, Array.Empty<string>());
 
                 if (blob == null)
                 {
@@ -198,7 +198,7 @@ namespace Horde.Server.Ddc
 
                             IoHash hash = binaryAttachmentField.AsBinaryAttachment();
 
-                            BlobContents referencedBlobContents = await _blobStore.GetObject(ns, BlobId.FromIoHash(hash));
+                            BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, BlobId.FromIoHash(hash));
 
                             if (_nginxRedirectHelper.CanRedirect(Request, referencedBlobContents))
                             {
@@ -233,7 +233,7 @@ namespace Horde.Server.Ddc
                         byte[] blobMemory = await blob.Stream.ToByteArray();
                         CbObject cb = new CbObject(blobMemory);
 
-                        IAsyncEnumerable<Attachment> attachments = _referenceResolver.GetAttachments(ns, cb);
+                        IAsyncEnumerable<Attachment> attachments = _referenceResolver.GetAttachmentsAsync(ns, cb);
 
                         using CbPackageBuilder writer = new CbPackageBuilder();
                         writer.AddAttachment(objectRecord.BlobIdentifier.AsIoHash(), CbPackageAttachmentFlags.IsObject, blobMemory);
@@ -249,13 +249,13 @@ namespace Horde.Server.Ddc
                                 if (attachment is BlobAttachment blobAttachment)
                                 {
                                     BlobId referencedBlob = blobAttachment.Identifier;
-                                    attachmentContents = await _blobStore.GetObject(ns, referencedBlob);
+                                    attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob);
                                 }
                                 else if (attachment is ObjectAttachment objectAttachment)
                                 {
                                     flags |= CbPackageAttachmentFlags.IsObject;
                                     BlobId referencedBlob = objectAttachment.Identifier;
-                                    attachmentContents = await _blobStore.GetObject(ns, referencedBlob);
+                                    attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob);
                                 }
                                 else if (attachment is ContentIdAttachment contentIdAttachment)
                                 {
@@ -333,7 +333,7 @@ namespace Horde.Server.Ddc
                             List<BlobId> referencedBlobs;
                             try
                             {
-                                IAsyncEnumerable<BlobId> referencedBlobsEnumerable = _referenceResolver.GetReferencedBlobs(ns, cb);
+                                IAsyncEnumerable<BlobId> referencedBlobsEnumerable = _referenceResolver.GetReferencedBlobsAsync(ns, cb);
                                 referencedBlobs = await referencedBlobsEnumerable.ToListAsync();
                             }
                             catch (PartialReferenceResolveException)
@@ -350,7 +350,7 @@ namespace Horde.Server.Ddc
                                 BlobId attachmentToSend = referencedBlobs.First();
                                 try
                                 {
-                                    BlobContents referencedBlobContents = await _blobStore.GetObject(ns, attachmentToSend);
+                                    BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, attachmentToSend);
                                     Response.Headers[CommonHeaders.InlinePayloadHash] = attachmentToSend.ToString();
 
                                     if (_nginxRedirectHelper.CanRedirect(Request, referencedBlobContents))
@@ -437,7 +437,7 @@ namespace Horde.Server.Ddc
         [FromRoute] [Required] RefId key,
         [FromQuery] string[] fields)
     {
-        ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
+        ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
         if (accessResult != null)
         {
             return accessResult;
@@ -445,7 +445,7 @@ namespace Horde.Server.Ddc
 
         try
         {
-            (RefRecord objectRecord, BlobContents? _) = await _refService.Get(ns, bucket, key, fields);
+            (RefRecord objectRecord, BlobContents? _) = await _refService.GetAsync(ns, bucket, key, fields);
 
             return Ok(new RefMetadataResponse(objectRecord));
         }
@@ -478,7 +478,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] BucketId bucket,
             [FromRoute] [Required] RefId key)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (accessResult != null)
             {
                 return accessResult;
@@ -486,7 +486,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                (RefRecord record, BlobContents? blob) = await _refService.Get(ns, bucket, key, new string[] {"blobIdentifier", "IsFinalized"});
+                (RefRecord record, BlobContents? blob) = await _refService.GetAsync(ns, bucket, key, new string[] {"blobIdentifier", "IsFinalized"});
                 Response.Headers[CommonHeaders.HashHeaderName] = record.BlobIdentifier.ToString();
 
                 if (!record.IsFinalized)
@@ -494,19 +494,19 @@ namespace Horde.Server.Ddc
                     return NotFound(new ProblemDetails {Title = $"Object {bucket} {key} in namespace {ns} is not finalized."});
                 }
 
-                blob ??= await _blobStore.GetObject(ns, record.BlobIdentifier);
+                blob ??= await _blobStore.GetObjectAsync(ns, record.BlobIdentifier);
 
                 // we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
                 // TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
                 byte[] blobContents = await blob.Stream.ToByteArray();
                 CbObject compactBinaryObject = new CbObject(blobContents);
                 // the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
-                IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, compactBinaryObject);
+                IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobsAsync(ns, compactBinaryObject);
                 List<BlobId>? _ = await references.ToListAsync();
 
                 // we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
                 // TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
-                BlobId[] unknownBlobs = await _blobStore.FilterOutKnownBlobs(ns, new BlobId[] { record.BlobIdentifier });
+                BlobId[] unknownBlobs = await _blobStore.FilterOutKnownBlobsAsync(ns, new BlobId[] { record.BlobIdentifier });
                 if (unknownBlobs.Length != 0)
                 {
                     return NotFound(new ProblemDetails {Title = $"Object {bucket} {key} in namespace {ns} had at least one missing blob."});
@@ -542,7 +542,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] NamespaceId ns,
             [FromQuery] [Required] List<string> names)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
             if (accessResult != null)
             {
                 return accessResult;
@@ -570,16 +570,16 @@ namespace Horde.Server.Ddc
                 try
                 {
                     (RefRecord record, BlobContents? blob) =
-                        await _refService.Get(ns, bucket, key, new string[] { "blobIdentifier" });
+                        await _refService.GetAsync(ns, bucket, key, new string[] { "blobIdentifier" });
 
-                    blob ??= await _blobStore.GetObject(ns, record.BlobIdentifier);
+                    blob ??= await _blobStore.GetObjectAsync(ns, record.BlobIdentifier);
 
                     // we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
                     // TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
                     byte[] blobContents = await blob.Stream.ToByteArray();
                     CbObject cb = new CbObject(blobContents);
                     // the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
-                    IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, cb);
+                    IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobsAsync(ns, cb);
                     List<BlobId>? _ = await references.ToListAsync();
                 }
                 catch (RefNotFoundException)
@@ -611,7 +611,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] BucketId bucket,
             [FromRoute] [Required] RefId key)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (accessResult != null)
             {
                 return accessResult;
@@ -647,7 +647,7 @@ namespace Horde.Server.Ddc
                     {
                         // TODO: define a scheme for how a json object specifies references
 
-                        blobHeader = await _blobStore.PutObject(ns, payload, headerHash);
+                        blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash);
 
                         // TODO: convert the json object into a compact binary instead
                         CbWriter writer = new CbWriter();
@@ -670,7 +670,7 @@ namespace Horde.Server.Ddc
                     }
                     case MediaTypeNames.Application.Octet:
                     {
-                        blobHeader = await _blobStore.PutObject(ns, payload, headerHash);
+                        blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash);
 
                         CbWriter writer = new CbWriter();
                         writer.BeginObject();
@@ -699,7 +699,7 @@ namespace Horde.Server.Ddc
                 return Problem(e.Message, null, (int)HttpStatusCode.RequestTimeout);
             }
 
-            (ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.Put(ns, bucket, key, blobHeader, payloadObject);
+            (ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, blobHeader, payloadObject);
 
             List<JupiterContentHash> missingHashes = new List<JupiterContentHash>(missingReferences);
             missingHashes.AddRange(missingBlobs);
@@ -714,7 +714,7 @@ namespace Horde.Server.Ddc
             [FromRoute][Required] BucketId bucket,
             [FromRoute][Required] RefId key)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (accessResult != null)
             {
                 return accessResult;
@@ -743,7 +743,7 @@ namespace Horde.Server.Ddc
                     }
                     else
                     {
-                        await _blobStore.PutObject(ns, blob, BlobId.FromIoHash(entry.AttachmentHash));
+                        await _blobStore.PutObjectAsync(ns, blob, BlobId.FromIoHash(entry.AttachmentHash));
                     }
                 }
             }
@@ -758,7 +758,7 @@ namespace Horde.Server.Ddc
             CbObject rootObject = packageReader.RootObject;
             BlobId rootObjectHash = BlobId.FromIoHash(packageReader.RootHash);
 
-            (ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.Put(ns, bucket, key, rootObjectHash, rootObject);
+            (ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, bucket, key, rootObjectHash, rootObject);
 
             List<JupiterContentHash> missingHashes = new List<JupiterContentHash>(missingReferences);
             missingHashes.AddRange(missingBlobs);
@@ -798,7 +798,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] RefId key,
             [FromRoute] [Required] BlobId hash)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.WriteObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
             if (accessResult != null)
             {
                 return accessResult;
@@ -806,7 +806,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                (ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.Finalize(ns, bucket, key, hash);
+                (ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.FinalizeAsync(ns, bucket, key, hash);
                 List<JupiterContentHash> missingHashes = new List<JupiterContentHash>(missingReferences);
                 missingHashes.AddRange(missingBlobs);
 
@@ -846,7 +846,7 @@ namespace Horde.Server.Ddc
 
             AclAction[] requiredActions = ops.Ops.Select(op => ActionForOp(op.Op)).ToArray();
 
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, requiredActions);
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, requiredActions);
             if (accessResult != null)
             {
                 return accessResult;
@@ -867,7 +867,7 @@ namespace Horde.Server.Ddc
             {
                 try
                 {
-                    (RefRecord objectRecord, BlobContents? blob) = await _refService.Get(ns, op.Bucket, op.Key, Array.Empty<string>());
+                    (RefRecord objectRecord, BlobContents? blob) = await _refService.GetAsync(ns, op.Bucket, op.Key, Array.Empty<string>());
 
                     if (!objectRecord.IsFinalized)
                     {
@@ -883,7 +883,7 @@ namespace Horde.Server.Ddc
 
                     if (op.ResolveAttachments ?? false)
                     {
-                        IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, cb);
+                        IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobsAsync(ns, cb);
                         List<BlobId>? _ = await references.ToListAsync();
                     }
 
@@ -903,21 +903,21 @@ namespace Horde.Server.Ddc
             {
                 try
                 {
-                    (RefRecord record, BlobContents? blob) = await _refService.Get(ns, op.Bucket, op.Key, new string[] { "blobIdentifier" });
+                    (RefRecord record, BlobContents? blob) = await _refService.GetAsync(ns, op.Bucket, op.Key, new string[] { "blobIdentifier" });
 
                     if (!record.IsFinalized)
                     {
                         return (CbObject.Build(writer => writer.WriteBool("exists", false)), HttpStatusCode.NotFound);
                     }
 
-                    blob ??= await _blobStore.GetObject(ns, record.BlobIdentifier);
+                    blob ??= await _blobStore.GetObjectAsync(ns, record.BlobIdentifier);
 
                     if (op.ResolveAttachments ?? false)
                     {
                         byte[] blobContents = await blob.Stream.ToByteArray();
                         CbObject cb = new CbObject(blobContents);
                         // the reference resolver will throw if any blob is missing, so no need to do anything other then process each reference
-                        IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, cb);
+                        IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobsAsync(ns, cb);
                         List<BlobId>? _ = await references.ToListAsync();
                     }
 
@@ -959,7 +959,7 @@ namespace Horde.Server.Ddc
                         throw new HashMismatchException(headerHash, objectHash);
                     }
 
-                    (ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.Put(ns, op.Bucket, op.Key, objectHash, op.Payload);
+                    (ContentId[] missingReferences, BlobId[] missingBlobs) = await _refService.PutAsync(ns, op.Bucket, op.Key, objectHash, op.Payload);
                     List<JupiterContentHash> missingHashes = new List<JupiterContentHash>(missingReferences);
 
                     return (CbSerializer.Serialize(new PutObjectResponse(missingHashes.ToArray())), HttpStatusCode.OK);
@@ -1030,7 +1030,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] NamespaceId ns
         )
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.DeleteNamespace });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.DeleteNamespace });
             if (accessResult != null)
             {
                 return accessResult;
@@ -1038,7 +1038,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                await _refService.DropNamespace(ns);
+                await _refService.DropNamespaceAsync(ns);
             }
             catch (NamespaceNotFoundException e)
             {
@@ -1059,7 +1059,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] NamespaceId ns,
             [FromRoute] [Required] BucketId bucket)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.DeleteBucket });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.DeleteBucket });
             if (accessResult != null)
             {
                 return accessResult;
@@ -1068,7 +1068,7 @@ namespace Horde.Server.Ddc
             long countOfDeletedRecords;
             try
             {
-                countOfDeletedRecords = await _refService.DeleteBucket(ns, bucket);
+                countOfDeletedRecords = await _refService.DeleteBucketAsync(ns, bucket);
             }
             catch (NamespaceNotFoundException e)
             {
@@ -1092,7 +1092,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] BucketId bucket,
             [FromRoute] [Required] RefId key)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespace(User, Request, ns, new [] { DdcAclAction.DeleteObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.DeleteObject });
             if (accessResult != null)
             {
                 return accessResult;
@@ -1100,7 +1100,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                bool deleted = await _refService.Delete(ns, bucket, key);
+                bool deleted = await _refService.DeleteAsync(ns, bucket, key);
                 if (!deleted)
                 {
                     return NotFound(new ProblemDetails { Title = $"Object {key} in bucket {bucket} and namespace {ns} did not exist" });

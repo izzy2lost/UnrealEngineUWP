@@ -12,12 +12,12 @@ namespace Horde.Server.Ddc
 {
 	class RequestHelper : IRequestHelper
 	{
-		public Task<ActionResult?> HasAccessForGlobalOperations(ClaimsPrincipal user, AclAction[] aclActions)
+		public Task<ActionResult?> HasAccessForGlobalOperationsAsync(ClaimsPrincipal user, AclAction[] aclActions)
 		{
 			throw new NotImplementedException();
 		}
 
-		public Task<ActionResult?> HasAccessToNamespace(ClaimsPrincipal user, HttpRequest request, NamespaceId ns, AclAction[] aclActions)
+		public Task<ActionResult?> HasAccessToNamespaceAsync(ClaimsPrincipal user, HttpRequest request, NamespaceId ns, AclAction[] aclActions)
 		{
 			throw new NotImplementedException();
 		}
