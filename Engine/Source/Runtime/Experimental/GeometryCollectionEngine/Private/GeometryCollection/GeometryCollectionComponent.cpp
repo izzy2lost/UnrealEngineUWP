@@ -1388,28 +1388,6 @@ void UGeometryCollectionComponent::SetRestState(TArray<FTransform>&& InRestTrans
 	RefreshCustomRenderer();
 }
 
-void UGeometryCollectionComponent::InitializeComponent()
-{
-	Super::InitializeComponent();
-
-	if (DynamicCollection)
-	{
-		if (bStoreVelocities || bNotifyTrailing)
-		{
-			if (!DynamicCollection->FindAttributeTyped<FVector3f>("LinearVelocity", FTransformCollection::TransformGroup))
-			{
-				DynamicCollection->AddAttribute<FVector3f>("LinearVelocity", FTransformCollection::TransformGroup);
-			}
-
-			if (!DynamicCollection->FindAttributeTyped<FVector3f>("AngularVelocity", FTransformCollection::TransformGroup))
-			{
-				DynamicCollection->AddAttribute<FVector3f>("AngularVelocity", FTransformCollection::TransformGroup);
-			}
-		}
-		DynamicCollection->AddAttribute<uint8>("InternalClusterParentTypeArray", FTransformCollection::TransformGroup);
-	}
-}
-
 void UGeometryCollectionComponent::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
 {
 	Super::GetResourceSizeEx(CumulativeResourceSize);
@@ -2927,6 +2905,13 @@ void UGeometryCollectionComponent::ResetDynamicCollection()
 		GetChildrenArrayCopyOnWrite();
 		GetSimulationTypeArrayCopyOnWrite();
 		GetStatusFlagsArrayCopyOnWrite();
+
+		if (bStoreVelocities || bNotifyTrailing)
+		{
+			DynamicCollection->AddAttribute<FVector3f>("LinearVelocity", FTransformCollection::TransformGroup);
+			DynamicCollection->AddAttribute<FVector3f>("AngularVelocity", FTransformCollection::TransformGroup);
+		}
+		DynamicCollection->AddAttribute<uint8>("InternalClusterParentTypeArray", FTransformCollection::TransformGroup);
 
 		FGeometryCollectionDecayDynamicFacade DecayDynamicFacade(*DynamicCollection);
 		
