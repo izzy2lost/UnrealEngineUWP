@@ -103,6 +103,10 @@ private:
 
 private:
 
+	void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
+
+private:
+
 	using FChannelMask     = TBitArray<TFixedAllocator< 1 >>;
 	using FSlowPropertyPtr = TSharedPtr<FTrackInstancePropertyBindings>;
 

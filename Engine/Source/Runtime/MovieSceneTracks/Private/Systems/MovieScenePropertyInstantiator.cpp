@@ -82,6 +82,10 @@ void UMovieScenePropertyInstantiatorSystem::OnLink()
 	CleanFastPathMask.Reset();
 	CleanFastPathMask.SetAll({ BuiltInComponents->FastPropertyOffset, BuiltInComponents->SlowProperty, BuiltInComponents->CustomPropertyIndex });
 	CleanFastPathMask.CombineWithBitwiseOR(Linker->EntityManager.GetComponents()->GetMigrationMask(), EBitwiseOperatorFlags::MaxSize);
+
+#if WITH_EDITOR
+	FCoreUObjectDelegates::OnObjectsReplaced.AddUObject(this, &UMovieScenePropertyInstantiatorSystem::OnObjectsReplaced);
+#endif
 }
 
 void UMovieScenePropertyInstantiatorSystem::OnUnlink()
@@ -122,6 +126,10 @@ void UMovieScenePropertyInstantiatorSystem::OnUnlink()
 		InitializePropertyMetaDataTasks.Reset();
 		SaveGlobalStateTasks.Reset();
 	}
+
+#if WITH_EDITOR
+	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
+#endif
 }
 
 void UMovieScenePropertyInstantiatorSystem::OnCleanTaggedGarbage()
@@ -135,6 +143,33 @@ void UMovieScenePropertyInstantiatorSystem::OnCleanTaggedGarbage()
 	{
 		ProcessInvalidatedProperties(InvalidatedProperties);
 	}
+}
+
+void UMovieScenePropertyInstantiatorSystem::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
+{
+#if WITH_EDITOR
+	TArray<TTuple<UObject*, FName>> ObjectPropertyKeys;
+	ObjectPropertyToResolvedIndex.GetKeys(ObjectPropertyKeys);
+	for (const TTuple<UObject*, FName>& Key : ObjectPropertyKeys)
+	{
+		if (UObject* const* NewObject = ReplacementMap.Find(Key.Key))
+		{
+			FName PropertyName = Key.Value;
+			int32 ResolvedIndex;
+			ObjectPropertyToResolvedIndex.RemoveAndCopyValue(Key, ResolvedIndex);
+			ObjectPropertyToResolvedIndex.Add(TTuple<UObject*, FName>(*NewObject, PropertyName), ResolvedIndex);
+		}
+	}
+
+	for (auto It = ResolvedProperties.CreateIterator(); It; ++It)
+	{
+		FObjectPropertyInfo& ResolvedProperty = (*It);
+		if (UObject* const* NewObject = ReplacementMap.Find(ResolvedProperty.BoundObject))
+		{
+			ResolvedProperty.BoundObject = *NewObject;
+		}
+	}
+#endif
 }
 
 void UMovieScenePropertyInstantiatorSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites, FSystemSubsequentTasks& Subsequents)
