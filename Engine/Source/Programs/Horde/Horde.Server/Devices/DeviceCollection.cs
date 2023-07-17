@@ -506,11 +506,11 @@ namespace Horde.Server.Devices
 			_reservations = mongoService.GetCollection<DeviceReservationDocument>("Devices.Reservations");
 
 			List<MongoIndex<DeviceTelemetryDocument>> deviceTelemetryIndexes = new List<MongoIndex<DeviceTelemetryDocument>>();
-			deviceTelemetryIndexes.Add((keys => keys.Descending(x => x.CreateTimeUtc)));
+			deviceTelemetryIndexes.Add((keys => keys.Ascending(x => x.CreateTimeUtc)));
 			_deviceTelemetry = mongoService.GetCollection<DeviceTelemetryDocument>("Devices.DeviceTelemetryV2", deviceTelemetryIndexes);
 
 			List<MongoIndex<DevicePoolTelemetryDocument>> poolTelemetryIndexes = new List<MongoIndex<DevicePoolTelemetryDocument>>();
-			poolTelemetryIndexes.Add((keys => keys.Descending(x => x.CreateTimeUtc)));
+			poolTelemetryIndexes.Add((keys => keys.Ascending(x => x.CreateTimeUtc)));
 			_poolTelemetry = mongoService.GetCollection<DevicePoolTelemetryDocument>("Devices.PoolTelemetryV2", poolTelemetryIndexes);
 		}
 

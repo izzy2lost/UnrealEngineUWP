@@ -266,8 +266,7 @@ namespace Horde.Server.Tests
 			// make sure the reswrvation time was finished for the problem device
 			Assert.IsNotNull(telemetry[0].Telemetry[0].ReservationFinishUtc);
 		}
-
-		[Ignore]
+		
 		[TestMethod]
 		public async Task TestDevicePoolTelemetryCapture()
 		{
