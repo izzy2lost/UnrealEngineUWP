@@ -331,6 +331,8 @@ class FShaderCompilerDefinitions
 {
 public:
 	RENDERCORE_API FShaderCompilerDefinitions(bool bIncludeInitialDefines = false);
+	
+	RENDERCORE_API FShaderCompilerDefinitions(const FShaderCompilerDefinitions&);
 
 	/** Value types supported:   bool, int32, uint32, float, const TCHAR*, FString& */
 	template <typename ValueType>

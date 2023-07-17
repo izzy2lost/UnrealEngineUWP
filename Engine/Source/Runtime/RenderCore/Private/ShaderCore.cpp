@@ -138,6 +138,8 @@ FShaderCompilerDefinitions::FShaderCompilerDefinitions(bool bIncludeInitialDefin
 	}
 }
 
+FShaderCompilerDefinitions::FShaderCompilerDefinitions(const FShaderCompilerDefinitions&) = default;
+
 void FShaderCompilerDefinitions::InitializeInitialDefines(const FShaderCompilerDefinitions& InDefines)
 {
 	check(GInitialDefines == nullptr);
