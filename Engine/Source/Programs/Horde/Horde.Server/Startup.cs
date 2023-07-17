@@ -524,7 +524,7 @@ namespace Horde.Server
 			services.AddSingleton<IDdcBlobService, BlobService>();
 			services.AddSingleton<IDdcObjectService, ObjectService>();
 			services.AddSingleton<IReferenceResolver, ReferenceResolver>();
-			services.AddSingleton<IDdcContentIdStore, ContentIdStore>();
+			services.AddSingleton<IDdcContentIdService, ContentIdStore>();
 
 			// Secret providers
 			services.AddSingleton<SecretService>();

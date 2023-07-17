@@ -90,10 +90,10 @@ namespace Horde.Server.Ddc
     public class ReferenceResolver : IReferenceResolver
     {
         private readonly IDdcBlobService _blobStore;
-        private readonly IDdcContentIdStore _contentIdStore;
+        private readonly IDdcContentIdService _contentIdStore;
         private readonly Tracer _tracer;
 
-        public ReferenceResolver(IDdcBlobService blobStore, IDdcContentIdStore contentIdStore, Tracer tracer)
+        public ReferenceResolver(IDdcBlobService blobStore, IDdcContentIdService contentIdStore, Tracer tracer)
         {
             _blobStore = blobStore;
             _contentIdStore = contentIdStore;

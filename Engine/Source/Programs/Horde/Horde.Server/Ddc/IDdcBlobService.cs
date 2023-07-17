@@ -113,7 +113,7 @@ namespace Horde.Server.Ddc
 	{
 		public static async Task<ContentId> PutCompressedObject(this IDdcBlobService blobService, NamespaceId ns, IBufferedPayload payload, ContentId? id, IServiceProvider provider)
 		{
-			IDdcContentIdStore contentIdStore = provider.GetService<IDdcContentIdStore>()!;
+			IDdcContentIdService contentIdStore = provider.GetService<IDdcContentIdService>()!;
 			CompressedBufferUtils compressedBufferUtils = provider.GetService<CompressedBufferUtils>()!;
 			Tracer tracer = provider.GetService<Tracer>()!;
 
@@ -163,7 +163,7 @@ namespace Horde.Server.Ddc
 
 		public static async Task<(BlobContents, string)> GetCompressedObject(this IDdcBlobService blobService, NamespaceId ns, ContentId contentId, IServiceProvider provider, bool supportsRedirectUri = false)
 		{
-			IDdcContentIdStore contentIdStore = provider.GetService<IDdcContentIdStore>()!;
+			IDdcContentIdService contentIdStore = provider.GetService<IDdcContentIdService>()!;
 			Tracer tracer = provider.GetService<Tracer>()!;
 
 			BlobIdentifier[]? chunks = await contentIdStore.Resolve(ns, contentId, mustBeContentId: false);

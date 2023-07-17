@@ -19,9 +19,9 @@ namespace Horde.Server.Ddc
     public class DdcContentIdController : ControllerBase
     {
         private readonly IRequestHelper _requestHelper;
-        private readonly IDdcContentIdStore _contentIdStore;
+        private readonly IDdcContentIdService _contentIdStore;
 
-        public DdcContentIdController(IRequestHelper requestHelper, IDdcContentIdStore contentIdStore)
+        public DdcContentIdController(IRequestHelper requestHelper, IDdcContentIdService contentIdStore)
         {
             _requestHelper = requestHelper;
             _contentIdStore = contentIdStore;
