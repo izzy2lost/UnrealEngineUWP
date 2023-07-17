@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Horde.Server.Ddc
 {
-	public interface IDdcContentIdService
+	public interface IContentIdService
     {
         /// <summary>
         /// Resolve a content id from its hash into the actual blob (that can in turn be chunked into a set of blobs)

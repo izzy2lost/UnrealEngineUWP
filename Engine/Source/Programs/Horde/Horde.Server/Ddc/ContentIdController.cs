@@ -4,6 +4,7 @@ using System.Net.Mime;
 using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
+using Horde.Server.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,12 +17,12 @@ namespace Horde.Server.Ddc
     [Produces(MediaTypeNames.Application.Json, MediaTypeNames.Application.Octet, CustomMediaTypeNames.UnrealCompactBinary)]
     [Route("api/v1/content-id")]
     [Authorize]
-    public class DdcContentIdController : ControllerBase
+    public class ContentIdController : ControllerBase
     {
         private readonly IRequestHelper _requestHelper;
-        private readonly IDdcContentIdService _contentIdStore;
+        private readonly IContentIdService _contentIdStore;
 
-        public DdcContentIdController(IRequestHelper requestHelper, IDdcContentIdService contentIdStore)
+        public ContentIdController(IRequestHelper requestHelper, IContentIdService contentIdStore)
         {
             _requestHelper = requestHelper;
             _contentIdStore = contentIdStore;
@@ -37,7 +38,7 @@ namespace Horde.Server.Ddc
         [ProducesResponseType(type: typeof(ProblemDetails), 400)]
         public async Task<IActionResult> Resolve(NamespaceId ns, ContentId contentId)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
             if (result != null)
             {
                 return result;
@@ -64,7 +65,7 @@ namespace Horde.Server.Ddc
         [ProducesResponseType(type: typeof(ProblemDetails), 400)]
         public async Task<IActionResult> UpdateContentIdMapping(NamespaceId ns, ContentId contentId, BlobId blobIdentifier, int contentWeight)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.WriteBlobs });
             if (result != null)
             {
                 return result;

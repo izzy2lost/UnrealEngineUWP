@@ -18,6 +18,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
 using Horde.Server.Acls;
+using Horde.Server.Storage;
 using JetBrains.Annotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -38,7 +39,7 @@ namespace Horde.Server.Ddc
     [Produces(MediaTypeNames.Application.Json, MediaTypeNames.Application.Octet, CustomMediaTypeNames.UnrealCompactBinary)]
     [Route("api/v1/refs")]
     [Authorize]
-    public class DdcRefsController : ControllerBase
+    public class RefsController : ControllerBase
     {
         private readonly IDiagnosticContext _diagnosticContext;
         private readonly FormatResolver _formatResolver;
@@ -49,10 +50,10 @@ namespace Horde.Server.Ddc
         private readonly Tracer _tracer;
 
         private readonly ILogger _logger;
-        private readonly IDdcRefService _refService;
-        private readonly IDdcBlobService _blobStore;
+        private readonly IRefService _refService;
+        private readonly IBlobService _blobStore;
 
-        public DdcRefsController(IDdcRefService objectService, IDdcBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<DdcRefsController> logger)
+        public RefsController(IRefService objectService, IBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<RefsController> logger)
         {
             _refService = objectService;
             _blobStore = blobStore;
@@ -81,7 +82,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] RefId key,
             [FromRoute] string? format = null)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadRefs });
             if (accessResult != null)
             {
                 return accessResult;
@@ -412,7 +413,7 @@ namespace Horde.Server.Ddc
         [FromRoute] [Required] RefId key,
         [FromQuery] string[] fields)
     {
-        ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
+        ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadRefs });
         if (accessResult != null)
         {
             return accessResult;
@@ -453,7 +454,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] BucketId bucket,
             [FromRoute] [Required] RefId key)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadRefs });
             if (accessResult != null)
             {
                 return accessResult;
@@ -517,7 +518,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] NamespaceId ns,
             [FromQuery] [Required] List<string> names)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadRefs });
             if (accessResult != null)
             {
                 return accessResult;
@@ -587,7 +588,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] RefId key,
 			CancellationToken cancellationToken)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.WriteRefs });
             if (accessResult != null)
             {
                 return accessResult;
@@ -692,7 +693,7 @@ namespace Horde.Server.Ddc
             [FromRoute][Required] RefId key,
 			CancellationToken cancellationToken)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.WriteRefs });
             if (accessResult != null)
             {
                 return accessResult;
@@ -773,7 +774,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] RefId key,
             [FromRoute] [Required] BlobId hash)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.WriteRefs });
             if (accessResult != null)
             {
                 return accessResult;
@@ -806,11 +807,11 @@ namespace Horde.Server.Ddc
                 switch (op)
                 {
                     case RefBatchOps.RefBatchOp.RefOperation.GET:
-                        return DdcAclAction.ReadObject;
+                        return StorageAclAction.ReadRefs;
                     case RefBatchOps.RefBatchOp.RefOperation.PUT:
-                        return DdcAclAction.WriteObject;
+                        return StorageAclAction.WriteRefs;
                     case RefBatchOps.RefBatchOp.RefOperation.HEAD:
-                        return DdcAclAction.ReadObject;
+						return StorageAclAction.ReadRefs;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(op), op, null);
                 }
@@ -1005,7 +1006,7 @@ namespace Horde.Server.Ddc
             [FromRoute] [Required] BucketId bucket,
             [FromRoute] [Required] RefId key)
         {
-            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.DeleteObject });
+            ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.DeleteRefs });
             if (accessResult != null)
             {
                 return accessResult;

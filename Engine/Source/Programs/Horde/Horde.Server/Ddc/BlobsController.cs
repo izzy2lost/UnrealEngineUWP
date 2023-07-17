@@ -16,6 +16,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
 using Horde.Server.Acls;
+using Horde.Server.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -31,16 +32,16 @@ namespace Horde.Server.Ddc
     [Route("api/v1/s", Order = 1)]
     [Route("api/v1/blobs", Order = 0)]
     [Authorize]
-    public class DdcBlobsController : ControllerBase
+    public class BlobsController : ControllerBase
     {
-        private readonly IDdcBlobService _storage;
+        private readonly IBlobService _storage;
         private readonly IDiagnosticContext _diagnosticContext;
         private readonly IRequestHelper _requestHelper;
         private readonly BufferedPayloadFactory _bufferedPayloadFactory;
         private readonly NginxRedirectHelper _nginxRedirectHelper;
 		private readonly Tracer _tracer;
 
-        public DdcBlobsController(IDdcBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, BufferedPayloadFactory bufferedPayloadFactory, NginxRedirectHelper nginxRedirectHelper, Tracer tracer)
+        public BlobsController(IBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, BufferedPayloadFactory bufferedPayloadFactory, NginxRedirectHelper nginxRedirectHelper, Tracer tracer)
         {
             _storage = storage;
             _diagnosticContext = diagnosticContext;
@@ -57,7 +58,7 @@ namespace Horde.Server.Ddc
             [Required] BlobId id,
             [FromQuery] List<string>? storageLayers = null)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
             if (result != null)
             {
                 return result;
@@ -94,7 +95,7 @@ namespace Horde.Server.Ddc
             [Required] BlobId id,
             [FromQuery] List<string>? storageLayers = null)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
             if (result != null)
             {
                 return result;
@@ -115,7 +116,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [Required] [FromQuery] List<BlobId> id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
             if (result != null)
             {
                 return result;
@@ -141,7 +142,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [FromBody] BlobId[] bodyIds)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
             if (result != null)
             {
                 return result;
@@ -174,7 +175,7 @@ namespace Horde.Server.Ddc
             [Required] BlobId id,
 			CancellationToken cancellationToken)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.WriteBlobs });
             if (result != null)
             {
                 return result;
@@ -184,7 +185,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                Uri? uri = await _storage.MaybePutObjectWithRedirectAsync(ns, id);
+                Uri? uri = await _storage.MaybePutObjectWithRedirectAsync(ns, id, cancellationToken);
                 if (uri != null)
                 {
                     return Ok(new
@@ -217,7 +218,7 @@ namespace Horde.Server.Ddc
         public async Task<IActionResult> Post(
             [Required] NamespaceId ns)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.WriteBlobs });
             if (result != null)
             {
                 return result;
@@ -283,9 +284,9 @@ namespace Horde.Server.Ddc
                 {
                     case BatchOp.Operation.GET:
                     case BatchOp.Operation.HEAD:
-                        return DdcAclAction.ReadObject;
+                        return StorageAclAction.ReadBlobs;
                     case BatchOp.Operation.PUT:
-                        return DdcAclAction.WriteObject;
+						return StorageAclAction.WriteBlobs;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(op), op, null);
                 }

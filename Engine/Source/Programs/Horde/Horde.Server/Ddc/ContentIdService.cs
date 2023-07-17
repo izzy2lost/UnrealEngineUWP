@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Horde.Server.Ddc
 {
-	class ContentIdStore : IDdcContentIdService
+	class ContentIdService : IContentIdService
 	{
 		public Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId = false)
 		{

@@ -13,14 +13,14 @@ using OpenTelemetry.Trace;
 
 namespace Horde.Server.Ddc
 {
-	class DdcBlobService : IDdcBlobService
+	class BlobService : IBlobService
 	{
 		BlobType s_rawBlobType = new BlobType(new Guid("{03E6C37B-33C1-491F-8541-D3C401B8B8EF}"), 1);
 
 		readonly StorageService _storageService;
 		readonly Tracer _tracer;
 
-		public DdcBlobService(StorageService storageService, Tracer tracer)
+		public BlobService(StorageService storageService, Tracer tracer)
 		{
 			_storageService = storageService;
 			_tracer = tracer;

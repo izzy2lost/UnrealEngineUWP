@@ -20,7 +20,7 @@ namespace Horde.Server.Ddc
 	/// <summary>
 	/// Interface for the DDC blobs service
 	/// </summary>
-	public interface IDdcBlobService
+	public interface IBlobService
 	{
 		Task VerifyContentMatchesHashAsync(Stream stream, IoHash expectedHash, CancellationToken cancellationToken = default);
 		Task<BlobId> PutObjectAsync(NamespaceId ns, BufferedPayload payload, BlobId identifier, CancellationToken cancellationToken = default);
@@ -97,9 +97,9 @@ namespace Horde.Server.Ddc
 
 	public static class BlobServiceExtensions
 	{
-		public static async Task<ContentId> PutCompressedObject(this IDdcBlobService blobService, NamespaceId ns, BufferedPayload payload, ContentId? id, IServiceProvider provider)
+		public static async Task<ContentId> PutCompressedObject(this IBlobService blobService, NamespaceId ns, BufferedPayload payload, ContentId? id, IServiceProvider provider)
 		{
-			IDdcContentIdService contentIdStore = provider.GetService<IDdcContentIdService>()!;
+			IContentIdService contentIdStore = provider.GetService<IContentIdService>()!;
 			CompressedBufferUtils compressedBufferUtils = provider.GetService<CompressedBufferUtils>()!;
 			Tracer tracer = provider.GetService<Tracer>()!;
 
@@ -142,9 +142,9 @@ namespace Horde.Server.Ddc
 			return identifierDecompressedPayload;
 		}
 
-		public static async Task<(BlobContents, string)> GetCompressedObject(this IDdcBlobService blobService, NamespaceId ns, ContentId contentId, IServiceProvider provider, bool supportsRedirectUri = false)
+		public static async Task<(BlobContents, string)> GetCompressedObject(this IBlobService blobService, NamespaceId ns, ContentId contentId, IServiceProvider provider, bool supportsRedirectUri = false)
 		{
-			IDdcContentIdService contentIdStore = provider.GetService<IDdcContentIdService>()!;
+			IContentIdService contentIdStore = provider.GetService<IContentIdService>()!;
 			Tracer tracer = provider.GetService<Tracer>()!;
 
 			BlobId[]? chunks = await contentIdStore.ResolveAsync(ns, contentId, mustBeContentId: false);

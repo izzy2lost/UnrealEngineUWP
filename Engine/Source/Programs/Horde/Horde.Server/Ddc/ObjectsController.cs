@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
+using Horde.Server.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -27,9 +28,9 @@ namespace Horde.Server.Ddc
     [Route("api/v1/objects", Order = 0)]
     [Authorize]
     [Produces(CustomMediaTypeNames.UnrealCompactBinary, MediaTypeNames.Application.Json)]
-    public class DdcObjectsController : ControllerBase
+    public class ObjectsController : ControllerBase
     {
-        private readonly IDdcBlobService _storage;
+        private readonly IBlobService _storage;
         private readonly IDiagnosticContext _diagnosticContext;
         private readonly IRequestHelper _requestHelper;
         private readonly IReferenceResolver _referenceResolver;
@@ -37,7 +38,7 @@ namespace Horde.Server.Ddc
 		private readonly Tracer _tracer;
         private readonly ILogger _logger;
 
-        public DdcObjectsController(IDdcBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, IReferenceResolver referenceResolver, BufferedPayloadFactory bufferedPayloadFactory, Tracer tracer, ILogger<DdcObjectsController> logger)
+        public ObjectsController(IBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, IReferenceResolver referenceResolver, BufferedPayloadFactory bufferedPayloadFactory, Tracer tracer, ILogger<ObjectsController> logger)
         {
             _storage = storage;
             _diagnosticContext = diagnosticContext;
@@ -54,7 +55,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [Required] BlobId id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
             if (result != null)
             {
                 return result;
@@ -78,7 +79,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [Required] BlobId id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
             if (result != null)
             {
                 return result;
@@ -100,7 +101,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [Required] [FromQuery] List<BlobId> id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
             if (result != null)
             {
                 return result;
@@ -126,7 +127,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [FromBody] BlobId[] bodyIds)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
             if (result != null)
             {
                 return result;
@@ -153,7 +154,7 @@ namespace Horde.Server.Ddc
             [Required] BlobId id,
 			CancellationToken cancellationToken)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.WriteObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.WriteBlobs });
             if (result != null)
             {
                 return result;
@@ -178,7 +179,7 @@ namespace Horde.Server.Ddc
             [Required] NamespaceId ns,
             [Required] BlobId id)
         {
-            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { DdcAclAction.ReadObject });
+            ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new [] { StorageAclAction.ReadBlobs });
             if (result != null)
             {
                 return result;

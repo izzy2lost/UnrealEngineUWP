@@ -12,7 +12,7 @@ using EpicGames.Serialization;
 
 namespace Horde.Server.Ddc
 {
-	public interface IDdcRefService
+	public interface IRefService
     {
         Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[] fields, bool doLastAccessTracking = true, CancellationToken cancellationToken = default);
         Task<(ContentId[], BlobId[])> PutAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CbObject payload, CancellationToken cancellationToken = default);
