@@ -41,6 +41,34 @@ struct FPendingShaderMapCompileResults
 using FPendingShaderMapCompileResultsPtr = TRefCountPtr<FPendingShaderMapCompileResults>;
 
 
+/**
+ * Cached reference to the location of an in-flight job's FShaderJobData in the FShaderJobDataMap, used by the private FShaderJobCache class.
+ *
+ * Caching the reference avoids the need to do additional map lookups to find the entry again, potentially avoiding a lock of the container for
+ * the lookup.  Heap allocation of blocks is used by the cache to allow map entries to have a persistent location in memory.  The persistent
+ * memory allows modifications of map entry data for a given job, without needing locks to protect against container resizing.
+ *
+ * In-flight jobs and their duplicates reference the same FShaderJobData.  Client code should treat this structure as opaque.
+ */
+struct FShaderJobCacheRef
+{
+	/** Pointer to block the private FShaderJobData is stored in */
+	struct FShaderJobDataBlock* Block = nullptr;
+
+	/** Index of FShaderJobData in the block */
+	int32 IndexInBlock = INDEX_NONE;
+
+	/** If job is a duplicate, index of pointer to job in DuplicateJobs array in FShaderJobCache, used for clearing the pointer when the in-flight job completes */
+	int32 DuplicateIndex = INDEX_NONE;
+
+	void Clear()
+	{
+		Block = nullptr;
+		IndexInBlock = INDEX_NONE;
+		DuplicateIndex = INDEX_NONE;
+	}
+};
+
 /** Stores all of the common information used to compile a shader or pipeline. */
 class FShaderCommonCompileJob : public TIntrusiveLinkedList<FShaderCommonCompileJob>
 {
@@ -85,6 +113,8 @@ public:
 	double TimeAssignedToExecution = 0.0;
 	/** In-engine timestamp of job being completed. Encompasses the compile time. Not set for jobs that are satisfied from the jobs cache */
 	double TimeExecutionCompleted = 0.0;
+
+	FShaderJobCacheRef JobCacheRef;
 
 	uint32 AddRef() const
 	{
