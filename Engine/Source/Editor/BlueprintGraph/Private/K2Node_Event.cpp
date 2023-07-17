@@ -336,7 +336,7 @@ FName UK2Node_Event::GetFunctionName() const
 	return bOverrideFunction ? EventReference.GetMemberName() : CustomFunctionName;
 }
 
-UFunction* UK2Node_Event::FindEventSignatureFunction()
+UFunction* UK2Node_Event::FindEventSignatureFunction() const
 {
 	return EventReference.ResolveMember<UFunction>(GetBlueprintClassFromNode());
 }
