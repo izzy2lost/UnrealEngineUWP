@@ -14,6 +14,7 @@ using EpicGames.Serialization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Trace;
 
 #pragma warning disable CS1591
 
@@ -32,16 +33,17 @@ namespace Horde.Server.Ddc
         private readonly IRequestHelper _requestHelper;
         private readonly IReferenceResolver _referenceResolver;
         private readonly BufferedPayloadFactory _bufferedPayloadFactory;
-
+		private readonly Tracer _tracer;
         private readonly ILogger _logger;
 
-        public DdcObjectsController(IDdcBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, IReferenceResolver referenceResolver, BufferedPayloadFactory bufferedPayloadFactory, ILogger<DdcObjectsController> logger)
+        public DdcObjectsController(IDdcBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, IReferenceResolver referenceResolver, BufferedPayloadFactory bufferedPayloadFactory, Tracer tracer, ILogger<DdcObjectsController> logger)
         {
             _storage = storage;
             _diagnosticContext = diagnosticContext;
             _requestHelper = requestHelper;
             _referenceResolver = referenceResolver;
             _bufferedPayloadFactory = bufferedPayloadFactory;
+			_tracer = tracer;
             _logger = logger;
         }
 
@@ -160,7 +162,7 @@ namespace Horde.Server.Ddc
             {
                 using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
-                BlobId identifier = await _storage.PutObjectAsync(ns, payload, id);
+                BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, _tracer);
                 return Ok(new PutBlobResponse(identifier));
             }
             catch (ClientSendSlowException e)

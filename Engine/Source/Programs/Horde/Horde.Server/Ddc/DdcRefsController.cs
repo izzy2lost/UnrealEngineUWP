@@ -647,7 +647,7 @@ namespace Horde.Server.Ddc
                     {
                         // TODO: define a scheme for how a json object specifies references
 
-                        blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash);
+                        blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, _tracer);
 
                         // TODO: convert the json object into a compact binary instead
                         CbWriter writer = new CbWriter();
@@ -670,7 +670,7 @@ namespace Horde.Server.Ddc
                     }
                     case MediaTypeNames.Application.Octet:
                     {
-                        blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash);
+                        blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, _tracer);
 
                         CbWriter writer = new CbWriter();
                         writer.BeginObject();
@@ -744,7 +744,7 @@ namespace Horde.Server.Ddc
                     }
                     else
                     {
-                        await _blobStore.PutObjectAsync(ns, blob, new BlobId(entry.AttachmentHash));
+                        await _blobStore.PutObjectAsync(ns, blob, new BlobId(entry.AttachmentHash), _tracer);
                     }
                 }
             }

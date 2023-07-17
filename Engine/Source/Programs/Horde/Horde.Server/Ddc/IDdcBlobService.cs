@@ -22,8 +22,6 @@ namespace Horde.Server.Ddc
 	public interface IDdcBlobService
 	{
 		Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, BufferedPayload content, BlobId identifier);
-		Task<BlobId> PutObjectAsync(NamespaceId ns, BufferedPayload payload, BlobId identifier);
-		Task<BlobId> PutObjectAsync(NamespaceId ns, byte[] payload, BlobId identifier);
 		Task<Uri?> MaybePutObjectWithRedirectAsync(NamespaceId ns, BlobId identifier);
 
 		Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, bool supportsRedirectUri = false);
@@ -95,7 +93,7 @@ namespace Horde.Server.Ddc
 
 	public static class BlobServiceExtensions
 	{
-		public static async Task VerifyContentMatchesHash(Stream stream, IoHash expectedHash, Tracer tracer)
+		public static async Task VerifyContentMatchesHashAsync(Stream stream, IoHash expectedHash, Tracer tracer)
 		{
 			IoHash hash;
 			using (TelemetrySpan _ = tracer.StartActiveSpan("web.hash").SetAttribute("operation.name", "web.hash"))
@@ -106,6 +104,26 @@ namespace Horde.Server.Ddc
 			{
 				throw new HashMismatchException(hash, expectedHash);
 			}
+		}
+
+		public static async Task<BlobId> PutObjectAsync(this IDdcBlobService blobService, NamespaceId ns, BufferedPayload payload, BlobId identifier, Tracer tracer)
+		{
+			using TelemetrySpan scope = tracer.StartActiveSpan("put_blob")
+				.SetAttribute("operation.name", "put_blob")
+				.SetAttribute("resource.name", identifier.ToString())
+				.SetAttribute("Content-Length", payload.Length.ToString());
+
+			await using Stream hashStream = payload.GetStream();
+			await VerifyContentMatchesHashAsync(hashStream, identifier.Hash, tracer);
+
+			await blobService.PutObjectKnownHashAsync(ns, payload, identifier);
+			return identifier;
+		}
+
+		public static Task<BlobId> PutObjectAsync(this IDdcBlobService blobService, NamespaceId ns, byte[] payload, BlobId identifier, Tracer tracer)
+		{
+			using MemoryBufferedPayload bufferedPayload = new MemoryBufferedPayload(payload);
+			return PutObjectAsync(blobService, ns, bufferedPayload, identifier, tracer);
 		}
 
 		public static async Task<ContentId> PutCompressedObject(this IDdcBlobService blobService, NamespaceId ns, BufferedPayload payload, ContentId? id, IServiceProvider provider)

@@ -18,6 +18,7 @@ using Horde.Server.Acls;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using OpenTelemetry.Trace;
 
 #pragma warning disable CS1591
 
@@ -36,14 +37,16 @@ namespace Horde.Server.Ddc
         private readonly IRequestHelper _requestHelper;
         private readonly BufferedPayloadFactory _bufferedPayloadFactory;
         private readonly NginxRedirectHelper _nginxRedirectHelper;
+		private readonly Tracer _tracer;
 
-        public DdcBlobsController(IDdcBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, BufferedPayloadFactory bufferedPayloadFactory, NginxRedirectHelper nginxRedirectHelper)
+        public DdcBlobsController(IDdcBlobService storage, IDiagnosticContext diagnosticContext, IRequestHelper requestHelper, BufferedPayloadFactory bufferedPayloadFactory, NginxRedirectHelper nginxRedirectHelper, Tracer tracer)
         {
             _storage = storage;
             _diagnosticContext = diagnosticContext;
             _requestHelper = requestHelper;
             _bufferedPayloadFactory = bufferedPayloadFactory;
             _nginxRedirectHelper = nginxRedirectHelper;
+			_tracer = tracer;
         }
 
         [HttpGet("{ns}/{id}")]
@@ -190,7 +193,7 @@ namespace Horde.Server.Ddc
                 }
                 using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
-                BlobId identifier = await _storage.PutObjectAsync(ns, payload, id);
+                BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, _tracer);
                 return Ok(new
                 {
                     Identifier = identifier.ToString()
@@ -351,7 +354,7 @@ namespace Horde.Server.Ddc
                             }
 
                             using MemoryBufferedPayload payload = new MemoryBufferedPayload(op.Content);
-                            tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id.Value).ContinueWith((t, _) => (object?) t.Result, null, TaskScheduler.Current);
+                            tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id.Value, _tracer).ContinueWith((t, _) => (object?) t.Result, null, TaskScheduler.Current);
                             break;
                         }
                     default:
