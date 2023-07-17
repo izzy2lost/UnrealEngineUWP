@@ -11,11 +11,11 @@ using EpicGames.Serialization;
 
 namespace Horde.Server.Ddc
 {
-	public interface IDdcObjectService
+	public interface IDdcRefService
     {
         Task<(ObjectRecord, BlobContents?)> Get(NamespaceId ns, BucketId bucket, IoHash key, string[] fields, bool doLastAccessTracking = true);
         Task<(ContentId[], BlobIdentifier[])> Put(NamespaceId ns, BucketId bucket, IoHash key, BlobIdentifier blobHash, CbObject payload);
-        Task<(ContentId[], BlobIdentifier[])> Finalize(NamespaceId ns, BucketId bucket, IoHash key, BlobIdentifier blobHash);
+        Task<(ContentId[], BlobIdentifier[])> IDdcRefService(NamespaceId ns, BucketId bucket, IoHash key, BlobIdentifier blobHash);
 
         IAsyncEnumerable<NamespaceId> GetNamespaces();
 

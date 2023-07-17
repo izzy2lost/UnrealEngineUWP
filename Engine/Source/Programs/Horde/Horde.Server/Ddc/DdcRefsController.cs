@@ -49,10 +49,10 @@ namespace Horde.Server.Ddc
         private readonly Tracer _tracer;
 
         private readonly ILogger _logger;
-        private readonly IDdcObjectService _objectService;
+        private readonly IDdcRefService _objectService;
         private readonly IDdcBlobService _blobStore;
 
-        public DdcRefsController(IDdcObjectService objectService, IDdcBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<DdcRefsController> logger)
+        public DdcRefsController(IDdcRefService objectService, IDdcBlobService blobStore, IDiagnosticContext diagnosticContext, FormatResolver formatResolver, BufferedPayloadFactory bufferedPayloadFactory, IReferenceResolver referenceResolver, NginxRedirectHelper nginxRedirectHelper, IRequestHelper requestHelper, Tracer tracer, ILogger<DdcRefsController> logger)
         {
             _objectService = objectService;
             _blobStore = blobStore;
@@ -806,7 +806,7 @@ namespace Horde.Server.Ddc
 
             try
             {
-                (ContentId[] missingReferences, BlobIdentifier[] missingBlobs) = await _objectService.Finalize(ns, bucket, key, hash);
+                (ContentId[] missingReferences, BlobIdentifier[] missingBlobs) = await _objectService.IDdcRefService(ns, bucket, key, hash);
                 List<JupiterContentHash> missingHashes = new List<JupiterContentHash>(missingReferences);
                 missingHashes.AddRange(missingBlobs);
 
