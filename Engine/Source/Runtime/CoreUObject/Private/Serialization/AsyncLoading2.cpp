@@ -1895,6 +1895,18 @@ private:
 			Meta.SetFlags(static_cast<EBulkDataFlags>(Entry.Flags));
 			Meta.SetOffset(Entry.SerialOffset);
 			Meta.SetSize(Entry.SerialSize);
+
+#if !USE_RUNTIME_BULKDATA
+			// If the payload was compressed at package level then we will not be able to decompress it properly as that requires
+			// us to know the compressed size (SizeOnDisk) which we do not keep track of when the package is stored by the IoDispatcher.
+			// The BULKDATA_SerializeCompressed flag is removed during cooking/staging so the flag should never be set at this point,
+			// the assert is just a paranoid safety check.
+			checkf(Meta.HasAnyFlags(BULKDATA_SerializeCompressed) == false, TEXT("Package level compression is not supported by the IoDispatcher: '%s'"), *PackageDesc->UPackageName.ToString());
+
+			// Since we know that the payload is not compressed there is no difference between the in memory size and the size of disk
+			Meta.SetSizeOnDisk(Entry.SerialSize);
+#endif //!USE_RUNTIME_BULKDATA
+
 			DuplicateSerialOffset = Entry.DuplicateSerialOffset;
 		}
 
