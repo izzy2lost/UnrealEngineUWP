@@ -5528,6 +5528,7 @@ UObject* FLinkerLoad::CreateImport( int32 Index )
 					UObjectRedirector* Redirector = dynamic_cast<UObjectRedirector*>(Import.XObject);
 					if( Redirector )
 					{
+						Preload(Redirector);
 						Import.XObject = Redirector->DestinationObject;
 					}
 				}
