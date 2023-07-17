@@ -3,6 +3,7 @@
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using EpicGames.Core;
 
 #pragma warning disable CS1591
 
@@ -31,7 +32,7 @@ namespace Horde.Server.Ddc
         {
             byte[] sha1 = GetSHA1(payload);
 
-            return StringUtils.FormatAsHexString(sha1);
+            return StringUtils.FormatHexString(sha1);
         }
     }
 

@@ -41,7 +41,7 @@ namespace Horde.Server.Ddc
                 throw new ArgumentNullException(nameof(identifier));
             }
 
-            byte[] byteIdentifier = StringUtils.ToHashFromHexString(identifier);
+            byte[] byteIdentifier = StringUtils.ParseHexString(identifier);
             Identifier = byteIdentifier;
             /*if (byteIdentifier.Length != HashLength)
             {
@@ -96,7 +96,7 @@ namespace Horde.Server.Ddc
 
         public override string ToString()
         {
-            return StringUtils.FormatAsHexString(Identifier);
+            return StringUtils.FormatHexString(Identifier);
         }
 
         public static JupiterContentHash FromBlob(byte[] blobMemory)

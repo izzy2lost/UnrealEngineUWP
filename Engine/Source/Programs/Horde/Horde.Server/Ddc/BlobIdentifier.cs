@@ -76,7 +76,7 @@ namespace Horde.Server.Ddc
         {
             if (_stringIdentifier == null)
             {
-                _stringIdentifier = StringUtils.FormatAsHexString(Identifier);
+                _stringIdentifier = StringUtils.FormatHexString(Identifier);
             }
 
             return _stringIdentifier;
