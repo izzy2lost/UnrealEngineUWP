@@ -211,6 +211,7 @@ UMassStateTreeFragmentDestructor::UMassStateTreeFragmentDestructor()
 void UMassStateTreeFragmentDestructor::Initialize(UObject& Owner)
 {
 	SignalSubsystem = UWorld::GetSubsystem<UMassSignalSubsystem>(Owner.GetWorld());
+	Super::Initialize(Owner);
 }
 
 void UMassStateTreeFragmentDestructor::ConfigureQueries()
