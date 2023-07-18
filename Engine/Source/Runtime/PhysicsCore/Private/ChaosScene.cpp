@@ -538,7 +538,7 @@ void FChaosScene::EndFrame()
 			{
 				SyncBodies(&Concrete);
 				Concrete.SyncEvents_GameThread();
-				Solver->AllowSwitchEventBuffer();
+				Solver->FlipEventManagerBuffer();
 				{
 					SCOPE_CYCLE_COUNTER(STAT_SqUpdateMaterials);
 					Concrete.SyncQueryMaterials_External();

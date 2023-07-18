@@ -232,6 +232,7 @@ namespace Chaos
 		
 		/**/
 		FEventManager* GetEventManager() { return MEventManager.Get(); }
+		virtual void FlipEventManagerBuffer() { MEventManager->FlipBuffersIfRequired(); }
 
 		/**/
 		FSolverEventFilters* GetEventFilters() { return MSolverEventFilters.Get(); }

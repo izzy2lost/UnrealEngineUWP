@@ -636,6 +636,8 @@ namespace Chaos
 			}
 		}
 
+		virtual void FlipEventManagerBuffer() {}
+
 		/**/
 		void SetSolverTime(const FReal InTime) { MTime = InTime; }
 		const FReal GetSolverTime() const { return MTime; }
@@ -682,11 +684,6 @@ namespace Chaos
 
 			return NetworkPhysicsPredictionInterpLerp;
 		}
-
-
-		bool CanSwitchEventBuffer() const { return bCanSwitchEventBuffer; }
-		void AllowSwitchEventBuffer() { bCanSwitchEventBuffer = true; }
-		void BlockSwitchEventBuffer() { bCanSwitchEventBuffer = false; }
 
 	protected:
 		/** Mode that the results buffers should be set to (single, double, triple) */
@@ -793,7 +790,6 @@ namespace Chaos
 		float MMinDeltaTime;
 		int32 MMaxSubSteps;
 		int32 ExternalSteps;
-		bool bCanSwitchEventBuffer;
 		TArray<FGeometryParticle*> UniqueIdxToGTParticles;
 
 	public:

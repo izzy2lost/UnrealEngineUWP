@@ -513,14 +513,6 @@ namespace Chaos
 					MSolver->GetEventManager()->FillProducerData(MSolver, ResetData);
 					MSolver->GetEvolution()->ResetAllRemovals();
 				}
-
-				// flip on last sub-step of frame
-				if (MSubStepInfo.Step == MSubStepInfo.NumSteps - 1 && MSolver->CanSwitchEventBuffer())
-				{
-					SCOPE_CYCLE_COUNTER(STAT_FlipBuffersIfRequired);
-					MSolver->GetEventManager()->FlipBuffersIfRequired();
-					MSolver->BlockSwitchEventBuffer();
-				}
 			}
 			
 			{
