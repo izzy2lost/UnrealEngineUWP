@@ -2,6 +2,8 @@
 
 using EpicGames.Core;
 using EpicGames.Perforce;
+using JetBrains.Annotations;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -9,7 +11,8 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.IO;
-using System.Linq;	
+using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -30,14 +33,17 @@ namespace UnrealGameSync
 
 	public class PerforceChangeDetails
 	{
+		public int Number { get; }
 		public string Description { get; }
 		public bool ContainsCode { get; }
 		public bool ContainsContent { get; }
+		public bool ContainsUgsConfig { get; }
 
 		public PerforceChangeDetails(DescribeRecord describeRecord, Func<string, bool>? isCodeFile = null)
 		{
 			isCodeFile ??= IsCodeFile;
 
+			Number = describeRecord.Number;
 			Description = describeRecord.Description;
 
 			// Check whether the files are code or content
@@ -52,9 +58,9 @@ namespace UnrealGameSync
 					ContainsContent = true;
 				}
 
-				if (ContainsCode && ContainsContent)
+				if (file.DepotFile.EndsWith("/UnrealGameSync.ini", StringComparison.OrdinalIgnoreCase))
 				{
-					break;
+					ContainsUgsConfig = true;
 				}
 			}
 		}
@@ -67,6 +73,271 @@ namespace UnrealGameSync
 
 	public static class Utility
 	{
+		static readonly MemoryCache s_changeCache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 4096 });
+
+		class CachedChangeRecord
+		{
+			public ChangesRecord ChangesRecord { get; }
+			public int? PrevNumber { get; set; }
+
+			public CachedChangeRecord(ChangesRecord changesRecord) => ChangesRecord = changesRecord;
+		}
+
+		static string GetChangeCacheKey(int number, Sha1Hash config) => $"change: {number} ({config})";
+
+		static string GetChangeDetailsCacheKey(int number, Sha1Hash config) => $"details: {number} ({config})";
+
+		static Sha1Hash GetConfigHash(IPerforceConnection perforce, IEnumerable<string> syncPaths, IEnumerable<string> codeRules)
+		{
+			StringBuilder digest = new StringBuilder();
+			digest.AppendLine($"Server: {perforce.Settings.ServerAndPort}");
+			digest.AppendLine($"User: {perforce.Settings.UserName}");
+			digest.AppendLine($"Client: {perforce.Settings.ClientName}");
+			foreach (string syncPath in syncPaths)
+			{
+				digest.AppendLine($"Sync: {syncPath}");
+			}
+			foreach (string codeRule in codeRules)
+			{
+				digest.AppendLine($"Rule: {codeRule}");
+			}
+			return Sha1Hash.Compute(Encoding.UTF8.GetBytes(digest.ToString()));
+		}
+
+		/// <summary>
+		/// Gets the code filter from the project config file
+		/// </summary>
+		public static string[] GetCodeFilter(ConfigFile projectConfigFile)
+		{
+			ConfigSection? projectConfigSection = projectConfigFile.FindSection("Perforce");
+			return projectConfigSection?.GetValues("CodeFilter", (string[]?)null) ?? Array.Empty<string>();
+		}
+
+		/// <summary>
+		/// Creates or returns cached <see cref="PerforceChangeDetails"/> objects describing the requested chagnes
+		/// </summary>
+		public static async IAsyncEnumerable<ChangesRecord> EnumerateChanges(IPerforceConnection perforce, IEnumerable<string> syncPaths, int? minChangeNumber, int? maxChangeNumber, int? maxChanges, [EnumeratorCancellation] CancellationToken cancellationToken)
+		{
+			CachedChangeRecord? prevCachedChangeRecord = null;
+
+			Sha1Hash configHash = GetConfigHash(perforce, syncPaths, Array.Empty<string>());
+			while (maxChanges == null || maxChanges.Value > 0)
+			{
+				// If we have a maximum changelist number, see if the previous change is in the cache
+				if (maxChangeNumber != null)
+				{
+					if (minChangeNumber != null && maxChangeNumber.Value < minChangeNumber.Value)
+					{
+						yield break;
+					}
+
+					string cacheKey = GetChangeCacheKey(maxChangeNumber.Value, configHash);
+					if (s_changeCache.TryGetValue(cacheKey, out CachedChangeRecord change))
+					{
+						yield return change.ChangesRecord;
+
+						if (maxChanges != null)
+						{
+							maxChanges = maxChanges.Value - 1;
+						}
+
+						if (change.PrevNumber != null)
+						{
+							maxChangeNumber = change.PrevNumber.Value;
+						}
+						else
+						{
+							maxChangeNumber = change.ChangesRecord.Number - 1;
+						}
+
+						prevCachedChangeRecord = change;
+						continue;
+					}
+				}
+
+				// Get the search range
+				string range;
+				if (minChangeNumber == null)
+				{
+					if (maxChangeNumber == null)
+					{
+						range = "";
+					}
+					else
+					{
+						range = $"@<={maxChangeNumber.Value}";
+					}
+				}
+				else
+				{
+					if (maxChangeNumber == null)
+					{
+						range = $"@{minChangeNumber.Value},#head";
+					}
+					else
+					{
+						range = $"@{minChangeNumber.Value},{maxChangeNumber.Value}";
+					}
+				}
+
+				// Get the next batch of change numbers
+				int maxChangesForBatch = maxChanges ?? 20;
+				List<string> syncPathsWithChange = syncPaths.Select(x => $"{x}{range}").ToList();
+
+				List<ChangesRecord> changes;
+				if (minChangeNumber == null)
+				{
+					changes = await perforce.GetChangesAsync(ChangesOptions.IncludeTimes | ChangesOptions.LongOutput, maxChangesForBatch, ChangeStatus.Submitted, syncPathsWithChange, cancellationToken);
+				}
+				else
+				{
+					changes = await perforce.GetChangesAsync(ChangesOptions.IncludeTimes | ChangesOptions.LongOutput, clientName: null, minChangeNumber: minChangeNumber.Value, maxChangesForBatch, ChangeStatus.Submitted, userName:null, fileSpecs: syncPathsWithChange, cancellationToken: cancellationToken);
+				}
+
+				// Sort the changes in case we get interleaved output from multiple sync paths
+				changes = changes.OrderByDescending(x => x.Number).Take(maxChangesForBatch).ToList();
+
+				// Add all the previous change numbers to the cache
+				foreach(ChangesRecord change in changes)
+				{
+					if (prevCachedChangeRecord != null)
+					{
+						prevCachedChangeRecord.PrevNumber = change.Number;
+					}
+
+					prevCachedChangeRecord = new CachedChangeRecord(change);
+
+					string cacheKey = GetChangeCacheKey(change.Number, configHash);
+					using (ICacheEntry entry = s_changeCache.CreateEntry(cacheKey))
+					{
+						entry.SetSize(1);
+						entry.Value = prevCachedChangeRecord;
+					}
+
+					maxChangeNumber = change.Number - 1;
+				}
+
+				// Return the results
+				foreach (ChangesRecord change in changes)
+				{
+					yield return change;
+				}
+
+				// If we have run out of changes, quit now
+				if (changes.Count < maxChangesForBatch)
+				{
+					break;
+				}
+				if (maxChanges != null)
+				{
+					maxChanges = maxChanges.Value - changes.Count;
+				}
+			}
+		}
+
+		/// <summary>
+		/// Creates or returns cached <see cref="PerforceChangeDetails"/> objects describing the requested chagnes
+		/// </summary>
+		public static IAsyncEnumerable<PerforceChangeDetails> EnumerateChangeDetails(IPerforceConnection perforce, int? minChangeNumber, int? maxChangeNumber, IEnumerable<string> syncPaths, IEnumerable<string> codeRules, CancellationToken cancellationToken)
+		{
+			IAsyncEnumerable<int> changeNumbers = EnumerateChanges(perforce, syncPaths, minChangeNumber, maxChangeNumber, null, cancellationToken).Select(x => x.Number);
+			return EnumerateChangeDetails(perforce, changeNumbers, codeRules, cancellationToken);
+		}
+
+		/// <summary>
+		/// Creates or returns cached <see cref="PerforceChangeDetails"/> objects describing the requested chagnes
+		/// </summary>
+		public static async IAsyncEnumerable<PerforceChangeDetails> EnumerateChangeDetails(IPerforceConnection perforce, IAsyncEnumerable<int> changeNumbers, IEnumerable<string> codeRules, [EnumeratorCancellation] CancellationToken cancellationToken)
+		{
+			// Get a delegate that determines if a file is a code change or not
+			Func<string, bool>? isCodeFile = null;
+			if (codeRules.Any())
+			{
+				FileFilter filter = new FileFilter(PerforceUtils.CodeExtensions.Select(x => $"*{x}"));
+				foreach (string codeRule in codeRules)
+				{
+					filter.AddRule(codeRule);
+				}
+				isCodeFile = filter.Matches;
+			}
+
+			// Get the hash of the configuration
+			Sha1Hash hash = GetConfigHash(perforce, Enumerable.Empty<string>(), codeRules);
+
+			// Update them in batches
+			await using IAsyncEnumerator<int> changeNumberEnumerator = changeNumbers.GetAsyncEnumerator(cancellationToken);
+			for (; ; )
+			{
+				// Get the next batch of changes to query, up to the next change that we already have a cached value for
+				const int BatchSize = 10;
+				PerforceChangeDetails? cachedDetails = null;
+
+				List<int> changeBatch = new List<int>(BatchSize);
+				while (changeBatch.Count < BatchSize && await changeNumberEnumerator.MoveNextAsync(cancellationToken))
+				{
+					string cacheKey = GetChangeDetailsCacheKey(changeNumberEnumerator.Current, hash);
+					if (s_changeCache.TryGetValue(cacheKey, out cachedDetails))
+					{
+						break;
+					}
+					changeBatch.Add(changeNumberEnumerator.Current);
+				}
+
+				// Describe the requested changes
+				if (changeBatch.Count > 0)
+				{
+					const int InitialMaxFiles = 100;
+
+					List<DescribeRecord> describeRecords = await perforce.DescribeAsync(DescribeOptions.None, InitialMaxFiles, changeBatch.ToArray(), cancellationToken);
+					foreach (DescribeRecord describeRecordLoop in describeRecords.OrderByDescending(x => x.Number))
+					{
+						DescribeRecord describeRecord = describeRecordLoop;
+						int queryChangeNumber = describeRecord.Number;
+
+						PerforceChangeDetails details = new PerforceChangeDetails(describeRecord, isCodeFile);
+
+						// Content only changes must be flagged accurately, because code changes invalidate precompiled binaries. Increase the number of files fetched until we can classify it correctly.
+						int currentMaxFiles = InitialMaxFiles;
+						while (describeRecord.Files.Count >= currentMaxFiles && !details.ContainsCode)
+						{
+							cancellationToken.ThrowIfCancellationRequested();
+							currentMaxFiles *= 10;
+
+							List<DescribeRecord> newDescribeRecords = await perforce.DescribeAsync(DescribeOptions.None, currentMaxFiles, new int[] { queryChangeNumber }, cancellationToken);
+							if (newDescribeRecords.Count == 0)
+							{
+								break;
+							}
+
+							describeRecord = newDescribeRecords[0];
+							details = new PerforceChangeDetails(describeRecord, isCodeFile);
+						}
+
+						// Add it to the cache
+						string cacheKey = GetChangeDetailsCacheKey(describeRecord.Number, hash);
+						using (ICacheEntry entry = s_changeCache.CreateEntry(cacheKey))
+						{
+							entry.SetSize(10);
+							entry.Value = details;
+						}
+
+						// Return the value
+						yield return details;
+					}
+				}
+
+				// Return the cached value, if there was one
+				if (cachedDetails != null)
+				{
+					yield return cachedDetails;
+				}
+				else if (changeBatch.Count == 0)
+				{
+					yield break;
+				}
+			}
+		}
+
 		public static event Action<Exception>? TraceException;
 
 		static JsonSerializerOptions GetDefaultJsonSerializerOptions()

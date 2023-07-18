@@ -936,43 +936,30 @@ namespace UnrealGameSync
 							branchOrStreamName = PerforceUtils.GetClientOrDepotDirectoryName(files[0].DepotFile);
 						}
 
+						logger.LogInformation("");
+
 						// Get the last code change
 						int codeChangeNumber = Context.CodeChangeNumber ?? 0;
 						if (codeChangeNumber == 0)
 						{
-							string range = $"<={Context.ChangeNumber}";
+							logger.LogInformation("Finding last code change for CL {Number}...", Context.ChangeNumber);
 
-							// First, check the most recent changes for a limited subset of file types (this is a much cheaper query because of revcx optimization in the Perforce server.)
-							int optimisticRangeStart = Context.ChangeNumber - 1000;
-							if (optimisticRangeStart >= 1)
+							string[] codeRules = Utility.GetCodeFilter(Context.ProjectConfigFile);
+							await foreach (PerforceChangeDetails details in Utility.EnumerateChangeDetails(perforce, minChangeNumber: null, maxChangeNumber: Context.ChangeNumber, syncPaths, codeRules, cancellationToken))
 							{
-								string[] optimisticFileTypes = { ".cpp" };
-
-								string[] optimisticCodeFilter = optimisticFileTypes.SelectMany(x => syncPaths.Where(x => x.EndsWith("...", StringComparison.Ordinal)).Select(y => $"{y}{x}@{optimisticRangeStart},{Context.ChangeNumber}")).ToArray();
-								PerforceResponseList<ChangesRecord> optimisticChanges = await perforce.TryGetChangesAsync(ChangesOptions.None, 1, ChangeStatus.Submitted, optimisticCodeFilter, cancellationToken);
-
-								if (optimisticChanges.Succeeded && optimisticChanges.Count > 0)
+								if (details.ContainsCode)
 								{
-									int maxChange = optimisticChanges.Max(x => x.Data.Number);
-									range = $"{maxChange},{Context.ChangeNumber}";
+									codeChangeNumber = details.Number;
+									break;
 								}
 							}
-
-							// If no change found in recent changes, do the full and expensive check.
-							string[] codeFilter = PerforceUtils.CodeExtensions.SelectMany(x => syncPaths.Select(y => $"{y}{x}@{range}")).ToArray();
-							PerforceResponseList<ChangesRecord> codeChanges = await perforce.TryGetChangesAsync(ChangesOptions.None, 1, ChangeStatus.Submitted, codeFilter, cancellationToken);
-
-							if (!codeChanges.Succeeded)
-							{
-								return (WorkspaceUpdateResult.FailedToSync, $"Couldn't determine last code changelist before CL {Context.ChangeNumber}.");
-							}
-							if (codeChanges.Count == 0)
+							
+							if (codeChangeNumber == 0)
 							{
 								return (WorkspaceUpdateResult.FailedToSync, $"Could not find any code changes before CL {Context.ChangeNumber}.");
 							}
 
-							// Get the last code change number
-							codeChangeNumber = codeChanges.Max(x => x.Data.Number);
+							logger.LogInformation("Using code CL {Number}", codeChangeNumber);
 						}
 
 						// Set the version change

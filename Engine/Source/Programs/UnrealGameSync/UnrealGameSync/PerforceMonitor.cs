@@ -299,17 +299,8 @@ namespace UnrealGameSync
 			}
 
 			// Read any new changes
-			List<ChangesRecord> newChanges;
-			if (maxChanges > CurrentMaxChanges || newestChangeNumber == -1)
-			{
-				newChanges = await perforce.GetChangesAsync(ChangesOptions.IncludeTimes | ChangesOptions.LongOutput, maxChanges, ChangeStatus.Submitted, depotPaths, cancellationToken);
-			}
-			else
-			{
-				List<string> depotPathsWithRange = depotPaths.ConvertAll(x => $"{x}@{newestChangeNumber + 1},#head");
-				//				newChanges = await perforce.GetChangesAsync(ChangesOptions.IncludeTimes | ChangesOptions.LongOutput, maxChanges, ChangeStatus.Submitted, depotPaths.Select(x => $"{x}@>{newestChangeNumber}").ToArray(), cancellationToken);
-				newChanges = await perforce.GetChangesAsync(ChangesOptions.IncludeTimes | ChangesOptions.LongOutput, clientName: null, minChangeNumber: newestChangeNumber + 1, maxChanges: maxChanges, status: ChangeStatus.Submitted, userName: null, fileSpecs: depotPathsWithRange, cancellationToken);
-			}
+			int? minChangeNumber = (maxChanges > CurrentMaxChanges || newestChangeNumber == -1)? null : (newestChangeNumber + 1);
+			List<ChangesRecord> newChanges = await Utility.EnumerateChanges(perforce, depotPaths, minChangeNumber, null, maxChanges, cancellationToken).ToListAsync(cancellationToken);
 
 			// Remove anything we already have
 			newChanges.RemoveAll(x => currentChangelists.Contains(x.Number));
@@ -416,24 +407,11 @@ namespace UnrealGameSync
 		public async Task<bool> UpdateChangeTypesAsync(IPerforceConnection perforce, CancellationToken cancellationToken)
 		{
 			// Get the filter for code changes
-			ConfigSection? projectConfigSection = LatestProjectConfigFile.FindSection("Perforce");
-
-			string[] codeRules = projectConfigSection?.GetValues("CodeFilter", (string[]?)null) ?? Array.Empty<string>();
+			string[] codeRules = Utility.GetCodeFilter(LatestProjectConfigFile);
 			if (!Enumerable.SequenceEqual(codeRules, prevCodeRules))
 			{
 				_changeDetails.Clear();
 				prevCodeRules = codeRules;
-			}
-
-			Func<string, bool>? isCodeFile = null;
-			if (codeRules.Length > 0)
-			{
-				FileFilter filter = new FileFilter(PerforceUtils.CodeExtensions.Select(x => $"*{x}"));
-				foreach (string codeRule in codeRules)
-				{
-					filter.AddRule(codeRule);
-				}
-				isCodeFile = filter.Matches;
 			}
 
 			// Find the changes we need to query
@@ -454,7 +432,7 @@ namespace UnrealGameSync
 			using (CancellationTokenSource cancellationSource = new CancellationTokenSource())
 			{
 				Task notifyTask = Task.CompletedTask;
-				foreach (IReadOnlyList<int> queryChangeNumberBatch in queryChangeNumbers.OrderByDescending(x => x).Batch(10))
+				await foreach(PerforceChangeDetails details in Utility.EnumerateChangeDetails(perforce, queryChangeNumbers.ToAsyncEnumerable(), codeRules, cancellationToken))
 				{
 					cancellationToken.ThrowIfCancellationRequested();
 
@@ -464,54 +442,26 @@ namespace UnrealGameSync
 						break;
 					}
 
-					// If there's something to check for, find all the content changes after this changelist
-					const int InitialMaxFiles = 100;
-
-					List<DescribeRecord> describeRecords = await perforce.DescribeAsync(DescribeOptions.None, InitialMaxFiles, queryChangeNumberBatch.ToArray(), cancellationToken);
-					foreach (DescribeRecord describeRecordLoop in describeRecords.OrderByDescending(x => x.Number))
+					// Add this change to the cache
+					lock (_lockObject)
 					{
-						DescribeRecord describeRecord = describeRecordLoop;
-						int queryChangeNumber = describeRecord.Number;
-
-						PerforceChangeDetails details = new PerforceChangeDetails(describeRecord, isCodeFile);
-
-						// Content only changes must be flagged accurately, because code changes invalidate precompiled binaries. Increase the number of files fetched until we can classify it correctly.
-						int currentMaxFiles = InitialMaxFiles;
-						while (describeRecord.Files.Count >= currentMaxFiles && !details.ContainsCode)
+						if (!_changeDetails.ContainsKey(details.Number))
 						{
-							cancellationToken.ThrowIfCancellationRequested();
-							currentMaxFiles *= 10;
-
-							List<DescribeRecord> newDescribeRecords = await perforce.DescribeAsync(DescribeOptions.None, currentMaxFiles, new int[] { queryChangeNumber }, cancellationToken);
-							if (newDescribeRecords.Count == 0)
-							{
-								break;
-							}
-
-							describeRecord = newDescribeRecords[0];
-							details = new PerforceChangeDetails(describeRecord, isCodeFile);
+							_changeDetails.Add(details.Number, details);
 						}
+					}
 
-						lock (_lockObject)
-						{
-							if (!_changeDetails.ContainsKey(queryChangeNumber))
-							{
-								_changeDetails.Add(queryChangeNumber, details);
-							}
-						}
+					// Reload the config file if it changes
+					if (details.ContainsUgsConfig && !updatedConfigFile)
+					{
+						await UpdateProjectConfigFileAsync(perforce, cancellationToken);
+						updatedConfigFile = true;
+					}
 
-						// Reload the config file if it changes
-						if (describeRecord.Files.Any(x => x.DepotFile.EndsWith("/UnrealGameSync.ini", StringComparison.OrdinalIgnoreCase)) && !updatedConfigFile)
-						{
-							await UpdateProjectConfigFileAsync(perforce, cancellationToken);
-							updatedConfigFile = true;
-						}
-
-						// Notify the caller after a fixed period of time, in case further updates are slow to arrive
-						if (notifyTask.IsCompleted)
-						{
-							notifyTask = Task.Delay(TimeSpan.FromSeconds(5.0), cancellationSource.Token).ContinueWith(_ => _synchronizationContext.Post(_ => OnUpdateMetadata?.Invoke(), null), cancellationSource.Token, new TaskContinuationOptions(), TaskScheduler.Default);
-						}
+					// Notify the caller after a fixed period of time, in case further updates are slow to arrive
+					if (notifyTask.IsCompleted)
+					{
+						notifyTask = Task.Delay(TimeSpan.FromSeconds(5.0), cancellationSource.Token).ContinueWith(_ => _synchronizationContext.Post(_ => OnUpdateMetadata?.Invoke(), null), cancellationSource.Token, new TaskContinuationOptions(), TaskScheduler.Default);
 					}
 				}
 				cancellationSource.Cancel();
