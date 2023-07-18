@@ -196,7 +196,7 @@ namespace UnrealGameSync
 		readonly SynchronizationContext _mainThreadSynchronizationContext;
 		bool _isDisposing;
 
-//		JupiterMonitor _jupiterMonitor;
+		//		JupiterMonitor _jupiterMonitor;
 		PerforceMonitor _perforceMonitor;
 		Workspace _workspace;
 #pragma warning disable CA2213 //warning CA2213: 'WorkspaceControl' contains field '_issueMonitor' that is of IDisposable type 'IssueMonitor', but it is never disposed. Change the Dispose method on 'WorkspaceControl' to call Close or Dispose on this field.
@@ -355,8 +355,8 @@ namespace UnrealGameSync
 			_eventMonitor = new EventMonitor(_apiUrl, PerforceUtils.GetClientOrDepotDirectoryName(SelectedProjectIdentifier), openProjectInfo.PerforceSettings.UserName, _serviceProvider);
 			_eventMonitor.OnUpdatesReady += UpdateReviewsCallback;
 
-//			ILogger<JupiterMonitor> jupiterLogger = _serviceProvider.GetRequiredService<ILogger<JupiterMonitor>>();
-//			_jupiterMonitor = JupiterMonitor.CreateFromConfigFile(inOidcTokenManager, jupiterLogger, openProjectInfo.LatestProjectConfigFile, SelectedProjectIdentifier);
+			//			ILogger<JupiterMonitor> jupiterLogger = _serviceProvider.GetRequiredService<ILogger<JupiterMonitor>>();
+			//			_jupiterMonitor = JupiterMonitor.CreateFromConfigFile(inOidcTokenManager, jupiterLogger, openProjectInfo.LatestProjectConfigFile, SelectedProjectIdentifier);
 
 			UpdateColumnSettings(true);
 			Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
@@ -375,12 +375,12 @@ namespace UnrealGameSync
 			_perforceMonitor.Start();
 			_eventMonitor.Start();
 
-			_startupTimer = new System.Threading.Timer(x => _mainThreadSynchronizationContext.Post((o) => 
-			{ 
-				if (!IsDisposed) 
-				{ 
-					StartupTimerElapsed(false); 
-				} 
+			_startupTimer = new System.Threading.Timer(x => _mainThreadSynchronizationContext.Post((o) =>
+			{
+				if (!IsDisposed)
+				{
+					StartupTimerElapsed(false);
+				}
 			}, null), null, TimeSpan.FromSeconds(20.0), TimeSpan.FromMilliseconds(-1.0));
 			_startupCallbacks = new List<WorkspaceStartupCallback>();
 
@@ -408,12 +408,12 @@ namespace UnrealGameSync
 
 		public void IssueMonitor_OnIssuesChangedAsync()
 		{
-			_mainThreadSynchronizationContext.Post((o) => 
-			{ 
-				if (_issueMonitor != null) 
-				{ 
-					IssueMonitor_OnIssuesChanged(); 
-				} 
+			_mainThreadSynchronizationContext.Post((o) =>
+			{
+				if (_issueMonitor != null)
+				{
+					IssueMonitor_OnIssuesChanged();
+				}
 			}, null);
 		}
 
@@ -731,11 +731,11 @@ namespace UnrealGameSync
 				_badgeFont.Dispose();
 				_badgeFont = null!;
 			}
-//			if (_jupiterMonitor != null)
-//			{
-//				_jupiterMonitor.Dispose();
-//				_jupiterMonitor = null!;
-//			}
+			//			if (_jupiterMonitor != null)
+			//			{
+			//				_jupiterMonitor.Dispose();
+			//				_jupiterMonitor = null!;
+			//			}
 
 			base.Dispose(disposing);
 		}
@@ -961,10 +961,10 @@ namespace UnrealGameSync
 						FileReference receiptFile = ConfigUtils.GetReceiptFile(_workspace.Project, _workspace.ProjectConfigFile, targetFile, config.ToString());
 						if (FileReference.Exists(receiptFile))
 						{
-							try 
-							{ 
-								FileReference.Delete(receiptFile); 
-							} 
+							try
+							{
+								FileReference.Delete(receiptFile);
+							}
 							catch (Exception) { }
 						}
 					}
@@ -1009,12 +1009,12 @@ namespace UnrealGameSync
 
 		void UpdateCompleteCallback(WorkspaceUpdateContext context, WorkspaceUpdateResult result, string resultMessage)
 		{
-			_mainThreadSynchronizationContext.Post((o) => 
-			{ 
-				if (!_isDisposing) 
-				{ 
-					UpdateComplete(context, result); 
-				} 
+			_mainThreadSynchronizationContext.Post((o) =>
+			{
+				if (!_isDisposing)
+				{
+					UpdateComplete(context, result);
+				}
 			}, null);
 		}
 
@@ -1122,13 +1122,13 @@ namespace UnrealGameSync
 			if (!_updateBuildListPosted)
 			{
 				_updateBuildListPosted = true;
-				_mainThreadSynchronizationContext.Post((o) => 
-				{ 
-					_updateBuildListPosted = false; 
-					if (!_isDisposing) 
-					{ 
-						UpdateBuildList(); 
-					} 
+				_mainThreadSynchronizationContext.Post((o) =>
+				{
+					_updateBuildListPosted = false;
+					if (!_isDisposing)
+					{
+						UpdateBuildList();
+					}
 				}, null);
 			}
 		}
@@ -1462,13 +1462,13 @@ namespace UnrealGameSync
 			if (!_updateBuildMetadataPosted)
 			{
 				_updateBuildMetadataPosted = true;
-				_mainThreadSynchronizationContext.Post((o) => 
-				{ 
-					_updateBuildMetadataPosted = false; 
-					if (!_isDisposing) 
-					{ 
-						UpdateBuildMetadata(); 
-					} 
+				_mainThreadSynchronizationContext.Post((o) =>
+				{
+					_updateBuildMetadataPosted = false;
+					if (!_isDisposing)
+					{
+						UpdateBuildMetadata();
+					}
 				}, null);
 			}
 		}
@@ -1735,13 +1735,13 @@ namespace UnrealGameSync
 			if (!_updateReviewsPosted)
 			{
 				_updateReviewsPosted = true;
-				_mainThreadSynchronizationContext.Post((o) => 
-				{ 
-					_updateReviewsPosted = false; 
-					if (!_isDisposing) 
-					{ 
-						UpdateReviews(); 
-					} 
+				_mainThreadSynchronizationContext.Post((o) =>
+				{
+					_updateReviewsPosted = false;
+					if (!_isDisposing)
+					{
+						UpdateReviews();
+					}
 				}, null);
 			}
 		}
@@ -1874,10 +1874,10 @@ namespace UnrealGameSync
 
 				// Set the link to open the right build pages
 				int highlightChange = notifyBuilds.Max(x => x.ChangeNumber);
-				_notificationWindow.OnMoreInformation = () => 
-				{ 
-					_owner.ShowAndActivate(); 
-					SelectChange(highlightChange); 
+				_notificationWindow.OnMoreInformation = () =>
+				{
+					_owner.ShowAndActivate();
+					SelectChange(highlightChange);
 				};
 
 				// Don't show messages for this change again
@@ -2807,8 +2807,8 @@ namespace UnrealGameSync
 					{
 						ToolStripMenuItem item = new ToolStripMenuItem();
 						item.Text = additionalUrl.Text;
-    					item.Click += (sender, e) => SafeProcessStart(additionalUrl.Url);
-    					BadgeContextMenu.Items.Add(item);
+						item.Click += (sender, e) => SafeProcessStart(additionalUrl.Url);
+						BadgeContextMenu.Items.Add(item);
 					}
 
 					BadgeContextMenu.Show(control, point);
@@ -3375,7 +3375,7 @@ namespace UnrealGameSync
 				OidcTokenClient? oidcClient = _perforceMonitor.LatestOidcTokenClient;
 				if (oidcClient != null)
 				{
-				projectLine.AddText("  |  ");
+					projectLine.AddText("  |  ");
 
 					StatusLine hordeLine = new StatusLine();
 					if (oidcClient.GetStatus() == OidcStatus.Connected)
@@ -4246,14 +4246,14 @@ namespace UnrealGameSync
 
 						if (!badgeWasClicked)
 						{
-						    _contextMenuChange = (ChangesRecord)hitTest.Item.Tag;
-						    // Show time related context menu items if the click was made on the time column :
-						    bool isTimeColumn = (hitTest.Item.SubItems.IndexOf(hitTest.SubItem) == TimeColumn.Index);
-						    ShowChangelistContextMenu(BuildList, showTimeRelatedItems: isTimeColumn, args.Location);
-					    }
-				    }
-			    }
-		    }
+							_contextMenuChange = (ChangesRecord)hitTest.Item.Tag;
+							// Show time related context menu items if the click was made on the time column :
+							bool isTimeColumn = (hitTest.Item.SubItems.IndexOf(hitTest.SubItem) == TimeColumn.Index);
+							ShowChangelistContextMenu(BuildList, showTimeRelatedItems: isTimeColumn, args.Location);
+						}
+					}
+				}
+			}
 		}
 
 		private void ShowChangelistContextMenu(Control parentControl, bool showTimeRelatedItems, Point location, ToolStripDropDownDirection direction = ToolStripDropDownDirection.BelowRight)
@@ -4577,11 +4577,11 @@ namespace UnrealGameSync
 
 		private IReadOnlyList<IArchiveInfo> GetArchives()
 		{
-//			IReadOnlyList<IArchiveInfo>? availableArchives = _jupiterMonitor?.AvailableArchives;
-//			if (availableArchives != null && availableArchives.Count != 0)
-//			{
-//				return availableArchives;
-//			}
+			//			IReadOnlyList<IArchiveInfo>? availableArchives = _jupiterMonitor?.AvailableArchives;
+			//			if (availableArchives != null && availableArchives.Count != 0)
+			//			{
+			//				return availableArchives;
+			//			}
 
 			// if jupiter had no archives we fallback to the perforce monitor
 			if (_perforceMonitor != null)
@@ -6449,5 +6449,5 @@ namespace UnrealGameSync
 	}
 
 	delegate void WorkspaceStartupCallback(WorkspaceControl workspace, bool cancel);
-	delegate void WorkspaceUpdateCallback(WorkspaceUpdateResult result);	
+	delegate void WorkspaceUpdateCallback(WorkspaceUpdateResult result);
 }
