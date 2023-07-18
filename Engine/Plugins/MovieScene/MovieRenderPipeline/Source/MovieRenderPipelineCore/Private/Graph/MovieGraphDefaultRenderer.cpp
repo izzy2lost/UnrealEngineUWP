@@ -69,7 +69,7 @@ void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExe
 		}
 	}
 
-	UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Found: %d Render Passes:"), OutputPasses.Num());
+	//UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Found: %d Render Passes:"), OutputPasses.Num());
 	int32 TotalLayerCount = 0;
 	for (const FMovieGraphPass& Pass : OutputPasses)
 	{
@@ -79,14 +79,14 @@ void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExe
 		
 		FMovieGraphRenderPassSetupData SetupData;
 		SetupData.Renderer = this;
-		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("\tRenderer Class: %s"), *Pass.ClassType->GetName());
+		//UE_LOG(LogMovieRenderPipeline, Warning, TEXT("\tRenderer Class: %s"), *Pass.ClassType->GetName());
 		for (const TTuple<FName, TWeakObjectPtr<UMovieGraphRenderPassNode>>& BranchRenderer : Pass.BranchRenderers)
 		{
 			FMovieGraphRenderPassLayerData& LayerData = SetupData.Layers.AddDefaulted_GetRef();
 			LayerData.BranchName = BranchRenderer.Key;
 			LayerData.RenderPassNode = BranchRenderer.Value;
 
-			UE_LOG(LogMovieRenderPipeline, Warning, TEXT("\t\tBranch Name: %s"), *BranchRenderer.Key.ToString());
+			// UE_LOG(LogMovieRenderPipeline, Warning, TEXT("\t\tBranch Name: %s"), *LayerBranchName.ToString());
 		}
 
 		UMovieGraphRenderPassNode* RenderPassCDO = Pass.ClassType->GetDefaultObject<UMovieGraphRenderPassNode>();
@@ -186,6 +186,9 @@ void UMovieGraphDefaultRenderer::Render(const FMovieGraphTimeStepData& InTimeSte
 		}
 	}
 
+	// Hide the progress widget before we render anything. This allows widget captures to not include the progress bar.
+	GetOwningGraph()->SetPreviewWidgetVisible(false);
+
 	if (InTimeStepData.bIsFirstTemporalSampleForFrame)
 	{
 		// If this is the first sample for this output frame, then we need to 
@@ -218,6 +221,9 @@ void UMovieGraphDefaultRenderer::Render(const FMovieGraphTimeStepData& InTimeSte
 		UE::MovieGraph::FMovieGraphOutputMergerFrame& OutputFrame = GetOwningGraph()->GetOutputMerger()->GetOutputFrame_GameThread(InTimeStepData.OutputFrameNumber);
 		RenderPass->Render(OutputFrame.TraversalContext, InTimeStepData);
 	}
+
+	// Re-enable the progress widget so when the player viewport is drawn to the preview window, it shows.
+	GetOwningGraph()->SetPreviewWidgetVisible(true);
 }
 
 void UMovieGraphDefaultRenderer::AddOutstandingRenderTask_AnyThread(UE::Tasks::FTask InTask)
@@ -299,6 +305,20 @@ UE::MovieGraph::FRenderTimeStatistics* UMovieGraphDefaultRenderer::GetRenderTime
 {
 	return &RenderTimeStatistics.FindOrAdd(InFrameNumber);
 }
+
+UTexture* UMovieGraphDefaultRenderer::GetPreviewTexture() const
+{
+	TArray<TObjectPtr<UTextureRenderTarget2D>> PooledTargets;
+	PooledViewRenderTargets.GenerateValueArray(PooledTargets);
+
+	if (PooledTargets.Num() > 0)
+	{
+		return PooledTargets[0];
+	}
+
+	return nullptr;
+}
+
 
 namespace UE::MovieGraph::DefaultRenderer
 {

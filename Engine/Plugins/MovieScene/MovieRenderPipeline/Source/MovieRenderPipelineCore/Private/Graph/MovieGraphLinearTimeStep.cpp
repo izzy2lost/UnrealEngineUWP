@@ -76,6 +76,7 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 
 		// Ensure we've set it in the CurrentTimeStepData so things can fetch from it below.
 		CurrentTimeStepData.EvaluatedConfig = TObjectPtr<UMovieGraphEvaluatedConfig>(CurrentFrameData.EvaluatedConfig.Get());
+		CurrentTimeStepData.bExpandShotForTemporalSubSample = CurrentFrameData.TemporalSampleCount > 1;
 
 
 		// Sets up the render state, etc.
@@ -233,9 +234,9 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 		
 		CurrentTimeStepData.EvaluatedConfig = TObjectPtr<UMovieGraphEvaluatedConfig>(CurrentFrameData.EvaluatedConfig.Get());
 
-		UE_LOG(LogTemp, Warning, TEXT("F# %d bFirst: %d bLast: %d bReqAc: %d"),
-			CurrentTimeStepData.OutputFrameNumber, CurrentTimeStepData.bIsFirstTemporalSampleForFrame,
-			CurrentTimeStepData.bIsLastTemporalSampleForFrame, CurrentTimeStepData.bRequiresAccumulator);
+		//UE_LOG(LogTemp, Warning, TEXT("F# %d bFirst: %d bLast: %d bReqAc: %d"),
+		//	CurrentTimeStepData.OutputFrameNumber, CurrentTimeStepData.bIsFirstTemporalSampleForFrame,
+		//	CurrentTimeStepData.bIsLastTemporalSampleForFrame, CurrentTimeStepData.bRequiresAccumulator);
 
 		// Set our time step for the next frame. We use the undilated delta time for the Custom Timestep as the engine will
 		// apply the time dilation to the world tick for us, so we don't want to double up time dilation.
@@ -245,7 +246,7 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 
 		// ToDo: This should be converted back to an 'effective' frame number (source frame in external data asset)
 		// so you can line up profiling with the acutal content on screen.
-		TRACE_BOOKMARK(TEXT("MoviePipeline - Rendering Frame %d [TS: %d]"), CurrentTimeStepData.OutputFrameNumber, CurrentFrameData.TemporalSampleIndex);
+		TRACE_BOOKMARK(TEXT("MRQ Frame %d [TS: %d]"), CurrentTimeStepData.OutputFrameNumber, CurrentFrameData.TemporalSampleIndex);
 
 		// Increment various post-frame counters to set them up for the next frame. This is okay
 		// because the rest of the Movie Graph Pipeline system is based on CurrentTimeStepData which accurately

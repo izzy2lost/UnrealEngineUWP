@@ -1179,14 +1179,10 @@ UMovieGraphEvaluatedConfig* UMovieGraphConfig::CreateFlattenedGraph(const FMovie
 		}		
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("Traversed Graph:"));
 	for (const TPair<FName, FMovieGraphEvaluatedBranchConfig>& Pair : NewContext->BranchConfigMapping)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("\t Branch: %s"), *Pair.Key.ToString());
-
 		for (UMovieGraphNode* Node : Pair.Value.GetNodes())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("\t\t %s Class:"), *Node->GetClass()->GetName());
 			for (TFieldIterator<FProperty> PropertyIterator(Node->GetClass()); PropertyIterator; ++PropertyIterator)
 			{
 				FProperty* CheckProperty = *PropertyIterator;
@@ -1195,7 +1191,6 @@ UMovieGraphEvaluatedConfig* UMovieGraphConfig::CreateFlattenedGraph(const FMovie
 				{
 					FString ExportText;
 					CheckProperty->ExportText_InContainer(0, ExportText, Node, Node, Node, 0);
-					UE_LOG(LogTemp, Warning, TEXT("\t\t\t %s : %s"), *CheckProperty->GetName(), *ExportText);
 				}
 			}
 		}

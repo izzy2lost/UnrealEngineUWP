@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "MoviePipeline.h"
+#include "Graph/MovieGraphPipeline.h"
 
 FName IMoviePipelineBurnInExtension::ModularFeatureName = "ModularFeature_MoviePipelineBurnInExt";
 
@@ -18,6 +19,7 @@ void FMovieRenderPipelineCoreModule::StartupModule()
 	{
 		TArray<FString> Assets;
 		Assets.Add(UMoviePipeline::DefaultDebugWidgetAsset);
+		Assets.Add(UMovieGraphPipeline::DefaultPreviewWidgetAsset);
 
 		for (const FString& Asset : Assets)
 		{

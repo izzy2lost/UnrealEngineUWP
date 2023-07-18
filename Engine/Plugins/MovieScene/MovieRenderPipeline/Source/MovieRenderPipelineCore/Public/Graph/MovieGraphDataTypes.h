@@ -119,6 +119,10 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphRendererBase : public UObject
 {
 	GENERATED_BODY()
 public:
+	/** Get an texture that can be used to see what the Renderer is producing for the in-game overlay. */
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	virtual UTexture* GetPreviewTexture() const { return nullptr; }
+
 	virtual void Render(const FMovieGraphTimeStepData& InTimeData) {}
 	virtual void SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) {}
 	virtual void TeardownRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) {}

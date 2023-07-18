@@ -6,6 +6,8 @@
 #include "Graph/MovieGraphDataTypes.h"
 #include "Graph/MovieGraphOutputMerger.h"
 #include "Graph/Nodes/MovieGraphFileOutputNode.h"
+#include "Graph/Nodes/MovieGraphOutputSettingNode.h"
+#include "Graph/MovieGraphBlueprintLibrary.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "Misc/CoreDelegates.h"
 #include "MoviePipelineQueue.h"
@@ -16,6 +18,8 @@
 
 // Temp
 #include "LevelSequence.h"
+
+FString UMovieGraphPipeline::DefaultPreviewWidgetAsset = TEXT("/MovieRenderPipeline/Blueprints/UI_MovieGraphPipelineScreenOverlay.UI_MovieGraphPipelineScreenOverlay_C");
 
 UMovieGraphPipeline::UMovieGraphPipeline()
 	: CurrentShotIndex(-1)
@@ -85,8 +89,8 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 	// of the render.
 	GraphDataSourceInstance->CacheDataPreJob(InitConfig);
 
-	// Construct a debug UI and bind it to this instance.
-	// LoadDebugWidget();
+	// Construct the viewport preview UI and bind it to this instance.
+	LoadPreviewWidget();
 	// SetupAudioRendering();
 
 	// Update our list of shots from our data source, and then
@@ -122,6 +126,41 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 	else
 	{
 		TransitionToState(EMovieRenderPipelineState::ProducingFrames);
+	}
+}
+
+void UMovieGraphPipeline::LoadPreviewWidget()
+{
+	// ToDo: Allow overriding this widget so that users can style it to match their project.
+	if (PreviewWidgetClassToUse.Get() == nullptr)
+	{
+		PreviewWidgetClassToUse = LoadClass<UMovieGraphRenderPreviewWidget>(nullptr, *DefaultPreviewWidgetAsset, nullptr, LOAD_None, nullptr);
+	}
+
+	if (PreviewWidgetClassToUse.Get() != nullptr)
+	{
+		PreviewWidget = CreateWidget<UMovieGraphRenderPreviewWidget>(GetWorld(), PreviewWidgetClassToUse.Get());
+		if (PreviewWidget)
+		{
+			PreviewWidget->OnInitializedForPipeline(this);
+			PreviewWidget->AddToViewport();
+		}
+		else
+		{
+			UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Failed to create Preview Screen UMG Widget. No in-game overlay available."));
+		}
+	}
+	else
+	{
+		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Failed to find Preview Screen UMG Widget class. No in-game overlay available."));
+	}
+}
+
+void UMovieGraphPipeline::SetPreviewWidgetVisibleImpl(bool bInIsVisible)
+{
+	if (PreviewWidget)
+	{
+		PreviewWidget->SetVisibility(bInIsVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 	}
 }
 
@@ -587,11 +626,11 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 			FCoreDelegates::OnBeginFrame.RemoveAll(this);
 			FCoreDelegates::OnEndFrame.RemoveAll(this);
 
-			//if (DebugWidget)
-			//{
-			//	DebugWidget->RemoveFromParent();
-			//	DebugWidget = nullptr;
-			//}
+			if (PreviewWidget)
+			{
+				PreviewWidget->RemoveFromParent();
+				PreviewWidget = nullptr;
+			}
 
 			//TArray<UMoviePipelineOutputBase*> ContainerSettings = GetPipelinePrimaryConfig()->GetOutputContainers();
 			//Algo::SortBy(ContainerSettings, [](const UMoviePipelineOutputBase* Setting) { return Setting->GetPriority(); });
@@ -737,13 +776,13 @@ void UMovieGraphPipeline::ProcessOutstandingFinishedFrames()
 		// Now that we've looped through the above, we have the total list of which output formats are being used by the graph for
 		// all of the render layers given. We also have a list of which identifiers should go into each one. So we can loop through
 		// the CDO instances and pass the data to them.
-		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("File Outputs:"));
+		//UE_LOG(LogMovieRenderPipeline, Warning, TEXT("File Outputs:"));
 		for (const TPair<UMovieGraphFileOutputNode*, TSet<FMovieGraphRenderDataIdentifier>>& Pair : MaskData)
 		{
-			UE_LOG(LogMovieRenderPipeline, Warning, TEXT("\tNode: %s"), *Pair.Key->GetClass()->GetName());
+			//UE_LOG(LogMovieRenderPipeline, Warning, TEXT("\tNode: %s"), *Pair.Key->GetClass()->GetName());
 			for (const FMovieGraphRenderDataIdentifier& ID : Pair.Value)
 			{
-				UE_LOG(LogMovieRenderPipeline, Warning, TEXT("\t\tBranch: %s:"), *ID.RootBranchName.ToString());
+				//UE_LOG(LogMovieRenderPipeline, Warning, TEXT("\t\tBranch: %s:"), *ID.RootBranchName.ToString());
 			}
 
 			Pair.Key->OnReceiveImageData(this, &OutputFrame, Pair.Value);

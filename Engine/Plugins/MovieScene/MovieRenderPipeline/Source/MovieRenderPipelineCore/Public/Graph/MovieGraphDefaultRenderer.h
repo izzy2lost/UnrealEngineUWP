@@ -140,6 +140,7 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphDefaultRenderer : public UMovieGrap
 
 public:
 	// UMovieGraphRendererBase Interface
+	virtual UTexture* GetPreviewTexture() const override;
 	virtual void Render(const FMovieGraphTimeStepData& InTimeData) override;
 	virtual void SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) override;
 	virtual void TeardownRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) override;

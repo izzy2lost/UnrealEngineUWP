@@ -71,6 +71,7 @@ public:
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
 	UMovieGraphTimeStepBase* GetTimeStepInstance() const { return GraphTimeStepInstance; }
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
 	UMovieGraphRendererBase* GetRendererInstance() const { return GraphRendererInstance; }
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
 	UMovieGraphDataSourceBase* GetDataSourceInstance() const { return GraphDataSourceInstance; }
@@ -78,6 +79,8 @@ public:
 	TSharedPtr<UE::MovieGraph::IMovieGraphOutputMerger> GetOutputMerger() const { return OutputMerger; }
 	/** Writing images to disk is an async process. When you start writing, declare a future with the filename you will eventually write to, and complete the future once it is on disk. */
 	void AddOutputFuture(TFuture<bool>&& InOutputFuture, const UE::MovieGraph::FMovieGraphOutputFutureData& InData);
+	/** Used by the Renderer Instance to disable the preview widget before rendering so it isn't baked into the UI Renderer. */
+	void SetPreviewWidgetVisible(bool bInIsVisible) { SetPreviewWidgetVisibleImpl(bInIsVisible); }
 
 protected:
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
@@ -97,6 +100,8 @@ protected:
 	virtual void TransitionToState(const EMovieRenderPipelineState InNewState);
 	virtual const TSet<TObjectPtr<UMovieGraphFileOutputNode>> GetOutputNodesUsed() const;
 	virtual void BeginFinalize();
+	virtual void LoadPreviewWidget();
+	virtual void SetPreviewWidgetVisibleImpl(bool bInIsVisible);
 
 	// UMoviePipelineBase Interface
 	virtual void RequestShutdownImpl(bool bIsError) override;
@@ -122,6 +127,12 @@ protected:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMoviePipelineExecutorShot>> ActiveShotList;
+
+	UPROPERTY(Transient)
+	TSubclassOf<UMovieGraphRenderPreviewWidget> PreviewWidgetClassToUse;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMovieGraphRenderPreviewWidget> PreviewWidget;
 
 	/**
 	* An array of Node CDOs that we sent data through to write data to disk.
@@ -168,4 +179,7 @@ protected:
 
 	/** Responsible for managing cvars throughout the lifetime of the pipeline. */
 	TSharedPtr<UE::MovieGraph::Private::FMovieGraphCVarManager> CVarManager;
+	
+public:
+	static FString DefaultPreviewWidgetAsset;
 };
