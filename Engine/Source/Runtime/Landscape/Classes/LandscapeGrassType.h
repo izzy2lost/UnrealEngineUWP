@@ -91,6 +91,14 @@ struct FGrassVariety
 	UPROPERTY(EditAnywhere, Category=Grass, meta = (EditCondition = "Scaling == EGrassScaling::Free || Scaling == EGrassScaling::LockXY"))
 	FFloatInterval ScaleZ;
 
+	/** If enabled the the scale of instances is reduced as the weight (density) decreases */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Grass)
+	bool bWeightAttenuatesMaxScale = false;
+
+	/** Modulate the scale of the instances based on weight (normalized density). The weight range (ScaleWeightAttenuation, 1.0) maps to (scaleMin, scaleMax), weight values less than ScaleWeightAttenuation are set to minScale */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Grass, meta = (UIMin = 0, ClampMin = 0, UIMax = 1, ClampMax = 1, EditCondition = "bWeightAttenuatesMaxScale == true"))
+	float MaxScaleWeightAttenuation = 0.5f;
+
 	/** Whether the grass instances should be placed at random rotation (true) or all at the same rotation (false) */
 	UPROPERTY(EditAnywhere, Category = Grass)
 	bool RandomRotation;
