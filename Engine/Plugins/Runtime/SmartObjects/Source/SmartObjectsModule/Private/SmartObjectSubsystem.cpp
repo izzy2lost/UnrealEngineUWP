@@ -1905,7 +1905,6 @@ void USmartObjectSubsystem::FindSlots(const FSmartObjectHandle Handle, const FSm
 		{
 			continue;
 		}
-
 		if (!Filter.bShouldIncludeClaimedSlots && RuntimeSlot.GetState() != ESmartObjectSlotState::Free)
 		{
 			continue;
