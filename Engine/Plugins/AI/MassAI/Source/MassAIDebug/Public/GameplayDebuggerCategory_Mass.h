@@ -19,6 +19,7 @@ class FGameplayDebuggerCategory_Mass : public FGameplayDebuggerCategory
 {
 public:
 	FGameplayDebuggerCategory_Mass();
+	virtual ~FGameplayDebuggerCategory_Mass();
 
 	static TSharedRef<FGameplayDebuggerCategory> MakeInstance();
 
@@ -37,11 +38,16 @@ protected:
 	void OnToggleNearEntityAvoidance() { bShowNearEntityAvoidance = !bShowNearEntityAvoidance; }
 	void OnToggleNearEntityPath() { bShowNearEntityPath = !bShowNearEntityPath; }
 	void OnToggleDebugLocalEntityManager();
+	void OnIncreaseSearchRange();
+	void OnDecreaseSearchRange();
 	
 	void PickEntity(const FVector& ViewLocation, const FVector& ViewDirection, const UWorld& World, FMassEntityManager& EntityManager, const bool bLimitAngle = true);
 
 	UE_DEPRECATED(5.3, "This flavor of PickEntity has been deprecated. Use the one getting ViewLocation and ViewDirection parameters instead.")
 	void PickEntity(const APlayerController& OwnerPC, const UWorld& World, FMassEntityManager& EntityManager, const bool bLimitAngle = true);
+
+	void OnEntitySelected(const FMassEntityManager& EntityManager, const FMassEntityHandle EntityHandle);
+	void ClearCachedEntity();
 
 protected:
 	AActor* CachedDebugActor;
@@ -57,6 +63,7 @@ protected:
 	bool bMarkEntityBeingDebugged;
 	bool bDebugLocalEntityManager;
 	int32 ToggleDebugLocalEntityManagerInputIndex = INDEX_NONE;
+	float SearchRange = 25000.f;
 
 	struct FEntityDescription
 	{
@@ -70,6 +77,12 @@ protected:
 	TArray<FEntityDescription> NearEntityDescriptions;
 
 	TArray<FAutoConsoleCommand> ConsoleCommands;
+
+	FDelegateHandle OnEntitySelectedHandle;
+
+	static constexpr float MaxSearchRange = 1000000.f;
+	static constexpr float MinSearchRange = 1.f;
+	static constexpr float SearchRangeChangeScale = 2.f;
 };
 
 #endif // WITH_GAMEPLAY_DEBUGGER && WITH_MASSGAMEPLAY_DEBUG
