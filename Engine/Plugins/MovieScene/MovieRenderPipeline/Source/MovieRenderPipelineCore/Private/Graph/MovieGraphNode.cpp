@@ -312,6 +312,35 @@ UMovieGraphPin* UMovieGraphNode::GetOutputPin(const FName& Label) const
 	return nullptr;
 }
 
+UMovieGraphPin* UMovieGraphNode::GetFirstConnectedInputPin() const
+{
+	for (const TObjectPtr<UMovieGraphPin>& InputPin : InputPins)
+	{
+		if (InputPin->IsConnected())
+		{
+			return InputPin.Get();
+		}
+	}
+
+	return nullptr;
+}
+
+bool UMovieGraphNode::CanBeDisabled() const
+{
+	// By default, all nodes can be disabled
+	return true;
+}
+
+void UMovieGraphNode::SetDisabled(const bool bNewDisableState)
+{
+	bIsDisabled = bNewDisableState;
+}
+
+bool UMovieGraphNode::IsDisabled() const
+{
+	return bIsDisabled;
+}
+
 #if WITH_EDITOR
 FLinearColor UMovieGraphNode::GetNodeTitleColor() const
 {
@@ -421,6 +450,17 @@ TArray<FMovieGraphPropertyInfo> UMovieGraphNode::GetOverrideablePropertyInfo() c
 TArray<UMovieGraphPin*> UMovieGraphNode::EvaluatePinsToFollow(FMovieGraphEvaluationContext& InContext) const
 {
 	TArray<UMovieGraphPin*> PinsToFollow;
+
+	// If the node is disabled, only follow the first connected pin.
+	if (IsDisabled())
+	{
+		if (UMovieGraphPin* GraphPin = GetFirstConnectedInputPin())
+		{
+			PinsToFollow.Add(GraphPin);
+		}
+
+		return PinsToFollow;
+	}
 
 	// By default we provide all Input Pins to this node that are the Branch Type.
 	// You should override this in downstream nodes that need custom logic, such

@@ -21,6 +21,17 @@ TArray<UMovieGraphPin*> UMovieGraphBranchNode::EvaluatePinsToFollow(FMovieGraphE
 {
 	TArray<UMovieGraphPin*> PinsToFollow;
 
+	// If the node is disabled, follow the first connected pin.
+	if (IsDisabled())
+	{
+		if (UMovieGraphPin* GraphPin = GetFirstConnectedInputPin())
+		{
+			PinsToFollow.Add(GraphPin);
+		}
+		
+		return PinsToFollow;
+	}
+
 	// The branch node has two branches that could be followed, True or False. To figure out which one we're actually going
 	// to follow, we need to evaluate the Conditional pin. 
 	UMovieGraphPin* ConditionalPin = GetInputPin(UE::MovieGraph::BranchNode::Condition);

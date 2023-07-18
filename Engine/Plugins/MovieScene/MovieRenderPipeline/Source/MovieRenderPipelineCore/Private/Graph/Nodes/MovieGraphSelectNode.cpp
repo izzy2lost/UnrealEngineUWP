@@ -36,6 +36,17 @@ TArray<UMovieGraphPin*> UMovieGraphSelectNode::EvaluatePinsToFollow(FMovieGraphE
 {
 	TArray<UMovieGraphPin*> PinsToFollow;
 
+	// If the node is disabled, follow the pin for the first option available.
+	if (IsDisabled())
+	{
+		if (UMovieGraphPin* GraphPin = GetFirstConnectedInputPin())
+		{
+			PinsToFollow.Add(GraphPin);
+		}
+		
+		return PinsToFollow;
+	}
+
 	// The resolved value of the "Selected Option" property. May come from a connection or a value specified on the node.
 	FString ResolvedSelectValue;
 

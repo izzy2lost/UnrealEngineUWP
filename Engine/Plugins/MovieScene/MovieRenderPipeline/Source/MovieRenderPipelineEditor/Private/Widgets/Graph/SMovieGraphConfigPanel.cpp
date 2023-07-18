@@ -166,6 +166,18 @@ void SMoviePipelineGraphPanel::MakeEditorCommands()
 			FCanExecuteAction::CreateSP(this, &SMoviePipelineGraphPanel::CanDuplicateNodes)
 		);
 
+		GraphEditorCommands->MapAction(FGraphEditorCommands::Get().EnableNodes,
+			FExecuteAction::CreateSP(this, &SMoviePipelineGraphPanel::SetEnabledStateForSelectedNodes, ENodeEnabledState::Enabled),
+			FCanExecuteAction::CreateSP(this, &SMoviePipelineGraphPanel::CanDisableSelectedNodes),
+			FGetActionCheckState::CreateSP(this, &SMoviePipelineGraphPanel::CheckEnabledStateForSelectedNodes, ENodeEnabledState::Enabled)
+		);
+
+		GraphEditorCommands->MapAction(FGraphEditorCommands::Get().DisableNodes,
+			FExecuteAction::CreateSP(this, &SMoviePipelineGraphPanel::SetEnabledStateForSelectedNodes, ENodeEnabledState::Disabled),
+			FCanExecuteAction::CreateSP(this, &SMoviePipelineGraphPanel::CanDisableSelectedNodes),
+			FGetActionCheckState::CreateSP(this, &SMoviePipelineGraphPanel::CheckEnabledStateForSelectedNodes, ENodeEnabledState::Disabled)
+		);
+
 		// Alignment Commands
 		GraphEditorCommands->MapAction(FGraphEditorCommands::Get().AlignNodesTop,
 			FExecuteAction::CreateSP(this, &SMoviePipelineGraphPanel::OnAlignTop)
@@ -446,6 +458,77 @@ void SMoviePipelineGraphPanel::DuplicateNodes()
 bool SMoviePipelineGraphPanel::CanDuplicateNodes() const
 {
 	return CanCopySelectedNodes();
+}
+
+void SMoviePipelineGraphPanel::SetEnabledStateForSelectedNodes(const ENodeEnabledState NewState) const
+{
+	if (!GraphEditorWidget.IsValid())
+	{
+		return;
+	}
+
+	const FScopedTransaction Transaction(LOCTEXT("SetNodeEnabledState", "Set Node Enabled State"));
+	
+	for (UObject* SelectedNode : GraphEditorWidget->GetSelectedNodes())
+	{
+		if (UEdGraphNode* SelectedGraphNode = Cast<UEdGraphNode>(SelectedNode))
+		{
+			SelectedGraphNode->Modify();
+			SelectedGraphNode->SetEnabledState(NewState);
+		}
+	}
+	
+	GraphEditorWidget->NotifyGraphChanged();
+}
+
+ECheckBoxState SMoviePipelineGraphPanel::CheckEnabledStateForSelectedNodes(const ENodeEnabledState EnabledStateToCheck) const
+{
+	if (!GraphEditorWidget.IsValid())
+	{
+		return ECheckBoxState::Unchecked;
+	}
+	
+	ECheckBoxState CheckBoxState = ECheckBoxState::Undetermined;
+	
+	for (UObject* SelectedNode : GraphEditorWidget->GetSelectedNodes())
+	{
+		if (const UEdGraphNode* SelectedGraphNode = Cast<UEdGraphNode>(SelectedNode))
+		{
+			const ENodeEnabledState NodeEnabledState = SelectedGraphNode->GetDesiredEnabledState();
+			const ECheckBoxState NewCheckBoxState = (NodeEnabledState == EnabledStateToCheck) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+
+			// Initialize CheckBoxState to either Checked/Unchecked; this only happens when the state is Undetermined
+			if (CheckBoxState == ECheckBoxState::Undetermined)
+			{
+				CheckBoxState = NewCheckBoxState;
+				continue;
+			}
+
+			// If the new/old checkbox states don't match, revert to an undetermined state
+			if (NewCheckBoxState != CheckBoxState)
+			{
+				CheckBoxState = ECheckBoxState::Undetermined;
+				break;
+			}
+			
+			CheckBoxState = NewCheckBoxState;
+		}
+	}
+
+	return CheckBoxState;
+}
+
+bool SMoviePipelineGraphPanel::CanDisableSelectedNodes() const
+{
+	for (const UMovieGraphNode* SelectedModelNode : GetSelectedModelNodes())
+	{
+		if (!SelectedModelNode->CanBeDisabled())
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 void SMoviePipelineGraphPanel::OnAlignTop()
@@ -803,6 +886,24 @@ void SMoviePipelineGraphPanel::OnSelectionChanged(const TArray<UMoviePipelineExe
 	}
 	
 	NumSelectedJobs = InSelectedJobs.Num();
+}
+
+TArray<UMovieGraphNode*> SMoviePipelineGraphPanel::GetSelectedModelNodes() const
+{
+	TArray<UMovieGraphNode*> SelectedModelNodes;
+	
+	for (UObject* SelectedNode : GraphEditorWidget->GetSelectedNodes())
+	{
+		if (const UMoviePipelineEdGraphNodeBase* SelectedGraphNode = Cast<UMoviePipelineEdGraphNodeBase>(SelectedNode))
+		{
+			if (UMovieGraphNode* SelectedModelNode = SelectedGraphNode->GetRuntimeNode())
+			{
+				SelectedModelNodes.Add(SelectedModelNode);
+			}
+		}
+	}
+
+	return SelectedModelNodes;
 }
 
 TSharedRef<SWidget> SMoviePipelineGraphPanel::OnGenerateSavedQueuesMenu()

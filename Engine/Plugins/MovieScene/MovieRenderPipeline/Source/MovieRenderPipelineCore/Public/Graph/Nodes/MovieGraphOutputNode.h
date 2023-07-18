@@ -16,6 +16,7 @@ public:
 	UMovieGraphOutputNode();
 	
 	virtual TArray<FMovieGraphPinProperties> GetInputPinProperties() const override;
+	virtual bool CanBeDisabled() const override;
 
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;

@@ -172,6 +172,9 @@ public:
 	* By default we will follow any input pin (with Branch type) on the node, but override this in
 	* inherited classes and change that if you need custom logic, such as boolean nodes that want 
 	* to choose one or the other based on the results of a conditional property.
+	*
+	* Note that if custom logic is provided, the case where the node is disabled should be handled
+	* as well.
 	*/
 	virtual TArray<UMovieGraphPin*> EvaluatePinsToFollow(FMovieGraphEvaluationContext& InContext) const;
 
@@ -202,11 +205,23 @@ public:
 	UMovieGraphPin* GetInputPin(const FName& InPinLabel) const;
 	UMovieGraphPin* GetOutputPin(const FName& InPinLabel) const;
 
+	/** Gets the first input pin on the node which has a connection, or nullptr if no pins are connected. */
+	UMovieGraphPin* GetFirstConnectedInputPin() const;
+
 	/** Gets the GUID which uniquely identifies this node. */
 	const FGuid& GetGuid() const { return Guid; }
 	
 	/** Determines which types of branches the node can be created in. */
 	virtual EMovieGraphBranchRestriction GetBranchRestriction() const { return EMovieGraphBranchRestriction::Any; }
+
+	/** Determines if this node can be disabled. */
+	virtual bool CanBeDisabled() const;
+
+	/** Set whether this node is currently disabled. */
+	void SetDisabled(const bool bNewDisableState);
+
+	/** Determines if this node is currently disabled. */
+	bool IsDisabled() const;
 
 #if WITH_EDITOR
 	int32 GetNodePosX() const { return NodePosX; }
@@ -295,6 +310,10 @@ protected:
 	UPROPERTY()
 	uint8 bIsCommentBubbleVisible : 1;
 #endif
+
+	/** Whether this node is currently disabled in the graph. */
+	UPROPERTY()
+	uint8 bIsDisabled : 1;
 
 	/** A GUID which uniquely identifies this node. */
 	UPROPERTY()

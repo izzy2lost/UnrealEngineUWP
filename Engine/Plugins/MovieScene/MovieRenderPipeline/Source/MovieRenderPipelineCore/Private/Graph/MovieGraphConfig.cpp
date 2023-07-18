@@ -1009,9 +1009,9 @@ void UMovieGraphConfig::CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfi
 
 	// Check to see if our flattened evaluation graph already has a copy of this node.
 	InEvaluationContext.VisitedNodes.Add(Node);
-	const bool bShouldIncludeNode = Node->IsA<UMovieGraphSettingNode>();
+	const bool bShouldIncludeNode = Node->IsA<UMovieGraphSettingNode>() && !Node->IsDisabled();
 
-	if(bShouldIncludeNode)
+	if (bShouldIncludeNode)
 	{
 		const UMovieGraphSettingNode* NodeAsSetting = CastChecked<UMovieGraphSettingNode>(Node);
 		const FString& NodeInstanceName = NodeAsSetting->GetNodeInstanceName();

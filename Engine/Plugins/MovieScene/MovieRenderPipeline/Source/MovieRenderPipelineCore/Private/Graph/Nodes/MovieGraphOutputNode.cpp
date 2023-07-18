@@ -36,6 +36,11 @@ TArray<FMovieGraphPinProperties> UMovieGraphOutputNode::GetInputPinProperties() 
 	return Properties;
 }
 
+bool UMovieGraphOutputNode::CanBeDisabled() const
+{
+	return false;
+}
+
 #if WITH_EDITOR
 FText UMovieGraphOutputNode::GetNodeTitle(const bool bGetDescriptive) const
 {

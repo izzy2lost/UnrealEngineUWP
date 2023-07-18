@@ -80,6 +80,11 @@ TArray<UMovieGraphPin*> UMovieGraphInputNode::EvaluatePinsToFollow(FMovieGraphEv
 	return PinsToFollow;
 }
 
+bool UMovieGraphInputNode::CanBeDisabled() const
+{
+	return false;
+}
+
 #if WITH_EDITOR
 FText UMovieGraphInputNode::GetNodeTitle(const bool bGetDescriptive) const
 {

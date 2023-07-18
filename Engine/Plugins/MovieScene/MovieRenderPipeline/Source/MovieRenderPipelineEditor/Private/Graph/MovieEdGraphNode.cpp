@@ -30,6 +30,8 @@ void UMoviePipelineEdGraphNodeBase::Construct(UMovieGraphNode* InRuntimeNode)
 	NodeComment = InRuntimeNode->GetNodeComment();
 	bCommentBubblePinned = InRuntimeNode->IsCommentBubblePinned();
 	bCommentBubbleVisible = InRuntimeNode->IsCommentBubbleVisible();
+	
+	SetEnabledState(InRuntimeNode->IsDisabled() ? ENodeEnabledState::Disabled : ENodeEnabledState::Enabled);
 }
 
 void UMoviePipelineEdGraphNodeBase::PostTransacted(const FTransactionObjectEvent& TransactionEvent)
@@ -45,6 +47,11 @@ void UMoviePipelineEdGraphNodeBase::PostTransacted(const FTransactionObjectEvent
 	if (ChangedProperties.Contains(GET_MEMBER_NAME_CHECKED(UEdGraphNode, bCommentBubblePinned)))
 	{
 		UpdateCommentBubblePinned();
+	}
+
+	if (ChangedProperties.Contains(TEXT("EnabledState")))
+	{
+		UpdateEnableState();
 	}
 }
 
@@ -139,6 +146,15 @@ void UMoviePipelineEdGraphNodeBase::UpdateCommentBubblePinned() const
 	{
 		RuntimeNode->Modify();
 		RuntimeNode->SetIsCommentBubblePinned(bCommentBubblePinned);
+	}
+}
+
+void UMoviePipelineEdGraphNodeBase::UpdateEnableState() const
+{
+	if (RuntimeNode)
+	{
+		RuntimeNode->Modify();
+		RuntimeNode->SetDisabled(GetDesiredEnabledState() == ENodeEnabledState::Disabled);
 	}
 }
 
@@ -514,6 +530,8 @@ void UMoviePipelineEdGraphNodeBase::GetNodeContextMenuActions(UToolMenu* Menu, U
 		Section.AddMenuEntry(FGenericCommands::Get().Cut);
 		Section.AddMenuEntry(FGenericCommands::Get().Copy);
 		Section.AddMenuEntry(FGenericCommands::Get().Duplicate);
+		Section.AddMenuEntry(FGraphEditorCommands::Get().EnableNodes);
+		Section.AddMenuEntry(FGraphEditorCommands::Get().DisableNodes);
 	}
 
 	{

@@ -68,6 +68,17 @@ TArray<FMovieGraphPinProperties> UMovieGraphSubgraphNode::GetOutputPinProperties
 TArray<UMovieGraphPin*> UMovieGraphSubgraphNode::EvaluatePinsToFollow(FMovieGraphEvaluationContext& InContext) const
 {
 	TArray<UMovieGraphPin*> PinsToFollow;
+
+	// If the node is disabled, follow the pin for the first option available.
+	if (IsDisabled())
+	{
+		if (UMovieGraphPin* GraphPin = GetFirstConnectedInputPin())
+		{
+			PinsToFollow.Add(GraphPin);
+		}
+		
+		return PinsToFollow;
+	}
 	
 	if (!ensure(InContext.PinBeingFollowed))
 	{

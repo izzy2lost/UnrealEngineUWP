@@ -62,6 +62,11 @@ protected:
 	 */
 	void UpdateCommentBubblePinned() const;
 
+	/**
+	 * Update the enable state of the underlying runtime node to match the editor node.
+	 */
+	void UpdateEnableState() const;
+
 protected:
 	/** The runtime node that this editor node represents. */
 	UPROPERTY()
