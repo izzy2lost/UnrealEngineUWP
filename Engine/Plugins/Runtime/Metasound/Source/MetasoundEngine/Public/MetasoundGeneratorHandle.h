@@ -125,7 +125,7 @@ private:
 	 * Generator creation and destruction delegates we register with the UMetaSoundSource
 	 */
 	void OnSourceCreatedAGenerator(uint64 InAudioComponentId, TSharedPtr<Metasound::FMetasoundGenerator> InGenerator);
-	void OnSourceDestroyedAGenerator(uint64 InAudioComponentId, TSharedPtr<Metasound::FMetasoundGenerator> InGenerator);
+	void OnSourceDestroyedAGenerator(uint64 InAudioComponentId);
 	
 	TWeakObjectPtr<UAudioComponent> AudioComponent;
 	TWeakObjectPtr<UMetaSoundSource> CachedMetasoundSource;
