@@ -189,9 +189,12 @@ namespace TypedElementQueryBuilder
 			Remove
 		};
 
-		template<typename ColumnType>
-		explicit FObserver(EEvent MonitorForEvent);
 		TYPEDELEMENTFRAMEWORK_API FObserver(EEvent MonitorForEvent, const UScriptStruct* MonitoredColumn);
+
+		template<typename ColumnType>
+		static FObserver OnAdd();
+		template<typename ColumnType>
+		static FObserver OnRemove();
 
 		TYPEDELEMENTFRAMEWORK_API FObserver& SetEvent(EEvent MonitorForEvent);
 		TYPEDELEMENTFRAMEWORK_API FObserver& SetMonitoredColumn(const UScriptStruct* MonitoredColumn);

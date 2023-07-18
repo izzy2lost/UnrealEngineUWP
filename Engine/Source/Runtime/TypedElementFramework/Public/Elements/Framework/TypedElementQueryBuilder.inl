@@ -109,9 +109,16 @@ namespace TypedElementQueryBuilder
 	//
 	
 	template<typename ColumnType>
-	FObserver::FObserver(EEvent MonitorForEvent)
-		: FObserver(MonitorForEvent, ColumnType::StaticStruct())
-	{}
+	FObserver FObserver::OnAdd()
+	{
+		return FObserver(FObserver::EEvent::Add, ColumnType::StaticStruct());
+	}
+
+	template<typename ColumnType>
+	FObserver FObserver::OnRemove()
+	{
+		return FObserver(FObserver::EEvent::Remove, ColumnType::StaticStruct());
+	}
 
 	template<typename ColumnType>
 	FObserver& FObserver::SetMonitoredColumn()
