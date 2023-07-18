@@ -762,37 +762,34 @@ namespace UnrealGameSync
 			this.tableLayoutPanel3.Padding = new System.Windows.Forms.Padding(0, 13, 0, 0);
 			this.tableLayoutPanel3.RowCount = 1;
 			this.tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle());
-			this.tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 26F));
 			this.tableLayoutPanel3.Size = new System.Drawing.Size(1363, 39);
 			this.tableLayoutPanel3.TabIndex = 11;
 			// 
 			// OptionsButton
 			// 
 			this.OptionsButton.Anchor = System.Windows.Forms.AnchorStyles.Right;
-			this.OptionsButton.AutoSize = true;
 			this.OptionsButton.Image = global::UnrealGameSync.Properties.Resources.DropList;
 			this.OptionsButton.ImageAlign = System.Drawing.ContentAlignment.MiddleRight;
 			this.OptionsButton.Location = new System.Drawing.Point(1222, 13);
 			this.OptionsButton.Margin = new System.Windows.Forms.Padding(0);
 			this.OptionsButton.Name = "OptionsButton";
-			this.OptionsButton.Size = new System.Drawing.Size(141, 26);
+			this.OptionsButton.Size = new System.Drawing.Size(120, 26);
 			this.OptionsButton.TabIndex = 7;
-			this.OptionsButton.Text = "Options ";
+			this.OptionsButton.Text = "Options  ";
 			this.OptionsButton.UseVisualStyleBackColor = true;
 			this.OptionsButton.Click += new System.EventHandler(this.OptionsButton_Click);
 			// 
 			// FilterButton
 			// 
 			this.FilterButton.Anchor = System.Windows.Forms.AnchorStyles.Right;
-			this.FilterButton.AutoSize = true;
 			this.FilterButton.Image = global::UnrealGameSync.Properties.Resources.DropList;
 			this.FilterButton.ImageAlign = System.Drawing.ContentAlignment.MiddleRight;
 			this.FilterButton.Location = new System.Drawing.Point(0, 13);
 			this.FilterButton.Margin = new System.Windows.Forms.Padding(0);
 			this.FilterButton.Name = "FilterButton";
-			this.FilterButton.Size = new System.Drawing.Size(141, 26);
+			this.FilterButton.Size = new System.Drawing.Size(120, 26);
 			this.FilterButton.TabIndex = 9;
-			this.FilterButton.Text = "Filter";
+			this.FilterButton.Text = "Filter  ";
 			this.FilterButton.UseVisualStyleBackColor = true;
 			this.FilterButton.Click += new System.EventHandler(this.FilterButton_Click);
 			// 
@@ -801,19 +798,16 @@ namespace UnrealGameSync
 			this.tableLayoutPanel2.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
 			this.tableLayoutPanel2.ColumnCount = 1;
 			this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-			this.tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 23F));
-			this.tableLayoutPanel2.Controls.Add(this.Splitter, 0, 1);
-			this.tableLayoutPanel2.Controls.Add(this.tableLayoutPanel3, 0, 2);
+			this.tableLayoutPanel2.Controls.Add(this.Splitter, 0, 0);
+			this.tableLayoutPanel2.Controls.Add(this.tableLayoutPanel3, 0, 1);
 			this.tableLayoutPanel2.Dock = System.Windows.Forms.DockStyle.Fill;
 			this.tableLayoutPanel2.GrowStyle = System.Windows.Forms.TableLayoutPanelGrowStyle.FixedSize;
 			this.tableLayoutPanel2.Location = new System.Drawing.Point(0, 0);
 			this.tableLayoutPanel2.Margin = new System.Windows.Forms.Padding(0);
 			this.tableLayoutPanel2.Name = "tableLayoutPanel2";
-			this.tableLayoutPanel2.RowCount = 3;
-			this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle());
+			this.tableLayoutPanel2.RowCount = 2;
 			this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-			this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle());
-			this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 23F));
+			this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
 			this.tableLayoutPanel2.Size = new System.Drawing.Size(1363, 752);
 			this.tableLayoutPanel2.TabIndex = 12;
 			// 
