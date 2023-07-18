@@ -292,6 +292,9 @@ public:
 
 		TranslucencyVolume0.SafeRelease();
 		TranslucencyVolume1.SafeRelease();
+
+		RadianceCacheState.ReleaseTextures();
+		TranslucencyVolumeRadianceCacheState.ReleaseTextures();
 	}
 
 #if WITH_MGPU

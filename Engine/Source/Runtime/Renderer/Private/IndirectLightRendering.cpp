@@ -1106,6 +1106,14 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 			Delegate.Broadcast(*Scene, View, GraphBuilder, GIPluginResources);
 		}
 
+		// Free Lumen view state resources when no longer enabled, ie scalability change
+		if (ViewPipelineState.DiffuseIndirectMethod != EDiffuseIndirectMethod::Lumen 
+			&& ViewPipelineState.ReflectionsMethod != EReflectionsMethod::Lumen
+			&& View.ViewState)
+		{
+			View.ViewState->Lumen.SafeRelease();
+		}
+
 		FRDGTextureRef AmbientOcclusionMask = DenoiserInputs.AmbientOcclusionMask;
 
 		if (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen)
