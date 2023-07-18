@@ -245,6 +245,9 @@ void MainPSandCS(in float4 UVAndScreenPos, float4 SvPosition, out float4 OutColo
 
 	float2 WeightAccumulator = 0.0001f;
 	
+	// if the feature is enabled and right side of screen
+	const bool bDebugLookups = DEBUG_LOOKUPS && ViewSpacePosition.x > 0;
+
 #if AO_SAMPLE_QUALITY != 0
 	// no SSAO in this pass, only upsampling
 
@@ -261,9 +264,6 @@ void MainPSandCS(in float4 UVAndScreenPos, float4 SvPosition, out float4 OutColo
 
 	// jitter each frame a bit to get higher quality over multiple frames (only if TemporalAA is enabled), can cause ghosting effects
 	const float2 TemporalOffset = ScreenSpaceAOParams[3].xy;
-
-	// if the feature is enabled and right side of screen
-	const bool bDebugLookups = DEBUG_LOOKUPS && ViewSpacePosition.x > 0;
 
 	float2 RandomVec = (Texture2DSample(RandomNormalTexture, RandomNormalTextureSampler, TemporalOffset + UV * ViewportUVToRandomUV).rg * 2 - 1) * ActualAORadius;
 	{
