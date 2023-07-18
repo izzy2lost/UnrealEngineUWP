@@ -91,6 +91,7 @@ void UMassVisualizationLODProcessor::Execute(FMassEntityManager& EntityManager, 
 		FarEntityQuery.ForEachEntityChunk(EntityManager, Context, CalculateLOD);
 	}
 
+	if (bDoAdjustmentFromCount)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(AdjustDistanceAndLODFromCount)
 		EntityManager.ForEachSharedFragment<FMassVisualizationLODSharedFragment>([this](FMassVisualizationLODSharedFragment& LODSharedFragment)

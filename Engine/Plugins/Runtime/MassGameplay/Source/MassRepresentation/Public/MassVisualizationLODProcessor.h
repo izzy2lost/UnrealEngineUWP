@@ -45,4 +45,7 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UScriptStruct> FilterTag = nullptr;
+
+	UPROPERTY(config, EditDefaultsOnly, Category = "Mass")
+	bool bDoAdjustmentFromCount = true;
 };
