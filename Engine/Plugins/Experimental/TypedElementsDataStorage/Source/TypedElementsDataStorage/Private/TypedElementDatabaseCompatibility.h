@@ -50,9 +50,10 @@ private:
 	void TickPendingActorRegistration(UWorld* EditorWorld);
 	void TickPendingUObjectRegistration();
 	void TickPendingExternalObjectRegistration();
-	void TickActorSync();
+	void TickObjectSync();
 
 	void OnPostEditChangeProperty(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
+	void OnObjectModified(UObject* Object);
 	
 	template<typename AddressType>
 	struct PendingRegistration
@@ -92,11 +93,11 @@ private:
 	TMap<void*, TypedElementRowHandle> ReverseObjectLookup;
 
 	/**
-	 * Reference of actors that need to be fully synced from the world to the database.
-	 * May have duplicates
-	 * Caution: Could point to actors that have been GC-ed
+	 * Reference of objects (UObject and AActor) that need to be fully synced from the world to the database.
+	 * Caution: Could point to objects that have been GC-ed
 	 */
-	TArray<TObjectKey<const AActor>> ActorsNeedingFullSync;
+	TSet<TObjectKey<const UObject>> ObjectsNeedingFullSync;
 
 	FDelegateHandle PostEditChangePropertyDelegateHandle;
+	FDelegateHandle ObjectModifiedDelegateHandle;
 };

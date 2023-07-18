@@ -42,16 +42,16 @@ public:
 	 * with a row and to setup the initial row data.
 	 */
 	template<typename ObjectType>
-	TypedElementRowHandle AddCompatibleObject(ObjectType Object);
+	TypedElementRowHandle AddCompatibleObject(ObjectType&& Object);
 	template<typename ObjectType>
-	TypedElementRowHandle AddCompatibleObject(ObjectType Object, TypedElementTableHandle Table);
+	TypedElementRowHandle AddCompatibleObject(ObjectType&& Object, TypedElementTableHandle Table);
 
 	/** Removes a previously registered object from the data storage. */
 	template<typename ObjectType>
-	void RemoveCompatibleObject(ObjectType Object);
+	void RemoveCompatibleObject(ObjectType&& Object);
 
 	template<typename ObjectType>
-	TypedElementRowHandle FindRowWithCompatibleObject(const ObjectType Object) const;
+	TypedElementRowHandle FindRowWithCompatibleObject(ObjectType&& Object) const;
 
 
 	/**
@@ -98,12 +98,12 @@ template<typename Type> Type* GetRawPointer(Type* Object)						{ return Object; 
 template<typename Type> Type* GetRawPointer(Type& Object)						{ return &Object; }
 
 template<typename ObjectType>
-TypedElementRowHandle ITypedElementDataStorageCompatibilityInterface::AddCompatibleObject(ObjectType Object)
+TypedElementRowHandle ITypedElementDataStorageCompatibilityInterface::AddCompatibleObject(ObjectType&& Object)
 {
-	auto RawPointer = GetRawPointer(Object);
+	auto RawPointer = GetRawPointer(Forward<ObjectType>(Object));
 	using BaseType = std::remove_cv_t<std::remove_pointer_t<decltype(RawPointer)>>;
 
-	if constexpr (std::is_same_v<BaseType, AActor> || std::is_same_v<BaseType, UObject>)
+	if constexpr (std::is_base_of_v<UObject, BaseType>)
 	{
 		return AddCompatibleObjectExplicit(RawPointer);
 	}
@@ -114,31 +114,38 @@ TypedElementRowHandle ITypedElementDataStorageCompatibilityInterface::AddCompati
 }
 
 template<typename ObjectType>
-TypedElementRowHandle ITypedElementDataStorageCompatibilityInterface::AddCompatibleObject(ObjectType Object, TypedElementTableHandle Table)
+TypedElementRowHandle ITypedElementDataStorageCompatibilityInterface::AddCompatibleObject(ObjectType&& Object, TypedElementTableHandle Table)
 {
-	auto RawPointer = GetRawPointer(Object);
-	using BaseType = std::remove_cv_t<std::remove_pointer_t<decltype(RawPointer)>>;
-
-	if constexpr (std::is_same_v<BaseType, AActor> || std::is_same_v<BaseType, UObject>)
+	if (Table != TypedElementInvalidTableHandle)
 	{
-		return AddCompatibleObjectExplicit(RawPointer, Table);
+		auto RawPointer = GetRawPointer(Forward<ObjectType>(Object));
+		using BaseType = std::remove_cv_t<std::remove_pointer_t<decltype(RawPointer)>>;
+
+		if constexpr (std::is_base_of_v<UObject, BaseType>)
+		{
+			return AddCompatibleObjectExplicit(RawPointer, Table);
+		}
+		else
+		{
+			return AddCompatibleObjectExplicit(RawPointer, BaseType::StaticStruct(), Table);
+		}
 	}
 	else
 	{
-		return AddCompatibleObjectExplicit(RawPointer, BaseType::StaticStruct(), Table);
+		return AddCompatibleObject(Object);
 	}
 }
 
 template<typename ObjectType>
-void ITypedElementDataStorageCompatibilityInterface::RemoveCompatibleObject(ObjectType Object)
+void ITypedElementDataStorageCompatibilityInterface::RemoveCompatibleObject(ObjectType&& Object)
 {
-	RemoveCompatibleObjectExplicit(GetRawPointer(Object));
+	RemoveCompatibleObjectExplicit(GetRawPointer(Forward<ObjectType>(Object)));
 }
 
 template<typename ObjectType>
-TypedElementRowHandle ITypedElementDataStorageCompatibilityInterface::FindRowWithCompatibleObject(const ObjectType Object) const
+TypedElementRowHandle ITypedElementDataStorageCompatibilityInterface::FindRowWithCompatibleObject(ObjectType&& Object) const
 {
-	return FindRowWithCompatibleObjectExplicit(GetRawPointer(Object));
+	return FindRowWithCompatibleObjectExplicit(GetRawPointer(Forward<ObjectType>(Object)));
 }
 
 template<typename Subsystem>

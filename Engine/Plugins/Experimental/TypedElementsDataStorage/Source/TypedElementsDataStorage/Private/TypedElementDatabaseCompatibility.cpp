@@ -24,10 +24,12 @@ void UTypedElementDatabaseCompatibility::Initialize(ITypedElementDataStorageInte
 	StorageInterface->OnUpdate().AddUObject(this, &UTypedElementDatabaseCompatibility::Tick);
 
 	PostEditChangePropertyDelegateHandle = FCoreUObjectDelegates::OnObjectPropertyChanged.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostEditChangeProperty);
+	ObjectModifiedDelegateHandle = FCoreUObjectDelegates::OnObjectModified.AddUObject(this, &UTypedElementDatabaseCompatibility::OnObjectModified);
 }
 
 void UTypedElementDatabaseCompatibility::Deinitialize()
 {
+	FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(ObjectModifiedDelegateHandle);
 	FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(PostEditChangePropertyDelegateHandle);
 	
 	Reset();
@@ -227,6 +229,7 @@ void UTypedElementDatabaseCompatibility::CreateStandardArchetypes()
 
 	StandardUObjectTable = Storage->RegisterTable(TTypedElementColumnTypeList<
 			FTypedElementUObjectColumn, FTypedElementClassTypeInfoColumn,
+			FTypedElementPackagePathColumn, FTypedElementPackageLoadedPathColumn,
 			FTypedElementSyncFromWorldTag>(), 
 		FName("Editor_StandardUObjectTable"));
 
@@ -247,7 +250,7 @@ void UTypedElementDatabaseCompatibility::Tick()
 		TickPendingActorRegistration(EditorWorld);
 		TickPendingUObjectRegistration();
 		TickPendingExternalObjectRegistration();
-		TickActorSync();
+		TickObjectSync();
 	}
 }
 
@@ -450,29 +453,22 @@ void UTypedElementDatabaseCompatibility::TickPendingExternalObjectRegistration()
 	}
 }
 
-void UTypedElementDatabaseCompatibility::TickActorSync()
+void UTypedElementDatabaseCompatibility::TickObjectSync()
 {
-	if (!ActorsNeedingFullSync.IsEmpty())
+	if (!ObjectsNeedingFullSync.IsEmpty())
 	{
-		TEDS_EVENT_SCOPE(TEXT("Process ActorsNeedingFullSync"));
-		// Deduplicate to avoid duplicate reverse lookups or adding tags more than once
-		{
-			TEDS_EVENT_SCOPE(TEXT("Deduplicate ActorsNeedingFullSync"));
-			ActorsNeedingFullSync.Sort();
-			ActorsNeedingFullSync.SetNum(Algo::Unique(ActorsNeedingFullSync), /* bAllowShrinking */ false);
-		}
-
+		TEDS_EVENT_SCOPE(TEXT("Process ObjectsNeedingFullSync"));
+		
 		TArray<TypedElementRowHandle> RowHandles;
 		{
-			TEDS_EVENT_SCOPE(TEXT("Reverse lookup Rows from Actors"));
+			TEDS_EVENT_SCOPE(TEXT("Reverse lookup Rows from Objects"));
 
-			RowHandles.SetNumUninitialized(ActorsNeedingFullSync.Num());
+			RowHandles.SetNumUninitialized(ObjectsNeedingFullSync.Num());
 			{
 				int32 RowHandleIndex = 0;
-				for (int32 ActorIndex = 0, End = ActorsNeedingFullSync.Num(); ActorIndex < End; ++ActorIndex)
+				for (TObjectKey<const UObject> ObjectKey : ObjectsNeedingFullSync)
 				{
-					const TObjectKey<const AActor> ActorKey = ActorsNeedingFullSync[ActorIndex];
-					const TypedElementRowHandle Row = FindRowWithCompatibleObject(ActorKey);
+					const TypedElementRowHandle Row = FindRowWithCompatibleObject(ObjectKey);
 					if (Row != TypedElementInvalidRowHandle)
 					{
 						RowHandles[RowHandleIndex++] = Row;
@@ -483,7 +479,7 @@ void UTypedElementDatabaseCompatibility::TickActorSync()
 				RowHandles.SetNum(RowHandleCount, bAllowShrinking);
 			}
 
-			ActorsNeedingFullSync.Reset();
+			ObjectsNeedingFullSync.Reset();
 		}
 
 		{
@@ -502,14 +498,16 @@ void UTypedElementDatabaseCompatibility::OnPostEditChangeProperty(
 	UObject* Object,
 	FPropertyChangedEvent& /*PropertyChangedEvent*/)
 {
-	// We aren't sure if this Actor is tracked by the database
-	// Will resolve that during the tick step
-	// The aim is to keep this delegate handler as simple as possible to avoid performance side-effects when other code
-	// invokes it.
-	AActor* Actor = Cast<AActor>(Object);
-	if (Actor)
-	{
-		// Note: This array may end up with duplicates
-		ActorsNeedingFullSync.Add(Actor);
-	}
+	// Determining the object is being tracked in the database can't be done safely as it may be queued for addition.
+	// It would also add a small bit of performance overhead as access the lookup table can be done faster as a
+	// batch operation during the tick step.
+	ObjectsNeedingFullSync.FindOrAdd(Object);
+}
+
+void UTypedElementDatabaseCompatibility::OnObjectModified(UObject* Object)
+{
+	// Determining the object is being tracked in the database can't be done safely as it may be queued for addition.
+	// It would also add a small bit of performance overhead as access the lookup table can be done faster as a
+	// batch operation during the tick step.
+	ObjectsNeedingFullSync.FindOrAdd(Object);
 }
