@@ -59,7 +59,6 @@ class BEHAVIORTREEEDITOR_API UBehaviorTreeGraphNode : public UAIGraphNode
 
 	void ClearDebuggerState();
 
-	// #RED_BTNodeCustomIconStyleSet kristof.morva 2023-04-07
 	/** gets the style set from which GetNameIcon is queried */
 	virtual const ISlateStyle& GetNameIconStyleSet() const;
 

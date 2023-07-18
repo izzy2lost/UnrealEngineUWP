@@ -871,7 +871,6 @@ const FSlateBrush* SGraphNode_BehaviorTree::GetNameIcon() const
 	UBehaviorTreeGraphNode* BTGraphNode = Cast<UBehaviorTreeGraphNode>(GraphNode);
 	if (BTGraphNode != nullptr)
 	{
-		// #RED_BTNodeCustomIconStyleSet kristof.morva 2023-04-07
 		return BTGraphNode->GetNameIconStyleSet().GetBrush(BTGraphNode->GetNameIcon());
 	}
 
