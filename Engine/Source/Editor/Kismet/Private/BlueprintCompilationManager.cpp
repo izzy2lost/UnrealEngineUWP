@@ -515,6 +515,11 @@ struct FReinstancingJob
 
 	// always set:
 	TPair<UClass*, UClass*> OldToNew;
+
+	// Sorting dependencies
+	TSet<const UClass*> BPClassDependencies;
+	bool DependsOn(const FReinstancingJob& OtherJob) const;
+	void CalculateBPClassDependencies();
 };
 
 FReinstancingJob::FReinstancingJob(TSharedPtr<FBlueprintCompileReinstancer> InReinstancer)
@@ -542,6 +547,32 @@ FReinstancingJob::FReinstancingJob(TPair<UClass*, UClass*> InOldToNew)
 	, Compiler()
 	, OldToNew(InOldToNew)
 {
+}
+
+bool FReinstancingJob::DependsOn(const FReinstancingJob& OtherJob) const
+{
+	return OtherJob.Reinstancer.IsValid() && OtherJob.OldToNew.Key && BPClassDependencies.Contains(OtherJob.OldToNew.Key);
+}
+
+void FReinstancingJob::CalculateBPClassDependencies()
+{
+	if (Reinstancer.IsValid() && OldToNew.Key)
+	{
+		const UObject* OldCDO = OldToNew.Key->ClassDefaultObject;
+
+		// Gather subobjects on old CDO and remember depends BP classes
+		TArray<UObject*> ContainedOldObjects;
+		GetObjectsWithOuter(OldCDO, ContainedOldObjects);
+		for (const UObject* OldObject : ContainedOldObjects)
+		{
+			const UClass* DependentClass = OldObject->GetClass();
+			while (DependentClass && UBlueprint::GetBlueprintFromClass(DependentClass))
+			{
+				BPClassDependencies.Add(DependentClass);
+				DependentClass = DependentClass->GetSuperClass();
+			}
+		}
+	}
 }
 
 namespace UE::Kismet::BlueprintCompilationManager::Private
@@ -2215,6 +2246,8 @@ void FBlueprintCompilationManagerImpl::BuildDSOMap(UObject* OldObject, UObject* 
 
 void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>& Reinstancers, TMap< UClass*, UClass* >& InOutOldToNewClassMap, FUObjectSerializeContext* InLoadContext)
 {
+	TGuardValue<bool> ReinstancingGuard(GIsReinstancing, true);
+
 	const auto FilterOutOfDateClasses = [](TArray<UClass*>& ClassList)
 	{
 		// Old versions of classes can be abandoned, classes without CDOs have no instances and don't require reinstancing
@@ -2350,7 +2383,7 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 	{
 		TSet<UBlueprint*> DependentBPs;
 		TMap<FFieldVariant, FFieldVariant> FieldMappings;
-		for (const FReinstancingJob& ReinstancingJob : Reinstancers)
+		for (FReinstancingJob& ReinstancingJob : Reinstancers)
 		{
 			if (ReinstancingJob.OldToNew.Key)
 			{
@@ -2361,6 +2394,7 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 			{
 				UBlueprint* CompiledBlueprint = UBlueprint::GetBlueprintFromClass(ReinstancingJob.OldToNew.Value);
 				ReinstancingJob.Reinstancer->UpdateBytecodeReferences(DependentBPs, FieldMappings);
+				ReinstancingJob.CalculateBPClassDependencies();
 			}
 		}
 
@@ -2377,10 +2411,11 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 	Reinstancers.Sort(
 		[](const FReinstancingJob& ReinstancingDataA, const FReinstancingJob& ReinstancingDataB)
 		{
-			return FBlueprintCompileReinstancer::ReinstancerOrderingFunction(
-				ReinstancingDataA.OldToNew.Value, 
-				ReinstancingDataB.OldToNew.Value
-			);
+			return !ReinstancingDataA.DependsOn(ReinstancingDataB) && 
+				FBlueprintCompileReinstancer::ReinstancerOrderingFunction(
+					ReinstancingDataA.OldToNew.Value, 
+					ReinstancingDataB.OldToNew.Value
+				);
 		}
 	);
 
@@ -2404,7 +2439,15 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 					FBlueprintSupport::RepairDeferredDependenciesInObject(OldCDO);
 				}
 
-				FBlueprintCompileReinstancer::CopyPropertiesForUnrelatedObjects(OldCDO, NewCDO, true, bUseDeltaSerialization);
+				TMap<UObject*, UObject*> CreatedInstanceMap;
+				FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation(InOutOldToNewClassMap, OldCDO, NewCDO, CreatedInstanceMap);
+
+				// We only need to copy properties of the pre-created instances, the rest of the default sub object is done inside the UEditorEngine::CopyPropertiesForUnrelatedObjects
+				TMap<UObject*, UObject*> OldToNewInstanceMap(CreatedInstanceMap);
+				for(const auto& Pair : CreatedInstanceMap)
+				{
+					FBlueprintCompileReinstancer::CopyPropertiesForUnrelatedObjects(Pair.Key, Pair.Value, /*bClearExternalReferences*/true, bUseDeltaSerialization, /*bOnlyHandleDirectSubObjects*/true, &OldToNewInstanceMap);
+				}
 
 				if (ReinstancingJob.Compiler.IsValid())
 				{
@@ -2472,13 +2515,13 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 		if(OldClass)
 		{
 			UClass* NewClass = ReinstancingJob.OldToNew.Value;
-            if (NewClass && 
+			if (NewClass && 
 				OldClass->ClassDefaultObject && 
 				NewClass->ClassDefaultObject &&
 				OldClass->ClassDefaultObject != NewClass->ClassDefaultObject)
-            {
-                OldArchetypeToNewArchetype.Add(OldClass->ClassDefaultObject, NewClass->ClassDefaultObject);
-            }
+			{
+				OldArchetypeToNewArchetype.Add(OldClass->ClassDefaultObject, NewClass->ClassDefaultObject);
+			}
 
 			TArray<UObject*> ArchetypeObjects;
 			GetObjectsOfClass(OldClass, ArchetypeObjects, false);

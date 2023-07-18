@@ -16733,6 +16733,7 @@ UEngine::FCopyPropertiesForUnrelatedObjectsParams::FCopyPropertiesForUnrelatedOb
 	, bCopyDeprecatedProperties(false)
 	, bPreserveRootComponent(true)
 	, bPerformDuplication(false)
+	, bOnlyHandleDirectSubObjects(false)
 	, bSkipCompilerGeneratedDefaults(false)
 	, bNotifyObjectReplacement(false)
 	, bClearReferences(true)
@@ -16791,9 +16792,9 @@ void UEngine::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* New
 	// includes any subobjects that have a matching name on the archetype. This function returns all subobjects that have
 	// a matching instancing on Object's archetype and any objects tagged as RF_DefaultSubObject. Non-DSO instanced subobjects
 	// may be missing, but testing will determine that:
-	const auto CollectAllSubobjects = [](UObject* Object, TArray<UObject*>& OutSubobjectArray)
+	const auto CollectAllSubobjects = [&Params](UObject* Object, TArray<UObject*>& OutSubobjectArray)
 	{
-		const bool bIncludedNestedObjects = true;
+		const bool bIncludedNestedObjects = !Params.bOnlyHandleDirectSubObjects;
 		GetObjectsWithOuter(Object, OutSubobjectArray, bIncludedNestedObjects);
 
 		// Remove contained objects that are not subobjects.
@@ -16803,6 +16804,11 @@ void UEngine::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* New
 			if (!PotentialComponent->IsDefaultSubobject() && !PotentialComponent->HasAnyFlags(RF_DefaultSubObject))
 			{
 				OutSubobjectArray.RemoveAtSwap(ComponentIndex--);
+			}
+			else if(Params.bOnlyHandleDirectSubObjects)
+			{
+				// If it is a default sub object, get its default
+				GetObjectsWithOuter(PotentialComponent, OutSubobjectArray, false);
 			}
 		}
 	};
@@ -16866,12 +16872,18 @@ void UEngine::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* New
 	// Gather references to old instances or objects that need to be replaced after we serialize in saved data
 	TMap<UObject*, UObject*> ReferenceReplacementMap;
 	ReferenceReplacementMap.Add(OldObject, NewObject);
-	ReferenceReplacementMap.Add(OldObject->GetArchetype(), NewObject->GetArchetype());
-	if (Params.bReplaceObjectClassReferences)
+	if (OldObject->GetArchetype() != NewObject->GetArchetype())
 	{
-		ReferenceReplacementMap.Add(OldObject->GetClass(), NewObject->GetClass());
+		ReferenceReplacementMap.Add(OldObject->GetArchetype(), NewObject->GetArchetype());
 	}
-	ReferenceReplacementMap.Add(OldObject->GetClass()->GetDefaultObject(), NewObject->GetClass()->GetDefaultObject());
+	if (OldObject->GetClass() != NewObject->GetClass())
+	{
+		if (Params.bReplaceObjectClassReferences)
+		{
+			ReferenceReplacementMap.Add(OldObject->GetClass(), NewObject->GetClass());
+		}
+		ReferenceReplacementMap.Add(OldObject->GetClass()->GetDefaultObject(), NewObject->GetClass()->GetDefaultObject());
+	}
 
 	TArray<UObject*> ComponentsOnNewObject;
 	TMap<UObject*, UObject*> AggressiveReplaceReferences;
@@ -16983,7 +16995,7 @@ void UEngine::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* New
 	// Also, if requested, leave pointers to instances of renewed classes intact, assuming we are in the midst of reinstancing, and those will be reinstanced
 	ForEachObjectWithOuter(OldObject, [&ReferenceReplacementMap, &Params](UObject* ObjectInOuter)
 	{
-		if (!ReferenceReplacementMap.Contains(ObjectInOuter))
+		if (!ReferenceReplacementMap.Contains(ObjectInOuter) && (!Params.OptionalReplacementMappings || !Params.OptionalReplacementMappings->Contains(ObjectInOuter)))
 		{
 			ReferenceReplacementMap.Add(ObjectInOuter, nullptr);
 		}

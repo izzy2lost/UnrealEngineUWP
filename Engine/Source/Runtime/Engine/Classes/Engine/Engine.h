@@ -2939,6 +2939,7 @@ public:
 		bool bCopyDeprecatedProperties;
 		bool bPreserveRootComponent;
 		bool bPerformDuplication;
+		bool bOnlyHandleDirectSubObjects;
 
 		/** Skips copying properties with BlueprintCompilerGeneratedDefaults metadata */
 		bool bSkipCompilerGeneratedDefaults;
