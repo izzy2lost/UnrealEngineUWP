@@ -59,6 +59,7 @@ protected:
 	TSet<FName> IterativeFalseNegative;
 
 	FString MetadataPath;
+	int32 ModifiedCount = 0;
 	EPhase Phase = EPhase::FirstCook;
 	bool bPackageSaveToDiskPass = false;
 	bool bPackageFirstPass = false;
