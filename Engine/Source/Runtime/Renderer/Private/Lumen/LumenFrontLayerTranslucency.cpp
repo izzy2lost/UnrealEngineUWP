@@ -176,7 +176,7 @@ bool CanMaterialRenderInLumenFrontLayerTranslucencyGBufferPass(
 	const FSceneView* View = ViewFamily.Views[0];
 	check(View);
 
-	return ShouldRenderLumenDiffuseGI(&Scene, *View) && Lumen::ShouldRenderInFrontLayerTranslucencyGBufferPass(PrimitiveSceneProxy.ShouldRenderInMainPass(), Material);
+	return ShouldRenderLumenReflections(*View) && Lumen::ShouldRenderInFrontLayerTranslucencyGBufferPass(PrimitiveSceneProxy.ShouldRenderInMainPass(), Material);
 }
 
 void FLumenFrontLayerTranslucencyGBufferMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId)
@@ -187,7 +187,7 @@ void FLumenFrontLayerTranslucencyGBufferMeshProcessor::AddMeshBatch(const FMeshB
 		&& PrimitiveSceneProxy
 		&& ViewIfDynamicMeshCommand
 		//@todo - this filter should be done at a higher level
-		&& ShouldRenderLumenDiffuseGI(Scene, *ViewIfDynamicMeshCommand))
+		&& ShouldRenderLumenReflections(*ViewIfDynamicMeshCommand))
 	{
 		const FMaterialRenderProxy* MaterialRenderProxy = MeshBatch.MaterialRenderProxy;
 		while (MaterialRenderProxy)
