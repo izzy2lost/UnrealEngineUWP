@@ -8,7 +8,6 @@ using System.Text;
 using EpicGames.Core;
 using EpicGames.UHT.Types;
 using EpicGames.UHT.Utils;
-using Microsoft.Extensions.Primitives;
 
 namespace EpicGames.UHT.Exporters.CodeGen
 {
@@ -210,14 +209,14 @@ namespace EpicGames.UHT.Exporters.CodeGen
 								foreach (UhtRigVMParameter parameter in methodInfo.Parameters)
 								{
 									string baseType = parameter.TypeOriginal().ToString();
-									if (baseType.StartsWith("const"))
+									if (baseType.StartsWith("const", StringComparison.Ordinal))
 									{
-										baseType = baseType.Substring(5).Trim();
+										baseType = baseType[5..].Trim();
 									}
 
-									if (baseType.EndsWith("&"))
+									if (baseType.EndsWith("&", StringComparison.Ordinal))
 									{
-										baseType = baseType.Substring(0, baseType.Length - 1).Trim();
+										baseType = baseType[..^1].Trim();
 									}
 									builder.Append("\t\t\t\t*(").Append(baseType).Append("*) Branch.MemoryHandles[")
 										.Append(parameterIndex++).Append("].GetData(false) = ")
@@ -227,7 +226,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 								builder.Append("\t\t\t\tBranch.Execute(*Context);  \\\r\n");
 								builder.Append("\t\t\t\treturn *(").Append(methodInfo.ReturnType).Append("*)Branch.MemoryHandles[").Append(methodInfo.Parameters.Count).Append("].GetData(false);  \\\r\n");
 								builder.Append("\t\t\t}  \\\r\n");
-								builder.Append("\t\t\treturn ").Append(methodInfo.Name).Append("(");
+								builder.Append("\t\t\treturn ").Append(methodInfo.Name).Append('(');
 								builder.AppendParameterNames(methodInfo.Parameters, false, ", ", false, false);
 								builder.Append("); \\\r\n");
 								builder.Append("\t\t}  \\\r\n");
@@ -675,10 +674,8 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				if (!allEditorFields)
 				{
 					builder.Append("#else //WITH_EDITORONLY_DATA\r\n");
-					using (UhtMacroCreator macro = new(builder, this, classObj, FieldNotifyMacroSuffix))
-					{
-						AppendFieldNotify(builder, classObj, hasProperties, hasFunctions, hasEditorFields, allEditorFields, false);
-					}
+					using UhtMacroCreator macro = new(builder, this, classObj, FieldNotifyMacroSuffix);
+					AppendFieldNotify(builder, classObj, hasProperties, hasFunctions, hasEditorFields, allEditorFields, false);
 				}
 				builder.Append("#endif // WITH_EDITORONLY_DATA\r\n");
 			}
@@ -757,7 +754,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return builder;
 		}
 		
-		private StringBuilder AppendAutoGetterSetter(StringBuilder builder, UhtClass classObj,
+		private static StringBuilder AppendAutoGetterSetter(StringBuilder builder, UhtClass classObj,
 			bool hasProperties, bool hasEditorFields, bool allEditorFields,
 			bool includeEditorOnlyFields)
 		{
@@ -866,10 +863,10 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			{
 				// Trim the extra newlines added after the macro generator
 				if (builder.Length > 4 &&
-					builder[builder.Length - 4] == '\r' &&
-					builder[builder.Length - 3] == '\n' &&
-					builder[builder.Length - 2] == '\r' &&
-					builder[builder.Length - 1] == '\n')
+					builder[^4] == '\r' &&
+					builder[^3] == '\n' &&
+					builder[^2] == '\r' &&
+					builder[^1] == '\n')
 				{
 					builder.Length -= 4;
 				}

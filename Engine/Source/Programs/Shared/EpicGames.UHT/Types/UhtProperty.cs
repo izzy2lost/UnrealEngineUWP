@@ -1540,10 +1540,7 @@ namespace EpicGames.UHT.Types
 						if (dim.Length > 0 && !UhtFCString.IsDigit(dim[0]))
 						{
 							UhtEnum? enumObj = Session.FindRegularEnumValue(dim.ToString());
-							if (enumObj == null)
-							{
-								enumObj = Session.FindType(Outer, UhtFindOptions.Enum | UhtFindOptions.SourceName, dim.ToString()) as UhtEnum;
-							}
+							enumObj ??= Session.FindType(Outer, UhtFindOptions.Enum | UhtFindOptions.SourceName, dim.ToString()) as UhtEnum;
 							if (enumObj != null)
 							{
 								MetaData.Add(UhtNames.ArraySizeEnum, enumObj.PathName);

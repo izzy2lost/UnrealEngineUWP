@@ -816,7 +816,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					{
 						if (predicateInfo.IsPredicate)
 						{
-							builder.Append("\t").Append(predicateInfo.Name).Append("Struct ").Append(predicateInfo.Name).Append("Predicate; \r\n");
+							builder.Append('\t').Append(predicateInfo.Name).Append("Struct ").Append(predicateInfo.Name).Append("Predicate; \r\n");
 						}
 					}
 
