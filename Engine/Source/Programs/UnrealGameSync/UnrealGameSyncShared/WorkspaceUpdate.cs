@@ -915,7 +915,8 @@ namespace UnrealGameSync
 						if (branchOrStreamName != null)
 						{
 							// If it's a virtual stream, take the concrete parent stream instead
-							for (; ; )
+							HashSet<string> versionStreams = new HashSet<string>(Context.ProjectConfigFile.GetValues("Perforce.VersionStreams", Array.Empty<string>()), StringComparer.OrdinalIgnoreCase);
+							while (!versionStreams.Contains(branchOrStreamName))
 							{
 								StreamRecord streamSpec = await perforce.GetStreamAsync(branchOrStreamName, false, cancellationToken);
 								if (streamSpec.Type != "virtual" || streamSpec.Parent == "none" || streamSpec.Parent == null)
