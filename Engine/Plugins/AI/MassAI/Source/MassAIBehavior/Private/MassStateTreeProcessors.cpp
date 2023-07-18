@@ -16,6 +16,8 @@
 #include "Engine/World.h"
 #include "MassBehaviorSettings.h"
 #include "VisualLogger/VisualLogger.h"
+#include "MassDebugger.h"
+
 
 CSV_DEFINE_CATEGORY(StateTreeProcessor, true);
 

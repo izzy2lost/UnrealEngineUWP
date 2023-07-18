@@ -15,6 +15,7 @@
 #include "VisualLogger/VisualLogger.h"
 #include "MassSimulationLOD.h"
 #include "Engine/World.h"
+#include "MassDebugger.h"
 
 #define UNSAFE_FOR_MT 1
 

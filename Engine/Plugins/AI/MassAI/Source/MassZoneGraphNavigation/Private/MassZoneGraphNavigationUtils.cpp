@@ -6,6 +6,7 @@
 #include "MassZoneGraphNavigationFragments.h"
 #include "ZoneGraphSubsystem.h"
 #include "VisualLogger/VisualLogger.h"
+#include "MassDebugger.h"
 
 namespace UE::MassNavigation
 {

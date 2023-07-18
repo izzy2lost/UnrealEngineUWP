@@ -19,6 +19,8 @@
 #include "MassGameplayExternalTraits.h"
 #include "ZoneGraphSubsystem.h"
 #include "MassGameplayExternalTraits.h"
+#include "MassDebugger.h"
+
 
 //----------------------------------------------------------------------//
 // UMassSmartObjectCandidatesFinderProcessor

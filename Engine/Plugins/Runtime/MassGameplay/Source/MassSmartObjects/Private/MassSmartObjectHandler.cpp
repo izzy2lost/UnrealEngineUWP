@@ -11,6 +11,8 @@
 #include "MassSignalSubsystem.h"
 #include "MassSmartObjectFragments.h"
 #include "Engine/World.h"
+#include "MassDebugger.h"
+
 
 namespace UE::Mass::SmartObject
 {

@@ -15,6 +15,8 @@
 #include "MassNavigationFragments.h"
 #include "MassNavigationUtils.h"
 #include "Engine/World.h"
+#include "MassDebugger.h"
+
 
 #define UNSAFE_FOR_MT 1
 

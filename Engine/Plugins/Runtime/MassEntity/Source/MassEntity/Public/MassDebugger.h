@@ -8,7 +8,7 @@
 #include "MassEntityQuery.h"
 #include "MassProcessor.h"
 #include "Misc/SpinLock.h"
-#endif // WITH_MASSENTITY_DEBUG
+
 
 class FOutputDevice;
 class UMassProcessor;
@@ -22,38 +22,49 @@ enum class EMassFragmentPresence : uint8;
 
 namespace UE::Mass::Debug
 {
-#if WITH_MASSENTITY_DEBUG
-struct MASSENTITY_API FQueryRequirementsView
-{
-	TConstArrayView<FMassFragmentRequirementDescription> FragmentRequirements;
-	TConstArrayView<FMassFragmentRequirementDescription> ChunkRequirements;
-	TConstArrayView<FMassFragmentRequirementDescription> ConstSharedRequirements;
-	TConstArrayView<FMassFragmentRequirementDescription> SharedRequirements;
-	const FMassTagBitSet& RequiredAllTags;
-	const FMassTagBitSet& RequiredAnyTags;
-	const FMassTagBitSet& RequiredNoneTags;
-	const FMassExternalSubsystemBitSet& RequiredConstSubsystems;
-	const FMassExternalSubsystemBitSet& RequiredMutableSubsystems;
-};
+	struct MASSENTITY_API FQueryRequirementsView
+	{
+		TConstArrayView<FMassFragmentRequirementDescription> FragmentRequirements;
+		TConstArrayView<FMassFragmentRequirementDescription> ChunkRequirements;
+		TConstArrayView<FMassFragmentRequirementDescription> ConstSharedRequirements;
+		TConstArrayView<FMassFragmentRequirementDescription> SharedRequirements;
+		const FMassTagBitSet& RequiredAllTags;
+		const FMassTagBitSet& RequiredAnyTags;
+		const FMassTagBitSet& RequiredNoneTags;
+		const FMassExternalSubsystemBitSet& RequiredConstSubsystems;
+		const FMassExternalSubsystemBitSet& RequiredMutableSubsystems;
+	};
 
-FString DebugGetFragmentAccessString(EMassFragmentAccess Access);
-MASSENTITY_API extern void DebugOutputDescription(TConstArrayView<UMassProcessor*> Processors, FOutputDevice& Ar);
-#endif // WITH_MASSENTITY_DEBUG
+	FString DebugGetFragmentAccessString(EMassFragmentAccess Access);
+	MASSENTITY_API extern void DebugOutputDescription(TConstArrayView<UMassProcessor*> Processors, FOutputDevice& Ar);
 
-struct FArchetypeStats
-{
-	/** Number of active entities of the archetype. */
-	int32 EntitiesCount = 0;
-	/** Number of entities that fit per chunk. */
-	int32 EntitiesCountPerChunk = 0;
-	/** Number of allocated chunks. */
-	int32 ChunksCount = 0;
-	/** Total amount of memory taken by this archetype */
-	SIZE_T AllocatedSize = 0;
-};
+	struct FArchetypeStats
+	{
+		/** Number of active entities of the archetype. */
+		int32 EntitiesCount = 0;
+		/** Number of entities that fit per chunk. */
+		int32 EntitiesCountPerChunk = 0;
+		/** Number of allocated chunks. */
+		int32 ChunksCount = 0;
+		/** Total amount of memory taken by this archetype */
+		SIZE_T AllocatedSize = 0;
+		/** Total amount of memory needed by a single entity */
+		int32 BytesPerEntity = 0;
+	};
+
+	MASSENTITY_API extern bool HasDebugEntities();
+	MASSENTITY_API extern bool IsDebuggingSingleEntity();
+
+	/**
+	 * Populates OutBegin and OutEnd with entity index ranges as set by mass.debug.SetDebugEntityRange or
+	 * mass.debug.DebugEntity console commands.
+	 * @return whether any range has been configured.
+	 */
+	MASSENTITY_API extern bool GetDebugEntitiesRange(int32& OutBegin, int32& OutEnd);
+	MASSENTITY_API extern bool IsDebuggingEntity(FMassEntityHandle Entity, FColor* OutEntityColor = nullptr);
+	MASSENTITY_API extern FColor GetEntityDebugColor(FMassEntityHandle Entity);
 } // namespace UE::Mass::Debug
 
-#if WITH_MASSENTITY_DEBUG
 
 struct MASSENTITY_API FMassDebugger
 {
@@ -103,6 +114,10 @@ private:
 };
 
 #else
+
+struct FMassArchetypeHandle;
+struct FMassFragmentRequirements;
+struct FMassFragmentRequirementDescription;
 
 struct MASSENTITY_API FMassDebugger
 {
