@@ -332,37 +332,39 @@ void UControlRig::Evaluate_AnyThread()
 		// and we don't want other systems to see that.
 		FScopeLock EvaluateLock(&GetEvaluateMutex());
 
+		URigHierarchy* Hierarchy = GetHierarchy();
+
 		if (PoseBeforeBackwardsSolve.Num() == 0)
 		{
 			// If the pose is empty, this is an indication that a new pose is coming in
-			PoseBeforeBackwardsSolve = GetHierarchy()->GetPose(false, ERigElementType::Bone, TArrayView<const FRigElementKey>());
+			PoseBeforeBackwardsSolve = Hierarchy->GetPose(false, ERigElementType::Bone, TArrayView<const FRigElementKey>());
 		}
 		else
 		{
 			// Restore the pose from the anim sequence
-			DynamicHierarchy->SetPose(PoseBeforeBackwardsSolve);
+			Hierarchy->SetPose(PoseBeforeBackwardsSolve);
 		}
 		
 		// Backwards solve
 		{
-			TGuardValue<bool> UpdatePreferredAngles(DynamicHierarchy->bUpdatePreferedEulerAngleWhenSettingTransform, false);
+			TGuardValue<bool> UpdatePreferredAngles(Hierarchy->bUpdatePreferedEulerAngleWhenSettingTransform, false);
 			Execute(FRigUnit_InverseExecution::EventName);
 		}
 
 		// Store control pose after backwards solve to figure out additive local transforms based on animation
-		ControlsAfterBackwardsSolve = GetHierarchy()->GetPose(false, ERigElementType::Control, TArrayView<const FRigElementKey>());
+		ControlsAfterBackwardsSolve = Hierarchy->GetPose(false, ERigElementType::Control, TArrayView<const FRigElementKey>());
 
 		// Apply additive controls
 		for (TPair<FRigElementKey, FRigSetControlValueInfo>& Value : ControlValues)
 		{
-			if (FRigBaseElement* Element = GetHierarchy()->Find(Value.Key))
+			if (FRigBaseElement* Element = Hierarchy->Find(Value.Key))
 			{
 				if (FRigControlElement* Control = Cast<FRigControlElement>(Element))
 				{
 					FRigSetControlValueInfo& Info = Value.Value;
 
 					// Transform from animation
-					const FRigControlValue PreviousValue = GetHierarchy()->GetControlValue(Control, ERigControlValueType::Current);
+					const FRigControlValue PreviousValue = Hierarchy->GetControlValue(Control, ERigControlValueType::Current, false);
 					const FTransform PreviousTransform = PreviousValue.GetAsTransform(Control->Settings.ControlType, Control->Settings.PrimaryAxis);
 
 					// Additive transform from controls
@@ -375,8 +377,8 @@ void UControlRig::Evaluate_AnyThread()
 					FRigControlValue FinalValue;
 					FinalValue.SetFromTransform(FinalTransform, Control->Settings.ControlType, Control->Settings.PrimaryAxis);
 					
-					GetHierarchy()->SetControlValue(Control, FinalValue, ERigControlValueType::Current, Info.bSetupUndo, false, Info.bPrintPythonCommnds, false);
-					GetHierarchy()->SetPreferredEulerAnglesFromValue(Control, AdditiveValue, ERigControlValueType::Current, Info.bFixEulerFlips);
+					Hierarchy->SetControlValue(Control, FinalValue, ERigControlValueType::Current, Info.bSetupUndo, false, Info.bPrintPythonCommnds, false);
+					Hierarchy->SetPreferredEulerAnglesFromValue(Control, AdditiveValue, ERigControlValueType::Current, Info.bFixEulerFlips);
 					
 					if (Info.bNotify && OnControlModified.IsBound())
 					{
@@ -389,7 +391,7 @@ void UControlRig::Evaluate_AnyThread()
 		
 		// Forward solve
 		{
-			TGuardValue<bool> UpdatePreferredAngles(DynamicHierarchy->bUpdatePreferedEulerAngleWhenSettingTransform, false);
+			TGuardValue<bool> UpdatePreferredAngles(Hierarchy->bUpdatePreferedEulerAngleWhenSettingTransform, false);
 			Execute(FRigUnit_BeginExecution::EventName);
 		}
 	}

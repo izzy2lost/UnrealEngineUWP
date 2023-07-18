@@ -3622,9 +3622,10 @@ public:
 	 * Returns a control's current value
 	 * @param InControlElement The element to retrieve the current value for
 	 * @param InValueType The type of value to return
+	 * @param bUsePreferredAngles When true will use euler preferred angles to compute the value
 	 * @return Returns the current value of the control
 	 */
-	FRigControlValue GetControlValue(FRigControlElement* InControlElement, ERigControlValueType InValueType) const;
+	FRigControlValue GetControlValue(FRigControlElement* InControlElement, ERigControlValueType InValueType, bool bUsePreferredAngles = true) const;
 
 	void SetPreferredEulerAnglesFromValue(FRigControlElement* InControlElement, const FRigControlValue& InValue,
 	                                      const ERigControlValueType& InValueType, bool bFixEulerFlips);

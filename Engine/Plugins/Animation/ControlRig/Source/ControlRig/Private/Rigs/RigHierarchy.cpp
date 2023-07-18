@@ -3470,7 +3470,7 @@ FTransform URigHierarchy::GetParentTransform(FRigBaseElement* InElement, const E
 	return FTransform::Identity;
 }
 
-FRigControlValue URigHierarchy::GetControlValue(FRigControlElement* InControlElement, ERigControlValueType InValueType) const
+FRigControlValue URigHierarchy::GetControlValue(FRigControlElement* InControlElement, ERigControlValueType InValueType, bool bUsePreferredAngles) const
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
 	using namespace ERigTransformType;
@@ -3479,8 +3479,13 @@ FRigControlValue URigHierarchy::GetControlValue(FRigControlElement* InControlEle
 
 	if(InControlElement != nullptr)
 	{
-		auto GetValueFromPreferredEulerAngles = [this, InControlElement, &Value, InValueType]() -> bool
+		auto GetValueFromPreferredEulerAngles = [this, InControlElement, &Value, InValueType, bUsePreferredAngles]() -> bool
 		{
+			if (!bUsePreferredAngles)
+			{
+				return false;
+			}
+			
 			const bool bInitial = InValueType == ERigControlValueType::Initial;
 			switch(InControlElement->Settings.ControlType)
 			{
