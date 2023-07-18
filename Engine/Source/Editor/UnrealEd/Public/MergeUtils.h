@@ -8,6 +8,11 @@ namespace MergeUtils
 {
 	UNREALED_API EAssetCommandResult Merge(const FAssetAutomaticMergeArgs& MergeArgs);
 	UNREALED_API EAssetCommandResult Merge(const FAssetManualMergeArgs& MergeArgs);
+
+	// download and load a temp package at a source control file path
+	UNREALED_API UPackage* LoadPackageForMerge(const FString& SCFile, const FString& Revision, const UPackage* LocalPackage);
+	// download a source control file path and return it's local path
+	UNREALED_API FString LoadSCFileForMerge(const FString& SCFile, const FString& Revision);
 }
 
 UCLASS()
