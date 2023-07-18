@@ -404,6 +404,8 @@ void FAnimNode_BlendStack_Standalone::Initialize_AnyThread(const FAnimationIniti
 {
 	Super::Initialize_AnyThread(Context);
 
+	Reset();
+
 	IAnimClassInterface* AnimBlueprintClass = Context.GetAnimClass();
 	if (SampleGraphPoseLinks.IsEmpty() == false)
 	{
@@ -565,6 +567,11 @@ void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Con
 	InitializeSample(InitContext, AnimPlayer);
 }
 
+void FAnimNode_BlendStack_Standalone::Reset()
+{
+	AnimPlayers.Reset();
+}
+
 int32 FAnimNode_BlendStack_Standalone::GetNextPoseLinkIndex()
 {
 	if (SampleGraphPoseLinks.IsEmpty())
@@ -612,6 +619,18 @@ void FAnimNode_BlendStack_Standalone::GatherDebugData(FNodeDebugData& DebugData)
 
 void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Context)
 {
+	const bool bNeedsReset =
+		bResetOnBecomingRelevant &&
+		UpdateCounter.HasEverBeenUpdated() &&
+		!UpdateCounter.WasSynchronizedCounter(Context.AnimInstanceProxy->GetUpdateCounter());
+
+	if (bNeedsReset)
+	{
+		Reset();
+	}
+
+	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
+
 	GetEvaluateGraphExposedInputs().Execute(Context);
 
 	if (AnimationAsset)

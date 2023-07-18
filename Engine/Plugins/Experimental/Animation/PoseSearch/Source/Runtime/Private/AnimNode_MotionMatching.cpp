@@ -35,12 +35,12 @@ void FAnimNode_MotionMatching::Initialize_AnyThread(const FAnimationInitializeCo
 
 	GetEvaluateGraphExposedInputs().Execute(Context);
 
-	BlendStackNode.Initialize_AnyThread(Context);
-
 	Source.SetLinkNode(&BlendStackNode);
+
+	// calling BlendStackNode.Initialize_AnyThread(Context) that will reset the BlendStackNode.AnimPlayers
 	Source.Initialize(Context);
 
-	MotionMatchingState.UpdateRootBoneControl(Context.AnimInstanceProxy, 0.f);
+	MotionMatchingState.Reset(Context.AnimInstanceProxy->GetComponentTransform());
 }
 
 void FAnimNode_MotionMatching::Evaluate_AnyThread(FPoseContext& Output)
@@ -111,6 +111,7 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 	if (bNeedsReset)
 	{
 		MotionMatchingState.Reset(Context.AnimInstanceProxy->GetComponentTransform());
+		BlendStackNode.Reset();
 	}
 	else
 	{

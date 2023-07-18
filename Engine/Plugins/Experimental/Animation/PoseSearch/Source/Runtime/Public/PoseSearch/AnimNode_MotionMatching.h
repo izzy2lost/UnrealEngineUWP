@@ -96,7 +96,7 @@ private:
 	FFloatInterval PlayRate = FFloatInterval(1.f, 1.f);
 
 	// Reset the motion matching selection state if it has become relevant to the graph after not being updated on previous frames.
-	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
+	UPROPERTY(EditAnywhere, Category = Settings)
 	bool bResetOnBecomingRelevant = true;
 
 	// If set to false, the motion matching node will perform a search only if the continuing pose is invalid. This is useful if you want to stagger searches of different nodes for performance reasons
