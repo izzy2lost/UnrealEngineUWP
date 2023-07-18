@@ -94,7 +94,7 @@ public:
 
 	void OnBatchIssued(FIoBatch& Batch)
 	{
-		double StartTime = FPlatformTime::Seconds();
+		const uint64 StartTime = FPlatformTime::Cycles64();
 		FIoRequestImpl* Request = Batch.HeadRequest;
 		while (Request)
 		{
@@ -123,7 +123,8 @@ public:
 		}
 		FRequestCategory* Category = ChunkTypeToCategoryMap[static_cast<int32>(Request.ChunkId.GetChunkType())];
 		++Category->TotaRequestsCount;
-		Category->TotalRequestsTime += FPlatformTime::Seconds() - Request.StartTime;
+		const double Duration = FPlatformTime::ToSeconds64(FPlatformTime::Cycles64() - Request.GetStartTime());
+		Category->TotalRequestsTime += Duration;
 #if COUNTERSTRACE_ENABLED
 		Category->TotalLoadedCounter.Add(Request.GetBuffer().DataSize());
 		Category->AverageDurationCounter.Set(Category->TotalRequestsTime / double(Category->TotaRequestsCount));

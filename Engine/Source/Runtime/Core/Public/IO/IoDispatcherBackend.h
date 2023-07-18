@@ -54,6 +54,15 @@ public:
 		Buffer.Emplace(InBuffer);
 	}
 
+	uint64 GetStartTime() const
+	{
+#if UE_IODISPATCHER_STATS_ENABLED
+		return StartTime;
+#else
+		return 0;
+#endif
+	}
+
 private:
 	friend class FIoDispatcherImpl;
 	friend class FIoRequest;
@@ -79,7 +88,7 @@ private:
 	struct IIoDispatcherBackend* Backend = nullptr;
 	FIoBatchImpl* Batch = nullptr;
 #if UE_IODISPATCHER_STATS_ENABLED
-	double StartTime = -1.0;
+	uint64 StartTime = 0;
 #endif
 	TOptional<FIoBuffer> Buffer;
 	FIoReadCallback Callback;
