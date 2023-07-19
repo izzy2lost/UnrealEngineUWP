@@ -354,6 +354,39 @@ using namespace UE::Math;
 			&& int(TMathUtil<RealType>::Round(AngleSum / TMathUtil<RealType>::TwoPi)) == (int)bSeenPos - (int)bSeenNeg;
 	}
 
+	/**
+	 * Project point inside a convex polygon with known orientation
+	 *
+	 * @param ProjPt				Point to project
+	 * @param bReverseOrientation	Whether convex polygon orientation is reversed (i.e., has negative signed area)
+	 * @return						true if the point was projected
+	 */
+	template<typename RealType>
+	bool ProjectPointInsideConvexPolygon(const TArrayView<const TVector2<RealType>> Vertices, TVector2<RealType>& ProjPt, bool bReverseOrientation = false)
+	{
+		bool bProjected = false;
+		const int32 N = Vertices.Num();
+		for (int32 Idx = 0, PrevIdx = N - 1; Idx < N; PrevIdx = Idx++)
+		{
+			const TVector2<RealType>& V1 = Vertices[PrevIdx];
+			const TVector2<RealType>& V2 = Vertices[Idx];
+			TVector2<RealType> ToPt = ProjPt - V1;
+			TVector2<RealType> Normal = PerpCW<RealType>(V2 - V1);
+			RealType Orient = ToPt.Dot(Normal);
+			bool bOutside = bReverseOrientation ? Orient < 0 : Orient > 0;
+			if (bOutside)
+			{
+				RealType SqLen = Normal.SquaredLength();
+				if (SqLen > (RealType)FLT_MIN)
+				{
+					bProjected = true;
+					ProjPt -= Normal * Orient / SqLen;
+				}
+			}
+		}
+		return bProjected;
+	}
+
 
 	/**
 	 * smooth vertices in-place (will not produce a symmetric result, but does not require extra buffer)
