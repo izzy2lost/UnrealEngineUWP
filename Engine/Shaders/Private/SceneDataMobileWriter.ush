@@ -16,24 +16,21 @@ void WriteDataElementUBO(RWStructuredBuffer<float4> Output, uint Offset, uint Da
 void WritePrimitiveDataUBO(RWStructuredBuffer<float4> Output, uint Offset, FPrimitiveSceneData PrimitiveData, uint MeshLODIndex)
 {
 	uint DataIdx = 0;
-	
-	// LocalToWorld, TilePosition, Primitive.Flags
+	// TilePosition, Flags
 	{
-		float4 LocalToRelativeWorld0 = PrimitiveData.LocalToWorld.M[0];
-		float4 LocalToRelativeWorld1 = PrimitiveData.LocalToWorld.M[1];
-		float4 LocalToRelativeWorld2 = PrimitiveData.LocalToWorld.M[2];
-		float4 LocalToRelativeWorld3 = PrimitiveData.LocalToWorld.M[3];
-		LocalToRelativeWorld0.w = PrimitiveData.TilePosition.x;
-		LocalToRelativeWorld1.w = PrimitiveData.TilePosition.y;
-		LocalToRelativeWorld2.w = PrimitiveData.TilePosition.z;
-		LocalToRelativeWorld3.w = asfloat(PrimitiveData.Flags);
-		WriteDataElementUBO(Output, Offset, DataIdx + 0, LocalToRelativeWorld0);
-		WriteDataElementUBO(Output, Offset, DataIdx + 1, LocalToRelativeWorld1);
-		WriteDataElementUBO(Output, Offset, DataIdx + 2, LocalToRelativeWorld2);
-		WriteDataElementUBO(Output, Offset, DataIdx + 3, LocalToRelativeWorld3);
-		DataIdx += 4u;
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(LWCGetTile(PrimitiveData.LocalToWorld), asfloat(PrimitiveData.Flags)));
+		DataIdx += 1u;
 	}
 	
+	// LocalToWorld
+	{
+		float4x4 LocalToWorld = transpose(PrimitiveData.LocalToWorld.M);
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, LocalToWorld[0]);
+		WriteDataElementUBO(Output, Offset, DataIdx + 1, LocalToWorld[1]);
+		WriteDataElementUBO(Output, Offset, DataIdx + 2, LocalToWorld[2]);
+		DataIdx += 3u;
+	}
+
 	// InvNonUniformScale, TODO .w
 	{
 		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.InvNonUniformScale, 0.0));

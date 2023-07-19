@@ -20,18 +20,24 @@ FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
 	FPrimitiveSceneData PrimitiveData = (FPrimitiveSceneData)0;
 
 	uint DataIdx = 0;
-
-	// LocalToWorld, TilePosition, Primitive.Flags
+	// TilePosition, Flags
 	{
-		float4 LocalToRelativeWorld0 = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx + 0);
-		float4 LocalToRelativeWorld1 = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx + 1);
-		float4 LocalToRelativeWorld2 = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx + 2);
-		float4 LocalToRelativeWorld3 = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx + 3);
-		
-		PrimitiveData.TilePosition = float3(LocalToRelativeWorld0.w, LocalToRelativeWorld1.w, LocalToRelativeWorld2.w);
-		PrimitiveData.LocalToWorld = MakeLWCMatrix4x3(PrimitiveData.TilePosition, float4x4(LocalToRelativeWorld0, LocalToRelativeWorld1, LocalToRelativeWorld2, LocalToRelativeWorld3));
-		PrimitiveData.Flags = asuint(LocalToRelativeWorld3.w);
-		DataIdx += 4u;
+		float4 Data = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx + 0);
+		PrimitiveData.TilePosition = Data.xyz;
+		PrimitiveData.Flags = asuint(Data.w);
+		DataIdx += 1u;
+	}
+
+	// LocalToWorld
+	{
+		float4x4 LocalToRelativeWorld = transpose(float4x4(
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0),
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+1),
+			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+2),
+			float4(0, 0, 0, 1)
+		));
+		PrimitiveData.LocalToWorld = MakeLWCMatrix4x3(PrimitiveData.TilePosition, LocalToRelativeWorld);
+		DataIdx += 3u;
 	}
 
 	// InvNonUniformScale, TODO .w
