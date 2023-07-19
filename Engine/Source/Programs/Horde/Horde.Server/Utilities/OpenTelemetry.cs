@@ -13,6 +13,8 @@ using Horde.Server.Streams;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
@@ -308,9 +310,12 @@ public static class OpenTelemetrySpanExtensions
 	/// <param name="tracer">Current tracer being extended</param>
 	/// <param name="spanName">Name of the span</param>
 	/// <param name="collection">An optional MongoDB collection, the name will be used as an attribute</param>
+	/// <param name="filter">Optional filter to attach to the trace</param>
+	/// <param name="update">Optional update to attach to the trace</param>
+	/// <param name="document">Document in the parmaeter</param>
 	/// <returns>A new telemetry span</returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static TelemetrySpan StartMongoDbSpan<T>(this Tracer tracer, string spanName, IMongoCollection<T>? collection = null)
+	public static TelemetrySpan StartMongoDbSpan<T>(this Tracer tracer, string spanName, IMongoCollection<T>? collection = null, FilterDefinition<T>? filter = null, UpdateDefinition<T>? update = null, T? document = default)
 	{
 		string name = "mongodb." + spanName;
 		TelemetrySpan span = OpenTelemetryTracers.MongoDb
@@ -323,7 +328,19 @@ public static class OpenTelemetrySpanExtensions
 		{
 			span.SetAttribute("collection", collection.CollectionNamespace.CollectionName);
 		}
-		
+		if (filter != null)
+		{
+			span.SetAttribute("filter", filter.Render().ToJson());
+		}
+		if (update != null)
+		{
+			span.SetAttribute("update", update.Render().ToJson());
+		}
+		if (document != null)
+		{
+			span.SetAttribute("document", document.ToJson());
+		}
+
 		return span;
 	}
 	

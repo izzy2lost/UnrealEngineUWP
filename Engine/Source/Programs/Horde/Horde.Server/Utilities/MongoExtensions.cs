@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 
 namespace Horde.Server.Utilities
@@ -26,6 +27,26 @@ namespace Horde.Server.Utilities
 		public static DateTime RoundToBsonDateTime(DateTime time)
 		{
 			return BsonUtils.ToDateTimeFromMillisecondsSinceEpoch(BsonUtils.ToMillisecondsSinceEpoch(time));
+		}
+
+		/// <summary>
+		/// Renders a filter definition to a document using the default serializer registry
+		/// </summary>
+		public static BsonDocument Render<T>(this FilterDefinition<T> filter)
+		{
+			IBsonSerializerRegistry serializerRegistry = BsonSerializer.SerializerRegistry;
+			IBsonSerializer<T> documentSerializer = serializerRegistry.GetSerializer<T>();
+			return filter.Render(documentSerializer, serializerRegistry);
+		}
+
+		/// <summary>
+		/// Renders a filter definition to a document using the default serializer registry
+		/// </summary>
+		public static BsonValue Render<T>(this UpdateDefinition<T> update)
+		{
+			IBsonSerializerRegistry serializerRegistry = BsonSerializer.SerializerRegistry;
+			IBsonSerializer<T> documentSerializer = serializerRegistry.GetSerializer<T>();
+			return update.Render(documentSerializer, serializerRegistry);
 		}
 
 		/// <summary>
