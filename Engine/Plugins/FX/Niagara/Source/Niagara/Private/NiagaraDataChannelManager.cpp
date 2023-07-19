@@ -39,7 +39,7 @@ void FNiagaraDataChannelManager::RefreshDataChannels()
 
 void FNiagaraDataChannelManager::Init()
 {
-	check(!bIsCleanedUp);
+	bIsCleanedUp = false;
 
 	//Initialize any existing data channels, more may be initialized later as they are loaded.
 	UNiagaraDataChannel::ForEachDataChannel([&](UNiagaraDataChannel* DataChannel)
