@@ -58,20 +58,21 @@ static bool IsInstanceOrderPreservationAllowed(EShaderPlatform ShaderPlatform)
 	return GInstanceCullingAllowOrderPreservation && !IsMobilePlatform(ShaderPlatform);
 }
 
-static uint32 PackDrawCommandDesc(bool bMaterialUsesWorldPositionOffset, FMeshDrawCommandCullingPayload CullingPayload, EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags)
+static uint32 PackDrawCommandDesc(bool bMaterialUsesWorldPositionOffset, bool bMaterialAlwaysEvaluatesWorldPositionOffset, FMeshDrawCommandCullingPayload CullingPayload, EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags)
 {
 	const float LodScale = GetCachedScalabilityCVars().StaticMeshLODDistanceScale;
 
 	// See UnpackDrawCommandDesc() in shader code.
 	uint32 PackedData = bMaterialUsesWorldPositionOffset ? 1U : 0U;
-	PackedData |= CullingPayload.LodIndex << 1;
+	PackedData |= bMaterialAlwaysEvaluatesWorldPositionOffset ? 2U : 0U;
+	PackedData |= CullingPayload.LodIndex << 2;
 	if (EnumHasAnyFlags(CullingPayloadFlags, EMeshDrawCommandCullingPayloadFlags::MinScreenSizeCull))
 	{
-		PackedData |= FMeshDrawCommandCullingPayload::PackScreenSize(FMeshDrawCommandCullingPayload::UnpackScreenSize(CullingPayload.MinScreenSize) * LodScale) << 5;
+		PackedData |= FMeshDrawCommandCullingPayload::PackScreenSize(FMeshDrawCommandCullingPayload::UnpackScreenSize(CullingPayload.MinScreenSize) * LodScale) << 6;
 	}
 	if (EnumHasAnyFlags(CullingPayloadFlags, EMeshDrawCommandCullingPayloadFlags::MaxScreenSizeCull))
 	{
-		PackedData |= FMeshDrawCommandCullingPayload::PackScreenSize(FMeshDrawCommandCullingPayload::UnpackScreenSize(CullingPayload.MaxScreenSize) * LodScale) << 17;
+		PackedData |= FMeshDrawCommandCullingPayload::PackScreenSize(FMeshDrawCommandCullingPayload::UnpackScreenSize(CullingPayload.MaxScreenSize) * LodScale) << 18;
 	}
 	return PackedData;
 }
@@ -1427,6 +1428,7 @@ void FInstanceCullingContext::SetupDrawCommands(
 
 		const bool bSupportsGPUSceneInstancing = EnumHasAnyFlags(VisibleMeshDrawCommand.Flags, EFVisibleMeshDrawCommandFlags::HasPrimitiveIdStreamIndex);
 		const bool bMaterialUsesWorldPositionOffset = EnumHasAnyFlags(VisibleMeshDrawCommand.Flags, EFVisibleMeshDrawCommandFlags::MaterialUsesWorldPositionOffset);
+		const bool bMaterialAlwaysEvaluatesWorldPositionOffset = EnumHasAnyFlags(VisibleMeshDrawCommand.Flags, EFVisibleMeshDrawCommandFlags::MaterialAlwaysEvaluatesWorldPositionOffset);
 		const bool bForceInstanceCulling = EnumHasAnyFlags(VisibleMeshDrawCommand.Flags, EFVisibleMeshDrawCommandFlags::ForceInstanceCulling);
 		const bool bPreserveInstanceOrder = bOrderPreservationEnabled && EnumHasAnyFlags(VisibleMeshDrawCommand.Flags, EFVisibleMeshDrawCommandFlags::PreserveInstanceOrder);
 		const bool bUseIndirectDraw = bAlwaysUseIndirectDraws || bForceInstanceCulling || (VisibleMeshDrawCommand.NumRuns > 0 || MeshDrawCommand->NumInstances > 1);
@@ -1463,8 +1465,15 @@ void FInstanceCullingContext::SetupDrawCommands(
 				
 				CurrentIndirectArgsOffset = AllocateIndirectArgs(MeshDrawCommand);
 				
-				DrawCommandDescs.Add(PackDrawCommandDesc(bMaterialUsesWorldPositionOffset, VisibleMeshDrawCommand.CullingPayload, VisibleMeshDrawCommand.CullingPayloadFlags));
-				
+				DrawCommandDescs.Add(
+					PackDrawCommandDesc(
+						bMaterialUsesWorldPositionOffset,
+						bMaterialAlwaysEvaluatesWorldPositionOffset,
+						VisibleMeshDrawCommand.CullingPayload,
+						VisibleMeshDrawCommand.CullingPayloadFlags
+					)
+				);
+
 				if (bUseIndirectDraw)
 				{
  					DrawCmd.IndirectArgsOffsetOrNumInstances = CurrentIndirectArgsOffset * FInstanceCullingContext::IndirectArgsNumWords * sizeof(uint32);

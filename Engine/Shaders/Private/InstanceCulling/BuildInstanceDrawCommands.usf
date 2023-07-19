@@ -174,7 +174,9 @@ bool IsInstanceVisible(FPrimitiveSceneData PrimitiveData, FInstanceSceneData Ins
 		Cull.bSkipCullGlobalClipPlane	= true;
 #endif
 
-#if !ALLOW_WPO_DISABLE
+#if ALLOW_WPO_DISABLE
+		Cull.bSkipWPODisableDistance	|= DrawCommandDesc.bMaterialAlwaysEvaluatesWorldPositionOffset;
+#else
 		Cull.bSkipWPODisableDistance	= true;
 #endif
 
