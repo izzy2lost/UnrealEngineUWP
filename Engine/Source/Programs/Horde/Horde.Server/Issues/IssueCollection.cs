@@ -831,7 +831,7 @@ namespace Horde.Server.Issues
 						for (int idx = results.Count - 1; idx >= 0; idx--)
 						{
 							Issue issue = results[idx];
-							if ((issue.ResolvedAt != null) != resolved.Value)
+							if ((issue.ResolvedAt != null) != resolved.Value && issue.ResolvedById != IIssue.ResolvedByTimeoutId)
 							{
 								_logger.LogWarning("Issue {IssueId} has resolved state out of sync with spans", issue.Id);
 								results.RemoveAt(idx);
