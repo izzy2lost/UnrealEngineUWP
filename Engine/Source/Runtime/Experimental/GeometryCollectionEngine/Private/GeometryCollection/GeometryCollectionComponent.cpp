@@ -5498,6 +5498,44 @@ void UGeometryCollectionComponent::GetMassAndExtents(int32 ItemIndex, float& Out
 	}
 }
 
+float UGeometryCollectionComponent::GetMass() const
+{
+	float OutMass{ 0 };
+
+	if (RestCollection && RestCollection->GetGeometryCollection())
+	{
+		const FGeometryCollection& Collection = *RestCollection->GetGeometryCollection();
+		if (const TManagedArray<float>* CollectionMass = Collection.FindAttribute<float>(TEXT("Mass"), FTransformCollection::TransformGroup))
+		{
+			const int32 RootIndex = RestCollection->GetRootIndex();
+			if (CollectionMass->IsValidIndex(RootIndex))
+			{
+				OutMass = (*CollectionMass)[RootIndex];
+			}
+		}
+	}
+	return OutMass;
+}
+
+float UGeometryCollectionComponent::CalculateMass(FName BoneName)
+{
+	float OutMass{ 0 };
+
+	if (RestCollection && RestCollection->GetGeometryCollection())
+	{
+		const FGeometryCollection& Collection = *RestCollection->GetGeometryCollection();
+		if (const TManagedArray<float>* CollectionMass = Collection.FindAttribute<float>(TEXT("Mass"), FTransformCollection::TransformGroup))
+		{
+			const int32 BoneIndex = (BoneName == NAME_None)? RestCollection->GetRootIndex(): Collection.BoneName.Find(BoneName.ToString());
+			if (CollectionMass->IsValidIndex(BoneIndex))
+			{
+				OutMass = (*CollectionMass)[BoneIndex];
+			}
+		}
+	}
+	return OutMass;
+}
+
 bool UGeometryCollectionComponent::CalculateInnerSphere(int32 TransformIndex, UE::Math::TSphere<double>& SphereOut) const
 {
 	// Approximates the inscribed sphere. Returns false if no such sphere exists, if for instance the index is to an embedded geometry. 

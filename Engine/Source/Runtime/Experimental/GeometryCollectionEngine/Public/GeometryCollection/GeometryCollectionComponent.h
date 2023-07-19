@@ -669,6 +669,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
 	GEOMETRYCOLLECTIONENGINE_API void GetMassAndExtents(int32 ItemIndex, float& OutMass, FBox& OutExtents);
 
+	/** Returns the mass of this component in kg. */
+	GEOMETRYCOLLECTIONENGINE_API virtual float GetMass() const override;
+
+	/** Returns the calculated mass in kg. This is not 100% exactly the mass physx will calculate, but it is very close ( difference < 0.1kg ). */
+	GEOMETRYCOLLECTIONENGINE_API virtual float CalculateMass(FName BoneName = NAME_None) override;
+
 	/** RestCollection */
 	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
 	GEOMETRYCOLLECTIONENGINE_API void SetRestCollection(const UGeometryCollection * RestCollectionIn, bool bApplyAssetDefaults = true);
