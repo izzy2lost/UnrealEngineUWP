@@ -661,7 +661,7 @@ namespace Chaos
 					{
 						if (ClusteredParticle->InternalCluster())
 						{
-							ShapeColor = FColor::Red;
+							ShapeColor = FColor::Purple;
 						}
 					}
 				}
