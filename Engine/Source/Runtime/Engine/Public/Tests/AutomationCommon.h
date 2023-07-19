@@ -233,6 +233,22 @@ private:
 };
 
 /**
+ * Latent command to wait for a given number of engine frames
+ */
+class FWaitForEngineFramesCommand : public IAutomationLatentCommand
+{
+public:
+	ENGINE_API explicit FWaitForEngineFramesCommand(int32 InFramesToWait = 1);
+
+	ENGINE_API bool Update() override;
+
+private:
+	int32 FrameCounter = 0;
+	int32 FramesToWait = 1;
+};
+
+
+/**
 * Request an Image Comparison and queue the result to the test report
 * @param InImageName	Name used to identify the comparison
 * @param InContext		Optional context used to identify the comparison, by default the full name of the test is used

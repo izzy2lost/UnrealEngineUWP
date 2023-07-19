@@ -704,6 +704,19 @@ bool FWaitForNextEngineFrameCommand::Update()
 	return LastFrame != GFrameCounter;
 }
 
+FWaitForEngineFramesCommand::FWaitForEngineFramesCommand(int32 InFramesToWait)
+{
+	// Assert that InFramesToWait is at least 1
+	check(InFramesToWait > 0);
+	FramesToWait = InFramesToWait;
+}
+
+bool FWaitForEngineFramesCommand::Update()
+{
+	FrameCounter += 1;
+	return FrameCounter == FramesToWait;
+}
+
 ///////////////////////////////////////////////////////////////////////
 // Common Latent commands which are used across test type. I.e. Engine, Network, etc...
 
