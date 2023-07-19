@@ -66,6 +66,7 @@ public:
 	virtual uint64 RHIGetGraphicsAdapterLUID(VkPhysicalDevice InPhysicalDevice) const final override;
 	virtual bool RHIDoesAdapterMatchDevice(const void* InAdapterId) const final override;
 	virtual void* RHIGetVkDeviceProcAddr(const char* InName) const final override;
+	virtual void* RHIGetVkInstanceProcAddr(const char* InName) const final override;
 	virtual VkFormat RHIGetSwapChainVkFormat(EPixelFormat InFormat) const final override;
 	virtual bool RHISupportsEXTFragmentDensityMap2() const final override;
 	virtual TArray<VkExtensionProperties> RHIGetAllInstanceExtensions() const final override;

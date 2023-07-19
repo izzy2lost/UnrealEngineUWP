@@ -54,6 +54,7 @@ struct IVulkanDynamicRHI : public FDynamicRHI
 	virtual uint64           RHIGetGraphicsAdapterLUID(VkPhysicalDevice InPhysicalDevice) const = 0;
 	virtual bool             RHIDoesAdapterMatchDevice(const void* InAdapterId) const = 0;
 	virtual void*            RHIGetVkDeviceProcAddr(const char* InName) const = 0;
+	virtual void*            RHIGetVkInstanceProcAddr(const char* InName) const = 0;
 	virtual VkFormat         RHIGetSwapChainVkFormat(EPixelFormat InFormat) const = 0;
 	virtual bool             RHISupportsEXTFragmentDensityMap2() const = 0;
 

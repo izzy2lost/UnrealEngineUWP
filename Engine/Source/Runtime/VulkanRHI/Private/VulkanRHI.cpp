@@ -1364,6 +1364,11 @@ void* FVulkanDynamicRHI::RHIGetVkDeviceProcAddr(const char* InName) const
 	return (void*)VulkanRHI::vkGetDeviceProcAddr(Device->GetInstanceHandle(), InName);
 }
 
+void* FVulkanDynamicRHI::RHIGetVkInstanceProcAddr(const char* InName) const
+{
+	return (void*)VulkanRHI::vkGetInstanceProcAddr(Instance, InName);
+}
+
 VkFormat FVulkanDynamicRHI::RHIGetSwapChainVkFormat(EPixelFormat InFormat) const
 {
 	// UE renders a gamma-corrected image so we need to use an sRGB format if available
