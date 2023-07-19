@@ -16,7 +16,6 @@
 #include "LumenSceneLighting.h"
 #include "LumenSceneCardCapture.h"
 #include "LumenTracingUtils.h"
-#include "LumenReflections.h"
 #include "GlobalDistanceField.h"
 #include "DistanceFieldAmbientOcclusion.h"
 #include "HAL/LowLevelMemStats.h"
@@ -1365,9 +1364,8 @@ void FDeferredShadingSceneRenderer::BeginUpdateLumenSceneTasks(FRDGBuilder& Grap
 
 	LumenCardRenderer.Reset();
 
-	// Release Lumen scene resource if Lumen is disabled by scalability
-	const bool bAnyLumenAllowed = LumenDiffuseIndirect::IsAllowed() || LumenReflections::IsAllowed();
-	if (!bAnyLumenAllowed)
+	// Release Lumen scene resource if it's disabled by scalability
+	if (!LumenDiffuseIndirect::IsAllowed())
 	{
 		FLumenSceneData& LumenSceneData = *Scene->GetLumenSceneData(Views[0]);
 		LumenSceneData.ReleaseAtlas();
