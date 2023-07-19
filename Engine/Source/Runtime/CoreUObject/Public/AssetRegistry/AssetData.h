@@ -1006,6 +1006,7 @@ struct FReferenceViewerParams
 		, FixAndHideSearchDepthLimit(0)
 		, FixAndHideSearchBreadthLimit(0)
 		, bShowCollectionFilter(true)
+		, bShowPluginFilter(true)
 		// Checkbox options
 		, bShowShowReferencesOptions(true)
 		, bShowShowSearchableNames(true)
@@ -1022,6 +1023,8 @@ struct FReferenceViewerParams
 	/* Whether to only display the References/Dependencies which match the text filter, if any. 
 	   If the optional is not set, don't change the current reference viewer's value. */
 	TOptional<bool> bShowFilteredPackagesOnly;
+	/** Whether to only display the References/Dependencies which match the plugin name filter */
+	TArray<FName> PluginFilter;
 	/* Compact mode allows to hide the thumbnail and minimize the space taken by the nodes. Useful when there are many dependencies to inspect, to keep the UI responsive. 
 	   If the optional is not set, don't change the current reference viewer's value. */
 	TOptional<bool> bCompactMode;

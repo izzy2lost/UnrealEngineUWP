@@ -617,6 +617,12 @@ void SReferenceViewer::SetGraphRootIdentifiers(const TArray<FAssetIdentifier>& N
 		UAssetManager::Get().UpdateManagementDatabase();
 	}
 
+	if (!ReferenceViewerParams.PluginFilter.IsEmpty())
+	{
+		Settings->SetEnablePluginFilter(true);
+		GraphObj->SetCurrentPluginFilter(ReferenceViewerParams.PluginFilter);
+	}
+
 	RebuildGraph();
 
 	UpdateIsPassingSearchFilterCallback();

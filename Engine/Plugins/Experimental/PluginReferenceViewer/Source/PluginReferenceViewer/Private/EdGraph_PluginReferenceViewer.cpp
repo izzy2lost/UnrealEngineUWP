@@ -2,6 +2,9 @@
 
 #include "EdGraph_PluginReferenceViewer.h"
 
+#include "AssetManagerEditorModule.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/AssetData.h"
 #include "EdGraphNode_PluginReference.h"
 #include "EdGraph/EdGraphPin.h"
 #include "Interfaces/IPluginManager.h"
@@ -10,14 +13,73 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(EdGraph_PluginReferenceViewer)
 
-bool ExceedsMaxSearchDepth(int32 CurrentDepth, int32 MaxDepth)
+namespace UE::PluginReferenceViewer::Private
 {
-	const bool bIsWithinDepthLimits = MaxDepth > 0 && CurrentDepth < MaxDepth;
-	if (!bIsWithinDepthLimits)
+	bool ExceedsMaxSearchDepth(int32 CurrentDepth, int32 MaxDepth)
 	{
-		return true;
+		const bool bIsWithinDepthLimits = MaxDepth > 0 && CurrentDepth < MaxDepth;
+		if (!bIsWithinDepthLimits)
+		{
+			return true;
+		}
+		return false;
 	}
-	return false;
+
+	void FindPluginAssetReferences(const TSharedRef<IPlugin>& ParentPlugin, const TSharedRef<IPlugin>& ChildPlugin, TArray<FAssetIdentifier>& OutAssetIdentifiers)
+	{
+		IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+
+		const FString ChildMountedAssetPath = ChildPlugin->GetMountedAssetPath();
+
+		FARFilter Filter;
+		Filter.bRecursivePaths = true;
+		Filter.PackagePaths.Add(FName(ParentPlugin->GetMountedAssetPath()));
+
+		TArray<FAssetData> AssetsInPlugin;
+		AssetRegistry.GetAssets(Filter, AssetsInPlugin);
+
+		// Reusing variables to minimize allocations during large asset list iteration.
+		TArray<FAssetDependency> AssetDependencies;
+		FString AssetPath;
+
+		for (const FAssetData& AssetData : AssetsInPlugin)
+		{
+			const FAssetIdentifier AssetIdentifier(AssetData.PackageName);
+
+			AssetDependencies.Empty();
+			AssetRegistry.GetDependencies(AssetIdentifier, AssetDependencies);
+
+			for (const FAssetDependency& AssetDependency : AssetDependencies)
+			{
+				AssetDependency.AssetId.PackageName.ToString(AssetPath);
+
+				if (AssetPath.StartsWith(ChildMountedAssetPath))
+				{
+					OutAssetIdentifiers.Add(AssetIdentifier);
+					break;
+				}
+			}
+		}
+	};
+
+	void GetPluginAssets(const TSharedRef<IPlugin>& Plugin, TArray<FAssetIdentifier>& OutAssetIdentifiers)
+	{
+		IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+
+		FARFilter Filter;
+		Filter.bRecursivePaths = true;
+		Filter.PackagePaths.Add(FName(Plugin->GetMountedAssetPath()));
+
+		TArray<FAssetData> AssetsInPlugin;
+		AssetRegistry.GetAssets(Filter, AssetsInPlugin);
+
+		OutAssetIdentifiers.Reserve(AssetsInPlugin.Num());
+
+		for (int32 Index = 0; Index < AssetsInPlugin.Num(); ++Index)
+		{
+			OutAssetIdentifiers.Add(FAssetIdentifier(AssetsInPlugin[Index].PackageName));
+		}
+	};
 }
 
 FPluginReferenceNodeInfo::FPluginReferenceNodeInfo(const FPluginIdentifier& InIdentifier, bool bInReferencers)
@@ -54,6 +116,21 @@ void UEdGraph_PluginReferenceViewer::SetGraphRoot(const TArray<FPluginIdentifier
 const TArray<FPluginIdentifier>& UEdGraph_PluginReferenceViewer::GetCurrentGraphRootIdentifiers() const
 {
 	return CurrentGraphRootIdentifiers;
+}
+
+void UEdGraph_PluginReferenceViewer::FindAssetReferencesAcrossPlugins(const FPluginIdentifier& From, const FPluginIdentifier& To, TArray<FAssetIdentifier>& OutAssetIdentifiers)
+{
+	const TSharedRef<IPlugin> FromPlugin = PluginMap.FindChecked(From);
+	const TSharedRef<IPlugin> ToPlugin = PluginMap.FindChecked(To);
+
+	UE::PluginReferenceViewer::Private::FindPluginAssetReferences(FromPlugin, ToPlugin, OutAssetIdentifiers);
+}
+
+void UEdGraph_PluginReferenceViewer::GetPluginAssets(const FPluginIdentifier& Plugin, TArray<FAssetIdentifier>& OutAssetIdentifiers)
+{
+	const TSharedRef<IPlugin> ForPlugin = PluginMap.FindChecked(Plugin);
+
+	UE::PluginReferenceViewer::Private::GetPluginAssets(ForPlugin, OutAssetIdentifiers);
 }
 
 void UEdGraph_PluginReferenceViewer::CachePluginDependencies(const TArray<TSharedRef<IPlugin>>& Plugins)
@@ -190,7 +267,7 @@ UEdGraphNode_PluginReference* UEdGraph_PluginReferenceViewer::RecursivelyCreateN
 
 	bool bIsFirstOccurance = bIsRoot || NodeInfo.IsFirstParent(InParentId);
 	FIntPoint ChildLoc = InNodeLoc;
-	if (!ExceedsMaxSearchDepth(InCurrentDepth, InMaxDepth) && bIsFirstOccurance) // Only expand the first parent
+	if (!UE::PluginReferenceViewer::Private::ExceedsMaxSearchDepth(InCurrentDepth, InMaxDepth) && bIsFirstOccurance) // Only expand the first parent
 	{
 		// position the children nodes
 		const int32 ColumnWidth = bIsCompactMode ? 500 : 800;
@@ -275,7 +352,7 @@ void UEdGraph_PluginReferenceViewer::RecursivelyPopulateNodeInfos(bool bInRefere
 	check(Identifiers.Num() > 0);
 	int32 ProvisionSize = 0;
 	const FPluginIdentifier PluginId = Identifiers[0];
-	if (!ExceedsMaxSearchDepth(InCurrentDepth, InMaxDepth))
+	if (!UE::PluginReferenceViewer::Private::ExceedsMaxSearchDepth(InCurrentDepth, InMaxDepth))
 	{
 		TMap<FPluginIdentifier, EPluginReferencePinCategory> ReferenceLinks;
 		GetSortedLinks(Identifiers, bInReferencers, ReferenceLinks);
@@ -352,7 +429,7 @@ void UEdGraph_PluginReferenceViewer::RecursivelyFilterNodeInfos(const FPluginIde
 	// Filters and Re-provisions the NodeInfo counts 
 	int32 NewProvisionSize = 0;
 
-	if (!ExceedsMaxSearchDepth(InCurrentDepth, InMaxDepth))
+	if (!UE::PluginReferenceViewer::Private::ExceedsMaxSearchDepth(InCurrentDepth, InMaxDepth))
 	{
 		for (const TPair<FPluginIdentifier, EPluginReferencePinCategory>& Pair : InNodeInfos[InPluginId].Children)
 		{
@@ -392,6 +469,16 @@ void UEdGraph_PluginReferenceViewer::RemoveAllNodes()
 	{
 		RemoveNode(NodesToRemove[NodeIndex]);
 	}
+}
+
+bool UEdGraph_PluginReferenceViewer::IsDependencyNode(const FPluginIdentifier& PluginIdentifier) const
+{
+	return DependencyNodeInfos.Contains(PluginIdentifier);
+}
+
+bool UEdGraph_PluginReferenceViewer::IsReferencerNode(const FPluginIdentifier& PluginIdentifier) const
+{
+	return ReferencerNodeInfos.Contains(PluginIdentifier);
 }
 
 void UEdGraph_PluginReferenceViewer::SetPluginReferenceViewer(TSharedPtr<SPluginReferenceViewer> InViewer)
