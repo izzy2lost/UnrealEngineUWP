@@ -15,9 +15,9 @@ namespace Horde.Server.Ddc
 	class RefService : IRefService
 	{
 		readonly StorageService _storageService;
-		readonly BlobService _blobService;
+		readonly IBlobService _blobService;
 
-		public RefService(StorageService storageService, BlobService blobService)
+		public RefService(StorageService storageService, IBlobService blobService)
 		{
 			_storageService = storageService;
 			_blobService = blobService;
