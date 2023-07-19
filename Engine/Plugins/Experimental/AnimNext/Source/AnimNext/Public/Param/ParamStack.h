@@ -9,6 +9,7 @@
 #include "Containers/PagedArray.h"
 #include "Param/ParamId.h"
 #include "Param/ParamTypeHandle.h"
+#include "Param/ParamCompatibility.h"
 #include "Misc/MemStack.h"
 
 struct FInstancedPropertyBag;
@@ -21,8 +22,6 @@ namespace UE::AnimNext::Tests
 namespace UE::AnimNext
 {
 
-struct FParamStackLayer;
-
 // Stack of parameter layers.
 // Acts as an associative container - allows retrieval of parameter calues (by ID) that have been
 // pushed onto the stack in 'layers'.
@@ -33,7 +32,6 @@ struct FParamStackLayer;
 struct FParamStack
 {
 	friend class Tests::FParamStackTest;
-	friend struct FParamStackLayer;
 
 private:
 	enum class EParamFlags : uint8
@@ -47,12 +45,8 @@ private:
 	FRIEND_ENUM_CLASS_FLAGS(EParamFlags);
 
 	// Parameter memory wrapper
-	struct  FParam
+	struct FParam
 	{
-	public:
-		friend struct FParamStack;
-		friend struct FParamStackLayer;
-
 		FParam() = default;
 		ANIMNEXT_API FParam(const FParam& InOtherParam);
 		ANIMNEXT_API FParam& operator=(const FParam& InOtherParam);
@@ -60,7 +54,6 @@ private:
 		ANIMNEXT_API FParam& operator=(FParam&& InOtherParam);
 		ANIMNEXT_API ~FParam();
 
-	private:
 		ANIMNEXT_API FParam(const FParamTypeHandle& InTypeHandle, TArrayView<uint8> InData, bool bInIsReference, bool bInIsMutable);
 
 		// Get the type handle of this param 
@@ -124,7 +117,101 @@ private:
 		EParamFlags Flags = EParamFlags::None;
 	};
 
+	// Stack layers are what actually get pushed/popped onto the layer stack.
+	// They are designed to be held on an instance, their data updated in place.
+	// Memory ownership for params is assumed to be outside of the stack and layers
+	struct FLayer
+	{
+		FLayer() = delete;
+
+		explicit FLayer(FInstancedPropertyBag& InPropertyBag, bool bInIsMutable);
+
+		explicit FLayer(TConstArrayView<TPair<FParamId, FParamStack::FParam>> InParams);
+
+		// Params that this layer supplies
+		TArray<FParamStack::FParam> Params;
+
+		// ID that the param indices start at. Maps the global param ID range into the range for this layer
+		uint32 MinParamId = 0;
+
+		// Storage offset for this layer if it is owned internally, otherwise MAX_uint32
+		uint32 OwnedStorageOffset = MAX_uint32;
+	};
+
+	// A layer held on the stack, may be owned by the stack or not
+	struct FPushedLayer
+	{
+		FPushedLayer(FLayer& InLayer, FParamStack& InStack);
+
+		FPushedLayer(const FPushedLayer& InPreviousLayer, FLayer& InLayer, FParamStack& InStack);
+
+		FLayer& Layer;
+
+		// Index offset for the previous layer for each active param.
+		// Offset into FParamStack::PreviousLayerIndices.
+		uint32 PreviousLayerIndexStart = MAX_uint32;
+
+		// Serial number used for identifying layers to pop
+		uint32 SerialNumber = 0;
+	};
+
 public:
+	// Opaque handle to a layer on the stack
+	struct FPushedLayerHandle
+	{
+		FPushedLayerHandle() = default;
+
+		bool IsValid() const
+		{
+			return Index != MAX_uint32 && SerialNumber != 0;
+		}
+
+		void Invalidate()
+		{
+			Index = MAX_uint32;
+			SerialNumber = 0;
+		}
+
+	private:
+		friend struct FParamStack;
+
+		FPushedLayerHandle(uint32 InIndex, uint32 InSerialNumber)
+			: Index(InIndex)
+			, SerialNumber(InSerialNumber)
+		{}
+
+		// Index into the stack
+		uint32 Index = MAX_uint32;
+
+		// Serial number of the layer
+		uint32 SerialNumber = 0;
+	};
+
+	// Opaque handle to a layer that can be held by external systems
+	struct FLayerHandle
+	{
+		FLayerHandle() = default;
+
+		bool IsValid() const
+		{
+			return Layer.IsValid();
+		}
+
+		void Invalidate()
+		{
+			Layer = nullptr;
+		}
+
+	private:
+		friend struct FParamStack;
+
+		explicit FLayerHandle(TUniquePtr<FLayer>&& InLayer)
+			: Layer(MoveTemp(InLayer))
+		{}
+
+		TUniquePtr<FLayer> Layer;
+	};
+
 	ANIMNEXT_API FParamStack();
 
 	// Get the param stack for this thread
@@ -134,48 +221,51 @@ public:
 	// @param	InParamId			Parameter ID for the parameter
 	// @param	InValue				Value to push
 	template<typename... ValueType>
-	void PushValue(FParamId InParamId, ValueType&&... InValue)
+	FPushedLayerHandle PushValue(FParamId InParamId, ValueType&&... InValue)
 	{
-		PushValues(InParamId, Forward<ValueType>(InValue)...);
+		return PushValues(InParamId, Forward<ValueType>(InValue)...);
 	}
 
 	// Push a value as a parameter layer
 	// @param	InParamId			Parameter name for the parameter
 	// @param	InValue				Value to push
 	template<typename... ValueType>
-	void PushValue(FName InName, ValueType&&... InValue)
+	FPushedLayerHandle PushValue(FName InName, ValueType&&... InValue)
 	{
-		PushValues(FParamId(InName), Forward<ValueType>(InValue)...);
+		return PushValues(FParamId(InName), Forward<ValueType>(InValue)...);
 	}
 
 	// Push an interleaved parameter list of keys and values as a parameter layer
 	// @param	InValues	Values to push
 	template<typename... Args>
-	void PushValues(Args&&... InValues)
+	FPushedLayerHandle PushValues(Args&&... InValues)
 	{
 		constexpr int32 NumItems = sizeof...(InValues) / 2;
 		TArray<TPair<FParamId, FParam>, TInlineAllocator<NumItems>> ParamIdValues;
 		ParamIdValues.Reserve(NumItems);
-		PushValuesHelper(ParamIdValues, Forward<Args>(InValues)...);
+		return PushValuesHelper(ParamIdValues, Forward<Args>(InValues)...);
 	}
 
 	// Push a layer
-	ANIMNEXT_API void PushLayer(FParamStackLayer& InLayer);
+	ANIMNEXT_API FPushedLayerHandle PushLayer(const FLayerHandle& InLayerHandle);
 
 	// Push an internally-owned layer. Copies parameter data to internal storage.
-	ANIMNEXT_API void PushLayer(TConstArrayView<TPair<FParamId, FParam>> InParams);
+	ANIMNEXT_API FPushedLayerHandle PushLayer(TConstArrayView<TPair<FParamId, FParam>> InParams);
 
 	// Create a cached parameter layer from an instanced property bag
-	static ANIMNEXT_API TUniquePtr<FParamStackLayer> MakeLayer(const FInstancedPropertyBag& InInstancedPropertyBag);
+	static ANIMNEXT_API FLayerHandle MakeLayer(const FInstancedPropertyBag& InInstancedPropertyBag);
 
-	// Create a cached parameter layer from set of params
-	static ANIMNEXT_API TUniquePtr<FParamStackLayer> MakeLayer(TConstArrayView<TPair<FParamId, FParam>> InParams);
+	// Create a cached mutable parameter layer from an instanced property bag
+	static ANIMNEXT_API FLayerHandle MakeMutableLayer(FInstancedPropertyBag& InPropertyBag);
+
+	// Create a cached parameter layer from set of params. Mutabilty is on a per-parameter basis.
+	static ANIMNEXT_API FLayerHandle MakeLayer(TConstArrayView<TPair<FParamId, FParam>> InParams);
 
 	// Make a parameter layer from a value
 	// @param	InParamId			Parameter ID for the parameter
 	// @param	InValue				Value to push
 	template<typename... ValueType>
-	static TUniquePtr<FParamStackLayer> MakeValueLayer(FParamId InParamId, ValueType&&... InValue)
+	static FLayerHandle MakeValueLayer(FParamId InParamId, ValueType&&... InValue)
 	{
 		return MakeValuesLayer(InParamId, Forward<ValueType>(InValue)...);
 	}
@@ -184,7 +274,7 @@ public:
 	// @param	InParamId			Parameter name for the parameter
 	// @param	InValue				Value to push
 	template<typename... ValueType>
-	static TUniquePtr<FParamStackLayer> MakeValueLayer(FName InName, ValueType&&... InValue)
+	static FLayerHandle MakeValueLayer(FName InName, ValueType&&... InValue)
 	{
 		return MakeValuesLayer(FParamId(InName), Forward<ValueType>(InValue)...);
 	}
@@ -192,7 +282,7 @@ public:
 	// Make a parameter layer from an interleaved parameter list of keys and values
 	// @param	InValues	Values to push
 	template<typename... Args>
-	static TUniquePtr<FParamStackLayer> MakeValuesLayer(Args&&... InValues)
+	static FLayerHandle MakeValuesLayer(Args&&... InValues)
 	{
 		constexpr int32 NumItems = sizeof...(InValues) / 2;
 		TArray<TPair<FParamId, FParam>, TInlineAllocator<NumItems>> ParamIdValues;
@@ -200,23 +290,26 @@ public:
 		return MakeValuesLayerHelper(ParamIdValues, Forward<Args>(InValues)...);
 	}
 
-	// Pop a parameter layer
-	ANIMNEXT_API void PopLayer();
+	// Pop a parameter layer - asserts if the layer supplied is not the top layer
+	ANIMNEXT_API void PopLayer(FPushedLayerHandle InLayer);
 
 	// Results for FParamStack::GetParam
 	enum class EGetParamResult : uint8
 	{
 		// The requested parameter is present in the current scope
-		Succeeded		= 0x00,
+		Succeeded			= 0x00,
+
+		// The requested parameter is present in the current scope, and its type is compatible according to the supplied requirements
+		CompatibleType		= 0x01,
+
+		// The requested parameter is present in the current scope, but its type is not compatible according to the supplied requirements
+		IncompatibleType	= 0x02,
 
 		// The requested parameter is not present in the current scope
-		NotInScope		= 0x01,
-
-		// The requested parameter is present in the current scope, but is of a different type to the requested type
-		IncorrectType	= 0x02,
+		NotInScope			= 0x04,
 
 		// The requested parameter is immutable but a mutable request was made of it
-		Immutable		= 0x04,
+		Immutable			= 0x08,
 	};
 
 	FRIEND_ENUM_CLASS_FLAGS(FParamStack::EGetParamResult);
@@ -229,7 +322,8 @@ public:
 	const ValueType* GetParamPtr(FParamId InParamId, FParamStack::EGetParamResult* OutResult = nullptr) const
 	{
 		TConstArrayView<uint8> Data;
-		FParamStack::EGetParamResult Result = GetParamData(InParamId, FParamTypeHandle::GetHandle<ValueType>(), Data);
+		FParamTypeHandle TypeHandle;
+		FParamStack::EGetParamResult Result = GetParamData(InParamId, FParamTypeHandle::GetHandle<ValueType>(), Data, TypeHandle);
 		if (OutResult)
 		{
 			*OutResult = Result;
@@ -245,7 +339,8 @@ public:
 	ValueType* GetMutableParamPtr(FParamId InParamId, FParamStack::EGetParamResult* OutResult = nullptr)
 	{
 		TArrayView<uint8> Data;
-		FParamStack::EGetParamResult Result = GetMutableParamData(InParamId, FParamTypeHandle::GetHandle<ValueType>(), Data);
+		FParamTypeHandle TypeHandle;
+		FParamStack::EGetParamResult Result = GetMutableParamData(InParamId, FParamTypeHandle::GetHandle<ValueType>(), Data, TypeHandle);
 		if (OutResult)
 		{
 			*OutResult = Result;
@@ -354,39 +449,33 @@ public:
 	}
 
 	// Get a parameter's data given an FParamId.
-	// @param	InParamId			Parameter ID to find the currently-pushed value for
-	// @param	InParamTypeHandle	Handle to the type of the parameter, which must match the stored type for a value to
-	//								be returned
-	// @param	OutParamData		View into the parameters data that will be filled
+	// @param	InParamId				Parameter ID to find the currently-pushed value for
+	// @param	InParamTypeHandle		Handle to the type of the parameter, which must match the stored type for a value to
+	//									be returned according to the supplied compatibility
+	// @param	OutParamData			View into the parameters data that will be filled
+	// @param	OutParamTypeHandle		Handle to the type of the parameter if the parameter is present in the stack.
+	//									This will be valid even if the types are deemed incompatible.
+	// @param	InRequiredCompatibility	The minimum required compatibility level
 	// @return an enum describing the result of the operation @see FParamStack::EGetParamResult
-	ANIMNEXT_API EGetParamResult GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData) const;
+	ANIMNEXT_API EGetParamResult GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamCompatibility InRequiredCompatibility = FParamCompatibility::Equal()) const;
+	ANIMNEXT_API EGetParamResult GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility = FParamCompatibility::Equal()) const;
 
 	// Get a parameter's mutable data given an FParamId.
-	// @param	InParamId			Parameter ID to find the currently-pushed value for
-	// @param	InParamTypeHandle	Handle to the type of the parameter, which must match the stored type for a value to
-	//								be returned
-	// @param	OutParamData		View into the parameters data that will be filled
+	// @param	InParamId				Parameter ID to find the currently-pushed value for
+	// @param	InParamTypeHandle		Handle to the type of the parameter, which must match the stored type for a value to
+	//									be returned according to the supplied compatibility
+	// @param	OutParamData			View into the parameters data that will be filled
+	// @param	OutParamTypeHandle		Handle to the type of the parameter if the parameter is present in the stack.
+	//									This will be valid even if the types are deemed incompatible.
+	// @param	InRequiredCompatibility	The minimum required compatibility level
 	// @return an enum describing the result of the operation @see FParamStack::EGetParamResult
-	ANIMNEXT_API EGetParamResult GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData);
+	ANIMNEXT_API EGetParamResult GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData, FParamCompatibility InRequiredCompatibility = FParamCompatibility::Equal());
+	ANIMNEXT_API EGetParamResult GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility = FParamCompatibility::Equal());
 
 private:
-	// A layer held on the stack, may be owned by the stack or not
-	struct FPushedLayer
-	{
-		FPushedLayer(FParamStackLayer& InLayer, FParamStack& InStack);
-
-		FPushedLayer(const FPushedLayer& InPreviousLayer, FParamStackLayer& InLayer, FParamStack& InStack);
-
-		FParamStackLayer& Layer;
-
-		// Index offset for the previous layer for each active param.
-		// Offset into FParamStack::PreviousLayerIndices.
-		uint32 PreviousLayerIndexStart = 0;
-	};
-
 	// Recursive helper function for PushValues
 	template <uint32 NumItems, typename FirstType, typename SecondType, typename... OtherTypes>
-	void PushValuesHelper(TArray<TPair<FParamId, FParam>, TInlineAllocator<NumItems>>& InArray, FirstType&& InFirst, SecondType&& InSecond, OtherTypes&&... InOthers)
+	FPushedLayerHandle PushValuesHelper(TArray<TPair<FParamId, FParam>, TInlineAllocator<NumItems>>& InArray, FirstType&& InFirst, SecondType&& InSecond, OtherTypes&&... InOthers)
 	{
 		InArray.Emplace(FParamId(InFirst),
 			FParam(
@@ -399,17 +488,17 @@ private:
 
 		if constexpr (sizeof...(InOthers) > 0)
 		{
-			PushValuesHelper(InArray, Forward<OtherTypes>(InOthers)...);
+			return PushValuesHelper(InArray, Forward<OtherTypes>(InOthers)...);
 		}
 		else
 		{
-			PushLayer(InArray);
+			return PushLayer(InArray);
 		}
 	}
 
 	// Recursive helper function for MakeValuesLayer
 	template <uint32 NumItems, typename FirstType, typename SecondType, typename... OtherTypes>
-	static TUniquePtr<FParamStackLayer> MakeValuesLayerHelper(TArray<TPair<FParamId, FParam>, TInlineAllocator<NumItems>>& InArray, FirstType&& InFirst, SecondType&& InSecond, OtherTypes&&... InOthers)
+	static FLayerHandle MakeValuesLayerHelper(TArray<TPair<FParamId, FParam>, TInlineAllocator<NumItems>>& InArray, FirstType&& InFirst, SecondType&& InSecond, OtherTypes&&... InOthers)
 	{
 		InArray.Emplace(FParamId(InFirst), 
 			FParam(
@@ -429,6 +518,9 @@ private:
 			return MakeLayer(InArray);
 		}
 	}
+
+	// Helper function for layer pushes
+	FPushedLayerHandle PushLayerInternal(FLayer& InLayer);
 
 	// Check whether a given parameter is mutable
 	ANIMNEXT_API bool IsMutableParam(FParamId InId) const;
@@ -458,12 +550,15 @@ private:
 	// Resize layer indices to deal with any new params we have seen since the stack was created
 	void ResizeLayerIndices();
 
+	// Get a new serial number for a pushed layer
+	uint32 MakeSerialNumber();
+
 	// Layer stack
 	TArray<FPushedLayer> Layers;
 
 	// Owned layers, paged for stable addresses as layers reference them by ptr
 	// Grows with each new pushed owned layer
-	TPagedArray<FParamStackLayer, 4096> OwnedStackLayers;
+	TPagedArray<FLayer, 4096> OwnedStackLayers;
 
 	// Parameter storage for owned layers, paged for stable addresses as layer parameters reference them by ptr
 	// Grows with each new pushed layer, free'd when the param stack is destroyed
@@ -477,33 +572,12 @@ private:
 	// Pushed layers hold views into this array.
 	// Grows with each new pushed layer, free'd when the param stack is destroyed
 	TArray<uint16> PreviousLayerIndices;
+
+	// Serial number for stack layers
+	uint32 SerialNumber = 0;
 };
 
 ENUM_CLASS_FLAGS(FParamStack::EGetParamResult);
 ENUM_CLASS_FLAGS(FParamStack::EParamFlags);
-
-// Stack layers are what actually get pushed/popped onto the layer stack.
-// They are designed to be held on an instance, their data updated in place.
-// Memory ownership for params is assumed to be outside of the stack and layers
-struct FParamStackLayer
-{
-private:
-	friend struct FParamStack;
-
-	FParamStackLayer() = delete;
-
-	explicit FParamStackLayer(const FInstancedPropertyBag& InPropertyBag);
-
-	explicit FParamStackLayer(TConstArrayView<TPair<FParamId, FParamStack::FParam>> InParams);
-
-	// Params that this layer supplies
-	TArray<FParamStack::FParam> Params;
-
-	// ID that the param indices start at. Maps the global param ID range into the range for this layer
-	uint32 MinParamId = 0;
-
-	// Storage offset for this layer if it is owned internally, otherwise MAX_uint32
-	uint32 OwnedStorageOffset = MAX_uint32;
-};
 
 }

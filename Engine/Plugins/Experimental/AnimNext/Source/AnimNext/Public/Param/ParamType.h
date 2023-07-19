@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -49,7 +49,7 @@ namespace UE::AnimNext::Private
 
 /**
  * Representation of a parameter's type. Serializable, but fairly heavyweight to pass around and compare.
- * Faster comparisons and other operations can be performed on UE::AnimNext::FTypeHandle, but they cannot be
+ * Faster comparisons and other operations can be performed on UE::AnimNext::FParamTypeHandle, but they cannot be
  * serialized as they are not stable across runs.
  */
 USTRUCT()

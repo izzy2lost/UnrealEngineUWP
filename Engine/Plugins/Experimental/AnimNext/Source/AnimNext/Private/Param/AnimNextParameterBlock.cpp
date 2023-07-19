@@ -1,9 +1,11 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/AnimNextParameterBlock.h"
 #include "RigVMCore/RigVMMemoryStorage.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/Package.h"
+#include "Graph/RigUnit_AnimNextBeginExecution.h"
+#include "Graph/AnimNextExecuteContext.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNextParameterBlock)
 
@@ -32,6 +34,17 @@ static TArray<UClass*> GetClassObjectsInPackage(UPackage* InPackage)
 	return ClassObjects;
 }
 
+}
+
+void UAnimNextParameterBlock::Run(const UE::AnimNext::FContext& Context) const
+{
+	if (RigVM)
+	{
+		FRigVMExtendedExecuteContext RigVMExtendedExecuteContext;
+		FAnimNextExecuteContext& AnimNextContext = RigVMExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
+		AnimNextContext.SetContextData(Context);
+		RigVM->Execute(RigVMExtendedExecuteContext, TArray<URigVMMemoryStorage*>(), FRigUnit_AnimNextBeginExecution::EventName);
+	}
 }
 
 void UAnimNextParameterBlock::PostRename(UObject* OldOuter, const FName OldName)

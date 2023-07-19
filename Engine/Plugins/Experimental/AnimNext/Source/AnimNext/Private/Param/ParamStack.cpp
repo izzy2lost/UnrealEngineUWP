@@ -4,6 +4,7 @@
 #include "Param/ParamHelpers.h"
 #include "PropertyBag.h"
 #include "EngineLogs.h"
+#include "Param/ParamUtils.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextParamStack"
 
@@ -118,40 +119,43 @@ FParamStack::FParam& FParamStack::FParam::operator=(FParam&& InOtherParam)
 	return *this;
 }
 
-FParamStackLayer::FParamStackLayer(const FInstancedPropertyBag& InPropertyBag)
+FParamStack::FLayer::FLayer(FInstancedPropertyBag& InPropertyBag, bool bInIsMutable)
 {
-	TConstArrayView<FPropertyBagPropertyDesc> Descs = InPropertyBag.GetPropertyBagStruct()->GetPropertyDescs();
-	
-	// Determine param ID range for this layer
-	TArray<FParamId> CachedIds;
-	CachedIds.SetNumUninitialized(Descs.Num());
-	MinParamId = MAX_uint32;
-	uint32 MaxParamId = 0;
-	for (uint32 DescIndex = 0; DescIndex < static_cast<uint32>(Descs.Num()); ++DescIndex)
+	if (const UPropertyBag* PropertyBagStruct = InPropertyBag.GetPropertyBagStruct())
 	{
-		const FPropertyBagPropertyDesc& Desc = Descs[DescIndex];
-		const FParamId& ParamId = CachedIds[DescIndex] = FParamId(Desc.Name);
-		MinParamId = FMath::Min(ParamId.ToInt(), MinParamId);
-		MaxParamId = FMath::Max(ParamId.ToInt(), MaxParamId);
-	}
+		TConstArrayView<FPropertyBagPropertyDesc> Descs = PropertyBagStruct->GetPropertyDescs();
 
-	if (MinParamId <= MaxParamId)
-	{
-		const uint32 ParamRangeSize = (MaxParamId - MinParamId) + 1;
-		Params.SetNumZeroed(ParamRangeSize);
-		FConstStructView StructView = InPropertyBag.GetValue();
+		// Determine param ID range for this layer
+		TArray<FParamId> CachedIds;
+		CachedIds.SetNumUninitialized(Descs.Num());
+		MinParamId = MAX_uint32;
+		uint32 MaxParamId = 0;
 		for (uint32 DescIndex = 0; DescIndex < static_cast<uint32>(Descs.Num()); ++DescIndex)
 		{
 			const FPropertyBagPropertyDesc& Desc = Descs[DescIndex];
-			const FParamId& ParamId = CachedIds[DescIndex];
-			const uint8* DataPtr = StructView.GetMemory() + Desc.CachedProperty->GetOffset_ForInternal();
-			const uint32 LocalParamIndex = ParamId.ToInt() - MinParamId;
-			Params[LocalParamIndex] = FParamStack::FParam(FParamTypeHandle::FromPropertyBagPropertyDesc(Desc), TArrayView<uint8>(const_cast<uint8*>(DataPtr), Desc.CachedProperty->GetSize()), true, false);
+			const FParamId& ParamId = CachedIds[DescIndex] = FParamId(Desc.Name);
+			MinParamId = FMath::Min(ParamId.ToInt(), MinParamId);
+			MaxParamId = FMath::Max(ParamId.ToInt(), MaxParamId);
+		}
+
+		if (MinParamId <= MaxParamId)
+		{
+			const uint32 ParamRangeSize = (MaxParamId - MinParamId) + 1;
+			Params.SetNumZeroed(ParamRangeSize);
+			FConstStructView StructView = InPropertyBag.GetValue();
+			for (uint32 DescIndex = 0; DescIndex < static_cast<uint32>(Descs.Num()); ++DescIndex)
+			{
+				const FPropertyBagPropertyDesc& Desc = Descs[DescIndex];
+				const FParamId& ParamId = CachedIds[DescIndex];
+				const uint8* DataPtr = StructView.GetMemory() + Desc.CachedProperty->GetOffset_ForInternal();
+				const uint32 LocalParamIndex = ParamId.ToInt() - MinParamId;
+				Params[LocalParamIndex] = FParamStack::FParam(FParamTypeHandle::FromPropertyBagPropertyDesc(Desc), TArrayView<uint8>(const_cast<uint8*>(DataPtr), Desc.CachedProperty->GetSize()), true, bInIsMutable);
+			}
 		}
 	}
 }
 
-FParamStackLayer::FParamStackLayer(TConstArrayView<TPair<FParamId, FParamStack::FParam>> InParams)
+FParamStack::FLayer::FLayer(TConstArrayView<TPair<FParamId, FParamStack::FParam>> InParams)
 {
 	MinParamId = MAX_uint32;
 	uint32 MaxParamId = 0;
@@ -174,9 +178,11 @@ FParamStackLayer::FParamStackLayer(TConstArrayView<TPair<FParamId, FParamStack::
 	}
 }
 
-FParamStack::FPushedLayer::FPushedLayer(FParamStackLayer& InLayer, FParamStack& InStack)
+FParamStack::FPushedLayer::FPushedLayer(FLayer& InLayer, FParamStack& InStack)
 	: Layer(InLayer)
 {
+	SerialNumber = InStack.MakeSerialNumber();
+
 	if (Layer.Params.Num())
 	{
 		InStack.ResizeLayerIndices();
@@ -189,9 +195,11 @@ FParamStack::FPushedLayer::FPushedLayer(FParamStackLayer& InLayer, FParamStack& 
 	}
 }
 
-FParamStack::FPushedLayer::FPushedLayer(const FPushedLayer& InPreviousLayer, FParamStackLayer& InLayer, FParamStack& InStack)
+FParamStack::FPushedLayer::FPushedLayer(const FPushedLayer& InPreviousLayer, FLayer& InLayer, FParamStack& InStack)
 	: Layer(InLayer)
 {
+	SerialNumber = InStack.MakeSerialNumber();
+
 	if (Layer.Params.Num())
 	{
 		InStack.ResizeLayerIndices();
@@ -208,7 +216,7 @@ FParamStack::FPushedLayer::FPushedLayer(const FPushedLayer& InPreviousLayer, FPa
 			InStack.PreviousLayerIndices[BaseLayerIndex + LocalParamIndex] = InStack.LayerIndices[GlobalParamIndex];
 			if(InLayer.Params[LocalParamIndex].IsValid())
 			{
-				InStack.LayerIndices[GlobalParamIndex] = InStack.Layers.Num();
+				InStack.LayerIndices[GlobalParamIndex] = InStack.Layers.Num() - 1;
 			}
 		}
 	}
@@ -231,44 +239,57 @@ FParamStack& FParamStack::Get()
 	return FParamStackThreadData::Get().Stack;
 }
 
-void FParamStack::PushLayer(FParamStackLayer& InLayer)
+FParamStack::FPushedLayerHandle FParamStack::PushLayer(const FLayerHandle& InLayerHandle)
+{
+	return PushLayerInternal(*InLayerHandle.Layer.Get());
+}
+
+FParamStack::FPushedLayerHandle FParamStack::PushLayer(TConstArrayView<TPair<FParamId, FParamStack::FParam>> InParams)
+{
+	if(Layers.Num() < MAX_uint16)
+	{
+		FLayer& OwnedLayer = OwnedStackLayers.Add_GetRef(FLayer(InParams));
+		OwnedLayer.OwnedStorageOffset = AllocAndCopyOwnedParamStorage(OwnedLayer.Params);
+		return PushLayerInternal(OwnedLayer);
+	}
+	else
+	{
+		UE_LOG(LogAnimation, Warning, TEXT("FParamStack: Could not push a layer: Maximum 65535 stack layers."));
+		return FPushedLayerHandle();
+	}
+}
+
+FParamStack::FPushedLayerHandle FParamStack::PushLayerInternal(FLayer& InLayer)
 {
 	if (Layers.Num() < MAX_uint16)
 	{
 		if (Layers.Num())
 		{
-			Layers.Push(FPushedLayer(Layers.Top(), InLayer, *this));
+			FPushedLayer& NewPushedLayer = Layers.Emplace_GetRef(Layers.Top(), InLayer, *this);
+			return FPushedLayerHandle(Layers.Num() - 1, NewPushedLayer.SerialNumber);
 		}
 		else
 		{
-			Layers.Push(FPushedLayer(InLayer, *this));
+			FPushedLayer& NewPushedLayer = Layers.Emplace_GetRef(InLayer, *this);
+			return FPushedLayerHandle(Layers.Num() - 1, NewPushedLayer.SerialNumber);
 		}
 	}
 	else
 	{
-		UE_LOG(LogAnimation, Warning, TEXT("FParamStack: Could not push a layer: Maximum 65535 stack layers."))
+		UE_LOG(LogAnimation, Warning, TEXT("FParamStack: Could not push a layer: Maximum 65535 stack layers."));
+		return FPushedLayerHandle();
 	}
 }
 
-void FParamStack::PushLayer(TConstArrayView<TPair<FParamId, FParamStack::FParam>> InParams)
-{
-	if(Layers.Num() < MAX_uint16)
-	{
-		FParamStackLayer& OwnedLayer = OwnedStackLayers.Add_GetRef(FParamStackLayer(InParams));
-		OwnedLayer.OwnedStorageOffset = AllocAndCopyOwnedParamStorage(OwnedLayer.Params);
-		PushLayer(OwnedLayer);
-	}
-	else
-	{
-		UE_LOG(LogAnimation, Warning, TEXT("FParamStack: Could not push a layer: Maximum 65535 stack layers."))
-	}
-}
-
-void FParamStack::PopLayer()
+void FParamStack::PopLayer(FPushedLayerHandle InHandle)
 {
 	if(Layers.Num() > 0)
 	{
 		const FPushedLayer& TopLayer = Layers.Top();
+
+		checkf(TopLayer.SerialNumber == InHandle.SerialNumber && (uint32)Layers.Num() - 1 == InHandle.Index, 
+			TEXT("UE::AnimNext::FParamStack::PopLayer: Invalid layer handle supplied (Have: %u, %u, Expected: %u, %u)"), 
+			InHandle.Index, InHandle.SerialNumber, (uint32)Layers.Num() - 1, TopLayer.SerialNumber);
 
 		// Fixup layer indices to previous, if any
 		const uint32 NumParams = TopLayer.Layer.Params.Num();
@@ -305,21 +326,33 @@ void FParamStack::PopLayer()
 	}
 }
 
-TUniquePtr<FParamStackLayer> FParamStack::MakeLayer(const FInstancedPropertyBag& InPropertyBag)
+FParamStack::FLayerHandle FParamStack::MakeLayer(const FInstancedPropertyBag& InPropertyBag)
 {
-	TUniquePtr<FParamStackLayer> Layer = TUniquePtr<FParamStackLayer>(new FParamStackLayer(InPropertyBag));
-	return Layer;
+	TUniquePtr<FLayer> Layer = TUniquePtr<FLayer>(new FLayer(const_cast<FInstancedPropertyBag&>(InPropertyBag), false));
+	return FLayerHandle(MoveTemp(Layer));
 }
 
-TUniquePtr<FParamStackLayer> FParamStack::MakeLayer(TConstArrayView<TPair<FParamId, FParamStack::FParam>> InParams)
+FParamStack::FLayerHandle FParamStack::MakeMutableLayer(FInstancedPropertyBag& InPropertyBag)
 {
-	TUniquePtr<FParamStackLayer> Layer = TUniquePtr<FParamStackLayer>(new FParamStackLayer(InParams));
-	return Layer;
+	TUniquePtr<FLayer> Layer = TUniquePtr<FLayer>(new FLayer(InPropertyBag, true));
+	return FLayerHandle(MoveTemp(Layer));
 }
 
-FParamStack::EGetParamResult FParamStack::GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData) const
+FParamStack::FLayerHandle FParamStack::MakeLayer(TConstArrayView<TPair<FParamId, FParamStack::FParam>> InParams)
 {
-	if (InId.ToInt() >= (uint32)LayerIndices.Num() || LayerIndices[InId.ToInt()] == MAX_uint16)
+	TUniquePtr<FLayer> Layer = TUniquePtr<FLayer>(new FLayer(InParams));
+	return FLayerHandle(MoveTemp(Layer));
+}
+
+FParamStack::EGetParamResult FParamStack::GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamCompatibility InRequiredCompatibility) const
+{
+	FParamTypeHandle ParamTypeHandle;
+	return GetParamData(InId, InTypeHandle, OutParamData, ParamTypeHandle, InRequiredCompatibility);
+}
+
+FParamStack::EGetParamResult FParamStack::GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility) const
+{
+	if (Layers.Num() == 0 || InId.ToInt() >= (uint32)LayerIndices.Num() || LayerIndices[InId.ToInt()] == MAX_uint16)
 	{
 		return EGetParamResult::NotInScope;
 	}
@@ -333,19 +366,33 @@ FParamStack::EGetParamResult FParamStack::GetParamData(FParamId InId, FParamType
 		return EGetParamResult::NotInScope;
 	}
 
-	if (Param.GetTypeHandle() != InTypeHandle)
-	{
-		return EGetParamResult::IncorrectType;
-	}
+	OutParamTypeHandle = Param.GetTypeHandle();
 
+	FParamCompatibility Compatibility = UE::AnimNext::FParamUtils::GetCompatibility(InTypeHandle, OutParamTypeHandle);
+	if (Compatibility < InRequiredCompatibility)
+	{
+		return EGetParamResult::IncompatibleType;
+	}
+	
 	OutParamData = Param.GetData();
+
+	if (Compatibility == InRequiredCompatibility)
+	{
+		return EGetParamResult::CompatibleType;
+	}
 
 	return EGetParamResult::Succeeded;
 }
 
-FParamStack::EGetParamResult FParamStack::GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData)
+FParamStack::EGetParamResult FParamStack::GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData, FParamCompatibility InRequiredCompatibility)
 {
-	if (InId.ToInt() >= (uint32)LayerIndices.Num() || LayerIndices[InId.ToInt()] == MAX_uint16)
+	FParamTypeHandle ParamTypeHandle;
+	return GetMutableParamData(InId, InTypeHandle, OutParamData, ParamTypeHandle, InRequiredCompatibility);
+}
+
+FParamStack::EGetParamResult FParamStack::GetMutableParamData(FParamId InId, FParamTypeHandle InTypeHandle, TArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility)
+{
+	if (Layers.Num() == 0 || InId.ToInt() >= (uint32)LayerIndices.Num() || LayerIndices[InId.ToInt()] == MAX_uint16)
 	{
 		return EGetParamResult::NotInScope;
 	}
@@ -359,9 +406,21 @@ FParamStack::EGetParamResult FParamStack::GetMutableParamData(FParamId InId, FPa
 		return EGetParamResult::NotInScope;
 	}
 
-	EGetParamResult AccessResult = Param.GetTypeHandle() != InTypeHandle ? EGetParamResult::IncorrectType : EGetParamResult::Succeeded;
+	OutParamTypeHandle = Param.GetTypeHandle();
+
+	EGetParamResult AccessResult = EGetParamResult::Succeeded;
+	FParamCompatibility Compatibility = UE::AnimNext::FParamUtils::GetCompatibility(InTypeHandle, OutParamTypeHandle);
+	if (Compatibility < InRequiredCompatibility)
+	{
+		AccessResult |= EGetParamResult::IncompatibleType;
+	}
+	else if (Compatibility == InRequiredCompatibility)
+	{
+		AccessResult |= EGetParamResult::CompatibleType;
+	}
+
 	AccessResult |= !Param.IsMutable() ? EGetParamResult::Immutable : EGetParamResult::Succeeded;
-	if (AccessResult != EGetParamResult::Succeeded)
+	if (AccessResult != EGetParamResult::Succeeded && AccessResult != EGetParamResult::CompatibleType)
 	{
 		return AccessResult;
 	}
@@ -373,7 +432,7 @@ FParamStack::EGetParamResult FParamStack::GetMutableParamData(FParamId InId, FPa
 
 bool FParamStack::IsMutableParam(FParamId InId) const
 {
-	if (InId.ToInt() >= (uint32)LayerIndices.Num() || LayerIndices[InId.ToInt()] == MAX_uint16)
+	if (Layers.Num() == 0 || InId.ToInt() >= (uint32)LayerIndices.Num() || LayerIndices[InId.ToInt()] == MAX_uint16)
 	{
 		return false;
 	}
@@ -388,7 +447,7 @@ bool FParamStack::IsMutableParam(FParamId InId) const
 
 bool FParamStack::IsReferenceParam(FParamId InId) const
 {
-	if (InId.ToInt() >= (uint32)LayerIndices.Num() || LayerIndices[InId.ToInt()] == MAX_uint16)
+	if (Layers.Num() == 0 || InId.ToInt() >= (uint32)LayerIndices.Num() || LayerIndices[InId.ToInt()] == MAX_uint16)
 	{
 		return false;
 	}
@@ -465,6 +524,16 @@ void FParamStack::ResizeLayerIndices()
 		LayerIndices.SetNum(NumParams);
 		FMemory::Memset(&LayerIndices[NumLayerIndices], 0xff, (NumParams - NumLayerIndices) * sizeof(uint16));
 	}
+}
+
+uint32 FParamStack::MakeSerialNumber()
+{
+	++SerialNumber;
+	if (SerialNumber == 0)
+	{
+		++SerialNumber;
+	}
+	return SerialNumber;
 }
 
 }

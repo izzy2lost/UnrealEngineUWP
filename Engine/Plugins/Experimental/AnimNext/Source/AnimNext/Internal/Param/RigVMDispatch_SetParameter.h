@@ -3,7 +3,7 @@
 #pragma once
 
 #include "RigVMCore/RigVMDispatchFactory.h"
-#include "Graph/GraphExecuteContext.h"
+#include "Graph/AnimNextExecuteContext.h"
 #include "RigVMDispatch_SetParameter.generated.h"
 
 namespace UE::AnimNext::UncookedOnly
@@ -24,10 +24,11 @@ struct ANIMNEXT_API FRigVMDispatch_SetParameter : public FRigVMDispatchFactory
 private:
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 
-	virtual UScriptStruct* GetExecuteContextStruct() const { return FAnimNextGraphExecuteContext::StaticStruct(); }
+	virtual UScriptStruct* GetExecuteContextStruct() const { return FAnimNextExecuteContext::StaticStruct(); }
 	virtual FName GetArgumentNameForOperandIndex(int32 InOperandIndex, int32 InTotalOperands) const override;
 	virtual TArray<FRigVMTemplateArgument> GetArguments() const override;
 #if WITH_EDITOR
+	virtual FString GetArgumentMetaData(const FName& InArgumentName, const FName& InMetaDataKey) const override;
 	virtual FString GetArgumentDefaultValue(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex) const override;
 #endif
 	virtual TArray<FRigVMExecuteArgument> GetExecuteArguments_Impl(const FRigVMDispatchContext& InContext) const override;

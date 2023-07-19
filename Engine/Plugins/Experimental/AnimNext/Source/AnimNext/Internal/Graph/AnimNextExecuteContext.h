@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "RigVMCore/RigVMExecuteContext.h"
 #include "Units/RigUnit.h"
-#include "GraphExecuteContext.generated.h"
+#include "AnimNextExecuteContext.generated.h"
 
 namespace UE::AnimNext
 {
@@ -13,11 +13,11 @@ namespace UE::AnimNext
 }
 
 USTRUCT(BlueprintType)
-struct FAnimNextGraphExecuteContext : public FRigVMExecuteContext
+struct FAnimNextExecuteContext : public FRigVMExecuteContext
 {
 	GENERATED_BODY()
 
-	FAnimNextGraphExecuteContext()
+	FAnimNextExecuteContext()
 		: FRigVMExecuteContext()
 		, Context(nullptr)
 	{
@@ -38,7 +38,7 @@ struct FAnimNextGraphExecuteContext : public FRigVMExecuteContext
 	{
 		Super::Copy(InOtherContext);
 
-		const FAnimNextGraphExecuteContext* OtherContext = (const FAnimNextGraphExecuteContext*)InOtherContext; 
+		const FAnimNextExecuteContext* OtherContext = (const FAnimNextExecuteContext*)InOtherContext;
 		Context = OtherContext->Context;
 	}
 
@@ -46,7 +46,7 @@ private:
 	const UE::AnimNext::FContext* Context;
 };
 
-USTRUCT(meta=(ExecuteContext="FAnimNextGraphExecuteContext"))
+USTRUCT(meta=(ExecuteContext="FAnimNextExecuteContext"))
 struct FRigUnit_AnimNextBase : public FRigUnit
 {
 	GENERATED_BODY()

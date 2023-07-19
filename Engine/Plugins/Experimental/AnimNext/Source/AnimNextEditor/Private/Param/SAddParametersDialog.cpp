@@ -204,10 +204,7 @@ class SParameterToAdd : public SMultiColumnTableRow<TSharedRef<FParameterToAdd>>
 					})
 					.OnTextCommitted_Lambda([this](const FText& InText, ETextCommit::Type InCommitType)
 					{
-						if(InCommitType == ETextCommit::OnEnter)
-						{
-							Entry->Name = *InText.ToString();
-						}
+						Entry->Name = *InText.ToString();
 					})
 					.OnVerifyTextChanged_Lambda([this](const FText& InNewText, FText& OutErrorText)
 					{

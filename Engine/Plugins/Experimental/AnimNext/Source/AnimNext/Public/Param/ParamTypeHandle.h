@@ -52,6 +52,7 @@ struct ANIMNEXT_API FParamTypeHandle
 
 	friend struct ::FAnimNextParamType;
 	friend struct FParamHelpers;
+	friend struct FParamUtils;
 	friend class UE::AnimNext::Tests::FParamTypesTest;
 
 private:
@@ -67,12 +68,6 @@ private:
 	};
 
 private:
-	/** Get the built-in parameter type */
-	EParamType GetParameterType() const
-	{
-		return (EParamType)Fields.BuiltInType;
-	}
-
 	/** Set the built-in parameter type */
 	void SetParameterType(EParamType InType)
 	{
@@ -91,9 +86,12 @@ private:
 		checkf(InIndex < (1 << 24), TEXT("FTypeHandle::SetCustomTypeIndex: Type Index out of range"));
 		Fields.CustomTypeIndex = InIndex;
 	}
-
-	/** Reset the custom type registry, used in tests */
-	static void ResetCustomTypes();
+	
+#if WITH_DEV_AUTOMATION_TESTS
+	// Used to isolate param type handles from automated tests
+	static void BeginTestSandbox();
+	static void EndTestSandbox();
+#endif
 
 	/** Get a custom type index for the passed-in type information */
 	static uint32 GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValueType InValueType, FAnimNextParamType::EContainerType InContainerType, const UObject* InValueTypeObject);
@@ -208,6 +206,15 @@ public:
 		: Value(0)
 	{
 	}
+
+	/** Get the built-in parameter type */
+	EParamType GetParameterType() const
+	{
+		return (EParamType)Fields.BuiltInType;
+	}
+
+	/** Get the custom type info */
+	void GetCustomTypeInfo(FAnimNextParamType::EValueType& OutValueType, FAnimNextParamType::EContainerType& OutContainerType, const UObject*& OutValueTypeObject) const;
 
 	/** Check whether this describes a built-in type (i.e. not a custom type) */
 	bool IsBuiltInType() const

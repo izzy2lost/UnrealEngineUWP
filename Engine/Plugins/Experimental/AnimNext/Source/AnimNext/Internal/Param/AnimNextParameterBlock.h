@@ -9,6 +9,11 @@
 
 class UEdGraph;
 
+namespace UE::AnimNext
+{
+	struct FContext;
+}
+
 namespace UE::AnimNext::UncookedOnly
 {
 	struct FUtils;
@@ -63,6 +68,9 @@ class UAnimNextParameterBlock : public UObject
 	friend struct UE::AnimNext::UncookedOnly::FUtilsPrivate;
 	friend class UE::AnimNext::Editor::FParametersEditor;
 	friend struct UE::AnimNext::Editor::FUtils;
+	friend struct FAnimNode_AnimNextParameters;
+
+	void Run(const UE::AnimNext::FContext& Context) const;
 
 	// UObject interface
 	virtual void PostRename(UObject* OldOuter, const FName OldName) override;

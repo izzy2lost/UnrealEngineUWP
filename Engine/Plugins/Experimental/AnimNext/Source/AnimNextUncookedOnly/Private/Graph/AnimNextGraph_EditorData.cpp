@@ -6,7 +6,7 @@
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraph_EdGraphSchema.h"
 #include "UncookedOnlyUtils.h"
-#include "Graph/GraphExecuteContext.h"
+#include "Graph/AnimNextExecuteContext.h"
 #include "Rigs/RigHierarchyPose.h"
 #include "RigVMModel/RigVMFunctionLibrary.h"
 #include "RigVMModel/RigVMNotifications.h"
@@ -25,7 +25,7 @@ UAnimNextGraph_EditorData::UAnimNextGraph_EditorData(const FObjectInitializer& O
 		RigVMClient.AddModel(TEXT("RigVMGraph"), false, &ObjectInitializer);
 		RigVMClient.GetOrCreateFunctionLibrary(false, &ObjectInitializer);
 	}
-	RigVMClient.SetExecuteContextStruct(FAnimNextGraphExecuteContext::StaticStruct());
+	RigVMClient.SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
 	
 	auto MakeEdGraph = [this, &ObjectInitializer](FName InName) -> UAnimNextGraph_EdGraph*
 	{
@@ -260,7 +260,7 @@ void UAnimNextGraph_EditorData::HandleRigVMGraphAdded(const FRigVMClient* InClie
 {
 	if(URigVMGraph* RigVMGraph = InClient->GetModel(InNodePath))
 	{
-		RigVMGraph->SetExecuteContextStruct(FAnimNextGraphExecuteContext::StaticStruct());
+		RigVMGraph->SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
 	}
 }
 

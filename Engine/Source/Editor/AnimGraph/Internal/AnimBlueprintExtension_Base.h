@@ -28,11 +28,25 @@ class UAnimBlueprintExtension_Base : public UAnimBlueprintExtension
 	GENERATED_BODY()
 
 public:
-	// Processes a node's pins:
-	// - Processes pose pins, building a map of pose links for later processing
+	// Processes pose pins, building a map of pose links for later processing
+	void ProcessPosePins(UAnimGraphNode_Base* InNode, IAnimBlueprintCompilationContext& InCompilationContext, IAnimBlueprintGeneratedClassCompiledData& OutCompiledData);
+
+	enum class EPinProcessingFlags : int32
+	{
+		Constants				= (1 << 0),
+		BlueprintHandlers		= (1 << 1),
+		PropertyAccessBindings	= (1 << 3),
+		PropertyAccessFastPath	= (1 << 4),
+
+		All						= Constants | BlueprintHandlers | PropertyAccessBindings | PropertyAccessFastPath,
+	};
+
+	FRIEND_ENUM_CLASS_FLAGS(EPinProcessingFlags);
+
+	// Processes a node's non-pose pins:
 	// - Adds a map of struct eval handlers for the specified node
 	// - Builds property binding data
-	void ProcessNodePins(UAnimGraphNode_Base* InNode, IAnimBlueprintCompilationContext& InCompilationContext, IAnimBlueprintGeneratedClassCompiledData& OutCompiledData);
+	ANIMGRAPH_API void ProcessNonPosePins(UAnimGraphNode_Base* InNode, IAnimBlueprintCompilationContext& InCompilationContext, IAnimBlueprintGeneratedClassCompiledData& OutCompiledData, EPinProcessingFlags InFlags);
 
 	// Create an 'expanded' evaluation handler for the specified node, called in the compiler's node expansion step
 	void CreateEvaluationHandlerForNode(IAnimBlueprintCompilationContext& InCompilationContext, UAnimGraphNode_Base* InNode);
@@ -45,7 +59,7 @@ private:
 	virtual void HandleCopyTermDefaultsToDefaultObject(UObject* InDefaultObject, IAnimBlueprintCopyTermDefaultsContext& InCompilationContext, IAnimBlueprintExtensionCopyTermDefaultsContext& InPerExtensionContext) override;
 
 	// Patch all node's evaluation handlers 
-	void PatchEvaluationHandlers(IAnimBlueprintCompilationBracketContext& InCompilationContext, IAnimBlueprintGeneratedClassCompiledData& OutCompiledData);
+	void PatchEvaluationHandlers(const UClass* InClass, IAnimBlueprintCompilationBracketContext& InCompilationContext, IAnimBlueprintGeneratedClassCompiledData& OutCompiledData);
 
 private:
 	/** Record of a single copy operation */
@@ -208,9 +222,10 @@ private:
 			return NodeVariableProperty != nullptr;
 		}
 
-		void PatchFunctionNameAndCopyRecordsInto(FExposedValueHandler& Handler) const;
 
-		void RegisterPin(UEdGraphPin* DestPin, FProperty* AssociatedProperty, int32 AssociatedPropertyArrayIndex);
+		void PatchAnimNodeExposedValueHandler(const UClass* InClass, IAnimBlueprintCompilationBracketContext& InCompilationContext) const;
+
+		void RegisterPin(UEdGraphPin* DestPin, FProperty* AssociatedProperty, int32 AssociatedPropertyArrayIndex, bool bAllowFastPath);
 
 		void RegisterPropertyBinding(FProperty* InProperty, const FAnimGraphNodePropertyBinding& InBinding);
 
@@ -258,3 +273,5 @@ private:
 	UPROPERTY()
 	FAnimSubsystem_Base Subsystem;
 };
+
+ENUM_CLASS_FLAGS(UAnimBlueprintExtension_Base::EPinProcessingFlags);

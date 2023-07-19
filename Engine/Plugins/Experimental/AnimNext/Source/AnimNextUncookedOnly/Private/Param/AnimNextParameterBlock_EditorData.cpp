@@ -6,7 +6,7 @@
 #include "Param/AnimNextParameterBlock_EdGraph.h"
 #include "Param/AnimNextParameterBlock_EdGraphSchema.h"
 #include "UncookedOnlyUtils.h"
-#include "Param/ParametersExecuteContext.h"
+#include "Graph/AnimNextExecuteContext.h"
 #include "Rigs/RigHierarchyPose.h"
 #include "RigVMModel/RigVMFunctionLibrary.h"
 #include "RigVMModel/RigVMNotifications.h"
@@ -20,6 +20,7 @@
 #include "Param/AnimNextParameterBlockBindingReference.h"
 #include "Param/AnimNextParameterLibrary.h"
 #include "Misc/TransactionObjectEvent.h"
+#include "ObjectTools.h"
 
 #if WITH_EDITORONLY_DATA
 
@@ -57,7 +58,7 @@ UAnimNextParameterBlock_EditorData::UAnimNextParameterBlock_EditorData(const FOb
 {
 	RigVMClient.Reset();
 	RigVMClient.SetSchemaClass(UAnimNextParameterBlockLibrary_Schema::StaticClass());
-	RigVMClient.SetExecuteContextStruct(FAnimNextParametersExecuteContext::StaticStruct());
+	RigVMClient.SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
 	RigVMClient.SetOuterClientHost(this, GET_MEMBER_NAME_CHECKED(UAnimNextParameterBlock_EditorData, RigVMClient));
 	{
 		TGuardValue<bool> DisableClientNotifs(RigVMClient.bSuspendNotifications, true);
@@ -132,7 +133,7 @@ UAnimNextParameterBlockBinding* UAnimNextParameterBlock_EditorData::AddBinding(F
 		NewEntry->BindingGraph = NewGraph;
 
 		URigVMController* Controller = RigVMClient.GetController(NewGraph);
-		UE::AnimNext::UncookedOnly::FUtils::SetupBindingGraphForLiteral(Controller, Parameter->GetType());
+		UE::AnimNext::UncookedOnly::FUtils::SetupBindingGraphForLiteral(Controller, InName, Parameter->GetType());
 	}
 
 	BroadcastModified();
@@ -292,15 +293,26 @@ bool UAnimNextParameterBlock_EditorData::RemoveEntry(UAnimNextParameterBlockEntr
 	UAnimNextParameterBlockEntry* EntryToRemove = *EntryToRemovePtr;
 	Entries.Remove(EntryToRemove);
 
+	if (bSetupUndoRedo)
+	{
+		EntryToRemove->Modify();
+	}
+
 	bool bResult = true;
 	if(const IAnimNextParameterBlockGraphInterface* GraphInterface = Cast<IAnimNextParameterBlockGraphInterface>(EntryToRemove))
 	{
 		// Remove any binding graphs
-		TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
-		TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
-		bResult = RigVMClient.RemoveModel(GraphInterface->GetGraph()->GetNodePath(), bSetupUndoRedo);
+		if(GraphInterface->GetGraph())
+		{
+			TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
+			TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
+			bResult = RigVMClient.RemoveModel(GraphInterface->GetGraph()->GetNodePath(), bSetupUndoRedo);
+		}
 	}
 
+	// This will cause any external package to be removed when saved
+	EntryToRemove->MarkAsGarbage();
+	
 	BroadcastModified();
 
 	return bResult;
@@ -620,7 +632,7 @@ void UAnimNextParameterBlock_EditorData::HandleRigVMGraphAdded(const FRigVMClien
 {
 	if(URigVMGraph* RigVMGraph = InClient->GetModel(InNodePath))
 	{
-		RigVMGraph->SetExecuteContextStruct(FAnimNextParametersExecuteContext::StaticStruct());
+		RigVMGraph->SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
 
 		if(!HasAnyFlags(RF_ClassDefaultObject | RF_NeedInitialization | RF_NeedLoad | RF_NeedPostLoad) &&
 			GetOuter() != GetTransientPackage())
@@ -856,6 +868,8 @@ void UAnimNextParameterBlock_EditorData::HandleModifiedEvent(ERigVMGraphNotifTyp
 					break;
 				}
 			}
+
+			RequestAutoVMRecompilation();
 			break;
 		}
 	}

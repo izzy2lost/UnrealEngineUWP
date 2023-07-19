@@ -122,7 +122,7 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext & Output)
 	FAnimNextGraphLODPose ResultPose(FLODPose(RefPose, LODLevel, true, Output.ExpectsAdditivePose()));
 	FGenerationTools::RemapPose(LODLevel, SourcePose, RefPose, GraphSourceLODPose.LODPose);
 
-	Context.GetMutableParamStack().PushValues(
+	FParamStack::FPushedLayerHandle LayerHandle = Context.GetMutableParamStack().PushValues(
 		"AnimSequencePlayerState", SequencePlayerState,
 		"GraphReferencePose", GraphReferencePose,
 		"ResultPose", ResultPose,
@@ -137,6 +137,8 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext & Output)
 	FGenerationTools::RemapPose(LODLevel, RefPose, ResultPose.LODPose, Output);
 
 	FAnimNode_CustomProperty::Evaluate_AnyThread(Output);
+
+	Context.GetMutableParamStack().PopLayer(LayerHandle);
 }
 
 void FAnimNode_AnimNextGraph::PostSerialize(const FArchive& Ar)

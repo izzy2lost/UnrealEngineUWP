@@ -579,6 +579,22 @@ struct FPropertyAccessSystem
 			InAddressFunction(Address);
 		}
 	}
+	
+	static void GetAccessAddress(void* InContainer, const FPropertyAccessLibrary& InLibrary, int32 InAccessIndex, TFunctionRef<void(const FProperty*, void*)> InFunction)
+	{
+		if(InLibrary.DestAccesses.IsValidIndex(InAccessIndex))
+		{
+			const FPropertyAccessIndirectionChain& DestAccess = InLibrary.DestAccesses[InAccessIndex];
+			if (FProperty* DestProperty = DestAccess.Property.Get())
+			{
+				GetAccessAddress(InContainer, InLibrary, DestAccess, [&InFunction, DestProperty](void* InAddress)
+				{
+					InFunction(DestProperty, InAddress);
+				});
+			}
+		}
+	}
+
 	// Process a single copy
 	static void ProcessCopy(UStruct* InStruct, void* InContainer, const FPropertyAccessLibrary& InLibrary, int32 InCopyIndex, int32 InBatchId, TFunctionRef<void(const FProperty*, void*)> InPostCopyOperation)
 	{
@@ -725,6 +741,11 @@ namespace PropertyAccess
 	void ProcessCopy(UObject* InObject, const FPropertyAccessLibrary& InLibrary, const FCopyBatchId& InBatchId, int32 InCopyIndex, TFunctionRef<void(const FProperty*, void*)> InPostCopyOperation)
 	{
 		::FPropertyAccessSystem::ProcessCopy(InObject->GetClass(), InObject, InLibrary, InCopyIndex, InBatchId.Id, InPostCopyOperation);
+	}
+
+	void GetAccessAddress(UObject* InObject, const FPropertyAccessLibrary& InLibrary, int32 InAccessIndex, TFunctionRef<void(const FProperty*, void*)> InFunction)
+	{
+		::FPropertyAccessSystem::GetAccessAddress(InObject, InLibrary, InAccessIndex, InFunction);
 	}
 
 	void BindEvents(UObject* InObject, const FPropertyAccessLibrary& InLibrary)

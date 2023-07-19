@@ -387,7 +387,7 @@ FText UAnimGraphNode_AssetPlayerBase::GetNodeTitleHelper(ENodeTitleType::Type In
 		bool bHasBinding = false;
 		if(InAssetPin != nullptr)
 		{
-			if (PropertyBindings.Find(InAssetPin->GetFName()) != nullptr)
+			if (HasBinding(InAssetPin->GetFName()))
 			{
 				bHasBinding = true;
 			}
@@ -508,7 +508,7 @@ void UAnimGraphNode_AssetPlayerBase::ValidateAnimNodeDuringCompilationHelper(USk
 			bool bAlwaysDynamic = false;
 			if(InExposedPin != nullptr)
 			{
-				if(PropertyBindings.Contains(InExposedPin->GetFName()))
+				if(HasBinding(InExposedPin->GetFName()))
 				{
 					bHasBinding = true;
 				}

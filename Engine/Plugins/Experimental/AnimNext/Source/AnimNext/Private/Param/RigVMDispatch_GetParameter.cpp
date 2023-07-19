@@ -1,11 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/RigVMDispatch_GetParameter.h"
-
-#include "Param/ParametersExecuteContext.h"
 #include "RigVMCore/RigVMStruct.h"
 #include "RigVMCore/RigVM.h"
-#include "Graph/GraphExecuteContext.h"
+#include "Graph/AnimNextExecuteContext.h"
 #include "Context.h"
 #include "Param/ParamStack.h"
 #include "Param/ParamStack.h"
@@ -36,6 +34,17 @@ FName FRigVMDispatch_GetParameter::GetArgumentNameForOperandIndex(int32 InOperan
 }
 
 #if WITH_EDITOR
+FString FRigVMDispatch_GetParameter::GetArgumentMetaData(const FName& InArgumentName, const FName& InMetaDataKey) const
+{
+	if ((InArgumentName == TypeHandleName || InArgumentName == ParameterIdName) &&
+		InMetaDataKey == FRigVMStruct::SingletonMetaName)
+	{
+		return TEXT("True");
+	}
+
+	return Super::GetArgumentMetaData(InArgumentName, InMetaDataKey);
+}
+
 FString FRigVMDispatch_GetParameter::GetArgumentDefaultValue(const FName& InArgumentName, TRigVMTypeIndex InTypeIndex) const
 {
 	if (InArgumentName == ParameterIdName)
@@ -80,7 +89,7 @@ void FRigVMDispatch_GetParameter::Execute(FRigVMExtendedExecuteContext& InContex
 	uint8* TargetData = Handles[1].GetData();
 
 	uint32& ParameterId = *(uint32*)Handles[2].GetData();
-	if (ParameterId != FParamId::InvalidIndex)
+	if (ParameterId == FParamId::InvalidIndex)
 	{
 		ParameterId = FParamId(Parameter).ToInt();
 	}
@@ -91,9 +100,8 @@ void FRigVMDispatch_GetParameter::Execute(FRigVMExtendedExecuteContext& InContex
 		TypeHandle = FParamTypeHandle::FromProperty(ValueProperty).ToRaw();
 	}
 
-	FAnimNextGraphExecuteContext& Context = InContext.GetPublicData<FAnimNextGraphExecuteContext>();
 	TConstArrayView<uint8> SourceData;
-	if (Context.GetContext().GetParamStack().GetParamData(FParamId(ParameterId), FParamTypeHandle::FromRaw(TypeHandle), SourceData) == FParamStack::EGetParamResult::Succeeded)
+	if (FParamStack::Get().GetParamData(FParamId(ParameterId), FParamTypeHandle::FromRaw(TypeHandle), SourceData) == FParamStack::EGetParamResult::Succeeded)
 	{
 		ValueProperty->CopyCompleteValue(TargetData, SourceData.GetData());
 	}

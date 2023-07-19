@@ -3,7 +3,7 @@
 #include "Param/ParameterBlockFactory.h"
 #include "Param/AnimNextParameterBlock.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
-#include "Param/ParametersExecuteContext.h"
+#include "Graph/AnimNextExecuteContext.h"
 #include "UncookedOnlyUtils.h"
 
 UAnimNextParameterBlockFactory::UAnimNextParameterBlockFactory()
@@ -25,7 +25,7 @@ UObject* UAnimNextParameterBlockFactory::FactoryCreateNew(UClass* Class, UObject
 	UAnimNextParameterBlock_EditorData* EditorData = NewObject<UAnimNextParameterBlock_EditorData>(NewBlock, TEXT("EditorData"), RF_Transactional);
 	NewBlock->EditorData = EditorData;
 	EditorData->Initialize(/*bRecompileVM*/false);
-	EditorData->GetRigVMClient()->SetExecuteContextStruct(FAnimNextParametersExecuteContext::StaticStruct());
+	EditorData->GetRigVMClient()->SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
 
 	// Compile the initial skeleton
 	UE::AnimNext::UncookedOnly::FUtils::Compile(NewBlock);

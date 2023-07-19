@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SParameterBlockView.h"
 
@@ -89,6 +89,7 @@ void SParameterBlockView::Construct(const FArguments& InArgs, UAnimNextParameter
 
 	OnSelectionChangedDelegate = InArgs._OnSelectionChanged;
 	OnOpenGraphDelegate = InArgs._OnOpenGraph;
+	OnDeleteEntriesDelegate = InArgs._OnDeleteEntries;
 
 	EditorData->ModifiedDelegate.AddSP(this, &SParameterBlockView::HandleBlockModified);
 
@@ -372,12 +373,13 @@ void SParameterBlockView::HandleDelete()
 	if(EntriesList->GetNumItemsSelected() > 0)
 	{
 		TArray<TSharedRef<FParameterBlockViewEntry>> SelectedItems = EntriesList->GetSelectedItems();
+		TArray<UAnimNextParameterBlockEntry*> EntriesToRemove;
+		Algo::Transform(SelectedItems, EntriesToRemove, [](const TSharedRef<FParameterBlockViewEntry>& InEntry) { return InEntry->WeakEntry.Get(); });
+
+		OnDeleteEntriesDelegate.ExecuteIfBound(EntriesToRemove);
 
 		{
 			FScopedTransaction Transaction(FText::FormatOrdered(LOCTEXT("DeleteParameterBlockEntry", "Delete parameter block {0}|plural(one=entry,other=entries)"), EntriesList->GetNumItemsSelected()));
-
-			TArray<UAnimNextParameterBlockEntry*> EntriesToRemove;
-			Algo::Transform(SelectedItems, EntriesToRemove, [](const TSharedRef<FParameterBlockViewEntry>& InEntry){ return InEntry->WeakEntry.Get(); });
 			EditorData->RemoveEntries(EntriesToRemove);
 		}
 	}

@@ -32,6 +32,11 @@ FText UAnimGraphNode_AnimNextGraph::GetTooltipText() const
 	return LOCTEXT("AnimGraphNode_AnimNextGraph_Tooltip", "Evaluates a AnimNext Graph");
 }
 
+FText UAnimGraphNode_AnimNextGraph::GetMenuCategory() const
+{
+	return LOCTEXT("Category", "AnimNext");
+}
+
 void UAnimGraphNode_AnimNextGraph::PreloadRequiredAssets()
 {
 	Super::PreloadRequiredAssets();

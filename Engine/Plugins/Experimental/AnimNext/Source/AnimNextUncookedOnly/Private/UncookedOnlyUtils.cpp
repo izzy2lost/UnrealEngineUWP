@@ -5,13 +5,12 @@
 #include "Graph/AnimNextGraph_EditorData.h"
 #include "RigVMCompiler/RigVMCompiler.h"
 #include "RigVMCore/RigVM.h"
-#include "Graph/GraphExecuteContext.h"
+#include "Graph/AnimNextExecuteContext.h"
 #include "Param/AnimNextParameter.h"
 #include "Param/AnimNextParameterBlock.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
 #include "Param/AnimNextParameterBlock_EdGraph.h"
-#include "Param/ParametersExecuteContext.h"
-#include "Param/RigUnit_AnimNextParametersBeginExecution.h"
+#include "Graph/RigUnit_AnimNextBeginExecution.h"
 #include "Param/RigVMDispatch_SetParameter.h"
 #include "Param/AnimNextParameterBlockEntry.h"
 #include "Param/IAnimNextParameterBlockBindingInterface.h"
@@ -274,9 +273,11 @@ void FUtils::CompileStruct(UAnimNextParameterBlock* InParameterBlock)
 	{
 		if(const IAnimNextParameterBlockBindingInterface* Binding = Cast<IAnimNextParameterBlockBindingInterface>(Entry))
 		{
-			const FAnimNextParamType& Type = Binding->GetParamType();
-			const UAnimNextParameter* Parameter = Binding->GetParameter();
-			PropertyDescs.Emplace(Parameter->GetFName(), Type.GetContainerType(), Type.GetValueType(), Type.GetValueTypeObject());
+			if(const UAnimNextParameter* Parameter = Binding->GetParameter())
+			{
+				const FAnimNextParamType& Type = Binding->GetParamType();
+				PropertyDescs.Emplace(Parameter->GetFName(), Type.GetContainerType(), Type.GetValueType(), Type.GetValueTypeObject());
+			}
 		}
 	}
 
@@ -291,14 +292,6 @@ void FUtils::CompileStruct(UAnimNextParameterBlock* InParameterBlock)
 void FUtils::Compile(UAnimNextParameterBlock* InParameterBlock)
 {
 	check(InParameterBlock);
-
-	UAnimNextParameterBlock_EditorData* EditorData = GetEditorData(InParameterBlock);
-	if(EditorData->bIsCompiling)
-	{
-		return;
-	}
-
-	TGuardValue<bool> CompilingGuard(EditorData->bIsCompiling, true);
 
 	CompileStruct(InParameterBlock);
 	CompileVM(InParameterBlock);
@@ -613,7 +606,7 @@ FRigVMTemplateArgumentType FUtils::GetRigVMArgTypeFromParamType(const FAnimNextP
 	return ArgType;
 }
 
-void FUtils::SetupBindingGraphForLiteral(URigVMController* InController, const FAnimNextParamType& InParamType)
+void FUtils::SetupBindingGraphForLiteral(URigVMController* InController, FName InParameterName, const FAnimNextParamType& InParamType)
 {
 	FRigVMTemplateArgumentType ArgType = GetRigVMArgTypeFromParamType(InParamType);
 	TRigVMTypeIndex TypeIndex = FRigVMRegistry::Get().GetTypeIndex(ArgType);
@@ -622,14 +615,22 @@ void FUtils::SetupBindingGraphForLiteral(URigVMController* InController, const F
 	InController->RemoveNodes(InController->GetGraph()->GetNodes());
 
 	// Add new nodes for a simple literal binding
-	URigVMUnitNode* EntryPointNode = InController->AddUnitNode(FRigUnit_AnimNextParametersBeginExecution::StaticStruct(), FRigUnit::GetMethodName(), FVector2D(-200.0f, 0.0f), FString(), false);
+	URigVMUnitNode* EntryPointNode = InController->AddUnitNode(FRigUnit_AnimNextBeginExecution::StaticStruct(), FRigUnit::GetMethodName(), FVector2D(-200.0f, 0.0f), FString(), false);
 
 	const FName FactoryName = FRigVMDispatch_SetParameter().GetFactoryName();
 	FRigVMDispatch_SetParameter* Factory = static_cast<FRigVMDispatch_SetParameter*>(FRigVMRegistry::Get().FindDispatchFactory(FactoryName));
 	URigVMTemplateNode* SetParameterNode = InController->AddTemplateNode(Factory->GetTemplate()->GetNotation(), FVector2D(200.0f, 0.0f));
+	InController->SetPinDefaultValue(SetParameterNode->FindPin(FRigVMDispatch_SetParameter::ParameterName.ToString())->GetPinPath(), InParameterName.ToString());
 	InController->ResolveWildCardPin(SetParameterNode->FindPin(FRigVMDispatch_SetParameter::ValueName.ToString()), TypeIndex);
 
-	InController->AddLink(EntryPointNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextParametersBeginExecution, ExecuteContext)), SetParameterNode->FindPin(FRigVMDispatch_SetParameter::ExecuteContextName.ToString()));
+	InController->AddLink(EntryPointNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextBeginExecution, ExecuteContext)), SetParameterNode->FindPin(FRigVMDispatch_SetParameter::ExecuteContextName.ToString()));
+}
+
+FText FUtils::GetParameterDisplayNameText(FName InParameterName)
+{
+	FString NameAsString = InParameterName.ToString();
+	NameAsString.ReplaceCharInline(TEXT('_'), TEXT('.'));
+	return FText::FromString(NameAsString);
 }
 
 }

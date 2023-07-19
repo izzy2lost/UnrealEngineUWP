@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Units/RigUnit.h"
-#include "GraphExecuteContext.h"
+#include "AnimNextExecuteContext.h"
 #include "AnimNext_LODPose.h"
 #include "RigUnit_AnimNextEndExecution.generated.h"
 
@@ -18,7 +18,7 @@ struct ANIMNEXT_API FRigUnit_AnimNextEndExecution : public FRigUnit_AnimNextBase
 public:
 	// The execution result
 	UPROPERTY(EditAnywhere, Transient, DisplayName = "End Execute", Category = "EndExecution", meta = (Input))
-	FAnimNextGraphExecuteContext ExecuteContext;
+	FAnimNextExecuteContext ExecuteContext;
 };
 
 /** Event for writing back a calculated bool */

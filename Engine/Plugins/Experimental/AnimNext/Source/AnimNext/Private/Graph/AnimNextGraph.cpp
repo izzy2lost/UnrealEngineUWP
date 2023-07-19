@@ -21,7 +21,7 @@ void UAnimNextGraph::Run(const UE::AnimNext::FContext& Context) const
 	if(RigVM)
 	{
 		FRigVMExtendedExecuteContext RigVMExtendedExecuteContext;
-		FAnimNextGraphExecuteContext& AnimNextContext = RigVMExtendedExecuteContext.GetPublicDataSafe<FAnimNextGraphExecuteContext>();
+		FAnimNextExecuteContext& AnimNextContext = RigVMExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
 		AnimNextContext.SetContextData(Context);
 
 		RigVM->Execute(RigVMExtendedExecuteContext, TArray<URigVMMemoryStorage*>(), FRigUnit_AnimNextBeginExecution::EventName);

@@ -348,6 +348,9 @@ struct FFortniteMainBranchObjectVersion
 		// Fixup all flags/outering on static meshes on water bodies by rebuilding them completely
 		WaterBodyStaticMeshFixup,
 
+		// Binding extensions for anim graph nodes
+		AnimGraphNodeBindingExtensions,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

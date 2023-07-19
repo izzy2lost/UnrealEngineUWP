@@ -7,6 +7,8 @@
 #include "DataRegistry.h"
 #include "DecoratorBase/DecoratorRegistry.h"
 #include "DecoratorBase/NodeTemplateRegistry.h"
+#include "RigVMCore/RigVMRegistry.h"
+#include "Animation/AnimSequence.h"
 
 namespace UE::AnimNext
 {
@@ -16,6 +18,13 @@ class FModule : public IModuleInterface
 public:
 	virtual void StartupModule() override
 	{
+		static UClass* const AllowedAssetTypes[] =
+		{
+			UAnimSequence::StaticClass()
+		};
+
+		FRigVMRegistry::Get().RegisterObjectTypes(AllowedAssetTypes);
+
 		FDataRegistry::Init();
 		FDecoratorRegistry::Init();
 		FNodeTemplateRegistry::Init();

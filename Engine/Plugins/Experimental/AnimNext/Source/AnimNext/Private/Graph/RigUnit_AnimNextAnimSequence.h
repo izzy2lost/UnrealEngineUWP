@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Graph/GraphExecuteContext.h"
+#include "Graph/AnimNextExecuteContext.h"
 #include "Graph/AnimNext_LODPose.h"
 #include "Graph/AnimGraph/AnimNode_AnimNextGraph.h"	// TEST - until we can allocate per-node state again
 #include "RigUnit_AnimNextAnimSequence.generated.h"

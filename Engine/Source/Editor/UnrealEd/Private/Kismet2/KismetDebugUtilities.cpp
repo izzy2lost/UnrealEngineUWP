@@ -1467,11 +1467,7 @@ bool FKismetDebugUtilities::CanWatchPin(const UBlueprint* Blueprint, const UEdGr
 
 			if (UAnimGraphNode_Base* AnimGraphNode = Cast<UAnimGraphNode_Base>(Pin->GetOwningNode()))
 			{
-				// Compare FName without number to make sure we catch array properties that are split into multiple pins
-				FName ComparisonName = Pin->GetFName();
-				ComparisonName.SetNumber(0);
-
-				if (FAnimGraphNodePropertyBinding* BindingPtr = AnimGraphNode->PropertyBindings.Find(ComparisonName))
+				if(AnimGraphNode->HasBinding(Pin->GetFName()))
 				{
 					bHasBinding = true;
 				}

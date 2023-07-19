@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CoreMinimal.h"
 #include "UncookedOnlyUtils.h"
@@ -77,7 +77,7 @@ bool FAnimationAnimNextParametersEditorTest_Block::RunTest(const FString& InPara
 
 	AddErrorIfFalse(Library->AddParameter(TEXT("TestParam"), FAnimNextParamType::GetType<bool>()) != nullptr, TEXT("Could not create new parameter in library."));
 
-	UFactory* BlockFactory = NewObject<UAnimNextParameterBlockFactory>();
+	TStrongObjectPtr<UFactory> BlockFactory(NewObject<UAnimNextParameterBlockFactory>());
 	UAnimNextParameterBlock* Block = Cast<UAnimNextParameterBlock>(BlockFactory->FactoryCreateNew(UAnimNextParameterBlock::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextParameterBlock"), RF_Transient, nullptr, nullptr, NAME_None));
 	if(Block == nullptr)
 	{

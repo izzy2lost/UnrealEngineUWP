@@ -131,6 +131,9 @@ public:
 	// Map of anim node indices to node properties
 	const TMap<UAnimGraphNode_Base*, FProperty*>& GetAllocatedPropertiesByNode() const { return GetAllocatedPropertiesByNodeImpl(); }
 
+	// Map of anim node indices to node handler properties in sparse class data struct
+	const TMap<UAnimGraphNode_Base*, FProperty*>& GetAllocatedHandlerPropertiesByNode() const { return GetAllocatedHandlerPropertiesByNodeImpl(); }
+
 	// Add the specified compiled-in attribute uniquely to the specified node
 	void AddAttributesToNode(UAnimGraphNode_Base* InNode, TArrayView<const FName> InAttributes) const { AddAttributesToNodeImpl(InNode, InAttributes); }
 
@@ -191,6 +194,9 @@ protected:
 
 	// Map of anim node indices to node properties
 	virtual const TMap<UAnimGraphNode_Base*, FProperty*>& GetAllocatedPropertiesByNodeImpl() const = 0;
+
+	// Map of anim node indices to node handler properties in sparse class data struct
+	virtual const TMap<UAnimGraphNode_Base*, FProperty*>& GetAllocatedHandlerPropertiesByNodeImpl() const = 0;
 
 	// Add the specified compiled-in attribute uniquely to the specified node
 	virtual void AddAttributesToNodeImpl(UAnimGraphNode_Base* InNode, TArrayView<const FName> InAttributes) const = 0;

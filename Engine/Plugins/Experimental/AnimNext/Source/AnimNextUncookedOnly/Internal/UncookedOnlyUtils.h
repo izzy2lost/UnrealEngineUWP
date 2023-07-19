@@ -68,7 +68,10 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 	static FRigVMTemplateArgumentType GetRigVMArgTypeFromParamType(const FAnimNextParamType& InParamType);
 
 	/** Set up a binding graph given the type to set */
-	static void SetupBindingGraphForLiteral(URigVMController* InController, const FAnimNextParamType& InParamType);
+	static void SetupBindingGraphForLiteral(URigVMController* InController, FName InParameterName, const FAnimNextParamType& InParamType);
+
+	/** Converts the Verse-tag-like snake_case_parameter_name to a period-separated display name similar to a gameplay tag */
+	static FText GetParameterDisplayNameText(FName InParameterName);
 };
 
 }

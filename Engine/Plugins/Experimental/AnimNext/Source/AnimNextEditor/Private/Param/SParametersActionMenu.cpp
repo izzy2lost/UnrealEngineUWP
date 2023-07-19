@@ -14,7 +14,7 @@
 #include "RigVMCore/RigVMRegistry.h"
 #include "Units/RigUnit.h"
 #include "Widgets/SToolTip.h"
-#include "Param/ParametersExecuteContext.h"
+#include "Graph/AnimNextExecuteContext.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextParametersEditor"
 
@@ -25,16 +25,11 @@ static void CollectAllAnimNextParameterActions(FGraphContextMenuBuilder& MenuBui
 {
 	static const TArray<UScriptStruct*> AllowedExecuteContexts =
 	{
-		FRigVMExecuteContext::StaticStruct(),
-		FAnimNextParametersExecuteContext::StaticStruct()
+		FRigVMExecuteContext::StaticStruct()
 	};
 
-	const TChunkedArray<FRigVMFunction>& Functions = FRigVMRegistry::Get().GetFunctions();
-	const int32 NumFunctions = Functions.Num();
-	for(int i=0; i < NumFunctions; i++)
+	for (const FRigVMFunction& Function : FRigVMRegistry::Get().GetFunctions())
 	{
-		const FRigVMFunction& Function = Functions[i];
-
 		const UScriptStruct* FunctionContext = Function.GetExecuteContextStruct();
 		if (FunctionContext == nullptr || !AllowedExecuteContexts.Contains(FunctionContext))
 		{
@@ -65,6 +60,26 @@ static void CollectAllAnimNextParameterActions(FGraphContextMenuBuilder& MenuBui
 		}
 
 		MenuBuilder.AddAction(MakeShared<FAnimNextParameterSchemaAction_RigUnit>(Struct, NodeCategory, MenuDesc, ToolTip));
+	}
+
+	for (const FRigVMDispatchFactory* Factory : FRigVMRegistry::Get().GetFactories())
+	{
+		if (!Factory->SupportsExecuteContextStruct(FRigVMExecuteContext::StaticStruct()))
+		{
+			continue;
+		}
+
+		const FRigVMTemplate* Template = Factory->GetTemplate();
+		if (Template == nullptr)
+		{
+			continue;
+		}
+
+		FText NodeCategory = FText::FromString(Factory->GetCategory());
+		FText MenuDesc = FText::FromString(Factory->GetNodeTitle(FRigVMTemplateTypeMap()));
+		FText ToolTip = Factory->GetNodeTooltip(FRigVMTemplateTypeMap());
+
+		MenuBuilder.AddAction(MakeShared<FAnimNextParameterSchemaAction_DispatchFactory>(Template->GetNotation(), NodeCategory, MenuDesc, ToolTip));
 	};
 }
 
@@ -102,7 +117,7 @@ void SParametersActionMenu::Construct(const FArguments& InArgs)
 					.VAlign(VAlign_Center)
 					[
 						SNew(STextBlock)
-						.Text(LOCTEXT("ContextText", "All AnimNext Node Classes"))
+						.Text(LOCTEXT("ContextText", "All AnimNext Nodes"))
 						.Font(FAppStyle::Get().GetFontStyle("BlueprintEditor.ActionMenu.ContextDescriptionFont"))
 						.ToolTip(IDocumentation::Get()->CreateToolTip(
 							LOCTEXT("ActionMenuContextTextTooltip", "Describes the current context of the action list"),

@@ -9,22 +9,61 @@
 namespace UE::AnimNext
 {
 
-// Array of all non built-in types. Index into this array is (CustomTypeIndex - 1)
-static TArray<FAnimNextParamType> GCustomTypes;
+// RW lock for global data
+static FRWLock GParamTypeHandleLock;
 
-// Map of type to index in GNonBuiltInTypes array
-static TMap<FAnimNextParamType, uint32> GTypeToIndexMap;
-
-// RW lock for types array/map
-FRWLock TypesLock;
-
-void FParamTypeHandle::ResetCustomTypes()
+struct FTypeHandleGlobalData
 {
-	FRWScopeLock ScopeLock(TypesLock, SLT_Write);
+	// Array of all non built-in types. Index into this array is (CustomTypeIndex - 1)
+	TArray<FAnimNextParamType> CustomTypes;
 
-	GCustomTypes.Empty();
-	GTypeToIndexMap.Empty();
+	// Map of type to index in GNonBuiltInTypes array
+	TMap<FAnimNextParamType, uint32> TypeToIndexMap;
+};
+
+static FTypeHandleGlobalData GTypeHandleGlobalData;
+
+#if WITH_DEV_AUTOMATION_TESTS	
+static FTypeHandleGlobalData GSandboxedTypeHandleGlobalData;
+static uint32 GTypeHandleSandboxedThreadId = MAX_uint32;
+static bool bGTypeHandleSandboxed = false;
+#endif
+
+static FTypeHandleGlobalData& GetTypeHandleData()
+{
+#if WITH_DEV_AUTOMATION_TESTS		
+	if(bGTypeHandleSandboxed && GTypeHandleSandboxedThreadId == FPlatformTLS::GetCurrentThreadId())
+	{
+		return GSandboxedTypeHandleGlobalData;
+	}
+	else
+#endif
+	{
+		return GTypeHandleGlobalData;
+	}
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+void FParamTypeHandle::BeginTestSandbox()
+{
+	FRWScopeLock Lock(GParamTypeHandleLock, SLT_Write);
+	check(bGTypeHandleSandboxed == false);
+	bGTypeHandleSandboxed = true;
+	GTypeHandleSandboxedThreadId = FPlatformTLS::GetCurrentThreadId();
+	GSandboxedTypeHandleGlobalData.CustomTypes.Empty();
+	GSandboxedTypeHandleGlobalData.TypeToIndexMap.Empty();
+}
+
+void FParamTypeHandle::EndTestSandbox()
+{
+	FRWScopeLock Lock(GParamTypeHandleLock, SLT_Write);
+	check(bGTypeHandleSandboxed == true);
+	bGTypeHandleSandboxed = false;
+	GTypeHandleSandboxedThreadId = MAX_uint32;
+	GSandboxedTypeHandleGlobalData.CustomTypes.Empty();
+	GSandboxedTypeHandleGlobalData.TypeToIndexMap.Empty();
+}
+#endif
 
 uint32 FParamTypeHandle::GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValueType InValueType, FAnimNextParamType::EContainerType InContainerType, const UObject* InValueTypeObject)
 {
@@ -40,26 +79,39 @@ uint32 FParamTypeHandle::GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValue
 	// FRWScopeLock (@see FRWScopeLock comments), hence the write lock around the map/array access here.
 	{
 		// See if the type already exists in the map
-		FRWScopeLock ScopeLock(TypesLock, SLT_Write);
+		FRWScopeLock ScopeLock(GParamTypeHandleLock, SLT_Write);
 
-		if(const uint32* IndexPtr = GTypeToIndexMap.FindByHash(Hash, ParameterType))
+		if(const uint32* IndexPtr = GetTypeHandleData().TypeToIndexMap.FindByHash(Hash, ParameterType))
 		{
 			return *IndexPtr + 1;
 		}
 
 		// Add a new custom type
-		const uint32 Index = GCustomTypes.Add(ParameterType);
-		GTypeToIndexMap.AddByHash(Hash, ParameterType, Index);
+		const uint32 Index = GetTypeHandleData().CustomTypes.Add(ParameterType);
+		GetTypeHandleData().TypeToIndexMap.AddByHash(Hash, ParameterType, Index);
 
 		checkf((Index + 1) < (1 << 24), TEXT("FParamTypeHandle::GetCustomTypeIndex: Type index overflowed"));
 		return Index + 1;
 	}
 }
 
+void FParamTypeHandle::GetCustomTypeInfo(FAnimNextParamType::EValueType& OutValueType, FAnimNextParamType::EContainerType& OutContainerType, const UObject*& OutValueTypeObject) const
+{
+	if (GetParameterType() == EParamType::Custom)
+	{
+		FRWScopeLock ScopeLock(GParamTypeHandleLock, SLT_ReadOnly);
+
+		const FAnimNextParamType& ParamType = GetTypeHandleData().CustomTypes[GetCustomTypeIndex() - 1];
+		OutValueType = ParamType.GetValueType();
+		OutContainerType = ParamType.GetContainerType();
+		OutValueTypeObject = ParamType.GetValueTypeObject();
+	}
+}
+
 bool FParamTypeHandle::ValidateCustomTypeIndex(uint32 InCustomTypeIndex)
 {
-	FRWScopeLock ScopeLock(TypesLock, SLT_ReadOnly);
-	return GCustomTypes.IsValidIndex(InCustomTypeIndex - 1);
+	FRWScopeLock ScopeLock(GParamTypeHandleLock, SLT_ReadOnly);
+	return GetTypeHandleData().CustomTypes.IsValidIndex(InCustomTypeIndex - 1);
 }
 
 FParamTypeHandle FParamTypeHandle::FromPropertyBagPropertyDesc(const FPropertyBagPropertyDesc& Desc)
@@ -126,7 +178,7 @@ FParamTypeHandle FParamTypeHandle::FromPropertyBagPropertyDesc(const FPropertyBa
 					else
 					{
 						Handle.SetParameterType(EParamType::Custom);
-						Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(Desc.ValueType, Desc.ContainerTypes[0], ScriptStruct));
+						Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(Desc.ValueType, Desc.ContainerTypes.GetFirstContainerType(), ScriptStruct));
 					}
 				}
 				else
@@ -138,7 +190,7 @@ FParamTypeHandle FParamTypeHandle::FromPropertyBagPropertyDesc(const FPropertyBa
 				if(const UEnum* Enum = Cast<UEnum>(Desc.ValueTypeObject.Get()))
 				{
 					Handle.SetParameterType(EParamType::Custom);
-					Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(Desc.ValueType, Desc.ContainerTypes[0], Enum));
+					Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(Desc.ValueType, Desc.ContainerTypes.GetFirstContainerType(), Enum));
 				}
 				else
 				{
@@ -152,7 +204,7 @@ FParamTypeHandle FParamTypeHandle::FromPropertyBagPropertyDesc(const FPropertyBa
 				if(const UClass* Class = Cast<UClass>(Desc.ValueTypeObject.Get()))
 				{
 					Handle.SetParameterType(EParamType::Custom);
-					Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(Desc.ValueType, Desc.ContainerTypes[0], Class));
+					Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(Desc.ValueType, Desc.ContainerTypes.GetFirstContainerType(), Class));
 				}
 				else
 				{
@@ -178,13 +230,13 @@ FParamTypeHandle FParamTypeHandle::FromPropertyBagPropertyDesc(const FPropertyBa
 			case EPropertyBagPropertyType::String:
 			case EPropertyBagPropertyType::Text:
 				Handle.SetParameterType(EParamType::Custom);
-				Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(Desc.ValueType, Desc.ContainerTypes[0], nullptr));
+				Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(Desc.ValueType, Desc.ContainerTypes.GetFirstContainerType(), nullptr));
 				break;
 			case EPropertyBagPropertyType::Struct:
 				if(const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(Desc.ValueTypeObject.Get()))
 				{
 					Handle.SetParameterType(EParamType::Custom);
-					Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(Desc.ValueType, Desc.ContainerTypes[0], ScriptStruct));
+					Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(Desc.ValueType, Desc.ContainerTypes.GetFirstContainerType(), ScriptStruct));
 				}
 				else
 				{
@@ -195,7 +247,7 @@ FParamTypeHandle FParamTypeHandle::FromPropertyBagPropertyDesc(const FPropertyBa
 				if(const UEnum* Enum = Cast<UEnum>(Desc.ValueTypeObject.Get()))
 				{
 					Handle.SetParameterType(EParamType::Custom);
-					Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(Desc.ValueType, Desc.ContainerTypes[0], Enum));
+					Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(Desc.ValueType, Desc.ContainerTypes.GetFirstContainerType(), Enum));
 				}
 				else
 				{
@@ -209,7 +261,7 @@ FParamTypeHandle FParamTypeHandle::FromPropertyBagPropertyDesc(const FPropertyBa
 				if(const UClass* Class = Cast<UClass>(Desc.ValueTypeObject.Get()))
 				{
 					Handle.SetParameterType(EParamType::Custom);
-					Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(Desc.ValueType, Desc.ContainerTypes[0], Class));
+					Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(Desc.ValueType, Desc.ContainerTypes.GetFirstContainerType(), Class));
 				}
 				else
 				{
@@ -461,8 +513,8 @@ FAnimNextParamType FParamTypeHandle::GetType() const
 		break;
 	case EParamType::Custom:
 		{
-			FRWScopeLock ScopeLock(TypesLock, SLT_ReadOnly);
-			ParameterType = GCustomTypes[GetCustomTypeIndex() - 1];
+			FRWScopeLock ScopeLock(GParamTypeHandleLock, SLT_ReadOnly);
+			ParameterType = GetTypeHandleData().CustomTypes[GetCustomTypeIndex() - 1];
 		}
 		break;
 	}

@@ -352,7 +352,7 @@ bool UAnimationGraphSchema::TryCreateConnection(UEdGraphPin* A, UEdGraphPin* B) 
 			// Compare FName without number to make sure we catch array properties that are split into multiple pins
 			FName ComparisonName = InputPin->GetFName();
 			ComparisonName.SetNumber(0);
-			AnimGraphNode->PropertyBindings.Remove(ComparisonName);
+			AnimGraphNode->RemoveBindings(ComparisonName);
 		}
 
 		return true;
@@ -908,7 +908,7 @@ TSharedPtr<SWidget> UAnimationGraphSchema::MakeBindingWidgetForPin(const TArray<
 		{
 			if(bInOnGraphNode)
 			{
-				if (const FAnimGraphNodePropertyBinding* BindingPtr = FirstNode->PropertyBindings.Find(BindingName))
+				if (FirstNode->HasBinding(BindingName))
 				{
 					return EVisibility::Visible;
 				}

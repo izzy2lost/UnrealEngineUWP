@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -27,12 +27,16 @@ public:
 	DECLARE_DELEGATE_OneParam(FOnSelectionChanged, const TArray<UObject*>& /*InEntries*/);
 
 	DECLARE_DELEGATE_OneParam(FOnOpenGraph, URigVMGraph* /*InGraph*/);
+
+	DECLARE_DELEGATE_OneParam(FOnDeleteEntries, const TArray<UAnimNextParameterBlockEntry*>& /*InEntries*/);
 	
 	SLATE_BEGIN_ARGS(SParameterBlockView) {}
 
 	SLATE_EVENT(SParameterBlockView::FOnSelectionChanged, OnSelectionChanged)
 	
 	SLATE_EVENT(SParameterBlockView::FOnOpenGraph, OnOpenGraph)
+
+	SLATE_EVENT(SParameterBlockView::FOnDeleteEntries, OnDeleteEntries)
 
 	SLATE_END_ARGS()
 
@@ -93,6 +97,8 @@ private:
 	FOnSelectionChanged OnSelectionChangedDelegate;
 
 	FOnOpenGraph OnOpenGraphDelegate;
+
+	FOnDeleteEntries OnDeleteEntriesDelegate;
 
 	FAssetData BlockAssetData;
 

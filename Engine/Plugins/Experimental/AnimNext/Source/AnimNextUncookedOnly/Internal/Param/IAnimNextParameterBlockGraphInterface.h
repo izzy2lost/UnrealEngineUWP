@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -13,6 +13,7 @@ namespace UE::AnimNext::Editor
 {
 	class SParameterBlockView;
 	class SParameterBlockViewRow;
+	class FParameterBlockTabSummoner;
 }
 
 namespace UE::AnimNext::UncookedOnly
@@ -34,6 +35,7 @@ class ANIMNEXTUNCOOKEDONLY_API IAnimNextParameterBlockGraphInterface
 	friend class UE::AnimNext::Editor::SParameterBlockView;
 	friend class UE::AnimNext::Editor::SParameterBlockViewRow;
 	friend struct UE::AnimNext::UncookedOnly::FUtilsPrivate;
+	friend class UE::AnimNext::Editor::FParameterBlockTabSummoner;
 
 	// Get the graph
 	virtual URigVMGraph* GetGraph() const = 0;

@@ -41,6 +41,20 @@ namespace UnrealBuildTool.Rules
 						"UnrealEd",
 					}
 				);
+
+				PrivateIncludePathModuleNames.AddRange(
+					new string[]
+					{
+						"AnimNextEditor",
+					}
+				);
+
+				DynamicallyLoadedModuleNames.AddRange(
+					new string[]
+					{
+						"AnimNextEditor",
+					}
+				);
 			}
 		}
 	}

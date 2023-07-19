@@ -8,93 +8,80 @@ namespace UE::AnimNext
 {
 
 static FRWLock GParamIdLock;
-static TArray<FName> GParamIdToName;
-static TMap<FName, uint32> GNameToParamId;
-#if WITH_DEV_AUTOMATION_TESTS
-static bool bGTestSandbox = false;
-struct FSandboxThreadData : TThreadSingleton<FSandboxThreadData>
+
+struct FParamIdGlobalData
 {
 	TArray<FName> ParamIdToName;
 	TMap<FName, uint32> NameToParamId;
 };
+
+static FParamIdGlobalData GParamIdGlobalData;
+
+#if WITH_DEV_AUTOMATION_TESTS
+static FParamIdGlobalData GSandboxedParamIdGlobalData;
+static uint32 GParamIdSandboxedThreadId = MAX_uint32;
+static bool bGParamIdSandboxed = false;
 #endif
 
-FParamId::FParamId(FName InName)
+static FParamIdGlobalData& GetParamIdData()
 {
-#if WITH_DEV_AUTOMATION_TESTS
-	if (bGTestSandbox)
+#if WITH_DEV_AUTOMATION_TESTS		
+	if (bGParamIdSandboxed && GParamIdSandboxedThreadId == FPlatformTLS::GetCurrentThreadId())
 	{
-		if (const uint32* FoundIndex = FSandboxThreadData::Get().NameToParamId.Find(InName))
-		{
-			ParameterIndex = *FoundIndex;
-		}
-		else
-		{
-			ParameterIndex = FSandboxThreadData::Get().ParamIdToName.Num();
-			FSandboxThreadData::Get().NameToParamId.Add(InName, ParameterIndex);
-			FSandboxThreadData::Get().ParamIdToName.Add(InName);
-		}
+		return GSandboxedParamIdGlobalData;
 	}
 	else
 #endif
 	{
-		FRWScopeLock Lock(GParamIdLock, SLT_Write);
-		if (const uint32* FoundIndex = GNameToParamId.Find(InName))
-		{
-			ParameterIndex = *FoundIndex;
-		}
-		else
-		{
-			ParameterIndex = GParamIdToName.Num();
-			GNameToParamId.Add(InName, ParameterIndex);
-			GParamIdToName.Add(InName);
-		}
+		return GParamIdGlobalData;
+	}
+}
+
+FParamId::FParamId(FName InName)
+{
+	FRWScopeLock Lock(GParamIdLock, SLT_Write);
+	if (const uint32* FoundIndex = GetParamIdData().NameToParamId.Find(InName))
+	{
+		ParameterIndex = *FoundIndex;
+	}
+	else
+	{
+		ParameterIndex = GetParamIdData().ParamIdToName.Num();
+		GetParamIdData().NameToParamId.Add(InName, ParameterIndex);
+		GetParamIdData().ParamIdToName.Add(InName);
 	}
 }
 
 FName FParamId::ToName() const
 {
-#if WITH_DEV_AUTOMATION_TESTS
-	if (bGTestSandbox)
-	{
-		return FSandboxThreadData::Get().ParamIdToName[ParameterIndex];
-	}
-	else
-#endif
-	{
-		FRWScopeLock Lock(GParamIdLock, SLT_ReadOnly);
-		return GParamIdToName[ParameterIndex];
-	}
+	FRWScopeLock Lock(GParamIdLock, SLT_ReadOnly);
+	return GetParamIdData().ParamIdToName[ParameterIndex];
 }
 
 FParamId FParamId::GetMaxParamId()
 {
-#if WITH_DEV_AUTOMATION_TESTS
-	if (bGTestSandbox)
-	{
-		return FParamId((uint32)FSandboxThreadData::Get().ParamIdToName.Num());
-	}
-	else
-#endif
-	{
-		FRWScopeLock Lock(GParamIdLock, SLT_ReadOnly);
-		return FParamId((uint32)GParamIdToName.Num());
-	}
+	FRWScopeLock Lock(GParamIdLock, SLT_ReadOnly);
+	return FParamId((uint32)GetParamIdData().ParamIdToName.Num());
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
 void FParamId::BeginTestSandbox()
 {
-	bGTestSandbox = true;
-	FSandboxThreadData::Get().NameToParamId.Empty();
-	FSandboxThreadData::Get().ParamIdToName.Empty();
+	FRWScopeLock Lock(GParamIdLock, SLT_Write);
+	check(bGParamIdSandboxed == false);
+	bGParamIdSandboxed = true;
+	GParamIdSandboxedThreadId = FPlatformTLS::GetCurrentThreadId();
+	GSandboxedParamIdGlobalData.NameToParamId.Empty();
+	GSandboxedParamIdGlobalData.ParamIdToName.Empty();
 }
 
 void FParamId::EndTestSandbox()
 {
-	FSandboxThreadData::Get().NameToParamId.Empty();
-	FSandboxThreadData::Get().ParamIdToName.Empty();
-	bGTestSandbox = false;
+	FRWScopeLock Lock(GParamIdLock, SLT_Write);
+	check(bGParamIdSandboxed == true);
+	bGParamIdSandboxed = false;
+	GSandboxedParamIdGlobalData.NameToParamId.Empty();
+	GSandboxedParamIdGlobalData.ParamIdToName.Empty();
 }
 #endif
 

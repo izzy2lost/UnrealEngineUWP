@@ -100,7 +100,7 @@ void UAnimGraphNode_TwoWayBlend::PostEditChangeProperty(struct FPropertyChangedE
 				if (BlendNode.AlphaInputType != EAnimAlphaInputType::Float)
 				{
 					Pin->BreakAllPinLinks();
-					PropertyBindings.Remove(Pin->PinName);
+					RemoveBindings(Pin->PinName);
 				}
 			}
 			else if (Pin->PinName == GET_MEMBER_NAME_STRING_CHECKED(FAnimNode_TwoWayBlend, bAlphaBoolEnabled))
@@ -108,7 +108,7 @@ void UAnimGraphNode_TwoWayBlend::PostEditChangeProperty(struct FPropertyChangedE
 				if (BlendNode.AlphaInputType != EAnimAlphaInputType::Bool)
 				{
 					Pin->BreakAllPinLinks();
-					PropertyBindings.Remove(Pin->PinName);
+					RemoveBindings(Pin->PinName);
 				}
 			}
 			else if (Pin->PinName == GET_MEMBER_NAME_STRING_CHECKED(FAnimNode_TwoWayBlend, AlphaCurveName))
@@ -116,7 +116,7 @@ void UAnimGraphNode_TwoWayBlend::PostEditChangeProperty(struct FPropertyChangedE
 				if (BlendNode.AlphaInputType != EAnimAlphaInputType::Curve)
 				{
 					Pin->BreakAllPinLinks();
-					PropertyBindings.Remove(Pin->PinName);
+					RemoveBindings(Pin->PinName);
 				}
 			}
 		}

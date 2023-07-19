@@ -94,6 +94,7 @@ class UAnimNextParameterBlock_EditorData : public UObject, public IRigVMClientHo
 	friend struct UE::AnimNext::UncookedOnly::FUtilsPrivate;
 	friend class UE::AnimNext::Editor::FParameterBlockEditor;
 	friend struct FAnimNextParameterSchemaAction_RigUnit;
+	friend struct FAnimNextParameterSchemaAction_DispatchFactory;
 	friend class UE::AnimNext::Editor::SParameterBlockView;
 	friend class UE::AnimNext::Editor::SParameterPicker;
 	friend class UE::AnimNext::Editor::FParameterBlockTabSummoner;

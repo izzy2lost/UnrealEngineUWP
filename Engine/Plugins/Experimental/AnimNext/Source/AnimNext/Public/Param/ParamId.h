@@ -6,6 +6,7 @@
 
 struct FRigVMDispatch_SetParameter;
 struct FRigVMDispatch_GetParameter;
+class UAnimNextParametersLibrary;
 
 namespace UE::AnimNext::Tests
 {
@@ -22,10 +23,11 @@ struct ANIMNEXT_API FParamId
 	friend class Tests::FParamStackTest;
 	friend struct ::FRigVMDispatch_SetParameter;
 	friend struct ::FRigVMDispatch_GetParameter;
+	friend class ::UAnimNextParametersLibrary;
 
 	static constexpr uint32 InvalidIndex = MAX_uint32;
 
-	FParamId() = delete;
+	FParamId() = default;
 	FParamId(const FParamId& InName) = default;
 	FParamId& operator=(const FParamId& InName) = default;
 

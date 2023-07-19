@@ -1,10 +1,9 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNextParameterLibraryEditor.h"
 #include "ParameterLibraryEditorMode.h"
 #include "Param/AnimNextParameterLibrary.h"
 #include "ExternalPackageHelper.h"
-#include "Graph/SActionMenu.h"
 #include "UncookedOnlyUtils.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "ScopedTransaction.h"

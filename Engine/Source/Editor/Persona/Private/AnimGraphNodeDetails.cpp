@@ -66,10 +66,8 @@ void FAnimGraphNodeDetails::CustomizeDetails(class IDetailLayoutBuilder& DetailB
 
 	// Hide the pin options property; it's represented inline per-property instead
 	IDetailCategoryBuilder& PinOptionsCategory = DetailBuilder.EditCategory("PinOptions");
-	TSharedRef<IPropertyHandle> AvailablePins = DetailBuilder.GetProperty("ShowPinForProperties");
+	TSharedRef<IPropertyHandle> AvailablePins = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAnimGraphNode_Base, ShowPinForProperties));
 	DetailBuilder.HideProperty(AvailablePins);
-	TSharedRef<IPropertyHandle> PropertyBindings = DetailBuilder.GetProperty("PropertyBindings");
-	DetailBuilder.HideProperty(PropertyBindings);
 
 	// get first animgraph nodes
 	UAnimGraphNode_Base* AnimGraphNode = Cast<UAnimGraphNode_Base>(SelectedObjectsList[0].Get());
@@ -77,6 +75,16 @@ void FAnimGraphNodeDetails::CustomizeDetails(class IDetailLayoutBuilder& DetailB
 	{
 		return;
 	}
+
+	// Ensure that switching the binding type will nuke the details panel
+	IDetailCategoryBuilder& BindingCategory = DetailBuilder.EditCategory("Bindings");
+	BindingCategory.SetSortOrder(MAX_int32);
+	
+	TSharedRef<IPropertyHandle> BindingProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAnimGraphNode_Base, Binding));
+	BindingProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([&DetailBuilder]()
+	{
+		DetailBuilder.ForceRefreshDetails();
+	}));
 
 	AnimGraphNode->OnPinVisibilityChanged().AddSP(this, &FAnimGraphNodeDetails::OnPinVisibilityChanged);
 

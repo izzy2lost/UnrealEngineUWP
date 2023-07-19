@@ -31,6 +31,8 @@ UAnimBlueprint::UAnimBlueprint(const FObjectInitializer& ObjectInitializer)
 		// Ensure that we are able to compile this anim BP by loading the compiler's module
 		FModuleManager::Get().LoadModuleChecked("AnimGraph");
 	}
+
+	DefaultBindingClass = FindObject<UClass>(nullptr, TEXT("/Script/AnimGraph.AnimGraphNodeBinding_Base"));
 #endif
 }
 

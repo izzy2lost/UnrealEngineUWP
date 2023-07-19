@@ -15,7 +15,7 @@
 #include "RigVMCore/RigVMRegistry.h"
 #include "Units/RigUnit.h"
 #include "Widgets/SToolTip.h"
-#include "Graph/GraphExecuteContext.h"
+#include "Graph/AnimNextExecuteContext.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditor"
 
@@ -27,7 +27,7 @@ static void CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuBuilder
 	static const TArray<UScriptStruct*> AllowedExecuteContexts =
 	{
 		FRigVMExecuteContext::StaticStruct(),
-		FAnimNextGraphExecuteContext::StaticStruct()
+		FAnimNextExecuteContext::StaticStruct()
 	};
 
 	for(const FRigVMFunction& Function : FRigVMRegistry::Get().GetFunctions())
@@ -66,7 +66,7 @@ static void CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuBuilder
 
 	for (const FRigVMDispatchFactory* Factory : FRigVMRegistry::Get().GetFactories())
 	{
-		if (!Factory->SupportsExecuteContextStruct(FRigVMExecuteContext::StaticStruct()) && !Factory->SupportsExecuteContextStruct(FAnimNextGraphExecuteContext::StaticStruct()))
+		if (!Factory->SupportsExecuteContextStruct(FRigVMExecuteContext::StaticStruct()) && !Factory->SupportsExecuteContextStruct(FAnimNextExecuteContext::StaticStruct()))
 		{
 			continue;
 		}
@@ -119,7 +119,7 @@ void SActionMenu::Construct(const FArguments& InArgs)
 					.VAlign(VAlign_Center)
 					[
 						SNew(STextBlock)
-						.Text(LOCTEXT("ContextText", "All AnimNext Interface Node Classes"))
+						.Text(LOCTEXT("ContextText", "All AnimNext Nodes"))
 						.Font(FAppStyle::Get().GetFontStyle("BlueprintEditor.ActionMenu.ContextDescriptionFont"))
 						.ToolTip(IDocumentation::Get()->CreateToolTip(
 							LOCTEXT("ActionMenuContextTextTooltip", "Describes the current context of the action list"),

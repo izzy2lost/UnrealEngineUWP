@@ -725,7 +725,7 @@ void UAnimStateTransitionNode::ValidateNodeDuringCompilation(class FCompilerResu
 				}
 			}
 		}
-		else if (ResultNode->PropertyBindings.Num() > 0 && ResultNode->PropertyBindings.CreateIterator()->Value.bIsBound)
+		else if (ResultNode->HasBinding(GET_MEMBER_NAME_CHECKED(FAnimNode_TransitionResult, bCanEnterTransition)))
 		{
 			// Rule is bound so nothing more to check
 		}
