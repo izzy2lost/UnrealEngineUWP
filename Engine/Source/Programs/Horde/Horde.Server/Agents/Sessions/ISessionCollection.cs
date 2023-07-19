@@ -57,7 +57,7 @@ namespace Horde.Server.Agents.Sessions
 		/// <param name="properties">The agent properties</param>
 		/// <param name="resources">Resources which the agent has</param>
 		/// <returns>Async task</returns>
-		Task UpdateAsync(SessionId sessionId, DateTime finishTime, IReadOnlyList<string> properties, IReadOnlyDictionary<string, int> resources);
+		Task UpdateAsync(SessionId sessionId, DateTime? finishTime, IReadOnlyList<string>? properties, IReadOnlyDictionary<string, int>? resources);
 
 		/// <summary>
 		/// Delete a session from the collection

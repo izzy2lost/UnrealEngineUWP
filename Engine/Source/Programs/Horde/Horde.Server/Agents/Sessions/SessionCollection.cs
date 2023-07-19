@@ -117,14 +117,22 @@ namespace Horde.Server.Agents.Sessions
 		}
 
 		/// <inheritdoc/>
-		public Task UpdateAsync(SessionId sessionId, DateTime finishTime, IReadOnlyList<string> properties, IReadOnlyDictionary<string, int> resources)
+		public Task UpdateAsync(SessionId sessionId, DateTime? finishTime, IReadOnlyList<string>? properties, IReadOnlyDictionary<string, int>? resources)
 		{
-			UpdateDefinition<SessionDocument> update = Builders<SessionDocument>.Update
-				.Set(x => x.FinishTime, finishTime)
-				.Set(x => x.Properties, new List<string>(properties))
-				.Set(x => x.Resources, new Dictionary<string, int>(resources));
-
-			return _sessions.FindOneAndUpdateAsync(x => x.Id == sessionId, update);
+			List<UpdateDefinition<SessionDocument>> updates = new List<UpdateDefinition<SessionDocument>>();
+			if (finishTime != null)
+			{
+				updates.Add(Builders<SessionDocument>.Update.Set(x => x.FinishTime, finishTime));
+			}
+			if (properties != null)
+			{
+				updates.Add(Builders<SessionDocument>.Update.Set(x => x.Properties, new List<string>(properties)));
+			}
+			if (resources != null)
+			{
+				updates.Add(Builders<SessionDocument>.Update.Set(x => x.Resources, new Dictionary<string, int>(resources)));
+			}
+			return _sessions.FindOneAndUpdateAsync(x => x.Id == sessionId, Builders<SessionDocument>.Update.Combine(updates));
 		}
 
 		/// <inheritdoc/>
