@@ -69,8 +69,7 @@ namespace Horde.Server.Agents.Sessions
 		public SessionCollection(MongoService mongoService)
 		{
 			List<MongoIndex<SessionDocument>> indexes = new List<MongoIndex<SessionDocument>>();
-			indexes.Add(keys => keys.Ascending(x => x.AgentId));
-			indexes.Add(keys => keys.Ascending(x => x.StartTime));
+			indexes.Add(keys => keys.Ascending(x => x.AgentId).Ascending(x => x.StartTime).Ascending(x => x.FinishTime));
 			indexes.Add(keys => keys.Ascending(x => x.FinishTime));
 
 			_sessions = mongoService.GetCollection<SessionDocument>("Sessions", indexes);
