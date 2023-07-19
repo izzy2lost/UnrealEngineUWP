@@ -162,7 +162,11 @@ void FControlRigLayerInstanceProxy::AddControlRigTrack(int32 ControlRigID, UCont
 
 	Node->SetControlRig(InControlRig);
 	Node->OnInitializeAnimInstance(this, CastChecked<UAnimInstance>(GetAnimInstanceObject()));
-	Node->Initialize_AnyThread(FAnimationInitializeContext(this));
+	//mz removed this due to crash since Skeleton is not set up on a previous linked node 
+	// see FORT-630426
+	//but leaving in case it's needed for something else in which case need
+	//to call AnimInstance::UpdateAnimation(via TickAnimation perhaps
+	//Node->Initialize_AnyThread(FAnimationInitializeContext(this));
 }
 
 bool FControlRigLayerInstanceProxy::HasControlRigTrack(int32 ControlRigID)
