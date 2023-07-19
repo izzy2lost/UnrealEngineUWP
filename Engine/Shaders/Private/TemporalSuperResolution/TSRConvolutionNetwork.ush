@@ -289,7 +289,7 @@ void AccessNeighborTexels1x3(
 
 CALL_SITE_DEBUGLOC
 template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
-TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Blur3x3(TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Center)
+TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> WeightedSum3x3(TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Center, float3 HorizontalWeights, float3 VerticalWeights)
 {
 	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> CO = Center;
 	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> CP;
@@ -297,19 +297,67 @@ TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Blur3x3(TLaneVec
 	AccessNeighborTexels1x3(CO, /* out */ CP, /* out */ CN);
 	
 	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> BO = (
-		CO * TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY>::Const(0.5) +
-		CP * TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY>::Const(0.25) +
-		CN * TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY>::Const(0.25));
+		CO * TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY>::Const(ScalarType(VerticalWeights.y)) +
+		CP * TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY>::Const(ScalarType(VerticalWeights.z)) +
+		CN * TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY>::Const(ScalarType(VerticalWeights.x)));
 
 	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> BP;
 	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> BN;
 	AccessNeighborTexels3x1(BO, /* out */ BP, /* out */ BN);
 
 	return (
-		BO * TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY>::Const(0.5) +
-		BP * TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY>::Const(0.25) +
-		BN * TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY>::Const(0.25));
+		BO * TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY>::Const(ScalarType(HorizontalWeights.y)) +
+		BP * TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY>::Const(ScalarType(HorizontalWeights.z)) +
+		BN * TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY>::Const(ScalarType(HorizontalWeights.x)));
 }
+
+CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
+TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Sum3x3(TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Center)
+{
+	return WeightedSum3x3(Center, /* HorizontalWeights = */ float(1.0).xxx, /* VerticalWeights = */ float(1.0).xxx);
+}
+
+CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
+TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> WeightedAvg3x3(TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Center, float3 NormalizedWeights)
+{
+	return WeightedSum3x3(Center, /* HorizontalWeights = */ NormalizedWeights, /* VerticalWeights = */ NormalizedWeights);
+}
+
+CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
+TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Blur3x3(TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Center)
+{
+	return WeightedAvg3x3(Center, /* NormalizedWeights = */ float3(0.25, 0.5, 0.25));
+}
+
+CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
+TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Sharpen3x3(TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Center)
+{
+	return WeightedAvg3x3(Center, /* NormalizedWeights = */ float3(-0.25, 1.5, -0.25));
+}
+
+
+//------------------------------------------------------- TOTAL VARIATION 3x3 CONVOLUTION
+
+CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
+TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> TotalVariation3x3(TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Center)
+#if 0
+{
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Sum = Blur3x3(Center);
+	
+	return TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY>::Const(1) * Center - Sum;
+}
+#else
+{
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Sum = WeightedSum3x3(Center, /* HorizontalWeights = */ float(1.0).xxx, /* VerticalWeights = */ float3(0.125, 0.125, 0.125));
+
+	return TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY>::Const(1.125) * Center - Sum;
+}
+#endif
 
 
 //------------------------------------------------------- MIN & MAX 3x3 CONVOLUTION
@@ -380,6 +428,42 @@ void MinMax3x3(
 	OutMax = Max3x3(Center);
 }
 #endif
+
+CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
+TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> MaxMinusMin3x3(
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Center)
+{
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> BoxMin;
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> BoxMax;
+	MinMax3x3(Center, /* out */ BoxMin, /* out */ BoxMax);
+	return BoxMax - BoxMin;
+}
+
+
+//------------------------------------------------------- CLAMP CONVOLUTIONS
+
+CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
+TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Clamp3x3(
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> ToClamp,
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> BoundaryCenter)
+{
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> BoundaryMin;
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> BoundaryMax;
+	MinMax3x3(BoundaryCenter, /* out */ BoundaryMin, /* out */ BoundaryMax);
+
+	return fastClamp(ToClamp, BoundaryMin, BoundaryMax);
+}
+
+CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
+TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> AnnihilateToGuide3x3(
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> ToClamp,
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Guide)
+{
+	return Clamp3x3(ToClamp, Clamp3x3(Guide, ToClamp));
+}
 
 
 //------------------------------------------------------- MEDIAN 3x3 CONVOLUTION

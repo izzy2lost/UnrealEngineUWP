@@ -17,9 +17,6 @@
 
 #define DEBUG_ARRAY_SIZE 8
 
-/** Whether should remove firefliers from input and history before comparison to improve stability. */
-#define CONFIG_FIREFLY_REMOVAL 1
-
 /** Whether to compose translucency to the input. */
 #define CONFIG_COMPOSE_TRANSLUCENCY 1
 
@@ -130,22 +127,6 @@ RWTexture2D<tsr_half> InputSceneColorLdrLumaOutput;
 
 
 //------------------------------------------------------- GENERAL OPERATIONS
-
-CALL_SITE_DEBUGLOC
-tsr_simd_halfC ClampFireFliersWithGuide(tsr_simd_halfC ToClamp, tsr_simd_halfC Guide)
-{
-	tsr_simd_halfC ToClampMin;
-	tsr_simd_halfC ToClampMax;
-	MinMax3x3(ToClamp, /* out */ ToClampMin, /* out */ ToClampMax);
-
-	tsr_simd_halfC ClampedGuide = fastClamp(Guide, ToClampMin, ToClampMax);
-	
-	tsr_simd_halfC ClampedGuideMin;
-	tsr_simd_halfC ClampedGuideMax;
-	MinMax3x3(ClampedGuide, /* out */ ClampedGuideMin, /* out */ ClampedGuideMax);
-	
-	return fastClamp(ToClamp, ClampedGuideMin, ClampedGuideMax);
-}
 
 tsr_short2 ComputeInputPixelPos(const tsr_short2 GroupPixelOffset, const uint LaneIndex, const uint SimdIndex)
 {
@@ -489,28 +470,22 @@ void MainCS(
 			ExposedHistory = ExposedHistory * rcp(ExposedHistory + tsr_simd_halfC::Const(tsr_half(PerceptionAdd)));
 		}
 
-		// Top secret sauce with paper and salt.
-		tsr_simd_halfC ClampedInput = ExposedInput;
-		tsr_simd_halfC ClampedHistory = ExposedHistory;
-		#if CONFIG_FIREFLY_REMOVAL
-		{
-			ClampedInput   = ClampFireFliersWithGuide(ClampedInput  , /* Guide = */ ExposedHistory);
-			ClampedHistory = ClampFireFliersWithGuide(ClampedHistory, /* Guide = */ ExposedInput);
-		}
-		#endif
-
+		// Mutual Annihilation
+		tsr_simd_halfC ClampedInput   = AnnihilateToGuide3x3(ExposedInput  , /* Guide = */ ExposedHistory);
+		tsr_simd_halfC ClampedHistory = AnnihilateToGuide3x3(ExposedHistory, /* Guide = */ ExposedInput);
+		
 		// Filter clamped input and history to increase quantization of the rejection detection
 		tsr_simd_halfC FilteredInput   = Blur3x3(ClampedInput);
 		tsr_simd_halfC FilteredHistory = Blur3x3(ClampedHistory);
 	
+		// Build the clamping box of the filtered signal
 		tsr_simd_halfC FilteredBoxMin;
 		tsr_simd_halfC FilteredBoxMax;
 		MinMax3x3(FilteredInput, /* out */ FilteredBoxMin, /* out */ FilteredBoxMax);
 		FilteredBoxMin = FilteredBoxMin - BackbufferQuantizationErrorVector;
 		FilteredBoxMax = FilteredBoxMax + BackbufferQuantizationErrorVector;
 		
-		tsr_simd_halfC FlickeringClampedFilteredHistory = fastClamp(FilteredHistory, FilteredBoxMin, FilteredBoxMax);
-
+		// Clamp filtered signal
 		tsr_simd_halfC ClampedFilteredHistory;
 		#if CONFIG_MOIRE_DETECTION
 		{
@@ -538,35 +513,33 @@ void MainCS(
 			ClampedFilteredHistory = fastClamp(FilteredHistory, StableFilteredBoxMin, StableFilteredBoxMax);
 		}
 		#else
-			ClampedFilteredHistory = FlickeringClampedFilteredHistory;
+			ClampedFilteredHistory = fastClamp(FilteredHistory, FilteredBoxMin, FilteredBoxMax);
 		#endif
 		
-		tsr_simd_halfC OriginalBoxMin;
-		tsr_simd_halfC OriginalBoxMax;
-		MinMax3x3(ExposedInput, /* out */ OriginalBoxMin, /* out */ OriginalBoxMax);
-		tsr_simd_halfC BoxSize = (OriginalBoxMax - OriginalBoxMin + (BackbufferQuantizationErrorVector + BackbufferQuantizationErrorVector)) * FilteringWeight;
-		
-		tsr_simd_halfC RawClampedEnergy = abs(ClampedFilteredHistory - FilteredHistory);
-
-		tsr_simd_halfC FilteredClampedEnergy;
+		// Compute the box size.
+		tsr_simd_halfC BoxSize;
 		{
-			FilteredClampedEnergy = Median3x3(RawClampedEnergy);
-			FilteredClampedEnergy = Max3x3(FilteredClampedEnergy);
+			BoxSize = (
+				MaxMinusMin3x3(ClampedInput) * tsr_simd_halfC::Const(FilteringWeight) +
+				(BackbufferQuantizationErrorVector * tsr_half(2 * FilteringWeight)));
+
+			#if CONFIG_MOIRE_DETECTION
+			tsr_simd_halfC MoireErrorSize;
+			UNROLL_N(SIMD_SIZE)
+			for (uint SimdIndex = 0; SimdIndex < SIMD_SIZE; SimdIndex++)
+			{
+				tsr_halfC ClampedEnergy = abs(ClampedFilteredHistory.GetElement(SimdIndex) - FilteredHistory.GetElement(SimdIndex));
+				tsr_halfC ClampedEnergyAmount = ClampedEnergy * SafeRcp(ClampedEnergy[0] + ClampedEnergy[1] + ClampedEnergy[2]);
+
+				// Apply the moire error on each individual channel based on how much they need to clamp.
+				MoireErrorSize.SetElement(SimdIndex, ClampedEnergyAmount * ((FilteringWeight * tsr_half(3.0)) * MoireError.GetElement(SimdIndex)));
+			}
+			BoxSize = max(BoxSize, MoireErrorSize);
+			#endif
 		}
 
-		#if CONFIG_MOIRE_DETECTION
-		tsr_simd_halfC MoireErrorSize;
-		UNROLL_N(SIMD_SIZE)
-		for (uint SimdIndex = 0; SimdIndex < SIMD_SIZE; SimdIndex++)
-		{
-			tsr_halfC ClampedEnergy = abs(ClampedFilteredHistory.GetElement(SimdIndex) - FilteredHistory.GetElement(SimdIndex));
-			tsr_halfC ClampedEnergyAmount = ClampedEnergy * SafeRcp(ClampedEnergy[0] + ClampedEnergy[1] + ClampedEnergy[2]);
-
-			// Apply the moire error on each individual channel based on how much they need to clamp.
-			MoireErrorSize.SetElement(SimdIndex, ClampedEnergyAmount * ((FilteringWeight * tsr_half(3.0)) * MoireError.GetElement(SimdIndex)));
-		}
-		BoxSize = max(BoxSize, MoireErrorSize);
-		#endif
+		tsr_simd_halfC RawClampedEnergy      = abs(ClampedFilteredHistory - FilteredHistory);
+		tsr_simd_halfC FilteredClampedEnergy = Max3x3(Median3x3(RawClampedEnergy));
 
 		tsr_simd_halfC Delta = abs(FilteredInput - FilteredHistory);
 		tsr_simd_halfC ClampError = max(
@@ -580,9 +553,7 @@ void MainCS(
 		tsr_simd_half FilteredRejection = min3(FilteredFactor[0], FilteredFactor[1], FilteredFactor[2]);
 
 		RejectionBlendFinal = saturate(FilteredRejection);
-		
-		RejectionClampBlend = Median3x3(RawRejection);
-		RejectionClampBlend = Min3x3(RejectionClampBlend);
+		RejectionClampBlend = Min3x3(Median3x3(RawRejection));
 	}
 	#endif
 	
