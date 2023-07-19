@@ -1,9 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-/*=============================================================================
-	LumenDiffuseIndirect.cpp
-=============================================================================*/
-
 #include "RendererPrivate.h"
 #include "ScenePrivate.h"
 #include "SceneUtils.h"
@@ -171,6 +167,11 @@ FAutoConsoleVariableRef CVarLumenShouldUseStereoOptimizations(
 	TEXT("Whether to to share certain Lumen state between views during the instanced stereo rendering."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
+
+bool LumenDiffuseIndirect::IsAllowed()
+{
+	return CVarLumenGlobalIllumination.GetValueOnAnyThread() != 0;
+}
 
 bool LumenDiffuseIndirect::UseAsyncCompute(const FViewFamilyInfo& ViewFamily)
 {

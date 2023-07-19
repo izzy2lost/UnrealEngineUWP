@@ -539,6 +539,7 @@ public:
 
 	void DumpStats(const FDistanceFieldSceneData& DistanceFieldSceneData, bool bDumpMeshDistanceFields, bool bDumpPrimitiveGroups);
 	bool UpdateAtlasSize();
+	void ReleaseAtlas();
 	void RemoveAllMeshCards();
 	void UploadPageTable(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries);
 

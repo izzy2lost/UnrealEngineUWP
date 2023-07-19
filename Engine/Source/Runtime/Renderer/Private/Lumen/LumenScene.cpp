@@ -652,9 +652,11 @@ void FLumenSceneData::UploadPageTable(FRDGBuilder& GraphBuilder, FLumenSceneFram
 FLumenSceneData::FLumenSceneData(EShaderPlatform ShaderPlatform, EWorldType::Type WorldType) :
 	bFinalLightingAtlasContentsValid(false)
 {
-	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MeshCardRepresentation"));
+	static const auto MeshCardCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MeshCardRepresentation"));
 
-	bTrackAllPrimitives = (DoesPlatformSupportLumenGI(ShaderPlatform)) && CVar->GetValueOnGameThread() != 0 && WorldType != EWorldType::EditorPreview;
+	bTrackAllPrimitives = (DoesPlatformSupportLumenGI(ShaderPlatform)) 
+		&& MeshCardCVar->GetValueOnGameThread() != 0
+		&& WorldType != EWorldType::EditorPreview;
 }
 
 FLumenSceneData::FLumenSceneData(bool bInTrackAllPrimitives) :
@@ -1203,6 +1205,30 @@ void UpdateLumenScenePrimitives(FRHIGPUMask GPUMask, FScene* Scene)
 	{
 		LumenSceneData->ResetAndConsolidate();
 	}
+}
+
+void FLumenSceneData::ReleaseAtlas()
+{
+	RemoveAllMeshCards();
+
+	PhysicalAtlasSize = 0;
+
+	AlbedoAtlas.SafeRelease();
+	OpacityAtlas.SafeRelease();
+	NormalAtlas.SafeRelease();
+	EmissiveAtlas.SafeRelease();
+	DepthAtlas.SafeRelease();
+
+	DirectLightingAtlas.SafeRelease();
+	IndirectLightingAtlas.SafeRelease();
+	RadiosityNumFramesAccumulatedAtlas.SafeRelease();
+	FinalLightingAtlas.SafeRelease();
+
+	RadiosityTraceRadianceAtlas.SafeRelease();
+	RadiosityTraceHitDistanceAtlas.SafeRelease();
+	RadiosityProbeSHRedAtlas.SafeRelease();
+	RadiosityProbeSHGreenAtlas.SafeRelease();
+	RadiosityProbeSHBlueAtlas.SafeRelease();
 }
 
 void FLumenSceneData::RemoveAllMeshCards()

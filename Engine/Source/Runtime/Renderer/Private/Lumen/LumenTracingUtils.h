@@ -192,5 +192,6 @@ namespace LumenIrradianceFieldGather
 
 namespace LumenDiffuseIndirect
 {
+	bool IsAllowed();
 	bool UseAsyncCompute(const FViewFamilyInfo& ViewFamily);
 }
