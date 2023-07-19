@@ -100,6 +100,7 @@ public:
 
 	static bool IsVRSSupportedByRHI();
 	static bool IsVRSEnabled();
+	bool IsVRSEnabledForFrame();
 	static bool IsVRSCompatibleWithView(const FViewInfo& View);
 	static bool IsVRSCompatibleWithOutputType(const EDisplayOutputFormat& DisplayOutputFormat);
 

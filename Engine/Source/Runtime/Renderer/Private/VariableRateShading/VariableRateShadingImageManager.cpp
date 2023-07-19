@@ -320,6 +320,11 @@ bool FVariableRateShadingImageManager::IsVRSEnabled()
 	return GRHIVariableRateShadingEnabled && GRHIAttachmentVariableRateShadingEnabled;
 }
 
+bool FVariableRateShadingImageManager::IsVRSEnabledForFrame()
+{
+	return bVRSEnabledForFrame;
+}
+
 bool FVariableRateShadingImageManager::IsVRSCompatibleWithOutputType(const EDisplayOutputFormat& OutputFormat)
 {
 	// VRS texture generation is currently only compatible with SDR and HDR10
