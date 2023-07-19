@@ -29,7 +29,14 @@ public:
 	{
 		for (const TPair<FGraphVertexHandle, FGraphEdgeHandle>& Kvp : Edges)
 		{
-			Lambda(Kvp.Key);
+			if constexpr (std::is_invocable_v<TLambda, const FGraphVertexHandle&, const FGraphEdgeHandle&>)
+			{
+				Lambda(Kvp.Key, Kvp.Value);
+			}
+			else
+			{
+				Lambda(Kvp.Key);
+			}
 		}
 	}
 
