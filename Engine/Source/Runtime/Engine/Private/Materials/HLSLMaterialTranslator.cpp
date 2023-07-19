@@ -856,7 +856,13 @@ bool FHLSLMaterialTranslator::Translate()
 		bCompileForComputeShader = Material->IsLightFunction();
 		
 		// Verify for the absence of loops.
-		if (UMaterial* UMaterial = Material->GetMaterialInterface()->GetMaterial())
+		UMaterialInterface* Interface = Material->GetMaterialInterface();
+		if (!Interface)
+		{
+			return false;
+		}
+		
+		if (UMaterial* UMaterial = Interface->GetMaterial())
 		{
 			TSet<UMaterialExpression*> VisitedExpressions;
 			for (UMaterialExpression* Expression : UMaterial->GetExpressions())

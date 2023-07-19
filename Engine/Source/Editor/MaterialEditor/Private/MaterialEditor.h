@@ -48,6 +48,7 @@ class FMaterialCachedHLSLTree;
 struct FMaterialCachedExpressionData;
 class SMaterialEditorStrataWidget;
 
+typedef TSet<class UObject*> FGraphPanelSelectionSet;
 
 /**
  * Class for rendering previews of material expressions in the material editor's linked object viewport.
@@ -414,6 +415,11 @@ public:
 	virtual void DeleteNodes(const TArray<class UEdGraphNode*>& NodesToDelete) override;
 	virtual void GenerateInheritanceMenu(class UToolMenu* Menu) override;
 
+	void DeleteSelectedNodes(bool bShowConfirmation);
+	void DeleteNodes(const TArray<class UEdGraphNode*>& NodesToDelete, bool bShowConfirmation);
+	FString CopyNodesToBuffer(const FGraphPanelSelectionSet& Nodes);
+	FString CopyNodesToBuffer(const TSet<UEdGraphNode*>& Nodes);
+	void PasteNodesHereFromBuffer(const FVector2D& Location, const class UEdGraph* Graph, const FString& TextToImport, TMap<FGuid, FGuid>* OutOldToNewGuids);
 	void UpdateStatsMaterials();
 
 	/** Gets the extensibility managers for outside entities to extend material editor's menus and toolbars */
@@ -761,6 +767,12 @@ private:
 	void OnConvertObjects();
 	/** Command for converting nodes to textures */
 	void OnConvertTextures();
+	/** Command for collapsing nodes to a function */
+	void OnCollapseToFunction();
+	bool CanCollapseToFunction() const;
+	/** Command for expanding a function */
+	void OnExpandMaterialFunctionNode();
+	bool CanExpandMaterialFunctionNode() const;
 	/** Command for promoting nodes to double precision */
 	void OnPromoteObjects();
 	/** Command to select local variable declaration */

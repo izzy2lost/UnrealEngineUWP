@@ -164,6 +164,7 @@
 #include "UObject/TextProperty.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "ToolMenus.h"
+#include "MaterialEditorHelpers.h"
 #include "MaterialEditorContext.h"
 #include "UObject/MetaData.h"
 #include "ToolMenus.h"
@@ -3409,7 +3410,6 @@ void FMaterialEditor::BindCommands()
 	ToolkitCommands->MapAction(
 		Commands.ConvertToConstant,
 		FExecuteAction::CreateSP(this, &FMaterialEditor::OnConvertObjects));
-
 	ToolkitCommands->MapAction(
 		Commands.SelectNamedRerouteDeclaration,
 		FExecuteAction::CreateSP(this, &FMaterialEditor::OnSelectNamedRerouteDeclaration));
@@ -4230,6 +4230,34 @@ void FMaterialEditor::OnConvertTextures()
 	}
 }
 
+void FMaterialEditor::OnCollapseToFunction()
+{
+	FMaterialEditorHelpers::CollapseToFunction(*this);
+}
+
+bool FMaterialEditor::CanCollapseToFunction() const
+{
+	return CanCopyNodes();
+}
+
+void FMaterialEditor::OnExpandMaterialFunctionNode()
+{
+	FMaterialEditorHelpers::ExpandNode(*this);
+}
+
+bool FMaterialEditor::CanExpandMaterialFunctionNode() const
+{
+	// If any of the nodes can be expanded then we should allow expanding
+	for (UObject* NodeObject : GetSelectedNodes())
+	{
+		UMaterialGraphNode* Node = Cast<UMaterialGraphNode>(NodeObject);
+		if (Node && Cast<UMaterialExpressionMaterialFunctionCall>(Node->MaterialExpression))
+		{
+			return true;
+		}
+	}
+	return false;
+}
 void FMaterialEditor::OnSelectNamedRerouteDeclaration()
 {
 	if (TSharedPtr<SGraphEditor> FocusedGraphEd = FocusedGraphEdPtr.Pin())
@@ -5609,6 +5637,11 @@ bool FMaterialEditor::CanSelectAllNodes() const
 
 void FMaterialEditor::DeleteSelectedNodes()
 {
+	DeleteSelectedNodes(true);
+}
+
+void FMaterialEditor::DeleteSelectedNodes(bool bShowConfirmation)
+{
 	TArray<UEdGraphNode*> NodesToDelete;
 	const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
 
@@ -5616,15 +5649,20 @@ void FMaterialEditor::DeleteSelectedNodes()
 	{
 		NodesToDelete.Add(CastChecked<UEdGraphNode>(*NodeIt));
 	}
-
-	DeleteNodes(NodesToDelete);
+	
+	DeleteNodes(NodesToDelete, bShowConfirmation);
 }
 
 void FMaterialEditor::DeleteNodes(const TArray<UEdGraphNode*>& NodesToDelete)
 {
+	DeleteNodes(NodesToDelete, true);
+}
+
+void FMaterialEditor::DeleteNodes(const TArray<UEdGraphNode*>& NodesToDelete, bool bShowConfirmation)
+{
 	if (NodesToDelete.Num() > 0)
 	{
-		if (!CheckExpressionRemovalWarnings(NodesToDelete))
+		if (bShowConfirmation && !CheckExpressionRemovalWarnings(NodesToDelete))
 		{
 			return;
 		}
@@ -5801,11 +5839,16 @@ void FMaterialEditor::DeleteNodesInternal(const TArray<class UEdGraphNode*>& Nod
 void FMaterialEditor::CopySelectedNodes()
 {
 	// Export the selected nodes and place the text on the clipboard
-	const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
+	const FString Buffer = CopyNodesToBuffer(GetSelectedNodes());
+	FPlatformApplicationMisc::ClipboardCopy(*Buffer);
+}
+
+FString FMaterialEditor::CopyNodesToBuffer(const FGraphPanelSelectionSet& Nodes)
+{
 
 	FString ExportedText;
 
-	for (FGraphPanelSelectionSet::TConstIterator SelectedIter(SelectedNodes); SelectedIter; ++SelectedIter)
+	for (FGraphPanelSelectionSet::TConstIterator SelectedIter(Nodes); SelectedIter; ++SelectedIter)
 	{
 		if(UEdGraphNode* Node = Cast<UEdGraphNode>(*SelectedIter))
 		{
@@ -5813,11 +5856,10 @@ void FMaterialEditor::CopySelectedNodes()
 		}
 	}
 
-	FEdGraphUtilities::ExportNodesToText(SelectedNodes, /*out*/ ExportedText);
-	FPlatformApplicationMisc::ClipboardCopy(*ExportedText);
+	FEdGraphUtilities::ExportNodesToText(Nodes, /*out*/ ExportedText);
 
 	// Make sure Material remains the owner of the copied nodes
-	for (FGraphPanelSelectionSet::TConstIterator SelectedIter(SelectedNodes); SelectedIter; ++SelectedIter)
+	for (FGraphPanelSelectionSet::TConstIterator SelectedIter(Nodes); SelectedIter; ++SelectedIter)
 	{
 		if (UMaterialGraphNode* Node = Cast<UMaterialGraphNode>(*SelectedIter))
 		{
@@ -5828,6 +5870,16 @@ void FMaterialEditor::CopySelectedNodes()
 			Comment->PostCopyNode();
 		}
 	}
+
+	return ExportedText;
+}
+
+FString FMaterialEditor::CopyNodesToBuffer(const TSet<UEdGraphNode*>& Nodes)
+{
+	static_assert(std::is_convertible<UEdGraphNode*, UObject*>::value, "UEdGraphNode must be derived from UObject");
+	static_assert(std::is_same_v<FGraphPanelSelectionSet, TSet<UObject*>>, "FGraphPanelSelectionSet is expected to be defined as TSet<UObject*>");
+
+	return CopyNodesToBuffer(reinterpret_cast<const FGraphPanelSelectionSet&>(Nodes));
 }
 
 bool FMaterialEditor::CanCopyNodes() const
@@ -5916,6 +5968,14 @@ void FMaterialEditor::PostPasteMaterialExpression(UMaterialExpression* NewExpres
 
 void FMaterialEditor::PasteNodesHere(const FVector2D& Location, const class UEdGraph* Graph)
 {
+	// Grab the text to paste from the clipboard.
+	FString TextToImport;
+	FPlatformApplicationMisc::ClipboardPaste(TextToImport);
+	
+	PasteNodesHereFromBuffer(Location, Graph, TextToImport, nullptr);
+}
+void FMaterialEditor::PasteNodesHereFromBuffer(const FVector2D& Location, const class UEdGraph* Graph, const FString& TextToImport, TMap<FGuid, FGuid>* OutOldToNewGuids)
+{
 	// Undo/Redo support
 	const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "MaterialEditorPaste", "Material Editor: Paste") );
 	Material->MaterialGraph->Modify();
@@ -5929,10 +5989,6 @@ void FMaterialEditor::PasteNodesHere(const FVector2D& Location, const class UEdG
 	{
 		FocusedGraphEd->ClearSelectionSet();
 	}
-
-	// Grab the text to paste from the clipboard.
-	FString TextToImport;
-	FPlatformApplicationMisc::ClipboardPaste(TextToImport);
 
 	// Import the nodes
 	TSet<UEdGraphNode*> PastedNodes;
@@ -6006,8 +6062,14 @@ void FMaterialEditor::PasteNodesHere(const FVector2D& Location, const class UEdG
 
 		Node->SnapToGrid(SNodePanel::GetSnapGridSize());
 
+		const FGuid OldNodeGuid = Node->NodeGuid;
+		
 		// Give new node a different Guid from the old one
 		Node->CreateNewGuid();
+		if (OutOldToNewGuids)
+		{
+			OutOldToNewGuids->Add(OldNodeGuid, Node->NodeGuid);
+		}
 	}
 
 	for (auto* NewExpression : NewMaterialExpressions)
@@ -6342,14 +6404,16 @@ void FMaterialEditor::OnExpandNodes()
 	{
 		FocusedGraphEd->ClearSelectionSet();
 	}
-
+	TMap<UMaterialGraphNode*, FMaterialEditor*> FunctionCalls;
+       
 	for (FGraphPanelSelectionSet::TConstIterator NodeIt(SelectedNodes); NodeIt; ++NodeIt)
 	{
 		ExpandedNodes.Empty();
 		bool bExpandedNodesNeedUniqueGuid = true;
 
 		DocumentManager->CleanInvalidTabs();
-
+		UMaterialGraphNode* Node = Cast<UMaterialGraphNode>(*NodeIt);
+		 	
 		if (UMaterialGraphNode_Composite* SelectedCompositeNode = Cast<UMaterialGraphNode_Composite>(*NodeIt))
 		{
 			// No need to assign unique GUIDs since the source graph will be removed.
@@ -6362,6 +6426,23 @@ void FMaterialEditor::OnExpandNodes()
 			FBlueprintEditorUtils::RemoveGraph(nullptr, SourceGraph, EGraphRemoveFlags::None);
 			SourceGraph->MarkAsGarbage();
 		}
+		else if (Node)
+		{
+			UMaterialExpressionMaterialFunctionCall* FunctionCallExpression = Cast<UMaterialExpressionMaterialFunctionCall>(Node->MaterialExpression);
+			if (FunctionCallExpression && FunctionCallExpression->MaterialFunction)
+			{
+				FMaterialEditor* FunctionMaterialEditor = FMaterialEditorHelpers::OpenMaterialEditorForAsset(FunctionCallExpression->MaterialFunction);
+				if (!ensure(FunctionMaterialEditor))
+				{
+					continue;
+				}
+				// FunctionCalls.Add(Node, FunctionMaterialEditor);
+				FMaterialEditorHelpers::ExpandNode(*this, *FunctionMaterialEditor, Node);
+
+				this->FocusWindow();
+			}
+		}
+		
 
 		UEdGraphNode* SourceNode = CastChecked<UEdGraphNode>(*NodeIt);
 		check(SourceNode);
@@ -6393,7 +6474,12 @@ bool FMaterialEditor::CanExpandNodes() const
 	const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
 	for (FGraphPanelSelectionSet::TConstIterator NodeIt(SelectedNodes); NodeIt; ++NodeIt)
 	{
-		if (Cast<UMaterialGraphNode_Composite>(*NodeIt))
+		UMaterialGraphNode* Node = Cast<UMaterialGraphNode>(*NodeIt);
+		if (Cast<UMaterialGraphNode_Composite>(Node))
+		{
+			return true;
+		}
+		else if (Node && Cast<UMaterialExpressionMaterialFunctionCall>(Node->MaterialExpression))
 		{
 			return true;
 		}
@@ -6987,6 +7073,10 @@ TSharedRef<SGraphEditor> FMaterialEditor::CreateGraphEditorWidget(TSharedRef<cla
 			FCanExecuteAction::CreateSP( this, &FMaterialEditor::CanCollapseNodes )
 		);
 
+		GraphEditorCommands->MapAction( FGraphEditorCommands::Get().CollapseSelectionToFunction,
+					FExecuteAction::CreateSP( this, &FMaterialEditor::OnCollapseToFunction ),
+					FCanExecuteAction::CreateSP( this, &FMaterialEditor::CanCollapseToFunction )
+				);
 		GraphEditorCommands->MapAction( FGraphEditorCommands::Get().ExpandNodes,
 			FExecuteAction::CreateSP( this, &FMaterialEditor::OnExpandNodes ),
 			FCanExecuteAction::CreateSP( this, &FMaterialEditor::CanExpandNodes ),

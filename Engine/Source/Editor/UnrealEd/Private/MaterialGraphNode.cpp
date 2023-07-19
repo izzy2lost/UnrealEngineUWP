@@ -523,7 +523,7 @@ void UMaterialGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, UGraphNodeCo
 			FToolMenuSection& Section = Menu->AddSection("EdGraphSchemaOrganization", LOCTEXT("OrganizationHeader", "Organization"));
 			Section.AddMenuEntry(FGraphEditorCommands::Get().CollapseNodes);
 			Section.AddMenuEntry(FGraphEditorCommands::Get().ExpandNodes);
-
+			Section.AddMenuEntry(FGraphEditorCommands::Get().CollapseSelectionToFunction);
 			Section.AddSubMenu(
 				"Alignment",
 				LOCTEXT("AlignmentHeader", "Alignment"),
