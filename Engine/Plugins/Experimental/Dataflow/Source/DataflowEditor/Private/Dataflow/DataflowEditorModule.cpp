@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Dataflow/DataflowEditorPlugin.h"
+#include "Dataflow/DataflowEditorModule.h"
 #include "Dataflow/DataflowEditorStyle.h"
 
 #include "AssetToolsModule.h"
@@ -17,7 +17,7 @@
 //#define BOX_BRUSH(StyleSet, RelativePath, ...) FSlateBoxBrush(StyleSet->RootToContentDir(RelativePath, TEXT(".png")), __VA_ARGS__)
 //#define DEFAULT_FONT(...) FCoreStyle::GetDefaultFontStyle(__VA_ARGS__)
 
-void IDataflowEditorPlugin::StartupModule()
+void FDataflowEditorModule::StartupModule()
 {
 	FDataflowEditorStyle::Get();
 
@@ -33,7 +33,7 @@ void IDataflowEditorPlugin::StartupModule()
 	FEdGraphUtilities::RegisterVisualNodeFactory(DataflowSNodeFactory);
 }
 
-void IDataflowEditorPlugin::ShutdownModule()
+void FDataflowEditorModule::ShutdownModule()
 {
 	if (UObjectInitialized())
 	{
@@ -46,7 +46,7 @@ void IDataflowEditorPlugin::ShutdownModule()
 	}
 }
 
-TSharedRef<FAssetEditorToolkit> IDataflowEditorPlugin::CreateDataflowAssetEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UObject* Asset)
+TSharedRef<FAssetEditorToolkit> FDataflowEditorModule::CreateDataflowAssetEditor(const EToolkitMode::Type Mode, const TSharedPtr<IToolkitHost>& InitToolkitHost, UObject* Asset)
 {
 	TSharedPtr<FDataflowEditorToolkit> NewDataflowAssetEditor = MakeShared<FDataflowEditorToolkit>();
 	NewDataflowAssetEditor->InitializeEditor(Mode, InitToolkitHost, Asset);
@@ -54,7 +54,7 @@ TSharedRef<FAssetEditorToolkit> IDataflowEditorPlugin::CreateDataflowAssetEditor
 }
 
 
-IMPLEMENT_MODULE(IDataflowEditorPlugin, DataflowEditor)
+IMPLEMENT_MODULE(FDataflowEditorModule, DataflowEditor)
 
 
 #undef LOCTEXT_NAMESPACE

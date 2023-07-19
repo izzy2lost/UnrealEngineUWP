@@ -16,7 +16,7 @@ class FDataflowAssetActions;
 /**
  * The public interface to this module
  */
-class DATAFLOWEDITOR_API IDataflowEditorPlugin : public IModuleInterface
+class DATAFLOWEDITOR_API FDataflowEditorModule : public IModuleInterface
 {
 public:
 	virtual void StartupModule();
@@ -31,9 +31,9 @@ public:
 	 *
 	 * @return Returns singleton instance, loading the module on demand if needed
 	 */
-	static inline IDataflowEditorPlugin& Get()
+	static inline FDataflowEditorModule& Get()
 	{
-		return FModuleManager::LoadModuleChecked< IDataflowEditorPlugin >( "DataflowEditor" );
+		return FModuleManager::LoadModuleChecked< FDataflowEditorModule >( "DataflowEditor" );
 	}
 
 	/**

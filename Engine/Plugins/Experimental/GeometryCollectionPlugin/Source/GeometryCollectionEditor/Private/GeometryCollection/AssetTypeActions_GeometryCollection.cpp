@@ -2,7 +2,7 @@
 
 #include "GeometryCollection/AssetTypeActions_GeometryCollection.h"
 
-#include "Dataflow/DataflowEditorPlugin.h"
+#include "Dataflow/DataflowEditorModule.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "ThumbnailRendering/SceneThumbnailInfo.h"
 #include "GeometryCollection/GeometryCollectionObject.h"
@@ -40,7 +40,7 @@ void FAssetTypeActions_GeometryCollection::OpenAssetEditor(const TArray<UObject*
 			if (FDataflowEditorToolkit::CanOpenDataflowEditor(Object))
 			{
 				bNeedsBaseEditor = false;
-				IDataflowEditorPlugin* DataflowEditorPlugin = &FModuleManager::LoadModuleChecked<IDataflowEditorPlugin>("DataflowEditor");
+				FDataflowEditorModule* DataflowEditorPlugin = &FModuleManager::LoadModuleChecked<FDataflowEditorModule>("DataflowEditor");
 				DataflowEditorPlugin->CreateDataflowAssetEditor(Mode, EditWithinLevelEditor, Object);
 			}
 		}

@@ -3,7 +3,7 @@
 #include "ChaosFlesh/Asset/AssetTypeActions_FleshAsset.h"
 
 #include "ChaosFlesh/FleshAsset.h"
-#include "Dataflow/DataflowEditorPlugin.h"
+#include "Dataflow/DataflowEditorModule.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "ThumbnailRendering/SceneThumbnailInfo.h"
 
@@ -43,7 +43,7 @@ void FAssetTypeActions_FleshAsset::OpenAssetEditor(const TArray<UObject*>& InObj
 			if (FDataflowEditorToolkit::CanOpenDataflowEditor(Object))
 			{
 				bNeedsBaseEditor = false;
-				IDataflowEditorPlugin* DataflowEditorPlugin = &FModuleManager::LoadModuleChecked<IDataflowEditorPlugin>("DataflowEditor");
+				FDataflowEditorModule* DataflowEditorPlugin = &FModuleManager::LoadModuleChecked<FDataflowEditorModule>("DataflowEditor");
 				DataflowEditorPlugin->CreateDataflowAssetEditor(Mode, EditWithinLevelEditor, Object);
 			}
 		}

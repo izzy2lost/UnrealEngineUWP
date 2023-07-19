@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowAssetActions.h"
-#include "Dataflow/DataflowEditorPlugin.h"
+#include "Dataflow/DataflowEditorModule.h"
 
 #include "Dataflow/DataflowObject.h"
 
@@ -37,7 +37,7 @@ void FDataflowAssetActions::OpenAssetEditor(
 	{
 		if (auto Object = Cast<UDataflow>(*ObjIt))
 		{
-			IDataflowEditorPlugin* DataflowEditorPlugin = &FModuleManager::LoadModuleChecked<IDataflowEditorPlugin>("DataflowEditor");
+			FDataflowEditorModule* DataflowEditorPlugin = &FModuleManager::LoadModuleChecked<FDataflowEditorModule>("DataflowEditor");
 			DataflowEditorPlugin->CreateDataflowAssetEditor(Mode, EditWithinLevelEditor, Object);
 		}
 	}
