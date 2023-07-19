@@ -534,7 +534,7 @@ namespace Chaos
 		Constraints.Reserve(NumCollisions);
 		ParticleCollisions.VisitCollisions([this](FPBDCollisionConstraint& Constraint)
 		{
-			if (Constraint.GetManifoldPoints().Num() > 0)
+			if (Constraint.GetManifoldPoints().Num() > 0 && !Constraint.GetDisabled())
 			{
 				Constraints.Add(&Constraint);
 			}
