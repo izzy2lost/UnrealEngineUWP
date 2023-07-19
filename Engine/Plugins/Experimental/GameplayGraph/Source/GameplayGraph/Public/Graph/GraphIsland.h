@@ -44,6 +44,7 @@ public:
 	bool IsPendingDestroy() const { return bPendingDestroy; }
 	bool IsEmpty() const { return Vertices.IsEmpty(); }
 	const TSet<FGraphVertexHandle>& GetVertices() const { return Vertices; }
+	int32 Num() const { return Vertices.Num(); }
 	FSerializedIslandData GetSerializedData() const;
 
 	FOnGraphIslandVertexAdded OnVertexAdded;
