@@ -19,7 +19,26 @@ struct FMassFragmentRequirements;
 struct FMassFragmentRequirementDescription;
 enum class EMassFragmentAccess : uint8;
 enum class EMassFragmentPresence : uint8;
+#endif // WITH_MASSENTITY_DEBUG
 
+namespace UE::Mass::Debug
+{
+	struct FArchetypeStats
+	{
+		/** Number of active entities of the archetype. */
+		int32 EntitiesCount = 0;
+		/** Number of entities that fit per chunk. */
+		int32 EntitiesCountPerChunk = 0;
+		/** Number of allocated chunks. */
+		int32 ChunksCount = 0;
+		/** Total amount of memory taken by this archetype */
+		SIZE_T AllocatedSize = 0;
+		/** Total amount of memory needed by a single entity */
+		int32 BytesPerEntity = 0;
+	};
+} // namespace UE::Mass::Debug
+
+#if WITH_MASSENTITY_DEBUG
 namespace UE::Mass::Debug
 {
 	struct MASSENTITY_API FQueryRequirementsView
@@ -37,20 +56,6 @@ namespace UE::Mass::Debug
 
 	FString DebugGetFragmentAccessString(EMassFragmentAccess Access);
 	MASSENTITY_API extern void DebugOutputDescription(TConstArrayView<UMassProcessor*> Processors, FOutputDevice& Ar);
-
-	struct FArchetypeStats
-	{
-		/** Number of active entities of the archetype. */
-		int32 EntitiesCount = 0;
-		/** Number of entities that fit per chunk. */
-		int32 EntitiesCountPerChunk = 0;
-		/** Number of allocated chunks. */
-		int32 ChunksCount = 0;
-		/** Total amount of memory taken by this archetype */
-		SIZE_T AllocatedSize = 0;
-		/** Total amount of memory needed by a single entity */
-		int32 BytesPerEntity = 0;
-	};
 
 	MASSENTITY_API extern bool HasDebugEntities();
 	MASSENTITY_API extern bool IsDebuggingSingleEntity();
