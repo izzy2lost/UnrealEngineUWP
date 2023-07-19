@@ -515,6 +515,36 @@ namespace Chaos
 		SetToEnd();
 	}
 
+	FContactPairModifierParticleRangeIterator FContactPairModifierParticleRange::begin()
+	{
+		return FContactPairModifierParticleRangeIterator(Modifier, Constraints, 0);
+	}
+
+	FContactPairModifierParticleRangeIterator FContactPairModifierParticleRange::end()
+	{
+		return FContactPairModifierParticleRangeIterator(Modifier, Constraints, Constraints.Num());
+	}
+
+	FContactPairModifierParticleRange::FContactPairModifierParticleRange(FCollisionContactModifier* InModifier, FGeometryParticleHandle* InParticle)
+		: Modifier(InModifier)
+		, Particle(InParticle)
+	{
+		FParticleCollisions& ParticleCollisions = Particle->ParticleCollisions();
+		const int32 NumCollisions = ParticleCollisions.Num();
+		Constraints.Reserve(NumCollisions);
+		ParticleCollisions.VisitCollisions([this](FPBDCollisionConstraint& Constraint)
+		{
+			Constraints.Add(&Constraint);
+			return ECollisionVisitorResult::Continue;
+		});
+		ensureMsgf(Constraints.Num() == NumCollisions, TEXT("Number of constraints visited exceeded the number reported by the FParticleCollisions object, and therefore exceeded the reserved constraint cache."));
+	}
+
+	FContactPairModifierParticleRange FCollisionContactModifier::GetContacts(FGeometryParticleHandle* Particle)
+	{
+		return FContactPairModifierParticleRange(this, Particle);
+	}
+
 	TArrayView<FPBDCollisionConstraint* const>& FCollisionContactModifier::GetConstraints()
 	{
 		return Constraints;

@@ -1083,4 +1083,86 @@ namespace ChaosTest
 		Module->DestroySolver(Solver);
 	}
 
+	GTEST_TEST(AllTraits, ContactModification_SelectByParticle)
+	{
+		FChaosSolversModule* Module = FChaosSolversModule::GetModule();
+		auto* Solver = Module->CreateSolver(nullptr, /*AsyncDt=*/-1);
+		InitSolverSettings(Solver);
+		Solver->SetThreadingMode_External(EThreadingModeTemp::SingleThread);
+
+		// Similar to the "Disable" test:
+		// - Create a static floor and two boxes falling onto it.
+		// - One box has contacts disabled and should fall through, one should collide.
+		// - Rather than loop over all contacts, get contacts for a particular particle proxy
+
+		// simulated cube with downward velocity,should collide with floor and not fall through.
+		FSingleParticlePhysicsProxy* CollidingCubeProxy = FSingleParticlePhysicsProxy::Create(Chaos::FPBDRigidParticle::CreateParticle());
+		auto& CollidingCubeParticle = CollidingCubeProxy->GetGameThreadAPI();
+		auto CollidingCubeGeom = TSharedPtr<FImplicitObject, ESPMode::ThreadSafe>(new TBox<FReal, 3>(FVec3(-100), FVec3(100)));
+		CollidingCubeParticle.SetGeometry(CollidingCubeGeom);
+		Solver->RegisterObject(CollidingCubeProxy);
+		CollidingCubeParticle.SetGravityEnabled(false);
+		CollidingCubeParticle.SetV(FVec3(0, 0, -100));
+		CollidingCubeParticle.SetX(FVec3(200, 0, 500));
+		SetCubeInertiaTensor(CollidingCubeParticle, /*Dimension=*/200, /*Mass=*/1);
+		ChaosTest::SetParticleSimDataToCollide({ CollidingCubeProxy->GetParticle_LowLevel() });
+
+		// Simulated cube with downawrd velocity, contact modification disables collision with floor, should fall through.
+		FSingleParticlePhysicsProxy* ModifiedCubeProxy = FSingleParticlePhysicsProxy::Create(Chaos::FPBDRigidParticle::CreateParticle());
+		auto& ModifiedCubeParticle = ModifiedCubeProxy->GetGameThreadAPI();
+		auto ModifiedCubeGeom = TSharedPtr<FImplicitObject, ESPMode::ThreadSafe>(new TBox<FReal, 3>(FVec3(-100), FVec3(100)));
+		ModifiedCubeParticle.SetGeometry(ModifiedCubeGeom);
+		Solver->RegisterObject(ModifiedCubeProxy);
+		ModifiedCubeParticle.SetGravityEnabled(false);
+		ModifiedCubeParticle.SetV(FVec3(0, 0, -100));
+		ModifiedCubeParticle.SetX(FVec3(-200, 0, 500));
+		SetCubeInertiaTensor(ModifiedCubeParticle, /*Dimension=*/200, /*Mass=*/1);
+		ChaosTest::SetParticleSimDataToCollide({ ModifiedCubeProxy->GetParticle_LowLevel() });
+
+		// static floor at origin, occupying Z = [-100,0]
+		FSingleParticlePhysicsProxy* FloorProxy = FSingleParticlePhysicsProxy::Create(Chaos::FGeometryParticle::CreateParticle());
+		auto& FloorParticle = FloorProxy->GetGameThreadAPI();
+		auto FloorGeom = TSharedPtr<FImplicitObject, ESPMode::ThreadSafe>(new TBox<FReal, 3>(FVec3(-500, -500, -100), FVec3(500, 500, 0)));
+		FloorParticle.SetGeometry(FloorGeom);
+		Solver->RegisterObject(FloorProxy);
+		FloorParticle.SetX(FVec3(0, 0, 0));
+		ChaosTest::SetParticleSimDataToCollide({ FloorProxy->GetParticle_LowLevel() });
+
+		// Save Unique indices of floor and modified cube to disable in contact mod.
+		TVec2<FUniqueIdx> UniqueIndices({ ModifiedCubeParticle.UniqueIdx(), FloorParticle.UniqueIdx() });
+
+		FContactModificationTestCallback* Callback = Solver->CreateAndRegisterSimCallbackObject_External<FContactModificationTestCallback>();
+		Callback->TestLambda = [UniqueIndices, ModifiedCubeProxy](Chaos::FCollisionContactModifier& Modifier)
+		{
+			Chaos::FGeometryParticleHandle* ModifiedCubeParticle = ModifiedCubeProxy->GetHandle_LowLevel();
+			for (FContactPairModifier& PairModifier : Modifier.GetContacts(ModifiedCubeParticle))
+			{
+				PairModifier.Disable();
+			}
+		};
+
+		const float Dt = 1.0f;
+		const int32 Steps = 10;
+		for (int Step = 0; Step < Steps; ++Step)
+		{
+			Solver->AdvanceAndDispatch_External(Dt);
+			Solver->UpdateGameThreadStructures();
+		}
+
+		// Modified cube should be below floor because we disabled collision.
+		EXPECT_LT(ModifiedCubeParticle.X().Z, FloorParticle.X().Z);
+
+		// Colliding cube should be above floor due to collision.
+		EXPECT_GT(CollidingCubeParticle.X().Z, FloorParticle.X().Z);
+
+		// Floor should be at origin.
+		EXPECT_EQ(FloorParticle.X().Z, 0);
+
+		Solver->UnregisterAndFreeSimCallbackObject_External(Callback);
+		Solver->UnregisterObject(CollidingCubeProxy);
+		Solver->UnregisterObject(ModifiedCubeProxy);
+		Solver->UnregisterObject(FloorProxy);
+		Module->DestroySolver(Solver);
+	}
+
 }

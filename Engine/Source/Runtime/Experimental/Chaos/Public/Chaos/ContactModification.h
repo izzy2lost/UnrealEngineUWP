@@ -323,6 +323,99 @@ namespace Chaos
 		FCollisionContactModifier* Modifier;
 		FContactPairModifier PairModifier;
 	};
+
+	/*
+	* Iterator for FContactPairModifierParticleRange
+	*/
+	class FContactPairModifierParticleRangeIterator
+	{
+	public:
+
+		FContactPairModifier& operator*()
+		{
+			return PairModifier;
+		}
+
+		FContactPairModifier* operator->()
+		{
+			return &PairModifier;
+		}
+
+		FContactPairModifierParticleRangeIterator& operator++()
+		{
+			++Index;
+
+			PairModifier
+				= IsValid()
+				? FContactPairModifier(Constraints[Index], *Modifier)
+				: FContactPairModifier();
+
+			return *this;
+		}
+
+		bool operator==(const FContactPairModifierParticleRangeIterator& Other)
+		{
+			return
+				&Constraints == &Other.Constraints &&
+				Index == Other.Index;
+		}
+
+		bool operator!=(const FContactPairModifierParticleRangeIterator& Other)
+		{
+			return !(*this == Other);
+		}
+
+		bool IsValid() const
+		{
+			return 0 <= Index && Index < Constraints.Num();
+		}
+
+	private:
+		FContactPairModifierParticleRangeIterator(FCollisionContactModifier* InModifier, TArray<FPBDCollisionConstraint*>& InConstraints, int32 InIndex)
+			: Modifier(InModifier)
+			, Constraints(InConstraints)
+			, Index(InIndex)
+		{
+			PairModifier
+				= IsValid()
+				? FContactPairModifier(Constraints[Index], *Modifier)
+				: FContactPairModifier();
+		}
+
+		FCollisionContactModifier* Modifier;
+		FContactPairModifier PairModifier;
+
+		TArray<FPBDCollisionConstraint*>& Constraints;
+		int32 Index;
+
+		// Befriend the range object so that it can create iterators
+		friend class FContactPairModifierParticleRange;
+	};
+
+	/*
+	* Interface for iterating over a range of contacts for a particular particle
+	*/
+	class FContactPairModifierParticleRange
+	{
+	public:
+		CHAOS_API FContactPairModifierParticleRangeIterator begin();
+		CHAOS_API FContactPairModifierParticleRangeIterator end();
+
+		FContactPairModifierParticleRange(FContactPairModifierParticleRange&& Other)
+			: Modifier(Other.Modifier)
+			, Particle(Other.Particle)
+			, Constraints(MoveTemp(Other.Constraints))
+		{ }
+
+	private:
+		FContactPairModifierParticleRange(FCollisionContactModifier* InModifier, FGeometryParticleHandle* InParticle);
+		FCollisionContactModifier* Modifier;
+		FGeometryParticleHandle* Particle;
+		TArray<FPBDCollisionConstraint*> Constraints;
+
+		// Befriend the modifier so that it can create ranges
+		friend class FCollisionContactModifier;
+	};
 	
 	/*
 	*  Provides interface for iterating over modifiable contact pairs
@@ -345,6 +438,8 @@ namespace Chaos
 
 		FContactPairModifierIterator End() const { return FContactPairModifierIterator(); }
 		FContactPairModifierIterator end() const { return FContactPairModifierIterator(); }
+
+		CHAOS_API FContactPairModifierParticleRange GetContacts(FGeometryParticleHandle* Particle);
 
 	private:
 		CHAOS_API TArrayView<FPBDCollisionConstraint* const>& GetConstraints();
