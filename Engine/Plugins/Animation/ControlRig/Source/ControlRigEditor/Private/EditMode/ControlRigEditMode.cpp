@@ -4423,6 +4423,10 @@ TArray<const UControlRig*> FControlRigEditMode::GetControlRigsArray(bool bIsVisi
 
 void FControlRigEditMode::RemoveControlRig(UControlRig* InControlRig)
 {
+	if (InControlRig == nullptr)
+	{
+		return;
+	}
 	InControlRig->ControlModified().RemoveAll(this);
 	InControlRig->GetHierarchy()->OnModified().RemoveAll(this);
 	InControlRig->OnPreConstructionForUI_AnyThread().RemoveAll(this);

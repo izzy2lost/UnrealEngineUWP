@@ -3981,7 +3981,7 @@ bool MovieSceneToolHelpers::ExportToAnimSequence(UAnimSequence* AnimSequence, UA
 	MovieSceneToolHelpers::BakeToSkelMeshToCallbacks(MovieScene,Player,
 		SkelMeshComp, Template, RootToLocalTransform, ExportOptions,
 		InitCallback, StartCallback, TickCallback, EndCallback);
-	return true;
+	return AnimSequence->GetDataModel()->HasBeenPopulated();
 }
 
 FSpawnableRestoreState::FSpawnableRestoreState(UMovieScene* MovieScene)
