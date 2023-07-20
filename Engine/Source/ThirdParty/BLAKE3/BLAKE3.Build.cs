@@ -35,7 +35,10 @@ public class BLAKE3 : ModuleRules
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, Target.Platform.ToString(), "Release", "libBLAKE3.a"));
-		}
+			string LibDir = (Target.Architecture == UnrealArch.IOSSimulator)
+				? "Simulator"
+				: "Release";
+
+			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "IOS", LibDir, "libBLAKE3.a"));		}
 	}
 }
