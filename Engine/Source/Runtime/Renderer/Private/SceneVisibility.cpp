@@ -2358,7 +2358,7 @@ bool FGPUOcclusionPacket::OcclusionCullPrimitive(VisitorType& Visitor, FOcclusio
 			{
 				if (bUseOcclusionFeedback)
 				{
-					bIsOccluded = OcclusionFeedback.IsOccluded(PrimitiveId);
+					bIsOccluded = OcclusionFeedback.IsOccluded(FPrimitiveOcclusionHistoryKey(PrimitiveId, SubQuery));
 					bOcclusionStateIsDefinite = true;
 				}
 				else if (OcclusionState.bHZBOcclusion)
@@ -2491,7 +2491,7 @@ bool FGPUOcclusionPacket::OcclusionCullPrimitive(VisitorType& Visitor, FOcclusio
 					const FVector BoundOrigin = OcclusionBounds.Origin + View.ViewMatrices.GetPreViewTranslation();
 					const FVector BoundExtent = OcclusionBounds.BoxExtent;
 
-					Visitor.AddOcclusionFeedback(FOcclusionFeedbackEntry(PrimitiveId, BoundOrigin, BoundExtent));
+					Visitor.AddOcclusionFeedback(FOcclusionFeedbackEntry(FPrimitiveOcclusionHistoryKey(PrimitiveId, SubQuery), BoundOrigin, BoundExtent));
 				}
 				else if (OcclusionState.bHZBOcclusion)
 				{
