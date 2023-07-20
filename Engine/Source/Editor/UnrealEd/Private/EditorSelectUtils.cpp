@@ -273,6 +273,12 @@ void UUnrealEdEngine::ResetPivot()
 /*-----------------------------------------------------------------------------
 	Selection.
 -----------------------------------------------------------------------------*/
+void UUnrealEdEngine::OnEditorSelectionPreChange(const UTypedElementSelectionSet* SelectionSet)
+{
+	// Clear active editing visualizer on selection change
+	ComponentVisManager.ClearActiveComponentVis();
+	VisualizersForSelection.Empty();
+}
 
 void UUnrealEdEngine::OnEditorElementSelectionPtrChanged(USelection* Selection, UTypedElementSelectionSet* OldSelectionSet, UTypedElementSelectionSet* NewSelectionSet)
 {
@@ -281,11 +287,13 @@ void UUnrealEdEngine::OnEditorElementSelectionPtrChanged(USelection* Selection, 
 		if (OldSelectionSet)
 		{
 			OldSelectionSet->OnChanged().RemoveAll(this);
+			OldSelectionSet->OnPreChange().RemoveAll(this);
 		}
 
 		if (NewSelectionSet)
 		{
 			NewSelectionSet->OnChanged().AddUObject(this, &UUnrealEdEngine::OnEditorElementSelectionChanged);
+			OldSelectionSet->OnPreChange().AddUObject(this, &UUnrealEdEngine::OnEditorSelectionPreChange);
 		}
 	}
 }
@@ -293,6 +301,76 @@ void UUnrealEdEngine::OnEditorElementSelectionPtrChanged(USelection* Selection, 
 
 void UUnrealEdEngine::OnEditorElementSelectionChanged(const UTypedElementSelectionSet* SelectionSet)
 {
+	auto GetVisualizersForSelection = [this](AActor* Actor, const UActorComponent* SelectedComponent)
+	{
+		// Iterate over components of that actor (and recurse through child components)
+		TInlineComponentArray<UActorComponent*> Components;
+		Actor->GetComponents(Components, true);
+
+		for (int32 CompIdx = 0; CompIdx < Components.Num(); CompIdx++)
+		{
+			UActorComponent* Comp = Components[CompIdx];
+			if (Comp->IsRegistered())
+			{
+				// Try and find a visualizer
+				TSharedPtr<FComponentVisualizer> Visualizer = FindComponentVisualizer(Comp->GetClass());
+				if (Visualizer.IsValid() && (Comp == SelectedComponent || Visualizer->ShouldShowForSelectedSubcomponents(Comp)))
+				{
+					FCachedComponentVisualizer CachedComponentVisualizer(Comp, Visualizer);
+					FComponentVisualizerForSelection Temp{ CachedComponentVisualizer };
+
+					FComponentVisualizerForSelection& ComponentVisualizerForSelection = VisualizersForSelection.Add_GetRef(MoveTemp(Temp));
+
+					if (Comp != SelectedComponent)
+					{
+						ComponentVisualizerForSelection.IsEnabledDelegate.Emplace([]() { return GetDefault<UEditorPerProjectUserSettings>()->bShowSelectionSubcomponents == true; });
+					}
+				}
+			}
+		}
+	};
+
+	UTypedElementSelectionSet* LevelEditorSelectionSet = GetSelectedActors()->GetElementSelectionSet();
+	TSet<AActor*> ActorsProcessed;
+	LevelEditorSelectionSet->ForEachSelectedObject<UActorComponent>([&ActorsProcessed, &GetVisualizersForSelection](UActorComponent* InActorComponent)
+		{
+			if (AActor* Actor = InActorComponent->GetOwner())
+			{
+				if (!ActorsProcessed.Contains(Actor))
+				{
+					GetVisualizersForSelection(Actor, InActorComponent);
+					ActorsProcessed.Emplace(Actor);
+				}
+			}
+			return true;
+		});
+
+	if (ActorsProcessed.Num() == 0)
+	{
+		LevelEditorSelectionSet->ForEachSelectedObject<AActor>([&GetVisualizersForSelection](AActor* InActor)
+			{
+				GetVisualizersForSelection(InActor, InActor->GetRootComponent());
+				return true;
+			});
+	}
+
+	// Restore the active component visualizer, since an undo/redo may have changed the selection
+	if (!ComponentVisManager.IsActive() && VisualizersForSelection.Num() > 0)
+	{
+		for (FComponentVisualizerForSelection& VisualizerForSelection : VisualizersForSelection)
+		{
+			if (VisualizerForSelection.ComponentVisualizer.Visualizer->GetEditedComponent() != nullptr)
+			{
+				ComponentVisManager.SetActiveComponentVis(GCurrentLevelEditingViewportClient, VisualizerForSelection.ComponentVisualizer.Visualizer);
+				break;
+			}
+		}
+	}
+
+#if PLATFORM_MAC
+	FPlatformApplicationMisc::bChachedMacMenuStateNeedsUpdate = true;
+#endif
+
 	NoteSelectionChange();
 }
 
@@ -393,9 +471,6 @@ void UUnrealEdEngine::NoteSelectionChange(bool bNotify)
 {
 	// The selection changed, so make sure the pivot (widget) is located in the right place
 	UpdatePivotLocationForSelection( true );
-
-	// Clear active editing visualizer on selection change
-	ComponentVisManager.ClearActiveComponentVis();
 
 	const bool bComponentSelectionChanged = GetSelectedComponentCount() > 0;
 	if (bNotify)

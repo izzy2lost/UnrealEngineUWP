@@ -137,8 +137,6 @@ void UUnrealEdEngine::Init(IEngineLoop* InEngineLoop)
 	FEditorSupportDelegates::PostWindowsMessage.AddUObject(this, &UUnrealEdEngine::OnPostWindowsMessage);
 
 	FHierarchicalInstancedStaticMeshDelegates::OnTreeBuilt.AddUObject(this, &UUnrealEdEngine::OnHISMTreeBuilt);
-
-	USelection::SelectionChangedEvent.AddUObject(this, &UUnrealEdEngine::OnEditorSelectionChanged);
 	USelection::SelectionElementSelectionPtrChanged.AddUObject(this, &UUnrealEdEngine::OnEditorElementSelectionPtrChanged);
 
 	// Initialize the snap manager
@@ -1476,101 +1474,6 @@ void UUnrealEdEngine::DrawComponentVisualizersHUD(const FViewport* Viewport, con
 			VisualizerForSelection.ComponentVisualizer.Visualizer->DrawVisualizationHUD(VisualizerForSelection.ComponentVisualizer.ComponentPropertyPath.GetComponent(), Viewport, View, Canvas);
 		}
 	}
-}
-
-void UUnrealEdEngine::OnEditorSelectionChanged(UObject* SelectionThatChanged)
-{
-	auto GetVisualizersForSelection = [this](AActor* Actor, const UActorComponent* SelectedComponent)
-	{
-		// Iterate over components of that actor (and recurse through child components)
-		TInlineComponentArray<UActorComponent*> Components;
-		Actor->GetComponents(Components, true);
-
-		for (int32 CompIdx = 0; CompIdx < Components.Num(); CompIdx++)
-		{
-			UActorComponent* Comp = Components[CompIdx];
-			if (Comp->IsRegistered())
-			{
-				// Try and find a visualizer
-				TSharedPtr<FComponentVisualizer> Visualizer = FindComponentVisualizer(Comp->GetClass());
-				if (Visualizer.IsValid() && (Comp == SelectedComponent || Visualizer->ShouldShowForSelectedSubcomponents(Comp)))
-				{
-					FCachedComponentVisualizer CachedComponentVisualizer(Comp, Visualizer);
-					FComponentVisualizerForSelection Temp{CachedComponentVisualizer};
-
-					FComponentVisualizerForSelection& ComponentVisualizerForSelection = VisualizersForSelection.Add_GetRef(MoveTemp(Temp));
-
-					if (Comp != SelectedComponent)
-					{
-						ComponentVisualizerForSelection.IsEnabledDelegate.Emplace([](){ return GetDefault<UEditorPerProjectUserSettings>()->bShowSelectionSubcomponents == true; });
-					}
-				}
-			}
-		}
-	};
-
-	const int32 SelectedComponentCount = GetSelectedComponents()->Num();
-	if (SelectionThatChanged == GetSelectedActors() && SelectedComponentCount == 0)
-	{
-		// actor selection changed.  Update the list of component visualizers
-		// This is expensive so we do not search for visualizers each time they want to draw
-		VisualizersForSelection.Empty();
-
-		// Iterate over all selected actors
-		for (FSelectionIterator It(GetSelectedActorIterator()); It; ++It)
-		{
-			AActor* Actor = Cast<AActor>(*It);
-			if (Actor != nullptr)
-			{
-				GetVisualizersForSelection(Actor, Actor->GetRootComponent());
-			}
-		}
-	}
-
-	// Do not proceed if the selection contains no components. This occurs when a component is
-	// deselected while selecting its owner actor. But a corresponding actor selection is not invoked
-	// so if the visualizers are cleared here, they will not be properly reset for the selected actor. 
-	else if (SelectionThatChanged == GetSelectedComponents() && SelectedComponentCount > 0)
-	{
-		if (USelection* Selection = Cast<USelection>(SelectionThatChanged))
-		{
-			VisualizersForSelection.Empty();
-
-			TArray<AActor*> ActorsProcessed;
-
-			// Iterate over all selected components
-			for (FSelectionIterator It(GetSelectedComponentIterator()); It; ++It)
-			{
-				if (UActorComponent* Comp = Cast<UActorComponent>(*It))
-				{
-					if (AActor* Actor = Comp->GetOwner())
-					{
-						if (!ActorsProcessed.Contains(Actor))
-						{
-							GetVisualizersForSelection(Actor, Comp);
-							ActorsProcessed.Emplace(Actor);
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// If there is an undo/redo operation in progress, restore the active component visualizer.
-	if (GIsTransacting)
-	{
-		for (FComponentVisualizerForSelection& VisualizerForSelection : VisualizersForSelection)
-		{
-			if (VisualizerForSelection.ComponentVisualizer.Visualizer->GetEditedComponent() != nullptr)
-			{
-				ComponentVisManager.SetActiveComponentVis(GCurrentLevelEditingViewportClient, VisualizerForSelection.ComponentVisualizer.Visualizer);
-				break;
-			}
-		}
-	}
-#if PLATFORM_MAC
-	FPlatformApplicationMisc::bChachedMacMenuStateNeedsUpdate = true;
-#endif
 }
 
 bool UUnrealEdEngine::HasMountWritePermissionForPackage(const FString& PackageName)

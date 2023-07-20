@@ -1149,22 +1149,6 @@ void UEditorEngine::ShowUndoRedoNotification(const FText& NotificationText, bool
 
 void UEditorEngine::HandleTransactorBeforeRedoUndo(const FTransactionContext& TransactionContext)
 {
-	//Get the list of all selected actors before the undo/redo is performed
-	OldSelectedActors.Empty();
-	for ( FSelectionIterator It( GetSelectedActorIterator() ) ; It ; ++It )
-	{
-		AActor* Actor = CastChecked<AActor>( *It );
-		OldSelectedActors.Add( Actor);
-	}
-
-	// Get the list of selected components as well
-	OldSelectedComponents.Empty();
-	for (FSelectionIterator It(GetSelectedComponentIterator()); It; ++It)
-	{
-		auto Component = CastChecked<UActorComponent>(*It);
-		OldSelectedComponents.Add(Component);
-	}
-
 	// Before an undo, store the current operation and hook on object transaction, if we do not have an outer operation already
 	if (CurrentUndoRedoContext->OperationDepth++ == 0)
 	{
@@ -1274,28 +1258,14 @@ UTransactor* UEditorEngine::CreateTrans()
 
 void UEditorEngine::PostUndo(bool)
 {
+	UTypedElementSelectionSet* LevelEditorSelection = GetSelectedActors()->GetElementSelectionSet();
+
 	// Cache any Actor that needs to be re-instanced because it still points to a REINST_ class
 	TMap< UClass*, UClass* > OldToNewClassMapToReinstance;
-
-	//Update the actor selection followed by the component selection if needed (note: order is important)
-		
-	//Get the list of all selected actors after the operation
-	TArray<AActor*> SelectedActors;
-	for (FSelectionIterator It(GetSelectedActorIterator()); It; ++It)
+	LevelEditorSelection->ForEachSelectedObject<AActor>([&OldToNewClassMapToReinstance](AActor* InActor)
 	{
-		AActor* Actor = CastChecked<AActor>(*It);
-		//if this actor is NOT in a hidden level add it to the list - otherwise de-select it
-		if (FLevelUtils::IsLevelLocked(Actor) == false)
-		{
-			SelectedActors.Add(Actor);
-		}
-		else
-		{
-			GetSelectedActors()->Select(Actor, false);
-		}
-
 		// If the Actor's Class is not the AuthoritativeClass, then it needs to be re-instanced
-		UClass* OldClass = Actor->GetClass();
+		UClass* OldClass = InActor->GetClass();
 		if (OldClass->HasAnyClassFlags(CLASS_NewerVersionExists))
 		{
 			UClass* NewClass = OldClass->GetAuthoritativeClass();
@@ -1306,101 +1276,8 @@ void UEditorEngine::PostUndo(bool)
 
 			OldToNewClassMapToReinstance.Add(OldClass, NewClass);
 		}
-	}
-
-	USelection* ActorSelection = GetSelectedActors();
-	ActorSelection->BeginBatchSelectOperation();
-
-	//Deselect all of the actors that were selected prior to the operation
-	for (int32 OldSelectedActorIndex = OldSelectedActors.Num() - 1; OldSelectedActorIndex >= 0; --OldSelectedActorIndex)
-	{
-		AActor* Actor = OldSelectedActors[OldSelectedActorIndex];
-
-		//To stop us from unselecting and then reselecting again (causing two force update components, we will remove (from both lists) any object that was selected and should continue to be selected
-		int32 FoundIndex;
-		if (SelectedActors.Find(Actor, FoundIndex))
-		{
-			OldSelectedActors.RemoveAt(OldSelectedActorIndex);
-			SelectedActors.RemoveAt(FoundIndex);
-		}
-		else
-		{
-			SelectActor(Actor, false, false);//First false is to deselect, 2nd is to notify
-			Actor->UpdateComponentTransforms();
-		}
-	}
-
-	//Select all of the actors in SelectedActors
-	for (int32 SelectedActorIndex = 0; SelectedActorIndex < SelectedActors.Num(); ++SelectedActorIndex)
-	{
-		AActor* Actor = SelectedActors[SelectedActorIndex];
-		SelectActor(Actor, true, false);	//false is to stop notify which is done below if bOpWasSuccessful
-		Actor->UpdateComponentTransforms();
-	}
-
-	OldSelectedActors.Empty();
-	ActorSelection->EndBatchSelectOperation();
-	
-	if (GetSelectedComponentCount() > 0)
-	{
-		//@todo Check to see if component owner is in a hidden level
-		
-		// Get a list of all selected components after the operation
-		TArray<UActorComponent*> SelectedComponents;
-		for (FSelectionIterator It(GetSelectedComponentIterator()); It; ++It)
-		{
-			SelectedComponents.Add(CastChecked<UActorComponent>(*It));
-		}
-		
-		USelection* ComponentSelection = GetSelectedComponents();
-		ComponentSelection->BeginBatchSelectOperation();
-
-		//Deselect all of the actors that were selected prior to the operation
-		for (int32 OldSelectedComponentIndex = OldSelectedComponents.Num() - 1; OldSelectedComponentIndex >= 0; --OldSelectedComponentIndex)
-		{
-			UActorComponent* Component = OldSelectedComponents[OldSelectedComponentIndex];
-
-			//To stop us from unselecting and then reselecting again (causing two force update components, we will remove (from both lists) any object that was selected and should continue to be selected
-			int32 FoundIndex;
-			if (SelectedComponents.Find(Component, FoundIndex))
-			{
-				OldSelectedComponents.RemoveAt(OldSelectedComponentIndex);
-				SelectedComponents.RemoveAt(FoundIndex);
-			}
-			else
-			{
-				// Deselect without any notification
-				SelectComponent(Component, false, false);
-
-				AActor* Owner = Component->GetOwner();
-				if (Owner && Owner->IsSelected())
-				{
-					// Synchronize selection with owner actors
-					SelectActor(Owner, false, false, true);
-				}
-			}
-		}
-
-		//Select all of the components left in SelectedComponents
-		for (int32 SelectedComponentIndex = 0; SelectedComponentIndex < SelectedComponents.Num(); ++SelectedComponentIndex)
-		{
-			UActorComponent* Component = SelectedComponents[SelectedComponentIndex];
-			SelectComponent(Component, true, false);	//false is to stop notify which is done below if bOpWasSuccessful
-
-			AActor* Owner = Component->GetOwner();
-			if (Owner && !Owner->IsSelected())
-			{
-				// Synchronize selection with owner actors
-				SelectActor(Owner, true, false, true);
-			}
-		}
-
-		OldSelectedComponents.Empty();
-
-		// We want to broadcast the component SelectionChangedEvent even if the selection didn't actually change
-		ComponentSelection->ForceBatchDirty();
-		ComponentSelection->EndBatchSelectOperation();
-	}
+		return true;
+	});
 
 	// Re-instance any actors that need it
 	FBlueprintCompileReinstancer::BatchReplaceInstancesOfClass(OldToNewClassMapToReinstance, FReplaceInstancesOfClassParameters());

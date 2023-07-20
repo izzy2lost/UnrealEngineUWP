@@ -2800,12 +2800,6 @@ private:
 	/** A temporary copy used to add resilience during the undo/redo broadcast. Used to allow unregistering of clients while the broadcast is happening.
 	 * DO NOT add to this set while a broadcast is happening. */
 	TSet<class FEditorUndoClient*> InflightUndoClients;
-	
-	/** List of actors that were selected before Undo/redo */
-	TArray<AActor*> OldSelectedActors;
-
-	/** List of components that were selected before Undo/redo */
-	TArray<UActorComponent*> OldSelectedComponents;
 
 	/** The notification item to use for undo/redo */
 	TSharedPtr<class SNotificationItem> UndoRedoNotificationItem;
