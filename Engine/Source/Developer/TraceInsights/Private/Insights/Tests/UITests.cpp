@@ -2,6 +2,8 @@
 
 #include "UITests.h"
 
+#include "HAL/PlatformFileManager.h"
+
 #include "Insights/Common/Stopwatch.h"
 
 #include "TraceServices/Model/TimingProfiler.h"
@@ -10,6 +12,7 @@
 #include "Insights/TimingProfilerManager.h"
 #include "Insights/ViewModels/TimeFilterValueConverter.h"
 #include "Insights/Widgets/STimingProfilerWindow.h"
+#include "Insights/Widgets/SStartPageWindow.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +43,104 @@ bool FHideAndShowAllTimingViewTabs::RunTest(const FString& Parameters)
 	TimingProfilerManager->ShowHideTimersView(true);
 
 	return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// TestRail: C28843555
+void FAutomaticRenamingAndDeletingOfSymbolCacheFilesInsightsTest::Define()
+{
+	BeforeEach([this]() {
+		if (IAutomationDriverModule::Get().IsEnabled())
+		{
+			IAutomationDriverModule::Get().Disable();
+		}
+
+		IAutomationDriverModule::Get().Enable();
+
+		Driver = IAutomationDriverModule::Get().CreateDriver();
+
+		});
+	Describe("Make sure the user can rename and delete trace with automatic cache deletion", [this]()
+		{
+
+			It("Copy, rename and delete", EAsyncExecution::ThreadPool, [this]()
+				{
+					FDriverElementRef MinimizeWindowButton = Driver->FindElements(By::Id("launcher-minimizeWindowButton"))->GetElements()[0];
+					MinimizeWindowButton->Click();
+
+					IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+					TSharedPtr<FInsightsManager> InsightsManager = FInsightsManager::Get();
+					TestTrue("Insigts manager should not be null", InsightsManager.IsValid());
+					InsightsManager->GetTraceStoreWindow()->SetDeleteTraceConfirmationWindowVisibility(false);
+
+					FString StoreDir = InsightsManager->GetStoreDir();
+					FString ProjectDir = FPaths::ProjectDir();
+
+					const FString SourceTestTracePath = ProjectDir + TEXT("SourceAssets/UTraces/Test.utrace");
+					const FString SourceTestCachePath = ProjectDir + TEXT("SourceAssets/UCaches/Test.ucache");
+
+					FString StoreTestTracePath = StoreDir / TEXT("Test.utrace");
+					FString StoreTestCachePath = StoreDir / TEXT("Test.ucache");
+
+					TestTrue("Trace in project exists", PlatformFile.FileExists(*SourceTestTracePath));
+					TestTrue("Cache in project exists", PlatformFile.FileExists(*SourceTestCachePath));
+
+					TestFalse("Trace in store should not exist before copy", PlatformFile.FileExists(*StoreTestTracePath));
+					TestFalse("Cache in store should not exist before copy", PlatformFile.FileExists(*StoreTestCachePath));
+
+					// Copy trace
+					// Here we just check that button can be clicked. Unable to copy and paste via Automation Driver 
+					FDriverElementRef ExploreTraceStoreDirButton = Driver->FindElement(By::Id("ExploreTraceStoreDirButton"));
+					TestTrue("Explore Trace Store Dir Button clicked", ExploreTraceStoreDirButton->IsInteractable());
+
+					PlatformFile.CopyFile(*StoreTestTracePath, *SourceTestTracePath);
+					PlatformFile.CopyFile(*StoreTestCachePath, *SourceTestCachePath);
+
+					TestTrue("Trace copied", PlatformFile.FileExists(*StoreTestTracePath));
+					TestTrue("Cache copied", PlatformFile.FileExists(*StoreTestCachePath));
+
+					StoreTestTracePath = StoreDir / TEXT("TestUcacheRenaming.utrace");
+					StoreTestCachePath = StoreDir / TEXT("TestUcacheRenaming.ucache");
+
+					TestFalse("Renamed trace should not exist before renaming", PlatformFile.FileExists(*StoreTestTracePath));
+					TestFalse("Renamed cache should not exist before renaming", PlatformFile.FileExists(*StoreTestCachePath));
+
+					// Rename 
+					auto TraceWaiter = [Driver = Driver](void) -> bool {
+						return Driver->FindElements(By::Id("TraceList"))->GetElements()[0]->GetText().ToString() == TEXT("Test");
+					};
+					Driver->Wait(Until::Condition(TraceWaiter, FWaitTimeout::InSeconds(3)));
+					FDriverElementRef TraceElement = Driver->FindElements(By::Id("TraceList"))->GetElements()[0];
+
+					FDriverSequenceRef Sequence = Driver->CreateSequence();
+					Sequence->Actions()
+						.Click(TraceElement)
+						.Type(EKeys::F2)
+						.Type(TEXT("UcacheRenaming"))
+						.Type(EKeys::Enter);
+
+					TestTrue("Trace renamed", Sequence->Perform());
+
+					TestTrue("Renamed trace should exist", PlatformFile.FileExists(*StoreTestTracePath));
+					TestTrue("Renamed cache should exist", PlatformFile.FileExists(*StoreTestCachePath));
+
+					// Delete
+					FDriverElementRef OpenTraceButton = Driver->FindElement(By::Id("OpenTraceButton"));
+					Driver->Wait(Until::ElementIsInteractable(OpenTraceButton, FWaitTimeout::InSeconds(5)));
+
+					TraceElement = Driver->FindElements(By::Id("TraceList"))->GetElements()[0];
+					TraceElement->Type(EKeys::Delete);
+
+					TestFalse("Renamed trace should be deleted", PlatformFile.FileExists(*StoreTestTracePath));
+					TestFalse("Renamed cache should be deleted", PlatformFile.FileExists(*StoreTestCachePath));
+				});
+		});
+
+	AfterEach([this]() {
+		Driver.Reset();
+		IAutomationDriverModule::Get().Disable();
+	});
 }
 
 #endif // !WITH_EDITOR

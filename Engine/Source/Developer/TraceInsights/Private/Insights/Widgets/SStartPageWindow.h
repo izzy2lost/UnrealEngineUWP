@@ -278,6 +278,7 @@ public:
 
 	void OnFilterChanged();
 	const TArray<TSharedPtr<FTraceViewModel>>& GetAllAvailableTraces() const;
+	void SetDeleteTraceConfirmationWindowVisibility(bool bIsVisibile);
 
 private:
 	TSharedRef<SWidget> ConstructFiltersToolbar();
@@ -490,6 +491,10 @@ private:
 
 	void ShowSuccessMessage(FText& InMessage);
 	void ShowFailMessage(FText& InMessage);
+
+public:
+	/** Parameter that controls the visibility of the confirmation window in case the trace is deleted. */
+	bool bIsDeleteTraceConfirmWindowVisible = true;
 
 private:
 	/** Widget for the non-intrusive notifications. */

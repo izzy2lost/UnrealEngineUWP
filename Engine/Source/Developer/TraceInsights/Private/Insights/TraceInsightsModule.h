@@ -76,6 +76,7 @@ public:
 
 	virtual void InitializeTesting(bool InInitAutomationModules, bool InAutoQuit) override;
 	virtual void ScheduleCommand(const FString& InCmd) override;
+	virtual void RunAutomationTest(const FString& InCmd) override;
 	virtual bool Exec(const TCHAR* Cmd, FOutputDevice& Ar) override;
 
 protected:

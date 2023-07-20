@@ -300,19 +300,18 @@ void FUserInterfaceCommand::InitializeSlateApplication(bool bOpenTraceFile, cons
 		bUseCustomStoreAddress = true;
 	}
 
+	// This parameter will cause the application to close when analysis fails to start or completes successfully.
+	const bool bAutoQuit = FParse::Param(FCommandLine::Get(), TEXT("AutoQuit"));
+
 	const bool bInitializeTesting = FParse::Param(FCommandLine::Get(), TEXT("InsightsTest"));
+	if (bInitializeTesting)
+	{
+		const bool bInitAutomationModules = true;
+		TraceInsightsModule.InitializeTesting(bInitAutomationModules, bAutoQuit);
+	}
 
 	if (bUseTraceId || bOpenTraceFile) // viewer mode
 	{
-		// This parameter will cause the application to close when analysis fails to start or completes successfully.
-		const bool bAutoQuit = FParse::Param(FCommandLine::Get(), TEXT("AutoQuit"));
-
-		if (bInitializeTesting)
-		{
-			const bool bInitAutomationModules = true;
-			TraceInsightsModule.InitializeTesting(bInitAutomationModules, bAutoQuit);
-		}
-
 		TCHAR Cmd[1024];
 		bool bExecuteCommand = false;
 		if (FParse::Value(FCommandLine::Get(), TEXT("-ExecOnAnalysisCompleteCmd="), Cmd, 1024, false))
@@ -342,6 +341,14 @@ void FUserInterfaceCommand::InitializeSlateApplication(bool bOpenTraceFile, cons
 	}
 	else // browser mode
 	{
+
+		TCHAR Cmd[1024];
+		bool bExecuteCommand = false;
+		if (FParse::Value(FCommandLine::Get(), TEXT("-ExecBrowserAutomationTest="), Cmd, 1024, false))
+		{
+			bExecuteCommand = true;
+		}
+
 		if (bUseCustomStoreAddress)
 		{
 			TraceInsightsModule.ConnectToStore(StoreHost, StorePort);
@@ -356,6 +363,11 @@ void FUserInterfaceCommand::InitializeSlateApplication(bool bOpenTraceFile, cons
 		Params.bInitializeTesting = bInitializeTesting;
 		Params.bStartProcessWithStompMalloc = FParse::Param(FCommandLine::Get(), TEXT("stompmalloc"));
 		TraceInsightsModule.CreateSessionBrowser(Params);
+
+		if (bExecuteCommand)
+		{
+			TraceInsightsModule.RunAutomationTest(Cmd);
+		}
 	}
 
 	delete[] StoreHost;

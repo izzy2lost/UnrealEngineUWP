@@ -53,6 +53,9 @@
 #include "Insights/Widgets/SInsightsSettings.h"
 #include "Insights/Widgets/SLazyToolTip.h"
 
+// Driver
+#include "Framework/MetaData/DriverMetaData.h"
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #define LOCTEXT_NAMESPACE "STraceStoreWindow"
@@ -123,6 +126,7 @@ public:
 					.HighlightColor(FLinearColor(0.75f, 0.75f, 0.75f, 1.0f))
 					.HighlightShape(FInsightsStyle::Get().GetBrush("DarkGreenBrush"))
 					.ToolTip(STraceListRow::GetTraceTooltip())
+			     	.AddMetaData(FDriverMetaData::Id("TraceList"))
 				]
 
 				+ SOverlay::Slot()
@@ -217,6 +221,7 @@ public:
 					SNew(STextBlock)
 					.Text(this, &STraceListRow::GetTraceStatus)
 					.ToolTip(STraceListRow::GetTraceTooltip())
+					.AddMetaData(FDriverMetaData::Id("TraceStatusColumnList"))
 					.ColorAndOpacity(FStyleColors::AccentRed)
 				];
 		}
@@ -1604,6 +1609,7 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructLoadPanel()
 		.IsEnabled(this, &STraceStoreWindow::Open_IsEnabled)
 		.OnClicked(this, &STraceStoreWindow::Open_OnClicked)
 		.ToolTipText(LOCTEXT("OpenButtonTooltip", "Start analysis for selected trace session."))
+		.AddMetaData(FDriverMetaData::Id("OpenTraceButton"))
 		.ContentPadding(FMargin(0.0f, 0.0f, 0.0f, 0.0f))
 		.Content()
 		[
@@ -1721,6 +1727,7 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructTraceStoreDirectoryPanel()
 				.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("SimpleButton"))
 				.ToolTipText(LOCTEXT("ExploreTraceStoreDirButtonToolTip", "Explore the Trace Store Directory"))
 				.OnClicked(this, &STraceStoreWindow::ExploreTraceStoreDirectory_OnClicked)
+				.AddMetaData(FDriverMetaData::Id("ExploreTraceStoreDirButton"))
 				.IsEnabled_Static(&STraceStoreWindow::CanChangeStoreSettings)
 				[
 					SNew(SImage)
@@ -2011,14 +2018,17 @@ void STraceStoreWindow::DeleteTraceFile()
 
 	FString TraceFile = SelectedTrace->Uri.ToString();
 
-	//TODO: Make a custom OkCancel modal dialog. See FSlateApplication::Get().AddModalWindow(..).
-	FText Title = LOCTEXT("ConfirmToDeleteTraceFile_Title", "Unreal Insights");
-	FText ConfirmMessage = FText::Format(LOCTEXT("ConfirmToDeleteTraceFile", "You are about to delete the utrace file:\n{0}\n\nPress Ok to continue."),
-		FText::FromString(TraceFile));
-	EAppReturnType::Type OkToDelete = FMessageDialog::Open(EAppMsgType::OkCancel, ConfirmMessage, Title);
-	if (OkToDelete == EAppReturnType::Cancel)
+	if (bIsDeleteTraceConfirmWindowVisible)
 	{
-		return;
+		//TODO: Make a custom OkCancel modal dialog. See FSlateApplication::Get().AddModalWindow(..).
+		FText Title = LOCTEXT("ConfirmToDeleteTraceFile_Title", "Unreal Insights");
+		FText ConfirmMessage = FText::Format(LOCTEXT("ConfirmToDeleteTraceFile", "You are about to delete the utrace file:\n{0}\n\nPress Ok to continue."),
+			FText::FromString(TraceFile));
+		EAppReturnType::Type OkToDelete = FMessageDialog::Open(EAppMsgType::OkCancel, ConfirmMessage, Title);
+		if (OkToDelete == EAppReturnType::Cancel)
+		{
+			return;
+		}
 	}
 
 	FString TraceName = SelectedTrace->Name.ToString();
@@ -2291,6 +2301,13 @@ void STraceStoreWindow::RefreshTraceList()
 		UE_LOG(TraceInsights, Log, TEXT("[TraceStore] The trace list refreshed in %.0f ms (%d traces : %d updated, %d added, %d removed)."),
 			Duration * 1000.0, TraceViewModels.Num(), UpdatedTraces, AddedTraces, RemovedTraces);
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STraceStoreWindow::SetDeleteTraceConfirmationWindowVisibility(bool bIsVisibile)
+{
+	bIsDeleteTraceConfirmWindowVisible = bIsVisibile;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2792,6 +2809,21 @@ TSharedRef<SWidget> STraceStoreWindow::MakeTraceListMenu()
 
 	MenuBuilder.BeginSection("DebugOptions", LOCTEXT("TraceListMenu_Section_DebugOptions", "Debug Options"));
 
+	if (FGlobalTabmanager::Get()->HasTabSpawner(FInsightsManagerTabs::AutomationWindowTabId))
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("Automation", "Automation"),
+			TAttribute<FText>(), // no tooltip
+			FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.TestAutomation"),
+			FUIAction(FExecuteAction::CreateLambda([this]()
+				{
+					FGlobalTabmanager::Get()->TryInvokeTab(FInsightsManagerTabs::AutomationWindowTabId);
+				})),
+			NAME_None,
+					EUserInterfaceActionType::Button
+					);
+	}
+
 	// Enable Automation Tests Option.
 	{
 		FUIAction ToogleAutomationTestsAction;
@@ -2805,7 +2837,7 @@ TSharedRef<SWidget> STraceStoreWindow::MakeTraceListMenu()
 			});
 
 		MenuBuilder.AddMenuEntry(
-			LOCTEXT("EnableAutomatedTesting", "Enable Automation Testing"),
+			LOCTEXT("EnableAutomatedTesting", "Enable Session Automation Testing"),
 			LOCTEXT("EnableAutomatedTestingDesc", "Activates the automatic test system for new sessions opened from this window."),
 			FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.TestAutomation"),
 			ToogleAutomationTestsAction,

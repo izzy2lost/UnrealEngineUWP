@@ -11,6 +11,7 @@ public class TraceInsights : ModuleRules
 			new string[] {
 				"AppFramework", // for SColorPicker
 				"ApplicationCore",
+				"AutomationDriver",
 				"Cbor",
 				"Core",
 				"CoreUObject",
@@ -26,7 +27,7 @@ public class TraceInsights : ModuleRules
 				"TraceServices",
 				"WorkspaceMenuStructure",
 				"XmlParser",
-			}
+		}
 		);
 
 		//Modules required for running automation in stand alone Insights

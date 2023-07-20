@@ -606,6 +606,24 @@ void FTraceInsightsModule::ScheduleCommand(const FString& InCmd)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void FTraceInsightsModule::RunAutomationTest(const FString& InCmd)
+{
+#if !UE_BUILD_SHIPPING && !WITH_EDITOR
+	FString ActualCmd = InCmd;
+	ActualCmd.TrimCharInline(TEXT('\"'), nullptr);
+	ActualCmd.TrimCharInline(TEXT('\''), nullptr);
+
+	if (ActualCmd.StartsWith(TEXT("Automation RunTests")))
+	{
+		FInsightsTestRunner::Get()->ScheduleCommand(ActualCmd);
+		FInsightsTestRunner::Get()->RunTests();
+		return;
+	}
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 bool FTraceInsightsModule::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 {
 	for (TSharedRef<IInsightsComponent>& Component : Components)

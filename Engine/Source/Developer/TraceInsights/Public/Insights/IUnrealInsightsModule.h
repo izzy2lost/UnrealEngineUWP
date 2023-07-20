@@ -278,6 +278,11 @@ public:
 	virtual void ScheduleCommand(const FString& InCmd) = 0;
 
 	/**
+	* Called to run automation test in Insights.
+	*/
+	virtual void RunAutomationTest(const FString& InCmd) = 0;
+
+	/**
 	* Called to initialize testing in stand alone Insights.
 	 * @param InInitAutomationModules If true Insights will initialize the modules required for running automation tests.
 	 * @param InAutoQuit If true Insights will close after completing session analysis and running any tests started using the ScheduleCommand function.
