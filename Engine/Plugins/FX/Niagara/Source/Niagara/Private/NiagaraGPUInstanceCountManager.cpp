@@ -654,24 +654,27 @@ bool FNiagaraGPUInstanceCountManager::HasPendingGPUReadback() const
 
 void FNiagaraGPUInstanceCountManager::CopyToMultiViewCountBuffer(FRHICommandListImmediate& RHICmdList)
 {
-	// Need to copy on all GPUs
-	SCOPED_GPU_MASK(RHICmdList, FRHIGPUMask::All());
-
-	// Set AllocatedInstanceCounts and copy CountBuffer
-	if (MultiViewAllocatedInstanceCounts != AllocatedInstanceCounts)
+	if (AllocatedInstanceCounts > 0)
 	{
-		MultiViewAllocatedInstanceCounts = AllocatedInstanceCounts;
-		MultiViewCountBuffer.Initialize(RHICmdList, TEXT("NiagaraGPUInstanceCounts"), sizeof(uint32), MultiViewAllocatedInstanceCounts, EPixelFormat::PF_R32_UINT, ERHIAccess::UAVCompute, BUF_Static | BUF_SourceCopy);
-	}
-	else
-	{
-		RHICmdList.Transition(FRHITransitionInfo(MultiViewCountBuffer.UAV, kCountBufferDefaultState, ERHIAccess::UAVCompute));
-	}
+		// Need to copy on all GPUs
+		SCOPED_GPU_MASK(RHICmdList, FRHIGPUMask::All());
 
-	FRHIUnorderedAccessView* UAVs[] = { MultiViewCountBuffer.UAV };
-	int32 UsedIndexCounts[] = { MultiViewAllocatedInstanceCounts };
-	CopyUIntBufferToTargets(RHICmdList, FeatureLevel, CountBuffer.SRV, UAVs, UsedIndexCounts, 0, UE_ARRAY_COUNT(UAVs));
+		// Set AllocatedInstanceCounts and copy CountBuffer
+		if (MultiViewAllocatedInstanceCounts != AllocatedInstanceCounts)
+		{
+			MultiViewAllocatedInstanceCounts = AllocatedInstanceCounts;
+			MultiViewCountBuffer.Initialize(RHICmdList, TEXT("NiagaraGPUInstanceCounts"), sizeof(uint32), MultiViewAllocatedInstanceCounts, EPixelFormat::PF_R32_UINT, ERHIAccess::UAVCompute, BUF_Static | BUF_SourceCopy);
+		}
+		else
+		{
+			RHICmdList.Transition(FRHITransitionInfo(MultiViewCountBuffer.UAV, kCountBufferDefaultState, ERHIAccess::UAVCompute));
+		}
 
-	RHICmdList.Transition(FRHITransitionInfo(MultiViewCountBuffer.UAV, ERHIAccess::UAVCompute, kCountBufferDefaultState));
+		FRHIUnorderedAccessView* UAVs[] = { MultiViewCountBuffer.UAV };
+		int32 UsedIndexCounts[] = { MultiViewAllocatedInstanceCounts };
+		CopyUIntBufferToTargets(RHICmdList, FeatureLevel, CountBuffer.SRV, UAVs, UsedIndexCounts, 0, UE_ARRAY_COUNT(UAVs));
+
+		RHICmdList.Transition(FRHITransitionInfo(MultiViewCountBuffer.UAV, ERHIAccess::UAVCompute, kCountBufferDefaultState));
+	}
 }
 
