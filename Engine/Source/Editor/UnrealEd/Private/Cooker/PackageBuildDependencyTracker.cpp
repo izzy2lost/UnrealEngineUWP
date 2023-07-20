@@ -47,18 +47,18 @@ void FPackageBuildDependencyTracker::DumpStats() const
 			++ReferenceCount;
 		}
 	}
-	UE_LOG(LogPackageBuildDependencyTracker, Display, TEXT("Package Accesses (%u referencing packages with a total of %u unique accesses)"), ReferencingPackageCount, ReferenceCount);
+	UE_LOG(LogPackageBuildDependencyTracker, Log, TEXT("Package Accesses (%u referencing packages with a total of %u unique accesses)"), ReferencingPackageCount, ReferenceCount);
 
 	constexpr bool bDetailedDump = false;
 	if (bDetailedDump)
 	{
-		UE_LOG(LogPackageBuildDependencyTracker, Display, TEXT("========================================================================="));
+		UE_LOG(LogPackageBuildDependencyTracker, Log, TEXT("========================================================================="));
 		for (const TPair<FName, TSet<FBuildDependencyAccessData>>& PackageAccessRecord : Records)
 		{
-			UE_LOG(LogPackageBuildDependencyTracker, Display, TEXT("%s:"), *PackageAccessRecord.Key.ToString());
+			UE_LOG(LogPackageBuildDependencyTracker, Log, TEXT("%s:"), *PackageAccessRecord.Key.ToString());
 			for (const FBuildDependencyAccessData& AccessedData : PackageAccessRecord.Value)
 			{
-				UE_LOG(LogPackageBuildDependencyTracker, Display, TEXT("    %s"), *AccessedData.ReferencedPackage.ToString());
+				UE_LOG(LogPackageBuildDependencyTracker, Log, TEXT("    %s"), *AccessedData.ReferencedPackage.ToString());
 			}
 		}
 	}
