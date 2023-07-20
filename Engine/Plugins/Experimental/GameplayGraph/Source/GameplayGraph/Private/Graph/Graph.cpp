@@ -186,10 +186,29 @@ FGraphEdgeHandle UGraph::CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle
 	// If we want to keep track of islands, this is where we need to create/merge islands.
 	if (Properties.bGenerateIslands && bAddToIslands)
 	{
-		MergeOrCreateIslands(Edge);
+		MergeOrCreateIslands({ Edge->Handle() });
 	}
 
 	return Edge->Handle();
+}
+
+void UGraph::CreateBulkEdges(TArray<TPair<FGraphVertexHandle, FGraphVertexHandle>>&& NodesToConnect)
+{
+	// Create all edges normally but don't call MergeOrCreateIslands yet. We'll use the bulk function instead.
+	TArray<FGraphEdgeHandle> NewEdges;
+	NewEdges.Reserve(NodesToConnect.Num());
+
+	for (const TPair<FGraphVertexHandle, FGraphVertexHandle>& NodePair : NodesToConnect)
+	{
+		if (FGraphEdgeHandle Edge = CreateEdge(NodePair.Key, NodePair.Value, -1, false); Edge.IsValid())
+		{
+			NewEdges.Add(Edge);
+		}
+	}
+
+	// MergeOrCreateIslands incrementally determines island connectivity one edge at a time. This is efficient if we're handling a single edge but less
+	// efficient if we're trying to add a bunch of edges all at the same time since it'll cause a vertex to jump between islands. The Bulk function helps prevent that.
+	MergeOrCreateIslands(MoveTemp(NewEdges));
 }
 
 void UGraph::RegisterEdge(TObjectPtr<UGraphEdge> Edge)
@@ -265,64 +284,217 @@ void UGraph::RemoveIsland(const FGraphIslandHandle& IslandHandle)
 	Islands.Remove(IslandHandle);
 }
 
-void UGraph::MergeOrCreateIslands(TObjectPtr<UGraphEdge> Edge)
+void UGraph::MergeOrCreateIslands(TArray<FGraphEdgeHandle>&& InEdges)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::MergeOrCreateIslands);
-	if (!Edge)
+	if (Edges.IsEmpty())
 	{
 		return;
 	}
 
-	FGraphVertexHandle AHandle = Edge->NodeA();
-	FGraphVertexHandle BHandle = Edge->NodeB();
+	// Every vertex needs to track which new island it's going to be in. This can either be an existing island or a completely new island.
+	// This function guarantees that any vertex gets *actually* added into an island exactly once. We're guaranteed that after this function,
+	// every affected vertex is in an island. So the FGraphIslandHandle either points to an existing island (in which case the vertex should be
+	// added to that island) or an invalid island (in which case the vertex is going to be added into a new island). Note that we can assume that
+	// the island IDs will never be negative (and -1 is reserved for "invalid") so we can represent temporary islands as having IDs of -2, -3, etc.
+	TMap<FGraphVertexHandle, FGraphIslandHandle> VertexIslandChanges;
+	VertexIslandChanges.Reserve(InEdges.Num());
 
-	TObjectPtr<UGraphVertex> NodeA = AHandle.GetVertex();
-	TObjectPtr<UGraphVertex> NodeB = BHandle.GetVertex();
-	if (!NodeA || !NodeB)
+	TMap<FGraphIslandHandle, TSet<FGraphVertexHandle>> IslandVertexAdditions;
+	TMap<FGraphIslandHandle, int32> IslandSizeOverride;
+
+	int64 NextTemporaryIslandId = -2;
+
+	auto IsIslandTemporary = [](const FGraphIslandHandle& Handle)
 	{
-		return;
-	}
+		return Handle.GetUniqueIndex() <= -2;
+	};
 
-	FGraphIslandHandle IslandHandleA = NodeA->GetParentIsland();
-	FGraphIslandHandle IslandHandleB = NodeB->GetParentIsland();
-
-	TObjectPtr<UGraphIsland> IslandA = IslandHandleA.GetIsland();
-	TObjectPtr<UGraphIsland> IslandB = IslandHandleB.GetIsland();
-
-	if (IslandHandleA.IsValid() && IslandHandleB.IsValid() && IslandHandleA != IslandHandleB)
+	auto GetIslandSize = [&IslandVertexAdditions, &IsIslandTemporary, &IslandSizeOverride](const FGraphIslandHandle& Handle)
 	{
-		check(IslandA != nullptr && IslandB != nullptr);
-		// Both are in separate, valid islands - merge islands into a single one. Note that this operation
-		// will remove all vertices from the "other" island. Therefore we want to make sure we keep the larger island.
-		const int32 SizeA = IslandA->Num();
-		const int32 SizeB = IslandB->Num();
-
-		TObjectPtr<UGraphIsland> ToKeepIsland = (SizeA < SizeB) ? IslandB : IslandA;
-		TObjectPtr<UGraphIsland> ToRemoveIsland = (SizeA < SizeB) ? IslandA : IslandB;
-
-		ToKeepIsland->MergeWith(ToRemoveIsland);
-		RemoveIsland(ToRemoveIsland->Handle());
-	}
-	else if (IslandHandleA.IsValid() && !IslandHandleB.IsValid())
-	{
-		// Only A is in an island, go into island A.
-		if (ensure(IslandA != nullptr))
+		if (IsIslandTemporary(Handle))
 		{
-			IslandA->AddVertex(BHandle);
+			return IslandVertexAdditions.FindRef(Handle).Num();
+		}
+		else if (int32* Size = IslandSizeOverride.Find(Handle))
+		{
+			return *Size;
+		}
+		else if (TObjectPtr<UGraphIsland> Island = Handle.GetIsland())
+		{
+			return Island->Num();
+		}
+		return 0;
+	};
+
+	auto RecacheIslandSize = [&IsIslandTemporary, &IslandVertexAdditions, &IslandSizeOverride](const FGraphIslandHandle& Handle, int32 Delta)
+	{
+		if (IsIslandTemporary(Handle))
+		{
+			return;
+		}
+
+		if (!IslandSizeOverride.Contains(Handle))
+		{
+			int32 Size = 0;
+			if (TObjectPtr<UGraphIsland> Island = Handle.GetIsland())
+			{
+				Size += Island->Num();
+			}
+
+			IslandSizeOverride.Add(Handle, Size);
+		}
+
+		IslandSizeOverride.Add(Handle, IslandSizeOverride.FindRef(Handle) + Delta);
+	};
+
+	auto ForEveryVertexInIsland = [&IslandVertexAdditions]<typename TLambda>(const FGraphIslandHandle& IslandHandle, TLambda&& Func)
+	{
+		// We need to always iterate over all the vertices in IslandVertexAdditions.
+		for (const FGraphVertexHandle& VertexHandle : IslandVertexAdditions.FindRef(IslandHandle))
+		{
+			Func(VertexHandle);
+		}
+
+		// Is this is a real non-temporary island, we need to iterate over its vertices too. Note that we don't need to
+		// keep track of island vertex removals since we never do partial removal from an island. If an island is being removed,
+		// all its vertices are being moved into a different island.
+		if (TObjectPtr<UGraphIsland> Island = IslandHandle.GetIsland())
+		{
+			for (const FGraphVertexHandle& VertexHandle : Island->GetVertices())
+			{
+				Func(VertexHandle);
+			}
+		}
+	};
+
+	for (const FGraphEdgeHandle& EdgeHandle : InEdges)
+	{
+		if (!EdgeHandle.IsComplete())
+		{
+			continue;
+		}
+
+		TObjectPtr<UGraphEdge> Edge = EdgeHandle.GetEdge();
+		const FGraphVertexHandle& AHandle = Edge->NodeA();
+		const FGraphVertexHandle& BHandle = Edge->NodeB();
+
+		TObjectPtr<UGraphVertex> NodeA = AHandle.GetVertex();
+		TObjectPtr<UGraphVertex> NodeB = BHandle.GetVertex();
+		if (!NodeA || !NodeB)
+		{
+			return;
+		}
+
+		FGraphIslandHandle IslandHandleA = VertexIslandChanges.FindRef(AHandle);
+		if (!IslandHandleA.IsValid())
+		{
+			IslandHandleA = NodeA->GetParentIsland();
+		}
+
+		FGraphIslandHandle IslandHandleB = VertexIslandChanges.FindRef(BHandle);
+		if (!IslandHandleB.IsValid())
+		{
+			IslandHandleB = NodeB->GetParentIsland();
+		}
+
+		if (IslandHandleA.IsValid() && IslandHandleB.IsValid() && IslandHandleA != IslandHandleB)
+		{
+			// We need to move all the vertices in one island to the other.
+			FGraphIslandHandle ToKeepIsland;
+			FGraphIslandHandle ToRemoveIsland;
+
+			const bool bIsATemporary = IsIslandTemporary(IslandHandleA);
+			const bool bIsBTemporary = IsIslandTemporary(IslandHandleB);
+			if (bIsATemporary == bIsBTemporary)
+			{
+				// In the case both islands are not temporary (or both are temporary), choose the larger island to add to.
+				const int32 SizeA = GetIslandSize(IslandHandleA);
+				const int32 SizeB = GetIslandSize(IslandHandleB);
+				ToKeepIsland = (SizeA > SizeB) ? IslandHandleA : IslandHandleB;
+				ToRemoveIsland = (SizeA > SizeB) ? IslandHandleB : IslandHandleA;
+			}
+			else
+			{
+				// In the case that only one of the islands is temporary, choose the non-temporary island.
+				ToKeepIsland = bIsATemporary ? IslandHandleB : IslandHandleA;
+				ToRemoveIsland = bIsATemporary ? IslandHandleA : IslandHandleB;
+			}
+
+			int32 VerticesChanged = 0;
+			ForEveryVertexInIsland(ToRemoveIsland,
+				[&VertexIslandChanges, &IslandVertexAdditions, &ToKeepIsland, &VerticesChanged](const FGraphVertexHandle& VertexHandle)
+				{
+					VertexIslandChanges.Add(VertexHandle, ToKeepIsland);
+					IslandVertexAdditions.FindOrAdd(ToKeepIsland).Add(VertexHandle);
+					++VerticesChanged;
+				}
+			);
+
+			IslandVertexAdditions.Remove(ToRemoveIsland);
+			RecacheIslandSize(ToKeepIsland, VerticesChanged);
+			RecacheIslandSize(ToRemoveIsland, -VerticesChanged);
+		}
+		else if (IslandHandleA.IsValid() && !IslandHandleB.IsValid())
+		{
+			VertexIslandChanges.Add(BHandle, IslandHandleA);
+			IslandVertexAdditions.FindOrAdd(IslandHandleA).Add(BHandle);
+			RecacheIslandSize(IslandHandleA, 1);
+		}
+		else if (IslandHandleB.IsValid() && !IslandHandleA.IsValid())
+		{
+			VertexIslandChanges.Add(AHandle, IslandHandleB);
+			IslandVertexAdditions.FindOrAdd(IslandHandleB).Add(AHandle);
+			RecacheIslandSize(IslandHandleB, 1);
+		}
+		else if (!IslandHandleA.IsValid() && !IslandHandleB.IsValid())
+		{
+			// Neither is in an island - need to create a new one.
+			FGraphIslandHandle NewIsland{ NextTemporaryIslandId--, nullptr };
+			VertexIslandChanges.Add(AHandle, NewIsland);
+			VertexIslandChanges.Add(BHandle, NewIsland);
+			IslandVertexAdditions.Emplace(NewIsland, TSet<FGraphVertexHandle>{AHandle, BHandle});
 		}
 	}
-	else if (IslandHandleB.IsValid() && !IslandHandleA.IsValid())
+
+	// Now that we have all the changes we want to make, we can start making them! Iterate over
+	// VertexIslandChanges and handle additions into an existing island first.
+	for (const TPair<FGraphVertexHandle, FGraphIslandHandle>& Change : VertexIslandChanges)
 	{
-		// Only B is in an island, go into island B.
-		if (ensure(IslandB != nullptr))
+		if (IsIslandTemporary(Change.Value))
 		{
-			IslandB->AddVertex(AHandle);
+			continue;
+		}
+
+		if (TObjectPtr<UGraphIsland> Island = Change.Value.GetIsland())
+		{
+			Island->AddVertex(Change.Key);
 		}
 	}
-	else if (!IslandHandleA.IsValid() && !IslandHandleB.IsValid())
+
+	// Next handle the creation of any temporary islands.
+	for (const TPair<FGraphIslandHandle, TSet<FGraphVertexHandle>>& Change : IslandVertexAdditions)
 	{
-		// Neither is in an island - need to create a new one.
-		CreateIsland({ AHandle, BHandle });
+		if (!IsIslandTemporary(Change.Key))
+		{
+			continue;
+		}
+
+		CreateIsland(Change.Value.Array());
+	}
+
+	// Destroy all empty islands
+	for (const TPair<FGraphIslandHandle, int32>& Change : IslandSizeOverride)
+	{
+		if (IsIslandTemporary(Change.Key))
+		{
+			continue;
+		}
+
+		if (Change.Value == 0)
+		{
+			RemoveIsland(Change.Key);
+		}
 	}
 }
 

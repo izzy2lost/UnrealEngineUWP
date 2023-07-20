@@ -127,7 +127,7 @@ public:
 	ENGINE_API UClusterUnionComponent(const FObjectInitializer& ObjectInitializer);
 
 	UFUNCTION(BlueprintCallable, Category="Cluster Union")
-	ENGINE_API void AddComponentToCluster(UPrimitiveComponent* InComponent, const TArray<int32>& BoneIds);
+	ENGINE_API void AddComponentToCluster(UPrimitiveComponent* InComponent, const TArray<int32>& BoneIds, bool bRebuildGeometry = true);
 
 	UFUNCTION(BlueprintCallable, Category = "Cluster Union")
 	ENGINE_API void RemoveComponentFromCluster(UPrimitiveComponent* InComponent);
@@ -170,6 +170,10 @@ public:
 	ENGINE_API void VisitAllCurrentActors(const TFunction<bool(AActor*)>& Lambda) const;
 
 	ENGINE_API int32 NumChildClusterComponents() const;
+
+	// Force a rebuild of the GT geometry. This needs to happen immediately when we add/remove on the GT so that the SQ is up to date
+	// and doesn't need to wait for the next OnSyncBodies.
+	ENGINE_API void ForceRebuildGTParticleGeometry();
 
 	friend class UClusterUnionReplicatedProxyComponent;
 protected:
@@ -253,10 +257,6 @@ private:
 	// Whether or not this code is running on the server.
 	UFUNCTION()
 	ENGINE_API bool IsAuthority() const;
-
-	// Force a rebuild of the GT geometry. This needs to happen immediately when we add/remove on the GT so that the SQ is up to date
-	// and doesn't need to wait for the next OnSyncBodies.
-	ENGINE_API void ForceRebuildGTParticleGeometry();
 
 	//~ Begin UActorComponent Interface
 public:

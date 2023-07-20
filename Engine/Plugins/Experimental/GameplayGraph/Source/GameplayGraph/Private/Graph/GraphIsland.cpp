@@ -14,6 +14,7 @@ UGraphIsland::UGraphIsland()
 
 void UGraphIsland::Destroy()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UGraphIsland::Destroy);
 	bPendingDestroy = true;
 	TSet<FGraphVertexHandle> VertexCopy = Vertices;
 	Vertices.Empty();
@@ -34,24 +35,9 @@ void UGraphIsland::Destroy()
 	HandleOnDestroyed();
 }
 
-void UGraphIsland::MergeWith(TObjectPtr<UGraphIsland> OtherIsland)
-{
-	if (!OtherIsland)
-	{
-		return;
-	}
-
-	for (const FGraphVertexHandle& Node : OtherIsland->Vertices)
-	{
-		OtherIsland->HandleOnVertexRemoved(Node);
-		AddVertex(Node);
-	}
-
-	OtherIsland->Vertices.Empty();
-}
-
 void UGraphIsland::AddVertex(const FGraphVertexHandle& Node)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UGraphIsland::AddVertex);
 	if (!Node.IsValid())
 	{
 		return;
@@ -62,6 +48,15 @@ void UGraphIsland::AddVertex(const FGraphVertexHandle& Node)
 	{
 		return;
 	}
+
+	if (FGraphIslandHandle OldIslandHandle = NodePtr->GetParentIsland(); OldIslandHandle.IsComplete())
+	{
+		if (TObjectPtr<UGraphIsland> OldIsland = OldIslandHandle.GetIsland())
+		{
+			OldIsland->RemoveVertex(Node);
+		}
+	}
+
 	NodePtr->SetParentIsland(Handle());
 	Vertices.Add(Node);
 	HandleOnVertexAdded(Node);
@@ -69,6 +64,7 @@ void UGraphIsland::AddVertex(const FGraphVertexHandle& Node)
 
 void UGraphIsland::RemoveVertex(const FGraphVertexHandle& Node)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UGraphIsland::RemoveVertex);
 	if (!Node.IsValid())
 	{
 		return;

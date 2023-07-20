@@ -96,6 +96,9 @@ public:
 	/** Creates an edge between the two nodes. */
 	FGraphEdgeHandle CreateEdge(FGraphVertexHandle Node1, FGraphVertexHandle Node2, int64 InUniqueIndex = INDEX_NONE, bool bAddToIslands = true);
 
+	/** Creates edges in bulk. This is more efficient than calling CreateEdge multiple times since we will only try to assign a node to an island once. */
+	void CreateBulkEdges(TArray<TPair<FGraphVertexHandle, FGraphVertexHandle>>&& NodesToConnect);
+
 	/** Removes a node from the graph along with any edges that contain it. */
 	void RemoveVertex(const FGraphVertexHandle& NodeHandle);
 
@@ -158,8 +161,8 @@ private:
 	/** Add an island to the graph and modifies the NextAvailableIslandUniqueIndex as necessary to maintain its validity. */
 	void RegisterIsland(TObjectPtr<UGraphIsland> Edge);
 
-	/** When we add an edge into a graph, we will want to merge islands if the edge connects two nodes that are in different islands. */
-	void MergeOrCreateIslands(TObjectPtr<UGraphEdge> Edge);
+	/** When we add multiple edges into the graph. This function will ensure that the interactions we make externally are kept to a minimum. */
+	void MergeOrCreateIslands(TArray<FGraphEdgeHandle>&& InEdges);
 
 	/** After a change, this function will remove the island if it's empty or will attempt to split it into two smaller islands. */
 	void RemoveOrSplitIsland(TObjectPtr<UGraphIsland> Island);

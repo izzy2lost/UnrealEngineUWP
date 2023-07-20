@@ -63,9 +63,6 @@ protected:
 	/** Called when removing the island from the graph. */
 	void Destroy();
 
-	/** Takes the nodes from the other island and puts them into this island. */
-	void MergeWith(TObjectPtr<UGraphIsland> OtherIsland);
-
 	/** Adds a single node into this island. */
 	void AddVertex(const FGraphVertexHandle& Node);
 
