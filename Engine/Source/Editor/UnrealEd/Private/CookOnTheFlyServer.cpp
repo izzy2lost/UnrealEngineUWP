@@ -10908,6 +10908,13 @@ void UCookOnTheFlyServer::CookAsCookWorkerFinished()
 	}
 	CookWorkerClient->SetHasRunFinished(true);
 
+	{
+		UE_SCOPED_COOKTIMER(TickCookableObjects);
+		const double CurrentTime = FPlatformTime::Seconds();
+		FTickableCookObject::TickObjects(static_cast<float>(CurrentTime - LastCookableObjectTickTime), true /* bCookComplete */);
+		LastCookableObjectTickTime = CurrentTime;
+	}
+
 	FString LibraryName = GetProjectShaderLibraryName();
 	FString ActualLibraryName = GenerateShaderCodeLibraryName(LibraryName, IsCookFlagSet(ECookInitializationFlags::IterateSharedBuild));
 	FShaderLibraryCooker::EndCookingLibrary(ActualLibraryName);
@@ -10920,6 +10927,7 @@ void UCookOnTheFlyServer::CookAsCookWorkerFinished()
 		GShaderCompilingManager->SkipShaderCompilation(false);
 	}
 	LogCookWorkerStats();
+	CookWorkerClient->FlushLogs();
 }
 
 void UCookOnTheFlyServer::GetPackagesToRetract(int32 NumToRetract, TArray<FName>& OutRetractionPackages)

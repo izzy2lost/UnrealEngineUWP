@@ -11,6 +11,7 @@
 #include "Misc/Guid.h"
 #include "Templates/UniquePtr.h"
 
+namespace UE::Cook { class FLogMessagesMessageHandler; }
 namespace UE::Cook { class FMPCollectorClientMessageContext; }
 namespace UE::Cook { class IMPCollector; }
 namespace UE::Cook { struct FAbortPackagesMessage; }
@@ -71,6 +72,9 @@ public:
 	/** Unegister a Collector that was registered. */
 	void Unregister(IMPCollector* Collector);
 
+	/** Called on worker cook process shutdown to flush any remaining log messages. */
+	void FlushLogs();
+
 private:
 	enum class EConnectStatus
 	{
@@ -111,8 +115,8 @@ private:
 	void LogInvalidMessage(const TCHAR* MessageTypeName);
 	/** Send packages assigned from the server into the request state. */
 	void AssignPackages(FAssignPackagesMessage& Message);
-	/** Tick the registered collectors. */
-	void TickCollectors(FTickStackData& StackData, bool bFlush);
+	/** Tick the registered collectors, or the single given collector if non-null. */
+	void TickCollectors(FTickStackData& StackData, bool bFlush, IMPCollector* SingleCollector = nullptr);
 	/** Helper for ReportDemote/ReportPromote: Collect IMPCollectors and asynchronously add the message to pending. */
 	void ReportPackageMessage(FName PackageName, TUniquePtr<FPackageRemoteResult>&& ResultOwner);
 	
@@ -141,6 +145,7 @@ private:
 	// Variables Read/Write only from the Scheduler thread
 	TSharedPtr<FInternetAddr> DirectorAddr;
 	TUniquePtr<FInitialConfigMessage> InitialConfigMessage;
+	TRefCountPtr<FLogMessagesMessageHandler> LogMessageHandler;
 	TArray<ITargetPlatform*> OrderedSessionPlatforms;
 	TArray<ITargetPlatform*> OrderedSessionAndSpecialPlatforms;
 	TArray<FDiscoveredPackageReplication> PendingDiscoveredPackages;

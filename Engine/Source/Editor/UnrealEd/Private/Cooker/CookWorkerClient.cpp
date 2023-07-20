@@ -31,9 +31,9 @@ constexpr float WaitForConnectReplyTimeout = 60.f;
 FCookWorkerClient::FCookWorkerClient(UCookOnTheFlyServer& InCOTFS)
 	: COTFS(InCOTFS)
 {
-	FLogMessagesMessageHandler* Handler = new FLogMessagesMessageHandler();
-	Handler->InitializeClient();
-	Register(Handler);
+	LogMessageHandler = new FLogMessagesMessageHandler();
+	LogMessageHandler->InitializeClient();
+	Register(LogMessageHandler);
 	Register(new IMPCollectorCbClientMessage<FRetractionRequestMessage>([this]
 	(FMPCollectorClientMessageContext& Context, bool bReadSuccessful, FRetractionRequestMessage&& Message)
 		{
@@ -815,7 +815,13 @@ void FCookWorkerClient::Unregister(IMPCollector* Collector)
 	}
 }
 
-void FCookWorkerClient::TickCollectors(FTickStackData& StackData, bool bFlush)
+void FCookWorkerClient::FlushLogs()
+{
+	FTickStackData TickData(MAX_flt, ECookTickFlags::None);
+	TickCollectors(TickData, true, LogMessageHandler);
+}
+
+void FCookWorkerClient::TickCollectors(FTickStackData& StackData, bool bFlush, IMPCollector* SingleCollector)
 {
 	if (StackData.LoopStartTime < NextTickCollectorsTimeSeconds && !bFlush)
 	{
@@ -829,9 +835,8 @@ void FCookWorkerClient::TickCollectors(FTickStackData& StackData, bool bFlush)
 		Context.bFlush = bFlush;
 		TArray<UE::CompactBinaryTCP::FMarshalledMessage> MarshalledMessages;
 
-		for (const TPair<FGuid, TRefCountPtr<IMPCollector>>& Pair: Collectors)
+		auto TickCollector = [&MarshalledMessages, &Context](IMPCollector* Collector)
 		{
-			IMPCollector* Collector = Pair.Value.GetReference();
 			Collector->ClientTick(Context);
 			if (!Context.Messages.IsEmpty())
 			{
@@ -841,6 +846,18 @@ void FCookWorkerClient::TickCollectors(FTickStackData& StackData, bool bFlush)
 					MarshalledMessages.Add({ MessageType, MoveTemp(Object) });
 				}
 				Context.Messages.Reset();
+			}
+		};
+
+		if (SingleCollector)
+		{
+			TickCollector(SingleCollector);
+		}
+		else
+		{
+			for (const TPair<FGuid, TRefCountPtr<IMPCollector>>& Pair : Collectors)
+			{
+				TickCollector(Pair.Value.GetReference());
 			}
 		}
 
