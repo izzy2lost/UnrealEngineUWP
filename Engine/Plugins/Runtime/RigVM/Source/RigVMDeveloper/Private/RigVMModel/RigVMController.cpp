@@ -16297,6 +16297,14 @@ bool URigVMController::FullyResolveTemplateNode(URigVMTemplateNode* InNode, int3
 	if (InPermutationIndex == INDEX_NONE)
 	{
 		TArray<int32> Permutations = InNode->GetResolvedPermutationIndices(false);
+
+		// If some float/double pin needs to change type, permutations might be empty
+		// Try running again allowing that change
+		if (Permutations.IsEmpty())
+		{
+			Permutations = InNode->GetResolvedPermutationIndices(true);
+		}
+		
 		check(!Permutations.IsEmpty());
 		InNode->ResolvedPermutation = Permutations[0];
 
