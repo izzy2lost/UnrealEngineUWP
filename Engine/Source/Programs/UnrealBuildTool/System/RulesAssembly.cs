@@ -500,15 +500,16 @@ namespace UnrealBuildTool
 				RulesObject.bPrecompile = (RulesObject.bTreatAsEngineModule || ModuleName.Equals("UnrealGame", StringComparison.OrdinalIgnoreCase)) && Target.bPrecompile;
 				RulesObject.bUsePrecompiled = bReadOnly;
 				RulesObject.RulesAssembly = this;
+				RulesObject.DirectoriesForModuleSubClasses = new();
+				RulesObject.DirectoriesForModuleSubClasses.Add(BaseRulesObjectType, RulesObject.Directory);
 
 				// go up the type hierarchy (if there is a hierarchy), looking for any extra directories for the module
 				if (RulesObjectType != BaseRulesObjectType && RulesObjectType != typeof(ModuleRules))
 				{
 					Type SubType = RulesObjectType;
 
-					RulesObject.DirectoriesForModuleSubClasses = new Dictionary<Type, DirectoryReference>();
 					RulesObject.SubclassRules = new List<string>();
-					while (SubType != null && SubType != BaseRulesObjectType)
+					while (SubType != BaseRulesObjectType)
 					{
 						FileReference? SubTypeFileName;
 						if (TryGetFileNameFromType(SubType, out SubTypeFileName))

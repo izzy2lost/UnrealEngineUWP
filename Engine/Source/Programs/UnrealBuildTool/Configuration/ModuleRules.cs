@@ -554,10 +554,20 @@ namespace UnrealBuildTool
 		internal DirectoryReference Directory { get; set; }
 
 		/// <summary>
+		/// The Directory that contains either the Build.cs file, or the platform extension's SubClass directory
+		/// </summary>
+		protected DirectoryReference PlatformDirectory => DirectoriesForModuleSubClasses[GetType()]; // this is expected to always exist if we are able to be queried
+
+		/// <summary>
+		/// Returns true if the rules are a platform extension subclass
+		/// </summary>
+		protected bool bIsPlatformExtension => (Directory != PlatformDirectory);
+
+		/// <summary>
 		/// Additional directories that contribute to this module (likely in UnrealBuildTool.EnginePlatformExtensionsDirectory). 
 		/// The dictionary tracks module subclasses 
 		/// </summary>
-		internal Dictionary<Type, DirectoryReference>? DirectoriesForModuleSubClasses;
+		internal Dictionary<Type, DirectoryReference> DirectoriesForModuleSubClasses;
 
 		/// <summary>
 		/// Additional directories that contribute to this module but are not based on a subclass (NotForLicensees, etc)
@@ -1391,6 +1401,16 @@ namespace UnrealBuildTool
 		public string ModuleDirectory => Directory.FullName;
 
 		/// <summary>
+		/// Property for the directory containing this module or the platform extension's subclass. Useful for adding paths to third party dependencies.
+		/// </summary>
+		protected string PlatformModuleDirectory => PlatformDirectory.FullName;
+
+		/// <summary>
+		/// Name of a platform under the PlatformModuleDirectory - for a PlatfomrExtension, we don't use platform subdirectories since it's already in a platform dir, so this returns '.'
+		/// </summary>
+		protected string PlatformSubdirectoryName => bIsPlatformExtension ? "." : Target.Platform.ToString();
+
+		/// <summary>
 		/// Returns module's low level tests directory "Tests".
 		/// </summary>
 		public string TestsDirectory
@@ -1766,11 +1786,6 @@ namespace UnrealBuildTool
 		/// <returns>Directory where the subclass's .Build.cs lives, or null if not found</returns>
 		public DirectoryReference? GetModuleDirectoryForSubClass(Type Type)
 		{
-			if (DirectoriesForModuleSubClasses == null)
-			{
-				return null;
-			}
-
 			DirectoryReference? Directory;
 			if (DirectoriesForModuleSubClasses.TryGetValue(Type, out Directory))
 			{
@@ -1785,14 +1800,8 @@ namespace UnrealBuildTool
 		/// <returns>List of directories, or null if none were added</returns>
 		public DirectoryReference[] GetAllModuleDirectories()
 		{
-			List<DirectoryReference> AllDirectories = new List<DirectoryReference> { Directory };
+			List<DirectoryReference> AllDirectories = new List<DirectoryReference>(DirectoriesForModuleSubClasses.Values);
 			AllDirectories.AddRange(AdditionalModuleDirectories);
-
-			if (DirectoriesForModuleSubClasses != null)
-			{
-				AllDirectories.AddRange(DirectoriesForModuleSubClasses.Values);
-			}
-
 			return AllDirectories.ToArray();
 		}
 
