@@ -8,6 +8,31 @@
 #include "PoseSearch/PoseSearchSchema.h"
 #include "PoseSearchFeatureChannel_Position.h"
 
+void UPoseSearchFeatureChannel_Heading::FindOrAddToSchema(UPoseSearchSchema* Schema, float SampleTimeOffset, const FName& BoneName, EHeadingAxis HeadingAxis)
+{
+	if (!Schema->FindChannel([SampleTimeOffset, &BoneName, HeadingAxis](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_Heading*
+		{
+			if (const UPoseSearchFeatureChannel_Heading* Heading = Cast<UPoseSearchFeatureChannel_Heading>(Channel))
+			{
+				if (Heading->Bone.BoneName == BoneName && Heading->SampleTimeOffset == SampleTimeOffset && Heading->OriginTimeOffset == 0.f && Heading->HeadingAxis == HeadingAxis)
+				{
+					return Heading;
+				}
+			}
+			return nullptr;
+		}))
+	{
+		UPoseSearchFeatureChannel_Heading* Heading = NewObject<UPoseSearchFeatureChannel_Heading>(Schema, NAME_None, RF_Transient);
+		Heading->Bone.BoneName = BoneName;
+		Heading->Weight = 0.f;
+		Heading->SampleTimeOffset = SampleTimeOffset;
+		Heading->HeadingAxis = HeadingAxis;
+		// @todo: perhaps add a tunable color for injected channels
+		Heading->DebugColor = FLinearColor::Gray;
+		Schema->AddTemporaryChannel(Heading);
+	}
+}
+
 void UPoseSearchFeatureChannel_Heading::Finalize(UPoseSearchSchema* Schema)
 {
 	ChannelDataOffset = Schema->SchemaCardinality;
@@ -21,6 +46,15 @@ void UPoseSearchFeatureChannel_Heading::AddDependentChannels(UPoseSearchSchema* 
 	if (Schema->bInjectAdditionalDebugChannels)
 	{
 		UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, SampleTimeOffset, Bone.BoneName);
+		if (!FMath::IsNearlyZero(OriginTimeOffset))
+		{
+			// adding the position OriginTimeOffset seconds ahead
+			UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, OriginTimeOffset, Bone.BoneName);
+			
+			// adding the rotation (X, Y axis) OriginTimeOffset seconds ahead
+			UPoseSearchFeatureChannel_Heading::FindOrAddToSchema(Schema, OriginTimeOffset, Bone.BoneName, EHeadingAxis::X);
+			UPoseSearchFeatureChannel_Heading::FindOrAddToSchema(Schema, OriginTimeOffset, Bone.BoneName, EHeadingAxis::Y);
+		}
 	}
 }
 
@@ -73,7 +107,7 @@ void UPoseSearchFeatureChannel_Heading::DebugDraw(const UE::PoseSearch::FDebugDr
 	using namespace UE::PoseSearch;
 
 	const FColor Color = DebugColor.ToFColor(true);
-	const FVector BoneHeading = DrawParams.GetRootTransform().GetRotation().RotateVector(FFeatureVectorHelper::DecodeVector(PoseVector, ChannelDataOffset, ComponentStripping));
+	const FVector BoneHeading = DrawParams.ExtractRotation(PoseVector, OriginTimeOffset).RotateVector(FFeatureVectorHelper::DecodeVector(PoseVector, ChannelDataOffset, ComponentStripping));
 	const FVector BonePos = DrawParams.ExtractPosition(PoseVector, SampleTimeOffset, SchemaBoneIdx);
 
 	DrawParams.DrawPoint(BonePos, Color, 3.f);

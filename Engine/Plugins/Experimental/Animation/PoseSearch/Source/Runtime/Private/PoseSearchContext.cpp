@@ -8,6 +8,7 @@
 #include "PoseSearch/PoseSearchSchema.h"
 #include "PoseSearch/PoseSearchTrajectoryTypes.h"
 #include "PoseSearchFeatureChannel_Position.h"
+#include "PoseSearchFeatureChannel_Heading.h"
 
 namespace UE::PoseSearch
 {
@@ -62,25 +63,26 @@ FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, flo
 {
 	// we don't wanna ask for a SchemaOriginBoneIdx in the future or past
 	check(PermutationTimeType != EPermutationTimeType::UsePermutationTime);
-	if (const UPoseSearchSchema* Schema = GetSchema())
+	const UPoseSearchSchema* Schema = GetSchema();
+	if (!FMath::IsNearlyZero(SampleTimeOffset) && Schema)
 	{
 		// looking for a UPoseSearchFeatureChannel_Position that matches the TimeOffset and SchemaBoneIdx,
 		// with SchemaOriginBoneIdx to be the root bone and the appropriate PermutationTimeType 
 		if (const UPoseSearchFeatureChannel_Position* FoundPosition = static_cast<const UPoseSearchFeatureChannel_Position*>(
-				Schema->FindChannel([SampleTimeOffset, SchemaBoneIdx, PermutationTimeType, Schema](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_Position*
-			{
-				if (const UPoseSearchFeatureChannel_Position* Position = Cast<UPoseSearchFeatureChannel_Position>(Channel))
+			Schema->FindChannel([SampleTimeOffset, SchemaBoneIdx, PermutationTimeType, Schema](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_Position*
 				{
-					if (Position->SchemaBoneIdx == SchemaBoneIdx &&
-						Position->SampleTimeOffset == SampleTimeOffset &&
-						Position->PermutationTimeType == PermutationTimeType &&
-						Schema->IsRootBone(Position->SchemaOriginBoneIdx))
+					if (const UPoseSearchFeatureChannel_Position* Position = Cast<UPoseSearchFeatureChannel_Position>(Channel))
 					{
-						return Position;
+						if (Position->SchemaBoneIdx == SchemaBoneIdx &&
+							Position->SampleTimeOffset == SampleTimeOffset &&
+							Position->PermutationTimeType == PermutationTimeType &&
+							Schema->IsRootBone(Position->SchemaOriginBoneIdx))
+						{
+							return Position;
+						}
 					}
-				}
-		return nullptr;
-			})))
+					return nullptr;
+				})))
 		{
 			return ExtractPosition(PoseVector, FoundPosition);
 		}
@@ -91,6 +93,111 @@ FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, flo
 		}
 	}
 	return GetRootTransform().GetTranslation();
+}
+
+FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float SampleTimeOffset, int8 SchemaBoneIdx) const
+{
+	const UPoseSearchSchema* Schema = GetSchema();
+	if (!FMath::IsNearlyZero(SampleTimeOffset) && Schema)
+	{
+		int32 HeadingAxisFoundNum = 0;
+		const UPoseSearchFeatureChannel_Heading* FoundHeading[int32(EHeadingAxis::Num)];
+		FVector DecodedHeading[int32(EHeadingAxis::Num)];
+		for (int32 HeadingAxis = 0; HeadingAxis < int32(EHeadingAxis::Num); ++HeadingAxis)
+		{
+			// looking for a UPoseSearchFeatureChannel_Heading that matches the SampleTimeOffset, SchemaBoneIdx, and with OriginTimeOffset as zero.
+			// the features data associated to this channel would be a heading vector in GetRootTransform space (since OriginTimeOffset is zero)), 
+			// so by finding at least two with differnt axis we'll be able to compose a delta rotation from OriginTimeOffset (zero) to SampleTimeOffset
+			FoundHeading[HeadingAxis] = static_cast<const UPoseSearchFeatureChannel_Heading*>(
+				Schema->FindChannel([SampleTimeOffset, SchemaBoneIdx, HeadingAxis](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_Heading*
+					{
+						if (const UPoseSearchFeatureChannel_Heading* Heading = Cast<UPoseSearchFeatureChannel_Heading>(Channel))
+						{
+							if (Heading->OriginTimeOffset == 0.f &&
+								Heading->SchemaBoneIdx == SchemaBoneIdx &&
+								Heading->SampleTimeOffset == SampleTimeOffset &&
+								int32(Heading->HeadingAxis) == HeadingAxis)
+							{
+								return Heading;
+							}
+						}
+						return nullptr;
+					}));
+			if (FoundHeading[HeadingAxis])
+			{
+				DecodedHeading[HeadingAxis] = FFeatureVectorHelper::DecodeVector(PoseVector, FoundHeading[HeadingAxis]->GetChannelDataOffset(), FoundHeading[HeadingAxis]->ComponentStripping);
+
+				++HeadingAxisFoundNum;
+				if (HeadingAxisFoundNum == 2)
+				{
+					// we've found enough heading axis to compose a rotation
+					break;
+				}
+			}
+		}
+
+		if (HeadingAxisFoundNum > 0)
+		{
+			bool bAbleToReconstructMissingAxis = true;
+			if (HeadingAxisFoundNum == 2)
+			{
+				// reconstructing the missing axis
+				if (!FoundHeading[int32(EHeadingAxis::X)])
+				{
+					DecodedHeading[int32(EHeadingAxis::X)] = FVector::CrossProduct(DecodedHeading[int32(EHeadingAxis::Y)], DecodedHeading[int32(EHeadingAxis::Z)]);
+				}
+				else if (!FoundHeading[int32(EHeadingAxis::Y)])
+				{
+					DecodedHeading[int32(EHeadingAxis::Y)] = FVector::CrossProduct(DecodedHeading[int32(EHeadingAxis::Z)], DecodedHeading[int32(EHeadingAxis::X)]);
+				}
+				else // if (!FoundHeading[int32(EHeadingAxis::Z)])
+				{
+					DecodedHeading[int32(EHeadingAxis::Z)] = FVector::CrossProduct(DecodedHeading[int32(EHeadingAxis::X)], DecodedHeading[int32(EHeadingAxis::Y)]);
+				}
+			}
+			else 
+			{
+				check(HeadingAxisFoundNum == 1);
+			
+				// reconstructing the two missing axis
+				if (FoundHeading[int32(EHeadingAxis::X)])
+				{
+					DecodedHeading[int32(EHeadingAxis::Y)] = FVector::CrossProduct(FVector::ZAxisVector, DecodedHeading[int32(EHeadingAxis::X)]);
+					bAbleToReconstructMissingAxis &= DecodedHeading[int32(EHeadingAxis::Y)].Normalize();
+					DecodedHeading[int32(EHeadingAxis::Z)] = FVector::CrossProduct(DecodedHeading[int32(EHeadingAxis::X)], DecodedHeading[int32(EHeadingAxis::Y)]);
+				}
+				else if (FoundHeading[int32(EHeadingAxis::Y)])
+				{
+					DecodedHeading[int32(EHeadingAxis::X)] = FVector::CrossProduct(DecodedHeading[int32(EHeadingAxis::Y)], FVector::ZAxisVector);
+					bAbleToReconstructMissingAxis &= DecodedHeading[int32(EHeadingAxis::X)].Normalize();
+					DecodedHeading[int32(EHeadingAxis::Z)] = FVector::CrossProduct(DecodedHeading[int32(EHeadingAxis::X)], DecodedHeading[int32(EHeadingAxis::Y)]);
+				}
+				else // if (FoundHeading[int32(EHeadingAxis::Z)])
+				{
+					DecodedHeading[int32(EHeadingAxis::X)] = FVector::CrossProduct(FVector::YAxisVector, DecodedHeading[int32(EHeadingAxis::Z)]);
+					bAbleToReconstructMissingAxis &= DecodedHeading[int32(EHeadingAxis::X)].Normalize();
+					DecodedHeading[int32(EHeadingAxis::Y)] = FVector::CrossProduct(DecodedHeading[int32(EHeadingAxis::Z)], DecodedHeading[int32(EHeadingAxis::X)]);
+				}
+			}
+
+			if (bAbleToReconstructMissingAxis)
+			{
+				// RotMatrix is the rotation matrix from time zero (OriginTimeOffset) to time SampleTimeOffset, so by composing it with GetRootTransform().GetRotation(),
+				// world rotation associated to the time zero, we can calcualte the world rotation at time SampleTimeOffset
+				const FMatrix RotMatrix(DecodedHeading[int32(EHeadingAxis::X)], DecodedHeading[int32(EHeadingAxis::Y)], DecodedHeading[int32(EHeadingAxis::Z)], FVector::ZeroVector);
+				const FQuat RotQuat(RotMatrix);
+				const FQuat RotQuatWorld = RotQuat * GetRootTransform().GetRotation();
+				return RotQuatWorld;
+			}
+		}
+
+		if (Mesh && SchemaBoneIdx > RootSchemaBoneIdx)
+		{
+			return Mesh->GetSocketTransform(Schema->BoneReferences[SchemaBoneIdx].BoneName).GetRotation();
+		}
+	}
+
+	return GetRootTransform().GetRotation();
 }
 
 const FTransform& FDebugDrawParams::GetRootTransform() const

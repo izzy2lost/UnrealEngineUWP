@@ -73,4 +73,6 @@ public:
 #endif
 
 	FVector GetAxis(const FQuat& Rotation) const;
+
+	static void FindOrAddToSchema(UPoseSearchSchema* Schema, float SampleTimeOffset, const FName& BoneName = NAME_None, EHeadingAxis HeadingAxis = EHeadingAxis::X);
 };
