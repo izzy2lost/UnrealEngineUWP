@@ -243,6 +243,9 @@ protected:
 	/** @return our current world */
 	UWorld* GetWorld() const override;
 
+	/** Stop tracking hotfixed assets marked as garbage */
+	void StopTrackingInvalidHotfixedAssets();
+	
 protected:
 
 	/**
