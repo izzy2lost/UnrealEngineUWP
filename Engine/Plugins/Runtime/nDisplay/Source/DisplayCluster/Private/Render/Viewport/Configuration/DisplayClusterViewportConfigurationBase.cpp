@@ -250,10 +250,7 @@ FDisplayClusterViewportConfigurationInstanceData const* FDisplayClusterViewportC
 
 void FDisplayClusterViewportConfigurationBase::AddInternalPostprocess(const FString& InPostprocessName)
 {
-	if (DisabledPostprocessNames.Find(InPostprocessName) == INDEX_NONE)
-	{
-		InternalPostprocessNames.AddUnique(InPostprocessName);
-	}
+	InternalPostprocessNames.AddUnique(InPostprocessName);
 }
 
 void FDisplayClusterViewportConfigurationBase::UpdateClusterNodePostProcess(const FString& InClusterNodeId)
@@ -309,6 +306,12 @@ void FDisplayClusterViewportConfigurationBase::UpdateClusterNodePostProcess(cons
 			// Create InternalPostprocess
 			for (const FString& InternalPostprocessId : InternalPostprocessNames)
 			{
+				if (DisabledPostprocessNames.Find(InternalPostprocessId) != INDEX_NONE)
+				{
+					// Always skip a postprocess that cannot be initialized
+					continue;
+				}
+
 				TSharedPtr<IDisplayClusterPostProcess, ESPMode::ThreadSafe> ExistPostProcess = PPManager->FindPostProcess(InternalPostprocessId);
 				if (!ExistPostProcess.IsValid())
 				{
@@ -316,7 +319,7 @@ void FDisplayClusterViewportConfigurationBase::UpdateClusterNodePostProcess(cons
 					FDisplayClusterConfigurationPostprocess ConfigurationPostprocess;
 					ConfigurationPostprocess.Type = InternalPostprocessId;
 
-					if (!PPManager->CreatePostprocess(InternalPostprocessId, &ConfigurationPostprocess))
+					if (PPManager->CanBeCreated(&ConfigurationPostprocess) && !PPManager->CreatePostprocess(InternalPostprocessId, &ConfigurationPostprocess))
 					{
 						// Can't create... Disable this postprocess
 						DisabledPostprocessNames.AddUnique(InternalPostprocessId);
@@ -329,6 +332,12 @@ void FDisplayClusterViewportConfigurationBase::UpdateClusterNodePostProcess(cons
 			// Create and update PP
 			for (const TPair<FString, FDisplayClusterConfigurationPostprocess>& It : ClusterNode->Postprocess)
 			{
+				if (DisabledPostprocessNames.Find(It.Value.Type) != INDEX_NONE)
+				{
+					// Always skip a postprocess that cannot be initialized
+					continue;
+				}
+
 				TSharedPtr<IDisplayClusterPostProcess, ESPMode::ThreadSafe> ExistPostProcess = PPManager->FindPostProcess(It.Key);
 				if (ExistPostProcess.IsValid())
 				{
@@ -339,7 +348,13 @@ void FDisplayClusterViewportConfigurationBase::UpdateClusterNodePostProcess(cons
 				}
 				else
 				{
-					PPManager->CreatePostprocess(It.Key, &It.Value);
+					if (PPManager->CanBeCreated(&It.Value) && !PPManager->CreatePostprocess(It.Key, &It.Value))
+					{
+						// Can't create... Disable this postprocess
+						DisabledPostprocessNames.AddUnique(It.Value.Type);
+
+						UE_LOG(LogDisplayClusterViewport, Error, TEXT("Can't create postprocess '%s' on cluster node '%s': Disabled"), *It.Value.Type, *InClusterNodeId);
+					}
 				}
 			}
 
