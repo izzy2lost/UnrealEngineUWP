@@ -501,6 +501,7 @@ public:
 #if WITH_EDITOR
 	,	bHasSelectedInstances(false)
 #endif
+	,	InstanceLODDistanceScale(InComponent->InstanceLODDistanceScale)
 #if RHI_RAYTRACING
 	,	CachedRayTracingLOD(-1)
 #endif
@@ -594,6 +595,7 @@ public:
 
 	ENGINE_API virtual bool GetInstanceDrawDistanceMinMax(FVector2f& OutDistanceMinMax) const override;
 
+	virtual float GetLodScreenSizeScale() const override;
 	virtual float GetGpuLodInstanceRadius() const override;
 
 	virtual bool IsDetailMesh() const override { return true; }
@@ -618,6 +620,9 @@ protected:
 	FInstancingUserData UserData_AllInstances;
 	FInstancingUserData UserData_SelectedInstances;
 	FInstancingUserData UserData_DeselectedInstances;
+
+	/** LOD distance scale from component. */
+	float InstanceLODDistanceScale;
 
 #if RHI_RAYTRACING
 	struct FRayTracingDynamicData

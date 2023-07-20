@@ -2082,7 +2082,6 @@ UHierarchicalInstancedStaticMeshComponent::UHierarchicalInstancedStaticMeshCompo
 	, UnbuiltInstanceBounds(ForceInit)
 	, bEnableDensityScaling(false)
 	, CurrentDensityScaling(1.0f)
-	, InstanceLODDistanceScale(1.0f)
 	, OcclusionLayerNumNodes(0)
 	, InstanceCountToRender(0)
 	, bIsAsyncBuilding(false)
@@ -2725,15 +2724,6 @@ void UHierarchicalInstancedStaticMeshComponent::ClearInstances()
 	}
 
 	FNavigationSystem::UpdateComponentData(*this);
-}
-
-void UHierarchicalInstancedStaticMeshComponent::SetLODDistanceScale(float InLODDistanceScale)
-{
-	if (InstanceLODDistanceScale != InLODDistanceScale)
-	{
-		InstanceLODDistanceScale = InLODDistanceScale;
-		MarkRenderStateDirty();
-	}
 }
 
 bool UHierarchicalInstancedStaticMeshComponent::ShouldCreatePhysicsState() const

@@ -2411,7 +2411,7 @@ FLightInteraction FStaticMeshSceneProxy::FLODInfo::GetInteraction(const FLightSc
 
 float FStaticMeshSceneProxy::GetScreenSize( int32 LODIndex ) const
 {
-	return RenderData->ScreenSize[LODIndex].GetValue();
+	return RenderData->ScreenSize[LODIndex].GetValue() * GetLodScreenSizeScale();
 }
 
 /**
@@ -2446,7 +2446,8 @@ int32 FStaticMeshSceneProxy::GetLOD(const FSceneView* View) const
 #endif
 
 	const FBoxSphereBounds& ProxyBounds = GetBounds();
-	return ComputeStaticMeshLOD(RenderData, ProxyBounds.Origin, ProxyBounds.SphereRadius, *View, ClampedMinLOD);
+	const float LODScale = GetCachedScalabilityCVars().StaticMeshLODDistanceScale * GetLodScreenSizeScale();
+	return ComputeStaticMeshLOD(RenderData, ProxyBounds.Origin, ProxyBounds.SphereRadius, *View, ClampedMinLOD, LODScale);
 }
 
 FLODMask FStaticMeshSceneProxy::GetLODMask(const FSceneView* View) const
@@ -2507,8 +2508,7 @@ FLODMask FStaticMeshSceneProxy::GetLODMask(const FSceneView* View) const
 			}
 
 			FCachedSystemScalabilityCVars CachedSystemScalabilityCVars = GetCachedScalabilityCVars();
-
-			const float LODScale = CachedSystemScalabilityCVars.StaticMeshLODDistanceScale;
+			const float LODScale = CachedSystemScalabilityCVars.StaticMeshLODDistanceScale * GetLodScreenSizeScale();
 
 			if (bUseDithered)
 			{

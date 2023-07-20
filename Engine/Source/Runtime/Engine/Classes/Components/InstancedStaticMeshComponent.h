@@ -124,6 +124,13 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	UPROPERTY()
 	TArray<FInstancedStaticMeshRandomSeed> AdditionalRandomSeeds;
 
+	/** 
+	 * Scale applied to change the computation of LOD distances when using the StaticMesh screen sizes. 
+	 * Smaller values make LODs transition earlier.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Culling)
+	float InstanceLODDistanceScale = 1.f;
+
 	/** Distance from camera at which each instance begins to fade out. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Culling)
 	int32 InstanceStartCullDistance;
@@ -180,6 +187,14 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	UFUNCTION(BlueprintCallable, Category = "Components|InstancedStaticMesh")
 	ENGINE_API bool GetInstanceTransform(int32 InstanceIndex, FTransform& OutInstanceTransform, bool bWorldSpace = false) const;
 	
+	/** Gets the current LOD scale. */
+	UFUNCTION(BlueprintCallable, Category = "Components|InstancedStaticMesh")
+	float GetLODDistanceScale() const { return InstanceLODDistanceScale; }
+
+	/** Sets the LOD scale. */
+	UFUNCTION(BlueprintCallable, Category = "Components|InstancedStaticMesh")
+	ENGINE_API void SetLODDistanceScale(float InLODDistanceScale);
+
 	// TODO: KevinO cleanup
 	/** Get the prev transform for the instance specified. Only works if PerInstancePrevTransform has been setup and updated through BatchUpdateInstancesTransforms */
 	ENGINE_API bool GetInstancePrevTransform(int32 InstanceIndex, FTransform& OutInstanceTransform, bool bWorldSpace = false) const;

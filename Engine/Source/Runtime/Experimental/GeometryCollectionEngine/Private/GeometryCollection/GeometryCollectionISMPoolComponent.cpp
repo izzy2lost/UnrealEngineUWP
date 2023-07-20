@@ -107,12 +107,8 @@ FGeometryCollectionISM::FGeometryCollectionISM(AActor* InOwningActor, const FGeo
 	ISMC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ISMC->bOverrideMinLOD = MeshInstance.Desc.MinLod > 0;	
 	ISMC->MinLOD = MeshInstance.Desc.MinLod;
+	ISMC->SetLODDistanceScale(MeshInstance.Desc.LodScale);
 	ISMC->ComponentTags.Append(MeshInstance.Desc.Tags);
-
-	if (HISMC)
-	{
-		HISMC->SetLODDistanceScale(MeshInstance.Desc.LodScale);
-	}
 
 	InOwningActor->AddInstanceComponent(ISMC);
 	ISMC->RegisterComponent();

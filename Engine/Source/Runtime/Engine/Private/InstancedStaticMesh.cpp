@@ -2153,6 +2153,11 @@ bool FInstancedStaticMeshSceneProxy::GetInstanceDrawDistanceMinMax(FVector2f& Ou
 	}
 }
 
+float FInstancedStaticMeshSceneProxy::GetLodScreenSizeScale() const
+{
+	return InstanceLODDistanceScale > 0.f ? 1.f / InstanceLODDistanceScale : 1.f;
+}
+
 float FInstancedStaticMeshSceneProxy::GetGpuLodInstanceRadius() const
 {
 	// Note that StaticMeshBounds.SphereRadius is a better fit, but doesn't match the value on the GPU used for LOD culling.
@@ -5324,6 +5329,15 @@ void UInstancedStaticMeshComponent::BeginDestroy()
 	ReleasePerInstanceRenderData();
 
 	Super::BeginDestroy();
+}
+
+void UInstancedStaticMeshComponent::SetLODDistanceScale(float InLODDistanceScale)
+{
+	if (InstanceLODDistanceScale != InLODDistanceScale)
+	{
+		InstanceLODDistanceScale = InLODDistanceScale;
+		MarkRenderStateDirty();
+	}
 }
 
 #if WITH_EDITOR

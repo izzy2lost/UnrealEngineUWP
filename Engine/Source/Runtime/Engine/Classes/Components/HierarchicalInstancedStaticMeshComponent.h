@@ -183,10 +183,6 @@ class UHierarchicalInstancedStaticMeshComponent : public UInstancedStaticMeshCom
 	// Current value of density scaling applied to this component
 	float CurrentDensityScaling;
 
-	/** Scale applied to change the computation of LOD distances when using the StaticMesh screen sizes. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Culling)
-	float InstanceLODDistanceScale;
-
 	// The number of nodes in the occlusion layer
 	UPROPERTY()
 	int32 OcclusionLayerNumNodes;
@@ -251,13 +247,6 @@ public:
 	ENGINE_API virtual TArray<int32> GetInstancesOverlappingBox(const FBox& Box, bool bBoxInWorldSpace = true) const override;
 	ENGINE_API virtual void PreAllocateInstancesMemory(int32 AddedInstanceCount) override;
 	virtual bool SupportsRemoveSwap() const override { return true; }
-
-	/** Sets the fading start and culling end distances for this component. */
-	UFUNCTION(BlueprintCallable, Category = "Components|HierarchicalInstancedStaticMesh")
-	ENGINE_API void SetLODDistanceScale(float InLODDistanceScale);
-
-	UFUNCTION(BlueprintCallable, Category = "Components|HierarchicalInstancedStaticMesh")
-	float GetLODDistanceScale() const { return InstanceLODDistanceScale; }
 
 	/** Get the number of instances that overlap a given sphere */
 	ENGINE_API int32 GetOverlappingSphereCount(const FSphere& Sphere) const;

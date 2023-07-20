@@ -1109,6 +1109,9 @@ public:
 
 	virtual uint8 GetCurrentFirstLODIdx_RenderThread() const { return 0; }
 
+	/** Returns a scale to apply to ScreenSize used in LOD calculation. */
+	virtual float GetLodScreenSizeScale() const { return 1.f; }
+
 	/** Returns the instance radius to use for per instance GPU LOD calculation. Returns 0.f if GPU LOD isn't enabled on the primitive. */
 	virtual float GetGpuLodInstanceRadius() const { return 0.f; }
 
