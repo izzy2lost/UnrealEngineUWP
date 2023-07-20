@@ -60,9 +60,7 @@ namespace UE::PoseSearch
 	class FDatabaseViewModel : public TSharedFromThis<FDatabaseViewModel>, public FGCObject
 	{
 	public:
-
 		FDatabaseViewModel();
-		virtual ~FDatabaseViewModel();
 
 		// ~ FGCObject interface
 		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;

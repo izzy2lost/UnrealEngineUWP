@@ -219,6 +219,7 @@ namespace UE::PoseSearch
 				}
 
 				// Ensure any database changes are reflected
+				DatabaseAsset->UnregisterOnDerivedDataRebuild(this);
 				DatabaseAsset->RegisterOnDerivedDataRebuild(UPoseSearchDatabase::FOnDerivedDataRebuild::CreateSP(this, &FDatabaseEditor::RefreshStatisticsWidgetInformation));
 			}
 		}
@@ -285,6 +286,17 @@ namespace UE::PoseSearch
 			bIsToolbarFocusableParam);
 
 		RegenerateMenusAndToolbars();
+	}
+
+	FDatabaseEditor::~FDatabaseEditor()
+	{
+		if (ViewModel)
+		{
+			if (UPoseSearchDatabase* DatabaseAsset = ViewModel->GetPoseSearchDatabase())
+			{
+				DatabaseAsset->UnregisterOnDerivedDataRebuild(this);
+			}
+		}
 	}
 
 	void FDatabaseEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)

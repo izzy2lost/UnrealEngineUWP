@@ -27,6 +27,7 @@ namespace UE::PoseSearch
 			const EToolkitMode::Type Mode,
 			const TSharedPtr<IToolkitHost>& InitToolkitHost,
 			UPoseSearchDatabase* DatabaseAsset);
+		virtual ~FDatabaseEditor();
 
 		virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& TabManager) override;
 		virtual void UnregisterTabSpawners(const TSharedRef<FTabManager>& TabManager) override;

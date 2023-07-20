@@ -63,11 +63,6 @@ namespace UE::PoseSearch
 	{
 	}
 
-	FDatabaseViewModel::~FDatabaseViewModel()
-	{
-		PoseSearchDatabase->UnregisterOnDerivedDataRebuild(this);
-	}
-
 	void FDatabaseViewModel::AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		Collector.AddReferencedObject(PoseSearchDatabase);
@@ -80,8 +75,6 @@ namespace UE::PoseSearch
 		DatabaseDataDetails = InDatabaseDataDetails;
 
 		RemovePreviewActors();
-
-		PoseSearchDatabase->RegisterOnDerivedDataRebuild(UPoseSearchDatabase::FOnDerivedDataRebuild::CreateSP(this, &FDatabaseViewModel::RemovePreviewActors));
 	}
 
 	void FDatabaseViewModel::BuildSearchIndex()
