@@ -8169,6 +8169,14 @@ void ALandscape::UpdateLayersContent(bool bInWaitForStreaming, bool bInSkipMonit
 			WaitingForLandscapeTextureResourcesStartTime = -1.0;
 			WaitingForLandscapeBrushResourcesStartTime = -1.0;
 		}
+
+		// If nothing to do, let's do some garbage collecting on async readback tasks so that we slowly get rid of staging textures 
+		//  (don't do it while waiting for read backs because something might prevent us from updating the readbacks (e.g. waiting for resources to compiling...), which would 
+		//  lead to FLandscapeEditReadbackTaskPool's frame count increasing while readback tasks don't have the chance to complete, leading to the "readback leak" warning to incorrectly be triggered) :
+		if ((LayerContentUpdateModes == 0) && !FLandscapeEditLayerReadback::HasWork())
+		{
+			FLandscapeEditLayerReadback::GarbageCollectTasks();
+		}
 	};
 
 	// Note : no early-out allowed before this : even if not actually updating edit layers, we need to poll our resources in order to make sure we register to streaming events when needed: 
@@ -8395,8 +8403,6 @@ void ALandscape::UpdateLayersContent(bool bInWaitForStreaming, bool bInSkipMonit
 
 	// Additional validation that at the end of an update, we haven't screwed up anything in the weightmap allocations/usages : 
 	ValidateProxyLayersWeightmapUsage();
-
-	FLandscapeEditLayerReadback::GarbageCollectTasks();
 }
 
 // not thread safe
