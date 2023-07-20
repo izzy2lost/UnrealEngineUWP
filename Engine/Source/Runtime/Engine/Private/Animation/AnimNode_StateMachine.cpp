@@ -830,8 +830,14 @@ void FAnimNode_StateMachine::UpdateTransitionStates(const FAnimationUpdateContex
 		case ETransitionLogicType::TLT_StandardBlend:
 			{
 				// update both states
-				UpdateState(Transition.PreviousState, Context.FractionalWeight(GetStateWeight(Transition.PreviousState)));
-				UpdateState(Transition.NextState, Context.FractionalWeight(GetStateWeight(Transition.NextState)));
+				{
+					FAnimationUpdateContext StateContext = Context.FractionalWeight(GetStateWeight(Transition.PreviousState));
+					UpdateState(Transition.PreviousState, Transition.PreviousState == CurrentState ? StateContext : StateContext.AsInactive());
+				}
+				{
+					FAnimationUpdateContext StateContext = Context.FractionalWeight(GetStateWeight(Transition.NextState));
+					UpdateState(Transition.NextState, (Transition.NextState == CurrentState) ? StateContext : StateContext.AsInactive());
+				}
 			}
 			break;
 
@@ -840,7 +846,7 @@ void FAnimNode_StateMachine::UpdateTransitionStates(const FAnimationUpdateContex
 				UE::Anim::TScopedGraphMessage<UE::Anim::FAnimInertializationSyncScope> InertializationSync(Context);
 
 				// update target state
-				UpdateState(Transition.NextState, Context);
+				UpdateState(Transition.NextState, (Transition.NextState == CurrentState) ? Context : Context.AsInactive());
 			}
 			break;
 
@@ -858,7 +864,7 @@ void FAnimNode_StateMachine::UpdateTransitionStates(const FAnimationUpdateContex
 							const bool bUsePreviousState = (Evaluator->DataSource == EEvaluatorDataSource::EDS_SourcePose);
 							const int32 EffectiveStateIndex = bUsePreviousState ? Transition.PreviousState : Transition.NextState;
 							FAnimationUpdateContext ContextToUse = Context.FractionalWeight(bUsePreviousState ? (1.0f - Transition.Alpha) : Transition.Alpha);
-							UpdateState(EffectiveStateIndex, ContextToUse);
+							UpdateState(EffectiveStateIndex, (EffectiveStateIndex == CurrentState) ? ContextToUse : ContextToUse.AsInactive());
 						}
 					}
 				}

@@ -183,6 +183,9 @@ struct FAnimGraphNodePropertyBinding
 	/** Whether the pin binding is a promotion (e.g. bool->int) */
 	UPROPERTY()
 	bool bIsPromotion = false;
+
+	UPROPERTY()
+	bool bOnlyUpdateWhenActive = false;
 };
 
 /**
@@ -206,7 +209,7 @@ class ANIMGRAPH_API UAnimGraphNode_Base : public UK2Node
 	/** Properties marked as always dynamic, so they can be set externally */
 	UPROPERTY()
 	TSet<FName> AlwaysDynamicProperties;
-	
+
 	UPROPERTY(Transient)
 	EBlueprintUsage BlueprintUsage;
 

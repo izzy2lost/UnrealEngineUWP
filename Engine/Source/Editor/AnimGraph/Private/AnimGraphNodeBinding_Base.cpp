@@ -937,6 +937,98 @@ TSharedRef<SWidget> UAnimGraphNodeBinding_Base::MakePropertyBindingWidget(const 
 						NAME_None,
 						EUserInterfaceActionType::Check
 					);
+
+					// Only Update When Active flag.
+					{
+						auto ToggleOnlyUpdateWhenActive = [InArgs, Blueprint]()
+						{
+							// by default, the new desired value is true...
+							bool bNewOnlyUpdateWhenActive = true;
+							for(const UAnimGraphNode_Base* AnimGraphNode : InArgs.Nodes)
+							{
+								if (const UAnimGraphNodeBinding_Base* GraphNodeBinding = Cast<const UAnimGraphNodeBinding_Base>(AnimGraphNode->GetBinding()))
+								{
+									if (const FAnimGraphNodePropertyBinding* PropertyBinding = GraphNodeBinding->PropertyBindings.Find(InArgs.BindingName))
+									{
+										//... unless any currently selected nodes already have it enabled. Set all to false to respect multiple values behavior in blueprints.
+										if (PropertyBinding->bOnlyUpdateWhenActive == true)
+										{
+											bNewOnlyUpdateWhenActive = false;
+											break;
+										}
+									}
+								}
+							}
+
+							FScopedTransaction Transaction(LOCTEXT("ToggleOnlyUpdateWhenActive", "Toggle Only Update When Active"));
+							for(UAnimGraphNode_Base* AnimGraphNode : InArgs.Nodes)
+							{
+								AnimGraphNode->Modify();
+								if (UAnimGraphNodeBinding_Base* GraphNodeBinding = Cast<UAnimGraphNodeBinding_Base>(AnimGraphNode->GetMutableBinding()))
+								{
+									if (FAnimGraphNodePropertyBinding* PropertyBinding = GraphNodeBinding->PropertyBindings.Find(InArgs.BindingName))
+									{
+										PropertyBinding->bOnlyUpdateWhenActive = bNewOnlyUpdateWhenActive;
+									}
+								}
+							}
+							FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+						};
+
+						auto GetOnlyUpdateWhenActiveState = [InArgs]()
+						{
+							ECheckBoxState OutCheckboxState = ECheckBoxState::Unchecked;
+							for(const UAnimGraphNode_Base* AnimGraphNode : InArgs.Nodes)
+							{
+								if (const UAnimGraphNodeBinding_Base* GraphNodeBinding = Cast<const UAnimGraphNodeBinding_Base>(AnimGraphNode->GetBinding()))
+								{
+									if (const FAnimGraphNodePropertyBinding* PropertyBinding = GraphNodeBinding->PropertyBindings.Find(InArgs.BindingName))
+									{
+										if (PropertyBinding->bOnlyUpdateWhenActive == true)
+										{
+											// If any selected node has the option enabled, add a check mark.
+											// @todo: Ideally for multiple values, we'd use a different icon, but that's not what the other settings do.
+											OutCheckboxState = ECheckBoxState::Checked;
+											break;
+										}
+									}
+								}
+							}
+
+							return OutCheckboxState;
+						};
+
+						auto CanToggleUpdateWhenActiveState = [InArgs]()
+						{
+							for(const UAnimGraphNode_Base* AnimGraphNode : InArgs.Nodes)
+							{
+								if (const UAnimGraphNodeBinding_Base* GraphNodeBinding = Cast<const UAnimGraphNodeBinding_Base>(AnimGraphNode->GetBinding()))
+								{
+									// If any selected node doesn't have a binding object, disable this option.
+									// We only support this feature through property access bindings on the node.
+									if (GraphNodeBinding->PropertyBindings.Find(InArgs.BindingName) == nullptr)
+									{
+										return false;
+									}
+								}
+							}
+
+							return true;
+						};
+
+						InMenuBuilder.AddMenuEntry(
+							LOCTEXT("OnlyUpdateWhenActive", "Only Update When Active"),
+							LOCTEXT("OnlyUpdateWhenActiveTooltip", "Only update this property when the node is in an active graph branch (not blending out). To enable this, the property must be bound through property access."),
+							FSlateIcon(),
+							FUIAction(
+								FExecuteAction::CreateLambda(ToggleOnlyUpdateWhenActive),
+								FCanExecuteAction::CreateLambda(CanToggleUpdateWhenActiveState),
+								FGetActionCheckState::CreateLambda(GetOnlyUpdateWhenActiveState)
+							),
+							NAME_None,
+							EUserInterfaceActionType::Check
+						);
+					}
 				}
 			}
 			InMenuBuilder.EndSection();

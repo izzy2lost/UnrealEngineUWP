@@ -278,7 +278,14 @@ public:
 	// Get the previous node Id, set when we recurse into graph traversal functions from pose links
 	int32 GetPreviousNodeId() const { return PreviousNodeId; }
 
+	// Get whether the graph branch of this context is active (i.e. NOT blending out). 
+	bool IsActive() const { return bIsActive; }
+
 protected:
+	
+	// Whether this context belongs to graph branch (i.e. NOT blending out).
+	bool bIsActive = true;
+
 	// The current node ID, set when we recurse into graph traversal functions from pose links
 	int32 CurrentNodeId;
 
@@ -372,6 +379,14 @@ public:
 
 		// This is currently only used in the case of cached poses, where we dont want to preserve the previous node, so clear it here
 	//	Result.PreviousNodeId = INDEX_NONE;
+
+		return Result;
+	}
+
+	FAnimationUpdateContext AsInactive() const
+	{
+		FAnimationUpdateContext Result(*this);
+		Result.bIsActive = false;
 
 		return Result;
 	}

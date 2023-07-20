@@ -27,9 +27,10 @@ struct FExposedValueCopyRecord
 
 	FExposedValueCopyRecord() = default;
 
-	FExposedValueCopyRecord(int32 InCopyIndex, EPostCopyOperation InPostCopyOperation)
+	FExposedValueCopyRecord(int32 InCopyIndex, EPostCopyOperation InPostCopyOperation, bool bInOnlyUpdateWhenActive)
 		: CopyIndex(InCopyIndex)
 		, PostCopyOperation(InPostCopyOperation)
+		, bOnlyUpdateWhenActive(bInOnlyUpdateWhenActive)
 	{
 	}
 
@@ -38,6 +39,9 @@ struct FExposedValueCopyRecord
 
 	UPROPERTY()
 	EPostCopyOperation PostCopyOperation = EPostCopyOperation::None;
+
+	UPROPERTY()
+	bool bOnlyUpdateWhenActive = false;
 };
 
 // An exposed value updater

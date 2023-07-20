@@ -852,7 +852,7 @@ void UAnimBlueprintExtension_Base::FEvaluationHandlerRecord::PatchAnimNodeExpose
 				// Skip invalid copy indices as these are usually the result of BP errors/warnings
 				if (PropertyCopyRecord.LibraryCompiledHandle.IsValid() && PropertyCopyRecord.LibraryCompiledHandle.GetBatchId() == (int32)EAnimPropertyAccessCallSite::WorkerThread_Unbatched)
 				{
-					Handler->CopyRecords.Emplace(PropertyCopyRecord.LibraryCompiledHandle.GetId(), PropertyCopyRecord.Operation);
+					Handler->CopyRecords.Emplace(PropertyCopyRecord.LibraryCompiledHandle.GetId(), PropertyCopyRecord.Operation, PropertyCopyRecord.bOnlyUpdateWhenActive);
 				}
 			}
 		}
@@ -991,6 +991,7 @@ void UAnimBlueprintExtension_Base::FEvaluationHandlerRecord::RegisterPropertyBin
 	CopyRecord.DestProperty = InProperty;
 	CopyRecord.DestArrayIndex = InBinding.ArrayIndex;
 	CopyRecord.BindingContextId = InBinding.ContextId;
+	CopyRecord.bOnlyUpdateWhenActive = InBinding.bOnlyUpdateWhenActive;
 }
 
 void UAnimBlueprintExtension_Base::FEvaluationHandlerRecord::BuildFastPathCopyRecords(IAnimBlueprintPostExpansionStepContext& InCompilationContext)

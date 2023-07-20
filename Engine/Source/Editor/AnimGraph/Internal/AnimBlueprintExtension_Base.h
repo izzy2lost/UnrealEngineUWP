@@ -84,6 +84,7 @@ private:
 			, BindingContextId(NAME_None)
 			, Operation(EPostCopyOperation::None)
 			, bIsFastPath(true)
+			, bOnlyUpdateWhenActive(false)
 		{}
 
 		bool IsFastPath() const
@@ -125,6 +126,8 @@ private:
 
 		/** Fast-path flag */
 		bool bIsFastPath;
+
+		bool bOnlyUpdateWhenActive;
 	};
 
 	// Context used to build fast-path copy records

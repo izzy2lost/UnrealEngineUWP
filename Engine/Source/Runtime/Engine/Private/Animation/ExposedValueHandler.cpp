@@ -97,14 +97,17 @@ void FAnimNodeExposedValueHandler_PropertyAccess::Execute(const FAnimationBaseCo
 			PropertyAccess::FCopyBatchId CopyBatch((int32)EAnimPropertyAccessCallSite::WorkerThread_Unbatched);
 			for (const FExposedValueCopyRecord& CopyRecord : CopyRecords)
 			{
-				PropertyAccess::ProcessCopy(AnimInstanceObject, *PropertyAccessLibrary, CopyBatch, CopyRecord.CopyIndex, [&CopyRecord](const FProperty* InProperty, void* InAddress)
+				if (!CopyRecord.bOnlyUpdateWhenActive || InContext.IsActive())
 				{
-					if (CopyRecord.PostCopyOperation == EPostCopyOperation::LogicalNegateBool)
+					PropertyAccess::ProcessCopy(AnimInstanceObject, *PropertyAccessLibrary, CopyBatch, CopyRecord.CopyIndex, [&CopyRecord](const FProperty* InProperty, void* InAddress)
 					{
-						bool bValue = static_cast<const FBoolProperty*>(InProperty)->GetPropertyValue(InAddress);
-						static_cast<const FBoolProperty*>(InProperty)->SetPropertyValue(InAddress, !bValue);
-					}
-				});
+						if (CopyRecord.PostCopyOperation == EPostCopyOperation::LogicalNegateBool)
+						{
+							bool bValue = static_cast<const FBoolProperty*>(InProperty)->GetPropertyValue(InAddress);
+							static_cast<const FBoolProperty*>(InProperty)->SetPropertyValue(InAddress, !bValue);
+						}
+					});
+				}
 			}
 		}
 	}

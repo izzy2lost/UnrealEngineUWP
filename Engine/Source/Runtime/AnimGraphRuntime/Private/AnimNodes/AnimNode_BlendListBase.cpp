@@ -231,7 +231,8 @@ void FAnimNode_BlendListBase::Update_AnyThread(const FAnimationUpdateContext& Co
 			const float BlendWeight = PerBlendData[i].Weight;
 			if (BlendWeight > ZERO_ANIMWEIGHT_THRESH)
 			{
-				BlendPose[i].Update(Context.FractionalWeight(BlendWeight));
+				FAnimationUpdateContext ChildContext = Context.FractionalWeight(BlendWeight);
+				BlendPose[i].Update((i == ChildIndex) ? ChildContext : ChildContext.AsInactive());
 			}
 		}
 
