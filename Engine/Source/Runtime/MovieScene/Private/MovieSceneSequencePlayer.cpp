@@ -111,17 +111,6 @@ FFrameTime FMovieSceneSequencePlaybackParams::GetPlaybackPosition(UMovieSceneSeq
 	return PlaybackPosition;
 }
 
-bool FMovieSceneSequenceReplProperties::NetSerialize(FArchive& Ar, UPackageMap* PackageMap, bool& bOutSuccess)
-{
-	Ar << LastKnownPosition;
-	Ar << LastKnownStatus;
-	Ar << LastKnownNumLoops;
-	Ar << LastKnownSerialNumber;
-
-	bOutSuccess = !Ar.IsError();
-	return true;
-}
-
 UMovieSceneSequencePlayer::UMovieSceneSequencePlayer(const FObjectInitializer& Init)
 	: Super(Init)
 	, Status(EMovieScenePlayerStatus::Stopped)

@@ -74,25 +74,6 @@ struct FMovieSceneSequenceReplProperties
 	/** The last known serial number on the server */
 	UPROPERTY()
 	int32 LastKnownSerialNumber;
-
-	/**
-	 * Custom serialization method so that all the properties in this struct are
-	 * in sync with the server. Without this, we could sometimes get half of the
-	 * properties up-to-date, and half of the properties left to old values.
-	 * This is especially problematic when LastKnownPosition updates, but LastKnownStatus
-	 * is left as "Stopped".
-	 */
-	bool NetSerialize(FArchive& Ar, UPackageMap* PackageMap, bool& bOutSuccess);
-};
-
-
-template<>
-struct TStructOpsTypeTraits<FMovieSceneSequenceReplProperties> : public TStructOpsTypeTraitsBase2<FMovieSceneSequenceReplProperties>
-{
-	enum
-	{
-		WithNetSerializer = true
-	};
 };
 
 
