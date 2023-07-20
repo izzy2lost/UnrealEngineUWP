@@ -58,5 +58,9 @@ public class UEOgg : ModuleRules
 			string LibName = (Target.Architecture == UnrealArch.IOSSimulator) ? "libogg.sim.a" : "libogg.a";
             PublicAdditionalLibraries.Add(Path.Combine(OggLibPath, "ios", LibName));        
         }
+        else if (Target.Platform == UnrealTargetPlatform.TVOS)
+        {
+            PublicAdditionalLibraries.Add(Path.Combine(OggLibPath, "tvos", "libogg.a"));
+        }
     }
 }
