@@ -150,6 +150,9 @@ void UContextualAnimSceneActorComponent::AddOrUpdateWarpTargets(int32 SectionIdx
 		return;
 	}
 
+	// Remove old warp targets to prevent actor from warping to a wrong location if calculating warp target for this interaction fails
+	MotionWarpComp->RemoveAllWarpTargets();
+
 	if (const FContextualAnimSceneBinding* Binding = Bindings.FindBindingByActor(GetOwner()))
 	{
 		const UContextualAnimSceneAsset* Asset = Bindings.GetSceneAsset();

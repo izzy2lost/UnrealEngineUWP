@@ -766,6 +766,11 @@ bool FContextualAnimSceneBindings::CalculateWarpPoint(const FContextualAnimWarpP
 			OutWarpPoint.Transform = PrimaryBinding->GetTransform();
 			return true;
 		}
+		else
+		{
+			UE_LOG(LogContextualAnim, VeryVerbose, TEXT("FContextualAnimSceneBindings::CalculateWarpPoint failed. Reason: Can't find Primary Binding. Asset: %s WarpPointDefinitionMode: PrimaryActor WarpTargetName: %s"),
+				*GetNameSafe(SceneAsset.Get()), *WarpPointDef.WarpTargetName.ToString());
+		}
 	}
 	else if (WarpPointDef.Mode == EContextualAnimWarpPointDefinitionMode::Socket)
 	{
@@ -781,6 +786,16 @@ bool FContextualAnimSceneBindings::CalculateWarpPoint(const FContextualAnimWarpP
 				OutWarpPoint.Transform = WarpPointTransform;
 				return true;
 			}
+			else
+			{
+				UE_LOG(LogContextualAnim, VeryVerbose, TEXT("FContextualAnimSceneBindings::CalculateWarpPoint failed. Reason: Can't find socket used as warp point in primary actor. Asset: %s WarpPointDefinitionMode: Socket WarpTargetName: %s SocketName: %s Primary Actor: %s"),
+					*GetNameSafe(SceneAsset.Get()), *WarpPointDef.WarpTargetName.ToString(), *WarpPointDef.SocketName.ToString(), *GetNameSafe(PrimaryBinding->GetActor()));
+			}
+		}
+		else
+		{
+			UE_LOG(LogContextualAnim, VeryVerbose, TEXT("FContextualAnimSceneBindings::CalculateWarpPoint failed. Reason: Can't find Primary Binding. Asset: %s WarpPointDefinitionMode: Socket WarpTargetName: %s SocketName: %s"),
+				*GetNameSafe(SceneAsset.Get()), *WarpPointDef.WarpTargetName.ToString(), *WarpPointDef.SocketName.ToString());
 		}
 	}
 	else if (WarpPointDef.Mode == EContextualAnimWarpPointDefinitionMode::Custom)
@@ -801,12 +816,22 @@ bool FContextualAnimSceneBindings::CalculateWarpPoint(const FContextualAnimWarpP
 					OutWarpPoint.Transform.SetRotation((T2.GetLocation() - T1.GetLocation()).GetSafeNormal2D().ToOrientationQuat());
 					return true;
 				}
+				else
+				{
+					UE_LOG(LogContextualAnim, VeryVerbose, TEXT("FContextualAnimSceneBindings::CalculateWarpPoint failed. Reason: Can't find binding for Params.OtherRole. Asset: %s WarpPointDefinitionMode: Custom WarpTargetName: %s Params.OtherRole: %s"),
+						*GetNameSafe(SceneAsset.Get()), *WarpPointDef.WarpTargetName.ToString(), *Params.OtherRole.ToString());
+				}
 			}
 			else
 			{
 				OutWarpPoint.Transform = Binding->GetTransform();
 				return true;
 			}
+		}
+		else
+		{
+			UE_LOG(LogContextualAnim, VeryVerbose, TEXT("FContextualAnimSceneBindings::CalculateWarpPoint failed. Reason: Can't find binding for Params.Origin. Asset: %s WarpPointDefinitionMode: Custom WarpTargetName: %s Params.Origin: %s"),
+				*GetNameSafe(SceneAsset.Get()), *WarpPointDef.WarpTargetName.ToString(), *Params.Origin.ToString());
 		}
 	}
 
