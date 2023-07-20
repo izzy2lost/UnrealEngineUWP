@@ -172,6 +172,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Motion Warping")
 	int32 RemoveWarpTarget(FName WarpTargetName);
 
+	/** Removes all warp targets */
+	UFUNCTION(BlueprintCallable, Category = "Motion Warping")
+	int32 RemoveAllWarpTargets();
+
 protected:
 
 	/** Character this component belongs to */

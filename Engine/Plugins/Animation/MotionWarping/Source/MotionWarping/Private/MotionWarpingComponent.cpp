@@ -510,6 +510,20 @@ int32 UMotionWarpingComponent::RemoveWarpTarget(FName WarpTargetName)
 	return NumRemoved;
 }
 
+int32 UMotionWarpingComponent::RemoveAllWarpTargets()
+{
+	const int32 NumRemoved = WarpTargets.Num();
+
+	WarpTargets.Reset();
+
+	if (NumRemoved > 0)
+	{
+		MARK_PROPERTY_DIRTY_FROM_NAME(UMotionWarpingComponent, WarpTargets, this);
+	}
+
+	return NumRemoved;
+}
+
 void UMotionWarpingComponent::AddOrUpdateWarpTargetFromTransform(FName WarpTargetName, FTransform TargetTransform)
 {
 	AddOrUpdateWarpTarget(FMotionWarpingTarget(WarpTargetName, TargetTransform));
