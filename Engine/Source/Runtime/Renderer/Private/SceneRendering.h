@@ -2290,6 +2290,14 @@ protected:
 
 	// Shared functionality between all scene renderers
 
+	enum class ERendererOutput
+	{
+		DepthPrepassOnly,	// Only render depth prepass and its related code paths
+		FinalSceneColor		// Render the whole pipeline
+	};
+
+	ERendererOutput GetRendererOutput() const;
+
 	IVisibilityTaskData* UpdateScene(FRDGBuilder& GraphBuilder, FGlobalDynamicBuffers GlobalDynamicBuffers);
 
 	FDynamicShadowsTaskData* BeginInitDynamicShadows(bool bRunningEarly, IVisibilityTaskData* VisibilityTaskData);

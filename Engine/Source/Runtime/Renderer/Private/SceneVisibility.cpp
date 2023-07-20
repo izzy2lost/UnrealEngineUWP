@@ -4018,79 +4018,82 @@ void FSceneRenderer::PreVisibilityFrameSetup(FRDGBuilder& GraphBuilder)
 	// Notify the RHI we are beginning to render a scene.
 	RHICmdList.BeginScene();
 
-	if (Views.Num() > 0 && !ViewFamily.EngineShowFlags.HitProxies)
+	if (GetRendererOutput() == ERendererOutput::FinalSceneColor)
 	{
-		FHairStrandsBookmarkParameters Parameters = CreateHairStrandsBookmarkParameters(Scene, Views, AllFamilyViews);
-		if (Parameters.HasInstances())
-		{
-			RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessLODSelection, Parameters);
-		}
-	}
-
-	if (IsHairStrandsEnabled(EHairStrandsShaderType::All, Scene->GetShaderPlatform()) && Views.Num() > 0 && !ViewFamily.EngineShowFlags.HitProxies)
-	{
-		// If we are rendering from scene capture we don't need to run another time the hair bookmarks.
-		if (Views[0].AllowGPUParticleUpdate())
+		if (Views.Num() > 0 && !ViewFamily.EngineShowFlags.HitProxies)
 		{
 			FHairStrandsBookmarkParameters Parameters = CreateHairStrandsBookmarkParameters(Scene, Views, AllFamilyViews);
-			RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessGuideInterpolation, Parameters);
-		}
-	}
-
-	// Notify the FX system that the scene is about to perform visibility checks.
-
-	if (FXSystem && Views.IsValidIndex(0))
-	{
-		FXSystem->PreInitViews(GraphBuilder, Views[0].AllowGPUParticleUpdate() && !ViewFamily.EngineShowFlags.HitProxies, AllFamilies, &ViewFamily);
-	}
-
-#if WITH_EDITOR
-	// Draw lines to lights affecting this mesh if its selected.
-	if (ViewFamily.EngineShowFlags.LightInfluences)
-	{
-		Scene->WaitForCreateLightPrimitiveInteractionsTask();
-
-		for (TConstSetBitIterator<> It(Scene->PrimitivesSelected); It; ++It)
-		{
-			const FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene->Primitives[It.GetIndex()];
-			FLightPrimitiveInteraction *LightList = PrimitiveSceneInfo->LightList;
-			while (LightList)
+			if (Parameters.HasInstances())
 			{
-				const FLightSceneInfo* LightSceneInfo = LightList->GetLight();
-
-				bool bDynamic = true;
-				bool bRelevant = false;
-				bool bLightMapped = true;
-				bool bShadowMapped = false;
-				PrimitiveSceneInfo->Proxy->GetLightRelevance(LightSceneInfo->Proxy, bDynamic, bRelevant, bLightMapped, bShadowMapped);
-
-				if (bRelevant)
-				{
-					// Draw blue for light-mapped lights and orange for dynamic lights
-					const FColor LineColor = bLightMapped ? FColor(0,140,255) : FColor(255,140,0);
-					for (int32 ViewIndex = 0;ViewIndex < Views.Num();ViewIndex++)
-					{
-						FViewInfo& View = Views[ViewIndex];
-						FViewElementPDI LightInfluencesPDI(&View,nullptr,&View.DynamicPrimitiveCollector);
-						LightInfluencesPDI.DrawLine(PrimitiveSceneInfo->Proxy->GetBounds().Origin, LightSceneInfo->Proxy->GetLightToWorld().GetOrigin(), LineColor, SDPG_World);
-					}
-				}
-				LightList = LightList->GetNextLight();
+				RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessLODSelection, Parameters);
 			}
 		}
-	}
+
+		if (IsHairStrandsEnabled(EHairStrandsShaderType::All, Scene->GetShaderPlatform()) && Views.Num() > 0 && !ViewFamily.EngineShowFlags.HitProxies)
+		{
+			// If we are rendering from scene capture we don't need to run another time the hair bookmarks.
+			if (Views[0].AllowGPUParticleUpdate())
+			{
+				FHairStrandsBookmarkParameters Parameters = CreateHairStrandsBookmarkParameters(Scene, Views, AllFamilyViews);
+				RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessGuideInterpolation, Parameters);
+			}
+		}
+
+		// Notify the FX system that the scene is about to perform visibility checks.
+
+		if (FXSystem && Views.IsValidIndex(0))
+		{
+			FXSystem->PreInitViews(GraphBuilder, Views[0].AllowGPUParticleUpdate() && !ViewFamily.EngineShowFlags.HitProxies, AllFamilies, &ViewFamily);
+		}
+
+#if WITH_EDITOR
+		// Draw lines to lights affecting this mesh if its selected.
+		if (ViewFamily.EngineShowFlags.LightInfluences)
+		{
+			Scene->WaitForCreateLightPrimitiveInteractionsTask();
+
+			for (TConstSetBitIterator<> It(Scene->PrimitivesSelected); It; ++It)
+			{
+				const FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene->Primitives[It.GetIndex()];
+				FLightPrimitiveInteraction* LightList = PrimitiveSceneInfo->LightList;
+				while (LightList)
+				{
+					const FLightSceneInfo* LightSceneInfo = LightList->GetLight();
+
+					bool bDynamic = true;
+					bool bRelevant = false;
+					bool bLightMapped = true;
+					bool bShadowMapped = false;
+					PrimitiveSceneInfo->Proxy->GetLightRelevance(LightSceneInfo->Proxy, bDynamic, bRelevant, bLightMapped, bShadowMapped);
+
+					if (bRelevant)
+					{
+						// Draw blue for light-mapped lights and orange for dynamic lights
+						const FColor LineColor = bLightMapped ? FColor(0, 140, 255) : FColor(255, 140, 0);
+						for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+						{
+							FViewInfo& View = Views[ViewIndex];
+							FViewElementPDI LightInfluencesPDI(&View, nullptr, &View.DynamicPrimitiveCollector);
+							LightInfluencesPDI.DrawLine(PrimitiveSceneInfo->Proxy->GetBounds().Origin, LightSceneInfo->Proxy->GetLightToWorld().GetOrigin(), LineColor, SDPG_World);
+						}
+					}
+					LightList = LightList->GetNextLight();
+				}
+			}
+		}
 #endif
 
 #if RHI_RAYTRACING
-	if (Scene && Views.Num())
-	{
-		const int32 ReferenceViewIndex = 0;
-		const FViewInfo& ReferenceView = Views[ReferenceViewIndex];
+		if (Scene && Views.Num())
+		{
+			const int32 ReferenceViewIndex = 0;
+			const FViewInfo& ReferenceView = Views[ReferenceViewIndex];
 
-		Scene->RayTracingScene.InitPreViewTranslation(ReferenceView.ViewMatrices);
-		Scene->RayTracingScene.bNeedsDebugInstanceGPUSceneIndexBuffer = IsRayTracingInstanceOverlapEnabled(ReferenceView);
-	}
+			Scene->RayTracingScene.InitPreViewTranslation(ReferenceView.ViewMatrices);
+			Scene->RayTracingScene.bNeedsDebugInstanceGPUSceneIndexBuffer = IsRayTracingInstanceOverlapEnabled(ReferenceView);
+		}
 #endif
+	}
 
 	for (const auto& ViewExtension : ViewFamily.ViewExtensions)
 	{
@@ -4781,6 +4784,11 @@ void FSceneRenderer::GatherReflectionCaptureLightMeshElements()
 
 void FSceneRenderer::PostVisibilityFrameSetup(FILCUpdatePrimTaskData*& OutILCTaskData)
 {
+	if (GetRendererOutput() == ERendererOutput::FinalSceneColor)
+	{
+		return;
+	}
+
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_PostVisibilityFrameSetup);
 
 	{
@@ -4841,10 +4849,12 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 	SCOPE_CYCLE_COUNTER(STAT_InitViewsTime);
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, InitViews_Scene);
 
+	const bool bRendererOutputFinalSceneColor = (GetRendererOutput() == ERendererOutput::FinalSceneColor);
+
 	PreVisibilityFrameSetup(GraphBuilder);
 
 	// Attempt to launch dynamic shadow tasks early before finalizing visibility.
-	if (GetRendererOutput() == ERendererOutput::FinalSceneColor)
+	if (bRendererOutputFinalSceneColor)
 	{
 		BeginInitDynamicShadows(TaskDatas);
 	}
@@ -4867,7 +4877,7 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 	{
 		// This is to init the ViewUniformBuffer before rendering for the Niagara compute shader.
 		// This needs to run before ComputeViewVisibility() is called, but the views normally initialize the ViewUniformBuffer after that (at the end of this method).
-		if (FXSystem && FXSystem->RequiresEarlyViewUniformBuffer() && Views.IsValidIndex(0))
+		if (FXSystem && FXSystem->RequiresEarlyViewUniformBuffer() && Views.IsValidIndex(0) && bRendererOutputFinalSceneColor)
 		{
 			// during ISR, instanced view RHI resources need to be initialized first.
 			if (FViewInfo* InstancedView = const_cast<FViewInfo*>(Views[0].GetInstancedView()))
@@ -4884,7 +4894,7 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 	TaskDatas.VisibilityTaskData->ProcessRenderThreadTasks(BasePassDepthStencilAccess, InstanceCullingManager, VirtualTextureUpdater);
 
 	// Make a second attempt to launch shadow tasks it wasn't able to the first time due to visibility being deferred.
-	if (GetRendererOutput() == ERendererOutput::FinalSceneColor)
+	if (bRendererOutputFinalSceneColor)
 	{
 		BeginInitDynamicShadows(TaskDatas);
 	}

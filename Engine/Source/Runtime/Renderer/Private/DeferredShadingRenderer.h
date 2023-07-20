@@ -319,12 +319,6 @@ public:
 	void InitializeRayTracingFlags_RenderThread();
 #endif
 
-	enum class ERendererOutput
-	{
-		DepthPrepassOnly,	// Only render depth prepass and its related code paths
-		FinalSceneColor		// Render the whole pipeline
-	};
-
 	FDeferredShadingSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyConsumer* HitProxyConsumer);
 
 	/** Determine and commit the final state of the pipeline for the view family and views. */
@@ -1066,8 +1060,6 @@ private:
 		const FSceneTextureParameters& SceneTextures,
 		FRDGTextureRef* OutAmbientOcclusionTexture);
 	
-	ERendererOutput GetRendererOutput() const;
-
 #if RHI_RAYTRACING
 	template <int TextureImportanceSampling>
 	void RenderRayTracingRectLightInternal(

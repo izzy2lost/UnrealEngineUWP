@@ -103,15 +103,6 @@ extern int32 GNanitePickingDomain;
 
 extern DynamicRenderScaling::FBudget GDynamicNaniteScalingPrimary;
 
-// This is an experimental optimization switch to render pre-pass depth for scene capture without calling the entire FDeferredShadingSceneRenderer::Render()
-int32 GSceneCaptureDepthPrepassOptimization = 0;
-static FAutoConsoleVariableRef CVarSceneCaptureDepthPrepassOptimization(
-	TEXT("r.SceneCapture.DepthPrepassOptimization"),
-	GSceneCaptureDepthPrepassOptimization,
-	TEXT("Whether to apply optimized render path when capturing depth prepass for scene capture 2D. Experimental!\n")
-	TEXT("Warning: turning it on means rendering after depth pre-pass (e.g. SingleLayerWater) is ignored, hence result is different from when CVar is off.\n"),
-	ECVF_RenderThreadSafe | ECVF_Scalability);
-
 static TAutoConsoleVariable<int32> CVarClearCoatNormal(
 	TEXT("r.ClearCoatNormal"),
 	0,
@@ -2462,12 +2453,6 @@ void FDeferredShadingSceneRenderer::CommitFinalPipelineState()
 bool FDeferredShadingSceneRenderer::IsNaniteEnabled() const
 {
 	return UseNanite(ShaderPlatform) && ViewFamily.EngineShowFlags.NaniteMeshes && Nanite::GStreamingManager.HasResourceEntries();
-}
-
-FDeferredShadingSceneRenderer::ERendererOutput FDeferredShadingSceneRenderer::GetRendererOutput() const
-{
-	const bool bSceneCaptureDepthPrepass = Views[0].bIsSceneCapture && (ViewFamily.SceneCaptureSource == ESceneCaptureSource::SCS_SceneDepth || ViewFamily.SceneCaptureSource == ESceneCaptureSource::SCS_DeviceDepth);
-	return bSceneCaptureDepthPrepass && GSceneCaptureDepthPrepassOptimization ? ERendererOutput::DepthPrepassOnly : ERendererOutput::FinalSceneColor;
 }
 
 void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
