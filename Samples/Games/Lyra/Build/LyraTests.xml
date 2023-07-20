@@ -100,10 +100,11 @@
 		<Option Name="XLoc_Server" DefaultValue="" Description="XLoc Server"/>
 		<Option Name="XLoc_APIKey" DefaultValue="" Description="XLoc API Key"/>
 		<Option Name="XLoc_APISecret" DefaultValue="" Description="XLoc API Secret"/>
-		<Option Name="XLoc_LocalizationId" DefaultValue="" Description="XLoc LocalizationId"/>
+		<Option Name="XLoc_LocalizationId" DefaultValue="" Description="XLoc LocalizationId"/>		
+		<Option Name="XLoc_AgentType" DefaultValue="Loc;Win64" Description="XLoc Agent Type"/>
 
 		<Do If="'$(XLoc_Server)' != '' And '$(XLoc_APIKey)' != '' And '$(XLoc_APISecret)' != '' And '$(XLoc_LocalizationId)' != ''">
-			<Agent Name="Localization" Type="Loc;Win64">
+			<Agent Name="Localization" Type="$(XLoc_AgentType)">
 				<Node Name="$(ProjectName) Localize" Requires="$(PreNodeName)Compile Editor Win64">
 					<Command Name="Localize" Arguments="-LocalizationProvider=XLoc_Sample -UEProjectDirectory=$(ProjectPath) -UEProjectName=$(ProjectName) -LocalizationProjectNames=$(ProjectsIncludedInLocalization) -LocalizationBranch=&quot;$(EscapedBranch)&quot; -Server=&quot;$(XLoc_Server)&quot; -APIKey=&quot;$(XLoc_APIKey)&quot; -APISecret=&quot;$(XLoc_APISecret)&quot; -LocalizationId=&quot;$(XLoc_LocalizationId)&quot;" />
 				</Node>
@@ -120,7 +121,7 @@
 		<Option Name="Crowdin_AccessToken" DefaultValue="" Description="Crowdin AccessToken"/>
 
 		<Do If="'$(Crowdin_ProjectId)' != '' And '$(Crowdin_AccessToken)' != ''">
-			<Agent Name="Localization" Type="Loc;Win64">
+			<Agent Name="Localization" Type="$(XLoc_AgentType)">
 				<Node Name="$(ProjectName) Localize" Requires="$(PreNodeName)Compile Editor Win64">
 					<Command Name="Localize" Arguments="-LocalizationProvider=Crowdin_Sample -UEProjectDirectory=$(ProjectPath) -UEProjectName=$(ProjectName) -LocalizationProjectNames=$(ProjectsIncludedInLocalization) -LocalizationBranch=&quot;$(EscapedBranch)&quot; -ProjectId=&quot;$(Crowdin_ProjectId)&quot; -AccessToken=&quot;$(Crowdin_AccessToken)&quot;" />
 				</Node>
