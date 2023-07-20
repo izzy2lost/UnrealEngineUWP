@@ -3182,7 +3182,6 @@ FAssetDataGatherer::FAssetDataGatherer(const TArray<FString>& InLongPackageNames
 	, bIsIdle(false)
 	, bFirstTickAfterIdle(true)
 	, bFinishedInitialDiscovery(false)
-	, bAllModuleLoadingPhasesComplete(false)
 	, WaitBatchCount(0)
 	, LastMonolithicCacheSaveUncachedAssetFiles(0)
 	, CacheInUseCount(0)
@@ -4794,7 +4793,10 @@ void FAssetDataGatherer::SetIsIdle(bool bInIsIdle, double& TickStartTime)
 			CurrentSearchTime += FPlatformTime::Seconds() - TickStartTime;
 			TickStartTime = -1.;
 		}
-		if (!bFinishedInitialDiscovery && bAllModuleLoadingPhasesComplete)
+		// Finishing the initial discovery is blocked until IsEngineStartupModuleLoadingComplete because plugins can
+		// be mounted during startup up until that point, and we need to wait for all the plugins that will load
+		// before declaring completion.
+		if (!bFinishedInitialDiscovery && IsEngineStartupModuleLoadingComplete())
 		{
 			bFinishedInitialDiscovery = true;
 
@@ -4834,7 +4836,6 @@ void FAssetDataGatherer::OnAllModuleLoadingPhasesComplete()
 {
 	CHECK_IS_NOT_LOCKED_CURRENT_THREAD(ResultsLock);
 	FGathererScopeLock ResultsScopeLock(&ResultsLock);
-	bAllModuleLoadingPhasesComplete = true;
 	SetIsIdle(false);
 }
 

@@ -352,6 +352,13 @@ extern CORE_API bool GIsGuarded;
 	#define UE_SET_REQUEST_EXIT_ON_TICK_ONLY 0
 #endif
 
+/**
+ * Returns true after all initial modules have finished all of their loading phases during Engine startup:
+ * Corresponds to the event FCoreDelegates::OnAllModuleLoadingPhasesComplete
+ */
+extern CORE_API bool IsEngineStartupModuleLoadingComplete();
+extern CORE_API void SetEngineStartupModuleLoadingComplete();
+
 UE_DEPRECATED(4.24, "Please use IsEngineExitRequested()/RequestEngineExit(const FString&)")
 extern CORE_API bool GIsRequestingExit;
 

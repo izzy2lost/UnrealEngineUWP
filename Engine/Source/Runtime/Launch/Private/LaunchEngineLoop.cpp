@@ -4105,7 +4105,7 @@ int32 FEngineLoop::PreInitPostStartupScreen(const TCHAR* CmdLine)
 			ensure(IPluginManager::Get().LoadModulesForEnabledPlugins(ELoadingPhase::PostEngineInit));
 
 			// Call module loading phases completion callbacks
-			FCoreDelegates::OnAllModuleLoadingPhasesComplete.Broadcast();
+			SetEngineStartupModuleLoadingComplete();
 
 			//run automation smoke tests now that the commandlet has had a chance to override the above flags and GEngine is available
 			FAutomationTestFramework::Get().RunSmokeTests();
@@ -4843,10 +4843,7 @@ int32 FEngineLoop::Init()
 	}
 
 	// Call module loading phases completion callbacks
-	{
-		SCOPED_BOOT_TIMING("OnAllModuleLoadingPhasesComplete.Broadcast");
-		FCoreDelegates::OnAllModuleLoadingPhasesComplete.Broadcast();
-	}
+	SetEngineStartupModuleLoadingComplete();
 
 	{
 		SCOPED_BOOT_TIMING("GEngine->Start()");

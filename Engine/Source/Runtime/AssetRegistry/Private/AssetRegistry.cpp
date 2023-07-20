@@ -960,7 +960,6 @@ void UAssetRegistryImpl::InitializeEvents(UE::AssetRegistry::Impl::FInitializeCo
 #endif // WITH_EDITOR
 
 	FCoreDelegates::OnEnginePreExit.AddUObject(this, &UAssetRegistryImpl::OnEnginePreExit);
-	FCoreDelegates::OnAllModuleLoadingPhasesComplete.AddUObject(this, &UAssetRegistryImpl::OnAllModuleLoadingPhasesComplete);
 
 	// Listen for new content paths being added or removed at runtime.  These are usually plugin-specific asset paths that
 	// will be loaded a bit later on.
@@ -1425,13 +1424,6 @@ void UAssetRegistryImpl::OnEnginePreExit()
 	GuardedData.OnEnginePreExit();
 }
 
-void UAssetRegistryImpl::OnAllModuleLoadingPhasesComplete()
-{
-	LLM_SCOPE(ELLMTag::AssetRegistry);
-	FWriteScopeLock InterfaceScopeLock(InterfaceLock);
-	GuardedData.OnAllModuleLoadingPhasesComplete();
-}
-
 void UAssetRegistryImpl::FinishDestroy()
 {
 	LLM_SCOPE(ELLMTag::AssetRegistry);
@@ -1443,7 +1435,6 @@ void UAssetRegistryImpl::FinishDestroy()
 		FPackageName::OnContentPathDismounted().RemoveAll(this);
 		FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 		FCoreDelegates::OnEnginePreExit.RemoveAll(this);
-		FCoreDelegates::OnAllModuleLoadingPhasesComplete.RemoveAll(this);
 		IPluginManager::Get().OnLoadingPhaseComplete().RemoveAll(this);
 
 #if WITH_EDITOR
@@ -1528,11 +1519,6 @@ void FAssetRegistryImpl::OnEnginePreExit()
 {
 	// Shut down the GlobalGatherer's gather threads, before we start tearing down the engine
 	GlobalGatherer.Reset();
-}
-
-void FAssetRegistryImpl::OnAllModuleLoadingPhasesComplete()
-{
-	bAllModuleLoadingPhasesComplete = true;
 }
 
 void FAssetRegistryImpl::ConstructGatherer()
@@ -4070,7 +4056,9 @@ Impl::EGatherStatus FAssetRegistryImpl::TickGatherer(Impl::FEventContext& EventC
 		HighestPending = 0;
 		BackgroundResults.Shrink();
 
-		if (!bInitialSearchCompleted && bPreloadingComplete && bAllModuleLoadingPhasesComplete)
+		// Finishing the background search is blocked until preloading complete because plugins can be mounted during
+		// startup up until that point, and we need to wait for all the plugins to load before declaring completion.
+		if (!bInitialSearchCompleted && bPreloadingComplete && IsEngineStartupModuleLoadingComplete())
 		{
 #if WITH_EDITOR
 			// update redirectors

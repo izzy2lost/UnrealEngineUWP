@@ -460,13 +460,6 @@ private:
 	bool bFirstTickAfterIdle;
 	/** True if we have finished discovering our first wave of files, to report metrics for that most-important wave. */
 	bool bFinishedInitialDiscovery;
-	/**
-	 * Flag to indicate LaunchEngineLoop's AllModuleLoadingPhases is complete; finishing the initial discovery is
-	 * blocked until preloading complete because plugins can be mounted during startup up until that point, and
-	 * we need to wait for all the plugins that will load before declaring completion.
-	 */
-	bool bAllModuleLoadingPhasesComplete = false;
-
 
 	// Variable section for variables that are read/writable only within TickLock.
 

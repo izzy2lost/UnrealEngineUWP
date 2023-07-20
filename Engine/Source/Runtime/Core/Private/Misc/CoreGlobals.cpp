@@ -9,6 +9,7 @@
 #include "Misc/CoreStats.h"
 #include "Misc/TrackedActivity.h"
 #include "Misc/Compression.h"
+#include "Misc/CoreDelegates.h"
 #include "Misc/LazySingleton.h"
 #include "Misc/PlayInEditorLoadingScope.h"
 #include "Misc/CommandLine.h"
@@ -283,6 +284,22 @@ IMPLEMENT_FOREIGN_ENGINE_DIR()
 /** A function that does nothing. Allows for a default behavior for callback function pointers. */
 static void appNoop()
 {
+}
+
+bool GEngineStartupModuleLoadingComplete = false;
+CORE_API bool IsEngineStartupModuleLoadingComplete()
+{
+	return GEngineStartupModuleLoadingComplete;
+}
+
+CORE_API void SetEngineStartupModuleLoadingComplete()
+{
+	if (ensure(!GEngineStartupModuleLoadingComplete))
+	{
+		GEngineStartupModuleLoadingComplete = true;
+		SCOPED_BOOT_TIMING("OnAllModuleLoadingPhasesComplete.Broadcast");
+		FCoreDelegates::OnAllModuleLoadingPhasesComplete.Broadcast();
+	}
 }
 
 // This should be left non static to allow *edge* cases only in Core to extern and set this.

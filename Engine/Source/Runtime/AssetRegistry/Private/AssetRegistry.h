@@ -199,7 +199,6 @@ protected:
 
 private:
 	void OnEnginePreExit();
-	void OnAllModuleLoadingPhasesComplete();
 #if WITH_EDITOR
 	void OnFEngineLoopInitCompleteSearchAllAssets();
 	/** Called when new gatherer is registered. Requires subsequent call to RebuildAssetDependencyGathererMapIfNeeded */
