@@ -19,6 +19,7 @@ import { StepErrorPanel } from "./StepErrorPanel";
 import backend from "../../backend";
 import { GetArtifactResponseV2 } from "../../backend/Api";
 import { StepTrendsPanelV2 } from "./JobDetailStepTrendsV2";
+import { BisectionPanel } from "./JobDetailBisection";
 
 
 class StepDetailDataView extends JobDataView {
@@ -170,6 +171,9 @@ const StepDetailViewInner: React.FC<{ jobDetails: JobDetailsV2, stepId: string }
       </Stack>}
       {!!step && <Stack>
          <StepTrendsPanelV2 jobDetails={jobDetails} stepId={stepId}/>
+      </Stack>}
+      {!!step && <Stack>
+         <BisectionPanel jobDetails={jobDetails} stepId={stepId} />
       </Stack>}
    </Stack>
 });

@@ -17,6 +17,7 @@ import { JobDetailsV2 } from './JobDetailsViewCommon';
 import { RetryStepsModal, StepRetryModal, StepRetryType } from './StepRetryModal';
 import { JobArtifactsModal } from '../artifacts/ArtifactsModal';
 import { getSiteConfig } from '../../backend/Config';
+import { BisectionCreateModal } from '../bisection/CreateModal';
 
 enum ParameterState {
    Hidden,
@@ -59,12 +60,12 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
 
       const retries = jobDetails.getStepRetries(s.id);
       const retryNumber = jobDetails.getStepRetryNumber(s.id);
-      if (retries.length && retryNumber < (retries.length - 1) ) {
+      if (retries.length && retryNumber < (retries.length - 1)) {
          return false;
       }
 
       return true;
-      
+
    });
    const retryFailedStepsDisabled = !failedSteps.length;
 
@@ -95,13 +96,13 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
 
    //if (getSiteConfig().environment !== "production") {
 
-      opsList.push({
-         key: 'jobops_runfailedsteps',
-         text: "Retry Steps",
-         disabled: retryFailedStepsDisabled,
-         iconProps: { iconName: "Repeat" },
-         onClick: () => { setRetryStepsShown(true); }
-      });
+   opsList.push({
+      key: 'jobops_runfailedsteps',
+      text: "Retry Steps",
+      disabled: retryFailedStepsDisabled,
+      iconProps: { iconName: "Repeat" },
+      onClick: () => { setRetryStepsShown(true); }
+   });
    //}
 
    opsList.push({
@@ -291,8 +292,9 @@ const StepArtifactsOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: stri
 
 const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = observer(({ jobDetails, stepId }) => {
 
-   const [shown, setShown] = useState<{ abortShown?: boolean, retryShown?: boolean, pauseShown?: boolean }>({});
+   const [shown, setShown] = useState<{ abortShown?: boolean, retryShown?: boolean, pauseShown?: boolean, bisectShown?: boolean }>({});
    const [runType, setRunType] = useState(StepRetryType.RunAgain);
+   const config = getSiteConfig();
 
    // subscribe
    if (dashboard.updated) { }
@@ -314,6 +316,7 @@ const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = o
 
    const canRunDisabled = !node?.allowRetry || !!step.retriedByUserInfo;
    const canTryFix = jobDetails.template?.allowPreflights;
+   const canBisect = (step.outcome === JobStepOutcome.Failure || step.outcome === JobStepOutcome.Warnings);
 
    const opsList: IContextualMenuItem[] = [];
 
@@ -341,6 +344,16 @@ const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = o
       disabled: !canTryFix,
       onClick: () => { setShown({ retryShown: true }); setRunType(StepRetryType.TestFix); }
    });
+
+   if (config.environment !== "production") {
+      opsList.push({
+         key: 'stepops_bisect',
+         text: "Bisect",
+         iconProps: { iconName: "FlowReview" },
+         disabled: !canBisect,
+         onClick: () => { setShown({ bisectShown: true }); }
+      });
+   }
 
 
    opsList.push({
@@ -405,9 +418,15 @@ const StepOperations: React.FC<{ jobDetails: JobDetailsV2, stepId: string }> = o
    }
 
    return <Stack>
-      {shown.pauseShown && <PauseStepModal streamId={jobDetails.stream!.id} stepName={node!.name} templateName={jobDetails.template!.name} onClose={() => setShown({ pauseShown: false })} />}
-      <StepRetryModal stepId={stepId} jobDetails={jobDetails} type={runType} show={shown.retryShown ?? false} onClose={() => { setShown({}); }} />
-      <AbortJobModal stepId={stepId} jobDetails={jobDetails} show={shown.abortShown ?? false} onClose={() => { setShown({}); }} />
+      {!!shown.pauseShown && <PauseStepModal streamId={jobDetails.stream!.id} stepName={node!.name} templateName={jobDetails.template!.name} onClose={() => setShown({ pauseShown: false })} />}
+      {!!shown.retryShown && <StepRetryModal stepId={stepId} jobDetails={jobDetails} type={runType} show={true} onClose={() => { setShown({}); }} />}
+      {!!shown.abortShown && <AbortJobModal stepId={stepId} jobDetails={jobDetails} show={true} onClose={() => { setShown({}); }} />}
+      {!!shown.bisectShown && <BisectionCreateModal jobId={jobId} nodeName={node?.name ?? "Unknown Node"} onClose={(response) => {
+         if (response) {
+            window.location.reload();
+         }
+         setShown({});
+      }} />}
       <Stack horizontal styles={{ root: { paddingLeft: 0 } }}>
          <Stack grow />
          <Stack horizontal>

@@ -1075,6 +1075,9 @@ export type GetJobResponse = {
 	/** The user that started this job */
 	abortedByUserInfo?: GetThinUserInfoResponse;
 
+	/** Whether job was created by a bisection task */
+	startedByBisectTaskId?: string;
+
 	/** The roles to impersonate when executing this job */
 	roles: string[];
 
@@ -4631,3 +4634,121 @@ export type GetToolSummaryResponse = {
 	/** Version of tool */
 	version?: string;
 }
+
+/** Job Bisection */
+
+/// State of a bisect task
+export enum BisectTaskState {
+	/// Currently running	
+	Running = "Running",
+
+	/// Cancelled by a user	
+	Cancelled = "Cancelled",
+
+	/// Finished running. The first job/change identifies the first failure.	
+	Succeeded = "Succeeded",
+
+	/// Task failed due to not having a job before the first failure.	
+	MissingHistory = "MissingHistory",
+
+	/// Task failed due to the stream no longer existing.	
+	MissingStream = "MissingStream",
+
+	/// Task failed due to the first job no longer existing.	
+	MissingJob = "MissingJob",
+
+	/// Task failed due to template no longer existing.	
+	MissingTemplate = "MissingTemplate"
+}
+
+
+export type CommitTag = {
+	text: string;
+}
+
+/// Request to create a new bisect task
+export type CreateBisectTaskRequest = {
+
+	/// Job containing the node to check	
+	jobId: string;
+
+	/// Name of the node to query	
+	nodeName: string;
+
+	/// Commit tag to filter possible changes against	
+	commitTags?: CommitTag[];
+
+	/// Set of changes to ignore. Can be modified later through UpdateBisectTaskRequest
+	ignoreChanges?: number[];
+
+	/// Set of job ids to ignore. Can be modified later through UpdateBisectTaskRequest"
+	ignoreJobs?: string[];
+}
+
+/// Response from creating a bisect task
+export type CreateBisectTaskResponse = {
+
+	/// Identifier for the new bisect task	
+	bisectTaskId: string;
+}
+
+/// Information about a bisect task
+export type GetBisectTaskResponse = {
+
+	/// Identifier for this task
+	id: string;
+
+	/// Current task state
+	state: BisectTaskState;
+
+	/// User that initiated the search
+	owner: GetThinUserInfoResponse;
+
+	/// Stream being searched
+	streamId: string;
+
+	/// Template within the stream to execute
+	templateId: string;
+
+	/// Name of the step to search for
+	nodeName: string;
+
+	/// Outcome to search for
+	outcome: JobStepOutcome;
+
+	/// Starting job id for the bisection
+	initialJobId: string;
+
+	/// Starting change for the bisection
+	initialChange: number;
+
+	/// First known job id that is broken
+	currentJobId: string;
+
+	/// Changelist number of the first broken job id
+	currentChange: number;
+
+	/// The steps that have been run on bisection
+	steps?: GetJobStepRefResponse[];
+
+}
+
+/// Updates the state of a bisect task
+export type UpdateBisectTaskRequest = {
+	/// Cancels the current task	
+	cancel?: boolean;
+
+	/// List of change numbers to include in the search. 	
+	includeChanges?: number[];
+
+	/// List of change numbers to exclude from the search.	
+	encludeChanges?: number[];
+
+	/// List of jobs to include in the search.	
+	includeJobs?: string[]; 
+
+	/// List of jobs to exclude from the search.	
+	excludeJobs?: string[];
+}
+
+

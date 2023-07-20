@@ -178,6 +178,30 @@ export class Fetch {
 
     }
 
+    patch(url: string, data?: any, config?: FetchRequestConfig) {
+
+        url = this.buildUrl(url, config);
+
+        return new Promise<FetchResponse>((resolve, reject) => {
+
+            fetch(url, this.buildRequest("PATCH", data)).then(response => {
+
+                this.handleResponse(response, url, "PATCH", resolve, reject, config);
+
+            }).catch(reason => {
+
+                handleError({
+                    reason: reason,
+                    mode: "PATCH",
+                    url: url
+                }, true);
+
+                reject(reason);
+            });
+        });
+
+    }
+
 
     delete(url: string, config?: FetchRequestConfig) {
 
@@ -327,13 +351,13 @@ export class Fetch {
 
     }
 
-    private buildRequest(method: "GET" | "POST" | "PUT" | "DELETE", data?: any, config?: FetchRequestConfig): RequestInit {
+    private buildRequest(method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH", data?: any, config?: FetchRequestConfig): RequestInit {
 
         const headers = this.buildHeaders();
 
         let body: any = undefined;
 
-        if (method === "POST" || method === "PUT") {
+        if (method === "POST" || method === "PUT" || method === "PATCH") {
             if (data) {
                 if (config?.formData) {
                     body = data;

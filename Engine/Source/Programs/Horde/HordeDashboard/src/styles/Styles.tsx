@@ -132,7 +132,8 @@ registerIcons({
       "ArrowLeft": IconContents.ARROW_LEFT,
       "ArrowRight": IconContents.ARROW_RIGHT,
       "ArrowUp": IconContents.ARROW_UP,
-      "Repeat": IconContents.REPEAT
+      "Repeat": IconContents.REPEAT,
+      "FlowReview": IconContents.FLOW_REVIEW,
    }
 });
 
