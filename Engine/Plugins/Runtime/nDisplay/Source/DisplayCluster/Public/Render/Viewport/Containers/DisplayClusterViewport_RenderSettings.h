@@ -4,7 +4,8 @@
 
 #include "CoreMinimal.h"
 
-#include "DisplayClusterViewport_Enums.h"
+#include "DisplayClusterViewport_OverscanSettings.h"
+#include "DisplayClusterViewport_CustomFrustumSettings.h"
 
 /**
  * nDisplay viewport render settings.
@@ -43,8 +44,14 @@ public:
 	// Disable CustomFrustum feature from viewport settings
 	bool bDisableCustomFrustumFeature = false;
 
+	// Viewport custom frustum settings
+	FDisplayClusterViewport_CustomFrustumSettings CustomFrustumSettings;
+
 	// Disable viewport overscan feature from settings
 	bool bDisableFrustumOverscanFeature = false;
+
+	// Viewport frustum overscan settings
+	FDisplayClusterViewport_OverscanSettings OverscanSettings;
 
 	// Read viewport pixels for preview (this flag is cleared at the end of the frame)
 	bool bPreviewReadPixels = false;
@@ -97,6 +104,9 @@ public:
 		bSkipRendering = false;
 		bFreezeRendering = false;
 		bWarpBlendRenderAlphaChannel = false;
+
+		OverscanSettings = FDisplayClusterViewport_OverscanSettings();
+		CustomFrustumSettings = FDisplayClusterViewport_CustomFrustumSettings();
 
 		CaptureMode = EDisplayClusterViewportCaptureMode::Default;
 

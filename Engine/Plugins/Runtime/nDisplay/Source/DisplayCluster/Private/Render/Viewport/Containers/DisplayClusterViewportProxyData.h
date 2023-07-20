@@ -6,7 +6,7 @@
 #include "Render/Viewport/Containers/DisplayClusterViewport_RenderSettings.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_RenderSettingsICVFX.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_PostRenderSettings.h"
-#include "Render/Viewport/Containers/DisplayClusterViewport_OverscanSettings.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_OverscanRuntimeSettings.h"
 
 class IDisplayClusterProjectionPolicy;
 class FDisplayClusterViewportResource;
@@ -33,7 +33,7 @@ private:
 
 	TSharedPtr<IDisplayClusterRender_MeshComponent, ESPMode::ThreadSafe> RemapMesh;
 
-	FDisplayClusterViewport_OverscanSettings     OverscanSettings;
+	FDisplayClusterViewport_OverscanRuntimeSettings OverscanRuntimeSettings;
 
 	// Viewport render params
 	FDisplayClusterViewport_RenderSettings       RenderSettings;

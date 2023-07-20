@@ -19,6 +19,16 @@ public:
 	/** Get the minimum allowable texture size used for the nDisplay viewport. */
 	static int32 GetMaxTextureDimension();
 
+	/** Get the valid viewport size.
+	* 
+	* @param InRect         - source region
+	* @param InViewportId   - The viewport name (debug purpose)
+	* @param InResourceName - The resource name (debug purpose)
+	* 
+	* @return the region of the viewport that can be used
+	*/
+	static FIntRect GetValidViewportRect(const FIntRect& InRect, const FString& InViewportId, const TCHAR* InResourceName = nullptr);
+
 	/** Return true, if size is valid.
 	* 
 	* @param InSize - the size to be checked.

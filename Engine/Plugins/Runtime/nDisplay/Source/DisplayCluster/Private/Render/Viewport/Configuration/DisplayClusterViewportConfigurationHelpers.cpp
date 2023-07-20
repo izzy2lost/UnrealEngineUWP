@@ -6,6 +6,7 @@
 
 #include "Render/Viewport/DisplayClusterViewport.h"
 #include "Render/Viewport/DisplayClusterViewportManager.h"
+#include "Render/Viewport/DisplayClusterViewportHelpers.h"
 
 #include "DisplayClusterRootActor.h"
 
@@ -80,7 +81,7 @@ void FDisplayClusterViewportConfigurationHelpers::UpdateViewportSetting_Override
 				DstViewport.PostRenderSettings.Replace.TextureRHI = TextureRHI;
 				FIntVector Size = TextureRHI->GetSizeXYZ();
 
-				DstViewport.PostRenderSettings.Replace.Rect = DstViewport.GetValidRect((InOverride.bShouldUseTextureRegion) ? InOverride.TextureRegion.ToRect() : FIntRect(FIntPoint(0, 0), FIntPoint(Size.X, Size.Y)), TEXT("Configuration Override"));
+				DstViewport.PostRenderSettings.Replace.Rect = FDisplayClusterViewportHelpers::GetValidViewportRect((InOverride.bShouldUseTextureRegion) ? InOverride.TextureRegion.ToRect() : FIntRect(FIntPoint(0, 0), FIntPoint(Size.X, Size.Y)), DstViewport.GetId(), TEXT("Configuration Override"));
 			}
 		}
 	}
@@ -105,41 +106,40 @@ void FDisplayClusterViewportConfigurationHelpers::UpdateViewportSetting_Postproc
 	DstViewport.PostRenderSettings.PostprocessBlur.KernelScale = InBlurPostprocess.KernelScale;
 };
 
-void FDisplayClusterViewportConfigurationHelpers::UpdateViewportSetting_Overscan(FDisplayClusterViewport& DstViewport, const FDisplayClusterConfigurationViewport_Overscan& InOverscan)
+void FDisplayClusterViewportConfigurationHelpers::UpdateViewportSetting_Overscan(const FDisplayClusterConfigurationViewport_Overscan& InOverscan, FDisplayClusterViewport_OverscanSettings& OutOverscanSettings)
 {
-	FImplDisplayClusterViewport_OverscanSettings OverscanSettings;
-	OverscanSettings.bEnabled = InOverscan.bEnabled;
-	OverscanSettings.bOversize = InOverscan.bOversize;
+	OutOverscanSettings.bEnabled = false;
+	OutOverscanSettings.bOversize = InOverscan.bOversize;
 	
-	if (OverscanSettings.bEnabled)
+	if (InOverscan.bEnabled)
 	{
 		switch (InOverscan.Mode)
 		{
 		case EDisplayClusterConfigurationViewportOverscanMode::Percent:
-			OverscanSettings.Mode = EDisplayClusterViewport_OverscanMode::Percent;
+			OutOverscanSettings.bEnabled = InOverscan.bEnabled;
+			OutOverscanSettings.Unit = EDisplayClusterViewport_FrustumUnit::Percent;
 
 			// Scale 0..100% to 0..1 range
-			OverscanSettings.Left = .01f * InOverscan.Left;
-			OverscanSettings.Right = .01f * InOverscan.Right;
-			OverscanSettings.Top = .01f * InOverscan.Top;
-			OverscanSettings.Bottom = .01f * InOverscan.Bottom;
+			OutOverscanSettings.Left = .01f * InOverscan.Left;
+			OutOverscanSettings.Right = .01f * InOverscan.Right;
+			OutOverscanSettings.Top = .01f * InOverscan.Top;
+			OutOverscanSettings.Bottom = .01f * InOverscan.Bottom;
 			break;
 
 		case EDisplayClusterConfigurationViewportOverscanMode::Pixels:
-			OverscanSettings.Mode = EDisplayClusterViewport_OverscanMode::Pixels;
+			OutOverscanSettings.bEnabled = InOverscan.bEnabled;
+			OutOverscanSettings.Unit = EDisplayClusterViewport_FrustumUnit::Pixels;
 
-			OverscanSettings.Left = InOverscan.Left;
-			OverscanSettings.Right = InOverscan.Right;
-			OverscanSettings.Top = InOverscan.Top;
-			OverscanSettings.Bottom = InOverscan.Bottom;
+			OutOverscanSettings.Left = InOverscan.Left;
+			OutOverscanSettings.Right = InOverscan.Right;
+			OutOverscanSettings.Top = InOverscan.Top;
+			OutOverscanSettings.Bottom = InOverscan.Bottom;
 			break;
 
 		default:
 			break;
 		}
 	}
-
-	DstViewport.OverscanRendering.Set(OverscanSettings);
 };
 
 void FDisplayClusterViewportConfigurationHelpers::UpdateViewportSetting_GenerateMips(FDisplayClusterViewport& DstViewport, const FDisplayClusterConfigurationPostRender_GenerateMips& InGenerateMips)
@@ -175,7 +175,7 @@ void FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(FDis
 		}
 
 		DstViewport.RenderSettings.CameraId = InConfigurationViewport.Camera;
-		DstViewport.RenderSettings.Rect = DstViewport.GetValidRect(InConfigurationViewport.Region.ToRect(), TEXT("Configuration Region"));
+		DstViewport.RenderSettings.Rect = FDisplayClusterViewportHelpers::GetValidViewportRect(InConfigurationViewport.Region.ToRect(), DstViewport.GetId(), TEXT("Configuration Region"));
 
 		DstViewport.RenderSettings.bEnableCrossGPUTransfer = InConfigurationViewport.RenderSettings.bEnableCrossGPUTransfer;
 
@@ -198,7 +198,7 @@ void FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(FDis
 	{
 		DstViewport.SetViewportBufferRatio(InRenderSettings.BufferRatio);
 
-		UpdateViewportSetting_Overscan(DstViewport, InRenderSettings.Overscan);
+		UpdateViewportSetting_Overscan(InRenderSettings.Overscan, DstViewport.RenderSettings.OverscanSettings);
 
 		UpdateViewportSetting_Override(DstViewport, InRenderSettings.Replace);
 		UpdateViewportSetting_PostprocessBlur(DstViewport, InRenderSettings.PostprocessBlur);

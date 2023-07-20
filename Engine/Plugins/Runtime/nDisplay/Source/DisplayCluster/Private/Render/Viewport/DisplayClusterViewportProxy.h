@@ -11,7 +11,7 @@
 
 #include "Render/Viewport/IDisplayClusterViewportProxy.h"
 #include "Render/Viewport/DisplayClusterViewportResources.h"
-#include "Render/Viewport/Containers/DisplayClusterViewport_OverscanSettings.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_OverscanRuntimeSettings.h"
 
 class FDisplayClusterViewportProxyData;
 class IDisplayClusterViewportManagerProxy;
@@ -141,7 +141,7 @@ public:
 
 	// Resolve resource contexts
 	virtual bool ResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, const EDisplayClusterViewportResourceType InputResourceType, const EDisplayClusterViewportResourceType OutputResourceType, const int32 InContextNum = INDEX_NONE) const override;
-
+	virtual bool ResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, IDisplayClusterViewportProxy* InputResourceViewportProxy, const EDisplayClusterViewportResourceType InputResourceType, const EDisplayClusterViewportResourceType OutputResourceType, const int32 InContextNum = INDEX_NONE) const override;
 
 	virtual const class IDisplayClusterViewportManagerProxy* GetViewportManagerProxy_RenderThread() const override;
 
@@ -285,7 +285,7 @@ private:
 	void ImplViewportRemap_RenderThread(FRHICommandListImmediate& RHICmdList) const;
 	void ImplPreviewReadPixels_RenderThread(FRHICommandListImmediate& RHICmdList) const;
 
-	bool ImplResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, FDisplayClusterViewportProxy const* SourceProxy, const EDisplayClusterViewportResourceType InputResourceType, const EDisplayClusterViewportResourceType OutputResourceType, const int32 InContextNum) const;
+	bool ImplResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, FDisplayClusterViewportProxy const* SourceProxy, const EDisplayClusterViewportResourceType InputResourceType, const EDisplayClusterViewportResourceType OutputResourceType, const int32 InContextNum = INDEX_NONE) const;
 
 	/** When a resource by type can be overridden from another viewport, true is returned. */
 	bool ShouldOverrideViewportResource(const EDisplayClusterViewportResourceType InResourceType) const;
@@ -333,6 +333,9 @@ private:
 	 */
 	const FDisplayClusterViewportProxy& GetRenderingViewportProxy() const;
 
+	/** Apply OCIO to the image from the 'InSrcResourceType' and put the result image to the EDisplayClusterViewportResourceType::InputShaderResource. */
+	bool ApplyOCIO_RenderThread(FRHICommandListImmediate& RHICmdList, const FDisplayClusterViewportProxy& InSrcViewportProxy, const EDisplayClusterViewportResourceType InSrcResourceType) const;
+
 	/** Check if there is an RTT source (internal or external) in this viewport proxy. */
 	bool IsInputRenderTargetResourceExists() const;
 
@@ -361,7 +364,7 @@ protected:
 	FDisplayClusterViewport_PostRenderSettings   PostRenderSettings;
 
 	// Additional parameters
-	FDisplayClusterViewport_OverscanSettings     OverscanSettings;
+	FDisplayClusterViewport_OverscanRuntimeSettings OverscanRuntimeSettings;
 
 	TSharedPtr<IDisplayClusterRender_MeshComponent, ESPMode::ThreadSafe> RemapMesh;
 

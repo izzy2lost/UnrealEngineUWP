@@ -641,6 +641,60 @@ bool FDisplayClusterViewportProxy::ImplGetResourcesWithRects_RenderThread(const 
 	return true;
 }
 
+bool FDisplayClusterViewportProxy::ApplyOCIO_RenderThread(FRHICommandListImmediate& RHICmdList, const FDisplayClusterViewportProxy& InSrcViewportProxy, const EDisplayClusterViewportResourceType InSrcResourceType) const
+{
+	if (GetOpenColorIOMode() != EDisplayClusterViewportOpenColorIOMode::Resolved)
+	{
+		return false;
+	}
+
+	const EDisplayClusterViewportResourceType DestResourceType = (InSrcResourceType == EDisplayClusterViewportResourceType::InternalRenderTargetResource)
+		? EDisplayClusterViewportResourceType::InputShaderResource
+		: EDisplayClusterViewportResourceType::AdditionalTargetableResource;
+
+	TArray<FRHITexture2D*> Input, Output;
+	TArray<FIntRect> InputRects, OutputRects;
+	if (!InSrcViewportProxy.GetResourcesWithRects_RenderThread(InSrcResourceType, Input, InputRects)
+		|| !GetResourcesWithRects_RenderThread(DestResourceType, Output, OutputRects)
+		|| Input.Num() != Output.Num())
+	{
+		return false;
+	};
+
+	FRDGBuilder GraphBuilder(RHICmdList);
+
+	bool bResult = false;
+	for (int32 ContextNum = 0; ContextNum < Input.Num(); ContextNum++)
+	{
+		const bool bUnpremultiply = EnumHasAnyFlags(RenderSettingsICVFX.RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::UVLightcard | EDisplayClusterViewportRuntimeICVFXFlags::Lightcard);
+		const bool bInvertAlpha = !EnumHasAnyFlags(RenderSettingsICVFX.RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::UVLightcard);
+
+		if (OpenColorIO->AddPass_RenderThread(
+			GraphBuilder,
+			InSrcViewportProxy.GetContexts_RenderThread()[ContextNum],
+			Input[ContextNum], InputRects[ContextNum],
+			Output[ContextNum], OutputRects[ContextNum],
+			bUnpremultiply,
+			bInvertAlpha))
+		{
+			bResult = true;
+		}
+	}
+
+	if (bResult)
+	{
+		GraphBuilder.Execute();
+
+		// copy OCIO results back
+		if (DestResourceType != EDisplayClusterViewportResourceType::InputShaderResource)
+		{
+			ResolveResources_RenderThread(RHICmdList, DestResourceType, EDisplayClusterViewportResourceType::InputShaderResource);
+		}
+	}
+
+	return bResult;
+}
+
 void FDisplayClusterViewportProxy::UpdateDeferredResources(FRHICommandListImmediate& RHICmdList) const
 {
 	check(IsInRenderingThread());
@@ -664,47 +718,22 @@ void FDisplayClusterViewportProxy::UpdateDeferredResources(FRHICommandListImmedi
 		return;
 	}
 
-	bool bPass0Applied = false;
+	EDisplayClusterViewportResourceType SrcResourceType = EDisplayClusterViewportResourceType::InternalRenderTargetResource;
 
-	// OCIO support on the first pass for an resolved RTT
-	if (GetOpenColorIOMode() == EDisplayClusterViewportOpenColorIOMode::Resolved)
+	// pre-Pass 0 (Projection policy):The projection policy can use its own method to resolve 'InternalRenderTargetResource' to 'InputShaderResource'
+	if (ProjectionPolicy.IsValid() && ProjectionPolicy->ResolveInternalRenderTargetResource_RenderThread(RHICmdList, this, &SourceViewportProxy))
 	{
-		TArray<FRHITexture2D*> Input, Output;
-		TArray<FIntRect> InputRects, OutputRects;
-		if (SourceViewportProxy.GetResourcesWithRects_RenderThread(EDisplayClusterViewportResourceType::InternalRenderTargetResource, Input, InputRects)
-			&& GetResourcesWithRects_RenderThread(EDisplayClusterViewportResourceType::InputShaderResource, Output, OutputRects)
-			&& Input.Num() == Output.Num())
-		{
-			FRDGBuilder GraphBuilder(RHICmdList);
-
-			for (int32 ContextNum = 0; ContextNum < Input.Num(); ContextNum++)
-			{
-				const bool bUnpremultiply = EnumHasAnyFlags(RenderSettingsICVFX.RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::UVLightcard | EDisplayClusterViewportRuntimeICVFXFlags::Lightcard);
-				const bool bInvertAlpha = !EnumHasAnyFlags(RenderSettingsICVFX.RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::UVLightcard);
-
-				if (OpenColorIO->AddPass_RenderThread(
-					GraphBuilder,
-					SourceViewportProxy.GetContexts_RenderThread()[ContextNum],
-					Input[ContextNum], InputRects[ContextNum],
-					Output[ContextNum], OutputRects[ContextNum],
-					bUnpremultiply,
-					bInvertAlpha))
-				{
-					bPass0Applied = true;
-				}
-			}
-
-			if (bPass0Applied)
-			{
-				GraphBuilder.Execute();
-			}
-		}
+		SrcResourceType = EDisplayClusterViewportResourceType::InputShaderResource;
 	}
-	
-	if(!bPass0Applied)
+
+	// Pass 0 (OCIO): OCIO support on the first pass for an resolved RTT
+	if(!ApplyOCIO_RenderThread(RHICmdList, SourceViewportProxy, SrcResourceType))
 	{
-		// Pass 0: Resolve from RTT region to separated viewport context resource:
-		ResolveResources_RenderThread(RHICmdList, EDisplayClusterViewportResourceType::InternalRenderTargetResource, EDisplayClusterViewportResourceType::InputShaderResource);
+		// Pass 0 (default): Resolve from RTT region to separated viewport context resource:
+		if (SrcResourceType == EDisplayClusterViewportResourceType::InternalRenderTargetResource)
+		{
+			ImplResolveResources_RenderThread(RHICmdList, &SourceViewportProxy, SrcResourceType, EDisplayClusterViewportResourceType::InputShaderResource);
+		}
 	}
 
 	// Pass 1: Generate blur postprocess effect for render target texture rect for all contexts
@@ -852,10 +881,10 @@ FIntRect FDisplayClusterViewportProxy::GetFinalContextRect(const EDisplayCluster
 	switch (InResourceType)
 	{
 	case EDisplayClusterViewportResourceType::InternalRenderTargetResource:
-		if (OverscanSettings.bIsEnabled && CVarDisplayClusterRenderOverscanResolve.GetValueOnRenderThread() != 0)
+		if (OverscanRuntimeSettings.bIsEnabled && CVarDisplayClusterRenderOverscanResolve.GetValueOnRenderThread() != 0)
 		{
 			// Support overscan crop
-			return OverscanSettings.OverscanPixels.GetInnerRect(InRect);
+			return OverscanRuntimeSettings.OverscanPixels.GetInnerRect(InRect);
 		}
 		break;
 	default:
@@ -869,6 +898,13 @@ FIntRect FDisplayClusterViewportProxy::GetFinalContextRect(const EDisplayCluster
 bool FDisplayClusterViewportProxy::ResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, const EDisplayClusterViewportResourceType InExtResourceType, const EDisplayClusterViewportResourceType OutExtResourceType, const int32 InContextNum) const
 {
 	return ImplResolveResources_RenderThread(RHICmdList, this, InExtResourceType, OutExtResourceType, InContextNum);
+}
+
+bool FDisplayClusterViewportProxy::ResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, IDisplayClusterViewportProxy* InputResourceViewportProxy, const EDisplayClusterViewportResourceType InExtResourceType, const EDisplayClusterViewportResourceType OutExtResourceType, const int32 InContextNum) const
+{
+	const FDisplayClusterViewportProxy* SourceProxy = static_cast<FDisplayClusterViewportProxy*>(InputResourceViewportProxy);
+
+	return ImplResolveResources_RenderThread(RHICmdList, SourceProxy , InExtResourceType, OutExtResourceType, InContextNum);
 }
 
 bool FDisplayClusterViewportProxy::ImplResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, FDisplayClusterViewportProxy const* SourceProxy, const EDisplayClusterViewportResourceType InExtResourceType, const EDisplayClusterViewportResourceType OutExtResourceType, const int32 InContextNum) const

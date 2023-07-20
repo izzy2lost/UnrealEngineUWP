@@ -83,6 +83,19 @@ public:
 	{ }
 
 	/**
+	 * Called before FDisplayClusterViewport::UpdateFrameContexts()
+	 * From this function, the policy can override any viewport settings (custom overscan, etc).
+	 */
+	virtual void BeginUpdateFrameContexts(IDisplayClusterViewport* InViewport) const
+	{ }
+
+	/**
+	 * Called after FDisplayClusterViewport::UpdateFrameContexts()
+	 */
+	virtual void EndUpdateFrameContexts(IDisplayClusterViewport* InViewport) const
+	{ }
+
+	/**
 	* Set warp policy for this projection
 	*
 	* @param InWarpPolicy - the warp policy instance
@@ -252,6 +265,21 @@ public:
 	* @return - true if output interface valid
 	*/
 	virtual bool GetWarpBlendInterface_RenderThread(TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe>& OutWarpBlendInterfaceProxy) const
+	{
+		return false;
+	}
+
+	/**
+	* Override copying 'InternalRenderTargetResource' to 'InputShaderResource'.
+	* The same behavior as for function bellow  is expected:
+	*     ResolveResources_RenderThread(RHICmdList, InSourceViewportProxy, InSrcResourceType, InDstResourceType);
+	*
+	* @param InViewportProxy       - This ViewportProxy will get the result
+	* @param InSourceViewportProxy - This ViewportProxy will provide the input resource
+	* 
+	* @return - true, if copying is overridden.
+	*/
+	virtual bool ResolveInternalRenderTargetResource_RenderThread(FRHICommandListImmediate& RHICmdList, const IDisplayClusterViewportProxy* InViewportProxy, const IDisplayClusterViewportProxy* InSourceViewportProxy)
 	{
 		return false;
 	}

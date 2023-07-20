@@ -6,7 +6,9 @@
 #include "Cluster/IPDisplayClusterClusterManager.h"
 
 #include "Render/Viewport/Containers/DisplayClusterViewport_CameraMotionBlur.h"
-#include "Render/Viewport/Containers/ImplDisplayClusterViewport_CustomFrustum.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_CustomFrustumRuntimeSettings.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_ICVFX.h"
+
 #include "Components/DisplayClusterCameraComponent.h"
 #include "DisplayClusterRootActor.h"
 
@@ -183,60 +185,27 @@ void UDisplayClusterICVFXCameraComponent::UpdateOverscanEstimatedFrameSize()
 	const FDisplayClusterConfigurationICVFX_StageSettings& StageSettings = RootActor->GetStageSettings();
 
 	const float CameraBufferRatio = CameraSettings.GetCameraBufferRatio(StageSettings);
-	const FIntPoint InnerFrustumSize = CameraSettings.GetCameraFrameSize(StageSettings);
+	const FIntPoint InnerFrustumResolution = CameraSettings.GetCameraFrameSize(StageSettings) * CameraBufferRatio;
+	const FIntPoint UpscaledInnerFrustumResolution = InnerFrustumResolution * CameraSettings.CustomFrustum.FieldOfViewMultiplier;
 
-	float InnerFrustumResolutionWidth = InnerFrustumSize.X * CameraBufferRatio;
-	float InnerFrustumResolutionHeight = InnerFrustumSize.Y * CameraBufferRatio;
+	// Read configuration data
+	FDisplayClusterViewport_CustomFrustumSettings CustomFrustumSettings;
+	FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(CameraSettings.CustomFrustum, CustomFrustumSettings);
 
-	float EstimatedOverscanResolutionWidth = InnerFrustumResolutionWidth;
-	float EstimatedOverscanResolutionHeight = InnerFrustumResolutionHeight;
+	// Calculate overscan to temp var
+	FIntRect FinalViewportRect(FIntPoint(0,0), UpscaledInnerFrustumResolution);
+	FDisplayClusterViewport_CustomFrustumRuntimeSettings CustomFrustumRuntimeSettings;
+	FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(GetName(), CustomFrustumSettings, CustomFrustumRuntimeSettings, FinalViewportRect);
 
-	//calculate estimate
-	{
-		EstimatedOverscanResolutionWidth = InnerFrustumResolutionWidth * CameraSettings.CustomFrustum.FieldOfViewMultiplier;
-		EstimatedOverscanResolutionHeight = InnerFrustumResolutionHeight * CameraSettings.CustomFrustum.FieldOfViewMultiplier;
+	// Show calculated values
+	CameraSettings.CustomFrustum.InnerFrustumResolution = InnerFrustumResolution;
+	CameraSettings.CustomFrustum.EstimatedOverscanResolution = FinalViewportRect.Size();
 
-		FDisplayClusterViewport_CustomFrustumSettings CustomFrustumSettings;
+	const int32 EstimatedPixel = CameraSettings.CustomFrustum.EstimatedOverscanResolution.X * CameraSettings.CustomFrustum.EstimatedOverscanResolution.Y;
+	const int32 BasePixels = CameraSettings.CustomFrustum.InnerFrustumResolution.X * CameraSettings.CustomFrustum.InnerFrustumResolution.Y;
 
-		if (CameraSettings.CustomFrustum.Mode == EDisplayClusterConfigurationViewportCustomFrustumMode::Percent)
-		{
-			const float ConvertToPercent = 0.01;
-			CustomFrustumSettings.CustomFrustumPercent.Left = FDisplayClusterViewport_OverscanSettings::ClampPercent(CameraSettings.CustomFrustum.Left * ConvertToPercent);
-			CustomFrustumSettings.CustomFrustumPercent.Right = FDisplayClusterViewport_OverscanSettings::ClampPercent(CameraSettings.CustomFrustum.Right * ConvertToPercent);
-			CustomFrustumSettings.CustomFrustumPercent.Top = FDisplayClusterViewport_OverscanSettings::ClampPercent(CameraSettings.CustomFrustum.Top * ConvertToPercent);
-			CustomFrustumSettings.CustomFrustumPercent.Bottom = FDisplayClusterViewport_OverscanSettings::ClampPercent(CameraSettings.CustomFrustum.Bottom * ConvertToPercent);
-		}
-		else if (CameraSettings.CustomFrustum.Mode == EDisplayClusterConfigurationViewportCustomFrustumMode::Pixels)
-		{
-			CustomFrustumSettings.CustomFrustumPercent.Left = FDisplayClusterViewport_OverscanSettings::ClampPercent(CameraSettings.CustomFrustum.Left / EstimatedOverscanResolutionWidth);
-			CustomFrustumSettings.CustomFrustumPercent.Right = FDisplayClusterViewport_OverscanSettings::ClampPercent(CameraSettings.CustomFrustum.Right / EstimatedOverscanResolutionWidth);
-			CustomFrustumSettings.CustomFrustumPercent.Top = FDisplayClusterViewport_OverscanSettings::ClampPercent(CameraSettings.CustomFrustum.Top / EstimatedOverscanResolutionHeight);
-			CustomFrustumSettings.CustomFrustumPercent.Bottom = FDisplayClusterViewport_OverscanSettings::ClampPercent(CameraSettings.CustomFrustum.Bottom / EstimatedOverscanResolutionHeight);
-		}
-
-		// Calc pixels from percent
-		CustomFrustumSettings.CustomFrustumPixels.Left = FMath::RoundToInt(EstimatedOverscanResolutionWidth * CustomFrustumSettings.CustomFrustumPercent.Left);
-		CustomFrustumSettings.CustomFrustumPixels.Right = FMath::RoundToInt(EstimatedOverscanResolutionWidth * CustomFrustumSettings.CustomFrustumPercent.Right);
-		CustomFrustumSettings.CustomFrustumPixels.Top = FMath::RoundToInt(EstimatedOverscanResolutionHeight * CustomFrustumSettings.CustomFrustumPercent.Top);
-		CustomFrustumSettings.CustomFrustumPixels.Bottom = FMath::RoundToInt(EstimatedOverscanResolutionHeight * CustomFrustumSettings.CustomFrustumPercent.Bottom);
-
-		const FIntPoint AdjustmentSize = CustomFrustumSettings.CustomFrustumPixels.Size();
-		EstimatedOverscanResolutionWidth += AdjustmentSize.X;
-		EstimatedOverscanResolutionHeight += AdjustmentSize.Y;
-	}
-
-	if (CameraSettings.CustomFrustum.bEnable && CameraSettings.CustomFrustum.bAdaptResolution)
-	{
-		InnerFrustumResolutionWidth = EstimatedOverscanResolutionWidth;
-		InnerFrustumResolutionHeight = EstimatedOverscanResolutionHeight;
-	}
-
-	CameraSettings.CustomFrustum.InnerFrustumResolution = FIntPoint(InnerFrustumResolutionWidth, InnerFrustumResolutionHeight);
-	CameraSettings.CustomFrustum.EstimatedOverscanResolution = FIntPoint(EstimatedOverscanResolutionWidth, EstimatedOverscanResolutionHeight);
-
-	CameraSettings.CustomFrustum.OverscanPixelsIncrease = ((float)(EstimatedOverscanResolutionWidth * EstimatedOverscanResolutionHeight) / (float)(InnerFrustumResolutionWidth * InnerFrustumResolutionHeight));
+	CameraSettings.CustomFrustum.OverscanPixelsIncrease = ((float)(EstimatedPixel) / (float)(BasePixels));
 }
-
 
 FDisplayClusterViewport_CameraMotionBlur UDisplayClusterICVFXCameraComponent::GetMotionBlurParameters()
 {

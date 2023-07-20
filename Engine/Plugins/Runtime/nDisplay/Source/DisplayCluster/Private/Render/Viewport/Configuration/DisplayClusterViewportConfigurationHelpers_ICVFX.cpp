@@ -10,6 +10,7 @@
 #include "Render/Viewport/DisplayClusterViewport.h"
 #include "Render/Viewport/DisplayClusterViewportManager.h"
 #include "Render/Viewport/DisplayClusterViewportStrings.h"
+#include "Render/Viewport/DisplayClusterViewportHelpers.h"
 
 #include "DisplayClusterRootActor.h"
 
@@ -29,7 +30,6 @@
 #include "Render/Viewport/Containers/DisplayClusterViewport_RenderSettings.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_RenderSettingsICVFX.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_PostRenderSettings.h"
-#include "Render/Viewport/Containers/ImplDisplayClusterViewport_CustomFrustum.h"
 
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
 #include "Render/Viewport/LightCard/DisplayClusterViewportLightCardManager.h"
@@ -551,7 +551,7 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraViewportSett
 	// UDisplayClusterConfigurationICVFX_CameraRenderSettings
 	const FIntPoint DesiredSize = CameraSettings.GetCameraFrameSize(StageSettings);
 
-	DstViewport.RenderSettings.Rect = DstViewport.GetValidRect(FIntRect(FIntPoint(0, 0), DesiredSize), TEXT("Configuration Camera Frame Size"));
+	DstViewport.RenderSettings.Rect = FDisplayClusterViewportHelpers::GetValidViewportRect(FIntRect(FIntPoint(0, 0), DesiredSize), DstViewport.GetId(), TEXT("Configuration Camera Frame Size"));
 
 	// Apply postprocess for camera
 	FDisplayClusterViewportConfigurationHelpers_Postprocess::UpdateCameraPostProcessSettings(DstViewport, RootActor, InCameraComponent);
@@ -572,7 +572,7 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraViewportSett
 	}
 
 	// Support inner camera custom frustum
-	FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(DstViewport, CameraSettings.CustomFrustum);
+	FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(CameraSettings.CustomFrustum, DstViewport.RenderSettings.CustomFrustumSettings);
 
 	// Set RenderTargetAdaptRatio
 	DstViewport.RenderSettings.RenderTargetAdaptRatio = CameraSettings.GetCameraAdaptResolutionRatio(StageSettings);
@@ -642,7 +642,7 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateChromakeyViewportS
 			DesiredSize.X = ChromakeyRenderSettings->CustomSize.CustomWidth;
 			DesiredSize.Y = ChromakeyRenderSettings->CustomSize.CustomHeight;
 
-			DstViewport.RenderSettings.Rect = DstViewport.GetValidRect(FIntRect(FIntPoint(0, 0), DesiredSize), TEXT("Configuration custom chromakey Frame Size"));
+			DstViewport.RenderSettings.Rect = FDisplayClusterViewportHelpers::GetValidViewportRect(FIntRect(FIntPoint(0, 0), DesiredSize), DstViewport.GetId(), TEXT("Configuration custom chromakey Frame Size"));
 		}
 
 		// Debug: override the texture of the target viewport from this chromakeyRTT
@@ -657,7 +657,7 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateChromakeyViewportS
 	// FDisplayClusterViewportConfigurationHelpers_OpenColorIO::UpdateChromakeyViewport(DstViewport, RootActor, InCameraComponent);
 
 	// Support inner camera custom frustum
-	FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(DstViewport, CameraSettings.CustomFrustum);
+	FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(CameraSettings.CustomFrustum, DstViewport.RenderSettings.CustomFrustumSettings);
 
 	// Attach to parent viewport
 	DstViewport.RenderSettings.AssignParentViewport(InCameraViewport.GetId(), InCameraViewport.RenderSettings);
@@ -809,38 +809,41 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateLightcardViewportS
 	}
 }
 
-void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(FDisplayClusterViewport& DstViewport, const FDisplayClusterConfigurationICVFX_CameraCustomFrustum& InCameraCustomFrustumConfiguration)
+void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(
+	const FDisplayClusterConfigurationICVFX_CameraCustomFrustum& InCameraCustomFrustumConfiguration,
+	FDisplayClusterViewport_CustomFrustumSettings& OutCustomFrustumSettings)
 {
+	OutCustomFrustumSettings.bEnabled = false;
+
 	if (InCameraCustomFrustumConfiguration.bEnable)
 	{
-		FImplDisplayClusterViewport_CustomFrustumSettings CustomFrustumSettings;
-		CustomFrustumSettings.bAdaptResolution = InCameraCustomFrustumConfiguration.bAdaptResolution;
+		OutCustomFrustumSettings.bAdaptResolution = InCameraCustomFrustumConfiguration.bAdaptResolution;
 
 		switch (InCameraCustomFrustumConfiguration.Mode)
 		{
 		case EDisplayClusterConfigurationViewportCustomFrustumMode::Percent:
-			CustomFrustumSettings.Mode = EDisplayClusterViewport_CustomFrustumMode::Percent;
+			OutCustomFrustumSettings.bEnabled = true;
+			OutCustomFrustumSettings.Unit = EDisplayClusterViewport_FrustumUnit::Percent;
 
 			// Scale 0..100% to 0..1 range
-			CustomFrustumSettings.Left = .01f * InCameraCustomFrustumConfiguration.Left;
-			CustomFrustumSettings.Right = .01f * InCameraCustomFrustumConfiguration.Right;
-			CustomFrustumSettings.Top = .01f * InCameraCustomFrustumConfiguration.Top;
-			CustomFrustumSettings.Bottom = .01f * InCameraCustomFrustumConfiguration.Bottom;
+			OutCustomFrustumSettings.Left = .01f * InCameraCustomFrustumConfiguration.Left;
+			OutCustomFrustumSettings.Right = .01f * InCameraCustomFrustumConfiguration.Right;
+			OutCustomFrustumSettings.Top = .01f * InCameraCustomFrustumConfiguration.Top;
+			OutCustomFrustumSettings.Bottom = .01f * InCameraCustomFrustumConfiguration.Bottom;
 			break;
 
 		case EDisplayClusterConfigurationViewportCustomFrustumMode::Pixels:
-			CustomFrustumSettings.Mode = EDisplayClusterViewport_CustomFrustumMode::Pixels;
+			OutCustomFrustumSettings.bEnabled = true;
+			OutCustomFrustumSettings.Unit = EDisplayClusterViewport_FrustumUnit::Pixels;
 
-			CustomFrustumSettings.Left = InCameraCustomFrustumConfiguration.Left;
-			CustomFrustumSettings.Right = InCameraCustomFrustumConfiguration.Right;
-			CustomFrustumSettings.Top = InCameraCustomFrustumConfiguration.Top;
-			CustomFrustumSettings.Bottom = InCameraCustomFrustumConfiguration.Bottom;
+			OutCustomFrustumSettings.Left = InCameraCustomFrustumConfiguration.Left;
+			OutCustomFrustumSettings.Right = InCameraCustomFrustumConfiguration.Right;
+			OutCustomFrustumSettings.Top = InCameraCustomFrustumConfiguration.Top;
+			OutCustomFrustumSettings.Bottom = InCameraCustomFrustumConfiguration.Bottom;
 			break;
 
 		default:
 			break;
 		}
-
-		DstViewport.CustomFrustumRendering.Set(CustomFrustumSettings);
 	}
 };

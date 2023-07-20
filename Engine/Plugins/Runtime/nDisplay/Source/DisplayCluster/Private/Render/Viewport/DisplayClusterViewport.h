@@ -5,8 +5,8 @@
 #include "Render/Viewport/IDisplayClusterViewport.h"
 
 #include "Render/Viewport/Containers/ImplDisplayClusterViewport_CameraMotionBlur.h"
-#include "Render/Viewport/Containers/ImplDisplayClusterViewport_CustomFrustum.h"
-#include "Render/Viewport/Containers/ImplDisplayClusterViewport_Overscan.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_CustomFrustumRuntimeSettings.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_OverscanRuntimeSettings.h"
 #include "Render/Viewport/Containers/DisplayClusterViewportRemap.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_Enums.h"
 
@@ -218,8 +218,9 @@ public:
 		PostRenderSettings.BeginUpdateSettings();
 		VisibilitySettings.ResetConfiguration();
 		CameraMotionBlur.ResetConfiguration();
-		OverscanRendering.ResetConfiguration();
-		CustomFrustumRendering.ResetConfiguration();
+
+		OverscanRuntimeSettings = FDisplayClusterViewport_OverscanRuntimeSettings();
+		CustomFrustumRuntimeSettings = FDisplayClusterViewport_CustomFrustumRuntimeSettings();
 	}
 
 	// Active view extension for this viewport
@@ -239,9 +240,6 @@ public:
 
 	/** Compare OCIO with another viewport, return true if they are equal. */
 	bool IsOpenColorIOEquals(const FDisplayClusterViewport& InViewport) const;
-
-public:
-	FIntRect GetValidRect(const FIntRect& InRect, const TCHAR* DbgSourceName);
 
 private:
 	float GetClusterRenderTargetRatioMult(const FDisplayClusterRenderFrameSettings& InFrameSettings) const;
@@ -270,8 +268,9 @@ public:
 
 	// Additional features:
 	FImplDisplayClusterViewport_CameraMotionBlur CameraMotionBlur;
-	FImplDisplayClusterViewport_Overscan         OverscanRendering;
-	FImplDisplayClusterViewport_CustomFrustum    CustomFrustumRendering;
+
+	FDisplayClusterViewport_OverscanRuntimeSettings      OverscanRuntimeSettings;
+	FDisplayClusterViewport_CustomFrustumRuntimeSettings CustomFrustumRuntimeSettings;
 
 	// viewport OutputRemap feature
 	FDisplayClusterViewportRemap ViewportRemap;

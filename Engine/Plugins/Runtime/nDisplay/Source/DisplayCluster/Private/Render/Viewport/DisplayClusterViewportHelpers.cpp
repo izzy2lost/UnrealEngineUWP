@@ -4,6 +4,8 @@
 #include "Render/Viewport/RenderTarget/DisplayClusterRenderTargetResource.h"
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
 
+#include "Misc/DisplayClusterLog.h"
+
 #include "Engine/TextureRenderTarget2D.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,6 +126,38 @@ int32 FDisplayClusterViewportHelpers::GetMinTextureDimension()
 	}
 
 	return MinTextureDimension;
+}
+
+FIntRect FDisplayClusterViewportHelpers::GetValidViewportRect(const FIntRect& InRect, const FString& InViewportId, const TCHAR* InResourceName)
+{
+	// The target always needs be within GMaxTextureDimensions, larger dimensions are not supported by the engine
+	const int32 MaxTextureSize = FDisplayClusterViewportHelpers::GetMaxTextureDimension();
+	const int32 MinTextureSize = FDisplayClusterViewportHelpers::GetMinTextureDimension();
+
+	int32 Width = FMath::Max(MinTextureSize, InRect.Width());
+	int32 Height = FMath::Max(MinTextureSize, InRect.Height());
+
+	FIntRect OutRect(InRect.Min, InRect.Min + FIntPoint(Width, Height));
+
+	float RectScale = 1;
+
+	// Make sure the rect doesn't exceed the maximum resolution, and preserve its aspect ratio if it needs to be clamped
+	int32 RectMaxSize = OutRect.Max.GetMax();
+	if (RectMaxSize > MaxTextureSize)
+	{
+		RectScale = float(MaxTextureSize) / RectMaxSize;
+		UE_LOG(LogDisplayClusterViewport, Error, TEXT("The viewport '%s' rect '%s' size %dx%d clamped: max texture dimensions is %d"), *InViewportId, (InResourceName == nullptr) ? TEXT("none") : InResourceName, InRect.Max.X, InRect.Max.Y, MaxTextureSize);
+	}
+
+	OutRect.Min.X = FMath::Min(OutRect.Min.X, MaxTextureSize);
+	OutRect.Min.Y = FMath::Min(OutRect.Min.Y, MaxTextureSize);
+
+	const FIntPoint ScaledRectMax = FDisplayClusterViewportHelpers::ScaleTextureSize(OutRect.Max, RectScale);
+
+	OutRect.Max.X = FMath::Clamp(ScaledRectMax.X, OutRect.Min.X, MaxTextureSize);
+	OutRect.Max.Y = FMath::Clamp(ScaledRectMax.Y, OutRect.Min.Y, MaxTextureSize);
+
+	return OutRect;
 }
 
 bool FDisplayClusterViewportHelpers::IsValidTextureSize(const FIntPoint& InSize)

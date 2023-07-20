@@ -430,38 +430,6 @@ inline void AdjustRect(FIntRect& InOutRect, const float multX, const float multY
 	InOutRect.Max.Y *= multY;
 }
 
-FIntRect FDisplayClusterViewport::GetValidRect(const FIntRect& InRect, const TCHAR* DbgSourceName)
-{
-	// The target always needs be within GMaxTextureDimensions, larger dimensions are not supported by the engine
-	const int32 MaxTextureSize = FDisplayClusterViewportHelpers::GetMaxTextureDimension();
-	const int32 MinTextureSize = FDisplayClusterViewportHelpers::GetMinTextureDimension();
-
-	int32 Width  = FMath::Max(MinTextureSize, InRect.Width());
-	int32 Height = FMath::Max(MinTextureSize, InRect.Height());
-
-	FIntRect OutRect(InRect.Min, InRect.Min + FIntPoint(Width, Height));
-
-	float RectScale = 1;
-
-	// Make sure the rect doesn't exceed the maximum resolution, and preserve its aspect ratio if it needs to be clamped
-	int32 RectMaxSize = OutRect.Max.GetMax();
-	if (RectMaxSize > MaxTextureSize)
-	{
-		RectScale = float(MaxTextureSize) / RectMaxSize;
-		UE_LOG(LogDisplayClusterViewport, Error, TEXT("The viewport '%s' rect '%s' size %dx%d clamped: max texture dimensions is %d"), *GetId(), (DbgSourceName==nullptr) ? TEXT("none") : DbgSourceName, InRect.Max.X, InRect.Max.Y, MaxTextureSize);
-	}
-
-	OutRect.Min.X = FMath::Min(OutRect.Min.X, MaxTextureSize);
-	OutRect.Min.Y = FMath::Min(OutRect.Min.Y, MaxTextureSize);
-
-	const FIntPoint ScaledRectMax = FDisplayClusterViewportHelpers::ScaleTextureSize(OutRect.Max, RectScale);
-
-	OutRect.Max.X = FMath::Clamp(ScaledRectMax.X, OutRect.Min.X, MaxTextureSize);
-	OutRect.Max.Y = FMath::Clamp(ScaledRectMax.Y, OutRect.Min.Y, MaxTextureSize);
-
-	return OutRect;
-}
-
 float FDisplayClusterViewport::GetClusterRenderTargetRatioMult(const FDisplayClusterRenderFrameSettings& InFrameSettings) const
 {
 	float ClusterRenderTargetRatioMult = InFrameSettings.ClusterRenderTargetRatioMult;
@@ -590,7 +558,7 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 				ContextIt.StereoscopicPass = FDisplayClusterViewportStereoscopicPass::EncodeStereoscopicPass(ContextIt.ContextNum, ViewportContextAmount, InFrameSettings);
 				ContextIt.StereoViewIndex = (int32)(InStereoViewIndex + ContextIt.ContextNum);
 				ContextIt.bDisableRender = true;
-				ContextIt.FrameTargetRect = GetValidRect(DesiredFrameTargetRect, TEXT("Context Frame"));
+				ContextIt.FrameTargetRect = FDisplayClusterViewportHelpers::GetValidViewportRect(DesiredFrameTargetRect, GetId(), TEXT("Context Frame"));
 			}
 
 			return true;
@@ -620,7 +588,7 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	}
 
 	// Make sure the frame target rect doesn't exceed the maximum resolution, and preserve its aspect ratio if it needs to be clamped
-	FIntRect FrameTargetRect = GetValidRect(DesiredFrameTargetRect, TEXT("Context Frame"));
+	FIntRect FrameTargetRect = FDisplayClusterViewportHelpers::GetValidViewportRect(DesiredFrameTargetRect, GetId(), TEXT("Context Frame"));
 
 	// Exclude zero-size viewports from render
 	if (FrameTargetRect.Size().GetMin() <= 0)
@@ -656,12 +624,18 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	FIntRect RenderTargetRect = FIntRect(FIntPoint(0, 0), DesiredContextSize);
 
 	// Support custom frustum rendering feature
-	CustomFrustumRendering.Update(*this, RenderTargetRect);
+	if (!RenderSettings.bDisableCustomFrustumFeature)
+	{
+		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(GetId(), RenderSettings.CustomFrustumSettings, CustomFrustumRuntimeSettings, RenderTargetRect);
+	}
 
 	FIntPoint ContextSize = RenderTargetRect.Size();
 
 	// Support overscan rendering feature
-	OverscanRendering.Update(*this, RenderTargetRect);
+	if (!RenderSettings.bDisableFrustumOverscanFeature)
+	{
+		FDisplayClusterViewport_OverscanRuntimeSettings::UpdateOverscanSettings(GetId(), RenderSettings.OverscanSettings, OverscanRuntimeSettings, RenderTargetRect);
+	}
 
 	const float BaseCustomBufferRatio = GetCustomBufferRatio(InFrameSettings);
 

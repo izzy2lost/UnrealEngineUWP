@@ -119,3 +119,15 @@ enum class EDisplayClusterViewportOverrideMode : uint8
 	// Override all - clone viewport (Dont render; Don't create resources;)
 	All
 };
+
+/**
+* Type of unit for frustum
+*/
+enum class EDisplayClusterViewport_FrustumUnit: uint8
+{
+	// 1 unit = 1 pixel
+	Pixels = 0,
+
+	// 1 unit = 1 per cent
+	Percent
+};

@@ -16,6 +16,7 @@ struct FDisplayClusterConfigurationPostRender_BlurPostprocess;
 struct FDisplayClusterConfigurationViewport_Overscan;
 struct FDisplayClusterConfigurationPostRender_GenerateMips;
 struct FDisplayClusterConfigurationProjection;
+struct FDisplayClusterViewport_OverscanSettings;
 
 class FDisplayClusterViewportConfigurationHelpers
 {
@@ -26,7 +27,7 @@ public:
 	static void UpdateViewportSetting_Override(FDisplayClusterViewport& DstViewport, const FDisplayClusterConfigurationPostRender_Override& InOverride);
 
 	static void UpdateViewportSetting_PostprocessBlur(FDisplayClusterViewport& DstViewport, const FDisplayClusterConfigurationPostRender_BlurPostprocess& InBlurPostprocess);
-	static void UpdateViewportSetting_Overscan(FDisplayClusterViewport& DstViewport, const FDisplayClusterConfigurationViewport_Overscan& InOverscan);
+	static void UpdateViewportSetting_Overscan(const FDisplayClusterConfigurationViewport_Overscan& InOverscan, FDisplayClusterViewport_OverscanSettings& OutOverscanSettings);
 	static void UpdateViewportSetting_GenerateMips(FDisplayClusterViewport& DstViewport, const FDisplayClusterConfigurationPostRender_GenerateMips& InGenerateMips);
 
 	static void UpdateBaseViewportSetting(FDisplayClusterViewport& DstViewport, ADisplayClusterRootActor& RootActor, const UDisplayClusterConfigurationViewport& InConfigurationViewport);

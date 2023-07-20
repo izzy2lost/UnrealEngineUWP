@@ -75,6 +75,18 @@ public:
 	 */
 	virtual bool ResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, const EDisplayClusterViewportResourceType InputResourceType, const EDisplayClusterViewportResourceType OutputResourceType, const int32 InContextNum = INDEX_NONE) const = 0;
 
+	/** Copy resource contexts by type
+	 *
+	 * @param RHICmdList                 - RHIinterface
+	 * @param InputResourceViewportProxy - The 'InputResourceType' resource will be obtained from this object
+	 * @param InputResourceType          - Input resource type (RTT, Shader, MIPS, etc)
+	 * @param OutputResourceType         - Output resource type (RTT, Shader, MIPS, etc)
+	 * @param InContextNum               - [optional] the type of context to copy (by default, all contexts are copied).
+	 *
+	 * @return - true if success
+	 */
+	virtual bool ResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, IDisplayClusterViewportProxy* InputResourceViewportProxy, const EDisplayClusterViewportResourceType InputResourceType, const EDisplayClusterViewportResourceType OutputResourceType, const int32 InContextNum = INDEX_NONE) const = 0;
+
 	/** Return output resource type (support preview, remap, etc). */
 	UE_DEPRECATED(5.3, "This function has beend deprecate. Please use the new enumeration values.")
 	virtual EDisplayClusterViewportResourceType GetOutputResourceType_RenderThread() const

@@ -643,7 +643,18 @@ bool FDisplayClusterViewportManager::BeginNewFrame(FViewport* InViewport, UWorld
 			// Save orig viewport contexts
 			TArray<FDisplayClusterViewport_Context> PrevContexts;
 			PrevContexts.Append(ViewportIt->GetContexts());
+
+			if (ViewportIt->ProjectionPolicy.IsValid())
+			{
+				ViewportIt->ProjectionPolicy->BeginUpdateFrameContexts(ViewportIt.Get());
+			}
+
 			ViewportIt->UpdateFrameContexts(FirstViewportStereoViewIndex, RenderFrameSettings);
+
+			if (ViewportIt->ProjectionPolicy.IsValid())
+			{
+				ViewportIt->ProjectionPolicy->EndUpdateFrameContexts(ViewportIt.Get());
+			}
 
 			HandleViewportRTTChanges(PrevContexts, ViewportIt->GetContexts());
 		}

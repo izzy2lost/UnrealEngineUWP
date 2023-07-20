@@ -159,7 +159,7 @@ bool FDisplayClusterViewport::GetProjectionMatrix(const uint32 InContextNum, FMa
 				Contexts[InContextNum].ProjectionMatrix = OutPrjMatrix;
 				EnumAddFlags(Contexts[InContextNum].ContextState, EDisplayClusterViewportContextState::HasCalculatedProjectionMatrix);
 
-				if (OverscanRendering.IsEnabled())
+				if (OverscanRuntimeSettings.bIsEnabled)
 				{
 					// use overscan proj matrix for rendering
 					OutPrjMatrix = Contexts[InContextNum].OverscanProjectionMatrix;
@@ -231,7 +231,7 @@ void FDisplayClusterViewport::CalculateProjectionMatrix(const uint32 InContextNu
 
 	// Support custom frustum rendering
 	const float OrigValues[] = {l, r, t, b};
-	if (CustomFrustumRendering.UpdateProjectionAngles(l, r, t, b))
+	if (FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateProjectionAngles(CustomFrustumRuntimeSettings, l, r, t, b))
 	{
 		const bool bIsValidLimits =  FMath::IsWithin(l, -MaxValue, MaxValue)
 							&& FMath::IsWithin(r, -MaxValue, MaxValue)
@@ -241,7 +241,7 @@ void FDisplayClusterViewport::CalculateProjectionMatrix(const uint32 InContextNu
 		if (!bIsValidLimits)
 		{
 			// overscan out of frustum : disable
-			CustomFrustumRendering.Disable();
+			CustomFrustumRuntimeSettings.bIsEnabled = false;
 
 			// restore orig values
 			l = OrigValues[0];
@@ -256,7 +256,7 @@ void FDisplayClusterViewport::CalculateProjectionMatrix(const uint32 InContextNu
 
 	Contexts[InContextNum].ProjectionMatrix = IDisplayClusterViewport::MakeProjectionMatrix(l, r, t, b, n, f);
 
-	if (OverscanRendering.UpdateProjectionAngles(l, r, t, b))
+	if (FDisplayClusterViewport_OverscanRuntimeSettings::UpdateProjectionAngles(OverscanRuntimeSettings, l, r, t, b))
 	{
 		if (FMath::IsWithin(l, -MaxValue, MaxValue) &&
 			FMath::IsWithin(r, -MaxValue, MaxValue) &&
@@ -271,7 +271,7 @@ void FDisplayClusterViewport::CalculateProjectionMatrix(const uint32 InContextNu
 	}
 
 	// overscan out of frustum: disable
-	OverscanRendering.Disable();
+	OverscanRuntimeSettings.bIsEnabled = false;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////

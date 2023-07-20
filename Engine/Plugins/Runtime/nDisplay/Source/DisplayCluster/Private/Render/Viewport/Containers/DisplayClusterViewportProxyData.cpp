@@ -22,7 +22,7 @@ FDisplayClusterViewportProxyData::FDisplayClusterViewportProxyData(const TShared
 	PostRenderSettings.SetParameters(SrcViewport->PostRenderSettings);
 
 	// Additional parameters
-	OverscanSettings = SrcViewport->OverscanRendering.Get();
+	OverscanRuntimeSettings = SrcViewport->OverscanRuntimeSettings;
 
 	RemapMesh = SrcViewport->ViewportRemap.GetRemapMesh();
 
@@ -40,7 +40,7 @@ void FDisplayClusterViewportProxyData::UpdateProxy_RenderThread() const
 
 	DstViewportProxy->OpenColorIO = OpenColorIO;
 
-	DstViewportProxy->OverscanSettings = OverscanSettings;
+	DstViewportProxy->OverscanRuntimeSettings = OverscanRuntimeSettings;
 
 	DstViewportProxy->RemapMesh = RemapMesh;
 
