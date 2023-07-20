@@ -39,6 +39,11 @@ public class BLAKE3 : ModuleRules
 				? "Simulator"
 				: "Release";
 
-			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "IOS", LibDir, "libBLAKE3.a"));		}
+			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "IOS", LibDir, "libBLAKE3.a"));
+		}
+		else if (Target.Platform == UnrealTargetPlatform.TVOS)
+		{
+			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "TVOS", "Release", "libBLAKE3.a"));
+		}
 	}
 }
