@@ -6,7 +6,7 @@
 #include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
 
-class FUnrealInsightsLauncher : public TSharedFromThis<FUnrealInsightsLauncher>
+class EDITORTRACEUTILITIES_API FUnrealInsightsLauncher : public TSharedFromThis<FUnrealInsightsLauncher>
 {
 	friend class FLogMessageOnGameThreadTask;
 
@@ -36,7 +36,12 @@ public:
 	 * @param Parameters The command line parameters to use when launching the exe
 	 */	
 	void StartUnrealInsights(const FString& Path, const FString& Parameters = TEXT(""));
-	
+
+	/**
+	* Closes UnrealInsights.exe.
+	*/
+	void CloseUnrealInsights();
+
 	/**
 	 * Try to open a trace file from the trace target returned by UE::Trace::GetTraceDestination().
 	 * Destination may contain a file name or IP address of a trace server. In the latter case we try to query the
@@ -83,6 +88,9 @@ private:
 private:
 	/** The name of the Unreal Insights log listing. */
 	FName LogListingName;
+
+	/** The proccess handler of the Unreal Insights. */
+	FProcHandle UnrealInsightsHandle;
 };
 
 typedef TMap<FString, uint32> FLiveSessionsMap;

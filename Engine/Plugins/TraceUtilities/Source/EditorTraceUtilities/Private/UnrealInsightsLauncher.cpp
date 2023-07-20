@@ -128,9 +128,9 @@ void FUnrealInsightsLauncher::StartUnrealInsights(const FString& Path, const FSt
 
 	void* PipeWriteChild = nullptr;
 	void* PipeReadChild = nullptr;
-	FProcHandle Handle = FPlatformProcess::CreateProc(*Path, *Parameters, bLaunchDetached, bLaunchHidden, bLaunchReallyHidden, &ProcessID, PriorityModifier, OptionalWorkingDirectory, PipeWriteChild, PipeReadChild);
+	UnrealInsightsHandle = FPlatformProcess::CreateProc(*Path, *Parameters, bLaunchDetached, bLaunchHidden, bLaunchReallyHidden, &ProcessID, PriorityModifier, OptionalWorkingDirectory, PipeWriteChild, PipeReadChild);
 
-	if (Handle.IsValid())
+	if (UnrealInsightsHandle.IsValid())
 	{
 		UE_LOG(LogTraceUtilities, Log, TEXT("Launched Unreal Insights executable: %s %s"), *Path, *Parameters);
 	}
@@ -142,6 +142,17 @@ void FUnrealInsightsLauncher::StartUnrealInsights(const FString& Path, const FSt
 	}
 }
 
+void FUnrealInsightsLauncher::CloseUnrealInsights()
+{
+	if (UnrealInsightsHandle.IsValid())
+	{
+		FPlatformProcess::TerminateProc(UnrealInsightsHandle);
+	}
+	else
+	{
+		UE_LOG(LogTraceUtilities, Log, TEXT("Could not find the Unreal Insights process handler"));
+	}
+}
 
 void FUnrealInsightsLauncher::TryBuildUnrealInsightsExe(const FString& Path, const FString& LaunchParameters)
 {
