@@ -434,6 +434,11 @@ static void UpdateWaterInfoRendering_RenderThread(
 {
 	FScopedLandscapeLODOverride ScopedLandscapeLODOverride(Params);
 
+	static bool bIsUpdatingWaterInfo = false;
+	check(bIsUpdatingWaterInfo == false);
+	bIsUpdatingWaterInfo = true;
+	ON_SCOPE_EXIT {bIsUpdatingWaterInfo = false;};
+
 	FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions();
 	FDeferredUpdateResource::UpdateResources(RHICmdList);
 
@@ -734,9 +739,9 @@ void UpdateWaterInfoRendering(
 	{
 		return;
 	}
-	const FVector ZoneExtent = Context.ZoneToRender->GetDynamicWaterMeshExtent();
+	const FVector ZoneExtent = Context.ZoneToRender->GetDynamicWaterInfoExtent();
 
-	FVector ViewLocation = Context.ZoneToRender->GetDynamicWaterMeshCenter();
+	FVector ViewLocation = Context.ZoneToRender->GetDynamicWaterInfoCenter();
 	ViewLocation.Z = Context.CaptureZ;
 
 	const FBox2D CaptureBounds(FVector2D(ViewLocation - ZoneExtent), FVector2D(ViewLocation + ZoneExtent));

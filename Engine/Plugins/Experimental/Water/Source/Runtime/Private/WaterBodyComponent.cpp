@@ -1025,7 +1025,8 @@ void UWaterBodyComponent::UpdateComponentVisibility(bool bAllowWaterZoneRebuild)
 					RebuildFlags |= EWaterZoneRebuildFlags::UpdateWaterInfoTexture;
 				}
 
-				WaterZone->MarkForRebuild(RebuildFlags);
+				const FBox WaterBodyBounds = Bounds.GetBox();
+				WaterZone->MarkForRebuild(RebuildFlags, FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max)));
 			}
 		}
 	}
@@ -1728,8 +1729,8 @@ bool UWaterBodyComponent::SetDynamicParametersOnMID(UMaterialInstanceDynamic* In
 		check(WaterMeshComponent);
 
 		// Location is the bottom left of the zone
-		const FVector2D WaterInfoExtent = FVector2D(WaterZone->GetDynamicWaterMeshExtent());
-		const FVector2D WaterInfoLocation = FVector2D(WaterZone->GetDynamicWaterMeshCenter()) - (WaterInfoExtent / 2.f);
+		const FVector2D WaterInfoExtent = FVector2D(WaterZone->GetDynamicWaterInfoExtent());
+		const FVector2D WaterInfoLocation = FVector2D(WaterZone->GetDynamicWaterInfoCenter()) - (WaterInfoExtent / 2.f);
 
 		FVector4 WaterArea;
 		WaterArea.X = WaterInfoLocation.X;

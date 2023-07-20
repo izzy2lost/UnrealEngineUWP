@@ -171,19 +171,20 @@ FMaterialRelevance UWaterMeshComponent::GetWaterMaterialRelevance(ERHIFeatureLev
 	return Result;
 }
 
-void UWaterMeshComponent::PushTessellatedWaterMeshBoundsToPoxy(const FBox2D& TessellatedWaterMeshBounds)
-{
-	if (SceneProxy)
-	{
-		static_cast<FWaterMeshSceneProxy*>(SceneProxy)->OnTessellatedWaterMeshBoundsChanged_GameThread(TessellatedWaterMeshBounds);
-	}
-}
-
 void UWaterMeshComponent::SetExtentInTiles(FIntPoint NewExtentInTiles)
 {
 	ExtentInTiles = NewExtentInTiles;
 	MarkWaterMeshGridDirty();
 	MarkRenderStateDirty();
+}
+
+void UWaterMeshComponent::SetDynamicWaterMeshCenter(const FVector2D& NewCenter)
+{
+	if (!DynamicWaterMeshCenter.Equals(NewCenter))
+	{
+		DynamicWaterMeshCenter = NewCenter;
+		MarkWaterMeshGridDirty();
+	}
 }
 
 void UWaterMeshComponent::SetTileSize(float NewTileSize)
@@ -224,8 +225,26 @@ void UWaterMeshComponent::RebuildWaterMesh(float InTileSize, const FIntPoint& In
 	const FVector2D GridPosition = FVector2D(FMath::GridSnap<FVector::FReal>(GetComponentLocation().X, InTileSize), FMath::GridSnap<FVector::FReal>(GetComponentLocation().Y, InTileSize));
 	const FVector2D WorldExtent = FVector2D(InTileSize * InExtentInTiles.X, InTileSize * InExtentInTiles.Y);
 
-	const FBox2D WaterWorldBox = FBox2D(-WorldExtent + GridPosition, WorldExtent + GridPosition);
+	FBox2D WaterWorldBox = FBox2D(-WorldExtent + GridPosition, WorldExtent + GridPosition);
+
+	AWaterZone* WaterZone = Cast<AWaterZone>(GetOwner());
+
+	// when local tessellation is enabled, only use the overlap of the dynamic mesh region with the total water mesh extent to avoid updating the entire water zone.
+	if (WaterZone->IsLocalOnlyTessellationEnabled())
+	{
+		const FVector2D WorldspaceExtent = FVector2D(LocalTessellationExtentInTiles * InTileSize);
+		const FVector2D MeshPosition = GetDynamicWaterMeshCenter();
+		FBox2D DynamicWaterMeshBounds(MeshPosition - WorldspaceExtent, MeshPosition + WorldspaceExtent);
+
+		WaterWorldBox = DynamicWaterMeshBounds.Overlap(WaterWorldBox);
+	}
 	
+	// If the dynamic bounds is outside the full bounds of the water mesh, we shouldn't regenerate the quadtree
+	if (!(WaterWorldBox.GetArea() > 0.f))
+	{
+		return;
+	}
+
 	// This resets the tree to an initial state, ready for node insertion
 	WaterQuadTree.InitTree(WaterWorldBox, InTileSize, InExtentInTiles);
 
@@ -251,15 +270,10 @@ void UWaterMeshComponent::RebuildWaterMesh(float InTileSize, const FIntPoint& In
 		AActor* Actor = WaterBodyComponent->GetOwner();
 		check(Actor);
 
-		if (WaterBodyComponent->GetWaterSpline() == nullptr)
-		{
-			return true;
-		}
-
-		const FBox SplineCompBounds = WaterBodyComponent->GetWaterSpline()->Bounds.GetBox();
+		const FBox WaterBodyBounds = WaterBodyComponent->Bounds.GetBox();
 
 		// Don't process water bodies that has their spline outside of this water mesh
-		if (!SplineCompBounds.IntersectXY(FBox(FVector(WaterWorldBox.Min, 0.0f), FVector(WaterWorldBox.Max, 0.0f))))
+		if (!WaterBodyBounds.IntersectXY(FBox(FVector(WaterWorldBox.Min, 0.0f), FVector(WaterWorldBox.Max, 0.0f))))
 		{
 			return true;
 		}
@@ -567,7 +581,8 @@ void UWaterMeshComponent::RebuildWaterMesh(float InTileSize, const FIntPoint& In
 	{
 		UsedMaterials.Add(FarDistanceMaterial);
 
-		WaterQuadTree.AddFarMesh(FarDistanceMaterial, FarDistanceMeshExtent, FarMeshHeight);
+		const FBox2D FarMeshInnerRegion = FBox2D(-WorldExtent + GridPosition, WorldExtent + GridPosition);
+		WaterQuadTree.AddFarMesh(FarDistanceMaterial, FarMeshInnerRegion, FarDistanceMeshExtent, FarMeshHeight);
 	}
 
 	WaterQuadTree.Unlock(true);
@@ -620,6 +635,7 @@ void UWaterMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& Property
 			|| PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, TessellationFactor)
 			|| PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, TileSize)
 			|| PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, ExtentInTiles)
+			|| PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, LocalTessellationExtentInTiles)
 			|| PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, ForceCollapseDensityLevel)
 			|| PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, FarDistanceMaterial)
 			|| PropertyName == GET_MEMBER_NAME_CHECKED(UWaterMeshComponent, FarDistanceMeshExtent)

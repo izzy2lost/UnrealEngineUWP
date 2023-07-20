@@ -279,11 +279,9 @@ void FWaterQuadTree::FNode::SelectLODWithinBounds(const FNodeData& InNodeData, i
 		return;
 	}
 
-	check(InTraversalDesc.TessellatedWaterMeshBounds.bIsValid);
 	if (InLODLevel == 0)
 	{
-		if ((InTraversalDesc.TessellatedWaterMeshBounds.IsInsideOrOn(FVector2D(Bounds.Min)) && InTraversalDesc.TessellatedWaterMeshBounds.IsInsideOrOn(FVector2D(Bounds.Max))) &&
-			CanRender(0, InTraversalDesc.ForceCollapseDensityLevel, WaterBodyRenderData))
+		if (CanRender(0, InTraversalDesc.ForceCollapseDensityLevel, WaterBodyRenderData))
 		{
 			AddNodeForRender(InNodeData, WaterBodyRenderData, 0, InLODLevel, InTraversalDesc, Output);
 		}
@@ -625,7 +623,7 @@ void FWaterQuadTree::AddLake(const TArray<FVector2D>& InPoly, const FBox& InLake
 	AddLakeRecursive(InPoly, LakeBounds, FVector2D(InLakeBounds.Min.Z, InLakeBounds.Max.Z), true, TreeDepth * 2, InWaterBodyIndex);
 }
 
-void FWaterQuadTree::AddFarMesh(const UMaterialInterface* InFarMeshMaterial, double InFarDistanceMeshExtent, double InFarDistanceMeshHeight)
+void FWaterQuadTree::AddFarMesh(const UMaterialInterface* InFarMeshMaterial, const FBox2D& InInnerRegion, double InFarDistanceMeshExtent, double InFarDistanceMeshHeight)
 {
 	// Checking for not being read only here to keep things consistent with the other Add functions. In reality the FarMesh isn't added to the QuadTree itself, so it could technically be done whenever.
 	ensure(!bIsReadOnly);
@@ -645,9 +643,9 @@ void FWaterQuadTree::AddFarMesh(const UMaterialInterface* InFarMeshMaterial, dou
 	FarMeshData.InstanceData.SetNum(8);
 	FarMeshData.Material = InFarMeshMaterial;
 
-	const FVector2D WaterCenter = GetTileRegion().GetCenter();
-	const FVector2D WaterExtents = GetTileRegion().GetExtent();
-	const FVector2D WaterSize = GetTileRegion().GetSize();
+	const FVector2D WaterCenter = InInnerRegion.GetCenter();
+	const FVector2D WaterExtents = InInnerRegion.GetExtent();
+	const FVector2D WaterSize = InInnerRegion.GetSize();
 	const FVector2D TileOffets[] = { {-1.0, 1.0}, {0.0, 1.0}, {1.0, 1.0}, {1.0, 0.0}, {1.0, -1.0}, {0.0, -1.0}, {-1.0, -1.0}, {-1.0, 0.0} };
 
 	for (int32 i = 0; i < 8; i++)
@@ -707,14 +705,8 @@ void FWaterQuadTree::BuildWaterTileInstanceData(const FTraversalDesc& InTraversa
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(BuildWaterTileInstanceData);
 	check(bIsReadOnly);
-	if (InTraversalDesc.TessellatedWaterMeshBounds.bIsValid)
-	{
-		NodeData.Nodes[0].SelectLODWithinBounds(NodeData, TreeDepth, InTraversalDesc, Output);
-	}
-	else
-	{
-		NodeData.Nodes[0].SelectLOD(NodeData, TreeDepth, InTraversalDesc, Output);
-	}
+
+	NodeData.Nodes[0].SelectLOD(NodeData, TreeDepth, InTraversalDesc, Output);
 
 	// Append Far Mesh tiles
 	if (FarMeshData.InstanceData.Num() > 0 && FarMeshData.MaterialIndex != INDEX_NONE)

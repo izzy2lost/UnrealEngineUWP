@@ -49,8 +49,6 @@ public:
 	/** Use this instead of GetMaterialRelevance, since this one will go over all materials from all tiles */
 	FMaterialRelevance GetWaterMaterialRelevance(ERHIFeatureLevel::Type InFeatureLevel) const;
 
-	void PushTessellatedWaterMeshBoundsToPoxy(const FBox2D& TessellatedWaterMeshBounds);
-
 	const FWaterQuadTree& GetWaterQuadTree() const { return WaterQuadTree; }
 
 	const TSet<TObjectPtr<UMaterialInterface>>& GetUsedMaterialsSet() const { return UsedMaterials; }
@@ -63,6 +61,10 @@ public:
 
 	void SetExtentInTiles(FIntPoint NewExtentInTiles);
 	FIntPoint GetExtentInTiles() const { return ExtentInTiles; }
+
+	FIntPoint GetLocalTessellationExtentInTiles() const { return LocalTessellationExtentInTiles; }
+	void SetDynamicWaterMeshCenter(const FVector2D& NewCenter);
+	FVector2D GetDynamicWaterMeshCenter() const { return DynamicWaterMeshCenter; }
 
 	void SetTileSize(float NewTileSize);
 	float GetTileSize() const { return TileSize; }
@@ -99,6 +101,13 @@ private:
 	/** The extent of the system in number of tiles. Maximum number of tiles for this system will be ExtentInTiles.X*2*ExtentInTiles.Y*2 */
 	UPROPERTY(EditAnywhere, Category = Rendering, meta = (ClampMin = "1", AllowPrivateAcces = "true"))
 	FIntPoint ExtentInTiles = FIntPoint(64, 64);
+
+	/** The extent of the system in number of tiles when local tessellation is enabled. Maximum number of tiles for this system will be ExtentInTiles.X*2*ExtentInTiles.Y*2 */
+	UPROPERTY(EditAnywhere, Category = Rendering, meta = (ClampMin = "1"))
+	FIntPoint LocalTessellationExtentInTiles = FIntPoint(32, 32);
+
+	/** The current center of the dynamic water mesh. Updated by the water view extension whenever the view location crosses the update bounds. */
+	FVector2D DynamicWaterMeshCenter = FVector2D::ZeroVector;
 
 	/** Tiles containing water, stored in a quad tree */
 	FWaterQuadTree WaterQuadTree;

@@ -45,7 +45,7 @@ AWaterZone::AWaterZone(const FObjectInitializer& Initializer)
 	WaterMesh = CreateDefaultSubobject<UWaterMeshComponent>(TEXT("WaterMesh"));
 	SetRootComponent(WaterMesh);
 	ZoneExtent = FVector2D(51200., 51200.);
-	LocalTessellationExtent = FVector(35000., 35000., 10000.);
+	LocalTessellationExtent = FVector(51200., 51200., 10000.);
 	
 #if	WITH_EDITOR
 	// Setup bounds component
@@ -157,17 +157,27 @@ void AWaterZone::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstruc
 }
 #endif
 
-void AWaterZone::MarkForRebuild(EWaterZoneRebuildFlags Flags)
+void AWaterZone::MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& UpdateRegion)
 {
 	if (EnumHasAnyFlags(Flags, EWaterZoneRebuildFlags::UpdateWaterMesh))
 	{
-		UE_LOG(LogWater, Verbose, TEXT("AWaterZone::MarkForRebuild (UpdateWaterMesh)"));
-		WaterMesh->MarkWaterMeshGridDirty();
+		const FBox2D WaterQuadTreeBounds = WaterMesh->GetWaterQuadTree().GetTileRegion();
+		// Suppress water mesh updates which occur outside the bounds of the water quad tree.
+		if ((!UpdateRegion.bIsValid) || UpdateRegion.Intersect(WaterQuadTreeBounds))
+		{
+			UE_LOG(LogWater, Verbose, TEXT("AWaterZone::MarkForRebuild (UpdateWaterMesh)"));
+			WaterMesh->MarkWaterMeshGridDirty();
+		}
 	}
 	if (EnumHasAnyFlags(Flags, EWaterZoneRebuildFlags::UpdateWaterInfoTexture))
 	{
-		UE_LOG(LogWater, Verbose, TEXT("AWaterZone::MarkForRebuild (UpdateWaterInfoTexture)"));
-		bNeedsWaterInfoRebuild = true;
+		const FBox WaterInfoBounds = GetDynamicWaterInfoBounds();
+		const FBox2D WaterInfoBounds2D(FVector2D(WaterInfoBounds.Min), FVector2D(WaterInfoBounds.Max));
+		if ((!UpdateRegion.bIsValid) || UpdateRegion.Intersect(WaterInfoBounds2D))
+		{
+			UE_LOG(LogWater, Verbose, TEXT("AWaterZone::MarkForRebuild (UpdateWaterInfoTexture)"));
+			bNeedsWaterInfoRebuild = true;
+		}
 	}
 }
 
@@ -198,7 +208,8 @@ void AWaterZone::AddWaterBodyComponent(UWaterBodyComponent* WaterBodyComponent)
 			RebuildFlags |= EWaterZoneRebuildFlags::UpdateWaterMesh;
 		}
 
-		MarkForRebuild(RebuildFlags);
+		const FBox WaterBodyBounds = WaterBodyComponent->Bounds.GetBox();
+		MarkForRebuild(RebuildFlags, FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max)));
 	}
 }
 
@@ -219,7 +230,8 @@ void AWaterZone::RemoveWaterBodyComponent(UWaterBodyComponent* WaterBodyComponen
 			RebuildFlags |= EWaterZoneRebuildFlags::UpdateWaterMesh;
 		}
 		
-		MarkForRebuild(RebuildFlags);
+		const FBox WaterBodyBounds = WaterBodyComponent->Bounds.GetBox();
+		MarkForRebuild(RebuildFlags, FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max)));
 	}
 }
 
@@ -515,7 +527,7 @@ bool AWaterZone::UpdateWaterInfoTexture()
 	return true;
 }
 
-FVector AWaterZone::GetDynamicWaterMeshCenter() const
+FVector AWaterZone::GetDynamicWaterInfoCenter() const
 {
 	if (IsLocalOnlyTessellationEnabled())
 	{
@@ -527,7 +539,7 @@ FVector AWaterZone::GetDynamicWaterMeshCenter() const
 	}
 }
 
-FVector AWaterZone::GetDynamicWaterMeshExtent() const
+FVector AWaterZone::GetDynamicWaterInfoExtent() const
 {
 	if (IsLocalOnlyTessellationEnabled())
 	{
@@ -538,6 +550,13 @@ FVector AWaterZone::GetDynamicWaterMeshExtent() const
 		// #todo_water [roey]: better implementation for 3D extent
 		return FVector(GetZoneExtent(), 0.0);
 	}
+}
+
+FBox AWaterZone::GetDynamicWaterInfoBounds() const
+{
+	const FVector WaterInfoCenter(GetDynamicWaterInfoCenter());
+	const FVector WaterInfoHalfExtent(GetDynamicWaterInfoExtent() / 2);
+	return FBox(WaterInfoCenter - WaterInfoHalfExtent, WaterInfoCenter + WaterInfoHalfExtent);
 }
 
 void AWaterZone::OnLevelAddedToWorld(ULevel* InLevel, UWorld* InWorld)
@@ -557,7 +576,7 @@ void AWaterZone::OnLevelChanged(ULevel* InLevel, UWorld* InWorld)
 		return;
 	}
 
-	const FBox WaterZoneBounds = GetZoneBounds();
+	const FBox WaterZoneBounds = GetDynamicWaterInfoBounds();
 	const bool bContainsActorsAffectingWaterZone = Algo::AnyOf(InLevel->Actors, [this, &WaterZoneBounds](const AActor* Actor)
 	{
 		return IsAffectingWaterZone(WaterZoneBounds, Actor);
@@ -580,9 +599,9 @@ bool AWaterZone::IsAffectingWaterZone(const FBox& InWaterZoneBounds, const AActo
 	{
 		if (const UWaterBodyComponent* WaterBodyComponent = WaterBodyActor->GetWaterBodyComponent())
 		{
-			if (WaterBodyComponent->GetWaterZone() == this)
+			if (WaterBodyComponent->GetWaterZone() == this && WaterBodyComponent->AffectsWaterInfo())
 			{
-				return WaterBodyComponent->AffectsWaterInfo();
+				return InWaterZoneBounds.IntersectXY(WaterBodyComponent->Bounds.GetBox());
 			}
 		}
 	}

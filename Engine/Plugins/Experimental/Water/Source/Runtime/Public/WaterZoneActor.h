@@ -32,7 +32,7 @@ public:
 	UWaterMeshComponent* GetWaterMeshComponent() { return WaterMesh; }
 	const UWaterMeshComponent* GetWaterMeshComponent() const { return WaterMesh; }
 
-	void MarkForRebuild(EWaterZoneRebuildFlags Flags);
+	void MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& RebuildRegion = FBox2D(EForceInit::ForceInitToZero));
 	void Update();
 		
 	/** Execute a predicate function on each valid water body within the water zone. Predicate should return false for early exit. */
@@ -52,8 +52,9 @@ public:
 
 	uint32 GetVelocityBlurRadius() const { return VelocityBlurRadius; }
 
-	FVector GetDynamicWaterMeshCenter() const;
-	FVector GetDynamicWaterMeshExtent() const;
+	FVector GetDynamicWaterInfoCenter() const;
+	FVector GetDynamicWaterInfoExtent() const;
+	FBox GetDynamicWaterInfoBounds() const;
 
 	bool IsLocalOnlyTessellationEnabled() const { return bEnableLocalOnlyTessellation; }
 	void SetLocalTessellationCenter(const FVector& NewCenter) { LocalTessellationCenter = NewCenter;}
@@ -79,14 +80,14 @@ public:
 	virtual FBox GetStreamingBounds() const override;
 #endif //WITH_EDITOR
 
-	UE_DEPRECATED(5.3, "Function renamed to GetDynamicWaterMeshCenter")
-	FVector GetTessellatedWaterMeshCenter() const { return GetDynamicWaterMeshCenter(); }
+	UE_DEPRECATED(5.3, "Function renamed to GetDynamicWaterInfoCenter")
+	FVector GetTessellatedWaterMeshCenter() const { return GetDynamicWaterInfoCenter(); }
 
 	UE_DEPRECATED(5.3, "Function renamed to SetLocalTessellationCenter")
 	void SetTessellatedWaterMeshCenter(FVector NewCenter) { SetLocalTessellationCenter(NewCenter); }
 
-	UE_DEPRECATED(5.3, "Function renamed to GetDynamicWaterMeshExtent")
-	FVector GetTessellatedWaterMeshExtent() const { return GetDynamicWaterMeshExtent(); }
+	UE_DEPRECATED(5.3, "Function renamed to GetDynamicWaterInfoExtent")
+	FVector GetTessellatedWaterMeshExtent() const { return GetDynamicWaterInfoExtent(); }
 
 	UE_DEPRECATED(5.3, "Function renamed to IsLocalTessellationEnabled.")
 	bool IsNonTessellatedLODMeshEnabled() const { return IsLocalOnlyTessellationEnabled(); }

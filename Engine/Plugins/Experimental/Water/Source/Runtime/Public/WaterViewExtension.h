@@ -32,7 +32,7 @@ private:
 	 * For each water zone, store the bounds of the tile from which the water zone was last rendered.
 	 * When the view location crosses the bounds, submit a new WaterInfo update to reflect the new active area
 	 */
-	TMap<AWaterZone*, FBox2D> UpdateBounds;
+	TMap<AWaterZone*, FBox2D> WaterInfoUpdateBounds;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

@@ -530,7 +530,7 @@ void UWaterSubsystem::MarkWaterZonesInRegionForRebuild(const FBox2D& InUpdateReg
 
 			if (WaterZoneBounds.Intersect(InUpdateRegion))
 			{
-				WaterZone->MarkForRebuild(InRebuildFlags);
+				WaterZone->MarkForRebuild(InRebuildFlags, InUpdateRegion);
 			}
 		}
 	}
