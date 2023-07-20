@@ -1345,7 +1345,9 @@ void FShaderJobCache::ProcessFinishedJob(FShaderCommonCompileJob* FinishedJob, b
 
 void FShaderJobCache::AddToCacheAndProcessPending(FShaderCommonCompileJob* FinishedJob)
 {
-	if (!ShaderCompiler::IsJobCacheEnabled())
+	// Cloned jobs won't include an entry in the job cache, so skip the caching logic.  The non-cloned version of the same
+	// job will handle adding data to the cache when it completes.
+	if (!ShaderCompiler::IsJobCacheEnabled() || !FinishedJob->JobCacheRef.Block)
 	{
 		return;
 	}
