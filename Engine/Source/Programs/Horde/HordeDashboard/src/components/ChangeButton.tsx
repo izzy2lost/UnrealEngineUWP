@@ -48,7 +48,25 @@ export const ChangeContextMenu: React.FC<{ target: ChangeContextMenuTarget, onDi
 
    const menuItems: IContextualMenuItem[] = [];
 
-   if (commit) {
+   if (job?.preflightDescription) {
+
+      menuItems.push({
+         key: "commit", onRender: () => {
+            return <Stack style={{ padding: 18, paddingTop: 18, paddingBottom: 18, maxWidth: 800 }} tokens={{ childrenGap: 12 }}>
+               <Stack horizontal tokens={{ childrenGap: 12 }}>
+                  <Text variant="small" style={{ fontFamily: "Horde Open Sans Bold" }}>Description:</Text>
+                  <Text variant="small" style={{ whiteSpace: "pre-wrap" }} >{job.preflightDescription}</Text>
+               </Stack>
+            </Stack>
+         }
+      });
+
+      menuItems.push({
+         key: "commit_divider",
+         itemType: ContextualMenuItemType.Divider
+      });
+
+   } else if (commit) {
 
       menuItems.push({
          key: "commit", onRender: () => {
@@ -65,24 +83,6 @@ export const ChangeContextMenu: React.FC<{ target: ChangeContextMenuTarget, onDi
                <Stack horizontal tokens={{ childrenGap: 12 }}>
                   <Text variant="small" style={{ fontFamily: "Horde Open Sans Bold" }}>Description:</Text>
                   <Text variant="small" style={{whiteSpace: "pre-wrap"}}>{commit.description}</Text>
-               </Stack>
-            </Stack>
-         }
-      });
-
-      menuItems.push({
-         key: "commit_divider",
-         itemType: ContextualMenuItemType.Divider
-      });
-
-
-   } else if (job.preflightDescription) {
-      menuItems.push({
-         key: "commit", onRender: () => {
-            return <Stack style={{ padding: 18, paddingTop: 18, paddingBottom: 18, maxWidth: 800 }} tokens={{ childrenGap: 12 }}>
-               <Stack horizontal tokens={{ childrenGap: 12 }}>
-                  <Text variant="small" style={{ fontFamily: "Horde Open Sans Bold" }}>Description:</Text>
-                  <Text variant="small" style={{whiteSpace: "pre-wrap"}} >{job.preflightDescription}</Text>
                </Stack>
             </Stack>
          }
