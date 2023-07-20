@@ -662,5 +662,6 @@ void ULevelSequencePlayer::RewindForReplay()
 	NetSyncProps.LastKnownPosition = FFrameTime(0);
 	NetSyncProps.LastKnownStatus = EMovieScenePlayerStatus::Stopped;
 	NetSyncProps.LastKnownNumLoops = 0;
+	NetSyncProps.LastKnownSerialNumber = 0;
 }
 
