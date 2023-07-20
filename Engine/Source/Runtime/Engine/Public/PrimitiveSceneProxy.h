@@ -477,6 +477,15 @@ public:
 	}
 
 	/**
+	* @return true if per-pixel visibility tests are allowed for instances of this primitive during GPU instance culling.
+	* This may yield significant performance benefit for some cases, such as relatively high-poly instanced static meshes.
+	*/
+	virtual bool AllowInstanceCullingOcclusionQueries() const
+	{
+		return false;
+	}
+
+	/**
 	* @return true if the proxy can skip redundant transform updates where applicable.
 	*/
 	bool CanSkipRedundantTransformUpdates() const

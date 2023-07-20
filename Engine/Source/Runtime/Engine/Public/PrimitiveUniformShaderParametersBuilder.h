@@ -59,6 +59,7 @@ public:
 		bHoldout									= false;
 		bDisableMaterialInvalidations				= false;
 		bSplineMesh									= false;
+		bAllowInstanceCullingOcclusionQueries		= false;
 
 		Parameters.MaxWPOExtent						= 0.0f;
 		Parameters.MinMaterialDisplacement			= 0.0f;
@@ -124,6 +125,7 @@ public:
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			Holdout);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			DisableMaterialInvalidations);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			SplineMesh);
+	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			AllowInstanceCullingOcclusionQueries);
 	PRIMITIVE_UNIFORM_BUILDER_FLAG_METHOD(bool,			HasAlwaysEvaluateWPOMaterials);
 
 	PRIMITIVE_UNIFORM_BUILDER_METHOD(uint32,			InstanceSceneDataOffset);
@@ -393,6 +395,7 @@ public:
 		Parameters.Flags |= bHoldout ? PRIMITIVE_SCENE_DATA_FLAG_HOLDOUT : 0u;
 		Parameters.Flags |= bDisableMaterialInvalidations ? PRIMITIVE_SCENE_DATA_FLAG_DISABLE_MATERIAL_INVALIDATIONS : 0u;
 		Parameters.Flags |= bSplineMesh ? PRIMITIVE_SCENE_DATA_FLAG_SPLINE_MESH : 0u;
+		Parameters.Flags |= bAllowInstanceCullingOcclusionQueries ? PRIMITIVE_SCENE_DATA_FLAG_INSTANCE_CULLING_OCCLUSION_QUERIES: 0u;
 		
 		Parameters.VisibilityFlags = 0;
 		Parameters.VisibilityFlags |= bCastHiddenShadow ? PRIMITIVE_VISIBILITY_FLAG_CAST_HIDDEN_SHADOW : 0u;
@@ -455,4 +458,5 @@ private:
 	uint32 bHoldout : 1;
 	uint32 bDisableMaterialInvalidations : 1;
 	uint32 bSplineMesh : 1;
+	uint32 bAllowInstanceCullingOcclusionQueries : 1;
 };

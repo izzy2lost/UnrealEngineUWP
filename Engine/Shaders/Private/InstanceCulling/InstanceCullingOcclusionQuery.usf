@@ -34,10 +34,23 @@ int4 ViewRect;
 #define IVS_Hidden          0 // Instance is hidden or invalid, no occlusion query needed
 #define IVS_Visible         1 // Instance is definitely visible, no occlusion query needed
 #define IVS_PossiblyVisible 2 // Occlusion query is needed to determine visibility
+#define IVS_Incompatible    3 // Instance can't use occlusion queries
+
+// TODO: Compute appropriate mask value based on current view index and previous mask value
+#define MaskValueVisible 1
+#define MaskValueHidden  0
 
 EInstanceVisibilityStatus GetInstanceDataAndVisibility(uint InstanceId, out FInstanceSceneData OutInstanceData)
 {
 	const FInstanceSceneData InstanceData = GetInstanceSceneData(InstanceId, InstanceSceneDataSOAStride);
+	const FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
+
+	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_INSTANCE_CULLING_OCCLUSION_QUERIES) == 0u)
+	{
+		// If instance culling occlusion queries are not allowed for this primitive, it is marked as "visible"
+		return IVS_Incompatible;
+	}
+
 	OutInstanceData = InstanceData;
 	
 	if (!InstanceData.ValidInstance)
@@ -143,19 +156,19 @@ void MainCS(uint3 GroupId : SV_GroupID, uint GroupThreadIndex : SV_GroupIndex, u
 	{
 		Status = GetInstanceDataAndVisibility(InstanceId, /*out*/ InstanceData);
 
-		if (Status == IVS_Visible)
+		if (Status == IVS_Visible || Status == IVS_Incompatible)
 		{
 			// YURIY_TODO: multi-view support
-			OutVisibilityMask[InstanceId] = 1; // this is the final value
+			OutVisibilityMask[InstanceId] = MaskValueVisible; // this is the final value
 		}
 		else if (Status == IVS_Hidden)
 		{
 			// YURIY_TODO: multi-view support
-			OutVisibilityMask[InstanceId] = 0; // this is the final value
+			OutVisibilityMask[InstanceId] = MaskValueHidden; // this is the final value
 		}
 		else // Status == IVS_PossiblyVisible
 		{
-			OutVisibilityMask[InstanceId] = 0; // clear the value which will be updated by pixel shader later
+			OutVisibilityMask[InstanceId] = MaskValueHidden; // clear the value which will be updated by pixel shader later
 
 			uint LocalOutputIndex = 0;
 			InterlockedAdd(GroupNumVisibleInstances, 1, LocalOutputIndex);
@@ -186,6 +199,7 @@ void MainVS(
 	float3 InPosition : ATTRIBUTE0,
 	uint InstanceId : SV_InstanceID,
 	out nointerpolation uint OutInstanceId : INSTANCE_ID,
+	out nointerpolation uint OutVisibilityMask : VISIBILITY_MASK,
 	out float4 OutPosition : SV_POSITION
 )
 {
@@ -198,7 +212,7 @@ void MainVS(
 	GetInstanceDataAndVisibility(InstanceId, /*out*/ InstanceData);
 #else
 	EInstanceVisibilityStatus Status = GetInstanceDataAndVisibility(InstanceId, /*out*/ InstanceData);
-	if (Status == IVS_Visible)
+	if (Status == IVS_Visible || Status == IVS_Incompatible)
 	{
 		// Render a box that covers just one pixel at the near plane which will mark the instance visible
 		float2 ViewRectSize = float2(ViewRect.z - ViewRect.x, ViewRect.w - ViewRect.y);
@@ -218,17 +232,18 @@ void MainVS(
 	}
 
 	OutInstanceId = InstanceId;
+	OutVisibilityMask = MaskValueVisible;
 }
 
 
 EARLYDEPTHSTENCIL
 void MainPS(
 	in nointerpolation uint InstanceId : INSTANCE_ID,
+	in nointerpolation uint VisibilityMask : VISIBILITY_MASK,
 	out float4 OutColor : SV_Target0
 )
 {
-	// YURIY_TODO: multi-view support
-	OutVisibilityMask[InstanceId] = 1;
+	OutVisibilityMask[InstanceId] = VisibilityMask;
 	OutColor = float4(1, 0, 0, 1);
 }
 
@@ -248,7 +263,7 @@ void DebugMainVS(
 	FInstanceSceneData InstanceData;
 	EInstanceVisibilityStatus VisibilityStatus = GetInstanceDataAndVisibility(InstanceId, /*out*/ InstanceData);
 	
-	if (InstanceData.ValidInstance)
+	if (InstanceData.ValidInstance && VisibilityStatus != IVS_Incompatible)
 	{
 		float3 LocalPosition = (InPosition * InstanceData.LocalBoundsExtent * InstanceData.DeterminantSign) + InstanceData.LocalBoundsCenter;
 		float4 WorldPosition = TransformLocalToTranslatedWorld(LocalPosition, InstanceData.LocalToWorld);

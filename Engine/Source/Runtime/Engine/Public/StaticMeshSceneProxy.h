@@ -112,6 +112,7 @@ public:
 	ENGINE_API virtual int32 GetLOD(const FSceneView* View) const override;
 	ENGINE_API virtual FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override;
 	ENGINE_API virtual bool CanBeOccluded() const override;
+	ENGINE_API virtual bool AllowInstanceCullingOcclusionQueries() const override { return true; }
 	ENGINE_API virtual bool IsUsingDistanceCullFade() const override;
 	ENGINE_API virtual void GetLightRelevance(const FLightSceneProxy* LightSceneProxy, bool& bDynamic, bool& bRelevant, bool& bLightMapped, bool& bShadowMapped) const override;
 	ENGINE_API virtual void GetDistanceFieldAtlasData(const FDistanceFieldVolumeData*& OutDistanceFieldData, float& SelfShadowBias) const override;

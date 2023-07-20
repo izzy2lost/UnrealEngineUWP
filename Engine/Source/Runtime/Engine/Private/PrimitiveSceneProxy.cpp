@@ -640,6 +640,7 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 			.CastShadow(CastsDynamicShadow())
 			.Holdout(Holdout())
 			.DisableMaterialInvalidations(ShadowCacheInvalidationBehavior == EShadowCacheInvalidationBehavior::Rigid || ShadowCacheInvalidationBehavior == EShadowCacheInvalidationBehavior::Static)
+			.AllowInstanceCullingOcclusionQueries(AllowInstanceCullingOcclusionQueries())
 			.VisibleInGame(IsDrawnInGame())
 			.VisibleInEditor(IsDrawnInEditor())
 			.VisibleInReflectionCaptures(IsVisibleInReflectionCaptures())
