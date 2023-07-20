@@ -44,10 +44,13 @@ namespace UE::ShaderCompiler
 /** Returns true if shader symbols should be kept for a given platform. */
 extern RENDERCORE_API bool ShouldGenerateShaderSymbols(FName ShaderFormat);
 
+/** Returns true if shader symbol minimal info files should be generated for a given platform. */
+extern RENDERCORE_API bool ShouldGenerateShaderSymbolsInfo(FName ShaderFormat);
+
 /** Returns true if shader symbols should be exported to separate files for a given platform. */
 extern RENDERCORE_API bool ShouldWriteShaderSymbols(FName ShaderFormat);
 
-/** Returns true if the shader symbol path is overriden and OutPathOverride contains the override path. */
+/** Returns true if the shader symbol path is overridden and OutPathOverride contains the override path. */
 extern RENDERCORE_API bool GetShaderSymbolPathOverride(FString& OutPathOverride, FName ShaderFormat);
 
 /** Returns true if (external) shader symbols should be specific to each shader rather than be de-duplicated. */
@@ -81,6 +84,8 @@ enum ECompilerFlags
 	CFLAG_ForceOptimization,
 	// Shader should generate symbols for debugging.
 	CFLAG_GenerateSymbols,
+	// Shader should generate minimal symbols info
+	CFLAG_GenerateSymbolsInfo,
 	// Shader should insert debug/name info at the risk of generating non-deterministic libraries
 	CFLAG_ExtraShaderData,
 	// Allows the (external) symbols to be specific to each shader rather than trying to deduplicate.
@@ -324,6 +329,13 @@ struct FShaderCompilerInput
 	FString GetSourceFilename() const
 	{
 		return FPaths::GetCleanFilename(VirtualSourceFilePath);
+	}
+
+	// Common code to generate a debug string to associate with platform-specific shader symbol files and hashes
+	// Currently uses DebugGroupName, but can be updated to contain other important information as needed
+	FString GenerateDebugInfo() const
+	{
+		return DebugGroupName;
 	}
 
 	void GatherSharedInputs(

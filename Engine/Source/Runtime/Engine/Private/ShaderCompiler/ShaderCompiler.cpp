@@ -1654,6 +1654,14 @@ static TAutoConsoleVariable<int32> CVarShadersSymbols(
 	TEXT("This setting can be overriden in any Engine.ini under the [ShaderCompiler] section."),
 	ECVF_ReadOnly);
 
+static TAutoConsoleVariable<int32> CVarShadersSymbolsInfo(
+	TEXT("r.Shaders.SymbolsInfo"),
+	0,
+	TEXT("In lieu of a full set of platform shader PDBs, save out a slimmer ShaderSymbols.Info which contains shader platform hashes and shader debug info.\n")
+	TEXT("An option for when it is not practical to save PDBs for shaders all the time.\n")
+	TEXT("This setting can be overriden in any Engine.ini under the [ShaderCompiler] section."),
+	ECVF_ReadOnly);
+
 static TAutoConsoleVariable<int32> CVarShadersGenerateSymbols(
 	TEXT("r.Shaders.GenerateSymbols"),
 	0,
@@ -6846,6 +6854,10 @@ void GlobalBeginCompileShader(
 	if (ShouldGenerateShaderSymbols(ShaderFormatName))
 	{
 		Input.Environment.CompilerFlags.Add(CFLAG_GenerateSymbols);
+	}
+	if (ShouldGenerateShaderSymbolsInfo(ShaderFormatName))
+	{
+		Input.Environment.CompilerFlags.Add(CFLAG_GenerateSymbolsInfo);
 	}
 
 	// Are symbols based on source or results

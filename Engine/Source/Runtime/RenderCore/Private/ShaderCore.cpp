@@ -871,6 +871,12 @@ bool ShouldGenerateShaderSymbols(FName ShaderFormat)
 	return Symbols.IsEnabled(ShaderFormat) || GenerateSymbols.IsEnabled(ShaderFormat);
 }
 
+bool ShouldGenerateShaderSymbolsInfo(FName ShaderFormat)
+{
+	static const FShaderSymbolSettingHelper SymbolsInfo(TEXT("r.Shaders.SymbolsInfo"));
+	return SymbolsInfo.IsEnabled(ShaderFormat);
+}
+
 bool ShouldWriteShaderSymbols(FName ShaderFormat)
 {
 	static const FShaderSymbolSettingHelper Symbols(TEXT("r.Shaders.Symbols"));
