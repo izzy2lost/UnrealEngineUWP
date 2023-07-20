@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreTypes.h"
+#include "Containers/UnrealString.h"
 #include "Containers/StringConv.h"
 #include "EventLoop/BSDSocket/BSDSocketTypes.h"
 
