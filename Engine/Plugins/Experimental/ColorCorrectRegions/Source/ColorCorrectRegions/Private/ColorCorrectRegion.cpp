@@ -227,7 +227,9 @@ void AColorCorrectRegion::TransferState()
 #if WITH_EDITOR
 void AColorCorrectRegion::OnSequencerTimeChanged(TWeakPtr<ISequencer> InSequencer)
 {
+	bNotifyOnParamSetter = false;
 	UpdatePositionalParamsFromTransform();
+	bNotifyOnParamSetter = true;
 }
 #endif
 
