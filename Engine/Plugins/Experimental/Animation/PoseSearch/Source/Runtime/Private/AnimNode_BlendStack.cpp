@@ -409,10 +409,11 @@ void FAnimNode_BlendStack_Standalone::Initialize_AnyThread(const FAnimationIniti
 
 	Reset();
 
-	IAnimClassInterface* AnimBlueprintClass = Context.GetAnimClass();
-	check(AnimBlueprintClass);
 	if (SampleGraphPoseLinks.IsEmpty() == false)
 	{
+		IAnimClassInterface* AnimBlueprintClass = Context.GetAnimClass();
+		check(AnimBlueprintClass);
+
 		// Patch our pose links
 		for (FBlendStack_SampleGraphPoseLink& GraphPoseLink : SampleGraphPoseLinks)
 		{
