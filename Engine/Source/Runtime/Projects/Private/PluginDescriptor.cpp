@@ -267,7 +267,21 @@ bool FPluginDescriptor::Read(const FJsonObject& Object, FText* OutFailReason /*=
 		return false;
 	}
 
-	Object.TryGetStringArrayField(TEXT("DisallowedPlugins"), DisallowedPlugins);
+	// Backwards compatibility support
+	TArray<FString> DisallowedPluginNameStrings;
+	if (Object.TryGetStringArrayField(TEXT("DisallowedPlugins"), DisallowedPluginNameStrings))
+	{
+		DisallowedPlugins.Reserve(DisallowedPluginNameStrings.Num());
+		for (int32 Index = 0; Index < DisallowedPluginNameStrings.Num(); ++Index)
+		{
+			FPluginDisallowedDescriptor& PluginDisallowedDescriptor = DisallowedPlugins.AddDefaulted_GetRef();
+			PluginDisallowedDescriptor.Name = DisallowedPluginNameStrings[Index];
+		}
+	}
+	else if (!FPluginDisallowedDescriptor::ReadArray(Object, TEXT("DisallowedPlugins"), DisallowedPlugins, OutFailReason))
+	{
+		return false;
+	}
 
 	return true;
 }
@@ -477,19 +491,7 @@ void FPluginDescriptor::UpdateJson(FJsonObject& JsonObject) const
 
 	FPluginReferenceDescriptor::UpdateArray(JsonObject, TEXT("Plugins"), Plugins);
 
-	if (DisallowedPlugins.Num() > 0)
-	{
-		TArray<TSharedPtr<FJsonValue>> DisallowedPluginsValues;
-		for (const FString& DisallowedPlugin : DisallowedPlugins)
-		{
-			DisallowedPluginsValues.Add(MakeShareable(new FJsonValueString(DisallowedPlugin)));
-		}
-		JsonObject.SetArrayField(TEXT("DisallowedPlugins"), DisallowedPluginsValues);
-	}
-	else
-	{
-		JsonObject.RemoveField(TEXT("DisallowedPlugins"));
-	}
+	FPluginDisallowedDescriptor::UpdateArray(JsonObject, TEXT("DisallowedPlugins"), DisallowedPlugins);
 
 #if WITH_EDITOR
 	for (const auto& KVP : AdditionalFieldsToWrite)

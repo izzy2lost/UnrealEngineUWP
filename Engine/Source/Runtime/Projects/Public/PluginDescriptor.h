@@ -10,6 +10,7 @@
 #include "HAL/Platform.h"
 #include "LocalizationDescriptor.h"
 #include "ModuleDescriptor.h"
+#include "PluginDisallowedDescriptor.h"
 #include "PluginReferenceDescriptor.h"
 #include "Serialization/JsonWriter.h"
 #include "Templates/SharedPointer.h"
@@ -147,7 +148,8 @@ struct FPluginDescriptor
 	TArray<FPluginReferenceDescriptor> Plugins;
 
 	/** Plugins that cannot be used by this plugin */
-	TArray<FString> DisallowedPlugins;
+	TArray<FPluginDisallowedDescriptor> DisallowedPlugins;
+
 
 #if WITH_EDITOR
 	/** Cached json for custom data */
