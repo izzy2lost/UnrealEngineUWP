@@ -899,7 +899,13 @@ bool FActivatableTreeNode::ProcessNormalInput(ECommonInputMode ActiveInputMode, 
 				return true;
 			}
 		}
-		return FActionRouterBindingCollection::ProcessNormalInput(ActiveInputMode, Key, InputEvent);
+		if (FActionRouterBindingCollection::ProcessNormalInput(ActiveInputMode, Key, InputEvent))
+		{
+			return true;
+		}
+
+		// Modal windows should consume input
+		return RepresentedWidget.IsValid() && RepresentedWidget->IsModal();
 	}
 	return false;
 }
