@@ -114,7 +114,6 @@ UInterchangeDatasmithPipeline::UInterchangeDatasmithPipeline()
 	AnimationPipeline = CreateDefaultSubobject<UInterchangeGenericAnimationPipeline>("AnimationPipeline");
 
 	MeshPipeline->CommonMeshesProperties = CommonMeshesProperties;
-	//MeshPipeline->bCombineStaticMeshes = false;
 	MeshPipeline->CommonSkeletalMeshesAndAnimationsProperties = CommonSkeletalMeshesAndAnimationsProperties;
 
 	AnimationPipeline->CommonMeshesProperties = CommonMeshesProperties;
