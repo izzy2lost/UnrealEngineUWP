@@ -9,6 +9,7 @@
 #include "Animation/AnimMontage.h"
 #include "PoseSearch/PoseSearchDefines.h"
 #include "PoseSearch/AnimNode_BlendStackInput.h"
+#include "Animation/AnimNode_Inertialization.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_BlendStack)
 
@@ -16,6 +17,8 @@
 TAutoConsoleVariable<int32> CVarAnimBlendStackEnable(TEXT("a.AnimNode.BlendStack.Enable"), 1, TEXT("Enable / Disable Blend Stack"));
 TAutoConsoleVariable<int32> CVarAnimBlendStackPruningEnable(TEXT("a.AnimNode.BlendStack.Pruning.Enable"), 1, TEXT("Enable / Disable Blend Stack Pruning"));
 #endif
+
+#define LOCTEXT_NAMESPACE "AnimNode_BlendStack"
 
 /////////////////////////////////////////////////////
 // FPoseSearchAnimPlayer
@@ -557,8 +560,41 @@ float FAnimNode_BlendStack_Standalone::GetAccumulatedTime() const
 	return AnimPlayers.IsEmpty() ? 0.f : AnimPlayers.First().GetAccumulatedTime();
 }
 
-void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop, bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption, FVector BlendParameters, float PlayRate)
+static void RequestInertialBlend(const FAnimationUpdateContext& Context, float BlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption)
 {
+	if (BlendTime > 0.0f)
+	{
+		UE::Anim::IInertializationRequester* InertializationRequester = Context.GetMessage<UE::Anim::IInertializationRequester>();
+		if (InertializationRequester)
+		{
+			FInertializationRequest Request;
+			Request.Duration = BlendTime;
+			Request.BlendProfile = BlendProfile;
+			Request.bUseBlendMode = true;
+			Request.BlendMode = BlendOption;
+#if ANIM_TRACE_ENABLED
+			Request.Description = LOCTEXT("InertializationRequestDescription", "Blend Stack");
+			Request.NodeId = Context.GetCurrentNodeId();
+			Request.AnimInstance = Context.AnimInstanceProxy->GetAnimInstanceObject();
+#endif
+
+			InertializationRequester->RequestInertialization(Request);
+		}
+		else
+		{
+			FAnimNode_Inertialization::LogRequestError(Context, Context.GetCurrentNodeId());
+		}
+	}
+}
+
+void FAnimNode_BlendStack_Standalone::BlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop, bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime, const UBlendProfile* BlendProfile, EAlphaBlendOption BlendOption, bool bUseInertialBlend, FVector BlendParameters, float PlayRate)
+{
+	if (bUseInertialBlend)
+	{
+		RequestInertialBlend(Context, BlendTime, BlendProfile, BlendOption);
+		BlendTime = 0.0f;
+	}
+
 	AnimPlayers.PushFirst(FPoseSearchAnimPlayer());
 	FPoseSearchAnimPlayer& AnimPlayer = AnimPlayers.First();
 	AnimPlayer.Initialize(AnimationAsset, AccumulatedTime, bLoop, bMirrored, MirrorDataTable, BlendTime, RootBoneBlendTime, BlendProfile, BlendOption, BlendParameters, PlayRate, GetNextPoseLinkIndex());
@@ -666,7 +702,7 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 
 		if (bExecuteBlendTo)
 		{
-			BlendTo(Context, AnimationAsset, AnimationTime, bLoop, bMirrored, MirrorDataTable.Get(), BlendTime, RootBoneBlendTime, BlendProfile, BlendOption, BlendParameters, WantedPlayRate);
+			BlendTo(Context, AnimationAsset, AnimationTime, bLoop, bMirrored, MirrorDataTable.Get(), BlendTime, RootBoneBlendTime, BlendProfile, BlendOption, bUseInertialBlend, BlendParameters, WantedPlayRate);
 		}
 	}
 	
@@ -684,3 +720,5 @@ void FBlendStack_SampleGraphPoseLink::SetInputPosePlayer(FPoseSearchAnimPlayer& 
 	// Link our anim player to the input pose node.
 	InputNode->Player = &Player;
 }
+
+#undef LOCTEXT_NAMESPACE

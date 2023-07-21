@@ -57,40 +57,8 @@ void FMotionMatchingState::AdjustAssetTime(float AssetTime)
 	CurrentSearchResult.Update(AssetTime);
 }
 
-static void RequestInertialBlend(const FAnimationUpdateContext& Context, float BlendTime)
-{
-	// Use inertial blending to smooth over the transition
-	// It would be cool in the future to adjust the blend time by amount of dissimilarity, but we'll need a standardized distance metric first.
-	if (BlendTime > 0.0f)
-	{
-		UE::Anim::IInertializationRequester* InertializationRequester = Context.GetMessage<UE::Anim::IInertializationRequester>();
-		if (InertializationRequester)
-		{
-			FInertializationRequest Request;
-			Request.Duration = BlendTime;
-#if ANIM_TRACE_ENABLED
-			Request.Description = LOCTEXT("InertializationRequestDescription", "Motion Matching");
-			Request.NodeId = Context.GetCurrentNodeId();
-			Request.AnimInstance = Context.AnimInstanceProxy->GetAnimInstanceObject();
-#endif
-
-			InertializationRequester->RequestInertialization(Request);
-		}
-		else
-		{
-			FAnimNode_Inertialization::LogRequestError(Context, Context.GetCurrentNodeId());
-		}
-	}
-}
-
 void FMotionMatchingState::JumpToPose(const FAnimationUpdateContext& Context, const UE::PoseSearch::FSearchResult& Result, int32 MaxActiveBlends, float BlendTime)
 {
-	// requesting inertial blending only if blendstack is disabled
-	if (MaxActiveBlends <= 0)
-	{
-		RequestInertialBlend(Context, BlendTime);
-	}
-
 	// Remember which pose and sequence we're playing from the database
 	CurrentSearchResult = Result;
 
