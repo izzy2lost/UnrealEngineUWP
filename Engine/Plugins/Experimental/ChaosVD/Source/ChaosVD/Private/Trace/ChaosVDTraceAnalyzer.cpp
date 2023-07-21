@@ -22,6 +22,9 @@ void FChaosVDTraceAnalyzer::OnAnalysisBegin(const FOnAnalysisContext& Context)
 	Builder.RouteEvent(RouteId_ChaosVDBinaryDataContent, "ChaosVDLogger", "ChaosVDBinaryDataContent");
 	Builder.RouteEvent(RouteId_ChaosVDBinaryDataEnd, "ChaosVDLogger", "ChaosVDBinaryDataEnd");
 	Builder.RouteEvent(RouteId_ChaosVDSolverSimulationSpace, "ChaosVDLogger", "ChaosVDSolverSimulationSpace");
+	
+	Builder.RouteEvent(RouteId_ChaosVDNonSolverLocation, "ChaosVDLogger", "ChaosVDNonSolverLocation");
+	Builder.RouteEvent(RouteId_ChaosVDNonSolverTransform, "ChaosVDLogger", "ChaosVDNonSolverTransform");
 
 	Builder.RouteEvent(RouteId_BeginFrame, "Misc", "BeginFrame");
 	Builder.RouteEvent(RouteId_EndFrame, "Misc", "EndFrame");
@@ -178,15 +181,10 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 			const int32 SolverID = EventData.GetValue<int32>("SolverID");
 
 			FVector Position;
-			Position.X = EventData.GetValue<float>("PositionX");
-			Position.Y = EventData.GetValue<float>("PositionY");
-			Position.Z = EventData.GetValue<float>("PositionZ");
+			CVD_READ_TRACE_VECTOR(Position, Position, float, EventData);
 
 			FQuat Rotation;
-			Rotation.X = EventData.GetValue<float>("RotationX");
-			Rotation.Y = EventData.GetValue<float>("RotationY");
-			Rotation.Z = EventData.GetValue<float>("RotationZ");
-			Rotation.W = EventData.GetValue<float>("RotationW");
+			CVD_READ_TRACE_QUAT(Rotation, Rotation, float, EventData);
 
 			FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
 			// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
@@ -194,6 +192,35 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 			{
 				FrameData->SimulationTransform.SetLocation(Position);
 				FrameData->SimulationTransform.SetRotation(Rotation);
+			}
+			break;
+		}
+	case RouteId_ChaosVDNonSolverLocation:
+		{
+			FChaosVDTrackedLocation TrackedLocation;
+			CVD_READ_TRACE_VECTOR(TrackedLocation.Location, Position, float, EventData);
+
+			EventData.GetString("DebugName", TrackedLocation.DebugName);
+			
+			FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
+			if (FChaosVDGameFrameData* CurrentFrameData = ChaosVDTraceProvider->GetLastGameFrame_AssumesLocked())
+			{
+				CurrentFrameData->RecordedNonSolverLocationsByID.Add(FName(TrackedLocation.DebugName), MoveTemp(TrackedLocation));
+			}
+			
+			break;
+		}
+	case RouteId_ChaosVDNonSolverTransform:
+		{
+			FChaosVDTrackedTransform TrackedTransform;
+			CVD_READ_TRACE_TRANSFORM(TrackedTransform.Transform, float, EventData);
+
+			EventData.GetString("DebugName", TrackedTransform.DebugName);
+			
+			FWriteScopeLock WriteLock(ChaosVDTraceProvider->GetDataLock());
+			if (FChaosVDGameFrameData* CurrentFrameData = ChaosVDTraceProvider->GetLastGameFrame_AssumesLocked())
+			{
+				CurrentFrameData->RecordedNonSolverTransformsByID.Add(FName(TrackedTransform.DebugName), MoveTemp(TrackedTransform));
 			}
 			break;
 		}

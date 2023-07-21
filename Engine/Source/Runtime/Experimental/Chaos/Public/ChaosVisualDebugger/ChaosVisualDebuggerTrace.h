@@ -83,6 +83,14 @@
 	#define CVD_TRACE_MID_PHASES_FROM_COLLISION_CONSTRAINTS(CollisionConstraints)
 #endif
 
+#ifndef CVD_TRACE_NON_SOLVER_LOCATION
+      #define CVD_TRACE_NON_SOLVER_LOCATION(Location, DebugName)
+#endif
+
+#ifndef CVD_TRACE_NON_SOLVER_TRANSFORM
+	#define CVD_TRACE_NON_SOLVER_TRANSFORM(Transform, DebugName)
+#endif
+
 #else
 
 #include "ChaosVDRuntimeModule.h"
@@ -185,6 +193,20 @@ UE_TRACE_EVENT_BEGIN_EXTERN(ChaosVDLogger, ChaosVDSolverSimulationSpace)
 	CVD_DEFINE_TRACE_ROTATOR(Chaos::FReal, Rotation)
 UE_TRACE_EVENT_END()
 
+UE_TRACE_EVENT_BEGIN_EXTERN(ChaosVDLogger, ChaosVDNonSolverLocation)
+	UE_TRACE_EVENT_FIELD(uint64, Cycle)
+	CVD_DEFINE_TRACE_VECTOR(Chaos::FReal, Position)
+	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, DebugName)
+UE_TRACE_EVENT_END()
+
+UE_TRACE_EVENT_BEGIN_EXTERN(ChaosVDLogger, ChaosVDNonSolverTransform)
+	UE_TRACE_EVENT_FIELD(uint64, Cycle)
+	CVD_DEFINE_TRACE_VECTOR(Chaos::FReal, Position)
+	CVD_DEFINE_TRACE_VECTOR(Chaos::FReal, Scale)
+	CVD_DEFINE_TRACE_ROTATOR(Chaos::FReal, Rotation)
+	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, DebugName)
+UE_TRACE_EVENT_END()
+
 UE_TRACE_EVENT_BEGIN_EXTERN(ChaosVDLogger, ChaosVDDummyEvent)
 	UE_TRACE_EVENT_FIELD(int32, SolverID)
 UE_TRACE_EVENT_END()
@@ -276,6 +298,16 @@ UE_TRACE_EVENT_END()
 #ifndef CVD_TRACE_MID_PHASES_FROM_COLLISION_CONSTRAINTS
 	#define CVD_TRACE_MID_PHASES_FROM_COLLISION_CONSTRAINTS(CollisionConstraints) \
 	FChaosVisualDebuggerTrace::TraceMidPhasesFromCollisionConstraints(CollisionConstraints);
+#endif
+
+#ifndef CVD_TRACE_NON_SOLVER_LOCATION
+	#define CVD_TRACE_NON_SOLVER_LOCATION(Location, DebugName) \
+	FChaosVisualDebuggerTrace::TraceNonSolverLocation(Location, DebugName);
+#endif
+
+#ifndef CVD_TRACE_NON_SOLVER_TRANSFORM
+	#define CVD_TRACE_NON_SOLVER_TRANSFORM(Transform, DebugName) \
+	FChaosVisualDebuggerTrace::TraceNonSolverTransform(Transform, DebugName);
 #endif
 
 struct FChaosVDContext;
@@ -378,6 +410,22 @@ public:
 	 *  @param WrappedGeometryData Wrapper containing a ptr to the implicit and its ID
 	 */
 	static CHAOS_API void TraceImplicitObject(FChaosVDImplicitObjectWrapper WrappedGeometryData);
+
+	/**
+	 * Traces the provided location using with the provided ID -
+	 * These are not tied to any solver step so they will be recorded as part of the current game frame data
+	 * @param InLocation Location to Trace
+	 * @param DebugNameID Name to use as ID
+	 */
+	static CHAOS_API void TraceNonSolverLocation(const FVector& InLocation, FStringView DebugNameID);
+
+	/**
+	 * Traces the provided transform using with the provided ID -
+	 * These are not tied to any solver step so they will be recorded as part of the current game frame data
+	 * @param InTransform Transform to Trace
+	 * @param DebugNameID Name to use as ID
+	 */
+	static CHAOS_API void TraceNonSolverTransform(const FTransform& InTransform, FStringView DebugNameID);
 
 	/** Returns true if the provided solver ID needs a Full Capture */
 	static bool ShouldPerformFullCapture(int32 SolverID);

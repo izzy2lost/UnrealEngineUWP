@@ -2,7 +2,7 @@
 
 #include "Widgets/SChaosVDMainTab.h"
 
-#include "ChaosVDEditorSettingsTab.h"
+#include "ChaosVDEditorVisualizationSettingsTab.h"
 #include "ChaosVDEngine.h"
 #include "ChaosVDObjectDetailsTab.h"
 #include "ChaosVDOutputLogTab.h"
@@ -44,7 +44,7 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 	OutputLogTab = MakeShared<FChaosVDOutputLogTab>(FChaosVDTabID::OutputLog, TabManager, this);
 	PlaybackViewportTab = MakeShared<FChaosVDPlaybackViewportTab>(FChaosVDTabID::PlaybackViewport, TabManager, this);
 	SolversTracksTab = MakeShared<FChaosVDSolversTracksTab>(FChaosVDTabID::SolversTrack, TabManager, this);
-	EditorSettingsTab = MakeShared<FChaosVDEditorSettingsTab>(FChaosVDTabID::CVDEditorSettings, TabManager, this);
+	EditorSettingsTab = MakeShared<FChaosVDEditorVisualizationSettingsTab>(FChaosVDTabID::CVDEditorSettings, TabManager, this);
 
 	StatusBarID = FName(FChaosVDTabID::StatusBar.ToString() + InChaosVDEngine->GetInstanceGuid().ToString());
 	

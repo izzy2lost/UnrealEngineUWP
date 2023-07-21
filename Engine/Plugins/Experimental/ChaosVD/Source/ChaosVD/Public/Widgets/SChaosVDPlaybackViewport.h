@@ -7,6 +7,7 @@
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
+enum class EChaosVDActorTrackingMode;
 class FChaosVDPlaybackViewportClient;
 class SChaosVDSolverPlaybackControls;
 class FChaosVDPlaybackController;
@@ -29,6 +30,9 @@ public:
 
 	void Construct(const FArguments& InArgs, TWeakPtr<FChaosVDScene> InScene, TWeakPtr<FChaosVDPlaybackController> InPlaybackController);
 
+	void TrackActor(AActor* ActorToTrack, EChaosVDActorTrackingMode TrackingMode);
+	void TrackTransform(const FTransform& TransformToTrack, EChaosVDActorTrackingMode TrackingMode);
+
 protected:
 
 	TSharedPtr<FChaosVDPlaybackViewportClient> CreateViewportClient() const;
@@ -47,4 +51,6 @@ protected:
 	TSharedPtr<FChaosVDPlaybackViewportClient> PlaybackViewportClient;
 	TSharedPtr<SViewport> ViewportWidget;
 	TSharedPtr<FSceneViewport> SceneViewport;
+	
+	TWeakPtr<FChaosVDScene> CVDSceneWeakPtr;
 };

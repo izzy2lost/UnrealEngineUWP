@@ -2,6 +2,7 @@
 
 #include "Widgets/SChaosVDPlaybackViewport.h"
 
+#include "ChaosVDEditorSettings.h"
 #include "ChaosVDPlaybackController.h"
 #include "ChaosVDPlaybackViewportClient.h"
 #include "ChaosVDScene.h"
@@ -41,6 +42,7 @@ TSharedPtr<FChaosVDPlaybackViewportClient> SChaosVDPlaybackViewport::CreateViewp
 
 void SChaosVDPlaybackViewport::Construct(const FArguments& InArgs, TWeakPtr<FChaosVDScene> InScene, TWeakPtr<FChaosVDPlaybackController> InPlaybackController)
 {
+	CVDSceneWeakPtr = InScene;
 	TSharedPtr<FChaosVDScene> ScenePtr = InScene.Pin();
 	ensure(ScenePtr.IsValid());
 	ensure(InPlaybackController.IsValid());
@@ -101,6 +103,23 @@ void SChaosVDPlaybackViewport::Construct(const FArguments& InArgs, TWeakPtr<FCha
 	RegisterNewController(InPlaybackController);
 }
 
+
+void SChaosVDPlaybackViewport::TrackActor(AActor* ActorToTrack, EChaosVDActorTrackingMode TrackingMode)
+{
+	if (ensure(PlaybackViewportClient.IsValid()))
+	{
+		PlaybackViewportClient->TrackActor(ActorToTrack, TrackingMode);
+	}	
+}
+
+void SChaosVDPlaybackViewport::TrackTransform(const FTransform& TransformToTrack, EChaosVDActorTrackingMode TrackingMode)
+{
+	if (ensure(PlaybackViewportClient.IsValid()))
+	{
+		PlaybackViewportClient->TrackTransform(TransformToTrack, TrackingMode);
+	}
+}
+
 void SChaosVDPlaybackViewport::HandlePlaybackControllerDataUpdated(TWeakPtr<FChaosVDPlaybackController> InController)
 {
 	if (PlaybackController != InController)
@@ -150,7 +169,7 @@ void SChaosVDPlaybackViewport::HandlePostSelectionChange(const UTypedElementSele
 
 void SChaosVDPlaybackViewport::OnPlaybackSceneUpdated()
 {
-	PlaybackViewportClient->bNeedsRedraw = true;
+	PlaybackViewportClient->bNeedsRedraw = true;	
 }
 
 void SChaosVDPlaybackViewport::RegisterNewController(TWeakPtr<FChaosVDPlaybackController> NewController)

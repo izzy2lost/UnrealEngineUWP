@@ -4,6 +4,7 @@
 #include "LevelEditorViewport.h"
 
 class FChaosVDScene;
+enum class EChaosVDActorTrackingMode;
 
 /** Client viewport class used for to handle a Chaos Visual Debugger world Interaction/Rendering.
  * It re-routes interaction events to our Chaos VD scene
@@ -20,15 +21,15 @@ public:
 
 	virtual UWorld* GetWorld() const override { return CVDWorld; };
 
-private:
-
-	void HandleObjectFocused(UObject* FocusedObject);
-
-public:
 	virtual void Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 	virtual void DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas) override;
+	
+	void TrackActor(AActor* ActorToTrack, EChaosVDActorTrackingMode TrackingMode);
+	void TrackTransform(const FTransform& TransformToTrack, EChaosVDActorTrackingMode TrackingMode);
 
 private:
+	void HandleObjectFocused(UObject* FocusedObject);
+	
 	FDelegateHandle ObjectFocusedDelegateHandle;
 	UWorld* CVDWorld;
 	TWeakPtr<FChaosVDScene> CVDScene;

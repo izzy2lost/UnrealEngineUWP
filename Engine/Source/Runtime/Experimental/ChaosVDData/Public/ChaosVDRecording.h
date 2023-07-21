@@ -27,6 +27,18 @@ struct FChaosVDStepData
 	TSet<int32> ParticlesDestroyedIDs;
 };
 
+struct FChaosVDTrackedLocation
+{
+	FString DebugName;
+	FVector Location;
+};
+
+struct FChaosVDTrackedTransform
+{
+	FString DebugName;
+	FTransform Transform;
+};
+
 typedef TArray<FChaosVDStepData, TInlineAllocator<16>> FChaosVDStepsContainer;
 
 struct CHAOSVDDATA_API FChaosVDSolverFrameData
@@ -44,6 +56,9 @@ struct FChaosVDGameFrameData
 {
 	uint64 FirstCycle;
 	uint64 LastCycle;
+
+	TMap<FName, FChaosVDTrackedLocation> RecordedNonSolverLocationsByID;
+	TMap<FName, FChaosVDTrackedTransform> RecordedNonSolverTransformsByID;
 };
 
 /**

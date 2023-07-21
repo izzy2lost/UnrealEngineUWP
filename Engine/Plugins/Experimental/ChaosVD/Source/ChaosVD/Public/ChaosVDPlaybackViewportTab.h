@@ -20,6 +20,8 @@ public:
 	
 	virtual TSharedRef<SDockTab> HandleTabSpawned(const FSpawnTabArgs& Args) override;
 
+	TWeakPtr<SChaosVDPlaybackViewport> GetPlaybackViewportWidget() { return PlaybackViewportWidget; }
+
 protected:
 	TSharedPtr<SChaosVDPlaybackViewport> PlaybackViewportWidget;
 };

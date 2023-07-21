@@ -47,6 +47,8 @@ private:
 		RouteId_BeginFrame,
 		RouteId_EndFrame,
 		RouteId_ChaosVDParticleDestroyed,
+		RouteId_ChaosVDNonSolverLocation,
+		RouteId_ChaosVDNonSolverTransform,
 	};
 
 	TraceServices::IAnalysisSession& Session;
@@ -55,3 +57,37 @@ private:
 	
 	FChaosVDTraceAnalysisComplete ChaosVDTraceAnalysisCompleteDelegate;
 };
+
+#ifndef CVD_STRINGIZE
+	#define CVD_STRINGIZE(x) #x
+#endif
+
+#ifndef CVD_READ_TRACE_VECTOR
+	#define CVD_READ_TRACE_VECTOR(Vector, VectorName, ValueType, EventData) \
+		Vector.X = EventData.GetValue<ValueType>(CVD_STRINGIZE(VectorName##X)); \
+		Vector.Y = EventData.GetValue<ValueType>(CVD_STRINGIZE(VectorName##Y)); \
+		Vector.Z = EventData.GetValue<ValueType>(CVD_STRINGIZE(VectorName##Z));
+#endif
+
+#ifndef CVD_READ_TRACE_QUAT
+	#define CVD_READ_TRACE_QUAT(Rotator, RotatorName, ValueType, EventData) \
+		Rotator.X = EventData.GetValue<ValueType>(CVD_STRINGIZE(RotatorName##X)); \
+		Rotator.Y = EventData.GetValue<ValueType>(CVD_STRINGIZE(RotatorName##Y)); \
+		Rotator.Z = EventData.GetValue<ValueType>(CVD_STRINGIZE(RotatorName##Z)); \
+		Rotator.W = EventData.GetValue<ValueType>(CVD_STRINGIZE(RotatorName##W));
+#endif
+
+#ifndef CVD_READ_TRACE_TRANSFORM
+	#define CVD_READ_TRACE_TRANSFORM(Transform, ValueType, EventData) \
+		{ \
+			FVector Location; \
+			CVD_READ_TRACE_VECTOR(Location, Position, float, EventData); \
+			FVector Scale; \
+			CVD_READ_TRACE_VECTOR(Location, Position, float, EventData); \
+			FQuat Rotation; \
+			CVD_READ_TRACE_QUAT(Rotation, Rotation, float, EventData); \
+			Transform.SetLocation(Location); \
+			Transform.SetScale3D(Scale); \
+			Transform.SetRotation(Rotation); \
+		}
+#endif

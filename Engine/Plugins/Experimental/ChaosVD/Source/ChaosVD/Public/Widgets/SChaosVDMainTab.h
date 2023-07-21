@@ -6,7 +6,8 @@
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
-class FChaosVDEditorSettingsTab;
+class FChaosVDTabSpawnerBase;
+class FChaosVDEditorVisualizationSettingsTab;
 class FChaosVDSolversTracksTab;
 class FChaosVDEngine;
 class FChaosVDOutputLogTab;
@@ -29,6 +30,8 @@ public:
 	TSharedRef<FChaosVDEngine> GetChaosVDEngineInstance() const { return ChaosVDEngine.ToSharedRef(); };
 	const FName& GetStatusBarID() const { return StatusBarID; };
 
+	TWeakPtr<FChaosVDPlaybackViewportTab> GetPlaybackViewportTab() { return PlaybackViewportTab;}
+
 private:
 
 	TSharedRef<FTabManager::FLayout> GenerateMainLayout();
@@ -45,7 +48,7 @@ private:
 	TSharedPtr<FChaosVDPlaybackViewportTab> PlaybackViewportTab;
 	TSharedPtr<FChaosVDSolversTracksTab> SolversTracksTab;
 	TSharedPtr<FChaosVDOutputLogTab> OutputLogTab;
-	TSharedPtr<FChaosVDEditorSettingsTab> EditorSettingsTab;
+	TSharedPtr<FChaosVDEditorVisualizationSettingsTab> EditorSettingsTab;
 
 	FName StatusBarID;
 
