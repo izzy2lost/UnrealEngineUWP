@@ -117,7 +117,14 @@ public class ICU : ModuleRules
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(ICULibPath, UseDebugLibs ? "Debug" : "Release", "libicu.a"));
+			if (Target.Architecture != UnrealArch.IOSSimulator)
+			{
+				PublicAdditionalLibraries.Add(Path.Combine(ICULibPath, UseDebugLibs ? "Debug" : "Release", "libicu.a"));
+			}
+			else
+			{
+				PublicAdditionalLibraries.Add(Path.Combine(ICULibPath, "Simulator", "libicu.a"));
+			}
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Android))
 		{
