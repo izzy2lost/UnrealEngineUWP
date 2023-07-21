@@ -600,6 +600,7 @@ private:
 		StaticRayTracingGeometry.ReleaseResource();
 	}
 
+	FRayTracingMaskAndFlags CachedRayTracingInstanceMaskAndFlags;
 	bool bSupportRayTracing : 1;
 	bool bDynamicRayTracingGeometry : 1;
 	bool bNeedsDynamicRayTracingGeometries : 1;
@@ -607,9 +608,7 @@ private:
 
 	FRayTracingGeometry StaticRayTracingGeometry;
 	FRayTracingGeometry DynamicRayTracingGeometry;
-	
 	TArray<FMeshBatch> CachedRayTracingMaterials;
-	FRayTracingMaskAndFlags CachedRayTracingInstanceMaskAndFlags;
 #endif
 };
 
