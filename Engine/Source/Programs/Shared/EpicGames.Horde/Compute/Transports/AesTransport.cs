@@ -15,7 +15,7 @@ namespace EpicGames.Horde.Compute.Transports
 	/// Transport layer that adds AES encryption on top of an underlying transport implementation. Key must be exchanged separately
 	/// (eg. via the HTTPS request to negotiate a lease with the server).
 	/// </summary>
-	public sealed class AesTransport : IComputeTransport, IAsyncDisposable
+	public sealed class AesTransport : ComputeTransport, IAsyncDisposable
 	{
 		/// <summary>
 		/// Length of the required encrption key. 
@@ -30,7 +30,7 @@ namespace EpicGames.Horde.Compute.Transports
 		const int HeaderLength = sizeof(int); // Unencrypted size of the message
 		const int FooterLength = 16; // 16-byte auth tag for encryption
 
-		readonly IComputeTransport _inner;
+		readonly ComputeTransport _inner;
 		readonly Pipe _readPipe;
 		readonly AesGcm _aesGcm;
 
@@ -55,7 +55,7 @@ namespace EpicGames.Horde.Compute.Transports
 		/// <param name="inner">The underlying transport implementation</param>
 		/// <param name="key">AES encryption key (256 bits / 32 bytes)</param>
 		/// <param name="nonce">Cryptographic nonce to identify the connection. Must be longer than <see cref="NonceLength"/>.</param>
-		public AesTransport(IComputeTransport inner, ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce)
+		public AesTransport(ComputeTransport inner, ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce)
 		{
 			if (key.Length != KeyLength)
 			{
@@ -143,7 +143,7 @@ namespace EpicGames.Horde.Compute.Transports
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask<int> ReadPartialAsync(Memory<byte> buffer, CancellationToken cancellationToken)
+		public override async ValueTask<int> ReadPartialAsync(Memory<byte> buffer, CancellationToken cancellationToken)
 		{
 			int sizeRead = 0;
 			while (sizeRead == 0)
@@ -167,7 +167,7 @@ namespace EpicGames.Horde.Compute.Transports
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask WriteAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
+		public override async ValueTask WriteAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
 		{
 			while (buffer.Length > 0)
 			{
@@ -212,6 +212,6 @@ namespace EpicGames.Horde.Compute.Transports
 		}
 
 		/// <inheritdoc/>
-		public ValueTask MarkCompleteAsync(CancellationToken cancellationToken) => _inner.MarkCompleteAsync(cancellationToken);
+		public override ValueTask MarkCompleteAsync(CancellationToken cancellationToken) => _inner.MarkCompleteAsync(cancellationToken);
 	}
 }

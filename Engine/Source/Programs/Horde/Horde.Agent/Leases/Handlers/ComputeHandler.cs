@@ -21,14 +21,12 @@ namespace Horde.Agent.Leases.Handlers
 	/// </summary>
 	class ComputeHandler : LeaseHandler<ComputeTask>
 	{
-		class TcpTransportWithTimeout : IComputeTransport
+		class TcpTransportWithTimeout : ComputeTransport
 		{
 			readonly TcpTransport _inner;
 			long _lastPingTicks;
 
 			static readonly double s_ticksToSystemTicks = (double)TimeSpan.TicksPerSecond / Stopwatch.Frequency;
-
-			public long Position => _inner.Position;
 
 			public TcpTransportWithTimeout(Socket socket)
 			{
@@ -38,9 +36,9 @@ namespace Horde.Agent.Leases.Handlers
 
 			public TimeSpan TimeSinceActivity => TimeSpan.FromTicks((long)((Stopwatch.GetTimestamp() - Interlocked.CompareExchange(ref _lastPingTicks, 0, 0)) * s_ticksToSystemTicks));
 
-			public ValueTask MarkCompleteAsync(CancellationToken cancellationToken) => _inner.MarkCompleteAsync(cancellationToken);
+			public override ValueTask MarkCompleteAsync(CancellationToken cancellationToken) => _inner.MarkCompleteAsync(cancellationToken);
 
-			public async ValueTask<int> ReadPartialAsync(Memory<byte> buffer, CancellationToken cancellationToken)
+			public override async ValueTask<int> ReadPartialAsync(Memory<byte> buffer, CancellationToken cancellationToken)
 			{
 				int result = await _inner.ReadPartialAsync(buffer, cancellationToken);
 				if (result > 0)
@@ -50,7 +48,7 @@ namespace Horde.Agent.Leases.Handlers
 				return result;
 			}
 
-			public async ValueTask WriteAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
+			public override async ValueTask WriteAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
 			{
 				await _inner.WriteAsync(buffer, cancellationToken);
 				Interlocked.Exchange(ref _lastPingTicks, Stopwatch.GetTimestamp());

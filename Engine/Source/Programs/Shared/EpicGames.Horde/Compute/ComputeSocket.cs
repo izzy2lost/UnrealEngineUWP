@@ -42,7 +42,7 @@ namespace EpicGames.Horde.Compute
 
 		bool _complete;
 
-		readonly IComputeTransport _transport;
+		readonly ComputeTransport _transport;
 		readonly ComputeSocketEndpoint _endpoint;
 		readonly ILogger _logger;
 
@@ -63,7 +63,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="transport">Transport to communicate with the remote</param>
 		/// <param name="endpoint">Tag for log messages</param>
 		/// <param name="logger">Logger for trace output</param>
-		public ComputeSocket(IComputeTransport transport, ComputeSocketEndpoint endpoint, ILogger logger)
+		public ComputeSocket(ComputeTransport transport, ComputeSocketEndpoint endpoint, ILogger logger)
 		{
 			_transport = transport;
 			_endpoint = endpoint;
@@ -115,7 +115,7 @@ namespace EpicGames.Horde.Compute
 			GC.SuppressFinalize(this);
 		}
 
-		async Task RunRecvTaskAsync(IComputeTransport transport, CancellationToken cancellationToken)
+		async Task RunRecvTaskAsync(ComputeTransport transport, CancellationToken cancellationToken)
 		{
 			_logger.LogTrace("[{Tag}] Started socket reader", Tag);
 
@@ -175,7 +175,7 @@ namespace EpicGames.Horde.Compute
 			_logger.LogTrace("[{Tag}] Closing reader", Tag);
 		}
 
-		async Task ReadPacketAsync(IComputeTransport transport, int id, int size, IComputeBufferWriter writer, CancellationToken cancellationToken)
+		async Task ReadPacketAsync(ComputeTransport transport, int id, int size, IComputeBufferWriter writer, CancellationToken cancellationToken)
 		{
 			Memory<byte> memory = writer.GetWriteBuffer();
 			while (memory.Length < size)

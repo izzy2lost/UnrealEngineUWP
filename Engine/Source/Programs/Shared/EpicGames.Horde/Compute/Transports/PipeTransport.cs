@@ -9,10 +9,10 @@ using System.Threading.Tasks;
 namespace EpicGames.Horde.Compute.Transports
 {
 	/// <summary>
-	/// Implementation of <see cref="IComputeTransport"/> for communicating over a <see cref="Pipe"/>. 
+	/// Implementation of <see cref="ComputeTransport"/> for communicating over a <see cref="Pipe"/>. 
 	/// (Note: this uses a .NET in-process pipe, not an IPC pipe).
 	/// </summary>
-	public class PipeTransport : IComputeTransport
+	public class PipeTransport : ComputeTransport
 	{
 		readonly PipeReader _reader;
 		readonly PipeWriter _writer;
@@ -35,7 +35,7 @@ namespace EpicGames.Horde.Compute.Transports
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask<int> ReadPartialAsync(Memory<byte> buffer, CancellationToken cancellationToken)
+		public override async ValueTask<int> ReadPartialAsync(Memory<byte> buffer, CancellationToken cancellationToken)
 		{
 			int sizeRead = 0;
 			while (sizeRead < buffer.Length)
@@ -78,7 +78,7 @@ namespace EpicGames.Horde.Compute.Transports
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask WriteAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
+		public override async ValueTask WriteAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
 		{
 			foreach (ReadOnlyMemory<byte> memory in buffer)
 			{
@@ -88,6 +88,6 @@ namespace EpicGames.Horde.Compute.Transports
 		}
 
 		/// <inheritdoc/>
-		public ValueTask MarkCompleteAsync(CancellationToken cancellationToken) => _writer.CompleteAsync();
+		public override ValueTask MarkCompleteAsync(CancellationToken cancellationToken) => _writer.CompleteAsync();
 	}
 }

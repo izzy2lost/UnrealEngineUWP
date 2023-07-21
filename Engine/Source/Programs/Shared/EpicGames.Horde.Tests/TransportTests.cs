@@ -85,7 +85,7 @@ namespace EpicGames.Horde.Tests
 			Assert.IsTrue(input.SequenceEqual(output));
 		}
 
-		public static async Task CopyToAsync(IComputeTransport transport, Memory<byte> buffer)
+		public static async Task CopyToAsync(ComputeTransport transport, Memory<byte> buffer)
 		{
 			for (int offset = 0; offset < buffer.Length;)
 			{

@@ -11,7 +11,7 @@ namespace EpicGames.Horde.Compute.Transports
 	/// <summary>
 	/// Compute transport which wraps an underlying stream
 	/// </summary>
-	class StreamTransport : IComputeTransport
+	class StreamTransport : ComputeTransport
 	{
 		readonly Stream _stream;
 
@@ -25,7 +25,7 @@ namespace EpicGames.Horde.Compute.Transports
 		public StreamTransport(Stream stream) => _stream = stream;
 
 		/// <inheritdoc/>
-		public async ValueTask<int> ReadPartialAsync(Memory<byte> buffer, CancellationToken cancellationToken)
+		public override async ValueTask<int> ReadPartialAsync(Memory<byte> buffer, CancellationToken cancellationToken)
 		{
 			int length = await _stream.ReadAsync(buffer, cancellationToken);
 			Position += length;
@@ -33,7 +33,7 @@ namespace EpicGames.Horde.Compute.Transports
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask WriteAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
+		public override async ValueTask WriteAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
 		{
 			foreach (ReadOnlyMemory<byte> memory in buffer)
 			{
@@ -43,6 +43,6 @@ namespace EpicGames.Horde.Compute.Transports
 		}
 
 		/// <inheritdoc/>
-		public ValueTask MarkCompleteAsync(CancellationToken cancellationToken) => new ValueTask();
+		public override ValueTask MarkCompleteAsync(CancellationToken cancellationToken) => new ValueTask();
 	}
 }
