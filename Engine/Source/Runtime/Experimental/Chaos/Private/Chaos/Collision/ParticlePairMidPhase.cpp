@@ -195,6 +195,58 @@ namespace Chaos
 		return Context.GetAllocator()->CreateConstraint(Particle0, Implicit0, Shape0, BVHParticles0, ShapeRelativeTransform0, Particle1, Implicit1, Shape1, BVHParticles1, ShapeRelativeTransform1, CullDistance, bUseManifold, ShapePairType);
 	}
 
+	// A unique key for a collision between two particles (key is only unique within the particle pair midphase)
+	class FParticlePairMidPhaseCollisionKey
+	{
+	public:
+
+		FParticlePairMidPhaseCollisionKey()
+			: Key(0)
+		{
+		}
+
+		FParticlePairMidPhaseCollisionKey(const int32 InShapeID0, const int32 InShapeID1)
+		{
+			Generate(InShapeID0, InShapeID1);
+		}
+
+		uint64 GetKey() const
+		{
+			return Key;
+		}
+
+		friend bool operator==(const FParticlePairMidPhaseCollisionKey& L, const FParticlePairMidPhaseCollisionKey& R)
+		{
+			return L.Key == R.Key;
+		}
+
+		friend bool operator!=(const FParticlePairMidPhaseCollisionKey& L, const FParticlePairMidPhaseCollisionKey& R)
+		{
+			return !(L == R);
+		}
+
+		friend bool operator<(const FParticlePairMidPhaseCollisionKey& L, const FParticlePairMidPhaseCollisionKey& R)
+		{
+			return L.Key < R.Key;
+		}
+
+	private:
+		void Generate(const int32 InShapeID0, const int32 InShapeID1)
+		{
+			ShapeID0 = InShapeID0;
+			ShapeID1 = InShapeID1;
+		}
+
+		union {
+			struct
+			{
+				int32 ShapeID0;
+				int32 ShapeID1;
+			};
+			uint64 Key;
+		};
+	};
+
 
 	////////////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////
@@ -207,6 +259,7 @@ namespace Chaos
 		const FPerShapeData* InShape0,
 		FGeometryParticleHandle* InParticle1,
 		const FPerShapeData* InShape1,
+		const Private::FCollisionSortKey& InCollisionSortKey,
 		const EContactShapesType InShapePairType,
 		FParticlePairMidPhase& InMidPhase)
 		: MidPhase(InMidPhase)
@@ -215,6 +268,7 @@ namespace Chaos
 		, Particle1(InParticle1)
 		, Shape0(InShape0)
 		, Shape1(InShape1)
+		, CollisionSortKey(InCollisionSortKey)
 		, SphereBoundsCheckSize(0)
 		, LastUsedEpoch(-1)
 		, ShapePairType(InShapePairType)
@@ -229,10 +283,6 @@ namespace Chaos
 			SphereBoundsCheckSize);
 	}
 
-	FSingleShapePairCollisionDetector::~FSingleShapePairCollisionDetector()
-	{
-	}
-
 	FSingleShapePairCollisionDetector::FSingleShapePairCollisionDetector(FSingleShapePairCollisionDetector&& R)
 		: MidPhase(R.MidPhase)
 		, Constraint(MoveTemp(R.Constraint))
@@ -240,9 +290,14 @@ namespace Chaos
 		, Particle1(R.Particle1)
 		, Shape0(R.Shape0)
 		, Shape1(R.Shape1)
+		, CollisionSortKey(R.CollisionSortKey)
 		, SphereBoundsCheckSize(R.SphereBoundsCheckSize)
 		, ShapePairType(R.ShapePairType)
 		, BoundsTestFlags(R.BoundsTestFlags)
+	{
+	}
+
+	FSingleShapePairCollisionDetector::~FSingleShapePairCollisionDetector()
 	{
 	}
 
@@ -342,6 +397,9 @@ namespace Chaos
 		Constraint->GetContainerCookie().MidPhase = &MidPhase;
 		Constraint->GetContainerCookie().bIsMultiShapePair = false;
 		Constraint->GetContainerCookie().CreationEpoch = CurrentEpoch;
+
+		Constraint->SetCollisionSortKey(CollisionSortKey);
+
 		LastUsedEpoch = -1;
 	}
 
@@ -607,7 +665,7 @@ namespace Chaos
 		, Particle0(nullptr)
 		, Particle1(nullptr)
 		, CullDistanceScale(1)
-		, Key()
+		, ParticlePairKey()
 		, LastUsedEpoch(INDEX_NONE)
 		, NumActiveConstraints(0)
 		, ParticleCollisionsIndex0(INDEX_NONE)
@@ -705,14 +763,14 @@ namespace Chaos
 	void FParticlePairMidPhase::Init(
 		FGeometryParticleHandle* InParticle0,
 		FGeometryParticleHandle* InParticle1,
-		const FCollisionParticlePairKey& InKey,
+		const Private::FCollisionParticlePairKey& InParticlePairKey,
 		const FCollisionContext& Context)
 	{
 		PHYSICS_CSV_SCOPED_EXPENSIVE(PhysicsVerbose, NarrowPhase_Filter);
 
 		Particle0 = InParticle0;
 		Particle1 = InParticle1;
-		Key = InKey;
+		ParticlePairKey = InParticlePairKey;
 
 		Flags.bIsActive = true;
 
@@ -920,13 +978,13 @@ namespace Chaos
 				for (int32 ShapeIndex1 = 0; ShapeIndex1 < Shapes1.Num(); ++ShapeIndex1)
 				{
 					const FPerShapeData* Shape1 = Shapes1[ShapeIndex1].Get();
-					TryAddShapePair(Shape0, Shape1);
+					TryAddShapePair(Shape0, ShapeIndex0, Shape1, ShapeIndex1);
 				}
 			}
 		}
 	}
 
-	void FShapePairParticlePairMidPhase::TryAddShapePair(const FPerShapeData* Shape0, const FPerShapeData* Shape1)
+	void FShapePairParticlePairMidPhase::TryAddShapePair(const FPerShapeData* Shape0, const int32 ShapeIndex0, const FPerShapeData* Shape1, const int32 ShapeIndex1)
 	{
 		const FImplicitObject* Implicit0 = Shape0->GetLeafGeometry();
 		const EImplicitObjectType ImplicitType0 = Private::GetImplicitCollisionType(Particle0, Implicit0);
@@ -944,11 +1002,13 @@ namespace Chaos
 			{
 				if (!bSwap)
 				{
-					ShapePairDetectors.Emplace(FSingleShapePairCollisionDetector(Particle0, Shape0, Particle1, Shape1, ShapePairType, *this));
+					const Private::FCollisionSortKey CollisionSortKey = Private::FCollisionSortKey(Particle0, ShapeIndex0, Particle1, ShapeIndex1);
+					ShapePairDetectors.Emplace(FSingleShapePairCollisionDetector(Particle0, Shape0, Particle1, Shape1, CollisionSortKey, ShapePairType, *this));
 				}
 				else
 				{
-					ShapePairDetectors.Emplace(FSingleShapePairCollisionDetector(Particle1, Shape1, Particle0, Shape0, ShapePairType, *this));
+					const Private::FCollisionSortKey CollisionSortKey = Private::FCollisionSortKey(Particle1, ShapeIndex1, Particle0, ShapeIndex0);
+					ShapePairDetectors.Emplace(FSingleShapePairCollisionDetector(Particle1, Shape1, Particle0, Shape0, CollisionSortKey, ShapePairType, *this));
 				}
 			}
 			else
@@ -965,7 +1025,7 @@ namespace Chaos
 		const FReal Dt,
 		const FCollisionContext& Context)
 	{
-		TRACE_COUNTER_INCREMENT(ChaosTraceCounter_MidPhase_NumShapePair);
+		//TRACE_COUNTER_INCREMENT(ChaosTraceCounter_MidPhase_NumShapePair);
 
 		int32 NumActive = 0;
 		if (Flags.bIsCCD)
@@ -1042,7 +1102,7 @@ namespace Chaos
 		const FReal Dt,
 		const FCollisionContext& Context)
 	{
-		TRACE_COUNTER_INCREMENT(ChaosTraceCounter_MidPhase_NumGeneric);
+		//TRACE_COUNTER_INCREMENT(ChaosTraceCounter_MidPhase_NumGeneric);
 
 		const FImplicitObject* Implicit0 = GetParticle0()->Geometry().Get();
 		const FImplicitObject* Implicit1 = GetParticle1()->Geometry().Get();
@@ -1183,7 +1243,7 @@ namespace Chaos
 		const FRigidTransform3 ParticleWorldTransformB = PB->GetTransformPQ();
 		const FRigidTransform3 ParticleTransformAToB = ParticleWorldTransformA.GetRelativeTransform(ParticleWorldTransformB);
 
-		// Detect collisons between Implicit Hierarchy of ParticleA and Implicit Hierarchy of ParticleB
+		// Detect collisions between Implicit Hierarchy of ParticleA and Implicit Hierarchy of ParticleB
 		// Given an ImplicitObject from ParticleA (which we know overlaps the bounds of some parts of ParticleB),
 		// run collision detection on ImplicitA against the implicit object hierarchy of ParticleB.
 		RootImplicitA->VisitLeafObjects(
@@ -1197,7 +1257,7 @@ namespace Chaos
 
 				const FShapeInstance* ShapeInstanceA = GetShapeInstance(ShapeInstancesA, RootObjectIndexA);
 
-				// Detect collisons between ImplicitA and Implicit Hierarchy of ParticleB
+				// Detect collisions between ImplicitA and Implicit Hierarchy of ParticleB
 				RootImplicitB->VisitOverlappingLeafObjects(ShapeBoundsAInB,
 					[this, ParticleA, ImplicitA, ShapeInstanceA, &ParticleWorldTransformA, &RelativeTransformA, LeafObjectIndexA,
 					ParticleB, &ParticleWorldTransformB, &ShapeInstancesB,
@@ -1206,7 +1266,7 @@ namespace Chaos
 					{
 						const FShapeInstance* ShapeInstanceB = GetShapeInstance(ShapeInstancesB, RootObjectIndexB);
 
-						// Detect collisons between ImplicitA and ImplicitB (both leaf implicits)
+						// Detect collisions between ImplicitA and ImplicitB (both leaf implicits)
 						GenerateCollisionsImplicitLeafImplicitLeaf(
 							ParticleA, ImplicitA, ShapeInstanceA, ParticleWorldTransformA, RelativeTransformA, LeafObjectIndexA,
 							ParticleB, ImplicitB, ShapeInstanceB, ParticleWorldTransformB, RelativeTransformB, LeafObjectIndexB,
@@ -1468,7 +1528,7 @@ namespace Chaos
 		}
 #endif
 
-		const FCollisionParticlePairConstraintKey CollisionKey = FCollisionParticlePairConstraintKey(InShape0, InImplicit0, InImplicitId0, InBVHParticles0, InShape1, InImplicit1, InImplicitId1, InBVHParticles1);
+		const FParticlePairMidPhaseCollisionKey CollisionKey = FParticlePairMidPhaseCollisionKey(InImplicitId0, InImplicitId1);
 		FPBDCollisionConstraint* Constraint = FindConstraint(CollisionKey);
 
 		// @todo(chaos): fix key uniqueness guarantee.  We need a truly unique key gen function
@@ -1489,7 +1549,12 @@ namespace Chaos
 		if (Constraint == nullptr)
 		{
 			// NOTE: Using InParticle0 and InParticle1 here because the order may be different to what we have stored
-			Constraint = CreateConstraint(InParticle0, InImplicit0, InShape0, InBVHParticles0, InShapeRelativeTransform0, InParticle1, InImplicit1, InShape1, InBVHParticles1, InShapeRelativeTransform1, CullDistance, ShapePairType, bUseManifold, CollisionKey, Context);
+			const Private::FCollisionSortKey CollisionSortKey = Private::FCollisionSortKey(InParticle0, InImplicitId0, InParticle1, InImplicitId1);
+			Constraint = CreateConstraint(
+				InParticle0, InImplicit0, InShape0, InBVHParticles0, InShapeRelativeTransform0, 
+				InParticle1, InImplicit1, InShape1, InBVHParticles1, InShapeRelativeTransform1, 
+				CollisionKey, CollisionSortKey,
+				CullDistance, ShapePairType, bUseManifold, Context);
 		}
 
 		NewConstraints.Add(Constraint);
@@ -1497,7 +1562,7 @@ namespace Chaos
 		return Constraint;
 	}
 
-	FPBDCollisionConstraint* FGenericParticlePairMidPhase::FindConstraint(const FCollisionParticlePairConstraintKey& CollisionKey)
+	FPBDCollisionConstraint* FGenericParticlePairMidPhase::FindConstraint(const FParticlePairMidPhaseCollisionKey& CollisionKey)
 	{
 		FPBDCollisionConstraintPtr* PConstraint = Constraints.Find(CollisionKey.GetKey());
 		if (PConstraint != nullptr)
@@ -1518,10 +1583,11 @@ namespace Chaos
 		const FPerShapeData* InShape1,
 		const FBVHParticles* BVHParticles1,
 		const FRigidTransform3& ShapeRelativeTransform1,
+		const FParticlePairMidPhaseCollisionKey& CollisionKey,
+		const Private::FCollisionSortKey& CollisionSortKey,
 		const FReal CullDistance,
 		const EContactShapesType ShapePairType,
 		const bool bUseManifold,
-		const FCollisionParticlePairConstraintKey& CollisionKey,
 		const FCollisionContext& Context)
 	{
 		PHYSICS_CSV_SCOPED_EXPENSIVE(PhysicsVerbose, NarrowPhase_CreateConstraint);
@@ -1535,6 +1601,8 @@ namespace Chaos
 		Constraint->GetContainerCookie().MidPhase = this;
 		Constraint->GetContainerCookie().bIsMultiShapePair = true;
 		Constraint->GetContainerCookie().CreationEpoch = CurrentEpoch;
+
+		Constraint->SetCollisionSortKey(CollisionSortKey);
 
 		// Is this a CCD constraint?
 		Constraint->SetCCDEnabled(IsCCD());
@@ -1740,12 +1808,12 @@ namespace Chaos
 
 		// Find all the expired collisions
 		FMemMark Mark(FMemStack::Get());
-		TArray<uint32, TMemStackAllocator<alignof(uint32)>> Pruned;
+		TArray<uint64, TMemStackAllocator<alignof(uint32)>> Pruned;
 		Pruned.Reserve(Constraints.Num());
 
 		for (auto& KVP : Constraints)
 		{
-			const uint32 CollisionKey = KVP.Key;
+			const uint64 CollisionKey = KVP.Key;
 			FPBDCollisionConstraintPtr& Constraint = KVP.Value;
 
 			// NOTE: Constraints in sleeping islands should be kept alive. They will still be in the graph
@@ -1757,7 +1825,7 @@ namespace Chaos
 		}
 
 		// Destroy expired collisions
-		for (uint32 CollisionKey : Pruned)
+		for (uint64 CollisionKey : Pruned)
 		{
 			Constraints.Remove(CollisionKey);
 		}

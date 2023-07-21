@@ -21,6 +21,8 @@ namespace Chaos
 		class FCollisionConstraintAllocator;
 	}
 
+	class FParticlePairMidPhaseCollisionKey;
+
 	/**
 	 * The type of the particle pair midphase.
 	 */
@@ -51,6 +53,7 @@ namespace Chaos
 			const FPerShapeData* InShape0,
 			FGeometryParticleHandle* InParticle1,
 			const FPerShapeData* InShape1,
+			const Private::FCollisionSortKey& InCollisionSortKey,
 			const EContactShapesType InShapePairType, 
 			FParticlePairMidPhase& MidPhase);
 		CHAOS_API FSingleShapePairCollisionDetector(FSingleShapePairCollisionDetector&& R);
@@ -141,6 +144,7 @@ namespace Chaos
 		FGeometryParticleHandle* Particle1;
 		const FPerShapeData* Shape0;
 		const FPerShapeData* Shape1;
+		Private::FCollisionSortKey CollisionSortKey;
 		FRealSingle SphereBoundsCheckSize;
 		int32 LastUsedEpoch;
 		EContactShapesType ShapePairType;
@@ -186,14 +190,14 @@ namespace Chaos
 		CHAOS_API void Init(
 			FGeometryParticleHandle* InParticle0,
 			FGeometryParticleHandle* InParticle1,
-			const FCollisionParticlePairKey& InKey,
+			const Private::FCollisionParticlePairKey& InKey,
 			const FCollisionContext& Context);
 
 		inline FGeometryParticleHandle* GetParticle0() { return Particle0; }
 
 		inline FGeometryParticleHandle* GetParticle1() { return Particle1; }
 
-		inline const FCollisionParticlePairKey& GetKey() const { return Key; }
+		inline const Private::FCollisionParticlePairKey& GetKey() const { return ParticlePairKey; }
 
 		inline bool IsValid() const { return (Particle0 != nullptr) && (Particle1 != nullptr); }
 
@@ -394,7 +398,7 @@ namespace Chaos
 		// A number based on the size of the dynamic objects used to scale cull distance
 		FRealSingle CullDistanceScale;					// 4 bytes
 
-		FCollisionParticlePairKey Key;					// 8 bytes
+		Private::FCollisionParticlePairKey ParticlePairKey;		// 8 bytes
 
 		int32 LastUsedEpoch;							// 4 bytes
 		int32 NumActiveConstraints;						// 4 bytes
@@ -435,8 +439,10 @@ namespace Chaos
 
 	private:
 		CHAOS_API void TryAddShapePair(
-			const FPerShapeData* Shape0,
-			const FPerShapeData* Shape1);
+			const FPerShapeData* Shape0, 
+			const int32 ShapeIndex0, 
+			const FPerShapeData* Shape1, 
+			const int32 ShapeIndex1);
 
 		TArray<FSingleShapePairCollisionDetector, TInlineAllocator<1>> ShapePairDetectors;	// 88 bytes
 	};
@@ -514,12 +520,13 @@ namespace Chaos
 			FGeometryParticleHandle* InParticle1, const FImplicitObject* InImplicit1, const int32 InImplicitId1, const FShapeInstance* InShape1, const FBVHParticles* InBVHParticles1, const FRigidTransform3& InShapeRelativeTransform1,
 			const FReal CullDistance, const EContactShapesType ShapePairType, const bool bUseManifold, const bool bEnableSweep, const FCollisionContext& Context);
 
-		CHAOS_API FPBDCollisionConstraint* FindConstraint(const FCollisionParticlePairConstraintKey& Key);
+		CHAOS_API FPBDCollisionConstraint* FindConstraint(const FParticlePairMidPhaseCollisionKey& CollisionKey);
 
 		CHAOS_API FPBDCollisionConstraint* CreateConstraint(
 			FGeometryParticleHandle* Particle0, const FImplicitObject* Implicit0, const FPerShapeData* Shape0, const FBVHParticles* BVHParticles0, const FRigidTransform3& ShapeRelativeTransform0,
 			FGeometryParticleHandle* Particle1, const FImplicitObject* Implicit1, const FPerShapeData* Shape1, const FBVHParticles* BVHParticles1, const FRigidTransform3& ShapeRelativeTransform1,
-			const FReal CullDistance, const EContactShapesType ShapePairType, const bool bInUseManifold, const FCollisionParticlePairConstraintKey& Key, const FCollisionContext& Context);
+			const FParticlePairMidPhaseCollisionKey& CollisionKey, const Private::FCollisionSortKey& CollisionSortKey, 
+			const FReal CullDistance, const EContactShapesType ShapePairType, const bool bInUseManifold, const FCollisionContext& Context);
 
 		CHAOS_API int32 ProcessNewConstraints(const FReal CullDistance, const FReal Dt, const FCollisionContext& Context);
 
@@ -529,7 +536,7 @@ namespace Chaos
 
 		CHAOS_API bool UpdateCollisionCCD( FPBDCollisionConstraint* Constraint, const FReal CullDistance, const FReal Dt, const FCollisionContext& Context);
 
-		TMap<uint32, FPBDCollisionConstraintPtr> Constraints;
+		TMap<uint64, FPBDCollisionConstraintPtr> Constraints;
 		TArray<FPBDCollisionConstraint*> NewConstraints;
 	};
 }

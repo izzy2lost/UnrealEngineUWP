@@ -721,9 +721,22 @@ namespace Chaos
 		/**
 		 *	A key used to uniquely identify the constraint (it is based on the two particle IDs)
 		 */
-		FCollisionParticlePairKey GetParticlePairKey() const
+		Private::FCollisionParticlePairKey GetParticlePairKey() const
 		{
-			return FCollisionParticlePairKey(GetParticle0(), GetParticle1());
+			return Private::FCollisionParticlePairKey(GetParticle0(), GetParticle1());
+		}
+
+		/**
+		 * A key that uniquely identifies a collision constraint and provides a good sort order for the solver
+		 */
+		Private::FCollisionSortKey GetCollisionSortKey() const
+		{
+			return CollisionSortKey;
+		}
+
+		void SetCollisionSortKey(const Private::FCollisionSortKey& InCollisionSortKey)
+		{
+			CollisionSortKey = InCollisionSortKey;
 		}
 
 		Private::FImplicitBoundsTestFlags GetBoundsTestFlags() const
@@ -837,6 +850,7 @@ namespace Chaos
 
 	private:
 		FPBDCollisionConstraintContainerCookie ContainerCookie;
+		Private::FCollisionSortKey CollisionSortKey;
 		EContactShapesType ShapesType;
 
 		// The shape transforms at the current particle transforms

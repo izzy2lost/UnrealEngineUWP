@@ -83,10 +83,7 @@ public:
 	 * @brief Enable or disable determinism.
 	 * Support for determinism requires that we sort active constraints each tick, so there is additional cost.
 	*/
-	void SetIsDeterministic(const bool bInIsDeterministic)
-	{
-		bIsDeterministic = bInIsDeterministic;
-	}
+	void SetIsDeterministic(const bool bInIsDeterministic);
 
 	/**
 	 *  Clears the list of active constraints.

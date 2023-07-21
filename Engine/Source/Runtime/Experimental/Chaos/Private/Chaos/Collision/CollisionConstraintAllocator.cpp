@@ -32,9 +32,42 @@ namespace Chaos
 			return Constraint;
 		}
 
-		void FCollisionContextAllocator::ProcessNewMidPhases(FCollisionConstraintAllocator* Allocator)
+		void FCollisionConstraintAllocator::ProcessNewMidPhases()
 		{
-			// NOTE: Called from the physics thread, and never from a physics task/parallel-for. No need for locks.
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_Collisions_ProcessNewMidPhases);
+
+			FMemMark Mark(FMemStack::Get());
+			TArray<FParticlePairMidPhase*, TMemStackAllocator<>> NewMidPhases;
+
+			// Count the midphases so we can initialize the array
+			int32 NumNewMidPhases = 0;
+			for (TUniquePtr<FCollisionContextAllocator>& ContextAllocator : ContextAllocators)
+			{
+				NumNewMidPhases += ContextAllocator->NewMidPhases.Num();
+			}
+			NewMidPhases.Reserve(NumNewMidPhases);
+
+			// Collect the midphases
+			for (TUniquePtr<FCollisionContextAllocator>& ContextAllocator : ContextAllocators)
+			{
+				NewMidPhases.Append(ContextAllocator->NewMidPhases);
+				ContextAllocator->NewMidPhases.Reset();
+			}
+			check(NewMidPhases.Num() == NumNewMidPhases);
+
+			// For deterministic behaviour we need to sort the midphases so that, when they are added to 
+			// our and each particle's lists, they are in a repeatable order
+			// @todo(chaos): we could sort each context's array and then process them in order here instead
+			if (bIsDeteministic)
+			{
+				QUICK_SCOPE_CYCLE_COUNTER(STAT_Collisions_SortMidPhases);
+
+				NewMidPhases.Sort(
+					[](const FParticlePairMidPhase& L, const FParticlePairMidPhase& R)
+					{
+						return L.GetKey() < R.GetKey();
+					});
+			}
 
 			// Register the midphases with each of their particles and add the midphase to the central list
 			for (FParticlePairMidPhase* MidPhase : NewMidPhases)
@@ -50,23 +83,80 @@ namespace Chaos
 				Particle1->ParticleCollisions().AddMidPhase(Particle1, MidPhase);
 
 #if CHAOS_MIDPHASE_OBJECTPOOL_ENABLED 
-				Allocator->AddMidPhase(FParticlePairMidPhasePtr(MidPhase, FParticlePairMidPhaseDeleter(MidPhasePool)));
+				AddMidPhase(FParticlePairMidPhasePtr(MidPhase, FParticlePairMidPhaseDeleter(MidPhasePool)));
 #else
-				Allocator->AddMidPhase(FParticlePairMidPhasePtr(MidPhase));
+				AddMidPhase(FParticlePairMidPhasePtr(MidPhase));
 #endif
 			}
-			NewMidPhases.Reset();
 		}
 
-		void FCollisionContextAllocator::ProcessNewConstraints(FCollisionConstraintAllocator* Allocator)
+		void FCollisionConstraintAllocator::ProcessNewConstraints()
 		{
-			// NOTE: Called from the physics thread, and never from a physics task/parallel-for. No need for locks.
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_Collisions_ProcessNewConstraints);
 
-			for (FPBDCollisionConstraint* NewConstraint : NewActiveConstraints)
+			FMemMark Mark(FMemStack::Get());
+			TArray<FPBDCollisionConstraint*, TMemStackAllocator<>> NewConstraints;
+
+			// Count the constraints so we can initialize the array
+			int32 NumNewConstraints = 0;
+			for (TUniquePtr<FCollisionContextAllocator>& ContextAllocator : ContextAllocators)
 			{
-				Allocator->ActivateConstraintImp(NewConstraint);
+				NumNewConstraints += ContextAllocator->NewActiveConstraints.Num();
 			}
-			NewActiveConstraints.Reset();
+			NewConstraints.Reserve(NumNewConstraints);
+
+			// Collect the constraints
+			int32 NewConstraintBegin = 0;
+			for (TUniquePtr<FCollisionContextAllocator>& ContextAllocator : ContextAllocators)
+			{
+				NewConstraints.Append(ContextAllocator->NewActiveConstraints);
+				ContextAllocator->NewActiveConstraints.Reset();
+			}
+			check(NewConstraints.Num() == NumNewConstraints);
+
+			// For deterministic behaviour we need to sort the constraints so that any systems that iterate over
+			// active constraints will do so in a repeatable way.
+			// @todo(chaos): we could sort each context's array and then process them in order here instead
+			// @todo(chaos): if the context held the sort keys as well we could avoid some cache misses?
+			if (bIsDeteministic)
+			{
+				QUICK_SCOPE_CYCLE_COUNTER(STAT_Collisions_SortConstraints);
+
+				NewConstraints.Sort(
+					[](const FPBDCollisionConstraint& L, const FPBDCollisionConstraint& R)
+					{
+						return L.GetCollisionSortKey() < R.GetCollisionSortKey();
+					});
+			}
+
+			// Add the constraints to the active list (and the CCD list if appropriate)
+			for (FPBDCollisionConstraint* Constraint : NewConstraints)
+			{
+				FPBDCollisionConstraintContainerCookie& Cookie = Constraint->GetContainerCookie();
+
+				// Add the constraint to the active list and update its epoch
+				checkSlow(ActiveConstraints.Find(CollisionConstraint) == INDEX_NONE);
+				Cookie.ConstraintIndex = ActiveConstraints.Add(Constraint);
+
+				// If the constraint uses CCD, keep it in another list so we don't have to search the full list for CCD contacts
+				if (Constraint->GetCCDEnabled())
+				{
+					checkSlow(ActiveCCDConstraints.Find(Constraint) == INDEX_NONE);
+					Cookie.CCDConstraintIndex = ActiveCCDConstraints.Add(Constraint);
+				}
+
+				Cookie.LastUsedEpoch = CurrentEpoch;
+			}
+		}
+
+
+		void FCollisionConstraintAllocator::EndDetectCollisions()
+		{
+			check(bInCollisionDetectionPhase);
+
+			bInCollisionDetectionPhase = false;
+
+			ProcessNewItems();
 		}
 
 		void FCollisionConstraintAllocator::PruneExpiredMidPhases()
@@ -149,6 +239,28 @@ namespace Chaos
 
 					return ECollisionVisitorResult::Continue;
 				});
+		}
+
+		// @todo(chaos): No longer used (see ProcessNewConstraints)
+		void FCollisionConstraintAllocator::SortActiveConstraints()
+		{
+			if (ActiveConstraints.Num())
+			{
+				// Sort constraints for determinism and/or improved memory-access ordering
+				ActiveConstraints.Sort(
+					[](const FPBDCollisionConstraintHandle& L, const FPBDCollisionConstraintHandle& R)
+					{
+						return L.GetContact().GetCollisionSortKey() < R.GetContact().GetCollisionSortKey();
+					});
+
+				// If we re-ordered the array, we need to update indices
+				for (int32 ConstraintIndex = 0; ConstraintIndex < ActiveConstraints.Num(); ++ConstraintIndex)
+				{
+					FPBDCollisionConstraintContainerCookie& Cookie = ActiveConstraints[ConstraintIndex]->GetContainerCookie();
+
+					Cookie.ConstraintIndex = ConstraintIndex;
+				}
+			}
 		}
 
 	}	// namespace Private

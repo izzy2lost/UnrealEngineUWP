@@ -168,6 +168,7 @@ namespace Chaos
 		// We do not want to overwrite these properties because they are managed by the systems
 		// where the constraint is registsred (allocator, container, graph).
 		const FPBDCollisionConstraintContainerCookie Cookie = ContainerCookie;
+		const Private::FCollisionSortKey SortKey = CollisionSortKey;
 		Private::FPBDIslandConstraint* ConstraintGraphEdge = GetConstraintGraphEdge();
 
 		// Copy everything
@@ -175,6 +176,7 @@ namespace Chaos
 
 		// Restore the system state
 		ContainerCookie = Cookie;
+		CollisionSortKey = SortKey;
 		SetConstraintGraphEdge(ConstraintGraphEdge);
 	}
 

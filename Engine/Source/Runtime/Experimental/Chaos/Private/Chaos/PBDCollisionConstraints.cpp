@@ -91,6 +91,7 @@ namespace Chaos
 	DECLARE_CYCLE_STAT(TEXT("Collisions::Reset"), STAT_Collisions_Reset, STATGROUP_ChaosCollision);
 	DECLARE_CYCLE_STAT(TEXT("Collisions::BeginDetect"), STAT_Collisions_BeginDetect, STATGROUP_ChaosCollision);
 	DECLARE_CYCLE_STAT(TEXT("Collisions::EndDetect"), STAT_Collisions_EndDetect, STATGROUP_ChaosCollision);
+	DECLARE_CYCLE_STAT(TEXT("Collisions::Sort"), STAT_Collisions_Sort, STATGROUP_ChaosCollision);
 	DECLARE_CYCLE_STAT(TEXT("Collisions::DetectProbeCollisions"), STAT_Collisions_DetectProbeCollisions, STATGROUP_ChaosCollision);
 
 #if CHAOS_ABTEST_CONSTRAINTSOLVER_ENABLED
@@ -371,7 +372,7 @@ namespace Chaos
 #if CHAOS_ABTEST_CONSTRAINTSOLVER_ENABLED
 			if (CVars::bCollisionsEnableSolverABTest)
 			{
-				// Create an AB testing collison solver for simd testing
+				// Create an AB testing collision solver for simd testing
 				return MakeUnique<FABTestingCollisionContainerSolver>(
 					MakeUnique<FPBDCollisionContainerSolver>(*this, Priority),
 					MakeUnique<Private::FPBDCollisionContainerSolverSimd>(*this, Priority),
@@ -387,6 +388,12 @@ namespace Chaos
 
 		check(false);
 		return nullptr;
+	}
+
+	void FPBDCollisionConstraints::SetIsDeterministic(const bool bInIsDeterministic)
+	{
+		bIsDeterministic = bInIsDeterministic;
+		ConstraintAllocator.SetIsDeterministic(bInIsDeterministic);
 	}
 
 	void FPBDCollisionConstraints::DisableHandles()
@@ -640,21 +647,27 @@ namespace Chaos
 			}
 		}
 
-		// Sort new constraints into a predictable order. This isn't strictly required unless we have
-		// deterministic mode enabled, but we do it always because we can get fairly different behaviour 
-		// from run to run because the collisions detection order is effectively random on multicore machines.
+		// Sort new constraints into a predictable order. This isn't strictly required if we don't need
+		// deterministic behaviour, but without sorting we can get fairly different behaviour from run 
+		// to run because the collisions detection order is effectively random on multicore machines.
 		//
 		// @todo(chaos): this is still not good enough for some types of determinism. Specifically if we 
 		// create two set of objects in a different order but with the same physical positions and other 
 		// state, they will behave differently which is undesirable. To fix this we need a sorting 
-		// mechanism that does not rely on properties like IDs. E.g., some kind of physical state hash?
-		TempCollisions.Sort(
-			[](const FPBDCollisionConstraintHandle& L, const FPBDCollisionConstraintHandle& R)
-			{
-				const uint64 LKey = L.GetContact().GetParticlePairKey().GetKey();
-				const uint64 RKey = R.GetContact().GetParticlePairKey().GetKey();
-				return LKey < RKey;
-			});
+		// mechanism that does not rely on properties like Particle IDs, but it would be expensive.
+		//
+		// NOTE: If bIsDeterministic is true, we have already sorted the active constraints list 
+		// (see EndDetectCollisions) so we don't need to do it again here
+		if (!bIsDeterministic)
+		{
+			SCOPE_CYCLE_COUNTER(STAT_Collisions_Sort);
+
+			TempCollisions.Sort(
+				[](const FPBDCollisionConstraintHandle& L, const FPBDCollisionConstraintHandle& R)
+				{
+					return L.GetContact().GetCollisionSortKey() < R.GetContact().GetCollisionSortKey();
+				});
+		}
 
 		// Add the new constraints to the graph
 		for (FPBDCollisionConstraintHandle* ConstraintHandle : TempCollisions)

@@ -149,26 +149,20 @@ namespace Chaos
 				CurrentEpoch = InEpoch;
 			}
 
-			// Process all the new midphases from the parallel collision detection
-			CHAOS_API void ProcessNewMidPhases(FCollisionConstraintAllocator* Allocator);
-
-			// Process all the activated collisions from the parallel collision detection
-			CHAOS_API void ProcessNewConstraints(FCollisionConstraintAllocator* Allocator);
-
 			// Find the midphase for the particle pair if it exists. Every particle holds a list of its midphases. We search "SearchParticle" which should be
 			// ideally be the one with fewer midphases on it.
 			FParticlePairMidPhase* FindMidPhaseImpl(FGeometryParticleHandle* Particle0, FGeometryParticleHandle* Particle1, FGeometryParticleHandle* SearchParticle)
 			{
 				check((SearchParticle == Particle0) || (SearchParticle == Particle1));
 
-				const FCollisionParticlePairKey Key = FCollisionParticlePairKey(Particle0, Particle1);
+				const Private::FCollisionParticlePairKey Key = Private::FCollisionParticlePairKey(Particle0, Particle1);
 				return SearchParticle->ParticleCollisions().FindMidPhase(Key.GetKey());
 			}
 
 			// Create and initialize a midphase for the particle pair. Adds it to the particles' lists of midphases.
 			FParticlePairMidPhase* CreateMidPhase(FGeometryParticleHandle* Particle0, FGeometryParticleHandle* Particle1, const FCollisionContext& Context)
 			{
-				const FCollisionParticlePairKey Key = FCollisionParticlePairKey(Particle0, Particle1);
+				const Private::FCollisionParticlePairKey Key = Private::FCollisionParticlePairKey(Particle0, Particle1);
 
 				// We temporarily hold new midphases as raw pointers and wrap them in a unique ptr later in ProcessNewMidPhases
 #if CHAOS_MIDPHASE_OBJECTPOOL_ENABLED 
@@ -243,6 +237,7 @@ namespace Chaos
 				, ActiveConstraints()
 				, ActiveCCDConstraints()
 				, CurrentEpoch(0)
+				, bIsDeteministic(false)
 				, bInCollisionDetectionPhase(false)
 			{
 			}
@@ -386,13 +381,7 @@ namespace Chaos
 			 * @brief Called after collision detection to clean up
 			 * Prunes unused contacts
 			*/
-			void EndDetectCollisions()
-			{
-				check(bInCollisionDetectionPhase);
-				bInCollisionDetectionPhase = false;
-
-				ProcessNewItems();
-			}
+			CHAOS_API void EndDetectCollisions();
 
 			/**
 			 * @brief Called each tick after the graph is updated to remove unused collisions
@@ -405,13 +394,7 @@ namespace Chaos
 			/**
 			 * Collect all the midphases created on the context allocators (probably on multiple threads) and register them
 			*/
-			void ProcessNewMidPhases()
-			{
-				for (TUniquePtr<FCollisionContextAllocator>& ContextAllocator : ContextAllocators)
-				{
-					ContextAllocator->ProcessNewMidPhases(this);
-				}
-			}
+			CHAOS_API void ProcessNewMidPhases();
 
 			/**
 			 * @brief If we add new constraints after collision detection, do what needs to be done to add them to the system
@@ -459,17 +442,7 @@ namespace Chaos
 			*/
 			void SortConstraintsHandles()
 			{
-				if(ActiveConstraints.Num())
-				{
-					// We need to sort constraints for solver stability
-					// We have to use StableSort so that constraints of the same pair stay in the same order
-					// Otherwise the order within each pair can change due to where they start out in the array
-					// @todo(chaos): we should label each contact (and shape) for things like warm starting GJK
-					// and so we could use that label as part of the key
-					// and then we could use regular Sort (which is faster)			
-					// @todo(chaos): this can be moved to the island and therefoe done in parallel
-					ActiveConstraints.StableSort(ContactConstraintSortPredicate);
-				}
+				SortActiveConstraints();
 			}
 
 			/**
@@ -526,6 +499,14 @@ namespace Chaos
 				}
 			}
 
+			/**
+			 * Enable/Disable determinism (extra sorting steps after collision detection)
+			*/
+			void SetIsDeterministic(const bool bInIsDeterministic)
+			{
+				bIsDeteministic = bInIsDeterministic;
+			}
+
 		private:
 			friend class FCollisionContextAllocator;
 
@@ -562,34 +543,11 @@ namespace Chaos
 			CHAOS_API void PruneExpiredMidPhases();
 
 			// Collect all the constraints activated in the collision tasks and register them (calls ActivateConstraintImp on each)
-			void ProcessNewConstraints()
-			{
-				for (TUniquePtr<FCollisionContextAllocator>& ContextAllocator : ContextAllocators)
-				{
-					ContextAllocator->ProcessNewConstraints(this);
-				}
-			}
-
-			// Register an activated constraint
-			void ActivateConstraintImp(FPBDCollisionConstraint* CollisionConstraint)
-			{
-				FPBDCollisionConstraintContainerCookie& Cookie = CollisionConstraint->GetContainerCookie();
-
-				// Add the constraint to the active list and update its epoch
-				checkSlow(ActiveConstraints.Find(CollisionConstraint) == INDEX_NONE);
-				Cookie.ConstraintIndex = ActiveConstraints.Add(CollisionConstraint);
-
-				// If the constraint uses CCD, keep it in another list so we don't have to search the full list for CCD contacts
-				if (CollisionConstraint->GetCCDEnabled())
-				{
-					checkSlow(ActiveCCDConstraints.Find(CollisionConstraint) == INDEX_NONE);
-					Cookie.CCDConstraintIndex = ActiveCCDConstraints.Add(CollisionConstraint);
-				}
-
-				Cookie.LastUsedEpoch = CurrentEpoch;
-			}
+			CHAOS_API void ProcessNewConstraints();
 
 			CHAOS_API void RemoveActiveConstraint(FPBDCollisionConstraint& Constraint);
+
+			CHAOS_API void SortActiveConstraints();
 
 			// The container that owns the allocator (only needed because new constraints need to know)
 			FPBDCollisionConstraints* CollisionContainer;
@@ -610,6 +568,9 @@ namespace Chaos
 			// The current epoch used to track out-of-date contacts. A constraint whose Epoch is
 			// older than the current Epoch at the end of the tick was not refreshed this tick.
 			int32 CurrentEpoch;
+
+			// Whether we running a deterministic sim
+			bool bIsDeteministic;
 
 			// For assertions
 			bool bInCollisionDetectionPhase;
