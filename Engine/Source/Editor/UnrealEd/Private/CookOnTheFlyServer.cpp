@@ -10896,10 +10896,8 @@ void UCookOnTheFlyServer::StartCookAsCookWorker()
 	if (IsDirectorCookByTheBook())
 	{
 		RegisterCookByTheBookDelegates();
-	}
-	if (IsDirectorCookByTheBook())
-	{
 		BeginCookFinishShaderCodeLibrary(BeginContext);
+		CookByTheBookStartedEvent.Broadcast();
 	}
 }
 
@@ -10938,6 +10936,10 @@ void UCookOnTheFlyServer::CookAsCookWorkerFinished()
 	if (IsDirectorCookOnTheFly())
 	{
 		GShaderCompilingManager->SkipShaderCompilation(false);
+	}
+	if (IsDirectorCookByTheBook())
+	{
+		CookByTheBookFinishedEvent.Broadcast();
 	}
 	LogCookWorkerStats();
 	CookWorkerClient->FlushLogs();
