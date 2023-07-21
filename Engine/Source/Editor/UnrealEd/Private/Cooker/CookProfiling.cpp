@@ -176,7 +176,7 @@ void OutputHierarchyTimers(const FHierarchicalTimerInfo* TimerInfo, int32 Depth)
 	static const TCHAR LeftPad[] = TEXT("                                ");
 	const SIZE_T PadOffset = FMath::Max<int>(UE_ARRAY_COUNT(LeftPad) - 1 - Depth * 2, 0);
 
-	UE_LOG(LogCook, Log, TEXT("  %s%s: %.3fs (%u)"), &LeftPad[PadOffset], *TimerName, TimerInfo->Length, TimerInfo->HitCount);
+	UE_LOG(LogCook, Display, TEXT("  %s%s: %.3fs (%u)"), &LeftPad[PadOffset], *TimerName, TimerInfo->Length, TimerInfo->HitCount);
 
 	// We need to print in reverse order since the child list begins with the most recently added child
 
@@ -197,7 +197,7 @@ void OutputHierarchyTimers(const FHierarchicalTimerInfo* TimerInfo, int32 Depth)
 
 void OutputHierarchyTimers()
 {
-	UE_LOG(LogCook, Log, TEXT("Hierarchy Timer Information:"));
+	UE_LOG(LogCook, Display, TEXT("Hierarchy Timer Information:"));
 
 	OutputHierarchyTimers(&RootTimerInfo, 0);
 }
@@ -1041,29 +1041,29 @@ void LogCookStats(ECookMode::Type CookMode)
 
 	FCookStatsManager::LogCookStats(LogStatsFunc);
 
-	UE_LOG(LogCook, Log, TEXT("Misc Cook Stats"));
-	UE_LOG(LogCook, Log, TEXT("==============="));
+	UE_LOG(LogCook, Display, TEXT("Misc Cook Stats"));
+	UE_LOG(LogCook, Display, TEXT("==============="));
 	for (FString& StatCategory : StatCategories)
 	{
-		UE_LOG(LogCook, Log, TEXT("%s"), *StatCategory);
+		UE_LOG(LogCook, Display, TEXT("%s"), *StatCategory);
 		TArray<FCookStatsManager::StringKeyValue>& StatsInCategory = StatsInCategories.FindOrAdd(StatCategory);
 
 		// log each key/value pair, with the equal signs lined up.
 		for (const FCookStatsManager::StringKeyValue& StatKeyValue : StatsInCategory)
 		{
-			UE_LOG(LogCook, Log, TEXT("    %s=%s"), *StatKeyValue.Key, *StatKeyValue.Value);
+			UE_LOG(LogCook, Display, TEXT("    %s=%s"), *StatKeyValue.Key, *StatKeyValue.Value);
 		}
 	}
 
 	// DDC Usage stats are custom formatted, and the above code just accumulated them into a TSet. Now log it with our special formatting for readability.
 	if (CookProfileData.Num() > 0)
 	{
-		UE_LOG(LogCook, Log, TEXT(""));
-		UE_LOG(LogCook, Log, TEXT("Cook Profile"));
-		UE_LOG(LogCook, Log, TEXT("============"));
+		UE_LOG(LogCook, Display, TEXT(""));
+		UE_LOG(LogCook, Display, TEXT("Cook Profile"));
+		UE_LOG(LogCook, Display, TEXT("============"));
 		for (const auto& ProfileEntry : CookProfileData)
 		{
-			UE_LOG(LogCook, Log, TEXT("%s.%s=%s"), *ProfileEntry.Path, *ProfileEntry.Key, *ProfileEntry.Value);
+			UE_LOG(LogCook, Display, TEXT("%s.%s=%s"), *ProfileEntry.Path, *ProfileEntry.Key, *ProfileEntry.Value);
 		}
 
 		FString CookStatsFileName;
@@ -1108,12 +1108,12 @@ void LogCookStats(ECookMode::Type CookMode)
 	}
 	if (DDCSummaryStats.Num() > 0)
 	{
-		UE_LOG(LogCook, Log, TEXT(""));
-		UE_LOG(LogCook, Log, TEXT("DDC Summary Stats"));
-		UE_LOG(LogCook, Log, TEXT("================="));
+		UE_LOG(LogCook, Display, TEXT(""));
+		UE_LOG(LogCook, Display, TEXT("DDC Summary Stats"));
+		UE_LOG(LogCook, Display, TEXT("================="));
 		for (const auto& Attr : DDCSummaryStats)
 		{
-			UE_LOG(LogCook, Log, TEXT("%-16s=%10s"), *Attr.Key, *Attr.Value);
+			UE_LOG(LogCook, Display, TEXT("%-16s=%10s"), *Attr.Key, *Attr.Value);
 		}
 	}
 
@@ -1133,14 +1133,14 @@ void LogCookStats(ECookMode::Type CookMode)
 				return LHS.TotalTimeSec > RHS.TotalTimeSec;
 			});
 
-		UE_LOG(LogCook, Log, TEXT(""));
-		UE_LOG(LogCook, Log, TEXT("DDC Resource Stats"));
-		UE_LOG(LogCook, Log, TEXT("======================================================================================================="));
-		UE_LOG(LogCook, Log, TEXT("Asset Type                          Total Time (Sec)  GameThread Time (Sec)  Assets Built  MB Processed"));
-		UE_LOG(LogCook, Log, TEXT("----------------------------------  ----------------  ---------------------  ------------  ------------"));
+		UE_LOG(LogCook, Display, TEXT(""));
+		UE_LOG(LogCook, Display, TEXT("DDC Resource Stats"));
+		UE_LOG(LogCook, Display, TEXT("======================================================================================================="));
+		UE_LOG(LogCook, Display, TEXT("Asset Type                          Total Time (Sec)  GameThread Time (Sec)  Assets Built  MB Processed"));
+		UE_LOG(LogCook, Display, TEXT("----------------------------------  ----------------  ---------------------  ------------  ------------"));
 		for (const FDDCResourceUsageStat& Stat : SortedDDCResourceUsageStats)
 		{
-			UE_LOG(LogCook, Log, TEXT("%-34s  %16.2f  %21.2f  %12d  %12.2f"), *Stat.AssetType, Stat.TotalTimeSec, Stat.GameThreadTimeSec, Stat.AssetsBuilt, Stat.SizeMB);
+			UE_LOG(LogCook, Display, TEXT("%-34s  %16.2f  %21.2f  %12d  %12.2f"), *Stat.AssetType, Stat.TotalTimeSec, Stat.GameThreadTimeSec, Stat.AssetsBuilt, Stat.SizeMB);
 		}
 	}
 
