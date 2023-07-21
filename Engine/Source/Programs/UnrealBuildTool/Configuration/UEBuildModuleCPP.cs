@@ -1844,6 +1844,8 @@ namespace UnrealBuildTool
 			Result.IncludeOrderVersion = Rules.IncludeOrderVersion;
 			Result.DeterministicWarningLevel = Rules.DeterministicWarningLevel;
 
+			Result.bUseAutoRTFMCompiler = Target.bUseAutoRTFMCompiler;
+
 			// Only enable the AutoRTFM flag if we are using the AutoRTFM compiler
 			if (Target.bUseAutoRTFMCompiler)
 			{

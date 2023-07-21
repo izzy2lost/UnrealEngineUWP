@@ -1020,6 +1020,15 @@ namespace UnrealBuildTool
 		protected virtual Action CompileCPPFile(CppCompileEnvironment CompileEnvironment, FileItem SourceFile, DirectoryReference OutputDir, string ModuleName, IActionGraphBuilder Graph, IReadOnlyCollection<string> GlobalArguments, CPPOutput Result)
 		{
 			Action CompileAction = Graph.CreateAction(ActionType.Compile);
+
+			// If we are using the AutoRTFM compiler, we make the compile action depend on the version of the compiler itself.
+			// This lets us update the compiler (which might not cause a version update of the compiler, which instead tracks
+			// the LLVM versioning scheme that Clang uses), but ensure that we rebuild the source if the compiler has changed.
+			if (CompileEnvironment.bUseAutoRTFMCompiler)
+			{
+				CompileAction.PrerequisiteItems.Add(FileItem.GetItemByFileReference(GetToolChainInfo().Clang));
+			}
+
 			CompileAction.Weight = CompileActionWeight;
 
 			// copy the global arguments into the file arguments, so GetCompileArguments_FileType can remove entries if needed (special case but can be important)

@@ -265,6 +265,11 @@ namespace UnrealBuildTool
 		public bool bEnableBufferSecurityChecks = true;
 
 		/// <summary>
+		/// Whether the AutoRTFM compiler is being used or not.
+		/// </summary>
+		public bool bUseAutoRTFMCompiler = false;
+
+		/// <summary>
 		/// Enables AutoRTFM instrumentation to this cpp file only when AutoRTFMCompiler is enabled
 		/// </summary>
 		public bool bAllowAutoRTFMInstrumentation = false;
