@@ -90,7 +90,7 @@ namespace EpicGames.Horde.Tests
 			}
 		}
 
-		static async Task TestProducerConsumerAsync(Func<int, IComputeBuffer> createBuffer, CancellationToken cancellationToken)
+		static async Task TestProducerConsumerAsync(Func<int, ComputeBuffer> createBuffer, CancellationToken cancellationToken)
 		{
 			const int Length = 8000;
 
@@ -100,7 +100,7 @@ namespace EpicGames.Horde.Tests
 			await using RemoteComputeSocket producerSocket = new RemoteComputeSocket(new PipeTransport(targetToSourcePipe.Reader, sourceToTargetPipe.Writer), ComputeSocketEndpoint.Local, NullLogger.Instance);
 			await using RemoteComputeSocket consumerSocket = new RemoteComputeSocket(new PipeTransport(sourceToTargetPipe.Reader, targetToSourcePipe.Writer), ComputeSocketEndpoint.Remote, NullLogger.Instance);
 
-			using IComputeBuffer consumerBuffer = createBuffer(Length);
+			using ComputeBuffer consumerBuffer = createBuffer(Length);
 			consumerSocket.AttachRecvBuffer(ChannelId, consumerBuffer.Writer);
 
 			byte[] input = RandomNumberGenerator.GetBytes(Length);
@@ -126,7 +126,7 @@ namespace EpicGames.Horde.Tests
 			await socket.MarkCompleteAsync(ChannelId);
 		}
 
-		static async Task RunConsumerAsync(IComputeBufferReader reader, Memory<byte> output)
+		static async Task RunConsumerAsync(ComputeBufferReader reader, Memory<byte> output)
 		{
 			int offset = 0;
 			while (!reader.IsComplete)

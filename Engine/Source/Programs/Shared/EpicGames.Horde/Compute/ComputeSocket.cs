@@ -23,14 +23,38 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		/// <param name="channelId">Channel to receive data on</param>
 		/// <param name="recvBufferWriter">Writer for the buffer to store received data</param>
-		public abstract void AttachRecvBuffer(int channelId, IComputeBufferWriter recvBufferWriter);
+		public abstract void AttachRecvBuffer(int channelId, ComputeBufferWriter recvBufferWriter);
 
 		/// <summary>
 		/// Attaches a buffer to send data.
 		/// </summary>
 		/// <param name="channelId">Channel to receive data on</param>
 		/// <param name="sendBufferReader">Reader for the buffer to send data from</param>
-		public abstract void AttachSendBuffer(int channelId, IComputeBufferReader sendBufferReader);
+		public abstract void AttachSendBuffer(int channelId, ComputeBufferReader sendBufferReader);
+
+		/// <summary>
+		/// Creates a channel using a socket and receive buffer
+		/// </summary>
+		/// <param name="channelId">Channel id to send and receive data</param>
+		public ComputeChannel CreateChannel(int channelId)
+		{
+			using SharedMemoryBuffer recvBuffer = SharedMemoryBuffer.CreateNew(null, 65536);
+			using SharedMemoryBuffer sendBuffer = SharedMemoryBuffer.CreateNew(null, 65536);
+			return CreateChannel(channelId, recvBuffer, sendBuffer);
+		}
+
+		/// <summary>
+		/// Creates a channel using a socket and receive buffer
+		/// </summary>
+		/// <param name="channelId">Channel id to send and receive data</param>
+		/// <param name="recvBuffer">Buffer for receiving data</param>
+		/// <param name="sendBuffer">Buffer for sending data</param>
+		public ComputeChannel CreateChannel(int channelId, ComputeBuffer recvBuffer, ComputeBuffer sendBuffer)
+		{
+			AttachRecvBuffer(channelId, recvBuffer.Writer);
+			AttachSendBuffer(channelId, sendBuffer.Reader);
+			return new ComputeChannel(recvBuffer.Reader, sendBuffer.Writer);
+		}
 	}
 
 	internal enum IpcMessage
@@ -81,16 +105,16 @@ namespace EpicGames.Horde.Compute
 		}
 
 		/// <inheritdoc/>
-		public override void AttachRecvBuffer(int channelId, IComputeBufferWriter writer)
+		public override void AttachRecvBuffer(int channelId, ComputeBufferWriter writer)
 		{
-			string bufferName = SharedMemoryBuffer.GetName(writer);
+			string bufferName = ((SharedMemoryBufferDetail)writer.Detail).Name;
 			AttachBuffer(IpcMessage.AttachRecvBuffer, channelId, bufferName);
 		}
 
 		/// <inheritdoc/>
-		public override void AttachSendBuffer(int channelId, IComputeBufferReader reader)
+		public override void AttachSendBuffer(int channelId, ComputeBufferReader reader)
 		{
-			string bufferName = SharedMemoryBuffer.GetName(reader);
+			string bufferName = ((SharedMemoryBufferDetail)reader.Detail).Name;
 			AttachBuffer(IpcMessage.AttachSendBuffer, channelId, bufferName);
 		}
 
@@ -141,11 +165,11 @@ namespace EpicGames.Horde.Compute
 		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
 
 		BackgroundTask? _recvTask;
-		readonly Dictionary<int, IComputeBufferWriter> _recvBufferWriters = new Dictionary<int, IComputeBufferWriter>();
+		readonly Dictionary<int, ComputeBufferWriter> _recvBufferWriters = new Dictionary<int, ComputeBufferWriter>();
 
 		readonly SemaphoreSlim _sendSemaphore = new SemaphoreSlim(1, 1);
 		readonly Dictionary<int, Task> _sendTasks = new Dictionary<int, Task>();
-		readonly Dictionary<IComputeBufferReader, int> _sendBufferReaders = new Dictionary<IComputeBufferReader, int>();
+		readonly Dictionary<ComputeBufferReader, int> _sendBufferReaders = new Dictionary<ComputeBufferReader, int>();
 
 		string Tag => (_endpoint == ComputeSocketEndpoint.Local)? "LOCAL": "REMOTE";
 
@@ -215,7 +239,7 @@ namespace EpicGames.Horde.Compute
 			try
 			{
 				// Maintain a local cache of buffers to be able to query for them without having to acquire a global lock
-				Dictionary<int, IComputeBufferWriter> cachedWriters = new Dictionary<int, IComputeBufferWriter>();
+				Dictionary<int, ComputeBufferWriter> cachedWriters = new Dictionary<int, ComputeBufferWriter>();
 
 				Memory<byte> last = Memory<byte>.Empty;
 
@@ -236,7 +260,7 @@ namespace EpicGames.Horde.Compute
 					// Dispatch it to the correct place
 					if (size >= 0)
 					{
-						IComputeBufferWriter writer = GetReceiveBuffer(cachedWriters, id);
+						ComputeBufferWriter writer = GetReceiveBuffer(cachedWriters, id);
 						await ReadPacketAsync(transport, id, size, writer, cancellationToken);
 					}
 					else if (size == (int)ControlMessageType.Detach)
@@ -258,7 +282,7 @@ namespace EpicGames.Horde.Compute
 			lock (_lockObject)
 			{
 				_complete = true;
-				foreach (IComputeBufferWriter writer in _recvBufferWriters.Values)
+				foreach (ComputeBufferWriter writer in _recvBufferWriters.Values)
 				{
 					writer.MarkComplete();
 				}
@@ -267,7 +291,7 @@ namespace EpicGames.Horde.Compute
 			_logger.LogTrace("[{Tag}] Closing reader", Tag);
 		}
 
-		async Task ReadPacketAsync(ComputeTransport transport, int id, int size, IComputeBufferWriter writer, CancellationToken cancellationToken)
+		async Task ReadPacketAsync(ComputeTransport transport, int id, int size, ComputeBufferWriter writer, CancellationToken cancellationToken)
 		{
 			Memory<byte> memory = writer.GetWriteBuffer();
 			while (memory.Length < size)
@@ -286,9 +310,9 @@ namespace EpicGames.Horde.Compute
 			writer.AdvanceWritePosition(size);
 		}
 
-		IComputeBufferWriter GetReceiveBuffer(Dictionary<int, IComputeBufferWriter> cachedWriters, int id)
+		ComputeBufferWriter GetReceiveBuffer(Dictionary<int, ComputeBufferWriter> cachedWriters, int id)
 		{
-			IComputeBufferWriter? writer;
+			ComputeBufferWriter? writer;
 			if (cachedWriters.TryGetValue(id, out writer))
 			{
 				return writer;
@@ -296,7 +320,7 @@ namespace EpicGames.Horde.Compute
 
 			lock (_lockObject)
 			{
-				IComputeBufferWriter? recvBufferWriter;
+				ComputeBufferWriter? recvBufferWriter;
 				if (_recvBufferWriters.TryGetValue(id, out recvBufferWriter))
 				{
 					writer = recvBufferWriter;
@@ -354,7 +378,7 @@ namespace EpicGames.Horde.Compute
 		}
 
 		/// <inheritdoc/>
-		public override void AttachRecvBuffer(int channelId, IComputeBufferWriter recvBufferWriter)
+		public override void AttachRecvBuffer(int channelId, ComputeBufferWriter recvBufferWriter)
 		{
 			bool complete;
 			lock (_lockObject)
@@ -373,11 +397,11 @@ namespace EpicGames.Horde.Compute
 			}
 		}
 
-		void DetachRecvBuffer(Dictionary<int, IComputeBufferWriter> cachedWriters, int id)
+		void DetachRecvBuffer(Dictionary<int, ComputeBufferWriter> cachedWriters, int id)
 		{
 			cachedWriters.Remove(id);
 
-			IComputeBufferWriter? recvBufferWriter;
+			ComputeBufferWriter? recvBufferWriter;
 			lock (_lockObject)
 			{
 #pragma warning disable CA2000 // Dispose objects before losing scope
@@ -392,7 +416,7 @@ namespace EpicGames.Horde.Compute
 		}
 
 		/// <inheritdoc/>
-		public override void AttachSendBuffer(int channelId, IComputeBufferReader sendBufferReader)
+		public override void AttachSendBuffer(int channelId, ComputeBufferReader sendBufferReader)
 		{
 			sendBufferReader = sendBufferReader.AddRef();
 			lock (_lockObject)
@@ -402,9 +426,9 @@ namespace EpicGames.Horde.Compute
 			}
 		}
 
-		async Task SendFromBufferAsync(int channelId, IComputeBufferReader reader, CancellationToken cancellationToken)
+		async Task SendFromBufferAsync(int channelId, ComputeBufferReader reader, CancellationToken cancellationToken)
 		{
-			using IComputeBufferReader _ = reader;
+			using ComputeBufferReader _ = reader;
 
 			while (!cancellationToken.IsCancellationRequested)
 			{

@@ -198,12 +198,12 @@ namespace EpicGames.Horde.Compute
 			_logger.LogInformation("Child process has shut down");
 		}
 
-		async Task ProcessIpcMessagesAsync(ComputeSocket socket, IComputeBufferReader ipcReader, CancellationToken cancellationToken)
+		async Task ProcessIpcMessagesAsync(ComputeSocket socket, ComputeBufferReader ipcReader, CancellationToken cancellationToken)
 		{
 			List<(IpcMessage, int, SharedMemoryBuffer)> buffers = new();
 			try
 			{
-				List<(int, IComputeBufferWriter)> writers = new List<(int, IComputeBufferWriter)>();
+				List<(int, ComputeBufferWriter)> writers = new List<(int, ComputeBufferWriter)>();
 				while (await ipcReader.WaitToReadAsync(1, cancellationToken))
 				{
 					ReadOnlyMemory<byte> memory = ipcReader.GetReadBuffer();

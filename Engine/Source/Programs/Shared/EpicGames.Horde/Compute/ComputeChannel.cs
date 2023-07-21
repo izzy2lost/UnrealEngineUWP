@@ -16,19 +16,19 @@ namespace EpicGames.Horde.Compute
 		/// <summary>
 		/// Reader for the channel
 		/// </summary>
-		public IComputeBufferReader Reader { get; }
+		public ComputeBufferReader Reader { get; }
 
 		/// <summary>
 		/// Writer for the channel
 		/// </summary>
-		public IComputeBufferWriter Writer { get; }
+		public ComputeBufferWriter Writer { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="recvBufferReader"></param>
 		/// <param name="sendBufferWriter"></param>
-		internal ComputeChannel(IComputeBufferReader recvBufferReader, IComputeBufferWriter sendBufferWriter)
+		internal ComputeChannel(ComputeBufferReader recvBufferReader, ComputeBufferWriter sendBufferWriter)
 		{
 			Reader = recvBufferReader.AddRef();
 			Writer = sendBufferWriter.AddRef();
@@ -93,37 +93,5 @@ namespace EpicGames.Horde.Compute
 		/// Mark the channel as complete (ie. that no more data will be sent)
 		/// </summary>
 		public void MarkComplete() => Writer.MarkComplete();
-	}
-
-	/// <summary>
-	/// Opens a channel for compute workers
-	/// </summary>
-	public static class ComputeChannelExtensions
-	{
-		/// <summary>
-		/// Creates a channel using a socket and receive buffer
-		/// </summary>
-		/// <param name="socket">Socket to use for sending data</param>
-		/// <param name="channelId">Channel id to send and receive data</param>
-		public static ComputeChannel CreateChannel(this ComputeSocket socket, int channelId)
-		{
-			using SharedMemoryBuffer recvBuffer = SharedMemoryBuffer.CreateNew(null, 65536);
-			using SharedMemoryBuffer sendBuffer = SharedMemoryBuffer.CreateNew(null, 65536);
-			return CreateChannel(socket, channelId, recvBuffer, sendBuffer);
-		}
-
-		/// <summary>
-		/// Creates a channel using a socket and receive buffer
-		/// </summary>
-		/// <param name="socket">Socket to use for sending data</param>
-		/// <param name="channelId">Channel id to send and receive data</param>
-		/// <param name="recvBuffer">Buffer for receiving data</param>
-		/// <param name="sendBuffer">Buffer for sending data</param>
-		public static ComputeChannel CreateChannel(this ComputeSocket socket, int channelId, IComputeBuffer recvBuffer, IComputeBuffer sendBuffer)
-		{
-			socket.AttachRecvBuffer(channelId, recvBuffer.Writer);
-			socket.AttachSendBuffer(channelId, sendBuffer.Reader);
-			return new ComputeChannel(recvBuffer.Reader, sendBuffer.Writer);
-		}
 	}
 }

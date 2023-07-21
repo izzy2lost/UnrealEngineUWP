@@ -26,14 +26,14 @@ namespace EpicGames.Horde.Compute
 		class MessageBuilder : IAgentMessageBuilder
 		{
 			readonly AgentMessageChannel _channel;
-			readonly IComputeBufferWriter _sendBufferWriter;
+			readonly ComputeBufferWriter _sendBufferWriter;
 			readonly AgentMessageType _type;
 			int _length;
 
 			/// <inheritdoc/>
 			public int Length => _length;
 
-			public MessageBuilder(AgentMessageChannel channel, IComputeBufferWriter sendBufferWriter, AgentMessageType type)
+			public MessageBuilder(AgentMessageChannel channel, ComputeBufferWriter sendBufferWriter, AgentMessageType type)
 			{
 				_channel = channel;
 				_sendBufferWriter = sendBufferWriter;
@@ -75,8 +75,8 @@ namespace EpicGames.Horde.Compute
 		}
 
 		readonly ComputeSocket _socket;
-		readonly IComputeBufferReader _recvBufferReader;
-		readonly IComputeBufferWriter _sendBufferWriter;
+		readonly ComputeBufferReader _recvBufferReader;
+		readonly ComputeBufferWriter _sendBufferWriter;
 
 		// Can lock chunked memory writer to acuqire pointer
 		readonly ILogger _logger;
@@ -91,7 +91,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="recvBufferReader"></param>
 		/// <param name="sendBufferWriter"></param>
 		/// <param name="logger">Logger for diagnostic output</param>
-		public AgentMessageChannel(IComputeBufferReader recvBufferReader, IComputeBufferWriter sendBufferWriter, ILogger logger)
+		public AgentMessageChannel(ComputeBufferReader recvBufferReader, ComputeBufferWriter sendBufferWriter, ILogger logger)
 		{
 			_socket = null!;
 			_recvBufferReader = recvBufferReader.AddRef();
@@ -107,7 +107,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="recvBuffer"></param>
 		/// <param name="sendBuffer"></param>
 		/// <param name="logger">Logger for diagnostic output</param>
-		public AgentMessageChannel(ComputeSocket socket, int channelId, IComputeBuffer recvBuffer, IComputeBuffer sendBuffer, ILogger logger)
+		public AgentMessageChannel(ComputeSocket socket, int channelId, ComputeBuffer recvBuffer, ComputeBuffer sendBuffer, ILogger logger)
 		{
 			_socket = socket;
 			_socket.AttachRecvBuffer(channelId, recvBuffer.Writer);
@@ -233,8 +233,8 @@ namespace EpicGames.Horde.Compute
 		/// <param name="logger">Logger for the channel</param>
 		public static AgentMessageChannel CreateAgentMessageChannel(this ComputeSocket socket, int channelId, int sendBufferSize, int recvBufferSize, ILogger logger)
 		{
-			using IComputeBuffer sendBuffer = new PooledBuffer(sendBufferSize);
-			using IComputeBuffer recvBuffer = new PooledBuffer(recvBufferSize);
+			using ComputeBuffer sendBuffer = new PooledBuffer(sendBufferSize);
+			using ComputeBuffer recvBuffer = new PooledBuffer(recvBufferSize);
 			return new AgentMessageChannel(socket, channelId, sendBuffer, recvBuffer, logger);
 		}
 
