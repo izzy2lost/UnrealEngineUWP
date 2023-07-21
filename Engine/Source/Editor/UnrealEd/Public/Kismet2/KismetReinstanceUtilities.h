@@ -296,20 +296,7 @@ protected:
 	* @param bClearExternalReferences		If true then attempt to replace references to old classes and instances on this object with the corresponding new ones
 	* @param bForceDeltaSerialization		If true the delta serialization will be used when copying
 	*/
-	static UNREALED_API void CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* NewObject, bool bClearExternalReferences, bool bForceDeltaSerialization = false, bool bOnlyHandleDirectSubObjects = false, TMap<UObject*, UObject*>* OldToNewInstanceMap =nullptr);
-
-public:
-	/**
-	 * This method will precreate all non-default sub object needed for a re-instantiation, what is left is to CopyPropertiesForUnrelatedObjects on the created instances map to finish the re-instancing
-	 * If the re-intancing is done in a big batch and part to the sub object might already be re-instantiated, you will need to provide those via the OldToNewInstanceMap
-	 * 
-	 * @param OldToNewClassMap in case there are subobject that will need new class type
-	 * @param OldObject to pre-create its non-default sub objects
-	 * @param NewUObject where to store those precreated sub objects
-	 * @param CreatedInstanceMap in/out of the result of all of the pre-created objects
-	 * @param OldToNewInstanceMap optional parameter of the possible re-instanced sub objects if any
-	 */
-	static UNREALED_API void PreCreateSubObjectsForReinstantiation(const TMap<UClass*, UClass*>& OldToNewClassMap, UObject* OldObject, UObject* NewUObject, TMap<UObject*, UObject*>& CreatedInstanceMap, const TMap<UObject*, UObject*>* OldToNewInstanceMap = nullptr);
+	static UNREALED_API void CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* NewObject, bool bClearExternalReferences, bool bForceDeltaSerialization = false);
 
 private:
 	/** Handles the work of ReplaceInstancesOfClass, handling both normal replacement of instances and batch */
