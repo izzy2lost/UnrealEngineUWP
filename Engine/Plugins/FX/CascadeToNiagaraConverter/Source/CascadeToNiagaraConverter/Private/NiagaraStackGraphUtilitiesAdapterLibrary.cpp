@@ -2130,7 +2130,14 @@ void UNiagaraScriptConversionContext::Init(const FAssetData& InNiagaraScriptAsse
 		if (It->Value.OutputPins.Num() > 0)
 		{
 			const FNiagaraVariable& Var = It->Key;
-			InputNameToTypeDefMap.Add(FNiagaraEditorUtilities::GetNamespacelessVariableNameString(Var.GetName()), Var.GetType());
+			FName NamespacelessName;
+
+			TArray<FName> NameSpaces = FNiagaraEditorUtilities::DecomposeVariableNamespace(Var.GetName(), NamespacelessName);
+
+			if(NameSpaces.Contains("Module"))
+			{
+				InputNameToTypeDefMap.Add(NamespacelessName.ToString(), Var.GetType());
+			}
 		}
 	}
 	

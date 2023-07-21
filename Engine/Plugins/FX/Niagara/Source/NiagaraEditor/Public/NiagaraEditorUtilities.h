@@ -316,9 +316,9 @@ namespace FNiagaraEditorUtilities
 		return GetUniqueObjectName(Outer, T::StaticClass(), CandidateName);
 	}
 
-	TArray<FName> DecomposeVariableNamespace(const FName& InVarNameToken, FName& OutName);
+	NIAGARAEDITOR_API TArray<FName> DecomposeVariableNamespace(const FName& InVarNameToken, FName& OutName);
 
-	void  RecomposeVariableNamespace(const FName& InVarNameToken, const TArray<FName>& InParentNamespaces, FName& OutName);
+	NIAGARAEDITOR_API void  RecomposeVariableNamespace(const FName& InVarNameToken, const TArray<FName>& InParentNamespaces, FName& OutName);
 
 	FString NIAGARAEDITOR_API GetNamespacelessVariableNameString(const FName& InVarName);
 
