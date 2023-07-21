@@ -101,9 +101,16 @@ public class FreeType2 : ModuleRules
 		}
 		else if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.VisionOS)
 		{
-			LibPath = Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT
-				? Path.Combine("Debug", "libfreetyped.a")
-				: Path.Combine("Release", "libfreetype.a");
+			if (Target.Architecture != UnrealArch.IOSSimulator)
+			{
+				LibPath = Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT
+					? Path.Combine("Debug", "libfreetyped.a")
+					: Path.Combine("Release", "libfreetype.a");
+			}
+			else
+			{
+				LibPath = Path.Combine("Simulator", "libfreetype.a");
+			}
 
 			PublicAdditionalLibraries.Add(Path.Combine(FreeType2LibPath, "IOS", LibPath));
 		}
