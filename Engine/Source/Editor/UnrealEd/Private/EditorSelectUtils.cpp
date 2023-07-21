@@ -36,6 +36,10 @@
 #include "Elements/Interfaces/TypedElementWorldInterface.h"
 #include "Elements/Interfaces/TypedElementObjectInterface.h"
 
+#if PLATFORM_MAC
+#include "HAL/PlatformApplicationMisc.h"
+#endif // PLATFORM_MAC
+
 #define LOCTEXT_NAMESPACE "EditorSelectUtils"
 
 DEFINE_LOG_CATEGORY_STATIC(LogEditorSelectUtils, Log, All);
