@@ -410,17 +410,12 @@ void FAnimNode_BlendStack_Standalone::Initialize_AnyThread(const FAnimationIniti
 	Reset();
 
 	IAnimClassInterface* AnimBlueprintClass = Context.GetAnimClass();
+	check(AnimBlueprintClass);
 	if (SampleGraphPoseLinks.IsEmpty() == false)
 	{
 		// Patch our pose links
 		for (FBlendStack_SampleGraphPoseLink& GraphPoseLink : SampleGraphPoseLinks)
 		{
-			if (GraphPoseLink.InputPoseNodeIndex != INDEX_NONE)
-			{
-				GraphPoseLink.InputPose.LinkID = AnimBlueprintClass->GetAnimNodeProperties().Num() - 1 - GraphPoseLink.InputPoseNodeIndex;
-				GraphPoseLink.InputPose.AttemptRelink(Context);
-			}
-
 			if (GraphPoseLink.RootNodeIndex != INDEX_NONE)
 			{
 				GraphPoseLink.Root.LinkID = AnimBlueprintClass->GetAnimNodeProperties().Num() - 1 - GraphPoseLink.RootNodeIndex;
@@ -711,14 +706,11 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 	Super::UpdateAssetPlayer(Context);
 }
 
-void FBlendStack_SampleGraphPoseLink::SetInputPosePlayer(FPoseSearchAnimPlayer& Player)
+void FBlendStack_SampleGraphPoseLink::SetInputPosePlayer(FPoseSearchAnimPlayer& InPlayer)
 {
 	// Because our anim players may get reallocated, or change indices due to push/pops,
-	// we must call this before every operation that might end up needing the anim player through the graph's input node.
-	// @todo: There's probably a better way to do this.
-	FAnimNode_BlendStackInput* InputNode = static_cast<FAnimNode_BlendStackInput*>(InputPose.GetLinkNode());
-	// Link our anim player to the input pose node.
-	InputNode->Player = &Player;
+	// we must call this before every operation that might end up needing the anim player through the graph's input nodes.
+	Player = &InPlayer;
 }
 
 #undef LOCTEXT_NAMESPACE

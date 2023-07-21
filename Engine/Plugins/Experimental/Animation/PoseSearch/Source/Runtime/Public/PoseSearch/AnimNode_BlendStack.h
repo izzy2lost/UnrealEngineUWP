@@ -71,15 +71,13 @@ struct FBlendStack_SampleGraphPoseLink
 	GENERATED_BODY()
 
 	UPROPERTY()
-	int32 InputPoseNodeIndex = INDEX_NONE;
-	UPROPERTY()
 	int32 RootNodeIndex = INDEX_NONE;
 
-	FPoseLink InputPose;
 	FPoseLink Root;
+	FPoseSearchAnimPlayer* Player = nullptr;
 	FGraphTraversalCounter CacheBoneCounter;
 
-	void SetInputPosePlayer(FPoseSearchAnimPlayer& Player);
+	void SetInputPosePlayer(FPoseSearchAnimPlayer& InPlayer);
 	void EvaluatePlayer(FPoseContext& Output, FPoseSearchAnimPlayer& SamplePlayer);
 	void ConditionalCacheBones(const FAnimationBaseContext& Output);
 };

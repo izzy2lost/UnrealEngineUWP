@@ -50,9 +50,9 @@ void UAnimGraphNode_BlendStack::BakeDataDuringCompilation(class FCompilerResults
 
 void UAnimGraphNode_BlendStack_Base::ExpandGraphAndProcessNodes(
 	UEdGraph* SourceGraph, 
-	UAnimGraphNode_Base* SourceRootNode, UAnimGraphNode_Base* SourceInputNode,
+	UAnimGraphNode_Base* SourceRootNode, TArrayView<UAnimGraphNode_BlendStackInput*> InputNodes,
 	IAnimBlueprintCompilationContext& InCompilationContext, IAnimBlueprintGeneratedClassCompiledData& OutCompiledData,
-	UAnimGraphNode_Base*& OutRootNode, UAnimGraphNode_Base*& OutInputNode)
+	UAnimGraphNode_Base*& OutRootNode, TArrayView<UAnimGraphNode_BlendStackInput*> OutInputNodes)
 {
 	// Note: This is mostly copied from UAnimGraphNode_BlendSpaceGraphBase::ExpandGraphAndProcessNodes
 	
@@ -62,33 +62,40 @@ void UAnimGraphNode_BlendStack_Base::ExpandGraphAndProcessNodes(
 	UEdGraph* ClonedGraph = FEdGraphUtilities::CloneGraph(SourceGraph, InCompilationContext.GetConsolidatedEventGraph(), &InCompilationContext.GetMessageLog(), true);
 
 	// Grab all the animation nodes and find the corresponding 
-	// root node and input pose node in the cloned set
+	// root node and input pose nodes in the cloned set
 	TArray<UAnimGraphNode_Base*> AnimNodeList;
 
 	const UObject* SourceRootObject = InCompilationContext.GetMessageLog().FindSourceObject(SourceRootNode);
-	const UObject* SourceInputObject = InCompilationContext.GetMessageLog().FindSourceObject(SourceInputNode);
+	TArray<UObject*> SourceInputObjects;
+	SourceInputObjects.SetNum(InputNodes.Num());
+	for (int32 Index = 0; Index < InputNodes.Num(); ++Index)
+	{
+		SourceInputObjects[Index] = InCompilationContext.GetMessageLog().FindSourceObject(InputNodes[Index]);
+	}
+
 	for (auto NodeIt = ClonedGraph->Nodes.CreateIterator(); NodeIt; ++NodeIt)
 	{
 		UEdGraphNode* ClonedNode = *NodeIt;
-
 		if (UAnimGraphNode_Base* TestNode = Cast<UAnimGraphNode_Base>(ClonedNode))
 		{
 			AnimNodeList.Add(TestNode);
 
 			//@TODO: There ought to be a better way to determine this
-			const UObject* TestObject = InCompilationContext.GetMessageLog().FindSourceObject(TestNode);
+			UObject* TestObject = InCompilationContext.GetMessageLog().FindSourceObject(TestNode);
 			if (TestObject == SourceRootObject)
 			{
 				OutRootNode = TestNode;
 			}
-			if (TestObject == SourceInputObject)
+
+			int32 FoundIndex;
+			if (SourceInputObjects.Find(TestObject, FoundIndex))
 			{
-				OutInputNode = TestNode;
+				OutInputNodes[FoundIndex] = (UAnimGraphNode_BlendStackInput*)TestNode;
 			}
 		}
 	}
 
-	check(OutRootNode && OutInputNode);
+	check(OutRootNode && !OutInputNodes.Contains(nullptr));
 
 	// Run another expansion pass to catch the graph we just added (this is slightly wasteful)
 	InCompilationContext.ExpansionStep(ClonedGraph, false);
@@ -135,14 +142,26 @@ void UAnimGraphNode_BlendStack_Base::OnProcessDuringCompilation(IAnimBlueprintCo
 	// Allocate one sample graph per-active blend plus an extra one for the stored pose.
 	AnimNode->SampleGraphPoseLinks.SetNum(MaxBlendsNum + 1);
 
-	for(FBlendStack_SampleGraphPoseLink& GraphPoseLink : AnimNode->SampleGraphPoseLinks)
+	TArray<UAnimGraphNode_BlendStackInput*> InputNodes;
+	BoundGraph->GetNodesOfClass<UAnimGraphNode_BlendStackInput>(InputNodes);
+
+	int32 BlendStackAllocationIndex = InCompilationContext.GetAllocationIndexOfNode(this);
+	for(int32 Index = 0; Index < AnimNode->SampleGraphPoseLinks.Num(); ++ Index)
 	{
-		UAnimGraphNode_Base *RootNode, *InputNode;
-		ExpandGraphAndProcessNodes(SampleGraph, SampleGraph->ResultNode, SampleGraph->InputNode, InCompilationContext, OutCompiledData, RootNode, InputNode);
+		FBlendStack_SampleGraphPoseLink& GraphPoseLink = AnimNode->SampleGraphPoseLinks[Index];
+		UAnimGraphNode_Base* ClonedRootNode;
+		TArray<UAnimGraphNode_BlendStackInput*> ClonedInputNodes;
+		ClonedInputNodes.SetNum(InputNodes.Num());
+
+		ExpandGraphAndProcessNodes(SampleGraph, SampleGraph->ResultNode, InputNodes, InCompilationContext, OutCompiledData, ClonedRootNode, ClonedInputNodes);
 
 		// Blend stack node is potentially nested in the struct, so we can't use FPoseLinkMappingRecord. Patch at runtime instead.
-		GraphPoseLink.RootNodeIndex = InCompilationContext.GetAllocationIndexOfNode(RootNode);
-		GraphPoseLink.InputPoseNodeIndex = InCompilationContext.GetAllocationIndexOfNode(InputNode);
+		for (UAnimGraphNode_BlendStackInput* InputNode : ClonedInputNodes)
+		{
+			InputNode->Node.BlendStackAllocationIndex = BlendStackAllocationIndex;
+			InputNode->Node.SampleIndex = Index;
+		}
+		GraphPoseLink.RootNodeIndex = InCompilationContext.GetAllocationIndexOfNode(ClonedRootNode);
 	}
 }
 

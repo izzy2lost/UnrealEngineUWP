@@ -18,7 +18,13 @@ public:
 	virtual void Update_AnyThread(const FAnimationUpdateContext& Context) override;
 	virtual void Evaluate_AnyThread(FPoseContext& Output) override;
 
+	UPROPERTY()
+	int32 SampleIndex = INDEX_NONE;
+
+	UPROPERTY()
+	int32 BlendStackAllocationIndex = INDEX_NONE;
+
 	// The player is guaranteed to be valid for the whole duration of update/eval.
-	struct FPoseSearchAnimPlayer* Player;
+	struct FPoseSearchAnimPlayer** Player;
 };
 

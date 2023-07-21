@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimGraphNode_BlendStackInput.h"
+#include "AnimGraphNode_BlendStack.h"
 #include "AnimationBlendStackGraph.h"
 
 #define LOCTEXT_NAMESPACE "BlendStackInput"
@@ -18,12 +19,12 @@ FText UAnimGraphNode_BlendStackInput::GetMenuCategory() const
 
 bool UAnimGraphNode_BlendStackInput::CanUserDeleteNode() const
 {
-	return false;
+	return true;
 }
 
 bool UAnimGraphNode_BlendStackInput::CanDuplicateNode() const
 {
-	return false;
+	return true;
 }
 
 bool UAnimGraphNode_BlendStackInput::IsCompatibleWithGraph(UEdGraph const* Graph) const

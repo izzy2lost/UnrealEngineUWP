@@ -6,6 +6,7 @@
 #include "PoseSearch/AnimNode_BlendStack.h"
 #include "AnimGraphNode_BlendStack.generated.h"
 
+class UAnimGraphNode_BlendStackInput;
 
 UCLASS(MinimalAPI, Abstract, Experimental)
 class UAnimGraphNode_BlendStack_Base : public UAnimGraphNode_AssetPlayerBase
@@ -30,9 +31,9 @@ class UAnimGraphNode_BlendStack_Base : public UAnimGraphNode_AssetPlayerBase
 	// Helper function for compilation
 	void ExpandGraphAndProcessNodes(
 		UEdGraph* SourceGraph, 
-		UAnimGraphNode_Base* SourceRootNode, UAnimGraphNode_Base* SourceInputNode,
+		UAnimGraphNode_Base* SourceRootNode, TArrayView<UAnimGraphNode_BlendStackInput*> SourceInputNode,
 		IAnimBlueprintCompilationContext& InCompilationContext, IAnimBlueprintGeneratedClassCompiledData& OutCompiledData,
-		UAnimGraphNode_Base*& OutRootNode, UAnimGraphNode_Base*& OutInputNode);
+		UAnimGraphNode_Base*& OutRootNode, TArrayView<UAnimGraphNode_BlendStackInput*> OutInputNodes);
 
 	virtual TArray<UEdGraph*> GetSubGraphs() const override;
 

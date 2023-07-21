@@ -32,8 +32,7 @@ void UAnimationBlendStackGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph
 		SetNodeMetaData(InputNode, FNodeMetadata::DefaultGraphNode);
 
 		// Move input node to the left of the output pose.
-		InputNode->NodePosX -= 200; 
-		TypedGraph->InputNode = InputNode;
+		InputNode->NodePosX -= 200;
 	}
 
 	// Connect input node to output pose.

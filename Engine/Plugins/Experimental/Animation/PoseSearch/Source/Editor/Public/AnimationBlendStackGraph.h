@@ -21,9 +21,5 @@ public:
 	// Result node within the state's animation graph
 	UPROPERTY()
 	TObjectPtr<class UAnimGraphNode_Root> ResultNode = nullptr;
-
-	// Result node within the state's animation graph
-	UPROPERTY()
-	TObjectPtr<class UAnimGraphNode_BlendStackInput> InputNode = nullptr;
 };
 
