@@ -13,7 +13,7 @@ namespace RemoteWorker
 
 			using WorkerComputeSocket socket = WorkerComputeSocket.Open();
 
-			using IComputeChannel channel = socket.CreateChannel(ChannelId);
+			using ComputeChannel channel = socket.CreateChannel(ChannelId);
 			Console.WriteLine("Connected to initiator");
 
 			byte[] data = new byte[4];
