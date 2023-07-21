@@ -74,6 +74,8 @@ public:
 
 	NIAGARA_API virtual FName GetFNameForStatID() const override;
 
+	virtual bool RequiresGameThreadEndOfFrameRecreate() const override { return false; }
+
 private:
 	UPROPERTY(EditAnywhere, Category="Niagara", meta = (DisplayName = "Niagara System Asset"))
 	TObjectPtr<UNiagaraSystem> Asset;
