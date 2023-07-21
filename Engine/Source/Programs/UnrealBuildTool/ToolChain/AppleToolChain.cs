@@ -824,40 +824,46 @@ namespace UnrealBuildTool
 
 		internal static int FinalizeAppWithXcode(DirectoryReference XcodeProject, UnrealTargetPlatform Platform, string SchemeName, string Configuration, string Action, string ExtraOptions, ILogger Logger)
 		{
-			List<string> Arguments = new()
+			// Acquire a different mutex to the regular UBT instance, since this mode will be called as part of a build. We need the mutex to ensure that building two modular configurations 
+			// in parallel don't clash over writing shared *.modules files (eg. DebugGame and Development editors).
+			string MutexName = SingleInstanceMutex.GetUniqueMutexForPath("UnrealBuildTool_XcodeBuild", Unreal.RootDirectory.FullName);
+			using (new SingleInstanceMutex(MutexName, true))
 			{
-				"UBT_NO_POST_DEPLOY=true",
-				FileReference.Combine(AppleToolChainSettings.XcodeDeveloperDir, "usr/bin/xcodebuild").FullName,
-				Action,
-				$"-workspace \"{XcodeProject.FullName}\"",
-				$"-scheme \"{SchemeName}\"",
-				$"-configuration \"{Configuration}\"",
-				$"-destination generic/platform={AppleExports.GetDestinationPlatform(Platform)}",
-				"-hideShellScriptEnvironment",
-				// xcode gets confused it we _just_ wrote out entitlements while generating the temp project, and it thinks it was modified _during_ building
-				// but it wasn't, it was written before the build started
-				"CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION=YES",
-				ExtraOptions,
-				//$"-sdk {SDKName}",
-			};
+				List<string> Arguments = new()
+				{
+					"UBT_NO_POST_DEPLOY=true",
+					FileReference.Combine(AppleToolChainSettings.XcodeDeveloperDir, "usr/bin/xcodebuild").FullName,
+					Action,
+					$"-workspace \"{XcodeProject.FullName}\"",
+					$"-scheme \"{SchemeName}\"",
+					$"-configuration \"{Configuration}\"",
+					$"-destination generic/platform={AppleExports.GetDestinationPlatform(Platform)}",
+					"-hideShellScriptEnvironment",
+					// xcode gets confused it we _just_ wrote out entitlements while generating the temp project, and it thinks it was modified _during_ building
+					// but it wasn't, it was written before the build started
+					"CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION=YES",
+					ExtraOptions,
+					//$"-sdk {SDKName}",
+				};
 
-			Process LocalProcess = new Process();
-			LocalProcess.StartInfo = new ProcessStartInfo("/usr/bin/env", String.Join(" ", Arguments));
-			LocalProcess.OutputDataReceived += (Sender, Args) => { LocalProcessOutput(Args, false, Logger); };
-			LocalProcess.ErrorDataReceived += (Sender, Args) =>
-			{
-				if (Args != null && Args.Data != null
-				&& Args.Data.Contains("Failed to load profile") && Args.Data.Contains("<stdin>"))
+				Process LocalProcess = new Process();
+				LocalProcess.StartInfo = new ProcessStartInfo("/usr/bin/env", String.Join(" ", Arguments));
+				LocalProcess.OutputDataReceived += (Sender, Args) => { LocalProcessOutput(Args, false, Logger); };
+				LocalProcess.ErrorDataReceived += (Sender, Args) =>
 				{
-					Logger.LogInformation("Silencing the following provision profile error, it is not affecting code signing:");
-					LocalProcessOutput(Args, false, Logger);
-				}
-				else
-				{
-					LocalProcessOutput(Args, true, Logger);
-				}
-			};
-			return Utils.RunLocalProcess(LocalProcess);
+					if (Args != null && Args.Data != null
+					&& Args.Data.Contains("Failed to load profile") && Args.Data.Contains("<stdin>"))
+					{
+						Logger.LogInformation("Silencing the following provision profile error, it is not affecting code signing:");
+						LocalProcessOutput(Args, false, Logger);
+					}
+					else
+					{
+						LocalProcessOutput(Args, true, Logger);
+					}
+				};
+				return Utils.RunLocalProcess(LocalProcess);
+			}
 		}
 
 		static void LocalProcessOutput(DataReceivedEventArgs? Args, bool bIsError, ILogger Logger)
