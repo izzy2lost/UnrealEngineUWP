@@ -975,6 +975,10 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				GPUSortManager->OnPreRender(GraphBuilder);
 			}
 		}
+	else
+	{
+		SetDummyForwardLightUniformBufferOnViews(GraphBuilder, ShaderPlatform, Views);
+	}
 
 		// Generate the Sky/Atmosphere look up tables
 		const bool bShouldRenderSkyAtmosphere = ShouldRenderSkyAtmosphere(Scene, ViewFamily.EngineShowFlags);
