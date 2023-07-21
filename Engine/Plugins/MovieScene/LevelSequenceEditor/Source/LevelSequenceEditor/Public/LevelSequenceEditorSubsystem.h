@@ -44,7 +44,7 @@ struct FMovieSceneScriptingParams
 * ULevelSequenceEditorSubsystem
 * Subsystem for level sequence editor related utilities to scripts
 */
-UCLASS(Blueprintable)
+UCLASS()
 class LEVELSEQUENCEEDITOR_API ULevelSequenceEditorSubsystem : public UEditorSubsystem
 {
 	GENERATED_BODY()
