@@ -50,6 +50,14 @@ class DATASMITHINTERCHANGE_API UInterchangeDatasmithPipeline : public UInterchan
 	UPROPERTY(VisibleAnywhere, Instanced, Category = "Common Skeletal Meshes and Animations")
 	TObjectPtr<UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties> CommonSkeletalMeshesAndAnimationsProperties;
 
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(EditAnywhere, Category = "Mesh")
+	bool bDeleteInvalidMeshes = true;
+#endif
+
+	UPROPERTY(EditAnywhere, Category = "Materials")
+	bool bCreateMaterialReferencesFolders = true;
+
 protected:
 	virtual void ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas) override;
 	virtual void ExecutePostImportPipeline(const UInterchangeBaseNodeContainer* InBaseNodeContainer, const FString& NodeKey, UObject* CreatedAsset, bool bIsAReimport) override;
@@ -65,4 +73,6 @@ private:
 
 	// Fill up the UDatasmithScene with all the data its needs for DnD
 	void PostImportDatasmithSceneAsset(UDatasmithScene& DatasmithSceneAsset);
+
+	TSet<FString> InvalidStaticMeshFactoryUids;
 };
