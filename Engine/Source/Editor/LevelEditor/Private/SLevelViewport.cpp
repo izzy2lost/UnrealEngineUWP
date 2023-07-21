@@ -1988,6 +1988,9 @@ void SLevelViewport::ToggleGameView()
 	{
 		bool bGameViewEnable = !LevelViewportClient->IsInGameView();
 
+		// "Mode Widget" should not automatically be reactivated by selecting an actor after "Game View" is enabled
+		LevelViewportClient->bAlwaysShowModeWidgetAfterSelectionChanges = bGameViewEnable ? false : true;
+
 		LevelViewportClient->SetGameView(bGameViewEnable);
 	}
 }
