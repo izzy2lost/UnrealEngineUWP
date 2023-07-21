@@ -135,7 +135,7 @@ namespace Chaos
 				FPBDCollisionConstraintContainerCookie& Cookie = Constraint->GetContainerCookie();
 
 				// Add the constraint to the active list and update its epoch
-				checkSlow(ActiveConstraints.Find(CollisionConstraint) == INDEX_NONE);
+				checkSlow(ActiveConstraints.Find(Constraint) == INDEX_NONE);
 				Cookie.ConstraintIndex = ActiveConstraints.Add(Constraint);
 
 				// If the constraint uses CCD, keep it in another list so we don't have to search the full list for CCD contacts
