@@ -214,6 +214,40 @@ inline bool operator>(const FGameFeaturePluginStateRange& StateRange, EGameFeatu
 	return StateRange.MinState > State;
 }
 
+struct FInstallBundlePluginProtocolMetaData
+{
+	TArray<FName> InstallBundles;
+
+	// TODO: keep this version?
+	/** Set to whatever the FDefaultValues::CurrentVersionNum was when this URL was generated.
+		Allows us to ensure if we try and load URLs generated from a previous version **/
+	uint8 VersionNum;
+
+	/** Functions to convert to/from the URL FString representation of this metadata **/
+	FString ToString() const;
+	static bool FromString(const FString& URLString, FInstallBundlePluginProtocolMetaData& OutMetadata);
+
+	FInstallBundlePluginProtocolMetaData();
+
+private:
+	/** Resets all our Metadata values to the default values */
+	void ResetToDefaults();
+
+	/** Holds default values for the above settings as they are only encoded into a string if they differ from these values */
+	struct FDefaultValues
+	{
+		static const uint32 CurrentVersionNum;
+		//Missing InstallBundles on purpose as the default is just an empty TArray and should always be encoded
+	};
+};
+
+struct FGameFeatureProtocolMetadata : public TUnion<FInstallBundlePluginProtocolMetaData, FNull>
+{
+	FGameFeatureProtocolMetadata() { SetSubtype<FNull>(); }
+	FGameFeatureProtocolMetadata(const FInstallBundlePluginProtocolMetaData& InData) : TUnion(InData) {}
+	FGameFeatureProtocolMetadata(FNull InOptions) { SetSubtype<FNull>(InOptions); }
+};
+
 /** Notification that a state transition is complete */
 DECLARE_DELEGATE_TwoParams(FGameFeatureStateTransitionComplete, UGameFeaturePluginStateMachine* /*Machine*/, const UE::GameFeatures::FResult& /*Result*/);
 
@@ -248,8 +282,11 @@ struct FGameFeaturePluginStateMachineProperties
 	/** Name of the plugin. */
 	FString PluginName;
 
-	/** Meta data parsed from the URL for a specific protocol. */
-	TUnion<FInstallBundlePluginProtocolMetaData> ProtocolMetadata;
+	/** Metadata parsed from the URL for a specific protocol. */
+	FGameFeatureProtocolMetadata ProtocolMetadata;
+
+	/** Additional options for a specific protocol. */
+	FGameFeatureProtocolOptions ProtocolOptions;
 
 	TArray<FName> AddedPrimaryAssetTypes;
 
@@ -288,7 +325,10 @@ struct FGameFeaturePluginStateMachineProperties
 	bool ParseURL();
 
 	/** Checks to see if any invalid data was changed during a URL update. True if data updated was all values expected to be changed. */
-	bool ValidateURLUpdate(const FGameFeaturePluginStateMachineProperties& OldProperties) const;
+	UE::GameFeatures::FResult ValidateProtocolOptionsUpdate(const FGameFeatureProtocolOptions& NewProtocolOptions) const;
+
+	/** Returns protocol options suitable for reuse by another state machine */
+	FGameFeatureProtocolOptions RecycleProtocolOptions() const;
 };
 
 /** Input and output information for a state's UpdateState */
@@ -333,12 +373,9 @@ struct FGameFeaturePluginState
 	/** Attempt to cancel any pending state transition. */
 	virtual void TryCancelState() {}
 
-	/** Called if we have updated the URL for this FGameFeaturePluginState.
-		This can be done whenever URL data is updated that isn't tied to our 
-		FGameFeaturePluginIdentifier information. EX: MetaData options information
-		that is parsed from the URL 
+	/** Called if we have updated the protocol options for this FGameFeaturePluginState.
 		Returns false if no update occured or the update failed. True on successful update. */
-	virtual bool TryUpdateURLData(const FString& NewPluginURL);
+	virtual UE::GameFeatures::FResult TryUpdateProtocolOptions(const FGameFeatureProtocolOptions& NewOptions);
 	
 	/** Called when this state is no longer the active state */
 	virtual void EndState() {}
@@ -421,7 +458,7 @@ public:
 	UGameFeaturePluginStateMachine(const FObjectInitializer& ObjectInitializer);
 
 	/** Initializes the state machine and assigns the URL for the plugin it manages. This sets the machine to the 'UnknownStatus' state. */
-	void InitStateMachine(FGameFeaturePluginIdentifier InPluginIdentifier);
+	void InitStateMachine(FGameFeaturePluginIdentifier InPluginIdentifier, const FGameFeatureProtocolOptions& InProtocolOptions);
 
 	/** Asynchronously transitions the state machine to the destination state range and reports when it is done. 
 	  * DestinationState must be of type EGameFeaturePluginStateType::Destination.
@@ -434,7 +471,7 @@ public:
 
 	/** Update the current PluginURL data for this plugin if possible. Returns false if this update fails or
 		if the supplied InPluginURL matches the existing URL data for this plugin.**/
-	bool TryUpdatePluginURLData(const FString& InPluginURL);
+	UE::GameFeatures::FResult TryUpdatePluginProtocolOptions(const FGameFeatureProtocolOptions& InOptions, bool& bOutDidUpdate);
 
 	/** Remove any pending callback from SetDestination */
 	void RemovePendingTransitionCallback(FDelegateHandle InHandle);
@@ -456,6 +493,12 @@ public:
 
 	/** Returns the URL */
 	const FString& GetPluginURL() const;
+
+	/** Returns any protocol options */
+	const FGameFeatureProtocolOptions& GetProtocolOptions() const;
+
+	/** Returns protocol options suitable for reuse by another state machine */
+	FGameFeatureProtocolOptions RecycleProtocolOptions() const;
 
 	/** Returns the plugin name if known (plugin must have been registered to know the name). */
 	const FString& GetPluginName() const;

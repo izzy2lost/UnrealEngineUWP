@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Containers/Union.h"
 #include "Engine/Engine.h"
 #include "GameFeatureTypesFwd.h"
 
@@ -164,7 +165,7 @@ using FGameFeaturePluginUnloadComplete = FGameFeaturePluginChangeStateComplete;
 using FGameFeaturePluginReleaseComplete = FGameFeaturePluginChangeStateComplete;
 using FGameFeaturePluginUninstallComplete = FGameFeaturePluginChangeStateComplete;
 using FGameFeaturePluginTerminateComplete = FGameFeaturePluginChangeStateComplete;
-using FGameFeaturePluginUpdateURLComplete = FGameFeaturePluginChangeStateComplete;
+using FGameFeaturePluginUpdateProtocolComplete = FGameFeaturePluginChangeStateComplete;
 
 DECLARE_DELEGATE_OneParam(FBuiltInGameFeaturePluginsLoaded, PREPROCESSOR_COMMA_SEPARATED(const TMap<FString, UE::GameFeatures::FResult>& /*Results*/));
 
@@ -270,18 +271,11 @@ private:
 };
 
 USTRUCT()
-struct GAMEFEATURES_API FInstallBundlePluginProtocolMetaData
+struct GAMEFEATURES_API FInstallBundlePluginProtocolOptions
 {
 	GENERATED_BODY()
 
-	TArray<FName> InstallBundles;
-
-	/** Set to whatever the FDefaultValues::CurrentVersionNum was when this URL was generated.
-		Allows us to ensure if we try and load URLs generated from a previous version **/
-	uint8 VersionNum;
-
-	/** If we want to attempt to uninstall InstallBundle information installed by this plugin before terminating */
-	bool bUninstallBeforeTerminate;
+	FInstallBundlePluginProtocolOptions();
 
 	/** EInstallBundleRequestFlags utilized during the download/install by InstallBundleManager */
 	EInstallBundleRequestFlags InstallBundleFlags;
@@ -289,37 +283,26 @@ struct GAMEFEATURES_API FInstallBundlePluginProtocolMetaData
 	/** EInstallBundleReleaseRequestFlags utilized during our release and uninstall states */
 	EInstallBundleReleaseRequestFlags ReleaseInstallBundleFlags;
 
+	/** If we want to attempt to uninstall InstallBundle data installed by this plugin before terminating */
+	bool bUninstallBeforeTerminate = false;
+
 	/** If we want to set the Downloading state to pause because of user interaction */
-	bool bUserPauseDownload;
+	bool bUserPauseDownload = false;
 
 	/** Allow the GFP to load INI files, should only be allowed for trusted content */
-	bool bAllowIniLoading;
+	bool bAllowIniLoading = false;
 
-	/** Functions to convert to/from the URL FString representation of this metadata **/
-	FString ToString() const;
-	static bool FromString(const FString& URLString, FInstallBundlePluginProtocolMetaData& OutMetadata);
+	/** Disallows downloading, useful for conditionally loading content only if it's already been installed **/
+	bool bDoNotDownload = false;
 
-	/** Resets all our Metadata values to the default values */
-	void ResetToDefaults();
+	bool operator==(const FInstallBundlePluginProtocolOptions& Other) const;
+};
 
-	/** disallows downloading using the bundle manager **/
-	bool bDoNotDownload;
-
-	FInstallBundlePluginProtocolMetaData();
-
-private:
-	/** Holds default values for the above settings as they are only encoded into a string if they differ from these values */
-	struct FDefaultValues
-	{
-		static const uint32 CurrentVersionNum;
-		//Missing InstallBundles on purpose as the default is just an empty TArray and should always be encoded
-		static const bool Default_bUninstallBeforeTerminate;
-		static const bool Default_bUserPauseDownload;
-		static const bool Default_bAllowIniLoading;
-		static const bool Default_bDoNotDownload;
-		static const EInstallBundleRequestFlags Default_InstallBundleFlags;
-		static const EInstallBundleReleaseRequestFlags Default_ReleaseInstallBundleFlags;
-	};
+struct FGameFeatureProtocolOptions : public TUnion<FInstallBundlePluginProtocolOptions, FNull>
+{
+	FGameFeatureProtocolOptions() { SetSubtype<FNull>(); }
+	FGameFeatureProtocolOptions(const FInstallBundlePluginProtocolOptions& InOptions) : TUnion(InOptions) {}
+	FGameFeatureProtocolOptions(FNull InOptions) { SetSubtype<FNull>(InOptions); }
 };
 
 /** The manager subsystem for game features */
@@ -391,7 +374,6 @@ public:
 	static FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, const FString& BundleName);
 	static FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, TArrayView<const FName> BundleNames);
 	static FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, FName BundleName);
-	static FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, const FInstallBundlePluginProtocolMetaData& ProtocolMetadata);
 
 	/** Returns the plugin protocol for the specified URL */
 	static EGameFeaturePluginProtocol GetPluginURLProtocol(FStringView PluginURL);
@@ -420,16 +402,18 @@ public:
 
 	/** Loads a single game feature plugin. */
 	void LoadGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginLoadComplete& CompleteDelegate);
+	void LoadGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginLoadComplete& CompleteDelegate);
 
 	/** Loads a single game feature plugin and activates it. */
 	void LoadAndActivateGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginLoadComplete& CompleteDelegate);
+	void LoadAndActivateGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginLoadComplete& CompleteDelegate);
 
 	/** Changes the target state of a game feature plugin */
 	void ChangeGameFeatureTargetState(const FString& PluginURL, EGameFeatureTargetState TargetState, const FGameFeaturePluginChangeStateComplete& CompleteDelegate);
+	void ChangeGameFeatureTargetState(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, EGameFeatureTargetState TargetState, const FGameFeaturePluginChangeStateComplete& CompleteDelegate);
 
-	/** Changes the URL data of a game feature plugin. Useful to change any options data that is parsed from the URL such as settings flags */
-	void UpdateGameFeaturePluginURL(const FString& NewPluginURL);
-	void UpdateGameFeaturePluginURL(const FString& NewPluginURL, const FGameFeaturePluginUpdateURLComplete& CompleteDelegate);
+	/** Changes the protocol options of a game feature plugin. Useful to change any options data such as settings flags */
+	UE::GameFeatures::FResult UpdateGameFeatureProtocolOptions(const FString& PluginURL, const FGameFeatureProtocolOptions& NewOptions, bool* bOutDidUpdate = nullptr);
 
 	/** Gets the Install_Percent for single game feature plugin if it is active. */
 	bool GetGameFeaturePluginInstallPercent(const FString& PluginURL, float& Install_Percent) const;
@@ -453,8 +437,8 @@ public:
 		If the given PluginURL is not found this will create a GameFeaturePlugin first and attempt to run it through the uninstall flow.
 		This allows for the uninstalling of data that was installed on previous runs of the application where we haven't yet requested the
 		GameFeaturePlugin that we would like to uninstall data for on this run. */
-	void UninstallGameFeaturePlugin(const FString& PluginURL);
-	void UninstallGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginUninstallComplete& CompleteDelegate);
+	void UninstallGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginUninstallComplete& CompleteDelegate = FGameFeaturePluginUninstallComplete());
+	void UninstallGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginUninstallComplete& CompleteDelegate = FGameFeaturePluginUninstallComplete());
 
 	/** Terminate the GameFeaturePlugin and remove all associated plugin tracking data. */
 	void TerminateGameFeaturePlugin(const FString& PluginURL);
@@ -558,7 +542,8 @@ private:
 	static void RemoveGameFeatureFromAssetManager(const UGameFeatureData* GameFeatureToRemove, const FString& PluginName, const TArray<FName>& AddedPrimaryAssetTypes);
 
 private:
-	bool ShouldUpdatePluginURLData(const FString& NewPluginURL);
+	bool ShouldUpdatePluginProtocolOptions(const UGameFeaturePluginStateMachine* StateMachine, const FGameFeatureProtocolOptions& NewOptions);
+	UE::GameFeatures::FResult UpdateGameFeatureProtocolOptions(UGameFeaturePluginStateMachine* StateMachine, const FGameFeatureProtocolOptions& NewOptions, bool* bOutDidUpdate = nullptr);
 
 	const UGameFeatureData* GetDataForStateMachine(UGameFeaturePluginStateMachine* GFSM) const;
 	const UGameFeatureData* GetRegisteredDataForStateMachine(UGameFeaturePluginStateMachine* GFSM) const;
@@ -580,13 +565,17 @@ private:
 	UGameFeaturePluginStateMachine* FindGameFeaturePluginStateMachine(const FGameFeaturePluginIdentifier& PluginIdentifier) const;
 
 	/** Gets the state machine associated with the specified URL, creates it if it doesnt exist */
-	UGameFeaturePluginStateMachine* FindOrCreateGameFeaturePluginStateMachine(const FString& PluginURL);
+	UGameFeaturePluginStateMachine* FindOrCreateGameFeaturePluginStateMachine(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions);
 
 	/** Notification that a game feature has finished loading, and whether it was successful */
 	void LoadBuiltInGameFeaturePluginComplete(const UE::GameFeatures::FResult& Result, UGameFeaturePluginStateMachine* Machine, FGameFeaturePluginStateRange RequestedDestination);
 
-	/** Sets a new destination state. Will attempt to cancel the current transition if the new destination is incompatible with the current destination */
+	/** 
+	 * Sets a new destination state. Will attempt to cancel the current transition if the new destination is incompatible with the current destination 
+	 * Note: In the case that the existing machine is terminal, a new one will need to be created. In that case ProtocolOptions will be used for the new machine.
+	 */
 	void ChangeGameFeatureDestination(UGameFeaturePluginStateMachine* Machine, const FGameFeaturePluginStateRange& StateRange, FGameFeaturePluginChangeStateComplete CompleteDelegate);
+	void ChangeGameFeatureDestination(UGameFeaturePluginStateMachine* Machine, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginStateRange& StateRange, FGameFeaturePluginChangeStateComplete CompleteDelegate);
 
 	/** Generic notification that calls the Complete delegate without broadcasting anything else.*/
 	void ChangeGameFeatureTargetStateComplete(UGameFeaturePluginStateMachine* Machine, const UE::GameFeatures::FResult& Result, FGameFeaturePluginChangeStateComplete CompleteDelegate);
@@ -596,7 +585,7 @@ private:
 	friend class UGameFeaturePluginStateMachine;
 
 	/** Handler for when a state machine requests its dependencies. Returns false if the dependencies could not be read */
-	bool FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FString& PluginFilename, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines);
+	bool FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FString& PluginFilename, const FGameFeatureProtocolOptions& DepProtocolOptions, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines);
 	friend struct FGameFeaturePluginState_WaitingForDependencies;
 
 	/** Handle 'ListGameFeaturePlugins' console command */
@@ -635,7 +624,7 @@ private:
 	{
 		FGameFeaturePluginDetails Details;
 		FDateTime TimeStamp;
-		FCachedGameFeaturePluginDetails() {}
+		FCachedGameFeaturePluginDetails() = default;
 		FCachedGameFeaturePluginDetails(const FGameFeaturePluginDetails& InDetails, const FDateTime& InTimeStamp) : Details(InDetails), TimeStamp(InTimeStamp) {}
 	};
 	mutable TMap<FString, FCachedGameFeaturePluginDetails> CachedPluginDetailsByFilename;

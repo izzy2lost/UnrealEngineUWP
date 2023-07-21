@@ -25,15 +25,6 @@
 
 DEFINE_LOG_CATEGORY(LogGameFeatures);
 
-const uint32 FInstallBundlePluginProtocolMetaData::FDefaultValues::CurrentVersionNum = 1;
-//Missing InstallBundles on purpose as the default is just an empty TArray and should always be encoded
-const bool FInstallBundlePluginProtocolMetaData::FDefaultValues::Default_bUninstallBeforeTerminate = false;
-const bool FInstallBundlePluginProtocolMetaData::FDefaultValues::Default_bUserPauseDownload = false;
-const bool FInstallBundlePluginProtocolMetaData::FDefaultValues::Default_bAllowIniLoading = false;
-const bool FInstallBundlePluginProtocolMetaData::FDefaultValues::Default_bDoNotDownload = false;
-const EInstallBundleRequestFlags FInstallBundlePluginProtocolMetaData::FDefaultValues::Default_InstallBundleFlags = EInstallBundleRequestFlags::Defaults;
-const EInstallBundleReleaseRequestFlags FInstallBundlePluginProtocolMetaData::FDefaultValues::Default_ReleaseInstallBundleFlags = EInstallBundleReleaseRequestFlags::None;
-
 namespace UE::GameFeatures
 {
 	static const FString SubsystemErrorNamespace(TEXT("GameFeaturePlugin.Subsystem."));
@@ -260,6 +251,22 @@ FSimpleDelegate FGameFeatureDeactivatingContext::PauseDeactivationUntilComplete(
 	return FSimpleDelegate::CreateLambda(
 		[CompletionCallback=CompletionCallback, PauserTag=MoveTemp(InPauserTag)]() { CompletionCallback(PauserTag); }
 	);
+}
+
+FInstallBundlePluginProtocolOptions::FInstallBundlePluginProtocolOptions()
+	: InstallBundleFlags(EInstallBundleRequestFlags::Defaults)
+	, ReleaseInstallBundleFlags(EInstallBundleReleaseRequestFlags::None)
+{}
+
+bool FInstallBundlePluginProtocolOptions::operator==(const FInstallBundlePluginProtocolOptions& Other) const
+{
+	return
+		InstallBundleFlags == Other.InstallBundleFlags &&
+		ReleaseInstallBundleFlags == Other.ReleaseInstallBundleFlags &&
+		bUninstallBeforeTerminate == Other.bUninstallBeforeTerminate &&
+		bUserPauseDownload == Other.bUserPauseDownload && 
+		bAllowIniLoading == Other.bAllowIniLoading &&
+		bDoNotDownload == Other.bDoNotDownload;
 }
 
 void UGameFeaturesSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -599,6 +606,18 @@ FString UGameFeaturesSubsystem::GetPluginURL_FileProtocol(const FString& PluginD
 	return TEXT("file:") + PluginDescriptorPath;
 }
 
+FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, const FInstallBundlePluginProtocolMetaData& ProtocolMetadata)
+{
+	ensure(ProtocolMetadata.InstallBundles.Num() > 0);
+	FString Path;
+	Path += UE::GameFeatures::GameFeaturePluginProtocolPrefix(EGameFeaturePluginProtocol::InstallBundle);
+	Path += PluginName;
+	Path += UE::GameFeatures::PluginURLStructureInfo::OptionSeperator;
+	Path += ProtocolMetadata.ToString();
+
+	return Path;
+}
+
 FString UGameFeaturesSubsystem::GetPluginURL_InstallBundleProtocol(const FString& PluginName, TArrayView<const FString> BundleNames)
 {
 	FInstallBundlePluginProtocolMetaData ProtocolMetadata;
@@ -606,7 +625,7 @@ FString UGameFeaturesSubsystem::GetPluginURL_InstallBundleProtocol(const FString
 	{
 		ProtocolMetadata.InstallBundles.Add(FName(BundleName));
 	}
-	return GetPluginURL_InstallBundleProtocol(PluginName, ProtocolMetadata);
+	return ::GetPluginURL_InstallBundleProtocol(PluginName, ProtocolMetadata);
 }
 
 FString UGameFeaturesSubsystem::GetPluginURL_InstallBundleProtocol(const FString& PluginName, const FString& BundleName)
@@ -618,24 +637,12 @@ FString UGameFeaturesSubsystem::GetPluginURL_InstallBundleProtocol(const FString
 {
 	FInstallBundlePluginProtocolMetaData ProtocolMetadata;
 	ProtocolMetadata.InstallBundles.Append(BundleNames.GetData(), BundleNames.Num());
-	return GetPluginURL_InstallBundleProtocol(PluginName, ProtocolMetadata);
+	return ::GetPluginURL_InstallBundleProtocol(PluginName, ProtocolMetadata);
 }
 
 FString UGameFeaturesSubsystem::GetPluginURL_InstallBundleProtocol(const FString& PluginName, FName BundleName)
 {
 	return GetPluginURL_InstallBundleProtocol(PluginName, MakeArrayView(&BundleName, 1));
-}
-
-FString UGameFeaturesSubsystem::GetPluginURL_InstallBundleProtocol(const FString& PluginName, const FInstallBundlePluginProtocolMetaData& ProtocolMetadata)
-{
-	ensure (ProtocolMetadata.InstallBundles.Num() > 0);
-	FString Path;
-	Path += UE::GameFeatures::GameFeaturePluginProtocolPrefix(EGameFeaturePluginProtocol::InstallBundle);
-	Path += PluginName;
-	Path += UE::GameFeatures::PluginURLStructureInfo::OptionSeperator;
-	Path += ProtocolMetadata.ToString();
-
-	return Path;
 }
 
 EGameFeaturePluginProtocol UGameFeaturesSubsystem::GetPluginURLProtocol(FStringView PluginURL)
@@ -825,6 +832,11 @@ bool UGameFeaturesSubsystem::IsGameFeaturePluginLoaded(const FString& PluginURL)
 
 void UGameFeaturesSubsystem::LoadGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginLoadComplete& CompleteDelegate)
 {
+	LoadGameFeaturePlugin(PluginURL, FGameFeatureProtocolOptions(), CompleteDelegate);
+}
+
+void UGameFeaturesSubsystem::LoadGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginLoadComplete& CompleteDelegate)
+{
 	const bool bIsPluginAllowed = GameSpecificPolicies->IsPluginAllowed(PluginURL);
 	if (!bIsPluginAllowed)
 	{
@@ -832,8 +844,8 @@ void UGameFeaturesSubsystem::LoadGameFeaturePlugin(const FString& PluginURL, con
 		return;
 	}
 
-	UGameFeaturePluginStateMachine* StateMachine = FindOrCreateGameFeaturePluginStateMachine(PluginURL);
-	
+	UGameFeaturePluginStateMachine* StateMachine = FindOrCreateGameFeaturePluginStateMachine(PluginURL, ProtocolOptions);
+
 	if (!StateMachine->IsRunning() && StateMachine->GetCurrentState() == EGameFeaturePluginState::Active)
 	{
 		// TODO: Resolve the activated case here, this is needed because in a PIE environment the plugins
@@ -844,7 +856,17 @@ void UGameFeaturesSubsystem::LoadGameFeaturePlugin(const FString& PluginURL, con
 		CallbackObservers(EObserverCallback::Activating, PluginURL, &StateMachine->GetPluginName(), StateMachine->GetGameFeatureDataForActivePlugin());
 	}
 
-	ChangeGameFeatureDestination(StateMachine, FGameFeaturePluginStateRange(EGameFeaturePluginState::Loaded, EGameFeaturePluginState::Active), CompleteDelegate);
+	if (ShouldUpdatePluginProtocolOptions(StateMachine, ProtocolOptions))
+	{
+		const UE::GameFeatures::FResult Result = UpdateGameFeatureProtocolOptions(StateMachine, ProtocolOptions);
+		if (Result.HasError())
+		{
+			CompleteDelegate.ExecuteIfBound(Result);
+			return;
+		}
+	}
+
+	ChangeGameFeatureDestination(StateMachine, ProtocolOptions, FGameFeaturePluginStateRange(EGameFeaturePluginState::Loaded, EGameFeaturePluginState::Active), CompleteDelegate);
 }
 
 void UGameFeaturesSubsystem::LoadAndActivateGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginLoadComplete& CompleteDelegate)
@@ -852,7 +874,17 @@ void UGameFeaturesSubsystem::LoadAndActivateGameFeaturePlugin(const FString& Plu
 	ChangeGameFeatureTargetState(PluginURL, EGameFeatureTargetState::Active, CompleteDelegate);
 }
 
+void UGameFeaturesSubsystem::LoadAndActivateGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginLoadComplete& CompleteDelegate)
+{
+	ChangeGameFeatureTargetState(PluginURL, ProtocolOptions, EGameFeatureTargetState::Active, CompleteDelegate);
+}
+
 void UGameFeaturesSubsystem::ChangeGameFeatureTargetState(const FString& PluginURL, EGameFeatureTargetState TargetState, const FGameFeaturePluginChangeStateComplete& CompleteDelegate)
+{
+	ChangeGameFeatureTargetState(PluginURL, FGameFeatureProtocolOptions(), TargetState, CompleteDelegate);
+}
+
+void UGameFeaturesSubsystem::ChangeGameFeatureTargetState(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, EGameFeatureTargetState TargetState, const FGameFeaturePluginChangeStateComplete& CompleteDelegate)
 {
 	EGameFeaturePluginState TargetPluginState = EGameFeaturePluginState::MAX;
 
@@ -884,7 +916,7 @@ void UGameFeaturesSubsystem::ChangeGameFeatureTargetState(const FString& PluginU
 	}
 	else
 	{
-		StateMachine = FindOrCreateGameFeaturePluginStateMachine(PluginURL);
+		StateMachine = FindOrCreateGameFeaturePluginStateMachine(PluginURL, ProtocolOptions);
 	}
 	
 	check(StateMachine);
@@ -912,61 +944,58 @@ void UGameFeaturesSubsystem::ChangeGameFeatureTargetState(const FString& PluginU
 		CallbackObservers(EObserverCallback::Activating, PluginURL, &StateMachine->GetPluginName(), StateMachine->GetGameFeatureDataForActivePlugin());
 	}
 	
-	if (ShouldUpdatePluginURLData(PluginURL))
+	if (ShouldUpdatePluginProtocolOptions(StateMachine, ProtocolOptions))
 	{
-		UpdateGameFeaturePluginURL(PluginURL, FGameFeaturePluginUpdateURLComplete());
-	}
-
-	ChangeGameFeatureDestination(StateMachine, FGameFeaturePluginStateRange(TargetPluginState), CompleteDelegate);
-}
-
-void UGameFeaturesSubsystem::UpdateGameFeaturePluginURL(const FString& NewPluginURL)
-{
-	UpdateGameFeaturePluginURL(NewPluginURL, FGameFeaturePluginUpdateURLComplete());
-};
-
-void UGameFeaturesSubsystem::UpdateGameFeaturePluginURL(const FString& NewPluginURL, const FGameFeaturePluginUpdateURLComplete& CompleteDelegate)
-{
-	UGameFeaturePluginStateMachine* StateMachine = nullptr;
-	StateMachine = FindGameFeaturePluginStateMachine(NewPluginURL);
-	if (!StateMachine)
-	{
-		CompleteDelegate.ExecuteIfBound(MakeError(TEXT("GameFeaturePlugin.BadURL")));
-		return;
-	}
-
-	check(StateMachine);
-
-	const bool bUpdated = StateMachine->TryUpdatePluginURLData(NewPluginURL);
-	if (!bUpdated)
-	{
-		CompleteDelegate.ExecuteIfBound(MakeError(TEXT("GameFeaturePlugin.No_URL_Update_Needed")));
-	}
-	else
-	{
-		FString* PluginURL = GameFeaturePluginNameToPathMap.Find(StateMachine->GetPluginName());
-		if (!ensureAlwaysMsgf(PluginURL, TEXT("Attempt to UpdateGameFeaturePluginURL before GameFeaturePlugin has been added to the GameFeaturePluginNameToPathMap! URL:%s"), *NewPluginURL))
+		const UE::GameFeatures::FResult Result = UpdateGameFeatureProtocolOptions(StateMachine, ProtocolOptions);
+		if (Result.HasError())
 		{
-			CompleteDelegate.ExecuteIfBound(MakeError(TEXT("GameFeaturePlugin.UpdateTooEarly")));
+			CompleteDelegate.ExecuteIfBound(Result);
 			return;
 		}
-
-		*PluginURL = NewPluginURL;
-		CompleteDelegate.ExecuteIfBound(MakeValue());
 	}
+	
+	ChangeGameFeatureDestination(StateMachine, ProtocolOptions, FGameFeaturePluginStateRange(TargetPluginState), CompleteDelegate);
 }
 
-bool UGameFeaturesSubsystem::ShouldUpdatePluginURLData(const FString& NewPluginURL)
+UE::GameFeatures::FResult UGameFeaturesSubsystem::UpdateGameFeatureProtocolOptions(const FString& PluginURL, const FGameFeatureProtocolOptions& NewOptions, bool* bOutDidUpdate /*= nullptr*/)
 {
-	UGameFeaturePluginStateMachine* StateMachine = nullptr;
-	StateMachine = FindGameFeaturePluginStateMachine(NewPluginURL);
-	if (!StateMachine || !StateMachine->IsStatusKnown())
+	UGameFeaturePluginStateMachine* StateMachine = FindGameFeaturePluginStateMachine(PluginURL);
+	return UpdateGameFeatureProtocolOptions(StateMachine, NewOptions, bOutDidUpdate);
+}
+
+UE::GameFeatures::FResult UGameFeaturesSubsystem::UpdateGameFeatureProtocolOptions(UGameFeaturePluginStateMachine* StateMachine, const FGameFeatureProtocolOptions& NewOptions, bool* bOutDidUpdate /*= nullptr*/)
+{
+	if (bOutDidUpdate)
+	{
+		*bOutDidUpdate = false;
+	}
+
+	if (!StateMachine)
+	{
+		return MakeError(UE::GameFeatures::SubsystemErrorNamespace + UE::GameFeatures::CommonErrorCodes::BadURL);
+	}
+
+	bool bUpdated = false;
+	UE::GameFeatures::FResult Result = StateMachine->TryUpdatePluginProtocolOptions(NewOptions, bUpdated);
+	if (bOutDidUpdate)
+	{
+		*bOutDidUpdate = bUpdated;
+	}
+
+	return Result;
+}
+
+bool UGameFeaturesSubsystem::ShouldUpdatePluginProtocolOptions(const UGameFeaturePluginStateMachine* StateMachine, const FGameFeatureProtocolOptions& NewOptions)
+{
+	if (NewOptions.HasSubtype<FNull>())
 	{
 		return false;
 	}
 
-	//Should always be valid at this point
-	check(StateMachine);
+	if (!StateMachine)
+	{
+		return false;
+	}
 	
 	//Make sure our StateMachine isn't in terminal, don't want to update Terminal plugins
 	if (TerminalGameFeaturePluginStateMachines.Contains(StateMachine) || (StateMachine->GetCurrentState() == EGameFeaturePluginState::Terminal))
@@ -974,11 +1003,11 @@ bool UGameFeaturesSubsystem::ShouldUpdatePluginURLData(const FString& NewPluginU
 		return false;
 	}
 
-	if (StateMachine->GetPluginURL().Equals(NewPluginURL, ESearchCase::IgnoreCase))
+	if (StateMachine->GetProtocolOptions() == NewOptions)
 	{
 		return false;
 	}
-
+	
 	return true;
 }
 
@@ -1071,92 +1100,73 @@ void UGameFeaturesSubsystem::ReleaseGameFeaturePlugin(const FString& PluginURL, 
 	}
 }
 
-void UGameFeaturesSubsystem::UninstallGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginUninstallComplete& CompleteDelegate)
+void UGameFeaturesSubsystem::UninstallGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginUninstallComplete& CompleteDelegate /*= FGameFeaturePluginUninstallComplete()*/)
 {
-	//FindOrCreate so that we can make sure we uninstall data for plugins that were installed on a previous application run
-	//but have not yet been requested on this application run and so are not yet in the plugin list but might have data on disk
-	//to uninstall
-	UGameFeaturePluginStateMachine* StateMachine = FindOrCreateGameFeaturePluginStateMachine(PluginURL);
+	UninstallGameFeaturePlugin(PluginURL, FGameFeatureProtocolOptions(), CompleteDelegate);
+}
+
+void UGameFeaturesSubsystem::UninstallGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& InProtocolOptions, const FGameFeaturePluginUninstallComplete& CompleteDelegate /*= FGameFeaturePluginUninstallComplete()*/)
+{
+	// FindOrCreate so that we can make sure we uninstall data for plugins that were installed on a previous application run
+	// but have not yet been requested on this application run and so are not yet in the plugin list but might have data on disk
+	// to uninstall
+	UGameFeaturePluginStateMachine* StateMachine = FindOrCreateGameFeaturePluginStateMachine(PluginURL, InProtocolOptions);
 	check(StateMachine);
 
-	//We may need to update our PluginURL to force certain metadata changes to facilitate this uninstall
-	//This tracks what URL we actually will pass in to the terminate as we can rely on the fact that Terminate
-	//will update any important Metadata from this new URL before beginning it's terminate
-	FString PluginURLForTerminate = PluginURL;
+	// We may need to update our ProtocolOptions to force certain metadata changes to facilitate this uninstall
+	FGameFeatureProtocolOptions ProtocolOptions = StateMachine->GetProtocolOptions();
 
-	//InstallBundle Protocol GameFeatures may need to change their metadata to force this uninstall
-	if (UGameFeaturesSubsystem::IsPluginURLProtocol(PluginURL, EGameFeaturePluginProtocol::InstallBundle))
+	// InstallBundle Protocol GameFeatures may need to change their metadata to force this uninstall
+	if (StateMachine->GetPluginIdentifier().GetPluginProtocol() == EGameFeaturePluginProtocol::InstallBundle)
 	{
-		// Parse a duplicate version of our current Metadata from the URL
-		FInstallBundlePluginProtocolMetaData ProtocolMetadata;
-		if (!FInstallBundlePluginProtocolMetaData::FromString(PluginURL, ProtocolMetadata))
+		// It's possible that ParseURL hasn't been called yet so setup options here if needed.
+		if (!ProtocolOptions.HasSubtype<FInstallBundlePluginProtocolOptions>())
 		{
-			CompleteDelegate.ExecuteIfBound(UE::GameFeatures::FResult(MakeError(UE::GameFeatures::SubsystemErrorNamespace + UE::GameFeatures::CommonErrorCodes::BadURL)));
+			ensureMsgf(ProtocolOptions.HasSubtype<FNull>(), TEXT("Protocol options type is incorrect for URL %s"), *PluginURL);
+			ProtocolOptions.SetSubtype<FInstallBundlePluginProtocolOptions>();
 		}
 
 		// Need to force on bUninstallBeforeTerminate if it wasn't already set to on in our Metadata
-		if (!ProtocolMetadata.bUninstallBeforeTerminate)
+		FInstallBundlePluginProtocolOptions& InstallBundleOptions = ProtocolOptions.GetSubtype<FInstallBundlePluginProtocolOptions>();
+		if (!InstallBundleOptions.bUninstallBeforeTerminate)
 		{
-			ProtocolMetadata.bUninstallBeforeTerminate = true;
-			
-			FString PluginFilename;
-
-			//Try and pull PluginFilename from the StateMachine first, but this may not be set yet
-			//as this may be running too early before we have parsed the URL
-			StateMachine->GetPluginFilename(PluginFilename);
-			if (PluginFilename.IsEmpty())
-			{
-				//The PluginIdentifyingString is currently just the PluginFilename so we can fallback to that
-				PluginFilename = StateMachine->GetPluginIdentifier().GetIdentifyingString();
-			}
-			check(!PluginFilename.IsEmpty());
-
-			PluginURLForTerminate = GetPluginURL_InstallBundleProtocol(PluginFilename, ProtocolMetadata);
+			InstallBundleOptions.bUninstallBeforeTerminate = true;
 		}
 	}
 
-	//Weird flow here because we need to do a few tasks asynchronously
-	// Update URL   -->    Call to set destination to Uninstall --> After we get to Uninstall go to Terminate
-	// (Called Directly)	   (UninstallTransitionLambda)              (StartTerminateLambda)
+	// Weird flow here because we need to do a few tasks asynchronously
+	// 1) Update Protocol Options   -->   2) Call to set destination to Uninstall --> 3) After we get to Uninstall go to Terminate
 
-	// THIRD:
-	//Lambda that will kick off the actual Terminate after we successfully transition to Uninstalled state
-	const FGameFeaturePluginTerminateComplete StartTerminateLambda = FGameFeaturePluginTerminateComplete::CreateWeakLambda(this,
-		[this, PluginURLForTerminate, CompleteDelegate](const UE::GameFeatures::FResult& Result)
+	// FIRST:
+	// If we need to update our ProtocolOptions, do that first before starting the Uninstall. This allows us to update
+	// options that might be important on the way to Terminal if they are changed. EX: FInstallBundlePluginProtocolMetaData::bUninstallBeforeTerminate
+	if (ShouldUpdatePluginProtocolOptions(StateMachine, ProtocolOptions))
+	{
+		const UE::GameFeatures::FResult Result = UpdateGameFeatureProtocolOptions(StateMachine, ProtocolOptions);
+		if (Result.HasError())
 		{
+			CompleteDelegate.ExecuteIfBound(Result);
+			return;
+		}
+	}
+
+	// SECOND:
+	// Kick off the Uninstall destination after updating our options if necessary
+	ChangeGameFeatureDestination(StateMachine, ProtocolOptions, FGameFeaturePluginStateRange(EGameFeaturePluginState::Uninstalled),
+		FGameFeaturePluginTerminateComplete::CreateWeakLambda(this, [this, PluginURL, CompleteDelegate](const UE::GameFeatures::FResult& Result)
+		{
+			// THIRD:
+			// Kick off the actual Terminate after we successfully transition to Uninstalled state
 			if (Result.HasValue())
 			{
-				TerminateGameFeaturePlugin(PluginURLForTerminate, CompleteDelegate);
+				TerminateGameFeaturePlugin(PluginURL, CompleteDelegate);
 			}
 			//If we failed just bubble error up
 			else
 			{
 				CompleteDelegate.ExecuteIfBound(Result);
 			}
-		});
-
-	// SECOND:
-	//Lambda that will kick off the Uninstall destination after updating our URL if necessary
-	const FGameFeaturePluginUpdateURLComplete UninstallTransitionLambda = FGameFeaturePluginUpdateURLComplete::CreateWeakLambda(this,
-		[this, PluginURLForTerminate, StartTerminateLambda](const UE::GameFeatures::FResult& Result)
-		{
-			UGameFeaturePluginStateMachine* StateMachine = FindGameFeaturePluginStateMachine(PluginURLForTerminate);
-			check(StateMachine);
-			ChangeGameFeatureDestination(StateMachine, FGameFeaturePluginStateRange(EGameFeaturePluginState::Uninstalled), StartTerminateLambda);
-		});
-
-
-	// FIRST:
-	//If we need to update our URLData, try to do that first before starting the Uninstall. This allows us to update
-	//URL Metadata flags that might be important on the way to Terminal if they are changed. EX: FInstallBundlePluginProtocolMetaData::bUninstallBeforeTerminate
-	if (ShouldUpdatePluginURLData(PluginURLForTerminate))
-	{
-		UpdateGameFeaturePluginURL(PluginURLForTerminate, UninstallTransitionLambda);
-	}
-	else
-	{
-		UninstallTransitionLambda.Execute(MakeValue());
-	}
+		}));
 }
 
 void UGameFeaturesSubsystem::TerminateGameFeaturePlugin(const FString& PluginURL)
@@ -1168,25 +1178,7 @@ void UGameFeaturesSubsystem::TerminateGameFeaturePlugin(const FString& PluginURL
 {
 	if (UGameFeaturePluginStateMachine* StateMachine = FindGameFeaturePluginStateMachine(PluginURL))
 	{
-		//Define a lambda that will kick off the actual Terminate
-		const FGameFeaturePluginUpdateURLComplete StartTerminateLambda = FGameFeaturePluginUpdateURLComplete::CreateWeakLambda(this, 
-			[this, PluginURL, CompleteDelegate](const UE::GameFeatures::FResult& Result)
-			{
-				UGameFeaturePluginStateMachine* StateMachine = FindGameFeaturePluginStateMachine(PluginURL);
-				check(StateMachine);
-				ChangeGameFeatureDestination(StateMachine, FGameFeaturePluginStateRange(EGameFeaturePluginState::Terminal), CompleteDelegate);
-			});
-
-		//If we need to update our URLData, try to do that first before starting the Terminate. This allows us to update
-		//URL Metadata flags that might be important on the way to Terminal if they are changed. EX: FInstallBundlePluginProtocolMetaData::bUninstallBeforeTerminate
-		if (ShouldUpdatePluginURLData(PluginURL))
-		{
-			UpdateGameFeaturePluginURL(PluginURL, StartTerminateLambda);
-		}
-		else
-		{
-			StartTerminateLambda.Execute(MakeValue());
-		}
+		ChangeGameFeatureDestination(StateMachine, FGameFeaturePluginStateRange(EGameFeaturePluginState::Terminal), CompleteDelegate);
 	}
 	else
 	{
@@ -1235,9 +1227,10 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugin(const TSharedRef<IPlug
 			const bool bShouldProcess = AdditionalFilter(Plugin->GetDescriptorFileName(), PluginDetails, BehaviorOptions);
 			if (bShouldProcess)
 			{
-				UGameFeaturePluginStateMachine* StateMachine = FindOrCreateGameFeaturePluginStateMachine(PluginURL);
+				UGameFeaturePluginStateMachine* StateMachine = FindOrCreateGameFeaturePluginStateMachine(PluginURL, FGameFeatureProtocolOptions());
 
-				const EBuiltInAutoState InitialAutoState = (BehaviorOptions.AutoStateOverride != EBuiltInAutoState::Invalid) ? BehaviorOptions.AutoStateOverride : PluginDetails.BuiltInAutoState;
+				const EBuiltInAutoState InitialAutoState = (BehaviorOptions.AutoStateOverride != EBuiltInAutoState::Invalid) ? 
+					BehaviorOptions.AutoStateOverride : PluginDetails.BuiltInAutoState;
 				
 				const EGameFeaturePluginState DestinationState = ConvertInitialFeatureStateToTargetState(InitialAutoState);
 
@@ -1650,29 +1643,43 @@ UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindGameFeaturePluginSta
 		GameFeaturePluginStateMachines.FindByHash(GetTypeHash(PluginIdentifier.GetIdentifyingString()), PluginIdentifier.GetIdentifyingString());
 	if (ExistingStateMachine)
 	{
-		UE_LOG(LogGameFeatures, VeryVerbose, TEXT("FOUND GameFeaturePlugin using PluginIdentifier:%.*s for PluginURL:%s"), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData(), *PluginIdentifier.GetFullPluginURL());
-		return *ExistingStateMachine;
+		EGameFeaturePluginProtocol ExpectedProtocol = (*ExistingStateMachine)->GetPluginIdentifier().GetPluginProtocol();
+		if (ensureMsgf(ExpectedProtocol == PluginIdentifier.GetPluginProtocol(), TEXT("Expected protocol %s for %s"), UE::GameFeatures::GameFeaturePluginProtocolPrefix(ExpectedProtocol), *PluginIdentifier.GetFullPluginURL()))
+		{
+			UE_LOG(LogGameFeatures, VeryVerbose, TEXT("FOUND GameFeaturePlugin using PluginIdentifier:%.*s for PluginURL:%s"), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData(), *PluginIdentifier.GetFullPluginURL());
+			return *ExistingStateMachine;
+		}
 	}
 	UE_LOG(LogGameFeatures, VeryVerbose, TEXT("NOT FOUND GameFeaturePlugin using PluginIdentifier:%.*s for PluginURL:%s"), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData(), *PluginIdentifier.GetFullPluginURL());
 
 	return nullptr;
 }
 
-UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindOrCreateGameFeaturePluginStateMachine(const FString& PluginURL)
+// Note: ProtocolOptions is not defaulted here. Any API call that could create a state machine should allow the user to pass ProtocolOptions to initialize the machine.
+// It is acceptable that user passes null options. 
+UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindOrCreateGameFeaturePluginStateMachine(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(GFP_FindOrCreateStateMachine);
 	FGameFeaturePluginIdentifier PluginIdentifier(PluginURL);
-	if (UGameFeaturePluginStateMachine* ExistingStateMachine = FindGameFeaturePluginStateMachine(PluginIdentifier))
+	TObjectPtr<UGameFeaturePluginStateMachine> const* ExistingStateMachine =
+		GameFeaturePluginStateMachines.FindByHash(GetTypeHash(PluginIdentifier.GetIdentifyingString()), PluginIdentifier.GetIdentifyingString());
+	if (ExistingStateMachine)
 	{
+		EGameFeaturePluginProtocol ExpectedProtocol = (*ExistingStateMachine)->GetPluginIdentifier().GetPluginProtocol();
+		ensureAlwaysMsgf(ExpectedProtocol == PluginIdentifier.GetPluginProtocol(), TEXT("Expected protocol %s for %s"), UE::GameFeatures::GameFeaturePluginProtocolPrefix(ExpectedProtocol), *PluginIdentifier.GetFullPluginURL());
+
+		// In this case, still return the existing machine, even if the protocol doesn't match. This function should never return null.
+		// There can only be one active instance of any machine.
+
 		UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Found GameFeaturePlugin StateMachine using Identifier:%.*s from PluginURL:%s"), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData(), *PluginURL);
-		return ExistingStateMachine;
+		return *ExistingStateMachine;
 	}
 
 	UE_LOG(LogGameFeatures, Display, TEXT("Creating GameFeaturePlugin StateMachine using Identifier:%.*s from PluginURL:%s"), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData(), *PluginURL);
 
 	UGameFeaturePluginStateMachine* NewStateMachine = NewObject<UGameFeaturePluginStateMachine>(this);
 	GameFeaturePluginStateMachines.Add(FString(PluginIdentifier.GetIdentifyingString()), NewStateMachine);
-	NewStateMachine->InitStateMachine(MoveTemp(PluginIdentifier));
+	NewStateMachine->InitStateMachine(MoveTemp(PluginIdentifier), ProtocolOptions);
 
 	return NewStateMachine;
 }
@@ -1709,6 +1716,11 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePluginComplete(const UE::Game
 
 void UGameFeaturesSubsystem::ChangeGameFeatureDestination(UGameFeaturePluginStateMachine* Machine, const FGameFeaturePluginStateRange& StateRange, FGameFeaturePluginChangeStateComplete CompleteDelegate)
 {
+	ChangeGameFeatureDestination(Machine, FGameFeatureProtocolOptions(), StateRange, CompleteDelegate);
+}
+
+void UGameFeaturesSubsystem::ChangeGameFeatureDestination(UGameFeaturePluginStateMachine* Machine, const FGameFeatureProtocolOptions& InProtocolOptions, const FGameFeaturePluginStateRange& StateRange, FGameFeaturePluginChangeStateComplete CompleteDelegate)
+{
 	const bool bSetDestination = Machine->SetDestination(StateRange,
 		FGameFeatureStateTransitionComplete::CreateUObject(this, &ThisClass::ChangeGameFeatureTargetStateComplete, CompleteDelegate));
 
@@ -1725,12 +1737,12 @@ void UGameFeaturesSubsystem::ChangeGameFeatureDestination(UGameFeaturePluginStat
 			*UE::GameFeatures::ToString(CurrDesitination.MinState), *UE::GameFeatures::ToString(CurrDesitination.MaxState));
 
 		// Try canceling any current transition, then retry
-		auto OnCanceled = [this, StateRange, CompleteDelegate](UGameFeaturePluginStateMachine* Machine) mutable
+		auto OnCanceled = [this, InProtocolOptions, StateRange, CompleteDelegate](UGameFeaturePluginStateMachine* Machine) mutable
 		{
 			// Special case for terminal state since it cannot be exited, we need to make a new machine
 			if (Machine->GetCurrentState() == EGameFeaturePluginState::Terminal)
 			{
-				UGameFeaturePluginStateMachine* NewMachine = FindOrCreateGameFeaturePluginStateMachine(Machine->GetPluginURL());
+				UGameFeaturePluginStateMachine* NewMachine = FindOrCreateGameFeaturePluginStateMachine(Machine->GetPluginURL(), InProtocolOptions);
 				checkf(NewMachine != Machine, TEXT("Game Feature Plugin %s should have already been removed from subsystem!"), *Machine->GetPluginURL());
 				Machine = NewMachine;
 			}
@@ -1784,14 +1796,22 @@ void UGameFeaturesSubsystem::FinishTermination(UGameFeaturePluginStateMachine* M
 	TerminalGameFeaturePluginStateMachines.RemoveSwap(Machine);
 }
 
-bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FString& PluginFilename, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines)
+bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FString& PluginFilename, const FGameFeatureProtocolOptions& InDepProtocolOptions, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines)
 {
 	FGameFeaturePluginDetails Details;
 	if (GetGameFeaturePluginDetails(PluginURL, PluginFilename, Details))
 	{
 		for (const FString& DependencyURL : Details.PluginDependencies)
 		{
-			UGameFeaturePluginStateMachine* Dependency = FindOrCreateGameFeaturePluginStateMachine(DependencyURL);
+			// Inherit dep protocol options if possible
+			FGameFeatureProtocolOptions DepProtocolOptions;
+			EGameFeaturePluginProtocol DepProtocol = UGameFeaturesSubsystem::GetPluginURLProtocol(DependencyURL);
+			if (DepProtocol == EGameFeaturePluginProtocol::InstallBundle && InDepProtocolOptions.HasSubtype<FInstallBundlePluginProtocolOptions>())
+			{
+				DepProtocolOptions = InDepProtocolOptions;
+			}
+
+			UGameFeaturePluginStateMachine* Dependency = FindOrCreateGameFeaturePluginStateMachine(DependencyURL, DepProtocolOptions);
 			check(Dependency);
 			OutDependencyMachines.Add(Dependency);
 		}
