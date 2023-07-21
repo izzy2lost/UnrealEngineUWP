@@ -43,12 +43,12 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		/// <param name="socket">Socket to read from</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task RunAsync(IComputeSocket socket, CancellationToken cancellationToken)
+		public async Task RunAsync(ComputeSocket socket, CancellationToken cancellationToken)
 		{
 			await RunAsync(socket, 0, 4 * 1024 * 1024, cancellationToken);
 		}
 
-		async Task RunAsync(IComputeSocket socket, int channelId, int bufferSize, CancellationToken cancellationToken)
+		async Task RunAsync(ComputeSocket socket, int channelId, int bufferSize, CancellationToken cancellationToken)
 		{
 			using (AgentMessageChannel channel = socket.CreateAgentMessageChannel(channelId, bufferSize, _logger))
 			{
@@ -152,7 +152,7 @@ namespace EpicGames.Horde.Compute
 			}
 		}
 
-		async Task ExecuteProcessAsync(IComputeSocket socket, AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, CancellationToken cancellationToken)
+		async Task ExecuteProcessAsync(ComputeSocket socket, AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, CancellationToken cancellationToken)
 		{
 			try
 			{
@@ -171,7 +171,7 @@ namespace EpicGames.Horde.Compute
 			}
 		}
 
-		async Task ExecuteProcessWindowsAsync(IComputeSocket socket, AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, CancellationToken cancellationToken)
+		async Task ExecuteProcessWindowsAsync(ComputeSocket socket, AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, CancellationToken cancellationToken)
 		{
 			Dictionary<string, string?> newEnvVars = new Dictionary<string, string?>();
 			if (envVars != null)
@@ -198,7 +198,7 @@ namespace EpicGames.Horde.Compute
 			_logger.LogInformation("Child process has shut down");
 		}
 
-		async Task ProcessIpcMessagesAsync(IComputeSocket socket, IComputeBufferReader ipcReader, CancellationToken cancellationToken)
+		async Task ProcessIpcMessagesAsync(ComputeSocket socket, IComputeBufferReader ipcReader, CancellationToken cancellationToken)
 		{
 			List<(IpcMessage, int, SharedMemoryBuffer)> buffers = new();
 			try

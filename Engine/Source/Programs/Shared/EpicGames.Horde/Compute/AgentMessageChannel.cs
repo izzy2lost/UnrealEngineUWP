@@ -74,7 +74,7 @@ namespace EpicGames.Horde.Compute
 			public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
 		}
 
-		readonly IComputeSocket _socket;
+		readonly ComputeSocket _socket;
 		readonly IComputeBufferReader _recvBufferReader;
 		readonly IComputeBufferWriter _sendBufferWriter;
 
@@ -107,7 +107,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="recvBuffer"></param>
 		/// <param name="sendBuffer"></param>
 		/// <param name="logger">Logger for diagnostic output</param>
-		public AgentMessageChannel(IComputeSocket socket, int channelId, IComputeBuffer recvBuffer, IComputeBuffer sendBuffer, ILogger logger)
+		public AgentMessageChannel(ComputeSocket socket, int channelId, IComputeBuffer recvBuffer, IComputeBuffer sendBuffer, ILogger logger)
 		{
 			_socket = socket;
 			_socket.AttachRecvBuffer(channelId, recvBuffer.Writer);
@@ -210,7 +210,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="socket">Socket to create a channel for</param>
 		/// <param name="channelId">Identifier for the channel</param>
 		/// <param name="logger">Logger for the channel</param>
-		public static AgentMessageChannel CreateAgentMessageChannel(this IComputeSocket socket, int channelId, ILogger logger)
+		public static AgentMessageChannel CreateAgentMessageChannel(this ComputeSocket socket, int channelId, ILogger logger)
 			=> socket.CreateAgentMessageChannel(channelId, 65536, logger);
 
 		/// <summary>
@@ -220,7 +220,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="channelId">Identifier for the channel</param>
 		/// <param name="bufferSize">Size of the send and receive buffer</param>
 		/// <param name="logger">Logger for the channel</param>
-		public static AgentMessageChannel CreateAgentMessageChannel(this IComputeSocket socket, int channelId, int bufferSize, ILogger logger)
+		public static AgentMessageChannel CreateAgentMessageChannel(this ComputeSocket socket, int channelId, int bufferSize, ILogger logger)
 			=> socket.CreateAgentMessageChannel(channelId, bufferSize, bufferSize, logger);
 
 		/// <summary>
@@ -231,7 +231,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="sendBufferSize">Size of the send buffer</param>
 		/// <param name="recvBufferSize">Size of the recieve buffer</param>
 		/// <param name="logger">Logger for the channel</param>
-		public static AgentMessageChannel CreateAgentMessageChannel(this IComputeSocket socket, int channelId, int sendBufferSize, int recvBufferSize, ILogger logger)
+		public static AgentMessageChannel CreateAgentMessageChannel(this ComputeSocket socket, int channelId, int sendBufferSize, int recvBufferSize, ILogger logger)
 		{
 			using IComputeBuffer sendBuffer = new PooledBuffer(sendBufferSize);
 			using IComputeBuffer recvBuffer = new PooledBuffer(recvBufferSize);

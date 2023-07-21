@@ -8,10 +8,102 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Compute.Buffers;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Compute
 {
+	/// <summary>
+	/// Socket for sending and reciving data using a "push" model. The application can attach multiple writers to accept received data.
+	/// </summary>
+	public abstract class ComputeSocket
+	{
+		/// <summary>
+		/// Attaches a buffer to receive data.
+		/// </summary>
+		/// <param name="channelId">Channel to receive data on</param>
+		/// <param name="recvBufferWriter">Writer for the buffer to store received data</param>
+		public abstract void AttachRecvBuffer(int channelId, IComputeBufferWriter recvBufferWriter);
+
+		/// <summary>
+		/// Attaches a buffer to send data.
+		/// </summary>
+		/// <param name="channelId">Channel to receive data on</param>
+		/// <param name="sendBufferReader">Reader for the buffer to send data from</param>
+		public abstract void AttachSendBuffer(int channelId, IComputeBufferReader sendBufferReader);
+	}
+
+	internal enum IpcMessage
+	{
+		AttachRecvBuffer = 0,
+		AttachSendBuffer = 1,
+	}
+
+	/// <summary>
+	/// Provides functionality for attaching buffers for compute workers 
+	/// </summary>
+	public sealed class WorkerComputeSocket : ComputeSocket, IDisposable
+	{
+		/// <summary>
+		/// Name of the environment variable for passing the name of the compute channel
+		/// </summary>
+		public const string IpcEnvVar = "UE_HORDE_COMPUTE_IPC";
+
+		readonly SharedMemoryBuffer _commandBuffer;
+
+		/// <summary>
+		/// Creates a socket for a worker
+		/// </summary>
+		private WorkerComputeSocket(SharedMemoryBuffer commandBuffer)
+		{
+			_commandBuffer = commandBuffer;
+		}
+
+		/// <summary>
+		/// Opens a socket which allows a worker to communicate with the Horde Agent
+		/// </summary>
+		public static WorkerComputeSocket Open()
+		{
+			string? baseName = Environment.GetEnvironmentVariable(IpcEnvVar);
+			if (baseName == null)
+			{
+				throw new InvalidOperationException($"Environment variable {IpcEnvVar} is not defined; cannot connect as worker.");
+			}
+
+			SharedMemoryBuffer commandBuffer = SharedMemoryBuffer.OpenExisting(baseName);
+			return new WorkerComputeSocket(commandBuffer);
+		}
+
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			_commandBuffer.Dispose();
+		}
+
+		/// <inheritdoc/>
+		public override void AttachRecvBuffer(int channelId, IComputeBufferWriter writer)
+		{
+			string bufferName = SharedMemoryBuffer.GetName(writer);
+			AttachBuffer(IpcMessage.AttachRecvBuffer, channelId, bufferName);
+		}
+
+		/// <inheritdoc/>
+		public override void AttachSendBuffer(int channelId, IComputeBufferReader reader)
+		{
+			string bufferName = SharedMemoryBuffer.GetName(reader);
+			AttachBuffer(IpcMessage.AttachSendBuffer, channelId, bufferName);
+		}
+
+		void AttachBuffer(IpcMessage message, int channelId, string bufferName)
+		{
+			MemoryWriter writer = new MemoryWriter(_commandBuffer.Writer.GetWriteBuffer());
+			writer.WriteUnsignedVarInt((int)message);
+			writer.WriteUnsignedVarInt(channelId);
+			writer.WriteString(bufferName);
+			_commandBuffer.Writer.AdvanceWritePosition(writer.Length);
+		}
+	}
+
 	/// <summary>
 	/// Enum identifying which end of the socket a particular machine is
 	/// </summary>
@@ -31,7 +123,7 @@ namespace EpicGames.Horde.Compute
 	/// <summary>
 	/// Manages a set of readers and writers to buffers across a transport layer
 	/// </summary>
-	public class ComputeSocket : IComputeSocket, IAsyncDisposable
+	public class RemoteComputeSocket : ComputeSocket, IAsyncDisposable
 	{
 		enum ControlMessageType
 		{
@@ -63,7 +155,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="transport">Transport to communicate with the remote</param>
 		/// <param name="endpoint">Tag for log messages</param>
 		/// <param name="logger">Logger for trace output</param>
-		public ComputeSocket(ComputeTransport transport, ComputeSocketEndpoint endpoint, ILogger logger)
+		public RemoteComputeSocket(ComputeTransport transport, ComputeSocketEndpoint endpoint, ILogger logger)
 		{
 			_transport = transport;
 			_endpoint = endpoint;
@@ -262,7 +354,7 @@ namespace EpicGames.Horde.Compute
 		}
 
 		/// <inheritdoc/>
-		public void AttachRecvBuffer(int channelId, IComputeBufferWriter recvBufferWriter)
+		public override void AttachRecvBuffer(int channelId, IComputeBufferWriter recvBufferWriter)
 		{
 			bool complete;
 			lock (_lockObject)
@@ -300,7 +392,7 @@ namespace EpicGames.Horde.Compute
 		}
 
 		/// <inheritdoc/>
-		public void AttachSendBuffer(int channelId, IComputeBufferReader sendBufferReader)
+		public override void AttachSendBuffer(int channelId, IComputeBufferReader sendBufferReader)
 		{
 			sendBufferReader = sendBufferReader.AddRef();
 			lock (_lockObject)

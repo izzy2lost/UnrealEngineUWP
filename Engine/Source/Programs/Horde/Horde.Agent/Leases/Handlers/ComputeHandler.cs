@@ -96,7 +96,7 @@ namespace Horde.Agent.Leases.Handlers
 					await using BackgroundTask timeoutTask = BackgroundTask.StartNew(ctx => TickTimeoutAsync(transport, cts, ctx));
 					try
 					{
-						await using (ComputeSocket socket = new ComputeSocket(transport, ComputeSocketEndpoint.Local, _logger))
+						await using (RemoteComputeSocket socket = new RemoteComputeSocket(transport, ComputeSocketEndpoint.Local, _logger))
 						{
 							DirectoryReference sandboxDir = DirectoryReference.Combine(session.WorkingDir, "Sandbox", leaseId);
 							try

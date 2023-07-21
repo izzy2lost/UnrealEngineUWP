@@ -105,7 +105,7 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		/// <param name="socket">Socket to use for sending data</param>
 		/// <param name="channelId">Channel id to send and receive data</param>
-		public static ComputeChannel CreateChannel(this IComputeSocket socket, int channelId)
+		public static ComputeChannel CreateChannel(this ComputeSocket socket, int channelId)
 		{
 			using SharedMemoryBuffer recvBuffer = SharedMemoryBuffer.CreateNew(null, 65536);
 			using SharedMemoryBuffer sendBuffer = SharedMemoryBuffer.CreateNew(null, 65536);
@@ -119,7 +119,7 @@ namespace EpicGames.Horde.Compute
 		/// <param name="channelId">Channel id to send and receive data</param>
 		/// <param name="recvBuffer">Buffer for receiving data</param>
 		/// <param name="sendBuffer">Buffer for sending data</param>
-		public static ComputeChannel CreateChannel(this IComputeSocket socket, int channelId, IComputeBuffer recvBuffer, IComputeBuffer sendBuffer)
+		public static ComputeChannel CreateChannel(this ComputeSocket socket, int channelId, IComputeBuffer recvBuffer, IComputeBuffer sendBuffer)
 		{
 			socket.AttachRecvBuffer(channelId, recvBuffer.Writer);
 			socket.AttachSendBuffer(channelId, sendBuffer.Reader);

@@ -25,7 +25,7 @@ namespace EpicGames.Horde.Compute
 		/// <summary>
 		/// Socket to communicate with the remote
 		/// </summary>
-		ComputeSocket Socket { get; }
+		RemoteComputeSocket Socket { get; }
 
 		/// <summary>
 		/// Relinquish the lease gracefully
