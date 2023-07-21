@@ -134,6 +134,12 @@ void FShaderSymbolExport::Initialize()
 
 void FShaderSymbolExport::WriteSymbolData(const FString& Filename, const FString& DebugData, TConstArrayView<uint8> Contents)
 {
+	// No writing is possible if the Filename is empty
+	if (Filename.IsEmpty())
+	{
+		return;
+	}
+
 	// Skip this symbol data if we've already exported it before.
 	bool bAlreadyInSet = false;
 	ExportedShaders.Add(Filename, &bAlreadyInSet);
