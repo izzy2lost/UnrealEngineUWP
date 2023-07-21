@@ -124,6 +124,8 @@
 #include "Settings/ProjectPackagingSettings.h"
 #include "ShaderCodeLibrary.h"
 #include "ShaderCompiler.h"
+#include "ShaderStats.h"
+#include "ShaderStatsCollector.h"
 #include "ShaderLibraryChunkDataGenerator.h"
 #include "PipelineCacheChunkDataGenerator.h"
 #include "String/Find.h"
@@ -9028,6 +9030,15 @@ void UCookOnTheFlyServer::BeginCookStartShaderCodeLibrary(FBeginCookContext& Beg
 		}
 	}
 
+	if (CookDirector)
+	{
+		CookDirector->Register(new FShaderStatsAggregator(FShaderStatsAggregator::EMode::Director));
+	}
+	else if (CookWorkerClient)
+	{
+		CookWorkerClient->Register(new FShaderStatsAggregator(FShaderStatsAggregator::EMode::Worker));
+	}
+
 	if (!IsCookWorkerMode())
 	{
 		CleanShaderCodeLibraries();
@@ -9833,9 +9844,11 @@ void UCookOnTheFlyServer::PrintFinishStats()
 
 void UCookOnTheFlyServer::PrintDetailedCookStats()
 {
-	if (GShaderCompilerStats)
+	// Stats are aggregated on the director, so writing the stats CSVs is only needed on the director 
+	// (or single cook process in the sp cook case)
+	if (!IsCookWorkerMode())
 	{
-		GShaderCompilerStats->WriteStats();
+		FShaderStatsFunctions::WriteShaderStats();
 	}
 
 	COOK_STAT(

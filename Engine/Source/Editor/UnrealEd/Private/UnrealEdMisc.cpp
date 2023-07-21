@@ -549,7 +549,7 @@ void FUnrealEdMisc::OnInit()
 
 	FEditorDelegates::OnEditorInitialized.Broadcast(TotalEditorStartupTime);
 	
-	GShaderCompilingManager->PrintStats(true);
+	GShaderCompilingManager->PrintStats();
 }
 
 FString FUnrealEdMisc::FindMapFileFromPartialName(const FString& PartialMapName)

@@ -30,6 +30,8 @@
 #include "Hash/Blake3.h"
 #include "SceneTypes.h"
 
+class FCbObjectView;
+class FCbWriter;
 class FVertexFactoryType;
 class IDistributedBuildController;
 class FMaterialShaderMap;
@@ -37,6 +39,7 @@ class FMaterialShaderMap;
 DECLARE_LOG_CATEGORY_EXTERN(LogShaderCompilers, Log, All);
 
 class FShaderCompileJob;
+class FShaderCompilerStats;
 class FShaderPipelineCompileJob;
 struct FAnalyticsEventAttribute;
 
@@ -66,10 +69,8 @@ public:
 	/** Adds the job to cache. */
 	void AddToCacheAndProcessPending(FShaderCommonCompileJob* FinishedJob);
 
-	/** Log caching statistics.*/
-	void LogCachingStats();
-
-	void GatherAnalytics(const FString& BaseName, TArray<FAnalyticsEventAttribute>& Attributes) const;
+	/** Retrieve caching statistics. */
+	void GetCachingStats(FShaderCompilerStats& OutStats) const;
 
 	int32 GetNumPendingJobs(EShaderCompileJobPriority InPriority) const;
 
@@ -303,6 +304,35 @@ public:
 		uint32 CompiledDouble = 0;
 		uint32 CookedDouble = 0;
 		float CompileTime = 0.f;
+
+		FShaderStats& operator+=(const FShaderStats& Other)
+		{
+			if (Compiled)
+			{
+				CompiledDouble += Other.Compiled;
+			}
+			else
+			{
+				Compiled += Other.Compiled;
+			}
+
+			if (Cooked)
+			{
+				CookedDouble += Other.Cooked;
+			}
+			else
+			{
+				Cooked += Other.Cooked;
+			}
+
+			CompiledDouble += Other.CompiledDouble;
+			CookedDouble += Other.CookedDouble;
+			CompileTime += Other.CompileTime;
+
+			PermutationCompilations.Append(Other.PermutationCompilations);
+
+			return *this;
+		}
 	};
 	using ShaderCompilerStats = TMap<FString, FShaderStats>;
 
@@ -315,6 +345,18 @@ public:
 		float TotalPreprocessTime = 0.0f;
 		int32 NumCompiled = 0;
 		float AverageCompileTime = 0.0f;	// stored explicitly as an optimization
+
+		FShaderTimings& operator+=(const FShaderTimings& Other)
+		{
+			MinCompileTime = FMath::Min(MinCompileTime, Other.MinCompileTime);
+			MaxCompileTime = FMath::Max(MaxCompileTime, Other.MaxCompileTime);
+			TotalCompileTime += Other.TotalCompileTime;
+			TotalPreprocessTime += Other.TotalPreprocessTime;
+			NumCompiled += Other.NumCompiled;
+			AverageCompileTime = (TotalCompileTime + Other.TotalCompileTime) / static_cast<float>(NumCompiled + Other.NumCompiled);
+
+			return *this;
+		}
 	};
 
 	ENGINE_API void RegisterCookedShaders(uint32 NumCooked, float CompileTime, EShaderPlatform Platform, const FString MaterialPath, FString PermutationString = FString(""));
@@ -323,6 +365,11 @@ public:
 	ENGINE_API void WriteStats(class FOutputDevice* Ar = nullptr);
 	ENGINE_API void WriteStatSummary();
 	ENGINE_API uint32 GetTotalShadersCompiled();
+
+	ENGINE_API void Aggregate(FShaderCompilerStats& Other);
+	ENGINE_API void WriteToCompactBinary(FCbWriter& Writer);
+	ENGINE_API void ReadFromCompactBinary(FCbObjectView& Reader);
+	inline void SetMultiProcessAggregated() { bMultiProcessAggregated = true; }
 
 	void AddDDCMiss(uint32 NumMisses);
 	uint32 GetDDCMisses() const;
@@ -351,68 +398,135 @@ public:
 	/** Informs statistics about a new job batch, so we can tally up batches. */
 	void RegisterJobBatch(int32 NumJobs, EExecutionType ExecType);
 
-	void GatherAnalytics(const FString& BaseName, TArray<FAnalyticsEventAttribute>& Attributes);
+	ENGINE_API void GatherAnalytics(const FString& BaseName, TArray<FAnalyticsEventAttribute>& Attributes);
 
 private:
+	friend class FShaderJobCache;
 	FCriticalSection CompileStatsLock;
 	TSparseArray<ShaderCompilerStats> CompileStats;
 
-	/** This tracks accumulated wait time from local workers during the lifetime of the stats.
-	 *
-	 * Wait time is only counted for local workers that are alive and not between their invocations
-	 */
-	double AccumulatedLocalWorkerIdleTime = 0.0;
+	struct FCounters
+	{
+		/** This tracks accumulated wait time from local workers during the lifetime of the stats.
+		 *
+		 * Wait time is only counted for local workers that are alive and not between their invocations
+		 */
+		double AccumulatedLocalWorkerIdleTime = 0.0;
 
-	/** How many times we registered idle time? */
-	double TimesLocalWorkersWereIdle = 0;
+		/** How many times we registered idle time? */
+		double TimesLocalWorkersWereIdle = 0;
 
-	/** Number of jobs assigned to workers, no matter if they completed or not - used to average pending time. */
-	int64 JobsAssigned = 0;
+		/** Number of jobs assigned to workers, no matter if they completed or not - used to average pending time. */
+		int64 JobsAssigned = 0;
 
-	/** Total number jobs completed. */
-	int64 JobsCompleted = 0;
+		/** Total number jobs completed. */
+		int64 JobsCompleted = 0;
 
-	/** Amount of time a job had to spent in pending queue (i.e. waiting to be assigned to a worker). */
-	double AccumulatedPendingTime = 0;
+		/** Amount of time a job had to spent in pending queue (i.e. waiting to be assigned to a worker). */
+		double AccumulatedPendingTime = 0;
 
-	/** Max amount of time any single job was pending (waiting to be assigned to a worker). */
-	double MaxPendingTime = 0;
+		/** Max amount of time any single job was pending (waiting to be assigned to a worker). */
+		double MaxPendingTime = 0;
 
-	/** Amount of time job spent being processed by the worker. */
-	double AccumulatedJobExecutionTime = 0;
+		/** Amount of time job spent being processed by the worker. */
+		double AccumulatedJobExecutionTime = 0;
 
-	/** Max amount of time any single job spent being processed by the worker. */
-	double MaxJobExecutionTime = 0;
+		/** Max amount of time any single job spent being processed by the worker. */
+		double MaxJobExecutionTime = 0;
 
-	/** Amount of time job spent being processed overall. */
-	double AccumulatedJobLifeTime = 0;
+		/** Amount of time job spent being processed overall. */
+		double AccumulatedJobLifeTime = 0;
 
-	/** Max amount of time any single job spent being processed overall. */
-	double MaxJobLifeTime = 0;
+		/** Max amount of time any single job spent being processed overall. */
+		double MaxJobLifeTime = 0;
 
-	/** Number of local job batches seen. */
-	int64 LocalJobBatchesSeen = 0;
+		/** Number of local job batches seen. */
+		int64 LocalJobBatchesSeen = 0;
 
-	/** Total jobs in local job batches. */
-	int64 TotalJobsReportedInLocalJobBatches = 0;
+		/** Total jobs in local job batches. */
+		int64 TotalJobsReportedInLocalJobBatches = 0;
 
-	/** Number of distributed job batches seen. */
-	int64 DistributedJobBatchesSeen = 0;
+		/** Number of distributed job batches seen. */
+		int64 DistributedJobBatchesSeen = 0;
 
-	/** Total jobs in local job batches. */
-	int64 TotalJobsReportedInDistributedJobBatches = 0;
+		/** Total jobs in local job batches. */
+		int64 TotalJobsReportedInDistributedJobBatches = 0;
 
-	/** Size of the smallest output shader code. */
-	int32 MinShaderCodeSize = 0;
+		/** Size of the smallest output shader code. */
+		int32 MinShaderCodeSize = 0;
 
-	/** Size of the largest output shader code. */
-	int32 MaxShaderCodeSize = 0;
+		/** Size of the largest output shader code. */
+		int32 MaxShaderCodeSize = 0;
 
-	/** Total accumulated size of all output shader codes. */
-	uint64 AccumulatedShaderCodeSize = 0;
+		/** Total accumulated size of all output shader codes. */
+		uint64 AccumulatedShaderCodeSize = 0;
 
-	/** Number of accumulated output shader codes. */
-	uint64 NumAccumulatedShaderCodes = 0;
+		/** Number of accumulated output shader codes. */
+		uint64 NumAccumulatedShaderCodes = 0;
+
+		/** Total number of DDC misses on shader maps. */
+		uint32 ShaderMapDDCMisses = 0;
+
+		/** Total number of DDC hits on shader maps. */
+		uint32 ShaderMapDDCHits = 0;
+
+		/** Total number of job cache query attempts. */
+		uint64 TotalCacheSearchAttempts = 0;
+
+		/** Total number of hits in the job cache (i.e. input hashes seen >1 time) */
+		uint64 TotalCacheHits = 0;
+
+		/** Total number of unique input hashes seen in job cache queries */
+		uint64 UniqueCacheInputHashes = 0;
+
+		/** Total number of unique job outputs stored in the cache.
+		  * Outputs are deduplicated based on a content hash so this number is in practice smaller than UniqueCacheInputHashes.
+		  */
+		uint64 UniqueCacheOutputs = 0;
+
+		/** Total amount of memory currently used by the job cache */
+		uint64 CacheMemUsed = 0;
+
+		/** Memory budget allocated for the job cache */
+		uint64 CacheMemBudget = 0;
+
+		FCounters& operator+=(const FCounters& Other)
+		{
+			AccumulatedLocalWorkerIdleTime += Other.AccumulatedLocalWorkerIdleTime;
+			TimesLocalWorkersWereIdle += Other.TimesLocalWorkersWereIdle;
+			JobsAssigned += Other.JobsAssigned;
+			JobsCompleted += Other.JobsCompleted;
+			AccumulatedPendingTime += Other.AccumulatedPendingTime;
+			MaxPendingTime = FMath::Max(Other.MaxPendingTime, MaxPendingTime);
+			AccumulatedJobExecutionTime += Other.AccumulatedJobExecutionTime;
+			MaxJobExecutionTime = FMath::Max(Other.MaxJobExecutionTime, MaxJobExecutionTime);
+			AccumulatedJobLifeTime += Other.AccumulatedJobLifeTime;
+			MaxJobLifeTime = FMath::Max(Other.MaxJobLifeTime, MaxJobLifeTime);
+			LocalJobBatchesSeen += Other.LocalJobBatchesSeen;
+			TotalJobsReportedInLocalJobBatches += Other.TotalJobsReportedInLocalJobBatches;
+			DistributedJobBatchesSeen += Other.DistributedJobBatchesSeen;
+			TotalJobsReportedInDistributedJobBatches += Other.TotalJobsReportedInDistributedJobBatches;
+			if (Other.MinShaderCodeSize > 0)
+			{
+				MinShaderCodeSize = (MinShaderCodeSize > 0 ? FMath::Min(MinShaderCodeSize, Other.MinShaderCodeSize) : Other.MinShaderCodeSize);
+			}
+			MaxShaderCodeSize = FMath::Max(Other.MaxShaderCodeSize, MaxShaderCodeSize);
+			AccumulatedShaderCodeSize += Other.AccumulatedShaderCodeSize;
+			NumAccumulatedShaderCodes += Other.NumAccumulatedShaderCodes;
+			ShaderMapDDCMisses += Other.ShaderMapDDCMisses;
+			ShaderMapDDCHits += Other.ShaderMapDDCHits;
+			TotalCacheSearchAttempts += Other.TotalCacheSearchAttempts;
+			TotalCacheHits += Other.TotalCacheHits;
+			UniqueCacheInputHashes += Other.UniqueCacheInputHashes;
+			UniqueCacheOutputs += Other.UniqueCacheOutputs;
+			CacheMemUsed += Other.CacheMemUsed;
+			CacheMemBudget += Other.CacheMemBudget;
+
+			return *this;
+		}
+	};
+
+	FCounters Counters;
 
 	/** Accumulates the job lifetimes without overlaps */
 	TArray<TInterval<double>> JobLifeTimeIntervals;
@@ -420,11 +534,7 @@ private:
 	/** Map of shader names to their compilation timings */
 	TMap<FString, FShaderTimings> ShaderTimings;
 
-	/** Total number of DDC misses on shader maps. */
-	uint32 ShaderMapDDCMisses = 0;
-
-	/** Total number of DDC hits on shader maps. */
-	uint32 ShaderMapDDCHits = 0;
+	bool bMultiProcessAggregated = false;
 };
 
 
@@ -592,7 +702,8 @@ public:
 	ENGINE_API int32 GetNumPendingJobs() const;
 	ENGINE_API int32 GetNumOutstandingJobs() const;
 
-	ENGINE_API void GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes) const;
+	UE_DEPRECATED(5.4, "FShaderCompilingManager::GatherAnalytics is deprecated; use GatherShaderAnalytics function from ShaderAnalytics.h instead")
+	inline void GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes) const {}
 
 	/** 
 	 * Returns whether to display a notification that shader compiling is happening in the background. 
@@ -758,9 +869,16 @@ public:
 
 	/**
 	 * Prints stats related to shader compilation to the log.
-	 * @param bForceLogIgnoringTimeInverval - this function is called often, so not every invocation normally will actually log the stats. This parameter being true bypasses this pacing.
 	 */
-	ENGINE_API void PrintStats(bool bForceLogIgnoringTimeInverval = false);
+	ENGINE_API void PrintStats();
+
+	UE_DEPRECATED(5.4, "PrintStats no longer accepts a 'force' boolean since printing on an interval has become the responsibility of FShaderStatsCollector. Call the no-argument version instead.")
+	inline void PrintStats(bool bForceLogIgnoringTimeInterval) { PrintStats(); }
+
+	/** Retrieve compiler statistics for all compilation done in this process.
+	  *	Note that this will not include stats for any compilation that occurs in worker processes in a multiprocess cook. 
+	  */
+	ENGINE_API void GetLocalStats(FShaderCompilerStats & OutStats) const;
 
 	/** 
 	 * Processes completed asynchronous shader maps, and assigns them to relevant materials.
