@@ -69,7 +69,6 @@ FSlateColor SOutlinerColumnInnerBorder::GetBackgroundTint() const
 	bool bIsOutlinerItemSelectedDirectly = EnumHasAnyFlags(SelectionState, EOutlinerSelectionState::SelectedDirectly);
 	bool bIsOutlinerItemHovered = Editor->GetOutliner()->GetHoveredItem() == OutlinerItem;
 
-	// float Opacity = ((bIsOutlinerItemSelectedDirectly || bIsOutlinerItemHovered) && !bIsMouseOverInnerBorder) ? 0.f : .4f;
 	float Opacity = .4f;
 	return FLinearColor(0.f, 0.f, 0.f, Opacity);
 }

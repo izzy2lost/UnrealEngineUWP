@@ -51,7 +51,10 @@ public:
 	virtual bool IsColumnVisibleByDefault() const { return true; }
 
 	/* Gets whether or not this column is supported by a given Sequencer */
-	virtual bool SupportsSequence(UMovieSceneSequence* InSequence) const = 0;
+	virtual bool SupportsSequence(UMovieSceneSequence* InSequence) const { return true; }
+
+	/* Gets whether or not a widget should be generated for a given item in the outliner column. */
+	virtual bool IsItemCompatibleWithColumn(const UE::Sequencer::FCreateOutlinerColumnParams& InParams) const = 0;
 
 	/* Gets the widget created for each item within the SOutlinerView, column widgets must be fixed width */
 	virtual TSharedRef<SWidget> CreateColumnWidget(const UE::Sequencer::FCreateOutlinerColumnParams& InParams) const = 0;

@@ -5,8 +5,12 @@
 #include "MVVM/ViewModels/SequencerTrackAreaViewModel.h"
 #include "MVVM/Selection/Selection.h"
 #include "MVVM/CurveEditorExtension.h"
+#include "MVVM/LockEditorExtension.h"
+#include "MVVM/MuteEditorExtension.h"
+#include "MVVM/PinEditorExtension.h"
 #include "MVVM/Extensions/IOutlinerExtension.h"
 #include "MVVM/SharedViewModelData.h"
+#include "MVVM/SoloEditorExtension.h"
 #include "ISequencerModule.h"
 #include "Sequencer.h"
 #include "MovieSceneSequenceID.h"
@@ -46,6 +50,11 @@ void FSequencerEditorViewModel::PreInitializeEditorImpl()
 	{
 		AddDynamicExtension(FCurveEditorExtension::ID);
 	}
+
+	AddDynamicExtension(FLockEditorExtension::ID);
+	AddDynamicExtension(FMuteEditorExtension::ID);
+	AddDynamicExtension(FPinEditorExtension::ID);
+	AddDynamicExtension(FSoloEditorExtension::ID);
 }
 
 TSharedPtr<FViewModel> FSequencerEditorViewModel::CreateRootModelImpl()

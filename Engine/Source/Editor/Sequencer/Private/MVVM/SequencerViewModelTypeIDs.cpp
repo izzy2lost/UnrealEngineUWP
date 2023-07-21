@@ -25,10 +25,14 @@
 #include "MVVM/CurveEditorExtension.h"
 #include "MVVM/CurveEditorIntegrationExtension.h"
 #include "MVVM/FolderModelStorageExtension.h"
+#include "MVVM/LockEditorExtension.h"
+#include "MVVM/MuteEditorExtension.h"
 #include "MVVM/ObjectBindingModelStorageExtension.h"
+#include "MVVM/PinEditorExtension.h"
 #include "MVVM/TrackModelStorageExtension.h"
 #include "MVVM/TrackRowModelStorageExtension.h"
 #include "MVVM/SectionModelStorageExtension.h"
+#include "MVVM/SoloEditorExtension.h"
 
 
 namespace UE
@@ -65,8 +69,12 @@ UE_SEQUENCER_DEFINE_CASTABLE(FSequencerTrackAreaViewModel);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FCurveEditorExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FCurveEditorIntegrationExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FFolderModelStorageExtension);
+UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FLockEditorExtension);
+UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FMuteEditorExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FObjectBindingModelStorageExtension);
+UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FPinEditorExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FSectionModelStorageExtension);
+UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FSoloEditorExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FTrackModelStorageExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(FTrackRowModelStorageExtension);
 UE_SEQUENCER_DEFINE_VIEW_MODEL_TYPE_ID(ICurveEditorTreeItemExtension);
