@@ -32,5 +32,4 @@ public:
 	bool bDisableBugIt;
 	bool bDisablePIE;
 	bool bAdvancedMode;
-	FString DocURLOverride;
 };
