@@ -430,10 +430,6 @@ namespace UnrealBuildTool
 				{
 					return NameOverride;
 				}
-				else if (!bUseUnityBuild)
-				{
-					return DefaultName + "NonUnity";
-				}
 
 				return DefaultName;
 			}
@@ -531,6 +527,11 @@ namespace UnrealBuildTool
 		/// (this will throw an exception if there is more than one architecture specified)
 		/// </summary>
 		public UnrealArch Architecture => Architectures.SingleArchitecture;
+
+		/// <summary>
+		/// Intermediate environment. Determines if the intermediates end up in a different folder than normal.
+		/// </summary>
+		public UnrealIntermediateEnvironment IntermediateEnvironment;
 
 		/// <summary>
 		/// Path to the project file for the project containing this target.
@@ -1372,8 +1373,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Enables "include what you use" by default for modules in this target. Changes the default PCH mode for any module in this project to PCHUsageMode.UseExplicitOrSharedPCHs.
 		/// </summary>
-		[CommandLine("-IWYU")]
-		public bool bIWYU = false;
+		public bool bIWYU { get => IntermediateEnvironment == UnrealIntermediateEnvironment.IWYU; }
 
 		/// <summary>
 		/// Adds header files in included modules to the build.
@@ -1449,15 +1449,13 @@ namespace UnrealBuildTool
 		/// </summary>
 		public bool bUseUnityBuild
 		{
-			get => bUseUnityBuildOverride ?? !bEnableCppModules;
+			get => bUseUnityBuildOverride ?? IntermediateEnvironment == UnrealIntermediateEnvironment.Default && !bEnableCppModules;
 			set => bUseUnityBuildOverride = value;
 		}
 
 		/// <summary>
 		/// Whether to unify C++ code into larger files for faster compilation.
 		/// </summary>
-		[CommandLine("-DisableUnity", Value = "false")]
-		[XmlConfigFile(Category = "BuildConfiguration", Name = nameof(bUseUnityBuild))]
 		bool? bUseUnityBuildOverride = null;
 
 		/// <summary>
@@ -2500,6 +2498,7 @@ namespace UnrealBuildTool
 			Platform = Target.Platform;
 			Configuration = Target.Configuration;
 			Architectures = Target.Architectures;
+			IntermediateEnvironment = Target.IntermediateEnvironment;
 			ProjectFile = Target.ProjectFile;
 			Version = Target.Version;
 			WindowsPlatform = new WindowsTargetRules(this);
@@ -2529,6 +2528,19 @@ namespace UnrealBuildTool
 			// Allow the build platform to set defaults for this target
 			UEBuildPlatform.GetBuildPlatform(Platform).ResetTarget(this);
 			bDeployAfterCompile = bForceSkipDeploy ? false : bDeployAfterCompile;
+
+			// Determine intermediate environment overrides based on command line flags
+			if (IntermediateEnvironment == UnrealIntermediateEnvironment.Default)
+			{
+				if (bIWYU)
+				{
+					IntermediateEnvironment = UnrealIntermediateEnvironment.IWYU;
+				}
+				else if (!bUseUnityBuild)
+				{
+					IntermediateEnvironment = UnrealIntermediateEnvironment.NonUnity;
+				}
+			}
 
 			// Set the default build version
 			if (String.IsNullOrEmpty(BuildVersion))
@@ -2893,6 +2905,8 @@ namespace UnrealBuildTool
 		public UnrealTargetConfiguration Configuration => Inner.Configuration;
 
 		public UnrealArchitectures Architectures => Inner.Architectures;
+
+		public UnrealIntermediateEnvironment IntermediateEnvironment => Inner.IntermediateEnvironment;
 
 		public UnrealArch Architecture => Inner.Architecture;
 
