@@ -653,9 +653,14 @@ bool UEdGraph_ReferenceViewer::IsAssetPassingSearchTextFilter(const FAssetIdenti
 	return true;
 }
 
-void UEdGraph_ReferenceViewer::GetUnfilteredGraphPluginNamesRecursive(bool bReferencers, const FAssetIdentifier& InAssetIdentifier, int32 InCurrentDepth, int32 InMaxDepth, const FAssetManagerDependencyQuery& Query, TArray<FAssetIdentifier>& OutAssetIdentifiers)
+void UEdGraph_ReferenceViewer::GetUnfilteredGraphPluginNamesRecursive(bool bReferencers, const FAssetIdentifier& InAssetIdentifier, int32 InCurrentDepth, int32 InMaxDepth, const FAssetManagerDependencyQuery& Query, TSet<FAssetIdentifier>& OutAssetIdentifiers)
 {
 	if (ExceedsMaxSearchDepth(InCurrentDepth, InMaxDepth))
+	{
+		return;
+	}
+
+	if (OutAssetIdentifiers.Contains(InAssetIdentifier))
 	{
 		return;
 	}
@@ -691,11 +696,16 @@ void UEdGraph_ReferenceViewer::GetUnfilteredGraphPluginNames(TArray<FAssetIdenti
 	
 	const FAssetManagerDependencyQuery Query = GetReferenceSearchFlags(false);
 	
-	TArray<FAssetIdentifier> AssetIdentifiers;
+	TSet<FAssetIdentifier> AssetIdentifiers;
 	for (const FAssetIdentifier& RootIdentifier : RootIdentifiers)
 	{
-		GetUnfilteredGraphPluginNamesRecursive(true, RootIdentifier, 0, Settings->GetSearchReferencerDepthLimit(), Query, AssetIdentifiers);
-		GetUnfilteredGraphPluginNamesRecursive(false, RootIdentifier, 0, Settings->GetSearchDependencyDepthLimit(), Query, AssetIdentifiers);
+		TSet<FAssetIdentifier> AssetReferencerIdentifiers;
+		GetUnfilteredGraphPluginNamesRecursive(true, RootIdentifier, 0, Settings->GetSearchReferencerDepthLimit(), Query, AssetReferencerIdentifiers);
+		AssetIdentifiers.Append(AssetReferencerIdentifiers);
+
+		TSet<FAssetIdentifier> AssetDependencyIdentifiers;
+		GetUnfilteredGraphPluginNamesRecursive(false, RootIdentifier, 0, Settings->GetSearchDependencyDepthLimit(), Query, AssetDependencyIdentifiers);
+		AssetIdentifiers.Append(AssetDependencyIdentifiers);
 	}
 
 	for (const FAssetIdentifier& AssetIdentifier : AssetIdentifiers)
