@@ -119,3 +119,5 @@ void FPluginDisallowedDescriptor::UpdateArray(FJsonObject& JsonObject, const TCH
 		FPluginRefJsonArrayUpdater::FTryGetJsonObjectKey::CreateStatic(PluginDisallowedDescriptor::TryGetPluginRefJsonObjectKey),
 		FPluginRefJsonArrayUpdater::FUpdateJsonObject::CreateStatic(PluginDisallowedDescriptor::UpdatePluginRefJsonObject));
 }
+
+#undef LOCTEXT_NAMESPACE
