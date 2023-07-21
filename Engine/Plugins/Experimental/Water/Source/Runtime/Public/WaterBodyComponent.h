@@ -149,6 +149,7 @@ public:
 
 	void UpdateWaterBodyRenderData();
 
+	UFUNCTION(BlueprintCallable, Category = Water)
 	void SetWaterBodyStaticMeshEnabled(bool bEnabled);
 #endif //WITH_EDITOR
 
