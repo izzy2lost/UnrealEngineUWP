@@ -129,6 +129,13 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 				if (bUseCachedBinding)
 				{
 					CompiledBinding = Binding->Pin();
+
+#if WITH_EDITOR
+					for (const UStruct* Dependency : CompiledBinding->Dependencies)
+					{
+						Owner->AddCompileDependency(Dependency);
+					}
+#endif
 					return;
 				}
 			}
@@ -148,6 +155,7 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 	{
 #if WITH_EDITOR
 		Owner->AddCompileDependency(StructType);
+		OutCompiledBinding.Dependencies.AddUnique(StructType);
 #endif
 
 		bool bFound = false;
@@ -192,6 +200,7 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 	
 	#if WITH_EDITOR
    	Owner->AddCompileDependency(StructType);
+	OutCompiledBinding.Dependencies.AddUnique(StructType);
     #endif
 
 	bool bFound = false;

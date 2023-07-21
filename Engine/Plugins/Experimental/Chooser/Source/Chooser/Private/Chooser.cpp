@@ -79,6 +79,7 @@ void UChooserTable::AddCompileDependency(const UStruct* InStructType)
 		if (UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(StructType))
 		{
 			UserDefinedStruct->ChangedEvent.AddUObject(this, &UChooserTable::OnDependentStructChanged);
+			CompileDependencies.Add(StructType);
 		}
 		else if (UClass* Class = Cast<UClass>(StructType))
 		{

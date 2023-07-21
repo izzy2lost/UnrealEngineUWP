@@ -59,6 +59,7 @@ namespace UE::Chooser
 		const UStruct* TargetType = nullptr;
 #if WITH_EDITORONLY_DATA
 		int SerialNumber = 0;
+		TArray<const UStruct*> Dependencies;
 #endif
 	};
 }
