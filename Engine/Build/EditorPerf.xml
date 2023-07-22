@@ -142,7 +142,7 @@
 	<Property Name="GauntletArgs" Value="$(GauntletArgs) -maxduration=28800"/>
 
 	<!-- Gauntlet arguments for profile runs -->
-	<Property Name="ProfileArgs" Value="-test=EditorTests -testfilter=Project.Iteration.PIE -tracefiletrunc"/>
+	<Property Name="ProfileArgs" Value="-test=EditorTests -tracefiletrunc"/>
 	<Property Name="ProfileArgs" Value="$(ProfileArgs) -EnablePlugins=$(ExtraPluginsCommaDelims)" If="'$(ExtraPluginsCommaDelims)' != ''"/>
 	<Property Name="ProfileArgs" Value="$(ProfileArgs) -SuppressLogWarnings -SuppressLogErrors"/>
 	<Property Name="ProfileArgs" Value="$(ProfileArgs) -GameInstanceLostTimerSeconds=3600"/>
@@ -165,6 +165,8 @@
 	<!-- The main test running macro logic that is expanded with platform and dependency node names -->
 	<Macro Name="RunTest" Arguments="TestNameSuffix;Platform;ProjectName;ProjectTarget;NodeName;Phase;Iteration;Args;EditorArgs">
 		<Property Name="TestName" Value="EditorPerf$(Phase)$(TestNameSuffix)"/>
+		<Property Name="TestFilter" Value="Project.Iteration.PIE"/>
+		<Property Name="TestFilterArgs" Value="-testfilter=$(TestFilter)"/>
 		<Property Name="IterationSuffix" Value=""/>
 		<Property Name="IterationSuffix" Value="$(Iteration)" If="'$(Iteration)' != '1'"/>
 
@@ -185,7 +187,7 @@
 		<!-- <Commandlet Project="$(ProjectTarget)" Name="DDCCleanup" Arguments="$(Args) $(CommandletArgs)"/> -->
 
 		<!-- Run the Gauntlet EditorPerf Tests -->
-		<Command Name="RunUnreal" Arguments="$(AllGauntletArgs) $(ProfileArgs) $(RunArgs) -sessionlabel=&quot;$(TestName)&quot; -tracefile=&quot;$(TraceFilePath)&quot;"/>
+		<Command Name="RunUnreal" Arguments="$(AllGauntletArgs) $(ProfileArgs) $(TestFilterArgs) $(RunArgs) -sessionlabel=&quot;$(TestName)&quot; -tracefile=&quot;$(TraceFilePath)&quot;"/>
 
 		<!-- Translate the utrace file into csv data -->
 		<Do If="$(RunTraceSummary)">
@@ -198,14 +200,41 @@
 		</Do>		
 	</Macro>
 	
+	<!-- The main editor workflows test running macro logic that is expanded with platform and dependency node names -->
+	<Macro Name="RunEditorWorkflowsTest" Arguments="Platform;ProjectName;NodeName">
+		<Property Name="TestName" Value="Editor.Workflows"/>
+		<Property Name="TestFilter" Value="Editor.Workflows"/>
+		<Property Name="TestFilterArgs" Value="-testfilter=$(TestFilter)"/>
+
+		<Property Name="TestOutputDir" Value="$(AutomationOutputDir)/$(ProjectName)$(Platform)EditorWorkflows"/>
+
+		<Property Name="LogOutputParams" Value="-logdir=&quot;$(TestOutputDir)&quot;"/>
+		<Property Name="ReportParams" Value="-WriteTestResultsForHorde -HordeTestDataKey=&quot;$(NodeName)$(PreflightSuffix)&quot;"/>
+		<Property Name="AllGauntletArgs" Value="-Project=$(ProjectName) -Platform=$(Platform) $(GauntletArgs) $(ReportParams) $(LogOutputParams)"/>
+
+		<Property Name="TraceFilePath" Value="$(TraceDir)/Editor.Workflows/$(ProjectName)$(Platform)EditorWorkflows.utrace" />
+
+		<Command Name="RunUnreal" Arguments="$(AllGauntletArgs) $(ProfileArgs) $(TestFilterArgs) -sessionlabel=&quot;$(TestName)&quot; -tracefile=&quot;$(TraceFilePath)&quot;" />
+
+		<!-- Translate the utrace file into csv data -->
+		<Commandlet Project="$(ProjectName)" Name="SummarizeTraceEditorWorkflows" Arguments="-inputfile=&quot;$(TraceFilePath)&quot; -testname=&quot;$(TestName)&quot; $(CommandletArgs)" />
+	</Macro>
+	
 	<Macro Name="UploadTestTraces" Arguments="Platform;ProjectName">		
 		<!-- Save all files named for this project in the trace directory -->
 		<Property Name="TestOutputDir" Value="$(AutomationOutputDir)/$(ProjectName)$(Platform)EditorPerf"/>
 		<Copy From="$(TraceDir)/$(ProjectName)$(Platform)EditorPerf*.*" To="$(TestOutputDir)"/>
 	</Macro>
 
-	<!-- This will be set to the names of all nodes we want to execute based on specified platforms/options -->
+	<Macro Name="UploadEditorWorkflowsPerformanceDataAndTraces" Arguments="Platform;ProjectName">
+		<!-- Copy the utrace file and the generated csv performance data to the output directory -->
+		<Property Name="TestOutputDir" Value="$(AutomationOutputDir)/$(ProjectName)$(Platform)EditorWorkflows"/>
+		<Copy From="$(TraceDir)/Editor.Workflows/*" To="$(TestOutputDir)/Editor.Workflows"/>
+	</Macro>
+
+	<!-- These will be set to the names of all nodes we want to execute based on specified platforms/options -->
 	<Property Name="RunGraphNodes" Value=""/>
+	<Property Name="RunEditorWorkflowsGraphNodes" Value=""/>
 
 	<!-- Mimic of the Runner that retrieves the stashed telemetry file and copies it to the depot location -->
 	<Macro Name="BaselineResult" Arguments="Platform;Project;Phase">
@@ -341,6 +370,57 @@
 		</ForEach> <!-- Projects -->
 
 	</ForEach> <!-- Platforms -->
+
+	<!-- Generate graph nodes for each platform to run -->
+	<ForEach Name="Platform" Values="$(Platforms)">
+
+		<!-- Define output name for the EditorWorkflows test -->
+		<Property Name="EditorWorkflowsOutputName" Value="EngineTest$(Platform)EditorWorkflows"/>
+		<Property Name="CompileNodeName" Value="Compile EngineTest $(Platform) EditorWorkflows"/>
+		<Property Name="AgentModifier" Value=""/>
+		<Property Name="AgentModifier" Value=" EngineTest" If="!$(SingleAgentCompile)"/>
+
+		<!-- Compile Agent configuration -->
+		<Agent Name="Compile Editor Agent $(Platform)$(AgentModifier)" Type="$($(Platform)CompileAgentType)">
+			<Node Name="$(CompileNodeName)">
+				<SetVersion Change="$(Change)" Branch="$(EscapedBranch)" If="$(IsBuildMachine)"/>
+				<Compile Target="ShaderCompileWorker" Platform="$(Platform)" Configuration="Development"/>
+				<Compile Target="CrashReportClientEditor" Platform="$(Platform)" Project="EngineTest" Configuration="Shipping"/>
+				<Compile Target="EngineTestEditor" Platform="$(Platform)" Project="EngineTest" Configuration="Development" Arguments="$(EditorCompileArgs)"/>
+			</Node>
+		</Agent>
+		<Label Category="$(CompileCategory)" Name="EngineTest Editor Compile" Requires="$(CompileNodeName)"/>
+
+		<!-- Set up properties for run and upload nodes -->
+		<Property Name="RunEditorWorkflowsNodeRequires" Value="$(CompileNodeName)"/>
+		<Property Name="UploadEditorWorkflowsNodeList" Value=""/>
+		<Property Name="RunEditorWorkflowsNodeList" Value=""/>
+
+		<!-- Configure EditorWorkflows Agent -->
+		<Agent Name="EditorWorkflows Agent $(Platform) EngineTest" Type="EditorPerf$(Platform)">
+			<Property Name="RunEditorWorkflowsNodeName" Value="Run $(EditorWorkflowsOutputName)" />
+			<Node Name="$(RunEditorWorkflowsNodeName)" Requires="$(RunEditorWorkflowsNodeRequires);$(RunEditorWorkflowsNodeList)">
+				<Expand Name="RunEditorWorkflowsTest" Platform="$(Platform)" ProjectName="EngineTest" NodeName="$(RunEditorWorkflowsNodeName)"/>
+			</Node>
+
+			<Property Name="RunEditorWorkflowsNodeList" Value="$(RunEditorWorkflowsNodeList);$(RunEditorWorkflowsNodeName)" />
+			<Property Name="RunNodeUploadTraces" Value="Upload $(EditorWorkflowsOutputName) Traces"/>
+
+			<!-- Set up Node for uploading traces -->
+			<Node Name="$(RunNodeUploadTraces)">
+				<Expand Name="UploadEditorWorkflowsPerformanceDataAndTraces" Platform="$(Platform)" ProjectName="EngineTest"/>
+			</Node>
+
+			<!-- Update UploadEditorWorkflowsNodeList -->
+			<Property Name="UploadEditorWorkflowsNodeList" Value="$(UploadEditorWorkflowsNodeList);$(RunNodeUploadTraces)"/>
+		</Agent>
+		<Label Category="$(RunCategory)" Name="EngineTest Editor Run" Requires="$(RunEditorWorkflowsNodeRequires);$(RunEditorWorkflowsNodeList);$(UploadEditorWorkflowsNodeList)" UgsBadge="EngineTest Editor Run"/>
+		<Property Name="RunEditorWorkflowsGraphNodes" Value="$(RunEditorWorkflowsGraphNodes);$(RunEditorWorkflowsNodeList);$(UploadEditorWorkflowsNodeList)"/>
+	</ForEach>
+	<!-- End ForEach Platforms -->
+
+	<!-- These Nodes run the Editor Workflows test and gather profile data -->
+	<Aggregate Name="Run EditorWorkflows Tests" Requires="$(RunEditorWorkflowsGraphNodes)"/>
 
 	<!-- These Nodes run the Editor and gather profile data -->
 	<Aggregate Name="Run EditorPerf Tests" Requires="$(RunGraphNodes)"/>
