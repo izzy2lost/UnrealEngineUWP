@@ -38,9 +38,9 @@ namespace Horde.Agent.Leases.Handlers
 
 			public override ValueTask MarkCompleteAsync(CancellationToken cancellationToken) => _inner.MarkCompleteAsync(cancellationToken);
 
-			public override async ValueTask<int> ReadPartialAsync(Memory<byte> buffer, CancellationToken cancellationToken)
+			public override async ValueTask<int> RecvAsync(Memory<byte> buffer, CancellationToken cancellationToken)
 			{
-				int result = await _inner.ReadPartialAsync(buffer, cancellationToken);
+				int result = await _inner.RecvAsync(buffer, cancellationToken);
 				if (result > 0)
 				{
 					Interlocked.Exchange(ref _lastPingTicks, Stopwatch.GetTimestamp());
@@ -48,9 +48,9 @@ namespace Horde.Agent.Leases.Handlers
 				return result;
 			}
 
-			public override async ValueTask WriteAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
+			public override async ValueTask SendAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
 			{
-				await _inner.WriteAsync(buffer, cancellationToken);
+				await _inner.SendAsync(buffer, cancellationToken);
 				Interlocked.Exchange(ref _lastPingTicks, Stopwatch.GetTimestamp());
 			}
 		}

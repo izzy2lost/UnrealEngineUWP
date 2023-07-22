@@ -4,6 +4,7 @@
 
 #include "ComputeBuffer.h"
 #include "ComputeChannel.h"
+#include "ComputeTransport.h"
 
 //
 // Connection to a remote machine that multiplexes data into and out-of multiple buffers
@@ -12,13 +13,23 @@
 class FComputeSocket
 {
 public:
+	FComputeSocket();
 	virtual ~FComputeSocket();
+
+	FComputeSocket(const FComputeSocket&) = delete;
+	FComputeSocket& operator=(const FComputeSocket&) = delete;
 
 	// Attaches a new buffer for receiving data
 	virtual void AttachRecvBuffer(int ChannelId, FComputeBufferWriter Writer) = 0;
 
 	// Attaches a new buffer for sending data */
 	virtual void AttachSendBuffer(int ChannelId, FComputeBufferReader Reader) = 0;
+
+	// Attaches a channel to this socket
+	FComputeChannel CreateChannel(int ChannelId);
+
+	// Attaches a channel to this socket
+	FComputeChannel CreateChannel(int ChannelId, FComputeBuffer RecvBuffer, FComputeBuffer SendBuffer);
 };
 
 //
@@ -28,7 +39,7 @@ public:
 class FWorkerComputeSocket final : public FComputeSocket
 {
 public:
-	static const wchar_t* const EnvVarName;
+	static const wchar_t* const IpcEnvVar;
 
 	FWorkerComputeSocket();
 	~FWorkerComputeSocket();
@@ -63,43 +74,19 @@ private:
 
 	static size_t WriteVarUInt(unsigned char* Pos, unsigned int Value);
 	static size_t WriteString(unsigned char* Pos, const wchar_t* Text);
-
-	static unsigned int FloorLog2(unsigned int Value);
-	static unsigned int CountLeadingZeros(unsigned int Value);
 };
 
 //
-// Implementation of FComputeSocket that communicates via an overridable transport mechanism.
+// Enum identifying which end of the socket a particular machine is
 //
-class FRemoteComputeSocket : public FComputeSocket
+enum class EComputeSocketEndpoint
 {
-public:
-	FRemoteComputeSocket();
-	~FRemoteComputeSocket();
+	// The initiating machine
+	Local,
 
-	// Attaches a new buffer for receiving data
-	virtual void AttachRecvBuffer(int ChannelId, FComputeBufferWriter Writer) override final;
-
-	// Attaches a new buffer for sending data */
-	virtual void AttachSendBuffer(int ChannelId, FComputeBufferReader Reader) override final;
-
-protected:
-	// Starts reading and dispatching data in a background thread
-	void Start();
-
-	// Sends data to the remote
-	virtual size_t Send(const void* Data, size_t Size) = 0;
-
-	// Receives data from the remote
-	virtual size_t Recv(void* Data, size_t Size) = 0;
-
-private:
-	struct FDetail;
-	struct FFrameHeader;
-	enum class EControlMessageType;
-
-	bool SendFull(const void* Data, size_t Size);
-	bool RecvFull(void* Data, size_t Size);
-
-	FDetail* Detail;
+	// The remote machine
+	Remote
 };
+
+// Creates a socket using a custom transport
+std::unique_ptr<FComputeSocket> CreateComputeSocket(std::unique_ptr<FComputeTransport> Transport, EComputeSocketEndpoint Endpoint);

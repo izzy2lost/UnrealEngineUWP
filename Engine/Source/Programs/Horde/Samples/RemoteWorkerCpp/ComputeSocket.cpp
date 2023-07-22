@@ -1,22 +1,52 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include <windows.h>
+#include "ComputeSocket.h"
+#include "ComputePlatform.h"
 #include <iostream>
 #include <assert.h>
 #include <uchar.h>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
-#include "ComputeSocket.h"
+#include <thread>
+#include <mutex>
+
+FComputeSocket::FComputeSocket()
+{
+}
 
 FComputeSocket::~FComputeSocket()
 {
 }
 
+FComputeChannel FComputeSocket::CreateChannel(int ChannelId)
+{
+	FComputeBuffer RecvBuffer;
+	if (!RecvBuffer.CreateNew(FComputeBuffer::FParams()))
+	{
+		return FComputeChannel();
+	}
+
+	FComputeBuffer SendBuffer;
+	if (!SendBuffer.CreateNew(FComputeBuffer::FParams()))
+	{
+		return FComputeChannel();
+	}
+
+	return CreateChannel(ChannelId, RecvBuffer, SendBuffer);
+}
+
+FComputeChannel FComputeSocket::CreateChannel(int ChannelId, FComputeBuffer RecvBuffer, FComputeBuffer SendBuffer)
+{
+	AttachRecvBuffer(ChannelId, RecvBuffer.GetWriter());
+	AttachSendBuffer(ChannelId, SendBuffer.GetReader());
+
+	return FComputeChannel(RecvBuffer.GetReader(), SendBuffer.GetWriter());
+}
 
 //////////////////////////////////////////////////////
 
-const wchar_t* const FWorkerComputeSocket::EnvVarName = L"UE_HORDE_COMPUTE_IPC";
+const wchar_t* const FWorkerComputeSocket::IpcEnvVar = L"UE_HORDE_COMPUTE_IPC";
 
 enum class FWorkerComputeSocket::EMessageType
 {
@@ -35,10 +65,8 @@ FWorkerComputeSocket::~FWorkerComputeSocket()
 
 bool FWorkerComputeSocket::Open()
 {
-	wchar_t EnvVar[MAX_PATH];
-	int Length = GetEnvironmentVariableW(EnvVarName, EnvVar, sizeof(EnvVar) / sizeof(EnvVar[0]));
-
-	if (Length <= 0 || Length >= sizeof(EnvVar))
+	wchar_t EnvVar[FComputeBuffer::MaxNameLength];
+	if (!FComputePlatform::GetEnvironmentVariable(IpcEnvVar, EnvVar, sizeof(EnvVar) / sizeof(EnvVar[0])))
 	{
 		return false;
 	}
@@ -93,43 +121,43 @@ void FWorkerComputeSocket::RunServer(FComputeBufferReader& CommandBufferReader, 
 		switch (MessageType)
 		{
 		case EMessageType::AttachSendBuffer:
-		{
-			unsigned int ChannelId;
-			Len += ReadVarUInt(Message + Len, &ChannelId);
-
-			wchar_t Name[MAX_PATH];
-			Len += ReadString(Message + Len, Name, MAX_PATH);
-
-			FComputeBuffer Buffer;
-			if (Buffer.OpenExisting(Name))
 			{
-				Socket.AttachSendBuffer(ChannelId, Buffer.GetReader());
+				unsigned int ChannelId;
+				Len += ReadVarUInt(Message + Len, &ChannelId);
+
+				wchar_t Name[FComputeBuffer::MaxNameLength];
+				Len += ReadString(Message + Len, Name, FComputeBuffer::MaxNameLength);
+
+				FComputeBuffer Buffer;
+				if (Buffer.OpenExisting(Name))
+				{
+					Socket.AttachSendBuffer(ChannelId, Buffer.GetReader());
+				}
+				else
+				{
+					assert(false);
+				}
 			}
-			else
-			{
-				assert(false);
-			}
-		}
-		break;
+			break;
 		case EMessageType::AttachRecvBuffer:
-		{
-			unsigned int ChannelId;
-			Len += ReadVarUInt(Message + Len, &ChannelId);
-
-			wchar_t Name[MAX_PATH];
-			Len += ReadString(Message + Len, Name, MAX_PATH);
-
-			FComputeBuffer Buffer;
-			if (Buffer.OpenExisting(Name))
 			{
-				Socket.AttachRecvBuffer(ChannelId, Buffer.GetWriter());
+				unsigned int ChannelId;
+				Len += ReadVarUInt(Message + Len, &ChannelId);
+
+				wchar_t Name[FComputeBuffer::MaxNameLength];
+				Len += ReadString(Message + Len, Name, FComputeBuffer::MaxNameLength);
+
+				FComputeBuffer Buffer;
+				if (Buffer.OpenExisting(Name))
+				{
+					Socket.AttachRecvBuffer(ChannelId, Buffer.GetWriter());
+				}
+				else
+				{
+					assert(false);
+				}
 			}
-			else
-			{
-				assert(false);
-			}
-		}
-		break;
+			break;
 		default:
 			assert(false);
 			return;
@@ -141,7 +169,7 @@ void FWorkerComputeSocket::RunServer(FComputeBufferReader& CommandBufferReader, 
 
 size_t FWorkerComputeSocket::ReadVarUInt(const unsigned char* Pos, unsigned int* OutValue)
 {
-	size_t ByteCount = CountLeadingZeros((unsigned char)(~*static_cast<const unsigned char*>(Pos))) - 23;
+	size_t ByteCount = FComputePlatform::CountLeadingZeros((unsigned char)(~*static_cast<const unsigned char*>(Pos))) - 23;
 
 	unsigned int Value = *Pos++ & (unsigned char)(0xff >> ByteCount);
 	switch (ByteCount - 1)
@@ -167,8 +195,7 @@ size_t FWorkerComputeSocket::ReadString(const unsigned char* Pos, wchar_t* OutTe
 	unsigned int TextLen;
 	size_t Len = ReadVarUInt(Pos, &TextLen);
 
-	int DecodedLen = MultiByteToWideChar(CP_UTF8, 0, (const char*)Pos + Len, TextLen, OutText, (int)OutTextMaxLen);
-	OutText[DecodedLen] = 0;
+	FComputePlatform::Utf8ToWchar((const char*)Pos + Len, TextLen, OutText, OutTextMaxLen);
 
 	return Len + TextLen;
 }
@@ -177,7 +204,7 @@ size_t FWorkerComputeSocket::WriteVarUInt(unsigned char* Pos, unsigned int Value
 {
 	// Use BSR to return the log2 of the integer
 	// return 0 if value is 0
-	unsigned int ByteCount = (unsigned int)(int(FloorLog2(Value)) / 7 + 1);
+	unsigned int ByteCount = (unsigned int)(int(FComputePlatform::FloorLog2(Value)) / 7 + 1);
 
 	unsigned char* OutBytes = Pos + ByteCount - 1;
 	switch (ByteCount - 1)
@@ -195,194 +222,118 @@ size_t FWorkerComputeSocket::WriteVarUInt(unsigned char* Pos, unsigned int Value
 
 size_t FWorkerComputeSocket::WriteString(unsigned char* Pos, const wchar_t* Text)
 {
-	int EncodedLen = WideCharToMultiByte(CP_UTF8, 0, Text, -1, nullptr, 0, nullptr, nullptr);
-	EncodedLen--; // Ignore null terminator
+	size_t TextLen = wcslen(Text);
 
-	size_t Len = WriteVarUInt(Pos, EncodedLen);
-	WideCharToMultiByte(CP_UTF8, 0, Text, -1, (char*)Pos + Len, EncodedLen, nullptr, nullptr);
+	size_t EncodedLen = FComputePlatform::WcharToUtf8(Text, TextLen, nullptr, 0);
+
+	size_t Len = WriteVarUInt(Pos, (int)EncodedLen);
+	FComputePlatform::WcharToUtf8(Text, TextLen, (char*)Pos + Len, EncodedLen);
 
 	return Len + EncodedLen;
 }
 
-unsigned int FWorkerComputeSocket::FloorLog2(unsigned int Value)
-{
-	// Use BSR to return the log2 of the integer
-	// return 0 if value is 0
-	unsigned long BitIndex;
-	return _BitScanReverse(&BitIndex, Value) ? BitIndex : 0;
-}
-
-unsigned int FWorkerComputeSocket::CountLeadingZeros(unsigned int Value)
-{
-	// return 32 if value is zero
-	unsigned long BitIndex;
-	_BitScanReverse64(&BitIndex, (unsigned long long)(Value) * 2 + 1);
-	return 32 - BitIndex;
-}
-
 //////////////////////////////////////////////////////
 
-enum class FRemoteComputeSocket::EControlMessageType
+class FRemoteComputeSocket : public FComputeSocket
 {
-	Attach = -1,
-	Detach = -2,
-};
-
-struct FRemoteComputeSocket::FFrameHeader
-{
-	int Channel;
-	int Size;
-};
-
-struct FRemoteComputeSocket::FDetail
-{
-	class FCriticalSectionLock
+public:
+	enum class EControlMessageType
 	{
-	public:
-		FCriticalSectionLock(CRITICAL_SECTION* InCriticalSection) : CriticalSection(InCriticalSection)
-		{
-			EnterCriticalSection(CriticalSection);
-		}
-
-		FCriticalSectionLock(const FCriticalSectionLock& Other) = delete;
-
-		~FCriticalSectionLock()
-		{
-			LeaveCriticalSection(CriticalSection);
-		}
-
-	private:
-		CRITICAL_SECTION* const CriticalSection;
+		Detach = -2,
 	};
 
-	class FSendThread
+	struct FFrameHeader
 	{
-	public:
-		FSendThread(FDetail& InDetail, int InChannel, FComputeBufferReader& InReader)
-			: Detail(InDetail)
-			, Channel(InChannel)
-			, Reader(InReader)
-			, ThreadHandle(nullptr)
-		{
-		}
-
-		~FSendThread()
-		{
-			Stop();
-		}
-
-		void Start()
-		{
-			Stop();
-			ThreadHandle = CreateThread(nullptr, 0, &SendThreadProc, this, 0, nullptr);
-		}
-
-		void Stop()
-		{
-			if (ThreadHandle != nullptr)
-			{
-				WaitForSingleObject(ThreadHandle, INFINITE);
-				ThreadHandle = nullptr;
-			}
-		}
-
-	private:
-		FDetail& Detail;
-		const int Channel;
-		FComputeBufferReader& Reader;
-		HANDLE ThreadHandle;
-
-		static DWORD __stdcall SendThreadProc(void* Param)
-		{
-			FSendThread* SendBufferInfo = (FSendThread*)Param;
-			FRemoteComputeSocket& Socket = SendBufferInfo->Detail.Socket;
-			FComputeBufferReader& Reader = SendBufferInfo->Reader;
-
-			FFrameHeader Header;
-			Header.Channel = SendBufferInfo->Channel;
-
-			const unsigned char* Data;
-			while ((Data = Reader.WaitToRead(1)) != nullptr)
-			{
-				FCriticalSectionLock Lock(&SendBufferInfo->Detail.CriticalSection);
-				Header.Size = (int)Reader.GetMaxReadSize();
-				Socket.SendFull(&Header, sizeof(Header));
-				Socket.SendFull(Data, Header.Size);
-			}
-
-			if (Reader.IsComplete())
-			{
-				FCriticalSectionLock Lock(&SendBufferInfo->Detail.CriticalSection);
-				Header.Size = (int)EControlMessageType::Detach;
-				Socket.SendFull(&Header, sizeof(Header));
-			}
-
-			delete SendBufferInfo;
-			return 0;
-		}
+		int Channel;
+		int Size;
 	};
 
-	FRemoteComputeSocket& Socket;
-	CRITICAL_SECTION CriticalSection;
+	std::unique_ptr<FComputeTransport> Transport;
+	const EComputeSocketEndpoint Endpoint;
+	std::mutex CriticalSection;
 
-	HANDLE RecvThreadHandle;
+	std::thread RecvThread;
 
-	std::unordered_map<int, FComputeBufferWriter*> Writers;
-	std::unordered_map<int, std::unique_ptr<FSendThread>> SendThreads;
+	std::unordered_map<int, FComputeBufferWriter> Writers;
+	std::vector<FComputeBufferReader> Readers;
+	std::unordered_map<int, std::thread> SendThreads;
 
-	std::unordered_set<int> AttachedRemoteBuffers;
-	std::unordered_map<int, HANDLE> AttachEvents;
-
-	FDetail(FRemoteComputeSocket& InSocket)
-		: Socket(InSocket)
+	FRemoteComputeSocket(std::unique_ptr<FComputeTransport> InTransport, EComputeSocketEndpoint InEndpoint)
+		: Transport(std::move(InTransport))
+		, Endpoint(InEndpoint)
+		, CriticalSection()
+		, RecvThread(&FRemoteComputeSocket::RecvThreadProc, this)
 	{
-		InitializeCriticalSection(&CriticalSection);
-		RecvThreadHandle = CreateThread(nullptr, 0, &RecvThread, this, 0, nullptr);
 	}
 
-	~FDetail()
+	~FRemoteComputeSocket()
 	{
-		WaitForSingleObject(RecvThreadHandle, INFINITE);
-		DeleteCriticalSection(&CriticalSection);
+		for (FComputeBufferReader& Reader : Readers)
+		{
+			Reader.ForceComplete();
+		}
+
+		for (std::pair<const int, std::thread>& Pair : SendThreads)
+		{
+			Pair.second.join();
+		}
+
+		Transport->Close();
+		RecvThread.join();
 	}
 
-	static DWORD _stdcall RecvThread(void* Param)
+	void RecvThreadProc()
 	{
-		FDetail& Detail = *(FDetail*)Param;
-		FRemoteComputeSocket& Socket = Detail.Socket;
-
-		std::unordered_map<int, FComputeBufferWriter*> CachedWriters;
+		std::unordered_map<int, FComputeBufferWriter> CachedWriters;
 
 		// Process messages from the remote
 		FFrameHeader Header;
-		while (Socket.RecvFull(&Header, sizeof(Header)))
+		while (Transport->RecvMessage(&Header, sizeof(Header)))
 		{
 			if (Header.Size >= 0)
 			{
-				Detail.ReadFrame(CachedWriters, Header.Channel, Header.Size);
-			}
-			else if (Header.Size == (int)EControlMessageType::Attach)
-			{
-				Detail.AttachRemoteRecvBuffer(Header.Channel);
+				ReadFrame(CachedWriters, Header.Channel, Header.Size);
 			}
 			else if (Header.Size == (int)EControlMessageType::Detach)
 			{
-				Detail.DetachRecvBuffer(CachedWriters, Header.Channel);
+				DetachRecvBuffer(CachedWriters, Header.Channel);
 			}
 			else
 			{
 				assert(false);
 			}
 		}
-		return 0;
 	}
 
-	bool ReadFrame(std::unordered_map<int, FComputeBufferWriter*>& CachedWriters, int Channel, int Size)
+	void SendThreadProc(int Channel, FComputeBufferReader Reader)
 	{
-		std::unordered_map<int, FComputeBufferWriter*>::iterator Iter = CachedWriters.find(Channel);
+		FFrameHeader Header;
+		Header.Channel = Channel;
+
+		const unsigned char* Data;
+		while ((Data = Reader.WaitToRead(1)) != nullptr)
+		{
+			std::lock_guard<std::mutex> Lock(CriticalSection);
+			Header.Size = (int)Reader.GetMaxReadSize();
+			Transport->SendMessage(&Header, sizeof(Header));
+			Transport->SendMessage(Data, Header.Size);
+			Reader.AdvanceReadPosition(Header.Size);
+		}
+
+		if (Reader.IsComplete())
+		{
+			std::lock_guard<std::mutex> Lock(CriticalSection);
+			Header.Size = (int)EControlMessageType::Detach;
+			Transport->SendMessage(&Header, sizeof(Header));
+		}
+	}
+
+	bool ReadFrame(std::unordered_map<int, FComputeBufferWriter>& CachedWriters, int Channel, int Size)
+	{
+		std::unordered_map<int, FComputeBufferWriter>::iterator Iter = CachedWriters.find(Channel);
 		if (Iter == CachedWriters.end())
 		{
-			FCriticalSectionLock Lock(&CriticalSection);
+			std::lock_guard<std::mutex> Lock(CriticalSection);
 
 			Iter = Writers.find(Channel);
 			if (Iter == Writers.end())
@@ -393,122 +344,47 @@ struct FRemoteComputeSocket::FDetail
 			Iter = CachedWriters.insert(*Iter).first;
 		}
 
-		FComputeBufferWriter* Writer = Iter->second;
+		FComputeBufferWriter& Writer = Iter->second;
 
-		unsigned char* Data = Writer->WaitToWrite(Size);
-		if (!Socket.RecvFull(Data, Size))
+		unsigned char* Data = Writer.WaitToWrite(Size);
+		if (!Transport->RecvMessage(Data, Size))
 		{
 			return false;
 		}
 
-		Writer->AdvanceWritePosition(Size);
+		Writer.AdvanceWritePosition(Size);
 		return true;
 	}
 
-	void AttachRecvBuffer(int ChannelId, FComputeBufferWriter& Writer)
+	void AttachRecvBuffer(int ChannelId, FComputeBufferWriter Writer)
 	{
-		FCriticalSectionLock Lock(&CriticalSection);
-		Writers.insert(std::pair<int, FComputeBufferWriter*>(ChannelId, &Writer));
-
-		FFrameHeader Header;
-		Header.Channel = ChannelId;
-		Header.Size = (int)EControlMessageType::Attach;
-		Socket.SendFull(&Header, sizeof(Header));
+		std::lock_guard<std::mutex> Lock(CriticalSection);
+		Writers.insert(std::pair<int, FComputeBufferWriter>(ChannelId, std::move(Writer)));
 	}
 
-	void AttachSendBuffer(int ChannelId, FComputeBufferReader& Reader)
+	void AttachSendBuffer(int ChannelId, FComputeBufferReader Reader)
 	{
-		FCriticalSectionLock Lock(&CriticalSection);
-		SendThreads.insert(std::make_pair(ChannelId, std::make_unique<FSendThread>(*this, ChannelId, Reader)));
+		std::lock_guard<std::mutex> Lock(CriticalSection);
+		Readers.push_back(Reader);
+		SendThreads.insert(std::make_pair(ChannelId, std::thread(&FRemoteComputeSocket::SendThreadProc, this, ChannelId, std::move(Reader))));
 	}
 
-	void AttachRemoteRecvBuffer(int Channel)
-	{
-		FCriticalSectionLock Lock(&CriticalSection);
-		AttachedRemoteBuffers.insert(Channel);
-
-		std::unordered_map<int, HANDLE>::iterator AttachEventIter = AttachEvents.find(Channel);
-		if (AttachEventIter != AttachEvents.end())
-		{
-			SetEvent(AttachEventIter->second);
-			AttachEvents.erase(AttachEventIter);
-		}
-	}
-
-	void DetachRecvBuffer(std::unordered_map<int, FComputeBufferWriter*>& CachedWriters, int Channel)
+	void DetachRecvBuffer(std::unordered_map<int, FComputeBufferWriter>& CachedWriters, int Channel)
 	{
 		CachedWriters.erase(Channel);
 
-		FCriticalSectionLock Lock(&CriticalSection);
+		std::lock_guard<std::mutex> Lock(CriticalSection);
 
-		std::unordered_map<int, FComputeBufferWriter*>::iterator Iter = Writers.find(Channel);
+		std::unordered_map<int, FComputeBufferWriter>::iterator Iter = Writers.find(Channel);
 		if (Iter != Writers.end())
 		{
-			Iter->second->MarkComplete();
+			Iter->second.MarkComplete();
 			Writers.erase(Iter);
 		}
 	}
 };
 
-FRemoteComputeSocket::FRemoteComputeSocket()
-	: Detail(nullptr)
+std::unique_ptr<FComputeSocket> CreateComputeSocket(std::unique_ptr<FComputeTransport> Transport, EComputeSocketEndpoint Endpoint)
 {
+	return std::unique_ptr<FComputeSocket>(new FRemoteComputeSocket(std::move(Transport), Endpoint));
 }
-
-FRemoteComputeSocket::~FRemoteComputeSocket()
-{
-	delete Detail;
-}
-
-void FRemoteComputeSocket::Start()
-{
-	if (Detail == nullptr)
-	{
-		Detail = new FDetail(*this);
-	}
-}
-
-void FRemoteComputeSocket::AttachRecvBuffer(int ChannelId, FComputeBufferWriter Writer)
-{
-	Detail->AttachRecvBuffer(ChannelId, Writer);
-}
-
-void FRemoteComputeSocket::AttachSendBuffer(int ChannelId, FComputeBufferReader Reader)
-{
-	Detail->AttachSendBuffer(ChannelId, Reader);
-}
-
-bool FRemoteComputeSocket::SendFull(const void* Data, size_t Size)
-{
-	const unsigned char* RemainingData = (const unsigned char*)Data;
-	for (size_t RemainingSize = Size; RemainingSize > 0; )
-	{
-		size_t SentSize = Send(RemainingData, RemainingSize);
-		if (SentSize == 0)
-		{
-			return false;
-		}
-
-		RemainingData += SentSize;
-		RemainingSize -= SentSize;
-	}
-	return true;
-}
-
-bool FRemoteComputeSocket::RecvFull(void* Data, size_t Size)
-{
-	unsigned char* RemainingData = (unsigned char*)Data;
-	for (size_t RemainingSize = Size; RemainingSize > 0; )
-	{
-		size_t RecvSize = Recv(RemainingData, RemainingSize);
-		if (RecvSize == 0)
-		{
-			return false;
-		}
-
-		RemainingData += RecvSize;
-		RemainingSize -= RecvSize;
-	}
-	return true;
-}
-

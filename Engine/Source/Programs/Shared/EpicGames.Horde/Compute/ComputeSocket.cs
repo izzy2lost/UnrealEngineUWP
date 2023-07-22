@@ -94,7 +94,16 @@ namespace EpicGames.Horde.Compute
 				throw new InvalidOperationException($"Environment variable {IpcEnvVar} is not defined; cannot connect as worker.");
 			}
 
-			SharedMemoryBuffer commandBuffer = SharedMemoryBuffer.OpenExisting(baseName);
+			return Open(baseName);
+		}
+
+		/// <summary>
+		/// Opens a socket which allows a worker to communicate with the Horde Agent
+		/// </summary>
+		/// <param name="commandBufferName">Name of the command buffer</param>
+		public static WorkerComputeSocket Open(string commandBufferName)
+		{
+			SharedMemoryBuffer commandBuffer = SharedMemoryBuffer.OpenExisting(commandBufferName);
 			return new WorkerComputeSocket(commandBuffer);
 		}
 
@@ -247,7 +256,7 @@ namespace EpicGames.Horde.Compute
 				for (; ; )
 				{
 					// Read the next packet header
-					if (!await transport.ReadOptionalAsync(header, cancellationToken))
+					if (!await transport.RecvOptionalAsync(header, cancellationToken))
 					{
 						_logger.LogTrace("[{Tag}] End of socket", Tag);
 						break;
@@ -303,7 +312,7 @@ namespace EpicGames.Horde.Compute
 
 			for (int offset = 0; offset < size;)
 			{
-				int read = await transport.ReadPartialAsync(memory.Slice(offset, size - offset), cancellationToken);
+				int read = await transport.RecvAsync(memory.Slice(offset, size - offset), cancellationToken);
 				offset += read;
 			}
 
@@ -369,7 +378,7 @@ namespace EpicGames.Horde.Compute
 				_bodySegment.Set(memory, null, _header.Length);
 
 				ReadOnlySequence<byte> sequence = new ReadOnlySequence<byte>(_headerSegment, 0, _bodySegment, memory.Length);
-				await _transport.WriteAsync(sequence, cancellationToken);
+				await _transport.SendAsync(sequence, cancellationToken);
 			}
 			finally
 			{

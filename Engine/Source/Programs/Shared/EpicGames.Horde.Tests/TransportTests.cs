@@ -25,7 +25,7 @@ namespace EpicGames.Horde.Tests
 			{
 				using MemoryStream memoryStream = new MemoryStream();
 				StreamTransport streamTransport = new StreamTransport(memoryStream);
-				await streamTransport.WriteAsync(input, CancellationToken.None);
+				await streamTransport.SendAsync(input, CancellationToken.None);
 				payload = memoryStream.ToArray();
 			}
 
@@ -62,7 +62,7 @@ namespace EpicGames.Horde.Tests
 				using MemoryStream memoryStream = new MemoryStream();
 				StreamTransport streamTransport = new StreamTransport(memoryStream);
 				await using AesTransport aesTransport = new AesTransport(streamTransport, key, nonce);
-				await aesTransport.WriteAsync(input, CancellationToken.None);
+				await aesTransport.SendAsync(input, CancellationToken.None);
 				encrypted = memoryStream.ToArray();
 			}
 
@@ -74,7 +74,7 @@ namespace EpicGames.Horde.Tests
 
 				for (int offset = 0; offset < output.Length;)
 				{
-					offset += await aesTransport.ReadPartialAsync(output.AsMemory(offset), CancellationToken.None);
+					offset += await aesTransport.RecvAsync(output.AsMemory(offset), CancellationToken.None);
 				}
 			}
 
@@ -89,7 +89,7 @@ namespace EpicGames.Horde.Tests
 		{
 			for (int offset = 0; offset < buffer.Length;)
 			{
-				int size = await transport.ReadPartialAsync(buffer.Slice(offset), CancellationToken.None);
+				int size = await transport.RecvAsync(buffer.Slice(offset), CancellationToken.None);
 				Assert.IsTrue(size > 0);
 				offset += size;
 			}

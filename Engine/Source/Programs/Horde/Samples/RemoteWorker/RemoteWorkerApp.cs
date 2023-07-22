@@ -19,7 +19,7 @@ namespace RemoteWorker
 			byte[] data = new byte[4];
 			await channel.SendAsync(data.AsMemory(0, 1)); // Let the remote know we're ready
 
-			while(await channel.TryReceiveMessageAsync(data))
+			while(await channel.TryRecvMessageAsync(data))
 			{
 				int value = BinaryPrimitives.ReadInt32LittleEndian(data);
 				Console.WriteLine("Read value {0}", value);

@@ -1,14 +1,21 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include <iostream>
 #include "ComputeChannel.h"
 #include "ComputeBuffer.h"
 #include "ComputeSocket.h"
+#include <iostream>
+#include <thread>
+#include <assert.h>
 
-#include <Windows.h>
-
-int main()
+int main(int argc, const char* argv[])
 {
+	if (argc >= 2 && !_stricmp(argv[1], "-Test"))
+	{
+		void RunTests();
+		RunTests();
+		return 0;
+	}
+
 	const int ChannelId = 100;
 
 	FWorkerComputeSocket Socket;
@@ -18,8 +25,8 @@ int main()
 		return 1;
 	}
 
-	FComputeChannel Channel;
-	if (!Channel.Attach(Socket, ChannelId, FComputeBuffer::FParams()))
+	FComputeChannel Channel = Socket.CreateChannel(ChannelId);
+	if(!Channel.IsValid())
 	{
 		std::cout << "Unable to create channel to initiator" << std::endl;
 		return 1;
@@ -53,4 +60,3 @@ int main()
 	Channel.MarkComplete();
 	return 0;
 }
-

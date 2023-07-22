@@ -7,8 +7,8 @@
 class FComputeBufferReader;
 class FComputeBufferWriter;
 
-struct FComputeBufferHeader;
-struct FComputeBufferResources;
+struct FHeader;
+struct FComputeBufferDetail;
 
 //
 // Implements a ring buffer using shared memory, with one writer and multiple readers. 
@@ -28,6 +28,9 @@ public:
 
 	// Maximum allowed number of chunks
 	static const int MaxChunks = 16;
+
+	// Maximum length of a compute buffer name
+	static const size_t MaxNameLength = 256;
 
 	// Parameters for constructing a compute buffer
 	struct FParams
@@ -53,7 +56,7 @@ public:
 	void Close();
 
 	// Test if the buffer is currently open
-	bool IsOpen() const { return Resources != nullptr; }
+	bool IsOpen() const { return Detail != nullptr; }
 
 	// Gets a reference to the reader instance
 	FComputeBufferReader& GetReader();
@@ -64,7 +67,7 @@ public:
 	const FComputeBufferWriter& GetWriter() const;
 
 private:
-	std::shared_ptr<FComputeBufferResources> Resources;
+	std::shared_ptr<FComputeBufferDetail> Detail;
 };
 
 //
@@ -74,20 +77,26 @@ class FComputeBufferReader
 {
 public:
 	FComputeBufferReader();
-	FComputeBufferReader(std::shared_ptr<FComputeBufferResources> Resources, int ReaderIdx);
+	FComputeBufferReader(std::shared_ptr<FComputeBufferDetail> Detail, int ReaderIdx);
 	~FComputeBufferReader();
 
 	// Test if the reader is valid
-	bool IsValid() const { return Resources.get() != nullptr; }
+	bool IsValid() const { return Detail.get() != nullptr; }
 
 	// Test whether the buffer has finished being written to (ie. MarkComplete() has been called by the writer) and all data has been read from it.
 	bool IsComplete() const;
+
+	// Mark this buffer as complete. This is technically a "write" operation, but is needed to release blocking waits on shutdown.
+	void ForceComplete();
 
 	// Move the read cursor forwards by the given number of bytes
 	void AdvanceReadPosition(size_t Size);
 
 	// Gets the amount of data that is ready to be read from a contiguous block of memory.
 	size_t GetMaxReadSize() const;
+
+	// Reads data into the given buffer
+	size_t Read(void* Buffer, size_t MaxSize, int TimeoutMs = -1);
 
 	// Waits until the given amount of data has been read, and returns a pointer to it. Returns nullptr if the timeout expires, or
 	// if the requested amount of data is not in a contiguous block of memory.
@@ -96,7 +105,7 @@ public:
 private:
 	friend class FWorkerComputeSocket;
 
-	std::shared_ptr<FComputeBufferResources> Resources;
+	std::shared_ptr<FComputeBufferDetail> Detail;
 	int ReaderIdx;
 
 	const wchar_t* GetName() const;
@@ -109,11 +118,11 @@ class FComputeBufferWriter
 {
 public:
 	FComputeBufferWriter();
-	FComputeBufferWriter(std::shared_ptr<FComputeBufferResources> Resources);
+	FComputeBufferWriter(std::shared_ptr<FComputeBufferDetail> Detail);
 	~FComputeBufferWriter();
 
 	// Test if the writer is valid
-	bool IsValid() const { return Resources.get() != nullptr; }
+	bool IsValid() const { return Detail.get() != nullptr; }
 
 	// Signal that we've finished writing to this buffer
 	void MarkComplete();
@@ -124,6 +133,9 @@ public:
 	// Gets the length of the current write buffer.
 	size_t GetMaxWriteSize() const;
 
+	// Writes data into the compute buffer
+	size_t Write(const void* Buffer, size_t MaxSize, int TimeoutMs = -1);
+
 	// Waits until a write buffer of the requested size is available, and returns a pointer to it. Returns nullptr if the 
 	// timeout expires before enough data has been flushed to return a buffer of the given length.
 	unsigned char* WaitToWrite(size_t MinSize, int TimeoutMs = -1);
@@ -131,8 +143,7 @@ public:
 private:
 	friend class FWorkerComputeSocket;
 
-	std::shared_ptr<FComputeBufferResources> Resources;
+	std::shared_ptr<FComputeBufferDetail> Detail;
 
 	const wchar_t* GetName() const;
-	void SetAllReaderEvents();
 };

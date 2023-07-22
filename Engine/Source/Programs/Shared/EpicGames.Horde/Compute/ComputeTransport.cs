@@ -14,21 +14,21 @@ namespace EpicGames.Horde.Compute
 	public abstract class ComputeTransport
 	{
 		/// <summary>
-		/// Reads data from the underlying transport into an output buffer
-		/// </summary>
-		/// <param name="buffer">Buffer to read into</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public abstract ValueTask<int> ReadPartialAsync(Memory<byte> buffer, CancellationToken cancellationToken);
-
-		/// <summary>
 		/// Writes data to the underlying transport
 		/// </summary>
 		/// <param name="buffer">Buffer to be written</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public abstract ValueTask WriteAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken);
+		public abstract ValueTask SendAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken);
 
 		/// <summary>
-		/// Indicate that all data has been written to the transport layer, and that there will be no more calls to <see cref="WriteAsync(ReadOnlySequence{Byte}, CancellationToken)"/>
+		/// Reads data from the underlying transport into an output buffer
+		/// </summary>
+		/// <param name="buffer">Buffer to read into</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public abstract ValueTask<int> RecvAsync(Memory<byte> buffer, CancellationToken cancellationToken);
+
+		/// <summary>
+		/// Indicate that all data has been written to the transport layer, and that there will be no more calls to <see cref="SendAsync(ReadOnlySequence{Byte}, CancellationToken)"/>
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public abstract ValueTask MarkCompleteAsync(CancellationToken cancellationToken);
@@ -38,12 +38,12 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		/// <param name="buffer">Buffer to read into</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async ValueTask ReadFullAsync(Memory<byte> buffer, CancellationToken cancellationToken)
+		public async ValueTask RecvFullAsync(Memory<byte> buffer, CancellationToken cancellationToken)
 		{
 			int read = 0;
 			while (read < buffer.Length)
 			{
-				int partialRead = await ReadPartialAsync(buffer.Slice(read, buffer.Length - read), cancellationToken);
+				int partialRead = await RecvAsync(buffer.Slice(read, buffer.Length - read), cancellationToken);
 				if (partialRead == 0)
 				{
 					throw new EndOfStreamException();
@@ -57,16 +57,16 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		/// <param name="buffer">Buffer to read into</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async ValueTask<bool> ReadOptionalAsync(Memory<byte> buffer, CancellationToken cancellationToken)
+		public async ValueTask<bool> RecvOptionalAsync(Memory<byte> buffer, CancellationToken cancellationToken)
 		{
-			int read = await ReadPartialAsync(buffer, cancellationToken);
+			int read = await RecvAsync(buffer, cancellationToken);
 			if (read == 0)
 			{
 				return false;
 			}
 			if (read < buffer.Length)
 			{
-				await ReadFullAsync(buffer.Slice(read), cancellationToken);
+				await RecvFullAsync(buffer.Slice(read), cancellationToken);
 			}
 			return true;
 		}
@@ -76,8 +76,8 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		/// <param name="buffer">Buffer to be written</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
-			=> WriteAsync(new ReadOnlySequence<byte>(buffer), cancellationToken);
+		public ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
+			=> SendAsync(new ReadOnlySequence<byte>(buffer), cancellationToken);
 	}
 }
 

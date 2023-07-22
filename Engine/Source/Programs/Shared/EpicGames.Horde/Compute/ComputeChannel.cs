@@ -4,7 +4,6 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Horde.Compute.Buffers;
 
 namespace EpicGames.Horde.Compute
 {
@@ -38,8 +37,6 @@ namespace EpicGames.Horde.Compute
 		public void Dispose()
 		{
 			Reader.Dispose();
-
-			Writer.MarkComplete();
 			Writer.Dispose();
 		}
 
@@ -55,16 +52,16 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		/// <param name="buffer">Buffer to receive the data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public ValueTask<int> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => Reader.ReadAsync(buffer, cancellationToken);
+		public ValueTask<int> RecvAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => Reader.ReadAsync(buffer, cancellationToken);
 
 		/// <summary>
 		/// Reads a complete message from the given socket, retrying reads until the buffer is full.
 		/// </summary>
 		/// <param name="buffer">Buffer to store the data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async ValueTask ReceiveMessageAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+		public async ValueTask RecvMessageAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
 		{
-			if (!await TryReceiveMessageAsync(buffer, cancellationToken))
+			if (!await TryRecvMessageAsync(buffer, cancellationToken))
 			{
 				throw new EndOfStreamException();
 			}
@@ -75,11 +72,11 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		/// <param name="buffer">Buffer to store the data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async ValueTask<bool> TryReceiveMessageAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+		public async ValueTask<bool> TryRecvMessageAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
 		{
 			for (int offset = 0; offset < buffer.Length;)
 			{
-				int read = await ReceiveAsync(buffer.Slice(offset), cancellationToken);
+				int read = await RecvAsync(buffer.Slice(offset), cancellationToken);
 				if (read == 0)
 				{
 					return false;

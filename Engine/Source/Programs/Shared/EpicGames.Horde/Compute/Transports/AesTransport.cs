@@ -100,7 +100,7 @@ namespace EpicGames.Horde.Compute.Transports
 			for (; ; )
 			{
 				// Read more data into the buffer
-				int read = await _inner.ReadPartialAsync(memory.Slice(size), cancellationToken);
+				int read = await _inner.RecvAsync(memory.Slice(size), cancellationToken);
 				if (read == 0)
 				{
 					break;
@@ -143,7 +143,7 @@ namespace EpicGames.Horde.Compute.Transports
 		}
 
 		/// <inheritdoc/>
-		public override async ValueTask<int> ReadPartialAsync(Memory<byte> buffer, CancellationToken cancellationToken)
+		public override async ValueTask<int> RecvAsync(Memory<byte> buffer, CancellationToken cancellationToken)
 		{
 			int sizeRead = 0;
 			while (sizeRead == 0)
@@ -167,7 +167,7 @@ namespace EpicGames.Horde.Compute.Transports
 		}
 
 		/// <inheritdoc/>
-		public override async ValueTask WriteAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
+		public override async ValueTask SendAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
 		{
 			while (buffer.Length > 0)
 			{
@@ -185,7 +185,7 @@ namespace EpicGames.Horde.Compute.Transports
 				Position += plainText.Length;
 
 				await _lastWriteTask;
-				_lastWriteTask = _inner.WriteAsync(writeBuffer, cancellationToken).AsTask();
+				_lastWriteTask = _inner.SendAsync(writeBuffer, cancellationToken).AsTask();
 
 				buffer = buffer.Slice(plainText.Length);
 				_writeBufferOffset ^= WritePacketSize;

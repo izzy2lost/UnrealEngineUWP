@@ -1,15 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include <windows.h>
+#include "ComputeBuffer.h"
+#include "ComputePlatform.h"
 #include <assert.h>
 #include <iostream>
-#include <rpcdcep.h>
 #include <assert.h>
-#include "ComputeBuffer.h"
 
-namespace
+struct FComputeBufferDetail
 {
-	enum class EWriteState : int
+	enum class EWriteState : unsigned long long
 	{
 		// Writer has moved to the next chunk
 		MovedToNext = 0b00,
@@ -55,41 +54,50 @@ namespace
 		// Read the state value from memory
 		FChunkState Get() const
 		{
-			return FChunkState(InterlockedCompareExchange64((volatile long long*)&Value, 0, 0));
+			return FChunkState(FComputePlatform::AtomicRead64((volatile long long*)&Value));
 		}
 
 		// Append data to the chunk
 		void Append(long long length)
 		{
-			InterlockedAdd64(&Value, length);
+			FComputePlatform::AtomicAdd64(&Value, length);
 		}
 
 		// Mark the chunk as being written to
 		void StartWriting(int numReaders)
 		{
-			InterlockedExchange64(&Value, FChunkState(EWriteState::Writing, (1 << numReaders) - 1, 0).Value);
+			FComputePlatform::AtomicWrite64(&Value, FChunkState(EWriteState::Writing, (1 << numReaders) - 1, 0).Value);
 		}
 
 		// Mark this chunk as the end of the stream
 		void MarkComplete()
 		{
-			InterlockedOr64(&Value, FChunkState(EWriteState::Complete, 0, 0).Value);
+			FComputePlatform::AtomicOr64(&Value, FChunkState(EWriteState::Complete, 0, 0).Value);
 		}
 
 		// Clear the reader flag
 		void FinishReading(int ReaderIdx)
 		{
-			InterlockedAnd64(&Value, ~FChunkState((EWriteState)0, 1 << ReaderIdx, 0).Value);
+			FComputePlatform::AtomicAnd64(&Value, ~FChunkState((EWriteState)0, 1 << ReaderIdx, 0).Value);
 		}
 
 		// Move to the next chunk
 		void FinishWriting()
 		{
-			InterlockedAnd64(&Value, ~FChunkState(EWriteState::Writing, 0, 0).Value);
+			FComputePlatform::AtomicAnd64(&Value, ~FChunkState(EWriteState::Writing, 0, 0).Value);
 		}
 
 	private:
-		volatile long long Value;
+		union
+		{
+			volatile long long Value;
+			struct
+			{
+				unsigned long long Length : 31;
+				unsigned long long ReaderFlags : 31;
+				EWriteState WriteState : 2;
+			};
+		};
 	};
 
 	struct FReaderState
@@ -108,251 +116,405 @@ namespace
 	public:
 		FReaderState Get() const
 		{
-			return FReaderState(InterlockedCompareExchange64((volatile long long*)&Value, 0, 0));
+			return FReaderState(FComputePlatform::AtomicRead64((volatile long long*)&Value));
 		}
 
 		void Set(FReaderState State)
 		{
-			InterlockedExchange64(&Value, State.Value);
+			FComputePlatform::AtomicWrite64(&Value, State.Value);
 		}
 
 		void Advance(size_t Length)
 		{
-			InterlockedAdd64(&Value, Length);
+			FComputePlatform::AtomicAdd64(&Value, Length);
 		}
 
 	private:
-		volatile long long Value;
+		union
+		{
+			volatile long long Value;
+			struct
+			{
+				int Offset;
+				int ChunkIdx;
+			};
+		};
 	};
-}
 
-struct FComputeBufferHeader
-{
-	int NumReaders;
-	int NumChunks;
-	int ChunkLength;
-	int WriteChunkIdx;
-	FChunkStatePtr Chunks[FComputeBuffer::MaxChunks];
-	FReaderStatePtr Readers[FComputeBuffer::MaxReaders];
-};
-
-struct FComputeBufferResources
-{
-	static unsigned int Counter;
+	struct FHeader
+	{
+		int NumReaders;
+		int NumChunks;
+		int ChunkLength;
+		int WriteChunkIdx;
+		FChunkStatePtr Chunks[FComputeBuffer::MaxChunks];
+		FReaderStatePtr Readers[FComputeBuffer::MaxReaders];
+	};
 
 	wchar_t Name[260];
 
-	FComputeBufferHeader* Header;
+	FHeader* Header;
 	unsigned char* ChunkPtrs[FComputeBuffer::MaxChunks];
 
-	void* WriterEvent;
-	void* ReaderEvents[FComputeBuffer::MaxReaders];
+	FComputeManualResetEvent WriterEvent;
+	FComputeManualResetEvent ReaderEvents[FComputeBuffer::MaxReaders];
 
 	FComputeBufferReader Reader;
 	FComputeBufferWriter Writer;
 
-	FComputeBufferResources(const wchar_t* Name)
-		: MemoryMappedFile(nullptr)
-		, Header(nullptr)
+	FComputeBufferDetail(const wchar_t* Name)
+		: Header(nullptr)
 		, ChunkPtrs{ nullptr, }
 		, RefCount(1)
-		, WriterEvent(nullptr)
-		, ReaderEvents{ nullptr, }
 	{
+		static_assert(sizeof(FChunkStatePtr) == sizeof(long long));
+		static_assert(sizeof(FReaderStatePtr) == sizeof(long long));
+
 		wcscpy_s(this->Name, Name);
 	}
 
-	~FComputeBufferResources()
+	~FComputeBufferDetail()
 	{
-		if (Header != nullptr)
-		{
-			UnmapViewOfFile(Header);
-			Header = nullptr;
-		}
-
-		if (MemoryMappedFile != nullptr)
-		{
-			CloseHandle(MemoryMappedFile);
-			MemoryMappedFile = nullptr;
-		}
-
-		if (WriterEvent != nullptr)
-		{
-			CloseHandle(WriterEvent);
-			WriterEvent = nullptr;
-		}
-
-		for (int ReaderIdx = 0; ReaderIdx < FComputeBuffer::MaxReaders; ReaderIdx++)
-		{
-			if (ReaderEvents[ReaderIdx] != nullptr)
-			{
-				CloseHandle(ReaderEvents[ReaderIdx]);
-				ReaderEvents[ReaderIdx] = nullptr;
-			}
-		}
+		Header = nullptr;
 	}
 
-	static std::shared_ptr<FComputeBufferResources> CreateNew(const FComputeBuffer::FParams& Params)
+	static std::shared_ptr<FComputeBufferDetail> CreateNew(const FComputeBuffer::FParams& Params)
 	{
-		unsigned long long Capacity = sizeof(FComputeBufferHeader) + (Params.NumChunks * sizeof(unsigned int)) + (Params.NumChunks * Params.ChunkLength);
+		long long Capacity = sizeof(FHeader) + (Params.NumChunks * sizeof(unsigned int)) + (Params.NumChunks * Params.ChunkLength);
 
 		const wchar_t* Name = Params.Name;
 
-		wchar_t BaseNameBuffer[MAX_PATH];
+		wchar_t BaseNameBuffer[FComputeBuffer::MaxNameLength];
 		if (Name == nullptr)
 		{
-			DWORD Pid = GetCurrentProcessId();
-			ULONGLONG TickCount = GetTickCount64();
-			swprintf_s(BaseNameBuffer, L"Local\\COMPUTE_%u_%llu_%u", Pid, TickCount, InterlockedIncrement(&Counter));
+			FComputePlatform::CreateUniqueName(BaseNameBuffer, FComputeBuffer::MaxNameLength);
 			Name = BaseNameBuffer;
 		}
 
-		wchar_t NameBuffer[MAX_PATH];
-		swprintf_s(NameBuffer, L"%s_M", Name);
+		wchar_t NameBuffer[FComputeBuffer::MaxNameLength];
+		swprintf(NameBuffer, FComputeBuffer::MaxNameLength, L"%s_M", Name);
 
-		std::shared_ptr<FComputeBufferResources> Resources = std::make_shared<FComputeBufferResources>(Name);
-
-		LARGE_INTEGER LargeInteger;
-		LargeInteger.QuadPart = Capacity;
-
-		Resources->MemoryMappedFile = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, LargeInteger.HighPart, LargeInteger.LowPart, NameBuffer);
-		if (Resources->MemoryMappedFile == nullptr)
+		std::shared_ptr<FComputeBufferDetail> Detail = std::make_shared<FComputeBufferDetail>(Name);
+		if (!Detail->MemoryMappedFile.Create(NameBuffer, Capacity))
 		{
 			return nullptr;
 		}
 
-		Resources->Header = (FComputeBufferHeader*)MapViewOfFile(Resources->MemoryMappedFile, FILE_MAP_ALL_ACCESS, 0, 0, 0);
-		if (Resources->Header == nullptr)
+		Detail->Header = (FHeader*)Detail->MemoryMappedFile.GetPointer();
+		if (Detail->Header == nullptr)
 		{
 			return nullptr;
 		}
 
-		memset(Resources->Header, 0, sizeof(*Header));
-		Resources->Header->NumReaders = Params.NumReaders;
-		Resources->Header->NumChunks = Params.NumChunks;
-		Resources->Header->ChunkLength = Params.ChunkLength;
+		memset(Detail->Header, 0, sizeof(*Header));
+		Detail->Header->NumReaders = Params.NumReaders;
+		Detail->Header->NumChunks = Params.NumChunks;
+		Detail->Header->ChunkLength = Params.ChunkLength;
 
-		swprintf_s(NameBuffer, L"%s_W", Name);
-		Resources->WriterEvent = CreateEventW(NULL, TRUE, FALSE, NameBuffer);
-		if (Resources->WriterEvent == nullptr)
+		swprintf(NameBuffer, FComputeBuffer::MaxNameLength, L"%s_W", Name);
+		if (!Detail->WriterEvent.Create(NameBuffer))
 		{
 			return nullptr;
 		}
 
-		for (int ReaderIdx = 0; ReaderIdx < Resources->Header->NumReaders; ReaderIdx++)
+		for (int ReaderIdx = 0; ReaderIdx < Detail->Header->NumReaders; ReaderIdx++)
 		{
-			swprintf_s(NameBuffer, L"%s_R%d", Name, ReaderIdx);
-			Resources->ReaderEvents[ReaderIdx] = CreateEventW(NULL, TRUE, FALSE, NameBuffer);
-			if (Resources->ReaderEvents[ReaderIdx] == nullptr)
+			swprintf(NameBuffer, FComputeBuffer::MaxNameLength, L"%s_R%d", Name, ReaderIdx);
+			if (!Detail->ReaderEvents[ReaderIdx].Create(NameBuffer))
 			{
 				return nullptr;
 			}
 		}
 
-		Resources->Header->Chunks[0].StartWriting(Resources->Header->NumReaders);
+		Detail->Header->Chunks[0].StartWriting(Detail->Header->NumReaders);
 
-		InitShared(Resources);
-		return Resources;
+		InitShared(Detail);
+		return Detail;
 	}
 
-	static std::shared_ptr<FComputeBufferResources> OpenExisting(const wchar_t* Name)
+	static std::shared_ptr<FComputeBufferDetail> OpenExisting(const wchar_t* Name)
 	{
-		wchar_t NameBuffer[MAX_PATH];
-		swprintf_s(NameBuffer, L"%s_M", Name);
+		wchar_t NameBuffer[FComputeBuffer::MaxNameLength];
+		swprintf(NameBuffer, FComputeBuffer::MaxNameLength, L"%s_M", Name);
 
-		std::shared_ptr<FComputeBufferResources> Resources = std::make_shared<FComputeBufferResources>(Name);
-
-		Resources->MemoryMappedFile = OpenFileMappingW(FILE_MAP_ALL_ACCESS, TRUE, NameBuffer);
-		if (Resources->MemoryMappedFile == nullptr)
+		std::shared_ptr<FComputeBufferDetail> Detail = std::make_shared<FComputeBufferDetail>(Name);
+		if (!Detail->MemoryMappedFile.OpenExisting(NameBuffer))
 		{
 			return nullptr;
 		}
 
-		Resources->Header = (FComputeBufferHeader*)MapViewOfFile(Resources->MemoryMappedFile, FILE_MAP_ALL_ACCESS, 0, 0, 0);
-		if (Resources->Header == nullptr)
+		Detail->Header = (FHeader*)Detail->MemoryMappedFile.GetPointer();
+		if (Detail->Header == nullptr)
 		{
 			return nullptr;
 		}
 
-		swprintf_s(NameBuffer, L"%s_W", Name);
-		Resources->WriterEvent = OpenEventW(SYNCHRONIZE | EVENT_MODIFY_STATE, TRUE, NameBuffer);
-		if (Resources->WriterEvent == nullptr)
+		swprintf(NameBuffer, FComputeBuffer::MaxNameLength, L"%s_W", Name);
+		if (!Detail->WriterEvent.OpenExisting(NameBuffer))
 		{
 			return nullptr;
 		}
 
-		for (int ReaderIdx = 0; ReaderIdx < Resources->Header->NumReaders; ReaderIdx++)
+		for (int ReaderIdx = 0; ReaderIdx < Detail->Header->NumReaders; ReaderIdx++)
 		{
-			swprintf_s(NameBuffer, L"%s_R%d", Name, ReaderIdx);
-			Resources->ReaderEvents[ReaderIdx] = OpenEventW(SYNCHRONIZE | EVENT_MODIFY_STATE, TRUE, NameBuffer);
-			if (Resources->ReaderEvents[ReaderIdx] == nullptr)
+			swprintf(NameBuffer, FComputeBuffer::MaxNameLength, L"%s_R%d", Name, ReaderIdx);
+			if (!Detail->ReaderEvents[ReaderIdx].OpenExisting(NameBuffer))
 			{
 				return nullptr;
 			}
 		}
 
-		InitShared(Resources);
-		return Resources;
+		InitShared(Detail);
+		return Detail;
 	}
 
 	void AddRef()
 	{
-		InterlockedIncrement(&RefCount);
+		FComputePlatform::AtomicIncrement(&RefCount);
 	}
 
 	void Release()
 	{
-		if (InterlockedDecrement(&RefCount) == 0)
+		if (FComputePlatform::AtomicDecrement(&RefCount) == 0)
 		{
 			delete this;
 		}
 	}
 
+	bool IsComplete(int ReaderIdx) const
+	{
+		FReaderState ReaderState = Header->Readers[ReaderIdx].Get();
+		FChunkState ChunkState = Header->Chunks[ReaderState.GetChunkIdx()].Get();
+
+		return ChunkState.GetWriteState() == EWriteState::Complete && ReaderState.GetOffset() == ChunkState.GetLength();
+	}
+
+	void AdvanceReadPosition(int ReaderIdx, size_t Size)
+	{
+		Header->Readers[ReaderIdx].Advance(Size);
+	}
+
+	size_t GetMaxReadSize(int ReaderIdx) const
+	{
+		const FReaderStatePtr& readerStatePtr = Header->Readers[ReaderIdx];
+		FReaderState readerState = readerStatePtr.Get();
+
+		const FChunkStatePtr& chunkStatePtr = Header->Chunks[readerState.GetChunkIdx()];
+		FChunkState chunkState = chunkStatePtr.Get();
+
+		if (chunkState.HasReaderFlag(ReaderIdx))
+		{
+			return chunkState.GetLength() - readerState.GetOffset();
+		}
+		else
+		{
+			return 0;
+		}
+	}
+
+	const unsigned char* WaitToRead(int ReaderIdx, size_t MinSize, int TimeoutMs)
+	{
+		for (; ; )
+		{
+			FReaderStatePtr& readerStatePtr = Header->Readers[ReaderIdx];
+			FReaderState readerState = readerStatePtr.Get();
+
+			FChunkStatePtr& chunkStatePtr = Header->Chunks[readerState.GetChunkIdx()];
+			FChunkState chunkState = chunkStatePtr.Get();
+
+			if (!chunkState.HasReaderFlag(ReaderIdx))
+			{
+				// Wait until the current chunk is readable
+				ReaderEvents[ReaderIdx].Reset();
+				if (!chunkState.HasReaderFlag(ReaderIdx) && !ReaderEvents[ReaderIdx].Wait(TimeoutMs))
+				{
+					return nullptr;
+				}
+			}
+			else if (readerState.GetOffset() + MinSize <= chunkState.GetLength())
+			{
+				// We have enough data in the chunk to be able to read a message
+				return ChunkPtrs[readerState.GetChunkIdx()] + readerState.GetOffset();
+			}
+			else if (chunkState.GetWriteState() == EWriteState::Writing)
+			{
+				// Wait until there is more data in the chunk
+				ReaderEvents[ReaderIdx].Reset();
+				if (Header->Chunks[readerState.GetChunkIdx()].Get().Value == chunkState.Value && !ReaderEvents[ReaderIdx].Wait(TimeoutMs))
+				{
+					return nullptr;
+				}
+			}
+			else if (readerState.GetOffset() < chunkState.GetLength() || chunkState.GetWriteState() == EWriteState::Complete)
+			{
+				// Cannot read the requested amount of data from this chunk.
+				return nullptr;
+			}
+			else if (chunkState.GetWriteState() == EWriteState::MovedToNext)
+			{
+				// Move to the next chunk
+				chunkStatePtr.FinishReading(ReaderIdx);
+				WriterEvent.Set();
+
+				int chunkIdx = readerState.GetChunkIdx() + 1;
+				if (chunkIdx == Header->NumChunks)
+				{
+					chunkIdx = 0;
+				}
+
+				readerStatePtr.Set(FReaderState(chunkIdx, 0));
+			}
+			else
+			{
+				assert(false);
+			}
+		}
+	}
+
+	void MarkComplete()
+	{
+		Header->Chunks[Header->WriteChunkIdx].MarkComplete();
+		SetAllReaderEvents();
+	}
+
+	void AdvanceWritePosition(size_t Size)
+	{
+		Header->Chunks[Header->WriteChunkIdx].Append(Size);
+		SetAllReaderEvents();
+	}
+
+	size_t GetMaxWriteSize() const
+	{
+		FChunkState Value = Header->Chunks[Header->WriteChunkIdx].Get();
+		if (Value.GetWriteState() == EWriteState::Complete)
+		{
+			return 0;
+		}
+		else
+		{
+			return Header->ChunkLength - Value.GetLength();
+		}
+	}
+
+	size_t Write(const void* Buffer, size_t MaxSize, int TimeoutMs)
+	{
+		unsigned char* SendData = WaitToWrite(1, TimeoutMs);
+		if (SendData == nullptr)
+		{
+			return 0;
+		}
+
+		size_t SendSize = GetMaxWriteSize();
+		if (MaxSize < SendSize)
+		{
+			SendSize = MaxSize;
+		}
+
+		memcpy(SendData, Buffer, SendSize);
+		AdvanceWritePosition(SendSize);
+		return SendSize;
+	}
+
+	unsigned char* WaitToWrite(size_t MinSize, int TimeoutMs)
+	{
+		assert(MinSize <= Header->ChunkLength);
+
+		for (; ; )
+		{
+			FChunkStatePtr WriteChunkStatePtr = Header->Chunks[Header->WriteChunkIdx];
+
+			FChunkState ChunkState = WriteChunkStatePtr.Get();
+			if (ChunkState.GetWriteState() == EWriteState::Writing)
+			{
+				int Length = ChunkState.GetLength();
+				if (Length + MinSize <= Header->ChunkLength)
+				{
+					return ChunkPtrs[Header->WriteChunkIdx] + Length;
+				}
+
+				WriteChunkStatePtr.FinishWriting(); // STATE CHANGE
+				SetAllReaderEvents();
+			}
+
+			if (ChunkState.GetWriteState() == EWriteState::Complete)
+			{
+				return nullptr;
+			}
+
+			int NextWriteChunkIdx = Header->WriteChunkIdx + 1;
+			if (NextWriteChunkIdx == Header->NumChunks)
+			{
+				NextWriteChunkIdx = 0;
+			}
+
+			FChunkStatePtr NextWriteChunkStatePtr = Header->Chunks[NextWriteChunkIdx];
+			while (NextWriteChunkStatePtr.Get().GetReaderFlags() != 0)
+			{
+				if (!WriterEvent.Wait(TimeoutMs))
+				{
+					return nullptr;
+				}
+				WriterEvent.Reset();
+			}
+
+			Header->WriteChunkIdx = NextWriteChunkIdx;
+
+			NextWriteChunkStatePtr.StartWriting(Header->NumReaders);
+		}
+	}
+
 private:
-	void* MemoryMappedFile;
+	FComputeMemoryMappedFile MemoryMappedFile;
 	volatile long RefCount;
 
-	static void InitShared(std::shared_ptr<FComputeBufferResources> Resources)
+	static void InitShared(std::shared_ptr<FComputeBufferDetail> Detail)
 	{
-		Resources->Reader = FComputeBufferReader(Resources, 0);
-		Resources->Writer = FComputeBufferWriter(Resources);
+		Detail->Reader = FComputeBufferReader(Detail, 0);
+		Detail->Writer = FComputeBufferWriter(Detail);
 
-		FComputeBufferHeader* Header = Resources->Header;
+		FHeader* Header = Detail->Header;
 
 		unsigned char* NextPtr = (unsigned char*)(Header + 1);
 		for (int ChunkIdx = 0; ChunkIdx < Header->NumChunks; ChunkIdx++)
 		{
-			Resources->ChunkPtrs[ChunkIdx] = NextPtr;
+			Detail->ChunkPtrs[ChunkIdx] = NextPtr;
 			NextPtr += Header->ChunkLength;
+		}
+	}
+
+	void SetAllReaderEvents()
+	{
+		for (int Idx = 0; Idx < Header->NumReaders; Idx++)
+		{
+			ReaderEvents[Idx].Set();
 		}
 	}
 };
 
-unsigned int FComputeBufferResources::Counter = 0;
 
 
 
 //// FComputeBuffer /////
 
 FComputeBuffer::FComputeBuffer()
-	: Resources(nullptr)
+	: Detail(nullptr)
 {
 }
 
 FComputeBuffer::FComputeBuffer(const FComputeBuffer& Buffer)
 	: FComputeBuffer()
 {
-	if (Buffer.Resources != nullptr)
+	if (Buffer.Detail != nullptr)
 	{
-		Resources = Buffer.Resources;
-		Resources->AddRef();
+		Detail = Buffer.Detail;
+		Detail->AddRef();
 	}
 }
 
 FComputeBuffer::FComputeBuffer(FComputeBuffer&& Buffer) noexcept
-	: Resources(Buffer.Resources)
+	: Detail(Buffer.Detail)
 {
-	Buffer.Resources = nullptr;
+	Buffer.Detail = nullptr;
 }
 
 FComputeBuffer::~FComputeBuffer()
@@ -362,39 +524,39 @@ FComputeBuffer::~FComputeBuffer()
 
 bool FComputeBuffer::CreateNew(const FParams& Params)
 {
-	Resources = FComputeBufferResources::CreateNew(Params);
-	return Resources != nullptr;
+	Detail = FComputeBufferDetail::CreateNew(Params);
+	return Detail != nullptr;
 }
 
 bool FComputeBuffer::OpenExisting(const wchar_t* Name)
 {
-	Resources = FComputeBufferResources::OpenExisting(Name);
-	return Resources != nullptr;
+	Detail = FComputeBufferDetail::OpenExisting(Name);
+	return Detail != nullptr;
 }
 
 void FComputeBuffer::Close()
 {
-	Resources.reset();
+	Detail.reset();
 }
 
 FComputeBufferReader& FComputeBuffer::GetReader()
 {
-	return Resources->Reader;
+	return Detail->Reader;
 }
 
 const FComputeBufferReader& FComputeBuffer::GetReader() const
 {
-	return Resources->Reader;
+	return Detail->Reader;
 }
 
 FComputeBufferWriter& FComputeBuffer::GetWriter()
 {
-	return Resources->Writer;
+	return Detail->Writer;
 }
 
 const FComputeBufferWriter& FComputeBuffer::GetWriter() const
 {
-	return Resources->Writer;
+	return Detail->Writer;
 }
 
 
@@ -406,13 +568,13 @@ const FComputeBufferWriter& FComputeBuffer::GetWriter() const
 //// FComputeBufferReader /////
 
 FComputeBufferReader::FComputeBufferReader()
-	: Resources(nullptr)
+	: Detail(nullptr)
 	, ReaderIdx(-1)
 {
 }
 
-FComputeBufferReader::FComputeBufferReader(std::shared_ptr<FComputeBufferResources> Resources, int ReaderIdx)
-	: Resources(std::move(Resources))
+FComputeBufferReader::FComputeBufferReader(std::shared_ptr<FComputeBufferDetail> Detail, int ReaderIdx)
+	: Detail(std::move(Detail))
 	, ReaderIdx(ReaderIdx)
 {
 }
@@ -421,105 +583,53 @@ FComputeBufferReader::~FComputeBufferReader()
 {
 }
 
+void FComputeBufferReader::ForceComplete()
+{
+	Detail->MarkComplete();
+}
+
 bool FComputeBufferReader::IsComplete() const
 {
-	FComputeBufferHeader* Header = Resources->Header;
-
-	FReaderState ReaderState = Header->Readers[ReaderIdx].Get();
-	FChunkState ChunkState = Header->Chunks[ReaderState.GetChunkIdx()].Get();
-
-	return ChunkState.GetWriteState() == EWriteState::Complete && ReaderState.GetOffset() == ChunkState.GetLength();
+	return Detail->IsComplete(ReaderIdx);
 }
 
 void FComputeBufferReader::AdvanceReadPosition(size_t Size)
 {
-	FComputeBufferHeader* Header = Resources->Header;
-	Header->Readers[ReaderIdx].Advance(Size);
+	Detail->AdvanceReadPosition(ReaderIdx, Size);
 }
 
 size_t FComputeBufferReader::GetMaxReadSize() const
 {
-	FComputeBufferHeader* Header = Resources->Header;
+	return Detail->GetMaxReadSize(ReaderIdx);
+}
 
-	const FReaderStatePtr& readerStatePtr = Header->Readers[ReaderIdx];
-	FReaderState readerState = readerStatePtr.Get();
-
-	const FChunkStatePtr& chunkStatePtr = Header->Chunks[readerState.GetChunkIdx()];
-	FChunkState chunkState = chunkStatePtr.Get();
-
-	if (chunkState.HasReaderFlag(ReaderIdx))
-	{
-		return chunkState.GetLength() - readerState.GetOffset();
-	}
-	else
+size_t FComputeBufferReader::Read(void* Buffer, size_t MaxSize, int TimeoutMs)
+{
+	const unsigned char* RecvData = WaitToRead(1, TimeoutMs);
+	if (RecvData == nullptr)
 	{
 		return 0;
 	}
+
+	size_t RecvSize = GetMaxReadSize();
+	if (MaxSize < RecvSize)
+	{
+		RecvSize = MaxSize;
+	}
+
+	memcpy(Buffer, RecvData, RecvSize);
+	AdvanceReadPosition(RecvSize);
+	return RecvSize;
 }
 
 const unsigned char* FComputeBufferReader::WaitToRead(size_t MinSize, int TimeoutMs)
 {
-	FComputeBufferHeader* Header = Resources->Header;
-	for (; ; )
-	{
-		FReaderStatePtr& readerStatePtr = Header->Readers[ReaderIdx];
-		FReaderState readerState = readerStatePtr.Get();
-
-		FChunkStatePtr& chunkStatePtr = Header->Chunks[readerState.GetChunkIdx()];
-		FChunkState chunkState = chunkStatePtr.Get();
-
-		if (!chunkState.HasReaderFlag(ReaderIdx))
-		{
-			// Wait until the current chunk is readable
-			ResetEvent(Resources->ReaderEvents[ReaderIdx]);
-			if (!chunkState.HasReaderFlag(ReaderIdx) && WaitForSingleObject(Resources->ReaderEvents[ReaderIdx], TimeoutMs) == WAIT_TIMEOUT)
-			{
-				return nullptr;
-			}
-		}
-		else if (readerState.GetOffset() + MinSize <= chunkState.GetLength())
-		{
-			// We have enough data in the chunk to be able to read a message
-			return Resources->ChunkPtrs[readerState.GetChunkIdx()] + readerState.GetOffset();
-		}
-		else if (chunkState.GetWriteState() == EWriteState::Writing)
-		{
-			// Wait until there is more data in the chunk
-			ResetEvent(Resources->ReaderEvents[ReaderIdx]);
-			if (Header->Chunks[readerState.GetChunkIdx()].Get().Value == chunkState.Value && WaitForSingleObject(Resources->ReaderEvents[ReaderIdx], TimeoutMs) == WAIT_TIMEOUT)
-			{
-				return nullptr;
-			}
-		}
-		else if (readerState.GetOffset() < chunkState.GetLength() || chunkState.GetWriteState() == EWriteState::Complete)
-		{
-			// Cannot read the requested amount of data from this chunk.
-			return nullptr;
-		}
-		else if (chunkState.GetWriteState() == EWriteState::MovedToNext)
-		{
-			// Move to the next chunk
-			chunkStatePtr.FinishReading(ReaderIdx);
-			SetEvent(Resources->WriterEvent);
-
-			int chunkIdx = readerState.GetChunkIdx() + 1;
-			if (chunkIdx == Header->NumChunks)
-			{
-				chunkIdx = 0;
-			}
-
-			readerStatePtr.Set(FReaderState(chunkIdx, 0));
-		}
-		else
-		{
-			assert(false);
-		}
-	}
+	return Detail->WaitToRead(ReaderIdx, MinSize, TimeoutMs);
 }
 
 const wchar_t* FComputeBufferReader::GetName() const
 {
-	return Resources->Name;
+	return Detail->Name;
 }
 
 
@@ -529,12 +639,12 @@ const wchar_t* FComputeBufferReader::GetName() const
 //// FComputeBufferWriter /////
 
 FComputeBufferWriter::FComputeBufferWriter()
-	: Resources(nullptr)
+	: Detail(nullptr)
 {
 }
 
-FComputeBufferWriter::FComputeBufferWriter(std::shared_ptr<FComputeBufferResources> Resources)
-	: Resources(std::move(Resources))
+FComputeBufferWriter::FComputeBufferWriter(std::shared_ptr<FComputeBufferDetail> Detail)
+	: Detail(std::move(Detail))
 {
 }
 
@@ -544,81 +654,44 @@ FComputeBufferWriter::~FComputeBufferWriter()
 
 void FComputeBufferWriter::MarkComplete()
 {
-	FComputeBufferHeader* Header = Resources->Header;
-	Header->Chunks[Header->WriteChunkIdx].MarkComplete();
-	SetAllReaderEvents();
+	Detail->MarkComplete();
 }
 
 void FComputeBufferWriter::AdvanceWritePosition(size_t Size)
 {
-	FComputeBufferHeader* Header = Resources->Header;
-	Header->Chunks[Header->WriteChunkIdx].Append(Size);
-	SetAllReaderEvents();
+	Detail->AdvanceWritePosition(Size);
 }
 
 size_t FComputeBufferWriter::GetMaxWriteSize() const
 {
-	FComputeBufferHeader* Header = Resources->Header;
-	FChunkState Value = Header->Chunks[Header->WriteChunkIdx].Get();
-	return Header->ChunkLength - Value.GetLength();
+	return Detail->GetMaxWriteSize();
+}
+
+size_t FComputeBufferWriter::Write(const void* Buffer, size_t MaxSize, int TimeoutMs)
+{
+	unsigned char* SendData = WaitToWrite(1, TimeoutMs);
+	if (SendData == nullptr)
+	{
+		return 0;
+	}
+
+	size_t SendSize = GetMaxWriteSize();
+	if (MaxSize < SendSize)
+	{
+		SendSize = MaxSize;
+	}
+
+	memcpy(SendData, Buffer, SendSize);
+	AdvanceWritePosition(SendSize);
+	return SendSize;
 }
 
 unsigned char* FComputeBufferWriter::WaitToWrite(size_t MinSize, int TimeoutMs)
 {
-	FComputeBufferHeader* Header = Resources->Header;
-	assert(MinSize <= Header->ChunkLength);
-
-	DWORD WaitParam = (TimeoutMs == -1) ? INFINITE : (unsigned int)TimeoutMs;
-	for (; ; )
-	{
-		FChunkStatePtr WriteChunkStatePtr = Header->Chunks[Header->WriteChunkIdx];
-
-		FChunkState ChunkState = WriteChunkStatePtr.Get();
-		if (ChunkState.GetWriteState() == EWriteState::Writing)
-		{
-			int Length = ChunkState.GetLength();
-			if (Length + MinSize <= Header->ChunkLength)
-			{
-				return Resources->ChunkPtrs[Header->WriteChunkIdx] + Length;
-			}
-
-			WriteChunkStatePtr.FinishWriting(); // STATE CHANGE
-			SetAllReaderEvents();
-		}
-
-		int NextWriteChunkIdx = Header->WriteChunkIdx + 1;
-		if (NextWriteChunkIdx == Header->NumChunks)
-		{
-			NextWriteChunkIdx = 0;
-		}
-
-		FChunkStatePtr NextWriteChunkStatePtr = Header->Chunks[NextWriteChunkIdx];
-		while (NextWriteChunkStatePtr.Get().GetReaderFlags() != 0)
-		{
-			if (WaitForSingleObject(Resources->WriterEvent, WaitParam) == WAIT_TIMEOUT)
-			{
-				return nullptr;
-			}
-			ResetEvent(Resources->WriterEvent);
-		}
-
-		Header->WriteChunkIdx = NextWriteChunkIdx;
-
-		NextWriteChunkStatePtr.StartWriting(Header->NumReaders);
-	}
+	return Detail->WaitToWrite(MinSize, TimeoutMs);
 }
 
 const wchar_t* FComputeBufferWriter::GetName() const
 {
-	return Resources->Name;
+	return Detail->Name;
 }
-
-void FComputeBufferWriter::SetAllReaderEvents()
-{
-	FComputeBufferHeader* Header = Resources->Header;
-	for (int Idx = 0; Idx < Header->NumReaders; Idx++)
-	{
-		SetEvent(Resources->ReaderEvents[Idx]);
-	}
-}
-

@@ -187,13 +187,18 @@
   <ItemGroup>
     <ClCompile Include="ComputeBuffer.cpp" />
     <ClCompile Include="ComputeChannel.cpp" />
+    <ClCompile Include="ComputePlatform.cpp" />
     <ClCompile Include="ComputeSocket.cpp" />
+    <ClCompile Include="ComputeTransport.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="Tests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ComputeBuffer.h" />
     <ClInclude Include="ComputeChannel.h" />
+    <ClInclude Include="ComputePlatform.h" />
     <ClInclude Include="ComputeSocket.h" />
+    <ClInclude Include="ComputeTransport.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
