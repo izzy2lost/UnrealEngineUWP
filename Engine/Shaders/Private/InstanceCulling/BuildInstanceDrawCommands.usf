@@ -17,6 +17,11 @@
 	#define INSTANCE_DATA_STRIDE_ELEMENTS 1u
 #endif
 
+#ifndef VF_SUPPORTS_PRIMITIVE_SCENE_DATA
+	// Enable access to SceneData functionality for these compute shaders
+	#define VF_SUPPORTS_PRIMITIVE_SCENE_DATA 1u
+#endif
+
 // Disable the declaration of any templated types so we can use this shader without HLSL 2021. This is necessary because
 // cross-compilation creates bugs with ENABLE_INSTANCE_COMPACTION.
 #define ALLOW_TEMPLATES 0
