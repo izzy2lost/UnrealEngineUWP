@@ -44,15 +44,16 @@ float4 LoadLightmapDataElement(uint Index)
 }
 
 // Fetch from scene lightmap data buffer
-FLightmapSceneData GetLightmapData(uint LightmapDataIndex, uint DrawInstanceId) 
+FLightmapSceneData GetLightmapData(uint LightmapDataIndex) 
 {
 	FLightmapSceneData LightmapData;
 
-#if PLATFORM_USES_PRIMITIVE_UBO
-	// FIXME: unpack relevant ligtmap data from Primitive UBO
+#if SHADER_USES_PRIMITIVE_UBO
 	LightmapData = (FLightmapSceneData)0;
-	LightmapData.LightMapCoordinateScaleBias = float4(1,1,0,0);
-	LightmapData.ShadowMapCoordinateScaleBias = float4(1,1,0,0);
+	LightmapData.StaticShadowMapMasks = LoadPrimitiveDataElementUBO(LightmapDataIndex, 0u);
+	LightmapData.InvUniformPenumbraSizes = LoadPrimitiveDataElementUBO(LightmapDataIndex, 1u);
+	LightmapData.LightMapCoordinateScaleBias = LoadPrimitiveDataElementUBO(LightmapDataIndex, 2u);
+	LightmapData.ShadowMapCoordinateScaleBias = LoadPrimitiveDataElementUBO(LightmapDataIndex, 3u);
 #else	
 	// Note: layout must match FLightmapSceneShaderData in C++
 	// Relying on optimizer to remove unused loads
@@ -72,14 +73,18 @@ FLightmapSceneData GetLightmapData(uint LightmapDataIndex, uint DrawInstanceId)
 	{
 		LightmapData.LightmapVTPackedUniform[i] = asuint(LoadLightmapDataElement(LightmapDataBaseOffset + 10 + i));
 	}
-#endif // PLATFORM_USES_PRIMITIVE_UBO
+#endif // SHADER_USES_PRIMITIVE_UBO
 
 	return LightmapData;
 }
 
-FLightmapSceneData GetLightmapData(uint LightmapDataIndex) 
+FLightmapSceneData GetLightmapData(uint LightmapDataIndex, uint DrawInstanceId)
 {
-	return GetLightmapData(LightmapDataIndex, 0); // FIXME: UBO path
+#if SHADER_USES_PRIMITIVE_UBO
+	return GetLightmapData(DrawInstanceId);
+#else
+	return GetLightmapData(LightmapDataIndex);
+#endif
 }
 
 #else 

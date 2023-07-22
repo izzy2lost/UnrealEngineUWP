@@ -18,8 +18,12 @@ float4 LoadPrimitiveDataElementUBO(uint DrawInstanceId, uint DataIdx)
 FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
 {
 	FPrimitiveSceneData PrimitiveData = (FPrimitiveSceneData)0;
-
+	
 	uint DataIdx = 0;
+#if ALLOW_STATIC_LIGHTING
+	DataIdx += 4u; // 4 float4 reservered for pre-computed lighting data
+#endif
+
 	// TilePosition, Flags
 	{
 		float4 Data = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx + 0);
@@ -126,25 +130,18 @@ FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
 		DataIdx += 3u;
 	}
 
-	// WorldToPreviousWorld, TODO make optional
-	{
-		PrimitiveData.WorldToPreviousWorld = transpose(float4x4(
-			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0),
-			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+1),
-			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+2),
-			float4(0, 0, 0, 1)
-		));
-		DataIdx += 3u;
-	}
+	// Should not be used with regular primitives
+	PrimitiveData.WorldToPreviousWorld = float4x4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
 
 	// CustomData, TODO make optional
 	{
+		uint NumCustomData = min(NUM_CUSTOM_PRIMITIVE_DATA, 32u - DataIdx); //23u
 		UNROLL
-		for (uint i = 0; i < NUM_CUSTOM_PRIMITIVE_DATA; ++i)
+		for (uint i = 0; i < NumCustomData; ++i)
 		{
 			PrimitiveData.CustomPrimitiveData[i] = LoadPrimitiveDataElementUBO(DrawInstanceId,  DataIdx+i);
 		}
-		DataIdx += NUM_CUSTOM_PRIMITIVE_DATA;
+		DataIdx += NumCustomData;
 	}
 	return PrimitiveData;
 }

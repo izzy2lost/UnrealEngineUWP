@@ -566,7 +566,11 @@ void GetLightMapCoordinates(FVertexFactoryInterpolantsVSToPS Interpolants, out f
 #endif
 
 #if VF_USE_PRIMITIVE_SCENE_DATA
-	LightmapDataIndex = GetPrimitiveData(Interpolants.PrimitiveId).LightmapDataIndex;
+	#if SHADER_USES_PRIMITIVE_UBO
+		LightmapDataIndex = Interpolants.PrimitiveId;
+	#else
+		LightmapDataIndex = GetPrimitiveData(Interpolants.PrimitiveId).LightmapDataIndex;
+	#endif
 #else
 	LightmapDataIndex = 0;
 #endif
@@ -577,7 +581,11 @@ void GetShadowMapCoordinate(FVertexFactoryInterpolantsVSToPS Interpolants, out f
 	ShadowMapCoordinate = Interpolants.ShadowMapCoordinate;
 	
 #if VF_USE_PRIMITIVE_SCENE_DATA
-	LightmapDataIndex = GetPrimitiveData(Interpolants.PrimitiveId).LightmapDataIndex;
+	#if SHADER_USES_PRIMITIVE_UBO
+		LightmapDataIndex = Interpolants.PrimitiveId;
+	#else
+		LightmapDataIndex = GetPrimitiveData(Interpolants.PrimitiveId).LightmapDataIndex;
+	#endif
 #else
 	LightmapDataIndex = 0;
 #endif
