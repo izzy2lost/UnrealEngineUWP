@@ -944,7 +944,7 @@ namespace Chaos
 				return ECollisionVisitorResult::Stop;
 			}
 			return ECollisionVisitorResult::Continue;
-		}, false);
+		}, ECollisionVisitorFlags::VisitAll);
 		return bInGraph;
 	}
 

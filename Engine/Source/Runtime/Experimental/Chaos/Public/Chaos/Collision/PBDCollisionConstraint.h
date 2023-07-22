@@ -349,7 +349,17 @@ namespace Chaos
 		void ResetPhi(FReal InPhi) { ClosestManifoldPointIndex = INDEX_NONE; }
 		FReal GetPhi() const { return (ClosestManifoldPointIndex != INDEX_NONE) ? ManifoldPoints[ClosestManifoldPointIndex].ContactPoint.Phi : TNumericLimits<FReal>::Max(); }
 
+		// Was this constraint activated this frame? It will be activated if the shapes are within CullDistance of each other.
+		// NOTE: All Active constraints are in the ActiveConstraints list on the CollisionConstraintAllocator. A constraint
+		// remains "activated" in this respect even if disabled by the user (via SetDisabled()) in a callback.
+		// This flag is only really useful if you are iterating over constraints that have been kept in memory
+		// for optimization reasons, but are not currently in use. Normally you would only need to consider GetDisabled()
+		bool IsActivated() const { return Flags.bIsActivated; }
+
+		// Allow the user to disable this constraint. @see GetActive().
 		void SetDisabled(bool bInDisabled) { Flags.bDisabled = bInDisabled; }
+
+		// Whether this constraint was disabled by the user (e.g., via a collision callback)
 		bool GetDisabled() const { return Flags.bDisabled; }
 
 		void SetIsProbe(bool bInProbe) { Flags.bIsProbe = bInProbe; }
@@ -636,6 +646,9 @@ namespace Chaos
 		 */
 		void EndTick()
 		{
+			// Reset the activated flag so that we don't need to reset it for constraints that are kept
+			// in memory but not re-activated next frame.
+			Flags.bIsActivated = false;
 		}
 
 		/**
@@ -820,6 +833,7 @@ namespace Chaos
 			FFlags() : Bits(0) {}
 			struct
 			{
+				uint16 bIsActivated : 1;				// Was this constraint activated this tick and therefore in the current tick's active list (note: it may subsequently be disabled)
 				uint16 bDisabled : 1;					// Is this contact disabled (by the user or because cull distance is exceeded)
 				uint16 bUseManifold : 1;				// Should we use contact manifolds or single points (faster but poor behaviour)
 				uint16 bUseIncrementalManifold : 1;		// Do we need to run incremental collision detection (only LavelSets now)

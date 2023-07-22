@@ -527,6 +527,17 @@ namespace Chaos
 		PruneEdgeCollisions();
 	}
 
+	void FPBDCollisionConstraints::EndTick()
+	{
+		for (FPBDCollisionConstraint* Constraint : GetConstraints())
+		{
+			if (Constraint != nullptr)
+			{
+				Constraint->EndTick();
+			}
+		}
+	}
+
 	void FPBDCollisionConstraints::DetectProbeCollisions(FReal Dt)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_Collisions_DetectProbeCollisions);

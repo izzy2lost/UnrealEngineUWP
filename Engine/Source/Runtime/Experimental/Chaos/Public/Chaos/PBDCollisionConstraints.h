@@ -146,6 +146,10 @@ public:
 	*/
 	void DisableConstraints(const TSet<FGeometryParticleHandle*>& ParticleHandle) {}
 
+	/**
+	 * End of tick cleanup
+	 */
+	CHAOS_API void EndTick();
 
 	//
 	// FConstraintContainer Implementation

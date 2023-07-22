@@ -587,16 +587,51 @@ namespace Chaos
 	///////////////////////////////////////////////////////////////////////////////////////////////
 	///////////////////////////////////////////////////////////////////////////////////////////////
 
+	// Check the visitor flags and return true if we want to visit the constraint
+	inline bool CollisionVisitorShouldVisit(const FPBDCollisionConstraint* Constraint, const ECollisionVisitorFlags VisitFlags)
+	{
+		if (Constraint == nullptr)
+		{
+			return false;
+		}
+
+		if (!(VisitFlags & ECollisionVisitorFlags::VisitInactive))
+		{
+			if (!Constraint->IsActivated())
+			{
+				return false;
+			}
+		}
+
+		if (!(VisitFlags & ECollisionVisitorFlags::VisitDisabled))
+		{
+			if (!Constraint->IsEnabled())
+			{
+				return false;
+			}
+		}
+
+		if (!(VisitFlags & ECollisionVisitorFlags::VisitSleeping))
+		{
+			if (Constraint->IsSleeping())
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
 
 	template<typename TLambda>
-	inline ECollisionVisitorResult FParticlePairMidPhase::VisitCollisions(const TLambda& Visitor, const bool bOnlyActive)
+	inline ECollisionVisitorResult FParticlePairMidPhase::VisitCollisions(const TLambda& Visitor, const ECollisionVisitorFlags VisitFlags)
 	{
 		if (GetMidPhaseType() == EParticlePairMidPhaseType::ShapePair)
 		{
 			FShapePairParticlePairMidPhase* This = static_cast<FShapePairParticlePairMidPhase*>(this);
+
 			for (FSingleShapePairCollisionDetector& ShapePair : This->ShapePairDetectors)
 			{
-				if ((ShapePair.GetConstraint() != nullptr) && (!bOnlyActive || !ShapePair.GetConstraint()->GetDisabled()))
+				if (CollisionVisitorShouldVisit(ShapePair.GetConstraint(), VisitFlags))
 				{
 					if (Visitor(*ShapePair.GetConstraint()) == ECollisionVisitorResult::Stop)
 					{
@@ -612,7 +647,8 @@ namespace Chaos
 			for (auto& KVP : This->Constraints)
 			{
 				FPBDCollisionConstraintPtr& Constraint = KVP.Value;
-				if (!bOnlyActive || Constraint->IsEnabled())
+
+				if (CollisionVisitorShouldVisit(Constraint.Get(), VisitFlags))
 				{
 					if (Visitor(*Constraint) == ECollisionVisitorResult::Stop)
 					{
@@ -627,14 +663,14 @@ namespace Chaos
 
 
 	template<typename TLambda>
-	inline ECollisionVisitorResult FParticlePairMidPhase::VisitConstCollisions(const TLambda& Visitor, const bool bOnlyActive) const
+	inline ECollisionVisitorResult FParticlePairMidPhase::VisitConstCollisions(const TLambda& Visitor, const ECollisionVisitorFlags VisitFlags) const
 	{
 		if (GetMidPhaseType() == EParticlePairMidPhaseType::ShapePair)
 		{
 			const FShapePairParticlePairMidPhase* This = static_cast<const FShapePairParticlePairMidPhase*>(this);
 			for (const FSingleShapePairCollisionDetector& ShapePair : This->ShapePairDetectors)
 			{
-				if ((ShapePair.GetConstraint() != nullptr) && (!bOnlyActive || !ShapePair.GetConstraint()->GetDisabled()))
+				if (CollisionVisitorShouldVisit(ShapePair.GetConstraint(), VisitFlags))
 				{
 					if (Visitor(*ShapePair.GetConstraint()) == ECollisionVisitorResult::Stop)
 					{
@@ -650,7 +686,8 @@ namespace Chaos
 			for (const auto& KVP : This->Constraints)
 			{
 				const FPBDCollisionConstraintPtr& Constraint = KVP.Value;
-				if (!bOnlyActive || Constraint->IsEnabled())
+				
+				if (CollisionVisitorShouldVisit(Constraint.Get(), VisitFlags))
 				{
 					if (Visitor(*Constraint) == ECollisionVisitorResult::Stop)
 					{
@@ -691,11 +728,11 @@ namespace Chaos
 	}
 
 	template<typename TLambda>
-	inline ECollisionVisitorResult FParticleCollisions::VisitCollisions(const TLambda& Visitor)
+	inline ECollisionVisitorResult FParticleCollisions::VisitCollisions(const TLambda& Visitor, const ECollisionVisitorFlags VisitFlags)
 	{
-		return VisitMidPhases([&Visitor](FParticlePairMidPhase& MidPhase)
+		return VisitMidPhases([&Visitor, VisitFlags](FParticlePairMidPhase& MidPhase)
 			{
-				if (MidPhase.VisitCollisions(Visitor) == ECollisionVisitorResult::Stop)
+				if (MidPhase.VisitCollisions(Visitor, VisitFlags) == ECollisionVisitorResult::Stop)
 				{
 					return ECollisionVisitorResult::Stop;
 				}
@@ -704,11 +741,11 @@ namespace Chaos
 	}
 
 	template<typename TLambda>
-	inline ECollisionVisitorResult FParticleCollisions::VisitConstCollisions(const TLambda& Visitor) const
+	inline ECollisionVisitorResult FParticleCollisions::VisitConstCollisions(const TLambda& Visitor, const ECollisionVisitorFlags VisitFlags) const
 	{
-		return VisitConstMidPhases([&Visitor](const FParticlePairMidPhase& MidPhase)
+		return VisitConstMidPhases([&Visitor, VisitFlags](const FParticlePairMidPhase& MidPhase)
 			{
-				if (MidPhase.VisitConstCollisions(Visitor) == ECollisionVisitorResult::Stop)
+				if (MidPhase.VisitConstCollisions(Visitor, VisitFlags) == ECollisionVisitorResult::Stop)
 				{
 					return ECollisionVisitorResult::Stop;
 				}

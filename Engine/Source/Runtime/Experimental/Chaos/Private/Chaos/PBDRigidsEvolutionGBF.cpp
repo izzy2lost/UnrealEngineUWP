@@ -149,6 +149,8 @@ namespace Chaos
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::SaveParticlePostSolve"), STAT_Evolution_SavePostSolve, STATGROUP_Chaos);
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::DeactivateSleep"), STAT_Evolution_DeactivateSleep, STATGROUP_Chaos);
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::InertiaConditioning"), STAT_Evolution_InertiaConditioning, STATGROUP_Chaos);
+		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::CollisionEndTick"), STAT_Evolution_CollisionEndTick, STATGROUP_Chaos);
+
 
 		int32 SerializeEvolution = 0;
 		FAutoConsoleVariableRef CVarSerializeEvolution(TEXT("p.SerializeEvolution"), SerializeEvolution, TEXT(""));
@@ -622,7 +624,17 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 	if (CVars::DoFinalProbeNarrowPhase)
 	{
 		// Run contact updates on probe constraints
+		// NOTE: This happens after particles have been moved to their new locations
+		// so that we get contacts that are correct for end-of-frame positions
 		GetCollisionConstraints().DetectProbeCollisions(Dt);
+	}
+	
+	{
+		SCOPE_CYCLE_COUNTER(STAT_Evolution_CollisionEndTick);
+		CSV_SCOPED_TIMING_STAT(PhysicsVerbose, StepSolver_CollisionEndTick);
+
+		// Reset collision state ready for the next tick
+		CollisionConstraints.EndTick();
 	}
 
 	{
@@ -1084,7 +1096,8 @@ void FPBDRigidsEvolutionGBF::ParticleMaterialChanged(FGeometryParticleHandle* Pa
 		// Reset the material - the material properties will get collected later (collision activation)
 		Collision.ClearMaterialProperties();
 		return ECollisionVisitorResult::Continue;
-	});
+
+	}, ECollisionVisitorFlags::VisitAll);
 
 	// The graph caches some sleep thresholds etc 
 	GetIslandManager().UpdateParticleMaterial(Particle);
