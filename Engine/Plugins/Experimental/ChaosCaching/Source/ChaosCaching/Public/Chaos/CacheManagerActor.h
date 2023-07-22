@@ -108,6 +108,10 @@ struct FObservedComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Caching")
 	bool bPlaybackEnabled;
 
+	/** USD cache directory, if supported. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Caching")
+	FDirectoryPath USDCacheDirectory;
+
 	/** 
 	* Capture the state of bNotifyBreaks of the component before cache manager takes control. 
 	* this is because when recording the cache needs the component to have bNotifyBreaks set on the component 
@@ -134,6 +138,7 @@ struct FObservedComponent
 
 private:
 	friend class AChaosCacheManager;
+	friend class Chaos::FComponentCacheAdapter;
 
 	bool         bTriggered;          // Whether the observed component is active
 	Chaos::FReal AbsoluteTime;        // Time since BeginPlay
@@ -204,6 +209,11 @@ public:
 	CHAOSCACHING_API virtual void Serialize(FArchive& Ar) override;
 #if WITH_EDITOR
 	friend class IChaosCachingEditorPlugin;
+#endif
+
+#if WITH_EDITOR
+	bool ContainsProperty(const UStruct* Struct, const void* InProperty) const;
+	CHAOSCACHING_API virtual bool CanEditChange(const FProperty* InProperty) const override;
 #endif
 
 #if WITH_EDITOR

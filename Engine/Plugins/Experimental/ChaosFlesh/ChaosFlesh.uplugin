@@ -61,6 +61,10 @@
 		{
 			"Name": "DeformerGraph",
 			"Enabled": true
-		}
+		},
+        {
+            "Name": "USDImporter",
+            "Enabled": true
+        }
 	]
 }

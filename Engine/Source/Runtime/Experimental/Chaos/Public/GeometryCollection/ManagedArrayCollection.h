@@ -578,10 +578,10 @@ private:
 		int32 Size;
 	};
 
-	static FKeyType MakeMapKey(FName Name, FName Group)
+	static inline FKeyType MakeMapKey(FName Name, FName Group) // inline for linking issues
 	{
 		return FKeyType(Name, Group);
-	};
+	}
 
 	friend struct FManagedArrayCollectionValueTypeWrapper;
 	struct FValueType
