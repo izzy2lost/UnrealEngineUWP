@@ -15,6 +15,7 @@
 #include "RenderUtils.h"
 #include "SceneManagement.h"
 #include "ShaderMaterial.h"
+#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 static TAutoConsoleVariable<int32> CVarShaderUseGBufferRefactor(
 	TEXT("r.Shaders.UseGBufferRefactor"),
@@ -290,6 +291,8 @@ struct FShaderInitialDefinesInitializer
 		ApplyFetchEnvironmentInternal(LightmapDefines, GatherNames);
 		ApplyFetchEnvironmentInternal(CompilerDefines, GatherNames);
 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+
 		FShaderCompilerDefinitions InitialDefines;
 		for (FName DefineKey : GatherNames.Names)
 		{
@@ -297,6 +300,8 @@ struct FShaderInitialDefinesInitializer
 			InitialDefines.FindOrAddMapIndex(DefineKey);
 		}
 		FShaderCompilerDefinitions::InitializeInitialDefines(InitialDefines);
+
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 };
 static FShaderInitialDefinesInitializer GInitialDefinesInitializer;
@@ -2161,7 +2166,7 @@ void FShaderCompileUtilities::GenerateBrdfHeaders(const FName& ShaderFormat)
 
 EGBufferLayout FShaderCompileUtilities::FetchGBufferLayout(const FShaderCompilerEnvironment& Environment)
 {
-	const uint32 Layout = Environment.Definitions.GetIntegerValue(TEXT("GBUFFER_LAYOUT"));
+	const uint32 Layout = Environment.GetIntegerValue(TEXT("GBUFFER_LAYOUT"));
 	if (Layout >= GBL_Num)
 	{
 		return GBL_Default;

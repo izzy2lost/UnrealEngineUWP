@@ -33,6 +33,7 @@
 #include "Stats/Stats.h"
 #include "Stats/Stats2.h"
 #include "Templates/Function.h"
+#include "Templates/PimplPtr.h"
 #include "Templates/RefCounting.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
@@ -44,6 +45,7 @@ class Error;
 class FMemoryImageWriter;
 class FMemoryUnfreezeContent;
 class FPointerTableBase;
+class FShaderCompilerDefinitions;
 class FShaderCompileUtilities;
 class FShaderPreprocessorUtilities;
 class FSHA1;
@@ -317,212 +319,8 @@ private:
 	friend class FShaderCompilerDefinitions;
 };
 
-enum class EShaderCompilerDefineVariant : uint8
-{
-	None = 0,
-	Integer,
-	Unsigned,
-	Float,
-	String
-};
-
-/** Container for shader compiler definitions. */
-class FShaderCompilerDefinitions
-{
-public:
-	RENDERCORE_API FShaderCompilerDefinitions(bool bIncludeInitialDefines = false);
-	
-	RENDERCORE_API FShaderCompilerDefinitions(const FShaderCompilerDefinitions&);
-
-	/** Value types supported:   bool, int32, uint32, float, const TCHAR*, FString& */
-	template <typename ValueType>
-	void SetDefine(FName Name, ValueType Value)									{ InternalSetValue(FindOrAddMapIndex(Name), Value); }
-	void SetDefine(FName Name, const TCHAR* Value)								{ InternalSetValue(FindOrAddMapIndex(Name), Value); }
-	void SetDefine(FName Name, const FString& Value)							{ InternalSetValue(FindOrAddMapIndex(Name), *Value); }
-
-	template <typename ValueType>
-	void SetDefine(FShaderCompilerDefineNameCache& Name, ValueType Value)		{ InternalSetValue(FindOrAddMapIndex(Name), Value); }
-	void SetDefine(FShaderCompilerDefineNameCache& Name, const TCHAR* Value)	{ InternalSetValue(FindOrAddMapIndex(Name), Value); }
-	void SetDefine(FShaderCompilerDefineNameCache& Name, const FString& Value)	{ InternalSetValue(FindOrAddMapIndex(Name), *Value); }
-
-	RENDERCORE_API int32 GetIntegerValue(FName Name) const;
-	RENDERCORE_API int32 GetIntegerValue(FShaderCompilerDefineNameCache& NameCache, int32 ResultIfNotFound) const;
-
-	bool Contains(FName Name) const
-	{
-		int32 KeyIndex = FindMapIndex(Name, GetTypeHash(Name));
-		return KeyIndex != INDEX_NONE && ValueTypes[KeyIndex] != EShaderCompilerDefineVariant::None;
-	}
-
-	FORCEINLINE int32 Num() const
-	{
-		return ValueCount;
-	}
-
-	RENDERCORE_API void Empty();
-	RENDERCORE_API void Merge(const FShaderCompilerDefinitions& Other);
-
-	RENDERCORE_API FShaderCompilerDefinitions& operator=(const FShaderCompilerDefinitions& Other);
-
-	RENDERCORE_API friend FArchive& operator<<(FArchive& Ar,FShaderCompilerDefinitions& Defs);
-
-	class FConstIterator
-	{
-	public:
-		RENDERCORE_API FConstIterator(const FShaderCompilerDefinitions& InDefines);
-
-		/** conversion to "bool" returning true if the iterator is valid. */
-		FORCEINLINE explicit operator bool() const
-		{
-			return Index < Defines.Pairs.Num();
-		}
-		/** inverse of the "bool" operator */
-		FORCEINLINE bool operator !() const
-		{
-			return !(bool)*this;
-		}
-
-		FORCEINLINE FConstIterator& operator++()
-		{
-			Index++;
-
-			// Skip over None values in the map
-			int32 PairNum = Defines.Pairs.Num();
-			while (Index < PairNum && Defines.ValueTypes[Index] == EShaderCompilerDefineVariant::None)
-			{
-				Index++;
-			}
-			return *this;
-		}
-
-		// Note that the output of Key() is transient, only valid until the iterator is incremented!
-		FORCEINLINE const TCHAR* Key()
-		{
-			Defines.Pairs[Index].Key.ToString(KeyStringBuffer);
-			return KeyStringBuffer;
-		}
-
-		// Note that the output of Value() is transient, only valid until the iterator is incremented!
-		RENDERCORE_API const TCHAR* Value();
-
-		FORCEINLINE int32 GetIndex() const
-		{
-			return Index;
-		}
-
-	private:
-		const FShaderCompilerDefinitions& Defines;
-		int32 Index;
-		TCHAR KeyStringBuffer[FName::StringBufferSize];
-		TCHAR ValueStringBuffer[32];
-	};
-
-
-private:
-	RENDERCORE_API int32 FindMapIndex(FName Key, uint32 KeyHash) const;
-	RENDERCORE_API int32 FindOrAddMapIndex(FName Name);
-	RENDERCORE_API int32 FindOrAddMapIndex(FShaderCompilerDefineNameCache& NameCache);
-
-	RENDERCORE_API void InternalSetValue(int32 Index, const TCHAR* Value);
-
-	void InternalSetValue(int32 Index, bool Value)
-	{
-		SetValueType(Index, EShaderCompilerDefineVariant::Integer);
-		Pairs[Index].ValueInteger = Value ? 1 : 0;
-	}
-
-	void InternalSetValue(int32 Index, int32 Value)
-	{
-		SetValueType(Index, EShaderCompilerDefineVariant::Integer);
-		Pairs[Index].ValueInteger = Value;
-	}
-
-	void InternalSetValue(int32 Index, uint32 Value)
-	{
-		SetValueType(Index, EShaderCompilerDefineVariant::Unsigned);
-		Pairs[Index].ValueUnsigned = Value;
-	}
-
-	void InternalSetValue(int32 Index, float Value)
-	{
-		SetValueType(Index, EShaderCompilerDefineVariant::Float);
-		Pairs[Index].ValueFloat = Value;
-	}
-
-	FORCEINLINE void SetValueType(int32 Index, EShaderCompilerDefineVariant InValueType)
-	{
-		EShaderCompilerDefineVariant& ValueType = ValueTypes[Index];
-		if (ValueType == EShaderCompilerDefineVariant::None)
-		{
-			ValueCount++;
-		}
-		ValueType = InValueType;
-	}
-
-	/** Called from FShaderInitialDefinesInitializer */
-	RENDERCORE_API static void InitializeInitialDefines(const FShaderCompilerDefinitions& InDefines);
-
-	/** Needed for the deprecated FShaderCompilerEnvironment::GetDefinitions, do not use! */
-	const TMap<FString, FString>& GetDefinitionMap() const
-	{
-		return UnusedStringDefinitions;
-	}
-	friend struct FShaderCompilerEnvironment;
-
-	struct FPairType
-	{
-		FName Key;
-		union
-		{
-			int32 ValueInteger;
-			uint32 ValueUnsigned;
-			float ValueFloat;
-		};
-
-		FORCEINLINE friend FArchive& operator<<(FArchive& Ar, FPairType& Pair)
-		{
-			// Avoid dynamic allocation when serializing keys.  We need to serialize the FName as a string, because the index in the FName is
-			// non-deterministic (serialization generates hash values that need to be deterministic) and process specific (data needs to be
-			// serialized to worker processes).  Compiler defines must be ANSI text, so serialize as such to save memory.
-			TCHAR KeyBuffer[FName::StringBufferSize];
-			ANSICHAR KeyBufferAnsi[FName::StringBufferSize];
-			uint32 StringLength;
-
-			if (Ar.IsLoading())
-			{
-				Ar << StringLength;
-				check(StringLength < FName::StringBufferSize);
-				Ar.Serialize(KeyBufferAnsi, StringLength + 1);
-				Pair.Key = FName(KeyBufferAnsi);
-			}
-			else
-			{
-				StringLength = Pair.Key.ToString(KeyBuffer, FName::StringBufferSize);
-				for (uint32 CharIndex = 0; CharIndex < StringLength + 1; CharIndex++)
-				{
-					KeyBufferAnsi[CharIndex] = (ANSICHAR)KeyBuffer[CharIndex];
-				}
-				Ar << StringLength;
-				Ar.Serialize(KeyBufferAnsi, StringLength + 1);
-			}
-			Ar << Pair.ValueInteger;
-			return Ar;
-		}
-	};
-	FHashTable KeyHashTable;
-	TArray<FPairType> Pairs;
-	TArray<EShaderCompilerDefineVariant> ValueTypes;
-	TArray<FString> StringValues;
-	uint32 InitialDefineCount;			// Number of items that came from GInitialDefines
-	uint32 ValueCount;					// Number of valid values (ValueType != EShaderCompilerDefineVariant::None)
-
-	/** Unused data kept around as something to return from GetDefinitionMap() call, which is used only in deprecated FShaderCompilerEnvironment::GetDefinitions call */
-	TMap<FString,FString> UnusedStringDefinitions;
-
-	RENDERCORE_API static FShaderCompilerDefinitions* GInitialDefines;
-
-	friend struct FShaderInitialDefinesInitializer;
-};
+// Temporarily included here until we can fully deprecate access to FShaderCompilerDefinitions in a future version
+#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 struct FShaderResourceTable
 {
@@ -697,18 +495,13 @@ struct FShaderCompilerEnvironment
 	bool FullPrecisionInPS = 0;
 
 	/** Default constructor. */
-	FShaderCompilerEnvironment()
-		: Definitions(true)			/* Enable initial defines -- helps performance here, but not necessary for standalone "added" defines declared elsewhere */
-	{
-		// Presize to reduce re-hashing while building shader jobs
-		IncludeVirtualPathToContentsMap.Empty(15);
-	}
+	RENDERCORE_API FShaderCompilerEnvironment();
 
 	/** Initialization constructor. */
-	explicit FShaderCompilerEnvironment(const FShaderCompilerDefinitions& InDefinitions)
-		: Definitions(InDefinitions)
-	{
-	}
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.4, "FShaderCompilerDefinitions is being made private in the future, do not use this constructor.")
+	RENDERCORE_API explicit FShaderCompilerEnvironment(const FShaderCompilerDefinitions& InDefinitions);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Used as a baseclass, make sure we're not incorrectly destroyed through a baseclass pointer
 	// This will be expensive to destroy anyway, additional vcall overhead should be small
@@ -736,42 +529,38 @@ struct FShaderCompilerEnvironment
 	 * e.g. SET_SHADER_DEFINE(NUM_SAMPLES, 1);
 	 * e.g. SET_SHADER_DEFINE(DOIT, true);
 	 */
-	void SetDefine(const TCHAR* Name, const TCHAR* Value)	{ Definitions.SetDefine(Name, Value); }
-	void SetDefine(const TCHAR* Name, const FString& Value) { Definitions.SetDefine(Name, Value); }
-	void SetDefine(const TCHAR* Name, uint32 Value)			{ Definitions.SetDefine(Name, Value); }
-	void SetDefine(const TCHAR* Name, int32 Value)			{ Definitions.SetDefine(Name, Value); }
-	void SetDefine(const TCHAR* Name, bool Value)			{ Definitions.SetDefine(Name, Value); }
-	void SetDefine(const TCHAR* Name, float Value)			{ Definitions.SetDefine(Name, Value); }
+	RENDERCORE_API void SetDefine(const TCHAR* Name, const TCHAR* Value);
+	RENDERCORE_API void SetDefine(const TCHAR* Name, const FString& Value);
+	RENDERCORE_API void SetDefine(const TCHAR* Name, uint32 Value);
+	RENDERCORE_API void SetDefine(const TCHAR* Name, int32 Value);
+	RENDERCORE_API void SetDefine(const TCHAR* Name, bool Value);
+	RENDERCORE_API void SetDefine(const TCHAR* Name, float Value);
 
-	void SetDefine(FName Name, const TCHAR* Value)			{ Definitions.SetDefine(Name, Value); }
-	void SetDefine(FName Name, const FString& Value)		{ Definitions.SetDefine(Name, Value); }
-	void SetDefine(FName Name, uint32 Value)				{ Definitions.SetDefine(Name, Value); }
-	void SetDefine(FName Name, int32 Value)					{ Definitions.SetDefine(Name, Value); }
-	void SetDefine(FName Name, bool Value)					{ Definitions.SetDefine(Name, Value); }
-	void SetDefine(FName Name, float Value)					{ Definitions.SetDefine(Name, Value); }
+	RENDERCORE_API void SetDefine(FName Name, const TCHAR* Value);
+	RENDERCORE_API void SetDefine(FName Name, const FString& Value);
+	RENDERCORE_API void SetDefine(FName Name, uint32 Value);
+	RENDERCORE_API void SetDefine(FName Name, int32 Value);
+	RENDERCORE_API void SetDefine(FName Name, bool Value);
+	RENDERCORE_API void SetDefine(FName Name, float Value);
 
-	void SetDefine(FShaderCompilerDefineNameCache& Name, const TCHAR* Value)	{ Definitions.SetDefine(Name, Value); }
-	void SetDefine(FShaderCompilerDefineNameCache& Name, const FString& Value)	{ Definitions.SetDefine(Name, Value); }
-	void SetDefine(FShaderCompilerDefineNameCache& Name, uint32 Value)			{ Definitions.SetDefine(Name, Value); }
-	void SetDefine(FShaderCompilerDefineNameCache& Name, int32 Value)			{ Definitions.SetDefine(Name, Value); }
-	void SetDefine(FShaderCompilerDefineNameCache& Name, bool Value)			{ Definitions.SetDefine(Name, Value); }
-	void SetDefine(FShaderCompilerDefineNameCache& Name, float Value)			{ Definitions.SetDefine(Name, Value); }
+	RENDERCORE_API void SetDefine(FShaderCompilerDefineNameCache& Name, const TCHAR* Value);
+	RENDERCORE_API void SetDefine(FShaderCompilerDefineNameCache& Name, const FString& Value);
+	RENDERCORE_API void SetDefine(FShaderCompilerDefineNameCache& Name, uint32 Value);
+	RENDERCORE_API void SetDefine(FShaderCompilerDefineNameCache& Name, int32 Value);
+	RENDERCORE_API void SetDefine(FShaderCompilerDefineNameCache& Name, bool Value);
+	RENDERCORE_API void SetDefine(FShaderCompilerDefineNameCache& Name, float Value);
 
-	FORCEINLINE int32 GetIntegerValue(FName Name) const
-	{
-		return Definitions.GetIntegerValue(Name);
-	}
-	FORCEINLINE int32 GetIntegerValue(FShaderCompilerDefineNameCache& NameCache, int32 ResultIfNotFound = 0) const
-	{
-		return Definitions.GetIntegerValue(NameCache, ResultIfNotFound);
-	}
+	RENDERCORE_API int32 GetIntegerValue(FName Name) const;
+	RENDERCORE_API int32 GetIntegerValue(FShaderCompilerDefineNameCache& NameCache, int32 ResultIfNotFound = 0) const;
+
+	RENDERCORE_API bool ContainsDefinition(FName Name) const;
 
 	template <typename ValueType> void SetDefineIfUnset(const TCHAR* Name, ValueType Value)
 	{
 		FName NameKey(Name);
-		if (!Definitions.Contains(NameKey))
+		if (!ContainsDefinition(NameKey))
 		{
-			Definitions.SetDefine(NameKey, Value);
+			SetDefine(NameKey, Value);
 		}
 	}
 
@@ -830,7 +619,7 @@ struct FShaderCompilerEnvironment
 	UE_DEPRECATED(5.3, "GetDefinitions is deprecated; preprocessor defines must now only be accessed by core shader system code. Use Get/SetCompileArgument for generic params instead.")
 	const TMap<FString,FString>& GetDefinitions() const
 	{
-		return Definitions.GetDefinitionMap();
+		return UnusedStringDefinitions;
 	}
 
 	void SetRenderTargetOutputFormat(uint32 RenderTargetIndex, EPixelFormat PixelFormat)
@@ -839,34 +628,10 @@ struct FShaderCompilerEnvironment
 	}
 
 	/** This "core" serialization is also used for the hashing the compiler job (where files are handled differently). Should stay in sync with the ShaderCompileWorker. */
-	inline void SerializeEverythingButFiles(FArchive& Ar)
-	{
-		Ar << Definitions;
-		Ar << CompileArgs;
-		Ar << CompilerFlags;
-		Ar << RenderTargetOutputFormatsMap;
-		Ar << ResourceTableMap.Resources;
-		Ar << UniformBufferMap;
-		Ar << FullPrecisionInPS;
-		if (Ar.IsLoading())
-		{
-			ResourceTableMap.FixupOnLoad(UniformBufferMap);
-		}
-	}
+	RENDERCORE_API void SerializeEverythingButFiles(FArchive& Ar);
 
 	// Serializes the portions of the environment that are used as input to the backend compilation process (i.e. after all preprocessing)
-	inline void SerializeCompilationDependencies(FArchive& Ar)
-	{
-		Ar << CompileArgs;
-		Ar << CompilerFlags;
-		Ar << ResourceTableMap.Resources;
-		Ar << UniformBufferMap;
-		Ar << FullPrecisionInPS;
-		if (Ar.IsLoading())
-		{
-			ResourceTableMap.FixupOnLoad(UniformBufferMap);
-		}
-	}
+	RENDERCORE_API void SerializeCompilationDependencies(FArchive& Ar);
 
 	friend FArchive& operator<<(FArchive& Ar,FShaderCompilerEnvironment& Environment)
 	{
@@ -879,42 +644,21 @@ struct FShaderCompilerEnvironment
 		return Ar;
 	}
 	
-	void Merge(const FShaderCompilerEnvironment& Other)
-	{
-		// Merge the include maps
-		// Merge the values of any existing keys
-		for (TMap<FString,FString>::TConstIterator It(Other.IncludeVirtualPathToContentsMap); It; ++It )
-		{
-			FString* ExistingContents = IncludeVirtualPathToContentsMap.Find(It.Key());
-
-			if (ExistingContents)
-			{
-				ExistingContents->Append(It.Value());
-			}
-			else
-			{
-				IncludeVirtualPathToContentsMap.Add(It.Key(), It.Value());
-			}
-		}
-
-		check(Other.IncludeVirtualPathToExternalContentsMap.Num() == 0);
-
-		CompilerFlags.Append(Other.CompilerFlags);
-		ResourceTableMap.Append(Other.ResourceTableMap);
-		UniformBufferMap.Append(Other.UniformBufferMap);
-		Definitions.Merge(Other.Definitions);
-		CompileArgs.Append(Other.CompileArgs);
-		RenderTargetOutputFormatsMap.Append(Other.RenderTargetOutputFormatsMap);
-		FullPrecisionInPS |= Other.FullPrecisionInPS;
-	}
+	RENDERCORE_API void Merge(const FShaderCompilerEnvironment& Other);
 
 private:
 
 	friend class FShaderCompileUtilities;
 	friend class FShaderPreprocessorUtilities;
 
-	FShaderCompilerDefinitions Definitions;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+	TPimplPtr<FShaderCompilerDefinitions, EPimplPtrMode::DeepCopy> Definitions;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	TMap<FString, TVariant<bool, float, int32, uint32, FString>> CompileArgs;
+
+	/** Unused data kept around for deprecated FShaderCompilerEnvironment::GetDefinitions call */
+	TMap<FString, FString> UnusedStringDefinitions;
 };
 
 

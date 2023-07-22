@@ -13,6 +13,7 @@
 #include "Serialization/MemoryWriter.h"
 #include "RayTracingDefinitions.h"
 #include "SpirvCommon.h"
+#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogD3D11ShaderCompiler, Log, All);
 
@@ -650,13 +651,16 @@ static bool CompileAndProcessD3DShaderFXCExt(
 			CrossCompiler::FShaderConductorTarget TargetDesc;
 			TargetDesc.Language = CrossCompiler::EShaderConductorLanguage::Hlsl;
 			TargetDesc.Version = 50;
-			TargetDesc.CompileFlags.SetDefine(TEXT("implicit_resource_binding"), 1);
-			TargetDesc.CompileFlags.SetDefine(TEXT("reconstruct_global_uniforms"), 1);
-			TargetDesc.CompileFlags.SetDefine(TEXT("reconstruct_cbuffer_names"), 1);
-			TargetDesc.CompileFlags.SetDefine(TEXT("reconstruct_semantics"), 1);
-			TargetDesc.CompileFlags.SetDefine(TEXT("force_zero_initialized_variables"), 1);
-			TargetDesc.CompileFlags.SetDefine(TEXT("relax_nan_checks"), 1);
-			TargetDesc.CompileFlags.SetDefine(TEXT("preserve_structured_buffers"), 1);
+
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+			TargetDesc.CompileFlags->SetDefine(TEXT("implicit_resource_binding"), 1);
+			TargetDesc.CompileFlags->SetDefine(TEXT("reconstruct_global_uniforms"), 1);
+			TargetDesc.CompileFlags->SetDefine(TEXT("reconstruct_cbuffer_names"), 1);
+			TargetDesc.CompileFlags->SetDefine(TEXT("reconstruct_semantics"), 1);
+			TargetDesc.CompileFlags->SetDefine(TEXT("force_zero_initialized_variables"), 1);
+			TargetDesc.CompileFlags->SetDefine(TEXT("relax_nan_checks"), 1);
+			TargetDesc.CompileFlags->SetDefine(TEXT("preserve_structured_buffers"), 1);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			// Patch SPIR-V for workarounds to prevent potential additional FXC failures
 			PatchSpirvForPrecompilation(Spirv);
@@ -1106,6 +1110,7 @@ bool PreprocessD3DShader(
 	FShaderPreprocessOutput& Output,
 	ELanguage Language)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	FShaderCompilerDefinitions AdditionalDefines;
 	if (Language == ELanguage::SM6)
 	{
@@ -1150,6 +1155,7 @@ bool PreprocessD3DShader(
 		}
 	}
 
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
 	if (Input.bSkipPreprocessedCache)
 	{

@@ -38,7 +38,9 @@ extern SHADERPREPROCESSOR_API bool PreprocessShader(
 	FString& OutPreprocessedShader,
 	FShaderCompilerOutput& ShaderOutput,
 	const FShaderCompilerInput& ShaderInput,
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	const FShaderCompilerDefinitions& AdditionalDefines,
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	EDumpShaderDefines DefinesPolicy = EDumpShaderDefines::DontCare);
 
 /**
@@ -56,5 +58,7 @@ extern SHADERPREPROCESSOR_API bool PreprocessShader(
 	FShaderPreprocessOutput& Output,
 	const FShaderCompilerInput& Input,
 	const FShaderCompilerEnvironment& MergedEnvironment,
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	const FShaderCompilerDefinitions& AdditionalDefines,
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	EDumpShaderDefines DefinesPolicy = EDumpShaderDefines::DontCare);

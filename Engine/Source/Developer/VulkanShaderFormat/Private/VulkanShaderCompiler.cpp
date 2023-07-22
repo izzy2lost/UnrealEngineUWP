@@ -10,6 +10,7 @@
 #include "hlslcc.h"
 #include "SpirvReflectCommon.h"
 #include "RHIShaderFormatDefinitions.inl"
+#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 #if PLATFORM_MAC
 // Horrible hack as we need the enum available but the Vulkan headers do not compile on Mac
@@ -2361,7 +2362,9 @@ static bool CompileWithShaderConductor(
 	CrossCompiler::FShaderConductorContext CompilerContext;
 
 	// Inject additional macro definitions to circumvent missing features: external textures
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	FShaderCompilerDefinitions AdditionalDefines;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Load shader source into compiler context
 	CompilerContext.LoadSource(PreprocessedShader, Input.VirtualSourceFilePath, EntryPointName, Frequency, &AdditionalDefines);
@@ -2595,6 +2598,8 @@ void DoCompileVulkanShader(const FShaderCompilerInput& Input, FShaderCompilerOut
 		return;
 	}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+
 	FString PreprocessedShader;
 	FShaderCompilerDefinitions AdditionalDefines;
 	AdditionalDefines.SetDefine(TEXT("COMPILER_HLSLCC"), 1);
@@ -2652,6 +2657,8 @@ void DoCompileVulkanShader(const FShaderCompilerInput& Input, FShaderCompilerOut
 		// On most Android devices uint64_t is unsupported so we emulate as 2 uint32_t's 
 		AdditionalDefines.SetDefine(TEXT("EMULATE_VKDEVICEADRESS"), 1);
 	}
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	const double StartPreprocessTime = FPlatformTime::Seconds();
 

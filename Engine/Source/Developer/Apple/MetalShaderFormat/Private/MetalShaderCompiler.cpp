@@ -13,6 +13,7 @@
 #include "Misc/Paths.h"
 #include "Misc/EngineVersion.h"
 #include "HAL/PlatformFileManager.h"
+#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 #include "MetalShaderFormat.h"
 
@@ -765,6 +766,8 @@ void BuildMetalShaderOutput(
 
 void CompileShader_Metal(const FShaderCompilerInput& _Input,FShaderCompilerOutput& Output,const FString& WorkingDirectory)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+
 	auto Input = _Input;
 	FString PreprocessedShader;
 	FShaderCompilerDefinitions AdditionalDefines;
@@ -987,6 +990,8 @@ void CompileShader_Metal(const FShaderCompilerInput& _Input,FShaderCompilerOutpu
 	}
 
 	AdditionalDefines.SetDefine(TEXT("COMPILER_SUPPORTS_DUAL_SOURCE_BLENDING_SLOT_DECORATION"), (uint32)1);
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	const double StartPreprocessTime = FPlatformTime::Seconds();
 

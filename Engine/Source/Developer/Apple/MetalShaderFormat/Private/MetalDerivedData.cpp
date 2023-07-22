@@ -11,6 +11,7 @@
 #include "MetalBackend.h"
 #include "Serialization/MemoryReader.h"
 #include "HlslccHeaderWriter.h"
+#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 #include "MetalShaderFormat.h"
 #include "SpirvReflectCommon.h"
@@ -962,6 +963,8 @@ bool DoCompileMetalShader(
 
 		CrossCompiler::FShaderConductorTarget TargetDesc;
 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+
 		if (Result)
 		{
 			if (bUsingInlineRayTracing)
@@ -969,18 +972,18 @@ bool DoCompileMetalShader(
 				// For inline raytracing, we only need the scene Instance Descriptors (to emulate a missing intrinsic).
 				uint32_t RayTracingInstanceIndexBuffer = FPlatformMath::CountTrailingZeros64(BufferIndices);
 				BufferIndices &= ~(1ull << (uint64)RayTracingInstanceIndexBuffer);
-				TargetDesc.CompileFlags.SetDefine(TEXT("raytracing_instance_descriptor_table_index"), RayTracingInstanceIndexBuffer);
+				TargetDesc.CompileFlags->SetDefine(TEXT("raytracing_instance_descriptor_table_index"), RayTracingInstanceIndexBuffer);
 				RTString = FString::Printf(TEXT("// @RayTracingInstanceIndexBuffer: %u\n\n"), RayTracingInstanceIndexBuffer);
 			}
 
 			SideTableIndex = FPlatformMath::CountTrailingZeros64(BufferIndices);
 			BufferIndices &= ~(1ull << (uint64)SideTableIndex);
 
-			TargetDesc.CompileFlags.SetDefine(TEXT("texel_buffer_texture_width"), 0);
-			TargetDesc.CompileFlags.SetDefine(TEXT("enforce_storge_buffer_bounds"), 1);
-			TargetDesc.CompileFlags.SetDefine(TEXT("buffer_size_buffer_index"), SideTableIndex);
-			TargetDesc.CompileFlags.SetDefine(TEXT("invariant_float_math"), Options.bEnableFMAPass ? 1 : 0);
-			TargetDesc.CompileFlags.SetDefine(TEXT("enable_decoration_binding"), 1);
+			TargetDesc.CompileFlags->SetDefine(TEXT("texel_buffer_texture_width"), 0);
+			TargetDesc.CompileFlags->SetDefine(TEXT("enforce_storge_buffer_bounds"), 1);
+			TargetDesc.CompileFlags->SetDefine(TEXT("buffer_size_buffer_index"), SideTableIndex);
+			TargetDesc.CompileFlags->SetDefine(TEXT("invariant_float_math"), Options.bEnableFMAPass ? 1 : 0);
+			TargetDesc.CompileFlags->SetDefine(TEXT("enable_decoration_binding"), 1);
 
             if(Input.Target.Platform == SP_METAL_SM6)
             {
@@ -1002,7 +1005,7 @@ bool DoCompileMetalShader(
                     }
                 }
                 
-                TargetDesc.CompileFlags.SetDefine(TEXT("flatten_2d_array"), bShouldFlatten2DArray ? 1 : 0);
+				TargetDesc.CompileFlags->SetDefine(TEXT("flatten_2d_array"), bShouldFlatten2DArray ? 1 : 0);
             }
 
 			switch (Semantics)
@@ -1012,16 +1015,16 @@ bool DoCompileMetalShader(
 				break;
 			case EMetalGPUSemanticsTBDRDesktop:
 				TargetDesc.Language = CrossCompiler::EShaderConductorLanguage::Metal_iOS;
-                TargetDesc.CompileFlags.SetDefine(TEXT("ios_support_base_vertex_instance"), !bSupportAppleA8);
-				TargetDesc.CompileFlags.SetDefine(TEXT("use_framebuffer_fetch_subpasses"), 1);
-				TargetDesc.CompileFlags.SetDefine(TEXT("emulate_cube_array"), 1);
+                TargetDesc.CompileFlags->SetDefine(TEXT("ios_support_base_vertex_instance"), !bSupportAppleA8);
+				TargetDesc.CompileFlags->SetDefine(TEXT("use_framebuffer_fetch_subpasses"), 1);
+				TargetDesc.CompileFlags->SetDefine(TEXT("emulate_cube_array"), 1);
 				break;
 			case EMetalGPUSemanticsMobile:
 			default:
 				TargetDesc.Language = CrossCompiler::EShaderConductorLanguage::Metal_iOS;
-                TargetDesc.CompileFlags.SetDefine(TEXT("ios_support_base_vertex_instance"), !bSupportAppleA8);
-                TargetDesc.CompileFlags.SetDefine(TEXT("use_framebuffer_fetch_subpasses"), 1);
-				TargetDesc.CompileFlags.SetDefine(TEXT("emulate_cube_array"), 1);
+                TargetDesc.CompileFlags->SetDefine(TEXT("ios_support_base_vertex_instance"), !bSupportAppleA8);
+                TargetDesc.CompileFlags->SetDefine(TEXT("use_framebuffer_fetch_subpasses"), 1);
+				TargetDesc.CompileFlags->SetDefine(TEXT("emulate_cube_array"), 1);
 				break;
 			}
 
@@ -1044,16 +1047,18 @@ bool DoCompileMetalShader(
 				{
 					// If a dimension for the subpass input attachment at binding slot 0 was determined,
 					// forward this dimension to SPIRV-Cross because SPIR-V doesn't support a dimension for OpTypeImage instruction with SubpassData
-					TargetDesc.CompileFlags.SetDefine(subpass_input_dimension_names[SubpassIndex], SubpassInputDim);
+					TargetDesc.CompileFlags->SetDefine(subpass_input_dimension_names[SubpassIndex], SubpassInputDim);
 				}
 			}
 			
 			if (IABTier >= 1)
 			{
-				TargetDesc.CompileFlags.SetDefine(TEXT("argument_buffers"), 1);
-				TargetDesc.CompileFlags.SetDefine(TEXT("argument_buffer_offset"), IABOffsetIndex);
+				TargetDesc.CompileFlags->SetDefine(TEXT("argument_buffers"), 1);
+				TargetDesc.CompileFlags->SetDefine(TEXT("argument_buffer_offset"), IABOffsetIndex);
 			}
-			TargetDesc.CompileFlags.SetDefine(TEXT("texture_buffer_native"), 1);
+			TargetDesc.CompileFlags->SetDefine(TEXT("texture_buffer_native"), 1);
+
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			
 			switch (VersionEnum)
 			{

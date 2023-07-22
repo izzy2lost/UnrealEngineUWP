@@ -11,6 +11,7 @@
 #include "ShaderCore.h"
 #include "ShaderFormatVectorVM.h"
 #include "ShaderPreprocessor.h"
+#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 #include "VectorVM.h"
 #include "VectorVMBackend.h"
@@ -53,6 +54,8 @@ bool CompileShader_VectorVM(const FShaderCompilerInput& Input, FShaderCompilerOu
 {
 	SCOPE_CYCLE_COUNTER(STAT_VectorVM_Compiler_CompileShader_VectorVM);
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+
 	FString PreprocessedShader;
 	FShaderCompilerDefinitions AdditionalDefines;
 	EHlslCompileTarget HlslCompilerTarget = HCT_FeatureLevelSM5;
@@ -65,6 +68,8 @@ bool CompileShader_VectorVM(const FShaderCompilerInput& Input, FShaderCompilerOu
 	const bool bDumpDebugInfo = (Input.DumpDebugInfoPath != TEXT("") && IFileManager::Get().DirectoryExists(*Input.DumpDebugInfoPath));
 
 	AdditionalDefines.SetDefine(TEXT("FORCE_FLOATS"), (uint32)1);
+	
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	if (Input.bSkipPreprocessedCache)
 	{

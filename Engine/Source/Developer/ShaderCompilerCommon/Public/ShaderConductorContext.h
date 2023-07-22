@@ -13,6 +13,8 @@
 #include "ShaderCore.h"
 #include "Templates/Function.h"
 
+class FShaderCompilerDefinitions;
+
 // Cross compiler support/common functionality
 namespace CrossCompiler
 {
@@ -130,6 +132,8 @@ namespace CrossCompiler
 	/** Shader conductor output target descriptor. */
 	struct SHADERCOMPILERCOMMON_API FShaderConductorTarget
 	{
+		FShaderConductorTarget();
+
 		/** Target shader semantics, e.g. "macOS" or "iOS" for Metal GPU semantics. */
 		EShaderConductorLanguage Language = EShaderConductorLanguage::Glsl;
 
@@ -142,7 +146,9 @@ namespace CrossCompiler
 		int32 Version = 0;
 
 		/** Cross compilation flags. This is used for high-level cross compilation (such as Metal output) that is send over to SPIRV-Cross, e.g. { "invariant_float_math", "1" }. */
-		FShaderCompilerDefinitions CompileFlags;
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+		TPimplPtr<FShaderCompilerDefinitions> CompileFlags;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		/** Optional callback to rename certain variable types. */
 		TFunction<bool(const FAnsiStringView& VariableName, const FAnsiStringView& TypeName, FString& OutRenamedTypeName)> VariableTypeRenameCallback;
@@ -184,8 +190,10 @@ namespace CrossCompiler
 		FShaderConductorContext& operator = (const FShaderConductorContext&) = delete;
 
 		/** Loads the shader source and converts the input descriptor to a format suitable for ShaderConductor. If 'Definitions' is null, the previously loaded definitions are not modified. */
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 		bool LoadSource(const FString& ShaderSource, const FString& Filename, const FString& EntryPoint, EShaderFrequency ShaderStage, const FShaderCompilerDefinitions* Definitions = nullptr, const TArray<FString>* ExtraDxcArgs = nullptr);
 		bool LoadSource(const ANSICHAR* ShaderSource, const ANSICHAR* Filename, const ANSICHAR* EntryPoint, EShaderFrequency ShaderStage, const FShaderCompilerDefinitions* Definitions = nullptr, const TArray<FString>* ExtraDxcArgs = nullptr);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		/** Rewrites the specified HLSL shader source code. This allows to reduce the HLSL code by removing unused global resources for instance.
 		This will update the internally loaded source (see 'LoadSource'), so the output parameter 'OutSource' is optional. */

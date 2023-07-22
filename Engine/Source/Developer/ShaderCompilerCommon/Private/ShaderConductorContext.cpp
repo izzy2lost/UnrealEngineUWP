@@ -2,6 +2,7 @@
 
 #include "ShaderConductorContext.h"
 #include "HAL/ExceptionHandling.h"
+#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 #if PLATFORM_MAC || PLATFORM_WINDOWS || PLATFORM_LINUX
 THIRD_PARTY_INCLUDES_START
@@ -245,6 +246,8 @@ namespace CrossCompiler
 		}
 	}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+
 	// Converts a map of string pairs to a C-Style macro defines array
 	static void ConvertDefineMapToMacroDefines(const FShaderCompilerDefinitions& Definitions, TArray<TPair<TArray<ANSICHAR>, TArray<ANSICHAR>>>& OutPairs, TArray<ShaderConductor::MacroDefine>& OutPairRefs)
 	{
@@ -265,6 +268,7 @@ namespace CrossCompiler
 			OutPairRefs[Index].value = OutPairs[Index].Value.GetData();
 		}
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	static void ConvertScTargetDesc(FShaderConductorContext::FShaderConductorIntermediates& Intermediates, const FShaderConductorTarget& InTarget, ShaderConductor::Compiler::TargetDesc& OutTargetDesc)
 	{
@@ -290,7 +294,7 @@ namespace CrossCompiler
 		}
 
 		// Convert flags map into an array container
-		ConvertDefineMapToMacroDefines(InTarget.CompileFlags, Intermediates.Flags, Intermediates.FlagRefs);
+		ConvertDefineMapToMacroDefines(*InTarget.CompileFlags, Intermediates.Flags, Intermediates.FlagRefs);
 
 		OutTargetDesc.options = Intermediates.FlagRefs.GetData();
 		OutTargetDesc.numOptions = static_cast<uint32>(Intermediates.FlagRefs.Num());
@@ -471,6 +475,13 @@ namespace CrossCompiler
 		}
 	}
 
+	FShaderConductorTarget::FShaderConductorTarget()
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+		CompileFlags = MakePimpl<FShaderCompilerDefinitions>();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
 	FShaderConductorContext::FShaderConductorContext()
 		: Intermediates(new FShaderConductorIntermediates())
 	{
@@ -497,7 +508,9 @@ namespace CrossCompiler
 		return *this;
 	}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	bool FShaderConductorContext::LoadSource(const FString& ShaderSource, const FString& Filename, const FString& EntryPoint, EShaderFrequency ShaderStage, const FShaderCompilerDefinitions* Definitions, const TArray<FString>* ExtraDxcArgs)
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		// Convert FString to ANSI string and store them as intermediates
 		ConvertFStringToAnsiString(ShaderSource, Intermediates->ShaderSource);
@@ -521,7 +534,9 @@ namespace CrossCompiler
 		return true;
 	}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	bool FShaderConductorContext::LoadSource(const ANSICHAR* ShaderSource, const ANSICHAR* Filename, const ANSICHAR* EntryPoint, EShaderFrequency ShaderStage, const FShaderCompilerDefinitions* Definitions, const TArray<FString>* ExtraDxcArgs)
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		// Store ANSI strings as intermediates
 		CopyAnsiString(ShaderSource, Intermediates->ShaderSource);

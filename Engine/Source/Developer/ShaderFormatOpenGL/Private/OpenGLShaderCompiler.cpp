@@ -13,6 +13,7 @@
 #include "SpirvReflectCommon.h"
 #include <algorithm>
 #include <regex>
+#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
@@ -1110,6 +1111,9 @@ void FOpenGLFrontend::PrecompileShader(FShaderCompilerOutput& ShaderOutput, cons
 	PlatformReleaseOpenGL(ContextPtr, PrevContextPtr);
 }
 
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+
 void FOpenGLFrontend::SetupPerVersionCompilationEnvironment(GLSLVersion Version, FShaderCompilerDefinitions& AdditionalDefines, EHlslCompileTarget& HlslCompilerTarget)
 {
 	switch (Version)
@@ -1133,6 +1137,8 @@ void FOpenGLFrontend::SetupPerVersionCompilationEnvironment(GLSLVersion Version,
 
 	AdditionalDefines.SetDefine(TEXT("OPENGL_PROFILE"), 1);
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 uint32 FOpenGLFrontend::GetMaxSamplers(GLSLVersion Version)
 {
@@ -2840,7 +2846,9 @@ bool GenerateDeferredMobileShaders(std::string& GlslSource, GLSLCompileParameter
 		OutString += ESVersionString + "\n";
 		OutString += "#ifdef UE_MRT_FRAMEBUFFER_FETCH\n";
 
-		FShaderCompilerDefinitions CompileFlagsCopy = GLSLCompileParams.TargetDesc->CompileFlags;
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+
+		FShaderCompilerDefinitions CompileFlagsCopy = *GLSLCompileParams.TargetDesc->CompileFlags;
 
 		// Add defines for FBF in spirv-glsl
 		for (uint32_t i = 1; i < 4; ++i)
@@ -2849,7 +2857,7 @@ bool GenerateDeferredMobileShaders(std::string& GlslSource, GLSLCompileParameter
 			{
 				FString DefineKey = FString::Printf(TEXT("remap_ext_framebuffer_fetch%d"), i);
 				FString DefineValue = FString::Printf(TEXT("%d %d"), i + 1, i);
-				GLSLCompileParams.TargetDesc->CompileFlags.SetDefine(*DefineKey, *DefineValue);
+				GLSLCompileParams.TargetDesc->CompileFlags->SetDefine(*DefineKey, *DefineValue);
 			}
 		}
 
@@ -2865,7 +2873,9 @@ bool GenerateDeferredMobileShaders(std::string& GlslSource, GLSLCompileParameter
 			FBFSourceString.replace(VersionStringPos, ESVersionString.length(), "");
 		}
 
-		GLSLCompileParams.TargetDesc->CompileFlags = CompileFlagsCopy;
+		*GLSLCompileParams.TargetDesc->CompileFlags = CompileFlagsCopy;
+
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		OutString += FBFSourceString;
 
@@ -2920,7 +2930,9 @@ bool GenerateDeferredMobileShaders(std::string& GlslSource, GLSLCompileParameter
 					DefineValue = GBufferOutputNames[i];
 				}
 
-				GLSLCompileParams.TargetDesc->CompileFlags.SetDefine(*DefineKey, *DefineValue);
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+				GLSLCompileParams.TargetDesc->CompileFlags->SetDefine(*DefineKey, *DefineValue);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 		}
 
@@ -3037,9 +3049,13 @@ static bool CompileToGlslWithShaderConductor(
 		SourceData = HlslFrameBufferDeclarations + SourceData;
 	}
 	
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+
 	// Inject additional macro definitions to circumvent missing features: external textures
 	FShaderCompilerDefinitions AdditionalDefines;
 	AdditionalDefines.SetDefine(TEXT("TextureExternal"), TEXT("Texture2D"));
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	UE::ShaderCompilerCommon::FDebugShaderDataOptions DebugDataOptions;
 	DebugDataOptions.HlslCCFlags = CCFlags;
@@ -3124,7 +3140,9 @@ static bool CompileToGlslWithShaderConductor(
 
 		CrossCompiler::FShaderConductorTarget TargetDesc;
 
-		TargetDesc.CompileFlags.SetDefine(TEXT("relax_nan_checks"), 1);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+
+		TargetDesc.CompileFlags->SetDefine(TEXT("relax_nan_checks"), 1);
 
 		switch (Version)
 		{
@@ -3139,9 +3157,9 @@ static bool CompileToGlslWithShaderConductor(
 		case GLSL_150_ES3_1:
 		case GLSL_ES3_1_ANDROID:
 		default:
-			TargetDesc.CompileFlags.SetDefine(TEXT("force_flattened_io_blocks"), 1);
-			TargetDesc.CompileFlags.SetDefine(TEXT("emit_uniform_buffer_as_plain_uniforms"), 1);
-			TargetDesc.CompileFlags.SetDefine(TEXT("pad_ubo_blocks"), 1);
+			TargetDesc.CompileFlags->SetDefine(TEXT("force_flattened_io_blocks"), 1);
+			TargetDesc.CompileFlags->SetDefine(TEXT("emit_uniform_buffer_as_plain_uniforms"), 1);
+			TargetDesc.CompileFlags->SetDefine(TEXT("pad_ubo_blocks"), 1);
 			// TODO: Currently disabled due to bug when assigning an array to temporary variable
 			//TargetDesc.CompileFlags.SetDefine(TEXT("force_temporary"), 1);
 
@@ -3149,17 +3167,19 @@ static bool CompileToGlslWithShaderConductor(
 			const bool bMultiView = Input.Environment.GetCompileArgument(TEXT("MOBILE_MULTI_VIEW"), false);
 			if (Frequency == SF_Vertex && bMultiView)
 			{
-				TargetDesc.CompileFlags.SetDefine(TEXT("ovr_multiview_view_count"), 2);
+				TargetDesc.CompileFlags->SetDefine(TEXT("ovr_multiview_view_count"), 2);
 			}
 
 			if (Version == GLSL_150_ES3_1)
 			{
-				TargetDesc.CompileFlags.SetDefine(TEXT("force_glsl_clipspace"), 1);
+				TargetDesc.CompileFlags->SetDefine(TEXT("force_glsl_clipspace"), 1);
 			}
 			TargetDesc.Language = CrossCompiler::EShaderConductorLanguage::Essl;
 			TargetDesc.Version = 320;
 			break;
 		}
+
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		TSet<FString> ExternalTextures;
 		int32 Pos = 0;
@@ -3291,6 +3311,8 @@ static inline FString GetExtension(EHlslShaderFrequency Frequency, bool bAddDot 
  */
 void FOpenGLFrontend::CompileShader(const FShaderCompilerInput& Input, FShaderCompilerOutput& Output, const FString& WorkingDirectory, GLSLVersion Version)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+
 	FString PreprocessedShader;
 	FShaderCompilerDefinitions AdditionalDefines;
 	EHlslCompileTarget HlslCompilerTarget = HCT_InvalidTarget;
@@ -3322,6 +3344,8 @@ void FOpenGLFrontend::CompileShader(const FShaderCompilerInput& Input, FShaderCo
 	{
 		AdditionalDefines.SetDefine(TEXT("FORCE_FLOATS"), (uint32)1);
 	}
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	if (Input.bSkipPreprocessedCache)
 	{

@@ -6,6 +6,7 @@
 #include "Misc/ScopeLock.h"
 #include "Modules/ModuleManager.h"
 #include "PreprocessorPrivate.h"
+#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 #include "stb_preprocess/preprocessor.h"
 #include "stb_preprocess/stb_alloc.h"
@@ -23,6 +24,7 @@ namespace
 	}
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 static void AddStbDefine(stb_arena* MacroArena, macro_definition**& StbDefines, const TCHAR* Name, const TCHAR* Value);
 static void AddStbDefines(stb_arena* MacroArena, macro_definition**& StbDefines, const FShaderCompilerDefinitions& Defines);
 
@@ -32,8 +34,8 @@ public:
 	static void DumpShaderDefinesAsCommentedCode(const FShaderCompilerEnvironment& Environment, FString* OutDefines)
 	{
 		TArray<FString> DefinesLines;
-		DefinesLines.Reserve(Environment.Definitions.Num());
-		for (FShaderCompilerDefinitions::FConstIterator DefineIt(Environment.Definitions); DefineIt; ++DefineIt)
+		DefinesLines.Reserve(Environment.Definitions->Num());
+		for (FShaderCompilerDefinitions::FConstIterator DefineIt(*Environment.Definitions); DefineIt; ++DefineIt)
 		{
 			DefinesLines.Add(FString::Printf(TEXT("// #define %s %s\n"), DefineIt.Key(), DefineIt.Value()));
 		}
@@ -50,10 +52,11 @@ public:
 
 	static void PopulateDefines(const FShaderCompilerEnvironment& Environment, const FShaderCompilerDefinitions& AdditionalDefines, stb_arena* MacroArena, macro_definition**& OutDefines)
 	{
-		AddStbDefines(MacroArena, OutDefines, Environment.Definitions);
+		AddStbDefines(MacroArena, OutDefines, *Environment.Definitions);
 		AddStbDefines(MacroArena, OutDefines, AdditionalDefines);
 	}
 };
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 //////////////////////////////////////////////////////////////////////////
 extern "C"
@@ -302,6 +305,8 @@ static void AddStbDefine(stb_arena* MacroArena, macro_definition**& StbDefines, 
 	arrput(StbDefines, pp_define(MacroArena, (ANSICHAR*)ConvertedDefine.Get()));
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+
 static void AddStbDefines(stb_arena* MacroArena, macro_definition**& StbDefines, const FShaderCompilerDefinitions& Defines)
 {
 	for (FShaderCompilerDefinitions::FConstIterator It(Defines); It; ++It)
@@ -320,6 +325,8 @@ bool InnerPreprocessShaderStb(
 	stb_arena MacroArena = { 0 };
 	macro_definition** StbDefines = nullptr;
 	FShaderPreprocessorUtilities::PopulateDefines(Environment, AdditionalDefines, &MacroArena, StbDefines);
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	FStbPreprocessContext Context{ Input, Environment };
 
@@ -378,7 +385,9 @@ bool PreprocessShader(
 	FString& OutPreprocessedShader,
 	FShaderCompilerOutput& ShaderOutput,
 	const FShaderCompilerInput& ShaderInput,
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	const FShaderCompilerDefinitions& AdditionalDefines,
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	EDumpShaderDefines DefinesPolicy)
 {
 	FShaderPreprocessOutput Output;
@@ -409,7 +418,9 @@ bool PreprocessShader(
 	FShaderPreprocessOutput& Output,
 	const FShaderCompilerInput& Input,
 	const FShaderCompilerEnvironment& Environment,
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	const FShaderCompilerDefinitions& AdditionalDefines,
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	EDumpShaderDefines DefinesPolicy
 )
 {
