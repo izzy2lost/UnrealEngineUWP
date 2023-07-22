@@ -474,7 +474,7 @@ private:
 	static TSet<int32> SolverIDsForDeltaRecording;
 	static TSet<int32> RequestedFullCaptureSolverIDs;
 
-	static FThreadSafeBool bIsTracing;
+	static std::atomic<bool> bIsTracing;
 
 	static FRWLock DeltaRecordingStatesLock;
 
