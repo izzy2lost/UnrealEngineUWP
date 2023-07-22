@@ -194,6 +194,20 @@ private:
 		TArray<uint32> DepthHistogram;
 	};
 
+	class FRingBufferAllocator
+	{
+		uint32 BufferSize;
+		uint32 ReadOffset;
+		uint32 WriteOffset;
+#if DO_CHECK
+		TQueue<uint32> SizeQueue;
+#endif
+	public:		
+		void Init(uint32 Size);
+		bool TryAllocate(uint32 Size, uint32& AllocatedOffset);
+		void Free(uint32 Size);
+	};
+
 	struct FVirtualPage
 	{
 		uint32 Priority				= 0u;						// Priority != 0u means referenced this frame
@@ -292,6 +306,8 @@ private:
 
 	TArray<FPendingPage>				PendingPages;
 	TArray<uint8>						PendingPageStagingMemory;
+	FRingBufferAllocator				PendingPageStagingAllocator;
+	
 
 	FStreamingPageUploader*				PageUploader = nullptr;
 

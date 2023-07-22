@@ -1626,40 +1626,42 @@ static void AssignClustersToPages(
 	}
 }
 
-// TODO: does unreal already have something like this?
-class FBlockPointer
+class FPageWriter
 {
-	uint8* StartPtr;
-	uint8* EndPtr;
-	uint8* Ptr;
-public:
-	FBlockPointer(uint8* Ptr, uint32 SizeInBytes) :
-		StartPtr(Ptr), EndPtr(Ptr + SizeInBytes), Ptr(Ptr)
+	TArray<uint8>& Bytes;
+public:	
+	FPageWriter(TArray<uint8>& InBytes) :
+		Bytes(InBytes)
 	{
 	}
 
 	template<typename T>
-	T* Advance(uint32 Num)
+	T* Append_Ptr(uint32 Num)
 	{
-		T* Result = (T*)Ptr;
-		Ptr += Num * sizeof(T);
-		check(Ptr <= EndPtr);
-		return Result;
+		const uint32 SizeBefore = (uint32)Bytes.Num();
+		Bytes.AddZeroed(Num * sizeof(T));
+		return (T*)(Bytes.GetData() + SizeBefore);
 	}
-
+	
 	template<typename T>
-	T* GetPtr() const { return (T*)Ptr; }
+	uint32 Append_Offset(uint32 Num)
+	{
+		const uint32 SizeBefore = (uint32)Bytes.Num();
+		Bytes.AddZeroed(Num * sizeof(T));
+		return SizeBefore;
+	}
 
 	uint32 Offset() const
 	{
-		return uint32(Ptr - StartPtr);
+		return (uint32)Bytes.Num();
 	}
 
 	void Align(uint32 Alignment)
 	{
-		while (Offset() % Alignment)
+		const uint32 Remainder = Offset() % Alignment;
+		if (Remainder != 0)
 		{
-			*Advance<uint8>(1) = 0;
+			Bytes.AddZeroed(Alignment - Remainder);
 		}
 	}
 };
@@ -2082,11 +2084,12 @@ static void WritePages(	FResources& Resources,
 
 		// Begin page
 		TArray<uint8>& PageResult = PageResults[PageIndex];
-		PageResult.SetNum(NANITE_MAX_PAGE_DISK_SIZE);
-		FBlockPointer PagePointer(PageResult.GetData(), PageResult.Num());
+		PageResult.Reset(NANITE_ESTIMATED_MAX_PAGE_DISK_SIZE);
+
+		FPageWriter PageWriter(PageResult);
 
 		// Disk header
-		FPageDiskHeader* PageDiskHeader = PagePointer.Advance<FPageDiskHeader>(1);
+		const uint32 PageDiskHeaderOffset = PageWriter.Append_Offset<FPageDiskHeader>(1);
 
 		// 16-byte align material range data to make it easy to copy during GPU transcoding
 		MaterialRangeData.SetNum(Align(MaterialRangeData.Num(), 4));
@@ -2095,63 +2098,71 @@ static void WritePages(	FResources& Resources,
 		static_assert(sizeof(FPageGPUHeader) % 16 == 0, "sizeof(FGPUPageHeader) must be a multiple of 16");
 		static_assert(sizeof(FUVRange) % 16 == 0, "sizeof(FUVRange) must be a multiple of 16");
 		static_assert(sizeof(FPackedCluster) % 16 == 0, "sizeof(FPackedCluster) must be a multiple of 16");
-		PageDiskHeader->NumClusters = Page.NumClusters;
-		PageDiskHeader->GpuSize = Page.GpuSizes.GetTotal();
-		PageDiskHeader->NumRawFloat4s = sizeof(FPageGPUHeader) / 16 + Page.NumClusters * (sizeof(FPackedCluster) + NumTexCoords * sizeof(FUVRange)) / 16 +  MaterialRangeData.Num() / 4 + VertReuseBatchInfo.Num() / 4;
-		PageDiskHeader->NumTexCoords = NumTexCoords;
-
+		
 		// Cluster headers
-		FClusterDiskHeader* ClusterDiskHeaders = PagePointer.Advance<FClusterDiskHeader>(Page.NumClusters);
+		const uint32 ClusterDiskHeadersOffset = PageWriter.Append_Offset<FClusterDiskHeader>(Page.NumClusters);
+		TArray<FClusterDiskHeader> ClusterDiskHeaders;
+		ClusterDiskHeaders.SetNum(Page.NumClusters);
 
-		// GPU page header
-		FPageGPUHeader* GPUPageHeader = PagePointer.Advance<FPageGPUHeader>(1);
-		*GPUPageHeader = FPageGPUHeader{};
-		GPUPageHeader->NumClusters = Page.NumClusters;
+		{
+			// GPU page header
+			FPageGPUHeader& GPUPageHeader = *PageWriter.Append_Ptr<FPageGPUHeader>(1);
+			GPUPageHeader = FPageGPUHeader{};
+			GPUPageHeader.NumClusters = Page.NumClusters;
+		}
 
 		// Write clusters in SOA layout
 		{
 			const uint32 NumClusterFloat4Propeties = sizeof(FPackedCluster) / 16;
+			uint8* Dst = PageWriter.Append_Ptr<uint8>(NumClusterFloat4Propeties * 16 * PackedClusters.Num());
 			for (uint32 float4Index = 0; float4Index < NumClusterFloat4Propeties; float4Index++)
 			{
 				for (const FPackedCluster& PackedCluster : PackedClusters)
 				{
-					uint8* Dst = PagePointer.Advance<uint8>(16);
 					FMemory::Memcpy(Dst, (uint8*)&PackedCluster + float4Index * 16, 16);
+					Dst += 16;
 				}
 			}
 		}
 		
-		// Material table
-		uint32 MaterialTableSize = MaterialRangeData.Num() * MaterialRangeData.GetTypeSize();
-		uint8* MaterialTable = PagePointer.Advance<uint8>(MaterialTableSize);
-		FMemory::Memcpy(MaterialTable, MaterialRangeData.GetData(), MaterialTableSize);
-		check(MaterialTableSize == Page.GpuSizes.GetMaterialTableSize());
+		{
+			// Material table
+			uint32 MaterialTableSize = MaterialRangeData.Num() * MaterialRangeData.GetTypeSize();
+			uint8* MaterialTable = PageWriter.Append_Ptr<uint8>(MaterialTableSize);
+			FMemory::Memcpy(MaterialTable, MaterialRangeData.GetData(), MaterialTableSize);
+			check(MaterialTableSize == Page.GpuSizes.GetMaterialTableSize());
+		}
 
-		// Vert reuse batch info
-		const uint32 VertReuseBatchInfoSize = VertReuseBatchInfo.Num() * VertReuseBatchInfo.GetTypeSize();
-		uint8* VertReuseBatchInfoData = PagePointer.Advance<uint8>(VertReuseBatchInfoSize);
-		FMemory::Memcpy(VertReuseBatchInfoData, VertReuseBatchInfo.GetData(), VertReuseBatchInfoSize);
-		check(VertReuseBatchInfoSize == Page.GpuSizes.GetVertReuseBatchInfoSize());
+		{
+			// Vert reuse batch info
+			const uint32 VertReuseBatchInfoSize = VertReuseBatchInfo.Num() * VertReuseBatchInfo.GetTypeSize();
+			uint8* VertReuseBatchInfoData = PageWriter.Append_Ptr<uint8>(VertReuseBatchInfoSize);
+			FMemory::Memcpy(VertReuseBatchInfoData, VertReuseBatchInfo.GetData(), VertReuseBatchInfoSize);
+			check(VertReuseBatchInfoSize == Page.GpuSizes.GetVertReuseBatchInfoSize());
+		}
 
 		// Decode information
-		PageDiskHeader->DecodeInfoOffset = PagePointer.Offset();
+		const uint32 DecodeInfoOffset = PageWriter.Offset();
 		for (uint32 i = 0; i < Page.PartsNum; i++)
 		{
 			const FClusterGroupPart& Part = Parts[Page.PartsStartIndex + i];
+			FUVRange* DecodeInfo = PageWriter.Append_Ptr<FUVRange>(Part.Clusters.Num() * NumTexCoords);
 			for (uint32 j = 0; j < (uint32)Part.Clusters.Num(); j++)
 			{
 				const uint32 ClusterIndex = Part.Clusters[j];
-				FUVRange* DecodeInfo = PagePointer.Advance<FUVRange>(NumTexCoords);
 				for (uint32 k = 0; k < NumTexCoords; k++)
 				{
 					DecodeInfo[k] = EncodingInfos[ClusterIndex].UVRanges[k];
 				}
+				DecodeInfo += NumTexCoords;
 			}
 		}
 		
+		uint32 StripBitmaskOffset = 0u;
 		// Index data
 		{
-			uint8* IndexData = PagePointer.GetPtr<uint8>();
+			const uint32 StartOffset = PageWriter.Offset();
+			uint32 NextOffset = StartOffset;
 #if NANITE_USE_STRIP_INDICES
 			for (uint32 i = 0; i < Page.PartsNum; i++)
 			{
@@ -2162,71 +2173,82 @@ static void WritePages(	FResources& Resources,
 					const uint32 ClusterIndex = Part.Clusters[j];
 					const FCluster& Cluster = Clusters[ClusterIndex];
 
-					ClusterDiskHeaders[LocalClusterIndex].IndexDataOffset = PagePointer.Offset();
-					ClusterDiskHeaders[LocalClusterIndex].NumPrevNewVerticesBeforeDwords = Cluster.StripDesc.NumPrevNewVerticesBeforeDwords;
-					ClusterDiskHeaders[LocalClusterIndex].NumPrevRefVerticesBeforeDwords = Cluster.StripDesc.NumPrevRefVerticesBeforeDwords;
+					FClusterDiskHeader& ClusterDiskHeader = ClusterDiskHeaders[LocalClusterIndex];
+					ClusterDiskHeader.IndexDataOffset = NextOffset;
+					ClusterDiskHeader.NumPrevNewVerticesBeforeDwords = Cluster.StripDesc.NumPrevNewVerticesBeforeDwords;
+					ClusterDiskHeader.NumPrevRefVerticesBeforeDwords = Cluster.StripDesc.NumPrevRefVerticesBeforeDwords;
 					
-					PagePointer.Advance<uint8>(Cluster.StripIndexData.Num());
+					NextOffset += Cluster.StripIndexData.Num();
 				}
 			}
 
-			uint32 IndexDataSize = CombinedIndexData.Num() * CombinedIndexData.GetTypeSize();
-			FMemory::Memcpy(IndexData, CombinedIndexData.GetData(), IndexDataSize);
-			PagePointer.Align(sizeof(uint32));
+			const uint32 Size = NextOffset - StartOffset;
+			uint8* IndexDataPtr = PageWriter.Append_Ptr<uint8>(Size);
+			FMemory::Memcpy(IndexDataPtr, CombinedIndexData.GetData(), Size);
+			PageWriter.Align(sizeof(uint32));
 
-			PageDiskHeader->StripBitmaskOffset = PagePointer.Offset();
-			uint32 StripBitmaskDataSize = CombinedStripBitmaskData.Num() * CombinedStripBitmaskData.GetTypeSize();
-			uint8* StripBitmaskData = PagePointer.Advance<uint8>(StripBitmaskDataSize);
-			FMemory::Memcpy(StripBitmaskData, CombinedStripBitmaskData.GetData(), StripBitmaskDataSize);
+			StripBitmaskOffset = PageWriter.Offset();
+
+			{
+				uint32 StripBitmaskDataSize = CombinedStripBitmaskData.Num() * CombinedStripBitmaskData.GetTypeSize();
+				uint8* StripBitmaskData = PageWriter.Append_Ptr<uint8>(StripBitmaskDataSize);
+				FMemory::Memcpy(StripBitmaskData, CombinedStripBitmaskData.GetData(), StripBitmaskDataSize);
+			}
 			
 #else
 			for (uint32 i = 0; i < Page.NumClusters; i++)
 			{
-				ClusterDiskHeaders[i].IndexDataOffset = PagePointer.Offset();
-				PagePointer.Advance<uint8>(PackedClusters[i].GetNumTris() * 3);
+				ClusterDiskHeaders[i].IndexDataOffset = NextOffset;
+				NextOffset += PackedClusters[i].GetNumTris() * 3;
 			}
-			PagePointer.Align(sizeof(uint32));
+			PageWriter.Align(sizeof(uint32));
 
-			uint32 IndexDataSize = CombinedIndexData.Num() * CombinedIndexData.GetTypeSize();
-			FMemory::Memcpy(IndexData, CombinedIndexData.GetData(), IndexDataSize);
+			const uint32 Size = NextOffset - StartOffset;
+			check(Size == CombinedIndexData.Num() * CombinedIndexData.GetTypeSize());
+			uint8* IndexDataPtr = PageWriter.Append_Ptr<uint8>(Size);
+			FMemory::Memcpy(IndexDataPtr, CombinedIndexData.GetData(), CombinedIndexData.Num() * CombinedIndexData.GetTypeSize());
 #endif
 		}
 
 		// Write PageCluster Map
 		{
-			uint8* PageClusterMapPtr = PagePointer.GetPtr<uint8>();
+			const uint32 StartOffset = PageWriter.Offset();
+			uint32 NextOffset = StartOffset;
 			for (uint32 i = 0; i < Page.NumClusters; i++)
 			{
-				ClusterDiskHeaders[i].PageClusterMapOffset = PagePointer.Offset();
-				PagePointer.Advance<uint32>(NumPageClusterPairsPerCluster[i]);
+				ClusterDiskHeaders[i].PageClusterMapOffset = NextOffset;
+				NextOffset += NumPageClusterPairsPerCluster[i] * sizeof(uint32);
 			}
-			check((PagePointer.GetPtr<uint8>() - PageClusterMapPtr) == CombinedPageClusterPairData.Num() * CombinedPageClusterPairData.GetTypeSize());
+			const uint32 Size = NextOffset - StartOffset;
+			check(Size == CombinedPageClusterPairData.Num() * CombinedPageClusterPairData.GetTypeSize());
+			check(Size % 4 == 0);
+			uint32* PageClusterMapPtr = PageWriter.Append_Ptr<uint32>(Size / 4);
 			FMemory::Memcpy(PageClusterMapPtr, CombinedPageClusterPairData.GetData(), CombinedPageClusterPairData.Num() * CombinedPageClusterPairData.GetTypeSize());
 		}
 
 		// Write Vertex Reference Bitmask
+		const uint32 VertexRefBitmaskOffset = PageWriter.Offset();
 		{
-			PageDiskHeader->VertexRefBitmaskOffset = PagePointer.Offset();
 			const uint32 VertexRefBitmaskSize = Page.NumClusters * (NANITE_MAX_CLUSTER_VERTICES / 8);
-			uint8* VertexRefBitmask = PagePointer.Advance<uint8>(VertexRefBitmaskSize);
+			uint8* VertexRefBitmask = PageWriter.Append_Ptr<uint8>(VertexRefBitmaskSize);
 			FMemory::Memcpy(VertexRefBitmask, CombinedVertexRefBitmaskData.GetData(), VertexRefBitmaskSize);
 			check(CombinedVertexRefBitmaskData.Num() * CombinedVertexRefBitmaskData.GetTypeSize() == VertexRefBitmaskSize);
 		}
 
 		// Write Vertex References
 		{
-			PageDiskHeader->NumVertexRefs = CombinedVertexRefData.Num();
-
-			uint8* VertexRefs = PagePointer.GetPtr<uint8>();
+			const uint32 StartOffset = PageWriter.Offset();
+			uint32 NextOffset = StartOffset;
 			for (uint32 i = 0; i < Page.NumClusters; i++)
 			{
-				ClusterDiskHeaders[i].VertexRefDataOffset = PagePointer.Offset();
 				const uint32 NumVertexRefs = PackedClusters[i].GetNumVerts() - CodedVerticesPerCluster[i];
-				ClusterDiskHeaders[i].NumVertexRefs = NumVertexRefs;
-				PagePointer.Advance<uint8>(NumVertexRefs);
+				ClusterDiskHeaders[i].VertexRefDataOffset	= NextOffset;
+				ClusterDiskHeaders[i].NumVertexRefs			= NumVertexRefs;
+				NextOffset += NumVertexRefs;
 			}
-			PagePointer.Advance<uint8>(CombinedVertexRefData.Num());	// Low bytes
-			PagePointer.Align(sizeof(uint32));
+			const uint32 Size = NextOffset - StartOffset;
+			uint8* VertexRefs = PageWriter.Append_Ptr<uint8>(Size * 2); // * 2 to also allocate space for the high bytes that follow
+			PageWriter.Align(sizeof(uint32));
 
 			// Split low and high bytes for better compression
 			for (int32 i = 0; i < CombinedVertexRefData.Num(); i++)
@@ -2238,31 +2260,59 @@ static void WritePages(	FResources& Resources,
 
 		// Write Positions
 		{
-			uint8* PositionData = PagePointer.GetPtr<uint8>();
+			const uint32 StartOffset = PageWriter.Offset();
+			uint32 NextOffset = StartOffset;
 			for (uint32 i = 0; i < Page.NumClusters; i++)
 			{
-				ClusterDiskHeaders[i].PositionDataOffset = PagePointer.Offset();
-				PagePointer.Advance<uint8>(NumPositionBytesPerCluster[i]);
+				ClusterDiskHeaders[i].PositionDataOffset = NextOffset;
+				NextOffset += NumPositionBytesPerCluster[i];
 			}
-			check( (PagePointer.GetPtr<uint8>() - PositionData) == CombinedPositionData.Num() * CombinedPositionData.GetTypeSize());
-
+			const uint32 Size = NextOffset - StartOffset;
+			check(Size == CombinedPositionData.Num() * CombinedPositionData.GetTypeSize());
+			uint8* PositionData = PageWriter.Append_Ptr<uint8>(Size);
 			FMemory::Memcpy(PositionData, CombinedPositionData.GetData(), CombinedPositionData.Num() * CombinedPositionData.GetTypeSize());
 		}
 
 		// Write Attributes
 		{
-			uint8* AttribData = PagePointer.GetPtr<uint8>();
+			const uint32 StartOffset = PageWriter.Offset();
+			uint32 NextOffset = StartOffset;
 			for (uint32 i = 0; i < Page.NumClusters; i++)
 			{
 				const uint32 BytesPerAttribute = (PackedClusters[i].GetBitsPerAttribute() + 7) / 8;
-				ClusterDiskHeaders[i].AttributeDataOffset = PagePointer.Offset();
-				PagePointer.Advance<uint8>(Align(CodedVerticesPerCluster[i] * BytesPerAttribute, 4));
+				ClusterDiskHeaders[i].AttributeDataOffset = NextOffset;
+				NextOffset += Align(CodedVerticesPerCluster[i] * BytesPerAttribute, 4);
 			}
-			check((uint32)(PagePointer.GetPtr<uint8>() - AttribData) == CombinedAttributeData.Num() * CombinedAttributeData.GetTypeSize());
+			const uint32 Size = NextOffset - StartOffset;
+			check(Size == CombinedAttributeData.Num() * CombinedAttributeData.GetTypeSize());
+			uint8* AttribData = PageWriter.Append_Ptr<uint8>(Size);
 			FMemory::Memcpy(AttribData, CombinedAttributeData.GetData(), CombinedAttributeData.Num()* CombinedAttributeData.GetTypeSize());
 		}
 
-		PageResult.SetNum(PagePointer.Offset(), false);
+		// Write page header
+		{
+			FPageDiskHeader PageDiskHeader;
+			PageDiskHeader.NumClusters = Page.NumClusters;
+			PageDiskHeader.GpuSize = Page.GpuSizes.GetTotal();
+			PageDiskHeader.NumRawFloat4s = sizeof(FPageGPUHeader) / 16 + Page.NumClusters * (sizeof(FPackedCluster) + NumTexCoords * sizeof(FUVRange)) / 16 + MaterialRangeData.Num() / 4 + VertReuseBatchInfo.Num() / 4;
+			PageDiskHeader.NumTexCoords = NumTexCoords;
+			PageDiskHeader.NumVertexRefs = CombinedVertexRefData.Num();
+			PageDiskHeader.DecodeInfoOffset = DecodeInfoOffset;
+			PageDiskHeader.StripBitmaskOffset = StripBitmaskOffset;
+			PageDiskHeader.VertexRefBitmaskOffset = VertexRefBitmaskOffset;
+			FMemory::Memcpy(PageResult.GetData() + PageDiskHeaderOffset, &PageDiskHeader, sizeof(PageDiskHeader));
+		}
+
+		// Write cluster headers
+		FMemory::Memcpy(PageResult.GetData() + ClusterDiskHeadersOffset, ClusterDiskHeaders.GetData(), ClusterDiskHeaders.Num()* ClusterDiskHeaders.GetTypeSize());
+#if 0
+		FILE* File = nullptr;
+		char Filename[128];
+		sprintf(Filename, "f:\\test\\newnew\\%d.dat", PageIndex);
+		fopen_s(&File, Filename, "wb");
+		fwrite(PageResult.GetData(), PageResult.Num(), 1, File);
+		fclose(File);
+#endif
 	});
 
 	// Write pages

@@ -578,6 +578,57 @@ uint32 FStreamingManager::FHierarchyDepthManager::CalculateNumLevels() const
 	return 0u;
 }
 
+void FStreamingManager::FRingBufferAllocator::Init(uint32 Size)
+{
+	BufferSize = Size;
+	ReadOffset = 0u;
+	WriteOffset = 0u;
+}
+
+bool FStreamingManager::FRingBufferAllocator::TryAllocate(uint32 Size, uint32& AllocatedOffset)
+{
+	if (WriteOffset < ReadOffset)
+	{
+		if (Size + 1u > ReadOffset - WriteOffset)	// +1 to leave one element free, so we can distinguish between full and empty
+		{
+			return false;
+		}
+	}
+	else
+	{
+		// WriteOffset >= ReadOffset
+		if (Size + (ReadOffset == 0u ? 1u : 0u) > BufferSize - WriteOffset)
+		{
+			// Doesn't fit at the end. Try from the beginning
+			if (Size + 1u > ReadOffset)
+			{
+				return false;
+			}
+			WriteOffset = 0u;
+		}
+	}
+
+#if DO_CHECK
+	SizeQueue.Enqueue(Size);
+#endif
+	AllocatedOffset = WriteOffset;
+	WriteOffset += Size;
+	check(AllocatedOffset + Size <= BufferSize);
+	return true;
+}
+
+void FStreamingManager::FRingBufferAllocator::Free(uint32 Size)
+{
+#if DO_CHECK
+	uint32 QueuedSize;
+	bool bNonEmpty = SizeQueue.Dequeue(QueuedSize);
+	check(bNonEmpty);
+	check(QueuedSize == Size);
+#endif
+	const uint32 Next = ReadOffset + Size;
+	ReadOffset = (Next <= BufferSize) ? Next : Size;
+}
+
 FStreamingManager::FStreamingManager() :
 	HierarchyDepthManager(NANITE_MAX_CLUSTER_HIERARCHY_DEPTH),
 	MaxHierarchyLevels(0u),
@@ -635,7 +686,8 @@ void FStreamingManager::InitRHI(FRHICommandListBase&)
 
 	PendingPages.SetNum(MaxPendingPages);
 
-	PendingPageStagingMemory.SetNumUninitialized(MaxPendingPages * NANITE_MAX_PAGE_DISK_SIZE);
+	PendingPageStagingMemory.SetNumUninitialized(MaxPendingPages * NANITE_ESTIMATED_MAX_PAGE_DISK_SIZE);
+	PendingPageStagingAllocator.Init(PendingPageStagingMemory.Num());
 
 	PageUploader		= new FStreamingPageUploader();
 
@@ -1673,6 +1725,8 @@ uint32 FStreamingManager::DetermineReadyPages(uint32& TotalPageSize)
 							break;
 						}
 					}
+
+					PendingPageStagingAllocator.Free(PendingPage.RequestBuffer.DataSize());
 				}
 				else
 				{
@@ -2381,7 +2435,6 @@ void FStreamingManager::AsyncUpdate()
 						break;	// Couldn't find a free page. Abort.
 					}
 
-					UnregisterStreamingPage(Page->Key);
 					const FPageStreamingState& PageStreamingState = Resources->PageStreamingStates[SelectedKey.PageIndex];
 					check(!Resources->IsRootPage(SelectedKey.PageIndex));
 
@@ -2404,7 +2457,14 @@ void FStreamingManager::AsyncUpdate()
 					else
 #endif
 					{
-						uint8* Dst = PendingPageStagingMemory.GetData() + NextPendingPageIndex * NANITE_MAX_PAGE_DISK_SIZE;
+						uint32 AllocatedOffset;
+						if (!PendingPageStagingAllocator.TryAllocate(PageStreamingState.BulkSize, AllocatedOffset))
+						{
+							// Staging ring buffer full. Postpone any remaining pages to next frame.
+							// UE_LOG(LogNaniteStreaming, Verbose, TEXT("This should be a rare event."));
+							break;
+						}
+						uint8* Dst = PendingPageStagingMemory.GetData() + AllocatedOffset;
 						PendingPage.RequestBuffer = FIoBuffer(FIoBuffer::Wrap, Dst, PageStreamingState.BulkSize);
 						Batch.Read(BulkData, PageStreamingState.BulkOffset, PageStreamingState.BulkSize, AIOP_Low, PendingPage.RequestBuffer, PendingPage.Request);
 						bIssueIOBatch = true;
@@ -2417,6 +2477,8 @@ void FStreamingManager::AsyncUpdate()
 						PendingPage.State = FPendingPage::EState::Disk;
 #endif
 					}
+
+					UnregisterStreamingPage(Page->Key);
 
 					TotalIORequestSizeMB += PageStreamingState.BulkSize * (1.0f / 1048576.0f);
 
