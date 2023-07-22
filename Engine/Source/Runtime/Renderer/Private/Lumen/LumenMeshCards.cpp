@@ -797,13 +797,24 @@ void FLumenSceneData::AddMeshCards(int32 PrimitiveGroupIndex)
 			}
 		}
 
-		// Update surface cache mapping
-		for (const FPrimitiveSceneInfo* ScenePrimitive : PrimitiveGroup.Primitives)
+		if (PrimitiveGroup.MeshCardsIndex >= 0)
 		{
-			PrimitivesToUpdateMeshCards.Add(ScenePrimitive->GetIndex());
-		}
+			// Copy ScenePrimitive->GetIndex() in order to prevent from deferencing possibly deleted ScenePrimitive*
+			FLumenMeshCards& MeshCardsInstance = MeshCards[PrimitiveGroup.MeshCardsIndex];
 
-		if (PrimitiveGroup.MeshCardsIndex < 0)
+			MeshCardsInstance.ScenePrimitiveIndices.Reset();
+			MeshCardsInstance.ScenePrimitiveIndices.Reserve(PrimitiveGroup.Primitives.Num());
+
+			for (const FPrimitiveSceneInfo* ScenePrimitive : PrimitiveGroup.Primitives)
+			{
+				if (ScenePrimitive->IsIndexValid())
+				{
+					MeshCardsInstance.ScenePrimitiveIndices.Add(ScenePrimitive->GetIndex());
+					PrimitivesToUpdateMeshCards.Add(ScenePrimitive->GetIndex());
+				}
+			}
+		}
+		else
 		{
 			// Can't spawn mesh cards, mark this primitive as invalid
 			PrimitiveGroup.bValidMeshCards = false;
@@ -939,7 +950,7 @@ void FLumenSceneData::RemoveMeshCards(int32 PrimitiveGroupIndex)
 
 	if (PrimitiveGroup.MeshCardsIndex >= 0)
 	{
-		const FLumenMeshCards& MeshCardsInstance = MeshCards[PrimitiveGroup.MeshCardsIndex];
+		FLumenMeshCards& MeshCardsInstance = MeshCards[PrimitiveGroup.MeshCardsIndex];
 
 		for (uint32 CardIndex = MeshCardsInstance.FirstCardIndex; CardIndex < MeshCardsInstance.FirstCardIndex + MeshCardsInstance.NumCards; ++CardIndex)
 		{
@@ -961,10 +972,11 @@ void FLumenSceneData::RemoveMeshCards(int32 PrimitiveGroupIndex)
 		PrimitiveGroup.HeightfieldIndex = -1;
 
 		// Update surface cache mapping
-		for (const FPrimitiveSceneInfo* ScenePrimitive : PrimitiveGroup.Primitives)
+		for (int32 ScenePrimitiveIndex : MeshCardsInstance.ScenePrimitiveIndices)
 		{
-			PrimitivesToUpdateMeshCards.Add(ScenePrimitive->GetIndex());
+			PrimitivesToUpdateMeshCards.Add(ScenePrimitiveIndex);
 		}
+		MeshCardsInstance.ScenePrimitiveIndices.Reset();
 
 		PrimitiveGroupIndicesToUpdateInBuffer.Add(PrimitiveGroupIndex);
 	}
