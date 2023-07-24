@@ -194,6 +194,7 @@ namespace Chaos
 	{
 		friend class Private::FCollisionConstraintAllocator;
 		friend class Private::FCollisionContextAllocator;
+		friend class FContactPairModifier;
 		friend class FGenericParticlePairMidPhase;
 		friend class FParticlePairMidPhase;
 		friend class FPBDCollisionConstraints;

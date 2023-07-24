@@ -485,6 +485,11 @@ namespace Chaos
 		Constraint->DisableManifoldPoint(ContactPointIdx);
 	}
 
+	const FPBDCollisionConstraintContainerCookie& FContactPairModifier::GetConstraintContainerCookie() const
+	{
+		return Constraint->GetContainerCookie();
+	}
+
 	void FContactPairModifierIterator::SeekValidContact()
 	{
 		// Not valid to call from end.
@@ -530,8 +535,6 @@ namespace Chaos
 		, Particle(InParticle)
 	{
 		FParticleCollisions& ParticleCollisions = Particle->ParticleCollisions();
-		const int32 NumCollisions = ParticleCollisions.Num();
-		Constraints.Reserve(NumCollisions);
 		ParticleCollisions.VisitCollisions([this](FPBDCollisionConstraint& Constraint)
 		{
 			if (Constraint.GetManifoldPoints().Num() > 0 && !Constraint.GetDisabled())
@@ -540,12 +543,33 @@ namespace Chaos
 			}
 			return ECollisionVisitorResult::Continue;
 		}, ECollisionVisitorFlags::VisitActiveAwake | ECollisionVisitorFlags::VisitDisabled);
-		ensureMsgf(Constraints.Num() <= NumCollisions, TEXT("Number of constraints visited exceeded the number reported by the FParticleCollisions object, and therefore exceeded the reserved constraint cache."));
+	}
+
+	bool FVisitedContactPairsTracker::Visit(const FContactPairModifier& ContactPair)
+	{
+		// Get a reference object to the relevant bit
+		const int32 ConstraintIndex = ContactPair.GetConstraintContainerCookie().ConstraintIndex;
+		FBitReference BitRef = VisitedContacts[ConstraintIndex];
+
+		// Mark constraint visited and return true
+		if (BitRef == false)
+		{
+			BitRef = true;
+			return true;
+		}
+
+		// Return false - this constraint has already been marked visited
+		return false;
 	}
 
 	FContactPairModifierParticleRange FCollisionContactModifier::GetContacts(FGeometryParticleHandle* Particle)
 	{
 		return FContactPairModifierParticleRange(this, Particle);
+	}
+
+	FVisitedContactPairsTracker FCollisionContactModifier::MakeVisitedContactPairsTracker() const
+	{
+		return FVisitedContactPairsTracker(Constraints.Num());
 	}
 
 	TArrayView<FPBDCollisionConstraint* const>& FCollisionContactModifier::GetConstraints()
