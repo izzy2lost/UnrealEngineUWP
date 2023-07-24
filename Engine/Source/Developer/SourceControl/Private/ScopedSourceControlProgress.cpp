@@ -182,7 +182,7 @@ private:
 	bool bCancelClicked;
 
 	/** The timer we use to determine when to display the 'long task' message */
-	float TimeStamp;
+	double TimeStamp;
 
 	/** The delegate to call when the cancel button is clicked */
 	FSimpleDelegate OnCancelled;

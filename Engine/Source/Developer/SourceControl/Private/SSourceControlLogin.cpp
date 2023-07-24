@@ -108,7 +108,7 @@ void SSourceControlLogin::Construct(const FArguments& InArgs)
 						.Padding(0)
 						[
 							SNew(SBox)
-							.HeightOverride(250)
+							.HeightOverride(250.0f)
 							[
 								MessageLogModule.CreateLogListingWidget(MessageLogListing)
 							]

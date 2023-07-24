@@ -27,10 +27,10 @@ public class SourceControl : ModuleRules
 			}
 		);
 
-        if (Target.bBuildEditor)
-        {
+		if (Target.bBuildEditor)
+		{
 			PrivateDependencyModuleNames.AddRange(
-                new string[] {
+				new string[] {
 					"EditorFramework",
 					"Engine",
 					"UnrealEd",
@@ -44,7 +44,7 @@ public class SourceControl : ModuleRules
 			);
 
 			CircularlyReferencedDependentModules.Add("UnrealEd");
-        }
+		}
 
 		if (Target.bBuildDeveloperTools)
 		{
@@ -59,5 +59,7 @@ public class SourceControl : ModuleRules
 		{
 			PrecompileForTargets = PrecompileTargetsType.Any;
 		}
+
+		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 	}
 }
