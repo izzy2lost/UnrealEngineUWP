@@ -8,6 +8,7 @@
 #include "Insights/Table/ViewModels/TableTreeNode.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
 class FPluginSimpleGroupNode;
 
 class FAssetTreeNode : public UE::Insights::FTableTreeNode
@@ -47,7 +48,7 @@ public:
 	virtual const FSlateBrush* GetIcon() const final;
 	virtual FLinearColor GetIconColor() const final;
 	virtual FLinearColor GetColor() const final;
-	
+
 	bool IsPluginRelatedNode() const { return Is<FPluginSimpleGroupNode>(); }
 	bool IsAssetRelatedNode() const { return !IsPluginRelatedNode(); }
 
@@ -95,6 +96,7 @@ public:
 	explicit FAssetDependenciesGroupTreeNode(const FName InGroupName, TWeakPtr<FAssetTable> InParentTable, int32 InParentRowIndex)
 		: FAssetTreeNode(InGroupName, InParentTable, InParentRowIndex, true)
 		, bAreChildrenCreated(false)
+		, AuthorGrouping(nullptr)
 	{
 		// Initially collapsed. Lazy create children when first expanded.
 		SetExpansion(false);
@@ -103,12 +105,16 @@ public:
 	virtual ~FAssetDependenciesGroupTreeNode() {}
 
 	virtual EStyle GetStyle() const override;
-	
+
 	virtual const FText GetExtraDisplayName() const;
 	virtual bool OnLazyCreateChildren(TSharedPtr<class UE::Insights::STableTreeView> InTableTreeView) override;
 
+	virtual const UE::Insights::FTreeNodeGrouping* GetAuthorGrouping() const override { return AuthorGrouping; }
+	void SetAuthorGrouping(const UE::Insights::FTreeNodeGrouping* InAuthorGrouping) { AuthorGrouping = InAuthorGrouping; }
+
 private:
 	bool bAreChildrenCreated;
+	const UE::Insights::FTreeNodeGrouping* AuthorGrouping;
 };
 
 /** Type definition for shared pointers to instances of FAssetDependenciesGroupTreeNode. */
@@ -125,6 +131,7 @@ public:
 	explicit FPluginSimpleGroupNode(const FName InGroupName, TWeakPtr<FAssetTable> InParentTable, int32 InPluginIndex)
 		: FAssetTreeNode(InGroupName, InParentTable)
 		, PluginIndex(InPluginIndex)
+		, AuthorGrouping(nullptr)
 	{
 	}
 
@@ -136,8 +143,12 @@ public:
 
 	int32 GetPluginIndex() const { return PluginIndex; }
 
+	virtual const UE::Insights::FTreeNodeGrouping* GetAuthorGrouping() const override { return AuthorGrouping; }
+	void SetAuthorGrouping(const UE::Insights::FTreeNodeGrouping* InAuthorGrouping) { AuthorGrouping = InAuthorGrouping; }
+
 protected:
 	int32 PluginIndex;
+	const UE::Insights::FTreeNodeGrouping* AuthorGrouping;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -153,11 +164,11 @@ public:
 	{
 	}
 
-	TSharedPtr<FPluginSimpleGroupNode> CreateChildren();
+	virtual ~FPluginAndDependenciesGroupNode() {}
 
 	virtual EStyle GetStyle() const override;
 
-	virtual ~FPluginAndDependenciesGroupNode() {}
+	TSharedPtr<FPluginSimpleGroupNode> CreateChildren();
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -176,10 +187,10 @@ public:
 
 	virtual ~FPluginDependenciesGroupNode() {}
 
+	virtual EStyle GetStyle() const override;
+
 	virtual const FText GetExtraDisplayName() const;
 	virtual bool OnLazyCreateChildren(TSharedPtr<class UE::Insights::STableTreeView> InTableTreeView) override;
-
-	virtual EStyle GetStyle() const override;
 
 private:
 	bool bAreChildrenCreated;
