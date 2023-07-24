@@ -99,7 +99,7 @@ struct FComputePlatform
 	//
 
 	// Reads a 64-bit value from the given memory location 
-	static long long AtomicRead64(volatile long long* Ptr);
+	static long long AtomicRead64(const volatile long long* Ptr);
 
 	// Writes a 64-bit value to the given memory location
 	static void AtomicWrite64(volatile long long* Ptr, long long Value);

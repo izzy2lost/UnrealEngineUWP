@@ -189,9 +189,9 @@ size_t FComputePlatform::WcharToUtf8(const wchar_t* Source, size_t SourceLen, ch
 	return (size_t)Result;
 }
 
-long long FComputePlatform::AtomicRead64(volatile long long* Ptr)
+long long FComputePlatform::AtomicRead64(const volatile long long* Ptr)
 {
-	return InterlockedCompareExchange64(Ptr, 0, 0);
+	return InterlockedCompareExchange64(const_cast<volatile long long*>(Ptr), 0, 0);
 }
 
 void FComputePlatform::AtomicWrite64(volatile long long* Ptr, long long Value)
