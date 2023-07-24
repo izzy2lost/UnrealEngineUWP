@@ -354,6 +354,9 @@ struct FRHIGlobals
 	/** Whether we are profiling GPU hitches. */
 	bool TriggerGPUHitchProfile = false;
 
+	/** Whether an intentional GPU crash has been scheduled. */
+	ERequestedGPUCrash TriggerGPUCrash = ERequestedGPUCrash::None;
+
 	/** Non-empty if we are performing a gpu trace. Also says where to place trace file. */
 	FString GPUTraceFileName;
 
@@ -693,6 +696,7 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GVertexElementTypeSupport                              GRHIGlobals.VertexElementTypeSupport
 #define GTriggerGPUProfile                                     GRHIGlobals.TriggerGPUProfile
 #define GTriggerGPUHitchProfile                                GRHIGlobals.TriggerGPUHitchProfile
+#define GTriggerGPUCrash                                       GRHIGlobals.TriggerGPUCrash
 #define GGPUTraceFileName                                      GRHIGlobals.GPUTraceFileName
 #define GRHISupportsTextureStreaming                           GRHIGlobals.SupportsTextureStreaming
 #define GCurrentTextureMemorySize                              GRHIGlobals.CurrentTextureMemorySize

@@ -4878,6 +4878,13 @@ bool UEngine::Exec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 	}
 #endif
 
+#if WITH_GPUDEBUGCRASH
+	else if (FParse::Command(&Cmd, TEXT("GPUDEBUGCRASH")))
+	{
+		return HandleGPUDebugCrashCommand(Cmd, Ar);
+	}
+#endif
+
 	else if ( FParse::Command(&Cmd,TEXT("SCALABILITY")) )
 	{
 		Scalability::ProcessCommand(Cmd, Ar);
@@ -5902,6 +5909,57 @@ bool UEngine::HandleDumpGPUCommand(const TCHAR* Cmd, FOutputDevice& Ar)
 }
 
 #endif // WITH_DUMPGPU
+
+#if WITH_GPUDEBUGCRASH
+bool UEngine::HandleGPUDebugCrashCommand(const TCHAR* Cmd, FOutputDevice& Ar)
+{
+	if (!FApp::CanEverRender())
+	{
+		return true;
+	}
+
+	TArray<FString> Args;
+	Ar.Logf(TEXT("Scheduling GPU crash."));
+
+	bool bSupportsPageFaultsAndPlatformBreak = (GDynamicRHI->GetInterfaceType() == ERHIInterfaceType::D3D11 || GDynamicRHI->GetInterfaceType() == ERHIInterfaceType::OpenGL) ? false : true;
+
+	// schedule the GPU crash
+	if (FParse::Command(&Cmd, TEXT("pagefault")) && bSupportsPageFaultsAndPlatformBreak)
+	{
+		GRHIGlobals.TriggerGPUCrash = ERequestedGPUCrash::Type_PageFault;
+	}
+	if (FParse::Command(&Cmd, TEXT("platformbreak")) && bSupportsPageFaultsAndPlatformBreak)
+	{
+		GRHIGlobals.TriggerGPUCrash = ERequestedGPUCrash::Type_PlatformBreak;
+	}
+	if (FParse::Command(&Cmd, TEXT("hang")) || !bSupportsPageFaultsAndPlatformBreak)
+	{
+		if (!bSupportsPageFaultsAndPlatformBreak)
+		{
+			Ar.Logf(TEXT("Current RHI does not support GPU page faults on demand or PLATFORM_BREAK(). Falling back to GPU hang for requested crash."));
+		}
+		GRHIGlobals.TriggerGPUCrash = ERequestedGPUCrash::Type_Hang;
+	}
+	
+	if (GRHIGlobals.TriggerGPUCrash == ERequestedGPUCrash::None)
+	{
+		Ar.Logf(TEXT("Please specify a crash type for your requested GPU crash. Crash will be scheduled on direct queue unless compute queue is specified. Usage: gpudebugcrash [hang|pagefault|platformbreak [compute]]"));
+	}
+	else
+	{
+		if (FParse::Command(&Cmd, TEXT("compute")))
+		{
+			GRHIGlobals.TriggerGPUCrash |= ERequestedGPUCrash::Queue_Compute;
+		}
+		else
+		{
+			GRHIGlobals.TriggerGPUCrash |= ERequestedGPUCrash::Queue_Direct;
+		}
+	}
+
+	return true;
+}
+#endif
 
 #if !UE_BUILD_SHIPPING
 bool UEngine::HandleStartFPSChartCommand( const TCHAR* Cmd, FOutputDevice& Ar )

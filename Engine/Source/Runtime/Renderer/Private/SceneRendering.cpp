@@ -91,6 +91,7 @@
 #include "PrimitiveSceneShaderData.h"
 #include "Engine/SpecularProfile.h"
 #include "Engine/VolumeTexture.h"
+#include "GPUDebugCrashUtils.h"
 
 /*-----------------------------------------------------------------------------
 	Globals
@@ -4537,7 +4538,12 @@ static void RenderViewFamilies_RenderThread(FRHICommandListImmediate& RHICmdList
 
 		// We need to execute the pre-render view extensions before we do any view dependent work.
 		FSceneRenderer::ViewExtensionPreRender_RenderThread(GraphBuilder, SceneRenderer);
-
+#if WITH_GPUDEBUGCRASH
+		if (GRHIGlobals.TriggerGPUCrash != ERequestedGPUCrash::None) 
+		{
+			ScheduleGPUDebugCrash(GraphBuilder);
+		}
+#endif
 		SCOPE_CYCLE_COUNTER(STAT_TotalSceneRenderingTime);
 		SCOPED_NAMED_EVENT_TCHAR_CONDITIONAL(*ViewFamily.ProfileDescription, FColor::Red, !ViewFamily.ProfileDescription.IsEmpty());
 		const uint64 FamilyRenderStart = FPlatformTime::Cycles64();

@@ -923,6 +923,13 @@ FD3D12Texture* FD3D12DynamicRHI::CreateD3D12Texture(const FRHITextureCreateDesc&
 
 		NewTexture->CreateViews();
 
+#if WITH_GPUDEBUGCRASH
+		if (EnumHasAnyFlags(CreateDesc.Flags, TexCreate_Invalid))
+		{
+			ID3D12Pageable* EvictableTexture = NewTexture->GetResource()->GetPageable();
+			Device->GetDevice()->Evict(1, &EvictableTexture);
+		}
+#endif
 		return NewTexture;
 	});
 
@@ -934,7 +941,6 @@ FD3D12Texture* FD3D12DynamicRHI::CreateD3D12Texture(const FRHITextureCreateDesc&
 		D3D12TextureOut->InitializeTextureData(RHICmdList, CreateDesc, InitialState);
 		CreateDesc.BulkData->Discard();
 	}
-
 	return D3D12TextureOut;
 #else
 	checkf(false, TEXT("XBOX_CODE_MERGE : Removed. The Xbox platform version should be used."));

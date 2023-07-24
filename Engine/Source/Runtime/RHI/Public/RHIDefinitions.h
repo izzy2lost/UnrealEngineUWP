@@ -980,6 +980,9 @@ enum class ETextureCreateFlags : uint64
 
 	/** Don't lump this texture with streaming memory when tracking total texture allocation sizes */
 	ForceIntoNonStreamingMemoryTracking = 1ull << 39,
+
+	/** Textures marked with this are meant to be immediately evicted after creation for intentionally crashing the GPU with a page fault. */
+	Invalid                           = 1ull << 40,
 };
 ENUM_CLASS_FLAGS(ETextureCreateFlags);
 
@@ -1022,6 +1025,7 @@ ENUM_CLASS_FLAGS(ETextureCreateFlags);
 #define TexCreate_MultiGPUGraphIgnore            ETextureCreateFlags::MultiGPUGraphIgnore
 #define TexCreate_ReservedResource               ETextureCreateFlags::ReservedResource
 #define TexCreate_ImmediateCommit                ETextureCreateFlags::ImmediateCommit
+#define TexCreate_Invalid                        ETextureCreateFlags::Invalid
 
 enum EAsyncComputePriority
 {
@@ -1208,6 +1212,18 @@ enum class EResourceTransitionFlags
 	Mask = (Last << 1) - 1
 };
 ENUM_CLASS_FLAGS(EResourceTransitionFlags);
+
+enum class ERequestedGPUCrash : uint8
+{
+	None = 0,
+	Type_Hang = 1 << 0,
+	Type_PageFault = 1 << 1,
+	Type_PlatformBreak = 1 << 2,
+
+	Queue_Direct = 1 << 3,
+	Queue_Compute = 1 << 4
+};
+ENUM_CLASS_FLAGS(ERequestedGPUCrash);
 
 /** Returns whether the shader parameter type references an RDG texture. */
 inline bool IsRDGTextureReferenceShaderParameterType(EUniformBufferBaseType BaseType)

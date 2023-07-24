@@ -2259,6 +2259,10 @@ public:
 	ENGINE_API bool HandleDumpGPUCommand( const TCHAR* Cmd, FOutputDevice& Ar );
 #endif
 
+#if WITH_GPUDEBUGCRASH
+	ENGINE_API bool HandleGPUDebugCrashCommand( const TCHAR* Cmd, FOutputDevice& Ar );
+#endif
+
 	// Compile in Debug or Development
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) && WITH_HOT_RELOAD
 	ENGINE_API bool HandleHotReloadCommand( const TCHAR* Cmd, FOutputDevice& Ar );
