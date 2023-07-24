@@ -47,6 +47,13 @@ UE::FOnStallCompleted UE::FStallDetector::StallCompleted;
 static FCriticalSection StallScopesSection;
 static TSet<UE::FStallDetector*> StallScopes;
 
+static bool ForceStallDetectedLog = false;
+static FAutoConsoleVariableRef CVarForceStallDetectedLog(
+	TEXT("StallDetector.ForceLogOnStall"),
+	ForceStallDetectedLog,
+	TEXT("Forces StallDetector to make a log to LogStall at verbosity=Log even if reporting mode is disabled"),
+	ECVF_SetByConsole);
+
 /**
 * Stall Detector Thread
 **/
@@ -201,7 +208,7 @@ uint32 UE::FStallDetectorRunnable::Run()
 						ReportSeconds = FPlatformTime::Seconds() - ReportSeconds;
 						UE_LOG(LogStall, Log, TEXT("Stall detector '%s' report submitted, and took %fs"), Stall.Name, ReportSeconds);
 					}
-					else if (Stall.ReportingMode != EStallDetectorReportingMode::Disabled)
+					else if (ForceStallDetectedLog || Stall.ReportingMode != EStallDetectorReportingMode::Disabled)
 					{
 						UE_LOG(LogStall, Log, TEXT("Stall detector '%s' exceeded budget of %fs"), Stall.Name, Stall.BudgetSeconds);
 					}

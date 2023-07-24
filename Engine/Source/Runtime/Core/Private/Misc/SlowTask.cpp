@@ -4,8 +4,11 @@
 
 #include "Containers/Array.h"
 #include "CoreTypes.h"
+#include "HAL/IConsoleManager.h"
 #include "HAL/PlatformMisc.h"
+#include "Hal/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
+#include "Math/Color.h"
 #include "Math/UnrealMathUtility.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/FeedbackContext.h"
@@ -226,3 +229,40 @@ bool FSlowTask::ShouldCancel() const
 	}
 	return false;
 }
+
+#if WITH_EDITOR
+namespace Private
+{
+	static void SimulateSlowTask(const TArray<FString>& Arguments)
+	{
+		double SecondsToStall = 2.0;
+		if (Arguments.Num() >= 1)
+		{
+			LexFromString(SecondsToStall, *Arguments[0]);
+		}
+		
+		SCOPED_NAMED_EVENT_TEXT(TEXT("Simulated SlowTask"), FColor::Red);
+
+		FSlowTask SlowTask(static_cast<float>(SecondsToStall));
+		SlowTask.Initialize();
+		SlowTask.MakeDialog();
+
+		const double StartTime = FPlatformTime::Seconds();
+		while (FPlatformTime::Seconds() - StartTime < SecondsToStall)
+		{
+			// Busy wait the rest if not slept long enough
+			const float SleepTimeSeconds = 0.1;
+			SlowTask.EnterProgressFrame(SleepTimeSeconds);
+			FPlatformProcess::SleepNoStats(SleepTimeSeconds);					
+		}
+
+		SlowTask.Destroy();	
+	}
+	
+	static FAutoConsoleCommand CmdEditorSimulateSlowTask(
+		TEXT("Editor.Debug.SlowTask.Simulate"),
+		TEXT("Runs a busy loop for N seconds. Will tick the slow task every 100ms until it is complete"),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&SimulateSlowTask)
+	);
+}
+#endif
