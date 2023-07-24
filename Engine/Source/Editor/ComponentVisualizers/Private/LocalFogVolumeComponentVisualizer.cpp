@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "LocalHeightFogComponentVisualizer.h"
+#include "LocalFogVolumeComponentVisualizer.h"
 
 #include "Components/ActorComponent.h"
-#include "Components/LocalHeightFogComponent.h"
+#include "Components/LocalFogVolumeComponent.h"
 #include "SceneView.h"
 #include "SceneManagement.h"
 

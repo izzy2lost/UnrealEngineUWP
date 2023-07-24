@@ -19,7 +19,7 @@
 #include "Animation/SkeletalMeshActor.h"
 #include "Components/SkyAtmosphereComponent.h"
 #include "Components/VolumetricCloudComponent.h"
-#include "Engine/LocalHeightFog.h"
+#include "Engine/LocalFogVolume.h"
 #include "Engine/Blueprint.h"
 #include "Engine/Brush.h"
 #include "Engine/ExponentialHeightFog.h"

@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "LocalHeightFogRendering.h"
+#include "LocalFogVolumeRendering.h"
 #include "ScenePrivate.h"
 #include "RendererUtils.h"
 #include "ScreenPass.h"
-#include "LocalHeightFogSceneProxy.h"
+#include "LocalFogVolumeSceneProxy.h"
 #include "MobileBasePassRendering.h"
 
 
@@ -185,7 +185,7 @@ class FLocalHeightFogVS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FLocalHeightFogVS, "/Engine/Private/LocalHeightFog.usf", "LocalHeightFogSplatVS", SF_Vertex);
+IMPLEMENT_GLOBAL_SHADER(FLocalHeightFogVS, "/Engine/Private/LocalFogVolume.usf", "LocalHeightFogSplatVS", SF_Vertex);
 
 class FLocalHeightFogPS : public FGlobalShader
 {
@@ -209,7 +209,7 @@ class FLocalHeightFogPS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FLocalHeightFogPS, "/Engine/Private/LocalHeightFog.usf", "LocalHeightFogSplatPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FLocalHeightFogPS, "/Engine/Private/LocalFogVolume.usf", "LocalHeightFogSplatPS", SF_Pixel);
 
 BEGIN_SHADER_PARAMETER_STRUCT(FLocalHeightFogPassParameters, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(FLocalHeightFogVS::FParameters, VS)
@@ -344,7 +344,7 @@ class FMobileLocalHeightFogVS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FMobileLocalHeightFogVS, "/Engine/Private/LocalHeightFog.usf", "LocalHeightFogSplatVS", SF_Vertex);
+IMPLEMENT_GLOBAL_SHADER(FMobileLocalHeightFogVS, "/Engine/Private/LocalFogVolume.usf", "LocalHeightFogSplatVS", SF_Vertex);
 
 class FMobileLocalHeightFogPS : public FGlobalShader
 {
@@ -376,7 +376,7 @@ class FMobileLocalHeightFogPS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FMobileLocalHeightFogPS, "/Engine/Private/LocalHeightFog.usf", "LocalHeightFogSplatPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FMobileLocalHeightFogPS, "/Engine/Private/LocalFogVolume.usf", "LocalHeightFogSplatPS", SF_Pixel);
 
 void RenderLocalHeightFogMobile(
 	FRHICommandList& RHICmdList,

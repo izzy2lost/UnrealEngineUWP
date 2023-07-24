@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Components/LocalHeightFogComponent.h"
-#include "Engine/LocalHeightFog.h"
-#include "LocalHeightFogSceneProxy.h"
+#include "Components/LocalFogVolumeComponent.h"
+#include "Engine/LocalFogVolume.h"
+#include "LocalFogVolumeSceneProxy.h"
 #include "Components/ArrowComponent.h"
 #include "Components/DrawSphereComponent.h"
 #include "Components/BillboardComponent.h"
@@ -12,7 +12,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/Texture2D.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(LocalHeightFogComponent)
+#include UE_INLINE_GENERATED_CPP_BY_NAME(LocalFogVolumeComponent)
 
 
 ULocalHeightFogComponent::ULocalHeightFogComponent(const FObjectInitializer& ObjectInitializer)

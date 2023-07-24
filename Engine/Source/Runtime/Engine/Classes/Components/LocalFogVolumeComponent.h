@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
 #include "Math/Color.h"
-#include "LocalHeightFogComponent.generated.h"
+#include "LocalFogVolumeComponent.generated.h"
 
 class FLocalHeightFogSceneProxy;
 

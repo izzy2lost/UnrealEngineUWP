@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Info.h"
-#include "LocalHeightFog.generated.h"
+#include "LocalFogVolume.generated.h"
 
 class ULocalHeightFogComponent;
 

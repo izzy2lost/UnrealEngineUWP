@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "ActorFactories/ActorFactory.h"
-#include "ActorFactoryLocalHeightFog.generated.h"
+#include "ActorFactoryLocalFogVolume.generated.h"
 
 UCLASS(MinimalAPI, config = Editor, collapsecategories, hidecategories = Object)
 class UActorFactoryLocalHeightFog : public UActorFactory

@@ -4,8 +4,8 @@
 	FVolumetricCloudSceneProxy implementation.
 =============================================================================*/
 
-#include "LocalHeightFogSceneProxy.h"
-#include "Components/LocalHeightFogComponent.h"
+#include "LocalFogVolumeSceneProxy.h"
+#include "Components/LocalFogVolumeComponent.h"
 
 
 

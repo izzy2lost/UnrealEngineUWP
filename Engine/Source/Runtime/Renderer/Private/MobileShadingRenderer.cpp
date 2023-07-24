@@ -67,7 +67,7 @@
 #include "IESTextureManager.h"
 #include "SceneUniformBuffer.h"
 #include "Engine/SpecularProfile.h"
-#include "LocalHeightFogRendering.h"
+#include "LocalFogVolumeRendering.h"
 
 uint32 GetShadowQuality();
 

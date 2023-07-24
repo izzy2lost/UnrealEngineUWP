@@ -14,7 +14,7 @@
 #include "Components/SpotLightComponent.h"
 #include "Components/StereoLayerComponent.h"
 #include "Components/WorldPartitionStreamingSourceComponent.h"
-#include "Components/LocalHeightFogComponent.h"
+#include "Components/LocalFogVolumeComponent.h"
 #include "ConstraintComponentVisualizer.h"
 #include "DecalComponentVisualizer.h"
 #include "Editor/UnrealEdEngine.h"
@@ -41,7 +41,7 @@
 #include "UObject/Class.h"
 #include "UnrealEdGlobals.h"
 #include "WorldPartitionStreamingSourceComponentVisualizer.h"
-#include "LocalHeightFogComponentVisualizer.h"
+#include "LocalFogVolumeComponentVisualizer.h"
 
 IMPLEMENT_MODULE( FComponentVisualizersModule, ComponentVisualizers );
 
