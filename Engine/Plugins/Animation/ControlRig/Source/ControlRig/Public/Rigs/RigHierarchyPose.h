@@ -18,6 +18,7 @@ public:
 	: Index()
 	, GlobalTransform(FTransform::Identity)
 	, LocalTransform(FTransform::Identity)
+	, PreferredEulerAngle(FVector::ZeroVector)
 	, CurveValue(0.f)
 	{
 	}
