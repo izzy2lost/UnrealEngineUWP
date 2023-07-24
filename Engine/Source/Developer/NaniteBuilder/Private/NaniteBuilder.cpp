@@ -22,6 +22,7 @@
 #endif
 
 #define NANITE_LOG_COMPRESSED_SIZES		0
+#define NANITE_STRIP_DATA				0
 
 #if NANITE_IMPOSTERS_SUPPORTED
 static TAutoConsoleVariable<bool> CVarBuildImposters(
@@ -88,12 +89,16 @@ const FString& FBuilderModule::GetVersionString() const
 
 		VersionString.Appendf( TEXT("%i"), CVarFallbackThreshold.GetValueOnAnyThread() );
 
-#if PLATFORM_CPU_ARM_FAMILY
+	#if NANITE_STRIP_DATA
+		VersionString.Append(TEXT("_STRIP"));
+	#endif
+
+	#if PLATFORM_CPU_ARM_FAMILY
 		// Separate out arm keys as x64 and arm64 clang do not generate the same data for a given
 		// input. Add the arm specifically so that a) we avoid rebuilding the current DDC and
 		// b) we can remove it once we get arm64 to be consistent.
 		VersionString.Append(TEXT("_arm64"));
-#endif
+	#endif
 	}
 
 	return VersionString;
@@ -754,6 +759,10 @@ bool FBuilderModule::Build(
 
 		UE_LOG(LogStaticMesh, Log, TEXT("Imposter [%.2fs]"), FPlatformTime::ToMilliseconds(FPlatformTime::Cycles() - ImposterStartTime ) / 1000.0f);
 	}
+#endif
+
+#if NANITE_STRIP_DATA
+	Resources = FResources();
 #endif
 
 #if NANITE_LOG_COMPRESSED_SIZES
