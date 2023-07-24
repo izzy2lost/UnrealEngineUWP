@@ -51,11 +51,15 @@ void SCurveEditorViewNormalized::Construct(const FArguments& InArgs, TWeakPtr<FC
 	.VAlign(VAlign_Top)
 	.Padding(FMargin(0.f, CurveViewConstants::CurveLabelOffsetY, CurveViewConstants::CurveLabelOffsetX, 0.f))
 	[
-		SNew(STextBlock)
+		SAssignNew(CurveCaptionTextBlock, STextBlock)
 		.Font(FCoreStyle::Get().GetFontStyle("ToolTip.LargerFont"))
-		.ColorAndOpacity(this, &SCurveEditorViewNormalized::GetCurveCaptionColor)
-		.Text(this, &SCurveEditorViewNormalized::GetCurveCaption)
 	];
+
+	if (InCurveEditor.IsValid())
+	{
+		InCurveEditor.Pin()->GetTree()->Events.OnItemsChanged.AddSP(this, &SInteractiveCurveEditorView::UpdateCurveCaption);
+		InCurveEditor.Pin()->GetTree()->Events.OnSelectionChanged.AddSP(this, &SInteractiveCurveEditorView::UpdateCurveCaption);	
+	}
 }
 
 FTransform2D CalculateViewToCurveTransform(const double OutputMin, const double OutputMax, const double InCurveOutputMin, const double InCurveOutputMax)

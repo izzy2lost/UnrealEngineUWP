@@ -2,6 +2,7 @@
 
 #include "Views/SCurveEditorViewAbsolute.h"
 
+#include "CurveEditor.h"
 #include "Delegates/Delegate.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Layout/Children.h"
@@ -25,9 +26,13 @@ void SCurveEditorViewAbsolute::Construct(const FArguments& InArgs, TWeakPtr<FCur
 	.VAlign(VAlign_Top)
 	.Padding(FMargin(0.f, CurveViewConstants::CurveLabelOffsetY, CurveViewConstants::CurveLabelOffsetX, 0.f))
 	[
-		SNew(STextBlock)
+		SAssignNew(CurveCaptionTextBlock, STextBlock)
 		.Font(FCoreStyle::Get().GetFontStyle("ToolTip.LargerFont"))
-		.ColorAndOpacity(this, &SCurveEditorViewAbsolute::GetCurveCaptionColor)
-		.Text(this, &SCurveEditorViewAbsolute::GetCurveCaption)
 	];
+
+	if (InCurveEditor.IsValid())
+	{
+		InCurveEditor.Pin()->GetTree()->Events.OnItemsChanged.AddSP(this, &SInteractiveCurveEditorView::UpdateCurveCaption);
+		InCurveEditor.Pin()->GetTree()->Events.OnSelectionChanged.AddSP(this, &SInteractiveCurveEditorView::UpdateCurveCaption);	
+	}
 }

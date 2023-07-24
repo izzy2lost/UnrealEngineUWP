@@ -105,6 +105,8 @@ public:
 
 	virtual void BuildContextMenu(FMenuBuilder& MenuBuilder, TOptional<FCurvePointHandle> ClickedPoint, TOptional<FCurveModelID> HoveredCurveID);
 
+	void UpdateCurveCaption() const;
+
 protected:
 
 	// ~SCurveEditorView Interface
@@ -136,9 +138,6 @@ protected:
 	void DrawGridLines(TSharedRef<FCurveEditor> CurveEditor, const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 BaseLayerId, ESlateDrawEffect DrawEffects) const;
 	void DrawCurves(TSharedRef<FCurveEditor> CurveEditor, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 BaseLayerId, const FWidgetStyle& InWidgetStyle, ESlateDrawEffect DrawEffects) const;
 	void DrawBufferedCurves(TSharedRef<FCurveEditor> CurveEditor, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 BaseLayerId, const FWidgetStyle& InWidgetStyle, ESlateDrawEffect DrawEffects) const;
-
-	FSlateColor GetCurveCaptionColor() const;
-	FText GetCurveCaption() const;
 
 private:
 	void HandleDirectKeySelectionByMouse(TSharedPtr<FCurveEditor> CurveEditor, const FPointerEvent& MouseEvent, TOptional<FCurvePointHandle> MouseDownPoint);
@@ -192,6 +191,9 @@ protected:
 
 	/** Background tint for this widget */
 	FLinearColor BackgroundTint;
+
+	/** Curve Name to update manually due to the parent retainer widget */
+	TSharedPtr<STextBlock> CurveCaptionTextBlock;
 
 private:
 

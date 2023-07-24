@@ -150,38 +150,26 @@ void SInteractiveCurveEditorView::Construct(const FArguments& InArgs, TWeakPtr<F
 	SetToolTip(ToolTipWidget);
 }
 
-FText SInteractiveCurveEditorView::GetCurveCaption() const
+void SInteractiveCurveEditorView::UpdateCurveCaption() const
 {
-	TSharedPtr<FCurveEditor> CurveEditor = WeakCurveEditor.Pin();
-	if (CurveEditor && CurveInfoByID.Num() == 1)
+	if (CurveCaptionTextBlock.IsValid())
 	{
-		for (const TTuple<FCurveModelID, FCurveInfo>& Pair : CurveInfoByID)
+		const TSharedPtr<FCurveEditor> CurveEditor = WeakCurveEditor.Pin();
+		if (CurveEditor && CurveEditor->GetCurves().Num() == 1)
 		{
-			if (const FCurveModel* Curve = CurveEditor->FindCurve(Pair.Key))
+			for (const TPair<FCurveModelID, TUniquePtr<FCurveModel>>& Pair : CurveEditor->GetCurves())
 			{
-				return Curve->GetLongDisplayName();
+				if (Pair.Value.IsValid())
+				{
+					CurveCaptionTextBlock->SetText(Pair.Value->GetLongDisplayName());
+					CurveCaptionTextBlock->SetColorAndOpacity(Pair.Value->GetColor());
+					return;
+				}
 			}
 		}
 	}
-
-	return FText::GetEmpty();
-}
-
-FSlateColor SInteractiveCurveEditorView::GetCurveCaptionColor() const
-{
-	TSharedPtr<FCurveEditor> CurveEditor = WeakCurveEditor.Pin();
-	if (CurveEditor && CurveInfoByID.Num() == 1)
-	{
-		for (const TTuple<FCurveModelID, FCurveInfo>& Pair : CurveInfoByID)
-		{
-			if (const FCurveModel* Curve = CurveEditor->FindCurve(Pair.Key))
-			{
-				return Curve->GetColor();
-			}
-		}
-	}
-
-	return BackgroundTint.CopyWithNewOpacity(1.f);
+	CurveCaptionTextBlock->SetText(FText::GetEmpty());
+	CurveCaptionTextBlock->SetColorAndOpacity(BackgroundTint.CopyWithNewOpacity(1.f));
 }
 
 void SInteractiveCurveEditorView::GetGridLinesX(TSharedRef<const FCurveEditor> CurveEditor, TArray<float>& MajorGridLines, TArray<float>& MinorGridLines, TArray<FText>* MajorGridLabels) const
