@@ -10,8 +10,6 @@
 #include "Chaos/DebugDrawQueue.h"
 #endif
 
-UE_DISABLE_OPTIMIZATION
-
 FCoreModularVehicleDebugParams GCoreModularVehicleDebugParams;
 
 #if CHAOS_DEBUG_DRAW
@@ -288,5 +286,3 @@ void FDeferredForcesModular::AddTorque(Chaos::FPBDRigidParticleHandle* RigidHand
 	//	}
 	//}
 }
-
-UE_ENABLE_OPTIMIZATION

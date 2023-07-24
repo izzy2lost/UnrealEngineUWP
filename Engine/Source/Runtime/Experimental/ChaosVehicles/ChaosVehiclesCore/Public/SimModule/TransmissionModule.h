@@ -48,8 +48,8 @@ namespace Chaos
 	{
 		enum ETransType : uint8
 		{
-			Manual,
-			Automatic
+			ManualType,
+			AutomaticType
 		};
 
 		FTransmissionSettings()
@@ -58,7 +58,7 @@ namespace Chaos
 			, ChangeDownRPM(2500)
 			, GearChangeTime(0.5f)
 			, TransmissionEfficiency(1.f)
-			, TransmissionType(ETransType::Automatic)
+			, TransmissionType(ETransType::AutomaticType)
 			, AutoReverse(true)
 		{
 			ForwardRatios.Add(2.85f);

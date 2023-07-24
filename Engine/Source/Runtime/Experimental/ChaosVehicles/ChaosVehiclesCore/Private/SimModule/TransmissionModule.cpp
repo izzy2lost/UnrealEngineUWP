@@ -13,7 +13,7 @@ namespace Chaos
 
 	void FTransmissionSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
 	{
-		if (Setup().TransmissionType == FTransmissionSettings::ETransType::Automatic)
+		if (Setup().TransmissionType == FTransmissionSettings::ETransType::AutomaticType)
 		{
 			// not currently changing gear, also don't want to change up because the wheels are spinning up due to having no load
 			if (!IsCurrentlyChangingGear() && AllowedToChangeGear)
