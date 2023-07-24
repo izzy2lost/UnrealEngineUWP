@@ -65,6 +65,10 @@ namespace Horde.Server.Tests
 			Assert.AreEqual(14, jobs[0].Change);
 			await SetJobOutcome(jobs[0], graph, JobStepOutcome.Failure);
 
+			List<GetBisectTaskResponse> bisectTasks = Deref(await BisectTasksController!.FindBisectTasksAsync(bisectTask.Owner.Id));
+			Assert.AreEqual(1, bisectTasks.Count);
+			Assert.AreEqual(bisectTask.Owner.Id, bisectTasks[0].Owner.Id);
+
 			await Clock.AdvanceAsync(TimeSpan.FromMinutes(30));
 
 			bisectTask = Deref(await BisectTasksController!.GetAsync(task!.BisectTaskId));

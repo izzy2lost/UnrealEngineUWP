@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,9 +38,14 @@ namespace Horde.Server.Jobs.Bisect
 		/// Finds all bisect tasks for the provided criteria
 		/// </summary>
 		/// <param name="jobId">jobId of initial bisection</param>
+		/// <param name="ownerId">ownerId of bisection</param>
+		/// <param name="minCreateTime">min creation time of the bisection task</param>
+		/// <param name="maxCreateTime">max creation time of the bisection task</param>
+		/// <param name="index"></param>
+		/// <param name="count"></param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of bisect tasks</returns>
-		public Task<IReadOnlyList<IBisectTask>> FindAsync(JobId? jobId = null, CancellationToken cancellationToken = default);
+		public Task<IReadOnlyList<IBisectTask>> FindAsync(JobId? jobId = null, UserId? ownerId = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? index = null, int? count = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a bisect task by id

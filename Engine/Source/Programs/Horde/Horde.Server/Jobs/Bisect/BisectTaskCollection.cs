@@ -11,6 +11,7 @@ using Horde.Server.Streams;
 using Horde.Server.Users;
 using Horde.Server.Utilities;
 using HordeCommon;
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
@@ -144,15 +145,37 @@ namespace Horde.Server.Jobs.Bisect
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyList<IBisectTask>> FindAsync(JobId? jobId = null, CancellationToken cancellationToken = default)
+		public async Task<IReadOnlyList<IBisectTask>> FindAsync(JobId? jobId = null, UserId? ownerId = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? index = null, int? count = null, CancellationToken cancellationToken = default)
 		{
 			// Find all the bisection tasks matching the given criteria
 			FilterDefinitionBuilder<BisectTaskDoc> filterBuilder = Builders<BisectTaskDoc>.Filter;
 
 			FilterDefinition<BisectTaskDoc> filter = FilterDefinition<BisectTaskDoc>.Empty;
-			filter &= filterBuilder.Eq(x => x.InitialJobId, jobId);
 
-			List<BisectTaskDoc> steps = await _bisectTasks.Find(filter).SortByDescending(x => x.InitialChange).ToListAsync(cancellationToken);
+			if (jobId != null)
+			{
+				filter &= filterBuilder.Eq(x => x.InitialJobId, jobId);
+			}
+
+			if (ownerId != null)
+			{
+				filter &= filterBuilder.Eq(x => x.OwnerId, ownerId);
+			}
+
+			if (minCreateTime != null)
+			{
+				BisectTaskId minTime = new BisectTaskId(ObjectId.GenerateNewId(minCreateTime.Value));
+				filter &= filterBuilder.Gte(x => x.Id!, minTime);
+
+			}
+			if (maxCreateTime != null)
+			{
+				BisectTaskId maxTime = new BisectTaskId(ObjectId.GenerateNewId(maxCreateTime.Value));
+				filter &= filterBuilder.Lte(x => x.Id!, maxTime);
+			}
+
+
+			List<BisectTaskDoc> steps = await _bisectTasks.Find(filter).SortByDescending(x => x.InitialChange).Range(index, count).ToListAsync(cancellationToken);
 			return steps.ConvertAll<IBisectTask>(x => x);
 		}
 
