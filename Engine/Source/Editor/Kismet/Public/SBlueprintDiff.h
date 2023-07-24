@@ -297,6 +297,18 @@ protected:
 	TWeakPtr<SWindow> WeakParentWindow;
 
 	FDelegateHandle AssetEditorCloseDelegate;
+
+	/** To make diffing more accurate and friendly, UBlueprint::CategorySorting gets modified. this will revert to the
+	 *  old version when the window closes */
+	class FScopedCategorySortChange
+	{
+	public:
+		~FScopedCategorySortChange();
+		void SetBlueprint(UBlueprint* Blueprint);
+	private:
+		UBlueprint* Blueprint = nullptr;
+		TArray<FName> Backup = {};
+	} ScopedCategorySortChange;
 };
 
 
