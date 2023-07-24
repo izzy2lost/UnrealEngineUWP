@@ -343,17 +343,24 @@ half3 GetImageBasedReflectionLighting_Mobile(
 
 #elif MOBILE_DEFERRED_LIGHTING
 
+	// Normalize for static skylight types which mix with lightmaps.
+	bool bNormalize = ReflectionStruct.SkyLightParameters.z < 1;
 	float SkyAverageBrightness = 1.0f;
 	SpecularIBL = GetSkyLightReflection(ReflectionVector, Roughness, SkyAverageBrightness);
 	
-	#if ALLOW_STATIC_LIGHTING
-	SpecularIBL *= ComputeMixingWeight(IndirectIrradiance, SkyAverageBrightness, Roughness);
-	#endif
+	if (bNormalize)
+	{
+		#if ALLOW_STATIC_LIGHTING
+		SpecularIBL *= ComputeMixingWeight(IndirectIrradiance, SkyAverageBrightness, Roughness);
+		#endif
+	}
 
 	SpecularIBL *= CompositeAlpha;
 #else // !(ENABLE_CLUSTERED_REFLECTION || MOBILE_DEFERRED_LIGHTING)
 
-	half UsingSkyReflection = MobileReflectionCapture.Params.y > 0.0f;
+	bool UsingSkyReflection = MobileReflectionCapture.Params.y > 0.0f;
+	// Normalize for static skylight types which mix with lightmaps.
+	bool bNormalize = UsingSkyReflection && MobileReflectionCapture.Params.z < 1;
 	if (UsingSkyReflection)
 	{
 		// Apply sky colour if the reflection map is the sky.
@@ -368,9 +375,12 @@ half3 GetImageBasedReflectionLighting_Mobile(
 		SpecularIBL = SpecularIBL * ReflectionCaptureBrightness;
 	}
 
-	#if ALLOW_STATIC_LIGHTING
-	SpecularIBL *= ComputeMixingWeight(IndirectIrradiance, MobileReflectionCapture.Params.x, Roughness);
-	#endif
+	if (bNormalize)
+	{
+		#if ALLOW_STATIC_LIGHTING
+		SpecularIBL *= ComputeMixingWeight(IndirectIrradiance, MobileReflectionCapture.Params.x, Roughness);
+		#endif
+	}
 
 	SpecularIBL *= CompositeAlpha;
 #endif
