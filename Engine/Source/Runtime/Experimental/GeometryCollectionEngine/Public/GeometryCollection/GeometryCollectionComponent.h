@@ -1227,10 +1227,7 @@ protected:
 	GEOMETRYCOLLECTIONENGINE_API void RegisterForEvents();
 	GEOMETRYCOLLECTIONENGINE_API void UpdateRBCollisionEventRegistration();
 	GEOMETRYCOLLECTIONENGINE_API void UpdateGlobalCollisionEventRegistration();
-	GEOMETRYCOLLECTIONENGINE_API void UpdateBreakEventRegistration();
-	GEOMETRYCOLLECTIONENGINE_API void UpdateRemovalEventRegistration();
 	GEOMETRYCOLLECTIONENGINE_API void UpdateGlobalRemovalEventRegistration();
-	GEOMETRYCOLLECTIONENGINE_API void UpdateCrumblingEventRegistration();
 	
 	/* Per-instance override to enable/disable replication for the geometry collection */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Network)

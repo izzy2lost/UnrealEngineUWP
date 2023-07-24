@@ -803,7 +803,7 @@ void UGeometryCollectionComponent::SetNotifyBreaks(bool bNewNotifyBreaks)
 			PhysicsProxy->SetNotifyBreakings_External(bNewNotifyBreaks);
 		}
 		bNotifyBreaks = bNewNotifyBreaks;
-		UpdateBreakEventRegistration();
+		RegisterForEvents();
 	}
 }
 
@@ -816,7 +816,7 @@ void UGeometryCollectionComponent::SetNotifyRemovals(bool bNewNotifyRemovals)
 			PhysicsProxy->SetNotifyRemovals_External(bNewNotifyRemovals);
 		}
 		bNotifyRemovals = bNewNotifyRemovals;
-		UpdateRemovalEventRegistration();
+		RegisterForEvents();
 	}
 }
 
@@ -831,7 +831,7 @@ void UGeometryCollectionComponent::SetNotifyCrumblings(bool bNewNotifyCrumblings
 		}
 		bNotifyCrumblings = bNewNotifyCrumblings;
 		bCrumblingEventIncludesChildren = bNewCrumblingEventIncludesChildren;
-		UpdateCrumblingEventRegistration();
+		RegisterForEvents();
 	}
 }
 
@@ -1509,7 +1509,6 @@ void UGeometryCollectionComponent::RegisterForEvents()
 			// re-create the physics proxy (e.g. in the case of the construction script in PIE). In that case, UChaosGameplayEventDispatcher::OnRegister
 			// will run *before* the new physics proxy is created.
 			EventDispatcher->UnregisterChaosEvents();
-			EventDispatcher->RegisterChaosEvents();
 
 			if (BodyInstance.bNotifyRigidBodyCollision || bNotifyBreaks || bNotifyCollisions || bNotifyRemovals || bNotifyCrumblings)
 			{
@@ -1553,6 +1552,10 @@ void UGeometryCollectionComponent::RegisterForEvents()
 						});
 				}
 			}
+
+			// Needs to be after the RegisterForXYZEvents calls on the event dispatcher or else GetInterestedProxyOwnersForXYZEvents will not
+			// properly allow our registration to go through.
+			EventDispatcher->RegisterChaosEvents();
 		}
 		if (bNotifyGlobalBreaks || bNotifyGlobalCrumblings)
 		{
@@ -1615,35 +1618,6 @@ void UGeometryCollectionComponent::UpdateGlobalCollisionEventRegistration()
 		}
 	}
 }
-void UGeometryCollectionComponent::UpdateBreakEventRegistration()
-{
-	if (EventDispatcher)
-	{
-		if (bNotifyBreaks)
-		{
-			EventDispatcher->RegisterForBreakEvents(this, &DispatchGeometryCollectionBreakEvent);
-		}
-		else
-		{
-			EventDispatcher->UnRegisterForBreakEvents(this);
-		}
-	}
-}
-
-void UGeometryCollectionComponent::UpdateRemovalEventRegistration()
-{
-	if (EventDispatcher)
-	{
-		if (bNotifyRemovals)
-		{
-			EventDispatcher->RegisterForRemovalEvents(this, &DispatchGeometryCollectionRemovalEvent);
-		}
-		else
-		{
-			EventDispatcher->UnRegisterForRemovalEvents(this);
-		}
-	}
-}
 
 void UGeometryCollectionComponent::UpdateGlobalRemovalEventRegistration()
 {
@@ -1656,21 +1630,6 @@ void UGeometryCollectionComponent::UpdateGlobalRemovalEventRegistration()
 		else
 		{
 			PhysicsScene->UnRegisterForGlobalRemovalEvents(this);
-		}
-	}
-}
-
-void UGeometryCollectionComponent::UpdateCrumblingEventRegistration()
-{
-	if (EventDispatcher)
-	{
-		if (bNotifyCrumblings)
-		{
-			EventDispatcher->RegisterForCrumblingEvents(this, &DispatchGeometryCollectionCrumblingEvent);
-		}
-		else
-		{
-			EventDispatcher->UnRegisterForCrumblingEvents(this);
 		}
 	}
 }
