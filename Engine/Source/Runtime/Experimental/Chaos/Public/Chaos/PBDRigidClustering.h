@@ -419,7 +419,7 @@ public:
 	CHAOS_API void ComputeStrainFromCollision(const FPBDCollisionConstraints& CollisionRule, const FReal Dt);
 	CHAOS_API void ResetCollisionImpulseArray();
 	CHAOS_API void DisableCluster(FPBDRigidClusteredParticleHandle* ClusteredParticle);
-	CHAOS_API void ApplyStrainModifiers();
+	CHAOS_API void ApplyStrainModifiers(const TArray<FPBDRigidClusteredParticleHandle*>& StrainedParticles);
 
 	/*
 	* Connectivity

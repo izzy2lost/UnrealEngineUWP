@@ -115,7 +115,7 @@ namespace Chaos
 	class FStrainedProxyRange
 	{
 	public:
-		CHAOS_API FStrainedProxyRange(Chaos::FRigidClustering& InRigidClustering, bool bRootLevelOnly);
+		CHAOS_API FStrainedProxyRange(Chaos::FRigidClustering& InRigidClustering, bool bRootLevelOnly, const TArray<FPBDRigidClusteredParticleHandle*>* InStrainedParticles);
 
 		FStrainedProxyRange(const FStrainedProxyRange& Other)
 			: RigidClustering(Other.RigidClustering)
@@ -135,6 +135,7 @@ namespace Chaos
 	private:
 		FRigidClustering& RigidClustering;
 		TArray<FGeometryCollectionPhysicsProxy*> Proxies;
+		const TArray<FPBDRigidClusteredParticleHandle*>* StrainedParticles;
 	};
 
 	// FStrainModifierAccessor
@@ -144,7 +145,10 @@ namespace Chaos
 	{
 	public:
 
-		FStrainModifierAccessor(FRigidClustering& InRigidClustering) : RigidClustering(InRigidClustering) { }
+		FStrainModifierAccessor(FRigidClustering& InRigidClustering, const TArray<FPBDRigidClusteredParticleHandle*>* InStrainedParticles = nullptr)
+			: RigidClustering(InRigidClustering)
+			, StrainedParticles(InStrainedParticles)
+		{}
 
 		// Get an iterable range of unique geometry collection proxies which
 		// correspond to all strained clusters. Optionally, only include proxies
@@ -154,5 +158,6 @@ namespace Chaos
 	private:
 
 		FRigidClustering& RigidClustering;
+		const TArray<FPBDRigidClusteredParticleHandle*>* StrainedParticles;
 	};
 }

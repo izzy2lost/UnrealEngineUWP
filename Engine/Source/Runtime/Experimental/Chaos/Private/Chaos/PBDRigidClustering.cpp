@@ -1343,14 +1343,6 @@ namespace Chaos
 				ResetCollisionImpulseArray();
 			}
 
-			//
-			// Modify internal strains
-			//
-			if (StrainModifiers)
-			{
-				ApplyStrainModifiers();
-			}
-
 			//  Monitor the MStrain array for 0 or less values.
 			//  That will trigger a break too.
 			//
@@ -1442,6 +1434,16 @@ namespace Chaos
 						}
 					}
 				}
+			}
+
+			//
+			// Modify internal strains. This needs to happen after the previous block so we can make sure
+			// we're applying the strain modifiers on ParticlesToProcess instead of TopLevelClusterParentsStrained
+			// since the latter may miss things related to cluster unions.
+			//
+			if (StrainModifiers)
+			{
+				ApplyStrainModifiers(ParticlesToProcess);
 			}
 
 			ClusterUnionManager.HandleDeferredClusterUnionUpdateProperties();
@@ -1984,13 +1986,13 @@ namespace Chaos
 		ClusteredParticle->ClusterGroupIndex() = 0;
 	}
 
-	void FRigidClustering::ApplyStrainModifiers()
+	void FRigidClustering::ApplyStrainModifiers(const TArray<FPBDRigidClusteredParticleHandle*>& StrainedParticles)
 	{
 		if (StrainModifiers)
 		{
 			for (ISimCallbackObject* Modifier : *StrainModifiers)
 			{
-				FStrainModifierAccessor Accessor(*this);
+				FStrainModifierAccessor Accessor(*this, &StrainedParticles);
 				Modifier->StrainModification_Internal(Accessor);
 			}
 		}

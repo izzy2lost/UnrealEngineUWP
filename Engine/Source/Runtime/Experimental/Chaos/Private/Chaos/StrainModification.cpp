@@ -138,58 +138,79 @@ bool Chaos::FStrainedProxyIterator::operator==(const FStrainedProxyIterator& Oth
 		Index == Other.Index;
 }
 
-Chaos::FStrainedProxyRange::FStrainedProxyRange(Chaos::FRigidClustering& InRigidClustering, const bool bRootLevelOnly)
+Chaos::FStrainedProxyRange::FStrainedProxyRange(Chaos::FRigidClustering& InRigidClustering, const bool bRootLevelOnly, const TArray<FPBDRigidClusteredParticleHandle*>* InStrainedParticles)
 	: RigidClustering(InRigidClustering)
+	, StrainedParticles(InStrainedParticles)
 {
 	const TSet<Chaos::FPBDRigidClusteredParticleHandle*>& StrainedParents = RigidClustering.GetTopLevelClusterParentsStrained();
 
-	Proxies.Reserve(StrainedParents.Num());
-	for (Chaos::FPBDRigidClusteredParticleHandle* Cluster : StrainedParents)
+	auto ForEveryParticle = [this, &StrainedParents]<typename TLambda>(TLambda&& Func)
 	{
-		// Make sure the cluster's physics proxy exists and is the right type
-		IPhysicsProxyBase* ProxyBase = Cluster->PhysicsProxy();
-		if (ProxyBase == nullptr)
+		if (StrainedParticles)
 		{
-			continue;
-		}
-
-		if (ProxyBase->GetType() != EPhysicsProxyType::GeometryCollectionType)
-		{
-			continue;
-		}
-
-		FGeometryCollectionPhysicsProxy* Proxy = static_cast<FGeometryCollectionPhysicsProxy*>(ProxyBase);
-
-		// Make sure the rest collection has a root index
-		if (bRootLevelOnly)
-		{
-			FSimulationParameters& Parameters = Proxy->GetSimParameters();
-			const int32 RootIndex = Parameters.InitialRootIndex;
-			TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ParticleHandles = Proxy->GetSolverParticleHandles();
-			if (ParticleHandles.IsValidIndex(RootIndex))
+			for (Chaos::FPBDRigidClusteredParticleHandle* Cluster : *StrainedParticles)
 			{
-				if (Cluster != ParticleHandles[RootIndex])
-				{
-					continue;
-				}
+				Func(Cluster);
 			}
-		}
-
-		// Only need to use AddUnique if we're not checking for root, since at most
-		// one cluster will have the rest collection's root index.
-		if (bRootLevelOnly)
-		{
-			Proxies.Add(Proxy);
 		}
 		else
 		{
-			Proxies.AddUnique(Proxy);
+			for (Chaos::FPBDRigidClusteredParticleHandle* Cluster : StrainedParents)
+			{
+				Func(Cluster);
+			}
 		}
-	}
+	};
+
+	Proxies.Reserve(StrainedParticles ? StrainedParticles->Num() : StrainedParents.Num());
+	ForEveryParticle(
+		[this, bRootLevelOnly](Chaos::FPBDRigidClusteredParticleHandle* Cluster)
+		{
+			// Make sure the cluster's physics proxy exists and is the right type
+			IPhysicsProxyBase* ProxyBase = Cluster->PhysicsProxy();
+			if (ProxyBase == nullptr)
+			{
+				return;
+			}
+
+			if (ProxyBase->GetType() != EPhysicsProxyType::GeometryCollectionType)
+			{
+				return;
+			}
+
+			FGeometryCollectionPhysicsProxy* Proxy = static_cast<FGeometryCollectionPhysicsProxy*>(ProxyBase);
+
+			// Make sure the rest collection has a root index
+			if (bRootLevelOnly)
+			{
+				FSimulationParameters& Parameters = Proxy->GetSimParameters();
+				const int32 RootIndex = Parameters.InitialRootIndex;
+				TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ParticleHandles = Proxy->GetSolverParticleHandles();
+				if (ParticleHandles.IsValidIndex(RootIndex))
+				{
+					if (Cluster != ParticleHandles[RootIndex])
+					{
+						return;
+					}
+				}
+			}
+
+			// Only need to use AddUnique if we're not checking for root, since at most
+			// one cluster will have the rest collection's root index.
+			if (bRootLevelOnly)
+			{
+				Proxies.Add(Proxy);
+			}
+			else
+			{
+				Proxies.AddUnique(Proxy);
+			}
+		}
+	);
 }
 
 Chaos::FStrainedProxyRange Chaos::FStrainModifierAccessor::GetStrainedProxies(const bool bRootLevelOnly)
 {
-	return FStrainedProxyRange(RigidClustering, bRootLevelOnly);
+	return FStrainedProxyRange(RigidClustering, bRootLevelOnly, StrainedParticles);
 }
 
