@@ -78,7 +78,7 @@ namespace Audio
 			}
 			else
 			{
-				AllWaveFormats = { NAME_BINKA, NAME_ADPCM, NAME_PCM };
+				AllWaveFormats = { NAME_BINKA, NAME_ADPCM, NAME_PCM, NAME_OPUS };
 				UE_LOG(LogAudio, Warning, TEXT("Audio:AllWaveFormats is not defined, defaulting to built in formats. (%s)"), *MakePrettyArrayToString(AllWaveFormats));
 			}
 		}
