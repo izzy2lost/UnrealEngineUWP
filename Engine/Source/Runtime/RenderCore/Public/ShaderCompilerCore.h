@@ -84,8 +84,6 @@ enum ECompilerFlags
 	CFLAG_ForceOptimization,
 	// Shader should generate symbols for debugging.
 	CFLAG_GenerateSymbols,
-	// Shader should generate minimal symbols info
-	CFLAG_GenerateSymbolsInfo,
 	// Shader should insert debug/name info at the risk of generating non-deterministic libraries
 	CFLAG_ExtraShaderData,
 	// Allows the (external) symbols to be specific to each shader rather than trying to deduplicate.
@@ -145,6 +143,8 @@ enum ECompilerFlags
 	CFLAG_CullBeforeFetch,
 	// Enable WarpCulling optimization on supported platforms
 	CFLAG_WarpCulling,
+	// Shader should generate minimal symbols info
+	CFLAG_GenerateSymbolsInfo,
 	CFLAG_Max,
 };
 static_assert(CFLAG_Max < 64, "Out of bitfield space! Modify FShaderCompilerFlags");
