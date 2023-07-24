@@ -9330,11 +9330,15 @@ void RecompileShadersForRemote(
 					SaveShaderMapsForRemote(TargetPlatform, CompiledShaderMaps, Args.MeshMaterialMaps);
 				}
 
-				// save it out so the client can get it (and it's up to date next time)
-				FString GlobalShaderFilename = SaveGlobalShaderFile(ShaderPlatform, OutputDirectory, TargetPlatform);
+				// save it out so the client can get it (and it's up to date next time), if we were sent a OutputDirectory to put it in
+				FString GlobalShaderFilename;
+				if (!OutputDirectory.IsEmpty())
+				{
+					GlobalShaderFilename = SaveGlobalShaderFile(ShaderPlatform, OutputDirectory, TargetPlatform);
+				}
 
 				// add this to the list of files to tell the other end about
-				if (Args.ModifiedFiles)
+				if (Args.ModifiedFiles && !GlobalShaderFilename.IsEmpty())
 				{
 					// need to put it in non-sandbox terms
 					FString SandboxPath(GlobalShaderFilename);
