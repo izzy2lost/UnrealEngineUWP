@@ -603,10 +603,27 @@ void UGameFeaturesSubsystem::RemoveObserver(UObject* Observer)
 
 FString UGameFeaturesSubsystem::GetPluginURL_FileProtocol(const FString& PluginDescriptorPath)
 {
-	return TEXT("file:") + PluginDescriptorPath;
+	return UE::GameFeatures::GameFeaturePluginProtocolPrefix(EGameFeaturePluginProtocol::File) + PluginDescriptorPath;
 }
 
-FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, const FInstallBundlePluginProtocolMetaData& ProtocolMetadata)
+FString UGameFeaturesSubsystem::GetPluginURL_FileProtocol(const FString& PluginDescriptorPath, TArrayView<const TPair<FString, FString>> AdditionalOptions)
+{
+	FString Path;
+	Path += UE::GameFeatures::GameFeaturePluginProtocolPrefix(EGameFeaturePluginProtocol::File);
+	Path += PluginDescriptorPath;
+	if (AdditionalOptions.Num() > 0)
+	{
+		Path += UE::GameFeatures::PluginURLStructureInfo::OptionSeperator;
+		Path += FString::JoinBy(AdditionalOptions, UE::GameFeatures::PluginURLStructureInfo::OptionSeperator,
+			[](const TPair<FString, FString>& OptionPair)
+			{
+				return OptionPair.Key + UE::GameFeatures::PluginURLStructureInfo::OptionAssignOperator + OptionPair.Value;
+			});
+	}
+	return Path;
+}
+
+FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, const FInstallBundlePluginProtocolMetaData& ProtocolMetadata, TArrayView<const TPair<FString, FString>> AdditionalOptions = {})
 {
 	ensure(ProtocolMetadata.InstallBundles.Num() > 0);
 	FString Path;
@@ -614,6 +631,15 @@ FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, const FIns
 	Path += PluginName;
 	Path += UE::GameFeatures::PluginURLStructureInfo::OptionSeperator;
 	Path += ProtocolMetadata.ToString();
+	if (AdditionalOptions.Num() > 0)
+	{
+		Path += UE::GameFeatures::PluginURLStructureInfo::OptionSeperator;
+		Path += FString::JoinBy(AdditionalOptions, UE::GameFeatures::PluginURLStructureInfo::OptionSeperator,
+			[](const TPair<FString, FString>& OptionPair)
+			{
+				return OptionPair.Key + UE::GameFeatures::PluginURLStructureInfo::OptionAssignOperator + OptionPair.Value;
+			});
+	}
 
 	return Path;
 }
@@ -623,7 +649,7 @@ FString UGameFeaturesSubsystem::GetPluginURL_InstallBundleProtocol(const FString
 	FInstallBundlePluginProtocolMetaData ProtocolMetadata;
 	for (const FString& BundleName : BundleNames)
 	{
-		ProtocolMetadata.InstallBundles.Add(FName(BundleName));
+		ProtocolMetadata.InstallBundles.Emplace(BundleName);
 	}
 	return ::GetPluginURL_InstallBundleProtocol(PluginName, ProtocolMetadata);
 }
@@ -635,14 +661,19 @@ FString UGameFeaturesSubsystem::GetPluginURL_InstallBundleProtocol(const FString
 
 FString UGameFeaturesSubsystem::GetPluginURL_InstallBundleProtocol(const FString& PluginName, const TArrayView<const FName> BundleNames)
 {
-	FInstallBundlePluginProtocolMetaData ProtocolMetadata;
-	ProtocolMetadata.InstallBundles.Append(BundleNames.GetData(), BundleNames.Num());
-	return ::GetPluginURL_InstallBundleProtocol(PluginName, ProtocolMetadata);
+	return GetPluginURL_InstallBundleProtocol(PluginName, BundleNames, TArrayView<const TPair<FString, FString>>());
 }
 
 FString UGameFeaturesSubsystem::GetPluginURL_InstallBundleProtocol(const FString& PluginName, FName BundleName)
 {
 	return GetPluginURL_InstallBundleProtocol(PluginName, MakeArrayView(&BundleName, 1));
+}
+
+FString UGameFeaturesSubsystem::GetPluginURL_InstallBundleProtocol(const FString& PluginName, TArrayView<const FName> BundleNames, TArrayView<const TPair<FString, FString>> AdditionalOptions)
+{
+	FInstallBundlePluginProtocolMetaData ProtocolMetadata;
+	ProtocolMetadata.InstallBundles.Append(BundleNames.GetData(), BundleNames.Num());
+	return ::GetPluginURL_InstallBundleProtocol(PluginName, ProtocolMetadata, AdditionalOptions);
 }
 
 EGameFeaturePluginProtocol UGameFeaturesSubsystem::GetPluginURLProtocol(FStringView PluginURL)
@@ -1639,18 +1670,20 @@ UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindGameFeaturePluginSta
 
 UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindGameFeaturePluginStateMachine(const FGameFeaturePluginIdentifier& PluginIdentifier) const
 {
+	const FStringView ShortUrl = PluginIdentifier.GetIdentifyingString();
+
 	TObjectPtr<UGameFeaturePluginStateMachine> const* ExistingStateMachine = 
 		GameFeaturePluginStateMachines.FindByHash(GetTypeHash(PluginIdentifier.GetIdentifyingString()), PluginIdentifier.GetIdentifyingString());
 	if (ExistingStateMachine)
 	{
 		EGameFeaturePluginProtocol ExpectedProtocol = (*ExistingStateMachine)->GetPluginIdentifier().GetPluginProtocol();
-		if (ensureMsgf(ExpectedProtocol == PluginIdentifier.GetPluginProtocol(), TEXT("Expected protocol %s for %s"), UE::GameFeatures::GameFeaturePluginProtocolPrefix(ExpectedProtocol), *PluginIdentifier.GetFullPluginURL()))
+		if (ensureMsgf(ExpectedProtocol == PluginIdentifier.GetPluginProtocol(), TEXT("Expected protocol %s for %.*s"), UE::GameFeatures::GameFeaturePluginProtocolPrefix(ExpectedProtocol), ShortUrl.Len(), ShortUrl.GetData()))
 		{
-			UE_LOG(LogGameFeatures, VeryVerbose, TEXT("FOUND GameFeaturePlugin using PluginIdentifier:%.*s for PluginURL:%s"), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData(), *PluginIdentifier.GetFullPluginURL());
+			UE_LOG(LogGameFeatures, VeryVerbose, TEXT("FOUND GameFeaturePlugin using PluginIdentifier:%.*s for PluginURL:%s"), ShortUrl.Len(), ShortUrl.GetData(), *PluginIdentifier.GetFullPluginURL());
 			return *ExistingStateMachine;
 		}
 	}
-	UE_LOG(LogGameFeatures, VeryVerbose, TEXT("NOT FOUND GameFeaturePlugin using PluginIdentifier:%.*s for PluginURL:%s"), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData(), *PluginIdentifier.GetFullPluginURL());
+	UE_LOG(LogGameFeatures, VeryVerbose, TEXT("NOT FOUND GameFeaturePlugin using PluginIdentifier:%.*s for PluginURL:%s"), ShortUrl.Len(), ShortUrl.GetData(), *PluginIdentifier.GetFullPluginURL());
 
 	return nullptr;
 }
@@ -1666,7 +1699,7 @@ UGameFeaturePluginStateMachine* UGameFeaturesSubsystem::FindOrCreateGameFeatureP
 	if (ExistingStateMachine)
 	{
 		EGameFeaturePluginProtocol ExpectedProtocol = (*ExistingStateMachine)->GetPluginIdentifier().GetPluginProtocol();
-		ensureAlwaysMsgf(ExpectedProtocol == PluginIdentifier.GetPluginProtocol(), TEXT("Expected protocol %s for %s"), UE::GameFeatures::GameFeaturePluginProtocolPrefix(ExpectedProtocol), *PluginIdentifier.GetFullPluginURL());
+		ensureAlwaysMsgf(ExpectedProtocol == PluginIdentifier.GetPluginProtocol(), TEXT("Expected protocol %s for %.*s"), UE::GameFeatures::GameFeaturePluginProtocolPrefix(ExpectedProtocol), PluginIdentifier.GetIdentifyingString().Len(), PluginIdentifier.GetIdentifyingString().GetData());
 
 		// In this case, still return the existing machine, even if the protocol doesn't match. This function should never return null.
 		// There can only be one active instance of any machine.

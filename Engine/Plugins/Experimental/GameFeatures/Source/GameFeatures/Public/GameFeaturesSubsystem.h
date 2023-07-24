@@ -29,13 +29,13 @@ namespace UE::GameFeatures
 	namespace PluginURLStructureInfo
 	{
 		/** Character used to denote what value is being assigned to the option before it */
-		extern const TCHAR* OptionAssignOperator;
+		extern GAMEFEATURES_API const TCHAR* OptionAssignOperator;
 
 		/** Character used to separate options on the URL. Used between each assigned value and the next Option name. */
-		extern const TCHAR* OptionSeperator;
+		extern GAMEFEATURES_API const TCHAR* OptionSeperator;
 
 		/** Character used to separate lists of values for a single option. Used between each entry in the list. */
-		extern const TCHAR* OptionListSeperator;
+		extern GAMEFEATURES_API const TCHAR* OptionListSeperator;
 	};
 
 	namespace CommonErrorCodes
@@ -368,12 +368,14 @@ public:
 public:
 	/** Construct a 'file:' Plugin URL using from the PluginDescriptorPath */
 	static FString GetPluginURL_FileProtocol(const FString& PluginDescriptorPath);
+	static FString GetPluginURL_FileProtocol(const FString& PluginDescriptorPath, TArrayView<const TPair<FString, FString>> AdditionalOptions);
 
 	/** Construct a 'installbundle:' Plugin URL using from the PluginName and required install bundles */
 	static FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, TArrayView<const FString> BundleNames);
 	static FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, const FString& BundleName);
 	static FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, TArrayView<const FName> BundleNames);
 	static FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, FName BundleName);
+	static FString GetPluginURL_InstallBundleProtocol(const FString& PluginName, TArrayView<const FName> BundleNames, TArrayView<const TPair<FString, FString>> AdditionalOptions);
 
 	/** Returns the plugin protocol for the specified URL */
 	static EGameFeaturePluginProtocol GetPluginURLProtocol(FStringView PluginURL);

@@ -218,27 +218,9 @@ struct FInstallBundlePluginProtocolMetaData
 {
 	TArray<FName> InstallBundles;
 
-	// TODO: keep this version?
-	/** Set to whatever the FDefaultValues::CurrentVersionNum was when this URL was generated.
-		Allows us to ensure if we try and load URLs generated from a previous version **/
-	uint8 VersionNum;
-
 	/** Functions to convert to/from the URL FString representation of this metadata **/
 	FString ToString() const;
 	static bool FromString(const FString& URLString, FInstallBundlePluginProtocolMetaData& OutMetadata);
-
-	FInstallBundlePluginProtocolMetaData();
-
-private:
-	/** Resets all our Metadata values to the default values */
-	void ResetToDefaults();
-
-	/** Holds default values for the above settings as they are only encoded into a string if they differ from these values */
-	struct FDefaultValues
-	{
-		static const uint32 CurrentVersionNum;
-		//Missing InstallBundles on purpose as the default is just an empty TArray and should always be encoded
-	};
 };
 
 struct FGameFeatureProtocolMetadata : public TUnion<FInstallBundlePluginProtocolMetaData, FNull>
