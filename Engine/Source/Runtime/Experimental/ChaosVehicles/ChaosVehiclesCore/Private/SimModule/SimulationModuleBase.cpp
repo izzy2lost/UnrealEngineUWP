@@ -23,6 +23,10 @@ void ISimulationModuleBase::AddLocalForce(const FVector& Force, bool bAllowSubst
 	AppliedForce = Force;
 	if (SimModuleTree)
 	{
+		//FString DebugString;
+		//GetDebugString(DebugString);
+		//UE_LOG(LogInit, Warning, TEXT("AddLocalForce To %s"), *DebugString);
+
 		SimModuleTree->AccessDeferredForces().Add(FDeferredForcesModular::FApplyForceData(TransformIndex, Force, bAllowSubstepping, bIsLocalForce, bLevelSlope, DebugColorIn));
 	}
 }
@@ -47,10 +51,22 @@ ISimulationModuleBase* ISimulationModuleBase::GetFirstChild()
 
 bool ISimulationModuleBase::GetDebugString(FString& StringOut) const 
 {
-	StringOut += FString::Format(TEXT("{0}: Enabled {1}, InCluster {2}, TFormIdx {3}, ")
-		, { GetDebugName(), IsEnabled(), IsClustered(), GetTransformIndex() });
+	StringOut += FString::Format(TEXT("{0}: TreeIndex {1}, Enabled {2}, InCluster {3}, TFormIdx {4}, ")
+		, { GetDebugName(), GetTreeIndex(), IsEnabled(), IsClustered(), GetTransformIndex() });
 
 	return true; 
+}
+
+const FTransform& ISimulationModuleBase::GetParentRelativeTransform() const
+{
+	if (bClustered)
+	{
+		return GetClusteredTransform();
+	}
+	else
+	{
+		return GetIntactTransform();
+	}
 }
 
 

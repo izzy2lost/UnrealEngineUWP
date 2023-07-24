@@ -213,6 +213,8 @@ public :
 		return NumDatas;
 	}
 
+	TArray<DatasType>& GetDatasArray() { return DatasArray; }
+
 protected : 
 
 	/** Check if the history is on the local/remote client*/

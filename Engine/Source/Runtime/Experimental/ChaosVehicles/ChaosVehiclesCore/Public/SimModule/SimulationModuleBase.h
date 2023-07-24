@@ -12,13 +12,15 @@ struct CHAOSVEHICLESCORE_API FCoreModularVehicleDebugParams
 {
 	bool ShowMass = false;
 	bool ShowForces = false;
-	float DrawForceScaling = 0.0005f;
+	float DrawForceScaling = 0.002f;
 	float LevelSlopeThreshold = 0.96f; // ~16 degrees
+	bool DisableForces = false;
 };
 
 namespace Chaos
 {
 	class FSimModuleTree;
+	struct FModuleNetData;
 
 	struct CHAOSVEHICLESCORE_API FControlInputs
 	{
@@ -131,7 +133,7 @@ namespace Chaos
 		Rudder,			// controls aircraft yaw
 		Elevator,		// controls aircraft pitch
 		Propeller,		// generates thrust when connected to a motor/engine
-
+		TorqueSim
 	};
 
 	/**
@@ -140,18 +142,22 @@ namespace Chaos
 	class CHAOSVEHICLESCORE_API ISimulationModuleBase
 	{
 	public:
-		const static int INVALID_INDEX = -1;
+		const static int INVALID_IDX = -1;
 
 		ISimulationModuleBase()
 			: SimModuleTree(nullptr)
-			, SimTreeIndex(INVALID_INDEX)
+			, SimTreeIndex(INVALID_IDX)
 			, StateFlags(Enabled)
-			, TransformIndex(INVALID_INDEX)
+			, TransformIndex(INVALID_IDX)
 			, ModuleLocalVelocity(FVector::ZeroVector)
 			, bClustered(true)
 			, AppliedForce(FVector::ZeroVector)
+			, Guid(INDEX_NONE)
 		{}
 		virtual ~ISimulationModuleBase() {}
+
+		const int GetGuid() { return Guid; }
+		void SetGuid(int GuidIn) { Guid = GuidIn; }
 
 		/**
 		* Get the friendly name for this module, primarily for logging & debugging module tree
@@ -236,27 +242,26 @@ namespace Chaos
 		void SetClusteredTransform(const FTransform& TransformIn) { ClusteredCOMRelativeTransform  = TransformIn; }
 		const FTransform& GetClusteredTransform() const { return ClusteredCOMRelativeTransform; }
 
+		void SetInitialParticleTransform(const FTransform& TransformIn) { InitialParticleTransform = TransformIn; }
+		const FTransform& GetInitialParticleTransform() const { return InitialParticleTransform; }
+
+		void SetComponentTransform(const FTransform& TransformIn) { ComponentTransform = TransformIn; }
+		const FTransform& GetComponentTransform() const { return ComponentTransform; }
+
+		void SetRelativeOffsetTransform(const FTransform& TransformIn) { RelativeOffsetTransform = TransformIn; }
+		const FTransform& GetRelativeOffsetTransform() const { return RelativeOffsetTransform; }
+
 		/**
 		 * Set the COM relative transform of module when it is broken off, so relative to itself
 		 */
-		void SetIntactTransform(const FTransform& TransformIn) { IntactCOMRelativeTransform = TransformIn; }
+		void SetIntactTransform(const FTransform& TransformIn) { IntactCOMRelativeTransform = TransformIn; IsInitialized = true; }
 		const FTransform& GetIntactTransform() const { return IntactCOMRelativeTransform; }
-
+		bool IsInitialized = false;
 		/**
 		 * The modules transform relative to the simulating body will depend on whether the GC is intact (get the transform relative to intact cluster)
 		 * or fractured (transform relative to fractured part)
 		 */
-		const FTransform& GetParentRelativeTransform() const
-		{
-			if (bClustered)
-			{
-				return GetClusteredTransform();
-			}
-			else
-			{
-				return GetIntactTransform();
-			}
-		}
+		const FTransform& GetParentRelativeTransform() const;
 
 		/**
 		 * Update the module with its current velocity
@@ -270,12 +275,19 @@ namespace Chaos
 		// for headless chaos testing
 		const FVector& GetAppliedForce() { return AppliedForce; }
 
+		// this is the replication datas
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(int NodeArrayIndex) const = 0;
+
 	protected:
 
 		FSimModuleTree* SimModuleTree;	// A pointer back to the simulation tree where we are stored
 		int SimTreeIndex;	// Index of this SimModule in the FSimModuleTree
 		eSimModuleState StateFlags;	// TODO: make this more like flags
 		int TransformIndex; // Index of this Sim Module's node in Geometry Collection Transform array
+
+		FTransform InitialParticleTransform;
+		FTransform RelativeOffsetTransform;
+		FTransform ComponentTransform;
 
 		FTransform ClusteredCOMRelativeTransform;
 		FTransform IntactCOMRelativeTransform;
@@ -284,7 +296,40 @@ namespace Chaos
 
 		// for headless chaos testing
 		FVector AppliedForce;
+		int Guid; // needed a way of associating internal module with game thread.
 
 	};
 
+	/**
+	* Interface base class for all module network serialization
+	*/
+	struct CHAOSVEHICLESCORE_API FModuleNetData
+	{
+		FModuleNetData(int InSimArrayIndex, const FString& InDebugString = FString())
+			: SimArrayIndex(InSimArrayIndex)
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+			, DebugString(InDebugString)
+#endif
+		{}
+
+		virtual ~FModuleNetData() {}
+
+		virtual eSimType GetType() = 0;
+		virtual void Serialize(FArchive& Ar) = 0;
+		virtual void FillNetState(const ISimulationModuleBase* SimModule) = 0;
+		virtual void FillSimState(ISimulationModuleBase* SimModule) = 0;
+		virtual void Lerp(const float LerpFactor, const FModuleNetData& Max, const FModuleNetData& MaxValue) = 0;
+
+		int SimArrayIndex = -1;
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		virtual FString ToString() const = 0;
+		FString DebugString;
+#endif
+	};
+
+	using FModuleNetDataArray = TArray<TSharedPtr<FModuleNetData>>;
+
 } // namespace Chaos
+
+

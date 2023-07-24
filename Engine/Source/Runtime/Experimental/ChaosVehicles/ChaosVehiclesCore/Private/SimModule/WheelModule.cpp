@@ -5,7 +5,7 @@
 #include "VehicleUtility.h"
 
 #if VEHICLE_DEBUGGING_ENABLED
-PRAGMA_DISABLE_OPTIMIZATION
+UE_DISABLE_OPTIMIZATION
 #endif
 
 namespace Chaos
@@ -16,7 +16,7 @@ namespace Chaos
 		, BrakeTorque(0.0f)
 		, ForceIntoSurface(0.0f)
 		, SurfaceFriction(1.0f)
-		, SuspensionSimTreeIndex(INVALID_INDEX)
+		, SuspensionSimTreeIndex(INVALID_IDX)
 		, ForceFromFriction(FVector::ZeroVector)
 		, MassPerWheel(500.0f*0.25f)
 		, SteerAngleDegrees(0.0f)
@@ -27,8 +27,8 @@ namespace Chaos
 	void FWheelSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
 	{	
 		float Re = Setup().Radius;
-		float K = 0.4f;
-		float TorqueScaling = 0.00005f;
+		float K = 0.4f; // #TODO: 0.4 * number of wheels - fix the amount of ForceRequiredToStop wrt number of active contact points
+		float TorqueScaling = 1.0f;
 		float TractionControlAndABSScaling = 0.98f;	// how close to perfection is the system working
 
 		float HandbrakeTorque = Setup().HandbrakeEnabled ? Inputs.ControlInputs.Handbrake * Setup().HandbrakeTorque : 0.0f;
@@ -37,7 +37,7 @@ namespace Chaos
 		LoadTorque = 0.0f;
 
 		// TODO: think about doing this properly, stops vehicles rolling around on their own too much
-		// kindof an auto handbrake
+		// i.e. an auto handbrake feature
 		if (Inputs.ControlInputs.Brake < SMALL_NUMBER && Inputs.ControlInputs.Throttle < SMALL_NUMBER && ModuleLocalVelocity.X < 10.0f)
 		{
 			BrakeTorque = Setup().HandbrakeTorque;
@@ -48,7 +48,8 @@ namespace Chaos
 		if (bTouchingGround)
 		{
 			FRotator SteeringRotator(0.f, SteerAngleDegrees, 0.f);
-			FVector LocalWheelVelocity = SteeringRotator.UnrotateVector(ModuleLocalVelocity);
+			FVector Vel = SteeringRotator.UnrotateVector(ModuleLocalVelocity);
+			FVector LocalWheelVelocity = (Setup().Axis == EWheelAxis::X) ? FVector(Vel.X, Vel.Y, Vel.Z) : FVector(Vel.Y, Vel.X, Vel.Z); // Potential Axis Swap
 
 			float GroundAngularVelocity = LocalWheelVelocity.X / Re;
 			float Delta = GroundAngularVelocity - AngularVelocity;
@@ -58,7 +59,7 @@ namespace Chaos
 			float SlipAngle = FVehicleUtility::CalculateSlipAngle(LocalWheelVelocity.Y, LocalWheelVelocity.X);
 
 			float AppliedLinearDriveForce = DriveTorque / Re;
-			float AppliedLinearBrakeForce = BrakeTorque / Re;
+			float AppliedLinearBrakeForce = FMath::Abs(BrakeTorque) / Re;
 
 			// Longitudinal multiplier now affecting both brake and steering equally
 			float AvailableGrip = ForceIntoSurface * SurfaceFriction * Setup().FrictionMultiplier;
@@ -113,7 +114,7 @@ namespace Chaos
 					FinalLongitudinalForce = AppliedLinearDriveForce;
 				}
 
-				float ForceRequiredToBringToStop = -(MassPerWheel * K * LocalWheelVelocity.Y) / DeltaTime;
+				float ForceRequiredToBringToStop = (MassPerWheel * K * LocalWheelVelocity.Y) / DeltaTime;
 
 				// use slip angle to generate a sideways force
 				if (Setup().LateralSlipGraph.IsEmpty())
@@ -136,13 +137,43 @@ namespace Chaos
 					FinalLateralForce = -FinalLateralForce;
 				}
 
+				float LengthSquared = FinalLongitudinalForce * FinalLongitudinalForce + FinalLateralForce * FinalLateralForce;
+				bool bClipping = false;
+				if (LengthSquared > 0.05f)
+				{
+					float Length = FMath::Sqrt(LengthSquared);
+
+					float Clip = (AvailableGrip) / Length;
+					if (Clip < 1.0f)
+					{
+						if (Braking /*&& !bEngineBraking*/)
+						{
+							WheelLocked = true;
+						}
+
+						bClipping = true;
+						FinalLongitudinalForce *= Clip;
+						FinalLateralForce *= Clip;
+					}
+				}
+
 			}
 
 			ForceFromFriction = FVector::ZeroVector;
-			ForceFromFriction.X = FinalLongitudinalForce;
-			ForceFromFriction.Y = FinalLateralForce;
+			// Potential Axis Swap
+			if (Setup().Axis == EWheelAxis::X)
+			{
+				ForceFromFriction.X = FinalLongitudinalForce;
+				ForceFromFriction.Y = FinalLateralForce;
+			}
+			else
+			{
+				check(Setup().Axis == EWheelAxis::Y);
+				ForceFromFriction.Y = FinalLongitudinalForce;
+				ForceFromFriction.X = FinalLateralForce;
+			}
 
-			AddLocalForce(SteeringRotator.RotateVector(ForceFromFriction));
+ 			AddLocalForce(SteeringRotator.RotateVector(ForceFromFriction));
 			TransmitTorque(VehicleModuleSystem, DriveTorque, BrakeTorque);
 
 			DriveTorque -= AvailableGrip;
@@ -150,15 +181,16 @@ namespace Chaos
 			{
 				DriveTorque = 0.0f;
 			}
-			else
-			{ 
-				DriveTorque *= TorqueScaling;
-			}
+
+			DriveTorque *= TorqueScaling;
+
 			BrakingTorque -= AvailableGrip;
 			if (BrakingTorque < 0.0f)
 			{
 				BrakingTorque = 0.0f;
 			}
+
+			BrakingTorque *= TorqueScaling;
 
 			LoadTorque = TorqueFromGroundInteraction;
 		}
@@ -180,5 +212,5 @@ namespace Chaos
 
 
 #if VEHICLE_DEBUGGING_ENABLED
-PRAGMA_ENABLE_OPTIMIZATION
+UE_ENABLE_OPTIMIZATION
 #endif

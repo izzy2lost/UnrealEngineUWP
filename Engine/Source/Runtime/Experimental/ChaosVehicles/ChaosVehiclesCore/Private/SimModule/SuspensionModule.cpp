@@ -6,7 +6,7 @@
 #include "VehicleUtility.h"
 
 #if VEHICLE_DEBUGGING_ENABLED
-PRAGMA_DISABLE_OPTIMIZATION
+UE_DISABLE_OPTIMIZATION
 #endif
 
 namespace Chaos
@@ -16,7 +16,7 @@ namespace Chaos
 		: TSimModuleSettings<FSuspensionSettings>(Settings)
 		, SpringDisplacement(0.f)
 		, LastDisplacement(0.f)
-		, WheelSimTreeIndex(INVALID_INDEX)
+		, WheelSimTreeIndex(INVALID_IDX)
 	{
 		AccessSetup().MaxLength = FMath::Abs(Settings.MaxRaise + Settings.MaxDrop);
 	}
@@ -36,8 +36,9 @@ namespace Chaos
 	void FSuspensionSimModule::GetWorldRaycastLocation(const FTransform& BodyTransform, float WheelRadius, FSpringTrace& OutTrace)
 	{
 		FVector LocalDirection = Setup().SuspensionAxis;
-		FVector WorldLocation = BodyTransform.TransformPosition(GetParentRelativeTransform().GetLocation()/*Setup().LocalOffset*/);
-		FVector WorldDirection = BodyTransform.TransformVector(LocalDirection);
+		FVector Local = GetParentRelativeTransform().GetLocation(); // change to just a vector and GetLocalLocation
+		FVector WorldLocation = BodyTransform.TransformPosition(GetRelativeOffsetTransform().TransformVector(Local/*Setup().LocalOffset*/));
+		FVector WorldDirection = BodyTransform.TransformVector(GetRelativeOffsetTransform().TransformVector(LocalDirection));
 
 		OutTrace.Start = WorldLocation - WorldDirection * (Setup().MaxRaise);
 		OutTrace.End = WorldLocation + WorldDirection * (Setup().MaxDrop + WheelRadius);
@@ -79,10 +80,43 @@ namespace Chaos
 		}
 	}
 
+	void FSuspensionSimModuleDatas::FillSimState(ISimulationModuleBase* SimModule)
+	{
+		if (FSuspensionSimModule* Sim = static_cast<FSuspensionSimModule*>(SimModule))
+		{
+			Sim->SpringDisplacement = SpringDisplacement;
+			Sim->LastDisplacement = LastDisplacement;
+		}
+	}
 
+	void FSuspensionSimModuleDatas::FillNetState(const ISimulationModuleBase* SimModule)
+	{
+		if (const FSuspensionSimModule* Sim = static_cast<const FSuspensionSimModule*>(SimModule))
+		{
+			SpringDisplacement = Sim->SpringDisplacement;
+			LastDisplacement = Sim->LastDisplacement;
+		}
+	}
+
+	void FSuspensionSimModuleDatas::Lerp(const float LerpFactor, const FModuleNetData& Min, const FModuleNetData& Max)
+	{
+		const FSuspensionSimModuleDatas& MinData = static_cast<const FSuspensionSimModuleDatas&>(Min);
+		const FSuspensionSimModuleDatas& MaxData = static_cast<const FSuspensionSimModuleDatas&>(Max);
+
+		SpringDisplacement = FMath::Lerp(MinData.SpringDisplacement, MaxData.SpringDisplacement, LerpFactor);
+		LastDisplacement = FMath::Lerp(MinData.LastDisplacement, MaxData.LastDisplacement, LerpFactor);
+	}
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	FString FSuspensionSimModuleDatas::ToString() const
+	{
+		return FString::Printf(TEXT("Module:%s SpringDisplacement:%f LastDisplacement:%f"),
+			*DebugString, SpringDisplacement, LastDisplacement);
+	}
+#endif
 
 } // namespace Chaos
 
 #if VEHICLE_DEBUGGING_ENABLED
-PRAGMA_ENABLE_OPTIMIZATION
+UE_ENABLE_OPTIMIZATION
 #endif

@@ -5,7 +5,7 @@
 #include "VehicleUtility.h"
 
 #if VEHICLE_DEBUGGING_ENABLED
-PRAGMA_DISABLE_OPTIMIZATION
+UE_DISABLE_OPTIMIZATION
 #endif
 
 namespace Chaos
@@ -133,9 +133,47 @@ namespace Chaos
 		return true;
 	}
 
+	void FTransmissionSimModuleDatas::FillSimState(ISimulationModuleBase* SimModule)
+	{
+		if(FTransmissionSimModule* Sim = static_cast<FTransmissionSimModule*>(SimModule))
+		{
+			Sim->CurrentGear = CurrentGear;
+			Sim->TargetGear = TargetGear;
+			Sim->CurrentGearChangeTime = CurrentGearChangeTime;
+		}
+	}
+
+	void FTransmissionSimModuleDatas::FillNetState(const ISimulationModuleBase* SimModule)
+	{
+		if (const FTransmissionSimModule* Sim = static_cast<const FTransmissionSimModule*>(SimModule))
+		{
+			CurrentGear = Sim->CurrentGear;
+			TargetGear = Sim->TargetGear;
+			CurrentGearChangeTime = Sim->CurrentGearChangeTime;
+		}
+	}
+
+	void FTransmissionSimModuleDatas::Lerp(const float LerpFactor, const FModuleNetData& Min, const FModuleNetData& Max)
+	{
+		const FTransmissionSimModuleDatas& MinData = static_cast<const FTransmissionSimModuleDatas&>(Min);
+		const FTransmissionSimModuleDatas& MaxData = static_cast<const FTransmissionSimModuleDatas&>(Max);
+
+		CurrentGear = LerpFactor < 0.5 ? MinData.CurrentGear : MaxData.CurrentGear;
+		TargetGear = LerpFactor < 0.5 ? MinData.TargetGear : MaxData.TargetGear;
+		CurrentGearChangeTime = FMath::Lerp(MinData.CurrentGearChangeTime, MaxData.CurrentGearChangeTime, LerpFactor);
+	}
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	FString FTransmissionSimModuleDatas::ToString() const
+	{
+		return FString::Printf(TEXT("Module:%s CurrentGear:%d TargetGear:%d CurrentGearChangeTime:%f"),
+			*DebugString, CurrentGear, TargetGear, CurrentGearChangeTime);
+	}
+#endif
+
 
 } // namespace Chaos
 
 #if VEHICLE_DEBUGGING_ENABLED
-PRAGMA_ENABLE_OPTIMIZATION
+UE_ENABLE_OPTIMIZATION
 #endif

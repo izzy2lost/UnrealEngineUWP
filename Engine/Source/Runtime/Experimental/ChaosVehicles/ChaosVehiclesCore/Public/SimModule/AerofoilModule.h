@@ -67,6 +67,8 @@ namespace Chaos
 
 		virtual ~FAerofoilSimModule() {}
 
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(int NodeArrayIndex) const { return nullptr; }
+
 		virtual eSimType GetSimType() const { return eSimType::Aerofoil; }
 
 		virtual const FString GetDebugName() const { return TEXT("Aerofoil"); }

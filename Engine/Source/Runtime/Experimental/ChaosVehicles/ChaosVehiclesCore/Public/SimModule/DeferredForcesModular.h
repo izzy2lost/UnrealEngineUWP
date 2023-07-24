@@ -135,7 +135,7 @@ public:
 		ApplyImpulseAtPositionDatas.Add(ApplyImpulseAtPositionDataIn);
 	}	
 
-	Chaos::FPBDRigidClusteredParticleHandle* GetParticle(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
+	Chaos::FPBDRigidParticleHandle* GetParticle(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
 			, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
 			, int TransformIndex
 			, const TManagedArray<FTransform>& Transforms
@@ -143,21 +143,35 @@ public:
 			, const TManagedArray<int32>& Parent
 			, FTransform& TransformOut);
 
+	Chaos::FPBDRigidParticleHandle* GetParticle(const FTransform& OffsetTransform
+		, TArray<Chaos::FPBDRigidParticleHandle*>& Particles
+		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
+		, int TransformIndex
+		, FTransform& TransformOut);
+
 	void Apply(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
 		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
 		, const TManagedArray<FTransform>& Transforms
 		, const TManagedArray<FTransform>& CollectionMassToLocal
 		, const TManagedArray<int32>& Parent);
+	
+	void Apply(const FTransform& OffsetTransform
+		, TArray<Chaos::FPBDRigidParticleHandle*>& Particles
+		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles);
 
+	void SetOffsetTransform(const FTransform& TransformIn) { ParticleOffsetTransform = TransformIn; }
+	const FTransform& GetOffsetTransform() const { return ParticleOffsetTransform; }
 private:
 
-	void AddForceAtPosition(Chaos::FPBDRigidClusteredParticleHandle* RigidHandle, const FApplyForceAtPositionData& DataIn, const FTransform& OffsetTransform);
-	void AddTorque(Chaos::FPBDRigidClusteredParticleHandle* RigidHandle, const FAddTorqueInRadiansData& DataIn, const FTransform& OffsetTransform);
-	void AddForce(Chaos::FPBDRigidClusteredParticleHandle* RigidHandle, const FApplyForceData& DataIn, const FTransform& OffsetTransform);
+	void AddForceAtPosition(Chaos::FPBDRigidParticleHandle* RigidHandle, const FApplyForceAtPositionData& DataIn, const FTransform& OffsetTransform);
+	void AddTorque(Chaos::FPBDRigidParticleHandle* RigidHandle, const FAddTorqueInRadiansData& DataIn, const FTransform& OffsetTransform);
+	void AddForce(Chaos::FPBDRigidParticleHandle* RigidHandle, const FApplyForceData& DataIn, const FTransform& OffsetTransform);
 
 	TArray<FApplyForceData> ApplyForceDatas;
 	TArray<FApplyForceAtPositionData> ApplyForceAtPositionDatas;
 	TArray<FAddTorqueInRadiansData> ApplyTorqueDatas;
 	TArray<FAddImpulseData> ApplyImpulseDatas;
 	TArray<FAddImpulseAtPositionData> ApplyImpulseAtPositionDatas;
+
+	FTransform ParticleOffsetTransform; // Odd rotation coming through from CU physics bodies
 };

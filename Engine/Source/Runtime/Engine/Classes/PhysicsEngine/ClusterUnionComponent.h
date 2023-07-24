@@ -176,6 +176,7 @@ public:
 	ENGINE_API void ForceRebuildGTParticleGeometry();
 
 	friend class UClusterUnionReplicatedProxyComponent;
+	friend class UModularVehicleBaseComponent;
 protected:
 
 	// This should only be called on the client when replication happens.
@@ -183,6 +184,9 @@ protected:
 	ENGINE_API void ForceSetChildToParent(UPrimitiveComponent* InComponent, const TArray<int32>& BoneIds, const TArray<FTransform>& ChildToParent);
 
 	ENGINE_API TArray<int32> GetAddedBoneIdsForComponent(UPrimitiveComponent* Component) const;
+
+	Chaos::FClusterUnionPhysicsProxy* GetPhysicsProxy() const { return PhysicsProxy; }
+	Chaos::FClusterUnionPhysicsProxy* GetPhysicsProxy() { return PhysicsProxy; }
 
 private:
 	// These are the statically clustered components. These should
@@ -281,7 +285,7 @@ public:
 	ENGINE_API virtual bool OverlapComponentWithResult(const FVector& Pos, const FQuat& Rot, const FPhysicsGeometry& Geometry, ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params, const struct FCollisionResponseParams& ResponseParams, const struct FCollisionObjectQueryParams& ObjectParams, TArray<FOverlapResult>& OutOverlap) const override;
 	ENGINE_API virtual bool ComponentOverlapComponentWithResultImpl(const class UPrimitiveComponent* const PrimComp, const FVector& Pos, const FQuat& Rot, const FCollisionQueryParams& Params, TArray<FOverlapResult>& OutOverlap) const override;
 	virtual bool ShouldDispatchWakeEvents(FName BoneName) const override { return true; }
-	virtual bool DoCustomNavigableGeometryExport(FNavigableGeometryExport& GeomExport) const override;
+	ENGINE_API virtual bool DoCustomNavigableGeometryExport(FNavigableGeometryExport& GeomExport) const override;
 	//~ End UPrimitiveComponent Interface
 
 	//~ Begin USceneComponent Interface

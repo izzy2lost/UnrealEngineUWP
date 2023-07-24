@@ -10,6 +10,40 @@ namespace Chaos
 	struct FAllInputs;
 	class FSimModuleTree;
 
+
+	struct CHAOSVEHICLESCORE_API FTransmissionSimModuleDatas : public FModuleNetData
+	{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		FTransmissionSimModuleDatas(int NodeArrayIndex, const FString& InDebugString) : FModuleNetData(NodeArrayIndex, InDebugString) {}
+#else
+		FTransmissionSimModuleDatas(int NodeArrayIndex) : FModuleNetData(NodeArrayIndex) {}
+#endif
+
+		virtual eSimType GetType() override { return eSimType::Transmission; }
+
+		virtual void FillSimState(ISimulationModuleBase* SimModule) override;
+
+		virtual void FillNetState(const ISimulationModuleBase* SimModule) override;
+
+		virtual void Serialize(FArchive& Ar) override
+		{
+			Ar << CurrentGear;
+			Ar << TargetGear;
+			Ar << CurrentGearChangeTime;
+		}
+
+		virtual void Lerp(const float LerpFactor, const FModuleNetData& Min, const FModuleNetData& Max) override;
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		virtual FString ToString() const override;
+#endif
+
+		int32 CurrentGear = 0;
+		int32 TargetGear = 0;
+		float CurrentGearChangeTime = 0.0f;
+	};
+
+
 	struct CHAOSVEHICLESCORE_API FTransmissionSettings
 	{
 		enum ETransType : uint8
@@ -52,6 +86,8 @@ namespace Chaos
 
 	class CHAOSVEHICLESCORE_API FTransmissionSimModule : public FTorqueSimModule, public TSimModuleSettings<FTransmissionSettings>
 	{
+		friend FTransmissionSimModuleDatas;
+
 	public:
 
 		FTransmissionSimModule(const FTransmissionSettings& Settings)
@@ -61,6 +97,16 @@ namespace Chaos
 			, CurrentGearChangeTime(0.f)
 			, AllowedToChangeGear(true)
 		{
+		}
+
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
+		{
+			return MakeShared<FTransmissionSimModuleDatas>(
+				SimArrayIndex
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+				, GetDebugName()
+#endif			
+			);
 		}
 
 		virtual eSimType GetSimType() const { return eSimType::Transmission; }

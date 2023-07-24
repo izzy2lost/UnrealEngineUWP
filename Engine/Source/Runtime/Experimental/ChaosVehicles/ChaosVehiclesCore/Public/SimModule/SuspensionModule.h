@@ -9,6 +9,38 @@ namespace Chaos
 	struct FAllInputs;
 	class FSimModuleTree;
 
+	struct CHAOSVEHICLESCORE_API FSuspensionSimModuleDatas : public FModuleNetData
+	{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		FSuspensionSimModuleDatas(int NodeArrayIndex, const FString& InDebugString) : FModuleNetData(NodeArrayIndex, InDebugString) {}
+#else
+		FSuspensionSimModuleDatas(int NodeArrayIndex) : FModuleNetData(NodeArrayIndex) {}
+#endif
+
+		virtual eSimType GetType() override { return eSimType::Suspension; }
+
+		virtual void FillSimState(ISimulationModuleBase* SimModule) override;
+
+		virtual void FillNetState(const ISimulationModuleBase* SimModule) override;
+
+		virtual void Serialize(FArchive& Ar) override
+		{
+			Ar << SpringDisplacement;
+			Ar << LastDisplacement;
+		}
+
+		virtual void Lerp(const float LerpFactor, const FModuleNetData& Min, const FModuleNetData& Max) override;
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		virtual FString ToString() const override;
+#endif
+
+		float SpringDisplacement = 0.0f;
+		float LastDisplacement = 0.0f;
+	};
+
+
+
 	struct CHAOSVEHICLESCORE_API FSuspensionSettings
 	{
 		FSuspensionSettings()
@@ -64,11 +96,22 @@ namespace Chaos
 
 	class CHAOSVEHICLESCORE_API FSuspensionSimModule : public ISimulationModuleBase, public TSimModuleSettings<FSuspensionSettings>
 	{
+		friend FSuspensionSimModuleDatas;
+
 	public:
 
 		FSuspensionSimModule(const FSuspensionSettings& Settings);
 
 		virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const override { return (InType & Raycast); }
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
+		{
+			return MakeShared<FSuspensionSimModuleDatas>(
+				SimArrayIndex
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+				, GetDebugName()
+#endif			
+			);
+		}
 
 		virtual eSimType GetSimType() const { return eSimType::Suspension; }
 
@@ -80,9 +123,6 @@ namespace Chaos
 
 		virtual void Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem) override;
 
-		void SetLocation(const FVector& LocationIn) { Location = LocationIn; }
-		const FVector GetLocation() const { return /*Setup().RestOffset + */Location; }
-
 		const FVector& GetRestLocation() const { return Setup().RestOffset; }
 
 		void SetWheelSimTreeIndex(int WheelTreeIndexIn) { WheelSimTreeIndex = WheelTreeIndexIn; }
@@ -93,10 +133,9 @@ namespace Chaos
 		float SpringDisplacement;
 		float LastDisplacement;
 		int WheelSimTreeIndex;
-
-		FVector Location;
 	};
 
 
 } // namespace Chaos
+
 

@@ -15,7 +15,6 @@ namespace Chaos
 
 	void FChassisSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
 	{
-		AddLocalForce(FVector(20000000,0,0));
 
 	}
 

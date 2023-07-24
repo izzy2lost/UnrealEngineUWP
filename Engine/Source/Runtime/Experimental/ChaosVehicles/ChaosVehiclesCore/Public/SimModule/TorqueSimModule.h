@@ -7,10 +7,48 @@
 
 namespace Chaos
 {
+	class FTorqueSimModule;
+
+	struct CHAOSVEHICLESCORE_API FTorqueSimModuleDatas : public FModuleNetData
+	{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		FTorqueSimModuleDatas(int NodeArrayIndex, const FString& InDebugString) : FModuleNetData(NodeArrayIndex, InDebugString) {}
+#else
+		FTorqueSimModuleDatas(int NodeArrayIndex) : FModuleNetData(NodeArrayIndex) {}
+#endif
+		virtual eSimType GetType() override { return eSimType::TorqueSim; }
+		
+		virtual void FillSimState(ISimulationModuleBase* SimModule) override;
+
+		virtual void FillNetState(const ISimulationModuleBase* SimModule) override;
+
+		virtual void Serialize(FArchive& Ar) override
+		{
+			Ar << AngularVelocity;
+			Ar << AngularPosition;
+			Ar << DriveTorque;
+			Ar << LoadTorque;
+			Ar << BrakingTorque;
+		}
+
+		virtual void Lerp(const float LerpFactor, const FModuleNetData& Min, const FModuleNetData& Max) override;
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		virtual FString ToString() const override;
+#endif
+
+		float AngularVelocity = 0.0f;
+		float AngularPosition = 0.0f;
+		float DriveTorque = 0.0f;
+		float LoadTorque = 0.0f;
+		float BrakingTorque = 0.0f;
+	};
 
 
 class CHAOSVEHICLESCORE_API FTorqueSimModule : public ISimulationModuleBase
 {
+	friend FTorqueSimModuleDatas;
+
 public:
 	FTorqueSimModule()
 		: DriveTorque(0.f)
@@ -18,7 +56,6 @@ public:
 		, BrakingTorque(0.f)
 		, AngularVelocity(0.f)
 		, AngularPosition(0.0f)
-		, CombinedInertia(0.0f)
 	{
 	}
 
@@ -26,6 +63,15 @@ public:
 	 * Is Module of a specific type - used for casting
 	 */
 	virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const { return (InType & TorqueBased); }
+	virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
+	{
+		return MakeShared<FTorqueSimModuleDatas>(
+			SimArrayIndex
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+			, GetDebugName()
+#endif			
+		);
+	}
 
 	void SetDriveTorque(float TorqueIn) { DriveTorque = TorqueIn; }
 	float GetDriveTorque() const { return DriveTorque; }
@@ -77,7 +123,6 @@ protected:
 	float BrakingTorque;
 	float AngularVelocity;
 	float AngularPosition;
-	float CombinedInertia; // Note: ?? Do we want this
 };
 
 

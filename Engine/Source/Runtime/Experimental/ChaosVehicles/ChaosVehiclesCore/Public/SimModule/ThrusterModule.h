@@ -37,6 +37,8 @@ namespace Chaos
 	public:
 		FThrusterSimModule(const FThrusterSettings& Settings);
 
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(int NodeArrayIndex) const { return nullptr; }
+
 		virtual eSimType GetSimType() const { return eSimType::Thruster; }
 
 		virtual const FString GetDebugName() const { return TEXT("Thruster"); }

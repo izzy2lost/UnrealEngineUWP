@@ -9,6 +9,12 @@ namespace Chaos
 	struct FAllInputs;
 	class FSimModuleTree;
 
+	enum CHAOSVEHICLESCORE_API EWheelAxis
+	{
+		X,	// X forward
+		Y	// Y forward
+	};
+
 	struct CHAOSVEHICLESCORE_API FWheelSettings
 	{
 		FWheelSettings()
@@ -29,6 +35,7 @@ namespace Chaos
 			, MaxBrakeTorque(4000)
 			, HandbrakeTorque(3000)
 			, MaxRotationVel(100.0f)
+			, Axis(EWheelAxis::X)
 
 		{
 
@@ -54,6 +61,7 @@ namespace Chaos
 		float HandbrakeTorque;
 
 		float MaxRotationVel;
+		EWheelAxis Axis;
 
 
 	};

@@ -31,6 +31,8 @@ namespace Chaos
 	public:
 		FChassisSimModule(const FChassisSettings& Settings);
 
+		virtual TSharedPtr<FModuleNetData> GenerateNetData(int NodeArrayIndex) const { return nullptr; }
+
 		virtual eSimType GetSimType() const { return eSimType::Chassis; }
 
 		virtual const FString GetDebugName() const { return TEXT("Chassis"); }

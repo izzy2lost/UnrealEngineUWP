@@ -6,7 +6,7 @@
 #include "VehicleUtility.h"
 
 #if VEHICLE_DEBUGGING_ENABLED
-PRAGMA_DISABLE_OPTIMIZATION
+UE_DISABLE_OPTIMIZATION
 #endif
 
 namespace Chaos
@@ -95,8 +95,47 @@ void FTorqueSimModule::IntegrateAngularVelocity(float DeltaTime, float Inertia, 
 		, *GetDebugName(), DriveTorque, BrakingTorque, LoadTorque, AngularVelocity, GetRPM(), AngularPosition, Inertia);
 }
 
+void FTorqueSimModuleDatas::FillSimState(ISimulationModuleBase* SimModule)
+{
+	if (FTorqueSimModule* Sim = static_cast<FTorqueSimModule*>(SimModule))
+	{
+		Sim->AngularVelocity = AngularVelocity;
+		Sim->AngularPosition = AngularPosition;
+	}
+}
+
+void FTorqueSimModuleDatas::FillNetState(const ISimulationModuleBase* SimModule)
+{
+	if (const FTorqueSimModule* Sim = static_cast<const FTorqueSimModule*>(SimModule))
+	{
+		AngularVelocity = Sim->AngularVelocity;
+		AngularPosition = Sim->AngularPosition;
+	}
+}
+
+void FTorqueSimModuleDatas::Lerp(const float LerpFactor, const FModuleNetData& Min, const FModuleNetData& Max)
+{
+	const FTorqueSimModuleDatas& MinData = static_cast<const FTorqueSimModuleDatas&>(Min);
+	const FTorqueSimModuleDatas& MaxData = static_cast<const FTorqueSimModuleDatas&>(Max);
+
+	AngularVelocity = FMath::Lerp(MinData.AngularVelocity, MaxData.AngularVelocity, LerpFactor);
+	AngularPosition = FMath::Lerp(MinData.AngularPosition, MaxData.AngularPosition, LerpFactor);
+	DriveTorque = FMath::Lerp(MinData.DriveTorque, MaxData.DriveTorque, LerpFactor);
+	LoadTorque = FMath::Lerp(MinData.LoadTorque, MaxData.LoadTorque, LerpFactor);
+	BrakingTorque = FMath::Lerp(MinData.BrakingTorque, MaxData.BrakingTorque, LerpFactor);
+}
+
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+FString FTorqueSimModuleDatas::ToString() const
+{
+	return FString::Printf(TEXT("Module:%s AngularVelocity:%f AngularPosition:%f"),
+		*DebugString, AngularVelocity, AngularPosition);
+}
+#endif
+
 } // namespace Chaos
 
 #if VEHICLE_DEBUGGING_ENABLED
-PRAGMA_ENABLE_OPTIMIZATION
+UE_ENABLE_OPTIMIZATION
 #endif
