@@ -704,6 +704,12 @@
 	#define UE_LIFETIMEBOUND
 #endif
 
+/* Annotate functions that allocate new memory to ensure the compiler can optimize them accordingly.
+   The arguments to this macro specify the 1-based arguments of the annotated function that specify the size of the allocation. */
+#ifndef UE_ALLOCATION_FUNCTION
+	#define UE_ALLOCATION_FUNCTION(...)
+#endif
+
 /** Promise expression is true. Compiler can optimize accordingly with undefined behavior if wrong. Static analyzers understand this.  */
 #ifndef UE_ASSUME
 	#if defined(__clang__)
