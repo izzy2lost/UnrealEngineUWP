@@ -277,7 +277,7 @@ void FLevelEditorOutlinerSettings::CreateDefaultFilters()
 		FindOrAddClassFilter(AExponentialHeightFog::StaticClass(), *EnvironmentFilterCategory);
 		FindOrAddClassFilter(AInstancedFoliageActor::StaticClass(), *EnvironmentFilterCategory);
 		FindOrAddClassFilter(ASkyAtmosphere::StaticClass(), *EnvironmentFilterCategory);
-		FindOrAddClassFilter(ALocalHeightFog::StaticClass(), *EnvironmentFilterCategory);
+		FindOrAddClassFilter(ALocalFogVolume::StaticClass(), *EnvironmentFilterCategory);
 		FindOrAddClassFilter(AVolumetricCloud::StaticClass(), *EnvironmentFilterCategory);
 	}
 	

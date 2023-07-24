@@ -1877,13 +1877,13 @@ UActorFactoryExponentialHeightFog::UActorFactoryExponentialHeightFog(const FObje
 }
 
 /*-----------------------------------------------------------------------------
-UActorFactoryLocalHeightFog
+UActorFactoryLocalFogVolume
 -----------------------------------------------------------------------------*/
-UActorFactoryLocalHeightFog::UActorFactoryLocalHeightFog(const FObjectInitializer& ObjectInitializer)
+UActorFactoryLocalFogVolume::UActorFactoryLocalFogVolume(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	DisplayName = LOCTEXT("LocalHeightFogDisplayName", "Local Height Fog");
-	NewActorClass = ALocalHeightFog::StaticClass();
+	DisplayName = LOCTEXT("LocalFogVolumeDisplayName", "Local Height Fog");
+	NewActorClass = ALocalFogVolume::StaticClass();
 }
 
 /*-----------------------------------------------------------------------------

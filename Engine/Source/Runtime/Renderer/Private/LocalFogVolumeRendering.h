@@ -19,7 +19,7 @@ struct FMinimalSceneTextures;
 	Local height fog rendering common data
 =============================================================================*/
 
-class FLocalHeightFogGPUInstanceData
+class FLocalFogVolumeGPUInstanceData
 {
 public:
 	FMatrix44f Transform;
@@ -68,11 +68,11 @@ public:
 // This can be generated once for a scene and then shared between all the views to generate the GPU buffer data needed for rendering while accounting for sorting.
 struct FLocalFogVolumeSortingData
 {
-	uint32 LocalHeightFogInstanceCount;
-	uint32 LocalHeightFogInstanceCountFinal;
-	FLocalHeightFogGPUInstanceData* LocalHeightFogGPUInstanceData;
-	FVector* LocalHeightFogCenterPos;
-	TArray<FLocalFogVolumeSortKey>	LocalHeightFogSortKeys;
+	uint32 LocalFogVolumeInstanceCount;
+	uint32 LocalFogVolumeInstanceCountFinal;
+	FLocalFogVolumeGPUInstanceData* LocalFogVolumeGPUInstanceData;
+	FVector* LocalFogVolumeCenterPos;
+	TArray<FLocalFogVolumeSortKey>	LocalFogVolumeSortKeys;
 };
 
 
@@ -80,20 +80,20 @@ struct FLocalFogVolumeSortingData
 	Local height fog rendering functions
 =============================================================================*/
 
-bool ShouldRenderLocalHeightFog(const FScene* Scene, const FSceneViewFamily& Family);
+bool ShouldRenderLocalFogVolume(const FScene* Scene, const FSceneViewFamily& Family);
 
 void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& Out);
 
 void CreateViewLocalFogVolumeBufferSRV(FViewInfo& View, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& SortingData);
 
-void RenderLocalHeightFog(
+void RenderLocalFogVolume(
 	const FScene* Scene,
 	TArray<FViewInfo>& Views,
 	FRDGBuilder& GraphBuilder,
 	const FMinimalSceneTextures& SceneTextures,
 	FRDGTextureRef LightShaftOcclusionTexture);
 
-void RenderLocalHeightFogMobile(
+void RenderLocalFogVolumeMobile(
 	FRHICommandList& RHICmdList, 
 	const FViewInfo& View);
 

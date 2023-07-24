@@ -9,7 +9,7 @@
 
 
 
-FLocalHeightFogSceneProxy::FLocalHeightFogSceneProxy(const ULocalHeightFogComponent* InComponent)
+FLocalFogVolumeSceneProxy::FLocalFogVolumeSceneProxy(const ULocalFogVolumeComponent* InComponent)
 	: FogTransform(InComponent->GetComponentTransform())
 	, FogDensity(InComponent->FogDensity)
 	, FogHeightFalloff(InComponent->FogHeightFalloff)
@@ -23,7 +23,7 @@ FLocalHeightFogSceneProxy::FLocalHeightFogSceneProxy(const ULocalHeightFogCompon
 {
 }
 
-FLocalHeightFogSceneProxy::~FLocalHeightFogSceneProxy()
+FLocalFogVolumeSceneProxy::~FLocalFogVolumeSceneProxy()
 {
 }
 

@@ -63,7 +63,7 @@ void FComponentVisualizersModule::StartupModule()
 	RegisterComponentVisualizer(UDecalComponent::StaticClass()->GetFName(), MakeShareable(new FDecalComponentVisualizer));
 	RegisterComponentVisualizer(UStereoLayerComponent::StaticClass()->GetFName(), MakeShareable(new FStereoLayerComponentVisualizer));
 	RegisterComponentVisualizer(UWorldPartitionStreamingSourceComponent::StaticClass()->GetFName(), MakeShareable(new FWorldPartitionStreamingSourceComponentVisualizer));
-	RegisterComponentVisualizer(ULocalHeightFogComponent::StaticClass()->GetFName(), MakeShareable(new FLocalHeightFogComponentVisualizer));
+	RegisterComponentVisualizer(ULocalFogVolumeComponent::StaticClass()->GetFName(), MakeShareable(new FLocalFogVolumeComponentVisualizer));
 }
 
 void FComponentVisualizersModule::ShutdownModule()

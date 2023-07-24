@@ -15,9 +15,9 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LocalFogVolumeComponent)
 
 
-ULocalHeightFogComponent::ULocalHeightFogComponent(const FObjectInitializer& ObjectInitializer)
+ULocalFogVolumeComponent::ULocalFogVolumeComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-	, LocalHeightFogSceneProxy(nullptr)
+	, LocalFogVolumeSceneProxy(nullptr)
 {
 	Mobility = EComponentMobility::Movable;
 
@@ -26,18 +26,18 @@ ULocalHeightFogComponent::ULocalHeightFogComponent(const FObjectInitializer& Obj
 	SetRelativeScale3D(FVector(Size, Size, Size));
 }
 
-ULocalHeightFogComponent::~ULocalHeightFogComponent()
+ULocalFogVolumeComponent::~ULocalFogVolumeComponent()
 {
 }
 
-void ULocalHeightFogComponent::SendRenderTransformCommand()
+void ULocalFogVolumeComponent::SendRenderTransformCommand()
 {
-	if (LocalHeightFogSceneProxy)
+	if (LocalFogVolumeSceneProxy)
 	{
 		FTransform ComponentTransform = GetComponentTransform();
 		float HeightOffset = FogHeightOffset;
-		FLocalHeightFogSceneProxy* SceneProxy = LocalHeightFogSceneProxy;
-		ENQUEUE_RENDER_COMMAND(FUpdateLocalHeightFogSceneProxyTransformCommand)(
+		FLocalFogVolumeSceneProxy* SceneProxy = LocalFogVolumeSceneProxy;
+		ENQUEUE_RENDER_COMMAND(FUpdateLocalFogVolumeSceneProxyTransformCommand)(
 			[SceneProxy, ComponentTransform, HeightOffset](FRHICommandList& RHICmdList)
 			{
 				// Nothing else is needed so that command could actually go.
@@ -46,7 +46,7 @@ void ULocalHeightFogComponent::SendRenderTransformCommand()
 	}
 }
 
-void ULocalHeightFogComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Context)
+void ULocalFogVolumeComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Context)
 {
 	Super::CreateRenderState_Concurrent(Context);	
 	
@@ -61,48 +61,48 @@ void ULocalHeightFogComponent::CreateRenderState_Concurrent(FRegisterComponentCo
 
 	if (GetVisibleFlag() && !bHidden && ShouldComponentAddToScene() && ShouldRender() && IsRegistered() && (GetOuter() == NULL || !GetOuter()->HasAnyFlags(RF_ClassDefaultObject)))
 	{
-		LocalHeightFogSceneProxy = CreateSceneProxy();
-		GetWorld()->Scene->AddLocalHeightFog(LocalHeightFogSceneProxy);
+		LocalFogVolumeSceneProxy = CreateSceneProxy();
+		GetWorld()->Scene->AddLocalFogVolume(LocalFogVolumeSceneProxy);
 	}
 }
 
-void ULocalHeightFogComponent::SendRenderTransform_Concurrent()
+void ULocalFogVolumeComponent::SendRenderTransform_Concurrent()
 {
 	Super::SendRenderTransform_Concurrent();
 	SendRenderTransformCommand();
 }
 
-void ULocalHeightFogComponent::DestroyRenderState_Concurrent()
+void ULocalFogVolumeComponent::DestroyRenderState_Concurrent()
 {
 	Super::DestroyRenderState_Concurrent();
 
-	if (LocalHeightFogSceneProxy)
+	if (LocalFogVolumeSceneProxy)
 	{
-		GetWorld()->Scene->RemoveLocalHeightFog(LocalHeightFogSceneProxy);
+		GetWorld()->Scene->RemoveLocalFogVolume(LocalFogVolumeSceneProxy);
 
-		FLocalHeightFogSceneProxy* SceneProxy = LocalHeightFogSceneProxy;
-		ENQUEUE_RENDER_COMMAND(FDestroyLocalHeightFogSceneProxyCommand)(
+		FLocalFogVolumeSceneProxy* SceneProxy = LocalFogVolumeSceneProxy;
+		ENQUEUE_RENDER_COMMAND(FDestroyLocalFogVolumeSceneProxyCommand)(
 			[SceneProxy](FRHICommandList& RHICmdList)
 			{
 				delete SceneProxy;
 			});
 
-		LocalHeightFogSceneProxy = nullptr;
+		LocalFogVolumeSceneProxy = nullptr;
 	}
 }
 
 #if WITH_EDITOR
 
-bool ULocalHeightFogComponent::CanEditChange(const FProperty* InProperty) const
+bool ULocalFogVolumeComponent::CanEditChange(const FProperty* InProperty) const
 {
 	if (InProperty)
 	{
 		FString PropertyName = InProperty->GetName();
 
-		if (FogMode != ELocalFogMode::LocalHeightFog)
+		if (FogMode != ELocalFogMode::LocalFogVolume)
 		{
-			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULocalHeightFogComponent, FogHeightFalloff)
-				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULocalHeightFogComponent, FogHeightOffset))
+			if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULocalFogVolumeComponent, FogHeightFalloff)
+				|| PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ULocalFogVolumeComponent, FogHeightOffset))
 			{
 				return false;
 			}
@@ -112,7 +112,7 @@ bool ULocalHeightFogComponent::CanEditChange(const FProperty* InProperty) const
 	return true;
 }
 
-void ULocalHeightFogComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+void ULocalFogVolumeComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
@@ -133,20 +133,20 @@ void ULocalHeightFogComponent::PostEditChangeProperty(FPropertyChangedEvent& Pro
 
 #endif // WITH_EDITOR
 
-FLocalHeightFogSceneProxy* ULocalHeightFogComponent::CreateSceneProxy()
+FLocalFogVolumeSceneProxy* ULocalFogVolumeComponent::CreateSceneProxy()
 {
-	return new FLocalHeightFogSceneProxy(this);
+	return new FLocalFogVolumeSceneProxy(this);
 }
 
 #if WITH_EDITOR
 #include "ObjectEditorUtils.h"
 #endif
 
-ALocalHeightFog::ALocalHeightFog(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer.SetDefaultSubobjectClass<ULocalHeightFogComponent>(TEXT("NewLocalHeightFogComponent")))
+ALocalFogVolume::ALocalFogVolume(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<ULocalFogVolumeComponent>(TEXT("NewLocalFogVolumeComponent")))
 {
-	LocalHeightFogVolume = CreateDefaultSubobject<ULocalHeightFogComponent>(TEXT("LocalHeightFogComponent"));
-	RootComponent = LocalHeightFogVolume;
+	LocalFogVolumeVolume = CreateDefaultSubobject<ULocalFogVolumeComponent>(TEXT("LocalFogVolumeComponent"));
+	RootComponent = LocalFogVolumeVolume;
 
 #if WITH_EDITORONLY_DATA
 
@@ -155,13 +155,13 @@ ALocalHeightFog::ALocalHeightFog(const FObjectInitializer& ObjectInitializer)
 		// Structure to hold one-time initialization
 		struct FConstructorStatics
 		{
-			ConstructorHelpers::FObjectFinderOptional<UTexture2D> LocalHeightFogTextureObject;
-			FName ID_LocalHeightFog;
-			FText NAME_LocalHeightFog;
+			ConstructorHelpers::FObjectFinderOptional<UTexture2D> LocalFogVolumeTextureObject;
+			FName ID_LocalFogVolume;
+			FText NAME_LocalFogVolume;
 			FConstructorStatics()
-				: LocalHeightFogTextureObject(TEXT("/Engine/EditorResources/S_SkyAtmosphere"))	// TODO
-				, ID_LocalHeightFog(TEXT("Fog"))
-				, NAME_LocalHeightFog(NSLOCTEXT("SpriteCategory", "Fog", "Fog"))
+				: LocalFogVolumeTextureObject(TEXT("/Engine/EditorResources/S_SkyAtmosphere"))	// TODO
+				, ID_LocalFogVolume(TEXT("Fog"))
+				, NAME_LocalFogVolume(NSLOCTEXT("SpriteCategory", "Fog", "Fog"))
 			{
 			}
 		};
@@ -169,11 +169,11 @@ ALocalHeightFog::ALocalHeightFog(const FObjectInitializer& ObjectInitializer)
 
 		if (GetSpriteComponent())
 		{
-			GetSpriteComponent()->Sprite = ConstructorStatics.LocalHeightFogTextureObject.Get();
+			GetSpriteComponent()->Sprite = ConstructorStatics.LocalFogVolumeTextureObject.Get();
 			GetSpriteComponent()->SetRelativeScale3D(FVector(0.5f, 0.5f, 0.5f));
-			GetSpriteComponent()->SpriteInfo.Category = ConstructorStatics.ID_LocalHeightFog;
-			GetSpriteComponent()->SpriteInfo.DisplayName = ConstructorStatics.NAME_LocalHeightFog;
-			GetSpriteComponent()->SetupAttachment(LocalHeightFogVolume);
+			GetSpriteComponent()->SpriteInfo.Category = ConstructorStatics.ID_LocalFogVolume;
+			GetSpriteComponent()->SpriteInfo.DisplayName = ConstructorStatics.NAME_LocalFogVolume;
+			GetSpriteComponent()->SetupAttachment(LocalFogVolumeVolume);
 		}
 	}
 #endif // WITH_EDITORONLY_DATA

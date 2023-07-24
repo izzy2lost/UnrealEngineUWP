@@ -979,8 +979,8 @@ void FViewInfo::Init()
 	StrataViewData.Reset();
 	HairStrandsViewData = FHairStrandsViewData();
 
-	LocalHeightFogGPUInstanceCount = 0;
-	LocalHeightFogGPUInstanceDataBufferSRV = nullptr;
+	LocalFogVolumeGPUInstanceCount = 0;
+	LocalFogVolumeGPUInstanceDataBufferSRV = nullptr;
 
 	GPUSceneViewId = INDEX_NONE;
 

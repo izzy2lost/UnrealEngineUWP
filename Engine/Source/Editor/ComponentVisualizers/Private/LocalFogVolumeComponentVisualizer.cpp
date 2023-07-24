@@ -7,17 +7,17 @@
 #include "SceneView.h"
 #include "SceneManagement.h"
 
-void FLocalHeightFogComponentVisualizer::DrawVisualization( const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI )
+void FLocalFogVolumeComponentVisualizer::DrawVisualization( const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI )
 {
 	if(View->Family->EngineShowFlags.CompositeEditorPrimitives)
 	{
-		const ULocalHeightFogComponent* LocalHeightFog = Cast<const ULocalHeightFogComponent>(Component);
-		if(LocalHeightFog != NULL)
+		const ULocalFogVolumeComponent* LocalFogVolume = Cast<const ULocalFogVolumeComponent>(Component);
+		if(LocalFogVolume != NULL)
 		{
-			FTransform LocalHeightFogTransform = LocalHeightFog->GetComponentTransform();
+			FTransform LocalFogVolumeTransform = LocalFogVolume->GetComponentTransform();
 
 			// Draw local fog volume spherical shape radius
-			DrawWireSphereAutoSides(PDI, LocalHeightFogTransform, FColor(200, 255, 255), 1.0f, SDPG_World);
+			DrawWireSphereAutoSides(PDI, LocalFogVolumeTransform, FColor(200, 255, 255), 1.0f, SDPG_World);
 		}
 	}
 }

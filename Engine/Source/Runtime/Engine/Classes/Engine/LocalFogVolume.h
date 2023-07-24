@@ -6,14 +6,14 @@
 #include "GameFramework/Info.h"
 #include "LocalFogVolume.generated.h"
 
-class ULocalHeightFogComponent;
+class ULocalFogVolumeComponent;
 
 /**
  *	Actor used to position a local fog volume in the scene.
  *	@see https://docs.unrealengine.com/???
  */
 UCLASS(showcategories = (Movement, Rendering, Transformation, DataLayers, "Input|MouseInput", "Input|TouchInput"), ClassGroup = Fog, hidecategories = (Info, Object, Input), MinimalAPI)
-class ALocalHeightFog : public AInfo
+class ALocalFogVolume : public AInfo
 {
 	GENERATED_UCLASS_BODY()
 
@@ -24,11 +24,11 @@ private:
 
 	/** Object used to visualize the local fog volume */
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Fog, meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<ULocalHeightFogComponent> LocalHeightFogVolume;
+	TObjectPtr<ULocalFogVolumeComponent> LocalFogVolumeVolume;
 
 public:
 
-	/** Returns LocalHeightFogVolume subobject **/
-	ULocalHeightFogComponent* GetComponent() const { return LocalHeightFogVolume; }
+	/** Returns LocalFogVolumeVolume subobject **/
+	ULocalFogVolumeComponent* GetComponent() const { return LocalFogVolumeVolume; }
 };
 

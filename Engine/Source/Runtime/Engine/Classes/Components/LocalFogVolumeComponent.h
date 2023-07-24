@@ -7,25 +7,25 @@
 #include "Math/Color.h"
 #include "LocalFogVolumeComponent.generated.h"
 
-class FLocalHeightFogSceneProxy;
+class FLocalFogVolumeSceneProxy;
 
 UENUM()
 enum class ELocalFogMode : uint8
 {
-	LocalHeightFog = 0,
+	LocalFogVolume = 0,
 	LocalSphereFog = 1,
 };
 
 UCLASS(ClassGroup = Rendering, collapsecategories, hidecategories = (Object, Mobility, Activation, "Components|Activation"), editinlinenew, meta = (BlueprintSpawnableComponent), MinimalAPI)
-class ULocalHeightFogComponent : public USceneComponent
+class ULocalFogVolumeComponent : public USceneComponent
 {
 	GENERATED_UCLASS_BODY()
 
-	~ULocalHeightFogComponent();
+	~ULocalFogVolumeComponent();
 
 	/** Controls the softness of the transition region when the volume is fading out. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fog Mode")
-	ELocalFogMode FogMode = ELocalFogMode::LocalHeightFog;
+	ELocalFogMode FogMode = ELocalFogMode::LocalFogVolume;
 
 	/** Global density factor for this fog. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Fog Distribution", meta = (UIMin = "0", UIMax = "10.0", SliderExponent = 2.0, ClampMin = 0.0))
@@ -69,7 +69,7 @@ public:
 	//~ End UObject Interface
 
 	/** Callback to create the rendering thread mirror. */
-	ENGINE_API FLocalHeightFogSceneProxy* CreateSceneProxy();
+	ENGINE_API FLocalFogVolumeSceneProxy* CreateSceneProxy();
 
 protected:
 	//~ Begin UActorComponent Interface.
@@ -82,6 +82,6 @@ protected:
 
 private:
 
-	FLocalHeightFogSceneProxy* LocalHeightFogSceneProxy;
+	FLocalFogVolumeSceneProxy* LocalFogVolumeSceneProxy;
 };
 

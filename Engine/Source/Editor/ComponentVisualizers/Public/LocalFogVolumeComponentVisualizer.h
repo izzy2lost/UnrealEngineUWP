@@ -9,7 +9,7 @@ class FPrimitiveDrawInterface;
 class FSceneView;
 class UActorComponent;
 
-class COMPONENTVISUALIZERS_API FLocalHeightFogComponentVisualizer : public FComponentVisualizer
+class COMPONENTVISUALIZERS_API FLocalFogVolumeComponentVisualizer : public FComponentVisualizer
 {
 public:
 	//~ Begin FComponentVisualizer Interface

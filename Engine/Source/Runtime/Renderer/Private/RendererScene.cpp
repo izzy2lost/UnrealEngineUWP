@@ -6528,9 +6528,9 @@ public:
 	virtual void RemoveExponentialHeightFog(class UExponentialHeightFogComponent* FogComponent) override {}
 	virtual bool HasAnyExponentialHeightFog() const override { return false; }
 
-	virtual void AddLocalHeightFog(class FLocalHeightFogSceneProxy* FogProxy) override {}
-	virtual void RemoveLocalHeightFog(class FLocalHeightFogSceneProxy* FogProxy) override {}
-	virtual bool HasAnyLocalHeightFog() const override { return false; }
+	virtual void AddLocalFogVolume(class FLocalFogVolumeSceneProxy* FogProxy) override {}
+	virtual void RemoveLocalFogVolume(class FLocalFogVolumeSceneProxy* FogProxy) override {}
+	virtual bool HasAnyLocalFogVolume() const override { return false; }
 
 	virtual void AddSkyAtmosphere(FSkyAtmosphereSceneProxy* SkyAtmosphereSceneProxy, bool bStaticLightingBuilt) override {}
 	virtual void RemoveSkyAtmosphere(FSkyAtmosphereSceneProxy* SkyAtmosphereSceneProxy) override {}

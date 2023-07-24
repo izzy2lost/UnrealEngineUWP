@@ -10,7 +10,7 @@
 #include "ParticipatingMediaCommon.ush"
 
 
-struct FLocalHeightFogGPUInstanceData
+struct FLocalFogVolumeGPUInstanceData
 {
 	float4x4 Transform;
 	float4x4 InvTransform;
@@ -31,29 +31,29 @@ struct FLocalHeightFogGPUInstanceData
 
 // Structured buffers cannot be sampled from the vertex shader on some mobile platforms.
 // That is why simple Buffers are used, because this tech needs to run on mobile platforms.
-Buffer<float4> LocalHeightFogInstances;
-FLocalHeightFogGPUInstanceData GetLocalHeightFogGPUInstanceData(uint Index)
+Buffer<float4> LocalFogVolumeInstances;
+FLocalFogVolumeGPUInstanceData GetLocalFogVolumeGPUInstanceData(uint Index)
 {
-	FLocalHeightFogGPUInstanceData Data;
+	FLocalFogVolumeGPUInstanceData Data;
 	uint Offset = Index * 19;
 
-	Data.Transform		= float4x4(LocalHeightFogInstances[Offset + 0], LocalHeightFogInstances[Offset + 1], LocalHeightFogInstances[Offset + 2], LocalHeightFogInstances[Offset + 3]);
-	Data.InvTransform	= float4x4(LocalHeightFogInstances[Offset + 4], LocalHeightFogInstances[Offset + 5], LocalHeightFogInstances[Offset + 6], LocalHeightFogInstances[Offset + 7]);
+	Data.Transform		= float4x4(LocalFogVolumeInstances[Offset + 0], LocalFogVolumeInstances[Offset + 1], LocalFogVolumeInstances[Offset + 2], LocalFogVolumeInstances[Offset + 3]);
+	Data.InvTransform	= float4x4(LocalFogVolumeInstances[Offset + 4], LocalFogVolumeInstances[Offset + 5], LocalFogVolumeInstances[Offset + 6], LocalFogVolumeInstances[Offset + 7]);
 
-	Data.InvTranformNoScale = float4x4(LocalHeightFogInstances[Offset + 8], LocalHeightFogInstances[Offset + 9], LocalHeightFogInstances[Offset + 10], LocalHeightFogInstances[Offset + 11]);
-	Data.TransformScaleOnly = float4x4(LocalHeightFogInstances[Offset + 12], LocalHeightFogInstances[Offset + 13], LocalHeightFogInstances[Offset + 14], LocalHeightFogInstances[Offset + 15]);
+	Data.InvTranformNoScale = float4x4(LocalFogVolumeInstances[Offset + 8], LocalFogVolumeInstances[Offset + 9], LocalFogVolumeInstances[Offset + 10], LocalFogVolumeInstances[Offset + 11]);
+	Data.TransformScaleOnly = float4x4(LocalFogVolumeInstances[Offset + 12], LocalFogVolumeInstances[Offset + 13], LocalFogVolumeInstances[Offset + 14], LocalFogVolumeInstances[Offset + 15]);
 
-	float4 Temp0 = LocalHeightFogInstances[Offset + 16];
+	float4 Temp0 = LocalFogVolumeInstances[Offset + 16];
 	Data.Density			= Temp0.x;
 	Data.HeightFalloff		= Temp0.y;
 	Data.HeightOffset		= Temp0.z;
 	Data.RadialAttenuation	= Temp0.w;
 
-	float4 Temp1 = LocalHeightFogInstances[Offset + 17];
+	float4 Temp1 = LocalFogVolumeInstances[Offset + 17];
 	Data.Albedo		= Temp1.xyz;
 	Data.PhaseG		= Temp1.w;
 
-	float4 Temp2 = LocalHeightFogInstances[Offset + 18];
+	float4 Temp2 = LocalFogVolumeInstances[Offset + 18];
 	Data.Emissive	= Temp2.xyz;
 	Data.FogMode	= Temp2.w;
 
@@ -61,23 +61,23 @@ FLocalHeightFogGPUInstanceData GetLocalHeightFogGPUInstanceData(uint Index)
 }
 
 
-struct FLocalHeightFogVertexOutput
+struct FLocalFogVolumeVertexOutput
 {
 	nointerpolation uint InstanceId : TEXCOORD0;
 };
 
-void LocalHeightFogSplatVS(
+void LocalFogVolumeSplatVS(
 	in float4 InPosition : ATTRIBUTE0,
 	uint InstanceIndex : SV_InstanceID,
 	out float4 OutPosition : SV_POSITION,
-	out FLocalHeightFogVertexOutput OtherVertexOutput
+	out FLocalFogVolumeVertexOutput OtherVertexOutput
 )
 {
 	ResolvedView = ResolveView();
 
 	float4 LocalPosition = InPosition;
 
-	FLocalHeightFogGPUInstanceData FogInstance = GetLocalHeightFogGPUInstanceData(InstanceIndex);
+	FLocalFogVolumeGPUInstanceData FogInstance = GetLocalFogVolumeGPUInstanceData(InstanceIndex);
 
 	float4x4 FogTransform = FogInstance.Transform;
 
@@ -97,7 +97,7 @@ struct FFogData
 };
 
 // Height fog is evaluated according to spatially varying density defined as "Density * Exp[-HeightFalloff * z]"
-FFogData EvaluateHeightFogIntegral(FLocalHeightFogGPUInstanceData FogInstance,  float3 CameraPos, float3 RayStart, float3 RayDir, float RayLength, float RadialAttenuation)
+FFogData EvaluateHeightFogIntegral(FLocalFogVolumeGPUInstanceData FogInstance,  float3 CameraPos, float3 RayStart, float3 RayDir, float RayLength, float RadialAttenuation)
 {
 	FFogData FogData;
 	
@@ -138,7 +138,7 @@ FFogData EvaluateHeightFogIntegral(FLocalHeightFogGPUInstanceData FogInstance,  
 }
 
 
-FFogData EvaluateRadialFogIntegral(FLocalHeightFogGPUInstanceData FogInstance, float3 CameraPos, float3 RayStart, float3 RayDir, float RayLength, float RadialAttenuation)
+FFogData EvaluateRadialFogIntegral(FLocalFogVolumeGPUInstanceData FogInstance, float3 CameraPos, float3 RayStart, float3 RayDir, float RayLength, float RadialAttenuation)
 {
 	FFogData FogData = (FFogData)0;
 
@@ -185,7 +185,7 @@ FFogData EvaluateRadialFogIntegral(FLocalHeightFogGPUInstanceData FogInstance, f
 }
 
 
-float3 ComputeFogInscattering(in FLocalHeightFogGPUInstanceData FogInstance, in FFogData FogData, in float3 RayDirWorld)
+float3 ComputeFogInscattering(in FLocalFogVolumeGPUInstanceData FogInstance, in FFogData FogData, in float3 RayDirWorld)
 {
 	half3 InScattering = 0;
 
@@ -211,9 +211,9 @@ float3 ComputeFogInscattering(in FLocalHeightFogGPUInstanceData FogInstance, in 
 
 #define LHFV_FOLLOWS_ROTATIONS 1
 
-void LocalHeightFogSplatPS(
+void LocalFogVolumeSplatPS(
 	in float4 SVPos : SV_POSITION,
-	in FLocalHeightFogVertexOutput OtherVertexOutput,
+	in FLocalFogVolumeVertexOutput OtherVertexOutput,
 	out float4 OutColor : SV_Target0)
 {
 	ResolvedView = ResolveView();
@@ -223,7 +223,7 @@ void LocalHeightFogSplatPS(
 	float3 CamRayTranslatedWorldDir = normalize(SvPositionToTranslatedWorld(float4(SVPos.xy, 0.5, 1.0)));
 	float3 CamRayWorldDir = CamRayTranslatedWorldDir;
 
-	FLocalHeightFogGPUInstanceData FogInstance = GetLocalHeightFogGPUInstanceData(InstanceIndex);
+	FLocalFogVolumeGPUInstanceData FogInstance = GetLocalFogVolumeGPUInstanceData(InstanceIndex);
 
 	OutColor = float4(0, 0, 0, 1);
 

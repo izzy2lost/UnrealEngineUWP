@@ -8,7 +8,7 @@
 #include "ActorFactoryLocalFogVolume.generated.h"
 
 UCLASS(MinimalAPI, config = Editor, collapsecategories, hidecategories = Object)
-class UActorFactoryLocalHeightFog : public UActorFactory
+class UActorFactoryLocalFogVolume : public UActorFactory
 {
 	GENERATED_UCLASS_BODY()
 };

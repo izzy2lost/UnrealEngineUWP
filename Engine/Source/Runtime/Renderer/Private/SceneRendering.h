@@ -1367,8 +1367,8 @@ public:
 
 	FStrataViewData StrataViewData;
 
-	uint32 LocalHeightFogGPUInstanceCount;
-	FRDGBufferSRVRef LocalHeightFogGPUInstanceDataBufferSRV;
+	uint32 LocalFogVolumeGPUInstanceCount;
+	FRDGBufferSRVRef LocalFogVolumeGPUInstanceDataBufferSRV;
 
 	FHairStrandsViewData HairStrandsViewData;
 

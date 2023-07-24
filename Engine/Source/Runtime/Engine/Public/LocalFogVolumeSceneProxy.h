@@ -5,16 +5,16 @@
 #include "CoreMinimal.h"
 #include "Math/Color.h"
 
-class ULocalHeightFogComponent;
+class ULocalFogVolumeComponent;
 
 /** Represents a UVolumetricCloudComponent to the rendering thread, created game side from the component. */
-class FLocalHeightFogSceneProxy
+class FLocalFogVolumeSceneProxy
 {
 public:
 
 	// Initialization constructor.
-	ENGINE_API FLocalHeightFogSceneProxy(const ULocalHeightFogComponent* InComponent);
-	ENGINE_API ~FLocalHeightFogSceneProxy();
+	ENGINE_API FLocalFogVolumeSceneProxy(const ULocalFogVolumeComponent* InComponent);
+	ENGINE_API ~FLocalFogVolumeSceneProxy();
 
 	FTransform FogTransform;
 
