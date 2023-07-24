@@ -351,6 +351,9 @@ struct FFortniteMainBranchObjectVersion
 		// Binding extensions for anim graph nodes
 		AnimGraphNodeBindingExtensions,
 
+		// Function data stores a map from work to debug operands
+		RigVMSaveDebugMapInGraphFunctionData,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
