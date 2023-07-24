@@ -6,6 +6,7 @@
 #include "RigVMCore/RigVMByteCode.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
+#include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "RigVMGraphFunctionDefinition.generated.h"
 
 class IRigVMGraphFunctionHost;
@@ -196,6 +197,7 @@ struct RIGVM_API FRigVMFunctionCompilationData
 
 	friend FArchive& operator<<(FArchive& Ar, FRigVMFunctionCompilationData& Data)
 	{
+		Ar.UsingCustomVersion(FUE5ReleaseStreamObjectVersion::GUID);
 		Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 		
 		Ar << Data.ByteCode;
@@ -212,7 +214,8 @@ struct RIGVM_API FRigVMFunctionCompilationData
 		Ar << Data.Operands;
 		Ar << Data.Hash;
 
-		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::RigVMSaveDebugMapInGraphFunctionData)
+		if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) < FUE5ReleaseStreamObjectVersion::RigVMSaveDebugMapInGraphFunctionData &&
+		    Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::RigVMSaveDebugMapInGraphFunctionData)
 		{
 			return Ar;
 		}
