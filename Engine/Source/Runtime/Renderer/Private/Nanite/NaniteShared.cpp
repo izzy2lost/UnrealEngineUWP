@@ -6,6 +6,7 @@
 #include "ScenePrivate.h"
 #include "Rendering/NaniteStreamingManager.h"
 #include "SceneRelativeViewMatrices.h"
+#include "UnrealEngine.h"
 
 DEFINE_LOG_CATEGORY(LogNanite);
 DEFINE_GPU_STAT(NaniteDebug);
@@ -102,7 +103,9 @@ FPackedView CreatePackedView( const FPackedViewParams& Params )
 	const float NaniteMinPixelsPerEdgeHW = CVarNaniteMinPixelsPerEdgeHW.GetValueOnRenderThread();
 	const FVector3f ViewTilePosition = AbsoluteViewOrigin.GetTile();
 	const FVector CullingViewOrigin = Params.bUseCullingViewOverrides ? Params.CullingViewOrigin : Params.ViewMatrices.GetViewOrigin();
-	const float ScreenMultiple = FMath::Max(Params.ViewMatrices.GetProjectionMatrix().M[0][0], Params.ViewMatrices.GetProjectionMatrix().M[1][1]);
+	// We bake the view lod scales into ScreenMultiple since the two things are always used together.
+	const float ViewDistanceLODScale = GetCachedScalabilityCVars().StaticMeshLODDistanceScale * Params.ViewLODDistanceFactor;
+	const float ScreenMultiple = FMath::Max(Params.ViewMatrices.GetProjectionMatrix().M[0][0], Params.ViewMatrices.GetProjectionMatrix().M[1][1]) / ViewDistanceLODScale;
 	const float CullingViewScreenMulitple = Params.bUseCullingViewOverrides && Params.CullingViewScreenMultiple > 0.f ? Params.CullingViewScreenMultiple : ScreenMultiple;
 
 	FPackedView PackedView;
@@ -225,6 +228,7 @@ FPackedView CreatePackedViewFromViewInfo
 	Params.StreamingPriorityCategory = StreamingPriorityCategory;
 	Params.MinBoundsRadius = MinBoundsRadius;
 	Params.LODScaleFactor = LODScaleFactor;
+	Params.ViewLODDistanceFactor = View.LODDistanceFactor;
 	// Note - it is incorrect to use ViewRect as it is in a different space, but keeping this for backward compatibility reasons with other callers
 	Params.HZBTestViewRect = InHZBTestViewRect ? *InHZBTestViewRect : View.PrevViewInfo.ViewRect;
 	Params.MaxPixelsPerEdgeMultipler = MaxPixelsPerEdgeMultipler;

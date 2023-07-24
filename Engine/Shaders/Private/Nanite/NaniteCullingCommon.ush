@@ -242,6 +242,9 @@ struct FBoxCull
 		if (bIsVisible && MinScreenSize != MaxScreenSize)
 		{
 			// Needs to match C++ logic in ComputeLODForMeshes() and ComputeBoundsScreenRadiusSquared() so that culling matches the submitted range of Lods.
+			// Differences to that code which shouldn't affect the result are:
+			// * ScreenMultiple doesn't include the factor of 0.5f, and so it doesn't need applying to the ScreenSize.
+			// * ScreenMultiple has the inverse LODDistanceScale baked in, and so it doesn't need applying to the ScreenSize.
 			float3 CenterTranslatedWorld = mul(float4(LocalBoxCenter, 1.0f), LocalToTranslatedWorld).xyz;
 			float InstanceDrawDistSq = length2(CenterTranslatedWorld - NaniteView.CullingViewOriginTranslatedWorld);
 			float RadiusSq = length2(LocalBoxExtent);

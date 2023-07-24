@@ -2297,6 +2297,9 @@ static void OverrideViewParamsForShadowMainView(FViewInfo const* InView, Nanite:
 		OutParams.bUseCullingViewOverrides = true;
 		OutParams.CullingViewOrigin = InView->ViewMatrices.GetViewOrigin();
 		OutParams.CullingViewScreenMultiple = FMath::Max(InView->ViewMatrices.GetProjectionMatrix().M[0][0], InView->ViewMatrices.GetProjectionMatrix().M[1][1]);
+		// We bake the view lod scales into ScreenMultiple since the two things are always used together.
+		const float LODDistanceScale = GetCachedScalabilityCVars().StaticMeshLODDistanceScale * InView->LODDistanceFactor;
+		OutParams.CullingViewScreenMultiple /= LODDistanceScale;
 	}
 }
 

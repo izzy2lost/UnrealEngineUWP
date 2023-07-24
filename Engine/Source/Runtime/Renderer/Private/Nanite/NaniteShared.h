@@ -142,6 +142,7 @@ struct FPackedViewParams
 	uint32 StreamingPriorityCategory = 0;
 	float MinBoundsRadius = 0.0f;
 	float LODScaleFactor = 1.0f;
+	float ViewLODDistanceFactor = 1.0f;
 	uint32 Flags = NANITE_VIEW_FLAG_NEAR_CLIP;
 
 	int32 TargetLayerIndex = 0;

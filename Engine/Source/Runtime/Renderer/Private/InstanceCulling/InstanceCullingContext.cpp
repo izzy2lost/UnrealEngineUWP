@@ -17,7 +17,6 @@
 #include "InstanceCullingMergedContext.h"
 #include "InstanceCullingOcclusionQuery.h"
 #include "RenderCore.h"
-#include "UnrealEngine.h"
 
 static TAutoConsoleVariable<int32> CVarCullInstances(
 	TEXT("r.CullInstances"),
@@ -60,19 +59,17 @@ static bool IsInstanceOrderPreservationAllowed(EShaderPlatform ShaderPlatform)
 
 static uint32 PackDrawCommandDesc(bool bMaterialUsesWorldPositionOffset, bool bMaterialAlwaysEvaluatesWorldPositionOffset, FMeshDrawCommandCullingPayload CullingPayload, EMeshDrawCommandCullingPayloadFlags CullingPayloadFlags)
 {
-	const float LodScale = GetCachedScalabilityCVars().StaticMeshLODDistanceScale;
-
 	// See UnpackDrawCommandDesc() in shader code.
 	uint32 PackedData = bMaterialUsesWorldPositionOffset ? 1U : 0U;
 	PackedData |= bMaterialAlwaysEvaluatesWorldPositionOffset ? 2U : 0U;
 	PackedData |= CullingPayload.LodIndex << 2;
 	if (EnumHasAnyFlags(CullingPayloadFlags, EMeshDrawCommandCullingPayloadFlags::MinScreenSizeCull))
 	{
-		PackedData |= FMeshDrawCommandCullingPayload::PackScreenSize(FMeshDrawCommandCullingPayload::UnpackScreenSize(CullingPayload.MinScreenSize) * LodScale) << 6;
+		PackedData |= CullingPayload.MinScreenSize << 6;
 	}
 	if (EnumHasAnyFlags(CullingPayloadFlags, EMeshDrawCommandCullingPayloadFlags::MaxScreenSizeCull))
 	{
-		PackedData |= FMeshDrawCommandCullingPayload::PackScreenSize(FMeshDrawCommandCullingPayload::UnpackScreenSize(CullingPayload.MaxScreenSize) * LodScale) << 18;
+		PackedData |= CullingPayload.MaxScreenSize << 18;
 	}
 	return PackedData;
 }
