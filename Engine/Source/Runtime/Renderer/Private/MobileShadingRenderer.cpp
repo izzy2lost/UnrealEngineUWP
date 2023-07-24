@@ -280,7 +280,6 @@ FMobileSceneRenderer::FMobileSceneRenderer(const FSceneViewFamily* InViewFamily,
 	bIsMaskedOnlyDepthPrepassEnabled = Scene->EarlyZPassMode == DDM_MaskedOnly;
 	bRequiresSceneDepthAux = MobileRequiresSceneDepthAux(ShaderPlatform);
 	bEnableClusteredLocalLights = MobileForwardEnableLocalLights(ShaderPlatform);
-	bEnablePrepassLocalLights = MobileForwardEnablePrepassLocalLights(ShaderPlatform);
 	bEnableClusteredReflections = MobileForwardEnableClusteredReflections(ShaderPlatform);
 	
 	StandardTranslucencyPass = ViewFamily.AllowTranslucencyAfterDOF() ? ETranslucencyPass::TPT_TranslucencyStandard : ETranslucencyPass::TPT_AllTranslucency;
@@ -590,7 +589,7 @@ void FMobileSceneRenderer::InitViews(
 	}
 
 	// When we capturing scene depth, use a more precise format for SceneDepthAux as it will be used as a source DepthTexture
-	if (bSceneDepthCapture)
+	if (bSceneDepthCapture || MobileLocalLightsBufferPostprocessEnabled(ShaderPlatform))
 	{
 		SceneTexturesConfig.bPreciseDepthAux = true;
 	}
@@ -957,10 +956,10 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			bool bShadowedLightsInClustered = bRequiresShadowProjections && !bDeferredShading;
 			GatherAndSortLights(SortedLightSet, bShadowedLightsInClustered);
 			int32 NumReflectionCaptures = Views[0].NumBoxReflectionCaptures + Views[0].NumSphereReflectionCaptures;
-			bool bCullLightsToGrid = (((bEnableClusteredReflections || bDeferredShading) && NumReflectionCaptures > 0) || bEnableClusteredLocalLights || bEnablePrepassLocalLights);
+			bool bCullLightsToGrid = (((bEnableClusteredReflections || bDeferredShading) && NumReflectionCaptures > 0) || bEnableClusteredLocalLights);
 			if (bCullLightsToGrid)
 			{
-				ComputeLightGrid(GraphBuilder, bEnableClusteredLocalLights || bEnablePrepassLocalLights, SortedLightSet);
+				ComputeLightGrid(GraphBuilder, bEnableClusteredLocalLights, SortedLightSet);
 			}
 		}
 
@@ -1055,9 +1054,10 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 
 		// Local Light prepass
-		if (bEnablePrepassLocalLights && bRendererOutputFinalSceneColor)
+
+		if (bRendererOutputFinalSceneColor)
 		{
-			RenderLocalLightPrepass(GraphBuilder, SceneTextures);
+			RenderMobileLocalLightsBuffer(GraphBuilder, SceneTextures, true);
 		}
 	}
 
@@ -1097,6 +1097,8 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 	
 		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_Post));
+
+		RenderMobileLocalLightsBuffer(GraphBuilder, SceneTextures, false);
 
 		FRendererModule& RendererModule = static_cast<FRendererModule&>(GetRendererModule());
 		RendererModule.RenderPostOpaqueExtensions(GraphBuilder, Views, SceneTextures);

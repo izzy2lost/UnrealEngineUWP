@@ -2,13 +2,16 @@
 
 #define SUPPORT_CONTACT_SHADOWS 0
 
+#include "LightGridCommon.ush"
+#if !COMPUTE_SHADER
 #include "Common.ush"
 #include "SceneTextureParameters.ush"
-#include "LightGridCommon.ush"
 #include "DeferredLightingCommon.ush"
+#endif
+
+#if COMPUTE_SHADER
 
 uint2 GroupSize;
-
 RWBuffer<int> RWTileInfo;
 [numthreads(THREADGROUP_SIZEX, 1, 1)]
 void MainCS(
@@ -52,6 +55,8 @@ void MainCS(
 	}
 }
 
+#else
+
 int LightGridPixelSize;
 Buffer<int> TileInfo;
 void MainVS(
@@ -73,7 +78,12 @@ void MainVS(
 	}
 }
 
-void Main(float4 SvPosition : SV_POSITION, out float3 OutColorA : SV_Target0, out float4 OutColorB : SV_Target1)
+void Main(float4 SvPosition : SV_POSITION
+	, out float3 OutColorA : SV_Target0
+#if POST_PROCESS_LOCAL_LIGHTS == 0
+	, out float4 OutColorB : SV_Target1
+#endif
+)
 {
 	const uint2 PixelPos = SvPosition.xy;
 	const float2 ScreenPosition = SvPositionToScreenPosition(SvPosition).xy;
@@ -83,6 +93,7 @@ void Main(float4 SvPosition : SV_POSITION, out float3 OutColorA : SV_Target0, ou
 	float SceneDepth = CalcSceneDepth(ScreenUV);
 
 	float3 TranslatedWorldPosition = mul(float4(ScreenPosition * SceneDepth, SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
+	float3 CameraVector = normalize(TranslatedWorldPosition);
 
 	uint GridIndex = ComputeLightGridCellIndex(uint2(PixelPos.x, PixelPos.y), SceneDepth);
 	const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
@@ -128,6 +139,7 @@ void Main(float4 SvPosition : SV_POSITION, out float3 OutColorA : SV_Target0, ou
 		}
 	}
 
+#if POST_PROCESS_LOCAL_LIGHTS == 0
 	if (TotalWeight > 0)
 	{
 		SavedL = (SavedL / TotalWeight);
@@ -139,4 +151,21 @@ void Main(float4 SvPosition : SV_POSITION, out float3 OutColorA : SV_Target0, ou
 		OutColorA = float3(0, 0, 0);
 		OutColorB = float4(0.5,0.5,0.5, 0.5);
 	}
+#else
+	if (TotalWeight > 0)
+	{
+		SavedL = (SavedL / TotalWeight);
+		float3 N = normalize(cross(ddx(TranslatedWorldPosition.xyz), ddy(TranslatedWorldPosition.xyz)));
+		float3 L = SavedL;	// Already normalized
+		float NoL = max(0, dot(N, L));
+		float3 Diffuse =  (1 / PI) * NoL * Color;
+		OutColorA = 1 + Diffuse;
+	}
+	else
+	{
+		OutColorA = float3(1, 1, 1);
+	}
+#endif
 }
+
+#endif

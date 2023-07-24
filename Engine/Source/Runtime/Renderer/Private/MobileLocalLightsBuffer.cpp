@@ -7,13 +7,21 @@
 #include "MobileBasePassRendering.h"
 #include "RendererPrivateUtils.h"
 #include "GlobalRenderResources.h"
+#include "ScenePrivate.h"
+
+bool MobileLocalLighsBufferEnabled(const FStaticShaderPlatform Platform)
+{
+	return !IsMobileDeferredShadingEnabled(Platform) && 
+			IsMobilePlatform(Platform) && 
+			MobileLocalLightsBufferEnabled(Platform);
+}
 
 const int32 GLocalLightPrepassTileSizeX = 8;
-class FLocalLightPrepassCS : public FGlobalShader
+class FLocalLightBufferCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FLocalLightPrepassCS);
+	DECLARE_GLOBAL_SHADER(FLocalLightBufferCS);
 public:
-	SHADER_USE_PARAMETER_STRUCT(FLocalLightPrepassCS, FGlobalShader);
+	SHADER_USE_PARAMETER_STRUCT(FLocalLightBufferCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<int32>, RWTileInfo)
@@ -23,22 +31,23 @@ public:
  
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return IsMobilePlatform(Parameters.Platform) && MobileForwardEnablePrepassLocalLights(Parameters.Platform);
+		return MobileLocalLighsBufferEnabled(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEX"), GLocalLightPrepassTileSizeX);
+		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADER"), 1);
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FLocalLightPrepassCS, "/Engine/Private/MobileLocalLightPrepass.usf", "MainCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FLocalLightBufferCS, "/Engine/Private/MobileLocalLightsBuffer.usf", "MainCS", SF_Compute);
 
-class FLocalLightPrepassVS : public FGlobalShader
+class FLocalLightBufferVS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FLocalLightPrepassVS);
-	SHADER_USE_PARAMETER_STRUCT(FLocalLightPrepassVS, FGlobalShader);
+	DECLARE_GLOBAL_SHADER(FLocalLightBufferVS);
+	SHADER_USE_PARAMETER_STRUCT(FLocalLightBufferVS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
@@ -48,49 +57,65 @@ class FLocalLightPrepassVS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return IsMobilePlatform(Parameters.Platform) && MobileForwardEnablePrepassLocalLights(Parameters.Platform);
+		return MobileLocalLighsBufferEnabled(Parameters.Platform);
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FLocalLightPrepassVS, "/Engine/Private/MobileLocalLightPrepass.usf", "MainVS", SF_Vertex);
+IMPLEMENT_GLOBAL_SHADER(FLocalLightBufferVS, "/Engine/Private/MobileLocalLightsBuffer.usf", "MainVS", SF_Vertex);
 
-class FLocalLightPrepassPS : public FGlobalShader
+class FLocalLightBufferPS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FLocalLightPrepassPS);
-	SHADER_USE_PARAMETER_STRUCT(FLocalLightPrepassPS, FGlobalShader)
+	DECLARE_GLOBAL_SHADER(FLocalLightBufferPS);
+	SHADER_USE_PARAMETER_STRUCT(FLocalLightBufferPS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
 	END_SHADER_PARAMETER_STRUCT()
 
-		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return IsMobilePlatform(Parameters.Platform) && MobileForwardEnablePrepassLocalLights(Parameters.Platform);
+		return MobileLocalLighsBufferEnabled(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
-		OutEnvironment.SetRenderTargetOutputFormat(0, PF_FloatR11G11B10);
-		OutEnvironment.SetRenderTargetOutputFormat(1, PF_A2B10G10R10);
+
+		if (MobileLocalLightsBufferPrepassEnabled(Parameters.Platform))
+		{
+			OutEnvironment.SetRenderTargetOutputFormat(0, PF_FloatR11G11B10);
+			OutEnvironment.SetRenderTargetOutputFormat(1, PF_A2B10G10R10);
+			OutEnvironment.SetDefine(TEXT("POST_PROCESS_LOCAL_LIGHTS"), 0);
+		}
+		else
+		{
+			OutEnvironment.SetRenderTargetOutputFormat(0, PF_FloatR11G11B10);
+			OutEnvironment.SetDefine(TEXT("POST_PROCESS_LOCAL_LIGHTS"), 1);
+		}
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FLocalLightPrepassPS, "/Engine/Private/MobileLocalLightPrepass.usf", "Main", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FLocalLightBufferPS, "/Engine/Private/MobileLocalLightsBuffer.usf", "Main", SF_Pixel);
 
-BEGIN_SHADER_PARAMETER_STRUCT(FLocalLightPrepassParameters, )
-SHADER_PARAMETER_STRUCT_INCLUDE(FLocalLightPrepassVS::FParameters, VS)
-SHADER_PARAMETER_STRUCT_INCLUDE(FLocalLightPrepassPS::FParameters, PS)
+BEGIN_SHADER_PARAMETER_STRUCT(FLocalLightBufferPrepassParameters, )
+SHADER_PARAMETER_STRUCT_INCLUDE(FLocalLightBufferVS::FParameters, VS)
+SHADER_PARAMETER_STRUCT_INCLUDE(FLocalLightBufferPS::FParameters, PS)
 SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureShaderParameters, SceneTextures)
 RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
-
-void FMobileSceneRenderer::RenderLocalLightPrepass(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures)
+void FMobileSceneRenderer::RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures, bool bIsPrepass)
 {
-	RDG_EVENT_SCOPE(GraphBuilder, "RenderLocalLightPrepass");
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_RenderLocalLightPrepass);
+	if (!MobileLocalLighsBufferEnabled(ShaderPlatform) || 
+		(bIsPrepass != MobileLocalLightsBufferPrepassEnabled(ShaderPlatform)) || 
+		IsMobileDeferredShadingEnabled(ShaderPlatform))
+	{
+		return;
+	}
+
+	RDG_EVENT_SCOPE(GraphBuilder, "RenderMobileLocalLightsBuffer");
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_RenderMobileLocalLightsBuffer);
 
 	static const auto LightGridPixelSizeCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Forward.LightGridPixelSize"));
 	check(LightGridPixelSizeCVar != nullptr);
@@ -114,15 +139,15 @@ void FMobileSceneRenderer::RenderLocalLightPrepass(FRDGBuilder& GraphBuilder, FS
 		FRDGBufferSRVRef TileInfoBufferSRV = GraphBuilder.CreateSRV(TileInfoBuffer, PF_R32_SINT);
 
 		{
-			auto* PassParameters = GraphBuilder.AllocParameters<FLocalLightPrepassCS::FParameters>();
+			auto* PassParameters = GraphBuilder.AllocParameters<FLocalLightBufferCS::FParameters>();
 			PassParameters->RWTileInfo = TileInfoBufferUAV;
 			PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
 			PassParameters->GroupSize = GroupSize;
-			auto ComputeShader = View.ShaderMap->GetShader<FLocalLightPrepassCS>();
+			auto ComputeShader = View.ShaderMap->GetShader<FLocalLightBufferCS>();
 
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
-				RDG_EVENT_NAME("RenderLocalLightPrepass_TiledInfoCS"),
+				RDG_EVENT_NAME("RenderMobileLocalLights_TiledInfoCS"),
 				ERDGPassFlags::Compute,
 				ComputeShader,
 				PassParameters,
@@ -131,9 +156,16 @@ void FMobileSceneRenderer::RenderLocalLightPrepass(FRDGBuilder& GraphBuilder, FS
 
 
 		{
-			FLocalLightPrepassParameters* PassParameters = GraphBuilder.AllocParameters<FLocalLightPrepassParameters>();
-			PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.MobileLocalLightTextureA, ERenderTargetLoadAction::EClear);;
-			PassParameters->RenderTargets[1] = FRenderTargetBinding(SceneTextures.MobileLocalLightTextureB, ERenderTargetLoadAction::EClear);;
+			FLocalLightBufferPrepassParameters* PassParameters = GraphBuilder.AllocParameters<FLocalLightBufferPrepassParameters>();
+			if (bIsPrepass)
+			{
+				PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.MobileLocalLightTextureA, ERenderTargetLoadAction::EClear);
+				PassParameters->RenderTargets[1] = FRenderTargetBinding(SceneTextures.MobileLocalLightTextureB, ERenderTargetLoadAction::EClear);
+			}
+			else
+			{
+				PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.Color.Resolve, ERenderTargetLoadAction::ELoad);
+			}
 			PassParameters->SceneTextures = SceneTextures.GetSceneTextureShaderParameters(View.FeatureLevel);
 
 			PassParameters->VS.View = GetShaderBinding(View.ViewUniformBuffer);
@@ -142,14 +174,14 @@ void FMobileSceneRenderer::RenderLocalLightPrepass(FRDGBuilder& GraphBuilder, FS
 			PassParameters->PS.ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
 			PassParameters->PS.View = GetShaderBinding(View.ViewUniformBuffer);
 
-			auto VertexShader = View.ShaderMap->GetShader<FLocalLightPrepassVS>();
-			auto PixelShader = View.ShaderMap->GetShader<FLocalLightPrepassPS>();
+			auto VertexShader = View.ShaderMap->GetShader<FLocalLightBufferVS>();
+			auto PixelShader = View.ShaderMap->GetShader<FLocalLightBufferPS>();
 
 			GraphBuilder.AddPass(
-				RDG_EVENT_NAME("RenderLocalLightPrepass"),
+				RDG_EVENT_NAME("RenderMobileLocalLightsBuffer %s", bIsPrepass ? TEXT("Prepass") : TEXT("PostProcess")),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[PassParameters, VertexShader, PixelShader, &View, GroupSize](FRHICommandList& RHICmdList)
+				[PassParameters, VertexShader, PixelShader, &View, GroupSize, bIsPrepass](FRHICommandList& RHICmdList)
 				{
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -157,7 +189,14 @@ void FMobileSceneRenderer::RenderLocalLightPrepass(FRDGBuilder& GraphBuilder, FS
 					RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 					GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
 					GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
-					GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
+					if (bIsPrepass)
+					{
+						GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
+					}
+					else
+					{
+						GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_DestColor, BF_Zero>::GetRHI();
+					}
 
 					GraphicsPSOInit.PrimitiveType = PT_TriangleList;
 					GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GTileVertexDeclaration.VertexDeclarationRHI;

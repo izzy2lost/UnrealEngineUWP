@@ -2648,7 +2648,7 @@ protected:
 	void RenderMaskedPrePass(FRHICommandList& RHICmdList, const FViewInfo& View);
 	void RenderFullDepthPrepass(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures);
 
-	void RenderLocalLightPrepass(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures);
+	void RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures, bool bIsPrepass);
 
 	/** Renders the opaque base pass for mobile. */
 	void RenderMobileBasePass(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams);
@@ -2728,7 +2728,6 @@ private:
 	bool bIsMaskedOnlyDepthPrepassEnabled;
 	bool bRequiresSceneDepthAux;
 	bool bEnableClusteredLocalLights;
-	bool bEnablePrepassLocalLights;
 	bool bEnableClusteredReflections;
 	bool bRequiresShadowProjections;
 

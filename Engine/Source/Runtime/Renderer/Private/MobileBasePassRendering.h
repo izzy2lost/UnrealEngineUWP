@@ -26,7 +26,9 @@
 #include "RenderUtils.h"
 #include "DebugViewModeRendering.h"
 
-bool MobileForwardEnablePrepassLocalLights(const FStaticShaderPlatform Platform);
+bool MobileLocalLightsBufferEnabled(const FStaticShaderPlatform Platform);
+bool MobileLocalLightsBufferPrepassEnabled(const FStaticShaderPlatform Platform);
+bool MobileLocalLightsBufferPostprocessEnabled(const FStaticShaderPlatform Platform);
 
 struct FMobileBasePassTextures
 {
@@ -101,8 +103,9 @@ enum EMobileLocalLightSetting
 {
 	LOCAL_LIGHTS_DISABLED,
 	LOCAL_LIGHTS_ENABLED,
-	LOCAL_LIGHTS_PREPASS_ENABLED
+	LOCAL_LIGHTS_BUFFER
 };
+EMobileLocalLightSetting GetMobileForwardLocalLightSetting(EShaderPlatform ShaderPlatform, bool bIsTranslucent);
 
 bool ShouldCacheShaderByPlatformAndOutputFormat(EShaderPlatform Platform, EOutputFormat OutputFormat);
 // shared defines for mobile base pass VS and PS
@@ -376,23 +379,25 @@ public:
 		}
 		
 		const bool bDeferredShadingEnabled = IsMobileDeferredShadingEnabled(Parameters.Platform);
-		const bool bMaterialUsesForwardShading = bIsLit && 
-			(IsTranslucentBlendMode(Parameters.MaterialParameters) || Parameters.MaterialParameters.ShadingModels.HasShadingModel(MSM_SingleLayerWater));
+		const bool bIsTranslucent = IsTranslucentBlendMode(Parameters.MaterialParameters) || Parameters.MaterialParameters.ShadingModels.HasShadingModel(MSM_SingleLayerWater);
+		const bool bMaterialUsesForwardShading = bIsLit && bIsTranslucent;
 		// Translucent materials always support clustered shading on mobile deferred
 		const bool bForwardShading = !bDeferredShadingEnabled || bMaterialUsesForwardShading;
-		const bool bSupportsLocalLights = bForwardShading && MobileForwardEnableLocalLights(Parameters.Platform);
 
+		EMobileLocalLightSetting SupportedLocalLightsType = EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED;
+		if (bForwardShading && bIsLit)
+		{
+			SupportedLocalLightsType = GetMobileForwardLocalLightSetting(Parameters.Platform, bIsTranslucent);
+		}
 		// Deferred shading does not need SkyLight and LocalLight permutations
 		// TODO: skip skylight permutations for deferred	
 		bool bEnableLocalLights = LocalLightSetting != EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED;
-		const bool bShouldCacheByShading = (bForwardShading || !bEnableLocalLights);
-		const bool bShouldCacheByLocalLights = !bEnableLocalLights || (bIsLit && bEnableLocalLights == bSupportsLocalLights);
+		const bool bShouldCacheByLocalLights = !bEnableLocalLights || (bIsLit && (SupportedLocalLightsType == LocalLightSetting));
 
 		return TMobileBasePassPSBaseType<LightMapPolicyType>::ShouldCompilePermutation(Parameters) && 
 				ShouldCacheShaderByPlatformAndOutputFormat(Parameters.Platform, OutputFormat) && 
 				bShouldCacheBySkylight && 
-				bShouldCacheByLocalLights &&
-				bShouldCacheByShading;
+				bShouldCacheByLocalLights;
 	}
 	
 	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -411,7 +416,7 @@ public:
 		OutEnvironment.SetDefine(TEXT("ENABLE_CLUSTERED_LIGHTS"), (LocalLightSetting == EMobileLocalLightSetting::LOCAL_LIGHTS_ENABLED) ? 1u : 0u);
 
 		// Translucent materials don't write to depth so cannot use prepass
-		OutEnvironment.SetDefine(TEXT("PREPASS_LOCAL_LIGHTS_MOBILE"), !bTranslucentMaterial && (LocalLightSetting == EMobileLocalLightSetting::LOCAL_LIGHTS_PREPASS_ENABLED) ? 1u: 0u);
+		OutEnvironment.SetDefine(TEXT("PREPASS_LOCAL_LIGHTS_MOBILE"), (LocalLightSetting == EMobileLocalLightSetting::LOCAL_LIGHTS_BUFFER) ? 1u: 0u);
 		OutEnvironment.SetDefine(TEXT("ENABLE_CLUSTERED_REFLECTION"), bEnableClusteredReflections ? 1u : 0u);
 		OutEnvironment.SetDefine(TEXT("USE_SHADOWMASKTEXTURE"), bMobileUsesShadowMaskTexture && !bTranslucentMaterial ? 1u : 0u);
 	}

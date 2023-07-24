@@ -15,10 +15,43 @@
 #include "Engine/TextureCube.h"
 #include "ShaderPlatformCachedIniValue.h"
 
-bool MobileForwardEnablePrepassLocalLights(const FStaticShaderPlatform Platform)
+bool MobileLocalLightsBufferEnabled(const FStaticShaderPlatform Platform)
 {
 	static FShaderPlatformCachedIniValue<int32> MobileForwardEnablePrepassLocalLightsIniValue(TEXT("r.Mobile.Forward.EnableLocalLights"));
 	return MobileForwardEnablePrepassLocalLightsIniValue.Get(Platform) == 2;
+}
+
+bool MobileLocalLightsBufferPrepassEnabled(const FStaticShaderPlatform Platform)
+{
+	return MobileLocalLightsBufferEnabled(Platform) && MobileUsesFullDepthPrepass(Platform);
+}
+
+bool MobileLocalLightsBufferPostprocessEnabled(const FStaticShaderPlatform Platform)
+{
+	return MobileLocalLightsBufferEnabled(Platform) && !MobileUsesFullDepthPrepass(Platform);
+}
+
+EMobileLocalLightSetting GetMobileForwardLocalLightSetting(EShaderPlatform ShaderPlatform, bool bIsTranslucent)
+{
+	static FShaderPlatformCachedIniValue<int32> MobileForwardLocalLightsIniValueCvar(TEXT("r.Mobile.Forward.EnableLocalLights"));
+	int MobileForwardLocalLightsIniValue = MobileForwardLocalLightsIniValueCvar.Get(ShaderPlatform);
+
+	if (MobileForwardLocalLightsIniValue > 0)
+	{
+		if ((MobileForwardLocalLightsIniValue == 1) || bIsTranslucent)
+		{
+			return EMobileLocalLightSetting::LOCAL_LIGHTS_ENABLED;
+		}
+		else if (MobileForwardLocalLightsIniValue == 2)
+		{
+			if (MobileUsesFullDepthPrepass(ShaderPlatform))
+			{
+				return EMobileLocalLightSetting::LOCAL_LIGHTS_BUFFER;
+			}
+		}
+	}
+
+	return EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED;
 }
 
 uint8 GetMobileShadingModelStencilValue(FMaterialShadingModelField ShadingModel)
@@ -184,9 +217,9 @@ bool MobileBasePass::GetShaders(
 				);
 			break;
 		}
-		case EMobileLocalLightSetting::LOCAL_LIGHTS_PREPASS_ENABLED:
+		case EMobileLocalLightSetting::LOCAL_LIGHTS_BUFFER:
 		{
-			return GetMobileBasePassShaders<EMobileLocalLightSetting::LOCAL_LIGHTS_PREPASS_ENABLED>(
+			return GetMobileBasePassShaders<EMobileLocalLightSetting::LOCAL_LIGHTS_BUFFER>(
 				LightMapPolicyType,
 				MaterialResource,
 				VertexFactoryType,
@@ -841,14 +874,9 @@ bool FMobileBasePassMeshProcessor::Process(
 	EMobileLocalLightSetting LocalLightSetting = EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED;
 	if (Scene && PrimitiveSceneProxy && ShadingModels.IsLit())
 	{
-		if (!bPassUsesDeferredShading && MobileForwardEnableLocalLights(Scene->GetShaderPlatform()))
+		if (!bPassUsesDeferredShading && (PrimitiveSceneProxy->GetPrimitiveSceneInfo()->NumMobileDynamicLocalLights > 0))
 		{
-			if ((PrimitiveSceneProxy->GetPrimitiveSceneInfo()->NumMobileDynamicLocalLights > 0))
-			{
-				LocalLightSetting = MobileForwardEnablePrepassLocalLights(Scene->GetShaderPlatform()) ?
-					EMobileLocalLightSetting::LOCAL_LIGHTS_PREPASS_ENABLED :
-					EMobileLocalLightSetting::LOCAL_LIGHTS_ENABLED;
-			}
+			LocalLightSetting = GetMobileForwardLocalLightSetting(Scene->GetShaderPlatform(), bIsTranslucent);
 		}
 	}
 
@@ -1035,8 +1063,13 @@ void FMobileBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesCo
 		MobileBasePass::SetOpaqueRenderState(DrawRenderState, nullptr, Material, ShadingModels, true, bPassUsesDeferredShading);
 	}
 
-	const bool bUseLocalLightPermutation = bLitMaterial && (!bPassUsesDeferredShading && (MobileForwardEnableLocalLights(ShaderPlatform)));
-	EMobileLocalLightSetting LocalLightSetting = MobileForwardEnablePrepassLocalLights(ShaderPlatform) ? EMobileLocalLightSetting::LOCAL_LIGHTS_PREPASS_ENABLED: EMobileLocalLightSetting::LOCAL_LIGHTS_ENABLED;
+	EMobileLocalLightSetting LocalLightSetting = EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED;
+	if (bLitMaterial && !bPassUsesDeferredShading)
+	{
+		LocalLightSetting = GetMobileForwardLocalLightSetting(ShaderPlatform, bTranslucentBasePass);
+	}
+	const bool bUseLocalLightPermutation = (LocalLightSetting != EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED);
+
 	const bool bCanReceiveCSM = ((Flags & FMobileBasePassMeshProcessor::EFlags::CanReceiveCSM) == FMobileBasePassMeshProcessor::EFlags::CanReceiveCSM);
 
 	FMobileLightMapPolicyTypeList UniformLightMapPolicyTypes = GetUniformLightMapPolicyTypeForPSOCollection(bLitMaterial, bTranslucentBasePass, bPassUsesDeferredShading, bCanReceiveCSM, bMovable);

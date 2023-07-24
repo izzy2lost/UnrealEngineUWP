@@ -615,8 +615,8 @@ void FSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamily
 	}
 #endif
 
-	extern bool MobileForwardEnablePrepassLocalLights(const FStaticShaderPlatform Platform);
-	if(MobileForwardEnablePrepassLocalLights(Config.ShaderPlatform))
+	extern bool MobileLocalLightsBufferPrepassEnabled(const FStaticShaderPlatform Platform);
+	if(MobileLocalLightsBufferPrepassEnabled(Config.ShaderPlatform))
 	{
 		FRDGTextureDesc MobileLocalLightTextureADesc = FRDGTextureDesc::Create2D(Config.Extent, PF_FloatR11G11B10, FClearValueBinding::Transparent, TexCreate_RenderTargetable | TexCreate_ShaderResource);
 		SceneTextures.MobileLocalLightTextureA = GraphBuilder.CreateTexture(MobileLocalLightTextureADesc, TEXT("MobileLocalLightTextureA"));
