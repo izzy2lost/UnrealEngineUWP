@@ -9,6 +9,260 @@
 #include "Templates/Tuple.h"
 #include "Misc/AutomationTest.h"
 
+LLM_DEFINE_TAG(Loading_LinkerInstancingContext);
+
+class FLinkerInstancingContext::FSharedLinkerInstancingContextData
+{
+	/** The shared content needs to be protected as it could be modified by the caller as well as the loading thread */
+	mutable FRWLock Lock;
+	/** Map of original package name to their instance counterpart. */
+	FLinkerInstancedPackageMap InstancedPackageMap;
+	/** Optional function to map original package name to their instance counterpart. The result of this function should be immutable, as it will be cached. */
+	TFunction<FName(FName)> InstancedPackageMapFunc;
+	/** Map of original top level asset path to their instance counterpart. */
+	TMap<FTopLevelAssetPath, FTopLevelAssetPath> PathMapping;
+	/** Tags can be used to determine some loading behavior. */
+	TSet<FName> Tags;
+	/** Remap soft object paths */
+	std::atomic<bool> bSoftObjectPathRemappingEnabled { true };
+
+public:
+	FSharedLinkerInstancingContextData() = default;
+	explicit FSharedLinkerInstancingContextData(TSet<FName> InTags)
+		: Tags(InTags)
+	{
+	}
+
+	explicit FSharedLinkerInstancingContextData(bool bInSoftObjectPathRemappingEnabled)
+		: bSoftObjectPathRemappingEnabled(bInSoftObjectPathRemappingEnabled)
+	{
+	}
+		
+	void AddPackageMapping(FName Original, FName Instanced)
+	{
+		FWriteScopeLock ScopeLock(Lock);
+		LLM_SCOPE_BYTAG(Loading_LinkerInstancingContext);
+		InstancedPackageMap.AddPackageMapping(Original, Instanced);
+	}
+
+	FName FindPackageMapping(FName Original) const
+	{
+		FReadScopeLock ScopeLock(Lock);
+		LLM_SCOPE_BYTAG(Loading_LinkerInstancingContext);
+		return InstancedPackageMap.InstancedPackageMapping.FindRef(Original);
+	}
+
+	void FixupSoftObjectPath(FSoftObjectPath& InOutSoftObjectPath) const
+	{
+		FReadScopeLock ScopeLock(Lock);
+		LLM_SCOPE_BYTAG(Loading_LinkerInstancingContext);
+		InstancedPackageMap.FixupSoftObjectPath(InOutSoftObjectPath);
+	}
+
+	FSoftObjectPath RemapPath(const FSoftObjectPath& Path) const
+	{
+		FReadScopeLock ScopeLock(Lock);
+		if (const FTopLevelAssetPath* Remapped = PathMapping.Find(Path.GetAssetPath()))
+		{
+			return FSoftObjectPath(*Remapped, Path.GetSubPathString());
+		}
+		return Path;
+	}
+
+	bool IsInstanced() const
+	{
+		FReadScopeLock ScopeLock(Lock);
+		return InstancedPackageMap.IsInstanced() || InstancedPackageMapFunc || PathMapping.Num() > 0;
+	}
+
+	void EnableAutomationTest()
+	{
+		FWriteScopeLock ScopeLock(Lock);
+		InstancedPackageMap.EnableAutomationTest();
+	}
+
+	void BuildPackageMapping(FName Original, FName Instanced, bool bInSoftObjectPathRemappingEnabled)
+	{
+		FWriteScopeLock ScopeLock(Lock);
+		LLM_SCOPE_BYTAG(Loading_LinkerInstancingContext);
+		InstancedPackageMap.BuildPackageMapping(Original, Instanced, bInSoftObjectPathRemappingEnabled);
+	}
+
+	void AddTag(FName NewTag)
+	{
+		FWriteScopeLock ScopeLock(Lock);
+		LLM_SCOPE_BYTAG(Loading_LinkerInstancingContext);
+		Tags.Add(NewTag);
+	}
+
+	void AppendTags(const TSet<FName>& NewTags)
+	{
+		FWriteScopeLock ScopeLock(Lock);
+		LLM_SCOPE_BYTAG(Loading_LinkerInstancingContext);
+		Tags.Append(NewTags);
+	}
+
+	bool HasTag(FName Tag) const
+	{
+		FReadScopeLock ScopeLock(Lock);
+		return Tags.Contains(Tag);
+	}
+
+	void SetSoftObjectPathRemappingEnabled(bool bInSoftObjectPathRemappingEnabled)
+	{
+		bSoftObjectPathRemappingEnabled = bInSoftObjectPathRemappingEnabled;
+	}
+
+	bool GetSoftObjectPathRemappingEnabled() const
+	{
+		return bSoftObjectPathRemappingEnabled;
+	}
+
+	void AddPathMapping(FSoftObjectPath Original, FSoftObjectPath Instanced)
+	{
+		FWriteScopeLock ScopeLock(Lock);
+		LLM_SCOPE_BYTAG(Loading_LinkerInstancingContext);
+		PathMapping.Emplace(Original.GetAssetPath(), Instanced.GetAssetPath());
+	}
+
+	void SetPackageMappingFunc(TFunction<FName(FName)> InInstancedPackageMapFunc)
+	{
+		FWriteScopeLock ScopeLock(Lock);
+		InstancedPackageMapFunc = MoveTemp(InInstancedPackageMapFunc);
+	}
+
+	FName RemapPackage(const FName& PackageName)
+	{
+		bool bAddPackageMapping = false;
+
+		FName RemappedPackageName;
+		{
+			FReadScopeLock ScopeLock(Lock);
+			RemappedPackageName = InstancedPackageMap.RemapPackage(PackageName);
+
+			if ((RemappedPackageName == PackageName) && InstancedPackageMapFunc)
+			{
+				RemappedPackageName = InstancedPackageMapFunc(PackageName);
+
+				if (RemappedPackageName != PackageName)
+				{
+					bAddPackageMapping = true; 
+				}
+			}
+		}
+
+		if (bAddPackageMapping)
+		{
+			FWriteScopeLock ScopeLock(Lock);
+			LLM_SCOPE_BYTAG(Loading_LinkerInstancingContext);
+			InstancedPackageMap.AddPackageMapping(PackageName, RemappedPackageName);
+		}
+
+		return RemappedPackageName;
+	}
+};
+
+FLinkerInstancingContext::FLinkerInstancingContext()
+{
+	LLM_SCOPE_BYTAG(Loading_LinkerInstancingContext);
+	SharedData = MakeShared<FSharedLinkerInstancingContextData>();
+}
+
+FLinkerInstancingContext::FLinkerInstancingContext(TSet<FName> InTags)
+{
+	LLM_SCOPE_BYTAG(Loading_LinkerInstancingContext);
+	SharedData = MakeShared<FSharedLinkerInstancingContextData>(MoveTemp(InTags));
+}
+
+FLinkerInstancingContext::FLinkerInstancingContext(bool bInSoftObjectPathRemappingEnabled)
+{
+	LLM_SCOPE_BYTAG(Loading_LinkerInstancingContext);
+	SharedData = MakeShared<FSharedLinkerInstancingContextData>(bInSoftObjectPathRemappingEnabled);
+}
+
+void FLinkerInstancingContext::EnableAutomationTest() 
+{ 
+	SharedData->EnableAutomationTest();
+}
+
+void FLinkerInstancingContext::BuildPackageMapping(FName Original, FName Instanced)
+{
+	SharedData->BuildPackageMapping(Original, Instanced, GetSoftObjectPathRemappingEnabled());
+}
+
+FName FLinkerInstancingContext::FindPackageMapping(FName Original) const
+{
+	return SharedData->FindPackageMapping(Original);
+}
+
+bool FLinkerInstancingContext::IsInstanced() const
+{
+	return SharedData->IsInstanced();
+}
+
+/** Remap the package name from the import table to its instanced counterpart, otherwise return the name unmodified. */
+FName FLinkerInstancingContext::RemapPackage(const FName& PackageName) const
+{
+	return SharedData->RemapPackage(PackageName);
+}
+
+/**
+ * Remap the top level asset part of the path name to its instanced counterpart, otherwise return the name unmodified.
+ * i.e. remaps /Path/To/Package.AssetName:Inner to /NewPath/To/NewPackage.NewAssetName:Inner
+ */
+FSoftObjectPath FLinkerInstancingContext::RemapPath(const FSoftObjectPath& Path) const
+{
+	return SharedData->RemapPath(Path);
+}
+
+/** Add a mapping from a package name to a new package name. There should be no separators (. or :) in these strings. */
+void FLinkerInstancingContext::AddPackageMapping(FName Original, FName Instanced)
+{
+	SharedData->AddPackageMapping(Original, Instanced);
+}
+
+/** Add a mapping function from a package name to a new package name. This function should be thread-safe, as it can be invoked from ALT. */
+void FLinkerInstancingContext::AddPackageMappingFunc(TFunction<FName(FName)> InInstancedPackageMapFunc)
+{
+	SharedData->SetPackageMappingFunc(InInstancedPackageMapFunc);
+}
+
+/** Add a mapping from a top level asset path (/Path/To/Package.AssetName) to another. */
+void FLinkerInstancingContext::AddPathMapping(FSoftObjectPath Original, FSoftObjectPath Instanced)
+{
+	ensureAlwaysMsgf(Original.GetSubPathString().IsEmpty(),
+		TEXT("Linker instance remap paths should be top-level assets only: %s->"), *Original.ToString());
+	ensureAlwaysMsgf(Instanced.GetSubPathString().IsEmpty(),
+		TEXT("Linker instance remap paths should be top-level assets only: ->%s"), *Instanced.ToString());
+
+	SharedData->AddPathMapping(Original, Instanced);
+}
+
+void FLinkerInstancingContext::AddTag(FName NewTag)
+{
+	SharedData->AddTag(NewTag);
+}
+
+void FLinkerInstancingContext::AppendTags(const TSet<FName>& NewTags)
+{
+	SharedData->AppendTags(NewTags);
+}
+
+bool FLinkerInstancingContext::HasTag(FName Tag) const
+{
+	return SharedData->HasTag(Tag);
+}
+
+void FLinkerInstancingContext::SetSoftObjectPathRemappingEnabled(bool bInSoftObjectPathRemappingEnabled)
+{
+	SharedData->SetSoftObjectPathRemappingEnabled(bInSoftObjectPathRemappingEnabled);
+}
+
+bool FLinkerInstancingContext::GetSoftObjectPathRemappingEnabled() const
+{
+	return SharedData->GetSoftObjectPathRemappingEnabled();
+}
+
 void FLinkerInstancingContext::FixupSoftObjectPath(FSoftObjectPath& InOutSoftObjectPath) const
 {
 	if (IsInstanced() && GetSoftObjectPathRemappingEnabled())
@@ -20,7 +274,7 @@ void FLinkerInstancingContext::FixupSoftObjectPath(FSoftObjectPath& InOutSoftObj
 		}
 		else
 		{
-			InstancedPackageMap.FixupSoftObjectPath(InOutSoftObjectPath);
+			SharedData->FixupSoftObjectPath(InOutSoftObjectPath);
 		}
 	}
 }
