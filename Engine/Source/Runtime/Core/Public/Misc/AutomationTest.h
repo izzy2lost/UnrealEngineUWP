@@ -841,6 +841,12 @@ public:
 	/** The final call related to screenshots, after they've been taken, and after they've been compared (or not if automation isn't running). */
 	FSimpleMulticastDelegate OnScreenshotTakenAndCompared;
 
+	/** Called before all chosen tests run. */
+	FSimpleMulticastDelegate OnBeforeAllTestsEvent;
+
+	/** Called after all chosen tests run have finished. */
+	FSimpleMulticastDelegate OnAfterAllTestsEvent;
+
 	/**
 	 * Return the singleton instance of the framework.
 	 *

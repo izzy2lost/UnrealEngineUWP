@@ -140,7 +140,8 @@ void FAutomationWorkerModule::Initialize()
 			.Handling<FAutomationWorkerFindWorkers>(this, &FAutomationWorkerModule::HandleFindWorkersMessage)
 			.Handling<FAutomationWorkerNextNetworkCommandReply>(this, &FAutomationWorkerModule::HandleNextNetworkCommandReplyMessage)
 			.Handling<FAutomationWorkerPing>(this, &FAutomationWorkerModule::HandlePingMessage)
-			.Handling<FAutomationWorkerResetTests>(this, &FAutomationWorkerModule::HandleResetTests)
+			.Handling<FAutomationWorkerStartTestSession>(this, &FAutomationWorkerModule::HandleStartTestSession)
+			.Handling<FAutomationWorkerStopTestSession>(this, &FAutomationWorkerModule::HandleStopTestSession)
 			.Handling<FAutomationWorkerRequestTests>(this, &FAutomationWorkerModule::HandleRequestTestsMessage)
 			.Handling<FAutomationWorkerRunTests>(this, &FAutomationWorkerModule::HandleRunTestsMessage)
 			.Handling<FAutomationWorkerImageComparisonResults>(this, &FAutomationWorkerModule::HandleScreenShotCompared)
@@ -339,11 +340,19 @@ void FAutomationWorkerModule::HandlePingMessage( const FAutomationWorkerPing& Me
 }
 
 
-void FAutomationWorkerModule::HandleResetTests( const FAutomationWorkerResetTests& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context )
+void FAutomationWorkerModule::HandleStartTestSession( const FAutomationWorkerStartTestSession& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context )
 {
-	UE_LOG(LogAutomationWorker, Log, TEXT("Received ResetTests from %s"), *Context->GetSender().ToString());
+	UE_LOG(LogAutomationWorker, Log, TEXT("Received StartTestSession from %s"), *Context->GetSender().ToString());
 
 	FAutomationTestFramework::Get().ResetTests();
+	FAutomationTestFramework::Get().OnBeforeAllTestsEvent.Broadcast();
+}
+
+void FAutomationWorkerModule::HandleStopTestSession(const FAutomationWorkerStopTestSession& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context)
+{
+	UE_LOG(LogAutomationWorker, Log, TEXT("Received StopTestSession from %s"), *Context->GetSender().ToString());
+
+	FAutomationTestFramework::Get().OnAfterAllTestsEvent.Broadcast();
 }
 
 

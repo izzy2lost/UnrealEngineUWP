@@ -19,7 +19,8 @@ struct FAutomationWorkerPerformanceDataResponse;
 struct FAutomationWorkerNextNetworkCommandReply;
 struct FAutomationWorkerPing;
 struct FAutomationWorkerRequestTests;
-struct FAutomationWorkerResetTests;
+struct FAutomationWorkerStartTestSession;
+struct FAutomationWorkerStopTestSession;
 struct FAutomationWorkerRunTests;
 struct FMessageAddress;
 
@@ -85,8 +86,11 @@ private:
 	/** Handles FAutomationWorkerPing messages. */
 	void HandlePingMessage(const FAutomationWorkerPing& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context);
 
-	/** Handles FAutomationWorkerResetTests messages. */
-	void HandleResetTests(const FAutomationWorkerResetTests& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context);
+	/** Handles FAutomationWorkerStartTestSession messages. */
+	void HandleStartTestSession(const FAutomationWorkerStartTestSession& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context);
+
+	/** Handles FAutomationWorkerStopTestSession messages. */
+	void HandleStopTestSession(const FAutomationWorkerStopTestSession& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context);
 
 	/** Handles FAutomationWorkerRequestTests messages. */
 	void HandleRequestTestsMessage(const FAutomationWorkerRequestTests& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context);

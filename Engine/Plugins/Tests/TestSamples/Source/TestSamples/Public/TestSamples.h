@@ -15,7 +15,9 @@ public:
 	virtual void ShutdownModule() override;
 
 private:
+	void OnBeforeAllTests();
+	void OnAfterAllTests();
+
 	void OnTestStart(FAutomationTestBase* Test);
 	void OnTestEnd(FAutomationTestBase* Test);
-
 };

@@ -595,6 +595,9 @@ private:
 	/** A array of running tests. */
 	TArray< FTestRunningInfo > TestRunningArray;
 
+	/** Set of addresses of started sessions. */
+	TSet< FMessageAddress > StartedTestSessionAddressSet;
+
 	/** The number of test passes to perform. */
 	int32 NumTestPasses = 0;
 

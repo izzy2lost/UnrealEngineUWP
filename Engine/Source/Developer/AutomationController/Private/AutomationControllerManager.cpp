@@ -345,11 +345,12 @@ void FAutomationControllerManager::RunTests(const bool bInIsLocalSession)
 			//mark the device as idle
 			DeviceClusterManager.SetTest(ClusterIndex, DeviceIndex, NULL);
 
-			// Send command to reset tests (delete local files, etc)
+			// Send command to start test session and reset tests (delete local files, etc)
 			FMessageAddress MessageAddress = DeviceClusterManager.GetDeviceMessageAddress(ClusterIndex, DeviceIndex);
-			UE_LOG(LogAutomationController, Log, TEXT("Sending Reset Tests to %s"), *MessageAddress.ToString());
+			UE_LOG(LogAutomationController, Log, TEXT("Sending StartTestSession to %s"), *MessageAddress.ToString());
 
-			MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FAutomationWorkerResetTests>(), MessageAddress);
+			MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FAutomationWorkerStartTestSession>(), MessageAddress);
+			StartedTestSessionAddressSet.Add(MessageAddress);
 
 			// Store devices info into the json report.
 			if (JsonTestPassResults.IsRequired)
@@ -407,6 +408,13 @@ void FAutomationControllerManager::StopTests()
 	}
 
 	TestRunningArray.Empty();
+
+	for (const auto& MessageAddress : StartedTestSessionAddressSet)
+	{
+		UE_LOG(LogAutomationController, Log, TEXT("Sending StopTestSession to %s"), *MessageAddress.ToString());
+		MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FAutomationWorkerStopTestSession>(), MessageAddress);
+	}
+	StartedTestSessionAddressSet.Empty();
 
 	// Close play window
 #if WITH_EDITOR
@@ -547,6 +555,14 @@ void FAutomationControllerManager::ProcessAvailableTasks()
 						GUnrealEd->RequestEndPlayMap();
 					}
 					#endif
+
+					// Notify the workers about stopping the session.
+					for (const auto& MessageAddress : StartedTestSessionAddressSet)
+					{
+						UE_LOG(LogAutomationController, Log, TEXT("Sending StopTestSession to %s"), *MessageAddress.ToString());
+						MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FAutomationWorkerStopTestSession>(), MessageAddress);
+					}
+					StartedTestSessionAddressSet.Empty();
 
 					//Notify the graphical layout we are done processing results.
 					TestsCompleteDelegate.Broadcast();

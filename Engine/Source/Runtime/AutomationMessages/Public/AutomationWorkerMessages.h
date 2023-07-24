@@ -131,7 +131,16 @@ struct FAutomationWorkerPing
 /**
  */
 USTRUCT()
-struct FAutomationWorkerResetTests
+struct FAutomationWorkerStartTestSession
+{
+	GENERATED_USTRUCT_BODY()
+};
+
+
+/**
+ */
+USTRUCT()
+struct FAutomationWorkerStopTestSession
 {
 	GENERATED_USTRUCT_BODY()
 };
