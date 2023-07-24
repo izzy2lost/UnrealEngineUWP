@@ -849,17 +849,19 @@ FLinearColor SDetailsSplitter::GetHighlightColor(const TUniquePtr<TDiffNode<TWea
 	
 	FPropertyPath Path = DetailNode->GetPropertyPath();
 	const UObject* OwningObject = DetailNode->GetDetailsView()->GetSelectedObjects()[0].Get();
-	if (Path.IsValid())
+	if (OwningObject && Path.IsValid())
 	{
 		FPropertyPath PathFromSubObject;
 		ShortenToPathFromLastObject(OwningObject, Path);
-		
-		if (const TMap<FPropertySoftPath, FLinearColor>* Highlights = CustomHighlights.Find(OwningObject->GetPathName(OwningObject->GetPackage())))
+		if (OwningObject)
 		{
-			if (const FLinearColor* Highlight = Highlights->Find(FPropertySoftPath(Path)))
-			{
-				return *Highlight;
-			}
+			if (const TMap<FPropertySoftPath, FLinearColor>* Highlights = CustomHighlights.Find(OwningObject->GetPathName(OwningObject->GetPackage())))
+            {
+            	if (const FLinearColor* Highlight = Highlights->Find(FPropertySoftPath(Path)))
+            	{
+            		return *Highlight;
+            	}
+            }
 		}
 	}
 	
