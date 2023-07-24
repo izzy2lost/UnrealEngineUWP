@@ -46,4 +46,5 @@ protected:
 private:
 	FComputeBuffer SendBuffer;
 	FComputeBuffer RecvBuffer;
+	FComputeBufferReader RecvBufferReader;
 };

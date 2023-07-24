@@ -117,6 +117,9 @@ struct FComputePlatform
 	static long long AtomicAdd64(volatile long long* Ptr, long long Value);
 
 	// ANDs a value with a given memory location, and returns the contents of the memory location BEFORE the operation.
+	static long AtomicAnd(volatile long* Ptr, long Value);
+
+	// ANDs a value with a given memory location, and returns the contents of the memory location BEFORE the operation.
 	static long long AtomicAnd64(volatile long long* Ptr, long long Value);
 
 	// ORs a value with a given memory location, and returns the contents of the memory location BEFORE the operation.
@@ -124,6 +127,9 @@ struct FComputePlatform
 
 	// Sets the contents of a pointer to the given value, and returns the original value in that memory location.
 	static long long AtomicExchange64(volatile long long* Ptr, long long Exchange);
+
+	// Compares the contents of a memory location to a value, and exchanges it for another value if they are equal. Returns true if the operation succeeded.
+	static bool AtomicCompareExchange(volatile long* Ptr, long Exchange, long Comperand);
 
 	// Compares the contents of a memory location to a value, and exchanges it for another value if they are equal. Returns true if the operation succeeded.
 	static bool AtomicCompareExchange64(volatile long long* Ptr, long long Exchange, long long Comperand);

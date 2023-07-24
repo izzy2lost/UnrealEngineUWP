@@ -42,6 +42,7 @@ FBufferTransport::FBufferTransport(FComputeBuffer InSendBuffer, FComputeBuffer I
 	: SendBuffer(std::move(InSendBuffer))
 	, RecvBuffer(std::move(InRecvBuffer))
 {
+	RecvBufferReader = std::move(RecvBuffer.CreateReader());
 }
 
 size_t FBufferTransport::Send(const void* Data, size_t Size)
@@ -58,12 +59,11 @@ size_t FBufferTransport::Send(const void* Data, size_t Size)
 
 size_t FBufferTransport::Recv(void* Data, size_t Size)
 {
-	FComputeBufferReader& Reader = RecvBuffer.GetReader();
-	const unsigned char* Buffer = Reader.WaitToRead(1);
+	const unsigned char* Buffer = RecvBufferReader.WaitToRead(1);
 
-	size_t ReadSize = std::min(Size, Reader.GetMaxReadSize());
+	size_t ReadSize = std::min(Size, RecvBufferReader.GetMaxReadSize());
 	memcpy(Data, Buffer, ReadSize);
-	Reader.AdvanceReadPosition(ReadSize);
+	RecvBufferReader.AdvanceReadPosition(ReadSize);
 
 	return ReadSize;
 }

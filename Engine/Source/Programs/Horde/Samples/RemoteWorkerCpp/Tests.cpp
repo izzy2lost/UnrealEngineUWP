@@ -28,7 +28,7 @@ void ComputeBufferTest()
 	memcpy(WriteBuffer, TestData, sizeof(TestData));
 	Writer.AdvanceWritePosition(sizeof(TestData));
 
-	FComputeBufferReader& Reader = Buffer.GetReader();
+	FComputeBufferReader Reader = Buffer.CreateReader();
 	const unsigned char* ReadBuffer = Reader.WaitToRead(sizeof(TestData));
 	verify(memcmp(ReadBuffer, TestData, sizeof(TestData)) == 0);
 }

@@ -39,9 +39,9 @@ FComputeChannel FComputeSocket::CreateChannel(int ChannelId)
 FComputeChannel FComputeSocket::CreateChannel(int ChannelId, FComputeBuffer RecvBuffer, FComputeBuffer SendBuffer)
 {
 	AttachRecvBuffer(ChannelId, RecvBuffer.GetWriter());
-	AttachSendBuffer(ChannelId, SendBuffer.GetReader());
+	AttachSendBuffer(ChannelId, SendBuffer.CreateReader());
 
-	return FComputeChannel(RecvBuffer.GetReader(), SendBuffer.GetWriter());
+	return FComputeChannel(RecvBuffer.CreateReader(), SendBuffer.GetWriter());
 }
 
 //////////////////////////////////////////////////////
@@ -131,7 +131,7 @@ void FWorkerComputeSocket::RunServer(FComputeBufferReader& CommandBufferReader, 
 				FComputeBuffer Buffer;
 				if (Buffer.OpenExisting(Name))
 				{
-					Socket.AttachSendBuffer(ChannelId, Buffer.GetReader());
+					Socket.AttachSendBuffer(ChannelId, Buffer.CreateReader());
 				}
 				else
 				{
@@ -270,7 +270,7 @@ public:
 	{
 		for (FComputeBufferReader& Reader : Readers)
 		{
-			Reader.ForceComplete();
+			Reader.Detach();
 		}
 
 		for (std::pair<const int, std::thread>& Pair : SendThreads)

@@ -214,6 +214,11 @@ long long FComputePlatform::AtomicAdd64(volatile long long* Ptr, long long Value
 	return InterlockedAdd64(Ptr, Value);
 }
 
+long FComputePlatform::AtomicAnd(volatile long* Ptr, long Value)
+{
+	return InterlockedAnd(Ptr, Value);
+}
+
 long long FComputePlatform::AtomicAnd64(volatile long long* Ptr, long long Value)
 {
 	return InterlockedAnd64(Ptr, Value);
@@ -232,6 +237,11 @@ long long FComputePlatform::AtomicIncrement64(volatile long long* Ptr)
 long long FComputePlatform::AtomicExchange64(volatile long long* Ptr, long long Exchange)
 {
 	return InterlockedExchange64(Ptr, Exchange);
+}
+
+bool FComputePlatform::AtomicCompareExchange(volatile long* Ptr, long Exchange, long Comperand)
+{
+	return InterlockedCompareExchange(Ptr, Exchange, Comperand) == Comperand;
 }
 
 bool FComputePlatform::AtomicCompareExchange64(volatile long long* Ptr, long long Exchange, long long Comperand)

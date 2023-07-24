@@ -9,6 +9,7 @@ class FComputeBufferWriter;
 
 struct FHeader;
 struct FComputeBufferDetail;
+struct FComputeBufferReaderDetail;
 
 //
 // Implements a ring buffer using shared memory, with one writer and multiple readers. 
@@ -42,8 +43,6 @@ public:
 	};
 
 	FComputeBuffer();
-	FComputeBuffer(const FComputeBuffer& Buffer);
-	FComputeBuffer(FComputeBuffer&& Buffer) noexcept;
 	~FComputeBuffer();
 
 	// Creates a new buffer
@@ -58,9 +57,8 @@ public:
 	// Test if the buffer is currently open
 	bool IsOpen() const { return Detail != nullptr; }
 
-	// Gets a reference to the reader instance
-	FComputeBufferReader& GetReader();
-	const FComputeBufferReader& GetReader() const;
+	// Creates a new reader for this buffer
+	FComputeBufferReader CreateReader();
 
 	// Gets a reference to the writer instance
 	FComputeBufferWriter& GetWriter();
@@ -77,17 +75,20 @@ class FComputeBufferReader
 {
 public:
 	FComputeBufferReader();
-	FComputeBufferReader(std::shared_ptr<FComputeBufferDetail> Detail, int ReaderIdx);
+	FComputeBufferReader(std::shared_ptr<FComputeBufferReaderDetail> Detail);
 	~FComputeBufferReader();
+
+	// Closes the handle to the underlying reader instance, resetting this instance back to empty
+	void Close();
+
+	// Detaches this reader from the buffer, causing all pending and subsequent reads to return immediately.
+	void Detach();
 
 	// Test if the reader is valid
 	bool IsValid() const { return Detail.get() != nullptr; }
 
 	// Test whether the buffer has finished being written to (ie. MarkComplete() has been called by the writer) and all data has been read from it.
 	bool IsComplete() const;
-
-	// Mark this buffer as complete. This is technically a "write" operation, but is needed to release blocking waits on shutdown.
-	void ForceComplete();
 
 	// Move the read cursor forwards by the given number of bytes
 	void AdvanceReadPosition(size_t Size);
@@ -105,8 +106,7 @@ public:
 private:
 	friend class FWorkerComputeSocket;
 
-	std::shared_ptr<FComputeBufferDetail> Detail;
-	int ReaderIdx;
+	std::shared_ptr<FComputeBufferReaderDetail> Detail;
 
 	const wchar_t* GetName() const;
 };
