@@ -10,6 +10,7 @@ namespace Metasound
 	namespace Frontend
 	{
 		extern METASOUNDFRONTEND_API int32 MetaSoundEnableDeterministicIDGenerationInEditorCVar;
+		extern METASOUNDFRONTEND_API int32 MetaSoundEnableRuntimeDeterministicIDGeneration;
 
 		/*** 
 		 * For generating IDs using a given document. 

@@ -14,6 +14,14 @@ namespace Metasound
 			TEXT("0: Disabled (default), !0: Enabled"),
 			ECVF_Default);
 
+		int32 MetaSoundEnableRuntimeDeterministicIDGeneration = 0;
+		FAutoConsoleVariableRef CVarMetaSoundEnableRuntimeDeterministicIDGeneration(
+			TEXT("au.MetaSound.EnableRuntimeDeterministicIDGeneration"),
+			MetaSoundEnableRuntimeDeterministicIDGeneration,
+			TEXT("Enable deterministic ID generation in MetaSounds for AutoUpdate at runtime (non editor) \n")
+			TEXT("0: Disabled (default), !0: Enabled"),
+			ECVF_Default);
+
 		FDocumentIDGenerator::FScopeDeterminism::FScopeDeterminism(bool bInIsDeterministic)
 		{
 			FDocumentIDGenerator& IDGen = Get();

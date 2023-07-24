@@ -347,6 +347,9 @@ bool FMetasoundAssetBase::VersionAsset()
 #if WITH_EDITOR
 	const bool bIsDeterministic = MetaSoundEnableDeterministicIDGenerationInEditorCVar != 0 && !IsRunningCookCommandlet();
 	FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
+#else
+	const bool bIsDeterministic = MetaSoundEnableRuntimeDeterministicIDGeneration != 0 && !IsRunningCookCommandlet();
+	FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
 #endif // WITH_EDITOR
 
 	FName AssetName;
@@ -845,6 +848,9 @@ bool FMetasoundAssetBase::AutoUpdate(bool bInLogWarningsOnDroppedConnection)
 	using namespace Metasound::Frontend;
 #if WITH_EDITOR
 	const bool bIsDeterministic = MetaSoundEnableDeterministicIDGenerationInEditorCVar != 0 && !IsRunningCookCommandlet();
+	FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
+#else
+	const bool bIsDeterministic = MetaSoundEnableRuntimeDeterministicIDGeneration != 0 && !IsRunningCookCommandlet();
 	FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
 #endif // WITH_EDITOR
 
