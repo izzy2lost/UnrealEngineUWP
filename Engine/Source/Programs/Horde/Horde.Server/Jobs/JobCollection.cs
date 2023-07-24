@@ -594,20 +594,18 @@ namespace Horde.Server.Jobs
 		public async IAsyncEnumerable<IJob> FindBisectTaskJobsAsync(BisectTaskId bisectTaskId, bool? running, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			FilterDefinition<JobDocument> filter = Builders<JobDocument>.Filter.Eq(x => x.StartedByBisectTaskId, bisectTaskId);
-			if (running.HasValue)
-			{
-				if (running.Value)
-				{
-					filter &= Builders<JobDocument>.Filter.Gt(x => x.SchedulePriority, 0);
-				}
-				else
-				{
-					filter &= Builders<JobDocument>.Filter.Lte(x => x.SchedulePriority, 0);
-				}
-			}
 
 			await foreach (JobDocument jobDoc in _jobs.Find(filter).ToAsyncEnumerable(cancellationToken))
 			{
+				if (running.HasValue && running.Value)
+				{
+					JobState state = jobDoc.GetState();
+					if (state == JobState.Complete)
+					{
+						continue;
+					}					
+				}
+
 				await PostLoadAsync(jobDoc);
 				yield return jobDoc;
 			}
