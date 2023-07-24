@@ -2798,7 +2798,7 @@ void FLinkerLoad::Verify()
 			if (ShouldCreateThrottledSlowTask())
 			{
 				static const FText LoadingImportsText = NSLOCTEXT("Core", "LinkerLoad_Imports", "Loading Imports");
-				SlowTask.Emplace(Summary.ImportCount, LoadingImportsText);
+				SlowTask.Emplace(static_cast<float>(Summary.ImportCount), LoadingImportsText);
 			}
 #endif
 			UE_TRACK_REFERENCING_PACKAGE_SCOPED(LinkerRoot->GetFName(), PackageAccessTrackingOps::NAME_Load);
@@ -3474,7 +3474,7 @@ bool FLinkerLoad::VerifyImportInner(const int32 ImportIndex, FString& WarningSuf
 	if (ShouldCreateThrottledSlowTask())
 	{
 		static const FTextFormat VerifyingTextFormat = NSLOCTEXT("Core", "VerifyPackage_Scope", "Verifying '{0}'");
-		SlowTask.Emplace(100, FText::Format(VerifyingTextFormat, FText::FromName(Import.ObjectName)));
+		SlowTask.Emplace(100.0f, FText::Format(VerifyingTextFormat, FText::FromName(Import.ObjectName)));
 	}
 #endif
 
@@ -3968,7 +3968,7 @@ void FLinkerLoad::LoadAllObjects(bool bForcePreload)
 	if (ShouldCreateThrottledSlowTask())
 	{
 		static const FText LoadingObjectText = NSLOCTEXT("Core", "LinkerLoad_LoadingObjects", "Loading Objects");
-		SlowTask.Emplace(ExportMap.Num(), LoadingObjectText);
+		SlowTask.Emplace(static_cast<float>(ExportMap.Num()), LoadingObjectText);
 		SlowTask->Visibility = ESlowTaskVisibility::Invisible;
 	}
 #endif
