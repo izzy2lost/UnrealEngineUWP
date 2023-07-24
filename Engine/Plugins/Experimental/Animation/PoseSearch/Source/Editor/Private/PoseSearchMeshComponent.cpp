@@ -81,32 +81,28 @@ void UPoseSearchMeshComponent::UpdatePose(const FUpdateContext& UpdateContext)
 		int32 TriangulationIndex = 0;
 		UpdateContext.BlendSpace->GetSamplesFromBlendInput(UpdateContext.BlendParameters, BlendSamples, TriangulationIndex, true);
 		
-		float PlayLength = UpdateContext.BlendSpace->GetAnimationLengthFromSampleData(BlendSamples);
-		
-		float PreviousTime = UpdateContext.StartTime * PlayLength;
+		const float PlayLength = UpdateContext.BlendSpace->GetAnimationLengthFromSampleData(BlendSamples);
+		const float PreviousTime = UpdateContext.StartTime * PlayLength;
 		float CurrentTime = UpdateContext.Time * PlayLength;
 
 		float AdvancedTime = PreviousTime;
-		FAnimationRuntime::AdvanceTime(
-			UpdateContext.bLoop,
-			CurrentTime - PreviousTime,
-			CurrentTime,
-			PlayLength);
-		
+		FAnimationRuntime::AdvanceTime(UpdateContext.bLoop, CurrentTime - PreviousTime, CurrentTime, PlayLength);
+
 		FDeltaTimeRecord DeltaTimeRecord;
 		DeltaTimeRecord.Set(PreviousTime, AdvancedTime - PreviousTime);
 		FAnimExtractContext ExtractionCtx(static_cast<double>(AdvancedTime), true, DeltaTimeRecord, UpdateContext.bLoop);
 
 		for (int32 BlendSampleIdex = 0; BlendSampleIdex < BlendSamples.Num(); BlendSampleIdex++)
 		{
-			float Scale = BlendSamples[BlendSampleIdex].Animation->GetPlayLength() / PlayLength;
+			FBlendSampleData& BlendSample = BlendSamples[BlendSampleIdex];
+			const float Scale = BlendSample.Animation && PlayLength > UE_KINDA_SMALL_NUMBER ? BlendSample.Animation->GetPlayLength() / PlayLength : 1.f;
 
 			FDeltaTimeRecord BlendSampleDeltaTimeRecord;
 			BlendSampleDeltaTimeRecord.Set(DeltaTimeRecord.GetPrevious() * Scale, DeltaTimeRecord.Delta * Scale);
 
-			BlendSamples[BlendSampleIdex].DeltaTimeRecord = BlendSampleDeltaTimeRecord;
-			BlendSamples[BlendSampleIdex].PreviousTime = PreviousTime * Scale;
-			BlendSamples[BlendSampleIdex].Time = AdvancedTime * Scale;
+			BlendSample.DeltaTimeRecord = BlendSampleDeltaTimeRecord;
+			BlendSample.PreviousTime = PreviousTime * Scale;
+			BlendSample.Time = AdvancedTime * Scale;
 		}
 
 		UpdateContext.BlendSpace->GetAnimationPose(BlendSamples, ExtractionCtx, PoseData);
