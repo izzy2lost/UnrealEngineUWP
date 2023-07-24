@@ -582,10 +582,10 @@ private:
 
 #endif
 
-	/** An additive contrrl rig runs a backwards solve before applying additive control values
+	/** An additive control rig runs a backwards solve before applying additive control values
 	 * and running the forward solve
 	 */
-	UPROPERTY(transient)
+	UPROPERTY()
 	bool bIsAdditive = false;
 
 	struct FRigSetControlValueInfo
@@ -603,9 +603,9 @@ private:
 
 	float DebugBoneRadiusMultiplier;
 	
-#if WITH_EDITOR	
-
 public:
+	
+#if WITH_EDITOR	
 
 	void ToggleControlsVisible() { bControlsVisible = !bControlsVisible; }
 	void SetControlsVisible(const bool bIsVisible) { bControlsVisible = bIsVisible; }

@@ -166,6 +166,7 @@ void FControlRigLayerInstanceProxy::AddControlRigTrack(int32 ControlRigID, UCont
 	// see FORT-630426
 	//but leaving in case it's needed for something else in which case need
 	//to call AnimInstance::UpdateAnimation(via TickAnimation perhaps
+	// Also, this initialize will remove any source animations that additive control rigs might depend on
 	//Node->Initialize_AnyThread(FAnimationInitializeContext(this));
 }
 

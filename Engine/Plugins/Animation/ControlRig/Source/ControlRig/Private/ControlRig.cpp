@@ -321,8 +321,13 @@ bool UControlRig::InitializeVM(const FName& InEventName)
 
 void UControlRig::Evaluate_AnyThread()
 {
-	if (bIsAdditive && !bRequiresInitExecution)
+	if (bIsAdditive)
 	{
+		if (bRequiresInitExecution)
+		{
+			Super::Evaluate_AnyThread();
+		}
+		
 		// we can have other systems trying to poke into running instances of Control Rigs
 		// on the anim thread and query data, such as
 		// URigVMHostSkeletalMeshComponent::RebuildDebugDrawSkeleton,

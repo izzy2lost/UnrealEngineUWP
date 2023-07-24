@@ -496,6 +496,11 @@ void FAnimNode_ControlRigBase::ExecuteControlRig(FPoseContext& InOutput)
 				ControlRig->SetEventQueue(EventNames);
 				bClearEventQueueRequired = true;
 			}
+
+			if (ControlRig->IsAdditive())
+			{
+				ControlRig->ClearPoseBeforeBackwardsSolve();
+			}
 			
 			// evaluate control rig
 			ControlRig->Evaluate_AnyThread();

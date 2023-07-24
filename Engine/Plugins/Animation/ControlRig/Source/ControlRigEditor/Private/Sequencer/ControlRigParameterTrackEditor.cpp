@@ -1079,18 +1079,12 @@ void FControlRigParameterTrackEditor::AddAdditiveControlRig(FGuid ObjectBinding,
 	FSlateApplication::Get().AddModalWindow(Window, ParentWindow, false);
 	
 	
-	const TSharedPtr<ISequencer> SequencerParent = GetSequencer();
-
-	if (ControlRigClass && SequencerParent.IsValid())
+	const TSharedPtr<ISequencer> ParentSequencer = GetSequencer();
+	if (ControlRigClass && ParentSequencer.IsValid())
 	{
-		UMovieSceneSequence* OwnerSequence = GetSequencer()->GetFocusedMovieSceneSequence();
-		SequencerParent->PreAnimatedState.DiscardAndRemoveEntityTokensForObject(*SkelMeshComp);
+		UMovieSceneSequence* OwnerSequence = ParentSequencer->GetFocusedMovieSceneSequence();
 		UMovieScene* OwnerMovieScene = OwnerSequence->GetMovieScene();
 		{
-			const TSharedPtr<ISequencer> ParentSequencer = GetSequencer();
-			FMovieSceneSequenceIDRef Template = ParentSequencer->GetFocusedTemplateID();
-			FMovieSceneSequenceTransform RootToLocalTransform = ParentSequencer->GetFocusedMovieSceneSequenceTransform();
-			
 			OwnerMovieScene->Modify();
 			UMovieSceneControlRigParameterTrack* Track = Cast<UMovieSceneControlRigParameterTrack>(AddTrack(OwnerMovieScene, ObjectBinding, UMovieSceneControlRigParameterTrack::StaticClass(), NAME_None));
 			if (Track)
@@ -1100,24 +1094,7 @@ void FControlRigParameterTrackEditor::AddAdditiveControlRig(FGuid ObjectBinding,
 				FString ObjectName = ControlRigClass->GetName();
 				ObjectName.RemoveFromEnd(TEXT("_C"));
 				const FString AdditiveObjectName = ObjectName + "_Additive";
-
-				AActor* Actor = Cast<AActor>(BoundActor);
-				if (!Actor)
-				{
-					OwnerMovieScene->RemoveTrack(*Track);
-					return;
-				}
-				
-				UControlRigComponent* CRComponent = Cast<UControlRigComponent>(Actor->AddComponentByClass(UControlRigComponent::StaticClass(), false, FTransform::Identity, false));
-				check(CRComponent);
-				CRComponent->SetControlRigClass(ControlRigClass);
-				CRComponent->RegisterComponent();
-				CRComponent->AttachToComponent(SkelMeshComp, FAttachmentTransformRules::SnapToTargetIncludingScale);
-				
-				CRComponent->AddMappedCompleteSkeletalMesh(SkelMeshComp, EControlRigComponentMapDirection::Input);
-				CRComponent->AddMappedCompleteSkeletalMesh(SkelMeshComp, EControlRigComponentMapDirection::Output);
-				
-				UControlRig* ControlRig = CRComponent->GetControlRig();
+				UControlRig* ControlRig = NewObject<UControlRig>(Track, ControlRigClass, FName(*ObjectName), RF_Transactional);
 				ControlRig->SetIsAdditive(true);
 				if (!ControlRig->SupportsEvent(FRigUnit_InverseExecution::EventName))
 				{
@@ -1132,31 +1109,33 @@ void FControlRigParameterTrackEditor::AddAdditiveControlRig(FGuid ObjectBinding,
 				}
 				
 				ControlRig->Modify();
+				ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
+				ControlRig->GetObjectBinding()->BindToObject(BoundActor);
+				ControlRig->GetDataSourceRegistry()->RegisterDataSource(UControlRig::OwnerComponent, ControlRig->GetObjectBinding()->GetBoundObject());
+				ControlRig->SetEventQueue({FRigUnit_InverseExecution::EventName});
+				ControlRig->Initialize();
+				ControlRig->RequestInit();
 				ControlRig->SetBoneInitialTransformsFromSkeletalMeshComponent(SkelMeshComp, true);
 				ControlRig->Evaluate_AnyThread();
 
-				// The control rig is owned by the ControlRigComponent, which is owned by the actor
-				const bool bSequencerOwnsControlRig = false;
+				const bool bSequencerOwnsControlRig = true;
 				UMovieSceneSection* NewSection = Track->CreateControlRigSection(0, ControlRig, bSequencerOwnsControlRig);
-				UMovieSceneControlRigParameterSection* ParamSection = Cast<UMovieSceneControlRigParameterSection>(NewSection);
-
-				//mz todo need to have multiple rigs with same class
+				
 				Track->SetTrackName(FName(*ObjectName));
 				Track->SetDisplayName(FText::FromString(ObjectName));
 
-				GetSequencer()->EmptySelection();
-				GetSequencer()->SelectSection(NewSection);
-				GetSequencer()->ThrobSectionSelection();
-				GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
+				ParentSequencer->EmptySelection();
+				ParentSequencer->SelectSection(NewSection);
+				ParentSequencer->ThrobSectionSelection();
 				
 				//Finish Setup
 				if (ControlRigEditMode)
 				{
-					ControlRigEditMode->AddControlRigObject(ControlRig, GetSequencer());
+					ControlRigEditMode->AddControlRigObject(ControlRig, ParentSequencer);
 				}
 				BindControlRig(ControlRig);
 
-				GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
+				ParentSequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 			}
 		}
 	}
