@@ -213,12 +213,6 @@ TAutoConsoleVariable<int32> CVarTSRResurrectionPersistentFrameInterval(
 	TEXT("(default=31)"),
 	ECVF_RenderThreadSafe);
 
-TAutoConsoleVariable<int32> CVarTSRResurrectionFlickeringHistory(
-	TEXT("r.TSR.Resurrection.Flickering"), 0,
-	TEXT("Configures whether flickering history of r.TSR.ShadingRejection.Flickering should be resurrected. ")
-	TEXT("(Enabled by default)"),
-	ECVF_RenderThreadSafe);
-
 TAutoConsoleVariable<int32> CVarTSRAsyncCompute(
 	TEXT("r.TSR.AsyncCompute"), 2,
 	TEXT("Controls how TSR run on async compute. Some TSR passes can overlap with previous passes.\n")
@@ -1145,9 +1139,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 	}
 	check(HistorySliceSequence.Check());
 
-	// Whether the flickering history should be resurrected.
-	const bool bResurrectFlickeringHistory = HistorySliceSequence.FrameStorageCount > 1 && CVarTSRResurrectionFlickeringHistory.GetValueOnRenderThread() != 0;
-
 	// Whether to use wave ops optimizations.
 	const ERHIFeatureSupport WaveOpsSupport = FTSRShader::SupportsWaveOps(View.GetShaderPlatform());
 	const bool bSupportsLDS = FTSRShader::SupportsLDS(View.GetShaderPlatform());
@@ -1823,7 +1814,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 				History.MoireArray->Desc.Format,
 				FClearValueBinding::None,
 				/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV,
-				/* InArraySize = */ bCanResurrectHistory ? 2 : 1);
+				/* InArraySize = */ 1);
 
 			ReprojectedHistoryMoireTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.ReprojectedHistoryMoire"));
 		}

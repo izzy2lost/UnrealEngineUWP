@@ -446,9 +446,6 @@ void MainCS(
 	#endif
 	#if CONFIG_RESURRECTION_REPROJECTION
 		tsr_halfC ResurrectedHistoryGuideColor;
-		#if CONFIG_MOIRE_REPROJECTION
-			tsr_half4 ResurrectedHistoryMoireColor;
-		#endif
 	#endif
 	bool bIsOffScreen;
 
@@ -501,18 +498,18 @@ void MainCS(
 
 			float2 KernelHistoryBufferUV = ApplyScreenTransform(ResurrectionScreen, ScreenPosToResurrectionGuideBufferUV);
 
-			ResurrectedHistoryGuideColor = SampleTextureCatrom(
-				PrevHistoryGuide,
-				KernelHistoryBufferUV,
-				ResurrectionFrameIndex,
-				ResurrectionGuideUVViewportBilinearMin,
-				ResurrectionGuideUVViewportBilinearMax);
-			ResurrectedHistoryGuideColor = CorrectGuideColorExposure(ResurrectedHistoryGuideColor, ResurrectionPreExposureCorrection);
-			#if CONFIG_MOIRE_REPROJECTION
-			{
-				ResurrectedHistoryMoireColor = ReprojectPrevHistoryMoire(InputPixelPos, KernelHistoryBufferUV, ResurrectionFrameIndex);
-			}
+			#if 1
+				KernelHistoryBufferUV = fastClamp(KernelHistoryBufferUV, ResurrectionGuideUVViewportBilinearMin, ResurrectionGuideUVViewportBilinearMax);
+				ResurrectedHistoryGuideColor = PrevHistoryGuide.SampleLevel(GlobalBilinearClampedSampler, float3(KernelHistoryBufferUV, ResurrectionFrameIndex), 0);
+			#else
+				ResurrectedHistoryGuideColor = SampleTextureCatrom(
+					PrevHistoryGuide,
+					KernelHistoryBufferUV,
+					ResurrectionFrameIndex,
+					ResurrectionGuideUVViewportBilinearMin,
+					ResurrectionGuideUVViewportBilinearMax);
 			#endif
+			ResurrectedHistoryGuideColor = CorrectGuideColorExposure(ResurrectedHistoryGuideColor, ResurrectionPreExposureCorrection);
 		}
 		#endif
 	}
@@ -615,9 +612,6 @@ void MainCS(
 				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 1)] = ResurrectedHistoryGuideColor;
 			#else
 				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 1)] = tsr_half4(ResurrectedHistoryGuideColor.xyz, tsr_half(1.0));
-			#endif
-			#if CONFIG_MOIRE_REPROJECTION
-				ReprojectedHistoryMoireOutput[tsr_short3(OutputPixelPos, 1)] = ResurrectedHistoryMoireColor;
 			#endif
 		}
 		#endif
