@@ -10937,11 +10937,11 @@ void UCookOnTheFlyServer::CookAsCookWorkerFinished()
 	{
 		GShaderCompilingManager->SkipShaderCompilation(false);
 	}
+	LogCookWorkerStats();
 	if (IsDirectorCookByTheBook())
 	{
 		CookByTheBookFinishedEvent.Broadcast();
 	}
-	LogCookWorkerStats();
 	CookWorkerClient->FlushLogs();
 }
 
