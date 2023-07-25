@@ -41,6 +41,9 @@
 #include "UObject/UnrealNames.h"
 #include "UniformBuffer.h"
 
+// Temporarily included here until we can fully deprecate access to FShaderCompilerDefinitions in a future version
+#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
+
 class Error;
 class FMemoryImageWriter;
 class FMemoryUnfreezeContent;
@@ -298,29 +301,6 @@ public:
 
 	TMap<FString,FParameterAllocation> ParameterMap;
 };
-
-/** Utility class for caching FName and other info for a define.  Don't use directly, use SET_SHADER_DEFINE or SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT macros. */
-class FShaderCompilerDefineNameCache
-{
-public:
-	FShaderCompilerDefineNameCache(const TCHAR* InName)
-		: Name(InName), MapIndex(INDEX_NONE)
-	{}
-
-	operator FName() const
-	{
-		return Name;
-	}
-
-private:
-	FName Name;
-	int32 MapIndex;
-
-	friend class FShaderCompilerDefinitions;
-};
-
-// Temporarily included here until we can fully deprecate access to FShaderCompilerDefinitions in a future version
-#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 struct FShaderResourceTable
 {
