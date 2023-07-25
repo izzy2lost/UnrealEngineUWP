@@ -53,19 +53,6 @@
 UAnimGraphNode_Base::UAnimGraphNode_Base(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	if(!HasAnyFlags(RF_ClassDefaultObject))
-	{
-		if(UAnimBlueprint* AnimBlueprint = GetTypedOuter<UAnimBlueprint>())
-		{
-			UClass* BindingClass = AnimBlueprint->GetDefaultBindingClass();
-			if (BindingClass == nullptr)
-			{
-				BindingClass = UAnimGraphNodeBinding_Base::StaticClass();
-			}
-
-			Binding = CastChecked<UAnimGraphNodeBinding>(ObjectInitializer.CreateDefaultSubobject(this, TEXT("Binding"), BindingClass, BindingClass));
-		}
-	}
 }
 
 void UAnimGraphNode_Base::ExpandNode(FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph)
@@ -197,12 +184,39 @@ void UAnimGraphNode_Base::Serialize(FArchive& Ar)
 			NewBinding->PropertyBindings = PropertyBindings_DEPRECATED;
 			Binding = NewBinding;
 		}
+
+		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::FixMissingAnimGraphNodeBindingExtensions)
+		{
+			if(Binding == nullptr)
+			{
+				Binding = NewObject<UAnimGraphNodeBinding_Base>(this);
+			}
+		}
+	}
+}
+
+void UAnimGraphNode_Base::EnsureBindingsArePresent()
+{
+	if(Binding == nullptr)
+	{
+		if (UAnimBlueprint* AnimBlueprint = GetTypedOuter<UAnimBlueprint>())
+		{
+			UClass* BindingClass = AnimBlueprint->GetDefaultBindingClass();
+			if (BindingClass == nullptr)
+			{
+				BindingClass = UAnimGraphNodeBinding_Base::StaticClass();
+			}
+
+			Binding = NewObject<UAnimGraphNodeBinding>(this, BindingClass);
+		}
 	}
 }
 
 void UAnimGraphNode_Base::PostPlacedNewNode()
 {
 	Super::PostPlacedNewNode();
+
+	EnsureBindingsArePresent();
 
 	// This makes sure that all anim BP extensions are registered that this node needs
 	UAnimBlueprintExtension::RequestExtensionsForNode(this);
@@ -211,6 +225,8 @@ void UAnimGraphNode_Base::PostPlacedNewNode()
 void UAnimGraphNode_Base::PostPasteNode()
 {
 	Super::PostPasteNode();
+
+	EnsureBindingsArePresent();
 
 	// This makes sure that all anim BP extensions are registered that this node needs
 	UAnimBlueprintExtension::RequestExtensionsForNode(this);
@@ -629,7 +645,10 @@ void UAnimGraphNode_Base::ProcessDuringCompilation(IAnimBlueprintCompilationCont
 	Extension->ProcessPosePins(this, InCompilationContext, OutCompiledData);
 
 	// Process bindings on this node
-	Binding->ProcessDuringCompilation(InCompilationContext, OutCompiledData);
+	if(Binding)
+	{
+		Binding->ProcessDuringCompilation(InCompilationContext, OutCompiledData);
+	}
 
 	// Resolve functions
 	GetFNode()->InitialUpdateFunction.SetFromFunction(InitialUpdateFunction.ResolveMember<UFunction>(GetBlueprintClassFromNode()));

@@ -648,6 +648,9 @@ protected:
 	/** Helper function used to validate anim node function references */
 	void ValidateFunctionRef(FName InPropertyName, const FMemberReference& InRef, const FText& InFunctionName, FCompilerResultsLog& MessageLog);
 	
+	// Create the bindings subobject if required
+	void EnsureBindingsArePresent();
+
 protected:
 	// Old shown pins. Needs to be a member variable to track pin visibility changes between Pre and PostEditChange 
 	TArray<FName> OldShownPins;
