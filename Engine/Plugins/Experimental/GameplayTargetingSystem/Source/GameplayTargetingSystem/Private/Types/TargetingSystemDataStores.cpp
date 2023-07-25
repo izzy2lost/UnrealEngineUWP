@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "TargetingSystemDataStores.h"
+#include "Types/TargetingSystemDataStores.h"
 
 namespace UE
 {

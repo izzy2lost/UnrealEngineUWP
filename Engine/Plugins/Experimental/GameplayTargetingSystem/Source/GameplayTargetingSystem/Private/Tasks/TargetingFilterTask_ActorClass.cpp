@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "TargetingFilterTask_ActorClass.h"
+#include "Tasks/TargetingFilterTask_ActorClass.h"
 
 #include "GameFramework/Actor.h"
 

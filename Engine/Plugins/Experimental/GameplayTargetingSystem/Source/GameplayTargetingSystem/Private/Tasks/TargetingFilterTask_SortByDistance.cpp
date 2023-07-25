@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TargetingFilterTask_SortByDistance.h"
+#include "Tasks/TargetingFilterTask_SortByDistance.h"
 
 #include "GameFramework/Actor.h"
 

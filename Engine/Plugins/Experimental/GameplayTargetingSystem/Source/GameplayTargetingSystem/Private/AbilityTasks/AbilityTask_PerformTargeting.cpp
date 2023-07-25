@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "AbilityTask_PerformTargeting.h"
+#include "AbilityTasks/AbilityTask_PerformTargeting.h"
 #include "TargetingSystem/TargetingSubsystem.h"
 #include "Types/TargetingSystemLogs.h"
 

@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "TargetingSystemTypes.h"
+#include "Types/TargetingSystemTypes.h"
 
 #include "TargetingSystem/TargetingPreset.h"
 #include "TargetingSystem/TargetingSubsystem.h"
 #include "Tasks/TargetingTask.h"
-#include "TargetingSystemLogs.h"
-#include "TargetingSystemDataStores.h"
+#include "Types/TargetingSystemLogs.h"
+#include "Types/TargetingSystemDataStores.h"
 
 
 /** @struct FTargetingRequestHandle */

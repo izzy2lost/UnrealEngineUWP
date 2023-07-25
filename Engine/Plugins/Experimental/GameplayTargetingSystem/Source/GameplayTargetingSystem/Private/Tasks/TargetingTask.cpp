@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "TargetingTask.h"
+#include "Tasks/TargetingTask.h"
 
 #include "GameFramework/Actor.h"
 #include "Types/TargetingSystemTypes.h"

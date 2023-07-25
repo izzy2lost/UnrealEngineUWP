@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "TargetingSubsystem.h"
+#include "TargetingSystem/TargetingSubsystem.h"
 
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
@@ -8,7 +8,7 @@
 #include "Kismet/KismetStringLibrary.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "Stats/Stats2.h"
-#include "TargetingPreset.h"
+#include "TargetingSystem/TargetingPreset.h"
 #include "Tasks/CollisionQueryTaskData.h"
 #include "Types/TargetingSystemLogs.h"
 #include "Types/TargetingSystemTypes.h"

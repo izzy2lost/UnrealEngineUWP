@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "TargetingSelectionTask_Trace.h"
+#include "Tasks/TargetingSelectionTask_Trace.h"
 
 #include "CollisionQueryParams.h"
 #include "Components/PrimitiveComponent.h"

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TargetingSortTask_Base.h"
+#include "Tasks/TargetingSortTask_Base.h"
 
 #include "GameFramework/Actor.h"
 #include "TargetingSystem/TargetingSubsystem.h"

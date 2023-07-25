@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "TargetingSelectionTask_AOE.h"
+#include "Tasks/TargetingSelectionTask_AOE.h"
 
 #include "CollisionQueryParams.h"
-#include "CollisionQueryTaskData.h"
+#include "Tasks/CollisionQueryTaskData.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/EngineTypes.h"
