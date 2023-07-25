@@ -179,7 +179,8 @@ protected:
 	bool bSupportsActivationFocus = true;
 
 	/** 
-	 * True to have this widget block all input below this widget, until it is closed or deactivated (ex: modal popup menu).
+	 * True to have this widget be treated as a root node for input routing, regardless of its actual parentage.
+	 * Should seldom be needed, but useful in cases where a child widget should prevent all action processing by parents, even though they remain active (ex: modal popup menu).
 	 */
 	UPROPERTY(EditAnywhere, Category = Activation, meta = (EditCondition = bSupportsActivationFocus))
 	bool bIsModal = false;
