@@ -81,8 +81,7 @@ const FCollectionObjectsMap& FCollectionManagerCache::GetCachedObjects() const
 			const FCollectionNameType& CollectionKey = AvailableCollection.Key;
 			const TSharedRef<FCollection>& Collection = AvailableCollection.Value;
 
-			TArray<FSoftObjectPath> ObjectsInCollection;
-			Collection->GetObjectsInCollection(ObjectsInCollection);
+			const TSet<FSoftObjectPath>& ObjectsInCollection = Collection->GetObjectSet();
 
 			if (ObjectsInCollection.Num() > 0)
 			{

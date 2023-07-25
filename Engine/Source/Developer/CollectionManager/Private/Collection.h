@@ -124,6 +124,9 @@ public:
 	/** Get the source filename of this collection */
 	FORCEINLINE const FString& GetSourceFilename() const { return SourceFilename; }
 
+	/** Gets set of all objects for fast iteration */
+	FORCEINLINE const TSet<FSoftObjectPath>& GetObjectSet() const { return ObjectSet; }
+
 private:
 	/** Generates the header pairs for the collection file. */
 	void SaveHeaderPairs(TMap<FString,FString>& OutHeaderPairs) const;
