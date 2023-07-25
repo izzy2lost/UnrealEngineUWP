@@ -110,6 +110,7 @@ void FPoseHistoryEntry::Update(float InTime, FCSPose<FCompactPose>& ComponentSpa
 // FPoseHistory
 void FPoseHistory::Init(int32 InNumPoses, float InTimeHorizon, const TArray<FBoneIndexType>& RequiredBones)
 {
+	check(InNumPoses >= 2 && InTimeHorizon > UE_KINDA_SMALL_NUMBER);
 	TimeHorizon = InTimeHorizon;
 
 	BoneToTransformMap.Reset();
@@ -278,8 +279,11 @@ void FPoseHistory::Update(float SecondsElapsed, FCSPose<FCompactPose>& Component
 
 float FPoseHistory::GetSampleTimeInterval() const
 {
+	const int32 EntriesMax = Entries.Max();
+	check(EntriesMax >= 2 && TimeHorizon > UE_KINDA_SMALL_NUMBER);
+
 	// Reserve one pose for computing derivatives at the time horizon
-	return TimeHorizon / (Entries.Max() - 1);
+	return TimeHorizon / (EntriesMax - 1);
 }
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG

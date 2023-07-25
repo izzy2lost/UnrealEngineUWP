@@ -14,11 +14,11 @@ struct POSESEARCH_API FAnimNode_PoseSearchHistoryCollector_Base : public FAnimNo
 public:
 	
 	// The maximum amount of poses that can be stored
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin="0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin="2"))
 	int32 PoseCount = 64;
 	
 	// The time horizon for how long a pose will be stored in seconds
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin="0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin="0.001"))
 	float PoseDuration = 1.5f;
 
 	UPROPERTY(EditAnywhere, Category = Settings)
