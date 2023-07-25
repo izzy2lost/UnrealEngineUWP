@@ -78,6 +78,94 @@ tsr_short2 GetLaneSimdPixelOffset(const uint LaneIndex, const uint SimdIndex)
 	);
 }
 
+/** Returns coordinate of a element within a lane. */
+CALL_SITE_DEBUGLOC
+tsr_short2 GetElementPixelPosInLane(const uint LaneStrideX, const uint LaneStrideY, const uint ElementIndex)
+{
+	return tsr_short2(ElementIndex % LaneStrideX, ElementIndex / LaneStrideX);
+}
+
+/** Returns coordinate of a element within a tile. */
+CALL_SITE_DEBUGLOC
+tsr_short2 GetElementPixelOffsetInTile(const uint LaneStrideX, const uint LaneStrideY, const uint LaneIndex, const uint SimdIndex)
+{
+	return (
+		tsr_short2(LaneIndex % uint(LANE_COUNT_X * WAVE_COUNT_X), LaneIndex / uint(LANE_COUNT_X * WAVE_COUNT_X)) * tsr_short2(LaneStrideX, LaneStrideY) +
+		GetElementPixelPosInLane(LaneStrideX, LaneStrideY, SimdIndex)
+	);
+}
+
+CALL_SITE_DEBUGLOC
+tsr_short2 ComputeElementInputPixelPos(
+	const uint2 LaneStride,
+	const uint2 TileOverscan,
+	const uint2 PixelViewportMin,
+	const uint2 PixelViewportMax,
+	const uint2 GroupId,
+	const uint  GroupThreadIndex,
+	const uint  InputElementIndex,
+	const int2  InputDataOffset = int2(0, 0),
+	const uint  InputResDivisor = 1)
+{
+	const uint2 TileSize = uint2(LaneStride.x * WAVE_COUNT_X * LANE_COUNT_X, LaneStride.y * WAVE_COUNT_Y * LANE_COUNT_Y);
+	const uint2 TileStride = uint2(TileSize - 2 * TileOverscan);
+	
+	tsr_short2 InputPixelOffsetMin = tsr_short2(PixelViewportMin / InputResDivisor);
+	tsr_short2 InputPixelOffsetMax = tsr_short2((PixelViewportMax + (InputResDivisor - 1)) / InputResDivisor - 1);
+	
+	tsr_short2 InputTileOffset = tsr_short2(TileStride / InputResDivisor) * tsr_short2(GroupId) - tsr_short2(TileOverscan / InputResDivisor);
+	tsr_short2 InputPixelOffsetInTile = GetElementPixelOffsetInTile(
+		LaneStride.x / InputResDivisor,
+		LaneStride.y / InputResDivisor,
+		GroupThreadIndex,
+		InputElementIndex);
+
+	return fastClamp(InputTileOffset + InputPixelOffsetInTile, InputPixelOffsetMin, InputPixelOffsetMax);
+}
+
+CALL_SITE_DEBUGLOC
+tsr_short2 ComputeElementOutputPixelPos(
+	const uint2 LaneStride,
+	const uint2 TileOverscan,
+	const uint2 PixelViewportMin,
+	const uint2 PixelViewportMax,
+	const uint2 GroupId,
+	const uint  GroupThreadIndex,
+	const uint  OutputElementIndex,
+	const int2  OutputDataOffset = int2(0, 0),
+	const uint  OutputResDivisor = 1,
+	const bool  bDebugDisablePadding = false)
+{
+	const uint2 TileSize = uint2(LaneStride.x * WAVE_COUNT_X * LANE_COUNT_X, LaneStride.y * WAVE_COUNT_Y * LANE_COUNT_Y);
+	const uint2 TileStride = bDebugDisablePadding ? TileSize : uint2(TileSize - 2 * TileOverscan);
+	
+	tsr_short2 OutputPixelOffsetMin = tsr_short2(PixelViewportMin / OutputResDivisor);
+	tsr_short2 OutputPixelOffsetMax = tsr_short2((PixelViewportMax + (OutputResDivisor - 1)) / OutputResDivisor);
+
+	const uint2 DataMinInTile = TileOverscan - uint2(OutputDataOffset);
+	const uint2 DataMaxInTile = TileSize - uint2(OutputDataOffset) - TileOverscan;
+	
+	tsr_short2 OutputTileOffset = tsr_short2(TileStride / OutputResDivisor) * tsr_short2(GroupId) - tsr_short2((bDebugDisablePadding ? 0u : TileOverscan) / OutputResDivisor);
+	tsr_short2 OutputPixelOffsetInTile = GetElementPixelOffsetInTile(
+		LaneStride.x / OutputResDivisor,
+		LaneStride.y / OutputResDivisor,
+		GroupThreadIndex,
+		OutputElementIndex);
+
+	tsr_short2 OutputPixelOffsetInOutputTexture = OutputTileOffset + OutputPixelOffsetInTile;
+	
+	bool2 bIsWithinOutputViewport = OutputPixelOffsetInOutputTexture < OutputPixelOffsetMax;
+	bool2 bIsNotPadding = or(bDebugDisablePadding.xx, and(
+		OutputPixelOffsetInTile * tsr_short(OutputResDivisor) >= tsr_short2(DataMinInTile),
+		OutputPixelOffsetInTile * tsr_short(OutputResDivisor) <  tsr_short2(DataMaxInTile)));
+
+	bool2 bIsValid = and(bIsNotPadding, bIsWithinOutputViewport);
+
+	OutputPixelOffsetInOutputTexture = select(bIsValid, OutputPixelOffsetInOutputTexture, ~tsr_short(0).xx);
+
+	return OutputPixelOffsetInOutputTexture;
+}
+
 
 //------------------------------------------------------- GROUP SHARED COMMUNICATION
 
