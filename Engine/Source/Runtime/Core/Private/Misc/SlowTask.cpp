@@ -6,7 +6,7 @@
 #include "CoreTypes.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformMisc.h"
-#include "Hal/PlatformProcess.h"
+#include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
 #include "Math/Color.h"
 #include "Math/UnrealMathUtility.h"
@@ -251,7 +251,7 @@ namespace Private
 		while (FPlatformTime::Seconds() - StartTime < SecondsToStall)
 		{
 			// Busy wait the rest if not slept long enough
-			const float SleepTimeSeconds = 0.1;
+			const float SleepTimeSeconds = 0.1f;
 			SlowTask.EnterProgressFrame(SleepTimeSeconds);
 			FPlatformProcess::SleepNoStats(SleepTimeSeconds);					
 		}
