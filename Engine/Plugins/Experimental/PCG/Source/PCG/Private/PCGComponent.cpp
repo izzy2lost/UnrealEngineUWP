@@ -2083,7 +2083,10 @@ bool UPCGComponent::DirtyTrackedActor(AActor* InActor, bool bIntersect, const TS
 				}
 
 				const TWeakObjectPtr<const UPCGSettings>& Settings = SettingsAndCulling.Key;
-				GetSubsystem()->CleanFromCache(Settings->GetElement().Get(), Settings.Get());
+				if (ensure(Settings.IsValid()))
+				{
+					GetSubsystem()->CleanFromCache(Settings->GetElement().Get(), Settings.Get());
+				}
 
 				bWasDirtied = true;
 			}
