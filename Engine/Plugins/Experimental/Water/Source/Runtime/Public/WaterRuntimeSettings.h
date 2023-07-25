@@ -54,6 +54,10 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Collision)
 	TEnumAsByte<ECollisionChannel> CollisionChannelForWaterTraces;
 
+	/** Collision channel to use for water ObjectTypes */
+	UPROPERTY(EditAnywhere, config, Category = Collision)
+	TEnumAsByte<ECollisionChannel> CollisionChannelForWaterObjects;
+
 	/** Material Parameter Collection for everything water-related */
 	UPROPERTY(EditAnywhere, config, Category = Rendering)
 	TSoftObjectPtr<UMaterialParameterCollection> MaterialParameterCollection;
