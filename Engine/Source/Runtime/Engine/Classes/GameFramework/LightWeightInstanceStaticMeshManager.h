@@ -51,6 +51,10 @@ public:
 
 	ENGINE_API virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+#if WITH_EDITORONLY_DATA
+	ENGINE_API virtual void PostLoad() override;
+#endif
+
 protected:
 
 	//~ ISMInstanceManager interface
@@ -80,8 +84,16 @@ protected:
 	UFUNCTION()
 	ENGINE_API void OnRep_StaticMesh();
 
+#if WITH_EDITORONLY_DATA
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.4, "Doesn't need a UHierarchicalInstancedStaticMeshComponent anymore but is replaced by UInstancedStaticMeshComponent (see ISMComponent property).")
+	UPROPERTY()
+	TObjectPtr<class UHierarchicalInstancedStaticMeshComponent> InstancedStaticMeshComponent_DEPRECATED;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Debug, AdvancedDisplay, meta = (BlueprintProtected = "true", AllowPrivateAccess = "true"))
-	TObjectPtr<class UHierarchicalInstancedStaticMeshComponent> InstancedStaticMeshComponent;
+	TObjectPtr<class UInstancedStaticMeshComponent> ISMComponent;
 
 	//
 	// Bookkeeping info

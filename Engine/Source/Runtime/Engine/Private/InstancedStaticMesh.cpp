@@ -3774,12 +3774,23 @@ bool UInstancedStaticMeshComponent::RemoveInstanceInternal(int32 InstanceIndex, 
 				InstanceBody = nullptr;
 			}
 
-			InstanceBodies.RemoveAt(InstanceIndex);
-
-			// Re-target instance indices for shifting of array.
-			for (int32 i = InstanceIndex; i < InstanceBodies.Num(); ++i)
+			if (bUseRemoveAtSwap && InstanceIndex != LastInstanceIndex)
 			{
-				InstanceBodies[i]->InstanceBodyIndex = i;
+				// swap in the last instance body if we have one
+				InstanceBodies.RemoveAtSwap(InstanceIndex);
+
+				// Update the Instance body index to the new swapped location
+				InstanceBodies[InstanceIndex]->InstanceBodyIndex = InstanceIndex;
+			}
+			else
+			{
+				InstanceBodies.RemoveAt(InstanceIndex);
+
+				// Re-target instance indices for shifting of array.
+				for (int32 i = InstanceIndex; i < InstanceBodies.Num(); ++i)
+				{
+					InstanceBodies[i]->InstanceBodyIndex = i;
+				}
 			}
 		}
 	}
@@ -4481,7 +4492,7 @@ TArray<int32> UInstancedStaticMeshComponent::GetInstancesOverlappingBox(const FB
 
 bool UInstancedStaticMeshComponent::ShouldCreatePhysicsState() const
 {
-	return IsRegistered() && !IsBeingDestroyed() && GetStaticMesh() && !GetStaticMesh()->IsCompiling() && (bAlwaysCreatePhysicsState || IsCollisionEnabled());
+	return !bDisableCollision && IsRegistered() && !IsBeingDestroyed() && GetStaticMesh() && !GetStaticMesh()->IsCompiling() && (bAlwaysCreatePhysicsState || IsCollisionEnabled());
 }
 
 float UInstancedStaticMeshComponent::GetTextureStreamingTransformScale() const

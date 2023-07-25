@@ -88,6 +88,7 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 {
 	GENERATED_UCLASS_BODY()
 
+	friend class ALightWeightInstanceStaticMeshManager;
 	friend class ALightWeightInstanceManager;
 	
 	/** Needs implementation in InstancedStaticMesh.cpp to compile UniquePtr for forward declared class */
@@ -146,6 +147,10 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	/** Mapping from PerInstanceSMData order to instance render buffer order. If empty, the PerInstanceSMData order is used. */
 	UPROPERTY()
 	TArray<int32> InstanceReorderTable;
+	
+	/** Don't create any collision when this bool is set */
+	UPROPERTY()
+	bool bDisableCollision;
 
 	/** Tracks outstanding proxysize, as this is a bit hard to do with the fire-and-forget grass. */
 	SIZE_T ProxySize;

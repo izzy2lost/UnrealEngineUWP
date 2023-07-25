@@ -2726,15 +2726,6 @@ void UHierarchicalInstancedStaticMeshComponent::ClearInstances()
 	FNavigationSystem::UpdateComponentData(*this);
 }
 
-bool UHierarchicalInstancedStaticMeshComponent::ShouldCreatePhysicsState() const
-{
-	if (bDisableCollision)
-	{
-		return false;
-	}
-	return Super::ShouldCreatePhysicsState();
-}
-
 int32 UHierarchicalInstancedStaticMeshComponent::GetVertsForLOD(int32 LODIndex)
 {
 	if (GetStaticMesh() && GetStaticMesh()->HasValidRenderData(true, LODIndex))

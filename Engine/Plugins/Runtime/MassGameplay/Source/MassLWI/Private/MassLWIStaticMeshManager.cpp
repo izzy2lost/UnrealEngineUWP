@@ -4,7 +4,7 @@
 #include "MassLWITypes.h"
 #include "MassLWISubsystem.h"
 #include "MassLWITypes.h"
-#include "Components/HierarchicalInstancedStaticMeshComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "MassCommonFragments.h"
 #include "MassEntitySubsystem.h"
 #include "MassEntityView.h"
@@ -84,7 +84,7 @@ void AMassLWIStaticMeshManager::TransferDataToMass(FMassEntityManager& EntityMan
 		CreateMassTemplate(EntityManager);
 	}
 
-	if (MassTemplateID.IsValid() && InstancedStaticMeshComponent && FinalizedTemplate)
+	if (MassTemplateID.IsValid() && ISMComponent && FinalizedTemplate)
 	{
 		const FVector& ManagerLocation = GetActorLocation();
 
@@ -128,8 +128,7 @@ void AMassLWIStaticMeshManager::TransferDataToMass(FMassEntityManager& EntityMan
 			DataIndicesToRenderingIndices[Index] = Index;
 		}
 		
-		InstancedStaticMeshComponent->ClearInstances();
-		InstancedStaticMeshComponent->BuildTreeIfOutdated(false, true);
+		ISMComponent->ClearInstances();
 	}
 }
 
@@ -143,7 +142,7 @@ void AMassLWIStaticMeshManager::StoreMassDataInActor(FMassEntityManager& EntityM
 	FMassEntityQuery LocationQuery;
 	LocationQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 
-	const FTransform WorldTransform = InstancedStaticMeshComponent ? InstancedStaticMeshComponent->GetComponentTransform() : GetActorTransform();
+	const FTransform WorldTransform = ISMComponent ? ISMComponent->GetComponentTransform() : GetActorTransform();
 	
 	FMassExecutionContext ExecutionContext(EntityManager);
 	for (FMassArchetypeEntityCollection& Collection : EntityCollectionsToDestroy)
@@ -264,10 +263,10 @@ void AMassLWIStaticMeshManager::CreateMassTemplate(FMassEntityManager& EntityMan
 		}
 	}
 
-	if (InstancedStaticMeshComponent)
+	if (ISMComponent)
 	{
-		MeshDesc.MaterialOverrides = InstancedStaticMeshComponent->OverrideMaterials;
-		MeshDesc.bCastShadows = (InstancedStaticMeshComponent->CastShadow != 0);
+		MeshDesc.MaterialOverrides = ISMComponent->OverrideMaterials;
+		MeshDesc.bCastShadows = (ISMComponent->CastShadow != 0);
 	}
 
 	check(MeshDesc.Mesh);
@@ -278,7 +277,7 @@ void AMassLWIStaticMeshManager::CreateMassTemplate(FMassEntityManager& EntityMan
 		FMassRepresentationFragment& RepresentationFragment = NewTemplate.AddFragment_GetRef<FMassRepresentationFragment>();
 		if (UE::Mass::Tweakables::bReuseLWIISMComponents)
 		{
-			RepresentationFragment.StaticMeshDescIndex = RepresentationSubsystem->AddVisualDescWithISMComponent(StaticMeshInstanceDesc, *InstancedStaticMeshComponent);
+			RepresentationFragment.StaticMeshDescIndex = RepresentationSubsystem->AddVisualDescWithISMComponent(StaticMeshInstanceDesc, *ISMComponent);
 		}
 		else
 		{

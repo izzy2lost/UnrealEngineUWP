@@ -191,9 +191,6 @@ class UHierarchicalInstancedStaticMeshComponent : public UInstancedStaticMeshCom
 	UPROPERTY()
 	FBoxSphereBounds CacheMeshExtendedBounds;
 
-	UPROPERTY()
-	bool bDisableCollision;
-
 	// Instances to render (including removed one until the build is complete)
 	UPROPERTY()
 	int32 InstanceCountToRender;
@@ -254,8 +251,6 @@ public:
 	ENGINE_API int32 GetOverlappingBoxCount(const FBox& Box) const;
 	/** Get the transforms of instances inside the provided box */
 	ENGINE_API void GetOverlappingBoxTransforms(const FBox& Box, TArray<FTransform>& OutTransforms) const;
-
-	ENGINE_API virtual bool ShouldCreatePhysicsState() const override;
 
 	ENGINE_API bool BuildTreeIfOutdated(bool Async, bool ForceUpdate);
 	UE_DEPRECATED(5.1, "The BuildTreeAnyThread method is moving to UGrassInstancedStaticMeshComponent. Please update your project to use the new component and method or your project may not compile in the next udpate.")
