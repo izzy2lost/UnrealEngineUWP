@@ -4053,6 +4053,7 @@ namespace UnrealGameSync
 
 		private void ShowActionsMenu(Rectangle bounds)
 		{
+			MoreToolsContextMenu_CleanWorkspace.Image = s_hackToolStripMenuGutter;
 			MoreToolsContextMenu.Show(StatusPanel, new Point(bounds.Left, bounds.Bottom), ToolStripDropDownDirection.BelowRight);
 		}
 
@@ -5661,6 +5662,8 @@ namespace UnrealGameSync
 				SyncContexMenu_EnterChangelist,
 				toolStripSeparator8
 			});
+
+			SyncContexMenu_EnterChangelist.Image = s_hackToolStripMenuGutter;
 
 			foreach (LatestChangeType changeType in GetCustomLatestChangeTypes())
 			{
