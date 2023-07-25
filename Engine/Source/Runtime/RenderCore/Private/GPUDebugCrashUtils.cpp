@@ -5,7 +5,6 @@
 	=============================================================================*/
 
 #include "GPUDebugCrashUtils.h"
-#include "RenderCore.h"
 #include "RenderResource.h"
 #include "RenderGraphUtils.h"
 #include "GlobalShader.h"
