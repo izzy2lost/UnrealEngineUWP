@@ -796,7 +796,6 @@ void UGameplayTagsManager::GameplayTagContainerLoaded(FGameplayTagContainer& Con
 
 	if (OnGameplayTagLoadedDelegate.IsBound())
 	{
-		ensure(IsInGameThread());
 		for (const FGameplayTag& Tag : Container)
 		{
 			OnGameplayTagLoadedDelegate.Broadcast(Tag);
@@ -808,7 +807,6 @@ void UGameplayTagsManager::SingleGameplayTagLoaded(FGameplayTag& Tag, FProperty*
 {
 	RedirectSingleGameplayTag(Tag, SerializingProperty);
 
-	ensure(IsInGameThread());
 	OnGameplayTagLoadedDelegate.Broadcast(Tag);
 }
 
@@ -946,7 +944,6 @@ bool UGameplayTagsManager::ImportSingleGameplayTag(FGameplayTag& Tag, FName Impo
 
 	if (bRetVal)
 	{
-		ensure(IsInGameThread());
 		OnGameplayTagLoadedDelegate.Broadcast(Tag);
 	}
 	else
