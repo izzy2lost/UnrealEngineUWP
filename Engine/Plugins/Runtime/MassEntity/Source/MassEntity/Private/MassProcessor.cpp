@@ -348,6 +348,7 @@ void UMassCompositeProcessor::Execute(FMassEntityManager& EntityManager, FMassEx
 void UMassCompositeProcessor::Initialize(UObject& Owner)
 {
 	ChildPipeline.Initialize(Owner);
+	Super::Initialize(Owner);
 }
 
 void UMassCompositeProcessor::SetProcessors(TArrayView<UMassProcessor*> InProcessorInstances, const TSharedPtr<FMassEntityManager>& EntityManager)

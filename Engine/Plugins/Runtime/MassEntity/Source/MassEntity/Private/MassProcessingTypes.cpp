@@ -62,6 +62,7 @@ void FMassRuntimePipeline::Initialize(UObject& Owner)
 			{
 				REDIRECT_OBJECT_TO_VLOG(Proc, &Owner);
 				Proc->Initialize(Owner);
+				ensureMsgf(Proc->IsInitialized(), TEXT("Missing Super::Initialize call for %s"), *Proc->GetFullName());
 			}
 		}
 		else
@@ -161,8 +162,13 @@ void FMassRuntimePipeline::AppendUniqueRuntimeProcessorCopies(TConstArrayView<co
 	{
 		UMassProcessor* Proc = Processors[NewProcIndex];
 		check(Proc);
-		REDIRECT_OBJECT_TO_VLOG(Proc, &InOwner);
-		Proc->Initialize(InOwner);
+		
+		if (Proc->IsInitialized() == false)
+		{
+			REDIRECT_OBJECT_TO_VLOG(Proc, &InOwner);
+			Proc->Initialize(InOwner);
+			ensureMsgf(Proc->IsInitialized(), TEXT("Missing Super::Initialize call for %s"), *Proc->GetFullName());
+		}
 	}
 }
 
