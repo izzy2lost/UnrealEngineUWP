@@ -91,7 +91,9 @@
 #include "PrimitiveSceneShaderData.h"
 #include "Engine/SpecularProfile.h"
 #include "Engine/VolumeTexture.h"
+#if WITH_GPUDEBUGCRASH
 #include "GPUDebugCrashUtils.h"
+#endif
 
 /*-----------------------------------------------------------------------------
 	Globals

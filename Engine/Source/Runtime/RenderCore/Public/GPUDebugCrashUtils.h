@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#pragma once
 /*=============================================================================
 	GPUDebugCrashUtils.h: Utilities for crashing the GPU in various ways on purpose.
 	=============================================================================*/
-#include "RenderGraphBuilder.h"
+
+class FRDGBuilder;
 
 extern RENDERCORE_API void ScheduleGPUDebugCrash(FRDGBuilder& GraphBuilder);
