@@ -82,17 +82,6 @@ private:
 
 	void RemoveNode(UEdGraphNode* InNode);
 
-#endif
-#if WITH_EDITORONLY_DATA
-
-	UPROPERTY(transient)
-	TObjectPtr<URigVMController> TemplateController;
-
-#endif
-#if WITH_EDITOR
-
-	URigVMController* GetTemplateController();
-
 protected:
 	void HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM);
 

@@ -1528,16 +1528,6 @@ URigVMNode* URigVMEdGraphNode::GetModelNode() const
 
 	if (URigVMEdGraph* Graph = Cast<URigVMEdGraph>(GetOuter()))
 	{
-#if WITH_EDITOR
-
-		if (Graph->TemplateController != nullptr)
-		{
-			MutableThis->CachedModelNode = TWeakObjectPtr<URigVMNode>(Graph->TemplateController->GetGraph()->FindNode(ModelNodePath));
-			return MutableThis->CachedModelNode.Get();
-		}
-
-#endif
-
 		if (URigVMGraph* Model = GetModel())
 		{
 			MutableThis->CachedModelNode = TWeakObjectPtr<URigVMNode>(Model->FindNode(ModelNodePath));

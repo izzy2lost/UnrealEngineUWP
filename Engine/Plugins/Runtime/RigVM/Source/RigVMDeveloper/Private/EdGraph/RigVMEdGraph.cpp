@@ -153,7 +153,7 @@ bool URigVMEdGraph::HandleModifiedEvent_Internal(ERigVMGraphNotifType InNotifTyp
 
 	// only make sure to receive notifs for this graph - unless
 	// we are on a template graph (used by node spawners)
-	if (GetModel() != InGraph && TemplateController == nullptr)
+	if (GetModel() != InGraph)
 	{
 		return false;
 	}
@@ -161,28 +161,6 @@ bool URigVMEdGraph::HandleModifiedEvent_Internal(ERigVMGraphNotifType InNotifTyp
 	if(URigVMEdGraphSchema* EdGraphSchema = (URigVMEdGraphSchema*)GetRigVMEdGraphSchema())
 	{
 		EdGraphSchema->HandleModifiedEvent(InNotifType, InGraph, InSubject);
-	}
-
-	if(TemplateController)
-	{
-		switch(InNotifType)
-		{
-			case ERigVMGraphNotifType::NodeRemoved:
-			case ERigVMGraphNotifType::PinTypeChanged:
-			case ERigVMGraphNotifType::PinDefaultValueChanged:
-			case ERigVMGraphNotifType::PinRemoved:
-			case ERigVMGraphNotifType::PinRenamed:
-			case ERigVMGraphNotifType::VariableRemoved:
-			case ERigVMGraphNotifType::VariableRenamed:
-			case ERigVMGraphNotifType::GraphChanged:
-			{
-				return false;
-			}
-			default:
-			{
-				break;
-			}
-		}
 	}
 
 	// increment the node topology version for any interaction
@@ -1022,17 +1000,6 @@ void URigVMEdGraph::RemoveNode(UEdGraphNode* InNode)
 
 	// this also subsequently calls NotifyGraphChanged
 	Super::RemoveNode(InNode);
-}
-
-URigVMController* URigVMEdGraph::GetTemplateController()
-{
-	if (TemplateController == nullptr)
-	{
-		TemplateController = GetBlueprint()->GetTemplateController();
-		TemplateController->OnModified().RemoveAll(this);
-		TemplateController->OnModified().AddUObject(this, &URigVMEdGraph::HandleModifiedEvent);
-	}
-	return TemplateController;
 }
 
 void URigVMEdGraph::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM)
