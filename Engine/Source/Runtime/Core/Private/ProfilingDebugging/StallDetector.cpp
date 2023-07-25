@@ -415,6 +415,18 @@ static ThreadLocalSlotAcquire ThreadLocalSlot;
 
 TAtomic<uint64> UE::FStallDetector::UIDGenerator = 0;
 
+/**
+ * Pause on slow task
+ */
+namespace UE::StallDetector::Private
+{
+	FDelegateHandle GSlowTaskStartDelegate;
+	FDelegateHandle GSlowTaskFinalizedDelegate;
+
+	void RegisterSlowTaskHandlers();
+	void UnregisterSlowTaskHandlers();
+}
+
 UE::FStallDetector::FStallDetector(FStallDetectorStats& InStats)
 	: Stats(InStats)
 	, Parent(nullptr)
@@ -618,6 +630,8 @@ void UE::FStallDetector::Startup()
 				{
 					FPlatformProcess::YieldThread();
 				}
+
+				StallDetector::Private::RegisterSlowTaskHandlers();
 			}
 		}
 
@@ -630,6 +644,8 @@ void UE::FStallDetector::Shutdown()
 	if (--InitCount == 0)
 	{
 		UE_LOG(LogStall, Log, TEXT("Shutdown..."));
+
+		StallDetector::Private::UnregisterSlowTaskHandlers();
 
 		delete StallDetectorThread;
 		StallDetectorThread = nullptr;
@@ -680,6 +696,71 @@ UE::FStallDetectorPause::~FStallDetectorPause()
 		{
 			Current->Resume(Seconds);
 		}
+	}
+}
+
+bool UE::FStallDetectorPause::IsPaused() const
+{
+	return bPaused;
+}
+
+
+/**
+ * Pause on slow task
+ */
+namespace UE::StallDetector::Private
+{
+	static ThreadLocalSlotAcquire SlowTaskPauseSlot;
+
+	/**
+	 * A StallDetector pause context which handles cases where SlowTask is invoked
+	 * Each pause context forms a node in a linked list - the tail is held in the SlowTaskPauseSlot TLS slot
+	 */
+	class FSlowTaskStallDetectorPause : public FStallDetectorPause
+	{
+	public:
+		explicit FSlowTaskStallDetectorPause(FSlowTaskStallDetectorPause* InParent);
+		FSlowTaskStallDetectorPause* GetParent() const;
+	private:
+		FSlowTaskStallDetectorPause* Parent;
+	};
+	
+	FSlowTaskStallDetectorPause::FSlowTaskStallDetectorPause(FSlowTaskStallDetectorPause* InParent)
+		: FStallDetectorPause()
+		, Parent(InParent)
+	{
+	}
+
+	FSlowTaskStallDetectorPause* FSlowTaskStallDetectorPause::GetParent() const
+	{
+		return Parent;
+	}
+
+	static void HandleSlowTaskStart(const FText& TaskName)
+	{
+		FSlowTaskStallDetectorPause* Parent = static_cast<FSlowTaskStallDetectorPause*>(FPlatformTLS::GetTlsValue(SlowTaskPauseSlot.GetSlot()));
+		FSlowTaskStallDetectorPause* PauseState = new FSlowTaskStallDetectorPause(Parent);
+		FPlatformTLS::SetTlsValue(SlowTaskPauseSlot.GetSlot(), PauseState);
+	}
+
+	static void HandleSlowTaskFinalize(const FText& TaskName, double DurationInSeconds)
+	{
+		FSlowTaskStallDetectorPause* PauseState = static_cast<FSlowTaskStallDetectorPause*>(FPlatformTLS::GetTlsValue(SlowTaskPauseSlot.GetSlot()));
+		FSlowTaskStallDetectorPause* Parent = PauseState->GetParent();
+		FPlatformTLS::SetTlsValue(SlowTaskPauseSlot.GetSlot(), Parent);
+		delete PauseState;
+	}
+	
+	void RegisterSlowTaskHandlers()
+	{
+		GSlowTaskStartDelegate = GWarn->OnStartSlowTask().AddStatic(&HandleSlowTaskStart);
+		GSlowTaskFinalizedDelegate = GWarn->OnFinalizeSlowTask().AddStatic(&HandleSlowTaskFinalize);
+	}
+	
+	void UnregisterSlowTaskHandlers()
+	{
+		GWarn->OnFinalizeSlowTask().Remove(GSlowTaskFinalizedDelegate);
+		GWarn->OnStartSlowTask().Remove(GSlowTaskStartDelegate);
 	}
 }
 
