@@ -584,6 +584,16 @@ bool ShouldAlwaysLoadPackageAsync(const FPackagePath& InPackagePath)
 	return GPackageLoader->ShouldAlwaysLoadPackageAsync(InPackagePath);
 }
 
+int32 LoadPackageAsync(const FPackagePath& InPackagePath, FLoadPackageAsyncOptionalParams InOptionalParams)
+{
+	LLM_SCOPE(ELLMTag::AsyncLoading);
+	UE_CLOG(!GAsyncLoadingAllowed && !IsInAsyncLoadingThread(), LogStreaming, Fatal, TEXT("Requesting async load of \"%s\" when async loading is not allowed (after shutdown). Please fix higher level code."), *InPackagePath.GetDebugName());
+#if DO_TRACK_ASYNC_LOAD_REQUESTS
+	FTrackAsyncLoadRequests::Get().TrackRequest(InPackagePath.GetDebugName(), nullptr, InOptionalParams.PackagePriority);
+#endif
+	return GetAsyncPackageLoader().LoadPackage(InPackagePath, MoveTemp(InOptionalParams));
+}
+
 int32 LoadPackageAsync(const FPackagePath& InPackagePath,
 		FName InPackageNameToCreate /* = NAME_None*/,
 		FLoadPackageAsyncDelegate InCompletionDelegate /*= FLoadPackageAsyncDelegate()*/,
@@ -615,6 +625,13 @@ int32 LoadPackageAsync(const FString& InName, FLoadPackageAsyncDelegate Completi
 	return LoadPackageAsync(PackagePath, NAME_None /* InPackageNameToCreate */, CompletionDelegate, InPackageFlags, InPIEInstanceID, InPackagePriority, nullptr);
 }
 
+int32 LoadPackageAsync(const FString& InName, FLoadPackageAsyncOptionalParams InOptionalParams)
+{
+	LLM_SCOPE(ELLMTag::AsyncLoading);
+	FPackagePath PackagePath = GetLoadPackageAsyncPackagePath(InName);
+	return LoadPackageAsync(PackagePath, MoveTemp(InOptionalParams));
+}
+
 int32 LoadPackageAsync(const FString& InName, const FGuid* InGuid /*= nullptr*/, const TCHAR* InPackageToLoadFrom, FLoadPackageAsyncDelegate InCompletionDelegate /*= FLoadPackageAsyncDelegate()*/, EPackageFlags InPackageFlags /*= PKG_None*/, int32 InPIEInstanceID /*= INDEX_NONE*/, int32 InPackagePriority /*= 0*/, const FLinkerInstancingContext* InstancingContext /*=nullptr*/)
 {
 	LLM_SCOPE(ELLMTag::AsyncLoading);
@@ -629,7 +646,7 @@ int32 LoadPackageAsync(const FString& InName, const FGuid* InGuid /*= nullptr*/,
 			InPackageNameToCreate = PackagePathToCreate.GetPackageFName();
 		}
 	}
-	return LoadPackageAsync(PackagePath, InPackageNameToCreate, InCompletionDelegate, InPackageFlags, InPIEInstanceID, InPackagePriority, InstancingContext);
+	return LoadPackageAsync(PackagePath, InPackageNameToCreate, MoveTemp(InCompletionDelegate), InPackageFlags, InPIEInstanceID, InPackagePriority, InstancingContext);
 }
 
 void CancelAsyncLoading()

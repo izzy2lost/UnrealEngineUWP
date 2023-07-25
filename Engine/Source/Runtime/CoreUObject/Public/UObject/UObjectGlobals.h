@@ -644,6 +644,21 @@ namespace EAsyncLoadingResult
 	};
 }
 
+/** Async package loading result */
+enum class EAsyncLoadingProgress : uint32
+{
+	/** Package failed to load */
+	Failed,
+	/** Package has started loading. */
+	Started,
+	/** Package has finished its serialization phase. */
+	Serialized,
+	/** Package has finished all loading phase successfully */
+	FullyLoaded,
+	/** Async loading was canceled */
+	Canceled
+};
+
 /** The type that represents an async loading priority */
 typedef int32 TAsyncLoadPriority;
 
@@ -654,6 +669,59 @@ typedef int32 TAsyncLoadPriority;
  * @param	Result		Result of async loading.
  */
 DECLARE_DELEGATE_ThreeParams(FLoadPackageAsyncDelegate, const FName& /*PackageName*/, UPackage* /*LoadedPackage*/, EAsyncLoadingResult::Type /*Result*/)
+
+/**
+ * Parameters passed to the FLoadPackageAsyncProgressDelegate callback.
+ */
+struct FLoadPackageAsyncProgressParams
+{
+	/* Name of the package. */
+	FName PackageName { NAME_None };
+	/* Pointer to UPackage being loaded, can be nullptr depending on async loading progress. */
+	UPackage* LoadedPackage { nullptr };
+	/* Progress of async loading. */
+	EAsyncLoadingProgress ProgressType { EAsyncLoadingProgress::Failed };
+};
+
+/**
+ * Thread-safe delegate called on progress of async package loading.
+ * @param	Params        Struct containing the parameters for the callback.
+ */
+using FLoadPackageAsyncProgressDelegate = TTSDelegate<void(const FLoadPackageAsyncProgressParams& Params)>;
+
+/**
+ * Optional parameters passed to the LoadPackageAsync function.
+ */
+struct FLoadPackageAsyncOptionalParams
+{
+	/** If not none, this is the name of the package to load into (and create if not yet existing). If none, the name is take from PackagePath. **/
+	FName CustomPackageName { NAME_None };
+	/** Non Thread-safe delegate to be invoked from game-thread on completion. **/
+	TUniquePtr<FLoadPackageAsyncDelegate> CompletionDelegate;
+	/** Thread-safe delegate to be invoked at different state of progress for the given package. **/
+	TUniquePtr<FLoadPackageAsyncProgressDelegate> ProgressDelegate;
+	/** Package flags used to construct loaded package in memory. **/
+	EPackageFlags PackageFlags { PKG_None };
+	/** Play in Editor instance ID. **/
+	int32 PIEInstanceID { INDEX_NONE };
+	/** Loading priority. **/
+	int32 PackagePriority { 0 };
+	/** Additional context to map object names to their instanced counterpart when loading an instanced package. **/
+	const FLinkerInstancingContext* InstancingContext { nullptr };
+	/** Flags controlling loading behavior, from the ELoadFlags enum. */
+	uint32 LoadFlags { LOAD_None };
+};
+
+/**
+ * Asynchronously load a package and all contained objects that match context flags. Non-blocking.
+ * Use this version to specify the PackagePath rather than having the other versions internally convert the InName to a PackagePath by searching the current package mount points.
+ * Use this version if you need to specify a packagename that is different from the packagename on disk; this is useful when loading multiple copies of the same package.
+ *
+  * @param	InPackagePath           PackagePath to load. Must be a mounted path. The package is created if it does not already exist.
+  * @param	InOptionalParams        Optional parameters.
+ * @return Unique ID associated with this load request (the same package can be associated with multiple IDs).
+ */
+COREUOBJECT_API int32 LoadPackageAsync(const FPackagePath& InPackagePath, FLoadPackageAsyncOptionalParams InOptionalParams);
 
 /**
  * Asynchronously load a package and all contained objects that match context flags. Non-blocking.
@@ -694,6 +762,16 @@ COREUOBJECT_API int32 LoadPackageAsync(const FString& InName, const FGuid* InGui
  * @return Unique ID associated with this load request (the same package can be associated with multiple IDs).
  */
 COREUOBJECT_API int32 LoadPackageAsync(const FString& InName, FLoadPackageAsyncDelegate InCompletionDelegate, TAsyncLoadPriority InPackagePriority = 0, EPackageFlags InPackageFlags = PKG_None, int32 InPIEInstanceID = INDEX_NONE);
+
+/**
+ * Asynchronously load a package and all contained objects that match context flags. Non-blocking.
+ * Use this version when you need to load a package with default behavior from a packagename/filename, and need to be notified when it is loaded.
+ *
+ * @param	InName                  PackageName or LocalFilePath of package to load. Must be a mounted name/path. The package is created if it does not already exist.
+ * @param	InOptionalParams        Optional parameters.
+ * @return Unique ID associated with this load request (the same package can be associated with multiple IDs).
+ */
+COREUOBJECT_API int32 LoadPackageAsync(const FString& InName, FLoadPackageAsyncOptionalParams InOptionalParams);
 
 /**
 * Cancels all async package loading requests.

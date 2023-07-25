@@ -493,6 +493,7 @@ struct FPackageRequest
 	FName CustomName;
 	FPackagePath PackagePath;
 	TUniquePtr<FLoadPackageAsyncDelegate> PackageLoadedDelegate;
+	TUniquePtr<FLoadPackageAsyncProgressDelegate> PackageProgressDelegate;
 	FPackageRequest* Next = nullptr;
 
 	FLinkerInstancingContext* GetInstancingContext()
@@ -504,7 +505,7 @@ struct FPackageRequest
 #endif
 	}
 
-	static FPackageRequest Create(int32 RequestId, EPackageFlags PackageFlags, uint32 LoadFlags, int32 PIEInstanceID, int32 Priority, const FLinkerInstancingContext* InstancingContext, const FPackagePath& PackagePath, FName CustomName, TUniquePtr<FLoadPackageAsyncDelegate> PackageLoadedDelegate)
+	static FPackageRequest Create(int32 RequestId, EPackageFlags PackageFlags, uint32 LoadFlags, int32 PIEInstanceID, int32 Priority, const FLinkerInstancingContext* InstancingContext, const FPackagePath& PackagePath, FName CustomName, TUniquePtr<FLoadPackageAsyncDelegate> PackageLoadedDelegate, TUniquePtr<FLoadPackageAsyncProgressDelegate> PackageProgressDelegate)
 	{
 		return FPackageRequest
 		{
@@ -521,6 +522,7 @@ struct FPackageRequest
 			CustomName,
 			PackagePath,
 			MoveTemp(PackageLoadedDelegate),
+			MoveTemp(PackageProgressDelegate),
 			nullptr
 		};
 	}
@@ -2599,6 +2601,7 @@ struct FAsyncPackage2
 	double GetLoadStartTime() const;
 
 	void AddCompletionCallback(TUniquePtr<FLoadPackageAsyncDelegate>&& Callback);
+	void AddProgressCallback(TUniquePtr<FLoadPackageAsyncProgressDelegate>&& Callback);
 
 	FORCEINLINE UPackage* GetLinkerRoot() const
 	{
@@ -2818,6 +2821,8 @@ private:
 	TArray<FExternalReadCallback> ExternalReadDependencies;
 	/** Callbacks called when we finished loading this package */
 	TArray<TUniquePtr<FLoadPackageAsyncDelegate>, TInlineAllocator<2>> CompletionCallbacks;
+	/** Callbacks called for the different loading phase of this package */
+	TArray<TUniquePtr<FLoadPackageAsyncProgressDelegate>, TInlineAllocator<2>> ProgressCallbacks;
 
 	/** Set when the package is being loaded as an instance; null otherwise. */
 	TUniquePtr<FLinkerInstancingContext> InstanceContext;
@@ -3016,14 +3021,15 @@ private:
 		UPackage* UPackage = nullptr;
 		FAsyncPackage2* AsyncPackage = nullptr;
 		TArray<TUniquePtr<FLoadPackageAsyncDelegate>, TInlineAllocator<2>> CompletionCallbacks;
+		TArray<TUniquePtr<FLoadPackageAsyncProgressDelegate>, TInlineAllocator<2>> ProgressCallbacks;
 		TArray<int32, TInlineAllocator<2>> RequestIDs;
 
 		static FCompletedPackageRequest FromMissingPackage(
 			const FAsyncPackageDesc2& Desc,
-			TUniquePtr<FLoadPackageAsyncDelegate>&& Callback)
+			TUniquePtr<FLoadPackageAsyncDelegate>&& CompletionCallback)
 		{
 			FCompletedPackageRequest Res = {Desc.UPackageName, EAsyncLoadingResult::Failed};
-			Res.CompletionCallbacks.Add(MoveTemp(Callback));
+			Res.CompletionCallbacks.Add(MoveTemp(CompletionCallback));
 			Res.RequestIDs.Add(Desc.RequestID);
 			return Res;
 		}
@@ -3038,6 +3044,7 @@ private:
 				Package->LinkerRoot,
 				Package,
 				MoveTemp(Package->CompletionCallbacks),
+				MoveTemp(Package->ProgressCallbacks),
 				Package->RequestIDs
 			};
 		}
@@ -3046,17 +3053,34 @@ private:
 		{
 			checkSlow(IsInGameThread());
 			
-			if (CompletionCallbacks.Num() == 0)
+			if (CompletionCallbacks.Num() != 0)
 			{
-				return;
+				TRACE_CPUPROFILER_EVENT_SCOPE(PackageCompletionCallbacks);
+				for (TUniquePtr<FLoadPackageAsyncDelegate>& CompletionCallback : CompletionCallbacks)
+				{
+					CompletionCallback->ExecuteIfBound(PackageName, UPackage, Result);
+				}
+				CompletionCallbacks.Empty();
 			}
 
-			TRACE_CPUPROFILER_EVENT_SCOPE(PackageCompletionCallbacks);
-			for (TUniquePtr<FLoadPackageAsyncDelegate>& CompletionCallback : CompletionCallbacks)
+			if (ProgressCallbacks.Num() != 0)
 			{
-				CompletionCallback->ExecuteIfBound(PackageName, UPackage, Result);
+				TRACE_CPUPROFILER_EVENT_SCOPE(PackageProgressCallbacks_Completion);
+
+				const FLoadPackageAsyncProgressParams Params
+				{
+					.PackageName = PackageName,
+					.LoadedPackage = UPackage,
+					.ProgressType = Result == EAsyncLoadingResult::Succeeded ? EAsyncLoadingProgress::FullyLoaded : EAsyncLoadingProgress::Failed
+				};
+				
+				for (TUniquePtr<FLoadPackageAsyncProgressDelegate>& ProgressCallback : ProgressCallbacks)
+				{
+					ProgressCallback->ExecuteIfBound(Params);
+				}
+				ProgressCallbacks.Empty();
 			}
-			CompletionCallbacks.Empty();
+
 		}
 	};
 	TArray<FCompletedPackageRequest> CompletedPackageRequests;
@@ -3219,8 +3243,8 @@ public:
 	void UpdatePackagePriority(FAsyncLoadingThreadState2& ThreadState, FAsyncPackage2* Package);
 	void UpdatePackagePriorityRecursive(FAsyncLoadingThreadState2& ThreadState, FAsyncPackage2* Package, int32 NewPriority);
 
-	FAsyncPackage2* FindOrInsertPackage(FAsyncLoadingThreadState2& ThreadState, FAsyncPackageDesc2& InDesc, bool& bInserted, FAsyncPackage2* ImportedByPackage, TUniquePtr<FLoadPackageAsyncDelegate>&& PackageLoadedDelegate = TUniquePtr<FLoadPackageAsyncDelegate>());
-	void QueueMissingPackage(FAsyncPackageDesc2& PackageDesc, TUniquePtr<FLoadPackageAsyncDelegate>&& LoadPackageAsyncDelegate);
+	FAsyncPackage2* FindOrInsertPackage(FAsyncLoadingThreadState2& ThreadState, FAsyncPackageDesc2& InDesc, bool& bInserted, FAsyncPackage2* ImportedByPackage, TUniquePtr<FLoadPackageAsyncDelegate>&& PackageLoadedDelegate = TUniquePtr<FLoadPackageAsyncDelegate>(), TUniquePtr<FLoadPackageAsyncProgressDelegate>&& PackageProgressDelegate = TUniquePtr<FLoadPackageAsyncProgressDelegate>());
+	void QueueMissingPackage(FAsyncPackageDesc2& PackageDesc, TUniquePtr<FLoadPackageAsyncDelegate>&& LoadPackageAsyncDelegate, TUniquePtr<FLoadPackageAsyncProgressDelegate>&& LoadPackageAsyncProgressDelegate);
 
 	/**
 	* [ASYNC* THREAD] Loads all packages
@@ -3261,6 +3285,8 @@ public:
 		return true;
 	}
 
+	int32 LoadPackageInternal(const FPackagePath& InPackagePath, FName InCustomName, TUniquePtr<FLoadPackageAsyncDelegate>&& InCompletionDelegate, TUniquePtr<FLoadPackageAsyncProgressDelegate>&& InProgressDelegate, EPackageFlags InPackageFlags, int32 InPIEInstanceID, int32 InPackagePriority, const FLinkerInstancingContext* InInstancingContext, uint32 InLoadFlags);
+
 	virtual int32 LoadPackage(
 		const FPackagePath& InPackagePath,
 		FName InCustomName,
@@ -3270,6 +3296,10 @@ public:
 		int32 InPackagePriority,
 		const FLinkerInstancingContext* InstancingContext = nullptr,
 		uint32 InLoadFlags = LOAD_None) override;
+
+	virtual int32 LoadPackage(
+		const FPackagePath& InPackagePath,
+		FLoadPackageAsyncOptionalParams Params) override;
 
 	EAsyncPackageState::Type ProcessLoadingFromGameThread(FAsyncLoadingThreadState2& ThreadState, bool bUseTimeLimit, bool bUseFullTimeLimit, double TimeLimit);
 
@@ -3909,7 +3939,7 @@ void FAsyncLoadingThread2::MergePostLoadGroups(FAsyncLoadingThreadState2& Thread
 	delete Source;
 }
 
-FAsyncPackage2* FAsyncLoadingThread2::FindOrInsertPackage(FAsyncLoadingThreadState2& ThreadState, FAsyncPackageDesc2& Desc, bool& bInserted, FAsyncPackage2* ImportedByPackage, TUniquePtr<FLoadPackageAsyncDelegate>&& PackageLoadedDelegate)
+FAsyncPackage2* FAsyncLoadingThread2::FindOrInsertPackage(FAsyncLoadingThreadState2& ThreadState, FAsyncPackageDesc2& Desc, bool& bInserted, FAsyncPackage2* ImportedByPackage, TUniquePtr<FLoadPackageAsyncDelegate>&& PackageLoadedDelegate, TUniquePtr<FLoadPackageAsyncProgressDelegate>&& PackageProgressDelegate)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FindOrInsertPackage);
 	check(ThreadState.bCanAccessAsyncLoadingThreadData);
@@ -3943,6 +3973,10 @@ FAsyncPackage2* FAsyncLoadingThread2::FindOrInsertPackage(FAsyncLoadingThreadSta
 		if (PackageLoadedDelegate.IsValid())
 		{
 			Package->AddCompletionCallback(MoveTemp(PackageLoadedDelegate));
+		}
+		if (PackageProgressDelegate.IsValid())
+		{
+			Package->AddProgressCallback(MoveTemp(PackageProgressDelegate));
 		}
 	}
 
@@ -4155,12 +4189,12 @@ bool FAsyncLoadingThread2::CreateAsyncPackagesFromQueue(FAsyncLoadingThreadState
 			FAsyncPackageDesc2 PackageDesc = FAsyncPackageDesc2::FromPackageRequest(Request, UPackageName, PackageIdToLoad);
 			if (PackageStatus == EPackageStoreEntryStatus::Missing)
 			{
-				QueueMissingPackage(PackageDesc, MoveTemp(Request.PackageLoadedDelegate));
+				QueueMissingPackage(PackageDesc, MoveTemp(Request.PackageLoadedDelegate), MoveTemp(Request.PackageProgressDelegate));
 			}
 			else
 			{
 				bool bInserted;
-				FAsyncPackage2* Package = FindOrInsertPackage(ThreadState, PackageDesc, bInserted, nullptr, MoveTemp(Request.PackageLoadedDelegate));
+				FAsyncPackage2* Package = FindOrInsertPackage(ThreadState, PackageDesc, bInserted, nullptr, MoveTemp(Request.PackageLoadedDelegate), MoveTemp(Request.PackageProgressDelegate));
 				checkf(Package, TEXT("Failed to find or insert package %s"), *PackageDesc.UPackageName.ToString());
 
 				if (bInserted)
@@ -4196,7 +4230,7 @@ bool FAsyncLoadingThread2::CreateAsyncPackagesFromQueue(FAsyncLoadingThreadState
 				else
 				{
 					UE_ASYNC_PACKAGE_LOG_VERBOSE(Verbose, PackageDesc, TEXT("CreateAsyncPackages: UpdatePackage"),
-						TEXT("Package is alreay being loaded."));
+						TEXT("Package is already being loaded."));
 					--PackagesWithRemainingWorkCounter;
 					TRACE_COUNTER_SET(AsyncLoadingPackagesWithRemainingWork, PackagesWithRemainingWorkCounter);
 				}
@@ -4995,6 +5029,23 @@ void FAsyncPackage2::StartLoading(FAsyncLoadingThreadState2& ThreadState, FIoBat
 	TRACE_CPUPROFILER_EVENT_SCOPE(StartLoading);
 
 	LoadStartTime = FPlatformTime::Seconds();
+
+	if (ProgressCallbacks.Num() != 0)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(PackageProgressCallbacks_Started);
+
+		const FLoadPackageAsyncProgressParams Params
+		{
+			.PackageName = Desc.UPackageName,
+			.LoadedPackage = GetLinkerRoot(),
+			.ProgressType = EAsyncLoadingProgress::Started
+		};
+
+		for (TUniquePtr<FLoadPackageAsyncProgressDelegate>& ProgressCallback : ProgressCallbacks)
+		{
+			ProgressCallback->ExecuteIfBound(Params);
+		}
+	}
 
 	AsyncPackageLoadingState = EAsyncPackageLoadingState2::WaitingForIo;
 
@@ -6435,6 +6486,23 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_ExportsDone(FAsyncLoadingThr
 		FCoreDelegates::ReleasePreloadedPackageShaderMaps.ExecuteIfBound(Package->Data.ShaderMapHashes);
 	}
 
+	if (Package->ProgressCallbacks.Num())
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(PackageProgressCallbacks_Serialized);
+
+		const FLoadPackageAsyncProgressParams Params
+		{
+			.PackageName = Package->Desc.UPackageName,
+			.LoadedPackage = Package->GetLinkerRoot(),
+			.ProgressType = EAsyncLoadingProgress::Serialized
+		};
+
+		for (TUniquePtr<FLoadPackageAsyncProgressDelegate>& ProgressCallback : Package->ProgressCallbacks)
+		{
+			ProgressCallback->ExecuteIfBound(Params);
+		}
+	}
+
 	FAsyncLoadingPostLoadGroup* PostLoadGroup = Package->PostLoadGroup;
 	check(PostLoadGroup);
 	check(PostLoadGroup->PackagesWithExportsToSerializeCount > 0);
@@ -7316,7 +7384,7 @@ EAsyncPackageState::Type FAsyncLoadingThread2::ProcessLoadedPackagesFromGameThre
 			Package->AsyncPackageLoadingState = EAsyncPackageLoadingState2::DeferredDelete;
 			Package->ClearImportedPackages();
 
-			if (Package->CompletionCallbacks.IsEmpty())
+			if (Package->CompletionCallbacks.IsEmpty() && Package->ProgressCallbacks.IsEmpty())
 			{
 				RemovePendingRequests(Package->RequestIDs);
 				Package->ReleaseRef();
@@ -8483,7 +8551,12 @@ void FAsyncPackage2::AddCompletionCallback(TUniquePtr<FLoadPackageAsyncDelegate>
 	CompletionCallbacks.Emplace(MoveTemp(Callback));
 }
 
-int32 FAsyncLoadingThread2::LoadPackage(const FPackagePath& InPackagePath, FName InCustomName, FLoadPackageAsyncDelegate InCompletionDelegate, EPackageFlags InPackageFlags, int32 InPIEInstanceID, int32 InPackagePriority, const FLinkerInstancingContext* InInstancingContext, uint32 InLoadFlags)
+void FAsyncPackage2::AddProgressCallback(TUniquePtr<FLoadPackageAsyncProgressDelegate>&& Callback)
+{
+	ProgressCallbacks.Emplace(MoveTemp(Callback));
+}
+
+int32 FAsyncLoadingThread2::LoadPackageInternal(const FPackagePath& InPackagePath, FName InCustomName, TUniquePtr<FLoadPackageAsyncDelegate>&& InCompletionDelegate, TUniquePtr<FLoadPackageAsyncProgressDelegate>&& InProgressDelegate, EPackageFlags InPackageFlags, int32 InPIEInstanceID, int32 InPackagePriority, const FLinkerInstancingContext* InInstancingContext, uint32 InLoadFlags)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(LoadPackage);
 
@@ -8514,12 +8587,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	TRACE_LOADTIME_BEGIN_REQUEST(RequestId);
 	AddPendingRequest(RequestId);
 
-	// Allocate delegate before going async, it is not safe to copy delegates by value on other threads
-	TUniquePtr<FLoadPackageAsyncDelegate> CompletionDelegate = InCompletionDelegate.IsBound()
-		? MakeUnique<FLoadPackageAsyncDelegate>(MoveTemp(InCompletionDelegate))
-		: TUniquePtr<FLoadPackageAsyncDelegate>();
-
-	PackageRequestQueue.Enqueue(FPackageRequest::Create(RequestId, InPackageFlags, InLoadFlags, InPIEInstanceID, InPackagePriority, InInstancingContext, InPackagePath, InCustomName, MoveTemp(CompletionDelegate)));
+	PackageRequestQueue.Enqueue(FPackageRequest::Create(RequestId, InPackageFlags, InLoadFlags, InPIEInstanceID, InPackagePriority, InInstancingContext, InPackagePath, InCustomName, MoveTemp(InCompletionDelegate), MoveTemp(InProgressDelegate)));
 	++QueuedPackagesCounter;
 	++PackagesWithRemainingWorkCounter;
 
@@ -8531,7 +8599,22 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return RequestId;
 }
 
-void FAsyncLoadingThread2::QueueMissingPackage(FAsyncPackageDesc2& PackageDesc, TUniquePtr<FLoadPackageAsyncDelegate>&& PackageLoadedDelegate)
+int32 FAsyncLoadingThread2::LoadPackage(const FPackagePath& InPackagePath, FLoadPackageAsyncOptionalParams InParams)
+{
+	return LoadPackageInternal(InPackagePath, InParams.CustomPackageName, MoveTemp(InParams.CompletionDelegate), MoveTemp(InParams.ProgressDelegate), InParams.PackageFlags, InParams.PIEInstanceID, InParams.PackagePriority, InParams.InstancingContext, InParams.LoadFlags);
+}
+
+int32 FAsyncLoadingThread2::LoadPackage(const FPackagePath& InPackagePath, FName InCustomName, FLoadPackageAsyncDelegate InCompletionDelegate, EPackageFlags InPackageFlags, int32 InPIEInstanceID, int32 InPackagePriority, const FLinkerInstancingContext* InInstancingContext, uint32 InLoadFlags)
+{
+	// Allocate delegate before going async, it is not safe to copy delegates by value on other threads
+	TUniquePtr<FLoadPackageAsyncDelegate> CompletionDelegate = InCompletionDelegate.IsBound()
+		? MakeUnique<FLoadPackageAsyncDelegate>(MoveTemp(InCompletionDelegate))
+		: TUniquePtr<FLoadPackageAsyncDelegate>();
+
+	return LoadPackageInternal(InPackagePath, InCustomName, MoveTemp(CompletionDelegate), TUniquePtr<FLoadPackageAsyncProgressDelegate>(), InPackageFlags, InPIEInstanceID, InPackagePriority, InInstancingContext, InLoadFlags);
+}
+
+void FAsyncLoadingThread2::QueueMissingPackage(FAsyncPackageDesc2& PackageDesc, TUniquePtr<FLoadPackageAsyncDelegate>&& PackageLoadedDelegate, TUniquePtr<FLoadPackageAsyncProgressDelegate>&& PackageProgressDelegate)
 {
 	const FName FailedPackageName = PackageDesc.UPackageName;
 
@@ -8553,6 +8636,20 @@ void FAsyncLoadingThread2::QueueMissingPackage(FAsyncPackageDesc2& PackageDesc, 
 	UE_CLOG(bIssueWarning, LogStreaming, Warning,
 		TEXT("LoadPackage: SkipPackage: %s (0x%llX) - The package to load does not exist on disk or in the loader"),
 		*FailedPackageName.ToString(), PackageDesc.PackageIdToLoad.ValueForDebugging());
+
+	if (PackageProgressDelegate.IsValid())
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(PackageProgressCallback_Failed);
+
+		const FLoadPackageAsyncProgressParams Params
+		{
+			.PackageName = FailedPackageName,
+			.LoadedPackage = nullptr,
+			.ProgressType = EAsyncLoadingProgress::Failed
+		};
+
+		PackageProgressDelegate->ExecuteIfBound(Params);
+	}
 
 	if (PackageLoadedDelegate.IsValid())
 	{
