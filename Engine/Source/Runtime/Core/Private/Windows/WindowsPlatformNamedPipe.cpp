@@ -306,8 +306,6 @@ bool FWindowsPlatformNamedPipe::UpdateAsyncStatus()
 					switch (LastError)
 					{
 						case ERROR_IO_INCOMPLETE:
-							// Yield CPU time while waiting
-							FPlatformProcess::Sleep(.01f);
 							break;
 
 						case ERROR_BROKEN_PIPE:
