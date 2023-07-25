@@ -690,6 +690,8 @@ void FRigUnit_HierarchyAddControlTransform_Settings::Configure(FRigControlSettin
 	
 	OutSettings.ControlType = ERigControlType::EulerTransform;
 	OutSettings.FilteredChannels = FilteredChannels;
+	OutSettings.bUsePreferredRotationOrder = bUsePreferredRotationOrder;
+	OutSettings.PreferredRotationOrder = PreferredRotationOrder;
 
 	Proxy.Configure(OutSettings);
 	Shape.Configure(OutSettings);

@@ -989,6 +989,8 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlTransform_Settings : public FR
 	FRigUnit_HierarchyAddControlTransform_Settings()
 		: FRigUnit_HierarchyAddControl_Settings()
 		, InitialSpace(ERigVMTransformSpace::LocalSpace)
+		, bUsePreferredRotationOrder(false)
+		, PreferredRotationOrder(EEulerRotationOrder::YZX) 
 	{
 		FilteredChannels.Reset();
 	}
@@ -998,6 +1000,13 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlTransform_Settings : public FR
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	ERigVMTransformSpace InitialSpace;
+
+	// Enables overriding the preferred rotation order
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	bool bUsePreferredRotationOrder;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	EEulerRotationOrder PreferredRotationOrder;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	FRigUnit_HierarchyAddControl_ShapeSettings Shape;
