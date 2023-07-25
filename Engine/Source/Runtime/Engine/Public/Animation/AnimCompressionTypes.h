@@ -611,17 +611,7 @@ public:
 
 				// Avoid calling FMemory::Realloc( nullptr, 0 ) as ANSI C mandates returning a valid pointer which is not what we want.
 				//checkSlow(((uint64)NumElements*(uint64)ElementTypeInfo.GetSize() < (uint64)INT_MAX));
-
-				const SIZE_T NewSize = NumElements * NumBytesPerElement;
-
-				if constexpr (Alignment == DEFAULT_ALIGNMENT)
-				{
-					Data = (FScriptContainerElement*)FMemory::Realloc(Data, NewSize);
-				}
-				else
-				{
-					Data = (FScriptContainerElement*)FMemory::Realloc(Data, NewSize, Alignment);
-				}
+				Data = (FScriptContainerElement*)FMemory::Realloc(Data, NumElements*NumBytesPerElement, Alignment);
 			}
 		}
 		SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const

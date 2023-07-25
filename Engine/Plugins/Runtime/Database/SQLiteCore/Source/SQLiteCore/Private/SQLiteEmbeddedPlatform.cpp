@@ -51,7 +51,7 @@ private:
 	/** Allocate memory */
 	static void* Malloc(int InSizeBytes)
 	{
-		return FMemory::Malloc(InSizeBytes);
+		return FMemory::Malloc(InSizeBytes, DEFAULT_ALIGNMENT);
 	}
 
 	/** Free memory returned by Alloc or Realloc */
@@ -63,7 +63,7 @@ private:
 	/** Reallocate memory returned by Alloc or Realloc */
 	static void* Realloc(void* InPtr, int InSizeBytes)
 	{
-		return FMemory::Realloc(InPtr, InSizeBytes);
+		return FMemory::Realloc(InPtr, InSizeBytes, DEFAULT_ALIGNMENT);
 	}
 
 	/** Get the actual size of an allocation returned by Alloc or Realloc */
@@ -75,7 +75,7 @@ private:
 	/** Roundup to the expected allocation size */
 	static int Roundup(int InSizeBytes)
 	{
-		return (int)FMemory::QuantizeSize(InSizeBytes);
+		return (int)FMemory::QuantizeSize(InSizeBytes, DEFAULT_ALIGNMENT);
 	}
 };
 
