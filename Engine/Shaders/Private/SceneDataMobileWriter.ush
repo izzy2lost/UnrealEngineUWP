@@ -20,8 +20,6 @@ void WritePrimitiveDataUBO(RWStructuredBuffer<float4> Output, uint Offset, FPrim
 #if ALLOW_STATIC_LIGHTING
 	// Pre-computed lighting data 
 	{
-		float4 StaticShadowMapMasks = float4(1, 1, 1, 1);
-		float4 InvUniformPenumbraSizes = float4(0, 0, 0, 0);
 		float4 LightMapUVScaleBias = float4(1, 1, 0, 0);
 		float4 ShadowMapUVScaleBias = float4(1, 1, 0, 0);
 
@@ -30,16 +28,13 @@ void WritePrimitiveDataUBO(RWStructuredBuffer<float4> Output, uint Offset, FPrim
 		{
 			FLightmapSceneData LightmapData = GetLightmapData(LightmapDataIndex);
 			
-			StaticShadowMapMasks = LightmapData.StaticShadowMapMasks;
-			InvUniformPenumbraSizes = LightmapData.InvUniformPenumbraSizes;
 			LightMapUVScaleBias = LightmapData.LightMapCoordinateScaleBias;
 			ShadowMapUVScaleBias = LightmapData.ShadowMapCoordinateScaleBias;
 		}
-		WriteDataElementUBO(Output, Offset, DataIdx + 0, StaticShadowMapMasks);
-		WriteDataElementUBO(Output, Offset, DataIdx + 1, InvUniformPenumbraSizes);
-		WriteDataElementUBO(Output, Offset, DataIdx + 2, LightMapUVScaleBias);
-		WriteDataElementUBO(Output, Offset, DataIdx + 3, ShadowMapUVScaleBias);
-		DataIdx += 4u;
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, LightMapUVScaleBias);
+		WriteDataElementUBO(Output, Offset, DataIdx + 1, ShadowMapUVScaleBias);
+		WriteDataElementUBO(Output, Offset, DataIdx + 2, float4(asfloat(PrimitiveData.LightmapDataIndex), 0.f, 0.f, 0.f));
+		DataIdx += 3u;
 	}
 #endif
 
@@ -123,7 +118,7 @@ void WritePrimitiveDataUBO(RWStructuredBuffer<float4> Output, uint Offset, FPrim
 
 	// CustomData, TODO make optional
 	{
-		uint NumCustomData = min(NUM_CUSTOM_PRIMITIVE_DATA, 32u - DataIdx); //23u
+		uint NumCustomData = min(NUM_CUSTOM_PRIMITIVE_DATA, BATCHED_PRIMITIVE_DATA_STRIDE_FLOAT4 - DataIdx); //23u
 		UNROLL
 		for (uint i = 0; i < NumCustomData; ++i)
 		{
@@ -163,15 +158,31 @@ void WriteInstanceDataUBO(RWStructuredBuffer<float4> Output, uint Offset, uint I
 		DataIdx += 3u;
 	}
 
-	// TODO: make it optional, doubles instance data size
 	uint CustomDataCount = 0;
 	uint InstanceRelativeId = 0;
 	LoadInstanceRelativeIdAndCustomDataCount(InstanceId, InstanceSceneDataSOAStride, InstanceRelativeId, CustomDataCount);
-	if (CustomDataCount > 0)
+	FInstancePayloadDataOffsets Offsets = GetInstancePayloadDataOffsets(InstanceData.PrimitiveId, InstanceData.Flags, InstanceRelativeId);
+
+#if ALLOW_STATIC_LIGHTING
+	{
+		if (Offsets.LightShadowUVBias != INVALID_INSTANCE_PAYLOAD_OFFSET)
+		{
+			float4 LightMapAndShadowMapUVBias = LoadInstancePayloadDataElement(Offsets.LightShadowUVBias);
+			WriteDataElementUBO(Output, Offset, DataIdx + 0, LightMapAndShadowMapUVBias);
+		}
+		DataIdx += 1u;
+	}
+#endif
+	// CustomDataCount, TODO: yzw
+	{
+		CustomDataCount = min(CustomDataCount, (BATCHED_INSTANCE_DATA_STRIDE_FLOAT4 - DataIdx - 1u) * 4u);
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(asfloat(CustomDataCount), 0.f, 0.f, 0.f));
+		DataIdx += 1u;
+	}
+
+	// TODO: make it optional, doubles instance data size
 	{
 		// limited space for instance custom data
-		CustomDataCount = min(CustomDataCount, NUM_BATCHED_INSTANCE_CUSTOM_DATA);
-		FInstancePayloadDataOffsets Offsets	= GetInstancePayloadDataOffsets(InstanceData.PrimitiveId, InstanceData.Flags, InstanceRelativeId);
 		InstanceData.CustomDataCount = CustomDataCount;
 		InstanceData.CustomDataOffset = Offsets.CustomData;
 		UNROLL

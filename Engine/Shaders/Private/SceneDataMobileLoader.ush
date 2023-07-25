@@ -21,7 +21,10 @@ FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
 	
 	uint DataIdx = 0;
 #if ALLOW_STATIC_LIGHTING
-	DataIdx += 4u; // 4 float4 reservered for pre-computed lighting data
+	// 2 float4 reservered for pre-computed lighting data
+	float4 Data = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+2);
+	PrimitiveData.LightmapDataIndex = asuint(Data.x);
+	DataIdx += 3u; 
 #endif
 
 	// TilePosition, Flags
@@ -135,7 +138,7 @@ FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
 
 	// CustomData, TODO make optional
 	{
-		uint NumCustomData = min(NUM_CUSTOM_PRIMITIVE_DATA, 32u - DataIdx); //23u
+		uint NumCustomData = min(NUM_CUSTOM_PRIMITIVE_DATA, BATCHED_PRIMITIVE_DATA_STRIDE_FLOAT4 - DataIdx); //23u
 		UNROLL
 		for (uint i = 0; i < NumCustomData; ++i)
 		{
@@ -208,18 +211,43 @@ FInstanceSceneData LoadInstanceDataUBO(uint DrawInstanceId)
 		InstanceData.PrevLocalToWorld = MakeLWCMatrix4x3(TilePosition, PreviousLocalToRelativeWorld);
 		DataIdx += 3u;
 	}
+#if ALLOW_STATIC_LIGHTING
+	const bool bHasLightShadowUVBias = (InstanceData.Flags & INSTANCE_SCENE_DATA_FLAG_HAS_LIGHTSHADOW_UV_BIAS) != 0u;
+	if (bHasLightShadowUVBias)
+	{
+		InstanceData.LightMapAndShadowMapUVBias = LoadInstanceDataElementUBO(DrawInstanceId, DataIdx+0);
+	}
+	DataIdx += 1u;
+#endif
+
+	// CustomDataCount, TODO: yzw
+	{
+		float4 Data = LoadInstanceDataElementUBO(DrawInstanceId, DataIdx+0);
+#if ENABLE_PER_INSTANCE_CUSTOM_DATA
+		InstanceData.CustomDataCount = asuint(Data.x);
+#endif
+		DataIdx += 1u;
+	}
 
 	return InstanceData;
 }
 
 float LoadInstanceCustomDataElementUBO(uint DrawInstanceId, uint CustomDataIdx, float DefaultValue)
 {
-	const uint CustomDataFloat4Offset = 8u; // where custom data starts in an Instance UBO
+#if USE_INSTANCE_CULLING
+	uint CustomDataFloat4Offset = 8u; // where custom data starts in an Instance UBO
+	#if ALLOW_STATIC_LIGHTING
+		CustomDataFloat4Offset += 1u; // one float4 reserved for pre-computed lighting
+	#endif
+
 	const uint Float4Index = (CustomDataIdx >> 2u);
-	if (Float4Index < NUM_BATCHED_INSTANCE_CUSTOM_DATA)
+	const uint CustomDataCount = asuint(LoadInstanceDataElementUBO(DrawInstanceId, CustomDataFloat4Offset).x);
+	CustomDataFloat4Offset += 1u;
+	if (Float4Index < CustomDataCount)
 	{
 		const float4 Float4Packed = LoadInstanceDataElementUBO(DrawInstanceId, Float4Index + CustomDataFloat4Offset);
 		return Float4Packed[CustomDataIdx & 0x3u];
 	}
+#endif
 	return DefaultValue;
 }

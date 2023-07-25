@@ -1814,6 +1814,10 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(UInstancedStaticMeshComponent* I
 		{
 			// Only instance data comes from GPUScene on platforms that use uniform buffer views
 			bVFRequiresPrimitiveUniformBuffer = true;
+			for (int32 LODIdx = 0; LODIdx < LODs.Num(); ++LODIdx)
+			{
+				LODs[LODIdx].bCanUsePrecomputedLightingParametersFromGPUScene = false;
+			}
 		}
 		
 		const TArray<int32>& InstanceReorderTable = InComponent->InstanceReorderTable;

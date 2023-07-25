@@ -884,7 +884,7 @@ public:
 
 	ENGINE_API FShadowMapInteraction GetShadowMapInteraction(ERHIFeatureLevel::Type InFeatureLevel) const;
 
-protected:
+public:
 	// Load parameters from GPUScene when possible
 	// Basically this is the same as VF_SUPPORTS_PRIMITIVE_SCENE_DATA on the vertex factory, but we can't deduce automatically
 	// because we don't know about VF type until we see the actual mesh batch
