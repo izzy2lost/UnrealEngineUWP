@@ -433,7 +433,7 @@ void USkeleton::Serialize( FArchive& Ar )
 
 			FName RetargetSourceName;
 			FReferencePose RetargetSource;
-			AnimRetargetSources.Empty();
+			AnimRetargetSources.Empty(NumOfRetargetSources);
 			for (int32 Index=0; Index<NumOfRetargetSources; ++Index)
 			{
 				Ar << RetargetSourceName;
