@@ -483,9 +483,6 @@ namespace Chaos
 					return 1;
 				}
 			}
-
-			// If we get here, we did not activate the constraint and it should be disabled for this tick
-			Constraint->SetDisabled(true);
 		}
 
 		return 0;
@@ -1658,10 +1655,6 @@ namespace Chaos
 			{
 				Context.GetAllocator()->ActivateConstraint(Constraint);
 				++NumActive;
-			}
-			else
-			{
-				Constraint->SetDisabled(true);
 			}
 		}
 

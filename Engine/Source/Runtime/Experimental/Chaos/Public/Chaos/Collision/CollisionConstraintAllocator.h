@@ -456,11 +456,11 @@ namespace Chaos
 			 * Visitor signature: ECollisionVisitorResult(const FPBDCollisionConstraint&)
 			*/
 			template<typename TLambda>
-			void VisitConstCollisions(const TLambda& Visitor) const
+			void VisitConstCollisions(const TLambda& Visitor, const ECollisionVisitorFlags& VisitFlags = ECollisionVisitorFlags::VisitDefault) const
 			{
 				for (const FParticlePairMidPhasePtr& MidPhase : ParticlePairMidPhases)
 				{
-					if (MidPhase->VisitConstCollisions(Visitor) == ECollisionVisitorResult::Stop)
+					if (MidPhase->VisitConstCollisions(Visitor, VisitFlags) == ECollisionVisitorResult::Stop)
 					{
 						return;
 					}
@@ -593,14 +593,6 @@ namespace Chaos
 		if (Constraint == nullptr)
 		{
 			return false;
-		}
-
-		if (!(VisitFlags & ECollisionVisitorFlags::VisitInactive))
-		{
-			if (!Constraint->IsActivated())
-			{
-				return false;
-			}
 		}
 
 		if (!(VisitFlags & ECollisionVisitorFlags::VisitDisabled))

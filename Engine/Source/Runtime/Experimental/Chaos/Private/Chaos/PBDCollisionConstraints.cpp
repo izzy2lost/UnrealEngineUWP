@@ -512,6 +512,17 @@ namespace Chaos
 	{
 		SCOPE_CYCLE_COUNTER(STAT_Collisions_BeginDetect);
 
+		// Disable existing constraints so that if they are not re-activated this tick
+		// they do not have state indicating that that are still active.
+		// @todo(chaos): ideally we would do this only for constraints that do not get reused this tick in EndDetectCollisions
+		for (FPBDCollisionConstraint* Constraint : GetConstraints())
+		{
+			if (Constraint != nullptr)
+			{
+				Constraint->SetDisabled(true);
+			}
+		}
+
 		ConstraintAllocator.BeginDetectCollisions();
 	}
 
@@ -525,17 +536,6 @@ namespace Chaos
 		// Disable any edge collisions that are hidden by face collisions
 		// (for bodies that have the EdgePruning option enabled)
 		PruneEdgeCollisions();
-	}
-
-	void FPBDCollisionConstraints::EndTick()
-	{
-		for (FPBDCollisionConstraint* Constraint : GetConstraints())
-		{
-			if (Constraint != nullptr)
-			{
-				Constraint->EndTick();
-			}
-		}
 	}
 
 	void FPBDCollisionConstraints::DetectProbeCollisions(FReal Dt)

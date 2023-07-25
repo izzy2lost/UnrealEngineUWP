@@ -149,7 +149,6 @@ namespace Chaos
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::SaveParticlePostSolve"), STAT_Evolution_SavePostSolve, STATGROUP_Chaos);
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::DeactivateSleep"), STAT_Evolution_DeactivateSleep, STATGROUP_Chaos);
 		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::InertiaConditioning"), STAT_Evolution_InertiaConditioning, STATGROUP_Chaos);
-		DECLARE_CYCLE_STAT(TEXT("FPBDRigidsEvolutionGBF::CollisionEndTick"), STAT_Evolution_CollisionEndTick, STATGROUP_Chaos);
 
 
 		int32 SerializeEvolution = 0;
@@ -629,14 +628,6 @@ void FPBDRigidsEvolutionGBF::AdvanceOneTimeStepImpl(const FReal Dt, const FSubSt
 		GetCollisionConstraints().DetectProbeCollisions(Dt);
 	}
 	
-	{
-		SCOPE_CYCLE_COUNTER(STAT_Evolution_CollisionEndTick);
-		CSV_SCOPED_TIMING_STAT(PhysicsVerbose, StepSolver_CollisionEndTick);
-
-		// Reset collision state ready for the next tick
-		CollisionConstraints.EndTick();
-	}
-
 	{
 		CVD_SCOPE_TRACE_SOLVER_STEP(TEXT("Evolution End"));
 

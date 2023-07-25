@@ -289,6 +289,9 @@ namespace Chaos
 			GetParticle1(), GetImplicit1(), GetShape1(),
 			DistanceCheckSize);
 
+		// The constraint will be enabled after the narrow phase if required
+		Flags.bDisabled = true;
+
 		// Contact modification may change bIsProbe. The original value is stored in BoundsTestFlags.
 		Flags.bIsProbe = BoundsTestFlags.bIsProbe;
 

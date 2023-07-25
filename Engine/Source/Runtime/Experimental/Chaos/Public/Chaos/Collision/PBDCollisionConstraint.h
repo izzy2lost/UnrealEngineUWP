@@ -643,16 +643,6 @@ namespace Chaos
 		}
 
 		/**
-		 * Called after the simulation to reset any state that need to be reset before the next tick
-		 */
-		void EndTick()
-		{
-			// Reset the activated flag so that we don't need to reset it for constraints that are kept
-			// in memory but not re-activated next frame.
-			Flags.bIsActivated = false;
-		}
-
-		/**
 		 * @brief Time of impact from CCD sweep test if CCD is activate.Otherwise undefined.
 		*/
 		FReal GetCCDTimeOfImpact() const { return CCDTimeOfImpact; }
