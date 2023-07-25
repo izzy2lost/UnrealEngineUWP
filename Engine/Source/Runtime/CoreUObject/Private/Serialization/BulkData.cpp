@@ -316,11 +316,11 @@ inline void* SafeMalloc(int64 SizeInBytes, uint32 Alignment)
 inline void* SafeRealloc(void* Original, int64 SizeInBytes, uint32 Alignment)
 {
 #if !PLATFORM_32BITS
-	return FMemory::Realloc(Original, SizeInBytes, DEFAULT_ALIGNMENT);
+	return FMemory::Realloc(Original, SizeInBytes);
 #else
 	if (SizeInBytes >= 0 && (uint64)SizeInBytes <= TNumericLimits<SIZE_T>::Max())
 	{
-		return FMemory::Realloc(Original, SizeInBytes, DEFAULT_ALIGNMENT);
+		return FMemory::Realloc(Original, SizeInBytes);
 	}
 	else
 	{

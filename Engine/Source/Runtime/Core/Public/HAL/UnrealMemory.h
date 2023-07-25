@@ -207,17 +207,46 @@ struct FMemory
 	// C style memory allocation stubs.
 	//
 
-	UE_ALLOCATION_FUNCTION(1, 2) static CORE_API void* Malloc(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
-	UE_ALLOCATION_FUNCTION(2, 3) static CORE_API void* Realloc(void* Original, SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT);
+	UE_ALLOCATION_FUNCTION(1, 2) static CORE_API void* Malloc(SIZE_T Count, uint32 Alignment);
+	UE_ALLOCATION_FUNCTION(2, 3) static CORE_API void* Realloc(void* Original, SIZE_T Count, uint32 Alignment);
 	static CORE_API void Free(void* Original);
 	static CORE_API SIZE_T GetAllocSize(void* Original);
 
-	UE_ALLOCATION_FUNCTION(1, 2) static FORCEINLINE_DEBUGGABLE void* MallocZeroed(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT)
+	UE_ALLOCATION_FUNCTION(1, 2) static FORCEINLINE_DEBUGGABLE void* MallocZeroed(SIZE_T Count, uint32 Alignment)
 	{
 		void* Memory = Malloc(Count, Alignment);
 		Memzero(Memory, Count);
 		return Memory;
 	}
+
+#if defined(__clang__)
+	// When recording alignment information to aid the LLVM optimizer, clang will complain that DEFAULT_ALIGNMENT
+	// (which is zero) is not a power-of-two. But clang will always ignore this 'bad' non power-of-two alignment
+	// value and revert to the natural alignment, which is what we'd want in this case anyway. So to let us keep
+	// the semantics where we use DEFAULT_ALIGNMENT == 0 to effectively mean an optional alignment, we just tell
+	// clang to ignore the 'bad' alignment in this case.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnon-power-of-two-alignment"
+#endif
+
+	static FORCEINLINE void* Malloc(SIZE_T Count)
+	{
+		return Malloc(Count, DEFAULT_ALIGNMENT);
+	}
+
+	static FORCEINLINE void* Realloc(void* Original, SIZE_T Count)
+	{
+		return Realloc(Original, Count, DEFAULT_ALIGNMENT);
+	}
+
+	static FORCEINLINE_DEBUGGABLE void* MallocZeroed(SIZE_T Count)
+	{
+		return MallocZeroed(Count, DEFAULT_ALIGNMENT);
+	}
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 	/**
 	* For some allocators this will return the actual size that should be requested to eliminate

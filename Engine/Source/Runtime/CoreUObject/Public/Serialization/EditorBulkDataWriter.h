@@ -26,7 +26,7 @@ public:
 
 			// Clone the payload so that we have a local copy that we can
 			// append additional data to.
-			Buffer = FMemory::Malloc(CurrentDataLength, DEFAULT_ALIGNMENT);
+			Buffer = FMemory::Malloc(CurrentDataLength);
 			FMemory::Memcpy(Buffer, Payload.GetData(), CurrentDataLength);
 
 			BufferLength = CurrentDataLength;
@@ -48,7 +48,7 @@ public:
 	~FEditorBulkDataWriter()
 	{
 		// Remove the slack from the allocated bulk data
-		Buffer = FMemory::Realloc(Buffer, DataLength, DEFAULT_ALIGNMENT);
+		Buffer = FMemory::Realloc(Buffer, DataLength);
 		BulkData.UpdatePayload(FSharedBuffer::TakeOwnership(Buffer, DataLength, FMemory::Free));
 	}
 
@@ -68,7 +68,7 @@ public:
 		{
 			// If so, resize to the new size + 3/8 additional slack
 			const int64 NewLength = NewPos + 3 * NewPos / 8 + 16;
-			Buffer = FMemory::Realloc(Buffer, NewLength, DEFAULT_ALIGNMENT);
+			Buffer = FMemory::Realloc(Buffer, NewLength);
 			BufferLength = NewLength;
 		}
 
