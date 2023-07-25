@@ -61,6 +61,11 @@ EOfflineBVHMode FTargetPlatformBase::GetStaticMeshOfflineBVHMode() const
 	return EOfflineBVHMode::Disabled;
 }
 
+bool FTargetPlatformBase::GetStaticMeshOfflineBVHCompression() const
+{
+	return false;
+}
+
 bool FTargetPlatformBase::ForcesSimpleSkyDiffuse() const
 {
 	return false;

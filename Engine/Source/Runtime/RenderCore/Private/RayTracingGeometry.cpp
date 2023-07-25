@@ -60,9 +60,9 @@ void FRayTracingGeometry::CreateRayTracingGeometryFromCPUData(FRHICommandList& R
 		Initializer.OfflineData->Discard();
 		Initializer.OfflineData = nullptr;
 	}
-
-	SetRequiresBuild(Initializer.OfflineData == nullptr);
+	
 	RayTracingGeometryRHI = RHICmdList.CreateRayTracingGeometry(Initializer);
+	SetRequiresBuild(Initializer.OfflineData == nullptr || RayTracingGeometryRHI->IsCompressed());
 }
 
 void FRayTracingGeometry::CreateRayTracingGeometryFromCPUData(TResourceArray<uint8>& OfflineData)
@@ -203,6 +203,11 @@ void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandList& RHICmdList, 
 		}
 		else
 		{
+			if (RayTracingGeometryRHI && RayTracingGeometryRHI->IsCompressed())
+			{
+				RayTracingBuildRequestIndex = GRayTracingGeometryManager.RequestBuildAccelerationStructure(RHICmdList, this, InBuildPriority);
+			}
+
 			SetRequiresBuild(false);
 
 			// Offline data ownership is transferred to the RHI, which discards it after use.

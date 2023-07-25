@@ -92,6 +92,8 @@ public:
 
 	TARGETPLATFORM_API virtual EOfflineBVHMode GetStaticMeshOfflineBVHMode() const override;
 
+	TARGETPLATFORM_API virtual bool GetStaticMeshOfflineBVHCompression() const override;
+
 	TARGETPLATFORM_API virtual bool ForcesSimpleSkyDiffuse() const override;
 
 	TARGETPLATFORM_API virtual float GetDownSampleMeshDistanceFieldDivider() const override;

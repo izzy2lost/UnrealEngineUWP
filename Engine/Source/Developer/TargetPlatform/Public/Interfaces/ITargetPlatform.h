@@ -504,6 +504,11 @@ public:
 	virtual EOfflineBVHMode GetStaticMeshOfflineBVHMode() const = 0;
 
 	/**
+	* Gets whether the platform will use compression for static mesh offline BVH.
+	*/
+	virtual bool GetStaticMeshOfflineBVHCompression() const = 0;
+
+	/**
 	* Gets whether the platform will use SH2 instead of SH3 for sky irradiance.
 	*/
 	virtual bool ForcesSimpleSkyDiffuse() const = 0;
