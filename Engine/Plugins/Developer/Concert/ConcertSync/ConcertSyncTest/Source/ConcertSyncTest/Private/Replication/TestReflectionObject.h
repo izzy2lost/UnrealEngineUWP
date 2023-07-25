@@ -40,7 +40,7 @@ struct FTestReplicationStruct
 	UPROPERTY()
 	float Value{};
 	UPROPERTY()
-	FVector Vector;
+	FVector Vector = FVector::ZeroVector;
 	UPROPERTY()
 	FNativeStruct NativeStruct;
 
@@ -90,7 +90,7 @@ public:
 	float Float{};
 	
 	UPROPERTY()
-	FVector Vector;
+	FVector Vector = FVector::ZeroVector;
 
 	UPROPERTY()
 	FTestNestedReplicationStruct TestStruct;

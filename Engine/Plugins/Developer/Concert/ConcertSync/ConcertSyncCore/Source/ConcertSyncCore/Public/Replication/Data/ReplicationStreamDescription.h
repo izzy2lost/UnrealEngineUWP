@@ -16,7 +16,7 @@ struct FSharedReplicationStreamDescription
 	
 	/** Unique id for this stream. */
 	UPROPERTY()
-	FGuid Identifier = FGuid::NewGuid();
+	FGuid Identifier;
 
 	/** Identifies the data that this stream will send. */
 	UPROPERTY()
