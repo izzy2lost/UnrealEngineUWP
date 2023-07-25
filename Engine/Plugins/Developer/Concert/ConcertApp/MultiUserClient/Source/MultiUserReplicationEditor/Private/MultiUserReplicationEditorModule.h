@@ -26,7 +26,6 @@ namespace UE::MultiUserReplicationEditor
 
 		FAssetCategoryPath MultiUserReplicationCategory;
 
-		void UpdateSettingsRegistrationBasedOnCVar();
 		void RegisterSettings();
 		void UnregisterSettings();
 	};

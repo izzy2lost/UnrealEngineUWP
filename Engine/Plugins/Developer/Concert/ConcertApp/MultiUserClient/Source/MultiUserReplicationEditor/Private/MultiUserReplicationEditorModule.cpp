@@ -3,7 +3,6 @@
 #include "MultiUserReplicationEditorModule.h"
 
 #include "ConcertSyncSessionFlags.h"
-#include "CVarMultiUserReplicationEditor.h"
 #include "IMultiUserClientModule.h"
 
 #include "ISettingsModule.h"
@@ -22,45 +21,35 @@ namespace UE::MultiUserReplicationEditor
 	void FMultiUserReplicationEditorModule::StartupModule()
 	{
 		FMultiUserReplicationEditorStyle::Initialize();
-
-		UpdateSettingsRegistrationBasedOnCVar();
-		ConsoleVariables::CVarEnableReplication->OnChangedDelegate().AddLambda([this](IConsoleVariable*)
-		{
-			UpdateSettingsRegistrationBasedOnCVar();
-		});
+		RegisterSettings();
 	}
 
 	void FMultiUserReplicationEditorModule::ShutdownModule()
 	{
 		FMultiUserReplicationEditorStyle::Shutdown();
-	}
-
-	void FMultiUserReplicationEditorModule::UpdateSettingsRegistrationBasedOnCVar()
-	{
-		if (ConsoleVariables::CVarEnableReplication.GetValueOnAnyThread())
-		{
-			RegisterSettings();
-		}
-		else
-		{
-			UnregisterSettings();
-		}
+		UnregisterSettings();
 	}
 
 	void FMultiUserReplicationEditorModule::RegisterSettings()
 	{
 		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
-		SettingsModule->RegisterSettings("Project", "Plugins", "Multi-User Replication",
-			LOCTEXT("MultiUserReplicationSettingsName", "Multi-User Replication"),
-			LOCTEXT("MultiUserReplicationSettingsDescription", "Configure the Multi-User Replication settings."),
-			UMultiUserReplicationSettings::Get()
-		);
+		if (ensure(SettingsModule))
+		{
+			SettingsModule->RegisterSettings("Project", "Plugins", "Multi-User Replication",
+				LOCTEXT("MultiUserReplicationSettingsName", "Multi-User Replication"),
+				LOCTEXT("MultiUserReplicationSettingsDescription", "Configure the Multi-User Replication settings."),
+				UMultiUserReplicationSettings::Get()
+			);
+		}
 	}
 
 	void FMultiUserReplicationEditorModule::UnregisterSettings()
 	{
 		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
-		SettingsModule->UnregisterSettings("Project", "Plugins", "Multi-User Replication");
+		if (SettingsModule)
+		{
+			SettingsModule->UnregisterSettings("Project", "Plugins", "Multi-User Replication");
+		}
 	}
 };
 

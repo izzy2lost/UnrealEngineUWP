@@ -2,7 +2,6 @@
 
 #include "ReplicationStreamAssetFactory.h"
 
-#include "CVarMultiUserReplicationEditor.h"
 #include "MultiUserReplicationStreamAsset.h"
 
 #define LOCTEXT_NAMESPACE "ReplicationStreamAssetFactory"
@@ -17,7 +16,7 @@ UReplicationStreamAssetFactory::UReplicationStreamAssetFactory(const FObjectInit
 
 bool UReplicationStreamAssetFactory::CanCreateNew() const
 {
-	return UE::MultiUserReplicationEditor::ConsoleVariables::CVarEnableReplication.GetValueOnAnyThread();;
+	return true;
 }
 
 FText UReplicationStreamAssetFactory::GetDisplayName() const

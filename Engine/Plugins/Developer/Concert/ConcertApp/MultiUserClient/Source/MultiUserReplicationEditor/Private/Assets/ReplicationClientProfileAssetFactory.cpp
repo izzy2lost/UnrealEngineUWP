@@ -2,7 +2,6 @@
 
 #include "ReplicationClientProfileAssetFactory.h"
 
-#include "CVarMultiUserReplicationEditor.h"
 #include "MultiUserReplicationClientProfileAsset.h"
 
 #define LOCTEXT_NAMESPACE "UReplicationClientProfileAssetFactory"
@@ -17,7 +16,7 @@ UReplicationClientProfileAssetFactory::UReplicationClientProfileAssetFactory(con
 
 bool UReplicationClientProfileAssetFactory::CanCreateNew() const
 {
-	return UE::MultiUserReplicationEditor::ConsoleVariables::CVarEnableReplication.GetValueOnAnyThread();
+	return true;
 }
 
 FText UReplicationClientProfileAssetFactory::GetDisplayName() const
