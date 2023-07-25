@@ -1104,6 +1104,15 @@ bool CompileAndProcessD3DShaderFXC(const FShaderPreprocessOutput& PreprocessOutp
 	return bSuccess;
 }
 
+inline bool ShouldUseDXC(const FShaderCompilerInput& Input, ELanguage Language)
+{
+	return Language == ELanguage::SM6
+		|| Input.IsRayTracingShader()
+		|| Input.Environment.CompilerFlags.Contains(CFLAG_WaveOperations)
+		|| Input.Environment.CompilerFlags.Contains(CFLAG_ForceDXC)
+		|| Input.Environment.CompilerFlags.Contains(CFLAG_InlineRayTracing);
+}
+
 bool PreprocessD3DShader(
 	const FShaderCompilerInput& Input,
 	const FShaderCompilerEnvironment& Environment,
@@ -1126,7 +1135,7 @@ bool PreprocessD3DShader(
 	}
 
 	FString& PreprocessedSource = Output.EditSource();
-	const bool bUseDXC = !Input.CanCompileWithLegacyFxc();
+	const bool bUseDXC = ShouldUseDXC(Input, Language);
 
 
 	// Set additional defines.
@@ -1207,7 +1216,7 @@ void CompileD3DShader(const FShaderCompilerInput& Input, const FShaderPreprocess
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(CompileD3DShader);
 
-	const bool bUseDXC = !Input.CanCompileWithLegacyFxc(); 
+	const bool bUseDXC = ShouldUseDXC(Input, Language);
 	const TCHAR* ShaderProfile = GetShaderProfileName(Language, Input.Target.Frequency, bUseDXC);
 
 	if(!ShaderProfile)
