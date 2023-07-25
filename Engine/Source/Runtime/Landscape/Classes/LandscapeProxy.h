@@ -824,6 +824,22 @@ public:
 	UPROPERTY(EditAnywhere, Category = Landscape, AdvancedDisplay, meta = (LandscapeInherited))
 	bool bUseCompressedHeightmapStorage = false;
 
+	/** Strip Physics/collision components when cooked for client */
+	UPROPERTY(EditAnywhere, Category = Landscape, AdvancedDisplay, meta = (LandscapeOverridable))
+	bool bStripPhysicsWhenCookedClient = false;
+
+	/** Strip Physics/collision components when cooked for server */
+	UPROPERTY(EditAnywhere, Category = Landscape, AdvancedDisplay, meta = (LandscapeOverridable))
+	bool bStripPhysicsWhenCookedServer = false;
+
+	/** Strip Grass data when cooked for client */
+	UPROPERTY(EditAnywhere, Category = Landscape, AdvancedDisplay, meta = (LandscapeOverridable))
+	bool bStripGrassWhenCookedClient = false;
+
+	/** Strip Grass data when cooked for server */
+	UPROPERTY(EditAnywhere, Category = Landscape, AdvancedDisplay, meta = (LandscapeOverridable))
+	bool bStripGrassWhenCookedServer = false;
+
 #if WITH_EDITOR
 	LANDSCAPE_API static ULandscapeLayerInfoObject* VisibilityLayer;
 
