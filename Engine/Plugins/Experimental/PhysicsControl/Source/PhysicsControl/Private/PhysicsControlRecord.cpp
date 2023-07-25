@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PhysicsControlRecord.h"
-#include "PhysicsControlComponentLog.h"
+#include "PhysicsControlLog.h"
 #include "PhysicsControlComponentHelpers.h"
 
 #include "PhysicsEngine/ConstraintInstance.h"

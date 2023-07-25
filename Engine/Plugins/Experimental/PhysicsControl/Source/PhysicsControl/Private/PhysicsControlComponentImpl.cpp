@@ -2,7 +2,7 @@
 
 #include "PhysicsControlComponentImpl.h"
 #include "Engine/SkeletalMesh.h"
-#include "PhysicsControlComponentLog.h"
+#include "PhysicsControlLog.h"
 #include "PhysicsControlComponent.h"
 #include "PhysicsControlComponentHelpers.h"
 
