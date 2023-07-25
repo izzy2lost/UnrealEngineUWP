@@ -69,7 +69,6 @@ RWTexture2DArray<tsr_half4> ReprojectedHistoryMoireOutput;
 RWTexture2D<float2> HoleFilledVelocityOutput;
 RWTexture2D<tsr_half2> HoleFilledVelocityMaskOutput;
 RWTexture2D<tsr_half> ParallaxRejectionMaskOutput;
-RWTexture2D<tsr_half> HistoryResurrectionMaskOutput;
 
 
 //------------------------------------------------------- DEBUG

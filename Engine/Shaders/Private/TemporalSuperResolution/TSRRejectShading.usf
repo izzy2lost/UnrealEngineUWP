@@ -25,6 +25,8 @@
 /** Whether to detect flickering. */
 #define CONFIG_MOIRE_DETECTION (DIM_FLICKERING_DETECTION)
 
+#define CONFIG_HISTORY_RESURRECTION (DIM_HISTORY_RESURRECTION)
+
 #define CONFIG_MANUAL_LDS_SPILL 0
 
 
@@ -94,7 +96,10 @@
 #define tsr_simd_half  TLaneVector2D<tsr_half, 1, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_simd_half4 TLaneVector2D<tsr_half, 4, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_simd_halfC TLaneVector2D<tsr_half, CONFIG_CHANNEL_COUNT, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_simd_ushort  TLaneVector2D<tsr_ushort, 1, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_simd_bool  TLaneVector2D<bool, 1, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_simd_bool4   TLaneVector2D<bool, 4, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_simd_boolC   TLaneVector2D<bool, CONFIG_CHANNEL_COUNT, LANE_STRIDE_X, LANE_STRIDE_Y>
 
 #ifndef PLATFORM_SPECIFIC_ISOLATE
 	#define PLATFORM_SPECIFIC_ISOLATE ISOLATE
@@ -118,12 +123,14 @@ Texture2D<tsr_half>  InputMoireLumaTexture;
 Texture2D<tsr_half4> InputSceneTranslucencyTexture;
 Texture2D<tsr_halfC> ReprojectedHistoryGuideTexture;
 Texture2D<tsr_half4> ReprojectedHistoryMoireTexture;
+Texture2D<tsr_halfC> ResurrectedHistoryGuideTexture;
 Texture2D<tsr_half> ParallaxRejectionMaskTexture;
 Texture2D<tsr_ushort> IsMovingMaskTexture;
 
 RWTexture2D<tsr_half4> HistoryGuideOutput;
 RWTexture2D<tsr_half4> HistoryMoireOutput;
 RWTexture2D<tsr_half2> HistoryRejectionOutput;
+RWTexture2D<tsr_half>  HistoryResurrectionMaskOutput;
 RWTexture2D<tsr_halfC> InputSceneColorOutput;
 RWTexture2D<tsr_half> InputSceneColorLdrLumaOutput;
 
@@ -134,6 +141,18 @@ static tsr_simd_halfC Debug[DEBUG_ARRAY_SIZE];
 
 
 //------------------------------------------------------- GENERAL OPERATIONS
+
+CALL_SITE_DEBUGLOC
+tsr_simd_halfC ChangePerceptionAdd(tsr_simd_halfC SrcColor, const float SourcePerceptionAdd, const float DestPerceptionAdd)
+{
+	SrcColor = SrcColor * rcp(tsr_simd_halfC::Const(tsr_half(SourcePerceptionAdd)) - SrcColor);
+	SrcColor = SrcColor * rcp(SrcColor + tsr_simd_halfC::Const(tsr_half(DestPerceptionAdd)));
+
+	return SrcColor;
+}
+
+
+//------------------------------------------------------- MAIN ALGORITHMS
 
 void ComputeMoireError(
 	tsr_simd_bool  bIsValid,
@@ -305,8 +324,8 @@ void ComputeMoireError(
 template<bool ApplyMoireError>
 void MeasureRejection(
 	tsr_simd_bool  bIsValid,
-	tsr_simd_halfC OriginalInput,
-	tsr_simd_halfC OriginalHistory,
+	tsr_simd_halfC ExposedInput,
+	tsr_simd_halfC ExposedHistory,
 	tsr_simd_half  MoireError,
 	out tsr_simd_half OutRejectionBlendFinal,
 	out tsr_simd_half OutRejectionClampBlend)
@@ -314,20 +333,9 @@ void MeasureRejection(
 	const tsr_half FilteringWeight = rcp(tsr_half(1.0 + 4 * 0.5 + 4 * 0.25));
 	tsr_simd_halfC BackbufferQuantizationErrorVector = tsr_simd_halfC::Const(MeasureBackbufferLDRQuantizationError());
 		
-	// Convert input to LDR
-	tsr_simd_halfC ExposedInput = OriginalInput * rcp(OriginalInput + tsr_simd_halfC::Const(tsr_half(PerceptionAdd)));
-	
-	// Change the exposure of history for the shading rejection
-	tsr_simd_halfC ExposedHistory = OriginalHistory;
-	{
-		ExposedHistory = ExposedHistory * rcp(tsr_simd_halfC::Const(1.0) - ExposedHistory);
-		ExposedHistory = ExposedHistory * rcp(ExposedHistory + tsr_simd_halfC::Const(tsr_half(PerceptionAdd)));
-	}
+	tsr_simd_halfC ClampedInput, ClampedHistory;
+	AnnihilateMutually3x3(ExposedInput, ExposedHistory, /* out */ ClampedInput, /* out */ ClampedHistory);
 
-	// Mutual Annihilation
-	tsr_simd_halfC ClampedInput   = AnnihilateToGuide3x3(ExposedInput  , /* Guide = */ ExposedHistory);
-	tsr_simd_halfC ClampedHistory = AnnihilateToGuide3x3(ExposedHistory, /* Guide = */ ExposedInput);
-		
 	// Filter clamped input and history to increase quantization of the rejection detection
 	tsr_simd_halfC FilteredInput   = Blur3x3(ClampedInput);
 	tsr_simd_halfC FilteredHistory = Blur3x3(ClampedHistory);
@@ -445,6 +453,9 @@ void MainCS(
 		tsr_simd_half4 PrevMoireHistory;
 		tsr_simd_half bIsStatic;
 	#endif
+	#if CONFIG_HISTORY_RESURRECTION
+		tsr_simd_halfC OriginalResurrectedHistory;
+	#endif
 	PLATFORM_SPECIFIC_ISOLATE
 	{
 		UNROLL_N(SIMD_SIZE)
@@ -472,6 +483,9 @@ void MainCS(
 				MoireInput.SetElement(SimdIndex, InputMoireLumaTexture[ClampedFetchPixelPos]);
 				PrevMoireHistory.SetElement(SimdIndex, ReprojectedHistoryMoireTexture[ClampedFetchPixelPos]);
 				bIsStatic.SetElement(SimdIndex, tsr_half(1.0) - tsr_half(IsMovingMaskTexture[ClampedFetchPixelPos]) * rcp(tsr_half(255.0)));
+			#endif
+			#if CONFIG_HISTORY_RESURRECTION
+				OriginalResurrectedHistory.SetElement(SimdIndex, ResurrectedHistoryGuideTexture[ClampedFetchPixelPos]);
 			#endif
 		}
 	}
@@ -515,10 +529,7 @@ void MainCS(
 					InputInfo_ViewportMax,
 					GroupId,
 					GroupThreadIndex,
-					SimdIndex,
-					/* OutputDataOffset = */ int2(0, 0),
-					/* OutputResDivisor = */ 1,
-					/* bDebugDisablePadding = */ DEBUG_DISABLE_PADDING != 0);
+					SimdIndex);
 		
 				InputSceneColorOutput[OutputPixelPos] = CenterFinalSceneColor.GetElement(SimdIndex);
 				InputSceneColorLdrLumaOutput[OutputPixelPos] = CenterLumaLDR.GetElement(SimdIndex);
@@ -581,10 +592,7 @@ void MainCS(
 				InputInfo_ViewportMax,
 				GroupId,
 				GroupThreadIndex,
-				SimdIndex,
-				/* OutputDataOffset = */ int2(0, 0),
-				/* OutputResDivisor = */ 1,
-				/* bDebugDisablePadding = */ DEBUG_DISABLE_PADDING != 0);
+				SimdIndex);
 
 			#if CONFIG_MOIRE_DETECTION
 				HistoryMoireOutput[OutputPixelPos] = MoireHistory.GetElement(SimdIndex);
@@ -595,18 +603,72 @@ void MainCS(
 	// Measure rejection
 	tsr_simd_half RejectionBlendFinal = tsr_simd_half::Const(1.0);
 	tsr_simd_half RejectionClampBlend = tsr_simd_half::Const(1.0);
-	MeasureRejection</* ApplyMoireError = */ CONFIG_MOIRE_DETECTION != 0>(
-		bIsValid,
-		OriginalInput,
-		OriginalHistory,
-		MoireError,
-		/* out */ RejectionBlendFinal,
-		/* out */ RejectionClampBlend);
+	#if CONFIG_HISTORY_RESURRECTION
+		tsr_simd_bool bResurrectHistory = tsr_simd_bool::Const(false);
+	#endif
+	{
+		// Convert input to LDR
+		tsr_simd_halfC ExposedInput = OriginalInput * rcp(OriginalInput + tsr_simd_halfC::Const(tsr_half(PerceptionAdd)));
 	
+		// Change the exposure of history for the shading rejection
+		tsr_simd_halfC ExposedHistory = ChangePerceptionAdd(
+			OriginalHistory,
+			/* SourcePerceptionAdd = */ 1.0,
+			/* DestPerceptionAdd   = */ PerceptionAdd);
+			
+		MeasureRejection</* ApplyMoireError = */ CONFIG_MOIRE_DETECTION != 0>(
+			bIsValid,
+			ExposedInput,
+			ExposedHistory,
+			MoireError,
+			/* out */ RejectionBlendFinal,
+			/* out */ RejectionClampBlend);
+	
+		#if CONFIG_HISTORY_RESURRECTION
+		{
+			tsr_simd_halfC ExposedResurrectedHistory = ChangePerceptionAdd(
+				OriginalResurrectedHistory,
+				/* SourcePerceptionAdd = */ 1.0,
+				/* DestPerceptionAdd   = */ PerceptionAdd);
+				
+			tsr_simd_halfC PrevMatch         = abs(ExposedInput - ExposedHistory);
+			tsr_simd_halfC ResurrectionMatch = abs(ExposedInput - ExposedResurrectedHistory);
+
+			tsr_simd_halfC MatchDiff = PrevMatch - ResurrectionMatch;
+			tsr_simd_half TotalMatchDiff = BlurEven3x3(MatchDiff[0] + MatchDiff[1] + MatchDiff[2]);
+
+			tsr_simd_bool bResurrectionIsCloser = MedianBool3x3(TotalMatchDiff > tsr_simd_half::Const(tsr_half(0.05 * 3.0)));
+			tsr_simd_bool bPrevIsNotGoodEnough = RejectionBlendFinal < tsr_simd_half::Const(0.5);
+			tsr_simd_bool bIsValidTilePixel = IsValidTilePixel<LANE_STRIDE_X, LANE_STRIDE_Y>(TileOverscan);
+			tsr_simd_bool bShouldComputeResurrection = and(and(bResurrectionIsCloser, bPrevIsNotGoodEnough), bIsValidTilePixel);
+
+			bool bComputeResurrection = AnyThread(AnyComponent(bShouldComputeResurrection));
+			BRANCH
+			if (bComputeResurrection)
+			{
+				tsr_simd_half ResurrectionRejectionBlendFinal = tsr_simd_half::Const(1.0);
+				tsr_simd_half ResurrectionRejectionClampBlend = tsr_simd_half::Const(1.0);
+				MeasureRejection</* ApplyMoireError = */ false>(
+					bIsValid,
+					ExposedInput,
+					ExposedResurrectedHistory,
+					/* MoireError = */ tsr_simd_half::Const(0.0),
+					/* out */ ResurrectionRejectionBlendFinal,
+					/* out */ ResurrectionRejectionClampBlend);
+			
+				tsr_simd_bool bResurrectionIsBetter = (ResurrectionRejectionBlendFinal - RejectionBlendFinal) > tsr_simd_half::Const(0.1);
+				bResurrectHistory = and(bResurrectionIsCloser, bResurrectionIsBetter);
+				
+				RejectionBlendFinal = select(bResurrectHistory, ResurrectionRejectionBlendFinal, RejectionBlendFinal);
+				RejectionClampBlend = select(bResurrectHistory, ResurrectionRejectionClampBlend, RejectionClampBlend);
+			}
+		}
+		#endif
+	}
+
 	// Update the guide for next frame.
 	tsr_simd_halfC FinalGuide;
 	{
-		
 		// Convert input to LDR
 		tsr_simd_halfC ExposedInput = OriginalInput * rcp(OriginalInput + tsr_simd_halfC::Const(tsr_half(1.0)));
 	
@@ -627,11 +689,15 @@ void MainCS(
 			BlendFinal.SetElement(SimdIndex, max(RejectedBlendFactor, TotalBlend));
 		}
 		
+		#if CONFIG_HISTORY_RESURRECTION
+			OriginalHistory = select(tsr_simd_boolC::Vectorize(bResurrectHistory), OriginalResurrectedHistory, OriginalHistory);
+		#endif
+
 		FinalGuide = ExposedInput * tsr_simd_halfC::Vectorize(BlendFinal) - OriginalHistory * tsr_simd_halfC::Vectorize(BlendFinal - 1.0);
 	}
 
 	// Mark the top left corner of the tile for debugging purposes.
-	#if DEBUG_OUTPUT
+	#if DEBUG_OUTPUT && DEBUG_DISABLE_PADDING == 2
 	if (GGroupThreadIndex == 0)
 	{
 		UNROLL_N(DEBUG_ARRAY_SIZE)
@@ -656,10 +722,7 @@ void MainCS(
 				InputInfo_ViewportMax,
 				GroupId,
 				GroupThreadIndex,
-				SimdIndex,
-				/* OutputDataOffset = */ int2(0, 0),
-				/* OutputResDivisor = */ 1,
-				/* bDebugDisablePadding = */ DEBUG_DISABLE_PADDING != 0);
+				SimdIndex);
 
 			tsr_half LocalRejectionBlendFinal = RejectionBlendFinal.GetElement(SimdIndex);
 			tsr_half LocalRejectionClampBlend = RejectionClampBlend.GetElement(SimdIndex);
@@ -683,13 +746,33 @@ void MainCS(
 			#endif
 			HistoryRejectionOutput[OutputPixelPos] = tsr_half2(LocalRejectionBlendFinal, LocalRejectionClampBlend);
 			
-			#if DEBUG_OUTPUT
+			#if CONFIG_HISTORY_RESURRECTION
+				HistoryResurrectionMaskOutput[OutputPixelPos] = select(bResurrectHistory.GetElement(SimdIndex), tsr_half(1.0), tsr_half(0.0));
+			#endif
+		}
+		
+		#if DEBUG_OUTPUT
+		UNROLL_N(SIMD_SIZE)
+		for (uint SimdIndex = 0; SimdIndex < SIMD_SIZE; SimdIndex++)
+		{
+			const tsr_short2 OutputPixelPos = ComputeElementOutputPixelPos(
+				/* LaneStride = */ uint2(LANE_STRIDE_X, LANE_STRIDE_Y),
+				TileOverscan,
+				InputInfo_ViewportMin,
+				InputInfo_ViewportMax,
+				GroupId,
+				GroupThreadIndex,
+				SimdIndex,
+				/* OutputDataOffset = */ int2(0, 0),
+				/* OutputResDivisor = */ 1,
+				/* bDebugDisablePadding = */ DEBUG_DISABLE_PADDING != 0);
+
 			UNROLL_N(DEBUG_ARRAY_SIZE)
 			for (uint DebugId = 0; DebugId < DEBUG_ARRAY_SIZE; DebugId++)
 			{
 				DebugOutput[tsr_short3(OutputPixelPos, DebugId)] = float4(Debug[DebugId].GetElement(SimdIndex), 0.0);
 			}
-			#endif
 		}
+		#endif
 	}
 }

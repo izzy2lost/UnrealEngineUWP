@@ -1015,3 +1015,15 @@ TVECTOR_FUNCTION_3PARAMS(max3, ScalarType);
 #if COMPILER_SUPPORTS_MED3
 	TVECTOR_FUNCTION_3PARAMS(med3, ScalarType);
 #endif
+
+
+// ------------- AnyElement & AllElement
+
+CALL_SITE_DEBUGLOC
+template<uint VectorSize, uint SimdSizeX, uint SimdSizeY>
+bool AnyComponent(TLaneVector2D<bool, VectorSize, SimdSizeX, SimdSizeY> A)
+{
+	bool R = any(A.GetElement(0));
+	UNROLL for (uint SimdIndex = 1; SimdIndex < SimdSizeX * SimdSizeY; SimdIndex++) { R = R || any(A.GetElement(SimdIndex)); }
+	return R;
+}

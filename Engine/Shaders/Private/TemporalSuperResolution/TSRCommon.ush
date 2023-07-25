@@ -178,6 +178,10 @@ static const uint kPlusIndexes3x3[5] = { 4, 1, 3, 7, 5 };
 	#define tsr_ushort2x2 uint16_t2x2
 	#define tsr_ushort3x2 uint16_t3x2
 	#define tsr_ushort4x2 uint16_t4x2
+	
+	#define as_tsr_short(x)  asint16(x)
+	#define as_tsr_ushort(x) asuint16(x)
+	#define as_tsr_half(x)   asfloat16(x)
 
 #else
 	#define tsr_half  float
@@ -206,6 +210,10 @@ static const uint kPlusIndexes3x3[5] = { 4, 1, 3, 7, 5 };
 	#define tsr_ushort2x2 uint2x2
 	#define tsr_ushort3x2 uint3x2
 	#define tsr_ushort4x2 uint4x2
+	
+	#define as_tsr_short(x)  asint(x)
+	#define as_tsr_ushort(x) asuint(x)
+	#define as_tsr_half(x)   asfloat(x)
 
 #endif
 

@@ -167,46 +167,248 @@ tsr_short2 ComputeElementOutputPixelPos(
 }
 
 
+//------------------------------------------------------- PADDING
+
+CALL_SITE_DEBUGLOC
+template<uint LaneStrideX, uint LaneStrideY>
+TLaneVector2D<bool, 1, LaneStrideX, LaneStrideY> IsValidTilePixel(const uint2 TileOverscan)
+{
+	const uint2 TileSize = uint2(LaneStrideX * WAVE_COUNT_X * LANE_COUNT_X, LaneStrideY * WAVE_COUNT_Y * LANE_COUNT_Y);
+
+	TLaneVector2D<bool, 1, LaneStrideX, LaneStrideY> bIsValidTilePixel;
+
+	UNROLL
+	for (uint ElementIndex = 0; ElementIndex < LaneStrideX * LaneStrideY; ElementIndex++)
+	{
+		tsr_short2 PixelOffsetInTile = GetElementPixelOffsetInTile(
+			LaneStrideX,
+			LaneStrideY,
+			GGroupThreadIndex,
+			ElementIndex);
+			
+		bool2 bIsNotPadding = and(
+			PixelOffsetInTile >= tsr_short2(TileOverscan),
+			PixelOffsetInTile <  tsr_short2(TileSize - TileOverscan));
+
+		bIsValidTilePixel.SetElement(ElementIndex, all(bIsNotPadding));
+	}
+
+	return bIsValidTilePixel;
+}
+
+
 //------------------------------------------------------- GROUP SHARED COMMUNICATION
 
 #if defined(LDS_SIZE)
 
-groupshared tsr_half4 SharedData[LDS_SIZE];
+#if CONFIG_COMPILE_FP16
+
+groupshared uint2 SharedData[LDS_SIZE];
+
+void IncrementAtomic(const uint SharedIndex, uint Value)
+{
+	return InterlockedAdd(/* inout */ SharedData[SharedIndex].x, Value);
+}
+
+void WriteAtomic(const uint SharedIndex, uint X)
+{
+	SharedData[SharedIndex].x = X;
+}
+
+uint ReadAtomic(const uint SharedIndex)
+{
+	return SharedData[SharedIndex].x;
+}
+
+#if COMPILER_SUPPORT_UINT16_BITCAST
+
+void WriteElementToLDS(const uint SharedIndex, tsr_ushort4 X)
+{
+	SharedData[SharedIndex] = uint2(
+		bit_cast_uint(X.xy),
+		bit_cast_uint(X.zw));
+}
+
+void ReadElementFromLDS(const uint SharedIndex, out tsr_ushort4 X)
+{
+	uint2 RX = SharedData[SharedIndex];
+	X.xy = bit_cast_uint16_t2(RX.x);
+	X.zw = bit_cast_uint16_t2(RX.y);
+}
+
+#else
+
+void WriteElementToLDS(const uint SharedIndex, tsr_ushort4 X)
+{
+	SharedData[SharedIndex] = uint2(
+		uint(X.x) | (uint(X.y) << 16),
+		uint(X.z) | (uint(X.w) << 16));
+}
+
+void ReadElementFromLDS(const uint SharedIndex, out tsr_ushort4 X)
+{
+	uint2 RX = SharedData[SharedIndex];
+	X.x = tsr_ushort((RX.x >>  0u) & 0xFFFFu);
+	X.y = tsr_ushort((RX.x >> 16u) & 0xFFFFu);
+	X.z = tsr_ushort((RX.y >>  0u) & 0xFFFFu);
+	X.w = tsr_ushort((RX.y >> 16u) & 0xFFFFu);
+}
+
+#endif
+
+#else
+
+groupshared uint4 SharedData[LDS_SIZE];
+
+void IncrementAtomic(const uint SharedIndex, uint Value)
+{
+	return InterlockedAdd(/* inout */ SharedData[SharedIndex].x, Value);
+}
+
+void WriteAtomic(const uint SharedIndex, uint X)
+{
+	SharedData[SharedIndex].x = X;
+}
+
+uint ReadAtomic(const uint SharedIndex)
+{
+	return SharedData[SharedIndex].x;
+}
+
+void WriteElementToLDS(const uint SharedIndex, tsr_ushort4 X)
+{
+	SharedData[SharedIndex] = uint4(X);
+}
+
+void ReadElementFromLDS(const uint SharedIndex, out tsr_ushort4 X)
+{
+	X = tsr_ushort4(SharedData[SharedIndex].xyzw);
+}
+
+#endif
+
+
+
+void WriteElementToLDS(const uint SharedIndex, tsr_ushort X)
+{
+	WriteElementToLDS(SharedIndex, tsr_ushort4(X, 0.0, 0.0, 0.0));
+}
+
+void WriteElementToLDS(const uint SharedIndex, tsr_ushort3 X)
+{
+	WriteElementToLDS(SharedIndex, tsr_ushort4(X, 0.0));
+}
 
 void WriteElementToLDS(const uint SharedIndex, tsr_half X)
 {
-	SharedData[SharedIndex] = tsr_half4(X, 0.0, 0.0, 0.0);
+	WriteElementToLDS(SharedIndex, as_tsr_ushort(X));
 }
 
 void WriteElementToLDS(const uint SharedIndex, tsr_half3 X)
 {
-	SharedData[SharedIndex] = tsr_half4(X, 0.0);
+	WriteElementToLDS(SharedIndex, tsr_ushort3(as_tsr_ushort(X.x), as_tsr_ushort(X.y), as_tsr_ushort(X.z)));
 }
 
 void WriteElementToLDS(const uint SharedIndex, tsr_half4 X)
 {
-	SharedData[SharedIndex] = tsr_half4(X);
+	WriteElementToLDS(SharedIndex, tsr_ushort4(as_tsr_ushort(X.x), as_tsr_ushort(X.y), as_tsr_ushort(X.z), as_tsr_ushort(X.w)));
+}
+
+void ReadElementFromLDS(const uint SharedIndex, out tsr_ushort X)
+{
+	tsr_ushort4 UX;
+	ReadElementFromLDS(SharedIndex, /* out */ UX);
+	X = UX.x;
+}
+
+void ReadElementFromLDS(const uint SharedIndex, out tsr_ushort3 X)
+{
+	tsr_ushort4 UX;
+	ReadElementFromLDS(SharedIndex, /* out */ UX);
+	X = UX.xyz;
 }
 
 void ReadElementFromLDS(const uint SharedIndex, out tsr_half X)
 {
-	X = SharedData[SharedIndex].x;
+	tsr_ushort4 UX;
+	ReadElementFromLDS(SharedIndex, /* out */ UX);
+	X = as_tsr_half(UX.x);
 }
 
 void ReadElementFromLDS(const uint SharedIndex, out tsr_half3 X)
 {
-	X = SharedData[SharedIndex].xyz;
+	tsr_ushort4 UX;
+	ReadElementFromLDS(SharedIndex, /* out */ UX);
+	X.x = as_tsr_half(UX.x);
+	X.y = as_tsr_half(UX.y);
+	X.z = as_tsr_half(UX.z);
 }
 
 void ReadElementFromLDS(const uint SharedIndex, out tsr_half4 X)
 {
-	X = SharedData[SharedIndex].xyzw;
+	tsr_ushort4 UX;
+	ReadElementFromLDS(SharedIndex, /* out */ UX);
+	X.x = as_tsr_half(UX.x);
+	X.y = as_tsr_half(UX.y);
+	X.z = as_tsr_half(UX.z);
+	X.w = as_tsr_half(UX.w);
 }
 
 #endif // defined(LDS_SIZE)
 
 
-//------------------------------------------------------- FUNCTIONS
+//------------------------------------------------------- VOTE
+
+CALL_SITE_DEBUGLOC
+bool AnyThread(bool X)
+#if !COMPILER_SUPPORTS_WAVE_VOTE
+{
+	GroupMemoryBarrierWithGroupSync();
+	
+	if (GGroupThreadIndex == 0)
+	{
+		WriteAtomic(/* SharedIndex = */ 0, 0);
+	}
+
+	GroupMemoryBarrierWithGroupSync();
+	
+	IncrementAtomic(/* SharedIndex = */ 0, uint(X));
+	
+	GroupMemoryBarrierWithGroupSync();
+	
+	return ReadAtomic(/* SharedIndex = */ 0) > 0;
+}
+#elif WAVE_COUNT_X == 1 && WAVE_COUNT_Y == 1
+{
+	return WaveActiveAnyTrue(X);
+}
+#elif COMPILER_SUPPORTS_WAVE_VOTE
+{
+	const uint kLaneCount = WaveGetLaneCount();
+	const uint kThreadCount = LANE_COUNT_X * LANE_COUNT_Y * WAVE_COUNT_X * WAVE_COUNT_Y;
+	const uint kWaveCount = kThreadCount / kLaneCount;
+
+	bool AnyX = WaveActiveAnyTrue(X);
+
+	GroupMemoryBarrierWithGroupSync();
+
+	if (WaveIsFirstLane())
+	{
+		WriteElementToLDS(GGroupThreadIndex / kLaneCount, tsr_ushort(AnyX));
+	}
+		
+	GroupMemoryBarrierWithGroupSync();
+		
+	tsr_ushort WaveX;
+	ReadElementFromLDS(GGroupThreadIndex % kWaveCount, /* out */ WaveX);
+	//WaveX = select(WaveGetLaneIndex() < kWaveCount, WaveX, 0);
+
+	return WaveActiveAnyTrue(WaveX != 0);
+}
+#endif
+
+
+//------------------------------------------------------- ACCESS NEIGHBOR
 
 #if WAVE_COUNT_X == 1 || WAVE_COUNT_Y == 1
 
@@ -422,6 +624,13 @@ TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Blur3x3(TLaneVec
 
 CALL_SITE_DEBUGLOC
 template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
+TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> BlurEven3x3(TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Center)
+{
+	return WeightedAvg3x3(Center, /* NormalizedWeights = */ float3(0.3333, 0.3333, 0.3333));
+}
+
+CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
 TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Sharpen3x3(TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Center)
 {
 	return WeightedAvg3x3(Center, /* NormalizedWeights = */ float3(-0.25, 1.5, -0.25));
@@ -553,6 +762,18 @@ TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> AnnihilateToGuid
 	return Clamp3x3(ToClamp, Clamp3x3(Guide, ToClamp));
 }
 
+CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
+void AnnihilateMutually3x3(
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Input,
+	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> History,
+	out TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> AnnihilatedInput,
+	out TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> AnnihilatedHistory)
+{
+	AnnihilatedInput   = AnnihilateToGuide3x3(Input  , /* Guide = */ History);
+	AnnihilatedHistory = AnnihilateToGuide3x3(History, /* Guide = */ Input);
+}
+
 
 //------------------------------------------------------- MEDIAN 3x3 CONVOLUTION
 
@@ -630,6 +851,21 @@ TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Median3x3(TLaneV
 	
 	// Third layer.
 	return Median(M1[0], M1[1], M1[2]);
+}
+
+CALL_SITE_DEBUGLOC
+template<uint VectorSize, uint LaneStrideX, uint LaneStrideY>
+TLaneVector2D<bool, VectorSize, LaneStrideX, LaneStrideY> MedianBool3x3(TLaneVector2D<bool, VectorSize, LaneStrideX, LaneStrideY> Center)
+{
+	TLaneVector2D<tsr_half, VectorSize, LaneStrideX, LaneStrideY> Zero = TLaneVector2D<tsr_half, VectorSize, LaneStrideX, LaneStrideY>::Const(tsr_half(0.0));
+	TLaneVector2D<tsr_half, VectorSize, LaneStrideX, LaneStrideY> One = TLaneVector2D<tsr_half, VectorSize, LaneStrideX, LaneStrideY>::Const(tsr_half(1.0));
+
+	TLaneVector2D<tsr_half, VectorSize, LaneStrideX, LaneStrideY> CenterHalf = select(
+		Center,
+		One,
+		Zero);
+	TLaneVector2D<tsr_half, VectorSize, LaneStrideX, LaneStrideY> CenterSum = Sum3x3(CenterHalf);
+	return CenterSum > TLaneVector2D<tsr_half, VectorSize, LaneStrideX, LaneStrideY>::Const(4.0);
 }
 
 
