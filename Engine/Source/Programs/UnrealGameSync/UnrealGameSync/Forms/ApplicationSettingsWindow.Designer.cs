@@ -441,8 +441,8 @@ namespace UnrealGameSync
 			this.CustomToolsListBox.Location = new System.Drawing.Point(18, 23);
 			this.CustomToolsListBox.Name = "CustomToolsListBox";
 			this.CustomToolsListBox.Size = new System.Drawing.Size(787, 100);
-			this.CustomToolsListBox.Sorted = true;
 			this.CustomToolsListBox.TabIndex = 0;
+			CustomToolsListBox.ItemCheck += CustomToolsListBox_ItemCheck;
 			// 
 			// ApplicationSettingsWindow
 			// 
