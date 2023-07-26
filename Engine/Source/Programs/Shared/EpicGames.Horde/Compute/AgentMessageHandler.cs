@@ -13,6 +13,11 @@ using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage.Bundles;
+using System.Text;
+using System.IO;
+using System.Reflection;
+using System.Linq;
+using System.Buffers.Binary;
 
 namespace EpicGames.Horde.Compute
 {
@@ -24,6 +29,8 @@ namespace EpicGames.Horde.Compute
 		readonly DirectoryReference _sandboxDir;
 		readonly IMemoryCache _memoryCache;
 		readonly ILogger _logger;
+
+		readonly bool _executeLocally = false;
 
 		/// <summary>
 		/// Constructor
@@ -186,13 +193,13 @@ namespace EpicGames.Horde.Compute
 			{
 				newEnvVars[WorkerComputeSocket.IpcEnvVar] = ipcBuffer.Name;
 
-				using (BackgroundTask backgroundTask = BackgroundTask.StartNew(ctx => ProcessIpcMessagesAsync(socket, ipcBuffer.Reader, cancellationToken)))
-				{
-					_logger.LogInformation("Launching {Executable} {Arguments}", CommandLineArguments.Quote(executable), CommandLineArguments.Join(arguments));
-					await ExecuteProcessInternalAsync(channel, executable, arguments, workingDir, newEnvVars, cancellationToken);
-					_logger.LogInformation("Finished executing process");
-					ipcBuffer.Writer.MarkComplete();
-				}
+				using ComputeBufferReader ipcBufferReader = ipcBuffer.CreateReader();
+				using BackgroundTask backgroundTask = BackgroundTask.StartNew(ctx => ProcessIpcMessagesAsync(socket, ipcBufferReader, cancellationToken));
+
+				_logger.LogInformation("Launching {Executable} {Arguments}", CommandLineArguments.Quote(executable), CommandLineArguments.Join(arguments));
+				await ExecuteProcessInternalAsync(channel, executable, arguments, workingDir, newEnvVars, cancellationToken);
+				_logger.LogInformation("Finished executing process");
+				ipcBuffer.Writer.MarkComplete();
 			}
 
 			_logger.LogInformation("Child process has shut down");
@@ -200,7 +207,7 @@ namespace EpicGames.Horde.Compute
 
 		async Task ProcessIpcMessagesAsync(ComputeSocket socket, ComputeBufferReader ipcReader, CancellationToken cancellationToken)
 		{
-			List<(IpcMessage, int, SharedMemoryBuffer)> buffers = new();
+			List<SharedMemoryBuffer> buffers = new();
 			try
 			{
 				List<(int, ComputeBufferWriter)> writers = new List<(int, ComputeBufferWriter)>();
@@ -221,9 +228,9 @@ namespace EpicGames.Horde.Compute
 									_logger.LogDebug("Attaching send buffer for channel {ChannelId} to {Name}", channelId, name);
 
 									SharedMemoryBuffer buffer = SharedMemoryBuffer.OpenExisting(name);
-									buffers.Add((message, channelId, buffer));
+									buffers.Add(buffer);
 
-									socket.AttachSendBuffer(channelId, buffer.Reader);
+									socket.AttachSendBuffer(channelId, buffer);
 								}
 								break;
 							case IpcMessage.AttachRecvBuffer:
@@ -233,9 +240,9 @@ namespace EpicGames.Horde.Compute
 									_logger.LogDebug("Attaching recv buffer for channel {ChannelId} to {Name}", channelId, name);
 
 									SharedMemoryBuffer buffer = SharedMemoryBuffer.OpenExisting(name);
-									buffers.Add((message, channelId, buffer));
+									buffers.Add(buffer);
 
-									socket.AttachRecvBuffer(channelId, buffer.Writer);
+									socket.AttachRecvBuffer(channelId, buffer);
 								}
 								break;
 							default:
@@ -252,12 +259,8 @@ namespace EpicGames.Horde.Compute
 			}
 			finally
 			{
-				foreach ((IpcMessage message, int channelId, SharedMemoryBuffer buffer) in buffers)
+				foreach (SharedMemoryBuffer buffer in buffers)
 				{
-					if (buffer.Writer.MarkComplete())
-					{
-						_logger.LogWarning("Buffer added via {Message} on channel {ChannelId} was not marked complete", message, channelId);
-					}
 					buffer.Dispose();
 				}
 			}
@@ -265,40 +268,80 @@ namespace EpicGames.Horde.Compute
 
 		async Task ExecuteProcessInternalAsync(AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, CancellationToken cancellationToken)
 		{
-			string resolvedExecutable = FileReference.Combine(_sandboxDir, executable).FullName;
-			string resolvedCommandLine = CommandLineArguments.Join(arguments);
 			string resolvedWorkingDir = DirectoryReference.Combine(_sandboxDir, workingDir ?? String.Empty).FullName;
-
-			Dictionary<string, string> resolvedEnvVars = ManagedProcess.GetCurrentEnvVars();
-			if (envVars != null)
+			if (_executeLocally)
 			{
-				foreach ((string key, string? value) in envVars)
+				List<(string, string?)> prevEnvVars = new List<(string, string?)>();
+				if (envVars != null)
 				{
-					if (value == null)
+					foreach ((string key, string? value) in envVars)
 					{
-						resolvedEnvVars.Remove(key);
+						prevEnvVars.Add((key, Environment.GetEnvironmentVariable(key)));
+						Environment.SetEnvironmentVariable(key, value);
 					}
-					else
+				}
+
+				string prevWorkingDir = Directory.GetCurrentDirectory();
+				Directory.SetCurrentDirectory(resolvedWorkingDir);
+
+				try
+				{
+					string resolvedExecutable = FileReference.Combine(_sandboxDir, arguments[0]).FullName;
+					string[] mainArgs = arguments.Skip(1).ToArray();
+
+					TaskCompletionSource<int> resultTcs = new TaskCompletionSource<int>();
+
+					Thread thread = new Thread(() => resultTcs.SetResult(AppDomain.CurrentDomain.ExecuteAssembly(resolvedExecutable, mainArgs)));
+					thread.Start();
+
+					int result = await resultTcs.Task;
+					await channel.SendExecuteResultAsync(result, cancellationToken);
+				}
+				finally
+				{
+					Directory.SetCurrentDirectory(prevWorkingDir);
+					foreach((string key, string? value) in prevEnvVars)
 					{
-						resolvedEnvVars[key] = value;
+						Environment.SetEnvironmentVariable(key, value);
 					}
 				}
 			}
-
-			using (ManagedProcessGroup group = new ManagedProcessGroup())
+			else
 			{
-				using (ManagedProcess process = new ManagedProcess(group, resolvedExecutable, resolvedCommandLine, resolvedWorkingDir, resolvedEnvVars, null, ProcessPriorityClass.Normal))
+				string resolvedExecutable = FileReference.Combine(_sandboxDir, executable).FullName;
+				string resolvedCommandLine = CommandLineArguments.Join(arguments);
+
+				Dictionary<string, string> resolvedEnvVars = ManagedProcess.GetCurrentEnvVars();
+				if (envVars != null)
 				{
-					byte[] buffer = new byte[1024];
-					for (; ; )
+					foreach ((string key, string? value) in envVars)
 					{
-						int length = await process.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
-						if (length == 0)
+						if (value == null)
 						{
-							await channel.SendExecuteResultAsync(process.ExitCode, cancellationToken);
-							return;
+							resolvedEnvVars.Remove(key);
 						}
-						await channel.SendExecuteOutputAsync(buffer.AsMemory(0, length), cancellationToken);
+						else
+						{
+							resolvedEnvVars[key] = value;
+						}
+					}
+				}
+
+				using (ManagedProcessGroup group = new ManagedProcessGroup())
+				{
+					using (ManagedProcess process = new ManagedProcess(group, resolvedExecutable, resolvedCommandLine, resolvedWorkingDir, resolvedEnvVars, null, ProcessPriorityClass.Normal))
+					{
+						byte[] buffer = new byte[1024];
+						for (; ; )
+						{
+							int length = await process.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
+							if (length == 0)
+							{
+								await channel.SendExecuteResultAsync(process.ExitCode, cancellationToken);
+								return;
+							}
+							await channel.SendExecuteOutputAsync(buffer.AsMemory(0, length), cancellationToken);
+						}
 					}
 				}
 			}

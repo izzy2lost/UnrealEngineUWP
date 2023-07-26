@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Buffers;
 using System.Buffers.Binary;
+using System.IO.Pipes;
 using System.Net.Http.Headers;
 using System.Reflection;
 using EpicGames.Core;
@@ -8,6 +10,7 @@ using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Buffers;
 using EpicGames.Horde.Compute.Clients;
+using EpicGames.Horde.Compute.Transports;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
@@ -105,10 +108,9 @@ namespace RemoteClient
 				}
 
 				// Run the task remotely in the background and echo the output to the console
+				await using BackgroundTask tickTask = BackgroundTask.StartNew(ctx => WriteNumbersAsync(lease.Socket, logger, ctx));
 				await using (AgentManagedProcess process = await channel.ExecuteAsync(executable, arguments, null, null))
 				{
-					await using BackgroundTask tickTask = BackgroundTask.StartNew(ctx => WriteNumbersAsync(lease.Socket, logger, ctx));
-
 					string? line;
 					while ((line = await process.ReadLineAsync()) != null)
 					{
@@ -124,8 +126,10 @@ namespace RemoteClient
 			// Wait until the remote sends a message indicating that it's ready
 			using (PooledBuffer recvBuffer = new PooledBuffer(1, 20))
 			{
-				socket.AttachRecvBuffer(ChildProcessChannelId, recvBuffer.Writer);
-				await recvBuffer.Reader.WaitToReadAsync(1, cancellationToken);
+				socket.AttachRecvBuffer(ChildProcessChannelId, recvBuffer);
+			
+				using ComputeBufferReader reader = recvBuffer.CreateReader();
+				await reader.WaitToReadAsync(1, cancellationToken);
 			}
 
 			// Write data to the child process channel. The remote server will echo them back to us as it receives them, then exit when the channel is complete/closed.

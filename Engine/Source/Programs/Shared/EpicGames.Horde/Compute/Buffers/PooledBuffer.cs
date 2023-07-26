@@ -42,7 +42,7 @@ namespace EpicGames.Horde.Compute.Buffers
 		/// <inheritdoc/>
 		public override ComputeBuffer AddRef()
 		{
-			_detail.AddRef();
+			_detail.AddWriterRef();
 			return new PooledBuffer(_detail);
 		}
 	}

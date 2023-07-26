@@ -5,6 +5,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -22,15 +23,15 @@ namespace EpicGames.Horde.Compute
 		/// Attaches a buffer to receive data.
 		/// </summary>
 		/// <param name="channelId">Channel to receive data on</param>
-		/// <param name="recvBufferWriter">Writer for the buffer to store received data</param>
-		public abstract void AttachRecvBuffer(int channelId, ComputeBufferWriter recvBufferWriter);
+		/// <param name="recvBuffer">Writer for the buffer to store received data</param>
+		public abstract void AttachRecvBuffer(int channelId, ComputeBuffer recvBuffer);
 
 		/// <summary>
 		/// Attaches a buffer to send data.
 		/// </summary>
 		/// <param name="channelId">Channel to receive data on</param>
-		/// <param name="sendBufferReader">Reader for the buffer to send data from</param>
-		public abstract void AttachSendBuffer(int channelId, ComputeBufferReader sendBufferReader);
+		/// <param name="sendBuffer">Reader for the buffer to send data from</param>
+		public abstract void AttachSendBuffer(int channelId, ComputeBuffer sendBuffer);
 
 		/// <summary>
 		/// Creates a channel using a socket and receive buffer
@@ -51,9 +52,13 @@ namespace EpicGames.Horde.Compute
 		/// <param name="sendBuffer">Buffer for sending data</param>
 		public ComputeChannel CreateChannel(int channelId, ComputeBuffer recvBuffer, ComputeBuffer sendBuffer)
 		{
-			AttachRecvBuffer(channelId, recvBuffer.Writer);
-			AttachSendBuffer(channelId, sendBuffer.Reader);
-			return new ComputeChannel(recvBuffer.Reader, sendBuffer.Writer);
+			AttachRecvBuffer(channelId, recvBuffer);
+			AttachSendBuffer(channelId, sendBuffer);
+
+			using (ComputeBufferReader recvBufferReader = recvBuffer.CreateReader())
+			{
+				return new ComputeChannel(recvBufferReader, sendBuffer.Writer);
+			}
 		}
 	}
 
@@ -74,6 +79,7 @@ namespace EpicGames.Horde.Compute
 		public const string IpcEnvVar = "UE_HORDE_COMPUTE_IPC";
 
 		readonly SharedMemoryBuffer _commandBuffer;
+		readonly List<ComputeBuffer> _buffers = new List<ComputeBuffer>();
 
 		/// <summary>
 		/// Creates a socket for a worker
@@ -114,16 +120,18 @@ namespace EpicGames.Horde.Compute
 		}
 
 		/// <inheritdoc/>
-		public override void AttachRecvBuffer(int channelId, ComputeBufferWriter writer)
+		public override void AttachRecvBuffer(int channelId, ComputeBuffer buffer)
 		{
-			string bufferName = ((SharedMemoryBufferDetail)writer.Detail).Name;
+			_buffers.Add(buffer.AddRef());
+			string bufferName = ((SharedMemoryBufferDetail)buffer._detail).Name;
 			AttachBuffer(IpcMessage.AttachRecvBuffer, channelId, bufferName);
 		}
 
 		/// <inheritdoc/>
-		public override void AttachSendBuffer(int channelId, ComputeBufferReader reader)
+		public override void AttachSendBuffer(int channelId, ComputeBuffer buffer)
 		{
-			string bufferName = ((SharedMemoryBufferDetail)reader.Detail).Name;
+			_buffers.Add(buffer.AddRef());
+			string bufferName = ((SharedMemoryBufferDetail)buffer._detail).Name;
 			AttachBuffer(IpcMessage.AttachSendBuffer, channelId, bufferName);
 		}
 
@@ -387,7 +395,7 @@ namespace EpicGames.Horde.Compute
 		}
 
 		/// <inheritdoc/>
-		public override void AttachRecvBuffer(int channelId, ComputeBufferWriter recvBufferWriter)
+		public override void AttachRecvBuffer(int channelId, ComputeBuffer recvBuffer)
 		{
 			bool complete;
 			lock (_lockObject)
@@ -395,14 +403,14 @@ namespace EpicGames.Horde.Compute
 				complete = _complete;
 				if (!complete)
 				{
-					_recvBufferWriters.Add(channelId, recvBufferWriter.AddRef());
+					_recvBufferWriters.Add(channelId, recvBuffer.Writer.AddRef());
 					_recvTask ??= BackgroundTask.StartNew(ctx => RunRecvTaskAsync(_transport, ctx));
 				}
 			}
 
-			if (recvBufferWriter != null && complete)
+			if (complete)
 			{
-				recvBufferWriter.MarkComplete();
+				recvBuffer.Writer.MarkComplete();
 			}
 		}
 
@@ -425,9 +433,9 @@ namespace EpicGames.Horde.Compute
 		}
 
 		/// <inheritdoc/>
-		public override void AttachSendBuffer(int channelId, ComputeBufferReader sendBufferReader)
+		public override void AttachSendBuffer(int channelId, ComputeBuffer sendBuffer)
 		{
-			sendBufferReader = sendBufferReader.AddRef();
+			ComputeBufferReader sendBufferReader = sendBuffer.CreateReader();
 			lock (_lockObject)
 			{
 				_sendTasks.Add(channelId, Task.Run(() => SendFromBufferAsync(channelId, sendBufferReader, _cancellationSource.Token), CancellationToken.None)); // No cancellation token; need to ensure dispose runs

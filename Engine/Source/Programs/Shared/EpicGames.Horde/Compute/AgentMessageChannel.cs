@@ -110,9 +110,9 @@ namespace EpicGames.Horde.Compute
 		public AgentMessageChannel(ComputeSocket socket, int channelId, ComputeBuffer recvBuffer, ComputeBuffer sendBuffer, ILogger logger)
 		{
 			_socket = socket;
-			_socket.AttachRecvBuffer(channelId, recvBuffer.Writer);
-			_socket.AttachSendBuffer(channelId, sendBuffer.Reader);
-			_recvBufferReader = recvBuffer.Reader.AddRef();
+			_socket.AttachRecvBuffer(channelId, recvBuffer);
+			_socket.AttachSendBuffer(channelId, sendBuffer);
+			_recvBufferReader = recvBuffer.CreateReader();
 			_sendBufferWriter = sendBuffer.Writer.AddRef();
 			_logger = logger;
 		}
@@ -124,9 +124,7 @@ namespace EpicGames.Horde.Compute
 		{
 			_currentBuilder?.Dispose();
 
-			_sendBufferWriter.MarkComplete();
 			_sendBufferWriter.Dispose();
-
 			_recvBufferReader.Dispose();
 		}
 
