@@ -79,4 +79,7 @@ protected:
 	
 	/** The number of decoded samples that need to be skipped over. */
 	int32 NumRemainingSamplesToSkip = 0;
+
+	/** Samples that are left over from the previous Decode() call that did not fit into the receive buffer. */
+	TArray<uint8> PreviousDecodedUnusedSamples;
 };
