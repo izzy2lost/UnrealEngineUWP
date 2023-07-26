@@ -112,16 +112,17 @@ struct POSESEARCH_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 
 	int32 GetMaxActiveBlends() const { return MaxActiveBlends; }
 
+protected:
+	// Number of max active blending animation in the blend stack. If MaxActiveBlends is zero then blend stack is disabled
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (ClampMin = "0"))
+	int32 MaxActiveBlends = 4;
+
 private:
 
 	void InitializeSample(const FAnimationInitializeContext& Context, FPoseSearchAnimPlayer& SamplePlayer);
 	void EvaluateSample(FPoseContext& Output, const int32 PlayerIndex);
 	void UpdateSample(const FAnimationUpdateContext& Context, const int32 PlayerIndex);
 	bool IsSampleGraphAvailableForPlayer(const int32 PlayerIndex);
-
-	// Number of max active blending animation in the blend stack. If MaxActiveBlends is zero then blend stack is disabled
-	UPROPERTY(EditAnywhere, Category = Settings, meta = (ClampMin = "0"))
-	int32 MaxActiveBlends = 4;
 
 	friend class UAnimGraphNode_BlendStack_Base;
 };

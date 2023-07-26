@@ -12,7 +12,7 @@
 class UPoseSearchDatabase;
 
 USTRUCT(BlueprintInternalUseOnly)
-struct POSESEARCH_API FAnimNode_MotionMatching : public FAnimNode_AssetPlayerBase
+struct POSESEARCH_API FAnimNode_MotionMatching : public FAnimNode_BlendStack_Standalone
 {
 	GENERATED_BODY()
 
@@ -34,22 +34,13 @@ private:
 	// @todo: implement CacheBones_AnyThread to rebind the schema bones
 	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
 	virtual void Evaluate_AnyThread(FPoseContext& Output) override;
-	virtual void GatherDebugData(FNodeDebugData& DebugData) override;
 	// End of FAnimNode_Base interface
 
 	// FAnimNode_AssetPlayerBase interface
-	virtual float GetAccumulatedTime() const override;
-	virtual UAnimationAsset* GetAnimAsset() const override;
 	virtual void UpdateAssetPlayer(const FAnimationUpdateContext& Context) override;
-	virtual float GetCurrentAssetLength() const override;
-	virtual float GetCurrentAssetTime() const override;
-	virtual float GetCurrentAssetTimePlayRateAdjusted() const override;
 	virtual bool GetIgnoreForRelevancyTest() const override;
 	virtual bool SetIgnoreForRelevancyTest(bool bInIgnoreForRelevancyTest) override;
 	// End of FAnimNode_AssetPlayerBase interface
-
-	UPROPERTY()
-	FPoseLink Source;
 
 	// The database to search. This can be overridden by Anim Node Functions such as "On Become Relevant" and "On Update" via SetDatabaseToSearch/SetDatabasesToSearch.
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinShownByDefault))
@@ -66,10 +57,6 @@ private:
 	// Time in seconds to blend out to the new pose. Uses either inertial blending, requiring an Inertialization node after this node, or the internal blend stack, if MaxActiveBlends is greater than zero.
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, ClampMin="0"))
 	float BlendTime = 0.2f;
-
-	// Number of max active animation segments being blended together in the blend stack. If MaxActiveBlends is zero then the blend stack is disabled.
-	UPROPERTY(EditAnywhere, Category = Settings, meta = (ClampMin="0"))
-	int32 MaxActiveBlends = 4;
 
 	// Set Blend Profiles (editable in the skeleton) to determine how the blending is distributed among your character's bones. It could be used to differentiate between upper body and lower body to blend timing.
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, UseAsBlendProfile = true))

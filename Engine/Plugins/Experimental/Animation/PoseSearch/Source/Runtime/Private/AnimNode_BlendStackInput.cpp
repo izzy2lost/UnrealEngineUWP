@@ -18,8 +18,7 @@ static FAnimNode_BlendStack_Standalone* GetBlendStackNodeFromIndex(const FAnimat
 	check(AnimNodeProperties.IsValidIndex(NodeIndex));
 
 	FStructProperty* LinkedProperty = AnimNodeProperties[NodeIndex];
-	void* LinkedNodePtr = LinkedProperty->ContainerPtrToValuePtr<void>(Context.AnimInstanceProxy->GetAnimInstanceObject());
-	return (FAnimNode_BlendStack_Standalone*)LinkedNodePtr;
+	return LinkedProperty->ContainerPtrToValuePtr<FAnimNode_BlendStack_Standalone>(Context.AnimInstanceProxy->GetAnimInstanceObject());
 }
 
 void FAnimNode_BlendStackInput::Update_AnyThread(const FAnimationUpdateContext& Context)

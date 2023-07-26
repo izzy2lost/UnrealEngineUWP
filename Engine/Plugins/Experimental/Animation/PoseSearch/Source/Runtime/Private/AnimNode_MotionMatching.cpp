@@ -35,11 +35,7 @@ void FAnimNode_MotionMatching::Initialize_AnyThread(const FAnimationInitializeCo
 
 	GetEvaluateGraphExposedInputs().Execute(Context);
 
-	Source.SetLinkNode(&BlendStackNode);
-
-	// calling BlendStackNode.Initialize_AnyThread(Context) that will reset the BlendStackNode.AnimPlayers
-	Source.Initialize(Context);
-
+	FAnimNode_BlendStack_Standalone::Initialize_AnyThread(Context);
 	MotionMatchingState.Reset(Context.AnimInstanceProxy->GetComponentTransform());
 }
 
@@ -48,7 +44,7 @@ void FAnimNode_MotionMatching::Evaluate_AnyThread(FPoseContext& Output)
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Evaluate_AnyThread);
 	ANIM_MT_SCOPE_CYCLE_COUNTER_VERBOSE(MotionMatching, !IsInGameThread());
 
-	Source.Evaluate(Output);
+	FAnimNode_BlendStack_Standalone::Evaluate_AnyThread(Output);
 
 	const UE::Anim::IAnimRootMotionProvider* RootMotionProvider = UE::Anim::IAnimRootMotionProvider::Get();
 	FTransform RootMotionTransformDelta;
@@ -111,14 +107,14 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 	if (bNeedsReset)
 	{
 		MotionMatchingState.Reset(Context.AnimInstanceProxy->GetComponentTransform());
-		BlendStackNode.Reset();
+		FAnimNode_BlendStack_Standalone::Reset();
 	}
 	else
 	{
 		// We adjust the motion matching state asset time to the current player node's asset time. This is done 
 		// because the player node may have ticked more or less time than we expected due to variable dt or the 
 		// dynamic playback rate adjustment and as such the motion matching state does not update by itself
-		MotionMatchingState.AdjustAssetTime(BlendStackNode.GetAccumulatedTime());
+		MotionMatchingState.AdjustAssetTime(GetAccumulatedTime());
 	}
 	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
 
@@ -177,22 +173,17 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 			{
 				// root bone blending needs to be immediate if MM node controls the offset between mesh component and root bone
 				const float RootBoneBlendTime = YawFromAnimationBlendRate < 0.f ? BlendTime : 0.f;
-				BlendStackNode.BlendTo(Context, DatabaseAsset->GetAnimationAsset(), MotionMatchingState.CurrentSearchResult.AssetTime,
+				FAnimNode_BlendStack_Standalone::BlendTo(Context, DatabaseAsset->GetAnimationAsset(), MotionMatchingState.CurrentSearchResult.AssetTime,
 					DatabaseAsset->IsLooping(), SearchIndexAsset->bMirrored, CurrentResultDatabase->Schema->MirrorDataTable.Get(),
 					BlendTime, RootBoneBlendTime, BlendProfile, BlendOption, bUseInertialBlend, SearchIndexAsset->BlendParameters, MotionMatchingState.WantedPlayRate);
 			}
 		}
 	}
-	BlendStackNode.UpdatePlayRate(MotionMatchingState.WantedPlayRate);
-
-	Source.Update(Context);
+	
+	FAnimNode_BlendStack_Standalone::UpdatePlayRate(MotionMatchingState.WantedPlayRate);
+	FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(Context);
 
 	bForceInterruptNextUpdate = false;
-}
-
-void FAnimNode_MotionMatching::GatherDebugData(FNodeDebugData& DebugData)
-{
-	Source.GatherDebugData(DebugData);
 }
 
 void FAnimNode_MotionMatching::SetDatabaseToSearch(UPoseSearchDatabase* InDatabase, bool bForceInterruptIfNew)
@@ -274,31 +265,6 @@ void FAnimNode_MotionMatching::ForceInterruptNextUpdate()
 }
 
 // FAnimNode_AssetPlayerBase interface
-float FAnimNode_MotionMatching::GetAccumulatedTime() const
-{
-	return BlendStackNode.GetAccumulatedTime();
-}
-
-UAnimationAsset* FAnimNode_MotionMatching::GetAnimAsset() const
-{
-	return BlendStackNode.GetAnimAsset();
-}
-
-float FAnimNode_MotionMatching::GetCurrentAssetLength() const
-{
-	return BlendStackNode.GetCurrentAssetLength();
-}
-
-float FAnimNode_MotionMatching::GetCurrentAssetTime() const
-{
-	return BlendStackNode.GetCurrentAssetLength();
-}
-
-float FAnimNode_MotionMatching::GetCurrentAssetTimePlayRateAdjusted() const
-{
-	return BlendStackNode.GetCurrentAssetTimePlayRateAdjusted();
-}
-
 bool FAnimNode_MotionMatching::GetIgnoreForRelevancyTest() const
 {
 	return GET_ANIM_NODE_DATA(bool, bIgnoreForRelevancyTest);

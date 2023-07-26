@@ -24,6 +24,5 @@ class UAnimGraphNode_MotionMatching : public UAnimGraphNode_BlendStack_Base
 	virtual UScriptStruct* GetTimePropertyStruct() const override;
 	virtual void BakeDataDuringCompilation(class FCompilerResultsLog& MessageLog) override;
 
-	virtual int32 GetMaxActiveBlends() const override { return Node.MaxActiveBlends; }
-	virtual FAnimNode_BlendStack_Standalone* GetBlendStackNode() const override { return (FAnimNode_BlendStack_Standalone*)(&Node.BlendStackNode); }
+	virtual FAnimNode_BlendStack_Standalone* GetBlendStackNode() const override { return (FAnimNode_BlendStack_Standalone*)(&Node); }
 };

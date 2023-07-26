@@ -39,7 +39,7 @@ class UAnimGraphNode_BlendStack_Base : public UAnimGraphNode_AssetPlayerBase
 
 protected:
 	virtual FAnimNode_BlendStack_Standalone* GetBlendStackNode() const PURE_VIRTUAL(UAnimGraphNode_BlendStack_Base::GetBlendStackNode, return nullptr;);
-	virtual int32 GetMaxActiveBlends() const;
+	int32 GetMaxActiveBlends() const;
 
 private:
 
