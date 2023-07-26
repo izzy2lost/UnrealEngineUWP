@@ -339,11 +339,8 @@ RENDERCORE_API void AddDrawTexturePass(
 				const int32 SourceSliceIndex = SliceIndex + DrawInfo.SourceSliceIndex;
 				const int32 DestSliceIndex = SliceIndex + DrawInfo.DestSliceIndex;
 
-				FRDGTextureSRVDesc SRVDesc = FRDGTextureSRVDesc::Create(InputTexture);
+				FRDGTextureSRVDesc SRVDesc = FRDGTextureSRVDesc::CreateForMipLevel(InputTexture, SourceMipIndex);
 				SRVDesc.FirstArraySlice = SourceSliceIndex;
-				SRVDesc.NumArraySlices = 1;
-				SRVDesc.MipLevel = SourceMipIndex;
-				SRVDesc.NumMipLevels = 1;
 
 				auto* PassParameters = GraphBuilder.AllocParameters<FDrawTexturePS::FParameters>();
 				PassParameters->InputTexture = GraphBuilder.CreateSRV(SRVDesc);
