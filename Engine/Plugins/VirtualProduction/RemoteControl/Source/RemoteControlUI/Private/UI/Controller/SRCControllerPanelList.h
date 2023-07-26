@@ -227,6 +227,7 @@ private:
 	/** Add a custom column */
 	void AddColumn(const FName& InColumnName);
 
+
 	/** Panel Style reference. */
 	const FRCPanelStyle* RCPanelStyle;
 

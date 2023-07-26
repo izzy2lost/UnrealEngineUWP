@@ -14,6 +14,7 @@
 #include "IPropertyRowGenerator.h"
 #include "IRemoteControlModule.h"
 #include "Interfaces/IMainFrameModule.h"
+#include "Materials/MaterialInterface.h"
 #include "RCControllerModel.h"
 #include "RCMultiController.h"
 #include "RCVirtualProperty.h"
