@@ -37,6 +37,8 @@ AGameStateBase::AGameStateBase(const FObjectInitializer& ObjectInitializer)
 
 	SumServerWorldTimeSecondsDelta = 0.0;
 	NumServerWorldTimeSecondsDeltas = 0;
+
+	NetPriority = 10.f;	// We need to prioritize updates to ensure that game state transitions reliably occur on the clients.
 }
 
 const AGameModeBase* AGameStateBase::GetDefaultGameMode() const
