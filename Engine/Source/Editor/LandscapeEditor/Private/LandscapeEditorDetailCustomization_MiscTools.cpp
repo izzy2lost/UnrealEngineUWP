@@ -185,6 +185,21 @@ void FLandscapeEditorDetailCustomization_MiscTools::CustomizeDetails(IDetailLayo
 				]
 			]
 		];
+		ToolsCategory.AddCustomRow(LOCTEXT("Spline.bAlwaysForward.Selected", "Auto-Rotate Always Forward"))
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.Padding(0, 6, 0, 0)
+			[
+				SNew(SCheckBox)
+				.OnCheckStateChanged(this, &FLandscapeEditorDetailCustomization_MiscTools::OnbAlwaysRotateForwardChanged)
+				.IsChecked(this, &FLandscapeEditorDetailCustomization_MiscTools::GetbAlwaysRotateForward)
+				.Content()
+				[
+					SNew(STextBlock).Text(LOCTEXT("Spline.bAlwaysForward.Selected", "Auto-Rotate Always Forward"))
+				]
+			]
+		];
 	}
 
 
@@ -412,6 +427,25 @@ ECheckBoxState FLandscapeEditorDetailCustomization_MiscTools::GetbUseAutoRotateC
 	if (LandscapeEdMode)
 	{
 		return LandscapeEdMode->GetbUseAutoRotateOnJoin() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+	}
+	return ECheckBoxState::Unchecked;
+}
+
+void FLandscapeEditorDetailCustomization_MiscTools::OnbAlwaysRotateForwardChanged(ECheckBoxState NewState)
+{
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	if (LandscapeEdMode)
+	{
+		LandscapeEdMode->SetbAlwaysRotateForward(NewState == ECheckBoxState::Checked);
+	}
+}
+
+ECheckBoxState FLandscapeEditorDetailCustomization_MiscTools::GetbAlwaysRotateForward() const
+{
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	if (LandscapeEdMode)
+	{
+		return LandscapeEdMode->GetbAlwaysRotateForward() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 	}
 	return ECheckBoxState::Unchecked;
 }

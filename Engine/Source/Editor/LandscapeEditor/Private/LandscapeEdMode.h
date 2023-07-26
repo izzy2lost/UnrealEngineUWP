@@ -313,6 +313,8 @@ public:
 	virtual void UpdateSplineMeshLevels();
 	void SetbUseAutoRotateOnJoin(bool InbAutoRotateOnJoin);
 	bool GetbUseAutoRotateOnJoin();
+	void SetbAlwaysRotateForward(bool InbAlwaysRotateForward);
+	bool GetbAlwaysRotateForward();
 
 	// UI callbacks for ramp tool
 	void ApplyRampTool();

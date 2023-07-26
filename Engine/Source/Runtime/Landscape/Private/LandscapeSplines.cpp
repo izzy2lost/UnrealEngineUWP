@@ -1977,12 +1977,62 @@ void ULandscapeSplineControlPoint::SetSplineSelected(bool bInSelected)
 	}
 }
 
-void ULandscapeSplineControlPoint::AutoCalcRotation()
+void ULandscapeSplineControlPoint::AutoCalcRotation(bool bAlwaysRotateForward)
 {
 	Modify();
 
+	// always rotate forward only applies when there is exactly 2 segments connected
+	if (bAlwaysRotateForward && ConnectedSegments.Num() == 2)
+	{
+		const FLandscapeSplineSegmentConnection& Near0 = ConnectedSegments[0].GetNearConnection();
+		const FLandscapeSplineSegmentConnection& Far0 = ConnectedSegments[0].GetFarConnection();
+
+		// we modify the rotation so it is halfway between the two connected segments
+		// Get the start and end location/rotation of this connection
+		FVector StartLocation0; FRotator StartRotation0;
+		this->GetConnectionLocationAndRotation(Near0.SocketName, StartLocation0, StartRotation0);
+		FVector EndLocation0; FRotator EndRotation0;
+		Far0.ControlPoint->GetConnectionLocationAndRotation(Far0.SocketName, EndLocation0, EndRotation0);
+		const FVector DesiredDirection0 = (EndLocation0 - StartLocation0);
+
+		const FLandscapeSplineSegmentConnection& Near1 = ConnectedSegments[1].GetNearConnection();
+		const FLandscapeSplineSegmentConnection& Far1 = ConnectedSegments[1].GetFarConnection();
+		FVector StartLocation1; FRotator StartRotation1;
+		this->GetConnectionLocationAndRotation(Near1.SocketName, StartLocation1, StartRotation1);
+		FVector EndLocation1; FRotator EndRotation1;
+		Far1.ControlPoint->GetConnectionLocationAndRotation(Far1.SocketName, EndLocation1, EndRotation1);
+		const FVector DesiredDirection1 = (EndLocation1 - StartLocation1);
+
+		// compute orientations for incoming and outgoing segments from their direction
+		FRotator Rot0 = DesiredDirection0.Rotation();
+		FRotator Rot1 = (-DesiredDirection1).Rotation();
+
+		// determine the midpoint orientation via slerp, then convert back to rotator representation
+		FRotator DesiredRot = FQuat::Slerp(Rot0.Quaternion(), Rot1.Quaternion(), 0.5).Rotator();
+
+		// enforce pitch as the average of the incoming and outgoing orientations
+		DesiredRot.Pitch = (Rot0.Pitch + Rot1.Pitch) * 0.5;
+		
+		// Remove socket local rotation to calculate the Rotation setting
+		FVector StartLocalLocation; FRotator StartLocalRotation;
+		this->GetConnectionLocalLocationAndRotation(Near0.SocketName, StartLocalLocation, StartLocalRotation);
+		FQuat SocketLocalRotation = StartLocalRotation.Quaternion();
+		if (FMath::Sign(Near0.TangentLen) < 0)	// flip 180 if the tangent is inverted
+		{
+			SocketLocalRotation = SocketLocalRotation * FRotator(0, 180, 0).Quaternion();
+		}
+
+		FQuat LocalQuat = DesiredRot.Quaternion() * SocketLocalRotation.Inverse();
+		Rotation = LocalQuat.Rotator().GetNormalized();
+
+		AutoFlipTangents();
+
+		return;
+	}
+
 	FRotator Delta = FRotator::ZeroRotator;
 
+	// check all connections to this control point
 	for (const FLandscapeSplineConnection& Connection : ConnectedSegments)
 	{
 		// Get the start and end location/rotation of this connection
