@@ -3185,6 +3185,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 				Results.SetPositions(EntryIndex, PositionData);
 				Results.SetVelocities(EntryIndex, VelocityData);
 				Results.SetTransform(EntryIndex, ParentSpaceTransform);
+				PhysicsThreadCollection.Transform[TransformGroupIndex] = ParentSpaceTransform;
 				IsObjectDynamic = true;
 			}
 
