@@ -10,15 +10,18 @@ using System.Net.Http.Json;
 using System.Net.Mime;
 using System.Text;
 using System.Threading.Tasks;
+using Blake3;
 using Jupiter.FunctionalTests.Storage;
 using Jupiter.Implementation;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
 using Serilog.Core;
 using EpicGames.AspNet;
+using EpicGames.Core;
 
 namespace Jupiter.FunctionalTests.CompressedBlobs
 {
@@ -192,7 +195,117 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
             }
         }
 
+        /// <summary>
+        /// write a large file (bigger then what C# can have in memory)
+        /// </summary>
 
+        [TestMethod]
+        [TestCategory("SlowTests")]
+        public async Task PutGetLargeCompressedPayload()
+        {
+            // we submit a blob so large that it can not fit using the memory blob store
+            IBlobStore? blobStore = Server?.Services.GetService<IBlobStore>();
+            Assert.IsFalse(blobStore is MemoryBlobStore);
+
+            if (blobStore is AzureBlobStore)
+            {
+                Assert.Inconclusive("Azure blob store gets internal server errors when receiving large blobs");
+            }
+
+            FileInfo tempOutputFile = new FileInfo(Path.GetTempFileName());
+            FileInfo tempCompressedFile = new FileInfo(Path.GetTempFileName());
+
+            ILogger logger = Server!.Services.GetService<ILogger>()!;
+
+            try
+            {
+                logger.Information("Generating large file");
+                int blockSize = 1024 * 1024;
+                // we want a file larger then 6GB, each block is 1 MB
+                int countOfBlocks = 6500;
+                IoHash uncompressedContentHash;
+                {
+                    byte[] block = new byte[blockSize];
+                    Random.Shared.NextBytes(block);
+
+                    List<byte[]> blocksToCompress = new List<byte[]>();
+
+                    using Hasher hasher = Hasher.New();
+                    for (int i = 0; i < countOfBlocks; i++)
+                    {
+                        hasher.UpdateWithJoin(new ReadOnlySpan<byte>(block, 0, blockSize));
+                        blocksToCompress.Add(block);
+                    }
+                    Hash blake3Hash = hasher.Finalize();
+                    byte[] hash = blake3Hash.AsSpanUnsafe().Slice(0, 20).ToArray();
+                    uncompressedContentHash = new IoHash(hash);
+
+                    await using FileStream fs = tempCompressedFile.OpenWrite();
+                    CompressedBufferUtils bufferUtils = Server!.Services.GetService<CompressedBufferUtils>()!;
+                    bufferUtils.CompressContent(fs, OoodleCompressorMethod.Mermaid, OoodleCompressionLevel.HyperFast4, blocksToCompress, blockSize);
+                }
+
+                logger.Information("Hashing generated file");
+                BlobIdentifier blobIdentifier = BlobIdentifier.FromIoHash(uncompressedContentHash);
+                BlobIdentifier compressedContentHash;
+                {
+                    await using FileStream fs = tempCompressedFile.OpenRead();
+                    compressedContentHash = await BlobIdentifier.FromStream(fs);
+                }
+
+                logger.Information("Uploading large file");
+
+                // it takes a long time to upload this content and we will not get any response while it happens so we have to bump the timeout
+                Client!.Timeout = TimeSpan.FromMinutes(5.0);
+                {
+                    await using FileStream fs = tempCompressedFile.OpenRead();
+                    using StreamContent content = new StreamContent(fs);
+                    content.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompressedBuffer);
+                    HttpResponseMessage result = await Client!.PutAsync(new Uri($"api/v1/compressed-blobs/{TestNamespace}/{blobIdentifier}", UriKind.Relative), content);
+                    result.EnsureSuccessStatusCode();
+
+                    InsertResponse? response = await result.Content.ReadFromJsonAsync<InsertResponse>();
+                    Assert.IsNotNull(response);
+                    Assert.AreEqual(blobIdentifier, response.Identifier);
+                }
+
+                logger.Information("Large file uploaded");
+                logger.Information("Downloading large file");
+
+                {
+                    // verify we can fetch the blob again
+                    HttpResponseMessage result = await Client!.GetAsync(new Uri($"api/v1/compressed-blobs/{TestNamespace}/{blobIdentifier}", UriKind.Relative), HttpCompletionOption.ResponseHeadersRead);
+                    result.EnsureSuccessStatusCode();
+                    
+                    {
+                        await using Stream s = await result.Content.ReadAsStreamAsync();
+
+                        // stream this to disk so we have something to look at in case there is an error
+                        await using FileStream fs = tempOutputFile.OpenWrite();
+                        await s.CopyToAsync(fs);
+                    }
+
+                    await using FileStream downloadedFile = tempOutputFile.OpenRead();
+
+                    BlobIdentifier downloadedBlobIdentifier = await BlobIdentifier.FromStream(downloadedFile);
+                    Assert.AreEqual(compressedContentHash, downloadedBlobIdentifier);
+                }
+
+                logger.Information("Download completed");
+            }
+            finally
+            {
+                if (tempCompressedFile.Exists)
+                {
+                    tempCompressedFile.Delete();
+                }
+
+                if (tempOutputFile.Exists)
+                {
+                    tempOutputFile.Delete();
+                }
+            }
+        }
         [TestMethod]
         public async Task RecompressionTest()
         {

@@ -793,6 +793,7 @@ namespace Jupiter.FunctionalTests.Storage
         /// </summary>
         
         [TestMethod]
+        [TestCategory("SlowTests")]
         public async Task PutGetLargePayload()
         {
             // we submit a blob so large that it can not fit using the memory blob store

@@ -62,10 +62,10 @@ public static class BlobServiceExtensions
 
         // decompress the content and generate a identifier from it to verify the identifier we got
         await using Stream decompressStream = payload.GetStream();
-        // TODO: we should add a overload for decompress content that can work on streams, otherwise we are still limited to 2GB compressed blobs
-        byte[] decompressedContent = compressedBufferUtils.DecompressContent(await decompressStream.ToByteArray());
 
-        await using MemoryStream decompressedStream = new MemoryStream(decompressedContent);
+        using IBufferedPayload bufferedPayload = await compressedBufferUtils.DecompressContent(decompressStream, (ulong)payload.Length);
+        await using Stream decompressedStream = bufferedPayload.GetStream();
+
         ContentId identifierDecompressedPayload;
         if (id != null)
         {

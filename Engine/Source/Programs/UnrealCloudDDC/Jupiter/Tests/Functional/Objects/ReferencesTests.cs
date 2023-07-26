@@ -1279,7 +1279,9 @@ namespace Jupiter.FunctionalTests.References
             IoHashKey key = IoHashKey.FromName("compressedObject");
 
             CompressedBufferUtils bufferUtils = _server!.Services.GetService<CompressedBufferUtils>()!;
-            byte[] compressedBuffer = bufferUtils.CompressContent(OoodleCompressorMethod.Mermaid, OoodleCompressionLevel.VeryFast, blobData);
+            using MemoryStream compressedStream = new MemoryStream();
+            bufferUtils.CompressContent(compressedStream, OoodleCompressorMethod.Mermaid, OoodleCompressionLevel.VeryFast, blobData);
+            byte[] compressedBuffer = compressedStream.ToArray();
             BlobIdentifier compressedHash = BlobIdentifier.FromBlob(compressedBuffer);
 
             CbObject cbObject = CbObject.Build(writer => writer.WriteBinaryAttachment("Attachment", uncompressedHash.AsIoHash()));

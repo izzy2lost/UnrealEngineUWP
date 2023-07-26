@@ -743,7 +743,9 @@ namespace Jupiter.Controllers
                     }
                     if (entry.Flags.HasFlag(CbPackageAttachmentFlags.IsCompressed))
                     {
+#pragma warning disable CA2000 // Dispose objects before losing scope
                         using MemoryBufferedPayload payload = new MemoryBufferedPayload(blob);
+#pragma warning restore CA2000 // Dispose objects before losing scope
                         await _blobStore.PutCompressedObject(ns, payload, ContentId.FromIoHash(entry.AttachmentHash), HttpContext.RequestServices);
                     }
                     else
