@@ -2215,7 +2215,14 @@ bool FPerforceGetPendingChangelistsWorker::Execute(FPerforceSourceControlCommand
 					}
 					else
 					{
-						++ChangelistIndex;
+						if (ChangelistChangelist < FileChangelist)
+						{
+							++ChangelistIndex;
+						}
+						else
+						{
+							++FileIndex;
+						}
 					}
 				}
 			}
