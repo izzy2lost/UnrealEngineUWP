@@ -677,6 +677,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Scrolling)
 	bool bEnableRightClickScrolling = true;
 
+	/** True to allow scrolling using touch input. */
+	UPROPERTY(EditAnywhere, Category = Scrolling)
+	bool bEnableTouchScrolling = true;
+
 	UPROPERTY(EditAnywhere, Category = Scrolling)
 	bool bEnableFixedLineOffset = false;
 

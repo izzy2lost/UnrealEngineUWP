@@ -176,6 +176,9 @@ public:
 	/** Enables/disables being able to scroll with the right mouse button. */
 	SLATE_API void SetIsRightClickScrollingEnabled(const bool bInEnableRightClickScrolling);
 
+	/** Enables/disables being able to scroll using touch input. */
+	SLATE_API void SetIsTouchScrollingEnabled(const bool bInEnableTouchScrolling);
+
 	/** Sets the multiplier applied when wheel scrolling. Higher numbers will cover more distance per click of the wheel. */
 	SLATE_API void SetWheelScrollMultiplier(float NewWheelScrollMultiplier);
 
@@ -410,6 +413,9 @@ protected:
 
 	/** True to allow right click drag scrolling. */
 	bool bEnableRightClickScrolling = true;
+
+	/** True to allow scrolling by using touch input. */
+	bool bEnableTouchScrolling = true;
 
 	/** The currently displayed scroll offset from the beginning of the list in items. */
 	double CurrentScrollOffset = 0.;

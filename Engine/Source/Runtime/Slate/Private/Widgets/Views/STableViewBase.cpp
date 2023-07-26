@@ -398,7 +398,7 @@ void STableViewBase::ScrollBar_OnUserScrolled( float InScrollOffsetFraction )
 
 FReply STableViewBase::OnPreviewMouseButtonDown( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent )
 {
-	if (MouseEvent.IsTouchEvent())
+	if (bEnableTouchScrolling && MouseEvent.IsTouchEvent())
 	{
 		// Clear any inertia 
 		this->InertialScrollManager.ClearScrollVelocity();
@@ -545,7 +545,7 @@ FReply STableViewBase::OnMouseMove( const FGeometry& MyGeometry, const FPointerE
 
 void STableViewBase::OnMouseEnter( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent )
 {
-	if ( MouseEvent.IsTouchEvent() )
+	if (bEnableTouchScrolling && MouseEvent.IsTouchEvent())
 	{
 		if ( !bStartedTouchInteraction )
 		{
@@ -636,7 +636,7 @@ FReply STableViewBase::OnTouchStarted( const FGeometry& MyGeometry, const FPoint
 
 FReply STableViewBase::OnTouchMoved( const FGeometry& MyGeometry, const FPointerEvent& InTouchEvent )
 {
-	if (bStartedTouchInteraction)
+	if (bEnableTouchScrolling && bStartedTouchInteraction)
 	{
 		// We only care about deltas along the scroll axis
 		FTableViewDimensions CursorDeltaDimensions(Orientation, InTouchEvent.GetCursorDelta());
@@ -915,6 +915,12 @@ void STableViewBase::SetAllowOverscroll(EAllowOverscroll InAllowOverscroll)
 void STableViewBase::SetIsRightClickScrollingEnabled(const bool bInEnableRightClickScrolling)
 {
 	bEnableRightClickScrolling = bInEnableRightClickScrolling;
+}
+
+void STableViewBase::SetIsTouchScrollingEnabled(const bool bInEnableTouchScrolling)
+{
+	bEnableTouchScrolling = bInEnableTouchScrolling;
+	ensureMsgf(!bStartedTouchInteraction, TEXT("TouchScrollingEnabled flag should not be changed while scrolling."));
 }
 
 void STableViewBase::SetWheelScrollMultiplier(float NewWheelScrollMultiplier)
