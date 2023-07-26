@@ -489,7 +489,7 @@ namespace Audio
 		, MixerBuffer(nullptr)
 		, MixerSourceVoice(nullptr)
 		, BinauralVolModulators(nullptr)
-		, BinauralDryModulators(nullptr)
+		, BinauralWetModulators(nullptr)
 		, bPreviousBusEnablement(false)
 		, bPreviousBaseSubmixEnablement(false)
 		, PreviousAzimuth(-1.0f)
@@ -747,7 +747,7 @@ namespace Audio
 					// Get the modulation info associated with the SubmixPtr here
 					// The audio never goes to this submix, but we can still use this to modulate the volume ourselves later
 					BinauralVolModulators = SubmixPtr->GetOutputVolumeDestination();
-					BinauralDryModulators = SubmixPtr->GetDryVolumeDestination();
+					BinauralWetModulators = SubmixPtr->GetWetVolumeDestination();
 				}
 			}
 
@@ -1618,9 +1618,9 @@ namespace Audio
 			{
 				CurrentVolume *= BinauralVolModulators->GetValue();
 			}
-			if (BinauralDryModulators)
+			if (BinauralWetModulators)
 			{
-				CurrentVolume *= BinauralDryModulators->GetValue();
+				CurrentVolume *= BinauralWetModulators->GetValue();
 			}
 
 			// 4. Apply editor gain stage(s)

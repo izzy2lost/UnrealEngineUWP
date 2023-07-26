@@ -149,7 +149,7 @@ namespace Audio
 
 		FModulationDestination* GetOutputVolumeDestination();
 
-		FModulationDestination* GetDryVolumeDestination();
+		FModulationDestination* GetWetVolumeDestination();
 
 		// Gets the submix channels channels
 		AUDIOMIXER_API int32 GetSubmixChannels() const;

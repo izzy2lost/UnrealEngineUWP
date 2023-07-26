@@ -129,7 +129,7 @@ namespace Audio
 
 		// These modulators are obtained from the submix and used only on binaural assets
 		FModulationDestination* BinauralVolModulators;
-		FModulationDestination* BinauralDryModulators;
+		FModulationDestination* BinauralWetModulators;
 
 		uint32 bPreviousBusEnablement;
 		uint32 bPreviousBaseSubmixEnablement;

@@ -2367,9 +2367,9 @@ namespace Audio
 		return &VolumeMod;
 	}
 
-	FModulationDestination* FMixerSubmix::GetDryVolumeDestination()
+	FModulationDestination* FMixerSubmix::GetWetVolumeDestination()
 	{
-		return &DryLevelMod;
+		return &WetLevelMod;
 	}
 
 	void FMixerSubmix::BroadcastDelegates()
