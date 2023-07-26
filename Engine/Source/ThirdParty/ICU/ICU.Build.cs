@@ -32,9 +32,10 @@ public class ICU : ModuleRules
 		}
 	}
 
+	// no longer needed, once subclasses remove overrides, remove this
 	protected virtual string ICULibRootPath
 	{
-		get { return ModuleDirectory; }
+		get { return ""; }
 	}
 	protected virtual string ICUIncRootPath
 	{
@@ -59,7 +60,9 @@ public class ICU : ModuleRules
 			}
 			else
 			{
-				return Target.Platform.ToString();
+				// this works with platform extensions
+				// @todo so delete the overrides and remove the PlatformName ?? "." stuff below
+				return PlatformSubdirectoryName;
 			}
 		}
 	}
@@ -70,8 +73,8 @@ public class ICU : ModuleRules
 		{
 			switch (ICUVersion)
 			{
-				case ICU53VersionString: return Path.Combine(ICULibRootPath, ICUVersion, PlatformName ?? ".");
-				case ICU64VersionString: return Path.Combine(ICULibRootPath, ICUVersion, "lib", PlatformName ?? ".");
+				case ICU53VersionString: return Path.Combine(PlatformModuleDirectory, ICUVersion, PlatformName ?? ".");
+				case ICU64VersionString: return Path.Combine(PlatformModuleDirectory, ICUVersion, "lib", PlatformName ?? ".");
 
 				default: throw new ArgumentException("Invalid ICU version");
 			}

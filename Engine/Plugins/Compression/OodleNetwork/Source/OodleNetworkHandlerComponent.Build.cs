@@ -9,7 +9,7 @@ public class OodleNetworkHandlerComponent : ModuleRules
 	protected virtual string OodleVersion { get { return "2.9.10"; } }
 
 	// Platform Extensions need to override these
-	protected virtual string LibRootDirectory { get { return ModuleDirectory; } }
+	protected virtual string LibRootDirectory { get { return PlatformModuleDirectory; } }
 	protected virtual string ReleaseLibraryName { get { return null; } }
 	protected virtual string DebugLibraryName { get { return null; } }
 
@@ -87,11 +87,6 @@ public class OodleNetworkHandlerComponent : ModuleRules
 		{
 			ReleaseLib = "liboo2nettvos.a";
 			DebugLib = "liboo2nettvos_dbg.a";
-		}
-		else if (Target.Platform == UnrealTargetPlatform.VisionOS)
-		{
-			ReleaseLib = "liboo2netios.a";
-			DebugLib = "liboo2netios_dbg.a";
 		}
 		else
 		{

@@ -6,8 +6,9 @@ using System;
 
 public class UElibPNG : ModuleRules
 {
-	protected virtual string LibRootDirectory { get { return Target.UEThirdPartySourceDirectory; } }
-	protected virtual string IncRootDirectory { get { return Target.UEThirdPartySourceDirectory; } }
+	// no longer needed, once all subclasses remove overrides, delete
+	protected virtual string LibRootDirectory { get { return ""; } }
+	protected virtual string IncRootDirectory { get { return ""; } }
 
 	protected virtual string LibPNGVersion
 	{
@@ -29,8 +30,8 @@ public class UElibPNG : ModuleRules
 		}
 	}
 
-	protected virtual string IncPNGPath { get { return Path.Combine(IncRootDirectory, "libPNG", LibPNGVersion); } }
-	protected virtual string LibPNGPath { get { return Path.Combine(LibRootDirectory, "libPNG", LibPNGVersion, "lib"); } }
+	protected virtual string IncPNGPath { get { return Path.Combine(ModuleDirectory, LibPNGVersion); } }
+	protected virtual string LibPNGPath { get { return Path.Combine(PlatformModuleDirectory, LibPNGVersion, "lib"); } }
 
 	public UElibPNG(ReadOnlyTargetRules Target) : base(Target)
 	{
@@ -69,11 +70,7 @@ public class UElibPNG : ModuleRules
 				? "Simulator"
 				: "Device";
 
-			if (Target.Platform == UnrealTargetPlatform.VisionOS)
-			{
-				LibDir = "Device";
-			}
-			PublicAdditionalLibraries.Add(Path.Combine(LibPNGPath, Target.Platform.ToString(), LibDir, "libpng152.a"));
+			PublicAdditionalLibraries.Add(Path.Combine(LibPNGPath, PlatformSubdirectoryName, LibDir, "libpng152.a"));
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Android))
 		{
