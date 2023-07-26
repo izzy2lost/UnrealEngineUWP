@@ -1275,6 +1275,7 @@ namespace Chaos
 			{
 				auto Proxy = static_cast<FGeometryCollectionPhysicsProxy*>(Dirty.Proxy);
 				Proxy->PushStateOnGameThread(this);
+				Proxy->ResetDirtyIdx();
 				break;
 			}
 			case EPhysicsProxyType::ClusterUnionProxy:
