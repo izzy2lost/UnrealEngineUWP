@@ -571,7 +571,7 @@ namespace Chaos
 
 	void FPBDCollisionConstraints::ApplyMidPhaseModifier(const TArray<ISimCallbackObject*>& MidPhaseModifiers, FReal Dt)
 	{
-		FMidPhaseModifierAccessor ModifierAccessor;
+		FMidPhaseModifierAccessor ModifierAccessor(GetConstraintAllocator());
 		for(ISimCallbackObject* ModifierCallback : MidPhaseModifiers)
 		{
 			ModifierCallback->MidPhaseModification_Internal(ModifierAccessor);

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Chaos/MidPhaseModification.h"
+#include "Chaos/Collision/CollisionConstraintAllocator.h"
 #include "Chaos/Collision/PBDCollisionConstraint.h"
 #include "Chaos/Collision/ParticlePairMidPhase.h"
 #include "Chaos/Particle/ParticleUtilities.h"
@@ -20,8 +21,8 @@ namespace Chaos
 	}
 
 	void FMidPhaseModifier::GetParticles(
-		const FGeometryParticleHandle** Particle0,
-		const FGeometryParticleHandle** Particle1) const
+		FGeometryParticleHandle** Particle0,
+		FGeometryParticleHandle** Particle1) const
 	{
 		*Particle0 = MidPhase->GetParticle0();
 		*Particle1 = MidPhase->GetParticle1();
@@ -86,5 +87,17 @@ namespace Chaos
 		}
 
 		return FMidPhaseModifier();
+	}
+
+	void FMidPhaseModifierAccessor::VisitMidPhases(const TFunction<void(FMidPhaseModifier&)>& Visitor)
+	{
+		// This visitor is a thin function wrapper so that users can't directly access
+		// the midphase itself, but instead can access a modifier.
+		ConstraintAllocator.VisitMidPhases([this, &Visitor](FParticlePairMidPhase& MidPhase)
+		{
+			FMidPhaseModifier MidPhaseModifier(&MidPhase, this);
+			Visitor(MidPhaseModifier);
+			return ECollisionVisitorResult::Continue;
+		});
 	}
 }
