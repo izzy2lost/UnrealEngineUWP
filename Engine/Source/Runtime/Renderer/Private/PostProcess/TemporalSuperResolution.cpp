@@ -1537,7 +1537,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 
 		int32 ResurrectionFrameRollingIndex = 0;
 		int32 PrevFrameRollingIndex = 0;
-		if (HistorySliceSequence.GetRollingIndexCount() == 1)
+		if (PrevHistorySliceSequence.GetRollingIndexCount() == 1)
 		{
 			// NOP
 		}
