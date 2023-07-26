@@ -204,7 +204,7 @@ namespace UE::Tasks
 			const uint32 MaxSpinCount = 40;
 			for (uint32 SpinCount = 0; SpinCount != MaxSpinCount && !IsCompleted() && !Timeout; ++SpinCount)
 			{
-				FPlatformProcess::YieldThread();
+				FPlatformProcess::Yield(); // YieldThread() was much slower on some platforms with low core count and contention for CPU
 			}
 
 			if (IsCompleted() || Timeout)
