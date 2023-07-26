@@ -74,7 +74,7 @@ namespace UnrealBuildTool
 			ToolchainDir = DirectoryReference.Combine(XcodeDeveloperDir, "Toolchains/XcodeDefault.xctoolchain/usr/bin");
 			SDKDir = DirectoryReference.Combine(XcodeDeveloperDir, $"Platforms/{OSPrefix}.platform/Developer/SDKs/{OSPrefix}.sdk");
 			if (SimulatorOSPrefix != null)
-			{   
+		{
 				SimulatorSDKDir = DirectoryReference.Combine(XcodeDeveloperDir, $"Platforms/{SimulatorOSPrefix}.platform/Developer/SDKs/{SimulatorOSPrefix}.sdk");
 			}
 
@@ -94,7 +94,7 @@ namespace UnrealBuildTool
 		{
 			// note that VisionOS uses IOSSimulator (as TVOS should eventually do as well)
 			if (Architecture == UnrealArch.IOSSimulator || Architecture == UnrealArch.TVOSSimulator)
-			{
+		{
 				return SimulatorSDKDir!;
 			}
 			return SDKDir;
@@ -106,7 +106,7 @@ namespace UnrealBuildTool
 		/// <param name="Architecture"></param>
 		/// <returns></returns>
 		public string GetTargetTuple(UnrealArch Architecture)
-		{
+			{
 			string Prefix = Architecture.AppleName;
 			string Suffix = (Architecture == UnrealArch.IOSSimulator || Architecture == UnrealArch.TVOSSimulator) ? "-simulator" : "";
 
@@ -115,30 +115,30 @@ namespace UnrealBuildTool
 
 		private static void SelectXcode(bool bVerbose, ILogger Logger)
 		{
-			// on the Mac, run xcode-select directly.
-			int ReturnCode;
+				// on the Mac, run xcode-select directly.
+				int ReturnCode;
 			string XcodeSelectResult = Utils.RunLocalProcessAndReturnStdOut("xcode-select", "--print-path", null, out ReturnCode);
-			if (ReturnCode != 0)
-			{
-				string? MinVersion = UEBuildPlatform.GetSDK(UnrealTargetPlatform.Mac)!.GetSDKInfo("Sdk")!.Min;
-				throw new BuildException($"We were unable to find your build tools (via 'xcode-select --print-path'). Please install Xcode, version {MinVersion} or later");
-			}
+				if (ReturnCode != 0)
+				{
+					string? MinVersion = UEBuildPlatform.GetSDK(UnrealTargetPlatform.Mac)!.GetSDKInfo("Sdk")!.Min;
+					throw new BuildException($"We were unable to find your build tools (via 'xcode-select --print-path'). Please install Xcode, version {MinVersion} or later");
+				}
 
 			_XcodeDeveloperDir = new DirectoryReference(XcodeSelectResult);
 
-			// make sure we get a full path
+				// make sure we get a full path
 			if (DirectoryReference.Exists(XcodeDeveloperDir) == false)
-			{
+				{
 				throw new BuildException("Selected Xcode ('{0}') doesn't exist, cannot continue.", XcodeDeveloperDir);
-			}
+				}
 
 			if (XcodeDeveloperDir.ContainsName("CommandLineTools", 0))
-			{
+				{
 				throw new BuildException($"Your Mac is set to use CommandLineTools for its build tools ({XcodeDeveloperDir}). Unreal expects Xcode as the build tools. Please install Xcode if it's not already, then do one of the following:\n" +
-					"  - Run Xcode, go to Settings, and in the Locations tab, choose your Xcode in Command Line Tools dropdown.\n" +
-					"  - In Terminal, run 'sudo xcode-select -s /Applications/Xcode.app' (or an alternate location if you installed Xcode to a non-standard location)\n" +
-					"Either way, you will need to enter your Mac password.");
-			}
+						"  - Run Xcode, go to Settings, and in the Locations tab, choose your Xcode in Command Line Tools dropdown.\n" +
+						"  - In Terminal, run 'sudo xcode-select -s /Applications/Xcode.app' (or an alternate location if you installed Xcode to a non-standard location)\n" +
+						"Either way, you will need to enter your Mac password.");
+				}
 
 			if (bVerbose && !XcodeDeveloperDir.FullName.StartsWith("/Applications/Xcode.app"))
 			{
@@ -163,60 +163,60 @@ namespace UnrealBuildTool
 		private static string SelectSDK(DirectoryReference BaseSDKDir, string OSPrefix, bool bVerbose, ILogger Logger)
 		{
 			string PlatformSDKVersion = "";
-			try
-			{
-				// loop over the subdirs and parse out the version
-				int MaxSDKVersionMajor = 0;
-				int MaxSDKVersionMinor = 0;
-				string? MaxSDKVersionString = null;
-				foreach (DirectoryReference SubDir in DirectoryReference.EnumerateDirectories(BaseSDKDir))
+				try
 				{
-					string SubDirName = Path.GetFileNameWithoutExtension(SubDir.GetDirectoryName());
-					if (SubDirName.StartsWith(OSPrefix))
+					// loop over the subdirs and parse out the version
+					int MaxSDKVersionMajor = 0;
+					int MaxSDKVersionMinor = 0;
+					string? MaxSDKVersionString = null;
+				foreach (DirectoryReference SubDir in DirectoryReference.EnumerateDirectories(BaseSDKDir))
 					{
-						// get the SDK version from the directory name
-						string SDKString = SubDirName.Replace(OSPrefix, "");
-						int Major = 0;
-						int Minor = 0;
-
-						// parse it into whole and fractional parts (since 10.10 > 10.9 in versions, but not in math)
-						try
+					string SubDirName = Path.GetFileNameWithoutExtension(SubDir.GetDirectoryName());
+						if (SubDirName.StartsWith(OSPrefix))
 						{
-							string[] Tokens = SDKString.Split(".".ToCharArray());
-							if (Tokens.Length == 2)
+							// get the SDK version from the directory name
+							string SDKString = SubDirName.Replace(OSPrefix, "");
+							int Major = 0;
+							int Minor = 0;
+
+							// parse it into whole and fractional parts (since 10.10 > 10.9 in versions, but not in math)
+							try
 							{
-								Major = Int32.Parse(Tokens[0]);
-								Minor = Int32.Parse(Tokens[1]);
+								string[] Tokens = SDKString.Split(".".ToCharArray());
+								if (Tokens.Length == 2)
+								{
+									Major = Int32.Parse(Tokens[0]);
+									Minor = Int32.Parse(Tokens[1]);
+								}
+							}
+							catch (Exception)
+							{
+								// weirdly formatted SDKs
+								continue;
+							}
+
+							// update largest SDK version number
+							if (Major > MaxSDKVersionMajor || (Major == MaxSDKVersionMajor && Minor > MaxSDKVersionMinor))
+							{
+								MaxSDKVersionString = SDKString;
+								MaxSDKVersionMajor = Major;
+								MaxSDKVersionMinor = Minor;
 							}
 						}
-						catch (Exception)
-						{
-							// weirdly formatted SDKs
-							continue;
-						}
+					}
 
-						// update largest SDK version number
-						if (Major > MaxSDKVersionMajor || (Major == MaxSDKVersionMajor && Minor > MaxSDKVersionMinor))
-						{
-							MaxSDKVersionString = SDKString;
-							MaxSDKVersionMajor = Major;
-							MaxSDKVersionMinor = Minor;
-						}
+					// use the largest version
+					if (MaxSDKVersionString != null)
+					{
+						PlatformSDKVersion = MaxSDKVersionString;
 					}
 				}
-
-				// use the largest version
-				if (MaxSDKVersionString != null)
+				catch (Exception Ex)
 				{
-					PlatformSDKVersion = MaxSDKVersionString;
+					// on any exception, just use the backup version
+					Logger.LogInformation("Triggered an exception while looking for SDK directory in Xcode.app");
+					Logger.LogInformation("{Ex}", Ex.ToString());
 				}
-			}
-			catch (Exception Ex)
-			{
-				// on any exception, just use the backup version
-				Logger.LogInformation("Triggered an exception while looking for SDK directory in Xcode.app");
-				Logger.LogInformation("{Ex}", Ex.ToString());
-			}
 
 			if (bVerbose && !ProjectFileGenerator.bGenerateProjectFiles)
 			{
@@ -822,7 +822,7 @@ namespace UnrealBuildTool
 			Environment.CurrentDirectory = CurrentCWD;
 		}
 
-		internal static int FinalizeAppWithXcode(DirectoryReference XcodeProject, UnrealTargetPlatform Platform, string SchemeName, string Configuration, string Action, string ExtraOptions, ILogger Logger)
+		internal static int FinalizeAppWithXcode(DirectoryReference XcodeProject, UnrealTargetPlatform Platform, UnrealArchitectures Architectures, string SchemeName, string Configuration, string Action, string ExtraOptions, ILogger Logger)
 		{
 			// Acquire a different mutex to the regular UBT instance, since this mode will be called as part of a build. We need the mutex to ensure that building two modular configurations 
 			// in parallel don't clash over writing shared *.modules files (eg. DebugGame and Development editors).
@@ -837,7 +837,7 @@ namespace UnrealBuildTool
 					$"-workspace \"{XcodeProject.FullName}\"",
 					$"-scheme \"{SchemeName}\"",
 					$"-configuration \"{Configuration}\"",
-					$"-destination generic/platform={AppleExports.GetDestinationPlatform(Platform)}",
+					$"-destination generic/platform=\"{AppleExports.GetDestinationPlatform(Platform, Architectures)}\"",
 					"-hideShellScriptEnvironment",
 					// xcode gets confused it we _just_ wrote out entitlements while generating the temp project, and it thinks it was modified _during_ building
 					// but it wasn't, it was written before the build started
@@ -889,6 +889,7 @@ namespace UnrealBuildTool
 	{
 		public FileReference? ProjectFile;
 		public UnrealTargetPlatform Platform;
+		public UnrealArchitectures Architectures;
 		public UnrealTargetConfiguration Configuration;
 		public string TargetName;
 
@@ -900,6 +901,7 @@ namespace UnrealBuildTool
 		{
 			Platform = Target.Platform;
 			Configuration = Target.Configuration;
+			Architectures = Target.Architectures;
 			ProjectFile = Target.ProjectFile;
 			TargetName = Target.Name;
 
@@ -951,14 +953,14 @@ namespace UnrealBuildTool
 				return 0;
 			}
 
-			int ExitCode = AppleExports.BuildWithStubXcodeProject(Target.ProjectFile, Target.Platform, Target.Configuration, Target.TargetName, AppleExports.XcodeBuildMode.PostBuildSync, Logger);
+			int ExitCode = AppleExports.BuildWithStubXcodeProject(Target.ProjectFile, Target.Platform, Target.Architectures, Target.Configuration, Target.TargetName, 
+				AppleExports.XcodeBuildMode.PostBuildSync, Logger, "", bForceDummySigning:Target.bCreateStubIPA);
 			if (ExitCode != 0)
 			{
 				Logger.LogError("ERROR: Failed to finalize the .app with Xcode. Check the log for more information");
 			}
 
-			if ((Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
-				&& Target.bCreateStubIPA)
+			if (Target.Platform.IsInGroup(UnrealPlatformGroup.IOS) && Target.bCreateStubIPA)
 			{
 				IOSToolChain.PackageStub(Target.StubOutputPath.Directory.FullName, Target.TargetName, Target.StubOutputPath.GetFileNameWithoutExtension(), true);
 			}
