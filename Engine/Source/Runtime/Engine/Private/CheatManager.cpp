@@ -55,6 +55,14 @@ APlayerController* UCheatManagerExtension::GetPlayerController() const
 	return GetOuterUCheatManager()->GetPlayerController();
 }
 
+void UCheatManagerExtension::AddedToCheatManager_Implementation()
+{
+}
+
+void UCheatManagerExtension::RemovedFromCheatManager_Implementation()
+{
+}
+
 void UCheatManagerExtension::DoExtensionSpecificBugItLog(FOutputDevice& OutputFile)
 {
 }

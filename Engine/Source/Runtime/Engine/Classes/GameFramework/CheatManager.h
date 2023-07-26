@@ -79,11 +79,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Cheat Manager")
 	ENGINE_API APlayerController* GetPlayerController() const;
 
-	UFUNCTION(BlueprintImplementableEvent, meta=(DisplayName = "Added To Cheat Manager", Keywords="Begin Play"))
+	UFUNCTION(BlueprintNativeEvent, meta=(DisplayName = "Added To Cheat Manager", Keywords="Begin Play"))
 	ENGINE_API void AddedToCheatManager();
+	ENGINE_API virtual void AddedToCheatManager_Implementation();
 
-	UFUNCTION(BlueprintImplementableEvent, meta = (DisplayName = "Removed From Cheat Manager", Keywords = "End Play"))
+	UFUNCTION(BlueprintNativeEvent, meta = (DisplayName = "Removed From Cheat Manager", Keywords = "End Play"))
 	ENGINE_API void RemovedFromCheatManager();
+	ENGINE_API virtual void RemovedFromCheatManager_Implementation();
 
 	ENGINE_API virtual void DoExtensionSpecificBugItLog(FOutputDevice& OutputFile);
 };
