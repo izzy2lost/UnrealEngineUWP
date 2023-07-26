@@ -33,6 +33,7 @@
 
 	<Agent Name="IterativeValidateAgent" Type="$(AgentType)">
 		<Node Name="$(CompileNodeName)">
+			<Compile Target="ShaderCompileWorker" Platform="$(EditorPlatform)" Project="$(ProjectFile)" Configuration="Development"/>
 			<Compile Target="$(EditorTarget)" Platform="$(EditorPlatform)" Project="$(ProjectFile)" Configuration="Development"/>
 		</Node>
 		<Node Name="$(CookIterativeValidatePrePassName)" Requires="$(CompileNodeName)">
