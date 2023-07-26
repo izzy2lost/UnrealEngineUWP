@@ -12,6 +12,7 @@
 #include "ScenePrivate.h"
 #include "RendererModule.h"
 #include "ShaderPlatformCachedIniValue.h"
+#include "PostProcess/PostProcessVisualizeBuffer.h"
 
 #define COMPILE_TSR_DEBUG_PASSES (!UE_BUILD_SHIPPING)
 
@@ -210,6 +211,7 @@ TAutoConsoleVariable<int32> CVarTSRResurrectionPersistentFrameInterval(
 	TEXT("r.TSR.Resurrection.PersistentFrameInterval"), 31,
 	TEXT("Configures in number of frames how often persistent frame should be recorded in history for futur history resurrection. ")
 	TEXT("This has no implication on memory footprint of the TSR history. Must be an even number greater or equal to 1. ")
+	TEXT("Uses the VisualizeTSR show flag and r.TSR.Visualize=5 to tune this parameter to your content. ")
 	TEXT("(default=31)"),
 	ECVF_RenderThreadSafe);
 
@@ -277,6 +279,22 @@ TAutoConsoleVariable<int32> CVarTSRSubpixelIncludeMovingDepth(
 	TEXT("Whether the depth of moving subpixel detail should also be included in the subpixel depth history for their reprojection. This is a really bad idea to turn this on ")
 	TEXT("because it is impossible how a moving object's velocity involves overtime when it's only occasionally drawing its velocity. (disabled by default)."),
 	ECVF_RenderThreadSafe);
+
+#if !UE_BUILD_OPTIMIZED_SHOWFLAGS
+
+TAutoConsoleVariable<int32> CVarTSRVisualize(
+	TEXT("r.TSR.Visualize"), -1,
+	TEXT("Selects what to display with the VisualizeTSR show flag (opened with the `show VisualizeTSR` command at runtime or Show > Visualize > TSR in editor viewports).\n")
+	TEXT(" -1: Display an overview grid (default);\n")
+	TEXT("  0: Number of accumulated samples in the history, particularily interesting to tune r.TSR.ShadingRejection.SampleCount and r.TSR.Velocity.WeightClampingSampleCount;\n")
+	TEXT("  1: Parallax disocclusion based of depth and velocity buffers;\n")
+	TEXT("  2: Mask where the history is rejected;\n")
+	TEXT("  3: Mask where the history is clamped;\n")
+	TEXT("  4: Mask where the history is resurrected (with r.TSR.Resurrection=1);\n")
+	TEXT("  5: Mask where the history is resurrected in the resurrected frame (with r.TSR.Resurrection=1), particularily interesting to tune r.TSR.Resurrection.PersistentFrameInterval;\n"),
+	ECVF_RenderThreadSafe);
+
+#endif
 
 #if COMPILE_TSR_DEBUG_PASSES
 
@@ -930,6 +948,39 @@ class FTSRResolveHistoryCS : public FTSRShader
 	}
 }; // class FTSRResolveHistoryCS
 
+class FTSRVisualizeCS : public FTSRShader
+{
+	DECLARE_GLOBAL_SHADER(FTSRVisualizeCS);
+	SHADER_USE_PARAMETER_STRUCT(FTSRVisualizeCS, FTSRShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(FTSRCommonParameters, CommonParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FTSRPrevHistoryParameters, PrevHistoryParameters)
+		SHADER_PARAMETER(FScreenTransform, OutputPixelPosToScreenPos)
+		SHADER_PARAMETER(FScreenTransform, ScreenPosToHistoryUV)
+		SHADER_PARAMETER(FScreenTransform, ScreenPosToInputPixelPos)
+		SHADER_PARAMETER(FMatrix44f, ClipToResurrectionClip)
+		SHADER_PARAMETER(FIntPoint, OutputViewRectMin)
+		SHADER_PARAMETER(FIntPoint, OutputViewRectMax)
+		SHADER_PARAMETER(int32, VisualizeId)
+		SHADER_PARAMETER(int32, bCanResurrectHistory)
+		SHADER_PARAMETER(float, MaxHistorySampleCount)
+		SHADER_PARAMETER(float, OutputToHistoryResolutionFractionSquare)
+
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, SceneColorTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ClosestDepthTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DilatedVelocityTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ParallaxRejectionMaskTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HistoryRejectionTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HistoryResurrectionMaskTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, HistoryMetadataTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ResurrectedHistoryColorTexture)
+
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, Output)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, DebugOutput)
+	END_SHADER_PARAMETER_STRUCT()
+}; // class FTSRVisualizeCS
+
 IMPLEMENT_GLOBAL_SHADER(FTSRComputeMoireLumaCS,      "/Engine/Private/TemporalSuperResolution/TSRComputeMoireLuma.usf",      "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRClearPrevTexturesCS,     "/Engine/Private/TemporalSuperResolution/TSRClearPrevTextures.usf",     "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRForwardScatterDepthCS,   "/Engine/Private/TemporalSuperResolution/TSRForwardScatterDepth.usf",   "MainCS", SF_Compute);
@@ -941,6 +992,7 @@ IMPLEMENT_GLOBAL_SHADER(FTSRSpatialAntiAliasingCS,   "/Engine/Private/TemporalSu
 IMPLEMENT_GLOBAL_SHADER(FTSRFilterAntiAliasingCS,    "/Engine/Private/TemporalSuperResolution/TSRFilterAntiAliasing.usf",    "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRUpdateHistoryCS,         "/Engine/Private/TemporalSuperResolution/TSRUpdateHistory.usf",         "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRResolveHistoryCS,        "/Engine/Private/TemporalSuperResolution/TSRResolveHistory.usf",        "MainCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FTSRVisualizeCS,             "/Engine/Private/TemporalSuperResolution/TSRVisualize.usf",             "MainCS", SF_Compute);
 
 DECLARE_GPU_STAT(TemporalSuperResolution)
 
@@ -2357,7 +2409,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		{
 			PassParameters->SceneColorOutputMip1 = CreateDummyUAV(GraphBuilder, PF_FloatR11G11B10);
 		}
-		PassParameters->DebugOutput = CreateDebugUAV(HistoryExtent, TEXT("Debug.TSR.ResolveHistory"));
+		PassParameters->DebugOutput = CreateDebugUAV(OutputExtent, TEXT("Debug.TSR.ResolveHistory"));
 
 		FTSRResolveHistoryCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FTSRResolveHistoryCS::FNyquistDim>(bNyquistHistory && bUseWaveOps && GRHIMaximumWaveSize >= 32 && GRHIMinimumWaveSize <= 32);
@@ -2435,6 +2487,139 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		}
 	}
 
+#if !UE_BUILD_OPTIMIZED_SHOWFLAGS
+	if (View.Family->EngineShowFlags.VisualizeTSR)
+	{
+		RDG_EVENT_SCOPE(GraphBuilder, "VisualizeTSR %dx%d", OutputRect.Width(), OutputRect.Height());
+
+		enum class EVisualizeId : int32
+		{
+			Overview = -1,
+			HistorySampleCount = 0,
+			ParallaxDisocclusionMask = 1,
+			HistoryRejection = 2,
+			HistoryClamp = 3,
+			ResurrectionMask = 4,
+			ResurrectedColor = 5,
+			MAX,
+		};
+
+		static const TCHAR* kVisualizationName[] = {
+			TEXT("HistorySampleCount"),
+			TEXT("ParallaxDisocclusionMask"),
+			TEXT("HistoryRejection"),
+			TEXT("HistoryClamp"),
+			TEXT("ResurrectionMask"),
+			TEXT("ResurrectedColor"),
+		};
+		static_assert(UE_ARRAY_COUNT(kVisualizationName) == int32(EVisualizeId::MAX), "kVisualizationName doesn't match EVisualizeId");
+
+		const EVisualizeId Visualization = EVisualizeId(FMath::Clamp(CVarTSRVisualize.GetValueOnRenderThread(), -1, int32(EVisualizeId::MAX) - 1));
+		FIntRect VisualizeRect = Visualization == EVisualizeId::Overview ? FIntRect(OutputRect.Min + OutputRect.Size() / 4, OutputRect.Min + (OutputRect.Size() * 3) / 4) : OutputRect;
+
+		auto Visualize = [&](EVisualizeId VisualizeId, FString Label)
+		{
+			check(VisualizeId != EVisualizeId::Overview);
+
+			FRDGTextureDesc OutputDesc = FRDGTextureDesc::Create2D(
+				OutputExtent,
+				ColorFormat,
+				FClearValueBinding::None,
+				/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV);
+
+			FRDGTextureRef OutputTexture = GraphBuilder.CreateTexture(OutputDesc, TEXT("TSR.Visualize"));
+
+			FTSRVisualizeCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTSRVisualizeCS::FParameters>();
+			PassParameters->CommonParameters = CommonParameters;
+			PassParameters->PrevHistoryParameters = PrevHistoryParameters;
+			PassParameters->OutputPixelPosToScreenPos = (FScreenTransform::Identity - OutputRect.Min + 0.5f) / OutputRect.Size() * FScreenTransform::ViewportUVToScreenPos;
+			PassParameters->ScreenPosToHistoryUV = FScreenTransform::ChangeTextureBasisFromTo(HistoryExtent, FIntRect(FIntPoint::ZeroValue, HistorySize), FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TextureUV);
+			PassParameters->ScreenPosToInputPixelPos = FScreenTransform::ChangeTextureBasisFromTo(InputExtent, InputRect, FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TextureUV);
+			PassParameters->ClipToResurrectionClip = ClipToResurrectionClip;
+			PassParameters->OutputViewRectMin = VisualizeRect.Min;
+			PassParameters->OutputViewRectMax = VisualizeRect.Max;
+			PassParameters->VisualizeId = int32(VisualizeId);
+			PassParameters->bCanResurrectHistory = bCanResurrectHistory;
+			PassParameters->MaxHistorySampleCount = MaxHistorySampleCount;
+			PassParameters->OutputToHistoryResolutionFractionSquare = OutputToHistoryResolutionFractionSquare;
+
+			PassParameters->SceneColorTexture = SceneColorOutputTextureSRV;
+			PassParameters->ClosestDepthTexture = ClosestDepthTexture;
+			PassParameters->DilatedVelocityTexture = DilatedVelocityTexture;
+			PassParameters->ParallaxRejectionMaskTexture = ParallaxRejectionMaskTexture;
+			PassParameters->HistoryRejectionTexture = HistoryRejectionTexture;
+			PassParameters->HistoryResurrectionMaskTexture = bCanResurrectHistory ? HistoryResurrectionMaskTexture : BlackDummy;
+			PassParameters->HistoryMetadataTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(History.MetadataArray, CurrentFrameSliceIndex));
+			if (PrevHistory.ColorArray == BlackArrayDummy)
+			{
+				PassParameters->ResurrectedHistoryColorTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(PrevHistory.ColorArray, 0));
+			}
+			else
+			{
+				PassParameters->ResurrectedHistoryColorTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(PrevHistory.ColorArray, bCanResurrectHistory ? ResurrectionFrameSliceIndex : PrevFrameSliceIndex));
+			}
+
+			PassParameters->Output = GraphBuilder.CreateUAV(OutputTexture);
+			PassParameters->DebugOutput = CreateDebugUAV(OutputExtent, TEXT("Debug.TSR.Visualize"));
+
+			TShaderMapRef<FTSRVisualizeCS> ComputeShader(View.ShaderMap);
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("TSR Visualize(%s) %dx%d", kVisualizationName[int32(VisualizeId)], VisualizeRect.Width(), VisualizeRect.Height()),
+				AsyncComputePasses >= 3 ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
+				ComputeShader,
+				PassParameters,
+				FComputeShaderUtils::GetGroupCount(VisualizeRect.Size(), 8));
+
+			FVisualizeBufferTile Tile;
+			Tile.Input = FScreenPassTexture(OutputTexture, VisualizeRect);
+			Tile.Label = FString::Printf(TEXT("%s (r.TSR.Visualize=%d)"), *Label, int32(VisualizeId));
+			return Tile;
+		};
+
+		FRDGTextureRef OutputTexture;
+		if (Visualization == EVisualizeId::Overview)
+		{
+			TArray<FVisualizeBufferTile> Tiles;
+			Tiles.SetNum(16);
+			{
+				Tiles[4 * 0 + 0] = Visualize(EVisualizeId::HistorySampleCount, TEXT("Accumulated Sample Count"));
+				Tiles[4 * 0 + 1] = Visualize(EVisualizeId::ParallaxDisocclusionMask, TEXT("Parallax Disocclusion"));
+				Tiles[4 * 0 + 2] = Visualize(EVisualizeId::HistoryRejection, TEXT("History Rejection"));
+				Tiles[4 * 0 + 3] = Visualize(EVisualizeId::HistoryClamp, TEXT("History Clamp"));
+				Tiles[4 * 1 + 0] = Visualize(EVisualizeId::ResurrectionMask, TEXT("Resurrection Mask"));
+				if (bCanResurrectHistory)
+				{
+					Tiles[4 * 2 + 0] = Visualize(EVisualizeId::ResurrectedColor, TEXT("Resurrected Frame"));
+				}
+			}
+
+			{
+				FRDGTextureDesc OutputDesc = FRDGTextureDesc::Create2D(
+					OutputExtent,
+					ColorFormat,
+					FClearValueBinding::Black,
+					/* InFlags = */ TexCreate_ShaderResource | TexCreate_RenderTargetable);
+
+				OutputTexture = GraphBuilder.CreateTexture(OutputDesc, TEXT("TSR.VisualizeOverview"));
+
+				FVisualizeBufferInputs VisualizeBufferInputs;
+				VisualizeBufferInputs.OverrideOutput = FScreenPassRenderTarget(FScreenPassTexture(OutputTexture, OutputRect), ERenderTargetLoadAction::EClear);
+				VisualizeBufferInputs.SceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, FScreenPassTextureSlice(SceneColorOutputTextureSRV, OutputRect));
+				VisualizeBufferInputs.Tiles = Tiles;
+				AddVisualizeBufferPass(GraphBuilder, View, VisualizeBufferInputs);
+			}
+		}
+		else
+		{
+			OutputTexture = Visualize(Visualization, TEXT("")).Input.Texture;
+		}
+
+		FDefaultTemporalUpscaler::FOutputs Outputs;
+		Outputs.FullRes = FScreenPassTextureSlice(GraphBuilder.CreateSRV(FRDGTextureSRVDesc(OutputTexture)), OutputRect);
+		return Outputs;
+	}
+#endif
 
 	FDefaultTemporalUpscaler::FOutputs Outputs;
 	Outputs.FullRes = FScreenPassTextureSlice(SceneColorOutputTextureSRV, OutputRect);
