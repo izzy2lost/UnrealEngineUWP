@@ -232,6 +232,7 @@ public:
 		{
 			SrcBufferCopies[Index].InsertZeroed(0, kPrerollSkipCount * SAMPLE_SIZE);
 		}
+		SourceSize += kPrerollSkipCount * SAMPLE_SIZE;
 
 		// Initialise the Opus multistream encoder
 		OpusMSEncoder* Encoder = NULL;
