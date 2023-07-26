@@ -900,6 +900,47 @@ void UGameFeaturesSubsystem::LoadGameFeaturePlugin(const FString& PluginURL, con
 	ChangeGameFeatureDestination(StateMachine, ProtocolOptions, FGameFeaturePluginStateRange(EGameFeaturePluginState::Loaded, EGameFeaturePluginState::Active), CompleteDelegate);
 }
 
+void UGameFeaturesSubsystem::LoadGameFeaturePlugin(TConstArrayView<FString> PluginURLs, const FGameFeatureProtocolOptions& ProtocolOptions, const FMultipleGameFeaturePluginsLoaded& CompleteDelegate)
+{
+	struct FLoadContext
+	{
+		TMap<FString, UE::GameFeatures::FResult> Results;
+		FMultipleGameFeaturePluginsLoaded CompleteDelegate;
+
+		int32 NumPluginsLoaded = 0;
+
+		~FLoadContext()
+		{
+			UGameplayTagsManager::Get().PopDeferOnGameplayTagTreeChangedBroadcast();
+
+			CompleteDelegate.ExecuteIfBound(Results);
+		}
+	};
+	TSharedRef<FLoadContext> LoadContext = MakeShared<FLoadContext>();
+	LoadContext->CompleteDelegate = CompleteDelegate;
+
+	UGameplayTagsManager::Get().PushDeferOnGameplayTagTreeChangedBroadcast();
+
+	LoadContext->Results.Reserve(PluginURLs.Num());
+	for (const FString& PluginURL : PluginURLs)
+	{
+		LoadContext->Results.Add(PluginURL, MakeError("Pending"));
+	}
+
+	const int32 NumPluginsToLoad = PluginURLs.Num();
+	UE_LOG(LogGameFeatures, Log, TEXT("Loading %i GFPs"), NumPluginsToLoad);
+
+	for (const FString& PluginURL : PluginURLs)
+	{
+		LoadGameFeaturePlugin(PluginURL, ProtocolOptions, FGameFeaturePluginChangeStateComplete::CreateLambda([LoadContext, PluginURL](const UE::GameFeatures::FResult& Result)
+		{
+			LoadContext->Results.Add(PluginURL, Result);
+			++LoadContext->NumPluginsLoaded;
+			UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Finished Loading %i GFPs"), LoadContext->NumPluginsLoaded);
+		}));
+	}
+}
+
 void UGameFeaturesSubsystem::LoadAndActivateGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginLoadComplete& CompleteDelegate)
 {
 	ChangeGameFeatureTargetState(PluginURL, EGameFeatureTargetState::Active, CompleteDelegate);
@@ -908,6 +949,11 @@ void UGameFeaturesSubsystem::LoadAndActivateGameFeaturePlugin(const FString& Plu
 void UGameFeaturesSubsystem::LoadAndActivateGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginLoadComplete& CompleteDelegate)
 {
 	ChangeGameFeatureTargetState(PluginURL, ProtocolOptions, EGameFeatureTargetState::Active, CompleteDelegate);
+}
+
+void UGameFeaturesSubsystem::LoadAndActivateGameFeaturePlugin(TConstArrayView<FString> PluginURLs, const FGameFeatureProtocolOptions& ProtocolOptions, const FMultipleGameFeaturePluginsLoaded& CompleteDelegate)
+{
+	ChangeGameFeatureTargetState(PluginURLs, ProtocolOptions, EGameFeatureTargetState::Active, CompleteDelegate);
 }
 
 void UGameFeaturesSubsystem::ChangeGameFeatureTargetState(const FString& PluginURL, EGameFeatureTargetState TargetState, const FGameFeaturePluginChangeStateComplete& CompleteDelegate)
@@ -988,6 +1034,47 @@ void UGameFeaturesSubsystem::ChangeGameFeatureTargetState(const FString& PluginU
 	ChangeGameFeatureDestination(StateMachine, ProtocolOptions, FGameFeaturePluginStateRange(TargetPluginState), CompleteDelegate);
 }
 
+void UGameFeaturesSubsystem::ChangeGameFeatureTargetState(TConstArrayView<FString> PluginURLs, const FGameFeatureProtocolOptions& ProtocolOptions, EGameFeatureTargetState TargetState, const FMultipleGameFeaturePluginsLoaded& CompleteDelegate)
+{
+	struct FLoadContext
+	{
+		TMap<FString, UE::GameFeatures::FResult> Results;
+		FMultipleGameFeaturePluginsLoaded CompleteDelegate;
+
+		int32 NumPluginsLoaded = 0;
+
+		~FLoadContext()
+		{
+			UGameplayTagsManager::Get().PopDeferOnGameplayTagTreeChangedBroadcast();
+
+			CompleteDelegate.ExecuteIfBound(Results);
+		}
+	};
+	TSharedRef<FLoadContext> LoadContext = MakeShared<FLoadContext>();
+	LoadContext->CompleteDelegate = CompleteDelegate;
+
+	UGameplayTagsManager::Get().PushDeferOnGameplayTagTreeChangedBroadcast();
+
+	LoadContext->Results.Reserve(PluginURLs.Num());
+	for (const FString& PluginURL : PluginURLs)
+	{
+		LoadContext->Results.Add(PluginURL, MakeError("Pending"));
+	}
+
+	const int32 NumPluginsToLoad = PluginURLs.Num();
+	UE_LOG(LogGameFeatures, Log, TEXT("Transitioning (%s) %i GFPs"), *LexToString(TargetState), NumPluginsToLoad);
+
+	for (const FString& PluginURL : PluginURLs)
+	{
+		ChangeGameFeatureTargetState(PluginURL, ProtocolOptions, TargetState, FGameFeaturePluginChangeStateComplete::CreateLambda([LoadContext, PluginURL, TargetState](const UE::GameFeatures::FResult& Result)
+		{
+			LoadContext->Results.Add(PluginURL, Result);
+			++LoadContext->NumPluginsLoaded;
+			UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Finished Transitioning (%s) %i GFPs"), *LexToString(TargetState), LoadContext->NumPluginsLoaded);
+		}));
+	}
+}
+
 UE::GameFeatures::FResult UGameFeaturesSubsystem::UpdateGameFeatureProtocolOptions(const FString& PluginURL, const FGameFeatureProtocolOptions& NewOptions, bool* bOutDidUpdate /*= nullptr*/)
 {
 	UGameFeaturePluginStateMachine* StateMachine = FindGameFeaturePluginStateMachine(PluginURL);
@@ -1064,6 +1151,30 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginInstallPercent(const FString& P
 			return true;
 		}
 	}
+	return false;
+}
+
+bool UGameFeaturesSubsystem::GetGameFeaturePluginInstallPercent(TConstArrayView<FString> PluginURLs, float& Install_Percent) const
+{
+	float TotalInstallPercent = 0;
+	int32 NumFound = 0;
+
+	for (const FString& URL : PluginURLs)
+	{
+		float SingleInstallPercent = 0;
+		if (GetGameFeaturePluginInstallPercent(URL, SingleInstallPercent))
+		{
+			TotalInstallPercent += SingleInstallPercent;
+			++NumFound;
+		}
+	}
+
+	if (NumFound > 0)
+	{
+		Install_Percent = TotalInstallPercent / NumFound;
+		return true;
+	}
+
 	return false;
 }
 
@@ -1242,6 +1353,42 @@ void UGameFeaturesSubsystem::CancelGameFeatureStateChange(const FString& PluginU
 	}
 }
 
+void UGameFeaturesSubsystem::CancelGameFeatureStateChange(TConstArrayView<FString> PluginURLs, const FMultipleGameFeaturePluginChangeStateComplete& CompleteDelegate)
+{
+	struct FContext
+	{
+		TMap<FString, UE::GameFeatures::FResult> Results;
+		FMultipleGameFeaturePluginsLoaded CompleteDelegate;
+
+		int32 NumPluginsCanceled = 0;
+
+		~FContext()
+		{
+			CompleteDelegate.ExecuteIfBound(Results);
+		}
+	};
+	TSharedRef<FContext> CancelContext = MakeShared<FContext>();
+	CancelContext->CompleteDelegate = CompleteDelegate;
+
+	CancelContext->Results.Reserve(PluginURLs.Num());
+	for (const FString& PluginURL : PluginURLs)
+	{
+		CancelContext->Results.Add(PluginURL, MakeError("Pending"));
+	}
+
+	UE_LOG(LogGameFeatures, Log, TEXT("Canceling %i GFP transitions"), PluginURLs.Num());
+
+	for (const FString& PluginURL : PluginURLs)
+	{
+		CancelGameFeatureStateChange(PluginURL, FGameFeaturePluginChangeStateComplete::CreateLambda([CancelContext, PluginURL](const UE::GameFeatures::FResult& Result)
+		{
+			CancelContext->Results.Add(PluginURL, Result);
+			++CancelContext->NumPluginsCanceled;
+			UE_LOG(LogGameFeatures, VeryVerbose, TEXT("Finished canceling %i GFP transitions"), CancelContext->NumPluginsCanceled);
+		}));
+	}
+}
+
 void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugin(const TSharedRef<IPlugin>& Plugin, FBuiltInPluginAdditionalFilters AdditionalFilter, const FGameFeaturePluginLoadComplete& CompleteDelegate /*= FGameFeaturePluginLoadComplete()*/)
 {
 	UE_SCOPED_ENGINE_ACTIVITY(TEXT("Loading GameFeaturePlugin %s"), *Plugin->GetName());
@@ -1382,7 +1529,7 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugins(FBuiltInPluginAdditio
 			CompleteDelegate.ExecuteIfBound(Results);
 		}
 	};
-	TSharedRef LoadContext = MakeShared<FLoadContext>();
+	TSharedRef<FLoadContext> LoadContext = MakeShared<FLoadContext>();
 	LoadContext->CompleteDelegate = InCompleteDelegate;
 
 	UAssetManager::Get().PushBulkScanning();
@@ -1403,7 +1550,7 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugins(FBuiltInPluginAdditio
 	for (const TSharedRef<IPlugin>& Plugin : EnabledPlugins)
 	{
 		FBuiltInPluginLoadTimeTrackerScope TrackerScope(PluginLoadTimeTracker, Plugin);
-		LoadBuiltInGameFeaturePlugin(Plugin, AdditionalFilter, FGameFeaturePluginLoadComplete::CreateLambda([LoadContext, Plugin, NumPluginsToLoad](const UE::GameFeatures::FResult& Result)
+		LoadBuiltInGameFeaturePlugin(Plugin, AdditionalFilter, FGameFeaturePluginLoadComplete::CreateLambda([LoadContext, Plugin](const UE::GameFeatures::FResult& Result)
 		{
 			LoadContext->Results.Add(Plugin->GetName(), Result);
 			++LoadContext->NumPluginsLoaded;

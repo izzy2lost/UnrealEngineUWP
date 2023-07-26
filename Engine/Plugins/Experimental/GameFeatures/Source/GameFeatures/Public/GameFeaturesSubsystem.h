@@ -167,7 +167,10 @@ using FGameFeaturePluginUninstallComplete = FGameFeaturePluginChangeStateComplet
 using FGameFeaturePluginTerminateComplete = FGameFeaturePluginChangeStateComplete;
 using FGameFeaturePluginUpdateProtocolComplete = FGameFeaturePluginChangeStateComplete;
 
-DECLARE_DELEGATE_OneParam(FBuiltInGameFeaturePluginsLoaded, PREPROCESSOR_COMMA_SEPARATED(const TMap<FString, UE::GameFeatures::FResult>& /*Results*/));
+DECLARE_DELEGATE_OneParam(FMultipleGameFeaturePluginChangeStateComplete, PREPROCESSOR_COMMA_SEPARATED(const TMap<FString, UE::GameFeatures::FResult>& /*Results*/));
+
+using FBuiltInGameFeaturePluginsLoaded = FMultipleGameFeaturePluginChangeStateComplete;
+using FMultipleGameFeaturePluginsLoaded = FMultipleGameFeaturePluginChangeStateComplete;
 
 enum class EBuiltInAutoState : uint8
 {
@@ -405,20 +408,24 @@ public:
 	/** Loads a single game feature plugin. */
 	void LoadGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginLoadComplete& CompleteDelegate);
 	void LoadGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginLoadComplete& CompleteDelegate);
+	void LoadGameFeaturePlugin(TConstArrayView<FString> PluginURLs, const FGameFeatureProtocolOptions& ProtocolOptions, const FMultipleGameFeaturePluginsLoaded& CompleteDelegate);
 
 	/** Loads a single game feature plugin and activates it. */
 	void LoadAndActivateGameFeaturePlugin(const FString& PluginURL, const FGameFeaturePluginLoadComplete& CompleteDelegate);
 	void LoadAndActivateGameFeaturePlugin(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, const FGameFeaturePluginLoadComplete& CompleteDelegate);
+	void LoadAndActivateGameFeaturePlugin(TConstArrayView<FString> PluginURLs, const FGameFeatureProtocolOptions& ProtocolOptions, const FMultipleGameFeaturePluginsLoaded& CompleteDelegate);
 
 	/** Changes the target state of a game feature plugin */
 	void ChangeGameFeatureTargetState(const FString& PluginURL, EGameFeatureTargetState TargetState, const FGameFeaturePluginChangeStateComplete& CompleteDelegate);
 	void ChangeGameFeatureTargetState(const FString& PluginURL, const FGameFeatureProtocolOptions& ProtocolOptions, EGameFeatureTargetState TargetState, const FGameFeaturePluginChangeStateComplete& CompleteDelegate);
+	void ChangeGameFeatureTargetState(TConstArrayView<FString> PluginURLs, const FGameFeatureProtocolOptions& ProtocolOptions, EGameFeatureTargetState TargetState, const FMultipleGameFeaturePluginsLoaded& CompleteDelegate);
 
 	/** Changes the protocol options of a game feature plugin. Useful to change any options data such as settings flags */
 	UE::GameFeatures::FResult UpdateGameFeatureProtocolOptions(const FString& PluginURL, const FGameFeatureProtocolOptions& NewOptions, bool* bOutDidUpdate = nullptr);
 
 	/** Gets the Install_Percent for single game feature plugin if it is active. */
 	bool GetGameFeaturePluginInstallPercent(const FString& PluginURL, float& Install_Percent) const;
+	bool GetGameFeaturePluginInstallPercent(TConstArrayView<FString> PluginURLs, float& Install_Percent) const;
 
 	/** Determines if a plugin is in the Active state.*/
 	bool IsGameFeaturePluginActive(const FString& PluginURL, bool bCheckForActivating = false) const;
@@ -449,6 +456,7 @@ public:
 	/** Attempt to cancel any state change. Calls back when cancelation is complete. Any other pending callbacks will be called with a canceled error. */
 	void CancelGameFeatureStateChange(const FString& PluginURL);
 	void CancelGameFeatureStateChange(const FString& PluginURL, const FGameFeaturePluginChangeStateComplete& CompleteDelegate);
+	void CancelGameFeatureStateChange(TConstArrayView<FString> PluginURLs, const FMultipleGameFeaturePluginChangeStateComplete& CompleteDelegate);
 
 	/**
 	 * If the specified plugin is known by the game feature system, returns the URL used to identify it
