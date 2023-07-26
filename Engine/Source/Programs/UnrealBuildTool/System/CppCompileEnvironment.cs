@@ -402,6 +402,11 @@ namespace UnrealBuildTool
 		public OptimizationMode OptimizationLevel = OptimizationMode.Speed;
 
 		/// <summary>
+		/// Determines the FP semantics.
+		/// </summary>
+		public FPSemanticsMode FPSemantics = FPSemanticsMode.Default;
+
+		/// <summary>
 		/// True if debug info should be created.
 		/// </summary>
 		public bool bCreateDebugInfo = true;
@@ -726,6 +731,7 @@ namespace UnrealBuildTool
 			bAllowAutoRTFMInstrumentation = Other.bAllowAutoRTFMInstrumentation;
 			bCodeCoverage = Other.bCodeCoverage;
 			OptimizationLevel = Other.OptimizationLevel;
+			FPSemantics = Other.FPSemantics;
 			bCreateDebugInfo = Other.bCreateDebugInfo;
 			bIsBuildingLibrary = Other.bIsBuildingLibrary;
 			bIsBuildingDLL = Other.bIsBuildingDLL;

@@ -1871,6 +1871,24 @@ namespace UnrealBuildTool
 				Result.OptimizationLevel = Rules.OptimizationLevel;
 			}
 
+			if (Result.FPSemantics != Rules.FPSemantics)
+			{
+				if (Rules.PrivatePCHHeaderFile == null)
+				{
+					if (Rules.PCHUsage != ModuleRules.PCHUsageMode.NoPCHs)
+					{
+						Logger.LogInformation($"  Overriding FPSemantics requires a private PCH. Disabling PCH usage for {Name}");
+						Rules.PCHUsage = ModuleRules.PCHUsageMode.NoPCHs;
+					}
+				}
+				else if (Rules.PCHUsage == ModuleRules.PCHUsageMode.UseSharedPCHs)
+				{
+					Logger.LogInformation($"  Overriding FPSemantics requires a private PCH. A private PCH exists but UseSharedPCHs was specified. Overriding to NoSharedPCHs for {Name}");
+					Rules.PCHUsage = ModuleRules.PCHUsageMode.NoSharedPCHs;
+				}
+				Result.FPSemantics = Rules.FPSemantics;
+			}
+
 			// If the module overrides the C++ language version, override it on the compile environment
 			if (Rules.CppStandard != null)
 			{

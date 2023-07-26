@@ -278,6 +278,29 @@ namespace UnrealBuildTool
 	}
 
 	/// <summary>
+	/// Floating point math semantics
+	/// </summary>
+	public enum FPSemanticsMode
+	{
+		/// <summary>
+		/// Use the default semantics for the platform.
+		/// </summary>
+		Default,
+
+		/// <summary>
+		/// FP math is IEEE-754 compliant, assuming that FP exceptions are disabled and the rounding
+		/// mode is round-to-nearest-even.
+		/// </summary>
+		Precise,
+
+		/// <summary>
+		/// FP math isn't IEEE-754 compliant: the compiler is allowed to transform math expressions
+		/// in a ways that might result in differently rounded results from what IEEE-754 requires.
+		/// </summary>
+		Imprecise,
+	}
+
+	/// <summary>
 	/// Determines how the Gameplay Debugger plugin will be activated.
 	/// </summary>
 	public enum GameplayDebuggerOverrideState
@@ -1336,6 +1359,13 @@ namespace UnrealBuildTool
 		[RequiresUniqueBuildEnvironment]
 		[CommandLine("-OptimizationLevel=")]
 		public OptimizationMode OptimizationLevel = OptimizationMode.Speed;
+
+		/// <summary>
+		/// Allows setting the FP semantics.
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-FPSemantics=")]
+		public FPSemanticsMode FPSemantics = FPSemanticsMode.Default;
 
 		/// <summary>
 		/// Whether to compile development automation tests.
@@ -3113,6 +3143,8 @@ namespace UnrealBuildTool
 		public bool bCompileForSize => Inner.bCompileForSize;
 
 		public OptimizationMode OptimizationLevel => Inner.OptimizationLevel;
+
+		public FPSemanticsMode FPSemantics => Inner.FPSemantics;
 
 		public bool bRetainFramePointers => Inner.bRetainFramePointers;
 

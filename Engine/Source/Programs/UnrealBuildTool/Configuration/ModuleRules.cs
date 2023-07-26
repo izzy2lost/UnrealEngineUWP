@@ -712,6 +712,17 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Allows overriding the FP semantics for this module. This requires a private PCH (or NoPCHs, which is not recommended)
+		/// </summary>
+		public FPSemanticsMode FPSemantics
+		{
+			get => FPSemanticsPrivate ?? Target.FPSemantics;
+			set => FPSemanticsPrivate = value;
+		}
+
+		private FPSemanticsMode? FPSemanticsPrivate = null;
+
+		/// <summary>
 		/// Explicit private PCH for this module. Implies that this module will not use a shared PCH.
 		/// </summary>
 		public string? PrivatePCHHeaderFile;

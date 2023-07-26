@@ -782,17 +782,22 @@ namespace UnrealBuildTool
 				Arguments.Add("/bigobj");
 			}
 
+			FPSemanticsMode FPSemantics = CompileEnvironment.FPSemantics;
 			if (Target.WindowsPlatform.Compiler.IsClang())
 			{
 				// FMath::Sqrt calls get inlined and when reciprical is taken, turned into an rsqrtss instruction,
 				// which is *too* imprecise for, e.g., TestVectorNormalize_Sqrt in UnrealMathTest.cpp
 				// TODO: Observed in clang 7.0, presumably the same in Intel C++ Compiler?
-				Arguments.Add("/fp:precise");
+				FPSemantics = FPSemanticsMode.Precise;
 			}
-			else
+
+			switch (FPSemantics)
 			{
-				// Relaxes floating point precision semantics to allow more optimization.
-				Arguments.Add("/fp:fast");
+				case FPSemanticsMode.Default: // Default is imprecise FP semantics.
+				case FPSemanticsMode.Imprecise: Arguments.Add("/fp:fast"); break;
+				case FPSemanticsMode.Precise: Arguments.Add("/fp:precise"); break;
+				default:
+					throw new BuildException($"Unsupported FP semantics: {FPSemantics}");
 			}
 
 			// Intel oneAPI compiler does not support /Zo

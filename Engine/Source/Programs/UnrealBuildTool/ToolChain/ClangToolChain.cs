@@ -585,6 +585,28 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Compile arguments for FP semantics
+		/// </summary>
+		/// <param name="CompileEnvironment"></param>
+		/// <param name="Arguments"></param>
+		protected virtual void GetCompileArguments_FPSemantics(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
+		{
+			switch (CompileEnvironment.FPSemantics)
+			{
+				case FPSemanticsMode.Default: // Default to precise FP semantics.
+				case FPSemanticsMode.Precise:
+					// Clang defaults to -ffp-contract=on, which allows fusing multiplications and additions into FMAs.
+					Arguments.Add("-ffp-contract=off");
+					break;
+				case FPSemanticsMode.Imprecise:
+					Arguments.Add("-ffast-math");
+					break;
+				default:
+					throw new BuildException($"Unsupported FP semantics: {CompileEnvironment.FPSemantics}");
+			}
+		}
+
+		/// <summary>
 		/// Compile arguments for optimization settings, such as profile guided optimization and link time optimization
 		/// </summary>
 		/// <param name="CompileEnvironment"></param>
@@ -770,6 +792,9 @@ namespace UnrealBuildTool
 
 			// Add warning and error flags to the argument list.
 			GetCompileArguments_WarningsAndErrors(CompileEnvironment, Arguments);
+
+			// Add FP semantics flags to the argument list.
+			GetCompileArguments_FPSemantics(CompileEnvironment, Arguments);
 
 			// Add optimization flags to the argument list.
 			GetCompileArguments_Optimizations(CompileEnvironment, Arguments);
