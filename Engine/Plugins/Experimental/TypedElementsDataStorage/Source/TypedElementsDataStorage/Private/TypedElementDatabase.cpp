@@ -110,6 +110,8 @@ void UTypedElementDatabase::OnPreMassTick(float DeltaTime)
 {
 	checkf(IsAvailable(), TEXT("Typed Element Database was ticked while it's not ready."));
 	OnUpdateDelegate.Broadcast();
+	// Recycle any full scratch memory blocks from the previous frame.
+	ScratchBuffer.RecycleBlocks();
 }
 
 TSharedPtr<FMassEntityManager> UTypedElementDatabase::GetActiveMutableEditorEntityManager()
@@ -244,9 +246,10 @@ bool UTypedElementDatabase::BatchAddRow(TypedElementTableHandle Table, TConstArr
 
 void UTypedElementDatabase::RemoveRow(TypedElementRowHandle Row)
 {
-	if (ActiveEditorEntityManager)
+	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
+	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityValid(Entity))
 	{
-		if (ActiveEditorEntityManager->IsEntityActive(FMassEntityHandle::FromNumber(Row)))
+		if (ActiveEditorEntityManager->IsEntityBuilt(FMassEntityHandle::FromNumber(Row)))
 		{
 			ActiveEditorEntityManager->DestroyEntity(FMassEntityHandle::FromNumber(Row));
 		}
@@ -612,7 +615,7 @@ void UTypedElementDatabase::UnregisterTickGroup(FName GroupName, EQueryTickPhase
 TypedElementQueryHandle UTypedElementDatabase::RegisterQuery(FQueryDescription&& Query)
 {
 	return (ActiveEditorEntityManager && ActiveEditorPhaseManager)
-		? Queries.RegisterQuery(MoveTemp(Query), *ActiveEditorEntityManager, *ActiveEditorPhaseManager).Handle
+		? Queries.RegisterQuery(MoveTemp(Query), ScratchBuffer, *ActiveEditorEntityManager, *ActiveEditorPhaseManager).Handle
 		: TypedElementInvalidQueryHandle;
 }
 
@@ -726,7 +729,7 @@ void UTypedElementDatabase::PreparePhase(EQueryTickPhase Phase, float DeltaTime)
 {
 	if (ActiveEditorEntityManager)
 	{
-		Queries.RunPhasePreambleQueries(*ActiveEditorEntityManager, Phase, DeltaTime);
+		Queries.RunPhasePreambleQueries(*ActiveEditorEntityManager, ScratchBuffer, Phase, DeltaTime);
 	}
 }
 
@@ -734,7 +737,7 @@ void UTypedElementDatabase::FinalizePhase(EQueryTickPhase Phase, float DeltaTime
 {
 	if (ActiveEditorEntityManager)
 	{
-		Queries.RunPhasePostambleQueries(*ActiveEditorEntityManager, Phase, DeltaTime);
+		Queries.RunPhasePostambleQueries(*ActiveEditorEntityManager, ScratchBuffer, Phase, DeltaTime);
 	}
 }
 

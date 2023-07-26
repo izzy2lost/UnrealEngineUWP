@@ -10,8 +10,9 @@
 
 struct FMassEntityManager;
 struct FMassProcessingPhaseManager;
-class FOutputDevice;
 class UMassProcessor;
+class FOutputDevice;
+class FTypedElementDatabaseScratchBuffer;
 
 struct FTypedElementExtendedQuery
 {
@@ -37,7 +38,10 @@ public:
 	 */
 
 	/** Adds a new query to the store and initializes the query with the provided arguments. */
-	Handle RegisterQuery(ITypedElementDataStorageInterface::FQueryDescription Query, FMassEntityManager& EntityManager, 
+	Handle RegisterQuery(
+		ITypedElementDataStorageInterface::FQueryDescription Query, 
+		FTypedElementDatabaseScratchBuffer& ScratchBuffer,
+		FMassEntityManager& EntityManager,
 		FMassProcessingPhaseManager& PhaseManager);
 	/** Removes the query at the given handle if still alive and otherwise does nothing. */
 	void UnregisterQuery(Handle Query, FMassProcessingPhaseManager& PhaseManager);
@@ -87,8 +91,16 @@ public:
 		TypedElementDataStorage::SubqueryCallbackRef Callback);
 	TypedElementDataStorage::FQueryResult RunQuery(FMassEntityManager& EntityManager, Handle Query,
 		TypedElementRowHandle Row, TypedElementDataStorage::SubqueryCallbackRef Callback);
-	void RunPhasePreambleQueries(FMassEntityManager& EntityManager, ITypedElementDataStorageInterface::EQueryTickPhase Phase, float DeltaTime);
-	void RunPhasePostambleQueries(FMassEntityManager& EntityManager, ITypedElementDataStorageInterface::EQueryTickPhase Phase, float DeltaTime);
+	void RunPhasePreambleQueries(
+		FMassEntityManager& EntityManager, 
+		FTypedElementDatabaseScratchBuffer& ScratchBuffer, 
+		ITypedElementDataStorageInterface::EQueryTickPhase Phase, 
+		float DeltaTime);
+	void RunPhasePostambleQueries(
+		FMassEntityManager& EntityManager, 
+		FTypedElementDatabaseScratchBuffer& ScratchBuffer, 
+		ITypedElementDataStorageInterface::EQueryTickPhase Phase, 
+		float DeltaTime);
 
 	void DebugPrintQueryCallbacks(FOutputDevice& Output) const;
 
@@ -121,7 +133,7 @@ private:
 	bool SetupConditions(ITypedElementDataStorageInterface::FQueryDescription& Query, FMassEntityQuery& NativeQuery);
 	bool SetupDependencies(ITypedElementDataStorageInterface::FQueryDescription& Query, FMassEntityQuery& NativeQuery);
 	bool SetupTickGroupDefaults(ITypedElementDataStorageInterface::FQueryDescription& Query);
-	bool SetupProcessors(Handle Query, FTypedElementExtendedQuery& StoredQuery,
+	bool SetupProcessors(Handle Query, FTypedElementExtendedQuery& StoredQuery, FTypedElementDatabaseScratchBuffer& ScratchBuffer,
 		FMassEntityManager& EntityManager, FMassProcessingPhaseManager& PhaseManager);
 
 	EMassFragmentAccess ConvertToNativeAccessType(ITypedElementDataStorageInterface::EQueryAccessType AccessType);
@@ -130,7 +142,7 @@ private:
 	void RegisterPostambleQuery(ITypedElementDataStorageInterface::EQueryTickPhase Phase, Handle Query);
 	void UnregisterPreambleQuery(ITypedElementDataStorageInterface::EQueryTickPhase Phase, Handle Query);
 	void UnregisterPostambleQuery(ITypedElementDataStorageInterface::EQueryTickPhase Phase, Handle Query);
-	void RunPhasePreOrPostAmbleQueries(FMassEntityManager& EntityManager,
+	void RunPhasePreOrPostAmbleQueries(FMassEntityManager& EntityManager, FTypedElementDatabaseScratchBuffer& ScratchBuffer,
 		ITypedElementDataStorageInterface::EQueryTickPhase Phase, float DeltaTime, TArray<Handle>& QueryHandles);
 
 	static const ITypedElementDataStorageInterface::FQueryDescription EmptyDescription;

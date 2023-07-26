@@ -6,6 +6,7 @@
 #include "Elements/Common/TypedElementHandles.h"
 #include "Elements/Common/TypedElementQueryTypes.h"
 #include "UObject/WeakObjectPtrTemplates.h"
+#include "Templates/Function.h"
 
 class UClass;
 class UObject;
@@ -82,6 +83,8 @@ namespace TypedElementDataStorage
 	 */
 	struct IQueryContext : public ICommonQueryContext
 	{
+		using ObjectMoveOperator = void (*)(void* Destination, void* Source);
+
 		virtual ~IQueryContext() = default;
 
 		/** Returns an immutable instance of the requested dependency or a nullptr if not found. */
@@ -105,7 +108,19 @@ namespace TypedElementDataStorage
 		 * group.
 		 */
 		virtual void RemoveRows(TConstArrayView<RowHandle> Rows) = 0;
-
+		/**
+		 * Add a new unitialized column of the provided object type. The addition will not be immediately done but delayed until the
+		 * end of the tick group. The returned address is to a temporary object that's held until the column has been setup. This can be
+		 * used to set data while in the query callback but shouldn't be used outside the callback as the object will be removed.
+		 */
+		virtual void* AddColumnUnitialized(RowHandle Row, const UScriptStruct* ObjectType) = 0;
+		/**
+		 * Add a new unitialized column of the provided object type. The addition will not be immediately done but delayed until the
+		 * end of the tick group. The returned address is to a temporary object that's held until the column has been setup. This can be
+		 * used to set data while in the query callback but shouldn't be used outside the callback as the object will be removed. The
+		 * temporary object will be moved to it's final location using the provided move operator callback instead of being copied.
+		 */
+		virtual void* AddColumnUnitialized(RowHandle Row, const UScriptStruct* ObjectType, ObjectMoveOperator Mover) = 0;
 		/**
 		 * Adds new empty columns to a row of the provided type. The addition will not be immediately done but delayed until the end of the
 		 * tick group.
@@ -116,6 +131,7 @@ namespace TypedElementDataStorage
 		 * tick group.
 		 */
 		virtual void AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) = 0;
+
 		/**
 		 * Removes columns of the provided types from a row. The removal will not be immediately done but delayed until the end of the
 		 * tick group.
@@ -155,6 +171,8 @@ namespace TypedElementDataStorage
 
 		// Utility functions
 
+		template<typename ColumnType>
+		ColumnType& AddColumn(RowHandle Row, ColumnType&& Column);
 		template<typename... Columns>
 		void AddColumns(RowHandle Row);
 		template<typename... Columns>
@@ -185,6 +203,28 @@ namespace TypedElementDataStorage
 	Column* ICommonQueryContext::GetMutableColumn()
 	{
 		return reinterpret_cast<Column*>(GetMutableColumn(Column::StaticStruct()));
+	}
+
+	template<typename ColumnType>
+	ColumnType& IQueryContext::AddColumn(RowHandle Row, ColumnType&& Column)
+	{
+		UScriptStruct* TypeInfo = ColumnType::StaticStruct();
+
+		if constexpr (std::is_move_constructible_v<ColumnType>)
+		{
+			void* Address = AddColumnUnitialized(Row, TypeInfo,
+				[](void* Destination, void* Source)
+				{
+					new(Destination) ColumnType(MoveTemp(*reinterpret_cast<ColumnType*>(Source)));
+				});
+			return *(new(Address) ColumnType(Forward<ColumnType>(Column)));
+		}
+		else
+		{
+			void* Address = AddColumnUnitialized(Row, TypeInfo);
+			TypeInfo->CopyScriptStruct(Address, &Column);
+			return *reinterpret_cast<ColumnType*>(Address);
+		}
 	}
 
 	template<typename... Columns>

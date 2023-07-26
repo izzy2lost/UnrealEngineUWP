@@ -6,6 +6,7 @@
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "MassArchetypeTypes.h"
 #include "Queries/TypedElementExtendedQueryStore.h"
+#include "TypedElementDatabaseScratchBuffer.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/StrongObjectPtr.h"
 
@@ -99,6 +100,7 @@ private:
 	TMap<FName, TypedElementTableHandle> TableNameLookup;
 
 	FTypedElementExtendedQueryStore Queries;
+	FTypedElementDatabaseScratchBuffer ScratchBuffer;
 
 	FTypedElementOnDataStorageUpdate OnUpdateDelegate;
 

@@ -9,6 +9,7 @@
 #include "MassExecutionContext.h"
 #include "Queries/TypedElementExtendedQueryStore.h"
 #include "TypedElementDatabase.h"
+#include "TypedElementDatabaseScratchBuffer.h"
 
 template<typename T>
 struct FMassContextCommon : public T
@@ -148,11 +149,32 @@ private:
 
 struct FMassContextForwarder final : public FMassContextCommon<ITypedElementDataStorageInterface::IQueryContext>
 {
+private:
+	void TedsColumnsToMassDescriptor(FMassArchetypeCompositionDescriptor& Descriptor, TConstArrayView<const UScriptStruct*> ColumnTypes)
+	{
+		for (const UScriptStruct* ColumnType : ColumnTypes)
+		{
+			if (ColumnType->IsChildOf(FMassTag::StaticStruct()))
+			{
+				Descriptor.Tags.Add(*ColumnType);
+			}
+			else
+			{
+				checkf(ColumnType->IsChildOf(FMassFragment::StaticStruct()),
+					TEXT("Given struct type is not a valid fragment or tag type."));
+				Descriptor.Fragments.Add(*ColumnType);
+
+			}
+		}
+	}
+public:
+
 	FMassContextForwarder(ITypedElementDataStorageInterface::FQueryDescription& InQueryDescription, FMassExecutionContext& InContext, 
-		FTypedElementExtendedQueryStore& InQueryStore)
+		FTypedElementExtendedQueryStore& InQueryStore, FTypedElementDatabaseScratchBuffer& InScratchBuffer)
 		: FMassContextCommon(InContext)
 		, QueryDescription(InQueryDescription)
 		, QueryStore(InQueryStore)
+		, ScratchBuffer(InScratchBuffer)
 	{}
 
 	~FMassContextForwarder() override = default;
@@ -199,82 +221,206 @@ struct FMassContextForwarder final : public FMassContextCommon<ITypedElementData
 
 	void RemoveRows(TConstArrayView<TypedElementRowHandle> Rows) override
 	{
+		// Row handles and entities map 1:1 for data, so a reintpret_cast can be safely done to avoid
+		// having to allocate memory and iterating over the rows.
+
+		static_assert(sizeof(FMassEntityHandle) == sizeof(TypedElementRowHandle), 
+			"Sizes of mass entity and data storage row have gone out of sync.");
+		static_assert(alignof(FMassEntityHandle) == alignof(TypedElementRowHandle),
+			"Alignment of mass entity and data storage row have gone out of sync.");
+
+		Context.Defer().DestroyEntities(
+			TConstArrayView<FMassEntityHandle>(reinterpret_cast<const FMassEntityHandle*>(Rows.begin()), Rows.Num()));
+	}
+
+	void* AddColumnUnitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType) override
+	{
+		struct FAddValueColumn
+		{
+			const UScriptStruct* FragmentType;
+			FMassEntityHandle Entity;
+			void* Object;
+		};
+
+		struct FAddValueColumnWithDestructor : FAddValueColumn
+		{
+			FAddValueColumnWithDestructor(const UScriptStruct* InFragmentType, FMassEntityHandle InEntity, void* InObject)
+				: FAddValueColumn(InFragmentType, InEntity, InObject)
+			{}
+
+			~FAddValueColumnWithDestructor()
+			{
+				FragmentType->DestroyStruct(Object);
+			}
+		};
+
+		void* ObjectCopy = ScratchBuffer.Allocate(ObjectType->GetStructureSize(), ObjectType->GetMinAlignment());
+		FAddValueColumn* AddedColumn = ObjectType->GetCppStructOps()->HasDestructor() ?
+			ScratchBuffer.Emplace<FAddValueColumnWithDestructor>(ObjectType, FMassEntityHandle::FromNumber(Row), ObjectCopy) :
+			ScratchBuffer.Emplace<FAddValueColumn>(ObjectType, FMassEntityHandle::FromNumber(Row), ObjectCopy);
+
+		Context.Defer().PushCommand<FMassDeferredAddCommand>(
+			[AddedColumn](FMassEntityManager& System)
+			{
+				System.AddFragmentToEntity(AddedColumn->Entity, AddedColumn->FragmentType);
+			});
+		
+		Context.Defer().PushCommand<FMassDeferredSetCommand>(
+			[AddedColumn](FMassEntityManager& System)
+			{
+				FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
+				AddedColumn->FragmentType->CopyScriptStruct(Fragment.GetMemory(), AddedColumn->Object);
+			});
+
+		return ObjectCopy;
+	}
+
+	void* AddColumnUnitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType, ObjectMoveOperator Mover) override
+	{
+		struct FAddMoveableValueColumn
+		{
+			ObjectMoveOperator Mover;
+			const UScriptStruct* FragmentType;
+			FMassEntityHandle Entity;
+			void* Object;
+		};
+
+		struct FAddMoveableValueColumnWithDestructor : FAddMoveableValueColumn
+		{
+			FAddMoveableValueColumnWithDestructor(
+				ObjectMoveOperator InMover, const UScriptStruct* InFragmentType, FMassEntityHandle InEntity, void* InObject)
+				: FAddMoveableValueColumn(InMover, InFragmentType, InEntity, InObject)
+			{}
+
+			~FAddMoveableValueColumnWithDestructor()
+			{
+				FragmentType->DestroyStruct(Object);
+			}
+		};
+
+		void* MovedObject = ScratchBuffer.Allocate(ObjectType->GetStructureSize(), ObjectType->GetMinAlignment());
+		FAddMoveableValueColumn* AddedColumn = ObjectType->GetCppStructOps()->HasDestructor() ?
+			ScratchBuffer.Emplace<FAddMoveableValueColumnWithDestructor>(Mover, ObjectType, FMassEntityHandle::FromNumber(Row), MovedObject) :
+			ScratchBuffer.Emplace<FAddMoveableValueColumn>(Mover, ObjectType, FMassEntityHandle::FromNumber(Row), MovedObject);
+
+		Context.Defer().PushCommand<FMassDeferredAddCommand>(
+			[AddedColumn](FMassEntityManager& System)
+			{
+				System.AddFragmentToEntity(AddedColumn->Entity, AddedColumn->FragmentType);
+			});
+
+		Context.Defer().PushCommand<FMassDeferredSetCommand>(
+			[AddedColumn](FMassEntityManager& System)
+			{
+				FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
+				AddedColumn->Mover(Fragment.GetMemory(), AddedColumn->Object);
+			});
+
+		return MovedObject;
+	}
+
+	void AddColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override
+	{
+		struct FAddedColumns
+		{
+			FMassArchetypeCompositionDescriptor AddDescriptor;
+			FMassEntityHandle Entity;
+		};
+
+		FAddedColumns* AddedColumns = ScratchBuffer.Emplace<FAddedColumns>();
+		TedsColumnsToMassDescriptor(AddedColumns->AddDescriptor, ColumnTypes);
+		AddedColumns->Entity = FMassEntityHandle::FromNumber(Row);
+
+		Context.Defer().PushCommand<FMassDeferredAddCommand>(
+			[AddedColumns](FMassEntityManager& System)
+			{
+				System.AddCompositionToEntity_GetDelta(AddedColumns->Entity, AddedColumns->AddDescriptor);
+			});
+	}
+
+	void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override
+	{
+		struct FAddedColumns
+		{
+			FMassArchetypeCompositionDescriptor AddDescriptor;
+			FMassEntityHandle* Entities;
+			int32 EntityCount;
+		};
+
+		FAddedColumns* AddedColumns = ScratchBuffer.Emplace<FAddedColumns>();
+		TedsColumnsToMassDescriptor(AddedColumns->AddDescriptor, ColumnTypes);
+		
+		FMassEntityHandle* Entities = ScratchBuffer.EmplaceArray<FMassEntityHandle>(Rows.Num());
+		AddedColumns->Entities = Entities;
 		for (TypedElementRowHandle Row : Rows)
 		{
-			Context.Defer().DestroyEntity(FMassEntityHandle::FromNumber(Row));
+			*Entities = FMassEntityHandle::FromNumber(Row);
+			Entities++;
 		}
+		AddedColumns->EntityCount = Rows.Num();
+
+		Context.Defer().PushCommand<FMassDeferredAddCommand>(
+			[AddedColumns](FMassEntityManager& System)
+			{
+				FMassEntityHandle* Entities = AddedColumns->Entities;
+				int32 Count = AddedColumns->EntityCount;
+				for (int32 Counter = 0; Counter < Count; ++Counter)
+				{
+					System.AddCompositionToEntity_GetDelta(*Entities++, AddedColumns->AddDescriptor);
+				}
+			});
 	}
 
-	void AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override
+	void RemoveColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override
 	{
-		for (const UScriptStruct* ColumnType : ColumnTypes)
+		struct FRemovedColumns
 		{
-			bool bIsTag = ColumnType->IsChildOf(FMassTag::StaticStruct());
+			FMassArchetypeCompositionDescriptor RemoveDescriptor;
+			FMassEntityHandle Entity;
+		};
 
-			checkf(ColumnType->IsChildOf(FMassFragment::StaticStruct()) || bIsTag,
-				TEXT("Given struct type to add is not a valid fragment or tag type."));
+		FRemovedColumns* RemovedColumns = ScratchBuffer.Emplace<FRemovedColumns>();
+		TedsColumnsToMassDescriptor(RemovedColumns->RemoveDescriptor, ColumnTypes);
+		RemovedColumns->Entity = FMassEntityHandle::FromNumber(Row);
 
-			if (bIsTag)
+		Context.Defer().PushCommand<FMassDeferredAddCommand>(
+			[RemovedColumns](FMassEntityManager& System)
 			{
-				Context.Defer().PushCommand<FMassDeferredAddCommand>(
-					[EntityHandle = FMassEntityHandle::FromNumber(Row), ColumnType](FMassEntityManager& System)
-					{
-						System.AddTagToEntity(EntityHandle, ColumnType);
-					});
-			}
-			else
-			{
-				Context.Defer().PushCommand<FMassDeferredAddCommand>(
-					[EntityHandle = FMassEntityHandle::FromNumber(Row), ColumnType](FMassEntityManager& System)
-					{
-						System.AddFragmentToEntity(EntityHandle, ColumnType);
-					});
-			}
-		}
+				System.RemoveCompositionFromEntity(RemovedColumns->Entity, RemovedColumns->RemoveDescriptor);
+			});
 	}
 
-	void AddColumns(TConstArrayView<TypedElementRowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override
+	void RemoveColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override
 	{
+		struct FRemovedColumns
+		{
+			FMassArchetypeCompositionDescriptor RemoveDescriptor;
+			FMassEntityHandle* Entities;
+			int32 EntityCount;
+		};
+
+		FRemovedColumns* RemovedColumns = ScratchBuffer.Emplace<FRemovedColumns>();
+		TedsColumnsToMassDescriptor(RemovedColumns->RemoveDescriptor, ColumnTypes);
+
+		FMassEntityHandle* Entities = ScratchBuffer.EmplaceArray<FMassEntityHandle>(Rows.Num());
+		RemovedColumns->Entities = Entities;
 		for (TypedElementRowHandle Row : Rows)
 		{
-			AddColumns(Row, ColumnTypes);
+			*Entities = FMassEntityHandle::FromNumber(Row);
+			Entities++;
 		}
-	}
+		RemovedColumns->EntityCount = Rows.Num();
 
-	void RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override
-	{
-		for (const UScriptStruct* ColumnType : ColumnTypes)
-		{
-			bool bIsTag = ColumnType->IsChildOf(FMassTag::StaticStruct());
-
-			checkf(ColumnType->IsChildOf(FMassFragment::StaticStruct()) || bIsTag,
-				TEXT("Given struct type to remove is not a valid fragment or tag type."));
-
-			if (bIsTag)
+		Context.Defer().PushCommand<FMassDeferredAddCommand>(
+			[RemovedColumns](FMassEntityManager& System)
 			{
-				Context.Defer().PushCommand<FMassDeferredAddCommand>(
-					[EntityHandle = FMassEntityHandle::FromNumber(Row), ColumnType](FMassEntityManager& System)
-					{
-						System.RemoveTagFromEntity(EntityHandle, ColumnType);
-					});
-			}
-			else
-			{
-				Context.Defer().PushCommand<FMassDeferredAddCommand>(
-					[EntityHandle = FMassEntityHandle::FromNumber(Row), ColumnType](FMassEntityManager& System)
-					{
-						System.RemoveFragmentFromEntity(EntityHandle, ColumnType);
-					});
-			}
-		}
-	}
-
-	void RemoveColumns(TConstArrayView<TypedElementRowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override
-	{
-		for (TypedElementRowHandle Row : Rows)
-		{
-			RemoveColumns(Row, ColumnTypes);
-		}
+				FMassEntityHandle* Entities = RemovedColumns->Entities;
+				int32 Count = RemovedColumns->EntityCount;
+				for (int32 Counter = 0; Counter < Count; ++Counter)
+				{
+					System.RemoveCompositionFromEntity(*Entities++, RemovedColumns->RemoveDescriptor);
+				}
+			});
 	}
 
 	TypedElementDataStorage::FQueryResult RunQuery(TypedElementQueryHandle Query) override
@@ -323,6 +469,7 @@ struct FMassContextForwarder final : public FMassContextCommon<ITypedElementData
 
 	ITypedElementDataStorageInterface::FQueryDescription& QueryDescription;
 	FTypedElementExtendedQueryStore& QueryStore;
+	FTypedElementDatabaseScratchBuffer& ScratchBuffer;
 };
 
 
@@ -346,15 +493,16 @@ FPhasePreOrPostAmbleExecutor::~FPhasePreOrPostAmbleExecutor()
 void FPhasePreOrPostAmbleExecutor::ExecuteQuery(
 	ITypedElementDataStorageInterface::FQueryDescription& Description, 
 	FTypedElementExtendedQueryStore& QueryStore, 
+	FTypedElementDatabaseScratchBuffer& ScratchBuffer,
 	FMassEntityQuery& NativeQuery,
 	ITypedElementDataStorageInterface::QueryCallbackRef Callback)
 {
 	NativeQuery.ForEachEntityChunk(Context.GetEntityManagerChecked(), Context,
-		[&Callback, &QueryStore, &Description](FMassExecutionContext& ExecutionContext)
+		[&Callback, &QueryStore, &ScratchBuffer, &Description](FMassExecutionContext& ExecutionContext)
 		{
 			if (FTypedElementQueryProcessorData::PrepareCachedDependenciesOnQuery(Description, ExecutionContext))
 			{
-				FMassContextForwarder QueryContext(Description, ExecutionContext, QueryStore);
+				FMassContextForwarder QueryContext(Description, ExecutionContext, QueryStore, ScratchBuffer);
 				Callback(Description, QueryContext);
 			}
 		}
@@ -371,11 +519,16 @@ FTypedElementQueryProcessorData::FTypedElementQueryProcessorData(UMassProcessor&
 {
 }
 
-bool FTypedElementQueryProcessorData::CommonQueryConfiguration(UMassProcessor& InOwner, FTypedElementExtendedQuery& InQuery, 
-	FTypedElementExtendedQueryStore& InQueryStore, TArrayView<FMassEntityQuery> Subqueries)
+bool FTypedElementQueryProcessorData::CommonQueryConfiguration(
+	UMassProcessor& InOwner, 
+	FTypedElementExtendedQuery& InQuery, 
+	FTypedElementExtendedQueryStore& InQueryStore, 
+	FTypedElementDatabaseScratchBuffer& InScratchBuffer,
+	TArrayView<FMassEntityQuery> Subqueries)
 {
 	ParentQuery = &InQuery;
 	QueryStore = &InQueryStore;
+	ScratchBuffer = &InScratchBuffer;
 
 	if (ensureMsgf(InQuery.Description.Subqueries.Num() <= Subqueries.Num(),
 		TEXT("Provided query has too many (%i) subqueries."), InQuery.Description.Subqueries.Num()))
@@ -544,7 +697,7 @@ void FTypedElementQueryProcessorData::Execute(FMassEntityManager& EntityManager,
 		{
 			if (PrepareCachedDependenciesOnQuery(Description, Context))
 			{
-				FMassContextForwarder QueryContext(Description, Context, *QueryStore);
+				FMassContextForwarder QueryContext(Description, Context, *QueryStore, *ScratchBuffer);
 				Description.Callback.Function(Description, QueryContext);
 			}
 		}
@@ -570,15 +723,20 @@ FMassEntityQuery& UTypedElementQueryProcessorCallbackAdapterProcessorBase::GetQu
 }
 
 bool UTypedElementQueryProcessorCallbackAdapterProcessorBase::ConfigureQueryCallback(
-	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore)
+	FTypedElementExtendedQuery& Query, 
+	FTypedElementExtendedQueryStore& QueryStore, 
+	FTypedElementDatabaseScratchBuffer& ScratchBuffer)
 {
-	return ConfigureQueryCallbackData(Query, QueryStore, {});
+	return ConfigureQueryCallbackData(Query, QueryStore, ScratchBuffer, {});
 }
 
-bool UTypedElementQueryProcessorCallbackAdapterProcessorBase::ConfigureQueryCallbackData(FTypedElementExtendedQuery& Query,
-	FTypedElementExtendedQueryStore& QueryStore,  TArrayView<FMassEntityQuery> Subqueries)
+bool UTypedElementQueryProcessorCallbackAdapterProcessorBase::ConfigureQueryCallbackData(
+	FTypedElementExtendedQuery& Query,
+	FTypedElementExtendedQueryStore& QueryStore, 
+	FTypedElementDatabaseScratchBuffer& ScratchBuffer,
+	TArrayView<FMassEntityQuery> Subqueries)
 {
-	bool Result = Data.CommonQueryConfiguration(*this, Query, QueryStore, Subqueries);
+	bool Result = Data.CommonQueryConfiguration(*this, Query, QueryStore, ScratchBuffer, Subqueries);
 
 	bRequiresGameThreadExecution = Query.Description.Callback.bForceToGameThread;
 	ExecutionFlags = static_cast<int32>(EProcessorExecutionFlags::Editor); 
@@ -614,27 +772,27 @@ void UTypedElementQueryProcessorCallbackAdapterProcessorBase::Execute(FMassEntit
 }
 
 bool UTypedElementQueryProcessorCallbackAdapterProcessorWith1Subquery::ConfigureQueryCallback(
-	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore)
+	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore, FTypedElementDatabaseScratchBuffer& ScratchBuffer)
 {
-	return ConfigureQueryCallbackData(Query, QueryStore, NativeSubqueries);
+	return ConfigureQueryCallbackData(Query, QueryStore, ScratchBuffer, NativeSubqueries);
 }
 
 bool UTypedElementQueryProcessorCallbackAdapterProcessorWith2Subqueries::ConfigureQueryCallback(
-	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore)
+	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore, FTypedElementDatabaseScratchBuffer& ScratchBuffer)
 {
-	return ConfigureQueryCallbackData(Query, QueryStore, NativeSubqueries);
+	return ConfigureQueryCallbackData(Query, QueryStore, ScratchBuffer, NativeSubqueries);
 }
 
 bool UTypedElementQueryProcessorCallbackAdapterProcessorWith3Subqueries::ConfigureQueryCallback(
-	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore)
+	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore, FTypedElementDatabaseScratchBuffer& ScratchBuffer)
 {
-	return ConfigureQueryCallbackData(Query, QueryStore, NativeSubqueries);
+	return ConfigureQueryCallbackData(Query, QueryStore, ScratchBuffer, NativeSubqueries);
 }
 
 bool UTypedElementQueryProcessorCallbackAdapterProcessorWith4Subqueries::ConfigureQueryCallback(
-	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore)
+	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore, FTypedElementDatabaseScratchBuffer& ScratchBuffer)
 {
-	return ConfigureQueryCallbackData(Query, QueryStore, NativeSubqueries);
+	return ConfigureQueryCallbackData(Query, QueryStore, ScratchBuffer, NativeSubqueries);
 }
 
 
@@ -665,15 +823,15 @@ EMassObservedOperation UTypedElementQueryObserverCallbackAdapterProcessorBase::G
 }
 
 bool UTypedElementQueryObserverCallbackAdapterProcessorBase::ConfigureQueryCallback(
-	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore)
+	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore, FTypedElementDatabaseScratchBuffer& ScratchBuffer)
 {
-	return ConfigureQueryCallbackData(Query, QueryStore, {});
+	return ConfigureQueryCallbackData(Query, QueryStore, ScratchBuffer, {});
 }
 
 bool UTypedElementQueryObserverCallbackAdapterProcessorBase::ConfigureQueryCallbackData(FTypedElementExtendedQuery& Query,
-	FTypedElementExtendedQueryStore& QueryStore, TArrayView<FMassEntityQuery> Subqueries)
+	FTypedElementExtendedQueryStore& QueryStore, FTypedElementDatabaseScratchBuffer& ScratchBuffer, TArrayView<FMassEntityQuery> Subqueries)
 {
-	bool Result = Data.CommonQueryConfiguration(*this, Query, QueryStore, Subqueries);
+	bool Result = Data.CommonQueryConfiguration(*this, Query, QueryStore, ScratchBuffer, Subqueries);
 
 	bRequiresGameThreadExecution = Query.Description.Callback.bForceToGameThread;
 	ExecutionFlags = static_cast<int32>(EProcessorExecutionFlags::Editor);
@@ -738,25 +896,25 @@ void UTypedElementQueryObserverCallbackAdapterProcessorBase::Execute(FMassEntity
 }
 
 bool UTypedElementQueryObserverCallbackAdapterProcessorWith1Subquery::ConfigureQueryCallback(
-	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore)
+	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore, FTypedElementDatabaseScratchBuffer& ScratchBuffer)
 {
-	return ConfigureQueryCallbackData(Query, QueryStore, NativeSubqueries);
+	return ConfigureQueryCallbackData(Query, QueryStore, ScratchBuffer, NativeSubqueries);
 }
 
 bool UTypedElementQueryObserverCallbackAdapterProcessorWith2Subqueries::ConfigureQueryCallback(
-	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore)
+	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore, FTypedElementDatabaseScratchBuffer& ScratchBuffer)
 {
-	return ConfigureQueryCallbackData(Query, QueryStore, NativeSubqueries);
+	return ConfigureQueryCallbackData(Query, QueryStore, ScratchBuffer, NativeSubqueries);
 }
 
 bool UTypedElementQueryObserverCallbackAdapterProcessorWith3Subqueries::ConfigureQueryCallback(
-	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore)
+	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore, FTypedElementDatabaseScratchBuffer& ScratchBuffer)
 {
-	return ConfigureQueryCallbackData(Query, QueryStore, NativeSubqueries);
+	return ConfigureQueryCallbackData(Query, QueryStore, ScratchBuffer, NativeSubqueries);
 }
 
 bool UTypedElementQueryObserverCallbackAdapterProcessorWith4Subqueries::ConfigureQueryCallback(
-	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore)
+	FTypedElementExtendedQuery& Query, FTypedElementExtendedQueryStore& QueryStore, FTypedElementDatabaseScratchBuffer& ScratchBuffer)
 {
-	return ConfigureQueryCallbackData(Query, QueryStore, NativeSubqueries);
+	return ConfigureQueryCallbackData(Query, QueryStore, ScratchBuffer, NativeSubqueries);
 }
