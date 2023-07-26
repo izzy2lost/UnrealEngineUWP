@@ -83,5 +83,6 @@ export type TestPassSummary = {
 export type TestStateHistoryItem = {
     TestdataId: string;
     Change: number;
+    RangeUrl?: string;
     State: string;
 }
