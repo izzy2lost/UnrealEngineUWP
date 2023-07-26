@@ -493,7 +493,7 @@ namespace BuildPatchServices
 
 				const FTaskInfo* Info = TaskInfos.Find(ChunkUriToRequest);
 				ChunkUriRequest.CloudDirectory = GetCloudRoot(Info ? Info->RetryNum : 0 );
-				ChunkUriRequest.RelativePath = ManifestSet->GetDataFilename(TEXT(""), ChunkUriToRequest);
+				ChunkUriRequest.RelativePath = ManifestSet->GetDataFilename(ChunkUriToRequest);
 				ChunkUriRequest.RelativePath.RemoveFromStart(TEXT("/"));
 
 				MessagePump->SendRequest(ChunkUriRequest, [WeakChunkUriResponses, ChunkUriToRequest](FChunkUriResponse Response)
@@ -588,11 +588,13 @@ namespace BuildPatchServices
 					else
 					{
 						CloudChunkSourceStat->OnDownloadCorrupt(DownloadId, TaskInfo.UrlUsed, LoadResult);
+						UE_LOG(LogCloudChunkSource, Error, TEXT("CORRUPT: %s"), *TaskInfo.UrlUsed);
 					}
 				}
 				else
 				{
 					CloudChunkSourceStat->OnDownloadFailed(DownloadId, TaskInfo.UrlUsed);
+					UE_LOG(LogCloudChunkSource, Error, TEXT("FAILED: %s"), *TaskInfo.UrlUsed);
 				}
 
 				// Handle failed

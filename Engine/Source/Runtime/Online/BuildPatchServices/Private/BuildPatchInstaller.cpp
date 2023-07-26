@@ -109,6 +109,13 @@ namespace ConfigHelpers
 		FOptimisedDeltaConfiguration OptimisedDeltaConfiguration(InstallerAction.GetSharedInstallOrCurrentManifest());
 		OptimisedDeltaConfiguration.SourceManifest = InstallerAction.TryGetSharedCurrentManifest();
 		OptimisedDeltaConfiguration.CloudDirectories = Config.CloudDirectories;
+		if (!InstallerAction.GetCloudSubdirectory().IsEmpty())
+		{
+			for (FString& CloudDirectory : OptimisedDeltaConfiguration.CloudDirectories)
+			{
+				CloudDirectory /= InstallerAction.GetCloudSubdirectory();
+			}
+		}
 		OptimisedDeltaConfiguration.DeltaPolicy = Config.DeltaPolicy;
 		OptimisedDeltaConfiguration.InstallMode = Config.InstallMode;
 		return OptimisedDeltaConfiguration;
@@ -251,6 +258,14 @@ namespace InstallerHelpers
 			{
 				UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: ValidTags: %s"), *Tag);
 			}
+			if (!InstallerAction.GetInstallSubdirectory().IsEmpty())
+			{
+				UE_LOG(LogBuildPatchServices, Log, TEXT("Build Config: InstallSubdirectory: %s"), *InstallerAction.GetInstallSubdirectory());
+			}
+			if (!InstallerAction.GetCloudSubdirectory().IsEmpty())
+			{
+				UE_LOG(LogBuildPatchServices, Log, TEXT("Build Config: CloudSubdirectory: %s"), *InstallerAction.GetCloudSubdirectory());
+			}
 		}
 
 		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: InstallDirectory: %s"), *InstallerConfiguration.InstallDirectory);
@@ -267,9 +282,9 @@ namespace InstallerHelpers
 			UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: CloudDirectories: %s"), *CloudDirectory);
 		}
 
-		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: InstallMode: %s"), *EnumToString(InstallerConfiguration.InstallMode));
-		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: VerifyMode: %s"), *EnumToString(InstallerConfiguration.VerifyMode));
-		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: DeltaPolicy: %s"), *EnumToString(InstallerConfiguration.DeltaPolicy));
+		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: InstallMode: %s"), *LexToString(InstallerConfiguration.InstallMode));
+		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: VerifyMode: %s"), *LexToString(InstallerConfiguration.VerifyMode));
+		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: DeltaPolicy: %s"), *LexToString(InstallerConfiguration.DeltaPolicy));
 		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: bRunRequiredPrereqs: %s"), (InstallerConfiguration.bRunRequiredPrereqs) ? TEXT("true") : TEXT("false"));
 		UE_LOG(LogBPSInstallerConfig, Log, TEXT("Build Config: bAllowConcurrentExecution: %s"), (InstallerConfiguration.bAllowConcurrentExecution) ? TEXT("true") : TEXT("false"));
 	}
@@ -469,7 +484,7 @@ namespace BuildPatchServices
 			// Make sure existing manifests are added to installation info.
 			if (BuildPatchInstallerAction.TryGetCurrentManifest())
 			{
-				InstallationInfo.Add(InstallDirectory, BuildPatchInstallerAction.GetSharedCurrentManifest());
+				InstallationInfo.Add(InstallDirectory / BuildPatchInstallerAction.GetInstallSubdirectory(), BuildPatchInstallerAction.GetSharedCurrentManifest());
 			}
 			// Cache chunk sizes too
 			ChunkDataSizeProvider->AddManifestData(BuildPatchInstallerAction.TryGetSharedCurrentManifest());

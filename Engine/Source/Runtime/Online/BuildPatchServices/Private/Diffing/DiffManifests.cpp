@@ -451,7 +451,7 @@ namespace BuildPatchServices
 					++NewChunksCount;
 					int32 ChunkFileSize = ManifestB->GetDataSize(ChunkB);
 					TotalChunkSize += ChunkFileSize;
-					NewChunkPaths.Add(FBuildPatchUtils::GetDataFilename(ManifestB.ToSharedRef(), TEXT("."), ChunkB));
+					NewChunkPaths.Add(FBuildPatchUtils::GetDataFilename(ManifestB.ToSharedRef(), ChunkB));
 					UE_LOG(LogDiffManifests, Verbose, TEXT("New chunk discovered: Size: %10lld, Path: %s"), ChunkFileSize, *NewChunkPaths.Last());
 				}
 			}

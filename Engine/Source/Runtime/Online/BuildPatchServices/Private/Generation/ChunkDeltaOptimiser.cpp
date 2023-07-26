@@ -564,7 +564,7 @@ namespace BuildPatchServices
 		~FChunkDeltaOptimiser();
 
 		// IChunkDeltaOptimiser interface begin.
-		virtual	bool Run() override;
+		virtual bool Run() override;
 		// IChunkDeltaOptimiser interface end.
 
 	private:
@@ -1117,7 +1117,7 @@ namespace BuildPatchServices
 					{
 						const FChunkInfo* UpgradeChunkInfo = ManifestA->GetChunkInfo(UpgradeChunk);
 						IChunkDataAccess* UpgradeChunkDataAccess = UpgradeCloudChunkSource->Get(UpgradeChunk);
-						checkf(UpgradeChunkDataAccess != nullptr, TEXT("Failed to download chunk from source %s."), *FBuildPatchUtils::GetDataFilename(*ManifestA.Get(), Configuration.CloudDirectory, UpgradeChunk));
+						checkf(UpgradeChunkDataAccess != nullptr, TEXT("Failed to download chunk from source %s."), *FBuildPatchUtils::GetDataFilename(*ManifestA.Get(), UpgradeChunk));
 						FScopeLockedChunkData LockedChunkData(UpgradeChunkDataAccess);
 						TArray<uint8> ChunkDataArray(LockedChunkData.GetData(), LockedChunkData.GetHeader()->DataSizeUncompressed);
 						ChunkWriter->AddChunkData(MoveTemp(ChunkDataArray), UpgradeChunk, UpgradeChunkInfo->Hash, UpgradeChunkInfo->ShaHash);

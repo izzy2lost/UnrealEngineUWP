@@ -390,7 +390,7 @@ uint32 FBuildPatchFileConstructor::Run()
 			}
 			else
 			{
-				bFileSuccess = ConstructFileFromChunks(*FileManifest, bFilePreviouslyStarted);
+				bFileSuccess = ConstructFileFromChunks(FileToConstruct, *FileManifest, bFilePreviouslyStarted);
 			}
 		}
 		else
@@ -557,12 +557,12 @@ uint64 FBuildPatchFileConstructor::CalculateRequiredDiskSpace(const FFileManifes
 	return FMath::Max<int64>(DiskSpaceDeltaPeak, 0);
 }
 
-bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FFileManifest& FileManifest, bool bResumeExisting)
+bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFilename, const FFileManifest& FileManifest, bool bResumeExisting)
 {
 	bool bSuccess = true;
 	EConstructionError ConstructionError = EConstructionError::None;
 	uint32 LastError = 0;
-	FString NewFilename = Configuration.StagingDirectory / FileManifest.Filename;
+	FString NewFilename = Configuration.StagingDirectory / BuildFilename;
 
 	// Calculate the hash as we write the data
 	FSHA1 HashState;
@@ -623,7 +623,7 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FFileManifest& Fi
 					// Inform the reference tracker of the chunk part skip
 					bSuccess = ChunkReferenceTracker->PopReference(ChunkPart.Guid) && bSuccess;
 					CountBytesProcessed(ChunkPart.Size);
-					FileConstructorStat->OnFileProgress(FileManifest.Filename, NewFileReader->Tell());
+					FileConstructorStat->OnFileProgress(BuildFilename, NewFileReader->Tell());
 					// Wait if paused
 					FileConstructorHelpers::WaitWhilePaused(bIsPaused, bShouldAbort);
 				}
@@ -695,7 +695,7 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FFileManifest& Fi
 		{
 			const FChunkPart& ChunkPart = FileManifest.ChunkParts[ChunkPartIdx];
 			bSuccess = InsertChunkData(ChunkPart, *NewFile, HashState, ConstructionError);
-			FileConstructorStat->OnFileProgress(FileManifest.Filename, NewFile->Tell());
+			FileConstructorStat->OnFileProgress(BuildFilename, NewFile->Tell());
 			if (bSuccess)
 			{
 				CountBytesProcessed(ChunkPart.Size);
@@ -707,13 +707,13 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FFileManifest& Fi
 			{
 				if (ConstructionError == EConstructionError::MissingChunk)
 				{
-					InstallerAnalytics->RecordConstructionError(FileManifest.Filename, INDEX_NONE, TEXT("Missing Chunk"));
-					UE_LOG(LogBuildPatchServices, Error, TEXT("FBuildPatchFileConstructor: Failed %s due to missing chunk %s"), *FileManifest.Filename, *ChunkPart.Guid.ToString());
+					InstallerAnalytics->RecordConstructionError(BuildFilename, INDEX_NONE, TEXT("Missing Chunk"));
+					UE_LOG(LogBuildPatchServices, Error, TEXT("FBuildPatchFileConstructor: Failed %s due to missing chunk %s"), *BuildFilename, *ChunkPart.Guid.ToString());
 				}
 				else if (ConstructionError == EConstructionError::TrackingError)
 				{
-					InstallerAnalytics->RecordConstructionError(FileManifest.Filename, INDEX_NONE, TEXT("Tracking Error"));
-					UE_LOG(LogBuildPatchServices, Error, TEXT("FBuildPatchFileConstructor: Failed %s due to untracked chunk %s"), *FileManifest.Filename, *ChunkPart.Guid.ToString());
+					InstallerAnalytics->RecordConstructionError(BuildFilename, INDEX_NONE, TEXT("Tracking Error"));
+					UE_LOG(LogBuildPatchServices, Error, TEXT("FBuildPatchFileConstructor: Failed %s due to untracked chunk %s"), *BuildFilename, *ChunkPart.Guid.ToString());
 				}
 			}
 		}
@@ -771,8 +771,8 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FFileManifest& Fi
 			case EConstructionError::CannotCreateFile:
 				if (bReportAnalytic)
 				{
-					InstallerAnalytics->RecordConstructionError(FileManifest.Filename, LastError, TEXT("Could Not Create File"));
-					UE_LOG(LogBuildPatchServices, Error, TEXT("FBuildPatchFileConstructor: Could not create %s"), *FileManifest.Filename);
+					InstallerAnalytics->RecordConstructionError(BuildFilename, LastError, TEXT("Could Not Create File"));
+					UE_LOG(LogBuildPatchServices, Error, TEXT("FBuildPatchFileConstructor: Could not create %s"), *BuildFilename);
 				}
 				InstallerError->SetError(EBuildPatchInstallError::FileConstructionFail, ConstructionErrorCodes::FileCreateFail, LastError);
 				break;
@@ -801,8 +801,8 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FFileManifest& Fi
 			// Only report or log if the first error
 			if (InstallerError->HasError() == false)
 			{
-				InstallerAnalytics->RecordConstructionError(FileManifest.Filename, INDEX_NONE, TEXT("Serialised Verify Fail"));
-				UE_LOG(LogBuildPatchServices, Error, TEXT("FBuildPatchFileConstructor: Verify failed after constructing %s"), *FileManifest.Filename);
+				InstallerAnalytics->RecordConstructionError(BuildFilename, INDEX_NONE, TEXT("Serialised Verify Fail"));
+				UE_LOG(LogBuildPatchServices, Error, TEXT("FBuildPatchFileConstructor: Verify failed after constructing %s"), *BuildFilename);
 			}
 			// Always set
 			InstallerError->SetError(EBuildPatchInstallError::FileConstructionFail, ConstructionErrorCodes::OutboundCorrupt);
