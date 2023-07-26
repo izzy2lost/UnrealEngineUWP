@@ -17,6 +17,14 @@
 
 //UE_DISABLE_OPTIMIZATION;
 
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_InitControlsAndBodyModifiers"), STAT_RigidBodyNodeWithControl_InitControlsAndBodyModifiers, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_LogControlsModifiersAndSets"), STAT_RigidBodyNodeWithControl_LogControlsModifiersAndSets, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_ApplyControlAndModifierUpdatesAndParametersToRecords"), STAT_RigidBodyNodeWithControl_ApplyControlAndModifierUpdatesAndParametersToRecords, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_ApplyControlsAndModifierDatas"), STAT_RigidBodyNodeWithControl_ApplyControlsAndModifierDatas, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_ApplyControlsAndModifiers"), STAT_RigidBodyNodeWithControl_ApplyControlsAndModifiers, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_ApplyKinematicTargets"), STAT_RigidBodyNodeWithControl_ApplyKinematicTargets, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_ApplyCurrentConstraintProfile"), STAT_RigidBodyNodeWithControl_ApplyCurrentConstraintProfile, STATGROUP_Anim);
+
 int32 MaxNumControlsOrModifiersPerName = 16;
 
 constexpr int32 ConstraintChildIndex = 0;
@@ -494,6 +502,8 @@ TMap<FName, FRigidBodyLimbBones> FAnimNode_RigidBodyWithControl::GetLimbBonesFro
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(USkeletalMeshComponent* const SkeletalMeshComponent)
 {
+	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_InitControlsAndBodyModifiers);
+
 	check(ControlRecords.IsEmpty()); // Controls should not exist when this function is called.
 
 	// These functions will create the base set of controls and modifiers from SetupData
@@ -551,6 +561,8 @@ void FAnimNode_RigidBodyWithControl::DestroyControlsAndBodyModifiers()
 // TODO This isn't ideal as it only dumps out the "original" values, not including the updates
 void FAnimNode_RigidBodyWithControl::LogControlsModifiersAndSets()
 {
+	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_LogControlsModifiersAndSets);
+
 #define RBWC_LOG_LEVEL Display
 
 	UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("Controls:"));
@@ -874,6 +886,8 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndModifierUpdatesAndParameters
 	const FRigidBodyControlAndModifierUpdates&    Updates,
 	const FRigidBodyControlAndModifierParameters& Parameters)
 {
+	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_ApplyControlAndModifierUpdatesAndParametersToRecords);
+
 	// Apply control and modifier parameters on a single-use basis
 	ApplyControlAndBodyModifierDatas(
 		Updates.ControlParameters, Updates.ModifierParameters);
@@ -911,6 +925,8 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndBodyModifierDatas(
 	const TArray<FRigidBodyNamedControlParameters>& InControlParameters,
 	const TArray<FRigidBodyNamedModifierParameters>& InModifierParameters)
 {
+	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_ApplyControlsAndModifierDatas);
+
 	// This updates the "original" controls and modifiers based on the parameters.
 	for (const FRigidBodyNamedControlParameters& ControlParameters : InControlParameters)
 	{
@@ -952,6 +968,8 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndBodyModifierDatas(
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::ApplyControlsAndModifiers(const FVector& SimSpaceGravity, float DeltaTime)
 {
+	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_ApplyControlsAndModifiers);
+
 	// If we've skipped a frame then we need to avoid doing any velocity calculations. Simplest
 	// method is to set DeltaTime to zero.
 	{
@@ -995,6 +1013,8 @@ void FAnimNode_RigidBodyWithControl::ApplyControlsAndModifiers(const FVector& Si
 // Note that this will be called AFTER normal kinematic targets have been set
 void FAnimNode_RigidBodyWithControl::ApplyKinematicTargets()
 {
+	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_ApplyKinematicTargets);
+
 	if (!PoseData.IsEmpty())
 	{
 		// Apply any kinematic targets.
@@ -1063,6 +1083,9 @@ static Chaos::EPlasticityType ConvertPlasticityType(EConstraintPlasticityType In
 void FAnimNode_RigidBodyWithControl::ApplyCurrentConstraintProfile()
 {
 	using namespace Chaos;
+
+	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_ApplyCurrentConstraintProfile);
+
 	// Go through each joint (in the ragdoll that's been created) in turn...
 	for (int32 JointIndex = 0; JointIndex != Joints.Num(); ++JointIndex)
 	{

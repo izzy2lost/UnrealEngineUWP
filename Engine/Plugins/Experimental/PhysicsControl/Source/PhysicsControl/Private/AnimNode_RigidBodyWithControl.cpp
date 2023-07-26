@@ -40,6 +40,12 @@ LLM_DEFINE_TAG(Animation_RigidBodyWithControl);
 #define LOCTEXT_NAMESPACE "ImmediatePhysicsWithControl"
 
 //DEFINE_STAT(STAT_RigidBodyNodeWithControlInitTime);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_Eval"), STAT_RigidBodyNodeWithControl_Eval, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_Simulation"), STAT_RigidBodyNodeWithControl_Simulation, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_SimulationWait"), STAT_RigidBodyNodeWithControl_SimulationWait, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_PreUpdate"), STAT_RigidBodyNodeWithControl_PreUpdate, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_Update"), STAT_RigidBodyNodeWithControl_Update, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread"), STAT_ImmediateEvaluateSkeletalControl, STATGROUP_ImmediatePhysics);
 
 CSV_DECLARE_CATEGORY_MODULE_EXTERN(ENGINE_API, Animation);
 
@@ -425,12 +431,6 @@ void FAnimNode_RigidBodyWithControl::CalculateSimulationSpace(
 	}
 }
 
-
-DECLARE_CYCLE_STAT(TEXT("RigidBody_Eval"), STAT_RigidBody_Eval, STATGROUP_Anim);
-DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_Simulation"), STAT_RigidBodyNodeWithControl_Simulation, STATGROUP_Anim);
-DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_SimulationWait"), STAT_RigidBodyNodeWithControl_SimulationWait, STATGROUP_Anim);
-DECLARE_CYCLE_STAT(TEXT("FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread"), STAT_ImmediateEvaluateSkeletalControl, STATGROUP_ImmediatePhysics);
-
 void FAnimNode_RigidBodyWithControl::RunPhysicsSimulation(float DeltaSeconds, const FVector& SimSpaceGravity)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_Simulation);
@@ -493,7 +493,7 @@ static FTransform CalculateJointTargetTransform(
 void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output, TArray<FBoneTransform>& OutBoneTransforms)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(EvaluateSkeletalControl_AnyThread)
-	SCOPE_CYCLE_COUNTER(STAT_RigidBody_Eval);
+	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_Eval);
 	CSV_SCOPED_TIMING_STAT(Animation, RigidBodyEval);
 	SCOPE_CYCLE_COUNTER(STAT_ImmediateEvaluateSkeletalControl);
 	//SCOPED_NAMED_EVENT_TEXT("FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread", FColor::Magenta);
@@ -1467,8 +1467,6 @@ void FAnimNode_RigidBodyWithControl::ResetDynamics(ETeleportType InTeleportType)
 	ResetSimulatedTeleportType = ((InTeleportType > ResetSimulatedTeleportType) ? InTeleportType : ResetSimulatedTeleportType);
 }
 
-DECLARE_CYCLE_STAT(TEXT("RigidBody_PreUpdate"), STAT_RigidBody_PreUpdate, STATGROUP_Anim);
-
 void FAnimNode_RigidBodyWithControl::PreUpdate(const UAnimInstance* InAnimInstance)
 {
 	// Don't update geometry if RBN is disabled
@@ -1477,7 +1475,7 @@ void FAnimNode_RigidBodyWithControl::PreUpdate(const UAnimInstance* InAnimInstan
 		return;
 	}
 
-	SCOPE_CYCLE_COUNTER(STAT_RigidBody_PreUpdate);
+	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_PreUpdate);
 
 	USkeletalMeshComponent* SKC = InAnimInstance->GetSkelMeshComponent();
 	APawn* PawnOwner = InAnimInstance->TryGetPawnOwner();
@@ -1549,8 +1547,6 @@ int32 FAnimNode_RigidBodyWithControl::GetLODThreshold() const
 	}
 }
 
-DECLARE_CYCLE_STAT(TEXT("RigidBody_Update"), STAT_RigidBody_Update, STATGROUP_Anim);
-
 void FAnimNode_RigidBodyWithControl::UpdateInternal(const FAnimationUpdateContext& Context)
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/RigidBodyWithControl")); 
@@ -1561,7 +1557,7 @@ void FAnimNode_RigidBodyWithControl::UpdateInternal(const FAnimationUpdateContex
 		return;
 	}
 
-	SCOPE_CYCLE_COUNTER(STAT_RigidBody_Update);
+	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_Update);
 	
 	// Must flush the simulation since we may be making changes to the scene
 	FlushDeferredSimulationTask();
