@@ -24,5 +24,7 @@ public class PlasticSourceControl : ModuleRules
 				"ToolMenus",
 			}
 		);
+
+		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 	}
 }

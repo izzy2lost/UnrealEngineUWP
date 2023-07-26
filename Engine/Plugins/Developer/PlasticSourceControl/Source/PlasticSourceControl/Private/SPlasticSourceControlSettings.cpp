@@ -349,7 +349,7 @@ void SPlasticSourceControlSettings::Construct(const FArguments& InArgs)
 				.ToolTipText(LOCTEXT("PlasticInitWorkspace_Tooltip", "Create and initialize a new Plastic SCM workspace and repository for the current project"))
 				.OnClicked(this, &SPlasticSourceControlSettings::OnClickedInitializePlasticWorkspace)
 				.HAlign(HAlign_Center)
-				.ContentPadding(6)
+				.ContentPadding(6.0f)
 			]
 		]
 		// Button to add a 'ignore.conf' file on an existing Workspace
