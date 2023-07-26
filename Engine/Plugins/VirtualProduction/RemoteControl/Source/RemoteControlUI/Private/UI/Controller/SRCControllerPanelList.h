@@ -226,7 +226,9 @@ private:
 
 	/** Add a custom column */
 	void AddColumn(const FName& InColumnName);
-
+	
+	/** Checks whether the provided Entity can be used to create a Controller*/
+	bool IsEntitySupported(FGuid ExposedEntityId);
 
 	/** Panel Style reference. */
 	const FRCPanelStyle* RCPanelStyle;
