@@ -96,7 +96,7 @@ void UDataTable::LoadStructData(FStructuredArchiveSlot Slot)
 	{
 		if (!HasAnyFlags(RF_ClassDefaultObject) && GetOutermost() != GetTransientPackage())
 		{
-			UE_LOG(LogDataTable, Error, TEXT("Missing RowStruct while loading DataTable '%s'!"), *GetPathName());
+			UE_LOG(LogDataTable, Error, TEXT("Missing RowStruct while loading DataTable '%s', NeedLoad: '%s'!"), *GetPathName(), HasAnyFlags(RF_NeedLoad) ? TEXT("true") : TEXT("false"));
 		}
 		LoadUsingStruct = FTableRowBase::StaticStruct();
 	}
@@ -135,7 +135,7 @@ void UDataTable::SaveStructData(FStructuredArchiveSlot Slot)
 	{
 		if (!HasAnyFlags(RF_ClassDefaultObject) && GetOutermost() != GetTransientPackage())
 		{
-			UE_LOG(LogDataTable, Error, TEXT("Missing RowStruct while saving DataTable '%s'!"), *GetPathName());
+			UE_LOG(LogDataTable, Error, TEXT("Missing RowStruct while saving DataTable '%s', NeedLoad: '%s'!"), *GetPathName(), HasAnyFlags(RF_NeedLoad) ? TEXT("true") : TEXT("false"));
 		}
 		SaveUsingStruct = FTableRowBase::StaticStruct();
 	}
@@ -396,7 +396,7 @@ UScriptStruct& UDataTable::GetEmptyUsingStruct() const
 	{
 		if (!HasAnyFlags(RF_ClassDefaultObject) && GetOutermost() != GetTransientPackage())
 		{
-			UE_LOG(LogDataTable, Error, TEXT("Missing RowStruct while emptying DataTable '%s'!"), *GetPathName());
+			UE_LOG(LogDataTable, Error, TEXT("Missing RowStruct while emptying DataTable '%s', NeedLoad: '%s'!"), *GetPathName(), HasAnyFlags(RF_NeedLoad) ? TEXT("true") : TEXT("false"));
 		}
 		EmptyUsingStruct = FTableRowBase::StaticStruct();
 	}
