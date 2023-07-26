@@ -96,6 +96,8 @@ public:
 	bool bKeyNavigation;
 	/** Should we respect the analog stick for navigation. */
 	bool bAnalogNavigation;
+	/** Should we ignore modifier keys when checking for navigation actions. If false, only unmodified keys will be processed. */
+	bool bIgnoreModifiersForNavigationActions;
 
 	/**  */
 	float AnalogNavigationHorizontalThreshold;

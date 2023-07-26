@@ -852,6 +852,7 @@ FSlateApplication::FSlateApplication()
 
 	NavigationConfig->OnRegister();
 #if WITH_EDITOR
+	EditorNavigationConfig->bIgnoreModifiersForNavigationActions = false;
 	EditorNavigationConfig->OnRegister();
 #endif
 

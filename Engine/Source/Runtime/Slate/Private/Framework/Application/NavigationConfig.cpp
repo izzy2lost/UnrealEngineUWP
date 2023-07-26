@@ -9,6 +9,7 @@ FNavigationConfig::FNavigationConfig()
 	: bTabNavigation(true)
 	, bKeyNavigation(true)
 	, bAnalogNavigation(true)
+	, bIgnoreModifiersForNavigationActions(true)
 	, AnalogNavigationHorizontalThreshold(0.50f)
 	, AnalogNavigationVerticalThreshold(0.50f)
 {
@@ -153,10 +154,16 @@ float FNavigationConfig::GetRepeatRateForPressure(float InPressure, int32 InRepe
 
 EUINavigationAction FNavigationConfig::GetNavigationActionFromKey(const FKeyEvent& InKeyEvent) const
 {
+	const bool bModifierHeld = InKeyEvent.IsControlDown() || InKeyEvent.IsAltDown() || InKeyEvent.IsCommandDown() || InKeyEvent.IsShiftDown();
+	if (bIgnoreModifiersForNavigationActions || !bModifierHeld)
+	{
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	// Call raw key version for back compatibility, subclasses should override this function
-	return GetNavigationActionForKey(InKeyEvent.GetKey());
+		// Call raw key version for back compatibility, subclasses should override this function
+		return GetNavigationActionForKey(InKeyEvent.GetKey());
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	}
+	return EUINavigationAction::Invalid;
 }
 
 EUINavigationAction FNavigationConfig::GetNavigationActionForKey(const FKey& InKey) const
