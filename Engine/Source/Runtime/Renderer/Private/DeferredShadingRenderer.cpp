@@ -3019,7 +3019,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		const bool bRunHairStrands = HairStrandsBookmarkParameters.HasInstances() && (Views.Num() > 0);
 		if (bRunHairStrands)
 		{
-			RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessStrandsInterpolation, HairStrandsBookmarkParameters);
+			RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessCardsAndMeshesInterpolation, HairStrandsBookmarkParameters);
 		}
 		else
 		{
@@ -3477,10 +3477,14 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			RenderShadowDepthMaps(GraphBuilder, InstanceCullingManager, ExternalAccessQueue);
 			bShadowMapsRenderedEarly = true;
 
-			if (bHairStrandsEnable && !bHasRayTracedOverlay)
+			if (bHairStrandsEnable)
 			{
-				RenderHairPrePass(GraphBuilder, Scene, Views, InstanceCullingManager);
-				RenderHairBasePass(GraphBuilder, Scene, SceneTextures, Views, InstanceCullingManager);
+				RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessStrandsInterpolation, HairStrandsBookmarkParameters);
+				if (!bHasRayTracedOverlay)
+				{
+					RenderHairPrePass(GraphBuilder, Scene, Views, InstanceCullingManager);
+					RenderHairBasePass(GraphBuilder, Scene, SceneTextures, Views, InstanceCullingManager);
+				}
 			}
 
 			RenderForwardShadowProjections(GraphBuilder, SceneTextures, ForwardScreenSpaceShadowMaskTexture, ForwardScreenSpaceShadowMaskHairTexture);
@@ -3644,10 +3648,14 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 
 		// Render hair
-		if (bHairStrandsEnable && !IsForwardShadingEnabled(ShaderPlatform) && !bHasRayTracedOverlay)
+		if (bHairStrandsEnable && !IsForwardShadingEnabled(ShaderPlatform))
 		{
-			RenderHairPrePass(GraphBuilder, Scene, Views, InstanceCullingManager);
-			RenderHairBasePass(GraphBuilder, Scene, SceneTextures, Views, InstanceCullingManager);
+			RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessStrandsInterpolation, HairStrandsBookmarkParameters);
+			if (!bHasRayTracedOverlay)
+			{
+				RenderHairPrePass(GraphBuilder, Scene, Views, InstanceCullingManager);
+				RenderHairBasePass(GraphBuilder, Scene, SceneTextures, Views, InstanceCullingManager);
+			}
 		}
 
 		// Post base pass for material classification
