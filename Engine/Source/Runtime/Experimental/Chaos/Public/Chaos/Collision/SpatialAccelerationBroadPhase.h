@@ -309,6 +309,10 @@ namespace Chaos
 
 			bNeedsResim = ResimCache && ResimCache->IsResimming();
 
+			// Reset stats
+			NumBroadPhasePairs = 0;
+			NumMidPhases = 0;
+
 			{
 				SCOPE_CYCLE_COUNTER(STAT_Collisions_SpatialBroadPhase);
 
@@ -356,6 +360,13 @@ namespace Chaos
 			// Run some error checks in non-shipping builds
 			// NOTE: This must come after MidPhase assignment for now because that's where the filter is applied
 			CheckOverlapResults();
+
+			// Update stats
+			for (int32 ContextIndex = 0; ContextIndex < NumActiveBroadphaseContexts; ++ContextIndex)
+			{
+				NumBroadPhasePairs += BroadphaseContexts[ContextIndex].Overlaps.Num();
+				NumMidPhases += BroadphaseContexts[ContextIndex].MidPhases.Num();
+			}
 		}
 
 		/**
@@ -487,6 +498,17 @@ namespace Chaos
 
 		FIgnoreCollisionManager& GetIgnoreCollisionManager() { return IgnoreCollisionManager; }
 
+		// Stats
+		int32 GetNumBroadPhasePairs() const
+		{
+			return NumBroadPhasePairs;
+		}
+
+		int32 GetNumMidPhases() const
+		{
+			return NumMidPhases;
+		}
+
 	private:
 
 		// Generate the set of particles that overlap the specified particle and are allowed to collide with it
@@ -596,16 +618,16 @@ namespace Chaos
 			
 			// Prefetch initial set of MidPhases
 			const int32 PrefetchLookahead = 4;
-			const int32 NumMidPhases = BroadphaseContext.MidPhases.Num();
-			for (int32 Index = 0; Index < NumMidPhases && Index < PrefetchLookahead; Index++)
+			const int32 NumContextMidPhases = BroadphaseContext.MidPhases.Num();
+			for (int32 Index = 0; Index < NumContextMidPhases && Index < PrefetchLookahead; Index++)
 			{
 				BroadphaseContext.MidPhases[Index]->CachePrefetch();
 			}
 
-			for (int32 Index = 0; Index < NumMidPhases; Index++)
+			for (int32 Index = 0; Index < NumContextMidPhases; Index++)
 			{
 				// Prefetch next MidPhase
-				if (Index + PrefetchLookahead < NumMidPhases)
+				if (Index + PrefetchLookahead < NumContextMidPhases)
 				{
 					BroadphaseContext.MidPhases[Index + PrefetchLookahead]->CachePrefetch();
 				}
@@ -632,7 +654,7 @@ namespace Chaos
 				{
 					if (Overlap.bCollisionsEnabled)
 					{
-						const FCollisionParticlePairKey PairKey = FCollisionParticlePairKey(Overlap.Particles[0], Overlap.Particles[1]);
+						const Private::FCollisionParticlePairKey PairKey = Private::FCollisionParticlePairKey(Overlap.Particles[0], Overlap.Particles[1]);
 						const bool bIsInSet = ParticlePairKeys.Contains(PairKey.GetKey());
 						if (ensure(!bIsInSet))
 						{
@@ -655,6 +677,9 @@ namespace Chaos
 		FIgnoreCollisionManager IgnoreCollisionManager;
 		int32 NumActiveBroadphaseContexts;
 		bool bNeedsResim;
+
+		int32 NumBroadPhasePairs;
+		int32 NumMidPhases;
 	};
 
 }

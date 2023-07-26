@@ -59,6 +59,8 @@ DECLARE_DWORD_COUNTER_STAT(TEXT("NumRestoredManifoldPoints"), STAT_ChaosCounter_
 DECLARE_DWORD_COUNTER_STAT(TEXT("NumUpdatedManifoldPoints"), STAT_ChaosCounter_NumUpdatedManifoldPoints, STATGROUP_ChaosCounters);
 DECLARE_DWORD_COUNTER_STAT(TEXT("NumJoints"), STAT_ChaosCounter_NumJoints, STATGROUP_ChaosCounters);
 DECLARE_DWORD_COUNTER_STAT(TEXT("NumCharacterGroundConstraints"), STAT_ChaosCounter_NumCharacterGroundConstraints, STATGROUP_ChaosCounters);
+DECLARE_DWORD_COUNTER_STAT(TEXT("NumBroadPhasePairs"), STAT_ChaosCounter_NumBroadPhasePairs, STATGROUP_ChaosCounters);
+DECLARE_DWORD_COUNTER_STAT(TEXT("NumMidPhases"), STAT_ChaosCounter_NumMidPhases, STATGROUP_ChaosCounters);
 
 TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_NumDisabledBodies, TEXT("Chaos/Solver/Bodies/NumDisabled"));
 TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_NumBodies, TEXT("Chaos/Solver/Bodies/Num"));
@@ -82,6 +84,8 @@ TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_NumRestoredManifoldPoints, TEXT("Cha
 TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_NumUpdatedManifoldPoints, TEXT("Chaos/Solver/Collisions/NumUpdatedManifoldPoints"));
 TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_NumJoints, TEXT("Chaos/Solver/Joints/NumConstraints"));
 TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_NumCharacterGroundConstraints, TEXT("Chaos/Solver/Character/NumConstraints"));
+TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_NumBroadPhasePairs, TEXT("Chaos/Solver/Collisions/NumBroadPhasePairs"));
+TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_NumMidPhases, TEXT("Chaos/Solver/Collisions/NumMidPhases"));
 
 TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_MidPhase_NumShapePair, TEXT("Chaos/Solver/MidPhase/NumShapePair"));
 TRACE_DECLARE_INT_COUNTER(ChaosTraceCounter_MidPhase_NumGeneric, TEXT("Chaos/Solver/MidPhase/NumGeneric"));
@@ -2030,6 +2034,10 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 		UpdateExpensiveStatCounters();
 #endif
 
+		// Collision detection info
+		CHAOS_COUNTER_STAT(NumBroadPhasePairs, GetEvolution()->GetBroadPhase().GetNumBroadPhasePairs());
+		CHAOS_COUNTER_STAT(NumMidPhases, GetEvolution()->GetBroadPhase().GetNumMidPhases());
+
 		// Iterations
 		CHAOS_COUNTER_STAT(NumPositionIterations, GetEvolution()->GetNumPositionIterations());
 		CHAOS_COUNTER_STAT(NumVelocityIterations, GetEvolution()->GetNumVelocityIterations());
@@ -2099,21 +2107,22 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 			const FConstGenericParticleHandle P = Particle.Handle();
 			if (Particle.Geometry().Get() != nullptr)
 			{
-				if (const FImplicitObjectUnion* Union = Particle.Geometry()->GetObject<FImplicitObjectUnion>())
+				int32 NumShapes = 1;
+				if (const FImplicitObjectUnion* Union = Particle.Geometry()->AsA<FImplicitObjectUnion>())
 				{
-					const int32 NumShapes = Union->GetNumLeafObjects();
-					if (P->IsDynamic())
-					{
-						NumDynamicShapes += NumShapes;
-					}
-					else if (P->IsKinematic())
-					{
-						NumKinematicShapes += NumShapes;
-					}
-					else
-					{
-						NumStaticShapes += NumShapes;
-					}
+					NumShapes = Union->GetNumLeafObjects();
+				}
+				if (P->IsDynamic())
+				{
+					NumDynamicShapes += NumShapes;
+				}
+				else if (P->IsKinematic())
+				{
+					NumKinematicShapes += NumShapes;
+				}
+				else
+				{
+					NumStaticShapes += NumShapes;
 				}
 			}
 		}
