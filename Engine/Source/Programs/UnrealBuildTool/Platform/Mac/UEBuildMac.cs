@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Text;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
@@ -260,7 +261,23 @@ namespace UnrealBuildTool
 		}
 	}
 
-	class MacPlatform : UEBuildPlatform
+	abstract class AppleBuildPlatform : UEBuildPlatform
+	{
+		public AppleBuildPlatform(UnrealTargetPlatform Platform, UEBuildPlatformSDK SDK, UnrealArchitectureConfig ArchitectureConfig, ILogger Logger)
+			: base(Platform, SDK, ArchitectureConfig, Logger)
+		{
+
+		}
+
+		public override void GetExternalBuildMetadata(FileReference? ProjectFile, StringBuilder Metadata)
+		{
+			base.GetExternalBuildMetadata(ProjectFile, Metadata);
+			
+			Metadata.AppendLine("xcode-select: {0}", AppleToolChainSettings.XcodeDeveloperDir);
+		}
+	}
+
+	class MacPlatform : AppleBuildPlatform
 	{
 		public MacPlatform(UEBuildPlatformSDK InSDK, ILogger InLogger)
 			: base(UnrealTargetPlatform.Mac, InSDK, new MacArchitectureConfig(), InLogger)

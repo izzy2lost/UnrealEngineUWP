@@ -78,7 +78,7 @@ case $PLATFORM in
 	;;
 	"iphonesimulator"|"iossimulator")
 		PLATFORM="IOS"
-		ARCHS="iossimulator" 
+		UBT_ARCHFLAG="-architecture=iossimulator" 
 	;;
 	"appletvos")
 		PLATFORM="TVOS"
