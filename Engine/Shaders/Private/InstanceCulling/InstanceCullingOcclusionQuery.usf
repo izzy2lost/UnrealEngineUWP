@@ -43,19 +43,20 @@ int4 ViewRect;
 EInstanceVisibilityStatus GetInstanceDataAndVisibility(uint InstanceId, out FInstanceSceneData OutInstanceData)
 {
 	const FInstanceSceneData InstanceData = GetInstanceSceneData(InstanceId, InstanceSceneDataSOAStride);
-	const FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
-
-	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_INSTANCE_CULLING_OCCLUSION_QUERIES) == 0u)
-	{
-		// If instance culling occlusion queries are not allowed for this primitive, it is marked as "visible"
-		return IVS_Incompatible;
-	}
 
 	OutInstanceData = InstanceData;
 	
 	if (!InstanceData.ValidInstance)
 	{
 		return IVS_Hidden;
+	}
+
+	const FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
+
+	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_INSTANCE_CULLING_OCCLUSION_QUERIES) == 0u)
+	{
+		// If instance culling occlusion queries are not allowed for this primitive, it is marked as "visible"
+		return IVS_Incompatible;
 	}
 
 	float3 BoxOrigin = InstanceData.LocalBoundsCenter;
