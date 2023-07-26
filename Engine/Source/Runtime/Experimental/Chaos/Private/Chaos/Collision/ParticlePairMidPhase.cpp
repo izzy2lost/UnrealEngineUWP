@@ -507,6 +507,7 @@ namespace Chaos
 			// Flag this contact as requiring CCD
 			Constraint->SetCCDEnabled(true);
 		}
+		check(!Constraint->IsEnabled());
 
 		// Do we want to enable the CCD sweep? If not, we fall back to the standard collision detection for this tick
 		Constraint->SetCCDSweepEnabled(bEnableCCDSweep);
@@ -595,6 +596,7 @@ namespace Chaos
 		{
 			CreateConstraint(CullDistance, Context);
 		}
+		check(!Constraint->IsEnabled());
 
 		if (Constraint.IsValid())
 		{
@@ -639,6 +641,7 @@ namespace Chaos
 			Constraint->GetContainerCookie().bIsMultiShapePair = false;
 			Constraint->GetContainerCookie().CreationEpoch = CurrentEpoch;
 		}
+		check(!Constraint->IsEnabled());
 
 		// Copy the constraint data over the existing one (ensure we do not replace data required by the graph and the allocator/container)
 		Constraint->RestoreFrom(SourceConstraint);
@@ -1553,6 +1556,7 @@ namespace Chaos
 				CollisionKey, CollisionSortKey,
 				CullDistance, ShapePairType, bUseManifold, Context);
 		}
+		check(!Constraint->IsEnabled());
 
 		NewConstraints.Add(Constraint);
 

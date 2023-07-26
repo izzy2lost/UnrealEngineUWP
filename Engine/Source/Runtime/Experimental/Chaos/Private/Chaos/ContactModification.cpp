@@ -542,13 +542,21 @@ namespace Chaos
 				Constraints.Add(&Constraint);
 			}
 			return ECollisionVisitorResult::Continue;
-		}, ECollisionVisitorFlags::VisitActiveAwake | ECollisionVisitorFlags::VisitDisabled);
+		}, ECollisionVisitorFlags::VisitActiveAwake);
 	}
 
 	bool FVisitedContactPairsTracker::Visit(const FContactPairModifier& ContactPair)
 	{
-		// Get a reference object to the relevant bit
+		// We use the index in the ActiveConstraints list as an ID for this constraint. This requires
+		// that we are only visiting the active constraints (and not sleeping or non-activated constraints)
+		// in the VisitCollisions call in FContactPairModifierParticleRange
 		const int32 ConstraintIndex = ContactPair.GetConstraintContainerCookie().ConstraintIndex;
+		
+		// If we hit this, the constraint is not in the active list and the index is invalid
+		// Likely an error in the VisitCollisions call above
+		check(Constraints[ConstraintIndex] == ContactPair.Constraint);
+
+		// Get a reference object to the relevant bit
 		FBitReference BitRef = VisitedContacts[ConstraintIndex];
 
 		// Mark constraint visited and return true
@@ -569,7 +577,7 @@ namespace Chaos
 
 	FVisitedContactPairsTracker FCollisionContactModifier::MakeVisitedContactPairsTracker() const
 	{
-		return FVisitedContactPairsTracker(Constraints.Num());
+		return FVisitedContactPairsTracker(Constraints);
 	}
 
 	TArrayView<FPBDCollisionConstraint* const>& FCollisionContactModifier::GetConstraints()

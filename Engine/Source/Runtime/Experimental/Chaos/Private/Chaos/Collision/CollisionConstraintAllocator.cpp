@@ -159,6 +159,20 @@ namespace Chaos
 			ProcessNewItems();
 		}
 
+		void FCollisionConstraintAllocator::ResetActiveConstraints()
+		{
+			// Disable existing constraints so that if they are not re-activated this tick
+			// they do not have state indicating that that are still active.
+			// @todo(chaos): ideally we would do this only for constraints that do not get reused this tick in EndDetectCollisions
+			for (FPBDCollisionConstraint* Constraint : ActiveConstraints)
+			{
+				if (Constraint != nullptr)
+				{
+					Constraint->SetDisabled(true);
+				}
+			}
+		}
+
 		void FCollisionConstraintAllocator::PruneExpiredMidPhases()
 		{
 			// NOTE: Called from the physics thread, and never from a physics task/parallel-for. No need for locks.

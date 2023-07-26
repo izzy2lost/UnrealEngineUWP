@@ -346,6 +346,8 @@ namespace Chaos
 			*/
 			void BeginFrame()
 			{
+				ResetActiveConstraints();
+
 				ActiveConstraints.Reset();
 				ActiveCCDConstraints.Reset();
 			}
@@ -371,6 +373,8 @@ namespace Chaos
 				{
 					ContextAllocator->BeginDetectCollisions(CurrentEpoch);
 				}
+
+				ResetActiveConstraints();
 
 				// Clear the collision list for this tick - we are about to rebuild them
 				ActiveConstraints.Reset();
@@ -548,6 +552,8 @@ namespace Chaos
 			CHAOS_API void RemoveActiveConstraint(FPBDCollisionConstraint& Constraint);
 
 			CHAOS_API void SortActiveConstraints();
+
+			CHAOS_API void ResetActiveConstraints();
 
 			// The container that owns the allocator (only needed because new constraints need to know)
 			FPBDCollisionConstraints* CollisionContainer;

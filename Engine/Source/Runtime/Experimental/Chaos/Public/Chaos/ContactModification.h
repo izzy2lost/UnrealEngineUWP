@@ -447,10 +447,12 @@ namespace Chaos
 		CHAOS_API bool Visit(const FContactPairModifier& ContactPair);
 
 	private:
-		FVisitedContactPairsTracker(const int32 NumConstraints)
-			: VisitedContacts(false, NumConstraints)
+		FVisitedContactPairsTracker(const TArrayView<FPBDCollisionConstraint* const>& InConstraints)
+			: Constraints(InConstraints)
+			, VisitedContacts(false, Constraints.Num())
 		{ }
 
+		TArrayView<FPBDCollisionConstraint* const> Constraints;
 		TBitArray<> VisitedContacts;
 
 		// Befriend the modifier so that it can create these
@@ -468,7 +470,7 @@ namespace Chaos
 		friend FPBDCollisionConstraints; // Calls UpdateConstraintManifolds after callback.
 
 
-		FCollisionContactModifier(TArrayView<FPBDCollisionConstraint* const>& InConstraints, FReal InDt)
+		FCollisionContactModifier(const TArrayView<FPBDCollisionConstraint* const>& InConstraints, FReal InDt)
 			: Constraints(InConstraints)
 			, Dt(InDt)
 		{}
@@ -497,7 +499,7 @@ namespace Chaos
 		// Update manifolds of modified constraints.
 		CHAOS_API void UpdateConstraintManifolds();
 
-		TArrayView<FPBDCollisionConstraint* const>& Constraints;
+		TArrayView<FPBDCollisionConstraint* const> Constraints;
 
 		// Constraints that should update manifold from contact points.
 		TSet<FPBDCollisionConstraint*> NeedsManifoldUpdate;
