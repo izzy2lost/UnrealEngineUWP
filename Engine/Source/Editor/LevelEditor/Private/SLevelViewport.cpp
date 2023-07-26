@@ -4029,6 +4029,8 @@ void SLevelViewport::StartPlayInEditorSession(UGameViewportClient* PlayClient, c
 	ActiveViewport->SetPlayInEditorIsSimulate(bInSimulateInEditor);
 	
 	ActiveViewport->OnPlayWorldViewportSwapped( *InactiveViewport );
+	
+	LevelViewportClient->AddRealtimeOverride(false, LOCTEXT("LevelViewport_RealTimeDisableOnPie", "Disable LevelViewport Realtime for PIE"));
 
 	TSharedPtr<SWindow> ParentWindow = FSlateApplication::Get().FindWidgetWindow(AsShared());
 	PlayClient->SetViewportOverlayWidget(ParentWindow, PIEViewportOverlayWidget.ToSharedRef());
@@ -4231,6 +4233,8 @@ void SLevelViewport::EndPlayInEditorSession()
 
 	if( IsPlayInEditorViewportActive() )
 	{
+		LevelViewportClient->RemoveRealtimeOverride(LOCTEXT("LevelViewport_RealTimeDisableOnPie", "Disable LevelViewport Realtime for PIE"));
+		
 		{
 			TSharedPtr<FSceneViewport> GameViewport = ActiveViewport;
 			ActiveViewport = InactiveViewport;
