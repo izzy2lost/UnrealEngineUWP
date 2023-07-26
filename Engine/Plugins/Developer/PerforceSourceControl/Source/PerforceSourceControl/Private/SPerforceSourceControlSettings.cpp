@@ -179,7 +179,7 @@ void SPerforceSourceControlSettings::Construct(const FArguments& InArgs, FPerfor
 			[
 				SAssignNew(WorkspaceCombo, SComboButton)
 				.OnGetMenuContent(this, &SPerforceSourceControlSettings::OnGetMenuContent)
-				.ContentPadding(1)
+				.ContentPadding(1.0f)
 				.ToolTipText( LOCTEXT("AutoWorkspaces_Tooltip", "Choose from a list of available workspaces. Requires a server and username before use.") )
 				.IsEnabled(this, &SPerforceSourceControlSettings::IsP4ConfigDisabled)
 				.ButtonContent()

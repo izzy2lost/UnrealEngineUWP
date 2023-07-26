@@ -8,8 +8,8 @@ public class PerforceSourceControl : ModuleRules
 	{
 		IWYUSupport = IWYUSupport.KeepAsIsForNow;
 
-        PrivateDependencyModuleNames.AddRange(
-            new string[] {
+		PrivateDependencyModuleNames.AddRange(
+			new string[] {
 				"Core",
 				"InputCore",
 				"Slate",
@@ -23,7 +23,9 @@ public class PerforceSourceControl : ModuleRules
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "OpenSSL");
-            AddEngineThirdPartyPrivateStaticDependencies(Target, "zlib");
+			AddEngineThirdPartyPrivateStaticDependencies(Target, "zlib");
 		}
+
+		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 	}
 }
