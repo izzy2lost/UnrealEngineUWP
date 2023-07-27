@@ -12,6 +12,8 @@
 #include "Insights/Common/Stopwatch.h"
 #include "Insights/IUnrealInsightsModule.h"
 
+#include "Misc/FileHelper.h"
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FInsightsTestUtils::FInsightsTestUtils(FAutomationTestBase* InTest) :
@@ -72,3 +74,22 @@ bool FInsightsTestUtils::AnalyzeTrace(const TCHAR* Path) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool FInsightsTestUtils::FileContainsString(const FString& PathToFile, const FString& ExpectedString, const float Timeout) const
+{
+	float StartTime = FPlatformTime::Seconds();
+	while ((FPlatformTime::Seconds() - StartTime) < Timeout)
+	{
+		FString LogFileContents;
+		if (FFileHelper::LoadFileToString(LogFileContents, *PathToFile))
+		{
+			if (LogFileContents.Contains(ExpectedString))
+			{
+				return true;
+			}
+		}
+		FPlatformProcess::Sleep(0.1f);
+	}
+
+	return false;
+}
