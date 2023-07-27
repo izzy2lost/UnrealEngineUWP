@@ -7,6 +7,7 @@
 FInputProtocolMap FPixelStreamingInputProtocol::ToStreamerProtocol;
 FInputProtocolMap FPixelStreamingInputProtocol::FromStreamerProtocol;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 TSharedPtr<FJsonObject> FPixelStreamingInputProtocol::ToJson(EPixelStreamingMessageDirection Direction)
 {
 	TSharedPtr<FJsonObject> ProtocolJson = MakeShareable(new FJsonObject());
@@ -61,3 +62,4 @@ TSharedPtr<FJsonObject> FPixelStreamingInputProtocol::ToJson(EPixelStreamingMess
 
 	return ProtocolJson;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
