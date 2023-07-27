@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "RigVMTypeUtils.h"
+#include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/UserDefinedEnum.h"
 #include "Engine/UserDefinedStruct.h"
