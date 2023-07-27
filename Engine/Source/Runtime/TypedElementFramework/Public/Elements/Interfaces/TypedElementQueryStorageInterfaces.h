@@ -5,6 +5,7 @@
 #include "Containers/ContainersFwd.h"
 #include "Elements/Common/TypedElementHandles.h"
 #include "Elements/Common/TypedElementQueryTypes.h"
+#include "UObject/Class.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "Templates/Function.h"
 
