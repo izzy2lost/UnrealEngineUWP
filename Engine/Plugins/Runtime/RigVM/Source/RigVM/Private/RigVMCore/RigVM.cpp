@@ -345,6 +345,8 @@ void URigVM::PostLoad()
 
 void URigVM::PreSave(FObjectPreSaveContext SaveContext)
 {
+	Super::PreSave(SaveContext);
+
 	const TArray<const UObject*> UserDefinedDependencies = GetUserDefinedDependencies();
 	UserDefinedStructGuidToPathName.Reset();
 
