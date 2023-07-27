@@ -235,10 +235,14 @@ protected:
 	/** Linear, sorted array of nodes that we currently have generated widgets for */
 	TArray<FCachedGeometry> PhysicalNodes;
 
-protected:
+	/** Helper function for creating callbacks to generate outliner columns */
+	void AddOutlinerColumnCallback(TSharedPtr<ISequencerOutlinerColumn> InColumn, TSharedPtr<FEditorViewModel> InEditorViewModel);
+
+	/** Helper function for initializing track gutter columns and padding */
+	void UpdateTrackGutterColumns(TSharedPtr<FEditorViewModel> InEditorViewModel);
 
 	/** Populate the map of column definitions, and add relevant columns to the header row. Must be called when outliner columns change */
-	void GenerateOutlinerColumns();
+	void UpdateOutlinerColumns();
 
 	FReply OnDragRow(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, TSharedRef<SOutlinerViewRow> InRow);
 

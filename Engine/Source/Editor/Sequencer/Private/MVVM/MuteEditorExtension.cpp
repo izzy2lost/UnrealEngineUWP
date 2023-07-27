@@ -24,6 +24,25 @@ void FMuteEditorExtension::OnCreated(TSharedRef<FViewModel> InWeakOwner)
 	WeakOwnerModel = InWeakOwner->CastThisShared<FSequencerEditorViewModel>();
 }
 
+bool FMuteEditorExtension::IsNodeMuted(TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension) const
+{
+	TViewModelPtr<IOutlinerExtension> Item = InWeakOutlinerExtension.Pin();
+	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = WeakOwnerModel.Pin();
+	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
+	if(Item && Sequencer)
+	{
+		const TArray<FString>& MuteNodes = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->GetMuteNodes();
+		const FString NodePath = IOutlinerExtension::GetPathName(Item);
+
+		if (MuteNodes.Contains(NodePath))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void FMuteEditorExtension::SetNodeMuted(TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension, bool bInIsMuted)
 {              
 	const FScopedTransaction Transaction(NSLOCTEXT("Sequencer", "SetNodeMuted", "Set Node Muted"));
@@ -32,7 +51,7 @@ void FMuteEditorExtension::SetNodeMuted(TWeakViewModelPtr<IOutlinerExtension> In
 	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = WeakOwnerModel.Pin();
 	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
 		
-	if (Sequencer)
+	if (Sequencer && OutlinerItem)
 	{
 		UMovieScene* MovieScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
 
@@ -88,7 +107,7 @@ bool FMuteEditorExtension::IsNodeMutable(TWeakViewModelPtr<IOutlinerExtension> I
 	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = WeakOwnerModel.Pin();
 	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
 		
-	if (Sequencer)
+	if (Sequencer && OutlinerItem)
 	{
 		TSharedPtr<FViewModel> Item = OutlinerItem;
 		FString NodePath = IOutlinerExtension::GetPathName(Item);
@@ -104,25 +123,44 @@ bool FMuteEditorExtension::HasMutedChildNode(TWeakViewModelPtr<IOutlinerExtensio
 
 	TViewModelPtr<IOutlinerExtension> OutlinerItem = InWeakOutlinerExtension.Pin();
 
-	for (const TViewModelPtr<IMutableExtension>& Child : OutlinerItem.AsModel()->GetDescendantsOfType<IMutableExtension>())
+	if (OutlinerItem)
 	{
-		if (Child->IsMuted())
+		for (const TViewModelPtr<IOutlinerExtension>& Child : OutlinerItem.AsModel()->GetDescendantsOfType<IOutlinerExtension>(false, EViewModelListType::Outliner))
 		{
-			return true;
+			if (IsNodeMuted(Child))
+			{
+				return true;
+			}
 		}
 	}
 
 	return false;
 }
 
-void FMuteEditorExtension::OnPostMute()
+bool FMuteEditorExtension::IsNodeImplicitlyMuted(TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension) const
 {
+	TViewModelPtr<IOutlinerExtension> Item = InWeakOutlinerExtension.Pin();
 	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = WeakOwnerModel.Pin();
 	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
-	if (Sequencer)
+	if (Item && Sequencer)
 	{
-		Sequencer->RefreshTree();
+		const TArray<FString>& MuteNodes = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->GetMuteNodes();
+
+		TViewModelPtr<IOutlinerExtension> ParentNode = Item.AsModel()->FindAncestorOfType<IOutlinerExtension>();
+		while (ParentNode)
+		{
+			const FString NodePath = IOutlinerExtension::GetPathName(ParentNode);
+			if (MuteNodes.Contains(NodePath))
+			{
+				return true;
+			}
+
+			// continue traversing upwards until no more parents
+			ParentNode = ParentNode.AsModel()->FindAncestorOfType<IOutlinerExtension>();
+		}
 	}
+
+	return false;
 }
 
 } // namespace UE::Sequencer

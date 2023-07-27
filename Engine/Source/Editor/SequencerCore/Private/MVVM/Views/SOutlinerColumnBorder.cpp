@@ -19,7 +19,7 @@ void SOutlinerColumnInnerBorder::Construct(const FArguments& InArgs, const FCrea
 	WeakOutlinerExtension = InParams.OutlinerExtension;
 	WeakEditor = InParams.Editor;
 
-	BackgroundBrush = FAppStyle::GetBrush("Sequencer.AnimationOutliner.DefaultBorder");
+	BackgroundBrush = FAppStyle::GetBrush("Sequencer.Column.OutlinerColumnBox");
 
 	// Size of outliner column widgets is currently 12x12
 	TSharedRef<SWidget>	FinalWidget = SNew(SBox)
@@ -31,8 +31,7 @@ void SOutlinerColumnInnerBorder::Construct(const FArguments& InArgs, const FCrea
 			SNew(SBorder)
 			.VAlign(VAlign_Center)
 			.BorderImage(this, &SOutlinerColumnInnerBorder::GetBorderImage)
-			.BorderBackgroundColor(this, &SOutlinerColumnInnerBorder::GetBackgroundTint)
-			.Padding(FMargin(0.f))
+			.Padding(FMargin(1.f))
 			[
 				InArgs._Content.Widget
 			]
@@ -54,32 +53,35 @@ void SOutlinerColumnInnerBorder::OnMouseLeave(const FPointerEvent& MouseEvent)
 	bIsMouseOverInnerBorder = false;
 }
 
+FReply SOutlinerColumnBorder::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	return FReply::Handled();
+}
+
 const FSlateBrush* SOutlinerColumnInnerBorder::GetBorderImage() const
 {
 	return BackgroundBrush;
 }
 
-FSlateColor SOutlinerColumnInnerBorder::GetBackgroundTint() const
-{
-	TSharedPtr<FEditorViewModel> Editor = WeakEditor.Pin();
-	TViewModelPtr<IOutlinerExtension> OutlinerItem = WeakOutlinerExtension.Pin();
-
-	EOutlinerSelectionState SelectionState = OutlinerItem->GetSelectionState();
-
-	bool bIsOutlinerItemSelectedDirectly = EnumHasAnyFlags(SelectionState, EOutlinerSelectionState::SelectedDirectly);
-	bool bIsOutlinerItemHovered = Editor->GetOutliner()->GetHoveredItem() == OutlinerItem;
-
-	float Opacity = .4f;
-	return FLinearColor(0.f, 0.f, 0.f, Opacity);
-}
-
-
-void SOutlinerColumnBorder::Construct(const FArguments& InArgs, const FCreateOutlinerColumnParams& InParams)
+void SOutlinerColumnBorder::Construct(const FArguments& InArgs, const FCreateOutlinerColumnParams& InParams, const bool bHasInnerBorder)
 {
 	WeakOutlinerExtension = InParams.OutlinerExtension;
 	WeakEditor = InParams.Editor;
 
 	BackgroundBrush = FAppStyle::GetBrush("Sequencer.AnimationOutliner.DefaultBorder");
+
+	TSharedPtr<SWidget> InnerWidget;
+	if (bHasInnerBorder)
+	{
+		InnerWidget = SNew(SOutlinerColumnInnerBorder, InParams)
+			[
+				InArgs._Content.Widget
+			];
+	}
+	else
+	{
+		InnerWidget = InArgs._Content.Widget;
+	}
 
 	TSharedRef<SWidget>	FinalWidget = SNew(SBorder)
 		.VAlign(VAlign_Center)
@@ -87,12 +89,9 @@ void SOutlinerColumnBorder::Construct(const FArguments& InArgs, const FCreateOut
 		.BorderBackgroundColor(this, &SOutlinerColumnBorder::GetBackgroundTint)
 		.VAlign(VAlign_Center)
 		.HAlign(HAlign_Center)
-		.Padding(FMargin(1.0f))
+		.Padding(FMargin(0.0f))
 		[
-			SNew(SOutlinerColumnInnerBorder, InParams)
-			[
-				InArgs._Content.Widget
-			]
+			InnerWidget.ToSharedRef()
 		];
 
 	ChildSlot

@@ -487,7 +487,7 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 	for (int32 DelegateIndex = 0; DelegateIndex < OutlinerColumnDelegates.Num(); ++DelegateIndex)
 	{
 		check(OutlinerColumnDelegates[DelegateIndex].IsBound());
-		TSharedRef<ISequencerOutlinerColumn> OutlinerColumn = OutlinerColumnDelegates[DelegateIndex].Execute(SharedThis(this));
+		TSharedRef<ISequencerOutlinerColumn> OutlinerColumn = OutlinerColumnDelegates[DelegateIndex].Execute();
 
 		if (OutlinerColumn->SupportsSequence(InitParams.RootSequence))
 		{

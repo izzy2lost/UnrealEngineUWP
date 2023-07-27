@@ -31,6 +31,11 @@
 #include "MVVM/ViewModels/SequenceModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 
+#include "OutlinerColumns/LockOutlinerColumn.h"
+#include "OutlinerColumns/MuteOutlinerColumn.h"
+#include "OutlinerColumns/PinOutlinerColumn.h"
+#include "OutlinerColumns/SoloOutlinerColumn.h"
+
 #include "ToolMenus.h"
 #include "ContentBrowserMenuContexts.h"
 #include "SequencerUtilities.h"
@@ -341,6 +346,12 @@ public:
 
 			FPropertyEditorModule& EditModule = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 			OnGetGlobalRowExtensionHandle = EditModule.GetGlobalRowExtensionDelegate().AddStatic(&RegisterKeyframeExtensionHandler);
+
+			// Register built-in outliner columns (default order is pin, mute, lock, solo)
+			PinOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic(&FPinOutlinerColumn::CreateOutlinerColumn));
+			MuteOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic(&FMuteOutlinerColumn::CreateOutlinerColumn));
+			LockOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic(&FLockOutlinerColumn::CreateOutlinerColumn));
+			SoloOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic(&FSoloOutlinerColumn::CreateOutlinerColumn));
 		}
 
 		FSequenceModel::CreateExtensionsEvent.AddLambda(
@@ -383,6 +394,12 @@ public:
 			}
 
 			FEditorModeRegistry::Get().UnregisterMode(FSequencerEdMode::EM_SequencerMode);
+
+			// unregister outliner columns
+			UnregisterOutlinerColumn(PinOutlinerColumnHandle);
+			UnregisterOutlinerColumn(MuteOutlinerColumnHandle);
+			UnregisterOutlinerColumn(LockOutlinerColumnHandle);
+			UnregisterOutlinerColumn(SoloOutlinerColumnHandle);
 		}
 	}
 
@@ -528,6 +545,12 @@ private:
 
 	/** Array of movie renderers */
 	TArray<FMovieRendererEntry> MovieRenderers;
+
+	// Outliner Column Delegate Handles
+	FDelegateHandle PinOutlinerColumnHandle;
+	FDelegateHandle MuteOutlinerColumnHandle;
+	FDelegateHandle LockOutlinerColumnHandle;
+	FDelegateHandle SoloOutlinerColumnHandle;
 };
 
 IMPLEMENT_MODULE(FSequencerModule, Sequencer);

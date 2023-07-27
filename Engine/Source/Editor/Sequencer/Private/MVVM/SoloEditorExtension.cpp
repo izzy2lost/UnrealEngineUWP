@@ -26,12 +26,17 @@ void FSoloEditorExtension::OnCreated(TSharedRef<FViewModel> InWeakOwner)
 
 bool FSoloEditorExtension::IsNodeSoloed(TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension) const
 {
-	TViewModelPtr<IOutlinerExtension> OutlinerItem = InWeakOutlinerExtension.Pin();
-	if (OutlinerItem)
+	TViewModelPtr<IOutlinerExtension> Item = InWeakOutlinerExtension.Pin();
+	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = WeakOwnerModel.Pin();
+	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
+	if (Item && Sequencer)
 	{
-		if (TViewModelPtr<ISoloableExtension> Soloable = OutlinerItem.ImplicitCast())
+		const TArray<FString>& SoloNodes = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->GetSoloNodes();
+		const FString NodePath = IOutlinerExtension::GetPathName(Item);
+
+		if (SoloNodes.Contains(NodePath))
 		{
-			return Soloable->IsSolo();
+			return true;
 		}
 	}
 
@@ -42,11 +47,11 @@ void FSoloEditorExtension::SetNodeSoloed(TWeakViewModelPtr<IOutlinerExtension> I
 {
 	const FScopedTransaction Transaction(NSLOCTEXT("Sequencer", "SetNodeSoloed", "Set Node Soloed"));
 
+	TViewModelPtr<IOutlinerExtension> OutlinerItem = InWeakOutlinerExtension.Pin();
 	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = WeakOwnerModel.Pin();
 	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
-	TViewModelPtr<IOutlinerExtension> OutlinerItem = InWeakOutlinerExtension.Pin();
 
-	if (Sequencer)
+	if (Sequencer && OutlinerItem)
 	{
 		UMovieScene* MovieScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
 
@@ -94,49 +99,58 @@ void FSoloEditorExtension::SetNodeSoloed(TWeakViewModelPtr<IOutlinerExtension> I
 
 bool FSoloEditorExtension::IsNodeSoloable(TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension) const
 {
+	TSharedPtr<FViewModel> Item = InWeakOutlinerExtension.Pin();
 	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = WeakOwnerModel.Pin();
 	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
 	
-	if (Sequencer)
+	if (Sequencer && Item)
 	{
-		TSharedPtr<FViewModel> Item = InWeakOutlinerExtension.Pin();
 		FString NodePath = IOutlinerExtension::GetPathName(Item);
 		return Sequencer->GetNodeTree()->GetNodeAtPath(NodePath) != nullptr;
 	}
 	return false;
 }
 
-void FSoloEditorExtension::OnPostSolo()
-{
-	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = WeakOwnerModel.Pin();
-	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
-	if (Sequencer)
-	{
-		Sequencer->RefreshTree();
-	}
-}
-
 bool FSoloEditorExtension::HasSoloedChildNode(TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension) const
 {
 	using namespace UE::Sequencer;
 
-	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = WeakOwnerModel.Pin();
-	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
+	TViewModelPtr<IOutlinerExtension> OutlinerItem = InWeakOutlinerExtension.Pin();
 
-	if (Sequencer)
+	if (OutlinerItem)
 	{
-		TViewModelPtr<IOutlinerExtension> OutlinerItem = InWeakOutlinerExtension.Pin();
-		const TArray<FString>& MuteNodes = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->GetMuteNodes();
-
-		TSharedPtr<FViewModel> Item = OutlinerItem;
-		const FString NodePath = IOutlinerExtension::GetPathName(Item);
-
-		for (const TViewModelPtr<IOutlinerExtension>& Child : OutlinerItem.AsModel()->GetDescendantsOfType<IOutlinerExtension>())
+		for (const TViewModelPtr<IOutlinerExtension>& Child : OutlinerItem.AsModel()->GetDescendantsOfType<IOutlinerExtension>(false, EViewModelListType::Outliner))
 		{
-			if (Sequencer->GetNodeTree()->IsNodeSolo(Child))
+			if (IsNodeSoloed(Child))
 			{
 				return true;
 			}
+		}
+	}
+
+	return false;
+}
+
+bool FSoloEditorExtension::IsNodeImplicitlySoloed(TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension) const
+{
+	TViewModelPtr<IOutlinerExtension> Item = InWeakOutlinerExtension.Pin();
+	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = WeakOwnerModel.Pin();
+	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
+	if (Item && Sequencer)
+	{
+		const TArray<FString>& SoloNodes = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->GetSoloNodes();
+
+		TViewModelPtr<IOutlinerExtension> ParentNode = Item.AsModel()->FindAncestorOfType<IOutlinerExtension>();
+		while (ParentNode)
+		{
+			const FString NodePath = IOutlinerExtension::GetPathName(ParentNode);
+			if (SoloNodes.Contains(NodePath))
+			{
+				return true;
+			}
+
+			// continue traversing upwards until no more parents
+			ParentNode = ParentNode.AsModel()->FindAncestorOfType<IOutlinerExtension>();
 		}
 	}
 

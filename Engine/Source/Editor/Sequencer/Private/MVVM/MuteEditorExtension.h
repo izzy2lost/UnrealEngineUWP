@@ -27,6 +27,13 @@ public:
 	/** Called when the extension is created on a data model. */
 	virtual void OnCreated(TSharedRef<FViewModel> InWeakOwner) override;
 
+	/** 
+	* Returns whether a given item is directly muted. 
+	* Returns false if not directly muted but implicitly muted by a parent node.
+	*/
+	bool IsNodeMuted(TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension) const;
+
+
 	/**
 	* Modifies an item to be muted.
 	* This operation applies to all selected items if the modified item is selected.
@@ -41,8 +48,11 @@ public:
 	/** Returns whether or not the item has any muted child items. */
 	bool HasMutedChildNode(TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension) const;
 
-	/** Refreshes the Sequencer Tree, required to ensure that muting an item doesn't affect the visibility of soloed items. */
-	void OnPostMute();
+	/**
+	 * Returns whether a given item is implicitly muted.
+	 * Returns false if not implicitly muted by a parent node but directly muted itself.
+	 */
+	bool IsNodeImplicitlyMuted(TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension) const;
 
 private:
 

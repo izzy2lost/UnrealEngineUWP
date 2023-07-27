@@ -1,0 +1,260 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Widgets/OutlinerColumns/SColumnToggleWidget.h"
+
+#include "Delegates/Delegate.h"
+#include "ISequencerOutlinerColumn.h"
+#include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/ViewModels/OutlinerViewModel.h"
+#include "Sequencer.h"
+
+#define LOCTEXT_NAMESPACE "SColumnToggleWidget"
+
+namespace UE::Sequencer
+{
+
+class FColumnToggleDragDropOp : public FDragDropOperation, public TSharedFromThis<FColumnToggleDragDropOp>
+{
+public:
+
+	DRAG_DROP_OPERATOR_TYPE(FColumnToggleDragDropOp, FDragDropOperation)
+
+	/** Flag which defines whether to hide destination items or not */
+	bool bActive;
+
+	/** Name of the column that is being dragged to not affect other columns */
+	FName ColumnName;
+
+	/** Widget determines event when drag drop operation is cancelled */
+	TWeakPtr<SColumnToggleWidget> ColumnToggleWidget;
+
+	/** Which is kept alive for the duration of the drag */
+	TUniquePtr<FScopedTransaction> UndoTransaction;
+
+	virtual TSharedPtr<SWidget> GetDefaultDecorator() const override
+	{
+		return SNullWidget::NullWidget;
+	}
+
+	/** Called when the drag drop operation ends */
+	virtual void OnDrop(bool bDropWasHandled, const FPointerEvent& MouseEvent)
+	{
+		if (TSharedPtr<SColumnToggleWidget> CurrentColumnToggleWidget = ColumnToggleWidget.Pin())
+		{
+			CurrentColumnToggleWidget->OnToggleOperationComplete();
+		}
+	}
+
+	/** Create a new drag and drop operation out of the specified flag */
+	static TSharedRef<FColumnToggleDragDropOp> New(const bool _bActive, FName _ColumnName, TWeakPtr<SColumnToggleWidget> _ColumnToggleWidget, TUniquePtr<FScopedTransaction>& ScopedTransaction)
+	{
+		TSharedRef<FColumnToggleDragDropOp> Operation = MakeShareable(new FColumnToggleDragDropOp);
+
+		Operation->bActive = _bActive;
+		Operation->ColumnName = _ColumnName;
+		Operation->ColumnToggleWidget = _ColumnToggleWidget;
+		Operation->UndoTransaction = MoveTemp(ScopedTransaction);
+
+		Operation->Construct();
+		return Operation;
+	}
+};
+
+void SColumnToggleWidget::Construct(
+	const FArguments& InArgs,
+	const TWeakPtr<ISequencerOutlinerColumn> InOutlinerColumn,
+	const FCreateOutlinerColumnParams& InParams)
+{
+	WeakOutlinerColumn = InOutlinerColumn;
+
+	WeakOutlinerExtension = InParams.OutlinerExtension;
+	WeakEditor = InParams.Editor->CastThisSharedChecked<FSequencerEditorViewModel>();
+
+	bIsMouseOverWidget = false;
+	bIsChildActive = false;
+
+	ActiveBrush = GetActiveBrush();
+
+	static const FName NAME_ChildActiveBrush = TEXT("Sequencer.Column.CheckBoxIndeterminate");
+	ChildActiveBrush = FAppStyle::Get().GetBrush(NAME_ChildActiveBrush);
+
+	SImage::Construct(
+		SImage::FArguments()
+		.Image(this, &SColumnToggleWidget::GetBrush)
+		.IsEnabled(this, &SColumnToggleWidget::IsEnabled)
+		.ColorAndOpacity(this, &SColumnToggleWidget::GetImageColorAndOpacity)
+	);
+}
+
+
+FSlateColor SColumnToggleWidget::GetImageColorAndOpacity() const
+{
+	TSharedPtr<FEditorViewModel> Editor = WeakEditor.Pin();
+	TViewModelPtr<IOutlinerExtension> OutlinerItem = WeakOutlinerExtension.Pin();
+
+	FLinearColor OutColor = FLinearColor::White;
+
+	if (!Editor || !OutlinerItem)
+	{
+		return OutColor;
+	}
+
+	float Opacity = 0.0f;
+
+	if (IsActive()
+		|| bIsMouseOverWidget)
+	{
+		Opacity = 1.0f;
+	}
+	else if (Editor->GetOutliner()->GetHoveredItem() == OutlinerItem)
+	{
+		Opacity = .2f;
+	}
+	else if (IsChildActive())
+	{
+		Opacity = 1.0f;
+	}
+	else if (IsImplicitlyActive())
+	{
+		Opacity = .4f;
+	}
+	else
+	{
+		Opacity = 0.0f;
+	}
+
+	OutColor.A = Opacity;
+	return OutColor;
+}
+
+const FSlateBrush* SColumnToggleWidget::GetBrush() const
+{
+	TSharedPtr<FEditorViewModel> Editor = WeakEditor.Pin();
+	TViewModelPtr<IOutlinerExtension> OutlinerItem = WeakOutlinerExtension.Pin();
+
+	if (!Editor || !OutlinerItem)
+	{
+		return ActiveBrush;
+	}
+
+	const bool bIsMouseOverItem = bIsMouseOverWidget || Editor->GetOutliner()->GetHoveredItem() == OutlinerItem;
+
+	if (bIsMouseOverItem
+		|| IsActive()
+		|| !IsChildActive())
+	{
+		return ActiveBrush;
+	}
+	else
+	{
+		return ChildActiveBrush;
+	}
+}
+
+FReply SColumnToggleWidget::OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	TSharedPtr<ISequencerOutlinerColumn> OutlinerColumn = WeakOutlinerColumn.Pin();
+	if (MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton)
+		&& OutlinerColumn)
+	{
+		return FReply::Handled().BeginDragDrop(FColumnToggleDragDropOp::New(IsActive(), OutlinerColumn->GetColumnName(), SharedThis(this), UndoTransaction));
+	}
+	else
+	{
+		return FReply::Unhandled();
+	}
+}
+
+void SColumnToggleWidget::OnDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
+{
+	auto ColumnToggleDragOp = DragDropEvent.GetOperationAs<FColumnToggleDragDropOp>();
+	TSharedPtr<ISequencerOutlinerColumn> OutlinerColumn = WeakOutlinerColumn.Pin();
+	if (ColumnToggleDragOp.IsValid()
+		&& OutlinerColumn
+		&& ColumnToggleDragOp->ColumnName == OutlinerColumn->GetColumnName())
+	{
+		SetIsActive(ColumnToggleDragOp->bActive);
+	}
+}
+
+FReply SColumnToggleWidget::HandleClick()
+{
+	const bool bIsActive = IsActive();
+
+	TSharedPtr<ISequencerOutlinerColumn> OutlinerColumn = WeakOutlinerColumn.Pin();
+
+	// Open an undo transaction
+	if (OutlinerColumn)
+	{
+		UndoTransaction.Reset(new FScopedTransaction(FText::Format(LOCTEXT("Toggle Outliner Column", "Toggle {0}"), OutlinerColumn->GetColumnLabel())));
+	}
+
+	if (bIsActive)
+	{
+		SetIsActive(false);
+	}
+	else
+	{
+		SetIsActive(true);
+	}
+
+	return FReply::Handled().DetectDrag(SharedThis(this), EKeys::LeftMouseButton);
+}
+
+FReply SColumnToggleWidget::OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
+{
+	return HandleClick();
+}
+
+FReply SColumnToggleWidget::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	if (MouseEvent.GetEffectingButton() != EKeys::LeftMouseButton)
+	{
+		return FReply::Unhandled();
+	}
+
+	return HandleClick();
+}
+
+
+void SColumnToggleWidget::OnMouseCaptureLost(const FCaptureLostEvent& CaptureLostEvent)
+{
+	OnToggleOperationComplete();
+	UndoTransaction.Reset();
+}
+
+FReply SColumnToggleWidget::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+	{
+		OnToggleOperationComplete();
+		UndoTransaction.Reset();
+		return FReply::Handled();
+	}
+
+	return FReply::Unhandled();
+}
+
+void SColumnToggleWidget::OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	bIsMouseOverWidget = true;
+}
+
+void SColumnToggleWidget::OnMouseLeave(const FPointerEvent& MouseEvent)
+{
+	bIsMouseOverWidget = false;
+}
+
+void SColumnToggleWidget::RefreshSequencerTree()
+{
+	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = WeakEditor.Pin();
+	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
+	if (Sequencer)
+	{
+		Sequencer->RefreshTree();
+	}
+}
+
+} // namespace UE::Sequencer
+
+#undef LOCTEXT_NAMESPACE

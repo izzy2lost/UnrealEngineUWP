@@ -448,9 +448,9 @@ public:
 	void SetTrackFilterEnabled(const FString& TrackFilter, bool bEnabled);
 
 	/** Get outliner column visibility in display order */
-	TArray<FColumnVisibilitySetting> GetOutlinerColumnSettings() const { return HiddenColumns; }
+	TArray<FColumnVisibilitySetting> GetOutlinerColumnSettings() const { return ColumnVisibilitySettings; }
 	/** Sets the visibility of outliner columns in display order */
-	void SetOutlinerColumnVisibility(const TArray<FColumnVisibilitySetting>& InHiddenColumns);
+	void SetOutlinerColumnVisibility(const TArray<FColumnVisibilitySetting>& InColumnVisibilitySettings);
 
 protected:
 
@@ -706,7 +706,7 @@ protected:
 
 	/** List of all columns and their visibility, in the order to be displayed in the outliner view */
 	UPROPERTY(config, EditAnywhere, Category = General)
-	TArray<FColumnVisibilitySetting> HiddenColumns;
+	TArray<FColumnVisibilitySetting> ColumnVisibilitySettings;
 
 	FOnEvaluateSubSequencesInIsolationChanged OnEvaluateSubSequencesInIsolationChangedEvent;
 	FOnShowSelectedNodesOnlyChanged OnShowSelectedNodesOnlyChangedEvent;

@@ -28,6 +28,11 @@ bool FLockEditorExtension::IsNodeLocked(TWeakViewModelPtr<IOutlinerExtension> In
 {
 	FViewModelPtr Item = InWeakOutlinerExtension.Pin();
 
+	if (!Item)
+	{
+		return false;
+	}
+
 	// Locked if all sections are locked
 	int32 NumSections = 0;
 	TSet<TWeakObjectPtr<UMovieSceneSection>> Sections;
@@ -50,7 +55,11 @@ void FLockEditorExtension::SetNodeLocked(TWeakViewModelPtr<IOutlinerExtension> I
 
 	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = WeakOwnerModel.Pin();
 	TViewModelPtr<IOutlinerExtension> OutlinerItem = InWeakOutlinerExtension.Pin();
-	FViewModelPtr Item = OutlinerItem;
+
+	if (!EditorViewModel || !OutlinerItem)
+	{
+		return;
+	}
 
 	if (OutlinerItem->GetSelectionState() == EOutlinerSelectionState::SelectedDirectly)
 	{
@@ -70,6 +79,7 @@ void FLockEditorExtension::SetNodeLocked(TWeakViewModelPtr<IOutlinerExtension> I
 	else
 	{
 		// only one unselected item was toggled, toggle just that node
+		FViewModelPtr Item = OutlinerItem;
 		TSet<TWeakObjectPtr<UMovieSceneSection> > Sections;
 		SequencerHelpers::GetAllSections(Item, Sections);
 
@@ -85,6 +95,11 @@ bool FLockEditorExtension::IsNodeLockable(TWeakViewModelPtr<IOutlinerExtension> 
 {
 	FViewModelPtr Item = InWeakOutlinerExtension.Pin();
 
+	if (!Item)
+	{
+		return false;
+	}
+
 	TSet<TWeakObjectPtr<UMovieSceneSection> > Sections;
 	SequencerHelpers::GetAllSections(Item, Sections);
 
@@ -95,11 +110,14 @@ bool FLockEditorExtension::HasLockedChildNode(TWeakViewModelPtr<IOutlinerExtensi
 {
 	TViewModelPtr<IOutlinerExtension> OutlinerItem = InWeakOutlinerExtension.Pin();
 
-	for (const TViewModelPtr<IOutlinerExtension>& Child : OutlinerItem.AsModel()->GetDescendantsOfType<IOutlinerExtension>())
+	if (OutlinerItem)
 	{
-		if (IsNodeLocked(Child))
+		for (const TViewModelPtr<IOutlinerExtension>& Child : OutlinerItem.AsModel()->GetDescendantsOfType<IOutlinerExtension>())
 		{
-			return true;
+			if (IsNodeLocked(Child))
+			{
+				return true;
+			}
 		}
 	}
 

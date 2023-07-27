@@ -273,7 +273,7 @@ void SOutlinerView::Construct(const FArguments& InArgs, TWeakPtr<FOutlinerViewMo
 
 	HeaderRow = SNew(SHeaderRow).Visibility(EVisibility::Collapsed);
 
-	GenerateOutlinerColumns();
+	UpdateOutlinerColumns();
 
 	WeakOutliner.Pin()->OnRefreshed.AddSP(this, &SOutlinerView::Refresh);
 
@@ -470,7 +470,89 @@ float SOutlinerView::VirtualToPhysical(float InVirtual) const
 	return InVirtual;
 }
 
-void SOutlinerView::GenerateOutlinerColumns()
+void SOutlinerView::AddOutlinerColumnCallback(TSharedPtr<ISequencerOutlinerColumn> InColumn, TSharedPtr<FEditorViewModel> InEditorViewModel)
+{
+	auto GenerateToolColumn = [=](const TWeakViewModelPtr<IOutlinerExtension>& InWeakModel, const TSharedRef<SOutlinerViewRow>& InRow) -> TSharedRef<SWidget>
+	{
+		if (TViewModelPtr<IOutlinerExtension> OutlinerExtension = InWeakModel.ImplicitPin())
+		{
+			if (!OutlinerExtension.AsModel()->IsA<FOutlinerSpacer>())
+			{
+				const FCreateOutlinerColumnParams ColumnParams = FCreateOutlinerColumnParams(OutlinerExtension, InEditorViewModel);
+				const bool bIsCompatible = InColumn->IsItemCompatibleWithColumn(ColumnParams);
+
+				TSharedRef<SWidget> InnerContent = bIsCompatible ? InColumn->CreateColumnWidget(InColumn, ColumnParams) : SNullWidget::NullWidget;
+
+				return SNew(SOutlinerColumnBorder, ColumnParams, bIsCompatible)
+					[
+						InnerContent
+					];
+			}
+			else
+			{
+				return SNew(SBox).HeightOverride(10.f);
+			}
+		}
+
+		ensureMsgf(false, TEXT("Attempting to create an outliner column for a view model that is either dead, or not an outliner item."));
+		return SNew(SBox).HeightOverride(10.f);
+	};
+
+	Columns.Add(InColumn->GetColumnName(), FOutlinerViewColumn(GenerateToolColumn, 16.f, true));
+}
+
+void SOutlinerView::UpdateTrackGutterColumns(TSharedPtr<FEditorViewModel> InEditorViewModel)
+{
+	// Padding columns callback, used to provide apropriately colored padding to the left and right of the track gutter
+	auto GeneratePadding = [=](const TWeakViewModelPtr<IOutlinerExtension>& InWeakModel, const TSharedRef<SOutlinerViewRow>& InRow) -> TSharedRef<SWidget>
+	{
+		if (TViewModelPtr<IOutlinerExtension> OutlinerExtension = InWeakModel.ImplicitPin())
+		{
+			if (!OutlinerExtension.AsModel()->IsA<FOutlinerSpacer>())
+			{
+				const FCreateOutlinerColumnParams ColumnParams = FCreateOutlinerColumnParams(OutlinerExtension, InEditorViewModel);
+				return SNew(SOutlinerColumnBorder, ColumnParams, false);
+			}
+			else
+			{
+				return SNew(SBox).HeightOverride(10.f);
+			}
+		}
+		ensureMsgf(false, TEXT("Attempting to create an outliner column for a view model that is either dead, or not an outliner item."));
+		return SNew(SBox).HeightOverride(10.f);
+	};
+
+	// Spacer column callback, generates a line to separate the track gutter from the outliner
+	auto GenerateSpacer = [=](const TWeakViewModelPtr<IOutlinerExtension>& InWeakModel, const TSharedRef<SOutlinerViewRow>& InRow) -> TSharedRef<SWidget>
+	{
+		return SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(SSeparator)
+				.Orientation(Orient_Vertical)
+				.Thickness(1.0f)
+				.SeparatorImage(FAppStyle::Get().GetBrush("Separator"))
+			];
+	};
+
+	// Left padding
+	Columns.Add(FName(TEXT("OutlinerColumnLeftPadding")), FOutlinerViewColumn(GeneratePadding, 2.f, true));
+
+	// Create Visible Outliner Columns in the Track Gutter (Pin/Mute/Solo...)
+	for (TSharedPtr<ISequencerOutlinerColumn> Column : OutlinerColumns)
+	{
+		AddOutlinerColumnCallback(Column, InEditorViewModel);
+	}
+
+	// Right padding
+	Columns.Add(FName(TEXT("OutlinerColumnRightPadding")), FOutlinerViewColumn(GeneratePadding, 2.f, true));
+
+	// Spacer between Track Gutter and Outliner View
+	Columns.Add(FName(TEXT("OutlinerColumnSpacer")), FOutlinerViewColumn(GenerateSpacer, 1.f, true));
+}
+
+void SOutlinerView::UpdateOutlinerColumns()
 {
 	// Clear columns to ensure consistent order when building UI from Map
 	HeaderRow->ClearColumns();
@@ -479,48 +561,9 @@ void SOutlinerView::GenerateOutlinerColumns()
 
 	TSharedPtr<FEditorViewModel> EditorViewModel = WeakOutliner.Pin()->GetEditor();
 
-	// Create Visible Outliner Columns (Pin/Mute/Solo...)
-	for (TSharedPtr<ISequencerOutlinerColumn> Column : OutlinerColumns)
-	{
-		auto GenerateToolColumn = [=](const TWeakViewModelPtr<IOutlinerExtension>& InWeakModel, const TSharedRef<SOutlinerViewRow>& InRow) -> TSharedRef<SWidget>
-		{
-			if (TViewModelPtr<IOutlinerExtension> OutlinerExtension = InWeakModel.ImplicitPin())
-			{
-				if (!OutlinerExtension.AsModel()->IsA<FOutlinerSpacer>())
-				{
-					return SNew(SOutlinerColumnBorder, FCreateOutlinerColumnParams(OutlinerExtension, EditorViewModel))
-						[	
-							Column->CreateColumnWidget(FCreateOutlinerColumnParams(OutlinerExtension, EditorViewModel))
-						];
-				}
-				else
-				{
-					return SNew(SBox).HeightOverride(10.f);
-				}
-			}
-
-			ensureMsgf(false, TEXT("Attempting to create an outliner column for a view model that is either dead, or not an outliner item."));
-			return SNew(SBox).HeightOverride(10.f);
-		};
-		Columns.Add(Column->GetColumnName(), FOutlinerViewColumn(GenerateToolColumn, 16.f, true));
-	}
-
-	// If there are any outliner columns, add a spacer between them and the outliner view
 	if (OutlinerColumns.Num() > 0)
 	{
-		auto GenerateSpacer = [=](const TWeakViewModelPtr<IOutlinerExtension>& InWeakModel, const TSharedRef<SOutlinerViewRow>& InRow) -> TSharedRef<SWidget>
-		{
-			return SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				[
-					SNew(SSeparator)
-					.Orientation(Orient_Vertical)
-					.Thickness(1.0f)
-					.SeparatorImage(FAppStyle::Get().GetBrush("Separator"))
-				];
-		};
-		Columns.Add(FName(TEXT("OutlinerColumnSpacer")), FOutlinerViewColumn(GenerateSpacer, 1.f, true));
+		UpdateTrackGutterColumns(EditorViewModel);
 	}
 
 	// Create Column for Outliner View (Track name / Keying)
@@ -587,7 +630,7 @@ void SOutlinerView::SetOutlinerColumns(const TArray<TSharedPtr<ISequencerOutline
 {
 	// Reset the way rows are constructed with an updated list of Outliner Columns
 	OutlinerColumns = InOutlinerColumns;
-	GenerateOutlinerColumns();
+	UpdateOutlinerColumns();
 }
 
 void SOutlinerView::OnRightMouseButtonDown(const FPointerEvent& MouseEvent)

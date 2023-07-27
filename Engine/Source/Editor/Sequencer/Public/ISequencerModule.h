@@ -57,7 +57,7 @@ DECLARE_DELEGATE_RetVal_OneParam(TSharedRef<ISequencerEditorObjectBinding>, FOnC
 DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<UE::Sequencer::FTrackModel>, FOnCreateTrackModel, UMovieSceneTrack*);
 
 /** A delegate which will create an outliner column */
-DECLARE_DELEGATE_RetVal_OneParam(TSharedRef<ISequencerOutlinerColumn>, FOnCreateOutlinerColumn, TSharedRef<ISequencer>);
+DECLARE_DELEGATE_RetVal(TSharedRef<ISequencerOutlinerColumn>, FOnCreateOutlinerColumn);
 
 /** A delegate that is executed when adding menu content. */
 DECLARE_DELEGATE_OneParam(FOnGetContextMenuContent, FMenuBuilder& /*MenuBuilder*/);

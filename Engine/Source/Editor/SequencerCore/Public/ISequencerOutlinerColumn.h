@@ -41,23 +41,23 @@ class SEQUENCERCORE_API ISequencerOutlinerColumn
 
 public:
 
-	/* Gets the unique name of the column to use in the SOutlinerView registry and context menus */
+	/** Returns the name of the column. Used for determining column type when dragging or saving settings. */
 	virtual FName GetColumnName() const = 0;
 
-	/* Gets the text to display in the UI for visibility */
+	/** Returns the label of the column to display in visibility settings. */
 	virtual FText GetColumnLabel() const = 0;
 
-	/* The default visibility state of this column when loaded for the first time */
+	/* The default visibility state of this column when loaded for the first time. */
 	virtual bool IsColumnVisibleByDefault() const { return true; }
 
-	/* Gets whether or not this column is supported by a given Sequencer */
+	/* Gets whether or not this column is supported by a given Sequencer. */
 	virtual bool SupportsSequence(UMovieSceneSequence* InSequence) const { return true; }
 
 	/* Gets whether or not a widget should be generated for a given item in the outliner column. */
 	virtual bool IsItemCompatibleWithColumn(const UE::Sequencer::FCreateOutlinerColumnParams& InParams) const = 0;
 
-	/* Gets the widget created for each item within the SOutlinerView, column widgets must be fixed width */
-	virtual TSharedRef<SWidget> CreateColumnWidget(const UE::Sequencer::FCreateOutlinerColumnParams& InParams) const = 0;
+	/* Gets the widget created for each item within the SOutlinerView, column widgets must be fixed width. */
+	virtual TSharedRef<SWidget> CreateColumnWidget(const TWeakPtr<ISequencerOutlinerColumn> InWeakOutlinerColumn, const UE::Sequencer::FCreateOutlinerColumnParams& InParams) const = 0;
 
 public:
 

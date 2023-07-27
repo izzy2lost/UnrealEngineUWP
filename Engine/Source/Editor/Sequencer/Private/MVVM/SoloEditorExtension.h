@@ -26,7 +26,10 @@ public:
 	/** Called when the extension is created on a data model. */
 	virtual void OnCreated(TSharedRef<FViewModel> InWeakOwner) override;
 
-	/** Returns whether a given item is soloed. */
+	/**
+	* Returns whether a given item is directly soloed.
+	* Returns false if not directly soloed but implicitly soloed by a parent node.
+	*/
 	bool IsNodeSoloed(TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension) const;
 
 	/**
@@ -43,8 +46,11 @@ public:
 	/** Returns whether or not the item has any soloed child items. */
 	bool HasSoloedChildNode(TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension) const;
 
-	/** Refreshes the Sequencer Tree, required to mute non-soloed items. */
-	void OnPostSolo();
+	/**
+	 * Returns whether a given item is implicitly soloed.
+	 * Returns false if not implicitly soloed by a parent node but directly soloed itself.
+	 */
+	bool IsNodeImplicitlySoloed(TWeakViewModelPtr<IOutlinerExtension> InWeakOutlinerExtension) const;
 
 private:
 
