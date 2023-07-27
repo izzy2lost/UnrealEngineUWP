@@ -664,10 +664,7 @@ static void SanitizeVector( FVector3f& V, float MaxValue, FVector3f DefaultValue
 
 void FCluster::SanitizeVertexData()
 {
-	const float FltThreshold = 1e12f;	// Fairly arbitrary threshold for sensible float values.
-										// Should be large enough for all practical purposes, while still leaving enough headroom
-										// so that overflows shouldn't be a concern.
-										// With a 1e12 threshold, even x^3 fits comfortable in float range.
+	const float FltThreshold = NANITE_MAX_COORDINATE_VALUE;
 
 	for( uint32 VertexIndex = 0; VertexIndex < NumVerts; VertexIndex++ )
 	{

@@ -358,8 +358,8 @@ FCluster UnpackCluster(uint4 ClusterData[NANITE_NUM_PACKED_CLUSTER_FLOAT4S])
 	Cluster.GroupIndex			= BitFieldExtractU32(ClusterData[0].w, 16, 16);			// Debug only
 
 	Cluster.PosStart			= ClusterData[1].xyz;
-	Cluster.BitsPerIndex		= BitFieldExtractU32(ClusterData[1].w, 4, 0);
-	Cluster.PosPrecision		= (int)BitFieldExtractU32(ClusterData[1].w, 5, 4) + NANITE_MIN_POSITION_PRECISION;
+	Cluster.BitsPerIndex		= BitFieldExtractU32(ClusterData[1].w, 3, 0) + 1;
+	Cluster.PosPrecision		= (int)BitFieldExtractU32(ClusterData[1].w, 6, 3) + NANITE_MIN_POSITION_PRECISION;
 	Cluster.PosBits.x			= BitFieldExtractU32(ClusterData[1].w, 5, 9);
 	Cluster.PosBits.y			= BitFieldExtractU32(ClusterData[1].w, 5, 14);
 	Cluster.PosBits.z			= BitFieldExtractU32(ClusterData[1].w, 5, 19);

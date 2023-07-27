@@ -803,9 +803,15 @@ static void PackHierarchyNode(Nanite::FPackedHierarchyNode& OutNode, const FHier
 }
 
 static int32 CalculateQuantizedPositionsUniformGrid(TArray< FCluster >& Clusters, const FBounds3f& MeshBounds, const FMeshNaniteSettings& Settings)
-{	
+{
 	// Simple global quantization for EA
 	const int32 MaxPositionQuantizedValue	= (1 << NANITE_MAX_POSITION_QUANTIZATION_BITS) - 1;
+
+	{
+		// Make sure the worst case bounding box fits with the position encoding settings. Ideally this would be a compile-time check.
+		const float MaxValue = FMath::RoundToFloat(NANITE_MAX_COORDINATE_VALUE * FMath::Exp2((float)NANITE_MIN_POSITION_PRECISION));
+		checkf(MaxValue <= FLT_INT_MAX && int64(MaxValue) - int64(-MaxValue) <= MaxPositionQuantizedValue, TEXT("Largest cluster bounds doesn't fit in position bits"));
+	}
 	
 	int32 PositionPrecision = Settings.PositionPrecision;
 	if (PositionPrecision == MIN_int32)

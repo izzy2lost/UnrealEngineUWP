@@ -108,10 +108,13 @@
 #define NANITE_NUM_PACKED_CLUSTER_FLOAT4S					7
 #define NANITE_GPU_PAGE_HEADER_SIZE							16
 
-#define NANITE_MAX_POSITION_QUANTIZATION_BITS				21	// (21*3 = 63) < 64
-#define NANITE_POSITION_PRECISION_BITS						5
-#define NANITE_MIN_POSITION_PRECISION						-8
-#define NANITE_MAX_POSITION_PRECISION						23
+#define NANITE_MAX_COORDINATE_VALUE							1e12f	// Should be large enough for all practical purposes, while still leaving enough headroom to avoid overflows.
+																	// At 1e12, even x^3 fits comfortable in float range.
+
+#define NANITE_MAX_POSITION_QUANTIZATION_BITS				21		// (21*3 = 63) < 64
+#define NANITE_POSITION_PRECISION_BITS						6
+#define NANITE_MIN_POSITION_PRECISION						-20
+#define NANITE_MAX_POSITION_PRECISION						43
 
 #define NANITE_MAX_NORMAL_QUANTIZATION_BITS					15
 #define NANITE_MAX_TANGENT_QUANTIZATION_BITS				12
