@@ -172,8 +172,6 @@ static FAutoConsoleVariableRef CVarNaniteDecompressDepth(
 	TEXT("")
 );
 
-// TODO: This should be defaulted to 1, but there are currently outstanding bugs with combining HTILEs containing both
-// Nanite and non-Nanite depth and stencil
 int32 GNaniteCustomDepthExportMethod = 1;
 static FAutoConsoleVariableRef CVarNaniteCustomDepthExportMethod(
 	TEXT("r.Nanite.CustomDepth.ExportMethod"),
