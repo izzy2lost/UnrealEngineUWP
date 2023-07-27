@@ -10,190 +10,190 @@ using OpenTelemetry.Trace;
 
 namespace Jupiter.Common.Implementation
 {
-    public interface IBufferedPayload : IDisposable
-    {
-        Stream GetStream();
-        long Length { get; }
-    }
+	public interface IBufferedPayload : IDisposable
+	{
+		Stream GetStream();
+		long Length { get; }
+	}
 
-    /// <summary>
-    /// Streaming request that is streamed into memory
-    /// </summary>
-    public sealed class MemoryBufferedPayload : IBufferedPayload
-    {
-        private readonly byte[] _buffer;
+	/// <summary>
+	/// Streaming request that is streamed into memory
+	/// </summary>
+	public sealed class MemoryBufferedPayload : IBufferedPayload
+	{
+		private readonly byte[] _buffer;
 
-        public MemoryBufferedPayload(byte[] source)
-        {
-            _buffer = source;
-        }
+		public MemoryBufferedPayload(byte[] source)
+		{
+			_buffer = source;
+		}
 
-        public static async Task<MemoryBufferedPayload> Create(Tracer tracer, Stream s)
-        {
-            using TelemetrySpan scope = tracer.StartActiveSpan("payload.buffer")
-                .SetAttribute("operation.name", "payload.buffer")
-                .SetAttribute("bufferType", "Memory");
-            MemoryBufferedPayload payload = new MemoryBufferedPayload(await s.ToByteArray());
+		public static async Task<MemoryBufferedPayload> Create(Tracer tracer, Stream s)
+		{
+			using TelemetrySpan scope = tracer.StartActiveSpan("payload.buffer")
+				.SetAttribute("operation.name", "payload.buffer")
+				.SetAttribute("bufferType", "Memory");
+			MemoryBufferedPayload payload = new MemoryBufferedPayload(await s.ToByteArray());
 
-            return payload;
-        }
+			return payload;
+		}
 
-        public void Dispose()
-        {
-            
-        }
+		public void Dispose()
+		{
+			
+		}
 
-        public Stream GetStream()
-        {
-            return new MemoryStream(_buffer);
-        }
+		public Stream GetStream()
+		{
+			return new MemoryStream(_buffer);
+		}
 
-        public long Length => _buffer.LongLength;
-    }
+		public long Length => _buffer.LongLength;
+	}
 
-    /// <summary>
-    /// Helper to generate a filesystem buffered payload from a stream 
-    /// </summary>
-    public sealed class FilesystemBufferedPayloadWriter : IDisposable
-    {
-        private FileInfo? _tempFile;
+	/// <summary>
+	/// Helper to generate a filesystem buffered payload from a stream 
+	/// </summary>
+	public sealed class FilesystemBufferedPayloadWriter : IDisposable
+	{
+		private FileInfo? _tempFile;
 
-        public FilesystemBufferedPayloadWriter()
-        {
-            _tempFile = new FileInfo(Path.GetTempFileName());
-        }
+		public FilesystemBufferedPayloadWriter()
+		{
+			_tempFile = new FileInfo(Path.GetTempFileName());
+		}
 
-        public void Dispose()
-        {
-            if (_tempFile is { Exists: true })
-            {
-                _tempFile.Delete();
-            }
-        }
+		public void Dispose()
+		{
+			if (_tempFile is { Exists: true })
+			{
+				_tempFile.Delete();
+			}
+		}
 
-        public FilesystemBufferedPayload Done()
-        {
-            if (_tempFile == null)
-            {
-                throw new Exception("Writable buffer already closed once");
-            }
+		public FilesystemBufferedPayload Done()
+		{
+			if (_tempFile == null)
+			{
+				throw new Exception("Writable buffer already closed once");
+			}
 
-            FilesystemBufferedPayload payload = new FilesystemBufferedPayload(_tempFile);
-            // transfer ownership of the temp file to the filesystem buffered payload
-            _tempFile = null;
-            return payload;
-        }
+			FilesystemBufferedPayload payload = new FilesystemBufferedPayload(_tempFile);
+			// transfer ownership of the temp file to the filesystem buffered payload
+			_tempFile = null;
+			return payload;
+		}
 
-        public Stream GetWritableStream()
-        {
-            if (_tempFile == null)
-            {
-                throw new Exception("Writable buffer was closed when fetching writable stream");
-            }
+		public Stream GetWritableStream()
+		{
+			if (_tempFile == null)
+			{
+				throw new Exception("Writable buffer was closed when fetching writable stream");
+			}
 
-            return _tempFile.OpenWrite();
-        }
-    }
+			return _tempFile.OpenWrite();
+		}
+	}
 
-    /// <summary>
-    /// A streaming request backed by a temporary file on disk
-    /// </summary>
-    public sealed class FilesystemBufferedPayload : IBufferedPayload
-    {
-        private readonly FileInfo _tempFile;
-        private long _length;
+	/// <summary>
+	/// A streaming request backed by a temporary file on disk
+	/// </summary>
+	public sealed class FilesystemBufferedPayload : IBufferedPayload
+	{
+		private readonly FileInfo _tempFile;
+		private long _length;
 
-        private FilesystemBufferedPayload()
-        {
-            _tempFile = new FileInfo(Path.GetTempFileName());
-        }
+		private FilesystemBufferedPayload()
+		{
+			_tempFile = new FileInfo(Path.GetTempFileName());
+		}
 
-        internal FilesystemBufferedPayload(FileInfo bufferFile)
-        {
-            _tempFile = bufferFile;
-            _tempFile.Refresh();
-            _length = _tempFile.Length;
-        }
+		internal FilesystemBufferedPayload(FileInfo bufferFile)
+		{
+			_tempFile = bufferFile;
+			_tempFile.Refresh();
+			_length = _tempFile.Length;
+		}
 
-        public static async Task<FilesystemBufferedPayload> Create(Tracer tracer, Stream s)
-        {
-            FilesystemBufferedPayload payload = new FilesystemBufferedPayload();
+		public static async Task<FilesystemBufferedPayload> Create(Tracer tracer, Stream s)
+		{
+			FilesystemBufferedPayload payload = new FilesystemBufferedPayload();
 
-            {
-                using TelemetrySpan? scope = tracer.StartActiveSpan("payload.buffer")
-                    .SetAttribute("operation.name", "payload.buffer")
-                    .SetAttribute("bufferType", "Filesystem");
-                await using FileStream fs = payload._tempFile.OpenWrite();
-                await s.CopyToAsync(fs);
-            }
-            
-            payload._tempFile.Refresh();
-            payload._length = payload._tempFile.Length;
+			{
+				using TelemetrySpan? scope = tracer.StartActiveSpan("payload.buffer")
+					.SetAttribute("operation.name", "payload.buffer")
+					.SetAttribute("bufferType", "Filesystem");
+				await using FileStream fs = payload._tempFile.OpenWrite();
+				await s.CopyToAsync(fs);
+			}
+			
+			payload._tempFile.Refresh();
+			payload._length = payload._tempFile.Length;
 
-            return payload;
-        }
+			return payload;
+		}
 
-        public void Dispose()
-        {
-            if (_tempFile.Exists)
-            {
-                _tempFile.Delete();
-            }
-        }
+		public void Dispose()
+		{
+			if (_tempFile.Exists)
+			{
+				_tempFile.Delete();
+			}
+		}
 
-        public Stream GetStream()
-        {
-            return _tempFile.OpenRead();
-        }
+		public Stream GetStream()
+		{
+			return _tempFile.OpenRead();
+		}
 
-        public long Length => _length;
-    }
+		public long Length => _length;
+	}
 
-    public class BufferedPayloadOptions
-    {
-        /// <summary>
-        /// If the request is smaller then MemoryBufferSize we buffer it in memory rather then as a file
-        /// </summary>
-        public long MemoryBufferSize { get; set; } = int.MaxValue;
-    }
+	public class BufferedPayloadOptions
+	{
+		/// <summary>
+		/// If the request is smaller then MemoryBufferSize we buffer it in memory rather then as a file
+		/// </summary>
+		public long MemoryBufferSize { get; set; } = int.MaxValue;
+	}
 
-    public class BufferedPayloadFactory
-    {
-        private readonly IOptionsMonitor<BufferedPayloadOptions> _options;
-        private readonly Tracer _tracer;
+	public class BufferedPayloadFactory
+	{
+		private readonly IOptionsMonitor<BufferedPayloadOptions> _options;
+		private readonly Tracer _tracer;
 
-        public BufferedPayloadFactory(IOptionsMonitor<BufferedPayloadOptions> options, Tracer tracer)
-        {
-            _options = options;
-            _tracer = tracer;
-        }
+		public BufferedPayloadFactory(IOptionsMonitor<BufferedPayloadOptions> options, Tracer tracer)
+		{
+			_options = options;
+			_tracer = tracer;
+		}
 
-        public Task<IBufferedPayload> CreateFromRequest(HttpRequest request)
-        {
-            long? contentLength = request.ContentLength;
+		public Task<IBufferedPayload> CreateFromRequest(HttpRequest request)
+		{
+			long? contentLength = request.ContentLength;
 
-            if (contentLength == null)
-            {
-                throw new Exception("Expected content-length on all requests");
-            }
+			if (contentLength == null)
+			{
+				throw new Exception("Expected content-length on all requests");
+			}
 
-            return CreateFromStream(request.Body, contentLength.Value);
-        }
+			return CreateFromStream(request.Body, contentLength.Value);
+		}
 
-        public async Task<IBufferedPayload> CreateFromStream(Stream s, long contentLength)
-        {
-            // blob is small enough to fit into memory we just read it as is
-            if (contentLength < _options.CurrentValue.MemoryBufferSize)
-            {
-                return await MemoryBufferedPayload.Create(_tracer, s);
-            }
+		public async Task<IBufferedPayload> CreateFromStream(Stream s, long contentLength)
+		{
+			// blob is small enough to fit into memory we just read it as is
+			if (contentLength < _options.CurrentValue.MemoryBufferSize)
+			{
+				return await MemoryBufferedPayload.Create(_tracer, s);
+			}
 
-            return await FilesystemBufferedPayload.Create(_tracer, s);
-        }
+			return await FilesystemBufferedPayload.Create(_tracer, s);
+		}
 
-        public async Task<IBufferedPayload> CreateFilesystemBufferedPayload(Stream s)
-        {
-            return await FilesystemBufferedPayload.Create(_tracer, s);
-        }
-    }
+		public async Task<IBufferedPayload> CreateFilesystemBufferedPayload(Stream s)
+		{
+			return await FilesystemBufferedPayload.Create(_tracer, s);
+		}
+	}
 }
