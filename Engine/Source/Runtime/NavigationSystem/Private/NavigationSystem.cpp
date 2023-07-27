@@ -25,6 +25,7 @@
 #include "UObject/Package.h"
 #include "Components/PrimitiveComponent.h"
 #include "UObject/UObjectThreadContext.h"
+#include "GameFramework/Pawn.h"
 
 #if WITH_RECAST
 #include "NavMesh/RecastNavMesh.h"
@@ -515,8 +516,8 @@ void FNavRegenTimeSliceManager::LogTileStatistics(const TArray<TObjectPtr<ANavig
 					const double MedianWaitTimeMs = HistoryData[MedianIndex].TileWaitTime * 1000.f;
 					const double HighWaitTimeMs = HistoryData[HighIndex].TileWaitTime * 1000.f;
 					
-					UE_LOG(LogNavigationHistory, Log, TEXT("%-35s Median tile stats: regen time: %2.2f ms, regen frames %lld, wait time: %4.f ms (high regen time: %2.2f ms, high wait time: %4.f ms."),
-						*GetNameSafe(NavDataSet[NavDataIndex]), MedianRegenTimeMs, MedianRegenFrames, MedianWaitTimeMs, HighRegenTimeMs, HighWaitTimeMs);
+					UE_LOG(LogNavigationHistory, Log, TEXT("%-35s Median tile stats: regen time: %2.2f ms, regen frames %lld, wait time: %4.f ms (high regen time: %2.2f ms, high wait time: %4.f ms) regen count: %i"),
+						*GetNameSafe(NavDataSet[NavDataIndex]), MedianRegenTimeMs, MedianRegenFrames, MedianWaitTimeMs, HighRegenTimeMs, HighWaitTimeMs, HistoryData.Num());
 				}
 			}
 		}
@@ -3713,6 +3714,19 @@ void UNavigationSystemV1::GatherNavigationBounds()
 	}
 }
 
+void UNavigationSystemV1::GetInvokerSeedLocations(const UWorld& InWorld, TArray<FVector2D, TInlineAllocator<32>>& OutSeedLocations)
+{
+	for (FConstPlayerControllerIterator PlayerIt = InWorld.GetPlayerControllerIterator(); PlayerIt; ++PlayerIt)
+	{
+		const APlayerController* PlayerController = PlayerIt->Get();
+		if (PlayerController && PlayerController->GetPawn())
+		{
+			const FVector2D SeedLoc(PlayerController->GetPawn()->GetActorLocation());
+			OutSeedLocations.Add(SeedLoc);
+		}
+	}
+}
+
 void UNavigationSystemV1::Build()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UNavigationSystemV1::Build);
@@ -4980,7 +4994,7 @@ void UNavigationSystemV1::UnregisterInvoker(AActor& Invoker)
 
 void UNavigationSystemV1::UpdateInvokers()
 {
-	UWorld* World = GetWorld();
+	const UWorld* World = GetWorld();
 	const double CurrentTime = World->GetTimeSeconds();
 	if (CurrentTime >= NextInvokersUpdateTime)
 	{
@@ -4990,13 +5004,20 @@ void UNavigationSystemV1::UpdateInvokers()
 		{
 			QUICK_SCOPE_CYCLE_COUNTER(STAT_NavSys_Clusterize);
 
+			const bool bCheckMaximumDistanceFromSeeds = InvokersMaximumDistanceFromSeed != -1;
+			TArray<FVector2D, TInlineAllocator<32>> SeedLocations;
+			if (bCheckMaximumDistanceFromSeeds)
+			{
+				GetInvokerSeedLocations(*World, SeedLocations);
+			}
+			
 			const double StartTime = FPlatformTime::Seconds();
 
 			InvokerLocations.Reserve(Invokers.Num());
 
 			for (auto ItemIterator = Invokers.CreateIterator(); ItemIterator; ++ItemIterator)
 			{
-				AActor* Actor = ItemIterator->Value.Actor.Get();
+				const AActor* Actor = ItemIterator->Value.Actor.Get();
 				if (Actor != nullptr
 #if WITH_EDITOR
 					// Would like to ignore objects in transactional buffer here, but there's no flag for it
@@ -5004,8 +5025,41 @@ void UNavigationSystemV1::UpdateInvokers()
 #endif //WITH_EDITOR
 					)
 				{
-					InvokerLocations.Add(FNavigationInvokerRaw(Actor->GetActorLocation(), ItemIterator->Value.GenerationRadius, ItemIterator->Value.RemovalRadius,
-						ItemIterator->Value.SupportedAgents, ItemIterator->Value.Priority));
+					const FVector ActorLocation = Actor->GetActorLocation();
+					const float GenerationRadius = ItemIterator->Value.GenerationRadius;
+					bool bKeep = !bCheckMaximumDistanceFromSeeds;
+
+					double ClosestDistanceSq = DBL_MAX;
+					if (bCheckMaximumDistanceFromSeeds)
+					{
+						const double CheckDistanceSq = FMath::Square(InvokersMaximumDistanceFromSeed + GenerationRadius);
+
+						// Check if the invoker is close enough
+						for (const FVector2D SeedLocation : SeedLocations)
+						{
+							const double InvokerDistanceToSeedSq = FVector2D::DistSquared(SeedLocation, FVector2D(ActorLocation));
+							if (InvokerDistanceToSeedSq <= CheckDistanceSq)
+							{
+								bKeep = true;
+								break;
+							}
+							else
+							{
+								ClosestDistanceSq = FMath::Min(InvokerDistanceToSeedSq, ClosestDistanceSq);
+							}
+						}	
+					}
+
+					if (bKeep)
+					{
+						InvokerLocations.Add(FNavigationInvokerRaw(ActorLocation, GenerationRadius, ItemIterator->Value.RemovalRadius,
+							ItemIterator->Value.SupportedAgents, ItemIterator->Value.Priority));
+					}
+					else
+					{
+						UE_LOG(LogNavInvokers, Verbose, TEXT("Invoker %s ignored because it's too far from any seed location. Closest seed at %.0f."),
+							*Actor->GetName(), FMath::Sqrt(ClosestDistanceSq));
+					}
 				}
 				else
 				{
@@ -5053,9 +5107,9 @@ void UNavigationSystemV1::UpdateInvokers()
 			{
 				const int32 NavDataSupportedAgentIndex = GetSupportedAgentIndex(NavData);	
 
-				for (auto ItemIterator = Invokers.CreateIterator(); ItemIterator; ++ItemIterator)
+				for (auto ItemIterator = InvokerLocations.CreateIterator(); ItemIterator; ++ItemIterator)
 				{
-					const FNavAgentSelector& InvokerSupportedAgents = ItemIterator->Value.SupportedAgents;
+					const FNavAgentSelector& InvokerSupportedAgents = ItemIterator->SupportedAgents;
 					if (InvokerSupportedAgents.Contains(NavDataSupportedAgentIndex))
 					{
 						InvokerCounts[NavDataIndex]++;
@@ -5065,6 +5119,8 @@ void UNavigationSystemV1::UpdateInvokers()
 				const FString StatName = FString::Printf(TEXT("InvokerCount_%s"), *NavData->GetName()); 
 				FCsvProfiler::RecordCustomStat(*StatName, CSV_CATEGORY_INDEX(NavInvokers), InvokerCounts[NavDataIndex], ECsvCustomStatOp::Set);
 			}
+
+			FCsvProfiler::RecordCustomStat(TEXT("InvokersFarAway"), CSV_CATEGORY_INDEX(NavInvokers), Invokers.Num() - InvokerLocations.Num(), ECsvCustomStatOp::Set);
 		}		
 	}
 #endif // CSV_PROFILER

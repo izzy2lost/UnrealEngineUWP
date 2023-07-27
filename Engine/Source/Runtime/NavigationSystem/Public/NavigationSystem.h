@@ -22,6 +22,7 @@
 #include "NavigationDirtyAreasController.h"
 #include "Math/MovingWindowAverageFast.h"
 #include "AI/Navigation/NavigationBounds.h"
+#include "Containers/ContainerAllocationPolicies.h"
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #if WITH_EDITOR
 #include "UnrealEdMisc.h"
@@ -389,6 +390,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Navigation Enforcing", meta = (ClampMin = "0.1", UIMin = "0.1", EditCondition = "bGenerateNavigationOnlyAroundNavigationInvokers"), config)
 	float ActiveTilesUpdateInterval;
 
+	/** When in use, invokers farther away from any invoker seed will be ignored (set to -1 to disable). */
+	UPROPERTY(EditAnywhere, Category = "Navigation Enforcing", meta = (EditCondition = "bGenerateNavigationOnlyAroundNavigationInvokers"), config)
+	double InvokersMaximumDistanceFromSeed = -1;
+	
 	/** Sets how navigation data should be gathered when building collision information */
 	UPROPERTY(EditDefaultsOnly, Category = "NavigationSystem", config)
 	ENavDataGatheringModeConfig DataGatheringMode;
@@ -859,6 +864,9 @@ protected:
 
 	/** Searches for all valid navigation bounds in the world and stores them */
 	NAVIGATIONSYSTEM_API virtual void GatherNavigationBounds();
+
+	/** Get seed locations for invokers, @see InvokersMaximumDistanceFromSeed */ 
+	NAVIGATIONSYSTEM_API virtual void GetInvokerSeedLocations(const UWorld& InWorld, TArray<FVector2D, TInlineAllocator<32>>& OutSeedLocations);
 
 	/** @return pointer to ANavigationData instance of given ID, or NULL if it was not found. Note it looks only through registered navigation data */
 	NAVIGATIONSYSTEM_API ANavigationData* GetNavDataWithID(const uint16 NavDataID) const;
