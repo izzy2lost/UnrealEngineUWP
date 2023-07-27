@@ -1598,11 +1598,8 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		// Extra data (names, etc)
 		KeyString += ShouldEnableExtraShaderData(ShaderFormatName) ? TEXT("_ExtraData") : TEXT("");
 		// Symbols and/or SymbolsInfo and version if symbols serialization changes
-		const bool bSymbols = ShouldGenerateShaderSymbols(ShaderFormatName);
-		const bool bSymbolsinfo = ShouldGenerateShaderSymbolsInfo(ShaderFormatName);
-		KeyString += bSymbols ? TEXT("_Symbols") : TEXT("");
-		KeyString += bSymbolsinfo ? TEXT("_SymbolsInfo") : TEXT("");
-		KeyString += bSymbols || bSymbolsinfo ? TEXT("_V2") : TEXT("");
+		KeyString += ShouldGenerateShaderSymbols(ShaderFormatName) ? TEXT("_Symbols") : TEXT("");
+		KeyString += ShouldGenerateShaderSymbolsInfo(ShaderFormatName) ? TEXT("_SymbolsInfo") : TEXT("");
 		// Are symbols based on source or results
 		KeyString += ShouldAllowUniqueShaderSymbols(ShaderFormatName) ? TEXT("_FullDbg") : TEXT("");
 	}
