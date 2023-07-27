@@ -926,6 +926,36 @@ namespace Chaos
 		RequestDeferredClusterPropertiesUpdate(ClusterIndex, EUpdateClusterUnionPropertiesFlags::IncrementalGenerateConnectionGraph);
 	}
 
+	bool FClusterUnionManager::IsDirectlyConnectedToMainParticleInClusterUnion(const FClusterUnion& ClusterUnion, FPBDRigidParticleHandle* Particle) const
+	{
+		bool bIsConnectedToMainParticle = false;
+		if (FPBDRigidClusteredParticleHandle* ClusterParticle = Particle->CastToClustered())
+		{
+			for (const FConnectivityEdge& Edge : ClusterParticle->ConnectivityEdges())
+			{
+				if (IsInterclusterEdge(*ClusterParticle, Edge))
+				{
+					if (const FClusterUnionParticleProperties* SiblingProps = ClusterUnion.ChildProperties.Find(Edge.Sibling))
+					{
+						if (!SiblingProps->bIsAuxiliaryParticle)
+						{
+							bIsConnectedToMainParticle = true;
+							break;
+						}
+					}
+					else
+					{
+						// No props = main particles.
+						bIsConnectedToMainParticle = true;
+						break;
+					}
+				}
+			}
+		}
+
+		return bIsConnectedToMainParticle;
+	}
+
 	void FClusterUnionManager::RequestDeferredClusterPropertiesUpdate(FClusterUnionIndex ClusterIndex, EUpdateClusterUnionPropertiesFlags Flags)
 	{
 		EUpdateClusterUnionPropertiesFlags& ExistingFlags = DeferredClusterUnionsForUpdateProperties.FindOrAdd(ClusterIndex);
