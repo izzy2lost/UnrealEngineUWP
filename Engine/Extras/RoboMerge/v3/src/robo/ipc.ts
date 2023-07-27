@@ -56,9 +56,9 @@ export class IPC {
 			case 'getp4tasks': return { ...OPERATION_SUCCESS, data: getRunningPerforceCommands() } 
 			case 'getWorkspaces': return this.getWorkspaces(msg.args![0] as string)
 			case 'getPersistence': return this.getPersistence(msg.args![0] as string)
-			case 'traceRoute': return this.traceRoute(msg.args![0] as Query, msg.args![1] as Set<string>)
-			case 'trackChange': return this.trackChange(msg.args![0], msg.args![1] as Set<string>)
-			case 'dumpGraph': return this.dumpGraph(msg.args![0] as Set<string>)
+			case 'traceRoute': return this.traceRoute(msg.args![0] as Query, msg.args![1])
+			case 'trackChange': return this.trackChange(msg.args![0], msg.args![1])
+			case 'dumpGraph': return this.dumpGraph(msg.args![0])
 			case 'getIsRunning': return this.isRunning(msg.args![0] as string)
 			case 'restartBot': return this.restartBot(msg.args![0] as string, msg.args![1] as string)
 			case 'crashGraphBot': return this.crashGraphBot(msg.args![0] as string, msg.args![1] as string)
@@ -165,7 +165,7 @@ export class IPC {
 		return {statusCode: 400, message: `Unknown bot '${botname}'`}
 	}
 
-	private async trackChange(queryObj: any, userTags: Set<string>): Promise<OperationReturnType> {
+	private async trackChange(queryObj: any, tagsObj: any): Promise<OperationReturnType> {
 
 		const clStr = queryObj.cl
 		if (!clStr) {
@@ -175,6 +175,11 @@ export class IPC {
 		const cl = parseInt(clStr)
 		if (isNaN(cl)) {
 			return {statusCode: 400, message: `Invalid CL parameter: ${cl}`}
+		}
+
+		let userTags = new Set<string>()
+		for (const tag in tagsObj) {
+			userTags.add(tag)
 		}
 
 		const streamFilter = (() => {
@@ -321,11 +326,19 @@ export class IPC {
 		return {...OPERATION_SUCCESS, data}
 	}
 
-	private async traceRoute(query: Query, tags?: Set<string>): Promise<OperationReturnType> {
+	private async traceRoute(query: Query, tagsObj?: any): Promise<OperationReturnType> {
 
 		const cl = parseInt(query.cl)
 		if (isNaN(cl)) {
 			return {statusCode: 400, message: 'Invalid CL parameter: ' + query.cl}
+		}
+
+		let tags
+		if (tagsObj) {
+			tags = new Set<string>()
+			for (const tag in tagsObj) {
+				tags.add(tag)
+			}
 		}
 
 		const tracer = new Trace(this.robo.graph.graph, this.ipcLogger)
@@ -368,7 +381,11 @@ export class IPC {
 		}
 	}
 
-	private dumpGraph(tags: Set<string>): OperationReturnType {
+	private dumpGraph(tagsObj: any): OperationReturnType {
+		let tags = new Set<string>()
+		for (const tag in tagsObj) {
+			tags.add(tag)
+		}
 		return { ...OPERATION_SUCCESS, data: this.robo.graph.graph.dump(tags, this.ipcLogger) } 
 	}
 

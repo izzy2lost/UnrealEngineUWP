@@ -210,8 +210,12 @@ class RoboWebApp implements AppInterface {
 			queryObj[key] = val
 		}
 
+		const tagsObj: {[key: string]: boolean} = {}
+		for (const tag of this.authData.tags) {
+			tagsObj[tag] = true
+		}
 
-		return this.sendMessage('trackChange', [queryObj, this.authData.tags])
+		return this.sendMessage('trackChange', [queryObj, tagsObj])
 	}
 
 
@@ -573,7 +577,13 @@ class RoboWebApp implements AppInterface {
 		if (!query.cl || !query.from || !query.to) {
 			return {statusCode: 400, message: '"cl", "from" and "to" query arguments required'}
 		}
-		const result = await this.sendMessage('traceRoute', [query, this.authData.tags])
+
+		const tagsObj: {[key: string]: boolean} = {}
+		for (const tag of this.authData.tags) {
+			tagsObj[tag] = true
+		}
+
+		const result = await this.sendMessage('traceRoute', [query, tagsObj])
 		return result.data ? {...result, success: true, route: result.data} :
 			{...result, success: false, code: result.message}
 			
@@ -584,7 +594,13 @@ class RoboWebApp implements AppInterface {
 		if (!this.authData) {
 			throw new Error('Secure call but no auth data?')
 		}
-		return (await this.sendMessage('dumpGraph', [this.authData.tags])).data
+
+		const tagsObj: {[key: string]: boolean} = {}
+		for (const tag of this.authData.tags) {
+			tagsObj[tag] = true
+		}
+
+		return (await this.sendMessage('dumpGraph', [tagsObj])).data
 	}
 
 	// https://localhost:4433/op/acknowledge?bot=TEST&branch=Main&cl=1237983421
