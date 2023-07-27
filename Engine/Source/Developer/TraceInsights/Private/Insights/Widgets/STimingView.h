@@ -387,6 +387,8 @@ public:
 
 	TSharedPtr<Insights::FFilterConfigurator> GetFilterConfigurator() { return FilterConfigurator; }
 
+	TMap<uint64, TSharedPtr<FBaseTimingTrack>>& GetAllTracks() { return AllTracks; }
+
 protected:
 	virtual FVector2D ComputeDesiredSize(float) const override
 	{
