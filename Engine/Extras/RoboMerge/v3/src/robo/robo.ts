@@ -128,6 +128,13 @@ const COMMAND_LINE_ARGS: {[param: string]: Arg<any>} = {
 		dflt: false
 	},
 
+	previewOnly: {
+		match: /^(-previewOnly)$/,
+		parse: str => str === "false" ? false : true,
+		env: 'ROBO_PREVIEW_ONLY',
+		dflt: false
+	},
+
 	// Sentry environment designation -- use 'PROD' to enable Sentry bug tracking
 	epicEnv: {
 		match: /^(-epicEnv)$/,
@@ -355,7 +362,7 @@ async function _onBranchSpecReloaded(graphBot: GraphBot, logger: ContextualLogge
 		--specReloadEntryCount
 	}
 
-	graphBot.initBots(robo.graph)
+	graphBot.initBots(robo.graph, args.previewOnly)
 
 	if (specReloadEntryCount === 0) {
 		// regenerate ubergraph (last update to finish does regen if multiple in flight)
@@ -436,7 +443,7 @@ async function init(logger: ContextualLogger) {
 	const graph = new Graph
 	robo.graph = new GraphAPI(graph)
 	for (const graphBot of robo.graphBots.values()) {
-		graphBot.initBots(robo.graph)
+		graphBot.initBots(robo.graph, args.previewOnly)
 		addBranchGraph(graph, graphBot.branchGraph)
 	}
 }

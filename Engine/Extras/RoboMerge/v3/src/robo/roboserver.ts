@@ -34,6 +34,12 @@ let ENVIRONMENT: {[param: string]: any}
 			match: /^-devModeUser=(.+)$/,
 			env: 'ROBO_DEV_MODE_USER',
 			dflt: ''
+		},
+		previewOnly: {
+			match: /^(-previewOnly)$/,
+			parse: str => str === "false" ? false : true,
+			env: 'ROBO_PREVIEW_ONLY',
+			dflt: false
 		}
 	}
 
@@ -46,6 +52,9 @@ let ENVIRONMENT: {[param: string]: any}
 
 if (ENVIRONMENT.devMode) {
 	roboserverStartupLogger.warn('Running in DEV_MODE')
+}
+if (ENVIRONMENT.previewMode) {
+	roboserverStartupLogger.warn('Running in PREVIEW_MODE')
 }
 
 function readUtf8File(path: string) {

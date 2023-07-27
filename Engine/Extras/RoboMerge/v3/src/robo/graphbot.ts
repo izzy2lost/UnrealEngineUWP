@@ -99,7 +99,7 @@ export class GraphBot implements GraphInterface, BotEventHandler {
 		return branch && branch.bot ? branch.bot as NodeBot : undefined
 	}
 
-	initBots(ubergraph: GraphAPI) {
+	initBots(ubergraph: GraphAPI, previewMode: boolean) {
 		this.eventTriggers = new BotEventTriggers(this.branchGraph.botname, this.branchGraph.config)
 		this.eventTriggers.registerHandler(this)
 		const blockageUrlGenerator: NodeOpUrlGenerator = (blockage : Blockage | null) => { 
@@ -131,7 +131,7 @@ export class GraphBot implements GraphInterface, BotEventHandler {
 		for (const branch of this.branchGraph.branches) {
 			if (branch.enabled) {
 				const persistence = this.settings.getContext(branch.upperName)
-				branch.bot = new NodeBot(branch, this.mailer, this.slackMessages, this.externalUrl, this.eventTriggers, persistence, ubergraph,
+				branch.bot = new NodeBot(branch, previewMode, this.mailer, this.slackMessages, this.externalUrl, this.eventTriggers, persistence, ubergraph,
 					async () => {
 						const errPair = await this.handleRequestedIntegrationsForAllNodes()
 						if (errPair) {

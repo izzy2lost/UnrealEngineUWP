@@ -86,7 +86,8 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 	public isActive = false
 
 	constructor(
-		branchDef: Branch, 
+		branchDef: Branch,
+		private readonly previewMode: boolean,
 		mailer: Mailer,
 		slackMessages: SlackMessages | undefined,
 		externalUrl: string, 
@@ -244,6 +245,9 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 
 	/** @return true if full tick completed, only used for analytics */
 	async tick() {
+		if (this.previewMode) {
+			return false
+		}
 		for (const edgeBot of this.edges.values()) {
 			await edgeBot.tick()
 		}
@@ -353,6 +357,10 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 	}
 
 	async processQueuedChange(fromQueue: QueuedChange) {
+		if (this.previewMode) {
+			this._log_action(`(PREVIEW MODE) - Skipping manually queued change ${fromQueue.cl} on ${this.fullName}, requested by ${fromQueue.who}`)
+			return
+		}
 		let logMessage = `Processing manually queued change ${fromQueue.cl} on ${this.fullName}, requested by ${fromQueue.who}`
 		if (fromQueue.workspace) {
 			logMessage += `, in workspace ${fromQueue.workspace}`
