@@ -92,7 +92,7 @@ const TArray<TRigVMTypeIndex>& FRigVMFunction::GetArgumentTypeIndices() const
 		}
 		else
 		{
-			checkNoEntry();
+			// checkNoEntry();
 		}
 	}
 	return ArgumentTypeIndices;
