@@ -283,7 +283,11 @@ export class IPC {
 				}
 			} else if (isFTE && botFilter.length == 0) {
 				includeInResults = true
-				streamDisplayName = getStreamFromPath(changeToConsider.desc.path) || changeToConsider.desc.path
+				if (changeToConsider.desc.path) {
+					streamDisplayName = getStreamFromPath(changeToConsider.desc.path) || changeToConsider.desc.path
+				} else if (changeToConsider.desc.entries.length > 0) {
+					streamDisplayName = getStreamFromPath(changeToConsider.desc.entries[0].depotFile) || streamDisplayName
+				}
 			}
 
 			if (streamDisplayName.length == 0) {

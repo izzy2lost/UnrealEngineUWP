@@ -23,7 +23,13 @@ function doit(query) {
 	.then(data => {
 		const $successPanel = $('#success-panel');
 		$('#changes', $successPanel).html(generateChangeList(data));
-		$('#success-panel').show();
+		if (data.data.changes.length > 0) {
+			$successPane.show();
+		} else {
+			const $errorPanel = $('#error-panel');
+			$('pre', $errorPanel).html('No results found.')
+			$errorPanel.show();
+		}
 		receivedTrackingResults()
 	})
 	.catch(error => {
