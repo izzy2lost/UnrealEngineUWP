@@ -187,6 +187,17 @@ namespace PerfSummaries
 						}
 					}
 				}
+				else if (col.formula == "unweighted_average")
+				{
+					for (int i = startFrame; i < colEndFrame; i++)
+					{
+						if (col.filterOutZeros == false || statValues[i] > 0)
+						{
+							value += statValues[i];
+							++totalFrameWeight;
+						}
+					}
+				}
 				else if (col.formula == "maximum")
 				{
 					for (int i = startFrame; i < colEndFrame; i++)
