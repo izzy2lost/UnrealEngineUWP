@@ -1340,6 +1340,13 @@ void FD3D12Adapter::InitializeDevices()
 		CreateCommandSignatures();
 	}
 }
+void FD3D12Adapter::InitializeExplicitDescriptorHeap()
+{
+	for (uint32 GPUIndex : FRHIGPUMask::All())
+	{
+		Devices[GPUIndex]->InitExplicitDescriptorHeap();
+	}
+}
 
 void FD3D12Adapter::InitializeRayTracing()
 {

@@ -3,6 +3,7 @@
 #include "D3D12RHIPrivate.h"
 #include "D3D12IntelExtensions.h"
 #include "D3D12RayTracing.h"
+#include "D3D12ExplicitDescriptorCache.h"
 
 static TAutoConsoleVariable<int32> CVarD3D12GPUTimeout(
 	TEXT("r.D3D12.GPUTimeout"),
@@ -139,9 +140,9 @@ FD3D12Device::~FD3D12Device()
 #if D3D12_RHI_RAYTRACING
 	delete RayTracingCompactionRequestHandler;
 	RayTracingCompactionRequestHandler = nullptr;
-
-	DestroyRayTracingDescriptorCache(); // #dxr_todo UE-72158: unify RT descriptor cache with main FD3D12DescriptorCache
 #endif
+
+	DestroyExplicitDescriptorCache(); // #dxr_todo UE-72158: unify RT descriptor cache with main FD3D12DescriptorCache
 
 	// Cleanup the allocator near the end, as some resources may be returned to the allocator or references are shared by multiple GPUs
 	DefaultBufferAllocator.FreeDefaultBufferPools();
@@ -770,3 +771,18 @@ FGPUTimingCalibrationTimestamp FD3D12Device::GetCalibrationTimestamp(ED3D12Queue
 
 	return Result;
 }
+
+void FD3D12Device::InitExplicitDescriptorHeap()
+{
+	check(ExplicitDescriptorHeapCache == nullptr);
+	ExplicitDescriptorHeapCache = new FD3D12ExplicitDescriptorHeapCache(this);
+
+	// Note: ExplicitDescriptorHeapCache is destroyed in ~FD3D12Device, after all deferred deletion is processed
+}
+
+void FD3D12Device::DestroyExplicitDescriptorCache()
+{
+	delete ExplicitDescriptorHeapCache;
+	ExplicitDescriptorHeapCache = nullptr;
+}
+

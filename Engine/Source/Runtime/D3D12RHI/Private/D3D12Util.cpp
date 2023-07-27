@@ -1845,4 +1845,14 @@ DEFINE_STAT(STAT_GlobalViewHeapBlockAllocations);
 DEFINE_STAT(STAT_ViewOnlineDescriptorHeapMemory);
 DEFINE_STAT(STAT_SamplerOnlineDescriptorHeapMemory);
 
+DEFINE_STAT(STAT_ExplicitSamplerDescriptorHeaps);
+DEFINE_STAT(STAT_ExplicitSamplerDescriptors);
+
+DEFINE_STAT(STAT_ExplicitViewDescriptorHeaps);
+DEFINE_STAT(STAT_ExplicitViewDescriptors);
+
+DEFINE_STAT(STAT_ExplicitMaxUsedSamplerDescriptors);
+DEFINE_STAT(STAT_ExplicitUsedSamplerDescriptors);
+DEFINE_STAT(STAT_ExplicitUsedViewDescriptors);
+
 #undef LOCTEXT_NAMESPACE

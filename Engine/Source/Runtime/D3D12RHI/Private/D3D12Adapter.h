@@ -145,6 +145,7 @@ public:
 	void CleanupResources();
 
 	void InitializeDevices();
+	void InitializeExplicitDescriptorHeap();
 	void InitializeRayTracing();
 
 	// Getters

@@ -259,9 +259,11 @@ FD3D12DynamicRHI::FD3D12DynamicRHI(const TArray<TSharedPtr<FD3D12Adapter>>& Chos
 
 void FD3D12DynamicRHI::PostInit()
 {
-	if (GRHISupportsRayTracing)
+	for (TSharedPtr<FD3D12Adapter>& Adapter : ChosenAdapters)
 	{
-		for (TSharedPtr<FD3D12Adapter>& Adapter : ChosenAdapters)
+		Adapter->InitializeExplicitDescriptorHeap();
+
+		if (GRHISupportsRayTracing)
 		{
 			Adapter->InitializeRayTracing();
 		}
