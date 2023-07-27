@@ -128,8 +128,10 @@ public:
 	FD3D12ExplicitDescriptorHeap ViewHeap;
 	FD3D12ExplicitDescriptorHeap SamplerHeap;
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	bool bBindlessViews = false;
 	bool bBindlessSamplers = false;
+#endif
 
 	template<typename KeyType>
 	struct TIdentityHash
