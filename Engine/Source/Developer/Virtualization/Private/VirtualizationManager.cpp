@@ -514,7 +514,7 @@ FVirtualizationManager::~FVirtualizationManager()
 		IConsoleManager::Get().UnregisterConsoleObject(ConsoleObject);
 	}
 
-	UE_LOG(LogVirtualization, Log, TEXT("Destroying backends"));
+	UE_LOG(LogVirtualization, Verbose, TEXT("Destroying backends"));
 
 	CacheStorageBackends.Empty();
 	PersistentStorageBackends.Empty();
@@ -522,7 +522,7 @@ FVirtualizationManager::~FVirtualizationManager()
 
 	AllBackends.Empty(); // This will delete all backends and beyond this point all references to them are invalid
 
-	UE_LOG(LogVirtualization, Log, TEXT("Virtualization manager destroyed"));
+	UE_LOG(LogVirtualization, Verbose, TEXT("Virtualization manager destroyed"));
 }
 
 bool FVirtualizationManager::Initialize(const FInitParams& InitParams)
