@@ -1050,5 +1050,40 @@ namespace Chaos
 			}
 			ConnectedComponentsDFSIterative(AdjacencyList, ConnectedComponents);
 		}
+
+		inline TArray<TArray<int>> ComputeIncidentElements(const TArray<TArray<int32>>& Constraints, TArray<TArray<int32>>* LocalIndex = nullptr)
+		{
+			int32 MaxIdx = 0;
+			for (int32 i = 0; i < Constraints.Num(); i++)
+			{
+				for (int32 j = 0; j < Constraints[i].Num(); j++)
+				{
+					const int32 NodeIdx = Constraints[i][j];
+					MaxIdx = MaxIdx > NodeIdx ? MaxIdx : NodeIdx;
+				}
+			}
+
+			TArray<TArray<int>> IncidentElements;
+			IncidentElements.SetNum(MaxIdx + 1);
+			if (LocalIndex)
+			{
+				LocalIndex->SetNum(MaxIdx + 1);
+			}
+			for (int32 i = 0; i < Constraints.Num(); i++)
+			{
+				for (int32 j = 0; j < Constraints[i].Num(); j++)
+				{
+					const int32 NodeIdx = Constraints[i][j];
+					if (NodeIdx >= 0)
+					{
+						IncidentElements[NodeIdx].Add(i);
+						if (LocalIndex)
+							(*LocalIndex)[NodeIdx].Add(j);
+					}
+				}
+			}
+
+			return IncidentElements;
+		}
 	} // namespace Utilities
 } // namespace Chaos
