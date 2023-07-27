@@ -109,6 +109,21 @@ void FTextureEditorViewportClient::Draw(FViewport* Viewport, FCanvas* Canvas)
 
 	bool bIsVirtualTexture = false;
 
+	UTexture2D* CPUCopyTexture = nullptr;
+	if (Texture2D)
+	{
+		CPUCopyTexture = Texture2D->GetCPUCopyTexture();
+		if (CPUCopyTexture)
+		{
+			FIntPoint CenteringOffset(0, 0);
+			CenteringOffset += Viewport->GetSizeXY() / 2;
+			CenteringOffset -= FIntPoint(Width, Height) / 2;
+
+			Canvas->DrawTile(CenteringOffset.X, CenteringOffset.Y, Width, Height, 0.0f, 0.0f, 1.0f, 1.0f, FLinearColor::White, CPUCopyTexture->GetResource());
+			return;
+		}
+	}
+	
 	TRefCountPtr<FBatchedElementParameters> BatchedElementParameters;
 
 	if (GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5)
@@ -202,7 +217,8 @@ void FTextureEditorViewportClient::Draw(FViewport* Viewport, FCanvas* Canvas)
 	FTexturePlatformData** RunningPlatformDataPtr = Texture->GetRunningPlatformData();
 	float Exposure = RunningPlatformDataPtr && *RunningPlatformDataPtr && IsHDR((*RunningPlatformDataPtr)->PixelFormat) ? FMath::Pow(2.0f, (float)TextureEditorPinned->GetExposureBias()) : 1.0f;
 
-	if ( Texture->GetResource() != nullptr )
+
+	if ( Texture->GetResource() != nullptr && !CPUCopyTexture )
 	{
 		FCanvasTileItem TileItem( FVector2D( XPos, YPos ), Texture->GetResource(), FVector2D( Width, Height ), FLinearColor(Exposure, Exposure, Exposure) );
 		TileItem.BlendMode = TextureEditorPinned->GetColourChannelBlendMode();

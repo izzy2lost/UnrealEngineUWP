@@ -3464,6 +3464,17 @@ int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 	const FTextureBuildSettings& BuildSettings,
 	int32& OutMip0SizeX, int32& OutMip0SizeY, int32& OutMip0NumSlices)
 {
+	if (BuildSettings.bCPUAccessible)
+	{
+		// CPU accessible texture generates a placeholder gpu texture with 1 mip in all cases.
+		FImageInfo PlaceholderInfo;
+		UE::TextureBuildUtilities::GetPlaceholderTextureImageInfo(&PlaceholderInfo);
+		OutMip0SizeX = PlaceholderInfo.SizeX;
+		OutMip0SizeY = PlaceholderInfo.SizeY;
+		OutMip0NumSlices = PlaceholderInfo.NumSlices;
+		return 1;
+	}
+
 	// AFAICT LatLongCubeMaps don't do any of this - pow2 is broken with them but it runs, and max texture stuff
 	// is handled internally in the extents function.
 	int32 BaseSizeX = InMip0SizeX;

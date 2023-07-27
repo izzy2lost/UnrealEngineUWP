@@ -64,6 +64,7 @@ namespace ERawImageFormat
 		G16,     // note G8/G16 = gray = replicate to 3 channels, R16F = just in red channel
 		R16F,
 		R32F,
+		MAX, // used for validation checks < MAX = valid type.
 		Invalid = 0xFF
 	};
 	
@@ -73,6 +74,8 @@ namespace ERawImageFormat
 	IMAGECORE_API int64 GetBytesPerPixel(Type Format);
 	
 	IMAGECORE_API const TCHAR * GetName(Type Format);
+	IMAGECORE_API const FUtf8StringView GetNameView(Type Format);
+	IMAGECORE_API bool GetFormatFromString(FUtf8StringView InString, Type& OutFormat);
 	
 	IMAGECORE_API bool IsHDR(Type Format);
 	
@@ -237,6 +240,9 @@ struct FImageInfo
 		return Offset;
 	}
 
+	IMAGECORE_API void ImageInfoToCompactBinary(class FCbObject& OutObject) const;
+	// Overwrites the current info with the object's info/
+	IMAGECORE_API bool ImageInfoFromCompactBinary(const FCbObject& InObject);
 };
 
 /***
@@ -688,6 +694,16 @@ public:
 		return { (const float*)RawData.GetData(), int64(RawData.Num() / sizeof(float)) };
 	}
 };
+
+typedef TRefCountPtr<struct FSharedImage> FSharedImageRef;
+typedef TRefCountPtr<const struct FSharedImage> FSharedImageConstRef;
+struct FSharedImage : public FImage, public FThreadSafeRefCountedObject
+{
+	FSharedImage() = default;
+	virtual ~FSharedImage() = default;
+};
+
+
 
 /* Functions
  *****************************************************************************/

@@ -16,6 +16,7 @@
 #include "DeviceProfiles/DeviceProfile.h"
 #include "DeviceProfiles/DeviceProfileManager.h"
 #include "DerivedDataCache.h"
+#include "Math/GuardedInt.h"
 #include "Rendering/Texture2DResource.h"
 #include "Streaming/Texture2DStreamOut_AsyncCreate.h"
 #include "RenderingThread.h"
@@ -706,6 +707,10 @@ void UTexture2D::UpdateResource()
 	WaitForPendingInitOrStreaming();
 
 #if WITH_EDITOR
+	// Invalidate the CPU texture in case we changed sources - it'll recreate
+	// on access if needed.
+	CPUCopyTexture = nullptr;
+
 	// Recache platform data if the source has changed.
 	if (FTextureCompilingManager::Get().IsAsyncCompilationAllowed(this))
 	{
@@ -1089,39 +1094,158 @@ void UTexture2D::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
 	}
 }
 
-UTexture2D* UTexture2D::CreateTransient(int32 InSizeX, int32 InSizeY, EPixelFormat InFormat, const FName InName)
+
+UTexture2D* UTexture2D::CreateTransientFromImage(const FImage* InImage, const FName InName)
+{
+	LLM_SCOPE(ELLMTag::Textures);
+	if (InImage == nullptr)
+	{
+		return nullptr;
+	}
+
+	TArray64<uint8> ConvertedData;
+
+	EPixelFormat Format = PF_B8G8R8A8;
+	switch (InImage->Format)
+	{
+	case ERawImageFormat::BGRE8:
+		{
+			Format = PF_A32B32G32R32F; 
+			ConvertedData.AddUninitialized(InImage->SizeX * InImage->SizeY * sizeof(FLinearColor));
+			FLinearColor* Output = (FLinearColor*)ConvertedData.GetData();
+			const FColor* Input = (const FColor*)InImage->RawData.GetData();
+
+			uint64 Pixels = (uint64)InImage->SizeX * InImage->SizeY;
+			for (uint64 Pixel = 0; Pixel < Pixels; Pixel++)
+			{
+				Output[Pixel] = Input[Pixel].FromRGBE();
+			}
+			break;
+		}
+	case ERawImageFormat::BGRA8: Format = PF_B8G8R8A8; break;
+	case ERawImageFormat::RGBA16F: Format = PF_FloatRGBA; break;
+	case ERawImageFormat::RGBA32F: Format = PF_A32B32G32R32F; break;
+	case ERawImageFormat::R16F: Format = PF_R16F; break;
+	case ERawImageFormat::R32F: Format = PF_R32_FLOAT; break;
+	case ERawImageFormat::G8:
+		{
+			Format = PF_B8G8R8A8;
+			ConvertedData.AddUninitialized(InImage->SizeX * InImage->SizeY * sizeof(FColor));
+			FColor* Output = (FColor*)ConvertedData.GetData();
+			const uint8* Input = (const uint8*)InImage->RawData.GetData();
+			
+			uint64 Pixels = (uint64)InImage->SizeX * InImage->SizeY;
+			for (uint64 Pixel = 0; Pixel < Pixels; Pixel++)
+			{
+				Output[Pixel].R = Output[Pixel].G = Output[Pixel].B = Input[Pixel];
+				Output[Pixel].A = 255;
+			}
+
+			break;
+		}
+	case ERawImageFormat::G16:
+		{
+			Format = PF_A16B16G16R16;
+			ConvertedData.AddUninitialized(InImage->SizeX * InImage->SizeY * 4 * sizeof(uint16));
+			uint16* Output = (uint16*)ConvertedData.GetData();
+			const uint16* Input = (const uint16*)InImage->RawData.GetData();
+
+			uint64 Pixels = (uint64)InImage->SizeX * InImage->SizeY;
+			for (uint64 Pixel = 0; Pixel < Pixels; Pixel++)
+			{
+				Output[Pixel * 4 + 3] = 65535;
+				Output[Pixel * 4 + 2] = Input[Pixel];
+				Output[Pixel * 4 + 1] = Input[Pixel];
+				Output[Pixel * 4 + 0] = Input[Pixel];
+			}
+
+			break;
+		}
+	case ERawImageFormat::RGBA16:
+		{
+			Format = PF_A16B16G16R16;
+			break;
+		}
+	default:
+		{
+			UE_LOG(LogTexture, Error, TEXT("Invalid raw image format in UTexture2D::CreateTransientFromImage()"));
+			return nullptr;
+		}
+	}
+
+	// We only want to provide one slice if the source is for an array/cube
+	TConstArrayView64<uint8> ImageData = InImage->RawData;
+	if (InImage->NumSlices > 1)
+	{
+		int64 SliceBytes = ImageData.Num() / InImage->NumSlices;
+		ImageData.LeftInline(SliceBytes);
+	}
+
+	return CreateTransient(InImage->GetWidth(), InImage->GetHeight(), Format, InName, ConvertedData.Num() ? ConvertedData : ImageData);
+}
+
+
+UTexture2D* UTexture2D::CreateTransient(int32 InSizeX, int32 InSizeY, EPixelFormat InFormat, const FName InName, TConstArrayView64<uint8> InImageData)
 {
 	LLM_SCOPE(ELLMTag::Textures);
 
-	UTexture2D* NewTexture = nullptr;
-	if (InSizeX > 0 && InSizeY > 0 &&
-		(InSizeX % GPixelFormats[InFormat].BlockSizeX) == 0 &&
-		(InSizeY % GPixelFormats[InFormat].BlockSizeY) == 0)
+	const int32 NumBlocksX = InSizeX / GPixelFormats[InFormat].BlockSizeX;
+	const int32 NumBlocksY = InSizeY / GPixelFormats[InFormat].BlockSizeY;
+
+	if (InSizeX <= 0 || InSizeY <= 0)
 	{
-		NewTexture = NewObject<UTexture2D>(
-			GetTransientPackage(),
-			InName,
-			RF_Transient
-			);
-
-		NewTexture->SetPlatformData(new FTexturePlatformData());
-		NewTexture->GetPlatformData()->SizeX = InSizeX;
-		NewTexture->GetPlatformData()->SizeY = InSizeY;
-		NewTexture->GetPlatformData()->SetNumSlices(1);
-		NewTexture->GetPlatformData()->PixelFormat = InFormat;
-
-		// Allocate first mipmap.
-		int32 NumBlocksX = InSizeX / GPixelFormats[InFormat].BlockSizeX;
-		int32 NumBlocksY = InSizeY / GPixelFormats[InFormat].BlockSizeY;
-		FTexture2DMipMap* Mip = new FTexture2DMipMap(InSizeX, InSizeY, 1);
-		NewTexture->GetPlatformData()->Mips.Add(Mip);
-		Mip->BulkData.Lock(LOCK_READ_WRITE);
-		Mip->BulkData.Realloc((int64)NumBlocksX * NumBlocksY * GPixelFormats[InFormat].BlockBytes);
-		Mip->BulkData.Unlock();
+		UE_LOG(LogTexture, Warning, TEXT("Negative size specified for UTexture2D::CreateTransient()"));
+		return nullptr;
 	}
-	else
+
+	if ((InSizeX % GPixelFormats[InFormat].BlockSizeX) ||
+		(InSizeY % GPixelFormats[InFormat].BlockSizeY))
 	{
-		UE_LOG(LogTexture, Warning, TEXT("Invalid parameters specified for UTexture2D::CreateTransient()"));
+		UE_LOG(LogTexture, Warning, TEXT("Size specified isn't valid for block-based pixel format in UTexture2D::CreateTransient()"));
+		return nullptr;
+	}
+
+	FGuardedInt64 BytesForImageValidation = FGuardedInt64(NumBlocksX) * NumBlocksY * GPixelFormats[InFormat].BlockBytes;
+	if (BytesForImageValidation.IsValid() == false)
+	{
+		UE_LOG(LogTexture, Warning, TEXT("Size specified overflows in UTexture2D::CreateTransient()"));
+		return nullptr;
+	}
+
+	int64 BytesForImage = BytesForImageValidation.Get(0);
+
+	// If they provided data, it needs to be the right size.
+	if (InImageData.Num() && InImageData.Num() != BytesForImage)
+	{
+		UE_LOG(LogTexture, Warning, TEXT("Image data provided is incorrect size (%llu provided, %llu wanted) in UTexture2D::CreateTransient()"), InImageData.Num(), BytesForImage);
+		return nullptr;
+	}
+
+	UTexture2D* NewTexture = NewObject<UTexture2D>(
+		GetTransientPackage(),
+		InName,
+		RF_Transient
+		);
+
+	NewTexture->SetPlatformData(new FTexturePlatformData());
+	NewTexture->GetPlatformData()->SizeX = InSizeX;
+	NewTexture->GetPlatformData()->SizeY = InSizeY;
+	NewTexture->GetPlatformData()->SetNumSlices(1);
+	NewTexture->GetPlatformData()->PixelFormat = InFormat;
+
+	// Allocate first mipmap.
+	FTexture2DMipMap* Mip = new FTexture2DMipMap(InSizeX, InSizeY, 1);
+	NewTexture->GetPlatformData()->Mips.Add(Mip);
+	Mip->BulkData.Lock(LOCK_READ_WRITE);
+	void* DestImageData = Mip->BulkData.Realloc(BytesForImage);
+	if (InImageData.Num())
+	{
+		FMemory::Memcpy(DestImageData, InImageData.GetData(), BytesForImage);
+	}
+	Mip->BulkData.Unlock();
+	if (InImageData.Num())
+	{
+		NewTexture->UpdateResource();
 	}
 	return NewTexture;
 }
@@ -1142,6 +1266,48 @@ int32 UTexture2D::Blueprint_GetSizeX() const
 	}
 #endif
 	return GetSizeX();
+}
+
+#if WITH_EDITORONLY_DATA
+UTexture2D* UTexture2D::GetCPUCopyTexture()
+{
+	if (CPUCopyTexture)
+	{
+		return CPUCopyTexture;
+	}
+
+	FSharedImageConstRef CPUCopy = GetCPUCopy(); // blocks in the editor during encoding
+	if (CPUCopy)
+	{
+		CPUCopyTexture = UTexture2D::CreateTransientFromImage(CPUCopy.GetReference());
+	}
+	return CPUCopyTexture;
+}
+#endif
+
+
+FSharedImageConstRef UTexture2D::GetCPUCopy() const
+{
+	// could stall if texture isn't built!
+	const FTexturePlatformData* LocalPlatformData = GetPlatformData();
+
+	if (LocalPlatformData && LocalPlatformData->GetHasCpuCopy())
+	{
+		return LocalPlatformData->CPUCopy;
+	}
+
+	return FSharedImageConstRef();
+
+}
+
+FSharedImageConstRefBlueprint UTexture2D::Blueprint_GetCPUCopy() const
+{
+	// When cooking, blueprint construction scripts are run before textures get postloaded.
+	// We don't have valid platformdata, so we always have a null reference here which passes
+	// back to the caller.
+	FSharedImageConstRefBlueprint Result;
+	Result.Reference = GetCPUCopy();
+	return Result;
 }
 
 int32 UTexture2D::Blueprint_GetSizeY() const

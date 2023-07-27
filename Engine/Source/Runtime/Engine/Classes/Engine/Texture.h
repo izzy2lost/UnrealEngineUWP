@@ -750,7 +750,10 @@ struct FTexturePlatformData
 	FOptTexturePlatformData OptData;
 	/** Mip data or VT data. one or the other. */
 	TIndirectArray<struct FTexture2DMipMap> Mips;
-	struct FVirtualTextureBuiltData* VTData;
+	struct FVirtualTextureBuiltData* VTData=nullptr;
+
+	/** This is only valid if the texture availability is CPU only, see GetHasCpuCopy() */
+	TRefCountPtr<const struct FSharedImage> CPUCopy;
 
 #if WITH_EDITORONLY_DATA
 
@@ -855,7 +858,8 @@ struct FTexturePlatformData
 private:
 	static constexpr uint32 BitMask_CubeMap    = 1u << 31u;
 	static constexpr uint32 BitMask_HasOptData = 1u << 30u;
-	static constexpr uint32 BitMask_NumSlices  = BitMask_HasOptData - 1u;
+	static constexpr uint32 BitMask_HasCpuCopy = 1u << 29u;
+	static constexpr uint32 BitMask_NumSlices  = BitMask_HasCpuCopy - 1u;
 
 public:
 	/** Return whether TryLoadMips() would stall because async loaded mips are not yet available. */
@@ -891,9 +895,9 @@ public:
 	 */
 	void SerializeCooked(FArchive& Ar, class UTexture* Owner, bool bStreamable, const bool bSerializeMipData);
 	
-	inline void SetPackedData(int32 InNumSlices, bool bInHasOptData, bool bInCubeMap)
+	inline void SetPackedData(int32 InNumSlices, bool bInHasOptData, bool bInCubeMap, bool bInHasCpuCopy)
 	{
-		PackedData = (InNumSlices & BitMask_NumSlices) | (bInCubeMap ? BitMask_CubeMap : 0) | (bInHasOptData ? BitMask_HasOptData : 0);
+		PackedData = (InNumSlices & BitMask_NumSlices) | (bInCubeMap ? BitMask_CubeMap : 0) | (bInHasOptData ? BitMask_HasOptData : 0) | (bInHasCpuCopy ? BitMask_HasCpuCopy : 0);
 	}
 
 	inline bool GetHasOptData() const
@@ -908,6 +912,16 @@ public:
 		PackedData = (bHasOptData ? BitMask_HasOptData : 0) | (PackedData & (~BitMask_HasOptData));
 
 		OptData = Data;
+	}
+
+	inline bool GetHasCpuCopy() const
+	{
+		return (PackedData & BitMask_HasCpuCopy) == BitMask_HasCpuCopy;
+	}
+
+	inline void SetHasCpuCopy(bool bInHasCpuCopy)
+	{
+		PackedData = (bInHasCpuCopy ? BitMask_HasCpuCopy : 0) | (PackedData & (~BitMask_HasCpuCopy));
 	}
 
 	inline bool IsCubemap() const
@@ -941,6 +955,9 @@ public:
 	}
 
 #if WITH_EDITOR
+	// Clears the data such that a new Cache() call can load new data in to the structure.
+	void Reset();
+
 	bool IsAsyncWorkComplete() const;
 
 	// Compresses the texture using the given compressor and adds the result to the DDC.
@@ -1347,6 +1364,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditAnywhere, Category=LevelOfDetail, AdvancedDisplay)
 	ETextureDownscaleOptions DownscaleOptions;
 
+	/** 
+	* Whether the texture will be encoded to a gpu format and uploaded to the graphics card, or kept on the CPU for access by gamecode / blueprint. 
+	* For CPU availability, the texture will still upload a tiny black texture as a placeholder. Only applies to 2d textures.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Texture, meta=(DisplayName="Availability"), AssetRegistrySearchable)
+	ETextureAvailability Availability;
 	
 	/** Whether Texture and its source are in SRGB Gamma color space.  Can only be used with 8-bit and compressed formats.  This should be unchecked if using alpha channels individually as masks. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Texture, meta=(DisplayName="sRGB"), AssetRegistrySearchable)

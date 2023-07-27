@@ -199,6 +199,13 @@ enum class ETextureMipLoadOptions : uint8
 };
 
 UENUM()
+enum class ETextureAvailability : uint8
+{
+	GPU,
+	CPU
+};
+
+UENUM()
 enum class ETextureDownscaleOptions : uint8
 {
 	/** Fallback to the "texture group" settings */

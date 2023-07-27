@@ -159,6 +159,8 @@ struct FTextureBuildSettings
 	uint32 bApplyKernelToTopMip : 1;
 	/** 1: renormalizes the top mip (only useful for normal maps, prevents artists errors and adds quality) 0:don't */
 	uint32 bRenormalizeTopMip : 1;
+	/** If set, the texture will generate a tiny placeholder hw texture and save off a copy of the top mip for CPU access. */
+	uint32 bCPUAccessible : 1;
 	/** e.g. CTM_RoughnessFromNormalAlpha */
 	uint8 CompositeTextureMode;	// ECompositeTextureMode, opaque to avoid dependencies on engine headers.
 	/* default 1, high values result in a stronger effect */
@@ -280,6 +282,7 @@ struct FTextureBuildSettings
 		, bApplyYCoCgBlockScale(false)
 		, bApplyKernelToTopMip(false)
 		, bRenormalizeTopMip(false)
+		, bCPUAccessible(false)
 		, CompositeTextureMode(0 /*CTM_Disabled*/)
 		, CompositePower(1.0f)
 		, LODBias(0)

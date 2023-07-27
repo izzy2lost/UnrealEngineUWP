@@ -138,6 +138,7 @@ static FTextureBuildSettings ReadBuildSettingsFromCompactBinary(const FCbObjectV
 	BuildSettings.bApplyYCoCgBlockScale = Object["bApplyYCoCgBlockScale"].AsBool(BuildSettings.bApplyYCoCgBlockScale);
 	BuildSettings.bApplyKernelToTopMip = Object["bApplyKernelToTopMip"].AsBool(BuildSettings.bApplyKernelToTopMip);
 	BuildSettings.bRenormalizeTopMip = Object["bRenormalizeTopMip"].AsBool(BuildSettings.bRenormalizeTopMip);
+	BuildSettings.bCPUAccessible = Object["bCPUAccessible"].AsBool(BuildSettings.bCPUAccessible);
 	ReadCbField(Object["CompositeTextureMode"], BuildSettings.CompositeTextureMode);
 	ReadCbField(Object["CompositePower"], BuildSettings.CompositePower);
 	ReadCbField(Object["LODBias"], BuildSettings.LODBias);
@@ -356,6 +357,18 @@ void FTextureBuildFunction::Build(UE::DerivedData::FBuildContext& Context) const
 		return;
 	}
 
+	FSharedImageRef CPUCopy;
+	if (BuildSettings.bCPUAccessible)
+	{
+		CPUCopy = new FSharedImage();
+		SourceMips[0].CopyTo(*CPUCopy);
+	
+		// We just use a placeholder texture rather than the source.
+		SourceMips.Empty();
+		FImage& Placeholder = SourceMips.AddDefaulted_GetRef();
+		UE::TextureBuildUtilities::GetPlaceholderTextureImage(&Placeholder);
+	}
+
 	TArray<FImage> AssociatedNormalSourceMips;
 	if (FCbFieldView CompositeSource = Settings["CompositeSource"];
 		CompositeSource && !TryReadTextureSourceFromCompactBinary(CompositeSource, Context,BuildSettings, AssociatedNormalSourceMips))
@@ -419,6 +432,16 @@ void FTextureBuildFunction::Build(UE::DerivedData::FBuildContext& Context) const
 	int32 NumStreamingMips = TextureDescription.GetNumStreamingMips(&ExtendedData, EngineParameters);
 	
 	{
+		if (CPUCopy.IsValid())
+		{
+			FCbObject ImageInfoMetadata;
+			CPUCopy->ImageInfoToCompactBinary(ImageInfoMetadata);
+			Context.AddValue(UE::DerivedData::FValueId::FromName(ANSITEXTVIEW("CPUCopyImageInfo")), ImageInfoMetadata);
+
+			FSharedBuffer CPUCopyData = MakeSharedBufferFromArray(MoveTemp(CPUCopy->RawData));
+			Context.AddValue(UE::DerivedData::FValueId::FromName(ANSITEXTVIEW("CPUCopyRawData")), CPUCopyData);
+		}
+
 		Context.AddValue(UE::DerivedData::FValueId::FromName(ANSITEXTVIEW("TextureBuildMetadata")), BuildMetadata.ToCompactBinaryWithDefaults());
 		Context.AddValue(UE::DerivedData::FValueId::FromName(ANSITEXTVIEW("EncodedTextureDescription")), UE::TextureBuildUtilities::EncodedTextureDescription::ToCompactBinary(TextureDescription));
 		Context.AddValue(UE::DerivedData::FValueId::FromName(ANSITEXTVIEW("EncodedTextureExtendedData")), UE::TextureBuildUtilities::EncodedTextureExtendedData::ToCompactBinary(ExtendedData));

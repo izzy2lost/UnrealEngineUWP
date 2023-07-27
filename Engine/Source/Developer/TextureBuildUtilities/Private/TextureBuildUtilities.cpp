@@ -273,6 +273,26 @@ FTextureBuildMetadata::FTextureBuildMetadata(FCbObject InCbObject)
 	PreEncodeMipsHash = InCbObject["PreEncodeMipsHash"].AsUInt64(PreEncodeMipsHash);
 }
 
+void GetPlaceholderTextureImageInfo(FImageInfo* OutImageInfo)
+{
+	OutImageInfo->SizeX = 4;
+	OutImageInfo->SizeY = 4;
+	OutImageInfo->GammaSpace = EGammaSpace::sRGB;
+	OutImageInfo->Format = ERawImageFormat::BGRA8;
+	OutImageInfo->NumSlices = 1;
+}
+void GetPlaceholderTextureImage(FImage* OutImage)
+{
+	*OutImage = FImage();
+
+	GetPlaceholderTextureImageInfo(OutImage);
+	OutImage->RawData.AddUninitialized(sizeof(FColor) * OutImage->SizeX * OutImage->SizeY);
+	for (FColor& Color : OutImage->AsBGRA8())
+	{
+		Color = FColor::Black;
+	}
+
+}
 
 } // namespace
 }

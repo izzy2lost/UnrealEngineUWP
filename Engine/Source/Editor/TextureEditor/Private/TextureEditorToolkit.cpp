@@ -134,7 +134,10 @@ FTextureEditorToolkit::~FTextureEditorToolkit( )
 	if (Texture2D && Texture2D->IsCurrentlyVirtualTextured())
 	{
 		FVirtualTexture2DResource* Resource = (FVirtualTexture2DResource*)Texture2D->GetResource();
-		Resource->ReleaseAllocatedVT();
+		if (Resource)
+		{
+			Resource->ReleaseAllocatedVT();
+		}
 	}
 
 	FReimportManager::Instance()->OnPreReimport().RemoveAll(this);
@@ -348,6 +351,18 @@ void FTextureEditorToolkit::CalculateTextureDimensions(int32& OutWidth, int32& O
 	OutDepth = static_cast<int32>(Texture->GetSurfaceDepth());
 	OutArraySize = IsArrayTexture() ? (IsCubeTexture() ? Texture->GetSurfaceArraySize() / 6 : Texture->GetSurfaceArraySize()) : 0;
 	const int32 BorderSize = GetDefault<UTextureEditorSettings>()->TextureBorderEnabled ? 1 : 0;
+
+	
+	if (UTexture2D* Texture2D = Cast<UTexture2D>(Texture))
+	{
+		if (UTexture2D* CpuTexture = Texture2D->GetCPUCopyTexture())
+		{
+			OutWidth = CpuTexture->GetSurfaceWidth();
+			OutHeight = CpuTexture->GetSurfaceHeight();
+			OutDepth = 1;
+			OutArraySize = 0;
+		}
+	}
 
 	if (!PreviewEffectiveTextureWidth || !PreviewEffectiveTextureHeight)
 	{
@@ -807,6 +822,15 @@ void FTextureEditorToolkit::PopulateQuickInfo( )
 	    ImportedText->SetText(FText::Format( NSLOCTEXT("TextureEditor", "QuickInfo_Imported_2x", "Imported: {0}x{1}{2}"), FText::AsNumber(ImportedWidth, &FormatOptions), FText::AsNumber(ImportedHeight, &FormatOptions), ImportedCubemapInfo));
 		CurrentText->SetText(FText::Format( NSLOCTEXT("TextureEditor", "QuickInfo_Displayed_2x", "Displayed: {0}x{1}{2}"), FText::AsNumber(PreviewEffectiveTextureWidth, &FormatOptions ), FText::AsNumber(PreviewEffectiveTextureHeight, &FormatOptions), DisplayedCubemapInfo));
 		MaxInGameText->SetText(FText::Format( NSLOCTEXT("TextureEditor", "QuickInfo_MaxInGame_2x", "Max In-Game: {0}x{1}{2}"), FText::AsNumber(MaxInGameWidth, &FormatOptions), FText::AsNumber(MaxInGameHeight, &FormatOptions), InGameCubemapInfo));
+	}
+
+	if (Texture2D)
+	{
+		if (UTexture2D* CpuTexture = Texture2D->GetCPUCopyTexture(); CpuTexture)
+		{
+			PreviewEffectiveTextureWidth = CpuTexture->GetSurfaceWidth();
+			PreviewEffectiveTextureHeight = CpuTexture->GetSurfaceHeight();
+		}
 	}
 
 	SizeText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_ResourceSize", "Resource Size: {0} KB"), FText::AsNumber(FMath::DivideAndRoundNearest(ResourceSize, (int64)1024), &FormatOptions)));

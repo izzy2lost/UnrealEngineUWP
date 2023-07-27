@@ -3,6 +3,7 @@
 #include "ImageCore.h"
 #include "Modules/ModuleManager.h"
 #include "Async/ParallelFor.h"
+#include "Serialization/CompactBinaryWriter.h"
 #include "TransferFunctions.h"
 #include "ColorSpace.h"
 
@@ -1310,6 +1311,26 @@ void FImage::Linearize(uint8 SourceEncoding, FImage& DestImage) const
 	}
 }
 
+const FUtf8StringView ERawImageFormat::GetNameView(Type Format)
+{
+	switch (Format)
+	{
+	case ERawImageFormat::G8:  return UTF8TEXTVIEW("G8");
+	case ERawImageFormat::G16: return UTF8TEXTVIEW("G16");
+	case ERawImageFormat::R16F: return UTF8TEXTVIEW("R16F");
+	case ERawImageFormat::R32F: return UTF8TEXTVIEW("R32F");
+	case ERawImageFormat::BGRA8: return UTF8TEXTVIEW("BGRA8");
+	case ERawImageFormat::BGRE8: return UTF8TEXTVIEW("BGRE8");
+	case ERawImageFormat::RGBA16: return UTF8TEXTVIEW("RGBA16");
+	case ERawImageFormat::RGBA16F: return UTF8TEXTVIEW("RGBA16F");
+	case ERawImageFormat::RGBA32F: return UTF8TEXTVIEW("RGBA32F");
+	default:
+		check(0);
+		return UTF8TEXTVIEW("invalid");
+	}
+}
+
+
 IMAGECORE_API const TCHAR * ERawImageFormat::GetName(Type Format)
 {
 	switch (Format)
@@ -1327,6 +1348,24 @@ IMAGECORE_API const TCHAR * ERawImageFormat::GetName(Type Format)
 		check(0);
 		return TEXT("invalid");
 	}
+}
+
+bool ERawImageFormat::GetFormatFromString(FUtf8StringView InString, ERawImageFormat::Type& OutType)
+{
+	if (InString.Compare(UTF8TEXTVIEW("G8"), ESearchCase::IgnoreCase) == 0) { OutType = ERawImageFormat::G8; return true; }
+	else if (InString.Compare(UTF8TEXTVIEW("G16"), ESearchCase::IgnoreCase) == 0) { OutType = ERawImageFormat::G16; return true; }
+	else if (InString.Compare(UTF8TEXTVIEW("R16F"), ESearchCase::IgnoreCase) == 0) { OutType = ERawImageFormat::R16F; return true; }
+	else if (InString.Compare(UTF8TEXTVIEW("R32F"), ESearchCase::IgnoreCase) == 0) { OutType = ERawImageFormat::R32F; return true; }
+	else if (InString.Compare(UTF8TEXTVIEW("BGRA8"), ESearchCase::IgnoreCase) == 0) { OutType = ERawImageFormat::BGRA8; return true; }
+	else if (InString.Compare(UTF8TEXTVIEW("BGRE8"), ESearchCase::IgnoreCase) == 0) { OutType = ERawImageFormat::BGRE8; return true; }
+	else if (InString.Compare(UTF8TEXTVIEW("RGBA16"), ESearchCase::IgnoreCase) == 0) { OutType = ERawImageFormat::RGBA16; return true; }
+	else if (InString.Compare(UTF8TEXTVIEW("RGBA16F"), ESearchCase::IgnoreCase) == 0) { OutType = ERawImageFormat::RGBA16F; return true; }
+	else if (InString.Compare(UTF8TEXTVIEW("RGBA32F"), ESearchCase::IgnoreCase) == 0) { OutType = ERawImageFormat::RGBA32F; return true; }
+	else if (InString.Compare(UTF8TEXTVIEW("Invalid"), ESearchCase::IgnoreCase) == 0) { OutType = ERawImageFormat::Invalid; return true; }
+
+	// We distinguish between "they stored invalid on purpose" and "we didn't recognize it" by the return value.
+	OutType = ERawImageFormat::Invalid;
+	return false;
 }
 
 IMAGECORE_API int64 ERawImageFormat::GetBytesPerPixel(Type Format)
@@ -1685,3 +1724,39 @@ void FImageCore::TransformToWorkingColorSpace(const FImageView& InLinearImage, c
 			ImageColors[TexelIndex] = SaturateToHalfFloat(Color);
 		});
 }
+
+static constexpr uint32 ImageInfoSerializationVersion = 1;
+
+void FImageInfo::ImageInfoToCompactBinary(FCbObject& OutObject) const
+{
+	FCbWriter Writer;
+	Writer.BeginObject();
+	Writer.AddInteger("Version", ImageInfoSerializationVersion);
+	Writer.AddInteger("SizeX", SizeX);
+	Writer.AddInteger("SizeY", SizeY);
+	Writer.AddInteger("NumSlices", NumSlices);
+	Writer.AddInteger("GammaSpace", (uint8)GammaSpace);
+	Writer.AddString("Format", ERawImageFormat::GetNameView(Format));
+	Writer.EndObject();
+	OutObject = Writer.Save().AsObject();
+}
+
+bool FImageInfo::ImageInfoFromCompactBinary(const FCbObject& InObject)
+{
+	if (InObject["Version"].AsUInt32() != ImageInfoSerializationVersion)
+	{
+		return false;
+	}
+
+	SizeX = InObject["SizeX"].AsInt32();
+	SizeY = InObject["SizeY"].AsInt32();
+	NumSlices = InObject["NumSlices"].AsInt32();
+	GammaSpace = (EGammaSpace)InObject["GammaSpace"].AsUInt8();
+	if (ERawImageFormat::GetFormatFromString(InObject["Format"].AsString(), Format) == false)
+	{
+		return false;
+	}
+
+	return true;
+}
+

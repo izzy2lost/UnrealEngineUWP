@@ -32,6 +32,7 @@
 #include "Engine/TextureCube.h"
 #include "Engine/RendererSettings.h"
 #include "ColorSpace.h"
+#include "ImageCoreBP.h"
 #include "ImageCoreUtils.h"
 #include "ImageUtils.h"
 #include "Algo/Unique.h"
@@ -144,6 +145,7 @@ UTexture::UTexture(const FObjectInitializer& ObjectInitializer)
 #endif
 	, TextureReference(*new FTextureReference())
 {
+	Availability = ETextureAvailability::GPU;
 	SRGB = true;
 	Filter = TF_Default;
 	MipLoadOptions = ETextureMipLoadOptions::Default;
@@ -3660,6 +3662,11 @@ FName GetDefaultTextureFormatName( const ITargetPlatform* TargetPlatform, const 
 		}
 	}
 
+	// if we are using a placeholder texture, just DXT it with no alpha.
+	if (Texture->Availability == ETextureAvailability::CPU)
+	{
+		TextureFormatName = NameDXT1;
+	}
 #endif //WITH_EDITOR
 
 	//FName Result = ConditionalGetPrefixedFormat(TextureFormatName, TargetPlatform, bOodleTextureSdkVersionIsNone);

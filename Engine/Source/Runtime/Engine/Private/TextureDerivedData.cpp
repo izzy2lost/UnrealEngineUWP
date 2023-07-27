@@ -33,6 +33,7 @@
 #include "DerivedDataRequestOwner.h"
 #include "Hash/xxhash.h"
 #include "ImageCoreUtils.h"
+#include "ImageUtils.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Interfaces/ITextureFormat.h"
@@ -318,6 +319,13 @@ static void SerializeForKey(FArchive& Ar, const FTextureBuildSettings& Settings)
 		// @todo SerializeForKey these can go away whenever we bump the overall ddc key
 		// texture processing for cubemaps generated from longlat sources changed, so modify the key :
 		TempGuid = FGuid(0x3D642836, 0xEBF64714, 0x9E8E3241, 0x39F66906);
+		Ar << TempGuid;
+	}
+
+	if (Settings.bCPUAccessible)
+	{
+		// @todo SerializeForKey these can go away whenever we bump the overall ddc key
+		TempGuid = FGuid(0x583A3B04, 0xC41C4E2C, 0x9FB77E7D, 0xC7AEFE7E);
 		Ar << TempGuid;
 	}
 
@@ -905,7 +913,14 @@ static void GetTextureBuildSettings(
 	static const auto CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures")); check(CVarVirtualTexturesEnabled);
 	// A ULightMapVirtualTexture2D with multiple layers saved in MapBuildData could be loaded with the r.VirtualTexture disabled, it will generate DDC before we decide to invalidate the light map data, to skip the ensure failure let it generate VT DDC anyway.
 	const bool bForVirtualTextureStreamingBuild = ULightMapVirtualTexture2D::StaticClass() == Texture.GetClass();
-	const bool bVirtualTextureStreaming = bForVirtualTextureStreamingBuild || (CVarVirtualTexturesEnabled->GetValueOnAnyThread() && bPlatformSupportsVirtualTextureStreaming && Texture.VirtualTextureStreaming);
+	bool bVirtualTextureStreaming = bForVirtualTextureStreamingBuild || (CVarVirtualTexturesEnabled->GetValueOnAnyThread() && bPlatformSupportsVirtualTextureStreaming && Texture.VirtualTextureStreaming);
+	if (Texture.Availability == ETextureAvailability::CPU && TextureClass == ETextureClass::TwoD)
+	{
+		// We are swapping with a placeholder - don't VT it.
+		OutBuildSettings.bCPUAccessible = true;
+		bVirtualTextureStreaming = false;
+		MipGenSettings = TMGS_NoMipmaps;
+	}
 
 
 	// Virtual textures must have mips as VT memory management relies on a 1:1 texel/pixel mapping, which in turn
@@ -1470,6 +1485,29 @@ void FTexturePlatformData::FinishCache()
 	}
 }
 
+void FTexturePlatformData::Reset()
+{
+	Mips.Empty();
+	SizeX = 0;
+	SizeY = 0;
+	PixelFormat = PF_Unknown;
+	PackedData = 0;
+	OptData = FOptTexturePlatformData();
+	if (VTData)
+	{
+		delete VTData;
+	}
+	VTData = nullptr;
+	CPUCopy.SafeRelease();
+
+#if WITH_EDITORONLY_DATA
+	bSourceMipsAlphaDetectedValid = false;
+	PreEncodeMipsHash = 0;
+	ResultMetadata.bIsValid = false;
+#endif
+}
+
+
 typedef TArray<uint32, TInlineAllocator<MAX_TEXTURE_MIP_COUNT> > FAsyncMipHandles;
 typedef TArray<uint32> FAsyncVTChunkHandles;
 
@@ -1995,7 +2033,11 @@ FTexturePlatformData::~FTexturePlatformData()
 		AsyncTask = nullptr;
 	}
 #endif
-	if (VTData) delete VTData;
+	if (VTData) 
+	{
+		delete VTData;
+	}
+	CPUCopy = nullptr;
 }
 
 bool FTexturePlatformData::IsReadyForAsyncPostLoad() const
@@ -2780,6 +2822,23 @@ static void SerializePlatformData(
 	if (PlatformData->GetHasOptData())
 	{
 		Ar << PlatformData->OptData;
+	}
+
+	if (PlatformData->GetHasCpuCopy())
+	{
+		if (Ar.IsLoading())
+		{
+			PlatformData->CPUCopy = FSharedImageConstRef(new FSharedImage());
+		}
+
+		// we have to cast off the const since we load in to it here as well as save.
+		FSharedImage* ImageToSerialize = (FSharedImage*)PlatformData->CPUCopy.GetReference();
+		Ar << ImageToSerialize->SizeX;
+		Ar << ImageToSerialize->SizeY;
+		Ar << ImageToSerialize->NumSlices;
+		Ar << (uint8&)ImageToSerialize->Format;
+		Ar << ImageToSerialize->GammaSpace;
+		Ar << ImageToSerialize->RawData;
 	}
 
 	if (bCooked)

@@ -22,6 +22,11 @@ namespace UE
 {
 namespace TextureBuildUtilities
 {
+	enum
+	{
+		// The width and height of the placeholder gpu texture we create when the texture is cpu accessible.
+		PLACEHOLDER_TEXTURE_SIZE = 4
+	};
 
 namespace EncodedTextureExtendedData
 {
@@ -76,6 +81,9 @@ FORCEINLINE const FName TextureFormatRemovePrefixFromName(FName const& InName)
 // Get the format to use for output of the VT Intermediate stage, cutting into tiles and processing
 //	  the next step will then encode from this format to the desired output format
 TEXTUREBUILDUTILITIES_API ERawImageFormat::Type GetVirtualTextureBuildIntermediateFormat(const FTextureBuildSettings& BuildSettings);
+
+TEXTUREBUILDUTILITIES_API void GetPlaceholderTextureImageInfo(FImageInfo* OutImageInfo);
+TEXTUREBUILDUTILITIES_API void GetPlaceholderTextureImage(FImage* OutImage);
 
 } // namespace TextureBuildUtilities
 } // namespace UE
