@@ -136,6 +136,64 @@ bool USmartObjectBlueprintFunctionLibrary::MarkSmartObjectSlotAsFree(
 	return false;
 }
 
+FString USmartObjectBlueprintFunctionLibrary::Conv_SmartObjectRequestResultToString(const FSmartObjectRequestResult& Result)
+{
+	return LexToString(Result);
+}
+
+FString USmartObjectBlueprintFunctionLibrary::Conv_SmartObjectDefinitionToString(const USmartObjectDefinition* Definition)
+{
+	if (Definition)
+	{
+		return LexToString(*Definition);	
+	}
+
+	UE_LOG(LogSmartObject, Error, TEXT("Attempted to convert null SmartObjectDefinition to string!"));
+	
+	static const FString InvalidDefinitionString = TEXT("INVALID");
+	return InvalidDefinitionString;
+}
+
+FString USmartObjectBlueprintFunctionLibrary::Conv_SmartObjectHandleToString(const FSmartObjectHandle& Handle)
+{
+	return LexToString(Handle);
+}
+
+bool USmartObjectBlueprintFunctionLibrary::NotEqual_SmartObjectHandleSmartObjectHandle(const FSmartObjectHandle& A, const FSmartObjectHandle& B)
+{
+	return A != B;
+}
+
+bool USmartObjectBlueprintFunctionLibrary::Equal_SmartObjectHandleSmartObjectHandle(const FSmartObjectHandle& A, const FSmartObjectHandle& B)
+{
+	return A == B;
+}
+
+bool USmartObjectBlueprintFunctionLibrary::IsValidSmartObjectHandle(const FSmartObjectHandle& Handle)
+{
+	return Handle.IsValid();
+}
+
+FString USmartObjectBlueprintFunctionLibrary::Conv_SmartObjectSlotHandleToString(const FSmartObjectSlotHandle& Handle)
+{
+	return LexToString(Handle);
+}
+
+bool USmartObjectBlueprintFunctionLibrary::Equal_SmartObjectSlotHandleSmartObjectSlotHandle(const FSmartObjectSlotHandle& A, const FSmartObjectSlotHandle& B)
+{
+	return A == B;
+}
+
+bool USmartObjectBlueprintFunctionLibrary::NotEqual_SmartObjectSlotHandleSmartObjectSlotHandle(const FSmartObjectSlotHandle& A, const FSmartObjectSlotHandle& B)
+{
+	return A != B;
+}
+
+bool USmartObjectBlueprintFunctionLibrary::IsValidSmartObjectSlotHandle(const FSmartObjectSlotHandle& Handle)
+{
+	return Handle.IsValid();
+}
+
 bool USmartObjectBlueprintFunctionLibrary::SetMultipleSmartObjectsEnabled(const TArray<AActor*>& SmartObjectActors, const bool bEnabled)
 {
 	bool bSuccess = true;
