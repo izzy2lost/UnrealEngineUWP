@@ -1017,7 +1017,7 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 	private static _makeBlockageInfo(errstr: string, errlong: string, arg: ChangeInfo | PendingChange, startedAt: Date, targetBranch?: Branch): BlockagePauseInfo {
 		const MAX_LEN = 700
 		if (errlong.length > MAX_LEN) {
-			errlong = errlong.substr(0,MAX_LEN) + "..."
+			errlong = errlong.substring(0,MAX_LEN) + "..."
 		}
 
 		const maybePendingChange = arg as PendingChange
@@ -1516,7 +1516,7 @@ export class NodeBot extends PerforceStatefulBot implements NodeBotInterface {
 				for (const entry of describeResult!.entries) {
 					const fileExtIndex = entry.depotFile.lastIndexOf('.')
 					if (fileExtIndex !== -1) {
-						const fileExt = entry.depotFile.substr(fileExtIndex + 1)
+						const fileExt = entry.depotFile.substring(fileExtIndex + 1)
 						if (fileExt === 'uasset' || fileExt === 'umap') {
 							changeContainsAssets = true
 							break

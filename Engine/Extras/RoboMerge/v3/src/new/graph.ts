@@ -670,7 +670,7 @@ function parseTargetsAndFlagsImpl(tokens: string[], logger: ContextualLogger, fo
 		const prefix = token.charAt(0)
 		if (prefix === '#' || prefix === '$') { // $ provided as alternative, but not used as far as I know
 			// set the flag and continue the loop
-			const flagname = FLAGMAP[tokenLower.substr(1)]
+			const flagname = FLAGMAP[tokenLower.substring(1)]
 			if (flagname) {
 				flags.add(flagname)
 			}
@@ -684,7 +684,7 @@ function parseTargetsAndFlagsImpl(tokens: string[], logger: ContextualLogger, fo
 		let mergeMode = forcedMode || 'normal'
 		if (prefix === '!' || prefix === '-')
 		{
-			targetName = token.substr(1)
+			targetName = token.substring(1)
 			mergeMode = prefix === '!' ? 'null' : 'skip'
 		}
 

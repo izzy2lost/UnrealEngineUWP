@@ -392,7 +392,7 @@ class EdgeBotImpl extends PerforceStatefulBot {
 			// e.g. #ROBOMERGE-SOURCE: CL 12740994 in //Fortnite/Release-12.30/... via CL 12741005 via CL 12741374
 			// to 						CL 12740994 via CL 12741005 via CL 12741374
 			const viaIndex = source.indexOf(' via ')
-			source = 'CL ' + info.source_cl + (viaIndex === -1 ? '' : source.substr(viaIndex))
+			source = 'CL ' + info.source_cl + (viaIndex === -1 ? '' : source.substring(viaIndex))
 		}
 
 		description += `#ROBOMERGE-SOURCE: ${source}\n`

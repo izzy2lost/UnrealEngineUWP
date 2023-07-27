@@ -106,9 +106,9 @@ export function parseZTag(buffer: string, opts?: ExecZtagOpts) {
 	let ztag_start = buffer.indexOf('...');
 	if (ztag_start > 0) {
 		// split the start off the buffer, then split it into newlines
-		let preamble = buffer.substr(0, ztag_start).trim();
+		let preamble = buffer.substring(0, ztag_start).trim();
 		output.push(preamble.split(newline_rex));
-		buffer = buffer.substr(ztag_start);
+		buffer = buffer.substring(ztag_start);
 	}
 	else if (ztag_start < 0) {
 		let preamble = buffer.trim();
@@ -146,8 +146,8 @@ export function parseZTag(buffer: string, opts?: ExecZtagOpts) {
 			let key, value;
 			let s = pair.indexOf(' ');
 			if (s >= 0) {
-				key = pair.substr(0, s);
-				value = pair.substr(s + 1);
+				key = pair.substring(0, s);
+				value = pair.substring(s + 1);
 				if (value.indexOf('\n') >= 0 && !(opts && opts.multiline)) {
 					let lines = value.split('\n');
 					value = lines.shift();
