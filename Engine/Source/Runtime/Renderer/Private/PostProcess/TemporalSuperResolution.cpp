@@ -198,7 +198,7 @@ TAutoConsoleVariable<int32> CVarTSRResurrectionEnable(
 	TEXT("Command \"vis TSR.History.Color INDEX1\" one of the persistent frame being recorded and later used for history resurrection.\n")
 	TEXT("\n")
 	TEXT("Currently experimental and disabled by default."),
-	ECVF_RenderThreadSafe);
+	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<int32> CVarTSRResurrectionPersistentFrameCount(
 	TEXT("r.TSR.Resurrection.PersistentFrameCount"), 2,
