@@ -56,8 +56,8 @@ export class IPC {
 			case 'getp4tasks': return { ...OPERATION_SUCCESS, data: getRunningPerforceCommands() } 
 			case 'getWorkspaces': return this.getWorkspaces(msg.args![0] as string)
 			case 'getPersistence': return this.getPersistence(msg.args![0] as string)
-			case 'traceRoute': return this.traceRoute(msg.args![0] as Query)
-			case 'dumpGraph': return this.dumpGraph()
+			case 'traceRoute': return this.traceRoute(msg.args![0] as Query, msg.args![1] as Set<string>)
+			case 'dumpGraph': return this.dumpGraph(msg.args![0] as Set<string>)
 			case 'getIsRunning': return this.isRunning(msg.args![0] as string)
 			case 'restartBot': return this.restartBot(msg.args![0] as string, msg.args![1] as string)
 			case 'crashGraphBot': return this.crashGraphBot(msg.args![0] as string, msg.args![1] as string)
@@ -164,7 +164,7 @@ export class IPC {
 		return {statusCode: 400, message: `Unknown bot '${botname}'`}
 	}
 
-	private async traceRoute(query: Query): Promise<OperationReturnType> {
+	private async traceRoute(query: Query, tags?: Set<string>): Promise<OperationReturnType> {
 
 		const cl = parseInt(query.cl)
 		if (isNaN(cl)) {
@@ -180,13 +180,24 @@ export class IPC {
 				return { statusCode: 400, message: routeOrError } 
 
 			const result: any[] = []
-			for (const edge of routeOrError) {
+			for (let edgeIdx=0; edgeIdx < routeOrError.length; edgeIdx++) {
+				let edge = routeOrError[edgeIdx]
 				const bot = edge.sourceAnnotation as NodeBotInterface
-				result.push({
-					name: bot.branchGraph.botname + ':' + bot.branch.name,
-					stream: edge.source.stream,
-					lastCl: bot.lastCl
-				})
+				let canShowResult = true
+				if (tags) {
+					canShowResult = Status.includeBranch(bot.branchGraph.config.visibility, tags, this.ipcLogger)
+				}
+				if (canShowResult) {
+					result.push({
+						name: bot.branchGraph.botname + ':' + bot.branch.name,
+						stream: edge.source.stream,
+						lastCl: bot.lastCl
+					})
+				} else if (edgeIdx == 0) {
+					return { statusCode: 400, message: "UNKNOWN_SOURCE_BRANCH" } 
+				} else if (edgeIdx == routeOrError.length - 1) {
+					return { statusCode: 400, message: "UNKNOWN_TARGET_BRANCH" } 
+				}
 			}
 
 			success = true
@@ -200,8 +211,8 @@ export class IPC {
 		}
 	}
 
-	private dumpGraph(): OperationReturnType {
-		return { ...OPERATION_SUCCESS, data: this.robo.graph.graph.dump() } 
+	private dumpGraph(tags: Set<string>): OperationReturnType {
+		return { ...OPERATION_SUCCESS, data: this.robo.graph.graph.dump(tags, this.ipcLogger) } 
 	}
 
 	private isRunning(botname: string): OperationReturnType {

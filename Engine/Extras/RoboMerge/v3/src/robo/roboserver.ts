@@ -455,7 +455,7 @@ class RoboWebApp implements AppInterface {
 		return await this.sendMessage('doNodeOp', [botname, nodeName, nodeOp, this.getQueryFromSecure()])
 	}
 
-	@SecureHandler('GET', '/api/p4tasks')
+	@SecureHandler('GET', '/api/p4tasks', {requiredTags: ['fte']})
 	async getP4Tasks() {
 		return (await this.sendMessage('getp4tasks')).data || []
 	}
@@ -515,13 +515,17 @@ class RoboWebApp implements AppInterface {
 		return result.data
 	}
 
-	@Handler('GET', '/api/trace-route')
+	@SecureHandler('GET', '/api/trace-route')
 	async traceRoute() {
-		const query = this.getQuery()
+		if (!this.authData) {
+			throw new Error('Secure call but no auth data?')
+		}
+
+		const query = this.getQueryFromSecure()
 		if (!query.cl || !query.from || !query.to) {
 			return {statusCode: 400, message: '"cl", "from" and "to" query arguments required'}
 		}
-		const result = await this.sendMessage('traceRoute', [query])
+		const result = await this.sendMessage('traceRoute', [query, this.authData.tags])
 		return result.data ? {...result, success: true, route: result.data} :
 			{...result, success: false, code: result.message}
 			
@@ -529,7 +533,10 @@ class RoboWebApp implements AppInterface {
 
 	@SecureHandler('GET', '/debug/dump-graph')
 	async dumpGraph() {
-		return (await this.sendMessage('dumpGraph')).data
+		if (!this.authData) {
+			throw new Error('Secure call but no auth data?')
+		}
+		return (await this.sendMessage('dumpGraph', [this.authData.tags])).data
 	}
 
 	// https://localhost:4433/op/acknowledge?bot=TEST&branch=Main&cl=1237983421
@@ -666,7 +673,7 @@ class RoboWebApp implements AppInterface {
 		return queryObj
 	}
 
-	private getQuery() : {[key: string]: string} {
+	/*private getQuery() : {[key: string]: string} {
 		if (this.authData) {
 			throw new Error('do not use getQuery for secure calls')
 		}
@@ -676,7 +683,7 @@ class RoboWebApp implements AppInterface {
 			queryObj[key] = val
 		}
 		return queryObj
-	}
+	}*/
 
 	getSentryUser() : Sentry.User {
 		if (!this.authData) {

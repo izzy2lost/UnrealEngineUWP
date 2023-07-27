@@ -4,6 +4,7 @@ import { setDefault, sortBy } from '../common/helper';
 import { ContextualLogger } from '../common/logger';
 import { PerforceContext } from '../common/perforce';
 import { Branch, BranchGraphInterface } from '../robo/branch-interfaces';
+import { Status } from '../robo/status';
 
 export type TargetName = string & { __targetBrand: any }
 export type Stream = string & { __streamBrand: any }
@@ -193,10 +194,21 @@ export class Graph {
 		return result
 	}
 
-	dump() {
+	dump(tags?: Set<string>, logger?: ContextualLogger) {
+
+		let validBots: string[] = []
+		if (tags) {
+			validBots = Array.from(this.branchGraphAliases)
+			                 .filter(([_,v]) => Status.includeBranch(v.config.visibility, tags, logger))
+			                 .map(([k,_]) => k)
+		}
+
 		const nodeNames = new Map<Node, TargetName[]>()
 		for (const [name, node] of this.targetNames) {
-			setDefault(nodeNames, node, []).push(name)
+			const botName = name.substring(0,name.search(':'))
+			if (!tags || validBots.includes(botName)) {
+				setDefault(nodeNames, node, []).push(name)
+			}
 		}
 
 		const orderedNodes = [...nodeNames.keys()]
@@ -208,7 +220,9 @@ export class Graph {
 			info.aliases.sort()
 
 			for (const edge of this.getEdgesBySource(node)) {
-				info.edges.push({target: edge.target.debugName, flags: [...edge.flags].join(', ')})
+				if (!tags || validBots.includes(edge.bot)) {
+					info.edges.push({target: edge.target.debugName, flags: [...edge.flags].join(', ')})
+				}
 			}
 			result.push([node.debugName, info])
 		}
@@ -824,11 +838,11 @@ export class Trace {
 		if (outEdges.size === 0)
 			return 'CHANGE_WILL_NOT_REACH_TARGET'
 
-// will have to check if the source node is served by multiple bots, and if so, calculate targets for each of them
-// for now, just pick one
-const arbitraryEdge = outEdges.values().next().value
-const botname = arbitraryEdge.bot
-const isDefaultBot = arbitraryEdge.flags.has('general')
+		// will have to check if the source node is served by multiple bots, and if so, calculate targets for each of them
+		// for now, just pick one
+		const arbitraryEdge = outEdges.values().next().value
+		const botname = arbitraryEdge.bot
+		const isDefaultBot = arbitraryEdge.flags.has('general')
 
 		const relevantTokens = tokensAndBots
 			.filter(([_, bot]) => (bot === botname || isDefaultBot && bot === 'default'))
