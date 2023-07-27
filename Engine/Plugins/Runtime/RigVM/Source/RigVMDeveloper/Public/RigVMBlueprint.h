@@ -299,6 +299,7 @@ public:
 	virtual void HandleRigVMGraphRemoved(const FRigVMClient* InClient, const FString& InNodePath) override;
 	virtual void HandleRigVMGraphRenamed(const FRigVMClient* InClient, const FString& InOldNodePath, const FString& InNewNodePath) override;
 	virtual void HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure) override;
+	virtual const TMap<FString, FSoftObjectPath>& GetUserDefinedStructGuidToObjectPath() const override { return UserDefinedStructGuidToPathName; }
 
 	FOnRigVMRequestInspectObject& OnRequestInspectObject() { return OnRequestInspectObjectEvent; }
 	void RequestInspectObject(const TArray<UObject*>& InObjects) { OnRequestInspectObjectEvent.Broadcast(InObjects); }
@@ -420,6 +421,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Python Log Settings")
 	FRigVMPythonSettings PythonLogSettings;
+
+	UPROPERTY()
+	TMap<FString, FSoftObjectPath> UserDefinedStructGuidToPathName;
 
 protected:
 

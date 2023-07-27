@@ -50,6 +50,8 @@ public:
 	// Reacts to a request to configure a controller
 	virtual void HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure) = 0;
 
+	// Returns a map from user defined struct to object path used to resolve types
+	virtual const TMap<FString, FSoftObjectPath>& GetUserDefinedStructGuidToObjectPath() const;
 };
 
 UINTERFACE()

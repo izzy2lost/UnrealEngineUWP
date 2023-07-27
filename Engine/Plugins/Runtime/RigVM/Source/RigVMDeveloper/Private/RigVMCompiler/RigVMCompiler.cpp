@@ -474,6 +474,8 @@ bool URigVMCompiler::Compile(TArray<URigVMGraph*> InGraphs, URigVMController* In
 			{
 				if(!URigVMController::EnsurePinValidity(Pin, true))
 				{
+					static const FString InvalidPinEncountered = TEXT("Pin @@ is not valid - potentially using an invalid type?");
+					Settings.ASTSettings.Report(EMessageSeverity::Error, Pin, InvalidPinEncountered);
 					return false;
 				}
 			}

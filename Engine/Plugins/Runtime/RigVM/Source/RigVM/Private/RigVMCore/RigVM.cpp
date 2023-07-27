@@ -11,10 +11,12 @@
 #include "RigVMObjectVersion.h"
 #include "HAL/PlatformTLS.h"
 #include "Async/ParallelFor.h"
+#include "Engine/UserDefinedEnum.h"
 #include "GenericPlatform/GenericPlatformSurvey.h"
 #include "RigVMCore/RigVMStruct.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/UObjectIterator.h"
+#include "UObject/ObjectSaveContext.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVM)
 
@@ -158,6 +160,23 @@ void URigVM::Save(FArchive& Ar)
 		}
 
 		Ar << OperandToDebugRegisters;
+		Ar << UserDefinedStructGuidToPathName;
+	}
+
+	// advertise dependencies on user defined structs and user defined enums
+	// to make sure they are loaded prior to the VM.
+	if(Ar.IsObjectReferenceCollector())
+	{
+		const TArray<const UObject*> UserDefinedDependencies = GetUserDefinedDependencies();
+		for(const UObject* UserDefinedDependency : UserDefinedDependencies)
+		{
+			if(Cast<UUserDefinedStruct>(UserDefinedDependency) ||
+				Cast<UUserDefinedEnum>(UserDefinedDependency))
+			{
+				FSoftObjectPath PathToTypeObject(UserDefinedDependency);
+				PathToTypeObject.Serialize(Ar);
+			}
+		}
 	}
 }
 
@@ -210,6 +229,15 @@ void URigVM::Load(FArchive& Ar)
 			{
 				Ar << OperandToDebugRegisters;
 			}
+			
+			if (Ar.CustomVer(FRigVMObjectVersion::GUID) >= FRigVMObjectVersion::VMStoringUserDefinedStructMap)
+			{
+				Ar << UserDefinedStructGuidToPathName;
+			}
+			else
+			{
+				UserDefinedStructGuidToPathName.Reset();
+			}
 		}
 
 		// we only deal with virtual machines now that use the new memory infrastructure.
@@ -244,6 +272,15 @@ void URigVM::Load(FArchive& Ar)
 		    Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::RigVMSaveDebugMapInGraphFunctionData)
 		{
 			Ar << OperandToDebugRegisters;
+		}
+		
+		if (Ar.CustomVer(FRigVMObjectVersion::GUID) >= FRigVMObjectVersion::VMStoringUserDefinedStructMap)
+		{
+			Ar << UserDefinedStructGuidToPathName;
+		}
+		else
+		{
+			UserDefinedStructGuidToPathName.Reset();
 		}
 	}
 
@@ -305,6 +342,22 @@ void URigVM::PostLoad()
 		InvalidateCachedMemory();
 	}
 }
+
+void URigVM::PreSave(FObjectPreSaveContext SaveContext)
+{
+	const TArray<const UObject*> UserDefinedDependencies = GetUserDefinedDependencies();
+	UserDefinedStructGuidToPathName.Reset();
+
+	for(const UObject* UserDefinedDependency : UserDefinedDependencies)
+	{
+		if(const UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(UserDefinedDependency))
+		{
+			const FString GuidBasedName = RigVMTypeUtils::GetUniqueStructTypeName(UserDefinedStruct);
+			UserDefinedStructGuidToPathName.Add(GuidBasedName, UserDefinedStruct);
+		}
+	}
+}
+
 
 #if WITH_EDITORONLY_DATA
 void URigVM::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass)
@@ -527,6 +580,7 @@ void URigVM::Reset(bool IsIgnoringArchetypeRef)
 		Parameters.Reset();
 		ParametersNameMap.Reset();
 		OperandToDebugRegisters.Reset();
+		UserDefinedStructGuidToPathName.Reset();
 	}
 
 	if(!IsIgnoringArchetypeRef)
@@ -555,6 +609,7 @@ void URigVM::Empty(FRigVMExtendedExecuteContext& Context)
 	Instructions.Empty();
 	Parameters.Empty();
 	ParametersNameMap.Empty();
+	UserDefinedStructGuidToPathName.Empty();
 	ExternalVariables.Empty();
 
 	InvalidateCachedMemory();
@@ -662,6 +717,7 @@ void URigVM::CopyFrom(URigVM* InVM, bool bDeferCopy, bool bReferenceLiteralMemor
 	ParametersNameMap = InVM->ParametersNameMap;
 	
 	OperandToDebugRegisters = InVM->OperandToDebugRegisters;
+	UserDefinedStructGuidToPathName = InVM->UserDefinedStructGuidToPathName;
 
 	if (bCopyExternalVariables)
 	{
@@ -750,7 +806,10 @@ URigVMMemoryStorage* URigVM::GetMemoryByType(ERigVMMemoryType InMemoryType, bool
 					}
 				}
 			}
-			check(WorkMemoryStorageObject->GetOuter() == this);
+			if(WorkMemoryStorageObject)
+			{
+				check(WorkMemoryStorageObject->GetOuter() == this);
+			}
 			return WorkMemoryStorageObject;
 		}
 		case ERigVMMemoryType::Debug:
@@ -778,7 +837,10 @@ URigVMMemoryStorage* URigVM::GetMemoryByType(ERigVMMemoryType InMemoryType, bool
 					}
 				}
 			}
-			check(DebugMemoryStorageObject->GetOuter() == this);
+			if(DebugMemoryStorageObject)
+			{
+				check(DebugMemoryStorageObject->GetOuter() == this);
+			}	
 			return DebugMemoryStorageObject;
 		}
 		default:
@@ -970,11 +1032,14 @@ bool URigVM::ResolveFunctionsIfRequired()
 		GetFactories().Reset();
 		GetFactories().SetNumZeroed(GetFunctionNames().Num());
 
+		FRigVMTypeResolvalInfo ResolvalInfo;
+		ResolvalInfo.CPPTypeToObjectPath = UserDefinedStructGuidToPathName;
+
 		TArray<FName>& FunctionNames = GetFunctionNames();
 		for (int32 FunctionIndex = 0; FunctionIndex < FunctionNames.Num(); FunctionIndex++)
 		{
 			const FString FunctionNameString = FunctionNames[FunctionIndex].ToString();
-			if(const FRigVMFunction* Function = FRigVMRegistry::Get().FindFunction(*FunctionNameString))
+			if(const FRigVMFunction* Function = FRigVMRegistry::Get().FindFunction(*FunctionNameString, ResolvalInfo))
 			{
 				GetFunctions()[FunctionIndex] = Function;
 				GetFactories()[FunctionIndex] = Function->Factory;
@@ -2651,6 +2716,71 @@ void URigVM::RefreshExternalPropertyPaths()
 				ExternalPropertyPathDescriptions[PropertyPathIndex].SegmentPath);
 		}
 	}
+}
+
+TArray<const UObject*> URigVM::GetUserDefinedDependencies()
+{
+	TArray<const UObject*> Dependencies;
+	auto ProcessMemory = [&Dependencies](const URigVMMemoryStorage* Memory)
+	{
+		if(Memory == nullptr)
+		{
+			return;
+		}
+
+		const TArray<const FProperty*>& Properties = Memory->GetProperties();
+
+		for(const FProperty* Property : Properties)
+		{
+			const FProperty* PropertyToVisit = Property;
+			while(const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(PropertyToVisit))
+			{
+				PropertyToVisit = ArrayProperty->Inner;
+			}
+			if(const FStructProperty* StructProperty = CastField<FStructProperty>(PropertyToVisit))
+			{
+				if(const UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(StructProperty->Struct))
+				{
+					Dependencies.AddUnique(UserDefinedStruct);
+				}
+			}
+			else if(const FEnumProperty* EnumProperty = CastField<FEnumProperty>(PropertyToVisit))
+			{
+				if(const UUserDefinedEnum* UserDefinedEnum = Cast<UUserDefinedEnum>(EnumProperty->GetEnum()))
+				{
+					Dependencies.AddUnique(UserDefinedEnum);
+				}
+			}
+			else if(const FByteProperty* ByteProperty = CastField<FByteProperty>(PropertyToVisit))
+			{
+				if(const UUserDefinedEnum* UserDefinedEnum = Cast<UUserDefinedEnum>(ByteProperty->Enum))
+				{
+					Dependencies.AddUnique(UserDefinedEnum);
+				}
+			}
+		}
+	};
+
+	ProcessMemory(GetLiteralMemory(false));
+	ProcessMemory(GetWorkMemory(false));
+
+	TArray<const FRigVMFunction*>& Functions = GetFunctions();
+	for(const FRigVMFunction* Function : Functions)
+	{
+		const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+		const TArray<TRigVMTypeIndex>& TypeIndices = Function->GetArgumentTypeIndices();
+		for(const TRigVMTypeIndex& TypeIndex : TypeIndices)
+		{
+			const FRigVMTemplateArgumentType& Type = Registry.GetType(TypeIndex);
+			if(Cast<UUserDefinedStruct>(Type.CPPTypeObject) ||
+				Cast<UUserDefinedEnum>(Type.CPPTypeObject))
+			{
+				Dependencies.AddUnique(Type.CPPTypeObject);
+			}
+		}
+	}
+
+	return Dependencies;
 }
 
 void URigVM::SetupInstructionTracking(FRigVMExtendedExecuteContext& Context, int32 InInstructionCount)

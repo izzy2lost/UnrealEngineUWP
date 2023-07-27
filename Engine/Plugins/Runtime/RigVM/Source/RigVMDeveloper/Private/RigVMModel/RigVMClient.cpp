@@ -14,6 +14,12 @@
 #include "ScopedTransaction.h"
 #endif
 
+const TMap<FString, FSoftObjectPath>& IRigVMClientHost::GetUserDefinedStructGuidToObjectPath() const
+{
+	static const TMap<FString, FSoftObjectPath> EmptyMap;
+	return EmptyMap;
+}
+
 void FRigVMClient::SetSchemaClass(TSubclassOf<URigVMSchema> InSchemaClass)
 {
 	check(InSchemaClass);

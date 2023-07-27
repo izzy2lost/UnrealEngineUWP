@@ -842,7 +842,7 @@ const FRigVMTemplateArgumentType& FRigVMRegistry::GetType(TRigVMTypeIndex InType
 	return EmptyType;
 }
 
-const FRigVMTemplateArgumentType& FRigVMRegistry::FindTypeFromCPPType(const FString& InCPPType) const
+const FRigVMTemplateArgumentType& FRigVMRegistry::FindTypeFromCPPType(const FString& InCPPType, const FRigVMTypeResolvalInfo* InResolvalInfo) const
 {
 	const int32 TypeIndex = GetTypeIndexFromCPPType(InCPPType);
 	if(ensure(Types.IsValidIndex(TypeIndex)))
@@ -854,7 +854,7 @@ const FRigVMTemplateArgumentType& FRigVMRegistry::FindTypeFromCPPType(const FStr
 	return EmptyType;
 }
 
-TRigVMTypeIndex FRigVMRegistry::GetTypeIndexFromCPPType(const FString& InCPPType) const
+TRigVMTypeIndex FRigVMRegistry::GetTypeIndexFromCPPType(const FString& InCPPType, const FRigVMTypeResolvalInfo* InResolvalInfo) const
 {
 	TRigVMTypeIndex Result = INDEX_NONE;
 	if(ensure(!InCPPType.IsEmpty()))
@@ -1309,13 +1309,13 @@ void FRigVMRegistry::RegisterObjectTypes(TConstArrayView<UClass*> InClasses)
 	}
 }
 
-const FRigVMFunction* FRigVMRegistry::FindFunction(const TCHAR* InName) const
+const FRigVMFunction* FRigVMRegistry::FindFunction(const TCHAR* InName, const FRigVMTypeResolvalInfo& InResolvalInfo) const
 {
 	FScopeLock FindFunctionScopeLock(&FindFunctionMutex);
-	return FindFunction_NoLock(InName);
+	return FindFunction_NoLock(InName, InResolvalInfo);
 }
 
-const FRigVMFunction* FRigVMRegistry::FindFunction_NoLock(const TCHAR* InName) const
+const FRigVMFunction* FRigVMRegistry::FindFunction_NoLock(const TCHAR* InName, const FRigVMTypeResolvalInfo& InResolvalInfo) const
 {
 	// Check first if the function is provided by internally registered rig units. 
 	if(const int32* FunctionIndexPtr = FunctionNameToIndex.Find(InName))
@@ -1333,7 +1333,7 @@ const FRigVMFunction* FRigVMRegistry::FindFunction_NoLock(const TCHAR* InName) c
 		{
 			if(const FRigVMTemplate* Template = Factory->GetTemplate())
 			{
-				const FRigVMTemplateTypeMap ArgumentTypes = Template->GetArgumentTypesFromString(SuffixString);
+				const FRigVMTemplateTypeMap ArgumentTypes = Template->GetArgumentTypesFromString(SuffixString, &InResolvalInfo);
 				if(ArgumentTypes.Num() == Template->NumArguments())
 				{
 					const int32 PermutationIndex = Template->FindPermutation(ArgumentTypes);
@@ -1376,7 +1376,7 @@ const FRigVMFunction* FRigVMRegistry::FindFunction_NoLock(const TCHAR* InName) c
 				{
 					NewStructOrFactoryName = StructPrefix + NewStructOrFactoryName;
 				}
-				const FRigVMFunction* RedirectedFunction = FindFunction_NoLock(*(NewStructOrFactoryName + TEXT("::") + SuffixString));
+				const FRigVMFunction* RedirectedFunction = FindFunction_NoLock(*(NewStructOrFactoryName + TEXT("::") + SuffixString), InResolvalInfo);
 				if(RedirectedFunction)
 				{
 					FRigVMRegistry& MutableRegistry = FRigVMRegistry::Get();
@@ -1390,13 +1390,13 @@ const FRigVMFunction* FRigVMRegistry::FindFunction_NoLock(const TCHAR* InName) c
 	return nullptr;
 }
 
-const FRigVMFunction* FRigVMRegistry::FindFunction(UScriptStruct* InStruct, const TCHAR* InName) const
+const FRigVMFunction* FRigVMRegistry::FindFunction(UScriptStruct* InStruct, const TCHAR* InName, const FRigVMTypeResolvalInfo& InResolvalInfo) const
 {
 	check(InStruct);
 	check(InName);
 	
 	const FString FunctionName = FString::Printf(TEXT("%s::%s"), *InStruct->GetStructCPPName(), InName);
-	return FindFunction(*FunctionName);
+	return FindFunction(*FunctionName, InResolvalInfo);
 }
 
 const TChunkedArray<FRigVMFunction>& FRigVMRegistry::GetFunctions() const

@@ -167,6 +167,7 @@ public:
 	virtual void Save(FArchive& Ar);
 	virtual void Load(FArchive& Ar);
 	virtual void PostLoad() override;
+	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 #if WITH_EDITORONLY_DATA
 	static void DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass);
 #endif
@@ -814,6 +815,8 @@ public:
 	void InvalidateCachedMemory();
 	void InvalidateCachedMemory(FRigVMExtendedExecuteContext& Context);
 	
+	const TMap<FString, FSoftObjectPath>& GetUserDefinedStructGuidToObjectPath() const { return UserDefinedStructGuidToPathName; }
+	
 private:
 	void CacheMemoryHandlesIfRequired(FRigVMExtendedExecuteContext& Context, TArrayView<URigVMMemoryStorage*> InMemory);
 	void RebuildByteCodeOnLoad();
@@ -864,6 +867,7 @@ private:
 
 	TArray<FRigVMExternalVariableDef> ExternalVariables;
 	TArray<FRigVMLazyBranch> LazyBranches;
+	TMap<FString, FSoftObjectPath> UserDefinedStructGuidToPathName;
 
 	// this function should be kept in sync with FRigVMOperand::GetContainerIndex()
 	static int32 GetContainerIndex(ERigVMMemoryType InType)
@@ -908,6 +912,8 @@ private:
 	void RefreshExternalPropertyPaths();
 	
 	TMap<FRigVMOperand, TArray<FRigVMOperand>> OperandToDebugRegisters;
+
+	TArray<const UObject*> GetUserDefinedDependencies();
 
 protected:
 

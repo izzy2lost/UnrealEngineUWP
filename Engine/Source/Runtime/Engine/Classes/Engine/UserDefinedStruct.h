@@ -74,7 +74,7 @@ public:
 	TEnumAsByte<enum EUserDefinedStructureStatus> Status;
 
 	/** Uniquely identifies this specific user struct */
-	UPROPERTY()
+	UPROPERTY(AssetRegistrySearchable)
 	FGuid Guid;
 
 protected:

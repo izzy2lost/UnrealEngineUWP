@@ -172,10 +172,10 @@ public:
 	int32 NumTypes() const { return Types.Num(); }
 
 	// Returns the type given only its cpp type
-	const FRigVMTemplateArgumentType& FindTypeFromCPPType(const FString& InCPPType) const;
+	const FRigVMTemplateArgumentType& FindTypeFromCPPType(const FString& InCPPType, const FRigVMTypeResolvalInfo* InResolvalInfo = nullptr) const;
 
 	// Returns the type index given only its cpp type
-	TRigVMTypeIndex GetTypeIndexFromCPPType(const FString& InCPPType) const;
+	TRigVMTypeIndex GetTypeIndexFromCPPType(const FString& InCPPType, const FRigVMTypeResolvalInfo* InResolvalInfo = nullptr) const;
 
 	// Returns true if the type is an array
 	bool IsArrayType(TRigVMTypeIndex InTypeIndex) const;
@@ -208,10 +208,10 @@ public:
 	TRigVMTypeIndex GetBaseTypeFromArrayTypeIndex(TRigVMTypeIndex InTypeIndex) const;
 
 	// Returns the function given its name (or nullptr)
-	const FRigVMFunction* FindFunction(const TCHAR* InName) const;
+	const FRigVMFunction* FindFunction(const TCHAR* InName, const FRigVMTypeResolvalInfo& InResolvalInfo = FRigVMTypeResolvalInfo()) const;
 
 	// Returns the function given its backing up struct and method name
-	const FRigVMFunction* FindFunction(UScriptStruct* InStruct, const TCHAR* InName) const;
+	const FRigVMFunction* FindFunction(UScriptStruct* InStruct, const TCHAR* InName, const FRigVMTypeResolvalInfo& InResolvalInfo = FRigVMTypeResolvalInfo()) const;
 
 	// Returns all current rigvm functions
 	const TChunkedArray<FRigVMFunction>& GetFunctions() const;
@@ -332,7 +332,7 @@ private:
 	
 	void RemoveTypeInCategory(FRigVMTemplateArgument::ETypeCategory InCategory, TRigVMTypeIndex InTypeIndex);
 
-	const FRigVMFunction* FindFunction_NoLock(const TCHAR* InName) const;
+	const FRigVMFunction* FindFunction_NoLock(const TCHAR* InName, const FRigVMTypeResolvalInfo& InResolvalInfo = FRigVMTypeResolvalInfo()) const;
 	const FRigVMTemplate* FindTemplate_NoLock(const FName& InNotation, bool bIncludeDeprecated) const;
 	FRigVMDispatchFactory* FindDispatchFactory_NoLock(const FName& InFactoryName) const;
 

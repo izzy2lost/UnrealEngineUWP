@@ -654,7 +654,7 @@ TArray<UStruct*> FRigVMTemplate::GetSuperStructs(UStruct* InStruct, bool bInclud
 	return SuperStructs;
 }
 
-FRigVMTemplate::FTypeMap FRigVMTemplate::GetArgumentTypesFromString(const FString& InTypeString) const
+FRigVMTemplate::FTypeMap FRigVMTemplate::GetArgumentTypesFromString(const FString& InTypeString, const FRigVMTypeResolvalInfo* InResolvalInfo) const
 {
 	FTypeMap Types;
 	if(!InTypeString.IsEmpty())
@@ -675,12 +675,12 @@ FRigVMTemplate::FTypeMap FRigVMTemplate::GetArgumentTypesFromString(const FStrin
 			{
 				if(const FRigVMTemplateArgument* Argument = FindArgument(*ArgumentName))
 				{
-					TRigVMTypeIndex TypeIndex = Registry.GetTypeIndexFromCPPType(TypeName);
+					TRigVMTypeIndex TypeIndex = Registry.GetTypeIndexFromCPPType(TypeName, InResolvalInfo);
 
 					// If the type was not found, check if it's a user-defined type that hasn't been registered yet.
 					if (TypeIndex == INDEX_NONE && RigVMTypeUtils::RequiresCPPTypeObject(TypeName))
 					{
-						UObject* CPPTypeObject = RigVMTypeUtils::ObjectFromCPPType(TypeName, true);
+						UObject* CPPTypeObject = RigVMTypeUtils::ObjectFromCPPType(TypeName, true, InResolvalInfo);
 						
 						FRigVMTemplateArgumentType ArgType(*TypeName, CPPTypeObject);
 						TypeIndex = Registry.FindOrAddType(ArgType);

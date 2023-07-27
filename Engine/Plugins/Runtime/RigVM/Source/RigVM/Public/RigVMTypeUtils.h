@@ -9,6 +9,12 @@
 #include "Engine/UserDefinedStruct.h"
 #include "UObject/CoreRedirects.h"
 #include "UObject/Package.h"
+#include "UObject/SoftObjectPath.h"
+
+struct RIGVM_API FRigVMTypeResolvalInfo
+{
+	TMap<FString, FSoftObjectPath> CPPTypeToObjectPath;
+};
 
 namespace RigVMTypeUtils
 {
@@ -94,11 +100,16 @@ namespace RigVMTypeUtils
 		return InCPPType.RightChop(7).LeftChop(1).TrimStartAndEnd();
 	}
 
+	inline FString GetUniqueStructTypeName(const FGuid& InStructGuid)
+	{
+		return FString::Printf(TEXT("FUserDefinedStruct_%s"), *InStructGuid.ToString());
+	}
+
 	inline FString GetUniqueStructTypeName(const UScriptStruct* InScriptStruct)
 	{
 		if (const UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(InScriptStruct))
 		{
-			return FString::Printf(TEXT("FUserDefinedStruct_%s"), *UserDefinedStruct->GetCustomGuid().ToString());
+			return GetUniqueStructTypeName(UserDefinedStruct->GetCustomGuid());
 		}
 
 		return InScriptStruct->GetStructCPPName();
@@ -299,8 +310,11 @@ namespace RigVMTypeUtils
 		return FString();
 	}
 
+	// Finds the CPPTypeObject from a CPP type of a potentially missing / unloaded user defined struct or enum
+	RIGVM_API UObject* UserDefinedTypeFromCPPType(FString& InOutCPPType, const FRigVMTypeResolvalInfo* InResolvalInfo = nullptr);
+
 	// Finds the CPPTypeObject from the CPPType. If not found, tries to use redirectors and modifies the InOutCPPType.
-	static UObject* ObjectFromCPPType(FString& InOutCPPType, bool bUseRedirector = true)
+	static UObject* ObjectFromCPPType(FString& InOutCPPType, bool bUseRedirector = true, const FRigVMTypeResolvalInfo* InResolvalInfo = nullptr)
 	{
 		if (!RequiresCPPTypeObject(InOutCPPType))
 		{
@@ -336,6 +350,12 @@ namespace RigVMTypeUtils
 
 		if(CPPTypeObject == nullptr)
 		{
+			CPPType = BaseCPPType;
+			CPPTypeObject = UserDefinedTypeFromCPPType(CPPType, InResolvalInfo);
+		}
+
+		if(CPPTypeObject == nullptr)
+		{
 			InOutCPPType.Reset();
 			return nullptr;
 		}
@@ -345,7 +365,7 @@ namespace RigVMTypeUtils
 		return CPPTypeObject;
 	}
 
-	static FString PostProcessCPPType(const FString& InCPPType, UObject* InCPPTypeObject = nullptr)
+	static FString PostProcessCPPType(const FString& InCPPType, UObject* InCPPTypeObject = nullptr, const FRigVMTypeResolvalInfo* InResolvalInfo = nullptr)
 	{
 		FString CPPType = InCPPType;
 		if (InCPPTypeObject)
@@ -364,7 +384,7 @@ namespace RigVMTypeUtils
 		else if (RequiresCPPTypeObject(CPPType))
 		{
 			// Uses redirectors and updates the CPPType if necessary
-			ObjectFromCPPType(CPPType, true);
+			ObjectFromCPPType(CPPType, true, InResolvalInfo);
 		}
 	
 		return CPPType;

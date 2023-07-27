@@ -789,6 +789,27 @@ void URigVMBlueprint::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	IAssetRegistry::GetChecked().AssetTagsFinalized(*this);
 
 	CachedAssetTags.Reset();
+
+	// also store the user defined struct guid to path name on the blueprint itself
+	// to aid the controller when recovering from user defined struct name changes or
+	// guid changes.
+	UserDefinedStructGuidToPathName.Reset();
+	TArray<URigVMGraph*> AllModels = GetAllModels();
+	for(const URigVMGraph* Graph : AllModels)
+	{
+		for(const URigVMNode* Node : Graph->GetNodes())
+		{
+			const TArray<URigVMPin*> AllPins = Node->GetAllPinsRecursively();
+			for(const URigVMPin* Pin : AllPins)
+			{
+				if(const UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(Pin->GetCPPTypeObject()))
+				{
+					const FString GuidBasedName = RigVMTypeUtils::GetUniqueStructTypeName(UserDefinedStruct);
+					UserDefinedStructGuidToPathName.FindOrAdd(GuidBasedName) = FSoftObjectPath(UserDefinedStruct);
+				}
+			}
+		}
+	}
 }
 
 void URigVMBlueprint::PostLoad()
