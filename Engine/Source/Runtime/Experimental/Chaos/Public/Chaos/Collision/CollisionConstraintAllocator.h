@@ -617,6 +617,14 @@ namespace Chaos
 			}
 		}
 
+		if (!(VisitFlags & ECollisionVisitorFlags::VisitExpired))
+		{
+			if (!Constraint->IsCurrent())
+			{
+				return false;
+			}
+		}
+
 		return true;
 	}
 

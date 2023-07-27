@@ -351,11 +351,10 @@ namespace Chaos
 		FReal GetPhi() const { return (ClosestManifoldPointIndex != INDEX_NONE) ? ManifoldPoints[ClosestManifoldPointIndex].ContactPoint.Phi : TNumericLimits<FReal>::Max(); }
 
 		// Was this constraint activated this frame? It will be activated if the shapes are within CullDistance of each other.
-		// NOTE: All Active constraints are in the ActiveConstraints list on the CollisionConstraintAllocator. A constraint
-		// remains "activated" in this respect even if disabled by the user (via SetDisabled()) in a callback.
-		// This flag is only really useful if you are iterating over constraints that have been kept in memory
-		// for optimization reasons, but are not currently in use. Normally you would only need to consider GetDisabled()
-		bool IsActivated() const { return Flags.bIsActivated; }
+		// NOTE: All Current constraints are in the ActiveConstraints list on the CollisionConstraintAllocator. This remains true 
+		// even if disabled by the user (via SetDisabled()) in a callback. We only care about "not current" constraints
+		// for debug visualization/reporting. Normally you would only need to consider GetDisabled()
+		bool IsCurrent() const { return Flags.bIsCurrent; }
 
 		// Allow the user to disable this constraint. @see GetActive().
 		void SetDisabled(bool bInDisabled) { Flags.bDisabled = bInDisabled; }
@@ -824,7 +823,7 @@ namespace Chaos
 			FFlags() : Bits(0) {}
 			struct
 			{
-				uint16 bIsActivated : 1;				// Was this constraint activated this tick and therefore in the current tick's active list (note: it may subsequently be disabled)
+				uint16 bIsCurrent : 1;					// Was this constraint activated this tick and therefore in the current tick's active list (note: it may subsequently be disabled for various reasons)
 				uint16 bDisabled : 1;					// Is this contact disabled (by the user or because cull distance is exceeded)
 				uint16 bUseManifold : 1;				// Should we use contact manifolds or single points (faster but poor behaviour)
 				uint16 bUseIncrementalManifold : 1;		// Do we need to run incremental collision detection (only LavelSets now)

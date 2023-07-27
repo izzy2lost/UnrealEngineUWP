@@ -534,6 +534,11 @@ namespace Chaos
 		: Modifier(InModifier)
 		, Particle(InParticle)
 	{
+		// NOTE: We only visit constraints that were activated this tick because we use the ActiveConstraintIndex to determine which
+		// collisions we have already seen (see FVisitedContactPairsTracker::Visit) and this only works for collisions detected this tick.
+		// We explicitly do not want to visit sleeping collisions.
+		const ECollisionVisitorFlags VisitFlags = ECollisionVisitorFlags::VisitActiveAwake | ECollisionVisitorFlags::VisitDisabled;
+
 		FParticleCollisions& ParticleCollisions = Particle->ParticleCollisions();
 		ParticleCollisions.VisitCollisions([this](FPBDCollisionConstraint& Constraint)
 		{
@@ -542,13 +547,13 @@ namespace Chaos
 				Constraints.Add(&Constraint);
 			}
 			return ECollisionVisitorResult::Continue;
-		}, ECollisionVisitorFlags::VisitActiveAwake);
+		}, VisitFlags);
 	}
 
 	bool FVisitedContactPairsTracker::Visit(const FContactPairModifier& ContactPair)
 	{
 		// We use the index in the ActiveConstraints list as an ID for this constraint. This requires
-		// that we are only visiting the active constraints (and not sleeping or non-activated constraints)
+		// that we are only visiting the active constraints (and not sleeping or expired constraints)
 		// in the VisitCollisions call in FContactPairModifierParticleRange
 		const int32 ConstraintIndex = ContactPair.GetConstraintContainerCookie().ConstraintIndex;
 		

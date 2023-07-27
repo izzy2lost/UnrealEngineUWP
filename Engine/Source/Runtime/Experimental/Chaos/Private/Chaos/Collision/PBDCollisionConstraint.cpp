@@ -426,7 +426,7 @@ namespace Chaos
 
 	void FPBDCollisionConstraint::Activate()
 	{
-		Flags.bIsActivated = true;
+		Flags.bIsCurrent = true;
 		Flags.bDisabled = false;
 
 		AssignSavedManifoldPoints();

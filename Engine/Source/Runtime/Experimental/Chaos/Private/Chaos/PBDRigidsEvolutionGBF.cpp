@@ -1088,7 +1088,7 @@ void FPBDRigidsEvolutionGBF::ParticleMaterialChanged(FGeometryParticleHandle* Pa
 		Collision.ClearMaterialProperties();
 		return ECollisionVisitorResult::Continue;
 
-	}, ECollisionVisitorFlags::VisitAll);
+	}, ECollisionVisitorFlags::VisitAllCurrentAndExpired);
 
 	// The graph caches some sleep thresholds etc 
 	GetIslandManager().UpdateParticleMaterial(Particle);

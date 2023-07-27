@@ -24,9 +24,11 @@ namespace Chaos
 		VisitActiveAwake	= 0,		// Collisions that we detected this tick and have not been disabled or put to sleep
 		VisitSleeping		= 1 << 1,	// Collisions on body pairs that are sleeping
 		VisitDisabled		= 1 << 2,	// Collisions that have been disabled by the user, or were not enabled this tick
+		VisitExpired		= 1 << 3,	// Collisions that are still in memory for possible later reuse but not "current" (activated this frame)
 
-		VisitDefault		= VisitActiveAwake | VisitSleeping,
-		VisitAll			= VisitActiveAwake | VisitSleeping | VisitDisabled
+		VisitDefault					= VisitActiveAwake | VisitSleeping,
+		VisitAllCurrent					= VisitActiveAwake | VisitSleeping | VisitDisabled,
+		VisitAllCurrentAndExpired		= VisitActiveAwake | VisitSleeping | VisitDisabled | VisitExpired,
 	};
 	ENUM_CLASS_FLAGS(ECollisionVisitorFlags);
 
