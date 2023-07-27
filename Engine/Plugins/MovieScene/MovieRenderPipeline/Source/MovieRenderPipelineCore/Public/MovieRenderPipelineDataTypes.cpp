@@ -4,14 +4,19 @@
 #include "MoviePipeline.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "RHI.h"
+#include "Graph/MovieGraphDataTypes.h"
 #include "Sections/MovieSceneCinematicShotSection.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieRenderPipelineDataTypes)
 
-FFrameNumber FMoviePipelineCameraCutInfo::GetOutputFrameCountEstimate() const
+FFrameNumber FMoviePipelineCameraCutInfo::GetOutputFrameCountEstimate(const UMovieGraphDataSourceBase* InDataSource) const
 {
+	// The graph uses the data source; the old version uses members in this struct
+	const FFrameRate SourceRate = InDataSource ? InDataSource->GetDisplayRate() : CachedFrameRate;
+	const FFrameRate DestinationRate = InDataSource ? InDataSource->GetTickResolution() : CachedTickResolution;
+	
 	// TotalRange is stored in Tick Resolution, so we convert 1 frame of Frame Rate to the number of ticks.
-	FFrameNumber OneFrameInTicks = FFrameRate::TransformTime(FFrameTime(FFrameNumber(1)), CachedFrameRate, CachedTickResolution).FloorToFrame();
+	FFrameNumber OneFrameInTicks = FFrameRate::TransformTime(FFrameTime(FFrameNumber(1)), SourceRate, DestinationRate).FloorToFrame();
 
 	// Find out how many ticks long our total output range is.
 	FFrameNumber TotalOutputRangeTicks = TotalOutputRangeRoot.Size<FFrameNumber>();
@@ -20,10 +25,10 @@ FFrameNumber FMoviePipelineCameraCutInfo::GetOutputFrameCountEstimate() const
 	return FFrameNumber(NumFrames);
 }
 
-void FMoviePipelineCameraCutInfo::CalculateWorkMetrics()
+void FMoviePipelineCameraCutInfo::CalculateWorkMetrics(const UMovieGraphDataSourceBase* InDataSource)
 {
 	// Initial Range + Handle Frames
-	FFrameNumber OutputFrameCount = GetOutputFrameCountEstimate();
+	FFrameNumber OutputFrameCount = GetOutputFrameCountEstimate(InDataSource);
 	WorkMetrics.TotalOutputFrameCount = OutputFrameCount.Value;
 	WorkMetrics.TotalSubSampleCount = NumSpatialSamples * NumTemporalSamples * NumTiles.X * NumTiles.Y; // Samples to generate an output frame.
 	WorkMetrics.TotalEngineWarmUpFrameCount = NumEngineWarmUpFramesRemaining;

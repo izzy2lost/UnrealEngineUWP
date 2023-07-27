@@ -10,6 +10,7 @@
 
 // Forward Declare
 class UMovieGraphOutputSettingNode;
+class UMovieGraphPipeline;
 
 UCLASS(meta = (ScriptName = "MovieGraphLibrary"))
 class MOVIERENDERPIPELINECORE_API UMovieGraphBlueprintLibrary : public UBlueprintFunctionLibrary
@@ -50,4 +51,130 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	static FIntPoint GetEffectiveOutputResolution(UMovieGraphEvaluatedConfig* InEvaluatedGraph, const FName& InBranchName);
+
+	/**
+	* Gets the name of the current job.
+	* @param	InMovieGraphPipeline	 - The pipeline to get the job name from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static FText GetJobName(const UMovieGraphPipeline* InMovieGraphPipeline);
+
+	/**
+	* Gets the author of the current job, or the logged in user's username if the job has no specified author.
+	* @param	InMovieGraphPipeline	 - The pipeline to get the job author from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static FText GetJobAuthor(const UMovieGraphPipeline* InMovieGraphPipeline);
+
+	/**
+	* Determines the overall current frame number and total number of frames.
+	* @param	InMovieGraphPipeline	- The pipeline to get the frame information from.
+	* @param	OutCurrentIndex			- The current frame number.
+	* @param	OutTotalCount			- The total number of frames.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static void GetOverallOutputFrames(const UMovieGraphPipeline* InMovieGraphPipeline, int32& OutCurrentIndex, int32& OutTotalCount);
+
+	/**
+	* Gets the time the job was initialized.
+	* @param	InMovieGraphPipeline	- The pipeline to get the job initialization time from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static FDateTime GetJobInitializationTime(const UMovieGraphPipeline* InMovieGraphPipeline);
+
+	/**
+	* Get the estimated amount of time remaining for the current pipeline. Based on looking at the total
+	* amount of samples to render vs. how many have been completed so far. Inaccurate when Time Dilation
+	* is used, and gets more accurate over the course of the render.
+	* @param	InMovieGraphPipeline	- The pipeline to get the time estimate from.
+	* @param	OutEstimate				- The resulting estimate, or FTimespan() if estimate is not valid.
+	* @return							- True if a valid estimate can be calculated, or false if it is not ready yet (ie: not enough samples rendered)
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static bool GetEstimatedTimeRemaining(const UMovieGraphPipeline* InMovieGraphPipeline, FTimespan& OutEstimate);
+
+	/**
+	* Get the current state of the specified pipeline. See EMovieRenderPipelineState for more detail about each state.
+	* @param	InMovieGraphPipeline	- The pipeline to get the state for.
+	* @return							- The current state.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static EMovieRenderPipelineState GetPipelineState(const UMovieGraphPipeline* InMovieGraphPipeline);
+
+	/**
+	* Gets the state of the segment (shot) currently being rendered.
+	* @param	InMovieGraphPipeline	- The pipeline to get segment information from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static EMovieRenderShotState GetCurrentSegmentState(const UMovieGraphPipeline* InMovieGraphPipeline);
+
+	/**
+	* Gets the name of the segment (shot) currently being rendered.
+	* @param	InMovieGraphPipeline	- The pipeline to get segment information from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static void GetCurrentSegmentName(const UMovieGraphPipeline* InMovieGraphPipeline, FText& OutOuterName, FText& OutInnerName);
+
+	/**
+	* Gets the number of segments (shots) that will be rendered.
+	* @param	InMovieGraphPipeline	- The pipeline to get segment information from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static void GetOverallSegmentCounts(const UMovieGraphPipeline* InMovieGraphPipeline, int32& OutCurrentIndex, int32& OutTotalCount);
+
+	/**
+	* Gets the work metrics for the segment (shot) that is currently being rendered.
+	* @param	InMovieGraphPipeline	- The pipeline to get segment information from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static FMoviePipelineSegmentWorkMetrics GetCurrentSegmentWorkMetrics(const UMovieGraphPipeline* InMovieGraphPipeline);
+
+	/**
+	* Gets the timecode of the current render at the root (sequence) level.
+	* @param	InMovieGraphPipeline	- The pipeline to get timecode information from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static FTimecode GetRootTimecode(const UMovieGraphPipeline* InMovieGraphPipeline);
+
+	/**
+	* Gets the frame number of the current render at the root (sequence) level.
+	* @param	InMovieGraphPipeline	- The pipeline to get frame number information from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static FFrameNumber GetRootFrameNumber(const UMovieGraphPipeline* InMovieGraphPipeline);
+
+	/**
+	* Gets the timecode of the current render at the shot level.
+	* @param	InMovieGraphPipeline	- The pipeline to get timecode information from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static FTimecode GetCurrentShotTimecode(const UMovieGraphPipeline* InMovieGraphPipeline);
+
+	/**
+	* Gets the frame number of the current render at the shot level.
+	* @param	InMovieGraphPipeline	- The pipeline to get frame number information from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static FFrameNumber GetCurrentShotFrameNumber(const UMovieGraphPipeline* InMovieGraphPipeline);
+
+	/**
+	* Gets the focus distance for the camera currently in use.
+	* @param	InMovieGraphPipeline	- The pipeline to get the camera information from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static float GetCurrentFocusDistance(const UMovieGraphPipeline* InMovieGraphPipeline);
+
+	/**
+	* Gets the focal length for the camera currently in use.
+	* @param	InMovieGraphPipeline	- The pipeline to get the camera information from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static float GetCurrentFocalLength(const UMovieGraphPipeline* InMovieGraphPipeline);
+	
+	/**
+	* Gets the aperture for the camera currently in use.
+	* @param	InMovieGraphPipeline	- The pipeline to get the camera information from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static float GetCurrentAperture(const UMovieGraphPipeline* InMovieGraphPipeline);
 };

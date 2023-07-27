@@ -172,9 +172,9 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 
 	for (UMoviePipelineExecutorShot* Shot : GetCurrentJob()->ShotInfo)
 	{
-		Shot->ShotInfo.CurrentTickInRoot = Shot->ShotInfo.TotalOutputRangeRoot.GetLowerBoundValue();
+		Shot->ShotInfo.CurrentTimeInRoot = FFrameTime(Shot->ShotInfo.CurrentTickInRoot);
+		Shot->ShotInfo.CalculateWorkMetrics(GetDataSourceInstance());
 	}
-
 
 	// The active shot-list is a subset of the whole shot-list; The ShotInfo contains information about every range it detected to render
 	// but if the user has turned the shot off in the UI then we don't want to render it.

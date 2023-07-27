@@ -78,7 +78,6 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 		CurrentTimeStepData.EvaluatedConfig = TObjectPtr<UMovieGraphEvaluatedConfig>(CurrentFrameData.EvaluatedConfig.Get());
 		CurrentTimeStepData.bExpandShotForTemporalSubSample = CurrentFrameData.TemporalSampleCount > 1;
 
-
 		// Sets up the render state, etc.
 		GetOwningGraph()->SetupShot(CurrentCameraCut);
 
@@ -107,13 +106,12 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 		CurrentCameraCut->ShotInfo.State = EMovieRenderShotState::Rendering;
 	}
 
-
-
 	if (CurrentCameraCut->ShotInfo.State == EMovieRenderShotState::Rendering)
 	{
+		FMovieGraphTraversalContext Context = GetOwningGraph()->GetCurrentTraversalContext();
+		
 		if (IsFirstTemporalSample())
 		{
-			FMovieGraphTraversalContext Context = GetOwningGraph()->GetCurrentTraversalContext();
 			UMovieGraphConfig* Config = GetOwningGraph()->GetRootGraphForShot(CurrentCameraCut);
 			CurrentFrameData.EvaluatedConfig = TStrongObjectPtr<UMovieGraphEvaluatedConfig>(Config->CreateFlattenedGraph(Context));
 
@@ -123,6 +121,8 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 
 			// Re-calculate some timing statistics about the given TS count
 			UpdateFrameMetrics();
+
+			CurrentCameraCut->ShotInfo.WorkMetrics.OutputFrameIndex++;
 
 			// We create a range of time that we want to represent with this frame in absolute root sequence
 			// space. This is because each frame can have a different temporal sample count, and when we jump
@@ -217,7 +217,6 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 			*LexToString(CurrentFrameMetrics.ShutterOffsetFrameTime),
 			*LexToString(CurrentFrameMetrics.MotionBlurCenteringOffsetTime));
 
-
 		// Now we need to fill out some of our current timestep data for the renderer portion to use.
 		double FrameDeltaTimeAsSeconds = CurrentFrameMetrics.TickResolution.AsSeconds(FrameDeltaTime);
 		CurrentTimeStepData.FrameDeltaTime = FrameDeltaTimeAsSeconds;
@@ -231,12 +230,35 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 		CurrentTimeStepData.bIsLastTemporalSampleForFrame = IsLastTemporalSample();
 		CurrentTimeStepData.bRequiresAccumulator = CurrentFrameData.TemporalSampleCount > 1;
 		CurrentTimeStepData.OutputFrameNumber = CurrentFrameData.OutputFrameNumber;
-		
 		CurrentTimeStepData.EvaluatedConfig = TObjectPtr<UMovieGraphEvaluatedConfig>(CurrentFrameData.EvaluatedConfig.Get());
 
 		//UE_LOG(LogTemp, Warning, TEXT("F# %d bFirst: %d bLast: %d bReqAc: %d"),
 		//	CurrentTimeStepData.OutputFrameNumber, CurrentTimeStepData.bIsFirstTemporalSampleForFrame,
 		//	CurrentTimeStepData.bIsLastTemporalSampleForFrame, CurrentTimeStepData.bRequiresAccumulator);
+
+		// Calculate frame numbers and timecodes for the current sequence (root) and shot
+		{
+			constexpr bool bIncludeCDOs = true;
+			UMovieGraphOutputSettingNode* OutputSetting = CurrentFrameData.EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs);
+
+			// "Closest" isn't straightforward when using temporal sub-sampling, ie: A large enough shutter angle pushes a sample over the half way point and it rounds to
+			// the wrong one. Because temporal sub-sampling isn't centered around a frame (the centering is done via the final eval time) we can just subtract TSI*TPS to get our centered value.
+			const FFrameTime CenteringOffset = CurrentFrameData.TemporalSampleIndex * CurrentFrameMetrics.FrameTimePerTemporalSample;
+			FFrameTime CenteredFrameTime = CurrentCameraCut->ShotInfo.CurrentTimeInRoot - CenteringOffset;
+	
+			const FFrameRate SourceFrameRate = GetOwningGraph()->GetDataSourceInstance()->GetDisplayRate();
+			const FFrameRate EffectiveFrameRate = UMovieGraphBlueprintLibrary::GetEffectiveFrameRate(OutputSetting, SourceFrameRate);
+			const FFrameRate TickResolution = GetOwningGraph()->GetDataSourceInstance()->GetTickResolution();
+
+			constexpr bool bDropFrame = false;
+			CurrentTimeStepData.RootFrameNumber = FFrameRate::TransformTime(CenteredFrameTime, TickResolution, EffectiveFrameRate).RoundToFrame();
+			CurrentTimeStepData.RootTimeCode = FTimecode::FromFrameNumber(CurrentTimeStepData.RootFrameNumber, EffectiveFrameRate, bDropFrame);
+
+			// Calculate metrics for the shot as well
+			CenteredFrameTime = CenteredFrameTime * CurrentCameraCut->ShotInfo.OuterToInnerTransform;
+			CurrentTimeStepData.ShotFrameNumber = FFrameRate::TransformTime(CenteredFrameTime, TickResolution, EffectiveFrameRate).RoundToFrame();
+			CurrentTimeStepData.ShotTimeCode = FTimecode::FromFrameNumber(CurrentTimeStepData.ShotFrameNumber, EffectiveFrameRate, bDropFrame);
+		}
 
 		// Set our time step for the next frame. We use the undilated delta time for the Custom Timestep as the engine will
 		// apply the time dilation to the world tick for us, so we don't want to double up time dilation.
@@ -260,7 +282,6 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 				
 				// Increment the output frame number only on the first temporal sample.
 				CurrentFrameData.OutputFrameNumber++;
-
 			}
 
 			if (CurrentFrameData.TemporalSampleIndex >= CurrentFrameData.TemporalSampleCount - 1)
@@ -275,7 +296,6 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 				CurrentFrameData.TemporalSampleIndex++;
 			}
 		}
-
 
 		if (!ensure(CurrentCameraCut->ShotInfo.CurrentTickInRoot < CurrentCameraCut->ShotInfo.TotalOutputRangeRoot.GetUpperBoundValue()))
 		{
@@ -331,7 +351,15 @@ void UMovieGraphLinearTimeStep::UpdateFrameMetrics()
 	FrameData.MotionBlurAmount = GetBlendedMotionBlurAmount();
 
 	// Calculate how long of a duration we want to represent where the camera shutter is open.
-	FrameData.FrameTimeWhileShutterOpen = FrameData.FrameTimePerOutputFrame * FrameData.MotionBlurAmount;
+	// If the shutter angle is effectively zero, lie about how long a frame is to prevent divide by zero
+	if (FrameData.MotionBlurAmount < (1.0 / 360.0))
+	{
+		FrameData.FrameTimeWhileShutterOpen = FrameData.FrameTimePerOutputFrame * (1.0 / 360.0);
+	}
+	else
+	{
+		FrameData.FrameTimeWhileShutterOpen = FrameData.FrameTimePerOutputFrame * FrameData.MotionBlurAmount;
+	}
 
 	// Now that we know how long the shutter is open, figure out how long each temporal sub-sample gets.
 	FrameData.FrameTimePerTemporalSample = FrameData.FrameTimeWhileShutterOpen / CurrentFrameData.TemporalSampleCount;

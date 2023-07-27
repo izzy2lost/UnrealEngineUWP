@@ -2,6 +2,7 @@
 
 #include "Graph/MovieGraphBlueprintLibrary.h"
 
+#include "Graph/MovieGraphPipeline.h"
 #include "Graph/Nodes/MovieGraphOutputSettingNode.h"
 #include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 #include "MoviePipelineBlueprintLibrary.h"
@@ -220,4 +221,191 @@ FIntPoint UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(UMovieGraphE
 	}
 	
 	return UMoviePipelineBlueprintLibrary::Utility_GetEffectiveOutputResolution(0 /* TODO: Overscan percentage needs to be provided */, OutputSetting->OutputResolution);
+}
+
+FText UMovieGraphBlueprintLibrary::GetJobName(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	return InMovieGraphPipeline ? FText::FromString(InMovieGraphPipeline->GetCurrentJob()->JobName) : FText();
+}
+
+FText UMovieGraphBlueprintLibrary::GetJobAuthor(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	return InMovieGraphPipeline ? FText::FromString(UE::MoviePipeline::GetJobAuthor(InMovieGraphPipeline->GetCurrentJob())) : FText();
+}
+
+void UMovieGraphBlueprintLibrary::GetOverallOutputFrames(const UMovieGraphPipeline* InMovieGraphPipeline, int32& OutCurrentIndex, int32& OutTotalCount)
+{
+	OutCurrentIndex = 0;
+	OutTotalCount = 0;
+	
+	if (InMovieGraphPipeline)
+	{
+		OutCurrentIndex = InMovieGraphPipeline->GetTimeStepInstance()->GetCalculatedTimeData().OutputFrameNumber;
+
+		for (const TObjectPtr<UMoviePipelineExecutorShot>& Shot : InMovieGraphPipeline->GetActiveShotList())
+		{
+			OutTotalCount += Shot->ShotInfo.WorkMetrics.TotalOutputFrameCount;
+		}
+	}
+}
+
+FDateTime UMovieGraphBlueprintLibrary::GetJobInitializationTime(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	return InMovieGraphPipeline ? InMovieGraphPipeline->GetInitializationTime() : FDateTime();
+}
+
+bool UMovieGraphBlueprintLibrary::GetEstimatedTimeRemaining(const UMovieGraphPipeline* InMovieGraphPipeline, FTimespan& OutEstimate)
+{
+	if (!InMovieGraphPipeline)
+	{
+		OutEstimate = FTimespan();
+		return false;
+	}
+
+	// If they haven't produced a single frame yet, we can't give an estimate.
+	int32 OutputFrames;
+	int32 TotalOutputFrames;
+	GetOverallOutputFrames(InMovieGraphPipeline, OutputFrames, TotalOutputFrames);
+
+	if (OutputFrames <= 0 || TotalOutputFrames <= 0)
+	{
+		OutEstimate = FTimespan();
+		return false;
+	}
+
+	const float CompletionPercentage = OutputFrames / static_cast<float>(TotalOutputFrames);
+	const FTimespan CurrentDuration = FDateTime::UtcNow() - InMovieGraphPipeline->GetInitializationTime();
+
+	// If it has taken us CurrentDuration to process CompletionPercentage samples, then we can get a total duration
+	// estimate by taking (CurrentDuration/CompletionPercentage) and then take that total estimate minus elapsed
+	// to get remaining.
+	const FTimespan EstimatedTotalDuration = CurrentDuration / CompletionPercentage;
+	OutEstimate = EstimatedTotalDuration - CurrentDuration;
+
+	return true;
+}
+
+EMovieRenderPipelineState UMovieGraphBlueprintLibrary::GetPipelineState(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	return InMovieGraphPipeline ? InMovieGraphPipeline->GetPipelineState() : EMovieRenderPipelineState::Uninitialized;
+}
+
+EMovieRenderShotState UMovieGraphBlueprintLibrary::GetCurrentSegmentState(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	if (InMovieGraphPipeline)
+	{
+		const int32 ShotIndex = InMovieGraphPipeline->GetCurrentShotIndex();
+		
+		if (ShotIndex < InMovieGraphPipeline->GetActiveShotList().Num())
+		{
+			return InMovieGraphPipeline->GetActiveShotList()[ShotIndex]->ShotInfo.State;
+		}
+	}
+
+	return EMovieRenderShotState::Uninitialized;
+}
+
+void UMovieGraphBlueprintLibrary::GetCurrentSegmentName(const UMovieGraphPipeline* InMovieGraphPipeline, FText& OutOuterName, FText& OutInnerName)
+{
+	if (InMovieGraphPipeline)
+    {
+    	const int32 ShotIndex = InMovieGraphPipeline->GetCurrentShotIndex();
+		
+    	if (ShotIndex < InMovieGraphPipeline->GetActiveShotList().Num())
+    	{
+    		OutOuterName = FText::FromString(InMovieGraphPipeline->GetActiveShotList()[ShotIndex]->OuterName);
+    		OutInnerName = FText::FromString(InMovieGraphPipeline->GetActiveShotList()[ShotIndex]->InnerName);
+    	}
+    }
+}
+
+void UMovieGraphBlueprintLibrary::GetOverallSegmentCounts(const UMovieGraphPipeline* InMovieGraphPipeline, int32& OutCurrentIndex, int32& OutTotalCount)
+{
+	OutCurrentIndex = InMovieGraphPipeline->GetCurrentShotIndex();
+	OutTotalCount = InMovieGraphPipeline->GetActiveShotList().Num();
+}
+
+FMoviePipelineSegmentWorkMetrics UMovieGraphBlueprintLibrary::GetCurrentSegmentWorkMetrics(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	if (InMovieGraphPipeline)
+	{
+		const int32 ShotIndex = InMovieGraphPipeline->GetCurrentShotIndex();
+		
+		if (ShotIndex < InMovieGraphPipeline->GetActiveShotList().Num())
+		{
+			return InMovieGraphPipeline->GetActiveShotList()[ShotIndex]->ShotInfo.WorkMetrics;
+		}
+	}
+
+	return FMoviePipelineSegmentWorkMetrics();
+}
+
+FTimecode UMovieGraphBlueprintLibrary::GetRootTimecode(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	if (InMovieGraphPipeline)
+	{
+		return InMovieGraphPipeline->GetTimeStepInstance()->GetCalculatedTimeData().RootTimeCode;
+	}
+
+	return FTimecode();
+}
+
+FFrameNumber UMovieGraphBlueprintLibrary::GetRootFrameNumber(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	if (InMovieGraphPipeline)
+	{
+		return InMovieGraphPipeline->GetTimeStepInstance()->GetCalculatedTimeData().RootFrameNumber;
+	}
+
+	return FFrameNumber(-1);
+}
+
+FTimecode UMovieGraphBlueprintLibrary::GetCurrentShotTimecode(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	if (InMovieGraphPipeline)
+	{
+		return InMovieGraphPipeline->GetTimeStepInstance()->GetCalculatedTimeData().ShotTimeCode;
+	}
+
+	return FTimecode();
+}
+
+FFrameNumber UMovieGraphBlueprintLibrary::GetCurrentShotFrameNumber(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	if (InMovieGraphPipeline)
+	{
+		return InMovieGraphPipeline->GetTimeStepInstance()->GetCalculatedTimeData().ShotFrameNumber;
+	}
+
+	return FFrameNumber(-1);
+}
+
+float UMovieGraphBlueprintLibrary::GetCurrentFocusDistance(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+	{
+		return CineCameraComponent->CurrentFocusDistance;
+	}
+
+	return -1.f;
+}
+
+float UMovieGraphBlueprintLibrary::GetCurrentFocalLength(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+	{
+		return CineCameraComponent->CurrentFocalLength;
+	}
+
+	return -1.f;
+}
+
+float UMovieGraphBlueprintLibrary::GetCurrentAperture(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+	{
+		return CineCameraComponent->CurrentAperture;
+	}
+
+	return 0.f;
 }

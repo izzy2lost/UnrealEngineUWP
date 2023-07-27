@@ -282,21 +282,9 @@ FFrameNumber UMoviePipelineBlueprintLibrary::GetCurrentShotFrameNumber(const UMo
 
 float UMoviePipelineBlueprintLibrary::GetCurrentFocusDistance(const UMoviePipeline* InMoviePipeline)
 {
-	if (InMoviePipeline)
+	if (const UCineCameraComponent* CineCameraComponent = Utility_GetCurrentCineCamera(InMoviePipeline->GetWorld()))
 	{
-		if (InMoviePipeline->GetWorld()->GetFirstPlayerController()->PlayerCameraManager)
-		{
-			// This only works if you use a Cine Camera (which is almost guranteed with Sequencer) and it's easier (and less human error prone) than re-deriving the information
-			ACineCameraActor* CineCameraActor = Cast<ACineCameraActor>(InMoviePipeline->GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetViewTarget());
-			if (CineCameraActor)
-			{
-				UCineCameraComponent* CineCameraComponent = CineCameraActor->GetCineCameraComponent();
-				if (CineCameraComponent)
-				{
-					return CineCameraComponent->CurrentFocusDistance;
-				}
-			}
-		}
+		return CineCameraComponent->CurrentFocusDistance;
 	}
 
 	return -1.0f;
@@ -304,21 +292,9 @@ float UMoviePipelineBlueprintLibrary::GetCurrentFocusDistance(const UMoviePipeli
 
 float UMoviePipelineBlueprintLibrary::GetCurrentFocalLength(const UMoviePipeline* InMoviePipeline)
 {
-	if (InMoviePipeline)
+	if (const UCineCameraComponent* CineCameraComponent = Utility_GetCurrentCineCamera(InMoviePipeline->GetWorld()))
 	{
-		if (InMoviePipeline->GetWorld()->GetFirstPlayerController()->PlayerCameraManager)
-		{
-			// This only works if you use a Cine Camera (which is almost guranteed with Sequencer) and it's easier (and less human error prone) than re-deriving the information
-			ACineCameraActor* CineCameraActor = Cast<ACineCameraActor>(InMoviePipeline->GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetViewTarget());
-			if (CineCameraActor)
-			{
-				UCineCameraComponent* CineCameraComponent = CineCameraActor->GetCineCameraComponent();
-				if (CineCameraComponent)
-				{
-					return CineCameraComponent->CurrentFocalLength;
-				}
-			}
-		}
+		return CineCameraComponent->CurrentFocalLength;
 	}
 
 	return -1.0f;
@@ -326,21 +302,9 @@ float UMoviePipelineBlueprintLibrary::GetCurrentFocalLength(const UMoviePipeline
 
 float UMoviePipelineBlueprintLibrary::GetCurrentAperture(const UMoviePipeline* InMoviePipeline)
 {
-	if (InMoviePipeline)
+	if (const UCineCameraComponent* CineCameraComponent = Utility_GetCurrentCineCamera(InMoviePipeline->GetWorld()))
 	{
-		if (InMoviePipeline->GetWorld()->GetFirstPlayerController()->PlayerCameraManager)
-		{
-			// This only works if you use a Cine Camera (which is almost guranteed with Sequencer) and it's easier (and less human error prone) than re-deriving the information
-			ACineCameraActor* CineCameraActor = Cast<ACineCameraActor>(InMoviePipeline->GetWorld()->GetFirstPlayerController()->PlayerCameraManager->GetViewTarget());
-			if (CineCameraActor)
-			{
-				UCineCameraComponent* CineCameraComponent = CineCameraActor->GetCineCameraComponent();
-				if (CineCameraComponent)
-				{
-					return CineCameraComponent->CurrentAperture;
-				}
-			}
-		}
+		return CineCameraComponent->CurrentAperture;
 	}
 
 	return 0.0f;
@@ -922,6 +886,23 @@ FIntPoint UMoviePipelineBlueprintLibrary::Utility_GetEffectiveOutputResolution(c
 	}
 
 	return EffectiveResolution;
+}
+
+UCineCameraComponent* UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(const UWorld* InWorld)
+{
+	if (InWorld)
+	{
+		if (const TObjectPtr<APlayerCameraManager> PlayerCameraManager = InWorld->GetFirstPlayerController()->PlayerCameraManager)
+		{
+			// This only works if you use a Cine Camera (which is almost guaranteed with Sequencer) and it's easier (and less human error prone) than re-deriving the information
+			if (const ACineCameraActor* CineCameraActor = Cast<ACineCameraActor>(PlayerCameraManager->GetViewTarget()))
+			{
+				return CineCameraActor->GetCineCameraComponent();
+			}
+		}
+	}
+
+	return nullptr;
 }
 
 UMoviePipelineSetting* UMoviePipelineBlueprintLibrary::FindOrGetDefaultSettingForShot(TSubclassOf<UMoviePipelineSetting> InSettingType, const UMoviePipelinePrimaryConfig* InPrimaryConfig, const UMoviePipelineExecutorShot* InShot)

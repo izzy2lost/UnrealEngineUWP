@@ -34,6 +34,7 @@ class FRenderTarget;
 class UMoviePipeline;
 struct FMoviePipelineFormatArgs;
 class UMoviePipelineExecutorShot;
+class UMovieGraphDataSourceBase;
 
 namespace Audio { class FMixerSubmix; }
 
@@ -489,10 +490,12 @@ public:
 
 	bool IsInitialized() const { return State != EMovieRenderShotState::Uninitialized; }
 	void SetNextStateAfter(const EMovieRenderShotState InCurrentState);
-	void CalculateWorkMetrics();
+
+	/** The data source is required for calculating some metrics (graph only). */
+	void CalculateWorkMetrics(const UMovieGraphDataSourceBase* InDataSource = nullptr);
 
 private:
-	FFrameNumber GetOutputFrameCountEstimate() const;
+	FFrameNumber GetOutputFrameCountEstimate(const UMovieGraphDataSourceBase* InDataSource) const;
 
 public:
 	

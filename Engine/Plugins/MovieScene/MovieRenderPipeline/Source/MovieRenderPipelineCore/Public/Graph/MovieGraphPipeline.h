@@ -53,11 +53,12 @@ public:
 	*
 	* @param InDateTime - The DateTime object to return for GetInitializationTime.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	void SetInitializationTime(const FDateTime& InDateTime) { GraphInitializationTime = InDateTime; }
 
-public:
 	UMovieGraphConfig* GetRootGraphForShot(UMoviePipelineExecutorShot* InShot) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	FMovieGraphTraversalContext GetCurrentTraversalContext() const;
 
 	/** Get the Active Shot list, which is the full shot list generated from the external data source, with disabled shots removed. */
@@ -71,7 +72,7 @@ public:
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
 	UMovieGraphTimeStepBase* GetTimeStepInstance() const { return GraphTimeStepInstance; }
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
-	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphRendererBase* GetRendererInstance() const { return GraphRendererInstance; }
 	/** Used occasionally to cross-reference other components. Don't call this unless you know what you're doing. */
 	UMovieGraphDataSourceBase* GetDataSourceInstance() const { return GraphDataSourceInstance; }

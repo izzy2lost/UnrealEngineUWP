@@ -2,6 +2,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Misc/Timecode.h"
 #include "MovieGraphTimeStepData.generated.h"
 
 class UMovieGraphEvaluatedConfig;
@@ -84,4 +85,20 @@ public:
 	*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig;
+
+	/** The current timecode at the root (sequence) level. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	FTimecode RootTimeCode;
+
+	/** The current frame number at the root (sequence) level. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	FFrameNumber RootFrameNumber;
+
+	/** The current timecode at the shot level. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	FTimecode ShotTimeCode;
+
+	/** The current frame number at the shot level. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	FFrameNumber ShotFrameNumber;
 };
