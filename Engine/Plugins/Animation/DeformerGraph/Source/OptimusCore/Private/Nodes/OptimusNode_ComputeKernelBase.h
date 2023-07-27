@@ -9,6 +9,7 @@
 
 #include "OptimusNode_ComputeKernelBase.generated.h"
 
+struct FOptimusKernelConstantContainer;
 class UComputeSource;
 
 
@@ -43,7 +44,8 @@ public:
 		const UOptimusComponentSourceBinding* InGraphDataComponentBinding,
 		const UComputeDataInterface* InKernelDataInterface,
 		FOptimus_InterfaceBindingMap& OutInputDataBindings,
-		FOptimus_InterfaceBindingMap& OutOutputDataBindings
+		FOptimus_InterfaceBindingMap& OutOutputDataBindings,
+		FOptimusConstantContainer& OutConstantContainer
 	) const override;
 
 	FName GetExecutionDomain() const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::GetExecutionDomain, return NAME_None; );
@@ -88,7 +90,8 @@ private:
 		const UOptimusComponentSourceBinding* InGraphDataComponentBinding,
 		UOptimusKernelSource* InKernelSource,
 		TArray<FString>& OutGeneratedFunctions,
-		FOptimus_InterfaceBindingMap& OutInputDataBindings
+		FOptimus_InterfaceBindingMap& OutInputDataBindings,
+		FOptimusKernelConstantContainer& OutKernelConstantContainer
 		) const;
 
 	void ProcessOutputPinForComputeKernel(
@@ -98,7 +101,8 @@ private:
 		const FOptimus_PinToDataInterfaceMap& InLinkDataInterfaceMap,
 		UOptimusKernelSource* InKernelSource,
 		TArray<FString>& OutGeneratedFunctions,
-		FOptimus_InterfaceBindingMap& OutOutputDataBindings
+		FOptimus_InterfaceBindingMap& OutOutputDataBindings,
+		FOptimusKernelConstantContainer& OutKernelConstantContainer
 		) const;
 
 	void BindKernelDataInterfaceForComputeKernel(

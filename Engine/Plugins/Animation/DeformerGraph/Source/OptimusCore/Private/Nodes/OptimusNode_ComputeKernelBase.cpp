@@ -10,9 +10,11 @@
 #include "DataInterfaces/OptimusDataInterfaceGraph.h"
 #include "DataInterfaces/OptimusDataInterfaceRawBuffer.h"
 #include "IOptimusValueProvider.h"
+#include "OptimusComponentSource.h"
 #include "OptimusDataTypeRegistry.h"
 #include "OptimusHelpers.h"
 #include "OptimusKernelSource.h"
+#include "OptimusConstant.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusNode_ComputeKernelBase)
 
@@ -57,7 +59,8 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 	const UOptimusComponentSourceBinding* InGraphDataComponentBinding,
 	const UComputeDataInterface* InKernelDataInterface,
 	FOptimus_InterfaceBindingMap& OutInputDataBindings,
-	FOptimus_InterfaceBindingMap& OutOutputDataBindings
+	FOptimus_InterfaceBindingMap& OutOutputDataBindings,
+	FOptimusConstantContainer& OutConstantContainer
 ) const
 {
 	// Maps friendly name to unique name for each struct type
@@ -140,6 +143,8 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 		return ReturnError(LOCTEXT("ZeroOrMultiplePrimaryBindings", "Primary Group has zero or more than one Component Bindings"));
 	}
 
+	FOptimusKernelConstantContainer& OutKernelConstantContainer = OutConstantContainer.AddContainerForKernel();
+
 	UOptimusKernelSource* KernelSource = NewObject<UOptimusKernelSource>(InKernelSourceOuter);
 
 	// Wrap functions for unconnected resource pins (or value pins) that return default values
@@ -157,7 +162,7 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 					InTraversalContext, SubPin, GroupIndex == 0 ? FString() : Pin->GetName(),
 					InNodeDataInterfaceMap, InLinkDataInterfaceMap, InValueNodes,
 					InGraphDataInterface, InGraphDataComponentBinding,
-					KernelSource, GeneratedFunctions, OutInputDataBindings
+					KernelSource, GeneratedFunctions, OutInputDataBindings, OutKernelConstantContainer
 					);
 				if (Result.IsSet())
 				{
@@ -172,7 +177,7 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 			ProcessOutputPinForComputeKernel(
 				InTraversalContext, Pin,
 				InNodeDataInterfaceMap, InLinkDataInterfaceMap,
-				KernelSource, GeneratedFunctions, OutOutputDataBindings);
+				KernelSource, GeneratedFunctions, OutOutputDataBindings, OutKernelConstantContainer);
 		}
 	}
 
@@ -401,7 +406,8 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ProcessInputPinForComputeKernel
 	const UOptimusComponentSourceBinding* InGraphDataComponentBinding,
 	UOptimusKernelSource* InKernelSource,
 	TArray<FString>& OutGeneratedFunctions,
-	FOptimus_InterfaceBindingMap& OutInputDataBindings
+	FOptimus_InterfaceBindingMap& OutInputDataBindings,
+	FOptimusKernelConstantContainer& OutKernelConstantContainer
 	) const
 {
 	const UOptimusNodePin* OutputPin = nullptr;
@@ -558,6 +564,54 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ProcessInputPinForComputeKernel
 				*NamespacePrefix, *ValueType->ToString(), *InInputPin->GetName(), *OptionalParamStr, *ValueStr, *NamespaceSuffix));
 	}
 
+	if (InInputPin->GetDataDomain().IsOneDimensional())
+	{
+		// Get the component binding from the upstream connection. Unconnected input pin should use the group's component binding
+		int32 ComponentBindingIndex = INDEX_NONE;
+		
+		if (const UOptimusNodePin* GroupPin = InInputPin->GetParentPin())
+		{
+			TArray<UOptimusComponentSourceBinding*> ComponentBindings = GetGroupComponentSourceBindings(GroupPin).Array();
+			if (ensure(ComponentBindings.Num() == 1))
+			{
+				ComponentBindingIndex = ComponentBindings[0]->GetIndex();
+			}
+		}
+		
+		// Use the domain of input pin if it is defined
+		// Use the domain of connected output pin otherwise
+		if (InInputPin->GetDataDomain().IsFullyDefined())
+		{
+			OutKernelConstantContainer.AddToKernelContainer({
+				{this, *InGroupName, InInputPin->GetFName()},
+				{InInputPin->GetDataDomain().AsExpression().GetValue()},
+				ComponentBindingIndex,
+				EOptimusConstantType::Input});
+		}
+		else if (ensure(OutputPin) && ensure(OutputPin->GetDataDomain().IsOneDimensional()) && ensure(OutputPin->GetDataDomain().IsFullyDefined()))
+		{
+			if (InLinkDataInterfaceMap.Contains(OutputPin))
+			{
+				if (const UOptimusRawBufferDataInterface* RawBufferDataInterface = Cast<UOptimusRawBufferDataInterface>(InLinkDataInterfaceMap[OutputPin]))
+				{
+					OutKernelConstantContainer.AddToKernelContainer({
+						{this, *InGroupName, InInputPin->GetFName()},
+						{RawBufferDataInterface->DomainConstantIdentifier},
+						ComponentBindingIndex,
+						EOptimusConstantType::Input});	
+				}
+			}
+			else
+			{
+				OutKernelConstantContainer.AddToKernelContainer({
+					{this, *InGroupName, InInputPin->GetFName()},
+					{OutputPin->GetDataDomain().AsExpression().Get({})},
+					ComponentBindingIndex,
+					EOptimusConstantType::Input});
+			}
+		}
+	}
+
 	return {};
 }
 
@@ -569,7 +623,8 @@ void UOptimusNode_ComputeKernelBase::ProcessOutputPinForComputeKernel(
 	const FOptimus_PinToDataInterfaceMap& InLinkDataInterfaceMap,
 	UOptimusKernelSource* InKernelSource,
 	TArray<FString>& OutGeneratedFunctions,
-	FOptimus_InterfaceBindingMap& OutOutputDataBindings
+	FOptimus_InterfaceBindingMap& OutOutputDataBindings,
+	FOptimusKernelConstantContainer& OutKernelConstantContainer
 	) const
 {
 	FShaderParamTypeDefinition IndexParamDef;
@@ -711,6 +766,27 @@ void UOptimusNode_ComputeKernelBase::ProcessOutputPinForComputeKernel(
 		OutGeneratedFunctions.Add(
 			FString::Printf(TEXT("void Write%s(%s, %s Value) { }"),
 				*InOutputPin->GetName(), *FString::Join(StubIndexes, TEXT(", ")), *ValueType->ToString()));
+	}
+
+	// Gather the constants
+	if (InOutputPin->GetDataDomain().IsOneDimensional() && ensure(InOutputPin->GetDataDomain().IsFullyDefined()))
+	{
+		if (TOptional<FString> Expression = InOutputPin->GetDataDomain().AsExpression())
+		{
+			// Get the component binding from the upstream connection.
+			int32 ComponentBindingIndex = INDEX_NONE;
+			TArray<UOptimusComponentSourceBinding*> ComponentBindings = GetOwningGraph()->GetComponentSourceBindingsForPin(InOutputPin).Array();
+			if (ensure(ComponentBindings.Num() == 1))
+			{
+				ComponentBindingIndex = ComponentBindings[0]->GetIndex();
+			}
+			
+			OutKernelConstantContainer.AddToKernelContainer({
+				{this, NAME_None, InOutputPin->GetFName()},
+				{*Expression},
+				ComponentBindingIndex,
+				EOptimusConstantType::Output});
+		}
 	}
 }
 

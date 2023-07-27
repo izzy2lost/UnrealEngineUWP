@@ -226,13 +226,16 @@ bool UOptimusRawBufferDataProvider::GetLodAndInvocationElementCounts(
 	case EOptimusDataDomainType::Dimensional:
 		{
 			const FName ExecutionDomain = !DataDomain.DimensionNames.IsEmpty() ? DataDomain.DimensionNames[0] : NAME_None;
-			if (ComponentSourcePtr->GetComponentElementCountsForExecutionDomain(ExecutionDomain, ComponentPtr, OutLodIndex, OutInvocationElementCounts))
+			TArray<int32> Values;
+			if (ComponentSourcePtr->GetComponentElementCountsForExecutionDomain(ExecutionDomain, ComponentPtr, OutLodIndex, Values))
 			{
 				if (DataDomain.DimensionNames.Num() == 1)
 				{
-					for (int32& Count: OutInvocationElementCounts)
+					OutInvocationElementCounts.Reset(Values.Num());
+					for (int32& Count: Values)
 					{
 						Count *= FMath::Max(1, DataDomain.Multiplier);
+						OutInvocationElementCounts.Add(Count);
 					}
 					return true;
 				}
@@ -243,7 +246,7 @@ bool UOptimusRawBufferDataProvider::GetLodAndInvocationElementCounts(
 		}
 	case EOptimusDataDomainType::Expression:
 		{
-			TMap<FName, int32> EngineConstants;
+			TMap<FName, float> EngineConstants;
 			TMap<FName, TArray<int32>> ElementCountsPerDomain;
 
 			int32 NumInvocations = -1;
@@ -279,8 +282,17 @@ bool UOptimusRawBufferDataProvider::GetLodAndInvocationElementCounts(
 			
 			using namespace Optimus::Expression;
 
-			FEngine Engine(EngineConstants);
-			TVariant<FExpressionObject, FParseError> ParseResult = Engine.Parse(DataDomain.Expression);
+			FEngine Engine;
+			TVariant<FExpressionObject, FParseError> ParseResult = Engine.Parse(DataDomain.Expression, [EngineConstants](FName InName)->TOptional<float>
+			{
+				if (const float* Value = EngineConstants.Find(InName))
+				{
+					return *Value;
+				};
+
+				return {};
+			});
+			
 			if (ParseResult.IsType<FParseError>())
 			{
 				return false;
@@ -289,16 +301,25 @@ bool UOptimusRawBufferDataProvider::GetLodAndInvocationElementCounts(
 			OutInvocationElementCounts.Reset(NumInvocations);
 			for (int32 Index = 0; Index < NumInvocations; Index++)
 			{
-				for (TPair<FName, int32>& Constant: EngineConstants)
+				for (TPair<FName, float>& Constant: EngineConstants)
 				{
 					const FName ConstantName = Constant.Key;
-					int32& Value = Constant.Value;
+					float& Value = Constant.Value;
 					
 					const TArray<int32>& ElementCounts = ElementCountsPerDomain[ConstantName]; 
 					Value = ElementCounts.IsValidIndex(Index) ? ElementCounts[Index] : 1;
 				}
-				Engine.UpdateConstantValues(EngineConstants);
-				const int32 Count = Engine.Execute(ParseResult.Get<FExpressionObject>());
+				
+				const int32 Count = static_cast<int32>(Engine.Execute(ParseResult.Get<FExpressionObject>(),
+					[EngineConstants](FName InName)->TOptional<float>
+					{
+						if (const float* Value = EngineConstants.Find(InName))
+						{
+							return *Value;
+						};
+
+						return {};
+					}));
 
 				if (Count < 0)
 				{
@@ -318,19 +339,30 @@ bool UOptimusRawBufferDataProvider::GetLodAndInvocationElementCounts(
 
 			// We want to make sure the results are the same for unified and non-unified
 			// Do the sum across invocations first and then evaluate the expression
-			for (auto& [ConstantName, Value]: EngineConstants)
+			for (TPair<FName, float>& Constant : EngineConstants)
 			{
+				const FName ConstantName = Constant.Key;
+				float& Value = Constant.Value;
+				
 				Value = 0;
 				const TArray<int32>& ElementCounts = ElementCountsPerDomain[ConstantName];
 				
-				for (int32 Count : ElementCounts )
+				for (int32 Count : ElementCounts)
 				{
 					Value += Count;
 				}
 			}
 			
-			Engine.UpdateConstantValues(EngineConstants);
-			const int32 TotalElementCountForUnifiedDispatch = Engine.Execute(ParseResult.Get<FExpressionObject>());
+			const int32 TotalElementCountForUnifiedDispatch = static_cast<int32>(Engine.Execute(ParseResult.Get<FExpressionObject>(),
+				[EngineConstants](FName InName)->TOptional<float>
+				{
+					if (const float* Value = EngineConstants.Find(InName))
+					{
+						return *Value;
+					};
+
+					return {};
+				}));
 			
 			if (TotalElementCount != TotalElementCountForUnifiedDispatch)
 			{
@@ -344,14 +376,55 @@ bool UOptimusRawBufferDataProvider::GetLodAndInvocationElementCounts(
 	return false;
 }
 
+bool UOptimusRawBufferDataProvider::GetInvocationElementCounts(TArray<int32>& OutInvocationElementCounts) const
+{
+	TArray<float> Values = DeformerInstance->GetConstantValuePerInvocation(DomainConstantIdentifier);
+
+	// Can happen if the bound component does not have actual data, like when there is no preview mesh
+	if (Values.Num() == 0)
+	{
+		return false;
+	}
+	
+	OutInvocationElementCounts.Reset(Values.Num());
+	for (const float& Value : Values)
+	{
+		OutInvocationElementCounts.Add(static_cast<int32>(Value));
+	}
+
+	return true;
+}
+
+void UOptimusRawBufferDataProvider::SetDeformerInstance(UOptimusDeformerInstance* InInstance)
+{
+	DeformerInstance = InInstance;
+}
+
+UOptimusDeformerInstance* UOptimusRawBufferDataProvider::GetDeformerInstance() const
+{
+	return DeformerInstance;
+}
+
 
 FComputeDataProviderRenderProxy* UOptimusTransientBufferDataProvider::GetRenderProxy()
 {
 	int32 LodIndex;
 	TArray<int32> InvocationCounts;
-	if (!GetLodAndInvocationElementCounts(LodIndex, InvocationCounts))
+	
+	if (DomainConstantIdentifier.IsValid())
 	{
-		InvocationCounts.Reset();
+		// Querying the deformer instance for the domain of this buffer
+		if (!GetInvocationElementCounts(InvocationCounts))
+		{
+			InvocationCounts.Reset();
+		}
+	}
+	else
+	{
+		if (!GetLodAndInvocationElementCounts(LodIndex, InvocationCounts))
+		{
+			InvocationCounts.Reset();
+		}
 	}
 	
 	return new FOptimusTransientBufferDataProviderProxy(InvocationCounts, ElementStride, RawStride);

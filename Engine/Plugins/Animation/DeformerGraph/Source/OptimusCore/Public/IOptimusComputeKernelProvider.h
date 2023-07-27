@@ -15,6 +15,7 @@ class UOptimusKernelSource;
 class UOptimusNode;
 class UOptimusNodePin;
 struct FOptimusPinTraversalContext;
+struct FOptimusConstantContainer;
 
 
 // Maps the data interface's data binding index to the function we would like to have present
@@ -83,7 +84,7 @@ public:
 	 * @param InKernelDataInterface
 	 * @param OutInputDataBindings
 	 * @param OutOutputDataBindings
-	 * @param OutExecutionDataInterface
+	 * @param OutConstantContainer
 	 */
 	virtual FOptimus_ComputeKernelResult CreateComputeKernel(
 		UObject* InKernelSourceOuter,
@@ -95,7 +96,8 @@ public:
 		const UOptimusComponentSourceBinding* InGraphDataComponentBinding,
 		const UComputeDataInterface* InKernelDataInterface,
 		FOptimus_InterfaceBindingMap& OutInputDataBindings,
-		FOptimus_InterfaceBindingMap& OutOutputDataBindings
+		FOptimus_InterfaceBindingMap& OutOutputDataBindings,
+		FOptimusConstantContainer& OutConstantContainer
 		) const = 0;
 
 	/** Returns the execution domain that this kernel should iterate over */

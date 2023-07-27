@@ -910,11 +910,17 @@ bool UOptimusNode::SetPinDataDomain(
 			{
 				if (Pin->GetDirection() == EOptimusNodePinDirection::Input)
 				{
-					Action->AddSubAction<FOptimusNodeGraphAction_RemoveLink>(ConnectedPin, Pin);
+					if (!FOptimusDataDomain::AreCompatible(ConnectedPin->GetDataDomain(), InDataDomain, nullptr))
+					{
+						Action->AddSubAction<FOptimusNodeGraphAction_RemoveLink>(ConnectedPin, Pin);
+					}
 				}
 				else
 				{
-					Action->AddSubAction<FOptimusNodeGraphAction_RemoveLink>(Pin, ConnectedPin);
+					if (!FOptimusDataDomain::AreCompatible(InDataDomain, ConnectedPin->GetDataDomain(), nullptr))
+					{
+						Action->AddSubAction<FOptimusNodeGraphAction_RemoveLink>(Pin, ConnectedPin);
+					}
 				}
 			}
 		}

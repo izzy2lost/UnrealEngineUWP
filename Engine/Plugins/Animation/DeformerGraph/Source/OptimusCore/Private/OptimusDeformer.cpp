@@ -1391,6 +1391,7 @@ bool UOptimusDeformer::Compile()
 	}
 
 	ComputeGraphs.Reset();
+	ConstantContainer.Reset();
 	
 	CompileBeginDelegate.Broadcast(this);
 	
@@ -1428,6 +1429,7 @@ bool UOptimusDeformer::Compile()
 	if (bCompilationFailed)
 	{
 		ComputeGraphs.Reset();
+		ConstantContainer.Reset();
 		return false;
 	}
 	
@@ -1636,6 +1638,7 @@ UOptimusComputeGraph* UOptimusDeformer::CompileNodeGraphToComputeGraph(
 							TransientBufferDI->ValueType = Pin->GetDataType()->ShaderValueType;
 							TransientBufferDI->DataDomain = Pin->GetDataDomain();
 							TransientBufferDI->ComponentSourceBinding = *ComponentSourceBindings.CreateConstIterator();
+							TransientBufferDI->DomainConstantIdentifier = {ConnectedNode.Node, NAME_None, Pin->GetFName()};
 							
 							LinkDataInterfaceMap.Add(Pin, TransientBufferDI);
 						}
@@ -1700,7 +1703,7 @@ UOptimusComputeGraph* UOptimusDeformer::CompileNodeGraphToComputeGraph(
 				ValueNodes,
 				GraphDataInterface, GraphDataComponentBinding,
 				KernelDataInterface,
-				BoundKernel.InputDataBindings, BoundKernel.OutputDataBindings
+				BoundKernel.InputDataBindings, BoundKernel.OutputDataBindings, ConstantContainer
 			);
 			if (FText* ErrorMessage = KernelSourceResult.TryGet<FText>())
 			{

@@ -466,13 +466,13 @@ void FOptimusDataDomainCustomization::CustomizeHeader(
 							{
 								DataDomain.Expression = "1";
 							}
-							else if (DataDomain.Multiplier > 1)
+							else if (DataDomain.IsMultiDimensional())
 							{
-								DataDomain.Expression = FString::Printf(TEXT("%s * %d"), *DataDomain.DimensionNames[0].ToString(), DataDomain.Multiplier);
+								DataDomain.Expression = DataDomain.DimensionNames[0].ToString();
 							}
 							else
 							{
-								DataDomain.Expression = DataDomain.DimensionNames[0].ToString();
+								DataDomain.Expression = DataDomain.AsExpression().Get({});
 							}
 						}
 						else

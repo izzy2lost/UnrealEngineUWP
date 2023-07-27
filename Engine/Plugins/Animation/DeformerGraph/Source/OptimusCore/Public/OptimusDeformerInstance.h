@@ -4,10 +4,13 @@
 
 #include "Animation/MeshDeformerInstance.h"
 #include "ComputeFramework/ComputeGraphInstance.h"
+#include "OptimusConstant.h"
 #include "Engine/EngineTypes.h"
 
 #include "OptimusDeformerInstance.generated.h"
 
+class UOptimusComponentSource;
+struct FOptimusConstantIdentifier;
 enum class EOptimusNodeGraphType;
 struct FOptimusPersistentStructuredBuffer;
 class FRDGBuffer;
@@ -18,6 +21,31 @@ class UOptimusDeformer;
 class UOptimusVariableContainer;
 class UOptimusVariableDescription;
 class UOptimusComponentSourceBinding;
+
+USTRUCT()
+struct FOptimusDeformerInstanceComponentContext
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<int32> LodIndexPerComponent;
+
+	friend uint32 GetTypeHash(const FOptimusDeformerInstanceComponentContext& InContext)
+	{
+		uint32 Hash = GetTypeHash(InContext.LodIndexPerComponent.Num());
+		
+		for (int32 LodIndex : InContext.LodIndexPerComponent)
+		{
+			Hash = HashCombineFast(Hash, GetTypeHash(LodIndex));
+		}
+		return Hash;
+	}
+
+	bool operator==(const FOptimusDeformerInstanceComponentContext& InOther) const
+	{
+		return LodIndexPerComponent == InOther.LodIndexPerComponent;
+	}
+};
 
 class FOptimusPersistentBufferPool
 {
@@ -200,6 +228,8 @@ public:
 
 	void SetCanBeActive(bool bInCanBeActive);
 
+	TArray<float> GetConstantValuePerInvocation(const FOptimusConstantIdentifier& InIdentifier);
+
 protected:
 	/** Implementation of UMeshDeformerInstance. */
 	void AllocateResources() override;
@@ -222,7 +252,18 @@ private:
 	/** Storage for variable data. */
 	UPROPERTY()
 	TObjectPtr<UOptimusVariableContainer> Variables;
+
+	UPROPERTY()
+	TArray<TWeakObjectPtr<UActorComponent>> WeakBoundComponents;
 	
+	UPROPERTY()
+	TArray<TWeakObjectPtr<const UOptimusComponentSource>> WeakComponentSources;
+
+	UPROPERTY()
+	FOptimusConstantContainer ConstantContainer;
+	
+	TMap<FOptimusDeformerInstanceComponentContext, FOptimusConstantContainerInstance> ConstantValuesPerContext;
+
 	// List of graphs that should be run on the next tick. 
 	TSet<FName> GraphsToRunOnNextTick;
 	FCriticalSection GraphsToRunOnNextTickLock;

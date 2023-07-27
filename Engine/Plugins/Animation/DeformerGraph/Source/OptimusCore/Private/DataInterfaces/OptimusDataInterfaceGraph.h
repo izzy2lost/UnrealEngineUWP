@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "IOptimusDeformerInstanceAccessor.h"
 #include "ComputeFramework/ComputeDataInterface.h"
 #include "ComputeFramework/ComputeDataProvider.h"
 #include "ComputeFramework/ShaderParamTypeDefinition.h"
@@ -57,16 +58,15 @@ private:
 
 /** Compute Framework Data Provider for marshaling compute graph parameters and variables. */
 UCLASS(BlueprintType, editinlinenew, Category = ComputeFramework)
-class UOptimusGraphDataProvider : public UComputeDataProvider
+class UOptimusGraphDataProvider :
+	public UComputeDataProvider,
+	public IOptimusDeformerInstanceAccessor
 {
 	GENERATED_BODY()
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Binding)
 	TObjectPtr<UMeshComponent> MeshComponent = nullptr;
-
-	UPROPERTY()
-	TObjectPtr<UOptimusDeformerInstance> DeformerInstance = nullptr;
 
 	UPROPERTY()
 	TArray<FOptimusGraphVariableDescription> Variables;
@@ -78,6 +78,15 @@ public:
 	//~ Begin UComputeDataProvider Interface
 	FComputeDataProviderRenderProxy* GetRenderProxy() override;
 	//~ End UComputeDataProvider Interface
+
+	//~ Begin IOptimusDeformerInstanceAccessor Interface
+	void SetDeformerInstance(UOptimusDeformerInstance* InInstance) override;
+	UOptimusDeformerInstance* GetDeformerInstance() const override;
+	//~ End IOptimusDeformerInstanceAccessor Interface
+
+private:
+	UPROPERTY()
+	TObjectPtr<UOptimusDeformerInstance> DeformerInstance = nullptr;
 };
 
 class FOptimusGraphDataProviderProxy : public FComputeDataProviderRenderProxy

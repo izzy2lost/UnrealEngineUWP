@@ -30,33 +30,6 @@ FString Optimus::FormatDimensionNames(const TArray<FName>& InNames)
 }
 
 
-TOptional<int32> FOptimusDataDomain::GetElementCount(TMap<FName, int32> InDomainCounts) const
-{
-	switch(Type)
-	{
-	case EOptimusDataDomainType::Dimensional:
-		{
-			if (DimensionNames.IsEmpty())
-			{
-				return 1;
-			}
-			else if (DimensionNames.Num() == 1)
-			{
-				if (const int32* Value = InDomainCounts.Find(DimensionNames[0]))
-				{
-					return *Value;
-				}
-			}
-		}
-		break;
-	case EOptimusDataDomainType::Expression:
-		return Optimus::Expression::FEngine(InDomainCounts).Evaluate(Expression);
-	}
-	
-	return {};
-}
-
-
 FString FOptimusDataDomain::ToString() const
 {
 	switch(Type)
@@ -151,3 +124,117 @@ void FOptimusDataDomain::BackCompFixupLevels()
 		LevelNames_DEPRECATED.Reset();
 	}
 }
+
+TOptional<FString> FOptimusDataDomain::AsExpression() const
+{
+	if (IsSingleton())
+	{
+		return {};
+	}
+
+	if (IsMultiDimensional())
+	{
+		return {};
+	}
+
+	if (Type == EOptimusDataDomainType::Dimensional)
+	{
+		if (Multiplier > 1)
+		{
+			return FString::Printf(TEXT("%s * %d"), *DimensionNames[0].ToString(), Multiplier);
+		}
+		
+		return DimensionNames[0].ToString();
+	}
+
+	if (Type == EOptimusDataDomainType::Expression)
+	{
+		return Expression;
+	}
+
+	return {};
+}
+
+FString FOptimusDataDomain::GetDisplayName() const
+{
+	switch(Type)
+	{
+	case EOptimusDataDomainType::Dimensional:
+		{
+			if (DimensionNames.IsEmpty())
+			{
+				return TEXT("Parameter");
+			}
+			else
+			{
+				TArray<FString> Names;
+				for (FName DomainLevelName: DimensionNames)
+				{
+					Names.Add(DomainLevelName.ToString());
+				}
+				return FString::Join(Names, *FString(UTF8TEXT(" › ")));
+			}
+		}
+		
+	case EOptimusDataDomainType::Expression:
+		if (Expression.IsEmpty())
+		{
+			return TEXT("Undefined");
+		}
+		return Expression.TrimStartAndEnd();
+	}
+
+	checkNoEntry();
+	return TEXT("");	
+}
+
+bool FOptimusDataDomain::AreCompatible(const FOptimusDataDomain& InOutput, const FOptimusDataDomain& InInput,
+                                       FString* OutReason)
+{
+	if (!InOutput.IsFullyDefined())
+	{
+		return false;
+	}
+
+	// We don't allow resource -> value connections. All other combos are legit. 
+	// Value -> Resource just means the resource gets filled with the value.
+	if (!InOutput.IsSingleton() && InInput.IsSingleton())
+	{
+		if (OutReason)
+		{
+			*OutReason = TEXT("Can't connect a resource output into a value input.");
+		}
+		return false;
+	}
+
+	if (InOutput.IsSingleton() && !InInput.IsSingleton())
+	{
+		if (!InInput.IsFullyDefined())
+		{
+			if (OutReason)
+			{
+				*OutReason = TEXT("Can't connect a value output to a input with undefined data domain");
+			}
+			return false;
+		}
+		
+	}
+	
+	// If it's resource -> resource, check that the domains are compatible
+	if (!InOutput.IsSingleton() && !InInput.IsSingleton())
+	{
+		if (InOutput != InInput && InInput.IsFullyDefined())
+		{
+			if (OutReason)
+			{
+				*OutReason = FString::Printf(TEXT("Can't connect resources with incompatible data domain types (%s vs %s)."),
+					*InOutput.GetDisplayName(), *InInput.GetDisplayName());
+			}
+			return false;
+		}
+	}
+
+	return true;
+}
+
+

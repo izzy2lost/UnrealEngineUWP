@@ -301,14 +301,30 @@ void UOptimusDeformerInstance::SetupFromDeformer(UOptimusDeformer* InDeformer)
 		InstanceSettingsPtr->InitializeSettings(InDeformer, MeshComponent.Get());
 	}
 	InstanceSettingsPtr->GetComponentBindings(InDeformer, MeshComponent.Get(), BoundComponents);
+	
+	WeakBoundComponents.Reset();
+	for (UActorComponent* Component : BoundComponents)
+	{
+		WeakBoundComponents.Add(Component);
+	}
 
+	WeakComponentSources.Reset();
+	const TArray<UOptimusComponentSourceBinding*>& ComponentBindings = InDeformer->GetComponentBindings();
+	for (const UOptimusComponentSourceBinding* ComponentBinding : ComponentBindings)
+	{
+		WeakComponentSources.Add(ComponentBinding->GetComponentSource());
+	}
+	
 	// Create the persistent buffer pool
 	BufferPool = MakeShared<FOptimusPersistentBufferPool>();
 	
 	// (Re)Create and bind data providers.
 	ComputeGraphExecInfos.Reset();
 	GraphsToRunOnNextTick.Reset();
-
+	
+	ConstantContainer = InDeformer->ConstantContainer;
+	ConstantValuesPerContext.Reset();
+	
 	for (int32 GraphIndex = 0; GraphIndex < InDeformer->ComputeGraphs.Num(); ++GraphIndex)
 	{
 		FOptimusComputeGraphInfo const& ComputeGraphInfo = InDeformer->ComputeGraphs[GraphIndex];
@@ -349,9 +365,9 @@ void UOptimusDeformerInstance::SetupFromDeformer(UOptimusDeformer* InDeformer)
 			}
 
 			// Set this instance on the graph data provider so that it can query variables.
-			if (UOptimusGraphDataProvider* GraphProvider = Cast<UOptimusGraphDataProvider>(DataProvider))
+			if (IOptimusDeformerInstanceAccessor* InstanceAccessor = Cast<IOptimusDeformerInstanceAccessor>(DataProvider))
 			{
-				GraphProvider->DeformerInstance = this;
+				InstanceAccessor->SetDeformerInstance(this);
 			}
 		}
 
@@ -397,6 +413,97 @@ void UOptimusDeformerInstance::SetupFromDeformer(UOptimusDeformer* InDeformer)
 void UOptimusDeformerInstance::SetCanBeActive(bool bInCanBeActive)
 {
 	bCanBeActive = bInCanBeActive;
+}
+
+TArray<float> UOptimusDeformerInstance::GetConstantValuePerInvocation(const FOptimusConstantIdentifier& InIdentifier)
+{
+	if (!InIdentifier.IsValid())
+	{
+		return {};
+	}
+	
+	FOptimusDeformerInstanceComponentContext ComponentContext;
+	
+	check(WeakBoundComponents.Num() == WeakComponentSources.Num());
+	int32 NumBindings = WeakBoundComponents.Num();
+	for (int32 BindingIndex = 0; BindingIndex < NumBindings; BindingIndex++)
+	{
+		int32 LodIndex = INDEX_NONE;
+		if (UActorComponent* Component = WeakBoundComponents[BindingIndex].Get())
+		{
+			if (const UOptimusComponentSource* ComponentSource = WeakComponentSources[BindingIndex].Get())
+			{
+				LodIndex = ComponentSource->GetLodIndex(Component);
+			}
+		}
+
+
+		if (ensure(LodIndex != INDEX_NONE))
+		{
+			ComponentContext.LodIndexPerComponent.Add(LodIndex);
+		}
+	}
+
+
+	if (const FOptimusConstantContainerInstance* ConstantValues = ConstantValuesPerContext.Find(ComponentContext))
+	{
+		return ConstantValues->GetConstantValuePerInvocation(InIdentifier);
+	}
+
+	TMap<int32, TMap<FName, TArray<float>>> BindingIndexToConstantValues;
+
+	auto CollectAllBindingConstants = [&]()
+	{
+		for (int32 BindingIndex = 0; BindingIndex < NumBindings; BindingIndex++)
+		{
+			TMap<FName, TArray<float>>& BindingConstantValues = BindingIndexToConstantValues.Add(BindingIndex);
+	
+			if (UActorComponent* Component = WeakBoundComponents[BindingIndex].Get())
+			{
+				if (const UOptimusComponentSource* ComponentSource = WeakComponentSources[BindingIndex].Get())
+				{
+					const int32 LodIndex = ComponentSource->GetLodIndex(Component);
+					TArray<FName> ComponentConstants = ComponentSource->GetExecutionDomains();
+
+					for (int32 ConstantIndex = 0; ConstantIndex < ComponentConstants.Num(); ConstantIndex++)
+					{
+						const FName& ConstantName = ComponentConstants[ConstantIndex];
+				
+						TArray<float>& Values = BindingConstantValues.Add(ConstantName);
+						
+						TArray<int32> Counts;
+						if (!ComponentSource->GetComponentElementCountsForExecutionDomain(
+							ConstantName,
+							Component, LodIndex, Counts))
+						{
+							return false;
+						}
+
+						Values.Reserve(Counts.Num());
+						for (const int32 Count : Counts)
+						{
+							Values.Add(Count);
+						}
+					}
+				}
+			}
+		}
+		
+		return true;
+	};
+
+
+	if (CollectAllBindingConstants())
+	{
+		FOptimusConstantContainerInstance& NewConstantValues = ConstantValuesPerContext.Add(ComponentContext);
+		if (NewConstantValues.Initialize(ConstantContainer, BindingIndexToConstantValues))
+		{
+			return NewConstantValues.GetConstantValuePerInvocation(InIdentifier);		
+		}
+	}
+
+	return{};
+	
 }
 
 void UOptimusDeformerInstance::AllocateResources()

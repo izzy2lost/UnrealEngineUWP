@@ -2,9 +2,11 @@
 
 #pragma once
 
+#include "IOptimusDeformerInstanceAccessor.h"
 #include "ComputeFramework/ComputeDataProvider.h"
 #include "ComputeFramework/ShaderParamTypeDefinition.h"
 #include "OptimusComputeDataInterface.h"
+#include "OptimusConstant.h"
 #include "OptimusDataDomain.h"
 #include "RenderGraphFwd.h"
 
@@ -63,6 +65,9 @@ public:
 	UPROPERTY()
 	TWeakObjectPtr<UOptimusComponentSourceBinding> ComponentSourceBinding;
 
+	UPROPERTY()
+	FOptimusConstantIdentifier DomainConstantIdentifier;
+	
 protected:
 	virtual bool UseSplitBuffers() const { return true; }
 
@@ -79,6 +84,7 @@ protected:
 			Provider->DataDomain = DataDomain;
 			Provider->ElementStride = ValueType->GetResourceElementSize();
 			Provider->RawStride = GetRawStride();
+			Provider->DomainConstantIdentifier = DomainConstantIdentifier;
 		}
 		return Provider;
 	}
@@ -142,7 +148,9 @@ protected:
 
 /** Compute Framework Data Provider for a transient buffer. */
 UCLASS(Abstract)
-class OPTIMUSCORE_API UOptimusRawBufferDataProvider : public UComputeDataProvider
+class OPTIMUSCORE_API UOptimusRawBufferDataProvider :
+	public UComputeDataProvider,
+	public IOptimusDeformerInstanceAccessor
 {
 	GENERATED_BODY()
 
@@ -155,6 +163,18 @@ public:
 		int32& OutLodIndex,
 		TArray<int32>& OutInvocationElementCounts
 		) const;
+
+	/** Helper function to calculate the element count given a constant identifier,
+	 *	LOD is handled by the deformer instance
+	 */
+	bool GetInvocationElementCounts(
+		TArray<int32>& OutInvocationElementCounts
+		) const;
+
+	//~ Begin IOptimusDeformerInstanceAccessor Interface
+	void SetDeformerInstance(UOptimusDeformerInstance* InInstance) override;
+	UOptimusDeformerInstance* GetDeformerInstance() const override;
+	//~ End IOptimusDeformerInstanceAccessor Interface
 	
 	/** The skinned mesh component that governs the sizing and LOD of this buffer */
 	UPROPERTY()
@@ -172,6 +192,13 @@ public:
 
 	UPROPERTY()
 	int32 RawStride = 0;
+
+	UPROPERTY()
+	FOptimusConstantIdentifier DomainConstantIdentifier;
+	
+private:
+	UPROPERTY()
+	TObjectPtr<UOptimusDeformerInstance> DeformerInstance = nullptr;
 };
 
 

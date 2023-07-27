@@ -144,7 +144,7 @@ bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts(
 		return false;
 	}
 	
-	TMap<FName, int32> EngineConstants;
+	TMap<FName, float> EngineConstants;
 	TMap<FName, TArray<int32>> ElementCountsPerDomain;
 
 	for(FName ExecutionDomain: ComponentSource->GetExecutionDomains())
@@ -170,8 +170,17 @@ bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts(
 
 	using namespace Optimus::Expression;
 
-	FEngine Engine(EngineConstants);
-	TVariant<FExpressionObject, FParseError> ParseResult = Engine.Parse(NumThreadsExpression);
+	FEngine Engine;
+	TVariant<FExpressionObject, FParseError> ParseResult = Engine.Parse(NumThreadsExpression, [EngineConstants](FName InName)->TOptional<float>
+	{
+		if (const float* Value = EngineConstants.Find(InName))
+		{
+			return *Value;
+		};
+
+		return {};
+	});
+	
 	if (ParseResult.IsType<FParseError>())
 	{
 		return false;
@@ -180,16 +189,25 @@ bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts(
 	OutInvocationThreadCount.Reset(NumInvocations);
 	for (int32 Index = 0; Index < NumInvocations; Index++)
 	{
-		for (TPair<FName, int32>& Constant: EngineConstants)
+		for (TPair<FName, float>& Constant: EngineConstants)
 		{
 			const FName ConstantName = Constant.Key;
-			int32& Value = Constant.Value;
+			float& Value = Constant.Value;
 			
 			const TArray<int32>& ElementCounts = ElementCountsPerDomain[ConstantName]; 
 			Value = ElementCounts.IsValidIndex(Index) ? ElementCounts[Index] : 1;
 		}
-		Engine.UpdateConstantValues(EngineConstants);
-		const int32 Count = Engine.Execute(ParseResult.Get<FExpressionObject>());
+		
+		const int32 Count = static_cast<int32>(Engine.Execute(ParseResult.Get<FExpressionObject>(),
+			[EngineConstants](FName InName)->TOptional<float>
+			{
+				if (const float* Value = EngineConstants.Find(InName))
+				{
+					return *Value;
+				};
+
+				return {};
+			}));
 
 		if (Count < 0)
 		{
@@ -209,8 +227,10 @@ bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts(
 
 	// We want to make sure the results are the same for unified and non-unified
 	// Do the sum across invocations first and then evaluate the expression
-	for (auto& [ConstantName, Value]: EngineConstants)
+	for (TPair<FName, float>& Constant : EngineConstants)
 	{
+		const FName ConstantName = Constant.Key;
+		float& Value = Constant.Value;
 		Value = 0;
 		const TArray<int32>& ElementCounts = ElementCountsPerDomain[ConstantName];
 		
@@ -220,8 +240,17 @@ bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts(
 		}
 	}
 	
-	Engine.UpdateConstantValues(EngineConstants);
-	const int32 TotalElementCountForUnifiedDispatch = Engine.Execute(ParseResult.Get<FExpressionObject>());
+	
+	const int32 TotalElementCountForUnifiedDispatch = static_cast<int32>(Engine.Execute(ParseResult.Get<FExpressionObject>(), 
+		[EngineConstants](FName InName)->TOptional<float>
+		{
+			if (const float* Value = EngineConstants.Find(InName))
+			{
+				return *Value;
+			};
+
+			return {};
+		}));
 	
 	if (OutTotalThreadCount != TotalElementCountForUnifiedDispatch)
 	{

@@ -19,37 +19,6 @@
 
 #define LOCTEXT_NAMESPACE "OptimusDeformer"
 
-static FString FormatDataDomain(
-	const FOptimusDataDomain& InDataDomain
-	)
-{
-	switch(InDataDomain.Type)
-	{
-	case EOptimusDataDomainType::Dimensional:
-		{
-			if (InDataDomain.DimensionNames.IsEmpty())
-			{
-				return TEXT("Parameter");
-			}
-			else
-			{
-				TArray<FString> Names;
-				for (FName DomainLevelName: InDataDomain.DimensionNames)
-				{
-					Names.Add(DomainLevelName.ToString());
-				}
-				return FString::Join(Names, *FString(UTF8TEXT(" › ")));
-			}
-		}
-		
-	case EOptimusDataDomainType::Expression:
-		return InDataDomain.Expression.TrimStartAndEnd();
-	}
-	
-	checkNoEntry();
-	return TEXT("");
-}
-
 
 
 UOptimusNodePin* UOptimusNodePin::GetParentPin()
@@ -171,7 +140,7 @@ FText UOptimusNodePin::GetTooltipText() const
 	{
 		return FText::FormatOrdered(LOCTEXT("OptimusNodePin_Tooltip_Resource", "Name:\t{0}\nType:\t{1} ({2})\nStorage:\tResource\nDomain:\t{3}"),
 			FText::FromString(GetName()), DataType->DisplayName, FText::FromString(DataType->ShaderValueType->ToString()),
-			FText::FromString(FormatDataDomain(DataDomain)));
+			FText::FromString(DataDomain.GetDisplayName()));
 	}
 }
 
@@ -493,32 +462,7 @@ bool UOptimusNodePin::CanCannect(const UOptimusNodePin* InOtherPin, FString* Out
 	const UOptimusNodePin *OutputPin = Direction == EOptimusNodePinDirection::Output ? this : InOtherPin;
 	const UOptimusNodePin* InputPin = Direction == EOptimusNodePinDirection::Input ? this : InOtherPin;
 
-	// We don't allow resource -> value connections. All other combos are legit. 
-	// Value -> Resource just means the resource gets filled with the value.
-	if (!OutputPin->DataDomain.IsSingleton() && InputPin->DataDomain.IsSingleton())
-	{
-		if (OutReason)
-		{
-			*OutReason = TEXT("Can't connect a resource output into a value input.");
-		}
-		return false;
-	}
-
-	// If it's resource -> resource, check that the dimensionality is the same.
-	if (!OutputPin->DataDomain.IsSingleton() && !InputPin->DataDomain.IsSingleton())
-	{
-		if (OutputPin->DataDomain != InputPin->DataDomain)
-		{
-			if (OutReason)
-			{
-				*OutReason = FString::Printf(TEXT("Can't connect resources with different data domain types (%s vs %s)."),
-					*FormatDataDomain(OutputPin->DataDomain), *FormatDataDomain(InputPin->DataDomain));
-			}
-			return false;
-		}
-	}
-
-	return true;
+	return FOptimusDataDomain::AreCompatible(OutputPin->DataDomain, InputPin->DataDomain, OutReason);
 }
 
 

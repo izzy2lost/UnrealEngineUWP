@@ -118,6 +118,16 @@ FComputeDataProviderRenderProxy* UOptimusGraphDataProvider::GetRenderProxy()
 	return new FOptimusGraphDataProviderProxy(DeformerInstance, Variables, ParameterBufferSize);
 }
 
+void UOptimusGraphDataProvider::SetDeformerInstance(UOptimusDeformerInstance* InInstance)
+{
+	DeformerInstance = InInstance;
+}
+
+UOptimusDeformerInstance* UOptimusGraphDataProvider::GetDeformerInstance() const
+{
+	return DeformerInstance;
+}
+
 FOptimusGraphDataProviderProxy::FOptimusGraphDataProviderProxy(UOptimusDeformerInstance const* DeformerInstance, TArray<FOptimusGraphVariableDescription> const& Variables, int32 ParameterBufferSize)
 {
 	// Get all variables from deformer instance and fill buffer.
