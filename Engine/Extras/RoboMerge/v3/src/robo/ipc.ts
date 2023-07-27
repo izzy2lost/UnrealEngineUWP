@@ -165,9 +165,9 @@ export class IPC {
 		return {statusCode: 400, message: `Unknown bot '${botname}'`}
 	}
 
-	private async trackChange(url: any, userTags: Set<string>): Promise<OperationReturnType> {
+	private async trackChange(queryObj: any, userTags: Set<string>): Promise<OperationReturnType> {
 
-		const clStr = url.searchParams.get('cl')
+		const clStr = queryObj.cl
 		if (!clStr) {
 			return {statusCode: 400, message: 'No CL parameter provided.'}
 		}
@@ -178,11 +178,11 @@ export class IPC {
 		}
 
 		const streamFilter = (() => {
-			const streamsParam: string|undefined = url.searchParams.get('streams');
+			const streamsParam: string|undefined = queryObj.streams;
 			return (streamsParam ? streamsParam.toUpperCase().replace('*','.*').split(',').map(s => new RegExp(s)) : [])
 		})() 
 		const botFilter = (() => { 
-			const botsParam = url.searchParams.get('bots')
+			const botsParam = queryObj.bots
 			// botFilter is ignored if streamFilter specified
 			return (streamFilter.length == 0 && botsParam ? botsParam.toUpperCase().split(',') : [])
 		})()
@@ -277,7 +277,7 @@ export class IPC {
 						break
 					}
 				}
-			} else if (isFTE) {
+			} else if (isFTE && botFilter.length == 0) {
 				includeInResults = true
 				streamDisplayName = getStreamFromPath(changeToConsider.desc.path) || changeToConsider.desc.path
 			}

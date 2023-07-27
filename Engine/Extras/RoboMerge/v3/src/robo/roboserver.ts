@@ -205,7 +205,13 @@ class RoboWebApp implements AppInterface {
 			throw new Error('Secure call but no auth data?')
 		}
 
-		return this.sendMessage('trackChange', [this.request.url, this.authData.tags])
+		const queryObj: {[key: string]: string} = {}
+		for (const [key, val] of this.request.url.searchParams) {
+			queryObj[key] = val
+		}
+
+
+		return this.sendMessage('trackChange', [queryObj, this.authData.tags])
 	}
 
 
