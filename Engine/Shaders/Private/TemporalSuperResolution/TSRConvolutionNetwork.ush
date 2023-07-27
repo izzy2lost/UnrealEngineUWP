@@ -120,7 +120,7 @@ tsr_short2 ComputeElementInputPixelPos(
 		GroupThreadIndex,
 		InputElementIndex);
 
-	return fastClamp(InputTileOffset + InputPixelOffsetInTile, InputPixelOffsetMin, InputPixelOffsetMax);
+	return fastClamp(InputPixelOffsetMin + InputTileOffset + InputPixelOffsetInTile, InputPixelOffsetMin, InputPixelOffsetMax);
 }
 
 CALL_SITE_DEBUGLOC
@@ -152,7 +152,7 @@ tsr_short2 ComputeElementOutputPixelPos(
 		GroupThreadIndex,
 		OutputElementIndex);
 
-	tsr_short2 OutputPixelOffsetInOutputTexture = OutputTileOffset + OutputPixelOffsetInTile;
+	tsr_short2 OutputPixelOffsetInOutputTexture = OutputPixelOffsetMin + OutputTileOffset + OutputPixelOffsetInTile;
 	
 	bool2 bIsWithinOutputViewport = OutputPixelOffsetInOutputTexture < OutputPixelOffsetMax;
 	bool2 bIsNotPadding = or(bDebugDisablePadding.xx, and(
