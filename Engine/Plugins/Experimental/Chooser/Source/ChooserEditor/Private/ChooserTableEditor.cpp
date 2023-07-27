@@ -1044,6 +1044,10 @@ TSharedRef<SDockTab> FChooserTableEditor::SpawnTableTab( const FSpawnTabArgs& Ar
 						{
 							RowsToDelete.Add(SelectedRow->Row);
 						}
+
+						SelectedRows.SetNum(0);
+						SelectRootProperties();
+
 						// sort indices in reverse
 						RowsToDelete.Sort([](int32 A, int32 B){ return A>B; });
 						for(uint32 RowIndex : RowsToDelete)
