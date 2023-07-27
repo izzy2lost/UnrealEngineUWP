@@ -5,6 +5,8 @@
 #include <assert.h>
 #include <iostream>
 #include <assert.h>
+#include <stdio.h>
+#include <string.h>
 
 struct FComputeBufferDetail
 {
@@ -179,24 +181,24 @@ struct FComputeBufferDetail
 		FChunkStatePtr Chunks[FComputeBuffer::MaxChunks];
 	};
 
-	wchar_t Name[260];
+	char Name[FComputeBuffer::MaxNameLength];
 
 	FHeader* Header;
 	unsigned char* ChunkPtrs[FComputeBuffer::MaxChunks];
 
-	FComputeManualResetEvent WriterEvent;
-	FComputeManualResetEvent ReaderEvents[FComputeBuffer::MaxReaders];
+	FComputeEvent WriterEvent;
+	FComputeEvent ReaderEvents[FComputeBuffer::MaxReaders];
 
 	FComputeBufferWriter Writer;
 
-	FComputeBufferDetail(const wchar_t* Name)
+	FComputeBufferDetail(const char* InName)
 		: Header(nullptr)
 		, ChunkPtrs{ nullptr, }
 	{
 		static_assert(sizeof(FChunkStatePtr) == sizeof(long long), "Incorrect size of FChunkStatePtr; check union is declared correctly.");
 		static_assert(sizeof(FWriterStatePtr) == sizeof(long long), "Incorrect size of FWriterStatePtr; check union is declared correctly.");
 
-		wcscpy_s(this->Name, Name);
+		FComputePlatform::Strcpy(Name, FComputeBuffer::MaxNameLength, InName);
 	}
 
 	~FComputeBufferDetail()
@@ -208,17 +210,17 @@ struct FComputeBufferDetail
 	{
 		long long Capacity = sizeof(FHeader) + (Params.NumChunks * sizeof(unsigned int)) + (Params.NumChunks * Params.ChunkLength);
 
-		const wchar_t* Name = Params.Name;
+		const char* Name = Params.Name;
 
-		wchar_t BaseNameBuffer[FComputeBuffer::MaxNameLength];
+		char BaseNameBuffer[FComputeBuffer::MaxNameLength];
 		if (Name == nullptr)
 		{
 			FComputePlatform::CreateUniqueName(BaseNameBuffer, FComputeBuffer::MaxNameLength);
 			Name = BaseNameBuffer;
 		}
 
-		wchar_t NameBuffer[FComputeBuffer::MaxNameLength];
-		swprintf(NameBuffer, FComputeBuffer::MaxNameLength, L"%s_M", Name);
+		char NameBuffer[FComputeBuffer::MaxNameLength];
+		snprintf(NameBuffer, FComputeBuffer::MaxNameLength, "%s_M", Name);
 
 		std::shared_ptr<FComputeBufferDetail> Detail = std::make_shared<FComputeBufferDetail>(Name);
 		if (!Detail->MemoryMappedFile.Create(NameBuffer, Capacity))
@@ -238,7 +240,7 @@ struct FComputeBufferDetail
 		Detail->Header->ChunkLength = Params.ChunkLength;
 		Detail->Header->Chunks[0].Set(FChunkState(EWriteState::Writing, 0, 0));
 
-		swprintf(NameBuffer, FComputeBuffer::MaxNameLength, L"%s_W", Name);
+		snprintf(NameBuffer, FComputeBuffer::MaxNameLength, "%s_W", Name);
 		if (!Detail->WriterEvent.Create(NameBuffer))
 		{
 			return nullptr;
@@ -246,7 +248,7 @@ struct FComputeBufferDetail
 
 		for (int ReaderIdx = 0; ReaderIdx < Detail->Header->NumReaders; ReaderIdx++)
 		{
-			swprintf(NameBuffer, FComputeBuffer::MaxNameLength, L"%s_R%d", Name, ReaderIdx);
+			snprintf(NameBuffer, FComputeBuffer::MaxNameLength, "%s_R%d", Name, ReaderIdx);
 			if (!Detail->ReaderEvents[ReaderIdx].Create(NameBuffer))
 			{
 				return nullptr;
@@ -257,10 +259,10 @@ struct FComputeBufferDetail
 		return Detail;
 	}
 
-	static std::shared_ptr<FComputeBufferDetail> OpenExisting(const wchar_t* Name)
+	static std::shared_ptr<FComputeBufferDetail> OpenExisting(const char* Name)
 	{
-		wchar_t NameBuffer[FComputeBuffer::MaxNameLength];
-		swprintf(NameBuffer, FComputeBuffer::MaxNameLength, L"%s_M", Name);
+		char NameBuffer[FComputeBuffer::MaxNameLength];
+		snprintf(NameBuffer, FComputeBuffer::MaxNameLength, "%s_M", Name);
 
 		std::shared_ptr<FComputeBufferDetail> Detail = std::make_shared<FComputeBufferDetail>(Name);
 		if (!Detail->MemoryMappedFile.OpenExisting(NameBuffer))
@@ -274,7 +276,7 @@ struct FComputeBufferDetail
 			return nullptr;
 		}
 
-		swprintf(NameBuffer, FComputeBuffer::MaxNameLength, L"%s_W", Name);
+		snprintf(NameBuffer, FComputeBuffer::MaxNameLength, "%s_W", Name);
 		if (!Detail->WriterEvent.OpenExisting(NameBuffer))
 		{
 			return nullptr;
@@ -282,7 +284,7 @@ struct FComputeBufferDetail
 
 		for (int ReaderIdx = 0; ReaderIdx < Detail->Header->NumReaders; ReaderIdx++)
 		{
-			swprintf(NameBuffer, FComputeBuffer::MaxNameLength, L"%s_R%d", Name, ReaderIdx);
+			snprintf(NameBuffer, FComputeBuffer::MaxNameLength, "%s_R%d", Name, ReaderIdx);
 			if (!Detail->ReaderEvents[ReaderIdx].OpenExisting(NameBuffer))
 			{
 				return nullptr;
@@ -308,7 +310,7 @@ struct FComputeBufferDetail
 	{
 		for (;;)
 		{
-			int AllocatedReaders = Header->AllocatedReaders;
+			int AllocatedReaders = (int)Header->AllocatedReaders;
 			int ReaderFlag = (AllocatedReaders + 1) ^ AllocatedReaders;
 
 			int ReaderIdx = FComputePlatform::FloorLog2(ReaderFlag);
@@ -379,7 +381,6 @@ struct FComputeBufferDetail
 			if (!ChunkState.HasReaderFlag(ReaderIdx))
 			{
 				// Wait until the current chunk is readable
-				ReaderEvents[ReaderIdx].Reset();
 				if (!ChunkState.HasReaderFlag(ReaderIdx) && !ReaderEvents[ReaderIdx].Wait(TimeoutMs))
 				{
 					return nullptr;
@@ -393,7 +394,6 @@ struct FComputeBufferDetail
 			else if (ChunkState.GetWriteState() == EWriteState::Writing)
 			{
 				// Wait until there is more data in the chunk
-				ReaderEvents[ReaderIdx].Reset();
 				if (Header->Chunks[ReaderState.ChunkIdx].Get().Value == ChunkState.Value && !ReaderEvents[ReaderIdx].Wait(TimeoutMs))
 				{
 					return nullptr;
@@ -408,7 +408,7 @@ struct FComputeBufferDetail
 			{
 				// Move to the next chunk
 				ChunkStatePtr.FinishReading(ReaderIdx);
-				WriterEvent.Set();
+				WriterEvent.Signal();
 
 				if (++ReaderState.ChunkIdx == Header->NumChunks)
 				{
@@ -519,7 +519,6 @@ struct FComputeBufferDetail
 				{
 					return nullptr;
 				}
-				WriterEvent.Reset();
 			}
 			else if (NextWriteChunkStatePtr.TryUpdate(NextWriteChunkState, FChunkState(EWriteState::Writing, WriterState.GetReaderFlags(), 0)))
 			{
@@ -557,7 +556,7 @@ private:
 	{
 		for (int Idx = 0; Idx < Header->NumReaders; Idx++)
 		{
-			ReaderEvents[Idx].Set();
+			ReaderEvents[Idx].Signal();
 		}
 	}
 };
@@ -591,7 +590,7 @@ struct FComputeBufferReaderDetail
 	void Detach()
 	{
 		ReaderState.Detached = true;
-		Buffer->ReaderEvents[ReaderState.ReaderIdx].Set();
+		Buffer->ReaderEvents[ReaderState.ReaderIdx].Signal();
 	}
 
 	void AdvanceReadPosition(size_t Size)
@@ -632,7 +631,7 @@ bool FComputeBuffer::CreateNew(const FParams& Params)
 	return Detail != nullptr;
 }
 
-bool FComputeBuffer::OpenExisting(const wchar_t* Name)
+bool FComputeBuffer::OpenExisting(const char* Name)
 {
 	Detail = FComputeBufferDetail::OpenExisting(Name);
 	return Detail != nullptr;
@@ -735,7 +734,7 @@ const unsigned char* FComputeBufferReader::WaitToRead(size_t MinSize, int Timeou
 	return Detail->WaitToRead(MinSize, TimeoutMs);
 }
 
-const wchar_t* FComputeBufferReader::GetName() const
+const char* FComputeBufferReader::GetName() const
 {
 	return Detail->Buffer->Name;
 }
@@ -799,7 +798,7 @@ unsigned char* FComputeBufferWriter::WaitToWrite(size_t MinSize, int TimeoutMs)
 	return Detail->WaitToWrite(MinSize, TimeoutMs);
 }
 
-const wchar_t* FComputeBufferWriter::GetName() const
+const char* FComputeBufferWriter::GetName() const
 {
 	return Detail->Name;
 }

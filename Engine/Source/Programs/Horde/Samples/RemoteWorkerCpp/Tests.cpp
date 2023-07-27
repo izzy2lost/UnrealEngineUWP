@@ -11,9 +11,11 @@ void RunTests()
 {
 	void ComputeBufferTest();
 	ComputeBufferTest();
+	std::cout << "ComputeBufferTest ok" << std::endl;
 
 	void ComputeSocketTest();
 	ComputeSocketTest();
+	std::cout << "ComputeSocketTest ok" << std::endl;
 }
 
 void ComputeBufferTest()

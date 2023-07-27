@@ -3,63 +3,157 @@
 #include "ComputePlatform.h"
 #include <assert.h>
 #include <wchar.h>
+#include <bit>
+#include <algorithm>
+#include <iostream>
 
-#ifdef _MSC_VER
-#include <Windows.h>
-#undef GetEnvironmentVariable
+#if UE_COMPUTE_PLATFORM_WINDOWS
+	#include <Windows.h>
+	#undef min
+	#undef max
+	#undef GetEnvironmentVariable
+#else
+	#include <semaphore.h>
+	#include <unistd.h>
+	#include <atomic>
+	#include <sys/mman.h>
+	#include <sys/stat.h>
+	#include <time.h>
+	#include <fcntl.h>
 #endif
 
-/////////////////////////////////////////////////// 
+///////////////////////////////////////////////////
 
-FComputeManualResetEvent::FComputeManualResetEvent()
+FComputeEvent::FComputeEvent()
 	: Handle(nullptr)
 {
 }
 
-FComputeManualResetEvent::~FComputeManualResetEvent()
+FComputeEvent::~FComputeEvent()
 {
 	Close();
 }
 
-bool FComputeManualResetEvent::Create(const wchar_t* Name)
+bool FComputeEvent::Create(const char* Name)
 {
 	Close();
 
-	Handle = CreateEventW(NULL, TRUE, FALSE, Name);
+#if UE_COMPUTE_PLATFORM_WINDOWS
+	Handle = CreateEventA(NULL, FALSE, FALSE, Name);
 	return Handle != nullptr;
+#else
+	sem_t* Value = sem_open(Name, O_CREAT | O_EXCL, 0666, 1);
+	if(Value != SEM_FAILED)
+	{
+		Handle = Value;
+		return true;
+	}
+	return false;
+#endif
 }
 
-bool FComputeManualResetEvent::OpenExisting(const wchar_t* Name)
+bool FComputeEvent::OpenExisting(const char* Name)
 {
 	Close();
 
-	Handle = OpenEventW(SYNCHRONIZE | EVENT_MODIFY_STATE, TRUE, Name);
+#if UE_COMPUTE_PLATFORM_WINDOWS
+	Handle = OpenEventA(SYNCHRONIZE | EVENT_MODIFY_STATE, TRUE, Name);
 	return Handle != nullptr;
+#else
+	sem_t* Value = sem_open(Name, 0);
+	if(Value != SEM_FAILED)
+	{
+		Handle = Value;
+		return true;
+	}
+	return false;
+#endif
 }
 
-void FComputeManualResetEvent::Close()
+void FComputeEvent::Close()
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	if (Handle != nullptr)
 	{
 		CloseHandle(Handle);
 		Handle = nullptr;
 	}
+#else
+	if (Handle != nullptr)
+	{
+		sem_close((sem_t*)Handle);
+		Handle = nullptr;
+	}
+#endif
 }
 
-void FComputeManualResetEvent::Set()
+void FComputeEvent::Signal()
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	SetEvent(Handle);
+#else
+	sem_post((sem_t*)Handle);
+#endif
 }
 
-void FComputeManualResetEvent::Reset()
+bool FComputeEvent::Wait(int timeoutMs)
 {
-	ResetEvent(Handle);
-}
-
-bool FComputeManualResetEvent::Wait(int timeoutMs)
-{
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	DWORD WaitParam = (timeoutMs < 0) ? INFINITE : (DWORD)timeoutMs;
 	return WaitForSingleObject(Handle, WaitParam) != WAIT_TIMEOUT;
+#else
+	if (timeoutMs == -1)
+	{
+		return sem_wait((sem_t*)Handle) == 0;
+	}
+
+	if (sem_trywait((sem_t*)Handle) == 0)
+	{
+		return true;
+	}
+
+	if(timeoutMs == 0)
+	{
+		return false;
+	}
+		
+	struct timespec ts;
+	if (clock_gettime(CLOCK_REALTIME, &ts) == -1)
+	{
+		assert(false);
+		return false;
+	}
+	
+	const long long NsPerSec = 1'000'000'000;
+	const long long NsPerMs = NsPerSec / 1000;
+	
+	long long newNs = (long long)ts.tv_nsec + (timeoutMs * NsPerMs);
+	ts.tv_nsec = newNs % NsPerSec;
+	ts.tv_sec += newNs / NsPerSec;
+	
+#if UE_COMPUTE_PLATFORM_MAC
+	for(;;)
+	{
+		if (sem_trywait((sem_t*)Handle) == 0)
+		{
+			return true;
+		}
+		
+		struct timespec currentTs;
+		if (clock_gettime(CLOCK_REALTIME, &currentTs) != 0 || currentTs.tv_sec > ts.tv_sec || (currentTs.tv_sec == ts.tv_sec && currentTs.tv_nsec > ts.tv_nsec))
+		{
+			return false;
+		}
+		
+		struct timespec sleepTs = { 0, };
+		sleepTs.tv_nsec = 100 * NsPerMs;
+		
+		nanosleep(&sleepTs, nullptr);
+	}
+#else
+	return sem_timedwait((sem_t*)Handle, &ts) == 0;
+#endif
+#endif
 }
 
 /////////////////////////////////////////////////// 
@@ -67,6 +161,8 @@ bool FComputeManualResetEvent::Wait(int timeoutMs)
 FComputeMemoryMappedFile::FComputeMemoryMappedFile()
 	: Handle(nullptr)
 	, Pointer(nullptr)
+	, MappedSize(0)
+	, OwnerName(nullptr)
 {
 }
 
@@ -75,14 +171,15 @@ FComputeMemoryMappedFile::~FComputeMemoryMappedFile()
 	Close();
 }
 
-bool FComputeMemoryMappedFile::Create(const wchar_t* Name, long long Capacity)
+bool FComputeMemoryMappedFile::Create(const char* Name, long long Capacity)
 {
 	Close();
 
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	LARGE_INTEGER LargeInteger;
 	LargeInteger.QuadPart = Capacity;
 
-	Handle = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, LargeInteger.HighPart, LargeInteger.LowPart, Name);
+	Handle = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, LargeInteger.HighPart, LargeInteger.LowPart, Name);
 	if (Handle == nullptr)
 	{
 		return false;
@@ -95,13 +192,41 @@ bool FComputeMemoryMappedFile::Create(const wchar_t* Name, long long Capacity)
 	}
 
 	return true;
+#else
+	int Fd = shm_open(Name, O_CREAT | O_EXCL | O_RDWR, 0666);
+	if(Fd < 0)
+	{
+		std::cerr << "Unable to create shared memory object '" << Name << "' (errno=" << errno << ")" << std::endl;
+		return false;
+	}
+
+	Handle = (void*)(size_t)Fd;
+	MappedSize = Capacity;
+	OwnerName = strdup(Name);
+
+	if(ftruncate(Fd, MappedSize) < 0)
+	{
+		std::cerr << "Unable to update size of shared memory object '" << Name << "' to " << MappedSize << " (errno=" << errno << ")" << std::endl;
+		return false;
+	}
+
+	Pointer = mmap(nullptr, MappedSize, PROT_READ | PROT_WRITE, MAP_SHARED, Fd, 0);
+	if(Pointer == MAP_FAILED)
+	{
+		std::cerr << "Unable to map shared memory object '" << Name << " (errno=" << errno << ")" << std::endl;
+		return false;
+	}
+	
+	return true;
+#endif
 }
 
-bool FComputeMemoryMappedFile::OpenExisting(const wchar_t* Name)
+bool FComputeMemoryMappedFile::OpenExisting(const char* Name)
 {
 	Close();
 
-	Handle = OpenFileMappingW(FILE_MAP_ALL_ACCESS, TRUE, Name);
+#if UE_COMPUTE_PLATFORM_WINDOWS
+	Handle = OpenFileMappingA(FILE_MAP_ALL_ACCESS, TRUE, Name);
 	if (Handle == nullptr)
 	{
 		return false;
@@ -114,10 +239,34 @@ bool FComputeMemoryMappedFile::OpenExisting(const wchar_t* Name)
 	}
 
 	return true;
+#else
+	int Fd = shm_open(Name, O_RDWR, 0666);
+	if(Fd < 0)
+	{
+		std::cerr << "Unable to open shared memory object '" << Name << "' (errno=" << errno << ")" << std::endl;
+		return false;
+	}
+
+	Handle = (void*)(size_t)Fd;
+
+	struct stat st;
+	fstat(Fd, &st);
+	MappedSize = st.st_size;
+
+	Pointer = mmap(nullptr, MappedSize, PROT_READ | PROT_WRITE, MAP_SHARED, Fd, 0);
+	if(Pointer == MAP_FAILED)
+	{
+		std::cerr << "Unable to map shared memory object '" << Name << " (errno=" << errno << ")" << std::endl;
+		return false;
+	}
+	
+	return true;
+#endif
 }
 
 void FComputeMemoryMappedFile::Close()
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	if (Pointer != nullptr)
 	{
 		UnmapViewOfFile(Pointer);
@@ -129,123 +278,201 @@ void FComputeMemoryMappedFile::Close()
 		CloseHandle(Handle);
 		Handle = nullptr;
 	}
+#else
+	if(OwnerName != nullptr)
+	{
+		shm_unlink(OwnerName);
+		OwnerName = nullptr;
+	}
+	
+	if(Pointer != nullptr)
+	{
+		munmap(Pointer, MappedSize);
+		Pointer = nullptr;
+	}
+
+	int Fd = (int)(size_t)Handle;
+	if(Fd >= 0)
+	{
+		close(Fd);
+		Handle = nullptr;
+	}
+#endif
 }
 
 void* FComputeMemoryMappedFile::GetPointer() const
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	return Pointer;
+#else
+	return (unsigned char*)Pointer + 16;
+#endif
 }
 
 /////////////////////////////////////////////////// 
 
-bool FComputePlatform::GetEnvironmentVariable(const wchar_t* Name, wchar_t* Buffer, size_t BufferLen)
+bool FComputePlatform::GetEnvironmentVariable(const char* Name, char* Buffer, size_t BufferLen)
 {
-	int Length = GetEnvironmentVariableW(Name, Buffer, (DWORD)BufferLen);
+#if UE_COMPUTE_PLATFORM_WINDOWS
+	int Length = GetEnvironmentVariableA(Name, Buffer, (DWORD)BufferLen);
 	return Length > 0 && Length < BufferLen;
+#else
+	char* Value = getenv(Name);
+	if(Value != nullptr)
+	{
+		FComputePlatform::Strcpy(Buffer, BufferLen, Value);
+		return true;
+	}
+	return false;
+#endif
 }
 
-void FComputePlatform::CreateUniqueName(wchar_t* NameBuffer, size_t NameBufferLen)
+void FComputePlatform::CreateUniqueName(char* NameBuffer, size_t NameBufferLen)
 {
 	static long Counter = 0;
 
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	DWORD Pid = GetCurrentProcessId();
 	ULONGLONG TickCount = GetTickCount64();
-	swprintf(NameBuffer, NameBufferLen, L"Local\\COMPUTE_%u_%llu_%lu", Pid, TickCount, AtomicIncrement(&Counter));
+	snprintf(NameBuffer, NameBufferLen, "Local\\COMPUTE_%u_%llu_%lu", Pid, TickCount, AtomicIncrement(&Counter));
+#else
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	snprintf(NameBuffer, NameBufferLen, "/COMPUTE_%u_%zu_%zu_%lu", getpid(), (size_t)ts.tv_sec, (size_t)ts.tv_nsec, AtomicIncrement(&Counter));
+#endif
 }
 
 unsigned int FComputePlatform::FloorLog2(unsigned int Value)
 {
-	// Use BSR to return the log2 of the integer
-	// return 0 if value is 0
-	unsigned long BitIndex;
-	return _BitScanReverse(&BitIndex, Value) ? BitIndex : 0;
+	return std::max<unsigned int>(0, 31 - std::countl_zero(Value));
 }
 
 unsigned int FComputePlatform::CountLeadingZeros(unsigned int Value)
 {
-	// return 32 if value is zero
-	unsigned long BitIndex;
-	_BitScanReverse64(&BitIndex, (unsigned long long)(Value) * 2 + 1);
-	return 32 - BitIndex;
+	return std::countl_zero(Value);
 }
 
-size_t FComputePlatform::Utf8ToWchar(const char* Source, size_t SourceLen, wchar_t* Dest, size_t DestMaxLen)
+void FComputePlatform::Strcpy(char* Dest, size_t DestLen, const char* Source)
 {
-	size_t DecodedLen = MultiByteToWideChar(CP_UTF8, 0, Source, (int)SourceLen, Dest, (int)DestMaxLen);
-	Dest[DecodedLen] = 0;
-	return DecodedLen;
+	size_t Length = std::min(strlen(Source), DestLen - 1);
+	memcpy(Dest, Source, Length);
+	Dest[Length] = 0;
 }
 
-size_t FComputePlatform::WcharToUtf8(const wchar_t* Source, size_t SourceLen, char* Dest, size_t DestMaxLen)
+int FComputePlatform::Stricmp(const char* A, const char* B)
 {
-	if (SourceLen == 0)
-	{
-		return 0;
-	}
-
-	int Result = WideCharToMultiByte(CP_UTF8, 0, Source, (int)SourceLen, Dest, (int)DestMaxLen, nullptr, nullptr);
-	assert(Result > 0);
-
-	return (size_t)Result;
+#if UE_COMPUTE_PLATFORM_WINDOWS
+	return _stricmp(A, B);
+#else
+	return strcasecmp(A, B);
+#endif
 }
 
 long long FComputePlatform::AtomicRead64(const volatile long long* Ptr)
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	return InterlockedCompareExchange64(const_cast<volatile long long*>(Ptr), 0, 0);
+#else
+	return std::atomic_load((std::atomic<long long>*)Ptr);
+#endif
 }
 
 void FComputePlatform::AtomicWrite64(volatile long long* Ptr, long long Value)
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	InterlockedExchange64(Ptr, Value);
+#else
+	return std::atomic_store((std::atomic<long long>*)Ptr, Value);
+#endif
 }
 
 long FComputePlatform::AtomicIncrement(volatile long* Ptr)
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	return InterlockedIncrement(Ptr);
+#else
+	return std::atomic_fetch_add((std::atomic<long>*)Ptr, 1) + 1;
+#endif
 }
 
 long FComputePlatform::AtomicDecrement(volatile long* Ptr)
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	return InterlockedDecrement(Ptr);
+#else
+	return std::atomic_fetch_add((std::atomic<long>*)Ptr, -1) - 1;
+#endif
 }
 
 long long FComputePlatform::AtomicAdd64(volatile long long* Ptr, long long Value)
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	return InterlockedAdd64(Ptr, Value);
+#else
+	return std::atomic_fetch_add((std::atomic<long long>*)Ptr, Value) + Value;
+#endif
 }
 
 long FComputePlatform::AtomicAnd(volatile long* Ptr, long Value)
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	return InterlockedAnd(Ptr, Value);
+#else
+	return std::atomic_fetch_and((std::atomic<long>*)Ptr, Value);
+#endif
 }
 
 long long FComputePlatform::AtomicAnd64(volatile long long* Ptr, long long Value)
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	return InterlockedAnd64(Ptr, Value);
+#else
+	return std::atomic_fetch_and((std::atomic<long long>*)Ptr, Value);
+#endif
 }
 
 long long FComputePlatform::AtomicOr64(volatile long long* Ptr, long long Value)
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	return InterlockedOr64(Ptr, Value);
+#else
+	return std::atomic_fetch_or((std::atomic<long long>*)Ptr, Value);
+#endif
 }
 
 long long FComputePlatform::AtomicIncrement64(volatile long long* Ptr)
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	return InterlockedIncrement64(Ptr);
+#else
+	return std::atomic_fetch_add((std::atomic<long long>*)Ptr, 1) + 1;
+#endif
 }
 
 long long FComputePlatform::AtomicExchange64(volatile long long* Ptr, long long Exchange)
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	return InterlockedExchange64(Ptr, Exchange);
+#else
+	return std::atomic_exchange((std::atomic<long long>*)Ptr, Exchange);
+#endif
 }
 
 bool FComputePlatform::AtomicCompareExchange(volatile long* Ptr, long Exchange, long Comperand)
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	return InterlockedCompareExchange(Ptr, Exchange, Comperand) == Comperand;
+#else
+	return std::atomic_compare_exchange_strong((std::atomic<long>*)Ptr, &Comperand, Exchange);
+#endif
 }
 
 bool FComputePlatform::AtomicCompareExchange64(volatile long long* Ptr, long long Exchange, long long Comperand)
 {
+#if UE_COMPUTE_PLATFORM_WINDOWS
 	return InterlockedCompareExchange64(Ptr, Exchange, Comperand) == Comperand;
+#else
+	return std::atomic_compare_exchange_strong((std::atomic<long long>*)Ptr, &Comperand, Exchange);
+#endif
 }
 

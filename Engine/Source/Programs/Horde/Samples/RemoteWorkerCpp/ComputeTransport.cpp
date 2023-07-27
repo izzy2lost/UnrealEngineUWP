@@ -1,6 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ComputeTransport.h"
+#include <algorithm>
+
+FComputeTransport::~FComputeTransport()
+{
+}
 
 bool FComputeTransport::SendMessage(const void* Data, size_t Size)
 {

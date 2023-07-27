@@ -39,7 +39,7 @@ public:
 class FWorkerComputeSocket final : public FComputeSocket
 {
 public:
-	static const wchar_t* const IpcEnvVar;
+	static const char* const IpcEnvVar;
 
 	FWorkerComputeSocket();
 	~FWorkerComputeSocket();
@@ -48,7 +48,7 @@ public:
 	bool Open();
 
 	// Opens a connection to the agent process using a specific command buffer name
-	bool Open(const wchar_t* CommandBufferName);
+	bool Open(const char* CommandBufferName);
 
 	// Close the current connection
 	void Close();
@@ -67,13 +67,13 @@ private:
 
 	FComputeBuffer CommandBuffer;
 
-	void AttachBuffer(int ChannelId, EMessageType Type, const wchar_t* Name);
+	void AttachBuffer(int ChannelId, EMessageType Type, const char* Name);
 
 	static size_t ReadVarUInt(const unsigned char* Pos, unsigned int* OutValue);
-	static size_t ReadString(const unsigned char* Pos, wchar_t* OutText, size_t OutTextMaxLen);
+	static size_t ReadString(const unsigned char* Pos, char* OutText, size_t OutTextMaxLen);
 
 	static size_t WriteVarUInt(unsigned char* Pos, unsigned int Value);
-	static size_t WriteString(unsigned char* Pos, const wchar_t* Text);
+	static size_t WriteString(unsigned char* Pos, const char* Text);
 };
 
 //

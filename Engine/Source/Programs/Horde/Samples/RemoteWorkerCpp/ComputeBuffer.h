@@ -36,7 +36,7 @@ public:
 	// Parameters for constructing a compute buffer
 	struct FParams
 	{
-		const wchar_t* Name = nullptr; // When creating a buffer, we should not normally set the name. We can only *OPEN* buffers with a name. Usually we create buffers and attach them to channels.
+		const char* Name = nullptr; // When creating a buffer, we should not normally set the name. We can only *OPEN* buffers with a name. Usually we create buffers and attach them to channels.
 		int NumChunks = 2;
 		int ChunkLength = 64 * 1024;
 		int NumReaders = 1;
@@ -49,7 +49,7 @@ public:
 	bool CreateNew(const FParams& Params);
 
 	// Opens an existing shared memory buffer (typically from handles created in another process)
-	bool OpenExisting(const wchar_t* Name);
+	bool OpenExisting(const char* Name);
 
 	// Close the current buffer and release all allocated resources
 	void Close();
@@ -108,7 +108,7 @@ private:
 
 	std::shared_ptr<FComputeBufferReaderDetail> Detail;
 
-	const wchar_t* GetName() const;
+	const char* GetName() const;
 };
 
 //
@@ -145,5 +145,5 @@ private:
 
 	std::shared_ptr<FComputeBufferDetail> Detail;
 
-	const wchar_t* GetName() const;
+	const char* GetName() const;
 };

@@ -10,6 +10,8 @@
 class FComputeTransport
 {
 public:
+	virtual ~FComputeTransport();
+	
 	// Sends data to the remote
 	virtual size_t Send(const void* Data, size_t Size) = 0;
 

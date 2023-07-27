@@ -3,13 +3,14 @@
 #include "ComputeChannel.h"
 #include "ComputeBuffer.h"
 #include "ComputeSocket.h"
+#include "ComputePlatform.h"
 #include <iostream>
 #include <thread>
 #include <assert.h>
 
 int main(int argc, const char* argv[])
 {
-	if (argc >= 2 && !_stricmp(argv[1], "-Test"))
+	if (argc >= 2 && !FComputePlatform::Stricmp(argv[1], "-Test"))
 	{
 		void RunTests();
 		RunTests();
@@ -56,7 +57,4 @@ int main(int argc, const char* argv[])
 			Length = 0;
 		}
 	}
-
-	Channel.MarkComplete();
-	return 0;
 }

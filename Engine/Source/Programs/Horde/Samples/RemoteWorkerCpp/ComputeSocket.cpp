@@ -46,7 +46,7 @@ FComputeChannel FComputeSocket::CreateChannel(int ChannelId, FComputeBuffer Recv
 
 //////////////////////////////////////////////////////
 
-const wchar_t* const FWorkerComputeSocket::IpcEnvVar = L"UE_HORDE_COMPUTE_IPC";
+const char* const FWorkerComputeSocket::IpcEnvVar = "UE_HORDE_COMPUTE_IPC";
 
 enum class FWorkerComputeSocket::EMessageType
 {
@@ -65,7 +65,7 @@ FWorkerComputeSocket::~FWorkerComputeSocket()
 
 bool FWorkerComputeSocket::Open()
 {
-	wchar_t EnvVar[FComputeBuffer::MaxNameLength];
+	char EnvVar[FComputeBuffer::MaxNameLength];
 	if (!FComputePlatform::GetEnvironmentVariable(IpcEnvVar, EnvVar, sizeof(EnvVar) / sizeof(EnvVar[0])))
 	{
 		return false;
@@ -74,7 +74,7 @@ bool FWorkerComputeSocket::Open()
 	return Open(EnvVar);
 }
 
-bool FWorkerComputeSocket::Open(const wchar_t* CommandBufferName)
+bool FWorkerComputeSocket::Open(const char* CommandBufferName)
 {
 	return CommandBuffer.OpenExisting(CommandBufferName);
 }
@@ -94,7 +94,7 @@ void FWorkerComputeSocket::AttachSendBuffer(int ChannelId, FComputeBufferReader 
 	AttachBuffer(ChannelId, EMessageType::AttachSendBuffer, Reader.GetName());
 }
 
-void FWorkerComputeSocket::AttachBuffer(int ChannelId, EMessageType Type, const wchar_t* Name)
+void FWorkerComputeSocket::AttachBuffer(int ChannelId, EMessageType Type, const char* Name)
 {
 	FComputeBufferWriter& Writer = CommandBuffer.GetWriter();
 	unsigned char* Data = Writer.WaitToWrite(1024);
@@ -125,7 +125,7 @@ void FWorkerComputeSocket::RunServer(FComputeBufferReader& CommandBufferReader, 
 				unsigned int ChannelId;
 				Len += ReadVarUInt(Message + Len, &ChannelId);
 
-				wchar_t Name[FComputeBuffer::MaxNameLength];
+				char Name[FComputeBuffer::MaxNameLength];
 				Len += ReadString(Message + Len, Name, FComputeBuffer::MaxNameLength);
 
 				FComputeBuffer Buffer;
@@ -144,7 +144,7 @@ void FWorkerComputeSocket::RunServer(FComputeBufferReader& CommandBufferReader, 
 				unsigned int ChannelId;
 				Len += ReadVarUInt(Message + Len, &ChannelId);
 
-				wchar_t Name[FComputeBuffer::MaxNameLength];
+				char Name[FComputeBuffer::MaxNameLength];
 				Len += ReadString(Message + Len, Name, FComputeBuffer::MaxNameLength);
 
 				FComputeBuffer Buffer;
@@ -190,12 +190,12 @@ size_t FWorkerComputeSocket::ReadVarUInt(const unsigned char* Pos, unsigned int*
 	return ByteCount;
 }
 
-size_t FWorkerComputeSocket::ReadString(const unsigned char* Pos, wchar_t* OutText, size_t OutTextMaxLen)
+size_t FWorkerComputeSocket::ReadString(const unsigned char* Pos, char* OutText, size_t OutTextMaxLen)
 {
 	unsigned int TextLen;
-	size_t Len = ReadVarUInt(Pos, &TextLen);
 
-	FComputePlatform::Utf8ToWchar((const char*)Pos + Len, TextLen, OutText, OutTextMaxLen);
+	size_t Len = ReadVarUInt(Pos, &TextLen);
+	FComputePlatform::Strcpy(OutText, OutTextMaxLen, (const char*)Pos + Len);
 
 	return Len + TextLen;
 }
@@ -209,27 +209,26 @@ size_t FWorkerComputeSocket::WriteVarUInt(unsigned char* Pos, unsigned int Value
 	unsigned char* OutBytes = Pos + ByteCount - 1;
 	switch (ByteCount - 1)
 	{
-	case 4: *OutBytes-- = (unsigned char)(Value); Value >>= 8;
-	case 3: *OutBytes-- = (unsigned char)(Value); Value >>= 8;
-	case 2: *OutBytes-- = (unsigned char)(Value); Value >>= 8;
-	case 1: *OutBytes-- = (unsigned char)(Value); Value >>= 8;
-	default: break;
+	case 4: *OutBytes-- = (unsigned char)(Value); Value >>= 8; [[fallthrough]];
+	case 3: *OutBytes-- = (unsigned char)(Value); Value >>= 8; [[fallthrough]];
+	case 2: *OutBytes-- = (unsigned char)(Value); Value >>= 8; [[fallthrough]];
+	case 1: *OutBytes-- = (unsigned char)(Value); Value >>= 8; [[fallthrough]];
+	default: 
+		break;
 	}
 	*OutBytes = (unsigned char)(0xff << (9 - ByteCount)) | (unsigned char)(Value);
 
 	return ByteCount;
 }
 
-size_t FWorkerComputeSocket::WriteString(unsigned char* Pos, const wchar_t* Text)
+size_t FWorkerComputeSocket::WriteString(unsigned char* Pos, const char* Text)
 {
-	size_t TextLen = wcslen(Text);
+	size_t TextLen = strlen(Text);
 
-	size_t EncodedLen = FComputePlatform::WcharToUtf8(Text, TextLen, nullptr, 0);
+	size_t Len = WriteVarUInt(Pos, (int)TextLen);
+	memcpy((char*)Pos + Len, Text, TextLen);
 
-	size_t Len = WriteVarUInt(Pos, (int)EncodedLen);
-	FComputePlatform::WcharToUtf8(Text, TextLen, (char*)Pos + Len, EncodedLen);
-
-	return Len + EncodedLen;
+	return Len + TextLen;
 }
 
 //////////////////////////////////////////////////////
