@@ -18,6 +18,7 @@
 #include "Insights/MemoryProfiler/ViewModels/MemorySharedState.h"
 #include "Insights/Widgets/STimingView.h"
 #include "Insights/Tests/InsightsTestUtils.h"
+#include "Insights/TaskGraphProfiler/ViewModels/TaskTimingTrack.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
