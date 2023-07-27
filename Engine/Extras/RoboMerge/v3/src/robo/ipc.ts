@@ -183,8 +183,7 @@ export class IPC {
 		})() 
 		const botFilter = (() => { 
 			const botsParam = queryObj.bots
-			// botFilter is ignored if streamFilter specified
-			return (streamFilter.length == 0 && botsParam ? botsParam.toUpperCase().split(',') : [])
+			return (botsParam ? botsParam.toUpperCase().split(',') : [])
 		})()
 
 		const graph = this.robo.graph.graph
