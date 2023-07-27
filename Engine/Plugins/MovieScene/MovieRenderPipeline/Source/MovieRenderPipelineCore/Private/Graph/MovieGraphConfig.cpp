@@ -6,6 +6,7 @@
 #include "Graph/MovieGraphEdge.h"
 #include "Graph/Nodes/MovieGraphInputNode.h"
 #include "Graph/Nodes/MovieGraphOutputNode.h"
+#include "Graph/Nodes/MovieGraphRemoveRenderSettingNode.h"
 #include "Graph/Nodes/MovieGraphVariableNode.h"
 #include "MovieGraphUtils.h"
 #include "MovieRenderPipelineCoreModule.h"
@@ -1009,7 +1010,11 @@ void UMovieGraphConfig::CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfi
 
 	// Check to see if our flattened evaluation graph already has a copy of this node.
 	InEvaluationContext.VisitedNodes.Add(Node);
-	const bool bShouldIncludeNode = Node->IsA<UMovieGraphSettingNode>() && !Node->IsDisabled();
+	
+	const bool bShouldIncludeNode =
+		Node->IsA<UMovieGraphSettingNode>() &&
+		!Node->IsDisabled() &&
+		!InEvaluationContext.NodeTypesToRemoveStack.Contains(Node->GetClass());
 
 	if (bShouldIncludeNode)
 	{
@@ -1030,18 +1035,25 @@ void UMovieGraphConfig::CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfi
 
 		// Now do a property-copy from this node onto our flattened one. We don't use the generic property
 		// copy routines in the engine because we have special handling (we want to check if the property
-		// is actually marked for override, and also skip if this has already been overridden.
-
-		// ToDo: Handle "Disable" ndoes that can disable upstream types of nodes, etc. Push disable types into
-		// the currently evaluating context
+		// is actually marked for override, and also skip if this has already been overridden).
 		CopyOverriddenProperties(Node, ExistingNode, &InEvaluationContext.UserContext);
+	}
+
+	// If this is a special "removal" node, keep track of the type that should be removed. Since this method is recursive,
+	// a stack is used to keep track of the types. The graph is iterated starting from the Outputs node, so all matching
+	// nodes that are *upstream* of the removal node will be removed.
+	const UMovieGraphRemoveRenderSettingNode* RemovalNode = Cast<UMovieGraphRemoveRenderSettingNode>(Node);
+	const bool bIsARemovalNode = RemovalNode && !Node->IsDisabled() && (RemovalNode->NodeType.Get() != nullptr);
+	if (bIsARemovalNode)
+	{
+		InEvaluationContext.NodeTypesToRemoveStack.Push(RemovalNode->NodeType);
 	}
 	
 	// Now that we've potentially resolved the values on this node, continue to travel up-stream along any execution pins,
 	// potentially following re-route nodes, sub-graph nodes, through branches, etc.
 	TArray<UMovieGraphPin*> NewPinsToFollow = Node->EvaluatePinsToFollow(InEvaluationContext);
 	
-	for(UMovieGraphPin* Pin : NewPinsToFollow)
+	for (UMovieGraphPin* Pin : NewPinsToFollow)
 	{
 		for (UMovieGraphEdge* Edge : Pin->Edges)
 		{
@@ -1060,6 +1072,12 @@ void UMovieGraphConfig::CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfi
 				CreateFlattenedGraph_Recursive(InOwningConfig, OutBranchConfig, InEvaluationContext, OtherPin);
 			}
 		}
+	}
+
+	// Done with this removal node now; pop it off the stack so it doesn't affect other branches
+	if (bIsARemovalNode)
+	{
+		InEvaluationContext.NodeTypesToRemoveStack.Pop();
 	}
 }
 

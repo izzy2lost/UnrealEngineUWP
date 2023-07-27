@@ -257,6 +257,32 @@ struct MOVIERENDERPIPELINECORE_API FMovieGraphEvaluatedBranchConfig
 		return AllNodeInstances;
 	}
 
+	/** Removes all nodes that are subclasses of the given type from the evaluated config. */
+	void RemoveNodesOfType(const TSubclassOf<UMovieGraphNode>& InClass)
+	{
+		// Keep track of the instance names (keys) in the map to remove if all node instances under the key are removed
+		TArray<FString> InstanceNamesToRemove;
+
+		for (TTuple<FString, FMovieGraphEvaluatedSettingsStack>& SettingsPair : NamedNodes)
+		{
+			SettingsPair.Value.NodeInstances.RemoveAll([InClass](const TObjectPtr<UMovieGraphNode>& NodeInstance)
+			{
+				return NodeInstance && (NodeInstance->GetClass() == InClass);
+			});
+
+			// Remove this entry in the map if all node instances were removed
+			if (SettingsPair.Value.NodeInstances.IsEmpty())
+			{
+				InstanceNamesToRemove.Add(SettingsPair.Key);
+			}
+		}
+
+		for (const FString& KeyToRemove : InstanceNamesToRemove)
+		{
+			NamedNodes.Remove(KeyToRemove);
+		}
+	}
+
 private:
 	// Allow the config to add nodes to this, but otherwise we don't want the public adding nodes to them
 	// without going through the graph resolving.
@@ -306,6 +332,12 @@ public:
 	*/
 	UPROPERTY()
 	TArray<TObjectPtr<const UMovieGraphSubgraphNode>> SubgraphStack;
+
+	/**
+	 * The stack of node types (exact match) that should be removed from the graph while it is being traversed. Each node
+	 * which specifies a type to removed adds to the stack.
+	 */
+	TArray<TSubclassOf<UMovieGraphSettingNode>> NodeTypesToRemoveStack;
 };
 
 /**
@@ -514,7 +546,8 @@ protected:
 	void InitializeFlattenedNode(UMovieGraphNode* InNode);
 
 	/** Traverse the graph, generating a combined "flatten" graph as it goes. */
-	void CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfig* InOwningConfig, FMovieGraphEvaluatedBranchConfig& OutBranchConfig, FMovieGraphEvaluationContext& InEvaluationContext, UMovieGraphPin* InPinToFollow);
+	void CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfig* InOwningConfig, FMovieGraphEvaluatedBranchConfig& OutBranchConfig,
+		FMovieGraphEvaluationContext& InEvaluationContext, UMovieGraphPin* InPinToFollow);
 
 	/** Recursive helper for VisitUpstreamNodes(). */
 	void VisitUpstreamNodes_Recursive(UMovieGraphNode* FromNode, const FVisitNodesCallback& VisitCallback, TSet<UMovieGraphNode*>& VisitedNodes) const;
