@@ -64,6 +64,12 @@ void FMovieRenderPipelineCoreModule::ShutdownModule()
 {
 }
 
+void FMovieRenderPipelineCoreModule::SetTickInfo(const FMoviePipelineLightweightTickInfo& InTickInfo)
+{
+	FMovieRenderPipelineCoreModule& MRQModule = FModuleManager::Get().GetModuleChecked<FMovieRenderPipelineCoreModule>("MovieRenderPipelineCore");
+	MRQModule.TickInfo = InTickInfo;
+}
+
 IMPLEMENT_MODULE(FMovieRenderPipelineCoreModule, MovieRenderPipelineCore);
 DEFINE_LOG_CATEGORY(LogMovieRenderPipeline); 
 DEFINE_LOG_CATEGORY(LogMovieRenderPipelineIO);

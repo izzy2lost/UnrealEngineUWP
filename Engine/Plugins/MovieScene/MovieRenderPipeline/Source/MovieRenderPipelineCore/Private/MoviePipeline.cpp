@@ -523,6 +523,9 @@ void UMoviePipeline::TransitionToState(const EMovieRenderPipelineState InNewStat
 			ProcessOutstandingFutures();
 	
 			BeginExport();
+
+			// Clear out MRQ tick information for external consumers as we are done
+			FMovieRenderPipelineCoreModule::SetTickInfo(FMoviePipelineLightweightTickInfo());
 		}
 		break;
 	case EMovieRenderPipelineState::Export:
