@@ -176,6 +176,39 @@ class RoboWebApp implements AppInterface {
 		return readUtf8File('public/index.html')
 	}
 
+	@SecureHandler('GET', '/trackchange/*', {filetype: 'text/html'}) 
+	async trackChange(clStr: string) {
+		if (!this.authData) {
+			throw new Error('Secure call but no auth data?')
+		}
+
+		const cl = parseInt(clStr)
+		if (isNaN(cl)) {
+			throw new Error(`Failed to parse alleged CL '${clStr}'`)
+		}
+
+		let query = "/trackchange"
+		if (this.request.url.search.length > 0) {
+			query += `${this.request.url.search}&`
+		} else {
+			query += "?"
+		}
+		query += `cl=${clStr}`
+
+		const template = await readUtf8File('public/trackchange.html')
+		return Mustache.render(template, {cl, query})
+	}
+
+	@SecureHandler('GET', '/trackchange') 
+	getTrackedChanges() {
+		if (!this.authData) {
+			throw new Error('Secure call but no auth data?')
+		}
+
+		return this.sendMessage('trackChange', [this.request.url, this.authData.tags])
+	}
+
+
 	@Handler('GET', '/preview/*', {filetype: 'text/html'}) 
 	previewNoBot(clStr: string) {
 		return this.preview(clStr)

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 import { ContextualLogger, isNpmLogLevel, NpmLogLevelCompare, NpmLogLevelValues } from '../common/logger';
-import { getRunningPerforceCommands } from '../common/perforce';
+import { DescribeResult, getRunningPerforceCommands } from '../common/perforce';
 import { Trace } from '../new/graph';
 import { IPCControls, EdgeBotInterface, NodeBotInterface } from './bot-interfaces';
 import { OperationResult } from './branch-interfaces';
@@ -57,6 +57,7 @@ export class IPC {
 			case 'getWorkspaces': return this.getWorkspaces(msg.args![0] as string)
 			case 'getPersistence': return this.getPersistence(msg.args![0] as string)
 			case 'traceRoute': return this.traceRoute(msg.args![0] as Query, msg.args![1] as Set<string>)
+			case 'trackChange': return this.trackChange(msg.args![0], msg.args![1] as Set<string>)
 			case 'dumpGraph': return this.dumpGraph(msg.args![0] as Set<string>)
 			case 'getIsRunning': return this.isRunning(msg.args![0] as string)
 			case 'restartBot': return this.restartBot(msg.args![0] as string, msg.args![1] as string)
@@ -162,6 +163,163 @@ export class IPC {
 			return { ...OPERATION_SUCCESS, data: dump } 
 		}
 		return {statusCode: 400, message: `Unknown bot '${botname}'`}
+	}
+
+	private async trackChange(url: any, userTags: Set<string>): Promise<OperationReturnType> {
+
+		const clStr = url.searchParams.get('cl')
+		if (!clStr) {
+			return {statusCode: 400, message: 'No CL parameter provided.'}
+		}
+
+		const cl = parseInt(clStr)
+		if (isNaN(cl)) {
+			return {statusCode: 400, message: `Invalid CL parameter: ${cl}`}
+		}
+
+		const streamFilter = (() => {
+			const streamsParam: string|undefined = url.searchParams.get('streams');
+			return (streamsParam ? streamsParam.toUpperCase().replace('*','.*').split(',').map(s => new RegExp(s)) : [])
+		})() 
+		const botFilter = (() => { 
+			const botsParam = url.searchParams.get('bots')
+			// botFilter is ignored if streamFilter specified
+			return (streamFilter.length == 0 && botsParam ? botsParam.toUpperCase().split(',') : [])
+		})()
+
+		const graph = this.robo.graph.graph
+
+		const getStreamFromPath = (path: string) => {
+			const match = path.match(/\/\/[^\/]*\/[^\/]*/)
+			return (match ? match[0] : null)
+		}
+
+		const getNode = (desc: DescribeResult) => {
+			if (desc.path) {
+				const stream = getStreamFromPath(desc.path)
+				if (stream) {
+					return graph.findNodeForStream(stream)
+				}
+			}
+			return null
+		}
+
+		const getMergeMethod = (desc: string) => {
+			if (desc.includes("#ROBOMERGE-CONFLICT")) {
+				return 'Merge w/ conflict resolve'
+			} else if (desc.includes("#ROBOMERGE-SOURCE")) {
+				return 'Automerge'
+			} else if (desc.includes("Populate")) {
+				return 'Populate'
+			} else {
+				return 'Manual merge'
+			}
+		}
+
+		let changes = new Map<number, any>()
+
+		let gatherCLInfo = async (cl: number, lastCL?: number) => {
+			let desc = await this.robo.p4.describe(cl, 1)
+			const clNode = getNode(desc)
+			if (clNode || !lastCL|| desc.description.includes("#ROBOMERGE-SOURCE")) {
+				changes.set(cl, {desc, node: clNode, destCLs: (lastCL ? [lastCL] : []) })
+				return true
+			}
+			return false
+		}
+
+		await gatherCLInfo(cl)
+
+		let data: any = {originalCL: cl, changes: {}}
+
+		const sourceMatch = (changes.get(data.originalCL).desc as DescribeResult).description.match(/#ROBOMERGE-SOURCE: (.*)\n/g)
+		if (sourceMatch) {
+			let lastCL = cl
+			const matches = Array.from(sourceMatch[0].matchAll(/CL (\d+)/g))
+			for (let i=matches.length-1; i>=0;i--) {
+				let sourceCL = parseInt(matches[i][1])
+				await gatherCLInfo(sourceCL, lastCL)
+				lastCL = sourceCL
+				if (i == 0) {
+					data.originalCL = sourceCL
+				}
+			}
+		}
+
+		const isFTE = userTags.has("fte")
+
+		let clsToConsider: number[] = [data.originalCL]
+		while (clsToConsider.length > 0) {
+			const clToConsider = clsToConsider[0]
+			clsToConsider = clsToConsider.slice(1)
+
+			let changeToConsider = changes.get(clToConsider)
+
+			let includeInResults = false
+			let hasAutomergeTarget = false
+			let streamDisplayName = ""
+			if (changeToConsider.node) {
+				let edges = graph.getEdgesBySource(changeToConsider.node)
+				for (let edge of edges) {
+					if (!includeInResults) {
+						const bot = edge.sourceAnnotation as NodeBotInterface
+						if (botFilter.length == 0 || botFilter.includes(bot.branchGraph.botname)) {
+							if (Status.includeBranch(bot.branchGraph.config.visibility, userTags, this.ipcLogger)) {
+								streamDisplayName = changeToConsider.node.stream
+								includeInResults = true
+							}
+						}
+					}
+					if (edge.flags.has('automatic')) {
+						hasAutomergeTarget = true
+					}
+					if (includeInResults && hasAutomergeTarget) {
+						break
+					}
+				}
+			} else if (isFTE) {
+				includeInResults = true
+				streamDisplayName = getStreamFromPath(changeToConsider.desc.path) || changeToConsider.desc.path
+			}
+
+			if (streamDisplayName.length == 0) {
+				streamDisplayName = "//****/****"
+			}
+
+			if (includeInResults && streamFilter.length > 0) {
+				includeInResults = streamFilter.some(re => streamDisplayName.toUpperCase().match(re))
+			}
+
+			for (let i=0; i < changeToConsider.desc.entries.length; i++) {
+				const entry = changeToConsider.desc.entries[i]
+				const integrated = await this.robo.p4.integrated(null, entry.depotFile, {intoOnly: true, startCL: clToConsider})
+				if (integrated.length > 0) {
+					for (let integ of integrated) {
+						if (integ.endToRev == `#${entry.rev}`)
+						{
+							if (!changes.has(integ.change)) {
+								changeToConsider.destCLs.push(integ.change)
+								await gatherCLInfo(integ.change)
+							}
+						}
+					}
+					break
+				} else if (hasAutomergeTarget && changeToConsider.desc.entries.length == 1) {
+					// If we only have 1 entry and we didn't get integration info off of it
+					// and the graph suggests we are expecting there could be other changes
+					// get the full describe results
+					changeToConsider.desc = await this.robo.p4.describe(clToConsider)
+				}
+			}
+			clsToConsider = clsToConsider.concat(changeToConsider.destCLs)
+
+			if (includeInResults) {
+				const mergeMethod = clToConsider != data.originalCL ? getMergeMethod(changeToConsider.desc.description) : ""
+				data.changes[`${clToConsider}`] = {streamDisplayName, mergeMethod}
+			}
+		}
+
+		return {...OPERATION_SUCCESS, data}
 	}
 
 	private async traceRoute(query: Query, tags?: Set<string>): Promise<OperationReturnType> {
