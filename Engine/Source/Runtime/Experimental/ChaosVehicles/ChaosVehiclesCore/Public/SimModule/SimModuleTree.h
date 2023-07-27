@@ -166,9 +166,6 @@ namespace Chaos
 			return LargestIndex;
 		}
 
-		void SetIsSimulating(bool IsSimulatingIn) { bIsSimulating = IsSimulatingIn; }
-		bool IsSimulating() { return bIsSimulating; }
-
 		void GenerateReplicationStructure(Chaos::FModuleNetDataArray& NetData);
 		void SetNetState(Chaos::FModuleNetDataArray& ModuleDatas);
 		void SetSimState(const Chaos::FModuleNetDataArray& ModuleDatas);
@@ -190,8 +187,6 @@ namespace Chaos
 		FDeferredForcesModular DeferredForces;
 
 		Chaos::FAllInputs AllInputs;
-
-		bool bIsSimulating = false; //#TODO : temp while testing - remove
 	};
 
 

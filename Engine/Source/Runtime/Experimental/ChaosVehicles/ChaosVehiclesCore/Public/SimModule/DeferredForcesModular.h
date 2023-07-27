@@ -26,8 +26,9 @@ public:
 
 	struct FApplyForceData
 	{
-		FApplyForceData(int TransformIndexIn, const FVector& ForceIn, bool bAllowSubsteppingIn, bool bAccelChangeIn, bool bLevelSlope, const FColor& ColorIn)
-			: TransformIndex(TransformIndexIn)
+		FApplyForceData(const FTransform& OffsetTransformIn, int TransformIndexIn, const FVector& ForceIn, bool bAllowSubsteppingIn, bool bAccelChangeIn, bool bLevelSlope, const FColor& ColorIn)
+			: OffsetTransform(OffsetTransformIn)
+			, TransformIndex(TransformIndexIn)
 			, Force(ForceIn)
 			, Flags(EForceFlags::None)
 			, DebugColor(ColorIn)
@@ -37,6 +38,7 @@ public:
 			Flags |= bLevelSlope ? EForceFlags::LevelSlope : EForceFlags::None;
 		}
 
+		FTransform OffsetTransform;
 		int TransformIndex;
 		FVector Force;
 		EForceFlags Flags;
@@ -45,8 +47,9 @@ public:
 
 	struct FApplyForceAtPositionData
 	{
-		FApplyForceAtPositionData(int TransformIndexIn, const FVector& ForceIn, const FVector& PositionIn, bool bAllowSubsteppingIn, bool bIsLocalForceIn, bool bLevelSlope, const FColor& ColorIn)
-			: TransformIndex(TransformIndexIn)
+		FApplyForceAtPositionData(const FTransform& OffsetTransformIn, int TransformIndexIn, const FVector& ForceIn, const FVector& PositionIn, bool bAllowSubsteppingIn, bool bIsLocalForceIn, bool bLevelSlope, const FColor& ColorIn)
+			: OffsetTransform(OffsetTransformIn)
+			, TransformIndex(TransformIndexIn)
 			, Force(ForceIn)
 			, Position(PositionIn)
 			, Flags(EForceFlags::None)
@@ -57,6 +60,7 @@ public:
 			Flags |= bLevelSlope ? EForceFlags::LevelSlope : EForceFlags::None;
 		}
 
+		FTransform OffsetTransform;
 		int TransformIndex;
 		FVector Force;
 		FVector Position;
@@ -66,8 +70,9 @@ public:
 
 	struct FAddTorqueInRadiansData
 	{
-		FAddTorqueInRadiansData(int TransformIndexIn, const FVector& TorqueIn, bool bAllowSubsteppingIn, bool bAccelChangeIn)
-			: TransformIndex(TransformIndexIn)
+		FAddTorqueInRadiansData(const FTransform& OffsetTransformIn, int TransformIndexIn, const FVector& TorqueIn, bool bAllowSubsteppingIn, bool bAccelChangeIn)
+			: OffsetTransform(OffsetTransformIn)
+			, TransformIndex(TransformIndexIn)
 			, Torque(TorqueIn)
 			, Flags(EForceFlags::None)
 		{
@@ -75,6 +80,7 @@ public:
 			Flags |= bAccelChangeIn ? EForceFlags::AccelChange : EForceFlags::None;
 		}
 
+		FTransform OffsetTransform;
 		int TransformIndex;
 		FVector Torque;
 		EForceFlags Flags;
@@ -82,14 +88,16 @@ public:
 
 	struct FAddImpulseData
 	{
-		FAddImpulseData(int TransformIndexIn, const FVector& ImpulseIn, const bool bVelChangeIn)
-			: TransformIndex(TransformIndexIn)
+		FAddImpulseData(const FTransform& OffsetTransformIn, int TransformIndexIn, const FVector& ImpulseIn, const bool bVelChangeIn)
+			: OffsetTransform(OffsetTransformIn)
+			, TransformIndex(TransformIndexIn)
 			, Impulse(ImpulseIn)
 			, Flags(EForceFlags::None)
 		{
 			Flags |= bVelChangeIn ? EForceFlags::VelChange : EForceFlags::None;
 		}
 
+		FTransform OffsetTransform;
 		int TransformIndex;
 		FVector Impulse;
 		EForceFlags Flags;
@@ -97,14 +105,16 @@ public:
 
 	struct FAddImpulseAtPositionData
 	{
-		FAddImpulseAtPositionData(int TransformIndexIn, const FVector& ImpulseIn, const FVector& PositionIn)
-			: TransformIndex(TransformIndexIn)
+		FAddImpulseAtPositionData(const FTransform& OffsetTransformIn, int TransformIndexIn, const FVector& ImpulseIn, const FVector& PositionIn)
+			: OffsetTransform(OffsetTransformIn)
+			, TransformIndex(TransformIndexIn)
 			, Impulse(ImpulseIn)
 			, Position(PositionIn)
 		{
 
 		}
 
+		FTransform OffsetTransform;
 		int TransformIndex;
 		FVector Impulse;
 		FVector Position;
@@ -155,12 +165,9 @@ public:
 		, const TManagedArray<FTransform>& CollectionMassToLocal
 		, const TManagedArray<int32>& Parent);
 	
-	void Apply(const FTransform& OffsetTransform
-		, TArray<Chaos::FPBDRigidParticleHandle*>& Particles
+	void Apply(TArray<Chaos::FPBDRigidParticleHandle*>& Particles
 		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles);
 
-	void SetOffsetTransform(const FTransform& TransformIn) { ParticleOffsetTransform = TransformIn; }
-	const FTransform& GetOffsetTransform() const { return ParticleOffsetTransform; }
 private:
 
 	void AddForceAtPosition(Chaos::FPBDRigidParticleHandle* RigidHandle, const FApplyForceAtPositionData& DataIn, const FTransform& OffsetTransform);

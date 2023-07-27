@@ -85,8 +85,7 @@ Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(const FTrans
 	}
 
 	// local transform
-	FVector Offset = OffsetTransform.InverseTransformVector(Frame.GetTranslation());
-	TransformOut.SetTranslation(Offset);
+	TransformOut.SetTranslation(Frame.GetTranslation());
 	return ClusterParticles[SingleChassisIndex];
 }
 
@@ -134,8 +133,7 @@ void FDeferredForcesModular::Apply(TArray<Chaos::FPBDRigidClusteredParticleHandl
 
 
 
-void FDeferredForcesModular::Apply(const FTransform& OffsetTransform
-	, TArray<Chaos::FPBDRigidParticleHandle*>& Particles
+void FDeferredForcesModular::Apply(TArray<Chaos::FPBDRigidParticleHandle*>& Particles
 	, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles)
 {
 	if (!GCoreModularVehicleDebugParams.DisableForces)
@@ -143,7 +141,7 @@ void FDeferredForcesModular::Apply(const FTransform& OffsetTransform
 		FTransform RelativeTransform;
 		for (const FApplyForceData& Data : ApplyForceDatas)
 		{
-			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(OffsetTransform, Particles, ClusterParticles, Data.TransformIndex, RelativeTransform);
+			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(Data.OffsetTransform, Particles, ClusterParticles, Data.TransformIndex, RelativeTransform);
 			if (RigidHandle)
 			{
 				AddForce(RigidHandle, Data, RelativeTransform);
@@ -152,7 +150,7 @@ void FDeferredForcesModular::Apply(const FTransform& OffsetTransform
 
 		for (const FApplyForceAtPositionData& Data : ApplyForceAtPositionDatas)
 		{
-			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(OffsetTransform, Particles, ClusterParticles, Data.TransformIndex, RelativeTransform);
+			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(Data.OffsetTransform, Particles, ClusterParticles, Data.TransformIndex, RelativeTransform);
 			if (RigidHandle)
 			{
 				AddForceAtPosition(RigidHandle, Data, RelativeTransform);
@@ -161,7 +159,7 @@ void FDeferredForcesModular::Apply(const FTransform& OffsetTransform
 
 		for (const FAddTorqueInRadiansData& Data : ApplyTorqueDatas)
 		{
-			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(OffsetTransform, Particles, ClusterParticles, Data.TransformIndex, RelativeTransform);
+			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(Data.OffsetTransform, Particles, ClusterParticles, Data.TransformIndex, RelativeTransform);
 			if (RigidHandle)
 			{
 				AddTorque(RigidHandle, Data, RelativeTransform);
@@ -182,7 +180,7 @@ void AddForce_Implementation(Chaos::FPBDRigidParticleHandle* RigidHandle, const 
 
 	// local to world
 	const FTransform WorldTM(RigidHandle->R(), RigidHandle->X());
-	Chaos::FVec3 Position = WorldTM.TransformPosition(ParticleOffsetTransform.TransformVector(OffsetTransform.GetLocation()));
+	Chaos::FVec3 Position = WorldTM.TransformPosition(OffsetTransform.GetLocation());
 	Chaos::FVec3 Force = WorldTM.TransformVector(ParticleOffsetTransform.TransformVector(OffsetTransform.TransformVector(LocalForce)));
 
 
@@ -229,7 +227,7 @@ void FDeferredForcesModular::AddForce(Chaos::FPBDRigidParticleHandle* RigidHandl
 {
 	if (ensure(RigidHandle))
 	{
-		AddForce_Implementation(RigidHandle, ParticleOffsetTransform, DataIn.Force, OffsetTransform, (DataIn.Flags & EForceFlags::LevelSlope) == EForceFlags::LevelSlope, DataIn.DebugColor);
+		AddForce_Implementation(RigidHandle, DataIn.OffsetTransform, DataIn.Force, OffsetTransform, (DataIn.Flags & EForceFlags::LevelSlope) == EForceFlags::LevelSlope, DataIn.DebugColor);
 	}
 
 }

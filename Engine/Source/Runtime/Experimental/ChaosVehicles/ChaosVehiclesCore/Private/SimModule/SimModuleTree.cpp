@@ -16,13 +16,11 @@ namespace Chaos
 
 int FSimModuleTree::AddRoot(ISimulationModuleBase* SimModule)
 {
-	check(!bIsSimulating);
 	return AddNodeBelow(-1, SimModule);
 }
 
 void FSimModuleTree::Reparent(int AtIndex, int ParentIndex)
 {
-	check(!bIsSimulating);
 	check(AtIndex < SimulationModuleTree.Num());
 	check(ParentIndex < SimulationModuleTree.Num());
 
@@ -46,7 +44,6 @@ void FSimModuleTree::Reparent(int AtIndex, int ParentIndex)
 
 int FSimModuleTree::AddNodeBelow(int AtIndex, ISimulationModuleBase* SimModule)
 {
-	check(!bIsSimulating);
 	int NewIndex = GetNextIndex();
 	FSimModuleNode& Node = SimulationModuleTree[NewIndex];
 	SimModule->SetTreeIndex(NewIndex);
@@ -66,8 +63,6 @@ int FSimModuleTree::AddNodeBelow(int AtIndex, ISimulationModuleBase* SimModule)
 
 void FSimModuleTree::AppendTreeUpdates(const FSimTreeUpdates& TreeUpdates)
 {
-	ensure(!IsSimulating());
-
 	int TreeIndex = -1;
 	TMap<int, int> SimTreeMapping;
 
@@ -88,8 +83,6 @@ void FSimModuleTree::AppendTreeUpdates(const FSimTreeUpdates& TreeUpdates)
 		{
 			AddIndex = *AddIndexPtr;
 		}
-
-		ensure(!IsSimulating());
 
 		TreeIndex = AddNodeBelow(AddIndex, TreeUpdate.NewSimModule);
 		SimTreeMapping.Add(LocalIndex, TreeIndex);
@@ -182,7 +175,6 @@ int FSimModuleTree::GetNextIndex()
 
 int FSimModuleTree::InsertNodeAbove(int AtIndex, ISimulationModuleBase* SimModule)
 {
-	check(!bIsSimulating);
 	int NewIndex = FSimModuleNode::INVALID_IDX;
 
 	if (ensure(AtIndex < SimulationModuleTree.Num()))
@@ -209,7 +201,6 @@ int FSimModuleTree::InsertNodeAbove(int AtIndex, ISimulationModuleBase* SimModul
 
 void FSimModuleTree::DeleteNode(int AtIndex)
 {
-	check(!bIsSimulating);
 	// multiple children might become equal parents?
 	
 	int ParentIndex = SimulationModuleTree[AtIndex].Parent;
@@ -399,9 +390,9 @@ void FSimModuleTree::UpdateModuleVelocites(FClusterUnionPhysicsProxy* PhysicsPro
 
 					if (Particle)
 					{
-						const FTransform& OffsetTransform = DeferredForces.GetOffsetTransform();
+						const FTransform& OffsetTransform = Module->GetComponentTransform();
 						FVector LocalPos = Module->GetParentRelativeTransform().GetLocation();
-						FVector WorldLocation = BodyTransform.TransformPosition(OffsetTransform.TransformVector(LocalPos));
+						FVector WorldLocation = BodyTransform.TransformPosition(LocalPos);
 						const Chaos::FVec3 Arm = WorldLocation - Particle->X();
 
 						//Chaos::FDebugDrawQueue::GetInstance().DrawDebugLine(Particle->X(), Particle->X() + Arm, FColor::Yellow, false, -1.f, 0, 2.f);
@@ -409,6 +400,9 @@ void FSimModuleTree::UpdateModuleVelocites(FClusterUnionPhysicsProxy* PhysicsPro
 						FVector WorldVelocity = Particle->V() - Chaos::FVec3::CrossProduct(Arm, Particle->W());
 						FVector LocalVelocity = OffsetTransform.InverseTransformVector(BodyTransform.InverseTransformVector(WorldVelocity));
 						Module->SetLocalVelocity(LocalVelocity);
+
+						//Chaos::FDebugDrawQueue::GetInstance().DrawDebugLine(WorldLocation, WorldLocation + WorldVelocity, FColor::White, false, -1.f, 0, 5.f);
+
 					}
 
 				}

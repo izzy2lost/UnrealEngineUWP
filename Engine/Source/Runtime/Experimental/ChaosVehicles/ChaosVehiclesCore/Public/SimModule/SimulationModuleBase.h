@@ -12,7 +12,7 @@ struct CHAOSVEHICLESCORE_API FCoreModularVehicleDebugParams
 {
 	bool ShowMass = false;
 	bool ShowForces = false;
-	float DrawForceScaling = 0.002f;
+	float DrawForceScaling = 0.0004f;
 	float LevelSlopeThreshold = 0.96f; // ~16 degrees
 	bool DisableForces = false;
 };
@@ -247,9 +247,6 @@ namespace Chaos
 
 		void SetComponentTransform(const FTransform& TransformIn) { ComponentTransform = TransformIn; }
 		const FTransform& GetComponentTransform() const { return ComponentTransform; }
-
-		void SetRelativeOffsetTransform(const FTransform& TransformIn) { RelativeOffsetTransform = TransformIn; }
-		const FTransform& GetRelativeOffsetTransform() const { return RelativeOffsetTransform; }
 
 		/**
 		 * Set the COM relative transform of module when it is broken off, so relative to itself

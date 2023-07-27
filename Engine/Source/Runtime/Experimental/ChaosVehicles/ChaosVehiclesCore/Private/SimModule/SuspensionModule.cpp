@@ -37,8 +37,8 @@ namespace Chaos
 	{
 		FVector LocalDirection = Setup().SuspensionAxis;
 		FVector Local = GetParentRelativeTransform().GetLocation(); // change to just a vector and GetLocalLocation
-		FVector WorldLocation = BodyTransform.TransformPosition(GetRelativeOffsetTransform().TransformVector(Local/*Setup().LocalOffset*/));
-		FVector WorldDirection = BodyTransform.TransformVector(GetRelativeOffsetTransform().TransformVector(LocalDirection));
+		FVector WorldLocation = BodyTransform.TransformPosition(Local);
+		FVector WorldDirection = BodyTransform.TransformVector(LocalDirection);
 
 		OutTrace.Start = WorldLocation - WorldDirection * (Setup().MaxRaise);
 		OutTrace.End = WorldLocation + WorldDirection * (Setup().MaxDrop + WheelRadius);

@@ -36,6 +36,7 @@ namespace Chaos
 			, HandbrakeTorque(3000)
 			, MaxRotationVel(100.0f)
 			, Axis(EWheelAxis::X)
+			, ReverseDirection(false)
 
 		{
 
@@ -62,8 +63,7 @@ namespace Chaos
 
 		float MaxRotationVel;
 		EWheelAxis Axis;
-
-
+		bool ReverseDirection;
 	};
 
 	class CHAOSVEHICLESCORE_API FWheelSimModule : public FTorqueSimModule, public TSimModuleSettings<FWheelSettings>

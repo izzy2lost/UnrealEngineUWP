@@ -50,6 +50,7 @@ namespace Chaos
 			FRotator SteeringRotator(0.f, SteerAngleDegrees, 0.f);
 			FVector Vel = SteeringRotator.UnrotateVector(ModuleLocalVelocity);
 			FVector LocalWheelVelocity = (Setup().Axis == EWheelAxis::X) ? FVector(Vel.X, Vel.Y, Vel.Z) : FVector(Vel.Y, Vel.X, Vel.Z); // Potential Axis Swap
+			LocalWheelVelocity = Setup().ReverseDirection ? -LocalWheelVelocity : LocalWheelVelocity;
 
 			float GroundAngularVelocity = LocalWheelVelocity.X / Re;
 			float Delta = GroundAngularVelocity - AngularVelocity;
@@ -171,6 +172,11 @@ namespace Chaos
 				check(Setup().Axis == EWheelAxis::Y);
 				ForceFromFriction.Y = FinalLongitudinalForce;
 				ForceFromFriction.X = FinalLateralForce;
+			}
+
+			if (Setup().ReverseDirection)
+			{
+				ForceFromFriction = -ForceFromFriction;
 			}
 
  			AddLocalForce(SteeringRotator.RotateVector(ForceFromFriction));
