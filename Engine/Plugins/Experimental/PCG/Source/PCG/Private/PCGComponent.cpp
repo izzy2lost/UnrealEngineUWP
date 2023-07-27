@@ -2105,6 +2105,12 @@ bool UPCGComponent::DirtyTrackedActor(AActor* InActor, bool bIntersect, const TS
 		}
 	}
 
+	// Special case for landscape, we should dirty.
+	if (ShouldTrackLandscape() && InActor->IsA<ALandscapeProxy>())
+	{
+		bWasDirtied = true;
+	}
+
 	return bWasDirtied;
 }
 
