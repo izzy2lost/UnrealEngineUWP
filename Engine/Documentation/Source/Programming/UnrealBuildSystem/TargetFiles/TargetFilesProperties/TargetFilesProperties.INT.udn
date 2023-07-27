@@ -192,6 +192,8 @@ $ bCompileForSize (Boolean): True if we want to favor optimizing size over speed
 
 $ OptimizationLevel (OptimizationMode): Allows to fine tune optimizations level for speed and\or code size
 
+$ FPSemantics (FPSemanticsMode): Allows setting the FP semantics.
+
 $ bForceCompileDevelopmentAutomationTests (Boolean): Whether to compile development automation tests.
 
 $ bForceCompilePerformanceAutomationTests (Boolean): Whether to compile performance automation tests.

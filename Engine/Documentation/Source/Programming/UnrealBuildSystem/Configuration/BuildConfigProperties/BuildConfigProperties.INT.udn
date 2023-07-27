@@ -202,6 +202,8 @@ $ CppStandardEngine : Which C++ standard to use for compiling this target (for e
 
 $ CppStandard : Which C++ standard to use for compiling this target (for non-engine modules)
 
+$ ActionStallReportTime : Number of second of no completed actions to trigger an action stall report. If zero, stall reports will not be enabled.
+
 $ bStopSNDBSCompilationAfterErrors : When enabled, SN-DBS will stop compiling targets after a compile error occurs.  Recommended, as it saves computing resources for others.
 
 $ bXGENoWatchdogThread : Whether to use the no_watchdog_thread option to prevent VS2015 toolchain stalls.
@@ -271,6 +273,8 @@ $ bWarnOnCppUnrealHeaderTool : If true, generate warnings when C++ UHT is used
 $ MaxRootPathLength : Maximum recommended root path length.
 
 $ MaxNestedPathLength : Maximum length of a path relative to the root directory. Used on Windows to ensure paths are portable between machines. Defaults to off.
+
+$ bIgnoreStalePGOData : If -PGOOptimize is specified but the linker flags have changed since the last -PGOProfile, this will emit a warning and build without PGO instead of failing during link with LNK1268.
 
 $ bUseFastGenProfile : If specified along with -PGOProfile, then /FASTGENPROFILE will be used instead of /GENPROFILE. This usually means that the PGO data is generated faster, but the resulting data may not yield as efficient optimizations during -PGOOptimize
 
