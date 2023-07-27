@@ -42,7 +42,7 @@ FOpusDecoderWrapper
 ------------------------------------------------------------------------------------*/
 struct FOpusDecoderWrapper
 {
-	FOpusDecoderWrapper(uint16 SampleRate, uint8 NumChannels)
+	FOpusDecoderWrapper(uint32 SampleRate, uint8 NumChannels)
 	{
 		check(NumChannels <= 8);
 		const UnrealChannelLayout& Layout = UnrealMappings[NumChannels-1];
@@ -120,7 +120,8 @@ bool FOpusAudioInfo::ParseHeader(FHeader& OutHeader, uint32& OutNumRead, const u
 	}
 	Read(&OutHeader.Version, sizeof(uint8));
 	Read(&OutHeader.NumChannels, sizeof(uint8));
-	Read(&OutHeader.SampleRate, sizeof(uint16));
+	Read(&OutHeader.SampleRate, sizeof(uint32));
+	Read(&OutHeader.EncodedSampleRate, sizeof(uint32));
 	Read(&OutHeader.ActiveSampleCount, sizeof(uint64));
 	Read(&OutHeader.NumEncodedFrames, sizeof(uint32));
 	Read(&OutHeader.NumSilentSamplesAtBeginning, sizeof(int32));
@@ -162,7 +163,7 @@ bool FOpusAudioInfo::ParseHeader(const uint8* InSrcBufferData, uint32 InSrcBuffe
 bool FOpusAudioInfo::CreateDecoder()
 {
 	check(OpusDecoderWrapper == nullptr);
-	OpusDecoderWrapper = new FOpusDecoderWrapper(Header.SampleRate, NumChannels);
+	OpusDecoderWrapper = new FOpusDecoderWrapper(Header.EncodedSampleRate, NumChannels);
 	if (!OpusDecoderWrapper->WasInitialisedSuccessfully())
 	{
 		delete OpusDecoderWrapper;
@@ -186,7 +187,7 @@ int32 FOpusAudioInfo::GetFrameSize()
 
 uint32 FOpusAudioInfo::GetMaxFrameSizeSamples() const
 {
-	return Header.SampleRate * OPUS_MAX_FRAME_SIZE_MS / 1000;
+	return Header.EncodedSampleRate * OPUS_MAX_FRAME_SIZE_MS / 1000;
 }
 
 FDecodeResult FOpusAudioInfo::Decode(const uint8* CompressedData, const int32 CompressedDataSize, uint8* OutPCMData, const int32 OutputPCMDataSize)
@@ -339,7 +340,7 @@ void FOpusAudioInfo::SeekToTime(const float InSeekTime)
 		{
 			uint32 ChunkSize = (uint32)ChunkPtr[0] + ((uint32)ChunkPtr[1] << 8);
 			int32 ExpectedFrames = opus_packet_get_nb_frames(ChunkPtr + 2, ChunkSize);
-			int32 ExpectedFrameSize = opus_packet_get_samples_per_frame(ChunkPtr + 2, Header.SampleRate);
+			int32 ExpectedFrameSize = opus_packet_get_samples_per_frame(ChunkPtr + 2, Header.EncodedSampleRate);
 			int32 NumExpectedTotal = ExpectedFrames * ExpectedFrameSize;
 
 			if (CurrentChunkSampleNum >= SeekSampleNum && SeekSampleNum < CurrentChunkSampleNum + NumExpectedTotal)

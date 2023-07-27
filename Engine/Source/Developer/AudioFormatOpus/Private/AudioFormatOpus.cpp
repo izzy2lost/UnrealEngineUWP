@@ -31,7 +31,7 @@ class FAudioFormatOpus : public IAudioFormat
 	enum
 	{
 		/** Version for OPUS format, this becomes part of the DDC key. */
-		UE_AUDIO_OPUS_VER = 10,
+		UE_AUDIO_OPUS_VER = 11,
 	};
 
 public:
@@ -58,7 +58,7 @@ public:
 		check(Format == NAME_OPUS);
 
 		// For audio encoding purposes we want Full Band encoding with a 20ms frame size.
-		const uint16 kOpusSampleRate = 48000;
+		const uint32 kOpusSampleRate = 48000;
 		const int32 kOpusFrameSizeMs = 20;
 		// Calculate frame size required by Opus
 		const int32 kOpusFrameSizeSamples = (kOpusSampleRate * kOpusFrameSizeMs) / 1000;
@@ -113,7 +113,8 @@ public:
 		check(FramesToEncode <= MAX_uint32);
 		FOpusAudioInfo::FHeader Hdr;
 		Hdr.NumChannels = QualityInfo.NumChannels;
-		Hdr.SampleRate = kOpusSampleRate;
+		Hdr.SampleRate = QualityInfo.SampleRate;
+		Hdr.EncodedSampleRate = kOpusSampleRate;
 		Hdr.ActiveSampleCount = TrueSampleCount;
 		Hdr.NumEncodedFrames = (uint32)FramesToEncode;
 		Hdr.NumSilentSamplesAtBeginning = kPrerollSkipCount;
@@ -158,7 +159,7 @@ public:
 		check(Format == NAME_OPUS);
 
 		// For audio encoding purposes we want Full Band encoding with a 20ms frame size.
-		const uint16 kOpusSampleRate = 48000;
+		const uint32 kOpusSampleRate = 48000;
 		const int32 kOpusFrameSizeMs = 20;
 		// Calculate frame size required by Opus
 		const int32 kOpusFrameSizeSamples = (kOpusSampleRate * kOpusFrameSizeMs) / 1000;
@@ -249,7 +250,8 @@ public:
 
 		FOpusAudioInfo::FHeader Hdr;
 		Hdr.NumChannels = QualityInfo.NumChannels;
-		Hdr.SampleRate = kOpusSampleRate;
+		Hdr.SampleRate = QualityInfo.SampleRate;
+		Hdr.EncodedSampleRate = kOpusSampleRate;
 		Hdr.ActiveSampleCount = TrueSampleCount;
 		Hdr.NumEncodedFrames = (uint32) FramesToEncode;
 		Hdr.NumSilentSamplesAtBeginning = kPrerollSkipCount;
@@ -512,7 +514,8 @@ public:
 		CompressedData.Serialize(InHeader.Identifier, 8);
 		CompressedData.Serialize(&InHeader.Version, sizeof(uint8));
 		CompressedData.Serialize(&InHeader.NumChannels, sizeof(uint8));
-		CompressedData.Serialize(&InHeader.SampleRate, sizeof(uint16));
+		CompressedData.Serialize(&InHeader.SampleRate, sizeof(uint32));
+		CompressedData.Serialize(&InHeader.EncodedSampleRate, sizeof(uint32));
 		CompressedData.Serialize(&InHeader.ActiveSampleCount, sizeof(uint64));
 		CompressedData.Serialize(&InHeader.NumEncodedFrames, sizeof(uint32));
 		CompressedData.Serialize(&InHeader.NumSilentSamplesAtBeginning, sizeof(int32));

@@ -36,7 +36,8 @@ public:
 		char Identifier[8];
 		uint8 Version = 0;
 		uint8 NumChannels = 0;
-		uint16 SampleRate = 0;
+		uint32 SampleRate = 0;
+		uint32 EncodedSampleRate = 0;
 		uint64 ActiveSampleCount = 0;
 		uint32 NumEncodedFrames = 0;
 		int32 NumSilentSamplesAtBeginning = 0;
@@ -48,6 +49,7 @@ public:
 			Version = 0;
 			NumChannels = 0;
 			SampleRate = 0;
+			EncodedSampleRate = 0;
 			ActiveSampleCount = 0;
 			NumEncodedFrames = 0;
 			NumSilentSamplesAtBeginning = 0;
@@ -61,7 +63,8 @@ public:
 				  sizeof(char)*8	// Identifier
 				+ sizeof(uint8)		// Version
 				+ sizeof(uint8)		// NumChannels
-				+ sizeof(uint16)	// SampleRate
+				+ sizeof(uint32)	// SampleRate
+				+ sizeof(uint32)	// EncodedSampleRate
 				+ sizeof(uint64)	// ActiveSampleCount
 				+ sizeof(uint32)	// NumEncodedFrames
 				+ sizeof(int32)		// NumSilentSamplesAtBeginning
