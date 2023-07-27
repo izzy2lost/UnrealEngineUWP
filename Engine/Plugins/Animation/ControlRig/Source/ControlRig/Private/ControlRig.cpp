@@ -2582,6 +2582,13 @@ const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 					}
 				}
 			}
+			if (const TArray<UAssetUserData*>* ActorComponentUserDataArray = SkeletalMeshComponent->GetAssetUserDataArray())
+			{
+				for(UAssetUserData* ActorComponentUserData : *ActorComponentUserDataArray)
+				{
+					CombinedAssetUserData.Add(ActorComponentUserData);
+				}
+			}
 		}
 	}
 
