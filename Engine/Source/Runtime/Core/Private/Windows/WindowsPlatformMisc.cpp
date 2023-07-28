@@ -2594,6 +2594,8 @@ public:
 	}
 
 private:
+
+#if !PLATFORM_CPU_ARM_FAMILY
 	/**
 	 * Checks if __cpuid instruction is present on current machine.
 	 *
@@ -2641,8 +2643,7 @@ private:
 	 */
 	static bool CheckForTimedPauseInstruction()
 	{
-		// _tpause isn't defined for Arm64EC
-#if PLATFORM_SEH_EXCEPTIONS_DISABLED || defined(_M_ARM64EC)
+#if PLATFORM_SEH_EXCEPTIONS_DISABLED
 		return false;
 #else
 		bool bSupportsTpause = false;
@@ -2760,6 +2761,14 @@ private:
 
 		return Result;
 	}
+#else
+	static bool CheckForCPUIDInstruction() { return false; }
+	static bool CheckForTimedPauseInstruction() { return false; }
+	static void GetCPUVendor(ANSICHAR(&OutBuffer)[12 + 1]) {}
+	static void GetCPUBrand(ANSICHAR(&OutBrandString)[0x40]) {}
+	static void QueryCPUInfo(int Args[4]) {}
+	static int32 QueryCacheLineSize() { return PLATFORM_CACHE_LINE_SIZE; }
+#endif
 
 	/** Static field with pre-cached __cpuid data. */
 	static FCPUIDQueriedData CPUIDStaticCache;
@@ -2804,6 +2813,9 @@ FString FWindowsPlatformMisc::GetCPUBrand()
 
 bool FWindowsPlatformMisc::HasAVX2InstructionSupport()
 {
+#if PLATFORM_CPU_ARM_FAMILY
+	return false;
+#else
 	if (!HasCPUIDInstruction())
 	{
 		return false;
@@ -2847,6 +2859,7 @@ bool FWindowsPlatformMisc::HasAVX2InstructionSupport()
 	}
 
 	return true;
+#endif
 }
 
 #include "Windows/AllowWindowsPlatformTypes.h"

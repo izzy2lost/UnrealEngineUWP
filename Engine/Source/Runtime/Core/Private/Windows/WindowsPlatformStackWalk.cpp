@@ -218,10 +218,17 @@ static int32 CaptureStackTraceExternalProcess(uint64* BackTrace, uint32 MaxDepth
 		StackFrame64.AddrStack.Mode      = AddrModeFlat;
 		StackFrame64.AddrFrame.Mode      = AddrModeFlat;
 #if PLATFORM_64BITS
-		StackFrame64.AddrPC.Offset = ContextCopy.Rip;
-		StackFrame64.AddrStack.Offset = ContextCopy.Rsp;
-		StackFrame64.AddrFrame.Offset = ContextCopy.Rbp;
+#if defined(_M_ARM64)
+		StackFrame64.AddrPC.Offset       = ContextCopy.Pc;
+		StackFrame64.AddrStack.Offset    = ContextCopy.Sp;
+		StackFrame64.AddrFrame.Offset    = ContextCopy.Fp;
+		MachineType                      = IMAGE_FILE_MACHINE_ARM64;
+#else
+		StackFrame64.AddrPC.Offset       = ContextCopy.Rip;
+		StackFrame64.AddrStack.Offset    = ContextCopy.Rsp;
+		StackFrame64.AddrFrame.Offset    = ContextCopy.Rbp;
 		MachineType                      = IMAGE_FILE_MACHINE_AMD64;
+#endif
 #else	//PLATFORM_64BITS
 		StackFrame64.AddrPC.Offset       = ContextCopy.Eip;
 		StackFrame64.AddrStack.Offset    = ContextCopy.Esp;
