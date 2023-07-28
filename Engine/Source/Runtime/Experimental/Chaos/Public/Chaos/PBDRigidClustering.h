@@ -210,6 +210,7 @@ public:
 	*/
 	CHAOS_API void BreakingModel();
 	CHAOS_API void BreakingModel(TArray<FPBDRigidClusteredParticleHandle*>& InParticles);
+	CHAOS_API void BreakingModel(TArrayView<FPBDRigidClusteredParticleHandle*> InParticles);
 	
 	//
 	// Access
@@ -500,6 +501,13 @@ public:
 		const FRigidHandleArray& Children,
 		const TMap<FPBDRigidParticleHandle*, FPBDRigidParticleHandle*>& ChildToParentMap);
 private:
+
+	// Cluster release stats for debugging with CVar p.Chaos.Clustering.DumpClusterAndReleaseStats
+	uint32 AdvanceCount = 0;
+	uint32 TotalProcessedClusters = 0;
+	uint32 TotalReleasedChildren = 0;
+	uint32 FrameProcessedClusters = 0;
+	uint32 FrameReleasedChildren = 0;
 
 	FRigidEvolution& MEvolution;
 	FPBDRigidClusteredParticles& MParticles;

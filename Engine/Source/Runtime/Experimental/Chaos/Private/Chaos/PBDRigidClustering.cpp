@@ -1086,6 +1086,8 @@ namespace Chaos
 			}
 		}
 
+		FrameReleasedChildren += ActivatedChildren.Num();
+
 		return ActivatedChildren;
 	}
 
@@ -1370,11 +1372,19 @@ namespace Chaos
 	FAutoConsoleVariableRef CVarBreakMode(TEXT("p.chaos.clustering.breakonlystrained"), GClusterBreakOnlyStrained, 
 										  TEXT("If enabled we only process strained clusters for breaks, if disabled all clusters are traversed and checked"));
 
+	static int32 GPerAdvanceBreaksAllowed = TNumericLimits<int32>::Max();
+	FAutoConsoleVariableRef CVarPerAdvanceBreaksAllowed(TEXT("p.Chaos.Clustering.PerAdvanceBreaksAllowed"), GPerAdvanceBreaksAllowed,
+		TEXT("Number of breaks allowed to occur for each invokation of AdvanceClustering"));
+
+	static int32 GDumpClusterAndReleaseStats = 0;
+	FAutoConsoleVariableRef CVarDumpClusterAndReleaseStats(TEXT("p.Chaos.Clustering.DumpClusterAndReleaseStats"), GDumpClusterAndReleaseStats,
+		TEXT("Report the number of cluster processes and released particles per frame, on/off 1/0"));
+
 	DECLARE_CYCLE_STAT(TEXT("TPBDRigidClustering<>::AdvanceClustering"), STAT_AdvanceClustering, STATGROUP_Chaos);
 	DECLARE_CYCLE_STAT(TEXT("TPBDRigidClustering<>::Update Impulse from Strain"), STAT_UpdateImpulseStrain, STATGROUP_Chaos);
 	DECLARE_CYCLE_STAT(TEXT("TPBDRigidClustering<>::Update Dirty Impulses"), STAT_UpdateDirtyImpulses, STATGROUP_Chaos);
-	void 
-	FRigidClustering::AdvanceClustering(
+	
+	void FRigidClustering::AdvanceClustering(
 		const FReal Dt, 
 		FPBDCollisionConstraints& CollisionRule)
 	{
@@ -1384,6 +1394,24 @@ namespace Chaos
 		double FrameTime = 0, Time = 0;
 		FDurationTimer Timer(Time);
 		Timer.Start();
+
+		if(GDumpClusterAndReleaseStats == 1)
+		{
+			if(AdvanceCount > 0 && FrameReleasedChildren > 0)
+			{
+				UE_LOG(LogChaos, Display, TEXT("Clustering | Frame %.5u | Clusters: %.3u, Released: %.4u (TotalClusters: %.3u, TotalReleased: %.4u)"),
+					   AdvanceCount,
+					   FrameProcessedClusters,
+					   FrameReleasedChildren,
+					   TotalProcessedClusters,
+					   TotalReleasedChildren);
+			}
+			AdvanceCount++;
+			TotalProcessedClusters += FrameProcessedClusters;
+			TotalReleasedChildren += FrameReleasedChildren;
+		}
+		FrameProcessedClusters = 0;
+		FrameReleasedChildren = 0;
 
 		if(MChildren.Num())
 		{
@@ -1515,7 +1543,14 @@ namespace Chaos
 				// #TODO convert to visitor pattern to avoid TArray allocations above.
 				if(GClusterBreakOnlyStrained == 1)
 				{
-					BreakingModel(ParticlesToProcess);
+					// Restrict particle view to allowed breaks. We still build the whole array to allow the strain
+					// modifies (executed above) to all strained particles, even though they may not release
+					TArrayView<FPBDRigidClusteredParticleHandle*> ToProcessView{ 
+						ParticlesToProcess.GetData(), 
+						FMath::Min(ParticlesToProcess.Num(), GPerAdvanceBreaksAllowed) 
+					};
+
+					BreakingModel(ToProcessView);
 				}
 				else
 				{
@@ -1607,7 +1642,14 @@ namespace Chaos
 	
 	void FRigidClustering::BreakingModel(TArray<FPBDRigidClusteredParticleHandle*>& InParticles)
 	{
+		BreakingModel(MakeArrayView(InParticles));
+	}
+
+	void FRigidClustering::BreakingModel(TArrayView<FPBDRigidClusteredParticleHandle*> InParticles)
+	{
 		SCOPE_CYCLE_COUNTER(STAT_BreakingModel);
+
+		FrameProcessedClusters += InParticles.Num();
 
 		// Clear the set tracking breaking collisions
 		BreakingCollisions.Empty();
@@ -1624,7 +1666,7 @@ namespace Chaos
 		// we'll only update the cluster properties once here (connection graph, geometry, etc.).
 		ClusterUnionManager.HandleDeferredClusterUnionUpdateProperties();
 		// Restore some of the momentum of objects that were touching rigid clusters that broke
-		if (RestoreBreakingMomentumPercent > 0.f)
+		if(RestoreBreakingMomentumPercent > 0.f)
 		{
 			RestoreBreakingMomentum();
 		}
