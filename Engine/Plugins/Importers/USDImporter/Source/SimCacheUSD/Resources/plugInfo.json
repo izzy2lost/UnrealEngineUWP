@@ -19,7 +19,7 @@
                 }
             },
             "Name": "SimCacheUSD",
-            #"LibraryPath": "@PLUG_INFO_LIBRARY_PATH@",
+            "LibraryPath": "../../../../../../../../Plugins/Importers/USDImporter/Binaries/Win64/UnrealEditor-SimCacheUSD.dll",
             #"ResourcePath": "@PLUG_INFO_RESOURCE_PATH@",
             "ResourcePath": "Resources",
             #"Root": "@PLUG_INFO_ROOT@",

@@ -76,7 +76,10 @@
 		{
 			"Name": "SimCacheUSD",
 			"Type": "Editor",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "Default",
+			"SupportedTargetPlatforms": [
+				"Win64"
+			]
 		},
 		{
 			"Name": "USDTests",
