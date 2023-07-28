@@ -30,7 +30,6 @@ struct FCompilerInfo
 	const struct FShaderCompilerInput& Input;
 	FString WorkingDirectory;
 	FString Profile;
-	uint32 CCFlags;
 	EHlslShaderFrequency Frequency;
 	FString BaseSourceFilename;
 

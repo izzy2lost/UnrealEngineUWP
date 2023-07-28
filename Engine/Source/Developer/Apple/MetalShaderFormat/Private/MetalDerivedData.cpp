@@ -22,7 +22,6 @@ extern void BuildMetalShaderOutput(
 	FShaderCompilerOutput& ShaderOutput,
 	const FShaderCompilerInput& ShaderInput,
 	FSHAHash const& GUIDHash,
-	uint32 CCFlags,
 	const ANSICHAR* InShaderSource,
 	uint32 SourceLen,
 	uint32 SourceCRCLen,
@@ -199,7 +198,6 @@ bool DoCompileMetalShader(
 	const FString& InPreprocessedShader,
 	FSHAHash GUIDHash,
 	uint32 VersionEnum,
-	uint32 CCFlags,
 	EMetalGPUSemantics Semantics,
 	uint32 MaxUnrollLoops,
 	EShaderFrequency Frequency,
@@ -1412,7 +1410,7 @@ bool DoCompileMetalShader(
 	if (Result != 0)
 	{
 		Output.Target = Input.Target;
-		BuildMetalShaderOutput(Output, Input, GUIDHash, CCFlags, MetalSource.c_str(), MetalSource.length(), CRCLen, CRC, VersionEnum, *Standard, *MinOSVersion, Output.Errors, OutputData.TypedBuffers, OutputData.InvariantBuffers, OutputData.TypedUAVs, OutputData.ConstantBuffers, bAllowFastIntrinsics);
+		BuildMetalShaderOutput(Output, Input, GUIDHash, MetalSource.c_str(), MetalSource.length(), CRCLen, CRC, VersionEnum, *Standard, *MinOSVersion, Output.Errors, OutputData.TypedBuffers, OutputData.InvariantBuffers, OutputData.TypedUAVs, OutputData.ConstantBuffers, bAllowFastIntrinsics);
 		return Output.bSucceeded;
 	}
 	else

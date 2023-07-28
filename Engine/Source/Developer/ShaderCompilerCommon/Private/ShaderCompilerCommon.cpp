@@ -1201,7 +1201,7 @@ void TransformStringIntoCharacterArray(FString& PreprocessedShaderSource, TArray
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FString CreateShaderCompilerWorkerDirectCommandLine(const FShaderCompilerInput& Input, uint32 CCFlags = 0)
+FString CreateShaderCompilerWorkerDirectCommandLine(const FShaderCompilerInput& Input)
 {
 	FString Text(TEXT("-directcompile -format="));
 	Text += Input.ShaderFormat.GetPlainNameString();
@@ -1250,11 +1250,6 @@ FString CreateShaderCompilerWorkerDirectCommandLine(const FShaderCompilerInput& 
 	Text += TEXT(" -cflags=");
 	Text += FString::Printf(TEXT("%llu"), Input.Environment.CompilerFlags.GetData());
 
-	if (CCFlags)
-	{
-		Text += TEXT(" -hlslccflags=");
-		Text += FString::Printf(TEXT("%u"), CCFlags);
-	}
 	// When we're running in directcompile mode, we don't to spam the crash reporter
 	Text += TEXT(" -nocrashreports");
 	return Text;
@@ -1605,7 +1600,7 @@ namespace UE::ShaderCompilerCommon
 		Contents += TEXT("\n");
 		Contents += CrossCompiler::CreateResourceTableFromEnvironment(Input.Environment);
 		Contents += TEXT("#if 0 /*DIRECT COMPILE*/\n");
-		Contents += CreateShaderCompilerWorkerDirectCommandLine(Input, Options.HlslCCFlags);
+		Contents += CreateShaderCompilerWorkerDirectCommandLine(Input);
 		Contents += TEXT("\n#endif /*DIRECT COMPILE*/\n");
 		if (!Input.DebugDescription.IsEmpty())
 		{

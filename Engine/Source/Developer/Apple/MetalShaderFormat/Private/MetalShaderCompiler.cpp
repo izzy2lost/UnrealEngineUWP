@@ -227,7 +227,6 @@ void BuildMetalShaderOutput(
 	FShaderCompilerOutput& ShaderOutput,
 	const FShaderCompilerInput& ShaderInput,
 	FSHAHash const& GUIDHash,
-	uint32 CCFlags,
 	const ANSICHAR* InShaderSource,
 	uint32 SourceLen,
 	uint32 SourceCRCLen,
@@ -1052,22 +1051,10 @@ void CompileShader_Metal(const FShaderCompilerInput& _Input,FShaderCompilerOutpu
 
 	Output.PreprocessTime = FPlatformTime::Seconds() - StartPreprocessTime;
 	
-	uint32 CCFlags = HLSLCC_NoPreprocess | HLSLCC_PackUniformsIntoUniformBufferWithNames | HLSLCC_FixAtomicReferences | HLSLCC_RetainSizes | HLSLCC_KeepSamplerAndImageNames;
-	if (!bDirectCompile || UE_BUILD_DEBUG)
-	{
-		// Validation is expensive - only do it when compiling directly for debugging
-		CCFlags |= HLSLCC_NoValidation;
-	}
-
-	// Required as we added the RemoveUniformBuffersFromSource() function (the cross-compiler won't be able to interpret comments w/o a preprocessor)
-	CCFlags &= ~HLSLCC_NoPreprocess;
-
 	// Write out the preprocessed file and a batch file to compile it if requested (DumpDebugInfoPath is valid)
 	if (bDumpDebugInfo && !bDirectCompile)
 	{
-		UE::ShaderCompilerCommon::FDebugShaderDataOptions DebugDataOptions;
-		DebugDataOptions.HlslCCFlags = CCFlags;
-		UE::ShaderCompilerCommon::DumpDebugShaderData(Input, PreprocessedShader, DebugDataOptions);
+		UE::ShaderCompilerCommon::DumpDebugShaderData(Input, PreprocessedShader);
 	}
 
 	FSHAHash GUIDHash;
@@ -1084,7 +1071,7 @@ void CompileShader_Metal(const FShaderCompilerInput& _Input,FShaderCompilerOutpu
 		FSHA1::HashBuffer(&Guid, sizeof(FGuid), GUIDHash.Hash);
 	}
 
-	bool bCompiled = DoCompileMetalShader(Input, Output, WorkingDirectory, PreprocessedShader, GUIDHash, VersionEnum, CCFlags, Semantics, MaxUnrollLoops, Frequency, bDumpDebugInfo, Standard, MinOSVersion);
+	bool bCompiled = DoCompileMetalShader(Input, Output, WorkingDirectory, PreprocessedShader, GUIDHash, VersionEnum, Semantics, MaxUnrollLoops, Frequency, bDumpDebugInfo, Standard, MinOSVersion);
 	if (bCompiled && Output.bSucceeded)
 	{
 

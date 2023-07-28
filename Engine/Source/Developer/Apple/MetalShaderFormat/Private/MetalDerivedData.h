@@ -97,7 +97,6 @@ bool DoCompileMetalShader(
 	const FString& PreprocessedShader,
 	FSHAHash GUIDHash,
 	uint32 VersionEnum,
-	uint32 CCFlags,
 	EMetalGPUSemantics Semantics,
 	uint32 MaxUnrollLoops,
 	EShaderFrequency Frequency,

@@ -1433,7 +1433,6 @@ static void BuildShaderOutput(
 FCompilerInfo::FCompilerInfo(const FShaderCompilerInput& InInput, const FString& InWorkingDirectory, EHlslShaderFrequency InFrequency) :
 	Input(InInput),
 	WorkingDirectory(InWorkingDirectory),
-	CCFlags(0),
 	Frequency(InFrequency)
 {
 	BaseSourceFilename = Input.GetSourceFilename();
@@ -2397,8 +2396,6 @@ static bool CompileWithShaderConductor(
 		}
 	}
 
-	UE::ShaderCompilerCommon::DumpDebugShaderData(Input, PreprocessedShader, { CompilerInfo.CCFlags });
-
 	if (bDebugDump)
 	{
 		VulkanCreateDXCCompileBatchFiles(
@@ -2655,38 +2652,7 @@ const FString EntryPointName = Input.EntryPointName;
 
 	FCompilerInfo CompilerInfo(Input, WorkingDirectory, HlslFrequency);
 
-	// Setup hlslcc flags. Needed here as it will be used when dumping debug info
-	{
-		CompilerInfo.CCFlags |= HLSLCC_PackUniforms;
-		CompilerInfo.CCFlags |= HLSLCC_PackUniformsIntoUniformBuffers;
-
-		// Only flatten structures inside UBs
-		CompilerInfo.CCFlags |= HLSLCC_FlattenUniformBufferStructures;
-
-		if (Input.Environment.FullPrecisionInPS)
-		{
-			CompilerInfo.CCFlags |= HLSLCC_UseFullPrecisionInPS;
-		}
-
-		CompilerInfo.CCFlags |= HLSLCC_SeparateShaderObjects;
-		CompilerInfo.CCFlags |= HLSLCC_KeepSamplerAndImageNames;
-
-		CompilerInfo.CCFlags |= HLSLCC_RetainSizes;
-
-		// ES doesn't support origin layout
-		CompilerInfo.CCFlags |= HLSLCC_DX11ClipSpace;
-
-		// Required as we added the RemoveUniformBuffersFromSource() function (the cross-compiler won't be able to interpret comments w/o a preprocessor)
-		CompilerInfo.CCFlags &= ~HLSLCC_NoPreprocess;
-
-		if (!bDirectCompile || UE_BUILD_DEBUG)
-		{
-			// Validation is expensive - only do it when compiling directly for debugging
-			CompilerInfo.CCFlags |= HLSLCC_NoValidation;
-		}
-	}
-
-	UE::ShaderCompilerCommon::DumpDebugShaderData(Input, PreprocessedShaderSource, { CompilerInfo.CCFlags });
+	UE::ShaderCompilerCommon::DumpDebugShaderData(Input, PreprocessedShaderSource);
 
 	FVulkanBindingTable BindingTable(CompilerInfo.Frequency);
 	bool bSuccess = false;

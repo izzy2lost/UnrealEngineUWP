@@ -136,9 +136,7 @@ bool CompileShader_VectorVM(const FShaderCompilerInput& Input, FShaderCompilerOu
 	// Required as we added the RemoveUniformBuffersFromSource() function (the cross-compiler won't be able to interpret comments w/o a preprocessor)
 	//CCFlags &= ~HLSLCC_NoPreprocess;
 
-	UE::ShaderCompilerCommon::FDebugShaderDataOptions DebugDataOptions;
-	DebugDataOptions.HlslCCFlags = CCFlags;
-	UE::ShaderCompilerCommon::DumpDebugShaderData(Input, PreprocessedShader, DebugDataOptions);
+	UE::ShaderCompilerCommon::DumpDebugShaderData(Input, PreprocessedShader);
 
 	FVectorVMCodeBackend VVMBackEnd(CCFlags, HlslCompilerTarget, VMCompilationOutput);
 		FVectorVMLanguageSpec VVMLanguageSpec; 

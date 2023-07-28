@@ -120,6 +120,7 @@ namespace UE::ShaderCompilerCommon
 			const TCHAR* BaseFileName;
 			const TCHAR* Data;
 		};
+		UE_DEPRECATED(5.4, "HlslCCFlags field is no longer used in debug output; please remove any usage.")
 		uint32 HlslCCFlags = 0;
 		const TCHAR* OverrideBaseFilename = nullptr;
 		const TCHAR* FilenamePrefix = nullptr;

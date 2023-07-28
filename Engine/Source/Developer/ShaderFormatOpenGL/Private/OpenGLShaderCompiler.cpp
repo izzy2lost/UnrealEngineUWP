@@ -2990,7 +2990,6 @@ static bool CompileToGlslWithShaderConductor(
 	const FString&				WorkingDirectory,
 	GLSLVersion					Version,
 	const EShaderFrequency		Frequency,
-	uint32						CCFlags,
 	const FString&				PreprocessedShader,
 	char*&						OutGlslShaderSource)
 {
@@ -3057,9 +3056,7 @@ static bool CompileToGlslWithShaderConductor(
 
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	UE::ShaderCompilerCommon::FDebugShaderDataOptions DebugDataOptions;
-	DebugDataOptions.HlslCCFlags = CCFlags;
-	UE::ShaderCompilerCommon::DumpDebugShaderData(Input, PreprocessedShader, DebugDataOptions);
+	UE::ShaderCompilerCommon::DumpDebugShaderData(Input, PreprocessedShader);
 
 	uint32_t BlendFlags = GetDecalBlendFlags(Input);
 
@@ -3426,14 +3423,12 @@ void FOpenGLFrontend::CompileShader(const FShaderCompilerInput& Input, FShaderCo
 #if DXC_SUPPORTED
 	if (bUseSC)
 	{
-		bCompilationSucceeded = CompileToGlslWithShaderConductor(Input, Output, WorkingDirectory, Version, Frequency, CCFlags, PreprocessedShader, GlslShaderSource);
+		bCompilationSucceeded = CompileToGlslWithShaderConductor(Input, Output, WorkingDirectory, Version, Frequency, PreprocessedShader, GlslShaderSource);
 	}
 	else
 #endif // DXC_SUPPORTED
 	{
-		UE::ShaderCompilerCommon::FDebugShaderDataOptions DebugDataOptions;
-		DebugDataOptions.HlslCCFlags = CCFlags;
-		UE::ShaderCompilerCommon::DumpDebugShaderData(Input, PreprocessedShader, DebugDataOptions);
+		UE::ShaderCompilerCommon::DumpDebugShaderData(Input, PreprocessedShader);
 		
 		CCFlags |= HLSLCC_NoValidation;
 		FGlslCodeBackend* BackEnd = CreateBackend(Version, CCFlags, HlslCompilerTarget);
