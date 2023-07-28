@@ -1219,7 +1219,7 @@ uint32 FNaniteGeometryCollectionSceneProxy::GetMemoryFootprint() const
 	return sizeof(*this) + GetAllocatedSize();
 }
 
-void FNaniteGeometryCollectionSceneProxy::OnTransformChanged()
+void FNaniteGeometryCollectionSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
 {
 }
 

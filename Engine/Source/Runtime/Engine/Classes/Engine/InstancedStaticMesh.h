@@ -223,7 +223,7 @@ private:
 	void CreateVertexBuffer(FRHICommandListBase& RHICmdList, FResourceArrayInterface* InResourceArray, EBufferUsageFlags InUsage, uint32 InStride, uint8 InFormat, FBufferRHIRef& OutVertexBufferRHI, FShaderResourceViewRHIRef& OutInstanceSRV);
 	
 	/**  */
-	void UpdateFromCommandBuffer_RenderThread(FInstanceUpdateCmdBuffer& CmdBuffer);
+	void UpdateFromCommandBuffer_RenderThread(FRHICommandListBase& RHICmdList, FInstanceUpdateCmdBuffer& CmdBuffer);
 };
 
 /*-----------------------------------------------------------------------------
@@ -526,7 +526,7 @@ public:
 
 	ENGINE_API virtual void DestroyRenderThreadResources() override;
 
-	ENGINE_API virtual void OnTransformChanged() override;
+	ENGINE_API virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
 
 	ENGINE_API virtual void UpdateInstances_RenderThread(FRHICommandListBase& RHICmdList, const FInstanceUpdateCmdBuffer& CmdBuffer, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, const FBoxSphereBounds& InStaticMeshBounds) override;
 

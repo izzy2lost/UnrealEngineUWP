@@ -103,7 +103,7 @@ public:
 
 	friend class FSkeletalMeshSectionIter;
 
-	ENGINE_API virtual void OnTransformChanged() override;
+	ENGINE_API virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
 
 	virtual uint8 GetCurrentFirstLODIdx_RenderThread() const final override
 	{

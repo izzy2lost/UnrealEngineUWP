@@ -438,7 +438,7 @@ public:
 	 * Called to notify the proxy when its transform has been updated.
 	 * Called in the thread that owns the proxy; game or rendering.
 	 */
-	virtual void OnTransformChanged()
+	virtual void OnTransformChanged(FRHICommandListBase& RHICmdList)
 	{
 		// For most primitives, mesh bounds are the same as local bounds.
 		// Generally only primitives with instances override this behavior.
@@ -451,6 +451,9 @@ public:
 			SetInstanceLocalBounds(0, GetLocalBounds(), false);
 		}
 	}
+
+	UE_DEPRECATED(5.4, "OnTransformChanged now takes a command list.")
+	void OnTransformChanged() { OnTransformChanged(FRHICommandListImmediate::Get()); }
 
 	/**
 	 * Called to notify the proxy that the level has been fully added to
@@ -1020,13 +1023,19 @@ public:
 	 * Called on world origin changes
 	 * @param InOffset - The delta to shift by
 	 */
-	ENGINE_API virtual void ApplyWorldOffset(FVector InOffset);
+	ENGINE_API virtual void ApplyWorldOffset(FRHICommandListBase& RHICmdList, FVector InOffset);
+
+	UE_DEPRECATED(5.4, "ApplyWorldOffset now takes a command list.")
+	void ApplyWorldOffset(FVector InOffset) { ApplyWorldOffset(FRHICommandListImmediate::Get(), InOffset); }
 
 	/**
 	 * Applies a "late in the frame" adjustment to the proxy's existing transform
 	 * @param LateUpdateTransform - The post-transform to be applied to the LocalToWorld matrix
 	 */
-	ENGINE_API virtual void ApplyLateUpdateTransform(const FMatrix& LateUpdateTransform);
+	ENGINE_API virtual void ApplyLateUpdateTransform(FRHICommandListBase& RHICmdList, const FMatrix& LateUpdateTransform);
+
+	UE_DEPRECATED(5.4, "ApplyWorldOffset now takes a command list.")
+	void ApplyLateUpdateTransform(const FMatrix& LateUpdateTransform) { ApplyLateUpdateTransform(FRHICommandListImmediate::Get(), LateUpdateTransform); }
 
 	/**
 	 * Updates the primitive proxy's uniform buffer.
@@ -1036,7 +1045,7 @@ public:
 	UE_DEPRECATED(5.3, "UpdateUniformBuffer now takes a command list.")
 	inline void UpdateUniformBuffer()
 	{
-		UpdateUniformBuffer(FRHICommandListExecutor::GetImmediateCommandList());
+		UpdateUniformBuffer(FRHICommandListImmediate::Get());
 	}
 
 	/**
@@ -1594,7 +1603,7 @@ private:
 	 * @param InBounds - The new bounds of the primitive.
 	 * @param InLocalBounds - The local space bounds of the primitive.
 	 */
-	ENGINE_API void SetTransform(const FMatrix& InLocalToWorld, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, FVector InActorPosition);
+	ENGINE_API void SetTransform(FRHICommandListBase& RHICmdList, const FMatrix& InLocalToWorld, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, FVector InActorPosition);
 
 	ENGINE_API bool WouldSetTransformBeRedundant_AnyThread(const FMatrix& InLocalToWorld, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, const FVector& InActorPosition) const;
 

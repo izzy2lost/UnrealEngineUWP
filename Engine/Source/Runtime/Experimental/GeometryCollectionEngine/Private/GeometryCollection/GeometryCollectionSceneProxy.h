@@ -322,7 +322,7 @@ public:
 
 	virtual uint32 GetMemoryFootprint() const override;
 
-	virtual void OnTransformChanged() override;
+	virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
 
 	// FSceneProxyBase interface.
 	virtual void GetNaniteResourceInfo(uint32& ResourceID, uint32& HierarchyOffset, uint32& ImposterIndex) const override;

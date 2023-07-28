@@ -3740,7 +3740,7 @@ private:
 	 * 
 	 * @param	InOffset	Delta to shift scene by
 	 */
-	void ApplyWorldOffset_RenderThread(const FVector& InOffset);
+	void ApplyWorldOffset_RenderThread(FRHICommandListBase& RHICmdList, const FVector& InOffset);
 
 	void ProcessAtmosphereLightRemoval_RenderThread(FLightSceneInfo* LightSceneInfo);
 	void ProcessAtmosphereLightAddition_RenderThread(FLightSceneInfo* LightSceneInfo);

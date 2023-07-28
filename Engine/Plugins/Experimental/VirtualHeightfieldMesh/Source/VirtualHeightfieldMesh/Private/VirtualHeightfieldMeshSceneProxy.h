@@ -20,7 +20,7 @@ protected:
 	virtual uint32 GetMemoryFootprint() const override;
 	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	virtual void DestroyRenderThreadResources() override;
-	virtual void OnTransformChanged() override;
+	virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
 	virtual bool HasSubprimitiveOcclusionQueries() const override;
 	virtual const TArray<FBoxSphereBounds>* GetOcclusionQueries(const FSceneView* View) const override;
 	virtual void AcceptOcclusionResults(const FSceneView* View, TArray<bool>* Results, int32 ResultsStart, int32 NumResults) override;

@@ -133,7 +133,7 @@ public:
 
 	// FPrimitiveSceneProxy interface
 	virtual SIZE_T GetTypeHash() const override;
-	virtual void OnTransformChanged() override;
+	virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
 
 	/** Parameters that define the spline, used to deform mesh */
 	FSplineMeshShaderParams SplineParams;

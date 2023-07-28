@@ -6883,7 +6883,7 @@ FPrimitiveViewRelevance FParticleSystemSceneProxy::GetViewRelevance(const FScene
 	return Result;
 }
 
-void FParticleSystemSceneProxy::OnTransformChanged()
+void FParticleSystemSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
 {
 	WorldSpacePrimitiveUniformBuffer.ReleaseResource();
 	WorldSpaceUBHash = 0;

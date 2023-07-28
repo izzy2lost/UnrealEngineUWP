@@ -410,7 +410,7 @@ public:
 	virtual int32 GetComponentResolution() const { return -1; }
 
 	/* Used to notify derived classes when render coords are calculated */
-	virtual void OnRenderCoordsChanged() = 0;
+	virtual void OnRenderCoordsChanged(FRHICommandListBase& RHICmdList) = 0;
 
 public:
 	uint32 LandscapeKey;					// a hash of the world and (LandscapeGUID or LOD Group Key)
@@ -493,7 +493,7 @@ struct FLandscapeRenderSystem
 	FLandscapeRenderSystem();
 	~FLandscapeRenderSystem();
 
-	static void CreateResources(FLandscapeSectionInfo* SectionInfo);
+	static void CreateResources(FRHICommandListBase& RHICmdList, FLandscapeSectionInfo* SectionInfo);
 	static void DestroyResources(FLandscapeSectionInfo* SectionInfo);
 
 	static void RegisterSection(FLandscapeSectionInfo* SectionInfo);
@@ -542,7 +542,7 @@ struct FLandscapeRenderSystem
 	void UpdateBuffers(FRHICommandListBase& RHICmdList);
 
 private:
-	void CreateResources_Internal(FLandscapeSectionInfo* InSectionInfo);
+	void CreateResources_Internal(FRHICommandListBase& RHICmdList, FLandscapeSectionInfo* InSectionInfo);
 	void DestroyResources_Internal(FLandscapeSectionInfo* InSectionInfo);
 };
 
@@ -851,7 +851,7 @@ public:
 	LANDSCAPE_API FLandscapeComponentSceneProxy(ULandscapeComponent* InComponent);
 
 	// FPrimitiveSceneProxy interface.
-	LANDSCAPE_API virtual void ApplyWorldOffset(FVector InOffset) override;
+	LANDSCAPE_API virtual void ApplyWorldOffset(FRHICommandListBase& RHICmdList, FVector InOffset) override;
 	LANDSCAPE_API virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override;
 	LANDSCAPE_API virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
 	LANDSCAPE_API virtual void ApplyViewDependentMeshArguments(const FSceneView& View, FMeshBatch& ViewDependentMeshBatch) const override;
@@ -859,7 +859,7 @@ public:
 	LANDSCAPE_API virtual FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override;
 	LANDSCAPE_API virtual bool CanBeOccluded() const override;
 	LANDSCAPE_API virtual void GetLightRelevance(const FLightSceneProxy* LightSceneProxy, bool& bDynamic, bool& bRelevant, bool& bLightMapped, bool& bShadowMapped) const override;
-	LANDSCAPE_API virtual void OnTransformChanged() override;
+	LANDSCAPE_API virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
 	LANDSCAPE_API virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	LANDSCAPE_API virtual void DestroyRenderThreadResources() override;
 	LANDSCAPE_API virtual bool OnLevelAddedToWorld_RenderThread() override;
@@ -897,7 +897,7 @@ public:
 	// FLandscapeSectionInfo interface
 	LANDSCAPE_API virtual float ComputeLODForView(const FSceneView& InView) const override;
 	LANDSCAPE_API virtual float ComputeLODBias() const override;
-	LANDSCAPE_API virtual void OnRenderCoordsChanged() override;
+	LANDSCAPE_API virtual void OnRenderCoordsChanged(FRHICommandListBase& RHICmdList) override;
 	LANDSCAPE_API virtual int32 GetComponentResolution() const override;
 
 	LANDSCAPE_API virtual double ComputeSectionResolution() const override;

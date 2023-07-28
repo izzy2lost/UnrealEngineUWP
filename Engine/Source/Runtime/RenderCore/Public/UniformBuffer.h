@@ -83,7 +83,6 @@ public:
 	// FRenderResource interface.
 	virtual void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
-		check(IsInRenderingThread());
 		UniformBufferRHI.SafeRelease();
 		if (Contents)
 		{

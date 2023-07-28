@@ -379,7 +379,7 @@ public:
 
 	ENGINE_API virtual int32 GetLightMapCoordinateIndex() const override;
 
-	ENGINE_API virtual void OnTransformChanged() override;
+	ENGINE_API virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
 
 	virtual void GetNaniteResourceInfo(uint32& OutResourceID, uint32& OutHierarchyOffset, uint32& OutImposterIndex) const override
 	{

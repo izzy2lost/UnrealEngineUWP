@@ -6899,7 +6899,7 @@ bool FSkeletalMeshSceneProxy::GetMaterialTextureScales(int32 LODIndex, int32 Sec
 }
 #endif
 
-void FSkeletalMeshSceneProxy::OnTransformChanged()
+void FSkeletalMeshSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
 {
 	// OnTransformChanged is called on the following frame after FSkeletalMeshObject::Update(), thus omit '+ 1' to frame number.
 	MeshObject->SetTransform(GetLocalToWorld(), GetScene().GetFrameNumber());

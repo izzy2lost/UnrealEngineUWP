@@ -482,7 +482,7 @@ FLandscapeRenderSystem::~FLandscapeRenderSystem()
 	LandscapeIndexAllocator.SetNumUninitialized(LastSetIndex + 1);
 }
 
-void FLandscapeRenderSystem::CreateResources(FLandscapeSectionInfo* SectionInfo)
+void FLandscapeRenderSystem::CreateResources(FRHICommandListBase& RHICmdList, FLandscapeSectionInfo* SectionInfo)
 {
 	FLandscapeRenderSystem*& LandscapeRenderSystem = LandscapeRenderSystems.FindOrAdd(SectionInfo->LandscapeKey);
 	if (!LandscapeRenderSystem)
@@ -490,7 +490,7 @@ void FLandscapeRenderSystem::CreateResources(FLandscapeSectionInfo* SectionInfo)
 		LandscapeRenderSystem = new FLandscapeRenderSystem();
 	}
 
-	LandscapeRenderSystem->CreateResources_Internal(SectionInfo);
+	LandscapeRenderSystem->CreateResources_Internal(RHICmdList, SectionInfo);
 }
 
 void FLandscapeRenderSystem::DestroyResources(FLandscapeSectionInfo* SectionInfo)
@@ -505,7 +505,7 @@ void FLandscapeRenderSystem::DestroyResources(FLandscapeSectionInfo* SectionInfo
 	}
 }
 
-void FLandscapeRenderSystem::CreateResources_Internal(FLandscapeSectionInfo* SectionInfo)
+void FLandscapeRenderSystem::CreateResources_Internal(FRHICommandListBase& RHICmdList, FLandscapeSectionInfo* SectionInfo)
 {
 	check(SectionInfo != nullptr);
 	check(!SectionInfo->bRegistered);
@@ -560,7 +560,7 @@ void FLandscapeRenderSystem::CreateResources_Internal(FLandscapeSectionInfo* Sec
 	}
 
 	// we changed the RenderCoord, need to update the uniform buffer
-	SectionInfo->OnRenderCoordsChanged();
+	SectionInfo->OnRenderCoordsChanged(RHICmdList);
 
 	check(SectionInfo->RenderCoord.X > INT32_MIN);
 	ResizeToInclude(SectionInfo->RenderCoord);
@@ -570,7 +570,6 @@ void FLandscapeRenderSystem::CreateResources_Internal(FLandscapeSectionInfo* Sec
 
 void FLandscapeRenderSystem::DestroyResources_Internal(FLandscapeSectionInfo* SectionInfo)
 {
-	check(IsInRenderingThread());
 	check(SectionInfo != nullptr);
 	check(!SectionInfo->bRegistered);
 	check(SectionInfo->bResourcesCreated);
@@ -594,7 +593,6 @@ void FLandscapeRenderSystem::DestroyResources_Internal(FLandscapeSectionInfo* Se
 
 void FLandscapeRenderSystem::RegisterSection(FLandscapeSectionInfo* SectionInfo)
 {
-	check(IsInRenderingThread());
 	check(SectionInfo != nullptr);
 	check(!SectionInfo->bRegistered);
 
@@ -644,7 +642,6 @@ void FLandscapeRenderSystem::RegisterSection(FLandscapeSectionInfo* SectionInfo)
 
 void FLandscapeRenderSystem::UnregisterSection(FLandscapeSectionInfo* SectionInfo)
 {
-	check(IsInRenderingThread());
 	check(SectionInfo != nullptr);
 
 	if (SectionInfo->bRegistered)
@@ -1347,7 +1344,7 @@ void FLandscapeComponentSceneProxy::CreateRenderThreadResources(FRHICommandListB
 
 	check(HeightmapTexture != nullptr);
 
-	FLandscapeRenderSystem::CreateResources(this);
+	FLandscapeRenderSystem::CreateResources(RHICmdList, this);
 
 	if (VisibilityHelper.ShouldBeVisible())
 	{
@@ -1893,7 +1890,7 @@ namespace DebugColorMask
 };
 #endif
 
-void FLandscapeComponentSceneProxy::OnTransformChanged()
+void FLandscapeComponentSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
 {
 	// resource creation will call OnTransformChanged(), so don't bother updating everything here if resources haven't been created yet
 	if (!bResourcesCreated)
@@ -1993,7 +1990,7 @@ void FLandscapeComponentSceneProxy::OnTransformChanged()
 		LandscapeParams.XYOffsetmapTextureSampler = GBlackTexture->SamplerStateRHI;
 	}
 
-	LandscapeUniformShaderParameters.SetContents(FRHICommandListImmediate::Get(), LandscapeParams);
+	LandscapeUniformShaderParameters.SetContents(RHICmdList, LandscapeParams);
 
 	// Recache mesh draw commands for changed uniform buffers
 	GetScene().UpdateCachedRenderStates(this);
@@ -2050,9 +2047,9 @@ bool FLandscapeComponentSceneProxy::GetMeshElementForVirtualTexture(int32 InLodI
 	return true;
 }
 
-void FLandscapeComponentSceneProxy::ApplyWorldOffset(FVector InOffset)
+void FLandscapeComponentSceneProxy::ApplyWorldOffset(FRHICommandListBase& RHICmdList, FVector InOffset)
 {
-	FPrimitiveSceneProxy::ApplyWorldOffset(InOffset);
+	FPrimitiveSceneProxy::ApplyWorldOffset(RHICmdList, InOffset);
 
 	if (NumSubsections > 1)
 	{
@@ -4121,10 +4118,10 @@ float FLandscapeComponentSceneProxy::ComputeLODBias() const
 	return ComputedLODBias;
 }
 
-void FLandscapeComponentSceneProxy::OnRenderCoordsChanged()
+void FLandscapeComponentSceneProxy::OnRenderCoordsChanged(FRHICommandListBase& RHICmdList)
 {
 	// need to rebuild the uniforms that contain render coords
-	OnTransformChanged();
+	OnTransformChanged(RHICmdList);
 }
 
 double FLandscapeComponentSceneProxy::ComputeSectionResolution() const
@@ -4192,7 +4189,7 @@ public:
 		LocalToWorld = FMatrix::Identity;
 	}
 
-	virtual void OnRenderCoordsChanged()
+	virtual void OnRenderCoordsChanged(FRHICommandListBase& RHICmdList)
 	{
 	}
 
@@ -4249,7 +4246,7 @@ void FLandscapeMeshProxySceneProxy::CreateRenderThreadResources(FRHICommandListB
 
 	for (auto& Info : ProxySectionsInfos)
 	{
-		FLandscapeRenderSystem::CreateResources(Info.Get());
+		FLandscapeRenderSystem::CreateResources(RHICmdList, Info.Get());
 	}
 
 	if (VisibilityHelper.ShouldBeVisible())

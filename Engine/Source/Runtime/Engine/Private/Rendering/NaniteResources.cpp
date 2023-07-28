@@ -1757,7 +1757,7 @@ bool FSceneProxy::GetCollisionMeshElement(
 
 #endif
 
-void FSceneProxy::OnTransformChanged()
+void FSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
 {
 #if RHI_RAYTRACING
 	bCachedRayTracingInstanceTransformsValid = false;

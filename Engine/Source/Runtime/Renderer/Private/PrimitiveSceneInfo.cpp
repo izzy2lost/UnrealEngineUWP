@@ -2053,9 +2053,9 @@ uint32 FPrimitiveSceneInfo::GetMemoryFootprint()
 	return( sizeof( *this ) + HitProxies.GetAllocatedSize() + StaticMeshes.GetAllocatedSize() + StaticMeshRelevances.GetAllocatedSize() );
 }
 
-void FPrimitiveSceneInfo::ApplyWorldOffset(FVector InOffset)
+void FPrimitiveSceneInfo::ApplyWorldOffset(FRHICommandListBase& RHICmdList, FVector InOffset)
 {
-	Proxy->ApplyWorldOffset(InOffset);
+	Proxy->ApplyWorldOffset(RHICmdList, InOffset);
 }
 
 void FPrimitiveSceneInfo::UpdateIndirectLightingCacheBuffer(

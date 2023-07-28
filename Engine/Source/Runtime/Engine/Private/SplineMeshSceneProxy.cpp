@@ -315,10 +315,10 @@ SIZE_T FNaniteSplineMeshSceneProxy::GetTypeHash() const
 	return reinterpret_cast<size_t>(&UniquePointer);
 }
 
-void FNaniteSplineMeshSceneProxy::OnTransformChanged()
+void FNaniteSplineMeshSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
 {
 	// Call Nanite parent implementation
-	Nanite::FSceneProxy::OnTransformChanged();
+	Nanite::FSceneProxy::OnTransformChanged(RHICmdList);
 
 	// Override the instance local bounds with the bounds that were calculated (as opposed to using the mesh bounds)
 	// NOTE: The proxy's local bounds have already been padded for WPO/Displacement

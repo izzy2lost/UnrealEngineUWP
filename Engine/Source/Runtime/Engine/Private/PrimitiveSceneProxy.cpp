@@ -763,10 +763,8 @@ uint32 FPrimitiveSceneProxy::GetPayloadDataStride() const
 	return PayloadDataCount;
 }
 
-void FPrimitiveSceneProxy::SetTransform(const FMatrix& InLocalToWorld, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, FVector InActorPosition)
+void FPrimitiveSceneProxy::SetTransform(FRHICommandListBase& RHICmdList, const FMatrix& InLocalToWorld, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, FVector InActorPosition)
 {
-	check(IsInRenderingThread());
-
 	// Update the cached transforms.
 	LocalToWorld = InLocalToWorld;
 	bIsLocalToWorldDeterminantNegative = LocalToWorld.Determinant() < 0.0f;
@@ -786,14 +784,12 @@ void FPrimitiveSceneProxy::SetTransform(const FMatrix& InLocalToWorld, const FBo
 	}
 
 	// Notify the proxy's implementation of the change.
-	OnTransformChanged();
+	OnTransformChanged(RHICmdList);
 }
 
 void FPrimitiveSceneProxy::UpdateInstances_RenderThread(FRHICommandListBase& RHICmdList, const FInstanceUpdateCmdBuffer& CmdBuffer, const FBoxSphereBounds& InBounds, const FBoxSphereBounds& InLocalBounds, const FBoxSphereBounds& InStaticMeshBounds)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("FPrimitiveSceneProxy::UpdateInstances_RenderThread");
-
-	check(IsInRenderingThread());
 
 	// Update the cached bounds.
 	Bounds = InBounds;
@@ -1003,20 +999,20 @@ bool FPrimitiveSceneProxy::WouldSetTransformBeRedundant_AnyThread(const FMatrix&
 	return true;
 }
 
-void FPrimitiveSceneProxy::ApplyWorldOffset(FVector InOffset)
+void FPrimitiveSceneProxy::ApplyWorldOffset(FRHICommandListBase& RHICmdList, FVector InOffset)
 {
 	FBoxSphereBounds NewBounds = FBoxSphereBounds(Bounds.Origin + InOffset, Bounds.BoxExtent, Bounds.SphereRadius);
 	FBoxSphereBounds NewLocalBounds = LocalBounds;
 	FVector NewActorPosition = ActorPosition + InOffset;
 	FMatrix NewLocalToWorld = LocalToWorld.ConcatTranslation(InOffset);
 	
-	SetTransform(NewLocalToWorld, NewBounds, NewLocalBounds, NewActorPosition);
+	SetTransform(RHICmdList, NewLocalToWorld, NewBounds, NewLocalBounds, NewActorPosition);
 }
 
-void FPrimitiveSceneProxy::ApplyLateUpdateTransform(const FMatrix& LateUpdateTransform)
+void FPrimitiveSceneProxy::ApplyLateUpdateTransform(FRHICommandListBase& RHICmdList, const FMatrix& LateUpdateTransform)
 {
 	const FMatrix AdjustedLocalToWorld = LocalToWorld * LateUpdateTransform;
-	SetTransform(AdjustedLocalToWorld, Bounds, LocalBounds, ActorPosition);
+	SetTransform(RHICmdList, AdjustedLocalToWorld, Bounds, LocalBounds, ActorPosition);
 }
 
 bool FPrimitiveSceneProxy::UseSingleSampleShadowFromStationaryLights() const 

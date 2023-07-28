@@ -246,9 +246,9 @@ void FNiagaraSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmd
 	}
 }
 
-void FNiagaraSceneProxy::OnTransformChanged()
+void FNiagaraSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
 {
-	FPrimitiveSceneProxy::OnTransformChanged();
+	FPrimitiveSceneProxy::OnTransformChanged(RHICmdList);
 
 	LocalToWorldInverse = GetLocalToWorld().Inverse();
 

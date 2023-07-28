@@ -513,7 +513,7 @@ public:
 	 * Called on world origin changes
 	 * @param InOffset - The delta to shift by
 	 */
-	void ApplyWorldOffset(FVector InOffset);
+	void ApplyWorldOffset(FRHICommandListBase& RHICmdList, FVector InOffset);
 
 	FORCEINLINE void MarkIndirectLightingCacheBufferDirty()
 	{

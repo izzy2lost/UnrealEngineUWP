@@ -71,7 +71,7 @@ private:
 	NIAGARA_API virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 
 	//virtual void OnActorPositionChanged() override;
-	NIAGARA_API virtual void OnTransformChanged() override;
+	NIAGARA_API virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
 
 	NIAGARA_API virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
 

@@ -519,7 +519,7 @@ public:
 		}
 	}
 
-	virtual void OnTransformChanged() override
+	virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override
 	{
 		const FTransform RigidLocalToWorld = FTransform(GetLocalToWorld());
 		for (FHairGroupInstance* Instance : HairGroupInstances)

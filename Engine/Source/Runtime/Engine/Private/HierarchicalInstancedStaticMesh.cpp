@@ -969,9 +969,9 @@ void FHierarchicalStaticMeshSceneProxy::DrawStaticElements(FStaticPrimitiveDrawI
 	}
 }
 
-void FHierarchicalStaticMeshSceneProxy::ApplyWorldOffset(FVector InOffset)
+void FHierarchicalStaticMeshSceneProxy::ApplyWorldOffset(FRHICommandListBase& RHICmdList, FVector InOffset)
 {
-	FInstancedStaticMeshSceneProxy::ApplyWorldOffset(InOffset);
+	FInstancedStaticMeshSceneProxy::ApplyWorldOffset(RHICmdList, InOffset);
 		
 	for (FBoxSphereBounds& Item : OcclusionBounds)
 	{

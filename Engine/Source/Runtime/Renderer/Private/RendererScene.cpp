@@ -1939,7 +1939,7 @@ void FScene::BatchAddPrimitives(TArrayView<UPrimitiveComponent*> InPrimitives)
 			{
 				FPrimitiveSceneProxy* SceneProxy = Params.PrimitiveSceneProxy;
 				FScopeCycleCounter Context(SceneProxy->GetStatId());
-				SceneProxy->SetTransform(Params.RenderMatrix, Params.WorldBounds, Params.LocalBounds, Params.AttachmentRootPosition);
+				SceneProxy->SetTransform(RHICmdList, Params.RenderMatrix, Params.WorldBounds, Params.LocalBounds, Params.AttachmentRootPosition);
 
 				// Create any RenderThreadResources required.
 				SceneProxy->CreateRenderThreadResources(RHICmdList);
@@ -4570,11 +4570,11 @@ void FScene::ApplyWorldOffset(const FVector& InOffset)
 		[Scene, Offset](FRHICommandListImmediate& RHICmdList)
 		{
 			Scene->UpdateAllPrimitiveSceneInfos(RHICmdList);
-			Scene->ApplyWorldOffset_RenderThread(Offset);
+			Scene->ApplyWorldOffset_RenderThread(RHICmdList, Offset);
 		});
 }
 
-void FScene::ApplyWorldOffset_RenderThread(const FVector& InOffset)
+void FScene::ApplyWorldOffset_RenderThread(FRHICommandListBase& RHICmdList, const FVector& InOffset)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_SceneApplyWorldOffset);
 	SCOPED_NAMED_EVENT(FScene_ApplyWorldOffset_RenderThread, FColor::Yellow);
@@ -4585,7 +4585,7 @@ void FScene::ApplyWorldOffset_RenderThread(const FVector& InOffset)
 	checkf(AddedPrimitiveSceneInfos.Num() == 0, TEXT("All primitives found in AddedPrimitiveSceneInfos must have been added to the scene before the world offset is applied"));
 	for (int32 Idx = 0; Idx < Primitives.Num(); ++Idx)
 	{
-		Primitives[Idx]->ApplyWorldOffset(InOffset);
+		Primitives[Idx]->ApplyWorldOffset(RHICmdList, InOffset);
 	}
 
 	// Primitive transforms
@@ -5953,7 +5953,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 				!PrimitiveTransforms[PrimitiveSceneInfo->PackedIndex].Equals(LocalToWorld, SMALL_NUMBER));
 
 			// Update the primitive transform.
-			PrimitiveSceneProxy->SetTransform(LocalToWorld, WorldBounds, LocalBounds, AttachmentRootPosition);
+			PrimitiveSceneProxy->SetTransform(GraphBuilder.RHICmdList, LocalToWorld, WorldBounds, LocalBounds, AttachmentRootPosition);
 			PrimitiveTransforms[PrimitiveSceneInfo->PackedIndex] = LocalToWorld;
 
 			if (!RHISupportsVolumeTextures(GetFeatureLevel())

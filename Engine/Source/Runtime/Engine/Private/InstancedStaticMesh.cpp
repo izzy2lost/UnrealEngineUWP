@@ -571,12 +571,12 @@ void FStaticMeshInstanceBuffer::UpdateFromCommandBuffer_Concurrent(FInstanceUpda
 	ENQUEUE_RENDER_COMMAND(InstanceBuffer_UpdateFromPreallocatedData)(
 		[InstanceBuffer, NewCmdBuffer](FRHICommandListImmediate& RHICmdList)
 		{
-			InstanceBuffer->UpdateFromCommandBuffer_RenderThread(*NewCmdBuffer);
+			InstanceBuffer->UpdateFromCommandBuffer_RenderThread(RHICmdList, *NewCmdBuffer);
 			delete NewCmdBuffer;
 		});
 }
 
-void FStaticMeshInstanceBuffer::UpdateFromCommandBuffer_RenderThread(FInstanceUpdateCmdBuffer& CmdBuffer)
+void FStaticMeshInstanceBuffer::UpdateFromCommandBuffer_RenderThread(FRHICommandListBase& RHICmdList, FInstanceUpdateCmdBuffer& CmdBuffer)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FStaticMeshInstanceBuffer_UpdateFromCommandBuffer_RenderThread);
 	
@@ -632,7 +632,7 @@ void FStaticMeshInstanceBuffer::UpdateFromCommandBuffer_RenderThread(FInstanceUp
 
 	if (!CondSetFlushToGPUPending())
 	{
-		UpdateRHI(FRHICommandListImmediate::Get());
+		UpdateRHI(RHICmdList);
 	}
 }
 
@@ -2010,7 +2010,7 @@ void FInstancedStaticMeshSceneProxy::DestroyRenderThreadResources()
 #endif
 }
 
-void FInstancedStaticMeshSceneProxy::OnTransformChanged()
+void FInstancedStaticMeshSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
 {
 	if (!bHasPerInstanceLocalBounds)
 	{

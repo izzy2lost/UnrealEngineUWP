@@ -428,7 +428,7 @@ uint32 FVirtualHeightfieldMeshSceneProxy::GetMemoryFootprint() const
 	return(sizeof(*this) + FPrimitiveSceneProxy::GetAllocatedSize());
 }
 
-void FVirtualHeightfieldMeshSceneProxy::OnTransformChanged()
+void FVirtualHeightfieldMeshSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
 {
 	UVToLocal = UVToWorld * GetLocalToWorld().Inverse();
 
