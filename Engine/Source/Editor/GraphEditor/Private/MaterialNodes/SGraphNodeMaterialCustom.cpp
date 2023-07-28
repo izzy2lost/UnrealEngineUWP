@@ -1,3 +1,5 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "MaterialNodes/SGraphNodeMaterialCustom.h"
 
 #include "Templates/Casts.h"
