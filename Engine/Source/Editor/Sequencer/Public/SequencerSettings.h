@@ -86,7 +86,7 @@ struct FColumnVisibilitySetting
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category=General)
+	UPROPERTY(EditAnywhere, Category=General, meta = (EditCondition="false"))
 	FName ColumnName;
 
 	UPROPERTY(EditAnywhere, Category=General)
