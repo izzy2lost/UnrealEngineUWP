@@ -112,5 +112,39 @@ void DispatchShaderBundleEmulation(
 	}
 }
 
+const bool GRHIShaderDiagnosticEnabled = true;
+void SetupShaderDiagnosticData(FRHIShader* RHIShader, FShaderCodeReader& ShaderCodeReader)
+{
+	if (RHIShader && GRHIShaderDiagnosticEnabled)
+	{
+		int32 ShaderDiagnosticExtensionSize = 0;
+		const uint8* ShaderDiagnosticExtensionData = ShaderCodeReader.FindOptionalDataAndSize(FShaderDiagnosticExtension::Key, ShaderDiagnosticExtensionSize);
+		if (ShaderDiagnosticExtensionData && ShaderDiagnosticExtensionSize > 0)
+		{
+			FBufferReader ArValidationExtensionData((void*)ShaderDiagnosticExtensionData, ShaderDiagnosticExtensionSize, false);
+			FShaderDiagnosticExtension ShaderDiagnosticExtension;
+			ArValidationExtensionData << ShaderDiagnosticExtension;
+			RegisterDiagnosticMessages(ShaderDiagnosticExtension.ShaderDiagnosticDatas);
+		}
+	}
+}
+
+TArray<FShaderDiagnosticData> GShaderDiagnosticDatas;
+void RegisterDiagnosticMessages(const TArray<FShaderDiagnosticData>& In)
+{
+	// Not thread safe
+	GShaderDiagnosticDatas.Append(In);
+}
+
+const FString* GetDiagnosticMessage(uint32 MessageID)
+{
+	// Not thread safe
+	if (const FShaderDiagnosticData* Found = GShaderDiagnosticDatas.FindByPredicate([MessageID](const FShaderDiagnosticData& In) { return In.Hash == MessageID; }))
+	{
+		return &Found->Message;
+	}
+	return nullptr;
+}
+
 } //! RHICore
 } //! UE

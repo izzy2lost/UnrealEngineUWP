@@ -249,7 +249,17 @@ static bool LogBreadcrumbData(D3D12RHI::FD3DGPUProfiler& GPUProfiler, FD3D12Queu
 	const FD3D12DiagnosticBufferData* DiagnosticData = Queue.GetDiagnosticBufferData();
 	if (DiagnosticData && DiagnosticData->Counter)
 	{
-		UE_LOG(LogD3D12RHI, Error, TEXT("[GPUBreadCrumb]\t\tShader assertion failed! ID: 0x%08X (%d)"), DiagnosticData->MessageID, DiagnosticData->MessageID);
+		const uint32 Line = DiagnosticData->Payload.AsUint[0];
+		const FString* File = UE::RHICore::GetDiagnosticMessage(DiagnosticData->Payload.AsUint[1]);
+		const FString* Message = UE::RHICore::GetDiagnosticMessage(DiagnosticData->Payload.AsUint[2]);
+		if (File && Message)
+		{
+			UE_LOG(LogD3D12RHI, Error, TEXT("[GPUBreadCrumb]\t\tShader assertion failed - %s:%d - %s"), **File, Line, **Message);
+		}
+		else
+		{
+			UE_LOG(LogD3D12RHI, Error, TEXT("[GPUBreadCrumb]\t\tShader assertion failed! ID: 0x%08X (%d)"), DiagnosticData->MessageID, DiagnosticData->MessageID);
+		}
 
 		{
 			const int32* Payload = DiagnosticData->Payload.AsInt;

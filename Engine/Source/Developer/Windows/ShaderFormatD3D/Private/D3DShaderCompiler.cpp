@@ -1198,7 +1198,7 @@ bool PreprocessD3DShader(
 	}
 
 	// Process TEXT macro.
-	TransformStringIntoCharacterArray(PreprocessedSource);
+	TransformStringIntoCharacterArray(PreprocessedSource, &Output.EditDiagnosticDatas());
 
 	TArray<FString> FilteredErrors;
 	// Run the shader minifier
@@ -1294,4 +1294,6 @@ void CompileD3DShader(const FShaderCompilerInput& Input, const FShaderPreprocess
 			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("%s\n"), *Error.GetErrorStringWithLineMarker());
 		}
 	}
+
+	Output.ShaderDiagnosticDatas = PreprocessOutput.GetDiagnosticDatas();
 }

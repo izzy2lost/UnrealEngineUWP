@@ -76,6 +76,9 @@ void UEReportAssertWithPayload(uint AssertID, uint4 Payload)
 #define PLATFORM_ASSERT3(condition, assert_id, a, b, c)    { if (!(condition)) UEReportAssertWithPayload(assert_id, uint4(a, b, c, 0));  }
 #define PLATFORM_ASSERT4(condition, assert_id, a, b, c, d) { if (!(condition)) UEReportAssertWithPayload(assert_id, uint4(a, b, c, d));  }
 
+#define check(condition) 									{ if (!(condition)) { UEReportAssertWithPayload(0xCECC, uint4(__LINE__, TEXT(__FILE__), TEXT(#condition), 0)); } }
+#define checkf(condition, message) 							{ if (!(condition)) { UEReportAssertWithPayload(0xCECC, uint4(__LINE__, TEXT(__FILE__), message, 0)); } }
+
 #endif // PLATFORM_SUPPORTS_DIAGNOSTIC_BUFFER
 
 #if PLATFORM_SUPPORTS_MESH_SHADERS_TIER0

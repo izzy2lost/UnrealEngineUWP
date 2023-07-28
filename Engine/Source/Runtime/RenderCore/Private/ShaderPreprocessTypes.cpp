@@ -295,5 +295,6 @@ FArchive& operator<<(FArchive& Ar, FShaderPreprocessOutput& PreprocessOutput)
 	Ar << PreprocessOutput.PragmaDirectives;
 	Ar << PreprocessOutput.PreprocessedSource;
 	Ar << PreprocessOutput.ParameterParser;
+	Ar << PreprocessOutput.ShaderDiagnosticDatas;
 	return Ar;
 }

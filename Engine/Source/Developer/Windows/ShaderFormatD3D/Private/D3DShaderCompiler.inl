@@ -365,6 +365,7 @@ inline void GenerateFinalOutput(TRefCountPtr<TBlob>& CompressedData,
 	}
 
 	Output.SerializeShaderCodeValidation();
+	Output.SerializeShaderDiagnosticData();
 
 	// Set the number of instructions.
 	Output.NumInstructions = NumInstructions;

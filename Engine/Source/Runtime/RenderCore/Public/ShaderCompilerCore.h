@@ -589,6 +589,8 @@ struct FShaderCompilerOutput
 
 	TArray<FShaderCodeValidationStride> ParametersStrideToValidate;
 
+	TArray<FShaderDiagnosticData> ShaderDiagnosticDatas;
+
 	/** This field should be set by backends which do not implement the independent preprocessing API to contain the "final" shader source as 
 	 * passed to the platform compiler. For backends that do implement this API this is superceded by ModifiedShaderSource (and will eventually
 	 * be deprecated).
@@ -618,6 +620,9 @@ struct FShaderCompilerOutput
 
 	/** Add optional data in ShaderCode to perform additional shader input validation at runtime*/
 	RENDERCORE_API void SerializeShaderCodeValidation();
+
+	/** Add optional diagnostic data in ShaderCode to perform assert translation at runtime*/
+	RENDERCORE_API void SerializeShaderDiagnosticData();
 
 	friend FArchive& operator<<(FArchive& Ar, FShaderCompilerOutput& Output)
 	{

@@ -152,6 +152,16 @@ public:
 		return ElapsedTime;
 	}
 
+	TArray<FShaderDiagnosticData>& EditDiagnosticDatas()
+	{
+		return ShaderDiagnosticDatas;
+	}
+
+	const TArray<FShaderDiagnosticData>& GetDiagnosticDatas() const
+	{
+		return ShaderDiagnosticDatas;
+	}
+
 	friend FArchive& operator<<(FArchive& Ar, FShaderPreprocessOutput& PreprocessOutput);
 
 private:
@@ -184,4 +194,6 @@ private:
 	bool bIsSecondary = false;
 
 	FShaderParameterParser ParameterParser;
+
+	TArray<FShaderDiagnosticData> ShaderDiagnosticDatas;
 };

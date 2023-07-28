@@ -784,6 +784,34 @@ struct FShaderCodeValidationExtension
 	}
 };
 
+struct FShaderDiagnosticData
+{
+	uint32 Hash;
+	FString Message;
+};
+
+inline FArchive& operator<<(FArchive& Ar, FShaderDiagnosticData& ShaderCodeDiagnosticData)
+{
+	return Ar << ShaderCodeDiagnosticData.Hash << ShaderCodeDiagnosticData.Message;
+}
+
+struct FShaderDiagnosticExtension
+{
+	// for FindOptionalData() and AddOptionalData()
+	static constexpr uint8 Key = 'D';
+	static constexpr uint16 StaticVersion = 0;
+
+	TArray<FShaderDiagnosticData> ShaderDiagnosticDatas;
+	uint16 Version = StaticVersion;
+
+	friend FArchive& operator<<(FArchive& Ar, FShaderDiagnosticExtension& Extension)
+	{
+		Ar << Extension.Version;
+		Ar << Extension.ShaderDiagnosticDatas;
+		return Ar;
+	}
+};
+
 #ifndef RENDERCORE_ATTRIBUTE_UNALIGNED
 // TODO find out if using GCC_ALIGN(1) instead of this new #define break on all kinds of platforms...
 #define RENDERCORE_ATTRIBUTE_UNALIGNED

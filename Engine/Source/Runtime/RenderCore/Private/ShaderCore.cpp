@@ -977,6 +977,20 @@ void FShaderCompilerOutput::SerializeShaderCodeValidation()
 	}
 }
 
+void FShaderCompilerOutput::SerializeShaderDiagnosticData()
+{
+	if (ShaderDiagnosticDatas.Num() > 0)
+	{
+		FShaderDiagnosticExtension ShaderDiagnosticExtension;
+		ShaderDiagnosticExtension.ShaderDiagnosticDatas = ShaderDiagnosticDatas;
+
+		TArray<uint8> WriterBytes;
+		FMemoryWriter Writer(WriterBytes);
+		Writer << ShaderDiagnosticExtension;
+		ShaderCode.AddOptionalData(FShaderDiagnosticExtension::Key, WriterBytes.GetData(), WriterBytes.Num());
+	}
+}
+
 static void ReportVirtualShaderFilePathError(TArray<FShaderCompilerError>* CompileErrors, FString ErrorString)
 {
 	if (CompileErrors)
@@ -1228,6 +1242,7 @@ public:
 
 		Job.PreprocessOutput.ElapsedTime = FPlatformTime::Seconds() - StartPreprocessTime;
 		Job.Output.PreprocessTime = Job.PreprocessOutput.ElapsedTime;
+		Job.Output.ShaderDiagnosticDatas = Job.PreprocessOutput.GetDiagnosticDatas();
 		return Job.PreprocessOutput.bSucceeded;
 	}
 

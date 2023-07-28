@@ -937,7 +937,7 @@ void RemoveUniformBuffersFromSource(const FShaderCompilerEnvironment& Environmen
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Process TEXT() macro to convert them into GPU ASCII characters
 
-FString ParseText(const TCHAR* StartPtr, const TCHAR*& EndPtr)
+static FString ParseText(const TCHAR* StartPtr, const TCHAR*& EndPtr)
 {
 	const TCHAR* OpeningBracePtr = FCString::Strstr(StartPtr, TEXT("("));
 	check(OpeningBracePtr);
@@ -959,7 +959,7 @@ FString ParseText(const TCHAR* StartPtr, const TCHAR*& EndPtr)
 	return Out;
 }
 
-void ConvertTextToAsciiCharacter(const FString& InText, FString& OutText, FString& OutEncodedText)
+static void ConvertTextToAsciiCharacter(const FString& InText, FString& OutText, FString& OutEncodedText)
 {
 	const uint32 CharCount = InText.Len();
 	OutEncodedText.Reserve(CharCount * 3); // ~2 digits per character + a comma
@@ -975,8 +975,65 @@ void ConvertTextToAsciiCharacter(const FString& InText, FString& OutText, FStrin
 	}
 }
 
+struct FAssertParsingStack
+{
+	bool IsAssert() const { return BeginPtr != nullptr && EndPtr != nullptr; }
+	const TCHAR* BeginPtr = nullptr;
+	const TCHAR* EndPtr = nullptr;
+};
+
+static bool SearchText(const TCHAR*& InOut, FAssertParsingStack& OutAssertStack)
+{
+	const TCHAR* TextIdentifier = TEXT("TEXT(");
+	const TCHAR* AssertIdentifier = TEXT("UEReportAssertWithPayload(");
+
+	// Find the next TEXT() or UEReportAssertWithPayload()
+	const TCHAR* PrintfPtr = FCString::Strstr(InOut, TextIdentifier);
+	const TCHAR* AssertPtr = FCString::Strstr(InOut, AssertIdentifier);
+
+	// 1. Default is current TEXT parsing
+	InOut = PrintfPtr;
+
+	// 2. If current pointer is beyond the current assert context, reset the context
+	if (InOut >= OutAssertStack.EndPtr)
+	{
+		OutAssertStack.BeginPtr = nullptr;
+		OutAssertStack.EndPtr = nullptr;
+	}
+
+	// 3. If we are within an assert context, continue to part TEXT within that context
+	if (OutAssertStack.IsAssert())
+	{
+		// Nothing to do. InOut will be initialized by PrintfPtr, which is the next TEXT block.
+	}
+	// 4. If a new assert is detected, start a new assert context.
+	else if (AssertPtr && AssertPtr < PrintfPtr)
+	{
+		// Sanity check
+		check(!OutAssertStack.IsAssert());
+
+		// Check if the current assert is valid, i.e., containt a TEXT() argument
+		const TCHAR* EndPtr = nullptr;
+		const FString Tmp = ParseText(AssertPtr, EndPtr);
+		const bool bIsValid = FCString::Strstr(&Tmp[0], TextIdentifier) != nullptr;
+		if (bIsValid)
+		{
+			OutAssertStack.BeginPtr = AssertPtr;
+			OutAssertStack.EndPtr   = EndPtr;
+			InOut = FCString::Strstr(AssertPtr, TextIdentifier);
+		}
+		else
+		{
+			const uint32 LenAssertIdentifier = FString(AssertIdentifier).Len();
+			AssertPtr += LenAssertIdentifier;
+			return SearchText(AssertPtr, OutAssertStack);
+		}
+	}
+	return InOut != nullptr;
+}
+
 // Simple token matching and expansion to replace TEXT macro into supported character string
-void TransformStringIntoCharacterArray(FString& PreprocessedShaderSource)
+void TransformStringIntoCharacterArray(FString& PreprocessedShaderSource, TArray<FShaderDiagnosticData>* OutDiagnosticDatas)
 {
 	// Early out if input is empty; '&PreprocessedShaderSource[0]' below does not return a valid pointer for empty FString
 	if (PreprocessedShaderSource.IsEmpty())
@@ -989,6 +1046,7 @@ void TransformStringIntoCharacterArray(FString& PreprocessedShaderSource)
 		uint32  Index;
 		uint32  Hash;
 		uint32  Offset;
+		bool    bIsAssert;
 		FString SourceText;
 		FString ConvertedText;
 		FString EncodedText;
@@ -999,13 +1057,15 @@ void TransformStringIntoCharacterArray(FString& PreprocessedShaderSource)
 	// 2. Add a text entry
 	// 3. Replace TEXT by its entry number
 	uint32 GlobalCount = 0;
+	uint32 AssertCount = 0;
+	uint32 PrintfCount = 0;
 	{
 		const FString InitHashBegin(TEXT("InitShaderPrintText("));
 		const FString InitHashEnd(TEXT(")"));
 
-		const TCHAR* TextIdentifier = TEXT("TEXT(");
-		const TCHAR* SearchPtr = FCString::Strstr(&PreprocessedShaderSource[0], TextIdentifier);
-		while (SearchPtr)
+		FAssertParsingStack AssertParsingStack;
+		const TCHAR* SearchPtr = &PreprocessedShaderSource[0];
+		while (SearchText(SearchPtr, AssertParsingStack))
 		{
 			const TCHAR* EndPtr = nullptr;
 			FString Text = ParseText(SearchPtr, EndPtr);
@@ -1024,6 +1084,15 @@ void TransformStringIntoCharacterArray(FString& PreprocessedShaderSource)
 				Entry.SourceText	= Text;
 				ConvertTextToAsciiCharacter(Entry.SourceText, Entry.ConvertedText, Entry.EncodedText);
 				Entry.Hash			= CityHash32((const char*)Entry.SourceText.GetCharArray().GetData(), sizeof(FString::ElementType) * Entry.SourceText.Len());
+				Entry.bIsAssert		= AssertParsingStack.IsAssert();
+				if (Entry.bIsAssert)
+				{
+					++AssertCount;
+				}
+				else
+				{
+					++PrintfCount;
+				}
 
 				// Sanity check
 				uint32 HCheck = CityHash32((const char*)Entry.SourceText.GetCharArray().GetData(), sizeof(FString::ElementType) * Entry.SourceText.Len());
@@ -1037,13 +1106,22 @@ void TransformStringIntoCharacterArray(FString& PreprocessedShaderSource)
 				const uint32 CharCount = (EndPtr - SearchPtr) + 1;
 				PreprocessedShaderSource.RemoveAt(StartIndex, CharCount);
 
-				const FString HashText = InitHashBegin + FString::FromInt(EntryIndex) + InitHashEnd;
-				PreprocessedShaderSource.InsertAt(StartIndex, HashText);
+				// * If this is an assert, replace the text with a simple hash
+				// * If this is a regular print, replace the text with IniShaderPrintText for runtime lookup
+				if (Entry.bIsAssert)
+				{
+					const FString HashString = FString::Printf(TEXT("%u"), Entry.Hash);
+					PreprocessedShaderSource.InsertAt(StartIndex, HashString);
+				}
+				else
+				{
+					const FString HashText = InitHashBegin + FString::FromInt(EntryIndex) + InitHashEnd;
+					PreprocessedShaderSource.InsertAt(StartIndex, HashText);
+				}
 
 				// Update SearchPtr, as PreprocessedShaderSource has been modified, and its memory could have been reallocated, causing SearchPtr to be invalid.
 				SearchPtr = &PreprocessedShaderSource[0] + StartIndex;
 			}
-			SearchPtr = FCString::Strstr(SearchPtr, TextIdentifier);
 		}
 	}
 
@@ -1051,7 +1129,7 @@ void TransformStringIntoCharacterArray(FString& PreprocessedShaderSource)
 	// 5. Write the function for fetching character for a given entry index
 	const uint32 EntryCount = Entries.Num();
 	FString TextChars;
-	if (EntryCount>0 && GlobalCount>0)
+	if (PrintfCount>0 && EntryCount>0 && GlobalCount>0)
 	{
 		// 1. Encoded character for each text entry within a single global char array
 		TextChars = FString::Printf(TEXT("static const uint TEXT_CHARS[%d] = {\n"), GlobalCount);
@@ -1102,6 +1180,21 @@ void TransformStringIntoCharacterArray(FString& PreprocessedShaderSource)
 			const uint32 CharCount = FCString::Strlen(InsertToken);
 			PreprocessedShaderSource.RemoveAt(StartIndex, CharCount);
 			PreprocessedShaderSource.InsertAt(StartIndex, TextChars);
+		}
+	}
+
+	// 7. Insert assert data into shader compilation output for runtime CPU lookup
+	if (OutDiagnosticDatas && AssertCount > 0)
+	{
+		OutDiagnosticDatas->Reserve(OutDiagnosticDatas->Num() + AssertCount);
+		for (const FTextEntry& E : Entries)
+		{
+			if (E.bIsAssert)
+			{
+				FShaderDiagnosticData& Data = OutDiagnosticDatas->AddDefaulted_GetRef();
+				Data.Hash = E.Hash;
+				Data.Message = E.SourceText;
+			}
 		}
 	}
 }
