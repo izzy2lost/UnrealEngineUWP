@@ -548,4 +548,7 @@ struct FChaosVDScopeSolverFrame
 
 	T& SolverRef;
 };
+
+std::atomic<bool> FChaosVisualDebuggerTrace::bIsTracing = false;
+
 #endif // CHAOS_VISUAL_DEBUGGER_ENABLED
