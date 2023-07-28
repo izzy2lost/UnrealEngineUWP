@@ -7,16 +7,11 @@ public class Landscape : ModuleRules
 {
 	public Landscape(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PrivateIncludePaths.AddRange(
-			new string[] {
-				"../Shaders/Shared"
-            }
-		);
-
 		PrivateIncludePathModuleNames.AddRange(
 			new string[] {
 				"TargetPlatform",
 				"DerivedDataCache",
+				"Shaders"
 			}
 		);
 

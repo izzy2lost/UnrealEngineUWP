@@ -8,7 +8,7 @@ public class D3D11RHI : ModuleRules
 {
 	public D3D11RHI(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PrivateIncludePaths.Add("../Shaders/Shared");
+		PrivateIncludePathModuleNames.AddRange(new string[] { "Shaders" });
 
 		PrivateDependencyModuleNames.AddAll(
 			"CoreUObject",

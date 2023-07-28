@@ -6,12 +6,6 @@ namespace UnrealBuildTool.Rules
 	{
 		public HairStrandsCore(ReadOnlyTargetRules Target) : base(Target)
 		{
-			// Include Renderer/Private to have access to default resources
-			PrivateIncludePaths.AddRange(
-				new string[] {
-					EngineDirectory + "/Shaders/Shared",
-				});
-
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
@@ -32,6 +26,12 @@ namespace UnrealBuildTool.Rules
 					"StaticMeshDescription",
 					"ComputeFramework",
 					"OptimusCore",
+				});
+
+			PrivateIncludePathModuleNames.AddRange(
+				new string[]
+				{
+					"Shaders",
 				});
 
 			if (Target.bBuildEditor == true)

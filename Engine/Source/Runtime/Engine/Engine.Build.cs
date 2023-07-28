@@ -9,8 +9,6 @@ public class Engine : ModuleRules
 	{
 		NumIncludedBytesPerUnityCPPOverride = 589824; // best unity size found from using UBT ProfileUnitySizes mode
 
-		PublicIncludePaths.Add("../Shaders/Shared");
-		
 		PrivatePCHHeaderFile = "Private/EnginePrivatePCH.h";
 
 		SharedPCHHeaderFile = "Public/EngineSharedPCH.h";
@@ -26,6 +24,7 @@ public class Engine : ModuleRules
 				"PacketHandler", 
 				"Renderer",
 				"RHI",
+				"Shaders"
 			}
 		);
 

@@ -7,11 +7,14 @@ public class ShaderFormatD3D : ModuleRules
 {
 	public ShaderFormatD3D(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PrivateIncludePathModuleNames.Add("TargetPlatform");
-		PrivateIncludePathModuleNames.Add("D3D11RHI");
-		PrivateIncludePathModuleNames.Add("D3D12RHI");
-
-		PrivateIncludePaths.Add("../Shaders/Shared");
+		PrivateIncludePathModuleNames.AddRange(
+			new string[]
+			{
+				"D3D11RHI",
+				"D3D12RHI",
+				"Shaders",
+				"TargetPlatform",
+			});
 
         PrivateDependencyModuleNames.AddRange(
 			new string[] {
