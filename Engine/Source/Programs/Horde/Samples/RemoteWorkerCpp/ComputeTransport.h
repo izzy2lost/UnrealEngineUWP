@@ -37,7 +37,7 @@ public:
 class FBufferTransport final : public FComputeTransport
 {
 public:
-	FBufferTransport(FComputeBuffer InSendBuffer, FComputeBuffer InRecvBuffer);
+	FBufferTransport(FComputeBufferWriter InSendBufferWriter, FComputeBufferReader InRecvBufferReader);
 
 protected:
 	virtual size_t Send(const void* Data, size_t Size) override final;
@@ -46,7 +46,6 @@ protected:
 	virtual void Close() override final;
 
 private:
-	FComputeBuffer SendBuffer;
-	FComputeBuffer RecvBuffer;
 	FComputeBufferReader RecvBufferReader;
+	FComputeBufferWriter SendBufferWriter;
 };

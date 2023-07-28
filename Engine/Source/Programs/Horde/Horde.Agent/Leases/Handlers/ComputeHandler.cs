@@ -103,7 +103,7 @@ namespace Horde.Agent.Leases.Handlers
 							{
 								DirectoryReference.CreateDirectory(sandboxDir);
 
-								AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, _memoryCache, _logger);
+								AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, _memoryCache, false, _logger);
 								await worker.RunAsync(socket, cts.Token);
 								await socket.CloseAsync(cts.Token);
 								return LeaseResult.Success;

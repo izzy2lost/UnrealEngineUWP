@@ -43,21 +43,19 @@ bool FComputeTransport::RecvMessage(void* Data, size_t Size)
 
 ///////////////////////////////////
 
-FBufferTransport::FBufferTransport(FComputeBuffer InSendBuffer, FComputeBuffer InRecvBuffer)
-	: SendBuffer(std::move(InSendBuffer))
-	, RecvBuffer(std::move(InRecvBuffer))
+FBufferTransport::FBufferTransport(FComputeBufferWriter InSendBufferWriter, FComputeBufferReader InRecvBufferReader)
+	: SendBufferWriter(std::move(InSendBufferWriter))
+	, RecvBufferReader(std::move(InRecvBufferReader))
 {
-	RecvBufferReader = std::move(RecvBuffer.CreateReader());
 }
 
 size_t FBufferTransport::Send(const void* Data, size_t Size)
 {
-	FComputeBufferWriter& Writer = SendBuffer.GetWriter();
-	unsigned char* Buffer = Writer.WaitToWrite(1);
+	unsigned char* Buffer = SendBufferWriter.WaitToWrite(1);
 
-	size_t WriteSize = std::min(Size, SendBuffer.GetWriter().GetMaxWriteSize());
+	size_t WriteSize = std::min(Size, SendBufferWriter.GetMaxWriteSize());
 	memcpy(Buffer, Data, WriteSize);
-	Writer.AdvanceWritePosition(WriteSize);
+	SendBufferWriter.AdvanceWritePosition(WriteSize);
 
 	return WriteSize;
 }
@@ -75,11 +73,10 @@ size_t FBufferTransport::Recv(void* Data, size_t Size)
 
 void FBufferTransport::MarkComplete()
 {
-	SendBuffer.GetWriter().MarkComplete();
+	SendBufferWriter.MarkComplete();
 }
 
 void FBufferTransport::Close()
 {
-	SendBuffer.GetWriter().MarkComplete();
-	RecvBuffer.GetWriter().MarkComplete();
+	RecvBufferReader.Detach();
 }

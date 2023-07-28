@@ -5,6 +5,7 @@
 #include "ComputeBuffer.h"
 #include "ComputeChannel.h"
 #include "ComputeTransport.h"
+#include <vector>
 
 //
 // Connection to a remote machine that multiplexes data into and out-of multiple buffers
@@ -20,10 +21,10 @@ public:
 	FComputeSocket& operator=(const FComputeSocket&) = delete;
 
 	// Attaches a new buffer for receiving data
-	virtual void AttachRecvBuffer(int ChannelId, FComputeBufferWriter Writer) = 0;
+	virtual void AttachRecvBuffer(int ChannelId, FComputeBuffer RecvBuffer) = 0;
 
 	// Attaches a new buffer for sending data */
-	virtual void AttachSendBuffer(int ChannelId, FComputeBufferReader Reader) = 0;
+	virtual void AttachSendBuffer(int ChannelId, FComputeBuffer SendBuffer) = 0;
 
 	// Attaches a channel to this socket
 	FComputeChannel CreateChannel(int ChannelId);
@@ -54,10 +55,10 @@ public:
 	void Close();
 
 	// Attaches a new buffer for receiving data
-	virtual void AttachRecvBuffer(int ChannelId, FComputeBufferWriter Writer) override;
+	virtual void AttachRecvBuffer(int ChannelId, FComputeBuffer RecvBuffer) override;
 
 	// Attaches a new buffer for sending data
-	virtual void AttachSendBuffer(int ChannelId, FComputeBufferReader Reader) override;
+	virtual void AttachSendBuffer(int ChannelId, FComputeBuffer SendBuffer) override;
 
 	// Reads and handles a command from the command buffer
 	static void RunServer(FComputeBufferReader& CommandBufferReader, FComputeSocket& Socket);
@@ -65,7 +66,8 @@ public:
 private:
 	enum class EMessageType;
 
-	FComputeBuffer CommandBuffer;
+	FComputeBufferWriter CommandBufferWriter;
+	std::vector<FComputeBuffer> Buffers;
 
 	void AttachBuffer(int ChannelId, EMessageType Type, const char* Name);
 

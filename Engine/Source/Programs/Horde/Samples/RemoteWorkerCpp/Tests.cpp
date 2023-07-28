@@ -25,7 +25,7 @@ void ComputeBufferTest()
 	FComputeBuffer Buffer;
 	verify(Buffer.CreateNew(FComputeBuffer::FParams()));
 
-	FComputeBufferWriter& Writer = Buffer.GetWriter();
+	FComputeBufferWriter Writer = Buffer.CreateWriter();
 	unsigned char* WriteBuffer = Writer.WaitToWrite(sizeof(TestData));
 	memcpy(WriteBuffer, TestData, sizeof(TestData));
 	Writer.AdvanceWritePosition(sizeof(TestData));
@@ -33,6 +33,13 @@ void ComputeBufferTest()
 	FComputeBufferReader Reader = Buffer.CreateReader();
 	const unsigned char* ReadBuffer = Reader.WaitToRead(sizeof(TestData));
 	verify(memcmp(ReadBuffer, TestData, sizeof(TestData)) == 0);
+	assert(!Reader.IsComplete());
+
+	Reader.AdvanceReadPosition(sizeof(TestData));
+	assert(!Reader.IsComplete());
+
+	Writer.MarkComplete();
+	assert(Reader.IsComplete());
 }
 
 template<size_t TestDataSize> void CheckChannelSendRecv(FComputeChannel& SendChannel, FComputeChannel& RecvChannel, const char(&TestData)[TestDataSize])
@@ -55,14 +62,18 @@ void ComputeSocketTest()
 	verify(ServerToClientBuffer.CreateNew(FComputeBuffer::FParams()));
 
 	// Client transport
-	std::unique_ptr<FComputeSocket> ClientSocket = CreateComputeSocket(std::make_unique<FBufferTransport>(ClientToServerBuffer, ServerToClientBuffer), EComputeSocketEndpoint::Local);
+	std::unique_ptr<FComputeSocket> ClientSocket = CreateComputeSocket(std::make_unique<FBufferTransport>(ClientToServerBuffer.CreateWriter(), ServerToClientBuffer.CreateReader()), EComputeSocketEndpoint::Local);
 	FComputeChannel ClientChannel1 = ClientSocket->CreateChannel(1);
 	FComputeChannel ClientChannel2 = ClientSocket->CreateChannel(2);
 
 	// Server socket
-	std::unique_ptr<FComputeSocket> ServerSocket = CreateComputeSocket(std::make_unique<FBufferTransport>(ServerToClientBuffer, ClientToServerBuffer), EComputeSocketEndpoint::Remote);
+	std::unique_ptr<FComputeSocket> ServerSocket = CreateComputeSocket(std::make_unique<FBufferTransport>(ServerToClientBuffer.CreateWriter(), ClientToServerBuffer.CreateReader()), EComputeSocketEndpoint::Remote);
 	FComputeChannel ServerChannel1 = ServerSocket->CreateChannel(1);
 	FComputeChannel ServerChannel2 = ServerSocket->CreateChannel(2);
+
+	// Close the original buffers now that the sockets are set up
+	ClientToServerBuffer.Close();
+	ServerToClientBuffer.Close();
 
 	// Send data over channel 1
 	CheckChannelSendRecv(ClientChannel1, ServerChannel1, "Channel 1: Client -> Server");

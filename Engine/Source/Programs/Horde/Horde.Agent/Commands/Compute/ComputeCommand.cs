@@ -34,6 +34,9 @@ namespace Horde.Agent.Commands.Compute
 		[CommandLine("-Loopback")]
 		public bool Loopback { get; set; }
 
+		[CommandLine("-InProc")]
+		public bool InProc { get; set; }
+
 		[CommandLine("-Sandbox=")]
 		public DirectoryReference SandboxDir { get; set; } = DirectoryReference.Combine(Program.DataDir, "Sandbox");
 
@@ -81,7 +84,7 @@ namespace Horde.Agent.Commands.Compute
 		{
 			if (Local)
 			{
-				return new LocalComputeClient(2000, SandboxDir, logger);
+				return new LocalComputeClient(2000, SandboxDir, InProc, logger);
 			}
 			else if (Loopback)
 			{
@@ -143,7 +146,7 @@ namespace Horde.Agent.Commands.Compute
 		{
 			DirectoryReference sandboxDir = DirectoryReference.Combine(Program.DataDir, "Sandbox");
 
-			AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, memoryCache, logger);
+			AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, memoryCache, false, logger);
 			await worker.RunAsync(socket, cancellationToken);
 		}
 	}

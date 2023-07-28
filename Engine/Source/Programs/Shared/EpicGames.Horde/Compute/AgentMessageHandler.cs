@@ -8,16 +8,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Compute.Buffers;
-using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage.Bundles;
-using System.Text;
 using System.IO;
-using System.Reflection;
 using System.Linq;
-using System.Buffers.Binary;
 
 namespace EpicGames.Horde.Compute
 {
@@ -28,20 +24,21 @@ namespace EpicGames.Horde.Compute
 	{
 		readonly DirectoryReference _sandboxDir;
 		readonly IMemoryCache _memoryCache;
+		readonly bool _executeInProcess;
 		readonly ILogger _logger;
-
-		readonly bool _executeLocally = false;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="sandboxDir">Directory to use for reading/writing files</param>
 		/// <param name="memoryCache">Cache for nodes read from storage</param>
+		/// <param name="executeInProcess">Whether to execute any external assemblies in the current process</param>
 		/// <param name="logger">Logger for diagnostics</param>
-		public AgentMessageHandler(DirectoryReference sandboxDir, IMemoryCache memoryCache, ILogger logger)
+		public AgentMessageHandler(DirectoryReference sandboxDir, IMemoryCache memoryCache, bool executeInProcess, ILogger logger)
 		{
 			_sandboxDir = sandboxDir;
 			_memoryCache = memoryCache;
+			_executeInProcess = executeInProcess;
 			_logger = logger;
 		}
 
@@ -199,7 +196,6 @@ namespace EpicGames.Horde.Compute
 				_logger.LogInformation("Launching {Executable} {Arguments}", CommandLineArguments.Quote(executable), CommandLineArguments.Join(arguments));
 				await ExecuteProcessInternalAsync(channel, executable, arguments, workingDir, newEnvVars, cancellationToken);
 				_logger.LogInformation("Finished executing process");
-				ipcBuffer.Writer.MarkComplete();
 			}
 
 			_logger.LogInformation("Child process has shut down");
@@ -268,8 +264,9 @@ namespace EpicGames.Horde.Compute
 
 		async Task ExecuteProcessInternalAsync(AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, CancellationToken cancellationToken)
 		{
+			string resolvedExecutable = FileReference.Combine(_sandboxDir, executable).FullName;
 			string resolvedWorkingDir = DirectoryReference.Combine(_sandboxDir, workingDir ?? String.Empty).FullName;
-			if (_executeLocally)
+			if (_executeInProcess && Path.GetFileNameWithoutExtension(resolvedExecutable).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
 			{
 				List<(string, string?)> prevEnvVars = new List<(string, string?)>();
 				if (envVars != null)
@@ -286,12 +283,14 @@ namespace EpicGames.Horde.Compute
 
 				try
 				{
-					string resolvedExecutable = FileReference.Combine(_sandboxDir, arguments[0]).FullName;
+					string assemblyPath = FileReference.Combine(_sandboxDir, arguments[0]).FullName;
 					string[] mainArgs = arguments.Skip(1).ToArray();
+
+					_logger.LogWarning("Note: Loading and running {Assembly} in process", assemblyPath);
 
 					TaskCompletionSource<int> resultTcs = new TaskCompletionSource<int>();
 
-					Thread thread = new Thread(() => resultTcs.SetResult(AppDomain.CurrentDomain.ExecuteAssembly(resolvedExecutable, mainArgs)));
+					Thread thread = new Thread(() => resultTcs.SetResult(AppDomain.CurrentDomain.ExecuteAssembly(assemblyPath, mainArgs)));
 					thread.Start();
 
 					int result = await resultTcs.Task;
@@ -308,7 +307,6 @@ namespace EpicGames.Horde.Compute
 			}
 			else
 			{
-				string resolvedExecutable = FileReference.Combine(_sandboxDir, executable).FullName;
 				string resolvedCommandLine = CommandLineArguments.Join(arguments);
 
 				Dictionary<string, string> resolvedEnvVars = ManagedProcess.GetCurrentEnvVars();

@@ -4,12 +4,11 @@
 
 #include <memory>
 
-class FComputeBufferReader;
-class FComputeBufferWriter;
-
 struct FHeader;
 struct FComputeBufferDetail;
-struct FComputeBufferReaderDetail;
+
+class FComputeBufferReader;
+class FComputeBufferWriter;
 
 //
 // Implements a ring buffer using shared memory, with one writer and multiple readers. 
@@ -43,7 +42,12 @@ public:
 	};
 
 	FComputeBuffer();
+	FComputeBuffer(const FComputeBuffer& Other);
+	FComputeBuffer(FComputeBuffer&& Other) noexcept;
 	~FComputeBuffer();
+
+	FComputeBuffer& operator=(const FComputeBuffer& Other);
+	FComputeBuffer& operator=(FComputeBuffer&& Other) noexcept;
 
 	// Creates a new buffer
 	bool CreateNew(const FParams& Params);
@@ -55,17 +59,20 @@ public:
 	void Close();
 
 	// Test if the buffer is currently open
-	bool IsOpen() const { return Detail != nullptr; }
+	bool IsValid() const { return Detail != nullptr; }
 
 	// Creates a new reader for this buffer
 	FComputeBufferReader CreateReader();
 
-	// Gets a reference to the writer instance
-	FComputeBufferWriter& GetWriter();
-	const FComputeBufferWriter& GetWriter() const;
+	// Creates a new writer for this buffer
+	FComputeBufferWriter CreateWriter();
 
 private:
-	std::shared_ptr<FComputeBufferDetail> Detail;
+	friend class FWorkerComputeSocket;
+
+	FComputeBufferDetail* Detail;
+
+	const char* GetName() const;
 };
 
 //
@@ -75,8 +82,12 @@ class FComputeBufferReader
 {
 public:
 	FComputeBufferReader();
-	FComputeBufferReader(std::shared_ptr<FComputeBufferReaderDetail> Detail);
+	FComputeBufferReader(const FComputeBufferReader& Other);
+	FComputeBufferReader(FComputeBufferReader&& Other) noexcept;
 	~FComputeBufferReader();
+
+	FComputeBufferReader& operator=(const FComputeBufferReader& Other);
+	FComputeBufferReader& operator=(FComputeBufferReader&& Other) noexcept;
 
 	// Closes the handle to the underlying reader instance, resetting this instance back to empty
 	void Close();
@@ -85,7 +96,7 @@ public:
 	void Detach();
 
 	// Test if the reader is valid
-	bool IsValid() const { return Detail.get() != nullptr; }
+	bool IsValid() const { return Detail != nullptr; }
 
 	// Test whether the buffer has finished being written to (ie. MarkComplete() has been called by the writer) and all data has been read from it.
 	bool IsComplete() const;
@@ -104,10 +115,15 @@ public:
 	const unsigned char* WaitToRead(size_t MinSize, int TimeoutMs = -1);
 
 private:
+	struct FReaderRef;
+
+	friend class FComputeBuffer;
 	friend class FWorkerComputeSocket;
 
-	std::shared_ptr<FComputeBufferReaderDetail> Detail;
+	FComputeBufferDetail* Detail;
+	int ReaderIdx;
 
+	FComputeBufferReader(FComputeBufferDetail* Detail, int ReaderIdx);
 	const char* GetName() const;
 };
 
@@ -118,11 +134,18 @@ class FComputeBufferWriter
 {
 public:
 	FComputeBufferWriter();
-	FComputeBufferWriter(std::shared_ptr<FComputeBufferDetail> Detail);
+	FComputeBufferWriter(const FComputeBufferWriter& Other);
+	FComputeBufferWriter(FComputeBufferWriter&& Other) noexcept;
 	~FComputeBufferWriter();
 
+	FComputeBufferWriter& operator=(const FComputeBufferWriter& Other);
+	FComputeBufferWriter& operator=(FComputeBufferWriter&& Other) noexcept;
+
+	// Closes the handle to the underlying writer instance, resetting this instance back to empty
+	void Close();
+
 	// Test if the writer is valid
-	bool IsValid() const { return Detail.get() != nullptr; }
+	bool IsValid() const { return Detail != nullptr; }
 
 	// Signal that we've finished writing to this buffer
 	void MarkComplete();
@@ -141,9 +164,11 @@ public:
 	unsigned char* WaitToWrite(size_t MinSize, int TimeoutMs = -1);
 
 private:
+	friend class FComputeBuffer;
 	friend class FWorkerComputeSocket;
 
-	std::shared_ptr<FComputeBufferDetail> Detail;
+	FComputeBufferDetail* Detail;
 
+	FComputeBufferWriter(FComputeBufferDetail* Detail);
 	const char* GetName() const;
 };

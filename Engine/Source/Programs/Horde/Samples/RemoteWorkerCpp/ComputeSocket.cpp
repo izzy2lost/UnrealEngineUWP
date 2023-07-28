@@ -33,15 +33,17 @@ FComputeChannel FComputeSocket::CreateChannel(int ChannelId)
 		return FComputeChannel();
 	}
 
-	return CreateChannel(ChannelId, RecvBuffer, SendBuffer);
+	return CreateChannel(ChannelId, std::move(RecvBuffer), std::move(SendBuffer));
 }
 
 FComputeChannel FComputeSocket::CreateChannel(int ChannelId, FComputeBuffer RecvBuffer, FComputeBuffer SendBuffer)
 {
-	AttachRecvBuffer(ChannelId, RecvBuffer.GetWriter());
-	AttachSendBuffer(ChannelId, SendBuffer.CreateReader());
+	FComputeChannel Channel(RecvBuffer.CreateReader(), SendBuffer.CreateWriter());
 
-	return FComputeChannel(RecvBuffer.CreateReader(), SendBuffer.GetWriter());
+	AttachRecvBuffer(ChannelId, std::move(RecvBuffer));
+	AttachSendBuffer(ChannelId, std::move(SendBuffer));
+
+	return Channel;
 }
 
 //////////////////////////////////////////////////////
@@ -76,35 +78,42 @@ bool FWorkerComputeSocket::Open()
 
 bool FWorkerComputeSocket::Open(const char* CommandBufferName)
 {
-	return CommandBuffer.OpenExisting(CommandBufferName);
+	FComputeBuffer CommandBuffer;
+	if (CommandBuffer.OpenExisting(CommandBufferName))
+	{
+		CommandBufferWriter = CommandBuffer.CreateWriter();
+		return true;
+	}
+	return false;
 }
 
 void FWorkerComputeSocket::Close()
 {
-	CommandBuffer.Close();
+	CommandBufferWriter.Close();
 }
 
-void FWorkerComputeSocket::AttachRecvBuffer(int ChannelId, FComputeBufferWriter Writer)
+void FWorkerComputeSocket::AttachRecvBuffer(int ChannelId, FComputeBuffer RecvBuffer)
 {
-	AttachBuffer(ChannelId, EMessageType::AttachRecvBuffer, Writer.GetName());
+	AttachBuffer(ChannelId, EMessageType::AttachRecvBuffer, RecvBuffer.GetName());
+	Buffers.push_back(std::move(RecvBuffer));
 }
 
-void FWorkerComputeSocket::AttachSendBuffer(int ChannelId, FComputeBufferReader Reader)
+void FWorkerComputeSocket::AttachSendBuffer(int ChannelId, FComputeBuffer SendBuffer)
 {
-	AttachBuffer(ChannelId, EMessageType::AttachSendBuffer, Reader.GetName());
+	AttachBuffer(ChannelId, EMessageType::AttachSendBuffer, SendBuffer.GetName());
+	Buffers.push_back(std::move(SendBuffer));
 }
 
 void FWorkerComputeSocket::AttachBuffer(int ChannelId, EMessageType Type, const char* Name)
 {
-	FComputeBufferWriter& Writer = CommandBuffer.GetWriter();
-	unsigned char* Data = Writer.WaitToWrite(1024);
+	unsigned char* Data = CommandBufferWriter.WaitToWrite(1024);
 
 	size_t Len = 0;
 	Len += WriteVarUInt(Data + Len, (unsigned char)Type);
 	Len += WriteVarUInt(Data + Len, (unsigned int)ChannelId);
 	Len += WriteString(Data + Len, Name);
 
-	Writer.AdvanceWritePosition(Len);
+	CommandBufferWriter.AdvanceWritePosition(Len);
 }
 
 void FWorkerComputeSocket::RunServer(FComputeBufferReader& CommandBufferReader, FComputeSocket& Socket)
@@ -131,7 +140,7 @@ void FWorkerComputeSocket::RunServer(FComputeBufferReader& CommandBufferReader, 
 				FComputeBuffer Buffer;
 				if (Buffer.OpenExisting(Name))
 				{
-					Socket.AttachSendBuffer(ChannelId, Buffer.CreateReader());
+					Socket.AttachSendBuffer(ChannelId, Buffer);
 				}
 				else
 				{
@@ -150,7 +159,7 @@ void FWorkerComputeSocket::RunServer(FComputeBufferReader& CommandBufferReader, 
 				FComputeBuffer Buffer;
 				if (Buffer.OpenExisting(Name))
 				{
-					Socket.AttachRecvBuffer(ChannelId, Buffer.GetWriter());
+					Socket.AttachRecvBuffer(ChannelId, Buffer);
 				}
 				else
 				{
@@ -355,15 +364,17 @@ public:
 		return true;
 	}
 
-	void AttachRecvBuffer(int ChannelId, FComputeBufferWriter Writer)
+	void AttachRecvBuffer(int ChannelId, FComputeBuffer RecvBuffer) override
 	{
 		std::lock_guard<std::mutex> Lock(CriticalSection);
+		FComputeBufferWriter Writer = RecvBuffer.CreateWriter();
 		Writers.insert(std::pair<int, FComputeBufferWriter>(ChannelId, std::move(Writer)));
 	}
 
-	void AttachSendBuffer(int ChannelId, FComputeBufferReader Reader)
+	void AttachSendBuffer(int ChannelId, FComputeBuffer SendBuffer) override
 	{
 		std::lock_guard<std::mutex> Lock(CriticalSection);
+		FComputeBufferReader Reader = SendBuffer.CreateReader();
 		Readers.push_back(Reader);
 		SendThreads.insert(std::make_pair(ChannelId, std::thread(&FRemoteComputeSocket::SendThreadProc, this, ChannelId, std::move(Reader))));
 	}

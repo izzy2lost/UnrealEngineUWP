@@ -24,7 +24,8 @@ namespace EpicGames.Horde.Tests
 		public async Task TestSimpleBuffer()
 		{
 			using PooledBuffer buffer = new PooledBuffer(2, 1024);
-			buffer.Writer.AdvanceWritePosition(10);
+			using ComputeBufferWriter bufferWriter = buffer.CreateWriter();
+			bufferWriter.AdvanceWritePosition(10);
 
 			using ComputeBufferReader bufferReader = buffer.CreateReader();
 			await bufferReader.WaitToReadAsync(9);
@@ -37,25 +38,26 @@ namespace EpicGames.Horde.Tests
 		{
 			using PooledBuffer buffer = new PooledBuffer(2, 20);
 			using ComputeBufferReader bufferReader = buffer.CreateReader();
+			using ComputeBufferWriter bufferWriter = buffer.CreateWriter();
 
 			// Fill up the first chunk
-			Assert.AreEqual(20, buffer.Writer.GetWriteBuffer().Length);
-			buffer.Writer.AdvanceWritePosition(10);
-			Assert.AreEqual(10, buffer.Writer.GetWriteBuffer().Length);
-			buffer.Writer.AdvanceWritePosition(10);
-			Assert.AreEqual(0, buffer.Writer.GetWriteBuffer().Length);
+			Assert.AreEqual(20, bufferWriter.GetWriteBuffer().Length);
+			bufferWriter.AdvanceWritePosition(10);
+			Assert.AreEqual(10, bufferWriter.GetWriteBuffer().Length);
+			bufferWriter.AdvanceWritePosition(10);
+			Assert.AreEqual(0, bufferWriter.GetWriteBuffer().Length);
 
-			Task waitToWriteTask = buffer.Writer.WaitToWriteAsync(1).AsTask();
+			Task waitToWriteTask = bufferWriter.WaitToWriteAsync(1).AsTask();
 			Assert.IsTrue(waitToWriteTask.IsCompleted);
 
 			// Fill up the second chunk
-			Assert.AreEqual(20, buffer.Writer.GetWriteBuffer().Length);
-			buffer.Writer.AdvanceWritePosition(10);
-			Assert.AreEqual(10, buffer.Writer.GetWriteBuffer().Length);
-			buffer.Writer.AdvanceWritePosition(10);
-			Assert.AreEqual(0, buffer.Writer.GetWriteBuffer().Length);
+			Assert.AreEqual(20, bufferWriter.GetWriteBuffer().Length);
+			bufferWriter.AdvanceWritePosition(10);
+			Assert.AreEqual(10, bufferWriter.GetWriteBuffer().Length);
+			bufferWriter.AdvanceWritePosition(10);
+			Assert.AreEqual(0, bufferWriter.GetWriteBuffer().Length);
 
-			waitToWriteTask = buffer.Writer.WaitToWriteAsync(1).AsTask();
+			waitToWriteTask = bufferWriter.WaitToWriteAsync(1).AsTask();
 			Assert.IsFalse(waitToWriteTask.IsCompleted);
 
 			// Wait for data to be read
@@ -75,7 +77,7 @@ namespace EpicGames.Horde.Tests
 
 			// Make sure both reader and writer have something to work with
 			Assert.AreEqual(20, bufferReader.GetReadBuffer().Length);
-			Assert.AreEqual(20, buffer.Writer.GetWriteBuffer().Length);
+			Assert.AreEqual(20, bufferWriter.GetWriteBuffer().Length);
 		}
 
 		[TestMethod]
@@ -168,7 +170,9 @@ namespace EpicGames.Horde.Tests
 				using (PooledBuffer localBuffer = new PooledBuffer(1024))
 				{
 					localSocket.AttachSendBuffer(1, localBuffer);
-					await localBuffer.Writer.WriteAsync(new byte[] { 1, 2, 3 });
+
+					using ComputeBufferWriter localBufferWriter = localBuffer.CreateWriter();
+					await localBufferWriter.WriteAsync(new byte[] { 1, 2, 3 });
 				}
 
 				Assert.IsTrue(await reader.WaitToReadAsync(3));

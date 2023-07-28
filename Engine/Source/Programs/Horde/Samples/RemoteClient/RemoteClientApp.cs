@@ -1,8 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Buffers;
 using System.Buffers.Binary;
-using System.IO.Pipes;
 using System.Net.Http.Headers;
 using System.Reflection;
 using EpicGames.Core;
@@ -10,8 +8,6 @@ using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Buffers;
 using EpicGames.Horde.Compute.Clients;
-using EpicGames.Horde.Compute.Transports;
-using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
@@ -31,6 +27,9 @@ namespace RemoteClient
 
 		[CommandLine("-Condition=")]
 		public string? Condition { get; set; }
+
+		[CommandLine]
+		public bool InProc { get; set; }
 
 		[CommandLine("-Cpp")]
 		public bool UseCppWorker { get; set; }
@@ -108,7 +107,9 @@ namespace RemoteClient
 				}
 
 				// Run the task remotely in the background and echo the output to the console
-				await using BackgroundTask tickTask = BackgroundTask.StartNew(ctx => WriteNumbersAsync(lease.Socket, logger, ctx));
+				using ComputeChannel childProcessChannel = lease.Socket.CreateChannel(ChildProcessChannelId);
+				await using BackgroundTask tickTask = BackgroundTask.StartNew(ctx => WriteNumbersAsync(childProcessChannel, logger, ctx));
+
 				await using (AgentManagedProcess process = await channel.ExecuteAsync(executable, arguments, null, null))
 				{
 					string? line;
@@ -121,15 +122,12 @@ namespace RemoteClient
 			await lease.CloseAsync();
 		}
 		
-		static async Task WriteNumbersAsync(RemoteComputeSocket socket, ILogger logger, CancellationToken cancellationToken)
+		static async Task WriteNumbersAsync(ComputeChannel channel, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Wait until the remote sends a message indicating that it's ready
-			using (PooledBuffer recvBuffer = new PooledBuffer(1, 20))
+			if (!await channel.Reader.WaitToReadAsync(1, cancellationToken))
 			{
-				socket.AttachRecvBuffer(ChildProcessChannelId, recvBuffer);
-			
-				using ComputeBufferReader reader = recvBuffer.CreateReader();
-				await reader.WaitToReadAsync(1, cancellationToken);
+				throw new NotImplementedException();
 			}
 
 			// Write data to the child process channel. The remote server will echo them back to us as it receives them, then exit when the channel is complete/closed.
@@ -139,11 +137,11 @@ namespace RemoteClient
 				cancellationToken.ThrowIfCancellationRequested();
 				logger.LogInformation("Writing value: {Value}", idx);
 				BinaryPrimitives.WriteInt32LittleEndian(buffer, idx);
-				await socket.SendAsync(ChildProcessChannelId, buffer, cancellationToken);
+				await channel.Writer.WriteAsync(buffer, cancellationToken);
 				await Task.Delay(1000, cancellationToken);
 			}
 
-			await socket.MarkCompleteAsync(ChildProcessChannelId, cancellationToken);
+			channel.MarkComplete();
 		}
 
 		static async Task RunBackgroundXorAsync(AgentMessageChannel channel)
@@ -170,7 +168,7 @@ namespace RemoteClient
 			if (options.Server == null)
 			{
 				DirectoryReference sandboxDir = DirectoryReference.Combine(new FileReference(Assembly.GetExecutingAssembly().Location).Directory, "Sandbox");
-				return new LocalComputeClient(2000, sandboxDir, logger);
+				return new LocalComputeClient(2000, sandboxDir, options.InProc, logger);
 			}
 			else
 			{

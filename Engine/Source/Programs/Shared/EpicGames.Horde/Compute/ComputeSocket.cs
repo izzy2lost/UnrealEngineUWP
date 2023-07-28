@@ -55,10 +55,10 @@ namespace EpicGames.Horde.Compute
 			AttachRecvBuffer(channelId, recvBuffer);
 			AttachSendBuffer(channelId, sendBuffer);
 
-			using (ComputeBufferReader recvBufferReader = recvBuffer.CreateReader())
-			{
-				return new ComputeChannel(recvBufferReader, sendBuffer.Writer);
-			}
+			using ComputeBufferReader recvBufferReader = recvBuffer.CreateReader();
+			using ComputeBufferWriter sendBufferWriter = sendBuffer.CreateWriter();
+
+			return new ComputeChannel(recvBufferReader, sendBufferWriter);
 		}
 	}
 
@@ -78,15 +78,15 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		public const string IpcEnvVar = "UE_HORDE_COMPUTE_IPC";
 
-		readonly SharedMemoryBuffer _commandBuffer;
+		readonly ComputeBufferWriter _commandBufferWriter;
 		readonly List<ComputeBuffer> _buffers = new List<ComputeBuffer>();
 
 		/// <summary>
 		/// Creates a socket for a worker
 		/// </summary>
-		private WorkerComputeSocket(SharedMemoryBuffer commandBuffer)
+		private WorkerComputeSocket(ComputeBufferWriter commandBufferWriter)
 		{
-			_commandBuffer = commandBuffer;
+			_commandBufferWriter = commandBufferWriter;
 		}
 
 		/// <summary>
@@ -109,14 +109,14 @@ namespace EpicGames.Horde.Compute
 		/// <param name="commandBufferName">Name of the command buffer</param>
 		public static WorkerComputeSocket Open(string commandBufferName)
 		{
-			SharedMemoryBuffer commandBuffer = SharedMemoryBuffer.OpenExisting(commandBufferName);
-			return new WorkerComputeSocket(commandBuffer);
+			using SharedMemoryBuffer commandBuffer = SharedMemoryBuffer.OpenExisting(commandBufferName);
+			return new WorkerComputeSocket(commandBuffer.CreateWriter());
 		}
 
 		/// <inheritdoc/>
 		public void Dispose()
 		{
-			_commandBuffer.Dispose();
+			_commandBufferWriter.Dispose();
 		}
 
 		/// <inheritdoc/>
@@ -137,11 +137,12 @@ namespace EpicGames.Horde.Compute
 
 		void AttachBuffer(IpcMessage message, int channelId, string bufferName)
 		{
-			MemoryWriter writer = new MemoryWriter(_commandBuffer.Writer.GetWriteBuffer());
+			MemoryWriter writer = new MemoryWriter(_commandBufferWriter.GetWriteBuffer());
 			writer.WriteUnsignedVarInt((int)message);
 			writer.WriteUnsignedVarInt(channelId);
 			writer.WriteString(bufferName);
-			_commandBuffer.Writer.AdvanceWritePosition(writer.Length);
+
+			_commandBufferWriter.AdvanceWritePosition(writer.Length);
 		}
 	}
 
@@ -364,7 +365,7 @@ namespace EpicGames.Horde.Compute
 		readonly SendSegment _bodySegment = new SendSegment();
 
 		/// <inheritdoc/>
-		public async ValueTask SendAsync(int id, ReadOnlyMemory<byte> memory, CancellationToken cancellationToken = default)
+		async ValueTask SendAsync(int id, ReadOnlyMemory<byte> memory, CancellationToken cancellationToken = default)
 		{
 			if (memory.Length > 0)
 			{
@@ -397,20 +398,13 @@ namespace EpicGames.Horde.Compute
 		/// <inheritdoc/>
 		public override void AttachRecvBuffer(int channelId, ComputeBuffer recvBuffer)
 		{
-			bool complete;
 			lock (_lockObject)
 			{
-				complete = _complete;
-				if (!complete)
+				if (!_complete)
 				{
-					_recvBufferWriters.Add(channelId, recvBuffer.Writer.AddRef());
+					_recvBufferWriters.Add(channelId, recvBuffer.CreateWriter());
 					_recvTask ??= BackgroundTask.StartNew(ctx => RunRecvTaskAsync(_transport, ctx));
 				}
-			}
-
-			if (complete)
-			{
-				recvBuffer.Writer.MarkComplete();
 			}
 		}
 

@@ -27,9 +27,9 @@ namespace EpicGames.Horde.Compute.Buffers
 		}
 
 		/// <inheritdoc/>
-		public override ComputeBuffer AddRef()
+		public override SharedMemoryBuffer AddRef()
 		{
-			_detail.AddWriterRef();
+			_detail.AddRef();
 			return new SharedMemoryBuffer(_detail);
 		}
 
@@ -102,8 +102,8 @@ namespace EpicGames.Horde.Compute.Buffers
 			MemoryMappedViewAccessor memoryMappedViewAccessor = memoryMappedFile.CreateViewAccessor();
 			MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedViewAccessor);
 
-			Native.EventHandle writerEvent = Native.EventHandle.CreateNew($"{name}_W", EventResetMode.ManualReset, true, HandleInheritability.Inheritable);
-			Native.EventHandle readerEvent = Native.EventHandle.CreateNew($"{name}_R0", EventResetMode.ManualReset, true, HandleInheritability.Inheritable);
+			Native.EventHandle writerEvent = Native.EventHandle.CreateNew($"{name}_W", EventResetMode.AutoReset, true, HandleInheritability.Inheritable);
+			Native.EventHandle readerEvent = Native.EventHandle.CreateNew($"{name}_R0", EventResetMode.AutoReset, true, HandleInheritability.Inheritable);
 
 			HeaderPtr headerPtr = new HeaderPtr((ulong*)memoryMappedView.GetPointer(), 1, numChunks, chunkLength);
 			Memory<byte>[] chunks = CreateChunks(headerPtr.NumChunks, headerPtr.ChunkLength, memoryMappedView);
@@ -164,16 +164,10 @@ namespace EpicGames.Horde.Compute.Buffers
 		public override void SetReadEvent(int readerIdx) => _readerEvent.Set();
 
 		/// <inheritdoc/>
-		public override void ResetReadEvent(int readerIdx) => _readerEvent.Reset();
-
-		/// <inheritdoc/>
 		public override Task WaitForReadEvent(int readerIdx, CancellationToken cancellationToken) => _readerEvent.WaitOneAsync(cancellationToken);
 
 		/// <inheritdoc/>
 		public override void SetWriteEvent() => _writerEvent.Set();
-
-		/// <inheritdoc/>
-		public override void ResetWriteEvent() => _writerEvent.Reset();
 
 		/// <inheritdoc/>
 		public override Task WaitForWriteEvent(CancellationToken cancellationToken) => _writerEvent.WaitOneAsync(cancellationToken);

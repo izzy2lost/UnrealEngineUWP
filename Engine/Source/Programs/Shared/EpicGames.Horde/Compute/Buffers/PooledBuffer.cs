@@ -40,9 +40,9 @@ namespace EpicGames.Horde.Compute.Buffers
 		}
 
 		/// <inheritdoc/>
-		public override ComputeBuffer AddRef()
+		public override PooledBuffer AddRef()
 		{
-			_detail.AddWriterRef();
+			_detail.AddRef();
 			return new PooledBuffer(_detail);
 		}
 	}
@@ -100,16 +100,10 @@ namespace EpicGames.Horde.Compute.Buffers
 		public override void SetReadEvent(int readerIdx) => _readerEvent.Set();
 
 		/// <inheritdoc/>
-		public override void ResetReadEvent(int readerIdx) => _readerEvent.Reset();
-
-		/// <inheritdoc/>
 		public override Task WaitForReadEvent(int readerIdx, CancellationToken cancellationToken) => _readerEvent.Task.WaitAsync(cancellationToken);
 
 		/// <inheritdoc/>
 		public override void SetWriteEvent() => _writerEvent.Set();
-
-		/// <inheritdoc/>
-		public override void ResetWriteEvent() => _writerEvent.Reset();
 
 		/// <inheritdoc/>
 		public override Task WaitForWriteEvent(CancellationToken cancellationToken) => _writerEvent.Task.WaitAsync(cancellationToken);

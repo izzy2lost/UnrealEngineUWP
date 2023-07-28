@@ -113,7 +113,7 @@ namespace EpicGames.Horde.Compute
 			_socket.AttachRecvBuffer(channelId, recvBuffer);
 			_socket.AttachSendBuffer(channelId, sendBuffer);
 			_recvBufferReader = recvBuffer.CreateReader();
-			_sendBufferWriter = sendBuffer.Writer.AddRef();
+			_sendBufferWriter = sendBuffer.CreateWriter();
 			_logger = logger;
 		}
 

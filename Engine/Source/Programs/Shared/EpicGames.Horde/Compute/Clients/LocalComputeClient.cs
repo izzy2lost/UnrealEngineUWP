@@ -38,6 +38,7 @@ namespace EpicGames.Horde.Compute.Clients
 		readonly BackgroundTask _listenerTask;
 		readonly Socket _listener;
 		readonly Socket _socket;
+		readonly bool _executeInProcess;
 		readonly ILogger _logger;
 
 		/// <summary>
@@ -45,16 +46,18 @@ namespace EpicGames.Horde.Compute.Clients
 		/// </summary>
 		/// <param name="port">Port to connect on</param>
 		/// <param name="sandboxDir">Sandbox directory for the worker</param>
+		/// <param name="executeInProcess">Whether to run external assemblies in-process. Useful for debugging.</param>
 		/// <param name="logger">Logger for diagnostic output</param>
-		public LocalComputeClient(int port, DirectoryReference sandboxDir, ILogger logger)
+		public LocalComputeClient(int port, DirectoryReference sandboxDir, bool executeInProcess, ILogger logger)
 		{
 			_logger = logger;
+			_executeInProcess = executeInProcess;
 
 			_listener = new Socket(SocketType.Stream, ProtocolType.IP);
 			_listener.Bind(new IPEndPoint(IPAddress.Loopback, port));
 			_listener.Listen();
 
-			_listenerTask = BackgroundTask.StartNew(ctx => RunListenerAsync(_listener, sandboxDir, logger, ctx));
+			_listenerTask = BackgroundTask.StartNew(ctx => RunListenerAsync(_listener, sandboxDir, _executeInProcess, logger, ctx));
 
 			_socket = new Socket(SocketType.Stream, ProtocolType.IP);
 			_socket.Connect(IPAddress.Loopback, port);
@@ -71,7 +74,7 @@ namespace EpicGames.Horde.Compute.Clients
 		/// <summary>
 		/// Sets up the loopback listener and calls the server method
 		/// </summary>
-		static async Task RunListenerAsync(Socket listener, DirectoryReference sandboxDir, ILogger logger, CancellationToken cancellationToken)
+		static async Task RunListenerAsync(Socket listener, DirectoryReference sandboxDir, bool executeInProcess, ILogger logger, CancellationToken cancellationToken)
 		{
 			using Socket tcpSocket = await listener.AcceptAsync(cancellationToken);
 
@@ -79,7 +82,7 @@ namespace EpicGames.Horde.Compute.Clients
 
 			await using (RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(tcpSocket), ComputeSocketEndpoint.Remote, logger))
 			{
-				AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, memoryCache, logger);
+				AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, memoryCache, executeInProcess, logger);
 				await worker.RunAsync(socket, cancellationToken);
 				await socket.CloseAsync(cancellationToken);
 			}
