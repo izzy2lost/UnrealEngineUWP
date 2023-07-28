@@ -246,9 +246,13 @@ void FRHICommandDispatchShaderBundle::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(DispatchShaderBundle);
 	extern RHI_API FRHIComputePipelineState* ExecuteSetComputePipelineState(FComputePipelineState* ComputePipelineState);
-	for (FRHIShaderBundleDispatch& Dispatch : Dispatches)
+	for (int32 DispatchIndex = 0; DispatchIndex < Dispatches.Num(); ++DispatchIndex)
 	{
-		Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
+		FRHIShaderBundleDispatch& Dispatch = Dispatches[DispatchIndex];
+		if (Dispatch.RecordIndex != ~uint32(0u))
+		{
+			Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
+		}
 	}
 	INTERNAL_DECORATOR_COMPUTE(RHIDispatchShaderBundle)(ShaderBundle, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches);
 }

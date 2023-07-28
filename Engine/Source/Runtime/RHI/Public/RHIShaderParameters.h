@@ -189,4 +189,9 @@ struct FRHIShaderBundleDispatch
 	FRHIComputeShader* Shader = nullptr;
 	FRHIComputePipelineState* RHIPipeline = nullptr;
 	FRHIBatchedShaderParameters Parameters;
+
+	inline bool IsValid() const
+	{
+		return RecordIndex != ~uint32(0u);
+	}
 };
