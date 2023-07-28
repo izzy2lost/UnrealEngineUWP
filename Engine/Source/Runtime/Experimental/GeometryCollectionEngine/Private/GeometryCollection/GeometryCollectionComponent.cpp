@@ -4875,7 +4875,8 @@ bool UGeometryCollectionComponent::CanUseCustomRenderer() const
 
 void UGeometryCollectionComponent::RefreshCustomRenderer()
 {
-	if (CanUseCustomRenderer())
+	// Don't refresh the custom renderer on the server.
+	if (CanUseCustomRenderer() && !IsNetMode(NM_DedicatedServer))
 	{
 		if (IGeometryCollectionExternalRenderInterface* RendererInterface = Cast<IGeometryCollectionExternalRenderInterface>(CustomRenderer))
 		{
