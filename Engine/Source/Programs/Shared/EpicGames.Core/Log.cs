@@ -1216,7 +1216,19 @@ namespace EpicGames.Core
 					}
 				}
 
-				JsonLogEvent jsonLogEvent = JsonLogEvent.FromLoggerState(logLevel, eventId, state, exception, formatter);
+				Activity? activity = Activity.Current;
+
+				JsonLogEvent jsonLogEvent;
+				if (activity == null)
+				{
+					jsonLogEvent = JsonLogEvent.FromLoggerState(logLevel, eventId, state, exception, formatter);
+				}
+				else
+				{
+					LogEvent logEvent = LogEvent.FromState(logLevel, eventId, state, exception, formatter);
+					logEvent.Properties = Enumerable.Append(logEvent.Properties ?? Array.Empty<KeyValuePair<string, object>>(), new KeyValuePair<string, object>("Activity", activity));
+					jsonLogEvent = new JsonLogEvent(logEvent);
+				}
 				_eventChannel.Writer.TryWrite(jsonLogEvent);
 
 				// Handle the console output separately; we format things differently

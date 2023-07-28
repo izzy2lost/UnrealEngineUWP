@@ -108,6 +108,25 @@ namespace AutomationTool
 		public static ILogger Logger => Log.Logger;
 
 		/// <summary>
+		/// Global activity source for UAT. Can be used to add trace data and additional context to logs.
+		/// </summary>
+		public static ActivitySource ActivitySource => CreateActivitySource();
+
+		static ActivityListener _activityListener;
+
+		static ActivitySource CreateActivitySource()
+		{
+			ActivitySource activitySource = new ActivitySource("AutomationTool");
+
+			_activityListener = new ActivityListener();
+			_activityListener.ShouldListenTo = x => x == activitySource;
+			_activityListener.Sample = (ref ActivityCreationOptions<ActivityContext> x) => ActivitySamplingResult.AllData;
+			ActivitySource.AddActivityListener(_activityListener);
+
+			return activitySource;
+		}
+
+		/// <summary>
 		/// Writes formatted text to log (with LogEventType.Console).
 		/// </summary>
 		/// <param name="Format">Format string</param>
