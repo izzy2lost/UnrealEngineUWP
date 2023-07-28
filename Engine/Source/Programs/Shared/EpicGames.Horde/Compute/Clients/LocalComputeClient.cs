@@ -82,7 +82,7 @@ namespace EpicGames.Horde.Compute.Clients
 
 			await using (RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(tcpSocket), ComputeSocketEndpoint.Remote, logger))
 			{
-				AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, memoryCache, executeInProcess, logger);
+				AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, memoryCache, null, executeInProcess, logger);
 				await worker.RunAsync(socket, cancellationToken);
 				await socket.CloseAsync(cancellationToken);
 			}

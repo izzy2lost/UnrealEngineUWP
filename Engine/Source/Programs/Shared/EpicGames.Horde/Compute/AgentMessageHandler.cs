@@ -24,6 +24,7 @@ namespace EpicGames.Horde.Compute
 	{
 		readonly DirectoryReference _sandboxDir;
 		readonly IMemoryCache _memoryCache;
+		readonly Dictionary<string, string?> _envVars;
 		readonly bool _executeInProcess;
 		readonly ILogger _logger;
 
@@ -32,12 +33,14 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		/// <param name="sandboxDir">Directory to use for reading/writing files</param>
 		/// <param name="memoryCache">Cache for nodes read from storage</param>
+		/// <param name="envVars">Environment variables to set for any child processes</param>
 		/// <param name="executeInProcess">Whether to execute any external assemblies in the current process</param>
 		/// <param name="logger">Logger for diagnostics</param>
-		public AgentMessageHandler(DirectoryReference sandboxDir, IMemoryCache memoryCache, bool executeInProcess, ILogger logger)
+		public AgentMessageHandler(DirectoryReference sandboxDir, IMemoryCache memoryCache, Dictionary<string, string?>? envVars, bool executeInProcess, ILogger logger)
 		{
 			_sandboxDir = sandboxDir;
 			_memoryCache = memoryCache;
+			_envVars = envVars ?? new Dictionary<string, string?>();
 			_executeInProcess = executeInProcess;
 			_logger = logger;
 		}
@@ -177,7 +180,7 @@ namespace EpicGames.Horde.Compute
 
 		async Task ExecuteProcessWindowsAsync(ComputeSocket socket, AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, CancellationToken cancellationToken)
 		{
-			Dictionary<string, string?> newEnvVars = new Dictionary<string, string?>();
+			Dictionary<string, string?> newEnvVars = new Dictionary<string, string?>(_envVars);
 			if (envVars != null)
 			{
 				foreach ((string name, string? value) in envVars)

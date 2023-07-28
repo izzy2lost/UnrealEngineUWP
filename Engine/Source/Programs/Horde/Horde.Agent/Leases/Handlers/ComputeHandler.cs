@@ -2,6 +2,7 @@
 
 using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Threading;
@@ -103,7 +104,13 @@ namespace Horde.Agent.Leases.Handlers
 							{
 								DirectoryReference.CreateDirectory(sandboxDir);
 
-								AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, _memoryCache, false, _logger);
+								DirectoryReference sharedDir = DirectoryReference.Combine(session.WorkingDir, "Saved");
+								DirectoryReference.CreateDirectory(sharedDir);
+
+								Dictionary<string, string?> newEnvVars = new Dictionary<string, string?>();
+								newEnvVars["UE_HORDE_SHARED_DIR"] = sharedDir.FullName;
+
+								AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, _memoryCache, newEnvVars, false, _logger);
 								await worker.RunAsync(socket, cts.Token);
 								await socket.CloseAsync(cts.Token);
 								return LeaseResult.Success;
