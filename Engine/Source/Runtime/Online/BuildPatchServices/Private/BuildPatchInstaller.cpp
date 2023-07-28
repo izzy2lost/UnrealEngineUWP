@@ -1410,7 +1410,7 @@ namespace BuildPatchServices
 
 			// Wait for the file constructor to complete
 			ConstructTimer.Start();
-			FileConstructor->Wait();
+			FileConstructor->Run();
 			ConstructTimer.Stop();
 			FileConstructor->OnBeforeDeleteFile().Remove(OnBeforeDeleteFileHandle);
 			UE_LOG(LogBuildPatchServices, Log, TEXT("File construction complete"));
