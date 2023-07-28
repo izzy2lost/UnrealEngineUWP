@@ -124,13 +124,12 @@ Texture2D<tsr_half4> InputSceneTranslucencyTexture;
 Texture2D<tsr_halfC> ReprojectedHistoryGuideTexture;
 Texture2D<tsr_half4> ReprojectedHistoryMoireTexture;
 Texture2D<tsr_halfC> ResurrectedHistoryGuideTexture;
-Texture2D<tsr_half> ParallaxRejectionMaskTexture;
+Texture2D<tsr_half2> DecimateMaskTexture;
 Texture2D<tsr_ushort> IsMovingMaskTexture;
 
 RWTexture2D<tsr_half4> HistoryGuideOutput;
 RWTexture2D<tsr_half4> HistoryMoireOutput;
-RWTexture2D<tsr_half2> HistoryRejectionOutput;
-RWTexture2D<tsr_half>  HistoryResurrectionMaskOutput;
+RWTexture2D<tsr_half4> HistoryRejectionOutput;
 RWTexture2D<tsr_halfC> InputSceneColorOutput;
 RWTexture2D<tsr_half> InputSceneColorLdrLumaOutput;
 
@@ -447,6 +446,7 @@ void MainCS(
 		tsr_simd_half4 OriginalTranslucencyInput;
 	#endif
 	tsr_simd_halfC OriginalHistory;
+	tsr_simd_half VelocityEdge;
 	tsr_simd_bool bIsValid;
 	#if CONFIG_MOIRE_DETECTION
 		tsr_simd_half MoireInput;
@@ -473,12 +473,15 @@ void MainCS(
 			float2 TranslucencyTextureUV = ApplyScreenTransform(float2(ClampedFetchPixelPos), InputPixelPosToTranslucencyTextureUV);
 			TranslucencyTextureUV = fastClamp(TranslucencyTextureUV, TranslucencyTextureUVMin, TranslucencyTextureUVMax);
 
+			tsr_half2 DecimateMask = DecimateMaskTexture[ClampedFetchPixelPos];
+
 			OriginalOpaqueInput.SetElement(SimdIndex, InputTexture[ClampedFetchPixelPos]);
 			#if CONFIG_COMPOSE_TRANSLUCENCY
 				OriginalTranslucencyInput.SetElement(SimdIndex, InputSceneTranslucencyTexture.SampleLevel(GlobalBilinearClampedSampler, TranslucencyTextureUV, 0));
 			#endif
 			OriginalHistory.SetElement(SimdIndex, ReprojectedHistoryGuideTexture[ClampedFetchPixelPos]);
-			bIsValid.SetElement(SimdIndex, ParallaxRejectionMaskTexture[ClampedFetchPixelPos] > tsr_half(PARALLAX_REJECTION_MASK_THRESHOLD));
+			VelocityEdge.SetElement(SimdIndex, DecimateMask.g);
+			bIsValid.SetElement(SimdIndex, DecimateMask.r > tsr_half(PARALLAX_REJECTION_MASK_THRESHOLD));
 			#if CONFIG_MOIRE_DETECTION
 				MoireInput.SetElement(SimdIndex, InputMoireLumaTexture[ClampedFetchPixelPos]);
 				PrevMoireHistory.SetElement(SimdIndex, ReprojectedHistoryMoireTexture[ClampedFetchPixelPos]);
@@ -603,9 +606,7 @@ void MainCS(
 	// Measure rejection
 	tsr_simd_half RejectionBlendFinal = tsr_simd_half::Const(1.0);
 	tsr_simd_half RejectionClampBlend = tsr_simd_half::Const(1.0);
-	#if CONFIG_HISTORY_RESURRECTION
-		tsr_simd_bool bResurrectHistory = tsr_simd_bool::Const(false);
-	#endif
+	tsr_simd_bool bResurrectHistory = tsr_simd_bool::Const(false);
 	{
 		// Convert input to LDR
 		tsr_simd_halfC ExposedInput = OriginalInput * rcp(OriginalInput + tsr_simd_halfC::Const(tsr_half(PerceptionAdd)));
@@ -695,6 +696,16 @@ void MainCS(
 
 		FinalGuide = ExposedInput * tsr_simd_halfC::Vectorize(BlendFinal) - OriginalHistory * tsr_simd_halfC::Vectorize(BlendFinal - 1.0);
 	}
+	
+	// Controls how the history and its validity is clamped.
+	tsr_simd_half DisableHistoryClamp;
+	tsr_simd_half IncreaseValidityMultiplier;
+	{
+		tsr_simd_bool bIsDisoccluded = not(bIsValid);
+
+		DisableHistoryClamp        = select(and(bIsDisoccluded, not(bResurrectHistory)), tsr_simd_half::Const(0.0), min(RejectionClampBlend, VelocityEdge));
+		IncreaseValidityMultiplier = select(and(bIsDisoccluded, not(bResurrectHistory)), tsr_simd_half::Const(0.0), RejectionClampBlend);
+	}
 
 	// Mark the top left corner of the tile for debugging purposes.
 	#if DEBUG_OUTPUT && DEBUG_DISABLE_PADDING == 2
@@ -724,12 +735,12 @@ void MainCS(
 				GroupThreadIndex,
 				SimdIndex);
 
-			tsr_half LocalRejectionBlendFinal = RejectionBlendFinal.GetElement(SimdIndex);
-			tsr_half LocalRejectionClampBlend = RejectionClampBlend.GetElement(SimdIndex);
 			tsr_halfC FinalGuideColor = FinalGuide.GetElement(SimdIndex);
 			
-			LocalRejectionBlendFinal = LocalRejectionBlendFinal - tsr_half(0.5 * rcp(256.0));
-			LocalRejectionClampBlend = LocalRejectionClampBlend - tsr_half(0.5 * rcp(256.0));
+			tsr_half BitMask = (
+				select(bIsValid.GetElement(SimdIndex),          tsr_half(0x1) * rcp(tsr_half(255.0)), tsr_half(0x0)) + 
+				select(bResurrectHistory.GetElement(SimdIndex), tsr_half(0x2) * rcp(tsr_half(255.0)), tsr_half(0x0)));
+
 			#if CONFIG_ENABLE_STOCASTIC_QUANTIZATION
 			{
 				uint2 Random = Rand3DPCG16(int3(LaneSimdPixelOffset, View.StateFrameIndexMod8)).xy;
@@ -744,11 +755,11 @@ void MainCS(
 			#else
 				HistoryGuideOutput[OutputPixelPos] = tsr_half4(FinalGuideColor.xyz, tsr_half(1.0));
 			#endif
-			HistoryRejectionOutput[OutputPixelPos] = tsr_half2(LocalRejectionBlendFinal, LocalRejectionClampBlend);
-			
-			#if CONFIG_HISTORY_RESURRECTION
-				HistoryResurrectionMaskOutput[OutputPixelPos] = select(bResurrectHistory.GetElement(SimdIndex), tsr_half(1.0), tsr_half(0.0));
-			#endif
+			HistoryRejectionOutput[OutputPixelPos] = tsr_half4(
+				RejectionBlendFinal.GetElement(SimdIndex) - tsr_half(0.5 * rcp(256.0)),
+				DisableHistoryClamp.GetElement(SimdIndex) - tsr_half(0.5 * rcp(256.0)),
+				tsr_half(255.5 * rcp(256.0)) - IncreaseValidityMultiplier.GetElement(SimdIndex),
+				BitMask);
 		}
 		
 		#if DEBUG_OUTPUT

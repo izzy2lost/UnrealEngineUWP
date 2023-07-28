@@ -67,8 +67,7 @@ RWTexture2DArray<tsr_half4> ReprojectedHistoryGuideOutput;
 RWTexture2DArray<tsr_half4> ReprojectedHistoryMoireOutput;
 
 RWTexture2D<float2> HoleFilledVelocityOutput;
-RWTexture2D<tsr_half2> HoleFilledVelocityMaskOutput;
-RWTexture2D<tsr_half> ParallaxRejectionMaskOutput;
+RWTexture2D<tsr_half2> DecimateMaskOutput;
 
 
 //------------------------------------------------------- DEBUG
@@ -128,7 +127,7 @@ void LoadVelocityNeighborhood(
 void ProcessVelocityNeighborhood(
 	float2 EncodedVelocityNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES],
 	out float2 EncodedScreenVelocity,
-	out tsr_half RejectHighFrequency)
+	out tsr_half VelocityEdge)
 {
 	// Preprocessed the prefetched samples
 	float2 PixelVelocityNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES];
@@ -140,7 +139,7 @@ void ProcessVelocityNeighborhood(
 		}
 	}
 	
-	RejectHighFrequency = tsr_half(0.0);
+	tsr_half RejectHighFrequency = tsr_half(0.0);
 
 	// Sample
 	float2 ScreenPixelVelocity = PixelVelocityNeighborhood[0];
@@ -223,10 +222,7 @@ void ProcessVelocityNeighborhood(
 	}
 
 	// Remove noise from high frequency rejections.
-	RejectHighFrequency = saturate(tsr_half(1.0) - RejectHighFrequency * tsr_half(1.1));
-
-	// Do not reject high frequency additionally where hole filling happen
-	// RejectHighFrequency = max(RejectHighFrequency, HoleFilledVelocityMask); TODO
+	VelocityEdge = saturate(RejectHighFrequency * tsr_half(1.1));
 
 	EncodedScreenVelocity = EncodedVelocityNeighborhood[0];
 } // ProcessVelocityNeighborhood()
@@ -387,7 +383,7 @@ void MainCS(
 	// Sample current frame informations.
 	float2 EncodedScreenVelocity;
 	float DeviceZ;
-	tsr_half RejectHighFrequency = tsr_half(0.0);
+	tsr_half VelocityEdge = tsr_half(1.0);
 	ISOLATE
 	{
 		tsr_ushort2 InputPixelPos = (
@@ -431,7 +427,7 @@ void MainCS(
 			ProcessVelocityNeighborhood(
 				EncodedVelocityNeighborhood,
 				/* out */ EncodedScreenVelocity,
-				/* out */ RejectHighFrequency);
+				/* out */ VelocityEdge);
 		}
 		#endif // CONFIG_VELOCITY_SAMPLES != 1
 	}
@@ -617,8 +613,7 @@ void MainCS(
 		#endif
 
 		HoleFilledVelocityOutput[OutputPixelPos] = EncodedScreenVelocity;
-		HoleFilledVelocityMaskOutput[InputPixelPos] = tsr_half2(0.0, RejectHighFrequency);
-		ParallaxRejectionMaskOutput[OutputPixelPos] = ParallaxRejectionMask;
+		DecimateMaskOutput[InputPixelPos] = tsr_half2(ParallaxRejectionMask, VelocityEdge);
 
 		#if DEBUG_OUTPUT
 		for (uint DebugId = 0; DebugId < DEBUG_ARRAY_SIZE; DebugId++)

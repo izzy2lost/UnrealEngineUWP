@@ -33,9 +33,7 @@ float OutputToHistoryResolutionFractionSquare;
 Texture2D<tsr_half3> SceneColorTexture;
 Texture2D<float>     ClosestDepthTexture;
 Texture2D<float2>    DilatedVelocityTexture;
-Texture2D<tsr_half>  ParallaxRejectionMaskTexture;
-Texture2D<tsr_half2> HistoryRejectionTexture;
-Texture2D<tsr_half>  HistoryResurrectionMaskTexture;
+Texture2D<tsr_half4> HistoryRejectionTexture;
 Texture2D<tsr_half4> HistoryMetadataTexture;
 Texture2D<tsr_half3> ResurrectedHistoryColorTexture;
 
@@ -93,37 +91,36 @@ tsr_half3 DisplayHistorySampleCount(FContext Ctx)
 
 tsr_half3 DisplayHistoryRejection(FContext Ctx)
 {
-	tsr_half2 RawRejection = HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0);
-	return SampleTSROutputGray(Ctx) * lerp(kRed, kWhite, saturate(RawRejection.x));
+	tsr_half LowFrequencyRejection = HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).r;
+	return SampleTSROutputGray(Ctx) * lerp(kRed, kWhite, saturate(LowFrequencyRejection));
 }
 
 tsr_half3 DisplayHistoryClamp(FContext Ctx)
 {
-	tsr_half2 RawRejection = HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0);
-	return SampleTSROutputGray(Ctx) * lerp(kRed, kWhite, saturate(RawRejection.y));
+	tsr_half LowFrequencyClamp = HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).g;
+	return SampleTSROutputGray(Ctx) * lerp(kRed, kWhite, saturate(LowFrequencyClamp));
 }
 
 tsr_half3 DisplayParallaxDisocclusionMask(FContext Ctx)
 {
-	tsr_half ParallaxDisocclusionMask = ParallaxRejectionMaskTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0);
-
-	return SampleTSROutputGray(Ctx) * lerp(kRed, kWhite, saturate(ParallaxDisocclusionMask));
+	bool ParallaxDisocclusionMask = (tsr_ushort(HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).a * tsr_half(255.0)) & tsr_ushort(0x1)) != tsr_ushort(0x0);
+	return SampleTSROutputGray(Ctx) * select(ParallaxDisocclusionMask, kWhite, kRed);
 }
 
 tsr_half3 DisplayResurrectionMask(FContext Ctx)
 {
-	tsr_half ResurrectionMask = HistoryResurrectionMaskTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0);
+	bool ResurrectionMask = (tsr_ushort(HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).a * tsr_half(255.0)) & tsr_ushort(0x2)) != tsr_ushort(0x0);
 	if (!bCanResurrectHistory)
 	{
 		return SampleTSROutputGray(Ctx) * kRed;
 	}
-	return SampleTSROutputGray(Ctx) * lerp(kWhite, kGreen, saturate(ResurrectionMask));
+	return SampleTSROutputGray(Ctx) * select(ResurrectionMask, kGreen, kWhite);
 }
 
 tsr_half3 DisplayResurrectedColor(FContext Ctx)
 {
 	float ClosestDeviceZ = ClosestDepthTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0);
-	tsr_half ResurrectionMask = HistoryResurrectionMaskTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0);
+	bool ResurrectionMask = (tsr_ushort(HistoryRejectionTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0).a * tsr_half(255.0)) & tsr_ushort(0x2)) != tsr_ushort(0x0);
 
 	float4 ThisClip = float4(Ctx.ScreenPos, ClosestDeviceZ, 1);
 	float4 ResurrectionClip = mul(ThisClip, ClipToResurrectionClip); 
@@ -134,7 +131,7 @@ tsr_half3 DisplayResurrectedColor(FContext Ctx)
 
 	tsr_half3 ResurrectedColor = ResurrectedHistoryColorTexture.SampleLevel(GlobalBilinearClampedSampler, KernelHistoryBufferUV, 0) * tsr_half(ResurrectionPreExposureCorrection);
 
-	return GrayScaleColor(ResurrectedColor) * lerp(kWhite, kGreen, saturate(ResurrectionMask));
+	return GrayScaleColor(ResurrectedColor) * select(ResurrectionMask, kGreen, kWhite);
 }
 
 

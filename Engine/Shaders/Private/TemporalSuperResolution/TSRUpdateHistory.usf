@@ -45,7 +45,6 @@
 #endif
 
 #define CONFIG_SELECTIVE_REPROJECTION 1
-#define CONFIG_RESPONSIVE_STENCIL 1
 #define CONFIG_TAA_RESPONSIVE_BEHAVIOR 1
 #define CONFIG_LOAD_TRANSLUCENCY_REJECTION 0
 
@@ -91,19 +90,13 @@
 //------------------------------------------------------- PARAMETERS
 
 Texture2D<tsr_halfC> InputSceneColorTexture;
-Texture2D<uint2> InputSceneStencilTexture;
 Texture2D<tsr_half4> InputSceneTranslucencyTexture;
 
-Texture2D<tsr_half2> HistoryRejectionTexture;
+Texture2D<tsr_half4> HistoryRejectionTexture;
 
 Texture2D<float2> DilatedVelocityTexture;
-Texture2D<tsr_half> ParallaxRejectionMaskTexture;
-#if CONFIG_HISTORY_RESURRECTION
-	Texture2D<tsr_half> HistoryResurrectionMaskTexture;
-#endif
 Texture2D<tsr_ushort> AntiAliasingTexture;
 Texture2D<tsr_half> NoiseFilteringTexture;
-Texture2D<tsr_half2> HoleFilledVelocityMaskTexture;
 
 int2   TranslucencyPixelPosMin;
 int2   TranslucencyPixelPosMax;
@@ -120,7 +113,6 @@ float InvWeightClampingPixelSpeed;
 float InputToHistoryFactor;
 float ResurrectionFrameIndex;
 float PrevFrameIndex;
-uint ResponsiveStencilMask;
 uint bGenerateOutputMip1;
 uint bGenerateOutputMip2;
 uint bHasSeparateTranslucency;
@@ -460,12 +452,11 @@ void MainCS(
 
 	// Fetch reprojection-related information.
 	float2x2 PrevScreenPos = ScreenPos;
-	tsr_half2 LowFrequencyRejection = tsr_half(1.0).xx;
-	tsr_half2 LowFrequencyClamp = tsr_half(1.0).xx;
+	tsr_half2 LowFrequencyRejection      = tsr_half(1.0).xx;
+	tsr_half2 DisableHistoryClamp        = tsr_half(1.0).xx;
+	tsr_half2 DecreaseValidityMultiplier = tsr_half(0.0).xx;
 	tsr_half2 OutputPixelVelocity = tsr_half(0.0).xx;
 	tsr_half2 NoiseFiltering = tsr_half(0.0).xx;
-	tsr_half2x2 HoleFilledVelocityMask = dpv_interleave_mono_registers(tsr_half(1.0).xx);
-	bool2 bIsResponsiveAAPixel = false;
 	bool2 bIsOffScreen = false;
 	bool2 bIsDisoccluded = false;
 	#if CONFIG_HISTORY_RESURRECTION
@@ -486,19 +477,11 @@ void MainCS(
 			float2 RawEncodedVelocity[DPV_PIXEL_PER_LANE];
 		#endif
 
-		tsr_half RawParallaxRejectionMask[DPV_PIXEL_PER_LANE];
-		#if CONFIG_HISTORY_RESURRECTION
-			tsr_half RawHistoryResurrectionMask[DPV_PIXEL_PER_LANE];
-		#endif
-		tsr_half2 RawLowFrequencyRejection[DPV_PIXEL_PER_LANE];
-		
-		uint RawSceneStencilRef[DPV_PIXEL_PER_LANE];
-		uint RawSceneStencilRefNeighborhood[CONFIG_SAMPLES - 1][DPV_PIXEL_PER_LANE];
+		tsr_half4 RawHistoryRejection[DPV_PIXEL_PER_LANE];
 		
 		#if CONFIG_REJECTION_ANTI_ALIASING
 			tsr_ushort RawEncodedInputTexelOffset[DPV_PIXEL_PER_LANE];
 			tsr_half RawNoiseFiltering[DPV_PIXEL_PER_LANE]; 
-			tsr_half2 RawHoleFilledVelocityMask[DPV_PIXEL_PER_LANE];
 		#endif
 
 		// Issue overlapped texture fetches
@@ -513,19 +496,12 @@ void MainCS(
 					RawEncodedVelocity[PixelId]   = DilatedVelocityTexture[LocalInputPixelPos];
 				#endif
 
-				RawParallaxRejectionMask[PixelId] = ParallaxRejectionMaskTexture[LocalInputPixelPos];
-				#if CONFIG_HISTORY_RESURRECTION
-					RawHistoryResurrectionMask[PixelId] = HistoryResurrectionMaskTexture[LocalInputPixelPos];
-				#endif
-				RawSceneStencilRef[PixelId]       = InputSceneStencilTexture.Load(int3(LocalInputPixelPos, 0)) STENCIL_COMPONENT_SWIZZLE;
-				
-				RawLowFrequencyRejection[PixelId] = HistoryRejectionTexture[LocalInputPixelPos];
+				RawHistoryRejection[PixelId] = HistoryRejectionTexture[LocalInputPixelPos];
 				
 				#if CONFIG_REJECTION_ANTI_ALIASING
 				{
 					RawEncodedInputTexelOffset[PixelId] = AntiAliasingTexture[LocalInputPixelPos];
 					RawNoiseFiltering[PixelId] = NoiseFilteringTexture[LocalInputPixelPos];
-					RawHoleFilledVelocityMask[PixelId] = HoleFilledVelocityMaskTexture[LocalInputPixelPos];
 				}
 				#endif
 			}
@@ -533,24 +509,6 @@ void MainCS(
 			// Vector in pixel between pixel K -> O.
 			tsr_half2x2 dInputKO = tsr_half2x2(InputPPCo - InputPPCk);
 		
-			UNROLL_N(CONFIG_SAMPLES - 1)
-			for (uint NeighborId = 0; NeighborId < (CONFIG_SAMPLES - 1); NeighborId++)
-			{
-				tsr_short2x2 SampleInputPixelPos;
-				tsr_half2x2 PixelOffset;
-				ComputeInputKernelSamplePosition(
-					InputPixelPos, dInputKO, /* SampleId = */ NeighborId + 1,
-					InputPixelPosMin, InputPixelPosMax,
-					/* out */ SampleInputPixelPos,
-					/* out */ PixelOffset);
-			
-				UNROLL_N(DPV_PIXEL_PER_LANE)
-				for (uint PixelId = 0; PixelId < DPV_PIXEL_PER_LANE; PixelId++)
-				{
-					RawSceneStencilRefNeighborhood[NeighborId][PixelId] = InputSceneStencilTexture.Load(int3(dpv_access_pixel(SampleInputPixelPos, PixelId), 0)) STENCIL_COMPONENT_SWIZZLE;
-				}
-			} // for (uint NeighborId = 0; NeighborId < (CONFIG_SAMPLES - 1); NeighborId++)
-			
 			// Fetch the 2x2 neighborhood of the velocity
 			#if CONFIG_INTERPOLATE_VELOCITY
 			UNROLL_N(DPV_PIXEL_PER_LANE)
@@ -568,8 +526,6 @@ void MainCS(
 			#endif
 		}
 		
-		uint2 SceneStencilRef;
-
 		// Process texture fetches.
 		PLATFORM_SPECIFIC_ISOLATE
 		{
@@ -619,29 +575,24 @@ void MainCS(
 				OutputPixelVelocity = tsr_half2(dpv_length(dpv_mul(ScreenVelocity, HistoryInfo_ViewportSize)));
 			}
 			
+			tsr_ushort2 BitMask = tsr_ushort2(round(dpv_interleave_registers_array(RawHistoryRejection)[3] * tsr_half(255.0)));
+
 			// Detect whether the history reprojection is successful
 			IsOffScreenOrDisoccluded(
 				bCameraCut,
 				PrevScreenPos,
-				dpv_interleave_registers_array(RawParallaxRejectionMask),
+				(BitMask & tsr_ushort(0x1)) == tsr_ushort(0),
 				/* out */ bIsOffScreen,
 				/* out */ bIsDisoccluded);
 				
 			#if CONFIG_HISTORY_RESURRECTION
-				bIsHistoryResurrection = dpv_interleave_registers_array(RawHistoryResurrectionMask) != tsr_half(0.0);
+				bIsHistoryResurrection = (BitMask & tsr_ushort(0x2)) != tsr_ushort(0);
 			#endif
 
 			// Process input texel, forcing to pack register.
-			LowFrequencyRejection = dpv_force_interleave_registers_array(RawLowFrequencyRejection)[0];
-			LowFrequencyClamp     = dpv_force_interleave_registers_array(RawLowFrequencyRejection)[1];
-			SceneStencilRef       = dpv_force_interleave_registers_array(RawSceneStencilRef);
-			
-			// Process neighborhood
-			UNROLL_N(CONFIG_SAMPLES - 1)
-			for (uint NeighborId = 0; NeighborId < (CONFIG_SAMPLES - 1); NeighborId++)
-			{
-				SceneStencilRef |= dpv_interleave_registers_array(RawSceneStencilRefNeighborhood[NeighborId]);
-			}
+			LowFrequencyRejection      = dpv_force_interleave_registers_array(RawHistoryRejection)[0];
+			DisableHistoryClamp        = dpv_force_interleave_registers_array(RawHistoryRejection)[1];
+			DecreaseValidityMultiplier = dpv_force_interleave_registers_array(RawHistoryRejection)[2];
 		}
 
 		#if CONFIG_REJECTION_ANTI_ALIASING
@@ -649,7 +600,6 @@ void MainCS(
 			tsr_ushort2 EncodedInputTexelOffset = dpv_force_interleave_registers_array(RawEncodedInputTexelOffset);
 			
 			NoiseFiltering = dpv_force_interleave_registers_array(RawNoiseFiltering);
-			HoleFilledVelocityMask = dpv_interleave_mono_registers(tsr_half(1.0).xx) - dpv_force_interleave_registers_array(RawHoleFilledVelocityMask);
 
 			SpatialAntiAliasingOffset = DecodeSpatialAntiAliasingOffset(EncodedInputTexelOffset);
 		}
@@ -657,13 +607,6 @@ void MainCS(
 		
 		// Final post processing.
 		{
-			// Fetch whether the pixel is responsive AA or not.
-			#if CONFIG_RESPONSIVE_STENCIL
-			{
-				bIsResponsiveAAPixel = (SceneStencilRef & ResponsiveStencilMask) != 0;
-			}
-			#endif
-
 			#if !CONFIG_CLAMP
 			{
 				bIsDisoccluded = false;
@@ -881,15 +824,11 @@ void MainCS(
 				tsr_half2 CoarseCurrentContribution = CoarseInputPixelAlignement * tsr_half(ActualHistoryHisteresis);
 				tsr_half2 IdealCurrentContribution = IdealInputPixelAlignement * tsr_half(ActualHistoryHisteresis);
 
-				// Select whether history should be clamped.
-				BlendClamp = select(and(bIsDisoccluded, !bIsHistoryResurrection), tsr_half(0.0), min(HoleFilledVelocityMask[1], LowFrequencyClamp));
-		
 				// Reduces the number of pixels when rejecting history
 				tsr_half2 ClampedPrevHistoryValidity = PrevHistoryValidity;
 				#if 1
 				{
-					tsr_half2 MaxValidity = lerp(tsr_half(WeightClampingRejection), tsr_half(1.0), select(and(bIsDisoccluded, !bIsHistoryResurrection), tsr_half(0.0), LowFrequencyClamp));
-					//tsr_half2 MaxValidity = lerp(tsr_half(WeightClampingRejection), tsr_half(1.0), BlendClamp);
+					tsr_half2 MaxValidity = tsr_half(1.0) - tsr_half(WeightClampingRejection) * DecreaseValidityMultiplier;
 
 					ClampedPrevHistoryValidity = min(ClampedPrevHistoryValidity, MaxValidity);
 				}
@@ -1038,11 +977,11 @@ void MainCS(
 	{
 		tsr_halfCx2 ClampedPrevHighFrequencyColor = fastClamp(PrevHighFrequencyColor, InputMinColor, InputMaxColor);
 		tsr_halfCx2 BlendedPrevHighFrequencyColor;
-		BlendedPrevHighFrequencyColor[0] = lerp(ClampedPrevHighFrequencyColor[0], PrevHighFrequencyColor[0], BlendClamp);
-		BlendedPrevHighFrequencyColor[1] = lerp(ClampedPrevHighFrequencyColor[1], PrevHighFrequencyColor[1], BlendClamp);
-		BlendedPrevHighFrequencyColor[2] = lerp(ClampedPrevHighFrequencyColor[2], PrevHighFrequencyColor[2], BlendClamp);
+		BlendedPrevHighFrequencyColor[0] = lerp(ClampedPrevHighFrequencyColor[0], PrevHighFrequencyColor[0], DisableHistoryClamp);
+		BlendedPrevHighFrequencyColor[1] = lerp(ClampedPrevHighFrequencyColor[1], PrevHighFrequencyColor[1], DisableHistoryClamp);
+		BlendedPrevHighFrequencyColor[2] = lerp(ClampedPrevHighFrequencyColor[2], PrevHighFrequencyColor[2], DisableHistoryClamp);
 		#if CONFIG_SCENE_COLOR_ALPHA
-			BlendedPrevHighFrequencyColor[3] = lerp(ClampedPrevHighFrequencyColor[3], PrevHighFrequencyColor[3], BlendClamp);
+			BlendedPrevHighFrequencyColor[3] = lerp(ClampedPrevHighFrequencyColor[3], PrevHighFrequencyColor[3], DisableHistoryClamp);
 		#endif
 		
 		// Clamp the validity due to motion to maintain better sharpness in history reprojection under motion.
