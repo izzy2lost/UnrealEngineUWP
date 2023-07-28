@@ -2500,61 +2500,6 @@ static bool CompileWithShaderConductor(
 #endif // PLATFORM_MAC || PLATFORM_WINDOWS || PLATFORM_LINUX
 
 
-// Overload parameter declaration from the default FShaderParameterParser in order to take into account Vulkan particularities for resources
-class FVulkanShaderParameterParser : public FShaderParameterParser
-{
-public:
-	FVulkanShaderParameterParser(FShaderCompilerFlags CompilerFlags, const TCHAR* InConstantBufferType)
-		: FShaderParameterParser(CompilerFlags, InConstantBufferType)
-	{}
-
-protected:
-	FString GenerateBindlessParameterDeclaration(const FParsedShaderParameter& ParsedParameter) const override
-	{
-		if (bBindlessResources || bBindlessSamplers)
-		{
-			const bool IsSampler = (ParsedParameter.BindlessConversionType == EBindlessConversionType::Sampler);
-			const TCHAR* IndexPrefix = IsSampler ? FShaderParameterParser::kBindlessSamplerPrefix : FShaderParameterParser::kBindlessResourcePrefix;
-			const TCHAR* HeapPrefix = IsSampler ? VulkanBindless::kBindlessSamplerArrayPrefix : VulkanBindless::kBindlessResourceArrayPrefix;
-
-			const TCHAR* StorageClass = ParsedParameter.bGloballyCoherent ? TEXT("globallycoherent ") : TEXT("");
-
-			const FStringView Name = ParsedParameter.ParsedName;
-			const FStringView Type = ParsedParameter.ParsedType;
-
-			const FString RewriteType = FString::Printf(TEXT("SafeType%.*s"), Name.Len(), Name.GetData());
-
-			TStringBuilder<512> Result;
-
-			// If we weren't going to be added to a root constant buffer, that means we need to declare our index before we declare our getter.
-			if (ParsedParameter.ConstantBufferParameterType == EShaderParameterType::Num)
-			{
-				// e.g. `uint BindlessResource_##Name;`
-				Result << TEXT("uint ") << IndexPrefix << Name << TEXT("; ");
-			}
-
-			// Add the typedef
-			Result << TEXT("typedef ") << Type << TEXT(" ") << RewriteType << TEXT("; ");
-
-			// Declare a heap for the RewriteType
-			// e.g. `SafeType##Name ResourceDescriptorHeap_SafeType##Name[];`
-			Result << StorageClass << RewriteType << TEXT(" ") << HeapPrefix << RewriteType << TEXT("[]; ");
-			// :todo-jn: specify the descripor set and binding directly in source instead of patching SPIRV
-
-			// e.g. `static const Type Name = GetBindlessResource##Name()`
-			Result << TEXT("static const ") << StorageClass << RewriteType << TEXT(" ") << Name << TEXT(" = ") << HeapPrefix << RewriteType << TEXT("[") << IndexPrefix << Name << TEXT("];");
-
-			return Result.ToString();
-		}
-		else
-		{
-			// use original code path
-			return FShaderParameterParser::GenerateBindlessParameterDeclaration(ParsedParameter);
-		}
-	}
-};
-
-
 void DoCompileVulkanShader(const FShaderCompilerInput& Input, FShaderCompilerOutput& Output, const class FString& WorkingDirectory, EVulkanShaderVersion Version)
 {
 	check(IsVulkanShaderFormat(Input.ShaderFormat));
@@ -2684,14 +2629,14 @@ void DoCompileVulkanShader(const FShaderCompilerInput& Input, FShaderCompilerOut
 		}
 	}
 
-	FVulkanShaderParameterParser ShaderParameterParser(Input.Environment.CompilerFlags, nullptr);
-	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedShaderSource))
+	FShaderParameterParser ShaderParameterParser(Input.Environment.CompilerFlags, nullptr);
+	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedShaderSource, EBindlessParameterMode::Vulkan))
 	{
 		// The FShaderParameterParser will add any relevant errors.
 		return;
 	}
 
-	const FString EntryPointName = Input.EntryPointName;
+const FString EntryPointName = Input.EntryPointName;
 
 	RemoveUniformBuffersFromSource(Input.Environment, PreprocessedShaderSource);
 

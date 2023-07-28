@@ -853,23 +853,11 @@ void FShaderParameterParser::RemoveMovingParametersFromSource(FString& Preproces
 FString FShaderParameterParser::GenerateBindlessParameterDeclaration(const FParsedShaderParameter& ParsedParameter) const
 {
 	// NOTE: Macros AUTO_BINDLESS_SAMPLER_INDEX/VARIABLE and AUTO_BINDLESS_RESOURCE_INDEX/VARIABLE in BindlessResources.ush must be kept in sync with this function
-
 	const bool bIsSampler = (ParsedParameter.BindlessConversionType == EBindlessConversionType::Sampler);
-
-	const TCHAR* Kind = bIsSampler ? TEXT("Sampler") : TEXT("Resource");
-	const TCHAR* StorageClass = ParsedParameter.bGloballyCoherent ? TEXT("globallycoherent ") : TEXT("");
-
 	const FStringView Name = ParsedParameter.ParsedName;
 	const FStringView Type = ParsedParameter.ParsedType;
-
-	FString RewriteType(Type);
-
-	FString TypedefText = TEXT("");
-	if (ParsedParameter.BindlessConversionType == EBindlessConversionType::Resource)
-	{
-		RewriteType = FString::Printf(TEXT("SafeType%.*s"), Name.Len(), Name.GetData());
-		TypedefText = FString::Printf(TEXT("typedef %.*s %s;"), Type.Len(), Type.GetData(), *RewriteType);
-	}
+	const TCHAR* StorageClass = ParsedParameter.bGloballyCoherent ? TEXT("globallycoherent ") : TEXT("");
+	const TCHAR* IndexPrefix = bIsSampler ? FShaderParameterParser::kBindlessSamplerPrefix : FShaderParameterParser::kBindlessResourcePrefix;
 
 	TStringBuilder<512> Result;
 
@@ -877,17 +865,43 @@ FString FShaderParameterParser::GenerateBindlessParameterDeclaration(const FPars
 	if (ParsedParameter.ConstantBufferParameterType == EShaderParameterType::Num)
 	{
 		// e.g. `uint BindlessResource_##Name;`
-		// or   `uint BindlessSampler_##Name;`
-		Result << TEXT("uint Bindless") << Kind << TEXT("_") << Name << TEXT(";");
+		Result << TEXT("uint ") << IndexPrefix << Name << TEXT("; ");
+	}
+
+	FString RewriteType(Type);
+
+	FString TypedefText = TEXT("");
+	// Vulkan requires these typedefs for both resources and samplers, while other platforms only require resources.
+	if (ParsedParameter.BindlessConversionType == EBindlessConversionType::Resource || BindlessParameterMode == EBindlessParameterMode::Vulkan)
+	{
+		RewriteType = FString::Printf(TEXT("SafeType%.*s"), Name.Len(), Name.GetData());
+		TypedefText = FString::Printf(TEXT("typedef %.*s %s;"), Type.Len(), Type.GetData(), *RewriteType);
 	}
 
 	Result << TypedefText;
 
-	// e.g. `Type GetBindlessResource##Name() { return GetResourceFromHeap(Type, BindlessResource_##Name); } static const Type Name = GetBindlessResource##Name()`
-	// or   `Type GetBindlessSampler##Name() { return GetSamplerFromHeap(Type, BindlessSampler_##Name); } static const Type Name = GetBindlessSampler##Name()`
-	Result << StorageClass << RewriteType << TEXT(" GetBindless") << Kind << Name << TEXT("()");
-	Result << TEXT("{ return Get") << Kind << TEXT("FromHeap(") << StorageClass << RewriteType << TEXT(", Bindless") << Kind << TEXT("_") << Name << TEXT("); } ");
-	Result << TEXT("static const ") << StorageClass << RewriteType << TEXT(" ") << Name << TEXT(" = GetBindless") << Kind << Name << TEXT("();");
+	if (BindlessParameterMode == EBindlessParameterMode::Vulkan)
+	{
+		const TCHAR* HeapPrefix = bIsSampler ? VulkanBindless::kBindlessSamplerArrayPrefix : VulkanBindless::kBindlessResourceArrayPrefix;
+
+		// Declare a heap for the RewriteType
+		// e.g. `SafeType##Name ResourceDescriptorHeap_SafeType##Name[];`
+		Result << StorageClass << RewriteType << TEXT(" ") << HeapPrefix << RewriteType << TEXT("[]; ");
+		// :todo-jn: specify the descriptor set and binding directly in source instead of patching SPIRV
+
+		// e.g. `static const SafeType##Name Name = ResourceDescriptorHeap_SafeType##Name[BindlessResource_##Name];`
+		Result << TEXT("static const ") << StorageClass << RewriteType << TEXT(" ") << Name << TEXT(" = ") << HeapPrefix << RewriteType << TEXT("[") << IndexPrefix << Name << TEXT("];");
+	}
+	else
+	{
+		const TCHAR* Kind = bIsSampler ? TEXT("Sampler") : TEXT("Resource");
+
+		// e.g. `Type GetBindlessResource##Name() { return GetResourceFromHeap(Type, BindlessResource_##Name); } static const Type Name = GetBindlessResource##Name()`
+		// or   `Type GetBindlessSampler##Name() { return GetSamplerFromHeap(Type, BindlessSampler_##Name); } static const Type Name = GetBindlessSampler##Name()`
+		Result << StorageClass << RewriteType << TEXT(" GetBindless") << Kind << Name << TEXT("()");
+		Result << TEXT("{ return Get") << Kind << TEXT("FromHeap(") << StorageClass << RewriteType << TEXT(", Bindless") << Kind << TEXT("_") << Name << TEXT("); } ");
+		Result << TEXT("static const ") << StorageClass << RewriteType << TEXT(" ") << Name << TEXT(" = GetBindless") << Kind << Name << TEXT("();");
+	}
 
 	return Result.ToString();
 }
@@ -1091,9 +1105,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 bool FShaderParameterParser::ParseAndModify(
 	const FShaderCompilerInput& CompilerInput,
 	TArray<FShaderCompilerError>& OutErrors,
-	FString& PreprocessedShaderSource)
+	FString& PreprocessedShaderSource,
+	EBindlessParameterMode InBindlessParameterMode)
 {
 	const bool bHasRootParameters = (CompilerInput.RootParametersStructure != nullptr);
+	BindlessParameterMode = InBindlessParameterMode;
 
 	// The shader doesn't have any parameter binding through shader structure, therefore don't do anything.
 	if (!(bBindlessResources || bBindlessSamplers || bHasRootParameters))

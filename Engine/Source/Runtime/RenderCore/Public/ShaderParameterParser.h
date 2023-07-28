@@ -20,6 +20,19 @@ enum class EBindlessConversionType : uint8
 	Sampler
 };
 
+enum class EBindlessParameterMode : uint8
+{
+	Default,
+	Vulkan,
+};
+
+namespace VulkanBindless
+{
+	// Prefix used to declare arrays of samplers/resources for bindless
+	static constexpr const TCHAR* kBindlessResourceArrayPrefix = TEXT("ResourceDescriptorHeap_");
+	static constexpr const TCHAR* kBindlessSamplerArrayPrefix = TEXT("SamplerDescriptorHeap_");
+}
+
 /** Validates and moves all the shader loose data parameter defined in the root scope of the shader into the root uniform buffer. */
 class FShaderParameterParser
 {
@@ -100,7 +113,8 @@ public:
 	RENDERCORE_API bool ParseAndModify(
 		const FShaderCompilerInput& CompilerInput,
 		TArray<FShaderCompilerError>& OutErrors,
-		FString& PreprocessedShaderSource
+		FString& PreprocessedShaderSource,
+		EBindlessParameterMode BindlessParameterMode = EBindlessParameterMode::Default
 	);
 
 	UE_DEPRECATED(5.2, "ParseAndModify doesn't need ConstantBufferType anymore")
@@ -190,7 +204,7 @@ protected:
 	* Generates shader source code to declare a bindless resource or sampler (for automatic bindless conversion).
 	* May be overriden to allow custom implementations for different platforms.
 	*/
-	RENDERCORE_API virtual FString GenerateBindlessParameterDeclaration(const FParsedShaderParameter& ParsedParameter) const;
+	RENDERCORE_API FString GenerateBindlessParameterDeclaration(const FParsedShaderParameter& ParsedParameter) const;
 
 	const TCHAR* ConstantBufferType = nullptr;
 
@@ -203,6 +217,7 @@ protected:
 
 	bool bBindlessResources = false;
 	bool bBindlessSamplers = false;
+	EBindlessParameterMode BindlessParameterMode = EBindlessParameterMode::Default;
 
 	/** Indicates that parameters should be moved to the root cosntant buffer. */
 	bool bNeedToMoveToRootConstantBuffer = false;

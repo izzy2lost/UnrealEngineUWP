@@ -135,10 +135,6 @@ namespace VulkanBindless
 		NumBindlessSets,
 		MaxNumSets = NumBindlessSets
 	};
-
-	// Prefix used to declare arrays of samplers/resources for bindless
-	static constexpr const TCHAR* kBindlessResourceArrayPrefix = TEXT("ResourceDescriptorHeap_");
-	static constexpr const TCHAR* kBindlessSamplerArrayPrefix = TEXT("SamplerDescriptorHeap_");
 };
 
 namespace EVulkanBindingType
