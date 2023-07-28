@@ -14,6 +14,7 @@
 #include "MetasoundGraphLinter.h"
 #include "MetasoundGraphOperator.h"
 #include "MetasoundOperatorInterface.h"
+#include "MetasoundProfilingOperator.h"
 #include "MetasoundRebindableGraphOperator.h"
 #include "MetasoundThreadLocalDebug.h"
 #include "MetasoundTrace.h"
@@ -66,7 +67,7 @@ namespace Metasound
 			}
 		}
 	}
-
+	
 	FOperatorBuilder::FOperatorBuilder(const FOperatorBuilderSettings& InBuilderSettings)
 	: BuilderSettings(InBuilderSettings)
 	{
@@ -438,6 +439,8 @@ namespace Metasound
 
 		using namespace DirectedGraphAlgo;
 
+		bool ProfileOperators = BuilderSettings.bProfileOperators || Profiling::ProfileAllGraphs();
+
 		FBuildStatus BuildStatus;
 
 		// Create FOperatorInfos from Nodes
@@ -455,7 +458,14 @@ namespace Metasound
 				METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FOperatorBuilder::CreateOperators::CreateAndBind);
 				FBuildOperatorParams CreateParams{*Node, InOutContext.Settings, OperatorInfo.VertexData.GetInputs(), InOutContext.Environment, this};
 				FOperatorFactorySharedRef Factory = Node->GetDefaultOperatorFactory();
-				OperatorInfo.Operator = Factory->CreateOperator(CreateParams, InOutContext.Results);
+				if (ProfileOperators && Profiling::OperatorShouldBeProfiled(Node->GetMetadata()))
+				{
+					OperatorInfo.Operator = MakeUnique<ProfilingOperator>(Factory->CreateOperator(CreateParams, InOutContext.Results), Node->GetMetadata());
+				}
+				else
+				{
+					OperatorInfo.Operator = Factory->CreateOperator(CreateParams, InOutContext.Results);
+				}
 
 				if (!OperatorInfo.Operator.IsValid())
 				{
