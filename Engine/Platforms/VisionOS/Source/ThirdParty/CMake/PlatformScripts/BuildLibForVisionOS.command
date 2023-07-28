@@ -9,7 +9,7 @@ LIB_NAME=${1:?Missing library name argument}
 LIB_VERSION=${2:?Missing library version argument}
 LIB_CONFIGS=(Debug Release)
 # the device architecture must be first. if we need universal device arch, see LIB_LIPO_ARCHS below
-LIB_ARCHS=(arm64 xrsimulator-arm64)
+LIB_ARCHS=(arm64 xrsimulator-arm64 xrsimulator-x86_64)
 LIB_DEPLOYMENT_TARGET=(1.0)
 LIB_MAKE_TARGET=("")
 LIB_OUTPUT_NAME=(${LIB_NAME})
