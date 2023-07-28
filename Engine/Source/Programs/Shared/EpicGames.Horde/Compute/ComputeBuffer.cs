@@ -232,7 +232,7 @@ namespace EpicGames.Horde.Compute
 					AdvanceWritePosition(buffer.Length);
 					break;
 				}
-				await WaitToWriteAsync(writeMemory.Length, cancellationToken);
+				await WaitToWriteAsync(buffer.Length, cancellationToken);
 			}
 		}
 
