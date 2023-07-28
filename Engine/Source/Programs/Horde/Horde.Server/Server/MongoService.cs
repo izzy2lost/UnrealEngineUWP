@@ -683,6 +683,24 @@ namespace Horde.Server.Server
 				return;
 			}
 
+			int attemptIdx = 1;
+			for(; ;)
+			{
+				try
+				{
+					await UpdateIndexesInternalAsync<T>(collectionName, collection, newIndexes, cancellationToken);
+					break;
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Error updating indexes ({Message}) - retrying (attempt {Attempt})", ex.Message, attemptIdx);
+					attemptIdx++;
+				}
+			}
+		}
+
+		private async Task UpdateIndexesInternalAsync<T>(string collectionName, IMongoCollection<T> collection, MongoIndex<T>[] newIndexes, CancellationToken cancellationToken)
+		{
 			// Find all the current indexes, excluding the default
 			Dictionary<string, MongoIndex> nameToExistingIndex = new Dictionary<string, MongoIndex>(StringComparer.Ordinal);
 			using (IAsyncCursor<BsonDocument> cursor = await collection.Indexes.ListAsync(cancellationToken))
