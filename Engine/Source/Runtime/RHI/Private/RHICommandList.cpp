@@ -136,8 +136,25 @@ static TStatId GCurrentExecuteStat;
 static FCriticalSection GRHIThreadOnTasksCritical;
 static std::atomic<int32> GRHIThreadStallRequestCount;
 
-FRHICommandListBase::FRHICommandListBase(FRHIGPUMask InGPUMask, ERecordingThread InRecordingThread)
-	: FRHICommandListBase(FPersistentState(InGPUMask, InRecordingThread))
+static std::atomic<int32> GRHIResourceLifetimeRefCount{0};
+
+void RHIResourceLifetimeAddRef(int32 NumRefs)
+{
+	GRHIResourceLifetimeRefCount.fetch_add(NumRefs, std::memory_order_relaxed);
+}
+
+void RHIResourceLifetimeReleaseRef(FRHICommandListImmediate& RHICmdList, int32 NumRefs)
+{
+	int32 RefCount = GRHIResourceLifetimeRefCount.fetch_sub(NumRefs, std::memory_order_release) - 1;
+	check(RefCount >= 0);
+	if (!RefCount)
+	{
+		RHICmdList.FlushExtendedLifetimeResourceDeletes();
+	}
+}
+
+FRHICommandListBase::FRHICommandListBase(FRHIGPUMask InGPUMask, ERecordingThread InRecordingThread, bool bImmediate)
+	: FRHICommandListBase(FPersistentState(InGPUMask, InRecordingThread, bImmediate))
 {}
 
 FRHICommandListBase::FRHICommandListBase(FPersistentState&& InPersistentState)
@@ -1016,7 +1033,7 @@ int32 FRHICommandListImmediate::FlushPendingDeletes()
 
 	TArray<FRHIResource*, FConcurrentLinearArrayAllocator> DeletedResources;
 
-	TArray<FRHIResource*, FConcurrentLinearArrayAllocator>& DeletedResourcesWithLifetimeExtension = PersistentState.ExtendResourceLifetimeRefCount > 0
+	TArray<FRHIResource*, FConcurrentLinearArrayAllocator>& DeletedResourcesWithLifetimeExtension = GRHIResourceLifetimeRefCount > 0
 		? PersistentState.ExtendedLifetimeResources 
 		: DeletedResources;
 
