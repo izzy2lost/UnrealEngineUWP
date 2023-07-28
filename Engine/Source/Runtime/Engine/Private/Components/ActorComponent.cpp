@@ -2038,6 +2038,11 @@ UAssetUserData* UActorComponent::GetAssetUserDataOfClass(TSubclassOf<UAssetUserD
 	return NULL;
 }
 
+const TArray<UAssetUserData*>* UActorComponent::GetAssetUserDataArray() const
+{
+	return &ToRawPtrTArrayUnsafe(AssetUserData);
+}
+
 void UActorComponent::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClass)
 {
 	for (int32 DataIdx = 0; DataIdx < AssetUserData.Num(); DataIdx++)

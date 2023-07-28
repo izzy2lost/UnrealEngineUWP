@@ -1043,6 +1043,7 @@ public:
 	ENGINE_API virtual void AddAssetUserData(UAssetUserData* InUserData) override;
 	ENGINE_API virtual void RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClass) override;
 	ENGINE_API virtual UAssetUserData* GetAssetUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClass) override;
+	ENGINE_API virtual const TArray<UAssetUserData*>* GetAssetUserDataArray() const override;
 	//~ End IInterface_AssetUserData Interface
 
 	//~ Begin IInterface_ActorSubobject Interface
