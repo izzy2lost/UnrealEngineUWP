@@ -221,6 +221,7 @@ class FCalculateShadingStatsCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FNaniteShadingBinMeta>, ShadingBinMeta)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FNaniteShadingBinStats>, ShadingBinStats)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, MaterialIndirectArgs)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ShadingBinArgs)
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FCalculateShadingStatsCS, "/Engine/Private/Nanite/NanitePrintStats.usf", "CalculateShadingStats", SF_Compute);
@@ -407,7 +408,7 @@ void ExtractShadingDebug(
 		{
 			PassParameters->ShadingBinMeta  = GraphBuilder.CreateSRV(ShadeBinning.ShadingBinMeta);
 			PassParameters->ShadingBinStats = GraphBuilder.CreateSRV(ShadeBinning.ShadingBinStats);
-			PassParameters->MaterialIndirectArgs = GraphBuilder.CreateSRV(ShadeBinning.ShadingBinArgs);
+			PassParameters->ShadingBinArgs = GraphBuilder.CreateSRV(ShadeBinning.ShadingBinArgs);
 		}
 		else
 		{
