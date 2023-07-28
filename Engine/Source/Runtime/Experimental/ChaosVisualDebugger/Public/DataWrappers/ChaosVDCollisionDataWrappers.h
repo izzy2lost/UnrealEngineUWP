@@ -156,6 +156,8 @@ struct CHAOSVDRUNTIME_API FChaosVDConstraint
 	inline static FStringView WrapperTypeName = TEXT("FChaosVDConstraint");
 
 	UPROPERTY(EditAnywhere, Category=Falgs)
+	uint8 bIsCurrent:1 = false;
+	UPROPERTY(EditAnywhere, Category=Falgs)
 	uint8 bDisabled:1 = false;
 	UPROPERTY(EditAnywhere, Category=Falgs)
 	uint8 bUseManifold:1 = false;
@@ -169,8 +171,6 @@ struct CHAOSVDRUNTIME_API FChaosVDConstraint
 	uint8 bIsQuadratic0:1 = false;
 	UPROPERTY(EditAnywhere, Category=Falgs)
 	uint8 bIsQuadratic1:1 = false;
-	UPROPERTY(EditAnywhere, Category=Falgs)
-	uint8 bIsProbeUnmodified:1 = false;
 	UPROPERTY(EditAnywhere, Category=Falgs)
 	uint8 bIsProbe:1 = false;
 	UPROPERTY(EditAnywhere, Category=Falgs)

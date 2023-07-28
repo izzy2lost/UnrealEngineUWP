@@ -70,6 +70,7 @@ FChaosVDConstraint FChaosVDDataWrapperUtils::BuildConstraintDataWrapperFromConst
 {
 	FChaosVDConstraint WrappedConstraintData;
 	
+	WrappedConstraintData.bIsCurrent = InConstraint.Flags.bIsCurrent;
 	WrappedConstraintData.bDisabled = InConstraint.Flags.bDisabled;
 	WrappedConstraintData.bUseManifold = InConstraint.Flags.bUseManifold;
 	WrappedConstraintData.bUseIncrementalManifold = InConstraint.Flags.bUseIncrementalManifold;
@@ -77,7 +78,6 @@ FChaosVDConstraint FChaosVDDataWrapperUtils::BuildConstraintDataWrapperFromConst
 	WrappedConstraintData.bWasManifoldRestored = InConstraint.Flags.bWasManifoldRestored;
 	WrappedConstraintData.bIsQuadratic0 = InConstraint.Flags.bIsQuadratic0;
 	WrappedConstraintData.bIsQuadratic1 = InConstraint.Flags.bIsQuadratic1;
-	WrappedConstraintData.bIsProbeUnmodified = InConstraint.Flags.bIsProbeUnmodified;
 	WrappedConstraintData.bIsProbe = InConstraint.Flags.bIsProbe;
 	WrappedConstraintData.bCCDEnabled = InConstraint.Flags.bCCDEnabled;
 	WrappedConstraintData.bCCDSweepEnabled = InConstraint.Flags.bCCDSweepEnabled;
@@ -156,7 +156,7 @@ FChaosVDParticlePairMidPhase FChaosVDDataWrapperUtils::BuildMidPhaseDataWrapperF
 		FChaosVDConstraint WrappedConstraintData = FChaosVDDataWrapperUtils::BuildConstraintDataWrapperFromConstraint(Constraint);
 		WrappedMidPhaseData.Constraints.Add(MoveTemp(WrappedConstraintData));
 		return Chaos::ECollisionVisitorResult::Continue;
-	}, false);
+	}, Chaos::ECollisionVisitorFlags::VisitAllCurrent);
 
 	return MoveTemp(WrappedMidPhaseData);
 }

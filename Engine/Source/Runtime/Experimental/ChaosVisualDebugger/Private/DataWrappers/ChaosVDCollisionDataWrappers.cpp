@@ -37,6 +37,7 @@ bool FChaosVDManifoldPoint::Serialize(FArchive& Ar)
 
 bool FChaosVDConstraint::Serialize(FArchive& Ar)
 {
+	FArchive_Serialize_BitfieldBool(Ar, bIsCurrent);
 	FArchive_Serialize_BitfieldBool(Ar, bDisabled);
 	FArchive_Serialize_BitfieldBool(Ar, bUseManifold);
 	FArchive_Serialize_BitfieldBool(Ar, bUseIncrementalManifold);
@@ -44,7 +45,6 @@ bool FChaosVDConstraint::Serialize(FArchive& Ar)
 	FArchive_Serialize_BitfieldBool(Ar, bWasManifoldRestored);
 	FArchive_Serialize_BitfieldBool(Ar, bIsQuadratic0);
 	FArchive_Serialize_BitfieldBool(Ar, bIsQuadratic1);
-	FArchive_Serialize_BitfieldBool(Ar, bIsProbeUnmodified);
 	FArchive_Serialize_BitfieldBool(Ar, bIsProbe);
 	FArchive_Serialize_BitfieldBool(Ar, bCCDEnabled);
 	FArchive_Serialize_BitfieldBool(Ar, bCCDSweepEnabled);

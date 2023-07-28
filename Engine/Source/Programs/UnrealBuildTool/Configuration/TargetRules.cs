@@ -826,7 +826,7 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Name = "bCompileChaosVisualDebuggerSupport")]
 		[CommandLine("-CompileChaosVisualDebuggerSupport")]
 		[RequiresUniqueBuildEnvironment]
-		public bool bCompileChaosVisualDebuggerSupport = false;
+		public bool bCompileChaosVisualDebuggerSupport = true;
 
 		/// <summary>
 		/// Whether scene query acceleration is done by UE. The physx scene query structure is still created, but we do not use it.
