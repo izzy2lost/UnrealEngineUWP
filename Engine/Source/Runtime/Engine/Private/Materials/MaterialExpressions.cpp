@@ -1272,12 +1272,43 @@ void UMaterialExpression::PinDefaultValueChanged(int32 PinIndex, const FString& 
 		PostEditChangeProperty(Event);
 	}
 
-	// Update the expression preview and the material to reflect the change
-	GetDefault<UMaterialGraphSchema>()->ForceVisualizationCacheClear();
+	RefreshNode();
+}
+
+void UMaterialExpression::ForcePropertyValueChanged(FProperty* Property, bool bUpdatePreview)
+{
+	Modify();
+
+	FPropertyChangedEvent Event(Property);
+	PostEditChangeProperty(Event);
+
+	RefreshNode(bUpdatePreview);
+}
+
+void UMaterialExpression::RefreshNode(bool bUpdatePreview)
+{
 	const UMaterialGraphSchema* Schema = CastChecked<const UMaterialGraphSchema>(GraphNode->GetSchema());
-	Schema->UpdateMaterialOnDefaultValueChanged(GraphNode->GetGraph());
-	// There might be other properties affected by this property change (e.g. propertyA determines if propertyB is read-only) so refresh the detail view
-	Schema->UpdateDetailView(GraphNode->GetGraph());
+
+	if (bUpdatePreview)
+	{
+		// Make sure that all other nodes also require a preview update.
+		UMaterialGraphNode* Node = Cast<UMaterialGraphNode>(GraphNode);
+		if (Node)
+		{
+			Node->PropagatePropertyChange();
+		}
+
+		// Update the expression preview and the material to reflect the change
+		GetDefault<UMaterialGraphSchema>()->ForceVisualizationCacheClear();
+
+		Schema->UpdateMaterialOnDefaultValueChanged(GraphNode->GetGraph());
+		// There might be other properties affected by this property change (e.g. propertyA determines if propertyB is read-only) so refresh the detail view
+		Schema->UpdateDetailView(GraphNode->GetGraph());
+	}
+	else
+	{
+		Schema->MarkMaterialDirty(GraphNode->GetGraph());
+	}
 }
 
 FString UMaterialExpression::GetInputPinDefaultValue(int32 PinIndex)
@@ -13483,7 +13514,9 @@ UMaterialExpressionCustom::UMaterialExpressionCustom(const FObjectInitializer& O
 #endif // WITH_EDITORONLY_DATA
 
 	Description = TEXT("Custom");
-	Code = TEXT("1");
+	Code = TEXT("// The below expression will get compiled\n// into the output of this node\nfloat3(1, 1, 1)");
+
+	ShowCode = false;
 
 #if WITH_EDITORONLY_DATA
 	MenuCategories.Add(ConstructorStatics.NAME_Custom);

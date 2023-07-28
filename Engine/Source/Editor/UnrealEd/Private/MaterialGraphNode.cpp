@@ -52,6 +52,7 @@
 #include "GraphEditorSettings.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "ScopedTransaction.h"
+#include "MaterialNodes/SGraphNodeMaterialBase.h"
 
 #define LOCTEXT_NAMESPACE "MaterialGraphNode"
 
@@ -660,6 +661,11 @@ void UMaterialGraphNode::PinDefaultValueChanged(UEdGraphPin* Pin)
 	MaterialExpression->PinDefaultValueChanged(Pin->SourceIndex, Pin->DefaultValue);
 }
 
+TSharedPtr<SGraphNode> UMaterialGraphNode::CreateVisualWidget()
+{
+	return SNew(SGraphNodeMaterialBase, this);
+}
+
 void UMaterialGraphNode::CreateInputPins()
 {
 	if (MaterialExpression->HasExecInput())
@@ -816,6 +822,37 @@ void UMaterialGraphNode::CreateOutputPins()
 			// Makes sure pin has a name for lookup purposes but user will never see it
 			NewPin->PinName = CreateUniquePinName(TEXT("Output"));
 			NewPin->PinFriendlyName = SpaceText;
+		}
+	}
+}
+
+void UMaterialGraphNode::PropagatePropertyChange()
+{
+	MaterialExpression->bNeedToUpdatePreview = 1;
+
+	// Loop through all the output pins.
+	for (UEdGraphPin* Pin : Pins)
+	{
+		if (Pin->PinType.PinCategory == UMaterialGraphSchema::PC_Exec ||
+			Pin->Direction != EGPD_Output)
+		{
+			continue;
+		}
+
+		// We only care about pins which are outputs. We call PropagatePropertyChange
+		// on the nodes that are linked to this particular output pin.
+		for (UEdGraphPin* LinkedPins : Pin->LinkedTo)
+		{
+			// Retrieve the linked node. Check that it is of type UMaterialGraphNode.
+			UEdGraphNode* Node = LinkedPins->GetOwningNode();
+			UMaterialGraphNode* CastedNode = Cast<UMaterialGraphNode>(Node);
+			
+			if (!CastedNode)
+			{
+				continue;
+			}
+
+			CastedNode->PropagatePropertyChange();
 		}
 	}
 }

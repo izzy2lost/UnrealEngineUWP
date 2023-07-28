@@ -12,6 +12,8 @@
 #include "Materials/MaterialAttributeDefinitionMap.h"
 #include "GraphEditorSettings.h"
 
+#include "MaterialNodes/SGraphNodeMaterialResult.h"
+
 #define LOCTEXT_NAMESPACE "MaterialGraphNode_Root"
 
 /////////////////////////////////////////////////////
@@ -44,6 +46,11 @@ void UMaterialGraphNode_Root::PostPlacedNewNode()
 		NodePosX = Material->EditorX;
 		NodePosY = Material->EditorY;
 	}
+}
+
+TSharedPtr<SGraphNode> UMaterialGraphNode_Root::CreateVisualWidget()
+{
+	return SNew(SGraphNodeMaterialResult, this);
 }
 
 UObject* UMaterialGraphNode_Root::GetMaterialNodeOwner() const

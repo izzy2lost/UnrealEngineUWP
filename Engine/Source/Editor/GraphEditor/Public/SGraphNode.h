@@ -364,19 +364,19 @@ protected:
 	///// ADVANCED VIEW FUNCTIONS /////
 
 	/** Create button to show/hide advanced pins */
-	void CreateAdvancedViewArrow(TSharedPtr<SVerticalBox> MainBox);
+	virtual void CreateAdvancedViewArrow(TSharedPtr<SVerticalBox> MainBox);
 
 	/** Returns visibility of AdvancedViewButton */
-	EVisibility AdvancedViewArrowVisibility() const;
+	virtual EVisibility AdvancedViewArrowVisibility() const;
 
 	/** Show/hide advanced view */
 	virtual void OnAdvancedViewChanged( const ECheckBoxState NewCheckedState );
 
 	/** hidden == unchecked, shown == checked */
-	ECheckBoxState IsAdvancedViewChecked() const;
+	virtual ECheckBoxState IsAdvancedViewChecked() const;
 
 	/** Up when shown, down when hidden */
-	const FSlateBrush* GetAdvancedViewArrow() const;
+	virtual const FSlateBrush* GetAdvancedViewArrow() const;
 
 	/** Checks if the node is the only node selected */
 	bool IsSelectedExclusively() const;

@@ -10,7 +10,7 @@
 class FGraphNodeMetaData;
 class UMaterialGraphNode_Root;
 
-class SGraphNodeMaterialResult : public SGraphNode
+class GRAPHEDITOR_API SGraphNodeMaterialResult : public SGraphNode
 {
 public:
 	SLATE_BEGIN_ARGS(SGraphNodeMaterialResult){}

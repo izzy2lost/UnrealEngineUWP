@@ -133,6 +133,9 @@ public:
 	 */
 	static void UpdateMaterialAfterGraphChange(const class UEdGraph* Graph);
 
+	/** Mark the material as dirty. */
+	static void MarkMaterialDirty(const class UEdGraph* Graph);
+
 	static void UpdateDetailView(const class UEdGraph* Graph);
 
 	/** Can we paste to this graph? */

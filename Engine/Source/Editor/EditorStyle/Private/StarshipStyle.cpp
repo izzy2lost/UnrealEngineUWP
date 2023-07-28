@@ -250,6 +250,7 @@ void FStarshipEditorStyle::FStyle::Initialize()
 	SetupMyBlueprintStyles();
 	SetupStatusBarStyle();
 	SetupColorPickerStyle();
+	SetupSourceCodeStyles();
 
 //	LogUnusedBrushResources();
 
@@ -7625,6 +7626,27 @@ void FStarshipEditorStyle::FStyle::SetupStatusBarStyle()
 void FStarshipEditorStyle::FStyle::SetupColorPickerStyle()
 {
 	Set("ColorPicker.ColorThemes", new IMAGE_BRUSH_SVG("Starship/ColorPicker/ColorThemes", Icon16x16));
+}
+
+void FStarshipEditorStyle::FStyle::SetupSourceCodeStyles()
+{
+	constexpr int32 SourceCodeFontSize = 9;
+	FSlateFontInfo SourceCodeFont = DEFAULT_FONT("Mono", SourceCodeFontSize);
+	FTextBlockStyle NormalSourceCodeText = FTextBlockStyle(NormalText)
+		.SetFont(SourceCodeFont);
+	const FTextBlockStyle SourceCodeErrorText = FTextBlockStyle(NormalSourceCodeText)
+		.SetUnderlineBrush(IMAGE_BRUSH("Icons/White", Icon8x8, FLinearColor::Red, ESlateBrushTileType::Both))
+		.SetColorAndOpacity(FLinearColor::Red);
+	
+	Set("SyntaxHighlight.SourceCode.Normal", FTextBlockStyle(NormalSourceCodeText).SetColorAndOpacity(FLinearColor(FColor(189, 183, 107))));
+	Set("SyntaxHighlight.SourceCode.Operator", FTextBlockStyle(NormalSourceCodeText).SetColorAndOpacity(FLinearColor(FColor(220, 220, 220))));
+	Set("SyntaxHighlight.SourceCode.Keyword", FTextBlockStyle(NormalSourceCodeText).SetColorAndOpacity(FLinearColor(FColor(86, 156, 214))));
+	Set("SyntaxHighlight.SourceCode.String", FTextBlockStyle(NormalSourceCodeText).SetColorAndOpacity(FLinearColor(FColor(214, 157, 133))));
+	Set("SyntaxHighlight.SourceCode.Number", FTextBlockStyle(NormalSourceCodeText).SetColorAndOpacity(FLinearColor(FColor(181, 206, 168))));
+	Set("SyntaxHighlight.SourceCode.Comment", FTextBlockStyle(NormalSourceCodeText).SetColorAndOpacity(FLinearColor(FColor(87, 166, 74))));
+	Set("SyntaxHighlight.SourceCode.PreProcessorKeyword", FTextBlockStyle(NormalSourceCodeText).SetColorAndOpacity(FLinearColor(FColor(188, 98, 171))));
+
+	Set("SyntaxHighlight.SourceCode.Error", SourceCodeErrorText); 
 }
 
 #undef DEFAULT_FONT

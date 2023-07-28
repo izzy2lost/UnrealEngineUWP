@@ -90,6 +90,9 @@ public:
 	 */
 	virtual void UpdateMaterialAfterGraphChange() {};
 
+	/** Marks the material as dirty. */
+	virtual void MarkMaterialDirty() {};
+
 	virtual void UpdateDetailView() {}
 
 	/**

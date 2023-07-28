@@ -88,7 +88,7 @@ private:
 	bool bIsRealtime;
 };
 
-class SGraphNodeMaterialBase : public SGraphNode
+class GRAPHEDITOR_API SGraphNodeMaterialBase : public SGraphNode
 {
 public:
 	SLATE_BEGIN_ARGS(SGraphNodeMaterialBase){}

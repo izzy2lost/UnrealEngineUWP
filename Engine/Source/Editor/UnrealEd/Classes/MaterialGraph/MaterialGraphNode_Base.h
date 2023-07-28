@@ -70,4 +70,7 @@ protected:
 
 	/** Return the first input pin matching the name */
 	class UEdGraphPin* GetInputPin(const FName& PinName) const;
+
+	/** Used when changing one property may affect the preview of subsequent properties */
+	virtual void PropagatePropertyChange() {}
 };

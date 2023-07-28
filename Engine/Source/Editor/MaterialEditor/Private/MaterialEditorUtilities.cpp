@@ -132,6 +132,15 @@ void FMaterialEditorUtilities::UpdateMaterialAfterGraphChange(const class UEdGra
 	}
 }
 
+void FMaterialEditorUtilities::MarkMaterialDirty(const class UEdGraph* Graph)
+{
+	TSharedPtr<class IMaterialEditor> MaterialEditor = GetIMaterialEditorForObject(Graph);
+	if (MaterialEditor.IsValid())
+	{
+		MaterialEditor->MarkMaterialDirty();
+	}
+}
+
 void FMaterialEditorUtilities::UpdateDetailView(const class UEdGraph* Graph)
 {
 	TSharedPtr<class IMaterialEditor> MaterialEditor = GetIMaterialEditorForObject(Graph);

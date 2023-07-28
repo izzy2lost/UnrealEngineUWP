@@ -40,6 +40,7 @@ public class UnrealEd : ModuleRules
 				"Blutility",
 				"SlateReflector",
 				"PackagesDialog",
+				"GraphEditor"
 			}
 		);
 

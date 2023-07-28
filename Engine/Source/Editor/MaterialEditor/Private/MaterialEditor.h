@@ -405,6 +405,7 @@ public:
 	virtual void DeleteSelectedNodes() override;
 	virtual FText GetOriginalObjectName() const override;
 	virtual void UpdateMaterialAfterGraphChange() override;
+	virtual void MarkMaterialDirty() override;
 	virtual void JumpToHyperlink(const UObject* ObjectReference) override; 
 	virtual bool CanPasteNodes() const override;
 	virtual void PasteNodesHere(const FVector2D& Location, const class UEdGraph* Graph = nullptr) override;

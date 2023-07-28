@@ -904,6 +904,11 @@ void UMaterialGraphSchema::UpdateMaterialOnDefaultValueChanged(const UEdGraph* G
 	FMaterialEditorUtilities::UpdateMaterialAfterGraphChange(Graph);
 }
 
+void UMaterialGraphSchema::MarkMaterialDirty(const UEdGraph* Graph) const
+{
+	FMaterialEditorUtilities::MarkMaterialDirty(Graph);
+}
+
 void UMaterialGraphSchema::UpdateDetailView(const UEdGraph* Graph) const
 {
 	FMaterialEditorUtilities::UpdateDetailView(Graph);

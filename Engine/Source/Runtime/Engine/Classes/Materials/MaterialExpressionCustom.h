@@ -85,6 +85,9 @@ class UMaterialExpressionCustom : public UMaterialExpression
 	UPROPERTY(EditAnywhere, Category=MaterialExpressionCustom)
 	TArray<FString> IncludeFilePaths;
 
+	UPROPERTY(VisibleAnywhere, Category=MaterialExpressionCustom)
+	bool ShowCode;
+
 	//~ Begin UObject Interface.
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

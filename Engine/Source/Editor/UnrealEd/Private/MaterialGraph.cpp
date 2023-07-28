@@ -5,6 +5,7 @@
 
 #include "MaterialGraph/MaterialGraph.h"
 #include "MaterialGraph/MaterialGraphNode_Comment.h"
+#include "MaterialGraph/MaterialGraphNode_Custom.h"
 #include "MaterialGraph/MaterialGraphNode_Composite.h"
 #include "MaterialGraph/MaterialGraphNode_PinBase.h"
 #include "MaterialGraph/MaterialGraphNode.h"
@@ -14,6 +15,7 @@
 #include "Materials/MaterialAttributeDefinitionMap.h"
 #include "Materials/MaterialExpressionComment.h"
 #include "Materials/MaterialExpressionComposite.h"
+#include "Materials/MaterialExpressionCustom.h"
 #include "Materials/MaterialExpressionPinBase.h"
 #include "Materials/MaterialExpressionFunctionOutput.h"
 #include "Materials/MaterialExpressionCustomOutput.h"
@@ -367,6 +369,17 @@ UMaterialGraphNode* UMaterialGraph::AddExpression(UMaterialExpression* Expressio
 		else if (Expression->IsA(UMaterialExpressionPinBase::StaticClass()))
 		{
 			Node = InitExpressionNewNode<UMaterialGraphNode_PinBase>(this, Expression, false);
+		}
+		else if (Expression->IsA(UMaterialExpressionCustom::StaticClass()))
+		{
+			// This is for backward compatibility. We don't want people's custom HLSL nodes to suddenly explode
+			// when they open their materials for the first time with inline HLSL custom nodes working in the engine.
+			// This ensures that only new nodes or nodes that are subsequently saved as uncollapsed show the code.
+			UMaterialExpressionCustom* CustomNode = Cast<UMaterialExpressionCustom>(Expression);
+			if (bUserInvoked)
+				CustomNode->ShowCode = 1;
+
+			Node = InitExpressionNewNode<UMaterialGraphNode_Custom>(this, Expression, bUserInvoked);
 		}
 		else 
 		{

@@ -366,6 +366,8 @@ class UMaterialExpression : public UObject
 	ENGINE_API virtual FName GetInputPinSubCategory(int32 PinIndex);
 	ENGINE_API virtual UObject* GetInputPinSubCategoryObject(int32 PinIndex);
 	ENGINE_API virtual void PinDefaultValueChanged(int32 PinIndex, const FString& DefaultValue);
+	ENGINE_API virtual void ForcePropertyValueChanged(FProperty* Property, bool bUpdatePreview = true);
+	ENGINE_API virtual void RefreshNode(bool bUpdatePreview = true);
 	ENGINE_API virtual FString GetInputPinDefaultValue(int32 PinIndex);
 	ENGINE_API virtual TArray<FProperty*> GetPropertyInputs() const;
 

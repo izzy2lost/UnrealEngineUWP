@@ -599,6 +599,8 @@ TSharedRef<SWidget> SGraphNodeMaterialBase::CreatePreviewWidget()
 		return SNew(SBox)
 			.WidthOverride(ExpressionPreviewSize)
 			.HeightOverride(ExpressionPreviewSize)
+			.MaxAspectRatio(1.0f)
+			.MaxDesiredHeight(ExpressionPreviewSize)
 			.Visibility(ExpressionPreviewVisibility())
 			[
 				SNew(SBorder)

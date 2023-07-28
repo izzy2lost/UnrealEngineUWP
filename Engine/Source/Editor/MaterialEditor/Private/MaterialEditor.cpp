@@ -6178,6 +6178,11 @@ void FMaterialEditor::UpdateMaterialAfterGraphChange()
 	UpdateStrataTopologyPreview();
 }
 
+void FMaterialEditor::MarkMaterialDirty()
+{
+	SetMaterialDirty();
+}
+
 void FMaterialEditor::JumpToHyperlink(const UObject* ObjectReference)
 {
 	if (const UEdGraphNode* Node = Cast<const UEdGraphNode>(ObjectReference))
