@@ -1176,10 +1176,10 @@ void FControlRigParameterTrackEditor::AddAdditiveControlRig(FGuid ObjectBinding,
 
 bool FControlRigParameterTrackEditor::CanAddAdditiveConrolRig()
 {
-	if (FControlRigEditMode* ControlRigEditMode = GetEditMode())
-	{
-		return ControlRigEditMode->GetControlRigsArray(false).IsEmpty();
-	}
+	// if (FControlRigEditMode* ControlRigEditMode = GetEditMode())
+	// {
+	// 	return ControlRigEditMode->GetControlRigsArray(false).IsEmpty();
+	// }
 	return true;
 }
 
