@@ -92,7 +92,8 @@ struct FReplicatedPhysicsTargetAsync
 {
 	FReplicatedPhysicsTargetAsync(Chaos::FConstPhysicsObjectHandle POHandle)
 		: AccumulatedErrorSeconds(0.0f)
-		, ServerFrame(0)
+		, ServerFrame(INDEX_NONE)
+		, ReceiveFrame(INDEX_NONE)
 		, PhysicsObject(POHandle)
 	{ }
 
@@ -111,6 +112,9 @@ struct FReplicatedPhysicsTargetAsync
 	/** The frame offset between local client and server */
 	int32 FrameOffset;
 
+	/** The local client frame when receiving this target from the server */
+	int32 ReceiveFrame;
+
 	/** Index of physics object on component */
 	Chaos::FConstPhysicsObjectHandle PhysicsObject;
 
@@ -123,6 +127,7 @@ struct FReplicatedPhysicsTargetAsync
 	FVector PrevPos;
 	FVector PrevLinVel;
 	int32 PrevServerFrame;
+	int32 PrevReceiveFrame;
 
 	/** If this target is waiting for up-to-date data? */
 	bool bWaiting;
@@ -149,7 +154,7 @@ private:
 	TMap<Chaos::FConstPhysicsObjectHandle, FReplicatedPhysicsTargetAsync> ObjectToTarget;
 
 private:
-	void UpdateAsyncTarget(const FPhysicsRepAsyncInputData& Input);
+	void UpdateAsyncTarget(const FPhysicsRepAsyncInputData& Input, Chaos::FPBDRigidsSolver* RigidsSolver);
 	void UpdateRewindDataTarget(const FPhysicsRepAsyncInputData& Input);
 
 public:

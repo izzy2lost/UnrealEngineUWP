@@ -205,6 +205,12 @@ void AActor::OnRep_ReplicatedMovement()
 			SyncReplicatedPhysicsSimulation();
 		}
 
+		// NOTE: This is only needed because ClusterUnion has a flag bHasReceivedTransform
+		// which does not get updated until the component's transform is directly set.
+		// Until that flag is set, its root particle will be in a disabled state and not
+		// have any children, therefore replication will be dead in the water.
+		RootComponent->OnReceiveReplicatedState(LocalRepMovement.Location, LocalRepMovement.Rotation.Quaternion(), LocalRepMovement.LinearVelocity, LocalRepMovement.AngularVelocity);
+
 		if (LocalRepMovement.bRepPhysics)
 		{
 			// Sync physics state

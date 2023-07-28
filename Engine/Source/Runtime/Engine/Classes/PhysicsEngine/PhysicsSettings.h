@@ -258,7 +258,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Physics")
 	int32 GetPhysicsHistoryCount() const
 	{
-		return (int32) ((float) (FMath::CeilToInt(1.f / AsyncFixedTimeStepSize)) * (PhysicsPrediction.MaxSupportedLatencyPrediction / 1000.f));
+		return FMath::CeilToInt(0.001f * PhysicsPrediction.MaxSupportedLatencyPrediction / AsyncFixedTimeStepSize);
 	}
 
 	ENGINE_API virtual void PostInitProperties() override;

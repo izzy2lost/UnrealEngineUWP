@@ -1355,6 +1355,13 @@ private:
 public:
 
 	/**
+	* Called when client receive replication data, before replication is performed.
+	* Can be overridden in derived components to make use of replication data locally.
+	* Note that replication still applies when overriding this, it's not intended to replace replication.
+	*/
+	ENGINE_API virtual void OnReceiveReplicatedState(const FVector X, const FQuat R, const FVector V, const FVector W) {};
+
+	/**
 	 * Gets the property name for RelativeLocation.
 	 *
 	 * This exists so subclasses don't need to have direct access to the RelativeLocation property so it

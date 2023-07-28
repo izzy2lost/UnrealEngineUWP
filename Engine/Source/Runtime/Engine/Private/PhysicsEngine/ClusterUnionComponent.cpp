@@ -534,6 +534,22 @@ void UClusterUnionComponent::OnDestroyPhysicsState()
 	AccelerationStructure.Reset();
 }
 
+void UClusterUnionComponent::OnReceiveReplicatedState(const FVector X, const FQuat R, const FVector V, const FVector W)
+{
+	if (!bHasReceivedTransform)
+	{
+		// First time, we just directly set component state
+		//
+		// NOTE: This is only needed because ClusterUnion has a flag bHasReceivedTransform
+		// which does not get updated until the component's transform is directly set.
+		// Until that flag is set, it's root particle will be in a disabled state and not
+		// have any children, therefore replication will be dead in the water.
+		SetWorldTransform(FTransform(R, X, GetRelativeScale3D()), false, nullptr, ETeleportType::TeleportPhysics);
+		SetPhysicsLinearVelocity(V);
+		SetAllPhysicsAngularVelocityInDegrees(W);
+	}
+}
+
 void UClusterUnionComponent::OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport)
 {
 	USceneComponent::OnUpdateTransform(UpdateTransformFlags, Teleport);
