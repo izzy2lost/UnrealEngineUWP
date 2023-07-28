@@ -822,10 +822,7 @@ void BuildShadingCommands(
 			ShadingMaterialRenderProxyPtr = ShadingMaterialRenderProxyPtr->GetFallback(FeatureLevel);
 		}
 
-		if (!ShadingMaterialRenderProxyPtr)
-		{
-			continue;
-		}
+		check(ShadingMaterialRenderProxyPtr);
 
 		const FMaterial& ShadingMaterial = ShadingEntry.ShadingPipeline.ShadingMaterial->GetIncompleteMaterialWithFallback(FeatureLevel);
 		check(Nanite::IsSupportedMaterialDomain(ShadingMaterial.GetMaterialDomain()));
@@ -1509,11 +1506,16 @@ void DispatchBasePass(
 							Dispatch.RecordIndex = ShadingCommand->ShadingBin;
 							RecordShadingParameters(CommandData, Dispatch.Parameters, *ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
 							Dispatch.Shader = ShadingCommand->ComputeShader.GetComputeShader();
+							check(Dispatch.Shader);
 						});
 
 						// Resolve pipeline states
 						for (FRHIShaderBundleDispatch& Dispatch : Command.Dispatches)
 						{
+							if (!Dispatch.IsValid())
+							{
+								continue;
+							}
 							// This cache lookup cannot be parallelized due to the possibility of a fence insertion into the command list during a miss.
 							Dispatch.PipelineState = PipelineStateCache::GetAndOrCreateComputePipelineState(RHICmdList, Dispatch.Shader, false);
 							if (RHICmdList.Bypass())
@@ -1530,9 +1532,13 @@ void DispatchBasePass(
 							FRHIShaderBundleDispatch& Dispatch = Command.Dispatches[ShadingCommand->ShadingBin];
 							Dispatch.RecordIndex = ShadingCommand->ShadingBin;
 							RecordShadingParameters(PassData, Dispatch.Parameters, *ShadingCommand, ViewRect, OutputTargets, OutputTargetsArray);
+
+							check(ShadingCommand->ComputeShader.IsValid());
 							Dispatch.Shader = ShadingCommand->ComputeShader.GetComputeShader();
+							check(Dispatch.Shader);
 
 							Dispatch.PipelineState = PipelineStateCache::GetAndOrCreateComputePipelineState(RHICmdList, Dispatch.Shader, false);
+							check(Dispatch.PipelineState);
 							if (RHICmdList.Bypass())
 							{
 								Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
