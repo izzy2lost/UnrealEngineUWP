@@ -2384,7 +2384,10 @@ bool URigVMController::UnresolveTemplateNodes(const TArray<URigVMNode*>& InNodes
 	{
 		if (const URigVMTemplateNode* TemplateNode = Cast<URigVMTemplateNode>(Node))
 		{
-			return !TemplateNode->IsFullyUnresolved();
+			if (!TemplateNode->IsSingleton())
+			{
+				return !TemplateNode->IsFullyUnresolved();
+			}
 		}
 		return false;
 	});
