@@ -1268,7 +1268,7 @@ namespace Chaos
 								ParticlesToRemove.Add(ChildParticle);
 							}
 						}
-						else
+						else if (bHasMainParticle)
 						{
 							break;
 						}
