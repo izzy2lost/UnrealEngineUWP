@@ -371,7 +371,7 @@ void UGeometryCollection::CacheMaterialDensity()
 	}
 	if (PhysicsMaterialForDensity)
 	{
-		CachedDensityFromPhysicsMaterialInGCm3 = PhysicsMaterial->Density;
+		CachedDensityFromPhysicsMaterialInGCm3 = PhysicsMaterialForDensity->Density;
 	}
 }
 
@@ -403,7 +403,7 @@ float UGeometryCollection::GetMassOrDensityInternal(bool& bOutIsDensity, bool bC
 			{
 				// materials only provide density
 				bOutIsDensity = true;
-				MassOrDensity = Chaos::GCm3ToKgCm3(PhysicsMaterial->Density);
+				MassOrDensity = Chaos::GCm3ToKgCm3(PhysicsMaterialForDensity->Density);
 			}
 		}
 	}
