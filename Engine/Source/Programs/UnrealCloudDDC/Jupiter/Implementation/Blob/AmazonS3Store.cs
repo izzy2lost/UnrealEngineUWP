@@ -15,6 +15,7 @@ using KeyNotFoundException = System.Collections.Generic.KeyNotFoundException;
 using System.Threading;
 using System.Runtime.CompilerServices;
 using System.Collections.Concurrent;
+using Amazon.S3.Transfer;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Trace;
@@ -251,6 +252,13 @@ namespace Jupiter.Implementation
 					}
 				}
 			}
+
+			if (_settings.CurrentValue.UseMultiPartUpload)
+			{
+				await WriteMultipart(path, stream, cancellationToken);
+			}
+			else
+			{
 			PutObjectRequest request = new PutObjectRequest
 			{
 				BucketName = _bucketName,
@@ -261,6 +269,31 @@ namespace Jupiter.Implementation
 			try
 			{
 				await _amazonS3.PutObjectAsync(request, cancellationToken);
+			}
+			catch (AmazonS3Exception e)
+			{
+				// if the same object is added twice S3 will raise a error, as we are content addressed we can just accept whichever of the objects so we can ignore that error
+				if (e.StatusCode == HttpStatusCode.Conflict)
+				{
+					return;
+				}
+
+				if (e.StatusCode == HttpStatusCode.TooManyRequests)
+				{
+					throw new ResourceHasToManyRequestsException(e);
+				}
+
+				throw;
+			}
+		}
+		}
+
+		private async Task WriteMultipart(string path, Stream stream, CancellationToken cancellationToken)
+		{
+			using TransferUtility utility = new TransferUtility(_amazonS3);
+			try
+			{
+				await utility.UploadAsync(stream, _bucketName, path, cancellationToken);
 			}
 			catch (AmazonS3Exception e)
 			{

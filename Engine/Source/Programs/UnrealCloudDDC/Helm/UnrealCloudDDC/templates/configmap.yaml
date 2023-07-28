@@ -166,5 +166,9 @@ S3:
   {{- if $s3.StoragePoolBucketOverride }}
   StoragePoolBucketOverride: {{ $s3.StoragePoolBucketOverride | toYaml | nindent 4  }}
   {{- end }}
+
+  {{- if $s3.UseMultiPartUpload }}
+  UseMultiPartUpload: {{ $s3.UseMultiPartUpload }}
+  {{- end }}
 {{ end }}
 

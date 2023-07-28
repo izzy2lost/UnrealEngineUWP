@@ -180,6 +180,7 @@ namespace Jupiter
 		public Dictionary<string, string> StoragePoolBucketOverride { get; set; } = new Dictionary<string, string>();
 
 		public bool? UseArnRegion { get; set; } = null;
+		public bool UseMultiPartUpload { get; set; } = false;
 	}
 
 	public class GCSettings
