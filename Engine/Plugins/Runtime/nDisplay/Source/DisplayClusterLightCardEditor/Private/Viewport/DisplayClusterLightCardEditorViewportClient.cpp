@@ -197,6 +197,7 @@ void FDisplayClusterLightCardEditorViewportClient::Tick(float DeltaSeconds)
 
 				if (PreviewComp && LevelInstancePreviewComp)
 				{
+					PreviewComp->SetUseDisplayDevice(false);
 					PreviewComp->SetOverrideTexture(LevelInstancePreviewComp->GetRenderTargetTexturePostProcess());
 				}
 			}

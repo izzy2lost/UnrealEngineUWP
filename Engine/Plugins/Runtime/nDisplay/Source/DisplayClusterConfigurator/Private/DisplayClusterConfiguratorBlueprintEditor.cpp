@@ -778,12 +778,12 @@ void FDisplayClusterConfiguratorBlueprintEditor::OnRenameVariable(UBlueprint* Bl
 
 	// Check the configuration's viewports for any matching references to the component variable being renamed, and update those references
 	// to the new variable name
-	if (UDisplayClusterConfigurationData* Config = GetConfig())
+	if (const UDisplayClusterConfigurationData* Config = GetConfig())
 	{
-		for (TPair<FString, UDisplayClusterConfigurationClusterNode*> ClusterNodePair : Config->Cluster->Nodes)
+		for (const TPair<FString, TObjectPtr<UDisplayClusterConfigurationClusterNode>>& ClusterNodePair : Config->Cluster->Nodes)
 		{
 			UDisplayClusterConfigurationClusterNode* ClusterNode = ClusterNodePair.Value;
-			for (TPair<FString, UDisplayClusterConfigurationViewport*> ViewportPair : ClusterNode->Viewports)
+			for (const TPair<FString, TObjectPtr<UDisplayClusterConfigurationViewport>>& ViewportPair : ClusterNode->Viewports)
 			{
 				UDisplayClusterConfigurationViewport* Viewport = ViewportPair.Value;
 
@@ -818,6 +818,11 @@ void FDisplayClusterConfiguratorBlueprintEditor::OnRenameVariable(UBlueprint* Bl
 				if (Viewport->Camera == OldVariableName.ToString())
 				{
 					DisplayClusterConfiguratorPropertyUtils::SetPropertyHandleValue(Viewport, GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationViewport, Camera), NewVariableName.ToString());
+				}
+
+				if (Viewport->DisplayDeviceName == OldVariableName.ToString())
+				{
+					DisplayClusterConfiguratorPropertyUtils::SetPropertyHandleValue(Viewport, GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationViewport, DisplayDeviceName), NewVariableName.ToString());
 				}
 			}
 		}

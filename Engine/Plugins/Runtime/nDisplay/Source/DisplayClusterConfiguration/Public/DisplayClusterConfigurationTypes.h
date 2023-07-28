@@ -516,6 +516,9 @@ public:
 	// Viewports API
 	UFUNCTION(BlueprintPure, Category = "NDisplay|Configuration")
 	UDisplayClusterConfigurationViewport* GetViewport(const FString& NodeId, const FString& ViewportId) const;
+
+	/** Execute a function on each viewport in each cluster node */
+	void ForEachViewport(const TFunction<void(const TObjectPtr<UDisplayClusterConfigurationViewport>&)>& Function) const;
 	
 	/**
 	* Update\Create node postprocess

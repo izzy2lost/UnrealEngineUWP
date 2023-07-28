@@ -27,6 +27,7 @@
 #include "DisplayClusterRootActor.generated.h"
 
 #if WITH_EDITOR
+class UDisplayClusterDisplayDeviceBaseComponent;
 class IDisplayClusterConfiguratorBlueprintEditor;
 class FTransactionObjectEvent;
 #endif
@@ -419,6 +420,18 @@ private:
 	UPROPERTY(Transient)
 	TMap<FString, TObjectPtr<UDisplayClusterPreviewComponent>> PreviewComponents;
 
+	/** The default display device to use for preview rendering */
+	UPROPERTY(Transient, NonTransactional)
+	TObjectPtr<UDisplayClusterDisplayDeviceBaseComponent> DefaultDisplayDeviceComponent;
+
+	/** The included display device nDisplay provides by default */
+	UPROPERTY(VisibleDefaultsOnly, Category = "Editor Preview", DisplayName = "Basic Display Device")
+	TObjectPtr<UDisplayClusterDisplayDeviceBaseComponent> BasicDisplayDeviceComponent;
+
+	/** Select the default display device class to use when a viewport doesn't have one assigned */
+	UPROPERTY(EditDefaultsOnly, Category = "Editor Preview", DisplayName = "Default Display Device")
+	FName DefaultDisplayDeviceName;
+	
 	UPROPERTY(Transient)
 	bool bDeferPreviewGeneration = false;
 #endif
@@ -534,6 +547,12 @@ public:
 		return false;
 	}
 
+	/** The name the internal default display device uses. */
+	static FName GetInternalDisplayDeviceName();
+
+	/** Retrieve the default display device, creating it if it doesn't exist */
+	UDisplayClusterDisplayDeviceBaseComponent* GetDefaultDisplayDevice();
+	
 protected:
 	FString GeneratePreviewComponentName_Editor(const FString& NodeId, const FString& ViewportId) const;
 	void ResetPreviewInternals_Editor();

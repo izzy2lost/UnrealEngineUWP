@@ -2,9 +2,11 @@
 
 #include "Components/DisplayClusterPreviewComponent.h"
 #include "Components/DisplayClusterCameraComponent.h"
+#include "Components/DisplayDevice/DisplayClusterDisplayDeviceBaseComponent.h"
 
 #include "IDisplayCluster.h"
 #include "Render/IDisplayClusterRenderManager.h"
+#include "DisplayDevice/DisplayClusterDisplayDeviceUtils.h"
 #include "DisplayClusterRootActor.h"
 #include "DisplayClusterConfigurationTypes.h"
 
@@ -40,11 +42,6 @@ UDisplayClusterPreviewComponent::UDisplayClusterPreviewComponent(const FObjectIn
 	: Super(ObjectInitializer)
 {
 #if WITH_EDITOR
-	static ConstructorHelpers::FObjectFinder<UMaterial> PreviewMaterialObj(TEXT("/nDisplay/Materials/Preview/M_ProjPolicyPreview"));
-	check(PreviewMaterialObj.Object);
-
-	PreviewMaterial = PreviewMaterialObj.Object;
-
 	bWantsInitializeComponent = true;
 #endif
 }
@@ -102,6 +99,32 @@ bool UDisplayClusterPreviewComponent::InitializePreviewComponent(ADisplayCluster
 	return true;
 }
 
+UDisplayClusterDisplayDeviceBaseComponent* UDisplayClusterPreviewComponent::GetDisplayDevice() const
+{
+	UDisplayClusterDisplayDeviceBaseComponent* DeviceBaseComponent = nullptr;
+	if (IsValid(ViewportConfig) && RootActor)
+	{
+		UDisplayClusterDisplayDeviceBaseComponent* CachedComponent =
+			Cast<UDisplayClusterDisplayDeviceBaseComponent>(CachedDisplayDevice.GetComponent(GetOwner()));
+		if (CachedComponent && CachedComponent->GetName() == ViewportConfig->DisplayDeviceName)
+		{
+			DeviceBaseComponent = CachedComponent;
+		}
+		else
+		{
+			DeviceBaseComponent = UE::DisplayClusterDisplayDeviceUtils::FindAndSyncDisplayDeviceFromViewport(ViewportConfig);
+		}
+	}
+
+	if (bUseDisplayDevice)
+	{
+		CachedDisplayDevice.OverrideComponent = DeviceBaseComponent;
+		CachedDisplayDevice.ComponentProperty = DeviceBaseComponent ? DeviceBaseComponent->GetFName() : NAME_None;
+	}
+	
+	return DeviceBaseComponent;
+}
+
 bool UDisplayClusterPreviewComponent::IsPreviewEnabled() const
 {
 	return ViewportConfig && RootActor && RootActor->IsPreviewEnabled();
@@ -116,11 +139,12 @@ void UDisplayClusterPreviewComponent::RestorePreviewMeshMaterial()
 {
 	UpdatePreviewMeshReference();
 
-	if (PreviewMesh && OriginalMaterial)
+	if (PreviewMesh)
 	{
 		// Restore
-		PreviewMesh->SetMaterial(0, OriginalMaterial);
-		OriginalMaterial = nullptr;
+		CurrentMeshMaterial = GetMeshMaterialFromDisplayDevice();
+		PreviewMesh->SetMaterial(0, CurrentMeshMaterial);
+		PreviewMaterialInstance = nullptr;
 	}
 
 	// Release RTTs
@@ -133,23 +157,18 @@ void UDisplayClusterPreviewComponent::RestorePreviewMeshMaterial()
 	}
 }
 
-void UDisplayClusterPreviewComponent::SetPreviewMeshMaterial()
+void UDisplayClusterPreviewComponent::SetPreviewMeshMaterial(UMaterial* InMaterial)
 {
 	UpdatePreviewMeshReference();
 
 	if (PreviewMesh)
 	{
-		// Save original material
-		if (OriginalMaterial == nullptr)
-		{
-			UMaterialInterface* MatInterface = PreviewMesh->GetMaterial(0);
-			if (MatInterface)
-			{
-				OriginalMaterial = MatInterface->GetMaterial();
-			}
-		}
+		CurrentMeshMaterial = InMaterial;
 
-		InitializePreviewMaterial();
+		if (InMaterial != nullptr && PreviewMaterialInstance == nullptr)
+		{
+			PreviewMaterialInstance = UMaterialInstanceDynamic::Create(InMaterial, this);
+		}
 		UpdatePreviewMaterial();
 
 		// Set preview material
@@ -158,6 +177,18 @@ void UDisplayClusterPreviewComponent::SetPreviewMeshMaterial()
 			PreviewMesh->SetMaterial(0, PreviewMaterialInstance);
 		}
 	}
+}
+
+UMaterial* UDisplayClusterPreviewComponent::GetPreviewMaterialFromDisplayDevice() const
+{
+	const UDisplayClusterDisplayDeviceBaseComponent* DeviceBaseComponent = GetDisplayDevice();
+	return DeviceBaseComponent ? DeviceBaseComponent->GetPreviewMaterial() : nullptr;
+}
+
+UMaterial* UDisplayClusterPreviewComponent::GetMeshMaterialFromDisplayDevice() const
+{
+	const UDisplayClusterDisplayDeviceBaseComponent* DeviceBaseComponent = GetDisplayDevice();
+	return DeviceBaseComponent ? DeviceBaseComponent->GetMeshMaterial() : nullptr;
 }
 
 void UDisplayClusterPreviewComponent::UpdatePreviewMeshReference()
@@ -223,10 +254,11 @@ bool UDisplayClusterPreviewComponent::UpdatePreviewMesh()
 					PreviewMesh->SetCastShadow(false);
 				}
 
-				if (OriginalMaterial == nullptr)
+				UMaterial* PreviewMaterial = GetPreviewMaterialFromDisplayDevice();
+				if (CurrentMeshMaterial != PreviewMaterial)
 				{
 					// Assign preview material to mesh
-					SetPreviewMeshMaterial();
+					SetPreviewMeshMaterial(PreviewMaterial);
 				}
 
 				return true;
@@ -251,7 +283,7 @@ void UDisplayClusterPreviewComponent::ReleasePreviewMesh()
 {
 	// Forget old mesh with material
 	PreviewMesh = nullptr;
-	OriginalMaterial = nullptr;
+	CurrentMeshMaterial = nullptr;
 }
 
 void UDisplayClusterPreviewComponent::UpdatePreviewResources()
@@ -269,8 +301,7 @@ void UDisplayClusterPreviewComponent::UpdatePreviewMaterial()
 {
 	if (PreviewMaterialInstance != nullptr)
 	{
-		PreviewMaterialInstance->SetScalarParameterValue(TEXT("Opacity"), 1.0);
-
+		// TODO: Consider moving these parameter values to the display device component.
 		if (OverrideTexture)
 		{
 			PreviewMaterialInstance->SetTextureParameterValue(TEXT("Preview"), OverrideTexture);
@@ -280,14 +311,13 @@ void UDisplayClusterPreviewComponent::UpdatePreviewMaterial()
 			PreviewMaterialInstance->SetTextureParameterValue(TEXT("Preview"),
 				RootActor && RootActor->bPreviewEnablePostProcess ? RenderTargetPostProcess : RenderTarget);
 		}
-	}
-}
 
-void UDisplayClusterPreviewComponent::InitializePreviewMaterial()
-{
-	if (PreviewMaterial != nullptr && PreviewMaterialInstance == nullptr)
-	{
-		PreviewMaterialInstance = UMaterialInstanceDynamic::Create(PreviewMaterial, this);
+		// Allow display device to perform any processing on the material instance.
+		if (UDisplayClusterDisplayDeviceBaseComponent* CachedComponent =
+			Cast<UDisplayClusterDisplayDeviceBaseComponent>(CachedDisplayDevice.GetComponent(GetOwner())))
+		{
+			CachedComponent->OnUpdatePreviewMaterialInstance(PreviewMaterialInstance);
+		}
 	}
 }
 
@@ -453,6 +483,13 @@ void UDisplayClusterPreviewComponent::SetOverrideTexture(UTexture* InOverrideTex
 		UpdatePreviewMesh();
 		UpdatePreviewMaterial();
 	}
+}
+
+void UDisplayClusterPreviewComponent::SetUseDisplayDevice(bool bInNewValue)
+{
+	bUseDisplayDevice = bInNewValue;
+	CachedDisplayDevice.OverrideComponent.Reset();
+	CachedDisplayDevice.ComponentProperty = NAME_None;
 }
 
 #endif

@@ -10,6 +10,7 @@
 
 #include "DisplayClusterPreviewComponent.generated.h"
 
+class UDisplayClusterDisplayDeviceBaseComponent;
 class IDisplayClusterProjectionPolicy;
 class UTextureRenderTarget2D;
 class UTexture;
@@ -89,6 +90,12 @@ public:
 	/** Sets an override texture to display on the viewport instead of the render target */
 	void SetOverrideTexture(UTexture* InOverrideTexture);
 
+	/** Configure if this preview component should use the display device */
+	void SetUseDisplayDevice(bool bInNewValue);
+
+	/** Retrieve the correct display device to use for this preview component */
+	UDisplayClusterDisplayDeviceBaseComponent* GetDisplayDevice() const;
+	
 protected:
 	/** Gets whether the root actor is requesting a preview render */
 	bool IsPreviewEnabled() const;
@@ -113,12 +120,18 @@ protected:
 	void ReleasePreviewMesh();
 	void UpdatePreviewMeshReference();
 
-	void InitializePreviewMaterial();
 	void ReleasePreviewMaterial();
 	void UpdatePreviewMaterial();
 
 	void RestorePreviewMeshMaterial();
-	void SetPreviewMeshMaterial();
+	void SetPreviewMeshMaterial(UMaterial* InMaterial);
+	
+	/** Retrieve the correct preview material based on the display device */
+	UMaterial* GetPreviewMaterialFromDisplayDevice() const;
+
+	/** Retrieve the basic mesh material which should be applied when the preview is off */
+	UMaterial* GetMeshMaterialFromDisplayDevice() const;
+	
 #endif /* WITH_EDITOR */
 
 #if WITH_EDITORONLY_DATA
@@ -145,20 +158,25 @@ private:
 	UPROPERTY(Transient)
 	FString ClusterNodeId;
 
+	/** The last used display device component */
+	UPROPERTY(Transient)
+	mutable FComponentReference CachedDisplayDevice;
+
+	/** If this preview component should utilize the display device component */
+	bool bUseDisplayDevice = true;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UDisplayClusterConfigurationViewport> ViewportConfig = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMeshComponent> PreviewMesh = nullptr;
 
+	/** The current material assigned to the preview mesh */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterial> CurrentMeshMaterial = nullptr;
+	
 	UPROPERTY(Transient)
 	bool bIsRootActorPreviewMesh = false;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UMaterial> OriginalMaterial = nullptr;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UMaterial> PreviewMaterial = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> PreviewMaterialInstance = nullptr;

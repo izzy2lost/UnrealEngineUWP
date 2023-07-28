@@ -60,6 +60,26 @@ UDisplayClusterConfigurationViewport* UDisplayClusterConfigurationData::GetViewp
 	return nullptr;
 }
 
+void UDisplayClusterConfigurationData::ForEachViewport(const TFunction<void(const TObjectPtr<UDisplayClusterConfigurationViewport>&)>& Function) const
+{
+	if (Cluster)
+	{
+		for (const TTuple<FString, TObjectPtr<UDisplayClusterConfigurationClusterNode>>& ClusterNode : Cluster->Nodes)
+		{
+			if (ClusterNode.Value)
+			{
+				for (const TTuple<FString, TObjectPtr<UDisplayClusterConfigurationViewport>>& Viewport : ClusterNode.Value->Viewports)
+				{
+					if (Viewport.Value)
+					{
+						Function(Viewport.Value);
+					}
+				}
+			}
+		}
+	}
+}
+
 bool UDisplayClusterConfigurationData::AssignPostprocess(const FString& NodeId, const FString& PostprocessId, const FString& Type, TMap<FString, FString> Parameters, int32 Order)
 {
 	if (Cluster && Cluster->Nodes.Contains(NodeId))

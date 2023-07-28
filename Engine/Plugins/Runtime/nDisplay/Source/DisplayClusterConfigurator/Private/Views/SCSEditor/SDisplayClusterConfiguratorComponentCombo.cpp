@@ -6,6 +6,7 @@
 #include "Components/DisplayClusterICVFXCameraComponent.h"
 #include "Components/DisplayClusterScreenComponent.h"
 #include "Components/DisplayClusterXformComponent.h"
+#include "Components/DisplayDevice/DisplayClusterDisplayDeviceBaseComponent.h"
 
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Images/SImage.h"
@@ -459,6 +460,23 @@ void SDisplayClusterConfiguratorComponentClassCombo::GenerateComponentClassList(
 	AddHeader("nDisplay ICVFX Components");
 	AddDCComp(UDisplayClusterICVFXCameraComponent::StaticClass());
 
+	AddHeader("nDisplay Display Device Components");
+	{
+		// Locate all derived display device components. Only handles native classes. If we allow display devices
+		// to be extended in BP then we'll need to handle unloaded assets.
+		
+		TArray<UClass*> DisplayDeviceClasses;
+		GetDerivedClasses(UDisplayClusterDisplayDeviceBaseComponent::StaticClass(), DisplayDeviceClasses);
+
+		for (UClass* Class : DisplayDeviceClasses)
+		{
+			if (!Class->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
+			{
+				AddDCComp(Class);
+			}
+		}
+	}
+	
 	int32 CompIterationIdx = 0;
 	for (const TSharedPtr<FComponentClassComboEntry>& Comp : *ComponentClassListPtr)
 	{

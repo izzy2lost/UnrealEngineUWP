@@ -9,6 +9,7 @@
 #include "Blueprints/DisplayClusterBlueprint.h"
 #include "Blueprints/DisplayClusterBlueprintGeneratedClass.h"
 #include "Components/DisplayClusterCameraComponent.h"
+#include "Components/DisplayDevice/DisplayClusterDisplayDeviceBaseComponent.h"
 #include "Camera/CameraComponent.h"
 
 #include "Engine/SCS_Node.h"
@@ -261,7 +262,7 @@ void FDisplayClusterConfiguratorKismetCompilerContext::ValidateConfiguration()
 	
 	for (const TPair<FString, TObjectPtr<UDisplayClusterConfigurationClusterNode>>& ClusterNode : BlueprintData->Cluster->Nodes)
 	{
-		// Validate vieports
+		// Validate viewports
 		if (ClusterNode.Value->Viewports.Num() > 0)
 		{
 			for (const TPair<FString, TObjectPtr<UDisplayClusterConfigurationViewport>>& Viewport : ClusterNode.Value->Viewports)
@@ -280,6 +281,44 @@ void FDisplayClusterConfiguratorKismetCompilerContext::ValidateConfiguration()
 				else
 				{
 					ViewportsByName.Add(ViewportName, Viewport.Value);
+
+					// Check display device
+					if (!Viewport.Value->DisplayDeviceName.IsEmpty())
+					{
+						// Only check if bp class has been generated and component owner instantiated. Otherwise native
+						// components can't be easily found since the CDO has already been cleared at this point.
+						if (UBlueprintGeneratedClass* GenClass = DCBlueprint->GetGeneratedClass())
+						{
+							if (AActor* ActorOwner = GenClass->SimpleConstructionScript->GetComponentEditorActorInstance())
+							{
+								bool bDisplayDeviceFound = false;
+								// blueprint component
+								if (const USCS_Node* SCSNode = GenClass->SimpleConstructionScript->FindSCSNode(*Viewport.Value->DisplayDeviceName))
+								{
+									if (Cast<UDisplayClusterDisplayDeviceBaseComponent>(SCSNode->GetActualComponentTemplate(GenClass)))
+									{
+										bDisplayDeviceFound = true;
+									}
+								}
+
+								// native component
+								if (!bDisplayDeviceFound
+									&& FindObjectFast<UDisplayClusterDisplayDeviceBaseComponent>(ActorOwner, *Viewport.Value->DisplayDeviceName))
+								{
+									bDisplayDeviceFound = true;
+								}
+
+								if (!bDisplayDeviceFound)
+								{
+									MessageLog.Error(
+										*LOCTEXT("DisplayDeviceNotFound", "Could not find display device component @@ for viewport @@.").ToString(),
+										*Viewport.Value->DisplayDeviceName,
+										Viewport.Value
+									);
+								}
+							}
+						}
+					}
 				}
 				
 				if (Viewport.Value->ProjectionPolicy.Type.IsEmpty())

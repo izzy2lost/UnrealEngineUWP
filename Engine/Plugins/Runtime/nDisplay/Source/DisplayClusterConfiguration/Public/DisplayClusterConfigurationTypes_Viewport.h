@@ -22,6 +22,7 @@
 
 #include "DisplayClusterConfigurationTypes_Viewport.generated.h"
 
+class UDisplayClusterDisplayDeviceBaseComponent;
 struct FDisplayClusterConfigurationICVFX_StageSettings;
 
 USTRUCT(Blueprintable)
@@ -219,6 +220,10 @@ public:
 	FDisplayClusterConfigurationProjection ProjectionPolicy;
 
 #if WITH_EDITORONLY_DATA
+	/** Select a display device to use during preview. An empty string will use the default display device */
+	UPROPERTY(EditAnywhere, Category = "Preview", meta = (DisplayName = "Display Device"))
+	FString DisplayDeviceName;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (DisplayName = "Preview Frustum"))
 	bool bAllowPreviewFrustumRendering = false;
 #endif

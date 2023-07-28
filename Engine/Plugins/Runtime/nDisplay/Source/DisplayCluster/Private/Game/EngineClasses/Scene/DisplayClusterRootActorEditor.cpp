@@ -3,26 +3,31 @@
 #include "DisplayClusterRootActor.h"
 
 #include "Blueprints/DisplayClusterBlueprint.h"
-#include "Components/SceneComponent.h"
-#include "Components/DisplayClusterOriginComponent.h"
 #include "Components/DisplayClusterCameraComponent.h"
-#include "Components/DisplayClusterScreenComponent.h"
-#include "Components/DisplayClusterSceneComponentSyncParent.h"
-#include "Components/DisplayClusterPreviewComponent.h"
 #include "Components/DisplayClusterICVFXCameraComponent.h"
+#include "Components/DisplayClusterOriginComponent.h"
+#include "Components/DisplayClusterPreviewComponent.h"
+#include "Components/DisplayClusterSceneComponentSyncParent.h"
+#include "Components/DisplayClusterScreenComponent.h"
+#include "Components/DisplayClusterStageGeometryComponent.h"
+#include "Components/DisplayDevice/DisplayClusterDisplayDeviceBaseComponent.h"
 #include "Components/LineBatchComponent.h"
+#include "Components/MeshComponent.h"
+#include "Components/SceneComponent.h"
+#include "DisplayDevice/DisplayClusterDisplayDeviceUtils.h"
 
 #include "Config/IPDisplayClusterConfigManager.h"
 #include "DisplayClusterConfigurationStrings.h"
 
-#include "IDisplayClusterConfiguration.h"
 #include "DisplayClusterConfigurationTypes.h"
+#include "DisplayClusterProjectionStrings.h"
+#include "IDisplayClusterConfiguration.h"
 
 #include "DisplayClusterPlayerInput.h"
 
-#include "GameFramework/PlayerController.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 
 #include "Misc/DisplayClusterGlobals.h"
 #include "Misc/DisplayClusterHelpers.h"
@@ -32,18 +37,18 @@
 #include "Misc/TransactionObjectEvent.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_ICVFX.h"
 #include "Render/Viewport/DisplayClusterViewportStrings.h"
-#include "Render/Viewport/IDisplayClusterViewportManager.h"
 #include "Render/Viewport/IDisplayClusterViewport.h"
+#include "Render/Viewport/IDisplayClusterViewportManager.h"
 #include "Render/Viewport/IDisplayClusterViewportProxy.h"
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrame.h"
 #include "Render/Viewport/RenderFrame/DisplayClusterRenderFrameSettings.h"
 
 #include "Engine/TextureRenderTarget2D.h"
 
-#include "Render/Viewport/IDisplayClusterViewport.h"
+#include "Materials/Material.h"
 #include "Render/Viewport/DisplayClusterViewportManager.h"
+#include "Render/Viewport/IDisplayClusterViewport.h"
 #include "TextureResource.h"
-#include "Components/DisplayClusterStageGeometryComponent.h"
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 // IN-EDITOR STUFF
@@ -52,8 +57,8 @@
 #if WITH_EDITOR
 
 #include "Async/Async.h"
-#include "LevelEditor.h"
 #include "EditorSupportDelegates.h"
+#include "LevelEditor.h"
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 int32 GDisplayClusterPreviewAllowMultiGPURendering = 0;
@@ -100,6 +105,12 @@ void ADisplayClusterRootActor::Constructor_Editor()
 {
 	// Allow tick in editor for preview rendering
 	PrimaryActorTick.bStartWithTickEnabled = true;
+
+	// Set to internal default, user may change
+	DefaultDisplayDeviceName = GetInternalDisplayDeviceName();
+
+	// Our internal display device which always exists
+	BasicDisplayDeviceComponent = CreateDefaultSubobject<UDisplayClusterDisplayDeviceComponent>(GetInternalDisplayDeviceName());
 
 	ResetPreviewInternals_Editor();
 
@@ -880,7 +891,8 @@ void ADisplayClusterRootActor::PostEditChangeProperty(FPropertyChangedEvent& Pro
 	{
 		ResetInnerFrustumPriority();
 	}
-	else if (PropertyName == GET_MEMBER_NAME_CHECKED(ADisplayClusterRootActor, bPreviewEnablePostProcess))
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(ADisplayClusterRootActor, bPreviewEnablePostProcess)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(ADisplayClusterRootActor, DefaultDisplayDeviceName))
 	{
 		ResetPreviewComponents_Editor(false);
 		PreviewRenderFrame.Reset();
@@ -932,10 +944,51 @@ void ADisplayClusterRootActor::ResetPreviewComponents_Editor(bool bInRestoreScen
 {
 	TArray<UDisplayClusterPreviewComponent*> AllPreviewComponents;
 	GetComponents(AllPreviewComponents);
-
-	for (UDisplayClusterPreviewComponent* ExistingComp : AllPreviewComponents)
+	
+	if (AllPreviewComponents.Num() > 0)
 	{
-		ExistingComp->ResetPreviewComponent(bInRestoreSceneMaterial);
+		// Preview components exist and can restore the scene material
+		for (UDisplayClusterPreviewComponent* ExistingComp : AllPreviewComponents)
+		{
+			ExistingComp->ResetPreviewComponent(bInRestoreSceneMaterial);
+		}
+	}
+	else if (bInRestoreSceneMaterial && !bPreviewEnable && CurrentConfigData && !IsTemplate())
+	{
+		// There are no preview components but the preview is disabled and we want to restore the scene material
+		CurrentConfigData->ForEachViewport([this](const TObjectPtr<UDisplayClusterConfigurationViewport>& Viewport)
+		{
+			// First locate the display device the viewport references
+			if (const UDisplayClusterDisplayDeviceBaseComponent* DisplayDevice = UE::DisplayClusterDisplayDeviceUtils::FindAndSyncDisplayDeviceFromViewport(Viewport))
+			{
+				// Next find the preview mesh component the viewport is assigned to. We can't just use FindPreviewViewport and its referenced mesh
+				// because the preview viewport won't exist if the editor preview is disabled when the root actor is initialized
+				FString ParameterKey;
+				if (Viewport->ProjectionPolicy.Type == DisplayClusterProjectionStrings::projection::Simple)
+				{
+					ParameterKey = DisplayClusterProjectionStrings::cfg::simple::Screen;
+				}
+				else if (Viewport->ProjectionPolicy.Type == DisplayClusterProjectionStrings::projection::Camera)
+				{
+					ParameterKey = DisplayClusterProjectionStrings::cfg::camera::Component;
+				}
+				else if (Viewport->ProjectionPolicy.Type == DisplayClusterProjectionStrings::projection::Mesh)
+				{
+					ParameterKey = DisplayClusterProjectionStrings::cfg::mesh::Component;
+				}
+
+				if (!ParameterKey.IsEmpty())
+				{
+					if (const FString* ComponentName = Viewport->ProjectionPolicy.Parameters.Find(ParameterKey))
+					{
+						if (UMeshComponent* MeshComponent = GetComponentByName<UMeshComponent>(*ComponentName))
+						{
+							MeshComponent->SetMaterial(0, DisplayDevice->GetMeshMaterial());
+						}
+					}
+				}
+			}
+		});
 	}
 }
 
@@ -1091,6 +1144,45 @@ void ADisplayClusterRootActor::RemovePreviewEnableOverride(const uint8* Object)
 	PreviewEnableOverriders.Remove(Object);
 
 	UpdatePreviewComponents();
+}
+
+FName ADisplayClusterRootActor::GetInternalDisplayDeviceName()
+{
+	return FName("BasicDisplayDevice");
+}
+
+UDisplayClusterDisplayDeviceBaseComponent* ADisplayClusterRootActor::GetDefaultDisplayDevice()
+{
+	if (DefaultDisplayDeviceComponent)
+	{
+		// Check already assigned/created
+		if (DefaultDisplayDeviceComponent->GetFName() == DefaultDisplayDeviceName)
+		{
+			return DefaultDisplayDeviceComponent;
+		}
+	}
+
+	DefaultDisplayDeviceComponent = nullptr;
+
+	// User assigned default
+	if (!DefaultDisplayDeviceName.IsNone() && DefaultDisplayDeviceName != GetInternalDisplayDeviceName())
+	{
+		DefaultDisplayDeviceComponent =
+			GetComponentByName<UDisplayClusterDisplayDeviceBaseComponent>(DefaultDisplayDeviceName.ToString());
+
+		if (!DefaultDisplayDeviceComponent)
+		{
+			UE_LOG(LogDisplayClusterGame, Warning, TEXT("Invalid default display device. Using internal nDisplay default device."));
+		}
+	}
+
+	// Fallback to our internal default
+	if (!DefaultDisplayDeviceComponent)
+	{
+		DefaultDisplayDeviceComponent = BasicDisplayDeviceComponent;
+	}
+
+	return DefaultDisplayDeviceComponent;
 }
 
 FString ADisplayClusterRootActor::GeneratePreviewComponentName_Editor(const FString& NodeId, const FString& ViewportId) const
