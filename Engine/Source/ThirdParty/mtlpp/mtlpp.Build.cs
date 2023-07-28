@@ -13,13 +13,19 @@ public class MTLPP : ModuleRules
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Apple))
 		{
 			string PlatformName = PlatformSubdirectoryName;
-			string LibExt = (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS) && Target.Architecture == UnrealArch.IOSSimulator) ? ".sim.a" : ".a";
+			bool bIsSimulator = Target.IsInPlatformGroup(UnrealPlatformGroup.IOS) && (Target.Architecture == UnrealArch.IOSSimulator || Target.Architecture == UnrealArch.TVOSSimulator);
+			string LibExt = bIsSimulator ? ".sim.a" : ".a";
 		
 			PublicSystemIncludePaths.Add(MTLPPIncPath + "src");
 			PublicSystemIncludePaths.Add(MTLPPIncPath + "interpose");
 			
+			// A development build that uses mtlpp compiled for release but with validation code enabled (simulator always uses the dev .sim.a lib)
+			if (bIsSimulator || Target.Configuration == UnrealTargetConfiguration.Development || Target.Configuration == UnrealTargetConfiguration.DebugGame)
+			{
+				PublicAdditionalLibraries.Add(MTLPPLibPath + "lib/" + PlatformName + "/libmtlpp" + LibExt);
+			}
 			// A full debug build without any optimisation and validation code enabled
-			if (Target.Configuration == UnrealTargetConfiguration.Debug)
+			else if (Target.Configuration == UnrealTargetConfiguration.Debug)
 			{
 				if (Target.bDebugBuildsActuallyUseDebugCRT)
 				{
@@ -31,11 +37,6 @@ public class MTLPP : ModuleRules
 					// Use development mtlpp library
 					PublicAdditionalLibraries.Add(MTLPPLibPath + "lib/" + PlatformName + "/libmtlpp" + LibExt);
 				}
-			}
-			// A development build that uses mtlpp compiled for release but with validation code enabled 
-			else if (Target.Configuration == UnrealTargetConfiguration.Development || Target.Configuration == UnrealTargetConfiguration.DebugGame)
-			{
-				PublicAdditionalLibraries.Add(MTLPPLibPath + "lib/" + PlatformName + "/libmtlpp" + LibExt);
 			}
 			// A shipping configuration that disables all validation and is aggressively optimised.
 			else
