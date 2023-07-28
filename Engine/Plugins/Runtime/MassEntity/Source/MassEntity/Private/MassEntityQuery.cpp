@@ -138,6 +138,14 @@ void FMassEntityQuery::CacheArchetypes(const FMassEntityManager& InEntityManager
 	}
 }
 
+void FMassEntityQuery::ForEachEntityChunkInCollections(TConstArrayView<FMassArchetypeEntityCollection> Collections, FMassEntityManager& EntityManager, FMassExecutionContext& ExecutionContext, const FMassExecuteFunction& ExecuteFunction)
+{
+	for (const FMassArchetypeEntityCollection& Collection : Collections)
+	{
+		ForEachEntityChunk(Collection, EntityManager, ExecutionContext, ExecuteFunction);
+	}
+}
+
 void FMassEntityQuery::ForEachEntityChunk(const FMassArchetypeEntityCollection& Collection, FMassEntityManager& EntityManager, FMassExecutionContext& ExecutionContext, const FMassExecuteFunction& ExecuteFunction)
 {
 	// mz@todo I don't like that we're copying data here.
