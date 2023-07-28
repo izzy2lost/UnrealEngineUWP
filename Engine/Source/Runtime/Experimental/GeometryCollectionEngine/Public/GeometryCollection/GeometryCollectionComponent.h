@@ -1423,6 +1423,8 @@ private:
 	/** backward compatibility method, until we can remove GlobalMatrices */
 	GEOMETRYCOLLECTIONENGINE_API TArray<FMatrix> ComputeGlobalMatricesFromComponentSpaceTransforms() const;
 
+	float ComputeMassScaleRelativeToAsset() const;
+
 	/** The clusters we need to replicate */
 	TUniquePtr<TSet<Chaos::FPBDRigidClusteredParticleHandle*>> ClustersToRep;
 

@@ -3127,25 +3127,12 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 		if (ensure(EnginePhysicalMaterial))
 		{
 			SimulationParameters.PhysicalMaterialHandle = EnginePhysicalMaterial->GetPhysicsMaterial();
-
-			// mass properties are cooked in the GC asset, but component can override physics material with a different density
-			// if the user wants the density to be set from the physics material we need adjust by scaling mass by the ratio override/cooked defined properties
-			SimulationParameters.MaterialOverrideMassScaleMultiplier = 1.0f;
-			if (RestCollection && RestCollection->bDensityFromPhysicsMaterial)
-			{
-				bool bMassAsDensity = false;
-				const float AssetMassOrDensity = RestCollection->GetMassOrDensity(bMassAsDensity);
-				if (ensureMsgf(bMassAsDensity, TEXT("Need a density to be able to compute the mass scale multiplier, this may result in incorrect mass properties")))
-				{
-					if (ensureMsgf(AssetMassOrDensity > SMALL_NUMBER, TEXT("Asset density is set to a too small number, ignoring it for mass adjustment")))
-					{
-						const float OverrideMaterialDensity = Chaos::GCm3ToKgCm3(EnginePhysicalMaterial->Density);
-						SimulationParameters.MaterialOverrideMassScaleMultiplier = OverrideMaterialDensity / AssetMassOrDensity;
-					}
-				}
-				
-			}
 		}
+
+		// mass properties are cooked in the GC asset, but component can override physics material with a different density
+		// if the user wants the density to be set from the physics material we need adjust by scaling mass by the ratio override/cooked defined properties
+		SimulationParameters.MaterialOverrideMassScaleMultiplier = ComputeMassScaleRelativeToAsset();
+
 		GetInitializationCommands(SimulationParameters.InitializationCommands);
 	}
 
@@ -5469,6 +5456,30 @@ void UGeometryCollectionComponent::GetMassAndExtents(int32 ItemIndex, float& Out
 	}
 }
 
+float UGeometryCollectionComponent::ComputeMassScaleRelativeToAsset() const
+{
+	// note this only acount for material override density , in the future we could certainly take in account the scale of the component
+	float MassScaleMultiplier = 1.0f;
+	UPhysicalMaterial* EnginePhysicalMaterial = GetPhysicalMaterial();
+	if (ensure(EnginePhysicalMaterial))
+	{
+		if (RestCollection && RestCollection->bDensityFromPhysicsMaterial)
+		{
+			bool bMassAsDensity = false;
+			const float AssetMassOrDensity = RestCollection->GetMassOrDensity(bMassAsDensity);
+			if (ensureMsgf(bMassAsDensity, TEXT("Need a density to be able to compute the mass scale multiplier, this may result in incorrect mass properties")))
+			{
+				if (ensureMsgf(AssetMassOrDensity > SMALL_NUMBER, TEXT("Asset density is set to a too small number, ignoring it for mass adjustment")))
+				{
+					const float OverrideMaterialDensity = Chaos::GCm3ToKgCm3(EnginePhysicalMaterial->Density);
+					MassScaleMultiplier = OverrideMaterialDensity / AssetMassOrDensity;
+				}
+			}
+		}
+	}
+	return MassScaleMultiplier;
+}
+
 float UGeometryCollectionComponent::GetMass() const
 {
 	float OutMass{ 0 };
@@ -5485,7 +5496,8 @@ float UGeometryCollectionComponent::GetMass() const
 			}
 		}
 	}
-	return OutMass;
+	// need to multiply by the instance specific mass scale is any
+	return OutMass * ComputeMassScaleRelativeToAsset();
 }
 
 float UGeometryCollectionComponent::CalculateMass(FName BoneName)
@@ -5504,7 +5516,8 @@ float UGeometryCollectionComponent::CalculateMass(FName BoneName)
 			}
 		}
 	}
-	return OutMass;
+	// need to multiply by the instance specific mass scale is any
+	return OutMass * ComputeMassScaleRelativeToAsset();
 }
 
 bool UGeometryCollectionComponent::CalculateInnerSphere(int32 TransformIndex, UE::Math::TSphere<double>& SphereOut) const

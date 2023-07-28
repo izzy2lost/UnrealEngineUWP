@@ -484,11 +484,17 @@ public:
 	GEOMETRYCOLLECTIONENGINE_API void GetSharedSimulationParams(FSharedSimulationParameters& OutParams) const;
 
 	/**
-	* Get Mass or density as set by the asset 
+	* Get Mass or density as set by the asset ( this is the value used by to compute the cached attributes )
 	* Mass is return in Kg and Density is returned in Kg/Cm3
 	* @param bOutIsDensity  is set to true by the function if the returned value is to be treated as a density
 	*/
 	GEOMETRYCOLLECTIONENGINE_API float GetMassOrDensity(bool& bOutIsDensity) const;
+
+	/*
+	* cache the material density used to compute attribute
+	* Warning : this should only be called after recomputing the mass based on those values
+	*/
+	GEOMETRYCOLLECTIONENGINE_API void CacheMaterialDensity();
 
 	/** Accessors for the two guids used to identify this collection */
 	GEOMETRYCOLLECTIONENGINE_API FGuid GetIdGuid() const;
@@ -656,6 +662,13 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collisions", meta = (EditCondition = "PhysicsMaterial != nullptr"))
 	bool bDensityFromPhysicsMaterial;
+
+	/**
+	* Cached Material density value used to compute the Mass attribute  ( In gram per cm3 )
+	* this is necessary because the material properties could be changed after without causing the mass attribute to be recomputed ( because the GC asset will not get notified )
+	*/
+	UPROPERTY()
+	float CachedDensityFromPhysicsMaterialInGCm3;
 
 	/**
 	* Mass As Density, units are in kg/m^3 ( only enabled if physics material is not set )
@@ -857,4 +870,6 @@ private:
 	/** Array of user data stored with the asset */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Instanced, Category = AssetUserData)
 	TArray<TObjectPtr<UAssetUserData>> AssetUserData;
+
+	float GetMassOrDensityInternal(bool& bOutIsDensity, bool bCached) const;
 };

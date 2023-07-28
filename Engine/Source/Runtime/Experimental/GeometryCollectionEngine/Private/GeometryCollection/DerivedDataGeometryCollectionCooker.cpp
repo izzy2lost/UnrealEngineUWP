@@ -39,6 +39,9 @@ bool FDerivedDataGeometryCollectionCooker::Build(TArray<uint8>& OutData)
 		Chaos::FErrorReporter ErrorReporter(GeometryCollection.GetName());
 
 		BuildSimulationData(ErrorReporter, *Collection, SharedParams);
+		// important : this is necessary to make sure we compute mass scale on the instances properly
+		// sadly we cannot call this in BuildSimulationData because we have no access to the asset
+		GeometryCollection.CacheMaterialDensity();
 		Collection->Serialize(ChaosAr);
 
 		if (false && ErrorReporter.EncounteredAnyErrors())

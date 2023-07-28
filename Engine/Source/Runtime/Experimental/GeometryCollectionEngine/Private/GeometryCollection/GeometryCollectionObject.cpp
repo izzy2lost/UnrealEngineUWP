@@ -110,6 +110,7 @@ UGeometryCollection::UGeometryCollection(const FObjectInitializer& ObjectInitial
 	, CollisionObjectReductionPercentage_DEPRECATED(0.0f)
 #endif
 	, bDensityFromPhysicsMaterial(false)
+	, CachedDensityFromPhysicsMaterialInGCm3(0) // <=0 value means not cached yet 
 	, bMassAsDensity(true)
 	, Mass(2500.0f)
 	, MinimumMassClamp(0.1f)
@@ -359,23 +360,51 @@ void UGeometryCollection::PostInitProperties()
 	Super::PostInitProperties();
 }
 
+void UGeometryCollection::CacheMaterialDensity()
+{
+	CachedDensityFromPhysicsMaterialInGCm3 = 0;
+
+	UPhysicalMaterial* PhysicsMaterialForDensity = PhysicsMaterial;
+	if (!PhysicsMaterialForDensity)
+	{
+		PhysicsMaterialForDensity = GEngine ? GEngine->DefaultPhysMaterial : nullptr;
+	}
+	if (PhysicsMaterialForDensity)
+	{
+		CachedDensityFromPhysicsMaterialInGCm3 = PhysicsMaterial->Density;
+	}
+}
+
 float UGeometryCollection::GetMassOrDensity(bool& bOutIsDensity) const
+{
+	return GetMassOrDensityInternal(bOutIsDensity, /* bCached */ true);
+}
+
+float UGeometryCollection::GetMassOrDensityInternal(bool& bOutIsDensity, bool bCached) const
 {
 	bOutIsDensity = bMassAsDensity;
 	float MassOrDensity = bMassAsDensity ? Chaos::KgM3ToKgCm3(Mass) : Mass;
 	
 	if (bDensityFromPhysicsMaterial)
 	{
-		UPhysicalMaterial* PhysicsMaterialForDensity = PhysicsMaterial;
-		if (!PhysicsMaterialForDensity)
+		if (bCached && CachedDensityFromPhysicsMaterialInGCm3 > 0)
 		{
-			PhysicsMaterialForDensity = GEngine ? GEngine->DefaultPhysMaterial : nullptr;
-		}
-		if (ensureMsgf(PhysicsMaterialForDensity, TEXT("bDensityFromPhysicsMaterial is true but no physics material has been set (and engine default cannot be found )")))
-		{
-			// materials only provide density
 			bOutIsDensity = true;
-			MassOrDensity = Chaos::GCm3ToKgCm3(PhysicsMaterial->Density);
+			MassOrDensity = Chaos::GCm3ToKgCm3(CachedDensityFromPhysicsMaterialInGCm3);
+		}
+		else
+		{
+			UPhysicalMaterial* PhysicsMaterialForDensity = PhysicsMaterial;
+			if (!PhysicsMaterialForDensity)
+			{
+				PhysicsMaterialForDensity = GEngine ? GEngine->DefaultPhysMaterial : nullptr;
+			}
+			if (ensureMsgf(PhysicsMaterialForDensity, TEXT("bDensityFromPhysicsMaterial is true but no physics material has been set (and engine default cannot be found )")))
+			{
+				// materials only provide density
+				bOutIsDensity = true;
+				MassOrDensity = Chaos::GCm3ToKgCm3(PhysicsMaterial->Density);
+			}
 		}
 	}
 	return MassOrDensity;
@@ -385,7 +414,8 @@ void UGeometryCollection::GetSharedSimulationParams(FSharedSimulationParameters&
 {
 	const FGeometryCollectionSizeSpecificData& SizeSpecificDefault = GetDefaultSizeSpecificData();
 
-	OutParams.Mass = GetMassOrDensity(OutParams.bMassAsDensity);
+	// we grab the non cached version because this is going to be used to generate the mass attribute which will eventually cache the density value if necessary
+	OutParams.Mass = GetMassOrDensityInternal(OutParams.bMassAsDensity, false);
 	OutParams.MinimumMassClamp = MinimumMassClamp;
 
 	FGeometryCollectionSizeSpecificData InfSize;
