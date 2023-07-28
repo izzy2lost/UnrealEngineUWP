@@ -42,7 +42,9 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	/** ~UObject overrides */
 
-	int32 GetChunkID() const { return ChunkId; };
+	GAMEFEATURES_API bool ShouldOverrideChunk() const { return bShouldOverrideChunk; }
+
+	GAMEFEATURES_API int32 GetChunkID() const { return ChunkId; };
 #endif // WITH_EDITOR
 	
 private:

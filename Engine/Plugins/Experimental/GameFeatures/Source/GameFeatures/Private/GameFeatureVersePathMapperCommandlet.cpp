@@ -102,10 +102,10 @@ namespace GameFeatureVersePathMapper
 				*InstallBundleConfig, InstallBundleUtil::IsPlatformInstallBundlePredicate);
 		}
 
-		FString Resolve(const FString& ChunkPattern)
+		FString Resolve(const FStringView& PluginName, const FString& ChunkPattern)
 		{
-			FString InstallBundleName;
-			if (!ChunkPattern.IsEmpty())
+			FString InstallBundleName = UGameFeatureData::GetInstallBundleName(FString(PluginName));
+			if (InstallBundleName.IsEmpty() && !ChunkPattern.IsEmpty())
 			{
 				if (FString* CachedInstallBundleName = RegexMatchCache.Find(ChunkPattern))
 				{
@@ -361,7 +361,7 @@ namespace GameFeatureVersePathMapper
 
 			const int32 Chunk = Pair.Value;
 			const FString ChunkPattern = Chunk > 0 ? GetChunkPattern(ChunkPatternFormat, Chunk) : FString();
-			const FString InstallBundleName = InstallBundleResolver.Resolve(ChunkPattern);
+			const FString InstallBundleName = InstallBundleResolver.Resolve(PluginNameView, ChunkPattern);
 
 			GfpInfo.GfpUri = InstallBundleName.IsEmpty() ?
 				UGameFeaturesSubsystem::GetPluginURL_FileProtocol(DescriptorFileName) :

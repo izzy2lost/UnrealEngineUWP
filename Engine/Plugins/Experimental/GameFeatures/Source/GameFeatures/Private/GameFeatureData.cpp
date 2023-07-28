@@ -4,6 +4,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "Engine/AssetManager.h"
 #include "GameFeaturesSubsystem.h"
+#include "InstallBundleUtils.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/ConfigContext.h"
 #include "UObject/CoreRedirects.h"
@@ -270,6 +271,24 @@ void UGameFeatureData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) 
 	}
 }
 #endif
+
+FString UGameFeatureData::GetInstallBundleName(const FString& PluginName, bool bEvenIfDoesntExist /*= false*/)
+{
+	const FString BundleName = FString::Printf(TEXT("GFP_%s"), *PluginName);
+	if (bEvenIfDoesntExist)
+	{
+		return BundleName;
+	}
+
+	if (InstallBundleUtil::HasInstallBundleInConfig(BundleName))
+	{
+		return BundleName;
+	}
+	else
+	{
+		return TEXT("");
+	}
+}
 
 void UGameFeatureData::GetPluginName(FString& PluginName) const
 {

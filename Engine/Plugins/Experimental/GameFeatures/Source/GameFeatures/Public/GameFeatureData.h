@@ -43,6 +43,13 @@ public:
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 #endif
 
+	/**
+	 * Returns the install bundle name if one exists for this plugin.
+	 * @param - PluginName - the name of the GameFeaturePlugin we want to get a bundle for. Should be the same name as the .uplugin file
+	 * @param - bEvenIfDoesntExist - when true will return the name of bundle we are looking for without checking if it exists or not.
+	 */
+	static FString GetInstallBundleName(const FString& PluginName, bool bEvenIfDoesntExist = false);
+
 public:
 	//~UPrimaryDataAsset interface
 #if WITH_EDITORONLY_DATA

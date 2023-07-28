@@ -55,7 +55,18 @@ namespace InstallBundleUtil
 		return Prefix;
 	}
 
-	bool AllInstallBundlePredicate(const FConfigFile& InstallBundleConfig, const FString& Section) 
+	bool HasInstallBundleInConfig(const FString& BundleName)
+	{
+		const FConfigFile* InstallBundleConfig = GConfig->FindConfigFile(GInstallBundleIni);
+		if (InstallBundleConfig)
+		{
+			const FString SectionName = InstallBundleUtil::GetInstallBundleSectionPrefix() + BundleName;
+			return InstallBundleConfig->DoesSectionExist(*SectionName);
+		}
+		return false;
+	}
+
+	bool AllInstallBundlePredicate(const FConfigFile& InstallBundleConfig, const FString& Section)
 	{ 
 		return true; 
 	}
