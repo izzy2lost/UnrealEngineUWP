@@ -2850,7 +2850,7 @@ void UGeometryCollectionComponent::ResetDynamicCollection()
 	bCreateDynamicCollection = false;
 	if (UWorld* World = GetWorld())
 	{
-		if(World->IsGameWorld() || World->IsPreviewWorld())
+		if(World->IsGameWorld())
 		{
 			bCreateDynamicCollection = true;
 		}
