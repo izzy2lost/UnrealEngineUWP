@@ -284,13 +284,13 @@ void FD3D12ExplicitDescriptorHeap::UpdateSyncPoint()
 
 ///
 
-void FD3D12ExplicitDescriptorCache::Init(uint32 NumViewDescriptors, uint32 NumSamplerDescriptors)
+void FD3D12ExplicitDescriptorCache::Init(uint32 NumViewDescriptors, uint32 NumSamplerDescriptors, ERHIBindlessConfiguration BindlessConfig)
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	FD3D12BindlessDescriptorManager& BindlessManager = GetParentDevice()->GetBindlessDescriptorManager();
 
-	bBindlessViews = BindlessManager.HasHeap(ERHIDescriptorHeapType::Standard, ERHIBindlessConfiguration::RayTracingShaders);
-	bBindlessSamplers = BindlessManager.HasHeap(ERHIDescriptorHeapType::Sampler, ERHIBindlessConfiguration::RayTracingShaders);
+	bBindlessViews = BindlessManager.HasHeap(ERHIDescriptorHeapType::Standard, BindlessConfig);
+	bBindlessSamplers = BindlessManager.HasHeap(ERHIDescriptorHeapType::Sampler, BindlessConfig);
 #else
 	const bool bBindlessViews = false;
 	const bool bBindlessSamplers = false;

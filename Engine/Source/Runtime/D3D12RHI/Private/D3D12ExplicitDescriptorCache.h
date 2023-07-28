@@ -116,7 +116,7 @@ public:
 		WorkerData.SetNum(MaxWorkerCount);
 	}
 
-	void Init(uint32 NumViewDescriptors, uint32 NumSamplerDescriptors);
+	void Init(uint32 NumViewDescriptors, uint32 NumSamplerDescriptors, ERHIBindlessConfiguration BindlessConfig);
 
 	void UpdateSyncPoint();
 
