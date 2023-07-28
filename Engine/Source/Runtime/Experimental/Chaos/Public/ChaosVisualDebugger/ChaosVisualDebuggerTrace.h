@@ -446,7 +446,7 @@ public:
 	static FString GetDebugName(T& ObjectWithDebugName);
 
 	/** Returns true if a CVD trace is running */
-	static CHAOS_API bool IsTracing() { return bIsTracing;}
+	static CHAOS_API bool IsTracing();
 
 private:
 

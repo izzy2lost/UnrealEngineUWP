@@ -568,6 +568,11 @@ void FChaosVisualDebuggerTrace::TraceNonSolverTransform(const FTransform& InTran
 		<< ChaosVDNonSolverTransform.DebugName(DebugNameID.GetData(), DebugNameID.Len());
 }
 
+bool FChaosVisualDebuggerTrace::IsTracing()
+{
+	return bIsTracing;
+}
+
 void FChaosVisualDebuggerTrace::RegisterEventHandlers()
 {
 	{
