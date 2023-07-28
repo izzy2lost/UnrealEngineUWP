@@ -981,11 +981,19 @@ namespace UnrealBuildTool
 				}
 			}
 
+			ProjectConfigAndTargetCombination? FoundCombo = ProjectConfigAndTargetCombinations.FirstOrDefault(combo => combo != null && combo.ProjectTarget != null && combo.ProjectTarget.TargetRules != null);
+			TargetRules? DefaultRules = FoundCombo != null ? FoundCombo.ProjectTarget?.TargetRules : null;
+			bool IsTestTarget = (DefaultRules != null ? DefaultRules.IsTestTarget : false);
+
 			// Project globals (project GUID, project type, SCC bindings, etc)
 			{
 				VCProjectFileContent.AppendLine("  <PropertyGroup Label=\"Globals\">");
 				VCProjectFileContent.AppendLine("    <ProjectGuid>{0}</ProjectGuid>", ProjectGUID.ToString("B").ToUpperInvariant());
 				VCProjectFileContent.AppendLine("    <RootNamespace>{0}</RootNamespace>", ProjectName);
+				if (IsTestTarget)
+				{
+					VCProjectFileContent.AppendLine("    <IsTestTarget>true</IsTestTarget>");
+				}
 				VCProjectFileContent.AppendLine("  </PropertyGroup>");
 			}
 
@@ -1309,9 +1317,6 @@ namespace UnrealBuildTool
 				}
 				VCPreprocessorDefinitions.Append(CurDef);
 			}
-
-			ProjectConfigAndTargetCombination? FoundCombo = ProjectConfigAndTargetCombinations.FirstOrDefault(combo => combo != null && combo.ProjectTarget != null && combo.ProjectTarget.TargetRules != null);
-			TargetRules? DefaultRules = FoundCombo != null ? FoundCombo.ProjectTarget?.TargetRules : null;
 
 			var GetAdditionalOptionsString = (TargetRules? TargetRules) =>
 			{

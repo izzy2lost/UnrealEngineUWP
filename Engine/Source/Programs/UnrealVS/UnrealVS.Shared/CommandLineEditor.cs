@@ -253,7 +253,10 @@ namespace UnrealVS
 							}
 							// for "Game" projects automatically remove the game project filename from the start of the command line
 							var ActiveConfiguration = (SolutionConfiguration2)UnrealVSPackage.Instance.DTE.Solution.SolutionBuild.ActiveConfiguration;
-							if (UnrealVSPackage.Instance.IsUESolutionLoaded && Utils.IsGameProject(SelectedStartupProject) && Utils.HasUProjectCommandLineArg(ActiveConfiguration.Name))
+							if (UnrealVSPackage.Instance.IsUESolutionLoaded &&
+								Utils.IsGameProject(SelectedStartupProject) &&
+								!Utils.IsTestTargetProject(SelectedStartupProject) &&
+								Utils.HasUProjectCommandLineArg(ActiveConfiguration.Name))
 							{
 								string AutoPrefix = Utils.GetAutoUProjectCommandLinePrefix(SelectedStartupProject);
 								if (!string.IsNullOrEmpty(AutoPrefix))
@@ -348,7 +351,10 @@ namespace UnrealVS
 
 							// for "Game" projects automatically remove the game project filename from the start of the command line
 							var ActiveConfiguration = (SolutionConfiguration2)UnrealVSPackage.Instance.DTE.Solution.SolutionBuild.ActiveConfiguration;
-							if (UnrealVSPackage.Instance.IsUESolutionLoaded && Utils.IsGameProject(SelectedStartupProject) && Utils.HasUProjectCommandLineArg(ActiveConfiguration.Name))
+							if (UnrealVSPackage.Instance.IsUESolutionLoaded &&
+								Utils.IsGameProject(SelectedStartupProject) &&
+								!Utils.IsTestTargetProject(SelectedStartupProject) &&
+								Utils.HasUProjectCommandLineArg(ActiveConfiguration.Name))
 							{
 								string AutoPrefix = Utils.GetAutoUProjectCommandLinePrefix(SelectedStartupProject);
 								if (FullCommandLine.IndexOf(Utils.UProjectExtension, StringComparison.OrdinalIgnoreCase) < 0 &&
