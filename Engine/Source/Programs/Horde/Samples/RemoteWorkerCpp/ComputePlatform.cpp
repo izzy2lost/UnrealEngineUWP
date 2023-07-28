@@ -20,6 +20,14 @@
 	#include <sys/stat.h>
 	#include <time.h>
 	#include <fcntl.h>
+
+	struct FFormatErrno { };
+
+	static std::ostream &operator<<(std::ostream &os, const FFormatErrno &)
+	{
+		os << "(errno=" << errno << ": " << strerror(errno) << ")";
+		return os;
+	}
 #endif
 
 ///////////////////////////////////////////////////
@@ -120,7 +128,7 @@ bool FComputeEvent::Wait(int timeoutMs)
 	struct timespec ts;
 	if (clock_gettime(CLOCK_REALTIME, &ts) == -1)
 	{
-		assert(false);
+		UE_COMPUTE_ASSERT(false);
 		return false;
 	}
 	
@@ -196,7 +204,7 @@ bool FComputeMemoryMappedFile::Create(const char* Name, long long Capacity)
 	int Fd = shm_open(Name, O_CREAT | O_EXCL | O_RDWR, 0666);
 	if(Fd < 0)
 	{
-		std::cerr << "Unable to create shared memory object '" << Name << "' (errno=" << errno << ")" << std::endl;
+		std::cerr << "Unable to create shared memory object '" << Name << "' " << FFormatErrno() << std::endl;
 		return false;
 	}
 
@@ -206,14 +214,14 @@ bool FComputeMemoryMappedFile::Create(const char* Name, long long Capacity)
 
 	if(ftruncate(Fd, MappedSize) < 0)
 	{
-		std::cerr << "Unable to update size of shared memory object '" << Name << "' to " << MappedSize << " (errno=" << errno << ")" << std::endl;
+		std::cerr << "Unable to update size of shared memory object '" << Name << "' to " << MappedSize << " " << FFormatErrno() << std::endl;
 		return false;
 	}
 
 	Pointer = mmap(nullptr, MappedSize, PROT_READ | PROT_WRITE, MAP_SHARED, Fd, 0);
 	if(Pointer == MAP_FAILED)
 	{
-		std::cerr << "Unable to map shared memory object '" << Name << " (errno=" << errno << ")" << std::endl;
+		std::cerr << "Unable to map shared memory object '" << Name << " " << FFormatErrno() << std::endl;
 		return false;
 	}
 	
@@ -243,7 +251,7 @@ bool FComputeMemoryMappedFile::OpenExisting(const char* Name)
 	int Fd = shm_open(Name, O_RDWR, 0666);
 	if(Fd < 0)
 	{
-		std::cerr << "Unable to open shared memory object '" << Name << "' (errno=" << errno << ")" << std::endl;
+		std::cerr << "Unable to open shared memory object '" << Name << "' " << FFormatErrno() << std::endl;
 		return false;
 	}
 
@@ -256,7 +264,7 @@ bool FComputeMemoryMappedFile::OpenExisting(const char* Name)
 	Pointer = mmap(nullptr, MappedSize, PROT_READ | PROT_WRITE, MAP_SHARED, Fd, 0);
 	if(Pointer == MAP_FAILED)
 	{
-		std::cerr << "Unable to map shared memory object '" << Name << " (errno=" << errno << ")" << std::endl;
+		std::cerr << "Unable to map shared memory object '" << Name << " " << FFormatErrno() << std::endl;
 		return false;
 	}
 	
@@ -311,6 +319,16 @@ void* FComputeMemoryMappedFile::GetPointer() const
 
 /////////////////////////////////////////////////// 
 
+void FComputePlatform::AssertFailed(const char* Expr, const char* File, int Line)
+{
+	std::cerr << "Assertion failed: '" << Expr << std::endl;
+	std::cerr << "  at " << File << "(" << Line << ")" << std::endl;
+#if UE_COMPUTE_PLATFORM_WINDOWS
+	DebugBreak();
+#endif
+	exit(1);
+}
+
 bool FComputePlatform::GetEnvironmentVariable(const char* Name, char* Buffer, size_t BufferLen)
 {
 #if UE_COMPUTE_PLATFORM_WINDOWS
@@ -338,7 +356,7 @@ void FComputePlatform::CreateUniqueName(char* NameBuffer, size_t NameBufferLen)
 #else
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
-	snprintf(NameBuffer, NameBufferLen, "/COMPUTE_%u_%zu_%zu_%lu", getpid(), (size_t)ts.tv_sec, (size_t)ts.tv_nsec, AtomicIncrement(&Counter));
+	snprintf(NameBuffer, NameBufferLen, "/UEC_%u%zu%zu_%lu", getpid(), (size_t)ts.tv_sec, (size_t)ts.tv_nsec, AtomicIncrement(&Counter));
 #endif
 }
 

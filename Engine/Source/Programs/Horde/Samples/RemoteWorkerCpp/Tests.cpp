@@ -2,10 +2,9 @@
 
 #include "ComputeBuffer.h"
 #include "ComputeSocket.h"
+#include "ComputePlatform.h"
 #include <assert.h>
 #include <iostream>
-
-#define verify(x) ((x) || (throw #x, true))
 
 void RunTests()
 {
@@ -23,7 +22,7 @@ void ComputeBufferTest()
 	char TestData[] = "hello world!";
 
 	FComputeBuffer Buffer;
-	verify(Buffer.CreateNew(FComputeBuffer::FParams()));
+	UE_COMPUTE_VERIFY(Buffer.CreateNew(FComputeBuffer::FParams()));
 
 	FComputeBufferWriter Writer = Buffer.CreateWriter();
 	unsigned char* WriteBuffer = Writer.WaitToWrite(sizeof(TestData));
@@ -32,14 +31,14 @@ void ComputeBufferTest()
 
 	FComputeBufferReader Reader = Buffer.CreateReader();
 	const unsigned char* ReadBuffer = Reader.WaitToRead(sizeof(TestData));
-	verify(memcmp(ReadBuffer, TestData, sizeof(TestData)) == 0);
-	assert(!Reader.IsComplete());
+	UE_COMPUTE_ASSERT(memcmp(ReadBuffer, TestData, sizeof(TestData)) == 0);
+	UE_COMPUTE_ASSERT(!Reader.IsComplete());
 
 	Reader.AdvanceReadPosition(sizeof(TestData));
-	assert(!Reader.IsComplete());
+	UE_COMPUTE_ASSERT(!Reader.IsComplete());
 
 	Writer.MarkComplete();
-	assert(Reader.IsComplete());
+	UE_COMPUTE_ASSERT(Reader.IsComplete());
 }
 
 template<size_t TestDataSize> void CheckChannelSendRecv(FComputeChannel& SendChannel, FComputeChannel& RecvChannel, const char(&TestData)[TestDataSize])
@@ -47,19 +46,19 @@ template<size_t TestDataSize> void CheckChannelSendRecv(FComputeChannel& SendCha
 	SendChannel.Send(TestData, TestDataSize);
 
 	char RecvTestData[TestDataSize];
-	verify(RecvChannel.Recv(RecvTestData, TestDataSize) == TestDataSize);
+	UE_COMPUTE_VERIFY(RecvChannel.Recv(RecvTestData, TestDataSize) == TestDataSize);
 
-	verify(memcmp(TestData, RecvTestData, TestDataSize) == 0);
+	UE_COMPUTE_VERIFY(memcmp(TestData, RecvTestData, TestDataSize) == 0);
 }
 
 void ComputeSocketTest()
 {
 	// Buffers for transferring between client and server
 	FComputeBuffer ClientToServerBuffer;
-	verify(ClientToServerBuffer.CreateNew(FComputeBuffer::FParams()));
+	UE_COMPUTE_VERIFY(ClientToServerBuffer.CreateNew(FComputeBuffer::FParams()));
 
 	FComputeBuffer ServerToClientBuffer;
-	verify(ServerToClientBuffer.CreateNew(FComputeBuffer::FParams()));
+	UE_COMPUTE_VERIFY(ServerToClientBuffer.CreateNew(FComputeBuffer::FParams()));
 
 	// Client transport
 	std::unique_ptr<FComputeSocket> ClientSocket = CreateComputeSocket(std::make_unique<FBufferTransport>(ClientToServerBuffer.CreateWriter(), ServerToClientBuffer.CreateReader()), EComputeSocketEndpoint::Local);

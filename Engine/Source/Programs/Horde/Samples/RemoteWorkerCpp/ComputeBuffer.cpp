@@ -437,7 +437,7 @@ struct FComputeBufferDetail
 					for (;;)
 					{
 						FWriterState WriterState = WriterStatePtr.Get();
-						assert(!WriterState.HasWrapped());
+						UE_COMPUTE_ASSERT(!WriterState.HasWrapped());
 
 						if (WriterStatePtr.TryUpdate(WriterState, FWriterState(WriterState.GetChunkIdx(), WriterState.GetReaderFlags() | (1 << ReaderIdx), WriterState.GetRefCount(), WriterState.HasWrapped())))
 						{
@@ -460,7 +460,7 @@ struct FComputeBufferDetail
 		for (; ; )
 		{
 			FReaderState ReaderState = ReaderStatePtr.Get();
-			assert(ReaderState.GetRefCount() > 0);
+			UE_COMPUTE_ASSERT(ReaderState.GetRefCount() > 0);
 
 			if (ReaderStatePtr.TryUpdate(ReaderState, FReaderState(ReaderState.GetChunkIdx(), ReaderState.GetOffset(), ReaderState.GetRefCount() + 1, ReaderState.IsDetached())))
 			{
@@ -475,7 +475,7 @@ struct FComputeBufferDetail
 		for (; ; )
 		{
 			FReaderState ReaderState = ReaderStatePtr.Get();
-			assert(ReaderState.GetRefCount() > 0);
+			UE_COMPUTE_ASSERT(ReaderState.GetRefCount() > 0);
 
 			if (ReaderState.GetRefCount() == 1)
 			{
@@ -498,7 +498,7 @@ struct FComputeBufferDetail
 		for (; ; )
 		{
 			FWriterState WriterState = WriterStatePtr.Get();
-			assert(WriterState.GetRefCount() == 0);
+			UE_COMPUTE_ASSERT(WriterState.GetRefCount() == 0);
 
 			if (WriterStatePtr.TryUpdate(WriterState, FWriterState(WriterState.GetChunkIdx(), WriterState.GetReaderFlags(), 1, WriterState.HasWrapped())))
 			{
@@ -522,7 +522,7 @@ struct FComputeBufferDetail
 		for (; ; )
 		{
 			FWriterState WriterState = WriterStatePtr.Get();
-			assert(WriterState.GetRefCount() > 0);
+			UE_COMPUTE_ASSERT(WriterState.GetRefCount() > 0);
 
 			if (WriterStatePtr.TryUpdate(WriterState, FWriterState(WriterState.GetChunkIdx(), WriterState.GetReaderFlags(), WriterState.GetRefCount() + 1, WriterState.HasWrapped())))
 			{
@@ -537,7 +537,7 @@ struct FComputeBufferDetail
 		for (; ; )
 		{
 			FWriterState writerState = writerStatePtr.Get();
-			assert(writerState.GetRefCount() > 0);
+			UE_COMPUTE_ASSERT(writerState.GetRefCount() > 0);
 
 			if (writerState.GetRefCount() == 1)
 			{
@@ -668,7 +668,7 @@ struct FComputeBufferDetail
 			}
 			else
 			{
-				assert(false);
+				UE_COMPUTE_ASSERT(false);
 			}
 		}
 	}
@@ -697,7 +697,7 @@ struct FComputeBufferDetail
 			FChunkStatePtr ChunkStatePtr = Header->GetChunkStatePtr(WriterState.GetChunkIdx());
 			FChunkState ChunkState = ChunkStatePtr.Get();
 
-			assert(ChunkState.GetWriteState() == EWriteState::Writing);
+			UE_COMPUTE_ASSERT(ChunkState.GetWriteState() == EWriteState::Writing);
 			ChunkStatePtr.Append(Size);
 
 			SetAllReadEvents();
@@ -740,7 +740,7 @@ struct FComputeBufferDetail
 
 	unsigned char* WaitToWrite(size_t MinSize, int TimeoutMs)
 	{
-		assert(MinSize <= Header->ChunkLength);
+		UE_COMPUTE_ASSERT(MinSize <= Header->ChunkLength);
 
 		// Get the current chunk we're writing to
 		FWriterState WriterState = Header->GetWriterStatePtr().Get();
@@ -1012,25 +1012,25 @@ void FComputeBufferReader::Close()
 
 void FComputeBufferReader::Detach()
 {
-	assert(Detail);
+	UE_COMPUTE_ASSERT(Detail);
 	Detail->DetachReader(ReaderIdx);
 }
 
 bool FComputeBufferReader::IsComplete() const
 {
-	assert(Detail);
+	UE_COMPUTE_ASSERT(Detail);
 	return Detail->IsComplete(ReaderIdx);
 }
 
 void FComputeBufferReader::AdvanceReadPosition(size_t Size)
 {
-	assert(Detail);
+	UE_COMPUTE_ASSERT(Detail);
 	Detail->AdvanceReadPosition(ReaderIdx, Size);
 }
 
 size_t FComputeBufferReader::GetMaxReadSize() const
 {
-	assert(Detail);
+	UE_COMPUTE_ASSERT(Detail);
 	return Detail->GetMaxReadSize(ReaderIdx);
 }
 
@@ -1055,7 +1055,7 @@ size_t FComputeBufferReader::Read(void* Buffer, size_t MaxSize, int TimeoutMs)
 
 const unsigned char* FComputeBufferReader::WaitToRead(size_t MinSize, int TimeoutMs)
 {
-	assert(Detail);
+	UE_COMPUTE_ASSERT(Detail);
 	return Detail->WaitToRead(ReaderIdx, MinSize, TimeoutMs);
 }
 
@@ -1067,7 +1067,7 @@ FComputeBufferReader::FComputeBufferReader(FComputeBufferDetail* InDetail, int I
 
 const char* FComputeBufferReader::GetName() const
 {
-	assert(Detail);
+	UE_COMPUTE_ASSERT(Detail);
 	return Detail->Name;
 }
 

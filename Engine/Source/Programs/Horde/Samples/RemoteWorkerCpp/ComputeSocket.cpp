@@ -144,7 +144,7 @@ void FWorkerComputeSocket::RunServer(FComputeBufferReader& CommandBufferReader, 
 				}
 				else
 				{
-					assert(false);
+					UE_COMPUTE_ASSERT(false);
 				}
 			}
 			break;
@@ -163,12 +163,12 @@ void FWorkerComputeSocket::RunServer(FComputeBufferReader& CommandBufferReader, 
 				}
 				else
 				{
-					assert(false);
+					UE_COMPUTE_ASSERT(false);
 				}
 			}
 			break;
 		default:
-			assert(false);
+			UE_COMPUTE_ASSERT(false);
 			return;
 		}
 
@@ -308,7 +308,7 @@ public:
 			}
 			else
 			{
-				assert(false);
+				UE_COMPUTE_ASSERT(false);
 			}
 		}
 	}

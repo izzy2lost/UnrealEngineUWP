@@ -21,6 +21,14 @@
 	#define UE_COMPUTE_PLATFORM_LINUX 1
 #endif
 
+#ifdef NDEBUG
+	#define UE_COMPUTE_ASSERT(x) ((void)0)
+	#define UE_COMPUTE_VERIFY(x) (!!(x))
+#else
+	#define UE_COMPUTE_ASSERT(x) ((void)UE_COMPUTE_VERIFY(x))
+	#define UE_COMPUTE_VERIFY(x) (!!(x) || (FComputePlatform::AssertFailed(#x, __FILE__, __LINE__), true))
+#endif
+
 //
 // IPC manually-reset event object
 //
@@ -86,6 +94,9 @@ struct FComputePlatform
 	// General
 	//
 
+	// Signal that an assertion has failed
+	static void AssertFailed(const char* Expr, const char* File, int Line);
+	
 	// Reads an environment variable
 	static bool GetEnvironmentVariable(const char* Name, char* Buffer, size_t BufferLen);
 
