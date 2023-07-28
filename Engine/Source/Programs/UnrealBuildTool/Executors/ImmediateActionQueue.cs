@@ -273,6 +273,11 @@ namespace UnrealBuildTool
 		private readonly Action<string> _writeToolOutput;
 
 		/// <summary>
+		/// Flush the tool output after logging has completed
+		/// </summary>
+		private readonly System.Action _flushToolOutput;
+
+		/// <summary>
 		/// Timer used to collect CPU utilization
 		/// </summary>
 		private Timer? _cpuUtilizationTimer;
@@ -347,8 +352,9 @@ namespace UnrealBuildTool
 		/// <param name="maxActionArtifactCacheTasks">Max number of concurrent artifact cache tasks</param>
 		/// <param name="progressWriterText">Text to be displayed with the progress writer</param>
 		/// <param name="writeToolOutput">Action to invoke when writing tool output</param>
+		/// <param name="flushToolOutput">Action to invoke when flushing tool output</param>
 		/// <param name="logger">Logging interface</param>
-		public ImmediateActionQueue(IEnumerable<LinkedAction> actions, IActionArtifactCache? actionArtifactCache, int maxActionArtifactCacheTasks, string progressWriterText, Action<string> writeToolOutput, ILogger logger)
+		public ImmediateActionQueue(IEnumerable<LinkedAction> actions, IActionArtifactCache? actionArtifactCache, int maxActionArtifactCacheTasks, string progressWriterText, Action<string> writeToolOutput, System.Action flushToolOutput, ILogger logger)
 		{
 			CommandLine.ParseArguments(Environment.GetCommandLineArgs(), this, logger);
 			XmlConfig.ApplyTo(this);
@@ -360,6 +366,7 @@ namespace UnrealBuildTool
 			ProgressWriter = new(progressWriterText, false, logger);
 			_actionArtifactCache = actionArtifactCache;
 			_writeToolOutput = writeToolOutput;
+			_flushToolOutput = flushToolOutput;
 
 			bool readArtifacts = _actionArtifactCache != null && _actionArtifactCache.EnableReads;
 			ActionPhase initialPhase = readArtifacts ? ActionPhase.ArtifactCheck : ActionPhase.Compile;
@@ -1120,6 +1127,7 @@ namespace UnrealBuildTool
 				loggingTask = _actionsToLogTask;
 			}
 			loggingTask?.Wait();
+			_flushToolOutput();
 
 			if (ShowCPUUtilization)
 			{
