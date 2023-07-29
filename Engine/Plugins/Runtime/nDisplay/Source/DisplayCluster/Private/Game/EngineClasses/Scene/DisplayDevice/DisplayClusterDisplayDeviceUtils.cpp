@@ -7,6 +7,8 @@
 #include "DisplayClusterRootActor.h"
 #include "Misc/DisplayClusterLog.h"
 
+#if WITH_EDITOR
+
 UDisplayClusterDisplayDeviceBaseComponent* UE::DisplayClusterDisplayDeviceUtils::FindAndSyncDisplayDeviceFromViewport(
 	UDisplayClusterConfigurationViewport* InViewport)
 {
@@ -89,3 +91,5 @@ UDisplayClusterDisplayDeviceBaseComponent* UE::DisplayClusterDisplayDeviceUtils:
 
 	return nullptr;
 }
+
+#endif

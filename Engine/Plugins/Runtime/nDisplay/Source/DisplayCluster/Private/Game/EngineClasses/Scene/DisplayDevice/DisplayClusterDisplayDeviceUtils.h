@@ -7,6 +7,7 @@ class UDisplayClusterDisplayDeviceBaseComponent;
 
 namespace UE::DisplayClusterDisplayDeviceUtils
 {
+#if WITH_EDITOR
 	/**
 	 * Attempt to find the display device given a viewport.
 	 * If the display device is not found on an instance, the CDO is checked in case the display device was renamed and the
@@ -16,4 +17,5 @@ namespace UE::DisplayClusterDisplayDeviceUtils
 	 * @return The display device this viewport uses or nullptr.
 	 */
 	UDisplayClusterDisplayDeviceBaseComponent* FindAndSyncDisplayDeviceFromViewport(UDisplayClusterConfigurationViewport* InViewport);
+#endif
 }
