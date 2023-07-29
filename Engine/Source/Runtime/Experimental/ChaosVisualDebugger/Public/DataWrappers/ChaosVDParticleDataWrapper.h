@@ -136,10 +136,10 @@ struct FChaosVDParticlePositionRotation : public FChaosVDParticleDataBase
 	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
 
 	UPROPERTY(EditAnywhere, Category= "Particle Velocities")
-	FVector MX;
+	FVector MX = FVector(ForceInit);
 
 	UPROPERTY(EditAnywhere, Category= "Particle Velocities")
-	FQuat MR;
+	FQuat MR = FQuat(ForceInit);
 };
 
 inline FArchive& operator<<(FArchive& Ar, FChaosVDParticlePositionRotation& Data)
@@ -180,10 +180,10 @@ struct FChaosVDParticleVelocities : public FChaosVDParticleDataBase
 	}
 	
 	UPROPERTY(EditAnywhere, Category= "Particle Velocities")
-	FVector MV;
+	FVector MV = FVector(ForceInit);
 
 	UPROPERTY(EditAnywhere, Category= "Particle Velocities")
-	FVector MW;
+	FVector MW = FVector(ForceInit);
 };
 
 inline FArchive& operator<<(FArchive& Ar, FChaosVDParticleVelocities& Data)
@@ -227,16 +227,16 @@ struct FChaosVDParticleDynamics : public FChaosVDParticleDataBase
 	}
 
 	UPROPERTY(EditAnywhere, Category= "Particle Dynamics")
-	FVector MAcceleration;
+	FVector MAcceleration = FVector(ForceInit);
 
 	UPROPERTY(EditAnywhere, Category= "Particle Dynamics")
-	FVector MAngularAcceleration;
+	FVector MAngularAcceleration = FVector(ForceInit);
 
 	UPROPERTY(EditAnywhere, Category= "Particle Dynamics")
-	FVector MLinearImpulseVelocity;
+	FVector MLinearImpulseVelocity = FVector(ForceInit);
 
 	UPROPERTY(EditAnywhere, Category= "Particle Dynamics")
-	FVector MAngularImpulseVelocity;
+	FVector MAngularImpulseVelocity = FVector(ForceInit);
 };
 
 inline FArchive& operator<<(FArchive& Ar, FChaosVDParticleDynamics& Data)
@@ -283,22 +283,22 @@ struct FChaosVDParticleMassProps : public FChaosVDParticleDataBase
 	}
 	
 	UPROPERTY(EditAnywhere, Category= "Particle Mass Props")
-	FVector MCenterOfMass;
+	FVector MCenterOfMass = FVector(ForceInit);
 
 	UPROPERTY(EditAnywhere, Category= "Particle Mass Props")
-	FQuat MRotationOfMass;
+	FQuat MRotationOfMass = FQuat(ForceInit);
 
 	UPROPERTY(EditAnywhere, Category= "Particle Mass Props")
-	FVector MI;
+	FVector MI = FVector(ForceInit);
 
 	UPROPERTY(EditAnywhere, Category= "Particle Mass Props")
-	FVector MInvI;
+	FVector MInvI = FVector(ForceInit);
 
 	UPROPERTY(EditAnywhere, Category= "Particle Mass Props")
-	double MM;
+	double MM = 0.0;
 
 	UPROPERTY(EditAnywhere, Category= "Particle Mass Props")
-	double MInvM;
+	double MInvM = 0.0;
 };
 
 inline FArchive& operator<<(FArchive& Ar, FChaosVDParticleMassProps& Data)
