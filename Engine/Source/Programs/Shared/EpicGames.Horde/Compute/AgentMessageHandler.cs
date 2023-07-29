@@ -194,11 +194,14 @@ namespace EpicGames.Horde.Compute
 				newEnvVars[WorkerComputeSocket.IpcEnvVar] = ipcBuffer.Name;
 
 				using ComputeBufferReader ipcBufferReader = ipcBuffer.CreateReader();
-				using BackgroundTask backgroundTask = BackgroundTask.StartNew(ctx => ProcessIpcMessagesAsync(socket, ipcBufferReader, cancellationToken));
+				await using (BackgroundTask backgroundTask = BackgroundTask.StartNew(ctx => ProcessIpcMessagesAsync(socket, ipcBufferReader, cancellationToken)))
+				{
+					_logger.LogInformation("Launching {Executable} {Arguments}", CommandLineArguments.Quote(executable), CommandLineArguments.Join(arguments));
+					await ExecuteProcessInternalAsync(channel, executable, arguments, workingDir, newEnvVars, cancellationToken);
+					_logger.LogInformation("Finished executing process");
+				}
 
-				_logger.LogInformation("Launching {Executable} {Arguments}", CommandLineArguments.Quote(executable), CommandLineArguments.Join(arguments));
-				await ExecuteProcessInternalAsync(channel, executable, arguments, workingDir, newEnvVars, cancellationToken);
-				_logger.LogInformation("Finished executing process");
+				_logger.LogInformation("Ipc message loop is complete");
 			}
 
 			_logger.LogInformation("Child process has shut down");
