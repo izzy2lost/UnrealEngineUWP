@@ -3111,8 +3111,6 @@ public:
 	/** An octree containing the primitives in the scene. */
 	FScenePrimitiveOctree PrimitiveOctree;
 
-	FDynamicBVH<4> InstanceBVH;
-
 	/** Indicates whether this scene requires hit proxy rendering. */
 	bool bRequiresHitProxies;
 

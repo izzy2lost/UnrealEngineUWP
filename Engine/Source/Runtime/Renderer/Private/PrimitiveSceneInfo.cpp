@@ -33,7 +33,6 @@
 #include "StaticMeshBatch.h"
 
 extern int32 GGPUSceneInstanceClearList;
-extern int32 GGPUSceneInstanceBVH;
 
 static int32 GMeshDrawCommandsCacheMultithreaded = 1;
 static FAutoConsoleVariableRef CVarDrawCommandsCacheMultithreaded(
@@ -1272,18 +1271,6 @@ void FPrimitiveSceneInfo::AllocateGPUSceneInstances(FScene* Scene, const TArrayV
 						const uint32 TotalFloat4Count = SceneInfo->NumInstanceSceneDataEntries * SceneInfo->InstancePayloadDataStride;
 						SceneInfo->InstancePayloadDataOffset = Scene->GPUScene.AllocateInstancePayloadDataSlots(TotalFloat4Count);
 					}
-
-					if (GGPUSceneInstanceBVH)
-					{
-						// TODO: Replace Instance BVH FBounds with FRenderBounds
-						for (int32 InstanceIndex = 0; InstanceIndex < SceneInfo->NumInstanceSceneDataEntries; ++InstanceIndex)
-						{
-							const FInstanceSceneData& PrimitiveInstance = InstanceSceneData[InstanceIndex];
-							FRenderBounds WorldBounds = SceneInfo->Proxy->GetInstanceLocalBounds(InstanceIndex);
-							WorldBounds.TransformBy(PrimitiveInstance.ComputeLocalToWorld(SceneInfo->Proxy->GetLocalToWorld()));
-							Scene->InstanceBVH.Add(FBounds3f({ WorldBounds.GetMin(), WorldBounds.GetMax() }), SceneInfo->InstanceSceneDataOffset + InstanceIndex);
-						}
-					}
 				}
 			}
 			else
@@ -1339,13 +1326,6 @@ void FPrimitiveSceneInfo::FreeGPUSceneInstances()
 		SCOPE_CYCLE_COUNTER(STAT_UpdateGPUSceneTime);
 
 		check(Proxy->SupportsInstanceDataBuffer() || NumInstanceSceneDataEntries == 1);
-		if (GGPUSceneInstanceBVH)
-		{
-			for (int32 InstanceIndex = 0; InstanceIndex < NumInstanceSceneDataEntries; InstanceIndex++)
-			{
-				Scene->InstanceBVH.Remove(InstanceSceneDataOffset + InstanceIndex);
-			}
-		}
 
 		// Release all instance payload data slots associated with this primitive.
 		if (InstancePayloadDataOffset != INDEX_NONE)

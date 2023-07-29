@@ -71,14 +71,6 @@ static TAutoConsoleVariable<int32> CVarGPUSceneParallelUpdate(
 	ECVF_RenderThreadSafe
 );
 
-int32 GGPUSceneInstanceBVH = 0;
-FAutoConsoleVariableRef CVarGPUSceneInstanceBVH(
-	TEXT("r.GPUScene.InstanceBVH"),
-	GGPUSceneInstanceBVH,
-	TEXT("Add instances to BVH. (WIP)"),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly
-);
-
 static TAutoConsoleVariable<int32> CVarGPUSceneDebugMode(
 	TEXT("r.GPUScene.DebugMode"),
 	0,
@@ -832,9 +824,6 @@ void FGPUScene::UpdateBufferState(FRDGBuilder& GraphBuilder, FSceneUniformBuffer
 	const uint32 InstancePayloadDataSizeReserve = FMath::RoundUpToPowerOfTwo(PayloadFloat4Count * sizeof(FVector4f));
 	BufferState.InstancePayloadDataBuffer = ResizeStructuredBufferIfNeeded(GraphBuilder, InstancePayloadDataBuffer, InstancePayloadDataSizeReserve, TEXT("GPUScene.InstancePayloadData"));
 
-	const uint32 NumNodes = FMath::RoundUpToPowerOfTwo(FMath::Max(Scene.InstanceBVH.GetNumNodes(), InitialBufferSize));
-	BufferState.InstanceBVHBuffer = ResizeStructuredBufferIfNeeded(GraphBuilder, InstanceBVHBuffer, NumNodes * sizeof(FBVHNode), TEXT("InstanceBVH"));
-
 	const bool bNaniteEnabled = DoesPlatformSupportNanite(GMaxRHIShaderPlatform);
 	if (UploadDataSourceAdapter.bUpdateNaniteMaterialTables && bNaniteEnabled)
 	{
@@ -975,7 +964,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& Scene, FRDGExte
 		FRDGScatterUploader* PrimitiveUploader = nullptr;
 		FRDGScatterUploader* InstancePayloadUploader = nullptr;
 		FRDGScatterUploader* InstanceSceneUploader = nullptr;
-		FRDGScatterUploader* InstanceBVHUploader = nullptr;
 		FRDGScatterUploader* LightmapUploader = nullptr;
 
 		TStaticArray<FNaniteMaterialCommands::FUploader*, ENaniteMeshPass::Num> NaniteMaterialUploaders{ InPlace, nullptr };
@@ -1018,11 +1006,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& Scene, FRDGExte
 		TaskContext.InstanceSceneUploader = InstanceSceneUploadBuffer.BeginPreSized(GraphBuilder, BufferState.InstanceSceneDataBuffer, TaskContext.NumInstanceSceneDataUploads * FInstanceSceneShaderData::GetDataStrideInFloat4s(), sizeof(FVector4f), TEXT("InstanceSceneUploadBuffer"));
 	}
 
-	if (Scene.InstanceBVH.GetNumDirty() > 0)
-	{
-		TaskContext.InstanceBVHUploader = InstanceBVHUploadBuffer.Begin(GraphBuilder, BufferState.InstanceBVHBuffer, Scene.InstanceBVH.GetNumDirty(), sizeof(FBVHNode), TEXT("InstanceSceneUploadBuffer"));
-	}
-
 	if (TaskContext.NumLightmapDataUploads > 0)
 	{
 		TaskContext.LightmapUploader = LightmapUploadBuffer.Begin(GraphBuilder, BufferState.LightmapDataBuffer, TaskContext.NumLightmapDataUploads, sizeof(FLightmapSceneShaderData::Data), TEXT("LightmapUploadBuffer"));
@@ -1045,7 +1028,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& Scene, FRDGExte
 		LockIfValid(RHICmdList, TaskContext.PrimitiveUploader);
 		LockIfValid(RHICmdList, TaskContext.InstancePayloadUploader);
 		LockIfValid(RHICmdList, TaskContext.InstanceSceneUploader);
-		LockIfValid(RHICmdList, TaskContext.InstanceBVHUploader);
 		LockIfValid(RHICmdList, TaskContext.LightmapUploader);
 
 		for (FNaniteMaterialCommands::FUploader* Uploader : TaskContext.NaniteMaterialUploaders)
@@ -1281,31 +1263,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& Scene, FRDGExte
 			}, bExecuteInParallel ? EParallelForFlags::None : EParallelForFlags::ForceSingleThread);
 		}
 
-		if (TaskContext.InstanceBVHUploader)
-		{
-			SCOPED_NAMED_EVENT(InstanceBVH, FColor::Green);
-
-			Scene.InstanceBVH.ForAllDirty(
-				[&](uint32 NodeIndex, const auto& Node)
-			{
-				FBVHNode GPUNode;
-				for (int i = 0; i < 4; i++)
-				{
-					GPUNode.ChildIndexes[i] = Node.ChildIndexes[i];
-
-					GPUNode.ChildMin[0][i] = Node.ChildBounds[i].Min.X;
-					GPUNode.ChildMin[1][i] = Node.ChildBounds[i].Min.Y;
-					GPUNode.ChildMin[2][i] = Node.ChildBounds[i].Min.Z;
-
-					GPUNode.ChildMax[0][i] = Node.ChildBounds[i].Max.X;
-					GPUNode.ChildMax[1][i] = Node.ChildBounds[i].Max.Y;
-					GPUNode.ChildMax[2][i] = Node.ChildBounds[i].Max.Z;
-				}
-
-				TaskContext.InstanceBVHUploader->Add(NodeIndex, &GPUNode);
-			});
-		}
-
 		if (TaskContext.LightmapUploader)
 		{
 			for (int32 ItemIndex = 0; ItemIndex < TaskContext.NumPrimitiveDataUploads; ++ItemIndex)
@@ -1325,7 +1282,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& Scene, FRDGExte
 		UnlockIfValid(RHICmdList, TaskContext.PrimitiveUploader);
 		UnlockIfValid(RHICmdList, TaskContext.InstancePayloadUploader);
 		UnlockIfValid(RHICmdList, TaskContext.InstanceSceneUploader);
-		UnlockIfValid(RHICmdList, TaskContext.InstanceBVHUploader);
 		UnlockIfValid(RHICmdList, TaskContext.LightmapUploader);
 
 		for (FNaniteMaterialCommands::FUploader* Uploader : TaskContext.NaniteMaterialUploaders)
@@ -1344,11 +1300,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& Scene, FRDGExte
 	if (TaskContext.InstanceSceneUploader)
 	{
 		InstanceSceneUploadBuffer.End(GraphBuilder, TaskContext.InstanceSceneUploader);
-	}
-
-	if (TaskContext.InstanceBVHUploader)
-	{
-		InstanceBVHUploadBuffer.End(GraphBuilder, TaskContext.InstanceBVHUploader);
 	}
 
 	if (TaskContext.LightmapUploader)
@@ -1377,11 +1328,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& Scene, FRDGExte
 	if (InstancePayloadUploadBuffer.GetNumBytes() > MaxPooledSize)
 	{
 		InstancePayloadUploadBuffer.Release();
-	}
-
-	if (InstanceBVHUploadBuffer.GetNumBytes() > MaxPooledSize)
-	{
-		InstanceBVHUploadBuffer.Release();
 	}
 
 	if (LightmapUploadBuffer.GetNumBytes() > MaxPooledSize)

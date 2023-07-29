@@ -177,7 +177,6 @@ struct FGPUSceneBufferState
 	FRDGBuffer* InstanceSceneDataBuffer = nullptr;
 	uint32 InstanceSceneDataSOAStride = 1; // Distance between arrays in float4s
 	FRDGBuffer* InstancePayloadDataBuffer = nullptr;
-	FRDGBuffer* InstanceBVHBuffer = nullptr;
 	FRDGBuffer* LightmapDataBuffer = nullptr;
 	uint32 LightMapDataBufferSize = 0;
 
@@ -351,9 +350,6 @@ public:
 	FSpanAllocator                 InstancePayloadDataAllocator;
 	TRefCountPtr<FRDGPooledBuffer> InstancePayloadDataBuffer;
 	FRDGAsyncScatterUploadBuffer   InstancePayloadUploadBuffer;
-
-	TRefCountPtr<FRDGPooledBuffer> InstanceBVHBuffer;
-	FRDGAsyncScatterUploadBuffer   InstanceBVHUploadBuffer;
 
 	/** GPU light map data */
 	FSpanAllocator                 LightmapDataAllocator;
