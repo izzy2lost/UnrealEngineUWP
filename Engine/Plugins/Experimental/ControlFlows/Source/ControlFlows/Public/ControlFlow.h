@@ -335,6 +335,8 @@ public:
 	CONTROLFLOWS_API FControlFlowPopulator& QueueLoop(FControlFlowLoopComplete& LoopCompleteDelgate, const FString& TaskName = TEXT(""), const FString& FlowNodeDebugName = TEXT(""));
 	
 private:
+	FORCEINLINE void SetProfilerEventStarted() { ensureMsgf(!bProfilerEventStarted, TEXT("Started a new control flow profiler event before previous step completed.")); bProfilerEventStarted = true; }
+
 	void HandleControlFlowNodeCompleted(TSharedRef<const FControlFlowNode> NodeCompleted);
 
 	mutable FSimpleMulticastDelegate OnStepCompletedDelegate;
@@ -394,4 +396,22 @@ private:
 	TArray<TSharedRef<FControlFlowNode>> FlowQueue;
 
 	TSharedPtr<FTrackedActivity> Activity;
+
+	bool bProfilerEventStarted = false;
+
 };
+
+#if CPUPROFILERTRACE_ENABLED
+
+#define CONTROL_FLOW_PERF_TRACE_STEP(FlowHandle, EventName) \
+	TRACE_CPUPROFILER_EVENT_MANUAL_START(#EventName); \
+	if (TRACE_CPUPROFILER_EVENT_MANUAL_IS_ENABLED()) \
+	{ \
+		FlowHandle->SetProfilerEventStarted(); \
+	}
+
+#else
+
+#define CONTROL_FLOW_PERF_TRACE_STEP(FlowHandle, EventName)
+
+#endif

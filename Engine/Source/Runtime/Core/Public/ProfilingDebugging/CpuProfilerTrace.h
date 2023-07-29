@@ -247,6 +247,19 @@ struct FCpuProfilerTrace
 #define TRACE_CPUPROFILER_EVENT_SCOPE_USE_ON_CHANNEL(DeclName, NameStr, ScopeName, Channel, Condition) \
 	FCpuProfilerTrace::FEventScope ScopeName(DeclName, NameStr, Channel, Condition, __FILE__, __LINE__);
 
+// Advanced macro that will check if CpuChannel is enabled and, if so, declare a new stat event and start it
+#define TRACE_CPUPROFILER_EVENT_MANUAL_START(EventNameStr) \
+	if (CpuChannel) \
+	{ \
+		static uint32 PREPROCESSOR_JOIN(__CpuProfilerEventSpecId, __LINE__) = FCpuProfilerTrace::OutputEventType(EventNameStr, __FILE__, __LINE__); \
+		FCpuProfilerTrace::OutputBeginEvent(PREPROCESSOR_JOIN(__CpuProfilerEventSpecId, __LINE__)); \
+	}
+
+// Advanced macro that can be used with TRACE_CPUPROFILER_EVENT_MANUAL_START to wrap code that should only be executed if 
+// the event was actually started
+#define TRACE_CPUPROFILER_EVENT_MANUAL_IS_ENABLED() \
+	bool(CpuChannel)
+
 // Trace a scoped cpu timing event providing a static string (const ANSICHAR* or const TCHAR*)
 // as the scope name. It will use the Cpu trace channel.
 // Example: TRACE_CPUPROFILER_EVENT_SCOPE_STR("My Scoped Timer A")
@@ -302,6 +315,8 @@ struct FCpuProfilerTrace
 #define TRACE_CPUPROFILER_EVENT_DECLARE(DeclName)
 #define TRACE_CPUPROFILER_EVENT_SCOPE_USE(DeclName, NameStr, ScopeName, Condition)
 #define TRACE_CPUPROFILER_EVENT_SCOPE_USE_ON_CHANNEL(DeclName, NameStr, ScopeName, Channel, Condition)
+#define TRACE_CPUPROFILER_EVENT_MANUAL_START(EventNameStr)
+#define TRACE_CPUPROFILER_EVENT_MANUAL_IS_ENABLED() false
 #define TRACE_CPUPROFILER_EVENT_SCOPE_STR(NameStr)
 #define TRACE_CPUPROFILER_EVENT_SCOPE_ON_CHANNEL_STR(NameStr, Channel)
 #define TRACE_CPUPROFILER_EVENT_SCOPE(Name)

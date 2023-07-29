@@ -63,6 +63,14 @@ FString FControlFlowNode::GetNodeName() const
 	return NodeName;
 }
 
+void FControlFlowNode::SetProfilerEventStarted()
+{
+	if (ensureAlways(Parent.IsValid()))
+	{
+		Parent.Pin()->SetProfilerEventStarted();
+	}
+}
+
 ///////////////////////////////////////////////////
 
 FControlFlowNode_SelfCompleting::FControlFlowNode_SelfCompleting(TSharedRef<FControlFlow> ControlFlowParent, const FString& FlowNodeDebugName)

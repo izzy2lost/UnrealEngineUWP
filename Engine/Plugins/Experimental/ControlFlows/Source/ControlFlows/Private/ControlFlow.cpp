@@ -74,6 +74,14 @@ void FControlFlow::HandleControlFlowNodeCompleted(TSharedRef<const FControlFlowN
 {
 	UE_LOG(LogControlFlows, Verbose, TEXT("ControlFlow - Executing %s%s(x%d).%s (FlowControlNodeCompleted)"), *GetFlowPath(), *DebugName, GetRepeatedFlowCount(), *NodeCompleted->GetNodeName());
 
+#if CPUPROFILERTRACE_ENABLED
+	if (bProfilerEventStarted)
+	{
+		FCpuProfilerTrace::OutputEndEvent();
+		bProfilerEventStarted = false;
+	}
+#endif 
+
 	SubFlowStack_ForDebugging.Add(SharedThis(this));
 
 	if (ensureMsgf(CurrentNode.IsValid(), TEXT("CurrentNode isn't valid when handling control flow node (%s) being completed.  This will likely become a static_assert/compile-error"),
