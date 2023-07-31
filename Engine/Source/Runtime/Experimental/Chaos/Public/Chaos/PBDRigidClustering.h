@@ -496,10 +496,12 @@ public:
 	 * incrementally or entirely rebuild the properties all over again. This all depends on whether the input children is
 	 * either 1) the new children or 2) all the children as well as what those initial properties are set to.
 	 */
+	UE_DEPRECATED(5.4, "This should be handled for you properly in AddParticlesToCluster and RemoveParticlesFromCluster. There is no need for an extra function call.")
 	CHAOS_API void UpdateClusterParticlePropertiesFromChildren(
 		FPBDRigidClusteredParticleHandle* Cluster,
 		const FRigidHandleArray& Children,
 		const TMap<FPBDRigidParticleHandle*, FPBDRigidParticleHandle*>& ChildToParentMap);
+
 private:
 
 	// Cluster release stats for debugging with CVar p.Chaos.Clustering.DumpClusterAndReleaseStats
