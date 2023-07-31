@@ -98,8 +98,9 @@ namespace GameFeatureVersePathMapper
 				GConfig->FindOrLoadPlatformConfig(MaybeLoadedConfig, *GInstallBundleIni, IniPlatformName) :
 				GConfig->FindConfigFile(GInstallBundleIni);
 
-			BundleRegexList = InstallBundleUtil::LoadBundleRegexFromConfig(
-				*InstallBundleConfig, InstallBundleUtil::IsPlatformInstallBundlePredicate);
+			// Cosemtics no longer set a regex (use VFS streaming instead) so they won't bloat this list
+			// We want to load regex even if PlatformChunkID=-1 to make sure we map GFPs that are only on content service
+			BundleRegexList = InstallBundleUtil::LoadBundleRegexFromConfig(*InstallBundleConfig);
 		}
 
 		FString Resolve(const FStringView& PluginName, const FString& ChunkPattern)
