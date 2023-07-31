@@ -1932,7 +1932,8 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 			FInstanceCullingContext* InstanceCullingContext = nullptr;
 			if (Scene->GPUScene.IsEnabled())
 			{
-				InstanceCullingContext = GraphBuilder.AllocObject<FInstanceCullingContext>(Views[0].GetShaderPlatform(), nullptr, TArrayView<const int32>(&Views[0].GPUSceneViewId, 1), nullptr);
+				static FName NAME_LumenCardCapturePass("LumenCardCapture");
+				InstanceCullingContext = GraphBuilder.AllocObject<FInstanceCullingContext>(NAME_LumenCardCapturePass, Views[0].GetShaderPlatform(), nullptr, TArrayView<const int32>(&Views[0].GPUSceneViewId, 1), nullptr);
 				
 				int32 MaxInstances = 0;
 				int32 VisibleMeshDrawCommandsNum = 0;

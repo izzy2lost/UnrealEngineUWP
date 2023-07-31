@@ -20,6 +20,7 @@
 #include "RenderCore.h"
 #include "UnrealEngine.h"
 #include "SceneUniformBuffer.h"
+#include "MeshDrawCommandStats.h"
 
 FRWLock FGraphicsMinimalPipelineStateId::PersistentIdTableLock;
 FGraphicsMinimalPipelineStateId::PersistentTableType FGraphicsMinimalPipelineStateId::PersistentIdTable;
@@ -1711,6 +1712,25 @@ void FMeshDrawCommand::SetDebugData(const FPrimitiveSceneProxy* PrimitiveScenePr
 	DebugData.MaterialName = MaterialRenderProxy->GetMaterialName();
 }
 #endif
+
+#if MESH_DRAW_COMMAND_STAT_COLLECTION
+void FMeshDrawCommand::SetStatsData(const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMeshBatch& MeshBatch, int32 BatchElementIndex)
+{
+	StatsData.ComponentDataID = PrimitiveSceneProxy ? PrimitiveSceneProxy->GetMeshDrawCommandStatsComponentDataID() : INDEX_NONE;
+	StatsData.LODIndex = MeshBatch.LODIndex;
+	StatsData.SegmentIndex = MeshBatch.SegmentIndex;
+}
+
+void FMeshDrawCommand::GetStatsData(FVisibleMeshDrawCommandStatsData& OutVisibleStatsData) const
+{
+	OutVisibleStatsData.StatsData = StatsData;
+	OutVisibleStatsData.PrimitiveCount = NumPrimitives;
+#if MESH_DRAW_COMMAND_DEBUG_DATA
+	OutVisibleStatsData.ResourceName = DebugData.ResourceName;
+	OutVisibleStatsData.MaterialName = DebugData.MaterialName;
+#endif
+}
+#endif // MESH_DRAW_COMMAND_STAT_COLLECTION
 
 void SubmitMeshDrawCommands(
 	const FMeshCommandOneFrameArray& VisibleMeshDrawCommands,

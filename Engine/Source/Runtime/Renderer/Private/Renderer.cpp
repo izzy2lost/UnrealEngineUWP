@@ -43,6 +43,7 @@
 #include "EngineModule.h"
 #include "RendererInterface.h"
 #include "PrimitiveSceneShaderData.h"
+#include "MeshDrawCommandStats.h"
 
 DEFINE_LOG_CATEGORY(LogRenderer);
 
@@ -62,6 +63,10 @@ FAutoConsoleVariableRef CVarFlushRenderTargetsOnWorldCleanup(TEXT("r.bFlushRende
 
 void FRendererModule::StartupModule()
 {
+#if MESH_DRAW_COMMAND_STAT_COLLECTION
+	FMeshDrawCommandStatsManager::CreateInstance();
+#endif
+
 	GScreenSpaceDenoiser = IScreenSpaceDenoiser::GetDefaultDenoiser();
 
 	FRendererOnScreenNotification::Get();

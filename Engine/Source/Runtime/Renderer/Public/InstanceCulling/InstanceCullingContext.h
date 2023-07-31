@@ -14,6 +14,7 @@ class FInstanceCullingDrawParams;
 class FScene;
 class FGPUScenePrimitiveCollector;
 class FInstanceCullingDeferredContext;
+struct FMeshDrawCommandPassStats;
 
 
 DECLARE_UNIFORM_BUFFER_STRUCT(FSceneUniformParameters, RENDERER_API)
@@ -89,12 +90,26 @@ public:
 	
 	FInstanceCullingContext() {}
 
+	UE_DEPRECATED(5.4, "Use constructor which provides pass name as first argument")
+	RENDERER_API FInstanceCullingContext(		
+		EShaderPlatform ShaderPlatform,
+		FInstanceCullingManager* InInstanceCullingManager,
+		TArrayView<const int32> InViewIds,
+		const TRefCountPtr<IPooledRenderTarget>& InPrevHZB,
+		EInstanceCullingMode InInstanceCullingMode = EInstanceCullingMode::Normal,
+		EInstanceCullingFlags InFlags = EInstanceCullingFlags::None,
+		EBatchProcessingMode InSingleInstanceProcessingMode = EBatchProcessingMode::UnCulled) :
+		FInstanceCullingContext(TEXT("Unknown"), ShaderPlatform, InInstanceCullingManager, InViewIds, InPrevHZB, InInstanceCullingMode, InFlags, InSingleInstanceProcessingMode)
+	{
+	}
+
 	/**
 	 * Create an instance culling context to process draw commands that can be culled using GPU-Scene.
 	 * @param InPrevHZB if non-null enables HZB-occlusion culling for the context (if r.InstanceCulling.OcclusionCull is enabled),
 	 *                  NOTE: only one PrevHZB target is allowed accross all passes currently, so either must be atlased or otherwise the same.
 	 */
 	RENDERER_API FInstanceCullingContext(
+		FName PassName,
 		EShaderPlatform ShaderPlatform,
 		FInstanceCullingManager* InInstanceCullingManager, 
 		TArrayView<const int32> InViewIds, 
@@ -334,6 +349,12 @@ public:
 	FUniformBufferStaticSlot BatchedPrimitiveSlot;
 	// Whether current platform uses Uniform Buffer View path
 	bool bUsesUniformBufferView;
+	
+#if MESH_DRAW_COMMAND_STAT_COLLECTION
+public:
+	// Optional pass stats
+	FMeshDrawCommandPassStats* MeshDrawCommandPassStats = nullptr;
+#endif // MESH_DRAW_COMMAND_STAT_COLLECTION
 };
 
 ENUM_CLASS_FLAGS(FInstanceCullingContext::EInstanceFlags)

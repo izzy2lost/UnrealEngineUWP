@@ -92,6 +92,7 @@
 #include "Engine/SpecularProfile.h"
 #include "Engine/VolumeTexture.h"
 #include "GPUDebugCrashUtils.h"
+#include "MeshDrawCommandStats.h"
 
 /*-----------------------------------------------------------------------------
 	Globals
@@ -3983,10 +3984,11 @@ void FSceneRenderer::SetupMeshPass(FViewInfo& View, FExclusiveDepthStencil::Type
 				EnumAddFlags(CullingFlags, EInstanceCullingFlags::DrawOnlyVSMInvalidatingGeometry);
 			}
 
+			FName PassName(GetMeshPassName(PassType));
 			Pass.DispatchPassSetup(
 				Scene,
 				View,
-				FInstanceCullingContext(ShaderPlatform, &InstanceCullingManager, ViewIds, View.PrevViewInfo.HZB, InstanceCullingMode, CullingFlags),
+				FInstanceCullingContext(PassName, ShaderPlatform, &InstanceCullingManager, ViewIds, View.PrevViewInfo.HZB, InstanceCullingMode, CullingFlags),
 				PassType,
 				BasePassDepthStencilAccess,
 				MeshPassProcessor,
@@ -4596,6 +4598,15 @@ static void RenderViewFamilies_RenderThread(FRHICommandListImmediate& RHICmdList
 		SceneRenderer->FlushCrossGPUFences(GraphBuilder);
 
 		GraphBuilder.Execute();
+
+#if MESH_DRAW_COMMAND_STAT_COLLECTION
+		// Needs to happen after graph builder execute to make sure all FMeshDrawCommandPassSetupTask are finished.
+		// Only during iteration of the visible MDCs we know the custom indirect args used in the frame
+		if (FMeshDrawCommandStatsManager* Instance = FMeshDrawCommandStatsManager::Get())
+		{
+			Instance->QueueCustomDrawIndirectArgsReadback(RHICmdList);
+		}
+#endif
 
 		if (SceneRenderer->ViewFamily.ProfileSceneRenderTime)
 		{

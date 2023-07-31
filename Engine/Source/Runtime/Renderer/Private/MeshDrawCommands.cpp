@@ -12,6 +12,7 @@ MeshDrawCommandSetup.cpp: Mesh draw command setup.
 #include "InstanceCulling/InstanceCullingManager.h"
 #include "StaticMeshBatch.h"
 #include "SceneDefinitions.h"
+#include "MeshDrawCommandStats.h"
 
 TGlobalResource<FPrimitiveIdVertexBufferPool> GPrimitiveIdVertexBufferPool;
 
@@ -861,6 +862,88 @@ void ApplyViewOverridesToMeshDrawCommands(
 	}
 }
 
+void CollectMeshDrawCommandPassStats(
+	FMeshCommandOneFrameArray& VisibleMeshDrawCommands,
+	FInstanceCullingContext& InstanceCullingContext)
+{	
+#if MESH_DRAW_COMMAND_STAT_COLLECTION
+	FMeshDrawCommandPassStats* PassStats = InstanceCullingContext.MeshDrawCommandPassStats;
+	if (PassStats == nullptr)
+	{
+		return;
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(CollectMeshDrawCommandPassStats);
+
+	check(VisibleMeshDrawCommands.Num() == InstanceCullingContext.MeshDrawCommandInfos.Num());
+		
+	PassStats->DrawData.SetNum(VisibleMeshDrawCommands.Num(), false);
+	for (int32 DrawCommandIndex = 0; DrawCommandIndex < VisibleMeshDrawCommands.Num(); ++DrawCommandIndex)
+	{
+		const FVisibleMeshDrawCommand& RESTRICT VisibleMeshDrawCommand = VisibleMeshDrawCommands[DrawCommandIndex];
+		const FMeshDrawCommand* RESTRICT MeshDrawCommand = VisibleMeshDrawCommand.MeshDrawCommand;
+		const FInstanceCullingContext::FMeshDrawCommandInfo& RESTRICT MeshDrawCommandInfo = InstanceCullingContext.MeshDrawCommandInfos[DrawCommandIndex];
+
+		const bool bSupportsGPUSceneInstancing = EnumHasAnyFlags(VisibleMeshDrawCommand.Flags, EFVisibleMeshDrawCommandFlags::HasPrimitiveIdStreamIndex);
+
+		FVisibleMeshDrawCommandStatsData& DrawData = PassStats->DrawData[DrawCommandIndex];
+		MeshDrawCommand->GetStatsData(DrawData);
+		DrawData.PrimitiveCount		= MeshDrawCommand->NumPrimitives;
+
+		bool bUseIndirect = MeshDrawCommandInfo.bUseIndirect;
+
+		// Force disable draw indirect when num primitives is provided and MeshDrawCommand.PrimitiveIdStreamIndex < 0;
+		int32 NumInstances = MeshDrawCommandInfo.IndirectArgsOffsetOrNumInstances;
+		if (bUseIndirect && MeshDrawCommand->NumPrimitives > 0 && MeshDrawCommand->PrimitiveIdStreamIndex < 0)
+		{
+			bUseIndirect = false;
+			NumInstances = 1;
+		}
+
+		if (bUseIndirect || MeshDrawCommand->NumPrimitives == 0)
+		{
+			// Setup indirect args buffer & offset if provided otherwise use the one from the gpuscene instance culling
+			if (MeshDrawCommand->NumPrimitives == 0)
+			{
+				check(MeshDrawCommand->IndirectArgs.Buffer != nullptr);
+				DrawData.CustomIndirectArgsBuffer = MeshDrawCommand->IndirectArgs.Buffer;
+				DrawData.IndirectArgsOffset = MeshDrawCommand->IndirectArgs.Offset;
+
+				PassStats->CustomIndirectArgsBuffers.Add(DrawData.CustomIndirectArgsBuffer);
+			}
+			else if (bSupportsGPUSceneInstancing)
+			{
+				DrawData.UseInstantCullingIndirectBuffer = 1;
+				DrawData.IndirectArgsOffset = MeshDrawCommandInfo.IndirectArgsOffsetOrNumInstances;
+			}
+
+			// Find out the total instance count
+			if (VisibleMeshDrawCommand.RunArray && VisibleMeshDrawCommand.NumRuns > 0)
+			{
+				DrawData.TotalInstanceCount = 0;
+				for (int32 Run = 0; Run < VisibleMeshDrawCommand.NumRuns; Run++)
+				{
+					DrawData.TotalInstanceCount += (VisibleMeshDrawCommand.RunArray[Run * 2 + 1] - VisibleMeshDrawCommand.RunArray[Run * 2] + 1);
+				}
+			}
+			else
+			{
+				DrawData.TotalInstanceCount = MeshDrawCommand->NumInstances;
+			}
+
+			// By default mark all invisible
+			DrawData.VisibleInstanceCount = 0;
+		}
+		else
+		{
+			check(VisibleMeshDrawCommand.RunArray == nullptr);
+			DrawData.VisibleInstanceCount = MeshDrawCommand->NumInstances * NumInstances;
+			DrawData.TotalInstanceCount = MeshDrawCommand->NumInstances * NumInstances;
+		}
+	}
+#endif // MESH_DRAW_COMMAND_STAT_COLLECTION
+}
+
 FAutoConsoleTaskPriority CPrio_FMeshDrawCommandPassSetupTask(
 	TEXT("TaskGraph.TaskPriorities.FMeshDrawCommandPassSetupTask"),
 	TEXT("Task and thread priority for FMeshDrawCommandPassSetupTask."),
@@ -1039,6 +1122,8 @@ public:
 					Context.MaxInstances, 
 					Context.VisibleMeshDrawCommandsNum, 
 					Context.NewPassVisibleMeshDrawCommandsNum);
+
+				CollectMeshDrawCommandPassStats(Context.MeshDrawCommands, Context.InstanceCullingContext);
 			}
 		}
 	}

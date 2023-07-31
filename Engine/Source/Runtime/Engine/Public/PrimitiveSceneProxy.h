@@ -19,6 +19,7 @@
 #include "DrawDebugHelpers.h"
 #include "Math/CapsuleShape.h"
 #include "SceneDefinitions.h"
+#include "MeshDrawCommandStatsComponentData.h"
 
 class FLightSceneInfo;
 class FLightSceneProxy;
@@ -613,6 +614,10 @@ public:
 	inline int32 GetVirtualTextureLodBias() const { return VirtualTextureLodBias; }
 	inline int32 GetVirtualTextureCullMips() const { return VirtualTextureCullMips; }
 	inline int32 GetVirtualTextureMinCoverage() const {	return VirtualTextureMinCoverage; }
+
+#if MESH_DRAW_COMMAND_STAT_COLLECTION
+	inline FMeshDrawCommandStatsComponentDataID GetMeshDrawCommandStatsComponentDataID() const { return MeshDrawCommandStatsComponentDataID; }
+#endif
 
 	inline bool IsMovable() const 
 	{ 
@@ -1619,7 +1624,12 @@ protected:
 
 	/** The primitive's minimum cull distance. */
 	float MinDrawDistance;
-	
+
+#if MESH_DRAW_COMMAND_STAT_COLLECTION
+	/** Unique id use to retrieve the component data when building the mesh data draw stat information */
+	FMeshDrawCommandStatsComponentDataID MeshDrawCommandStatsComponentDataID = INDEX_NONE;
+#endif
+
 	/**
 	 * Updates the primitive proxy's cached transforms for all instances given a buffer of instance updates.
 	 * @param CmdBuffer - A record of all the add, update and remove instances for the proxy to apply to its internal data.

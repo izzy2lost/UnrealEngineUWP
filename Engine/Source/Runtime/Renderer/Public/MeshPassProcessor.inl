@@ -159,6 +159,8 @@ void FMeshPassProcessor::BuildMeshDrawCommands(
 			const FMeshBatchElement& BatchElement = MeshBatch.Elements[BatchElementIndex];
 			FMeshDrawCommand& MeshDrawCommand = DrawListContext->AddCommand(SharedMeshDrawCommand, NumElements);
 			
+			MeshDrawCommand.SetStatsData(PrimitiveSceneProxy, MeshBatch, BatchElementIndex);
+			
 			EFVisibleMeshDrawCommandFlags Flags = SharedFlags;
 			if (BatchElement.bForceInstanceCulling)
 			{
@@ -185,7 +187,6 @@ void FMeshPassProcessor::BuildMeshDrawCommands(
 				FMeshDrawSingleShaderBindings PixelShaderBindings = MeshDrawCommand.ShaderBindings.GetSingleShaderBindings(SF_Pixel, DataOffset);
 				FMeshMaterialShader::GetElementShaderBindings(PassShaders.PixelShader, Scene, ViewIfDynamicMeshCommand, VertexFactory, EVertexInputStreamType::Default, FeatureLevel, PrimitiveSceneProxy, MeshBatch, BatchElement, ShaderElementData, PixelShaderBindings, MeshDrawCommand.VertexStreams);
 			}
-
 
 			if (PassShaders.GeometryShader.IsValid())
 			{

@@ -391,6 +391,9 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const UPrimitiveComponent* InComponen
 #endif
 ,	MaxDrawDistance(InComponent->CachedMaxDrawDistance > 0 ? InComponent->CachedMaxDrawDistance : FLT_MAX)
 ,	MinDrawDistance(InComponent->MinDrawDistance)
+#if MESH_DRAW_COMMAND_STAT_COLLECTION
+,	MeshDrawCommandStatsComponentDataID(InComponent->GetMeshDrawCommandStatsComponentDataID())
+#endif
 {
 	check(Scene);
 

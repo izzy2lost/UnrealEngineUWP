@@ -2385,10 +2385,11 @@ void FProjectedShadowInfo::SetupMeshDrawCommandsForShadowDepth(FSceneRenderer& R
 	// Ensure all work goes down the one path to simplify processing
 	EBatchProcessingMode SingleInstanceProcessingMode = HasVirtualShadowMap() ? EBatchProcessingMode::Generic : EBatchProcessingMode::UnCulled;
 
+	static FName NAME_ShadowDepthPass("ShadowDepth");
 	ShadowDepthPass.DispatchPassSetup(
 		Renderer.Scene,
 		*ShadowDepthView,
-		FInstanceCullingContext(Renderer.ShaderPlatform, &InstanceCullingManager, ViewIds, nullptr, EInstanceCullingMode::Normal, EInstanceCullingFlags::NoInstanceOrderPreservation, SingleInstanceProcessingMode),
+		FInstanceCullingContext(NAME_ShadowDepthPass, Renderer.ShaderPlatform, &InstanceCullingManager, ViewIds, nullptr, EInstanceCullingMode::Normal, EInstanceCullingFlags::NoInstanceOrderPreservation, SingleInstanceProcessingMode),
 		EMeshPass::Num,
 		FExclusiveDepthStencil::DepthNop_StencilNop,
 		MeshPassProcessor,

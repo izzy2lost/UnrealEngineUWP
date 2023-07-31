@@ -380,10 +380,11 @@ void FMobileSceneRenderer::SetupMobileBasePassAfterShadowInit(FExclusiveDepthSte
 			Pass.SetDumpInstancingStats(GetMeshPassName(EMeshPass::BasePass));
 		}
 
+		FName PassName(GetMeshPassName(EMeshPass::BasePass));
 		Pass.DispatchPassSetup(
 			Scene,
 			View,
-			FInstanceCullingContext(ShaderPlatform, &InstanceCullingManager, ViewIds, nullptr, InstanceCullingMode),
+			FInstanceCullingContext(PassName, ShaderPlatform, &InstanceCullingManager, ViewIds, nullptr, InstanceCullingMode),
 			EMeshPass::BasePass,
 			BasePassDepthStencilAccess,
 			MeshPassProcessor,

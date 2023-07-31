@@ -22,7 +22,8 @@ FSimpleMeshDrawCommandPass::FSimpleMeshDrawCommandPass(const FSceneView& View, F
 		ViewIds.Add(ViewInfo->GetInstancedView()->GPUSceneViewId);
 	}
 
-	InstanceCullingContext = FInstanceCullingContext(ViewInfo->GetShaderPlatform(), InstanceCullingManager, ViewIds, nullptr, bUsingStereo ? EInstanceCullingMode::Stereo : EInstanceCullingMode::Normal);
+	static FName NAME_SimpleMDCPass("SimpleMDCPass");
+	InstanceCullingContext = FInstanceCullingContext(NAME_SimpleMDCPass, ViewInfo->GetShaderPlatform(), InstanceCullingManager, ViewIds, nullptr, bUsingStereo ? EInstanceCullingMode::Stereo : EInstanceCullingMode::Normal);
 
 	InstanceFactor = static_cast<uint32>(ViewIds.Num());
 }

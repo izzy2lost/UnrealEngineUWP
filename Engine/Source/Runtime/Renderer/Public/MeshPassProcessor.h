@@ -11,6 +11,7 @@
 #include "SceneUtils.h"
 #include "MeshBatch.h"
 #include "PSOPrecache.h"
+#include "MeshDrawCommandStatsComponentData.h"
 #include "Hash/CityHash.h"
 #include "Experimental/Containers/RobinHoodHashTable.h"
 #include "RHIImmutableSamplerState.h"
@@ -25,6 +26,7 @@ class FRayTracingLocalShaderBindingWriter;
 
 struct FMeshProcessorShaders;
 struct FSceneTexturesConfig;
+struct FVisibleMeshDrawCommandStatsData;
 
 /** Mesh pass types supported. */
 namespace EMeshPass
@@ -721,6 +723,18 @@ struct FMeshDrawCommandDebugData
 #endif
 };
 
+#if MESH_DRAW_COMMAND_STAT_COLLECTION
+struct FMeshDrawCommandStatsData
+{
+	/** ID used to retrieve the component data during stat collection. */
+	FMeshDrawCommandStatsComponentDataID ComponentDataID;
+	/** LOD index of the MDC used only during full stat dumping. */
+	int8 LODIndex;
+	/** Segment index of the MDC used only during full stat dumping. */
+	uint8 SegmentIndex;
+};
+#endif // MESH_DRAW_COMMAND_STAT_COLLECTION
+
 class FMeshDrawCommandStateCache
 {
 public:
@@ -1285,6 +1299,16 @@ public:
 		FMeshDrawEvent(const FMeshDrawCommand& MeshDrawCommand, const uint32 InstanceFactor, FRHICommandList& RHICmdList);
 	};
 #endif
+
+#if !MESH_DRAW_COMMAND_STAT_COLLECTION
+	RENDERER_API void SetStatsData(const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMeshBatch& MeshBatch, int32 BatchElementIndex) {}
+#else
+public:
+	RENDERER_API void SetStatsData(const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMeshBatch& MeshBatch, int32 BatchElementIndex);
+	void GetStatsData(FVisibleMeshDrawCommandStatsData& OutVisibleStatsData) const;
+private:
+	FMeshDrawCommandStatsData StatsData;
+#endif //!MESH_DRAW_COMMAND_STAT_COLLECTION
 };
 
 /** FVisibleMeshDrawCommand sort key. */

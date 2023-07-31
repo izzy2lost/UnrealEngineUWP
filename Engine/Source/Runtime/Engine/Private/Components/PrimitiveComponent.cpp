@@ -4462,6 +4462,20 @@ void UPrimitiveComponent::SetLastRenderTime(float InLastRenderTime)
 	}
 }
 
+#if MESH_DRAW_COMMAND_STAT_COLLECTION
+void UPrimitiveComponent::SetMeshDrawCommandStatsCategory(FName StatsCategory)
+{
+	if (FMeshDrawCommandStatsComponentDataManager* Manager = FMeshDrawCommandStatsComponentDataManager::Get())
+	{
+		FMeshDrawCommandStatsComponentData ComponentData;
+		ComponentData.ComponentType = GetClass()->GetFName();
+		ComponentData.StatsCategory = StatsCategory;
+		MeshDrawCommandStatsComponentDataID = Manager->GetID(ComponentData);
+		MarkRenderStateDirty();
+	}
+}
+#endif // MESH_DRAW_COMMAND_STAT_COLLECTION
+
 void UPrimitiveComponent::SetupPrecachePSOParams(FPSOPrecacheParams& Params)
 {
 	Params.bRenderInMainPass = bRenderInMainPass;
