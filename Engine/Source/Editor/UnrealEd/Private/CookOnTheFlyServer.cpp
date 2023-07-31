@@ -154,6 +154,7 @@
 #define LOCTEXT_NAMESPACE "Cooker"
 
 DEFINE_LOG_CATEGORY(LogCook);
+DEFINE_LOG_CATEGORY(LogCookStats);
 DEFINE_LOG_CATEGORY_STATIC(LogCookList, Log, All);
 
 FName LogCookName(TEXT("LogCook"));
@@ -9869,7 +9870,7 @@ void UCookOnTheFlyServer::PrintDetailedCookStats()
 			}
 			DetailedCookStats::CookWallTimeSec = Now - GStartTime;
 			DetailedCookStats::StartupWallTimeSec = DetailedCookStats::CookStartTime - GStartTime;
-			DetailedCookStats::LogCookStats(CurrentCookMode);
+			DetailedCookStats::SendLogCookStats(CurrentCookMode);
 		});
 }
 
