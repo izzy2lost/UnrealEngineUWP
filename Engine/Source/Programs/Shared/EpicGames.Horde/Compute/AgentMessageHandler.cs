@@ -194,7 +194,7 @@ namespace EpicGames.Horde.Compute
 				newEnvVars[WorkerComputeSocket.IpcEnvVar] = ipcBuffer.Name;
 
 				using ComputeBufferReader ipcBufferReader = ipcBuffer.CreateReader();
-				await using (BackgroundTask backgroundTask = BackgroundTask.StartNew(ctx => ProcessIpcMessagesAsync(socket, ipcBufferReader, new[] { cancellationToken, ctx })))
+				await using (BackgroundTask backgroundTask = BackgroundTask.StartNew(ctx => ProcessIpcMessagesAsync(socket, ipcBufferReader, new[] { cancellationToken, ctx }, _logger)))
 				{
 					_logger.LogInformation("Launching {Executable} {Arguments}", CommandLineArguments.Quote(executable), CommandLineArguments.Join(arguments));
 					try
@@ -214,7 +214,7 @@ namespace EpicGames.Horde.Compute
 			_logger.LogInformation("Child process has shut down");
 		}
 
-		async Task ProcessIpcMessagesAsync(ComputeSocket socket, ComputeBufferReader ipcReader, CancellationToken[] cancellationTokens)
+		internal static async Task ProcessIpcMessagesAsync(ComputeSocket socket, ComputeBufferReader ipcReader, CancellationToken[] cancellationTokens, ILogger logger)
 		{
 			using CancellationTokenSource cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationTokens);
 			CancellationToken cancellationToken = cancellationTokenSource.Token;
@@ -237,7 +237,7 @@ namespace EpicGames.Horde.Compute
 								{
 									int channelId = (int)reader.ReadUnsignedVarInt();
 									string name = reader.ReadString();
-									_logger.LogDebug("Attaching send buffer for channel {ChannelId} to {Name}", channelId, name);
+									logger.LogDebug("Attaching send buffer for channel {ChannelId} to {Name}", channelId, name);
 
 									SharedMemoryBuffer buffer = SharedMemoryBuffer.OpenExisting(name);
 									buffers.Add(buffer);
@@ -249,7 +249,7 @@ namespace EpicGames.Horde.Compute
 								{
 									int channelId = (int)reader.ReadUnsignedVarInt();
 									string name = reader.ReadString();
-									_logger.LogDebug("Attaching recv buffer for channel {ChannelId} to {Name}", channelId, name);
+									logger.LogDebug("Attaching recv buffer for channel {ChannelId} to {Name}", channelId, name);
 
 									SharedMemoryBuffer buffer = SharedMemoryBuffer.OpenExisting(name);
 									buffers.Add(buffer);
@@ -263,7 +263,7 @@ namespace EpicGames.Horde.Compute
 					}
 					catch (Exception ex)
 					{
-						_logger.LogError(ex, "Exception while processing messages from child process: {Message}", ex.Message);
+						logger.LogError(ex, "Exception while processing messages from child process: {Message}", ex.Message);
 					}
 
 					ipcReader.AdvanceReadPosition(memory.Length - reader.RemainingMemory.Length);
@@ -271,7 +271,7 @@ namespace EpicGames.Horde.Compute
 			}
 			catch (OperationCanceledException)
 			{
-				_logger.LogDebug("Ipc message loop cancelled");
+				logger.LogDebug("Ipc message loop cancelled");
 			}
 			finally
 			{
