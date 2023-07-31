@@ -1702,6 +1702,12 @@ public:
 	ENGINE_API FVector GetActorRelativeScale3D() const;
 
 	/**
+	 * Marks the bounds of all SceneComponents attached to this actor which have `bComputeBoundsOnceForGame` as needing to be recomputed the next time UpdateBounds is called. 
+	 * This might be necessary if the bounds that were cached on cook no longer reflect the actor's transform (ex. if level transform is applied).
+	 */
+	ENGINE_API void MarkNeedsRecomputeBoundsOnceForGame();
+
+	/**
 	 *	Sets the actor to be hidden in the game
 	 *	@param	bNewHidden	Whether or not to hide the actor and all its components
 	 */

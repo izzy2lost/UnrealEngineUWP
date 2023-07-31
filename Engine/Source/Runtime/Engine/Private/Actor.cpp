@@ -4688,6 +4688,17 @@ FVector AActor::GetActorRelativeScale3D() const
 	return FVector(1,1,1);
 }
 
+void AActor::MarkNeedsRecomputeBoundsOnceForGame()
+{
+	ForEachComponent<USceneComponent>(true, [](USceneComponent* SceneComponent)
+	{
+		if (SceneComponent && SceneComponent->bComputeBoundsOnceForGame)
+		{
+			SceneComponent->bComputedBoundsOnceForGame = false;
+		}
+	});
+}
+
 void AActor::SetActorHiddenInGame( bool bNewHidden )
 {
 	if (IsHidden() != bNewHidden)
