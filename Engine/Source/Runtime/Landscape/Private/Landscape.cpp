@@ -1101,6 +1101,9 @@ void ULandscapeComponent::PostLoad()
 		}
 	}
 
+	static FName NAME_StatsCategoryLandscape("Landscape");
+	SetMeshDrawCommandStatsCategory(NAME_StatsCategoryLandscape);
+
 #if WITH_EDITOR
 	ALandscapeProxy* LandscapeProxy = GetLandscapeProxy();
 	if (ensure(LandscapeProxy))

@@ -118,6 +118,7 @@ struct FISMComponentDescription
 	int32 MinLod = 0;
 	float LodScale = 1.f;
 	TArray<FName> Tags;
+	FName StatsCategory;
 
 	bool operator==(const FISMComponentDescription& Other) const
 	{
@@ -127,7 +128,8 @@ struct FISMComponentDescription
 			EndCullDistance == Other.EndCullDistance &&
 			MinLod == Other.MinLod &&
 			LodScale == Other.LodScale &&
-			Tags == Other.Tags;
+			Tags == Other.Tags &&
+			StatsCategory == Other.StatsCategory;
 	}
 };
 
@@ -138,7 +140,8 @@ FORCEINLINE uint32 GetTypeHash(const FISMComponentDescription& Desc)
 	Hash = HashCombineFast(Hash, GetTypeHash(Desc.EndCullDistance));
 	Hash = HashCombineFast(Hash, GetTypeHash(Desc.MinLod));
 	Hash = HashCombineFast(Hash, GetTypeHash(Desc.LodScale));
-	return HashCombineFast(Hash, GetArrayHash(Desc.Tags.GetData(), Desc.Tags.Num()));
+	Hash = HashCombineFast(Hash, GetArrayHash(Desc.Tags.GetData(), Desc.Tags.Num()));
+	return HashCombineFast(Hash, GetTypeHash(Desc.StatsCategory));
 }
 
 /**

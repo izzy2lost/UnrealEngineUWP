@@ -109,6 +109,7 @@ FGeometryCollectionISM::FGeometryCollectionISM(AActor* InOwningActor, const FGeo
 	ISMC->MinLOD = MeshInstance.Desc.MinLod;
 	ISMC->SetLODDistanceScale(MeshInstance.Desc.LodScale);
 	ISMC->ComponentTags.Append(MeshInstance.Desc.Tags);
+	ISMC->SetMeshDrawCommandStatsCategory(MeshInstance.Desc.StatsCategory);
 
 	InOwningActor->AddInstanceComponent(ISMC);
 	ISMC->RegisterComponent();
