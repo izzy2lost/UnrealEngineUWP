@@ -1153,6 +1153,12 @@ SSplitter::ESizeRule SDockingTabStack::GetSizeRule() const
 
 void SDockingTabStack::SetTabWellHidden( bool bShouldHideTabWell )
 {
+	// If the tab well is already hidden or visible, don't replay the animations.
+	if ( (bShouldHideTabWell && IsTabWellHidden()) || (!bShouldHideTabWell && !IsTabWellHidden()))
+	{
+		return;
+	}
+	
 	if (bShouldHideTabWell)
 	{
 		ShowHideTabWell.PlayReverse( this->AsShared() );
