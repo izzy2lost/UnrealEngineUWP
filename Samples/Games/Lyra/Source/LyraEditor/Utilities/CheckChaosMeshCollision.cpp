@@ -59,7 +59,7 @@ void CheckChaosMeshCollision(FOutputDevice& Ar)
 		{
 			for (const Chaos::FTriangleMeshImplicitObjectPtr& TriMesh : BodySetup->TriMeshGeometries)
 			{
-				if (Chaos::FTriangleMeshImplicitObject* TriMeshData = TriMesh.Get())
+				if (Chaos::FTriangleMeshImplicitObject* TriMeshData = TriMesh.GetReference())
 				{
 					if (CheckMeshDataForProblem(TriMeshData->Particles(), TriMeshData->Elements()))
 					{
