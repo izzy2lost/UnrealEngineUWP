@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UObject/ObjectHandleTracking.h"
+#include "Hal/PlatformProcess.h"
 #include "Misc/ScopeRWLock.h"
 #include "AutoRTFM/AutoRTFM.h"
 
