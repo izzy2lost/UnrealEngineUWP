@@ -2,9 +2,9 @@
 
 #include "Elements/PCGCollapseElement.h"
 
+#include "PCGContext.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
-#include "PCGContext.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGCollapseElement)
 

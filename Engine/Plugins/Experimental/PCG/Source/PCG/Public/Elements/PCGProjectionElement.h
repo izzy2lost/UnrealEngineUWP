@@ -5,7 +5,6 @@
 #include "Elements/PCGProjectionParams.h"
 #include "PCGSettings.h"
 
-
 #include "PCGProjectionElement.generated.h"
 
 namespace PCGProjectionConstants
