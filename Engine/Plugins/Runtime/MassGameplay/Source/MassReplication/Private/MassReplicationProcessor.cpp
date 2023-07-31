@@ -9,7 +9,7 @@
 namespace UE::Mass::Replication
 {
 	int32 DebugClientReplicationLOD = -1;
-	FAutoConsoleVariableRef CVarDebugReplicationViewerLOD(TEXT("ai.debug.ClientReplicationLOD"), DebugClientReplicationLOD, TEXT("Debug Replication LOD of the specified client index"), ECVF_Cheat);
+	FAutoConsoleVariableRef CVarDebugReplicationViewerLOD(TEXT("mass.debug.ClientReplicationLOD"), DebugClientReplicationLOD, TEXT("Debug Replication LOD of the specified client index"), ECVF_Cheat);
 } // UE::Mass::Crowd
 
 //----------------------------------------------------------------------//

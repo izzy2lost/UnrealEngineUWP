@@ -59,7 +59,7 @@ FMassSimulationVariableTickSharedFragment::FMassSimulationVariableTickSharedFrag
 namespace UE::MassLOD
 {
 	int32 bDebugSimulationLOD = 0;
-	FAutoConsoleVariableRef CVarDebugSimulationLODTest(TEXT("ai.debug.SimulationLOD"), bDebugSimulationLOD, TEXT("Debug Simulation LOD"), ECVF_Cheat);
+	FAutoConsoleVariableRef CVarDebugSimulationLODTest(TEXT("mass.debug.SimulationLOD"), bDebugSimulationLOD, TEXT("Debug Simulation LOD"), ECVF_Cheat);
 } // UE::MassLOD
 
 UMassSimulationLODProcessor::UMassSimulationLODProcessor()

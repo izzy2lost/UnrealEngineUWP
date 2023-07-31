@@ -10,7 +10,7 @@
 namespace UE::MassCrowd
 {
 	int32 bDebugCrowdServerRepresentationLOD = 0;
-	FAutoConsoleVariableRef CVarDebugServerRepresentationLODTest(TEXT("ai.debug.CrowdServerRepresentationLOD"), bDebugCrowdServerRepresentationLOD, TEXT("Debug Crowd ServerRepresentation LOD"), ECVF_Cheat);
+	FAutoConsoleVariableRef CVarDebugServerRepresentationLODTest(TEXT("mass.debug.CrowdServerRepresentationLOD"), bDebugCrowdServerRepresentationLOD, TEXT("Debug Crowd ServerRepresentation LOD"), ECVF_Cheat);
 } // UE::MassCrowd
 
 UMassCrowdServerRepresentationLODProcessor::UMassCrowdServerRepresentationLODProcessor()

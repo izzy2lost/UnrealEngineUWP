@@ -6,7 +6,7 @@
 namespace UE::MassRepresentation
 {
 	int32 bDebugRepresentationLOD = 0;
-	FAutoConsoleVariableRef CVarDebugRepresentationLOD(TEXT("ai.debug.RepresentationLOD"), bDebugRepresentationLOD, TEXT("Debug representation LOD"), ECVF_Cheat);
+	FAutoConsoleVariableRef CVarDebugRepresentationLOD(TEXT("mass.debug.RepresentationLOD"), bDebugRepresentationLOD, TEXT("Debug representation LOD"), ECVF_Cheat);
 } // UE::MassRepresentation
 
 
