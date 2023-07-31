@@ -223,7 +223,7 @@ void FChaosVDScene::UpdateParticlesCollisionData(const FChaosVDStepData& InRecor
 }
 
 
-void FChaosVDScene::HandleNewGeometryData(const TSharedPtr<const Chaos::FImplicitObject>& GeometryData, const uint32 GeometryID) const
+void FChaosVDScene::HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& GeometryData, const uint32 GeometryID) const
 {
 	NewGeometryAvailableDelegate.Broadcast(GeometryData, GeometryID);
 }
@@ -293,11 +293,11 @@ void FChaosVDScene::CleanUpScene()
 	ParticlesBySolverID.Reset();
 }
 
-const TSharedPtr<const Chaos::FImplicitObject>* FChaosVDScene::GetUpdatedGeometry(int32 GeometryID) const
+const Chaos::FConstImplicitObjectPtr* FChaosVDScene::GetUpdatedGeometry(int32 GeometryID) const
 {
 	if (ensure(LoadedRecording.IsValid()))
 	{
-		if (const TSharedPtr<const Chaos::FImplicitObject>* Geometry = LoadedRecording->GetGeometryDataMap().Find(GeometryID))
+		if (const Chaos::FConstImplicitObjectPtr* Geometry = LoadedRecording->GetGeometryMap().Find(GeometryID))
 		{
 			return Geometry;
 		}
@@ -333,9 +333,9 @@ AChaosVDParticleActor* FChaosVDScene::SpawnParticleFromRecordedData(const FChaos
 		
 		if (ensure(LoadedRecording.IsValid()))
 		{
-			if (const TSharedPtr<const Chaos::FImplicitObject>* Geometry = LoadedRecording->GetGeometryDataMap().Find(InParticleData.GeometryHash))
+			if (const Chaos::FConstImplicitObjectPtr* Geometry = LoadedRecording->GetGeometryMap().Find(InParticleData.GeometryHash))
 			{
-				NewActor->UpdateGeometry(*Geometry);
+				NewActor->UpdateGeometry(Geometry->GetReference());
 			}
 		}
 

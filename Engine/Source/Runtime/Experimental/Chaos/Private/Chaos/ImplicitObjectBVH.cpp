@@ -37,12 +37,12 @@ namespace Chaos
 		///////////////////////////////////////////////////////////////////////////////////////////
 		///////////////////////////////////////////////////////////////////////////////////////////
 
-		int32 FImplicitBVH::CountLeafObjects(const TArrayView<const TUniquePtr<FImplicitObject>>& InRootObjects)
+		int32 FImplicitBVH::CountLeafObjects(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects)
 		{
 			// Count the objects in the hierarchy
 			// @todo(chaos): provide a visitor that does not check bounds
 			int32 NumObjects = 0;
-			for (const TUniquePtr<FImplicitObject>& RootObject : InRootObjects)
+			for (const Chaos::FImplicitObjectPtr& RootObject : InRootObjects)
 			{
 				RootObject->VisitLeafObjects(
 					[&NumObjects](const FImplicitObject* Object, const FRigidTransform3& ParentTransform, const int32 RootObjectIndex, const int32 ObjectIndex, const int32 LeafObjectIndex)
@@ -53,7 +53,7 @@ namespace Chaos
 			return NumObjects;
 		}
 
-		FImplicitBVH::FObjects FImplicitBVH::CollectLeafObjects(const TArrayView<const TUniquePtr<FImplicitObject>>& InRootObjects)
+		FImplicitBVH::FObjects FImplicitBVH::CollectLeafObjects(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects)
 		{
 			// We visit the hierarchy once to ensure we can create a tight-fitting array of leaf objects (the array growth
 			// policy will over-allocate if we don't size exactly)
@@ -62,7 +62,7 @@ namespace Chaos
 
 			for (int32 RootObjectIndex = 0; RootObjectIndex < InRootObjects.Num(); ++RootObjectIndex)
 			{
-				const TUniquePtr<FImplicitObject>& RootObject = InRootObjects[RootObjectIndex];
+				const Chaos::FImplicitObjectPtr& RootObject = InRootObjects[RootObjectIndex];
 
 				RootObject->VisitLeafObjects(
 					[RootObjectIndex, &Objects](const FImplicitObject* Object, const FRigidTransform3& ParentTransform, const int32 UnusedRootObjectIndex, const int32 UnusedObjectIndex, const int32 UnusedLeafObjectIndex)
@@ -90,7 +90,7 @@ namespace Chaos
 			return TUniquePtr<FImplicitBVH>(new FImplicitBVH());
 		}
 
-		TUniquePtr<FImplicitBVH> FImplicitBVH::TryMake(const TArrayView<const TUniquePtr<FImplicitObject>>& InRootObjects, const int32 InMinObjects, const int32 InMaxBVHDepth)
+		TUniquePtr<FImplicitBVH> FImplicitBVH::TryMake(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects, const int32 InMinObjects, const int32 InMaxBVHDepth)
 		{
 			TArray<FImplicitBVHObject> Objects = CollectLeafObjects(InRootObjects);
 			if (Objects.Num() > InMinObjects)

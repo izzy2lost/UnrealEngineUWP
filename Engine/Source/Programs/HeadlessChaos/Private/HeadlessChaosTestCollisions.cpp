@@ -416,7 +416,7 @@ namespace ChaosTest {
 		EXPECT_TRUE(Box->W().Equals(FVec3(0)));
 
 		// should end up outside the plane
-		EXPECT_GE(Box->P().Z, -Box->Geometry()->BoundingBox().Min().Z);
+		EXPECT_GE(Box->P().Z, -Box->GetGeometry()->BoundingBox().Min().Z);
 		EXPECT_TRUE(Box->Q().Equals(FQuat::Identity));
 	}
 

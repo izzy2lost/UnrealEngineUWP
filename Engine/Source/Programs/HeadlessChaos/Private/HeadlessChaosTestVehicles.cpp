@@ -1514,8 +1514,8 @@ namespace ChaosTest
 		TUniquePtr<FChaosPhysicsMaterial> PhysicsMaterial = MakeUnique<FChaosPhysicsMaterial>();
 		PhysicsMaterial->SleepCounterThreshold = 2;
 
-		TUniquePtr<FImplicitObject> Box(new TSphere<FReal, 3>(FVec3(0, 0, 0), 50));
-		Dynamic->SetGeometry(MakeSerializable(Box));
+		Chaos::FImplicitObjectPtr Box(new TSphere<FReal, 3>(FVec3(0, 0, 0), 50));
+		Dynamic->SetGeometry(Box);
 
 		Evolution.SetPhysicsMaterial(Dynamic, MakeSerializable(PhysicsMaterial));
 

@@ -46,8 +46,9 @@ public:
 
 	void UpdateParticlesCollisionData(const FChaosVDStepData& InRecordedStepData, int32 SolverID);
 
-	void HandleNewGeometryData(const TSharedPtr<const Chaos::FImplicitObject>&, const uint32 GeometryID) const;
-
+	// No need to deprecate the old version since it is not a public API nor inline 
+	void HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& Geometry, const uint32 GeometryID) const;
+	
 	void HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int32>& AvailableSolversIds);
 
 	/** Deletes all actors of the Scene and underlying UWorld */
@@ -62,8 +63,9 @@ public:
 
 	FChaosVDGeometryDataLoaded& OnNewGeometryAvailable(){ return NewGeometryAvailableDelegate; }
 
-	const TSharedPtr<const Chaos::FImplicitObject>* GetUpdatedGeometry(int32 GeometryID) const;
-
+	// No need to deprecate the old version since it is not a public API nor inline 
+	const Chaos::FConstImplicitObjectPtr* GetUpdatedGeometry(int32 GeometryID) const;
+	
 	/** Adds an object to the selection set if it was not selected already, making it selected in practice */
 	void SetSelectedObject(UObject* SelectedObject);
 

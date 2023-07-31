@@ -43,9 +43,12 @@ public:
 
 	void UpdateCollisionData(const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>& InRecordedMidPhases);
 	void UpdateCollisionData(const TArray<FChaosVDConstraint>& InRecordedConstraints);
+	void UpdateGeometry(const Chaos::FImplicitObject* ImplicitObject, EChaosVDActorGeometryUpdateFlags OptionsFlags = EChaosVDActorGeometryUpdateFlags::None);
 
-	void UpdateGeometry(const TSharedPtr<const Chaos::FImplicitObject>& ImplicitObject, EChaosVDActorGeometryUpdateFlags OptionsFlags = EChaosVDActorGeometryUpdateFlags::None);
 	void UpdateGeometry(uint32 NewGeometryHash, EChaosVDActorGeometryUpdateFlags OptionsFlags = EChaosVDActorGeometryUpdateFlags::None);
+
+	UE_DEPRECATED(5.4, "Use UpdateGeometry with FImplicitObject* to update collision implicit object.")
+	void UpdateGeometry(const TSharedPtr<Chaos::FImplicitObject>& ImplicitObject, EChaosVDActorGeometryUpdateFlags OptionsFlags = EChaosVDActorGeometryUpdateFlags::None) {check(false);}
 
 	void SetScene(const TSharedPtr<FChaosVDScene>& InScene);
 

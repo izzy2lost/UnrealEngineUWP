@@ -8,14 +8,11 @@
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "UObject/ObjectMacros.h"
 #include "Containers/UnrealString.h"
-
-namespace Chaos
-{
-	class FImplicitObject;
-}
+#include "Chaos/ImplicitFwd.h"
+#include "Chaos/ImplicitObject.h"
 
 DECLARE_MULTICAST_DELEGATE(FChaosVDRecordingUpdated)
-DECLARE_MULTICAST_DELEGATE_TwoParams(FChaosVDGeometryDataLoaded, const TSharedPtr<const Chaos::FImplicitObject>&, const uint32 GeometryID)
+DECLARE_MULTICAST_DELEGATE_TwoParams(FChaosVDGeometryDataLoaded, const Chaos::FConstImplicitObjectPtr&, const uint32 GeometryID)
 
 struct FChaosVDStepData
 {
@@ -188,9 +185,20 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	void GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(int32 FrameNumber, TArray<int32>& OutSolversID);
 
 	/** Returns a reference to the GeometryID-ImplicitObject map of this recording */
-	const TMap<uint32, TSharedPtr<const Chaos::FImplicitObject>>& GetGeometryDataMap() const { return ImplicitObjects; };
+	const TMap<uint32, Chaos::FConstImplicitObjectPtr>& GetGeometryMap() const { return ImplicitObjects; };
+
+	UE_DEPRECATED(5.4, "Please use GetGeometryMap instead")
+	const TMap<uint32, TSharedPtr<const Chaos::FImplicitObject>>& GetGeometryDataMap() const
+	{
+		check(false);
+		static TMap<uint32, TSharedPtr<const Chaos::FImplicitObject>> DummyMap;
+		return DummyMap;
+	};
 
 	/** Adds a shared Implicit Object to the recording */
+	void AddImplicitObject(const uint32 ID, const Chaos::FImplicitObjectPtr& InImplicitObject);
+	
+	UE_DEPRECATED(5.4, "Please use AddImplicitObject with FImplicitObjectPtr instead")
 	void AddImplicitObject(const uint32 ID, const TSharedPtr<Chaos::FImplicitObject>& InImplicitObject);
 
 	/** Session name of the trace session used to re-build this recording */
@@ -203,7 +211,7 @@ protected:
 	/** Adds an Implicit Object to the recording and takes ownership of it */
 	void AddImplicitObject(const uint32 ID, const Chaos::FImplicitObject* InImplicitObject);
 	
-	void AddImplicitObject_Internal(const uint32 ID, const TSharedPtr<const Chaos::FImplicitObject>& InImplicitObject);
+	void AddImplicitObject_Internal(const uint32 ID, const Chaos::FConstImplicitObjectPtr& InImplicitObject);
 
 	/** Stores a frame number of a solver that is a Key Frame -
 	 * These are used when scrubbing to make sure the visualization is in sync with what was recorded
@@ -217,7 +225,7 @@ protected:
 	FChaosVDGeometryDataLoaded GeometryDataLoaded;
 
 	/** Id to Ptr map of all shared geometry data required to visualize */
-	TMap<uint32, TSharedPtr<const Chaos::FImplicitObject>> ImplicitObjects;
+	TMap<uint32, Chaos::FConstImplicitObjectPtr> ImplicitObjects;
 
 	mutable FRWLock RecordingDataLock;
 

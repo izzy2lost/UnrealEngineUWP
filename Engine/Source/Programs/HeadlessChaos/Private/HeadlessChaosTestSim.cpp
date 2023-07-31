@@ -22,7 +22,7 @@ namespace ChaosTest {
 		// The goal is to make sure that the bounds are updated correctly and the dynamic rests on top of the static
 		// in its final position.
 
-		auto Sphere = TSharedPtr<FImplicitObject, ESPMode::ThreadSafe>(new TSphere<FReal, 3>(FVec3(0), 10));
+		auto Sphere = Chaos::FImplicitObjectPtr(new TSphere<FReal, 3>(FVec3(0), 10));
 
 		// Create solver #TODO make FFramework a little more general instead of mostly geometry collection focused
 		GeometryCollectionTest::FFramework Framework;
@@ -73,9 +73,9 @@ namespace ChaosTest {
 		TUniquePtr<FChaosPhysicsMaterial> PhysicsMaterial = MakeUnique<FChaosPhysicsMaterial>();
 		PhysicsMaterial->SleepCounterThreshold = 2;
 
-		TUniquePtr<FImplicitObject> Sphere(new TSphere<FReal, 3>(FVec3(0, 0, 0), 50));
-		Static->SetGeometry(MakeSerializable(Sphere));
-		Dynamic->SetGeometry(MakeSerializable(Sphere));
+		Chaos::FImplicitObjectPtr Sphere(new TSphere<FReal, 3>(FVec3(0, 0, 0), 50));
+		Static->SetGeometry(Sphere);
+		Dynamic->SetGeometry(Sphere);
 
 		Evolution.SetPhysicsMaterial(Dynamic, MakeSerializable(PhysicsMaterial));
 
@@ -114,10 +114,10 @@ namespace ChaosTest {
 		auto Static = Evolution.CreateStaticParticles(1)[0];
 		auto Dynamic = Evolution.CreateDynamicParticles(1)[0];
 
-		TUniquePtr<FImplicitObject> StaticBox(new TBox<FReal, 3>(FVec3(-50, -50, -50), FVec3(50, 50, 50)));
-		TUniquePtr<FImplicitObject> DynamicBox(new TBox<FReal, 3>(FVec3(-50, -50, -50), FVec3(50, 50, 50)));
-		Static->SetGeometry(MakeSerializable(StaticBox));
-		Dynamic->SetGeometry(MakeSerializable(DynamicBox));
+		Chaos::FImplicitObjectPtr StaticBox(new TBox<FReal, 3>(FVec3(-50, -50, -50), FVec3(50, 50, 50)));
+		Chaos::FImplicitObjectPtr DynamicBox(new TBox<FReal, 3>(FVec3(-50, -50, -50), FVec3(50, 50, 50)));
+		Static->SetGeometry(StaticBox);
+		Dynamic->SetGeometry(DynamicBox);
 
 		Static->X() = FVec3(10, 10, 10);
 		Static->UpdateWorldSpaceState(FRigidTransform3(Static->X(), Static->R()), FVec3(0));
@@ -160,10 +160,10 @@ namespace ChaosTest {
 		auto Static = Evolution.CreateStaticParticles(1)[0];
 		auto Dynamic = Evolution.CreateDynamicParticles(1)[0];
 
-		TUniquePtr<FImplicitObject> StaticBox(new TBox<FReal, 3>(FVec3(-50, -50, -50), FVec3(50, 50, 50)));
-		TUniquePtr<FImplicitObject> DynamicBox(new TBox<FReal, 3>(FVec3(-50, -50, -50), FVec3(50, 50, 50)));
-		Static->SetGeometry(MakeSerializable(StaticBox));
-		Dynamic->SetGeometry(MakeSerializable(DynamicBox));
+		Chaos::FImplicitObjectPtr StaticBox(new TBox<FReal, 3>(FVec3(-50, -50, -50), FVec3(50, 50, 50)));
+		Chaos::FImplicitObjectPtr DynamicBox(new TBox<FReal, 3>(FVec3(-50, -50, -50), FVec3(50, 50, 50)));
+		Static->SetGeometry(StaticBox);
+		Dynamic->SetGeometry(DynamicBox);
 
 		Static->X() = FVec3(10, 10, 10);
 		Static->UpdateWorldSpaceState(FRigidTransform3(Static->X(), Static->R()), FVec3(0));
@@ -206,11 +206,11 @@ namespace ChaosTest {
 		PhysicsMaterial->SleepingAngularThreshold = 20;
 		PhysicsMaterial->SleepCounterThreshold = 5;
 
-		TUniquePtr<FImplicitObject> StaticBox(new TBox<FReal, 3>(FVec3(-500, -500, -50), FVec3(500, 500, 50)));
-		TUniquePtr<FImplicitObject> DynamicBox(new TBox<FReal, 3>(FVec3(-50, -50, -50), FVec3(50, 50, 50)));
-		Static->SetGeometry(MakeSerializable(StaticBox));
-		Dynamic1->SetGeometry(MakeSerializable(DynamicBox));
-		Dynamic2->SetGeometry(MakeSerializable(DynamicBox));
+		Chaos::FImplicitObjectPtr StaticBox(new TBox<FReal, 3>(FVec3(-500, -500, -50), FVec3(500, 500, 50)));
+		Chaos::FImplicitObjectPtr DynamicBox(new TBox<FReal, 3>(FVec3(-50, -50, -50), FVec3(50, 50, 50)));
+		Static->SetGeometry(StaticBox);
+		Dynamic1->SetGeometry(DynamicBox);
+		Dynamic2->SetGeometry(DynamicBox);
 
 		Static->X() = FVec3(10, 10, 10);
 		Static->UpdateWorldSpaceState(FRigidTransform3(Static->X(), Static->R()), FVec3(0));
@@ -264,7 +264,7 @@ namespace ChaosTest {
 
 	GTEST_TEST(AllTraits, DISABLED_SimTests_MidSubstepSleep)
 	{
-		TSharedPtr<FImplicitObject, ESPMode::ThreadSafe> Sphere{new TSphere<FReal, 3>(FVec3(0), 10)};
+		Chaos::FImplicitObjectPtr Sphere{new TSphere<FReal, 3>(FVec3(0), 10)};
 
 		FChaosSolversModule* Module = FChaosSolversModule::GetModule();
 		auto Solver = Module->CreateSolver(nullptr, /*AsyncDt=*/-1);
@@ -364,9 +364,9 @@ namespace ChaosTest {
 		Dynamic1->X() = FVec3(-200, 0, 0);
 		Dynamic2->X() = FVec3(200, 0, 0);
 
-		TUniquePtr<FImplicitObject> DynamicBox(new TBox<FReal, 3>(FVec3(-50, -50, -50), FVec3(50, 50, 50)));
-		Dynamic1->SetGeometry(MakeSerializable(DynamicBox));
-		Dynamic2->SetGeometry(MakeSerializable(DynamicBox));
+		Chaos::FImplicitObjectPtr DynamicBox(new TBox<FReal, 3>(FVec3(-50, -50, -50), FVec3(50, 50, 50)));
+		Dynamic1->SetGeometry(DynamicBox);
+		Dynamic2->SetGeometry(DynamicBox);
 
 		Dynamic1->SetGravityEnabled(false);
 		Dynamic2->SetGravityEnabled(false);

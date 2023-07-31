@@ -4,15 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
+#include "Chaos/ImplicitFwd.h"
 
 #include "GeometryCollectionConvexUtility.generated.h"
 
 class FGeometryCollection;
-
-namespace Chaos
-{
-	class FConvex;
-}
 
 namespace UE::Geometry
 {
@@ -59,7 +55,7 @@ namespace UE::GeometryCollectionConvexUtility
 	// Note these hulls are typically computed in a shared coordinate space, in contrast to the final hulls on the geometry collection which are in the local space of each bone
 	struct FConvexHulls
 	{
-		TArray<TUniquePtr<::Chaos::FConvex>> Hulls;
+		TArray<::Chaos::FConvexPtr> Hulls;
 
 		// Mapping from geometry collection bones indices to indices in the Hulls array. A Set is used to support multiple hulls per bone.
 		TArray<TSet<int32>> TransformToHullsIndices;
@@ -88,7 +84,7 @@ public:
 	struct FGeometryCollectionConvexData
 	{
 		TManagedArray<TSet<int32>>& TransformToConvexIndices;
-		TManagedArray<TUniquePtr<Chaos::FConvex>>& ConvexHull;
+		TManagedArray<Chaos::FConvexPtr>& ConvexHull;
 	};
 
 	/** Ensure that convex hull data exists for the Geometry Collection and construct it if not (or if some data is missing. */
@@ -226,7 +222,14 @@ public:
 	static CHAOS_API void GenerateLeafConvexHulls(FGeometryCollection& Collection, bool bRestrictToSelection, const TArrayView<const int32> TransformSubset, const FLeafConvexHullSettings& Settings);
 
 	/** Returns the convex hull of the vertices contained in the specified geometry. */
-	static CHAOS_API TUniquePtr<Chaos::FConvex> FindConvexHull(const FGeometryCollection* GeometryCollection, int32 GeometryIndex);
+	static CHAOS_API Chaos::FConvexPtr GetConvexHull(const FGeometryCollection* GeometryCollection, int32 GeometryIndex);
+
+	UE_DEPRECATED(5.4, "Please Use GetConvexHull instead.")
+	static CHAOS_API TUniquePtr<Chaos::FConvex> FindConvexHull(const FGeometryCollection* GeometryCollection, int32 GeometryIndex)
+	{
+		check(false);
+		return nullptr;
+	}
 
 	/** Delete the convex hulls pointed at by the transform indices provided. */
 	static CHAOS_API void RemoveConvexHulls(FGeometryCollection* GeometryCollection, const TArray<int32>& SortedTransformDeletes);
@@ -261,7 +264,7 @@ public:
 
 	struct FTransformedConvex
 	{
-		TSharedPtr<Chaos::FConvex> Convex;
+		Chaos::FConvexPtr Convex;
 		FTransform Transform;
 	};
 

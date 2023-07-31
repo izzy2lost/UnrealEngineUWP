@@ -132,9 +132,9 @@ void FChaosVisualDebuggerTrace::TraceParticle(Chaos::FGeometryParticleHandle* Pa
 		return;
 	}
 
-	const uint32 GeometryHash = GeometryTracerObject.GetGeometryHashForImplicit(ParticleHandle->Geometry().Get());
+	const uint32 GeometryHash = GeometryTracerObject.GetGeometryHashForImplicit(ParticleHandle->GetGeometry());
 	
-	TraceImplicitObject({ GeometryHash, ParticleHandle->Geometry() });
+	TraceImplicitObject({ GeometryHash, ParticleHandle->GetGeometry() });
 
 	{
 		FChaosVDParticleDataWrapper ParticleDataWrapper = FChaosVDDataWrapperUtils::BuildParticleDataWrapperFromParticle(ParticleHandle);
@@ -186,7 +186,7 @@ void FChaosVisualDebuggerTrace::TraceParticleDestroyed(const Chaos::FGeometryPar
 		return;
 	}
 
-	GeometryTracerObject.RemoveCachedGeometryHash(ParticleHandle->Geometry().Get());
+	GeometryTracerObject.RemoveCachedGeometryHash(ParticleHandle->GetGeometry());
 	
 	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
 	if (!ensure(CVDContextData))

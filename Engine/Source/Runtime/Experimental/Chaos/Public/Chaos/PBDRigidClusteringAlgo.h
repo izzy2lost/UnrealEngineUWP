@@ -40,8 +40,16 @@ namespace Chaos
 		Chaos::FPBDRigidClusteredParticleHandle* Parent,
 		const TSet<FPBDRigidParticleHandle*>& Children,
 		const FRigidClustering::FClusterMap& ChildrenMap,
-		TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe> ProxyGeometry,
+		const Chaos::FImplicitObjectPtr& ProxyGeometry,
 		const FClusterCreationParameters& Parameters);
+
+	UE_DEPRECATED(5.4, "Use UpdateGeometry with FImplicitObjectPtr instead")
+	FORCEINLINE void CHAOS_API UpdateGeometry(
+		Chaos::FPBDRigidClusteredParticleHandle* Parent,
+		const TSet<FPBDRigidParticleHandle*>& Children,
+		const FRigidClustering::FClusterMap& ChildrenMap,
+		TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe> ProxyGeometry,
+		const FClusterCreationParameters& Parameters) {check(false);}
 
 
 	/**

@@ -51,5 +51,9 @@ struct FGeometryAddParams
 	FTransform LocalTransform;
 	FTransform WorldTransform;
 	FKAggregateGeom* Geometry;
+
+	UE_DEPRECATED(5.4, "Please use TriMeshGeometries instead")
 	TArrayView<TSharedPtr<Chaos::FTriangleMeshImplicitObject, ESPMode::ThreadSafe>> ChaosTriMeshes;
+
+	TArrayView<Chaos::FTriangleMeshImplicitObjectPtr> TriMeshGeometries;
 };

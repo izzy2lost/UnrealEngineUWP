@@ -68,7 +68,7 @@ void AChaosVDParticleActor::UpdateCollisionData(const TArray<FChaosVDConstraint>
 	}
 }
 
-void AChaosVDParticleActor::UpdateGeometry(const TSharedPtr<const Chaos::FImplicitObject>& ImplicitObject, EChaosVDActorGeometryUpdateFlags OptionsFlags)
+void AChaosVDParticleActor::UpdateGeometry(const Chaos::FImplicitObject* ImplicitObject, EChaosVDActorGeometryUpdateFlags OptionsFlags)
 {
 	if (EnumHasAnyFlags(OptionsFlags, EChaosVDActorGeometryUpdateFlags::ForceUpdate))
 	{
@@ -98,15 +98,15 @@ void AChaosVDParticleActor::UpdateGeometry(const TSharedPtr<const Chaos::FImplic
 			Chaos::FRigidTransform3 Transform;
 
 			// Heightfields need to be created as Static meshes and use normal Static Mesh components because we need LODs for them due to their high triangle count
-			if (FChaosVDGeometryBuilder::DoesImplicitContainType(ImplicitObject.Get(), Chaos::ImplicitObjectType::HeightField))
+			if (FChaosVDGeometryBuilder::DoesImplicitContainType(ImplicitObject, Chaos::ImplicitObjectType::HeightField))
 			{
 				constexpr int32 LODsToGenerateNum = 3;
 				constexpr int32 StartingMeshComponentIndex = 0;
-				GeometryGenerator->CreateMeshComponentsFromImplicit<UStaticMesh, UStaticMeshComponent>(ImplicitObject.Get(), this, OutGeneratedMeshComponents, Transform, StartingMeshComponentIndex, LODsToGenerateNum);
+				GeometryGenerator->CreateMeshComponentsFromImplicit<UStaticMesh, UStaticMeshComponent>(ImplicitObject, this, OutGeneratedMeshComponents, Transform, StartingMeshComponentIndex, LODsToGenerateNum);
 			}
 			else
 			{
-				GeometryGenerator->CreateMeshComponentsFromImplicit<UStaticMesh, UInstancedStaticMeshComponent>(ImplicitObject.Get(), this, OutGeneratedMeshComponents, Transform);
+				GeometryGenerator->CreateMeshComponentsFromImplicit<UStaticMesh, UInstancedStaticMeshComponent>(ImplicitObject, this, OutGeneratedMeshComponents, Transform);
 			}
 
 			if (OutGeneratedMeshComponents.Num() > 0)
@@ -139,7 +139,7 @@ void AChaosVDParticleActor::UpdateGeometry(uint32 NewGeometryHash, EChaosVDActor
 {
 	if (const TSharedPtr<FChaosVDScene>& ScenePtr = OwningScene.Pin())
 	{
-		if (const TSharedPtr<const Chaos::FImplicitObject>* Geometry = ScenePtr->GetUpdatedGeometry(NewGeometryHash))
+		if (const Chaos::FConstImplicitObjectPtr* Geometry = ScenePtr->GetUpdatedGeometry(NewGeometryHash))
 		{
 			UpdateGeometry(*Geometry, OptionsFlags);
 		}
@@ -152,7 +152,7 @@ void AChaosVDParticleActor::SetScene(const TSharedPtr<FChaosVDScene>& InScene)
 
 	if (const TSharedPtr<FChaosVDScene>& ScenePtr = OwningScene.Pin())
 	{
-		GeometryUpdatedDelegate = ScenePtr->OnNewGeometryAvailable().AddWeakLambda(this, [this](const TSharedPtr<const Chaos::FImplicitObject>& ImplicitObject, const uint32 ID)
+		GeometryUpdatedDelegate = ScenePtr->OnNewGeometryAvailable().AddWeakLambda(this, [this](const Chaos::FConstImplicitObjectPtr& ImplicitObject, const uint32 ID)
 		{
 			if (ParticleDataViewer.GeometryHash == ID)
 			{

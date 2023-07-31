@@ -623,7 +623,7 @@ namespace Chaos
 			Idx.Bucket = 0;
 			RigidBody_External.SetSpatialIdx(Idx);
 		}
-		else if (RigidBody_External.Geometry() && RigidBody_External.Geometry()->HasBoundingBox() && RigidBody_External.Geometry()->BoundingBox().Extents().Max() >= MaxBoundsForTree)
+		else if (RigidBody_External.GetGeometry() && RigidBody_External.GetGeometry()->HasBoundingBox() && RigidBody_External.GetGeometry()->BoundingBox().Extents().Max() >= MaxBoundsForTree)
 		{
 			RigidBody_External.SetSpatialIdx(FSpatialAccelerationIdx{ 1,0 });
 		}
@@ -2105,10 +2105,10 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 		for (const FTransientPBDRigidParticleHandle& Particle : Particles.GetActiveParticlesView())
 		{
 			const FConstGenericParticleHandle P = Particle.Handle();
-			if (Particle.Geometry().Get() != nullptr)
+			if (Particle.GetGeometry() != nullptr)
 			{
 				int32 NumShapes = 1;
-				if (const FImplicitObjectUnion* Union = Particle.Geometry()->AsA<FImplicitObjectUnion>())
+				if (const FImplicitObjectUnion* Union = Particle.GetGeometry()->AsA<FImplicitObjectUnion>())
 				{
 					NumShapes = Union->GetNumLeafObjects();
 				}

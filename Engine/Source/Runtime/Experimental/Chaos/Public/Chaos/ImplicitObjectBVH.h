@@ -27,7 +27,7 @@ namespace Chaos
 			FImplicitBVHObject();
 			FImplicitBVHObject(const TSerializablePtr<FImplicitObject>& InGeometry, const FVec3& InX, const FRotation3& InR, const FAABB3& InBounds, const int32 InRootObjectIndex, const int32 InObjectIndex);
 
-			const FImplicitObject* GetGeometry() const { return Geometry.Get(); }
+			const FImplicitObject* GetGeometry() const { return Geometry.GetReference(); }
 
 			const FVec3f& GetX() const { return X; }
 
@@ -109,13 +109,13 @@ namespace Chaos
 			static TUniquePtr<FImplicitBVH> MakeEmpty();
 
 			// Utility for processing the hierarchy
-			static int32 CountLeafObjects(const TArrayView<const TUniquePtr<FImplicitObject>>& InRootObjects);
-			static FObjects CollectLeafObjects(const TArrayView<const TUniquePtr<FImplicitObject>>& InRootObjects);
+			static int32 CountLeafObjects(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects);
+			static FObjects CollectLeafObjects(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects);
 
 			// Create a BVH around a set of ImplicitObjects. Usually these are the immediate child elements of an FImplcitObjectUnion
 			// TryMake will then recurse into the geometry hierachy and add all descendents to the BVH. Will return null if the 
 			// number of descendents is less that MinObjscts.
-			static TUniquePtr<FImplicitBVH> TryMake(const TArrayView<const TUniquePtr<FImplicitObject>>& InRootObjects, const int32 MinObjects, const int32 InMaxBVHDepth);
+			static TUniquePtr<FImplicitBVH> TryMake(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects, const int32 MinObjects, const int32 InMaxBVHDepth);
 
 			~FImplicitBVH();
 

@@ -444,9 +444,9 @@ void UPhysicsAssetEditorSkeletalMeshComponent::UpdateSkinnedLevelSets()
 			{
 				for (FKSkinnedLevelSetElem& SkinnedLevelSet : AggGeom->SkinnedLevelSetElems)
 				{
-					if (SkinnedLevelSet.GetWeightedLevelSet().IsValid())
+					if (SkinnedLevelSet.WeightedLevelSet().IsValid())
 					{
-						const TArray<FName>& UsedBoneNames = SkinnedLevelSet.GetWeightedLevelSet()->GetUsedBones();
+						const TArray<FName>& UsedBoneNames = SkinnedLevelSet.WeightedLevelSet()->GetUsedBones();
 
 						const FTransform RootTransformInv = GetBoneTransform(BoneIndex, FTransform::Identity).Inverse();
 						TArray<FTransform> Transforms;
@@ -466,7 +466,7 @@ void UPhysicsAssetEditorSkeletalMeshComponent::UpdateSkinnedLevelSets()
 							}
 						}
 
-						SkinnedLevelSet.GetWeightedLevelSet()->DeformPoints(Transforms);
+						SkinnedLevelSet.WeightedLevelSet()->DeformPoints(Transforms);
 					}
 				}
 			}

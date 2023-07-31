@@ -159,17 +159,24 @@ namespace Chaos
 			return *this;
 		}
 
+		Chaos::FConvex* RawCopyAsConvex() const
+		{
+			return new Chaos::FConvex(*this);
+		}
+		
+		UE_DEPRECATED(5.4, "Please use RawCopyAsConvex instead")
 		TUniquePtr<FConvex> CopyAsConvex() const
+        {
+			check(false);
+            return nullptr;
+        }
+
+		virtual Chaos::FImplicitObjectPtr CopyGeometry() const
 		{
-			return TUniquePtr<FConvex>(new FConvex(*this));
+			return Chaos::FImplicitObjectPtr(new FConvex(*this));
 		}
 
-		virtual TUniquePtr<FImplicitObject> Copy() const
-		{
-			return TUniquePtr<FImplicitObject>(new FConvex(*this));
-		}
-
-		CHAOS_API virtual TUniquePtr<FImplicitObject> CopyWithScale(const FVec3& Scale) const override;
+		CHAOS_API virtual Chaos::FImplicitObjectPtr CopyGeometryWithScale(const FVec3& Scale) const override;
 
 		CHAOS_API void MovePlanesAndRebuild(FRealType InDelta);
 
@@ -182,12 +189,12 @@ namespace Chaos
 			return ImplicitObjectType::Convex;
 		}
 
-		FReal GetMargin() const
+		virtual FReal GetMargin() const override
 		{
 			return Margin;
 		}
 
-		FReal GetRadius() const
+		virtual FReal GetRadius() const override
 		{
 			return 0.0f;
 		}

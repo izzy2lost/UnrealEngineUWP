@@ -775,9 +775,9 @@ FORCEINLINE_DEBUGGABLE void ExportRigidBodyTriMesh(UBodySetup& BodySetup, TNavSt
 {
 	if (BodySetup.GetCollisionTraceFlag() == CTF_UseComplexAsSimple)
 	{
-		for(const auto& TriMesh : BodySetup.ChaosTriMeshes)
+		for(const auto& TriMesh : BodySetup.TriMeshGeometries)
 		{
-			ExportChaosTriMesh(TriMesh.Get(), LocalToWorld, VertexBuffer, IndexBuffer, UnrealBounds);
+			ExportChaosTriMesh(TriMesh.GetReference(), LocalToWorld, VertexBuffer, IndexBuffer, UnrealBounds);
 		}
 	}
 }

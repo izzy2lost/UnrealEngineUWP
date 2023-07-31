@@ -168,7 +168,7 @@ namespace Chaos::Softs
 			int32 CollisionParticleOffset = Evolution->AddCollisionParticleRange(1, INDEX_NONE, true);
 			Evolution->CollisionParticles().X(0) = Position;
 			Evolution->CollisionParticles().R(0) = Chaos::TRotation<Chaos::FReal, 3>::MakeFromEuler(EulerRot);
-			Evolution->CollisionParticles().SetDynamicGeometry(0, MakeUnique<Chaos::TPlane<Chaos::FReal, 3>>(Chaos::FVec3(0.f, 0.f, 0.f), Chaos::FVec3(0.f, 0.f, 1.f)));
+			Evolution->CollisionParticles().SetGeometry(0, MakeImplicitObjectPtr<Chaos::TPlane<Chaos::FReal, 3>>(Chaos::FVec3(0.f, 0.f, 0.f), Chaos::FVec3(0.f, 0.f, 1.f)));
 		}
 	}
 
@@ -640,8 +640,8 @@ namespace Chaos::Softs
 								int32 ViewIndex = Evolution->CollisionParticlesActiveView().GetRanges().Num() - 1;
 								Evolution->CollisionParticles().X(Index) = AddBody.Transform.GetTranslation();
 								Evolution->CollisionParticles().R(Index) = AddBody.Transform.GetRotation();
-								TUniquePtr<FImplicitObject> UniquePtr(AddBody.Shapes); AddBody.Shapes = nullptr;
-								Evolution->CollisionParticles().SetDynamicGeometry(Index, MoveTemp(UniquePtr));
+								Chaos::FImplicitObjectPtr UniquePtr(AddBody.Shapes); AddBody.Shapes = nullptr;
+								Evolution->CollisionParticles().SetGeometry(Index, MoveTemp(UniquePtr));
 								Proxy.CollisionBodies.Add(AddBody.Key, FCollisionObjectParticleHandel(Index, ViewIndex, AddBody.Transform));
 							}
 							else
@@ -1594,7 +1594,7 @@ namespace Chaos::Softs
 					{
 						if (Evolution->CollisionParticleGroupIds()[Index] != Index)
 						{
-							if (const TUniquePtr<FImplicitObject>& Geometry = CollisionParticles.DynamicGeometry(Index))
+							if (const Chaos::FImplicitObjectPtr& Geometry = CollisionParticles.GetGeometry(Index))
 							{
 								EImplicitObjectType GeomType = Geometry->GetCollisionType();
 								if (GeomType == ImplicitObjectType::Sphere)

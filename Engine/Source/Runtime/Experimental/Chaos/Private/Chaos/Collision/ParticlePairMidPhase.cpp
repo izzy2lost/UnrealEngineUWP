@@ -693,8 +693,8 @@ namespace Chaos
 		}
 
 		// How many implicits does each particle have?
-		const int32 NumImplicits0 = GetNumLeafImplicits(InParticle0->Geometry().Get());
-		const int32 NumImplicits1 = GetNumLeafImplicits(InParticle1->Geometry().Get());
+		const int32 NumImplicits0 = GetNumLeafImplicits(InParticle0->GetGeometry());
+		const int32 NumImplicits1 = GetNumLeafImplicits(InParticle1->GetGeometry());
 
 		// Do we have a ShapeInstance for every implicit object?
 		// Only the implicits in the root union are represented in the shapes array
@@ -1093,8 +1093,8 @@ namespace Chaos
 
 	void FGenericParticlePairMidPhase::BuildDetectorsImpl()
 	{
-		check(Particle0->Geometry().Get() != nullptr);
-		check(Particle1->Geometry().Get() != nullptr);
+		check(Particle0->GetGeometry() != nullptr);
+		check(Particle1->GetGeometry() != nullptr);
 	}
 
 	int32 FGenericParticlePairMidPhase::GenerateCollisionsImpl(
@@ -1103,9 +1103,9 @@ namespace Chaos
 		const FCollisionContext& Context)
 	{
 		//TRACE_COUNTER_INCREMENT(ChaosTraceCounter_MidPhase_NumGeneric);
+		const FImplicitObjectRef Implicit0 = GetParticle0()->GetGeometry();
+		const FImplicitObjectRef Implicit1 = GetParticle1()->GetGeometry();
 
-		const FImplicitObject* Implicit0 = GetParticle0()->Geometry().Get();
-		const FImplicitObject* Implicit1 = GetParticle1()->Geometry().Get();
 
 		// See if we have a BVH for either/both of the particles
 		const Private::FImplicitBVH* BVH0 = nullptr;
@@ -1356,7 +1356,7 @@ namespace Chaos
 			};
 
 		// Visit all the nodes in BVHA and detect collisions with ParticleB
-		BVHA->VisitNodes(NodeVisitorA);
+		BVHA->VisitNodes(NodeVisitorA);  
 	}
 
 	// Generate collisions between two leaf (not hierarchy) implicits

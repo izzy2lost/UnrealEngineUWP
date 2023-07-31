@@ -51,12 +51,17 @@ namespace ChaosInterface
 		ensure(false);
 		return Chaos::EChaosCollisionTraceFlag::Chaos_CTF_UseDefault;
 	}
-
+	
 	void CreateGeometry(const FGeometryAddParams& InParams, TArray<TUniquePtr<Chaos::FImplicitObject>>& OutGeoms, Chaos::FShapesArray& OutShapes)
+	{
+		check(false);
+	}
+
+	void CreateGeometry(const FGeometryAddParams& InParams, TArray<Chaos::FImplicitObjectPtr>& OutGeoms, Chaos::FShapesArray& OutShapes)
 	{
 		LLM_SCOPE(ELLMTag::ChaosGeometry);
 		const FVector& Scale = InParams.Scale;
-		TArray<TUniquePtr<Chaos::FImplicitObject>>& Geoms = OutGeoms;
+		TArray<Chaos::FImplicitObjectPtr>& Geoms = OutGeoms;
 		Chaos::FShapesArray& Shapes = OutShapes;
 
 		ECollisionTraceFlag CollisionTraceType = InParams.CollisionTraceType;
@@ -80,7 +85,7 @@ namespace ChaosInterface
 		}
 
 		// Complex as simple should not create simple geometry, unless there is no complex geometry.  Otherwise both get queried against.
-		const bool bMakeSimpleGeometry = (CollisionTraceType != CTF_UseComplexAsSimple) || (InParams.ChaosTriMeshes.Num() == 0);
+		const bool bMakeSimpleGeometry = (CollisionTraceType != CTF_UseComplexAsSimple) || (InParams.TriMeshGeometries.Num() == 0);
 
 		// The reverse is true for Simple as Complex.
 		const int32 SimpleShapeCount = InParams.Geometry->SphereElems.Num() + InParams.Geometry->BoxElems.Num() + InParams.Geometry->SphylElems.Num() + InParams.Geometry->TaperedCapsuleElems.Num() + InParams.Geometry->ConvexElems.Num();
@@ -88,11 +93,11 @@ namespace ChaosInterface
 
 		ensure(bMakeComplexGeometry || bMakeSimpleGeometry);
 
-		const int32 NumNewShapes = (bMakeSimpleGeometry ? SimpleShapeCount : 0) + (bMakeComplexGeometry ? InParams.ChaosTriMeshes.Num() : 0);
+		const int32 NumNewShapes = (bMakeSimpleGeometry ? SimpleShapeCount : 0) + (bMakeComplexGeometry ? InParams.TriMeshGeometries.Num() : 0);
 		Shapes.Reserve(Shapes.Num() + NumNewShapes);
 		Geoms.Reserve(Geoms.Num() + NumNewShapes);
 
-		auto NewShapeHelper = [&InParams, &CollisionTraceType](Chaos::TSerializablePtr<Chaos::FImplicitObject> InGeom, int32 ShapeIdx, void* UserData, ECollisionEnabled::Type ShapeCollisionEnabled, bool bComplexShape = false)
+		auto NewShapeHelper = [&InParams, &CollisionTraceType](const Chaos::FImplicitObjectPtr& InGeom, int32 ShapeIdx, void* UserData, ECollisionEnabled::Type ShapeCollisionEnabled, bool bComplexShape = false)
 		{
 			TUniquePtr<Chaos::FPerShapeData> NewShape = Chaos::FShapeInstanceProxy::Make(ShapeIdx, InGeom);
 			NewShape->SetQueryData(bComplexShape ? InParams.CollisionData.CollisionFilterData.QueryComplexFilter : InParams.CollisionData.CollisionFilterData.QuerySimpleFilter);
@@ -119,8 +124,8 @@ namespace ChaosInterface
 			{
 				const FKSphereElem ScaledSphereElem = SphereElem.GetFinalScaled(Scale, InParams.LocalTransform);
 				const float UseRadius = FMath::Max(ScaledSphereElem.Radius, UE_KINDA_SMALL_NUMBER);
-				auto ImplicitSphere = MakeUnique<Chaos::TSphere<Chaos::FReal, 3>>(ScaledSphereElem.Center, UseRadius);
-				TUniquePtr<Chaos::FPerShapeData> NewShape = NewShapeHelper(MakeSerializable(ImplicitSphere), Shapes.Num(), (void*)SphereElem.GetUserData(), SphereElem.GetCollisionEnabled());
+				auto ImplicitSphere = MakeImplicitObjectPtr<Chaos::TSphere<Chaos::FReal, 3>>(ScaledSphereElem.Center, UseRadius);
+				TUniquePtr<Chaos::FPerShapeData> NewShape = NewShapeHelper(ImplicitSphere, Shapes.Num(), (void*)SphereElem.GetUserData(), SphereElem.GetCollisionEnabled());
 				Shapes.Emplace(MoveTemp(NewShape));
 				Geoms.Emplace(MoveTemp(ImplicitSphere));
 			}
@@ -137,18 +142,18 @@ namespace ChaosInterface
 				const Chaos::FReal CollisionMargin = FMath::Min(2.0f * HalfExtents.GetMin() * CollisionMarginFraction, CollisionMarginMax);
 
 				// AABB can handle translations internally but if we have a rotation we need to wrap it in a transform
-				TUniquePtr<Chaos::FImplicitObject> Implicit;
+				Chaos::FImplicitObjectPtr Implicit;
 				if (!BoxTransform.GetRotation().IsIdentity())
 				{
-					auto ImplicitBox = MakeUnique<Chaos::TBox<Chaos::FReal, 3>>(-HalfExtents, HalfExtents, CollisionMargin);
-					Implicit = TUniquePtr<Chaos::FImplicitObject>(new Chaos::TImplicitObjectTransformed<Chaos::FReal, 3>(MoveTemp(ImplicitBox), BoxTransform));
+					auto ImplicitBox = MakeImplicitObjectPtr<Chaos::TBox<Chaos::FReal, 3>>(-HalfExtents, HalfExtents, CollisionMargin);
+					Implicit = MakeImplicitObjectPtr<Chaos::TImplicitObjectTransformed<Chaos::FReal, 3>>(MoveTemp(ImplicitBox), BoxTransform);
 				}
 				else
 				{
-					Implicit = MakeUnique<Chaos::TBox<Chaos::FReal, 3>>(BoxTransform.GetTranslation() - HalfExtents, BoxTransform.GetTranslation() + HalfExtents, CollisionMargin);
+					Implicit = MakeImplicitObjectPtr<Chaos::TBox<Chaos::FReal, 3>>(BoxTransform.GetTranslation() - HalfExtents, BoxTransform.GetTranslation() + HalfExtents, CollisionMargin);
 				}
 
-				TUniquePtr<Chaos::FPerShapeData> NewShape = NewShapeHelper(MakeSerializable(Implicit),Shapes.Num(), (void*)BoxElem.GetUserData(), BoxElem.GetCollisionEnabled());
+				TUniquePtr<Chaos::FPerShapeData> NewShape = NewShapeHelper(Implicit,Shapes.Num(), (void*)BoxElem.GetUserData(), BoxElem.GetCollisionEnabled());
 				Shapes.Emplace(MoveTemp(NewShape));
 				Geoms.Emplace(MoveTemp(Implicit));
 			}
@@ -158,19 +163,19 @@ namespace ChaosInterface
 				Chaos::FReal HalfHeight = FMath::Max(ScaledSphylElem.Length * 0.5f, UE_KINDA_SMALL_NUMBER);
 				const Chaos::FReal Radius = FMath::Max(ScaledSphylElem.Radius, UE_KINDA_SMALL_NUMBER);
 
-				TUniquePtr<Chaos::FImplicitObject> Object;
+				Chaos::FImplicitObjectPtr Object;
 				if (HalfHeight < UE_KINDA_SMALL_NUMBER)
 				{
 					//not a capsule just use a sphere
-					Object = MakeUnique<Chaos::TSphere<Chaos::FReal, 3>>(ScaledSphylElem.Center, Radius);
+					Object = MakeImplicitObjectPtr<Chaos::TSphere<Chaos::FReal, 3>>(ScaledSphylElem.Center, Radius);
 				}
 				else
 				{
 					Chaos::FVec3 HalfExtents = ScaledSphylElem.Rotation.RotateVector(Chaos::FVec3(0, 0, HalfHeight));
-					Object = MakeUnique<Chaos::FCapsule>(ScaledSphylElem.Center - HalfExtents, ScaledSphylElem.Center + HalfExtents, Radius);
+					Object = MakeImplicitObjectPtr<Chaos::FCapsule>(ScaledSphylElem.Center - HalfExtents, ScaledSphylElem.Center + HalfExtents, Radius);
 				}
 
-				TUniquePtr<Chaos::FPerShapeData> NewShape = NewShapeHelper(MakeSerializable(Object), Shapes.Num(), (void*)UnscaledSphyl.GetUserData(), UnscaledSphyl.GetCollisionEnabled());
+				TUniquePtr<Chaos::FPerShapeData> NewShape = NewShapeHelper(Object, Shapes.Num(), (void*)UnscaledSphyl.GetUserData(), UnscaledSphyl.GetCollisionEnabled());
 				Shapes.Emplace(MoveTemp(NewShape));
 				Geoms.Emplace(MoveTemp(Object));
 			}
@@ -182,21 +187,21 @@ namespace ChaosInterface
 				const Chaos::FReal Radius0 = FMath::Max(ScaledTaperedCapsule.Radius0, UE_KINDA_SMALL_NUMBER);
 				const Chaos::FReal Radius1 = FMath::Max(ScaledTaperedCapsule.Radius1, UE_KINDA_SMALL_NUMBER);
 
-				TUniquePtr<Chaos::FImplicitObject> Object;
+				Chaos::FImplicitObjectPtr Object;
 				if (HalfHeight < UE_KINDA_SMALL_NUMBER)
 				{
 					//not a capsule just use a sphere
 					const Chaos::FReal MaxRadius = FMath::Max(Radius0, Radius1);
-					Object = MakeUnique<Chaos::TSphere<Chaos::FReal, 3>>(ScaledTaperedCapsule.Center, MaxRadius);
+					Object = MakeImplicitObjectPtr<Chaos::TSphere<Chaos::FReal, 3>>(ScaledTaperedCapsule.Center, MaxRadius);
 				}
 				else
 				{
 					Chaos::FVec3 HalfExtents = ScaledTaperedCapsule.Rotation.RotateVector(Chaos::FVec3(0, 0, HalfHeight));
 					const Chaos::FReal MeanRadius = 0.5f * (Radius0 + Radius1);
-					Object = MakeUnique<Chaos::FCapsule>(ScaledTaperedCapsule.Center - HalfExtents, ScaledTaperedCapsule.Center + HalfExtents, MeanRadius);
+					Object = MakeImplicitObjectPtr<Chaos::FCapsule>(ScaledTaperedCapsule.Center - HalfExtents, ScaledTaperedCapsule.Center + HalfExtents, MeanRadius);
 				}
 
-				TUniquePtr<Chaos::FPerShapeData> NewShape = NewShapeHelper(MakeSerializable(Object), Shapes.Num(), (void*)UnscaledTaperedCapsule.GetUserData(), UnscaledTaperedCapsule.GetCollisionEnabled());
+				TUniquePtr<Chaos::FPerShapeData> NewShape = NewShapeHelper(Object, Shapes.Num(), (void*)UnscaledTaperedCapsule.GetUserData(), UnscaledTaperedCapsule.GetCollisionEnabled());
 				Shapes.Emplace(MoveTemp(NewShape));
 				Geoms.Emplace(MoveTemp(Object));
 			}
@@ -252,23 +257,23 @@ namespace ChaosInterface
 
 						// Wrap the convex in a scaled or instanced wrapper depending on scale value, and add a margin
 						// NOTE: CollisionMargin is on the Instance/Scaled wrapper, not the inner convex (which is shared and should not have a margin).
-						TUniquePtr<Chaos::FImplicitObject> Implicit;
+						Chaos::FImplicitObjectPtr Implicit;
 						if (bNoScale)
 						{
-							Implicit = TUniquePtr<Chaos::FImplicitObject>(new Chaos::TImplicitObjectInstanced<Chaos::FConvex>(ConvexImplicit, CollisionMargin));
+							Implicit = MakeImplicitObjectPtr<Chaos::TImplicitObjectInstanced<Chaos::FConvex>>(ConvexImplicit, CollisionMargin);
 						}
 						else
 						{
-							Implicit = TUniquePtr<Chaos::FImplicitObject>(new Chaos::TImplicitObjectScaled<Chaos::FConvex>(ConvexImplicit, NetScale, CollisionMargin));
+							Implicit = MakeImplicitObjectPtr<Chaos::TImplicitObjectScaled<Chaos::FConvex>>(ConvexImplicit, NetScale, CollisionMargin);
 						}
 
 						// Wrap the convex in a non-scaled transform if necessary (the scale is pulled out above)
 						if (bHasTranslationOrRotation)
 						{
-							Implicit = TUniquePtr<Chaos::FImplicitObject>(new Chaos::TImplicitObjectTransformed<Chaos::FReal, 3>(MoveTemp(Implicit), ConvexTransform));
+							Implicit = MakeImplicitObjectPtr<Chaos::TImplicitObjectTransformed<Chaos::FReal, 3>>(MoveTemp(Implicit), ConvexTransform);
 						}
 
-						TUniquePtr<Chaos::FPerShapeData> NewShape = NewShapeHelper(MakeSerializable(Implicit), Shapes.Num(), (void*)CollisionBody.GetUserData(), CollisionBody.GetCollisionEnabled());
+						TUniquePtr<Chaos::FPerShapeData> NewShape = NewShapeHelper(Implicit, Shapes.Num(), (void*)CollisionBody.GetUserData(), CollisionBody.GetCollisionEnabled());
 						Shapes.Emplace(MoveTemp(NewShape));
 						Geoms.Emplace(MoveTemp(Implicit));
 					}
@@ -281,27 +286,27 @@ namespace ChaosInterface
 			const FTransform MeshTransform = FTransform(InParams.LocalTransform.GetRotation(), Scale * InParams.LocalTransform.GetTranslation(), FVector(1, 1, 1));
 			const bool bHasTranslationOrRotation = !MeshTransform.GetTranslation().IsNearlyZero() || !MeshTransform.GetRotation().IsIdentity();
 			const bool bNoScale = Scale == FVector(1);
-			for (auto& ChaosTriMesh : InParams.ChaosTriMeshes)
+			for (auto& ChaosTriMesh : InParams.TriMeshGeometries)
 			{
-				TUniquePtr<Chaos::FImplicitObject> Implicit;
+				Chaos::FImplicitObjectPtr Implicit;
 				if (bNoScale)
 				{
-					Implicit = TUniquePtr<Chaos::FImplicitObject>(new Chaos::TImplicitObjectInstanced<Chaos::FTriangleMeshImplicitObject>(ChaosTriMesh));
+					Implicit = MakeImplicitObjectPtr<Chaos::TImplicitObjectInstanced<Chaos::FTriangleMeshImplicitObject>>(ChaosTriMesh);
 				}
 				else
 				{
-					Implicit = TUniquePtr<Chaos::FImplicitObject>(new Chaos::TImplicitObjectScaled<Chaos::FTriangleMeshImplicitObject>(ChaosTriMesh, Scale));
+					Implicit = MakeImplicitObjectPtr<Chaos::TImplicitObjectScaled<Chaos::FTriangleMeshImplicitObject>>(ChaosTriMesh, Scale);
 				}
 
 				// Wrap the mesh in a non-scaled transform if necessary (the scale is pulled out above)
 				if (bHasTranslationOrRotation)
 				{
-					Implicit = TUniquePtr<Chaos::FImplicitObject>(new Chaos::TImplicitObjectTransformed<Chaos::FReal, 3>(MoveTemp(Implicit), MeshTransform));
+					Implicit = MakeImplicitObjectPtr<Chaos::TImplicitObjectTransformed<Chaos::FReal, 3>>(MoveTemp(Implicit), MeshTransform);
 				}
 
 				ChaosTriMesh->SetCullsBackFaceRaycast(!InParams.bDoubleSided);
 
-				TUniquePtr<Chaos::FPerShapeData> NewShape = NewShapeHelper(MakeSerializable(Implicit),Shapes.Num(), nullptr, ECollisionEnabled::QueryAndPhysics, true);
+				TUniquePtr<Chaos::FPerShapeData> NewShape = NewShapeHelper(Implicit,Shapes.Num(), nullptr, ECollisionEnabled::QueryAndPhysics, true);
 				Shapes.Emplace(MoveTemp(NewShape));
 				Geoms.Emplace(MoveTemp(Implicit));
 			}

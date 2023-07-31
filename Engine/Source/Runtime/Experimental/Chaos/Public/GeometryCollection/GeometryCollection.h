@@ -100,7 +100,8 @@ public:
 	static CHAOS_API const FName SimulatableParticlesAttribute;
 	static CHAOS_API const FName SimulationTypeAttribute;
 	static CHAOS_API const FName StatusFlagsAttribute;
-
+	static CHAOS_API const FName ExternalCollisionsAttribute;
+	
 	enum ESimulationTypes : uint8
 	{
 		FST_None = 0,

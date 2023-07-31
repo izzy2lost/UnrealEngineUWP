@@ -23,7 +23,7 @@ class TPerCellBoundaryConditions
 		{
 			const TVector<T, d>& X = Grid.Location(Index);
 			TRigidTransform<T, d> Frame(MParticles.X(i), MParticles.R(i));
-			if (MParticles.Geometry(i)->SignedDistance(Frame.InverseTransformPosition(X)) < 0)
+			if (MParticles.GetGeometry(i)->SignedDistance(Frame.InverseTransformPosition(X)) < 0)
 			{
 				BoundaryConditions(Index) = true;
 				Velocity(Index) = MParticles.V(i)[Index.First];
@@ -34,7 +34,7 @@ class TPerCellBoundaryConditions
 		{
 			const TVector<T, d>& X = Grid.Location(Index);
 			TRigidTransform<T, d> Frame(MSources.X(i), MSources.R(i));
-			if (MSources.Geometry(i)->SignedDistance(Frame.InverseTransformPosition(X)) < 0)
+			if (MSources.GetGeometry(i)->SignedDistance(Frame.InverseTransformPosition(X)) < 0)
 			{
 				BoundaryConditions(Index) = true;
 				Velocity(Index) = MSources.V(i)[Index.First];
@@ -51,7 +51,7 @@ class TPerCellBoundaryConditions
 		{
 			const TVector<T, d>& X = Grid.Location(Index);
 			TRigidTransform<T, d> Frame(MSources.X(i), MSources.R(i));
-			if (MSources.Geometry(i)->SignedDistance(Frame.InverseTransformPosition(X)) < 0)
+			if (MSources.GetGeometry(i)->SignedDistance(Frame.InverseTransformPosition(X)) < 0)
 			{
 				Density(Index) = 1.f;
 				break;

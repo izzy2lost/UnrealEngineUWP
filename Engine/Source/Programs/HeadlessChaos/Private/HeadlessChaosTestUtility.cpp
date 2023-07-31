@@ -36,7 +36,7 @@ namespace ChaosTest {
 		InParticles.InvM(RigidBodyIndex) = 1.0;
 		InParticles.I(RigidBodyIndex) = TVec3<FRealSingle>(1, 1, 1);
 		InParticles.InvI(RigidBodyIndex) = TVec3<FRealSingle>(1, 1, 1);
-		InParticles.SetDynamicGeometry(RigidBodyIndex, MakeUnique<TSphere<FReal, 3>>(FVec3(0), Scale));
+		InParticles.SetGeometry(RigidBodyIndex, MakeImplicitObjectPtr<TSphere<FReal, 3>>(FVec3(0), Scale));
 		InParticles.SetObjectState(RigidBodyIndex, EObjectStateType::Dynamic);
 
 		return RigidBodyIndex;
@@ -58,7 +58,7 @@ namespace ChaosTest {
 		InParticles.InvM(RigidBodyIndex) = 1.0;
 		InParticles.I(RigidBodyIndex) = TVec3<FRealSingle>(1, 1, 1);
 		InParticles.InvI(RigidBodyIndex) = TVec3<FRealSingle>(1, 1, 1);
-		InParticles.SetDynamicGeometry(RigidBodyIndex, MakeUnique<TBox<FReal, 3>>(-Scale / 2.0, Scale / 2.0));
+		InParticles.SetGeometry(RigidBodyIndex, MakeImplicitObjectPtr<TBox<FReal, 3>>(-Scale / 2.0, Scale / 2.0));
 		InParticles.SetObjectState(RigidBodyIndex, EObjectStateType::Dynamic);
 
 		return RigidBodyIndex;
@@ -70,7 +70,7 @@ namespace ChaosTest {
 		Particle->V() = FVec3(0, 0, 0);
 		Particle->R() = FRotation3::MakeFromEuler(FVec3(0, 0, 0)).GetNormalized();
 		Particle->W() = FVec3(0, 0, 0);
-		Particle->SetDynamicGeometry(MakeUnique<TBox<FReal, 3>>(-Scale / 2.0, Scale / 2.0));
+		Particle->SetGeometry(MakeImplicitObjectPtr<TBox<FReal, 3>>(-Scale / 2.0, Scale / 2.0));
 
 		FPBDRigidParticleHandle* DynamicParticle = Particle->CastToRigidParticle();
 		if(DynamicParticle && DynamicParticle->ObjectState() == EObjectStateType::Dynamic)
@@ -103,7 +103,7 @@ namespace ChaosTest {
 		InParticles.InvM(RigidBodyIndex) = 1.0;
 		InParticles.I(RigidBodyIndex) = TVec3<FRealSingle>(ScaleSq / 6.0, ScaleSq / 6.0, ScaleSq / 6.0);
 		InParticles.InvI(RigidBodyIndex) = TVec3<FRealSingle>(6.0 / ScaleSq, 6.0 / ScaleSq, 6.0 / ScaleSq);
-		InParticles.SetDynamicGeometry(RigidBodyIndex, MakeUnique<TBox<FReal, 3>>(-Scale / 2.0, Scale / 2.0));
+		InParticles.SetGeometry(RigidBodyIndex, MakeImplicitObjectPtr<TBox<FReal, 3>>(-Scale / 2.0, Scale / 2.0));
 		InParticles.SetObjectState(RigidBodyIndex, EObjectStateType::Dynamic);
 
 		int32 CollisionIndex = 0;
@@ -171,7 +171,7 @@ namespace ChaosTest {
 		Particle->I() = (1.0 / 12.0) * TVec3<FRealSingle>(ScaleSq.Y + ScaleSq.Z, ScaleSq.X + ScaleSq.Z, ScaleSq.X + ScaleSq.Y);
 		Particle->InvI() = TVec3<FRealSingle>(6.0 / ScaleSq);
 
-		Particle->SetDynamicGeometry(MakeUnique<TBox<FReal, 3>>(-Scale / 2.0, Scale / 2.0, Margin));
+		Particle->SetGeometry(MakeImplicitObjectPtr<TBox<FReal, 3>>(-Scale / 2.0, Scale / 2.0, Margin));
 
 		int32 CollisionIndex = 0;
 		Particle->CollisionParticlesInitIfNeeded();
@@ -185,7 +185,7 @@ namespace ChaosTest {
 		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(-Scale[0] / 2.0, +Scale[1] / 2.0, +Scale[2] / 2.0);
 		Particle->CollisionParticles()->X(CollisionIndex++) = FVec3(+Scale[0] / 2.0, +Scale[1] / 2.0, +Scale[2] / 2.0);
 
-		Particle->SetLocalBounds(Particle->Geometry()->BoundingBox());
+		Particle->SetLocalBounds(Particle->GetGeometry()->BoundingBox());
 		Particle->UpdateWorldSpaceState(FRigidTransform3::Identity, FVec3(0));
 		Particle->SetHasBounds(true);
 
@@ -242,7 +242,7 @@ namespace ChaosTest {
 		Particle->I() = TVec3<FRealSingle>(ScaleSq / 6.0);
 		Particle->InvI() = TVec3<FRealSingle>(6.0 / ScaleSq);
 
-		Particle->SetDynamicGeometry(MakeUnique<TSphere<FReal, 3>>(FVec3(0), Scale.X / 2.0));
+		Particle->SetGeometry(MakeImplicitObjectPtr<TSphere<FReal, 3>>(FVec3(0), Scale.X / 2.0));
 
 		int32 CollisionIndex = 0;
 		Particle->CollisionParticlesInitIfNeeded();
@@ -307,11 +307,11 @@ namespace ChaosTest {
 		
 		if (Tapered)
 		{
-			Particle->SetDynamicGeometry(MakeUnique<FTaperedCylinder>(FVec3(0, 0, Scale.X / 2.0), FVec3(0, 0, -Scale.X / 2.0), Scale.X / 2.0, Scale.X / 2.0));
+			Particle->SetGeometry(MakeImplicitObjectPtr<FTaperedCylinder>(FVec3(0, 0, Scale.X / 2.0), FVec3(0, 0, -Scale.X / 2.0), Scale.X / 2.0, Scale.X / 2.0));
 		}
 		else 
 		{
-			Particle->SetDynamicGeometry(MakeUnique<FCylinder>(FVec3(0, 0, Scale.X / 2.0), FVec3(0, 0, -Scale.X / 2.0), Scale.X / 2.0));
+			Particle->SetGeometry(MakeImplicitObjectPtr<FCylinder>(FVec3(0, 0, Scale.X / 2.0), FVec3(0, 0, -Scale.X / 2.0), Scale.X / 2.0));
 		}
 
 		int32 CollisionIndex = 0;
@@ -410,7 +410,7 @@ namespace ChaosTest {
 
 		FReal ScaleSq = Scale.X * Scale.X;
 
-		Particle->SetDynamicGeometry(MakeUnique<TBox<FReal, 3>>(-Scale / 2.0, Scale / 2.0));
+		Particle->SetGeometry(MakeImplicitObjectPtr<TBox<FReal, 3>>(-Scale / 2.0, Scale / 2.0));
 
 		// This is needed for calculating contacts (Bounds are bigger than they need to be, even allowing for rotation)
 		Particle->SetLocalBounds(FAABB3(FVec3(-Scale[0]), FVec3(Scale[0])));
@@ -473,7 +473,7 @@ namespace ChaosTest {
 		InParticles.InvM(RigidBodyIndex) = 0.0;
 		InParticles.I(RigidBodyIndex) = TVec3<FRealSingle>(1);
 		InParticles.InvI(RigidBodyIndex) = TVec3<FRealSingle>(0);
-		InParticles.SetDynamicGeometry(RigidBodyIndex, MakeUnique<TPlane<FReal, 3>>(FVec3(0, 0, 0), FVec3(0, 0, 1)));
+		InParticles.SetGeometry(RigidBodyIndex, MakeImplicitObjectPtr<TPlane<FReal, 3>>(FVec3(0, 0, 0), FVec3(0, 0, 1)));
 		InParticles.SetObjectState(RigidBodyIndex, EObjectStateType::Kinematic);
 
 		InParticles.P(RigidBodyIndex) = InParticles.X(RigidBodyIndex);
@@ -491,7 +491,7 @@ namespace ChaosTest {
 		Particle->V() = FVec3(0, 0, 0);
 		Particle->R() = FRotation3::MakeFromEuler(FVec3(0, 0, 0)).GetNormalized();
 		Particle->W() = FVec3(0, 0, 0);
-		Particle->SetDynamicGeometry(MakeUnique<TPlane<FReal, 3>>(FVec3(0, 0, 0), FVec3(0, 0, 1)));
+		Particle->SetGeometry(MakeImplicitObjectPtr<TPlane<FReal, 3>>(FVec3(0, 0, 0), FVec3(0, 0, 1)));
 
 		::ChaosTest::SetParticleSimDataToCollide({ Particle });
 
@@ -521,7 +521,7 @@ namespace ChaosTest {
 		Cube[7] = { 1000, 1000, 0 };
 		Cube[8] = { 0, 0, 0 };
 
-		Particle->SetDynamicGeometry(MakeUnique<FConvex>(Cube, 0.0f));
+		Particle->SetGeometry(MakeImplicitObjectPtr<FConvex>(Cube, 0.0f));
 
 		::ChaosTest::SetParticleSimDataToCollide({ Particle });
 
@@ -586,7 +586,7 @@ namespace ChaosTest {
 		InParticles.InvM() = 1.0;
 		InParticles.I() = TVec3<FRealSingle>(1);
 		InParticles.InvI() = TVec3<FRealSingle>(1);
-		InParticles.SetDynamicGeometry(MakeUnique<FConvex>(Cube, Margin));
+		InParticles.SetGeometry(MakeImplicitObjectPtr<FConvex>(Cube, Margin));
 		InParticles.SetObjectStateLowLevel(EObjectStateType::Dynamic);
 
 		::ChaosTest::SetParticleSimDataToCollide({ &InParticles });
@@ -629,7 +629,7 @@ namespace ChaosTest {
 	{
 		FRigidTransform3(InParticles.X(Index), InParticles.R(Index));
 		FVec3 BodySpacePoint = ObjectSpacePoint(InParticles, Index, WorldSpacePoint);
-		FReal LocalPhi = InParticles.Geometry(Index)->PhiWithNormal(BodySpacePoint, Normal);
+		FReal LocalPhi = InParticles.GetGeometry(Index)->PhiWithNormal(BodySpacePoint, Normal);
 		Normal = FRigidTransform3(InParticles.X(Index), InParticles.R(Index)).TransformVector(Normal);
 		return LocalPhi;
 	}
@@ -646,7 +646,7 @@ namespace ChaosTest {
 	{
 		FRigidTransform3(Particle.X(), Particle.R());
 		FVec3 BodySpacePoint = ObjectSpacePoint(Particle, WorldSpacePoint);
-		FReal LocalPhi = Particle.Geometry()->PhiWithNormal(BodySpacePoint, Normal);
+		FReal LocalPhi = Particle.GetGeometry()->PhiWithNormal(BodySpacePoint, Normal);
 		Normal = FRigidTransform3(Particle.X(), Particle.R()).TransformVector(Normal);
 		return LocalPhi;
 	}
@@ -733,14 +733,14 @@ namespace ChaosTest {
 	TImplicitObjectInstanced<FImplicitConvex3> CreateInstancedConvexBox(const FConvex::FVec3Type& BoxSize, const FReal Margin)
 	{
 		const FConvex::FVec3Type HalfSize = 0.5f * BoxSize;
-		TSharedPtr<FImplicitConvex3, ESPMode::ThreadSafe> BoxConvex = MakeShared<FImplicitConvex3, ESPMode::ThreadSafe>(MakeBoxVerts(FConvex::FVec3Type(0), HalfSize), 0.0f);
+		FConvexPtr BoxConvex( new FImplicitConvex3(MakeBoxVerts(FConvex::FVec3Type(0), HalfSize), 0.0f));
 		return TImplicitObjectInstanced<FImplicitConvex3>(BoxConvex, Margin);
 	}
 
 	TImplicitObjectScaled<FImplicitConvex3> CreateScaledConvexBox(const FConvex::FVec3Type& BoxSize, const FVec3 BoxScale, const FReal Margin)
 	{
 		const FConvex::FVec3Type HalfSize = 0.5f * BoxSize;
-		TSharedPtr<FImplicitConvex3, ESPMode::ThreadSafe> BoxConvex = MakeShared<FImplicitConvex3, ESPMode::ThreadSafe>(MakeBoxVerts(FConvex::FVec3Type(0), HalfSize), 0.0f);
+		FConvexPtr BoxConvex( new FImplicitConvex3(MakeBoxVerts(FConvex::FVec3Type(0), HalfSize), 0.0f));
 		return TImplicitObjectScaled<FImplicitConvex3>(BoxConvex, BoxScale, Margin);
 	}
 

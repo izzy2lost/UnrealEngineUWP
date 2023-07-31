@@ -279,12 +279,12 @@ void FChaosVDRecording::GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(int
 	}
 }
 
-void FChaosVDRecording::AddImplicitObject(const uint32 ID, const TSharedPtr<Chaos::FImplicitObject>& InImplicitObject)
+void FChaosVDRecording::AddImplicitObject(const uint32 ID, const Chaos::FImplicitObjectPtr& InImplicitObject)
 {
 	FWriteScopeLock WriteLock(RecordingDataLock);
 	if (!ImplicitObjects.Contains(ID))
 	{
-		AddImplicitObject_Internal(ID, InImplicitObject);
+		AddImplicitObject_Internal(ID, Chaos::FConstImplicitObjectPtr(InImplicitObject));
 	}
 }
 
@@ -294,12 +294,12 @@ void FChaosVDRecording::AddImplicitObject(const uint32 ID, const Chaos::FImplici
 	if (!ImplicitObjects.Contains(ID))
 	{
 		// Only take ownership after we know we will add it to the map
-		const TSharedPtr<const Chaos::FImplicitObject> SharedImplicit(InImplicitObject);
-		AddImplicitObject_Internal(ID, SharedImplicit);
+		const Chaos::FConstImplicitObjectPtr ImplicitObjectPtr(InImplicitObject);
+		AddImplicitObject_Internal(ID, ImplicitObjectPtr);
 	}
 }
 
-void FChaosVDRecording::AddImplicitObject_Internal(uint32 ID, const TSharedPtr<const Chaos::FImplicitObject>& InImplicitObject)
+void FChaosVDRecording::AddImplicitObject_Internal(uint32 ID, const Chaos::FConstImplicitObjectPtr& InImplicitObject)
 {
 	ImplicitObjects.Add(ID, InImplicitObject);
 	GeometryDataLoaded.Broadcast(InImplicitObject, ID);

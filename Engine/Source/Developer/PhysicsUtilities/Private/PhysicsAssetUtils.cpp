@@ -854,7 +854,7 @@ bool CreateCollisionsFromBones(UPhysicsAsset* PhysicsAsset, USkeletalMesh* SkelM
 		// Get sub-bones for any skinned levelsets
 		for (const FKSkinnedLevelSetElem& SkinnedLevelSetElem : BodySetup->AggGeom.SkinnedLevelSetElems)
 		{
-			if (const Chaos::TWeightedLatticeImplicitObject<Chaos::FLevelSet>* SkinnedLevelSet = SkinnedLevelSetElem.GetWeightedLevelSet().Get())
+			if (const Chaos::TWeightedLatticeImplicitObject<Chaos::FLevelSet>* SkinnedLevelSet = SkinnedLevelSetElem.WeightedLevelSet().GetReference())
 			{
 				SubBoneNames.Reserve(SubBoneNames.Num() + SkinnedLevelSet->GetUsedBones().Num());
 				for (const FName& SubBoneName : SkinnedLevelSet->GetUsedBones())

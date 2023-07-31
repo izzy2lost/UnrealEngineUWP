@@ -68,8 +68,9 @@ UBodySetup::UBodySetup(FVTableHelper& Helper)
 {
 }
 
-UBodySetup::~UBodySetup() = default;
-
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+UBodySetup::~UBodySetup() {}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #if ENABLE_COOK_STATS
 namespace BodySetupCookStats
@@ -576,33 +577,33 @@ bool UBodySetup::RuntimeCookPhysics_Chaos()
 
 void UBodySetup::FinishCreatingPhysicsMeshes_Chaos(FChaosDerivedDataReader<float, 3>& InReader)
 {
-	FinishCreatingPhysicsMeshes_Chaos(InReader.ConvexImplicitObjects, InReader.TrimeshImplicitObjects, InReader.UVInfo, InReader.FaceRemap);
+	FinishCreatingPhysicsMeshes_Chaos(InReader.ConvexGeometries, InReader.TriMeshGeometries, InReader.UVInfo, InReader.FaceRemap);
 }
 
 void UBodySetup::FinishCreatingPhysicsMeshes_Chaos(Chaos::FCookHelper& InHelper)
 {
-	TArray<TSharedPtr<Chaos::FConvex, ESPMode::ThreadSafe>> SharedSimpleImplicits;
-	TArray<TSharedPtr<Chaos::FTriangleMeshImplicitObject, ESPMode::ThreadSafe>> SharedComplexImplicits;
+	TArray<Chaos::FConvexPtr> SimpleImplicits;
+	TArray<Chaos::FTriangleMeshImplicitObjectPtr> ComplexImplicits;
 
 	// The cooker will prepare unique implicits, body setup requires shared implicits, we do the conversion / promotion to shared
 	// here and then the contents are moved into the body setup storage as part of FinishCreatingPhysicsMeshes
-	for(TUniquePtr<Chaos::FImplicitObject>& Simple : InHelper.SimpleImplicits)
+	for(Chaos::FImplicitObjectPtr& Simple : InHelper.SimpleImplicits)
 	{
-		SharedSimpleImplicits.Add(MakeShared<Chaos::FConvex, ESPMode::ThreadSafe>(MoveTemp(Simple.Release()->GetObjectChecked<Chaos::FConvex>())));
+		SimpleImplicits.Add( Chaos::FConvexPtr(Simple->GetObject<Chaos::FConvex>()));
 	}
 
-	for(TUniquePtr<Chaos::FTriangleMeshImplicitObject>& Complex : InHelper.ComplexImplicits)
+	for(Chaos::FTriangleMeshImplicitObjectPtr& Complex : InHelper.ComplexImplicits)
 	{
-		SharedComplexImplicits.Emplace(Complex.Release());
+		ComplexImplicits.Add( Chaos::FTriangleMeshImplicitObjectPtr(Complex->GetObject<Chaos::FTriangleMeshImplicitObject>()));
 	}
 
 	InHelper.SimpleImplicits.Reset();
 	InHelper.ComplexImplicits.Reset();
 
-	FinishCreatingPhysicsMeshes_Chaos(SharedSimpleImplicits, SharedComplexImplicits, InHelper.UVInfo, InHelper.FaceRemap);
+	FinishCreatingPhysicsMeshes_Chaos(SimpleImplicits, ComplexImplicits, InHelper.UVInfo, InHelper.FaceRemap);
 }
 
-void UBodySetup::FinishCreatingPhysicsMeshes_Chaos(TArray<TSharedPtr<Chaos::FConvex, ESPMode::ThreadSafe>>& ConvexImplicits, TArray<TSharedPtr<Chaos::FTriangleMeshImplicitObject, ESPMode::ThreadSafe>>& TrimeshImplicits, FBodySetupUVInfo& InUvInfo, TArray<int32>& InFaceRemap)
+void UBodySetup::FinishCreatingPhysicsMeshes_Chaos(TArray<Chaos::FConvexPtr>& ConvexImplicits, TArray<Chaos::FTriangleMeshImplicitObjectPtr>& TrimeshImplicits, FBodySetupUVInfo& InUvInfo, TArray<int32>& InFaceRemap)
 {
 	ClearPhysicsMeshes();
 
@@ -617,7 +618,7 @@ void UBodySetup::FinishCreatingPhysicsMeshes_Chaos(TArray<TSharedPtr<Chaos::FCon
 			   && ConvexImplicits[ElementIndex]->IsValidGeometry()))
 			{
 				// Optimization: Only update internal convex data because we just deserialized the convex and the FKConvexElem convex information matches the chaos implicit one
-				ConvexElem.SetChaosConvexMesh(MoveTemp(ConvexImplicits[ElementIndex]), FKConvexElem::EConvexDataUpdateMethod::UpdateConvexDataOnlyIfMissing);
+				ConvexElem.SetConvexMeshObject(MoveTemp(ConvexImplicits[ElementIndex]), FKConvexElem::EConvexDataUpdateMethod::UpdateConvexDataOnlyIfMissing);
 
 #if TRACK_CHAOS_GEOMETRY
 				ConvexElem.GetChaosConvexMesh()->Track(Chaos::MakeSerializable(ConvexElem.GetChaosConvexMesh()), FullName);
@@ -642,18 +643,18 @@ void UBodySetup::FinishCreatingPhysicsMeshes_Chaos(TArray<TSharedPtr<Chaos::FCon
 		ConvexImplicits.Reset();
 	}
 
-	ChaosTriMeshes = MoveTemp(TrimeshImplicits);
+	TriMeshGeometries = MoveTemp(TrimeshImplicits);
 	UVInfo = MoveTemp(InUvInfo);
 	FaceRemap = MoveTemp(InFaceRemap);
 #if TRACK_CHAOS_GEOMETRY
-	for(auto& TriMesh : ChaosTriMeshes)
+	for(auto& TriMesh : TriMeshGeometries)
 	{
 		TriMesh->Track(Chaos::MakeSerializable(TriMesh), FullName);
 	}
 #endif
 
 	// Force trimesh collisions off
-	for(auto& TriMesh : ChaosTriMeshes)
+	for(auto& TriMesh : TriMeshGeometries)
 	{
 		TriMesh->SetDoCollide(false);
 	}
@@ -675,7 +676,7 @@ void UBodySetup::ClearPhysicsMeshes()
 		FKConvexElem* ConvexElem = &(AggGeom.ConvexElems[i]);
 		ConvexElem->ResetChaosConvexMesh();
 	}
-	ChaosTriMeshes.Reset();
+	TriMeshGeometries.Reset();
 
 	bCreatedPhysicsMeshes = false;
 
@@ -723,7 +724,7 @@ void UBodySetup::AddShapesToRigidActor_AssumesLocked(
 	AddParams.LocalTransform = RelativeTM;
 	AddParams.WorldTransform = OwningInstance->GetUnrealWorldTransform();
 	AddParams.Geometry = &AggGeom;
-	AddParams.ChaosTriMeshes = MakeArrayView(ChaosTriMeshes);
+	AddParams.TriMeshGeometries = MakeArrayView(TriMeshGeometries);
 
 	{
 		SCOPE_CYCLE_COUNTER(STAT_AddGeomToSolver);
@@ -940,7 +941,7 @@ void UBodySetup::Serialize(FArchive& Ar)
 	{
 		using namespace Chaos;
 
-		TArray<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>> ChaosImplicitObjects;
+		TArray<Chaos::FImplicitObjectPtr> ChaosImplicitObjects;
 		FChaosArchive ChaosAr(Ar);
 
 		int32 NumImplicits = 0;
@@ -956,7 +957,7 @@ void UBodySetup::Serialize(FArchive& Ar)
 				if (FImplicitObject* ImplicitObject = FImplicitObject::SerializationFactory(ChaosAr, nullptr))
 				{
 					ImplicitObject->Serialize(Ar);
-					ChaosImplicitObjects.Add(TSharedPtr<FImplicitObject, ESPMode::ThreadSafe >(ImplicitObject));
+					ChaosImplicitObjects.Add(Chaos::FImplicitObjectPtr(ImplicitObject));
 				}
 			}
 		}
@@ -1582,14 +1583,14 @@ void UBodySetup::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
 			}
 		}
 
-		for (auto& TriMesh : ChaosTriMeshes)
+		for (auto& TriMesh : TriMeshGeometries)
 		{
-			if (TriMesh.Get() != nullptr)
+			if (TriMesh.GetReference() != nullptr)
 			{
 				TArray<uint8> Data;
 				FMemoryWriter MemAr(Data);
 				Chaos::FChaosArchive ChaosAr(MemAr);
-				TriMesh.Get()->Serialize(ChaosAr);
+				TriMesh.GetReference()->Serialize(ChaosAr);
 				CumulativeResourceSize.AddDedicatedSystemMemoryBytes(Data.Num());
 			}
 		}
@@ -1767,7 +1768,7 @@ FVector::FReal FKConvexElem::GetScaledVolume(const FVector& Scale) const
 	return Volume;
 }
 
-void FKConvexElem::SetChaosConvexMesh(TSharedPtr<Chaos::FConvex, ESPMode::ThreadSafe>&& InChaosConvex, EConvexDataUpdateMethod ConvexDataUpdateMethod /* = EConvexDataUpdateMethod::AlwaysUpdateConvexData */)
+void FKConvexElem::SetConvexMeshObject(Chaos::FConvexPtr&& InChaosConvex, EConvexDataUpdateMethod ConvexDataUpdateMethod /* = EConvexDataUpdateMethod::AlwaysUpdateConvexData */)
 {
 	ChaosConvex = MoveTemp(InChaosConvex);
 	
@@ -1777,7 +1778,7 @@ void FKConvexElem::SetChaosConvexMesh(TSharedPtr<Chaos::FConvex, ESPMode::Thread
 
 void FKConvexElem::ResetChaosConvexMesh()
 {
-	ChaosConvex.Reset();
+	ChaosConvex.SafeRelease();
 }
 
 ENGINE_API void FKConvexElem::ComputeChaosConvexIndices(bool bForceCompute)
@@ -2284,7 +2285,7 @@ void FKLevelSetElem::ScaleElem(FVector DeltaSize, float MinSize)
 void FKSkinnedLevelSetElem::CloneElem(const FKSkinnedLevelSetElem& Other)
 {
 	Super::CloneElem(Other);
-	WeightedLevelSet = Other.WeightedLevelSet;
+	WeightedLatticeLevelSet = Other.WeightedLatticeLevelSet;
 }
 
 #if WITH_EDITOR

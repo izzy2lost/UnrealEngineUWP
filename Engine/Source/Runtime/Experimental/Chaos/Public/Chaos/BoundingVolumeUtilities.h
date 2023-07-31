@@ -108,15 +108,15 @@ bool HasBoundingBox(const TParticles<T, d>& Objects, const int32 i)
 template<class T, int d>
 bool HasBoundingBox(const TGeometryParticles<T, d>& Objects, const int32 i)
 {
-	return Objects.Geometry(i)->HasBoundingBox();
+	return Objects.GetGeometry(i)->HasBoundingBox();
 }
 
 template<class T, int d>
 bool HasBoundingBox(const TPBDRigidParticles<T, d>& Objects, const int32 i)
 {
-	if (Objects.Geometry(i))
+	if (Objects.GetGeometry(i))
 	{
-		return Objects.Geometry(i)->HasBoundingBox();
+		return Objects.GetGeometry(i)->HasBoundingBox();
 	}
 	return Objects.CollisionParticles(i) != nullptr && Objects.CollisionParticles(i)->Size() > 0;
 }
@@ -175,7 +175,7 @@ TAABB<T, d> ComputeWorldSpaceBoundingBox(const TGeometryParticles<T, d>& Objects
 {
 	ensure(!bUseVelocity);
 	TRigidTransform<T, d> LocalToWorld(Objects.X(i), Objects.R(i));
-	const auto& LocalBoundingBox = Objects.Geometry(i)->BoundingBox();
+	const auto& LocalBoundingBox = Objects.GetGeometry(i)->BoundingBox();
 	return LocalBoundingBox.TransformedAABB(LocalToWorld);
 }
 
@@ -184,9 +184,9 @@ TAABB<T, d> ComputeWorldSpaceBoundingBox(const TPBDRigidParticles<T, d>& Objects
 {
 	TRigidTransform<T, d> LocalToWorld(Objects.P(i), Objects.Q(i));
 	TAABB<T, d> WorldSpaceBox;
-	if (Objects.Geometry(i))
+	if (Objects.GetGeometry(i))
 	{
-		const auto& LocalBoundingBox = Objects.Geometry(i)->BoundingBox();
+		const auto& LocalBoundingBox = Objects.GetGeometry(i)->BoundingBox();
 		WorldSpaceBox = LocalBoundingBox.TransformedAABB(LocalToWorld);
 	}
 	else

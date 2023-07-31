@@ -431,7 +431,7 @@ static void CopyParticleData(Chaos::FPBDRigidParticles& ToParticles, const int32
 	ToParticles.InvM(ToIndex) = FromParticles.InvM(FromIndex);
 	ToParticles.I(ToIndex) = FromParticles.I(FromIndex);
 	ToParticles.InvI(ToIndex) = FromParticles.InvI(FromIndex);
-	ToParticles.SetGeometry(ToIndex, FromParticles.Geometry(FromIndex));	//question: do we need to deal with dynamic geometry?
+	ToParticles.SetGeometry(ToIndex, FromParticles.GetGeometry(FromIndex));	//question: do we need to deal with dynamic geometry?
 	ToParticles.CollisionParticles(ToIndex) = MoveTemp(FromParticles.CollisionParticles(FromIndex));
 	ToParticles.DisabledRef(ToIndex) = FromParticles.Disabled(FromIndex);
 	ToParticles.SetSleeping(ToIndex, FromParticles.Sleeping(FromIndex));
@@ -2083,7 +2083,7 @@ static void UpdateAccelerationStructureFromGeometryCollectionProxy(FGeometryColl
 	{
 		const Chaos::FRigidTransform3 ParticleWorldTransform(Particle.X(), Particle.R());
 		Chaos::FAABB3 WorldBounds;
-		if (const Chaos::FImplicitObject* Geometry = Particle.Geometry().Get(); Geometry && Geometry->HasBoundingBox())
+		if (const Chaos::FImplicitObjectRef Geometry = Particle.GetGeometry(); Geometry && Geometry->HasBoundingBox())
 		{
 			WorldBounds = Geometry->CalculateTransformedBounds(ParticleWorldTransform);
 		}

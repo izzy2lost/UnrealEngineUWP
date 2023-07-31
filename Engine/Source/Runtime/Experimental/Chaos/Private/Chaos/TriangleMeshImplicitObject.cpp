@@ -39,10 +39,8 @@ static auto MakeScaledHelper(const QueryGeomType& B, const FVec3& InvScale)
 {
 	// TODO: Fixup code using this and remove it.
 
-	TUniquePtr<QueryGeomType> HackBPtr(const_cast<QueryGeomType*>(&B));	//todo: hack, need scaled object to accept raw ptr similar to transformed implicit
-	TSharedPtr<QueryGeomType, ESPMode::ThreadSafe> SharedPtrForRefCount(nullptr); // This scaled is temporary, use null shared ptr.
-	TImplicitObjectScaled<QueryGeomType> ScaledB(MakeSerializable(HackBPtr), SharedPtrForRefCount, InvScale);
-	HackBPtr.Release();
+	TRefCountPtr<QueryGeomType> HackBPtr(const_cast<QueryGeomType*>(&B));	//todo: hack, need scaled object to accept raw ptr similar to transformed implicit
+	TImplicitObjectScaled<QueryGeomType> ScaledB(HackBPtr, InvScale);
 	return ScaledB;
 }
 
@@ -50,7 +48,7 @@ template <typename QueryGeomType>
 static auto MakeScaledHelper(const TImplicitObjectScaled<QueryGeomType>& B, const FVec3& InvScale)
 {
 	//if scaled of scaled just collapse into one scaled
-	TImplicitObjectScaled<QueryGeomType> ScaledB(B.Object(), B.GetSharedObject(), InvScale * B.GetScale());
+	TImplicitObjectScaled<QueryGeomType> ScaledB(B.Object(),  InvScale * B.GetScale());   
 	return ScaledB;
 }
 
@@ -1828,7 +1826,7 @@ FVec3 FTriangleMeshImplicitObject::FindGeometryOpposingNormal(const FVec3& Denor
 }
 
 template <typename IdxType>
-TUniquePtr<FTriangleMeshImplicitObject> FTriangleMeshImplicitObject::CopySlowImpl(const TArray<TVector<IdxType, 3>>& InElements) const
+FImplicitObjectPtr FTriangleMeshImplicitObject::CopySlowImpl(const TArray<TVector<IdxType, 3>>& InElements) const
 {
 	using namespace Chaos;
 	
@@ -1848,10 +1846,10 @@ TUniquePtr<FTriangleMeshImplicitObject> FTriangleMeshImplicitObject::CopySlowImp
 		ExternalVertexIndexMapCopy = MakeUnique<TArray<int32>>(*ExternalVertexIndexMap.Get());
 	}
 
-	return TUniquePtr<FTriangleMeshImplicitObject>(new FTriangleMeshImplicitObject(MoveTemp(ParticlesCopy), MoveTemp(ElementsCopy), MoveTemp(MaterialIndicesCopy), MoveTemp(ExternalFaceIndexMapCopy), MoveTemp(ExternalVertexIndexMapCopy), bCullsBackFaceRaycast));
+	return FImplicitObjectPtr(new FTriangleMeshImplicitObject(MoveTemp(ParticlesCopy), MoveTemp(ElementsCopy), MoveTemp(MaterialIndicesCopy), MoveTemp(ExternalFaceIndexMapCopy), MoveTemp(ExternalVertexIndexMapCopy), bCullsBackFaceRaycast));
 }
 
-TUniquePtr<FTriangleMeshImplicitObject> FTriangleMeshImplicitObject::CopySlow() const
+FImplicitObjectPtr FTriangleMeshImplicitObject::DeepCopyGeometry() const
 {
 	if (MElements.RequiresLargeIndices())
 	{
@@ -1862,7 +1860,14 @@ TUniquePtr<FTriangleMeshImplicitObject> FTriangleMeshImplicitObject::CopySlow() 
 		return CopySlowImpl(MElements.GetSmallIndexBuffer());
 	}
 }
-
+	
+FImplicitObjectPtr FTriangleMeshImplicitObject::CopyGeometry() const
+{
+	// For now we are using a deep copy
+	// since we are using refcountptr and not uniqueptr anymore
+	// we can have shallow copy and have 2 different implementations 
+	return DeepCopyGeometry();
+}
 
 void FTriangleMeshImplicitObject::Serialize(FChaosArchive& Ar)
 {

@@ -508,7 +508,7 @@ void FGetConvexHullVolumeDataflowNode::Evaluate(Dataflow::FContext& Context, con
 		}
 
 		const TManagedArray<TSet<int32>>& TransformToConvexIndices = InCollection.GetAttribute<TSet<int32>>("TransformToConvexIndices", FTransformCollection::TransformGroup);
-		const TManagedArray<TUniquePtr<Chaos::FConvex>>& ConvexHulls = InCollection.GetAttribute<TUniquePtr<Chaos::FConvex>>("ConvexHull", "Convex");
+		const TManagedArray<Chaos::FConvexPtr>& ConvexHulls = InCollection.GetAttribute<Chaos::FConvexPtr>(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup);
 
 		Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(InCollection);
 

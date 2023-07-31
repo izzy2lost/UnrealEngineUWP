@@ -49,7 +49,7 @@ bool FChaosVDPlaybackController::LoadChaosVDRecordingFromTraceSession(const FStr
 
 	HandleCurrentRecordingUpdated();
 
-	LoadedRecording->OnGeometryDataLoaded().AddLambda([this](const TSharedPtr<const Chaos::FImplicitObject>& NewGeometry, const uint32 GeometryID)
+	LoadedRecording->OnGeometryDataLoaded().AddLambda([this](const Chaos::FConstImplicitObjectPtr& NewGeometry, const uint32 GeometryID)
 	{
 		if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneToControl.Pin())
 		{

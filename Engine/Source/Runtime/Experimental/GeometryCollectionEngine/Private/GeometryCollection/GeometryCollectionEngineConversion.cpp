@@ -253,7 +253,7 @@ void FGeometryCollectionEngineConversion::AppendMeshDescription(
 	// collisions
 	if (BodySetup)
 	{
-		TArray<TUniquePtr<Chaos::FImplicitObject>> Geoms;
+		TArray<Chaos::FImplicitObjectPtr> Geoms;
 		Chaos::FShapesArray Shapes;
 
 		FGeometryAddParams CreateGeometryParams;
@@ -266,13 +266,12 @@ void FGeometryCollectionEngineConversion::AppendMeshDescription(
 		CreateGeometryParams.LocalTransform = Chaos::FRigidTransform3::Identity;
 		CreateGeometryParams.WorldTransform = Chaos::FRigidTransform3::Identity;
 		CreateGeometryParams.Geometry = &BodySetup->AggGeom;
-		CreateGeometryParams.ChaosTriMeshes = MakeArrayView(BodySetup->ChaosTriMeshes);
+		CreateGeometryParams.TriMeshGeometries = MakeArrayView(BodySetup->TriMeshGeometries);
 
 		// todo(chaos) : this currently also create the shape array which is unnecessary ,this could be optimized by having a common function to create only the implicits 
 		ChaosInterface::CreateGeometry(CreateGeometryParams, Geoms, Shapes);
 
-		using FCollisionType = FGeometryDynamicCollection::FSharedImplicit;
-		TManagedArray<FCollisionType>& ExternaCollisions = GeometryCollection->AddAttribute<FCollisionType>("ExternalCollisions", FGeometryCollection::TransformGroup);
+		TManagedArray<Chaos::FImplicitObjectPtr>& ExternaCollisions = GeometryCollection->AddAttribute<Chaos::FImplicitObjectPtr>(FGeometryCollection::ExternalCollisionsAttribute, FGeometryCollection::TransformGroup);
 
 		ExternaCollisions[TransformIndex1] = nullptr;
 		for (int32 GeomIndex = 0; GeomIndex < Geoms.Num();)
@@ -289,7 +288,7 @@ void FGeometryCollectionEngineConversion::AppendMeshDescription(
 		}
 		if (Geoms.Num() > 0)
 		{
-			ExternaCollisions[TransformIndex1] = MakeShared<Chaos::FImplicitObjectUnion>(MoveTemp(Geoms));
+			ExternaCollisions[TransformIndex1] = MakeImplicitObjectPtr<Chaos::FImplicitObjectUnion>(MoveTemp(Geoms));
 		}
 	}
 		
@@ -798,8 +797,6 @@ bool FGeometryCollectionEngineConversion::AppendGeometryCollection(const FGeomet
 		TargetInternal[FaceOffset] = SourceInternal[FaceIndex];
 	}
 
-	using FCollisionType = FGeometryDynamicCollection::FSharedImplicit;
-
 	// source transform information
 	const TManagedArray<FTransform>& SourceTransform = SourceGeometryCollectionPtr->Transform;
 	const TManagedArray<FString>& SourceBoneName = SourceGeometryCollectionPtr->BoneName;
@@ -810,7 +807,7 @@ bool FGeometryCollectionEngineConversion::AppendGeometryCollection(const FGeomet
 	const TManagedArray<int32>& SourceSimulationType = SourceGeometryCollectionPtr->SimulationType;
 	const TManagedArray<int32>& SourceStatusFlags = SourceGeometryCollectionPtr->StatusFlags;
 	const TManagedArray<int32>& SourceInitialDynamicState = SourceGeometryCollectionPtr->InitialDynamicState;
-	const TManagedArray<FCollisionType>* SourceExternalCollisions = SourceGeometryCollectionPtr->FindAttribute<FCollisionType>("ExternalCollisions", FGeometryCollection::TransformGroup);
+	const TManagedArray<Chaos::FImplicitObjectPtr>* SourceExternalCollisions = SourceGeometryCollectionPtr->FindAttribute<Chaos::FImplicitObjectPtr>(FGeometryCollection::ExternalCollisionsAttribute, FGeometryCollection::TransformGroup);
 
 	// target transform information
 	TManagedArray<FTransform>& TargetTransform = TargetGeometryCollection->Transform;
@@ -822,7 +819,7 @@ bool FGeometryCollectionEngineConversion::AppendGeometryCollection(const FGeomet
 	TManagedArray<int32>& TargetSimulationType = TargetGeometryCollection->SimulationType;
 	TManagedArray<int32>& TargetStatusFlags = TargetGeometryCollection->StatusFlags;
 	TManagedArray<int32>& TargetInitialDynamicState = TargetGeometryCollection->InitialDynamicState;
-	TManagedArray<FCollisionType>& TargetExternalCollisions = TargetGeometryCollection->AddAttribute<FCollisionType>("ExternalCollisions", FGeometryCollection::TransformGroup);
+	TManagedArray<Chaos::FImplicitObjectPtr>& TargetExternalCollisions = TargetGeometryCollection->AddAttribute<Chaos::FImplicitObjectPtr>(FGeometryCollection::ExternalCollisionsAttribute, FGeometryCollection::TransformGroup);
 
 	// append transform hierarchy
 	for (int32 TransformIndex = 0; TransformIndex < TransformCount; ++TransformIndex)

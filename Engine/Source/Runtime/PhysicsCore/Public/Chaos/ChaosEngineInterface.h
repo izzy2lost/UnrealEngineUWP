@@ -286,7 +286,7 @@ public:
 	PHYSICSCORE_API const FQuat& GetGeomOrientation() const;
 
 private:
-	TUniquePtr<FPhysicsGeometry> Geometry;
+	TRefCountPtr<FPhysicsGeometry> Geometry;
 	FQuat GeometryRotation;
 };
 
@@ -525,7 +525,10 @@ public:
 
 	static PHYSICSCORE_API bool IsBroken(const FPhysicsConstraintHandle& InConstraintRef);
 
-	static PHYSICSCORE_API void SetGeometry(FPhysicsShapeHandle& InShape, TUniquePtr<Chaos::FImplicitObject>&& InGeometry);
+	static PHYSICSCORE_API void SetGeometry(FPhysicsShapeHandle& InShape, Chaos::FImplicitObjectPtr&& InGeometry);
+
+	UE_DEPRECATED(5.4, "Use SetGeometry with FImplicitObjectPtr instead.")
+	static PHYSICSCORE_API void SetGeometry(FPhysicsShapeHandle& InShape, TUniquePtr<Chaos::FImplicitObject>&& InGeometry) {check(false);}
 	
 	static PHYSICSCORE_API FCollisionFilterData GetSimulationFilter(const FPhysicsShapeHandle& InShape);
 	static PHYSICSCORE_API FCollisionFilterData GetQueryFilter(const FPhysicsShapeHandle& InShape);

@@ -518,9 +518,9 @@ void UWaterBodyRiverComponent::UpdateSplineMesh(USplineMeshComponent* MeshComp, 
 					ConvexVertices[VertIndex] = Elem.VertexData[VertIndex];
 				}
 
-				TSharedPtr<Chaos::FConvex, ESPMode::ThreadSafe> ChaosConvex = MakeShared<Chaos::FConvex, ESPMode::ThreadSafe>(ConvexVertices, 0.0f);
+				Chaos::FConvexPtr ChaosConvex( new Chaos::FConvex(ConvexVertices, 0.0f));
 
-				Elem.SetChaosConvexMesh(MoveTemp(ChaosConvex));
+				Elem.SetConvexMeshObject(MoveTemp(ChaosConvex));
 			}
 
 			MeshComp->RecreatePhysicsState();

@@ -494,13 +494,13 @@ public:
 
 	void Serialize(FChaosArchive& Ar)
 	{
-		Ar.SerializeConstPtr(MGeometry);
+		Ar.SerializePtr(MGeometry);
 	}
 
 	template <typename TOther>
 	void CopyFrom(const TOther& Other)
 	{
-		SetGeometry(Other.SharedGeometryLowLevel());
+		SetGeometry(Other.GetGeometry());
 		SetUniqueIdx(Other.UniqueIdx());
 		SetSpatialIdx(Other.SpatialIdx());
 		SetResimType(Other.ResimType());
@@ -513,7 +513,7 @@ public:
 	template <typename TOther>
 	bool IsEqual(const TOther& Other) const
 	{
-		return Geometry() == Other.Geometry()
+		return GetGeometry() == Other.GetGeometry()
 			&& UniqueIdx() == Other.UniqueIdx()
 			&& SpatialIdx() == Other.SpatialIdx()
 			&& ResimType() == Other.ResimType()
@@ -527,12 +527,20 @@ public:
 
 	//This function should only be used when geometry is not used by physics thread. The owning particle should not have a solver yet
 	//Avoid using this function unless you know the threading model, see TGeometryParticle::ModifyGeometry
-	FImplicitObject* AccessGeometryDangerous() { return const_cast<FImplicitObject*>(MGeometry.Get()); }
+	FImplicitObject* AccessGeometryDangerous() { return const_cast<FImplicitObject*>(MGeometry.GetReference()); }
 
-	TSerializablePtr<FImplicitObject> Geometry() const { return TSerializablePtr<const FImplicitObject>(MGeometry);}
-	const TSharedPtr<const FImplicitObject,ESPMode::ThreadSafe>& SharedGeometryLowLevel() const { return MGeometry;}
-	void SetGeometry(const TSharedPtr<const FImplicitObject,ESPMode::ThreadSafe>& InGeometry) { MGeometry = InGeometry;}
+	const FImplicitObjectRef GetGeometry() const { return MGeometry.GetReference();}
+	void SetGeometry(const FImplicitObjectPtr& InGeometry) { MGeometry = InGeometry;}
 
+	UE_DEPRECATED(5.4, "Use GetGeometry instead")
+	TSerializablePtr<FImplicitObject> Geometry() const { check(false); return TSerializablePtr<FImplicitObject>();}
+
+	UE_DEPRECATED(5.4, "Use GetGeometry instead")
+	const TSharedPtr<const FImplicitObject,ESPMode::ThreadSafe>& SharedGeometryLowLevel() const {  check(false); static TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe> DummyPtr(nullptr); return DummyPtr;}
+
+	UE_DEPRECATED(5.4, "Use SetGeometry with FImplicitObjectPtr instead")
+	void SetGeometry(const TSharedPtr<const FImplicitObject,ESPMode::ThreadSafe>& InGeometry) { check(false); }
+	
 	const FUniqueIdx& UniqueIdx() const { return MUniqueIdx; }
 	void SetUniqueIdx(FUniqueIdx InIdx){ MUniqueIdx = InIdx; }
 
@@ -561,7 +569,7 @@ public:
 	void SetDebugName(const TSharedPtr<FString, ESPMode::ThreadSafe>& InName) { MDebugName = InName; }
 #endif
 private:
-	TSharedPtr<const FImplicitObject,ESPMode::ThreadSafe> MGeometry;
+	FImplicitObjectPtr MGeometry;
 	FUniqueIdx MUniqueIdx;
 	FSpatialAccelerationIdx MSpatialIdx;
 	FParticleID MParticleID;

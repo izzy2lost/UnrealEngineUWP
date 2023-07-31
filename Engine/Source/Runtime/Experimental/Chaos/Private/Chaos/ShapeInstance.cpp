@@ -14,7 +14,7 @@ namespace Chaos
 	template<typename TShapesArrayType>
 	void UpdateShapesArrayFromGeometryImpl(
 		TShapesArrayType& ShapesArray,
-		TSerializablePtr<FImplicitObject> Geometry,
+		const FImplicitObjectPtr& Geometry,
 		const FRigidTransform3& ActorTM,
 		IPhysicsProxyBase* Proxy)
 	{
@@ -27,13 +27,14 @@ namespace Chaos
 			const int32 OldShapeNum = ShapesArray.Num();
 			if (const auto* Union = Geometry->template GetObject<FImplicitObjectUnion>())
 			{
-				ShapesArray.Reserve(Union->GetObjects().Num());
-				ShapesArray.SetNum(Union->GetObjects().Num());
-
+				const int32 NumImplicits = Union->NumImplicits();
+				ShapesArray.Reserve(NumImplicits);
+				ShapesArray.SetNum(NumImplicits);
+				
 				for (int32 ShapeIndex = 0; ShapeIndex < ShapesArray.Num(); ++ShapeIndex)
 				{
-					TSerializablePtr<FImplicitObject> ShapeGeometry = MakeSerializable(Union->GetObjects()[ShapeIndex]);
-
+					FImplicitObjectPtr ShapeGeometry = Union->GetImplicit(ShapeIndex);
+					
 					if (ShapeIndex >= OldShapeNum)
 					{
 						// If newly allocated shape, initialize it.
@@ -84,7 +85,7 @@ namespace Chaos
 
 	void UpdateShapesArrayFromGeometry(
 		FShapeInstanceArray& ShapesArray, 
-		TSerializablePtr<FImplicitObject> Geometry, 
+		const FImplicitObjectPtr& Geometry, 
 		const FRigidTransform3& ActorTM)
 	{
 		UpdateShapesArrayFromGeometryImpl(ShapesArray, Geometry, ActorTM, nullptr);
@@ -92,7 +93,7 @@ namespace Chaos
 
 	void UpdateShapesArrayFromGeometry(
 		FShapeInstanceProxyArray& ShapesArray, 
-		TSerializablePtr<FImplicitObject> Geometry, 
+		const FImplicitObjectPtr& Geometry, 
 		const FRigidTransform3& ActorTM, 
 		IPhysicsProxyBase* Proxy)
 	{
@@ -147,7 +148,7 @@ namespace Chaos
 				const FImplicitObjectUnion* Union = static_cast<const FImplicitObjectUnion*>(Implicit);
 				if (Union->GetObjects().Num() == 1)
 				{
-					return GetInnerGeometryInstanceData(Union->GetObjects()[0].Get(), OutRelativeTransformPtr);
+					return GetInnerGeometryInstanceData(Union->GetObjects()[0].GetReference(), OutRelativeTransformPtr);
 				}
 			}
 			else if ((uint32)ImplicitOuterType & ImplicitObjectType::IsScaled)
@@ -179,31 +180,32 @@ namespace Chaos
 
 	TUniquePtr<FPerShapeData> FPerShapeData::CreatePerShapeData(int32 InShapeIdx, TSerializablePtr<FImplicitObject> InGeometry)
 	{
-		return FShapeInstanceProxy::Make(InShapeIdx, InGeometry);
+		check(false);
+		return nullptr;
 	}
 
 	void FPerShapeData::UpdateGeometry(TUniquePtr<FPerShapeData>& InOutShapePtr, TSerializablePtr<FImplicitObject> InGeometry)
 	{
-		return FShapeInstanceProxy::UpdateGeometry(reinterpret_cast<FShapeInstanceProxyPtr&>(InOutShapePtr), InGeometry);
+		check(false);
 	}
 
 
 
-	TUniquePtr<FShapeInstanceProxy> FShapeInstanceProxy::Make(int32 InShapeIdx, TSerializablePtr<FImplicitObject> InGeometry)
+	TUniquePtr<FShapeInstanceProxy> FShapeInstanceProxy::Make(int32 InShapeIdx, const FImplicitObjectPtr& InGeometry)
 	{
 		return TUniquePtr<FShapeInstanceProxy>(new FShapeInstanceProxy(InShapeIdx, InGeometry));
 	}
 
-	void FShapeInstanceProxy::UpdateGeometry(TUniquePtr<FShapeInstanceProxy>& InOutShapePtr, TSerializablePtr<FImplicitObject> InGeometry)
+	void FShapeInstanceProxy::UpdateGeometry(TUniquePtr<FShapeInstanceProxy>& InOutShapePtr, const FImplicitObjectPtr& InGeometry)
 	{
 		InOutShapePtr->Geometry = InGeometry;
 	}
 
 
 
-	TUniquePtr<FShapeInstance> FShapeInstance::Make(int32 InShapeIdx, TSerializablePtr<FImplicitObject> InGeometry)
+	TUniquePtr<FShapeInstance> FShapeInstance::Make(int32 InShapeIdx, const FImplicitObjectPtr& InGeometry)
 	{
-		const bool bWantLeafCache = ShapeInstanceWantsLeafCache(InGeometry.Get());
+		const bool bWantLeafCache = ShapeInstanceWantsLeafCache(InGeometry.GetReference());
 		if (bWantLeafCache)
 		{
 			return TUniquePtr<FShapeInstance>(new Private::FShapeInstanceExtended(InShapeIdx, InGeometry));
@@ -214,9 +216,9 @@ namespace Chaos
 		}
 	}
 
-	void FShapeInstance::UpdateGeometry(TUniquePtr<FShapeInstance>& InOutShapePtr, TSerializablePtr<FImplicitObject> InGeometry)
+	void FShapeInstance::UpdateGeometry(TUniquePtr<FShapeInstance>& InOutShapePtr, const FImplicitObjectPtr& InGeometry)
 	{
-		const bool bWantLeafCache = ShapeInstanceWantsLeafCache(InGeometry.Get());
+		const bool bWantLeafCache = ShapeInstanceWantsLeafCache(InGeometry.GetReference());
 
 		// Do we need to add or remove the cached leaf data? If so this requires we recreate the object
 		const bool bHasLeafCache = (InOutShapePtr->GetType() == EPerShapeDataType::SimExtended);
@@ -346,13 +348,13 @@ namespace Chaos
 
 	const FImplicitObject* FShapeInstanceProxy::GetLeafGeometry() const
 	{
-		return GetInnerGeometryInstanceData(Geometry.Get(), nullptr);
+		return GetInnerGeometryInstanceData(Geometry.GetReference(), nullptr);
 	}
 
 	FRigidTransform3 FShapeInstanceProxy::GetLeafRelativeTransform() const
 	{
 		const FRigidTransform3* LeafRelativeTransform = nullptr;
-		GetInnerGeometryInstanceData(Geometry.Get(), &LeafRelativeTransform);
+		GetInnerGeometryInstanceData(Geometry.GetReference(), &LeafRelativeTransform);
 
 		if (LeafRelativeTransform != nullptr)
 		{
@@ -369,7 +371,7 @@ namespace Chaos
 		FRigidTransform3 LeafWorldTransform = FConstGenericParticleHandle(Particle)->GetTransformPQ();
 
 		const FRigidTransform3* LeafRelativeTransform = nullptr;
-		GetInnerGeometryInstanceData(Geometry.Get(), &LeafRelativeTransform);
+		GetInnerGeometryInstanceData(Geometry.GetReference(), &LeafRelativeTransform);
 		if (LeafRelativeTransform != nullptr)
 		{
 			LeafWorldTransform = FRigidTransform3::MultiplyNoScale(*LeafRelativeTransform, LeafWorldTransform);
@@ -407,7 +409,7 @@ namespace Chaos
 	{
 		FRigidTransform3 LeafWorldTransform = WorldTransform;
 		const FRigidTransform3* LeafRelativeTransform = nullptr;
-		const FImplicitObject* LeafGeometry = GetInnerGeometryInstanceData(Geometry.Get(), &LeafRelativeTransform);
+		const FImplicitObject* LeafGeometry = GetInnerGeometryInstanceData(Geometry.GetReference(), &LeafRelativeTransform);
 
 		// Calculate the leaf world transform if different from particle transform
 		if (LeafRelativeTransform != nullptr)
@@ -434,13 +436,13 @@ namespace Chaos
 
 	const FImplicitObject* FShapeInstance::GetLeafGeometry() const
 	{
-		return GetInnerGeometryInstanceData(Geometry.Get(), nullptr);
+		return GetInnerGeometryInstanceData(Geometry.GetReference(), nullptr);
 	}
 
 	FRigidTransform3 FShapeInstance::GetLeafRelativeTransform() const
 	{
 		const FRigidTransform3* LeafRelativeTransform = nullptr;
-		GetInnerGeometryInstanceData(Geometry.Get(), &LeafRelativeTransform);
+		GetInnerGeometryInstanceData(Geometry.GetReference(), &LeafRelativeTransform);
 
 		if (LeafRelativeTransform != nullptr)
 		{
@@ -463,7 +465,7 @@ namespace Chaos
 			FRigidTransform3 LeafWorldTransform = FConstGenericParticleHandle(Particle)->GetTransformPQ();
 
 			const FRigidTransform3* LeafRelativeTransform = nullptr;
-			GetInnerGeometryInstanceData(Geometry.Get(), &LeafRelativeTransform);
+			GetInnerGeometryInstanceData(Geometry.GetReference(), &LeafRelativeTransform);
 			if (LeafRelativeTransform != nullptr)
 			{
 				LeafWorldTransform = FRigidTransform3::MultiplyNoScale(*LeafRelativeTransform, LeafWorldTransform);
@@ -480,7 +482,7 @@ namespace Chaos
 			FRigidTransform3 LeafWorldTransform = FConstGenericParticleHandle(Particle)->GetTransformPQ();
 
 			const FRigidTransform3* LeafRelativeTransform = nullptr;
-			GetInnerGeometryInstanceData(Geometry.Get(), &LeafRelativeTransform);
+			GetInnerGeometryInstanceData(Geometry.GetReference(), &LeafRelativeTransform);
 			if (LeafRelativeTransform != nullptr)
 			{
 				LeafWorldTransform = FRigidTransform3::MultiplyNoScale(*LeafRelativeTransform, LeafWorldTransform);

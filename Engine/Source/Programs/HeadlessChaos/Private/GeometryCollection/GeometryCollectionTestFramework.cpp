@@ -245,7 +245,7 @@ namespace GeometryCollectionTest
 		TSharedPtr<Chaos::FChaosPhysicsMaterial> PhysicalMaterial = MakeShared<Chaos::FChaosPhysicsMaterial>(); InitMaterialToZero(PhysicalMaterial.Get());
 		auto Proxy = FSingleParticlePhysicsProxy::Create(Chaos::FGeometryParticle::CreateParticle());
 		auto& Particle = Proxy->GetGameThreadAPI();
-		Particle.SetGeometry(TUniquePtr<Chaos::TPlane<FReal, 3>>(new Chaos::TPlane<FReal, 3>(FVector(0), FVector(0, 0, 1))));
+		Particle.SetGeometry(MakeImplicitObjectPtr<Chaos::TPlane<FReal, 3>>(FVector(0), FVector(0, 0, 1)));
 
 		FCollisionFilterData FilterData;
 		FilterData.Word1 = 0xFFFF;

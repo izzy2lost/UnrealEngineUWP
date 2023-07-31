@@ -11,13 +11,13 @@
 
 namespace Chaos
 {
-	extern void UpdateShapesArrayFromGeometry(FShapeInstanceArray& ShapesArray, TSerializablePtr<FImplicitObject> Geometry, const FRigidTransform3& ActorTM);
+	extern void UpdateShapesArrayFromGeometry(FShapeInstanceArray& ShapesArray, const FImplicitObjectPtr& Geometry, const FRigidTransform3& ActorTM);
 
 	FShapeOrShapesArray::FShapeOrShapesArray(const FGeometryParticleHandle* Particle)
 	{
 		if (Particle)
 		{
-			const FImplicitObject* Geometry = Particle->Geometry().Get();
+			const FImplicitObjectRef Geometry = Particle->GetGeometry();
 			if (Geometry)
 			{
 				if (Geometry->IsUnderlyingUnion())

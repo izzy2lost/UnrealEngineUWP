@@ -361,8 +361,8 @@ namespace GeometryCollectionTest
 		EXPECT_EQ(Simplicials.Num(), 1);
 		const Chaos::FBVHParticles& Simplicial = *Simplicials[0];
 
-		const TManagedArray<FGeometryDynamicCollection::FSharedImplicit>& Implicits = 
-			Collection->RestCollection->template GetAttribute<FGeometryDynamicCollection::FSharedImplicit>(
+		const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = 
+			Collection->RestCollection->template GetAttribute<Chaos::FImplicitObjectPtr>(
 				FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
 		EXPECT_EQ(Implicits.Num(), 1);
 		check(Implicits[0]);

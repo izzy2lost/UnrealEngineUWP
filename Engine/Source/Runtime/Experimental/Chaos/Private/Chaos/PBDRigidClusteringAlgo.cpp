@@ -212,13 +212,13 @@ namespace Chaos
 		Chaos::FPBDRigidClusteredParticleHandle* Parent,
 		const TSet<FPBDRigidParticleHandle*>& Children,
 		const FRigidClustering::FClusterMap& ChildrenMap,
-		TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe> ProxyGeometry,
+		const Chaos::FImplicitObjectPtr& ProxyGeometry,
 		const FClusterCreationParameters& Parameters)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_UpdateGeometry);
 
-		TArray<TUniquePtr<FImplicitObject>> Objects;
-		TArray<TUniquePtr<FImplicitObject>> Objects2; //todo: find a better way to reuse this
+		TArray<Chaos::FImplicitObjectPtr> Objects;
+		TArray<Chaos::FImplicitObjectPtr> Objects2; //todo: find a better way to reuse this
 		Objects.Reserve(Children.Num());
 		Objects2.Reserve(Children.Num());
 
@@ -259,10 +259,10 @@ namespace Chaos
 				}
 
 				FPBDRigidParticleHandle* UsedGeomChild = Child;
-				if (Child->Geometry())
+				if (Child->GetGeometry())
 				{
-					Objects.Add(TUniquePtr<FImplicitObject>(new TImplicitObjectTransformed<FReal, 3>(Child->Geometry(), Frame)));
-					Objects2.Add(TUniquePtr<FImplicitObject>(new TImplicitObjectTransformed<FReal, 3>(Child->Geometry(), Frame)));
+					Objects.Add(MakeImplicitObjectPtr<TImplicitObjectTransformed<FReal, 3>>(Child->GetGeometry(), Frame));
+					Objects2.Add(MakeImplicitObjectPtr<TImplicitObjectTransformed<FReal, 3>>(Child->GetGeometry(), Frame));
 					ChildParticleHandles.Add(Child);
 				}
 
@@ -282,7 +282,7 @@ namespace Chaos
 						}
 					}
 				}
-				if (Child->Geometry() && Child->Geometry()->GetType() == ImplicitObjectType::Unknown)
+				if (Child->GetGeometry() && Child->GetGeometry()->GetType() == ImplicitObjectType::Unknown)
 				{
 					bUseParticleImplicit = true;
 				}
@@ -291,11 +291,12 @@ namespace Chaos
 
 		{
 			QUICK_SCOPE_CYCLE_COUNTER(SpatialBVH);
-			TUniquePtr<FImplicitObjectUnionClustered>& ChildrenSpatial = Parent->ChildrenSpatial();
-			ChildrenSpatial.Reset(
-				Objects2.Num() ?
+			FImplicitObjectUnionClusteredPtr& ChildrenSpatial = Parent->GetChildrenSpatial();
+			FImplicitObjectUnionClustered* UnionClustered = Objects2.Num() ?
 				new Chaos::FImplicitObjectUnionClustered(MoveTemp(Objects2), ChildParticleHandles) :
-				nullptr);
+				nullptr;
+			
+			ChildrenSpatial = FImplicitObjectUnionClusteredPtr(UnionClustered);
 		}
 
 		TArray<FVec3> CleanedPoints;
@@ -313,15 +314,15 @@ namespace Chaos
 		if (ProxyGeometry)
 		{
 			const FVector Scale = Parameters.Scale;
-			auto DeepCopyImplicit = [&Scale](const TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>& ImplicitToCopy) -> TUniquePtr<Chaos::FImplicitObject>
+			auto DeepCopyImplicit = [&Scale](const Chaos::FImplicitObjectPtr& ImplicitToCopy) -> Chaos::FImplicitObjectPtr
 			{
 				if (Scale.Equals(FVector::OneVector))
 				{
-					return ImplicitToCopy->DeepCopy();
+					return ImplicitToCopy->DeepCopyGeometry();
 				}
 				else
 				{
-					return ImplicitToCopy->DeepCopyWithScale(Scale);
+					return ImplicitToCopy->DeepCopyGeometryWithScale(Scale);
 				}
 			};
 			//ensureMsgf(false, TEXT("Checking usage with proxy"));
@@ -331,18 +332,18 @@ namespace Chaos
 			// Don't copy if it is not a level set and scale is one
 			if (GeometryType != Chaos::ImplicitObjectType::LevelSet && Scale.Equals(FVector::OneVector))
 			{
-				Parent->SetSharedGeometry(TSharedPtr<FImplicitObject, ESPMode::ThreadSafe>(ProxyGeometry));
+				Parent->SetGeometry(ProxyGeometry);
 			}
 			else
 			{
-				Parent->SetSharedGeometry(TSharedPtr<FImplicitObject, ESPMode::ThreadSafe>(DeepCopyImplicit(ProxyGeometry).Release()));
+				Parent->SetGeometry(DeepCopyImplicit(ProxyGeometry));
 			}
 		}
 		else if (Objects.Num() == 0)
 		{
 			//ensureMsgf(false, TEXT("Checking usage with no proxy and no objects"));
 			//@coverage : {production}
-			Parent->SetGeometry(Chaos::TSerializablePtr<Chaos::FImplicitObject>());
+			Parent->SetGeometry(Chaos::FImplicitObjectPtr());
 		}
 		else
 		{
@@ -363,7 +364,7 @@ namespace Chaos
 
 					FErrorReporter ErrorReporter;
 					TUniformGrid<FReal, 3> Grid(Bounds.Min(), Bounds.Max(), NumCells, LevelsetGhostCells);
-					TUniquePtr<FLevelSet> LevelSet(new FLevelSet(ErrorReporter, Grid, UnionObject));
+					FLevelSet* LevelSet = new FLevelSet(ErrorReporter, Grid, UnionObject);
 
 					if (!Parameters.CollisionParticles)
 					{
@@ -380,33 +381,33 @@ namespace Chaos
 							}
 						}
 					}
-					Parent->SetDynamicGeometry(MoveTemp(LevelSet));
+					Chaos::FImplicitObjectPtr LevelSetPtr(LevelSet);
+					Parent->SetGeometry(MoveTemp(LevelSetPtr));
 				}
 				else
 				{
-					Parent->SetDynamicGeometry(
-						MakeUnique<TSphere<FReal, 3>>(FVec3(0), BoundsExtents.Size() * 0.5f));
+					Parent->SetGeometry(MakeImplicitObjectPtr<TSphere<FReal, 3>>(FVec3(0), BoundsExtents.Size() * 0.5f));
 				}
 			}
 			else // !UseLevelsetCollision
 			{
 				if (Objects.Num() == 1)
 				{
-					Parent->SetDynamicGeometry(MoveTemp(Objects[0]));
+					Parent->SetGeometry(MoveTemp(Objects[0]));
 				}
 				else
 				{
-					Parent->SetDynamicGeometry(
-						MakeUnique<FImplicitObjectUnionClustered>(
+					Parent->SetGeometry(
+						MakeImplicitObjectPtr<FImplicitObjectUnionClustered>(
 							MoveTemp(Objects), ChildParticleHandles));
 				}
 			}
 		}
 
 		//if children are ignore analytic and this is a dynamic geom, mark it too. todo(ocohen): clean this up
-		if (bUseParticleImplicit && Parent->DynamicGeometry())
+		if (bUseParticleImplicit && Parent->GetGeometry())
 		{
-			Parent->DynamicGeometry()->SetDoCollide(false);
+			Parent->GetGeometry()->SetDoCollide(false);
 		}
 
 		if (Parameters.CollisionParticles)
@@ -434,7 +435,7 @@ namespace Chaos
 			}
 		}
 
-		if (TSerializablePtr<FImplicitObject> Implicit = Parent->Geometry())
+		if (FImplicitObjectPtr Implicit = Parent->GetGeometry())
 		{
 			// strange hacked initilization that seems misplaced and ill thought
 			Parent->SetHasBounds(true);

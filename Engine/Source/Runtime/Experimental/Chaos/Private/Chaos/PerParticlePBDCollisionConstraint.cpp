@@ -135,7 +135,7 @@ extern "C" void GetPhiWithNormal(const uint8* CollisionParticles, const FSolverR
 			V.Z = InV[Index + 2 * ProgramCount];
 
 			FVec3 ImplicitNormal;
-			Phi[Index] = (FSolverReal)C.Geometry(i)->PhiWithNormal(FVec3(V), ImplicitNormal);
+			Phi[Index] = (FSolverReal)C.GetGeometry(i)->PhiWithNormal(FVec3(V), ImplicitNormal);
 			FSolverVec3 Norm(ImplicitNormal);
 
 			// aos_to_soa3
@@ -165,7 +165,7 @@ extern "C" void GetPhiWithNormalAndVelocityBone(const uint8 * CollisionParticles
 			VelocityBone[Index] = i;
 
 			FVec3 ImplicitNormal;
-			if (const TWeightedLatticeImplicitObject<FLevelSet>* LevelSet = C.Geometry(i)->GetObject< TWeightedLatticeImplicitObject<FLevelSet> >())
+			if (const TWeightedLatticeImplicitObject<FLevelSet>* LevelSet = C.GetGeometry(i)->GetObject< TWeightedLatticeImplicitObject<FLevelSet> >())
 			{
 				FWeightedLatticeImplicitObject::FEmbeddingCoordinate SurfaceCoord;
 				Phi[Index] = (FSolverReal)LevelSet->PhiWithNormalAndSurfacePoint(FVec3(V), ImplicitNormal, SurfaceCoord);
@@ -181,7 +181,7 @@ extern "C" void GetPhiWithNormalAndVelocityBone(const uint8 * CollisionParticles
 			}
 			else
 			{
-				Phi[Index] = (FSolverReal)C.Geometry(i)->PhiWithNormal(FVec3(V), ImplicitNormal);
+				Phi[Index] = (FSolverReal)C.GetGeometry(i)->PhiWithNormal(FVec3(V), ImplicitNormal);
 			}
 			FSolverVec3 Norm(ImplicitNormal);
 

@@ -651,11 +651,11 @@ namespace Chaos
 				{
 					FGeometryParticle* UpdateParticle = SpatialData.AccelerationHandle.GetExternalGeometryParticle_ExternalThread();
 					FAABB3 WorldBounds;
-					const bool bHasBounds = UpdateParticle->Geometry() && UpdateParticle->Geometry()->HasBoundingBox();
+					const bool bHasBounds = UpdateParticle->GetGeometry() && UpdateParticle->GetGeometry()->HasBoundingBox();
 					if(bHasBounds)
 					{
 						TRigidTransform<FReal,3> WorldTM(UpdateParticle->X(),UpdateParticle->R());
-						WorldBounds = UpdateParticle->Geometry()->BoundingBox().TransformedAABB(WorldTM);
+						WorldBounds = UpdateParticle->GetGeometry()->BoundingBox().TransformedAABB(WorldTM);
 					}
 					const bool bExisted = Acceleration.UpdateElementIn(UpdateParticle,WorldBounds,bHasBounds,SpatialData.SpatialIdx);
 					if (SpatialData.Operation == EPendingSpatialDataOperation::Add)
@@ -1124,9 +1124,9 @@ namespace Chaos
 			Removal.Mass = 0.0;
 		}
 		
-		if (Particle->Geometry() && Particle->Geometry()->HasBoundingBox())
+		if (Particle->GetGeometry() && Particle->GetGeometry()->HasBoundingBox())
 		{
-			Removal.BoundingBox = Particle->Geometry()->BoundingBox();
+			Removal.BoundingBox = Particle->GetGeometry()->BoundingBox();
 		}
 		
 		DisableParticle(Particle);

@@ -91,7 +91,7 @@ namespace Chaos
 		CHAOS_API const FCollisionFilterData& GetSimData() const;
 		CHAOS_API void SetSimData(const FCollisionFilterData& InSimData);
 
-		CHAOS_API TSerializablePtr<FImplicitObject> GetGeometry() const;
+		CHAOS_API FImplicitObjectRef GetGeometry() const;
 
 		CHAOS_API const TAABB<FReal, 3>& GetWorldSpaceInflatedShapeBounds() const;
 
@@ -169,8 +169,19 @@ namespace Chaos
 			, WorldSpaceInflatedShapeBounds(FAABB3(FVec3(0), FVec3(0)))
 		{
 		}
-
+		
+		UE_DEPRECATED(5.4, "Use FPerShapeData with FImplicitObjectPtr instead")
 		FPerShapeData(const EPerShapeDataType InType, int32 InShapeIdx, TSerializablePtr<FImplicitObject> InGeometry)
+			: Type(InType)
+			, bIsSingleMaterial(false)
+			, ShapeIdx(InShapeIdx)
+			, Geometry()
+			, WorldSpaceInflatedShapeBounds(FAABB3(FVec3(0), FVec3(0)))
+		{
+			check(false);
+		}
+
+		FPerShapeData(const EPerShapeDataType InType, int32 InShapeIdx, const FImplicitObjectPtr& InGeometry)
 			: Type(InType)
 			, bIsSingleMaterial(false)
 			, ShapeIdx(InShapeIdx)
@@ -193,7 +204,7 @@ namespace Chaos
 		EPerShapeDataType Type;
 		uint8 bIsSingleMaterial : 1;	// For use by FShapeInstance (here because the space is available for free)
 		int32 ShapeIdx;
-		TSerializablePtr<FImplicitObject> Geometry;
+		FImplicitObjectPtr Geometry;
 		TAABB<FReal, 3> WorldSpaceInflatedShapeBounds;
 	};
 
@@ -230,8 +241,21 @@ namespace Chaos
 	public:
 		friend class FPerShapeData;
 
-		static CHAOS_API TUniquePtr<FShapeInstanceProxy> Make(int32 InShapeIdx, TSerializablePtr<FImplicitObject> InGeometry);
-		static CHAOS_API void UpdateGeometry(TUniquePtr<FShapeInstanceProxy>& InOutShapePtr, TSerializablePtr<FImplicitObject> InGeometry);
+		UE_DEPRECATED(5.4, "Use Make with FImplicitObjectPtr instead")
+		static CHAOS_API TUniquePtr<FShapeInstanceProxy> Make(int32 InShapeIdx, TSerializablePtr<FImplicitObject> InGeometry)
+		{
+			check(false);
+			return nullptr;
+		}
+
+		UE_DEPRECATED(5.4, "Use UpdateGeometry with FImplicitObjectPtr instead")
+        static CHAOS_API void UpdateGeometry(TUniquePtr<FShapeInstanceProxy>& InOutShapePtr, TSerializablePtr<FImplicitObject> InGeometry)
+		{
+			check(false);
+		}
+
+		static CHAOS_API TUniquePtr<FShapeInstanceProxy> Make(int32 InShapeIdx, const FImplicitObjectPtr& InGeometry);
+		static CHAOS_API void UpdateGeometry(TUniquePtr<FShapeInstanceProxy>& InOutShapePtr, const FImplicitObjectPtr& InGeometry);
 		static CHAOS_API FShapeInstanceProxy* SerializationFactory(FChaosArchive& Ar, FShapeInstanceProxy*);
 
 		CHAOS_API void UpdateShapeBounds(const FRigidTransform3& WorldTM, const FVec3& BoundsExpansion = FVec3(0));
@@ -439,8 +463,19 @@ namespace Chaos
 			, Materials()
 		{
 		}
-
+		
+		UE_DEPRECATED(5.4, "Use FShapeInstanceProxy with FImplicitObjectPtr instead")
 		FShapeInstanceProxy(int32 InShapeIdx, TSerializablePtr<FImplicitObject> InGeometry)
+			: FPerShapeData(EPerShapeDataType::Proxy, InShapeIdx)
+			, Proxy(nullptr)
+			, DirtyFlags()
+			, CollisionData()
+			, Materials()
+		{
+			check(false);
+		}
+
+		FShapeInstanceProxy(int32 InShapeIdx, const FImplicitObjectPtr& InGeometry)
 			: FPerShapeData(EPerShapeDataType::Proxy, InShapeIdx, InGeometry)
 			, Proxy(nullptr)
 			, DirtyFlags()
@@ -493,8 +528,8 @@ namespace Chaos
 	public:
 		friend class FPerShapeData;
 
-		CHAOS_API static TUniquePtr<FShapeInstance> Make(int32 InShapeIdx, TSerializablePtr<FImplicitObject> InGeometry);
-		CHAOS_API static void UpdateGeometry(TUniquePtr<FShapeInstance>& InOutShapePtr, TSerializablePtr<FImplicitObject> InGeometry);
+		CHAOS_API static TUniquePtr<FShapeInstance> Make(int32 InShapeIdx, const FImplicitObjectPtr& InGeometry);
+		CHAOS_API static void UpdateGeometry(TUniquePtr<FShapeInstance>& InOutShapePtr, const FImplicitObjectPtr& InGeometry);
 		CHAOS_API static FShapeInstance* SerializationFactory(FChaosArchive& Ar, FShapeInstance*);
 
 		virtual ~FShapeInstance()
@@ -605,7 +640,15 @@ namespace Chaos
 			bIsSingleMaterial = true;
 		}
 
+		UE_DEPRECATED(5.4, "Use FShapeInstance with FImplicitObjectPtr instead")
 		FShapeInstance(int32 InShapeIdx, TSerializablePtr<FImplicitObject> InGeometry)
+			: FPerShapeData(EPerShapeDataType::Sim, InShapeIdx)
+			, CollisionData()
+		{
+			check(false);
+		}
+
+		FShapeInstance(int32 InShapeIdx, const FImplicitObjectPtr& InGeometry)
 			: FPerShapeData(EPerShapeDataType::Sim, InShapeIdx, InGeometry)
 			, CollisionData()
 		{
@@ -626,8 +669,16 @@ namespace Chaos
 				Other.Material.MaterialData = nullptr;
 			}
 		}
-
+		
+		UE_DEPRECATED(5.4, "Use FShapeInstance with FImplicitObjectPtr instead")
 		FShapeInstance(const EPerShapeDataType InType, int32 InShapeIdx, TSerializablePtr<FImplicitObject> InGeometry)
+			: FPerShapeData(InType, InShapeIdx)
+			, CollisionData()
+		{
+			check(false);
+		}
+
+		FShapeInstance(const EPerShapeDataType InType, int32 InShapeIdx, FImplicitObjectPtr InGeometry)
 			: FPerShapeData(InType, InShapeIdx, InGeometry)
 			, CollisionData()
 		{
@@ -763,10 +814,17 @@ namespace Chaos
 			}
 
 		protected:
-			FShapeInstanceExtended(int32 InShapeIdx, TSerializablePtr<FImplicitObject> InGeometry)
+			FShapeInstanceExtended(int32 InShapeIdx, FImplicitObjectPtr InGeometry)
 				: FShapeInstance(EPerShapeDataType::SimExtended, InShapeIdx, InGeometry)
 			{
 			}
+
+			UE_DEPRECATED(5.4, "Use FShapeInstanceExtended with FImplicitObjectPtr instead")
+			FShapeInstanceExtended(int32 InShapeIdx, TSerializablePtr<FImplicitObject> InGeometry)
+            	: FShapeInstance(InShapeIdx)
+            {
+				check(false);
+            }
 
 			FShapeInstanceExtended(FShapeInstance&& PerShapeData)
 				: FShapeInstance(EPerShapeDataType::SimExtended, MoveTemp(PerShapeData))
@@ -916,9 +974,9 @@ namespace Chaos
 		return DownCast([&InSimData](auto& ShapeInstance) { ShapeInstance.SetSimData(InSimData); });
 	}
 
-	inline TSerializablePtr<FImplicitObject> FPerShapeData::GetGeometry() const
+	inline FImplicitObjectRef FPerShapeData::GetGeometry() const
 	{
-		return Geometry;
+		return Geometry.GetReference();
 	}
 
 	inline const TAABB<FReal, 3>& FPerShapeData::GetWorldSpaceInflatedShapeBounds() const

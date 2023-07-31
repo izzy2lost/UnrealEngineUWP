@@ -986,7 +986,7 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 				const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
 
-				const TConstArrayView<TUniquePtr<FImplicitObject>> CollisionGeometries = Collider->GetCollisionGeometries(Solver, Cloth, CollisionDataType);
+				const TConstArrayView<FImplicitObjectPtr> CollisionGeometries = Collider->GetCollisionGeometry(Solver, Cloth, CollisionDataType);
 				const TConstArrayView<Softs::FSolverVec3> Translations = Collider->GetCollisionTranslations(Solver, Cloth, CollisionDataType);
 				const TConstArrayView<Softs::FSolverRotation3> Rotations = Collider->GetCollisionRotations(Solver, Cloth, CollisionDataType);
 				const TConstArrayView<bool> CollisionStatus = Collider->GetCollisionStatus(Solver, Cloth, CollisionDataType);
@@ -995,7 +995,7 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 				for (int32 Index = 0; Index < CollisionGeometries.Num(); ++Index)
 				{
-					if (const FImplicitObject* const Object = CollisionGeometries[Index].Get())
+					if (const FImplicitObject* const Object = CollisionGeometries[Index].GetReference())
 					{
 						const FLinearColor Color = CollisionStatus[Index] ? CollidedColor : TypeColor;
 						const FVec3 Position = LocalSpaceLocation + FVec3(Translations[Index]);
@@ -1016,9 +1016,9 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 							break;
 
 						case ImplicitObjectType::Union:  // Union only used as old style tapered capsules
-							for (const TUniquePtr<FImplicitObject>& SubObjectPtr : Object->GetObjectChecked<FImplicitObjectUnion>().GetObjects())
+							for (const FImplicitObjectPtr& SubObjectPtr : Object->GetObjectChecked<FImplicitObjectUnion>().GetObjects())
 							{
-								if (const FImplicitObject* const SubObject = SubObjectPtr.Get())
+								if (const FImplicitObject* const SubObject = SubObjectPtr.GetReference())
 								{
 									switch (SubObject->GetType())
 									{
@@ -1055,11 +1055,11 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 							break;
 
 						case ImplicitObjectType::Transformed: // Transformed only used for levelsets
-							if (Object->GetObjectChecked<TImplicitObjectTransformed<FReal, 3>>().Object()->GetType() == ImplicitObjectType::LevelSet)
+							if (Object->GetObjectChecked<TImplicitObjectTransformed<FReal, 3>>().GetGeometry()->GetType() == ImplicitObjectType::LevelSet)
 							{
 								const TRigidTransform<FReal, 3>& Transform = Object->GetObjectChecked<TImplicitObjectTransformed<FReal, 3>>().GetTransform();
 								const FTransform CombinedTransform = Transform * FTransform(Rotation, Position);
-								const FLevelSet& LevelSet = Object->GetObjectChecked<TImplicitObjectTransformed<FReal, 3>>().Object()->GetObjectChecked<FLevelSet>();
+								const FLevelSet& LevelSet = Object->GetObjectChecked<TImplicitObjectTransformed<FReal, 3>>().GetGeometry()->GetObjectChecked<FLevelSet>();
 								const FMaterialRenderProxy* MaterialRenderProxy =
 #if WITH_EDITOR
 									CollisionMaterial->GetRenderProxy();

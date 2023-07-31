@@ -143,7 +143,7 @@ namespace Chaos
 		const int32 ClusterGroupIndex, 
 		TArray<Chaos::FPBDRigidParticleHandle*>&& Children, 
 		const FClusterCreationParameters& Parameters, 
-		TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe> ProxyGeometry, 
+		const Chaos::FImplicitObjectPtr& ProxyGeometry, 
 		const FRigidTransform3* ForceMassOrientation, 
 		const FUniqueIdx* ExistingIndex)
 	{
@@ -496,7 +496,7 @@ namespace Chaos
 
 		UpdateKinematicProperties(NewParticle, MChildren, MEvolution);
 
-		UpdateGeometry(NewParticle, ChildrenSet, MChildren, nullptr, NoCleanParams);
+		UpdateGeometry(NewParticle, ChildrenSet, MChildren, FImplicitObjectPtr(nullptr), NoCleanParams);
 
 		return NewParticle;
 	}
@@ -619,9 +619,9 @@ namespace Chaos
 				ClusterBreak.Velocity = ClusteredParticle->V();
 				ClusterBreak.AngularVelocity = ClusteredParticle->W();
 				ClusterBreak.Mass = ClusteredParticle->M();
-				if (ClusteredParticle->Geometry() && ClusteredParticle->Geometry()->HasBoundingBox())
+				if (ClusteredParticle->GetGeometry() && ClusteredParticle->GetGeometry()->HasBoundingBox())
 				{
-					ClusterBreak.BoundingBox = ClusteredParticle->Geometry()->BoundingBox();
+					ClusterBreak.BoundingBox = ClusteredParticle->GetGeometry()->BoundingBox();
 				}
 				ClusterBreak.TransformGroupIndex = ConcreteProxy->GetTransformGroupIndexFromHandle(ClusteredParticle);
 				ClusterBreak.bFromCrumble = bFromCrumble;
@@ -647,9 +647,9 @@ namespace Chaos
 				ClusterCrumbling.AngularVelocity = ClusteredParticle->W();
 				ClusterCrumbling.Mass = ClusteredParticle->M();
 				ClusterCrumbling.SetEmitterFlag(SimParams.bGenerateCrumblingData, SimParams.bGenerateGlobalCrumblingData);
-				if (ClusteredParticle->Geometry() && ClusteredParticle->Geometry()->HasBoundingBox())
+				if (ClusteredParticle->GetGeometry() && ClusteredParticle->GetGeometry()->HasBoundingBox())
 				{
-					ClusterCrumbling.LocalBounds = ClusteredParticle->Geometry()->BoundingBox();
+					ClusterCrumbling.LocalBounds = ClusteredParticle->GetGeometry()->BoundingBox();
 				}
 				if (SimParams.bGenerateCrumblingChildrenData || SimParams.bGenerateGlobalCrumblingChildrenData)
 				{
@@ -2069,10 +2069,10 @@ namespace Chaos
 						const FVec3 ContactLocationClusterLocal = WorldToClusterTM.InverseTransformPosition(ContactWorldLocation);
 						FAABB3 ContactBox(ContactLocationClusterLocal, ContactLocationClusterLocal);
 						ContactBox.Thicken(ClusterDistanceThreshold);
-						if (Cluster->ChildrenSpatial())
+						if (Cluster->GetChildrenSpatial())
 						{
 							// todo(chaos): FindAllIntersectingChildren may return an unfiltered list of children ( when num children is under a certain threshold )   
-							const TArray<FPBDRigidParticleHandle*> Intersections = Cluster->ChildrenSpatial()->FindAllIntersectingChildren(ContactBox);
+							const TArray<FPBDRigidParticleHandle*> Intersections = Cluster->GetChildrenSpatial()->FindAllIntersectingChildren(ContactBox);
 							for (FPBDRigidParticleHandle* Child : Intersections)
 							{
 								if (TPBDRigidClusteredParticleHandle<FReal, 3>*ClusteredChild = Child->CastToClustered())
@@ -2400,7 +2400,7 @@ namespace Chaos
 		PhysicsParallelFor(Particles.Num(), [&](int32 i)
 			{
 				FPBDRigidParticleHandle* Child1 = Particles[i];
-				if (Child1->Geometry() && Child1->Geometry()->HasBoundingBox())
+				if (Child1->GetGeometry() && Child1->GetGeometry()->HasBoundingBox())
 				{
 					ParticlePairArray& ConnectionList = Connections[i];
 
@@ -2424,7 +2424,7 @@ namespace Chaos
 							{
 								const FVec3 LocalPoint =
 									TM.TransformPositionNoScale(Child2->CollisionParticles()->X(CollisionIdx));
-								const FReal Phi = Child1->Geometry()->SignedDistance(LocalPoint - (LocalPoint * Delta));
+								const FReal Phi = Child1->GetGeometry()->SignedDistance(LocalPoint - (LocalPoint * Delta));
 								if (Phi < 0.0)
 								{
 									ConnectionList.Add(ParticlePair(Child1, Child2));

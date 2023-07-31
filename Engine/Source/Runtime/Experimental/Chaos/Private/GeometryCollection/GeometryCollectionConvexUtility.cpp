@@ -125,21 +125,21 @@ TOptional<FGeometryCollectionConvexUtility::FGeometryCollectionConvexData> FGeom
 	check(GeometryCollection);
 
 	if (!GeometryCollection->HasAttribute("TransformToConvexIndices", FTransformCollection::TransformGroup) ||
-		!GeometryCollection->HasAttribute("ConvexHull", "Convex"))
+		!GeometryCollection->HasAttribute(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup))
 	{
 		return TOptional<FGeometryCollectionConvexUtility::FGeometryCollectionConvexData>();
 	}
 
 	FGeometryCollectionConvexUtility::FGeometryCollectionConvexData ConvexData{
 		GeometryCollection->ModifyAttribute<TSet<int32>>("TransformToConvexIndices", FTransformCollection::TransformGroup),
-		GeometryCollection->ModifyAttribute<TUniquePtr<Chaos::FConvex>>("ConvexHull", "Convex")
+		GeometryCollection->ModifyAttribute<Chaos::FConvexPtr>(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup)
 	};
 	return TOptional<FGeometryCollectionConvexUtility::FGeometryCollectionConvexData>(ConvexData);
 }
 
 bool FGeometryCollectionConvexUtility::HasConvexHullData(const FManagedArrayCollection* Collection)
 {
-	return Collection->HasAttribute("TransformToConvexIndices", FTransformCollection::TransformGroup) && Collection->HasAttribute("ConvexHull", "Convex");
+	return Collection->HasAttribute("TransformToConvexIndices", FTransformCollection::TransformGroup) && Collection->HasAttribute(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup);
 }
 
 FGeometryCollectionConvexUtility::FGeometryCollectionConvexData FGeometryCollectionConvexUtility::GetValidConvexHullData(FGeometryCollection* GeometryCollection)
@@ -152,7 +152,7 @@ FGeometryCollectionConvexUtility::FGeometryCollectionConvexData FGeometryCollect
 	const TManagedArray<int32>& SimulationType = GeometryCollection->GetAttribute<int32>("SimulationType", FTransformCollection::TransformGroup);
 	const TManagedArray<int32>& TransformToGeometryIndex = GeometryCollection->GetAttribute<int32>("TransformToGeometryIndex", FTransformCollection::TransformGroup);
 	TManagedArray<TSet<int32>>& TransformToConvexIndices = GeometryCollection->ModifyAttribute<TSet<int32>>("TransformToConvexIndices", FTransformCollection::TransformGroup);
-	TManagedArray<TUniquePtr<Chaos::FConvex>>& ConvexHull = GeometryCollection->ModifyAttribute<TUniquePtr<Chaos::FConvex>>("ConvexHull", "Convex");
+	TManagedArray<Chaos::FConvexPtr>& ConvexHull = GeometryCollection->ModifyAttribute<Chaos::FConvexPtr>(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup);
 	
 	TArray<int32> ProduceConvexHulls;
 	ProduceConvexHulls.Reserve(SimulationType.Num());
@@ -167,11 +167,11 @@ FGeometryCollectionConvexUtility::FGeometryCollectionConvexData FGeometryCollect
 
 	if (ProduceConvexHulls.Num())
 	{
-		int32 NewConvexIndexStart = GeometryCollection->AddElements(ProduceConvexHulls.Num(), "Convex");
+		int32 NewConvexIndexStart = GeometryCollection->AddElements(ProduceConvexHulls.Num(), FGeometryCollection::ConvexGroup);
 		for (int32 Idx = 0; Idx < ProduceConvexHulls.Num(); ++Idx)
 		{
 			int32 GeometryIdx = TransformToGeometryIndex[ProduceConvexHulls[Idx]];
-			ConvexHull[NewConvexIndexStart + Idx] = FindConvexHull(GeometryCollection, GeometryIdx);
+			ConvexHull[NewConvexIndexStart + Idx] = GetConvexHull(GeometryCollection, GeometryIdx);
 			TransformToConvexIndices[ProduceConvexHulls[Idx]].Reset();
 			TransformToConvexIndices[ProduceConvexHulls[Idx]].Add(NewConvexIndexStart + Idx);
 		}
@@ -435,7 +435,7 @@ bool SplitHull(const Chaos::FConvex& HullIn, FChaosPlane Plane, bool KeepSide, T
 }
 
 // Add a pivot and verify (in debug) that the pivot array and convexes array are in sync
-void AddPivot(TArray<TUniquePtr<Chaos::FConvex>>& Convexes, TArray<FVector>& ConvexPivots, FVector Pivot)
+void AddPivot(TArray<Chaos::FConvexPtr>& Convexes, TArray<FVector>& ConvexPivots, FVector Pivot)
 {
 	ConvexPivots.Add(Pivot);
 	checkSlow(Convexes.Num() == ConvexPivots.Num());
@@ -446,7 +446,7 @@ void AddPivot(TArray<TUniquePtr<Chaos::FConvex>>& Convexes, TArray<FVector>& Con
 ///		TransformToConvexIndices is initialized to point to the existing convex hulls
 ///		Parents, GeoProximity, and GeometryToTransformIndex are all initialized from the geometry collection
 void CreateNonoverlappingConvexHulls(
-	TArray<TUniquePtr<Chaos::FConvex>>& Convexes,
+	TArray<Chaos::FConvexPtr>& Convexes,
 	TArray<FVector>& ConvexPivots,
 	TArray<TSet<int32>>& TransformToConvexIndices,
 	TFunctionRef<bool(int32)> HasCustomConvexFn,
@@ -901,7 +901,7 @@ void CreateNonoverlappingConvexHulls(
 						{
 							FVector Pivot;
 							ConvexesCS.Lock();
-							Chaos::FConvex* Convex = Convexes[ConvexIdx].Get();
+							Chaos::FConvex* Convex = Convexes[ConvexIdx].GetReference();
 							Pivot = ConvexPivots[ConvexIdx];
 							ConvexesCS.Unlock();
 							if (ShrinkPercentage != 0.0)
@@ -919,7 +919,8 @@ void CreateNonoverlappingConvexHulls(
 					{
 						FilterHullPoints(JoinedHullPts, SimplificationDistanceThreshold);
 						FVector Pivot = ScaleHullPoints(JoinedHullPts, ShrinkPercentage);
-						TUniquePtr<Chaos::FConvex> Hull = MakeUnique<Chaos::FConvex>(JoinedHullPts, UE_KINDA_SMALL_NUMBER);
+						Chaos::FConvex* Hull = new Chaos::FConvex(JoinedHullPts, UE_KINDA_SMALL_NUMBER);
+						Chaos::FConvexPtr HullPtr(Hull);
 						bool bIsTooBig = false;
 						if (Volume)
 						{
@@ -932,7 +933,7 @@ void CreateNonoverlappingConvexHulls(
 						if (!bIsTooBig)
 						{
 							ConvexesCS.Lock();
-							int32 ConvexIdx = Convexes.Add(MoveTemp(Hull));
+							int32 ConvexIdx = Convexes.Add(MoveTemp(HullPtr));
 							AddPivot(Convexes, ConvexPivots, Pivot);
 							ConvexesCS.Unlock();
 							TransformToConvexIndices[Bone].Add(ConvexIdx);
@@ -1139,7 +1140,7 @@ void CreateNonoverlappingConvexHulls(
 									// we just leave these hulls in as null, without any references here
 									// and come through and clear them later after everything is set up in the geometry collection
 									// (because that has the built-in machinery to update the TransformToConvexIndices indices accordingly)
-									Convexes[ConvexIdx].Reset();
+									Convexes[ConvexIdx].SafeRelease();
 								}
 								TransformToConvexIndices[ToReset].Reset();
 							};
@@ -1296,7 +1297,7 @@ void HullsFromGeometry(
 	FGeometryCollection& Geometry,
 	const TArray<FTransform>& GlobalTransformArray,
 	TFunctionRef<bool(int32)> HasCustomConvexFn,
-	TArray<TUniquePtr<Chaos::FConvex>>& Convexes,
+	TArray<Chaos::FConvexPtr>& Convexes,
 	TArray<FVector>& ConvexPivots,
 	TArray<TSet<int32>>& TransformToConvexIndices,
 	const TManagedArray<int32>& SimulationType,
@@ -1349,7 +1350,7 @@ void HullsFromGeometry(
 						)));
 				}
 				// Do not simplify hulls when we're just trying to transform them
-				TUniquePtr Hull = MakeUnique<Chaos::FConvex>(HullPts, UE_KINDA_SMALL_NUMBER);
+				Chaos::FConvexPtr Hull( new Chaos::FConvex(HullPts, UE_KINDA_SMALL_NUMBER));
 				HullCS.Lock();
 				int32 NewConvexIdx = Convexes.Add(MoveTemp(Hull));
 				AddPivot(Convexes, ConvexPivots, COM);
@@ -1369,7 +1370,7 @@ void HullsFromGeometry(
 				for (int32 HullIdx : HullInds)
 				{
 					// Append transformed external hull mesh
-					AddConvexHullToCompactDynamicMesh((*OptionalIntersectConvexHulls)[HullIdx].Convex.Get(), MergedHullMesh, &(*OptionalIntersectConvexHulls)[HullIdx].Transform);
+					AddConvexHullToCompactDynamicMesh((*OptionalIntersectConvexHulls)[HullIdx].Convex.GetReference(), MergedHullMesh, &(*OptionalIntersectConvexHulls)[HullIdx].Transform);
 				}
 				if (HullInds.Num() > 1)
 				{
@@ -1394,7 +1395,7 @@ void HullsFromGeometry(
 			}
 
 			auto ComputeHull = [&Geometry, &GlobalVertices, SimplificationDistanceThreshold, OverlapRemovalShrinkPercent, GeomIdx,
-				&GeometryIntersectedWithExternalHull](FVector& PivotOut) -> TUniquePtr<::Chaos::FConvex>
+				&GeometryIntersectedWithExternalHull](FVector& PivotOut) -> ::Chaos::FConvexPtr
 			{
 				TArray<Chaos::FConvex::FVec3Type> HullPts;
 				if (GeometryIntersectedWithExternalHull)
@@ -1420,9 +1421,9 @@ void HullsFromGeometry(
 				ensure(HullPts.Num() > 0);
 				FilterHullPoints(HullPts, SimplificationDistanceThreshold);
 				PivotOut = ScaleHullPoints(HullPts, OverlapRemovalShrinkPercent);
-				return MakeUnique<Chaos::FConvex>(HullPts, UE_KINDA_SMALL_NUMBER);
+				return Chaos::FConvexPtr(new Chaos::FConvex(HullPts, UE_KINDA_SMALL_NUMBER));
 			};
-			TUniquePtr<Chaos::FConvex> Hull = nullptr;
+			Chaos::FConvexPtr Hull = nullptr;
 			FVector HullPivot;
 
 			if (OptionalDecompositionSettings)
@@ -1475,7 +1476,7 @@ void HullsFromGeometry(
 					int32 NumHulls = Decomposition.NumHulls();
 					if ((NumHulls > 0 && !Hull) || NumHulls > 1)
 					{
-						TArray<TUniquePtr<::Chaos::FConvex>> DecompHulls; DecompHulls.Reserve(NumHulls);
+						TArray<Chaos::FConvexPtr> DecompHulls; DecompHulls.Reserve(NumHulls);
 						TArray<FVector> Pivots; Pivots.Reserve(NumHulls);
 						for (int32 HullIdx = 0; HullIdx < NumHulls; ++HullIdx)
 						{
@@ -1490,7 +1491,7 @@ void HullsFromGeometry(
 							FilterHullPoints(DecompVerts, SimplificationDistanceThreshold);
 							FVector Pivot = ScaleHullPoints(DecompVerts, OverlapRemovalShrinkPercent);
 							Pivots.Add(Pivot);
-							DecompHulls.Add(MakeUnique<::Chaos::FConvex>(DecompVerts, UE_KINDA_SMALL_NUMBER));
+							DecompHulls.Add(Chaos::FConvexPtr(new Chaos::FConvex(DecompVerts, UE_KINDA_SMALL_NUMBER)));
 						}
 						HullCS.Lock();
 						for (int32 HullIdx = 0; HullIdx < DecompHulls.Num(); ++HullIdx)
@@ -1520,7 +1521,7 @@ void HullsFromGeometry(
 
 void TransformHullsToLocal(
 	TArray<FTransform>& GlobalTransformArray,
-	TArray<TUniquePtr<Chaos::FConvex>>& Convexes,
+	TArray<Chaos::FConvexPtr>& Convexes,
 	TArray<FVector>& ConvexPivots,
 	TArray<TSet<int32>>& TransformToConvexIndices,
 	double OverlapRemovalShrinkPercent
@@ -1562,11 +1563,11 @@ void TransformHullsToLocal(
 // Store the results in a temporary array, to be added in bulk later
 bool CopyHulls(
 	const TArray<FTransform>& InGlobalTransformArray,
-	const TManagedArray<TUniquePtr<Chaos::FConvex>>& InConvexes,
+	const TManagedArray<Chaos::FConvexPtr>& InConvexes,
 	const TManagedArray<TSet<int32>>& InTransformToConvexIndices,
 	int32 InBone,
 	const TArray<FTransform>& OutGlobalTransformArray,
-	TArray<TUniquePtr<Chaos::FConvex>>& OutConvexes,
+	TArray<Chaos::FConvexPtr>& OutConvexes,
 	TArray<TSet<int32>>& OutTransformToConvexIndices,
 	int32 OutBone
 )
@@ -1582,7 +1583,7 @@ bool CopyHulls(
 			HullPts.Add(OutTransform.InverseTransformPosition(InTransform.TransformPosition(FVector(P))));
 		}
 		// Do not simplify hulls when we're just trying to transform them
-		int32 OutIdx = OutConvexes.Add(MakeUnique<Chaos::FConvex>(HullPts, UE_KINDA_SMALL_NUMBER));
+		int32 OutIdx = OutConvexes.Add(Chaos::FConvexPtr(new Chaos::FConvex(HullPts, UE_KINDA_SMALL_NUMBER)));
 		OutTransformToConvexIndices[OutBone].Add(OutIdx);
 	}
 
@@ -1594,20 +1595,20 @@ bool CopyHulls(
 
 void FGeometryCollectionConvexUtility::CreateConvexHullAttributesIfNeeded(FManagedArrayCollection& Collection)
 {
-	if (!Collection.HasGroup("Convex"))
+	if (!Collection.HasGroup(FGeometryCollection::ConvexGroup))
 	{
-		Collection.AddGroup("Convex");
+		Collection.AddGroup(FGeometryCollection::ConvexGroup);
 	}
 
 	if (!Collection.HasAttribute("TransformToConvexIndices", FTransformCollection::TransformGroup))
 	{
-		FManagedArrayCollection::FConstructionParameters ConvexDependency("Convex");
+		FManagedArrayCollection::FConstructionParameters ConvexDependency(FGeometryCollection::ConvexGroup);
 		Collection.AddAttribute<TSet<int32>>("TransformToConvexIndices", FTransformCollection::TransformGroup, ConvexDependency);
 	}
 
-	if (!Collection.HasAttribute("ConvexHull", "Convex"))
+	if (!Collection.HasAttribute(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup))
 	{
-		Collection.AddAttribute<TUniquePtr<Chaos::FConvex>>("ConvexHull", "Convex");
+		Collection.AddAttribute<Chaos::FConvexPtr>(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup);
 	}
 }
 
@@ -1676,10 +1677,10 @@ FGeometryCollectionConvexUtility::FGeometryCollectionConvexData FGeometryCollect
 	CreateConvexHullAttributesIfNeeded(*GeometryCollection);
 
 	TManagedArray<TSet<int32>>& TransformToConvexIndices = GeometryCollection->ModifyAttribute<TSet<int32>>("TransformToConvexIndices", FTransformCollection::TransformGroup);
-	TManagedArray<TUniquePtr<Chaos::FConvex>>& ConvexHull = GeometryCollection->ModifyAttribute<TUniquePtr<Chaos::FConvex>>("ConvexHull", "Convex");
+	TManagedArray<Chaos::FConvexPtr>& ConvexHull = GeometryCollection->ModifyAttribute<Chaos::FConvexPtr>(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup);
 	TransformToConvexIndices = MoveTemp(UseLeafHulls->TransformToHullsIndices);
-	GeometryCollection->EmptyGroup("Convex");
-	GeometryCollection->Resize(UseLeafHulls->Hulls.Num(), "Convex");
+	GeometryCollection->EmptyGroup(FGeometryCollection::ConvexGroup);
+	GeometryCollection->Resize(UseLeafHulls->Hulls.Num(), FGeometryCollection::ConvexGroup);
 	ConvexHull = MoveTemp(UseLeafHulls->Hulls);
 
 	// clear all null and empty hulls
@@ -1692,11 +1693,9 @@ FGeometryCollectionConvexUtility::FGeometryCollectionConvexData FGeometryCollect
 
 void FGeometryCollectionConvexUtility::GenerateLeafConvexHulls(FGeometryCollection& Collection, bool bRestrictToSelection, const TArrayView<const int32> TransformSubset, const FLeafConvexHullSettings& Settings)
 {
-	using FSharedImplicit = TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>;
-
 	int32 NumTransforms = Collection.NumElements(FGeometryCollection::TransformGroup);
 
-	const TManagedArrayAccessor<FSharedImplicit> ExternalCollisionAttribute(Collection, "ExternalCollisions", FGeometryCollection::TransformGroup);
+	const TManagedArrayAccessor<Chaos::FImplicitObjectPtr> ExternalCollisionAttribute(Collection, FGeometryCollection::ExternalCollisionsAttribute, FGeometryCollection::TransformGroup);
 	bool bHasExternalCollision = ExternalCollisionAttribute.IsValid();
 	if (bHasExternalCollision)
 	{
@@ -1721,7 +1720,7 @@ void FGeometryCollectionConvexUtility::GenerateLeafConvexHulls(FGeometryCollecti
 
 	CreateConvexHullAttributesIfNeeded(Collection);
 
-	auto ComputeTransformedHull = [](const Chaos::FConvex& HullIn, const FTransform& TransformIn) -> TUniquePtr<Chaos::FConvex>
+	auto ComputeTransformedHull = [](const Chaos::FConvex& HullIn, const FTransform& TransformIn) -> Chaos::FConvexPtr
 	{
 		FTransform3f Transform = (FTransform3f)TransformIn;
 		TArray<Chaos::FConvex::FVec3Type> HullPts;
@@ -1729,7 +1728,7 @@ void FGeometryCollectionConvexUtility::GenerateLeafConvexHulls(FGeometryCollecti
 		{
 			HullPts.Add(Transform.TransformPosition(P));
 		}
-		return MakeUnique<Chaos::FConvex>(HullPts, UE_KINDA_SMALL_NUMBER);
+		return Chaos::FConvexPtr(new Chaos::FConvex(HullPts, UE_KINDA_SMALL_NUMBER));
 	};
 
 	TArray<int32> LocalTransformIndices;
@@ -1750,7 +1749,7 @@ void FGeometryCollectionConvexUtility::GenerateLeafConvexHulls(FGeometryCollecti
 		return;
 	}
 
-	TManagedArray<TUniquePtr<Chaos::FConvex>>& ConvexHullAttrib = Collection.ModifyAttribute<TUniquePtr<Chaos::FConvex>>("ConvexHull", "Convex");
+	TManagedArray<Chaos::FConvexPtr>& ConvexHullAttrib = Collection.ModifyAttribute<Chaos::FConvexPtr>(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup);
 	TManagedArray<TSet<int32>>& TransformToConvexIndicesAttrib = Collection.ModifyAttribute<TSet<int32>>("TransformToConvexIndices", FTransformCollection::TransformGroup);
 	
 	// Remove all convex hulls from bones that we have selected for re-compute
@@ -1776,16 +1775,16 @@ void FGeometryCollectionConvexUtility::GenerateLeafConvexHulls(FGeometryCollecti
 		{
 			if (!ConvexHullsUsed[ConvexIdx])
 			{
-				ConvexHullAttrib[ConvexIdx].Reset();
+				ConvexHullAttrib[ConvexIdx].SafeRelease();
 			}
 		}
 		RemoveEmptyConvexHulls(Collection);
 	}
 	
-	auto AddComputedHullsToCollection = [&Collection, &ConvexHullAttrib, &TransformToConvexIndicesAttrib](TArray<TUniquePtr<::Chaos::FConvex>>& Hulls, TArray<TSet<int32>>& TransformToHullsIndices)
+	auto AddComputedHullsToCollection = [&Collection, &ConvexHullAttrib, &TransformToConvexIndicesAttrib](TArray<Chaos::FConvexPtr>& Hulls, TArray<TSet<int32>>& TransformToHullsIndices)
 	{
 		int32 InitialNum = ConvexHullAttrib.Num();
-		Collection.Resize(InitialNum + Hulls.Num(), "Convex");
+		Collection.Resize(InitialNum + Hulls.Num(), FGeometryCollection::ConvexGroup);
 		for (int32 Idx = 0; Idx < Hulls.Num(); ++Idx)
 		{
 			ConvexHullAttrib[InitialNum + Idx] = MoveTemp(Hulls[Idx]);
@@ -1809,7 +1808,7 @@ void FGeometryCollectionConvexUtility::GenerateLeafConvexHulls(FGeometryCollecti
 			}
 
 			// convert the external collisions to convex hulls
-			const FSharedImplicit ExternalCollision = ExternalCollisionAttribute[SourceTransformIdx];
+			const Chaos::FImplicitObjectPtr ExternalCollision = ExternalCollisionAttribute[SourceTransformIdx];
 			if (!ExternalCollision.IsValid())
 			{
 				continue;
@@ -1825,7 +1824,7 @@ void FGeometryCollectionConvexUtility::GenerateLeafConvexHulls(FGeometryCollecti
 
 		if (!bUseIntersect)
 		{
-			TArray<TUniquePtr<Chaos::FConvex>> FinalHulls;
+			TArray<Chaos::FConvexPtr> FinalHulls;
 			FinalHulls.SetNum(ExternalHulls.Num());
 
 			// Transform the hulls to the local space of the transform
@@ -1865,7 +1864,7 @@ void FGeometryCollectionConvexUtility::GenerateLeafConvexHulls(FGeometryCollecti
 	
 	if (bUseIntersect)
 	{
-		TArray<TUniquePtr<Chaos::FConvex>> FinalHulls;
+		TArray<Chaos::FConvexPtr> FinalHulls;
 		int32 HullIndexOffset = ConvexHullAttrib.Num();
 		for (int32 SourceTransformIdx : UseTransforms)
 		{
@@ -1926,16 +1925,16 @@ void FGeometryCollectionConvexUtility::GenerateLeafConvexHulls(FGeometryCollecti
 				}
 				for (int32 ExtHull : TransformToExternalHullsIndices[SourceTransformIdx])
 				{
-					int32 HullIdx = FinalHulls.Add(MakeUnique<Chaos::FConvex>());
-					UE::GeometryCollectionConvexUtility::IntersectConvexHulls(FinalHulls[HullIdx].Get(),
-						ComputedHulls.Hulls[GeoHullIdx].Get(), 0.0f, ExternalHulls[ExtHull].Convex.Get(),
+					int32 HullIdx = FinalHulls.Add(Chaos::FConvexPtr(new Chaos::FConvex()));
+					UE::GeometryCollectionConvexUtility::IntersectConvexHulls(FinalHulls[HullIdx].GetReference(),
+						ComputedHulls.Hulls[GeoHullIdx].GetReference(), 0.0f, ExternalHulls[ExtHull].Convex.GetReference(),
 						nullptr, &ExternalHulls[ExtHull].Transform, &ExternalHulls[ExtHull].Transform, Settings.SimplificationDistanceThreshold);
 					TransformToConvexIndicesAttrib[SourceTransformIdx].Add(HullIdx + HullIndexOffset);
 				}
 			}
 		}
 		// copy intersected hulls into the output hull attrib
-		Collection.Resize(HullIndexOffset + FinalHulls.Num(), "Convex");
+		Collection.Resize(HullIndexOffset + FinalHulls.Num(), FGeometryCollection::ConvexGroup);
 		for (int32 Idx = 0; Idx < FinalHulls.Num(); ++Idx)
 		{
 			ConvexHullAttrib[HullIndexOffset + Idx] = MoveTemp(FinalHulls[Idx]);
@@ -1964,17 +1963,15 @@ void FGeometryCollectionConvexUtility::GenerateClusterConvexHullsFromLeafHulls(F
 
 void FGeometryCollectionConvexUtility::GenerateClusterConvexHullsFromLeafOrChildrenHullsInternal(FGeometryCollection& Collection, const FClusterConvexHullSettings& Settings, bool bOnlySubset, bool bUseDirectChildren, const TArrayView<const int32> TransformSubset)
 {
-	static FName ConvexGroupName("Convex");
-	static FName ConvexHullAttributeName("ConvexHull");
+	static FName ConvexGroupName = FGeometryCollection::ConvexGroup;
+	static FName ConvexHullAttributeName = FGeometryCollection::ConvexHullAttribute;
 	static FName TransformToConvexIndicesName("TransformToConvexIndices");
-
-	using FSharedImplicit = TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>;
-
+	
 	CreateConvexHullAttributesIfNeeded(Collection);
 
-	TManagedArrayAccessor<TUniquePtr<Chaos::FConvex>> ConvexHullAttribute(Collection, ConvexHullAttributeName, ConvexGroupName);
+	TManagedArrayAccessor<Chaos::FConvexPtr> ConvexHullAttribute(Collection, ConvexHullAttributeName, ConvexGroupName);
 	TManagedArrayAccessor<TSet<int32>> TransformToConvexIndicesAttribute(Collection, TransformToConvexIndicesName, FGeometryCollection::TransformGroup);
-	const TManagedArrayAccessor<FSharedImplicit> ExternalCollisionAttribute(Collection, "ExternalCollisions", FGeometryCollection::TransformGroup);
+	const TManagedArrayAccessor<Chaos::FImplicitObjectPtr> ExternalCollisionAttribute(Collection, FGeometryCollection::ExternalCollisionsAttribute, FGeometryCollection::TransformGroup);
 
 	GeometryCollection::Facades::FCollectionTransformFacade TransformFacade(Collection);
 	Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(Collection);
@@ -2051,7 +2048,7 @@ void FGeometryCollectionConvexUtility::GenerateClusterConvexHullsFromLeafOrChild
 				const FTransform& ParentTransform = GlobalTransforms[TransformIndex];
 
 				TManagedArray<TSet<int32>>& TransformToConvexIndices = TransformToConvexIndicesAttribute.Modify();
-				TManagedArray<TUniquePtr<Chaos::FConvex>>& ConvexHull = ConvexHullAttribute.Modify();
+				TManagedArray<Chaos::FConvexPtr>& ConvexHull = ConvexHullAttribute.Modify();
 
 				struct FHullInfo
 				{
@@ -2070,7 +2067,7 @@ void FGeometryCollectionConvexUtility::GenerateClusterConvexHullsFromLeafOrChild
 					const FTransform InnerTransform = GlobalTransforms[SourceTransformIndex];
 					FTransform ChildToParentTransform = InnerTransform.GetRelativeTransform(ParentTransform);
 
-					const FSharedImplicit ExternalCollision = (ExternalCollisionAttribute.IsValid()) ? ExternalCollisionAttribute.Get()[SourceTransformIndex] : FSharedImplicit();
+					const Chaos::FImplicitObjectPtr ExternalCollision = (ExternalCollisionAttribute.IsValid()) ? ExternalCollisionAttribute.Get()[SourceTransformIndex] : Chaos::FImplicitObjectPtr();
 					if (ExternalCollision && Settings.bUseExternalCollisionIfAvailable)
 					{
 						const int32 ExternalHullsStart = ExternalHulls.Num();
@@ -2080,7 +2077,7 @@ void FGeometryCollectionConvexUtility::GenerateClusterConvexHullsFromLeafOrChild
 							const FTransformedConvex& ExternalHull = ExternalHulls[HullIndex];
 
 							FHullInfo HullInfo;
-							HullInfo.Convex = ExternalHull.Convex.Get();
+							HullInfo.Convex = ExternalHull.Convex.GetReference();
 							HullInfo.Transform = ExternalHull.Transform * ChildToParentTransform;
 							const int32 HullIdx = Hulls.Emplace(HullInfo);
 							TransformToHullIdx.FindOrAdd(SourceTransformIndex).Add(HullIdx);
@@ -2091,7 +2088,7 @@ void FGeometryCollectionConvexUtility::GenerateClusterConvexHullsFromLeafOrChild
 						for (int32 SourceConvexIdx : TransformToConvexIndices[SourceTransformIndex])
 						{
 							FHullInfo HullInfo;
-							HullInfo.Convex = ConvexHull[SourceConvexIdx].Get();
+							HullInfo.Convex = ConvexHull[SourceConvexIdx].GetReference();
 							HullInfo.Transform = ChildToParentTransform;
 							const int32 HullIdx = Hulls.Emplace(HullInfo);
 							TransformToHullIdx.FindOrAdd(SourceTransformIndex).Add(HullIdx);
@@ -2209,7 +2206,7 @@ void FGeometryCollectionConvexUtility::GenerateClusterConvexHullsFromLeafOrChild
 					{
 						Particles[PointIndex] = Points[PointIndex];
 					}
-					TUniquePtr<Chaos::FConvex> ImplicitConvex = MakeUnique<Chaos::FConvex>(MoveTemp(Particles), 0.0f);
+					Chaos::FConvexPtr ImplicitConvex( new Chaos::FConvex(MoveTemp(Particles), 0.0f));
 
 					// Add the the element to the union
 					const int32 NewConvexIndex = Collection.AddElements(1, ConvexGroupName);
@@ -2230,7 +2227,7 @@ void FGeometryCollectionConvexUtility::GenerateClusterConvexHullsFromLeafOrChild
 void FGeometryCollectionConvexUtility::MergeHullsOnTransforms(FManagedArrayCollection& Collection, const FGeometryCollectionConvexUtility::FMergeConvexHullSettings& Settings, bool bRestrictToSelection,
 	const TArrayView<const int32> OptionalTransformSelection, UE::Geometry::FSphereCovering* OptionalSphereCoveringOut)
 {
-	static FName ConvexGroupName("Convex");
+	static FName ConvexGroupName = FGeometryCollection::ConvexGroup;
 
 	TOptional<FGeometryCollectionConvexUtility::FGeometryCollectionConvexData> ConvexData = GetConvexHullDataIfPresent(&Collection);
 	if (!ConvexData)
@@ -2239,7 +2236,7 @@ void FGeometryCollectionConvexUtility::MergeHullsOnTransforms(FManagedArrayColle
 	}
 
 	TManagedArray<TSet<int32>>& TransformToConvexIndices = ConvexData->TransformToConvexIndices;
-	TManagedArray<TUniquePtr<Chaos::FConvex>>& ConvexHull = ConvexData->ConvexHull;
+	TManagedArray<Chaos::FConvexPtr>& ConvexHull = ConvexData->ConvexHull;
 
 	GeometryCollection::Facades::FCollectionTransformFacade TransformFacade(Collection);
 
@@ -2278,7 +2275,7 @@ void FGeometryCollectionConvexUtility::MergeHullsOnTransforms(FManagedArrayColle
 		TArray<Chaos::FConvex*> Hulls;
 		for (int32 ConvexIdx : TransformToConvexIndices[TransformIndex])
 		{
-			Hulls.Add(ConvexHull[ConvexIdx].Get());
+			Hulls.Add(ConvexHull[ConvexIdx].GetReference());
 		}
 		TArray<TPair<int32, int32>> HullProximity;
 		for (int32 ConvexA = 0; ConvexA < InitialNumConvex; ++ConvexA)
@@ -2354,7 +2351,7 @@ void FGeometryCollectionConvexUtility::MergeHullsOnTransforms(FManagedArrayColle
 			{
 				Particles[PointIndex] = Points[PointIndex];
 			}
-			TUniquePtr<Chaos::FConvex> ImplicitConvex = MakeUnique<Chaos::FConvex>(MoveTemp(Particles), 0.0f);
+			Chaos::FConvexPtr ImplicitConvex( new Chaos::FConvex(MoveTemp(Particles), 0.0f));
 
 			// Add the the element to the union
 			const int32 NewConvexIndex = Collection.AddElements(1, ConvexGroupName);
@@ -2371,11 +2368,11 @@ void FGeometryCollectionConvexUtility::MergeHullsOnTransforms(FManagedArrayColle
 
 bool FGeometryCollectionConvexUtility::ValidateConvexData(const FManagedArrayCollection* GeometryCollection)
 {
-	if (!GeometryCollection->HasAttribute("ConvexHull", "Convex") || !GeometryCollection->HasAttribute("TransformToConvexIndices", FTransformCollection::TransformGroup))
+	if (!GeometryCollection->HasAttribute(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup) || !GeometryCollection->HasAttribute("TransformToConvexIndices", FTransformCollection::TransformGroup))
 	{
 		return false;
 	}
-	const TManagedArray<TUniquePtr<Chaos::FConvex>>& ConvexHull = GeometryCollection->GetAttribute<TUniquePtr<Chaos::FConvex>>("ConvexHull", "Convex");
+	const TManagedArray<Chaos::FConvexPtr>& ConvexHull = GeometryCollection->GetAttribute<Chaos::FConvexPtr>(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup);
 	for (int32 ConvexIdx = 0; ConvexIdx < ConvexHull.Num(); ConvexIdx++)
 	{
 		if (!ConvexHull[ConvexIdx].IsValid())
@@ -2397,7 +2394,7 @@ bool FGeometryCollectionConvexUtility::ValidateConvexData(const FManagedArrayCol
 	return true;
 }
 
-TUniquePtr<Chaos::FConvex> FGeometryCollectionConvexUtility::FindConvexHull(const FGeometryCollection* GeometryCollection, int32 GeometryIndex)
+Chaos::FConvexPtr FGeometryCollectionConvexUtility::GetConvexHull(const FGeometryCollection* GeometryCollection, int32 GeometryIndex)
 {
 	check(GeometryCollection);
 
@@ -2411,13 +2408,13 @@ TUniquePtr<Chaos::FConvex> FGeometryCollectionConvexUtility::FindConvexHull(cons
 		Vertices[VertexIndex] = GeometryCollection->Vertex[VertexStart+VertexIndex];
 	}
 
-	return MakeUnique<Chaos::FConvex>(Vertices, 0.0f);
+	return Chaos::FConvexPtr( new Chaos::FConvex(Vertices, 0.0f));
 }
 
 
 void FGeometryCollectionConvexUtility::RemoveConvexHulls(FGeometryCollection* GeometryCollection, const TArray<int32>& SortedTransformDeletes)
 {
-	if (GeometryCollection->HasGroup("Convex") && GeometryCollection->HasAttribute("TransformToConvexIndices", FTransformCollection::TransformGroup))
+	if (GeometryCollection->HasGroup(FGeometryCollection::ConvexGroup) && GeometryCollection->HasAttribute("TransformToConvexIndices", FTransformCollection::TransformGroup))
 	{
 		TManagedArray<TSet<int32>>& TransformToConvexIndices = GeometryCollection->ModifyAttribute<TSet<int32>>("TransformToConvexIndices", FTransformCollection::TransformGroup);
 		TArray<int32> ConvexIndices;
@@ -2438,7 +2435,7 @@ void FGeometryCollectionConvexUtility::RemoveConvexHulls(FGeometryCollection* Ge
 			ConvexIndices.Sort();
 			FManagedArrayCollection::FProcessingParameters Params;
 			Params.bDoValidation = false; // for perf reasons
-			GeometryCollection->RemoveElements("Convex", ConvexIndices, Params);
+			GeometryCollection->RemoveElements(FGeometryCollection::ConvexGroup, ConvexIndices, Params);
 		}
 	}
 }
@@ -2446,13 +2443,13 @@ void FGeometryCollectionConvexUtility::RemoveConvexHulls(FGeometryCollection* Ge
 /** Delete the convex hulls that are null */
 void FGeometryCollectionConvexUtility::RemoveEmptyConvexHulls(FManagedArrayCollection& Collection)
 {
-	const FName ConvexGroupName("Convex");
-	const FName ConvexAttributeName("ConvexHull");
+	const FName ConvexGroupName = FGeometryCollection::ConvexGroup;
+	const FName ConvexAttributeName = FGeometryCollection::ConvexHullAttribute;
 
-	TManagedArrayAccessor<TUniquePtr<Chaos::FConvex>> ConvexHullAttribute(Collection, ConvexAttributeName, ConvexGroupName);
+	TManagedArrayAccessor<Chaos::FConvexPtr> ConvexHullAttribute(Collection, ConvexAttributeName, ConvexGroupName);
 	if (ConvexHullAttribute.IsValid())
 	{
-		TManagedArray<TUniquePtr<Chaos::FConvex>>& ConvexHull = ConvexHullAttribute.Modify();
+		TManagedArray<Chaos::FConvexPtr>& ConvexHull = ConvexHullAttribute.Modify();
 
 		// clear all null and empty hulls
 		TArray<int32> EmptyConvex;
@@ -2462,7 +2459,7 @@ void FGeometryCollectionConvexUtility::RemoveEmptyConvexHulls(FManagedArrayColle
 			{
 				if (ConvexHull[ConvexIdx]->NumVertices() == 0)
 				{
-					ConvexHull[ConvexIdx].Reset();
+					ConvexHull[ConvexIdx].SafeRelease();
 					EmptyConvex.Add(ConvexIdx);
 				}
 			}
@@ -2500,7 +2497,7 @@ TManagedArray<int32>* FGeometryCollectionConvexUtility::GetCustomConvexFlags(FGe
 void FGeometryCollectionConvexUtility::CopyChildConvexes(const FGeometryCollection* FromCollection, const TArrayView<const int32>& FromTransformIdx, FGeometryCollection* ToCollection, const TArrayView<const int32>& ToTransformIdx, bool bLeafOnly)
 {
 	const TManagedArray<TSet<int32>>* InTransformToConvexIndices = FromCollection->FindAttribute<TSet<int32>>("TransformToConvexIndices", FTransformCollection::TransformGroup);
-	const TManagedArray<TUniquePtr<Chaos::FConvex>>* InConvexHull = FromCollection->FindAttribute<TUniquePtr<Chaos::FConvex>>("ConvexHull", "Convex");
+	const TManagedArray<Chaos::FConvexPtr>* InConvexHull = FromCollection->FindAttribute<Chaos::FConvexPtr>(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup);
 	TOptional<FGeometryCollectionConvexUtility::FGeometryCollectionConvexData> OutConvex = FGeometryCollectionConvexUtility::GetConvexHullDataIfPresent(ToCollection);
 	TManagedArray<int32>* OutCustomFlags = GetCustomConvexFlags(ToCollection, true);
 
@@ -2574,7 +2571,7 @@ void FGeometryCollectionConvexUtility::CopyChildConvexes(const FGeometryCollecti
 	}
 	
 	// build the new convex data in separate arrays (which support incremental add)
-	TArray<TUniquePtr<Chaos::FConvex>> ConvexToAdd;
+	TArray<Chaos::FConvexPtr> ConvexToAdd;
 	TArray<TSet<int32>> OutTransformToConvexIndices;
 	OutTransformToConvexIndices.SetNum(OutConvex->TransformToConvexIndices.Num());
 	TSet<int32> ToRemove;
@@ -2604,7 +2601,7 @@ void FGeometryCollectionConvexUtility::CopyChildConvexes(const FGeometryCollecti
 		RemoveConvexHulls(ToCollection, ToRemoveArr);
 	}
 
-	int32 NewNumConvex = ToCollection->NumElements("Convex");
+	int32 NewNumConvex = ToCollection->NumElements(FGeometryCollection::ConvexGroup);
 
 	for (int32 OutBone : ToTransformIdx)
 	{
@@ -2615,7 +2612,7 @@ void FGeometryCollectionConvexUtility::CopyChildConvexes(const FGeometryCollecti
 		}
 	}
 	
-	ToCollection->Resize(NewNumConvex + ConvexToAdd.Num(), "Convex");
+	ToCollection->Resize(NewNumConvex + ConvexToAdd.Num(), FGeometryCollection::ConvexGroup);
 	for (int32 i = 0; i < ConvexToAdd.Num(); i++)
 	{
 		OutConvex->ConvexHull[NewNumConvex + i] = MoveTemp(ConvexToAdd[i]);
@@ -2744,7 +2741,7 @@ void FGeometryCollectionConvexUtility::ConvertImplicitToConvexArray(const Chaos:
 	{
 		const Chaos::FImplicitObjectUnion* Union = InImplicit.template GetObject<Chaos::FImplicitObjectUnion>();
 		int32 UnionIdx = 0;
-		for (const TUniquePtr<Chaos::FImplicitObject>& UnionImplicit : Union->GetObjects())
+		for (const Chaos::FImplicitObjectPtr& UnionImplicit : Union->GetObjects())
 		{
 			if (UnionImplicit)
 			{
@@ -2771,7 +2768,7 @@ void FGeometryCollectionConvexUtility::ConvertImplicitToConvexArray(const Chaos:
 			const TArray<Chaos::FConvex::FVec3Type> Vertices(IcoSphere_Subdiv1, IcoSphere_Subdiv1_Num);
 
 			FTransformedConvex& TransformedConvex = InOutConvex.Emplace_GetRef();
-			TransformedConvex.Convex = MakeShared<Chaos::FConvex>(Vertices, 0);
+			TransformedConvex.Convex = Chaos::FConvexPtr( new Chaos::FConvex(Vertices, 0));
 			TransformedConvex.Transform = SphereTransform * Transform;
 		}
 		break;
@@ -2793,7 +2790,7 @@ void FGeometryCollectionConvexUtility::ConvertImplicitToConvexArray(const Chaos:
 			Vertices.Add({ B.X, B.Y, B.Z });
 
 			FTransformedConvex& TransformedConvex = InOutConvex.Emplace_GetRef();
-			TransformedConvex.Convex = MakeShared<Chaos::FConvex>(Vertices, 0);
+			TransformedConvex.Convex = Chaos::FConvexPtr( new Chaos::FConvex(Vertices, 0));
 			TransformedConvex.Transform = Transform;
 		}
 		break;
@@ -2815,7 +2812,7 @@ void FGeometryCollectionConvexUtility::ConvertImplicitToConvexArray(const Chaos:
 			}
 
 			FTransformedConvex& TransformedConvex = InOutConvex.Emplace_GetRef();
-			TransformedConvex.Convex = MakeShared<Chaos::FConvex>(Vertices, 0);
+			TransformedConvex.Convex = Chaos::FConvexPtr( new Chaos::FConvex(Vertices, 0));
 			TransformedConvex.Transform = CapsuleTransform * Transform;
 		}
 		break;
@@ -2826,8 +2823,7 @@ void FGeometryCollectionConvexUtility::ConvertImplicitToConvexArray(const Chaos:
 		if (const Chaos::FConvex* Convex = InImplicit.template GetObject<Chaos::FConvex>())
 		{
 			FTransformedConvex& TransformedConvex = InOutConvex.Emplace_GetRef();
-			TUniquePtr<Chaos::FConvex> CopiedConvex = Convex->CopyAsConvex();
-			TransformedConvex.Convex = TSharedPtr<Chaos::FConvex>(CopiedConvex.Release());
+			TransformedConvex.Convex = Chaos::FConvexPtr(Convex->RawCopyAsConvex());
 			TransformedConvex.Transform = Transform;
 		}
 		break;
@@ -2876,8 +2872,7 @@ void FGeometryCollectionConvexUtility::ConvertScaledImplicitToConvexArray(
 		if (Convex)
 		{
 			FTransformedConvex& TransformedConvex = InOutConvex.Emplace_GetRef();
-			TUniquePtr<Chaos::FConvex> CopiedConvex = Convex->CopyAsConvex();
-			TransformedConvex.Convex = TSharedPtr<Chaos::FConvex>(CopiedConvex.Release());
+			TransformedConvex.Convex = Chaos::FConvexPtr(Convex->RawCopyAsConvex());
 			TransformedConvex.Transform = ScaleTM * WorldSpaceTransform;
 		}
 		break;
@@ -2915,8 +2910,7 @@ void FGeometryCollectionConvexUtility::ConvertInstancedImplicitToConvexArray(
 		if (const Chaos::FConvex* Convex = Instanced->GetInstancedObject())
 		{
 			FTransformedConvex& TransformedConvex = InOutConvex.Emplace_GetRef();
-			TUniquePtr<Chaos::FConvex> CopiedConvex = Convex->CopyAsConvex();
-			TransformedConvex.Convex = TSharedPtr<Chaos::FConvex>(CopiedConvex.Release());
+			TransformedConvex.Convex = Chaos::FConvexPtr(Convex->RawCopyAsConvex());
 			TransformedConvex.Transform = Transform;
 		}
 		break;

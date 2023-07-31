@@ -57,7 +57,7 @@ void CheckChaosMeshCollision(FOutputDevice& Ar)
 	{
 		if (UBodySetup* BodySetup = MeshAsset->GetBodySetup())
 		{
-			for (const TSharedPtr<Chaos::FTriangleMeshImplicitObject, ESPMode::ThreadSafe>& TriMesh : BodySetup->ChaosTriMeshes)
+			for (const Chaos::FTriangleMeshImplicitObjectPtr& TriMesh : BodySetup->TriMeshGeometries)
 			{
 				if (Chaos::FTriangleMeshImplicitObject* TriMeshData = TriMesh.Get())
 				{

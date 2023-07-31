@@ -279,6 +279,7 @@ public:
 		const FKeyType Key = FManagedArrayCollection::MakeMapKey(Name, Group);
 		if (FValueType* FoundValue = Map.Find(Key))
 		{
+			checkSlow(Map[Key].ArrayType == ManagedArrayType<T>());
 			return static_cast<TManagedArray<T>*>(FoundValue->Value);
 		}
 		return nullptr;

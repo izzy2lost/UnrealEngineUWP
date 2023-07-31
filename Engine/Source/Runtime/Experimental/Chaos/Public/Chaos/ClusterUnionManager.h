@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "../../../../../../Restricted/NotForLicensees/Plugins/GeneSplicer/Source/GeneSplicerLib/Private/genesplicer/Macros.h"
 #include "Chaos/ClusterCreationParameters.h"
 #include "Chaos/ParticleHandleFwd.h"
 #include "Containers/Array.h"
@@ -70,7 +71,7 @@ namespace Chaos
 		FPBDRigidClusteredParticleHandle* InternalCluster;
 
 		// The thread-safe collision geometry that can be shared between the GT and PT.
-		TSharedPtr<FImplicitObject, ESPMode::ThreadSafe> SharedGeometry;
+		Chaos::FImplicitObjectPtr Geometry;
 
 		// All the particles that belong to this cluster.
 		TArray<FPBDRigidParticleHandle*> ChildParticles;
@@ -121,15 +122,8 @@ namespace Chaos
 		template<EThreadContext Id>
 		static FImplicitObjectTransformed* CreateTransformGeometryForClusterUnion(TThreadRigidParticle<Id>* Child, const FTransform& Frame)
 		{
-			FImplicitObjectTransformed* TransformedChildGeometry = new TImplicitObjectTransformed<FReal, 3>(Child->Geometry(), Frame);
-			if constexpr (Id == EThreadContext::External)
-			{
-				TransformedChildGeometry->SetSharedObject(Child->GeometrySharedLowLevel());
-			}
-			else
-			{
-				TransformedChildGeometry->SetSharedObject(Child->SharedGeometry());
-			}
+			FImplicitObjectTransformed* TransformedChildGeometry = new TImplicitObjectTransformed<FReal, 3>(Child->GetGeometry(), Frame);
+			TransformedChildGeometry->SetGeometry(Child->GetGeometry());
 			return TransformedChildGeometry;
 		}
 
@@ -162,7 +156,7 @@ namespace Chaos
 
 		// Update cluster union properties here if they were deferred. This can be called manually but will otherwise also be handled in FlushPendingOperations.
 		CHAOS_API void HandleDeferredClusterUnionUpdateProperties();
-
+		
 		// Access the cluster union externally.
 		CHAOS_API FClusterUnion* FindClusterUnionFromExplicitIndex(FClusterUnionExplicitIndex Index);
 		CHAOS_API FClusterUnion* FindClusterUnion(FClusterUnionIndex Index);
@@ -233,7 +227,14 @@ namespace Chaos
 		CHAOS_API FClusterUnionIndex GetOrCreateClusterUnionIndexFromExplicitIndex(FClusterUnionExplicitIndex InIndex);
 
 		// Forcefully recreate the shared geometry on a cluster. Potentially expensive so ideally should be used rarely.
-		CHAOS_API TSharedPtr<FImplicitObject, ESPMode::ThreadSafe> ForceRecreateClusterUnionSharedGeometry(const FClusterUnion& Union);
+		CHAOS_API FImplicitObjectPtr ForceRecreateClusterUnionGeometry(const FClusterUnion& Union);
+
+		UE_DEPRECATED(5.4, "Please use ForceRecreateClusterUnionGeometry instead")
+		CHAOS_API TSharedPtr<FImplicitObject, ESPMode::ThreadSafe> ForceRecreateClusterUnionSharedGeometry(const FClusterUnion& Union)
+		{
+			check(false);
+			return nullptr;
+		}
 
 		// Handles updating the cluster union.
 		CHAOS_API void DeferredClusterUnionUpdate(FClusterUnion& Union, EUpdateClusterUnionPropertiesFlags Flags);
@@ -241,5 +242,60 @@ namespace Chaos
 		// Flush the cluster union's incremental connectivity operations
 		CHAOS_API void FlushIncrementalConnectivityGraphOperations(FClusterUnion& ClusterUnion);
 	};
+
+	// Update all the shapes datas including the simplified ones
+	template<typename ParticleType>
+	void UpdateShapesDatas(const TArray<ParticleType*>& ShapesParticles,
+		const FShapesArray& ShapesArray, const int32 ActorId, const int32 ComponentID, const int32 NumSimpleShapes)
+	{
+		auto TransferShapeData = [&ActorId, &ComponentID](const TUniquePtr<Chaos::FPerShapeData>& ShapeData, const TUniquePtr<Chaos::FPerShapeData>& TemplateShape)
+		{
+			if (ShapeData && TemplateShape)
+			{
+				{
+					FCollisionData Data = TemplateShape->GetCollisionData();
+					Data.UserData = nullptr;
+					ShapeData->SetCollisionData(Data);
+				}
+
+				{
+					FCollisionFilterData Data = TemplateShape->GetQueryData();
+					Data.Word0 = ActorId;
+					ShapeData->SetQueryData(Data);
+				}
+
+				{
+					FCollisionFilterData Data = TemplateShape->GetSimData();
+					Data.Word0 = 0;
+					Data.Word2 = ComponentID;
+					ShapeData->SetSimData(Data);
+				}
+			}
+		};
+		if (!ShapesParticles.IsEmpty() && (ShapesParticles.Num() <= (ShapesArray.Num()-NumSimpleShapes)))
+		{
+			const int32 ShapesOffset = ShapesArray.Num() - ShapesParticles.Num();
+			for (int32 ParticleIndex = 0; ParticleIndex < ShapesParticles.Num(); ++ParticleIndex)
+			{
+				const TUniquePtr<Chaos::FPerShapeData>& ShapeData = ShapesArray[ShapesOffset+ParticleIndex];
+				const TUniquePtr<Chaos::FPerShapeData>& TemplateShape = ShapesParticles[ParticleIndex]->ShapesArray()[0];
+				TransferShapeData(ShapeData, TemplateShape);
+				
+				if(ShapeData && NumSimpleShapes > 0)
+				{
+					ShapeData->SetSimEnabled(false);
+				}
+			}
+			for (int32 ShapeIndex = 0; ShapeIndex < NumSimpleShapes; ++ShapeIndex)
+			{
+				const TUniquePtr<Chaos::FPerShapeData>& ShapeData = ShapesArray[ShapeIndex];
+				const TUniquePtr<Chaos::FPerShapeData>& TemplateShape = ShapesParticles[0]->ShapesArray()[0];
+				TransferShapeData(ShapeData, TemplateShape);
+				
+				ShapeData->SetQueryEnabled(false);
+			}
+		}
+	}
+	
 
 }

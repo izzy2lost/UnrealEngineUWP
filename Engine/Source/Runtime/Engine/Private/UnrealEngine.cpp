@@ -6569,7 +6569,7 @@ bool UEngine::HandleListStaticMeshesCommand(const TCHAR* Cmd, FOutputDevice& Ar)
 		int32 VertexCountCollision = 0;
 		if(Mesh->GetBodySetup())
 		{
-			for (auto& TriMesh : Mesh->GetBodySetup()->ChaosTriMeshes)
+			for (auto& TriMesh : Mesh->GetBodySetup()->TriMeshGeometries)
 			{
 				VertexCountCollision += TriMesh->Particles().Size();
 			}
@@ -6880,7 +6880,7 @@ bool UEngine::HandleListSkeletalMeshesCommand(const TCHAR* Cmd, FOutputDevice& A
 		const USkeletalMesh* MeshConst = Mesh;
 		if (MeshConst->GetBodySetup())
 		{
-			for (auto& TriMesh : MeshConst->GetBodySetup()->ChaosTriMeshes)
+			for (auto& TriMesh : MeshConst->GetBodySetup()->TriMeshGeometries)
 			{
 				VertexCountCollision += TriMesh->Particles().Size();
 			}

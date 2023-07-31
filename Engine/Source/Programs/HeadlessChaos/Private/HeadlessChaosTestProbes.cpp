@@ -34,8 +34,8 @@ namespace ChaosTest
 		TPBDRigidParticleHandle<FReal, 3>* Dynamic = Evolution.CreateDynamicParticles(1)[0];
 
 		// Create box geometry 
-		TUniquePtr<FImplicitObject> SmallBox(new TBox<FReal, 3>(FVec3(-BoxHalfSize, -BoxHalfSize, -BoxHalfSize), FVec3(BoxHalfSize, BoxHalfSize, BoxHalfSize)));
-		Static->SetGeometry(MakeSerializable(SmallBox));
+		Chaos::FImplicitObjectPtr SmallBox(new TBox<FReal, 3>(FVec3(-BoxHalfSize, -BoxHalfSize, -BoxHalfSize), FVec3(BoxHalfSize, BoxHalfSize, BoxHalfSize)));
+		Static->SetGeometry(SmallBox);
 		AppendDynamicParticleConvexBox(*Dynamic, FVec3(BoxHalfSize), 0.0f);
 		Dynamic->SetGravityEnabled(false);
 
@@ -85,8 +85,8 @@ namespace ChaosTest
 		TPBDRigidParticleHandle<FReal, 3>* Dynamic = Evolution.CreateDynamicParticles(1)[0];
 
 		// Create box geometry 
-		TUniquePtr<FImplicitObject> SmallBox(new TBox<FReal, 3>(FVec3(-BoxHalfSize, -BoxHalfSize, -BoxHalfSize), FVec3(BoxHalfSize, BoxHalfSize, BoxHalfSize)));
-		Static->SetGeometry(MakeSerializable(SmallBox));
+		Chaos::FImplicitObjectPtr SmallBox(new TBox<FReal, 3>(FVec3(-BoxHalfSize, -BoxHalfSize, -BoxHalfSize), FVec3(BoxHalfSize, BoxHalfSize, BoxHalfSize)));
+		Static->SetGeometry(SmallBox);
 		AppendDynamicParticleConvexBox(*Dynamic, FVec3(BoxHalfSize), 0.0f);
 		Dynamic->SetGravityEnabled(false);
 

@@ -7,6 +7,7 @@
 #include "Chaos/ImplicitFwd.h"
 #include "Chaos/ImplicitObjectType.h"
 #include "Chaos/AABB.h"
+#include "Templates/RefCounting.h"
 
 #ifndef TRACK_CHAOS_GEOMETRY
 #define TRACK_CHAOS_GEOMETRY !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -40,22 +41,22 @@ struct TImplicitObjectPtrStorage
 template<class T, int d>
 struct TImplicitObjectPtrStorage<T, d, false>
 {
-	using PtrType = FImplicitObject*;
+	using PtrType = FImplicitObjectRef;
 
-	static PtrType Convert(const TUniquePtr<FImplicitObject>& Object)
+	static PtrType Convert(const Chaos::FImplicitObjectPtr& Object)
 	{
-		return Object.Get();
+		return Object.GetReference();
 	}
 };
 
 template<class T, int d>
 struct TImplicitObjectPtrStorage<T, d, true>
 {
-	using PtrType = TSerializablePtr<FImplicitObject>;
+	using PtrType = FImplicitObjectPtr;
 
-	static PtrType Convert(const TUniquePtr<FImplicitObject>& Object)
+	static PtrType Convert(const Chaos::FImplicitObjectPtr& Object)
 	{
-		return MakeSerializable(Object);
+		return Object;
 	}
 };
 
@@ -101,18 +102,8 @@ struct TImplicitTypeInfo
 // This is a compiler-dependent behavior, so if you are not seeing any other compile time errors about sizeof(FImplicitObject) + offsetof(...) with this disabled,
 // you should be OK.
 #define DISALLOW_FIMPLICIT_OBJECT_TAIL_PADDING INTEL_ISPC
-
-#if DISALLOW_FIMPLICIT_OBJECT_TAIL_PADDING
-// This enables errors if any padding is added by the compiler. You can fix the errors by rearranging fields and/or adding explicit padding.
-#if defined(__clang__) || defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic error "-Wpadded"
-#elif defined(_MSC_VER)
-#pragma warning(push)
-#pragma warning(error : 4820)
-#endif
-#endif // #if DISALLOW_FIMPLICIT_OBJECT_TAIL_PADDING
-class FImplicitObject
+	
+class FImplicitObject : public FThreadSafeRefCountedObject
 {
 public:
 	using TType = FReal;
@@ -122,7 +113,7 @@ public:
 	CHAOS_API FImplicitObject(int32 Flags, EImplicitObjectType InType = ImplicitObjectType::Unknown);
 	FImplicitObject(const FImplicitObject&) = delete;
 	FImplicitObject(FImplicitObject&&) = delete;
-	CHAOS_API virtual ~FImplicitObject();
+	CHAOS_API virtual ~FImplicitObject() override;
 
 	// Can this object be cast to type T_DERIVED?
 	template<typename TargetType>
@@ -166,7 +157,6 @@ public:
 		return static_cast<TargetType*>(this);
 	}
 
-
 	template<class T_DERIVED>
 	T_DERIVED* GetObject()
 	{
@@ -201,25 +191,40 @@ public:
 		return static_cast<T_DERIVED&>(*this);
 	}
 
-	//Not all implicit objects can be duplicated, up to user code to use this in cases that make sense
-	virtual FImplicitObject* Duplicate() const { check(false); return nullptr; }
-
 	virtual EImplicitObjectType GetNestedType() const { return GetType(); }
 	CHAOS_API EImplicitObjectType GetType() const;
 	static int32 GetOffsetOfType() { return offsetof(FImplicitObject, Type); }
 
 	CHAOS_API EImplicitObjectType GetCollisionType() const;
+	
 	void SetCollisionType(EImplicitObjectType InCollisionType) { CollisionType = InCollisionType; }
-
-	FReal GetMargin() const { return Margin; }
+	
+	virtual FReal GetRadius() const { return 0.0f; }
+	virtual FReal GetMargin() const { return Margin; }
+	
 	static int32 GetOffsetOfMargin() { return offsetof(FImplicitObject, Margin); }
 
 	CHAOS_API virtual bool IsValidGeometry() const;
 
-	CHAOS_API virtual TUniquePtr<FImplicitObject> Copy() const;
-	CHAOS_API virtual TUniquePtr<FImplicitObject> CopyWithScale(const FVec3& Scale) const;
-	virtual TUniquePtr<FImplicitObject> DeepCopy() const { return Copy(); }
-	virtual TUniquePtr<FImplicitObject> DeepCopyWithScale(const FVec3& Scale) const { return CopyWithScale(Scale); }
+	CHAOS_API virtual Chaos::FImplicitObjectPtr CopyGeometry() const;
+	CHAOS_API virtual Chaos::FImplicitObjectPtr CopyGeometryWithScale(const FVec3& Scale) const;
+	CHAOS_API virtual Chaos::FImplicitObjectPtr DeepCopyGeometry() const { return CopyGeometry(); } 
+	CHAOS_API virtual Chaos::FImplicitObjectPtr DeepCopyGeometryWithScale(const FVec3& Scale) const { return CopyGeometryWithScale(Scale); }
+
+	UE_DEPRECATED(5.4, "Please use DeepCopyGeometry instead")
+	virtual FImplicitObject* Duplicate() const { check(false); return nullptr; }
+	
+	UE_DEPRECATED(5.4, "Please use CopyGeometry instead")
+	virtual TUniquePtr<FImplicitObject> Copy() const { check(false); return nullptr; }
+	
+	UE_DEPRECATED(5.4, "Please use CopyGeometryWithScale instead")
+    virtual TUniquePtr<FImplicitObject> CopyWithScale(const FVec3& Scale) const { check(false); return nullptr; }
+    
+	UE_DEPRECATED(5.4, "Please use DeepCopyGeometry instead")
+    virtual TUniquePtr<FImplicitObject> DeepCopy() const { check(false); return nullptr; }
+    
+	UE_DEPRECATED(5.4, "Please use DeepCopyGeometryWithScale instead")
+    virtual TUniquePtr<FImplicitObject> DeepCopyWithScale(const FVec3& Scale) const { check(false); return nullptr; }
 
 	//This is strictly used for optimization purposes
 	CHAOS_API bool IsUnderlyingUnion() const;
@@ -357,14 +362,16 @@ public:
 		return SignedDistance(Point) <= Thickness;
 	}
 
+	
 	virtual void AccumulateAllImplicitObjects(TArray<Pair<const FImplicitObject*, FRigidTransform3>>& Out, const FRigidTransform3& ParentTM) const
 	{
 		Out.Add(MakePair(this, ParentTM));
 	}
 
+	UE_DEPRECATED(5.4, "Function no longer in use")
 	virtual void AccumulateAllSerializableImplicitObjects(TArray<Pair<TSerializablePtr<FImplicitObject>, FRigidTransform3>>& Out, const FRigidTransform3& ParentTM, TSerializablePtr<FImplicitObject> This) const
 	{
-		Out.Add(MakePair(This, ParentTM));
+		check(false);
 	}
 
 	CHAOS_API virtual void FindAllIntersectingObjects(TArray < Pair<const FImplicitObject*, FRigidTransform3>>& Out, const FAABB3& LocalBounds) const;
@@ -571,13 +578,6 @@ protected:
 private:
 	CHAOS_API virtual Pair<FVec3, bool> FindClosestIntersectionImp(const FVec3& StartPoint, const FVec3& EndPoint, const FReal Thickness) const;
 };
-#if DISALLOW_FIMPLICIT_OBJECT_TAIL_PADDING
-#if defined(__clang__) || defined(__GNUC__)
-#pragma GCC diagnostic pop
-#elif defined(_MSC_VER)
-#pragma warning(pop)
-#endif
-#endif // DISALLOW_FIMPLICIT_OBJECT_TAIL_PADDING
 
 FORCEINLINE FChaosArchive& operator<<(FChaosArchive& Ar, FImplicitObject& Value)
 {
@@ -594,4 +594,24 @@ FORCEINLINE FArchive& operator<<(FArchive& Ar, FImplicitObject& Value)
 typedef FImplicitObject FImplicitObject3;
 typedef TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe> ThreadSafeSharedPtr_FImplicitObject;
 typedef TSharedPtr<Chaos::FImplicitObject, ESPMode::NotThreadSafe> NotThreadSafeSharedPtr_FImplicitObject;
+}
+
+template <
+	typename T,
+	typename... TArgs
+	UE_REQUIRES(!std::is_array_v<T>)
+>
+FORCEINLINE Chaos::FImplicitObjectPtr MakeImplicitObjectPtr(TArgs&&... Args)
+{
+	return Chaos::FImplicitObjectPtr(new T(Forward<TArgs>(Args)...));
+}
+
+template <
+	typename T,
+	typename... TArgs
+	UE_REQUIRES(!std::is_array_v<T>)
+>
+FORCEINLINE Chaos::FConstImplicitObjectPtr MakeImplicitObjectConstPtr(TArgs&&... Args)
+{
+	return TRefCountPtr<const Chaos::FImplicitObject>(new T(Forward<TArgs>(Args)...));
 }

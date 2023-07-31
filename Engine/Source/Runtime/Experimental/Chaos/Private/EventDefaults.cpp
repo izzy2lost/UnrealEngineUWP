@@ -390,8 +390,8 @@ namespace Chaos
 				if (ensure(FMath::IsFinite(ActiveParticle->InvM())))
 				{
 					if (ActiveParticle->InvM() != 0.f &&
-						ActiveParticle->Geometry() &&
-						ActiveParticle->Geometry()->HasBoundingBox())
+						ActiveParticle->GetGeometry() &&
+						ActiveParticle->GetGeometry()->HasBoundingBox())
 					{
 						if (ensure(!ActiveParticle->X().ContainsNaN() &&
 							!ActiveParticle->V().ContainsNaN() &&
@@ -405,9 +405,9 @@ namespace Chaos
 							TrailingData.Mass = ActiveParticle->M();
 							TrailingData.Proxy = ActiveParticle->PhysicsProxy();
 							
-							if (ActiveParticle->Geometry()->HasBoundingBox())
+							if (ActiveParticle->GetGeometry()->HasBoundingBox())
 							{
-								TrailingData.BoundingBox = ActiveParticle->Geometry()->BoundingBox();
+								TrailingData.BoundingBox = ActiveParticle->GetGeometry()->BoundingBox();
 							}
 
 							if (TrailingData.Proxy->GetType() == EPhysicsProxyType::GeometryCollectionType)

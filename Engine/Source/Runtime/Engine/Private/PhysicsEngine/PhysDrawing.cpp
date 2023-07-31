@@ -956,7 +956,7 @@ static void DrawSkinnedLevelSetLattice(class FPrimitiveDrawInterface* PDI, const
 
 void FKSkinnedLevelSetElem::DrawElemWire(class FPrimitiveDrawInterface* PDI, const FTransform& ElemTM, float Scale, const FColor Color) const
 {
-	if (WeightedLevelSet.IsValid())
+	if (WeightedLatticeLevelSet.IsValid())
 	{
 		constexpr float HSVHueShift = 240.f;
 		constexpr float HSVSaturationMult = 0.5f;
@@ -972,23 +972,23 @@ void FKSkinnedLevelSetElem::DrawElemWire(class FPrimitiveDrawInterface* PDI, con
 		ShiftedColorHSV.B *= HSVValueMult;
 		ShiftedColorHSV.A *= HSVAlphaMult;
 
-		DrawSkinnedLevelSetLattice(PDI, ElemTM.ToMatrixWithScale(), ShiftedColorHSV.HSVToLinearRGB().ToFColor(true), WeightedLevelSet.Get());
+		DrawSkinnedLevelSetLattice(PDI, ElemTM.ToMatrixWithScale(), ShiftedColorHSV.HSVToLinearRGB().ToFColor(true), WeightedLatticeLevelSet.GetReference());
 	}
 }
 
 void FKSkinnedLevelSetElem::DrawElemSolid(class FPrimitiveDrawInterface* PDI, const FTransform& ElemTM, float Scale, const FMaterialRenderProxy* MaterialRenderProxy) const
 {
-	if (WeightedLevelSet.IsValid())
+	if (WeightedLatticeLevelSet.IsValid())
 	{
 		TArray<FVector3f> Vertices;
 		TArray<FIntVector> Tris;
-		const Chaos::FLevelSet* const LevelSet = WeightedLevelSet->GetEmbeddedObject();
+		const Chaos::FLevelSet* const LevelSet = WeightedLatticeLevelSet->GetEmbeddedObject();
 		LevelSet->GetZeroIsosurfaceGridCellFaces(Vertices, Tris);
 
 		FDynamicMeshBuilder MeshBuilder(PDI->View->GetFeatureLevel());
 		for (const FVector3f& V : Vertices)
 		{
-			MeshBuilder.AddVertex(FDynamicMeshVertex(FVector3f(WeightedLevelSet->GetDeformedPoint(Chaos::FVec3(V)))));
+			MeshBuilder.AddVertex(FDynamicMeshVertex(FVector3f(WeightedLatticeLevelSet->GetDeformedPoint(Chaos::FVec3(V)))));
 		}
 		for (const FIntVector& T : Tris)
 		{
@@ -1001,17 +1001,17 @@ void FKSkinnedLevelSetElem::DrawElemSolid(class FPrimitiveDrawInterface* PDI, co
 
 void FKSkinnedLevelSetElem::GetElemSolid(const FTransform& ElemTM, const FVector& Scale3D, const FMaterialRenderProxy* MaterialRenderProxy, int32 ViewIndex, class FMeshElementCollector& Collector) const
 {
-	if (WeightedLevelSet.IsValid())
+	if (WeightedLatticeLevelSet.IsValid())
 	{
 		TArray<FVector3f> Vertices;
 		TArray<FIntVector> Tris;
-		const Chaos::FLevelSet* const LevelSet = WeightedLevelSet->GetEmbeddedObject();
+		const Chaos::FLevelSet* const LevelSet = WeightedLatticeLevelSet->GetEmbeddedObject();
 		LevelSet->GetZeroIsosurfaceGridCellFaces(Vertices, Tris);
 
 		FDynamicMeshBuilder MeshBuilder(Collector.GetPDI(ViewIndex)->View->GetFeatureLevel());
 		for (const FVector3f& V : Vertices)
 		{
-			MeshBuilder.AddVertex(FDynamicMeshVertex(FVector3f(WeightedLevelSet->GetDeformedPoint(Chaos::FVec3(V)))));
+			MeshBuilder.AddVertex(FDynamicMeshVertex(FVector3f(WeightedLatticeLevelSet->GetDeformedPoint(Chaos::FVec3(V)))));
 		}
 		for (const FIntVector& T : Tris)
 		{

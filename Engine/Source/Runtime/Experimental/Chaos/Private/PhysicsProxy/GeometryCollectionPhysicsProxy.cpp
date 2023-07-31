@@ -124,7 +124,7 @@ FAutoConsoleVariableRef CVarGeometryCollectionLocalInertiaDropOffDiagonalTerms(
 DEFINE_LOG_CATEGORY_STATIC(UGCC_LOG, Error, All);
 
 static const FSharedSimulationSizeSpecificData& GetSizeSpecificData(const TArray<FSharedSimulationSizeSpecificData>& SizeSpecificData, const FGeometryCollection& RestCollection, const int32 TransformIndex, const FBox& BoundingBox);
-static TUniquePtr<Chaos::FImplicitObject> MakeTransformImplicitObject(const Chaos::FImplicitObject& ImplicitObject, const Chaos::FRigidTransform3& Transform);
+static Chaos::FImplicitObjectPtr MakeTransformImplicitObject(const Chaos::FImplicitObject& ImplicitObject, const Chaos::FRigidTransform3& Transform);
 
 //==============================================================================
 // FGeometryCollectionResults
@@ -231,7 +231,7 @@ void PopulateSimulatedParticle(
 	Chaos::TPBDRigidParticleHandle<Chaos::FReal,3>* Handle,
 	const FSharedSimulationParameters& SharedParams,
 	const FCollisionStructureManager::FSimplicial* Simplicial,
-	FGeometryDynamicCollection::FSharedImplicit Implicit,
+	Chaos::FImplicitObjectPtr Implicit,
 	const FCollisionFilterData SimFilterIn,
 	const FCollisionFilterData QueryFilterIn,
 	Chaos::FReal MassIn,
@@ -300,15 +300,15 @@ void PopulateSimulatedParticle(
 	const FVector Scale = WorldTransform.GetScale3D();
 	if (Implicit)	//todo(ocohen): this is only needed for cases where clusters have no proxy. Kind of gross though, should refactor
 	{
-		auto DeepCopyImplicit = [&Scale](FGeometryDynamicCollection::FSharedImplicit ImplicitToCopy) -> TUniquePtr<Chaos::FImplicitObject>
+		auto DeepCopyImplicit = [&Scale](Chaos::FImplicitObjectPtr ImplicitToCopy) -> Chaos::FImplicitObjectPtr
 		{
 			if (Scale.Equals(FVector::OneVector))
 			{
-				return ImplicitToCopy->DeepCopy();
+				return ImplicitToCopy->DeepCopyGeometry();
 			}
 			else
 			{
-				return ImplicitToCopy->DeepCopyWithScale(Scale);
+				return ImplicitToCopy->DeepCopyGeometryWithScale(Scale);
 			}
 		};
 
@@ -317,14 +317,14 @@ void PopulateSimulatedParticle(
 		if (SingleSupportedCollisionTypeData.CollisionType != ECollisionTypeEnum::Chaos_Surface_Volumetric && 
 			ImplicitType != Chaos::ImplicitObjectType::LevelSet && Scale.Equals(FVector::OneVector))
 		{
-			Handle->SetSharedGeometry(Implicit);
+			Handle->SetGeometry(Implicit);
 			Handle->SetLocalBounds(Implicit->BoundingBox());
 		}
 		else
 		{
-			TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe> SharedImplicitTS(DeepCopyImplicit(Implicit).Release());
-			FCollisionStructureManager::UpdateImplicitFlags(SharedImplicitTS.Get(), SingleSupportedCollisionTypeData.CollisionType);
-			Handle->SetSharedGeometry(SharedImplicitTS);
+			Chaos::FImplicitObjectPtr SharedImplicitTS = DeepCopyImplicit(Implicit);
+			FCollisionStructureManager::UpdateImplicitFlags(SharedImplicitTS.GetReference(), SingleSupportedCollisionTypeData.CollisionType);
+			Handle->SetGeometry(SharedImplicitTS);
 			Handle->SetLocalBounds(SharedImplicitTS->BoundingBox());
 		}
 		Handle->SetHasBounds(true);
@@ -571,11 +571,10 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 				P->SetUserData(Parameters.UserData);
 				P->SetProxy(this);
 
-				FGeometryDynamicCollection::FSharedImplicit ImplicitGeometry = GameThreadCollection.Implicits[Index];
+				Chaos::FImplicitObjectPtr ImplicitGeometry = GameThreadCollection.Implicits[Index];
 				if (ImplicitGeometry && !Scale.Equals(FVector::OneVector))
 				{
-					TUniquePtr<Chaos::FImplicitObject> ScaledImplicit = ImplicitGeometry->CopyWithScale(Scale);
-					ImplicitGeometry = FGeometryDynamicCollection::FSharedImplicit(ScaledImplicit.Release());
+					ImplicitGeometry = ImplicitGeometry->CopyGeometryWithScale(Scale);
 				}
 				P->SetGeometry(ImplicitGeometry);
 
@@ -644,16 +643,16 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 						if (bAllChildrenHaveCollision)
 						{
 							// Make a union of the children geometry
-							TArray<TUniquePtr<Chaos::FImplicitObject>> ChildImplicits;
+							TArray<Chaos::FImplicitObjectPtr> ChildImplicits;
 							for (const int32& ChildIndex : GameThreadCollection.Children[ParentToFixIndex])
 							{
-								const FGeometryDynamicCollection::FSharedImplicit& ChildImplicit = GameThreadCollection.Implicits[ChildIndex];
+								const Chaos::FImplicitObjectPtr& ChildImplicit = GameThreadCollection.Implicits[ChildIndex];
 								if (ChildImplicit)
 								{
 									const Chaos::FRigidTransform3 ChildShapeTransform = GameThreadCollection.MassToLocal[ChildIndex] * GameThreadCollection.Transform[ChildIndex];
 									const Chaos::FRigidTransform3 RelativeShapeTransform = ChildShapeTransform.GetRelativeTransform(ParentShapeTransform);
 
-									TUniquePtr<Chaos::FImplicitObject> TransformedChildImplicit = MakeTransformImplicitObject(*ChildImplicit, RelativeShapeTransform);
+									Chaos::FImplicitObjectPtr TransformedChildImplicit = MakeTransformImplicitObject(*ChildImplicit, RelativeShapeTransform);
 
 									// if this remains a union we need to unpack it 
 									if (TransformedChildImplicit->IsUnderlyingUnion())
@@ -671,7 +670,7 @@ void FGeometryCollectionPhysicsProxy::Initialize(Chaos::FPBDRigidsEvolutionBase 
 							if (ChildImplicits.Num() > 0)
 							{
 								Chaos::FImplicitObject* UnionImplicit = new Chaos::FImplicitObjectUnion(MoveTemp(ChildImplicits));
-								GameThreadCollection.Implicits[ParentToFixIndex] = FGeometryDynamicCollection::FSharedImplicit(UnionImplicit);
+								GameThreadCollection.Implicits[ParentToFixIndex] = Chaos::FImplicitObjectPtr(UnionImplicit);
 							}
 							if (GTParticles[ParentToFixIndex] != nullptr)
 							{
@@ -977,7 +976,7 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 		const TManagedArray<int32>& CollisionGroup = DynamicCollection.CollisionGroup;
 		const TManagedArray<bool>& SimulatableParticles = DynamicCollection.SimulatableParticles;
 		const TManagedArray<FTransform>& MassToLocal = DynamicCollection.MassToLocal;
-		const TManagedArray<FGeometryDynamicCollection::FSharedImplicit>& Implicits = DynamicCollection.Implicits;
+		const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.Implicits;
 		const TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>>& Simplicials = DynamicCollection.Simplicials;
 		const TManagedArray<TSet<int32>>& Children = DynamicCollection.Children;
 		const TManagedArray<int32>& Parent = DynamicCollection.Parent;
@@ -1095,13 +1094,13 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 				RigidsSolver->GetEvolution()->EnableParticle(ClusterHandle);
 
 				// Enable the BVH on the collision (if there are lots of shapes)
-				if (ClusterHandle->Geometry().Get() != nullptr)
+				if (ClusterHandle->GetGeometry() != nullptr)
 				{
-					if (const Chaos::FImplicitObjectUnion* Union = ClusterHandle->Geometry()->GetObject<Chaos::FImplicitObjectUnion>())
+					if (const Chaos::FImplicitObjectUnion* Union = ClusterHandle->GetGeometry()->GetObject<Chaos::FImplicitObjectUnion>())
 					{
 						const_cast<Chaos::FImplicitObjectUnion*>(Union)->SetAllowBVH(true);
 					}
-					else if (const Chaos::FImplicitObjectUnion* UnionClustered = ClusterHandle->Geometry()->GetObject<Chaos::FImplicitObjectUnionClustered>())
+					else if (const Chaos::FImplicitObjectUnion* UnionClustered = ClusterHandle->GetGeometry()->GetObject<Chaos::FImplicitObjectUnionClustered>())
 					{
 						const_cast<Chaos::FImplicitObjectUnion*>(UnionClustered)->SetAllowBVH(true);
 					}
@@ -1519,7 +1518,7 @@ float FGeometryCollectionPhysicsProxy::ComputeUserDefinedDamageThreshold_Interna
 			// bounding box volume is used as a fallback to find specific size if the relative size if not available
 			// ( May happen with older GC )
 			FBox LocalBoundingBox;
-			const FGeometryDynamicCollection::FSharedImplicit& Implicit = PhysicsThreadCollection.Implicits[TransformIndex];
+			const Chaos::FImplicitObjectPtr& Implicit = PhysicsThreadCollection.Implicits[TransformIndex];
 			if (Implicit && Implicit->HasBoundingBox())
 			{
 				const Chaos::FAABB3& ImplicitBoundingBox = Implicit->BoundingBox();
@@ -1564,7 +1563,7 @@ Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectio
 	TManagedArray<TSet<int32>>& Children = DynamicCollection.Children;
 	TManagedArray<FTransform>& Transform = DynamicCollection.Transform;
 	TManagedArray<FTransform>& MassToLocal = DynamicCollection.MassToLocal;
-	const TManagedArray<FGeometryDynamicCollection::FSharedImplicit>& Implicits = DynamicCollection.Implicits;
+	const TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.Implicits;
 	const TManagedArray<TUniquePtr<FCollisionStructureManager::FSimplicial>>& Simplicials = DynamicCollection.Simplicials;
 	Chaos::Facades::FCollectionAnchoringFacade AnchoringFacade(DynamicCollection);
 
@@ -1660,10 +1659,10 @@ Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectio
 	const FTransform ParentTransform = GeometryCollectionAlgo::GlobalMatrix(DynamicCollection.Transform, DynamicCollection.Parent, CollectionClusterIndex);
 
 	// Populate bounds as we didn't pass a shared implicit to PopulateSimulatedParticle this will have been skipped, now that we have the full cluster we can build it
-	if (Handle->Geometry() && Handle->Geometry()->HasBoundingBox())
+	if (Handle->GetGeometry() && Handle->GetGeometry()->HasBoundingBox())
 	{
 		Handle->SetHasBounds(true);
-		Handle->SetLocalBounds(Handle->Geometry()->BoundingBox());
+		Handle->SetLocalBounds(Handle->GetGeometry()->BoundingBox());
 		const Chaos::FRigidTransform3 Xf(Handle->X(), Handle->R());
 		Handle->UpdateWorldSpaceState(Xf, Chaos::FVec3(0));
 
@@ -1695,7 +1694,7 @@ FGeometryCollectionPhysicsProxy::BuildClusters_Internal(
 	TManagedArray<FTransform>& Transform = DynamicCollection.Transform;
 	TManagedArray<FTransform>& MassToLocal = DynamicCollection.MassToLocal;
 	//TManagedArray<TSharedPtr<FCollisionStructureManager::FSimplicial> >& Simplicials = DynamicCollection.Simplicials;
-	TManagedArray<FGeometryDynamicCollection::FSharedImplicit>& Implicits = DynamicCollection.Implicits;
+	TManagedArray<Chaos::FImplicitObjectPtr>& Implicits = DynamicCollection.Implicits;
 
 	//If we are a root particle use the world transform, otherwise set the relative transform
 	const FTransform CollectionSpaceTransform = GeometryCollectionAlgo::GlobalMatrix(Transform, ParentIndex, CollectionClusterIndex);
@@ -1735,8 +1734,7 @@ FGeometryCollectionPhysicsProxy::BuildClusters_Internal(
 			ExistingIndex
 			);
 
-	if (ReportNoLevelsetCluster && 
-		Parent->DynamicGeometry())
+	if (ReportNoLevelsetCluster && Parent->GetGeometry())
 	{
 		//ensureMsgf(false, TEXT("Union object generated for cluster"));
 		UE_LOG(LogChaos, Warning, TEXT("Union object generated for cluster:%s"), *Parameters.Name);
@@ -1822,10 +1820,10 @@ FGeometryCollectionPhysicsProxy::BuildClusters_Internal(
 	Parent->SetCollisionGroup(MinCollisionGroup);
 
 	// Populate bounds as we didn't pass a shared implicit to PopulateSimulatedParticle this will have been skipped, now that we have the full cluster we can build it
-	if(Parent->Geometry() && Parent->Geometry()->HasBoundingBox())
+	if(Parent->GetGeometry() && Parent->GetGeometry()->HasBoundingBox())
 	{
 		Parent->SetHasBounds(true);
-		Parent->SetLocalBounds(Parent->Geometry()->BoundingBox());
+		Parent->SetLocalBounds(Parent->GetGeometry()->BoundingBox());
 		const Chaos::FRigidTransform3 Xf(Parent->X(), Parent->R());
 		Parent->UpdateWorldSpaceState(Xf, Chaos::FVec3(0));
 
@@ -2691,7 +2689,7 @@ void FGeometryCollectionPhysicsProxy::OnRemoveFromSolver(Chaos::FPBDRigidsSolver
 			// create a new cluster if needed
 			if (Children.Num())
 			{
-				if (FClusterHandle* NewParticle = Evolution->GetRigidClustering().CreateClusterParticle(ClusterGroupIndex, MoveTemp(Children)))
+				if (FClusterHandle* NewParticle = Evolution->GetRigidClustering().CreateClusterParticle(ClusterGroupIndex, MoveTemp(Children), Chaos::FClusterCreationParameters(), Chaos::FImplicitObjectPtr(nullptr)))
 				{
 					NewParticle->SetInternalCluster(true);
 				}
@@ -3723,7 +3721,7 @@ static void GenerateInnerAndOuterRadiiIfNeeded(FGeometryCollection& RestCollecti
 	});
 }
 
-static FGeometryDynamicCollection::FSharedImplicit CreateImplicitGeometry(
+static Chaos::FImplicitObjectPtr CreateImplicitGeometry(
 	const FSharedSimulationSizeSpecificData& SizeSpecificData,
 	const int32 TransformGroupIndex,
 	const FGeometryCollection& RestCollection,
@@ -3735,12 +3733,12 @@ static FGeometryDynamicCollection::FSharedImplicit CreateImplicitGeometry(
 	const Chaos::FVec3* ClusterMaxChildBounds = nullptr
 	)
 {
-	FGeometryDynamicCollection::FSharedImplicit NewImplicit;
+	Chaos::FImplicitObjectPtr NewImplicit;
 	if (SizeSpecificData.CollisionShapesData.Num())
 	{
 		const TManagedArray<FTransform>& CollectionMassToLocal = RestCollection.GetAttribute<FTransform>("MassToLocal", FTransformCollection::TransformGroup);
 		const TManagedArray<TSet<int32>>* TransformToConvexIndices = RestCollection.FindAttribute<TSet<int32>>("TransformToConvexIndices", FTransformCollection::TransformGroup);
-		const TManagedArray<TUniquePtr<Chaos::FConvex>>* ConvexGeometry = RestCollection.FindAttribute<TUniquePtr<Chaos::FConvex>>("ConvexHull", "Convex");
+		const TManagedArray<Chaos::FConvexPtr>* ConvexGeometry = RestCollection.FindAttribute<Chaos::FConvexPtr>(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup);
 
 		const FCollectionCollisionTypeData& CollisionTypeData = SizeSpecificData.CollisionShapesData[0]; 
 		switch(CollisionTypeData.ImplicitType)
@@ -3770,7 +3768,7 @@ static FGeometryDynamicCollection::FSharedImplicit CreateImplicitGeometry(
 					MaxResolution = FMath::FloorToInt32(MaxResolutionReal);
 				}
 				
-				NewImplicit = FGeometryDynamicCollection::FSharedImplicit(
+				NewImplicit = Chaos::FImplicitObjectPtr(
 					FCollisionStructureManager::NewImplicitLevelset(
 						ErrorReporter,
 						MassSpaceParticles,
@@ -3784,7 +3782,7 @@ static FGeometryDynamicCollection::FSharedImplicit CreateImplicitGeometry(
 				// Fall back on sphere if level set rasterization failed.
 				if (!NewImplicit)
 				{
-					NewImplicit = FGeometryDynamicCollection::FSharedImplicit(
+					NewImplicit = Chaos::FImplicitObjectPtr(
 						FCollisionStructureManager::NewImplicitSphere(
 						InnerRadius,
 						CollisionTypeData.CollisionObjectReductionPercentage,
@@ -3795,7 +3793,7 @@ static FGeometryDynamicCollection::FSharedImplicit CreateImplicitGeometry(
 				
 		case EImplicitTypeEnum::Chaos_Implicit_Box:
 			{
-				NewImplicit = FGeometryDynamicCollection::FSharedImplicit(
+				NewImplicit = Chaos::FImplicitObjectPtr(
 					FCollisionStructureManager::NewImplicitBox(
 						InstanceBoundingBox,
 						CollisionTypeData.CollisionObjectReductionPercentage,
@@ -3805,7 +3803,7 @@ static FGeometryDynamicCollection::FSharedImplicit CreateImplicitGeometry(
 			
 		case EImplicitTypeEnum::Chaos_Implicit_Sphere:
 			{
-				NewImplicit = FGeometryDynamicCollection::FSharedImplicit(
+				NewImplicit = Chaos::FImplicitObjectPtr(
 					FCollisionStructureManager::NewImplicitSphere(
 						InnerRadius,
 						CollisionTypeData.CollisionObjectReductionPercentage,
@@ -3817,7 +3815,7 @@ static FGeometryDynamicCollection::FSharedImplicit CreateImplicitGeometry(
 			{
 				if (ConvexGeometry && TransformToConvexIndices)
 				{
-					NewImplicit = FGeometryDynamicCollection::FSharedImplicit(
+					NewImplicit = Chaos::FImplicitObjectPtr(
 						FCollisionStructureManager::NewImplicitConvex(
 							(*TransformToConvexIndices)[TransformGroupIndex].Array(),
 							ConvexGeometry,
@@ -3833,7 +3831,7 @@ static FGeometryDynamicCollection::FSharedImplicit CreateImplicitGeometry(
 			
 		case EImplicitTypeEnum::Chaos_Implicit_Capsule:
 			{
-				NewImplicit = FGeometryDynamicCollection::FSharedImplicit(
+				NewImplicit = Chaos::FImplicitObjectPtr(
 					FCollisionStructureManager::NewImplicitCapsule(
 						InstanceBoundingBox,
 						CollisionTypeData.CollisionObjectReductionPercentage,
@@ -3980,12 +3978,10 @@ static void ComputeMassPropertiesAndTriMeshes(
 	TArray<bool>& IsTooSmallGeometryArray
 	)
 {
-	using FImplicitGeom = FGeometryDynamicCollection::FSharedImplicit;
-	
 	const int32 NumGeometries = RestCollection.NumElements(FGeometryCollection::GeometryGroup);
 	const TManagedArray<int32>& TransformIndex = RestCollection.TransformIndex;
 	const TManagedArray<bool>& CollectionSimulatableParticles = RestCollection.GetAttribute<bool>(FGeometryCollection::SimulatableParticlesAttribute, FTransformCollection::TransformGroup);
-	const TManagedArray<FImplicitGeom>* ExternaCollisions = RestCollection.FindAttribute<FImplicitGeom>("ExternalCollisions", FGeometryCollection::TransformGroup);
+	const TManagedArray<Chaos::FImplicitObjectPtr>* ExternaCollisions = RestCollection.FindAttribute<Chaos::FImplicitObjectPtr>(FGeometryCollection::ExternalCollisionsAttribute, FGeometryCollection::TransformGroup);
 	const TManagedArray<int32>& SimulationType = RestCollection.SimulationType;
 
 	ParallelFor(NumGeometries, [&](int32 GeometryIndex)
@@ -3999,7 +3995,7 @@ static void ComputeMassPropertiesAndTriMeshes(
 			if (SharedParams.bUseImportedCollisionImplicits && ExternaCollisions && (*ExternaCollisions)[TransformGroupIndex])
 			{
 				constexpr Chaos::FReal UnitDensityKGPerCM = 1;
-				Chaos::CalculateMassPropertiesOfImplicitType(MassPropertiesArray[GeometryIndex], Chaos::FRigidTransform3::Identity, (*ExternaCollisions)[TransformGroupIndex].Get(), UnitDensityKGPerCM);
+				Chaos::CalculateMassPropertiesOfImplicitType(MassPropertiesArray[GeometryIndex], Chaos::FRigidTransform3::Identity, (*ExternaCollisions)[TransformGroupIndex].GetReference(), UnitDensityKGPerCM);
 				IsTooSmallGeometryArray[GeometryIndex] = false;
 			}
 		}
@@ -4007,33 +4003,33 @@ static void ComputeMassPropertiesAndTriMeshes(
 	});
 }
 
-static TUniquePtr<Chaos::FImplicitObject> MakeTransformImplicitObject(const Chaos::FImplicitObject& ImplicitObject, const Chaos::FRigidTransform3& Transform)
+static Chaos::FImplicitObjectPtr MakeTransformImplicitObject(const Chaos::FImplicitObject& ImplicitObject, const Chaos::FRigidTransform3& Transform)
 {
-	TUniquePtr<Chaos::FImplicitObject> ResultObject;
+	Chaos::FImplicitObjectPtr ResultObject;
 	
 	// we cannot really put a transform on top a union, so we need to transform each member
 	if (ImplicitObject.IsUnderlyingUnion())
 	{
-		 TArray<TUniquePtr<Chaos::FImplicitObject>> TransformedObjects;
+		TArray<Chaos::FImplicitObjectPtr> TransformedObjects;
 		const Chaos::FImplicitObjectUnion& Union = static_cast<const Chaos::FImplicitObjectUnion&>(ImplicitObject);
-		for (const TUniquePtr<Chaos::FImplicitObject>& Object: Union.GetObjects())
+		for (const Chaos::FImplicitObjectPtr& Object: Union.GetObjects())
 		{
 			TransformedObjects.Add(MakeTransformImplicitObject(*Object, Transform));
 		}
-		ResultObject = MakeUnique<Chaos::FImplicitObjectUnion>(MoveTemp(TransformedObjects));
+		ResultObject = MakeImplicitObjectPtr<Chaos::FImplicitObjectUnion>(MoveTemp(TransformedObjects));
 	}
 	else if (ImplicitObject.GetType() == Chaos::ImplicitObjectType::Transformed)
 	{
 		const Chaos::TImplicitObjectTransformed<Chaos::FReal,3>& TransformObject = static_cast<const Chaos::TImplicitObjectTransformed<Chaos::FReal,3>&>(ImplicitObject);
 		// we deep copy at this point as the transform is going to be handled at this level
-		TUniquePtr<Chaos::FImplicitObject> TransformedObjectCopy =  TransformObject.GetTransformedObject()->DeepCopy();
-		ResultObject = MakeUnique<Chaos::TImplicitObjectTransformed<Chaos::FReal,3>>(MoveTemp(TransformedObjectCopy),  TransformObject.GetTransform() * Transform);
+		Chaos::FImplicitObjectPtr TransformedObjectCopy =  TransformObject.GetTransformedObject()->DeepCopyGeometry();
+		ResultObject = MakeImplicitObjectPtr<Chaos::TImplicitObjectTransformed<Chaos::FReal,3>>(MoveTemp(TransformedObjectCopy),  TransformObject.GetTransform() * Transform);
 	}
 	else
 	{
 		// we deep copy at this point as the transform is going to be handled at this level
-		TUniquePtr<Chaos::FImplicitObject> TransformedObjectCopy =  ImplicitObject.DeepCopy();
-		ResultObject = MakeUnique<Chaos::TImplicitObjectTransformed<Chaos::FReal,3>>(MoveTemp(TransformedObjectCopy), Transform);
+		Chaos::FImplicitObjectPtr TransformedObjectCopy =  ImplicitObject.DeepCopyGeometry();
+		ResultObject = MakeImplicitObjectPtr<Chaos::TImplicitObjectTransformed<Chaos::FReal,3>>(MoveTemp(TransformedObjectCopy), Transform);
 	}
 	return ResultObject;
 }
@@ -4072,7 +4068,7 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 	TManagedArray<int32>& Levels = RestCollection.AddAttribute<int32>(TEXT("Level"), FTransformCollection::TransformGroup);
 
 	RestCollection.RemoveAttribute(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
-	TManagedArray<FGeometryDynamicCollection::FSharedImplicit>& CollectionImplicits = RestCollection.AddAttribute<FGeometryDynamicCollection::FSharedImplicit>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
+	TManagedArray<Chaos::FImplicitObjectPtr>& CollectionImplicits = RestCollection.AddAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
 
 	bool bUseRelativeSize = RestCollection.HasAttribute(TEXT("Size"), FTransformCollection::TransformGroup);
 	if (!bUseRelativeSize)
@@ -4168,8 +4164,7 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 		UE_LOG(LogChaos, Warning, TEXT("Some geometry is too small to be simulated and has been skipped."));
 	}
 
-	using FImplicitGeomSharePtr = FGeometryDynamicCollection::FSharedImplicit;
-	const TManagedArray<FImplicitGeomSharePtr>* ExternaCollisions = RestCollection.FindAttribute<FImplicitGeomSharePtr>("ExternalCollisions", FGeometryCollection::TransformGroup);
+	const TManagedArray<Chaos::FImplicitObjectPtr>* ExternaCollisions = RestCollection.FindAttribute<Chaos::FImplicitObjectPtr>(FGeometryCollection::ExternalCollisionsAttribute, FGeometryCollection::TransformGroup);
 	
 	// User provides us with total mass or density.
 	// Density must be the same for individual parts and the total. Density_i = Density = Mass_i / Volume_i
@@ -4305,13 +4300,12 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 					if (SharedParams.bUseImportedCollisionImplicits && ExternaCollisions && (*ExternaCollisions)[TransformGroupIndex])
 					{
 						// for now  simply copy the shared pointer as the imported geometry should not change under the hood without being recreated
-						const FImplicitGeomSharePtr ExternalCollisionImplicit = (*ExternaCollisions)[TransformGroupIndex];
+						const Chaos::FImplicitObjectPtr ExternalCollisionImplicit = (*ExternaCollisions)[TransformGroupIndex];
 						if (!bIdentityMassTransform)
 						{
 							// since we do not set the rotation of mass and center of mass properties on the particle and have a MasstoLocal managed property on the collection instead
 							// we need to reverse transform the external shapes 
-							TUniquePtr<FImplicitObject> TransformedCollisionImplicit = MakeTransformImplicitObject(*ExternalCollisionImplicit, MassToLocalTransform.Inverse());
-							CollectionImplicits[TransformGroupIndex] = TSharedPtr<Chaos::FImplicitObject>(TransformedCollisionImplicit.Release());
+							CollectionImplicits[TransformGroupIndex] = MakeTransformImplicitObject(*ExternalCollisionImplicit, MassToLocalTransform.Inverse());
 						}
 						else
 						{
@@ -4334,10 +4328,12 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 					
 					if (CollectionImplicits[TransformGroupIndex] && CollectionImplicits[TransformGroupIndex]->HasBoundingBox())
 					{
-						const auto Implicit = CollectionImplicits[TransformGroupIndex];
-						const auto BBox = Implicit->BoundingBox();
-						const FVec3 Extents = BBox.Extents(); // Chaos::FAABB3::Extents() is Max - Min
-						MaxChildBounds = MaxChildBounds.ComponentwiseMax(Extents);
+						if(FImplicitObjectPtr Implicit = CollectionImplicits[TransformGroupIndex])
+						{
+							const auto BBox = Implicit->BoundingBox();
+							const FVec3 Extents = BBox.Extents(); // Chaos::FAABB3::Extents() is Max - Min
+							MaxChildBounds = MaxChildBounds.ComponentwiseMax(Extents);
+						}
 					}
 				}
 			}
@@ -4544,13 +4540,12 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 					const bool bIdentityMassTransform = ClusterMassToLocal.Equals(FTransform::Identity);
 
 					// for now  simply copy the shared pointer as the imported geometry should not change under the hood without being recreated
-					const FImplicitGeomSharePtr ExternalCollisionImplicit = (*ExternaCollisions)[TransformGroupIndex];
+					const Chaos::FImplicitObjectPtr ExternalCollisionImplicit = (*ExternaCollisions)[TransformGroupIndex];
 					if (!bIdentityMassTransform)
 					{
 						// since we do not set the rotation of mass and center of mass properties on the particle and have a MasstoLocal managed property on the collection instead
 						// we need to reverse transform the external shapes 
-						TUniquePtr<FImplicitObject> TransformedCollisionImplicit = MakeTransformImplicitObject(*ExternalCollisionImplicit, ClusterMassToLocal.Inverse());
-						CollectionImplicits[TransformGroupIndex] = TSharedPtr<Chaos::FImplicitObject>(TransformedCollisionImplicit.Release());
+						CollectionImplicits[TransformGroupIndex] = MakeTransformImplicitObject(*ExternalCollisionImplicit, ClusterMassToLocal.Inverse());
 					}
 					else
 					{
@@ -4573,7 +4568,7 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 				}
 				// create simplicial from the implicit geometry
 				CollectionSimplicials[ClusterTransformIdx] = TUniquePtr<FSimplicial>(
-							FCollisionStructureManager::NewSimplicial(MassSpaceParticles, *UnionMesh, CollectionImplicits[ClusterTransformIdx].Get(),
+							FCollisionStructureManager::NewSimplicial(MassSpaceParticles, *UnionMesh, CollectionImplicits[ClusterTransformIdx].GetReference(),
 							SharedParams.MaximumCollisionParticleCount));
 
 				TriangleMeshesArray[ClusterTransformIdx] = MoveTemp(UnionMesh);

@@ -108,10 +108,21 @@ struct FDirtyClusterUnionData : public TBasePullData<FClusterUnionPhysicsProxy, 
 	FQuat R;
 	FVec3 V;
 	FVec3 W;
-	EObjectStateType ObjectState;
+	EObjectStateType ObjectState = EObjectStateType::Dynamic;
 	bool bIsAnchored = false;
 	TArray<FDirtyClusterUnionParticleData> ChildParticles;
-	TSharedPtr<FImplicitObject, ESPMode::ThreadSafe> SharedGeometry;
+	Chaos::FImplicitObjectPtr Geometry = nullptr;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FDirtyClusterUnionData(){}
+	FDirtyClusterUnionData(const FDirtyClusterUnionData&) = default;
+	~FDirtyClusterUnionData() = default;
+	Chaos::FDirtyClusterUnionData& operator =(const Chaos::FDirtyClusterUnionData &) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	UE_DEPRECATED(5.4, "Please use Geometry instead")
+	TSharedPtr<FImplicitObject, ESPMode::ThreadSafe> SharedGeometry = nullptr;
+	
 	TArray<FCollisionData> CollisionData;
 	TArray<FCollisionFilterData> QueryData;
 	TArray<FCollisionFilterData> SimData;

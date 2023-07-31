@@ -112,6 +112,12 @@ namespace ManagedArrayTypeSize
 	{
 		return Ptr ? ManagedArrayTypeSize::GetAllocatedSize(*Ptr) : 0;
 	}
+	
+	template<typename T>
+	inline SIZE_T GetAllocatedSize(const TRefCountPtr<T>& Ptr)
+	{
+		return Ptr ? ManagedArrayTypeSize::GetAllocatedSize(*Ptr) : 0;
+	}
 
 	template<typename T, ESPMode Mode>
 	inline SIZE_T GetAllocatedSize(const TSharedPtr<T, Mode>& Ptr)
@@ -274,9 +280,13 @@ void InitHelper(TArray<T>& Array, const TManagedArrayBase<T>& NewTypedArray, int
 template <typename T>
 void InitHelper(TArray<TUniquePtr<T>>& Array, const TManagedArrayBase<TUniquePtr<T>>& NewTypedArray, int32 Size);
 template <typename T>
+void InitHelper(TArray<TRefCountPtr<T>>& Array, const TManagedArrayBase<TRefCountPtr<T>>& NewTypedArray, int32 Size);
+template <typename T>
 void CopyRangeHelper(TArray<T>& Target, const TManagedArrayBase<T>& Source, int32 Start, int32 Stop, int32 Offset);
 template <typename T>
 void CopyRangeHelper(TArray<TUniquePtr<T>>& Array, const TManagedArrayBase<TUniquePtr<T>>& ConstArray, int32 Start, int32 Stop, int32 Offset);
+template <typename T>
+void CopyRangeHelper(TArray<TRefCountPtr<T>>& Array, const TManagedArrayBase<TRefCountPtr<T>>& ConstArray, int32 Start, int32 Stop, int32 Offset);
 
 /***
 *  Managed Array
@@ -641,11 +651,17 @@ void InitHelper(TArray<T>& Array, const TManagedArrayBase<T>& NewTypedArray, int
 template <typename T>
 void InitHelper(TArray<TUniquePtr<T>>& Array, const TManagedArrayBase<TUniquePtr<T>>& NewTypedArray, int32 Size)
 {
+	check(false);
+}
+
+template <typename T>
+void InitHelper(TArray<TRefCountPtr<T>>& Array, const TManagedArrayBase<TRefCountPtr<T>>& NewTypedArray, int32 Size)
+{
 	for (int32 Index = 0; Index < Size; Index++)
 	{
 		if (NewTypedArray[Index])
 		{
-			Array[Index].Reset((T*)NewTypedArray[Index]->Copy().Release());
+			Array[Index] = NewTypedArray[Index];
 		}
 	}
 }
@@ -662,9 +678,15 @@ void CopyRangeHelper(TArray<T>& Target, const TManagedArrayBase<T>& Source, int3
 template <typename T>
 void CopyRangeHelper(TArray<TUniquePtr<T>>& Target, const TManagedArrayBase<TUniquePtr<T>>& Source, int32 Start, int32 Stop, int32 Offset)
 {
+	check(false);
+}
+
+template <typename T>
+void CopyRangeHelper(TArray<TRefCountPtr<T>>& Target, const TManagedArrayBase<TRefCountPtr<T>>& Source, int32 Start, int32 Stop, int32 Offset)
+{
 	for (int32 Sdx = Start, Tdx = Start+Offset; Sdx<Source.Num() && Tdx<Target.Num() && Sdx<Stop; Sdx++, Tdx++)
 	{
-		Target[Tdx].Reset((T*)Source[Sdx]->Copy().Release());
+		Target[Tdx] = Source[Sdx];
 	}
 }
 

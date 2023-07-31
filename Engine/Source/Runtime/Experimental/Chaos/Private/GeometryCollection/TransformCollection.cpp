@@ -13,6 +13,8 @@ const FName FTransformCollection::ParentAttribute = "Parent";
 const FName FTransformCollection::ChildrenAttribute = "Children";
 const FName FTransformCollection::ParticlesAttribute = "Particles";
 const FName FTransformCollection::LevelAttribute = "Level";
+const FName FTransformCollection::ConvexGroup = "Convex";
+const FName FTransformCollection::ConvexHullAttribute = "ConvexHull";
 
 FTransformCollection::FTransformCollection()
 	: FManagedArrayCollection()

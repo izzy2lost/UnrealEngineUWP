@@ -529,7 +529,7 @@ public:
 	
 	void SetNonFrequentData(const FParticleNonFrequentData& InData)
 	{
-		SetSharedGeometry(InData.SharedGeometryLowLevel());
+		SetGeometry(Chaos::FImplicitObjectPtr(InData.GetGeometry()));
 		SetUniqueIdx(InData.UniqueIdx());
 		SetSpatialIdx(InData.SpatialIdx());
 		SetResimType(InData.ResimType());
@@ -557,16 +557,29 @@ public:
 		GeometryParticles->SyncState(ParticleIdx) = State;
 	}
 
-	TSerializablePtr<FImplicitObject> Geometry() const { return GeometryParticles->Geometry(ParticleIdx); }
-	void SetGeometry(TSerializablePtr<FImplicitObject> InGeometry) { GeometryParticles->SetGeometry(ParticleIdx, InGeometry); }
+	const FImplicitObjectRef GetGeometry() const { return GeometryParticles->GetGeometry(ParticleIdx).GetReference(); }
+	void SetGeometry(const FImplicitObjectPtr& InGeometry) { GeometryParticles->SetGeometry(ParticleIdx, InGeometry); }
 
-	TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe> SharedGeometry() const { return GeometryParticles->SharedGeometry(ParticleIdx); }
-	void SetSharedGeometry(TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe> InGeometry) { GeometryParticles->SetSharedGeometry(ParticleIdx, InGeometry); }
+	UE_DEPRECATED(5.4, "Use GetGeometry instead")
+	TSerializablePtr<FImplicitObject> Geometry() const { check(false); return TSerializablePtr<FImplicitObject>(); }
+	
+	UE_DEPRECATED(5.4, "Use SetGeometry with FImplicitObjectPtr instead")
+	void SetGeometry(TSerializablePtr<FImplicitObject> InGeometry) { check(false); }
+	
+	UE_DEPRECATED(5.4, "Use GeometryRef instead")
+	TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe> SharedGeometry() const { check(false); return nullptr; }
 
-	const TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe>& SharedGeometryLowLevel() const { return GeometryParticles->SharedGeometry(ParticleIdx); }
+	UE_DEPRECATED(5.4, "Use SetGeometry with FImplicitObjectPtr instead")
+	void SetSharedGeometry(TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe> InGeometry) { check(false); }
 
-	const TUniquePtr<FImplicitObject>& DynamicGeometry() const { return GeometryParticles->DynamicGeometry(ParticleIdx); }
-	void SetDynamicGeometry(TUniquePtr<FImplicitObject>&& Unique) { GeometryParticles->SetDynamicGeometry(ParticleIdx, MoveTemp(Unique)); }
+	UE_DEPRECATED(5.4, "Use GetGeometry instead")
+	const TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe>& SharedGeometryLowLevel() const { check(false); static TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe> DummyPtr(nullptr); return DummyPtr; }
+
+	UE_DEPRECATED(5.4, "Use GetGeometry instead")
+	const TUniquePtr<FImplicitObject>& DynamicGeometry() const { check(false);  static TUniquePtr<FImplicitObject> DummyPtr(nullptr); return DummyPtr; }
+
+	UE_DEPRECATED(5.4, "Use SetGeometry with FImplicitObjectPtr instead")
+	void SetDynamicGeometry(TUniquePtr<FImplicitObject>&& Unique) { check(false); }
 
 	const FShapesArray& ShapesArray() const { return GeometryParticles->ShapesArray(ParticleIdx); }
 	const FShapeInstanceArray& ShapeInstances() const { return GeometryParticles->ShapeInstances(ParticleIdx); }
@@ -1336,9 +1349,28 @@ public:
 	bool InternalCluster() const { return PBDRigidClusteredParticles->RigidClusteredFlags(ParticleIdx).GetInternalCluster(); }
 	void SetInternalCluster(bool bValue) { PBDRigidClusteredParticles->RigidClusteredFlags(ParticleIdx).SetInternalCluster(bValue);	}
 
-	const TUniquePtr<FImplicitObjectUnionClustered>& ChildrenSpatial() const { return PBDRigidClusteredParticles->ChildrenSpatial(ParticleIdx); }
-	TUniquePtr<FImplicitObjectUnionClustered>& ChildrenSpatial() { return PBDRigidClusteredParticles->ChildrenSpatial(ParticleIdx); }
-	void SetChildrenSpatial(TUniquePtr<FImplicitObjectUnion>& Obj) { PBDRigidClusteredParticles->ChildrenSpatial(ParticleIdx) = Obj; }
+	const FImplicitObjectUnionClusteredPtr& GetChildrenSpatial() const { return PBDRigidClusteredParticles->GetChildrenSpatial(ParticleIdx); }
+	FImplicitObjectUnionClusteredPtr& GetChildrenSpatial() { return PBDRigidClusteredParticles->GetChildrenSpatial(ParticleIdx); }
+	void SetChildrenSpatial(FImplicitObjectUnionClusteredPtr& Obj) { PBDRigidClusteredParticles->GetChildrenSpatial(ParticleIdx) = Obj; }
+
+	UE_DEPRECATED(5.4, "Use GetChildrenSpatial instead")
+	const TUniquePtr<FImplicitObjectUnionClustered>& ChildrenSpatial() const
+	{
+		check(false);
+		static TUniquePtr<FImplicitObjectUnionClustered> DummyPtr(nullptr);
+		return DummyPtr;
+	}
+	
+	UE_DEPRECATED(5.4, "Use GetChildrenSpatial instead")
+    TUniquePtr<FImplicitObjectUnionClustered>& ChildrenSpatial()
+	{
+		check(false);
+		static TUniquePtr<FImplicitObjectUnionClustered> DummyPtr(nullptr);
+		return DummyPtr;
+	}
+
+	UE_DEPRECATED(5.4, "Use SetChildrenSpatial with FImplicitObjectUnionClusteredPtr instead")
+    void SetChildrenSpatial(TUniquePtr<FImplicitObjectUnion>& Obj) { check(false); }
 
 	const FRealSingle& CollisionImpulse() const { return PBDRigidClusteredParticles->CollisionImpulses(ParticleIdx); }
 	FRealSingle& CollisionImpulse() { return PBDRigidClusteredParticles->CollisionImpulses(ParticleIdx); }
@@ -1571,10 +1603,15 @@ public:
 	const FVec3& X() const { return MHandle->X(); }
 	FRotation3& R() { return MHandle->R(); }
 	const FRotation3& R() const { return MHandle->R(); }
-	TSerializablePtr<FImplicitObject> Geometry() const { return MHandle->Geometry(); }
-	const TUniquePtr<FImplicitObject>& DynamicGeometry() const { return MHandle->DynamicGeometry(); }
+	const FImplicitObjectRef GetGeometry() const { return MHandle->GetGeometry(); }
 	bool Sleeping() const { return MHandle->Sleeping(); }
 	FString ToString() const { return MHandle->ToString(); }
+
+	UE_DEPRECATED(5.4, "Use GetGeometry instead")
+	TSerializablePtr<FImplicitObject> Geometry() const { return TSerializablePtr<FImplicitObject>(); }
+	
+	UE_DEPRECATED(5.4, "Use GetGeometry instead")
+	const TUniquePtr<FImplicitObject>& DynamicGeometry() const { static TUniquePtr<FImplicitObject> DummyPtr(nullptr); return DummyPtr; }
 
 	bool EnabledDuringResim() const { return MHandle->EnabledDuringResim(); }
 
@@ -2390,7 +2427,7 @@ public:
 
 	virtual bool IsParticleValid() const
 	{
-		auto Geometry = MNonFrequentData.Read().Geometry();
+		auto Geometry = MNonFrequentData.Read().GetGeometry();
 		return Geometry && Geometry->IsValidGeometry();	//todo: if we want support for sample particles without geometry we need to adjust this
 	}
 
@@ -2426,36 +2463,35 @@ public:
 	}
 	
 	//todo: geometry should not be owned by particle
-	void SetGeometry(TUniquePtr<FImplicitObject>&& UniqueGeometry)
+	void SetGeometry(Chaos::FImplicitObjectPtr ImplicitObjectPtr)
 	{
-		// Take ownership of the geometry, putting it into a shared ptr.
-		// This is necessary because we cannot be sure whether the particle
-		// will be destroyed on the game thread or physics thread first,
-		// but geometry data is shared between them.
-		FImplicitObject* RawGeometry = UniqueGeometry.Release();
-		SetGeometry(TSharedPtr<FImplicitObject, ESPMode::ThreadSafe>(RawGeometry));
-	}
-
-	// TODO: Right now this method exists so we can do things like FPhysTestSerializer::CreateChaosData.
-	//       We should replace this with a method for supporting SetGeometry(RawGeometry).
-	void SetGeometry(TSharedPtr<FImplicitObject, ESPMode::ThreadSafe> SharedGeometry)
-	{
-		MNonFrequentData.Modify(true,MDirtyFlags,Proxy,[&SharedGeometry](auto& Data){ Data.SetGeometry(SharedGeometry);});
+		MNonFrequentData.Modify(true,MDirtyFlags,Proxy,[&ImplicitObjectPtr](auto& Data){ Data.SetGeometry(Chaos::FImplicitObjectPtr(ImplicitObjectPtr));});
 		UpdateShapesArray();
 	}
 
-	void SetGeometry(TSerializablePtr<FImplicitObject> RawGeometry)
-	{
-		// Ultimately this method should replace SetGeometry(SharedPtr).
-		// We don't really want people making shared ptrs to geometry everywhere.
-		check(false);
-	}
+	CHAOS_API void MergeGeometry(TArray<Chaos::FImplicitObjectPtr>&& Objects);
 
-	CHAOS_API void MergeGeometry(TArray<TUniquePtr<FImplicitObject>>&& Objects);
+	const FImplicitObjectRef GetGeometry() const { return MNonFrequentData.Read().GetGeometry(); }
+
+	UE_DEPRECATED(5.4, "Use SetGeometry with an array of Chaos::FImplicitObjectPtr instead")
+	void SetGeometry(TUniquePtr<FImplicitObject>&& UniqueGeometry) { check(false); }
+	
+	UE_DEPRECATED(5.4, "Use SetGeometry with an array of Chaos::FImplicitObjectPtr instead")
+    void SetGeometry(TSharedPtr<FImplicitObject, ESPMode::ThreadSafe> SharedGeometry) { check(false); }
+	
+	UE_DEPRECATED(5.4, "Use SetGeometry with an array of Chaos::FImplicitObjectPtr instead")
+    void SetGeometry(TSerializablePtr<FImplicitObject> RawGeometry) { check(false); }
+
+	UE_DEPRECATED(5.4, "Use MergeGeometry with an array of Chaos::FImplicitObjectPtr instead")
+	CHAOS_API void MergeGeometry(TArray<TUniquePtr<FImplicitObject>>&& Objects) { check(false); }
+
+	UE_DEPRECATED(5.4, "Use GetGeometry instead")
+	TSharedPtr<const FImplicitObject,ESPMode::ThreadSafe> SharedGeometryLowLevel() const { check(false); return nullptr; }
+
+	UE_DEPRECATED(5.4, "Use GetGeometry instead")
+	TSerializablePtr<FImplicitObject> Geometry() const { check(false); return TSerializablePtr<FImplicitObject>(); }
 
 	CHAOS_API void RemoveShape(FPerShapeData* InShape, bool bWakeTouching);
-
-	TSharedPtr<const FImplicitObject,ESPMode::ThreadSafe> SharedGeometryLowLevel() const { return MNonFrequentData.Read().SharedGeometryLowLevel(); }
 
 	void* UserData() const { return MUserData; }
 	void SetUserData(void* InUserData)
@@ -2470,7 +2506,7 @@ public:
 
 	void UpdateShapeBounds(const FRigidTransform3& Transform)
 	{
-		auto GeomShared = MNonFrequentData.Read().Geometry();
+		auto GeomShared = MNonFrequentData.Read().GetGeometry();
 		if (GeomShared && GeomShared->HasBoundingBox())
 		{
 			for (auto& Shape : MShapesArray)
@@ -2524,22 +2560,13 @@ public:
 	}
 #endif
 
-	//Note: this must be called after setting geometry. This API seems bad. Should probably be part of setting geometry
-	void SetShapesArray(FShapesArray&& InShapesArray)
+	void MergeShapesArray(FShapesArray&& InShapesArray)
 	{
-		ensure(InShapesArray.Num() == MShapesArray.Num());
-		MShapesArray = MoveTemp(reinterpret_cast<FShapeInstanceProxyArray&>(InShapesArray));
-	}
-
-	void MergeShapesArray(FShapesArray&& OtherShapesArray)
-	{
-		MergeShapeInstances(reinterpret_cast<FShapeInstanceProxyArray&&>(OtherShapesArray));
+		MergeShapeInstances(reinterpret_cast<FShapeInstanceProxyArray&&>(InShapesArray));
+		UpdateSimpleShapes();
 	}
 
 	const FShapesArray& ShapesArray() const { return reinterpret_cast<const FShapesArray&>(MShapesArray); }
-
-
-	TSerializablePtr<FImplicitObject> Geometry() const { return MakeSerializable(MNonFrequentData.Read().Geometry()); }
 
 	const FShapeInstanceProxyArray& ShapeInstances() const
 	{ 
@@ -2713,23 +2740,54 @@ public:
 
 protected:
 
+	/** Update the simple shapes materials, collisions... */
+	void UpdateSimpleShapes()
+	{
+		if (const FImplicitObjectUnion* Union = GetGeometry()->template GetObject<FImplicitObjectUnion>())
+		{
+			const int32 ObjectsOffset = Union->GetConvexes().Num();
+			if(ObjectsOffset > 0)
+			{
+				for(int32 ShapeIndex = 0; ShapeIndex < MShapesArray.Num(); ++ShapeIndex)
+				{
+					if(ShapeIndex < ObjectsOffset)
+					{
+						MShapesArray[ShapeIndex]->SetQueryData(MShapesArray[ObjectsOffset]->GetQueryData());
+						MShapesArray[ShapeIndex]->SetSimData(MShapesArray[ObjectsOffset]->GetSimData());
+						MShapesArray[ShapeIndex]->SetCollisionTraceType(MShapesArray[ObjectsOffset]->GetCollisionTraceType());
+				
+						// Only sim enabled if the underlying shapes could be used for physics
+						MShapesArray[ShapeIndex]->SetSimEnabled(MShapesArray[ObjectsOffset]->GetSimEnabled());
+
+						// Disable simple shapes for query 
+						MShapesArray[ShapeIndex]->SetQueryEnabled(false);
+					}
+					else
+					{
+						MShapesArray[ShapeIndex]->SetSimEnabled(false);
+					}
+				}
+			}
+		}
+	}
+
 	// Pointer to any data that the solver wants to associate with this particle
 	// TODO: It's important to eventually hide this!
 	// Right now it's exposed to lubricate the creation of the whole proxy system.
 	class IPhysicsProxyBase* Proxy;
 
 	template <typename Lambda>
-	void ModifyGeometry(const Lambda& Func)
+	void ModifyGeometry(const Lambda& Func, const bool bDirectAccess = false)
 	{
 		ensure(IsInGameThread());
 		FPhysicsSolverBase* Solver = Proxy ? Proxy->GetSolverBase() : nullptr;
-		MNonFrequentData.Modify(true, MDirtyFlags, Proxy, [this, Solver, &Func](auto& Data)
+		MNonFrequentData.Modify(true, MDirtyFlags, Proxy, [this, Solver, &Func, bDirectAccess](auto& Data)
 		{
-			FImplicitObject* GeomToModify = nullptr;
+			FImplicitObjectPtr GeomToModify = nullptr;
 			bool bNewGeom = false;
-			if(Data.Geometry())
+			if(Data.GetGeometry())
 			{
-				if (Solver == nullptr)
+				if ((Solver == nullptr) || bDirectAccess)
 				{
 					//not registered yet so we can still modify geometry
 					GeomToModify = Data.AccessGeometryDangerous();
@@ -2737,18 +2795,16 @@ protected:
 				else
 				{
 					//already registered and used by physics thread, so need to duplicate
-					GeomToModify = Data.Geometry()->Duplicate();
+					GeomToModify = Data.GetGeometry()->DeepCopyGeometry();
 					bNewGeom = true;
 				}
-
 				Func(*GeomToModify);
 				
 				if(bNewGeom)
 				{
 					//must set geometry after because shapes are rebuilt and we want them to know about anything Func did
-					Data.SetGeometry(TSharedPtr<FImplicitObject, ESPMode::ThreadSafe>(GeomToModify));
+					Data.SetGeometry(GeomToModify);
 				}
-				
 				UpdateShapesArray();
 			}
 		});
@@ -2762,17 +2818,13 @@ private:
 	FShapeInstanceProxyArray MShapesArray;
 
 public:
-	// Ryan: FGeometryCollectionPhysicsProxy needs access to GeometrySharedLowLevel(), 
-	// as it needs access for the same reason as ParticleData.  For some reason
-	// the friend declaration isn't working.  Exposing this function until this 
-	// can be straightened out.
-	//friend class FGeometryCollectionPhysicsProxy;
-	// This is only for use by ParticleData. This should be called only in one place,
-	// when the geometry is being copied from GT to PT.
+	UE_DEPRECATED(5.4, "Use GetGeometry instead")
 	const TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe>& GeometrySharedLowLevel() const
 	{
-		return MNonFrequentData.Read().SharedGeometryLowLevel();
+		static TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe> DummyPtr(nullptr);
+		return DummyPtr;
 	}
+	
 private:
 
 protected:

@@ -24,15 +24,15 @@ namespace ImmediatePhysics_Chaos
 	// Utils
 	//
 
-	bool CreateDefaultGeometry(const FVector& Scale, FReal& OutMass, Chaos::FVec3& OutInertia, Chaos::FRigidTransform3& OutCoMTransform, TUniquePtr<Chaos::FImplicitObject>& OutGeom, TArray<TUniquePtr<Chaos::FPerShapeData>>& OutShapes)
+	bool CreateDefaultGeometry(const FVector& Scale, FReal& OutMass, Chaos::FVec3& OutInertia, Chaos::FRigidTransform3& OutCoMTransform, Chaos::FImplicitObjectPtr& OutGeom, TArray<TUniquePtr<Chaos::FPerShapeData>>& OutShapes)
 	{
 		using namespace Chaos;
 
 		const FReal Mass = 1.0f;
 		const FReal Radius = 1.0f * Scale.GetMax();
 
-		TUniquePtr<Chaos::FImplicitSphere3> ImplicitSphere = MakeUnique<Chaos::FImplicitSphere3>(FVec3(0), Radius);
-		TUniquePtr<FPerShapeData> NewShape = Chaos::FShapeInstance::Make(OutShapes.Num(), MakeSerializable(ImplicitSphere));
+		Chaos::FImplicitObjectPtr ImplicitSphere = MakeImplicitObjectPtr<Chaos::FImplicitSphere3>(FVec3(0), Radius);
+		TUniquePtr<FPerShapeData> NewShape = Chaos::FShapeInstance::Make(OutShapes.Num(), ImplicitSphere);
 		NewShape->UpdateShapeBounds(FTransform::Identity);
 		NewShape->SetUserData(nullptr);
 		NewShape->SetQueryEnabled(false);
@@ -47,7 +47,7 @@ namespace ImmediatePhysics_Chaos
 		return true;
 	}
 
-	TUniquePtr<Chaos::FImplicitObject> CloneGeometry(const Chaos::FImplicitObject* Geom, TArray<TUniquePtr<Chaos::FPerShapeData>>& OutShapes)
+	Chaos::FImplicitObjectPtr CloneGeometry(const Chaos::FImplicitObject* Geom, TArray<TUniquePtr<Chaos::FPerShapeData>>& OutShapes)
 	{
 		using namespace Chaos;
 
@@ -62,8 +62,7 @@ namespace ImmediatePhysics_Chaos
 			if ((SrcTransformed != nullptr) && (SrcTransformed->GetTransformedObject()->GetType() == ImplicitObjectType::HeightField))
 			{
 				FImplicitObject* InnerGeom = const_cast<FImplicitObject*>(SrcTransformed->GetTransformedObject());
-				TUniquePtr<TImplicitObjectTransformed<FReal, 3, false>> Cloned = MakeUnique<Chaos::TImplicitObjectTransformed<FReal, 3, false>>(InnerGeom, SrcTransformed->GetTransform());
-				return Cloned;
+				return MakeImplicitObjectPtr<Chaos::TImplicitObjectTransformed<FReal, 3, false>>(InnerGeom, SrcTransformed->GetTransform());
 			}
 		}
 
@@ -74,8 +73,7 @@ namespace ImmediatePhysics_Chaos
 			if (SrcInstanced != nullptr)
 			{
 				const TImplicitObjectInstanced<FTriangleMeshImplicitObject>::ObjectType InnerGeom = SrcInstanced->Object();
-				TUniquePtr<TImplicitObjectInstanced<FTriangleMeshImplicitObject>> Cloned = MakeUnique<TImplicitObjectInstanced<FTriangleMeshImplicitObject>>(InnerGeom);
-				return Cloned;
+				return  MakeImplicitObjectPtr<TImplicitObjectInstanced<FTriangleMeshImplicitObject>>(InnerGeom);
 			}
 		}
 
@@ -83,7 +81,7 @@ namespace ImmediatePhysics_Chaos
 	}
 
 	// Intended for use with Tri Mesh and Heightfields when cloning world simulation objects into the immediate scene
-	bool CloneGeometry(FBodyInstance* BodyInstance, EActorType ActorType, const FVector& Scale, FReal& OutMass, Chaos::FVec3& OutInertia, Chaos::FRigidTransform3& OutCoMTransform, TUniquePtr<Chaos::FImplicitObject>& OutGeom, TArray<TUniquePtr<Chaos::FPerShapeData>>& OutShapes)
+	bool CloneGeometry(FBodyInstance* BodyInstance, EActorType ActorType, const FVector& Scale, FReal& OutMass, Chaos::FVec3& OutInertia, Chaos::FRigidTransform3& OutCoMTransform, Chaos::FImplicitObjectPtr& OutGeom, TArray<TUniquePtr<Chaos::FPerShapeData>>& OutShapes)
 	{
 		// We should only get non-simulated objects through this path, but you never know...
 		if ((BodyInstance != nullptr) && !BodyInstance->bSimulatePhysics && BodyInstance->ActorHandle)
@@ -91,7 +89,7 @@ namespace ImmediatePhysics_Chaos
 			OutMass = 0.0f;
 			OutInertia = FVector::ZeroVector;
 			OutCoMTransform = FTransform::Identity;
-			OutGeom = CloneGeometry(BodyInstance->ActorHandle->GetGameThreadAPI().Geometry().Get(), OutShapes);
+			OutGeom = CloneGeometry(BodyInstance->ActorHandle->GetGameThreadAPI().GetGeometry(), OutShapes);
 			if (OutGeom != nullptr)
 			{
 				return true;
@@ -101,7 +99,7 @@ namespace ImmediatePhysics_Chaos
 		return CreateDefaultGeometry(Scale, OutMass, OutInertia, OutCoMTransform, OutGeom, OutShapes);
 	}
 
-	bool CreateGeometry(FBodyInstance* BodyInstance, EActorType ActorType, const FVector& Scale, FReal& OutMass, Chaos::FVec3& OutInertia, Chaos::FRigidTransform3& OutCoMTransform, TUniquePtr<Chaos::FImplicitObject>& OutGeom, TArray<TUniquePtr<Chaos::FPerShapeData>>& OutShapes)
+	bool CreateGeometry(FBodyInstance* BodyInstance, EActorType ActorType, const FVector& Scale, FReal& OutMass, Chaos::FVec3& OutInertia, Chaos::FRigidTransform3& OutCoMTransform, Chaos::FImplicitObjectPtr& OutGeom, TArray<TUniquePtr<Chaos::FPerShapeData>>& OutShapes)
 	{
 		using namespace Chaos;
 
@@ -138,9 +136,9 @@ namespace ImmediatePhysics_Chaos
 		AddParams.LocalTransform = FTransform::Identity;
 		AddParams.WorldTransform = BodyInstance->GetUnrealWorldTransform();
 		AddParams.Geometry = &BodySetup->AggGeom;
-		AddParams.ChaosTriMeshes = MakeArrayView(BodySetup->ChaosTriMeshes);
+		AddParams.TriMeshGeometries = MakeArrayView(BodySetup->TriMeshGeometries);
 
-		TArray<TUniquePtr<FImplicitObject>> Geoms;
+		TArray<Chaos::FImplicitObjectPtr> Geoms;
 		FShapesArray Shapes;
 		ChaosInterface::CreateGeometry(AddParams, Geoms, Shapes);
 
@@ -179,7 +177,7 @@ namespace ImmediatePhysics_Chaos
 		}
 		else
 		{
-			OutGeom = MakeUnique<FImplicitObjectUnion>(MoveTemp(Geoms));
+			OutGeom = MakeImplicitObjectPtr<FImplicitObjectUnion>(MoveTemp(Geoms));
 		}
 
 		for (TUniquePtr<FPerShapeData>& Shape : Shapes)
@@ -217,7 +215,7 @@ namespace ImmediatePhysics_Chaos
 		{
 			SetWorldTransform(WorldTransform);
 
-			ParticleHandle->SetGeometry(MakeSerializable(Geometry));
+			ParticleHandle->SetGeometry(Geometry);
 
 			// Set the collision filter data for the shapes to collide with everything.
 			// Even though we already tried to do this when we created the original shapes array, 

@@ -51,8 +51,9 @@ public:
 	static CHAOS_API const FName ChildrenAttribute;
 	static CHAOS_API const FName ParticlesAttribute;
 	static CHAOS_API const FName LevelAttribute;
-
-
+	static CHAOS_API const FName ConvexGroup;
+	static CHAOS_API const FName ConvexHullAttribute;
+	
 	/** Schema */
 	static CHAOS_API void DefineTransformSchema(FManagedArrayCollection&);
 

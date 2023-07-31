@@ -18,6 +18,9 @@ struct FFortniteValkyrieBranchObjectVersion
 		// Removing FAtomColor struct, now only using the color id.
 		AtomDeprecatingRedundantColorStructs,
 
+		// switch the physics implicit objects unique/shared ptrs to be ref counted
+		RefCountedOImplicitObjects,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

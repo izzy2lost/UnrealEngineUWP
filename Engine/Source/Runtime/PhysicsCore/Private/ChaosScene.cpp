@@ -222,10 +222,10 @@ void FChaosScene::UpdateActorInAccelerationStructure(const FPhysicsActorHandle& 
 		{
 
 			FAABB3 WorldBounds;
-			const bool bHasBounds = Body_External.Geometry()->HasBoundingBox();
+			const bool bHasBounds = Body_External.GetGeometry()->HasBoundingBox();
 			if(bHasBounds)
 			{
-				WorldBounds = Body_External.Geometry()->BoundingBox().TransformedAABB(FRigidTransform3(Body_External.X(), Body_External.R()));
+				WorldBounds = Body_External.GetGeometry()->BoundingBox().TransformedAABB(FRigidTransform3(Body_External.X(), Body_External.R()));
 			}
 
 
@@ -258,10 +258,10 @@ void FChaosScene::UpdateActorsInAccelerationStructure(const TArrayView<FPhysicsA
 					const Chaos::FRigidBodyHandle_External& Body_External = Actor->GetGameThreadAPI();
 					// @todo(chaos): dedupe code in UpdateActorInAccelerationStructure
 					FAABB3 WorldBounds;
-					const bool bHasBounds = Body_External.Geometry()->HasBoundingBox();
+					const bool bHasBounds = Body_External.GetGeometry()->HasBoundingBox();
 					if(bHasBounds)
 					{
-						WorldBounds = Body_External.Geometry()->BoundingBox().TransformedAABB(FRigidTransform3(Body_External.X(), Body_External.R()));
+						WorldBounds = Body_External.GetGeometry()->BoundingBox().TransformedAABB(FRigidTransform3(Body_External.X(), Body_External.R()));
 					}
 
 					Chaos::FAccelerationStructureHandle AccelerationHandle(Actor->GetParticle_LowLevel());
@@ -296,11 +296,11 @@ void FChaosScene::AddActorsToScene_AssumesLocked(TArray<FPhysicsActorHandle>& In
 		{
 			const Chaos::FRigidBodyHandle_External& Body_External = Handle->GetGameThreadAPI();
 			// Get the bounding box for the particle if it has one
-			bool bHasBounds = Body_External.Geometry()->HasBoundingBox();
+			bool bHasBounds = Body_External.GetGeometry()->HasBoundingBox();
 			Chaos::FAABB3 WorldBounds;
 			if(bHasBounds)
 			{
-				const Chaos::FAABB3 LocalBounds = Body_External.Geometry()->BoundingBox();
+				const Chaos::FAABB3 LocalBounds = Body_External.GetGeometry()->BoundingBox();
 				WorldBounds = LocalBounds.TransformedAABB(Chaos::FRigidTransform3(Body_External.X(), Body_External.R()));
 			}
 

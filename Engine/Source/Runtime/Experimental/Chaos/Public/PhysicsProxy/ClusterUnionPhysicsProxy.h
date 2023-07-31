@@ -74,7 +74,19 @@ namespace Chaos
 		CHAOS_API void SetObjectState_External(EObjectStateType State);
 
 		// Set GT geometry - this is only for smoothing over any changes until the PT syncs back to the GT.
-		CHAOS_API void SetSharedGeometry_External(const TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>& Geometry, const TArray<FPBDRigidParticle*>& ShapeParticles);
+		CHAOS_API void SetGeometry_External(const Chaos::FImplicitObjectPtr& Geometry, const TArray<FPBDRigidParticle*>& ShapeParticles);
+
+		// Merge GT geometry into the existing union
+		CHAOS_API void MergeGeometry_External(TArray<Chaos::FImplicitObjectPtr>&& ImplicitGeometries, const TArray<FPBDRigidParticle*>& ShapeParticles);
+
+		// Remove GT shapes from the existing unions
+		CHAOS_API void RemoveShapes_External(const TArray<FPBDRigidParticle*>& ShapeParticles) const;
+		
+		UE_DEPRECATED(5.4, "Please use SetGeometry_External instead")
+		CHAOS_API void SetSharedGeometry_External(const TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>& Geometry, const TArray<FPBDRigidParticle*>& ShapeParticles)
+		{
+			check(false);
+		}
 
 		// Cluster union proxy initialization happens in two first on the game thread (external) then on the
 		// physics thread (internal). Cluster unions are a primarily physics concept so the things exposed to
@@ -120,6 +132,8 @@ namespace Chaos
 		FClusterUnionIndex GetClusterUnionIndex() const { return ClusterUnionIndex; }
 
 	private:
+		void UpdateShapes_External(const TArray<FPBDRigidParticle*>& ShapeParticles);
+		
 		bool bIsInitializedOnPhysicsThread = false;
 		FClusterCreationParameters ClusterParameters;
 		const FClusterUnionInitData InitData;

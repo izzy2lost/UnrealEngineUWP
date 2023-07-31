@@ -40,6 +40,7 @@ const FName FGeometryCollection::MaterialGroup = "Material";
 const FName FGeometryCollection::SimulatableParticlesAttribute("SimulatableParticlesAttribute");
 const FName FGeometryCollection::SimulationTypeAttribute("SimulationType");
 const FName FGeometryCollection::StatusFlagsAttribute("StatusFlags");
+const FName FGeometryCollection::ExternalCollisionsAttribute("ExternalCollisions");
 
 
 bool FGeometryCollection::AreCollisionParticlesEnabled()
@@ -1168,7 +1169,7 @@ void FGeometryCollection::Serialize(Chaos::FChaosArchive& Ar)
 				// if we don't already have the one-to-many version, convert the previous one-to-one mapping to the new format
 				if (!HasAttribute("TransformToConvexIndices", FTransformCollection::TransformGroup))
 				{
-					FManagedArrayCollection::FConstructionParameters ConvexDependency("Convex");
+					FManagedArrayCollection::FConstructionParameters ConvexDependency(FGeometryCollection::ConvexGroup);
 					TManagedArray<TSet<int32>>& IndexSets = AddAttribute<TSet<int32>>("TransformToConvexIndices", FTransformCollection::TransformGroup, ConvexDependency);
 					for (int32 TransformIdx = 0; TransformIdx < TransformToConvexIndex.Num(); TransformIdx++)
 					{

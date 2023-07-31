@@ -122,7 +122,7 @@ private:
 				{
 					const uint32 KinematicGroupId = MKinematicGroupIds[i];  // Collision group Id
 
-					if ((KinematicGroupId != (uint32)INDEX_NONE && DynamicGroupId != KinematicGroupId ) || CollisionParticles.Geometry(i)->GetType() == Chaos::ImplicitObjectType::WeightedLatticeBone)
+					if ((KinematicGroupId != (uint32)INDEX_NONE && DynamicGroupId != KinematicGroupId ) || CollisionParticles.GetGeometry(i)->GetType() == Chaos::ImplicitObjectType::WeightedLatticeBone)
 					{
 						return; // Bail out if the collision groups doesn't match the particle group id, or use INDEX_NONE (= global collision that affects all particle)
 					}
@@ -132,7 +132,7 @@ private:
 					FSolverReal Phi;
 					int32 VelocityBone = i;
 					FSolverReal Penetration;
-					if (const TWeightedLatticeImplicitObject<FLevelSet>* LevelSet = CollisionParticles.Geometry(i)->GetObject< TWeightedLatticeImplicitObject<FLevelSet> >())
+					if (const TWeightedLatticeImplicitObject<FLevelSet>* LevelSet = CollisionParticles.GetGeometry(i)->GetObject< TWeightedLatticeImplicitObject<FLevelSet> >())
 					{
 						FWeightedLatticeImplicitObject::FEmbeddingCoordinate SurfaceCoord;
 						Phi = (FSolverReal)LevelSet->PhiWithNormalAndSurfacePoint(RigidSpacePosition, ImplicitNormal, SurfaceCoord);
@@ -148,7 +148,7 @@ private:
 					}
 					else
 					{
-						Phi = (FSolverReal)CollisionParticles.Geometry(i)->PhiWithNormal(RigidSpacePosition, ImplicitNormal);
+						Phi = (FSolverReal)CollisionParticles.GetGeometry(i)->PhiWithNormal(RigidSpacePosition, ImplicitNormal);
 						Penetration = PerGroupThickness - Phi; // This is related to the Normal impulse
 					}
 					const FSolverVec3 Normal(ImplicitNormal);
@@ -213,14 +213,14 @@ private:
 				{
 					const uint32 KinematicGroupId = MKinematicGroupIds[i];  // Collision group Id
 
-					if ((KinematicGroupId != (uint32)INDEX_NONE && DynamicGroupId != KinematicGroupId) || CollisionParticles.Geometry(i)->GetType() == Chaos::ImplicitObjectType::WeightedLatticeBone)
+					if ((KinematicGroupId != (uint32)INDEX_NONE && DynamicGroupId != KinematicGroupId) || CollisionParticles.GetGeometry(i)->GetType() == Chaos::ImplicitObjectType::WeightedLatticeBone)
 					{
 						return; // Bail out if the collision groups doesn't match the particle group id, or use INDEX_NONE (= global collision that affects all particle)
 					}
 					const FSolverRigidTransform3 Frame(CollisionParticles.X(i), CollisionParticles.R(i));
 					const FVec3 RigidSpacePosition(Frame.InverseTransformPosition(Particles.P(Index)));  // PhiWithNormal requires FReal based arguments
 					FVec3 ImplicitNormal;                                                                // since implicits don't use FSolverReal
-					const FSolverReal Phi = (FSolverReal)CollisionParticles.Geometry(i)->PhiWithNormal(RigidSpacePosition, ImplicitNormal);
+					const FSolverReal Phi = (FSolverReal)CollisionParticles.GetGeometry(i)->PhiWithNormal(RigidSpacePosition, ImplicitNormal);
 					const FSolverVec3 Normal(ImplicitNormal);
 
 					const FSolverReal Penetration = PerGroupThickness - Phi; // This is related to the Normal impulse

@@ -79,14 +79,14 @@ private:
 			{
 				const uint32 KinematicGroupId = KinematicGroupIds[CollisionIndex];  // Collision group Id
 
-				if ((KinematicGroupId != (uint32)INDEX_NONE && DynamicGroupId != KinematicGroupId) || CollisionParticles.Geometry(CollisionIndex)->GetType() == Chaos::ImplicitObjectType::WeightedLatticeBone)
+				if ((KinematicGroupId != (uint32)INDEX_NONE && DynamicGroupId != KinematicGroupId) || CollisionParticles.GetGeometry(CollisionIndex)->GetType() == Chaos::ImplicitObjectType::WeightedLatticeBone)
 				{
 					return; // Bail out if the collision groups doesn't match the particle group id, or use INDEX_NONE (= global collision that affects all particle)
 				}
 
 				const FSolverRigidTransform3 Frame(CollisionParticles.X(CollisionIndex), CollisionParticles.R(CollisionIndex));
 
-				const Pair<FVec3, bool> PointPair = CollisionParticles.Geometry(CollisionIndex)->FindClosestIntersection(  // Geometry operates in FReal
+				const Pair<FVec3, bool> PointPair = CollisionParticles.GetGeometry(CollisionIndex)->FindClosestIntersection(  // Geometry operates in FReal
 					FVec3(CollisionTransforms[CollisionIndex].InverseTransformPositionNoScale(Particles.X(Index))),        // hence the back and forth
 					FVec3(Frame.InverseTransformPositionNoScale(Particles.P(Index))), (FReal)Thickness);                   // FVec3/FReal conversions
 
@@ -94,7 +94,7 @@ private:
 				{
 					Collided[CollisionIndex] = true;
 
-					const FSolverVec3 Normal = FSolverVec3(CollisionParticles.Geometry(CollisionIndex)->Normal(PointPair.First));
+					const FSolverVec3 Normal = FSolverVec3(CollisionParticles.GetGeometry(CollisionIndex)->Normal(PointPair.First));
 					const FSolverVec3 NormalWorld = Frame.TransformVectorNoScale(Normal);
 					const FSolverVec3 ContactWorld = Frame.TransformPositionNoScale(UE::Math::TVector<FSolverReal>(PointPair.First));
 
@@ -112,7 +112,7 @@ private:
 
 					// Friction
 					int32 VelocityBone = CollisionIndex;
-					if (const TWeightedLatticeImplicitObject<FLevelSet>* LevelSet = CollisionParticles.Geometry(CollisionIndex)->GetObject< TWeightedLatticeImplicitObject<FLevelSet> >())
+					if (const TWeightedLatticeImplicitObject<FLevelSet>* LevelSet = CollisionParticles.GetGeometry(CollisionIndex)->GetObject< TWeightedLatticeImplicitObject<FLevelSet> >())
 					{
 						TArray<FWeightedLatticeImplicitObject::FEmbeddingCoordinate> Coordinates;
 						LevelSet->GetEmbeddingCoordinates(PointPair.First, Coordinates, false);

@@ -25,6 +25,9 @@ namespace
 	bool bUseClusterUnionAccelerationStructure = true;
 	FAutoConsoleVariableRef CVarUseClusterUnionAccelerationStructure(TEXT("ClusterUnion.UseAccelerationStructure"), bUseClusterUnionAccelerationStructure, TEXT("Whether component level sweeps and overlaps against cluster unions should use an acceleration structure instead."));
 
+	bool bIncrementalUnionBuild = false;
+	FAutoConsoleVariableRef CVarIncrementalUnionBuild(TEXT("ClusterUnion.IncrementalUnionBuild"), bIncrementalUnionBuild , TEXT("Cvar to incrementally build the union."));
+	
 	// TODO: Should this be exposed in Chaos instead?
 	using FAccelerationStructure = Chaos::TAABBTree<FExternalSpatialAccelerationPayload, Chaos::TAABBTreeLeafArray<FExternalSpatialAccelerationPayload>>;
 
@@ -150,10 +153,16 @@ void UClusterUnionComponent::AddComponentToCluster(UPrimitiveComponent* InCompon
 	PendingComponentSync.Add(InComponent, PendingData);
 
 	PhysicsProxy->AddPhysicsObjects_External(Objects);
-
 	if (bRebuildGeometry)
 	{
-		ForceRebuildGTParticleGeometry();
+		if(!bIncrementalUnionBuild)
+		{
+			ForceRebuildGTParticleGeometry();
+		}
+		else
+		{
+			AddGTParticleGeometry(Objects);
+		}
 	}
 }
 
@@ -226,7 +235,15 @@ void UClusterUnionComponent::RemoveComponentFromCluster(UPrimitiveComponent* InC
 	if (!PhysicsObjectsToRemove.IsEmpty())
 	{
 		PhysicsProxy->RemovePhysicsObjects_External(PhysicsObjectsToRemove);
-		ForceRebuildGTParticleGeometry();
+		
+		if(!bIncrementalUnionBuild)
+        {
+			ForceRebuildGTParticleGeometry();
+		}
+		else
+		{
+			RemoveGTParticleGeometry(PhysicsObjectsToRemove);
+		}
 	}
 }
 
@@ -331,6 +348,78 @@ void UClusterUnionComponent::RemoveComponentBonesFromCluster(UPrimitiveComponent
 	}
 }
 
+void UClusterUnionComponent::AddGTParticleGeometry(const TArray<Chaos::FPhysicsObjectHandle>& PhysicsObjects) const
+{
+	if (!PhysicsProxy)
+	{
+		return;
+	}
+
+	// This is an assumption that all the physics objects are part of this scene and thus this is the right thing to lock.
+	FLockedReadPhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockRead(GetWorld()->GetPhysicsScene());
+
+	TArray<Chaos::FImplicitObjectPtr> ImplicitObjects;
+	TArray<Chaos::FPBDRigidParticle*> ShapeParticles;
+	
+	const FTransform ClusterWorldTM = GetComponentTransform();
+	for (Chaos::FPBDRigidParticle* RigidParticle : Interface->GetAllRigidParticles(PhysicsObjects))
+	{
+		if (RigidParticle && RigidParticle->GetGeometry())
+		{
+			const FTransform ChildWorldTM{ RigidParticle->R(), RigidParticle->X() };
+			const FTransform Frame = ChildWorldTM.GetRelativeTransform(ClusterWorldTM);
+			ImplicitObjects.Add(Chaos::FImplicitObjectPtr(Chaos::FClusterUnionManager::CreateTransformGeometryForClusterUnion<Chaos::EThreadContext::External>(RigidParticle, Frame)));
+			ShapeParticles.Add(RigidParticle);
+		}
+	}
+	if(!ImplicitObjects.IsEmpty() && PhysicsProxy->GetParticle_External())
+	{
+		if(PhysicsProxy->GetParticle_External()->GetGeometry() == nullptr)
+		{
+			Chaos::FImplicitObjectUnion* NewGeometry = ImplicitObjects.IsEmpty() ? new Chaos::FImplicitObjectUnionClustered() : new Chaos::FImplicitObjectUnion(MoveTemp(ImplicitObjects));
+			NewGeometry->SetAllowBVH(true);
+    
+			PhysicsProxy->SetGeometry_External(Chaos::FImplicitObjectPtr(NewGeometry), ShapeParticles);
+		}
+		else
+		{
+			PhysicsProxy->MergeGeometry_External(MoveTemp(ImplicitObjects), ShapeParticles);
+		}
+	}
+}
+
+void UClusterUnionComponent::RemoveGTParticleGeometry(const TSet<Chaos::FPhysicsObjectHandle>& PhysicsObjects) const
+{
+	if (!PhysicsProxy)
+	{
+		return;
+	}
+	TArray<Chaos::FPhysicsObjectHandle> ArrayObjects;
+	ArrayObjects.SetNum(PhysicsObjects.Num());
+
+	for(Chaos::FPhysicsObjectHandle PhysicsObject : PhysicsObjects)
+	{
+		ArrayObjects.Add(PhysicsObject);
+	}
+
+	// This is an assumption that all the physics objects are part of this scene and thus this is the right thing to lock.
+	FLockedReadPhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockRead(GetWorld()->GetPhysicsScene());
+
+	TArray<Chaos::FPBDRigidParticle*> ShapeParticles;
+	for (Chaos::FPBDRigidParticle* RigidParticle : Interface->GetAllRigidParticles(ArrayObjects))
+	{
+		if (RigidParticle && RigidParticle->GetGeometry())
+		{
+			ShapeParticles.Add(RigidParticle);
+		}
+	}
+	if(!ShapeParticles.IsEmpty() && PhysicsProxy->GetParticle_External())
+	{
+		PhysicsProxy->RemoveShapes_External(ShapeParticles);
+	}
+}
+
+
 void UClusterUnionComponent::ForceRebuildGTParticleGeometry()
 {
 	if (!PhysicsProxy)
@@ -343,9 +432,9 @@ void UClusterUnionComponent::ForceRebuildGTParticleGeometry()
 
 	const FTransform ClusterWorldTM = GetComponentTransform();
 	TArray<UPrimitiveComponent*> Components = GetAllCurrentChildComponents();
-	// This code is similar-ish to FClusterUnionManager::ForceRecreateClusterUnionSharedGeometry but not enough to make it necessary
+	// This code is similar-ish to FClusterUnionManager::ForceRecreateClusterUnionGeometry but not enough to make it necessary
 	// to reshare exactly the same code.
-	TArray<TUniquePtr<Chaos::FImplicitObject>> Objects;
+	TArray<Chaos::FImplicitObjectPtr> Objects;
 	TArray<Chaos::FPBDRigidParticle*> Particles;
 
 	// Should be a good number to reserve for now since it's a generally safe assumption we'll be working with 1 particle per component added.
@@ -365,11 +454,11 @@ void UClusterUnionComponent::ForceRebuildGTParticleGeometry()
 
 		for (Chaos::FPBDRigidParticle* Particle : Interface->GetAllRigidParticles(PhysicsObjects))
 		{
-			if (Particle && Particle->Geometry())
+			if (Particle && Particle->GetGeometry())
 			{
 				const FTransform ChildWorldTM{ Particle->R(), Particle->X() };
 				const FTransform Frame = ChildWorldTM.GetRelativeTransform(ClusterWorldTM);
-				Objects.Add(TUniquePtr<Chaos::FImplicitObject>(Chaos::FClusterUnionManager::CreateTransformGeometryForClusterUnion<Chaos::EThreadContext::External>(Particle, Frame)));
+				Objects.Add(Chaos::FImplicitObjectPtr(Chaos::FClusterUnionManager::CreateTransformGeometryForClusterUnion<Chaos::EThreadContext::External>(Particle, Frame)));
 				Particles.Add(Particle);
 			}
 		}
@@ -378,7 +467,7 @@ void UClusterUnionComponent::ForceRebuildGTParticleGeometry()
 	Chaos::FImplicitObjectUnion* NewGeometry = Objects.IsEmpty() ? new Chaos::FImplicitObjectUnionClustered() : new Chaos::FImplicitObjectUnion(MoveTemp(Objects));
 	NewGeometry->SetAllowBVH(true);
 
-	PhysicsProxy->SetSharedGeometry_External(TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>(NewGeometry), Particles);
+	PhysicsProxy->SetGeometry_External(Chaos::FImplicitObjectPtr(NewGeometry), Particles); 
 }
 
 TArray<UPrimitiveComponent*> UClusterUnionComponent::GetPrimitiveComponents()
@@ -1117,7 +1206,7 @@ bool UClusterUnionComponent::ComponentOverlapComponentWithResultImpl(const class
 			{
 				if (Shape)
 				{
-					if (Chaos::TSerializablePtr<Chaos::FImplicitObject> Geometry = Shape->GetGeometry())
+					if (Chaos::FImplicitObjectPtr Geometry = Shape->GetGeometry())
 					{
 						bHasOverlap |= FGenericGeomPhysicsInterfaceUsingSpatialAcceleration<IExternalSpatialAcceleration, FPhysicsGeometry>::GeomOverlapMulti(*AccelerationStructure, GetWorld(), *Geometry, Pos, Rot, OutOverlap, DefaultCollisionChannel, Params, FCollisionResponseParams::DefaultResponseParam, FCollisionObjectQueryParams::DefaultObjectQueryParam);
 					}

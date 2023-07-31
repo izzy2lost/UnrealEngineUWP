@@ -13,6 +13,7 @@
 #include "Chaos/PhysicalMaterials.h"
 #include "UObject/PhysicsObjectVersion.h"
 #include "UObject/ExternalPhysicsCustomObjectVersion.h"
+#include "UObject/FortniteValkyrieBranchObjectVersion.h"
 #include "UObject/ExternalPhysicsMaterialCustomObjectVersion.h"
 #include "Chaos/Properties.h"
 #include "Chaos/Framework/PhysicsProxyBase.h"
@@ -165,8 +166,6 @@ namespace Chaos
 			TArrayCollection::AddArray(&MUniqueIdx);
 			TArrayCollection::AddArray(&MR);
 			TArrayCollection::AddArray(&MGeometry);
-			TArrayCollection::AddArray(&MSharedGeometry);
-			TArrayCollection::AddArray(&MDynamicGeometry);
 #if CHAOS_DETERMINISTIC
 			TArrayCollection::AddArray(&MParticleIDs);
 #endif
@@ -205,8 +204,6 @@ namespace Chaos
 			, MUniqueIdx(MoveTemp(Other.MUniqueIdx))
 			, MR(MoveTemp(Other.MR))
 			, MGeometry(MoveTemp(Other.MGeometry))
-			, MSharedGeometry(MoveTemp(Other.MSharedGeometry))
-			, MDynamicGeometry(MoveTemp(Other.MDynamicGeometry))
 			, MGeometryParticleHandle(MoveTemp(Other.MGeometryParticleHandle))
 			, MGeometryParticle(MoveTemp(Other.MGeometryParticle))
 			, MPhysicsProxy(MoveTemp(Other.MPhysicsProxy))
@@ -237,8 +234,6 @@ namespace Chaos
 			TArrayCollection::AddArray(&MUniqueIdx);
 			TArrayCollection::AddArray(&MR);
 			TArrayCollection::AddArray(&MGeometry);
-			TArrayCollection::AddArray(&MSharedGeometry);
-			TArrayCollection::AddArray(&MDynamicGeometry);
 #if CHAOS_DETERMINISTIC
 			TArrayCollection::AddArray(&MParticleIDs);
 #endif
@@ -279,8 +274,6 @@ namespace Chaos
 			TArrayCollection::AddArray(&MUniqueIdx);
 			TArrayCollection::AddArray(&MR);
 			TArrayCollection::AddArray(&MGeometry);
-			TArrayCollection::AddArray(&MSharedGeometry);
-			TArrayCollection::AddArray(&MDynamicGeometry);
 #if CHAOS_DETERMINISTIC
 			TArrayCollection::AddArray(&MParticleIDs);
 #endif
@@ -325,11 +318,26 @@ namespace Chaos
 		ESyncState& SyncState(const int32 Index) { return MSyncState[Index].State; }
 		ESyncState SyncState(const int32 Index) const { return MSyncState[Index].State; }
 
-		TSerializablePtr<FImplicitObject> Geometry(const int32 Index) const { return MGeometry[Index]; }
+		const FImplicitObjectPtr& GetGeometry(const int32 Index) const { return MGeometry[Index]; }
 
-		const TUniquePtr<FImplicitObject>& DynamicGeometry(const int32 Index) const { return MDynamicGeometry[Index]; }
-
-		const TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe>& SharedGeometry(const int32 Index) const { return MSharedGeometry[Index]; }
+		UE_DEPRECATED(5.4, "Please use GetGeometry instead")
+		TSerializablePtr<FImplicitObject> Geometry(const int32 Index) const { check(false); return TSerializablePtr<FImplicitObject>(); }
+		
+		UE_DEPRECATED(5.4, "Please use GetGeometry instead")
+		const TUniquePtr<FImplicitObject>& DynamicGeometry(const int32 Index) const
+		{
+			check(false);
+			static TUniquePtr<FImplicitObject> DummyPtr;
+			return DummyPtr;
+		}
+		
+		UE_DEPRECATED(5.4, "Please use GetGeometry instead")
+		const TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe>& SharedGeometry(const int32 Index) const
+		{
+			check(false);
+			static TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe> DummyPtr;
+			return DummyPtr;
+		}
 
 		bool HasCollision(const int32 Index) const { return MHasCollision[Index]; }
 		bool& HasCollision(const int32 Index) { return MHasCollision[Index]; }
@@ -342,31 +350,20 @@ namespace Chaos
 		FParticleID ParticleID(const int32 Idx) const { return MParticleIDs[Idx]; }
 		FParticleID& ParticleID(const int32 Idx) { return MParticleIDs[Idx]; }
 #endif
-		// Set a dynamic geometry. Note that X and R must be initialized before calling this function.
-		void SetDynamicGeometry(const int32 Index, TUniquePtr<FImplicitObject>&& InUnique)
-		{
-			check(!SharedGeometry(Index));	// If shared geometry exists we should not be setting dynamic geometry on top
-			SetGeometryImpl(Index, MakeSerializable(InUnique));
-			MDynamicGeometry[Index] = MoveTemp(InUnique);
-		}
-
-		// Set a shared geometry. Note that X and R must be initialized before calling this function.
-		void SetSharedGeometry(const int32 Index, TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe> InShared)
-		{
-			check(!DynamicGeometry(Index));	// If dynamic geometry exists we should not be setting shared geometry on top
-			SetGeometryImpl(Index, MakeSerializable(InShared));
-			MSharedGeometry[Index] = InShared;
-		}
 		
-		void SetGeometry(const int32 Index, TSerializablePtr<FImplicitObject> InGeometry)
+		void SetGeometry(const int32 Index, const FImplicitObjectPtr& InGeometry)
 		{
-			check(!DynamicGeometry(Index));
-			check(!SharedGeometry(Index));
 			SetGeometryImpl(Index, InGeometry);
 		}
 
+		UE_DEPRECATED(5.4, "Please use SetGeometry with FImplicitObjectPtr instead")
+		void SetDynamicGeometry(const int32 Index, TUniquePtr<FImplicitObject>&& InUnique) { check(false); }
+
+		UE_DEPRECATED(5.4, "Please use SetGeometry with FImplicitObjectPtr instead")
+		void SetSharedGeometry(const int32 Index, TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe> InShared) { check(false); }
+
 	private:
-		void SetGeometryImpl(const int32 Index, TSerializablePtr<FImplicitObject> InGeometry)
+		void SetGeometryImpl(const int32 Index, const FImplicitObjectPtr& InGeometry)
 		{
 			MGeometry[Index] = InGeometry;
 
@@ -417,7 +414,7 @@ namespace Chaos
 					// for CCD extents.
 					if (Shape->GetSimEnabled() && (CVars::bCCDAxisThresholdUsesProbeShapes || !Shape->GetIsProbe()))
 					{
-						const TSerializablePtr<FImplicitObject> Geometry = Shape->GetGeometry();
+						const FImplicitObjectRef Geometry = Shape->GetGeometry();
 						if (Geometry->HasBoundingBox())
 						{
 							const TVector<T, d> ShapeExtents = Geometry->BoundingBox().Extents();
@@ -519,7 +516,7 @@ namespace Chaos
 			MWorldSpaceInflatedBounds[Index].GrowByVector(DeltaX);
 		}
 
-		const TArray<TSerializablePtr<FImplicitObject>>& GetAllGeometry() const { return MGeometry; }
+		const TArray<FImplicitObjectPtr>& GetAllGeometry() const { return MGeometry; }
 
 		typedef FGeometryParticleHandle THandleType;
 		FORCEINLINE THandleType* Handle(int32 Index) const { return const_cast<THandleType*>(MGeometryParticleHandle[Index].Get()); }
@@ -609,14 +606,37 @@ public:
 		FString ToString(int32 index) const
 		{
 			FString BaseString = TParticles<T, d>::ToString(index);
-			return FString::Printf(TEXT("%s, MUniqueIdx:%d MR:%s, MGeometry:%s, IsDynamic:%d"), *BaseString, UniqueIdx(index).Idx, *R(index).ToString(), (Geometry(index) ? *(Geometry(index)->ToString()) : TEXT("none")), (DynamicGeometry(index) != nullptr));
+			return FString::Printf(TEXT("%s, MUniqueIdx:%d MR:%s, MGeometry:%s"), *BaseString, UniqueIdx(index).Idx, *R(index).ToString(), (GetGeometry(index) ? *(GetGeometry(index)->ToString()) : TEXT("none")));
 		}
 
 		virtual void Serialize(FChaosArchive& Ar)
 		{
 			LLM_SCOPE(ELLMTag::ChaosParticles);
 			TParticles<T, d>::Serialize(Ar);
-			Ar << MGeometry << MDynamicGeometry << MR;
+			
+			Ar.UsingCustomVersion(FFortniteValkyrieBranchObjectVersion::GUID);
+			if (Ar.CustomVer(FFortniteValkyrieBranchObjectVersion::GUID) < FFortniteValkyrieBranchObjectVersion::RefCountedOImplicitObjects)
+			{
+				TArrayCollectionArray<TSerializablePtr<FImplicitObject>> LGeometry;
+				TArrayCollectionArray<TUniquePtr<Chaos::FImplicitObject>> LDynamicGeometry;
+				Ar << LGeometry << LDynamicGeometry;
+
+				if(Ar.IsLoading())
+				{
+					MGeometry.SetNumUninitialized(LGeometry.Num());
+					uint32 ImplicitIndex = 0;
+					for(const TSerializablePtr<FImplicitObject>& ImplicitObjectPtr : LGeometry)
+					{
+						MGeometry[ImplicitIndex++] = ImplicitObjectPtr->CopyGeometry();
+					}
+				}
+			}
+			else
+			{
+				Ar << MGeometry;
+			}
+			Ar << MR;
+			
 			Ar.UsingCustomVersion(FPhysicsObjectVersion::GUID);
 			if (Ar.CustomVer(FPhysicsObjectVersion::GUID) >= FPhysicsObjectVersion::PerShapeData)
 			{
@@ -688,13 +708,7 @@ public:
 		TArrayCollectionArray<TRotation<T, d>> MR;
 		// MGeometry contains raw ptrs to every entry in both MSharedGeometry and MDynamicGeometry.
 		// It may also contain raw ptrs to geometry which is managed outside of Chaos.
-		TArrayCollectionArray<TSerializablePtr<FImplicitObject>> MGeometry;
-		// MSharedGeometry entries are owned by the solver, shared between *representations* of a particle.
-		// This is NOT for sharing geometry resources between particle's A and B, this is for sharing the
-		// geometry between particle A's various representations.
-		TArrayCollectionArray<TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe>> MSharedGeometry;
-		// MDynamicGeometry entries are used for geo which is by the evolution. It is not set from the game side.
-		TArrayCollectionArray<TUniquePtr<FImplicitObject>> MDynamicGeometry;
+		TArrayCollectionArray<FImplicitObjectPtr> MGeometry;
 		TArrayCollectionArray<TSerializablePtr<FGeometryParticleHandle>> MGeometryParticleHandle;
 		TArrayCollectionArray<FGeometryParticle*> MGeometryParticle;
 		TArrayCollectionArray<IPhysicsProxyBase*> MPhysicsProxy;

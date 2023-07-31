@@ -130,6 +130,7 @@ class UBodySetup : public UBodySetupCore
 
 	/** Needs implementation in BodySetup.cpp to compile UniquePtr for forward declared class */
 	UBodySetup(FVTableHelper& Helper);
+
 	virtual ~UBodySetup();
 
 	/** Simplified collision representation of this  */
@@ -229,9 +230,9 @@ private:
 #endif
 
 public:
-
-	//FBodySetupTriMeshes* TriMeshWrapper;
-	TArray<TSharedPtr<Chaos::FTriangleMeshImplicitObject, ESPMode::ThreadSafe>> ChaosTriMeshes;
+	
+	/** list of chaos trimesh objects */
+	TArray<Chaos::FTriangleMeshImplicitObjectPtr> TriMeshGeometries;
 
 	/** Additional UV info, if available. Used for determining UV for a line trace impact. */
 	FBodySetupUVInfo UVInfo;
@@ -256,6 +257,9 @@ public:
 
 	// Will contain deserialized data from the serialization function that can be used at PostLoad time.
 	TUniquePtr<FChaosDerivedDataReader<float, 3>> ChaosDerivedDataReader;
+	
+	UE_DEPRECATED(5.4, "Please use TriMeshGeometries instead")
+    TArray<TSharedPtr<Chaos::FTriangleMeshImplicitObject, ESPMode::ThreadSafe>> ChaosTriMeshes;
 
 public:
 	//~ Begin UObject Interface.
@@ -304,8 +308,8 @@ private:
 	bool RuntimeCookPhysics_Chaos();
 	void FinishCreatingPhysicsMeshes_Chaos(FChaosDerivedDataReader<float, 3>& InReader);
 	void FinishCreatingPhysicsMeshes_Chaos(Chaos::FCookHelper& InHelper);
-	void FinishCreatingPhysicsMeshes_Chaos(TArray<TSharedPtr<Chaos::FConvex, ESPMode::ThreadSafe>>& InConvexImplicits, 
-										   TArray<TSharedPtr<Chaos::FTriangleMeshImplicitObject, ESPMode::ThreadSafe>>& InTrimeshImplicits,
+	void FinishCreatingPhysicsMeshes_Chaos(TArray<Chaos::FConvexPtr>& InConvexImplicits, 
+										   TArray<Chaos::FTriangleMeshImplicitObjectPtr>& InTrimeshImplicits,
 										   FBodySetupUVInfo& InUvInfo,
 										   TArray<int32>& InFaceRemap);
 

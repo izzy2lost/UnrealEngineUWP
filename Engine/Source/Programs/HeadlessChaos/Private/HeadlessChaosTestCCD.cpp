@@ -43,8 +43,8 @@ namespace ChaosTest
 		PhysicsMaterial->Restitution = 1.0f;
 
 		// Create box geometry 
-		TUniquePtr<FImplicitObject> SmallBox(new TBox<FReal, 3>(FVec3(-BoxHalfSize, -BoxHalfSize, -BoxHalfSize), FVec3(BoxHalfSize, BoxHalfSize, BoxHalfSize)));
-		Static->SetGeometry(MakeSerializable(SmallBox));
+		Chaos::FImplicitObjectPtr SmallBox(new TBox<FReal, 3>(FVec3(-BoxHalfSize, -BoxHalfSize, -BoxHalfSize), FVec3(BoxHalfSize, BoxHalfSize, BoxHalfSize)));
+		Static->SetGeometry(SmallBox);
 		AppendDynamicParticleConvexBox(*Dynamic, FVec3(BoxHalfSize), 0.0f);
 
 		Evolution.SetPhysicsMaterial(Dynamic, MakeSerializable(PhysicsMaterial));
@@ -107,8 +107,8 @@ namespace ChaosTest
 		PhysicsMaterial->Restitution = 1.0f;
 
 		// Create box geometry 
-		TUniquePtr<FImplicitObject> SmallBox(new TBox<FReal, 3>(FVec3(-BoxHalfSize, -BoxHalfSize, -BoxHalfSize), FVec3(BoxHalfSize, BoxHalfSize, BoxHalfSize)));
-		Static->SetGeometry(MakeSerializable(SmallBox));
+		Chaos::FImplicitObjectPtr SmallBox(new TBox<FReal, 3>(FVec3(-BoxHalfSize, -BoxHalfSize, -BoxHalfSize), FVec3(BoxHalfSize, BoxHalfSize, BoxHalfSize)));
+		Static->SetGeometry(SmallBox);
 		AppendDynamicParticleConvexBox(*Dynamic, FVec3(BoxHalfSize), 0.0f);
 
 		Evolution.SetPhysicsMaterial(Dynamic, MakeSerializable(PhysicsMaterial));
@@ -171,11 +171,11 @@ namespace ChaosTest
 		PhysicsMaterial->Restitution = 1.0f;
 
 		// Create Sphere geometry (Radius = 100)
-		TUniquePtr<FImplicitObject> Sphere(new TSphere<FReal, 3>(FVec3(0, 0, 0), SphereRadius));
+		Chaos::FImplicitObjectPtr Sphere(new TSphere<FReal, 3>(FVec3(0, 0, 0), SphereRadius));
 
 		// Assign sphere geometry to both particles 
-		Static->SetGeometry(MakeSerializable(Sphere));
-		Dynamic->SetGeometry(MakeSerializable(Sphere));
+		Static->SetGeometry(Sphere);
+		Dynamic->SetGeometry(Sphere);
 
 		Evolution.SetPhysicsMaterial(Dynamic, MakeSerializable(PhysicsMaterial));
 
@@ -244,22 +244,22 @@ namespace ChaosTest
 		PhysicsMaterial->Restitution = 0.2f;// Bounce against the walls a few times
 
 		// Create box geometry 
-		//TUniquePtr<FImplicitObject> SmallBox(new TBox<FReal, 3>(FVec3(-SmallBoxHalfSize, -SmallBoxHalfSize, -SmallBoxHalfSize), FVec3(SmallBoxHalfSize, SmallBoxHalfSize, SmallBoxHalfSize)));
+		//Chaos::FImplicitObjectPtr SmallBox(new TBox<FReal, 3>(FVec3(-SmallBoxHalfSize, -SmallBoxHalfSize, -SmallBoxHalfSize), FVec3(SmallBoxHalfSize, SmallBoxHalfSize, SmallBoxHalfSize)));
 		AppendDynamicParticleConvexBox(*Dynamic, FVec3(SmallBoxHalfSize), 0.0f);
 
 		// Just use 3 (x2) boxes for the walls of the container (avoid rotation transforms for this test)
-		TUniquePtr<FImplicitObject> ContainerFaceX(new TBox<FReal, 3>(FVec3(-ContainerWallThickness / 2, -ContainerBoxHalfSize, -ContainerBoxHalfSize), FVec3(ContainerWallThickness / 2, ContainerBoxHalfSize, ContainerBoxHalfSize)));
-		TUniquePtr<FImplicitObject> ContainerFaceY(new TBox<FReal, 3>(FVec3(-ContainerBoxHalfSize, -ContainerWallThickness / 2, -ContainerBoxHalfSize), FVec3(ContainerBoxHalfSize, ContainerWallThickness / 2, ContainerBoxHalfSize)));
-		TUniquePtr<FImplicitObject> ContainerFaceZ(new TBox<FReal, 3>(FVec3(-ContainerBoxHalfSize, -ContainerBoxHalfSize, -ContainerWallThickness / 2), FVec3(ContainerBoxHalfSize, ContainerBoxHalfSize, ContainerWallThickness / 2)));		
+		Chaos::FImplicitObjectPtr ContainerFaceX(new TBox<FReal, 3>(FVec3(-ContainerWallThickness / 2, -ContainerBoxHalfSize, -ContainerBoxHalfSize), FVec3(ContainerWallThickness / 2, ContainerBoxHalfSize, ContainerBoxHalfSize)));
+		Chaos::FImplicitObjectPtr ContainerFaceY(new TBox<FReal, 3>(FVec3(-ContainerBoxHalfSize, -ContainerWallThickness / 2, -ContainerBoxHalfSize), FVec3(ContainerBoxHalfSize, ContainerWallThickness / 2, ContainerBoxHalfSize)));
+		Chaos::FImplicitObjectPtr ContainerFaceZ(new TBox<FReal, 3>(FVec3(-ContainerBoxHalfSize, -ContainerBoxHalfSize, -ContainerWallThickness / 2), FVec3(ContainerBoxHalfSize, ContainerBoxHalfSize, ContainerWallThickness / 2)));		
 
 		
 
-		ContainerFaces[0]->SetGeometry(MakeSerializable(ContainerFaceX));
-		ContainerFaces[1]->SetGeometry(MakeSerializable(ContainerFaceX));
-		ContainerFaces[2]->SetGeometry(MakeSerializable(ContainerFaceY));
-		ContainerFaces[3]->SetGeometry(MakeSerializable(ContainerFaceY));
-		ContainerFaces[4]->SetGeometry(MakeSerializable(ContainerFaceZ));
-		ContainerFaces[5]->SetGeometry(MakeSerializable(ContainerFaceZ));
+		ContainerFaces[0]->SetGeometry(ContainerFaceX);
+		ContainerFaces[1]->SetGeometry(ContainerFaceX);
+		ContainerFaces[2]->SetGeometry(ContainerFaceY);
+		ContainerFaces[3]->SetGeometry(ContainerFaceY);
+		ContainerFaces[4]->SetGeometry(ContainerFaceZ);
+		ContainerFaces[5]->SetGeometry(ContainerFaceZ);
 		
 
 		Evolution.SetPhysicsMaterial(Dynamic, MakeSerializable(PhysicsMaterial));

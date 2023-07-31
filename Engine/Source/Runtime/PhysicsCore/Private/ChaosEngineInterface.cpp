@@ -24,6 +24,7 @@ FPhysicsDelegatesCore::FOnUpdatePhysXMaterial FPhysicsDelegatesCore::OnUpdatePhy
 #include "Chaos/Collision/CollisionConstraintFlags.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "Chaos/ImplicitObject.h"
+#include "Chaos/ImplicitObjectUnion.h"
 #include "Chaos/PhysicsObjectInterface.h"
 #include "PBDRigidsSolver.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
@@ -125,12 +126,12 @@ FPhysicsShapeAdapter_Chaos::FPhysicsShapeAdapter_Chaos(const FQuat& Rot,const FC
 			const FVector Bot = FVector(0.f,0.f,-UseHalfHeight);
 			const FVector Top = FVector(0.f,0.f,UseHalfHeight);
 			const float UseRadius = FMath::Max(CapsuleRadius,FCollisionShape::MinCapsuleRadius());
-			Geometry = TUniquePtr<FPhysicsGeometry>(new Chaos::FCapsule(Bot,Top,UseRadius));
+			Geometry = TRefCountPtr<FPhysicsGeometry>(new Chaos::FCapsule(Bot,Top,UseRadius));
 		} else
 		{
 			// Use a sphere instead.
 			const float UseRadius = FMath::Max(CapsuleRadius,FCollisionShape::MinSphereRadius());
-			Geometry = TUniquePtr<FPhysicsGeometry>(new Chaos::TSphere<Chaos::FReal,3>(Chaos::FVec3(0),UseRadius));
+			Geometry = TRefCountPtr<FPhysicsGeometry>(new Chaos::TSphere<Chaos::FReal,3>(Chaos::FVec3(0),UseRadius));
 		}
 		break;
 	}
@@ -141,13 +142,13 @@ FPhysicsShapeAdapter_Chaos::FPhysicsShapeAdapter_Chaos(const FQuat& Rot,const FC
 		HalfExtents.Y = FMath::Max(HalfExtents.Y,FCollisionShape::MinBoxExtent());
 		HalfExtents.Z = FMath::Max(HalfExtents.Z,FCollisionShape::MinBoxExtent());
 
-		Geometry = TUniquePtr<FPhysicsGeometry>(new Chaos::TBox<Chaos::FReal,3>(-HalfExtents,HalfExtents));
+		Geometry = TRefCountPtr<FPhysicsGeometry>(new Chaos::TBox<Chaos::FReal,3>(-HalfExtents,HalfExtents));
 		break;
 	}
 	case ECollisionShape::Sphere:
 	{
 		const float UseRadius = FMath::Max(CollisionShape.GetSphereRadius(),FCollisionShape::MinSphereRadius());
-		Geometry = TUniquePtr<FPhysicsGeometry>(new Chaos::TSphere<Chaos::FReal,3>(Chaos::FVec3(0),UseRadius));
+		Geometry = TRefCountPtr<FPhysicsGeometry>(new Chaos::TSphere<Chaos::FReal,3>(Chaos::FVec3(0),UseRadius));
 		break;
 	}
 	default:
@@ -732,7 +733,7 @@ FBox FChaosEngineInterface::GetBounds_AssumesLocked(const FPhysicsActorHandle& I
 {
 	using namespace Chaos;
 	const Chaos::FRigidBodyHandle_External& Body_External = InActorReference->GetGameThreadAPI();
-	if (const FImplicitObject* Geometry = Body_External.Geometry().Get())
+	if (const FImplicitObjectRef Geometry = Body_External.GetGeometry())
 	{
 		if (Geometry->HasBoundingBox())
 		{
@@ -1316,8 +1317,8 @@ FPhysicsConstraintHandle FChaosEngineInterface::CreateConstraint(Chaos::FPhysics
 				FChaosEngineInterface::CreateActor(Params, KinematicEndPoint);
 
 				// Chaos requires our particles have geometry.
-				auto Sphere = MakeUnique<Chaos::FImplicitSphere3>(FVector(0, 0, 0), 0);
-				KinematicEndPoint->GetGameThreadAPI().SetGeometry(MoveTemp(Sphere));
+				auto Sphere = MakeImplicitObjectPtr<Chaos::FImplicitSphere3>(FVector(0, 0, 0), 0);
+				KinematicEndPoint->GetGameThreadAPI().SetGeometry(Sphere);
 				KinematicEndPoint->GetGameThreadAPI().SetUserData(nullptr);
 
 				auto* JointConstraint = new Chaos::FJointConstraint();
@@ -1795,7 +1796,7 @@ bool FChaosEngineInterface::IsBroken(const FPhysicsConstraintHandle& InConstrain
 }
 
 
-void FChaosEngineInterface::SetGeometry(FPhysicsShapeHandle& InShape, TUniquePtr<Chaos::FImplicitObject>&& InGeometry)
+void FChaosEngineInterface::SetGeometry(FPhysicsShapeHandle& InShape, Chaos::FImplicitObjectPtr&& InGeometry)
 {
 	using namespace Chaos;
 
@@ -1803,7 +1804,7 @@ void FChaosEngineInterface::SetGeometry(FPhysicsShapeHandle& InShape, TUniquePtr
 	// Cannot modify union as it is shared between threads.
 	const FShapesArray& ShapeArray = InShape.ActorRef->GetGameThreadAPI().ShapesArray();
 
-	TArray<TUniquePtr<FImplicitObject>> NewGeometry;
+	TArray<Chaos::FImplicitObjectPtr> NewGeometry;
 	NewGeometry.Reserve(ShapeArray.Num());
 
 	int32 ShapeIdx = 0;
@@ -1815,7 +1816,7 @@ void FChaosEngineInterface::SetGeometry(FPhysicsShapeHandle& InShape, TUniquePtr
 		}
 		else
 		{
-			NewGeometry.Emplace(Shape->GetGeometry()->Copy());
+			NewGeometry.Emplace(Shape->GetGeometry()->CopyGeometry());
 		}
 
 		ShapeIdx++;
@@ -1823,7 +1824,8 @@ void FChaosEngineInterface::SetGeometry(FPhysicsShapeHandle& InShape, TUniquePtr
 
 	if (ensure(NewGeometry.Num() == ShapeArray.Num()))
 	{
-		InShape.ActorRef->GetGameThreadAPI().SetGeometry(MakeUnique<Chaos::FImplicitObjectUnion>(MoveTemp(NewGeometry)));
+		Chaos::FImplicitObjectPtr ImplicitUnion = MakeImplicitObjectPtr<Chaos::FImplicitObjectUnion>(MoveTemp(NewGeometry));
+		InShape.ActorRef->GetGameThreadAPI().SetGeometry(ImplicitUnion);
 		
 		FChaosScene* Scene = FChaosEngineInterface::GetCurrentScene(InShape.ActorRef);
 		if (ensure(Scene))
@@ -1942,29 +1944,30 @@ void FChaosEngineInterface::SetLocalTransform(const FPhysicsShapeHandle& InShape
 	{
 		Chaos::FRigidBodyHandle_External& BodyHandle = Particle->GetGameThreadAPI();
 
-		const FImplicitObject* CurrentGeom = BodyHandle.Geometry().Get();
+		const FImplicitObjectRef CurrentGeom = BodyHandle.GetGeometry();
 		if(ensure(CurrentGeom && CurrentGeom->GetType() == FImplicitObjectUnion::StaticType()))
 		{
 			const FImplicitObjectUnion* AsUnion = static_cast<const FImplicitObjectUnion*>(CurrentGeom);
 			const int32 ShapeIndex = InShape.Shape->GetShapeIndex();
-			const TArray<TUniquePtr<FImplicitObject>>& ObjectArray = AsUnion->GetObjects();
+			const TArray<Chaos::FImplicitObjectPtr>& ObjectArray = AsUnion->GetObjects();
+			const TArray<Chaos::FImplicitObjectPtr>& ConvexesArray = AsUnion->GetConvexes();
 
-			if(ensure(ShapeIndex < ObjectArray.Num()))
+			if(ensure(ShapeIndex < (ObjectArray.Num()+ConvexesArray.Num())) && (ShapeIndex > ConvexesArray.Num()))
 			{
-				TArray<TUniquePtr<FImplicitObject>> NewGeoms;
+				TArray<Chaos::FImplicitObjectPtr> NewGeoms;
 				NewGeoms.Reserve(ObjectArray.Num());
 
 				// Duplicate the union and either set transforms, or wrap in transforms
-				int32 CurrentIndex = 0;
-				for(const TUniquePtr<FImplicitObject>& Obj : ObjectArray)
+				int32 CurrentIndex = ConvexesArray.Num();
+				for(const Chaos::FImplicitObjectPtr& Obj : ObjectArray)
 				{
 					if(CurrentIndex == ShapeIndex)
 					{
-						NewGeoms.Emplace(Utilities::DuplicateImplicitWithTransform(Obj.Get(), NewLocalTransform));
+						NewGeoms.Emplace(Utilities::DuplicateGeometryWithTransform(Obj.GetReference(), NewLocalTransform));
 					}
 					else
 					{
-						NewGeoms.Emplace(Obj->Copy());
+						NewGeoms.Emplace(Obj->CopyGeometry());
 					}
 
 					CurrentIndex++;
@@ -1972,7 +1975,8 @@ void FChaosEngineInterface::SetLocalTransform(const FPhysicsShapeHandle& InShape
 
 				if(ensure(NewGeoms.Num() == ObjectArray.Num()))
 				{
-					BodyHandle.SetGeometry(MakeUnique<FImplicitObjectUnion>(MoveTemp(NewGeoms)));
+					Chaos::FImplicitObjectPtr ImplicitUnion = MakeImplicitObjectPtr<FImplicitObjectUnion>(MoveTemp(NewGeoms));
+					BodyHandle.SetGeometry(ImplicitUnion);
 				}
 			}
 		}

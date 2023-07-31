@@ -8,10 +8,10 @@
 
 namespace Chaos
 {
-	TUniquePtr<FImplicitObject> FConvex::CopyWithScale(const FVec3& Scale) const
+	Chaos::FImplicitObjectPtr FConvex::CopyGeometryWithScale(const FVec3& Scale) const
 	{
-		TSharedPtr<FConvex, ESPMode::ThreadSafe> ConvexCopy = MakeShared<FConvex, ESPMode::ThreadSafe>(FConvex(*this));
-		return  TUniquePtr<FImplicitObject>(new TImplicitObjectScaled<FConvex>(ConvexCopy, Scale));
+		FConvexPtr ConvexCopy( new FConvex(*this));
+		return  Chaos::FImplicitObjectPtr(new TImplicitObjectScaled<FConvex>(ConvexCopy, Scale));
 	}
 
 	bool FConvex::Raycast(const FVec3& StartPoint, const FVec3& Dir, const FReal Length, const FReal Thickness, FReal& OutTime, FVec3& OutPosition, FVec3& OutNormal, int32& OutFaceIndex) const

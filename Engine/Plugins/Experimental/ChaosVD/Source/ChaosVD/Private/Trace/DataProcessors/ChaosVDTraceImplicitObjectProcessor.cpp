@@ -9,7 +9,7 @@
 #include "Serialization/MemoryReader.h"
 #include "Trace/ChaosVDTraceProvider.h"
 
-using FChaosVDImplicitObjectWrapper = FChaosVDImplicitObjectDataWrapper<Chaos::TSerializablePtr<Chaos::FImplicitObject>, Chaos::FChaosArchive>;
+using FChaosVDImplicitObjectWrapper = FChaosVDImplicitObjectDataWrapper<Chaos::FImplicitObjectPtr, Chaos::FChaosArchive>;
 
 FChaosVDTraceImplicitObjectProcessor::FChaosVDTraceImplicitObjectProcessor(): IChaosVDDataProcessor(FChaosVDImplicitObjectWrapper::WrapperTypeName)
 {
@@ -31,7 +31,7 @@ bool FChaosVDTraceImplicitObjectProcessor::ProcessRawData(const TArray<uint8>& I
 
 	if (TSharedPtr<FChaosVDRecording> Recording = ProviderSharedPtr->GetRecordingForSession())
 	{
-		Recording->AddImplicitObject(WrappedGeometryData.Hash, WrappedGeometryData.ImplicitObject.Get());
+		Recording->AddImplicitObject(WrappedGeometryData.Hash, WrappedGeometryData.ImplicitObject);
 	}
 
 	return !Ar.IsError() && !Ar.IsCriticalError();;

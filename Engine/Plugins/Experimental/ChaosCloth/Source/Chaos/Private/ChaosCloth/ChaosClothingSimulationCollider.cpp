@@ -159,34 +159,30 @@ void FClothingSimulationCollider::FLODData::Add(
 			{
 				// Sphere
 				Solver->SetCollisionGeometry(CapsuleOffset, Index,
-					MakeUnique<FSphere>(Center, MaxRadius));
+					MakeImplicitObjectPtr<FSphere>(Center, MaxRadius));
 			}
 			else if (MaxRadius - MinRadius < KINDA_SMALL_NUMBER)
 			{
 				// Capsule
 				Solver->SetCollisionGeometry(CapsuleOffset, Index, 
-					MakeUnique<FCapsule>(P0, P1, MaxRadius));
+					MakeImplicitObjectPtr<FCapsule>(P0, P1, MaxRadius));
 			}
 			else
 			{
 				if (ClothingSimulationColliderConsoleVariables::CVarUseOptimizedTaperedCapsule.GetValueOnAnyThread())
 				{
 					Solver->SetCollisionGeometry(CapsuleOffset, Index,
-						MakeUnique<FTaperedCapsule>(P0, P1, Radius0, Radius1));
+						MakeImplicitObjectPtr<FTaperedCapsule>(P0, P1, Radius0, Radius1));
 				}
 				else
 				{
 					// Tapered capsule approximate by a union of tapered cylinder and two spheres
-					TArray<TUniquePtr<FImplicitObject>> Objects;
+					TArray<FImplicitObjectPtr> Objects;
 					Objects.Reserve(3);
-					Objects.Add(TUniquePtr<FImplicitObject>(
-						new FTaperedCylinder(P0, P1, Radius0, Radius1)));
-					Objects.Add(TUniquePtr<FImplicitObject>(
-						new FSphere(P0, Radius0)));
-					Objects.Add(TUniquePtr<FImplicitObject>(
-						new FSphere(P1, Radius1)));
-					Solver->SetCollisionGeometry(CapsuleOffset, Index,
-						MakeUnique<FImplicitObjectUnion>(MoveTemp(Objects)));
+					Objects.Add(MakeImplicitObjectPtr<FTaperedCylinder>(P0, P1, Radius0, Radius1));
+					Objects.Add(MakeImplicitObjectPtr<FSphere>(P0, Radius0));
+					Objects.Add(MakeImplicitObjectPtr<FSphere>(P1, Radius1));
+					Solver->SetCollisionGeometry(CapsuleOffset, Index, MakeImplicitObjectPtr<FImplicitObjectUnion>(MoveTemp(Objects)));
 				}
 			}
 		}
@@ -216,7 +212,7 @@ void FClothingSimulationCollider::FLODData::Add(
 			BaseTransforms[Index] = Softs::FSolverRigidTransform3::Identity;
 
 			Solver->SetCollisionGeometry(SphereOffset, Index,
-				MakeUnique<FSphere>(
+				MakeImplicitObjectPtr<FSphere>(
 					Sphere.LocalPosition * InScale,
 					Sphere.Radius * InScale));
 
@@ -294,12 +290,12 @@ void FClothingSimulationCollider::FLODData::Add(
 				}
 
 				// Setup the collision particle geometry
-				Solver->SetCollisionGeometry(ConvexOffset, Index, MakeUnique<FConvex>(MoveTemp(Planes), MoveTemp(FaceIndices), MoveTemp(Vertices)));
+				Solver->SetCollisionGeometry(ConvexOffset, Index, MakeImplicitObjectPtr<FConvex>(MoveTemp(Planes), MoveTemp(FaceIndices), MoveTemp(Vertices)));
 			}
 			else
 			{
 				UE_LOG(LogChaosCloth, Warning, TEXT("Replacing invalid convex collision by a default unit sphere."));
-				Solver->SetCollisionGeometry(ConvexOffset, Index, MakeUnique<FSphere>(FVec3(0.0f), 1.0f));  // Default to a unit sphere to replace the faulty convex
+				Solver->SetCollisionGeometry(ConvexOffset, Index, MakeImplicitObjectPtr<FSphere>(FVec3(0.0f), 1.0f));  // Default to a unit sphere to replace the faulty convex
 			}
 		}
 	}
@@ -321,7 +317,7 @@ void FClothingSimulationCollider::FLODData::Add(
 			UE_LOG(LogChaosCloth, VeryVerbose, TEXT("Found collision box on bone index %d."), BoneIndices[Index]);
 
 			const FVec3 HalfExtents = Box.HalfExtents * InScale;
-			Solver->SetCollisionGeometry(BoxOffset, Index, MakeUnique<TBox<FReal, 3>>(-HalfExtents, HalfExtents));
+			Solver->SetCollisionGeometry(BoxOffset, Index, MakeImplicitObjectPtr<TBox<FReal, 3>>(-HalfExtents, HalfExtents));
 		}
 	}
 
@@ -340,7 +336,7 @@ void FClothingSimulationCollider::FLODData::Add(
 			UE_LOG(LogChaosCloth, VeryVerbose, TEXT("Found collision level set on bone index %d."), BoneIndices[Index]);
 
 			// Setup the collision particle geometry
-			TUniquePtr<FImplicitObject> TransformedLevelSet = MakeUnique<TImplicitObjectTransformed<FReal, 3>>(InLevelSetCollisionData[Index].LevelSet->DeepCopy(), 
+			FImplicitObjectPtr TransformedLevelSet = MakeImplicitObjectPtr<TImplicitObjectTransformed<FReal, 3>>(InLevelSetCollisionData[Index].LevelSet->DeepCopyGeometry(), 
 				TRigidTransform<FReal, 3>(InLevelSetCollisionData[Index].Transform));
 			Solver->SetCollisionGeometry(LevelSetOffset, Index, MoveTemp(TransformedLevelSet));
 		}
@@ -366,7 +362,7 @@ void FClothingSimulationCollider::FLODData::Add(
 				BoneIndices[Index] = GetMappedBoneIndex(UsedBoneIndices, MappedSubBoneIndex);
 				UE_LOG(LogChaosCloth, VeryVerbose, TEXT("Found collision skinned level set sub-bone on bone index %d."), BoneIndices[Index]);
 
-				TUniquePtr<FImplicitObject> BoneProxy = MakeUnique<FWeightedLatticeBoneProxy>();
+				FImplicitObjectPtr BoneProxy = MakeImplicitObjectPtr<FWeightedLatticeBoneProxy>();
 				Solver->SetCollisionGeometry(SkinnedLevelSetOffset, Index, MoveTemp(BoneProxy));
 
 				SolverBoneIndices.Add(Index + SkinnedLevelSetOffset);
@@ -380,7 +376,7 @@ void FClothingSimulationCollider::FLODData::Add(
 			BoneIndices[Index] = GetMappedBoneIndex(UsedBoneIndices, SkinnedCollisionData.BoneIndex);
 			UE_LOG(LogChaosCloth, VeryVerbose, TEXT("Found collision skinned level set on bone index %d."), BoneIndices[Index]);
 
-			TUniquePtr<FImplicitObject> SkinnedLevelSet = SkinnedCollisionData.WeightedLevelSet->DeepCopy();
+			FImplicitObjectPtr SkinnedLevelSet = SkinnedCollisionData.WeightedLevelSet->DeepCopyGeometry();
 			SkinnedLevelSet->GetObjectChecked<TWeightedLatticeImplicitObject<FLevelSet>>().SetSolverBoneIndices(MoveTemp(SolverBoneIndices));
 
 			Solver->SetCollisionGeometry(SkinnedLevelSetOffset, Index, MoveTemp(SkinnedLevelSet));
@@ -675,10 +671,10 @@ void FClothingSimulationCollider::ExtractPhysicsAssetCollision(FClothCollisionDa
 
 			for (const FKSkinnedLevelSetElem& SkinnedLevelSetElem : AggGeom.SkinnedLevelSetElems)
 			{
-				if (SkinnedLevelSetElem.GetWeightedLevelSet().IsValid())
+				if (SkinnedLevelSetElem.WeightedLevelSet().IsValid())
 				{
 					TArray<int32> MappedSkinnedBones;
-					const TArray<FName>& SkinnedBones = SkinnedLevelSetElem.GetWeightedLevelSet()->GetUsedBones();
+					const TArray<FName>& SkinnedBones = SkinnedLevelSetElem.WeightedLevelSet()->GetUsedBones();
 					MappedSkinnedBones.Reserve(SkinnedBones.Num());
 					for (const FName& SkinnedBoneName : SkinnedBones)
 					{
@@ -686,7 +682,7 @@ void FClothingSimulationCollider::ExtractPhysicsAssetCollision(FClothCollisionDa
 						const int32 MappedSkinnedBoneIndex = UsedBoneIndices.Add(SkinnedBoneIndex);
 						MappedSkinnedBones.Add(MappedSkinnedBoneIndex);
 					}
-					SkinnedLevelSetCollisions.Add({ SkinnedLevelSetElem.GetWeightedLevelSet(), MappedBoneIndex, MoveTemp(MappedSkinnedBones)});
+					SkinnedLevelSetCollisions.Add({ SkinnedLevelSetElem.WeightedLevelSet(), MappedBoneIndex, MoveTemp(MappedSkinnedBones)});
 				}
 			}
 		}  // End for PhysAsset->SkeletalBodySetups
@@ -901,15 +897,21 @@ TConstArrayView<Softs::FSolverRigidTransform3> FClothingSimulationCollider::GetO
 		TConstArrayView<Softs::FSolverRigidTransform3>();
 }
 
-TConstArrayView<TUniquePtr<FImplicitObject>> FClothingSimulationCollider::GetCollisionGeometries(const FClothingSimulationSolver* Solver, const FClothingSimulationCloth* Cloth, ECollisionDataType CollisionDataType) const
+TConstArrayView<FImplicitObjectPtr> FClothingSimulationCollider::GetCollisionGeometry(const FClothingSimulationSolver* Solver, const FClothingSimulationCloth* Cloth, ECollisionDataType CollisionDataType) const
 {
 	check(Solver);
 	check(Cloth);
 
 	int32 Offset, NumGeometries;
 	return GetOffsetAndNumGeometries(Solver, Cloth, CollisionDataType, Offset, NumGeometries) ?
-		TConstArrayView<TUniquePtr<FImplicitObject>>(Solver->GetCollisionGeometries(Offset), NumGeometries) :
-		TConstArrayView<TUniquePtr<FImplicitObject>>();
+		TConstArrayView<FImplicitObjectPtr>(Solver->GetCollisionGeometry(Offset), NumGeometries) :
+		TConstArrayView<FImplicitObjectPtr>();
+}
+
+TConstArrayView<TUniquePtr<FImplicitObject>> FClothingSimulationCollider::GetCollisionGeometries(const FClothingSimulationSolver* Solver, const FClothingSimulationCloth* Cloth, ECollisionDataType CollisionDataType) const
+{
+	check(false);
+	return TConstArrayView<TUniquePtr<FImplicitObject>>();
 }
 
 TConstArrayView<bool> FClothingSimulationCollider::GetCollisionStatus(const FClothingSimulationSolver* Solver, const FClothingSimulationCloth* Cloth, ECollisionDataType CollisionDataType) const

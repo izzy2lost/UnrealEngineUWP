@@ -27,7 +27,7 @@ namespace ChaosTest {
 	{
 		auto Static = Evolution.CreateStaticParticles(1)[0];
 		Static->X() = FVec3(0, 0, 0);
-		Static->SetDynamicGeometry(MakeUnique<TPlane<FReal, 3>>(FVec3(0, 0, 0), FVec3(0, 0, 1)));
+		Static->SetGeometry(MakeImplicitObjectPtr<TPlane<FReal, 3>>(FVec3(0, 0, 0), FVec3(0, 0, 1)));
 		return Static;
 	}
 
@@ -73,10 +73,10 @@ namespace ChaosTest {
 		auto DynamicParticles = Evolution.CreateDynamicParticles(GridSize * GridSize * 2);
 
 		const FVec3 HalfExtents(Interval * 0.30);
-		TUniquePtr<FImplicitObject> Box(new TBox<FReal, 3>(-HalfExtents, HalfExtents));
+		Chaos::FImplicitObjectPtr Box(new TBox<FReal, 3>(-HalfExtents, HalfExtents));
 
 		const FReal Radius = (Interval * 0.30);
-		TUniquePtr<FImplicitObject> Sphere(new TSphere<FReal, 3>(FVec3(0, 0, 0), Radius));
+		Chaos::FImplicitObjectPtr Sphere(new TSphere<FReal, 3>(FVec3(0, 0, 0), Radius));
 
 		const FVec3 Offset(0.5, 0.5, 0.); // => if (0,0,0) produces a Nan in P() for the particle aligned with origin
 		int32 DynamicParticleIndex = 0;
@@ -85,7 +85,7 @@ namespace ChaosTest {
 			for (int32 y = 0; y < GridSize; ++y)
 			{
 				auto BoxDynamic = DynamicParticles[DynamicParticleIndex++];
-				BoxDynamic->SetGeometry(MakeSerializable(Box));
+				BoxDynamic->SetGeometry(Box);
 				BoxDynamic->X() = Offset + FVec3(x * Interval, y * Interval, Height);
 				BoxDynamic->I() = TVec3<FRealSingle>(100000.);
 				BoxDynamic->InvI() = TVec3<FRealSingle>(1. / 100000.);
@@ -93,7 +93,7 @@ namespace ChaosTest {
 				ParticleHandles.Add(BoxDynamic);
 
 				auto SphereDynamic = DynamicParticles[DynamicParticleIndex++];
-				SphereDynamic->SetGeometry(MakeSerializable(Sphere));
+				SphereDynamic->SetGeometry(Sphere);
 				SphereDynamic->X() = Offset + FVec3(x * Interval, y * Interval, Height * (FReal)0.5);
 				SphereDynamic->I() = TVec3<FRealSingle>(100000.);
 				SphereDynamic->InvI() = TVec3<FRealSingle>(1. / 100000.);

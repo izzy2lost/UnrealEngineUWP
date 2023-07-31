@@ -34,15 +34,15 @@ namespace Chaos
 
 		void AddParticleToConnectionGraph(FRigidClustering& Clustering, FClusterUnion& ClusterUnion, FPBDRigidParticleHandle* Particle)
 		{
-			if (!ClusterUnion.ChildParticles.IsEmpty() && ClusterUnion.SharedGeometry->GetType() == ImplicitObjectType::Union)
+			if (!ClusterUnion.ChildParticles.IsEmpty() && ClusterUnion.Geometry->GetType() == ImplicitObjectType::Union)
 			{
 				constexpr FReal kAddThickness = 5.0;
 				const FRigidTransform3 ClusterWorldTM(ClusterUnion.InternalCluster->X(), ClusterUnion.InternalCluster->R());
 
 				// Use the acceleration structure of the cluster union itself to make finding overlaps easy.
-				const FImplicitObjectUnion& ShapeUnion = ClusterUnion.SharedGeometry->GetObjectChecked<FImplicitObjectUnion>();
+				const FImplicitObjectUnion& ShapeUnion = ClusterUnion.Geometry->GetObjectChecked<FImplicitObjectUnion>();
 				const FRigidTransform3 FromTransform = GetParticleRigidFrameInClusterUnion(Particle, ClusterWorldTM);
-				FAABB3 ParticleLocalBounds = Particle->SharedGeometry()->BoundingBox().TransformedAABB(FromTransform);
+				FAABB3 ParticleLocalBounds = Particle->GetGeometry()->BoundingBox().TransformedAABB(FromTransform);
 				ParticleLocalBounds.Thicken(kAddThickness);
 
 				ShapeUnion.VisitOverlappingLeafObjects(
@@ -72,7 +72,7 @@ namespace Chaos
 								if (AllFromShapes[FromIndex])
 								{
 									const FPerShapeData& FromShape = *AllFromShapes[FromIndex];
-									if (const FImplicitObject* FromGeom = FromShape.GetGeometry().Get())
+									if (const FImplicitObject* FromGeom = FromShape.GetGeometry())
 									{
 										FAABB3 FromAABB = FromGeom->CalculateTransformedBounds(FromTransform);
 										FromAABB.Thicken(kAddThickness);
@@ -103,7 +103,7 @@ namespace Chaos
 										}
 
 										const FPerShapeData& FromShape = *AllFromShapes[FromIndex];
-										const FImplicitObject* FromGeom = FromShape.GetGeometry().Get();
+										const FImplicitObject* FromGeom = FromShape.GetGeometry();
 
 										if (!FromGeom)
 										{
@@ -170,8 +170,8 @@ namespace Chaos
 		FClusterUnion NewUnion;
 		NewUnion.InternalIndex = NewIndex;
 		NewUnion.ExplicitIndex = ClusterUnionParameters.ExplicitIndex;
-		NewUnion.SharedGeometry = ForceRecreateClusterUnionSharedGeometry(NewUnion);
-		NewUnion.InternalCluster = MClustering.CreateClusterParticle(-NewIndex, {}, Parameters, NewUnion.SharedGeometry, nullptr, ClusterUnionParameters.UniqueIndex);
+		NewUnion.Geometry = ForceRecreateClusterUnionGeometry(NewUnion);
+		NewUnion.InternalCluster = MClustering.CreateClusterParticle(-NewIndex, {}, Parameters, NewUnion.Geometry, nullptr, ClusterUnionParameters.UniqueIndex);
 		NewUnion.Parameters = Parameters;
 		NewUnion.ClusterUnionParameters = ClusterUnionParameters;
 
@@ -229,32 +229,32 @@ namespace Chaos
 	}
 
 	DECLARE_CYCLE_STAT(TEXT("FClusterUnionManager::ForceRecreateClusterUnionSharedGeometry"), STAT_ForceRecreateClusterUnionSharedGeometry, STATGROUP_Chaos);
-	TSharedPtr<FImplicitObject, ESPMode::ThreadSafe> FClusterUnionManager::ForceRecreateClusterUnionSharedGeometry(const FClusterUnion& Union)
+	Chaos::FImplicitObjectPtr FClusterUnionManager::ForceRecreateClusterUnionGeometry(const FClusterUnion& Union)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_ForceRecreateClusterUnionSharedGeometry);
 		if (Union.ChildParticles.IsEmpty() || !Union.InternalCluster)
 		{
-			return MakeShared<FImplicitObjectUnionClustered>();
+			return MakeImplicitObjectPtr<FImplicitObjectUnionClustered>();
 		}
 
 		// TODO: Can we do something better than a union?
 		const FRigidTransform3 ClusterWorldTM(Union.InternalCluster->X(), Union.InternalCluster->R());
-		TArray<TUniquePtr<FImplicitObject>> Objects;
+		TArray<Chaos::FImplicitObjectPtr> Objects;
 		Objects.Reserve(Union.ChildParticles.Num());
 
 		for (FPBDRigidParticleHandle* Child : Union.ChildParticles)
 		{
 			const FRigidTransform3 Frame = GetParticleRigidFrameInClusterUnion(Child, ClusterWorldTM);
-			if (Child->Geometry())
+			if (Child->GetGeometry())
 			{
-				Objects.Add(TUniquePtr<FImplicitObject>(CreateTransformGeometryForClusterUnion<EThreadContext::Internal>(Child, Frame)));
+				Objects.Add(Chaos::FImplicitObjectPtr(CreateTransformGeometryForClusterUnion<EThreadContext::Internal>(Child, Frame)));
 			}
 		}
 
 		FImplicitObjectUnion* NewGeometry = new FImplicitObjectUnion(MoveTemp(Objects));
 		NewGeometry->SetAllowBVH(true);
 
-		return TSharedPtr<FImplicitObject, ESPMode::ThreadSafe>(NewGeometry);
+		return FImplicitObjectPtr(NewGeometry);
 	}
 
 	DECLARE_CYCLE_STAT(TEXT("FClusterUnionManager::ClaimNextUnionIndex"), STAT_ClaimNextUnionIndex, STATGROUP_Chaos);
@@ -697,40 +697,12 @@ namespace Chaos
 		// The recreation of the geometry must happen after the call to UpdateClusterMassProperties.
 		// Creating the geometry requires knowing the relative frame between the parent cluster and the child clusters. The
 		// parent transform is not set properly for a new empty cluster until UpdateClusterMassProperties is called for the first time.
-		ClusterUnion.SharedGeometry = ForceRecreateClusterUnionSharedGeometry(ClusterUnion);
-		UpdateGeometry(ClusterUnion.InternalCluster, FullChildrenSet, MClustering.GetChildrenMap(), ClusterUnion.SharedGeometry, ClusterUnion.Parameters);
+		ClusterUnion.Geometry = ForceRecreateClusterUnionGeometry(ClusterUnion);
+		UpdateGeometry(ClusterUnion.InternalCluster, FullChildrenSet, MClustering.GetChildrenMap(), ClusterUnion.Geometry, ClusterUnion.Parameters);
 
-		// TODO: Need to figure out how to do the mapping back to the child shape if we ever do shape simplification...
-		if (!ClusterUnion.ChildParticles.IsEmpty() && ClusterUnion.ChildParticles.Num() == ClusterUnion.InternalCluster->ShapesArray().Num())
-		{
-			for (int32 ChildIndex = 0; ChildIndex < ClusterUnion.ChildParticles.Num(); ++ChildIndex)
-			{
-				// TODO: Is there a better way to do this merge?
-				const TUniquePtr<Chaos::FPerShapeData>& TemplateShape = ClusterUnion.ChildParticles[ChildIndex]->ShapesArray()[0];
-				const TUniquePtr<Chaos::FPerShapeData>& ShapeData = ClusterUnion.InternalCluster->ShapesArray()[ChildIndex];
-				if (ShapeData && TemplateShape)
-				{
-					{
-						FCollisionData Data = TemplateShape->GetCollisionData();
-						Data.UserData = nullptr;
-						ShapeData->SetCollisionData(Data);
-					}
-
-					{
-						FCollisionFilterData Data = TemplateShape->GetQueryData();
-						Data.Word0 = ClusterUnion.ClusterUnionParameters.ActorId;
-						ShapeData->SetQueryData(Data);
-					}
-
-					{
-						FCollisionFilterData Data = TemplateShape->GetSimData();
-						Data.Word0 = 0;
-						Data.Word2 = ClusterUnion.ClusterUnionParameters.ComponentId;
-						ShapeData->SetSimData(Data);
-					}
-				}
-			}
-		}
+		const int32 NumSimpleShapes = ClusterUnion.Geometry->AsA<FImplicitObjectUnion>()->GetConvexes().Num();
+		UpdateShapesDatas(ClusterUnion.ChildParticles, ClusterUnion.InternalCluster->ShapesArray(),
+			ClusterUnion.ClusterUnionParameters.ActorId, ClusterUnion.ClusterUnionParameters.ComponentId, NumSimpleShapes);
 
 		if(EnumHasAnyFlags(Flags, EUpdateClusterUnionPropertiesFlags::ForceGenerateConnectionGraph))
 		{

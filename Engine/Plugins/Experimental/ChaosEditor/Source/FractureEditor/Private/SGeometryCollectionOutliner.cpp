@@ -803,11 +803,10 @@ void FGeometryCollectionItemDataFacade::FillFromGeometryCollectionComponent(cons
 		}
 		else if (ColumnMode == EOutlinerColumnMode::Collision)
 		{
-			using FImplicitGeom = FGeometryDynamicCollection::FSharedImplicit;
-			const TManagedArrayAccessor<FImplicitGeom> GCSourceCollisionAttribute(GeometryCollection, "ExternalCollisions", FGeometryCollection::TransformGroup);
+			const TManagedArrayAccessor<Chaos::FImplicitObjectPtr> GCSourceCollisionAttribute(GeometryCollection, FGeometryCollection::ExternalCollisionsAttribute, FGeometryCollection::TransformGroup);
 			if (GCSourceCollisionAttribute.IsValid())
 			{
-				const TManagedArray<FImplicitGeom>& GCSourceCollision = GCSourceCollisionAttribute.Get();
+				const TManagedArray<Chaos::FImplicitObjectPtr>& GCSourceCollision = GCSourceCollisionAttribute.Get();
 				TManagedArray<bool>& HasSourceCollision = HasSourceCollisionAttribute.Add();
 				TManagedArray<bool>& SourceCollisionUsed = SourceCollisionUsedAttribute.Add();
 				

@@ -89,24 +89,19 @@ namespace Chaos
 			return *this;
 		}
 
-		virtual FImplicitObject* Duplicate() const override
-		{
-			return new TBox(*this);
-		}
-
 		virtual ~TBox() {}
 
-		virtual TUniquePtr<FImplicitObject> Copy() const override
+		virtual Chaos::FImplicitObjectPtr CopyGeometry() const override
 		{
-			return TUniquePtr<FImplicitObject>(new TBox<T,d>(*this));
+			return Chaos::FImplicitObjectPtr(new TBox<T,d>(*this));
 		}
 
-		virtual TUniquePtr<FImplicitObject> CopyWithScale(const FVec3& Scale) const override
+		virtual Chaos::FImplicitObjectPtr CopyGeometryWithScale(const FVec3& Scale) const override
 		{
-			return TUniquePtr<FImplicitObject>(new TBox<T, d>(AABB.Min() * Scale, AABB.Max() * Scale, Margin * Scale.Min()));
+			return Chaos::FImplicitObjectPtr(new TBox<T, d>(AABB.Min() * Scale, AABB.Max() * Scale, Margin * Scale.Min()));
 		}
 
-		FReal GetRadius() const
+		virtual FReal GetRadius() const override
 		{
 			return 0.0f;
 		}

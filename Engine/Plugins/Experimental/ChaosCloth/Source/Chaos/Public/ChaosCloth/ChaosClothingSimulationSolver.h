@@ -222,13 +222,19 @@ namespace Chaos
 		CHAOSCLOTH_API Softs::FSolverVec3* GetCollisionParticleXs(int32 Offset);
 		CHAOSCLOTH_API const Softs::FSolverRotation3* GetCollisionParticleRs(int32 Offset) const;
 		CHAOSCLOTH_API Softs::FSolverRotation3* GetCollisionParticleRs(int32 Offset);
-		CHAOSCLOTH_API void SetCollisionGeometry(int32 Offset, int32 Index, TUniquePtr<FImplicitObject>&& Geometry);
-		CHAOSCLOTH_API const TUniquePtr<FImplicitObject>* GetCollisionGeometries(int32 Offset) const;
+		CHAOSCLOTH_API void SetCollisionGeometry(int32 Offset, int32 Index, FImplicitObjectPtr&& Geometry);
+		CHAOSCLOTH_API const FImplicitObjectPtr* GetCollisionGeometry(int32 Offset) const;
 		CHAOSCLOTH_API const bool* GetCollisionStatus(int32 Offset) const;
 		CHAOSCLOTH_API const TArray<Softs::FSolverVec3>& GetCollisionContacts() const;
 		CHAOSCLOTH_API const TArray<Softs::FSolverVec3>& GetCollisionNormals() const;
 		CHAOSCLOTH_API const TArray<Softs::FSolverReal>& GetCollisionPhis() const;
 		// ---- End of the Collider interface ----
+
+		UE_DEPRECATED(5.4, "Use SetCollisionGeometry instead.")
+		void SetCollisionGeometry(int32 Offset, int32 Index, TUniquePtr<Chaos::FImplicitObject>&& Geometry) {check(false);}
+
+		UE_DEPRECATED(5.4, "Use GetCollisionGeometry instead.")
+		const TUniquePtr<Chaos::FImplicitObject>* GetCollisionGeometries(int32 Offset) const {check(false); return nullptr;}
 
 		// ---- Field interface ----
 		FPerSolverFieldSystem& GetPerSolverField() { return PerSolverField; }

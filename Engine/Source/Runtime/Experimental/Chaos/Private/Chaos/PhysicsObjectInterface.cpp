@@ -612,7 +612,7 @@ namespace Chaos
 			}
 
 			FBox ParticleBox(ForceInit);
-			if (const FImplicitObject* Geometry = Particle->Geometry().Get(); Geometry && Geometry->HasBoundingBox())
+			if (const FImplicitObjectRef Geometry = Particle->GetGeometry(); Geometry && Geometry->HasBoundingBox())
 			{
 				const Chaos::FAABB3 Box = Geometry->BoundingBox();
 				ParticleBox = FBox{ Box.Min(), Box.Max() };
@@ -646,7 +646,7 @@ namespace Chaos
 			const FTransform WorldTransform = GetTransform(Object);
 
 			FBox ParticleBox(ForceInit);
-			if (const FImplicitObject* Geometry = Particle->Geometry().Get(); Geometry && Geometry->HasBoundingBox())
+			if (const FImplicitObjectRef Geometry = Particle->GetGeometry(); Geometry && Geometry->HasBoundingBox())
 			{
 				const Chaos::FAABB3 WorldBox = Geometry->CalculateTransformedBounds(WorldTransform);
 				ParticleBox = FBox{ WorldBox.Min(), WorldBox.Max() };
@@ -682,7 +682,7 @@ namespace Chaos
 
 			FClosestPhysicsObjectResult Result;
 
-			if (const FImplicitObject* Geometry = Particle->Geometry().Get())
+			if (const FImplicitObjectRef Geometry = Particle->GetGeometry())
 			{
 				Result.PhysicsObject = const_cast<FPhysicsObjectHandle>(Object);
 

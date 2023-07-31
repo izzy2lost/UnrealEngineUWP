@@ -525,7 +525,7 @@ namespace Chaos
 		FTriangleMeshImplicitObject(FTriangleMeshImplicitObject&& Other) = delete;
 		CHAOS_API virtual ~FTriangleMeshImplicitObject();
 
-		FReal GetRadius() const
+		virtual FReal GetRadius() const override
 		{
 			return 0.0f;
 		}
@@ -597,6 +597,10 @@ namespace Chaos
 			return ImplicitObjectType::TriangleMesh;
 		}
 
+		CHAOS_API virtual Chaos::FImplicitObjectPtr CopyGeometry() const;
+		CHAOS_API virtual Chaos::FImplicitObjectPtr DeepCopyGeometry() const;
+
+		UE_DEPRECATED(5.4, "Use DeepCopyGeometry instead")
 		CHAOS_API TUniquePtr<FTriangleMeshImplicitObject> CopySlow() const;
 
 		void SerializeImp(FChaosArchive& Ar)
@@ -909,7 +913,7 @@ namespace Chaos
 		void RebuildBVImp(const TArray<TVec3<IdxType>>& Elements, BVHType& BVH);
 
 		template <typename IdxType>
-		TUniquePtr<FTriangleMeshImplicitObject> CopySlowImpl(const TArray < TVector<IdxType, 3>>& InElements) const;
+		FImplicitObjectPtr CopySlowImpl(const TArray < TVector<IdxType, 3>>& InElements) const;
 	};
 
 }

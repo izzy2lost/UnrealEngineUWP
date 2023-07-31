@@ -364,3 +364,13 @@ FArchive& operator<<(FArchive& Ar,TRefCountPtr<ReferencedType>& Ptr)
 	Ptr.Serialize(Ar);
 	return Ar;
 }
+
+template <
+	typename T,
+	typename... TArgs
+	UE_REQUIRES(!std::is_array_v<T>)
+>
+FORCEINLINE TRefCountPtr<T> MakeRefCount(TArgs&&... Args)
+{
+	return TRefCountPtr<T>(new T(Forward<TArgs>(Args)...));
+}

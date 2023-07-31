@@ -193,8 +193,7 @@ FLevelSet::FLevelSet(FLevelSet&& Other)
 FLevelSet::~FLevelSet()
 {
 }
-
-TUniquePtr<FImplicitObject> FLevelSet::DeepCopy() const
+Chaos::FImplicitObjectPtr FLevelSet::CopyGeometry() const
 {
 	FLevelSet* Copy = new FLevelSet();
 	Copy->MGrid = MGrid;
@@ -203,20 +202,19 @@ TUniquePtr<FImplicitObject> FLevelSet::DeepCopy() const
 	Copy->MLocalBoundingBox = MLocalBoundingBox;
 	Copy->MOriginalLocalBoundingBox = MOriginalLocalBoundingBox;
 	Copy->MBandWidth = MBandWidth;
-	return TUniquePtr<FImplicitObject>(Copy);
+	return Chaos::FImplicitObjectPtr(Copy);
 }
 
-TUniquePtr<FImplicitObject> FLevelSet::DeepCopyWithScale(const FVec3& Scale) const
+Chaos::FImplicitObjectPtr FLevelSet::CopyGeometryWithScale(const FVec3& Scale) const
 {
-	FLevelSet Copy;
-	Copy.MGrid = MGrid;
-	Copy.MPhi.Copy(MPhi);
-	Copy.MNormals.Copy(MNormals);
-	Copy.MLocalBoundingBox = MLocalBoundingBox;
-	Copy.MOriginalLocalBoundingBox = MOriginalLocalBoundingBox;
-	Copy.MBandWidth = MBandWidth;
-	TSharedPtr<FLevelSet, ESPMode::ThreadSafe> LevelSetCopy = MakeShared<FLevelSet, ESPMode::ThreadSafe>(MoveTemp(Copy));
-	return TUniquePtr<FImplicitObject>(new TImplicitObjectScaled<FLevelSet>(LevelSetCopy, Scale));
+	FLevelSet* Copy = new FLevelSet();
+	Copy->MGrid = MGrid;
+	Copy->MPhi.Copy(MPhi);
+	Copy->MNormals.Copy(MNormals);
+	Copy->MLocalBoundingBox = MLocalBoundingBox;
+	Copy->MOriginalLocalBoundingBox = MOriginalLocalBoundingBox;
+	Copy->MBandWidth = MBandWidth;
+	return MakeImplicitObjectPtr<TImplicitObjectScaled<FLevelSet>>(Copy, Scale);
 }
 
 bool FLevelSet::ComputeMassProperties(FReal& OutVolume, FVec3& OutCOM, FMatrix33& OutInertia, FRotation3& OutRotationOfMass) const
@@ -1615,7 +1613,7 @@ void GetGeomSurfaceSamples(const FConvex& InGeom, TArray<FVec3>& OutSamples)
 template<typename InnerT>
 void GetGeomSurfaceSamples(const TImplicitObjectScaled<InnerT>& InScaledGeom, TArray<FVec3>& OutSamples)
 {
-	const InnerT* InnerObject = InScaledGeom.Object().Get();
+	const InnerT* InnerObject = InScaledGeom.Object().GetReference();
 
 	if(InnerObject)
 	{
@@ -1726,7 +1724,7 @@ void GetGeomSurfaceSamplesExtended(const FConvex& InGeom, TArray<FVec3>& OutSamp
 template<typename InnerT>
 void GetGeomSurfaceSamplesExtended(const TImplicitObjectScaled<InnerT>& InScaledGeom, TArray<FVec3>& OutSamples)
 {
-	const InnerT* InnerObject = InScaledGeom.Object().Get();
+	const InnerT* InnerObject = InScaledGeom.Object().GetReference();
 
 	if(InnerObject)
 	{

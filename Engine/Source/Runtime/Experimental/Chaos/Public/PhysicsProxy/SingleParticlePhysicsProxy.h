@@ -244,15 +244,25 @@ protected:
 			Particle->SetR(InR, bInvalidate);
 	});}
 public:
+	
+	UE_DEPRECATED(5.4, "Use GetGeometry instead.")
+	const TSharedPtr<FImplicitObject, ESPMode::ThreadSafe>& SharedGeometryLowLevel() const
+	{
+		check(false);
+		static TSharedPtr<FImplicitObject, ESPMode::ThreadSafe> DummyPtr(nullptr);
+		return DummyPtr;
+	}
 
-	const TSharedPtr<FImplicitObject, ESPMode::ThreadSafe>& SharedGeometryLowLevel() const { return ReadRef([](auto* Ptr) -> const auto& { return Ptr->SharedGeometryLowLevel(); });}
-
+	
 #if CHAOS_DEBUG_NAME
 	const TSharedPtr<FString, ESPMode::ThreadSafe>& DebugName() const { return ReadRef([](auto* Ptr) -> const auto& { return Ptr->DebugName(); }); }
 	void SetDebugName(const TSharedPtr<FString, ESPMode::ThreadSafe>& InDebugName) { Write([&InDebugName](auto* Ptr) { Ptr->SetDebugName(InDebugName); }); }
 #endif
 
-	TSerializablePtr<FImplicitObject> Geometry() const { return Read([](auto* Ptr) { return Ptr->Geometry(); }); }
+	const FImplicitObjectRef GetGeometry() const { return Read([](auto* Ptr) { FImplicitObjectRef ImplicitRef = Ptr->GetGeometry(); return ImplicitRef; }); }
+
+	UE_DEPRECATED(5.4, "Please use GetGeometry instead")
+	TSerializablePtr<FImplicitObject> Geometry() const { check(false); return TSerializablePtr<FImplicitObject>(); }
 
 	const FShapesArray& ShapesArray() const { return ReadRef([](auto* Ptr) -> const auto& { return Ptr->ShapesArray(); }); }
 
@@ -1143,30 +1153,33 @@ public:
 
 	void* UserData() const { VerifyContext(); return GetParticle_LowLevel()->UserData(); }
 	void SetUserData(void* InUserData) { VerifyContext(); GetParticle_LowLevel()->SetUserData(InUserData); }
-
-
-	//todo: geometry should not be owned by particle
+	
+	void SetGeometry(const Chaos::FImplicitObjectPtr& ImplicitGeometryPtr)
+	{
+		VerifyContext();
+		GetParticle_LowLevel()->SetGeometry(ImplicitGeometryPtr);
+	}
+	
+	UE_DEPRECATED(5.4, "Use SetGeometry with FImplicitObjectPtr instead.")
 	void SetGeometry(TUniquePtr<FImplicitObject>&& UniqueGeometry)
 	{
-		VerifyContext();
-		FImplicitObject* RawGeometry = UniqueGeometry.Release();
-		SetGeometry(TSharedPtr<FImplicitObject, ESPMode::ThreadSafe>(RawGeometry));
+		check(false);
 	}
-
+	
+	UE_DEPRECATED(5.4, "Use SetGeometry with FImplicitObjectPtr instead.")
 	void SetGeometry(TSharedPtr<const FImplicitObject, ESPMode::ThreadSafe> SharedGeometry)
 	{
-		VerifyContext();
-		GetParticle_LowLevel()->SetGeometry(ConstCastSharedPtr<FImplicitObject, const FImplicitObject, ESPMode::ThreadSafe>(SharedGeometry));
+		check(false);
 	}
-
-	//Note: this must be called after setting geometry. This API seems bad. Should probably be part of setting geometry
-	void SetShapesArray(FShapesArray&& InShapesArray) { VerifyContext(); GetParticle_LowLevel()->SetShapesArray(MoveTemp(InShapesArray)); }
-
+	
 	void RemoveShape(FPerShapeData* InShape, bool bWakeTouching) { VerifyContext(); GetParticle_LowLevel()->RemoveShape(InShape, bWakeTouching); }
 
 	void MergeShapesArray(FShapesArray&& OtherShapesArray) { VerifyContext(); GetParticle_LowLevel()->MergeShapesArray(MoveTemp(OtherShapesArray)); }
 
-	void MergeGeometry(TArray<TUniquePtr<FImplicitObject>>&& Objects) { VerifyContext(); GetParticle_LowLevel()->MergeGeometry(MoveTemp(Objects)); }
+	void MergeGeometry(TArray<Chaos::FImplicitObjectPtr>&& Objects) { VerifyContext(); GetParticle_LowLevel()->MergeGeometry(MoveTemp(Objects)); }
+
+    UE_DEPRECATED(5.4, "Please use MergeGeometry with FImplicitObjectPtr instead.")
+	void MergeGeometry(TArray<TUniquePtr<FImplicitObject>>&& Objects) { check(false); }
 
 	bool IsKinematicTargetDirty() const
 	{

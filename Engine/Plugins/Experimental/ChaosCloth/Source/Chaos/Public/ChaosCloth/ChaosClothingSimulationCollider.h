@@ -3,6 +3,7 @@
 
 #include "ClothCollisionData.h"
 #include "Containers/ContainersFwd.h"
+#include "Chaos/ImplicitFwd.h"
 #include "Chaos/PBDSoftsEvolutionFwd.h"
 
 class USkeletalMeshComponent;
@@ -13,11 +14,8 @@ struct FReferenceSkeleton;
 
 namespace Chaos
 {
-	class FImplicitObject;
-
 	class FClothingSimulationSolver;
 	class FClothingSimulationCloth;
-	class FLevelSet;
 	template<typename T> class TWeightedLatticeImplicitObject;
 
 	// Collider simulation node
@@ -77,6 +75,9 @@ namespace Chaos
 		CHAOSCLOTH_API TConstArrayView<Softs::FSolverRigidTransform3> GetOldCollisionTransforms(const FClothingSimulationSolver* Solver, const FClothingSimulationCloth* Cloth, ECollisionDataType CollisionDataType) const;
 
 		// Return current active LOD collision geometries, not thread safe, to use after solver update.
+		CHAOSCLOTH_API TConstArrayView<FImplicitObjectPtr> GetCollisionGeometry(const FClothingSimulationSolver* Solver, const FClothingSimulationCloth* Cloth, ECollisionDataType CollisionDataType) const;
+
+		UE_DEPRECATED(5.4, "Use GetCollisionGeometry instead.")
 		CHAOSCLOTH_API TConstArrayView<TUniquePtr<FImplicitObject>> GetCollisionGeometries(const FClothingSimulationSolver* Solver, const FClothingSimulationCloth* Cloth, ECollisionDataType CollisionDataType) const;
 
 		// Return whether the collision has been hit by a particle during CCD.
@@ -93,7 +94,7 @@ namespace Chaos
 
 		struct FSkinnedLevelSetCollisionData
 		{
-			const TSharedPtr<Chaos::TWeightedLatticeImplicitObject<Chaos::FLevelSet>, ESPMode::ThreadSafe> WeightedLevelSet;
+			const TRefCountPtr<Chaos::TWeightedLatticeImplicitObject<Chaos::FLevelSet>> WeightedLevelSet;
 			int32 BoneIndex;
 			TArray<int32> MappedSkinnedBones;
 		};

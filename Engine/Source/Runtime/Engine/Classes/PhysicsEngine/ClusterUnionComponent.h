@@ -262,6 +262,12 @@ private:
 	UFUNCTION()
 	ENGINE_API bool IsAuthority() const;
 
+	// Merge all the physics objects geometries into the cluster union
+	ENGINE_API void AddGTParticleGeometry(const TArray<Chaos::FPhysicsObjectHandle>& PhysicsObjects) const;
+
+	// Remove all the physics objects geometries from the cluster union
+	ENGINE_API void RemoveGTParticleGeometry(const TSet<Chaos::FPhysicsObjectHandle>& PhysicsObjects) const;
+
 	//~ Begin UActorComponent Interface
 public:
 	ENGINE_API virtual void OnCreatePhysicsState() override;

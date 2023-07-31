@@ -585,8 +585,8 @@ namespace Chaos
 			else if (InnerType == ImplicitObjectType::Union)
 			{
 				const FImplicitObjectUnion* Union = Implicit->template GetObject<FImplicitObjectUnion>();
-				int32 UnionIdx = 0;
-				for (auto& UnionImplicit : Union->GetObjects())
+
+				for (int32 UnionIdx = 0; UnionIdx < Union->NumImplicits(); ++UnionIdx)
 				{
 					// Retrieve shape from union's shapes array
 					const FPerShapeData* PerShapeData = nullptr;
@@ -596,8 +596,8 @@ namespace Chaos
 						PerShapeData = ShapesArray[UnionIdx].Get();
 					}
 					
-					DrawShapesImpl(Particle, ShapeTransform, UnionImplicit.Get(), FShapeOrShapesArray(PerShapeData), Margin, Color, Duration, Settings);
-					UnionIdx++;
+					DrawShapesImpl(Particle, ShapeTransform, Union->GetImplicit(UnionIdx).GetReference(), FShapeOrShapesArray(PerShapeData), Margin, Color, Duration, Settings);
+					
 				}
 				return;
 			}
@@ -606,10 +606,10 @@ namespace Chaos
 				const FImplicitObjectUnionClustered* Union = Implicit->template GetObject<FImplicitObjectUnionClustered>();
 				for (auto& UnionImplicit : Union->GetObjects())
 				{
-					const TPBDRigidParticleHandle<FReal, 3>* OriginalParticle = Union->FindParticleForImplicitObject(UnionImplicit.Get());
+					const TPBDRigidParticleHandle<FReal, 3>* OriginalParticle = Union->FindParticleForImplicitObject(UnionImplicit.GetReference());
 					if (ensure(OriginalParticle))
 					{
-						DrawShapesImpl(Particle, ShapeTransform, UnionImplicit.Get(), FShapeOrShapesArray(OriginalParticle), Margin, Color, Duration, Settings);
+						DrawShapesImpl(Particle, ShapeTransform, UnionImplicit.GetReference(), FShapeOrShapesArray(OriginalParticle), Margin, Color, Duration, Settings);
 					}
 				}
 				return;
@@ -789,7 +789,7 @@ namespace Chaos
 			FVec3 P = SpaceTransform.TransformPosition(Particle->ObjectState() == EObjectStateType::Dynamic ? Particle->CastToRigidParticle()->P() : Particle->X());
 			FRotation3 Q = SpaceTransform.GetRotation() * (Particle->ObjectState() == EObjectStateType::Dynamic ? Particle->CastToRigidParticle()->Q() : Particle->R());
 
-			DrawShapesImpl(Particle, FRigidTransform3(P, Q), Particle->Geometry().Get(), FShapeOrShapesArray(Particle), 0.0f, InColor, 0.0f, Settings);
+			DrawShapesImpl(Particle, FRigidTransform3(P, Q), Particle->GetGeometry(), FShapeOrShapesArray(Particle), 0.0f, InColor, 0.0f, Settings);
 		}
 
 		void DrawParticleShapesImpl(const FRigidTransform3& SpaceTransform, const FGeometryParticle* Particle, const FColor& InColor, const FChaosDebugDrawSettings& Settings)
@@ -797,7 +797,7 @@ namespace Chaos
 			FVec3 P = SpaceTransform.TransformPosition(Particle->X());
 			FRotation3 Q = SpaceTransform.GetRotation() * (Particle->R());
 
-			DrawShapesImpl(Particle->Handle(), FRigidTransform3(P, Q), Particle->Geometry().Get(), FShapeOrShapesArray(Particle->Handle()), 0.0f, InColor, 0.0f, Settings);
+			DrawShapesImpl(Particle->Handle(), FRigidTransform3(P, Q), Particle->GetGeometry(), FShapeOrShapesArray(Particle->Handle()), 0.0f, InColor, 0.0f, Settings);
 		}
 
 		void DrawBVHImpl(const FGeometryParticleHandle* Particle, const FRigidTransform3& ShapeTransform, const Private::FImplicitBVH* BVH, const FColor& UnusedColor, const FRealSingle Duration, const FChaosDebugDrawSettings& Settings)
@@ -839,7 +839,7 @@ namespace Chaos
 
 		void DrawParticleBVHImpl(const FRigidTransform3& SpaceTransform, const FGeometryParticleHandle* Particle, const FColor& InColor, const FChaosDebugDrawSettings& Settings)
 		{
-			if (const FImplicitObjectUnion* Union = Particle->Geometry()->template AsA<FImplicitObjectUnion>())
+			if (const FImplicitObjectUnion* Union = Particle->GetGeometry()->template AsA<FImplicitObjectUnion>())
 			{
 				if (Union->GetBVH() != nullptr)
 				{
@@ -860,7 +860,7 @@ namespace Chaos
 				for (auto& UnionShape : Union->GetObjects())
 				{
 					// use the first as reference as we can only display one color for the bounds
-					return GetFirstConcreteShapeType(UnionShape.Get());
+					return GetFirstConcreteShapeType(UnionShape.GetReference());
 				}
 			}
 			else if (InnerType == ImplicitObjectType::Transformed)
@@ -874,7 +874,7 @@ namespace Chaos
 				for (auto& UnionShape : Union->GetObjects())
 				{
 					// use the first as reference as we can only display one color for the bounds
-					return GetFirstConcreteShapeType(UnionShape.Get());
+					return GetFirstConcreteShapeType(UnionShape.GetReference());
 				}
 			}
 			return InnerType;
@@ -891,7 +891,7 @@ namespace Chaos
 			FColor Color = Settings.BoundsColorsPerState.GetColorFromState(InParticle->ObjectState());
 			if (bChaosDebugDebugDrawColorBoundsByShapeType)
 			{
-				if (const FImplicitObject* Shape = Particle->Geometry().Get())
+				if (const FImplicitObject* Shape = Particle->GetGeometry())
 				{
 					Color = Settings.BoundsColorsPerShapeType.GetColorFromShapeType(GetFirstConcreteShapeType(Shape));
 				}
@@ -901,7 +901,7 @@ namespace Chaos
 
 			for (const auto& Shape : InParticle->ShapesArray())
 			{
-				const EImplicitObjectType ShapeType = GetFirstConcreteShapeType(Shape->GetGeometry().Get());
+				const EImplicitObjectType ShapeType = GetFirstConcreteShapeType(Shape->GetGeometry());
 				const bool bIsComplex = (ShapeType == ImplicitObjectType::TriangleMesh) || (ShapeType == ImplicitObjectType::HeightField);
 				if (!bIsComplex)
 				{

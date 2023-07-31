@@ -713,6 +713,6 @@ template class Chaos::TBoundingVolumeHierarchy<Chaos::FParticles, TArray<int32>,
 template class Chaos::TBoundingVolumeHierarchy<Chaos::TGeometryParticles<Chaos::FReal, 3>, TArray<int32>, Chaos::FReal, 3>;
 template class Chaos::TBoundingVolumeHierarchy<Chaos::TPBDRigidParticles<Chaos::FReal, 3>, Chaos::TBoundingVolume<Chaos::TPBDRigidParticleHandle<Chaos::FReal, 3>*, Chaos::FReal, 3>, Chaos::FReal, 3>;
 template class Chaos::TBoundingVolumeHierarchy<Chaos::TGeometryParticles<Chaos::FReal, 3>, Chaos::TBoundingVolume<Chaos::TGeometryParticleHandle<Chaos::FReal, 3>*, Chaos::FReal, 3>, Chaos::FReal, 3>;
-template class Chaos::TBoundingVolumeHierarchy<TArray<TUniquePtr<Chaos::FImplicitObject>>, TArray<int32>, Chaos::FReal, 3>;
+template class Chaos::TBoundingVolumeHierarchy<TArray<Chaos::FImplicitObjectPtr>, TArray<int32>, Chaos::FReal, 3>;
 template class Chaos::TBoundingVolumeHierarchy<TArray<Chaos::Private::FImplicitBVHObject>, TArray<int32>, Chaos::FReal, 3>;
 

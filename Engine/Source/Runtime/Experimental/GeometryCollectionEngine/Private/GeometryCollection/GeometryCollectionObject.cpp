@@ -329,7 +329,7 @@ void UGeometryCollection::UpdateGeometryDependentProperties()
 
 void UGeometryCollection::UpdateConvexGeometryIfMissing()
 {
-	const bool bConvexAttributeMissing = !GeometryCollection->HasAttribute("ConvexHull", "Convex");
+	const bool bConvexAttributeMissing = !GeometryCollection->HasAttribute(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup);
 	if (GeometryCollection && bConvexAttributeMissing)
 	{
 		UpdateConvexGeometry();
@@ -942,23 +942,56 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 			ArchiveGeometryCollection->Serialize(ChaosAr);
 		}
 
-		// Fix up the type change for implicits here, previously they were unique ptrs, now they're shared
-		TManagedArray<TUniquePtr<Chaos::FImplicitObject>>* OldAttr = ArchiveGeometryCollection->FindAttributeTyped<TUniquePtr<Chaos::FImplicitObject>>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
-		TManagedArray<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>* NewAttr = ArchiveGeometryCollection->FindAttributeTyped<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>(FGeometryDynamicCollection::SharedImplicitsAttribute, FTransformCollection::TransformGroup);
-		if (OldAttr)
+		TManagedArray<Chaos::FImplicitObjectPtr>* NewAttr = ArchiveGeometryCollection->FindAttributeTyped<Chaos::FImplicitObjectPtr>(
+		FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
+		if(!NewAttr && Ar.IsLoading())
 		{
-			if (!NewAttr)
-			{
-				NewAttr = &ArchiveGeometryCollection->AddAttribute<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>(FGeometryDynamicCollection::SharedImplicitsAttribute, FTransformCollection::TransformGroup);
+			const int32 NumElems = GeometryCollection->NumElements(FTransformCollection::TransformGroup);
 
-				const int32 NumElems = GeometryCollection->NumElements(FTransformCollection::TransformGroup);
+			TArray<Chaos::FImplicitObjectPtr> ImplicitObjects;
+			ImplicitObjects.SetNum(NumElems);
+			
+			if( TManagedArray<TUniquePtr<Chaos::FImplicitObject>>* OldAttrA = ArchiveGeometryCollection->FindAttributeTyped<TUniquePtr<Chaos::FImplicitObject>>(
+				FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup))
+			{
 				for (int32 Index = 0; Index < NumElems; ++Index)
 				{
-					(*NewAttr)[Index] = TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>((*OldAttr)[Index].Release());
+					if( (*OldAttrA)[Index] != nullptr)
+					{
+						ImplicitObjects[Index] = Chaos::FImplicitObjectPtr((*OldAttrA)[Index]->DeepCopyGeometry());
+					};
 				}
+				ArchiveGeometryCollection->RemoveAttribute(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
 			}
-
-			ArchiveGeometryCollection->RemoveAttribute(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
+			else if(TManagedArray<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>* OldAttrB = ArchiveGeometryCollection->FindAttributeTyped<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>(
+				FGeometryDynamicCollection::SharedImplicitsAttribute, FTransformCollection::TransformGroup))
+			{
+				for (int32 Index = 0; Index < NumElems; ++Index)
+				{
+					if( (*OldAttrB)[Index] != nullptr)
+                	{
+						ImplicitObjects[Index] = Chaos::FImplicitObjectPtr((*OldAttrB)[Index]->DeepCopyGeometry());
+					}
+				}
+				ArchiveGeometryCollection->RemoveAttribute(FGeometryDynamicCollection::SharedImplicitsAttribute, FTransformCollection::TransformGroup);
+			}
+			else if(TManagedArray<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>* OldAttrC = ArchiveGeometryCollection->FindAttributeTyped<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>(
+				FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup))
+			{
+				for (int32 Index = 0; Index < NumElems; ++Index)
+				{
+					if( (*OldAttrC)[Index] != nullptr)
+					{
+						ImplicitObjects[Index] = Chaos::FImplicitObjectPtr((*OldAttrC)[Index]->DeepCopyGeometry());
+					}
+				}
+				ArchiveGeometryCollection->RemoveAttribute(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
+			}
+			NewAttr = &ArchiveGeometryCollection->AddAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
+			for (int32 Index = 0; Index < NumElems; ++Index)
+			{
+				(*NewAttr)[Index] = ImplicitObjects[Index];
+			}
 		}
 	}
 
@@ -993,6 +1026,65 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 		}
 	}
 
+	{
+		TManagedArray<Chaos::FConvexPtr>* NewAttr = ArchiveGeometryCollection->FindAttributeTyped<Chaos::FConvexPtr>(
+			FTransformCollection::ConvexHullAttribute, FTransformCollection::ConvexGroup);
+		if(!NewAttr && Ar.IsLoading())
+		{
+			const int32 NumElems = GeometryCollection->NumElements(FTransformCollection::ConvexGroup);
+			
+			TArray<Chaos::FConvexPtr> ImplicitObjects;
+			ImplicitObjects.SetNum(NumElems);
+			
+			if( TManagedArray<TUniquePtr<Chaos::FConvex>>* OldAttr = ArchiveGeometryCollection->FindAttributeTyped<TUniquePtr<Chaos::FConvex>>(
+				FTransformCollection::ConvexHullAttribute, FTransformCollection::ConvexGroup))
+			{
+				for (int32 Index = 0; Index < NumElems; ++Index)
+				{
+					if((*OldAttr)[Index] != nullptr)
+					{
+						ImplicitObjects[Index] = Chaos::FConvexPtr((*OldAttr)[Index].Release());
+					}
+				}
+				ArchiveGeometryCollection->RemoveAttribute(FTransformCollection::ConvexHullAttribute, FTransformCollection::ConvexGroup);
+			}
+			NewAttr = &ArchiveGeometryCollection->AddAttribute<Chaos::FConvexPtr>(FTransformCollection::ConvexHullAttribute, FTransformCollection::ConvexGroup);
+			for (int32 Index = 0; Index < NumElems; ++Index)
+			{
+				(*NewAttr)[Index] = ImplicitObjects[Index];
+			}
+		}
+	}
+	{
+		TManagedArray<Chaos::FImplicitObjectPtr>* NewAttr = ArchiveGeometryCollection->FindAttributeTyped<Chaos::FImplicitObjectPtr>(
+			FGeometryCollection::ExternalCollisionsAttribute, FGeometryCollection::TransformGroup);
+			
+		if(!NewAttr && Ar.IsLoading())
+		{
+			const int32 NumElems = GeometryCollection->NumElements(FGeometryCollection::TransformGroup);
+			
+			TArray<Chaos::FImplicitObjectPtr> ImplicitObjects;
+			ImplicitObjects.SetNum(NumElems);
+			
+			if( TManagedArray<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>* OldAttr = ArchiveGeometryCollection->FindAttributeTyped<TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe>>(
+				FGeometryCollection::ExternalCollisionsAttribute, FGeometryCollection::TransformGroup))
+			{
+				for (int32 Index = 0; Index < NumElems; ++Index)
+				{
+					if((*OldAttr)[Index] != nullptr)
+					{
+						ImplicitObjects[Index] = Chaos::FImplicitObjectPtr((*OldAttr)[Index]->DeepCopyGeometry());
+					}
+				}
+				ArchiveGeometryCollection->RemoveAttribute(FGeometryCollection::ExternalCollisionsAttribute, FGeometryCollection::TransformGroup);
+			}
+			NewAttr = &ArchiveGeometryCollection->AddAttribute<Chaos::FImplicitObjectPtr>(FGeometryCollection::ExternalCollisionsAttribute, FGeometryCollection::TransformGroup);
+			for (int32 Index = 0; Index < NumElems; ++Index)
+			{
+				(*NewAttr)[Index] = ImplicitObjects[Index];
+			}
+		}
+	}
 
 	// will generate convex bodies when they dont exist. 
 	if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) < FUE5ReleaseStreamObjectVersion::GeometryCollectionConvexDefaults
@@ -1277,7 +1369,7 @@ TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> UGeometryCollection::Genera
 	DuplicateGeometryCollection->AddAttribute<FVector3f>("InertiaTensor", FGeometryCollection::TransformGroup);
 	DuplicateGeometryCollection->AddAttribute<float>("Mass", FGeometryCollection::TransformGroup);
 	DuplicateGeometryCollection->AddAttribute<FTransform>("MassToLocal", FGeometryCollection::TransformGroup);
-	DuplicateGeometryCollection->AddAttribute<FGeometryDynamicCollection::FSharedImplicit>(
+	DuplicateGeometryCollection->AddAttribute<Chaos::FImplicitObjectPtr>(
 		FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
 	DuplicateGeometryCollection->CopyMatchingAttributesFrom(*GeometryCollection, &SkipList);
 	// If we've removed all geometry, we need to make sure any references to that geometry are removed.

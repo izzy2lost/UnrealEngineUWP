@@ -325,7 +325,7 @@ namespace Chaos
 	class FParticlePairMidPhase;
 }
 
-using FChaosVDImplicitObjectWrapper = FChaosVDImplicitObjectDataWrapper<Chaos::TSerializablePtr<Chaos::FImplicitObject>, Chaos::FChaosArchive>;
+using FChaosVDImplicitObjectWrapper = FChaosVDImplicitObjectDataWrapper<Chaos::FImplicitObjectPtr, Chaos::FChaosArchive>;
 
 /** Class containing  all the Tracing logic to record data for the Chaos Visual Debugger tool */
 class FChaosVisualDebuggerTrace
@@ -448,12 +448,13 @@ public:
 	/** Returns true if a CVD trace is running */
 	static CHAOS_API bool IsTracing();
 
-private:
-
 	/** Binds to the static events triggered by the ChaosVD Runtime module */
 	static void RegisterEventHandlers();
+	
 	/** Unbinds to the static events triggered by the ChaosVD Runtime module */
 	static void UnregisterEventHandlers();
+
+private:
 	
 	/** Resets the state of the CVD Tracer */
 	static void Reset();

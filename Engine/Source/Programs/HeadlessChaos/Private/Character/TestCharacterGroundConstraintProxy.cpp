@@ -31,7 +31,7 @@ namespace ChaosTest
 
 		FSingleParticlePhysicsProxy* CreateParticle()
 		{
-			auto Geom = TSharedPtr<FImplicitObject, ESPMode::ThreadSafe>(new TBox<FReal, 3>(FVec3(-100), FVec3(100)));
+			auto Geom = Chaos::FImplicitObjectPtr(new TBox<FReal, 3>(FVec3(-100), FVec3(100)));
 			FSingleParticlePhysicsProxy* Proxy = FSingleParticlePhysicsProxy::Create(FPBDRigidParticle::CreateParticle());
 			Proxy->SetHandle(Solver->GetEvolution()->CreateDynamicParticles(1)[0]);
 			Proxy->GetGameThreadAPI().SetGeometry(Geom);

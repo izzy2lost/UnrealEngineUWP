@@ -102,16 +102,25 @@ public:
 		FGuid Guid;
 
 		TArray<Chaos::FMaterialHandle> UsedChaosMaterials;
+		Chaos::FHeightFieldPtr HeightfieldGeometry;
+	    Chaos::FHeightFieldPtr HeightfieldSimpleGeometry;
+
+		UE_DEPRECATED(5.4, "Please use HeightfieldGeometry instead")
 		TUniquePtr<Chaos::FHeightField> Heightfield;
-	    TUniquePtr<Chaos::FHeightField> HeightfieldSimple;
+		
+		UE_DEPRECATED(5.4, "Please use HeightfieldSimpleGeometry instead")
+		TUniquePtr<Chaos::FHeightField> HeightfieldSimple;
 
 #if WITH_EDITORONLY_DATA
+		Chaos::FHeightFieldPtr EditorHeightfieldGeometry;
+
+		UE_DEPRECATED(5.4, "Please use HeightfieldSimpleGeometry instead")
 		TUniquePtr<Chaos::FHeightField> EditorHeightfield;
 #endif // WITH_EDITORONLY_DATA
 
 		FHeightfieldGeometryRef(FGuid& InGuid);
-
 		virtual ~FHeightfieldGeometryRef();
+		
 		void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize);
 	};
 	

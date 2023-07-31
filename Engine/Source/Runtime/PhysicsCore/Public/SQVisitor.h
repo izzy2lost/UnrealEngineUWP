@@ -185,7 +185,7 @@ private:
 
 		for (const auto& Shape : Shapes)
 		{
-			const FImplicitObject* Geom = Shape->GetGeometry().Get();
+			const FImplicitObject* Geom = Shape->GetGeometry();
 
 			if (bTestShapeBounds)
 			{

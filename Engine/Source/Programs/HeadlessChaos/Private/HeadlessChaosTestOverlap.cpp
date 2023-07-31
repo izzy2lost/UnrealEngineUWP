@@ -293,7 +293,7 @@ namespace ChaosTest
 				const FVec3 X2 = { 0.0, 0.0, 200.0 };
 				const FReal Radius = 100.0;
 				const FCapsule Capsule = FCapsule(X1, X2, Radius);
-				TSharedPtr<FCapsule> CapsuleShared = MakeShared<FCapsule>(X1, X2, Radius);
+				TRefCountPtr<FCapsule> CapsuleShared( new FCapsule(X1, X2, Radius));
 				FVec3 TriMeshScale = { 0.01, 0.01, 0.01 };
 				TImplicitObjectScaled<FCapsule> ScaledCapsule = TImplicitObjectScaled<FCapsule>(CapsuleShared, TriMeshScale);
 				{
@@ -386,7 +386,7 @@ namespace ChaosTest
 				const FVec3 X1 = { 0.0, 0.0, -20.0 };
 				const FVec3 X2 = { 0.0, 0.0, 20.0 };
 				const FReal Radius = 10.0;
-				TSharedPtr<FCapsule> CapsuleShared = MakeShared<FCapsule>(X1, X2, Radius);
+				TRefCountPtr<FCapsule> CapsuleShared( new FCapsule(X1, X2, Radius));
 				FVec3 TriMeshScale = { 10.0, 10.0, 10.0 };
 				FVec3 InvScale = 1.0 / TriMeshScale;
 				TImplicitObjectScaled<FCapsule> ScaledCapsule = TImplicitObjectScaled<FCapsule>(CapsuleShared, InvScale);
@@ -501,7 +501,7 @@ namespace ChaosTest
 				const FVec3 X1 = { 0.0, 0.0, -2.0 };
 				const FVec3 X2 = { 0.0, 0.0, 2.0 };
 				const FReal Radius = 1.0;
-				TSharedPtr<FCapsule> CapsuleShared = MakeShared<FCapsule>(X1, X2, Radius);
+				TRefCountPtr<FCapsule> CapsuleShared( new FCapsule(X1, X2, Radius));
 				FVec3 TriMeshScale = { 1.0, 1.0, 2.0 };
 				FVec3 InvScale = 1.0 / TriMeshScale;
 				TImplicitObjectScaled<FCapsule> ScaledCapsule = TImplicitObjectScaled<FCapsule>(CapsuleShared, InvScale);
@@ -624,7 +624,7 @@ namespace ChaosTest
 			{
 				const FVec3 X = { 0.0, 0.0, 0.0 };
 				const FReal Radius = 1.0;
-				TSharedPtr<Chaos::FSphere> SphereShared = MakeShared<Chaos::FSphere>(X, Radius);
+				Chaos::FSpherePtr SphereShared( new Chaos::FSphere(X, Radius));
 				FVec3 TriMeshScale = { 1.0, 1.0, 2.0 };
 				FVec3 InvScale = 1.0 / TriMeshScale;
 				TImplicitObjectScaled<Chaos::FSphere> ScaledSphere = TImplicitObjectScaled<Chaos::FSphere>(SphereShared, InvScale);
@@ -893,7 +893,7 @@ namespace ChaosTest
 
 			// Box Scaled
 			{
-				TSharedPtr<TBox<FReal, 3>> BigBoxSafe = MakeShared<TBox<FReal, 3>>(FVec3(-100.0, -100.0, -100.0), FVec3(100.0, 100.0, 100.0));
+				FBoxPtr BigBoxSafe( new TBox<FReal, 3>(FVec3(-100.0, -100.0, -100.0), FVec3(100.0, 100.0, 100.0)));
 				FVec3 TriMeshScale = { 0.01, 0.01, 0.02 };
 				TImplicitObjectScaled<TBox<FReal, 3>> ScaledBox = TImplicitObjectScaled<TBox<FReal, 3>>(BigBoxSafe, TriMeshScale);
 				{
@@ -970,7 +970,7 @@ namespace ChaosTest
 			}
 			// Box Scaled test non uniform transform with rotation
 			{
-				TSharedPtr<TBox<FReal, 3>> BigBoxSafe = MakeShared<TBox<FReal, 3>>(FVec3(-100.0, -100.0, -100.0), FVec3(100.0, 100.0, 100.0));
+				FBoxPtr BigBoxSafe( new TBox<FReal, 3>(FVec3(-100.0, -100.0, -100.0), FVec3(100.0, 100.0, 100.0)));
 				FVec3 TriMeshScale = { 0.01, 0.01, 0.05 };
 				TImplicitObjectScaled<TBox<FReal, 3>> ScaledBox = TImplicitObjectScaled<TBox<FReal, 3>>(BigBoxSafe, TriMeshScale);
 				{
@@ -1003,7 +1003,7 @@ namespace ChaosTest
 				}
 			}
 			{
-				TSharedPtr<TBox<FReal, 3>> BigBoxSafe = MakeShared<TBox<FReal, 3>>(FVec3(-1.0, -1.0, -1.0), FVec3(1.0, 1.0, 1.0));
+				FBoxPtr BigBoxSafe( new TBox<FReal, 3>(FVec3(-1.0, -1.0, -1.0), FVec3(1.0, 1.0, 1.0)));
 				FVec3 TriMeshScale = { 10.0, 10.0, 2.0 };
 				FVec3 InvScale = 1.0 / TriMeshScale;
 				TImplicitObjectScaled<TBox<FReal, 3>> ScaledBox = TImplicitObjectScaled<TBox<FReal, 3>>(BigBoxSafe, InvScale);
@@ -1067,7 +1067,7 @@ namespace ChaosTest
 			}
 			{
 				// Non uniform test with box not being a cube
-				TSharedPtr<TBox<FReal, 3>> BigBoxSafe = MakeShared<TBox<FReal, 3>>(FVec3(-1.0, -5.0, -1.0), FVec3(1.0, 5.0, 1.0));
+				FBoxPtr BigBoxSafe( new TBox<FReal, 3>(FVec3(-1.0, -5.0, -1.0), FVec3(1.0, 5.0, 1.0)));
 				FVec3 TriMeshScale = { 10.0, 10.0, 2.0 };
 				FVec3 InvScale = 1.0 / TriMeshScale;
 				TImplicitObjectScaled<TBox<FReal, 3>> ScaledBox = TImplicitObjectScaled<TBox<FReal, 3>>(BigBoxSafe, InvScale);

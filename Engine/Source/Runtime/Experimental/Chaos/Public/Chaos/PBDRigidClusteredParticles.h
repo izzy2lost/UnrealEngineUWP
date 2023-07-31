@@ -163,8 +163,24 @@ class TPBDRigidClusteredParticles : public TPBDRigidParticles<T, d>
 	const auto& ClusterGroupIndex(int32 Idx) const { return MClusterGroupIndex[Idx]; }
 	auto& ClusterGroupIndex(int32 Idx) { return MClusterGroupIndex[Idx]; }
 
-	const auto& ChildrenSpatial(int32 Idx) const { return MChildrenSpatial[Idx]; }
-	auto& ChildrenSpatial(int32 Idx) { return MChildrenSpatial[Idx]; }
+	const auto& GetChildrenSpatial(int32 Idx) const { return MChildrenSpatial[Idx]; }
+	auto& GetChildrenSpatial(int32 Idx) { return MChildrenSpatial[Idx]; }
+	
+	UE_DEPRECATED(5.4, "Use GetChildrenSpatial instead")
+	const TUniquePtr<FImplicitObjectUnionClustered>& ChildrenSpatial(int32 Idx) const
+	{
+		check(false);
+		static TUniquePtr<FImplicitObjectUnionClustered> DummyPtr(nullptr);
+		return DummyPtr;
+	}
+	
+	UE_DEPRECATED(5.4, "Use GetChildrenSpatial instead")
+    TUniquePtr<FImplicitObjectUnionClustered>& ChildrenSpatial(int32 Idx)
+	{
+		check(false);
+		static TUniquePtr<FImplicitObjectUnionClustered> DummyPtr(nullptr);
+		return DummyPtr; 
+	}
 
 	const auto& PhysicsProxies(int32 Idx) const { return MPhysicsProxies[Idx]; }
 	auto& PhysicsProxies(int32 Idx) { return MPhysicsProxies[Idx]; }
@@ -231,7 +247,7 @@ class TPBDRigidClusteredParticles : public TPBDRigidParticles<T, d>
 	  TArrayCollectionArray<ClusterId> MClusterIds;
 	  TArrayCollectionArray<TRigidTransform<T, d>> MChildToParent;
 	  TArrayCollectionArray<int32> MClusterGroupIndex;
-	  TArrayCollectionArray<TUniquePtr<FImplicitObjectUnionClustered>> MChildrenSpatial;
+	  TArrayCollectionArray<FImplicitObjectUnionClusteredPtr> MChildrenSpatial;
 
 	  // Multiple proxy pointers required for internal clusters
 	  TArrayCollectionArray<TSet<IPhysicsProxyBase*>> MPhysicsProxies;

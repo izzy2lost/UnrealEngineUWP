@@ -75,13 +75,13 @@ namespace Chaos
 		return true;
 	}
 
-	TUniquePtr<FImplicitObject> FImplicitObject::Copy() const
+	Chaos::FImplicitObjectPtr FImplicitObject::CopyGeometry() const
 	{
 		check(false);
 		return nullptr;
 	}
 
-	TUniquePtr<FImplicitObject> FImplicitObject::CopyWithScale(const FVec3& Scale) const
+	Chaos::FImplicitObjectPtr FImplicitObject::CopyGeometryWithScale(const FVec3& Scale) const
 	{
 		check(false);
 		return nullptr;

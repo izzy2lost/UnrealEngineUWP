@@ -14,7 +14,7 @@
 
 namespace Chaos
 {
-	extern void UpdateShapesArrayFromGeometry(FShapeInstanceProxyArray& ShapesArray, TSerializablePtr<FImplicitObject> Geometry, const FRigidTransform3& ActorTM, IPhysicsProxyBase* Proxy);
+	extern void UpdateShapesArrayFromGeometry(FShapeInstanceProxyArray& ShapesArray, const FImplicitObjectPtr& Geometry, const FRigidTransform3& ActorTM, IPhysicsProxyBase* Proxy);
 
 	void SetObjectStateHelper(IPhysicsProxyBase& Proxy, FPBDRigidParticleHandle& Rigid, EObjectStateType InState, bool bAllowEvents, bool bInvalidate)
 	{
@@ -60,18 +60,18 @@ namespace Chaos
 	template <typename T, int d>
 	void Chaos::TGeometryParticle<T, d>::UpdateShapesArray()
 	{
-		UpdateShapesArrayFromGeometry(MShapesArray, MakeSerializable(MNonFrequentData.Read().Geometry()), FRigidTransform3(X(), R()), Proxy);
+		UpdateShapesArrayFromGeometry(MShapesArray, MNonFrequentData.Read().GetGeometry(), FRigidTransform3(X(), R()), Proxy);
 	}
 
 	template <typename T, int d>
-	void Chaos::TGeometryParticle<T, d>::MergeGeometry(TArray<TUniquePtr<FImplicitObject>>&& Objects)
+	void Chaos::TGeometryParticle<T, d>::MergeGeometry(TArray<Chaos::FImplicitObjectPtr>&& Objects)
 	{
-		ensure(MNonFrequentData.Read().Geometry());
+		ensure(MNonFrequentData.Read().GetGeometry());
 
 		// we only support FImplicitObjectUnion
-		ensure(MNonFrequentData.Read().Geometry()->GetType() == FImplicitObjectUnion::StaticType());
+		ensure(MNonFrequentData.Read().GetGeometry()->GetType() == FImplicitObjectUnion::StaticType());
 
-		if (MNonFrequentData.Read().Geometry()->GetType() == FImplicitObjectUnion::StaticType())
+		if (MNonFrequentData.Read().GetGeometry()->GetType() == FImplicitObjectUnion::StaticType())
 		{
 			ModifyGeometry([&Objects, this](FImplicitObject& GeomToModify)
 			{
@@ -87,7 +87,7 @@ namespace Chaos
 	void Chaos::TGeometryParticle<T, d>::RemoveShape(FPerShapeData* InShape, bool bWakeTouching)
 	{
 		// NOTE: only intended use is to remove objects from inside a FImplicitObjectUnion
-		CHAOS_ENSURE(MNonFrequentData.Read().Geometry()->GetType() == FImplicitObjectUnion::StaticType());
+		CHAOS_ENSURE(MNonFrequentData.Read().GetGeometry()->GetType() == FImplicitObjectUnion::StaticType());
 
 		int32 FoundIndex = INDEX_NONE;
 		for (int32 Index = 0; Index < MShapesArray.Num(); Index++)
@@ -100,7 +100,7 @@ namespace Chaos
 			}
 		}
 
-		if (MNonFrequentData.Read().Geometry()->GetType() == FImplicitObjectUnion::StaticType())
+		if (MNonFrequentData.Read().GetGeometry()->GetType() == FImplicitObjectUnion::StaticType())
 		{
 			// if we are currently a union then remove geometry from this union
 			ModifyGeometry([FoundIndex](FImplicitObject& GeomToModify)
@@ -119,7 +119,7 @@ namespace Chaos
 	{
 		if (MNonFrequentData.IsDirty(MDirtyFlags))
 		{
-			if (const FImplicitObjectUnion* Union = MNonFrequentData.Read().Geometry()->template GetObject<FImplicitObjectUnion>())
+			if (const FImplicitObjectUnion* Union = MNonFrequentData.Read().GetGeometry()->template GetObject<FImplicitObjectUnion>())
 			{
 				// This will rebuild the BVH if the geometry is new, otherwise do nothing
 				const_cast<FImplicitObjectUnion*>(Union)->SetAllowBVH(true);
@@ -136,7 +136,7 @@ namespace Chaos
 			FImplicitObjectUnion* Union = Implicit->template GetObject<FImplicitObjectUnion>();
 			for (const auto& Child : Union->GetObjects())
 			{
-				SetIgnoreAnalyticCollisionsImp(Child.Get(), bIgnoreAnalyticCollisions);
+				SetIgnoreAnalyticCollisionsImp(Child.GetReference(), bIgnoreAnalyticCollisions);
 			}
 		}
 		else if (Implicit->GetType() == TImplicitObjectTransformed<T, d>::StaticType())
@@ -154,7 +154,7 @@ namespace Chaos
 			// Find our shape and see if sim is enabled.
 			for (const TUniquePtr<FPerShapeData>& Shape : ShapesArray())
 			{
-				if (Shape->GetGeometry().Get() == Implicit)
+				if (Shape->GetGeometry() == Implicit) 
 				{
 					if (!Shape->GetSimEnabled())
 					{

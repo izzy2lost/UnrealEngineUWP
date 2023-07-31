@@ -172,7 +172,7 @@ namespace ImmediatePhysics_Chaos
 		Chaos::FGeometryParticleHandle* ParticleHandle;
 		Chaos::TArrayCollectionArray<Chaos::FVec3>& ParticlePrevXs;
 		Chaos::TArrayCollectionArray<Chaos::FRotation3>& ParticlePrevRs;
-		TUniquePtr<Chaos::FImplicitObject> Geometry;
+		Chaos::FImplicitObjectPtr Geometry;
 		TArray<TUniquePtr<Chaos::FPerShapeData>> Shapes;
 		int32 Level;
 	};

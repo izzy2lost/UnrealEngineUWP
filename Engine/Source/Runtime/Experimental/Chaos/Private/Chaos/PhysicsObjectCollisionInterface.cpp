@@ -121,7 +121,7 @@ namespace Chaos
 				continue;
 			}
 
-			const TSerializablePtr<FImplicitObject> GeomB = B->GetGeometry();
+			const FImplicitObjectRef GeomB = B->GetGeometry();
 			if (!GeomB || !GeomB->IsConvex())
 			{
 				continue;

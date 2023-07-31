@@ -16,6 +16,11 @@ FChaosArchiveContext::~FChaosArchiveContext()
 	{
 		delete Itr.Value;
 	}
+
+	for (auto Itr : ObjToRefCountPtrHolder)
+	{
+		delete Itr.Value;
+	}
 }
 
 void FChaosArchive::SerializeLegacy(TUniquePtr<FImplicitObject>& Obj)

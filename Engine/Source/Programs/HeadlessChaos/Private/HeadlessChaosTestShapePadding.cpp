@@ -64,8 +64,8 @@ namespace ChaosTest {
 		Box1->Q() = Box1->R();
 		Box1->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
 
-		const FImplicitBox3* BoxImplicit0 = Box0->Geometry()->template GetObject<FImplicitBox3>();
-		const FImplicitBox3* BoxImplicit1 = Box1->Geometry()->template GetObject<FImplicitBox3>();
+		const FImplicitBox3* BoxImplicit0 = Box0->GetGeometry()->template GetObject<FImplicitBox3>();
+		const FImplicitBox3* BoxImplicit1 = Box1->GetGeometry()->template GetObject<FImplicitBox3>();
 
 		const FReal Tolerance = 2.0f * KINDA_SMALL_NUMBER;
 
@@ -90,12 +90,12 @@ namespace ChaosTest {
 
 		FPBDCollisionConstraintPtr Constraint = CollisionAllocator.GetContextAllocator(0)->CreateConstraint(
 			Box0,
-			Box0->Geometry().Get(),
+			Box0->GetGeometry(),
 			Box0->ShapesArray()[0].Get(),
 			nullptr,
 			FRigidTransform3(),
 			Box1,
-			Box1->Geometry().Get(),
+			Box1->GetGeometry(),
 			Box1->ShapesArray()[0].Get(),
 			nullptr,
 			FRigidTransform3(),
@@ -183,8 +183,8 @@ namespace ChaosTest {
 		Box1->Q() = Box1->R();
 		Box1->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
 
-		const FImplicitConvex3* ConvexImplicit0 = Box0->Geometry()->template GetObject<FImplicitConvex3>();
-		const FImplicitConvex3* ConvexImplicit1 = Box1->Geometry()->template GetObject<FImplicitConvex3>();
+		const FImplicitConvex3* ConvexImplicit0 = Box0->GetGeometry()->template GetObject<FImplicitConvex3>();
+		const FImplicitConvex3* ConvexImplicit1 = Box1->GetGeometry()->template GetObject<FImplicitConvex3>();
 
 		const FReal Tolerance = 2.0f * KINDA_SMALL_NUMBER;
 
@@ -207,12 +207,12 @@ namespace ChaosTest {
 
 		FPBDCollisionConstraintPtr Constraint = CollisionAllocator.GetContextAllocator(0)->CreateConstraint(
 			Box0,
-			Box0->Geometry().Get(),
+			Box0->GetGeometry(),
 			Box0->ShapesArray()[0].Get(),
 			nullptr,
 			FRigidTransform3(),
 			Box1,
-			Box1->Geometry().Get(),
+			Box1->GetGeometry(),
 			Box1->ShapesArray()[0].Get(),
 			nullptr,
 			FRigidTransform3(),
@@ -298,7 +298,7 @@ namespace ChaosTest {
 		Box0->Q() = Box0->R();
 		Box0->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
 
-		const FImplicitBox3* BoxImplicit0 = Box0->Geometry()->template GetObject<FImplicitBox3>();
+		const FImplicitBox3* BoxImplicit0 = Box0->GetGeometry()->template GetObject<FImplicitBox3>();
 
 		const FReal Tolerance = KINDA_SMALL_NUMBER;
 

@@ -83,9 +83,22 @@ public:
 		const int32 ClusterGroupIndex, 
 		TArray<Chaos::FPBDRigidParticleHandle*>&& Children, 
 		const FClusterCreationParameters& Parameters = FClusterCreationParameters(),
-		TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe> ProxyGeometry = nullptr,
+		const Chaos::FImplicitObjectPtr& ProxyGeometry = nullptr,
 		const FRigidTransform3* ForceMassOrientation = nullptr,
 		const FUniqueIdx* ExistingIndex = nullptr);
+
+	UE_DEPRECATED(5.4, "Use CreateClusterParticle with FImplicitObjectPtr instead")
+	CHAOS_API Chaos::FPBDRigidClusteredParticleHandle* CreateClusterParticle(
+    		const int32 ClusterGroupIndex, 
+    		TArray<Chaos::FPBDRigidParticleHandle*>&& Children, 
+    		const FClusterCreationParameters& Parameters = FClusterCreationParameters(),
+    		TSharedPtr<Chaos::FImplicitObject, ESPMode::ThreadSafe> ProxyGeometry = nullptr,
+    		const FRigidTransform3* ForceMassOrientation = nullptr,
+    		const FUniqueIdx* ExistingIndex = nullptr)
+	{
+		check(false);
+		return nullptr;
+	}
 
 	/**
 	 *  CreateClusterParticleFromClusterChildren

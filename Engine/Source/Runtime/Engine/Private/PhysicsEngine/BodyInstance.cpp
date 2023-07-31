@@ -449,36 +449,35 @@ void FBodyInstance::UpdateTriMeshVertices(const TArray<FVector> & NewPositions)
 				if (FPhysicsInterface::GetShapeType(Shape) == ECollisionShapeType::Trimesh)
 				{
 					using namespace Chaos;
-					const Chaos::FImplicitObject* ShapeImplicit = Shape.Shape->GetGeometry().Get();
+					const Chaos::FImplicitObject* ShapeImplicit = Shape.Shape->GetGeometry();
 					EImplicitObjectType Type = ShapeImplicit->GetType();
 
 					// Cast to derived implicit, copy trianglemesh.
 					FVec3 Scale(1, 1, 1);
-					TUniquePtr<FTriangleMeshImplicitObject> TriMeshCopy = nullptr;
+					FImplicitObjectPtr TriMeshCopy = nullptr;
 					if (IsInstanced(Type))
 					{
 						const TImplicitObjectInstanced<FTriangleMeshImplicitObject>& InstancedImplicit = ShapeImplicit->GetObjectChecked<TImplicitObjectInstanced<FTriangleMeshImplicitObject>>();
 						const FTriangleMeshImplicitObject* TriangleMesh = InstancedImplicit.GetInstancedObject();
-						TriMeshCopy = TriangleMesh->CopySlow();
+						TriMeshCopy = TriangleMesh->DeepCopyGeometry();
 					}
 					else if (IsScaled(Type))
 					{
 						const TImplicitObjectScaled<FTriangleMeshImplicitObject>& ScaledImplicit = ShapeImplicit->GetObjectChecked<TImplicitObjectScaled<FTriangleMeshImplicitObject>>();
 						const FTriangleMeshImplicitObject* TriangleMesh = ScaledImplicit.GetUnscaledObject();
 						Scale = ScaledImplicit.GetScale();
-						TriMeshCopy = TriangleMesh->CopySlow();
+						TriMeshCopy = TriangleMesh->DeepCopyGeometry();
 					}
 					else
 					{
 						const FTriangleMeshImplicitObject& TriangleMesh = ShapeImplicit->GetObjectChecked<FTriangleMeshImplicitObject>();
-						TriMeshCopy = TriangleMesh.CopySlow();
+						TriMeshCopy = TriangleMesh.DeepCopyGeometry();
 					}
-
-					TriMeshCopy->GetObjectChecked<FTriangleMeshImplicitObject>().UpdateVertices(NewPositions);
+					FTriangleMeshImplicitObjectPtr TriMeshCopyPtr(TriMeshCopy->GetObject<FTriangleMeshImplicitObject>());
+					TriMeshCopyPtr->UpdateVertices(NewPositions);
 					if (Scale != FVec3(1, 1, 1))
 					{
-						TSharedPtr<FTriangleMeshImplicitObject, ESPMode::ThreadSafe> SharedPtrForRefCount(nullptr); // Not instanced, no shared trimesh to ref count.
-						TUniquePtr<FImplicitObject> Scaled = MakeUnique<TImplicitObjectScaled<FTriangleMeshImplicitObject, /*bInstanced=*/false>>(MoveTemp(TriMeshCopy), SharedPtrForRefCount, Scale);
+						Chaos::FImplicitObjectPtr Scaled = MakeImplicitObjectPtr<TImplicitObjectScaled<FTriangleMeshImplicitObject, /*bInstanced=*/false>>(MoveTemp(TriMeshCopyPtr), Scale);
 						FPhysicsInterface::SetGeometry(Shape, MoveTemp(Scaled));
 					}
 					else
@@ -1896,7 +1895,7 @@ bool FBodyInstance::UpdateBodyScale(const FVector& InScale3D, bool bForceUpdate)
 
 		UpdatedScale3D = AdjustedScale3D;
 
-		TArray<TUniquePtr<FImplicitObject>> NewGeometry;
+		TArray<Chaos::FImplicitObjectPtr> NewGeometry;
 		NewGeometry.Reserve(Shapes.Num());
 
 
@@ -1949,6 +1948,10 @@ bool FBodyInstance::UpdateBodyScale(const FVector& InScale3D, bool bForceUpdate)
 
 			FKShapeElem* ShapeElem = FChaosUserData::Get<FKShapeElem>(FPhysicsInterface::GetUserData(ShapeHandle));
 
+			if(!ShapeElem)
+			{
+				continue;
+			}
 			switch(ConcreteType)
 			{
 				case ImplicitObjectType::Sphere:
@@ -1964,7 +1967,7 @@ bool FBodyInstance::UpdateBodyScale(const FVector& InScale3D, bool bForceUpdate)
 
 					FReal Radius = FMath::Max<FReal>(SphereElem->Radius * AdjustedScale3DAbs.X, FCollisionShape::MinSphereRadius());
 					FVec3 Center = RelativeTM.TransformPosition(SphereElem->Center) * InScale3D;
-					TUniquePtr<TSphere<FReal, 3>> NewSphere = MakeUnique<TSphere<FReal, 3>>(Center, Radius);
+					Chaos::FImplicitObjectPtr NewSphere = MakeImplicitObjectPtr<TSphere<FReal, 3>>(Center, Radius);
 
 					NewGeometry.Emplace(MoveTemp(NewSphere));
 					bSuccess = true;
@@ -1998,8 +2001,8 @@ bool FBodyInstance::UpdateBodyScale(const FVector& InScale3D, bool bForceUpdate)
 						const FVec3 Min = -HalfExtents;
 						const FVec3 Max =  HalfExtents;
 
-						TUniquePtr<TBox<FReal, 3>> NewBox = MakeUnique<TBox<FReal, 3>>(Min, Max);
-						TUniquePtr<TImplicitObjectTransformed<FReal, 3>> NewTransformedBox = MakeUnique<TImplicitObjectTransformed<FReal, 3>>(MoveTemp(NewBox), LocalTransform);
+						Chaos::FImplicitObjectPtr NewBox = MakeImplicitObjectPtr<TBox<FReal, 3>>(Min, Max);
+						Chaos::FImplicitObjectPtr NewTransformedBox = MakeImplicitObjectPtr<TImplicitObjectTransformed<FReal, 3>>(MoveTemp(NewBox), LocalTransform);
 						NewGeometry.Emplace(MoveTemp(NewTransformedBox));
 					}
 					else
@@ -2008,7 +2011,7 @@ bool FBodyInstance::UpdateBodyScale(const FVector& InScale3D, bool bForceUpdate)
 						const FVec3 Min = LocalTransform.GetLocation() - HalfExtents;
 						const FVec3 Max = LocalTransform.GetLocation() + HalfExtents;
 
-						TUniquePtr<TBox<FReal, 3>> NewBox = MakeUnique<TBox<FReal, 3>>(Min, Max);
+						Chaos::FImplicitObjectPtr NewBox = MakeImplicitObjectPtr<TBox<FReal, 3>>(Min, Max);
 						NewGeometry.Emplace(MoveTemp(NewBox));
 					}
 
@@ -2070,7 +2073,7 @@ bool FBodyInstance::UpdateBodyScale(const FVector& InScale3D, bool bForceUpdate)
 					const FVec3 X1 = Center - HalfLength * Axis;
 					const FVec3 X2 = Center + HalfLength * Axis;
 
-					TUniquePtr<FCapsule> NewCapsule =  MakeUnique<FCapsule>(X1, X2, Radius);
+					Chaos::FImplicitObjectPtr NewCapsule =  MakeImplicitObjectPtr<FCapsule>(X1, X2, Radius);
 					NewGeometry.Emplace(MoveTemp(NewCapsule));
 
 					bSuccess = true;
@@ -2086,23 +2089,23 @@ bool FBodyInstance::UpdateBodyScale(const FVector& InScale3D, bool bForceUpdate)
 					}
 
 					FKConvexElem* ConvexElem = ShapeElem->GetShapeCheck<FKConvexElem>();
-					const TSharedPtr<Chaos::FConvex, ESPMode::ThreadSafe>& ConvexImplicit = ConvexElem->GetChaosConvexMesh();
+					const Chaos::FConvexPtr& ConvexImplicit = ConvexElem->GetChaosConvexMesh();
 
-					TUniquePtr<FImplicitObject> NewConvex = nullptr;
+					Chaos::FImplicitObjectPtr NewConvex = nullptr;
 					if (AdjustedScale3D == FVector(1.0f, 1.0f, 1.0f))
 					{
-						NewConvex = MakeUnique<TImplicitObjectInstanced<FConvex>>(ConvexImplicit);
+						NewConvex = MakeImplicitObjectPtr<TImplicitObjectInstanced<FConvex>>(ConvexImplicit);
 					}
 					else
 					{
-						NewConvex = MakeUnique<TImplicitObjectScaled<FConvex>>(ConvexImplicit, AdjustedScale3D);
+						NewConvex = MakeImplicitObjectPtr<TImplicitObjectScaled<FConvex>>(ConvexImplicit, AdjustedScale3D);
 					}
 
 					if(RelativeTM.GetRotation() != FQuat::Identity || RelativeTM.GetTranslation() != FVector::ZeroVector)
 					{
 						FTransform AdjustedTransform = RelativeTM;
 						AdjustedTransform.SetTranslation(RelativeTM.GetTranslation() * AdjustedScale3D);
-						NewConvex = MakeUnique<TImplicitObjectTransformed<FReal, 3>>(MoveTemp(NewConvex), AdjustedTransform);
+						NewConvex = MakeImplicitObjectPtr<TImplicitObjectTransformed<FReal, 3>>(MoveTemp(NewConvex), AdjustedTransform);
 					}
 					
 					NewGeometry.Emplace(MoveTemp(NewConvex));
@@ -2119,15 +2122,15 @@ bool FBodyInstance::UpdateBodyScale(const FVector& InScale3D, bool bForceUpdate)
 						break;
 					}
 
-					auto CreateTriGeomAuto = [](auto InObject, TArray<TUniquePtr<FImplicitObject>>& OutGeoArray, const FVec3& InScale) -> TUniquePtr<FImplicitObject>
+					auto CreateTriGeomAuto = [](auto InObject, TArray<Chaos::FImplicitObjectPtr>& OutGeoArray, const FVec3& InScale) -> Chaos::FImplicitObjectPtr
 					{
 						if(InScale == Chaos::FVec3(1.0f, 1.0f, 1.0f))
 						{
-							return MakeUnique<Chaos::TImplicitObjectInstanced<Chaos::FTriangleMeshImplicitObject>>(InObject);
+							return MakeImplicitObjectPtr<Chaos::TImplicitObjectInstanced<Chaos::FTriangleMeshImplicitObject>>(InObject);
 						}
 						else
 						{
-							return MakeUnique<Chaos::TImplicitObjectScaled<Chaos::FTriangleMeshImplicitObject>>(MoveTemp(InObject), InScale);
+							return MakeImplicitObjectPtr<Chaos::TImplicitObjectScaled<Chaos::FTriangleMeshImplicitObject>>(MoveTemp(InObject), InScale);
 						}
 					};
 
@@ -2137,17 +2140,16 @@ bool FBodyInstance::UpdateBodyScale(const FVector& InScale3D, bool bForceUpdate)
 						TrimeshContainer = static_cast<const TImplicitObjectTransformed<FReal, 3>*>(TrimeshContainer)->GetTransformedObject();
 					}
 
-					TSharedPtr<FTriangleMeshImplicitObject, ESPMode::ThreadSafe> InnerTriangleMesh = nullptr;
+					FTriangleMeshImplicitObjectPtr InnerTriangleMesh = nullptr;
 					if (bIsScaled)
 					{
 						const TImplicitObjectScaled<FTriangleMeshImplicitObject>* ScaledTriangleMesh = (static_cast<const TImplicitObjectScaled<FTriangleMeshImplicitObject>*>(TrimeshContainer));
-						InnerTriangleMesh = ScaledTriangleMesh->GetSharedObject();
+						InnerTriangleMesh = ScaledTriangleMesh->Object();
 
 						if(!InnerTriangleMesh)
 						{
 							// While a body setup will instantiate the triangle mesh as a shared geometry, other methods might not (e.g. retopologized landscape)
-							TImplicitObjectScaled<FTriangleMeshImplicitObject>::ObjectType InnerObject = ScaledTriangleMesh->Object();
-							NewGeometry.Emplace(MakeUnique<Chaos::TImplicitObjectScaled<Chaos::FTriangleMeshImplicitObject>>(ScaledTriangleMesh->Object(), InnerTriangleMesh, AdjustedScale3D));
+							NewGeometry.Emplace(MakeImplicitObjectPtr<Chaos::TImplicitObjectScaled<Chaos::FTriangleMeshImplicitObject>>(ScaledTriangleMesh->Object(), AdjustedScale3D));
 						}
 					}
 					else if (bIsInstanced)
@@ -2163,14 +2165,14 @@ bool FBodyInstance::UpdateBodyScale(const FVector& InScale3D, bool bForceUpdate)
 
 					if(InnerTriangleMesh)
 					{
-						TUniquePtr<FImplicitObject> NewTrimesh = CreateTriGeomAuto(MoveTempIfPossible(InnerTriangleMesh), NewGeometry, AdjustedScale3D);
+						Chaos::FImplicitObjectPtr NewTrimesh = CreateTriGeomAuto(MoveTempIfPossible(InnerTriangleMesh), NewGeometry, AdjustedScale3D);
 
 						// If we have a transform - wrap the trimesh
 						if(RelativeTM.GetRotation() != FQuat::Identity || RelativeTM.GetTranslation() != FVector::ZeroVector)
 						{
 							FTransform AdjustedTransform = RelativeTM;
 							AdjustedTransform.SetTranslation(RelativeTM.GetTranslation() * AdjustedScale3D);
-							NewTrimesh = MakeUnique<TImplicitObjectTransformed<FReal, 3>>(MoveTemp(NewTrimesh), AdjustedTransform);
+							NewTrimesh = MakeImplicitObjectPtr<TImplicitObjectTransformed<FReal, 3>>(MoveTemp(NewTrimesh), AdjustedTransform);
 						}
 
 						NewGeometry.Emplace(MoveTemp(NewTrimesh));
@@ -2192,7 +2194,7 @@ bool FBodyInstance::UpdateBodyScale(const FVector& InScale3D, bool bForceUpdate)
 		// Only follow through with update if all shapes succeeded.
 		if (CHAOS_ENSURE(NewGeometry.Num() == Shapes.Num()))
 		{
-			ActorHandle->GetGameThreadAPI().SetGeometry(MakeUnique<Chaos::FImplicitObjectUnion>(MoveTemp(NewGeometry)));
+			ActorHandle->GetGameThreadAPI().SetGeometry(MakeImplicitObjectPtr<Chaos::FImplicitObjectUnion>(MoveTemp(NewGeometry)));
 			FPhysicsInterface::WakeUp_AssumesLocked(ActorHandle);
 		}
 		else
@@ -4175,8 +4177,8 @@ void FBodyInstance::BuildBodyFilterData(FBodyCollisionFilterData& OutFilterData,
 		FCollisionFilterData SimFilterData;
 		FCollisionFilterData SimpleQueryData;
 
-			uint32 ActorID = Owner ? Owner->GetUniqueID() : 0;
-			uint32 CompID = (OwnerComponentInst != nullptr) ? OwnerComponentInst->GetUniqueID() : 0;
+		uint32 ActorID = Owner ? Owner->GetUniqueID() : 0;
+		uint32 CompID = (OwnerComponentInst != nullptr) ? OwnerComponentInst->GetUniqueID() : 0;
 		CreateShapeFilterData(UseChannel, MaskFilter, ActorID, UseResponse, CompID, InstanceBodyIndex, SimpleQueryData, SimFilterData, bRootCCD && !bPhysicsStatic, bUseNotifyRBCollision, bPhysicsStatic, bUseContactModification);
 
 		FCollisionFilterData ComplexQueryData = SimpleQueryData;

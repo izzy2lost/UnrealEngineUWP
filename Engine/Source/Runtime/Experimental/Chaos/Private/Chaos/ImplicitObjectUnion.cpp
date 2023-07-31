@@ -28,9 +28,15 @@ namespace Chaos
 		// a random child. See FImplicitBVH::Partition.
 		FRealSingle ChaosUnionBVHSplitBias = 0.1f;
 		FAutoConsoleVariableRef CVarChaosUnionBVHSplitBias(TEXT("p.Chaos.Collision.UnionBVH.SplitBias"), ChaosUnionBVHSplitBias, TEXT(""));
+		
+		// Replace all the union objects with simplified shapes (box for now) for optimisation
+		bool bChaosUnionSimpleShapes = false;
+		FAutoConsoleVariableRef CVarChaosUnionSimpleShapes(TEXT("p.Chaos.Collision.Union.SimpleShapes"), bChaosUnionSimpleShapes, TEXT("If true replace all the union objects with simplified shapes (box for now) for optimisation"));
+
+		
 	}
 
-inline FAABB3 CalculateObjectsBounds(const TArrayView<TUniquePtr<FImplicitObject>>& Objects)
+inline FAABB3 CalculateObjectsBounds(const TArrayView<FImplicitObjectPtr>& Objects)
 {
 	if (Objects.IsEmpty())
 	{
@@ -56,20 +62,35 @@ FImplicitObjectUnion::FImplicitObjectUnion()
 
 FImplicitObjectUnion::FImplicitObjectUnion(TArray<TUniquePtr<FImplicitObject>>&& Objects)
 	: FImplicitObject(EImplicitObject::HasBoundingBox, ImplicitObjectType::Union)
+	, MObjects()
+	, Convexes()
+	, NumLeafObjects(0)
+	, Flags()
+{
+	check(false);
+}
+
+FImplicitObjectUnion::FImplicitObjectUnion(TArray<Chaos::FImplicitObjectPtr>&& Objects)
+	: FImplicitObject(EImplicitObject::HasBoundingBox, ImplicitObjectType::Union)
 	, MObjects(MoveTemp(Objects))
+	, Convexes()
 	, NumLeafObjects(0)
 	, Flags()
 {
 	ensure(MObjects.Num());
 
 	MLocalBoundingBox = CalculateObjectsBounds(MakeArrayView(MObjects));
-
-	SetNumLeafObjects(Private::FImplicitBVH::CountLeafObjects(MakeArrayView(MObjects)));
+	SetNumLeafObjects(Private::FImplicitBVH::CountLeafObjects(MakeArrayView(GetObjects())));
+		
+	Flags.bAllowBVH = true;
+	RebuildConvexes();
+	Flags.bAllowBVH = false;
 }
 
 FImplicitObjectUnion::FImplicitObjectUnion(FImplicitObjectUnion&& Other)
 	: FImplicitObject(EImplicitObject::HasBoundingBox, ImplicitObjectType::Union)
 	, MObjects(MoveTemp(Other.MObjects))
+	, Convexes(MoveTemp(Other.Convexes))
 	, MLocalBoundingBox(MoveTemp(Other.MLocalBoundingBox))
 	, BVH(MoveTemp(Other.BVH))
 	, NumLeafObjects(Other.NumLeafObjects)
@@ -79,7 +100,30 @@ FImplicitObjectUnion::FImplicitObjectUnion(FImplicitObjectUnion&& Other)
 
 FImplicitObjectUnion::~FImplicitObjectUnion() = default;
 
-void FImplicitObjectUnion::Combine(TArray<TUniquePtr<FImplicitObject>>& OtherObjects)
+bool FImplicitObjectUnion::HasValidBVH() const
+{
+	// No need to create BVH if we are using the simple shape
+	return BVH.IsValid() && CVars::bChaosUnionBVHEnabled && !CVars::bChaosUnionSimpleShapes;
+}
+
+bool FImplicitObjectUnion::HasSimpleShapes() const
+{
+	// Simple shapes only if cvar is on and if we are on the root cluster union (AllowBVH)
+	return Flags.bAllowBVH && Chaos::CVars::bChaosUnionSimpleShapes;
+}
+
+void FImplicitObjectUnion::RebuildConvexes()
+{
+	if(HasSimpleShapes())
+	{
+		Convexes.Reset();
+
+		// Bounding box implicit for physics only
+		Convexes.Add(MakeImplicitObjectPtr<Chaos::FImplicitBox3>(MLocalBoundingBox.Min(), MLocalBoundingBox.Max(), MLocalBoundingBox.GetMargin()));
+	}
+}
+	
+void FImplicitObjectUnion::Combine(TArray<Chaos::FImplicitObjectPtr>& OtherObjects)
 {
 	ensure(MObjects.Num());
 
@@ -92,16 +136,14 @@ void FImplicitObjectUnion::Combine(TArray<TUniquePtr<FImplicitObject>>& OtherObj
 	{
 		MLocalBoundingBox = OtherBounds;
 	}
-
 	MObjects.Reserve(MObjects.Num() + OtherObjects.Num());
-	for (TUniquePtr<FImplicitObject>& ChildObject : OtherObjects)
+	for (Chaos::FImplicitObjectPtr& ChildObject : OtherObjects)
 	{
 		SetNumLeafObjects(GetNumLeafObjects() + Private::FImplicitBVH::CountLeafObjects(MakeArrayView(&ChildObject, 1)));
-
 		MObjects.Add(MoveTemp(ChildObject));
 	}
-
 	RebuildBVH();
+	RebuildConvexes();
 }
 
 void FImplicitObjectUnion::RemoveAt(int32 RemoveIndex)
@@ -110,13 +152,13 @@ void FImplicitObjectUnion::RemoveAt(int32 RemoveIndex)
 	{
 		SetNumLeafObjects(GetNumLeafObjects() - Private::FImplicitBVH::CountLeafObjects(MakeArrayView(&MObjects[RemoveIndex], 1)));
 
-		MObjects[RemoveIndex].Reset(nullptr);
+		MObjects[RemoveIndex]->Release();
 		MObjects.RemoveAt(RemoveIndex);
 	}
 
 	MLocalBoundingBox = CalculateObjectsBounds(MakeArrayView(MObjects));
-
 	RebuildBVH();
+	RebuildConvexes();
 }
 
 void FImplicitObjectUnion::SetNumLeafObjects(int32 InNumLeafObjects)
@@ -130,7 +172,7 @@ void FImplicitObjectUnion::SetNumLeafObjects(int32 InNumLeafObjects)
 
 void FImplicitObjectUnion::CreateBVH()
 {
-	if (Flags.bAllowBVH && CVars::bChaosUnionBVHEnabled)
+	if (Flags.bAllowBVH && CVars::bChaosUnionBVHEnabled && !CVars::bChaosUnionSimpleShapes)
 	{
 		const int32 MinBVHShapes = CVars::ChaosUnionBVHMinShapes;
 		const int32 MaxBVHDepth = CVars::ChaosUnionBVHMaxDepth;
@@ -156,7 +198,7 @@ void FImplicitObjectUnion::RebuildBVH()
 
 void FImplicitObjectUnion::FindAllIntersectingObjects(TArray<Pair<const FImplicitObject*,FRigidTransform3>>& Out, const FAABB3& LocalBounds) const
 {
-	if (BVH.IsValid() && CVars::bChaosUnionBVHEnabled)
+	if (HasValidBVH())
 	{
 		BVH->VisitOverlappingNodes(LocalBounds,
 			[this, &Out](const int32 NodeIndex)
@@ -173,7 +215,8 @@ void FImplicitObjectUnion::FindAllIntersectingObjects(TArray<Pair<const FImplici
 	}
 	else
 	{
-		for (const TUniquePtr<FImplicitObject>& Object : MObjects)
+		const Chaos::FImplicitObjectsArray& Objects = HasSimpleShapes() ? GetConvexes() : GetObjects();
+		for (const Chaos::FImplicitObjectPtr& Object : Objects)
 		{
 			Object->FindAllIntersectingObjects(Out, LocalBounds);
 		}
@@ -184,11 +227,11 @@ int32 FImplicitObjectUnion::CountObjectsInHierarchyImpl() const
 {
 	// Self
 	int32 NumObjects = 1;
-
+	
 	// Children
-	for (int32 BVHObjectIndex = 0; BVHObjectIndex < MObjects.Num(); ++BVHObjectIndex)
+	for (const Chaos::FImplicitObjectPtr& Object : GetObjects())
 	{
-		NumObjects += MObjects[BVHObjectIndex]->CountObjectsInHierarchy();
+		 NumObjects += Object->CountObjectsInHierarchy();
 	}
 
 	return NumObjects;
@@ -205,7 +248,7 @@ void FImplicitObjectUnion::VisitOverlappingLeafObjectsImpl(
 	// Skip self
 	InOutObjectIndex++;
 
-	if (BVH.IsValid() && CVars::bChaosUnionBVHEnabled)
+	if (HasValidBVH())
 	{
 		// Visit children
 		// NOTE: ObjectIndex passed to the visitor isn't really correct here. Maybe it should be removed...
@@ -217,12 +260,12 @@ void FImplicitObjectUnion::VisitOverlappingLeafObjectsImpl(
 	}
 	else
 	{
-		for (int32 BVHObjectIndex = 0; BVHObjectIndex < MObjects.Num(); ++BVHObjectIndex)
+		const Chaos::FImplicitObjectsArray& Objects = HasSimpleShapes() ? GetConvexes() : GetObjects();
+		for (int32 BVHObjectIndex = 0; BVHObjectIndex < Objects.Num(); ++BVHObjectIndex)
 		{
 			// If we are the root our object index is the root index, otherwise just pass on the value we were given (from the actual root)
 			const int32 RootObjectIndex = (InRootObjectIndex != INDEX_NONE) ? InRootObjectIndex : BVHObjectIndex;
-
-			MObjects[BVHObjectIndex]->VisitOverlappingLeafObjectsImpl(LocalBounds, ObjectTransform, RootObjectIndex, InOutObjectIndex, InOutLeafObjectIndex, VisitorFunc);
+			Objects[BVHObjectIndex]->VisitOverlappingLeafObjectsImpl(LocalBounds, ObjectTransform, RootObjectIndex, InOutObjectIndex, InOutLeafObjectIndex, VisitorFunc);
 		}
 	}
 }
@@ -236,13 +279,13 @@ void FImplicitObjectUnion::VisitLeafObjectsImpl(
 {
 	// Skip self
 	++ObjectIndex;
-
-	for (int32 BVHObjectIndex = 0; BVHObjectIndex < MObjects.Num(); ++BVHObjectIndex)
+	
+	const Chaos::FImplicitObjectsArray& Objects = HasSimpleShapes() ? GetConvexes() : GetObjects();
+	for (int32 BVHObjectIndex = 0; BVHObjectIndex < Objects.Num(); ++BVHObjectIndex)
 	{
 		// If we are the root our object index is the root index, otherwise just pass on the value we were given (from the actual root)
 		const int32 RootObjectIndex = (InRootObjectIndex != INDEX_NONE) ? InRootObjectIndex : BVHObjectIndex;
-
-		MObjects[BVHObjectIndex]->VisitLeafObjectsImpl(ObjectTransform, RootObjectIndex, ObjectIndex, LeafObjectIndex, VisitorFunc);
+		Objects[BVHObjectIndex]->VisitLeafObjectsImpl(ObjectTransform, RootObjectIndex, ObjectIndex, LeafObjectIndex, VisitorFunc);
 	}
 }
 
@@ -256,14 +299,14 @@ bool FImplicitObjectUnion::VisitObjectsImpl(
 	// Visit self
 	bool bContinue = VisitorFunc(this, ObjectTransform, InRootObjectIndex, ObjectIndex, INDEX_NONE);
 	++ObjectIndex;
-
+	
 	// Visit Children
-	for (int32 BVHObjectIndex = 0; (BVHObjectIndex < MObjects.Num()) && bContinue; ++BVHObjectIndex)
+	const Chaos::FImplicitObjectsArray& Objects = HasSimpleShapes() ? GetConvexes() : GetObjects();
+	for (int32 BVHObjectIndex = 0; (BVHObjectIndex < Objects.Num()) && bContinue; ++BVHObjectIndex)
 	{
 		// If we are the root our object index is the root index, otherwise just pass on the value we were given (from the actual root)
 		const int32 RootObjectIndex = (InRootObjectIndex != INDEX_NONE) ? InRootObjectIndex : BVHObjectIndex;
-
-		bContinue = MObjects[BVHObjectIndex]->VisitObjectsImpl(ObjectTransform, RootObjectIndex, ObjectIndex, LeafObjectIndex, VisitorFunc);
+		bContinue = Objects[BVHObjectIndex]->VisitObjectsImpl(ObjectTransform, RootObjectIndex, ObjectIndex, LeafObjectIndex, VisitorFunc);
 	}
 
 	return bContinue;
@@ -271,7 +314,7 @@ bool FImplicitObjectUnion::VisitObjectsImpl(
 
 bool FImplicitObjectUnion::IsOverlappingBoundsImpl(const FAABB3& LocalBounds) const
 {
-	if (BVH.IsValid() && CVars::bChaosUnionBVHEnabled)
+	if (HasValidBVH())
 	{
 		return BVH->IsOverlappingBounds(LocalBounds);
 	}
@@ -279,9 +322,10 @@ bool FImplicitObjectUnion::IsOverlappingBoundsImpl(const FAABB3& LocalBounds) co
 	{
 		if (LocalBounds.Intersects(BoundingBox()))
 		{
-			for (int32 BVHObjectIndex = 0; BVHObjectIndex < MObjects.Num(); ++BVHObjectIndex)
+			const Chaos::FImplicitObjectsArray& Objects = HasSimpleShapes() ? GetConvexes() : GetObjects();
+			for (int32 BVHObjectIndex = 0; BVHObjectIndex < Objects.Num(); ++BVHObjectIndex)
 			{
-				if (MObjects[BVHObjectIndex]->IsOverlappingBoundsImpl(LocalBounds))
+				if (Objects[BVHObjectIndex]->IsOverlappingBoundsImpl(LocalBounds))
 				{
 					return true;
 				}
@@ -292,55 +336,55 @@ bool FImplicitObjectUnion::IsOverlappingBoundsImpl(const FAABB3& LocalBounds) co
 	return false;
 }
 
-TUniquePtr<FImplicitObject> FImplicitObjectUnion::Copy() const
+Chaos::FImplicitObjectPtr FImplicitObjectUnion::CopyGeometry() const
 {
-	TArray<TUniquePtr<FImplicitObject>> CopyOfObjects;
+	TArray<Chaos::FImplicitObjectPtr> CopyOfObjects;
 	CopyOfObjects.Reserve(MObjects.Num());
-	for (const TUniquePtr<FImplicitObject>& Object : MObjects)
+	for (const Chaos::FImplicitObjectPtr& Object : MObjects)
 	{
-		CopyOfObjects.Emplace(Object->Copy());
+		CopyOfObjects.Emplace(Object->CopyGeometry());
 	}
-	return MakeUnique<FImplicitObjectUnion>(MoveTemp(CopyOfObjects));
+	return MakeImplicitObjectPtr<FImplicitObjectUnion>(MoveTemp(CopyOfObjects));
 }
 
-TUniquePtr<FImplicitObject> FImplicitObjectUnion::CopyWithScale(const FVec3& Scale) const
+Chaos::FImplicitObjectPtr FImplicitObjectUnion::CopyGeometryWithScale(const FVec3& Scale) const
 {
-	TArray<TUniquePtr<FImplicitObject>> CopyOfObjects;
+	TArray<Chaos::FImplicitObjectPtr> CopyOfObjects;
 	CopyOfObjects.Reserve(MObjects.Num());
-	for (const TUniquePtr<FImplicitObject>& Object : MObjects)
+	for (const Chaos::FImplicitObjectPtr& Object : MObjects)
 	{
-		CopyOfObjects.Emplace(Object->CopyWithScale(Scale));
+		CopyOfObjects.Emplace(Object->CopyGeometryWithScale(Scale));
 	}
-	return MakeUnique<FImplicitObjectUnion>(MoveTemp(CopyOfObjects));
+	return MakeImplicitObjectPtr<FImplicitObjectUnion>(MoveTemp(CopyOfObjects));
 }
 
-TUniquePtr<FImplicitObject> FImplicitObjectUnion::DeepCopy() const
+Chaos::FImplicitObjectPtr FImplicitObjectUnion::DeepCopyGeometry() const
 {
-	TArray<TUniquePtr<FImplicitObject>> CopyOfObjects;
+	TArray<Chaos::FImplicitObjectPtr> CopyOfObjects;
 	CopyOfObjects.Reserve(MObjects.Num());
-	for (const TUniquePtr<FImplicitObject>& Object : MObjects)
+	for (const Chaos::FImplicitObjectPtr& Object : MObjects)
 	{
-		CopyOfObjects.Emplace(Object->DeepCopy());
+		CopyOfObjects.Emplace(Object->DeepCopyGeometry());
 	}
-	return MakeUnique<FImplicitObjectUnion>(MoveTemp(CopyOfObjects));
+	return MakeImplicitObjectPtr<FImplicitObjectUnion>(MoveTemp(CopyOfObjects));
 }
 
-TUniquePtr<FImplicitObject> FImplicitObjectUnion::DeepCopyWithScale(const FVec3& Scale) const
+Chaos::FImplicitObjectPtr FImplicitObjectUnion::DeepCopyGeometryWithScale(const FVec3& Scale) const
 {
-	TArray<TUniquePtr<FImplicitObject>> CopyOfObjects;
+	TArray<Chaos::FImplicitObjectPtr> CopyOfObjects;
 	CopyOfObjects.Reserve(MObjects.Num());
-	for (const TUniquePtr<FImplicitObject>& Object : MObjects)
+	for (const Chaos::FImplicitObjectPtr& Object : MObjects)
 	{
-		CopyOfObjects.Emplace(Object->DeepCopyWithScale(Scale));
+		CopyOfObjects.Emplace(Object->DeepCopyGeometryWithScale(Scale));
 	}
-	return MakeUnique<FImplicitObjectUnion>(MoveTemp(CopyOfObjects));
+	return MakeImplicitObjectPtr<FImplicitObjectUnion>(MoveTemp(CopyOfObjects));
 }
 
 void FImplicitObjectUnion::ForEachObject(TFunctionRef<bool(const FImplicitObject&, const FRigidTransform3&)> Lambda) const
 {
 	// @todo(chaos): this implementation is strange. If we have as BVH we will visit all children in the hierarchy, but if not
 	// we only visit our immediate children, and not their children. It should probably just ignore the BVH?
-	if (BVH.IsValid())
+	if (HasValidBVH())
 	{
 		for (int32 Index = 0; Index < BVH->GetNumObjects(); ++Index)
 		{
@@ -355,7 +399,8 @@ void FImplicitObjectUnion::ForEachObject(TFunctionRef<bool(const FImplicitObject
 	}
 	else
 	{
-		for (const TUniquePtr<FImplicitObject>& Object : MObjects)
+		const Chaos::FImplicitObjectsArray& Objects = HasSimpleShapes() ? GetConvexes() : GetObjects();
+		for (const Chaos::FImplicitObjectPtr& Object : Objects)
 		{
 			if (Object)
 			{
@@ -420,6 +465,12 @@ void FImplicitObjectUnion::Serialize(FChaosArchive& Ar)
 		{
 			MLocalBoundingBox = FAABB3::ZeroAABB();
 		}
+		
+		if(Chaos::CVars::bChaosUnionSimpleShapes)
+		{
+			Convexes.Reset();
+			Convexes.Add(MakeImplicitObjectPtr<Chaos::FImplicitBox3>(MLocalBoundingBox.Min(), MLocalBoundingBox.Max(), MLocalBoundingBox.GetMargin()));
+		}
 	}
 }
 
@@ -442,12 +493,13 @@ void FImplicitObjectUnion::LegacySerializeBVH(FChaosArchive& Ar)
 	}
 
 	// Count the objects in the hierarchy
-	SetNumLeafObjects(Private::FImplicitBVH::CountLeafObjects(MakeArrayView(MObjects)));
+	SetNumLeafObjects(Private::FImplicitBVH::CountLeafObjects(MakeArrayView(GetObjects())));
 
 	// Only the root Union should allow BVH, but we don't know which that is at this stage
 	// so just revert to the original behaviour of every Union potentially having a BVH
 	Flags.bAllowBVH = true;
 	RebuildBVH();
+	RebuildConvexes();
 }
 
 FImplicitObjectUnionClustered::FImplicitObjectUnionClustered()
@@ -457,12 +509,13 @@ FImplicitObjectUnionClustered::FImplicitObjectUnionClustered()
 }
 
 FImplicitObjectUnionClustered::FImplicitObjectUnionClustered(
-	TArray<TUniquePtr<FImplicitObject>>&& Objects, 
+	TArray<Chaos::FImplicitObjectPtr>&& Objects, 
 	const TArray<FPBDRigidParticleHandle*>& OriginalParticleLookupHack)
     : FImplicitObjectUnion(MoveTemp(Objects))
 	, MOriginalParticleLookupHack(OriginalParticleLookupHack)
 {
 	Type = ImplicitObjectType::UnionClustered;
+	
 	check(MOriginalParticleLookupHack.Num() == 0 || MOriginalParticleLookupHack.Num() == MObjects.Num());
 	MCollisionParticleLookupHack.Reserve(FMath::Min(MOriginalParticleLookupHack.Num(), MObjects.Num()));
 	for (int32 i = 0; MOriginalParticleLookupHack.Num() > 0 && i < MObjects.Num(); ++i)
@@ -496,7 +549,7 @@ TArray<FPBDRigidParticleHandle*>
 FImplicitObjectUnionClustered::FindAllIntersectingChildren(const FAABB3& LocalBounds) const
 {
 	TArray<FPBDRigidParticleHandle*> IntersectingChildren;
-	if (BVH.IsValid())
+	if (HasValidBVH())
 	{
 		BVH->VisitOverlappingNodes(LocalBounds,
 			[this, &IntersectingChildren](const int32 NodeIndex)

@@ -44,8 +44,15 @@ public:
 		FGuid Guid;
 
 		TArray<Chaos::FMaterialHandle> UsedChaosMaterials;
+		Chaos::FTriangleMeshImplicitObjectPtr TrimeshGeometry;
+
+		UE_DEPRECATED(5.4, "Please use TrimeshGeometry instead")
 		TUniquePtr<Chaos::FTriangleMeshImplicitObject> Trimesh;
+		
 #if WITH_EDITORONLY_DATA
+		Chaos::FTriangleMeshImplicitObjectPtr EditorTrimeshGeometry;
+		
+		UE_DEPRECATED(5.4, "Please use EditorTrimeshGeometry instead")
 		TUniquePtr<Chaos::FTriangleMeshImplicitObject> EditorTrimesh;
 #endif // WITH_EDITORONLY_DATA
 

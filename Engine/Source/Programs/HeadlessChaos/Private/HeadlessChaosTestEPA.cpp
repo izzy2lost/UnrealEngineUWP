@@ -685,8 +685,8 @@ namespace ChaosTest
 				});
 
 			// Test used to pass the planes to FConvex, but this is not supported any more. Planes are derived from points.
-			TUniquePtr<FConvex> Convex = MakeUnique<FConvex>(SurfaceParticles, 0.0f);
-			TImplicitObjectScaled<FConvex> ScaledConvex(MakeSerializable(Convex), nullptr, FVec3(1.0f), 0.0f);
+			FConvexPtr Convex( new FConvex(SurfaceParticles, 0.0f));
+			TImplicitObjectScaled<FConvex> ScaledConvex(Convex, FVec3(1.0f), 0.0f);
 
 			TSphere<FReal, 3> Sphere(FVec3(0.0f), 34.2120171);
 
@@ -785,8 +785,8 @@ namespace ChaosTest
 				// Test used to pass planes and verts to FConvex but this is not suported an more. 
 				// Planes will derived from the points now, and also faces are merged (not triangles any more)
 				FVec3 ConvexScale ={25,25,1};
-				TUniquePtr<FConvex> Convex = MakeUnique<FConvex>(SurfaceParticles, 0.0f);
-				TImplicitObjectScaled<FConvex> ScaledConvex(MakeSerializable(Convex), nullptr, ConvexScale,0.0f);
+				FConvexPtr Convex( new FConvex(SurfaceParticles, 0.0f));
+				TImplicitObjectScaled<FConvex> ScaledConvex(Convex, ConvexScale,0.0f);
 
 				TBox<FReal,3> Box({-50.0000000,-60.0000000,-30.0000000},{50.0000000,60.0000000,30.0000000});
 
@@ -1056,8 +1056,8 @@ namespace ChaosTest
 			// Test used to pass planes and verts to FConvex but this is not suported an more. 
 			// Planes will derived from the points now, and also faces are merged (not triangles any more)
 			FVec3 GroundConvexScale = { 25,25,1 };
-			TUniquePtr<FConvex> GroundConvex = MakeUnique<FConvex>(GroundSurfaceParticles, 0.0f);
-			TImplicitObjectScaled<FConvex> ScaledGroundConvex(MakeSerializable(GroundConvex), nullptr, GroundConvexScale, 0.0f);
+			FConvexPtr GroundConvex( new FConvex(GroundSurfaceParticles, 0.0f));
+			TImplicitObjectScaled<FConvex> ScaledGroundConvex(GroundConvex, GroundConvexScale, 0.0f);
 
 
 			// Test used to pass planes and verts to FConvex but this is not suported an more. 
@@ -1233,8 +1233,8 @@ namespace ChaosTest
 		TArray<uint16> Materials;
 		Materials.Emplace(0);
 		Materials.Emplace(0);
-		TUniquePtr<FTriangleMeshImplicitObject> TriangleMesh = MakeUnique<FTriangleMeshImplicitObject>(MoveTemp(TrimeshParticles), MoveTemp(Indices), MoveTemp(Materials));
-		TImplicitObjectScaled<FTriangleMeshImplicitObject> ScaledTriangleMesh = TImplicitObjectScaled<FTriangleMeshImplicitObject>(MakeSerializable(TriangleMesh), nullptr, FVec3(11.5, 11.5, 11.5));
+		FTriangleMeshImplicitObjectPtr TriangleMesh( new FTriangleMeshImplicitObject(MoveTemp(TrimeshParticles), MoveTemp(Indices), MoveTemp(Materials)));
+		TImplicitObjectScaled<FTriangleMeshImplicitObject> ScaledTriangleMesh = TImplicitObjectScaled<FTriangleMeshImplicitObject>(TriangleMesh, FVec3(11.5, 11.5, 11.5));
 
 		FQuat Rotation0(0.00488796039, 0.00569311855, -0.000786740216, 0.999971569);
 		FQuat Rotation1(0.0117356628, -0.0108017093, -0.000888462295, 0.999872327);
@@ -1288,8 +1288,8 @@ namespace ChaosTest
 		TRigidTransform<FReal, 3> StartTM(FVec3(-344.031799, 1210.37158, 134.252747), FQuat(-0.255716801, -0.714108050, 0.0788889676, -0.646866322), FVec3(1));
 
 		// Wrapping in 1,1,1 scale is unnecessary, but this is technically what is happening when sweeping against scaled trimesh.
-		TUniquePtr<FCapsule> Capsule = MakeUnique<FCapsule>(FVec3(0, 0, -33), FVec3(0, 0, 33), 42);
-		TImplicitObjectScaled<FCapsule> ScaledCapsule = TImplicitObjectScaled<FCapsule>(MakeSerializable(Capsule), nullptr, FVec3(1));
+		FCapsulePtr Capsule( new FCapsule(FVec3(0, 0, -33), FVec3(0, 0, 33), 42));
+		TImplicitObjectScaled<FCapsule> ScaledCapsule = TImplicitObjectScaled<FCapsule>(Capsule, FVec3(1));
 
 
 		const FVec3 Dir(-0.102473199, 0.130887285, -0.986087084);

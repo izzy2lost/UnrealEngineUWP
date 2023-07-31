@@ -167,7 +167,7 @@ FClothingSimulationSolver::FClothingSimulationSolver()
 			ParticlesInput.R(Index) = NewR;
 
 			if (TWeightedLatticeImplicitObject<FLevelSet>* SkinnedLevelSet = 
-				const_cast<FImplicitObject*>(ParticlesInput.Geometry(Index).Get())->GetObject<TWeightedLatticeImplicitObject<FLevelSet>>())
+				const_cast<FImplicitObject*>(ParticlesInput.GetGeometry(Index).GetReference())->GetObject<TWeightedLatticeImplicitObject<FLevelSet>>())
 			{
 				const TArray<int32>& SubBoneIndices = SkinnedLevelSet->GetSolverBoneIndices();
 				const FTransform RootTransformInv = TRigidTransform<FReal, 3>(ParticlesInput.X(Index), ParticlesInput.R(Index)).Inverse();
@@ -523,14 +523,14 @@ Softs::FSolverRotation3* FClothingSimulationSolver::GetCollisionParticleRs(int32
 	return &Evolution->CollisionParticles().R(Offset);
 }
 
-void FClothingSimulationSolver::SetCollisionGeometry(int32 Offset, int32 Index, TUniquePtr<FImplicitObject>&& Geometry)
+void FClothingSimulationSolver::SetCollisionGeometry(int32 Offset, int32 Index, FImplicitObjectPtr&& Geometry)
 {
-	Evolution->CollisionParticles().SetDynamicGeometry(Offset + Index, MoveTemp(Geometry));
+	Evolution->CollisionParticles().SetGeometry(Offset + Index, MoveTemp(Geometry));
 }
 
-const TUniquePtr<FImplicitObject>* FClothingSimulationSolver::GetCollisionGeometries(int32 Offset) const
+const FImplicitObjectPtr* FClothingSimulationSolver::GetCollisionGeometry(int32 Offset) const
 {
-	return &Evolution->CollisionParticles().DynamicGeometry(Offset);
+	return &Evolution->CollisionParticles().GetGeometry(Offset);
 }
 
 const bool* FClothingSimulationSolver::GetCollisionStatus(int32 Offset) const

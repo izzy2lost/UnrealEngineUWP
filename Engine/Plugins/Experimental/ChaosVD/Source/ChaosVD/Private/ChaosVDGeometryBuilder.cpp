@@ -34,9 +34,9 @@ bool FChaosVDGeometryBuilder::DoesImplicitContainType(const Chaos::FImplicitObje
 
 				for (int i = 0; i < Union->GetObjects().Num(); ++i)
 				{
-					const TUniquePtr<FImplicitObject>& UnionImplicit = Union->GetObjects()[i];
+					const FImplicitObjectPtr& UnionImplicit = Union->GetObjects()[i];
 
-					if (DoesImplicitContainType(UnionImplicit.Get(), ImplicitTypeToCheck))
+					if (DoesImplicitContainType(UnionImplicit.GetReference(), ImplicitTypeToCheck))
 					{
 						return true;
 					}
