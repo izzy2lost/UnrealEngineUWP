@@ -140,6 +140,9 @@
 		<!-- Build files -->
 		Engine/Build/Build.version
 		Engine/Build/Target.cs.template
+
+		<!-- Turnkey files -->
+		Engine/Build/Turnkey/...
 		
 		<!-- Source code and demos for container images -->
 		Engine/Extras/Containers/...
