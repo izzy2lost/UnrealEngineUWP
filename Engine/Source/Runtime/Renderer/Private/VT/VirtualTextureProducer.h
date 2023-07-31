@@ -208,6 +208,5 @@ private:
 	TArray<FProducerEntry> Producers;
 	TArray<FCallbackEntry> Callbacks;
 	TMap<void*, TArray<uint32>> CallbacksMap;
-	UE::FMutex CallbacksMutex;
-	std::atomic_uint32_t NumPendingCallbacks;
+	uint32 NumPendingCallbacks;
 };
