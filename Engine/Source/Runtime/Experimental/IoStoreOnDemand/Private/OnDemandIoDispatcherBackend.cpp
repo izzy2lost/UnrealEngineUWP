@@ -896,7 +896,7 @@ class FOnDemandIoBackend final
 		void Release(FChunkRequest* Request)
 		{
 			FScopeLock _(&Mutex);
-			check(!Inflight.Contains(Request->Params.ChunkKey));
+			check(!IsInFlight(Request));
 			Allocator.Destroy(Request);
 		}
 		
@@ -905,6 +905,22 @@ class FOnDemandIoBackend final
 			FScopeLock _(&Mutex);
 			Inflight.Remove(Request->Params.ChunkKey);
 			Allocator.Destroy(Request);
+		}
+
+	private:
+
+		/** Helper intended to be called by methods that have already locked ::Mutex */
+		inline bool IsInFlight(const FChunkRequest* Request) const
+		{
+			const FChunkRequest* const* InFlightRequest = Inflight.Find(Request->Params.ChunkKey);
+			if (InFlightRequest == nullptr)
+			{
+				return false;
+			}
+			else
+			{
+				return *InFlightRequest == Request;
+			}
 		}
 
 		TSingleThreadedSlabAllocator<FChunkRequest, 128> Allocator;
