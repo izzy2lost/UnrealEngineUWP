@@ -1176,7 +1176,7 @@ void APlayerController::SetMouseCursorWidget(EMouseCursor::Type Cursor, class UU
 	ULocalPlayer* LocalPlayer = Cast<ULocalPlayer>(Player);
 	if (LocalPlayer && LocalPlayer->ViewportClient)
 	{
-		LocalPlayer->ViewportClient->AddCursorWidget(Cursor, CursorWidget);
+		LocalPlayer->ViewportClient->SetSoftwareCursorWidget(Cursor, CursorWidget);
 	}
 }
 

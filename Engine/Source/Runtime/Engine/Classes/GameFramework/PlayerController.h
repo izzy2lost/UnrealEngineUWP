@@ -1233,7 +1233,7 @@ public:
 	 * @param CursorWidget - the widget to set the cursor to
 	 */
 	UFUNCTION(BlueprintCallable, Category="Game|Player")
-	ENGINE_API void SetMouseCursorWidget(EMouseCursor::Type Cursor, class UUserWidget* CursorWidget);
+	ENGINE_API void SetMouseCursorWidget(EMouseCursor::Type Cursor, UPARAM(Required) class UUserWidget* CursorWidget);
 
 	/** Set the view target
 	 * @param A - new actor to set as view target

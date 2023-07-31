@@ -551,7 +551,7 @@ void UGameViewportClient::Init(struct FWorldContext& WorldContext, UGameInstance
 	// Set all the software cursors.
 	for ( auto& Entry : UISettings->SoftwareCursors )
 	{
-		AddSoftwareCursor(Entry.Key, Entry.Value);
+		SetSoftwareCursorFromClassPath(Entry.Key, Entry.Value);
 	}
 
 	// Set all the hardware cursors.
@@ -567,7 +567,7 @@ void UGameViewportClient::RebuildCursors()
 	// Set all the software cursors.
 	for (auto& Entry : UISettings->SoftwareCursors)
 	{
-		AddSoftwareCursor(Entry.Key, Entry.Value);
+		SetSoftwareCursorFromClassPath(Entry.Key, Entry.Value);
 	}
 
 	// Set all the hardware cursors.
@@ -1030,41 +1030,71 @@ EMouseCursor::Type UGameViewportClient::GetCursor(FViewport* InViewport, int32 X
 
 void UGameViewportClient::SetVirtualCursorWidget(EMouseCursor::Type Cursor, UUserWidget* UserWidget)
 {
-	TSharedPtr<SWidget>& ExistingWidget = CursorWidgets.FindOrAdd(Cursor);
-	TSharedPtr<SWidget> NewWidget = UserWidget ? UserWidget->TakeWidget() : TSharedPtr<SWidget>();
-	if (NewWidget != ExistingWidget)
+	if (UserWidget)
 	{
-		// Pure safety
-		ExistingWidget.Reset();
-		ExistingWidget = NewWidget;
+		SetSoftwareCursorWidget(Cursor, UserWidget);
+	}
+	else
+	{
+		CursorWidgets.Remove(Cursor);
+	}
+}
+
+void UGameViewportClient::AddSoftwareCursorFromSlateWidget(EMouseCursor::Type InCursorType, TSharedPtr<SWidget> CursorWidgetPtr)
+{
+	// We set it only when it's not null to be on parity with the behavior we had before deprecation.
+	if (CursorWidgetPtr.IsValid())
+	{
+		SetSoftwareCursorWidget(InCursorType, CursorWidgetPtr);
 	}
 }
 
 void UGameViewportClient::AddSoftwareCursor(EMouseCursor::Type Cursor, const FSoftClassPath& CursorClass)
+{
+	SetSoftwareCursorFromClassPath(Cursor, CursorClass);
+}
+
+void UGameViewportClient::SetSoftwareCursorFromClassPath(EMouseCursor::Type Cursor, const FSoftClassPath & CursorClass)
 {
 	if (CursorClass.IsValid())
 	{
 		if (UClass* Class = CursorClass.TryLoadClass<UUserWidget>())
 		{
 			UUserWidget* UserWidget = CreateWidget(GetGameInstance(), Class);
-			AddCursorWidget(Cursor, UserWidget);
+			SetSoftwareCursorWidget(Cursor, UserWidget);
 		}
 		else
 		{
-			FMessageLog("PIE").Warning(FText::Format(LOCTEXT("AddCursor:LoadFailed", "UGameViewportClient::AddCursor: Could not load cursor class '{0}'."), FText::FromString(CursorClass.GetAssetName())));
+			FMessageLog("PIE").Warning(FText::Format(LOCTEXT("SetSoftwareCursorFromClassPath:LoadFailed", "UGameViewportClient::SetSoftwareCursorFromClassPath: Could not load cursor class '{0}'."), FText::FromString(CursorClass.GetAssetName())));
 		}
 	}
 	else
 	{
-		FMessageLog("PIE").Warning(LOCTEXT("AddCursor:InvalidClass", "UGameViewportClient::AddCursor: Invalid class specified."));
+		FMessageLog("PIE").Warning(LOCTEXT("SetSoftwareCursorFromClassPath:InvalidClass", "UGameViewportClient::SetSoftwareCursorFromClassPath: Invalid class specified."));
 	}
 }
 
-void UGameViewportClient::AddSoftwareCursorFromSlateWidget(EMouseCursor::Type InCursorType, TSharedPtr<SWidget> CursorWidgetPtr)
+void UGameViewportClient::SetSoftwareCursorWidget(EMouseCursor::Type InCursorType, TSharedPtr<SWidget> CursorWidgetPtr)
 {
 	if (CursorWidgetPtr.IsValid())
 	{
 		CursorWidgets.Emplace(InCursorType, CursorWidgetPtr);
+	}
+	else
+	{
+		CursorWidgets.Remove(InCursorType);
+	}
+}
+
+void UGameViewportClient::SetSoftwareCursorWidget(EMouseCursor::Type InCursorType, class UUserWidget* UserWidget)
+{
+	if (UserWidget)
+	{
+		SetSoftwareCursorWidget(InCursorType, UserWidget->TakeWidget());
+	}
+	else
+	{
+		CursorWidgets.Remove(InCursorType);
 	}
 }
 
@@ -1088,9 +1118,10 @@ bool UGameViewportClient::HasSoftwareCursor(EMouseCursor::Type Cursor) const
 
 void UGameViewportClient::AddCursorWidget(EMouseCursor::Type Cursor, class UUserWidget* CursorWidget)
 {
-	if (ensure(CursorWidget))
+	// We set it only when it's not null to be on parity with the behavior we had before deprecation.
+	if (CursorWidget)
 	{
-		CursorWidgets.Add(Cursor, CursorWidget->TakeWidget());
+		SetSoftwareCursorWidget(Cursor, CursorWidget->TakeWidget());
 	}
 }
 
