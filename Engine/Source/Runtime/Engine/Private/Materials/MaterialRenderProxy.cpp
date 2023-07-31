@@ -474,6 +474,11 @@ void FMaterialRenderProxy::CacheUniformExpressions(FRHICommandListBase& RHICmdLi
 	}
 }
 
+void FMaterialRenderProxy::CacheUniformExpressions(bool bRecreateUniformBuffer)
+{
+	CacheUniformExpressions(FRHICommandListImmediate::Get(), bRecreateUniformBuffer);
+}
+
 void FMaterialRenderProxy::CacheUniformExpressions_GameThread(bool bRecreateUniformBuffer)
 {
 	if (FApp::CanEverRender())
@@ -531,6 +536,11 @@ void FMaterialRenderProxy::UpdateUniformExpressionCacheIfNeeded(FRHICommandListB
 		MaterialRenderContext.bShowSelection = GIsEditor;
 		EvaluateUniformExpressions(UniformExpressionCache[InFeatureLevel], MaterialRenderContext, nullptr, &RHICmdList);
 	}
+}
+
+void FMaterialRenderProxy::UpdateUniformExpressionCacheIfNeeded(ERHIFeatureLevel::Type InFeatureLevel) const
+{
+	UpdateUniformExpressionCacheIfNeeded(FRHICommandListImmediate::Get(), InFeatureLevel);
 }
 
 FMaterialRenderProxy::FMaterialRenderProxy(FString InMaterialName)
@@ -703,6 +713,11 @@ void FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions(FRHICommandLis
 	}
 
 	DeferredUniformExpressionCacheRequests.Reset();
+}
+
+void FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions()
+{
+	UpdateDeferredCachedUniformExpressions(FRHICommandListImmediate::Get());
 }
 
 bool FMaterialRenderProxy::HasDeferredUniformExpressionCacheRequests()
