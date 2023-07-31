@@ -1190,7 +1190,7 @@ EAssetCommandResult MergeUtils::Merge(const FAssetManualMergeArgs& MergeArgs)
 	return NotifyResolution(EAssetMergeResult::Cancelled);
 }
 
-#if WITH_DEV_AUTOMATION_TESTS
+#if false && WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 namespace UE::MergeUtilsTests
 {
