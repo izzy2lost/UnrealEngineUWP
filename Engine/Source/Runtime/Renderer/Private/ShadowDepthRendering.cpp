@@ -1403,10 +1403,9 @@ static void RenderShadowDepthAtlasNanite(
 				Initializer.ViewMatrices = ProjectedShadowInfo->GetShadowDepthRenderingViewMatrices();
 				Initializer.ViewRect = ProjectedShadowInfo->GetOuterViewRect();
 				Initializer.RasterContextSize = AtlasSize;
-				Initializer.LODScaleFactor = FShadowSceneRenderer::ComputeNaniteShadowsLODScaleFactor();
 				Initializer.PrevViewMatrices = Initializer.ViewMatrices;
 				Initializer.HZBTestViewRect = ProjectedShadowInfo->GetInnerViewRect();
-				Initializer.MaxPixelsPerEdgeMultipler = 1.0f;
+				Initializer.MaxPixelsPerEdgeMultipler = 1.0f / FShadowSceneRenderer::ComputeNaniteShadowsLODScaleFactor();
 
 				// Orthographic shadow projections want depth clamping rather than clipping
 				Initializer.Flags = ProjectedShadowInfo->ShouldClampToNearPlane() ? 0u : NANITE_VIEW_FLAG_NEAR_CLIP;
@@ -1805,10 +1804,9 @@ void FSceneRenderer::RenderShadowDepthMaps(FRDGBuilder& GraphBuilder, FInstanceC
 						Params.ViewMatrices = ProjectedShadowInfo->GetShadowDepthRenderingViewMatrices(CubemapFaceIndex);
 						Params.ViewRect = ShadowViewRect;
 						Params.RasterContextSize = TargetSize;
-						Params.LODScaleFactor = FShadowSceneRenderer::ComputeNaniteShadowsLODScaleFactor();
 						Params.PrevViewMatrices = Params.ViewMatrices;
 						Params.HZBTestViewRect = ShadowViewRect;
-						Params.MaxPixelsPerEdgeMultipler = 1.0f;
+						Params.MaxPixelsPerEdgeMultipler = 1.0f / FShadowSceneRenderer::ComputeNaniteShadowsLODScaleFactor();
 
 						// Cubemap shadows reverse the cull mode due to the face matrices (see FShadowDepthPassMeshProcessor::AddMeshBatch)
 						Params.Flags |= NANITE_VIEW_FLAG_REVERSE_CULLING;

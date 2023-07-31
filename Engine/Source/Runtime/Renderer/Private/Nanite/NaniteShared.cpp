@@ -158,8 +158,6 @@ FPackedView CreatePackedView( const FPackedViewParams& Params )
 	PackedView.MinBoundsRadiusSq = Params.MinBoundsRadius * Params.MinBoundsRadius;
 	PackedView.UpdateLODScales(NaniteMaxPixelsPerEdge, NaniteMinPixelsPerEdgeHW);
 
-	PackedView.LODScales.X *= Params.LODScaleFactor;
-
 	PackedView.TargetLayerIdX_AndMipLevelY_AndNumMipLevelsZ.X = Params.TargetLayerIndex;
 	PackedView.TargetLayerIdX_AndMipLevelY_AndNumMipLevelsZ.Y = Params.TargetMipLevel;
 	PackedView.TargetLayerIdX_AndMipLevelY_AndNumMipLevelsZ.Z = Params.TargetMipCount;
@@ -213,7 +211,6 @@ FPackedView CreatePackedViewFromViewInfo
 	uint32 Flags,
 	uint32 StreamingPriorityCategory,
 	float MinBoundsRadius,
-	float LODScaleFactor,
 	float MaxPixelsPerEdgeMultipler,
 	const FIntRect* InHZBTestViewRect
 )
@@ -227,7 +224,6 @@ FPackedView CreatePackedViewFromViewInfo
 	Params.Flags = Flags | (View.bReverseCulling ? NANITE_VIEW_FLAG_REVERSE_CULLING : 0);
 	Params.StreamingPriorityCategory = StreamingPriorityCategory;
 	Params.MinBoundsRadius = MinBoundsRadius;
-	Params.LODScaleFactor = LODScaleFactor;
 	Params.ViewLODDistanceFactor = View.LODDistanceFactor;
 	// Note - it is incorrect to use ViewRect as it is in a different space, but keeping this for backward compatibility reasons with other callers
 	Params.HZBTestViewRect = InHZBTestViewRect ? *InHZBTestViewRect : View.PrevViewInfo.ViewRect;

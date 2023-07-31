@@ -2235,8 +2235,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 								Params.PrevViewMatrices = CardPageRenderData.ViewMatrices;
 								Params.ViewRect = CardPageRenderData.CardCaptureAtlasRect;
 								Params.RasterContextSize = DepthStencilAtlasSize;
-								Params.LODScaleFactor = CardPageRenderData.NaniteLODScaleFactor;
-								Params.MaxPixelsPerEdgeMultipler = 1.0f;
+								Params.MaxPixelsPerEdgeMultipler = 1.0f / CardPageRenderData.NaniteLODScaleFactor;
 
 								OutViews.Add(Nanite::CreatePackedView(Params));
 							}

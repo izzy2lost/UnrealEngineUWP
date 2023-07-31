@@ -3153,7 +3153,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				const bool bDrawSceneViewsInOneNanitePass = Views.Num() > 1 && Nanite::ShouldDrawSceneViewsInOneNanitePass(Views[0]);
 
 				// creates one or more Nanite views (normally one per view unless drawing multiple views together - e.g. Stereo ISR views)
-				auto CreateNaniteViews = [bDrawSceneViewsInOneNanitePass, &PrimaryNaniteViews, &GraphBuilder](const FViewInfo& View, int32 ViewIndex, const FIntPoint& RasterTextureSize, float LODScaleFactor, float MaxPixelsPerEdgeMultipler) -> Nanite::FPackedViewArray*
+				auto CreateNaniteViews = [bDrawSceneViewsInOneNanitePass, &PrimaryNaniteViews, &GraphBuilder](const FViewInfo& View, int32 ViewIndex, const FIntPoint& RasterTextureSize, float MaxPixelsPerEdgeMultipler) -> Nanite::FPackedViewArray*
 				{
 					Nanite::FPackedViewArray::ArrayType OutViews;
 
@@ -3169,7 +3169,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 						NANITE_VIEW_FLAG_HZBTEST | NANITE_VIEW_FLAG_NEAR_CLIP,
 						/* StreamingPriorityCategory = */ 3,
 						/* MinBoundsRadius = */ 0.0f,
-						LODScaleFactor,
 						MaxPixelsPerEdgeMultipler,
 						&HZBTestRect
 					);
@@ -3191,7 +3190,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 								NANITE_VIEW_FLAG_HZBTEST | NANITE_VIEW_FLAG_NEAR_CLIP,
 								/* StreamingPriorityCategory = */ 3,
 								/* MinBoundsRadius = */ 0.0f,
-								LODScaleFactor,
 								MaxPixelsPerEdgeMultipler,
 								&SecondaryHZBTestRect
 							);
@@ -3228,13 +3226,13 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 						LODScaleFactor = FMath::Min(LODScaleFactor, FMath::Exp2(-CVarNaniteViewMeshLODBiasMin.GetValueOnRenderThread()));
 					}
 
-					float MaxPixelsPerEdgeMultipler = 1.0f;
+					float MaxPixelsPerEdgeMultipler = 1.0f / LODScaleFactor;
 					if (GDynamicNaniteScalingPrimary.GetSettings().IsEnabled())
 					{
-						MaxPixelsPerEdgeMultipler = 1.0f / DynamicResolutionFractions[GDynamicNaniteScalingPrimary];
+						MaxPixelsPerEdgeMultipler *= 1.0f / DynamicResolutionFractions[GDynamicNaniteScalingPrimary];
 					}
 
-					Nanite::FPackedViewArray* NaniteViewsToRender = CreateNaniteViews(View, ViewIndex, RasterTextureSize, LODScaleFactor, MaxPixelsPerEdgeMultipler);
+					Nanite::FPackedViewArray* NaniteViewsToRender = CreateNaniteViews(View, ViewIndex, RasterTextureSize, MaxPixelsPerEdgeMultipler);
 
 					TUniquePtr< Nanite::IRenderer > NaniteRenderer;
 

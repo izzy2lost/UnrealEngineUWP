@@ -2640,7 +2640,6 @@ void DrawLumenMeshCapturePass(
 				Params.PrevViewMatrices = CardPageRenderData.ViewMatrices;
 				Params.ViewRect = CardPageRenderData.CardCaptureAtlasRect;
 				Params.RasterContextSize = ViewportSize;
-				Params.LODScaleFactor = 0.0f;
 				Params.MaxPixelsPerEdgeMultipler = 1.0f;
 
 				BuildContext.PackedViews.Add(Nanite::CreatePackedView(Params));

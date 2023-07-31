@@ -3241,7 +3241,7 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const TSharedPtr<FVirtualShadowMap
 	BaseParams.ViewRect = FIntRect(0, 0, FVirtualShadowMap::VirtualMaxResolutionXY, FVirtualShadowMap::VirtualMaxResolutionXY);
 	BaseParams.HZBTestViewRect = BaseParams.ViewRect;
 	BaseParams.RasterContextSize = GetPhysicalPoolSize();
-	BaseParams.LODScaleFactor = LODScaleFactor;
+	BaseParams.MaxPixelsPerEdgeMultipler = 1.0f / LODScaleFactor;
 	BaseParams.PrevTargetLayerIndex = INDEX_NONE;
 	BaseParams.TargetMipLevel = 0;
 	BaseParams.TargetMipCount = 1;	// No mips for clipmaps
@@ -3267,7 +3267,6 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const TSharedPtr<FVirtualShadowMap
 		Params.ViewMatrices = Clipmap->GetViewMatrices(ClipmapLevelIndex);
 		Params.PrevTargetLayerIndex = INDEX_NONE;
 		Params.PrevViewMatrices = Params.ViewMatrices;
-		// TODO: MaxPixelsPerEdgeMultipler
 
 		if (CacheEntry)
 		{
@@ -3313,7 +3312,7 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const FProjectedShadowInfo* Projec
 	BaseParams.ViewRect = ProjectedShadowInfo->GetOuterViewRect();
 	BaseParams.HZBTestViewRect = BaseParams.ViewRect;
 	BaseParams.RasterContextSize = GetPhysicalPoolSize();
-	BaseParams.LODScaleFactor = LODScaleFactor;
+	BaseParams.MaxPixelsPerEdgeMultipler = 1.0f / LODScaleFactor;
 	BaseParams.PrevTargetLayerIndex = INDEX_NONE;
 	BaseParams.TargetMipLevel = 0;
 	BaseParams.TargetMipCount = FVirtualShadowMap::MaxMipLevels;
@@ -3353,7 +3352,6 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const FProjectedShadowInfo* Projec
 		Params.TargetLayerIndex = VirtualShadowMapId;
 		Params.ViewMatrices = ProjectedShadowInfo->GetShadowDepthRenderingViewMatrices(Index, true);
 		Params.RangeBasedCullingDistance = ProjectedShadowInfo->GetLightSceneInfo().Proxy->GetRadius();
-		// TODO: MaxPixelsPerEdgeMultipler
 
 		if (CacheEntry)
 		{

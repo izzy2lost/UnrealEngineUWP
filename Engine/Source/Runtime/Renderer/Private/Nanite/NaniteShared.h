@@ -176,7 +176,6 @@ FPackedView CreatePackedViewFromViewInfo(
 	uint32 Flags,
 	uint32 StreamingPriorityCategory = 0,
 	float MinBoundsRadius = 0.0f,
-	float LODScaleFactor = 1.0f,
 	float MaxPixelsPerEdgeMultipler = 1.0f,
 	/** Note: this rect should be in HZB space. */
 	const FIntRect* InHZBTestViewRect = nullptr
