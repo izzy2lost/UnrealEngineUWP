@@ -21,7 +21,6 @@ FAllocatedVirtualTexture::FAllocatedVirtualTexture(FVirtualTextureSystem* InSyst
 	, FrameAllocated(InFrame)
 	, Space(nullptr)
 {
-	check(IsInRenderingThread());
 	FMemory::Memzero(TextureLayers);
 	FMemory::Memzero(FallbackColorPerTextureLayer);
 
@@ -114,7 +113,6 @@ void FAllocatedVirtualTexture::AssignVirtualAddress(uint32 vAddress)
 
 void FAllocatedVirtualTexture::Destroy(FVirtualTextureSystem* System)
 {
-	check(IsInRenderingThread());
 	check(NumRefs == 0);
 
 	// Unlock any locked tiles

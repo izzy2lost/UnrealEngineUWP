@@ -88,7 +88,6 @@ namespace RuntimeVirtualTexture
 
 	const TUniformBufferRef<FEtcParameters>& GetEtcParametersUniformBufferRef()
 	{
-		check(IsInRenderingThread());
 		static TGlobalResource<FEtcParametersUniformBuffer> EtcParametersUniformBuffer;
 		return EtcParametersUniformBuffer.GetUniformBufferRef();
 	}

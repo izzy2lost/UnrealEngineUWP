@@ -70,6 +70,19 @@ private:
 	/** Free or reduce and reallocate the least recently used allocation. */
 	bool FreeLRU(FVirtualTextureSystem* InSystem, uint32 InFrame, uint32 InFrameUnusedThreshold);
 
+	static IAllocatedVirtualTexture* AllocateVirtualTexture(
+		FVirtualTextureSystem* InSystem,
+		FAllocatedVTDescription const& InAllocatedDesc,
+		FIntPoint InGridSize,
+		uint8 InForcedSpaceID,
+		int32 InWidthInTiles,
+		int32 InHeightInTiles,
+		FIntPoint InAddressOffset,
+		int32 InLevelOffset);
+
+	static void DestroyVirtualTexture(FVirtualTextureSystem* InSystem, IAllocatedVirtualTexture* InAllocatedVT);
+	static void RemapVirtualTexturePages(FVirtualTextureSystem* InSystem, FAllocatedVirtualTexture* OldAllocatedVT, FAllocatedVirtualTexture* NewAllocatedVT, uint32 InFrame);
+
 private:
 	/** Adaptive virtual texture description. */
 	FAdaptiveVTDescription AdaptiveDesc;

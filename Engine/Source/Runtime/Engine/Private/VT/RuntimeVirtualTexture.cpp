@@ -119,7 +119,6 @@ public:
 	/** Getter for the virtual texture producer. */
 	FVirtualTextureProducerHandle GetProducerHandle() const
 	{
-		checkSlow(IsInRenderingThread());
 		return ProducerHandle;
 	}
 

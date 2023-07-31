@@ -398,7 +398,7 @@ void FVirtualTextureSystem::FlushCache()
 void FVirtualTextureSystem::FlushCache(FVirtualTextureProducerHandle const& ProducerHandle, int32 SpaceID, FIntRect const& TextureRegion, uint32 MaxLevel)
 {
 	check(!bUpdating);
-	checkSlow(IsInRenderingThread());
+	UE::TScopeLock Lock(Mutex);
 
 	SCOPE_CYCLE_COUNTER(STAT_FlushCache);
 	INC_DWORD_STAT_BY(STAT_NumFlushCache, 1);
@@ -600,12 +600,13 @@ IAllocatedVirtualTexture* FVirtualTextureSystem::AllocateVirtualTexture(const FA
 {
 	check(Desc.NumTextureLayers <= VIRTUALTEXTURE_SPACE_MAXLAYERS);
 
+	UE::TScopeLock Lock(Mutex);
+
 	// Check to see if we already have an allocated VT that matches this description
 	// This can happen often as multiple material instances will share the same textures
 	FAllocatedVirtualTexture*& AllocatedVT = AllocatedVTs.FindOrAdd(Desc);
 	if (AllocatedVT)
 	{
-		FScopeLock Lock(&AllocatedVTLock);
 		const int32 PrevNumRefs = AllocatedVT->NumRefs++;
 		check(PrevNumRefs >= 0);
 		if (PrevNumRefs == 0)
@@ -702,7 +703,7 @@ IAllocatedVirtualTexture* FVirtualTextureSystem::AllocateVirtualTexture(const FA
 
 void FVirtualTextureSystem::DestroyVirtualTexture(IAllocatedVirtualTexture* AllocatedVT)
 {
-	FScopeLock Lock(&AllocatedVTLock);
+	UE::TScopeLock Lock(Mutex);
 	const int32 NewNumRefs = --AllocatedVT->NumRefs;
 	check(NewNumRefs >= 0);
 	if (NewNumRefs == 0)
@@ -714,13 +715,10 @@ void FVirtualTextureSystem::DestroyVirtualTexture(IAllocatedVirtualTexture* Allo
 
 void FVirtualTextureSystem::DestroyPendingVirtualTextures(bool bForceDestroyAll)
 {
-	check(IsInRenderingThread());
-
 	TRACE_CPUPROFILER_EVENT_SCOPE(FVirtualTextureSystem::DestroyPendingVirtualTextures);
 
 	TArray<IAllocatedVirtualTexture*> AllocatedVTsToDelete;
 	{
-		FScopeLock Lock(&AllocatedVTLock);
 		if (bForceDestroyAll)
 		{
 			AllocatedVTsToDelete = MoveTemp(PendingDeleteAllocatedVTs);
@@ -777,7 +775,7 @@ void FVirtualTextureSystem::DestroyPendingVirtualTextures(bool bForceDestroyAll)
 IAdaptiveVirtualTexture* FVirtualTextureSystem::AllocateAdaptiveVirtualTexture(const FAdaptiveVTDescription& AdaptiveVTDesc, const FAllocatedVTDescription& AllocatedVTDesc)
 {
 	check(!bUpdating);
-	check(IsInRenderingThread());
+	UE::TScopeLock Lock(Mutex);
 	FAdaptiveVirtualTexture* AdaptiveVT = new FAdaptiveVirtualTexture(AdaptiveVTDesc, AllocatedVTDesc);
 	AdaptiveVT->Init(this);
 	check(AdaptiveVTs[AdaptiveVT->GetSpaceID()] == nullptr);
@@ -788,7 +786,7 @@ IAdaptiveVirtualTexture* FVirtualTextureSystem::AllocateAdaptiveVirtualTexture(c
 void FVirtualTextureSystem::DestroyAdaptiveVirtualTexture(IAdaptiveVirtualTexture* AdaptiveVT)
 {
 	check(!bUpdating);
-	check(IsInRenderingThread());
+	UE::TScopeLock Lock(Mutex);
 	check(AdaptiveVTs[AdaptiveVT->GetSpaceID()] == AdaptiveVT);
 	AdaptiveVTs[AdaptiveVT->GetSpaceID()] = nullptr;
 	AdaptiveVT->Destroy(this);
@@ -797,24 +795,28 @@ void FVirtualTextureSystem::DestroyAdaptiveVirtualTexture(IAdaptiveVirtualTextur
 FVirtualTextureProducerHandle FVirtualTextureSystem::RegisterProducer(const FVTProducerDescription& InDesc, IVirtualTexture* InProducer)
 {
 	check(!bUpdating);
+	UE::TScopeLock Lock(Mutex);
 	return Producers.RegisterProducer(this, InDesc, InProducer);
 }
 
 void FVirtualTextureSystem::ReleaseProducer(const FVirtualTextureProducerHandle& Handle)
 {
 	check(!bUpdating);
+	UE::TScopeLock Lock(Mutex);
 	Producers.ReleaseProducer(this, Handle);
 }
 
 void FVirtualTextureSystem::AddProducerDestroyedCallback(const FVirtualTextureProducerHandle& Handle, FVTProducerDestroyedFunction* Function, void* Baton)
 {
 	check(!bUpdating);
+	UE::TScopeLock Lock(Mutex);
 	Producers.AddDestroyedCallback(Handle, Function, Baton);
 }
 
 uint32 FVirtualTextureSystem::RemoveAllProducerDestroyedCallbacks(const void* Baton)
 {
 	check(!bUpdating);
+	UE::TScopeLock Lock(Mutex);
 	return Producers.RemoveAllCallbacks(Baton);
 }
 
@@ -892,7 +894,6 @@ FVirtualTextureSpace* FVirtualTextureSystem::AcquireSpace(const FVTSpaceDescript
 void FVirtualTextureSystem::ReleaseSpace(FVirtualTextureSpace* Space)
 {
 	check(!bUpdating);
-	check(IsInRenderingThread());
 	const uint32 NumRefs = Space->Release();
 	if (NumRefs == 0u && Space->GetDescription().bPrivateSpace)
 	{
@@ -982,7 +983,6 @@ void GetPoolInitDescription(FVTPhysicalSpaceDescription const& InDesc, FVTPhysic
 /** Cached version of GetPoolInitDescription() to avoid regularly repeating the heavy work in that function. */
 void GetPoolInitDescription_Cached(FVTPhysicalSpaceDescription const& InDesc, FVTPhysicalSpaceInitDescription& OutInitDescription)
 {
-	check(IsInRenderingThread());
 	static TMap<FVTPhysicalSpaceDescription, FVTPhysicalSpaceInitDescription> Map;
 
 	// Invalidate the cache if any relevant CVar settings change.
@@ -1059,7 +1059,6 @@ FVirtualTexturePhysicalSpace* FVirtualTextureSystem::AcquirePhysicalSpace(const 
 
 void FVirtualTextureSystem::ReleasePendingSpaces()
 {
-	check(IsInRenderingThread());
 	for (int32 Id = 0; Id < PhysicalSpaces.Num(); ++Id)
 	{
 		// Physical space is released when ref count hits 0
@@ -1083,7 +1082,6 @@ void FVirtualTextureSystem::ReleasePendingSpaces()
 void FVirtualTextureSystem::LockTile(const FVirtualTextureLocalTile& Tile)
 {
 	check(!bUpdating);
-	check(IsInRenderingThread());
 
 	if (TileLocks.Lock(Tile))
 	{
@@ -1109,7 +1107,6 @@ static void UnlockTileInternal(const FVirtualTextureProducerHandle& ProducerHand
 void FVirtualTextureSystem::UnlockTile(const FVirtualTextureLocalTile& Tile, const FVirtualTextureProducer* Producer)
 {
 	check(!bUpdating);
-	check(IsInRenderingThread());
 
 	if (TileLocks.Unlock(Tile))
 	{
@@ -1127,7 +1124,6 @@ void FVirtualTextureSystem::UnlockTile(const FVirtualTextureLocalTile& Tile, con
 void FVirtualTextureSystem::ForceUnlockAllTiles(const FVirtualTextureProducerHandle& ProducerHandle, const FVirtualTextureProducer* Producer)
 {
 	check(!bUpdating);
-	check(IsInRenderingThread());
 
 	TArray<FVirtualTextureLocalTile> TilesToUnlock;
 	TileLocks.ForceUnlockAll(ProducerHandle, TilesToUnlock);
@@ -1157,9 +1153,7 @@ static float ComputeMipLevel(const IAllocatedVirtualTexture* AllocatedVT, const 
 void FVirtualTextureSystem::RequestTiles(const FVector2D& InScreenSpaceSize, int32 InMipLevel)
 {
 	check(!bUpdating);
-	check(IsInRenderingThread());
-
-	FScopeLock Lock(&RequestedTilesLock);
+	UE::TScopeLock Lock(Mutex);
 
 	for (const auto& Pair : AllocatedVTs)
 	{
@@ -1170,9 +1164,7 @@ void FVirtualTextureSystem::RequestTiles(const FVector2D& InScreenSpaceSize, int
 void FVirtualTextureSystem::RequestTiles(const FMaterialRenderProxy* InMaterialRenderProxy, const FVector2D& InScreenSpaceSize, ERHIFeatureLevel::Type InFeatureLevel)
 {
 	check(!bUpdating);
-	check(IsInRenderingThread());
-
-	FScopeLock Lock(&RequestedTilesLock);
+	UE::TScopeLock Lock(Mutex);
 
 	for (IAllocatedVirtualTexture* AllocatedVT : InMaterialRenderProxy->UniformExpressionCache[InFeatureLevel].AllocatedVTs)
 	{
@@ -1206,9 +1198,9 @@ void FVirtualTextureSystem::RequestTilesInternal(const IAllocatedVirtualTexture*
 
 void FVirtualTextureSystem::RequestTilesForRegion(IAllocatedVirtualTexture* AllocatedVT, const FVector2D& InScreenSpaceSize, const FVector2D& InViewportPosition, const FVector2D& InViewportSize, const FVector2D& InUV0, const FVector2D& InUV1, int32 InMipLevel)
 {
+	UE::TScopeLock Lock(Mutex);
 	if (InMipLevel >= 0)
 	{
-		FScopeLock Lock(&RequestedTilesLock);
 		RequestTilesForRegionInternal(AllocatedVT, InScreenSpaceSize, InViewportPosition, InViewportSize, InUV0, InUV1, InMipLevel);
 	}
 	else
@@ -1217,7 +1209,6 @@ void FVirtualTextureSystem::RequestTilesForRegion(IAllocatedVirtualTexture* Allo
 		const float vLevel = ComputeMipLevel(AllocatedVT, InScreenSpaceSize);
 		const int32 vMipLevelDown = FMath::Clamp((int32)FMath::FloorToInt(vLevel), 0, (int32)vMaxLevel);
 
-		FScopeLock Lock(&RequestedTilesLock);
 		RequestTilesForRegionInternal(AllocatedVT, InScreenSpaceSize, InViewportPosition, InViewportSize, InUV0, InUV1, vMipLevelDown);
 		if (vMipLevelDown + 1u <= vMaxLevel)
 		{
@@ -1230,12 +1221,11 @@ void FVirtualTextureSystem::RequestTilesForRegion(IAllocatedVirtualTexture* Allo
 void FVirtualTextureSystem::LoadPendingTiles(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel)
 {
 	check(!bUpdating);
-	check(IsInRenderingThread());
+	UE::TScopeLock Lock(Mutex);
 
 	TArray<uint32> PackedTiles;
 	if (RequestedPackedTiles.Num() > 0)
 	{
-		FScopeLock Lock(&RequestedTilesLock);
 		PackedTiles = MoveTemp(RequestedPackedTiles);
 		RequestedPackedTiles.Reset();
 	}
@@ -2597,7 +2587,6 @@ void FVirtualTextureSystem::GatherPackedTileRequests(FConcurrentLinearBulkObject
 	TArray<uint32> PackedTiles;
 	if (RequestedPackedTiles.Num() > 0)
 	{
-		FScopeLock Lock(&RequestedTilesLock);
 		PackedTiles = MoveTemp(RequestedPackedTiles);
 		RequestedPackedTiles.Reset();
 	}
@@ -2633,6 +2622,8 @@ void FVirtualTextureSystem::BeginUpdate(FRDGBuilder& GraphBuilder, FVirtualTextu
 
 		const bool bContinousUpdates = false;
 
+		UE::TScopeLock Lock(Mutex);
+
 		Updater->MergedRequestList = Allocator.Create<FUniqueRequestList>(Allocator);
 		Updater->MergedRequestList->Initialize();
 
@@ -2651,7 +2642,7 @@ void FVirtualTextureSystem::CallPendingCallbacks()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FVirtualTextureSystem::CallPendingCallbacks);
 	SCOPE_CYCLE_COUNTER(STAT_VirtualTextureSystem_Update);
-
+	UE::TScopeLock Lock(Mutex);
 	Producers.CallPendingCallbacks();
 }
 
@@ -2659,6 +2650,9 @@ TUniquePtr<FVirtualTextureUpdater> FVirtualTextureSystem::BeginUpdate(FRDGBuilde
 {
 	check(IsInRenderingThread());
 	check(!bUpdating);
+
+	UE::TScopeLock Lock(Mutex);
+
 	checkf(Producers.HasPendingCallbacks() == false, TEXT("FVirtualTextureSystem::CallPendingCallbacks(), typically called in FSceneRenderer::UpdateScene(), must run before FVirtualTextureSystem::BeginUpdate()"));
 
 	AllocateResources(GraphBuilder);
@@ -2785,6 +2779,8 @@ void FVirtualTextureSystem::EndUpdate(FRDGBuilder& GraphBuilder, TUniquePtr<FVir
 	}
 	bUpdating = false;
 
+	UE::TScopeLock Lock(Mutex);
+
 	if (Updater->FeedbackMapResult.Data)
 	{
 		GVirtualTextureFeedback.Unmap(GraphBuilder.RHICmdList, Updater->FeedbackMapResult.MapHandle);
@@ -2833,12 +2829,15 @@ void FVirtualTextureSystem::Update(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::
 void FVirtualTextureSystem::ReleasePendingResources()
 {
 	check(!bUpdating);
+	UE::TScopeLock Lock(Mutex);
 	DestroyPendingVirtualTextures(true);
 	ReleasePendingSpaces();
 }
 
 float FVirtualTextureSystem::GetGlobalMipBias() const
 {
+	UE::TScopeLock Lock(Mutex);
+
 	float MaxResidencyMipMapBias = 0.f;
 	for (int32 SpaceIndex = 0; SpaceIndex < PhysicalSpaces.Num(); ++SpaceIndex)
 	{
@@ -2852,6 +2851,7 @@ float FVirtualTextureSystem::GetGlobalMipBias() const
 
 bool FVirtualTextureSystem::IsPendingRootPageMap(IAllocatedVirtualTexture* AllocatedVT) const
 {
+	UE::TScopeLock Lock(Mutex);
 	return AllocatedVTsToMap.Find(AllocatedVT) != INDEX_NONE;
 }
 
@@ -2971,7 +2971,7 @@ void FVirtualTextureSystem::DrawResidencyHud(UCanvas* InCanvas, APlayerControlle
 
 void FVirtualTextureSystem::SetVirtualTextureRequestRecordBuffer(uint64 Handle)
 {
-	check(IsInRenderingThread());
+	UE::TScopeLock Lock(Mutex);
 	check(PageRequestRecordHandle == ~0ull && PageRequestRecordBuffer.Num() == 0);
 	
 	PageRequestRecordHandle = Handle;
@@ -3016,7 +3016,7 @@ void FVirtualTextureSystem::RecordPageRequests(FUniquePageList const* UniquePage
 
 uint64 FVirtualTextureSystem::GetVirtualTextureRequestRecordBuffer(TSet<uint64>& OutPageRequests)
 {
-	check(IsInRenderingThread());
+	UE::TScopeLock Lock(Mutex);
 
 	if (PageRequestRecordHandle == ~0ull)
 	{
@@ -3034,7 +3034,7 @@ uint64 FVirtualTextureSystem::GetVirtualTextureRequestRecordBuffer(TSet<uint64>&
 
 void FVirtualTextureSystem::RequestRecordedTiles(TArray<uint64>&& InPageRequests)
 {
-	check(IsInRenderingThread());
+	UE::TScopeLock Lock(Mutex);
 
 	if (PageRequestPlaybackBuffer.Num() == 0)
 	{

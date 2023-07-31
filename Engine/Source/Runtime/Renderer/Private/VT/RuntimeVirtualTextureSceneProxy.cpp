@@ -127,8 +127,6 @@ FRuntimeVirtualTextureSceneProxy::FRuntimeVirtualTextureSceneProxy(URuntimeVirtu
 
 FRuntimeVirtualTextureSceneProxy::~FRuntimeVirtualTextureSceneProxy()
 {
-	checkSlow(IsInRenderingThread());
-
 #if !UE_BUILD_SHIPPING
 	FRendererOnScreenNotification::Get().Remove(OnScreenWarningDelegateHandle);
 #endif
@@ -136,8 +134,6 @@ FRuntimeVirtualTextureSceneProxy::~FRuntimeVirtualTextureSceneProxy()
 
 void FRuntimeVirtualTextureSceneProxy::Release()
 {
-	checkSlow(!IsInRenderingThread());
-
 	if (VirtualTexture != nullptr)
 	{
 		VirtualTexture->Release();
