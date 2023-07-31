@@ -513,6 +513,14 @@ void MainCS(
 				#endif
 			#endif
 			
+			#if CONFIG_SCENE_COLOR_OVERFLOW
+				#if CONFIG_SCENE_COLOR_ALPHA
+					Color = min(Color, LargestSceneColorRGBA);
+				#else
+					Color = min(Color, LargestSceneColorRGB);
+				#endif
+			#endif
+
 			CenterFinalSceneColor.SetElement(SimdIndex, Color);
 
 			tsr_half CenterLuma = dot(Color.rgb, tsr_half3(0.299f, 0.587f, 0.114f));
