@@ -982,6 +982,7 @@ private:
 
 	/** Called at the end of CookByTheBook to write aggregated data such as AssetRegistry and shaders. */
 	UNREALED_API void CookByTheBookFinished();
+	void CookByTheBookFinishedInternal();
 
 	/** Clears session-lifetime data from COTFS and CookPackageDatas. */
 	UNREALED_API void ShutdownCookSession();

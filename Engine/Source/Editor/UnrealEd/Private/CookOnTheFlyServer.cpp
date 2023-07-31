@@ -1296,7 +1296,7 @@ uint32 UCookOnTheFlyServer::TickCookByTheBook(const float TimeSlice, ECookTickFl
 	TickMainCookLoop(StackData);
 
 	CookByTheBookOptions->CookTime += StackData.Timer.GetTickTimeTillNow();
-	// Make sure no UE_SCOPED_HIERARCHICAL_COOKTIMERs are around CookByTheBookFinishes or CancelCookByTheBook, as those functions delete memory for them
+	// Make sure no UE_SCOPED_HIERARCHICAL_COOKTIMERs are around CookByTheBookFinished or CancelCookByTheBook, as those functions delete memory for them
 	if (StackData.bCookCancelled)
 	{
 		CancelCookByTheBook();
@@ -9529,6 +9529,20 @@ void UCookOnTheFlyServer::WriteCookMetadata(const ITargetPlatform* InTargetPlatf
 
 void UCookOnTheFlyServer::CookByTheBookFinished()
 {
+	{
+		// Add a timer around most of CookByTheBookFinished, but the timer can not exist during or after
+		// ShutdownCookSession because it deletes memory for the timers
+		UE_SCOPED_HIERARCHICAL_COOKTIMER(CookByTheBookFinished);
+		CookByTheBookFinishedInternal();
+	}
+
+	ShutdownCookSession();
+	CookByTheBookFinishedEvent.Broadcast();
+	UE_LOG(LogCook, Display, TEXT("Done!"));
+}
+
+void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
+{
 	using namespace UE::Cook;
 
 	check(IsInGameThread());
@@ -9781,11 +9795,6 @@ void UCookOnTheFlyServer::CookByTheBookFinished()
 	GenerateCachedEditorThumbnails();
 
 	FinalizePackageStore();
-	ShutdownCookSession();
-
-	CookByTheBookFinishedEvent.Broadcast();
-
-	UE_LOG(LogCook, Display, TEXT("Done!"));
 }
 
 void UCookOnTheFlyServer::ShutdownCookSession()
@@ -10596,7 +10605,6 @@ void UCookOnTheFlyServer::FinalizePackageStore()
 
 		FindOrCreatePackageWriter(TargetPlatform).EndCook(CookInfo);
 	}
-	UE_LOG(LogCook, Display, TEXT("Done finalizing package store(s)"));
 }
 
 void UCookOnTheFlyServer::ClearPackageStoreContexts()

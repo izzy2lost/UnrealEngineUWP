@@ -12,6 +12,7 @@
 #include "Cooker/CookMPCollector.h"
 #include "Cooker/CookPackageData.h"
 #include "Cooker/CookPlatformManager.h"
+#include "Cooker/CookProfiling.h"
 #include "Cooker/CookSandbox.h"
 #include "Cooker/CookWorkerClient.h"
 #include "CookMetadata.h"
@@ -35,7 +36,6 @@
 #include "Misc/PathViews.h"
 #include "PakFileUtilities.h"
 #include "Policies/PrettyJsonPrintPolicy.h"
-#include "ProfilingDebugging/ScopedTimers.h"
 #include "Serialization/ArrayReader.h"
 #include "Serialization/ArrayWriter.h"
 #include "Serialization/CompactBinarySerialization.h"
@@ -1701,8 +1701,6 @@ bool FAssetRegistryGenerator::SaveAssetRegistry(const FString& SandboxPath, bool
 {
 	LLM_SCOPE_BYTAG(Cooker_GeneratedAssetRegistry);
 	UE_LOG(LogAssetRegistryGenerator, Display, TEXT("Saving asset registry v%d."), FAssetRegistryVersion::Type::LatestVersion);
-	FAutoScopedDurationTimer Timer;
-
 	
 	// Write development first, this will always write
 	FAssetRegistrySerializationOptions DevelopmentSaveOptions;
@@ -1871,8 +1869,6 @@ bool FAssetRegistryGenerator::SaveAssetRegistry(const FString& SandboxPath, bool
 		}
 	}
 	
-	UE_LOG(LogAssetRegistryGenerator, Display, TEXT("Done saving asset registry. Took %.1f seconds."), Timer.GetTime());
-
 	return true;
 }
 
@@ -2357,8 +2353,7 @@ FString FAssetRegistryGenerator::GetTempPackagingDirectoryForPlatform(const FStr
 
 void FAssetRegistryGenerator::FixupPackageDependenciesForChunks(UE::Cook::FCookSandbox& InSandboxFile)
 {
-	UE_LOG(LogAssetRegistryGenerator, Log, TEXT("Starting FixupPackageDependenciesForChunks..."));
-	SCOPE_LOG_TIME_IN_SECONDS(TEXT("... FixupPackageDependenciesForChunks complete."), nullptr);
+	UE_SCOPED_HIERARCHICAL_COOKTIMER(FixupPackageDependenciesForChunks);
 
 	// Clear any existing manifests from the final array
 	FinalChunkManifests.Empty(ChunkManifests.Num());
