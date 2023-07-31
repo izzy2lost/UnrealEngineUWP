@@ -58,10 +58,6 @@ public:
 	{
 	}
 
-	virtual ~FSpriteTextureOverrideRenderProxy()
-	{
-	}
-
 	void CheckValidity(FMaterialRenderProxy* InCurrentParent)
 	{
 		if (InCurrentParent != Parent)
@@ -73,7 +69,7 @@ public:
 		if (ParentMaterialSerialNumber != Parent->GetExpressionCacheSerialNumber())
 		{
 			// Not valid, need to rebuild
-			CacheUniformExpressions(/*bRecreateUniformBuffer=*/ true);
+			CacheUniformExpressions(FRHICommandListImmediate::Get(), /*bRecreateUniformBuffer=*/ true);
 			ParentMaterialSerialNumber = Parent->GetExpressionCacheSerialNumber();
 		}
 	}
@@ -184,19 +180,6 @@ SIZE_T FPaperRenderSceneProxy::GetTypeHash() const
 	return reinterpret_cast<size_t>(&UniquePointer);
 }
 
-FPaperRenderSceneProxy::~FPaperRenderSceneProxy()
-{
-	for (FSpriteTextureOverrideRenderProxy* Proxy : MaterialTextureOverrideProxies)
-	{
-		if (Proxy != nullptr)
-		{
-			Proxy->ReleasePrimitiveResource();
-		}
-	}
-	VertexBuffer.ReleaseResource();
-	VertexFactory.ReleaseResource();
-}
-
 void FPaperRenderSceneProxy::DebugDrawBodySetup(const FSceneView* View, int32 ViewIndex, FMeshElementCollector& Collector, UBodySetup* BodySetup, const FMatrix& GeomTransformMatrix, const FLinearColor& CollisionColor, bool bDrawSolid) const
 {
 	if (FMath::Abs(GeomTransformMatrix.Determinant()) < SMALL_NUMBER)
@@ -276,6 +259,21 @@ void FPaperRenderSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RH
 		VertexBuffer.InitResource(RHICmdList);
 		VertexFactory.Init(RHICmdList, &VertexBuffer);
 	}
+}
+
+void FPaperRenderSceneProxy::DestroyRenderThreadResources()
+{
+	for (FSpriteTextureOverrideRenderProxy* Proxy : MaterialTextureOverrideProxies)
+	{
+		if (Proxy != nullptr)
+		{
+			Proxy->ReleasePrimitiveResource();
+		}
+	}
+	MaterialTextureOverrideProxies.Empty();
+
+	VertexBuffer.ReleaseResource();
+	VertexFactory.ReleaseResource();
 }
 
 void FPaperRenderSceneProxy::DebugDrawCollision(const FSceneView* View, int32 ViewIndex, FMeshElementCollector& Collector, bool bDrawSolid) const

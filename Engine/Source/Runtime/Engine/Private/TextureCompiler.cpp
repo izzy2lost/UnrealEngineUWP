@@ -416,7 +416,7 @@ void FTextureCompilingManager::PostCompilation(TArrayView<UTexture* const> InCom
 							ENQUEUE_RENDER_COMMAND(TextureCompiler_RecacheUniformExpressions)(
 								[RenderProxy](FRHICommandListImmediate& RHICmdList)
 								{
-									RenderProxy->CacheUniformExpressions(false);
+									RenderProxy->CacheUniformExpressions(RHICmdList, false);
 								});
 						}
 					}

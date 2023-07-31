@@ -7,6 +7,7 @@
 #include "Math/Vector2D.h"
 #include "RenderResource.h"
 #include "RHIImmutableSamplerState.h"
+#include "Async/Mutex.h"
 
 enum class EMaterialParameterType : uint8;
 
@@ -106,23 +107,22 @@ public:
 	/** Destructor. */
 	ENGINE_API virtual ~FMaterialRenderProxy();
 
-	UE_DEPRECATED(5.1, "EvaluateUniformExpressions with a command list is deprecated.")
-	void EvaluateUniformExpressions(FUniformExpressionCache& OutUniformExpressionCache, const FMaterialRenderContext& Context, class FRHIComputeCommandList*) const
-	{
-		EvaluateUniformExpressions(OutUniformExpressionCache, Context);
-	}
-
 	/**
 	 * Evaluates uniform expressions and stores them in OutUniformExpressionCache.
 	 * @param OutUniformExpressionCache - The uniform expression cache to build.
 	 * @param MaterialRenderContext - The context for which to cache expressions.
 	 */
-	ENGINE_API void EvaluateUniformExpressions(FUniformExpressionCache& OutUniformExpressionCache, const FMaterialRenderContext& Context, FUniformExpressionCacheAsyncUpdater* Updater = nullptr) const;
+	ENGINE_API void EvaluateUniformExpressions(FUniformExpressionCache& OutUniformExpressionCache, const FMaterialRenderContext& Context, FUniformExpressionCacheAsyncUpdater* Updater = nullptr, FRHICommandListBase* RHICmdList = nullptr) const;
 
 	/**
 	 * Caches uniform expressions for efficient runtime evaluation.
 	 */
-	ENGINE_API void CacheUniformExpressions(bool bRecreateUniformBuffer);
+	ENGINE_API void CacheUniformExpressions(FRHICommandListBase& RHICmdList, bool bRecreateUniformBuffer);
+
+	inline void CacheUniformExpressions(bool bRecreateUniformBuffer)
+	{
+		CacheUniformExpressions(FRHICommandListImmediate::Get(), bRecreateUniformBuffer);
+	}
 
 	/** Cancels an in-flight cache operation. */
 	ENGINE_API void CancelCacheUniformExpressions();
@@ -140,8 +140,12 @@ public:
 	 */
 	ENGINE_API void InvalidateUniformExpressionCache(bool bRecreateUniformBuffer);
 
-	ENGINE_API void UpdateUniformExpressionCacheIfNeeded(ERHIFeatureLevel::Type InFeatureLevel) const;
+	inline void UpdateUniformExpressionCacheIfNeeded(ERHIFeatureLevel::Type InFeatureLevel) const
+	{
+		UpdateUniformExpressionCacheIfNeeded(FRHICommandListImmediate::Get(), InFeatureLevel);
+	}
 
+	ENGINE_API void UpdateUniformExpressionCacheIfNeeded(FRHICommandListBase& RHICmdList, ERHIFeatureLevel::Type InFeatureLevel) const;
 
 	/** Returns the FMaterial, without using a fallback if the FMaterial doesn't have a valid shader map. Can return NULL. */
 	virtual const FMaterial* GetMaterialNoFallback(ERHIFeatureLevel::Type InFeatureLevel) const = 0;
@@ -213,7 +217,8 @@ public:
 	const USpecularProfile* GetSpecularProfileRT(uint32 Index) const { check(Index<uint32(SpecularProfilesRT.Num())); return SpecularProfilesRT[Index]; }
 	const uint32 NumSpecularProfileRT() const { return SpecularProfilesRT.Num(); }
 
-	static ENGINE_API void UpdateDeferredCachedUniformExpressions();
+	static void UpdateDeferredCachedUniformExpressions() { UpdateDeferredCachedUniformExpressions(FRHICommandListImmediate::Get()); }
+	static ENGINE_API void UpdateDeferredCachedUniformExpressions(FRHICommandListBase& RHICmdList);
 
 	static ENGINE_API bool HasDeferredUniformExpressionCacheRequests();
 
@@ -257,6 +262,7 @@ private:
 #endif
 
 	static ENGINE_API TSet<FMaterialRenderProxy*> DeferredUniformExpressionCacheRequests;
+	static ENGINE_API UE::FMutex DeferredUniformExpressionCacheRequestsMutex;
 };
 
 /**

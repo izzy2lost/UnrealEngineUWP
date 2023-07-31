@@ -4967,7 +4967,7 @@ void SetShaderMapsOnMaterialResources_RenderThread(FRHICommandListImmediate& RHI
 				// Using ContainsByHash so we can pass a raw-ptr to TMap method that wants a TRefCountPtr
 				if (Material && Material->GetRenderingThreadShaderMap() && MaterialsToUpdate.ContainsByHash(GetTypeHash(Material), Material))
 				{
-					MaterialProxy->CacheUniformExpressions(true);
+					MaterialProxy->CacheUniformExpressions(RHICmdList, true);
 					bFoundAnyInitializedMaterials = true;
 
 					/*const FMaterial& MaterialForRendering = *MaterialProxy->GetMaterial(MaterialFeatureLevel);

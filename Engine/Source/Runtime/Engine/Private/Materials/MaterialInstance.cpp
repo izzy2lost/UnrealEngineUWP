@@ -461,7 +461,7 @@ void GameThread_UpdateMIParameter(const UMaterialInstance* Instance, const Param
 			[Resource, ParameterInfo, Value](FRHICommandListImmediate& RHICmdList)
 			{
 				Resource->RenderThread_UpdateParameter(ParameterInfo, Value);
-				Resource->CacheUniformExpressions(false);
+				Resource->CacheUniformExpressions(RHICmdList, false);
 			});
 	}
 }
@@ -5132,7 +5132,7 @@ void UMaterialInstance::OverrideTextureParameterValue(const UTexture* InTextureT
 					(
 						[LocalResource](FRHICommandListImmediate& RHICmdList)
 						{
-							LocalResource->CacheUniformExpressions(false);
+							LocalResource->CacheUniformExpressions(RHICmdList, false);
 						}
 				);
 			}
