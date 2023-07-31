@@ -2310,6 +2310,13 @@ void STraceStoreWindow::SetDeleteTraceConfirmationWindowVisibility(bool bIsVisib
 	bIsDeleteTraceConfirmWindowVisible = bIsVisibile;
 }
 
+bool STraceStoreWindow::IsConnected() const
+{
+	using Insights::FStoreBrowser;
+
+	return StoreBrowser->GetConnectionStatus() == FStoreBrowser::EConnectionStatus::Connected;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void STraceStoreWindow::UpdateTrace(FTraceViewModel& InOutTrace, const Insights::FStoreBrowserTraceInfo& InSourceTrace)

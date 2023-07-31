@@ -279,6 +279,7 @@ public:
 	void OnFilterChanged();
 	const TArray<TSharedPtr<FTraceViewModel>>& GetAllAvailableTraces() const;
 	void SetDeleteTraceConfirmationWindowVisibility(bool bIsVisibile);
+	bool IsConnected() const;
 
 private:
 	TSharedRef<SWidget> ConstructFiltersToolbar();
