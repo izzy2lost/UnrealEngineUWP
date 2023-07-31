@@ -44,7 +44,7 @@ TSharedRef<SWidget> SPropertyAccessChainWidget::CreatePropertyAccessWidget()
 		if (TypeFilter == "object")
 		{
 			// special case for objects references of any type
-			return CastField<FObjectProperty>(Property) != nullptr;
+			return CastField<FObjectPropertyBase>(Property) != nullptr;
 		}
 		if (TypeFilter == "double")
 		{
@@ -65,8 +65,10 @@ TSharedRef<SWidget> SPropertyAccessChainWidget::CreatePropertyAccessWidget()
 			}
 			return false;
 		}
-		
-		return Property->GetCPPType() == TypeFilter;
+
+		const FString CPPType = Property->GetCPPType();
+
+		return CPPType == TypeFilter || CPPType == AlternateTypeFilter;
 	};
 
 	// allow struct bindings to bind context structs directly
@@ -347,6 +349,14 @@ void SPropertyAccessChainWidget::Construct( const FArguments& InArgs)
 	OnValueChanged = InArgs._OnValueChanged;
 	PropertyBindingValue = InArgs._PropertyBindingValue;
 	UpdateWidget();
+
+
+	if (TypeFilter[TypeFilter.Len() - 1] == '*')
+	{
+		FString Trimmed = TypeFilter.TrimChar('*');
+		AlternateTypeFilter = "TObjectPtr<" + Trimmed + ">";
+	}
+
 
 	if (ContextClassOwner)
 	{

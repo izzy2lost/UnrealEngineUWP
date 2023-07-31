@@ -37,6 +37,7 @@ private:
 	void ContextClassChanged();
 		
 	FString TypeFilter;
+	FString AlternateTypeFilter;
 	FString BindingColor;
 	FDelegateHandle ContextClassChangedHandle();
 	IHasContextClass* ContextClassOwner = nullptr;
