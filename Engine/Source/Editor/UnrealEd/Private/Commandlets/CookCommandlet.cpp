@@ -248,18 +248,9 @@ bool UCookCommandlet::CookByTheBook(const TArray<ITargetPlatform*>& Platforms)
 	TRACE_CPUPROFILER_EVENT_SCOPE_ON_CHANNEL(CookByTheBook, CookChannel);
 #endif // OUTPUT_COOKTIMING
 
-	COOK_STAT(TOptional<FScopedDurationTimer> CookByTheBookTimer);
-	COOK_STAT(CookByTheBookTimer.Emplace(DetailedCookStats::CookByTheBookTimeSec));
-
 	UCookOnTheFlyServer* CookOnTheFlyServer = NewObject<UCookOnTheFlyServer>();
 	// make sure that the cookonthefly server doesn't get cleaned up while we are garbage collecting below :)
 	UE::Cook::FScopeRootObject S(CookOnTheFlyServer);
-
-	ON_SCOPE_EXIT
-	{
-		COOK_STAT(CookByTheBookTimer.Reset()); // Destruct the timer and write its duration
-		COOK_STAT(CookOnTheFlyServer->PrintDetailedCookStats());
-	};
 
 	UCookerSettings const* CookerSettings = GetDefault<UCookerSettings>();
 	const UProjectPackagingSettings* const PackagingSettings = GetDefault<UProjectPackagingSettings>();

@@ -134,7 +134,6 @@ extern FString TargetPlatforms;
 extern double CookStartTime;
 extern double CookWallTimeSec;
 extern double StartupWallTimeSec;
-extern double CookByTheBookTimeSec;
 extern double StartCookByTheBookTimeSec;
 extern double TickCookOnTheSideTimeSec;
 extern double TickCookOnTheSideLoadPackagesTimeSec;
