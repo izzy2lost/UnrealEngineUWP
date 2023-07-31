@@ -74,7 +74,7 @@ public:
 		SLATE_ARGUMENT(TSharedPtr<FAssetThumbnailPool>, ThumbnailPool)
 		SLATE_ARGUMENT(FIntPoint, ThumbnailSize)
 		SLATE_ATTRIBUTE(FString, ObjectPath)
-		SLATE_ARGUMENT(UClass*, Class)
+		SLATE_ARGUMENT(const UClass*, Class)
 		SLATE_ARGUMENT(TOptional<TArray<UFactory*>>, NewAssetFactories)
 		SLATE_EVENT(FOnSetObject, OnSetObject)
 		SLATE_EVENT(FOnShouldFilterAsset, OnShouldFilterAsset)
@@ -221,7 +221,7 @@ private:
 	 * or the Class value this widget was constructed with.
 	 * @returns the UClass to display
 	 */
-	UClass* GetDisplayedClass() const;
+	const UClass* GetDisplayedClass() const;
 
 	/** 
 	 * Delegate for handling selection in the asset browser.
@@ -377,7 +377,7 @@ private:
 	mutable FAssetData CachedAssetData;
 
 	/** The class of the object we are editing */
-	UClass* ObjectClass;
+	const UClass* ObjectClass;
 
 	/** Classes that can be used with this property */
 	TArray<const UClass*> AllowedClassFilters;

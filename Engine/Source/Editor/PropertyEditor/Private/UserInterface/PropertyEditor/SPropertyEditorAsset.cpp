@@ -830,7 +830,7 @@ FText SPropertyEditorAsset::OnGetAssetName() const
 
 FText SPropertyEditorAsset::OnGetAssetClassName() const
 {
-	UClass* Class = GetDisplayedClass();
+	const UClass* Class = GetDisplayedClass();
 	if(Class)
 	{
 		return FText::AsCultureInvariant(Class->GetName());
@@ -1073,7 +1073,7 @@ FPropertyAccess::Result SPropertyEditorAsset::GetValue( FObjectOrAssetData& OutV
 	return Result;
 }
 
-UClass* SPropertyEditorAsset::GetDisplayedClass() const
+const UClass* SPropertyEditorAsset::GetDisplayedClass() const
 {
 	FObjectOrAssetData Value;
 	GetValue( Value );
@@ -1217,7 +1217,7 @@ void SPropertyEditorAsset::OnUse()
 		FEditorDelegates::LoadSelectedAssetsIfNeeded.Broadcast();
 
 		// try to get a selected object of our class
-		UObject* Selection = nullptr;
+		const UObject* Selection = nullptr;
 		if( ObjectClass && ObjectClass->IsChildOf( AActor::StaticClass() ) )
 		{
 			Selection = GEditor->GetSelectedActors()->GetTop( ObjectClass );
