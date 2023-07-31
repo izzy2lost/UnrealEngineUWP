@@ -10,6 +10,7 @@
 #include "UObject/SoftObjectPath.h"
 #include "UObject/LazyObjectPtr.h"
 #include "UObject/ObjectPtr.h"
+#include <cinttypes>
 
 #if WITH_TEXT_ARCHIVE_SUPPORT
 
@@ -248,11 +249,7 @@ void FJsonArchiveOutputFormatter::Serialize(int64& Value)
 
 void FJsonArchiveOutputFormatter::Serialize(float& Value)
 {
-	if((float)(int)Value == Value)
-	{
-		WriteValue(LexToString((int)Value));
-	}
-	else
+	if(FPlatformMath::IsFinite(Value))
 	{
 		FString String = FString::Printf(TEXT("%.17g"), Value);
 #if DO_GUARD_SLOW
@@ -262,15 +259,22 @@ void FJsonArchiveOutputFormatter::Serialize(float& Value)
 #endif
 		WriteValue(String);
 	}
+	else if(FPlatformMath::IsNaN(Value))
+	{
+		const uint32 ValueAsInt = BitCast<uint32>(Value);
+		const bool bIsNegative = !!(ValueAsInt & 0x80000000);
+		const uint32 Significand = ValueAsInt & 0x007fffff;
+		WriteValue(FString::Printf(TEXT("\"Number:%snan:0x%" PRIx32 "\""), bIsNegative ? TEXT("-") : TEXT("+"), Significand));
+	}
+	else
+	{
+		WriteValue(Value < 0.0f ? TEXT("\"Number:-inf\"") : TEXT("\"Number:+inf\""));
+	}
 }
 
 void FJsonArchiveOutputFormatter::Serialize(double& Value)
 {
-	if((double)(int)Value == Value)
-	{
-		WriteValue(LexToString((int)Value));
-	}
-	else
+	if(FPlatformMath::IsFinite(Value))
 	{
 		FString String = FString::Printf(TEXT("%.17g"), Value);
 #if DO_GUARD_SLOW
@@ -279,6 +283,17 @@ void FJsonArchiveOutputFormatter::Serialize(double& Value)
 		check(RoundTripped == Value);
 #endif
 		WriteValue(String);
+	}
+	else if(FPlatformMath::IsNaN(Value))
+	{
+		const uint64 ValueAsInt = BitCast<uint64>(Value);
+		const bool bIsNegative = !!(ValueAsInt & 0x8000000000000000);
+		const uint64 Significand = ValueAsInt & 0x000fffffffffffff;
+		WriteValue(FString::Printf(TEXT("\"Number:%snan:0x%" PRIx64 "\""), bIsNegative ? TEXT("-") : TEXT("+"), Significand));
+	}
+	else
+	{
+		WriteValue(Value < 0.0 ? TEXT("\"Number:-inf\"") : TEXT("\"Number:+inf\""));
 	}
 }
 
