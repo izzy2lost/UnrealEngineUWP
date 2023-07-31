@@ -963,6 +963,13 @@ void FLumenSceneData::RemoveMeshCards(int32 PrimitiveGroupIndex)
 			HeightfieldIndicesToUpdateInBuffer.Add(PrimitiveGroup.HeightfieldIndex);
 		}
 
+		// Update surface cache mapping
+		for (int32 ScenePrimitiveIndex : MeshCardsInstance.ScenePrimitiveIndices)
+		{
+			PrimitivesToUpdateMeshCards.Add(ScenePrimitiveIndex);
+		}
+		MeshCardsInstance.ScenePrimitiveIndices.Reset();
+
 		Cards.RemoveSpan(MeshCardsInstance.FirstCardIndex, MeshCardsInstance.NumCards);
 		MeshCards.RemoveSpan(PrimitiveGroup.MeshCardsIndex, 1);
 
@@ -970,13 +977,6 @@ void FLumenSceneData::RemoveMeshCards(int32 PrimitiveGroupIndex)
 
 		PrimitiveGroup.MeshCardsIndex = -1;
 		PrimitiveGroup.HeightfieldIndex = -1;
-
-		// Update surface cache mapping
-		for (int32 ScenePrimitiveIndex : MeshCardsInstance.ScenePrimitiveIndices)
-		{
-			PrimitivesToUpdateMeshCards.Add(ScenePrimitiveIndex);
-		}
-		MeshCardsInstance.ScenePrimitiveIndices.Reset();
 
 		PrimitiveGroupIndicesToUpdateInBuffer.Add(PrimitiveGroupIndex);
 	}

@@ -949,6 +949,8 @@ void UpdateLumenScenePrimitives(FRHIGPUMask GPUMask, FScene* Scene)
 				}
 			}
 
+			LumenSceneData->PrimitivesToUpdateMeshCards.Add(ScenePrimitiveInfo->GetIndex());
+
 			if (bAnyInstanceValid)
 			{
 				// First try to merge components
