@@ -13,13 +13,8 @@ namespace UnrealEditor
 	/// Default set of options for testing Editor. Options that tests can configure
 	/// should be public, external command-line driven options should be protected/private
 	/// </summary>
-	public class EditorTestConfig : EngineTestConfig
+	public class EditorTestConfig : UE.AutomationTestConfig
 	{
-		/// <summary>
-		/// Filter or groups of tests to apply
-		/// </summary>
-		public override bool UseEditor { get; set; } = true;
-
 		/// <summary>
 		/// Use Simple Horde Report instead of Unreal Automated Tests
 		/// </summary>
@@ -138,7 +133,7 @@ namespace UnrealEditor
 		}
 	}
 
-	public class EditorTests : EngineTestBase<EditorTestConfig>
+	public class EditorTests : UE.AutomationNodeBase<EditorTestConfig>
 	{
 		public EditorTests(UnrealTestContext InContext) : base(InContext)
 		{
@@ -146,6 +141,10 @@ namespace UnrealEditor
 
 		public override EditorTestConfig GetConfiguration()
 		{
+			if (CachedConfig != null)
+			{
+				return CachedConfig;
+			}
 			// just need a single client
 			EditorTestConfig Config = base.GetConfiguration();
 			Config.RequireRole(UnrealTargetRole.Editor);	
