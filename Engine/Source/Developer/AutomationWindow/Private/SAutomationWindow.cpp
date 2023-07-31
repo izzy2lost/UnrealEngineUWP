@@ -1991,9 +1991,9 @@ TSharedRef<ITableRow> SAutomationWindow::OnGenerateWidgetForLog(TSharedPtr<FAuto
 {
 	check(Message.IsValid());
 
-	// \[((?:[\w]\:|\\)(?:(?:\\[A-Za-z_\-\s0-9\.]+)+)\.(?:cpp|h))\((\d+)\)\]$
+	// \[((?:[\w]\:|\\)(?:(?:\\[A-Za-z_\-\s0-9\.]+)+)\.(?:cpp|h|ini))\((\d+)\)\]$
 	// https://regex101.com/r/vV4cV7/25
-	FRegexPattern FileAndLinePattern(TEXT("\\[((?:[\\w]\\:|\\\\)(?:(?:\\\\[A-Za-z_\\-\\s0-9\\.]+)+)\\.(?:cpp|h))\\((\\d+)\\)\\]$"));
+	FRegexPattern FileAndLinePattern(TEXT("\\[((?:[\\w]\\:|\\\\)(?:(?:\\\\[A-Za-z_\\-\\s0-9\\.]+)+)\\.(?:cpp|h|ini))\\((\\d+)\\)\\]$"));
 	FRegexMatcher FileAndLineRegexMatcher(FileAndLinePattern, Message->Text);
 
 	TSharedRef<SWidget> SourceLink = SNullWidget::NullWidget;

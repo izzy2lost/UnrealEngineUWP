@@ -42,6 +42,23 @@ namespace AutomationTest
 		TEXT("Automation.LogBPTestMetadata"),
 		bLogBPTestMetadata,
 		TEXT("Whether to output blueprint functional test metadata to the log when test is running"));
+
+	// The method prepares the filename and LineNumber to be placed in the form that could be extracted by SAutomationWindow widget if it is additionally eclosed into []
+	// The result format is filename(line)
+	static FString CreateFileLineDescription(const FString& Filename, const int32 LineNumber)
+	{
+		FString Result;
+
+		if (!Filename.IsEmpty() && LineNumber > 0)
+		{
+			Result += Filename;
+			Result += TEXT("(");
+			Result += FString::FromInt(LineNumber);
+			Result += TEXT(")");
+		}
+
+		return Result;
+	}
 };
 
 bool FAutomationTestBase::bSuppressLogWarnings = false;
@@ -950,6 +967,15 @@ bool FAutomationTestFramework::CanRunTestInEnvironment(const FString& InTestToRu
 			}
 
 			*OutReason += TEXT(" [code]");
+			FString Filename = Test->GetTestSourceFileName();
+			FPaths::MakePlatformFilename(Filename);
+			const FString FileLineDescription = AutomationTest::CreateFileLineDescription(Filename, Test->GetTestSourceFileLine());
+			if (!FileLineDescription.IsEmpty())
+			{
+				*OutReason += TEXT(" [");
+				*OutReason += FileLineDescription;
+				*OutReason += TEXT("]");
+			}
 		}
 		
 		return false;
@@ -1022,13 +1048,12 @@ FString FAutomationExecutionEntry::ToString() const
 
 	// Place the filename at the end so it can be extracted by the SAutomationWindow widget
 	// Expectation is "[filename(line)]"
-	if ( !Filename.IsEmpty() && LineNumber > 0 )
+	const FString FileLineDescription = AutomationTest::CreateFileLineDescription(Filename, LineNumber);
+	if ( !FileLineDescription.IsEmpty() )
 	{
 		ComplexString += TEXT(" [");
-		ComplexString += Filename;
-		ComplexString += TEXT("(");
-		ComplexString += FString::FromInt(LineNumber);
-		ComplexString += TEXT(")]");
+		ComplexString += FileLineDescription;
+		ComplexString += TEXT("]");
 	}
 
 	return ComplexString;
@@ -1047,13 +1072,11 @@ FString FAutomationExecutionEntry::ToStringFormattedEditorLog() const
 		ComplexString += TEXT("] ");
 	}
 
-	if (!Filename.IsEmpty() && LineNumber > 0)
+	const FString FileLineDescription = AutomationTest::CreateFileLineDescription(Filename, LineNumber);
+	if (!FileLineDescription.IsEmpty())
 	{
 		ComplexString += TEXT(" ");
-		ComplexString += Filename;
-		ComplexString += TEXT("(");
-		ComplexString += FString::FromInt(LineNumber);
-		ComplexString += TEXT(")");
+		ComplexString += FileLineDescription;
 	}
 
 	return ComplexString;

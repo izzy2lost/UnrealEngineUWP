@@ -527,6 +527,8 @@ bool FAutomationWorkerModule::IsTestExcluded(const FString& InTestToRun, FString
 {
 	FName SkipReason;
 	UAutomationTestExcludelist* Excludelist = UAutomationTestExcludelist::Get();
+	check(nullptr != Excludelist);
+	
 	static const TSet<FName> RHI = GetRHIForAutomation();
 	if (Excludelist->IsTestExcluded(InTestToRun, RHI, &SkipReason, OutWarn))
 	{
@@ -534,6 +536,23 @@ bool FAutomationWorkerModule::IsTestExcluded(const FString& InTestToRun, FString
 		{
 			(*OutReason) = (SkipReason.IsNone() ? TEXT("unknown reason") : SkipReason.ToString());
 			(*OutReason) += TEXT(" [config]");
+
+			if (Excludelist->GetFName().ToString().StartsWith("Default_"))
+			{
+				// We can handle only CDO to correctly detect the filename
+				FString Filename = Excludelist->GetConfigFilename();
+				
+				if (!Filename.IsEmpty())
+				{
+					Filename = FPaths::ConvertRelativePathToFull(Filename);
+						FPaths::MakePlatformFilename(Filename);
+						*OutReason += TEXT(" [");
+						*OutReason += Filename;
+						// Using of line number 1 as a default value to get it working as a hyperlink
+						*OutReason += TEXT("(1)]");
+				}
+			}
+
 		}
 
 		return true;
