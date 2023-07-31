@@ -712,6 +712,7 @@ FFFTBloomOutput AddFFTBloomPass(
 	float InputResolutionFraction,
 	const FEyeAdaptationParameters& EyeAdaptationParameters,
 	FRDGBufferRef EyeAdaptationBuffer,
+	const FLocalExposureParameters& LocalExposureParameters,
 	FRDGTextureRef LocalExposureTexture,
 	FRDGTextureRef BlurredLogLuminanceTexture)
 {
@@ -832,6 +833,7 @@ FFFTBloomOutput AddFFTBloomPass(
 			View,
 			EyeAdaptationParameters,
 			EyeAdaptationBuffer,
+			LocalExposureParameters,
 			LocalExposureTexture,
 			BlurredLogLuminanceTexture,
 			Temp,
