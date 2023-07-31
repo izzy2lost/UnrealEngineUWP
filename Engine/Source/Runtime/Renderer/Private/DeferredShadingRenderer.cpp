@@ -3767,7 +3767,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 					GraphBuilder,
 					VirtualShadowMapArray,
 					*this,
-					ViewFamily.EngineShowFlags.VirtualShadowMapCaching);
+					ViewFamily.EngineShowFlags.VirtualShadowMapPersistentData);
 			}
 		}
 

@@ -685,6 +685,7 @@ void FVirtualShadowMapArrayCacheManager::FreePhysicalPool(FRDGBuilder& GraphBuil
 	if (PhysicalPagePool)
 	{
 		PhysicalPagePool = nullptr;
+		PhysicalPageMetaData = nullptr;
 		Invalidate(GraphBuilder);
 	}
 }
@@ -905,12 +906,12 @@ void FVirtualShadowMapArrayCacheManager::ExtractFrameData(
 	FRDGBuilder& GraphBuilder,	
 	FVirtualShadowMapArray &VirtualShadowMapArray,
 	const FSceneRenderer& SceneRenderer,
-	bool bEnableCaching)
+	bool bAllowPersistentData)
 {
 	TrimLoggingInfo();
 
 	const bool bNewShadowData = VirtualShadowMapArray.IsAllocated();
-	const bool bDropAll = !bEnableCaching;
+	const bool bDropAll = !bAllowPersistentData;
 	const bool bDropPrevBuffers = bDropAll || bNewShadowData;
 
 	if (bDropPrevBuffers)
@@ -927,6 +928,7 @@ void FVirtualShadowMapArrayCacheManager::ExtractFrameData(
 		// thumbnail rendering or similar creates multiple FSceneRenderers that never get deleted.
 		// Caching is disabled on these contexts intentionally to avoid these issues.
 		FreePhysicalPool(GraphBuilder);
+		FreeHZBPhysicalPool(GraphBuilder);
 	}
 	else if (bNewShadowData)
 	{

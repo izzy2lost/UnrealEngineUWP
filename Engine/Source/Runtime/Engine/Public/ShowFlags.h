@@ -224,8 +224,8 @@ struct FEngineShowFlags
 		SetLumenGlobalIllumination(false);
 		SetLumenReflections(false);
 
-		// TODO: Remove when Physical page pool size scales automatically with demand
-		SetVirtualShadowMapCaching(false);
+		// Have VSM drop all persistent data each frame
+		SetVirtualShadowMapPersistentData(false);
 
 		SetShaderPrint(false);
 	}
@@ -255,8 +255,9 @@ struct FEngineShowFlags
 		SetLumenGlobalIllumination(false);
 		SetLumenReflections(false);
 
-		// TODO: Remove when Physical page pool size scales automatically with demand
-		SetVirtualShadowMapCaching(false);
+		// Have VSM drop all persistent data each frame
+		// TODO: Revisit some of the cases that trigger this; if they clean up the scene renderers this is not necessary
+		SetVirtualShadowMapPersistentData(false);
 	}
 
 	bool IsVisualizeCalibrationEnabled() const

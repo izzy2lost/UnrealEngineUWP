@@ -671,7 +671,7 @@ static FSceneRenderer* CreateWaterInfoSceneRenderer(const FCreateWaterInfoSceneR
 	ShowFlags.DynamicShadows = 0;
 
 	ShowFlags.SetDisableOcclusionQueries(true);
-	ShowFlags.SetVirtualShadowMapCaching(false);
+	ShowFlags.SetVirtualShadowMapPersistentData(false);
 	
 	FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
 		Params.RenderTarget,

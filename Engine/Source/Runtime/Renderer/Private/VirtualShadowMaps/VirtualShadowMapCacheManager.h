@@ -220,13 +220,16 @@ public:
 	void UploadProjectionData(FRDGScatterUploadBuffer& Uploader) const;
 
 	/**
-	 * Call at end of frame to extract resouces from the virtual SM array to preserve to next frame.
-	 * If bCachingEnabled is false, all previous frame data is dropped and cache (and HZB!) data will not be available for the next frame.
-	 */ 
+	* Call at end of frame to extract resouces from the virtual SM array to preserve to next frame.
+	* 
+	* If bAllowPersistentData is false, all previous frame data is dropped and cache (and HZB!) data will not be available for the next frame.
+	* This flag is mostly intended for temporary editor resources like thumbnail rendering that will be used infrequently but often not properly destructed.
+	* We need to ensure that the VSM data associated with these renderer instances gets dropped.
+	*/ 
 	void ExtractFrameData(FRDGBuilder& GraphBuilder,
 		FVirtualShadowMapArray &VirtualShadowMapArray,
 		const FSceneRenderer& SceneRenderer,
-		bool bEnableCaching);
+		bool bAllowPersistentData);
 
 	/**
 	 * Finds an existing cache entry and moves to the active set or creates a fresh one.
