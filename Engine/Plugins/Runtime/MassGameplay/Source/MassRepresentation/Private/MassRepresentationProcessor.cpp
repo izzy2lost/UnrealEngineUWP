@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MassRepresentationProcessor.h"
+#include "MassRepresentationDebug.h"
 #include "MassRepresentationSubsystem.h"
 #include "MassRepresentationUtils.h"
 #include "MassActorSubsystem.h"
@@ -217,6 +218,22 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 			DisableActorForISM(Actor);
 		}
 	}
+
+#if WITH_MASSGAMEPLAY_DEBUG
+	// Optional debug display
+	if (UE::Mass::Representation::Debug::DebugRepresentation == 1 || UE::Mass::Representation::Debug::DebugRepresentation >= 3)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(DebugDisplayRepresentation)
+		UWorld* World = CachedEntityManager.GetWorld();
+		UE::Mass::Representation::Debug::DebugDisplayRepresentation(Context, RepresentationList, TransformList, World);
+	}
+	// Optional vislog
+	if (UE::Mass::Representation::Debug::DebugRepresentation >= 2)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(VisLogRepresentation)
+		UE::Mass::Representation::Debug::VisLogRepresentation(Context, RepresentationList, TransformList, this);
+	}
+#endif
 }
 
 void UMassRepresentationProcessor::Execute(FMassEntityManager& InEntityManager, FMassExecutionContext& Context)

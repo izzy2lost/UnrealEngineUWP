@@ -191,6 +191,7 @@ void UMassSimulationLODProcessor::Execute(FMassEntityManager& EntityManager, FMa
 		});
 	}
 
+#if WITH_MASSGAMEPLAY_DEBUG
 	// Optional debug display
 	if (UE::MassLOD::bDebugSimulationLOD)
 	{
@@ -203,4 +204,5 @@ void UMassSimulationLODProcessor::Execute(FMassEntityManager& EntityManager, FMa
 			LODSharedFragment.LODCalculator.DebugDisplayLOD(Context, SimulationLODList, LocationList, World);
 		});
 	}
+#endif // WITH_MASSGAMEPLAY_DEBUG
 }

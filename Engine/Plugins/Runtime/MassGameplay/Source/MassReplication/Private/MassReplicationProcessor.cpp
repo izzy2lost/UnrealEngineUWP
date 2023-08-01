@@ -377,6 +377,7 @@ void UMassReplicationProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					});
 				}
 
+#if WITH_MASSGAMEPLAY_DEBUG
 				// Optional debug display
 				if (UE::Mass::Replication::DebugClientReplicationLOD == ClientHandle.GetIndex())
 				{
@@ -390,6 +391,7 @@ void UMassReplicationProcessor::Execute(FMassEntityManager& EntityManager, FMass
 						});
 					});
 				}
+#endif // WITH_MASSGAMEPLAY_DEBUG
 
 				Context.ClearEntityCollection();
 			}
