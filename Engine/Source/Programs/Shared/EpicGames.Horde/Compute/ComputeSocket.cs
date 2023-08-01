@@ -203,6 +203,7 @@ namespace EpicGames.Horde.Compute
 		{
 			public ComputeBufferReader? _reader;
 			public readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1);
+			[SuppressMessage("Usage", "CA2213:Disposable fields should be disposed")]
 			public readonly BackgroundTask _task;
 			int _refCount = 1;
 
