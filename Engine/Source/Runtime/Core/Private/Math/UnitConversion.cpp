@@ -61,6 +61,11 @@ FParseCandidate ParseCandidates[] = {
 	{ TEXT("Pounds"),				EUnit::Pounds },				{ TEXT("lb"),		EUnit::Pounds },
 	{ TEXT("Stones"),				EUnit::Stones },				{ TEXT("st"),		EUnit::Stones },
 
+	{ TEXT("GramsPerCubicCentimeter"),		EUnit::GramsPerCubicCentimeter },		{ TEXT("g/cm3"),	EUnit::GramsPerCubicCentimeter },		{ TEXT("g/cm\u00B3"), EUnit::GramsPerCubicCentimeter },
+	{ TEXT("GramsPerCubicMeter"),			EUnit::GramsPerCubicMeter },			{ TEXT("g/m3"),		EUnit::GramsPerCubicMeter },			{ TEXT("g/m\u00B3"), EUnit::GramsPerCubicMeter },
+	{ TEXT("KilogramsPerCubicCentimeter"),	EUnit::KilogramsPerCubicCentimeter },	{ TEXT("kg/cm3"),	EUnit::KilogramsPerCubicCentimeter },	{ TEXT("kg/cm\u00B3"), EUnit::KilogramsPerCubicCentimeter },
+	{ TEXT("KilogramsPerCubicMeter"),		EUnit::KilogramsPerCubicMeter },		{ TEXT("kg/m3"),	EUnit::KilogramsPerCubicMeter },		{ TEXT("kg/m\u00B3"), EUnit::KilogramsPerCubicMeter },
+
 	{ TEXT("Newtons"),				EUnit::Newtons },				{ TEXT("N"),		EUnit::Newtons },
 	{ TEXT("PoundsForce"),			EUnit::PoundsForce },			{ TEXT("lbf"),		EUnit::PoundsForce },
 	{ TEXT("KilogramsForce"),		EUnit::KilogramsForce },		{ TEXT("kgf"),		EUnit::KilogramsForce },
@@ -124,6 +129,8 @@ const TCHAR* const DisplayStrings[] = {
 	TEXT("\u00B5g"), TEXT("mg"), TEXT("g"), TEXT("kg"), TEXT("t"),
 	TEXT("oz"), TEXT("lb"), TEXT("st"),
 
+	TEXT("g/cm\u00B3"), TEXT("g/m\u00B3"), TEXT("kg/cm\u00B3"), TEXT("kg/m\u00B3"),
+
 	TEXT("N"), TEXT("lbf"), TEXT("kgf"), TEXT("kgcm/s\u00B2"),
 
 	TEXT("Nm"), TEXT("kgcm\u00B2/s\u00B2"),
@@ -158,6 +165,8 @@ const EUnitType UnitTypes[] = {
 
 	EUnitType::Mass,		EUnitType::Mass,		EUnitType::Mass,		EUnitType::Mass,		EUnitType::Mass,
 	EUnitType::Mass,		EUnitType::Mass,		EUnitType::Mass,
+
+	EUnitType::Density,		EUnitType::Density,		EUnitType::Density,		EUnitType::Density,
 
 	EUnitType::Force,		EUnitType::Force,		EUnitType::Force,		EUnitType::Force,
 
@@ -444,6 +453,7 @@ FUnitSettings::FUnitSettings()
 	DisplayUnits[(uint8)EUnitType::Speed].Add(EUnit::MetersPerSecond);
 	DisplayUnits[(uint8)EUnitType::Temperature].Add(EUnit::Celsius);
 	DisplayUnits[(uint8)EUnitType::Mass].Add(EUnit::Kilograms);
+	DisplayUnits[(uint8)EUnitType::Density].Add(EUnit::GramsPerCubicCentimeter);
 	DisplayUnits[(uint8)EUnitType::Force].Add(EUnit::Newtons);
 	DisplayUnits[(uint8)EUnitType::Torque].Add(EUnit::NewtonMeters);
 	DisplayUnits[(uint8)EUnitType::Frequency].Add(EUnit::Hertz);
@@ -626,6 +636,19 @@ namespace UnitConversion
 		}
 	}
 
+	double DensityUnificationFactor(EUnit From)
+	{
+		// Convert to g/cm^3
+		switch (From)
+		{
+		case EUnit::GramsPerCubicCentimeter:		return 1;
+		case EUnit::GramsPerCubicMeter:				return 0.000001;
+		case EUnit::KilogramsPerCubicCentimeter:	return 1000;
+		case EUnit::KilogramsPerCubicMeter:			return 0.001;
+		default:									return 1;
+		}
+	}
+
 	double ForceUnificationFactor(EUnit From)
 	{
 		// Convert to Newtons
@@ -754,6 +777,8 @@ namespace UnitConversion
 			TArray<FQuantizationInfo> MetricMass;
 			TArray<FQuantizationInfo> ImperialMass;
 
+			TArray<FQuantizationInfo> MetricDensity;
+
 			TArray<FQuantizationInfo> Frequency;
 			TArray<FQuantizationInfo> DataSize;
 
@@ -783,6 +808,11 @@ namespace UnitConversion
 				ImperialMass.Emplace(EUnit::Ounces,	16.0f);
 				ImperialMass.Emplace(EUnit::Pounds,	14.0f);
 				ImperialMass.Emplace(EUnit::Stones,	0.0f);
+
+				MetricDensity.Emplace(EUnit::GramsPerCubicCentimeter,		0.000001f);
+				MetricDensity.Emplace(EUnit::GramsPerCubicMeter,			1000.0f);
+				MetricDensity.Emplace(EUnit::KilogramsPerCubicCentimeter,	0.000001f);
+				MetricDensity.Emplace(EUnit::KilogramsPerCubicMeter,		0.0f);
 
 				Frequency.Emplace(EUnit::Hertz,		1000.0f);
 				Frequency.Emplace(EUnit::Kilohertz,	1000.0f);
@@ -825,6 +855,12 @@ namespace UnitConversion
 
 		case EUnit::Ounces: case EUnit::Pounds: case EUnit::Stones:
 			return &Bounds.ImperialMass;
+
+		case EUnit::GramsPerCubicCentimeter:
+		case EUnit::GramsPerCubicMeter:
+		case EUnit::KilogramsPerCubicCentimeter:
+		case EUnit::KilogramsPerCubicMeter:
+			return &Bounds.MetricDensity;
 
 		case EUnit::Hertz: case EUnit::Kilohertz: case EUnit::Megahertz: case EUnit::Gigahertz: case EUnit::RevolutionsPerMinute:
 			return &Bounds.Frequency;

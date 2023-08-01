@@ -28,6 +28,8 @@ namespace UnitConversion
 	CORE_API double TemperatureUnificationFactor(EUnit From);
 	/** Find the common quantization factor for the specified mass unit. Quantizes to Grams. */
 	CORE_API double MassUnificationFactor(EUnit From);
+	/** Find the common quantization factor for the specified density unit. Quantizes to GramsPerCubicCentimeter. */
+	CORE_API double DensityUnificationFactor(EUnit From);
 	/** Find the common quantization factor for the specified force unit. Quantizes to Newtons. */
 	CORE_API double ForceUnificationFactor(EUnit From);
 	/** Find the common quantization factor for the specified torque unit. Quantizes to Newton meters. */
@@ -84,6 +86,7 @@ T FUnitConversion::Convert(T InValue, EUnit From, EUnit To)
 		case EUnitType::Angle:				return InValue * AngleUnificationFactor(From) 			* (1.0 / AngleUnificationFactor(To));
 		case EUnitType::Speed:				return InValue * SpeedUnificationFactor(From) 			* (1.0 / SpeedUnificationFactor(To));
 		case EUnitType::Mass:				return InValue * MassUnificationFactor(From) 			* (1.0 / MassUnificationFactor(To));
+		case EUnitType::Density:			return InValue * DensityUnificationFactor(From)			* (1.0 / DensityUnificationFactor(To));
 		case EUnitType::Force:				return InValue * ForceUnificationFactor(From) 			* (1.0 / ForceUnificationFactor(To));
 		case EUnitType::Torque:				return InValue * TorqueUnificationFactor(From)			* (1.0 / TorqueUnificationFactor(To));
 		case EUnitType::Frequency:			return InValue * FrequencyUnificationFactor(From) 		* (1.0 / FrequencyUnificationFactor(To));
