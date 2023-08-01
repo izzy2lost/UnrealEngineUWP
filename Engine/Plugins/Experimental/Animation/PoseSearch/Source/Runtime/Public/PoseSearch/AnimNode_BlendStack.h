@@ -56,6 +56,8 @@ public:
 	FCompactHeapPose StoredPose;
 	FBlendedHeapCurve StoredCurve;
 	UE::Anim::FHeapAttributeContainer StoredAttributes;
+	// We need to store the bone container, in case we have a LOD swap during a blend that uses the stored pose.
+	FBoneContainer StoredBoneContainer;
 
 	EAlphaBlendOption BlendOption = EAlphaBlendOption::Linear;
 	int32 PoseLinkIndex = INDEX_NONE;

@@ -132,6 +132,7 @@ void FPoseSearchAnimPlayer::StorePoseContext(const FPoseContext& PoseContext)
 	if (PoseContext.Pose.IsValid())
 	{
 		StoredPose.CopyBonesFrom(PoseContext.Pose);
+		StoredPose.CopyAndAssignBoneContainer(StoredBoneContainer);
 	}
 
 	StoredCurve.CopyFrom(PoseContext.Curve);
@@ -142,9 +143,33 @@ void FPoseSearchAnimPlayer::RestorePoseContext(FPoseContext& PoseContext) const
 {
 	check(!SequencePlayerNode.GetSequence() && !BlendSpacePlayerNode.GetBlendSpace());
 
-	if (StoredPose.IsValid() && PoseContext.Pose.GetNumBones() == StoredPose.GetNumBones())
+	if (StoredPose.IsValid())
 	{
-		PoseContext.Pose.CopyBonesFrom(StoredPose);
+		// Serial number mismatch means a potential bone LOD mismatch, even if we have the same number of bones.
+		// Remap the pose manually in those cases.
+		if (PoseContext.Pose.GetBoneContainer().GetSerialNumber() == StoredBoneContainer.GetSerialNumber())
+		{
+			PoseContext.Pose.CopyBonesFrom(StoredPose);
+		}
+		else
+		{
+			const FBoneContainer CurrentBoneContainer = PoseContext.Pose.GetBoneContainer();
+			for (FCompactPoseBoneIndex CompactPoseIndex : PoseContext.Pose.ForEachBoneIndex())
+			{
+				// Map the current compact pose index to skeleton index, and map this back to the stored compact pose index.
+				const FSkeletonPoseBoneIndex SkeletonPoseIndex =  CurrentBoneContainer.GetSkeletonPoseIndexFromCompactPoseIndex(CompactPoseIndex);
+				const FCompactPoseBoneIndex StoredCompactPoseIndex =  StoredBoneContainer.GetCompactPoseIndexFromSkeletonPoseIndex(SkeletonPoseIndex);
+				if (StoredCompactPoseIndex == INDEX_NONE)
+				{
+					// If our stored pose doesn't have the bone, reset to ref pose.
+					PoseContext.Pose[CompactPoseIndex] = CurrentBoneContainer.GetRefPoseTransform(CompactPoseIndex);
+				}
+				else
+				{
+					PoseContext.Pose[CompactPoseIndex] = StoredPose[StoredCompactPoseIndex];
+				}
+			}
+		}
 	}
 	else
 	{
