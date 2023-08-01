@@ -102,6 +102,8 @@ public:
 	/** Removes a node from the graph along with any edges that contain it. */
 	void RemoveVertex(const FGraphVertexHandle& NodeHandle);
 
+	void RemoveBulkVertices(const TArray<FGraphVertexHandle>& InHandles);
+
 	/** Removes an edge from the graph. */
 	void RemoveEdge(const FGraphEdgeHandle& EdgeHandle, bool bHandleIslands);
 

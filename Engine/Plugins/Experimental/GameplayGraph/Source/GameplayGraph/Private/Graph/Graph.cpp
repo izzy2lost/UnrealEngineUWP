@@ -500,41 +500,59 @@ void UGraph::MergeOrCreateIslands(TArray<FGraphEdgeHandle>&& InEdges)
 
 void UGraph::RemoveVertex(const FGraphVertexHandle& NodeHandle)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::RemoveVertex);
-	if (!NodeHandle.IsValid())
-	{
-		return;
-	}
+	RemoveBulkVertices({ NodeHandle });
+}
 
-	TObjectPtr<UGraphVertex> Node = NodeHandle.GetVertex();
-	if (!Node)
-	{
-		return;
-	}
+void UGraph::RemoveBulkVertices(const TArray<FGraphVertexHandle>& InHandles)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::RemoveBulkVertices);
 
-	// We must remove every edge this node is a part of.
-	for (const FGraphEdgeHandle& EdgeHandle : VertexEdges.FindOrAdd(NodeHandle))
-	{
-		// Don't immediately handle islands. We'll do it later.
-		RemoveEdge(EdgeHandle, false);
-	}
+	TSet<FGraphIslandHandle> AffectedIslands;
 
-	if (Properties.bGenerateIslands)
+	for (const FGraphVertexHandle& NodeHandle : InHandles)
 	{
-		// If the node is a part of an island - remove it from the island and evaluate the effect that has.
-		if (const FGraphIslandHandle& IslandHandle = Node->GetParentIsland(); IslandHandle.IsValid())
+		if (NodeHandle.IsValid())
 		{
-			if (TObjectPtr<UGraphIsland> Island = IslandHandle.GetIsland())
+			// We must remove every edge this node is a part of.
+			for (const FGraphEdgeHandle& EdgeHandle : VertexEdges.FindOrAdd(NodeHandle))
 			{
-				Island->RemoveVertex(NodeHandle);
-				RemoveOrSplitIsland(Island);
+				// Don't immediately handle islands. We'll do it later.
+				RemoveEdge(EdgeHandle, false);
+			}
+
+			if (TObjectPtr<UGraphVertex> Node = NodeHandle.GetVertex())
+			{
+				if (TObjectPtr<UGraphIsland> Island = Node->GetParentIsland().GetIsland())
+				{
+					AffectedIslands.Add(Node->GetParentIsland());
+					Island->RemoveVertex(NodeHandle);
+				}
 			}
 		}
 	}
+	
+	if (Properties.bGenerateIslands)
+	{
+		for (const FGraphIslandHandle& IslandHandle : AffectedIslands)
+		{
+			RemoveOrSplitIsland(IslandHandle.GetIsland());
+		}
+	}
 
-	Node->HandleOnVertexRemoved();
-	Vertices.Remove(NodeHandle);
-	VertexEdges.Remove(NodeHandle);
+	// A final pass after generation of islands to clean up book-keeping.
+	// TODO: Not sure if this is necessary and can be done before we regenerate islands?
+	for (const FGraphVertexHandle& NodeHandle : InHandles)
+	{
+		if (NodeHandle.IsValid())
+		{
+			if (TObjectPtr<UGraphVertex> Node = NodeHandle.GetVertex())
+			{
+				Node->HandleOnVertexRemoved();
+			}
+			Vertices.Remove(NodeHandle);
+			VertexEdges.Remove(NodeHandle);
+		}
+	}
 }
 
 void UGraph::RemoveEdge(const FGraphEdgeHandle& EdgeHandle, bool bHandleIslands)
