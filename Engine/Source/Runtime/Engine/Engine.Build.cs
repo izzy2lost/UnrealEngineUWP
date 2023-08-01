@@ -153,7 +153,6 @@ public class Engine : ModuleRules
 				"Analytics",
 				"AudioMixer",
 				"AudioMixerCore",
-				"AudioCodecEngine",
 				"IntelISPC",
 				"TraceLog",
 				"ColorManagement",
