@@ -70,9 +70,13 @@ struct FShaderJobCacheRef
 };
 
 /** Stores all of the common information used to compile a shader or pipeline. */
-class FShaderCommonCompileJob : public TIntrusiveLinkedList<FShaderCommonCompileJob>
+class FShaderCommonCompileJob
 {
 public:
+	/** Linked list support -- not using TIntrusiveLinkedList because we want lock free insertion not supported by the core class */
+	FShaderCommonCompileJob* NextLink = nullptr;
+	FShaderCommonCompileJob** PrevLink = nullptr;
+
 	using FInputHash = FBlake3Hash;
 
 	FPendingShaderMapCompileResultsPtr PendingShaderMap;
@@ -113,6 +117,9 @@ public:
 	double TimeAssignedToExecution = 0.0;
 	/** In-engine timestamp of job being completed. Encompasses the compile time. Not set for jobs that are satisfied from the jobs cache */
 	double TimeExecutionCompleted = 0.0;
+	/** Time spent in tasks generated in FShaderJobCache::SubmitJobs, plus stall time on mutex locks in those tasks */
+	double TimeTaskSubmitJobs = 0.0;
+	double TimeTaskSubmitJobsStall = 0.0;
 
 	FShaderJobCacheRef JobCacheRef;
 

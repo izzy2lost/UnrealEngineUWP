@@ -53,7 +53,7 @@ class FShaderJobCache;
 class FShaderCompileJobCollection
 {
 public:
-	FShaderCompileJobCollection();
+	FShaderCompileJobCollection(FCriticalSection& InCompileQueueSection);
 
 	FShaderCompileJob* PrepareJob(uint32 InId, const FShaderCompileJobKey& InKey, EShaderCompileJobPriority InPriority);
 	FShaderPipelineCompileJob* PrepareJob(uint32 InId, const FShaderPipelineCompileJobKey& InKey, EShaderCompileJobPriority InPriority);
@@ -440,6 +440,10 @@ private:
 		/** Max amount of time any single job spent being processed overall. */
 		double MaxJobLifeTime = 0;
 
+		/** Time spent in tasks generated in FShaderJobCache::SubmitJobs, plus stall time on mutex locks in those tasks */
+		double AccumulatedTaskSubmitJobs = 0.0;
+		double AccumulatedTaskSubmitJobsStall = 0.0;
+
 		/** Number of local job batches seen. */
 		int64 LocalJobBatchesSeen = 0;
 
@@ -502,6 +506,8 @@ private:
 			MaxJobExecutionTime = FMath::Max(Other.MaxJobExecutionTime, MaxJobExecutionTime);
 			AccumulatedJobLifeTime += Other.AccumulatedJobLifeTime;
 			MaxJobLifeTime = FMath::Max(Other.MaxJobLifeTime, MaxJobLifeTime);
+			AccumulatedTaskSubmitJobs += Other.AccumulatedTaskSubmitJobs;
+			AccumulatedTaskSubmitJobsStall += Other.AccumulatedTaskSubmitJobsStall;
 			LocalJobBatchesSeen += Other.LocalJobBatchesSeen;
 			TotalJobsReportedInLocalJobBatches += Other.TotalJobsReportedInLocalJobBatches;
 			DistributedJobBatchesSeen += Other.DistributedJobBatchesSeen;
