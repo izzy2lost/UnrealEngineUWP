@@ -33,7 +33,7 @@
 //------------------------------------------------------- DERIVED
 
 /** Pixel coordinate stride between each lane in the GROUP_TILE_SIZE. */
-#if DIM_WAVE_SIZE == 32 && PLATFORM_GPU_ARCH == PLATFORM_GPU_ARCH_AMD_RDNA_2
+#if DIM_WAVE_SIZE == 32 && PLATFORM_GPU_ARCH == PLATFORM_GPU_ARCH_AMD_RDNA_2 && 0
 	/** Load an entire 16x16 tile in a single wave32 with 4x2 worth of data per lane and just 100% waveops all communications. */
 	#define GROUP_TILE_SIZE 16
 
@@ -50,12 +50,12 @@
 	/** Layouts wave in row major so an entire row of pixels fits within a single wave, and waveops horizontally, but LDS vertically.
 	 * Each lane worth of a 2x2 of data per lane to minimise to trade VGPR pressure for both number of wave ops and LDS.
 	 */
-	#define GROUP_TILE_SIZE 16
+	#define GROUP_TILE_SIZE 32
 
 	#define WAVE_COUNT_X 1
-	#define WAVE_COUNT_Y 8
+	#define WAVE_COUNT_Y 16
 
-	#define LANE_COUNT_X 8
+	#define LANE_COUNT_X 16
 	#define LANE_COUNT_Y 1
 
 	#define LANE_STRIDE_X 2
@@ -65,11 +65,11 @@
 	#define LDS_SIZE (2 * (LANE_STRIDE_X * LANE_COUNT_X) * (WAVE_COUNT_X * WAVE_COUNT_Y))
 
 #elif DIM_WAVE_SIZE == 0
-	/** Load an entire 16x16 with 1x1 worth of data by lane, only using LDS. */
-	#define GROUP_TILE_SIZE 16
+	/** Load an entire 32x32 with 1x1 worth of data by lane, only using LDS. */
+	#define GROUP_TILE_SIZE 32
 
-	#define WAVE_COUNT_X 16
-	#define WAVE_COUNT_Y 16
+	#define WAVE_COUNT_X GROUP_TILE_SIZE
+	#define WAVE_COUNT_Y GROUP_TILE_SIZE
 
 	#define LANE_COUNT_X 1
 	#define LANE_COUNT_Y 1

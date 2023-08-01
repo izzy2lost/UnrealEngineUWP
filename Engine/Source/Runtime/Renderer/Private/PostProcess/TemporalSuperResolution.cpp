@@ -1923,8 +1923,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 	FRDGTextureRef HistoryRejectionTexture = nullptr;
 	FRDGTextureRef InputSceneColorLdrLumaTexture = nullptr;
 	{
-		const int32 GroupTileSize = 16;
-
 		const bool bComputeInputSceneColorTexture = InputSceneColorLdrLumaTexture == nullptr;
 		if (bComputeInputSceneColorTexture)
 		{
@@ -1962,6 +1960,17 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		FScreenPassTextureViewport TranslucencyViewport(
 			SeparateTranslucencyTexture->Desc.Extent, SeparateTranslucencyRect);
 
+		FTSRRejectShadingCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FTSRRejectShadingCS::FWaveSizeOps>(bUseWaveOps&& GRHIMinimumWaveSize >= 32 && GRHIMinimumWaveSize <= 64 ? GRHIMinimumWaveSize : 0);
+		PermutationVector.Set<FTSRRejectShadingCS::FFlickeringDetectionDim>(FlickeringFramePeriod > 0.0f);
+		PermutationVector.Set<FTSRRejectShadingCS::FHistoryResurrectionDim>(bCanResurrectHistory);
+		PermutationVector.Set<FTSRShader::F16BitVALUDim>(bUse16BitVALU);
+		PermutationVector = FTSRRejectShadingCS::RemapPermutation(PermutationVector);
+
+		const int32 GroupTileSize = 32;
+		const int32 TileOverscan = FMath::Clamp(CVarTSRShadingTileOverscan.GetValueOnRenderThread(), 2, GroupTileSize / 2 - 1);
+		const int32 TileSize = GroupTileSize - 2 * TileOverscan;
+
 		FTSRRejectShadingCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTSRRejectShadingCS::FParameters>();
 		PassParameters->CommonParameters = CommonParameters;
 		PassParameters->InputPixelPosToTranslucencyTextureUV =
@@ -1972,7 +1981,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PassParameters->HistoryGuideQuantizationError = ComputePixelFormatQuantizationError(History.GuideArray->Desc.Format);
 		PassParameters->FlickeringFramePeriod = FlickeringFramePeriod;
 		PassParameters->TheoricBlendFactor = 1.0f / (1.0f + MaxHistorySampleCount / OutputToInputResolutionFractionSquare);
-		PassParameters->TileOverscan = FMath::Clamp(CVarTSRShadingTileOverscan.GetValueOnRenderThread(), 2, GroupTileSize / 2 - 1);
+		PassParameters->TileOverscan = TileOverscan;
 		PassParameters->PerceptionAdd = FMath::Pow(0.5f, CVarTSRShadingExposureOffset.GetValueOnRenderThread());
 
 		PassParameters->InputTexture = PassInputs.SceneColor.Texture;
@@ -2048,15 +2057,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 
 			PassParameters->DebugOutput = CreateDebugUAV(InputExtent, TEXT("Debug.TSR.RejectShading"));
 		}
-
-		int32 TileSize = GroupTileSize - 2 * PassParameters->TileOverscan;
-
-		FTSRRejectShadingCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FTSRRejectShadingCS::FWaveSizeOps>(bUseWaveOps && GRHIMinimumWaveSize >= 32 && GRHIMinimumWaveSize <= 64 ? GRHIMinimumWaveSize : 0);
-		PermutationVector.Set<FTSRRejectShadingCS::FFlickeringDetectionDim>(FlickeringFramePeriod > 0.0f);
-		PermutationVector.Set<FTSRRejectShadingCS::FHistoryResurrectionDim>(bCanResurrectHistory);
-		PermutationVector.Set<FTSRShader::F16BitVALUDim>(bUse16BitVALU);
-		PermutationVector = FTSRRejectShadingCS::RemapPermutation(PermutationVector);
 
 		TShaderMapRef<FTSRRejectShadingCS> ComputeShader(View.ShaderMap, PermutationVector);
 		FComputeShaderUtils::AddPass(
