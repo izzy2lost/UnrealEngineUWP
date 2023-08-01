@@ -9,6 +9,7 @@
 #include "Chaos/ParticleHandleFwd.h"
 #include "Chaos/ParticleIterator.h"
 #include "Chaos/Properties.h"
+#include "Chaos/Collision/CollisionFilterBits.h"
 #include "ChaosCheck.h"
 #include "Chaos/ChaosDebugDrawDeclares.h"
 #if CHAOS_DEBUG_DRAW
@@ -160,11 +161,8 @@ FORCEINLINE_DEBUGGABLE bool PrePreQueryFilterImp(const FCollisionFilterData& Que
 
 FORCEINLINE_DEBUGGABLE uint32 GetChaosCollisionChannelAndExtraFilter(uint32 Word3, uint8& OutMaskFilter)
 {
-	enum { NumExtraFilterBits = 6 };
-	enum { NumCollisionChannelBits = 5 };
-
-	uint32 ChannelMask = (Word3 << NumExtraFilterBits) >> (32 - NumCollisionChannelBits);
-	OutMaskFilter = Word3 >> (32 - NumExtraFilterBits);
+	uint32 ChannelMask = (Word3 << ChaosNumExtraFilterBits) >> (32 - ChaosNumCollisionChannelBits);
+	OutMaskFilter = Word3 >> (32 - ChaosNumExtraFilterBits);
 	return (uint32)ChannelMask;
 }
 
