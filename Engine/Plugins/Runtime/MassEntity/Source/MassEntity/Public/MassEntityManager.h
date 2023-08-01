@@ -510,6 +510,7 @@ private:
 	FOnNewArchetypeDelegate OnNewArchetypeEvent;
 
 	bool bInitialized = false;
+	bool bFirstCommandFlush = true;
 
 
 	//-----------------------------------------------------------------------------
