@@ -5,6 +5,7 @@
 
 #include "Chaos/Core.h"
 #include "Chaos/Collision/CollisionConstraintFlags.h"
+#include "Chaos/Collision/CollisionFilterBits.h"
 #include "Chaos/CollisionFilterData.h"
 #include "Chaos/GeometryParticles.h"
 #include "Chaos/ImplicitObjectType.h"
@@ -13,8 +14,6 @@
 namespace Chaos
 {
 	typedef uint8 FMaskFilter;
-	enum { NumExtraFilterBits = 6 };
-	enum { NumCollisionChannelBits = 5 };
 
 	/**
 	 * Check whether the two particles need to be considered in the broadphase.
