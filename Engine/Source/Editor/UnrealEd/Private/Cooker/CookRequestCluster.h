@@ -178,6 +178,21 @@ private:
 	static constexpr int32 CookerLoadingPlatformIndex = 1;
 	static constexpr int32 FirstSessionPlatformIndex = 2;
 
+	/** How much traversal the GraphSearch should do based on settings for the entire cook. */
+	enum class ETraversalTier
+	{
+		/** Do not fetch any edgedata. Used on CookWorkers; the director already did the fetch. */
+		None,
+		/**
+		 * Fetch the edgedata and use it for ancillary calculation like updating whether a package is iteratively
+		 * unmodified. Do not explore the discovered dependencies.
+		 */
+		FetchEdgeData,
+		/** Fetch the edgedata, update ancillary calculations, and explore the discovered dependencies. */
+		FollowDependencies,
+		All=FollowDependencies,
+	};
+
 	/**
 	 * Variables and functions that are only used during PumpExploration. PumpExploration executes a graph search
 	 * over the graph of packages (vertices) and their hard/soft dependencies upon other packages (edges). 
@@ -188,8 +203,7 @@ private:
 	struct FGraphSearch
 	{
 	public:
-		/** Data used during the reentrant dependencies and topological sort operation of FRequestCluster. */
-		FGraphSearch(FRequestCluster& InCluster);
+		FGraphSearch(FRequestCluster& InCluster, ETraversalTier TraversalTier);
 		~FGraphSearch();
 
 		// All public functions are callable only from the process thread
@@ -240,7 +254,7 @@ private:
 		/** Asynchronously fetch the dependencies and previous incremental results for a vertex */
 		void QueueEdgesFetch(FVertexData& Vertex, TConstArrayView<const ITargetPlatform*> Platforms);
 		/** Calculate and store the vertex's PackageData's cookability for each reachable platform. Kick off edges fetch. */
-		void VisitVertex(FVertexData& VertexData, bool bSkipDependencies=false);
+		void VisitVertex(FVertexData& VertexData);
 		/** Calculate and store the vertex's PackageData's cookability for the platform. */
 		void VisitVertexForPlatform(FVertexData& VertexData, const ITargetPlatform* Platform,
 			FPackagePlatformData& PlatformData, ESuppressCookReason& AccumulatedSuppressCookReason);
@@ -283,7 +297,7 @@ private:
 		// Variables that are read-only during multithreading
 		TArray<FFetchPlatformData> FetchPlatforms;
 		FRequestCluster& Cluster;
-		bool bCookAttachmentsEnabled = false;
+		ETraversalTier TraversalTier = ETraversalTier::All;
 
 		// Variables that are accessible only from the Process thread
 		/** Scratch-space variables that are reused to avoid allocations. */
@@ -315,6 +329,7 @@ private:
 	void FetchPackageNames(const FCookerTimer& CookerTimer, bool& bOutComplete);
 	void PumpExploration(const FCookerTimer& CookerTimer, bool& bOutComplete);
 	void StartAsync(const FCookerTimer& CookerTimer, bool& bOutComplete);
+	bool IsIncrementalCook() const;
 	void IsRequestCookable(const ITargetPlatform* TargetPlatform, FName PackageName, FPackageData& PackageData,
 		ESuppressCookReason& OutReason, bool& bOutCookable, bool& bOutExplorable);
 	static void IsRequestCookable(const ITargetPlatform* TargetPlatform, FName PackageName, FPackageData& PackageData,
