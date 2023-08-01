@@ -73,10 +73,8 @@ private:
 #endif
 };
 
-/** Defines a scope to update deferred uniform expression caches using an async task to fill uniform buffers. The scope
- *  attempts to launch async updates immediately, but further async updates can launch within the scope. Only one async
- *  task is launched at a time though. The async task is synced when the scope destructs. The scope enqueues render commands
- *  so it can be used on the game or render threads.
+/** Defines a scope to update deferred uniform expression caches using an async task to fill uniform buffers. If expression
+ *  caches are updated within the scope, an async task may be launched. Otherwise the update is synchronous.
  */
 class FUniformExpressionCacheAsyncUpdateScope
 {

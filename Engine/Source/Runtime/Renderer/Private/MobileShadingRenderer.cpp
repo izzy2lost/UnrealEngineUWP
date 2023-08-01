@@ -700,8 +700,6 @@ void FMobileSceneRenderer::InitViews(
 
 		UpdateDirectionalLightUniformBuffers(GraphBuilder, Views[0]);
 	}
-	
-	OnStartRender(RHICmdList);
 }
 
 static void BeginOcclusionScope(FRDGBuilder& GraphBuilder, TArray<FViewInfo>& Views)
@@ -805,7 +803,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	RDG_RHI_EVENT_SCOPE(GraphBuilder, MobileSceneRender);
 	RDG_RHI_GPU_STAT_SCOPE(GraphBuilder, MobileSceneRender);
 
-	IVisibilityTaskData* VisibilityTaskData = UpdateScene(GraphBuilder, FGlobalDynamicBuffers(DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer));
+	IVisibilityTaskData* VisibilityTaskData = OnRenderBegin(GraphBuilder, FGlobalDynamicBuffers(DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer));
 
 	FRDGExternalAccessQueue ExternalAccessQueue;
 
@@ -1161,7 +1159,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_SceneEnd));
 
-	RenderFinish(GraphBuilder, ViewFamilyTexture);
+	OnRenderFinish(GraphBuilder, ViewFamilyTexture);
 
 	if (bRendererOutputFinalSceneColor)
 	{

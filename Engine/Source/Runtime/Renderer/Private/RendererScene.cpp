@@ -65,6 +65,7 @@
 #include "GPUScene.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "VT/RuntimeVirtualTextureSceneProxy.h"
+#include "VT/VirtualTextureSystem.h"
 #include "HairStrandsInterface.h"
 #include "VelocityRendering.h"
 #include "RectLightSceneProxy.h"
@@ -6143,6 +6144,9 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 
 	UpdateCachedShadowState(SceneUpdateChangeSetStorage.GetPreUpdateSet(), SceneUpdateChangeSetStorage.GetPostUpdateSet());
 	ShadowScene->PostSceneUpdate(SceneUpdateChangeSetStorage.GetPreUpdateSet(), SceneUpdateChangeSetStorage.GetPostUpdateSet());
+
+	// Must run prior to static mesh gathering as callbacks can evaluate uniform expression caches.
+	FVirtualTextureSystem::Get().CallPendingCallbacks();
 
 	if (SceneInfosWithStaticDrawListUpdate.Num() > 0)
 	{

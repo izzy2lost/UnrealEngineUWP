@@ -88,7 +88,6 @@ FUniformExpressionCacheAsyncUpdateScope::FUniformExpressionCacheAsyncUpdateScope
 		[](FRHICommandList&)
 		{
 			GUniformExpressionCacheAsyncUpdateTask.Begin();
-			FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions();
 		});
 }
 

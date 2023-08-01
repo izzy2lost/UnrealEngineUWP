@@ -2139,13 +2139,6 @@ public:
 	static bool ShouldCompositeDebugPrimitivesInPostProcess(const FViewInfo& View);
 #endif
 
-	/**
-	* Helper function performing actual work in render thread.
-	*
-	* @param SceneRenderer	Scene renderer to use for rendering.
-	*/
-	static void RENDERER_API ViewExtensionPreRender_RenderThread(FRDGBuilder& GraphBuilder, FSceneRenderer* SceneRenderer);
-
 	/** Called to release any deallocations that were deferred until the next render. */
 	static void CleanUp(FRHICommandListImmediate& RHICmdList);
 
@@ -2299,8 +2292,6 @@ protected:
 
 	ERendererOutput GetRendererOutput() const;
 
-	IVisibilityTaskData* UpdateScene(FRDGBuilder& GraphBuilder, FGlobalDynamicBuffers GlobalDynamicBuffers);
-
 	FDynamicShadowsTaskData* BeginInitDynamicShadows(bool bRunningEarly, IVisibilityTaskData* VisibilityTaskData);
 	void FinishInitDynamicShadows(FRDGBuilder& GraphBuilder, FDynamicShadowsTaskData* TaskData, FGlobalDynamicIndexBuffer& DynamicIndexBuffer, FGlobalDynamicVertexBuffer& DynamicVertexBuffer, FGlobalDynamicReadBuffer& DynamicReadBuffer, FInstanceCullingManager& InstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue);
 	FDynamicShadowsTaskData* InitDynamicShadows(FRDGBuilder& GraphBuilder, FGlobalDynamicIndexBuffer& DynamicIndexBuffer, FGlobalDynamicVertexBuffer& DynamicVertexBuffer, FGlobalDynamicReadBuffer& DynamicReadBuffer, FInstanceCullingManager& InstanceCullingManager, FRDGExternalAccessQueue& ExternalAccessQueue);
@@ -2434,8 +2425,9 @@ protected:
 	bool ShouldRenderTranslucency() const;
 	bool ShouldRenderTranslucency(ETranslucencyPass::Type TranslucencyPass) const;
 
-	/** Updates state for the end of the frame. */
-	void RenderFinish(FRDGBuilder& GraphBuilder, FRDGTextureRef ViewFamilyTexture);
+	/** Called at the begin / finish of the scene render. */
+	IVisibilityTaskData* OnRenderBegin(FRDGBuilder& GraphBuilder, FGlobalDynamicBuffers GlobalDynamicBuffers);
+	void OnRenderFinish(FRDGBuilder& GraphBuilder, FRDGTextureRef ViewFamilyTexture);
 
 	bool RenderCustomDepthPass(
 		FRDGBuilder& GraphBuilder,
@@ -2443,8 +2435,6 @@ protected:
 		const FSceneTextureShaderParameters& SceneTextures,
 		TConstArrayView<Nanite::FRasterResults> PrimaryNaniteRasterResults,
 		TConstArrayView<Nanite::FPackedView> PrimaryNaniteViews);
-
-	void OnStartRender(FRHICommandListImmediate& RHICmdList);
 
 	void UpdatePrimitiveIndirectLightingCacheBuffers(FRHICommandListBase& RHICmdList);
 

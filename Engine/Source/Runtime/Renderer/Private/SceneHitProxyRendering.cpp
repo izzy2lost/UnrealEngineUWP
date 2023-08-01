@@ -549,8 +549,6 @@ static void DoRenderHitProxies(
 				false,
 				1.0f
 			);
-
-			RHICmdList.EndScene();
 		});
 	}
 }
@@ -558,7 +556,7 @@ static void DoRenderHitProxies(
 
 void FMobileSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 {
-	IVisibilityTaskData* VisibilityTaskData = UpdateScene(GraphBuilder, FGlobalDynamicBuffers(DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer));
+	IVisibilityTaskData* VisibilityTaskData = OnRenderBegin(GraphBuilder, FGlobalDynamicBuffers(DynamicIndexBuffer, DynamicVertexBuffer, DynamicReadBuffer));
 
 	GPU_MESSAGE_SCOPE(GraphBuilder);
 
@@ -591,6 +589,8 @@ void FMobileSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 
 	GEngine->GetPostRenderDelegateEx().Broadcast(GraphBuilder);
 #endif
+
+	OnRenderFinish(GraphBuilder, nullptr);
 }
 
 void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
@@ -599,7 +599,7 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 
 	CommitFinalPipelineState();
 
-	IVisibilityTaskData* VisibilityTaskData = UpdateScene(GraphBuilder, FGlobalDynamicBuffers(DynamicIndexBufferForInitViews, DynamicVertexBufferForInitViews, DynamicReadBufferForInitViews));
+	IVisibilityTaskData* VisibilityTaskData = OnRenderBegin(GraphBuilder, FGlobalDynamicBuffers(DynamicIndexBufferForInitViews, DynamicVertexBufferForInitViews, DynamicReadBufferForInitViews));
 
 	GPU_MESSAGE_SCOPE(GraphBuilder);
 
@@ -739,6 +739,8 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 
 	AddDispatchToRHIThreadPass(GraphBuilder);
 #endif
+
+	OnRenderFinish(GraphBuilder, nullptr);
 }
 
 #if WITH_EDITOR

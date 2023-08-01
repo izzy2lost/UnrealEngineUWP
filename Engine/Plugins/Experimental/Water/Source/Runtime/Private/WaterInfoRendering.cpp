@@ -419,7 +419,12 @@ private:
 		for (const TPair<uint32, FLandscapeRenderSystem*>& Pair : *LandscapeRenderSystems)
 		{
 			FLandscapeRenderSystem* LandscapeRenderSystem = Pair.Value;
-			LandscapeRenderSystem->ForcedLODOverride = LandscapeLODOverridesToRestore.FindChecked(LandscapeRenderSystem);
+
+			// Ignore landscape systems that were removed within the scope.
+			if (int8* ForcedLODOverride = LandscapeLODOverridesToRestore.Find(LandscapeRenderSystem))
+			{
+				LandscapeRenderSystem->ForcedLODOverride = *ForcedLODOverride;
+			}
 		}
 	}
 
@@ -462,9 +467,6 @@ static void UpdateWaterInfoRendering_RenderThread(
 
 		FRDGBuilder GraphBuilder(RHICmdList, RDG_EVENT_NAME("WaterInfoDepthRendering"), ERDGBuilderFlags::AllowParallelExecute);
 
-		// We need to execute the pre-render view extensions before we do any view dependent work.
-		FSceneRenderer::ViewExtensionPreRender_RenderThread(GraphBuilder, DepthRenderer);
-		
 		FRDGTextureRef TargetTexture = RegisterExternalTexture(GraphBuilder, RenderTarget->GetRenderTargetTexture(), TEXT("WaterDepthTarget"));
 
 		FRDGTextureDesc DepthTextureDesc(TargetTexture->Desc);
@@ -523,9 +525,6 @@ static void UpdateWaterInfoRendering_RenderThread(
 
 		FRDGBuilder GraphBuilder(RHICmdList, RDG_EVENT_NAME("WaterInfoColorRendering"), ERDGBuilderFlags::AllowParallelExecute);
 
-		// We need to execute the pre-render view extensions before we do any view dependent work.
-		FSceneRenderer::ViewExtensionPreRender_RenderThread(GraphBuilder, ColorRenderer);
-
 		FRDGTextureRef TargetTexture = RegisterExternalTexture(GraphBuilder, RenderTarget->GetRenderTargetTexture(), TEXT("WaterColorTarget"));
 
 		FRDGTextureDesc ColorTextureDesc(TargetTexture->Desc);
@@ -577,10 +576,6 @@ static void UpdateWaterInfoRendering_RenderThread(
 		SCOPED_DRAW_EVENT(RHICmdList, DilationRendering_RT);
 
 		FRDGBuilder GraphBuilder(RHICmdList, RDG_EVENT_NAME("WaterInfoDilationRendering"), ERDGBuilderFlags::AllowParallelExecute);
-
-
-		// We need to execute the pre-render view extensions before we do any view dependent work.
-		FSceneRenderer::ViewExtensionPreRender_RenderThread(GraphBuilder, DilationRenderer);
 
 		FRDGTextureRef TargetTexture = RegisterExternalTexture(GraphBuilder, RenderTarget->GetRenderTargetTexture(), TEXT("WaterDilationTarget"));
 

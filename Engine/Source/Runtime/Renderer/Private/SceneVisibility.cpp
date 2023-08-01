@@ -4015,9 +4015,6 @@ void FSceneRenderer::PreVisibilityFrameSetup(FRDGBuilder& GraphBuilder)
 {
 	FRHICommandListImmediate& RHICmdList = GraphBuilder.RHICmdList;
 
-	// Notify the RHI we are beginning to render a scene.
-	RHICmdList.BeginScene();
-
 	if (GetRendererOutput() == ERendererOutput::FinalSceneColor)
 	{
 		if (Views.Num() > 0 && !ViewFamily.EngineShowFlags.HitProxies)
@@ -4926,11 +4923,6 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 			UpdateHairResources(GraphBuilder, View);
 			View.InitRHIResources();
 		}
-	}
-
-	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_InitViews_OnStartRender);
-		OnStartRender(RHICmdList);
 	}
 
 	if (GDynamicRHI->RHIIncludeOptionalFlushes())

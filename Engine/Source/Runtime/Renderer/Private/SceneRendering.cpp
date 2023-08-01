@@ -2828,67 +2828,10 @@ FIntPoint FSceneRenderer::GetDesiredInternalBufferSize(const FSceneViewFamily& V
 	return DesiredBufferSize;
 }
 
-inline EUpdateAllPrimitiveSceneInfosAsyncOps GetUpdateAllPrimitiveSceneInfosAsyncOps()
-{
-	EUpdateAllPrimitiveSceneInfosAsyncOps AsyncOps = EUpdateAllPrimitiveSceneInfosAsyncOps::None;
-
-	if (GAsyncCreateLightPrimitiveInteractions > 0)
-	{
-		AsyncOps |= EUpdateAllPrimitiveSceneInfosAsyncOps::CreateLightPrimitiveInteractions;
-	}
-
-	if (GAsyncCacheMeshDrawCommands > 0)
-	{
-		AsyncOps |= EUpdateAllPrimitiveSceneInfosAsyncOps::CacheMeshDrawCommands;
-	}
-
-	return AsyncOps;
-}
-
 FSceneRenderer::ERendererOutput FSceneRenderer::GetRendererOutput() const
 {
 	const bool bSceneCaptureDepthPrepass = Views[0].bIsSceneCapture && (ViewFamily.SceneCaptureSource == ESceneCaptureSource::SCS_SceneDepth || ViewFamily.SceneCaptureSource == ESceneCaptureSource::SCS_DeviceDepth);
 	return bSceneCaptureDepthPrepass && GSceneCaptureDepthPrepassOptimization ? ERendererOutput::DepthPrepassOnly : ERendererOutput::FinalSceneColor;
-}
-
-IVisibilityTaskData* FSceneRenderer::UpdateScene(FRDGBuilder& GraphBuilder, FGlobalDynamicBuffers GlobalDynamicBuffers)
-{
-	// Needs to run before UpdateAllPrimitiveSceneInfos, as it may call OnVirtualTextureDestroyedCB, which modifies the uniform
-	// expression cache. UpdateAllPrimitiveSceneInfos generates mesh draw commands, which use the uniform expression cache.
-	FVirtualTextureSystem::Get().CallPendingCallbacks();
-
-	/**
-	  * UpdateStaticMeshes removes and re-creates cached FMeshDrawCommands.  If there are multiple scene renderers being run together,
-	  * we need allocated pipeline state IDs not to change, in case async tasks related to prior scene renderers are still in flight
-	  * (FSubmitNaniteMaterialPassCommandsAnyThreadTask or FDrawVisibleMeshCommandsAnyThreadTask).  So we freeze pipeline state IDs,
-	  * preventing them from being de-allocated even if their reference count temporarily goes to zero during calls to
-	  * RemoveCachedMeshDrawCommands followed by CacheMeshDrawCommands (or the Nanite equivalent).
-	  *
-	  * Note that on the first scene renderer, we do want to de-allocate items, so they can be permanently released if no longer in use
-	  * (for example, if there was an impactful change to a render proxy by game logic), but the assumption is that sequential renders
-	  * of the same scene from different views can't make such changes.
-	  */
-	if (!bIsFirstSceneRenderer)
-	{
-		FGraphicsMinimalPipelineStateId::FreezeIdTable(true);
-	}
-
-	Scene->UpdateAllPrimitiveSceneInfos(GraphBuilder, GetUpdateAllPrimitiveSceneInfosAsyncOps());
-
-	if (!bIsFirstSceneRenderer)
-	{
-		FGraphicsMinimalPipelineStateId::FreezeIdTable(false);
-	}
-
-	PrepareViewRectsForRendering(GraphBuilder.RHICmdList);
-
-	InitializeSceneTexturesConfig(ViewFamily.SceneTexturesConfig, ViewFamily);
-	FSceneTexturesConfig& SceneTexturesConfig = GetActiveSceneTexturesConfig();
-	FSceneTexturesConfig::Set(SceneTexturesConfig);
-
-	PrepareViewStateForVisibility(SceneTexturesConfig);
-
-	return LaunchVisibilityTasks(GraphBuilder.RHICmdList, *this, GlobalDynamicBuffers);
 }
 
 void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHICmdList)
@@ -3398,14 +3341,65 @@ FSceneRenderer::~FSceneRenderer()
 	SortedShadowsForShadowDepthPass.Release();
 }
 
+IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder, FGlobalDynamicBuffers GlobalDynamicBuffers)
+{
+	check(!FDeferredUpdateResource::IsUpdateNeeded());
+
+	EUpdateAllPrimitiveSceneInfosAsyncOps AsyncOps = EUpdateAllPrimitiveSceneInfosAsyncOps::None;
+
+	if (GAsyncCreateLightPrimitiveInteractions > 0)
+	{
+		AsyncOps |= EUpdateAllPrimitiveSceneInfosAsyncOps::CreateLightPrimitiveInteractions;
+	}
+
+	if (GAsyncCacheMeshDrawCommands > 0)
+	{
+		AsyncOps |= EUpdateAllPrimitiveSceneInfosAsyncOps::CacheMeshDrawCommands;
+	}
+
+	Scene->UpdateAllPrimitiveSceneInfos(GraphBuilder, AsyncOps);
+
+	if (!ViewFamily.ViewExtensions.IsEmpty())
+	{
+		{
+			RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, PreRender);
+			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_ViewExtensionPreRenderView);
+
+			for (int32 ViewExt = 0; ViewExt < ViewFamily.ViewExtensions.Num(); ViewExt++)
+			{
+				ViewFamily.ViewExtensions[ViewExt]->PreRenderViewFamily_RenderThread(GraphBuilder, ViewFamily);
+				for (int32 ViewIndex = 0; ViewIndex < ViewFamily.Views.Num(); ViewIndex++)
+				{
+					ViewFamily.ViewExtensions[ViewExt]->PreRenderView_RenderThread(GraphBuilder, Views[ViewIndex]);
+				}
+			}
+		}
+	}
+
+	PrepareViewRectsForRendering(GraphBuilder.RHICmdList);
+
+	InitializeSceneTexturesConfig(ViewFamily.SceneTexturesConfig, ViewFamily);
+	FSceneTexturesConfig& SceneTexturesConfig = GetActiveSceneTexturesConfig();
+	FSceneTexturesConfig::Set(SceneTexturesConfig);
+
+	PrepareViewStateForVisibility(SceneTexturesConfig);
+
+	FVisualizeTexturePresent::OnStartRender(Views[0]);
+
+	GraphBuilder.RHICmdList.BeginScene();
+
+	return LaunchVisibilityTasks(GraphBuilder.RHICmdList, *this, GlobalDynamicBuffers);
+}
+
 /** 
 * Finishes the view family rendering.
 */
-void FSceneRenderer::RenderFinish(FRDGBuilder& GraphBuilder, FRDGTextureRef ViewFamilyTexture)
+void FSceneRenderer::OnRenderFinish(FRDGBuilder& GraphBuilder, FRDGTextureRef ViewFamilyTexture)
 {
 	RDG_EVENT_SCOPE(GraphBuilder, "RenderFinish");
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	if (ViewFamilyTexture)
 	{
 		bool bShowPrecomputedVisibilityWarning = false;
 		static const auto* CVarPrecomputedVisibilityWarning = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PrecomputedVisibilityWarning"));
@@ -4091,11 +4085,6 @@ FSceneRenderer* FSceneRenderer::CreateSceneRenderer(const FSceneViewFamily* InVi
 	return SceneRenderers[0];
 }
 
-void FSceneRenderer::OnStartRender(FRHICommandListImmediate& RHICmdList)
-{
-	FVisualizeTexturePresent::OnStartRender(Views[0]);
-}
-
 bool FSceneRenderer::ShouldCompositeEditorPrimitives(const FViewInfo& View)
 {
 	if (View.Family->EngineShowFlags.VisualizeHDR || View.Family->UseDebugViewPS())
@@ -4187,36 +4176,6 @@ void FSceneRenderer::UpdatePrimitiveIndirectLightingCacheBuffers(FRHICommandList
 /*-----------------------------------------------------------------------------
 	FRendererModule
 -----------------------------------------------------------------------------*/
-
-/**
-* Helper function performing actual work in render thread.
-*
-* @param SceneRenderer	Scene renderer to use for rendering.
-*/
-void FSceneRenderer::ViewExtensionPreRender_RenderThread(FRDGBuilder& GraphBuilder, FSceneRenderer* SceneRenderer)
-{
-	if (SceneRenderer->ViewFamily.ViewExtensions.IsEmpty() || !SceneRenderer->ViewFamily.EngineShowFlags.Rendering)
-	{
-		return;
-	}
-
-	{
-		{
-			RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, PreRender);
-			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_ViewExtensionPreRenderView);
-
-			for (int ViewExt = 0; ViewExt < SceneRenderer->ViewFamily.ViewExtensions.Num(); ViewExt++)
-			{
-				SceneRenderer->ViewFamily.ViewExtensions[ViewExt]->PreRenderViewFamily_RenderThread(GraphBuilder, SceneRenderer->ViewFamily);
-				for (int ViewIndex = 0; ViewIndex < SceneRenderer->ViewFamily.Views.Num(); ViewIndex++)
-				{
-					SceneRenderer->ViewFamily.ViewExtensions[ViewExt]->PreRenderView_RenderThread(GraphBuilder, SceneRenderer->Views[ViewIndex]);
-				}
-			}
-		}
-	}
-	check(!FDeferredUpdateResource::IsUpdateNeeded());
-}
 
 static int32 GSceneRenderCleanUpMode = 2;
 static FAutoConsoleVariableRef CVarSceneRenderCleanUpMode(
@@ -4538,8 +4497,6 @@ static void RenderViewFamilies_RenderThread(FRHICommandListImmediate& RHICmdList
 			FSceneRenderer::GetRDGParalelExecuteFlags(FeatureLevel)
 		);
 
-		// We need to execute the pre-render view extensions before we do any view dependent work.
-		FSceneRenderer::ViewExtensionPreRender_RenderThread(GraphBuilder, SceneRenderer);
 #if WITH_GPUDEBUGCRASH
 		if (GRHIGlobals.TriggerGPUCrash != ERequestedGPUCrash::None) 
 		{
