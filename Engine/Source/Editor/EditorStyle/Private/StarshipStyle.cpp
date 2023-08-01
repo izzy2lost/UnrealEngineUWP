@@ -7617,7 +7617,7 @@ void FStarshipEditorStyle::FStyle::SetupLocalizationDashboardStyles()
 
 void FStarshipEditorStyle::FStyle::SetupMyBlueprintStyles()
 {
-	Set("MyBlueprint.DeleteEntry", new IMAGE_BRUSH("Icons/Edit/icon_Edit_Delete_40x", Icon16x16));
+	Set( "MyBlueprint.DeleteEntry", new IMAGE_BRUSH("Icons/GeneralTools/Delete_40x", Icon16x16));
 }
 
 void FStarshipEditorStyle::FStyle::SetupStatusBarStyle()
