@@ -135,11 +135,25 @@ public:
 		return Errors;
 	}
 
-	inline bool ParseAndModify(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, const TCHAR* ConstantBufferType, const TArrayView<const TCHAR* const> ExtraSRVTypes = {}, const TArrayView<const TCHAR* const> ExtraUAVTypes = {})
+	inline bool ParseAndModify(
+		const FShaderCompilerInput& Input, 
+		const FShaderCompilerEnvironment& Environment, 
+		const TCHAR* ConstantBufferType, 
+		const TArrayView<const TCHAR* const> ExtraSRVTypes = {}, 
+		const TArrayView<const TCHAR* const> ExtraUAVTypes = {}, 
+		EBindlessParameterMode BindlessParameterMode = EBindlessParameterMode::Default)
 	{
 		FShaderParameterParser Tmp(Environment.CompilerFlags, ConstantBufferType, ExtraSRVTypes, ExtraUAVTypes);
 		ParameterParser = MoveTemp(Tmp);
-		return ParameterParser.ParseAndModify(Input, Errors, PreprocessedSource);
+		return ParameterParser.ParseAndModify(Input, Errors, PreprocessedSource, BindlessParameterMode);
+	}
+
+	inline bool ParseAndModify(
+		const FShaderCompilerInput& Input,
+		const FShaderCompilerEnvironment& Environment,
+		EBindlessParameterMode BindlessParameterMode)
+	{
+		return ParseAndModify(Input, Environment, nullptr, {}, {}, BindlessParameterMode);
 	}
 
 	inline const FShaderParameterParser& GetParameterParser() const

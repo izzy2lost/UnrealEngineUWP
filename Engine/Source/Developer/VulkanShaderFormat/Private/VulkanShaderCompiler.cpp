@@ -2,15 +2,17 @@
 // .
 
 #include "VulkanShaderFormat.h"
-#include "VulkanCommon.h"
-#include "ShaderPreprocessor.h"
-#include "ShaderCompilerCommon.h"
-#include "ShaderParameterParser.h"
+
 #include "HlslccHeaderWriter.h"
 #include "hlslcc.h"
-#include "SpirvReflectCommon.h"
 #include "RHIShaderFormatDefinitions.inl"
 #include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
+#include "ShaderCompilerCommon.h"
+#include "ShaderParameterParser.h"
+#include "ShaderPreprocessor.h"
+#include "ShaderPreprocessTypes.h"
+#include "SpirvReflectCommon.h"
+#include "VulkanCommon.h"
 
 #if PLATFORM_MAC
 // Horrible hack as we need the enum available but the Vulkan headers do not compile on Mac
@@ -66,6 +68,16 @@ inline bool SupportsOfflineCompiler(FName ShaderFormat)
 		|| ShaderFormat == NAME_VULKAN_ES3_1
 		|| ShaderFormat == NAME_VULKAN_SM5_ANDROID;
 }
+
+enum class EVulkanShaderVersion
+{
+	ES3_1,
+	ES3_1_ANDROID,
+	SM5,
+	SM5_ANDROID,
+	SM6,
+	Invalid,
+};
 
 inline CrossCompiler::FShaderConductorOptions::ETargetEnvironment GetMinimumTargetEnvironment(EVulkanShaderVersion ShaderVersion)
 {
@@ -2497,52 +2509,49 @@ static bool CompileWithShaderConductor(
 #endif // PLATFORM_MAC || PLATFORM_WINDOWS || PLATFORM_LINUX
 
 
-void DoCompileVulkanShader(const FShaderCompilerInput& Input, FShaderCompilerOutput& Output, const class FString& WorkingDirectory, EVulkanShaderVersion Version)
+
+
+EVulkanShaderVersion FormatToVersion(FName Format)
 {
-	check(IsVulkanShaderFormat(Input.ShaderFormat));
+	if (Format == NAME_VULKAN_ES3_1)
+	{
+		return EVulkanShaderVersion::ES3_1;
+	}
+	else if (Format == NAME_VULKAN_ES3_1_ANDROID)
+	{
+		return EVulkanShaderVersion::ES3_1_ANDROID;
+	}
+	else if (Format == NAME_VULKAN_SM5_ANDROID)
+	{
+		return EVulkanShaderVersion::SM5_ANDROID;
+	}
+	else if (Format == NAME_VULKAN_SM5)
+	{
+		return EVulkanShaderVersion::SM5;
+	}
+	else if (Format == NAME_VULKAN_SM6)
+	{
+		return EVulkanShaderVersion::SM6;
+	}
+	else
+	{
+		FString FormatStr = Format.ToString();
+		checkf(0, TEXT("Invalid shader format passed to Vulkan shader compiler: %s"), *FormatStr);
+		return EVulkanShaderVersion::Invalid;
+	}
+}
+
+bool PreprocessVulkanShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput)
+{
+	EVulkanShaderVersion Version = FormatToVersion(Input.ShaderFormat);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 
 	const bool bIsSM6 = (Version == EVulkanShaderVersion::SM6);
 	const bool bIsSM5 = (Version == EVulkanShaderVersion::SM5) || (Version == EVulkanShaderVersion::SM5_ANDROID);
 	const bool bIsMobileES31 = (Version == EVulkanShaderVersion::ES3_1 || Version == EVulkanShaderVersion::ES3_1_ANDROID);
-	bool bStripReflect = Input.IsRayTracingShader();
-	// By default we strip reflecion information for Android platform to avoid issues with older drivers
-	if (IsAndroidShaderFormat(Input.ShaderFormat))
-	{
-		bStripReflect = Input.Environment.GetCompileArgument(TEXT("STRIP_REFLECT_ANDROID"), true);
-	}
-
 	const CrossCompiler::FShaderConductorOptions::ETargetEnvironment MinTargetEnvironment = GetMinimumTargetEnvironment(Version);
-
-	const EHlslShaderFrequency FrequencyTable[] =
-	{
-		HSF_VertexShader,
-		HSF_InvalidFrequency,
-		HSF_InvalidFrequency,
-		HSF_PixelShader,
-		(bIsSM5 || bIsSM6) ? HSF_GeometryShader : HSF_InvalidFrequency,
-		HSF_ComputeShader, 
-		(bIsSM5 || bIsSM6) ? HSF_RayGen : HSF_InvalidFrequency,
-		(bIsSM5 || bIsSM6) ? HSF_RayMiss : HSF_InvalidFrequency,
-		(bIsSM5 || bIsSM6) ? HSF_RayHitGroup : HSF_InvalidFrequency,
-		(bIsSM5 || bIsSM6) ? HSF_RayCallable : HSF_InvalidFrequency,
-	};
-
-	const EShaderFrequency Frequency = (EShaderFrequency)Input.Target.Frequency;
-
-	const EHlslShaderFrequency HlslFrequency = FrequencyTable[Input.Target.Frequency];
-	if (HlslFrequency == HSF_InvalidFrequency)
-	{
-		Output.bSucceeded = false;
-		FShaderCompilerError& NewError = Output.Errors.AddDefaulted_GetRef();
-		NewError.StrippedErrorMessage = FString::Printf(
-			TEXT("%s shaders not supported for use in Vulkan."),
-			CrossCompiler::GetFrequencyName(Frequency));
-		return;
-	}
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
-
-	FString PreprocessedShader;
+	
 	FShaderCompilerDefinitions AdditionalDefines;
 	AdditionalDefines.SetDefine(TEXT("COMPILER_HLSLCC"), 1);
 	AdditionalDefines.SetDefine(TEXT("COMPILER_VULKAN"), 1);
@@ -2602,16 +2611,14 @@ void DoCompileVulkanShader(const FShaderCompilerInput& Input, FShaderCompilerOut
 
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	const double StartPreprocessTime = FPlatformTime::Seconds();
-
 	// Preprocess the shader.
-	FString PreprocessedShaderSource;
+	FString& PreprocessedShaderSource = PreprocessOutput.EditSource();
 	const bool bDirectCompile = FParse::Param(FCommandLine::Get(), TEXT("directcompile"));
 	if (bDirectCompile)
 	{
 		if (!FFileHelper::LoadFileToString(PreprocessedShaderSource, *Input.VirtualSourceFilePath))
 		{
-			return;
+			return false;
 		}
 
 		// Remove const as we are on debug-only mode
@@ -2619,21 +2626,18 @@ void DoCompileVulkanShader(const FShaderCompilerInput& Input, FShaderCompilerOut
 	}
 	else
 	{
-		if (!PreprocessShader(PreprocessedShaderSource, Output, Input, AdditionalDefines))
+		if (!PreprocessShader(PreprocessOutput, Input, Environment, AdditionalDefines))
 		{
 			// The preprocessing stage will add any relevant errors.
-			return;
+			return false;
 		}
 	}
 
-	FShaderParameterParser ShaderParameterParser(Input.Environment.CompilerFlags, nullptr);
-	if (!ShaderParameterParser.ParseAndModify(Input, Output.Errors, PreprocessedShaderSource, EBindlessParameterMode::Vulkan))
+	if (!PreprocessOutput.ParseAndModify(Input, Environment, EBindlessParameterMode::Vulkan))
 	{
 		// The FShaderParameterParser will add any relevant errors.
-		return;
+		return false;
 	}
-
-const FString EntryPointName = Input.EntryPointName;
 
 	RemoveUniformBuffersFromSource(Input.Environment, PreprocessedShaderSource);
 
@@ -2644,25 +2648,69 @@ const FString EntryPointName = Input.EntryPointName;
 	#if UE_VULKAN_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
 	if (Input.Environment.CompilerFlags.Contains(CFLAG_RemoveDeadCode))
 	{
-		UE::ShaderCompilerCommon::RemoveDeadCode(PreprocessedShaderSource, EntryPointName, Output.Errors);
+		UE::ShaderCompilerCommon::RemoveDeadCode(PreprocessedShaderSource, Input.EntryPointName, PreprocessOutput.EditErrors());
 	}
 	#endif // UE_VULKAN_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
 
-	Output.PreprocessTime = FPlatformTime::Seconds() - StartPreprocessTime;
+	return true;
+}
 
+void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output, const class FString& WorkingDirectory)
+{
+	check(IsVulkanShaderFormat(Input.ShaderFormat));
+	EVulkanShaderVersion Version = FormatToVersion(Input.ShaderFormat);
+
+	const bool bIsSM6 = (Version == EVulkanShaderVersion::SM6);
+	const bool bIsSM5 = (Version == EVulkanShaderVersion::SM5) || (Version == EVulkanShaderVersion::SM5_ANDROID);
+	const bool bIsMobileES31 = (Version == EVulkanShaderVersion::ES3_1 || Version == EVulkanShaderVersion::ES3_1_ANDROID);
+	bool bStripReflect = Input.IsRayTracingShader();
+	// By default we strip reflecion information for Android platform to avoid issues with older drivers
+	if (IsAndroidShaderFormat(Input.ShaderFormat))
+	{
+		bStripReflect = Input.Environment.GetCompileArgument(TEXT("STRIP_REFLECT_ANDROID"), true);
+	}
+
+	const CrossCompiler::FShaderConductorOptions::ETargetEnvironment MinTargetEnvironment = GetMinimumTargetEnvironment(Version);
+
+	const EHlslShaderFrequency FrequencyTable[] =
+	{
+		HSF_VertexShader,
+		HSF_InvalidFrequency,
+		HSF_InvalidFrequency,
+		HSF_PixelShader,
+		(bIsSM5 || bIsSM6) ? HSF_GeometryShader : HSF_InvalidFrequency,
+		HSF_ComputeShader, 
+		(bIsSM5 || bIsSM6) ? HSF_RayGen : HSF_InvalidFrequency,
+		(bIsSM5 || bIsSM6) ? HSF_RayMiss : HSF_InvalidFrequency,
+		(bIsSM5 || bIsSM6) ? HSF_RayHitGroup : HSF_InvalidFrequency,
+		(bIsSM5 || bIsSM6) ? HSF_RayCallable : HSF_InvalidFrequency,
+	};
+
+	const EShaderFrequency Frequency = (EShaderFrequency)Input.Target.Frequency;
+
+	const EHlslShaderFrequency HlslFrequency = FrequencyTable[Input.Target.Frequency];
+	if (HlslFrequency == HSF_InvalidFrequency)
+	{
+		Output.bSucceeded = false;
+		FShaderCompilerError& NewError = Output.Errors.AddDefaulted_GetRef();
+		NewError.StrippedErrorMessage = FString::Printf(
+			TEXT("%s shaders not supported for use in Vulkan."),
+			CrossCompiler::GetFrequencyName(Frequency));
+		return;
+	}
+
+	const bool bDirectCompile = FParse::Param(FCommandLine::Get(), TEXT("directcompile"));
 	FCompilerInfo CompilerInfo(Input, WorkingDirectory, HlslFrequency);
-
-	UE::ShaderCompilerCommon::DumpDebugShaderData(Input, PreprocessedShaderSource);
 
 	FVulkanBindingTable BindingTable(CompilerInfo.Frequency);
 	bool bSuccess = false;
 
 #if PLATFORM_MAC || PLATFORM_WINDOWS || PLATFORM_LINUX
 	// Cross-compile shader via ShaderConductor (DXC, SPIRV-Tools, SPIRV-Cross)
-	bSuccess = CompileWithShaderConductor(PreprocessedShaderSource, EntryPointName, Frequency, CompilerInfo, Output, BindingTable, bStripReflect, MinTargetEnvironment);
+	bSuccess = CompileWithShaderConductor(PreprocessOutput.GetSource(), Input.EntryPointName, Frequency, CompilerInfo, Output, BindingTable, bStripReflect, MinTargetEnvironment);
 #endif // PLATFORM_MAC || PLATFORM_WINDOWS || PLATFORM_LINUX
 	
-	ShaderParameterParser.ValidateShaderParameterTypes(Input, bIsMobileES31, Output);
+	PreprocessOutput.GetParameterParser().ValidateShaderParameterTypes(Input, bIsMobileES31, Output);
 	
 	if (bDirectCompile)
 	{
@@ -2672,4 +2720,9 @@ const FString EntryPointName = Input.EntryPointName;
 		}
 		ensure(bSuccess);
 	}
+}
+
+void OutputVulkanDebugData(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, const FShaderCompilerOutput& Output)
+{
+	UE::ShaderCompilerCommon::DumpExtendedDebugShaderData(Input, PreprocessOutput, Output);
 }

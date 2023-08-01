@@ -13,6 +13,22 @@
 #include "ShaderConductorContext.h"
 #include "RHIShaderFormatDefinitions.inl"
 
+extern bool PreprocessVulkanShader(
+	const struct  FShaderCompilerInput& Input,
+	const struct FShaderCompilerEnvironment& Environment,
+	class FShaderPreprocessOutput& PreprocessOutput);
+
+extern void CompileVulkanShader(
+	const struct FShaderCompilerInput& Input,
+	const class FShaderPreprocessOutput& PreprocessOutput,
+	struct FShaderCompilerOutput& Output,
+	const class FString& WorkingDirectory);
+
+extern void OutputVulkanDebugData(
+	const FShaderCompilerInput& Input, 
+	const FShaderPreprocessOutput& PreprocessOutput, 
+	const FShaderCompilerOutput& Output);
+
 class FShaderFormatVulkan : public IShaderFormat
 {
 	enum 
@@ -37,7 +53,8 @@ class FShaderFormatVulkan : public IShaderFormat
 			return UE_SHADER_VULKAN_ES3_1_VER;
 		}
 
-		check(0);
+		FString FormatStr = Format.ToString();
+		checkf(0, TEXT("Invalid shader format passed to Vulkan shader compiler: %s"), *FormatStr);
 		return -1;
 	}
 
@@ -75,39 +92,32 @@ public:
 		OutFormats.Add(NAME_VULKAN_SM6);
 	}
 
-	virtual void CompileShader(FName Format, const struct FShaderCompilerInput& Input, struct FShaderCompilerOutput& Output,const FString& WorkingDirectory) const
+	virtual bool SupportsIndependentPreprocessing() const override
 	{
-		check(InternalGetVersion(Format) >= 0);
-		if (Format == NAME_VULKAN_ES3_1)
-		{
-			DoCompileVulkanShader(Input, Output, WorkingDirectory, EVulkanShaderVersion::ES3_1);
-		}
-		else if (Format == NAME_VULKAN_ES3_1_ANDROID)
-		{
-			DoCompileVulkanShader(Input, Output, WorkingDirectory, EVulkanShaderVersion::ES3_1_ANDROID);
-		}
-		else if (Format == NAME_VULKAN_SM5_ANDROID)
-		{
-			DoCompileVulkanShader(Input, Output, WorkingDirectory, EVulkanShaderVersion::SM5_ANDROID);
-		}
-		else if (Format == NAME_VULKAN_SM5)
-		{
-			DoCompileVulkanShader(Input, Output, WorkingDirectory, EVulkanShaderVersion::SM5);
-		}
-		else if (Format == NAME_VULKAN_SM6)
-		{
-			DoCompileVulkanShader(Input, Output, WorkingDirectory, EVulkanShaderVersion::SM6);
-		}
+		return true;
+	}
+
+	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput) const
+	{
+		check(InternalGetVersion(Input.ShaderFormat) >= 0);
+
+		return PreprocessVulkanShader(Input, Environment, PreprocessOutput);
+	}
+
+	virtual void CompilePreprocessedShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output,const FString& WorkingDirectory) const override
+	{
+		check(InternalGetVersion(Input.ShaderFormat) >= 0);
+		CompileVulkanShader(Input, PreprocessOutput, Output, WorkingDirectory);
+	}
+
+	virtual void OutputDebugData(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, const FShaderCompilerOutput& Output) const override
+	{
+		OutputVulkanDebugData(Input, PreprocessOutput, Output);
 	}
 
 	virtual const TCHAR* GetPlatformIncludeDirectory() const
 	{
 		return TEXT("Vulkan");
-	}
-
-	virtual bool UsesHLSLcc(const struct FShaderCompilerInput& Input) const override
-	{
-		return !Input.Environment.CompilerFlags.Contains(CFLAG_ForceDXC);
 	}
 };
 
