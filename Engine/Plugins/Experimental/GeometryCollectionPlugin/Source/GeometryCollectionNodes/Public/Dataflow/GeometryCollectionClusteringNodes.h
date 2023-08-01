@@ -237,6 +237,31 @@ public:
 };
 
 
+/**
+ * Add a single cluster to the Geometry Collection if it only has a single transform with no clusters
+ */
+USTRUCT(meta = (DataflowGeometryCollection))
+struct FClusterIsolatedRootsDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FClusterIsolatedRootsDataflowNode, "ClusterIsolatedRoots", "GeometryCollection|Cluster", "")
+
+public:
+
+	/** Collection to modify */
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
+	FManagedArrayCollection Collection;
+
+	FClusterIsolatedRootsDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterOutputConnection(&Collection, &Collection);
+	}
+
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+
+};
 
 namespace Dataflow
 {
