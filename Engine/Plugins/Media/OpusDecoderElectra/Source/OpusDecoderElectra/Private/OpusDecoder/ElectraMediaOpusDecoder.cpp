@@ -196,10 +196,9 @@ private:
 		return (static_cast<uint32>(A) << 24) | (static_cast<uint32>(B) << 16) | (static_cast<uint32>(C) << 8) | static_cast<uint32>(D);
 	}
 
-	static constexpr int32 OpusSamplingRate()
+	int32 OpusSamplingRate() const
 	{
-		// Opus internal rate is fixed at 48kHz, no matter what the source rate has been.
-		return 48000;
+		return DOpsConfig.SampleRate;
 	}
 
 	bool Parse_dOps(FDOpsConfig& OutConfig, const TArray<uint8>& IndOpsBox, bool bFailOnError);
