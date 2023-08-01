@@ -149,6 +149,8 @@ namespace EpicGames.Horde.Compute.Buffers
 		/// <inheritdoc/>
 		protected override void Dispose(bool disposing)
 		{
+			base.Dispose(disposing);
+
 			if (disposing)
 			{
 				_readerEvent.Dispose();

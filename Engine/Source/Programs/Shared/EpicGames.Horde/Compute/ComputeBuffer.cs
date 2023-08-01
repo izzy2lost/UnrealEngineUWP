@@ -468,8 +468,8 @@ namespace EpicGames.Horde.Compute
 			}
 		}
 
-		readonly HeaderPtr _headerPtr;
-		readonly Memory<byte>[] _chunks;
+		HeaderPtr _headerPtr;
+		Memory<byte>[] _chunks;
 		int _refCount = 1;
 
 		/// <summary>
@@ -510,7 +510,11 @@ namespace EpicGames.Horde.Compute
 		/// <summary>
 		/// Overridable dispose method
 		/// </summary>
-		protected abstract void Dispose(bool disposing);
+		protected virtual void Dispose(bool disposing)
+		{
+			_headerPtr = default;
+			_chunks = Array.Empty<Memory<byte>>();
+		}
 
 		/// <summary>
 		/// Signals a read event

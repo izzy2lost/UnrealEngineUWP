@@ -52,8 +52,8 @@ namespace EpicGames.Horde.Compute.Buffers
 	/// </summary>
 	class PooledBufferDetail : ComputeBufferDetail
 	{
-		readonly GCHandle _headerHandle;
-		readonly IMemoryOwner<byte>[] _chunkOwners;
+		GCHandle _headerHandle;
+		IMemoryOwner<byte>[] _chunkOwners;
 
 		readonly AsyncEvent _writerEvent = new AsyncEvent();
 		readonly AsyncEvent _readerEvent = new AsyncEvent();
@@ -86,13 +86,18 @@ namespace EpicGames.Horde.Compute.Buffers
 		/// <inheritdoc/>
 		protected override void Dispose(bool disposing)
 		{
+			base.Dispose(disposing);
+
 			if (disposing)
 			{
 				for (int idx = 0; idx < _chunkOwners.Length; idx++)
 				{
 					_chunkOwners[idx].Dispose();
 				}
+				_chunkOwners = Array.Empty<IMemoryOwner<byte>>();
+
 				_headerHandle.Free();
+				_headerHandle = default;
 			}
 		}
 
