@@ -82,7 +82,7 @@ void UMassActorSpawnerSubsystem::DestroyActor(AActor* Actor, bool bImmediate /*=
 
 bool UMassActorSpawnerSubsystem::ReleaseActorToPool(AActor* Actor)
 {
-	if (!UE::MassActors::bUseActorPooling || !bActorPoolingEnabled)
+	if (!IsActorPoolingEnabled())
 	{
 		return false;
 	}
@@ -182,7 +182,7 @@ ESpawnRequestStatus UMassActorSpawnerSubsystem::SpawnOrRetrieveFromPool(FConstSt
 {
 	const FMassActorSpawnRequest& SpawnRequest = SpawnRequestView.Get<const FMassActorSpawnRequest>();
 
-	if (UE::MassActors::bUseActorPooling != 0 && bActorPoolingEnabled)
+	if (IsActorPoolingEnabled())
 	{
 		auto* Pool = PooledActors.Find(SpawnRequest.Template);
 
@@ -431,6 +431,11 @@ void UMassActorSpawnerSubsystem::DisableActorPooling()
 
 	ReleaseAllResources();
 
+}
+
+bool UMassActorSpawnerSubsystem::IsActorPoolingEnabled()
+{
+	return UE::MassActors::bUseActorPooling && bActorPoolingEnabled;
 }
 
 void UMassActorSpawnerSubsystem::ReleaseAllResources()

@@ -180,6 +180,7 @@ public:
 	
 	void EnableActorPooling();
 	void DisableActorPooling();
+	bool IsActorPoolingEnabled();
 
 	void ReleaseAllResources();
 
@@ -213,7 +214,7 @@ protected:
 	/** Try releasing this actor to pool if possible 
 	 * @param Actor to release to the bool
 	 * @return true if the actor was actually released to the pool */
-	bool ReleaseActorToPool(AActor* Actor);
+	virtual bool ReleaseActorToPool(AActor* Actor);
 
 	/** Internal generic request actor spawn to make sure the request derives from FMassActorSpawnRequest 
 	 *  @param SpawnRequest the spawn request parameters, We are allowing any type of spawn request, let's store it internally as a FInstancedStruct. This parameter is the FStructView over provide user struct */
