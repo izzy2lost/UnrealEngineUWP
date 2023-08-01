@@ -9,6 +9,7 @@
 #include "Misc/Guid.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/NameTypes.h"
+#include "Modules/ModuleInterface.h"
 
 #if (IS_PROGRAM || WITH_EDITOR)
 #include "Misc/AES.h"
@@ -159,5 +160,25 @@ UE_API FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadPa
 #endif // (IS_PROGRAM || WITH_EDITOR)
 
 } // namespace UE
+
+namespace UE
+{
+	class IOnDemandIoDispatcherBackend;
+}
+
+class FIoStoreOnDemandModule
+	: public IModuleInterface
+{
+	TSharedPtr<UE::IOnDemandIoDispatcherBackend> Backend;
+
+public:
+	UE_API void SetBulkOptionalEnabled(bool bInEnabled);
+	UE_API void SetEnabled(bool bInEnabled);
+
+	virtual void StartupModule() override;
+	virtual void ShutdownModule() override;
+
+private:
+};
 
 #undef UE_API

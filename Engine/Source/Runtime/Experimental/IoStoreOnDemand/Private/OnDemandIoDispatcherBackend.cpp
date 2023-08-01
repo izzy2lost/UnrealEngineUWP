@@ -56,6 +56,13 @@ static FAutoConsoleVariableRef CVar_IoDispatcherMaxHttpPollTimeoutMs (
 	TEXT("Tick() poll timeout in milliseconds")
 );
 
+bool GIoDispatcherBulkOptionalEnabled = true;
+static FAutoConsoleVariableRef CVar_IoDispatcherBulkOptionalEnabled(
+	TEXT("ias.BulkOptionalEnabled"),
+	GIoDispatcherBulkOptionalEnabled,
+	TEXT("Enables bulk optional requests.")
+);
+
 namespace UE::IO::Private
 {
 
@@ -945,6 +952,8 @@ public:
 
 	// I/O Http backend
 	virtual void Mount(const FOnDemandEndpoint& Endpoint) override;
+	virtual void SetBulkOptionalEnabled(bool bInEnabled) override;
+	virtual void SetEnabled(bool bInEnabled) override;
 
 	// Runnable
 	virtual bool Init() override { return true; }
@@ -971,6 +980,8 @@ private:
 	FOnDemandIoBackendStats Stats;
 	FRWLock Lock;
 	std::atomic_bool bStopRequested{false};
+	std::atomic_bool bEnableBulkOptional{true};
+	std::atomic_bool bEnabled{true};
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1081,9 +1092,19 @@ void FOnDemandIoBackend::CompleteRequest(FChunkRequest* ChunkRequest)
 bool FOnDemandIoBackend::Resolve(FIoRequestImpl* Request)
 {
 	using namespace UE::Tasks;
+
+	if (!bEnabled)
+	{
+		return false;
+	}
 	
 	FOnDemandIoStore::FChunkInfo ChunkInfo = IoStore->GetChunkInfo(Request->ChunkId);
 	if (!ChunkInfo.IsValid())
+	{
+		return false;
+	}
+
+	if ((!GIoDispatcherBulkOptionalEnabled || !bEnableBulkOptional) && Request->ChunkId.GetChunkType() == EIoChunkType::OptionalBulkData)
 	{
 		return false;
 	}
@@ -1161,6 +1182,16 @@ TIoStatusOr<uint64> FOnDemandIoBackend::GetSizeForChunk(const FIoChunkId& ChunkI
 {
 	if (IoStore.IsValid())
 	{
+		if (!bEnabled)
+		{
+			return FIoStatus(EIoErrorCode::UnknownChunkID);
+		}
+
+		if ((!GIoDispatcherBulkOptionalEnabled || !bEnableBulkOptional) && ChunkId.GetChunkType() == EIoChunkType::OptionalBulkData)
+		{
+			return FIoStatus(EIoErrorCode::UnknownChunkID);
+		}
+
 		return IoStore->GetChunkSize(ChunkId);
 	}
 
@@ -1260,6 +1291,16 @@ void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 	{
 		UE_LOG(LogIas, Log, TEXT("Mounting ZEN endpoint, Url='%s'"), *Endpoint.ServiceUrl);
 	}
+}
+
+void FOnDemandIoBackend::SetBulkOptionalEnabled(bool bInEnabled)
+{
+	bEnableBulkOptional = bInEnabled;
+}
+
+void FOnDemandIoBackend::SetEnabled(bool bInEnabled)
+{
+	bEnabled = bInEnabled;
 }
 
 TIoStatusOr<FOnDemandToc> FOnDemandIoBackend::GetToc(FHttpClient& HttpClient, const FString& TocPath)

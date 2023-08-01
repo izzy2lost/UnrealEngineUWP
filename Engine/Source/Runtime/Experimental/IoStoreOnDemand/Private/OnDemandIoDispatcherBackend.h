@@ -34,6 +34,8 @@ class IOnDemandIoDispatcherBackend
 public:
 	virtual ~IOnDemandIoDispatcherBackend() = default;
 	virtual void Mount(const FOnDemandEndpoint& Endpoint) = 0;
+	virtual void SetBulkOptionalEnabled(bool bInEnabled) = 0;
+	virtual void SetEnabled(bool bInEnabled) = 0;
 };
 
 UE_API TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TSharedPtr<IIoCache> Cache);

@@ -1231,17 +1231,24 @@ FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, c
 } // namespace UE
 
 ////////////////////////////////////////////////////////////////////////////////
-class FIoStoreOnDemandModule
-	: public IModuleInterface
-{
-public:
-	virtual void StartupModule() override;
-	virtual void ShutdownModule() override;
-
-private:
-};
 
 IMPLEMENT_MODULE(FIoStoreOnDemandModule, IoStoreOnDemand);
+
+void FIoStoreOnDemandModule::SetBulkOptionalEnabled(bool bInEnabled)
+{
+	if (Backend.IsValid())
+	{
+		Backend->SetBulkOptionalEnabled(bInEnabled);
+	}
+}
+
+void FIoStoreOnDemandModule::SetEnabled(bool bInEnabled)
+{
+	if (Backend.IsValid())
+	{
+		Backend->SetEnabled(bInEnabled);
+	}
+}
 
 void FIoStoreOnDemandModule::StartupModule()
 {
@@ -1356,7 +1363,7 @@ void FIoStoreOnDemandModule::StartupModule()
 		UE_LOG(LogIas, Log, TEXT("File cache disabled. Streaming only."));
 	}
 
-	TSharedPtr<UE::IOnDemandIoDispatcherBackend> Backend = UE::MakeOnDemandIoDispatcherBackend(Cache);
+	Backend = UE::MakeOnDemandIoDispatcherBackend(Cache);
 	Backend->Mount(Endpoint);
 	int32 BackendPriority = -10;
 #if !UE_BUILD_SHIPPING
