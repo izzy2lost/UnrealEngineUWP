@@ -18,11 +18,11 @@
 // UMassVisualizationComponent
 //---------------------------------------------------------------
 
-namespace UE::MassRepresentation
+namespace UE::Mass::Representation
 {
 	int32 GCallUpdateInstances = 1;
 	FAutoConsoleVariableRef  CVarCallUpdateInstances(TEXT("Mass.CallUpdateInstances"), GCallUpdateInstances, TEXT("Toggle between UpdateInstances and BatchUpdateTransform."));
-}  // UE::MassRepresentation
+}  // UE::Mass::Representation
 
 void UMassVisualizationComponent::PostInitProperties()
 {
@@ -521,7 +521,7 @@ void UMassVisualizationComponent::EndVisualChanges()
 				const int32 NewNumInstances = SharedData.StaticMeshInstanceTransforms.Num();
 
 				// Update PerInstanceSMData transforms
-				if ((bool)UE::MassRepresentation::GCallUpdateInstances)
+				if ((bool)UE::Mass::Representation::GCallUpdateInstances)
 				{
 					InstancedStaticMeshComponent->UpdateInstances(SharedData.UpdateInstanceIds, SharedData.StaticMeshInstanceTransforms, SharedData.StaticMeshInstancePrevTransforms, NumCustomDataFloats, SharedData.StaticMeshInstanceCustomFloats);
 					if (UHierarchicalInstancedStaticMeshComponent* HISMComp = Cast<UHierarchicalInstancedStaticMeshComponent>(InstancedStaticMeshComponent))

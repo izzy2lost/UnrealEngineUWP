@@ -41,7 +41,7 @@ void UMassStationaryISMSwitcherProcessor::Execute(FMassEntityManager& EntityMana
 		const TArrayView<FMassRepresentationFragment> RepresentationList = Context.GetMutableFragmentView<FMassRepresentationFragment>();
 
 		const FMassRepresentationParameters& RepresentationParams = Context.GetConstSharedFragment<FMassRepresentationParameters>();
-		const bool bDoKeepActorExtraFrame = UE::MassRepresentation::bAllowKeepActorExtraFrame ? RepresentationParams.bKeepLowResActors : false;
+		const bool bDoKeepActorExtraFrame = UE::Mass::Representation::bAllowKeepActorExtraFrame ? RepresentationParams.bKeepLowResActors : false;
 
 		const int32 NumEntities = Context.GetNumEntities();
 		for (int32 EntityIdx = 0; EntityIdx < NumEntities; EntityIdx++)

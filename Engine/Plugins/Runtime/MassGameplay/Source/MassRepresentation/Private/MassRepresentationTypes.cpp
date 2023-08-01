@@ -7,7 +7,7 @@
 
 DEFINE_LOG_CATEGORY(LogMassRepresentation);
 
-namespace UE::MassRepresentation
+namespace UE::Mass::Representation
 {
 void PushSwapTagsCommand(FMassCommandBuffer& CommandBuffer, const FMassEntityHandle Entity, const EMassVisibility PrevVisibility, const EMassVisibility NewVisibility)
 {
@@ -73,7 +73,7 @@ default: \
 
 #undef CASE_SWAP_TAGS
 }
-} // UE::MassRepresentation
+} // UE::Mass::Representation
 
 
 //-----------------------------------------------------------------------------

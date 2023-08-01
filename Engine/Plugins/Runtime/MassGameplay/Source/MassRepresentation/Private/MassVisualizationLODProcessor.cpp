@@ -3,11 +3,11 @@
 #include "MassVisualizationLODProcessor.h"
 #include "MassExecutionContext.h"
 
-namespace UE::MassRepresentation
+namespace UE::Mass::Representation
 {
 	int32 bDebugRepresentationLOD = 0;
 	FAutoConsoleVariableRef CVarDebugRepresentationLOD(TEXT("mass.debug.RepresentationLOD"), bDebugRepresentationLOD, TEXT("Debug representation LOD"), ECVF_Cheat);
-} // UE::MassRepresentation
+} // UE::Mass::Representation
 
 
 UMassVisualizationLODProcessor::UMassVisualizationLODProcessor()
@@ -113,7 +113,7 @@ void UMassVisualizationLODProcessor::Execute(FMassEntityManager& EntityManager, 
 	}
 
 	// Optional debug display
-	if (UE::MassRepresentation::bDebugRepresentationLOD)
+	if (UE::Mass::Representation::bDebugRepresentationLOD)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(DebugDisplayLOD)
 		UWorld* World = EntityManager.GetWorld();

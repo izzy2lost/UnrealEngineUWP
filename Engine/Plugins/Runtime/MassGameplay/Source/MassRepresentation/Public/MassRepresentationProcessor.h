@@ -14,7 +14,7 @@ class UMassActorSubsystem;
 struct FMassActorFragment;
 
 
-namespace UE::MassRepresentation
+namespace UE::Mass::Representation
 {
 	extern MASSREPRESENTATION_API int32 bAllowKeepActorExtraFrame;
 }
