@@ -38,9 +38,7 @@ template <typename QueryGeomType>
 static auto MakeScaledHelper(const QueryGeomType& B, const FVec3& InvScale)
 {
 	// TODO: Fixup code using this and remove it.
-
-	TRefCountPtr<QueryGeomType> HackBPtr(const_cast<QueryGeomType*>(&B));	//todo: hack, need scaled object to accept raw ptr similar to transformed implicit
-	TImplicitObjectScaled<QueryGeomType> ScaledB(HackBPtr, InvScale);
+	TImplicitObjectScaled<QueryGeomType,true> ScaledB(const_cast<QueryGeomType*>(&B), InvScale);
 	return ScaledB;
 }
 
