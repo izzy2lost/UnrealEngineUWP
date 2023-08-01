@@ -1097,6 +1097,9 @@ public:
 
 	GEOMETRYCOLLECTIONENGINE_API void SetUpdateNavigationInTick(const bool bUpdateInTick) { bUpdateNavigationInTick = bUpdateInTick; }
 
+	/** Enable or disable root proxy for custom rendering - this can be set at runtime */
+	GEOMETRYCOLLECTIONENGINE_API void EnableRootProxyForCustomRenderer(bool bEnable);
+
 	/** Force all GC components to reregister their custom renderer objects. */
 	static GEOMETRYCOLLECTIONENGINE_API void ReregisterAllCustomRenderers();
 
@@ -1193,6 +1196,9 @@ protected:
 	/** Custom class type that will be used to render the geometry collection instead of using the native rendering. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|Rendering", meta = (editcondition = "bOverrideCustomRenderer", MustImplement = "/Script/GeometryCollectionEngine.GeometryCollectionExternalRenderInterface"))
 	TObjectPtr<UClass> CustomRendererType;
+
+	UPROPERTY()
+	bool bEnableRootProxyForCustomRenderer = true;
 
 	/** A custom renderer object created from CustomRenderType. */
 	UPROPERTY(Transient)

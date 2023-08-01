@@ -4849,6 +4849,12 @@ void UGeometryCollectionComponent::InitializeEmbeddedGeometry()
 	}
 }
 
+void UGeometryCollectionComponent::EnableRootProxyForCustomRenderer(bool bEnable)
+{ 
+	bEnableRootProxyForCustomRenderer = bEnable;
+	RefreshCustomRenderer();
+}
+
 bool UGeometryCollectionComponent::CanUseCustomRenderer() const 
 {
 	return bChaos_GC_UseCustomRenderer && CustomRenderer != nullptr && GetWorld()->IsGameWorld();
@@ -4867,15 +4873,11 @@ void UGeometryCollectionComponent::RefreshCustomRenderer()
 				const int32 RootIndex = GetRootIndex();
 
 				const bool bIsBroken = DynamicCollection ? !DynamicCollection->Active[RootIndex] : false;
+				const bool bRenderRootProxy = bEnableRootProxyForCustomRenderer && !bIsBroken;
 
-				RendererInterface->UpdateState(*RestCollection, ComponentTransform, bIsBroken, !bHiddenInGame);
+				RendererInterface->UpdateState(*RestCollection, ComponentTransform, !bRenderRootProxy, !bHiddenInGame);
 
-				if (bIsBroken)
-				{
-					CalculateGlobalMatrices();
-					RendererInterface->UpdateTransforms(*RestCollection, ComponentSpaceTransforms);
-				}
-				else
+				if (bRenderRootProxy)
 				{
 					// No need to compute the component space transform in that case, since the root is always in component space 
 					const FTransform RootTransform = 
@@ -4884,6 +4886,12 @@ void UGeometryCollectionComponent::RefreshCustomRenderer()
 						: FTransform::Identity;
 					ComponentSpaceTransforms[RootIndex] = RootTransform;
 					RendererInterface->UpdateRootTransform(*RestCollection, RootTransform);
+				}
+				else
+				{
+					// render all individual pieces
+					CalculateGlobalMatrices();
+					RendererInterface->UpdateTransforms(*RestCollection, ComponentSpaceTransforms);
 				}
 			}
 		}
