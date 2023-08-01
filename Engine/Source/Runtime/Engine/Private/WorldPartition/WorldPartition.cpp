@@ -1247,8 +1247,8 @@ void UWorldPartition::OnActorDescAdded(FWorldPartitionActorDesc* NewActorDesc)
 	{
 		if (FDirtyActor* ExistingDirtyActor = DirtyActors.Find(NewActorDesc->GetGuid()))
 		{
-			check(ExistingDirtyActor->ActorPtr == NewActor);
 			check(!ExistingDirtyActor->WorldPartitionRef.IsSet());
+			check(!ExistingDirtyActor->ActorPtr.IsValid() || ExistingDirtyActor->ActorPtr == NewActor);			
 			ExistingDirtyActor->WorldPartitionRef = FWorldPartitionReference(NewActorDesc->GetContainer(), NewActorDesc->GetGuid());
 		}
 		else
