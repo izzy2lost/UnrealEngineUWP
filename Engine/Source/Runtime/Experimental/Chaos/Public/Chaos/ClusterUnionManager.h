@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "../../../../../../Restricted/NotForLicensees/Plugins/GeneSplicer/Source/GeneSplicerLib/Private/genesplicer/Macros.h"
 #include "Chaos/ClusterCreationParameters.h"
 #include "Chaos/ParticleHandleFwd.h"
 #include "Containers/Array.h"
