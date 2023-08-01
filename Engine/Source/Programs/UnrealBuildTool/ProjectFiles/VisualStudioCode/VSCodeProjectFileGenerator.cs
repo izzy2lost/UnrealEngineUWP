@@ -1020,7 +1020,7 @@ namespace UnrealBuildTool
 							OutFile.AddField("group", "build");
 							if (!RuntimePlatform.IsWindows)
 							{
-								OutFile.AddField("command", MakePathString(FileReference.Combine(ProjectRoot, "Engine", "Build", "BatchFiles", HostPlatform.ToString(), "RunDotnet.sh")));
+								OutFile.AddField("command", MakePathString(FileReference.Combine(ProjectRoot, "Engine", "Build", "BatchFiles", "RunDotnet.sh")));
 							}
 							else
 							{

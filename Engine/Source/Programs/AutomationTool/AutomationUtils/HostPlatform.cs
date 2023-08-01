@@ -38,7 +38,7 @@ namespace AutomationTool
 		}
 
 		/// <summary>
-		/// Gets the build executable filename for NET Framework projects e.g. msbuild, or xbuild
+		/// Gets the build executable filename for NET Framework projects e.g. msbuild
 		/// </summary>
 		/// <returns></returns>
 		abstract public string GetFrameworkMsbuildExe();

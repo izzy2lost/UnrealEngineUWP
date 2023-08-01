@@ -72,7 +72,7 @@ class CheckCsprojDotNetVersion : BuildCommand
 				Match = PossibleAppConfigRegex.Match(Contents);
 				if (!Match.Success)
 				{
-					Logger.LogInformation("No TargetFrameworkVersion or TargetFrameworkProfile found for project {CsProj}, is it a mono project? If not, does it compile properly?", CsProj);
+					Logger.LogInformation("No TargetFrameworkVersion or TargetFrameworkProfile found for project {CsProj}, does it compile properly?", CsProj);
 					continue;
 				}
 

@@ -9,6 +9,7 @@ using System.IO;
 using UnrealBuildTool;
 using EpicGames.Core;
 using UnrealBuildBase;
+using Microsoft.Extensions.Logging;
 
 namespace AutomationTool
 {
@@ -18,21 +19,20 @@ namespace AutomationTool
 
 		public override string GetFrameworkMsbuildExe()
 		{
-			// As of 5.0 mono comes with msbuild which performs better. If that's installed then use it
+			// Look for dotnet, we only support dotnet.
 			if (string.IsNullOrEmpty(CachedFrameworkMsbuildTool))
 			{
-				int Value;
-				bool CanUseMsBuild = (int.TryParse(Environment.GetEnvironmentVariable("UE_USE_SYSTEM_MONO"), out Value) &&
-						Value != 0 &&
-						!string.IsNullOrEmpty(CommandUtils.WhichApp("msbuild")));
+				bool CanUseMsBuild = string.IsNullOrEmpty(CommandUtils.WhichApp("dotnet")) == false;
 
 				if (CanUseMsBuild)
 				{
-					CachedFrameworkMsbuildTool = "msbuild";
+					Logger.LogInformation($"using {CommandUtils.WhichApp("dotnet")}!");
+
+					CachedFrameworkMsbuildTool = "dotnet msbuild";
 				}
 				else
 				{
-					CachedFrameworkMsbuildTool = "xbuild";
+					throw new BuildException("Unable to find installation of dotnet.");
 				}
 			}
 
@@ -81,33 +81,14 @@ namespace AutomationTool
 		public override Process CreateProcess(string AppName)
 		{
 			var NewProcess = new Process();
-			if (AppName == "mono")
-			{
-				// Enable case-insensitive mode for Mono
-				if (!NewProcess.StartInfo.EnvironmentVariables.ContainsKey("MONO_IOMAP"))
-				{
-					NewProcess.StartInfo.EnvironmentVariables.Add("MONO_IOMAP", "case");
-				}
-			}
 			return NewProcess;
 		}
 
 		public override void SetupOptionsForRun(ref string AppName, ref CommandUtils.ERunOptions Options, ref string CommandLine)
 		{
-			if (AppName == "sh" || AppName == "xbuild" || AppName == "codesign")
+			if (AppName == "sh" || AppName == "codesign")
 			{
 				Options &= ~CommandUtils.ERunOptions.AppMustExist;
-			}
-			if (AppName == "xbuild")
-			{
-				AppName = "xbuild";
-				CommandLine = (String.IsNullOrEmpty(CommandLine) ? "" : CommandLine) + " /verbosity:quiet /nologo";
-				// Pass #define MONO to all the automation scripts
-				CommandLine += " /p:DefineConstants=MONO";
-				CommandLine += " /p:DefineConstants=__MonoCS__";
-				// Some projects have TargetFrameworkProfile=Client which causes warnings on Linux
-				// so force it to empty.
-				CommandLine += " /p:TargetFrameworkProfile=";
 			}
 			if (AppName.EndsWith(".exe") || ((AppName.Contains("/Binaries/Win64/") || AppName.Contains("/Binaries/Linux/")) && string.IsNullOrEmpty(Path.GetExtension(AppName))))
 			{
@@ -118,16 +99,16 @@ namespace AutomationTool
 					AppName = AppName.Replace("-Cmd.exe", "");
 					AppName = AppName.Replace(".exe", "");
 				}
-				// some of our C# applications are converted to dotnet core, do not run those via mono
+				// some of our C# applications are converted to dotnet core, do not run those via dotnet
 				else if (AppName.Contains("UnrealBuildTool") || AppName.Contains("AutomationTool"))
 				{
 					Options &= ~CommandUtils.ERunOptions.AppMustExist;
 				}
 				else
 				{
-					// It's a C# app, so run it with Mono
+					// It's a C# app, so run it with dotnet
 					CommandLine = "\"" + AppName + "\" " + (String.IsNullOrEmpty(CommandLine) ? "" : CommandLine);
-					AppName = "mono";
+					AppName = "dotnet";
 					Options &= ~CommandUtils.ERunOptions.AppMustExist;
 				}
 			}
@@ -135,7 +116,7 @@ namespace AutomationTool
 
 		public override void SetConsoleCtrlHandler(ProcessManager.CtrlHandlerDelegate Handler)
 		{
-			// @todo: add mono support
+			// @todo: add dotnet support
 		}
 
 		public override UnrealTargetPlatform HostEditorPlatform

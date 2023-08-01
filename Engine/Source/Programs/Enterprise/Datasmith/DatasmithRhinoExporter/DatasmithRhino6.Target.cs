@@ -47,6 +47,7 @@ public abstract class DatasmithRhinoBaseTarget : TargetRules
 
 		// Define post-build step
 		// Since the Datasmith Rhino Exporter is a C# project, build in batch the release configuration of the Visual Studio C# project file.
+		// The Rhino Exporter has to be compatible with older toolchains so it still requires mono to build, relying on the system to have mono installed.
 		string ProjectFile = Path.Combine(RhinoExporterPath, ProjectName, ProjectName+".csproj");
 		string CustomAssemblyInfoPath = GetCustomAssemblyInfoPath(Target);
 		string CompilerCommand = Target.Platform == UnrealTargetPlatform.Win64 ? @"$(EngineDir)\Build\BatchFiles\MSBuild.bat" : "xbuild";

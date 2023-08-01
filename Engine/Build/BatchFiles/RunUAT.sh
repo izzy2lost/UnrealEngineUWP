@@ -81,13 +81,11 @@ UATDirectory=Binaries/DotNET/AutomationTool
 
 if [ "$(uname)" = "Darwin" ]; then
 	# Setup Environment
-	source "$SCRIPT_DIR/Mac/SetupEnvironment.sh" -mono "$SCRIPT_DIR/Mac" # ~0.4s :(
 	source "$SCRIPT_DIR/Mac/SetupEnvironment.sh" $EnvironmentType "$SCRIPT_DIR/Mac"
 fi
 
 if [ "$(uname)" = "Linux" ]; then
 	# Setup Environment
-	source "$SCRIPT_DIR/Linux/SetupEnvironment.sh" -mono "$SCRIPT_DIR/Linux"
 	source "$SCRIPT_DIR/Linux/SetupEnvironment.sh" $EnvironmentType "$SCRIPT_DIR/Linux"
 fi
 

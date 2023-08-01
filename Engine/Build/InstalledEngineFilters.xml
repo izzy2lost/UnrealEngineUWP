@@ -334,23 +334,18 @@
 		Engine/Build/BatchFiles/Mac/FixDependencyFiles.sh
 		Engine/Build/BatchFiles/Mac/GenerateProjectFiles.sh
 		Engine/Build/BatchFiles/Mac/SetupEnvironment.sh
-		Engine/Build/BatchFiles/Mac/SetupMono.sh
 		Engine/Build/BatchFiles/Mac/SetupDotnet.sh
-		Engine/Build/BatchFiles/Mac/FixMonoFiles.sh
-		Engine/Build/BatchFiles/Mac/RunMono.sh
-		Engine/Build/BatchFiles/Mac/RunXBuild.sh
 		Engine/Build/BatchFiles/Mac/XcodeBuild.sh
-        Engine/Build/BatchFiles/Mac/GenerateUniversalDSYM.sh
-        Engine/Build/BatchFiles/Mac/UpdateVersionAfterBuild.sh
+		Engine/Build/BatchFiles/Mac/GenerateUniversalDSYM.sh
+		Engine/Build/BatchFiles/Mac/UpdateVersionAfterBuild.sh
+		Engine/Build/BatchFiles/RunDotnet.sh
+		Engine/Build/BatchFiles/RunDotnetMSBuild.sh
 		Engine/Build/BatchFiles/RunUAT.command
 		Engine/Build/BatchFiles/RunUAT.sh
 		Engine/Build/BatchFiles/RunUBT.sh
         
         <!-- Mac build resources (plist entitlement etc.) -->
         Engine/Build/Mac/Resources/...
-
-		<!-- Mono -->
-		Engine/Binaries/ThirdParty/Mono/Mac/...
 
 		<!-- DotNet -->
 		Engine/Binaries/ThirdParty/DotNet/6.0.302/mac-arm64/...
@@ -390,20 +385,15 @@
 		Engine/Build/BatchFiles/Linux/QASmokeManual.sh
 		Engine/Build/BatchFiles/Linux/Setup.sh
 		Engine/Build/BatchFiles/Linux/SetupEnvironment.sh
-		Engine/Build/BatchFiles/Linux/SetupMono.sh
 		Engine/Build/BatchFiles/Linux/SetupDotnet.sh
-		Engine/Build/BatchFiles/Linux/FixMonoFiles.sh
-		Engine/Build/BatchFiles/Linux/RunMono.sh
-		Engine/Build/BatchFiles/Linux/RunXBuild.sh
+		Engine/Build/BatchFiles/RunDotnetMSBuild.sh
+		Engine/Build/BatchFiles/RunDotnet.sh
 		Engine/Build/BatchFiles/RunUAT.sh
 		Engine/Build/BatchFiles/RunUBT.sh
 
 		<!-- Debug tools -->
 		Engine/Binaries/Linux/dump_syms
 		Engine/Binaries/Linux/BreakpadSymbolEncoder
-
-		<!-- Mono -->
-		Engine/Binaries/ThirdParty/Mono/...
 
 		<!-- DotNet -->
 		Engine/Binaries/ThirdParty/DotNet/6.0.302/linux/...
@@ -545,7 +535,6 @@
 	<Property Name="ExtraSignFilesIOS">
 		Engine/Binaries/ThirdParty/DotNet/6.0.302/mac-arm64/...
 		Engine/Binaries/ThirdParty/DotNet/6.0.302/mac-x64/...
-		Engine/Binaries/ThirdParty/Mono/Mac/...
 		Engine/Extras/ThirdPartyNotUE/libimobiledevice/x64/...
 	</Property>
 
@@ -585,7 +574,6 @@
 	<Property Name="ExtraSignFilesTVOS">
 		Engine/Binaries/ThirdParty/DotNet/6.0.302/mac-arm64/...
 		Engine/Binaries/ThirdParty/DotNet/6.0.302/mac-x64/...
-		Engine/Binaries/ThirdParty/Mono/Mac/...
 		Engine/Extras/ThirdPartyNotUE/libimobiledevice/x64/...
 	</Property>
 
@@ -614,7 +602,6 @@
 		Engine/Binaries/Linux/AgentInterface.dll
 		Engine/Binaries/Linux/dump_syms.exe
 		Engine/Binaries/Linux/BreakpadSymbolEncoder.exe
-		Engine/Binaries/ThirdParty/Mono/Linux/...
 		Engine/Binaries/Linux/UnrealTraceServer
 	</Property>
 
