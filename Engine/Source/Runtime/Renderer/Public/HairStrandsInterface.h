@@ -198,19 +198,14 @@ enum EHairInterpolationType
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Public group data 
 
-struct FHairStrandsInstance
+struct FHairStrandsInstance : public FRefCountBase
 {
 	virtual ~FHairStrandsInstance() = default;
-	RENDERER_API uint32 GetRefCount() const;
-	RENDERER_API uint32 AddRef() const;
-	RENDERER_API uint32 Release() const;
 	int32 RegisteredIndex = -1;
 	virtual const FBoxSphereBounds& GetBounds() const = 0;
 	virtual const FBoxSphereBounds& GetLocalBounds() const = 0;
 	virtual const FHairGroupPublicData* GetHairData() const { return nullptr; }
 	virtual const EHairGeometryType GetHairGeometry() const { return EHairGeometryType::NoneGeometry; }
-protected:
-	mutable uint32 RefCount = 0;
 };
 typedef TArray<FHairStrandsInstance*> FHairStrandsInstances;
 

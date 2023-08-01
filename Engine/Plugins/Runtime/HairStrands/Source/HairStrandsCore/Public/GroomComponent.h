@@ -312,8 +312,7 @@ private:
 	TSharedPtr<class IGroomCacheBuffers, ESPMode::ThreadSafe> GroomCacheBuffers;
 
 private:
-	TArray<FHairGroupInstance*> HairGroupInstances;
-	TArray<FHairGroupInstance*> DeferredDeleteHairGroupInstances;
+	TArray<TRefCountPtr<FHairGroupInstance>> HairGroupInstances;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(Transient)

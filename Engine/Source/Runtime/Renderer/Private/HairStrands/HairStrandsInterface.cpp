@@ -83,25 +83,6 @@ static TAutoConsoleVariable<int32> CVarHairStrandsVisibilityComputeRaster_Contin
 	ECVF_RenderThreadSafe);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Hair strands instance ref. counting for debug purpose only
-uint32 FHairStrandsInstance::GetRefCount() const
-{
-	return RefCount;
-}
-
-uint32 FHairStrandsInstance::AddRef() const
-{
-	return ++RefCount;
-}
-
-uint32 FHairStrandsInstance::Release() const
-{
-	check(RefCount > 0);
-	uint32 LocalRefCount = --RefCount;
-	return LocalRefCount;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Import/export utils function for hair resources
 void FRDGExternalBuffer::Release()
 {

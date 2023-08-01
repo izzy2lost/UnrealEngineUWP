@@ -72,6 +72,8 @@ enum EHairViewRayTracingMask
 // Represent/Describe data & resources of a hair group belonging to a groom
 struct HAIRSTRANDSCORE_API FHairGroupInstance : public FHairStrandsInstance
 {
+	virtual ~FHairGroupInstance();
+
 	//////////////////////////////////////////////////////////////////////////////////////////
 	// Helper struct which aggregate strands based data/resources
 
