@@ -1792,13 +1792,13 @@ bool UWorldPartition::IsStreamingInEnabled() const
 
 void UWorldPartition::DisableStreamingIn()
 {
-	check(bStreamingInEnabled);
+	UE_CLOG(!bStreamingInEnabled, LogWorldPartition, Warning, TEXT("UWorldPartition::DisableStreamingIn called while streaming was already disabled."));
 	bStreamingInEnabled = false;
 }
 
 void UWorldPartition::EnableStreamingIn()
 {
-	check(!bStreamingInEnabled);
+	UE_CLOG(bStreamingInEnabled, LogWorldPartition, Warning, TEXT("UWorldPartition::EnableStreamingIn called while streaming was already enabled."));
 	bStreamingInEnabled = true;
 }
 
