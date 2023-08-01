@@ -48,6 +48,8 @@ public:
 	static void UnLinkLevelSequence(UAnimSequence* AnimSequence);
 	void ExtendAnimSequenceMenu();
 
+	void GetDirectManipulationMenuActions(URigVMBlueprint* RigVMBlueprint, URigVMNode* InNode, URigVMPin* ModelPin, UToolMenu* Menu) const;
+
 private:
 
 	/** Handle for our sequencer control rig parameter track editor */

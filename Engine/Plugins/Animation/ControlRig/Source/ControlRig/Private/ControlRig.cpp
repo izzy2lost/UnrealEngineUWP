@@ -28,6 +28,8 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "RigVMDeveloperTypeUtils.h"
 #include "Editor.h"
+#include "RigVMBlueprint.h"
+#include "RigVMCompiler/RigVMCompiler.h"
 #endif// WITH_EDITOR
 #include "ControlRigComponent.h"
 #include "Constraints/ControlRigTransformableHandle.h"
@@ -1833,6 +1835,12 @@ TArray<FName> UControlRig::CurrentControlSelection() const
 		{
 			SelectedControlNames.Add(SelectedControl->GetName());
 		}
+#if WITH_EDITOR
+		for(const TSharedPtr<FRigDirectManipulationInfo>& ManipulationInfo : RigUnitManipulationInfos)
+		{
+			SelectedControlNames.Add(ManipulationInfo->ControlKey.Name);
+		}
+#endif
 	}
 	return SelectedControlNames;
 }
@@ -1857,12 +1865,14 @@ void UControlRig::HandleHierarchyModified(ERigHierarchyNotification InNotificati
 		case ERigHierarchyNotification::ElementSelected:
 		case ERigHierarchyNotification::ElementDeselected:
 		{
+			bool bClearTransientControls = true;
 			if(FRigControlElement* ControlElement = Cast<FRigControlElement>((FRigBaseElement*)InElement))
 			{
 				const bool bSelected = InNotification == ERigHierarchyNotification::ElementSelected;
 				ControlSelected().Broadcast(this, ControlElement, bSelected);
 
 				OnControlSelected_BP.Broadcast(this, *ControlElement, bSelected);
+				bClearTransientControls = !ControlElement->Settings.bIsTransientControl;
 			}
 
 #if WITH_EDITOR
@@ -1879,11 +1889,10 @@ void UControlRig::HandleHierarchyModified(ERigHierarchyNotification InNotificati
 						SelectionPoseForConstructionMode.Remove(InElement->GetKey());
 					}
 				}
-
-				if(InNotification == ERigHierarchyNotification::ElementDeselected)
-				{
-					ClearTransientControls();
-				}
+			}
+			if(bClearTransientControls)
+			{
+				ClearTransientControls();
 			}
 #endif
 			break;
@@ -1906,21 +1915,67 @@ void UControlRig::HandleHierarchyModified(ERigHierarchyNotification InNotificati
 
 #if WITH_EDITOR
 
-FName UControlRig::AddTransientControl(URigVMPin* InPin, FRigElementKey SpaceKey, FTransform OffsetTransform)
+bool UControlRig::CanAddTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget, FString* OutFailureReason)
 {
-	if ((InPin == nullptr) || (DynamicHierarchy == nullptr))
+	if (InNode == nullptr)
+	{
+		if(OutFailureReason)
+		{
+			static const FString Reason = TEXT("Provided node is nullptr.");
+			*OutFailureReason = Reason;
+		}
+		return false;
+	}
+	if (DynamicHierarchy == nullptr)
+	{
+		if(OutFailureReason)
+		{
+			static const FString Reason = TEXT("The rig does not contain a hierarchy.");
+			*OutFailureReason = Reason;
+		}
+		return false;
+	}
+
+	const UScriptStruct* UnitStruct = InNode->GetScriptStruct();
+	if(UnitStruct == nullptr)
+	{
+		if(OutFailureReason)
+		{
+			static const FString Reason = TEXT("The node is not resolved.");
+			*OutFailureReason = Reason;
+		}
+		return false;
+	}
+
+	const TSharedPtr<FStructOnScope> NodeInstance = InNode->ConstructLiveStructInstance(this);
+	if(!NodeInstance.IsValid() || !NodeInstance->IsValid())
+	{
+		if(OutFailureReason)
+		{
+			static const FString Reason = TEXT("Unexpected error: Node instance could not be constructed.");
+			*OutFailureReason = Reason;
+		}
+		return false;
+	}
+
+	const FRigUnit* UnitInstance = GetRigUnitInstanceFromScope(NodeInstance);
+	check(UnitInstance);
+
+	TArray<FRigDirectManipulationTarget> Targets;
+	if(UnitInstance->GetDirectManipulationTargets(InNode, NodeInstance, DynamicHierarchy, Targets, OutFailureReason))
+	{
+		return Targets.Contains(InTarget);
+	}
+	return false;
+}
+
+FName UControlRig::AddTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget)
+{
+	if(!CanAddTransientControl(InNode, InTarget, nullptr))
 	{
 		return NAME_None;
 	}
-
-	if (InPin->GetCPPType() != TEXT("FVector") &&
-		InPin->GetCPPType() != TEXT("FQuat") &&
-		InPin->GetCPPType() != TEXT("FTransform"))
-	{
-		return NAME_None;
-	}
-
-	RemoveTransientControl(InPin);
+	RemoveTransientControl(InNode, InTarget);
 
 	URigHierarchyController* Controller = DynamicHierarchy->GetController(true);
 	if(Controller == nullptr)
@@ -1928,81 +1983,86 @@ FName UControlRig::AddTransientControl(URigVMPin* InPin, FRigElementKey SpaceKey
 		return NAME_None;
 	}
 
-	URigVMPin* PinForLink = InPin->GetPinForLink();
+	const UScriptStruct* UnitStruct = InNode->GetScriptStruct();
+	check(UnitStruct);
 
-	const FName ControlName = GetNameForTransientControl(InPin);
+	const TSharedPtr<FStructOnScope> NodeInstance = InNode->ConstructLiveStructInstance(this);
+	check(NodeInstance.IsValid() && NodeInstance->IsValid());
+
+	const FRigUnit* UnitInstance = GetRigUnitInstanceFromScope(NodeInstance);
+	check(UnitInstance);
+
+	const FName ControlName = GetNameForTransientControl(InNode, InTarget);
 	FTransform ShapeTransform = FTransform::Identity;
 	ShapeTransform.SetScale3D(FVector::ZeroVector);
 
 	FRigControlSettings Settings;
 	Settings.ControlType = ERigControlType::Transform;
-	if (URigVMPin* ColorPin = PinForLink->GetNode()->FindPin(TEXT("Color")))
-	{
-		if (ColorPin->GetCPPType() == TEXT("FLinearColor"))
-		{
-			FRigControlValue Value;
-			Settings.ShapeColor = Value.SetFromString<FLinearColor>(ColorPin->GetDefaultValue());
-		}
-	}
 	Settings.bIsTransientControl = true;
 	Settings.DisplayName = TEXT("Temporary Control");
+
+	TSharedPtr<FRigDirectManipulationInfo> Info = MakeShareable(new FRigDirectManipulationInfo());
+	Info->Target = InTarget;
+	Info->Node = TWeakObjectPtr<const URigVMUnitNode>(InNode);
+
+	FRigControlValue Value = FRigControlValue::Make(FTransform::Identity);
+	UnitInstance->ConfigureDirectManipulationControl(InNode, Info, Settings, Value);
 
 	Controller->ClearSelection();
 
     const FRigElementKey ControlKey = Controller->AddControl(
     	ControlName,
-    	SpaceKey,
+    	FRigElementKey(),
     	Settings,
-    	FRigControlValue::Make(FTransform::Identity),
-    	OffsetTransform,
+    	Value,
+    	FTransform::Identity,
     	ShapeTransform, false);
 
-	SetTransientControlValue(InPin);
+	Info->ControlKey = ControlKey;
+	RigUnitManipulationInfos.Add(Info);
+	SetTransientControlValue(InNode, Info);
+	Info->bInitialized = true;
 
-	return ControlName;
+	return Info->ControlKey.Name;
 }
 
-bool UControlRig::SetTransientControlValue(URigVMPin* InPin)
+bool UControlRig::SetTransientControlValue(const URigVMUnitNode* InNode, TSharedPtr<FRigDirectManipulationInfo> InInfo)
 {
-	const FName ControlName = GetNameForTransientControl(InPin);
-	if (FRigControlElement* ControlElement = FindControl(ControlName))
+	check(InNode);
+	check(DynamicHierarchy);
+	
+	const TSharedPtr<FStructOnScope> NodeInstance = InNode->ConstructLiveStructInstance(this);
+	check(NodeInstance.IsValid());
+	check(NodeInstance->IsValid());
+
+	const UScriptStruct* UnitStruct = InNode->GetScriptStruct();
+	check(UnitStruct);
+
+	FRigUnit* UnitInstance = GetRigUnitInstanceFromScope(NodeInstance);
+	check(UnitInstance);
+
+	const FName ControlName = GetNameForTransientControl(InNode, InInfo->Target);
+	const FRigControlElement* ControlElement = DynamicHierarchy->Find<FRigControlElement>({ ControlName, ERigElementType::Control });
+	if(ControlElement == nullptr)
 	{
-		FString DefaultValue = InPin->GetPinForLink()->GetDefaultValue();
-		if (!DefaultValue.IsEmpty())
-		{
-			if (InPin->GetCPPType() == TEXT("FVector"))
-			{
-				ControlElement->Settings.ControlType = ERigControlType::Position;
-				FRigControlValue Value;
-				Value.SetFromString<FVector>(DefaultValue);
-				DynamicHierarchy->SetControlValue(ControlElement, Value, ERigControlValueType::Current, false);
-			}
-			else if (InPin->GetCPPType() == TEXT("FQuat"))
-			{
-				ControlElement->Settings.ControlType = ERigControlType::Rotator;
-				FRigControlValue Value;
-				Value.SetFromString<FRotator>(DefaultValue);
-				DynamicHierarchy->SetControlValue(ControlElement, Value, ERigControlValueType::Current, false);
-			}
-			else
-			{
-				ControlElement->Settings.ControlType = ERigControlType::Transform;
-				FRigControlValue Value;
-				Value.SetFromString<FTransform>(DefaultValue);
-				DynamicHierarchy->SetControlValue(ControlElement, Value, ERigControlValueType::Current, false);
-			}
-		}
-		return true;
+		return false;
 	}
-	return false;
+
+	FControlRigExecuteContext& PublicContext = GetExtendedExecuteContext().GetPublicDataSafe<FControlRigExecuteContext>();
+	return UnitInstance->UpdateHierarchyForDirectManipulation(InNode, NodeInstance, PublicContext, InInfo);
 }
 
-FName UControlRig::RemoveTransientControl(URigVMPin* InPin)
+FName UControlRig::RemoveTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget)
 {
-	if ((InPin == nullptr) || (DynamicHierarchy == nullptr))
+	if ((InNode == nullptr) || (DynamicHierarchy == nullptr))
 	{
 		return NAME_None;
 	}
+
+	RigUnitManipulationInfos.RemoveAll([InTarget](const TSharedPtr<FRigDirectManipulationInfo>& Info) -> bool
+	{
+		return Info->Target == InTarget;
+	});
 
 	URigHierarchyController* Controller = DynamicHierarchy->GetController(true);
 	if(Controller == nullptr)
@@ -2010,7 +2070,7 @@ FName UControlRig::RemoveTransientControl(URigVMPin* InPin)
 		return NAME_None;
 	}
 
-	const FName ControlName = GetNameForTransientControl(InPin);
+	const FName ControlName = GetNameForTransientControl(InNode, InTarget);
 	if(FRigControlElement* ControlElement = FindControl(ControlName))
 	{
 		DynamicHierarchy->Notify(ERigHierarchyNotification::ElementDeselected, ControlElement);
@@ -2121,7 +2181,7 @@ FName UControlRig::AddTransientControl(const FRigElementKey& InElement)
 
 	SetTransientControlValue(InElement);
 
-	return ControlName;
+	return ControlKey.Name;
 }
 
 bool UControlRig::SetTransientControlValue(const FRigElementKey& InElement)
@@ -2227,23 +2287,60 @@ FName UControlRig::RemoveTransientControl(const FRigElementKey& InElement)
 	return NAME_None;
 }
 
-FName UControlRig::GetNameForTransientControl(URigVMPin* InPin) const
+FName UControlRig::GetNameForTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget) const
 {
-	check(InPin);
+	check(InNode);
 	check(DynamicHierarchy);
 	
-	const FString OriginalPinPath = InPin->GetOriginalPinFromInjectedNode()->GetPinPath();
-	return DynamicHierarchy->GetSanitizedName(FString::Printf(TEXT("ControlForPin_%s"), *OriginalPinPath));
+	const FString NodeName = InNode->GetName();
+	return DynamicHierarchy->GetSanitizedName(FString::Printf(TEXT("ControlForNode|%s|%s"), *NodeName, *InTarget.Name));
 }
 
-FString UControlRig::GetPinNameFromTransientControl(const FRigElementKey& InKey)
+FString UControlRig::GetNodeNameFromTransientControl(const FRigElementKey& InKey)
 {
 	FString Name = InKey.Name.ToString();
-	if(Name.StartsWith(TEXT("ControlForPin_")))
+	if(Name.StartsWith(TEXT("ControlForNode|")))
 	{
-		Name.RightChopInline(14);
+		Name.RightChopInline(15);
+		Name.LeftInline(Name.Find(TEXT("|")));
+	}
+	else
+	{
+		return FString();
 	}
 	return Name;
+}
+
+FString UControlRig::GetTargetFromTransientControl(const FRigElementKey& InKey)
+{
+	FString Name = InKey.Name.ToString();
+	if(Name.StartsWith(TEXT("ControlForNode|")))
+	{
+		Name.RightChopInline(15);
+		Name.RightChopInline(Name.Find(TEXT("|")) + 1);
+	}
+	else
+	{
+		return FString();
+	}
+	return Name;
+}
+
+TSharedPtr<FRigDirectManipulationInfo> UControlRig::GetRigUnitManipulationInfoForTransientControl(
+	const FRigElementKey& InKey)
+{
+	const TSharedPtr<FRigDirectManipulationInfo>* InfoPtr = RigUnitManipulationInfos.FindByPredicate(
+		[InKey](const TSharedPtr<FRigDirectManipulationInfo>& Info) -> bool
+		{
+			return Info->ControlKey == InKey;
+		}) ;
+
+	if(InfoPtr)
+	{
+		return *InfoPtr;
+	}
+
+	return TSharedPtr<FRigDirectManipulationInfo>();
 }
 
 FName UControlRig::GetNameForTransientControl(const FRigElementKey& InElement)
@@ -2309,15 +2406,15 @@ void UControlRig::ClearTransientControls()
 	}
 	TGuardValue<bool> ReEntryGuard(bIsClearingTransientControls, true);
 
+	RigUnitManipulationInfos.Reset();
+
 	const TArray<FRigControlElement*> ControlsToRemove = DynamicHierarchy->GetTransientControls();
 	for (FRigControlElement* ControlToRemove : ControlsToRemove)
 	{
 		const FRigElementKey KeyToRemove = ControlToRemove->GetKey();
 		if(Controller->RemoveElement(ControlToRemove))
 		{
-#if WITH_EDITOR
 			SelectionPoseForConstructionMode.Remove(KeyToRemove);
-#endif
 		}
 	}
 }
@@ -2539,6 +2636,22 @@ void UControlRig::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedE
 	}
 }
 #endif
+
+FRigUnit* UControlRig::GetRigUnitInstanceFromScope(TSharedPtr<FStructOnScope> InScope)
+{
+	if(InScope.IsValid())
+	{
+		if(InScope->IsValid())
+		{
+			if(InScope->GetStruct()->IsChildOf(FRigUnit::StaticStruct()))
+			{
+				return (FRigUnit*)InScope->GetStructMemory(); 
+			}
+		}
+	}
+	static FStructOnScope DefaultRigUnitInstance(FRigUnit::StaticStruct());
+	return (FRigUnit*)DefaultRigUnitInstance.GetStructMemory();
+}
 
 const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 {

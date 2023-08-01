@@ -68,15 +68,6 @@ struct CONTROLRIG_API FRigUnit_TwoBoneIKSimple : public FRigUnit_HighlevelBaseMu
 		CachedPoleVectorSpaceIndex = FCachedRigElement();
 	}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		if (InPinPath.StartsWith(TEXT("PoleVector")))
-		{
-			return FRigElementKey(PoleVectorSpace, ERigElementType::Bone);
-		}
-		return FRigElementKey();
-	}
-
 	RIGVM_METHOD()
 	virtual void Execute() override;
 
@@ -238,14 +229,10 @@ struct CONTROLRIG_API FRigUnit_TwoBoneIKSimplePerItem : public FRigUnit_Highleve
 		CachedPoleVectorSpaceIndex = FCachedRigElement();
 	}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		if (InPinPath.StartsWith(TEXT("PoleVector")))
-		{
-			return PoleVectorSpace;
-		}
-		return FRigElementKey();
-	}
+#if WITH_EDITOR
+	virtual bool UpdateHierarchyForDirectManipulation(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, FControlRigExecuteContext& InContext, TSharedPtr<FRigDirectManipulationInfo> InInfo) override;
+	virtual bool UpdateDirectManipulationFromHierarchy(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, FControlRigExecuteContext& InContext, TSharedPtr<FRigDirectManipulationInfo> InInfo) override;
+#endif
 
 	RIGVM_METHOD()
 	virtual void Execute() override;

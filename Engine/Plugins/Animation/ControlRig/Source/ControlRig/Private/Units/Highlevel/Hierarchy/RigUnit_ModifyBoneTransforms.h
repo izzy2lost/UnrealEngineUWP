@@ -53,39 +53,6 @@ struct CONTROLRIG_API FRigUnit_ModifyBoneTransforms : public FRigUnit_HighlevelB
 		BoneToModify.Add(FRigUnit_ModifyBoneTransforms_PerBone());
 	}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		if (InPinPath.StartsWith(TEXT("BoneToModify")))
-		{
-			int32 Index = INDEX_NONE;
-			FString Left, Middle, Right;
-			if (InPinPath.Replace(TEXT("["), TEXT(".")).Split(TEXT("."), &Left, &Middle))
-			{
-				if (Middle.Replace(TEXT("]"), TEXT(".")).Split(TEXT("."), &Left, &Right))
-				{
-					Index = FCString::Atoi(*Left);
-				}
-			}
-
-			if (BoneToModify.IsValidIndex(Index))
-			{
-				if (Mode == EControlRigModifyBoneMode::AdditiveLocal)
-				{
-					return FRigElementKey(BoneToModify[Index].Bone, ERigElementType::Bone);
-				}
-
-				if (Mode == EControlRigModifyBoneMode::OverrideLocal)
-				{
-					if (const URigHierarchy* Hierarchy = (const URigHierarchy*)InUserContext)
-					{
-						return Hierarchy->GetFirstParent(FRigElementKey(BoneToModify[Index].Bone, ERigElementType::Bone));
-					}
-				}
-			}
-		}
-		return FRigElementKey();
-	}
-
 	RIGVM_METHOD()
 	virtual void Execute() override;
 

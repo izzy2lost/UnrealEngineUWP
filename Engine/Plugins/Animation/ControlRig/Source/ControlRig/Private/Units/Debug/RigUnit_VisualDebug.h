@@ -69,11 +69,6 @@ struct CONTROLRIG_API FRigUnit_VisualDebugVectorItemSpace : public FRigUnit_Debu
 		Space = FRigElementKey(NAME_None, ERigElementType::Bone);
 	}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		return Space;
-	}
-
 	RIGVM_METHOD()
 	virtual void Execute() override;
 
@@ -155,11 +150,6 @@ struct CONTROLRIG_API FRigUnit_VisualDebugQuatItemSpace : public FRigUnit_DebugB
 		Space = FRigElementKey(NAME_None, ERigElementType::Bone);
 	}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		return Space;
-	}
-
 	RIGVM_METHOD()
 	virtual void Execute() override;
 
@@ -233,11 +223,6 @@ struct CONTROLRIG_API FRigUnit_VisualDebugTransformItemSpace : public FRigUnit_D
 		Thickness = 0.f;
 		Scale = 10.f;
 		Space = FRigElementKey(NAME_None, ERigElementType::Bone);
-	}
-
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		return Space;
 	}
 
 	RIGVM_METHOD()

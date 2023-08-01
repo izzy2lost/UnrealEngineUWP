@@ -22,6 +22,7 @@
 #include "Editor/RigVMDetailsViewWrapperObject.h"
 #include "ControlRigTestData.h"
 #include "RigVMHost.h"
+#include "Units/RigUnit.h"
 
 class UControlRigBlueprint;
 class IPersonaToolkit;
@@ -73,6 +74,8 @@ public:
 	// FRigVMEditor interface
 	virtual UClass* GetDetailWrapperClass() const;
 	virtual void Compile() override;
+	virtual void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject) override;
+	virtual void OnCreateGraphEditorCommands(TSharedPtr<FUICommandList> GraphEditorCommandsList) override;
 
 	// allows the editor to fill an empty graph
 	virtual void CreateEmptyGraphContent(URigVMController* InController) override;
@@ -140,6 +143,21 @@ public:
 
 	FOnGetContextMenu& OnGetViewportContextMenu() { return OnGetViewportContextMenuDelegate; }
 	FNewMenuCommandsDelegate& OnViewportContextMenuCommands() { return OnViewportContextMenuCommandsDelegate; }
+
+	// DirectManipulation functionality
+	void HandleRequestDirectManipulationPosition() const { (void)HandleRequestDirectManipulation(ERigControlType::Position); }
+	void HandleRequestDirectManipulationRotation() const { (void)HandleRequestDirectManipulation(ERigControlType::Rotator); }
+	void HandleRequestDirectManipulationScale() const { (void)HandleRequestDirectManipulation(ERigControlType::Scale); }
+	bool HandleRequestDirectManipulation(ERigControlType InControlType) const;
+	bool SetDirectionManipulationSubject(const URigVMUnitNode* InNode);
+	bool IsDirectManipulationEnabled() const;
+	EVisibility GetDirectManipulationVisibility() const;
+	FText GetDirectionManipulationText() const;
+	void OnDirectManipulationChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo);
+	const TArray<FRigDirectManipulationTarget> GetDirectManipulationTargets() const;
+	const TArray<TSharedPtr<FString>>& GetDirectManipulationTargetTextList() const;
+	bool ClearDirectManipulationSubject() { return SetDirectionManipulationSubject(nullptr); }
+	void RefreshDirectManipulationTextList();
 
 protected:
 
@@ -266,14 +284,6 @@ protected:
 
 	void OnAnimInitialized();
 
-	TSharedPtr<SRigVMGraphPinNameListValueWidget> PinControlNameList;
-	bool IsPinControlNameListEnabled() const;
-	TSharedRef<SWidget> MakePinControlNameListItemWidget(TSharedPtr<FString> InItem);
-	FText GetPinControlNameListText() const;
-	TSharedPtr<FString> GetPinControlCurrentlySelectedItem(const TArray<TSharedPtr<FString>>* InNameList) const;
-	void SetPinControlNameListText(const FText& NewTypeInValue, ETextCommit::Type /*CommitInfo*/);
-	void OnPinControlNameListChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
-	void OnPinControlNameListComboBox(const TArray<TSharedPtr<FString>>* InNameList);
 	bool IsConstructionModeEnabled() const;
 
 	int32 RigHierarchyTabCount;
@@ -286,6 +296,9 @@ protected:
 	uint32 LastHierarchyHash;
 
 	TStrongObjectPtr<UControlRigTestData> TestDataStrongPtr;
+
+	TWeakObjectPtr<const URigVMUnitNode> DirectManipulationSubject;
+	mutable TArray<TSharedPtr<FString>> DirectManipulationTextList;
 	
 	static const TArray<FName> ForwardsSolveEventQueue;
 	static const TArray<FName> BackwardsSolveEventQueue;

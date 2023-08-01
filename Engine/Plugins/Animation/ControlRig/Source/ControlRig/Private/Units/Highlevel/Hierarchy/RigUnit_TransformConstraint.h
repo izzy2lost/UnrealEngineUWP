@@ -58,26 +58,6 @@ struct CONTROLRIG_API FRigUnit_TransformConstraint : public FRigUnit_HighlevelBa
 		, bUseInitialTransforms(true)
 	{}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		if (InPinPath.StartsWith(TEXT("Targets")))
-		{
-			if (BaseTransformSpace == ETransformSpaceMode::BaseJoint)
-			{
-				return FRigElementKey(BaseBone, ERigElementType::Bone);
-			}
-
-			if (BaseTransformSpace == ETransformSpaceMode::LocalSpace)
-			{
-				if (const URigHierarchy* Hierarchy = (const URigHierarchy*)InUserContext)
-				{
-					return Hierarchy->GetFirstParent(FRigElementKey(Bone, ERigElementType::Bone));
-				}
-			}
-		}
-		return FRigElementKey();
-	}
-
 	RIGVM_METHOD()
 	virtual void Execute() override;
 
@@ -126,26 +106,6 @@ struct CONTROLRIG_API FRigUnit_TransformConstraintPerItem : public FRigUnit_High
 		, bUseInitialTransforms(true)
 	{
 		Item = BaseItem = FRigElementKey(NAME_None, ERigElementType::Bone);
-	}
-
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		if (InPinPath.StartsWith(TEXT("Targets")))
-		{
-			if (BaseTransformSpace == ETransformSpaceMode::BaseJoint)
-			{
-				return BaseItem;
-			}
-
-			if (BaseTransformSpace == ETransformSpaceMode::LocalSpace)
-			{
-				if (const URigHierarchy* Hierarchy = (const URigHierarchy*)InUserContext)
-				{
-					return Hierarchy->GetFirstParent(Item);
-				}
-			}
-		}
-		return FRigElementKey();
 	}
 
 	RIGVM_METHOD()

@@ -951,10 +951,10 @@ void URigHierarchy::SanitizeName(FString& InOutName)
 	{
 		TCHAR& C = InOutName[i];
 
-		const bool bGoodChar = FChar::IsAlpha(C) ||				// Any letter
-			(C == '_') || (C == '-') || (C == '.') ||			// _  - . anytime
-			(FChar::IsDigit(C)) ||								// 0-9 anytime
-			((i > 0) && (C== ' '));								// Space after the first character to support virtual bones
+		const bool bGoodChar = FChar::IsAlpha(C) ||					 // Any letter
+			(C == '_') || (C == '-') || (C == '.') || (C == '|') ||	 // _  - .  | anytime
+			(FChar::IsDigit(C)) ||									 // 0-9 anytime
+			((i > 0) && (C== ' '));									 // Space after the first character to support virtual bones
 
 		if (!bGoodChar)
 		{

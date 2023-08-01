@@ -18,18 +18,6 @@ struct CONTROLRIG_API FRigUnit_GetInitialBoneTransform : public FRigUnit
 		, CachedBone(FCachedRigElement())
 	{}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		if (InPinPath.StartsWith(TEXT("Transform")) && Space == ERigVMTransformSpace::LocalSpace)
-		{
-			if (const URigHierarchy* Hierarchy = (const URigHierarchy*)InUserContext)
-			{
-				return Hierarchy->GetFirstParent(FRigElementKey(Bone, ERigElementType::Bone));
-			}
-		}
-		return FRigElementKey();
-	}
-
 	RIGVM_METHOD()
 	virtual void Execute() override;
 

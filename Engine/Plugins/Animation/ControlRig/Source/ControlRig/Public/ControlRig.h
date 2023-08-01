@@ -21,6 +21,7 @@
 
 #if WITH_EDITOR
 #include "RigVMModel/RigVMPin.h"
+#include "RigVMModel/Nodes/RigVMUnitNode.h"
 #include "RigVMTypeUtils.h"
 #endif
 
@@ -410,14 +411,14 @@ private:
 	void HandleHierarchyModified(ERigHierarchyNotification InNotification, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 
 #if WITH_EDITOR
-	/** Remove a transient / temporary control used to interact with a pin */
-	FName AddTransientControl(URigVMPin* InPin, FRigElementKey SpaceKey = FRigElementKey(), FTransform OffsetTransform = FTransform::Identity);
+	/** Add a transient / temporary control used to interact with a node */
+	FName AddTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget);
 
-	/** Sets the value of a transient control based on a pin */
-	bool SetTransientControlValue(URigVMPin* InPin);
+	/** Sets the value of a transient control based on a node */
+	bool SetTransientControlValue(const URigVMUnitNode* InNode, TSharedPtr<FRigDirectManipulationInfo> InInfo);
 
-	/** Remove a transient / temporary control used to interact with a pin */
-	FName RemoveTransientControl(URigVMPin* InPin);
+	/** Remove a transient / temporary control used to interact with a node */
+	FName RemoveTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget);
 
 	FName AddTransientControl(const FRigElementKey& InElement);
 
@@ -428,9 +429,13 @@ private:
 	FName RemoveTransientControl(const FRigElementKey& InElement);
 
 	static FName GetNameForTransientControl(const FRigElementKey& InElement);
-	FName GetNameForTransientControl(URigVMPin* InPin) const;
-	static FString GetPinNameFromTransientControl(const FRigElementKey& InKey);
+	FName GetNameForTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget) const;
+	static FString GetNodeNameFromTransientControl(const FRigElementKey& InKey);
+	static FString GetTargetFromTransientControl(const FRigElementKey& InKey);
+	TSharedPtr<FRigDirectManipulationInfo> GetRigUnitManipulationInfoForTransientControl(const FRigElementKey& InKey);
+	
 	static FRigElementKey GetElementKeyFromTransientControl(const FRigElementKey& InKey);
+	bool CanAddTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget, FString* OutFailureReason);
 
 	/** Removes all  transient / temporary control used to interact with pins */
 	void ClearTransientControls();
@@ -489,6 +494,7 @@ public:
 #endif
 
 	float GetDebugBoneRadiusMultiplier() const { return DebugBoneRadiusMultiplier; }
+	static FRigUnit* GetRigUnitInstanceFromScope(TSharedPtr<FStructOnScope> InScope);
 
 public:
 	//~ Begin IInterface_AssetUserData Interface
@@ -520,6 +526,9 @@ protected:
 	int32 ControlUndoBracketIndex;
 	uint8 InteractionType;
 	TArray<FRigElementKey> ElementsBeingInteracted;
+#if WITH_EDITOR
+	TArray<TSharedPtr<FRigDirectManipulationInfo>> RigUnitManipulationInfos;
+#endif
 	bool bInteractionJustBegan;
 
 	TWeakObjectPtr<USceneComponent> OuterSceneComponent;
@@ -732,6 +741,7 @@ private:
 	friend class AControlRigControlActor;
 	friend class AControlRigShapeActor;
 	friend class FRigTransformElementDetails;
+	friend class FControlRigEditorModule;
 };
 
 class CONTROLRIG_API FControlRigBracketScope

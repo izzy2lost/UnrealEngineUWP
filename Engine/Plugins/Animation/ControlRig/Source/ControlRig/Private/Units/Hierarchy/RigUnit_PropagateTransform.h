@@ -22,11 +22,6 @@ struct CONTROLRIG_API FRigUnit_PropagateTransform : public FRigUnitMutable
 		, CachedIndex()
 	{}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		return Item;
-	}
-
 	RIGVM_METHOD()
 	virtual void Execute() override;
 

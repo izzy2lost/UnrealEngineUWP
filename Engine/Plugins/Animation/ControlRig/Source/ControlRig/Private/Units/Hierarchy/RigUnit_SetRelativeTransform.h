@@ -24,11 +24,11 @@ struct CONTROLRIG_API FRigUnit_SetRelativeTransformForItem : public FRigUnitMuta
 		, CachedParent()
 	{}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		return Parent;
-	}
-
+#if WITH_EDITOR
+	virtual bool UpdateHierarchyForDirectManipulation(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, FControlRigExecuteContext& InContext, TSharedPtr<FRigDirectManipulationInfo> InInfo) override;
+	virtual bool UpdateDirectManipulationFromHierarchy(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, FControlRigExecuteContext& InContext, TSharedPtr<FRigDirectManipulationInfo> InInfo) override;
+#endif
+	
 	RIGVM_METHOD()
 	virtual void Execute() override;
 
@@ -93,11 +93,11 @@ struct CONTROLRIG_API FRigUnit_SetRelativeTranslationForItem : public FRigUnitMu
 		, CachedParent()
 	{}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		return Parent;
-	}
-
+#if WITH_EDITOR
+	virtual bool UpdateHierarchyForDirectManipulation(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, FControlRigExecuteContext& InContext, TSharedPtr<FRigDirectManipulationInfo> InInfo) override;
+	virtual bool UpdateDirectManipulationFromHierarchy(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, FControlRigExecuteContext& InContext, TSharedPtr<FRigDirectManipulationInfo> InInfo) override;
+#endif
+	
 	RIGVM_METHOD()
 	virtual void Execute() override;
 
@@ -162,11 +162,11 @@ struct CONTROLRIG_API FRigUnit_SetRelativeRotationForItem : public FRigUnitMutab
 		, CachedParent()
 	{}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		return Parent;
-	}
-
+#if WITH_EDITOR
+	virtual bool UpdateHierarchyForDirectManipulation(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, FControlRigExecuteContext& InContext, TSharedPtr<FRigDirectManipulationInfo> InInfo) override;
+	virtual bool UpdateDirectManipulationFromHierarchy(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, FControlRigExecuteContext& InContext, TSharedPtr<FRigDirectManipulationInfo> InInfo) override;
+#endif
+	
 	RIGVM_METHOD()
 	virtual void Execute() override;
 

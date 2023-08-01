@@ -382,6 +382,10 @@ public:
 
 	/** Suspend Rig Hierarchy Notifies*/
 	void SuspendHierarchyNotifs(bool bVal) { bSuspendHierarchyNotifs = bVal; }
+
+	/** Request a certain transform widget for the next update */
+	void RequestTransformWidgetMode(UE::Widget::EWidgetMode InWidgetMode);
+	
 private:
 	/** Whether or not Pivot Transforms have changed, in which case we need to redraw viewport*/
 	bool HasPivotTransformsChanged() const;
@@ -389,6 +393,7 @@ private:
 	void SetRigElementSelectionInternal(UControlRig* ControlRig, ERigElementType Type, const FName& InRigElementName, bool bSelected);
 	
 	FEditorViewportClient* CurrentViewportClient;
+	TArray<UE::Widget::EWidgetMode> RequestedWidgetModes;
 
 /* store coordinate system per widget mode*/
 private:

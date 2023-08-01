@@ -585,7 +585,16 @@ void FControlRigEditMode::Tick(FEditorViewportClient* ViewportClient, float Delt
 				if (UControlRig* ControlRig = RuntimeRigPtr.Get())
 				{
 					TArray<FRigElementKey> SelectedRigElements = GetSelectedRigElements(ControlRig);
-					const UE::Widget::EWidgetMode CurrentWidgetMode = ViewportClient->GetWidgetMode();
+					UE::Widget::EWidgetMode CurrentWidgetMode = ViewportClient->GetWidgetMode();
+					if(!RequestedWidgetModes.IsEmpty())
+					{
+						if(RequestedWidgetModes.Last() != CurrentWidgetMode)
+						{
+							CurrentWidgetMode = RequestedWidgetModes.Last();
+							ViewportClient->SetWidgetMode(CurrentWidgetMode);
+						}
+						RequestedWidgetModes.Reset();
+					}
 					for (FRigElementKey SelectedRigElement : SelectedRigElements)
 					{
 						//need to loop through the shape actors and set widget based upon the first one
@@ -2280,6 +2289,11 @@ void FControlRigEditMode::RecalcPivotTransform()
 	}
 }
 
+void FControlRigEditMode::RequestTransformWidgetMode(UE::Widget::EWidgetMode InWidgetMode)
+{
+	RequestedWidgetModes.Add(InWidgetMode);
+}
+
 bool FControlRigEditMode::HasPivotTransformsChanged() const
 {
 	if (PivotTransforms.Num() != LastPivotTransforms.Num())
@@ -2910,7 +2924,10 @@ void FControlRigEditMode::ResetTransforms(bool bSelectionOnly)
 				ControlElement = ControlRig->FindControl(ElementToReset.Name);
 				if (ControlElement->Settings.bIsTransientControl)
 				{
-					ControlElement = nullptr;
+					if(UControlRig::GetNodeNameFromTransientControl(ControlElement->GetKey()).IsEmpty())
+					{
+						ControlElement = nullptr;
+					}
 				}
 			}
 			

@@ -699,6 +699,33 @@ const bool URigVMNode::IsControlFlowBlockSliced(const FName& InBlockName) const
 	return false;
 }
 
+bool URigVMNode::IsWithinLoop() const
+{
+	for(const URigVMPin* Pin : Pins)
+	{
+		const TArray<URigVMPin*> SourcePins = Pin->GetLinkedSourcePins(true);
+		for(const URigVMPin* SourcePin : SourcePins)
+		{
+			if(SourcePin->GetNode()->IsLoopNode())
+			{
+				if(!SourcePin->IsExecuteContext() || SourcePin->GetFName() != FRigVMStruct::ForLoopCompletedPinName)
+				{
+					return true;
+				}
+			}
+		}
+
+		for(const URigVMPin* SourcePin : SourcePins)
+		{
+			if(SourcePin->GetNode()->IsWithinLoop())
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 TArray<FRigVMUserWorkflow> URigVMNode::GetSupportedWorkflows(ERigVMUserWorkflowType InType, const UObject* InSubject) const
 {
 	if(InSubject == nullptr)

@@ -92,6 +92,7 @@
 #include "RigVMFunctions/Math/RigVMMathLibrary.h"
 #include "Constraints/ControlRigTransformableHandle.h"
 #include "Constraints/TransformConstraintChannelInterface.h"
+#include "Async/TaskGraphInterfaces.h"
 
 #define LOCTEXT_NAMESPACE "ControlRigEditorModule"
 
@@ -468,6 +469,8 @@ void FControlRigEditorModule::GetNodeContextMenuActions(URigVMBlueprint* RigVMBl
 		}
 	}
 
+	GetDirectManipulationMenuActions(RigVMBlueprint, ModelNode, nullptr, Menu);
+
 	if (RigElementsToSelect.Num() > 0)
 	{
 		FToolMenuSection& Section = Menu->AddSection("RigVMEditorContextMenuHierarchy", LOCTEXT("HierarchyHeader", "Hierarchy"));
@@ -614,27 +617,162 @@ void FControlRigEditorModule::GetNodeContextMenuActions(URigVMBlueprint* RigVMBl
 void FControlRigEditorModule::GetPinContextMenuActions(URigVMBlueprint* RigVMBlueprint, const UEdGraphPin* EdGraphPin, URigVMPin* ModelPin, UToolMenu* Menu) const
 {
 	FRigVMEditorModule::GetPinContextMenuActions(RigVMBlueprint, EdGraphPin, ModelPin, Menu);
+	GetDirectManipulationMenuActions(RigVMBlueprint, ModelPin->GetNode(), ModelPin, Menu);
+}
 
+void FControlRigEditorModule::GetDirectManipulationMenuActions(URigVMBlueprint* RigVMBlueprint, URigVMNode* InNode, URigVMPin* ModelPin, UToolMenu* Menu) const
+{
     // Add direct manipulation context menu entries
 	if(UControlRigBlueprint* ControlRigBlueprint = Cast<UControlRigBlueprint>(RigVMBlueprint))
 	{
-		if ((ModelPin->GetCPPType() == TEXT("FVector") ||
-			 ModelPin->GetCPPType() == TEXT("FQuat") ||
-			 ModelPin->GetCPPType() == TEXT("FTransform")) &&
-			(ModelPin->GetDirection() == ERigVMPinDirection::Input ||
-			 ModelPin->GetDirection() == ERigVMPinDirection::IO) &&
-			 ModelPin->GetPinForLink()->GetRootPin()->GetSourceLinks(true).Num() == 0)
+		UControlRig* DebuggedRig = Cast<UControlRig>(RigVMBlueprint->GetObjectBeingDebugged());
+		if(DebuggedRig == nullptr)
 		{
-			FToolMenuSection& Section = Menu->AddSection("RigVMEditorContextMenuControlPin", LOCTEXT("ControlPin", "Direct Manipulation"));
-			Section.AddMenuEntry(
-				"DirectManipControlPin",
-				LOCTEXT("DirectManipControlPin", "Control Pin Value"),
-				LOCTEXT("DirectManipControlPin_Tooltip", "Configures the pin for direct interaction in the viewport"),
-				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateLambda([ControlRigBlueprint, ModelPin]() {
-					ControlRigBlueprint->AddTransientControl(ModelPin);
-				})
-			));
+			return;
+		}
+		
+		if(const URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(InNode))
+		{
+			if(!UnitNode->IsPartOfRuntime(DebuggedRig))
+			{
+				return;
+			}
+			
+			const UScriptStruct* ScriptStruct = UnitNode->GetScriptStruct();
+			if(ScriptStruct == nullptr)
+			{
+				return;
+			}
+
+			TSharedPtr<FStructOnScope> NodeInstance = UnitNode->ConstructStructInstance(false);
+			if(!NodeInstance.IsValid() || !NodeInstance->IsValid())
+			{
+				return;
+			}
+
+			const FRigUnit* UnitInstance = UControlRig::GetRigUnitInstanceFromScope(NodeInstance);
+			TArray<FRigDirectManipulationTarget> Targets;
+			if(UnitInstance->GetDirectManipulationTargets(UnitNode, NodeInstance, DebuggedRig->GetHierarchy(), Targets, nullptr))
+			{
+				if(ModelPin)
+				{
+					Targets.RemoveAll([ModelPin, UnitNode, UnitInstance](const FRigDirectManipulationTarget& Target) -> bool
+					{
+						const TArray<const URigVMPin*> AffectedPins = UnitInstance->GetPinsForDirectManipulation(UnitNode, Target);
+						return !AffectedPins.Contains(ModelPin);
+					});
+				}
+
+				if(!Targets.IsEmpty())
+				{
+					FToolMenuSection& Section = Menu->AddSection("RigVMEditorContextMenuControlNode", LOCTEXT("ControlNodeDirectManipulation", "Direct Manipulation"));
+
+					bool bHasPosition = false;
+					bool bHasRotation = false;
+					bool bHasScale = false;
+					
+					for(const FRigDirectManipulationTarget& Target : Targets)
+					{
+						auto IsSliced = [UnitNode]() -> bool
+						{
+							return UnitNode->IsWithinLoop();
+						};
+						
+						auto HasNoUnconstrainedAffectedPin = [NodeInstance, UnitNode, Target]() -> bool
+						{
+							const FRigUnit* UnitInstance = UControlRig::GetRigUnitInstanceFromScope(NodeInstance);
+							const TArray<const URigVMPin*> AffectedPins = UnitInstance->GetPinsForDirectManipulation(UnitNode, Target);
+
+							int32 NumAffectedPinsWithRootLinks = 0;
+							for(const URigVMPin* AffectedPin : AffectedPins)
+							{
+								if(!AffectedPin->GetRootPin()->GetSourceLinks().IsEmpty())
+								{
+									NumAffectedPinsWithRootLinks++;
+								}
+							}
+							return NumAffectedPinsWithRootLinks == AffectedPins.Num();
+						};
+
+						FText Suffix;
+						static const FText SuffixPosition = LOCTEXT("DirectManipulationPosition", " (W)"); 
+						static const FText SuffixRotation = LOCTEXT("DirectManipulationRotation", " (E)"); 
+						static const FText SuffixScale = LOCTEXT("DirectManipulationScale", " (R)"); 
+						TSharedPtr< const FUICommandInfo > CommandInfo;
+						if(!CommandInfo.IsValid() && !bHasPosition)
+						{
+							if(Target.ControlType == ERigControlType::EulerTransform || Target.ControlType == ERigControlType::Position)
+							{
+								CommandInfo = FControlRigEditorCommands::Get().RequestDirectManipulationPosition;
+								Suffix = SuffixPosition;
+								bHasPosition = true;
+							}
+						}
+						if(!CommandInfo.IsValid() && !bHasRotation)
+						{
+							if(Target.ControlType == ERigControlType::EulerTransform || Target.ControlType == ERigControlType::Rotator)
+							{
+								CommandInfo = FControlRigEditorCommands::Get().RequestDirectManipulationRotation;
+								Suffix = SuffixRotation;
+								bHasRotation = true;
+							}
+						}
+						if(!CommandInfo.IsValid() && !bHasScale)
+						{
+							if(Target.ControlType == ERigControlType::EulerTransform)
+							{
+								CommandInfo = FControlRigEditorCommands::Get().RequestDirectManipulationScale;
+								Suffix = SuffixScale;
+								bHasScale = true;
+							}
+						}
+
+						const FText Label = FText::Format(LOCTEXT("ControlNodeLabelFormat", "Manipulate {0}{1}"), FText::FromString(Target.Name), Suffix);
+						TAttribute<FText> ToolTipAttribute = TAttribute<FText>::CreateLambda([HasNoUnconstrainedAffectedPin, IsSliced, Target]() -> FText
+						{
+							if(HasNoUnconstrainedAffectedPin())
+							{
+								return FText::Format(LOCTEXT("ControlNodeLabelFormat_Tooltip_FullyConstrained", "The value of {0} cannot be manipulated, its pins have links fully constraining it."), FText::FromString(Target.Name));
+							}
+							if(IsSliced())
+							{
+								return FText::Format(LOCTEXT("ControlNodeLabelFormat_Tooltip_Sliced", "The value of {0} cannot be manipulated, the node is linked to a loop."), FText::FromString(Target.Name));
+							}
+							return FText::Format(LOCTEXT("ControlNodeLabelFormat_Tooltip", "Manipulate the value of {0} interactively"), FText::FromString(Target.Name));
+						});
+
+						FToolMenuEntry& MenuEntry = Section.AddMenuEntry(
+							*Target.Name,
+							Label,
+							ToolTipAttribute,
+							FSlateIcon(),
+							FUIAction(FExecuteAction::CreateLambda([ControlRigBlueprint, UnitNode, Target]() {
+
+								// disable literal folding for the moment
+								if(ControlRigBlueprint->VMCompileSettings.ASTSettings.bFoldLiterals)
+								{
+									ControlRigBlueprint->VMCompileSettings.ASTSettings.bFoldLiterals = false;
+									ControlRigBlueprint->RecompileVM();
+								}
+
+								// run the task after a bit so that the rig has the opportunity to run first
+								FFunctionGraphTask::CreateAndDispatchWhenReady([ControlRigBlueprint, UnitNode, Target]()
+								{
+									ControlRigBlueprint->AddTransientControl(UnitNode, Target);
+								}, TStatId(), NULL, ENamedThreads::GameThread);
+							}),
+							FCanExecuteAction::CreateLambda([HasNoUnconstrainedAffectedPin, IsSliced]() -> bool
+							{
+								if(HasNoUnconstrainedAffectedPin() || IsSliced())
+								{
+									return false;
+								}
+								return true;
+							})
+						));
+					}
+				}
+			}
 		}
 	}
 }

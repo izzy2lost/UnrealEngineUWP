@@ -120,10 +120,10 @@ public:
 
 #if WITH_EDITOR
 	/** Remove a transient / temporary control used to interact with a pin */
-	FName AddTransientControl(URigVMPin* InPin);
+	FName AddTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget);
 
 	/** Remove a transient / temporary control used to interact with a pin */
-	FName RemoveTransientControl(URigVMPin* InPin);
+	FName RemoveTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget);
 
 	/** Remove a transient / temporary control used to interact with a bone */
 	FName AddTransientControl(const FRigElementKey& InElement);

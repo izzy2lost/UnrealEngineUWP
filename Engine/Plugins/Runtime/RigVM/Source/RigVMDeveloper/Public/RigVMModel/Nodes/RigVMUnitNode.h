@@ -7,6 +7,8 @@
 #include "UObject/StructOnScope.h"
 #include "RigVMUnitNode.generated.h"
 
+class URigVMHost;
+
 /**
  * The Struct Node represents a Function Invocation of a RIGVM_METHOD
  * declared on a USTRUCT. Struct Nodes have input / output pins for all
@@ -55,6 +57,24 @@ public:
 	// @param bUseDefault If set to true the default struct will be created - otherwise the struct will contains the values from the node
 	TSharedPtr<FStructOnScope> ConstructStructInstance(bool bUseDefault = false) const;
 
+	// Returns an instance of the struct with values backed by the memory of a currently running host
+	TSharedPtr<FStructOnScope> ConstructLiveStructInstance(URigVMHost* InHost, int32 InSliceIndex = 0) const;
+	
+	// Updates the memory of a host to match a specific struct instance
+	bool UpdateHostFromStructInstance(URigVMHost* InHost, TSharedPtr<FStructOnScope> InInstance, int32 InSliceIndex = 0) const;
+
+	// Compares two struct instances and returns differences in pin values
+	void ComputePinValueDifferences(TSharedPtr<FStructOnScope> InCurrentInstance, TSharedPtr<FStructOnScope> InDesiredInstance, TMap<FString, FString>& OutNewPinDefaultValues) const;
+
+	// Compares a desired struct instance with the node's default and returns differences in pin values
+	void ComputePinValueDifferences(TSharedPtr<FStructOnScope> InDesiredInstance, TMap<FString, FString>& OutNewPinDefaultValues) const;
+
+	// Returns true if the node is part of the debugged runtime rig
+	bool IsPartOfRuntime() const;
+
+	// Returns true if the node is part of the debugged runtime rig
+	bool IsPartOfRuntime(URigVMHost* InHost) const;
+
 	// Returns a copy of the struct with the current values
 	template <
 		typename T,
@@ -80,6 +100,12 @@ protected:
 
 	virtual FText GetToolTipTextForPin(const URigVMPin* InPin) const override;
 	virtual bool ShouldInputPinComputeLazily(const URigVMPin* InPin) const override;
+	void EnumeratePropertiesOnHostAndStructInstance(
+		URigVMHost* InHost,
+		TSharedPtr<FStructOnScope> InInstance, 
+		bool bPreferLiterals,
+		TFunction<void(const URigVMPin*,const FProperty*,uint8*,const FProperty*,uint8*)> InEnumerationFunction,
+		int32 InSliceIndex = 0) const;
 
 private:
 

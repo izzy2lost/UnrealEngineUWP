@@ -40,11 +40,6 @@ struct CONTROLRIG_API FRigUnit_TwistBones : public FRigUnit_HighlevelBaseMutable
 		bPropagateToChildren = true;
 	}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		return FRigElementKey(StartBone, ERigElementType::Bone);
-	}
-
 	RIGVM_METHOD()
 	virtual void Execute() override;
 

@@ -81,74 +81,14 @@ struct CONTROLRIG_API FRigUnit_ModifyTransforms : public FRigUnit_HighlevelBaseM
 		ItemToModify[0].Item = FRigElementKey(NAME_None, ERigElementType::Bone);
 	}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		if (InPinPath.StartsWith(TEXT("ItemToModify")))
-		{
-			int32 Index = INDEX_NONE;
-			FString Left, Middle, Right;
-			if (InPinPath.Replace(TEXT("["), TEXT(".")).Split(TEXT("."), &Left, &Middle))
-			{
-				if (Middle.Replace(TEXT("]"), TEXT(".")).Split(TEXT("."), &Left, &Right))
-				{
-					Index = FCString::Atoi(*Left);
-				}
-			}
-
-			if (ItemToModify.IsValidIndex(Index))
-			{
-				if (Mode == EControlRigModifyBoneMode::AdditiveLocal || Mode == EControlRigModifyBoneMode::OverrideLocal)
-				{
-					if (const URigHierarchy* Hierarchy = (const URigHierarchy*)InUserContext)
-					{
-						return Hierarchy->GetFirstParent(ItemToModify[Index].Item);
-					}
-				}
-			}
-		}
-		return FRigElementKey();
-	}
-
-	virtual FTransform DetermineOffsetTransformForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		if (InPinPath.StartsWith(TEXT("ItemToModify")))
-		{
-			int32 Index = INDEX_NONE;
-			FString Left, Middle, Right;
-			if (InPinPath.Replace(TEXT("["), TEXT(".")).Split(TEXT("."), &Left, &Middle))
-			{
-				if (Middle.Replace(TEXT("]"), TEXT(".")).Split(TEXT("."), &Left, &Right))
-				{
-					Index = FCString::Atoi(*Left);
-				}
-			}
-
-			if (ItemToModify.IsValidIndex(Index))
-			{
-				if (ItemToModify[Index].Item.IsValid())
-				{
-					if (const URigHierarchy* Hierarchy = (const URigHierarchy*)InUserContext)
-					{
-						if (Mode == EControlRigModifyBoneMode::AdditiveLocal)
-						{
-							// in the case of AdditiveLocal, we want the transient control's global transform to match the item's global transform
-							// we know: transient control's global = transform value * offset transform * parent transform
-							// we know: item's global transform = item's local transform from rig graph evaluation * its parent transform
-							// we ensure: the item and the transient control share the same parent
-							// so from our goal, transient control's global == item's global transform
-							// we get: transform value * offset transform * parent transform == item's local transform from rig graph evaluation * its parent transform
-							// we get: transform value * offset transform == item's local transform from rig graph evaluation
-							// we get: offset transform == transform value.inverse * item's local transform from rig graph evaluation
-							return ItemToModify[Index].Transform.Inverse() * Hierarchy->GetLocalTransform(ItemToModify[Index].Item);
-						}
-					}
-				}
-			}
-		}
-
-		return FTransform::Identity;
-	}
-
+#if WITH_EDITOR
+	virtual bool GetDirectManipulationTargets(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, URigHierarchy* InHierarchy, TArray<FRigDirectManipulationTarget>& InOutTargets, FString* OutFailureReason) const override;
+	virtual bool UpdateHierarchyForDirectManipulation(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, FControlRigExecuteContext& InContext, TSharedPtr<FRigDirectManipulationInfo> InInfo) override;
+	virtual bool UpdateDirectManipulationFromHierarchy(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, FControlRigExecuteContext& InContext, TSharedPtr<FRigDirectManipulationInfo> InInfo) override;
+	virtual TArray<const URigVMPin*> GetPinsForDirectManipulation(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget) const override;
+	int32 GetIndexFromTarget(const FString& InTarget) const;
+#endif
+	
 	RIGVM_METHOD()
 	virtual void Execute() override;
 
@@ -187,3 +127,4 @@ struct CONTROLRIG_API FRigUnit_ModifyTransforms : public FRigUnit_HighlevelBaseM
 	UPROPERTY(transient)
 	FRigUnit_ModifyTransforms_WorkData WorkData;
 };
+

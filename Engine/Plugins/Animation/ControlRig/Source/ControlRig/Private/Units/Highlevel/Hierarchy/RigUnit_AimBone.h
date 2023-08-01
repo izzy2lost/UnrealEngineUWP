@@ -224,19 +224,6 @@ struct CONTROLRIG_API FRigUnit_AimBone : public FRigUnit_HighlevelBaseMutable
 		bIsInitialized = false;
 	}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		if (InPinPath.StartsWith(TEXT("Primary.Target")))
-		{
-			return FRigElementKey(Primary.Space, ERigElementType::Bone);
-		}
-		if (InPinPath.StartsWith(TEXT("Secondary.Target")))
-		{
-			return FRigElementKey(Secondary.Space, ERigElementType::Bone);
-		}
-		return FRigElementKey();
-	}
-
 	RIGVM_METHOD()
 	virtual void Execute() override;
 
@@ -316,19 +303,13 @@ struct CONTROLRIG_API FRigUnit_AimItem: public FRigUnit_HighlevelBaseMutable
 		bIsInitialized = false;
 	}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		if (InPinPath.StartsWith(TEXT("Primary.Target")))
-		{
-			return Primary.Space;
-		}
-		if (InPinPath.StartsWith(TEXT("Secondary.Target")))
-		{
-			return Secondary.Space;
-		}
-		return FRigElementKey();
-	}
-
+#if WITH_EDITOR
+	virtual bool GetDirectManipulationTargets(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, URigHierarchy* InHierarchy, TArray<FRigDirectManipulationTarget>& InOutTargets, FString* OutFailureReason) const override;
+	virtual TArray<const URigVMPin*> GetPinsForDirectManipulation(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget) const override;
+	virtual bool UpdateHierarchyForDirectManipulation(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, FControlRigExecuteContext& InContext, TSharedPtr<FRigDirectManipulationInfo> InInfo) override;
+	virtual bool UpdateDirectManipulationFromHierarchy(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, FControlRigExecuteContext& InContext, TSharedPtr<FRigDirectManipulationInfo> InInfo) override;
+#endif
+	
 	RIGVM_METHOD()
 	virtual void Execute() override;
 

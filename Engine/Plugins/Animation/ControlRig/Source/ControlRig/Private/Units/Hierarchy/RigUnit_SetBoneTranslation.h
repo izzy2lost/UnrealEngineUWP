@@ -22,18 +22,6 @@ struct CONTROLRIG_API FRigUnit_SetBoneTranslation : public FRigUnitMutable
 		, CachedBone(FCachedRigElement())
 	{}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		if (InPinPath.StartsWith(TEXT("Translation")) && Space == ERigVMTransformSpace::LocalSpace)
-		{
-			if (const URigHierarchy* Hierarchy = (const URigHierarchy*)InUserContext)
-			{
-				return Hierarchy->GetFirstParent(FRigElementKey(Bone, ERigElementType::Bone));
-			}
-		}
-		return FRigElementKey();
-	}
-
 	RIGVM_METHOD()
 	virtual void Execute() override;
 

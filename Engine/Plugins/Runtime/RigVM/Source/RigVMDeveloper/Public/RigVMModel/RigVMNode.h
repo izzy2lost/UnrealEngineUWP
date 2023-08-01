@@ -240,6 +240,9 @@ public:
 	// returns true if a control flow block requires slicing
 	virtual const bool IsControlFlowBlockSliced(const FName& InBlockName) const;
 
+	// returns true if the node is within a loop
+	virtual bool IsWithinLoop() const;
+
 	// returns true if the node can be upgraded
 	UFUNCTION(BlueprintPure, Category = RigVMNode)
 	virtual bool CanBeUpgraded() const { return GetUpgradeInfo().IsValid(); }

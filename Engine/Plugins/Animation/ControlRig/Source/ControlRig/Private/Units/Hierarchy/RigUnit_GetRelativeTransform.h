@@ -23,11 +23,6 @@ struct CONTROLRIG_API FRigUnit_GetRelativeTransformForItem : public FRigUnit
 		, CachedParent()
 	{}
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		return Parent;
-	}
-
 	RIGVM_METHOD()
 	virtual void Execute() override;
 

@@ -202,6 +202,12 @@ void UControlRigBlueprint::PreSave(FObjectPreSaveContext ObjectSaveContext)
 {
 	Super::PreSave(ObjectSaveContext);
 
+	// make sure to save the VM with high performance settings
+	// so that during cooking we reach small footprints.
+	// these settings may have changed during the user session.
+	VMCompileSettings.ASTSettings.bFoldAssignments = true;
+	VMCompileSettings.ASTSettings.bFoldLiterals = true;
+
 	bExposesAnimatableControls = false;
 	Hierarchy->ForEach<FRigControlElement>([this](FRigControlElement* ControlElement) -> bool
     {
@@ -501,7 +507,7 @@ const FControlRigShapeDefinition* UControlRigBlueprint::GetControlShapeByName(co
 	return UControlRigShapeLibrary::GetShapeByName(InName, ShapeLibraries, LibraryNameMap);
 }
 
-FName UControlRigBlueprint::AddTransientControl(URigVMPin* InPin)
+FName UControlRigBlueprint::AddTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget)
 {
 	TUniquePtr<FControlValueScope> ValueScope;
 	if (!UControlRigEditorSettings::Get()->bResetControlsOnPinValueInteraction) // if we need to retain the controls
@@ -515,35 +521,6 @@ FName UControlRigBlueprint::AddTransientControl(URigVMPin* InPin)
 	URigVMBlueprintGeneratedClass* RigClass = GetRigVMBlueprintGeneratedClass();
 	UControlRig* CDO = Cast<UControlRig>(RigClass->GetDefaultObject(true /* create if needed */));
 
-	FRigElementKey SpaceKey;
-	FTransform OffsetTransform = FTransform::Identity;
-	if (URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(InPin->GetPinForLink()->GetNode()))
-	{
-		if (TSharedPtr<FStructOnScope> DefaultStructScope = UnitNode->ConstructStructInstance())
-		{
-			FRigUnit* DefaultStruct = (FRigUnit*)DefaultStructScope->GetStructMemory();
-
-			FString PinPath = InPin->GetPinForLink()->GetPinPath();
-			FString Left, Right;
-
-			if (URigVMPin::SplitPinPathAtStart(PinPath, Left, Right))
-			{
-				SpaceKey = DefaultStruct->DetermineSpaceForPin(Right, Hierarchy);
-				
-				URigHierarchy* RigHierarchy = Hierarchy;
-
-				// use the active rig instead of the CDO rig because we want to access the evaluation result of the rig graph
-				// to calculate the offset transform, for example take a look at RigUnit_ModifyTransform
-				if (UControlRig* RigBeingDebugged = Cast<UControlRig>(GetObjectBeingDebugged()))
-				{
-					RigHierarchy = RigBeingDebugged->GetHierarchy();
-				}
-				
-				OffsetTransform = DefaultStruct->DetermineOffsetTransformForPin(Right, RigHierarchy);
-			}
-		}
-	}
-
 	FName ReturnName = NAME_None;
 	TArray<UObject*> ArchetypeInstances;
 	CDO->GetArchetypeInstances(ArchetypeInstances);
@@ -552,7 +529,7 @@ FName UControlRigBlueprint::AddTransientControl(URigVMPin* InPin)
 		UControlRig* InstancedControlRig = Cast<UControlRig>(ArchetypeInstance);
 		if (InstancedControlRig)
 		{
-			FName ControlName = InstancedControlRig->AddTransientControl(InPin, SpaceKey, OffsetTransform);
+			FName ControlName = InstancedControlRig->AddTransientControl(InNode, InTarget);
 			if (ReturnName == NAME_None)
 			{
 				ReturnName = ControlName;
@@ -563,7 +540,7 @@ FName UControlRigBlueprint::AddTransientControl(URigVMPin* InPin)
 	return ReturnName;
 }
 
-FName UControlRigBlueprint::RemoveTransientControl(URigVMPin* InPin)
+FName UControlRigBlueprint::RemoveTransientControl(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget)
 {
 	TUniquePtr<FControlValueScope> ValueScope;
 	if (!UControlRigEditorSettings::Get()->bResetControlsOnPinValueInteraction) // if we need to retain the controls
@@ -582,7 +559,7 @@ FName UControlRigBlueprint::RemoveTransientControl(URigVMPin* InPin)
 		UControlRig* InstancedControlRig = Cast<UControlRig>(ArchetypeInstance);
 		if (InstancedControlRig)
 		{
-			FName Name = InstancedControlRig->RemoveTransientControl(InPin);
+			FName Name = InstancedControlRig->RemoveTransientControl(InNode, InTarget);
 			if (RemovedName == NAME_None)
 	{
 				RemovedName = Name;
@@ -1350,6 +1327,17 @@ void UControlRigBlueprint::HandleHierarchyModified(ERigHierarchyNotification InN
 			if(bClearTransientControls)
 			{
 				ClearTransientControls();
+			}
+			break;
+		}
+		case ERigHierarchyNotification::ElementDeselected:
+		{
+			if (const FRigControlElement* ControlElement = Cast<FRigControlElement>(InElement))
+			{
+				if (ControlElement->Settings.bIsTransientControl)
+				{
+					ClearTransientControls();
+				}
 			}
 			break;
 		}

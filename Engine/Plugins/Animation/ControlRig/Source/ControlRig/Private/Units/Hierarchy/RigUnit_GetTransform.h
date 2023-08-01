@@ -23,18 +23,6 @@ struct CONTROLRIG_API FRigUnit_GetTransform : public FRigUnit
 
 	virtual FString GetUnitLabel() const override;
 
-	virtual FRigElementKey DetermineSpaceForPin(const FString& InPinPath, void* InUserContext) const override
-	{
-		if(Space == ERigVMTransformSpace::LocalSpace)
-		{
-			if (const URigHierarchy* Hierarchy = (const URigHierarchy*)InUserContext)
-			{
-				return Hierarchy->GetFirstParent(Item);
-			}
-		}
-		return FRigElementKey();
-	}
-
 	RIGVM_METHOD()
 	virtual void Execute() override;
 

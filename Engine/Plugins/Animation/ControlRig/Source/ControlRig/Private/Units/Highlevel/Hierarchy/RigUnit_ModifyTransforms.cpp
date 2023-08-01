@@ -95,3 +95,139 @@ FRigUnit_ModifyTransforms_Execute()
 	}
 }
 
+#if WITH_EDITOR
+
+bool FRigUnit_ModifyTransforms::GetDirectManipulationTargets(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, URigHierarchy* InHierarchy, TArray<FRigDirectManipulationTarget>& InOutTargets, FString* OutFailureReason) const
+{
+	for(const FRigUnit_ModifyTransforms_PerItem& ItemInfo : ItemToModify)
+	{
+		if(ItemInfo.Item.IsValid())
+		{
+			static const UEnum* TypeEnum = StaticEnum<ERigElementType>();
+			const FString Prefix = TypeEnum->GetDisplayNameTextByValue((int64)ItemInfo.Item.Type).ToString();
+			InOutTargets.Emplace(FString::Printf(TEXT("%s %s"), *Prefix, *ItemInfo.Item.Name.ToString()), ERigControlType::EulerTransform);
+		}
+	}
+	return !InOutTargets.IsEmpty();
+}
+
+bool FRigUnit_ModifyTransforms::UpdateHierarchyForDirectManipulation(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, FControlRigExecuteContext& InContext, TSharedPtr<FRigDirectManipulationInfo> InInfo)
+{
+	URigHierarchy* Hierarchy = InContext.Hierarchy;
+	if (Hierarchy == nullptr)
+	{
+		return false;
+	}
+
+	const int32 Index = GetIndexFromTarget(InInfo->Target.Name);
+	if (ItemToModify.IsValidIndex(Index))
+	{
+		if(!InInfo->bInitialized)
+		{
+			InInfo->OffsetTransform = FTransform::Identity;
+
+			const FRigElementKey FirstParent = Hierarchy->GetFirstParent(ItemToModify[Index].Item);
+
+			switch(Mode)
+			{
+				case EControlRigModifyBoneMode::AdditiveLocal:
+				case EControlRigModifyBoneMode::AdditiveGlobal:
+				{
+					InInfo->OffsetTransform = Hierarchy->GetGlobalTransform(ItemToModify[Index].Item);
+					break;
+				}
+				case EControlRigModifyBoneMode::OverrideLocal:
+				{
+					InInfo->OffsetTransform = Hierarchy->GetGlobalTransform(FirstParent);
+					break;
+				}
+				case EControlRigModifyBoneMode::OverrideGlobal:
+				default:
+				{
+					break;
+				}
+			}
+
+		}
+
+		Hierarchy->SetControlOffsetTransform(InInfo->ControlKey, InInfo->OffsetTransform, false);
+		Hierarchy->SetLocalTransform(InInfo->ControlKey, ItemToModify[Index].Transform, false);
+		if(!InInfo->bInitialized)
+		{
+			Hierarchy->SetLocalTransform(InInfo->ControlKey, ItemToModify[Index].Transform, true);
+		}
+		return true;
+	}
+	return false;
+}
+
+bool FRigUnit_ModifyTransforms::UpdateDirectManipulationFromHierarchy(const URigVMUnitNode* InNode, TSharedPtr<FStructOnScope> InInstance, FControlRigExecuteContext& InContext, TSharedPtr<FRigDirectManipulationInfo> InInfo)
+{
+	URigHierarchy* Hierarchy = InContext.Hierarchy;
+	if (Hierarchy == nullptr)
+	{
+		return false;
+	}
+
+	const int32 Index = GetIndexFromTarget(InInfo->Target.Name);
+	if (ItemToModify.IsValidIndex(Index))
+	{
+		ItemToModify[Index].Transform = Hierarchy->GetLocalTransform(InInfo->ControlKey);;
+		return true;
+	}
+	return false;
+}
+
+TArray<const URigVMPin*> FRigUnit_ModifyTransforms::GetPinsForDirectManipulation(const URigVMUnitNode* InNode, const FRigDirectManipulationTarget& InTarget) const
+{
+	TArray<const URigVMPin*> AffectedPins;
+	const int32 Index = GetIndexFromTarget(InTarget.Name);
+	if (ItemToModify.IsValidIndex(Index))
+	{
+		if(const URigVMPin* ItemToModifyArrayPin = InNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_ModifyTransforms, ItemToModify)))
+		{
+			if(const URigVMPin* ItemToModifyElementPin = ItemToModifyArrayPin->FindSubPin(FString::FromInt(Index)))
+			{
+				if(const URigVMPin* TransformPin = ItemToModifyElementPin->FindSubPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_ModifyTransforms_PerItem, Transform)))
+				{
+					AffectedPins.Add(TransformPin);
+				}
+			}
+		}
+	}
+	return AffectedPins;
+}
+
+int32 FRigUnit_ModifyTransforms::GetIndexFromTarget(const FString& InTarget) const
+{
+	FString Left, Right;
+	if(InTarget.Split(TEXT(" "), &Left, &Right))
+	{
+		static const UEnum* TypeEnum = StaticEnum<ERigElementType>();
+		static TArray<FString> DisplayNames;
+		if(DisplayNames.IsEmpty())
+		{
+			for(int64 Index = 0; Index < (int64)ERigElementType::Last; Index++)
+			{
+				DisplayNames.Add(TypeEnum->GetDisplayNameTextByValue(Index).ToString());
+			}
+		}
+
+		const int32 TypeIndex = DisplayNames.Find(Left);
+		if(TypeIndex != INDEX_NONE)
+		{
+			const ERigElementType ElementType = (ERigElementType)TypeIndex;
+			const FName ElementName(*Right);
+			for(int32 Index = 0; Index < ItemToModify.Num(); Index++)
+			{
+				if(ItemToModify[Index].Item == FRigElementKey(ElementName, ElementType))
+				{
+					return Index;
+				}
+			}
+		}
+	}
+	return INDEX_NONE;
+}
+
+#endif

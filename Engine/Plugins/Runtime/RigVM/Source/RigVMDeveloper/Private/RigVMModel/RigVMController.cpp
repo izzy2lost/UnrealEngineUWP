@@ -7762,7 +7762,7 @@ FString URigVMController::GetPinDefaultValue(const FString& InPinPath)
 	return Pin->GetDefaultValue();
 }
 
-bool URigVMController::SetPinDefaultValue(const FString& InPinPath, const FString& InDefaultValue, bool bResizeArrays, bool bSetupUndoRedo, bool bMergeUndoAction, bool bPrintPythonCommand)
+bool URigVMController::SetPinDefaultValue(const FString& InPinPath, const FString& InDefaultValue, bool bResizeArrays, bool bSetupUndoRedo, bool bMergeUndoAction, bool bPrintPythonCommand, bool bSetValueOnLinkedPins)
 {
 	if (!IsValidGraph())
 	{
@@ -7792,7 +7792,7 @@ bool URigVMController::SetPinDefaultValue(const FString& InPinPath, const FStrin
 		}
 	}
 	
-	if (!SetPinDefaultValue(Pin, InDefaultValue, bResizeArrays, bSetupUndoRedo, bMergeUndoAction))
+	if (!SetPinDefaultValue(Pin, InDefaultValue, bResizeArrays, bSetupUndoRedo, bMergeUndoAction, bSetValueOnLinkedPins))
 	{
 		return false;
 	}
@@ -7800,7 +7800,7 @@ bool URigVMController::SetPinDefaultValue(const FString& InPinPath, const FStrin
 	URigVMPin* PinForLink = Pin->GetPinForLink();
 	if (PinForLink != Pin)
 	{
-		if (!SetPinDefaultValue(PinForLink, InDefaultValue, bResizeArrays, false, bMergeUndoAction))
+		if (!SetPinDefaultValue(PinForLink, InDefaultValue, bResizeArrays, false, bMergeUndoAction, bSetValueOnLinkedPins))
 		{
 			return false;
 		}
@@ -7821,11 +7821,19 @@ bool URigVMController::SetPinDefaultValue(const FString& InPinPath, const FStrin
 	return true;
 }
 
-bool URigVMController::SetPinDefaultValue(URigVMPin* InPin, const FString& InDefaultValue, bool bResizeArrays, bool bSetupUndoRedo, bool bMergeUndoAction)
+bool URigVMController::SetPinDefaultValue(URigVMPin* InPin, const FString& InDefaultValue, bool bResizeArrays, bool bSetupUndoRedo, bool bMergeUndoAction, bool bSetValueOnLinkedPins)
 {
 	if (!bIsTransacting && !IsGraphEditable())
 	{
 		return false;
+	}
+
+	if(!bSetValueOnLinkedPins)
+	{
+		if(!InPin->GetSourceLinks(false).IsEmpty())
+		{
+			return false;
+		}
 	}
 	
 	check(InPin);
@@ -7897,7 +7905,7 @@ bool URigVMController::SetPinDefaultValue(URigVMPin* InPin, const FString& InDef
 					PostProcessDefaultValue(SubPin, Elements[ElementIndex]);
 					if (!Elements[ElementIndex].IsEmpty())
 					{
-						SetPinDefaultValue(SubPin, Elements[ElementIndex], bResizeArrays, false, false);
+						SetPinDefaultValue(SubPin, Elements[ElementIndex], bResizeArrays, false, false, bSetValueOnLinkedPins);
 						bSetPinDefaultValueSucceeded = true;
 					}
 				}
@@ -7919,7 +7927,7 @@ bool URigVMController::SetPinDefaultValue(URigVMPin* InPin, const FString& InDef
 					PostProcessDefaultValue(SubPin, MemberValue);
 					if (!MemberValue.IsEmpty())
 					{
-						SetPinDefaultValue(SubPin, MemberValue, bResizeArrays, false, false);
+						SetPinDefaultValue(SubPin, MemberValue, bResizeArrays, false, false, bSetValueOnLinkedPins);
 						bSetPinDefaultValueSucceeded = true;
 					}
 				}
