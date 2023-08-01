@@ -18,7 +18,7 @@
 #include "MetasoundTrigger.h"
 #include "MetasoundVertex.h"
 #include "MetasoundWave.h"
-#include "MetasoundWaveProxyReader.h"
+#include "Sound/SoundWaveProxyReader.h"
 
 #define LOCTEXT_NAMESPACE "MetasoundWaveNode"
 
@@ -68,9 +68,9 @@ namespace Metasound
 
 		/** FSourceBufferState tracks the current frame and loop indices held in 
 		 * a circular buffer. It describes how the content of a circular buffer
-		 * relates to the frame indices of an FWaveProxyReader 
+		 * relates to the frame indices of an FSoundWaveProxyReader 
 		 *
-		 * FSourceBufferState is tied to the implementation of the FWaveProxyReader
+		 * FSourceBufferState is tied to the implementation of the FSoundWaveProxyReader
 		 * and TCircularAudioBuffer<>, and thus does not serve much purpose outside
 		 * of this wave player node.
 		 *
@@ -114,7 +114,7 @@ namespace Metasound
 			 * @param ProxyReader - The wave proxy reader producing the audio.
 			 * @parma InSourceBuffer - The audio buffer holding a range of samples popped from the reader.
 			 */
-			FSourceBufferState(const FWaveProxyReader& ProxyReader, const Audio::FMultichannelCircularBuffer& InSourceBuffer)
+			FSourceBufferState(const FSoundWaveProxyReader& ProxyReader, const Audio::FMultichannelCircularBuffer& InSourceBuffer)
 			: FSourceBufferState(ProxyReader.GetFrameIndex(), Audio::GetMultichannelBufferNumFrames(InSourceBuffer), ProxyReader.IsLooping(), ProxyReader.GetLoopStartFrameIndex(), ProxyReader.GetLoopEndFrameIndex(), ProxyReader.GetNumFramesInWave())
 			{
 			}
@@ -158,7 +158,7 @@ namespace Metasound
 			}
 
 			/** Update loop frame indices. */
-			void SetLoopFrameIndices(const FWaveProxyReader& InProxyReader)
+			void SetLoopFrameIndices(const FSoundWaveProxyReader& InProxyReader)
 			{
 				SetLoopFrameIndices(InProxyReader.GetLoopStartFrameIndex(), InProxyReader.GetLoopEndFrameIndex());
 			}
@@ -701,14 +701,14 @@ namespace Metasound
 				Algo::SortBy(SortedCuePoints, WavePlayerNodePrivate::GetCuePointFrame);
 				
 				// Create the wave proxy reader.
-				FWaveProxyReader::FSettings WaveReaderSettings;
+				FSoundWaveProxyReader::FSettings WaveReaderSettings;
 				WaveReaderSettings.MaxDecodeSizeInFrames = MaxDecodeSizeInFrames;
 				WaveReaderSettings.StartTimeInSeconds = StartTime->GetSeconds();
 				WaveReaderSettings.LoopStartTimeInSeconds = LoopStartTime->GetSeconds();
 				WaveReaderSettings.LoopDurationInSeconds = LoopDuration->GetSeconds(); 
 				WaveReaderSettings.bIsLooping = *bLoop;
 
-				WaveProxyReader = FWaveProxyReader::Create(WaveProxy.ToSharedRef(), WaveReaderSettings);
+				WaveProxyReader = FSoundWaveProxyReader::Create(WaveProxy.ToSharedRef(), WaveReaderSettings);
 
 				if (WaveProxyReader.IsValid())
 				{
@@ -1022,7 +1022,7 @@ namespace Metasound
 		TArray<FAudioBufferWriteRef> OutputAudioBuffers;
 		TArray<FName> OutputAudioBufferVertexNames;
 
-		TUniquePtr<FWaveProxyReader> WaveProxyReader;
+		TUniquePtr<FSoundWaveProxyReader> WaveProxyReader;
 		TUniquePtr<Audio::IConvertDeinterleave> ConvertDeinterleave;
 		TUniquePtr<Audio::FMultichannelLinearResampler> Resampler;
 
