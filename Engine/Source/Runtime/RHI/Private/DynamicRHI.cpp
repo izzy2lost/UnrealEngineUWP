@@ -579,7 +579,7 @@ uint64 FDynamicRHI::RHIGetMinimumAlignmentForBufferBackedSRV(EPixelFormat Format
 	return GPixelFormats[Format].BlockBytes;
 }
 
-FTextureReferenceRHIRef FDynamicRHI::RHICreateTextureReference(FRHITexture* InReferencedTexture)
+FTextureReferenceRHIRef FDynamicRHI::RHICreateTextureReference(FRHICommandListBase& RHICmdList, FRHITexture* InReferencedTexture)
 {
 	FRHITexture* ReferencedTexture = InReferencedTexture ? InReferencedTexture : FRHITextureReference::GetDefaultTexture();
 
@@ -589,7 +589,7 @@ FTextureReferenceRHIRef FDynamicRHI::RHICreateTextureReference(FRHITexture* InRe
 	// If the referenced texture is configured for bindless, make sure we also create an SRV to use for bindless.
 	if (ReferencedTexture && ReferencedTexture->GetDefaultBindlessHandle().IsValid())
 	{
-		ShaderResourceView = FRHICommandListImmediate::Get().CreateShaderResourceView(ReferencedTexture, 0u);
+		ShaderResourceView = RHICmdList.CreateShaderResourceView(ReferencedTexture, 0u);
 	}
 #endif
 

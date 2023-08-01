@@ -1801,7 +1801,7 @@ void FDynamicRHI::RHIReadSurfaceFloatData_RenderThread(class FRHICommandListImme
 	GDynamicRHI->RHIReadSurfaceFloatData(Texture, Rect, OutData, Flags);
 }
 
-void FRHICommandListImmediate::UpdateTextureReference(FRHITextureReference* TextureRef, FRHITexture* NewTexture)
+void FRHICommandListBase::UpdateTextureReference(FRHITextureReference* TextureRef, FRHITexture* NewTexture)
 {
 	if (TextureRef == nullptr)
 	{
@@ -1814,11 +1814,6 @@ void FRHICommandListImmediate::UpdateTextureReference(FRHITextureReference* Text
 	});
 
 	RHIThreadFence(true);
-	if (GetUsedMemory() > 256 * 1024)
-	{
-		// we could be loading a level or something, lets get this stuff going
-		ImmediateFlush(EImmediateFlushType::DispatchToRHIThread); 
-	}
 }
 
 void FRHICommandListImmediate::UpdateRHIResources(FRHIResourceUpdateInfo* UpdateInfos, int32 Num, bool bNeedReleaseRefs)

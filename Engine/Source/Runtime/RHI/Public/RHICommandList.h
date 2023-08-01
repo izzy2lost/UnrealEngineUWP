@@ -783,6 +783,13 @@ public:
 		GDynamicRHI->RHIUpdateTexture3D(*this, Texture, MipIndex, UpdateRegion, SourceRowPitch, SourceDepthPitch, SourceData);
 	}
 
+	FORCEINLINE FTextureReferenceRHIRef CreateTextureReference(FRHITexture* InReferencedTexture = nullptr)
+	{
+		return GDynamicRHI->RHICreateTextureReference(*this, InReferencedTexture);
+	}
+
+	RHI_API void UpdateTextureReference(FRHITextureReference* TextureRef, FRHITexture* NewTexture);
+
 	FORCEINLINE FShaderResourceViewRHIRef CreateShaderResourceView(FRHIBuffer* Buffer, FRHIViewDesc::FBufferSRV::FInitializer const& ViewDesc)
 	{
 		LLM_SCOPE_BYNAME(TEXT("RHIMisc/CreateShaderResourceView"));
@@ -4540,8 +4547,6 @@ public:
 		return GDynamicRHI->RHIGetNativeCommandBuffer();
 	}
 
-	RHI_API void UpdateTextureReference(FRHITextureReference* TextureRef, FRHITexture* NewTexture);
-
 	FORCEINLINE void PollRenderQueryResults()
 	{
 		GDynamicRHI->RHIPollRenderQueryResults();
@@ -5061,7 +5066,7 @@ FORCEINLINE void RHIUpdateRHIResources(FRHIResourceUpdateInfo* UpdateInfos, int3
 
 FORCEINLINE FTextureReferenceRHIRef RHICreateTextureReference(FRHITexture* InReferencedTexture = nullptr)
 {
-	return GDynamicRHI->RHICreateTextureReference(InReferencedTexture);
+	return FRHICommandListImmediate::Get().CreateTextureReference(InReferencedTexture);
 }
 
 FORCEINLINE void RHIUpdateTextureReference(FRHITextureReference* TextureRef, FRHITexture* NewTexture)
