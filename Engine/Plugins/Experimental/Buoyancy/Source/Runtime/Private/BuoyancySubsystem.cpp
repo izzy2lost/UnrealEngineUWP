@@ -35,16 +35,6 @@ DEFINE_LOG_CATEGORY(LogBuoyancySubsystem);
 // Buoyancy Subsystem
 //
 
-void UBuoyancySubsystem::SetEnabled(bool bEnabled)
-{
-	
-}
-
-bool UBuoyancySubsystem::IsEnabled() const
-{
-	SimCallback != nullptr;
-}
-
 bool UBuoyancySubsystem::CreateSimCallback()
 {
 	// Create sim callback

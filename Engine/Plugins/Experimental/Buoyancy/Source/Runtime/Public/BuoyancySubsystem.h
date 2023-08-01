@@ -54,11 +54,6 @@ class BUOYANCY_API UBuoyancySubsystem : public UTickableWorldSubsystem
 		, SimCallback(nullptr)
 	{ }
 
-public:
-
-	void SetEnabled(bool bEnabled);
-	bool IsEnabled() const;
-
 protected:
 
 	// UTickableWorldSubsystem begin interface
