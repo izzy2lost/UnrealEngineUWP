@@ -45,6 +45,7 @@ namespace Chaos
 			Default = 0,	// use what is set as default from cvars
 			Original = 1,	// original method, fast but has issues
 			ConvexHull3 = 2,// new method, slower but less issues
+			ConvexHull3Simplified = 3, // same as above new method, plus new simplification method
 		};
 
 		class Params
@@ -262,6 +263,8 @@ namespace Chaos
 		static CHAOS_API void Build(const TArray<FVec3Type>& InVertices, TArray<FPlaneType>& OutPlanes, TArray<TArray<int32>>& OutFaceIndices, TArray<FVec3Type>& OutVertices, FAABB3Type& OutLocalBounds, EBuildMethod BuildMethod = EBuildMethod::Default);
 
 		static bool UseConvexHull3(EBuildMethod BuildMethod);
+
+		static bool UseConvexHull3Simplifier(EBuildMethod BuildMethod);
 
 		static CHAOS_API void BuildIndices(const TArray<FVec3Type>& InVertices, TArray<int32>& OutResultIndexData, EBuildMethod BuildMethod = EBuildMethod::Default);
 		
@@ -577,8 +580,8 @@ namespace Chaos
 		// Find edge pairs that are colinear and remove the unnecessary vertex to make a single edge.
 		// If we are left with an invalid face (2 verts or less), remove it.
 		// NOTE: a vertex in the middle of two colinear edges on one face may still be required by some other face, 
-		// although technically those faces could (and should) have been merged.
-		static void MergeColinearEdges(TArray<FPlaneType>& InOutPlanes, TArray<TArray<int32>>& InOutFaceVertexIndices, TArray<FVec3Type>& InOutVertices, FRealType AngleToleranceRad)
+		// although if we are lucky those faces would have been merged by the MergeFaces() function, depending on the tolerances used
+		static void MergeColinearEdges(TArray<FPlaneType>& InOutPlanes, TArray<TArray<int32>>& InOutFaceVertexIndices, TArray<FVec3Type>& InOutVertices, FRealType AngleToleranceCos)
 		{
 			check(InOutPlanes.Num() == InOutFaceVertexIndices.Num());
 
@@ -612,7 +615,7 @@ namespace Chaos
 						const FReal CosAngle = FVec3::DotProduct(Edge0, Edge1);
 
 						// See if we need the vertex.
-						if (CosAngle < (FReal(1) - AngleToleranceRad))
+						if (CosAngle < (FReal(1) - AngleToleranceCos))
 						{
 							VertexIndexMap[VertexIndex1] = VertexIndex1;
 						}
@@ -811,6 +814,7 @@ namespace Chaos
 		static CHAOS_API int32 VerticesThreshold;
 		static CHAOS_API int32 ComputeHorizonEpsilonFromMeshExtends;
 		static CHAOS_API bool bUseGeometryTConvexHull3;
+		static CHAOS_API bool bUseSimplifierForTConvexHull3;
 
 	private:
 

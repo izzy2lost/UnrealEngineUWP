@@ -116,13 +116,16 @@ namespace Chaos
 			// @todo(chaos): this only works with triangles. Fix that an we can run MergeFaces before calling this
 			CalculateVolumeAndCenterOfMass(Vertices, FaceIndices, Volume, CenterOfMass);
 
-			// it appears that this code path can leave the convex in an undefined state.
-			// @todo(chaos): Tolerances should be based on size, or passed in
-			const FRealType DistanceTolerance = 1.0f;
-			const FRealType AngleTolerance = 1.e-6f;
-			FConvexBuilder::MergeFaces(Planes, FaceIndices, Vertices, DistanceTolerance);
-			FConvexBuilder::MergeColinearEdges(Planes, FaceIndices, Vertices, AngleTolerance);
-			CHAOS_ENSURE(Planes.Num() == FaceIndices.Num());
+			if (BuildMethod != FConvexBuilder::EBuildMethod::ConvexHull3Simplified)
+			{
+				// it appears that this code path can leave the convex in an undefined state.
+				// @todo(chaos): Tolerances should be based on size, or passed 
+				const FRealType DistanceTolerance = 1.0f;
+				const FRealType AngleTolerance = 1.e-6f;
+				FConvexBuilder::MergeFaces(Planes, FaceIndices, Vertices, DistanceTolerance);
+				FConvexBuilder::MergeColinearEdges(Planes, FaceIndices, Vertices, AngleTolerance);
+				CHAOS_ENSURE(Planes.Num() == FaceIndices.Num());
+			}
 
 			CreateStructureData(MoveTemp(FaceIndices));
 
