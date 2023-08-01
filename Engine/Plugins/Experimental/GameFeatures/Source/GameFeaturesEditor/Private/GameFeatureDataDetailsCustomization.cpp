@@ -132,7 +132,7 @@ void FGameFeatureDataDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder
 				.Padding(0.0f, 4.0f, 0.0f, 0.0f)
 				[
 					SNew(SHorizontalBox)
-					.Visibility_Lambda([this]() { return (GetCurrentState() == EGameFeaturePluginState::Active) ? EVisibility::Visible : EVisibility::Collapsed; })
+					.Visibility(this, &FGameFeatureDataDetailsCustomization::GetVisbililty)
 					+SHorizontalBox::Slot()
 					.AutoWidth()
 					.Padding(Padding)
@@ -215,6 +215,11 @@ void FGameFeatureDataDetailsCustomization::ChangeDesiredState(EGameFeaturePlugin
 EGameFeaturePluginState FGameFeatureDataDetailsCustomization::GetCurrentState() const
 {
 	return UGameFeaturesSubsystem::Get().GetPluginState(PluginURL);
+}
+
+EVisibility FGameFeatureDataDetailsCustomization::GetVisbililty() const
+{
+	return (GetCurrentState() == EGameFeaturePluginState::Active) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 FText FGameFeatureDataDetailsCustomization::GetInitialStateText() const

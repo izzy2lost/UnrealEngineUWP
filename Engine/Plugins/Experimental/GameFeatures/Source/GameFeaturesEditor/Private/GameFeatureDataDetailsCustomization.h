@@ -11,6 +11,7 @@ namespace UE::GameFeatures { struct FResult; }
 class IDetailLayoutBuilder;
 class SErrorText;
 class IPlugin;
+struct EVisibility;
 
 //////////////////////////////////////////////////////////////////////////
 // FGameFeatureDataDetailsCustomization
@@ -29,6 +30,7 @@ protected:
 	void ChangeDesiredState(EGameFeaturePluginState State);
 
 	EGameFeaturePluginState GetCurrentState() const;
+	EVisibility GetVisbililty() const;
 
 	FText GetInitialStateText() const;
 	FText GetTagConfigPathText() const;
