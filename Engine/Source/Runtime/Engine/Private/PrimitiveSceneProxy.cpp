@@ -1356,7 +1356,20 @@ void FPrimitiveSceneProxy::SetSelectionOutlineColorIndex_GameThread(uint8 ColorI
 			SelectionOutlineColorIndex = ColorIndex;
 		});
 }
+
 #endif
+
+void FPrimitiveSceneProxy::ResetSceneVelocity_GameThread()
+{
+	check(IsInGameThread());
+
+	FPrimitiveSceneProxy* PrimitiveSceneProxy = this;
+	ENQUEUE_RENDER_COMMAND(ResetSceneVelocity)(
+		[PrimitiveSceneProxy](FRHICommandListImmediate& RHICmdList)
+		{
+			PrimitiveSceneProxy->GetScene().UpdatePrimitiveVelocityState_RenderThread(PrimitiveSceneProxy->GetPrimitiveSceneInfo(), false);
+		});
+}
 
 void FPrimitiveSceneProxy::SetEvaluateWorldPositionOffset_GameThread(bool bEvaluate)
 {
