@@ -13,6 +13,12 @@ class UMassRepresentationSubsystem;
 class UMassActorSubsystem;
 struct FMassActorFragment;
 
+
+namespace UE::MassRepresentation
+{
+	extern MASSREPRESENTATION_API int32 bAllowKeepActorExtraFrame;
+}
+
 UCLASS()
 class MASSREPRESENTATION_API UMassRepresentationProcessor : public UMassProcessor
 {
