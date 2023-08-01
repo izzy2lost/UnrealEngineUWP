@@ -377,7 +377,7 @@ private:
 	/** Set to true if request has been canceled */
 	bool			bCanceled;
 	/** Set to true when request has been completed */
-	FThreadSafeBool	bCurlRequestCompleted;
+	std::atomic<bool> bCurlRequestCompleted;
 	/** Set to true when request has "30* Multiple Choices" (e.g. 301 Moved Permanently, 302 temporary redirect, 308 Permanent Redirect, etc.) */
 	bool			bRedirected;
 	/** Set to true if request failed to be added to curl multi */
@@ -401,9 +401,9 @@ private:
 	/** Have we had any HTTP activity with the host? Sending headers, SSL handshake, etc */
 	bool bAnyHttpActivity;
 	/** Number of bytes sent already */
-	FThreadSafeCounter64 BytesSent;
+	std::atomic<int64> BytesSent;
 	/** Total number of bytes sent already (includes data re-sent by seek attempts) */
-	FThreadSafeCounter64 TotalBytesSent;
+	std::atomic<int64> TotalBytesSent;
 	/** Last bytes read reported to progress delegate */
 	uint64 LastReportedBytesRead;
 	/** Last bytes sent reported to progress delegate */
@@ -467,7 +467,7 @@ private:
 	/** The stream to receive response body */
 	TSharedPtr<FArchive> ResponseBodyReceiveStream;
 	/** Caches how many bytes of the response we've read so far */
-	FThreadSafeCounter64 TotalBytesRead;
+	std::atomic<int64> TotalBytesRead;
 	/** Cached key/value header pairs. Parsed once request completes. Only accessible on the game thread. */
 	TMap<FString, FString> Headers;
 	/** Newly received headers we need to inform listeners about */
