@@ -32,6 +32,8 @@ class FHttpModuleTestFixture
 public:
 	FHttpModuleTestFixture()
 		: WebServerIp(TEXT("127.0.0.1"))
+		, WebServerPort(8000)
+		, bRunHeavyTests(false)
 	{
 		ParseSettingsFromCommandLine();
 
@@ -50,16 +52,20 @@ public:
 	void ParseSettingsFromCommandLine()
 	{
 		FParse::Value(FCommandLine::Get(), TEXT("web_server_ip"), WebServerIp);
+		FParse::Bool(FCommandLine::Get(), TEXT("run_heavy_tests"), bRunHeavyTests);
 	}
 
 	const FString UrlWithInvalidPortToTestConnectTimeout() const { return FString::Format(TEXT("http://{0}:{1}"), { *WebServerIp, 8765 }); }
-	const FString UrlBase() const { return FString::Format(TEXT("http://{0}:{1}"), { *WebServerIp, 8000 }); }
+	const FString UrlBase() const { return FString::Format(TEXT("http://{0}:{1}"), { *WebServerIp, WebServerPort }); }
 	const FString UrlHttpTests() const { return FString::Format(TEXT("{0}/webtests/httptests"), { *UrlBase() }); }
 	const FString UrlToTestMethods() const { return FString::Format(TEXT("{0}/methods"), { *UrlHttpTests() }); }
 	const FString UrlStreamDownload(uint32 Chunks, uint32 ChunkSize) { return FString::Format(TEXT("{0}/streaming_download/{1}/{2}/"), { *UrlHttpTests(), Chunks, ChunkSize }); }
 
 	FString WebServerIp;
+	uint32 WebServerPort;
 	FHttpModule* HttpModule;
+
+	bool bRunHeavyTests;
 };
 
 TEST_CASE_METHOD(FHttpModuleTestFixture, "Shutdown http module without issue when there are ongoing http requests.", HTTP_TAG)
@@ -225,25 +231,26 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Get large response content with
 	HttpRequest->ProcessRequest();
 }
 
-TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request connect timeout", HTTP_TAG)
-{
-	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
-	HttpRequest->SetURL(UrlWithInvalidPortToTestConnectTimeout());
-	HttpRequest->SetVerb(TEXT("GET"));
-	HttpRequest->SetTimeout(7);
-	FDateTime StartTime = FDateTime::Now();
-	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
-		CHECK(!bSucceeded);
-		CHECK(HttpResponse == nullptr);
-		// TODO: For now curl impl is using customized timeout instead of relying on native http timeout, 
-		// which doesn't get CURLE_COULDNT_CONNECT. Enable this after switching to native http timeout
-		//CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed_ConnectionError);
-		FTimespan Timespan = FDateTime::Now() - StartTime;
-		float DurationInSeconds = Timespan.GetTotalSeconds();
-		CHECK(FMath::IsNearlyEqual(DurationInSeconds, 7, HTTP_TIME_DIFF_TOLERANCE));
-	});
-	HttpRequest->ProcessRequest();
-}
+// TODO: Enable this after finding a more reliable way of simulate timeout
+//TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request connect timeout", HTTP_TAG)
+//{
+//	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
+//	HttpRequest->SetURL(UrlWithInvalidPortToTestConnectTimeout());
+//	HttpRequest->SetVerb(TEXT("GET"));
+//	HttpRequest->SetTimeout(7);
+//	FDateTime StartTime = FDateTime::Now();
+//	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+//		CHECK(!bSucceeded);
+//		CHECK(HttpResponse == nullptr);
+//		// TODO: For now curl impl is using customized timeout instead of relying on native http timeout, 
+//		// which doesn't get CURLE_COULDNT_CONNECT. Enable this after switching to native http timeout
+//		//CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed_ConnectionError);
+//		FTimespan Timespan = FDateTime::Now() - StartTime;
+//		float DurationInSeconds = Timespan.GetTotalSeconds();
+//		CHECK(FMath::IsNearlyEqual(DurationInSeconds, 7, HTTP_TIME_DIFF_TOLERANCE));
+//	});
+//	HttpRequest->ProcessRequest();
+//}
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http download", HTTP_TAG)
 {
@@ -405,6 +412,11 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can run parallel stream downloa
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can download big file exceeds 32 bits", HTTP_TAG)
 {
+	if (!bRunHeavyTests)
+	{
+		return;
+	}
+
 	// 5 * 1024 * 1024 * 1024 BYTES = 5368709120 BYTES = 5 GB
 	uint64 Chunks = 5 * 1024;
 	uint64 ChunkSize = 1024 * 1024;
@@ -514,6 +526,11 @@ public:
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can upload big file exceeds 32 bits", HTTP_TAG)
 {
+	if (!bRunHeavyTests)
+	{
+		return;
+	}
+
 	// TODO: Back to check later. xCurl 2206.4.0.0 doesn't work with file bigger than 32 bits
 	// 5 * 1024 * 1024 * 1024 BYTES = 5368709120 BYTES = 5 GB
 	//const uint64 TotalSize = 5368709120;

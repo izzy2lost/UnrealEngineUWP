@@ -445,7 +445,7 @@ namespace LowLevelTests
 	}
 
 	/// <summary>
-	/// Platform and test specific extension that provides extra command line arguments.
+	/// Platform and test specific extension that provides extra command line arguments or logic.
 	/// </summary>
 	public interface ILowLevelTestsExtension
 	{
@@ -458,6 +458,16 @@ namespace LowLevelTests
 		/// Return extra command line arguments specific to a platform and/or test.
 		/// </summary>
 		string ExtraCommandLine(UnrealTargetPlatform InPlatform, string InTestApp, string InBuildPath);
+
+		/// <summary>
+		/// Run extra logic before running tests
+		/// </summary>
+		void PreRunTests();
+
+		/// <summary>
+		/// Run extra logic after finishing tests
+		/// </summary>
+		void PostRunTests();
 	}
 
 	/// <summary>
@@ -629,9 +639,7 @@ namespace LowLevelTests
 
 		private ILowLevelTestsBuildFactory LowLevelTestsBuildFactory;
 		private ILowLevelTestsReporting LowLevelTestsReporting;
-#nullable enable
-		private ILowLevelTestsExtension? LowLevelTestsExtension;
-#nullable disable
+		public ILowLevelTestsExtension[] LowLevelTestsExtensions { get; protected set; }
 
 		public UnrealTargetPlatform Platform { get; protected set; }
 		public UnrealTargetConfiguration Configuration { get; protected set; }
@@ -663,9 +671,9 @@ namespace LowLevelTests
 				.Where(B => B.CanSupportPlatform(InTargetPlatform))
 				.First();
 
-			LowLevelTestsExtension = Gauntlet.Utils.InterfaceHelpers.FindImplementations<ILowLevelTestsExtension>(true)
+			LowLevelTestsExtensions = Gauntlet.Utils.InterfaceHelpers.FindImplementations<ILowLevelTestsExtension>(true)
 				.Where(B => B.IsSupported(InTargetPlatform, InTestApp))
-				.FirstOrDefault();
+				.ToArray();
 		}
 
 		public UnrealAppConfig GetUnrealAppConfig(string InTags, int InSleep, bool InAttachToDebugger, string InReportType, int InPerTestTimeout = 0)
@@ -711,14 +719,24 @@ namespace LowLevelTests
 				{
 					CachedConfig.CommandLineParams.AddRawCommandline("--buildmachine");
 				}
-				if (LowLevelTestsExtension != null)
+
+				string ExtraCmd = "";
+
+				foreach (ILowLevelTestsExtension LowLevelTestsExtension in LowLevelTestsExtensions)
 				{
-					string ExtraCmd = LowLevelTestsExtension.ExtraCommandLine(Platform, TestApp, BuildPath);
-					if (!string.IsNullOrEmpty(ExtraCmd))
+					string ExtensionExtraCmd = LowLevelTestsExtension.ExtraCommandLine(Platform, TestApp, BuildPath);
+					if (!string.IsNullOrEmpty(ExtensionExtraCmd))
 					{
-						CachedConfig.CommandLineParams.AddRawCommandline(string.Format("--extra-args {0}", ExtraCmd));
+						ExtraCmd += " ";
+						ExtraCmd += ExtensionExtraCmd;
 					}
 				}
+
+				if (!string.IsNullOrEmpty(ExtraCmd))
+				{
+					CachedConfig.CommandLineParams.AddRawCommandline("--extra-args" + ExtraCmd);
+				}
+
 				CachedConfig.CanAlterCommandArgs = false; // No further changes by IAppInstall instances etc.
 			}
 			return CachedConfig;
