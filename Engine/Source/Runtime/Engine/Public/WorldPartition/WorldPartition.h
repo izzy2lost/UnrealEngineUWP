@@ -107,19 +107,17 @@ struct ENGINE_API FDirtyActor
 
 	FDirtyActor(AActor* InActor)
 		: ActorPtr(InActor)
-	{
-	}
+	{}
 
 	FDirtyActor(const FWorldPartitionReference& InWorldPartitionRef, AActor* InActor)
 		: WorldPartitionRef(InWorldPartitionRef)
 		, ActorPtr(InActor)
-	{
-	}
+	{}
 
 	TOptional<FWorldPartitionReference> WorldPartitionRef;
-	TWeakObjectPtr<AActor>	ActorPtr;		// TWeakObjectPtr is for undo support.
+	TWeakObjectPtr<AActor> ActorPtr; // TWeakObjectPtr is for undo support.
 
-	bool operator == (const FDirtyActor& InDirtyActor) const
+	bool operator==(const FDirtyActor& InDirtyActor) const
 	{
 		return WorldPartitionRef == InDirtyActor.WorldPartitionRef && ActorPtr == InDirtyActor.ActorPtr;
 	}
@@ -356,7 +354,7 @@ public:
 
 	bool IsEnablingStreamingJustified() const { return bEnablingStreamingJustified; }
 
-	const TSet<FDirtyActor>& GetDirtyActors() const { return DirtyActors; }
+	const TMap<FGuid, FDirtyActor>& GetDirtyActors() const { return DirtyActors; }
 #endif
 
 public:
@@ -472,7 +470,7 @@ private:
 
 	TArray<FWorldPartitionReference> LoadedSubobjects;
 
-	TSet<FDirtyActor> DirtyActors;
+	TMap<FGuid, FDirtyActor> DirtyActors;
 
 	TSet<FString> GeneratedStreamingPackageNames;
 

@@ -1087,19 +1087,19 @@ void SWorldPartitionEditorGrid2D::Tick(const FGeometry& AllottedGeometry, const 
 
 	// Also include transient actor loader adapters that might have been spawned by blutilities, etc. Since these actors can't be saved because they are transient,
 	// they will never get an actor descriptor so they will never appear in the world partition editor. Also include unsaved, newly created actors for convenience.
-	for (auto& [Reference, Actor] : GetWorldPartition()->GetDirtyActors())
+	for (auto& [DirtyActorGuid, DirtyActor] : GetWorldPartition()->GetDirtyActors())
 	{
-		if (Actor.IsValid())
+		if (DirtyActor.ActorPtr.IsValid())
 		{
-			if (!GetWorldPartition()->GetActorDesc(Actor->GetActorGuid()) && Actor->Implements<UWorldPartitionActorLoaderInterface>())
+			if (!GetWorldPartition()->GetActorDesc(DirtyActor.ActorPtr->GetActorGuid()) && DirtyActor.ActorPtr->Implements<UWorldPartitionActorLoaderInterface>())
 			{
-				if (IWorldPartitionActorLoaderInterface::ILoaderAdapter* LoaderAdapter = Cast<IWorldPartitionActorLoaderInterface>(Actor)->GetLoaderAdapter())
+				if (IWorldPartitionActorLoaderInterface::ILoaderAdapter* LoaderAdapter = Cast<IWorldPartitionActorLoaderInterface>(DirtyActor.ActorPtr)->GetLoaderAdapter())
 				{
-					ShownLoaderInterfaces.Add(Actor.Get());
+					ShownLoaderInterfaces.Add(DirtyActor.ActorPtr.Get());
 				}
 			}
 
-			DirtyActorGuids.Add(Actor->GetActorGuid());
+			DirtyActorGuids.Add(DirtyActorGuid);
 		}
 	}
 
