@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MassCrowdServerRepresentationLODProcessor.h"
+#include "MassCommonTypes.h"
 #include "MassCommonFragments.h"
 #include "MassCrowdFragments.h"
 #include "MassExecutionContext.h"
@@ -82,6 +83,7 @@ void UMassCrowdServerRepresentationLODProcessor::Execute(FMassEntityManager& Ent
 		}
 	}
 
+#if WITH_MASSGAMEPLAY_DEBUG
 	// Optional debug display
 	if (UE::MassCrowd::bDebugCrowdServerRepresentationLOD)
 	{
@@ -94,4 +96,5 @@ void UMassCrowdServerRepresentationLODProcessor::Execute(FMassEntityManager& Ent
 			LODCalculator.DebugDisplayLOD(Context, RepresentationLODFragments, LocationList, World);
 		});
 	}
+#endif // WITH_MASSGAMEPLAY_DEBUG
 }

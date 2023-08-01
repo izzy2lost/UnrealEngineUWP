@@ -2,6 +2,7 @@
 
 #include "MassCrowdVisualizationLODProcessor.h"
 #include "MassCommonFragments.h"
+#include "MassCommonTypes.h"
 #include "MassExecutionContext.h"
 #include "MassCrowdFragments.h"
 #include "MassEntityManager.h"
@@ -58,7 +59,8 @@ void UMassCrowdVisualizationLODProcessor::Execute(FMassEntityManager& EntityMana
 	TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("CrowdVisualizationLOD"))
 
 	Super::Execute(EntityManager, Context);
-	
+
+#if WITH_MASSGAMEPLAY_DEBUG
 	if (UE::MassCrowd::bDebugCrowdVisualizationLOD)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("DebugDisplayLOD"))
@@ -71,6 +73,7 @@ void UMassCrowdVisualizationLODProcessor::Execute(FMassEntityManager& EntityMana
 			LODSharedFragment.LODCalculator.DebugDisplayLOD(Context, VisualizationLODList, LocationList, World);
 		});
 	}
+#endif // WITH_MASSGAMEPLAY_DEBUG
 
 	if (UE::MassCrowd::bDebugShowISMUnderSpecifiedRange > 0)
 	{
