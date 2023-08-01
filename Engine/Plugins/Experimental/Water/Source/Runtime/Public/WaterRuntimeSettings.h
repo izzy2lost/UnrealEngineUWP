@@ -66,11 +66,6 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Rendering)
 	float WaterBodyIconWorldZOffset = 75.0f;
 
-	/** Density of water used for buoyancy calculations. Given in gram per cubic centimeter */
-	// TODO: Add units to UnitConversions.h so that g/cm^3 can be explicit
-	UPROPERTY(EditAnywhere, config, Category = Buoyancy, meta=(ClampMin = 0, ForceUnits = "g/cm3"))
-	float WaterDensity = 1.f;
-
 #if WITH_EDITORONLY_DATA
 	// Delegate called whenever the curve data is updated
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnUpdateSettings, const UWaterRuntimeSettings* /*Settings*/, EPropertyChangeType::Type /*ChangeType*/);
