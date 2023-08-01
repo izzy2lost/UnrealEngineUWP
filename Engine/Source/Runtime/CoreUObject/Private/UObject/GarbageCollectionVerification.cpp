@@ -80,7 +80,7 @@ public:
 					(int64)(PTRINT)Object,
 					ReferencingObject ? *ReferencingObject->GetFullName() : TEXT("NULL"),
 					*DebugInfo, MemberId.AsPrintableIndex());
-				}
+			}
 #endif // ENABLE_GC_OBJECT_CHECKS
 
 			if (!(Object->IsRooted() ||
