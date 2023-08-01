@@ -254,7 +254,10 @@ void UMassActorSpawnerSubsystem::ProcessPendingSpawningRequest(const double MaxT
 
 	const double TimeSliceEnd = FPlatformTime::Seconds() + MaxTimeSlicePerTick;
 
-	while (FPlatformTime::Seconds() < TimeSliceEnd)
+	const int32 IterationsLimit = SpawnRequestHandleManager.CalcNumUsedHandles();
+	int32 IterationsCount = 0;
+
+	while (FPlatformTime::Seconds() < TimeSliceEnd && IterationsCount++ < IterationsLimit)
 	{
 		FMassActorSpawnRequestHandle SpawnRequestHandle = GetNextRequestToSpawn();
 		if (!SpawnRequestHandle.IsValid() ||
