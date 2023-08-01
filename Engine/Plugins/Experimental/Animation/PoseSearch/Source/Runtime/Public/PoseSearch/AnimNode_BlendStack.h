@@ -96,6 +96,7 @@ struct POSESEARCH_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 	// FAnimNode_Base interface
 	virtual void Evaluate_AnyThread(FPoseContext& Output) override;
 	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
+	virtual void CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) override;
 	virtual void GatherDebugData(FNodeDebugData& DebugData) override;
 	// End of FAnimNode_Base interface
 
@@ -122,6 +123,7 @@ private:
 	void InitializeSample(const FAnimationInitializeContext& Context, FPoseSearchAnimPlayer& SamplePlayer);
 	void EvaluateSample(FPoseContext& Output, const int32 PlayerIndex);
 	void UpdateSample(const FAnimationUpdateContext& Context, const int32 PlayerIndex);
+	void CacheBonesForSample(const FAnimationCacheBonesContext& Context, const int32 PlayerIndex);
 	bool IsSampleGraphAvailableForPlayer(const int32 PlayerIndex);
 
 	friend class UAnimGraphNode_BlendStack_Base;

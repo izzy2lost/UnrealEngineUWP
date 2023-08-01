@@ -427,6 +427,17 @@ void FAnimNode_BlendStack_Standalone::Initialize_AnyThread(const FAnimationIniti
 	}
 }
 
+void FAnimNode_BlendStack_Standalone::CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) 
+{
+	const int32 BlendStackSize = AnimPlayers.Num();
+	for (int32 AnimPlayerIndex = 0; AnimPlayerIndex < BlendStackSize; ++AnimPlayerIndex)
+	{
+		// Cache bones for all active anim players.
+		// There's no need to check for weight since all unneeded anim players 
+		// would have been pruned during the last evaluation.
+		CacheBonesForSample(Context, AnimPlayerIndex);
+	}
+}
 
 void FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(const FAnimationUpdateContext& Context)
 {
@@ -542,12 +553,25 @@ void FAnimNode_BlendStack_Standalone::UpdateSample(const FAnimationUpdateContext
 	SamplePlayer.AdvanceBlendInTime(Context.GetDeltaTime());
 }
 
+void FAnimNode_BlendStack_Standalone::CacheBonesForSample(const FAnimationCacheBonesContext& Context, const int32 PlayerIndex)
+{
+	FPoseSearchAnimPlayer& SamplePlayer = AnimPlayers[PlayerIndex];
+	const bool bHasSampleGraph = !SampleGraphPoseLinks.IsEmpty() && (PlayerIndex <= MaxActiveBlends);
+	if (bHasSampleGraph)
+	{
+		FBlendStack_SampleGraphPoseLink& PoseLink = SampleGraphPoseLinks[SamplePlayer.GetPoseLinkIndex()];
+		PoseLink.ConditionalCacheBones(Context);
+	}
+}
+
 void FAnimNode_BlendStack_Standalone::InitializeSample(const FAnimationInitializeContext& Context, FPoseSearchAnimPlayer& SamplePlayer)
 {
 	if (SamplePlayer.GetPoseLinkIndex() != INDEX_NONE)
 	{
 		FBlendStack_SampleGraphPoseLink& PoseLink = SampleGraphPoseLinks[SamplePlayer.GetPoseLinkIndex()];
+		PoseLink.SetInputPosePlayer(SamplePlayer);
 		PoseLink.Root.Initialize(Context);
+		PoseLink.ConditionalCacheBones(Context);
 	}
 }
 
