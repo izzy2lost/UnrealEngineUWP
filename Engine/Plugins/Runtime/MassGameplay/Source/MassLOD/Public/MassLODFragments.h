@@ -39,9 +39,11 @@ struct MASSLOD_API FMassViewerInfoFragment : public FMassFragment
 	GENERATED_BODY()
 
 	// Closest viewer distance
+	UPROPERTY()
 	float ClosestViewerDistanceSq;
 
 	// Closest distance to frustum
+	UPROPERTY()
 	float ClosestDistanceToFrustum;
 };
 
@@ -84,9 +86,16 @@ struct MASSLOD_API FMassVariableTickChunkFragment : public FMassChunkFragment
 	}
 
 private:
+	UPROPERTY()
 	bool bShouldTickThisFrame = true;
-	EMassLOD::Type LOD = EMassLOD::Max;
+
+	UPROPERTY()
+	TEnumAsByte<EMassLOD::Type> LOD = EMassLOD::Max;
+
+	UPROPERTY()
 	float TimeUntilNextTick = 0.0f;
+
+	UPROPERTY()
 	int32 LastChunkSerialModificationNumber = INDEX_NONE;
 };
 
@@ -216,11 +225,14 @@ struct MASSLOD_API FMassVisualizationChunkFragment : public FMassChunkFragment
 protected:
 
 	/** Visibility of the current chunk, should never change */
+	UPROPERTY()
 	EMassVisibility Visibility = EMassVisibility::Max;
 
 	/** Not visible chunks, might contains entity that are newly visible and not yet moved. */
+	UPROPERTY()
 	bool bContainsNewlyVisibleEntity = true;
 
 	/** Not visible chunks delta time until next update */
+	UPROPERTY()
 	float DeltaTime = 0;
 };

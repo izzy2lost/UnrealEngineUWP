@@ -27,14 +27,21 @@ struct MASSREPRESENTATION_API FMassRepresentationLODFragment : public FMassFragm
 	GENERATED_BODY()
 
 	/** LOD information */
+	UPROPERTY()
 	TEnumAsByte<EMassLOD::Type> LOD = EMassLOD::Max;
+
+	UPROPERTY()
 	TEnumAsByte<EMassLOD::Type> PrevLOD = EMassLOD::Max;
 
 	/** Visibility Info */
+	UPROPERTY()
 	EMassVisibility Visibility = EMassVisibility::Max;
+
+	UPROPERTY()
 	EMassVisibility PrevVisibility = EMassVisibility::Max;
 
 	/** Value scaling from 0 to 3, 0 highest LOD we support and 3 being completely off LOD */
+	UPROPERTY()
 	float LODSignificance = 0.0f;
 };
 
@@ -43,21 +50,29 @@ struct MASSREPRESENTATION_API FMassRepresentationFragment : public FMassFragment
 {
 	GENERATED_BODY()
 
+	UPROPERTY()
 	EMassRepresentationType CurrentRepresentation = EMassRepresentationType::None;
 
+	UPROPERTY()
 	EMassRepresentationType PrevRepresentation = EMassRepresentationType::None;
 
+	UPROPERTY()
 	int16 HighResTemplateActorIndex = INDEX_NONE;
 
+	UPROPERTY()
 	int16 LowResTemplateActorIndex = INDEX_NONE;
 
+	UPROPERTY()
 	int16 StaticMeshDescIndex = INDEX_NONE;
 
+	UPROPERTY()
 	FMassActorSpawnRequestHandle ActorSpawnRequestHandle;
 
+	UPROPERTY()
 	FTransform PrevTransform;
 
 	/** Value scaling from 0 to 3, 0 highest LOD we support and 3 being completely off LOD */
+	UPROPERTY()
 	float PrevLODSignificance = -1.0f;
 };
 
