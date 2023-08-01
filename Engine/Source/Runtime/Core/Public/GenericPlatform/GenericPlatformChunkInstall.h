@@ -129,6 +129,13 @@ enum class ENamedChunkType : uint8
 	Language,
 };
 
+struct FChunkInstallationStatusDetail
+{
+	uint64 CurrentInstallSize;
+	uint64 FullInstallSize;
+	bool bIsInstalled;
+};
+
 /**
 * Interface for platform specific chunk based install
 **/
@@ -306,6 +313,44 @@ public:
 	 */
 	virtual void RemoveNamedChunkInstallDelegate( FDelegateHandle Delegate ) = 0;
 
+
+
+	/** 
+	 * Returns whether this platform chunk installer implements all the API functions to support the platform chunk install bundle source
+	 */
+	virtual bool SupportsBundleSource() const = 0;
+
+	/** 
+	 * Set whether pak files are auto-mounted when they are installed (the default is that they are mounted)
+	 * @param bEnabled	Whether to auto-mount pak files
+	 * @return			false if this function is not supported
+	 */
+	virtual bool SetAutoPakMountingEnabled( bool bEnabled ) = 0;
+	
+	/**
+	 * Get the list of pak files in the given named chunk.
+	 * @param NamedChunk		The named chunk to query
+	 * @param OutFilesInChunk	The pak files names in the named chunk
+	 * @return					true if the named chunk is valid and this function is supported
+	 */
+	virtual bool GetPakFilesInNamedChunk( const FName NamedChunk, TArray<FString>& OutFilesInChunk) const = 0;
+
+	/**
+	 * Get detailed installation status for the given named chunk
+	 * @param NamedChunk			The named chunk to query
+	 * @param OutChunkStatusDetail	(out) structure that will contain the status detail
+	 * @return						true if the structure has been filled in
+	 */
+	virtual bool GetNamedChunkInstallationStatus( const FName NamedChunk, FChunkInstallationStatusDetail& OutChunkStatusDetail ) const = 0;
+
+	/**
+	 * Determine if the given named chunk is suitable for the current system locale
+	 * @param NamedChunk			The named chunk to query
+	 * @returns						false if the chunk is associated with a different locale
+	 */
+	virtual bool IsNamedChunkForCurrentLocale( const FName NamedChunk ) const = 0;
+	
+
 protected:
 		/**
 		 * Get the current location of a chunk.
@@ -466,6 +511,30 @@ public:
 		NamedChunkInstallDelegate.Remove(Delegate);
 	}
 
+	virtual bool SupportsBundleSource() const override 
+	{ 
+		return false; 
+	}
+
+	virtual bool SetAutoPakMountingEnabled( bool bEnabled ) 
+	{ 
+		return false; 
+	}
+
+	virtual bool GetPakFilesInNamedChunk( const FName NamedChunk, TArray<FString>& OutFilesInChunk) const override 
+	{ 
+		return false; 
+	}
+
+	virtual bool GetNamedChunkInstallationStatus( const FName NamedChunk, FChunkInstallationStatusDetail& OutChunkStatusDetail ) const override 
+	{ 
+		return false; 
+	}
+
+	virtual bool IsNamedChunkForCurrentLocale( const FName NamedChunk ) const 
+	{ 
+		return true; 
+	}
 
 protected:
 

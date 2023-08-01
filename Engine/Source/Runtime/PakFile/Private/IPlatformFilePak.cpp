@@ -72,6 +72,9 @@ int64 GTotalLoadedLastTick = 0;
 #ifndef HAS_PLATFORM_PAK_INSTALL_CHECK
 #define HAS_PLATFORM_PAK_INSTALL_CHECK 0
 #endif
+#ifndef ENABLE_PLATFORM_CHUNK_INSTALL
+#define ENABLE_PLATFORM_CHUNK_INSTALL 1
+#endif
 #ifndef ALL_PAKS_WILDCARD
 #define ALL_PAKS_WILDCARD "*.pak"
 #endif 
@@ -5260,6 +5263,7 @@ bool FPakPlatformFile::IsNonPakFilenameAllowed(const FString& InFilename)
 #if !HAS_PLATFORM_PAK_INSTALL_CHECK
 bool FPakPlatformFile::IsPakFileInstalled(const FString& InFilename)
 {
+#if ENABLE_PLATFORM_CHUNK_INSTALL
 	IPlatformChunkInstall* ChunkInstall = FPlatformMisc::GetPlatformChunkInstall();
 	if (ChunkInstall)
 	{
@@ -5273,6 +5277,7 @@ bool FPakPlatformFile::IsPakFileInstalled(const FString& InFilename)
 			}
 		}
 	}
+#endif
 
 	return true;
 }
