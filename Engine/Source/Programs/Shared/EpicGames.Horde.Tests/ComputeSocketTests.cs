@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.IO.Pipes;
 using System.Linq;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -19,6 +20,7 @@ using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -55,14 +57,52 @@ namespace EpicGames.Horde.Tests
 			}
 		}
 
+		class TestLogger : ILogger
+		{
+			public IDisposable BeginScope<TState>(TState state) => null!;
+
+			public bool IsEnabled(LogLevel logLevel) => true;
+
+			public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+			{
+				Console.WriteLine($"{logLevel}: {formatter(state, exception)}");
+				Assert.IsFalse(logLevel == LogLevel.Error);
+				Assert.IsFalse(logLevel == LogLevel.Warning);
+			}
+		}
+
 		[TestMethod]
-		public async Task TestAgentMessageLoop()
+		public async Task TestAgentMessageLoopPipe()
 		{
 			Pipe recvPipe = new Pipe();
 			Pipe sendPipe = new Pipe();
-			await using RemoteComputeSocket localSocket = new RemoteComputeSocket(new PipeTransport(sendPipe.Reader, recvPipe.Writer), ComputeSocketEndpoint.Local, NullLogger.Instance);
-			await using RemoteComputeSocket agentSocket = new RemoteComputeSocket(new PipeTransport(recvPipe.Reader, sendPipe.Writer), ComputeSocketEndpoint.Remote, NullLogger.Instance);
+			await using RemoteComputeSocket localSocket = new RemoteComputeSocket(new PipeTransport(sendPipe.Reader, recvPipe.Writer), ComputeSocketEndpoint.Local, new TestLogger());
+			await using RemoteComputeSocket agentSocket = new RemoteComputeSocket(new PipeTransport(recvPipe.Reader, sendPipe.Writer), ComputeSocketEndpoint.Remote, new TestLogger());
 
+			await RunAgentTests(localSocket, agentSocket);
+		}
+
+		[TestMethod]
+		public async Task TestAgentMessageLoopTcp()
+		{
+			const int Port = 9990;
+			TcpListener listener = new TcpListener(IPAddress.Loopback, Port);
+			listener.Start();
+
+			using Socket clientSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+			Task clientConnectTask = clientSocket.ConnectAsync(IPAddress.Loopback, Port, CancellationToken.None).AsTask();
+
+			using Socket serverSocket = await listener.AcceptSocketAsync(CancellationToken.None);
+			await clientConnectTask;
+
+			await using RemoteComputeSocket localSocket = new RemoteComputeSocket(new TcpTransport(clientSocket), ComputeSocketEndpoint.Local, new TestLogger());
+			await using RemoteComputeSocket agentSocket = new RemoteComputeSocket(new TcpTransport(serverSocket), ComputeSocketEndpoint.Remote, new TestLogger());
+
+			await RunAgentTests(localSocket, agentSocket);
+		}
+
+		static async Task RunAgentTests(RemoteComputeSocket localSocket, RemoteComputeSocket agentSocket)
+		{
 			DirectoryReference tempDir = new DirectoryReference("test-temp");
 			await using (BackgroundTask agentTask = BackgroundTask.StartNew(ctx => RunAgent(agentSocket, tempDir, ctx)))
 			{
@@ -105,6 +145,10 @@ namespace EpicGames.Horde.Tests
 					MemoryStorageClient storage = new MemoryStorageClient();
 					await using (BundleWriter treeWriter = storage.CreateWriter())
 					{
+						FileReference file = FileReference.Combine(tempDir, "subdir/hello.txt");
+						FileReference.Delete(file);
+						Assert.IsFalse(FileReference.Exists(file));
+
 						byte[] data = Encoding.UTF8.GetBytes("Hello world");
 
 						ChunkedDataWriter writer = new ChunkedDataWriter(treeWriter, new ChunkingOptions());
@@ -121,7 +165,6 @@ namespace EpicGames.Horde.Tests
 						BundleNodeHandle handle = await treeWriter.FlushAsync(root);
 						await channel.UploadFilesAsync("", handle.GetLocator(), storage);
 
-						FileReference file = FileReference.Combine(tempDir, "subdir/hello.txt");
 						Assert.IsTrue(FileReference.Exists(file));
 						byte[] readData = FileReference.ReadAllBytes(file);
 						Assert.IsTrue(readData.SequenceEqual(data));
@@ -137,10 +180,11 @@ namespace EpicGames.Horde.Tests
 
 						Assert.IsFalse(FileReference.Exists(file));
 					}
-
-
 				}
 			}
+
+			await localSocket.CloseAsync(CancellationToken.None);
+			await agentSocket.CloseAsync(CancellationToken.None);
 		}
 
 		static async Task RunAgent(ComputeSocket socket, DirectoryReference tempDir, CancellationToken cancellationToken)

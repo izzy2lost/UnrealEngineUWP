@@ -80,7 +80,7 @@ namespace EpicGames.Horde.Compute.Clients
 		/// <param name="authHeader">Authentication header</param>
 		/// <param name="logger">Logger for diagnostic messages</param>
 		public ServerComputeClient(Uri serverUri, AuthenticationHeaderValue? authHeader, ILogger logger)
-			{
+		{
 #pragma warning disable CA2000 // Dispose objects before losing scope
 			// This is disposed via HttpClient
 			SocketsHttpHandler handler = new SocketsHttpHandler();
@@ -93,7 +93,7 @@ namespace EpicGames.Horde.Compute.Clients
 
 			_createHttpClient = GetDefaultHttpClient;
 			_logger = logger;
-			}
+		}
 
 		/// <summary>
 		/// Constructor
