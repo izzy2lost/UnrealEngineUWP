@@ -1902,7 +1902,29 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(UInstancedStaticMeshComponent* I
 				);
 			}
 		}
+	}
+}
 
+
+void FInstancedStaticMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
+{
+	FStaticMeshSceneProxy::CreateRenderThreadResources(RHICmdList);
+
+	const bool bCanUseGPUScene = UseGPUScene(GetScene().GetShaderPlatform(), GetScene().GetFeatureLevel());
+	
+	// Flush upload of GPU data for ISM/HISM
+	if (ensure(InstancedRenderData.PerInstanceRenderData.IsValid()))
+	{
+		FStaticMeshInstanceBuffer& InstanceBuffer = InstancedRenderData.PerInstanceRenderData->InstanceBuffer;
+		if (!bCanUseGPUScene)
+		{
+			InstanceBuffer.FlushGPUUpload(RHICmdList);
+		}
+	}
+
+	if (bCanUseGPUScene)
+	{
+		bSupportsInstanceDataBuffer = true;
 		// TODO: can the PerInstanceRenderData ever not be valid here?
 		if (ensure(InstancedRenderData.PerInstanceRenderData.IsValid()))
 		{
@@ -1964,23 +1986,6 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(UInstancedStaticMeshComponent* I
 #endif
 				}
 			}
-		}
-	}
-}
-
-void FInstancedStaticMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
-{
-	FStaticMeshSceneProxy::CreateRenderThreadResources(RHICmdList);
-
-	// Flush upload of GPU data for ISM/HISM
-	if (ensure(InstancedRenderData.PerInstanceRenderData.IsValid()))
-	{
-		const bool bCanUseGPUScene = UseGPUScene(GetScene().GetShaderPlatform(), GetScene().GetFeatureLevel());
-
-		if (!bCanUseGPUScene)
-		{
-			FStaticMeshInstanceBuffer& InstanceBuffer = InstancedRenderData.PerInstanceRenderData->InstanceBuffer;
-			InstanceBuffer.FlushGPUUpload(RHICmdList);
 		}
 	}
 
