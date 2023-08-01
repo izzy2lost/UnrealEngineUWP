@@ -33,7 +33,7 @@ enum EPhysXFilterDataFlags
 // (ExtraFilter (top NumExtraFilterBits) + MyChannel (next NumCollisionChannelBits) as ECollisionChannel + Flags (remaining NumFilterDataFlagBits)
 // [NumExtraFilterBits] [NumCollisionChannelBits] [NumFilterDataFlagBits] = 32 bits
 enum { NumCollisionChannelBits = 5 };
-enum { NumFilterDataFlagBits = 32 - NumExtraFilterBits - NumCollisionChannelBits };
+enum { NumFilterDataFlagBits = 32 - ::NumExtraFilterBits - ::NumCollisionChannelBits };
 
 
 struct FPhysicsFilterBuilder
@@ -120,26 +120,26 @@ inline void CreateShapeFilterData(
 
 inline ECollisionChannel GetCollisionChannel(uint32 Word3)
 {
-	uint32 ChannelMask = (Word3 << NumExtraFilterBits) >> (32 - NumCollisionChannelBits);
+	uint32 ChannelMask = (Word3 << ::NumExtraFilterBits) >> (32 - ::NumCollisionChannelBits);
 	return (ECollisionChannel)ChannelMask;
 }
 
 inline ECollisionChannel GetCollisionChannelAndExtraFilter(uint32 Word3, FMaskFilter& OutMaskFilter)
 {
 	uint32 ChannelMask = GetCollisionChannel(Word3);
-	OutMaskFilter = Word3 >> (32 - NumExtraFilterBits);
+	OutMaskFilter = Word3 >> (32 - ::NumExtraFilterBits);
 	return (ECollisionChannel)ChannelMask;
 }
 
 inline uint32 CreateChannelAndFilter(ECollisionChannel CollisionChannel, FMaskFilter MaskFilter)
 {
-	uint32 ResultMask = (uint32(MaskFilter) << NumCollisionChannelBits) | (uint32)CollisionChannel;
+	uint32 ResultMask = (uint32(MaskFilter) << ::NumCollisionChannelBits) | (uint32)CollisionChannel;
 	return ResultMask << NumFilterDataFlagBits;
 }
 
 inline void UpdateMaskFilter(uint32& Word3, FMaskFilter NewMaskFilter)
 {
-	static_assert(NumExtraFilterBits <= 8, "Only up to 8 extra filter bits are supported.");
-	Word3 &= (0xFFFFFFFFu >> NumExtraFilterBits);	//we drop the top NumExtraFilterBits bits because that's where the new mask filter is going
-	Word3 |= uint32(NewMaskFilter) << (32 - NumExtraFilterBits);
+	static_assert(::NumExtraFilterBits <= 8, "Only up to 8 extra filter bits are supported.");
+	Word3 &= (0xFFFFFFFFu >> ::NumExtraFilterBits);	//we drop the top NumExtraFilterBits bits because that's where the new mask filter is going
+	Word3 |= uint32(NewMaskFilter) << (32 - ::NumExtraFilterBits);
 }
