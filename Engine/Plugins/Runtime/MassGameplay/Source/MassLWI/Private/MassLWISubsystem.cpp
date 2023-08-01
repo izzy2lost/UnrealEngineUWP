@@ -8,6 +8,7 @@
 #include "MassEntitySubsystem.h"
 #include "MassLWIClientActorSpawnerSubsystem.h"
 #include "VisualLogger/VisualLogger.h"
+#include "MassLWISettings.h"
 
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MassLWISubsystem)
@@ -49,7 +50,7 @@ void UMassLWISubsystem::Deinitialize()
 bool UMassLWISubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
 	UWorld* World = Outer ? Outer->GetWorld() : nullptr;
-	return World && World->IsGameWorld() && Super::ShouldCreateSubsystem(Outer);
+	return World && World->IsGameWorld() && Super::ShouldCreateSubsystem(Outer) && GET_MASSLWI_CONFIG_VALUE(IsMassLWIEnabled());
 }
 
 void UMassLWISubsystem::RegisterLWIManager(AMassLWIStaticMeshManager& Manager)
