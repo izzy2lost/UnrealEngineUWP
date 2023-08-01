@@ -622,6 +622,7 @@ class FTSRRejectShadingCS : public FTSRShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, HistoryRejectionOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, InputSceneColorOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, InputSceneColorLdrLumaOutput)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, AntiAliasMaskOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, DebugOutput)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -725,9 +726,9 @@ class FTSRSpatialAntiAliasingCS : public FTSRShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FTSRCommonParameters, CommonParameters)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, AntiAliasMaskTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputSceneColorLdrLumaTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, AntiAliasingOutput)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, NoiseFilteringOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, DebugOutput)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -750,19 +751,6 @@ class FTSRSpatialAntiAliasingCS : public FTSRShader
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 	}
 }; // class FTSRSpatialAntiAliasingCS
-
-class FTSRFilterAntiAliasingCS : public FTSRShader
-{
-	DECLARE_GLOBAL_SHADER(FTSRFilterAntiAliasingCS);
-	SHADER_USE_PARAMETER_STRUCT(FTSRFilterAntiAliasingCS, FTSRShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FTSRCommonParameters, CommonParameters)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, AntiAliasingTexture)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, AntiAliasingOutput)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, DebugOutput)
-	END_SHADER_PARAMETER_STRUCT()
-}; // class FTSRFilterAntiAliasingCS
 
 class FTSRUpdateHistoryCS : public FTSRShader
 {
@@ -790,7 +778,6 @@ class FTSRUpdateHistoryCS : public FTSRShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HistoryRejectionTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DilatedVelocityTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, AntiAliasingTexture)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, NoiseFilteringTexture)
 
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, TranslucencyInfo)
 		SHADER_PARAMETER(FIntPoint, TranslucencyPixelPosMin)
@@ -939,11 +926,13 @@ class FTSRVisualizeCS : public FTSRShader
 		SHADER_PARAMETER(FScreenTransform, OutputPixelPosToScreenPos)
 		SHADER_PARAMETER(FScreenTransform, ScreenPosToHistoryUV)
 		SHADER_PARAMETER(FScreenTransform, ScreenPosToInputPixelPos)
+		SHADER_PARAMETER(FScreenTransform, ScreenPosToInputUV)
 		SHADER_PARAMETER(FMatrix44f, ClipToResurrectionClip)
 		SHADER_PARAMETER(FIntPoint, OutputViewRectMin)
 		SHADER_PARAMETER(FIntPoint, OutputViewRectMax)
 		SHADER_PARAMETER(int32, VisualizeId)
 		SHADER_PARAMETER(int32, bCanResurrectHistory)
+		SHADER_PARAMETER(int32, bCanSpatialAntiAlias)
 		SHADER_PARAMETER(float, MaxHistorySampleCount)
 		SHADER_PARAMETER(float, OutputToHistoryResolutionFractionSquare)
 
@@ -951,6 +940,7 @@ class FTSRVisualizeCS : public FTSRShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ClosestDepthTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DilatedVelocityTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HistoryRejectionTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, AntiAliasMaskTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, HistoryMetadataTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ResurrectedHistoryColorTexture)
 
@@ -967,7 +957,6 @@ IMPLEMENT_GLOBAL_SHADER(FTSRDecimateHistoryCS,       "/Engine/Private/TemporalSu
 IMPLEMENT_GLOBAL_SHADER(FTSRRejectShadingCS,         "/Engine/Private/TemporalSuperResolution/TSRRejectShading.usf",         "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRMergeRejectionCS,        "/Engine/Private/TemporalSuperResolution/TSRMergeRejection.usf",        "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRSpatialAntiAliasingCS,   "/Engine/Private/TemporalSuperResolution/TSRSpatialAntiAliasing.usf",   "MainCS", SF_Compute);
-IMPLEMENT_GLOBAL_SHADER(FTSRFilterAntiAliasingCS,    "/Engine/Private/TemporalSuperResolution/TSRFilterAntiAliasing.usf",    "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRUpdateHistoryCS,         "/Engine/Private/TemporalSuperResolution/TSRUpdateHistory.usf",         "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRResolveHistoryCS,        "/Engine/Private/TemporalSuperResolution/TSRResolveHistory.usf",        "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRVisualizeCS,             "/Engine/Private/TemporalSuperResolution/TSRVisualize.usf",             "MainCS", SF_Compute);
@@ -1922,6 +1911,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 	// Perform a history reject the history.
 	FRDGTextureRef HistoryRejectionTexture = nullptr;
 	FRDGTextureRef InputSceneColorLdrLumaTexture = nullptr;
+	FRDGTextureRef AntiAliasMaskTexture = nullptr;
 	{
 		const bool bComputeInputSceneColorTexture = InputSceneColorLdrLumaTexture == nullptr;
 		if (bComputeInputSceneColorTexture)
@@ -1955,6 +1945,17 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 				/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV);
 
 			HistoryRejectionTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.HistoryRejection"));
+		}
+
+		if (bComputeLdrLuma)
+		{
+			FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
+				InputExtent,
+				PF_R8_UINT,
+				FClearValueBinding::None,
+				/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV);
+
+			AntiAliasMaskTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.AntiAliasing.Mask"));
 		}
 
 		FScreenPassTextureViewport TranslucencyViewport(
@@ -2054,6 +2055,9 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->InputSceneColorLdrLumaOutput = bComputeLdrLuma
 				? GraphBuilder.CreateUAV(InputSceneColorLdrLumaTexture)
 				: CreateDummyUAV(GraphBuilder, PF_R8);
+			PassParameters->AntiAliasMaskOutput = bComputeLdrLuma
+				? GraphBuilder.CreateUAV(AntiAliasMaskTexture)
+				: CreateDummyUAV(GraphBuilder, PF_R8_UINT);
 
 			PassParameters->DebugOutput = CreateDebugUAV(InputExtent, TEXT("Debug.TSR.RejectShading"));
 		}
@@ -2100,63 +2104,38 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 
 	// Spatial anti-aliasing when doing history rejection.
 	FRDGTextureRef AntiAliasingTexture = nullptr;
-	FRDGTextureRef NoiseFilteringTexture = nullptr;
 	if (RejectionAntiAliasingQuality > 0)
 	{
-		FRDGTextureRef RawAntiAliasingTexture;
 		{
 			FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
 				InputExtent,
-				PF_R8_UINT,
+				PF_R8G8_UINT,
 				FClearValueBinding::None,
 				/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV);
 
-			RawAntiAliasingTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.AntiAliasing.Raw"));
-			AntiAliasingTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.AntiAliasing.Filtered"));
-
-			Desc.Format = PF_R8;
-			NoiseFilteringTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.AntiAliasing.Noise"));
+			AntiAliasingTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.AntiAliasing"));
 		}
 
-		{
-			FTSRSpatialAntiAliasingCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTSRSpatialAntiAliasingCS::FParameters>();
-			PassParameters->CommonParameters = CommonParameters;
-			PassParameters->InputSceneColorLdrLumaTexture = InputSceneColorLdrLumaTexture;
-			PassParameters->AntiAliasingOutput = GraphBuilder.CreateUAV(RawAntiAliasingTexture);
-			PassParameters->NoiseFilteringOutput = GraphBuilder.CreateUAV(NoiseFilteringTexture);
-			PassParameters->DebugOutput = CreateDebugUAV(InputExtent, TEXT("Debug.TSR.SpatialAntiAliasing"));
+		FTSRSpatialAntiAliasingCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTSRSpatialAntiAliasingCS::FParameters>();
+		PassParameters->CommonParameters = CommonParameters;
+		PassParameters->InputSceneColorLdrLumaTexture = InputSceneColorLdrLumaTexture;
+		PassParameters->AntiAliasMaskTexture = AntiAliasMaskTexture;
+		PassParameters->AntiAliasingOutput = GraphBuilder.CreateUAV(AntiAliasingTexture);
+		PassParameters->DebugOutput = CreateDebugUAV(InputExtent, TEXT("Debug.TSR.SpatialAntiAliasing"));
 
-			FTSRSpatialAntiAliasingCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FTSRSpatialAntiAliasingCS::FQualityDim>(RejectionAntiAliasingQuality);
+		FTSRSpatialAntiAliasingCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FTSRSpatialAntiAliasingCS::FQualityDim>(RejectionAntiAliasingQuality);
 
-			TShaderMapRef<FTSRSpatialAntiAliasingCS> ComputeShader(View.ShaderMap, PermutationVector);
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
-				RDG_EVENT_NAME("TSR SpatialAntiAliasing(Quality=%d) %dx%d",
-					RejectionAntiAliasingQuality,
-					InputRect.Width(), InputRect.Height()),
-				AsyncComputePasses >= 3 ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
-				ComputeShader,
-				PassParameters,
-				FComputeShaderUtils::GetGroupCount(InputRect.Size(), 8));
-		}
-
-		{
-			FTSRFilterAntiAliasingCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTSRFilterAntiAliasingCS::FParameters>();
-			PassParameters->CommonParameters = CommonParameters;
-			PassParameters->AntiAliasingTexture = RawAntiAliasingTexture;
-			PassParameters->AntiAliasingOutput = GraphBuilder.CreateUAV(AntiAliasingTexture);
-			PassParameters->DebugOutput = CreateDebugUAV(InputExtent, TEXT("Debug.TSR.FilterAntiAliasing"));
-
-			TShaderMapRef<FTSRFilterAntiAliasingCS> ComputeShader(View.ShaderMap);
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
-				RDG_EVENT_NAME("TSR FilterAntiAliasing %dx%d", InputRect.Width(), InputRect.Height()),
-				AsyncComputePasses >= 3 ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
-				ComputeShader,
-				PassParameters,
-				FComputeShaderUtils::GetGroupCount(InputRect.Size(), 8));
-		}
+		TShaderMapRef<FTSRSpatialAntiAliasingCS> ComputeShader(View.ShaderMap, PermutationVector);
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("TSR SpatialAntiAliasing(Quality=%d) %dx%d",
+				RejectionAntiAliasingQuality,
+				InputRect.Width(), InputRect.Height()),
+			AsyncComputePasses >= 3 ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
+			ComputeShader,
+			PassParameters,
+			FComputeShaderUtils::GetGroupCount(InputRect.Size(), 8));
 	}
 
 	// Update temporal history.
@@ -2178,7 +2157,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 
 		PassParameters->DilatedVelocityTexture = DilatedVelocityTexture;
 		PassParameters->AntiAliasingTexture = AntiAliasingTexture;
-		PassParameters->NoiseFilteringTexture = NoiseFilteringTexture;
 
 		PassParameters->TranslucencyPixelPosMin = SeparateTranslucencyRect.Min;
 		PassParameters->TranslucencyPixelPosMax = SeparateTranslucencyRect.Max - 1;
@@ -2450,6 +2428,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			HistoryClamp = 3,
 			ResurrectionMask = 4,
 			ResurrectedColor = 5,
+			SpatialAntiAliasingMask = 6,
 			MAX,
 		};
 
@@ -2460,6 +2439,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			TEXT("HistoryClamp"),
 			TEXT("ResurrectionMask"),
 			TEXT("ResurrectedColor"),
+			TEXT("SpatialAntiAliasingMask"),
 		};
 		static_assert(UE_ARRAY_COUNT(kVisualizationName) == int32(EVisualizeId::MAX), "kVisualizationName doesn't match EVisualizeId");
 
@@ -2483,12 +2463,14 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->PrevHistoryParameters = PrevHistoryParameters;
 			PassParameters->OutputPixelPosToScreenPos = (FScreenTransform::Identity - OutputRect.Min + 0.5f) / OutputRect.Size() * FScreenTransform::ViewportUVToScreenPos;
 			PassParameters->ScreenPosToHistoryUV = FScreenTransform::ChangeTextureBasisFromTo(HistoryExtent, FIntRect(FIntPoint::ZeroValue, HistorySize), FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TextureUV);
-			PassParameters->ScreenPosToInputPixelPos = FScreenTransform::ChangeTextureBasisFromTo(InputExtent, InputRect, FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TextureUV);
+			PassParameters->ScreenPosToInputPixelPos = FScreenTransform::ChangeTextureBasisFromTo(InputExtent, InputRect, FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TexelPosition);
+			PassParameters->ScreenPosToInputUV = FScreenTransform::ChangeTextureBasisFromTo(InputExtent, InputRect, FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TextureUV);
 			PassParameters->ClipToResurrectionClip = ClipToResurrectionClip;
 			PassParameters->OutputViewRectMin = VisualizeRect.Min;
 			PassParameters->OutputViewRectMax = VisualizeRect.Max;
 			PassParameters->VisualizeId = int32(VisualizeId);
 			PassParameters->bCanResurrectHistory = bCanResurrectHistory;
+			PassParameters->bCanSpatialAntiAlias = RejectionAntiAliasingQuality > 0;
 			PassParameters->MaxHistorySampleCount = MaxHistorySampleCount;
 			PassParameters->OutputToHistoryResolutionFractionSquare = OutputToHistoryResolutionFractionSquare;
 
@@ -2496,6 +2478,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->ClosestDepthTexture = ClosestDepthTexture;
 			PassParameters->DilatedVelocityTexture = DilatedVelocityTexture;
 			PassParameters->HistoryRejectionTexture = HistoryRejectionTexture;
+			PassParameters->AntiAliasMaskTexture = AntiAliasMaskTexture ? AntiAliasMaskTexture : BlackUintDummy;
 			PassParameters->HistoryMetadataTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(History.MetadataArray, CurrentFrameSliceIndex));
 			if (PrevHistory.ColorArray == BlackArrayDummy)
 			{
@@ -2539,6 +2522,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 				{
 					Tiles[4 * 2 + 0] = Visualize(EVisualizeId::ResurrectedColor, TEXT("Resurrected Frame"));
 				}
+				Tiles[4 * 3 + 0] = Visualize(EVisualizeId::SpatialAntiAliasingMask, TEXT("Spatial Anti-Aliasing"));
 			}
 
 			{

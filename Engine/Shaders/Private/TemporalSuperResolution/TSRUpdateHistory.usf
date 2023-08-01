@@ -95,8 +95,7 @@ Texture2D<tsr_half4> InputSceneTranslucencyTexture;
 Texture2D<tsr_half4> HistoryRejectionTexture;
 
 Texture2D<float2> DilatedVelocityTexture;
-Texture2D<tsr_ushort> AntiAliasingTexture;
-Texture2D<tsr_half> NoiseFilteringTexture;
+Texture2D<tsr_ushort2> AntiAliasingTexture;
 
 int2   TranslucencyPixelPosMin;
 int2   TranslucencyPixelPosMax;
@@ -480,8 +479,7 @@ void MainCS(
 		tsr_half4 RawHistoryRejection[DPV_PIXEL_PER_LANE];
 		
 		#if CONFIG_REJECTION_ANTI_ALIASING
-			tsr_ushort RawEncodedInputTexelOffset[DPV_PIXEL_PER_LANE];
-			tsr_half RawNoiseFiltering[DPV_PIXEL_PER_LANE]; 
+			tsr_ushort2 RawEncodedInputTexelOffset[DPV_PIXEL_PER_LANE];
 		#endif
 
 		// Issue overlapped texture fetches
@@ -501,7 +499,6 @@ void MainCS(
 				#if CONFIG_REJECTION_ANTI_ALIASING
 				{
 					RawEncodedInputTexelOffset[PixelId] = AntiAliasingTexture[LocalInputPixelPos];
-					RawNoiseFiltering[PixelId] = NoiseFilteringTexture[LocalInputPixelPos];
 				}
 				#endif
 			}
@@ -597,9 +594,9 @@ void MainCS(
 
 		#if CONFIG_REJECTION_ANTI_ALIASING
 		{
-			tsr_ushort2 EncodedInputTexelOffset = dpv_force_interleave_registers_array(RawEncodedInputTexelOffset);
+			tsr_ushort2 EncodedInputTexelOffset = dpv_force_interleave_registers_array(RawEncodedInputTexelOffset)[0];
 			
-			NoiseFiltering = dpv_force_interleave_registers_array(RawNoiseFiltering);
+			NoiseFiltering = tsr_half2(dpv_force_interleave_registers_array(RawEncodedInputTexelOffset)[1]) * rcp(tsr_half(255.0));
 
 			SpatialAntiAliasingOffset = DecodeSpatialAntiAliasingOffset(EncodedInputTexelOffset);
 		}

@@ -91,6 +91,8 @@
 // Minimum weight of a pixel in history.
 #define MIN_IMPLICIT_HISTORY_WEIGHT ceil(tsr_half(255.0) * rcp(tsr_half(MAX_SAMPLE_COUNT)) * tsr_half(MIN_REPROJECTION_SAMPLE_COUNT)) * rcp(tsr_half(255.0))
 
+#define SPATIAL_ANTI_ALIASER_MIN_LUMIMANCE 0.05
+
 
 // K = Center of the nearest input pixel.
 // O = Center of the output pixel.

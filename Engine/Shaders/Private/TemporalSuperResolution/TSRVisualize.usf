@@ -22,11 +22,13 @@ static tsr_half3 kBlue   = tsr_half3(0.10, 0.10, 1.00);
 FScreenTransform OutputPixelPosToScreenPos;
 FScreenTransform ScreenPosToHistoryUV;
 FScreenTransform ScreenPosToInputPixelPos;
+FScreenTransform ScreenPosToInputUV;
 float4x4 ClipToResurrectionClip;
 uint2 OutputViewRectMin;
 uint2 OutputViewRectMax;
 uint VisualizeId;
 uint bCanResurrectHistory;
+uint bCanSpatialAntiAlias;
 float MaxHistorySampleCount;
 float OutputToHistoryResolutionFractionSquare;
 
@@ -34,6 +36,7 @@ Texture2D<tsr_half3> SceneColorTexture;
 Texture2D<float>     ClosestDepthTexture;
 Texture2D<float2>    DilatedVelocityTexture;
 Texture2D<tsr_half4> HistoryRejectionTexture;
+Texture2D<tsr_ushort> AntiAliasMaskTexture;
 Texture2D<tsr_half4> HistoryMetadataTexture;
 Texture2D<tsr_half3> ResurrectedHistoryColorTexture;
 
@@ -54,6 +57,7 @@ struct FContext
 	tsr_short2 OutputPixelPos;
 	float2 ScreenPos;
 	float2 InputUV;
+	tsr_short2 InputPixelPos;
 };
 
 tsr_half3 SampleTSROutputColor(FContext Ctx)
@@ -134,6 +138,16 @@ tsr_half3 DisplayResurrectedColor(FContext Ctx)
 	return GrayScaleColor(ResurrectedColor) * select(ResurrectionMask, kGreen, kWhite);
 }
 
+tsr_half3 DisplaySpatialAntiAliasingMask(FContext Ctx)
+{
+	bool bSpatialAntiAlias = AntiAliasMaskTexture[Ctx.InputPixelPos] != tsr_ushort(0x0);
+	if (!bCanSpatialAntiAlias)
+	{
+		return SampleTSROutputGray(Ctx) * kRed;
+	}
+	return SampleTSROutputGray(Ctx) * select(bSpatialAntiAlias, kGreen, kWhite);
+}
+
 
 //------------------------------------------------------- ENTRY POINT
 
@@ -152,8 +166,10 @@ void MainCS(
 		tsr_short2(GroupId) * tsr_short2(TILE_SIZE, TILE_SIZE) +
 		Map8x8Tile2x2Lane(GroupThreadIndex));
 	Ctx.ScreenPos = ApplyScreenTransform(float2(Ctx.OutputPixelPos), OutputPixelPosToScreenPos);
-	Ctx.InputUV = ApplyScreenTransform(Ctx.ScreenPos, ScreenPosToInputPixelPos);
+	Ctx.InputUV = ApplyScreenTransform(Ctx.ScreenPos, ScreenPosToInputUV);
 	Ctx.InputUV = fastClamp(Ctx.InputUV, InputInfo_UVViewportBilinearMin, InputInfo_UVViewportBilinearMax);
+	Ctx.InputPixelPos = tsr_short2(ApplyScreenTransform(Ctx.ScreenPos, ScreenPosToInputPixelPos));
+	Ctx.InputPixelPos = fastClamp(Ctx.InputPixelPos, tsr_short2(InputInfo_ViewportMin), tsr_short2(InputInfo_ViewportMax - 1));
 
 	tsr_half3 OutputColor = tsr_half(0.0);
 
@@ -181,6 +197,10 @@ void MainCS(
 	else if (VisualizeId == 5)
 	{
 		OutputColor = DisplayResurrectedColor(Ctx);
+	}
+	else if (VisualizeId == 6)
+	{
+		OutputColor = DisplaySpatialAntiAliasingMask(Ctx);
 	}
 
 	{

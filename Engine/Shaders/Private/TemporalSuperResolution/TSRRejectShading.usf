@@ -132,6 +132,7 @@ RWTexture2D<tsr_half4> HistoryMoireOutput;
 RWTexture2D<tsr_half4> HistoryRejectionOutput;
 RWTexture2D<tsr_halfC> InputSceneColorOutput;
 RWTexture2D<tsr_half> InputSceneColorLdrLumaOutput;
+RWTexture2D<tsr_ushort> AntiAliasMaskOutput;
 
 
 //------------------------------------------------------- DEBUG
@@ -323,8 +324,8 @@ void ComputeMoireError(
 template<bool ApplyMoireError>
 void MeasureRejection(
 	tsr_simd_bool  bIsValid,
-	tsr_simd_halfC ExposedInput,
-	tsr_simd_halfC ExposedHistory,
+	tsr_simd_halfC ClampedInput,
+	tsr_simd_halfC ClampedHistory,
 	tsr_simd_half  MoireError,
 	out tsr_simd_half OutRejectionBlendFinal,
 	out tsr_simd_half OutRejectionClampBlend)
@@ -332,9 +333,6 @@ void MeasureRejection(
 	const tsr_half FilteringWeight = rcp(tsr_half(1.0 + 4 * 0.5 + 4 * 0.25));
 	tsr_simd_halfC BackbufferQuantizationErrorVector = tsr_simd_halfC::Const(MeasureBackbufferLDRQuantizationError());
 		
-	tsr_simd_halfC ClampedInput, ClampedHistory;
-	AnnihilateMutually3x3(ExposedInput, ExposedHistory, /* out */ ClampedInput, /* out */ ClampedHistory);
-
 	// Filter clamped input and history to increase quantization of the rejection detection
 	tsr_simd_halfC FilteredInput   = Blur3x3(ClampedInput);
 	tsr_simd_halfC FilteredHistory = Blur3x3(ClampedHistory);
@@ -615,6 +613,7 @@ void MainCS(
 	tsr_simd_half RejectionBlendFinal = tsr_simd_half::Const(1.0);
 	tsr_simd_half RejectionClampBlend = tsr_simd_half::Const(1.0);
 	tsr_simd_bool bResurrectHistory = tsr_simd_bool::Const(false);
+	tsr_simd_bool bAliasingIsVisible = tsr_simd_bool::Const(false);
 	{
 		// Convert input to LDR
 		tsr_simd_halfC ExposedInput = OriginalInput * rcp(OriginalInput + tsr_simd_halfC::Const(tsr_half(PerceptionAdd)));
@@ -625,10 +624,27 @@ void MainCS(
 			/* SourcePerceptionAdd = */ 1.0,
 			/* DestPerceptionAdd   = */ PerceptionAdd);
 			
+		tsr_simd_halfC ExposedInputMin;
+		tsr_simd_halfC ExposedInputMax;
+		MinMax3x3(ExposedInput, /* out */ ExposedInputMin, /* out */ ExposedInputMax);
+		
+		{
+			#if CONFIG_SCENE_COLOR_ALPHA
+				tsr_simd_half ExposedInputLuminanceBox = dot(ExposedInputMax - ExposedInputMin, tsr_simd_halfC::Const(tsr_halfC(0.299f, 0.587f, 0.114f, 0.0)));
+			#else
+				tsr_simd_half ExposedInputLuminanceBox = dot(ExposedInputMax - ExposedInputMin, tsr_simd_halfC::Const(tsr_halfC(0.299f, 0.587f, 0.114f)));
+			#endif
+
+			bAliasingIsVisible = ExposedInputLuminanceBox > tsr_simd_half::Const(SPATIAL_ANTI_ALIASER_MIN_LUMIMANCE);
+		}
+
+		tsr_simd_halfC ClampedInput = Clamp3x3(ExposedInput, fastClamp(ExposedHistory, ExposedInputMin, ExposedInputMax));
+		tsr_simd_halfC ClampedHistory = AnnihilateToGuide3x3(ExposedHistory, /* Guide = */ ExposedInput);
+
 		MeasureRejection</* ApplyMoireError = */ CONFIG_MOIRE_DETECTION != 0>(
 			bIsValid,
-			ExposedInput,
-			ExposedHistory,
+			ClampedInput,
+			ClampedHistory,
 			MoireError,
 			/* out */ RejectionBlendFinal,
 			/* out */ RejectionClampBlend);
@@ -655,12 +671,15 @@ void MainCS(
 			BRANCH
 			if (bComputeResurrection)
 			{
+				tsr_simd_halfC ClampedResurrectedInput, ClampedResurrectedHistory;
+				AnnihilateMutually3x3(ExposedInput, ExposedResurrectedHistory, /* out */ ClampedResurrectedInput, /* out */ ClampedResurrectedHistory);
+
 				tsr_simd_half ResurrectionRejectionBlendFinal = tsr_simd_half::Const(1.0);
 				tsr_simd_half ResurrectionRejectionClampBlend = tsr_simd_half::Const(1.0);
 				MeasureRejection</* ApplyMoireError = */ false>(
 					bIsValid,
-					ExposedInput,
-					ExposedResurrectedHistory,
+					ClampedResurrectedInput,
+					ClampedResurrectedHistory,
 					/* MoireError = */ tsr_simd_half::Const(0.0),
 					/* out */ ResurrectionRejectionBlendFinal,
 					/* out */ ResurrectionRejectionClampBlend);
@@ -674,6 +693,8 @@ void MainCS(
 		}
 		#endif
 	}
+	
+	tsr_simd_bool bIsDisoccluded = not(bIsValid);
 
 	// Update the guide for next frame.
 	tsr_simd_halfC FinalGuide;
@@ -688,11 +709,10 @@ void MainCS(
 		for (uint SimdIndex = 0; SimdIndex < SIMD_SIZE; SimdIndex++)
 		{
 			bool bIsOffScreen = false;
-			bool bIsDisoccluded = !bIsValid.GetElement(SimdIndex);
+			bool bIsDisoccludedLocal = bIsDisoccluded.GetElement(SimdIndex);
 			tsr_half LocalRejectionBlendFinal = RejectionBlendFinal.GetElement(SimdIndex);
 
-			//tsr_half TotalBlend = select(or(bIsOffScreen, bIsDisoccluded), tsr_half(1.0), tsr_half(0.0));
-			tsr_half TotalBlend = select(or(bIsOffScreen, bIsDisoccluded), tsr_half(1.0), saturate(tsr_half(1.0) - LocalRejectionBlendFinal * tsr_half(4.0)));
+			tsr_half TotalBlend = select(or(bIsOffScreen, bIsDisoccludedLocal), tsr_half(1.0), saturate(tsr_half(1.0) - LocalRejectionBlendFinal * tsr_half(4.0)));
 			tsr_half RejectedBlendFactor = max(tsr_half(TheoricBlendFactor), tsr_half(1.0) - LocalRejectionBlendFinal);
 
 			BlendFinal.SetElement(SimdIndex, max(RejectedBlendFactor, TotalBlend));
@@ -709,8 +729,6 @@ void MainCS(
 	tsr_simd_half DisableHistoryClamp;
 	tsr_simd_half IncreaseValidityMultiplier;
 	{
-		tsr_simd_bool bIsDisoccluded = not(bIsValid);
-
 		DisableHistoryClamp        = select(and(bIsDisoccluded, not(bResurrectHistory)), tsr_simd_half::Const(0.0), min(RejectionClampBlend, VelocityEdge));
 		IncreaseValidityMultiplier = select(and(bIsDisoccluded, not(bResurrectHistory)), tsr_simd_half::Const(0.0), RejectionClampBlend);
 	}
@@ -726,6 +744,9 @@ void MainCS(
 		}
 	}
 	#endif
+
+	// Whether to run spatial anti-aliaser on the frame. Must match SpatialAntiAliasingLerp.
+	tsr_simd_bool bSpatialAntiAlias = and(bAliasingIsVisible, or(RejectionBlendFinal < tsr_simd_half::Const(tsr_half(0.25)), and(bIsDisoccluded, not(bResurrectHistory))));
 
 	// Output data.
 	PLATFORM_SPECIFIC_ISOLATE
@@ -768,6 +789,7 @@ void MainCS(
 				DisableHistoryClamp.GetElement(SimdIndex) - tsr_half(0.5 * rcp(256.0)),
 				tsr_half(255.5 * rcp(256.0)) - IncreaseValidityMultiplier.GetElement(SimdIndex),
 				BitMask);
+			AntiAliasMaskOutput[OutputPixelPos] = select(bSpatialAntiAlias.GetElement(SimdIndex), tsr_ushort(1), tsr_ushort(0));
 		}
 		
 		#if DEBUG_OUTPUT
