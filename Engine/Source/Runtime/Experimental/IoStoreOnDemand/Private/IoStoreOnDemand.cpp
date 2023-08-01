@@ -1247,7 +1247,16 @@ void FIoStoreOnDemandModule::StartupModule()
 {
 	using namespace UE::IO::Private;
 
-#if !WITH_EDITOR
+#if WITH_EDITOR
+	bool bEnabledInEditor = false;
+	GConfig->GetBool(TEXT("Ias"), TEXT("EnableInEditor"), bEnabledInEditor, GEngineIni);
+
+	if (!bEnabledInEditor)
+	{
+		return;
+	}
+#endif //WITH_EDITOR
+
 	const TCHAR* CommandLine = FCommandLine::Get();
 
 	UE::FOnDemandEndpoint Endpoint;
@@ -1358,7 +1367,6 @@ void FIoStoreOnDemandModule::StartupModule()
 	}
 #endif
 	FIoDispatcher::Get().Mount(Backend.ToSharedRef(), BackendPriority);
-#endif // !WITH_EDITOR
 }
 
 void FIoStoreOnDemandModule::ShutdownModule()
