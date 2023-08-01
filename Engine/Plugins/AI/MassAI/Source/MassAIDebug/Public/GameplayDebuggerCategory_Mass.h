@@ -17,6 +17,7 @@ class AActor;
 
 class FGameplayDebuggerCategory_Mass : public FGameplayDebuggerCategory
 {
+	using Super = FGameplayDebuggerCategory;
 public:
 	FGameplayDebuggerCategory_Mass();
 	virtual ~FGameplayDebuggerCategory_Mass();
@@ -76,7 +77,19 @@ protected:
 	};
 	TArray<FEntityDescription> NearEntityDescriptions;
 
-	TArray<FAutoConsoleCommand> ConsoleCommands;
+	static TArray<FAutoConsoleCommandWithWorld> ConsoleCommands;
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnConsoleCommandBroadcastDelegate, UWorld*);
+	static FOnConsoleCommandBroadcastDelegate OnToggleArchetypesBroadcast;
+	static FOnConsoleCommandBroadcastDelegate OnToggleShapesBroadcast;
+	static FOnConsoleCommandBroadcastDelegate OnToggleAgentFragmentsBroadcast;
+	static FOnConsoleCommandBroadcastDelegate OnPickEntityBroadcast;
+	static FOnConsoleCommandBroadcastDelegate OnToggleEntityDetailsBroadcast;
+	static FOnConsoleCommandBroadcastDelegate OnToggleNearEntityOverviewBroadcast;
+	static FOnConsoleCommandBroadcastDelegate OnToggleNearEntityAvoidanceBroadcast;
+	static FOnConsoleCommandBroadcastDelegate OnToggleNearEntityPathBroadcast; 	
+
+	using FDelegateHandlePair = TPair<FOnConsoleCommandBroadcastDelegate*, FDelegateHandle>;
+	TArray<FDelegateHandlePair> ConsoleCommandHandles;
 
 	FDelegateHandle OnEntitySelectedHandle;
 
