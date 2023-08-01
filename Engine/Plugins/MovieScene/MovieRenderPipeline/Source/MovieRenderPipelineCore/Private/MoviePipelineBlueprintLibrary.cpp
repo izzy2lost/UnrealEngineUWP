@@ -380,7 +380,7 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 				TRange<FFrameNumber> LocalCameraRange = Section->GetRange();
 
 				// Intersect it with the root range so that if the parent has trimmed down the sub-section we don't render outside that.
-				TRange<FFrameNumber> RootCameraRange = TRange<FFrameNumber>::Intersection(LocalSpace.RootClampRange, LocalCameraRange * LocalSpace.RootToSequenceTransform.InverseLinearOnly());
+				TRange<FFrameNumber> RootCameraRange = TRange<FFrameNumber>::Intersection(LocalSpace.RootClampRange, LocalSpace.RootToSequenceTransform.InverseNoLooping().TransformRangeUnwarped(LocalCameraRange));
 				if (!RootCameraRange.IsEmpty())
 				{
 					if (UMovieSceneCinematicShotSection* ShotSection = Cast<UMovieSceneCinematicShotSection>(Section))
@@ -432,7 +432,7 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 			TTuple<FString, FString> Name;
 			TSharedPtr<MoviePipeline::FCameraCutSubSectionHierarchyNode> LeafNode;
 			TRange<FFrameNumber> CameraCutWarmUpRange;
-			FMovieSceneTimeTransform InnerToOuterTransform;
+			FMovieSceneSequenceTransform InnerToOuterTransform;
 		};
 
 		TArray<FLinearizedEntity> Entities;
@@ -632,11 +632,11 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 				}
 			}
 
-			FMovieSceneTimeTransform InnerToOuterTransform = FMovieSceneTimeTransform();
+			FMovieSceneSequenceTransform InnerToOuterTransform;
 			FMovieSceneSubSequenceData* SubSequenceData = SequenceHierarchyCache.FindSubData(Entity.SequenceID);
 			if (SubSequenceData)
 			{
-				InnerToOuterTransform = SubSequenceData->RootToSequenceTransform.InverseFromAllFirstWarps();
+				InnerToOuterTransform = SubSequenceData->RootToSequenceTransform.InverseFromAllFirstLoops();
 			}
 
 			// To make the camera cut range detection more consistent, we'll convert the start of this Entity into root sequence space, and then we'll convert the start of the
@@ -645,7 +645,7 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 			TRange<FFrameNumber> CameraCutRangeInRoot = EntityRangeInRoot;
 			if (LeafNode->CameraCutSection.IsValid())
 			{
-				CameraCutRangeInRoot = LeafNode->CameraCutSection->GetRange() * InnerToOuterTransform;
+				CameraCutRangeInRoot = InnerToOuterTransform.TransformRangeConstrained(LeafNode->CameraCutSection->GetRange());
 			}
 
 			TRange<FFrameNumber> CameraCutWarmUpRange = TRange<FFrameNumber>::Empty();
@@ -680,7 +680,7 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 			Entity.CameraCutWarmUpRange = TRange<FFrameNumber>::Empty();
 			Entity.LeafNode = LeafNode;
 			Entity.Name = MoviePipeline::GetNameForShot(SequenceHierarchyCache, InSequence, LeafNode);
-			Entity.InnerToOuterTransform = FMovieSceneTimeTransform();
+			Entity.InnerToOuterTransform = FMovieSceneSequenceTransform();
 		}
 
 		// We need to generate all of the linearized segments first so that we have all of the names available.
@@ -768,7 +768,7 @@ void UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(ULevelSequenc
 			NewShot->ShotInfo.SubSectionHierarchy = Entity.LeafNode;
 			NewShot->ShotInfo.TotalOutputRangeRoot = Entity.Range;
 			NewShot->ShotInfo.WarmupRangeRoot = Entity.CameraCutWarmUpRange;
-			NewShot->ShotInfo.OuterToInnerTransform = Entity.InnerToOuterTransform.Inverse();
+			NewShot->ShotInfo.OuterToInnerTransform = Entity.InnerToOuterTransform.InverseNoLooping();
 			NewShot->SidecarCameras = Entity.SidecarCameras;
 			UE_LOG(LogMovieRenderPipeline, Log, TEXT("Registering range: %s (InnerName: %s OuterName: %s)"), *LexToString(NewShot->ShotInfo.TotalOutputRangeRoot), *NewShot->InnerName, *NewShot->OuterName);
 		}

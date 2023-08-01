@@ -1360,12 +1360,12 @@ void FSequencer::PopToSequenceInstance(FMovieSceneSequenceIDRef SequenceID)
 void FSequencer::UpdateSubSequenceData()
 {
 	const bool bIsScrubbing = GetPlaybackStatus() == EMovieScenePlayerStatus::Scrubbing;
-	const bool bIsSubSequenceWarping = RootToLocalTransform.NestedTransforms.Num() > 0 && RootToLocalTransform.NestedTransforms.Last().IsWarping();
-	const bool bIsScrubbingWarpingSubSequence = bIsScrubbing && bIsSubSequenceWarping;
+	const bool bIsSubSequenceLooping = RootToLocalTransform.NestedTransforms.Num() > 0 && RootToLocalTransform.NestedTransforms.Last().IsLooping();
+	const bool bIsScrubbingLoopingSubSequence = bIsScrubbing && bIsSubSequenceLooping;
 
 	SubSequenceRange = TRange<FFrameNumber>::Empty();
 	RootToLocalTransform = FMovieSceneSequenceTransform();
-	if (!bIsScrubbingWarpingSubSequence)
+	if (!bIsScrubbingLoopingSubSequence)
 	{
 		RootToLocalLoopCounter = FMovieSceneWarpCounter();
 	}
@@ -1389,7 +1389,7 @@ void FSequencer::UpdateSubSequenceData()
 		RootToLocalTransform = SubSequenceData->RootToSequenceTransform;
 
 		const FQualifiedFrameTime RootTime = GetGlobalTime();
-		if (!bIsScrubbingWarpingSubSequence)
+		if (!bIsScrubbingLoopingSubSequence)
 		{
 			FFrameTime LocalTime;
 			RootToLocalTransform.TransformTime(RootTime.Time, LocalTime, RootToLocalLoopCounter);
@@ -1409,7 +1409,7 @@ void FSequencer::UpdateSubSequenceData()
 			FMovieSceneNestedSequenceTransform LeafLooping = RootToLocalTransformWithoutLeafLooping.NestedTransforms.Pop();
 			FFrameTime LocalTimeWithLastLoopUnwarped = RootTime.Time * RootToLocalTransformWithoutLeafLooping;
 			LocalTimeWithLastLoopUnwarped = LocalTimeWithLastLoopUnwarped * LeafLooping.LinearTransform;
-			if (LeafLooping.IsWarping())
+			if (LeafLooping.IsLooping())
 			{
 				LeafLooping.Warping.TransformTimeSpecific(
 						LocalTimeWithLastLoopUnwarped, LocalLoopIndexOnBeginScrubbing, LocalTimeWithLastLoopUnwarped);
@@ -1420,15 +1420,18 @@ void FSequencer::UpdateSubSequenceData()
 			// point (see comment at the beginning of this method). We will commit to the new loop indices
 			// once we're done scrubbing.
 			uint32 CurLoopIndex = 0;
-			while (LocalTimeWithLastLoopUnwarped >= PlayRangeUpperBound)
+			if (PlayRangeSize > 0)
 			{
-				LocalTimeWithLastLoopUnwarped = LocalTimeWithLastLoopUnwarped - PlayRangeSize;
-				++CurLoopIndex;
-			}
-			while (LocalTimeWithLastLoopUnwarped <= PlayRangeLowerBound)
-			{
-				LocalTimeWithLastLoopUnwarped = LocalTimeWithLastLoopUnwarped + PlayRangeSize;
-				--CurLoopIndex;
+				while (LocalTimeWithLastLoopUnwarped >= PlayRangeUpperBound)
+				{
+					LocalTimeWithLastLoopUnwarped = LocalTimeWithLastLoopUnwarped - PlayRangeSize;
+					++CurLoopIndex;
+				}
+				while (LocalTimeWithLastLoopUnwarped <= PlayRangeLowerBound)
+				{
+					LocalTimeWithLastLoopUnwarped = LocalTimeWithLastLoopUnwarped + PlayRangeSize;
+					--CurLoopIndex;
+				}
 			}
 			if (CurLoopIndex != LocalLoopIndexOffsetDuringScrubbing)
 			{
@@ -3035,8 +3038,14 @@ void FSequencer::SetLocalTimeDirectly(FFrameTime NewTime, bool bEvaluate)
 		FSlateApplication::Get().ClearKeyboardFocus(EFocusCause::Cleared);
 	}
 
-	// Transform the time to the root time-space
-	SetGlobalTime(NewTime * RootToLocalTransform.InverseFromWarp(RootToLocalLoopCounter), bEvaluate);
+	// Special-case. If the RootToLocalTransform contains a zero timescale, then scrubbing in the subscene should not change the current time
+	// Inverting the zero time-scale time is technically non-deterministic, and so doing this scrub would just result in losing the current global time
+	// while maintaining the same sub-sequence time (as we're holding a single frame there). So the best case here is just preventing the scrub.
+	if (!FMath::IsNearlyZero(RootToLocalTransform.GetTimeScale()))
+	{
+		// Transform the time to the root time-space
+		SetGlobalTime(NewTime * RootToLocalTransform.InverseFromLoop(RootToLocalLoopCounter), bEvaluate);
+	}
 
 	if (PreviousFocusedWidget.IsValid())
 	{
@@ -3545,7 +3554,7 @@ void FSequencer::RenderMovieInternal(TRange<FFrameNumber> Range, bool bSetFrameO
 
 		if (const FMovieSceneSubSequenceData* SubSequenceData = RootTemplateInstance.FindSubData(GetFocusedTemplateID()))
 		{
-			Range = Range * SubSequenceData->RootToSequenceTransform.InverseLinearOnly();
+			Range = SubSequenceData->RootToSequenceTransform.InverseNoLooping().TransformRangeUnwarped(Range);
 		}
 	}
 
@@ -4664,7 +4673,7 @@ FReply FSequencer::OnPlay(bool bTogglePlay)
 
 		if (GetLocalTime().Time <= MinInclusiveTime || GetLocalTime().Time >= MaxInclusiveTime)
 		{
-			FFrameTime NewGlobalTime = (PlaybackSpeed > 0 ? MinInclusiveTime : MaxInclusiveTime) * RootToLocalTransform.InverseFromWarp(RootToLocalLoopCounter);
+			FFrameTime NewGlobalTime = (PlaybackSpeed > 0 ? MinInclusiveTime : MaxInclusiveTime) * RootToLocalTransform.InverseFromLoop(RootToLocalLoopCounter);
 			SetGlobalTime(NewGlobalTime);
 		}
 
@@ -4894,7 +4903,7 @@ void FSequencer::SetLocalTimeLooped(FFrameTime NewLocalTime)
 {
 	TOptional<EMovieScenePlayerStatus::Type> NewPlaybackStatus;
 
-	const FMovieSceneSequenceTransform LocalToRootTransform = RootToLocalTransform.InverseFromWarp(RootToLocalLoopCounter);
+	const FMovieSceneSequenceTransform LocalToRootTransform = RootToLocalTransform.InverseFromLoop(RootToLocalLoopCounter);
 
 	FFrameTime NewGlobalTime = NewLocalTime * LocalToRootTransform;
 
@@ -9155,7 +9164,7 @@ void FSequencer::Pause()
 		FFrameRate          FocusedDisplayRate = GetFocusedDisplayRate();
 
 		// Snap to the focused play rate
-		FFrameTime RootPosition  = FFrameRate::Snap(LocalTime.Time, LocalTime.Rate, FocusedDisplayRate) * RootToLocalTransform.InverseFromWarp(RootToLocalLoopCounter);
+		FFrameTime RootPosition  = FFrameRate::Snap(LocalTime.Time, LocalTime.Rate, FocusedDisplayRate) * RootToLocalTransform.InverseFromLoop(RootToLocalLoopCounter);
 
 		// Convert the root position from tick resolution time base (the output rate), to the play position input rate
 		FFrameTime InputPosition = ConvertFrameTime(RootPosition, PlayPosition.GetOutputRate(), PlayPosition.GetInputRate());
@@ -9261,7 +9270,7 @@ void FSequencer::StepToNextShot()
 		return;
 	}
 
-	FFrameTime CurrentTime = SubSequenceRange.GetLowerBoundValue() * SubData->OuterToInnerTransform.InverseFromWarp(RootToLocalLoopCounter);
+	FFrameTime CurrentTime = SubSequenceRange.GetLowerBoundValue() * SubData->OuterToInnerTransform.InverseFromLoop(RootToLocalLoopCounter);
 	UMovieSceneSubSection* NextShot = Cast<UMovieSceneSubSection>(MovieSceneHelpers::FindNextSection(CinematicShotTrack->GetAllSections(), CurrentTime.FloorToFrame()));
 	if (!NextShot)
 	{
@@ -9319,7 +9328,7 @@ void FSequencer::StepToPreviousShot()
 		return;
 	}
 
-	FFrameTime CurrentTime = SubSequenceRange.GetLowerBoundValue() * SubData->OuterToInnerTransform.InverseFromWarp(RootToLocalLoopCounter);
+	FFrameTime CurrentTime = SubSequenceRange.GetLowerBoundValue() * SubData->OuterToInnerTransform.InverseFromLoop(RootToLocalLoopCounter);
 	UMovieSceneSubSection* PreviousShot = Cast<UMovieSceneSubSection>(MovieSceneHelpers::FindPreviousSection(CinematicShotTrack->GetAllSections(), CurrentTime.FloorToFrame()));
 	if (!PreviousShot)
 	{

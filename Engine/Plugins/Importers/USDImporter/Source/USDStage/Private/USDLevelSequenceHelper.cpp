@@ -3236,7 +3236,7 @@ void FUsdLevelSequenceHelperImpl::HandleControlRigSectionChange(UMovieSceneContr
 	const UsdUtils::FBlendShapeMap& BlendShapeMap = StageActorValue->GetBlendShapeMap();
 	bool bBaked = UnrealToUsd::ConvertControlRigSection(
 		&Section,
-		SequenceTransform.InverseLinearOnly(),
+		SequenceTransform.InverseNoLooping(),
 		MovieScene,
 		Player,
 		Skeleton->GetReferenceSkeleton(),

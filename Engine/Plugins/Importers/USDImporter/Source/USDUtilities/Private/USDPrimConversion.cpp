@@ -1533,7 +1533,7 @@ bool UnrealToUsd::ConvertBoolTrack( const UMovieSceneBoolTrack& MovieSceneTrack,
 			for ( const TPair< FFrameNumber, bool >& Pair : EvaluateChannel( BoolSection->GetChannel(), false ) )
 			{
 				FFrameTime TransformedBakedKeyTime{ Pair.Key };
-				TransformedBakedKeyTime *= SequenceTransform.InverseLinearOnly();
+				TransformedBakedKeyTime *= SequenceTransform.InverseNoLooping();
 				FFrameTime UsdFrameTime = FFrameRate::TransformTime( TransformedBakedKeyTime, Resolution, StageFrameRate );
 
 				bool UEValue = Pair.Value;
@@ -1630,7 +1630,7 @@ bool UnrealToUsd::ConvertFloatTrack( const UMovieSceneFloatTrack& MovieSceneTrac
 			for ( const TPair< FFrameNumber, float >& Pair : EvaluateChannel( FloatSection->GetChannel(), 0.0f ) )
 			{
 				FFrameTime TransformedBakedKeyTime{ Pair.Key };
-				TransformedBakedKeyTime *= SequenceTransform.InverseLinearOnly();
+				TransformedBakedKeyTime *= SequenceTransform.InverseNoLooping();
 				FFrameTime UsdFrameTime = FFrameRate::TransformTime( TransformedBakedKeyTime, Resolution, StageFrameRate );
 
 				float UEValue = Pair.Value;
@@ -1746,7 +1746,7 @@ bool UnrealToUsd::ConvertColorTrack( const UMovieSceneColorTrack& MovieSceneTrac
 				FLinearColor Color{ RedValue, GreenValue, BlueValue, AlphaValue };
 
 				FFrameTime TransformedBakedKeyTime{ UntransformedBakeTime };
-				TransformedBakedKeyTime *= SequenceTransform.InverseLinearOnly();
+				TransformedBakedKeyTime *= SequenceTransform.InverseNoLooping();
 				FFrameTime UsdFrameTime = FFrameRate::TransformTime( TransformedBakedKeyTime, Resolution, StageFrameRate );
 
 				WriterFunc( Color, UsdFrameTime.AsDecimal() );
@@ -1945,7 +1945,7 @@ bool UnrealToUsd::Convert3DTransformTrack( const UMovieScene3DTransformTrack& Mo
 				FTransform Transform{ Rotation, Location, Scale };
 
 				FFrameTime TransformedBakedKeyTime{ UntransformedBakeTime };
-				TransformedBakedKeyTime *= SequenceTransform.InverseLinearOnly();
+				TransformedBakedKeyTime *= SequenceTransform.InverseNoLooping();
 				FFrameTime UsdFrameTime = FFrameRate::TransformTime( TransformedBakedKeyTime, Resolution, StageFrameRate );
 
 				WriterFunc( Transform, UsdFrameTime.AsDecimal() );
@@ -3643,7 +3643,7 @@ bool UnrealToUsd::ConvertXformable( const UMovieScene3DTransformTrack& MovieScen
 				}
 
 				FFrameTime GlobalEvalTime( KeyTime );
-				GlobalEvalTime *= SequenceTransform.InverseLinearOnly();
+				GlobalEvalTime *= SequenceTransform.InverseNoLooping();
 
 				Values.Emplace( GlobalEvalTime.GetFrame(), Result );
 			}

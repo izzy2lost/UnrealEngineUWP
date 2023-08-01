@@ -4942,7 +4942,7 @@ bool FControlRigParameterTrackEditor::CollapseAllLayers(TSharedPtr<ISequencer>&S
 					{
 						const FFrameNumber& FrameNumber = Frames[Index];
 						FFrameTime GlobalTime(FrameNumber);
-						GlobalTime = GlobalTime * RootToLocalTransform.InverseLinearOnly();
+						GlobalTime = GlobalTime * RootToLocalTransform.InverseNoLooping();
 
 						FMovieSceneContext Context = FMovieSceneContext(FMovieSceneEvaluationRange(GlobalTime, TickResolution), SequencerPtr->GetPlaybackStatus()).SetHasJumped(true);
 

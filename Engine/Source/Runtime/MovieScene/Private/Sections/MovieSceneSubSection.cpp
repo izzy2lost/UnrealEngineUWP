@@ -57,29 +57,38 @@ FMovieSceneSequenceTransform UMovieSceneSubSection::OuterToInnerTransform() cons
 	const FFrameNumber InnerStartTime = UE::MovieScene::DiscreteInclusiveLower(MovieScenePlaybackRange);
 	const FFrameNumber OuterStartTime = UE::MovieScene::DiscreteInclusiveLower(SubRange);
 
-	// This is the transform for the "placement" (position and scaling) of the sub-sequence.
-	FMovieSceneTimeTransform LinearTransform =
-		// Inner play offset
-		FMovieSceneTimeTransform(InnerStartTime)
-		// Inner play rate
-		* FMovieSceneTimeTransform(0, Parameters.TimeScale * FrameRateScale)
-		// Outer section start time
-		* FMovieSceneTimeTransform(-OuterStartTime);
-	
-	if (!Parameters.bCanLoop)
+
+	FMovieSceneSequenceTransform Result;
+	// We have to special case 0 and infinite timescale so we can keep hold of each transform separately for property inverting.
+	// The linear transform for this special case remains identity.
+	if (FMath::IsNearlyZero(Parameters.TimeScale) || !FMath::IsFinite(Parameters.TimeScale))
 	{
-		return FMovieSceneSequenceTransform(LinearTransform);
+		Result.NestedTransforms.Add(FMovieSceneTimeTransform(-OuterStartTime));
+		Result.NestedTransforms.Add(FMovieSceneTimeTransform(0, 0));
+		Result.NestedTransforms.Add(FMovieSceneTimeTransform(InnerStartTime));
 	}
 	else
 	{
+		// This is the transform for the "placement" (position and scaling) of the sub-sequence.
+		Result.LinearTransform = 
+			// Inner play offset
+			FMovieSceneTimeTransform(InnerStartTime)
+			// Inner play rate
+			* FMovieSceneTimeTransform(0, Parameters.TimeScale * FrameRateScale)
+			// Outer section start time
+			* FMovieSceneTimeTransform(-OuterStartTime);
+	}
+
+	if (Parameters.bCanLoop)
+	{
 		const FFrameNumber InnerEndTime = UE::MovieScene::DiscreteExclusiveUpper(MovieScenePlaybackRange);
 		const FMovieSceneTimeWarping LoopingTransform(InnerStartTime, InnerEndTime);
-		LinearTransform = FMovieSceneTimeTransform(Parameters.FirstLoopStartFrameOffset) * LinearTransform;
 
-		FMovieSceneSequenceTransform Result;
-		Result.NestedTransforms.Add(FMovieSceneNestedSequenceTransform(LinearTransform, LoopingTransform));
+		Result.NestedTransforms.Add(FMovieSceneNestedSequenceTransform(FMovieSceneTimeTransform(Parameters.FirstLoopStartFrameOffset) * Result.LinearTransform, LoopingTransform));
+		Result.LinearTransform = FMovieSceneTimeTransform();
 		return Result;
 	}
+	return Result;
 }
 
 bool UMovieSceneSubSection::GetValidatedInnerPlaybackRange(TRange<FFrameNumber>& OutInnerPlaybackRange) const
@@ -355,7 +364,7 @@ TOptional<TRange<FFrameNumber> > UMovieSceneSubSection::GetAutoSizeRange() const
 	{
 		// We probably want to just auto-size the section to the sub-sequence's scaled playback range... if this section
 		// is looping, however, it's hard to know what we want to do. Let's just size it to one loop.
-		const FMovieSceneTimeTransform InnerToOuter = OuterToInnerTransform().InverseLinearOnly();
+		const FMovieSceneSequenceTransform InnerToOuter = OuterToInnerTransform().InverseNoLooping();
 		const TRange<FFrameNumber> InnerPlaybackRange = UMovieSceneSubSection::GetValidatedInnerPlaybackRange(Parameters, *MovieScene);
 
 		const FFrameTime IncAutoStartTime = FFrameTime(UE::MovieScene::DiscreteInclusiveLower(InnerPlaybackRange)) * InnerToOuter;
@@ -440,7 +449,7 @@ void UMovieSceneSubSection::GetSnapTimes(TArray<FFrameNumber>& OutSnapTimes, boo
 	}
 	else
 	{
-		const FMovieSceneSequenceTransform InnerToOuterTransform = OuterToInnerTransform().InverseLinearOnly();
+		const FMovieSceneSequenceTransform InnerToOuterTransform = OuterToInnerTransform().InverseNoLooping();
 		const FFrameNumber PlaybackStart = (UE::MovieScene::DiscreteInclusiveLower(PlaybackRange) * InnerToOuterTransform).FloorToFrame();
 		if (GetRange().Contains(PlaybackStart))
 		{

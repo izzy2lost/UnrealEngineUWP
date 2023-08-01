@@ -1303,7 +1303,7 @@ void UMovieSceneCompiledDataManager::GatherTrack(const FMovieSceneBinding* Objec
 		// Iterate everything in the field
 		for (const FMovieSceneTrackEvaluationFieldEntry& Entry : EvaluationField.Entries)
 		{
-			FMovieSceneSequenceTransform SequenceToRootTransform  = Params.RootToSequenceTransform.InverseFromWarp(Params.RootToSequenceWarpCounter);
+			FMovieSceneSequenceTransform SequenceToRootTransform  = Params.RootToSequenceTransform.InverseFromLoop(Params.RootToSequenceWarpCounter);
 			TRange<FFrameNumber>         ClampedRangeRoot         = Params.ClampRoot(SequenceToRootTransform.TransformRangeUnwarped(Entry.Range));
 			UMovieSceneSection*          Section                  = Entry.Section;
 
@@ -1569,8 +1569,20 @@ void UMovieSceneCompiledDataManager::PopulateSubSequenceTree(UMovieSceneSubTrack
 			continue;
 		}
 
-		const FMovieSceneTimeTransform SequenceToRootTransform = Params.RootToSequenceTransform.InverseFromWarp(Params.RootToSequenceWarpCounter);
-		TRange<FFrameNumber> EffectiveRange = Params.ClampRoot(Entry.Range * SequenceToRootTransform);
+		const FMovieSceneSequenceTransform SequenceToRootTransform = Params.RootToSequenceTransform.InverseFromLoop(Params.RootToSequenceWarpCounter);
+
+		// In the case the Sequence to Root Transform contains an infinite timescale, then one of the timescales above us is zero. In this case, we cannot
+		// rely on a simple multiply by an inverse transform to figure out an effective range of this entry in root space, as this is non-deterministic.
+		// It all comes down to whether the single frame is inside or outside of this entry. 
+		// If inside, the effective range in root space is the entire clamp range.
+		// If outside, the effective range in root space is empty, and we should not include this entry.
+
+		TRange<FFrameNumber> EffectiveRange = TRange<FFrameNumber>::Empty();
+		if (FMath::IsFinite(SequenceToRootTransform.GetTimeScale()) || !TRange<FFrameNumber>::Intersection(Params.LocalClampRange, Entry.Range).IsEmpty())
+		{
+			EffectiveRange = Params.ClampRoot(SequenceToRootTransform.TransformRangeConstrained(Entry.Range));
+		}
+
 		if (EffectiveRange.IsEmpty())
 		{
 			continue;
@@ -1586,14 +1598,26 @@ void UMovieSceneCompiledDataManager::PopulateSubSequenceTree(UMovieSceneSubTrack
 
 		const ESectionEvaluationFlags SubEntryFlags = Entry.Flags | Params.Flags;
 
-		if (!SubSectionParams.bCanLoop)
+		// If we can't loop, or our timescale is zero, and therefore looping is irrelevant
+		if (!SubSectionParams.bCanLoop || FMath::IsNearlyZero(SubData->RootToSequenceTransform.GetTimeScale()))
 		{
 			FGatherParameters SubParams = Params.CreateForSubData(*SubData, SubSequenceID, Params.RootToSequenceWarpCounter);
 			SubParams.SetClampRange(EffectiveRange);
 			SubParams.Flags |= Entry.Flags;
 			SubParams.NetworkMask = NewMask;
-			SubParams.RootToSequenceWarpCounter.AddNonWarpingLevel();
 
+			for (int i = 0; i < SubParams.RootToSequenceTransform.NestedTransforms.Num(); ++i)
+			{
+				if (SubParams.RootToSequenceTransform.NestedTransforms[i].IsLooping())
+				{
+					SubParams.RootToSequenceWarpCounter.AddWarpingLevel(1);
+				}
+				else
+				{
+					SubParams.RootToSequenceWarpCounter.AddNonWarpingLevel();
+				}
+			}
+			
 			// The section isn't looping, so we can just add it to the tree.
 			InOutHierarchy->AddRange(EffectiveRange, SubSequenceID, SubEntryFlags, SubParams.RootToSequenceWarpCounter);
 

@@ -536,7 +536,7 @@ public:
 	FFrameTime CurrentTimeInRoot;
 
 	/** Converts from the outermost space into the innermost space. Only works with linear transforms. */
-	FMovieSceneTimeTransform OuterToInnerTransform;
+	FMovieSceneSequenceTransform OuterToInnerTransform;
 	
 	/** The total range of output frames in root space */
 	TRange<FFrameNumber> TotalOutputRangeRoot;

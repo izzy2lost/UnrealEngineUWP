@@ -1046,7 +1046,7 @@ bool ULevelSequenceEditorSubsystem::BakeTransformWithSettings(const TArray<FMovi
 
 	for (FFrameNumber KeyTime: AllFrames)
 	{
-		FMovieSceneEvaluationRange Range(KeyTime * RootToLocalTransform.InverseLinearOnly(), TickResolution);
+		FMovieSceneEvaluationRange Range(KeyTime * RootToLocalTransform.InverseNoLooping(), TickResolution);
 
 		Sequencer->SetGlobalTime(Range.GetTime());
 
