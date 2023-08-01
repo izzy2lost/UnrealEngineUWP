@@ -1049,7 +1049,7 @@ namespace Chaos::Softs
 
 											for (int32 i = 0; i < BoneIndices.Num(); i++)
 											{
-												if (BoneIndices[i] > -1 && BoneIndices[i] < RestNum && BoneIndices[i] < TransformNum)
+												if (BoneIndices[i] > INDEX_NONE && BoneIndices[i] < RestNum && BoneIndices[i] < TransformNum)
 												{
 
 													// @todo(flesh) : Add the pre-cached component space rest transforms to the rest collection. 
@@ -1110,33 +1110,61 @@ namespace Chaos::Softs
 	void FDeformableSolver::InitializeSelfCollisionVariables()
 	{
 		PERF_SCOPE(STAT_ChaosDeformableSolver_InitializeSelfCollisionVariables);
+		int32 VertexOffset = 0;
+		SurfaceElements->SetNum(0);
+		int ComponentOffset = 0;
 
+		for (FThreadingProxy* InProxy : UninitializedProxys_Internal)
+		{
+			if (FFleshThreadingProxy* Proxy = InProxy->As<FFleshThreadingProxy>())
+			{
+				if (const FManagedArrayCollection* Rest = &Proxy->GetRestCollection())
+				{
+					if (const TManagedArray<FVector3f>* Vertex = Rest->FindAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup))
+					{
+						if (const TManagedArray<FIntVector>* Indices = Rest->FindAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup))
+						{
+							int32 SurfaceOffset = SurfaceElements->Num();
+							SurfaceElements->SetNum(SurfaceOffset + Indices->Num());
+							for (int32 i = 0; i < Indices->Num(); i++)
+							{
+								for (int32 j = 0; j < 3; j++)
+								{
+									(*SurfaceElements)[i + SurfaceOffset][j] = VertexOffset + (*Indices)[i][j];
+								}
+							}
+						}
+						int32 Offset = ParticleComponentIndex.Num();
+						ParticleComponentIndex.SetNum(ParticleComponentIndex.Num() + Vertex->Num());
+						for (int32 i = 0; i < Vertex->Num(); i++) {
+							ParticleComponentIndex[i + Offset] = ComponentOffset;
+						}
+						int NewComponentOffset = ComponentOffset;
+						if (const TManagedArray<int32>* ComponentIndex = Rest->FindAttribute<int32>("ComponentIndex", FGeometryCollection::VerticesGroup))
+						{
+							ensureMsgf(ComponentIndex->Num() == Vertex->Num(), TEXT("ComponentIndex size is not equal to vertex size"));
+							for (int32 i = 0; i < ComponentIndex->Num(); i++) {
+								if ((*ComponentIndex)[i] < 0)
+								{
+									ParticleComponentIndex[i + Offset] = (*ComponentIndex)[i]; //Isolated Nodes
+								}
+								else
+								{
+									ParticleComponentIndex[i + Offset] = ComponentOffset + (*ComponentIndex)[i];
+									NewComponentOffset = NewComponentOffset < ParticleComponentIndex[i + Offset] ? ParticleComponentIndex[i + Offset] : NewComponentOffset;
+								}
+							}
+						}
+						ComponentOffset = NewComponentOffset + 1;
+						VertexOffset += Vertex->Num();
+					}
+				}
+			}
+		}
 
-		int32 NumParticles = Evolution->Particles().Size();
 		SurfaceTriangleMesh->Init(*SurfaceElements);
 		TriangleMeshCollisions.Reset(new FPBDTriangleMeshCollisions(
 			0, Evolution->Particles().Size(), *SurfaceTriangleMesh, false, false));
-		TSet<Chaos::TVec2<int32>>* InDisabledCollisionElements = new TSet<Chaos::TVec2<int32>>();
-		for (int32 i = 0; i < (int32)NumParticles; i++)
-		{
-			Chaos::TVec2<int32> LocalEdge = { i, i };
-			InDisabledCollisionElements->Add(LocalEdge);
-		}
-		CollisionSpringConstraint.Reset(new FPBDCollisionSpringConstraints(0, (int32)NumParticles, *SurfaceTriangleMesh, nullptr, MoveTemp(*InDisabledCollisionElements), 1.f, 1.f));
-		int32 InitIndex1 = Evolution->AddConstraintInitRange(1, true);
-		Evolution->ConstraintInits()[InitIndex1] =
-			[this](FSolverParticles& InParticles, const FSolverReal Dt)
-		{
-			this->TriangleMeshCollisions->Init(InParticles);
-			TArray<FPBDTriangleMeshCollisions::FGIAColor> EmptyGIAColors;
-			this->CollisionSpringConstraint->Init(InParticles, TriangleMeshCollisions->GetSpatialHash(), static_cast<TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>>(EmptyGIAColors), EmptyGIAColors);
-		};
-		int32 ConstraintIndex1 = Evolution->AddConstraintRuleRange(1, true);
-		Evolution->ConstraintRules()[ConstraintIndex1] =
-			[this](FSolverParticles& InParticles, const FSolverReal Dt)
-		{
-			this->CollisionSpringConstraint->Apply(InParticles, Dt);
-		};
 	}
 
 	void FDeformableSolver::InitializeGridBasedConstraintVariables()
@@ -1250,11 +1278,19 @@ namespace Chaos::Softs
 
 		if (Property.bDoSelfCollision)
 		{
+			this->GSWeakConstraints->UpdateBoundaryVertices(*SurfaceElements);
+			
 			int32 InitIndex = Evolution->AddConstraintInitRange(1, true);
 			Evolution->ConstraintInits()[InitIndex] =
 				[this](FSolverParticles& InParticles, const FSolverReal Dt)
 			{
 				//TODO(Yushan & Joey): Add the collision detection code in here:
+				//this->GSWeakConstraints->CollisionDetection(this->Evolution->Particles(), *SurfaceElements, ParticleComponentIndex, Property.CollisionSearchRadius, Property.CollisionSpringStiffness, Property.bAllowSliding);
+				
+				this->TriangleMeshCollisions->Init(InParticles);
+				TArray<FPBDTriangleMeshCollisions::FGIAColor> EmptyGIAColors;
+				this->GSWeakConstraints->CollisionDetectionSpatialHash(this->Evolution->Particles(), *SurfaceTriangleMesh, ParticleComponentIndex, TriangleMeshCollisions->GetSpatialHash(), Property.CollisionSearchRadius, Property.CollisionSpringStiffness, Property.bAllowSliding);
+				
 			};
 
 			int32 InitIndex1 = Evolution->AddConstraintInitRange(1, true);
