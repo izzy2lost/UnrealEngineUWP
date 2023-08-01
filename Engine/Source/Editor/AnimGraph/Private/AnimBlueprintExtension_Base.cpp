@@ -51,6 +51,17 @@ void UAnimBlueprintExtension_Base::HandleCopyTermDefaultsToDefaultObject(UObject
 	{
 		Subsystem.PatchValueHandlers(DefaultAnimInstance->GetClass());
 
+		// Update blueprint usage of all graph nodes that have properties exposed
+		for (const TPair<UAnimGraphNode_Base*, FEvaluationHandlerRecord>& EvaluationHandlerPair : PerNodeStructEvalHandlers)
+		{
+			if (EvaluationHandlerPair.Value.bHasProperties && EvaluationHandlerPair.Value.ServicedProperties.Num() == 0)
+			{
+				UAnimGraphNode_Base* Node = CastChecked<UAnimGraphNode_Base>(EvaluationHandlerPair.Key);
+				UAnimGraphNode_Base* TrueNode = InCompilationContext.GetMessageLog().FindSourceObjectTypeChecked<UAnimGraphNode_Base>(Node);
+				TrueNode->BlueprintUsage = EBlueprintUsage::DoesNotUseBlueprint;
+			}
+		}
+
 		for(const FEvaluationHandlerRecord& EvaluationHandler : ValidEvaluationHandlerList)
 		{
 			if(EvaluationHandler.AnimGraphNode)
@@ -324,6 +335,8 @@ void UAnimBlueprintExtension_Base::ProcessNonPosePins(UAnimGraphNode_Base* InNod
 			
 			if (SourcePinProperty != NULL)
 			{
+				EvalHandler.bHasProperties = true;
+
 				if (SourcePin->LinkedTo.Num() == 0)
 				{
 					if(EnumHasAnyFlags(InFlags, EPinProcessingFlags::Constants))
