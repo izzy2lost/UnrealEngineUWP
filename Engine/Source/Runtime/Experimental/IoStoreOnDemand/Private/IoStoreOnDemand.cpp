@@ -513,7 +513,8 @@ TIoStatusOr<FIoStoreUploadParams> FIoStoreUploadParams::Parse(const TCHAR* Comma
 	FParse::Value(CommandLine, TEXT("SessionToken="), Params.SessionToken);
 	FParse::Value(CommandLine, TEXT("CredentialsFile="), Params.CredentialsFile);
 	FParse::Value(CommandLine, TEXT("CredentialsFileKeyName="), Params.CredentialsFileKeyName);
-	Params.bDeleteContainerFiles = FParse::Param(CommandLine, TEXT("KeepUploadedContainers")) == false;
+	Params.bDeleteContainerFiles = !FParse::Param(CommandLine, TEXT("KeepContainerFiles"));
+	Params.bDeletePakFiles = !FParse::Param(CommandLine, TEXT("KeepPakFiles"));
 
 	if (Params.AccessKey.IsEmpty() &&
 		Params.SecretKey.IsEmpty() &&
@@ -660,7 +661,7 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 	FOnDemandToc OnDemandToc;
 	OnDemandToc.Header.ChunksDirectory = FString::Printf(TEXT("IoChunksV%u"), EOnDemandChunkVersion::Latest).ToLower();
 
-	TArray<FString> UploadedFiles;
+	TArray<FString> FilesToDelete;
 	for (const FString& Path : ContainerFiles)
 	{
 		FIoStoreReader ContainerFileReader;
@@ -679,7 +680,7 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 			continue;
 		}
 		
-		UE_LOG(LogIas, Display, TEXT("Uploading container '%s/.ucas'"), *Path);
+		UE_LOG(LogIas, Display, TEXT("Uploading container '%s'"), *Path);
 
 		const uint32 BlockSize = ContainerFileReader.GetCompressionBlockSize();
 		if (OnDemandToc.Header.BlockSize == 0)
@@ -810,7 +811,17 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 			}
 		}
 		
-		UploadedFiles.Add(Path);
+		if (UploadParams.bDeleteContainerFiles)
+		{
+			FilesToDelete.Add(Path);
+			ContainerFileReader.GetContainerFilePaths(FilesToDelete);
+
+			if (UploadParams.bDeletePakFiles)
+			{
+				FilesToDelete.Add(FPaths::ChangeExtension(Path, TEXT(".pak")));
+				FilesToDelete.Add(FPaths::ChangeExtension(Path, TEXT(".sig")));
+			}
+		}
 	}
 
 	if (OnDemandToc.Containers.IsEmpty())
@@ -853,20 +864,12 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 		}
 	}
 
-	if (UploadParams.bDeleteContainerFiles)
+	for (const FString& Path : FilesToDelete)
 	{
-		for (const FString& TocPath : UploadedFiles)
+		if (IFileManager::Get().FileExists(*Path))
 		{
-			const FString CasPath = FPaths::ChangeExtension(TocPath, TEXT(".ucas"));
-			const TCHAR* FilePaths[] {*TocPath, *CasPath};
-			for (const TCHAR* FilePath : FilePaths)
-			{
-				if (IFileManager::Get().FileExists(FilePath))
-				{
-					UE_LOG(LogIas, Display, TEXT("Deleting '%s'"), FilePath); 
-					IFileManager::Get().Delete(FilePath);
-				}
-			}
+			UE_LOG(LogIas, Display, TEXT("Deleting '%s'"), *Path); 
+			IFileManager::Get().Delete(*Path);
 		}
 	}
 

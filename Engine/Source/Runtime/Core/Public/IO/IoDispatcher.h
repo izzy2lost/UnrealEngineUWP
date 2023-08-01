@@ -744,6 +744,9 @@ public:
 	CORE_API void EnumerateCompressedBlocks(TFunction<bool(const FIoStoreTocCompressedBlockInfo&)>&& Callback) const;
 	CORE_API void EnumerateCompressedBlocksForChunk(const FIoChunkId& Chunk, TFunction<bool(const FIoStoreTocCompressedBlockInfo&)>&& Callback) const;
 
+	// Returns the .ucas file path and all partition(s) ({containername}_s1.ucas, {containername}_s2.ucas)
+	CORE_API void GetContainerFilePaths(TArray<FString>& OutPaths);
+
 private:
 	FIoStoreReaderImpl* Impl;
 };

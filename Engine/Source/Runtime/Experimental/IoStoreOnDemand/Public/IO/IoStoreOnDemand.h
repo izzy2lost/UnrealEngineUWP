@@ -121,6 +121,7 @@ struct FIoStoreUploadParams
 	FString CredentialsFileKeyName;
 	int32 MaxConcurrentUploads = 16;
 	bool bDeleteContainerFiles = true;
+	bool bDeletePakFiles = true;
 	
 	UE_API static TIoStatusOr<FIoStoreUploadParams> Parse(const TCHAR* CommandLine);
 };

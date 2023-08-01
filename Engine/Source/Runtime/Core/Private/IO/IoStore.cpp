@@ -2813,6 +2813,23 @@ public:
 		}
 	}
 
+	void GetContainerFilePaths(TArray<FString>& OutPaths)
+	{
+		TStringBuilder<256> Sb;
+
+		for (uint32 PartitionIndex = 0; PartitionIndex < Toc.GetTocResource().Header.PartitionCount; ++PartitionIndex)
+		{
+			Sb.Reset();
+			Sb.Append(ContainerPath);
+			if (PartitionIndex > 0)
+			{
+				Sb.Append(FString::Printf(TEXT("_s%d"), PartitionIndex));
+			}
+			Sb.Append(TEXT(".ucas"));
+			OutPaths.Add(Sb.ToString());
+		}
+	}
+
 private:
 
 
@@ -2912,6 +2929,11 @@ void FIoStoreReader::EnumerateCompressedBlocks(TFunction<bool(const FIoStoreTocC
 void FIoStoreReader::EnumerateCompressedBlocksForChunk(const FIoChunkId& Chunk, TFunction<bool(const FIoStoreTocCompressedBlockInfo&)>&& Callback) const
 {
 	Impl->EnumerateCompressedBlocksForChunk(Chunk, MoveTemp(Callback));
+}
+
+void FIoStoreReader::GetContainerFilePaths(TArray<FString>& OutPaths)
+{
+	Impl->GetContainerFilePaths(OutPaths);
 }
 
 FIoStatus FIoStoreTocResource::Read(const TCHAR* TocFilePath, EIoStoreTocReadOptions ReadOptions, FIoStoreTocResource& OutTocResource)
