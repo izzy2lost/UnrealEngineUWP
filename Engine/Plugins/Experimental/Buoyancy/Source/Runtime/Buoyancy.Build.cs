@@ -22,6 +22,7 @@ public class Buoyancy : ModuleRules
 				"ChaosCore",
 				"Chaos",
 				"PhysicsCore",
+				"DeveloperSettings",
 			}
 		);
 	}

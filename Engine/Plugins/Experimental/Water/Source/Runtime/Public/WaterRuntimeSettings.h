@@ -54,10 +54,6 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Collision)
 	TEnumAsByte<ECollisionChannel> CollisionChannelForWaterTraces;
 
-	/** Collision channel to use for water ObjectTypes */
-	UPROPERTY(EditAnywhere, config, Category = Collision)
-	TEnumAsByte<ECollisionChannel> CollisionChannelForWaterObjects;
-
 	/** Material Parameter Collection for everything water-related */
 	UPROPERTY(EditAnywhere, config, Category = Rendering)
 	TSoftObjectPtr<UMaterialParameterCollection> MaterialParameterCollection;
@@ -65,11 +61,6 @@ public:
 	/** Offset in Z for the water body icon in world-space. */
 	UPROPERTY(EditAnywhere, config, Category = Rendering)
 	float WaterBodyIconWorldZOffset = 75.0f;
-
-	/** Density of water used for buoyancy calculations. Given in gram per cubic centimeter */
-	// TODO: Add units to UnitConversions.h so that g/cm^3 can be explicit
-	UPROPERTY(EditAnywhere, config, Category = Buoyancy, meta=(ClampMin = 0, ForceUnits = "g/cm3"))
-	float WaterDensity = 1.f;
 
 #if WITH_EDITORONLY_DATA
 	// Delegate called whenever the curve data is updated

@@ -3,7 +3,7 @@
 #include "BuoyancySubsystem.h"
 #include "BuoyancyAlgorithms.h"
 #include "BuoyancyStats.h"
-#include "WaterRuntimeSettings.h"
+#include "BuoyancyRuntimeSettings.h"
 #include "Engine/World.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "Physics/PhysicsFiltering.h"
@@ -20,9 +20,6 @@
 bool bBuoyancyDebugDraw = false;
 FAutoConsoleVariableRef CVarBuoyancyDebugDraw(TEXT("p.Buoyancy.DebugDraw"), bBuoyancyDebugDraw, TEXT(""));
 
-bool bBuoyancyEnabled = true;
-FAutoConsoleVariableRef CVarBuoyancyEnabled(TEXT("p.Buoyancy.Enabled"), bBuoyancyEnabled, TEXT(""));
-
 
 //
 // Logging
@@ -34,6 +31,31 @@ DEFINE_LOG_CATEGORY(LogBuoyancySubsystem);
 //
 // Buoyancy Subsystem
 //
+
+bool UBuoyancySubsystem::SetEnabled(const bool bEnabled)
+{
+	if (bEnabled != IsEnabled())
+	{
+		if (bEnabled)
+		{
+			CreateSimCallback();
+		}
+		else
+		{
+			DestroySimCallback();
+		}
+
+		return IsEnabled() == bEnabled;
+	}
+
+	// Already had whatever setting
+	return true;
+}
+
+bool UBuoyancySubsystem::IsEnabled() const
+{
+	return SimCallback != nullptr;
+}
 
 bool UBuoyancySubsystem::CreateSimCallback()
 {
@@ -70,11 +92,11 @@ void UBuoyancySubsystem::PostInitialize()
 	CreateSimCallback();
 
 	// Apply initial runtime settings
-	ApplyRuntimeSettings(GetDefault<UWaterRuntimeSettings>(), EPropertyChangeType::ValueSet);
+	ApplyRuntimeSettings(GetDefault<UBuoyancyRuntimeSettings>(), EPropertyChangeType::ValueSet);
 
 	// Set up callback for when runtime settings change in editor
 #if WITH_EDITOR
-	GetDefault<UWaterRuntimeSettings>()->OnSettingsChange.AddUObject(this, &UBuoyancySubsystem::ApplyRuntimeSettings);
+	GetDefault<UBuoyancyRuntimeSettings>()->OnSettingsChange.AddUObject(this, &UBuoyancySubsystem::ApplyRuntimeSettings);
 #endif //WITH_EDITOR
 }
 
@@ -85,7 +107,7 @@ void UBuoyancySubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
-void UBuoyancySubsystem::ApplyRuntimeSettings(const UWaterRuntimeSettings* InSettings, EPropertyChangeType::Type ChangeType)
+void UBuoyancySubsystem::ApplyRuntimeSettings(const UBuoyancyRuntimeSettings* InSettings, EPropertyChangeType::Type ChangeType)
 {
 	bBuoyancySettingsChanged = true;
 
@@ -97,6 +119,9 @@ void UBuoyancySubsystem::ApplyRuntimeSettings(const UWaterRuntimeSettings* InSet
 		EUnit::KilogramsPerCubicCentimeter);
 
 	BuoyancySettings.WaterCollisionChannel = InSettings->CollisionChannelForWaterObjects;
+
+	// Enable or disable
+	SetEnabled(InSettings->bBuoyancyEnabled);
 }
 
 void UBuoyancySubsystem::Tick(float DeltaTime)
@@ -117,11 +142,6 @@ void UBuoyancySubsystem::Tick(float DeltaTime)
 	//
 
 	Super::Tick(DeltaTime);
-
-	if (bBuoyancyEnabled == false)
-	{
-		return;
-	}
 
 	if (SimCallback == nullptr)
 	{
@@ -205,12 +225,6 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 
 	// If we don't have a valid buoyancy settings object, don't continue
 	if (BuoyancySettings.IsValid() == false)
-	{
-		return;
-	}
-
-	// If Buoyancy is disabled, skip
-	if (bBuoyancyEnabled == false)
 	{
 		return;
 	}

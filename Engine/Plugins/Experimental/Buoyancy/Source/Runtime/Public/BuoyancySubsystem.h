@@ -54,6 +54,15 @@ class BUOYANCY_API UBuoyancySubsystem : public UTickableWorldSubsystem
 		, SimCallback(nullptr)
 	{ }
 
+public:
+
+	// Return true if enable/disable was successful, or if
+	// we were already in the target state.
+	bool SetEnabled(const bool bEnabled);
+
+	// Return true if subsystem is enabled and running
+	bool IsEnabled() const;
+
 protected:
 
 	// UTickableWorldSubsystem begin interface
@@ -71,7 +80,7 @@ private:
 	Chaos::FPhysicsSolver* GetSolver() const;
 
 	// When water plugin settings change, this callback will apply changes
-	void ApplyRuntimeSettings(const class UWaterRuntimeSettings* InSettings, EPropertyChangeType::Type ChangeType);
+	void ApplyRuntimeSettings(const class UBuoyancyRuntimeSettings* InSettings, EPropertyChangeType::Type ChangeType);
 
 	bool bBuoyancySettingsChanged;
 
