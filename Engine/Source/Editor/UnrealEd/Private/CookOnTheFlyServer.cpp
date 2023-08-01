@@ -11232,7 +11232,7 @@ void UCookOnTheFlyServer::GenerateInitialRequests(FBeginCookContext& BeginContex
 		}
 	}
 
-	if (FParse::Param(FCommandLine::Get(), TEXT("List")))
+	if (FParse::Param(FCommandLine::Get(), TEXT("CookList")))
 	{
 		WorkerRequests->LogAllRequestedFiles();
 	}
