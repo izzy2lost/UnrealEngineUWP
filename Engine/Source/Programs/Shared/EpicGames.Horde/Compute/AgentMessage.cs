@@ -440,7 +440,7 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		public static async ValueTask SendExecuteOutputAsync(this AgentMessageChannel channel, ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
 		{
-			using IAgentMessageBuilder message = await channel.CreateMessageAsync(AgentMessageType.ExecuteOutput, cancellationToken);
+			using IAgentMessageBuilder message = await channel.CreateMessageAsync(AgentMessageType.ExecuteOutput, data.Length + 20, cancellationToken);
 			message.WriteFixedLengthBytes(data.Span);
 			message.Send();
 		}
