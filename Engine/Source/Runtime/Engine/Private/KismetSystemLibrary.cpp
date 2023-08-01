@@ -3082,9 +3082,40 @@ bool UKismetSystemLibrary::GetEditorProperty(UObject* Object, const FName Proper
 	return false;
 }
 
-bool UKismetSystemLibrary::Generic_GetEditorProperty(const UObject* Object, const FProperty* ObjectProp, void* ValuePtr, const FProperty* ValueProp)
+bool UKismetSystemLibrary::Generic_GetEditorProperty(const UObject* Object, const FName PropertyName, void* ValuePtr, const FProperty* ValueProp)
 {
-	const EPropertyAccessResultFlags AccessResult = PropertyAccessUtil::GetPropertyValue_Object(ObjectProp, Object, ValueProp, ValuePtr, INDEX_NONE);
+	const FProperty* ObjectProp = PropertyAccessUtil::FindPropertyByName(PropertyName, Object->GetClass());
+	TOptional<EPropertyAccessResultFlags> SparseDataAccessResult;
+	if ((!ObjectProp || ObjectProp->HasAnyPropertyFlags(CPF_Deprecated)) && Object->HasAllFlags(RF_ClassDefaultObject))
+	{
+		// look for a sparse member of the same name - the sparse data is treated as an extension
+		// of the class default object by the details panel:
+		const UStruct* SparseDataStruct = Object->GetClass()->GetSparseClassDataStruct();
+		if (SparseDataStruct)
+		{
+			const FProperty* SparseProp = PropertyAccessUtil::FindPropertyByName(PropertyName, SparseDataStruct);
+			if (SparseProp)
+			{
+				void* SparseDest = Object->GetClass()->GetOrCreateSparseClassData();
+
+				SparseDataAccessResult = PropertyAccessUtil::GetPropertyValue_InContainer(
+					SparseProp,
+					SparseDest,
+					ValueProp,
+					ValuePtr,
+					INDEX_NONE);
+			}
+		}
+	}
+
+	if (!ObjectProp && !SparseDataAccessResult.IsSet())
+	{
+		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property '%s' on '%s' (%s) was missing"), *PropertyName.ToString(), *Object->GetPathName(), *Object->GetClass()->GetName()), ELogVerbosity::Warning, UE::Blueprint::Private::PropertyGetFailedWarning);
+	}
+
+	const EPropertyAccessResultFlags AccessResult = SparseDataAccessResult.IsSet() ?
+		SparseDataAccessResult.GetValue() : 
+		PropertyAccessUtil::GetPropertyValue_Object(ObjectProp, Object, ValueProp, ValuePtr, INDEX_NONE);
 
 	if (EnumHasAnyFlags(AccessResult, EPropertyAccessResultFlags::PermissionDenied))
 	{
@@ -3140,17 +3171,9 @@ DEFINE_FUNCTION(UKismetSystemLibrary::execGetEditorProperty)
 
 	if (Object)
 	{
-		const FProperty* ObjectProp = PropertyAccessUtil::FindPropertyByName(PropertyName, Object->GetClass());
-		if (ObjectProp)
-		{
-			P_NATIVE_BEGIN;
-			bResult = Generic_GetEditorProperty(Object, ObjectProp, ValuePtr, ValueProp);
-			P_NATIVE_END;
-		}
-		else
-		{
-			FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property '%s' on '%s' (%s) was missing"), *PropertyName.ToString(), *Object->GetPathName(), *Object->GetClass()->GetName()), ELogVerbosity::Warning, UE::Blueprint::Private::PropertyGetFailedWarning);
-		}
+		P_NATIVE_BEGIN;
+		bResult = Generic_GetEditorProperty(Object, PropertyName, ValuePtr, ValueProp);
+		P_NATIVE_END;
 	}
 
 	*(bool*)RESULT_PARAM = bResult;
@@ -3163,9 +3186,47 @@ bool UKismetSystemLibrary::SetEditorProperty(UObject* Object, const FName Proper
 	return false;
 }
 
-bool UKismetSystemLibrary::Generic_SetEditorProperty(UObject* Object, const FProperty* ObjectProp, const void* ValuePtr, const FProperty* ValueProp, const EPropertyAccessChangeNotifyMode ChangeNotifyMode)
+bool UKismetSystemLibrary::Generic_SetEditorProperty(UObject* Object, const FName PropertyName, const void* ValuePtr, const FProperty* ValueProp, const EPropertyAccessChangeNotifyMode ChangeNotifyMode)
 {
-	const EPropertyAccessResultFlags AccessResult = PropertyAccessUtil::SetPropertyValue_Object(ObjectProp, Object, ValueProp, ValuePtr, INDEX_NONE, PropertyAccessUtil::EditorReadOnlyFlags, ChangeNotifyMode);
+	TOptional<EPropertyAccessResultFlags> SparseDataAccessResult;
+	const FProperty* ObjectProp = PropertyAccessUtil::FindPropertyByName(PropertyName, Object->GetClass());
+	if ((!ObjectProp || ObjectProp->HasAnyPropertyFlags(CPF_Deprecated)) && Object->HasAllFlags(RF_ClassDefaultObject))
+	{
+		// look for a sparse member of the same name - the sparse data is treated as an extension
+		// of the class default object by the details panel:
+		const UStruct* SparseDataStruct = Object->GetClass()->GetSparseClassDataStruct();
+		if (SparseDataStruct)
+		{
+			const FProperty* SparseProp = PropertyAccessUtil::FindPropertyByName(PropertyName, SparseDataStruct);
+			if (SparseProp)
+			{
+				void* SparseDest = Object->GetClass()->GetOrCreateSparseClassData();
+
+				SparseDataAccessResult = PropertyAccessUtil::SetPropertyValue_InContainer(
+					SparseProp,
+					SparseDest,
+					ValueProp,
+					ValuePtr,
+					INDEX_NONE,
+					PropertyAccessUtil::EditorReadOnlyFlags,
+					PropertyAccessUtil::IsObjectTemplate(Object),
+					[SparseProp, Object, ChangeNotifyMode]()
+					{
+						return PropertyAccessUtil::BuildBasicChangeNotify(SparseProp, Object, ChangeNotifyMode);
+					});
+			}
+		}
+	}
+
+	if(!ObjectProp && !SparseDataAccessResult.IsSet())
+	{
+		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property '%s' on '%s' (%s) was missing"), *PropertyName.ToString(), *Object->GetPathName(), *Object->GetClass()->GetName()), ELogVerbosity::Warning, UE::Blueprint::Private::PropertySetFailedWarning);
+		return false;
+	}
+
+	const EPropertyAccessResultFlags AccessResult = SparseDataAccessResult.IsSet() ?
+		SparseDataAccessResult.GetValue() :
+		PropertyAccessUtil::SetPropertyValue_Object(ObjectProp, Object, ValueProp, ValuePtr, INDEX_NONE, PropertyAccessUtil::EditorReadOnlyFlags, ChangeNotifyMode);
 
 	if (EnumHasAnyFlags(AccessResult, EPropertyAccessResultFlags::PermissionDenied))
 	{
@@ -3241,17 +3302,9 @@ DEFINE_FUNCTION(UKismetSystemLibrary::execSetEditorProperty)
 
 	if (Object)
 	{
-		const FProperty* ObjectProp = PropertyAccessUtil::FindPropertyByName(PropertyName, Object->GetClass());
-		if (ObjectProp)
-		{
-			P_NATIVE_BEGIN;
-			bResult = Generic_SetEditorProperty(Object, ObjectProp, ValuePtr, ValueProp, ChangeNotifyMode);
-			P_NATIVE_END;
-		}
-		else
-		{
-			FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property '%s' on '%s' (%s) was missing"), *PropertyName.ToString(), *Object->GetPathName(), *Object->GetClass()->GetName()), ELogVerbosity::Warning, UE::Blueprint::Private::PropertySetFailedWarning);
-		}
+		P_NATIVE_BEGIN;
+		bResult = Generic_SetEditorProperty(Object, PropertyName, ValuePtr, ValueProp, ChangeNotifyMode);
+		P_NATIVE_END;
 	}
 
 	*(bool*)RESULT_PARAM = bResult;

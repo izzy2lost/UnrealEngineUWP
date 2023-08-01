@@ -302,6 +302,44 @@ bool CopyCompletePropertyValue(const FProperty* InSrcProp, const void* InSrcValu
 
 	if (!ArePropertiesCompatible(InSrcProp, InDestProp) || InSrcProp->ArrayDim != InDestProp->ArrayDim)
 	{
+		if (InDestProp->ArrayDim > 1)
+		{
+			// handle assignment of a dynamic array to a fixed array:
+			if (const FArrayProperty* SrcArray = CastField<FArrayProperty>(InSrcProp))
+			{
+				if (ArePropertiesCompatible(SrcArray->Inner, InDestProp))
+				{
+					FScriptArrayHelper SrcArrayHelper(SrcArray, InSrcValue);
+					if (SrcArrayHelper.Num() == InDestProp->ArrayDim)
+					{
+						for (int32 I = 0; I < InDestProp->ArrayDim; ++I)
+						{
+							void* DestValue = static_cast<uint8*>(InDestValue) + InDestProp->ElementSize * I;
+							CopySinglePropertyValue(SrcArray->Inner, SrcArrayHelper.GetElementPtr(I), InDestProp, DestValue);
+						}
+						return true;
+					}
+				}
+			}
+		}
+		else if (InSrcProp->ArrayDim > 1)
+		{
+			// handle assignment of a fixed array to a dynamic array:
+			if (const FArrayProperty* DstArray = CastField<FArrayProperty>(InDestProp))
+			{
+				if (ArePropertiesCompatible(DstArray->Inner, InSrcProp))
+				{
+					FScriptArrayHelper DstArrayHelper(DstArray, InDestValue);
+					DstArrayHelper.Resize(InSrcProp->ArrayDim);
+					for (int32 I = 0; I < InSrcProp->ArrayDim; ++I)
+					{
+						const void* SrcValue = static_cast<const uint8*>(InSrcValue) + InSrcProp->ElementSize * I;
+						CopySinglePropertyValue(InSrcProp, SrcValue, DstArray->Inner, DstArrayHelper.GetElementPtr(I));
+					}
+					return true;
+				}
+			}
+		}
 		return false;
 	}
 
@@ -577,7 +615,10 @@ void EmitPostChangeNotify(const FPropertyAccessChangeNotify* InChangeNotify, con
 
 TUniquePtr<FPropertyAccessChangeNotify> BuildBasicChangeNotify(const FProperty* InProp, const UObject* InObject, const EPropertyAccessChangeNotifyMode InNotifyMode)
 {
-	check(InObject->IsA(InProp->GetOwnerClass()));
+	const UScriptStruct* SparseStruct = InObject->GetClass()->GetSparseClassDataStruct();
+	const bool bIsValidSparseProp = SparseStruct &&
+		SparseStruct->IsChildOf(InProp->GetOwnerStruct());
+	check(InObject->IsA(InProp->GetOwnerClass()) || bIsValidSparseProp);
 #if WITH_EDITOR
 	if (InNotifyMode != EPropertyAccessChangeNotifyMode::Never)
 	{
