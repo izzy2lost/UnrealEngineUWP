@@ -669,20 +669,17 @@ void CommitEditorDomainCookAttachments(FName PackageName, TArrayView<IPackageWri
 	GEditorDomainOplog->CommitPackage(PackageName, Attachments);
 }
 
-void UtilsInitialize(bool bEditorDomainEnabled)
+void UtilsInitialize()
 {
-	if (bEditorDomainEnabled)
+	bool bCookAttachmentsEnabled = true;
+	GConfig->GetBool(TEXT("EditorDomain"), TEXT("CookAttachmentsEnabled"), bCookAttachmentsEnabled, GEditorIni);
+	if (bCookAttachmentsEnabled)
 	{
-		bool bCookAttachmentsEnabled = true;
-		GConfig->GetBool(TEXT("EditorDomain"), TEXT("CookAttachmentsEnabled"), bCookAttachmentsEnabled, GEditorIni);
-		if (bCookAttachmentsEnabled)
+		GEditorDomainOplog = MakeUnique<FEditorDomainOplog>();
+		if (!GEditorDomainOplog->IsValid())
 		{
-			GEditorDomainOplog = MakeUnique<FEditorDomainOplog>();
-			if (!GEditorDomainOplog->IsValid())
-			{
-				UE_LOG(LogEditorDomain, Display, TEXT("Failed to connect to ZenServer; EditorDomain oplog is unavailable."));
-				GEditorDomainOplog.Reset();
-			}
+			UE_LOG(LogEditorDomain, Display, TEXT("Failed to connect to ZenServer; EditorDomain oplog is unavailable."));
+			GEditorDomainOplog.Reset();
 		}
 	}
 }

@@ -133,7 +133,7 @@ public:
 		Editor
 	};
 
-	FEditorDomain();
+	FEditorDomain(EEditorDomainEnabled EnableLevel);
 	virtual ~FEditorDomain();
 
 	/** Return the EditorDomain that is registered as the global PackageResourceManager, if there is one. */
@@ -178,6 +178,8 @@ public:
 	// EditorDomain interface
 	/** Fetch data from game-thread sources that is required to calculate the PackageDigest of the given PackageName. */
 	void PrecachePackageDigest(FName PackageName);
+	bool IsReadingPackages() const { return bEditorDomainReadEnabled; }
+	bool IsWritingPackages() const { return bEditorDomainWriteEnabled; }
 
 	/** Request the download of the given packages from the upstream DDC server. */
 	void BatchDownload(TArrayView<FName> PackageNames);
@@ -279,9 +281,9 @@ private:
 	 */
 	bool bSkipSavesUntilCatalogLoaded = false;
 
-	static FEditorDomain* RegisteredEditorDomain;
+	static FEditorDomain* SingletonEditorDomain;
 
-	friend class FEditorDomainRegisterAsPackageResourceManager;
+	friend class FEditorDomainConstructor;
 	friend class FEditorDomainPackageSegments;
 	friend class FEditorDomainReadArchive;
 	friend class FEditorDomainAsyncReadFileHandle;

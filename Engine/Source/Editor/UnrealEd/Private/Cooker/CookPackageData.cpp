@@ -993,7 +993,8 @@ bool FPackageData::TryPreload()
 	}
 	if (!PreloadableFile.Get())
 	{
-		if (FEditorDomain* EditorDomain = FEditorDomain::Get())
+		if (FEditorDomain* EditorDomain(FEditorDomain::Get());
+			EditorDomain && EditorDomain->IsReadingPackages())
 		{
 			EditorDomain->PrecachePackageDigest(GetPackageName());
 		}

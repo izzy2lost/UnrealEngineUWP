@@ -336,7 +336,7 @@ void FRequestCluster::StartAsync(const FCookerTimer& CookerTimer, bool& bOutComp
 	}
 
 	FEditorDomain* EditorDomain = FEditorDomain::Get();
-	if (EditorDomain)
+	if (EditorDomain && EditorDomain->IsReadingPackages())
 	{
 		bool bBatchDownloadEnabled = true;
 		GConfig->GetBool(TEXT("EditorDomain"), TEXT("BatchDownloadEnabled"), bBatchDownloadEnabled, GEditorIni);

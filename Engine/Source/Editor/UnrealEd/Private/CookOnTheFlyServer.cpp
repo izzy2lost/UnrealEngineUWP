@@ -6068,6 +6068,7 @@ void FSaveCookedPackageContext::FinishPlatform()
 		TArray<UE::DerivedData::FBuildDefinition> BuildDefinitions;
 		FCbObject BuildDefinitionList = UE::TargetDomain::BuildDefinitionListToObject(BuildDefinitions);
 		FCbObject TargetDomainDependencies;
+		if (COTFS.bHybridIterativeEnabled)
 		{
 			UE_SCOPED_HIERARCHICAL_COOKTIMER(TargetDomainDependencies);
 			TargetDomainDependencies = UE::TargetDomain::CollectDependenciesObject(Package, TargetPlatform, nullptr /* ErrorMessage */);

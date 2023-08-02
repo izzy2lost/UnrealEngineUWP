@@ -25,8 +25,6 @@
 	<!-- Agent=IterativeValidate variables -->
 	<Property Name="EditorPlatform" Value="Win64"/>
 	<Property Name="CommonCookArgs" Value="-targetplatform=$(TargetPlatform) $(IterativeArgs) -skiponlyeditoronly=true"/>
-	<!-- TODO: Remove these editordomain arguments once we enable editordomain for all cooks -->
-	<Property Name="CommonCookArgs" Value="$(CommonCookArgs) -editordomain -noeditordomainread -noeditordomainwrite"/>
 	<!-- Force singleprocess cook because IterativeValidatePackageWriter includes data that is not replicated -->
 	<Property Name="CommonCookArgs" Value="$(CommonCookArgs) -cookprocesscount=1"/>
 

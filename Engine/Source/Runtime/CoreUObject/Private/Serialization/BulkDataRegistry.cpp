@@ -130,7 +130,7 @@ void IBulkDataRegistry::Initialize()
 			GBulkDataRegistry = SetRegistryDelegate.Execute();
 		}
 	}
-	else if (IsEditorDomainEnabled())
+	else if (IsEditorDomainEnabled() >= EEditorDomainEnabled::PackageResourceManager)
 	{
 		GBulkDataRegistry = new FBulkDataRegistryTrackBulkDataToResave();
 	}
