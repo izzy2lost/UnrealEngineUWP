@@ -4,6 +4,7 @@
 
 #include "HAL/PlatformTime.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/CoreDelegates.h"
 #include "Misc/Parse.h"
 #include "Modules/ModuleManager.h"
 
