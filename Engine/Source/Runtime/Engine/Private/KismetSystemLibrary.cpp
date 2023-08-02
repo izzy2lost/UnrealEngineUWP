@@ -3111,6 +3111,7 @@ bool UKismetSystemLibrary::Generic_GetEditorProperty(const UObject* Object, cons
 	if (!ObjectProp && !SparseDataAccessResult.IsSet())
 	{
 		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Property '%s' on '%s' (%s) was missing"), *PropertyName.ToString(), *Object->GetPathName(), *Object->GetClass()->GetName()), ELogVerbosity::Warning, UE::Blueprint::Private::PropertyGetFailedWarning);
+		return false;
 	}
 
 	const EPropertyAccessResultFlags AccessResult = SparseDataAccessResult.IsSet() ?
