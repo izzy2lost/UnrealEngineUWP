@@ -192,8 +192,11 @@ struct FSearchData
 	/** The full asset path this search data is associated with of the form /Game/Path/To/Package.Package */
 	FSoftObjectPath AssetPath;
 
-	/** Search data block for the Blueprint */
+	/** Encoded search data block for the Blueprint, this will not always be set if it's already been parsed */
 	FString Value;
+
+	/** Key to use to look up the encoded search data from an FAssetData, if this is set Value will probably be empty */
+	FName AssetKeyForValue;
 
 	/** Parent Class */
 	FString ParentClass;
@@ -216,9 +219,23 @@ struct FSearchData
 	{
 	}
 
+	/** True if this represents a valid asset */
 	bool IsValid() const
 	{
 		return !AssetPath.IsNull();
+	}
+
+	/** True if this has an encoded value that has yet to be parsed */
+	bool HasEncodedValue() const
+	{
+		return !Value.IsEmpty() || !AssetKeyForValue.IsNone();
+	}
+
+	/** Clear the encoded value after parsing or getting new data */
+	void ClearEncodedValue()
+	{
+		Value.Reset();
+		AssetKeyForValue = NAME_None;
 	}
 
 	bool IsIndexingCompleted() const
@@ -581,6 +598,9 @@ public:
 	 */
 	FSearchData QuerySingleBlueprint(UBlueprint* InBlueprint, bool bInRebuildSearchData);
 
+	/** Processes the encoded string value in the SearchData into the intermediate format, return true if string and version were valid */
+	bool ProcessEncodedValueForUnloadedBlueprint(FSearchData& SearchData);
+
 	/** Returns the number of unindexed Blueprints, either due to not having been indexed before, or AR data being out-of-date */
 	int32 GetNumberUnindexedAssets() const;
 
@@ -684,7 +704,7 @@ public:
 	static FString ConvertFTextToHexString(FText InValue);
 
 	/** Given a fully constructed Find-in-Blueprint FString of searchable data, will parse and construct a JsonObject */
-	static TSharedPtr< class FJsonObject > ConvertJsonStringToObject(FSearchDataVersionInfo InVersionInfo, FString InJsonString, TMap<int32, FText>& OutFTextLookupTable);
+	static TSharedPtr< class FJsonObject > ConvertJsonStringToObject(FSearchDataVersionInfo InVersionInfo, const FString& InJsonString, TMap<int32, FText>& OutFTextLookupTable);
 
 	/** Generates a human-readable search index for the given Blueprint (for debugging purposes) */
 	static FString GenerateSearchIndexForDebugging(UBlueprint* InBlueprint);
@@ -744,7 +764,7 @@ private:
 	void AddUnloadedBlueprintSearchMetadata(const FAssetData& InAssetData);
 
 	/** Begins the process of extracting FiB data from an unloaded asset */
-	void ExtractUnloadedFiBData(const FAssetData& InAssetData, const FString& InFiBData, EFiBVersion InFiBDataVersion);
+	void ExtractUnloadedFiBData(const FAssetData& InAssetData, FString* InFiBData, FName InKeyForFiBData, EFiBVersion InFiBDataVersion);
 
 	/** Determines the global find results tab label */
 	FText GetGlobalFindResultsTabLabel(int32 TabIdx);
