@@ -45,6 +45,8 @@ public:
 	GAMEFEATURES_API bool ShouldOverrideChunk() const { return bShouldOverrideChunk; }
 
 	GAMEFEATURES_API int32 GetChunkID() const { return ChunkId; };
+
+	GAMEFEATURES_API static int32 GetLowestAllowedChunkId();
 #endif // WITH_EDITOR
 	
 private:

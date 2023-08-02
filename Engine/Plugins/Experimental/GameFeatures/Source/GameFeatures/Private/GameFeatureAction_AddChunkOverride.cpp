@@ -141,6 +141,20 @@ void UGameFeatureAction_AddChunkOverride::PostEditChangeProperty(FPropertyChange
 		AddChunkIdOverride();
 	}
 }
+
+int32 UGameFeatureAction_AddChunkOverride::GetLowestAllowedChunkId()
+{
+	if (const UGameFeatureAction_AddChunkOverride* Action = UGameFeatureAction_AddChunkOverride::StaticClass()->GetDefaultObject<UGameFeatureAction_AddChunkOverride>())
+	{
+		return Action->LowestAllowedChunkIndexForAutoGeneration;
+	}
+	else
+	{
+		ensureMsgf(false, TEXT("Unable to get class default object for UGameFeatureAction_AddChunkOverride"));
+		return INDEX_NONE;
+	}
+}
+
 #endif // WITH_EDITOR
 
 void UGameFeatureAction_AddChunkOverride::AddChunkIdOverride()
