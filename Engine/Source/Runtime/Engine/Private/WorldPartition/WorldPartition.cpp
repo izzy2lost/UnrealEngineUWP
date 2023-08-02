@@ -1563,7 +1563,7 @@ void UWorldPartition::AddReferencedObjects(UObject* InThis, FReferenceCollector&
 		Collector.AllowEliminatingReferences(true);
 	}
 
-	for (const UActorDescContainer* Container : This->ActorDescContainerCollection)
+	for (TObjectPtr<UActorDescContainer>& Container : This->ActorDescContainerCollection)
 	{
 		Collector.AddReferencedObject(Container);
 	}

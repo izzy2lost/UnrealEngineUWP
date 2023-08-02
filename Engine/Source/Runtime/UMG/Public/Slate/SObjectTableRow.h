@@ -124,7 +124,7 @@ public:
 		TSharedPtr<ITypedTableView<ItemType>> OwnerTable = OwnerTablePtr.Pin();
 		if (OwnerTable.IsValid())
 		{
-			if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable.ToSharedRef()))
+			if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable.ToSharedRef()))
 			{
 				if (bIsAppearingSelected != OwnerTable->Private_IsItemSelected(*MyItemPtr))
 				{
@@ -176,7 +176,7 @@ public:
 	virtual bool IsItemExpanded() const override
 	{
 		TSharedRef<ITypedTableView<ItemType>> OwnerTable = OwnerTablePtr.Pin().ToSharedRef();
-		if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+		if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 		{
 			return OwnerTable->Private_IsItemExpanded(*MyItemPtr);
 		}
@@ -189,7 +189,7 @@ public:
 		TSharedRef<ITypedTableView<ItemType>> OwnerTable = OwnerTablePtr.Pin().ToSharedRef();
 		if (OwnerTable->Private_DoesItemHaveChildren(IndexInList))
 		{
-			if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+			if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 			{
 				OwnerTable->Private_SetItemExpansion(*MyItemPtr, !OwnerTable->Private_IsItemExpanded(*MyItemPtr));
 			}
@@ -199,7 +199,7 @@ public:
 	virtual bool IsItemSelected() const override
 	{
 		TSharedRef<ITypedTableView<ItemType>> OwnerTable = OwnerTablePtr.Pin().ToSharedRef();
-		if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+		if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 		{
 			return OwnerTable->Private_IsItemSelected(*MyItemPtr);
 		}
@@ -246,7 +246,7 @@ public:
 		{
 			TSharedRef<ITypedTableView<ItemType>> OwnerTable = OwnerTablePtr.Pin().ToSharedRef();
 
-			if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+			if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 			{
 				OwnerTable->Private_OnItemDoubleClicked(*MyItemPtr);
 				return FReply::Handled();
@@ -272,7 +272,7 @@ public:
 		{
 			bProcessingSelectionTouch = false;
 			TSharedRef<ITypedTableView<ItemType>> OwnerTable = OwnerTablePtr.Pin().ToSharedRef();
-			if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+			if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 			{
 				if (IsItemSelectable())
 				{
@@ -348,7 +348,7 @@ public:
 			{
 				if (IsItemSelectable())
 				{
-					const ItemType* MyItemPtr = GetItemForThis(OwnerTable);
+					const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable);
 					// New selections are handled on mouse down, deselection is handled on mouse up
 					if (MyItemPtr)
 					{
@@ -388,7 +388,7 @@ public:
 
 		if (!Reply.IsEventHandled())
 		{
-			if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+			if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 			{
 				const ESelectionMode::Type SelectionMode = GetSelectionMode();
 				if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && HasMouseCapture())
@@ -456,7 +456,7 @@ protected:
 	virtual void InitializeObjectRow()
 	{
 		TSharedRef<ITypedTableView<ItemType>> OwnerTable = OwnerTablePtr.Pin().ToSharedRef();
-		if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+		if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 		{
 			InitObjectRowInternal(*WidgetObject, *MyItemPtr);
 
@@ -491,9 +491,9 @@ protected:
 		return NativeListEntryImpl ? NativeListEntryImpl->IsListItemSelectable() : true;
 	}
 
-	const ItemType* GetItemForThis(const TSharedRef<ITypedTableView<ItemType>>& OwnerTable) const
+	const TObjectPtrWrapTypeOf<ItemType>* GetItemForThis(const TSharedRef<ITypedTableView<ItemType>>& OwnerTable) const
 	{
-		const ItemType* MyItemPtr = OwnerTable->Private_ItemFromWidget(this);
+		const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = OwnerTable->Private_ItemFromWidget(this);
 		if (MyItemPtr)
 		{
 			return MyItemPtr;

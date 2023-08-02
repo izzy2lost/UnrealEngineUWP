@@ -251,7 +251,7 @@ public:
 					TSharedRef< ITypedTableView<ItemType> > OwnerTable = TableRow->OwnerTablePtr.Pin().ToSharedRef();
 					const bool bIsActive = OwnerTable->AsWidget()->HasKeyboardFocus();
 
-					if (const ItemType* MyItemPtr = TableRow->GetItemForThis(OwnerTable))
+					if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = TableRow->GetItemForThis(OwnerTable))
 					{
 						const ItemType& MyItem = *MyItemPtr;
 						const bool bIsSelected = OwnerTable->Private_IsItemSelected(MyItem);
@@ -326,7 +326,7 @@ public:
 		TSharedRef< ITypedTableView<ItemType> > OwnerTable = OwnerTablePtr.Pin().ToSharedRef();
 		const bool bIsActive = OwnerTable->AsWidget()->HasKeyboardFocus();
 
-		if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+		if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 		{
 			if (bIsActive && OwnerTable->Private_UsesSelectorFocus() && OwnerTable->Private_HasSelectorFocus(*MyItemPtr))
 			{
@@ -415,7 +415,7 @@ public:
 			TSharedRef< ITypedTableView<ItemType> > OwnerTable = OwnerTablePtr.Pin().ToSharedRef();
 
 			// Only one item can be double-clicked
-			if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+			if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 			{
 				// If we're configured to route double-click messages to the owner of the table, then
 				// do that here.  Otherwise, we'll toggle expansion.
@@ -450,7 +450,7 @@ public:
 			const ESelectionMode::Type SelectionMode = GetSelectionMode();
 			if (SelectionMode != ESelectionMode::None)
 			{
-				if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+				if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 				{
 					const ItemType& MyItem = *MyItemPtr;
 					const bool bIsSelected = OwnerTable->Private_IsItemSelected(MyItem);
@@ -545,7 +545,7 @@ public:
 						{
 							if ( !bChangedSelectionOnMouseDown && !MouseEvent.IsControlDown() && !MouseEvent.IsShiftDown() )
 							{
-								if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+								if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 								{
 									const bool bIsSelected = OwnerTable->Private_IsItemSelected(*MyItemPtr);
 									if (bIsSelected && OwnerTable->Private_GetNumSelectedItems() > 1)
@@ -566,7 +566,7 @@ public:
 					}
 				}
 
-				if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+				if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 				{
 					if (OwnerTable->Private_OnItemClicked(*MyItemPtr))
 					{
@@ -594,7 +594,7 @@ public:
 			case ESelectionMode::Multi:
 				{
 					// Only one item can be selected at a time
-					if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+					if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 					{
 						const bool bIsSelected = OwnerTable->Private_IsItemSelected(*MyItemPtr);
 
@@ -637,7 +637,7 @@ public:
 		{
 			bProcessingSelectionTouch = false;
 			const TSharedRef<ITypedTableView<ItemType>> OwnerTable = OwnerTablePtr.Pin().ToSharedRef();
-			if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+			if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 			{
 				ESelectionMode::Type SelectionMode = GetSelectionMode();
 				if (SelectionMode != ESelectionMode::None)
@@ -754,7 +754,7 @@ public:
 			ItemDropZone = [ItemHoverZone, DragDropEvent, this]()
 			{
 				TSharedRef< ITypedTableView<ItemType> > OwnerTable = OwnerTablePtr.Pin().ToSharedRef();
-				if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+				if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 				{
 					return OnCanAcceptDrop.Execute(DragDropEvent, ItemHoverZone, *MyItemPtr);
 				}
@@ -783,7 +783,7 @@ public:
 				ItemDropZone = TOptional<EItemDropZone>();
 
 				// Find item associated with this widget.
-				if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+				if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 				{
 					// Which physical drop zone is the drop about to be performed onto?
 					const FVector2f LocalPointerPos = MyGeometry.AbsoluteToLocal(DragDropEvent.GetScreenSpacePosition());
@@ -836,7 +836,7 @@ public:
 	virtual bool IsItemExpanded() const override
 	{
 		TSharedRef< ITypedTableView<ItemType> > OwnerTable = OwnerTablePtr.Pin().ToSharedRef();
-		if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+		if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 		{
 			return OwnerTable->Private_IsItemExpanded(*MyItemPtr);
 		}
@@ -852,7 +852,7 @@ public:
 		// Nothing to expand if row being clicked on doesn't have children
 		if( bItemHasChildren )
 		{
-			if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+			if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 			{
 				const bool bIsItemExpanded = bItemHasChildren && OwnerTable->Private_IsItemExpanded(*MyItemPtr);
 				OwnerTable->Private_SetItemExpansion(*MyItemPtr, !bIsItemExpanded);
@@ -863,7 +863,7 @@ public:
 	virtual bool IsItemSelected() const override
 	{
 		TSharedRef<ITypedTableView<ItemType>> OwnerTable = OwnerTablePtr.Pin().ToSharedRef();
-		if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+		if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 		{
 			return OwnerTable->Private_IsItemSelected(*MyItemPtr);
 		}
@@ -940,7 +940,7 @@ public:
 		// Nothing to expand if row being clicked on doesn't have children
 		if( bItemHasChildren )
 		{
-			if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+			if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 			{
 				const bool IsItemExpanded = bItemHasChildren && OwnerTable->Private_IsItemExpanded(*MyItemPtr);
 				OwnerTable->Private_OnExpanderArrowShiftClicked(*MyItemPtr, !IsItemExpanded);
@@ -962,7 +962,7 @@ public:
 		// @todo: Slate Style - make this part of the widget style
 		const FSlateBrush* WhiteBox = FCoreStyle::Get().GetBrush(GenericWhiteBoxBrush);
 
-		if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+		if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 		{
 			const bool bIsSelected = OwnerTable->Private_IsItemSelected(*MyItemPtr);
 			const bool bIsHighlighted = OwnerTable->Private_IsItemHighlighted(*MyItemPtr);
@@ -1043,7 +1043,7 @@ public:
 			return false;
 		}
 
-		if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+		if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 		{
 			return OwnerTable->Private_IsItemSelected(*MyItemPtr);
 		}
@@ -1060,7 +1060,7 @@ public:
 	{
 		TSharedRef< ITypedTableView< ItemType > > OwnerTable = OwnerTablePtr.Pin().ToSharedRef();
 
-		if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable))
+		if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
 		{
 			return OwnerTable->Private_IsItemSelected(*MyItemPtr);
 		}
@@ -1161,7 +1161,7 @@ protected:
 			return NonSelectedForeground;
 		}
 
-		if (const ItemType* MyItemPtr = GetItemForThis(OwnerTable.ToSharedRef()))
+		if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable.ToSharedRef()))
 		{
 			const bool bIsSelected = OwnerTable->Private_IsItemSelected(*MyItemPtr);
 
@@ -1179,9 +1179,9 @@ protected:
 		return OwnerTable->Private_GetSelectionMode();
 	}
 
-	const ItemType* GetItemForThis(const TSharedRef<ITypedTableView<ItemType>>& OwnerTable) const
+	const TObjectPtrWrapTypeOf<ItemType>* GetItemForThis(const TSharedRef<ITypedTableView<ItemType>>& OwnerTable) const
 	{
-		const ItemType* MyItemPtr = OwnerTable->Private_ItemFromWidget(this);
+		const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = OwnerTable->Private_ItemFromWidget(this);
 		if (MyItemPtr)
 		{
 			return MyItemPtr;

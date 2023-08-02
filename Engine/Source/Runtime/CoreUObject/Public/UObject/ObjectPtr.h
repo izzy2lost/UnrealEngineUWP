@@ -7,6 +7,7 @@
 #include "Templates/IsTObjectPtr.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectHandle.h"
+#include "Templates/NonNullPointer.h"
 
 #include <type_traits>
 
@@ -843,13 +844,10 @@ FORCEINLINE T* ToRawPtr(T* Ptr)
 	return Ptr;
 }
 
+#if !UE_DEPRECATE_MUTABLE_TOBJECTPTR
 template <typename T, SIZE_T Size>
-#if UE_DEPRECATE_MUTABLE_TOBJECTPTR
-FORCEINLINE T* const *
-#else
 UE_OBJPTR_DEPRECATED(5.3, "Mutable ToRawPtrArrayUnsafe() is deprecated. Use MutableView() or TArray<TObjectPtr<...>> instead.")
 FORCEINLINE T**
-#endif
 ToRawPtrArrayUnsafe(TObjectPtr<T>(&ArrayOfPtr)[Size])
 {
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE || UE_WITH_OBJECT_HANDLE_TRACKING
@@ -860,12 +858,9 @@ ToRawPtrArrayUnsafe(TObjectPtr<T>(&ArrayOfPtr)[Size])
 	}
 #endif
 
-	#if UE_DEPRECATE_MUTABLE_TOBJECTPTR
-	return reinterpret_cast<T* const *>(ArrayOfPtr);
-	#else
 	return reinterpret_cast<T**>(ArrayOfPtr);
-	#endif
 }
+#endif
 
 template <typename T, SIZE_T Size>
 FORCEINLINE const T* const *
@@ -1048,12 +1043,12 @@ FORCEINLINE const TObjectPtr<UObject>& FObjectPtr::ToTObjectPtr() const
 template <typename T>
 inline void Swap(TObjectPtr<T>& A, T*& B)
 {
-	Swap((T*&)A, B);
+	Swap(static_cast<T*&>(MutableView(A)), B);
 }
 template <typename T>
 inline void Swap(T*& A, TObjectPtr<T>& B)
 {
-	Swap(A, (T*&)B);
+	Swap(A, static_cast<T*&>(MutableView(B)));
 }
 
 /** Swap variants between TArray<TObjectPtr<T>> and TArray<T*> */
@@ -1075,12 +1070,12 @@ inline void Swap(TArray<T*>& A, TArray<TObjectPtr<T>>& B)
 template <typename T>
 inline void Exchange(TObjectPtr<T>& A, T*& B)
 {
-	Swap((T*&)A, B);
+	Swap(static_cast<T*&>(MutableView(A)), B);
 }
 template <typename T>
 inline void Exchange(T*& A, TObjectPtr<T>& B)
 {
-	Swap(A, (T*&)B);
+	Swap(A, static_cast<T*&>(MutableView(B)));
 }
 
 #if !UE_DEPRECATE_MUTABLE_TOBJECTPTR
@@ -1236,6 +1231,19 @@ namespace UE::Core::Private // private facilities; not for direct use
 			{
 				TObjectPtrDecayTypeOf<T>::PerformDecayActions(V);
 			}
+		}
+	};
+
+	template <typename T>
+	struct TObjectPtrDecayTypeOf<TNonNullPtr<TObjectPtr<T>>>
+	{
+		using Type = TNonNullPtr<T>;
+
+		static void PerformDecayActions(const TNonNullPtr<TObjectPtr<T>>& Value)
+		{
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE || UE_WITH_OBJECT_HANDLE_TRACKING
+			Value.GetRef().Get();
+#endif
 		}
 	};
 
@@ -1411,6 +1419,99 @@ namespace UE::Core::Private // private facilities; not for direct use
 	private:
 		ViewType* View;
 	};
+
+	// nb: TMaybeObjectPtr class exists as a temporary compatibility shim with existing code.
+	// do not use in new code
+	template <typename T>
+	class TMaybeObjectPtr
+	{
+		static_assert(!std::is_convertible_v<T, const UObjectBase*>, "TMaybeObjectPtr's type argument shouldn't be a subclass of UObjectBase");
+
+	public:
+		TMaybeObjectPtr() = default;
+		
+		explicit TMaybeObjectPtr(nullptr_t)
+			: Ptr{TObjectPtr<UObject>{}}, bIsObjectPtr{true}
+		{
+		}
+													
+		explicit TMaybeObjectPtr(UObject* X)
+			: Ptr{TObjectPtr<UObject>{X}}, bIsObjectPtr{true}
+		{
+		}
+		
+		explicit TMaybeObjectPtr(T* X)
+		{
+			*this = X;
+		}
+
+		TMaybeObjectPtr(const TMaybeObjectPtr& Other)
+		{
+			*this = Other;
+		}
+
+		TMaybeObjectPtr(TMaybeObjectPtr&& Other)
+		{
+			*this = Other;
+		}
+
+		TMaybeObjectPtr& operator=(TMaybeObjectPtr&& Other)
+		{
+			return *this = Other;
+		}
+		
+		TMaybeObjectPtr& operator=(const TMaybeObjectPtr& Other)
+		{
+			if (Other.bIsObjectPtr)
+			{
+				Ptr.ObjectPtr = Other.Ptr.ObjectPtr;
+			}
+			else 
+			{
+				Ptr.NotObjectPtr = Other.Ptr.NotObjectPtr;
+			}
+			bIsObjectPtr = Other.bIsObjectPtr;
+			return *this;
+		}		
+		
+		TMaybeObjectPtr& operator=(T* MaybeObjectPtr)
+		{
+			if (UObject* P = Cast<UObject>(const_cast<std::remove_cv_t<T>*>(MaybeObjectPtr)))
+			{
+				bIsObjectPtr = true;
+				Ptr.ObjectPtr = P;
+			}
+			else
+			{
+				bIsObjectPtr = false;
+				Ptr.NotObjectPtr = MaybeObjectPtr;
+			}
+			return *this;
+		}
+
+		operator T*() const
+		{
+			return bIsObjectPtr ? nullptr : const_cast<std::remove_cv_t<T>*>(Ptr.NotObjectPtr);
+		}
+
+		TObjectPtr<UObject>* AsNonNullObjectPtr() const
+		{
+			if (!bIsObjectPtr || !Ptr.ObjectPtr)
+			{
+				return nullptr;
+			}
+			return const_cast<TObjectPtr<UObject>*>(&Ptr.ObjectPtr);
+		}
+
+	private:
+		union
+		{
+			TObjectPtr<UObject> ObjectPtr{};
+			T* NotObjectPtr;
+		} Ptr;
+		bool bIsObjectPtr{true};
+		static_assert(sizeof(Ptr) == sizeof(void*));
+	};	
 }
 
 /*
@@ -1487,6 +1588,9 @@ template <typename T,
 	return reinterpret_cast<U&>(Value);
 }
 
+template <typename T>
+using TObjectPtrWrapTypeOf = typename UE::Core::Private::TObjectPtrWrapTypeOf<T>::Type;
+
 template <typename T,
 					typename U = typename UE::Core::Private::TObjectPtrWrapTypeOf<T>::Type>
 [[nodiscard]] const U& ObjectPtrWrap(const T& Value)
@@ -1506,6 +1610,131 @@ FORCEINLINE decltype(auto) ConstCast(const TObjectPtr<T>& P)
 {
 	return reinterpret_cast<TObjectPtr<std::remove_cv_t<T>>&>(const_cast<TObjectPtr<T>&>(P));
 }
+
+
+template<typename ObjectType>
+class TNonNullPtr<TObjectPtr<ObjectType>>
+{
+public:
+	
+	FORCEINLINE TNonNullPtr(EDefaultConstructNonNullPtr)
+		: Object(nullptr)
+	{	
+	}	
+
+	/**
+	 * nullptr constructor - not allowed.
+	 */
+	FORCEINLINE TNonNullPtr(TYPE_OF_NULLPTR)
+	{
+		// Essentially static_assert(false), but this way prevents GCC/Clang from crying wolf by merely inspecting the function body
+		static_assert(sizeof(ObjectType) == 0, "Tried to initialize TNonNullPtr with a null pointer!");
+	}
+
+	/**
+	 * Constructs a non-null pointer from the provided pointer. Must not be nullptr.
+	 */
+	FORCEINLINE TNonNullPtr(TObjectPtr<ObjectType> InObject)
+		: Object(InObject)
+	{
+		ensureAlwaysMsgf(InObject, TEXT("Tried to initialize TNonNullPtr with a null pointer!"));
+	}
+
+	/**
+	 * Constructs a non-null pointer from another non-null pointer
+	 */
+	template <
+		typename OtherObjectType,
+		typename = typename TEnableIf<UE::Core::Private::NonNullPtr::TPointerIsConvertibleFromTo<OtherObjectType, ObjectType>::Value>::Type
+	>
+	FORCEINLINE TNonNullPtr(const TNonNullPtr<OtherObjectType>& Other)
+		: Object(Other.Object)
+	{
+	}
+
+	/**
+	 * Assignment operator taking a nullptr - not allowed.
+	 */
+	FORCEINLINE TNonNullPtr& operator=(TYPE_OF_NULLPTR)
+	{
+		// Essentially static_assert(false), but this way prevents GCC/Clang from crying wolf by merely inspecting the function body
+		static_assert(sizeof(ObjectType) == 0, "Tried to assign a null pointer to a TNonNullPtr!");
+	}
+
+	/**
+	 * Assignment operator taking a pointer
+	 */
+	FORCEINLINE TNonNullPtr& operator=(ObjectType* InObject)
+	{
+		ensureMsgf(InObject, TEXT("Tried to assign a null pointer to a TNonNullPtr!"));
+		Object = InObject;
+		return *this;
+	}
+
+	/**
+	 * Assignment operator taking another TNonNullPtr
+	 */
+	template <typename OtherObjectType>
+	FORCEINLINE typename TEnableIf<UE::Core::Private::NonNullPtr::TPointerIsConvertibleFromTo<OtherObjectType, ObjectType>::Value, TNonNullPtr&>::Type operator=(const TNonNullPtr<OtherObjectType>& Other)
+	{
+		Object = Other.Object;
+		return *this;
+	}
+
+	/**
+	 * Returns the internal pointer
+	 */
+	FORCEINLINE operator ObjectType*() const
+	{
+		ensureMsgf(Object, TEXT("Tried to access null pointer!"));
+		return Object;
+	}
+
+	/**
+	 * Returns the internal pointer
+	 */
+	FORCEINLINE ObjectType* Get() const
+	{
+		ensureMsgf(Object, TEXT("Tried to access null pointer!"));
+		return Object;
+	}
+
+	/**
+	 * Dereference operator returns a reference to the object this pointer points to
+	 */
+	FORCEINLINE ObjectType& operator*() const
+	{
+		ensureMsgf(Object, TEXT("Tried to access null pointer!"));
+		return *Object;
+	}
+
+	/**
+	 * Arrow operator returns a pointer to this pointer's object
+	 */
+	FORCEINLINE ObjectType* operator->() const
+	{
+		ensureMsgf(Object, TEXT("Tried to access null pointer!"));
+		return Object;
+	}
+
+	FORCEINLINE const TObjectPtr<ObjectType>& GetRef() const
+	{
+		ensureMsgf(Object, TEXT("Tried to access null pointer!"));		
+		return Object;
+	}
+	
+	FORCEINLINE TObjectPtr<ObjectType>& GetRef() 
+	{
+		ensureMsgf(Object, TEXT("Tried to access null pointer!"));		
+		return Object;
+	}	
+
+private:
+
+	/** The object we're holding a reference to. */
+	TObjectPtr<ObjectType> Object;
+};
+
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
 #include "UObject/Class.h"

@@ -673,7 +673,7 @@ void FNiagaraCompilationGraph::Create(const UNiagaraGraph* InGraph, const FNiaga
 	// along with moving things over to transient duplicates
 	if (!CachedDataInterfaceInstanceDuplicates.IsEmpty())
 	{
-		for (TMap<FName, UNiagaraDataInterface*>::TIterator It(CachedDataInterfaceInstanceDuplicates); It; ++It)
+		for (TMap<FName, TObjectPtr<UNiagaraDataInterface>>::TIterator It(CachedDataInterfaceInstanceDuplicates); It; ++It)
 		{
 			UNiagaraDataInterface* SourceDataInterface = It.Value();
 			UClass* DataInterfaceClass = SourceDataInterface->GetClass();
@@ -1398,7 +1398,7 @@ void FNiagaraCompilationGraph::NodeTraversal(
 
 void FNiagaraCompilationGraph::AggregateDataInterfaces(const FNiagaraCompilationGraph* ChildGraph)
 {
-	for (TMap<FName, UNiagaraDataInterface*>::TConstIterator ChildIt(ChildGraph->CachedDataInterfaceInstanceDuplicates); ChildIt; ++ChildIt)
+	for (TMap<FName, TObjectPtr<UNiagaraDataInterface>>::TConstIterator ChildIt(ChildGraph->CachedDataInterfaceInstanceDuplicates); ChildIt; ++ChildIt)
 	{
 		CachedDataInterfaceInstanceDuplicates.Add(ChildIt.Key(), ChildIt.Value());
 
@@ -1419,7 +1419,7 @@ void FNiagaraCompilationGraph::AggregateDataInterfaces(const FNiagaraCompilation
 		#endif
 	}
 
-	for (TMap<UClass*, UNiagaraDataInterface*>::TConstIterator ChildIt(ChildGraph->CachedDataInterfaceCDODuplicates); ChildIt; ++ChildIt)
+	for (TMap<TObjectPtr<UClass>, TObjectPtr<UNiagaraDataInterface>>::TConstIterator ChildIt(ChildGraph->CachedDataInterfaceCDODuplicates); ChildIt; ++ChildIt)
 	{
 		UNiagaraDataInterface* ChildDataInterface = ChildIt.Value();
 		UNiagaraDataInterface* ExistingDI = CachedDataInterfaceCDODuplicates.FindRef(ChildIt.Key());

@@ -247,6 +247,7 @@ public:
 
 	ENGINE_API bool IsLoaded(bool bEvenIfPendingKill=false) const;
 	ENGINE_API AActor* GetActor(bool bEvenIfPendingKill=true, bool bEvenIfUnreachable=false) const;
+	ENGINE_API TWeakObjectPtr<AActor>* GetActorPtr(bool bEvenIfPendingKill=true, bool bEvenIfUnreachable=false) const;	
 	ENGINE_API AActor* Load() const;
 	ENGINE_API virtual void Unload();
 

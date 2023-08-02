@@ -272,10 +272,10 @@ public:
 	FString SourceScriptName;
 	FString SourceScriptFullName;
 
-	TMap<FName, UNiagaraDataInterface*> CachedDataInterfaceInstanceDuplicates;
-	TMap<UClass*, UNiagaraDataInterface*> CachedDataInterfaceCDODuplicates;
+	TMap<FName, TObjectPtr<UNiagaraDataInterface>> CachedDataInterfaceInstanceDuplicates;
+	TMap<TObjectPtr<UClass>, TObjectPtr<UNiagaraDataInterface>> CachedDataInterfaceCDODuplicates;
 
-	TMap<FName, UObject*> CachedNamedObjectAssets;
+	TMap<FName, TObjectPtr<UObject>> CachedNamedObjectAssets;
 
 	void FindOutputNodes(TArray<const FNiagaraCompilationNodeOutput*>& OutputNodes) const;
 	void FindOutputNodes(ENiagaraScriptUsage TargetUsageType, TArray<const FNiagaraCompilationNodeOutput*>& OutputNodes) const;

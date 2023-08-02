@@ -272,7 +272,7 @@ TSharedRef<STableViewBase> UListView::RebuildListWidget()
 
 void UListView::HandleListEntryHovered(UUserWidget& EntryWidget)
 {
-	if (UObject* const* ListItem = ItemFromEntryWidget(EntryWidget))
+	if (const TObjectPtrWrapTypeOf<UObject*>* ListItem = ItemFromEntryWidget(EntryWidget))
 	{
 		OnItemIsHoveredChanged().Broadcast(*ListItem, true);
 		BP_OnItemIsHoveredChanged.Broadcast(*ListItem, true);
@@ -281,10 +281,10 @@ void UListView::HandleListEntryHovered(UUserWidget& EntryWidget)
 
 void UListView::HandleListEntryUnhovered(UUserWidget& EntryWidget)
 {
-	if (UObject* const* ListItem = ItemFromEntryWidget(EntryWidget))
+	if (const TObjectPtrWrapTypeOf<UObject*>* ListItem = ItemFromEntryWidget(EntryWidget))
 	{
 		OnItemIsHoveredChanged().Broadcast(*ListItem, false);
-		BP_OnItemIsHoveredChanged.Broadcast(*ListItem, false);
+ 		BP_OnItemIsHoveredChanged.Broadcast(*ListItem, false);
 	}
 }
 

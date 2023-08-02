@@ -74,7 +74,7 @@ public:
 		{
 			TSharedPtr< ITypedTableView<OptionType> > OwnerWidget = this->OwnerTablePtr.Pin();
 
-			const OptionType* MyItem = OwnerWidget->Private_ItemFromWidget( this );
+			const TObjectPtrWrapTypeOf<OptionType>* MyItem = OwnerWidget->Private_ItemFromWidget( this );
 			const bool bIsSelected = OwnerWidget->Private_IsItemSelected( *MyItem );
 				
 			if (bIsSelected)

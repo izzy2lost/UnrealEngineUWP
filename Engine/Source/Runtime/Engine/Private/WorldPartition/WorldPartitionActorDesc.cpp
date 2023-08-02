@@ -795,6 +795,11 @@ AActor* FWorldPartitionActorDesc::GetActor(bool bEvenIfPendingKill, bool bEvenIf
 	return bEvenIfUnreachable ? ActorPtr.GetEvenIfUnreachable() : ActorPtr.Get(bEvenIfPendingKill);
 }
 
+TWeakObjectPtr<AActor>* FWorldPartitionActorDesc::GetActorPtr(bool bEvenIfPendingKill, bool bEvenIfUnreachable) const
+{
+	return GetActor(bEvenIfPendingKill, bEvenIfUnreachable) ? &ActorPtr : nullptr;
+}
+
 const FText& FWorldPartitionActorDesc::GetUnloadedReason() const
 {
 	static FText Unloaded(LOCTEXT("UnloadedReason", "Unloaded"));

@@ -482,7 +482,7 @@ void FNiagaraPrecompileData::CollectBakedRapidIterationParameters(const FNiagara
 
 const TMap<FName, UNiagaraDataInterface*>& FNiagaraCompilationCopyData::GetObjectNameMap()
 {
-	return InstantiatedGraph->CachedDataInterfaceInstanceDuplicates;
+	return ObjectPtrDecay(InstantiatedGraph->CachedDataInterfaceInstanceDuplicates);
 }
 
 UNiagaraDataInterface* FNiagaraCompilationCopyData::GetDuplicatedDataInterfaceCDOForClass(UClass* Class) const
@@ -504,7 +504,7 @@ void FNiagaraCompilationCopyData::InstantiateCompilationCopy(const FNiagaraCompi
 
 	if (InstantiatedGraph)
 	{
-		AggregatedDataInterfaceCDODuplicates.Append(InstantiatedGraph->CachedDataInterfaceCDODuplicates);
+		AggregatedDataInterfaceCDODuplicates.Append(ObjectPtrDecay(InstantiatedGraph->CachedDataInterfaceCDODuplicates));
 	}
 }
 

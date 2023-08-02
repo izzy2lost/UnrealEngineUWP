@@ -14,7 +14,7 @@ FVCamComponentInstanceData::FVCamComponentInstanceData(const UVCamComponent* Sou
 		|| SourceComponent->CreationMethod == EComponentCreationMethod::UserConstructionScript;
 	if (bIsBlueprintCreatedComponent)
 	{
-		SourceComponent->GetAllOutputProviders(StolenOutputProviders);
+		SourceComponent->GetAllOutputProviders(MutableView(StolenOutputProviders));
 		AppliedInputContexts = SourceComponent->AppliedInputContexts;
 		LiveLinkSubject = SourceComponent->GetLiveLinkSubobject();
 	}

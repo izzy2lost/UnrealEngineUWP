@@ -129,7 +129,7 @@ private:
 	ECustomizableObjectNumBoneInfluences CustomizableObjectNumBoneInfluences = ECustomizableObjectNumBoneInfluences::Four;
 
 	// Protected from GC with FCustomizableObjectCompiler::AddReferencedObjects
-	UCustomizableObject* CurrentObject = nullptr;
+	TObjectPtr<UCustomizableObject> CurrentObject = nullptr;
 
 	/** Array where to put the names of the already processed child in ProcessChildObjectsRecursively */
 	TArray<FName> ArrayAlreadyProcessedChild;

@@ -103,10 +103,10 @@ void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 	{
 		SpatialIndex = MakeUnique<FStaticSpatialIndexType>();
 
-		TArray<TPair<FBox, UWorldPartitionRuntimeCell*>> PartitionsElements;
+		TArray<TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>> PartitionsElements;
 		Algo::Transform(StreamingCells, PartitionsElements, [](UWorldPartitionRuntimeCell* Cell)
 		{
-			return TPair<FBox, UWorldPartitionRuntimeCell*>(Cell->GetContentBounds(), Cell);
+			return TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>(Cell->GetContentBounds(), Cell);
 		});
 		SpatialIndex->Init(PartitionsElements);
 	}

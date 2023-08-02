@@ -1456,7 +1456,7 @@ FName FStreamingGenerationActorDescCollection::GetMainContainerPackageName() con
 	return FName();
 }
 
-TArrayView<const UActorDescContainer*> FStreamingGenerationActorDescCollection::GetExternalDataLayerContainers()
+TArrayView<const UActorDescContainer* const> FStreamingGenerationActorDescCollection::GetExternalDataLayerContainers()
 {
 	if (ActorDescContainerCollection.Num() <= 1)
 	{
@@ -1502,7 +1502,7 @@ void FStreamingGenerationActorDescCollection::SortCollection()
 	check(IsMainPartitionContainer(ActorDescContainerCollection[MainContainerIdx]));
 
 #if DO_CHECK
-	TArrayView<const UActorDescContainer*> ExternalDataLayerContainerView = GetExternalDataLayerContainers();
+	TArrayView<const UActorDescContainer* const> ExternalDataLayerContainerView = GetExternalDataLayerContainers();
 	Algo::ForEach(ExternalDataLayerContainerView, [&IsMainPartitionContainer](const UActorDescContainer* ActorDescContainer) { check(!IsMainPartitionContainer(ActorDescContainer)); });
 #endif
 }

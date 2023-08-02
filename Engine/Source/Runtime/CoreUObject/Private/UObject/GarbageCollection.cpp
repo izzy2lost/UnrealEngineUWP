@@ -3128,7 +3128,6 @@ public:
 	virtual void HandleObjectReference(UObject*& InObject, const UObject* InReferencingObject, const FProperty* InReferencingProperty) override;
 	virtual void HandleObjectReferences(UObject** InObjects, const int32 ObjectNum, const UObject* InReferencingObject, const FProperty* InReferencingProperty) override;
 
-#if !UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR
 	virtual void AddStableReference(UObject** Object) override
 	{
 		Dispatcher.QueueReference(Dispatcher.Context.GetReferencingObject(), *Object, EMemberlessId::Collector, MayKill());
@@ -3143,7 +3142,6 @@ public:
 	{
 		Dispatcher.QueueSet(Dispatcher.Context.GetReferencingObject(), *Objects, EMemberlessId::Collector, MayKill());
 	}
-#endif
 
 	virtual void AddStableReference(TObjectPtr<UObject>* Object) override
 	{
@@ -3336,7 +3334,6 @@ public:
 		}
 	}
 
-#if !UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR
 	virtual void AddStableReference(UObject** Object) override
 	{
 		HandleObjectReference(*Object, Context.GetReferencingObject(), nullptr);
@@ -3357,7 +3354,6 @@ public:
 			HandleObjectReference(Object, Context.GetReferencingObject(), nullptr);
 		}
 	}
-#endif
 
 	virtual void AddStableReference(TObjectPtr<UObject>* Object) override
 	{

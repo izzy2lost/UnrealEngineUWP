@@ -49,7 +49,7 @@ public:
 	TWeakObjectPtr<const UNiagaraParameterCollection> SourceCollection;
 	FString CollectionPath;
 	FString CollectionFullName;
-	TMap<FNiagaraVariableBase, UNiagaraDataInterface*> DefaultDataInterfaces;
+	TMap<FNiagaraVariableBase, TObjectPtr<UNiagaraDataInterface>> DefaultDataInterfaces;
 };
 
 class FNiagaraCompilationNPCHandle

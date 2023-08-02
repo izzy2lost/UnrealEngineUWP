@@ -98,6 +98,12 @@ DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("FindObjectFast"),STAT_FindObjectFast,STA
 #define UE_GC_RUN_WEAKPTR_BARRIERS 0
 #endif
 
+#if UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR
+#define UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED() UE_DEPRECATED(5.3, "WARNING: Your program will randomly crash if this function is called when incremental gc is enabled. Pass TObjectPtr<...> instead of UObject* to AddReferencedObject(s) API's.")
+#else
+#define UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED(...)
+#endif
+
 // Private system wide variables.
 
 /** 
@@ -2300,17 +2306,20 @@ public:
 		}
 	}
 
-#if !UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR
 	/** Preferred way to add a reference that allows batching. Object must outlive GC tracing, can't be used for temporary/stack references. */
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()
 	COREUOBJECT_API virtual void AddStableReference(UObject** Object);
 	
 	/** Preferred way to add a reference array that allows batching. Can't be used for temporary/stack array. */
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()
 	COREUOBJECT_API virtual void AddStableReferenceArray(TArray<UObject*>* Objects);
 
 	/** Preferred way to add a reference set that allows batching. Can't be used for temporary/stack set. */
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()	
 	COREUOBJECT_API virtual void AddStableReferenceSet(TSet<UObject*>* Objects);
-
+	
 	template<class UObjectType>
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()	
 	FORCEINLINE void AddStableReference(UObjectType** Object)
 	{
 		static_assert(sizeof(UObjectType) > 0, "Element must be a pointer to a fully-defined type");
@@ -2319,6 +2328,7 @@ public:
 	}
 
 	template<class UObjectType>
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()		
 	FORCEINLINE void AddStableReferenceArray(TArray<UObjectType*>* Objects)
 	{
 		static_assert(sizeof(UObjectType) > 0, "Element must be a pointer to a fully-defined type");
@@ -2327,13 +2337,13 @@ public:
 	}
 
 	template<class UObjectType>
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()		
 	FORCEINLINE void AddStableReferenceSet(TSet<UObjectType*>* Objects)
 	{
 		static_assert(sizeof(UObjectType) > 0, "Element must be a pointer to a fully-defined type");
 		static_assert(std::is_convertible_v<UObjectType*, const UObjectBase*>, "Element must be a pointer to a type derived from UObject");
 		AddStableReferenceSet(reinterpret_cast<TSet<UObject*>*>(Objects)); 
 	}
-#endif
 
 	template<class UObjectType>
 	FORCEINLINE void AddStableReference(TObjectPtr<UObjectType>* Object)
@@ -2353,7 +2363,6 @@ public:
 		AddStableReferenceSetFwd(reinterpret_cast<TSet<FObjectPtr>*>(Objects));
 	}
 
-#if !UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR	
 	/**
 	 * Adds object reference.
 	 *
@@ -2362,6 +2371,7 @@ public:
 	 * @param ReferencingProperty Referencing property (if available).
 	 */
 	template<class UObjectType>
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()	
 	void AddReferencedObject(UObjectType*& Object, const UObject* ReferencingObject = nullptr, const FProperty* ReferencingProperty = nullptr)
 	{
 		AROPrivate::AddReferencedObject<UObjectType>(*this, Object, ReferencingObject, ReferencingProperty);
@@ -2375,6 +2385,7 @@ public:
 	 * @param ReferencingProperty Referencing property (if available).
 	 */
 	template<class UObjectType>
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()		
 	void AddReferencedObject(const UObjectType*& Object, const UObject* ReferencingObject = nullptr, const FProperty* ReferencingProperty = nullptr)
 	{
 		AROPrivate::AddReferencedObject<UObjectType>(*this, Object, ReferencingObject, ReferencingProperty);
@@ -2388,6 +2399,7 @@ public:
 	* @param ReferencingProperty Referencing property (if available).
 	*/
 	template<class UObjectType>
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()		
 	void AddReferencedObjects(TArray<UObjectType*>& ObjectArray, const UObject* ReferencingObject = nullptr, const FProperty* ReferencingProperty = nullptr)
 	{
 		AROPrivate::AddReferencedObjects<UObjectType>(*this, ObjectArray, ReferencingObject, ReferencingProperty);
@@ -2401,6 +2413,7 @@ public:
 	* @param ReferencingProperty Referencing property (if available).
 	*/
 	template<class UObjectType>
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()	
 	void AddReferencedObjects(TArray<const UObjectType*>& ObjectArray, const UObject* ReferencingObject = nullptr, const FProperty* ReferencingProperty = nullptr)
 	{
 		AROPrivate::AddReferencedObjects<UObjectType>(*this, ObjectArray, ReferencingObject, ReferencingProperty);
@@ -2414,6 +2427,7 @@ public:
 	* @param ReferencingProperty Referencing property (if available).
 	*/
 	template<class UObjectType>
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()	
 	void AddReferencedObjects(TSet<UObjectType*>& ObjectSet, const UObject* ReferencingObject = nullptr, const FProperty* ReferencingProperty = nullptr)
 	{
 		AROPrivate::AddReferencedObjects<UObjectType>(*this, ObjectSet, ReferencingObject, ReferencingProperty);
@@ -2427,23 +2441,25 @@ public:
 	 * @param ReferencingProperty Referencing property (if available).
 	 */
 	template <typename KeyType, typename ValueType, typename Allocator, typename KeyFuncs>
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()		
 	void AddReferencedObjects(TMapBase<KeyType*, ValueType, Allocator, KeyFuncs>& Map, const UObject* ReferencingObject = nullptr, const FProperty* ReferencingProperty = nullptr)
 	{
 		AROPrivate::AddReferencedObjects<KeyType, ValueType, Allocator, KeyFuncs>(*this, Map, ReferencingObject, ReferencingProperty);
 	}
 
 	template <typename KeyType, typename ValueType, typename Allocator, typename KeyFuncs>
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()			
 	void AddReferencedObjects(TMapBase<KeyType, ValueType*, Allocator, KeyFuncs>& Map, const UObject* ReferencingObject = nullptr, const FProperty* ReferencingProperty = nullptr)
 	{
 		AROPrivate::AddReferencedObjects<KeyType, ValueType, Allocator, KeyFuncs>(*this, Map, ReferencingObject, ReferencingProperty);
 	}
 
 	template <typename KeyType, typename ValueType, typename Allocator, typename KeyFuncs>
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()				
 	void AddReferencedObjects(TMapBase<KeyType*, ValueType*, Allocator, KeyFuncs>& Map, const UObject* ReferencingObject = nullptr, const FProperty* ReferencingProperty = nullptr)
 	{
 		AROPrivate::AddReferencedObjects<KeyType, ValueType, Allocator, KeyFuncs>(*this, Map, ReferencingObject, ReferencingProperty);
 	}
-#endif
 
 	/**
 	 * Adds object reference.
@@ -2616,9 +2632,8 @@ public:
 	 * They're kept separate initially to maintain exact semantics while replacing the much slower
 	 * SerializeBin/TPropertyValueIterator/GetVerySlowReferenceCollectorArchive paths.
 	 */
-#if !UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR
+	UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR_DEPRECATED()				
 	COREUOBJECT_API void AddReferencedObjects(const UScriptStruct*& ScriptStruct, void* Instance, const UObject* ReferencingObject = nullptr, const FProperty* ReferencingProperty = nullptr);
-#endif
 
 	COREUOBJECT_API void AddReferencedObjects(TObjectPtr<const UScriptStruct>& ScriptStruct, void* Instance, const UObject* ReferencingObject = nullptr, const FProperty* ReferencingProperty = nullptr);
 	COREUOBJECT_API void AddReferencedObjects(TWeakObjectPtr<const UScriptStruct>& ScriptStruct, void* Instance, const UObject* ReferencingObject = nullptr, const FProperty* ReferencingProperty = nullptr);

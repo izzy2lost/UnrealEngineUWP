@@ -113,7 +113,7 @@ public:
 		return TListTypeTraits<ItemType>::MakeNullPtr();
 	}
 
-	const ItemType* ItemFromEntryWidget(const UUserWidget& EntryWidget) const
+	const TObjectPtrWrapTypeOf<ItemType>* ItemFromEntryWidget(const UUserWidget& EntryWidget) const
 	{
 		SListView<ItemType>* MyListView = GetMyListView();
 		if (ensure(EntryWidget.Implements<UUserListEntry>()) && MyListView)

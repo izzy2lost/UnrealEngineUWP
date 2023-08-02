@@ -115,7 +115,7 @@ public:
 
 	ENGINE_API const UActorDescContainer* GetMainActorDescContainer() const;
 	ENGINE_API FName GetMainContainerPackageName() const;
-	ENGINE_API TArrayView<const UActorDescContainer*> GetExternalDataLayerContainers();
+	ENGINE_API TArrayView<const UActorDescContainer* const> GetExternalDataLayerContainers();
 
 	ENGINE_API virtual void OnCollectionChanged() override;
 

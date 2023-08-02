@@ -25,7 +25,7 @@ struct VCAMCORE_API FVCamComponentInstanceData : public FSceneComponentInstanceD
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 
 	/** These output providers are renamed and re-outered to the component they're applied to. The owning Blueprint component makes sure to not reference the old instances in OnComponentDestroyed. */
-	TArray<UVCamOutputProviderBase*> StolenOutputProviders;
+	TArray<TObjectPtr<UVCamOutputProviderBase>> StolenOutputProviders;
 
 	/** Simple copy for carrying over player remappings */
 	TArray<TObjectPtr<UInputMappingContext>> AppliedInputContexts;
