@@ -14,6 +14,7 @@
 #include "RigVMModel/Nodes/RigVMLibraryNode.h"
 #include "RigVMCore/RigVM.h"
 #include "Widgets/SRigVMGraphPinNameListValueWidget.h"
+#include "Widgets/Input/SComboBox.h"
 #include "Styling/SlateTypes.h"
 #include "AnimPreviewInstance.h"
 #include "ScopedTransaction.h"
@@ -76,6 +77,7 @@ public:
 	virtual void Compile() override;
 	virtual void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject) override;
 	virtual void OnCreateGraphEditorCommands(TSharedPtr<FUICommandList> GraphEditorCommandsList) override;
+	virtual void HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM) override;
 
 	// allows the editor to fill an empty graph
 	virtual void CreateEmptyGraphContent(URigVMController* InController) override;
@@ -299,6 +301,8 @@ protected:
 
 	TWeakObjectPtr<const URigVMUnitNode> DirectManipulationSubject;
 	mutable TArray<TSharedPtr<FString>> DirectManipulationTextList;
+	TSharedPtr<SComboBox<TSharedPtr<FString>>> DirectManipulationCombo;
+	bool bRefreshDirectionManipulationTargetsRequired;
 	
 	static const TArray<FName> ForwardsSolveEventQueue;
 	static const TArray<FName> BackwardsSolveEventQueue;

@@ -126,6 +126,7 @@ FControlRigEditor::FControlRigEditor()
 	, RigHierarchyTabCount(0)
 	, bIsConstructionEventRunning(false)
 	, LastHierarchyHash(INDEX_NONE)
+	, bRefreshDirectionManipulationTargetsRequired(false)
 {
 	LastEventQueue = ConstructionEventQueue;
 }
@@ -1063,7 +1064,19 @@ void FControlRigEditor::HandleModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 		{
 			if(Pin->GetNode() == DirectManipulationSubject.Get())
 			{
-				RefreshDirectManipulationTextList();
+				bRefreshDirectionManipulationTargetsRequired = true;
+			}
+		}
+	}
+	else if(InNotifType == ERigVMGraphNotifType::LinkAdded ||
+		InNotifType == ERigVMGraphNotifType::LinkRemoved)
+	{
+		if(const URigVMLink* Link = Cast<URigVMLink>(InSubject))
+		{
+			if((Link->GetSourceNode() == DirectManipulationSubject.Get()) ||
+				(Link->GetTargetNode() == DirectManipulationSubject.Get()))
+			{
+				bRefreshDirectionManipulationTargetsRequired = true;
 			}
 		}
 	}
@@ -1082,6 +1095,17 @@ void FControlRigEditor::OnCreateGraphEditorCommands(TSharedPtr<FUICommandList> G
 	GraphEditorCommandsList->MapAction(
 		FControlRigEditorCommands::Get().RequestDirectManipulationScale,
 		FExecuteAction::CreateSP(this, &FControlRigEditor::HandleRequestDirectManipulationScale));
+}
+
+void FControlRigEditor::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM)
+{
+	IControlRigEditor::HandleVMCompiledEvent(InCompiledObject, InVM);
+
+	if(bRefreshDirectionManipulationTargetsRequired)
+	{
+		RefreshDirectManipulationTextList();
+		bRefreshDirectionManipulationTargetsRequired = false;
+	}
 }
 
 void FControlRigEditor::SaveAsset_Execute()
@@ -1549,7 +1573,7 @@ void FControlRigEditor::HandleViewportCreated(const TSharedRef<class IPersonaVie
 				.VAlign(VAlign_Center)
 				.AutoWidth()
 				[
-					SNew(SComboBox<TSharedPtr<FString>>)
+					SAssignNew(DirectManipulationCombo, SComboBox<TSharedPtr<FString>>)
                 	.ContentPadding(FMargin(4.0f, 2.0f))
                 	.OptionsSource(&DirectManipulationTextList)
                 	.OnGenerateWidget_Lambda([this](TSharedPtr<FString> Item)
@@ -2569,6 +2593,10 @@ void FControlRigEditor::RefreshDirectManipulationTextList()
 {
 	DirectManipulationTextList.Reset();
 	(void)GetDirectManipulationTargetTextList();
+	if(DirectManipulationCombo.IsValid())
+	{
+		DirectManipulationCombo->RefreshOptions();
+	}
 }
 
 void FControlRigEditor::BindCommands()
