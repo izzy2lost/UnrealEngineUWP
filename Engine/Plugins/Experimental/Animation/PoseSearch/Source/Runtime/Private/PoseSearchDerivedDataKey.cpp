@@ -22,7 +22,6 @@ namespace UE::PoseSearch
 
 FKeyBuilder::FKeyBuilder()
 {
-	bAnyAssetNotReady = false;
 	ArIgnoreOuterRef = true;
 
 	// Set FDerivedDataKeyBuilder to be a saving archive instead of a reference collector.
@@ -32,16 +31,16 @@ FKeyBuilder::FKeyBuilder()
 	SetIsSaving(true);
 }
 
-FKeyBuilder::FKeyBuilder(const UObject* Object, bool bUseDataVer)
+FKeyBuilder::FKeyBuilder(const UObject* Object, bool bUseDataVer, bool bPerformConditionalPostLoadIfRequired)
 : FKeyBuilder()
 {
 	check(Object);
-	bAnyAssetNotReady = false;
+	bPerformConditionalPostLoad = bPerformConditionalPostLoadIfRequired;
 
 	if (bUseDataVer)
 	{
 		// used to invalidate the key without having to change POSESEARCHDB_DERIVEDDATA_VER all the times
-		int32 POSESEARCHDB_DERIVEDDATA_VER_SMALL = 173;
+		int32 POSESEARCHDB_DERIVEDDATA_VER_SMALL = 179;
 		FGuid VersionGuid = FDevSystemGuids::GetSystemGuid(FDevSystemGuids::Get().POSESEARCHDB_DERIVEDDATA_VER);
 
 		*this << VersionGuid;
@@ -129,9 +128,17 @@ FArchive& FKeyBuilder::operator<<(class UObject*& Object)
 	{
 		if (Object->HasAnyFlags(RF_NeedPostLoad))
 		{
-			bAnyAssetNotReady = true;
+			if (bPerformConditionalPostLoad)
+			{
+				Object->ConditionalPostLoad();
+			}
+			else
+			{
+				bAnyAssetNotReady = true;
+			}
 		}
-		else
+		
+		if (!bAnyAssetNotReady)
 		{
 			#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
 			++Indentation;

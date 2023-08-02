@@ -33,7 +33,7 @@ public:
 	inline static const FName NeverInHashName = FName(TEXT("NeverInHash"));
 
 	FKeyBuilder();
-	FKeyBuilder(const UObject* Object, bool bUseDataVer = false);
+	FKeyBuilder(const UObject* Object, bool bUseDataVer, bool bPerformConditionalPostLoadIfRequired);
 
 	using Super::IsSaving;
 	using Super::operator<<;
@@ -70,6 +70,9 @@ protected:
 
 	// true if some dependent assets are not ready (fully loaded)
 	bool bAnyAssetNotReady = false;
+
+	// if true ConditionalPostLoad will be performed on the dependant assets requiring it
+	bool bPerformConditionalPostLoad = false;
 };
 
 } // namespace UE::PoseSearch

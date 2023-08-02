@@ -11,6 +11,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
+#include "Editor/EditorEngine.h"
 #include "InstancedStruct.h"
 #include "Misc/CoreDelegates.h"
 #include "PoseSearchDatabaseIndexingContext.h"
@@ -636,8 +637,8 @@ struct FPoseSearchDatabaseAsyncCacheTask
 	};
 
 	// these methods MUST be protected by FPoseSearchDatabaseAsyncCacheTask::Mutex! and to make sure we pass the mutex as input param
-	FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, FCriticalSection& OuterMutex);
-	void StartNewRequestIfNeeded(FCriticalSection& OuterMutex);
+	FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, FCriticalSection& OuterMutex, bool bPerformConditionalPostLoadIfRequired);
+	void StartNewRequestIfNeeded(FCriticalSection& OuterMutex, bool bPerformConditionalPostLoadIfRequired);
 	bool CancelIfDependsOn(const UObject* Object, FCriticalSection& OuterMutex);
 	void Update(FCriticalSection& OuterMutex);
 	void Wait(FCriticalSection& OuterMutex);
@@ -673,7 +674,7 @@ private:
 
 class FPoseSearchDatabaseAsyncCacheTasks : public TArray<TUniquePtr<FPoseSearchDatabaseAsyncCacheTask>> {};
 
-FPoseSearchDatabaseAsyncCacheTask::FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, FCriticalSection& OuterMutex)
+FPoseSearchDatabaseAsyncCacheTask::FPoseSearchDatabaseAsyncCacheTask(UPoseSearchDatabase* InDatabase, FCriticalSection& OuterMutex, bool bPerformConditionalPostLoadIfRequired)
 	: Database(InDatabase)
 	, Owner(UE::DerivedData::EPriority::Normal)
 	, DerivedDataKey(FIoHash::Zero)
@@ -681,7 +682,7 @@ FPoseSearchDatabaseAsyncCacheTask::FPoseSearchDatabaseAsyncCacheTask(UPoseSearch
 	if (IsInGameThread())
 	{
 		// it is safe to compose DDC key only on the game thread, since assets can modified in this thread execution
-		StartNewRequestIfNeeded(OuterMutex);
+		StartNewRequestIfNeeded(OuterMutex, bPerformConditionalPostLoadIfRequired);
 	}
 	else
 	{
@@ -698,7 +699,7 @@ FPoseSearchDatabaseAsyncCacheTask::~FPoseSearchDatabaseAsyncCacheTask()
 	DatabaseDependencies.Reset();
 }
 
-void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(FCriticalSection& OuterMutex)
+void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(FCriticalSection& OuterMutex, bool bPerformConditionalPostLoadIfRequired)
 {
 	using namespace UE::DerivedData;
 
@@ -710,7 +711,7 @@ void FPoseSearchDatabaseAsyncCacheTask::StartNewRequestIfNeeded(FCriticalSection
 	Owner.Cancel();
 
 	// composing the key
-	const FKeyBuilder KeyBuilder(Database.Get(), true);
+	const FKeyBuilder KeyBuilder(Database.Get(), true, bPerformConditionalPostLoadIfRequired);
 	if (KeyBuilder.AnyAssetNotReady())
 	{
 		DerivedDataKey = FIoHash::Zero;
@@ -789,7 +790,7 @@ void FPoseSearchDatabaseAsyncCacheTask::Update(FCriticalSection& OuterMutex)
 
 	if (GetState() == EState::Notstarted)
 	{
-		StartNewRequestIfNeeded(OuterMutex);
+		StartNewRequestIfNeeded(OuterMutex, false);
 	}
 
 	if (GetState() == EState::Prestarted && Poll(OuterMutex))
@@ -1207,10 +1208,19 @@ bool FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSear
 
 	FScopeLock Lock(&Mutex);
 
-	check(Database);
+#if WITH_ENGINE
+	//If there isn't an EditorEngine (ex. Standalone Game via -game argument) the FAsyncPoseSearchDatabasesManagement task doesn't get ticked, need to force completion here
+	if (Cast<UEditorEngine>(GEngine) == nullptr)
+	{
+		Flag |= ERequestAsyncBuildFlag::WaitForCompletion;
+	}
+#endif
+
 	check(EnumHasAnyFlags(Flag, ERequestAsyncBuildFlag::NewRequest | ERequestAsyncBuildFlag::ContinueRequest));
 
 	FAsyncPoseSearchDatabasesManagement& This = FAsyncPoseSearchDatabasesManagement::Get();
+
+	const bool bWaitForCompletion = EnumHasAnyFlags(Flag, ERequestAsyncBuildFlag::WaitForCompletion);
 
 	FPoseSearchDatabaseAsyncCacheTask* Task = nullptr;
 	for (TUniquePtr<FPoseSearchDatabaseAsyncCacheTask>& TaskPtr : This.Tasks)
@@ -1225,7 +1235,7 @@ bool FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSear
 				{
 					Task->Cancel(Mutex);
 				}
-				Task->StartNewRequestIfNeeded(Mutex);
+				Task->StartNewRequestIfNeeded(Mutex, bWaitForCompletion);
 			}
 			break;
 		}
@@ -1234,11 +1244,11 @@ bool FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSear
 	if (!Task)
 	{
 		// we didn't find the Task, so we Emplace a new one
-		This.Tasks.Emplace(MakeUnique<FPoseSearchDatabaseAsyncCacheTask>(const_cast<UPoseSearchDatabase*>(Database), Mutex));
+		This.Tasks.Emplace(MakeUnique<FPoseSearchDatabaseAsyncCacheTask>(const_cast<UPoseSearchDatabase*>(Database), Mutex, bWaitForCompletion));
 		Task = This.Tasks.Last().Get();
 	}
 
-	if (EnumHasAnyFlags(Flag, ERequestAsyncBuildFlag::WaitForCompletion))
+	if (bWaitForCompletion)
 	{
 		check(Task->GetState() != FPoseSearchDatabaseAsyncCacheTask::EState::Notstarted);
 		if (Task->GetState() == FPoseSearchDatabaseAsyncCacheTask::EState::Prestarted)
