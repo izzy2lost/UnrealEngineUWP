@@ -6,8 +6,9 @@
 #include "Components/PrimitiveComponent.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstance.h"
-#include "Sections/MovieSceneParameterSection.h"
+#include "Sections/MovieSceneComponentMaterialParameterSection.h"
 #include "Tracks/MovieSceneMaterialTrack.h"
+#include "Sections/ComponentMaterialParameterSection.h"
 #include "Sections/ParameterSection.h"
 #include "SequencerUtilities.h"
 #include "Modules/ModuleManager.h"
@@ -27,10 +28,18 @@ FMaterialTrackEditor::FMaterialTrackEditor( TSharedRef<ISequencer> InSequencer )
 
 TSharedRef<ISequencerSection> FMaterialTrackEditor::MakeSectionInterface( UMovieSceneSection& SectionObject, UMovieSceneTrack& Track, FGuid ObjectBinding )
 {
+	UMovieSceneComponentMaterialParameterSection* ComponentMaterialParameterSection = Cast<UMovieSceneComponentMaterialParameterSection>(&SectionObject);
 	UMovieSceneParameterSection* ParameterSection = Cast<UMovieSceneParameterSection>(&SectionObject);
-	checkf( ParameterSection != nullptr, TEXT("Unsupported section type.") );
+	checkf( ComponentMaterialParameterSection != nullptr || ParameterSection != nullptr, TEXT("Unsupported section type.") );
 
-	return MakeShareable(new FParameterSection( *ParameterSection ));
+	if (ComponentMaterialParameterSection)
+	{
+		return MakeShareable(new FComponentMaterialParameterSection(*ComponentMaterialParameterSection));
+	}
+	else
+	{
+		return MakeShareable(new FParameterSection(*ParameterSection));
+	}
 }
 
 
@@ -68,20 +77,30 @@ TSharedRef<SWidget> FMaterialTrackEditor::OnGetAddMenuContent( FGuid ObjectBindi
 }
 
 
-struct FParameterNameAndAction
+struct FParameterInfoAndAction
 {
-	FName ParameterName;
+	FMaterialParameterInfo ParameterInfo;
+	FText ParameterDisplayName;
 	FUIAction Action;
 
-	FParameterNameAndAction( FName InParameterName, FUIAction InAction )
+	FParameterInfoAndAction(const FMaterialParameterInfo& InParameterInfo, FText InParameterDisplayName, FUIAction InAction )
 	{
-		ParameterName = InParameterName;
+		ParameterInfo = InParameterInfo;
+		ParameterDisplayName = InParameterDisplayName;
 		Action = InAction;
 	}
 
-	bool operator<(FParameterNameAndAction const& Other) const
+	bool operator<(FParameterInfoAndAction const& Other) const
 	{
-		return ParameterName.LexicalLess(Other.ParameterName);
+		if (ParameterInfo.Index == Other.ParameterInfo.Index)
+		{
+			if (ParameterInfo.Association == Other.ParameterInfo.Association)
+			{
+				return ParameterInfo.Name.LexicalLess(Other.ParameterInfo.Name);
+			}
+			return ParameterInfo.Association < Other.ParameterInfo.Association;
+		}
+		return ParameterInfo.Index < Other.ParameterInfo.Index;
 	}
 };
 
@@ -112,43 +131,87 @@ void FMaterialTrackEditor::OnBuildAddParameterMenu( FMenuBuilder& MenuBuilder, F
 			bCollectedVisibleParameters = true;
 		}
 
-		TArray<FParameterNameAndAction> ParameterNamesAndActions;
+		TArray<FParameterInfoAndAction> ParameterInfosAndActions;
 
 		// Collect scalar parameters.
-		TArray<FMaterialParameterInfo> ScalarParameterInfo;
+		TArray<FMaterialParameterInfo> ScalarParameterInfos;
 		TArray<FGuid> ScalarParameterGuids;
-		Material->GetAllScalarParameterInfo(ScalarParameterInfo, ScalarParameterGuids );
-		for (int32 ScalarParameterIndex = 0; ScalarParameterIndex < ScalarParameterInfo.Num(); ++ScalarParameterIndex)
+		MaterialInterface->GetAllScalarParameterInfo(ScalarParameterInfos, ScalarParameterGuids );
+		// In case we need to grab layer names.
+		FMaterialLayersFunctions Layers;
+		MaterialInterface->GetMaterialLayers(Layers);
+
+		auto GetMaterialParameterLayerName = [&Layers](const FMaterialParameterInfo& InParameterInfo)
 		{
-			if (!bCollectedVisibleParameters || VisibleExpressions.Contains(FMaterialParameterInfo(ScalarParameterInfo[ScalarParameterIndex].Name)))
+			FString LayerName;
+			if (Layers.EditorOnly.LayerNames.IsValidIndex(InParameterInfo.Index))
 			{
-				FName ScalarParameterName = ScalarParameterInfo[ScalarParameterIndex].Name;
-				FUIAction AddParameterMenuAction( FExecuteAction::CreateSP( this, &FMaterialTrackEditor::AddScalarParameter, ObjectBinding, MaterialTrack, ScalarParameterName ) );
-				FParameterNameAndAction NameAndAction( ScalarParameterName, AddParameterMenuAction );
-				ParameterNamesAndActions.Add(NameAndAction);
+				LayerName = Layers.GetLayerName(InParameterInfo.Index).ToString();
+			}
+			return LayerName;
+		};
+		auto GetMaterialParameterAssetName = [&Layers](const FMaterialParameterInfo& InParameterInfo)
+		{
+			FString AssetName;
+			if (InParameterInfo.Association == EMaterialParameterAssociation::LayerParameter && Layers.Layers.IsValidIndex(InParameterInfo.Index))
+			{
+				AssetName = Layers.Layers[InParameterInfo.Index]->GetName();
+			}
+			else if (InParameterInfo.Association == EMaterialParameterAssociation::BlendParameter && Layers.Blends.IsValidIndex(InParameterInfo.Index))
+			{
+				AssetName = Layers.Blends[InParameterInfo.Index]->GetName();
+			}
+			return AssetName;
+		};
+
+		auto GetMaterialParameterDisplayName = [](const FMaterialParameterInfo& InParameterInfo, const FString& InLayerName, const FString& InAssetName)
+		{
+			FText DisplayName = FText::FromName(InParameterInfo.Name);
+			if (!InLayerName.IsEmpty() && !InAssetName.IsEmpty())
+			{
+				DisplayName = FText::Format(LOCTEXT("MaterialParameterDisplayName", "{0} ({1}.{2})"), DisplayName, FText::FromString(InLayerName), FText::FromString(InAssetName));
+			}
+			return DisplayName;
+		};
+
+		for (int32 ScalarParameterIndex = 0; ScalarParameterIndex < ScalarParameterInfos.Num(); ++ScalarParameterIndex)
+		{
+			FMaterialParameterInfo ScalarParameterInfo = ScalarParameterInfos[ScalarParameterIndex];
+			if (!bCollectedVisibleParameters || VisibleExpressions.Contains(ScalarParameterInfo))
+			{
+				FString LayerName = GetMaterialParameterLayerName(ScalarParameterInfo);
+				FString AssetName = GetMaterialParameterAssetName(ScalarParameterInfo);
+				FText ParameterDisplayName = GetMaterialParameterDisplayName(ScalarParameterInfo, LayerName, AssetName);
+				FUIAction AddParameterMenuAction( FExecuteAction::CreateSP( this, &FMaterialTrackEditor::AddScalarParameter, ObjectBinding, MaterialTrack, ScalarParameterInfo, LayerName, AssetName) );
+				FParameterInfoAndAction InfoAndAction(ScalarParameterInfo, ParameterDisplayName, AddParameterMenuAction );
+				ParameterInfosAndActions.Add(InfoAndAction);
 			}
 		}
 
 		// Collect color parameters.
-		TArray<FMaterialParameterInfo> ColorParameterInfo;
+		TArray<FMaterialParameterInfo> ColorParameterInfos;
 		TArray<FGuid> ColorParameterGuids;
-		Material->GetAllVectorParameterInfo( ColorParameterInfo, ColorParameterGuids );
-		for (int32 ColorParameterIndex = 0; ColorParameterIndex < ColorParameterInfo.Num(); ++ColorParameterIndex)
+		MaterialInterface->GetAllVectorParameterInfo(ColorParameterInfos, ColorParameterGuids );
+		for (int32 ColorParameterIndex = 0; ColorParameterIndex < ColorParameterInfos.Num(); ++ColorParameterIndex)
 		{
-			if (!bCollectedVisibleParameters || VisibleExpressions.Contains(FMaterialParameterInfo(ColorParameterInfo[ColorParameterIndex].Name)))
+			FMaterialParameterInfo ColorParameterInfo = ColorParameterInfos[ColorParameterIndex];
+			if (!bCollectedVisibleParameters || VisibleExpressions.Contains(ColorParameterInfo))
 			{
-				FName ColorParameterName = ColorParameterInfo[ColorParameterIndex].Name;
-				FUIAction AddParameterMenuAction( FExecuteAction::CreateSP( this, &FMaterialTrackEditor::AddColorParameter, ObjectBinding, MaterialTrack, ColorParameterName ) );
-				FParameterNameAndAction NameAndAction( ColorParameterName, AddParameterMenuAction );
-				ParameterNamesAndActions.Add( NameAndAction );
+				FString LayerName = GetMaterialParameterLayerName(ColorParameterInfo);
+				FString AssetName = GetMaterialParameterAssetName(ColorParameterInfo);
+				FText ParameterDisplayName = GetMaterialParameterDisplayName(ColorParameterInfo, LayerName, AssetName);
+				FUIAction AddParameterMenuAction( FExecuteAction::CreateSP( this, &FMaterialTrackEditor::AddColorParameter, ObjectBinding, MaterialTrack, ColorParameterInfo, LayerName, AssetName ) );
+				FParameterInfoAndAction InfoAndAction(ColorParameterInfo, ParameterDisplayName, AddParameterMenuAction );
+				ParameterInfosAndActions.Add(InfoAndAction);
 			}
 		}
 
 		// Sort and generate menu.
-		ParameterNamesAndActions.Sort();
-		for ( FParameterNameAndAction NameAndAction : ParameterNamesAndActions )
+		ParameterInfosAndActions.Sort();
+
+		for (FParameterInfoAndAction InfoAndAction : ParameterInfosAndActions)
 		{
-			MenuBuilder.AddMenuEntry( FText::FromName( NameAndAction.ParameterName ), FText(), FSlateIcon(), NameAndAction.Action );
+			MenuBuilder.AddMenuEntry(InfoAndAction.ParameterDisplayName, FText(), FSlateIcon(), InfoAndAction.Action );
 		}
 	}
 }
@@ -177,7 +240,7 @@ UMaterial* FMaterialTrackEditor::GetMaterialForTrack( FGuid ObjectBinding, UMovi
 }
 
 
-void FMaterialTrackEditor::AddScalarParameter( FGuid ObjectBinding, UMovieSceneMaterialTrack* MaterialTrack, FName ParameterName )
+void FMaterialTrackEditor::AddScalarParameter( FGuid ObjectBinding, UMovieSceneMaterialTrack* MaterialTrack, FMaterialParameterInfo ParameterInfo, FString InLayerName, FString InAssetName)
 {
 	FFrameNumber KeyTime = GetTimeForKey();
 
@@ -186,15 +249,15 @@ void FMaterialTrackEditor::AddScalarParameter( FGuid ObjectBinding, UMovieSceneM
 	{
 		const FScopedTransaction Transaction( LOCTEXT( "AddScalarParameter", "Add scalar parameter" ) );
 		float ParameterValue;
-		Material->GetScalarParameterValue(ParameterName, ParameterValue);
+		Material->GetScalarParameterValue(ParameterInfo, ParameterValue);
 		MaterialTrack->Modify();
-		MaterialTrack->AddScalarParameterKey(ParameterName, KeyTime, ParameterValue);
+		MaterialTrack->AddScalarParameterKey(ParameterInfo, KeyTime, ParameterValue, InLayerName, InAssetName);
 	}
 	GetSequencer()->NotifyMovieSceneDataChanged( EMovieSceneDataChangeType::MovieSceneStructureItemAdded );
 }
 
 
-void FMaterialTrackEditor::AddColorParameter( FGuid ObjectBinding, UMovieSceneMaterialTrack* MaterialTrack, FName ParameterName )
+void FMaterialTrackEditor::AddColorParameter( FGuid ObjectBinding, UMovieSceneMaterialTrack* MaterialTrack, FMaterialParameterInfo ParameterInfo, FString InLayerName, FString InAssetName)
 {
 	FFrameNumber KeyTime = GetTimeForKey();
 
@@ -203,9 +266,9 @@ void FMaterialTrackEditor::AddColorParameter( FGuid ObjectBinding, UMovieSceneMa
 	{
 		const FScopedTransaction Transaction( LOCTEXT( "AddVectorParameter", "Add vector parameter" ) );
 		FLinearColor ParameterValue;
-		Material->GetVectorParameterValue( ParameterName, ParameterValue );
+		Material->GetVectorParameterValue(ParameterInfo, ParameterValue );
 		MaterialTrack->Modify();
-		MaterialTrack->AddColorParameterKey( ParameterName, KeyTime, ParameterValue );
+		MaterialTrack->AddColorParameterKey(ParameterInfo, KeyTime, ParameterValue, InLayerName, InAssetName);
 	}
 	GetSequencer()->NotifyMovieSceneDataChanged( EMovieSceneDataChangeType::MovieSceneStructureItemAdded );
 }

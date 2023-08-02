@@ -278,7 +278,8 @@ void TMovieSceneMaterialSystem<AccessorType, RequiredComponents...>::OnLink(UMov
 	// Imported entities are implicitly excluded by way of filtering by BoundObject, which do not exist on imported entities
 	MaterialParameterFilter.Reset();
 	MaterialParameterFilter.All({ InRequiredComponents... });
-	MaterialParameterFilter.Any({ TracksComponents->ScalarParameterName, TracksComponents->ColorParameterName, TracksComponents->VectorParameterName });
+	MaterialParameterFilter.Any({ TracksComponents->ScalarParameterName, TracksComponents->ColorParameterName, TracksComponents->VectorParameterName, // Old style parameter types for deprecated UMovieSceneParameterSections
+		TracksComponents->ScalarMaterialParameterInfo, TracksComponents->ColorMaterialParameterInfo, TracksComponents->VectorMaterialParameterInfo }); // New style parameter types
 
 	Linker->Events.PostSpawnEvent.AddRaw(this, &TMovieSceneMaterialSystem<AccessorType, RequiredComponents...>::OnPostSpawn, InRequiredComponents...);
 

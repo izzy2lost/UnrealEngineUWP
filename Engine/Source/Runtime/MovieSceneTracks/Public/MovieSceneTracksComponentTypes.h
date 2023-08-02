@@ -14,6 +14,7 @@
 #include "MovieSceneTracksPropertyTypes.h"
 #include "Styling/SlateColor.h"
 #include "ConstraintChannel.h"
+#include "MaterialTypes.h"
 #include "MovieSceneTracksComponentTypes.generated.h"
 
 class UMaterialParameterCollection;
@@ -564,6 +565,10 @@ struct FMovieSceneTracksComponentTypes
 	TComponentTypeID<FName> VectorParameterName;
 	TComponentTypeID<FName> ColorParameterName;
 	TComponentTypeID<FName> TransformParameterName;
+
+	TComponentTypeID<FMaterialParameterInfo> ScalarMaterialParameterInfo;
+	TComponentTypeID<FMaterialParameterInfo> ColorMaterialParameterInfo;
+	TComponentTypeID<FMaterialParameterInfo> VectorMaterialParameterInfo;
 
 	TComponentTypeID<FObjectComponent> BoundMaterial;
 	TComponentTypeID<TWeakObjectPtr<UMaterialParameterCollection>> MPC;

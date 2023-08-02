@@ -13,14 +13,14 @@ class UMovieSceneSection;
 struct FKeyHandle;
 
 /**
- * A movie scene section for generic parameters.
+ * A movie scene section for material parameters.
  */
-class FParameterSection
+class FComponentMaterialParameterSection
 	: public FSequencerSection
 {
 public:
 
-	FParameterSection(UMovieSceneSection& InSectionObject)
+	FComponentMaterialParameterSection(UMovieSceneSection& InSectionObject)
 		: FSequencerSection(InSectionObject)
 	{ }
 

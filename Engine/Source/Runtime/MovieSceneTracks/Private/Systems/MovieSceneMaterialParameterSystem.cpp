@@ -74,16 +74,47 @@ FAnimatedMaterialParameterInfo::~FAnimatedMaterialParameterInfo()
 /** Apply scalar material parameters */
 struct FApplyScalarParameters
 {
-	static void ForEachEntity(const FObjectComponent& BoundMaterial, FName ParameterName, double InScalarValue)
+	static void ForEachAllocation(FEntityAllocationIteratorItem Item,
+		TRead<FObjectComponent> BoundMaterials,
+		TReadOneOrMoreOf<FMaterialParameterInfo, FName> ScalarParameterInfosOrNames,
+		TRead<double> ScalarValues)
 	{
-		// WARNING: BoundMaterial may be nullptr here
-		if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(BoundMaterial.GetObject()))
+		const int32 Num = Item.GetAllocation()->Num();
+		const FMaterialParameterInfo* ParameterInfos = ScalarParameterInfosOrNames.Get<0>();
+		const FName* ParameterNames = ScalarParameterInfosOrNames.Get<1>();
+		for (int32 Index = 0; Index < Num; ++Index)
 		{
-			MID->SetScalarParameterValue(ParameterName, (float)InScalarValue);
-		}
-		else if (UMaterialParameterCollectionInstance* MPCI = Cast<UMaterialParameterCollectionInstance>(BoundMaterial.GetObject()))
-		{
-			MPCI->SetScalarParameterValue(ParameterName, (float)InScalarValue);
+			const FObjectComponent& BoundMaterial = BoundMaterials[Index];
+			if (!BoundMaterial)
+			{
+				continue;
+			}
+
+			// WARNING: BoundMaterial may be nullptr here
+			if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(BoundMaterial.GetObject()))
+			{
+				if (ParameterInfos)
+				{
+					MID->SetScalarParameterValueByInfo(ParameterInfos[Index], (float)ScalarValues[Index]);
+				}
+				else
+				{
+					MID->SetScalarParameterValue(ParameterNames[Index], (float)ScalarValues[Index]);
+				}
+			}
+			else if (UMaterialParameterCollectionInstance* MPCI = Cast<UMaterialParameterCollectionInstance>(BoundMaterial.GetObject()))
+			{
+				if (ParameterInfos)
+				{
+					MPCI->SetScalarParameterValue(ParameterInfos[Index].Name, (float)ScalarValues[Index]);
+				}
+				else
+				{
+					MPCI->SetScalarParameterValue(ParameterNames[Index], (float)ScalarValues[Index]);
+				}
+			}
+
+
 		}
 	}
 };
@@ -93,12 +124,13 @@ struct FApplyVectorParameters
 {
 	static void ForEachAllocation(FEntityAllocationIteratorItem Item,
 		TRead<FObjectComponent> BoundMaterials,
-		TReadOneOrMoreOf<FName, FName> VectorOrColorParameterNames,
+		TReadOneOrMoreOf<FMaterialParameterInfo, FMaterialParameterInfo, FName, FName> VectorOrColorParameterInfosOrNames,
 		TReadOneOrMoreOf<double, double, double, double> VectorChannels)
 	{
 		const int32 Num = Item.GetAllocation()->Num();
 		// Use either the vector parameter name, or the color parameter name
-		const FName* ParameterNames = VectorOrColorParameterNames.Get<0>() ? VectorOrColorParameterNames.Get<0>() : VectorOrColorParameterNames.Get<1>();
+		const FMaterialParameterInfo* ParameterInfos = VectorOrColorParameterInfosOrNames.Get<0>() ? VectorOrColorParameterInfosOrNames.Get<0>() : VectorOrColorParameterInfosOrNames.Get<1>();
+		const FName* ParameterNames = VectorOrColorParameterInfosOrNames.Get<2>() ? VectorOrColorParameterInfosOrNames.Get<2>() : VectorOrColorParameterInfosOrNames.Get<3>();
 		const double* RESTRICT R = VectorChannels.Get<0>();
 		const double* RESTRICT G = VectorChannels.Get<1>();
 		const double* RESTRICT B = VectorChannels.Get<2>();
@@ -121,11 +153,25 @@ struct FApplyVectorParameters
 			);
 			if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(BoundMaterial.GetObject()))
 			{
-				MID->SetVectorParameterValue(ParameterNames[Index], Color);
+				if (ParameterInfos)
+				{
+					MID->SetVectorParameterValueByInfo(ParameterInfos[Index], Color);
+				}
+				else if (ParameterNames)
+				{
+					MID->SetVectorParameterValue(ParameterNames[Index], Color);
+				}
 			}
 			else if (UMaterialParameterCollectionInstance* MPCI = Cast<UMaterialParameterCollectionInstance>(BoundMaterial.GetObject()))
 			{
-				MPCI->SetVectorParameterValue(ParameterNames[Index], Color);
+				if (ParameterInfos)
+				{
+					MPCI->SetVectorParameterValue(ParameterInfos[Index].Name, Color);
+				}
+				else if (ParameterNames)
+				{
+					MPCI->SetVectorParameterValue(ParameterNames[Index], Color);
+				}
 			}
 		}
 	}
@@ -133,7 +179,7 @@ struct FApplyVectorParameters
 
 struct FScalarMixin
 {
-	void CreateEntity(UMovieSceneEntitySystemLinker* Linker, const FObjectComponent& BoundMaterial, FName ParameterName, FComponentTypeID BlenderTypeTag, TArrayView<const FMovieSceneEntityID> Inputs, FAnimatedMaterialParameterInfo* Output)
+	void CreateEntity(UMovieSceneEntitySystemLinker* Linker, const FObjectComponent& BoundMaterial, const FMaterialParameterInfo& ParameterInfo, FComponentTypeID BlenderTypeTag, TArrayView<const FMovieSceneEntityID> Inputs, FAnimatedMaterialParameterInfo* Output)
 	{
 		FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 		FMovieSceneTracksComponentTypes* TracksComponents = FMovieSceneTracksComponentTypes::Get();
@@ -155,11 +201,11 @@ struct FScalarMixin
 		{
 			if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(BoundMaterial.GetObject()))
 			{
-				bHasInitialValue = MID->GetScalarParameterValue(ParameterName, InitialValue);
+				bHasInitialValue = MID->GetScalarParameterValue(ParameterInfo, InitialValue);
 			}
 			else if (UMaterialParameterCollectionInstance* MPCI = Cast<UMaterialParameterCollectionInstance>(BoundMaterial.GetObject()))
 			{
-				bHasInitialValue = MPCI->GetScalarParameterValue(ParameterName, InitialValue);
+				bHasInitialValue = MPCI->GetScalarParameterValue(ParameterInfo.Name, InitialValue);
 			}
 		}
 
@@ -177,7 +223,7 @@ struct FScalarMixin
 		Linker->EntityManager.CopyComponents(Inputs[0], Output->OutputEntityID, Linker->EntityManager.GetComponents()->GetCopyAndMigrationMask());
 	}
 
-	void InitializeSoleInput(UMovieSceneEntitySystemLinker* Linker, const FObjectComponent& BoundMaterial, FName ParameterName, FMovieSceneEntityID SoleContributor, FAnimatedMaterialParameterInfo* Output)
+	void InitializeSoleInput(UMovieSceneEntitySystemLinker* Linker, const FObjectComponent& BoundMaterial, const FMaterialParameterInfo& ParameterInfo, FMovieSceneEntityID SoleContributor, FAnimatedMaterialParameterInfo* Output)
 	{
 		FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 		FMovieSceneTracksComponentTypes* TracksComponents = FMovieSceneTracksComponentTypes::Get();
@@ -191,12 +237,12 @@ struct FScalarMixin
 			float InitialValue = 0.0;
 			if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(BoundMaterial.GetObject()))
 			{
-				MID->GetScalarParameterValue(ParameterName, InitialValue);
+				MID->GetScalarParameterValue(ParameterInfo, InitialValue);
 				Linker->EntityManager.AddComponent(SoleContributor, TracksComponents->FloatParameter.InitialValue, InitialValue);
 			}
 			else if (UMaterialParameterCollectionInstance* MPCI = Cast<UMaterialParameterCollectionInstance>(BoundMaterial.GetObject()))
 			{
-				MPCI->GetScalarParameterValue(ParameterName, InitialValue);
+				MPCI->GetScalarParameterValue(ParameterInfo.Name, InitialValue);
 				Linker->EntityManager.AddComponent(SoleContributor, TracksComponents->FloatParameter.InitialValue, InitialValue);
 			}
 		}
@@ -207,7 +253,7 @@ struct FScalarMixin
 
 struct FVectorMixin
 {
-	void CreateEntity(UMovieSceneEntitySystemLinker* Linker, const FObjectComponent& BoundMaterial, FName ParameterName, FComponentTypeID BlenderTypeTag, TArrayView<const FMovieSceneEntityID> Inputs, FAnimatedMaterialParameterInfo* Output)
+	void CreateEntity(UMovieSceneEntitySystemLinker* Linker, const FObjectComponent& BoundMaterial, const FMaterialParameterInfo& ParameterInfo, FComponentTypeID BlenderTypeTag, TArrayView<const FMovieSceneEntityID> Inputs, FAnimatedMaterialParameterInfo* Output)
 	{
 		FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 		FMovieSceneTracksComponentTypes* TracksComponents = FMovieSceneTracksComponentTypes::Get();
@@ -230,11 +276,11 @@ struct FVectorMixin
 			FLinearColor ColorValue;
 			if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(BoundMaterial.GetObject()))
 			{
-				bHasInitialValue = MID->GetVectorParameterValue(ParameterName, ColorValue);
+				bHasInitialValue = MID->GetVectorParameterValue(ParameterInfo, ColorValue);
 			}
 			else if (UMaterialParameterCollectionInstance* MPCI = Cast<UMaterialParameterCollectionInstance>(BoundMaterial.GetObject()))
 			{
-				bHasInitialValue = MPCI->GetVectorParameterValue(ParameterName, ColorValue);
+				bHasInitialValue = MPCI->GetVectorParameterValue(ParameterInfo.Name, ColorValue);
 			}
 
 			if (bHasInitialValue)
@@ -260,7 +306,7 @@ struct FVectorMixin
 		Linker->EntityManager.CopyComponents(Inputs[0], Output->OutputEntityID, Linker->EntityManager.GetComponents()->GetCopyAndMigrationMask());
 	}
 
-	void InitializeSoleInput(UMovieSceneEntitySystemLinker* Linker, const FObjectComponent& BoundMaterial, FName ParameterName, FMovieSceneEntityID SoleContributor, FAnimatedMaterialParameterInfo* Output)
+	void InitializeSoleInput(UMovieSceneEntitySystemLinker* Linker, const FObjectComponent& BoundMaterial, const FMaterialParameterInfo& ParameterInfo, FMovieSceneEntityID SoleContributor, FAnimatedMaterialParameterInfo* Output)
 	{
 		FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 		FMovieSceneTracksComponentTypes* TracksComponents = FMovieSceneTracksComponentTypes::Get();
@@ -274,14 +320,14 @@ struct FVectorMixin
 			FLinearColor ColorValue = FLinearColor::White;
 			if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(BoundMaterial.GetObject()))
 			{
-				if (MID->GetVectorParameterValue(ParameterName, ColorValue))
+				if (MID->GetVectorParameterValue(ParameterInfo, ColorValue))
 				{
 					Linker->EntityManager.AddComponent(SoleContributor, TracksComponents->ColorParameter.InitialValue, FIntermediateColor(ColorValue));
 				}
 			}
 			else if (UMaterialParameterCollectionInstance* MPCI = Cast<UMaterialParameterCollectionInstance>(BoundMaterial.GetObject()))
 			{
-				if (MPCI->GetVectorParameterValue(ParameterName, ColorValue))
+				if (MPCI->GetVectorParameterValue(ParameterInfo.Name, ColorValue))
 				{
 					Linker->EntityManager.AddComponent(SoleContributor, TracksComponents->ColorParameter.InitialValue, FIntermediateColor(ColorValue));
 				}
@@ -302,12 +348,12 @@ struct TOverlappingMaterialParameterHandler : Mixin
 		, System(InSystem)
 	{}
 
-	void InitializeOutput(const FObjectComponent& BoundMaterial, FName ParameterName, TArrayView<const FMovieSceneEntityID> Inputs, FAnimatedMaterialParameterInfo* Output, FEntityOutputAggregate Aggregate)
+	void InitializeOutput(const FObjectComponent& BoundMaterial, const FMaterialParameterInfo& ParameterInfo, TArrayView<const FMovieSceneEntityID> Inputs, FAnimatedMaterialParameterInfo* Output, FEntityOutputAggregate Aggregate)
 	{
-		UpdateOutput(BoundMaterial, ParameterName, Inputs, Output, Aggregate);
+		UpdateOutput(BoundMaterial, ParameterInfo, Inputs, Output, Aggregate);
 	}
 
-	void UpdateOutput(const FObjectComponent& BoundMaterial, FName ParameterName, TArrayView<const FMovieSceneEntityID> Inputs, FAnimatedMaterialParameterInfo* Output, FEntityOutputAggregate Aggregate)
+	void UpdateOutput(const FObjectComponent& BoundMaterial, const FMaterialParameterInfo& ParameterInfo, TArrayView<const FMovieSceneEntityID> Inputs, FAnimatedMaterialParameterInfo* Output, FEntityOutputAggregate Aggregate)
 	{
 		using namespace UE::MovieScene;
 
@@ -339,7 +385,7 @@ struct TOverlappingMaterialParameterHandler : Mixin
 
 				// Needs blending
 				FComponentTypeID BlenderTypeTag = System->DoubleBlenderSystem->GetBlenderTypeTag();
-				Mixin::CreateEntity(Linker, BoundMaterial, ParameterName, BlenderTypeTag, Inputs, Output);
+				Mixin::CreateEntity(Linker, BoundMaterial, ParameterInfo, BlenderTypeTag, Inputs, Output);
 			}
 
 			const FComponentTypeID BlenderTypeTag = System->DoubleBlenderSystem->GetBlenderTypeTag();
@@ -410,13 +456,13 @@ struct TOverlappingMaterialParameterHandler : Mixin
 		{
 			Linker->EntityManager.RemoveComponent(Inputs[0], BuiltInComponents->BlendChannelInput);
 
-			Mixin::InitializeSoleInput(Linker, BoundMaterial, ParameterName, Inputs[0], Output);
+			Mixin::InitializeSoleInput(Linker, BoundMaterial, ParameterInfo, Inputs[0], Output);
 		}
 
 		Output->NumContributors = NumContributors;
 	}
 
-	void DestroyOutput(const FObjectComponent& BoundMaterial, FName ParameterName, FAnimatedMaterialParameterInfo* Output, FEntityOutputAggregate Aggregate)
+	void DestroyOutput(const FObjectComponent& BoundMaterial, const FMaterialParameterInfo& ParameterInfo, FAnimatedMaterialParameterInfo* Output, FEntityOutputAggregate Aggregate)
 	{
 		if (Output->OutputEntityID)
 		{
@@ -527,17 +573,29 @@ void UMovieSceneMaterialParameterSystem::OnInstantiation()
 			this->VectorParameterTracker.VisitUnlinkedAllocation(Allocation);
 		};
 
-		auto HandleUpdatedAllocation = [this](const FEntityAllocation* Allocation, TRead<FObjectComponent> InObjects, TReadOneOf<FName, FName, FName> ScalarVectorOrColorParameterNames)
+		auto HandleUpdatedAllocation = [this](const FEntityAllocation* Allocation, TRead<FObjectComponent> InObjects, TReadOneOf<FMaterialParameterInfo, FMaterialParameterInfo, FMaterialParameterInfo, FName, FName, FName> ScalarVectorOrColorParameterInfosOrNames)
 		{
-			if (TComponentPtr<const FName> ScalarParameterNames = TComponentPtr<const FName>(ScalarVectorOrColorParameterNames.Get<0>()))
+			if (TComponentPtr<const FMaterialParameterInfo> ScalarParameterInfos = TComponentPtr<const FMaterialParameterInfo>(ScalarVectorOrColorParameterInfosOrNames.Get<0>()))
+			{
+				this->ScalarParameterTracker.VisitActiveAllocation(Allocation, InObjects, ScalarParameterInfos);
+			}
+			else if (TComponentPtr<const FMaterialParameterInfo> VectorParameterInfos = TComponentPtr<const FMaterialParameterInfo>(ScalarVectorOrColorParameterInfosOrNames.Get<1>()))
+			{
+				this->VectorParameterTracker.VisitActiveAllocation(Allocation, InObjects, VectorParameterInfos);
+			}
+			else if (TComponentPtr<const FMaterialParameterInfo> ColorParameterInfos = TComponentPtr<const FMaterialParameterInfo>(ScalarVectorOrColorParameterInfosOrNames.Get<2>()))
+			{
+				this->VectorParameterTracker.VisitActiveAllocation(Allocation, InObjects, ColorParameterInfos);
+			}
+			else if (TComponentPtr<const FName> ScalarParameterNames = TComponentPtr<const FName>(ScalarVectorOrColorParameterInfosOrNames.Get<3>()))
 			{
 				this->ScalarParameterTracker.VisitActiveAllocation(Allocation, InObjects, ScalarParameterNames);
 			}
-			else if (TComponentPtr<const FName> VectorParameterNames = TComponentPtr<const FName>(ScalarVectorOrColorParameterNames.Get<1>()))
+			else if (TComponentPtr<const FName> VectorParameterNames = TComponentPtr<const FName>(ScalarVectorOrColorParameterInfosOrNames.Get<4>()))
 			{
 				this->VectorParameterTracker.VisitActiveAllocation(Allocation, InObjects, VectorParameterNames);
 			}
-			else if (TComponentPtr<const FName> ColorParameterNames = TComponentPtr<const FName>(ScalarVectorOrColorParameterNames.Get<2>()))
+			else if (TComponentPtr<const FName> ColorParameterNames = TComponentPtr<const FName>(ScalarVectorOrColorParameterInfosOrNames.Get<5>()))
 			{
 				this->VectorParameterTracker.VisitActiveAllocation(Allocation, InObjects, ColorParameterNames);
 			}
@@ -546,7 +604,13 @@ void UMovieSceneMaterialParameterSystem::OnInstantiation()
 		// First step handle any new or updated bound materials
 		FEntityTaskBuilder()
 		.Read(TracksComponents->BoundMaterial)
-		.ReadOneOf(TracksComponents->ScalarParameterName, TracksComponents->VectorParameterName, TracksComponents->ColorParameterName)
+		// Handle both new parameter info and old parameter names for backwards compatibility with MovieSceneParameterSection
+		.ReadOneOf(	TracksComponents->ScalarMaterialParameterInfo, 
+					TracksComponents->VectorMaterialParameterInfo, 
+					TracksComponents->ColorMaterialParameterInfo,
+					TracksComponents->ScalarParameterName,
+					TracksComponents->VectorParameterName,
+					TracksComponents->ColorParameterName)
 		.FilterAny({ BuiltInComponents->Tags.NeedsLink, TracksComponents->Tags.BoundMaterialChanged })
 		.FilterNone({ BuiltInComponents->Tags.NeedsUnlink })
 		.Iterate_PerAllocation(&Linker->EntityManager, HandleUpdatedAllocation);
@@ -565,12 +629,16 @@ void UMovieSceneMaterialParameterSystem::OnInstantiation()
 		VectorParameterTracker.ProcessInvalidatedOutputs(Linker, VectorHandler);
 
 		// Gather inputs that contribute to the material parameter by excluding outputs (which will not have an instance handle)
-		TPreAnimatedStateTaskParams<FObjectComponent, FName> Params;
+		TPreAnimatedStateTaskParams<FObjectComponent, FMaterialParameterInfo> Params;
 		Params.AdditionalFilter.Reset();
 		Params.AdditionalFilter.None({ TracksComponents->MPC, BuiltInComponents->BlendChannelOutput });
 		Params.AdditionalFilter.Any({ BuiltInComponents->Tags.NeedsLink, TracksComponents->Tags.BoundMaterialChanged });
 		
+		// Handle both new parameter info and old parameter names for backwards compatibility with MovieSceneParameterSection
+		ScalarParameterStorage->BeginTrackingAndCachePreAnimatedValuesTask(Linker, Params, TracksComponents->BoundMaterial, TracksComponents->ScalarMaterialParameterInfo);
 		ScalarParameterStorage->BeginTrackingAndCachePreAnimatedValuesTask(Linker, Params, TracksComponents->BoundMaterial, TracksComponents->ScalarParameterName);
+		VectorParameterStorage->BeginTrackingAndCachePreAnimatedValuesTask(Linker, Params, TracksComponents->BoundMaterial, TracksComponents->VectorMaterialParameterInfo);
+		VectorParameterStorage->BeginTrackingAndCachePreAnimatedValuesTask(Linker, Params, TracksComponents->BoundMaterial, TracksComponents->ColorMaterialParameterInfo);
 		VectorParameterStorage->BeginTrackingAndCachePreAnimatedValuesTask(Linker, Params, TracksComponents->BoundMaterial, TracksComponents->VectorParameterName);
 		VectorParameterStorage->BeginTrackingAndCachePreAnimatedValuesTask(Linker, Params, TracksComponents->BoundMaterial, TracksComponents->ColorParameterName);
 	}
@@ -585,16 +653,18 @@ void UMovieSceneMaterialParameterSystem::OnSchedulePersistentTasks(UE::MovieScen
 
 	FEntityTaskBuilder()
 	.Read(TracksComponents->BoundMaterial)
-	.Read(TracksComponents->ScalarParameterName)
+	// Handle both new parameter info and old parameter names for backwards compatibility with MovieSceneParameterSection
+	.ReadOneOrMoreOf(TracksComponents->ScalarMaterialParameterInfo, TracksComponents->ScalarParameterName)
 	.Read(BuiltInComponents->DoubleResult[0])
 	.FilterNone({ BuiltInComponents->BlendChannelInput })
 	.SetDesiredThread(Linker->EntityManager.GetDispatchThread())
-	.Fork_PerEntity<FApplyScalarParameters>(&Linker->EntityManager, TaskScheduler);
+	.Fork_PerAllocation<FApplyScalarParameters>(&Linker->EntityManager, TaskScheduler);
 
 	// Vectors and colors use the same API
 	FEntityTaskBuilder()
 	.Read(TracksComponents->BoundMaterial)
-	.ReadOneOrMoreOf(TracksComponents->VectorParameterName, TracksComponents->ColorParameterName)
+	// Handle both new parameter info and old parameter names for backwards compatibility with MovieSceneParameterSection
+	.ReadOneOrMoreOf(TracksComponents->VectorMaterialParameterInfo, TracksComponents->ColorMaterialParameterInfo, TracksComponents->VectorParameterName, TracksComponents->ColorParameterName)
 	.ReadOneOrMoreOf(BuiltInComponents->DoubleResult[0], BuiltInComponents->DoubleResult[1], BuiltInComponents->DoubleResult[2], BuiltInComponents->DoubleResult[3])
 	.FilterNone({ BuiltInComponents->BlendChannelInput })
 	.SetDesiredThread(Linker->EntityManager.GetDispatchThread())
@@ -608,23 +678,27 @@ void UMovieSceneMaterialParameterSystem::OnEvaluation(FSystemTaskPrerequisites& 
 	FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
 	FMovieSceneTracksComponentTypes* TracksComponents = FMovieSceneTracksComponentTypes::Get();
 
-	if (Linker->EntityManager.ContainsComponent(TracksComponents->ScalarParameterName))
+	if (Linker->EntityManager.ContainsComponent(TracksComponents->ScalarMaterialParameterInfo) || Linker->EntityManager.ContainsComponent(TracksComponents->ScalarParameterName))
 	{
 		FEntityTaskBuilder()
-		.Read(TracksComponents->BoundMaterial)
-		.Read(TracksComponents->ScalarParameterName)
+		.Read(TracksComponents->BoundMaterial)	
+		// Handle both new parameter info and old parameter names for backwards compatibility with MovieSceneParameterSection
+		.ReadOneOrMoreOf(TracksComponents->ScalarMaterialParameterInfo, TracksComponents->ScalarParameterName)
 		.Read(BuiltInComponents->DoubleResult[0])
 		.FilterNone({ BuiltInComponents->BlendChannelInput })
 		.SetDesiredThread(Linker->EntityManager.GetDispatchThread())
-		.Dispatch_PerEntity<FApplyScalarParameters>(&Linker->EntityManager, InPrerequisites, &Subsequents);
+		.Dispatch_PerAllocation<FApplyScalarParameters>(&Linker->EntityManager, InPrerequisites, &Subsequents);
 	}
 
 	// Vectors and colors use the same API
-	if (Linker->EntityManager.ContainsComponent(TracksComponents->VectorParameterName) || Linker->EntityManager.ContainsComponent(TracksComponents->ColorParameterName))
+	if (Linker->EntityManager.ContainsComponent(TracksComponents->VectorMaterialParameterInfo) 
+		|| Linker->EntityManager.ContainsComponent(TracksComponents->ColorMaterialParameterInfo)
+		|| Linker->EntityManager.ContainsComponent(TracksComponents->VectorParameterName)
+		|| Linker->EntityManager.ContainsComponent(TracksComponents->ColorParameterName))
 	{
 		FEntityTaskBuilder()
 		.Read(TracksComponents->BoundMaterial)
-		.ReadOneOrMoreOf(TracksComponents->VectorParameterName, TracksComponents->ColorParameterName)
+		.ReadOneOrMoreOf(TracksComponents->VectorMaterialParameterInfo, TracksComponents->ColorMaterialParameterInfo, TracksComponents->VectorParameterName, TracksComponents->ColorParameterName)
 		.ReadOneOrMoreOf(BuiltInComponents->DoubleResult[0], BuiltInComponents->DoubleResult[1], BuiltInComponents->DoubleResult[2], BuiltInComponents->DoubleResult[3])
 		.FilterNone({ BuiltInComponents->BlendChannelInput })
 		.SetDesiredThread(Linker->EntityManager.GetDispatchThread())

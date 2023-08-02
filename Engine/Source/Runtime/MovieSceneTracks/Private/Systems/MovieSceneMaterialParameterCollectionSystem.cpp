@@ -78,9 +78,14 @@ void UMovieSceneMaterialParameterCollectionSystem::OnRun(FSystemTaskPrerequisite
 			TComponentReader<TWeakObjectPtr<UMaterialParameterCollection>> MPCs = Allocation->ReadComponents(TracksComponents->MPC);
 			TComponentReader<FInstanceHandle> InstanceHandles = Allocation->ReadComponents(BuiltInComponents->InstanceHandle);
 
+			// Support older sections that still use ParameterName rather than ParameterInfo
 			TOptionalComponentReader<FName> ScalarParameterNames = Allocation->TryReadComponents(TracksComponents->ScalarParameterName);
 			TOptionalComponentReader<FName> VectorParameterNames = Allocation->TryReadComponents(TracksComponents->VectorParameterName);
 			TOptionalComponentReader<FName> ColorParameterNames = Allocation->TryReadComponents(TracksComponents->ColorParameterName);
+
+			TOptionalComponentReader<FMaterialParameterInfo> ScalarParameterInfos = Allocation->TryReadComponents(TracksComponents->ScalarMaterialParameterInfo);
+			TOptionalComponentReader<FMaterialParameterInfo> VectorParameterInfos = Allocation->TryReadComponents(TracksComponents->VectorMaterialParameterInfo);
+			TOptionalComponentReader<FMaterialParameterInfo> ColorParameterInfos = Allocation->TryReadComponents(TracksComponents->ColorMaterialParameterInfo);
 
 			const int32 Num = Allocation->Num();
 			for (int32 Index = 0; Index < Num; ++Index)
@@ -101,9 +106,10 @@ void UMovieSceneMaterialParameterCollectionSystem::OnRun(FSystemTaskPrerequisite
 						TEXT("Unable to create MPC instance for %s with World %s. Material parameter collection tracks will not function."),
 						*Collection->GetName(), *World->GetName()))
 					{
-						if (ScalarParameterNames)
+						if (ScalarParameterInfos || ScalarParameterNames)
 						{
-							FName Name = ScalarParameterNames[Index];
+							// Support older sections that still use ParameterName rather than ParameterInfo
+							FName Name = ScalarParameterInfos ? ScalarParameterInfos[Index].Name : ScalarParameterNames[Index];
 							if (Collection->GetScalarParameterByName(Name) == nullptr)
 							{
 								if (!Instance->bLoggedMissingParameterWarning)
@@ -112,9 +118,14 @@ void UMovieSceneMaterialParameterCollectionSystem::OnRun(FSystemTaskPrerequisite
 								}
 							}
 						}
-						else if (VectorParameterNames || ColorParameterNames)
+						else if (VectorParameterInfos || ColorParameterInfos || VectorParameterNames || ColorParameterNames)
 						{
-							FName Name = VectorParameterNames ? VectorParameterNames[Index] : ColorParameterNames[Index];
+							// Support older sections that still use ParameterName rather than ParameterInfo
+							FName Name = VectorParameterInfos ? VectorParameterInfos[Index].Name :
+								ColorParameterInfos ? ColorParameterInfos[Index].Name :
+								VectorParameterNames ? VectorParameterNames[Index] :
+								ColorParameterNames[Index];
+
 							if (Collection->GetVectorParameterByName(Name) == nullptr)
 							{
 								if (!Instance->bLoggedMissingParameterWarning)
@@ -172,8 +183,8 @@ void UMovieSceneMaterialParameterCollectionSystem::OnRun(FSystemTaskPrerequisite
 
 	Params.AdditionalFilter.None({ BuiltInComponents->BlendChannelOutput });
 	Params.AdditionalFilter.All({ TracksComponents->MPC });
-	ScalarParameterStorage->BeginTrackingAndCachePreAnimatedValuesTask(Linker, Params, TracksComponents->BoundMaterial, TracksComponents->ScalarParameterName);
-	VectorParameterStorage->BeginTrackingAndCachePreAnimatedValuesTask(Linker, Params, TracksComponents->BoundMaterial, TracksComponents->VectorParameterName);
-	VectorParameterStorage->BeginTrackingAndCachePreAnimatedValuesTask(Linker, Params, TracksComponents->BoundMaterial, TracksComponents->ColorParameterName);
+	ScalarParameterStorage->BeginTrackingAndCachePreAnimatedValuesTask(Linker, Params, TracksComponents->BoundMaterial, TracksComponents->ScalarMaterialParameterInfo);
+	VectorParameterStorage->BeginTrackingAndCachePreAnimatedValuesTask(Linker, Params, TracksComponents->BoundMaterial, TracksComponents->VectorMaterialParameterInfo);
+	VectorParameterStorage->BeginTrackingAndCachePreAnimatedValuesTask(Linker, Params, TracksComponents->BoundMaterial, TracksComponents->ColorMaterialParameterInfo);
 }
 

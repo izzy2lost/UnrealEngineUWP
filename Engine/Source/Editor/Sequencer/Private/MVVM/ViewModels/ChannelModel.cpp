@@ -261,10 +261,12 @@ FLinearColor FChannelModel::GetKeyBarColor() const
 	return FColor(160, 160, 160);
 }
 
-FChannelGroupModel::FChannelGroupModel(FName InChannelName, const FText& InDisplayText)
+
+FChannelGroupModel::FChannelGroupModel(FName InChannelName, const FText& InDisplayText, const FText& InTooltipText)
 	: ChannelsSerialNumber(0)
 	, ChannelName(InChannelName)
 	, DisplayText(InDisplayText)
+	, TooltipText(InTooltipText)
 {
 }
 
@@ -718,8 +720,8 @@ void FChannelGroupOverrideHelper::RemoveChannelOverrides(TSharedPtr<FSequenceMod
 	SequenceModel->GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
 }
 
-FChannelGroupOutlinerModel::FChannelGroupOutlinerModel(FName InChannelName, const FText& InDisplayText)
-	: TOutlinerModelMixin<FChannelGroupModel>(InChannelName, InDisplayText)
+FChannelGroupOutlinerModel::FChannelGroupOutlinerModel(FName InChannelName, const FText& InDisplayText, const FText& InTooltipText)
+	: TOutlinerModelMixin<FChannelGroupModel>(InChannelName, InDisplayText, InTooltipText)
 {
 	SetIdentifier(InChannelName);
 }
@@ -808,6 +810,11 @@ FSlateFontInfo FChannelGroupOutlinerModel::GetLabelFont() const
 	return IsAnimated()
 		? FAppStyle::GetFontStyle("Sequencer.AnimationOutliner.ItalicFont")
 		: FOutlinerItemModelMixin::GetLabelFont();
+}
+
+FText FChannelGroupOutlinerModel::GetLabelToolTipText() const
+{
+	return GetTooltipText();
 }
 
 bool FChannelGroupOutlinerModel::HasCurves() const

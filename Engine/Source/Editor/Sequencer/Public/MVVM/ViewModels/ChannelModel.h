@@ -127,7 +127,7 @@ public:
 
 	UE_SEQUENCER_DECLARE_CASTABLE(FChannelGroupModel, FViewModel, ITrackAreaExtension, IRecyclableExtension);
 
-	FChannelGroupModel(FName InChannelName, const FText& InDisplayText);
+	FChannelGroupModel(FName InChannelName, const FText& InDisplayText, const FText& InTooltipText);
 	~FChannelGroupModel();
 
 	/** Returns whether any of the channels within this group have any keyframes on them */
@@ -138,6 +138,9 @@ public:
 
 	/** Returns the label for this group */
 	FText GetDisplayText() const { return DisplayText; }
+
+	/** Returns the tooltip for this group */
+	FText GetTooltipText() const { return TooltipText; }
 
 	/** Gets all the channel models in this group */
 	TArrayView<const TWeakViewModelPtr<FChannelModel>> GetChannels() const;
@@ -190,6 +193,7 @@ protected:
 	uint32 ChannelsSerialNumber;
 	FName ChannelName;
 	FText DisplayText;
+	FText TooltipText;
 };
 
 
@@ -206,7 +210,7 @@ public:
 
 	UE_SEQUENCER_DECLARE_CASTABLE(FChannelGroupOutlinerModel, FChannelGroupModel, FOutlinerItemModelMixin, ICompoundOutlinerExtension, IDeletableExtension);
 
-	FChannelGroupOutlinerModel(FName InChannelName, const FText& InDisplayText);
+	FChannelGroupOutlinerModel(FName InChannelName, const FText& InDisplayText, const FText& InTooltipText);
 	~FChannelGroupOutlinerModel();
 
 public:
@@ -218,6 +222,7 @@ public:
 	FOutlinerSizing GetOutlinerSizing() const override;
 	FText GetLabel() const override;
 	FSlateFontInfo GetLabelFont() const override;
+	FText GetLabelToolTipText() const override;
 	TSharedRef<SWidget> CreateOutlinerView(const FCreateOutlinerViewParams& InParams) override;
 
 	/*~ ICurveEditorTreeItem */

@@ -7,6 +7,7 @@
 #include "Sections/MovieSceneParameterSection.h"
 #include "MovieSceneNameableTrack.h"
 #include "EntitySystem/IMovieSceneEntityProvider.h"
+#include "MaterialTypes.h"
 #include "MovieSceneMaterialTrack.generated.h"
 
 /**
@@ -40,11 +41,11 @@ public:
 public:
 
 	/**
-	 * Adds a scalar parameter key to the track. 
-	 * @param ParameterName The name of the parameter to add a key for.
-	 * @param Time The time to add the new key.
-	 * @param The value for the new key.
-	 */
+	* Adds a scalar parameter key to the track. 
+	* @param ParameterName The name of the parameter to add a key for.
+	* @param Time The time to add the new key.
+	* @param The value for the new key.
+	*/
 	MOVIESCENETRACKS_API void AddScalarParameterKey(FName ParameterName, FFrameNumber Position, float Value);
 
 	/**
@@ -57,21 +58,63 @@ public:
 	MOVIESCENETRACKS_API void AddScalarParameterKey(FName ParameterName, FFrameNumber Position, int32 RowIndex, float Value);
 
 	/**
-	 * Adds a color parameter key to the track.
-	 * @param ParameterName The name of the parameter to add a key for.
-	 * @param Time The time to add the new key.
-	 * @param The value for the new key.
-	 */
+	* Adds a scalar parameter key to the track.
+	* @param ParameterInfo The material parameter info for the parameter you want to add a key for.
+	* @param Time The time to add the new key.
+	* @param The value for the new key.
+	* @param InLayerName Optional layer name for use in UI.
+	* @param InAssetName Optional asset name for use in UI.
+	*/
+	MOVIESCENETRACKS_API void AddScalarParameterKey(const FMaterialParameterInfo& ParameterInfo, FFrameNumber Position, float Value, const FString& InLayerName, const FString& InAssetName);
+
+	/**
+	* Adds a scalar parameter key to the track.
+	* @param ParameterInfo The material parameter info for the parameter you want to add a key for.
+	* @param Time The time to add the new key.
+	* @param RowIndex The preferred row index on which to look for sections.
+	* @param The value for the new key.
+	* @param InLayerName Optional layer name for use in UI.
+	* @param InAssetName Optional asset name for use in UI.
+	*/
+	MOVIESCENETRACKS_API void AddScalarParameterKey(const FMaterialParameterInfo& ParameterInfo, FFrameNumber Position, int32 RowIndex, float Value, const FString& InLayerName, const FString& InAssetName);
+
+	/**
+	* Adds a color parameter key to the track.
+	* @param ParameterName The name of the parameter to add a key for.
+	* @param Time The time to add the new key.
+	* @param The value for the new key.
+	*/
 	MOVIESCENETRACKS_API void AddColorParameterKey(FName ParameterName, FFrameNumber Position, FLinearColor Value);
 
 	/**
-	 * Adds a color parameter key to the track.
-	 * @param ParameterName The name of the parameter to add a key for.
-	 * @param Time The time to add the new key.
-	 * @param RowIndex The preferred row index on which to look for sections.
-	 * @param The value for the new key.
-	 */
+	* Adds a color parameter key to the track.
+	* @param ParameterInfo The material parameter info for the parameter you want to add a key for.
+	* @param Time The time to add the new key.
+	* @param RowIndex The preferred row index on which to look for sections.
+	* @param The value for the new key.
+	*/
 	MOVIESCENETRACKS_API void AddColorParameterKey(FName ParameterName, FFrameNumber Position, int32 RowIndex, FLinearColor Value);
+
+	/**
+	* Adds a color parameter key to the track.
+	* @param ParameterName The name of the parameter to add a key for.
+	* @param Time The time to add the new key.
+	* @param The value for the new key.
+	* @param InLayerName Optional layer name for use in UI.
+	* @param InAssetName Optional asset name for use in UI.
+	*/
+	MOVIESCENETRACKS_API void AddColorParameterKey(const FMaterialParameterInfo& ParameterInfo, FFrameNumber Position, FLinearColor Value, const FString& InLayerName, const FString& InAssetName);
+
+	/**
+	* Adds a color parameter key to the track.
+	* @param ParameterInfo The material parameter info for the parameter you want to add a key for.
+	* @param Time The time to add the new key.
+	* @param RowIndex The preferred row index on which to look for sections.
+	* @param The value for the new key.
+	* @param InLayerName Optional layer name for use in UI.
+	* @param InAssetName Optional asset name for use in UI.
+	*/
+	MOVIESCENETRACKS_API void AddColorParameterKey(const FMaterialParameterInfo& ParameterInfo, FFrameNumber Position, int32 RowIndex, FLinearColor Value, const FString& InLayerName, const FString& InAssetName);
 
 private:
 

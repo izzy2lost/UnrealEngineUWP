@@ -87,7 +87,7 @@ class SEQUENCER_API FCategoryGroupModel
 public:
 	UE_SEQUENCER_DECLARE_CASTABLE(FCategoryGroupModel, FOutlinerItemModel, ITrackAreaExtension, ICompoundOutlinerExtension, IDeletableExtension, IRecyclableExtension);
 
-	explicit FCategoryGroupModel(FName InCategoryName, const FText& InDisplayText);
+	explicit FCategoryGroupModel(FName InCategoryName, const FText& InDisplayText, const FText& InTooltipText);
 
 	~FCategoryGroupModel();
 
@@ -106,6 +106,11 @@ public:
 		return DisplayText;
 	}
 
+	FText GetTooltipText() const
+	{
+		return TooltipText;
+	}
+
 	void AddCategory(TWeakViewModelPtr<FCategoryModel> InCategory);
 
 	TArrayView<const TWeakViewModelPtr<FCategoryModel>> GetCategories() const;
@@ -119,6 +124,7 @@ public:
 	FOutlinerSizing GetOutlinerSizing() const override;
 	FText GetLabel() const override;
 	FSlateFontInfo GetLabelFont() const override;
+	FText GetLabelToolTipText() const override;
 	TSharedRef<SWidget> CreateOutlinerView(const FCreateOutlinerViewParams& InParams) override;
 
 	/*~ ITrackAreaExtension */
@@ -137,6 +143,7 @@ private:
 	TArray<TWeakViewModelPtr<FCategoryModel>> Categories;
 	FName CategoryName;
 	FText DisplayText;
+	FText TooltipText;
 	FOutlinerSizing ComputedSizing;
 };
 

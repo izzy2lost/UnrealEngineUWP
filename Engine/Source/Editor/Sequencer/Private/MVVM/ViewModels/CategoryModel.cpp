@@ -85,9 +85,10 @@ FLinearColor FCategoryModel::GetKeyBarColor() const
 	return FColor(160, 160, 160);
 }
 
-FCategoryGroupModel::FCategoryGroupModel(FName InCategoryName, const FText& InDisplayText)
+FCategoryGroupModel::FCategoryGroupModel(FName InCategoryName, const FText& InDisplayText, const FText& InTooltipText)
 	: CategoryName(InCategoryName)
 	, DisplayText(InDisplayText)
+	, TooltipText(InTooltipText)
 {
 	SetIdentifier(InCategoryName);
 }
@@ -163,6 +164,11 @@ FOutlinerSizing FCategoryGroupModel::GetOutlinerSizing() const
 FText FCategoryGroupModel::GetLabel() const
 {
 	return GetDisplayText();
+}
+
+FText FCategoryGroupModel::GetLabelToolTipText() const
+{
+	return GetTooltipText();
 }
 
 FSlateFontInfo FCategoryGroupModel::GetLabelFont() const

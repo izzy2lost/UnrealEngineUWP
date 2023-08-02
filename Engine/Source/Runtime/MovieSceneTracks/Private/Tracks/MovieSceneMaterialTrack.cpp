@@ -7,6 +7,7 @@
 #include "EntitySystem/MovieSceneEntityBuilder.h"
 #include "EntitySystem/BuiltInComponentTypes.h"
 #include "MovieSceneTracksComponentTypes.h"
+#include "Sections/MovieSceneComponentMaterialParameterSection.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneMaterialTrack)
 
@@ -27,13 +28,13 @@ UMovieSceneMaterialTrack::UMovieSceneMaterialTrack(const FObjectInitializer& Obj
 
 bool UMovieSceneMaterialTrack::SupportsType(TSubclassOf<UMovieSceneSection> SectionClass) const
 {
-	return SectionClass == UMovieSceneParameterSection::StaticClass();
+	return SectionClass == UMovieSceneComponentMaterialParameterSection::StaticClass() || SectionClass == UMovieSceneParameterSection::StaticClass();
 }
 
 
 UMovieSceneSection* UMovieSceneMaterialTrack::CreateNewSection()
 {
-	UMovieSceneSection* NewSection = NewObject<UMovieSceneParameterSection>(this, NAME_None, RF_Transactional);
+	UMovieSceneSection* NewSection = NewObject<UMovieSceneComponentMaterialParameterSection>(this, NAME_None, RF_Transactional);
 	NewSection->SetBlendType(EMovieSceneBlendType::Absolute);
 	return NewSection;
 }
@@ -120,20 +121,29 @@ const TArray<UMovieSceneSection*>& UMovieSceneMaterialTrack::GetAllSections() co
 
 void UMovieSceneMaterialTrack::AddScalarParameterKey(FName ParameterName, FFrameNumber Time, float Value)
 {
-	AddScalarParameterKey(ParameterName, Time, INDEX_NONE, Value);
+	AddScalarParameterKey(FMaterialParameterInfo(ParameterName), Time, INDEX_NONE, Value, FString(), FString());
 }
-
 
 void UMovieSceneMaterialTrack::AddScalarParameterKey(FName ParameterName, FFrameNumber Time, int32 RowIndex, float Value)
 {
-	UMovieSceneParameterSection* NearestSection = Cast<UMovieSceneParameterSection>(SectionToKey);
+	AddScalarParameterKey(FMaterialParameterInfo(ParameterName), Time, RowIndex, Value, FString(), FString());
+}
+
+void UMovieSceneMaterialTrack::AddScalarParameterKey(const FMaterialParameterInfo& ParameterInfo, FFrameNumber Time, float Value, const FString& InLayerName, const FString& InAssetName)
+{
+	AddScalarParameterKey(ParameterInfo, Time, INDEX_NONE, Value, InLayerName, InAssetName);
+}
+
+void UMovieSceneMaterialTrack::AddScalarParameterKey(const FMaterialParameterInfo& ParameterInfo, FFrameNumber Time, int32 RowIndex, float Value, const FString& InLayerName, const FString& InAssetName)
+{
+	UMovieSceneSection* NearestSection = SectionToKey;
 	if (NearestSection == nullptr || (RowIndex != INDEX_NONE && NearestSection->GetRowIndex() != RowIndex))
 	{
-		NearestSection = Cast<UMovieSceneParameterSection>(MovieSceneHelpers::FindNearestSectionAtTime(Sections, Time, RowIndex));
+		NearestSection = MovieSceneHelpers::FindNearestSectionAtTime(Sections, Time, RowIndex);
 	}
 	if (NearestSection == nullptr)
 	{
-		NearestSection = Cast<UMovieSceneParameterSection>(CreateNewSection());
+		NearestSection = Cast<UMovieSceneComponentMaterialParameterSection>(CreateNewSection());
 
 		UMovieScene* MovieScene = GetTypedOuter<UMovieScene>();
 		check(MovieScene);
@@ -141,40 +151,65 @@ void UMovieSceneMaterialTrack::AddScalarParameterKey(FName ParameterName, FFrame
 		NearestSection->SetRange(MovieScene->GetPlaybackRange());
 		Sections.Add(NearestSection);
 	}
-	if (NearestSection->TryModify())
+	if (NearestSection != nullptr && NearestSection->TryModify())
 	{
-		NearestSection->AddScalarParameterKey(ParameterName, Time, Value);
+		// If we have an old parameter section already, fall back to the old style section
+		if (UMovieSceneParameterSection* NearestParameterSection = Cast<UMovieSceneParameterSection>(NearestSection))
+		{
+			NearestParameterSection->AddScalarParameterKey(ParameterInfo.Name, Time, Value);
+		}
+		else if (UMovieSceneComponentMaterialParameterSection* NearestComponentMaterialParameterSection = Cast<UMovieSceneComponentMaterialParameterSection>(NearestSection))
+		{
+			NearestComponentMaterialParameterSection->AddScalarParameterKey(ParameterInfo, Time, Value, InLayerName, InAssetName);
+		}
 	}
 }
 
 
 void UMovieSceneMaterialTrack::AddColorParameterKey(FName ParameterName, FFrameNumber Time, FLinearColor Value)
 {
-	AddColorParameterKey(ParameterName, Time, INDEX_NONE, Value);
+	AddColorParameterKey(FMaterialParameterInfo(ParameterName), Time, INDEX_NONE, Value, FString(), FString());
 }
 
 
 void UMovieSceneMaterialTrack::AddColorParameterKey(FName ParameterName, FFrameNumber Time, int32 RowIndex, FLinearColor Value)
 {
-	UMovieSceneParameterSection* NearestSection = Cast<UMovieSceneParameterSection>(SectionToKey);
+	AddColorParameterKey(FMaterialParameterInfo(ParameterName), Time, RowIndex, Value, FString(), FString());
+}
+
+void UMovieSceneMaterialTrack::AddColorParameterKey(const FMaterialParameterInfo& ParameterInfo, FFrameNumber Time, FLinearColor Value, const FString& InLayerName, const FString& InAssetName)
+{
+	AddColorParameterKey(ParameterInfo, Time, INDEX_NONE, Value, InLayerName, InAssetName);
+}
+
+void UMovieSceneMaterialTrack::AddColorParameterKey(const FMaterialParameterInfo& ParameterInfo, FFrameNumber Time, int32 RowIndex, FLinearColor Value, const FString& InLayerName, const FString& InAssetName)
+{
+	UMovieSceneSection* NearestSection = SectionToKey;
 	if (NearestSection == nullptr || (RowIndex != INDEX_NONE && NearestSection->GetRowIndex() != RowIndex))
 	{
-		NearestSection = Cast<UMovieSceneParameterSection>(MovieSceneHelpers::FindNearestSectionAtTime(Sections, Time));
+		NearestSection = MovieSceneHelpers::FindNearestSectionAtTime(Sections, Time, RowIndex);
 	}
 	if (NearestSection == nullptr)
 	{
-		NearestSection = Cast<UMovieSceneParameterSection>(CreateNewSection());
+		NearestSection = Cast<UMovieSceneComponentMaterialParameterSection>(CreateNewSection());
 
 		UMovieScene* MovieScene = GetTypedOuter<UMovieScene>();
 		check(MovieScene);
 
 		NearestSection->SetRange(MovieScene->GetPlaybackRange());
-
 		Sections.Add(NearestSection);
 	}
-	if (NearestSection->TryModify())
+	if (NearestSection != nullptr && NearestSection->TryModify())
 	{
-		NearestSection->AddColorParameterKey(ParameterName, Time, Value);
+		// If we have an old parameter section already, fall back to the old style section
+		if (UMovieSceneParameterSection* NearestParameterSection = Cast<UMovieSceneParameterSection>(NearestSection))
+		{
+			NearestParameterSection->AddColorParameterKey(ParameterInfo.Name, Time, Value);
+		}
+		else if (UMovieSceneComponentMaterialParameterSection* NearestComponentMaterialParameterSection = Cast<UMovieSceneComponentMaterialParameterSection>(NearestSection))
+		{
+			NearestComponentMaterialParameterSection->AddColorParameterKey(ParameterInfo, Time, Value, InLayerName, InAssetName);
+		}
 	}
 }
 
@@ -212,22 +247,32 @@ bool UMovieSceneComponentMaterialTrack::PopulateEvaluationFieldImpl(const TRange
 {
 	const FMovieSceneTrackEvaluationField& LocalEvaluationField = GetEvaluationField();
 
-	// Define entities for every entry in our evaluation field
+	// Define entities for the old style parameter sections. ComponentMaterialParameterSections define their own.
 	for (const FMovieSceneTrackEvaluationFieldEntry& Entry : LocalEvaluationField.Entries)
 	{
 		UMovieSceneParameterSection* ParameterSection = Cast<UMovieSceneParameterSection>(Entry.Section);
-		if (!ParameterSection || IsRowEvalDisabled(ParameterSection->GetRowIndex()))
+		UMovieSceneComponentMaterialParameterSection* ComponentMaterialParameterSection = Cast<UMovieSceneComponentMaterialParameterSection>(Entry.Section);
+		if (ParameterSection || ComponentMaterialParameterSection)
 		{
-			continue;
-		}
+			if (IsRowEvalDisabled(Entry.Section->GetRowIndex()))
+			{
+				continue;
+			}
 
-		TRange<FFrameNumber> SectionEffectiveRange = TRange<FFrameNumber>::Intersection(EffectiveRange, Entry.Range);
-		if (!SectionEffectiveRange.IsEmpty())
-		{
-			FMovieSceneEvaluationFieldEntityMetaData SectionMetaData = InMetaData;
-			SectionMetaData.Flags = Entry.Flags;
-
-			ParameterSection->ExternalPopulateEvaluationField(SectionEffectiveRange, SectionMetaData, OutFieldBuilder);
+			TRange<FFrameNumber> SectionEffectiveRange = TRange<FFrameNumber>::Intersection(EffectiveRange, Entry.Range);
+			if (!SectionEffectiveRange.IsEmpty())
+			{
+				FMovieSceneEvaluationFieldEntityMetaData SectionMetaData = InMetaData;
+				SectionMetaData.Flags = Entry.Flags;
+				if (ParameterSection)
+				{
+					ParameterSection->ExternalPopulateEvaluationField(SectionEffectiveRange, SectionMetaData, OutFieldBuilder);
+				}
+				else if (ComponentMaterialParameterSection)
+				{
+					ComponentMaterialParameterSection->ExternalPopulateEvaluationField(SectionEffectiveRange, SectionMetaData, OutFieldBuilder);
+				}
+			}
 		}
 	}
 

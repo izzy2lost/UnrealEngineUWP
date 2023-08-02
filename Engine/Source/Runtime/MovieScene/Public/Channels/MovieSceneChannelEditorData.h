@@ -142,6 +142,10 @@ struct FCommonChannelData
 	static MOVIESCENE_API const FLinearColor RedChannelColor;
 	static MOVIESCENE_API const FLinearColor GreenChannelColor;
 	static MOVIESCENE_API const FLinearColor BlueChannelColor;
+
+	static MOVIESCENE_API const FName TooltipText;
+	static MOVIESCENE_API const FName GroupDisplayName;
+	static MOVIESCENE_API const FName GroupTooltipText;
 };
 
 
