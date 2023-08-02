@@ -1185,7 +1185,7 @@ bool UIKRigController::IsGoalConnectedToSolver(const FName GoalName, int32 Solve
 
 bool UIKRigController::IsGoalConnectedToAnySolver(const FName GoalName) const
 {
-	for (const TObjectPtr<UIKRigSolver> Solver : Asset->Solvers)
+	for (const TObjectPtr<UIKRigSolver>& Solver : Asset->Solvers)
 	{
 		if (Solver->IsGoalConnected(GoalName))
 		{

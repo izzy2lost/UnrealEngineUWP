@@ -30,7 +30,7 @@ bool UWorldPartitionNavigationDataBuilder::PreRun(UWorld* World, FPackageSourceC
 {
 	// Set runtime data layer to be included in the base navmesh generation.
 	UDataLayerManager* DataLayerManager = UDataLayerManager::GetDataLayerManager(World);
-	for (const TObjectPtr<UDataLayerAsset> DataLayer : World->GetWorldSettings()->BaseNavmeshDataLayers)
+	for (const TObjectPtr<UDataLayerAsset>& DataLayer : World->GetWorldSettings()->BaseNavmeshDataLayers)
 	{
 		if (DataLayer != nullptr)
 		{

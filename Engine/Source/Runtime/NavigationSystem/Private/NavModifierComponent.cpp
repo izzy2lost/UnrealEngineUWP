@@ -162,7 +162,7 @@ void UNavModifierComponent::CalcAndCacheBounds() const
 					{
 						Bounds += GeometryCollection->Bounds.GetBox();
 
-						for (const TObjectPtr<UStaticMesh> ProxyMesh : RestCollection->RootProxyData.ProxyMeshes)
+						for (const TObjectPtr<UStaticMesh>& ProxyMesh : RestCollection->RootProxyData.ProxyMeshes)
 						{
 							if (ProxyMesh != nullptr)
 							{

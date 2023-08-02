@@ -34,7 +34,7 @@ FMassEntityConfig::FMassEntityConfig(UObject& InOwner)
 
 const UMassEntityTraitBase* FMassEntityConfig::FindTrait(TSubclassOf<UMassEntityTraitBase> TraitClass, const bool bExactMatch) const
 {
-	for (const TObjectPtr<UMassEntityTraitBase> Trait : Traits)
+	for (const TObjectPtr<UMassEntityTraitBase>& Trait : Traits)
 	{
 		if (Trait && (bExactMatch ? Trait->GetClass() == TraitClass : Trait->IsA(TraitClass)))
 		{

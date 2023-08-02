@@ -499,7 +499,7 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 					FName TextureName = TextureParameterInfo[TextureIndex].Name;
 
 					// Checking if the pin's texture has been modified in the material instance
-					for (const FTextureParameterValue Texture : DefaultPinValue->TextureParameterValues)
+					for (const FTextureParameterValue& Texture : DefaultPinValue->TextureParameterValues)
 					{
 						if (TextureName == Texture.ParameterInfo.Name)
 						{

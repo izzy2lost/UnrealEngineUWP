@@ -504,7 +504,7 @@ public:
 
 	static FString DebugDump(TObjectPtr<T> InPtr)
 	{
-		return InPtr ? FString::Printf(TEXT("0x%08x [%s]"), InPtr, *InPtr->GetName()) : FString(TEXT("nullptr"));
+		return InPtr ? FString::Printf(TEXT("0x%08x [%s]"), InPtr.Get(), *InPtr->GetName()) : FString(TEXT("nullptr"));
 	}
 
 	typedef FGCObject SerializerType;

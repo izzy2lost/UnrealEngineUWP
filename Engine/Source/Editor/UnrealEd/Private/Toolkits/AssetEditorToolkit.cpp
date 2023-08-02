@@ -570,7 +570,7 @@ TArray<TObjectPtr<UObject>>& FAssetEditorToolkit::GetEditingObjectPtrs()
 
 void FAssetEditorToolkit::GetSaveableObjects(TArray<UObject*>& OutObjects) const
 {
-	for (const auto Object : EditingObjects)
+	for (const TObjectPtr<UObject>& Object : EditingObjects)
 	{
 		// If we are editing a subobject of asset (e.g., a level script blueprint which is contained in a map asset), still provide the
 		// option to work with it but treat save operations/etc... as working on the top level asset itself

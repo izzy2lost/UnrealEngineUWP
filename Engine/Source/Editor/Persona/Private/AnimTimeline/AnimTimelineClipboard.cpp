@@ -25,7 +25,7 @@ FAnimationCurveIdentifier UAnimCurveBaseCopyObject::GetAnimationCurveIdentifier(
 
 bool UAnimTimelineClipboardContent::AreAllCurvesOfTrackType(const ERawCurveTrackTypes Type) const
 {
-	for (const TObjectPtr<UAnimCurveBaseCopyObject> CurveCopyObj : Curves)
+	for (const TObjectPtr<UAnimCurveBaseCopyObject>& CurveCopyObj : Curves)
 	{
 		if (CurveCopyObj->CurveType != Type)
 		{

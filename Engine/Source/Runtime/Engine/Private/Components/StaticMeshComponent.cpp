@@ -693,7 +693,7 @@ void UStaticMeshComponent::OutdatedKnownStaticMeshDetected() const
 		TEXT("StaticMesh property overwritten for component %s without a call to NotifyIfStaticMeshChanged(). KnownStaticMesh (%p) != StaticMesh (%p - %s)"),
 		*GetFullName(),
 		KnownStaticMesh,
-		StaticMesh,
+		StaticMesh.Get(),
 		StaticMesh ? *StaticMesh->GetFullName() : TEXT("nullptr")
 		);
 

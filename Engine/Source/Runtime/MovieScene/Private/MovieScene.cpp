@@ -1159,7 +1159,7 @@ UMovieSceneTrack* UMovieScene::FindTrack( TSubclassOf<UMovieSceneTrack> TrackCla
 {
 	UMovieSceneTrack* FoundTrack = nullptr;
 
-	for (const auto Track : Tracks)
+	for (const TObjectPtr<UMovieSceneTrack>& Track : Tracks)
 	{
 		if (Track->GetClass()->IsChildOf(TrackClass))
 		{

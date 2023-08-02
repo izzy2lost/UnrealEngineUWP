@@ -427,7 +427,7 @@ void UControlRigComponent::Initialize()
 		}
 	}
 
-	for (const TObjectPtr<USceneComponent> ErrorComponent : MappedComponentsWithErrors)
+	for (const TObjectPtr<USceneComponent>& ErrorComponent : MappedComponentsWithErrors)
 	{
 		FString Message = FString::Printf(
 				TEXT("Elements from the same component (%s) should not be mapped to both input and output,"

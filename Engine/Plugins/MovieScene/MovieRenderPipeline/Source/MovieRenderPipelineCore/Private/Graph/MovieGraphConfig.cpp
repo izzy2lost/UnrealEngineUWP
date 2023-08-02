@@ -611,7 +611,7 @@ UMovieGraphOutput* UMovieGraphConfig::AddOutput()
 
 UMovieGraphVariable* UMovieGraphConfig::GetVariableByGuid(const FGuid& InGuid) const
 {
-	for (const TObjectPtr<UMovieGraphVariable> Variable : Variables)
+	for (const TObjectPtr<UMovieGraphVariable>& Variable : Variables)
 	{
 		if (Variable->GetGuid() == InGuid)
 		{

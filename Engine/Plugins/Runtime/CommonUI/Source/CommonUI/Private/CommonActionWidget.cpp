@@ -170,7 +170,7 @@ bool UCommonActionWidget::IsHeldAction() const
 {
 	if (EnhancedInputAction && CommonUI::IsEnhancedInputSupportEnabled())
 	{
-		for (const TObjectPtr<UInputTrigger> Trigger : EnhancedInputAction->Triggers)
+		for (const TObjectPtr<UInputTrigger>& Trigger : EnhancedInputAction->Triggers)
 		{
 			if (EnumHasAnyFlags(Trigger->GetSupportedTriggerEvents(), ETriggerEventsSupported::Ongoing))
 			{

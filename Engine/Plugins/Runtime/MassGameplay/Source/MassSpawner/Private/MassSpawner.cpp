@@ -459,7 +459,7 @@ void AMassSpawner::SpawnGeneratedEntities(TConstArrayView<FMassEntitySpawnDataGe
 
 	for (const FMassEntitySpawnDataGeneratorResult& Result : Results)
 	{
-		for (const TSubclassOf<UMassProcessor> ProcessorClass : Result.PostSpawnProcessors)
+		for (const TSubclassOf<UMassProcessor>& ProcessorClass : Result.PostSpawnProcessors)
 		{
 			if (AddedProcessors.Contains(ProcessorClass) == false)
 			{

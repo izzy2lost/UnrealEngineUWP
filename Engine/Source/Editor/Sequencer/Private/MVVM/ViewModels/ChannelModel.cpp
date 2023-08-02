@@ -551,7 +551,7 @@ void FChannelGroupOverrideHelper::BuildChannelOverrideMenu(FMenuBuilder& MenuBui
 	}
 
 	UMovieSceneChannelOverrideContainer::FOverrideCandidates CommonCandidateOverrides;
-	for (const TTuple<TSubclassOf<UMovieSceneChannelOverrideContainer>, int32> CandidateCount : CandidateCounts)
+	for (const TTuple<TSubclassOf<UMovieSceneChannelOverrideContainer>, int32>& CandidateCount : CandidateCounts)
 	{
 		if (CandidateCount.Value == NumOverridableChannels)
 		{

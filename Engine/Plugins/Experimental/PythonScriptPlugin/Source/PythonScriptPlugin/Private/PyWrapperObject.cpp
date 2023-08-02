@@ -503,7 +503,7 @@ PyTypeObject InitializePyWrapperObjectType()
 				return nullptr;
 			}
 
-			return PyUnicode_FromFormat("<Object '%s' (%p) Class '%s'>", TCHAR_TO_UTF8(*InSelf->ObjectInstance->GetPathName()), InSelf->ObjectInstance, TCHAR_TO_UTF8(*InSelf->ObjectInstance->GetClass()->GetName()));
+			return PyUnicode_FromFormat("<Object '%s' (%p) Class '%s'>", TCHAR_TO_UTF8(*InSelf->ObjectInstance->GetPathName()), InSelf->ObjectInstance.Get(), TCHAR_TO_UTF8(*InSelf->ObjectInstance->GetClass()->GetName()));
 		}
 
 		static PyUtil::FPyHashType Hash(FPyWrapperObject* InSelf)

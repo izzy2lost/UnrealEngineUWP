@@ -89,7 +89,7 @@ void FObjectMixerEditorList::CacheObjectFilterInstances()
 
 	if (ObjectFilterClasses.Num() > 0)
 	{
-		for (const TSubclassOf<UObjectMixerObjectFilter> Class : ObjectFilterClasses)
+		for (const TSubclassOf<UObjectMixerObjectFilter>& Class : ObjectFilterClasses)
 		{
 			UObjectMixerObjectFilter* NewInstance = NewObject<UObjectMixerObjectFilter>(GetTransientPackage(), Class);
 			ObjectFilterInstances.Add(TObjectPtr<UObjectMixerObjectFilter>(NewInstance));

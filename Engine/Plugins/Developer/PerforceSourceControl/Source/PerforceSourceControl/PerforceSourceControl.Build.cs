@@ -11,6 +11,7 @@ public class PerforceSourceControl : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
+				"CoreUObject",
 				"InputCore",
 				"Slate",
 				"SlateCore",

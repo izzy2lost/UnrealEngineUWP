@@ -42,7 +42,7 @@ void UMoviePipelineEdGraph::InitFromRuntimeGraph(UMovieGraphConfig* InGraph)
 	}
 
 	// Create the rest of the nodes in the graph
-	for (const TObjectPtr<UMovieGraphNode> RuntimeNode : InGraph->GetNodes())
+	for (const TObjectPtr<UMovieGraphNode>& RuntimeNode : InGraph->GetNodes())
 	{
 		if (RuntimeNode->IsA<UMovieGraphVariableNode>())
 		{
@@ -64,7 +64,7 @@ void UMoviePipelineEdGraph::InitFromRuntimeGraph(UMovieGraphConfig* InGraph)
 	}
 
 	// Restore editor-only nodes, which have no runtime node equivalent
-	for (const TObjectPtr<UObject> EditorOnlyNodeObject : InGraph->GetEditorOnlyNodes())
+	for (const TObjectPtr<UObject>& EditorOnlyNodeObject : InGraph->GetEditorOnlyNodes())
 	{
 		if (const UEdGraphNode* EdGraphNode = Cast<UEdGraphNode>(EditorOnlyNodeObject))
 		{
@@ -164,7 +164,7 @@ void UMoviePipelineEdGraph::OnGraphConfigChanged()
 {
 	// TODO: Optimize this. Ideally we can target specific changes to the graph rather than rebuilding everything.
 	// However, this isn't strictly necessary unless rebuilding becomes a performance bottleneck.
-	for (const TObjectPtr<UEdGraphNode> Node: Nodes)
+	for (const TObjectPtr<UEdGraphNode>& Node: Nodes)
 	{
 		Node->ReconstructNode();
 	}
@@ -174,7 +174,7 @@ void UMoviePipelineEdGraph::OnGraphNodesDeleted(TArray<UMovieGraphNode*> Deleted
 {
 	TArray<TObjectPtr<UEdGraphNode>> EdGraphNodesToDelete;
 	
-	for (const TObjectPtr<UEdGraphNode> Node : Nodes)
+	for (const TObjectPtr<UEdGraphNode>& Node : Nodes)
 	{
 		if (!Node)
 		{

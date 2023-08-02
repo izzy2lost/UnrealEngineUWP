@@ -91,7 +91,7 @@ static void BuildRuntimeDataRecursive(UProxyTable* RootTable, UProxyTable* Table
 		}
 	}
 
-	for (const TObjectPtr<UProxyTable> ParentTable : Table->InheritEntriesFrom)
+	for (const TObjectPtr<UProxyTable>& ParentTable : Table->InheritEntriesFrom)
 	{
 		if (!OutDependencies.Contains(ParentTable))
 		{

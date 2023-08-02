@@ -1063,7 +1063,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		TEXT("CompositeTexture property overwritten for texture %s without a call to NotifyIfCompositeTextureChanged(). KnownCompositeTexture (%p) != CompositeTexture (%p - %s)"),
 		*GetFullName(),
 		KnownCompositeTexture,
-		CompositeTexture,
+		CompositeTexture.Get(),
 		CompositeTexture ? *CompositeTexture->GetFullName() : TEXT("nullptr")
 	);
 

@@ -854,7 +854,7 @@ void IEnhancedInputSubsystemInterface::RebuildControlMappings()
 	{
 		TMap<TObjectPtr<const UInputMappingContext>, TObjectPtr<const UInputMappingContext>> ContextRedirects;
 		PlatformSettings->GetAllMappingContextRedirects(ContextRedirects);
-		for (const TPair<TObjectPtr<const UInputMappingContext>, TObjectPtr<const UInputMappingContext>> Pair : ContextRedirects)
+		for (const TPair<TObjectPtr<const UInputMappingContext>, TObjectPtr<const UInputMappingContext>>& Pair : ContextRedirects)
 		{
 			if (!Pair.Key || !Pair.Value)
 			{
