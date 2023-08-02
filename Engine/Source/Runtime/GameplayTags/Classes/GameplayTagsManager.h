@@ -637,18 +637,22 @@ public:
 
 	/** Returns "Categories" meta property from given field, used for filtering by tag widget */
 	template <typename TFieldType>
-	FString GetCategoriesMetaFromField(TFieldType* Field) const
+	static FString GetCategoriesMetaFromField(TFieldType* Field)
 	{
 		check(Field);
 		if (Field->HasMetaData(NAME_Categories))
 		{
 			return Field->GetMetaData(NAME_Categories);
 		}
+		else if (Field->HasMetaData(NAME_GameplayTagFilter))
+		{
+			return Field->GetMetaData(NAME_GameplayTagFilter);
+		}
 		return FString();
 	}
 
 	/** Returns "GameplayTagFilter" meta property from given function, used for filtering by tag widget for any parameters of the function that end up as BP pins */
-	GAMEPLAYTAGS_API FString GetCategoriesMetaFromFunction(const UFunction* Func, FName ParamName = NAME_None) const;
+	static GAMEPLAYTAGS_API FString GetCategoriesMetaFromFunction(const UFunction* Func, FName ParamName = NAME_None);
 
 	/** Gets a list of all gameplay tag nodes added by the specific source */
 	GAMEPLAYTAGS_API void GetAllTagsFromSource(FName TagSource, TArray< TSharedPtr<FGameplayTagNode> >& OutTagArray) const;

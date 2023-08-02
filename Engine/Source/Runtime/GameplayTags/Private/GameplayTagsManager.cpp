@@ -1449,7 +1449,7 @@ static void RecursiveRootTagSearch(const FString& InFilterString, const TArray<T
 	{
 		FString RootTagName = GameplayRootTags[iTag].Get()->GetSimpleTagName().ToString();
 
-		if (RootTagName.Equals(CurrentFilter) == true)
+		if (RootTagName == CurrentFilter)
 		{
 			if (RestOfFilter.IsEmpty())
 			{
@@ -1531,28 +1531,6 @@ FString UGameplayTagsManager::StaticGetCategoriesMetaFromPropertyHandle(TSharedP
 {
 	FString Categories;
 
-	auto GetFieldMetaData = ([&](FField* Field)
-	{
-		if (Field->HasMetaData(NAME_Categories))
-		{
-			Categories = Field->GetMetaData(NAME_Categories);
-			return true;
-		}
-
-		return false;
-	});
-
-	auto GetMetaData = ([&](UField* Field)
-	{
-		if (Field->HasMetaData(NAME_Categories))
-		{
-			Categories = Field->GetMetaData(NAME_Categories);
-			return true;
-		}
-
-		return false;
-	});
-	
 	while(PropertyHandle.IsValid())
 	{
 		if (FProperty* Property = PropertyHandle->GetProperty())
@@ -1561,7 +1539,8 @@ FString UGameplayTagsManager::StaticGetCategoriesMetaFromPropertyHandle(TSharedP
 			 *	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Categories="GameplayCue"))
 			 *	FGameplayTag GameplayCueTag;
 			 */
-			if (GetFieldMetaData(Property))
+			Categories = GetCategoriesMetaFromField(Property);
+			if (!Categories.IsEmpty())
 			{
 				break;
 			}
@@ -1572,7 +1551,8 @@ FString UGameplayTagsManager::StaticGetCategoriesMetaFromPropertyHandle(TSharedP
 			 */
 			if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
 			{
-				if (GetMetaData(StructProperty->Struct))
+				Categories = GetCategoriesMetaFromField<UScriptStruct>(StructProperty->Struct);
+				if (!Categories.IsEmpty())
 				{
 					break;
 				}
@@ -1581,7 +1561,8 @@ FString UGameplayTagsManager::StaticGetCategoriesMetaFromPropertyHandle(TSharedP
 			/**	TArray<FGameplayEventKeywordTag> QualifierTagTestList; */
 			if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
 			{
-				if (GetFieldMetaData(ArrayProperty->Inner))
+				Categories = GetCategoriesMetaFromField(ArrayProperty->Inner);
+				if (!Categories.IsEmpty())
 				{
 					break;
 				}
@@ -1590,7 +1571,8 @@ FString UGameplayTagsManager::StaticGetCategoriesMetaFromPropertyHandle(TSharedP
 			/**	TMap<FGameplayTag, ValueType> GameplayTagMap; */
 			if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
 			{
-				if (GetFieldMetaData(MapProperty->KeyProp))
+				Categories = GetCategoriesMetaFromField(MapProperty->KeyProp);
+				if (!Categories.IsEmpty())
 				{
 					break;
 				}
@@ -1602,7 +1584,7 @@ FString UGameplayTagsManager::StaticGetCategoriesMetaFromPropertyHandle(TSharedP
 	return Categories;
 }
 
-FString UGameplayTagsManager::GetCategoriesMetaFromFunction(const UFunction* ThisFunction, FName ParamName /** = NAME_None */) const
+FString UGameplayTagsManager::GetCategoriesMetaFromFunction(const UFunction* ThisFunction, FName ParamName /** = NAME_None */)
 {
 	FString FilterString;
 	if (ThisFunction)
@@ -1613,14 +1595,14 @@ FString UGameplayTagsManager::GetCategoriesMetaFromFunction(const UFunction* Thi
 			FProperty* ParamProp = FindFProperty<FProperty>(ThisFunction, ParamName);
 			if (ParamProp)
 			{
-				FilterString = UGameplayTagsManager::Get().GetCategoriesMetaFromField(ParamProp);
+				FilterString = GetCategoriesMetaFromField(ParamProp);
 			}
 		}
 
 		// No filter found so far, fall back to UFUNCTION-level
-		if (FilterString.IsEmpty() && ThisFunction->HasMetaData(NAME_GameplayTagFilter))
+		if (FilterString.IsEmpty())
 		{
-			FilterString = ThisFunction->GetMetaData(NAME_GameplayTagFilter);
+			FilterString = GetCategoriesMetaFromField(ThisFunction);
 		}
 	}
 
