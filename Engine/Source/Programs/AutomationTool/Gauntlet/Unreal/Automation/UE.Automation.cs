@@ -473,7 +473,7 @@ namespace UE
 		{
 			get
 			{
-				return Type;
+				return Suite;
 			}
 		}
 
