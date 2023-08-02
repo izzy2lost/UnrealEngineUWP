@@ -1555,10 +1555,9 @@ void UWorldPartition::AddReferencedObjects(UObject* InThis, FReferenceCollector&
 		Collector.AllowEliminatingReferences(false);
 		for (auto& [DirtyActorGuid, DirtyActor] : This->DirtyActors)
 		{
-			// Actor pointer might be invalid if the actor was reinstanced, etc, in this case we fallback on the actor pointer resolution in the actor descriptor.
-			if (AActor* ActorPtr = DirtyActor.ActorPtr.IsValid() ? DirtyActor.ActorPtr.Get() : (DirtyActor.WorldPartitionRef.IsSet() ? DirtyActor.WorldPartitionRef.GetValue()->GetActor() : nullptr))
+			if (DirtyActor.WorldPartitionRef.IsSet() || DirtyActor.ActorPtr.IsValid())
 			{
-				Collector.AddReferencedObject(ActorPtr);
+				Collector.AddReferencedObject(DirtyActor.ActorPtr);
 			}
 		}
 		Collector.AllowEliminatingReferences(true);
