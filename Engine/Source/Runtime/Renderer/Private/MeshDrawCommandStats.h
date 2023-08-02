@@ -115,25 +115,25 @@ private:
 	{
 		void Reset()
 		{
-			TotalTriangles = 0;
+			TotalPrimitives = 0;
 			TotalInstances = 0;
 
-			InstanceCullingIndirectTriangles = 0;
+			InstanceCullingIndirectPrimitives = 0;
 			InstanceCullingIndirectInstances = 0;
 
-			CustomIndirectTriangles = 0;
+			CustomIndirectPrimitives = 0;
 			CustomIndirectInstances = 0;
 
 			CategoryStats.Empty();
 		}
 
-		int32 TotalTriangles = 0;					
+		int32 TotalPrimitives = 0;					
 		int32 TotalInstances = 0;					
 
-		int32 InstanceCullingIndirectTriangles = 0;
+		int32 InstanceCullingIndirectPrimitives = 0;
 		int32 InstanceCullingIndirectInstances = 0;		
 
-		int32 CustomIndirectTriangles = 0;
+		int32 CustomIndirectPrimitives = 0;
 		int32 CustomIndirectInstances = 0;
 
 		/**
