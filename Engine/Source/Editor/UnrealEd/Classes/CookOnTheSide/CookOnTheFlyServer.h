@@ -1480,6 +1480,8 @@ private:
 	bool bIterativeIgnoreExe = false;
 	/** Whether we should calculate the exe's hash; might be true even if bIterativeIgnoreExe is true. */
 	bool bIterativeCalculateExe = true;
+	/** If true this will ignore cooking unsolicited packages.  This is only useful if launching the COTF server to only process shader recompile requests. */
+	bool bIgnoreUnsolicitedPackages = false;
 	/** Timers for tracking how long we have been busy, to manage retries and warnings of deadlock */
 	double SaveBusyStartTimeSeconds = MAX_flt;
 	double SaveBusyRetryTimeSeconds = MAX_flt;
