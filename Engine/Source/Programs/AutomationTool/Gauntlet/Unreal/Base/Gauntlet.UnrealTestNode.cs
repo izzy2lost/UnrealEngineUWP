@@ -1355,7 +1355,7 @@ namespace Gauntlet
 					ReportName = ReportName.Split('.').Last();
 				}
 
-				return ReportName;				
+				return ReportName;
 			}
 		}
 

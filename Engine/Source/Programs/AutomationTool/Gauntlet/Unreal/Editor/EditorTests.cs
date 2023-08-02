@@ -150,5 +150,13 @@ namespace UnrealEditor
 			Config.RequireRole(UnrealTargetRole.Editor);	
 			return Config;
 		}
+
+		protected override string HordeReportTestName
+		{
+			get
+			{
+				return GetConfiguration().RunTest.Replace(".", " ");
+			}
+		}
 	}
 }

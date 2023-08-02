@@ -461,6 +461,17 @@ namespace UE
 		}
 
 		/// <summary>
+		/// Override the HordeReportTestName in case a simple report is used
+		/// </summary>
+		protected override string HordeReportTestName
+		{
+			get
+			{
+				return Type;
+			}
+		}
+
+		/// <summary>
 		/// Override the Type
 		/// </summary>
 		public override string Type
