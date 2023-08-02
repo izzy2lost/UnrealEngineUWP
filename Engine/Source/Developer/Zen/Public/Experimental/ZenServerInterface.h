@@ -216,6 +216,7 @@ private:
 	FString HostName;
 	uint16 Port;
 	static uint16 AutoLaunchedPort;
+	static uint32 AutoLaunchedPid;
 	bool bHasLaunchedLocal = false;
 	bool bIsRunningLocally = true;
 };
