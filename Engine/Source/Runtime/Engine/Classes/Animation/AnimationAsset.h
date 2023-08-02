@@ -281,6 +281,10 @@ struct FAnimExtractContext
 	 * by several animation nodes to optimize evaluation time.
 	 */
 	TArray<bool> BonesRequired;
+
+#if WITH_EDITOR
+	bool bIgnoreRootLock;
+#endif 
 	
 	UE_DEPRECATED(5.1, "FAnimExtractContext construct with float-based time value is deprecated, use other signature")
 	FAnimExtractContext(float InCurrentTime, bool InbExtractRootMotion = false, FDeltaTimeRecord InDeltaTimeRecord = {}, bool InbLooping = false)
@@ -290,6 +294,9 @@ struct FAnimExtractContext
 		, bLooping(InbLooping)
 		, PoseCurves()
 		, BonesRequired()
+#if WITH_EDITOR
+		, bIgnoreRootLock(false)
+#endif 
 	{
 	}
 
@@ -300,6 +307,9 @@ struct FAnimExtractContext
 		, bLooping(InbLooping)
 		, PoseCurves()
 		, BonesRequired()
+#if WITH_EDITOR
+		, bIgnoreRootLock(false)
+#endif 
 	{
 	}
 
