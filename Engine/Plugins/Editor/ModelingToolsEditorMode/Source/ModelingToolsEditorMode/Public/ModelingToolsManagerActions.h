@@ -79,6 +79,7 @@ public:
 	TSharedPtr<FUICommandInfo> BeginConvertMeshesTool;
 	TSharedPtr<FUICommandInfo> BeginSplitMeshesTool;
 	TSharedPtr<FUICommandInfo> BeginPatternTool;
+	TSharedPtr<FUICommandInfo> BeginHarvestInstancesTool;
 
 
 	TSharedPtr<FUICommandInfo> BeginRemeshSculptMeshTool;

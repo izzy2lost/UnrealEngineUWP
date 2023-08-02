@@ -93,6 +93,7 @@
 #include "ConvertMeshesTool.h"
 #include "SplitMeshesTool.h"
 #include "PatternTool.h"
+#include "HarvestInstancesTool.h"
 #include "TriangulateSplinesTool.h"
 
 #include "Polymodeling/ExtrudeMeshSelectionTool.h"
@@ -650,6 +651,7 @@ void UModelingToolsEditorMode::Enter()
 	UPatternToolBuilder* PatternToolBuilder = NewObject<UPatternToolBuilder>();
 	PatternToolBuilder->bEnableCreateISMCs = true;
 	RegisterTool(ToolManagerCommands.BeginPatternTool, TEXT("BeginPatternTool"), PatternToolBuilder);
+	RegisterTool(ToolManagerCommands.BeginHarvestInstancesTool, TEXT("BeginHarvestInstancesTool"), NewObject<UHarvestInstancesToolBuilder>());
 
 	UCombineMeshesToolBuilder* CombineMeshesToolBuilder = NewObject<UCombineMeshesToolBuilder>();
 	RegisterTool(ToolManagerCommands.BeginCombineMeshesTool, TEXT("BeginCombineMeshesTool"), CombineMeshesToolBuilder);

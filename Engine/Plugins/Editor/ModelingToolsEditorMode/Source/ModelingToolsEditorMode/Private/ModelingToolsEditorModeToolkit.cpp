@@ -309,6 +309,7 @@ void FModelingToolsEditorModeToolkit::RegisterPalettes()
 		Commands.BeginSplitMeshesTool,
 		Commands.BeginPatternTool,
 		
+		Commands.BeginHarvestInstancesTool,
 		Commands.BeginISMEditorTool
 	});
 	ToolkitBuilder->AddPalette(
