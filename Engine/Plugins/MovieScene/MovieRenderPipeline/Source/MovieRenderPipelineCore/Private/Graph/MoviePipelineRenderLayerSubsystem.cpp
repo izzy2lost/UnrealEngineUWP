@@ -3,6 +3,9 @@
 #include "Graph/MoviePipelineRenderLayerSubsystem.h"
 
 #include "Components/PrimitiveComponent.h"
+#include "Components/SkyAtmosphereComponent.h"
+#include "Components/SkyLightComponent.h"
+#include "Components/SphereReflectionCaptureComponent.h"
 #include "EngineUtils.h"
 #include "Materials/MaterialInterface.h"
 #include "MovieRenderPipelineCoreModule.h"
@@ -174,8 +177,37 @@ bool UMoviePipelineCollectionCommonQuery::DoesActorMatchQuery(const AActor* Acto
 	return bMatchesActorNames || bMatchesTags || bMatchesComponentTypes;
 }
 
+bool UMoviePipelineCollectionLightingQuery::DoesActorMatchQuery(const AActor* Actor) const
+{
+	const TArray<UClass*> LightingComponentTypes = {
+		ULightComponentBase::StaticClass(),
+		UReflectionCaptureComponent::StaticClass(),
+		USkyAtmosphereComponent::StaticClass(),
+		USkyLightComponent::StaticClass()
+	};
+	
+	TArray<UActorComponent*> ActorComponents;
+	constexpr bool bIncludeFromChildActors = true;
+	Actor->GetComponents(ActorComponents, bIncludeFromChildActors);
+	
+	for (const UActorComponent* Component : ActorComponents)
+	{
+		for (const UClass* ComponentType : LightingComponentTypes)
+		{
+			if (Component->IsA(ComponentType))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 TArray<AActor*> UMoviePipelineCollection::GetMatchingActors(const UWorld* World, const bool bInvertResult) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(MRQ::Collection::GetMatchingActors);
+	
 	TArray<AActor*> MatchingActors;
 
 	for (TActorIterator<AActor> ActorItr(World); ActorItr; ++ActorItr)
@@ -321,7 +353,7 @@ void UMoviePipelineRenderLayerSubsystem::Initialize(FSubsystemCollectionBase& Co
 	VisualizationModifier_HideWorld = NewObject<UMoviePipelineVisibilityModifier>(GetTransientPackage(), NAME_None, RF_Transient);
 	VisualizationModifier_HideWorld->AddCollection(VisualizationEmptyCollection);
 	VisualizationModifier_HideWorld->SetHidden(true);
-	VisualizationModifier_HideWorld->SetIsInverted(true);
+	VisualizationModifier_HideWorld->bUseInvertedActors = true;
 
 	// Selectively show collections in the visualization
 	VisualizationModifier_VisibleCollections = NewObject<UMoviePipelineVisibilityModifier>(GetTransientPackage(), NAME_None, RF_Transient);
@@ -357,7 +389,7 @@ bool UMoviePipelineRenderLayerSubsystem::AddRenderLayer(UMoviePipelineRenderLaye
 
 	if (bRenderLayerExists)
 	{
-		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Render layer '%s' already exists in the render layer subsystem; it will not be added again."), *RenderLayer->GetRenderLayerName());
+		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Render layer '%s' already exists in the render layer subsystem; it will not be added again."), *RenderLayer->GetRenderLayerName().ToString());
 		return false;
 	}
 
@@ -394,7 +426,7 @@ void UMoviePipelineRenderLayerSubsystem::SetActiveRenderLayerByObj(UMoviePipelin
 	SetAndPreviewRenderLayer(RenderLayer);
 }
 
-void UMoviePipelineRenderLayerSubsystem::SetActiveRenderLayerByName(const FString& RenderLayerName)
+void UMoviePipelineRenderLayerSubsystem::SetActiveRenderLayerByName(const FName& RenderLayerName)
 {
 	const uint32 Index = RenderLayers.IndexOfByPredicate([&RenderLayerName](const UMoviePipelineRenderLayer* RenderLayer)
 	{

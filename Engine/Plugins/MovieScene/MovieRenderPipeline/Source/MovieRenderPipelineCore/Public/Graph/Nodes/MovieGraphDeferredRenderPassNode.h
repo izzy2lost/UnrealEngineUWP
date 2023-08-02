@@ -130,6 +130,8 @@ protected:
 		void Render(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData);
 		void GatherOutputPassesImpl(TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const;
 		void AddReferencedObjects(FReferenceCollector& Collector);
+		FName GetBranchName() const;
+		TWeakObjectPtr<UMovieGraphDefaultRenderer> GetRenderer() const;
 
 	protected:
 		TSharedRef<FSceneViewFamilyContext> AllocateSceneViewFamilyContext(const FViewFamilyContextInitData& InInitData);

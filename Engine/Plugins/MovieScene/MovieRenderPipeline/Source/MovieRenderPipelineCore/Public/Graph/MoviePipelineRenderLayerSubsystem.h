@@ -20,16 +20,16 @@ class UMoviePipelineCollection : public UObject
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	TArray<AActor*> GetMatchingActors(const UWorld* World, const bool bInvertResult = false) const;
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void AddQuery(UMoviePipelineCollectionQuery* Query);
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void SetCollectionName(const FString& InName) { CollectionName = InName; }
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	FString GetCollectionName() const { return CollectionName; }
 
 private:
@@ -50,33 +50,28 @@ class UMoviePipelineCollectionModifier : public UObject
 
 public:
 	/** Adds a collection to the existing set of collections in this modifier. */
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void AddCollection(UMoviePipelineCollection* Collection);
 
 	/** Overwrites the existing collections with the provided array of collections. */
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void SetCollections(const TArray<UMoviePipelineCollection*> InCollections) { Collections = InCollections; }
 	
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	TArray<UMoviePipelineCollection*> GetCollections() const { return Collections; }
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
-	void SetIsInverted(const bool bIsInverted) { bUseInvertedActors = bIsInverted; }
-
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
-	bool IsInverted() const { return bUseInvertedActors; }
-	
 	virtual void ApplyModifier(const UWorld* World) PURE_VIRTUAL(UMoviePipelineCollectionModifier::ApplyModifier, );
 	virtual void UndoModifier() PURE_VIRTUAL(UMoviePipelineCollectionModifier::UndoModifier, );
+
+public:
+	/** Whether an inverted collection of actors should be used instead. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
+	bool bUseInvertedActors = false;
 
 protected:
 	/** The collections which this modifier will operate on. */
 	UPROPERTY()
 	TArray<TObjectPtr<UMoviePipelineCollection>> Collections;
-
-	/** Whether an inverted collection of actors should be used. */
-	UPROPERTY()
-	bool bUseInvertedActors = false;
 };
 
 /**
@@ -88,13 +83,13 @@ class UMoviePipelineMaterialModifier : public UMoviePipelineCollectionModifier
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void SetMaterial(TSoftObjectPtr<UMaterialInterface> InMaterial) { MaterialToApply = InMaterial; }
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	virtual void ApplyModifier(const UWorld* World) override;
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	virtual void UndoModifier() override;
 
 private:
@@ -105,7 +100,7 @@ private:
 	FComponentToMaterialMap ModifiedComponents;
 
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Render Layers")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
 	TSoftObjectPtr<UMaterialInterface> MaterialToApply;
 };
 
@@ -118,16 +113,16 @@ class UMoviePipelineVisibilityModifier : public UMoviePipelineCollectionModifier
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void SetHidden(const bool bInIsHidden) { bIsHidden = bInIsHidden; }
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	bool IsHidden() const { return bIsHidden; }
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	virtual void ApplyModifier(const UWorld* World) override;
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	virtual void UndoModifier() override;
 
 private:
@@ -139,7 +134,7 @@ private:
 	TMap<TSoftObjectPtr<AActor>, bool> ModifiedActors;
 
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Render Layers")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
 	bool bIsHidden = false;
 };
 
@@ -173,19 +168,19 @@ class UMoviePipelineCollectionCommonQuery : public UMoviePipelineCollectionQuery
 
 public:
 	// TODO: Add other common query operations (level, etc)
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void SetActorNames(const TArray<FString>& InActorNames) { ActorNames = InActorNames; }
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void SetTags(const TArray<FName>& InTags) { Tags = InTags; }
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void SetComponentTypes(TArray<UClass*> InComponentTypes) { ComponentTypes = InComponentTypes; }
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void SetQueryMode(const EMoviePipelineCollectionCommonQueryMode InQueryMode) { QueryMode = InQueryMode; }
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	virtual bool DoesActorMatchQuery(const AActor* Actor) const override;
 
 public:
@@ -202,6 +197,17 @@ public:
 	TArray<FName> Tags;
 };
 
+/** Generates a query that matches all lighting components. */
+UCLASS(BlueprintType)
+class UMoviePipelineCollectionLightingQuery : public UMoviePipelineCollectionQuery
+{
+	GENERATED_BODY()
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	virtual bool DoesActorMatchQuery(const AActor* Actor) const override;
+};
+
 /**
  * Provides a means of assembling modifiers together to generate a desired view of a scene. 
  */
@@ -213,34 +219,34 @@ class UMoviePipelineRenderLayer : public UObject
 public:
 	UMoviePipelineRenderLayer() = default;
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
-	FString GetRenderLayerName() const { return RenderLayerName; };
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	FName GetRenderLayerName() const { return RenderLayerName; };
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
-	void SetRenderLayerName(const FString& NewName) { RenderLayerName = NewName; }
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	void SetRenderLayerName(const FName& NewName) { RenderLayerName = NewName; }
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	UMoviePipelineCollection* GetCollectionByName(const FString& Name) const;
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void AddModifier(UMoviePipelineCollectionModifier* Modifier);
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	TArray<UMoviePipelineCollectionModifier*> GetModifiers() const { return Modifiers; };
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void RemoveModifier(UMoviePipelineCollectionModifier* Modifier);
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void Preview(const UWorld* World);
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void UndoPreview(const UWorld* World);
 
 private:
 	/** The name of this render layer. */
 	UPROPERTY()
-	FString RenderLayerName;
+	FName RenderLayerName;
 
 	/** The modifiers that are active when this render layer is active. */
 	UPROPERTY()
@@ -261,7 +267,7 @@ public:
 	UMoviePipelineRenderLayerSubsystem() = default;
 
 	/* Get this subsystem for a specific world. Handy for use from Python. */
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	static UMoviePipelineRenderLayerSubsystem* GetFromWorld(const UWorld* World);
 
 	//~ Begin USubsystem interface
@@ -271,46 +277,46 @@ public:
 	//~ End USubsystem interface
 
 	/** Clear out all tracked render layers and collections. */
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void Reset();
 
 	/**
 	 * Adds a render layer to the system, which can later be made active by SetActiveRenderLayer*(). Returns true
 	 * if the layer was added successfully, else false.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	bool AddRenderLayer(UMoviePipelineRenderLayer* RenderLayer);
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	const TArray<UMoviePipelineRenderLayer*>& GetRenderLayers() { return RenderLayers; }
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void RemoveRenderLayer(const FString& RenderLayerName);
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	UMoviePipelineRenderLayer* GetActiveRenderLayer() const { return ActiveRenderLayer; }
 
 	/** Previews the layer with the given name. The layer needs to have been registered with AddRenderLayer(). */
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
-	void SetActiveRenderLayerByName(const FString& RenderLayerName);
+	UFUNCTION(BlueprintCallable, Category = "Settings")
+	void SetActiveRenderLayerByName(const FName& RenderLayerName);
 
 	/** Previews the given layer. The layer does not need to have been registered with AddRenderLayer(). */
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void SetActiveRenderLayerByObj(UMoviePipelineRenderLayer* RenderLayer);
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void ClearActiveRenderLayer();
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void PreviewCollection(UMoviePipelineCollection* Collection);
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void ClearCollectionPreview();
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void PreviewModifier(UMoviePipelineCollectionModifier* Modifier);
 
-	UFUNCTION(BlueprintCallable, Category = "Render Layers")
+	UFUNCTION(BlueprintCallable, Category = "Settings")
 	void ClearModifierPreview();
 
 private:

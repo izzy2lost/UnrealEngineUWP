@@ -83,11 +83,23 @@ public:
 	/** Used by the Renderer Instance to disable the preview widget before rendering so it isn't baked into the UI Renderer. */
 	void SetPreviewWidgetVisible(bool bInIsVisible) { SetPreviewWidgetVisibleImpl(bInIsVisible); }
 
+	/**
+	 * Resets the render layer subsystem and updates it to reflect the render layers that are present in the evaluated
+	 * graph. Does not update the contents of the layers, however. See UpdateLayerContentsInRenderLayerSubsystem().
+	 */
+	void CreateLayersInRenderLayerSubsystem(const UMovieGraphEvaluatedConfig* EvaluatedConfig) const;
+
+	/**
+	 * Updates the contents of the layers that are currently present in the render layer subsystem by evaluating all
+	 * available collections and modifiers. To update the layers that are present in the subsystem, see
+	 * CreateLayersInRenderLayerSubsystem().
+	 */
+	void UpdateLayerContentsInRenderLayerSubsystem(const UMovieGraphEvaluatedConfig* EvaluatedConfig) const;
+
 protected:
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
 	virtual void OnMoviePipelineFinishedImpl();
 
-protected:
 	virtual void OnEngineTickBeginFrame();
 	virtual void OnEngineTickEndFrame();
 	virtual void RenderFrame();

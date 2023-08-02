@@ -84,6 +84,13 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 		// Seeks the external data source to match
 		GetOwningGraph()->GetDataSourceInstance()->InitializeShot(CurrentCameraCut);
 
+		// Generate render layers from the evaluated graph
+		GetOwningGraph()->CreateLayersInRenderLayerSubsystem(CurrentTimeStepData.EvaluatedConfig);
+
+		// Update the contents of the render layers
+		// TODO: This should probably be done per-frame
+		GetOwningGraph()->UpdateLayerContentsInRenderLayerSubsystem(CurrentTimeStepData.EvaluatedConfig);
+
 		const bool bIncludeCDO = false;
 		UMovieGraphOutputSettingNode* OutputNode = CurrentFrameData.EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDO);
 

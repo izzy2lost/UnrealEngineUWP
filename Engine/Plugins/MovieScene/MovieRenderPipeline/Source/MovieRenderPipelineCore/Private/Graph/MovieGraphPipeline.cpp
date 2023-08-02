@@ -5,7 +5,10 @@
 #include "Graph/MovieGraphCVarManager.h"
 #include "Graph/MovieGraphDataTypes.h"
 #include "Graph/MovieGraphOutputMerger.h"
+#include "Graph/MoviePipelineRenderLayerSubsystem.h"
+#include "Graph/Nodes/MovieGraphCollectionNode.h"
 #include "Graph/Nodes/MovieGraphFileOutputNode.h"
+#include "Graph/Nodes/MovieGraphModifierNode.h"
 #include "Graph/Nodes/MovieGraphOutputSettingNode.h"
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "MovieRenderPipelineCoreModule.h"
@@ -161,6 +164,78 @@ void UMovieGraphPipeline::SetPreviewWidgetVisibleImpl(bool bInIsVisible)
 	if (PreviewWidget)
 	{
 		PreviewWidget->SetVisibility(bInIsVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+}
+
+void UMovieGraphPipeline::CreateLayersInRenderLayerSubsystem(const UMovieGraphEvaluatedConfig* EvaluatedConfig) const
+{
+	UMoviePipelineRenderLayerSubsystem* LayerSubsystem = GetWorld()->GetSubsystem<UMoviePipelineRenderLayerSubsystem>();
+	if (!LayerSubsystem)
+	{
+		return;
+	}
+	
+	LayerSubsystem->Reset();
+
+	// One render layer is generated per branch
+	for (const FName& BranchName : EvaluatedConfig->GetBranchNames())
+	{
+		UMoviePipelineRenderLayer* RenderLayer = NewObject<UMoviePipelineRenderLayer>();
+		RenderLayer->SetRenderLayerName(BranchName);
+		LayerSubsystem->AddRenderLayer(RenderLayer);
+	}
+}
+
+void UMovieGraphPipeline::UpdateLayerContentsInRenderLayerSubsystem(const UMovieGraphEvaluatedConfig* EvaluatedConfig) const
+{
+	UMoviePipelineRenderLayerSubsystem* LayerSubsystem = GetWorld()->GetSubsystem<UMoviePipelineRenderLayerSubsystem>();
+	if (!LayerSubsystem)
+	{
+		return;
+	}
+
+	for (UMoviePipelineRenderLayer* RenderLayer : LayerSubsystem->GetRenderLayers())
+	{
+		const FName& LayerName = RenderLayer->GetRenderLayerName();
+		
+		// Gather all collection and modifier nodes from the evaluated graph
+		constexpr bool bIncludeCDOs = false;
+		constexpr bool bExactMatch = true;
+		const TArray<UMovieGraphCollectionNode*> CollectionNodes =
+			EvaluatedConfig->GetSettingsForBranch<UMovieGraphCollectionNode>(LayerName, bIncludeCDOs, bExactMatch);
+		const TArray<UMovieGraphModifierNode*> ModifierNodes =
+			EvaluatedConfig->GetSettingsForBranch<UMovieGraphModifierNode>(LayerName, bIncludeCDOs, bExactMatch);
+		
+		for (const UMovieGraphModifierNode* ModifierNode : ModifierNodes)
+		{
+			ModifierNode->ModifierClass->SetCollections({});
+			
+			// Find the collection that this modifier is modifying
+			for (const UMovieGraphCollectionNode* CollectionNode : CollectionNodes)
+			{
+				if (CollectionNode && (CollectionNode->CollectionName == ModifierNode->ModifiedCollectionName))
+				{
+					UMoviePipelineCollection* NewCollection = NewObject<UMoviePipelineCollection>();
+					NewCollection->AddQuery(CollectionNode->QueryClass);
+					NewCollection->SetCollectionName(CollectionNode->CollectionName);
+					
+					ModifierNode->ModifierClass->SetCollections({NewCollection});
+					break;
+				}
+			}
+
+			// If the modifier had a valid collection added to it, add the modifier to the render layer. The modifier
+			// won't have any effect without a collection to act on.
+			if (ModifierNode->ModifierClass->GetCollections().IsEmpty())
+			{
+				UE_LOG(LogMovieRenderPipeline, Warning, TEXT("The modifier '%s' specified a collection '%s', but the collection couldn't be found."),
+					*ModifierNode->ModifierName, *ModifierNode->ModifiedCollectionName);
+			}
+			else
+			{
+				RenderLayer->AddModifier(ModifierNode->ModifierClass);
+			}
+		}
 	}
 }
 

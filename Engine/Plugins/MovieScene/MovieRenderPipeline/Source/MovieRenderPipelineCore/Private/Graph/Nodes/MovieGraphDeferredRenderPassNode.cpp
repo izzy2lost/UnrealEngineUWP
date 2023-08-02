@@ -5,6 +5,7 @@
 #include "Graph/MovieGraphDataTypes.h"
 #include "Graph/MovieGraphDefaultRenderer.h"
 #include "Graph/MovieGraphPipeline.h"
+#include "Graph/MoviePipelineRenderLayerSubsystem.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "MovieRenderOverlappedImage.h"
 #include "MoviePipelineSurfaceReader.h"
@@ -49,12 +50,28 @@ void UMovieGraphDeferredRenderPassNode::TeardownImpl()
 	CurrentInstances.Reset();
 }
 
-
 void UMovieGraphDeferredRenderPassNode::RenderImpl(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData)
 {
-	for (TUniquePtr<FMovieGraphDeferredRenderPass>& Instance : CurrentInstances)
+	for (const TUniquePtr<FMovieGraphDeferredRenderPass>& Instance : CurrentInstances)
 	{
+		UMoviePipelineRenderLayerSubsystem* LayerSubsystem =
+			Instance->GetRenderer()->GetWorld()->GetSubsystem<UMoviePipelineRenderLayerSubsystem>();
+		
+		// Apply all modifiers in the evaluated graph
+		if (LayerSubsystem)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(MRQ::DeferredRender::ActivateRenderLayer);
+			LayerSubsystem->SetActiveRenderLayerByName(Instance->GetBranchName());
+		}
+		
 		Instance->Render(InFrameTraversalContext, InTimeData);
+
+		// Revert all modifiers
+		if (LayerSubsystem)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(MRQ::DeferredRender::RevertRenderLayer);
+			LayerSubsystem->ClearActiveRenderLayer();
+		}
 	}
 }
 
@@ -127,6 +144,16 @@ void UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::AddRefere
 	{
 		Ref->AddReferencedObjects(Collector);
 	}
+}
+
+FName UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::GetBranchName() const
+{
+	return LayerData.BranchName;
+}
+
+TWeakObjectPtr<UMovieGraphDefaultRenderer> UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::GetRenderer() const
+{
+	return Renderer;
 }
 
 void UMovieGraphDeferredRenderPassNode::FMovieGraphDeferredRenderPass::Render(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData)
