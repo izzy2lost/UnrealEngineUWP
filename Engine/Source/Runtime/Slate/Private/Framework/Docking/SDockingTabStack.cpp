@@ -1328,6 +1328,7 @@ void SDockingTabStack::BindTabCommands()
 	const FTabCommands& Commands = FTabCommands::Get();
 	ActionList->MapAction(Commands.CloseMajorTab, FExecuteAction::CreateSP(this, &SDockingTabStack::ExecuteCloseMajorTabCommand), FCanExecuteAction::CreateSP(this, &SDockingTabStack::CanExecuteCloseMajorTabCommand));
 	ActionList->MapAction(Commands.CloseMinorTab, FExecuteAction::CreateSP(this, &SDockingTabStack::ExecuteCloseMinorTabCommand), FCanExecuteAction::CreateSP(this, &SDockingTabStack::CanExecuteCloseMinorTabCommand));
+	ActionList->MapAction(Commands.CloseFocusedTab, FExecuteAction::CreateSP(this, &SDockingTabStack::ExecuteCloseFocusedTabCommand), FCanExecuteAction::CreateSP(this, &SDockingTabStack::CanExecuteCloseFocusedTabCommand));
 }
 
 void SDockingTabStack::ExecuteCloseMajorTabCommand()
@@ -1371,6 +1372,23 @@ bool SDockingTabStack::CanExecuteCloseMinorTabCommand()
 		}
 	}
 	return false;
+}
+
+void SDockingTabStack::ExecuteCloseFocusedTabCommand()
+{
+	if (CanExecuteCloseMinorTabCommand())
+	{
+		ExecuteCloseMinorTabCommand();
+	}
+	else
+	{
+		ExecuteCloseMajorTabCommand();
+	}
+}
+
+bool SDockingTabStack::CanExecuteCloseFocusedTabCommand()
+{
+	return CanExecuteCloseMinorTabCommand() || CanExecuteCloseMajorTabCommand();
 }
 
 void SDockingTabStack::OnResized()
