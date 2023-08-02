@@ -932,6 +932,10 @@ void UChildActorComponent::DestroyChildActor()
 
 		ChildActor = nullptr;
 	}
+	else if (!IsValid(ChildActor))
+	{
+		ChildActor = nullptr;
+	}
 }
 
 void UChildActorComponent::BeginPlay()
