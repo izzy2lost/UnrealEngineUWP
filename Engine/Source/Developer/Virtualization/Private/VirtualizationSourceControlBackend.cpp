@@ -368,7 +368,11 @@ IVirtualizationBackend::EConnectionStatus FSourceControlBackend::OnConnect()
 		// TODO: Maybe give a bespoke error at this point?
 		if (bUseRetryConnectionDialog && bUseLocalIniFileSettings)
 		{
-			SRevisionControlConnectionDialog::FResult DialogResult = SRevisionControlConnectionDialog::RunDialog(Port, UserName);
+			SRevisionControlConnectionDialog::FResult DialogResult = SRevisionControlConnectionDialog::RunDialog(	TEXT("Perforce"),
+																													TEXT("PerforceSourceControl.VirtualizationSettings"),
+																													Port,
+																													UserName);
+
 			if (!DialogResult.bShouldRetry)
 			{
 				OnConnectionError(ErrorMessage);
