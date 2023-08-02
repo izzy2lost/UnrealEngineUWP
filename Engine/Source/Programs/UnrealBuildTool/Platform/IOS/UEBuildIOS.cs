@@ -143,11 +143,6 @@ namespace UnrealBuildTool
 		/// </summary>
 		[CommandLine("-EnableUBSan")]
 		public bool bEnableUndefinedBehaviorSanitizer = false;
-
-		/// <summary>
-		/// If true, we use SwiftUI's main function instead of Obj-C's main
-		/// </summary>
-		public bool bUseSwiftUIMain = false;
 	}
 
 	/// <summary>
@@ -201,8 +196,6 @@ namespace UnrealBuildTool
 		public bool bEnableThreadSanitizer => Inner.bEnableThreadSanitizer;
 
 		public bool bEnableUndefinedBehaviorSanitizer => Inner.bEnableUndefinedBehaviorSanitizer;
-
-		public bool bUseSwiftUIMain => Inner.bUseSwiftUIMain;
 
 #pragma warning restore CS1591
 		#endregion

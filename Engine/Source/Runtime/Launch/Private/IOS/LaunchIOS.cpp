@@ -289,13 +289,10 @@ void FAppEntry::DecrementAudioSuspendCounters()
     }
 }
 
-#if PLATFORM_VISIONOS
-// SwiftUI test integration
-#include "UESwift-Swift.h"
-#endif
-
 void FAppEntry::PreInit(IOSAppDelegate* AppDelegate, UIApplication* Application)
 {
+	// SwiftUI apps handle this differently
+#if !UE_USE_SWIFT_UI_MAIN
 	// make a controller object
 	IOSViewController* IOSController = [[IOSViewController alloc] init];
 	
@@ -318,18 +315,13 @@ void FAppEntry::PreInit(IOSAppDelegate* AppDelegate, UIApplication* Application)
 	Application.applicationIconBadgeNumber = 0;
 #endif
 	
-#if PLATFORM_VISIONOS
-	UIViewController* HostingController = [HostingViewFactory MakeSwiftUIViewOnClick:
-	^{
-		// close on click
-		[[IOSController presentedViewController] dismissViewControllerAnimated:YES completion:nil];
-	}];
-	[IOSController presentViewController:HostingController animated:YES completion:nil];
 #endif
 }
 
 static void MainThreadInit()
 {
+	// SwiftUI apps handle this differently
+#if !UE_USE_SWIFT_UI_MAIN
 	IOSAppDelegate* AppDelegate = [IOSAppDelegate GetDelegate];
 
 #if PLATFORM_VISIONOS
@@ -375,6 +367,7 @@ static void MainThreadInit()
 	// initialize the backbuffer of the view (so the RHI can use it)
 	[AppDelegate.IOSView CreateFramebuffer];
 #endif
+#endif
 }
 
 
@@ -393,6 +386,13 @@ void FAppEntry::PlatformInit()
 	// wait until the GLView is fully initialized, so the RHI can be initialized
 	IOSAppDelegate* AppDelegate = [IOSAppDelegate GetDelegate];
 
+#if UE_USE_SWIFT_UI_MAIN
+	while (!AppDelegate.SwiftLayer)
+	{
+		FPlatformProcess::Sleep(0.005f);
+	}
+#else
+	
 	while (!AppDelegate.IOSView || !AppDelegate.IOSView->bIsInitialized)
 	{
 #if BUILD_EMBEDDED_APP
@@ -403,7 +403,7 @@ void FAppEntry::PlatformInit()
 #endif
 		FPlatformProcess::Sleep(0.005f);
 	}
-
+#endif
 	// Set GSystemResolution now that we have the size.
 	FDisplayMetrics DisplayMetrics;
 	FDisplayMetrics::RebuildDisplayMetrics(DisplayMetrics);
@@ -416,9 +416,9 @@ extern TcpConsoleListener *ConsoleListener;
 void FAppEntry::Init()
 {
 	SCOPED_BOOT_TIMING("FAppEntry::Init()");
-
+	
 	FPlatformProcess::SetRealTimeMode();
-
+	
 	//extern TCHAR GCmdLine[16384];
 	GEngineLoop.PreInit(FCommandLine::Get());
 
@@ -556,8 +556,7 @@ int32	FAppEntry::gLaunchLocalNotificationFireDate;
 
 FString GSavedCommandLine;
 
-#if !BUILD_EMBEDDED_APP
-
+#if !BUILD_EMBEDDED_APP && !UE_USE_SWIFT_UI_MAIN
 int main(int argc, char *argv[])
 {
     for(int Option = 1; Option < argc; Option++)
@@ -587,6 +586,75 @@ int main(int argc, char *argv[])
 	@autoreleasepool {
 	    return UIApplicationMain(argc, argv, nil, NSStringFromClass([IOSAppDelegate class]));
 	}
+}
+
+#endif
+
+
+#if UE_USE_SWIFT_UI_MAIN
+
+#include "UECppToSwift.h"
+
+void FSwiftAppBootstrap::KickoffWithCompositingLayer(CP_OBJECT_cp_layer_renderer* Layer)
+{
+	IOSAppDelegate* AppDelegate = [IOSAppDelegate GetDelegate];
+	
+	cp_layer_renderer_properties_t Props = cp_layer_renderer_get_properties(Layer);
+	int NumViews = cp_layer_renderer_properties_get_view_count(Props);
+	int NumTopologies = cp_layer_renderer_properties_get_texture_topology_count(Props);
+
+	NSMutableArray* Viewports = [NSMutableArray arrayWithCapacity:NumViews];
+
+	// get the texture topology
+	// @todo when Apple adds the API to actually get the size, use this instead of the mess below (docs indicate you can get
+	// get the width/height, but there's no functions to get them 
+//	for (int TopoIndex = 0; TopoIndex < NumToplogies; TopoIndex++)
+//	{
+//		cp_texture_topology_t Topology = cp_layer_renderer_properties_get_texture_topology(Props, TopoIndex);
+//	
+////		NSValue* VPValue = [NSValue valueWithCGRect:CGRectMake(Viewport.originX, Viewport.originY, Viewport.width, Viewport.height)];
+////		[Viewports addObject:VPValue];
+//	}
+
+	{
+		cp_frame_t SwiftLayerFrame = cp_layer_renderer_query_next_frame(Layer);
+		cp_drawable_t SwiftDrawable = cp_frame_query_drawable(SwiftLayerFrame); 
+		{
+			cp_view_t View = cp_drawable_get_view(SwiftDrawable, 0);
+			cp_view_texture_map_t TextureMap = cp_view_get_view_texture_map(View);
+			MTLViewport Viewport = cp_view_texture_map_get_viewport(TextureMap);
+			
+			NSValue* VPValue = [NSValue valueWithCGRect:CGRectMake(Viewport.originX, Viewport.originY, Viewport.width, Viewport.height)];
+			[Viewports addObject:VPValue];
+		}
+		cp_frame_start_submission(SwiftLayerFrame);
+		id<MTLDevice> Device = cp_layer_renderer_get_device(Layer);
+		id<MTLCommandQueue> CommandQueue = [[Device newCommandQueue] autorelease];
+		id<MTLCommandBuffer> CommandBuffer = [CommandQueue commandBuffer];
+		cp_drawable_encode_present(cp_frame_query_drawable(SwiftLayerFrame), CommandBuffer);
+		[CommandBuffer commit];
+		cp_frame_end_submission(SwiftLayerFrame);
+	}
+
+	// cache the viewports in the delegate so code later can get it when asking about the screen bounds
+	AppDelegate.SwiftLayerViewports = Viewports;
+
+	// grab the commandline, skipping over the executable path (index 0), and pass it to unreal
+	NSArray* Arguments = [[NSProcessInfo processInfo] arguments];
+	Arguments = [Arguments subarrayWithRange:NSMakeRange(1, [Arguments count] - 1)];
+	GSavedCommandLine = [Arguments componentsJoinedByString:@" "];
+
+		// Xcode strips quotes, so replace ^ with "
+	GSavedCommandLine = GSavedCommandLine.Replace(TEXT("+"), TEXT("\""));
+	
+	FIOSCommandLineHelper::InitCommandArgs(FString());
+	
+	CGRect FirstViewport = [[AppDelegate.SwiftLayerViewports firstObject] CGRectValue];
+	
+	FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Kicking off UE with Swift Layer. Commandline: %s\n"), *GSavedCommandLine);
+	FPlatformMisc::LowLevelOutputDebugStringf(TEXT("NumViews: %d, Full size = %f x %f\n", NumViews, FirstViewport.size.width, FirstViewport.size.height);
+
+	AppDelegate.SwiftLayer = Layer;
 }
 
 #endif

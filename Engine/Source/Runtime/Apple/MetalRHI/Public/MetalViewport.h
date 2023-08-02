@@ -16,6 +16,10 @@ THIRD_PARTY_INCLUDES_START
 #include "mtlpp.hpp"
 THIRD_PARTY_INCLUDES_END
 
+#if PLATFORM_VISIONOS
+#import <CompositorServices/CompositorServices.h>
+#endif
+
 enum EMetalViewportAccessFlag
 {
 	EMetalViewportAccessRHI,
@@ -63,7 +67,14 @@ public:
 private:
 	uint32 GetViewportIndex(EMetalViewportAccessFlag Accessor) const;
 
+	void NewFrame();
+	
 private:
+#if PLATFORM_VISIONOS
+	CP_OBJECT_cp_layer_renderer* SwiftLayer = nullptr;
+	cp_frame_t SwiftLayerFrame = nullptr;
+#endif
+	
 	id<CAMetalDrawable> Drawable;
 	TRefCountPtr<FMetalSurface> BackBuffer[2];
 	mutable FCriticalSection Mutex;

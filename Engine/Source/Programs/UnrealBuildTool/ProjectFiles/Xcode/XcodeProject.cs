@@ -1729,6 +1729,15 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 
 					ExtraConfigLines.Add($"VALID_ARCHS = arm64");
 					ExtraConfigLines.Add($"ARCHS = arm64");
+
+					// if we are doing immersive with SwiftUI we need a plist key
+					bool bUseSwiftUIMain;
+					AppleExports.GetSwiftIntegrationSettings(UnrealData.UProjectFileLocation, Platform, out bUseSwiftUIMain, out _);
+					if (bUseSwiftUIMain)
+					{
+						ExtraConfigLines.Add($"INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES");
+					}
+
 				}
 				else
 				{

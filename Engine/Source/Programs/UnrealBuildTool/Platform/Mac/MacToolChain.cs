@@ -45,8 +45,8 @@ namespace UnrealBuildTool
 	/// </summary>
 	class MacToolChain : AppleToolChain
 	{
-		public MacToolChain(FileReference? InProjectFile, ClangToolChainOptions InOptions, ILogger InLogger)
-			: base(InProjectFile, () => new MacToolChainSettings(false, InLogger), InOptions, InLogger)
+		public MacToolChain(ReadOnlyTargetRules? Target, ClangToolChainOptions InOptions, ILogger InLogger)
+			: base(Target, () => new MacToolChainSettings(false, InLogger), InOptions, InLogger)
 		{
 		}
 
@@ -277,8 +277,6 @@ namespace UnrealBuildTool
 
 			// Needed to make sure install_name_tool will be able to update paths in Mach-O headers
 			Arguments.Add("-headerpad_max_install_names");
-
-			Arguments.Add("-lc++");
 		}
 
 		void GetArchiveArguments_Global(LinkEnvironment LinkEnvironment, List<string> Arguments)

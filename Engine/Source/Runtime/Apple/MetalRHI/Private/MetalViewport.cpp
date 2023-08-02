@@ -81,6 +81,12 @@ FMetalViewport::FMetalViewport(void* WindowHandle, uint32 InSizeX, uint32 InSize
 	, CustomPresent{nullptr}
 #endif
 {
+#if PLATFORM_VISIONOS
+	// look to see if we need to hook up to a Swift compositor renderer
+	SwiftLayer = [IOSAppDelegate GetDelegate].SwiftLayer;
+	NewFrame();
+#endif
+
 #if PLATFORM_MAC
 	MainThreadCall(^{
 		FCocoaWindow* Window = (FCocoaWindow*)WindowHandle;
@@ -292,6 +298,14 @@ TRefCountPtr<FMetalSurface> FMetalViewport::GetBackBuffer(EMetalViewportAccessFl
 
 id<CAMetalDrawable> FMetalViewport::GetDrawable(EMetalViewportAccessFlag Accessor)
 {
+#if PLATFORM_VISIONOS
+	// no CAMetalDrawable in Swift mode
+	if (SwiftLayer != nullptr)
+	{
+		return nil;
+	}
+#endif
+	
 	SCOPE_CYCLE_COUNTER(STAT_MetalMakeDrawableTime);
     if (!Drawable
 #if !PLATFORM_MAC
@@ -362,8 +376,41 @@ id<CAMetalDrawable> FMetalViewport::GetDrawable(EMetalViewportAccessFlag Accesso
 	return Drawable;
 }
 
+void FMetalViewport::NewFrame()
+{
+#if PLATFORM_VISIONOS
+	if (SwiftLayer)
+	{
+		// end the last frame if there was one
+		if (SwiftLayerFrame != nullptr)
+		{
+			cp_frame_end_submission(SwiftLayerFrame);
+		}
+		
+		// get next frame
+		SwiftLayerFrame = cp_layer_renderer_query_next_frame(SwiftLayer);
+	}
+#endif
+}
+
 FMetalTexture FMetalViewport::GetDrawableTexture(EMetalViewportAccessFlag Accessor)
 {
+#if PLATFORM_VISIONOS
+	if (SwiftLayerFrame != nullptr)
+	{
+		// get the next drawable
+		cp_drawable_t SwiftDrawable = cp_frame_query_drawable(SwiftLayerFrame);
+		if (SwiftDrawable == nullptr)
+		{
+			UE_LOG(LogMetal, Fatal, TEXT("Failed to get next drawable"));
+		}
+		
+		// get the color texture out and use that with the RHI
+		DrawableTextures[Accessor] = cp_drawable_get_color_texture(SwiftDrawable, 0);
+		return DrawableTextures[Accessor];
+	}
+#endif
+	
 	id<CAMetalDrawable> CurrentDrawable = GetDrawable(Accessor);
 #if METAL_DEBUG_OPTIONS
 	@autoreleasepool
@@ -447,15 +494,36 @@ void FMetalViewport::Present(FMetalCommandQueue& CommandQueue, bool bLockToVsync
 #endif
 			if (FrameAvailable > 0 && (InDisplayID == 0 || (DisplayID == InDisplayID && !bIsInLiveResize)))
 			{
+#if PLATFORM_VISIONOS
+				if (SwiftLayerFrame != nullptr)
+				{
+					// tell the compositor service we are going to submit soon and need the drawable
+					cp_frame_start_submission(SwiftLayerFrame);
+				}
+#endif
+
 				FPlatformAtomics::InterlockedDecrement(&FrameAvailable);
 				id<CAMetalDrawable> LocalDrawable = [GetDrawable(EMetalViewportAccessDisplayLink) retain];
+				FMetalTexture DrawableTexture;
+#if PLATFORM_VISIONOS
+				// it seems like this should be usable in all cases, instead of LocalDrawable.texture, but it's causing View to be overwritten with the drawable, somehow!
+				if (SwiftLayer != nullptr)
+				{
+					DrawableTexture = GetDrawableTexture(EMetalViewportAccessDisplayLink);
+				}
+				else
+#endif
+				{
+					DrawableTexture = LocalDrawable.texture;
+				}
+				
 				{
 					FScopeLock BlockLock(&Mutex);
 #if PLATFORM_MAC
 					bIsInLiveResize = View.inLiveResize;
 #endif
 					
-					if (LocalDrawable && LocalDrawable.texture && (InDisplayID == 0 || !bIsInLiveResize))
+					if (DrawableTexture && (InDisplayID == 0 || !bIsInLiveResize))
 					{
 						mtlpp::CommandBuffer CurrentCommandBuffer = CommandQueue.CreateCommandBuffer();
 						check(CurrentCommandBuffer);
@@ -471,7 +539,7 @@ void FMetalViewport::Present(FMetalCommandQueue& CommandQueue, bool bLockToVsync
 							check(IsValidRef(Texture));
 							
 							FMetalTexture Src = Texture->Texture;
-							FMetalTexture Dst = LocalDrawable.texture;
+							FMetalTexture Dst = DrawableTexture;
 							
 							NSUInteger Width = FMath::Min(Src.GetWidth(), Dst.GetWidth());
 							NSUInteger Height = FMath::Min(Src.GetHeight(), Dst.GetHeight());
@@ -539,6 +607,13 @@ void FMetalViewport::Present(FMetalCommandQueue& CommandQueue, bool bLockToVsync
 #else // PLATFORM_MAC
 						CurrentCommandBuffer.AddCompletedHandler(C);
 
+#if PLATFORM_VISIONOS
+						if (SwiftLayer != nullptr)
+						{
+							cp_drawable_encode_present(cp_frame_query_drawable(SwiftLayerFrame), CurrentCommandBuffer.GetPtr());
+						}
+						else
+#endif
 						if (MinPresentDuration && GEnablePresentPacing)
 						{
 							CurrentCommandBuffer.PresentAfterMinimumDuration(LocalDrawable, 1.0f/(float)FramePace);
@@ -588,6 +663,9 @@ void FMetalViewport::Swap()
 		BackBuffer[0] = BB1;
 		BackBuffer[1] = BB0;
 	}
+	
+	// move on to next frame (only used in SwiftUI/compositor mode)
+	NewFrame();
 }
 
 /*=============================================================================

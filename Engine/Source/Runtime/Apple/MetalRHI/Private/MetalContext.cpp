@@ -313,7 +313,10 @@ mtlpp::PrimitiveTopologyClass TranslatePrimitiveTopology(uint32 PrimitiveType)
 FMetalDeviceContext* FMetalDeviceContext::CreateDeviceContext()
 {
 	uint32 DeviceIndex = 0;
-#if PLATFORM_IOS
+#if PLATFORM_VISIONOS && UE_USE_SWIFT_UI_MAIN
+	// get the device from the compositor layer
+	mtlpp::Device Device = cp_layer_renderer_get_device([IOSAppDelegate GetDelegate].SwiftLayer);
+#elif PLATFORM_IOS
 	mtlpp::Device Device = mtlpp::Device([IOSAppDelegate GetDelegate].IOSView->MetalDevice);
 #else
 	mtlpp::Device Device = GetMTLDevice(DeviceIndex);

@@ -53,6 +53,20 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Get the given project's Swift settings
+		/// </summary>
+		/// <param name="ProjectFile"></param>
+		/// <param name="Platform"></param>
+		/// <param name="bUseSwiftUIMain"></param>
+		/// <param name="bCreateBridgingHeader"></param>
+		public static void GetSwiftIntegrationSettings(FileReference? ProjectFile, UnrealTargetPlatform Platform, out bool bUseSwiftUIMain, out bool bCreateBridgingHeader)
+		{
+			ConfigHierarchy Ini = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, ProjectFile?.Directory, Platform);
+			Ini.TryGetValue("SwiftIntegration", "bUseSwiftUIMain", out bUseSwiftUIMain);
+			Ini.TryGetValue("SwiftIntegration", "bCreateBridgingHeader", out bCreateBridgingHeader);
+		}
+
+		/// <summary>
 		///  This is a FilePath from UE settings, like /Game/Foo/Bar.txt
 		/// </summary>
 		/// <param name="ProductDirectory">Directory to use for /Game paths</param>

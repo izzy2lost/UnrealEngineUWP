@@ -244,13 +244,21 @@ namespace UnrealBuildTool
 		public Lazy<AppleToolChainSettings> ToolChainSettings;
 
 		protected FileReference? ProjectFile;
+		public readonly ReadOnlyTargetRules? Target;
+
+		// cache some ini settings
+		readonly bool bUseSwiftUIMain;
+		readonly bool bCreateSwiftBridgingHeader;
 
 		protected bool bUseModernXcode => AppleExports.UseModernXcode(ProjectFile);
 
-		public AppleToolChain(FileReference? InProjectFile, Func<AppleToolChainSettings> InCreateSettings, ClangToolChainOptions InOptions, ILogger InLogger) : base(InOptions, InLogger)
+		public AppleToolChain(ReadOnlyTargetRules? Target, Func<AppleToolChainSettings> InCreateSettings, ClangToolChainOptions InOptions, ILogger InLogger) : base(InOptions, InLogger)
 		{
-			ProjectFile = InProjectFile;
+			this.Target = Target;
+			ProjectFile = Target?.ProjectFile;
 			ToolChainSettings = new Lazy<AppleToolChainSettings>(InCreateSettings);
+
+			AppleExports.GetSwiftIntegrationSettings(ProjectFile, Target == null ? UnrealTargetPlatform.Mac : Target.Platform, out bUseSwiftUIMain, out bCreateSwiftBridgingHeader);
 		}
 
 		/// <summary>
@@ -549,13 +557,15 @@ namespace UnrealBuildTool
 			// @todo hack fix this better - it's so that files can see the generated -Swift.h headers - we don't know when we need them at this point
 			if (CompileEnvironment.Platform == UnrealTargetPlatform.VisionOS)
 			{
-				if (!SourceFile.HasExtension(".swift") && SourceFile.Location.ContainsName("Launch", 0))
+				if (bCreateSwiftBridgingHeader && !SourceFile.HasExtension(".swift") && SourceFile.Location.ContainsName("Launch", 0))
 				{
 					FileItem OutputInteropHeader = GetBridgingHeader("UESwift", OutputDir);
 					Arguments.Add(GetUserIncludePathArgument(OutputInteropHeader.GetDirectoryItem().Location));
 					CompileAction.PrerequisiteItems.Add(OutputInteropHeader);
 				}
+
 			}
+			Arguments.Add("-DUE_USE_SWIFT_UI_MAIN=" + (bUseSwiftUIMain ? "1" : "0"));
 			return Output;
 		}
 
@@ -584,7 +594,7 @@ namespace UnrealBuildTool
 
 			// output file settings
 			Arguments.Add("-emit-object"); // same as -c
-			Arguments.Add($"-parse-as-library"); // don't create a main function
+			Arguments.Add($"-parse-as-library"); // don't create a main function (even if we use the SwiftUI @main, this still seems to be correctly working)
 			Arguments.Add($"-o \"{OutputFile}\"");
 
 			// platform settings
@@ -596,8 +606,16 @@ namespace UnrealBuildTool
 			Arguments.Add("-aarch64-use-tbi");
 			Arguments.Add("-stack-check");
 			Arguments.Add($"-swift-version 5");
-			
+
+			Arguments.Add("-enable-objc-interop");
+			Arguments.Add("-cxx-interoperability-mode=default");
+			Arguments.Add($"-import-objc-header {Unreal.EngineDirectory}/Source/Runtime/Launch/Private/IOS/UECppToSwift.h");
 			Arguments.Add($"-module-name Launch");
+
+			if (bUseSwiftUIMain)
+			{
+				Arguments.Add("-DUE_USE_SWIFT_UI_MAIN");
+			}
 
 			Action CompileAction = Graph.CreateAction(ActionType.Compile);
 			CompileAction.Weight = CompileActionWeight;
@@ -618,43 +636,55 @@ namespace UnrealBuildTool
 			CompileAction.bIsGCCCompiler = true;
 			CompileAction.bCanExecuteRemotely = true;
 
-
-			FileItem OutputInteropHeader = GetBridgingHeader(SourceFile.FullName, OutputDir);
-
-			// obj-c bridging header settings
-			Arguments.Clear();
-			Arguments.Add($"\"{SourceFile}\"");
-			Arguments.Add("-parse"); // this will allow it to generate the header without writing out any .o/executable
-			Arguments.Add("-emit-objc-header");
-			Arguments.Add($"-emit-objc-header-path \"{OutputInteropHeader}\"");
-
-			// platform settings
-			Arguments.Add($"-target {ToolChainSettings.Value.GetTargetTuple(CompileEnvironment.Architecture)}");
-			Arguments.Add($"-sdk {ToolChainSettings.Value.GetSDKPath(CompileEnvironment.Architecture)}");
-
-			Arguments.Add($"-swift-version 5");
-
-			Arguments.Add($"-module-name Launch");
-
-			// now make an action to export the swift code as a header Obj-C bridging
-			Action HeaderAction = Graph.CreateAction(ActionType.CompileModuleInterface);
-			HeaderAction.CommandPath = FileReference.Combine(ToolChainSettings.Value.ToolchainDir, "swiftc");
-			HeaderAction.CommandArguments = String.Join(" ", Arguments);
-			HeaderAction.PrerequisiteItems.Add(SourceFile);
-			HeaderAction.ProducedItems.Add(OutputInteropHeader);
-			HeaderAction.CommandDescription = "Generate Header";
-			HeaderAction.StatusDescription = Path.GetFileName(OutputInteropHeader.AbsolutePath);
-			if (ArchConfig.Mode != UnrealArchitectureMode.SingleArchitecture)
+			if (bCreateSwiftBridgingHeader)
 			{
-				string ReadableArch = ArchConfig.ConvertToReadableArchitecture(CompileEnvironment.Architecture);
-				CompileAction.CommandDescription += $" [{ReadableArch}]";
+				FileItem OutputInteropHeader = GetBridgingHeader(SourceFile.FullName, OutputDir);
+
+				// obj-c bridging header settings
+				Arguments.Clear();
+				Arguments.Add($"\"{SourceFile}\"");
+				Arguments.Add("-parse"); // this will allow it to generate the header without writing out any .o/executable
+				Arguments.Add("-emit-objc-header");
+				Arguments.Add($"-emit-objc-header-path \"{OutputInteropHeader}\"");
+				Arguments.Add("-parse-as-library");
+
+				//Arguments.Add("-enable-objc-interop");
+				//Arguments.Add("-cxx-interoperability-mode=default");
+				Arguments.Add($"-import-objc-header {Unreal.EngineDirectory}/Source/Runtime/Launch/Private/IOS/UECppToSwift.h");
+
+				// platform settings
+				Arguments.Add($"-target {ToolChainSettings.Value.GetTargetTuple(CompileEnvironment.Architecture)}");
+				Arguments.Add($"-sdk {ToolChainSettings.Value.GetSDKPath(CompileEnvironment.Architecture)}");
+
+				Arguments.Add($"-swift-version 5");
+
+				Arguments.Add($"-module-name Launch");
+
+				if (bUseSwiftUIMain)
+				{
+					Arguments.Add("-DUE_USE_SWIFT_UI_MAIN");
+				}
+
+				// now make an action to export the swift code as a header Obj-C bridging
+				Action HeaderAction = Graph.CreateAction(ActionType.CompileModuleInterface);
+				HeaderAction.CommandPath = FileReference.Combine(ToolChainSettings.Value.ToolchainDir, "swiftc");
+				HeaderAction.CommandArguments = String.Join(" ", Arguments);
+				HeaderAction.PrerequisiteItems.Add(SourceFile);
+				HeaderAction.ProducedItems.Add(OutputInteropHeader);
+				HeaderAction.CommandDescription = "Generate Header";
+				HeaderAction.StatusDescription = Path.GetFileName(OutputInteropHeader.AbsolutePath);
+				if (ArchConfig.Mode != UnrealArchitectureMode.SingleArchitecture)
+				{
+					string ReadableArch = ArchConfig.ConvertToReadableArchitecture(CompileEnvironment.Architecture);
+					CompileAction.CommandDescription += $" [{ReadableArch}]";
+				}
+
+				HeaderAction.WorkingDirectory = CompileAction.WorkingDirectory;
+				HeaderAction.bIsGCCCompiler = CompileAction.bIsGCCCompiler;
+				HeaderAction.bCanExecuteRemotely = CompileAction.bCanExecuteRemotely;
 			}
-
-			HeaderAction.WorkingDirectory = CompileAction.WorkingDirectory;
-			HeaderAction.bIsGCCCompiler = CompileAction.bIsGCCCompiler;
-			HeaderAction.bCanExecuteRemotely = CompileAction.bCanExecuteRemotely;
-
-			Console.WriteLine($"{CompileAction.CommandPath} {CompileAction.CommandArguments}");
+			//Console.WriteLine($"{CompileAction.CommandPath} {CompileAction.CommandArguments}");
+			//Console.WriteLine($"{HeaderAction.CommandPath} {HeaderAction.CommandArguments}");
 
 			// this is likely ignored, but the Compile action is the important one
 			return CompileAction;
@@ -845,7 +875,7 @@ namespace UnrealBuildTool
 					ExtraOptions,
 					//$"-sdk {SDKName}",
 				};
-	
+
 				Process LocalProcess = new Process();
 				LocalProcess.StartInfo = new ProcessStartInfo("/usr/bin/env", String.Join(" ", Arguments));
 				LocalProcess.OutputDataReceived += (Sender, Args) => { LocalProcessOutput(Args, false, Logger); };

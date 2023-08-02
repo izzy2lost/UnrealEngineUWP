@@ -3,16 +3,24 @@
 #pragma once
 
 #import <UIKit/UIKit.h>
-#import <AVFoundation/AVAudioSession.h>
 #import <GameKit/GKGameCenterViewController.h>
+
+#ifndef SWIFT_IMPORT
+#import <AVFoundation/AVAudioSession.h>
 #include "Delegates/Delegate.h"
 #include "Logging/LogMacros.h"
 #include "Containers/UnrealString.h"
-#if !PLATFORM_VISIONOS
+#endif
+
+#if PLATFORM_VISIONOS
+#import <CompositorServices/CompositorServices.h>
+#else
 #import <UserNotifications/UserNotifications.h>
 #endif
 
 #define USE_MUTE_SWITCH_DETECTION 0
+
+#ifndef SWIFT_IMPORT
 
 enum class EAudioFeature : uint8
 {
@@ -72,12 +80,9 @@ private:
 	static TArray<FFilterDelegateAndHandle> PushNotificationFilters;
 };
 
-@class FIOSView;
-@class IOSViewController;
-@class SlateOpenGLESViewController;
-@class IOSAppDelegate;
-
 DECLARE_LOG_CATEGORY_EXTERN(LogIOSAudioSession, Log, All);
+
+@class IOSAppDelegate;
 
 namespace FAppEntry
 {
@@ -102,8 +107,18 @@ namespace FAppEntry
 	extern int32	gLaunchLocalNotificationFireDate;
 }
 
+#endif
+
+@class FIOSView;
+@class IOSViewController;
+@class SlateOpenGLESViewController;
+
+
+#ifndef SWIFT_IMPORT
 APPLICATIONCORE_API
-@interface IOSAppDelegate : UIResponder <UIApplicationDelegate,
+#endif
+@interface IOSAppDelegate : UIResponder <
+	UIApplicationDelegate,
 #if !UE_BUILD_SHIPPING
 	UIGestureRecognizerDelegate,
 #endif
@@ -119,7 +134,12 @@ APPLICATIONCORE_API
 /** Window object */
 @property (strong, retain, nonatomic) UIWindow *Window;
 
-/** Main GL View */
+// support Compositor on other platforms?
+#if PLATFORM_VISIONOS
+@property (strong) CP_OBJECT_cp_layer_renderer* SwiftLayer;
+@property (retain) NSArray* SwiftLayerViewports;
+#endif
+
 @property (retain) FIOSView* IOSView;
 
 @property class FIOSApplication* IOSApplication;
@@ -203,8 +223,10 @@ APPLICATIONCORE_API
 -(bool)IsIdleTimerEnabled;
 -(void)EnableIdleTimer:(bool)bEnable;
 -(void)StartGameThread;
+#ifndef SWIFT_IMPORT
 /** Uses the TaskGraph to execute a function on the game thread, and then blocks until the function is executed. */
 +(bool)WaitAndRunOnGameThread:(TUniqueFunction<void()>)Function;
+#endif
 -(void)NoUrlCommandLine;
 
 -(void)LoadScreenResolutionModifiers;
@@ -247,9 +269,11 @@ APPLICATIONCORE_API
 - (void)EnableHighQualityVoiceChat:(bool)bEnable;
 - (bool)IsVoiceChatEnabled;
 
+#ifndef SWIFT_IMPORT
 /** Enable/Disable an EAudioFeature. This is reference counted, so a feature must be disabled as many times as it has been enabled to actually be disabled. */
 - (void)SetFeature:(EAudioFeature)Feature Active:(bool)bIsActive;
 - (bool)IsFeatureActive:(EAudioFeature)Mode;
+#endif
 
 @property (atomic) bool bAudioActive;
 @property (atomic) bool bVoiceChatEnabled;

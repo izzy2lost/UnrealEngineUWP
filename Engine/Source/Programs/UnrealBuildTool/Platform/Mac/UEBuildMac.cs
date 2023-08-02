@@ -598,7 +598,7 @@ namespace UnrealBuildTool
 				Options |= ClangToolChainOptions.OutputDylib;
 			}
 
-			return new MacToolChain(Target.ProjectFile, Options, Logger);
+			return new MacToolChain(Target, Options, Logger);
 		}
 
 		/// <inheritdoc/>

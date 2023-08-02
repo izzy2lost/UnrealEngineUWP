@@ -259,6 +259,10 @@ static IOSAppDelegate* CachedDelegate = nil;
 
 -(id)init
 {
+#if UE_USE_SWIFT_UI_MAIN
+	// will get the command later
+	FIOSCommandLineHelper::InitCommandArgs("");
+#endif
 	self = [super init];
 	CachedDelegate = self;
 	memset(GEnabledAudioFeatures, 0, sizeof(GEnabledAudioFeatures));

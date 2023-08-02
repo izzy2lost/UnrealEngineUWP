@@ -32,7 +32,6 @@ namespace UnrealBuildTool
 	{
 		private static List<FileItem> BundleDependencies = new List<FileItem>();
 
-		public readonly ReadOnlyTargetRules? Target;
 		protected IOSProjectSettings ProjectSettings;
 
 		public IOSToolChain(ReadOnlyTargetRules? Target, IOSProjectSettings InProjectSettings, ClangToolChainOptions ToolchainOptions, ILogger InLogger)
@@ -41,9 +40,8 @@ namespace UnrealBuildTool
 		}
 
 		protected IOSToolChain(ReadOnlyTargetRules? Target, IOSProjectSettings InProjectSettings, Func<AppleToolChainSettings> InCreateSettings, ClangToolChainOptions ToolchainOptions, ILogger InLogger)
-			: base((Target == null) ? null : Target.ProjectFile, InCreateSettings, ToolchainOptions, InLogger)
+			: base(Target, InCreateSettings, ToolchainOptions, InLogger)
 		{
-			this.Target = Target;
 			ProjectSettings = InProjectSettings;
 		}
 
@@ -218,9 +216,10 @@ namespace UnrealBuildTool
 
 			Arguments.Add($"-isysroot \"{Settings.GetSDKPath(CompileEnvironment.Architecture)}\"");
 
-			if (GetXcodeMinVersionParam(CompileEnvironment.Architecture) != "")
+			string MinVersionParam = GetXcodeMinVersionParam(CompileEnvironment.Architecture);
+			if (MinVersionParam != "")
 			{
-				Arguments.Add("-m" + GetXcodeMinVersionParam(CompileEnvironment.Architecture) + "=" + ProjectSettings.RuntimeVersion);
+				Arguments.Add($"-m{MinVersionParam}={ProjectSettings.RuntimeVersion}");
 			}
 
 			// Add additional frameworks so that their headers can be found
@@ -313,9 +312,10 @@ namespace UnrealBuildTool
 			Arguments.Add($" -isysroot \"{SDKPath}\"");
 
 			Arguments.Add("-dead_strip");
-			if (GetXcodeMinVersionParam(LinkEnvironment.Architecture) != "") 
+			string MinVersionParam = GetXcodeMinVersionParam(LinkEnvironment.Architecture);
+			if (MinVersionParam != "")
 			{
-				Arguments.Add("-m" + GetXcodeMinVersionParam(LinkEnvironment.Architecture) + "=" + ProjectSettings.RuntimeVersion);
+				Arguments.Add($"-m{MinVersionParam}={ProjectSettings.RuntimeVersion}");
 			}
 			Arguments.Add("-Wl-no_pie");
 			Arguments.Add("-stdlib=libc++");
@@ -1081,7 +1081,7 @@ namespace UnrealBuildTool
 				OutputFiles.Add(StripCompleteFile);
 			}
 
-			if (!BinaryLinkEnvironment.bIsBuildingDLL)
+			if (!AppleExports.UseModernXcode(Target.ProjectFile) && !BinaryLinkEnvironment.bIsBuildingDLL)
 			{
 				// generate the asset catalog
 				bool bUserImagesExist = false;
