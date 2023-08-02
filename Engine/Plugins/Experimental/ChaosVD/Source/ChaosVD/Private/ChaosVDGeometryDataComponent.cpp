@@ -57,7 +57,6 @@ void FChaosVDGeometryDataComponentBase::UpdateVisibility_Internal(const FChaosVD
 	}
 }
 
-UE_DISABLE_OPTIMIZATION
 void FChaosVDGeometryDataComponentBase::UpdateDataFromShapeArray_Internal(const TArray<FChaosVDShapeCollisionData>& InShapeArray, FChaosVDShapeCollisionData& CollisionDataToUpdate)
 {
 	if (!ensureMsgf(RootImplicitObject.IsValid(), TEXT("Tried to Update Collision Data without a valid Implicit Object")))
@@ -84,4 +83,3 @@ void FChaosVDGeometryDataComponentBase::UpdateDataFromShapeArray_Internal(const 
 		return true;
 	});
 }
-UE_ENABLE_OPTIMIZATION
