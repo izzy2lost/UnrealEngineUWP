@@ -370,13 +370,6 @@ void FDisplayClusterDeviceBase::FinalizeNewFrame()
 
 	// reset viewport manager ptr on game thread
 	ViewportManagerWeakPtr.Reset();
-
-	// Reset viewport manager proxy on render thread
-	ENQUEUE_RENDER_COMMAND(DisplayClusterDevice_ResetViewportManagerProxy)(
-		[DCRenderDevice = this](FRHICommandListImmediate& RHICmdList)
-		{
-			DCRenderDevice->ViewportManagerProxyWeakPtr.Reset();
-		});
 }
 
 DECLARE_GPU_STAT_NAMED(nDisplay_Device_RenderTexture, TEXT("nDisplay RenderDevice::RenderTexture"));
@@ -421,6 +414,9 @@ void FDisplayClusterDeviceBase::RenderTexture_RenderThread(FRHICommandListImmedi
 			ClearRenderTarget(RHICmdList, SrcTexture);
 		}
 	}
+
+	// Reset viewport manager proxy on render thread
+	ViewportManagerProxyWeakPtr.Reset();
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
