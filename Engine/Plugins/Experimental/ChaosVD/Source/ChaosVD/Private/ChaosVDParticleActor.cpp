@@ -4,6 +4,8 @@
 
 #include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDScene.h"
+#include "Components/ChaosVDInstancedStaticMeshComponent.h"
+#include "Components/ChaosVDStaticMeshComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -11,11 +13,6 @@
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
 #include "Visualizers/ChaosVDParticleDataVisualizer.h"
-
-static FAutoConsoleVariable CVarChaosVDHideVolumeAndBrushesHack(
-	TEXT("p.Chaos.VD.Tool.HideVolumeAndBrushesHack"),
-	true,
-	TEXT("If true, it will hide any geometry if its name contains Volume or Brush"));
 
 AChaosVDParticleActor::AChaosVDParticleActor(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
@@ -42,6 +39,10 @@ void AChaosVDParticleActor::UpdateFromRecordedParticleData(const FChaosVDParticl
 
 	// TODO: We should store a ptr to the data and in our custom details panel draw it
 	ParticleDataViewer = InRecordedData;
+
+	// Now that we have updated particle data, update the Shape data and visibility as needed
+	UpdateShapeDataComponents();
+	UpdateGeometryComponentsVisibility();
 }
 
 void AChaosVDParticleActor::UpdateCollisionData(const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>& InRecordedMidPhases)
@@ -68,8 +69,13 @@ void AChaosVDParticleActor::UpdateCollisionData(const TArray<FChaosVDConstraint>
 	}
 }
 
-void AChaosVDParticleActor::UpdateGeometry(const Chaos::FImplicitObject* ImplicitObject, EChaosVDActorGeometryUpdateFlags OptionsFlags)
+void AChaosVDParticleActor::UpdateGeometry(const Chaos::FConstImplicitObjectPtr& InImplicitObject, EChaosVDActorGeometryUpdateFlags OptionsFlags)
 {
+	if (!InImplicitObject.IsValid())
+	{
+		return;
+	}
+	
 	if (EnumHasAnyFlags(OptionsFlags, EChaosVDActorGeometryUpdateFlags::ForceUpdate))
 	{
 		bIsGeometryDataGenerationStarted = false;
@@ -98,36 +104,31 @@ void AChaosVDParticleActor::UpdateGeometry(const Chaos::FImplicitObject* Implici
 			Chaos::FRigidTransform3 Transform;
 
 			// Heightfields need to be created as Static meshes and use normal Static Mesh components because we need LODs for them due to their high triangle count
-			if (FChaosVDGeometryBuilder::DoesImplicitContainType(ImplicitObject, Chaos::ImplicitObjectType::HeightField))
+			if (FChaosVDGeometryBuilder::DoesImplicitContainType(InImplicitObject, Chaos::ImplicitObjectType::HeightField))
 			{
 				constexpr int32 LODsToGenerateNum = 3;
 				constexpr int32 StartingMeshComponentIndex = 0;
-				GeometryGenerator->CreateMeshComponentsFromImplicit<UStaticMesh, UStaticMeshComponent>(ImplicitObject, this, OutGeneratedMeshComponents, Transform, StartingMeshComponentIndex, LODsToGenerateNum);
+				GeometryGenerator->CreateMeshComponentsFromImplicit<UStaticMesh, UChaosVDStaticMeshComponent>(InImplicitObject, this, OutGeneratedMeshComponents, Transform, StartingMeshComponentIndex, LODsToGenerateNum);
 			}
 			else
 			{
-				GeometryGenerator->CreateMeshComponentsFromImplicit<UStaticMesh, UInstancedStaticMeshComponent>(ImplicitObject, this, OutGeneratedMeshComponents, Transform);
+				GeometryGenerator->CreateMeshComponentsFromImplicit<UStaticMesh, UChaosVDInstancedStaticMeshComponent>(InImplicitObject, this, OutGeneratedMeshComponents, Transform);
 			}
 
 			if (OutGeneratedMeshComponents.Num() > 0)
 			{
 				MeshComponents.Append(OutGeneratedMeshComponents);
 
-				if (CVarChaosVDHideVolumeAndBrushesHack->GetBool())
+				for (TWeakObjectPtr<UMeshComponent> MeshComponent : MeshComponents)
 				{
-					// This is a temp hack (and is not performant) we need until we have a proper way to filer out trigger volumes/brushes at will
-					// Without this most maps will be covered in boxes
-					if (ParticleDataViewer.DebugName.Contains(TEXT("Brush")) || ParticleDataViewer.DebugName.Contains(TEXT("Volume")))
+					if (IChaosVDGeometryDataComponent* DataComponent = Cast<IChaosVDGeometryDataComponent>(MeshComponent.Get()))
 					{
-						for (TWeakObjectPtr<UMeshComponent> MeshComponent : OutGeneratedMeshComponents)
-						{
-							if (MeshComponent.IsValid())
-							{
-								MeshComponent->SetVisibility(false);
-							}
-						}
+						DataComponent->SetRootImplicitObject(InImplicitObject);
 					}
 				}
+
+				UpdateShapeDataComponents();
+				UpdateGeometryComponentsVisibility();
 
 				bIsGeometryDataGenerationStarted = true;
 			}
@@ -139,9 +140,9 @@ void AChaosVDParticleActor::UpdateGeometry(uint32 NewGeometryHash, EChaosVDActor
 {
 	if (const TSharedPtr<FChaosVDScene>& ScenePtr = OwningScene.Pin())
 	{
-		if (const Chaos::FConstImplicitObjectPtr* Geometry = ScenePtr->GetUpdatedGeometry(NewGeometryHash))
+		if (const Chaos::FConstImplicitObjectPtr& Geometry = ScenePtr->GetUpdatedGeometry(NewGeometryHash))
 		{
-			UpdateGeometry(*Geometry, OptionsFlags);
+			UpdateGeometry(Geometry, OptionsFlags);
 		}
 	}
 }
@@ -226,6 +227,39 @@ void AChaosVDParticleActor::PostEditChangeProperty(FPropertyChangedEvent& Proper
 		if (TUniquePtr<FChaosVDDataVisualizerBase>* ParticleDataVisualizer = CVDVisualizers.Find(FChaosVDParticleDataVisualizer::VisualizerID))
 		{
 			ParticleDataVisualizer->Get()->UpdateVisualizationFlags(LocalParticleDataVisualizationFlags);
+		}
+	}
+}
+
+void AChaosVDParticleActor::UpdateShapeDataComponents()
+{
+	for (TWeakObjectPtr<UMeshComponent> MeshComponent : MeshComponents)
+	{
+		if (IChaosVDGeometryDataComponent* DataComponent = Cast<IChaosVDGeometryDataComponent>(MeshComponent.Get()))
+		{
+			DataComponent->UpdateDataFromShapeArray(ParticleDataViewer.CollisionDataPerShape);
+		}
+	}			
+}
+
+void AChaosVDParticleActor::UpdateGeometryComponentsVisibility()
+{
+	for (TWeakObjectPtr<UMeshComponent> MeshComponent : MeshComponents)
+	{
+		if (IChaosVDGeometryDataComponent* DataComponent = Cast<IChaosVDGeometryDataComponent>(MeshComponent.Get()))
+		{
+			// We need wait until we have a valid mesh
+			if (DataComponent->IsMeshReady())
+			{
+				DataComponent->UpdateVisibility();
+			}
+			else if (!DataComponent->OnMeshReady()->IsBound())
+			{
+				DataComponent->OnMeshReady()->BindWeakLambda(this, [](IChaosVDGeometryDataComponent& GeometryDataComponent)
+				{
+					GeometryDataComponent.UpdateVisibility();
+				});
+			}
 		}
 	}
 }

@@ -305,3 +305,55 @@ inline FArchive& operator<<(FArchive& Ar, FChaosVDParticlePairMidPhase& Data)
 	Data.Serialize(Ar);
 	return Ar;
 }
+
+UENUM()
+enum class EChaosVDCollisionTraceFlag
+{
+	/** Use project physics settings (DefaultShapeComplexity) */
+	UseDefault,
+	/** Create both simple and complex shapes. Simple shapes are used for regular scene queries and collision tests. Complex shape (per poly) is used for complex scene queries.*/
+	UseSimpleAndComplex,
+	/** Create only simple shapes. Use simple shapes for all scene queries and collision tests.*/
+	UseSimpleAsComplex,
+	/** Create only complex shapes (per poly). Use complex shapes for all scene queries and collision tests. Can be used in simulation for static shapes only (i.e can be collided against but not moved through forces or velocity.) */
+	UseComplexAsSimple,
+	/** */
+	MAX,
+};
+
+USTRUCT()
+struct CHAOSVDRUNTIME_API FChaosVDShapeCollisionData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, Category=CollisionData)
+	EChaosVDCollisionTraceFlag CollisionTraceType = EChaosVDCollisionTraceFlag::UseDefault;
+
+	UPROPERTY(VisibleAnywhere, Category=CollisionData)
+	uint8 bSimCollision : 1 = false;
+	UPROPERTY(VisibleAnywhere, Category=CollisionData)
+	uint8 bQueryCollision : 1 = false;
+	UPROPERTY(VisibleAnywhere, Category=CollisionData)
+	uint8 bIsProbe : 1 = false;
+
+	bool bIsComplex = false;
+
+	bool bIsValid = false;
+
+	bool Serialize(FArchive& Ar);
+};
+
+template<>
+struct TStructOpsTypeTraits<FChaosVDShapeCollisionData> : public TStructOpsTypeTraitsBase2<FChaosVDShapeCollisionData>
+{
+	enum
+	{
+		WithSerializer = true,
+	};
+};
+
+inline FArchive& operator<<(FArchive& Ar, FChaosVDShapeCollisionData& Data)
+{
+	Data.Serialize(Ar);
+	return Ar;
+}

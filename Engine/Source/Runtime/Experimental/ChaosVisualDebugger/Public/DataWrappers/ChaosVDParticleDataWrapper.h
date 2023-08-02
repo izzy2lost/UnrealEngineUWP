@@ -444,6 +444,9 @@ struct FChaosVDParticleDataWrapper : public FChaosVDParticleDataBase
 
 	UPROPERTY(EditAnywhere, Category= "Particle Collision")
 	TArray<FChaosVDConstraint> ParticleConstraints;
+
+	UPROPERTY(EditAnywhere, Category= "Particle Collision")
+	TArray<FChaosVDShapeCollisionData> CollisionDataPerShape;
 	
 	/** Only used during recording */
 	TSharedPtr<FString> DebugNamePtr;

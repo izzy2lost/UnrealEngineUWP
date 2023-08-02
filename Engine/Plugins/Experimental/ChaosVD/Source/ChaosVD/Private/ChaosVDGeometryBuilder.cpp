@@ -2,6 +2,7 @@
 
 #include "ChaosVDGeometryBuilder.h"
 
+#include "ChaosVDGeometryDataComponent.h"
 #include "DynamicMeshToMeshDescription.h"
 #include "MeshConstraints.h"
 #include "MeshConstraintsUtil.h"
@@ -190,6 +191,12 @@ void FChaosVDGeometryBuilder::ApplyMeshToComponentFromKey(TWeakObjectPtr<UMeshCo
 		{
 			StaticMeshComponent->SetStaticMesh(*StaticMesh);
 		}
+	}
+
+	if (IChaosVDGeometryDataComponent* DataComponent = Cast<IChaosVDGeometryDataComponent>(MeshComponent.Get()))
+	{
+		DataComponent->SetIsMeshReady(true);
+		DataComponent->OnMeshReady()->ExecuteIfBound(*DataComponent);
 	}
 }
 

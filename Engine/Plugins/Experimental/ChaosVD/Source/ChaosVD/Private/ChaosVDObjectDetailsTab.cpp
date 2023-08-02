@@ -4,26 +4,23 @@
 
 #include "ChaosVDScene.h"
 #include "ChaosVDStyle.h"
+#include "Editor.h"
+#include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "Templates/SharedPointer.h"
-#include "Editor.h"
 #include "Widgets/Docking/SDockTab.h"
-#include "Elements/Framework/TypedElementSelectionSet.h"
+#include "Widgets/SChaosVDDetailsView.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
+class SSubobjectEditor;
+
+
 TSharedRef<SDockTab> FChaosVDObjectDetailsTab::HandleTabSpawned(const FSpawnTabArgs& Args)
 {
-	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	FDetailsViewArgs DetailsViewArgs;
-	DetailsViewArgs.bAllowSearch = false;
-	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
-
 	TSharedPtr<FChaosVDScene> ScenePtr = GetChaosVDScene().Pin();
 	check(ScenePtr);
-
-	DetailsPanel = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 
 	RegisterSelectionSetObject(ScenePtr->GetElementSelectionSet());
 
@@ -35,7 +32,7 @@ TSharedRef<SDockTab> FChaosVDObjectDetailsTab::HandleTabSpawned(const FSpawnTabA
 
 	DetailsPanelTab->SetContent
 	(
-		DetailsPanel.ToSharedRef()
+		SAssignNew(DetailsPanelView, SChaosVDDetailsView)
 	);
 
 	DetailsPanelTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconDetailsPanel"));
@@ -52,7 +49,7 @@ void FChaosVDObjectDetailsTab::HandlePostSelectionChange(const UTypedElementSele
 		// We don't support multi selection yet
 		ensure(SelectedActors.Num() == 1);
 
-		DetailsPanel->SetObject(SelectedActors[0], true);
+		DetailsPanelView->SetSelectedObject(SelectedActors[0]);
 	}
 }
 

@@ -43,7 +43,9 @@ public class ChaosVD : ModuleRules
 				"SceneOutliner",
 				"TypedElementRuntime",
 				"TypedElementFramework",
-				"StatusBar"
+				"StatusBar",
+				"SubobjectEditor",
+				"SubobjectDataInterface"
 			}
 			);
 

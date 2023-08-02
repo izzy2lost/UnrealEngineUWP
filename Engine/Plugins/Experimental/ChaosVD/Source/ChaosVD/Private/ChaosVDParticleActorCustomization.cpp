@@ -4,6 +4,8 @@
 
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
+#include "DetailsCustomizations/ChaosVDDetailsCustomizationUtils.h"
+
 
 FChaosVDParticleActorCustomization::FChaosVDParticleActorCustomization()
 {
@@ -18,18 +20,9 @@ TSharedRef<IDetailCustomization> FChaosVDParticleActorCustomization::MakeInstanc
 
 void FChaosVDParticleActorCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
+	DetailBuilder.EditCategory(ChaosVDVisualizationCategoryName, FText::GetEmpty(), ECategoryPriority::Important);
 
-	IDetailCategoryBuilder& YourCategory = DetailBuilder.EditCategory(ChaosVDVisualizationCategoryName, FText::GetEmpty(), ECategoryPriority::Important);
-	// Hide everything as the only thing we want to show in these actors is the Recorded debug data
-	TArray<FName> CurrentCategoryNames;
-	DetailBuilder.GetCategoryNames(CurrentCategoryNames);
-	for (const FName& CategoryToHide : CurrentCategoryNames)
-	{
-		if (!AllowedCategories.Contains(CategoryToHide))
-		{
-			DetailBuilder.HideCategory(CategoryToHide);
-		}
-	}
+	FChaosVDDetailsCustomizationUtils::HideAllCategories(DetailBuilder, AllowedCategories);
 
 	DetailBuilder.EditCategory(ChaosVDCategoryName).InitiallyCollapsed(false);
 }

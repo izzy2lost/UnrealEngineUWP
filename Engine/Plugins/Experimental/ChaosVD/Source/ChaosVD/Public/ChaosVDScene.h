@@ -5,13 +5,16 @@
 #include "ChaosVDRecording.h"
 #include "Containers/UnrealString.h"
 #include "Containers/Map.h"
-#include "UObject/ObjectMacros.h"
 #include "UObject/GCObject.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/ObjectPtr.h"
 
+class UChaosVDEditorSettings;
 class FChaosVDGeometryBuilder;
 class AChaosVDParticleActor;
 class FReferenceCollector;
 class UObject;
+class UMaterial;
 class UTypedElementSelectionSet;
 class UWorld;
 
@@ -64,7 +67,7 @@ public:
 	FChaosVDGeometryDataLoaded& OnNewGeometryAvailable(){ return NewGeometryAvailableDelegate; }
 
 	// No need to deprecate the old version since it is not a public API nor inline 
-	const Chaos::FConstImplicitObjectPtr* GetUpdatedGeometry(int32 GeometryID) const;
+	Chaos::FConstImplicitObjectPtr GetUpdatedGeometry(int32 GeometryID) const;
 	
 	/** Adds an object to the selection set if it was not selected already, making it selected in practice */
 	void SetSelectedObject(UObject* SelectedObject);
@@ -111,6 +114,8 @@ private:
 
 	void ClearSelectionAndNotify();
 
+	void HandleVisibilitySettingsChanged(UChaosVDEditorSettings* SettingsObject);
+
 	/** UWorld instance used to represent the recorded debug data */
 	TObjectPtr<UWorld> PhysicsVDWorld = nullptr;
 
@@ -127,6 +132,9 @@ private:
 
 	/** Array of actors with hit proxies that need to be updated */
 	TArray<AActor*> PendingActorsToUpdateSelectionProxy;
+
+	/** Scene Streamable manager that we'll use to async load any assets we depend on */
+	TSharedPtr<struct FStreamableManager> StreamableManager;
 
 	bool bIsInitialized = false;
 };

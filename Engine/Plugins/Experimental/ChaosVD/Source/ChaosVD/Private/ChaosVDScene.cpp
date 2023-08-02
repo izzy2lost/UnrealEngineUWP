@@ -16,8 +16,10 @@
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "Engine/Engine.h"
 #include "Engine/LevelStreamingDynamic.h"
+#include "Engine/StreamableManager.h"
 #include "Engine/World.h"
 #include "Misc/ScopedSlowTask.h"
+#include "Materials/Material.h"
 
 #include "UObject/Package.h"
 
@@ -49,6 +51,17 @@ void FChaosVDScene::Initialize()
 	PhysicsVDWorld = CreatePhysicsVDWorld();
 
 	GeometryGenerator = MakeShared<FChaosVDGeometryBuilder>();
+	
+	StreamableManager = MakeShared<FStreamableManager>();
+
+	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
+	{
+		// TODO: Do an async load instead, and prepare a loading screen or notification popup
+		// Jira for tracking UE-191639
+		StreamableManager->RequestSyncLoad(Settings->QueryOnlyMeshesMaterial.ToSoftObjectPath());
+		
+		Settings->OnVisibilitySettingsChanged().AddRaw(this, &FChaosVDScene::HandleVisibilitySettingsChanged);
+	}
 
 	bIsInitialized = true;
 }
@@ -58,6 +71,11 @@ void FChaosVDScene::DeInitialize()
 	if (!ensure(bIsInitialized))
 	{
 		return;
+	}
+
+	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
+	{
+		Settings->OnVisibilitySettingsChanged().RemoveAll(this);
 	}
 
 	SelectionSet->OnPreChange().RemoveAll(this);
@@ -222,7 +240,6 @@ void FChaosVDScene::UpdateParticlesCollisionData(const FChaosVDStepData& InRecor
 	}
 }
 
-
 void FChaosVDScene::HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& GeometryData, const uint32 GeometryID) const
 {
 	NewGeometryAvailableDelegate.Broadcast(GeometryData, GeometryID);
@@ -293,13 +310,13 @@ void FChaosVDScene::CleanUpScene()
 	ParticlesBySolverID.Reset();
 }
 
-const Chaos::FConstImplicitObjectPtr* FChaosVDScene::GetUpdatedGeometry(int32 GeometryID) const
+Chaos::FConstImplicitObjectPtr FChaosVDScene::GetUpdatedGeometry(int32 GeometryID) const
 {
 	if (ensure(LoadedRecording.IsValid()))
 	{
 		if (const Chaos::FConstImplicitObjectPtr* Geometry = LoadedRecording->GetGeometryMap().Find(GeometryID))
 		{
-			return Geometry;
+			return *Geometry;
 		}
 	}
 
@@ -335,7 +352,7 @@ AChaosVDParticleActor* FChaosVDScene::SpawnParticleFromRecordedData(const FChaos
 		{
 			if (const Chaos::FConstImplicitObjectPtr* Geometry = LoadedRecording->GetGeometryMap().Find(InParticleData.GeometryHash))
 			{
-				NewActor->UpdateGeometry(Geometry->GetReference());
+				NewActor->UpdateGeometry(*Geometry);
 			}
 		}
 
@@ -447,6 +464,17 @@ void FChaosVDScene::ClearSelectionAndNotify()
 
 	SelectionSet->ClearSelection(FTypedElementSelectionOptions());
 	SelectionSet->NotifyPendingChanges();
+}
+
+void FChaosVDScene::HandleVisibilitySettingsChanged(UChaosVDEditorSettings* SettingsObject)
+{
+	for (const TPair<int32, FChaosVDParticlesByIDMap>& ParticlesBySolver : ParticlesBySolverID)
+	{
+		for (const TPair<int32, AChaosVDParticleActor*>& ParticleWithIDPair : ParticlesBySolver.Value)
+		{
+			ParticleWithIDPair.Value->UpdateGeometryComponentsVisibility();
+		}
+	}
 }
 
 void FChaosVDScene::SetSelectedObject(UObject* SelectedObject)

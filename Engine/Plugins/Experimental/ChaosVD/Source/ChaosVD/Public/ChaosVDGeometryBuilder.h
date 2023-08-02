@@ -4,6 +4,7 @@
 
 #include "AsyncCompilationHelpers.h"
 #include "ChaosVDConvexMeshGenerator.h"
+#include "ChaosVDGeometryDataComponent.h"
 #include "ChaosVDHeightfieldMeshGenerator.h"
 #include "ChaosVDTriMeshGenerator.h"
 #include "Chaos/HeightField.h"
@@ -124,10 +125,11 @@ private:
 	 * Creates an empty DynamicMeshComponent/Static Mesh Component or Instanced mesh component and adds it to the actor
 	 * @param Owner Actor who will own the component
 	 * @param Name Name of the component. It has to be unique within the components in the owner actor
-	 * @param Transform (Optional) Transform to apply as Relative Transform in the component after its creating and attachment to the provided actor
+	 * @param Transform Transform to apply as Relative Transform in the component after its creating and attachment to the provided actor
+	 * @param DataComponentKey Key to match this component data to a specific geometry. Usually the type hash of the implicit object
 	 * */
 	template<typename ComponentType>
-	ComponentType* CreateMeshComponent(AActor* Owner, const FString& Name, const Chaos::FRigidTransform3& Transform) const;
+	ComponentType* CreateMeshComponent(AActor* Owner, const FString& Name, const Chaos::FRigidTransform3& Transform, uint32 DataComponentKey) const;
 
 	/**
 	 * Applies a mesh to a mesh component based on its type
@@ -222,11 +224,11 @@ template <typename MeshType, typename ComponentType>
 void FChaosVDGeometryBuilder::CreateMeshComponentsFromImplicit(const Chaos::FImplicitObject* InImplicitObject, AActor* Owner, TArray<TWeakObjectPtr<UMeshComponent>>& OutMeshComponents, Chaos::FRigidTransform3& Transform, const int32 Index, const int32 DesiredLODCount)
 {
 	static_assert(std::is_same_v<MeshType, UStaticMesh> || std::is_same_v<MeshType, UDynamicMesh>, "CreateMeshComponentsFromImplicit Only supports DynamicMesh and Static Mesh");
-	static_assert(std::is_same_v<ComponentType, UStaticMeshComponent> || std::is_same_v<ComponentType, UInstancedStaticMeshComponent> || std::is_same_v<MeshType, UDynamicMeshComponent>, "CreateMeshComponentsFromImplicit Only supports DynamicMeshComponent, Static MeshComponent and Instanced Static Mesh Component");
+	static_assert(std::is_base_of_v<UStaticMeshComponent, ComponentType> || std::is_base_of_v<UInstancedStaticMeshComponent, ComponentType> /*|| std::is_same_v<MeshType, UDynamicMeshComponent>*/, "CreateMeshComponentsFromImplicit Only supports DynamicMeshComponent, Static MeshComponent and Instanced Static Mesh Component");
 
 	// We could have you make the Mesh type as template and infer the component type based on that, but we also want to be able to create Static Meshes with either Instanced or normal static mesh components
-	constexpr bool bHasValidCombinationForStaticMesh =  std::is_same_v<MeshType, UStaticMesh> && (std::is_same_v<ComponentType, UStaticMeshComponent> || std::is_same_v<ComponentType, UInstancedStaticMeshComponent>);
-	constexpr bool bHasValidCombinationForDynamicMesh =  std::is_same_v<MeshType, UDynamicMesh> && std::is_same_v<ComponentType, UDynamicMeshComponent>;
+	constexpr bool bHasValidCombinationForStaticMesh =  std::is_same_v<MeshType, UStaticMesh> && (std::is_base_of_v<UStaticMeshComponent, ComponentType> || std::is_base_of_v<UInstancedStaticMeshComponent, ComponentType>);
+	constexpr bool bHasValidCombinationForDynamicMesh =  std::is_same_v<MeshType, UDynamicMesh> && std::is_base_of_v<UDynamicMeshComponent, ComponentType>;
 	static_assert(bHasValidCombinationForStaticMesh || bHasValidCombinationForDynamicMesh , "Incorrect Component type for Mesh type. Did you use a Dynamic Mesh with a Static Mesh component type?.");
 
 	using namespace Chaos;
@@ -266,9 +268,10 @@ void FChaosVDGeometryBuilder::CreateMeshComponentsFromImplicit(const Chaos::FImp
 
 			const FString Name = FString::Format(TEXT("{0} - {1}"), {TEXT("Sphere"), FString::FromInt(Index)});
 
-			MeshComponent = CreateMeshComponent<ComponentType>(Owner, Name, Transform);
-
 			const uint32 GeometryKey = Sphere->GetTypeHash();
+				
+			MeshComponent = CreateMeshComponent<ComponentType>(Owner, Name, Transform, GeometryKey);
+
 			Mesh = GetCachedMeshForImplicit<MeshType>(GeometryKey);
 
 			if (Mesh)
@@ -294,9 +297,11 @@ void FChaosVDGeometryBuilder::CreateMeshComponentsFromImplicit(const Chaos::FImp
 			const Chaos::TBox<FReal, 3>* Box = InImplicitObject->template GetObject<Chaos::TBox<FReal, 3>>();
 
 			const FString Name = FString::Format(TEXT("{0} - {1}"), {TEXT("Box"), FString::FromInt(Index)});
-			MeshComponent = CreateMeshComponent<ComponentType>(Owner, Name, Transform);
-
+			
 			const uint32 GeometryKey = Box->GetTypeHash();
+
+			MeshComponent = CreateMeshComponent<ComponentType>(Owner, Name, Transform, GeometryKey);
+
 			Mesh = GetCachedMeshForImplicit<MeshType>(GeometryKey);
 
 			if (Mesh)
@@ -325,7 +330,10 @@ void FChaosVDGeometryBuilder::CreateMeshComponentsFromImplicit(const Chaos::FImp
 
 			const FString Name = FString::Format(TEXT("{0} - {1}"), {TEXT("Capsule"), FString::FromInt(Index)});
 			const FRigidTransform3 StartingTransform;
-			MeshComponent = CreateMeshComponent<ComponentType>(Owner, Name, StartingTransform);
+
+			const uint32 GeometryKey = Capsule->GetTypeHash();
+				
+			MeshComponent = CreateMeshComponent<ComponentType>(Owner, Name, StartingTransform, GeometryKey);
 
 			// Re-adjust the location so the pivot is not the center of the capsule, and transform it based on the provided transform
 			const FVector FinalLocation = Transform.TransformPosition(Capsule->GetCenter() - Capsule->GetAxis() * Capsule->GetSegment().GetLength() * 0.5f);
@@ -335,7 +343,6 @@ void FChaosVDGeometryBuilder::CreateMeshComponentsFromImplicit(const Chaos::FImp
 			MeshComponent->SetRelativeLocation(FinalLocation);
 			MeshComponent->SetRelativeScale3D(Transform.GetScale3D());
 
-			const uint32 GeometryKey = Capsule->GetTypeHash();
 			Mesh = GetCachedMeshForImplicit<MeshType>(GeometryKey);
 
 			if (Mesh)
@@ -367,8 +374,13 @@ void FChaosVDGeometryBuilder::CreateMeshComponentsFromImplicit(const Chaos::FImp
 			if (const FConvex* Convex = GetGeometryBasedOnPackedType<FConvex>(InImplicitObject, Transform, PackedType))
 			{
 				const FString Name = FString::Format(TEXT("{0} - {1}"), {TEXT("Convex"), FString::FromInt(Index)});
-				MeshComponent = CreateMeshComponent<ComponentType>(Owner, Name, Transform);
+
 				
+				uint32 DataComponentKey = InImplicitObject->GetTypeHash();
+				MeshComponent = CreateMeshComponent<ComponentType>(Owner, Name, Transform, DataComponentKey);
+
+				// For the Cache key, we need the hash of the geometry itself without scale or transformations, because these will be applied to the
+				// mesh component. For example, we don't want to generate two meshes for a box, because in one instance was scaled. We only one mesh for one box, and scale the component as needed
 				const uint32 GeometryKey = Convex->GetTypeHash();
 				Mesh = GetCachedMeshForImplicit<MeshType>(GeometryKey);
 	
@@ -397,8 +409,13 @@ void FChaosVDGeometryBuilder::CreateMeshComponentsFromImplicit(const Chaos::FImp
 			if (const FTriangleMeshImplicitObject* TriangleMesh = GetGeometryBasedOnPackedType<FTriangleMeshImplicitObject>(InImplicitObject, Transform, PackedType))
 			{
 				const FString Name = FString::Format(TEXT("{0} - {1}"), {TEXT("Trimesh"), FString::FromInt(Index)});
-				MeshComponent = CreateMeshComponent<ComponentType>(Owner, Name, Transform);
 
+				// For the Component data key, we need the hash of the implicit as it is as we will need to match it when looking for shape data
+				uint32 DataComponentKey = InImplicitObject->GetTypeHash();
+				MeshComponent = CreateMeshComponent<ComponentType>(Owner, Name, Transform, DataComponentKey);
+
+				// For the Cache key, we need the hash of the geometry itself without scale or transformations, because these will be applied to the
+				// mesh component. For example, we don't want to generate two meshes for a box, because in one instance was scaled. We only one mesh for one box, and scale the component as needed
 				const uint32 GeometryKey = TriangleMesh->GetTypeHash();
 				Mesh = GetCachedMeshForImplicit<MeshType>(GeometryKey);
 	
@@ -424,8 +441,13 @@ void FChaosVDGeometryBuilder::CreateMeshComponentsFromImplicit(const Chaos::FImp
 			if (const FHeightField* HeightField = GetGeometryBasedOnPackedType<FHeightField>(InImplicitObject, Transform, PackedType))
 			{
 				const FString Name = FString::Format(TEXT("{0} - {1}"), {TEXT("HeightField"), FString::FromInt(Index)});
-				MeshComponent = CreateMeshComponent<ComponentType>(Owner, Name, Transform);
 
+				// For the Component data key, we need the hash of the implicit as it is as we will need to match it when looking for shape data
+				uint32 DataComponentKey = InImplicitObject->GetTypeHash();
+				MeshComponent = CreateMeshComponent<ComponentType>(Owner, Name, Transform, DataComponentKey);
+
+				// For the Cache key, we need the hash of the geometry itself without scale or transformations, because these will be applied to the
+				// mesh component. For example, we don't want to generate two meshes for a box, because in one instance was scaled. We only one mesh for one box, and scale the component as needed
 				const uint32 GeometryKey = HeightField->GetTypeHash();
 				Mesh = GetCachedMeshForImplicit<MeshType>(GeometryKey);
 	
@@ -480,7 +502,7 @@ MeshType* FChaosVDGeometryBuilder::GetCachedMeshForImplicit(const uint32 Geometr
 }
 
 template <typename ComponentType>
-ComponentType* FChaosVDGeometryBuilder::CreateMeshComponent(AActor* Owner, const FString& Name, const Chaos::FRigidTransform3& Transform) const
+ComponentType* FChaosVDGeometryBuilder::CreateMeshComponent(AActor* Owner, const FString& Name, const Chaos::FRigidTransform3& Transform, uint32 DataComponentKey) const
 {
 	ComponentType* MeshComponent = NewObject<ComponentType>(Owner, *Name);
 
@@ -493,15 +515,22 @@ ComponentType* FChaosVDGeometryBuilder::CreateMeshComponent(AActor* Owner, const
 
 	MeshComponent->bSelectable = true;
 
-	if constexpr (std::is_same_v<ComponentType, UDynamicMeshComponent> || std::is_same_v<ComponentType, UStaticMeshComponent>)
+	constexpr bool bIsStaticMeshComponent = std::is_base_of_v<UStaticMeshComponent, ComponentType> && !std::is_base_of_v<UInstancedStaticMeshComponent, ComponentType>;
+
+	if constexpr (std::is_base_of_v<UDynamicMeshComponent, ComponentType> || bIsStaticMeshComponent)
 	{
 		MeshComponent->SetRelativeTransform(Transform);
 	}
-	else if constexpr (std::is_same_v<ComponentType, UInstancedStaticMeshComponent>)
+	else if constexpr (std::is_base_of_v<UInstancedStaticMeshComponent, ComponentType>)
 	{
 		// If we have negative scale we need to force reverse the culling mode in this component otherwise the faces will be inverted
 		MeshComponent->SetReverseCulling(HasNegativeScale(Transform));
 		MeshComponent->AddInstance(Transform);
+	}
+
+	if (IChaosVDGeometryDataComponent* DataComponent = Cast<IChaosVDGeometryDataComponent>(MeshComponent))
+	{
+		DataComponent->SetGeometryID(DataComponentKey);
 	}
 
 	return MeshComponent;

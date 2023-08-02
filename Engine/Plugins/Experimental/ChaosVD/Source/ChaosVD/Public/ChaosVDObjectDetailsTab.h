@@ -10,12 +10,11 @@
 struct FChaosVDParticleDebugData;
 
 class AActor;
-class IDetailsView;
 class FName;
 class FSpawnTabArgs;
 class FTabManager;
+class SChaosVDDetailsView;
 class SDockTab;
-
 
 /** Spawns and handles and instance for the visual debugger details panel */
 class FChaosVDObjectDetailsTab : public FChaosVDTabSpawnerBase, public FChaosVDSceneSelectionObserver, public TSharedFromThis<FChaosVDObjectDetailsTab>
@@ -33,5 +32,5 @@ protected:
 	virtual void HandlePostSelectionChange(const UTypedElementSelectionSet* ChangedSelectionSet) override;
 
 	FDelegateHandle SelectionDelegateHandle;
-	TSharedPtr<IDetailsView> DetailsPanel;
+	TSharedPtr<SChaosVDDetailsView> DetailsPanelView;
 };

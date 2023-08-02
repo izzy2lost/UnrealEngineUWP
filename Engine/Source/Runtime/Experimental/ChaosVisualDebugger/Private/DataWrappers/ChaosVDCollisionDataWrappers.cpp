@@ -94,3 +94,14 @@ bool FChaosVDParticlePairMidPhase::Serialize(FArchive& Ar)
 
 	return true;
 }
+
+bool FChaosVDShapeCollisionData::Serialize(FArchive& Ar)
+{
+	Ar << CollisionTraceType;
+	
+	FArchive_Serialize_BitfieldBool(Ar, bSimCollision);
+	FArchive_Serialize_BitfieldBool(Ar, bQueryCollision);
+	FArchive_Serialize_BitfieldBool(Ar, bIsProbe);
+
+	return true;
+}

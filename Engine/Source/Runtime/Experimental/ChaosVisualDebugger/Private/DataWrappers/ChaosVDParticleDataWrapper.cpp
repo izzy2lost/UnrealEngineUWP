@@ -108,5 +108,7 @@ bool FChaosVDParticleDataWrapper::Serialize(FArchive& Ar)
 
 	Ar << bHasValidData;
 
+	Ar << CollisionDataPerShape;
+
 	return true;
 }

@@ -141,6 +141,21 @@ void FChaosVisualDebuggerTrace::TraceParticle(Chaos::FGeometryParticleHandle* Pa
 		ParticleDataWrapper.GeometryHash = GeometryHash;
 		ParticleDataWrapper.SolverID = ContextData.Id;
 		
+		const Chaos::FShapeInstanceArray& ShapesInstancesArray = ParticleHandle->ShapeInstances();
+		ParticleDataWrapper.CollisionDataPerShape.Reserve(ShapesInstancesArray.Num());
+		
+		for (const Chaos::FShapeInstancePtr& ShapeData : ShapesInstancesArray)
+		{
+			const Chaos::FCollisionData& CollisionData = ShapeData->GetCollisionData();
+			FChaosVDShapeCollisionData CVDCollisionData;
+			CVDCollisionData.bQueryCollision = CollisionData.bQueryCollision;
+			CVDCollisionData.bIsProbe = CollisionData.bIsProbe;
+			CVDCollisionData.bSimCollision = CollisionData.bSimCollision;
+			CVDCollisionData.CollisionTraceType = static_cast<EChaosVDCollisionTraceFlag>(CollisionData.CollisionTraceType);
+
+			ParticleDataWrapper.CollisionDataPerShape.Add(MoveTemp(CVDCollisionData));
+		}
+		
 		FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
 
 		FMemoryWriter MemWriterAr(TLSDataBuffer.BufferRef);

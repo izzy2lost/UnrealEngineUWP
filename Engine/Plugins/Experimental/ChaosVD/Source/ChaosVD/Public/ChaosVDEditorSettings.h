@@ -10,6 +10,10 @@
 
 #include "ChaosVDEditorSettings.generated.h"
 
+class UChaosVDEditorSettings;
+class UMaterial;
+
+DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDVisibilitySettingsChaged, UChaosVDEditorSettings* CVDEditorSettingsObject)
 
 UENUM()
 enum class EChaosVDActorTrackingMode
@@ -27,6 +31,16 @@ enum class EChaosVDActorTrackingTarget
 	RecordedTransform,
 	RecordedLocation,
 };
+
+UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
+enum class EChaosVDGeometryVisibilityFlags : uint8
+{
+	Query = 1 << 1,
+	Simulated = 1 << 2,
+	Simple = 1 << 3,
+	Complex = 1 << 4,
+};
+ENUM_CLASS_FLAGS(EChaosVDGeometryVisibilityFlags)
 
 UCLASS(config = Engine)
 class UChaosVDEditorSettings : public UObject
@@ -57,4 +71,17 @@ public:
 
 	UPROPERTY(Config)
 	TSoftObjectPtr<UWorld> BasePhysicsVDWorld;
+
+	UPROPERTY(EditAnywhere, Category = "Geometry Visibility", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDGeometryVisibilityFlags"))
+	uint8 GeometryVisibilityFlags = static_cast<uint8>(EChaosVDGeometryVisibilityFlags::Simulated | EChaosVDGeometryVisibilityFlags::Simple);
+
+	UPROPERTY(Config)
+	TSoftObjectPtr<UMaterial> QueryOnlyMeshesMaterial;
+
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
+	FChaosVDVisibilitySettingsChaged& OnVisibilitySettingsChanged() { return VisibilitySettingsChangedDelegate; };
+
+protected:
+	FChaosVDVisibilitySettingsChaged VisibilitySettingsChangedDelegate;
 };
