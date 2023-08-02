@@ -15,6 +15,7 @@ UMassVisualizationLODProcessor::UMassVisualizationLODProcessor()
 void UMassVisualizationLODProcessor::ConfigureQueries()
 {
 	FMassEntityQuery BaseQuery;
+	BaseQuery.AddTagRequirement<FMassVisualizationLODProcessorTag>(EMassFragmentPresence::All);
 	BaseQuery.AddRequirement<FMassViewerInfoFragment>(EMassFragmentAccess::ReadOnly);
 	BaseQuery.AddRequirement<FMassRepresentationLODFragment>(EMassFragmentAccess::ReadWrite);
 	BaseQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);

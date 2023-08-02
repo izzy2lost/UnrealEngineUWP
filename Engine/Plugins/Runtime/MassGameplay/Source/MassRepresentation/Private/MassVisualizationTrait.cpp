@@ -10,6 +10,7 @@
 #include "MassLODFragments.h"
 #include "MassActorSubsystem.h"
 #include "MassEntityUtils.h"
+#include "MassVisualizationLODProcessor.h"
 
 
 UMassVisualizationTrait::UMassVisualizationTrait()
@@ -95,6 +96,8 @@ void UMassVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildContext& Bui
 	BuildContext.AddFragment<FMassRepresentationLODFragment>();
 	BuildContext.AddTag<FMassVisibilityCulledByDistanceTag>();
 	BuildContext.AddChunkFragment<FMassVisualizationChunkFragment>();
+
+	BuildContext.AddTag<FMassVisualizationLODProcessorTag>();
 }
 
 
