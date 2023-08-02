@@ -1353,6 +1353,12 @@ void FBulkData::Serialize(FArchive& Ar, UObject* Owner, bool bAttemptFileMapping
 			SerializedMeta.ElementCount = GetBulkDataSize() / ElementSize;
 			SerializedMeta.SizeOnDisk = GetBulkDataSize();
 
+			if (SerializeBulkDataElements != nullptr)
+			{
+				// Force 64 bit precision when using custom element serialization
+				SetBulkDataFlagsOn(SerializedMeta.Flags, static_cast<EBulkDataFlags>(BULKDATA_Size64Bit));
+			}
+
 			const EBulkDataFlags FlagsToClear = static_cast<EBulkDataFlags>(BULKDATA_PayloadAtEndOfFile | BULKDATA_PayloadInSeperateFile | BULKDATA_WorkspaceDomainPayload | BULKDATA_ForceSingleElementSerialization);
 			FBulkData::ClearBulkDataFlagsOn(SerializedMeta.Flags, FlagsToClear);
 
@@ -1366,6 +1372,12 @@ void FBulkData::Serialize(FArchive& Ar, UObject* Owner, bool bAttemptFileMapping
 			}
 			SerializedMeta.Offset = Ar.Tell();
 			SerializedMeta.SizeOnDisk = SerializePayload(Ar, SerializedMeta.Flags, FileRegionTypeOptional);
+
+			if (SerializeBulkDataElements != nullptr)
+			{
+				SerializedMeta.ElementCount = SerializedMeta.SizeOnDisk / ElementSize;
+			}
+
 			{
 				FArchive::FScopeSeekTo _(Ar, MetaOffset);
 				Ar << SerializedMeta;
@@ -1549,7 +1561,11 @@ int64 FBulkData::SerializePayload(FArchive& Ar, EBulkDataFlags SerializationFlag
 
 	const int64 PayloadStart = Ar.Tell();
 
-	if (int64 PayloadSize = GetBulkDataSize(); PayloadSize > 0)
+	if (int64 PayloadSize = GetBulkDataSize(); PayloadSize > 0
+#if !USE_RUNTIME_BULKDATA
+	|| (SerializeBulkDataElements != nullptr)
+#endif
+	)
 	{
 		if (RegionType)
 		{

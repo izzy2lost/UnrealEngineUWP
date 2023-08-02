@@ -599,11 +599,17 @@ bool FLinkerSave::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 
 	const EBulkDataFlags BulkDataFlags	= static_cast<EBulkDataFlags>(BulkData.GetBulkDataFlags());
 	int32 ResourceIndex					= DataResourceMap.Num();
-	const int64 PayloadSize				= BulkData.GetBulkDataSize();
-	TOptional<EFileRegionType> RegionToUse;
+	int64 PayloadSize					= BulkData.GetBulkDataSize();
 	const bool bSupportsMemoryMapping	= IsCooking() && MemoryMappingAlignment >= 0;
 	const bool bSaveAsResourceIndex		= IsCooking();
+
+#if USE_RUNTIME_BULKDATA
+	const bool bCustomElementSerialization = false;
+#else
+	const bool bCustomElementSerialization = BulkData.SerializeBulkDataElements != nullptr;
+#endif
 	
+	TOptional<EFileRegionType> RegionToUse;
 	if (bFileRegionsEnabled)
 	{
 		if (IsCooking())
@@ -618,7 +624,13 @@ bool FLinkerSave::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 	FBulkMetaResource SerializedMeta;
 	SerializedMeta.Flags = BulkDataFlags;
 	SerializedMeta.ElementCount = PayloadSize / Params.ElementSize;
-	SerializedMeta.SizeOnDisk = PayloadSize; 
+	SerializedMeta.SizeOnDisk = PayloadSize;
+
+	if (bCustomElementSerialization)
+	{
+		// Force 64 bit precision when using custom element serialization
+		FBulkData::SetBulkDataFlagsOn(SerializedMeta.Flags, static_cast<EBulkDataFlags>(BULKDATA_Size64Bit));
+	}
 
 	EBulkDataFlags FlagsToClear = static_cast<EBulkDataFlags>(BULKDATA_PayloadAtEndOfFile | BULKDATA_PayloadInSeperateFile | BULKDATA_WorkspaceDomainPayload | BULKDATA_ForceSingleElementSerialization);
 	if (IsCooking())
@@ -649,6 +661,11 @@ bool FLinkerSave::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 
 		SerializedMeta.Offset = Tell();
 		SerializedMeta.SizeOnDisk = BulkData.SerializePayload(Ar, SerializedMeta.Flags, RegionToUse);
+		if (bCustomElementSerialization)
+		{
+			PayloadSize = SerializedMeta.SizeOnDisk;
+			SerializedMeta.ElementCount = PayloadSize / Params.ElementSize; 
+		}
 
 		if (bSaveAsResourceIndex == false)
 		{
@@ -712,7 +729,13 @@ bool FLinkerSave::SerializeBulkData(FBulkData& BulkData, const FBulkDataSerializ
 				SerializedMeta.SizeOnDisk = BulkData.SerializePayload(BulkDataAr, SerializedMeta.Flags, RegionToUse);
 			}
 		}
-		
+
+		if (bCustomElementSerialization)
+		{
+			PayloadSize = SerializedMeta.SizeOnDisk;
+			SerializedMeta.ElementCount = PayloadSize / Params.ElementSize; 
+		}
+
 		FArchive& Ar = *this;
 		if (bSaveAsResourceIndex)
 		{
