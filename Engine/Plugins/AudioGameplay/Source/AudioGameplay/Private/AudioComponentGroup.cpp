@@ -123,11 +123,11 @@ UAudioComponent* UAudioComponentGroup::GetNextAvailableComponent()
 	if (ReturnComponent == nullptr)
 	{
 		ReturnComponent = AddComponent();
-	}
 
-	for (TScriptInterface<IAudioComponentGroupExtension> Extension : Extensions)
-	{
-		Extension->OnComponentAdded(ReturnComponent);
+		for (TScriptInterface<IAudioComponentGroupExtension> Extension : Extensions)
+		{
+			Extension->OnComponentAdded(ReturnComponent);
+		}
 	}
 
 	return ReturnComponent;
