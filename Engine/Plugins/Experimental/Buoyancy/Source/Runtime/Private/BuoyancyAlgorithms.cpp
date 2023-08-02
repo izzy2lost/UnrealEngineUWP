@@ -23,6 +23,34 @@ namespace
 {
 	using namespace Chaos;
 
+	// Check to see if an object's shape is marked as already submerged
+	bool IsShapeSubmerged_Internal(const TSparseArray<TBitArray<>>& SubmergedShapes, const int32 ParticleIndex, const int32 ShapeIndex)
+	{
+		return
+			SubmergedShapes.IsValidIndex(ParticleIndex) &&
+			SubmergedShapes[ParticleIndex].IsValidIndex(ShapeIndex) &&
+			SubmergedShapes[ParticleIndex][ShapeIndex];
+	}
+
+	// Mark an object's shape as submerged
+	void SubmergeShape_Internal(TSparseArray<TBitArray<>>& SubmergedShapes, const int32 ParticleIndex, const int32 ShapeIndex)
+	{
+		// If no shapes are tracked for this particle yet, add a bit array for it
+		if (SubmergedShapes.IsValidIndex(ParticleIndex) == false)
+		{
+			SubmergedShapes.Insert(ParticleIndex, TBitArray<>(false, ShapeIndex + 1));
+		}
+
+		// If the bit array for this particle existed already but is too small, expand it
+		else if (SubmergedShapes[ParticleIndex].IsValidIndex(ShapeIndex) == false)
+		{
+			SubmergedShapes[ParticleIndex].SetNum(ShapeIndex + 1, false);
+		}
+
+		// Mark this particle's shape as submerged
+		SubmergedShapes[ParticleIndex][ShapeIndex] = true;
+	}
+
 	// NOTE: See SubdivideBounds(...) for a description of this algorithm
 	//
 	// TODO: Use an array + offset rather than raw ptr
@@ -79,12 +107,14 @@ namespace BuoyancyAlgorithms
 {
 	using namespace Chaos;
 
-	bool ComputeSubmergedVolume(const FGeometryParticleHandle* ParticleA, const FGeometryParticleHandle* ParticleB, const int32 NumSubdivisions, const float MinVolume, float& SubmergedVol, FVec3& SubmergedCoM)
+	bool ComputeSubmergedVolume(const FGeometryParticleHandle* ParticleA, const FGeometryParticleHandle* ParticleB, const int32 NumSubdivisions, const float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_ComputeSubmergedVolume)
 
 		SubmergedVol = 0.f;
 		SubmergedCoM = FVec3::ZeroVector;
+
+		const int32 ParticleIndexB = ParticleB->UniqueIdx().Idx;
 
 		const FImplicitObject* RootImplicitA = ParticleA->GetGeometry();
 		const FImplicitObject* RootImplicitB = ParticleB->GetGeometry();
@@ -105,8 +135,8 @@ namespace BuoyancyAlgorithms
 		// object hierarchy of ParticleB.
 		RootImplicitA->VisitLeafObjects(
 			[ParticleA, &ShapeInstancesA, &ParticleWorldTransformA,
-			ParticleB, &ShapeInstancesB, RootImplicitB, &ParticleWorldTransformB, &ParticleTransformAToB,
-			&NumSubdivisions, &MinVolume, &SubmergedVol, &SubmergedCoM]
+			ParticleIndexB, &ShapeInstancesB, RootImplicitB, &ParticleWorldTransformB, &ParticleTransformAToB,
+			&NumSubdivisions, &MinVolume, &SubmergedShapes, &SubmergedVol, &SubmergedCoM]
 			(const FImplicitObject* ImplicitA, const FRigidTransform3& RelativeTransformA, const int32 RootObjectIndexA, const int32 ObjectIndex, const int32 LeafObjectIndexA)
 		{
 			const FAABB3 RelativeBoundsA = ImplicitA->CalculateTransformedBounds(RelativeTransformA);
@@ -121,11 +151,19 @@ namespace BuoyancyAlgorithms
 
 			// Detect collisions between ImplicitA and Implicit Hierarchy of ParticleB
 			RootImplicitB->VisitOverlappingLeafObjects(ShapeBoundsAInB,
-				[ParticleA, ImplicitA, ShapeInstanceA, &ParticleWorldTransformA, &RelativeTransformA, LeafObjectIndexA,
-				ParticleB, &ParticleWorldTransformB, &ShapeInstancesB,
-				&NumSubdivisions, &MinVolume, &SubmergedVol, &SubmergedCoM]
+				[ParticleA, ImplicitA, ShapeInstanceA, LeafObjectIndexA,
+				&ParticleWorldTransformA, &RelativeTransformA,
+				ParticleIndexB, &ParticleWorldTransformB,
+				&NumSubdivisions, &MinVolume, &SubmergedShapes, &SubmergedVol, &SubmergedCoM]
 				(const FImplicitObject* ImplicitB, const FRigidTransform3& RelativeTransformB, const int32 RootObjectIndexB, const int32 ObjectIndexB, const int32 LeafObjectIndexB)
 			{
+				// If this shape has already been submerged, skip it to avoid double-counting
+				// any buoyancy contributions.
+				if (IsShapeSubmerged_Internal(SubmergedShapes, ParticleIndexB, ObjectIndexB))
+				{
+					return;
+				}
+
 				// Get shape world transforms
 				const FRigidTransform3 ShapeWorldTransformA = RelativeTransformA * ParticleWorldTransformA;
 				const FRigidTransform3 ShapeWorldTransformB = RelativeTransformB * ParticleWorldTransformB;
@@ -151,6 +189,7 @@ namespace BuoyancyAlgorithms
 				SubdivideBounds(BoxBInB, NumSubdivisions, MinVolume, BoxesInB);
 
 				// Loop over every subdivision of the shape bounds, counting up submerged portions
+				bool bSubmerged = false;
 				for (const FAABB3& BoxInB : BoxesInB)
 				{
 #if ENABLE_DRAW_DEBUG
@@ -170,6 +209,9 @@ namespace BuoyancyAlgorithms
 					FAABB3 SubmergedBoundsInB;
 					if (ComputeSubmergedBounds(WaterZ, BoxInB, ShapeWorldTransformB, SubmergedBoundsInB))
 					{
+						// At this point we know that the shape is submerged
+						bSubmerged = true;
+
 						// This bounds box is submerged. Compute it's volume and center of mass
 						// in world space, and add those contributions to the submerged quantity.
 						const FVec3 LeafSubmergedCoM = ShapeWorldTransformB.TransformPosition(SubmergedBoundsInB.GetCenter());
@@ -196,24 +238,30 @@ namespace BuoyancyAlgorithms
 					}
 				}
 
-#if ENABLE_DRAW_DEBUG
-				if (bBuoyancyDebugDraw)
+				// If the shape pair overlapped, flag the submersion
+				if (bSubmerged)
 				{
-					// Water OOBB
-					Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
-						ShapeWorldTransformA.TransformPosition(BoxAInA.GetCenter()),
-						BoxAInA.Extents() * .5f,
-						ShapeWorldTransformA.GetRotation(),
-						FColor::Cyan, false, -1.f, SDPG_Foreground, 2.f);
+					SubmergeShape_Internal(SubmergedShapes, ParticleIndexB, ObjectIndexB);
 
-					// Rigid OOBB
-					Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
-						ShapeWorldTransformB.TransformPosition(BoxBInB.GetCenter()),
-						BoxBInB.Extents() * .5f,
-						ShapeWorldTransformB.GetRotation(),
-						FColor::Green, false, -1.f, SDPG_Foreground, 2.f);
-				}
+#if ENABLE_DRAW_DEBUG
+					if (bBuoyancyDebugDraw)
+					{
+						// Water OOBB
+						Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
+							ShapeWorldTransformA.TransformPosition(BoxAInA.GetCenter()),
+							BoxAInA.Extents() * .5f,
+							ShapeWorldTransformA.GetRotation(),
+							FColor::Cyan, false, -1.f, SDPG_Foreground, 2.f);
+
+						// Rigid OOBB
+						Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(
+							ShapeWorldTransformB.TransformPosition(BoxBInB.GetCenter()),
+							BoxBInB.Extents() * .5f,
+							ShapeWorldTransformB.GetRotation(),
+							FColor::Green, false, -1.f, SDPG_Foreground, 2.f);
+					}
 #endif
+				}
 			});
 		});
 

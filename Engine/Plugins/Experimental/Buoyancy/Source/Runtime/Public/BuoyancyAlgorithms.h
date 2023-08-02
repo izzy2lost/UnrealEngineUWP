@@ -11,8 +11,21 @@ namespace BuoyancyAlgorithms
 {
 	using namespace Chaos;
 
+	// Minimal struct containing essential data about a particular submersion
+	struct FSubmersion
+	{
+		// Indicates the submerged particle
+		FPBDRigidParticleHandle* SubmergedParticle;
+
+		// Total submerged volume
+		float SubmergedVolume;
+
+		// Effective submerged center of mass
+		FVec3 SubmergedCoM;
+	};
+
 	// Compute an approximate volume and center of mass of particle B submerged in particle A
-	bool ComputeSubmergedVolume(const FGeometryParticleHandle* ParticleA, const FGeometryParticleHandle* ParticleB, int32 NumSubdivisions, float MinVolume, float& SubmergedVol, FVec3& SubmergedCoM);
+	bool ComputeSubmergedVolume(const FGeometryParticleHandle* ParticleA, const FGeometryParticleHandle* ParticleB, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM);
 
 	// Given an OOBB and a water level, generate another OOBB which is 1. entirely contained
 	// within the input OOBB and 2. entirely contains the portion of the OOBB which is submerged

@@ -113,11 +113,24 @@ class FBuoyancySubsystemSimCallback : public Chaos::TSimCallbackObject<
 	Chaos::ESimCallbackOptions::Presimulate | Chaos::ESimCallbackOptions::MidPhaseModification>
 {
 private:
-	virtual void OnPreSimulate_Internal() override { }
+
+	virtual void OnPreSimulate_Internal() override;
 	virtual void OnMidPhaseModification_Internal(Chaos::FMidPhaseModifierAccessor& Modifier) override;
 
 	// Initially we won't have any settings - they have to get passed down
 	// via async input. I used TUniquePtr to control access to the same
 	// memory that was allocated by GT to minimize copies.
 	TUniquePtr<FBuoyancySettings> BuoyancySettings;
+
+	// A minimal struct of data tracking all the submersions in a frame.
+	struct FSubmersion
+	{
+		Chaos::FPBDRigidParticleHandle* Particle;
+		float Vol;
+		Chaos::FVec3 CoM;
+	};
+
+	// This sparse array of submersion events is indexed on particle unique indices.
+	// All buoyant forces due to submersions are applied at once.
+	TSparseArray<FSubmersion> Submersions;
 };

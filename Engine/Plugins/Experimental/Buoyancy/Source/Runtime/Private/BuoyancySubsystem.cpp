@@ -210,11 +210,11 @@ namespace
 	};
 }
 
-void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor)
+void FBuoyancySubsystemSimCallback::OnPreSimulate_Internal()
 {
 	using namespace Chaos;
 
-	SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_OnMidPhaseModification)
+	SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_OnPreSimulate)
 
 	// If we were sent new buoyancy settings or data, update our local sim copy
 	if (const FBuoyancySubsystemSimCallbackInput* Input = GetConsumerInput_Internal())
@@ -255,17 +255,67 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 	// How much time has the sim ticked this frame
 	const FReal DeltaSeconds = GetDeltaTime_Internal();
 
-	// TODO:
+	// Apply all buoyant forces
+	for (const FSubmersion& Submersion : Submersions)
+	{
+		// Figure out the gravity level of the particle
+		const int32 GravityGroupIndex = Submersion.Particle->GravityGroupIndex();
+		const FVec3 GravityAccel
+			= PerParticleGravity != nullptr && GravityGroupIndex != INDEX_NONE
+			? (FVec3)PerParticleGravity->GetAcceleration(GravityGroupIndex)
+			: FVec3::DownVector * 980.f; // Default to "regular" gravity
+
+		// Compute delta linear and angular velocities due to buoyancy. If they're big enough to
+		// matter, apply them
+		FVec3 DeltaV, DeltaW;
+		if (BuoyancyAlgorithms::ComputeBuoyantForce(Submersion.Particle, DeltaSeconds, BuoyancySettings->WaterDensity, BuoyancySettings->WaterDrag, GravityAccel, Submersion.CoM, Submersion.Vol, DeltaV, DeltaW))
+		{
+			// Clamp delta velocities
+			DeltaV = DeltaV.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaV);
+			DeltaW = DeltaW.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaW);
+
+			// Apply the deltas
+			Submersion.Particle->SetV(Submersion.Particle->V() + DeltaV);
+			Submersion.Particle->SetW(Submersion.Particle->W() + DeltaW);
+
+			// Wake up the body??
+			if (Evolution && BuoyancySettings->bKeepAwake)
+			{
+				Evolution->SetParticleObjectState(Submersion.Particle, EObjectStateType::Dynamic);
+			}
+		}
+
+	}
+
+	// Clear submersions, but keep memory allocated
+	Submersions.Reset();
+}
+
+void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidPhaseModifierAccessor& MidPhaseAccessor)
+{
+	using namespace Chaos;
+
+	SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_OnMidPhaseModification)
+
+	// If we don't have a valid buoyancy settings object, don't continue
+	if (BuoyancySettings.IsValid() == false)
+	{
+		return;
+	}
+
+	// This 2d bit array is used to avoid double-counting buoyancy for any particular
+	// shape on a body. The outer TSparseArray is indexed by the unique idx on a particle,
+	// the inner bitarray is indexed by it's shape indices.
 	//
-	// To avoid double-counting any particular object for buoyancy, make a bit array
-	// indexed by particle indices. Every time we apply a buoyant force, we'll skip
-	// that particle next time we see it
+	// If we have computed a buoyant force for a particular shape on an object already
+	// then skip it on the second time around.
+	TSparseArray< TBitArray<> > SubmergedShapes;
 
 	// NOTE: For now we visit _every_ midphase, and check for ones which involve
 	// our target collision channel. It would be nice if it were possible instead
 	// to get a list of water body particles and loop over only midphases which
 	// involve them.
-	MidPhaseAccessor.VisitMidPhases([this, Evolution, PerParticleGravity, DeltaSeconds](Chaos::FMidPhaseModifier& MidPhase)
+	MidPhaseAccessor.VisitMidPhases([this, &SubmergedShapes](Chaos::FMidPhaseModifier& MidPhase)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_VisitMidphases)
 
@@ -315,7 +365,7 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 		// Compute submerged volume and CoM
 		float SubmergedVol;
 		FVec3 SubmergedCoM;
-		if (BuoyancyAlgorithms::ComputeSubmergedVolume(WaterParticle, RigidParticle, BuoyancySettings->MaxNumBoundsSubdivisions, BuoyancySettings->MinBoundsSubdivisionVol, SubmergedVol, SubmergedCoM))
+		if (BuoyancyAlgorithms::ComputeSubmergedVolume(WaterParticle, RigidParticle, BuoyancySettings->MaxNumBoundsSubdivisions, BuoyancySettings->MinBoundsSubdivisionVol, SubmergedShapes, SubmergedVol, SubmergedCoM))
 		{
 			SCOPE_CYCLE_COUNTER(STAT_BuoyancySubsystem_ComputeBuoyantForces)
 
@@ -324,31 +374,27 @@ void FBuoyancySubsystemSimCallback::OnMidPhaseModification_Internal(Chaos::FMidP
 			// approximate submerged center of mass, and apply the buoyancy force there.
 			if (SubmergedVol > SMALL_NUMBER)
 			{
-				// Figure out the gravity level of the particle
-				const int32 GravityGroupIndex = RigidParticle->GravityGroupIndex();
-				const FVec3 GravityAccel
-					= PerParticleGravity != nullptr && GravityGroupIndex != INDEX_NONE
-					? (FVec3)PerParticleGravity->GetAcceleration(GravityGroupIndex)
-					: FVec3::DownVector * 980.f; // Default to "regular" gravity
+				const int32 RigidParticleIndex = RigidParticle->UniqueIdx().Idx;
 
-				// Compute delta linear and angular velocities due to buoyancy. If they're big enough to
-				// matter, apply them
-				FVec3 DeltaV, DeltaW;
-				if (BuoyancyAlgorithms::ComputeBuoyantForce(RigidParticle, DeltaSeconds, BuoyancySettings->WaterDensity, BuoyancySettings->WaterDrag, GravityAccel, SubmergedCoM, SubmergedVol, DeltaV, DeltaW))
+				// If this particle was already marked submerged, add to its existing submersion
+				if (Submersions.IsValidIndex(RigidParticleIndex))
 				{
-					// Clamp delta velocities
-					DeltaV = DeltaV.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaV);
-					DeltaW = DeltaW.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaW);
+					FSubmersion& Submersion = Submersions[RigidParticleIndex];
+					ensureMsgf(Submersion.Particle == RigidParticle, TEXT("Something went wrong - there's a particle index mismatch in the Submersions sparse array"));
 
-					// Apply the deltas
-					RigidParticle->SetV(RigidParticle->V() + DeltaV);
-					RigidParticle->SetW(RigidParticle->W() + DeltaW);
+					// Sum the volumes
+					Submersion.Vol = Submersion.Vol + SubmergedVol;
 
-					// Wake up the body??
-					if (Evolution && BuoyancySettings->bKeepAwake)
-					{
-						Evolution->SetParticleObjectState(RigidParticle, EObjectStateType::Dynamic);
-					}
+					// Get the weighted-average CoM
+					// NOTE: The unchecked division should be safe since we already
+					// know SubmergedVol > SMALL_NUMBER
+					Submersion.CoM = ((Submersion.CoM * Submersion.Vol) + (SubmergedCoM * SubmergedVol)) / Submersion.Vol;
+				}
+
+				// If this particle was not yet submerged, make a new submersion for it
+				else
+				{
+					Submersions.Insert(RigidParticleIndex, { RigidParticle, SubmergedVol, SubmergedCoM });
 				}
 			}
 		}
