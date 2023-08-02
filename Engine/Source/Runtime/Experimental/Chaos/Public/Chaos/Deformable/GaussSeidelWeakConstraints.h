@@ -38,7 +38,6 @@ namespace Chaos::Softs
 
 			for (int32 i = 0; i < Indices.Num(); i++)
 			{
-				ensureMsgf(Indices[i].Num() + SecondIndices[i].Num() == 4, TEXT("Currently does not support non point tri pair weak constraints"));
 				TSet<int32> IndicesSet = TSet<int32>(Indices[i]);
 				for (int32 j = 0; j < SecondIndices[i].Num(); j++)
 				{
@@ -51,13 +50,13 @@ namespace Chaos::Softs
 
 		virtual ~FGaussSeidelWeakConstraints() {}
 
-		void ComputeInitialWCData(const ParticleType& InParticles, const TArray<TVector<int32, 4>>& MeshConstraints, const TArray <TArray<int32>>& MeshIncidentElements, const TArray <TArray<int32>>& MeshIncidentElementsLocal, TArray<TArray<int32>>& ParticlesPerColor)
+		void ComputeInitialWCData(const ParticleType& InParticles, const TArray<TArray<int32>>& MeshConstraints, const TArray <TArray<int32>>& MeshIncidentElements, const TArray <TArray<int32>>& MeshIncidentElementsLocal, TArray<TArray<int32>>& ParticlesPerColor)
 		{
-			TArray<TVector<int32, 4>> ExtraConstraints;
-			ExtraConstraints.Init(TVector<int32, 4>(INDEX_NONE), Indices.Num());
+			TArray<TArray<int32>> ExtraConstraints;
+			ExtraConstraints.Init(TArray<int32>(), Indices.Num());
 			for (int32 i = 0; i < Indices.Num(); i++)
 			{
-				ensureMsgf(Indices[i].Num() + SecondIndices[i].Num() == 4, TEXT("Currently does not support non point tri pair weak constraints"));
+				ExtraConstraints[i].SetNum(Indices[i].Num() + SecondIndices[i].Num());
 				for (int32 j = 0; j < Indices[i].Num(); j++)
 				{
 					ExtraConstraints[i][j] = Indices[i][j];
@@ -67,7 +66,7 @@ namespace Chaos::Softs
 					ExtraConstraints[i][j+Indices[i].Num()] = SecondIndices[i][j];
 				}
 			}
-			TArray<TVector<int32, 4>> TotalConstraints = MeshConstraints;
+			TArray<TArray<int32>> TotalConstraints = MeshConstraints;
 			TotalConstraints += ExtraConstraints;
 			TArray<TArray<int32>> TotalIncidentElements = MeshIncidentElements, TotalIncidentElementsLocal = MeshIncidentElementsLocal;
 			WCIncidentElements = Chaos::Utilities::ComputeIncidentElements(ExtraConstraints, &WCIncidentElementsLocal);
@@ -84,7 +83,7 @@ namespace Chaos::Softs
 				}
 			}
 
-			ParticlesPerColor = ComputeNodalColoring(TotalConstraints, InParticles, 0, InParticles.Size(), TotalIncidentElements, TotalIncidentElementsLocal);
+			ParticlesPerColor = ComputeNodalColoring(TotalConstraints, InParticles, 0, InParticles.Size(), TotalIncidentElements, TotalIncidentElementsLocal, &ParticleColors);
 
 			NodalWeights.Init({}, InParticles.Size());
 
@@ -133,6 +132,20 @@ namespace Chaos::Softs
 			NoCollisionNodalWeights = NodalWeights;
 			NoCollisionConstraints = ExtraConstraints;
 			InitialWCSize = Indices.Num();
+
+			NoCollisionWCIncidentElements = WCIncidentElements;
+			NoCollisionWCIncidentElementsLocal = WCIncidentElementsLocal;
+
+			StaticConstraints = MeshConstraints;
+			StaticConstraints += NoCollisionConstraints;
+			StaticIncidentElements = MeshIncidentElements;
+			for (int32 i = 0; i < NoCollisionWCIncidentElements.Num(); i++)
+			{
+				if (NoCollisionWCIncidentElements[i].Num() > 0)
+				{
+					StaticIncidentElements[i] += NoCollisionWCIncidentElements[i];
+				}
+			}
 		}
 
 		void AddWCResidual(const ParticleType& InParticles, const int32 p, const T Dt, TVec3<T>& res)
@@ -581,14 +594,14 @@ namespace Chaos::Softs
 			Resize(ConstraintNum);
 		}
 
-		void ComputeCollisionWCData(const ParticleType& InParticles, const TArray<TVector<int32, 4>>& MeshConstraints, const TArray <TArray<int32>>& MeshIncidentElements, const TArray <TArray<int32>>& MeshIncidentElementsLocal, TArray<TArray<int32>>& ParticlesPerColor)
+		void ComputeCollisionWCData(const ParticleType& InParticles, const TArray<TArray<int32>>& MeshConstraints, const TArray <TArray<int32>>& MeshIncidentElements, const TArray <TArray<int32>>& MeshIncidentElementsLocal, TArray<TArray<int32>>& ParticlesPerColor)
 		{
 			ensureMsgf(Indices.Num() >= InitialWCSize, TEXT("The size of Indices is smaller than InitialWCSize"));
-			TArray<TVector<int32, 4>> ExtraConstraints;
-			ExtraConstraints.Init(TVector<int32, 4>(INDEX_NONE), Indices.Num() - InitialWCSize);
+			TArray<TArray<int32>> ExtraConstraints;
+			ExtraConstraints.Init(TArray<int32>(), Indices.Num());
 			for (int32 i = InitialWCSize; i < Indices.Num(); i++)
 			{
-				ensureMsgf(Indices[i].Num() + SecondIndices[i].Num() == 4, TEXT("Currently does not support non point tri pair weak constraints"));
+				ExtraConstraints[i - InitialWCSize].SetNum(Indices[i].Num() + SecondIndices[i].Num());
 				for (int32 j = 0; j < Indices[i].Num(); j++)
 				{
 					ExtraConstraints[i - InitialWCSize][j] = Indices[i][j];
@@ -602,29 +615,52 @@ namespace Chaos::Softs
 			TArray<TArray<int32>> ExtraWCIncidentElements, ExtraWCIncidentElementsLocal;
 			ExtraWCIncidentElements = Chaos::Utilities::ComputeIncidentElements(ExtraConstraints, &ExtraWCIncidentElementsLocal);
 
-			TArray<TVector<int32, 4>> TotalConstraints = NoCollisionConstraints;
-			TotalConstraints += ExtraConstraints;
+			//TArray<TVector<int32, 4>> TotalConstraints = NoCollisionConstraints;
+			//TotalConstraints += ExtraConstraints;
 			//TODO (Yizhou): Make the following more efficient by computing only extra incident elements in the future. 
-			TArray<TArray<int32>> WCIncidentElementsLocalTemp;
-			WCIncidentElements = Chaos::Utilities::ComputeIncidentElements(TotalConstraints, &WCIncidentElementsLocalTemp);
-			WCIncidentElementsLocal = WCIncidentElementsLocalTemp;
+			//WCIncidentElements = Chaos::Utilities::ComputeIncidentElements(TotalConstraints, &WCIncidentElementsLocal);
+
+			//TArray<TVector<int32, 4>> TotalConstraints = NoCollisionConstraints;
+			//TotalConstraints += ExtraConstraints;
+			//TODO (Yizhou): Make the following more efficient by computing only extra incident elements in the future. 
+			//TArray<TArray<int32>> WCIncidentElementsLocalTemp;
+			////WCIncidentElements = Chaos::Utilities::ComputeIncidentElements(TotalConstraints, &WCIncidentElementsLocalTemp);
+			//WCIncidentElementsLocal = WCIncidentElementsLocalTemp;
+			WCIncidentElements = NoCollisionWCIncidentElements;
+			WCIncidentElementsLocal = NoCollisionWCIncidentElementsLocal;
+
+			if (NoCollisionWCIncidentElements.Num() < ExtraWCIncidentElements.Num())
+			{
+				WCIncidentElements.SetNum(ExtraWCIncidentElements.Num());
+				WCIncidentElementsLocal.SetNum(ExtraWCIncidentElementsLocal.Num());
+			}
+
+			for (int32 i = 0; i < ExtraWCIncidentElements.Num(); i++)
+			{
+				if (ExtraWCIncidentElements[i].Num() > 0)
+				{
+					TArray<int32> ExtraWCIncidentElementsTemp = ExtraWCIncidentElements[i];
+					for (int32 j = 0; j < ExtraWCIncidentElements[i].Num(); j++)
+					{
+						ExtraWCIncidentElementsTemp[j] += InitialWCSize;
+					}
+					WCIncidentElements[i] += ExtraWCIncidentElementsTemp;
+					WCIncidentElementsLocal[i] += ExtraWCIncidentElementsLocal[i];
+				}
+			}
+
+			//TODO(Yizhou): Check if the following variable is really necessary:
 			Particle2WCIndices.Init(INDEX_NONE, InParticles.Size());
 			for (int32 i = 0; i < WCIncidentElements.Num(); i++)
 			{
 				if (WCIncidentElements[i].Num() > 0)
 				{
-					int32 p = TotalConstraints[WCIncidentElements[i][0]][WCIncidentElementsLocal[i][0]];
+					int32 p = ExtraConstraints[WCIncidentElements[i][0]][WCIncidentElementsLocal[i][0]];
 					Particle2WCIndices[p] = i;
 				}
 			}
 
-			//TODO(Yizhou): Write the collision per timestep coloring to make the following thing much faster:
-			TArray<TVector<int32, 4>> TrueAllConstraints = MeshConstraints;
-			TrueAllConstraints += TotalConstraints;
-			TArray<TArray<int32>> TrueAllIncidentElements, TrueAllIncidentElementsLocal;
-			TrueAllIncidentElements = Chaos::Utilities::ComputeIncidentElements(TrueAllConstraints, &TrueAllIncidentElementsLocal);
-			ParticlesPerColor = ComputeNodalColoring(TrueAllConstraints, InParticles, 0, InParticles.Size(), TrueAllIncidentElements, TrueAllIncidentElementsLocal);
-
+			Chaos::ComputeExtraNodalColoring(StaticConstraints, ExtraConstraints, InParticles, StaticIncidentElements, ExtraWCIncidentElements, ParticleColors, ParticlesPerColor);
 
 			NodalWeights = NoCollisionNodalWeights;
 			for (int32 i = 0; i < ExtraWCIncidentElements.Num(); i++)
@@ -691,10 +727,19 @@ namespace Chaos::Softs
 
 		int32 InitialWCSize;
 		TArray<TArray<T>> NoCollisionNodalWeights;
-		TArray<TVector<int32, 4>> NoCollisionConstraints;
+		//TArray<TVector<int32, 4>> NoCollisionConstraints;
 		//For debugging
 		bool Detected = false;
 		TArray<int32> BoundaryVertices;
+
+		TArray<TArray<int32>> NoCollisionConstraints;
+		TArray<TArray<int32>> NoCollisionWCIncidentElements;
+		TArray<TArray<int32>> NoCollisionWCIncidentElementsLocal;
+
+		TArray<TArray<int32>> StaticConstraints;
+		TArray<TArray<int32>> StaticIncidentElements;
+
+		TArray<int32> ParticleColors; 
 	};
 
 

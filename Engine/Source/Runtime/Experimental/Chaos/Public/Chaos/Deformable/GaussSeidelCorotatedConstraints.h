@@ -75,6 +75,15 @@ namespace Chaos::Softs
 			}
 			InitColor(InParticles);
 			InitializeLambdas();
+			MeshArray.SetNum(MeshConstraints.Num());
+			for (int32 i = 0; i < MeshConstraints.Num(); i++)
+			{
+				MeshArray[i].SetNum(4);
+				for (int32 ie = 0; ie < 4; ie++)
+				{
+					MeshArray[i][ie] = MeshConstraints[i][ie];
+				}
+			}
 		}
 
 		virtual ~FGaussSeidelCorotatedConstraints() {}
@@ -127,6 +136,7 @@ namespace Chaos::Softs
 		TArray<TArray<int32>> GetIncidentElements() const { return IncidentElements; }
 		TArray<TArray<int32>> GetIncidentElementsLocal() const { return IncidentElementsLocal; }
 		TArray<TVector<int32, 4>> GetMeshConstraints() const { return MeshConstraints; }
+		TArray<TArray<int32>> GetMeshArray() const { return MeshArray; }
 		void SetParticlesPerColor(TArray<TArray<int32>>&& InParticlesPerColor) {ParticlesPerColor = MoveTemp(InParticlesPerColor); }
 
 
@@ -331,6 +341,7 @@ namespace Chaos::Softs
 
 	protected:	
 
+		TArray<TArray<int32>> MeshArray;
 		TArray<int32> Particle2Incident;
 		TArray<TArray<int32>> IncidentElements;
 		TArray<TArray<int32>> IncidentElementsLocal;

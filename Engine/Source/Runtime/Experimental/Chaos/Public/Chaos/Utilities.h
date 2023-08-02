@@ -1051,7 +1051,7 @@ namespace Chaos
 			ConnectedComponentsDFSIterative(AdjacencyList, ConnectedComponents);
 		}
 
-		inline TArray<TArray<int>> ComputeIncidentElements(const TArray<TArray<int32>>& Constraints, TArray<TArray<int32>>* LocalIndex = nullptr)
+		inline TArray<TArray<int32>> ComputeIncidentElements(const TArray<TArray<int32>>& Constraints, TArray<TArray<int32>>* LocalIndex = nullptr)
 		{
 			int32 MaxIdx = 0;
 			for (int32 i = 0; i < Constraints.Num(); i++)
@@ -1084,6 +1084,18 @@ namespace Chaos
 			}
 
 			return IncidentElements;
+		}
+
+		inline void MergeIncidentElements(const TArray<TArray<int32>>& ExtraIncidentElements, const TArray<TArray<int32>>& ExtraIncidentElementsLocal, TArray<TArray<int32>>& IncidentElements, TArray<TArray<int32>>& IncidentElementsLocal)
+		{
+			if (ensureMsgf(IncidentElements.Num() == ExtraIncidentElements.Num() && IncidentElementsLocal.Num() == ExtraIncidentElementsLocal.Num(), TEXT("Input incident elements are of different size")))
+			{
+				for (int32 i = 0; i < IncidentElements.Num(); i++)
+				{
+					IncidentElements[i] += ExtraIncidentElements[i];
+					IncidentElementsLocal[i] += ExtraIncidentElementsLocal[i];
+				}
+			}
 		}
 	} // namespace Utilities
 } // namespace Chaos
