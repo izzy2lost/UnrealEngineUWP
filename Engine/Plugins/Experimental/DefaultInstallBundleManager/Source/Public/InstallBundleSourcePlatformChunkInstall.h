@@ -92,7 +92,7 @@ protected:
 
 	void OnNamedChunkInstall(FName NamedChunk, bool bInstalled);
 
-	FName GetBundleNameForNamedChunk(FName NamedChunk) const;
+	FName GetNamedChunkForBundle(FName BundleName) const;
 
 private:
 	FTSTicker::FDelegateHandle TickHandle;

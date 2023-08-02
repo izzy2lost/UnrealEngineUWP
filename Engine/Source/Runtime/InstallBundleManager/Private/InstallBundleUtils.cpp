@@ -73,8 +73,11 @@ namespace InstallBundleUtil
 
 	bool IsPlatformInstallBundlePredicate(const FConfigFile& InstallBundleConfig, const FString& Section)
 	{
+		FString PlatformChunkName;
+		InstallBundleConfig.GetString(*Section, TEXT("PlatformChunkName"), PlatformChunkName);
+
 		int32 ChunkID = 0;
-		if (InstallBundleConfig.GetInt(*Section, TEXT("PlatformChunkID"), ChunkID) && ChunkID < 0)
+		if (PlatformChunkName.IsEmpty() && InstallBundleConfig.GetInt(*Section, TEXT("PlatformChunkID"), ChunkID) && ChunkID < 0)
 		{
 			return false;
 		}
