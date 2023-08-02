@@ -82,6 +82,12 @@ void UMoviePipeline::SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* I
 			Shutdown(true);
 			return;
 		}
+		if (BackbufferResolution.X == 0 || BackbufferResolution.Y == 0)
+		{
+			UE_LOG(LogMovieRenderPipeline, Error, TEXT("Resolution %dx%d must be greater than zero in both dimensions."), BackbufferResolution.X, BackbufferResolution.Y);
+			Shutdown(true);
+			return;
+		}
 	}
 
 	// Note how many tiles we wish to render with.
