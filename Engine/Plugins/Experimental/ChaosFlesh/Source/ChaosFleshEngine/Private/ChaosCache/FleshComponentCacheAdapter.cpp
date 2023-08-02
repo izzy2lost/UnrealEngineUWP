@@ -14,7 +14,7 @@
 #include "HAL/PlatformFileManager.h"
 #include "Misc/Paths.h"
 
-#include "SimCacheUSDOperations.h"
+#include "ChaosCachingUSD/Operations.h"
 #include "USDConversionUtils.h" // for GetPrimPathForObject()
 
 #endif // USE_USD_SDK && DO_USD_CACHING
@@ -41,7 +41,7 @@ namespace Chaos
 #if USE_USD_SDK && DO_USD_CACHING
 		if (MonolithStage)
 		{
-			UE::SimCacheUSD::CloseStage(MonolithStage);
+			UE::ChaosCachingUSD::CloseStage(MonolithStage);
 		}
 #endif // USE_USD_SDK && DO_USD_CACHING
 	}
@@ -91,26 +91,26 @@ namespace Chaos
 					MinTime = FMath::Min(InTime, MinTime);
 					MaxTime = FMath::Max(InTime, MaxTime);
 
-					pxr::VtArray<pxr::GfVec3f> Points = UE::SimCacheUSD::ToVtVec3Array(Particles.XArray());
-					pxr::VtArray<pxr::GfVec3f> Vels   = UE::SimCacheUSD::ToVtVec3Array(Particles.GetV());
+					pxr::VtArray<pxr::GfVec3f> Points = UE::ChaosCachingUSD::ToVtVec3Array(Particles.XArray());
+					pxr::VtArray<pxr::GfVec3f> Vels   = UE::ChaosCachingUSD::ToVtVec3Array(Particles.GetV());
 					
 					// Try to not fill the disk with redundant data.  Finalize() does last save 
 					// to set the final frame range.
-					if (UE::SimCacheUSD::ValuesDiffer(Points, PrevPoints, 0.5) ||
-						UE::SimCacheUSD::ValuesDiffer(Vels, PrevVels, 0.5))
+					if (UE::ChaosCachingUSD::ValuesDiffer(Points, PrevPoints, 0.5) ||
+						UE::ChaosCachingUSD::ValuesDiffer(Vels, PrevVels, 0.5))
 					{
 						PrevPoints = Points;
 						PrevVels = Vels;
 
 						if (MonolithStage)
 						{
-							if (!UE::SimCacheUSD::WritePoints(MonolithStage, PrimPath, InTime, Points, Vels))
+							if (!UE::ChaosCachingUSD::WritePoints(MonolithStage, PrimPath, InTime, Points, Vels))
 							{
 								// TODO: Warn
 								return;
 							}
 							// Save every n frames?
-							UE::SimCacheUSD::SaveStage(MonolithStage, MinTime, MaxTime);
+							UE::ChaosCachingUSD::SaveStage(MonolithStage, MinTime, MaxTime);
 						}
 					}
 #else // USE_USD_SDK && DO_USD_CACHING
@@ -177,17 +177,17 @@ namespace Chaos
 					double Next = -TNumericLimits<double>::Max();
 					double PrevV = -TNumericLimits<double>::Max();
 					double NextV = -TNumericLimits<double>::Max();
-					if (!UE::SimCacheUSD::GetBracketingTimeSamples(
-							MonolithStage, PrimPath, UE::SimCacheUSD::GetPointsAttrName(), TargetTime, &Prev, &Next) ||
-						!UE::SimCacheUSD::GetBracketingTimeSamples(
-							MonolithStage, PrimPath, UE::SimCacheUSD::GetVelocityAttrName(), TargetTime, &PrevV, &NextV) ||
+					if (!UE::ChaosCachingUSD::GetBracketingTimeSamples(
+							MonolithStage, PrimPath, UE::ChaosCachingUSD::GetPointsAttrName(), TargetTime, &Prev, &Next) ||
+						!UE::ChaosCachingUSD::GetBracketingTimeSamples(
+							MonolithStage, PrimPath, UE::ChaosCachingUSD::GetVelocityAttrName(), TargetTime, &PrevV, &NextV) ||
 						Prev != PrevV ||
 						Next != NextV)
 					{
 						return;
 					}
 
-					if (!UE::SimCacheUSD::ReadPoints(MonolithStage, PrimPath, Prev, Points0, Vels0) ||
+					if (!UE::ChaosCachingUSD::ReadPoints(MonolithStage, PrimPath, Prev, Points0, Vels0) ||
 						Points0.size() != Vels0.size())
 					{
 						return;
@@ -221,7 +221,7 @@ namespace Chaos
 						return;
 					}
 
-					if (!UE::SimCacheUSD::ReadPoints(MonolithStage, PrimPath, Next, Points1, Vels1) ||
+					if (!UE::ChaosCachingUSD::ReadPoints(MonolithStage, PrimPath, Next, Points1, Vels1) ||
 						Points1.size() != Vels1.size() ||
 						Points0.size() != Points1.size())
 					{
@@ -368,7 +368,7 @@ namespace Chaos
 					pxr::VtArray<pxr::GfVec3f> Points;
 					pxr::VtArray<pxr::GfVec3f> Vels;
 
-					if (!UE::SimCacheUSD::ReadPoints(MonolithStage, PrimPath, -TNumericLimits<double>::Max(), Points, Vels))
+					if (!UE::ChaosCachingUSD::ReadPoints(MonolithStage, PrimPath, -TNumericLimits<double>::Max(), Points, Vels))
 					{
 						return;
 					}
@@ -560,13 +560,13 @@ namespace Chaos
 
 					if (MonolithStage)
 					{
-						UE::SimCacheUSD::CloseStage(MonolithStage);
+						UE::ChaosCachingUSD::CloseStage(MonolithStage);
 					}
-					if (!UE::SimCacheUSD::NewStage(FilePath, MonolithStage))
+					if (!UE::ChaosCachingUSD::NewStage(FilePath, MonolithStage))
 					{
 						return false;
 					}
-					if (!UE::SimCacheUSD::WriteTetMesh(MonolithStage, PrimPath, *RestCollection))
+					if (!UE::ChaosCachingUSD::WriteTetMesh(MonolithStage, PrimPath, *RestCollection))
 					{
 						return false;
 					}
@@ -612,9 +612,9 @@ namespace Chaos
 					{
 						if (MonolithStage)
 						{
-							UE::SimCacheUSD::CloseStage(MonolithStage);
+							UE::ChaosCachingUSD::CloseStage(MonolithStage);
 						}
-						if (!UE::SimCacheUSD::OpenStage(FilePath, MonolithStage))
+						if (!UE::ChaosCachingUSD::OpenStage(FilePath, MonolithStage))
 						{
 							return false;
 						}
@@ -643,9 +643,9 @@ namespace Chaos
 		{
 			if (!bReadOnly)
 			{
-				UE::SimCacheUSD::SaveStage(MonolithStage, MinTime, MaxTime);
+				UE::ChaosCachingUSD::SaveStage(MonolithStage, MinTime, MaxTime);
 			}
-			UE::SimCacheUSD::CloseStage(MonolithStage);
+			UE::ChaosCachingUSD::CloseStage(MonolithStage);
 			MonolithStage = UE::FUsdStage();
 		}
 
