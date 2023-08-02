@@ -26,6 +26,8 @@ public:
 	void Initialize(ITypedElementDataStorageInterface* StorageInterface);
 	void Deinitialize();
 
+	void RegisterDealiaserCallback(ObjectToRowDealiaser Dealiaser) override;
+
 	TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object) override;
 	TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object, TypedElementTableHandle Table) override;
 	TypedElementRowHandle AddCompatibleObjectExplicit(AActor* Actor) override;
@@ -46,6 +48,8 @@ private:
 	void Reset();
 	void CreateStandardArchetypes();
 	
+	TypedElementRowHandle DealiasObject(const UObject* Object) const;
+
 	void Tick();
 	void TickPendingActorRegistration(UWorld* EditorWorld);
 	void TickPendingUObjectRegistration();
@@ -83,6 +87,8 @@ private:
 	TMap<TypedElementTableHandle, PendingRegistration<TWeakObjectPtr<UObject>>> UObjectsPendingRegistration;
 	TMap<TypedElementTableHandle, PendingRegistration<ExternalObjectRegistration>> ExternalObjectsPendingRegistration;
 	
+	TArray<ObjectToRowDealiaser> ObjectToRowDialiasers;
+
 	TypedElementTableHandle StandardActorTable{ TypedElementInvalidTableHandle };
 	TypedElementTableHandle StandardActorWithTransformTable{ TypedElementInvalidTableHandle };
 	TypedElementTableHandle StandardUObjectTable{ TypedElementInvalidTableHandle };

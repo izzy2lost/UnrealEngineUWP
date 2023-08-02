@@ -35,6 +35,11 @@ void UTypedElementDatabaseCompatibility::Deinitialize()
 	Reset();
 }
 
+void UTypedElementDatabaseCompatibility::RegisterDealiaserCallback(ObjectToRowDealiaser Dealiaser)
+{
+	ObjectToRowDialiasers.Add(MoveTemp(Dealiaser));
+}
+
 TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExplicit(UObject* Object)
 {
 	return AddCompatibleObjectExplicit(Object, StandardUObjectTable);
@@ -166,13 +171,15 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleO
 		if (Actor && ActorSubsystem)
 		{
 			FMassEntityHandle Entity = ActorSubsystem->GetEntityHandleFromActor(Actor);
-			return Entity.IsValid() ? Entity.AsNumber() : TypedElementInvalidRowHandle;
+			return Entity.IsValid() ? Entity.AsNumber() : DealiasObject(Object);
 		}
 		else
 		{
 			const TypedElementRowHandle* Row = ReverseObjectLookup.Find(Object);
-			return Row ? *Row : TypedElementInvalidRowHandle;
+			return Row ? *Row : DealiasObject(Object);
 		}
+
+
 	}
 	return TypedElementInvalidRowHandle;
 }
@@ -182,7 +189,7 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleO
 	if (Storage && ActorSubsystem && Storage->IsAvailable())
 	{
 		FMassEntityHandle Entity = ActorSubsystem->GetEntityHandleFromActor(Actor);
-		return Entity.IsValid() ? Entity.AsNumber() : TypedElementInvalidRowHandle;
+		return Entity.IsValid() ? Entity.AsNumber() : DealiasObject(Actor);
 	}
 	else
 	{
@@ -237,6 +244,18 @@ void UTypedElementDatabaseCompatibility::CreateStandardArchetypes()
 			FTypedElementExternalObjectColumn, FTypedElementScriptStructTypeInfoColumn,
 			FTypedElementSyncFromWorldTag>(), 
 		FName("Editor_StandardExternalObjectTable"));
+}
+
+TypedElementRowHandle UTypedElementDatabaseCompatibility::DealiasObject(const UObject* Object) const
+{
+	for (const ObjectToRowDealiaser& Dealiaser : ObjectToRowDialiasers)
+	{
+		if (TypedElementRowHandle Row = Dealiaser(*this, Object); Row != TypedElementDataStorage::InvalidRowHandle)
+		{
+			return Row;
+		}
+	}
+	return TypedElementDataStorage::InvalidRowHandle;
 }
 
 void UTypedElementDatabaseCompatibility::Tick()

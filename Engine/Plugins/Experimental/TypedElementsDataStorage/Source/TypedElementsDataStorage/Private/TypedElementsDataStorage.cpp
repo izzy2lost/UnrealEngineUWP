@@ -97,6 +97,7 @@ void FTypedElementsDataStorageModule::StartupModule()
 				{
 					Factory->RegisterTables(*Database);
 					Factory->RegisterTickGroups(*Database);
+					Factory->RegisterDealiaser(*DatabaseCompatibility);
 					Factory->RegisterWidgetPurposes(*DatabaseUi);
 				}
 				// Second pass to call all registration that would benefit or need the registration in the previous pass.

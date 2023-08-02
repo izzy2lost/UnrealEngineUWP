@@ -4,6 +4,7 @@
 
 #include "TypedElementDataStorageFactory.generated.h"
 
+class ITypedElementDataStorageCompatibilityInterface;
 class ITypedElementDataStorageInterface;
 class ITypedElementDataStorageUiInterface;
 
@@ -28,6 +29,8 @@ public:
 	virtual void RegisterTables(ITypedElementDataStorageInterface& DataStorage) const {}
 	virtual void RegisterTickGroups(ITypedElementDataStorageInterface& DataStorage) const {}
 	virtual void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const {}
+
+	virtual void RegisterDealiaser(ITypedElementDataStorageCompatibilityInterface& DataStorageCompatibility) const {}
 	
 	virtual void RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const {}
 	virtual void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,

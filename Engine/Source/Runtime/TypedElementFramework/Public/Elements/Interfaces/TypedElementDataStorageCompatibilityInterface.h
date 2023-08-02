@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Templates/Function.h"
 #include "UObject/Interface.h"
 #include "UObject/ObjectKey.h"
 #include "UObject/ObjectMacros.h"
@@ -29,6 +30,8 @@ class ITypedElementDataStorageCompatibilityInterface
 	GENERATED_BODY()
 
 public:
+	using ObjectToRowDealiaser = TFunction<TypedElementRowHandle(const ITypedElementDataStorageCompatibilityInterface&, const UObject*)>;
+
 	/**
 	 * @section Type-agnostic functions
 	 * These allow compatibility with any type. These do eventually fall back to the explicit versions.
@@ -53,6 +56,14 @@ public:
 	template<typename ObjectType>
 	TypedElementRowHandle FindRowWithCompatibleObject(ObjectType&& Object) const;
 
+	/**
+	 * @section Alias functions
+	 * Notifications and request can be made to the compatibility layer for objects that are stored but don't directly map to a row.
+	 * An example is a UObject represented by a column. If the UObject gets updated there's no direct mapping to the row the column is
+	 * stored in but the row still needs to be updated. For cases like this it's possible to store information to find the row that's
+	 * being aliased.
+	 */
+	virtual void RegisterDealiaserCallback(ObjectToRowDealiaser Dealiaser) = 0;
 
 	/**
 	 * @section Explicit functions
@@ -84,7 +95,7 @@ public:
 	 * faster if it's already known that the target is an actor.
 	 */
 	virtual TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const AActor* Actor) const = 0;
-	/** Finds a previously stored FStructe . If not found an invalid row handle will be returned. */
+	/** Finds a previously stored FStruct. If not found an invalid row handle will be returned. */
 	virtual TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const = 0;
 };
 
