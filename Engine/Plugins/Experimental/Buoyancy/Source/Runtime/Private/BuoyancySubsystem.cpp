@@ -117,8 +117,10 @@ void UBuoyancySubsystem::ApplyRuntimeSettings(const UBuoyancyRuntimeSettings* In
 	BuoyancySettings.WaterDensity = FUnitConversion::Convert(InSettings->WaterDensity,
 		EUnit::GramsPerCubicCentimeter,
 		EUnit::KilogramsPerCubicCentimeter);
-
 	BuoyancySettings.WaterCollisionChannel = InSettings->CollisionChannelForWaterObjects;
+	BuoyancySettings.bKeepAwake = InSettings->bKeepFloatingObjectsAwake;
+	BuoyancySettings.MaxNumBoundsSubdivisions = InSettings->MaxNumBoundsSubdivisions;
+	BuoyancySettings.MinBoundsSubdivisionVol = InSettings->MinBoundsSubdivisionVol;
 
 	// Enable or disable
 	SetEnabled(InSettings->bBuoyancyEnabled);
