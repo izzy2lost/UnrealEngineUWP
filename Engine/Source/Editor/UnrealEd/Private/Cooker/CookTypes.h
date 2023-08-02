@@ -536,8 +536,13 @@ struct FBeginCookContextPlatform
 	UE::Cook::FPlatformData* PlatformData = nullptr;
 	TMap<FName, FString> CurrentCookSettings;
 
-	/** If true, we are deleting all old results from disk and rebuilding every package. If false, we are building iteratively. */
+	/** If true, we are deleting all old results from the previous cook. If false, we are keeping the old results. */
 	bool bFullBuild = false;
+	/**
+	 * If true, we will use results from the previous cook for the new cook, if present. If false, we will recook.
+	 * -diffonly is the expected case where bFullBuild=false but bAllowIterativeResults=false.
+	 */
+	bool bAllowIterativeResults = true;
 	/** If true, a cook has already been run in the current process and we still have results from it. */
 	bool bHasMemoryResults = false;
 	/** If true, we should delete the in-memory results from an earlier cook in the same process, if we have any. */

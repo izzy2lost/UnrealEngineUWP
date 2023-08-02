@@ -354,7 +354,7 @@ private:
 	bool bPackageNamesComplete = false;
 	bool bDependenciesComplete = false;
 	bool bStartAsyncComplete = false;
-	bool bFullBuild = false;
+	bool bAllowIterativeResults = false;
 	bool bPreQueueBuildDefinitions = true;
 };
 

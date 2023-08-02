@@ -61,22 +61,22 @@ FRequestCluster::FRequestCluster(UCookOnTheFlyServer& InCOTFS)
 	}
 	GConfig->GetBool(TEXT("CookSettings"), TEXT("PreQueueBuildDefinitions"), bPreQueueBuildDefinitions, GEditorIni);
 
-	bFullBuild = false;
+	bAllowIterativeResults = true;
 	bool bFirst = true;
 	for (const ITargetPlatform* TargetPlatform : COTFS.PlatformManager->GetSessionPlatforms())
 	{
 		FPlatformData* PlatformData = COTFS.PlatformManager->GetPlatformData(TargetPlatform);
 		if (bFirst)
 		{
-			bFullBuild = PlatformData->bFullBuild;
+			bAllowIterativeResults = PlatformData->bAllowIterativeResults;
 			bFirst = false;
 		}
 		else
 		{
-			if (PlatformData->bFullBuild != bFullBuild)
+			if (PlatformData->bAllowIterativeResults != bAllowIterativeResults)
 			{
 				UE_LOG(LogCook, Warning, TEXT("Full build is requested for some platforms but not others, but this is not supported. All platforms will be built full."));
-				bFullBuild = true;
+				bAllowIterativeResults = false;
 			}
 		}
 	}
@@ -1513,7 +1513,7 @@ TMap<FPackageData*, TArray<FPackageData*>>& FRequestCluster::FGraphSearch::GetGr
 
 bool FRequestCluster::IsIncrementalCook() const
 {
-	return !bFullBuild && COTFS.bHybridIterativeEnabled;
+	return bAllowIterativeResults && COTFS.bHybridIterativeEnabled;
 }
 
 void FRequestCluster::IsRequestCookable(const ITargetPlatform* Platform, FPackageData& PackageData,

@@ -10369,6 +10369,7 @@ void UCookOnTheFlyServer::LoadBeginCookIterativeFlagsLocal(FBeginCookContext& Be
 			UE_LOG(LogCook, Display, TEXT("Keeping cooked content for platform %s for DiffOnly"), *TargetPlatform->PlatformName());
 			// When looking for deterministic cooking differences in cooked packages, don't delete the packages on disk
 			PlatformContext.bFullBuild = false;
+			PlatformContext.bAllowIterativeResults = false;
 			PlatformContext.bClearMemoryResults = true;
 			PlatformContext.bPopulateMemoryResultsFromDiskResults = false;
 			PlatformContext.bIterateSharedBuild = false;
@@ -10389,6 +10390,7 @@ void UCookOnTheFlyServer::LoadBeginCookIterativeFlagsLocal(FBeginCookContext& Be
 			if (bIterativeAllowed)
 			{
 				PlatformContext.bFullBuild = false;
+				PlatformContext.bAllowIterativeResults = true;
 				PlatformContext.bClearMemoryResults = false;
 				PlatformContext.bPopulateMemoryResultsFromDiskResults = !PlatformContext.bHasMemoryResults;
 				PlatformContext.bIterateSharedBuild = bIterateSharedBuild;
@@ -10396,12 +10398,14 @@ void UCookOnTheFlyServer::LoadBeginCookIterativeFlagsLocal(FBeginCookContext& Be
 			else
 			{
 				PlatformContext.bFullBuild = true;
+				PlatformContext.bAllowIterativeResults = false;
 				PlatformContext.bClearMemoryResults = true;
 				PlatformContext.bPopulateMemoryResultsFromDiskResults = false;
 				PlatformContext.bIterateSharedBuild = false;
 			}
 		}
 		PlatformData->bFullBuild = PlatformContext.bFullBuild;
+		PlatformData->bAllowIterativeResults = PlatformContext.bAllowIterativeResults;
 		PlatformData->bIterateSharedBuild = PlatformContext.bIterateSharedBuild;
 		PlatformData->bWorkerOnSharedSandbox = PlatformContext.bWorkerOnSharedSandbox;
 	}
