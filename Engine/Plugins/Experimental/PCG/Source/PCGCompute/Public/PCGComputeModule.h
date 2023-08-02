@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Stats/Stats2.h"
+#include "Stats/Stats.h"
 
 // Logs
 PCGCOMPUTE_API DECLARE_LOG_CATEGORY_EXTERN(LogPCGCompute, Log, All);
