@@ -243,7 +243,7 @@ static FAutoConsoleVariableRef CVarShaderCompilerDebugDiscardCacheOutputs(
 
 static TAutoConsoleVariable<bool> CVarShaderCompilerParallelSubmitJobs(
 	TEXT("r.ShaderCompiler.ParallelSubmitJobs"),
-	true,
+	false,
 	TEXT("if != 0, FShaderJobCache::SubmitJobs will run in multiple parallel tasks, instead of the game thread."),
 	ECVF_Default
 );
