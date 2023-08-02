@@ -40,6 +40,7 @@ public:
 		uint32 EncodedSampleRate = 0;
 		uint64 ActiveSampleCount = 0;
 		uint32 NumEncodedFrames = 0;
+		int32 NumPreSkipSamples = 0;
 		int32 NumSilentSamplesAtBeginning = 0;
 		int32 NumSilentSamplesAtEnd = 0;
 
@@ -52,6 +53,7 @@ public:
 			EncodedSampleRate = 0;
 			ActiveSampleCount = 0;
 			NumEncodedFrames = 0;
+			NumPreSkipSamples = 0;
 			NumSilentSamplesAtBeginning = 0;
 			NumSilentSamplesAtEnd = 0;
 		}
@@ -67,6 +69,7 @@ public:
 				+ sizeof(uint32)	// EncodedSampleRate
 				+ sizeof(uint64)	// ActiveSampleCount
 				+ sizeof(uint32)	// NumEncodedFrames
+				+ sizeof(int32)		// NumPreSkipSamples
 				+ sizeof(int32)		// NumSilentSamplesAtBeginning
 				+ sizeof(int32);	// NumSilentSamplesAtEnd
 		}

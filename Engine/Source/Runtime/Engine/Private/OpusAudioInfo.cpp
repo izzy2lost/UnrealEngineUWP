@@ -11,7 +11,6 @@ THIRD_PARTY_INCLUDES_START
 THIRD_PARTY_INCLUDES_END
 
 #define USE_UE_MEM_ALLOC 1
-#define OPUS_MAX_FRAME_SIZE_MS 120
 
 DEFINE_LOG_CATEGORY_STATIC(LogOpusAudioDecoder, Log, All);
 
@@ -60,7 +59,7 @@ struct FOpusDecoderWrapper
 	#if USE_UE_MEM_ALLOC
 		FMemory::Free(Decoder);
 	#else
-		opus_multistream_encoder_destroy(Decoder);
+		opus_multistream_decoder_destroy(Decoder);
 	#endif
 	}
 
@@ -124,6 +123,7 @@ bool FOpusAudioInfo::ParseHeader(FHeader& OutHeader, uint32& OutNumRead, const u
 	Read(&OutHeader.EncodedSampleRate, sizeof(uint32));
 	Read(&OutHeader.ActiveSampleCount, sizeof(uint64));
 	Read(&OutHeader.NumEncodedFrames, sizeof(uint32));
+	Read(&OutHeader.NumPreSkipSamples, sizeof(int32));
 	Read(&OutHeader.NumSilentSamplesAtBeginning, sizeof(int32));
 	Read(&OutHeader.NumSilentSamplesAtEnd, sizeof(int32));
 	return true;
@@ -154,7 +154,7 @@ bool FOpusAudioInfo::ParseHeader(const uint8* InSrcBufferData, uint32 InSrcBuffe
 		QualityInfo->SampleRate = Header.SampleRate;
 		QualityInfo->NumChannels = Header.NumChannels;
 		QualityInfo->SampleDataSize = (uint32)Header.ActiveSampleCount * QualityInfo->NumChannels * sizeof(int16);
-		QualityInfo->Duration = (float)Header.ActiveSampleCount / QualityInfo->SampleRate;
+		QualityInfo->Duration = (float)((double)Header.ActiveSampleCount / QualityInfo->SampleRate);
 	}
 
 	return true;
@@ -171,7 +171,7 @@ bool FOpusAudioInfo::CreateDecoder()
 		return false;
 	}
 
-	NumRemainingSamplesToSkip = Header.NumSilentSamplesAtBeginning;
+	NumRemainingSamplesToSkip = Header.NumSilentSamplesAtBeginning + Header.NumPreSkipSamples;
 	PreviousDecodedUnusedSamples.Empty();
 	return true;
 }
@@ -187,7 +187,10 @@ int32 FOpusAudioInfo::GetFrameSize()
 
 uint32 FOpusAudioInfo::GetMaxFrameSizeSamples() const
 {
-	return Header.EncodedSampleRate * OPUS_MAX_FRAME_SIZE_MS / 1000;
+	// The encoder is using 20ms frame sizes.
+	const int32 OPUS_MAX_FRAME_SIZE_MS = 20;
+	// There can be at most 2 frames in one packet, so multiply by 2.
+	return Header.EncodedSampleRate * OPUS_MAX_FRAME_SIZE_MS * 2 / 1000;
 }
 
 FDecodeResult FOpusAudioInfo::Decode(const uint8* CompressedData, const int32 CompressedDataSize, uint8* OutPCMData, const int32 OutputPCMDataSize)
@@ -267,7 +270,7 @@ FDecodeResult FOpusAudioInfo::Decode(const uint8* CompressedData, const int32 Co
 					else
 					{
 						uint8* FirstUsable = OutputDataPtr + NumRemainingSamplesToSkip * kFrameBytes;
-						int32 UsableSize = (Result.NumAudioFramesProduced - NumRemainingSamplesToSkip) * kFrameBytes;
+						int32 UsableSize = (NumDecodedFrames - NumRemainingSamplesToSkip) * kFrameBytes;
 						FMemory::Memmove(OutputDataPtr, FirstUsable, UsableSize);
 						NumDecodedFrames -= NumRemainingSamplesToSkip;
 						NumRemainingSamplesToSkip = 0;
@@ -315,7 +318,7 @@ FDecodeResult FOpusAudioInfo::Decode(const uint8* CompressedData, const int32 Co
 void FOpusAudioInfo::PrepareToLoop()
 {
 	IStreamedCompressedInfo::PrepareToLoop();
-	NumRemainingSamplesToSkip = Header.NumSilentSamplesAtBeginning;
+	NumRemainingSamplesToSkip = Header.NumSilentSamplesAtBeginning + Header.NumPreSkipSamples;
 	PreviousDecodedUnusedSamples.Empty();
 }
 
@@ -360,7 +363,7 @@ void FOpusAudioInfo::SeekToTime(const float InSeekTime)
 		}
 	}
 
-	NumRemainingSamplesToSkip = Header.NumSilentSamplesAtBeginning;
+	NumRemainingSamplesToSkip = Header.NumSilentSamplesAtBeginning + Header.NumPreSkipSamples;
 	PreviousDecodedUnusedSamples.Empty();
 }
 

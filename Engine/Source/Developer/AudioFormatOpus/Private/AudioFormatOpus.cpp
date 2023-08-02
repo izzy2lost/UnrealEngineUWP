@@ -9,12 +9,8 @@
 #include "OpusAudioInfo.h"
 #include "VorbisAudioInfo.h"	// for VorbisChannelInfo
 
-// Need to define this so that resampler.h compiles - probably a way around this somehow
-#define OUTSIDE_SPEEX
-
 THIRD_PARTY_INCLUDES_START
 #include "opus_multistream.h"
-#include "speex_resampler.h"
 THIRD_PARTY_INCLUDES_END
 
 /** Use UE memory allocation or Opus */
@@ -31,7 +27,7 @@ class FAudioFormatOpus : public IAudioFormat
 	enum
 	{
 		/** Version for OPUS format, this becomes part of the DDC key. */
-		UE_AUDIO_OPUS_VER = 11,
+		UE_AUDIO_OPUS_VER = 12,
 	};
 
 public:
@@ -58,15 +54,18 @@ public:
 		check(Format == NAME_OPUS);
 
 		// For audio encoding purposes we want Full Band encoding with a 20ms frame size.
-		const uint32 kOpusSampleRate = 48000;
+		const uint32 kOpusSampleRate = GetMatchingOpusSampleRate(QualityInfo.SampleRate);
 		const int32 kOpusFrameSizeMs = 20;
 		// Calculate frame size required by Opus
 		const int32 kOpusFrameSizeSamples = (kOpusSampleRate * kOpusFrameSizeMs) / 1000;
 		const uint32 kSampleStride = SAMPLE_SIZE * QualityInfo.NumChannels;
 		const int32 kBytesPerFrame = kOpusFrameSizeSamples * kSampleStride;
 		// Number of silent samples to prepend that get removed after decoding.
-		const int32 kPrerollSkipCount = 3840;
+		const int32 kPrerollSkipCount = kOpusFrameSizeSamples * (80 / kOpusFrameSizeMs);	// 80ms worth
 		int32 NumPaddingSamplesAtEnd = 0;
+
+		// Remember the actual number of samples
+		uint32 TrueSampleCount = SrcBuffer.Num() / kSampleStride;
 
 		// Prepend the initial silence.
 		TArray<uint8> SrcBufferCopy = SrcBuffer;
@@ -90,6 +89,13 @@ public:
 
 		int32 BitRate = GetBitRateFromQuality(QualityInfo);
 		opus_encoder_ctl(Encoder, OPUS_SET_BITRATE(BitRate));
+		
+		// Get the number of pre-skip samples. These are to be skipped in addition to the initial silence.
+		int32 PreSkip = 0;
+		opus_encoder_ctl(Encoder, OPUS_GET_LOOKAHEAD(&PreSkip));
+		// We add silence to the end of the buffer as indicated by the pre-skip so we get this implicit
+		// decoder delay accounted for at the end. Otherwise the last samples may not be emitted by the decoder.
+		SrcBufferCopy.AddZeroed(PreSkip * SAMPLE_SIZE * QualityInfo.NumChannels);
 
 		// Create a buffer to store compressed data
 		CompressedDataStore.Empty();
@@ -98,14 +104,12 @@ public:
 
 		// Calc frame and sample count
 		int64 FramesToEncode = SrcBufferCopy.Num() / kBytesPerFrame;
-		uint32 TrueSampleCount = SrcBufferCopy.Num() / kSampleStride - kPrerollSkipCount;
-
 		// Pad the end of data with zeroes if it isn't exactly the size of a frame.
 		if (SrcBufferCopy.Num() % kBytesPerFrame != 0)
 		{
 			int32 FrameDiff = kBytesPerFrame - (SrcBufferCopy.Num() % kBytesPerFrame);
 			SrcBufferCopy.AddZeroed(FrameDiff);
-			FramesToEncode++;
+			++FramesToEncode;
 			NumPaddingSamplesAtEnd = FrameDiff / (SAMPLE_SIZE * QualityInfo.NumChannels);
 		}
 
@@ -117,6 +121,7 @@ public:
 		Hdr.EncodedSampleRate = kOpusSampleRate;
 		Hdr.ActiveSampleCount = TrueSampleCount;
 		Hdr.NumEncodedFrames = (uint32)FramesToEncode;
+		Hdr.NumPreSkipSamples = PreSkip;
 		Hdr.NumSilentSamplesAtBeginning = kPrerollSkipCount;
 		Hdr.NumSilentSamplesAtEnd = NumPaddingSamplesAtEnd;
 		SerializeHeaderData(CompressedData, Hdr);
@@ -159,14 +164,14 @@ public:
 		check(Format == NAME_OPUS);
 
 		// For audio encoding purposes we want Full Band encoding with a 20ms frame size.
-		const uint32 kOpusSampleRate = 48000;
+		const uint32 kOpusSampleRate = GetMatchingOpusSampleRate(QualityInfo.SampleRate);
 		const int32 kOpusFrameSizeMs = 20;
 		// Calculate frame size required by Opus
 		const int32 kOpusFrameSizeSamples = (kOpusSampleRate * kOpusFrameSizeMs) / 1000;
 		const uint32 kSampleStride = SAMPLE_SIZE * QualityInfo.NumChannels;
 		const int32 kBytesPerFrame = kOpusFrameSizeSamples * kSampleStride;
 		// Number of silent samples to prepend that get removed after decoding.
-		const int32 kPrerollSkipCount = 3840;
+		const int32 kPrerollSkipCount = kOpusFrameSizeSamples * (80 / kOpusFrameSizeMs);	// 80ms worth
 
 		TArray<TArray<uint8>> SrcBufferCopies;
 		SrcBufferCopies.AddDefaulted(SrcBuffers.Num());
@@ -195,6 +200,9 @@ public:
 		{
 			return false;
 		}
+
+		// Remember the actual number of samples
+		uint32 TrueSampleCount = SourceSize / SAMPLE_SIZE;
 
 		// Prepend the initial silence.
 		for (int32 Index = 0; Index < SrcBuffers.Num(); Index++)
@@ -228,6 +236,17 @@ public:
 		int32 BitRate = GetBitRateFromQuality(QualityInfo);
 		opus_multistream_encoder_ctl(Encoder, OPUS_SET_BITRATE(BitRate));
 
+		// Get the number of pre-skip samples. These are to be skipped in addition to the initial silence.
+		int32 PreSkip = 0;
+		opus_multistream_encoder_ctl(Encoder, OPUS_GET_LOOKAHEAD(&PreSkip));
+		// We add silence to the end of the buffer as indicated by the pre-skip so we get this implicit
+		// decoder delay accounted for at the end. Otherwise the last samples may not be emitted by the decoder.
+		for (int32 Index = 0; Index < SrcBuffers.Num(); Index++)
+		{
+			SrcBufferCopies[Index].AddZeroed(PreSkip * SAMPLE_SIZE);
+		}
+		SourceSize += PreSkip * SAMPLE_SIZE;
+
 		// Create a buffer to store compressed data
 		CompressedDataStore.Empty();
 		FMemoryWriter CompressedData(CompressedDataStore);
@@ -235,8 +254,6 @@ public:
 
 		// Calc frame and sample count
 		int64 FramesToEncode = SourceSize / (kOpusFrameSizeSamples * SAMPLE_SIZE);
-		uint32 TrueSampleCount = SourceSize / SAMPLE_SIZE - kPrerollSkipCount;
-
 		// Add another frame if Source does not divide into an equal number of frames
 		int32 NumSamplesInLastBlock = (SourceSize / SAMPLE_SIZE) % kOpusFrameSizeSamples;
 		if (NumSamplesInLastBlock != 0)
@@ -254,6 +271,7 @@ public:
 		Hdr.EncodedSampleRate = kOpusSampleRate;
 		Hdr.ActiveSampleCount = TrueSampleCount;
 		Hdr.NumEncodedFrames = (uint32) FramesToEncode;
+		Hdr.NumPreSkipSamples = PreSkip;
 		Hdr.NumSilentSamplesAtBeginning = kPrerollSkipCount;
 		Hdr.NumSilentSamplesAtEnd = NumSamplesInLastBlock ? kOpusFrameSizeSamples - NumSamplesInLastBlock : 0;
 		SerializeHeaderData(CompressedData, Hdr);
@@ -451,52 +469,6 @@ public:
 		return true;
 	}
 
-	bool ResamplePCM(uint32 NumChannels, const TArray<uint8>& InBuffer, uint32 InSampleRate, TArray<uint8>& OutBuffer, uint32 OutSampleRate) const
-	{
-		// Initialize resampler to convert to desired rate for Opus
-		int32 err = 0;
-		SpeexResamplerState* resampler = speex_resampler_init(NumChannels, InSampleRate, OutSampleRate, SPEEX_RESAMPLER_QUALITY_DESKTOP, &err);
-		if (err != RESAMPLER_ERR_SUCCESS)
-		{
-			speex_resampler_destroy(resampler);
-			return false;
-		}
-
-		// Calculate extra space required for sample rate
-		const uint32 SampleStride = SAMPLE_SIZE * NumChannels;
-		const float Duration = (float)InBuffer.Num() / (InSampleRate * SampleStride);
-		const int32 SafeCopySize = (Duration + 1) * OutSampleRate * SampleStride;
-		OutBuffer.Empty(SafeCopySize);
-		OutBuffer.AddUninitialized(SafeCopySize);
-		uint32 InSamples = InBuffer.Num() / SampleStride;
-		uint32 OutSamples = OutBuffer.Num() / SampleStride;
-
-		// Do resampling and check results
-		if (NumChannels == 1)
-		{
-			err = speex_resampler_process_int(resampler, 0, (const short*)(InBuffer.GetData()), &InSamples, (short*)(OutBuffer.GetData()), &OutSamples);
-		}
-		else
-		{
-			err = speex_resampler_process_interleaved_int(resampler, (const short*)(InBuffer.GetData()), &InSamples, (short*)(OutBuffer.GetData()), &OutSamples);
-		}
-
-		speex_resampler_destroy(resampler);
-		if (err != RESAMPLER_ERR_SUCCESS)
-		{
-			return false;
-		}
-
-		// reduce the size of Out Buffer if more space than necessary was allocated
-		const int32 WrittenBytes = (int32)(OutSamples * SampleStride);
-		if (WrittenBytes < OutBuffer.Num())
-		{
-			OutBuffer.SetNum(WrittenBytes, true);
-		}
-
-		return true;
-	}
-
 	int32 GetBitRateFromQuality(FSoundQualityInfo& QualityInfo) const
 	{
 		const int32 kMinBpsPerChannel = 16000;
@@ -506,6 +478,28 @@ public:
 		Bps *= QualityInfo.NumChannels;
 		return Bps;
 	}
+
+	uint32 GetMatchingOpusSampleRate(uint32 InRate) const
+	{
+		if (InRate <= 8000)
+		{
+			return 8000;
+		}
+		else if (InRate <= 12000)
+		{
+			return 12000;
+		}
+		if (InRate <= 16000)
+		{
+			return 16000;
+		}
+		if (InRate <= 24000)
+		{
+			return 24000;
+		}
+		return 48000;
+	}
+
 
 	void SerializeHeaderData(FMemoryWriter& CompressedData, FOpusAudioInfo::FHeader& InHeader) const
 	{
@@ -518,6 +512,7 @@ public:
 		CompressedData.Serialize(&InHeader.EncodedSampleRate, sizeof(uint32));
 		CompressedData.Serialize(&InHeader.ActiveSampleCount, sizeof(uint64));
 		CompressedData.Serialize(&InHeader.NumEncodedFrames, sizeof(uint32));
+		CompressedData.Serialize(&InHeader.NumPreSkipSamples, sizeof(int32));
 		CompressedData.Serialize(&InHeader.NumSilentSamplesAtBeginning, sizeof(int32));
 		CompressedData.Serialize(&InHeader.NumSilentSamplesAtEnd, sizeof(int32));
 	}
