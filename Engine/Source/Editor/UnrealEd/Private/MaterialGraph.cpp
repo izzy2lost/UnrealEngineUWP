@@ -644,13 +644,12 @@ void UMaterialGraph::LinkMaterialExpressionsFromGraph()
 						Expression->Desc = GraphNode->NodeComment;
 					}
 
-					TArrayView<FExpressionInput*> ExpressionInputs = Expression->GetInputsView();
-
 					TArray<FExpressionExecOutputEntry> ExecOutputs;
 					Expression->GetExecOutputs(ExecOutputs);
 
 					for (UEdGraphPin* Pin : GraphNode->Pins)
 					{
+						TArrayView<FExpressionInput*> ExpressionInputs = Expression->GetInputsView();
 						if (Pin->Direction == EGPD_Input && Pin->PinType.PinCategory != UMaterialGraphSchema::PC_Exec)
 						{
 							// Wire up non-execution input pins
