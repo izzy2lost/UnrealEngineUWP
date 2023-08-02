@@ -105,7 +105,7 @@ namespace GameFeatureVersePathMapper
 
 		FString Resolve(const FStringView& PluginName, const FString& ChunkPattern)
 		{
-			FString InstallBundleName = UGameFeatureData::GetInstallBundleName(FString(PluginName));
+			FString InstallBundleName = UGameFeatureData::GetInstallBundleName(PluginName);
 			if (InstallBundleName.IsEmpty() && !ChunkPattern.IsEmpty())
 			{
 				if (FString* CachedInstallBundleName = RegexMatchCache.Find(ChunkPattern))

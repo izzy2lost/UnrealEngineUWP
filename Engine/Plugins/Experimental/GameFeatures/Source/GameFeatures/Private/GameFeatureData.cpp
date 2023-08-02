@@ -272,9 +272,9 @@ void UGameFeatureData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) 
 }
 #endif
 
-FString UGameFeatureData::GetInstallBundleName(const FString& PluginName, bool bEvenIfDoesntExist /*= false*/)
+FString UGameFeatureData::GetInstallBundleName(FStringView PluginName, bool bEvenIfDoesntExist /*= false*/)
 {
-	const FString BundleName = FString::Printf(TEXT("GFP_%s"), *PluginName);
+	const FString BundleName = FString::Printf(TEXT("GFP_%.*s"), PluginName.Len(), PluginName.GetData());
 	if (bEvenIfDoesntExist)
 	{
 		return BundleName;
