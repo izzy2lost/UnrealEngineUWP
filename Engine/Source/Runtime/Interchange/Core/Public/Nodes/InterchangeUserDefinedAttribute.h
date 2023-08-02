@@ -18,6 +18,7 @@
 #include "InterchangeUserDefinedAttribute.generated.h"
 
 struct FFrame;
+class UInterchangeFactoryBaseNode;
 
 USTRUCT(BlueprintType)
 struct FInterchangeUserDefinedAttributeInfo
@@ -30,6 +31,8 @@ struct FInterchangeUserDefinedAttributeInfo
 	UE::Interchange::EAttributeTypes Type;
 
 	TOptional<FString> PayloadKey;
+
+	bool RequiresDelegate;
 };
 
 /**
@@ -53,22 +56,22 @@ public:
 	 *        Payload key will point on a FRichCurve payload.
 	 */
 	template<typename ValueType>
-	static bool CreateUserDefinedAttribute(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const ValueType& Value, const TOptional<FString>& PayloadKey);
+	static bool CreateUserDefinedAttribute(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const ValueType& Value, const TOptional<FString>& PayloadKey, bool RequiresDelegate = false);
 
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | UserDefinedAttribute")
-	static INTERCHANGECORE_API bool CreateUserDefinedAttribute_Boolean(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const bool& Value, const FString& PayloadKey);
-	
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | UserDefinedAttribute")
-	static INTERCHANGECORE_API bool CreateUserDefinedAttribute_Float(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const float& Value, const FString& PayloadKey);
+	static INTERCHANGECORE_API bool CreateUserDefinedAttribute_Boolean(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const bool& Value, const FString& PayloadKey, bool RequiresDelegate = false);
 
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | UserDefinedAttribute")
-	static INTERCHANGECORE_API bool CreateUserDefinedAttribute_Double(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const double& Value, const FString& PayloadKey);
+	static INTERCHANGECORE_API bool CreateUserDefinedAttribute_Float(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const float& Value, const FString& PayloadKey, bool RequiresDelegate = false);
 
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | UserDefinedAttribute")
-	static INTERCHANGECORE_API bool CreateUserDefinedAttribute_Int32(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const int32& Value, const FString& PayloadKey);
+	static INTERCHANGECORE_API bool CreateUserDefinedAttribute_Double(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const double& Value, const FString& PayloadKey, bool RequiresDelegate = false);
 
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | UserDefinedAttribute")
-	static INTERCHANGECORE_API bool CreateUserDefinedAttribute_FString(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const FString& Value, const FString& PayloadKey);
+	static INTERCHANGECORE_API bool CreateUserDefinedAttribute_Int32(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const int32& Value, const FString& PayloadKey, bool RequiresDelegate = false);
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | UserDefinedAttribute")
+	static INTERCHANGECORE_API bool CreateUserDefinedAttribute_FString(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const FString& Value, const FString& PayloadKey, bool RequiresDelegate = false);
 
 	/**
 	 * Remove the specified user defined attribute
@@ -114,24 +117,35 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | UserDefinedAttribute")
 	static INTERCHANGECORE_API void DuplicateAllUserDefinedAttribute(const UInterchangeBaseNode* InterchangeSourceNode, UInterchangeBaseNode* InterchangeDestinationNode, bool bAddSourceNodeName);
 
+	static INTERCHANGECORE_API void AddApplyAndFillDelegatesToFactory(UInterchangeFactoryBaseNode* InterchangeFactoryNode, UClass* ParentClass);
+
+	static INTERCHANGECORE_API UE::Interchange::FAttributeKey MakeUserDefinedPropertyValueKey(const FString& UserDefinedAttributeName,bool RequiresDelegate);
+	
+	static INTERCHANGECORE_API UE::Interchange::FAttributeKey MakeUserDefinedPropertyPayloadKey(const FString& UserDefinedAttributeName, bool RequiresDelegate);
+
+private:
+	static INTERCHANGECORE_API bool HasAttribute(const UInterchangeBaseNode* InterchangeSourceNode, const FString& InUserDefinedAttributeName, bool GeneratePayloadKey, bool& OutRequiresDelegate);
+	static INTERCHANGECORE_API UE::Interchange::FAttributeKey MakeUserDefinedPropertyKey(const FString& UserDefinedAttributeName,bool RequiresDelegate, bool GeneratePayloadKey = false);
+	
 private:
 	static INTERCHANGECORE_API const FString UserDefinedAttributeBaseKey;
 	static INTERCHANGECORE_API const FString UserDefinedAttributeValuePostKey;
 	static INTERCHANGECORE_API const FString UserDefinedAttributePayLoadPostKey;
+	static INTERCHANGECORE_API const FString UserDefinedAttributeDelegateKey;
 };
 
 template<typename ValueType>
-bool UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const ValueType& Value, const TOptional<FString>& PayloadKey)
+bool UInterchangeUserDefinedAttributesAPI::CreateUserDefinedAttribute(UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, const ValueType& Value, const TOptional<FString>& PayloadKey, bool RequiresDelegate /*= true*/)
 {
 	check(InterchangeNode);
-	//Create a unique Key for this user defined attribute
-	FString StorageBaseKey = UserDefinedAttributeBaseKey + UserDefinedAttributeName;
-	UE::Interchange::FAttributeKey UserDefinedValueKey = UE::Interchange::FAttributeKey(StorageBaseKey + UserDefinedAttributeValuePostKey);
+	
+	UE::Interchange::FAttributeKey UserDefinedValueKey = MakeUserDefinedPropertyKey(UserDefinedAttributeName, RequiresDelegate);
 	if (InterchangeNode->HasAttribute(UserDefinedValueKey))
 	{
 		return false;
 	}
-	UE::Interchange::FAttributeKey UserDefinedPayloadKey = UE::Interchange::FAttributeKey(StorageBaseKey + UserDefinedAttributePayLoadPostKey);
+	
+	UE::Interchange::FAttributeKey UserDefinedPayloadKey = MakeUserDefinedPropertyKey(UserDefinedAttributeName, RequiresDelegate, true);
 	if (InterchangeNode->HasAttribute(UserDefinedPayloadKey))
 	{
 		return false;
@@ -149,14 +163,13 @@ template<typename ValueType>
 bool UInterchangeUserDefinedAttributesAPI::GetUserDefinedAttribute(const UInterchangeBaseNode* InterchangeNode, const FString& UserDefinedAttributeName, ValueType& OutValue, TOptional<FString>& OutPayloadKey)
 {
 	check(InterchangeNode);
-	FString StorageBaseKey = UserDefinedAttributeBaseKey + UserDefinedAttributeName;
-	UE::Interchange::FAttributeKey UserDefinedValueKey = UE::Interchange::FAttributeKey(StorageBaseKey + UserDefinedAttributeValuePostKey);
-
-	if (!InterchangeNode->HasAttribute(UserDefinedValueKey))
+	bool RequiresDelegate;
+	if (!HasAttribute(InterchangeNode, UserDefinedAttributeName, false, RequiresDelegate))
 	{
 		return false;
 	}
 
+	UE::Interchange::FAttributeKey UserDefinedValueKey = MakeUserDefinedPropertyKey(UserDefinedAttributeName, RequiresDelegate);
 	if (!InterchangeNode->GetAttribute<ValueType>(UserDefinedValueKey.Key, OutValue))
 	{
 		return false;
@@ -164,7 +177,7 @@ bool UInterchangeUserDefinedAttributesAPI::GetUserDefinedAttribute(const UInterc
 
 	//Payload is optional
 	OutPayloadKey.Reset();
-	UE::Interchange::FAttributeKey UserDefinedPayloadKey = UE::Interchange::FAttributeKey(StorageBaseKey + UserDefinedAttributePayLoadPostKey);
+	UE::Interchange::FAttributeKey UserDefinedPayloadKey = MakeUserDefinedPropertyKey(UserDefinedAttributeName, RequiresDelegate, true);
 	if (InterchangeNode->HasAttribute(UserDefinedPayloadKey))
 	{
 		FString PayloadKeyValue;
@@ -177,6 +190,7 @@ bool UInterchangeUserDefinedAttributesAPI::GetUserDefinedAttribute(const UInterc
 		{
 			return false;
 		}
+
 	}
 	return true;
 }
