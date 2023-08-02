@@ -374,7 +374,7 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Distance field AO parameters.
 		// TODO. FDFAOUpsampleParameters
-		SHADER_PARAMETER(FVector2f, AOBufferBilinearUVMax)
+		SHADER_PARAMETER(FVector4f, AOBufferBilinearUVMinMax)
 		SHADER_PARAMETER(float, DistanceFadeScale)
 		SHADER_PARAMETER(float, AOMaxViewDistance)
 
@@ -1689,10 +1689,15 @@ static void AddSkyReflectionPass(
 
 		// Setups all shader parameters related to distance field AO
 		{
-			FIntPoint AOBufferSize = GetBufferSizeForAO(View);
-			PassParameters->PS.AOBufferBilinearUVMax = FVector2f(
-				(View.ViewRect.Width() / GAODownsampleFactor - 0.51f) / AOBufferSize.X, // 0.51 - so bilateral gather4 won't sample invalid texels
-				(View.ViewRect.Height() / GAODownsampleFactor - 0.51f) / AOBufferSize.Y);
+			// The view must sample into the texture atlas correctly with the appropriate clamping
+			const FIntPoint AOBufferSize = GetBufferSizeForAO(View);
+			const FIntRect AOViewRect = View.ViewRect / GAODownsampleFactor;
+
+			PassParameters->PS.AOBufferBilinearUVMinMax = FVector4f(
+				(AOViewRect.Min.X + 0.51f) / AOBufferSize.X, // 0.51 - so bilateral gather4 won't sample invalid texels
+				(AOViewRect.Min.Y + 0.51f) / AOBufferSize.Y,
+				(AOViewRect.Max.X - 0.51f) / AOBufferSize.X,
+				(AOViewRect.Max.Y - 0.51f) / AOBufferSize.Y);
 
 			extern float GAOViewFadeDistanceScale;
 			PassParameters->PS.AOMaxViewDistance = GetMaxAOViewDistance();

@@ -167,7 +167,7 @@ void TileIntersectionModifyCompilationEnvironment(EShaderPlatform Platform, FSha
 
 FIntPoint GetBufferSizeForAO(const FViewInfo& View)
 {
-	return FIntPoint::DivideAndRoundDown(View.ViewRect.Size(), GAODownsampleFactor);
+	return FIntPoint::DivideAndRoundDown(View.GetSceneTexturesConfig().Extent, GAODownsampleFactor);
 }
 
 // Sample set restricted to not self-intersect a surface based on cone angle .475882232
@@ -276,15 +276,18 @@ FDFAOUpsampleParameters DistanceField::SetupAOUpsampleParameters(const FViewInfo
 {
 	const float DistanceFadeScaleValue = 1.0f / ((1.0f - GAOViewFadeDistanceScale) * GetMaxAOViewDistance());
 
-	const FIntPoint DFAOBufferSize = GetBufferSizeForAO(View);
-	const FVector2f UVMax(
-		(DFAOBufferSize.X - 0.51f) / DFAOBufferSize.X, // 0.51 - so bilateral gather4 won't sample invalid texels
-		(DFAOBufferSize.Y - 0.51f) / DFAOBufferSize.Y);
+	const FIntPoint AOBufferSize = GetBufferSizeForAO(View);
+	const FIntPoint AOViewSize = View.ViewRect.Size() / GAODownsampleFactor;
+	const FVector4f UVMinMax(
+		0.51 / AOBufferSize.X,
+		0.51 / AOBufferSize.Y,
+		(AOViewSize.X - 0.51f) / AOBufferSize.X, // 0.51 - so bilateral gather4 won't sample invalid texels
+		(AOViewSize.Y - 0.51f) / AOBufferSize.Y);
 
 	FDFAOUpsampleParameters ShaderParameters;
 	ShaderParameters.BentNormalAOTexture = DistanceFieldAOBentNormal;
 	ShaderParameters.BentNormalAOSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
-	ShaderParameters.AOBufferBilinearUVMax = UVMax;
+	ShaderParameters.AOBufferBilinearUVMinMax = UVMinMax;
 	ShaderParameters.DistanceFadeScale = DistanceFadeScaleValue;
 	ShaderParameters.AOMaxViewDistance = GetMaxAOViewDistance();
 
@@ -387,12 +390,12 @@ void ComputeDistanceFieldNormal(
 	FRDGTextureRef DistanceFieldNormal,
 	const FDistanceFieldAOParameters& Parameters)
 {
-	const FIntPoint DFAOTextureSize = GetBufferSizeForAO(View);
+	const FIntPoint DFAOViewSize = View.ViewRect.Size() / GAODownsampleFactor;
 
 	if (GAOComputeShaderNormalCalculation)
 	{
-		uint32 GroupSizeX = FMath::DivideAndRoundUp(DFAOTextureSize.X, GDistanceFieldAOTileSizeX);
-		uint32 GroupSizeY = FMath::DivideAndRoundUp(DFAOTextureSize.Y, GDistanceFieldAOTileSizeY);
+		uint32 GroupSizeX = FMath::DivideAndRoundUp(DFAOViewSize.X, GDistanceFieldAOTileSizeX);
+		uint32 GroupSizeY = FMath::DivideAndRoundUp(DFAOViewSize.Y, GDistanceFieldAOTileSizeY);
 
 		auto* PassParameters = GraphBuilder.AllocParameters<FComputeDistanceFieldNormalCS::FParameters>();
 		PassParameters->View = View.ViewUniformBuffer;
@@ -418,9 +421,9 @@ void ComputeDistanceFieldNormal(
 			RDG_EVENT_NAME("ComputeNormal"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&View, PassParameters, DFAOTextureSize](FRHICommandList& RHICmdList)
+			[&View, PassParameters, DFAOViewSize](FRHICommandList& RHICmdList)
 		{
-			RHICmdList.SetViewport(0, 0, 0.0f, DFAOTextureSize.X, DFAOTextureSize.Y, 1.0f);
+			RHICmdList.SetViewport(0, 0, 0.0f, DFAOViewSize.X, DFAOViewSize.Y, 1.0f);
 
 			TShaderMapRef<FPostProcessVS> VertexShader(View.ShaderMap);
 
@@ -443,10 +446,10 @@ void ComputeDistanceFieldNormal(
 			DrawRectangle(
 				RHICmdList,
 				0, 0,
-				DFAOTextureSize.X, DFAOTextureSize.Y,
+				DFAOViewSize.X, DFAOViewSize.Y,
 				0, 0,
 				View.ViewRect.Width(), View.ViewRect.Height(),
-				DFAOTextureSize,
+				DFAOViewSize,
 				View.GetSceneTexturesConfig().Extent,
 				VertexShader);
 		});
@@ -821,9 +824,10 @@ void FDeferredShadingSceneRenderer::RenderDistanceFieldLighting(
 		bListMeshDistanceFieldsMemoryNextFrame = false;
 		Scene->DistanceFieldSceneData.ListMeshDistanceFields(true);
 	}
-
+	
+	// We only need this texture if we need to copy multiple view outputs to an texture atlas
 	FRDGTextureRef BentNormalOutput = nullptr;
-
+	 if (Views.Num() > 1)
 	{
 		const FIntPoint BufferSize = GetActiveSceneTexturesConfig().Extent / GAODownsampleFactor;
 		const FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(BufferSize, PF_FloatRGBA, FClearValueBinding::None, GFastVRamConfig.DistanceFieldAOBentNormal | TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV);
@@ -895,7 +899,14 @@ void FDeferredShadingSceneRenderer::RenderDistanceFieldLighting(
 			UpsampleBentNormalAO(GraphBuilder, View, SceneTextures.UniformBuffer, SceneTextures.Color.Target, PerViewBentNormal, bModulateToSceneColor && !bVisualizeAmbientOcclusion);
 		}
 
-		AddCopyTexturePass(GraphBuilder, PerViewBentNormal, BentNormalOutput, FIntPoint::ZeroValue, View.ViewRect.Min / GAODownsampleFactor, View.ViewRect.Size() / GAODownsampleFactor);
+		if (Views.Num() == 1) {
+			OutDynamicBentNormalAO = PerViewBentNormal;
+			return;
+		}
+		else 
+		{
+			AddCopyTexturePass(GraphBuilder, PerViewBentNormal, BentNormalOutput, FIntPoint::ZeroValue, View.ViewRect.Min / GAODownsampleFactor, View.ViewRect.Size() / GAODownsampleFactor);
+		}
 	}
 
 	OutDynamicBentNormalAO = BentNormalOutput;

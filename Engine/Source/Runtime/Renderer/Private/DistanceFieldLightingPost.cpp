@@ -166,9 +166,13 @@ public:
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, BentNormalAOTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, BentNormalAOSampler)
 		SHADER_PARAMETER(FVector2f, BentNormalAOTexelSize)
+		SHADER_PARAMETER(FVector2f, MaxSampleBufferUV)
 		SHADER_PARAMETER(float, HistoryWeight)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
+
+	class FManuallyClampUV : SHADER_PERMUTATION_BOOL("MANUALLY_CLAMP_UV");
+	using FPermutationDomain = TShaderPermutationDomain<FManuallyClampUV>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -239,9 +243,10 @@ void GeometryAwareUpsample(FRDGBuilder& GraphBuilder, const FViewInfo& View, FRD
 		ERDGPassFlags::Raster,
 		[PassParameters, VertexShader, PixelShader, &View](FRHICommandList& RHICmdList)
 	{
-		FIntPoint AOBufferSize = GetBufferSizeForAO(View);
+		const FIntPoint AOBufferSize = GetBufferSizeForAO(View);
+		const FIntPoint AOViewSize = View.ViewRect.Size() / GAODownsampleFactor;
 
-		RHICmdList.SetViewport(0, 0, 0.0f, AOBufferSize.X, AOBufferSize.Y, 1.0f);
+		RHICmdList.SetViewport(0, 0, 0.0f, AOViewSize.X, AOViewSize.Y, 1.0f);
 
 		FGraphicsPipelineStateInitializer GraphicsPSOInit;
 		RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -260,10 +265,10 @@ void GeometryAwareUpsample(FRDGBuilder& GraphBuilder, const FViewInfo& View, FRD
 		DrawRectangle(
 			RHICmdList,
 			0, 0,
-			AOBufferSize.X, AOBufferSize.Y,
+			AOViewSize.X, AOViewSize.Y,
 			0, 0,
-			AOBufferSize.X, AOBufferSize.Y,
-			AOBufferSize,
+			AOViewSize.X, AOViewSize.Y,
+			AOViewSize,
 			AOBufferSize,
 			VertexShader);
 	});
@@ -317,6 +322,7 @@ void UpdateHistory(
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 
 	const FIntPoint AOBufferSize = GetBufferSizeForAO(View);
+	const FIntPoint AOViewSize = View.ViewRect.Size() / GAODownsampleFactor;
 
 	if (BentNormalHistoryState && DistanceFieldAOUseHistory(View))
 	{
@@ -383,10 +389,10 @@ void UpdateHistory(
 					RDG_EVENT_NAME("UpdateHistory"),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[PassParameters, VertexShader, PixelShader, &View, AOBufferSize]
+					[PassParameters, VertexShader, PixelShader, &View, AOBufferSize, AOViewSize]
 					(FRHICommandList& RHICmdList)
 				{
-					RHICmdList.SetViewport(0, 0, 0.0f, AOBufferSize.X, AOBufferSize.Y, 1.0f);
+					RHICmdList.SetViewport(0, 0, 0.0f, AOViewSize.X, AOViewSize.Y, 1.0f);
 
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -405,10 +411,10 @@ void UpdateHistory(
 					DrawRectangle(
 						RHICmdList,
 						0, 0,
-						AOBufferSize.X, AOBufferSize.Y,
+						AOViewSize.X, AOViewSize.Y,
 						0, 0,
-						AOBufferSize.X, AOBufferSize.Y,
-						AOBufferSize,
+						AOViewSize.X, AOViewSize.Y,
+						AOViewSize,
 						AOBufferSize,
 						VertexShader);
 				});
@@ -427,8 +433,16 @@ void UpdateHistory(
 					AllocateOrReuseAORenderTarget(GraphBuilder, View, BentNormalHistoryTexture, BentNormalHistoryRTName, PF_FloatRGBA);
 				}
 
+				const bool bManuallyClampUV = View.ViewRect.Min != FIntPoint::ZeroValue || View.ViewRect.Max != AOBufferSize;
+				FFilterHistoryPS::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FFilterHistoryPS::FManuallyClampUV>(bManuallyClampUV);
+
 				auto VertexShader = View.ShaderMap->GetShader<FPostProcessVS>();
-				auto PixelShader = View.ShaderMap->GetShader<FFilterHistoryPS>();
+				auto PixelShader = View.ShaderMap->GetShader<FFilterHistoryPS>(PermutationVector);
+
+				FVector2f MaxSampleBufferUV(
+					(AOViewSize.X - 0.5f - GAODownsampleFactor) / AOBufferSize.X,
+					(AOViewSize.Y - 0.5f - GAODownsampleFactor) / AOBufferSize.Y);
 
 				auto* PassParameters = GraphBuilder.AllocParameters<FFilterHistoryPS::FParameters>();
 				PassParameters->View = View.ViewUniformBuffer;
@@ -436,6 +450,7 @@ void UpdateHistory(
 				PassParameters->BentNormalAOTexture = NewBentNormalHistory;
 				PassParameters->BentNormalAOSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 				PassParameters->BentNormalAOTexelSize = FVector2f(1.0f / AOBufferSize.X, 1.0f / AOBufferSize.Y);
+				PassParameters->MaxSampleBufferUV = MaxSampleBufferUV;
 				PassParameters->HistoryWeight = GAOHistoryWeight;
 				PassParameters->RenderTargets[0] = FRenderTargetBinding(BentNormalHistoryTexture, ERenderTargetLoadAction::ELoad);
 
@@ -445,9 +460,10 @@ void UpdateHistory(
 					RDG_EVENT_NAME("UpdateHistoryStability"),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[PassParameters, VertexShader, PixelShader, &View, AOBufferSize](FRHICommandList& RHICmdList)
+					[PassParameters, VertexShader, PixelShader, &View, AOBufferSize, AOViewSize]
+					(FRHICommandList& RHICmdList)
 				{
-					RHICmdList.SetViewport(0, 0, 0.0f, AOBufferSize.X, AOBufferSize.Y, 1.0f);
+					RHICmdList.SetViewport(0, 0, 0.0f, AOViewSize.X, AOViewSize.Y, 1.0f);
 
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -466,10 +482,10 @@ void UpdateHistory(
 					DrawRectangle(
 						RHICmdList,
 						0, 0,
-						AOBufferSize.X, AOBufferSize.Y,
+						AOViewSize.X, AOViewSize.Y,
 						0, 0,
-						AOBufferSize.X, AOBufferSize.Y,
-						AOBufferSize ,
+						AOViewSize.X, AOViewSize.Y,
+						AOViewSize ,
 						AOBufferSize,
 						VertexShader);
 				});

@@ -144,7 +144,7 @@ float3 ComputeBentNormal(float3 RecordWorldNormal, uint RelativeRecordIndex)
 	return UnoccludedDirection;
 }
 
-float2 AOBufferBilinearUVMax;
+float4 AOBufferBilinearUVMinMax;
 
 struct FUpsampleDFAOOutput
 {
@@ -155,7 +155,8 @@ FUpsampleDFAOOutput UpsampleDFAO(float2 BufferUV, float SceneDepth)
 {
 	FUpsampleDFAOOutput UpsampleDFAOOutput;
 
-	float2 DistanceFieldUVs = min(BufferUV, AOBufferBilinearUVMax);
+	// Note: if DFAO is ever stored per-view and not atlased at some point, there should only need to be a max here
+	float2 DistanceFieldUVs = clamp(BufferUV, AOBufferBilinearUVMinMax.xy, AOBufferBilinearUVMinMax.zw);
 
 #define BILATERAL_UPSAMPLE 1
 #if BILATERAL_UPSAMPLE
