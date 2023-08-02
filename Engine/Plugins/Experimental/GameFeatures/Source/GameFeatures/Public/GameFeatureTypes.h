@@ -33,6 +33,8 @@ class FString;
 	XSTATE(Unloading,					NSLOCTEXT("GameFeatures", "UnloadingStateDisplayName", "Unloading"))										/* Transition state Loaded -> Registered. In the process of removing code/content from memory. */ \
 	XSTATE(Loading,						NSLOCTEXT("GameFeatures", "LoadingStateDisplayName", "Loading"))											/* Transition state Registered -> Loaded. In the process of loading code/content into memory. */ \
 	XSTATE(Loaded,						NSLOCTEXT("GameFeatures", "LoadedStateDisplayName", "Loaded"))												/* The plugin is loaded into memory, but not registered with game systems and active. */ \
+	XSTATE(ErrorActivatingDependencies,	NSLOCTEXT("GameFeatures", "ErrorActivatingDependenciesStateDisplayName", "ErrorActivatingDependencies"))	/* Error state for Registered -> Active transition. */ \
+	XSTATE(ActivatingDependencies,		NSLOCTEXT("GameFeatures", "ActivatingDependenciesStateDisplayName", "ActivatingDependencies"))				/* Transition state Registered -> Active. In the process of selectively activating dependencies.*/ \
 	XSTATE(Deactivating,				NSLOCTEXT("GameFeatures", "DeactivatingStateDisplayName", "Deactivating"))									/* Transition state Active -> Loaded. Currently unregistering with game systems. */ \
 	XSTATE(Activating,					NSLOCTEXT("GameFeatures", "ActivatingStateDisplayName", "Activating"))										/* Transition state Loaded -> Active. Currently registering plugin code/content with game systems. */ \
 	XSTATE(Active,						NSLOCTEXT("GameFeatures", "ActiveStateDisplayName", "Active"))												/* Plugin is fully loaded and active. It is affecting the game.  */ 

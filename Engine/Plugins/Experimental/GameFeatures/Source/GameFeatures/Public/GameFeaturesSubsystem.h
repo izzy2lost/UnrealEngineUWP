@@ -193,9 +193,21 @@ enum class EGameFeatureTargetState : uint8
 const FString GAMEFEATURES_API LexToString(const EGameFeatureTargetState GameFeatureTargetState);
 void GAMEFEATURES_API LexFromString(EGameFeatureTargetState& Value, const TCHAR* StringIn);
 
+struct FGameFeaturePluginReferenceDetails
+{
+	FString URL;
+	bool bShouldActivate;
+
+	FGameFeaturePluginReferenceDetails(const FString& InURL, bool bInShouldActivate)
+		: URL(InURL)
+		, bShouldActivate(bInShouldActivate)
+	{
+	}
+};
+
 struct FGameFeaturePluginDetails
 {
-	TArray<FString> PluginDependencies;
+	TArray<FGameFeaturePluginReferenceDetails> PluginDependencies;
 	TMap<FString, FString> AdditionalMetadata;
 	bool bHotfixable;
 	EBuiltInAutoState BuiltInAutoState;
@@ -596,7 +608,11 @@ private:
 
 	/** Handler for when a state machine requests its dependencies. Returns false if the dependencies could not be read */
 	bool FindOrCreatePluginDependencyStateMachines(const FString& PluginURL, const FString& PluginFilename, const FGameFeatureProtocolOptions& DepProtocolOptions, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines);
-	friend struct FGameFeaturePluginState_WaitingForDependencies;
+	template <typename> friend struct FTransitionDependenciesGameFeaturePluginState;
+	friend struct FWaitingForDependenciesTransitionPolicy;
+
+	bool FindPluginDependencyStateMachinesToActivate(const FString& PluginURL, const FString& PluginFilename, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines);
+	friend struct FActivatingDependenciesTransitionPolicy;
 
 	/** Handle 'ListGameFeaturePlugins' console command */
 	void ListGameFeaturePlugins(const TArray<FString>& Args, UWorld* InWorld, FOutputDevice& Ar);

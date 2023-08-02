@@ -65,7 +65,7 @@ FText SGameFeatureStateWidget::GetDisplayNameOfState(EGameFeaturePluginState Sta
 
 FText SGameFeatureStateWidget::GetTooltipOfState(EGameFeaturePluginState State)
 {
-	static_assert((int32)EGameFeaturePluginState::MAX == 29, "");
+	static_assert((int32)EGameFeaturePluginState::MAX == 31, "");
 
 	switch (State)
 	{
@@ -121,6 +121,10 @@ FText SGameFeatureStateWidget::GetTooltipOfState(EGameFeaturePluginState State)
 		return LOCTEXT("StateTooltip_Loading", "Transition state Registered -> Loaded. In the process of loading code/content into memory.");
 	case EGameFeaturePluginState::Loaded:
 		return LOCTEXT("StateTooltip_Loaded", "The plugin is loaded into memory and registered with some game systems but not yet active.");
+	case EGameFeaturePluginState::ErrorActivatingDependencies:
+		return LOCTEXT("StateTooltip_ErrorActivateDependencies", "Error state for Loaded -> Active and Active -> Loaded transitions.");
+	case EGameFeaturePluginState::ActivatingDependencies:
+		return LOCTEXT("StateTooltip_ActivateDependencies", "Transition state Loaded -> Active. In the process of selectively activating dependencies.");
 	case EGameFeaturePluginState::Deactivating:
 		return LOCTEXT("StateTooltip_Deactivating", "Transition state Active -> Loaded. Currently unregistering with game systems.");
 	case EGameFeaturePluginState::Activating:

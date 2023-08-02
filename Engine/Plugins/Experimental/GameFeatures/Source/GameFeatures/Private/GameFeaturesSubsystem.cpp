@@ -1747,6 +1747,7 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetails(const FString& PluginUR
 	{
 		FString NameField = TEXT("Name");
 		FString EnabledField = TEXT("Enabled");
+		FString ActivateField = TEXT("Activate");
 		for (const TSharedPtr<FJsonValue>& PluginElement : *PluginsArray)
 		{
 			if (PluginElement.IsValid())
@@ -1758,6 +1759,9 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetails(const FString& PluginUR
 					const TSharedPtr<FJsonObject>& ElementObject = *ElementObjectPtr;
 					bool bElementEnabled = false;
 					ElementObject->TryGetBoolField(EnabledField, bElementEnabled);
+
+					bool bElementActivate = false;
+					ElementObject->TryGetBoolField(ActivateField, bElementActivate);
 
 					if (bElementEnabled)
 					{
@@ -1772,7 +1776,7 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetails(const FString& PluginUR
 							}
 							else if (ResolvedDepResult.HasValue() && !ResolvedDepResult.GetValue().IsEmpty()) // Dependency may not be a GFP
 							{
-								OutPluginDetails.PluginDependencies.Add(ResolvedDepResult.StealValue());
+								OutPluginDetails.PluginDependencies.Emplace(FGameFeaturePluginReferenceDetails(ResolvedDepResult.StealValue(), bElementActivate));
 							}
 						}
 					}
@@ -1981,19 +1985,40 @@ bool UGameFeaturesSubsystem::FindOrCreatePluginDependencyStateMachines(const FSt
 	FGameFeaturePluginDetails Details;
 	if (GetGameFeaturePluginDetails(PluginURL, PluginFilename, Details))
 	{
-		for (const FString& DependencyURL : Details.PluginDependencies)
+		for (const FGameFeaturePluginReferenceDetails& PluginDependency : Details.PluginDependencies)
 		{
 			// Inherit dep protocol options if possible
 			FGameFeatureProtocolOptions DepProtocolOptions;
-			EGameFeaturePluginProtocol DepProtocol = UGameFeaturesSubsystem::GetPluginURLProtocol(DependencyURL);
+			EGameFeaturePluginProtocol DepProtocol = UGameFeaturesSubsystem::GetPluginURLProtocol(PluginDependency.URL);
 			if (DepProtocol == EGameFeaturePluginProtocol::InstallBundle && InDepProtocolOptions.HasSubtype<FInstallBundlePluginProtocolOptions>())
 			{
 				DepProtocolOptions = InDepProtocolOptions;
 			}
 
-			UGameFeaturePluginStateMachine* Dependency = FindOrCreateGameFeaturePluginStateMachine(DependencyURL, DepProtocolOptions);
+			UGameFeaturePluginStateMachine* Dependency = FindOrCreateGameFeaturePluginStateMachine(PluginDependency.URL, DepProtocolOptions);
 			check(Dependency);
 			OutDependencyMachines.Add(Dependency);
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+bool UGameFeaturesSubsystem::FindPluginDependencyStateMachinesToActivate(const FString& PluginURL, const FString& PluginFilename, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines)
+{
+	FGameFeaturePluginDetails Details;
+	if (GetGameFeaturePluginDetails(PluginURL, PluginFilename, Details))
+	{
+		for (const FGameFeaturePluginReferenceDetails& PluginDependency : Details.PluginDependencies)
+		{
+			if (PluginDependency.bShouldActivate)
+			{
+				UGameFeaturePluginStateMachine* Dependency = FindGameFeaturePluginStateMachine(PluginDependency.URL);
+				check(Dependency);
+				OutDependencyMachines.Add(Dependency);
+			}
 		}
 
 		return true;

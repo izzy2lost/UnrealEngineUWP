@@ -480,6 +480,185 @@ bool FGameFeaturePluginState::AllowIniLoading() const
 =========================================================
 */
 
+template<typename TransitionPolicy>
+struct FTransitionDependenciesGameFeaturePluginState : public FGameFeaturePluginState
+{
+	FTransitionDependenciesGameFeaturePluginState(FGameFeaturePluginStateMachineProperties& InStateProperties)
+		: FGameFeaturePluginState(InStateProperties)
+		, bRequestedDependencies(false)
+	{}
+
+	virtual ~FTransitionDependenciesGameFeaturePluginState()
+	{
+		ClearDependencies();
+	}
+
+	virtual void BeginState() override
+	{
+		ClearDependencies();
+	}
+
+	virtual void EndState() override
+	{
+		ClearDependencies();
+	}
+
+	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_TransitionDependencies);
+		checkf(!StateProperties.PluginInstalledFilename.IsEmpty(), TEXT("PluginInstalledFilename must be set by the loading dependencies phase. PluginURL: %s"), *StateProperties.PluginIdentifier.GetFullPluginURL());
+		checkf(FPaths::GetExtension(StateProperties.PluginInstalledFilename) == TEXT("uplugin"), TEXT("PluginInstalledFilename must have a uplugin extension. PluginURL: %s"), *StateProperties.PluginIdentifier.GetFullPluginURL());
+
+		if (!bRequestedDependencies)
+		{
+			UGameFeaturesSubsystem& GameFeaturesSubsystem = UGameFeaturesSubsystem::Get();
+
+			TArray<UGameFeaturePluginStateMachine*> Dependencies;
+			if (!TransitionPolicy::GetPluginDependencyStateMachines(StateProperties, Dependencies))
+			{
+				// Failed to query dependencies
+				StateStatus.SetTransitionError(TransitionPolicy::GetErrorState(), GetErrorResult(TEXT("Failed_Dependency_Query")));
+				return;
+			}
+
+			bRequestedDependencies = true;
+
+			UE_CLOG(Dependencies.Num() > 0, LogGameFeatures, Verbose, TEXT("Found %i dependencies for %s"), Dependencies.Num(), *StateProperties.PluginName);
+
+			RemainingDependencies.Reserve(Dependencies.Num());
+			for (UGameFeaturePluginStateMachine* Dependency : Dependencies)
+			{
+				RemainingDependencies.Emplace(Dependency, MakeValue());
+				TransitionDependency(Dependency);
+			}
+		}
+
+		for (FDepResultPair& Pair : RemainingDependencies)
+		{
+			UGameFeaturePluginStateMachine* RemainingDependency = Pair.Key.Get();
+			if (!RemainingDependency)
+			{
+				// One of the dependency state machines was destroyed before finishing
+				StateStatus.SetTransitionError(TransitionPolicy::GetErrorState(), GetErrorResult(TEXT("Dependency_Destroyed_Before_Finish")));
+				return;
+			}
+
+			if (Pair.Value.HasError())
+			{
+				UE_LOG(LogGameFeatures, Error, TEXT("Dependency %s failed to transition with error %s"), *RemainingDependency->GetPluginURL(), *Pair.Value.GetError());
+				StateStatus.SetTransitionError(TransitionPolicy::GetErrorState(), GetErrorResult(TEXT("Failed_Dependency_Transition")));
+				return;
+			}
+		}
+
+		if (RemainingDependencies.Num() == 0)
+		{
+			StateStatus.SetTransition(TransitionPolicy::GetTransitionState());
+		}
+	}
+
+	void TransitionDependency(UGameFeaturePluginStateMachine* Dependency)
+	{
+		const bool bSetDestination = Dependency->SetDestination(TransitionPolicy::GetDependencyStateRange(),
+			FGameFeatureStateTransitionComplete::CreateRaw(this, &FTransitionDependenciesGameFeaturePluginState::OnDependencyTransitionComplete));
+
+		if (!bSetDestination)
+		{
+			const bool bCancelPending = Dependency->TryCancel(
+				FGameFeatureStateTransitionCanceled::CreateRaw(this, &FTransitionDependenciesGameFeaturePluginState::OnDependencyTransitionCanceled));
+			if (!ensure(bCancelPending))
+			{
+				OnDependencyTransitionComplete(Dependency, GetErrorResult(TEXT("Failed_Dependency_Transition")));
+			}
+		}
+	}
+
+	void OnDependencyTransitionCanceled(UGameFeaturePluginStateMachine* Dependency)
+	{
+		// Special case for terminal state since it cannot be exited, we need to make a new machine
+		if (Dependency->GetCurrentState() == EGameFeaturePluginState::Terminal)
+		{
+			// Inherit dep protocol options if possible
+			FGameFeatureProtocolOptions DepProtocolOptions;
+			EGameFeaturePluginProtocol DepProtocol = Dependency->GetPluginIdentifier().GetPluginProtocol();
+			if (DepProtocol == EGameFeaturePluginProtocol::InstallBundle && StateProperties.ProtocolOptions.HasSubtype<FInstallBundlePluginProtocolOptions>())
+			{
+				DepProtocolOptions = StateProperties.RecycleProtocolOptions();
+			}
+
+			UGameFeaturePluginStateMachine* NewMachine = UGameFeaturesSubsystem::Get().FindOrCreateGameFeaturePluginStateMachine(Dependency->GetPluginURL(), DepProtocolOptions);
+			checkf(NewMachine != Dependency, TEXT("Game Feature Plugin %s should have already been removed from subsystem!"), *Dependency->GetPluginURL());
+
+			const int32 Index = RemainingDependencies.IndexOfByPredicate([Dependency](const FDepResultPair& Pair)
+				{
+					return Pair.Key == Dependency;
+				});
+
+			check(Index != INDEX_NONE);
+			FDepResultPair& FoundDep = RemainingDependencies[Index];
+			FoundDep.Key = NewMachine;
+
+			Dependency->RemovePendingTransitionCallback(this);
+			Dependency->RemovePendingCancelCallback(this);
+
+			Dependency = NewMachine;
+		}
+
+		// Now that the transition has been canceled, retry reaching the desired destination
+		const bool bSetDestination = Dependency->SetDestination(TransitionPolicy::GetDependencyStateRange(),
+			FGameFeatureStateTransitionComplete::CreateRaw(this, &FTransitionDependenciesGameFeaturePluginState::OnDependencyTransitionComplete));
+
+		if (!ensure(bSetDestination))
+		{
+			OnDependencyTransitionComplete(Dependency, GetErrorResult(TEXT("Failed_Dependency_Transition")));
+		}
+	}
+
+	void OnDependencyTransitionComplete(UGameFeaturePluginStateMachine* Dependency, const UE::GameFeatures::FResult& Result)
+	{
+		const int32 Index = RemainingDependencies.IndexOfByPredicate([Dependency](const FDepResultPair& Pair)
+			{
+				return Pair.Key == Dependency;
+			});
+
+		if (ensure(Index != INDEX_NONE))
+		{
+			FDepResultPair& FoundDep = RemainingDependencies[Index];
+
+			if (Result.HasError())
+			{
+				FoundDep.Value = Result;
+			}
+			else
+			{
+				RemainingDependencies.RemoveAtSwap(Index, 1, false);
+			}
+
+			UpdateStateMachineImmediate();
+		}
+	}
+
+	void ClearDependencies()
+	{
+		for (FDepResultPair& Pair : RemainingDependencies)
+		{
+			UGameFeaturePluginStateMachine* RemainingDependency = Pair.Key.Get();
+			if (RemainingDependency)
+			{
+				RemainingDependency->RemovePendingTransitionCallback(this);
+				RemainingDependency->RemovePendingCancelCallback(this);
+			}
+		}
+
+		RemainingDependencies.Empty();
+		bRequestedDependencies = false;
+	}
+
+	using FDepResultPair = TPair<TWeakObjectPtr<UGameFeaturePluginStateMachine>, UE::GameFeatures::FResult>;
+	TArray<FDepResultPair> RemainingDependencies;
+	bool bRequestedDependencies = false;
+};
+
 struct FGameFeaturePluginState_Uninitialized : public FGameFeaturePluginState
 {
 	FGameFeaturePluginState_Uninitialized(FGameFeaturePluginStateMachineProperties& InStateProperties) : FGameFeaturePluginState(InStateProperties) {}
@@ -1687,188 +1866,38 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 	}
 };
 
-struct FGameFeaturePluginState_WaitingForDependencies : public FGameFeaturePluginState
+struct FWaitingForDependenciesTransitionPolicy
 {
-	FGameFeaturePluginState_WaitingForDependencies(FGameFeaturePluginStateMachineProperties& InStateProperties)
-		: FGameFeaturePluginState(InStateProperties)
-		, bRequestedDependencies(false)
-	{}
-
-	virtual ~FGameFeaturePluginState_WaitingForDependencies()
+	static bool GetPluginDependencyStateMachines(const FGameFeaturePluginStateMachineProperties& InStateProperties, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines)
 	{
-		ClearDependencies();
+		UGameFeaturesSubsystem& GameFeaturesSubsystem = UGameFeaturesSubsystem::Get();
+
+		return GameFeaturesSubsystem.FindOrCreatePluginDependencyStateMachines(
+			*InStateProperties.PluginIdentifier.GetFullPluginURL(), InStateProperties.PluginInstalledFilename, InStateProperties.RecycleProtocolOptions(), OutDependencyMachines);
 	}
 
-	virtual void BeginState() override
-	{
-		ClearDependencies();
-	}
-
-	virtual void EndState() override
-	{
-		ClearDependencies();
-	}
-
-	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_WaitingForDependencies);
-		checkf(!StateProperties.PluginInstalledFilename.IsEmpty(), TEXT("PluginInstalledFilename must be set by the loading dependencies phase. PluginURL: %s"), *StateProperties.PluginIdentifier.GetFullPluginURL());
-		checkf(FPaths::GetExtension(StateProperties.PluginInstalledFilename) == TEXT("uplugin"), TEXT("PluginInstalledFilename must have a uplugin extension. PluginURL: %s"), *StateProperties.PluginIdentifier.GetFullPluginURL());
-
-		if (!bRequestedDependencies)
-		{
-			UGameFeaturesSubsystem& GameFeaturesSubsystem = UGameFeaturesSubsystem::Get();
-
-			TArray<UGameFeaturePluginStateMachine*> Dependencies;
-			if (!GameFeaturesSubsystem.FindOrCreatePluginDependencyStateMachines(
-				*StateProperties.PluginIdentifier.GetFullPluginURL(), StateProperties.PluginInstalledFilename, StateProperties.RecycleProtocolOptions(), Dependencies))
-			{
-				// Failed to query dependencies
-				StateStatus.SetTransitionError(EGameFeaturePluginState::ErrorWaitingForDependencies, GetErrorResult(TEXT("Failed_Dependency_Query")));
-				return;
-			}
-			
-			bRequestedDependencies = true;
-
-			UE_CLOG(Dependencies.Num() > 0, LogGameFeatures, Verbose, TEXT("Found %i dependencies for %s"), Dependencies.Num(), *StateProperties.PluginName);
-
-			RemainingDependencies.Reserve(Dependencies.Num());
-			for (UGameFeaturePluginStateMachine* Dependency : Dependencies)
-			{	
-				RemainingDependencies.Emplace(Dependency, MakeValue());
-				TransitionDependency(Dependency);
-			}
-		}
-
-		for (FDepResultPair& Pair : RemainingDependencies)
-		{
-			UGameFeaturePluginStateMachine* RemainingDependency = Pair.Key.Get();
-			if (!RemainingDependency)
-			{
-				// One of the dependency state machines was destroyed before finishing
-				StateStatus.SetTransitionError(EGameFeaturePluginState::ErrorWaitingForDependencies, GetErrorResult(TEXT("Dependency_Destroyed_Before_Finish")));
-				return;
-			}
-
-			if (Pair.Value.HasError())
-			{
-				UE_LOG(LogGameFeatures, Error, TEXT("Dependency %s failed to load with error %s"), *RemainingDependency->GetPluginURL(), *Pair.Value.GetError());
-				StateStatus.SetTransitionError(EGameFeaturePluginState::ErrorWaitingForDependencies, GetErrorResult(TEXT("Failed_Dependency_Register")));
-				return;
-			}
-		}
-
-		if (RemainingDependencies.Num() == 0)
-		{
-			StateStatus.SetTransition(EGameFeaturePluginState::Registering);
-		}
-	}
-
-	FGameFeaturePluginStateRange GetDependencyStateRange() const
+	static FGameFeaturePluginStateRange GetDependencyStateRange()
 	{
 		return FGameFeaturePluginStateRange(EGameFeaturePluginState::Registered, EGameFeaturePluginState::Active);
 	}
 
-	void TransitionDependency(UGameFeaturePluginStateMachine* Dependency)
+	static EGameFeaturePluginState GetTransitionState()
 	{
-		const bool bSetDestination = Dependency->SetDestination(GetDependencyStateRange(),
-			FGameFeatureStateTransitionComplete::CreateRaw(this, &FGameFeaturePluginState_WaitingForDependencies::OnDependencyTransitionComplete));
-
-		if (!bSetDestination)
-		{
-			const bool bCancelPending = Dependency->TryCancel(
-				FGameFeatureStateTransitionCanceled::CreateRaw(this, &FGameFeaturePluginState_WaitingForDependencies::OnDependencyTransitionCanceled));
-			if (!ensure(bCancelPending))
-			{
-				OnDependencyTransitionComplete(Dependency, GetErrorResult(UE::GameFeatures::CommonErrorCodes::DependencyFailedRegister));
-			}
-		}
+		return EGameFeaturePluginState::Registering;
 	}
 
-	void OnDependencyTransitionCanceled(UGameFeaturePluginStateMachine* Dependency)
+	static EGameFeaturePluginState GetErrorState()
 	{
-		// Special case for terminal state since it cannot be exited, we need to make a new machine
-		if (Dependency->GetCurrentState() == EGameFeaturePluginState::Terminal)
-		{
-			// Inherit dep protocol options if possible
-			FGameFeatureProtocolOptions DepProtocolOptions;
-			EGameFeaturePluginProtocol DepProtocol = Dependency->GetPluginIdentifier().GetPluginProtocol();
-			if (DepProtocol == EGameFeaturePluginProtocol::InstallBundle && StateProperties.ProtocolOptions.HasSubtype<FInstallBundlePluginProtocolOptions>())
-			{
-				DepProtocolOptions = StateProperties.RecycleProtocolOptions();
-			}
-
-			UGameFeaturePluginStateMachine* NewMachine = UGameFeaturesSubsystem::Get().FindOrCreateGameFeaturePluginStateMachine(Dependency->GetPluginURL(), DepProtocolOptions);
-			checkf(NewMachine != Dependency, TEXT("Game Feature Plugin %s should have already been removed from subsystem!"), *Dependency->GetPluginURL());
-
-			const int32 Index = RemainingDependencies.IndexOfByPredicate([Dependency](const FDepResultPair& Pair)
-				{
-					return Pair.Key == Dependency;
-				});
-
-			check(Index != INDEX_NONE);
-			FDepResultPair& FoundDep = RemainingDependencies[Index];
-			FoundDep.Key = NewMachine;
-
-			Dependency->RemovePendingTransitionCallback(this);
-			Dependency->RemovePendingCancelCallback(this);
-
-			Dependency = NewMachine;
-		}
-
-		// Now that the transition has been canceled, retry reaching the desired destination
-		const bool bSetDestination = Dependency->SetDestination(GetDependencyStateRange(),
-			FGameFeatureStateTransitionComplete::CreateRaw(this, &FGameFeaturePluginState_WaitingForDependencies::OnDependencyTransitionComplete));
-
-		if (!ensure(bSetDestination))
-		{
-			OnDependencyTransitionComplete(Dependency, GetErrorResult(UE::GameFeatures::CommonErrorCodes::DependencyFailedRegister));
-		}
+		return EGameFeaturePluginState::ErrorWaitingForDependencies;
 	}
+};
 
-	void OnDependencyTransitionComplete(UGameFeaturePluginStateMachine* Dependency, const UE::GameFeatures::FResult& Result)
+struct FGameFeaturePluginState_WaitingForDependencies : public FTransitionDependenciesGameFeaturePluginState<FWaitingForDependenciesTransitionPolicy>
+{
+	FGameFeaturePluginState_WaitingForDependencies(FGameFeaturePluginStateMachineProperties& InStateProperties)
+		: FTransitionDependenciesGameFeaturePluginState(InStateProperties)
 	{
-		const int32 Index = RemainingDependencies.IndexOfByPredicate([Dependency](const FDepResultPair& Pair)
-		{
-			return Pair.Key == Dependency;
-		});
-
-		if (ensure(Index != INDEX_NONE))
-		{
-			FDepResultPair& FoundDep = RemainingDependencies[Index];
-			
-			if (Result.HasError())
-			{
-				FoundDep.Value = Result;
-			}
-			else
-			{
-				RemainingDependencies.RemoveAtSwap(Index, 1, false);
-			}
-
-			UpdateStateMachineImmediate();
-		}
 	}
-
-	void ClearDependencies()
-	{
-		for (FDepResultPair& Pair : RemainingDependencies)
-		{
-			UGameFeaturePluginStateMachine* RemainingDependency = Pair.Key.Get();
-			if (RemainingDependency)
-			{
-				RemainingDependency->RemovePendingTransitionCallback(this);
-				RemainingDependency->RemovePendingCancelCallback(this);
-			}
-		}
-
-		RemainingDependencies.Empty();
-		bRequestedDependencies = false;
-	}
-
-	using FDepResultPair = TPair<TWeakObjectPtr<UGameFeaturePluginStateMachine>, UE::GameFeatures::FResult>;
-	TArray<FDepResultPair> RemainingDependencies;
-	bool bRequestedDependencies = false;
 };
 
 struct FGameFeaturePluginState_Unregistering : public FGameFeaturePluginState
@@ -2165,7 +2194,7 @@ struct FGameFeaturePluginState_Loaded : public FDestinationGameFeaturePluginStat
 	{
 		if (StateProperties.Destination > EGameFeaturePluginState::Loaded)
 		{
-			StateStatus.SetTransition(EGameFeaturePluginState::Activating);
+			StateStatus.SetTransition(EGameFeaturePluginState::ActivatingDependencies);
 		}
 		else if (StateProperties.Destination < EGameFeaturePluginState::Loaded)
 		{
@@ -2259,6 +2288,58 @@ struct FGameFeaturePluginState_Deactivating : public FGameFeaturePluginState
 		{
 			UE_LOG(LogGameFeatures, Log, TEXT("Game feature %s deactivation paused until %d observer tasks complete their deactivation"), *GetPathNameSafe(StateProperties.GameFeatureData), NumExpectedPausers - NumObservedPausers);
 		}
+	}
+};
+
+struct FGameFeaturePluginState_ErrorActivatingDependencies : public FErrorGameFeaturePluginState
+{
+	FGameFeaturePluginState_ErrorActivatingDependencies(FGameFeaturePluginStateMachineProperties& InStateProperties) : FErrorGameFeaturePluginState(InStateProperties) {}
+
+	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
+	{
+		if (StateProperties.Destination < EGameFeaturePluginState::ErrorActivatingDependencies)
+		{
+			// There is no cleaup state equivalent to EGameFeaturePluginState::ErrorActivatingDependencies so just go back to Unloading
+			StateStatus.SetTransition(EGameFeaturePluginState::Unloading);
+		}
+		else if (StateProperties.Destination > EGameFeaturePluginState::ErrorActivatingDependencies)
+		{
+			StateStatus.SetTransition(EGameFeaturePluginState::ActivatingDependencies);
+		}
+	}
+};
+
+struct FActivatingDependenciesTransitionPolicy
+{
+	static bool GetPluginDependencyStateMachines(const FGameFeaturePluginStateMachineProperties& InStateProperties, TArray<UGameFeaturePluginStateMachine*>& OutDependencyMachines)
+	{
+		UGameFeaturesSubsystem& GameFeaturesSubsystem = UGameFeaturesSubsystem::Get();
+
+		return GameFeaturesSubsystem.FindPluginDependencyStateMachinesToActivate(
+			*InStateProperties.PluginIdentifier.GetFullPluginURL(), InStateProperties.PluginInstalledFilename, OutDependencyMachines);
+	}
+
+	static FGameFeaturePluginStateRange GetDependencyStateRange()
+	{
+		return FGameFeaturePluginStateRange(EGameFeaturePluginState::Active, EGameFeaturePluginState::Active);
+	}
+
+	static EGameFeaturePluginState GetTransitionState()
+	{
+		return EGameFeaturePluginState::Activating;
+	}
+
+	static EGameFeaturePluginState GetErrorState()
+	{
+		return EGameFeaturePluginState::ErrorActivatingDependencies;
+	}
+};
+
+struct FGameFeaturePluginState_ActivatingDependencies : public FTransitionDependenciesGameFeaturePluginState<FActivatingDependenciesTransitionPolicy>
+{
+	FGameFeaturePluginState_ActivatingDependencies(FGameFeaturePluginStateMachineProperties& InStateProperties)
+		: FTransitionDependenciesGameFeaturePluginState(InStateProperties)
+	{
 	}
 };
 
