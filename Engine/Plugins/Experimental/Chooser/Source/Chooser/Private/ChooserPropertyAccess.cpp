@@ -69,7 +69,7 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 
 	int CompiledBindingSerialNumber = 0;
 	
-	if (PropertyBindingChain.IsEmpty() || !ContextData.IsValidIndex(ContextIndex))
+	if (!ContextData.IsValidIndex(ContextIndex))
 	{
 #if WITH_EDITORONLY_DATA
 		CompileMessage = LOCTEXT("No Property Bound", "No Property Bound");
@@ -79,16 +79,13 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 	}
 
 	const UStruct* StructType = nullptr;
-	if (ContextData.IsValidIndex(ContextIndex))
+	if (const FContextObjectTypeClass* ClassContext = ContextData[ContextIndex].GetPtr<FContextObjectTypeClass>())
 	{
-		if (const FContextObjectTypeClass* ClassContext = ContextData[ContextIndex].GetPtr<FContextObjectTypeClass>())
-		{
-			StructType = ClassContext->Class;
-		}
-		else if (const FContextObjectTypeStruct* StructContext = ContextData[ContextIndex].GetPtr<FContextObjectTypeStruct>())
-		{
-			StructType = StructContext->Struct;
-		}
+		StructType = ClassContext->Class;
+	}
+	else if (const FContextObjectTypeStruct* StructContext = ContextData[ContextIndex].GetPtr<FContextObjectTypeStruct>())
+	{
+		StructType = StructContext->Struct;
 	}
 
 	if(StructType == nullptr)
@@ -197,59 +194,68 @@ void FChooserPropertyBinding::Compile(IHasContextClass* Owner, bool bForce)
 			return;
 		}
 	}
-	
-	#if WITH_EDITOR
-   	Owner->AddCompileDependency(StructType);
-	OutCompiledBinding.Dependencies.AddUnique(StructType);
-    #endif
 
 	bool bFound = false;
-	if (const FProperty* BaseProperty = FindFProperty<FProperty>(StructType, PropertyBindingChain.Last()))
+	if (PropertyBindingChain.IsEmpty())
 	{
+		// handle binding directly to a context struct
+		OutCompiledBinding.CompiledChain.Add(UE::Chooser::FCompiledBindingElement(0));
 		bFound = true;
-		
-		// last element should be the actual property - add it's offset to whatever was accumulated from struct offsets
-		CurrentOffset += BaseProperty->GetOffset_ForInternal();
-		OutCompiledBinding.CompiledChain.Add(UE::Chooser::FCompiledBindingElement(CurrentOffset));
-
-		if (BaseProperty->IsA<FFloatProperty>())
-		{
-			OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::FLOAT;
-		}
-		else if (BaseProperty->IsA<FDoubleProperty>())
-		{
-			OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::DOUBLE;
-		}
-		else if (BaseProperty->IsA<FIntProperty>())
-		{
-			OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::INT32;
-		}
 	}
 	else
 	{
-		// handle function calls 
-		if (const UClass* ClassType = Cast<const UClass>(StructType))
+#if WITH_EDITOR
+		Owner->AddCompileDependency(StructType);
+		OutCompiledBinding.Dependencies.AddUnique(StructType);
+#endif
+
+		if (const FProperty* BaseProperty = FindFProperty<FProperty>(StructType, PropertyBindingChain.Last()))
 		{
-			if (UFunction* Function = ClassType->FindFunctionByName(PropertyBindingChain.Last()))
+			bFound = true;
+			
+			// last element should be the actual property - add it's offset to whatever was accumulated from struct offsets
+			CurrentOffset += BaseProperty->GetOffset_ForInternal();
+			OutCompiledBinding.CompiledChain.Add(UE::Chooser::FCompiledBindingElement(CurrentOffset));
+
+			if (BaseProperty->IsA<FFloatProperty>())
 			{
-				bFound = true;
-				
-				const FProperty* ReturnProperty = Function->GetReturnProperty();
-				OutCompiledBinding.CompiledChain.Add(UE::Chooser::FCompiledBindingElement(Function));
-				if (ReturnProperty->IsA<FFloatProperty>())
+				OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::FLOAT;
+			}
+			else if (BaseProperty->IsA<FDoubleProperty>())
+			{
+				OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::DOUBLE;
+			}
+			else if (BaseProperty->IsA<FIntProperty>())
+			{
+				OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::INT32;
+			}
+		}
+		else
+		{
+			// handle function calls 
+			if (const UClass* ClassType = Cast<const UClass>(StructType))
+			{
+				if (UFunction* Function = ClassType->FindFunctionByName(PropertyBindingChain.Last()))
 				{
-					OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::FLOAT;
-				}
-				else if (ReturnProperty->IsA<FDoubleProperty>())
-				{
-					OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::DOUBLE;
-				}
-				else if (ReturnProperty->IsA<FIntProperty>())
-				{
-					OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::INT32;
+					bFound = true;
+					
+					const FProperty* ReturnProperty = Function->GetReturnProperty();
+					OutCompiledBinding.CompiledChain.Add(UE::Chooser::FCompiledBindingElement(Function));
+					if (ReturnProperty->IsA<FFloatProperty>())
+					{
+						OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::FLOAT;
+					}
+					else if (ReturnProperty->IsA<FDoubleProperty>())
+					{
+						OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::DOUBLE;
+					}
+					else if (ReturnProperty->IsA<FIntProperty>())
+					{
+						OutCompiledBinding.PropertyType = UE::Chooser::EPropertyNumericalType::INT32;
+					}
 				}
 			}
-		 }
+		}
 	}
 
 	if (bFound)

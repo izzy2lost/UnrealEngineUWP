@@ -348,6 +348,7 @@ void SPropertyAccessChainWidget::Construct( const FArguments& InArgs)
 	bAllowFunctions = InArgs._AllowFunctions;
 	OnValueChanged = InArgs._OnValueChanged;
 	PropertyBindingValue = InArgs._PropertyBindingValue;
+	OnAddBinding = InArgs._OnAddBinding;
 	UpdateWidget();
 
 
