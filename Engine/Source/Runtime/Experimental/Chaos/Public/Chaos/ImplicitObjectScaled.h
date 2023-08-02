@@ -1045,8 +1045,7 @@ private:
 	template <typename QueryGeomType>
 	static auto MakeScaledHelper(const QueryGeomType& B, const TVector<T,d>& InvScale )
 	{
-		TImplicitObjectScaled<QueryGeomType, true> ScaledB(const_cast<QueryGeomType*>(&B), InvScale);
-		return ScaledB;
+		return TImplicitObjectScaled<QueryGeomType,true>(const_cast<QueryGeomType*>(&B), InvScale);
 	}
 
 	template <typename QueryGeomType>

@@ -125,10 +125,6 @@ public:
 			{ 
 				delete this;
 			}
-			else
-			{
-				bTransientFlag = true;
-			}
 		}
 		return Refs;
 	}
