@@ -111,6 +111,16 @@ enum {MAX_VARIABLE_SIZE = 0x0FFF };
 #define P_NATIVE_BEGIN { SCOPED_SCRIPT_NATIVE_TIMER(ScopedNativeCallTimer);
 #define P_NATIVE_END   }
 
+#ifndef UE_SCRIPT_ARGS_GC_BARRIER
+#define UE_SCRIPT_ARGS_GC_BARRIER 0
+#endif
+
+#if UE_SCRIPT_ARGS_GC_BARRIER
+#define P_ARG_GC_BARRIER(X) MutableView(ObjectPtrWrap(X))
+#else
+#define P_ARG_GC_BARRIER(X) X
+#endif
+
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"
 #endif

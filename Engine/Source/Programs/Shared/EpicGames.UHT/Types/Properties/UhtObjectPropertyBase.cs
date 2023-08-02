@@ -294,5 +294,13 @@ namespace EpicGames.UHT.Types
 			}
 		}
 		#endregion
+
+		/// <inheritdoc/>
+		protected override bool NeedsGCBarrierWhenPassedToFunctionImpl(UhtFunction function)
+		{
+			var type = this.GetType();
+			return type == typeof(UhtObjectProperty)
+				|| (type == typeof(UhtClassProperty) && !this.PropertyFlags.HasFlag(EPropertyFlags.UObjectWrapper));
+		}
 	}
 }

@@ -1951,6 +1951,30 @@ namespace EpicGames.UHT.Types
 		}
 		#endregion
 
+		#region Incremental GC Support
+		/// <summary>
+		/// Determines whether or not GC barriers need to run after passing this to a function
+		/// </summary>
+		/// <returns>True if GC barriers need to run</returns>				
+		public bool NeedsGCBarrierWhenPassedToFunction(UhtFunction function)
+		{
+			if (this.RefQualifier != UhtPropertyRefQualifier.NonConstRef)
+			{
+				return false;
+			}
+			return NeedsGCBarrierWhenPassedToFunctionImpl(function);
+		}
+		
+		/// <summary>
+		/// Customization point for subclasses for NeedsGCBarrierWhenPassedToFunction
+		/// </summary>
+		/// <returns>True if GC barriers need to run</returns>		
+		protected virtual bool NeedsGCBarrierWhenPassedToFunctionImpl(UhtFunction function)
+		{
+			return false;
+		}
+		#endregion
+		
 		#region Helper methods
 		/// <summary>
 		/// Generate a new name suffix based on the current suffix and the new suffix

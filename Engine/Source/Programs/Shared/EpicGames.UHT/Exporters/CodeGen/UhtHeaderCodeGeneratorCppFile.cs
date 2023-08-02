@@ -2161,12 +2161,25 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			{
 				if (parameter is UhtProperty property)
 				{
-					if (!first)
+					if (first)
+					{
+						first = false;
+					}
+					else
 					{
 						builder.Append(',');
 					}
+
+					bool needsGCBarrier = property.NeedsGCBarrierWhenPassedToFunction(function);
+					if (needsGCBarrier)
+					{
+						builder.Append("P_ARG_GC_BARRIER(");
+					}
 					builder.AppendFunctionThunkParameterArg(property);
-					first = false;
+					if (needsGCBarrier)
+					{
+						builder.Append(")");
+					}
 				}
 			}
 			return builder;
