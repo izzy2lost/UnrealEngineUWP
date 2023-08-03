@@ -5760,60 +5760,6 @@ TArray<UFactory*> UAssetToolsImpl::GetNewAssetFactories() const
 	return MoveTemp(Factories);
 }
 
-TSharedRef<FNamePermissionList>& UAssetToolsImpl::GetAssetClassPermissionList()
-{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	return GetAssetClassPermissionList(EAssetClassAction::ViewAsset);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	
-}
-
-TSharedRef<FNamePermissionList>& UAssetToolsImpl::GetAssetClassPermissionList(EAssetClassAction AssetClassAction)
-{
-	// Convert path list to name list. Slow and unefficient but keeping it for compatibility (this function is deprecated)
-	if (AssetClassAction < EAssetClassAction::AllAssetActions)
-	{
-		TSharedRef<FPathPermissionList> List = AssetClassPermissionList[(int32)AssetClassAction];
-		TSharedRef<FNamePermissionList> Result = MakeShared<FNamePermissionList>();
-		if (List->IsDenyListAll())
-		{
-			Result->AddDenyListAll(NAME_None);
-		}
-
-		for (const TPair<FString, FPermissionListOwners>& It : List->GetDenyList())
-		{
-			for (const FName OwnerName : It.Value)
-			{
-				Result->AddDenyListItem(OwnerName, FName(*FPackageName::GetShortName(*It.Key)));
-			}
-		}
-
-		for (const TPair<FString, FPermissionListOwners>& It : List->GetAllowList())
-		{
-			FName Name = *FPackageName::GetShortName(*It.Key);
-			if (Result->PassesFilter(Name))
-			{
-				for (const FName OwnerName : It.Value)
-				{
-					Result->AddAllowListItem(OwnerName, Name);
-				}
-			}
-		}
-
-		// Block everything if none of the AllowList paths passed
-		if (Result->GetAllowList().Num() == 0)
-		{
-			Result->AddDenyListAll(NAME_None);
-		}
-
-		AssetClassPermissionList_DEPRECATED = Result;
-		return AssetClassPermissionList_DEPRECATED;
-	}
-	
-	static TSharedRef<FNamePermissionList> Empty = MakeShared<FNamePermissionList>();
-	return Empty;
-}
-
 const TSharedRef<FPathPermissionList>& UAssetToolsImpl::GetAssetClassPathPermissionList(EAssetClassAction AssetClassAction) const
 {
 	if (AssetClassAction < EAssetClassAction::AllAssetActions)

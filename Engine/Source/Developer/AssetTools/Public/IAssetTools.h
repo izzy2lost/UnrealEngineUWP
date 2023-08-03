@@ -581,10 +581,6 @@ public:
 	/** Find all supported asset factories. */
 	virtual TArray<UFactory*> GetNewAssetFactories() const = 0;
 
-	/** Get asset class permission list for the ViewAsset action */
-	UE_DEPRECATED(5.1, "Pass in an EAssetClassAction instead of nothing")
-	virtual TSharedRef<FNamePermissionList>& GetAssetClassPermissionList() = 0;
-
 	/** Get asset class permission list for content browser and other systems */
 	virtual const TSharedRef<FPathPermissionList>& GetAssetClassPathPermissionList(EAssetClassAction AssetClassAction) const = 0;
 
