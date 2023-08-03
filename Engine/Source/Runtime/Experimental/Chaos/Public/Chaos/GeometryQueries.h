@@ -26,6 +26,7 @@ namespace Chaos
 	struct FMTDInfo
 	{
 		FVec3 Normal;
+		FVec3 Position;
 		FReal Penetration;
 	};
 
@@ -62,11 +63,12 @@ namespace Chaos
 			{
 				return Utilities::CastHelper(A, BToATM, [&](const auto& AConcrete, const auto& BToAFullTM)
 				{
-					FVec3 LocalA,LocalB,LocalNormal;
+					FVec3 LocalA, LocalB, LocalNormal;
 					int32 ClosestVertexIndexA, ClosestVertexIndexB;
-					if(GJKPenetration<false, FReal>(AConcrete,B,BToAFullTM,OutMTD->Penetration,LocalA,LocalB,LocalNormal,ClosestVertexIndexA,ClosestVertexIndexB,Thickness,0.,Offset.SizeSquared() < 1e-4 ? FVec3(1,0,0) : Offset))
+					if(GJKPenetration<false, FReal>(AConcrete,B,BToAFullTM,OutMTD->Penetration, LocalA, LocalB, LocalNormal,ClosestVertexIndexA,ClosestVertexIndexB,Thickness,0.,Offset.SizeSquared() < 1e-4 ? FVec3(1,0,0) : Offset))
 					{
 						OutMTD->Normal = ATM.TransformVectorNoScale(LocalNormal);
+						OutMTD->Position = ATM.TransformPosition(LocalA);
 						return true;
 					}
 
@@ -80,22 +82,26 @@ namespace Chaos
 		}
 		else
 		{
+			bool bOverlap = false;
 			switch (AType)
 			{
 				case ImplicitObjectType::HeightField:
 				{
 					const FHeightField& AHeightField = static_cast<const FHeightField&>(A);
-					return AHeightField.OverlapGeom(B, BToATM, Thickness, OutMTD);
+					bOverlap = AHeightField.OverlapGeom(B, BToATM, Thickness, OutMTD);
+					break;
 				}
 				case ImplicitObjectType::TriangleMesh:
 				{
 					const FTriangleMeshImplicitObject& ATriangleMesh = static_cast<const FTriangleMeshImplicitObject&>(A);
-					return ATriangleMesh.OverlapGeom(B, BToATM, Thickness, OutMTD);
+					bOverlap = ATriangleMesh.OverlapGeom(B, BToATM, Thickness, OutMTD);
+					break;
 				}
 				case ImplicitObjectType::LevelSet:
 				{
 					const FLevelSet& ALevelSet = static_cast<const FLevelSet&>(A);
-					return ALevelSet.OverlapGeom(B, BToATM, Thickness, OutMTD);
+					bOverlap = ALevelSet.OverlapGeom(B, BToATM, Thickness, OutMTD);
+					break;
 				}
 				case ImplicitObjectType::Union:
 				case ImplicitObjectType::UnionClustered:
@@ -123,12 +129,12 @@ namespace Chaos
 					if(IsScaled(AType))
 					{
 						const auto& AScaled = TImplicitObjectScaled<FTriangleMeshImplicitObject>::AsScaledChecked(A);
-						return AScaled.LowLevelOverlapGeom(B, BToATM, Thickness, OutMTD);
+						bOverlap =  AScaled.LowLevelOverlapGeom(B, BToATM, Thickness, OutMTD);
 					}
 					else if(IsInstanced(AType))
 					{
 						const auto& AInstanced = TImplicitObjectInstanced<FTriangleMeshImplicitObject>::AsInstancedChecked(A);
-						return AInstanced.LowLevelOverlapGeom(B, BToATM, Thickness, OutMTD);
+						bOverlap = AInstanced.LowLevelOverlapGeom(B, BToATM, Thickness, OutMTD);
 					}
 					else
 					{
@@ -136,6 +142,13 @@ namespace Chaos
 					}
 				}
 			}
+
+			if (OutMTD && bOverlap)
+			{
+				OutMTD->Normal = ATM.TransformVectorNoScale(OutMTD->Normal);
+				OutMTD->Position = ATM.TransformPosition(OutMTD->Position);
+			}
+			return bOverlap;
 		}
 
 		return false;

@@ -1096,6 +1096,7 @@ bool FTriangleMeshImplicitObject::OverlapGeomImp(const QueryGeomType& QueryGeom,
 					{
 						InnerMTD->Penetration = Penetration;
 						InnerMTD->Normal = TriangleNormal;
+						InnerMTD->Position = ClosestA;
 					}
 				}
 			}

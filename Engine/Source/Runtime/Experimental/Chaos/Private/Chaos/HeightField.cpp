@@ -1938,6 +1938,7 @@ namespace Chaos
 				{
 					InnerMTD->Penetration = Penetration;
 					InnerMTD->Normal = TriangleNormal;
+					InnerMTD->Position = ClosestA;
 				}
 				return true;
 			}
@@ -1978,6 +1979,7 @@ namespace Chaos
 			{
 				OutMTD->Normal = FVec3(0);
 				OutMTD->Penetration = TNumericLimits<FReal>::Lowest();
+				OutMTD->Position = FVec3(0);
 				FVec3 Points[4];
 				FAABB3 CellBounds;
 				for (const TVec2<int32>& Cell : Intersections)

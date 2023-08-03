@@ -1078,6 +1078,10 @@ namespace ChaosTest
 					EXPECT_EQ(bResult, true);
 					bool bResultMTD = TriangleMesh->OverlapGeom(ScaledBox, QueryTM, 0.0, &MTDInfo, TriMeshScale);
 					EXPECT_EQ(bResult, bResultMTD);
+					FReal ErrorMargin = 0.01; // Good enough for engineering 
+					EXPECT_VECTOR_NEAR(MTDInfo.Normal, FVec3(0.1961f , 0.0f, 0.9806f), ErrorMargin);
+					EXPECT_VECTOR_NEAR(MTDInfo.Position, FVec3(49.2308f, 0.0f, 10.1538f), ErrorMargin);
+					EXPECT_NEAR(MTDInfo.Penetration, 1.1767, ErrorMargin);
 				}
 				{
 					// Inside mesh

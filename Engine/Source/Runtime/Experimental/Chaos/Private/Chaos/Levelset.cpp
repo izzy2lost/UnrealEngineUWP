@@ -1770,6 +1770,7 @@ bool FLevelSet::OverlapGeomImp(const QueryGeomType& QueryGeom, const FRigidTrans
 		{
 			OutMTD->Penetration = -TempPhi;
 			OutMTD->Normal = TempNormal;
+			OutMTD->Position = Transformed + OutMTD->Penetration * OutMTD->Normal;
 			bResult = true;
 		}
 		else

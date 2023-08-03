@@ -237,7 +237,7 @@ private:
 
 				bool bHit = false;
 
-				FVec3 WorldPosition, WorldNormal;
+				FVec3 WorldPosition{ 0.0f }, WorldNormal{0.0f};
 				Chaos::FReal Distance = 0;	//not needed but fixes compiler warning for overlap
 				int32 FaceIdx = INDEX_NONE;	//not needed but fixes compiler warning for overlap
 				FVec3 FaceNormal = FVec3::ZeroVector;
@@ -269,7 +269,9 @@ private:
 						bHit = OverlapQuery(*Geom, ActorTM, *QueryGeom, StartTM, /*Thickness=*/0, &MTDInfo);
 						if (bHit)
 						{
-							WorldNormal = MTDInfo.Normal * MTDInfo.Penetration;
+							WorldNormal = MTDInfo.Normal;
+							WorldPosition = MTDInfo.Position;
+							Distance = -MTDInfo.Penetration;
 						}
 					}
 					else
