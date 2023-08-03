@@ -5,14 +5,17 @@
 #include "IPixelStreamingModule.h"
 #include "PixelStreamingServers.h"
 #include "PixelStreamingEditorUtils.h"
+#include "IPixelStreamingAudioInput.h"
 #include "IPixelStreamingEditorModule.h"
+#include "EditorSubmixListener.h"
+#include "AudioDeviceHandle.h"
 
 namespace UE::EditorPixelStreaming
 {
 	class FPixelStreamingToolbar;
 }
 
-class PIXELSTREAMINGEDITOR_API FPixelStreamingEditorModule : public IPixelStreamingEditorModule
+class FPixelStreamingEditorModule : public IPixelStreamingEditorModule
 {
 public:
 	/** IModuleInterface implementation */
@@ -64,4 +67,6 @@ private:
 	TSharedPtr<IPixelStreamingStreamer> EditorStreamer;
 
 	bool bUseExternalSignallingServer = false;
+
+	TMap<Audio::FDeviceId, TSharedPtr<UE::EditorPixelStreaming::FEditorSubmixListener>> AudioInputs;
 };
