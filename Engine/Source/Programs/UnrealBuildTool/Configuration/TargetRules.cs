@@ -1591,6 +1591,7 @@ namespace UnrealBuildTool
 		/// Require TObjectPtr for FReferenceCollector API's. (Needed for compatibility with incremental GC.)
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
+		[XmlConfigFile(Category = "BuildConfiguration")]
 		public bool bRequireObjectPtrForAddReferencedObjects
 		{
 				get { return bRequireObjectPtrForAddReferencedObjectsPrivate ?? true; }
