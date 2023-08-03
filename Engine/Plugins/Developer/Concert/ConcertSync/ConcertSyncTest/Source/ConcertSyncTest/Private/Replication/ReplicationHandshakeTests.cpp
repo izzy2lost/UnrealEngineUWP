@@ -122,15 +122,16 @@ namespace UE::ConcertSyncTests
 			});
 		// 2.6 Second client is allowed to replicate different properties on the same object
 		FReplicationStreamDescription NonOverlappingProperties;
+		NonOverlappingProperties.BaseDescription.Identifier = FGuid::NewGuid();
 		FReplicatedObjectInfo StaticMeshComponentInfo_Secondary;
 		StaticMeshComponentInfo_Secondary.ClassPath = UStaticMeshComponent::StaticClass();
 		StaticMeshComponentInfo_Secondary.PropertySelection.ReplicatedProperties.Add(MinLODProperty);
 		NonOverlappingProperties.BaseDescription.ReplicationMap.ReplicatedObjects.Add(PathToSomeActorComponent, StaticMeshComponentInfo_Secondary);
 		ClientReplicationManager_Secondary->JoinReplicationSession({ ClientDescription, { NonOverlappingProperties } })
-		.Next([&](const FJoinReplicatedSessionResult& Result)
-		{
-			TestTrue(TEXT("Two clients can replicate differing properties on the same object"), Result.ErrorCode == EJoinReplicationErrorCode::Success);
-		});
+			.Next([&](const FJoinReplicatedSessionResult& Result)
+			{
+				TestTrue(TEXT("Two clients can replicate differing properties on the same object"), Result.ErrorCode == EJoinReplicationErrorCode::Success);
+			});
 		
 		return true;
 	}

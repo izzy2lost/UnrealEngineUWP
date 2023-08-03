@@ -276,6 +276,12 @@ namespace UE::ConcertSyncTests
 			}
 		}
 
+		virtual bool FindSessionClient(const FGuid& EndpointId, FConcertSessionClientInfo& OutSessionClientInfo) const override
+		{
+			// Need to mock this in case test fails the internal server logic may log the client name which made an invalid request.
+			return true;
+		}
+		
 		virtual FOnConcertServerSessionClientChanged& OnSessionClientChanged() override
 		{
 			return ConnectionChanged;
