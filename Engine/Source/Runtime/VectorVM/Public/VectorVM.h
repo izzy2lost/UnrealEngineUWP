@@ -12,9 +12,9 @@
 #include "Misc/ByteSwap.h"
 #include "Templates/AlignmentTemplates.h"
 #include "UObject/ObjectMacros.h"
-#include "VectorVMCommon.h"
 #include "VectorVMExperimental.h"
 #include "VectorVMLegacy.h"
+#include "VectorVMCommon.h"
 
 struct FVectorVMSerializeState;
 

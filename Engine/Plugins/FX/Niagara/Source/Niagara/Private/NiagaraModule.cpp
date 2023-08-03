@@ -272,9 +272,6 @@ void INiagaraModule::StartupModule()
 	VectorVM::Init();
 	FNiagaraTypeHelper::InitStaticTypes();
 
-#if VECTORVM_SUPPORTS_EXPERIMENTAL
-	InitVectorVM();
-#endif
 	LLM_SCOPE(ELLMTag::Niagara);
 	FNiagaraTypeDefinition::Init();
 

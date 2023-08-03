@@ -3445,6 +3445,7 @@ FORCEINLINE VectorRegister4Int VectorFloatToInt(const VectorRegister4Double& A)
 * @param Ptr	Memory pointer
 */
 #define VectorIntStore( Vec, Ptr )			_mm_storeu_si128( (VectorRegister4Int*)(Ptr), Vec )
+#define VectorIntStore_16( Vec, Ptr )       _mm_storeu_si64( (VectorRegister4Int*)(Ptr), Vec )
 
 /**
 * Loads 4 int32s from unaligned memory.
@@ -3476,7 +3477,8 @@ FORCEINLINE VectorRegister4Int VectorFloatToInt(const VectorRegister4Double& A)
 * @param Ptr	Unaligned memory pointer to the 4 int32s
 * @return		VectorRegister4Int(*Ptr, *Ptr, *Ptr, *Ptr)
 */
-#define VectorIntLoad1( Ptr )	_mm_set1_epi32(*(Ptr))
+#define VectorIntLoad1(Ptr)                         _mm_set1_epi32(*(Ptr))
+#define VectorIntLoad1_16(Ptr)                      _mm_set1_epi16(*(Ptr))
 #define VectorSetZero()								_mm_setzero_si128()
 #define VectorSet1(F)								_mm_set1_ps(F)
 #define VectorIntSet1(F)							_mm_set1_epi32(F)

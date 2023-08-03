@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "VectorVM.h"
+#include "VectorVMSerialization.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/Class.h"
 #include "UObject/Package.h"
@@ -211,14 +212,6 @@ static FAutoConsoleVariableRef CVarVVMChunkSizeInBytes(
 	ECVF_Default
 );
 
-static int32 GVVMPageSizeInKB = 64;
-static FAutoConsoleVariableRef CVarVVMPageSizeInKB(
-	TEXT("vm.PageSizeInKB"),
-	GVVMPageSizeInKB,
-	TEXT("Minimum allocation per VM instance.  There are 64 of these, so multiply GVVMPageSizeInKB * 64 * 1024 to get total number of bytes used by the VVM\n"),
-	ECVF_ReadOnly 
-);
-
 static int32 GVVMMaxThreadsPerScript = 8;
 static FAutoConsoleVariableRef CVarVVMMaxThreadsPerScript(
 	TEXT("vm.MaxThreadsPerScript"),
@@ -282,8 +275,6 @@ static FAutoConsoleVariableRef CVarbBatchPackVMOutput(
 	TEXT("If > 0 output elements will be packed and batched branch free.\n"),
 	ECVF_Default
 );
-
-#include "VectorVMExperimental.inl"
 
 uint8 VectorVM::GetNumOpCodes()
 {
@@ -2875,7 +2866,7 @@ void VectorVM::Exec(FVectorVMExecArgs& Args, FVectorVMSerializeState *SerializeS
 	}
 #endif
 
-#ifdef VVM_INCLUDE_SERIALIZATION
+#if VECTORVM_SUPPORTS_SERIALIZATION
 	uint64 EndTime = FPlatformTime::Cycles64();
 	if (SerializeState) {
 		SerializeState->ExecDt = EndTime - StartTime; //NOTE: doesn't work if ParallelFor splits the work into multiple threads

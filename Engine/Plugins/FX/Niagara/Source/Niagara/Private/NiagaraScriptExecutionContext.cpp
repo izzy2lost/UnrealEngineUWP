@@ -283,14 +283,14 @@ bool FNiagaraScriptExecutionContextBase::ExecuteInternal_Experimental(uint32 Num
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(VectorVM_Experimental);
 	FVectorVMExecContext ExecCtx;
-	ExecCtx.VVMState            = VectorVMState;
-	ExecCtx.DataSets            = DataSetMetaTable;
-	ExecCtx.ExtFunctionTable    = FunctionTable;
-	ExecCtx.UserPtrTable        = UserPtrTable;
-	ExecCtx.NumInstances        = NumInstances;
-	ExecCtx.ConstantTableData   = ConstantBufferTable.Buffers.GetData();
-	ExecCtx.ConstantTableSizes  = ConstantBufferTable.BufferSizes.GetData();
-	ExecCtx.ConstantTableCount  = ConstantBufferTable.Buffers.Num();
+	ExecCtx.VVMState               = VectorVMState;
+	ExecCtx.DataSets               = DataSetMetaTable;
+	ExecCtx.ExtFunctionTable       = FunctionTable;
+	ExecCtx.UserPtrTable           = UserPtrTable;
+	ExecCtx.NumInstances           = NumInstances;
+	ExecCtx.ConstantTableData      = ConstantBufferTable.Buffers.GetData();
+	ExecCtx.ConstantTableNumBytes  = ConstantBufferTable.BufferSizes.GetData();
+	ExecCtx.ConstantTableCount     = ConstantBufferTable.Buffers.Num();
 
 	if (VectorVMState)
 	{
@@ -342,24 +342,23 @@ bool FNiagaraScriptExecutionContextBase::ExecuteInternal_Legacy(uint32 NumInstan
 
 	ExecArgs.bAllowParallel = bAllowParallel;
 	FVectorVMSerializeState UESerializeState = { };
-#ifdef VVM_INCLUDE_SERIALIZATION
+#if VECTORVM_SUPPORTS_SERIALIZATION
 	static const IConsoleVariable* CVarInstancesPerChunk = IConsoleManager::Get().FindConsoleVariable(TEXT("vm.InstancesPerChunk"));
 	int32 NumParallelInstancesPerChunk = CVarInstancesPerChunk ? CVarInstancesPerChunk->GetInt() : 128;
 
-	UESerializeState.ReallocFn        = VVMRealloc;
-	UESerializeState.FreeFn           = VVMFree;
-	UESerializeState.NumInstances     = NumInstances;
-	UESerializeState.NumTempRegisters = ExecData.NumTempRegisters;
-	UESerializeState.NumTempRegFlags  = UESerializeState.NumTempRegisters;
-		
-	UESerializeState.TempRegFlags     = (unsigned char *)VVMRealloc(NULL, UESerializeState.NumTempRegisters, __FILE__, __LINE__);
-	FMemory::Memset(UESerializeState.TempRegFlags, 0, UESerializeState.NumTempRegisters);
-	UESerializeState.Bytecode         = (unsigned char *)ExecData.ByteCode.GetData().GetData();
-	UESerializeState.NumBytecodeBytes = ExecData.ByteCode.GetData().Num();
+	UESerializeState.ReallocFn          = VVMRealloc;
+	UESerializeState.FreeFn             = VVMFree;
+	UESerializeState.NumInstances       = NumInstances;
+	UESerializeState.NumTempRegisters   = ExecData.NumTempRegisters;
+			
+	UESerializeState.RegisterTableFlags = (unsigned char *)VVMRealloc(NULL, UESerializeState.NumTempRegisters, __FILE__, __LINE__);
+	FMemory::Memset(UESerializeState.RegisterTableFlags, 0, UESerializeState.NumTempRegisters);
+	UESerializeState.Bytecode           = (unsigned char *)ExecData.ByteCode.GetData().GetData();
+	UESerializeState.NumBytecodeBytes   = ExecData.ByteCode.GetData().Num();
 	SerializeVectorVMInputDataSets(&UESerializeState, DataSetMetaTable,  ConstantBufferTable.Buffers.GetData(), ConstantBufferTable.BufferSizes.GetData(), ConstantBufferTable.Buffers.Num());
 
-	UESerializeState.NumChunks        = (NumInstances + NumParallelInstancesPerChunk - 1) / NumParallelInstancesPerChunk;
-	UESerializeState.Chunks           = (FVectorVMSerializeChunk *)VVMRealloc(NULL, sizeof(FVectorVMSerializeChunk) * UESerializeState.NumChunks, __FILE__, __LINE__);
+	UESerializeState.NumChunks          = (NumInstances + NumParallelInstancesPerChunk - 1) / NumParallelInstancesPerChunk;
+	UESerializeState.Chunks             = (FVectorVMSerializeChunk *)VVMRealloc(NULL, sizeof(FVectorVMSerializeChunk) * UESerializeState.NumChunks, __FILE__, __LINE__);
 
 		
 	int NumExternalFunctions = FunctionTable.Num();
@@ -391,12 +390,12 @@ bool FNiagaraScriptExecutionContextBase::ExecuteInternal_Legacy(uint32 NumInstan
 			}
 		}
 	}
-#endif //VVM_INCLUDE_SERIALIZATION
+#endif //VECTORVM_SUPPORTS_SERIALIZATION
 	VectorVM::Exec(ExecArgs, &UESerializeState);
 
-#ifdef VVM_INCLUDE_SERIALIZATION
+#if VECTORVM_SUPPORTS_SERIALIZATION
 		SerializeVectorVMOutputDataSets(&UESerializeState, DataSetMetaTable,  ConstantBufferTable.Buffers.GetData(), ConstantBufferTable.BufferSizes.GetData(), ConstantBufferTable.Buffers.Num());
-#endif //VVM_INCLUDE_SERIALIZATION
+#endif //VECTORVM_SUPPORTS_SERIALIZATION
 
 	for (int32 Idx = 0; Idx < DataSetInfo.Num(); Idx++)
 	{
@@ -405,14 +404,14 @@ bool FNiagaraScriptExecutionContextBase::ExecuteInternal_Legacy(uint32 NumInstan
 		Info.DataSet->NumSpawnedIDs = Info.DataSet->GetSpawnedIDsTable().Num();
 	}
 
-#		ifdef VVM_INCLUDE_SERIALIZATION
+#		if VECTORVM_SUPPORTS_SERIALIZATION
 		{
 			//we don't own the bytecode memory so we can't free it
 			UESerializeState.Bytecode = NULL;
 			UESerializeState.NumBytecodeBytes = 0;
 			FreeVectorVMSerializeState(&UESerializeState);
 		}
-#		endif //VVM_INCLUDE_SERIALIZATION
+#		endif //VECTORVM_SUPPORTS_SERIALIZATION
 
 	return true;
 }
@@ -940,4 +939,3 @@ bool FNiagaraSystemScriptExecutionContext::GeneratePerInstanceDIFunctionTable(FN
 	}
 	return true;
 };
-

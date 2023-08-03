@@ -1,20 +1,58 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#ifdef VVM_INCLUDE_SERIALIZATION
+#include "HAL/FileManager.h"
+#include "HAL/PlatformFileManager.h"
+#include "VectorVMExperimental.h"
 
-enum EVVMRegFlags
+
+void *VVMDefaultRealloc(void *Ptr, size_t NumBytes, const char *Filename, int LineNumber);
+void VVMDefaultFree(void *Ptr, const char *Filename, int LineNumber);
+
+
+#if VECTORVM_SUPPORTS_SERIALIZATION
+
+int VVMGetRegisterType(FVectorVMState *VVMState, uint16 RegIdx, uint16 *OutAbsReg = NULL)
 {
-	VVMRegFlag_Int      = 1,
-	VVMRegFlag_Clean    = 32,
-	VVMRegFlag_Index    = 64,
-	VVMRegFlag_Mismatch = 128,
-};
+	if (RegIdx < (int)VVMState->NumTempRegisters)
+	{
+		if (OutAbsReg)
+		{
+			*OutAbsReg = RegIdx;
+		}
+		return VVM_RT_TEMPREG;
+	}
+	else if (RegIdx < (int)(VVMState->NumTempRegisters + VVMState->NumConstBuffers))
+	{
+		if (OutAbsReg)
+		{
+			*OutAbsReg = RegIdx - VVMState->NumTempRegisters;
+		}
+		return VVM_RT_CONST;
+	}
+	else if (RegIdx < (int)(VVMState->NumTempRegisters + VVMState->NumConstBuffers + VVMState->NumInputBuffers * 2))
+	{
+		if (OutAbsReg)
+		{
+			*OutAbsReg = RegIdx - VVMState->NumTempRegisters - VVMState->NumConstBuffers;
+		}
+		return VVM_RT_INPUT;
+	}
+	else if (RegIdx < (int)(VVMState->NumTempRegisters + VVMState->NumConstBuffers + VVMState->NumInputBuffers * 2 + VVMState->NumOutputsRemapped))
+	{
+		if (OutAbsReg)
+		{
+			*OutAbsReg = RegIdx - VVMState->NumTempRegisters - VVMState->NumConstBuffers - VVMState->NumInputBuffers * 2;
+		}
+		return VVM_RT_OUTPUT;
+	}
+	return VVM_RT_INVALID;
+}
 
 
 //prototypes for stuff shared between the original and experimental VM
-static FVectorVMSerializeInstruction *VVMSerGetNextInstruction(FVectorVMSerializeState *SerializeState, int InstructionIdx, int GlobalChunkIdx, int OpStart, int NumOps, uint64 Dt, uint64 DtDecode);
+static FVectorVMSerializeInstruction *VVMSerGetNextInstruction(FVectorVMSerializeState *SerializeState, int GlobalChunkIdx, int OpStart, int NumOps, uint64 Dt, uint64 DtDecode);
 
-VECTORVM_API void FreeVectorVMSerializeState(FVectorVMSerializeState *SerializeState)
+void FreeVectorVMSerializeState(FVectorVMSerializeState *SerializeState)
 {
 	if (SerializeState->FreeFn == nullptr)
 	{
@@ -27,10 +65,10 @@ VECTORVM_API void FreeVectorVMSerializeState(FVectorVMSerializeState *SerializeS
 			SerializeState->FreeFn(SerializeState->ExternalData[i].Name, __FILE__, __LINE__);
 		}
 	}
-	SerializeState->FreeFn(SerializeState->TempRegFlags, __FILE__, __LINE__);
-	SerializeState->FreeFn(SerializeState->ExternalData, __FILE__, __LINE__);
-	SerializeState->FreeFn(SerializeState->Bytecode    , __FILE__, __LINE__);
-	SerializeState->FreeFn(SerializeState->Chunks      , __FILE__, __LINE__);
+	SerializeState->FreeFn(SerializeState->RegisterTableFlags, __FILE__, __LINE__);
+	SerializeState->FreeFn(SerializeState->ExternalData      , __FILE__, __LINE__);
+	SerializeState->FreeFn(SerializeState->Bytecode          , __FILE__, __LINE__);
+	SerializeState->FreeFn(SerializeState->Chunks            , __FILE__, __LINE__);
 
 	for (uint32 i = 0; i < SerializeState->NumDataSets; ++i)
 	{
@@ -70,13 +108,16 @@ VECTORVM_API void FreeVectorVMSerializeState(FVectorVMSerializeState *SerializeS
 	SerializeState->FreeFn(SerializeState->DataSets, __FILE__, __LINE__);
 	for (uint32 i = 0; i < SerializeState->NumInstructions; ++i)
 	{
-		SerializeState->FreeFn(SerializeState->Instructions[i].TempRegisters, __FILE__, __LINE__);
-		SerializeState->FreeFn(SerializeState->Instructions[i].TempRegisterFlags, __FILE__, __LINE__);
+		SerializeState->FreeFn(SerializeState->Instructions[i].RegisterTable, __FILE__, __LINE__);
+		SerializeState->FreeFn(SerializeState->Instructions[i].RegisterFlags, __FILE__, __LINE__);
 	}
 	SerializeState->FreeFn(SerializeState->Instructions, __FILE__, __LINE__);
 	SerializeState->FreeFn(SerializeState->ConstTableSizesInBytes, __FILE__, __LINE__);
-	SerializeState->FreeFn(SerializeState->PreExecConstData, __FILE__, __LINE__);
-	SerializeState->FreeFn(SerializeState->PostExecConstData, __FILE__, __LINE__);
+	SerializeState->FreeFn(SerializeState->PreExecConstData      , __FILE__, __LINE__);
+	SerializeState->FreeFn(SerializeState->PostExecConstData     , __FILE__, __LINE__);
+	SerializeState->FreeFn(SerializeState->OutputRemapDataSetIdx , __FILE__, __LINE__);
+	SerializeState->FreeFn(SerializeState->OutputRemapDataType   , __FILE__, __LINE__);
+	SerializeState->FreeFn(SerializeState->OutputRemapDst        , __FILE__, __LINE__);
 }
 
 static uint32 VectorVMSerializeSetError_(FVectorVMSerializeState *SerializeState, uint32 Flags, uint32 LineNum)
@@ -106,6 +147,24 @@ static uint32 VectorVMSerializeSetError_(FVectorVMSerializeState *SerializeState
 /*********************************************************************************************************************************************************************************************************************************
 *** Serialization stuff for the Experimental VM
 *********************************************************************************************************************************************************************************************************************************/
+#define VVM_OP_XM(OpCode, Cat, NumInputs, NumOutputs, Prefix, UsageType, ...) NumInputs,
+static const uint8 VVM_OP_NUM_INPUTS[] = {
+	VVM_OP_XM_LIST
+};
+#undef VVM_OP_XM
+
+#define VVM_OP_XM(OpCode, Cat, NumInputs, NumOutputs, Prefix, UsageType, ...) NumOutputs,
+static const uint8 VVM_OP_NUM_OUTPUTS[] = {
+	VVM_OP_XM_LIST
+};
+#undef VVM_OP_XM
+
+#define VVM_OP_XM(OpCode, Cat, NumInputs, NumOutputs, Prefix, UsageType, ...) UsageType,
+static const uint8 VVM_OP_REG_USAGE_TYPE[] = {
+	VVM_OP_XM_LIST
+};
+#undef VVM_OP_XM
+
 #define VVMSer_batchStart(...)
 #define VVMSer_batchEnd(...)
 
@@ -116,6 +175,7 @@ static uint32 VectorVMSerializeSetError_(FVectorVMSerializeState *SerializeState
 #define VVMSer_insEndDecode(...)
 #define VVMSer_insEnd(...)
 
+
 #define VVMSer_batchStartExp(SerializeState, ...)
 #define VVMSer_batchEndExp(SerializeState, ...)
 
@@ -123,127 +183,166 @@ static uint32 VectorVMSerializeSetError_(FVectorVMSerializeState *SerializeState
 #define VVMSer_chunkStartExp(...)
 #define VVMSer_chunkEndExp(...)
 #define VVMSer_insStartExp(...)
-#define VVMSer_insEndDecodeExp(...)
 #define VVMSer_insEndExp(...)
 #define VVMSer_initSerializationState(...)
 #define VVMSer_instruction(...)
-#define VVMSer_regUsed(...)
 #else //VVM_SERIALIZE_NO_WRITE
 
 #define VVMIsRegIdxTempReg(Idx) ((Idx) < ExecCtx->VVMState->NumTempRegisters)
 #define VVMIsRegIdxConst(Idx)   ((Idx) >= ExecCtx->VVMState->NumTempRegisters && (Idx) < ExecCtx->VVMState->NumTempRegisters + ExecCtx->VVMState->NumConstsRemapped)
 #define VVMIsRegIdxInput(Idx)   ((Idx) >= ExecCtx->VVMState->NumTempRegisters + ExecCtx->VVMState->NumConstsRemapped)
 
-#define VVMSer_instruction(Type, NumParams)		//for (int vi = 0; vi <= (int)(NumParams); ++vi) {												\
-												//	int r = (int)((uint16 *)InsPtr)[vi];														\
-												//	char c = 'R';																				\
-												//	if (r >= (int)(ExecCtx->VVMState->NumTempRegisters + ExecCtx->VVMState->NumConstBuffers)) {	\
-												//		c = 'I';																				\
-												//		r -= ExecCtx->VVMState->NumTempRegisters + ExecCtx->VVMState->NumConstBuffers;			\
-												//	} else if (r >= (int)ExecCtx->VVMState->NumTempRegisters) {									\
-												//		c = 'C';																				\
-												//		r -= ExecCtx->VVMState->NumTempRegisters;												\
-												//	}																							\
-												//	printf(",%c%d", c, r);																		\
-												//}
-//if (SerializeState)                                                                     \
-												//{                                                                                       \
-												//    for (int vi = 0; vi <= (int)(NumParams); ++vi)                                      \
-												//    {                                                                                   \
-												//        if (VVMIsRegIdxTempReg(InsPtr[vi]))                                             \
-												//        {                                                                               \
-												//            SerializeState->TempRegFlags[InsPtr[vi]] = VVMRegFlag_Clean + (Type);       \
-												//        }                                                                               \
-												//    }                                                                                   \
-												//}
-
-#define VVMSer_regUsed(RegIdx, Type)		//if (SerializeState && VVMIsRegIdxTempReg(RegIdx))                                           \
-                                            //{                                                                                           \
-                                            //    SerializeState->TempRegFlags[RegIdx] = VVMRegFlag_Clean + (Type);                       \
-                                            //}
-
-
-#define VVMSer_chunkStartExp(SerializeState, ChunkIdx_, BatchIdx_)                          \
-	FVectorVMSerializeChunk *SerializeChunk = nullptr;                                      \
-	int VVMSerNumInstructionsThisChunk = 0;                                                 \
-	int VVMSerGlobalChunkIdx = ExecIdx * ExecCtx->Internal.MaxChunksPerBatch + ChunkIdx_;   \
-	if (SerializeState)                                                                     \
-	{                                                                                       \
-		SerializeChunk = SerializeState->Chunks + VVMSerGlobalChunkIdx;                     \
-		SerializeChunk->ChunkIdx = VVMSerGlobalChunkIdx;                                    \
-		SerializeChunk->BatchIdx = BatchIdx_;                                               \
-		SerializeChunk->NumInstances = NumInstancesThisChunk;                               \
-		SerializeChunk->StartInstance = StartInstanceThisChunk;                             \
-		SerializeChunk->StartThreadID = FPlatformTLS::GetCurrentThreadId();                 \
-		SerializeChunk->StartClock = FPlatformTime::Cycles64();                             \
+static bool VVM_areEqual32(float x, float y) {
+	float max_val = 1.f;
+	float fx = FMath::Abs(x);
+	float fy = FMath::Abs(y);
+	if (fx > max_val) {
+		max_val = fx;
 	}
-
-#define VVMSer_chunkEndExp(SerializeState, ...)                                                                                 \
-	if (SerializeChunk)                                                                                                         \
-	{                                                                                                                           \
-		FPlatformAtomics::InterlockedOr(&SerializeState->ChunkComplete, (int64)((1ULL << (uint64)SerializeChunk->ChunkIdx)));   \
-		SerializeChunk->EndThreadID = FPlatformTLS::GetCurrentThreadId();                                                       \
-		SerializeChunk->EndClock = FPlatformTime::Cycles64();                                                                   \
+	if (fy > max_val) {
+		max_val = fy;
 	}
+	return FMath::Abs(x - y) < FLT_EPSILON * max_val;
+}
 
-#define VVMSer_insStartExp(SerializeState, ...)             \
-	const uint8 *VVMSerStartOpPtr = InsPtr;                 \
-	uint64 VVMSerStartCycles = FPlatformTime::Cycles64();
-
-
-#define VVMSer_insEndDecodeExp(SerializeState, ...)             \
-	uint64 VVMSerEndDecodeCycles = FPlatformTime::Cycles64();
-
-#define VVMSer_insEndExp(SerializeState, OpStart, NumOps, ...)                                              \
-	if (SerializeState)                                                                                     \
-	{                                                                                                       \
-		uint64 VVMSerEndExecCycles = FPlatformTime::Cycles64();                                             \
-		VVMSer_serializeInstruction(SerializeState, ExecCtx, BatchState, VVMSerNumInstructionsThisChunk++,  \
-			StartInstanceThisChunk, NumInstancesThisChunk, VVMSerGlobalChunkIdx, NumLoops,                  \
-			OpStart, NumOps, VVMSerStartCycles, VVMSerEndDecodeCycles, VVMSerEndExecCycles);                \
-		uint64 VVMSerEndSerializeCycles = FPlatformTime::Cycles64();                                        \
-		SerializeState->SerializeDt += VVMSerEndSerializeCycles - VVMSerEndExecCycles;                      \
-		SerializeChunk->InsExecTime += VVMSerEndExecCycles - VVMSerStartCycles;                             \
-	}
-
-static void VVMSer_serializeInstruction(FVectorVMSerializeState *SerializeState, FVectorVMState *VectorVMState, FVectorVMBatchState *BatchState, 
-										int InstructionIdx, int StartInstance, int NumInstancesThisChunk, int GlobalChunkIdx, int NumLoops, 
-										int OpStart, int NumOps, uint64 StartInsCycles, uint64 EndDecodeCycles, uint64 EndInsCycles)
+void VVMSer_serializeInstruction(FVectorVMSerializeState *SerializeState, FVectorVMSerializeState *CmpSerializeState, 
+                                 FVectorVMState *VVMState, FVectorVMBatchState *BatchState, 
+                                 int StartInstance, int NumInstancesThisChunk, int NumLoops, 
+                                 int OpStart, int NumOps, uint64 StartInsCycles, uint64 EndInsCycles)
 {
-	
-	FVectorVMSerializeInstruction *Ins = VVMSerGetNextInstruction(SerializeState, InstructionIdx, GlobalChunkIdx, OpStart, NumOps, EndInsCycles - StartInsCycles, EndDecodeCycles - StartInsCycles);
+	FVectorVMSerializeInstruction *Ins = VVMSerGetNextInstruction(SerializeState, SerializeState->Running.NumChunks - 1, OpStart, NumOps, EndInsCycles - StartInsCycles, 0);
 	if (Ins != nullptr)
 	{
-		check(Ins->TempRegisters != nullptr);
+		check(Ins->RegisterTable != nullptr);
+		//save the state of the temp and output registers for this instruction
 		for (uint32 i = 0; i < SerializeState->NumTempRegisters; ++i)
 		{
-			FMemory::Memcpy(Ins->TempRegisters + SerializeState->NumInstances * i + StartInstance, 
-				BatchState->RegisterData + SerializeState->OptimizeCtx->NumConstsRemapped + i * NumLoops,
-				sizeof(uint32) * NumInstancesThisChunk);
-			check(Ins->TempRegisters != nullptr);
-			if (GlobalChunkIdx == 0)
+			FMemory::Memcpy(Ins->RegisterTable + SerializeState->NumInstances * i + StartInstance, 
+							BatchState->RegisterData + i * NumLoops,
+							sizeof(uint32) * NumInstancesThisChunk);
+			
+		}
+		for (uint32 i = 0; i < SerializeState->NumOutputBuffers; ++i)
+		{
+			FMemory::Memcpy(Ins->RegisterTable + SerializeState->NumInstances * (SerializeState->NumTempRegisters + i) + StartInstance, 
+							BatchState->RegPtrTable[VVMState->NumTempRegisters + VVMState->NumConstBuffers + VVMState->NumInputBuffers * 2 + i], 
+							sizeof(uint32) * NumInstancesThisChunk);
+			
+		}
+		if (SerializeState->Running.NumChunks == 0)
+		{
+			//mark the registers as used float or int
+			int OpCode = (VVMState->Bytecode[Ins->OpStart - 1]);
+			if (OpCode >= 0 && OpCode < (int)EVectorVMOp::NumOpcodes && VVM_OP_CATEGORIES[OpCode] == EVectorVMOpCategory::Op)
 			{
-				Ins->TempRegisterFlags[i]  = SerializeState->TempRegFlags[i];
+				uint16 *RegPtr = (uint16 *)(SerializeState->Bytecode + Ins->OpStart);
+				for (int i = 0; i < VVM_OP_NUM_INPUTS[OpCode] + VVM_OP_NUM_OUTPUTS[OpCode]; ++i) {
+					uint32 TypeFlag   = VVM_OP_REG_USAGE_TYPE[OpCode] & (1 << i) ? VVMSerIns_Int : VVMSerIns_Float;
+					uint32 TypeUnFlag = VVM_OP_REG_USAGE_TYPE[OpCode] & (1 << i) ? ~VVMSerIns_Float : ~VVMSerIns_Int;
+					uint16 AbsRegIdx;
+					int RegType = VVMGetRegisterType(VVMState, RegPtr[i], &AbsRegIdx);
+					if (RegType == VVM_RT_TEMPREG)
+					{
+						SerializeState->RegisterTableFlags[AbsRegIdx] |= TypeFlag;
+						SerializeState->RegisterTableFlags[AbsRegIdx] &= TypeUnFlag;
+					}
+					else if (RegType == VVM_RT_OUTPUT)
+					{
+						SerializeState->RegisterTableFlags[SerializeState->NumTempRegisters + AbsRegIdx] |= TypeFlag;
+						SerializeState->RegisterTableFlags[SerializeState->NumTempRegisters + AbsRegIdx] &= TypeUnFlag;
+					}
+				}
+				
+			}
+			for (uint32 i = 0; i < SerializeState->NumRegisterTable; ++i)
+			{
+				Ins->RegisterFlags[i] = SerializeState->RegisterTableFlags[i];
+			}
+		}
+
+		//compare the registers on an instruction-by-instruction basis if the VVMSer_DiffRegsPerIns flag is set
+		if (SerializeState->MismatchFn)
+		{
+			if (CmpSerializeState && Ins->OpStart < CmpSerializeState->NumBytecodeBytes && (SerializeState->Flags & VVMSer_DiffRegsPerIns))
+			{
+				uint32 InsIdx = (uint32)(Ins - SerializeState->Instructions);
+				if (InsIdx < CmpSerializeState->NumInstructions && (CmpSerializeState->Flags & VVMSer_OptimizedBytecode))
+				{
+					//only compare instructions with identical bytecode
+					FVectorVMSerializeInstruction *CmpIns = CmpSerializeState->Instructions + InsIdx;
+					if (CmpIns->OpStart == Ins->OpStart)
+					{
+						int OpCode = (VVMState->Bytecode[Ins->OpStart - 1]);
+						if (OpCode >= 0 && OpCode < (int)EVectorVMOp::NumOpcodes && VVM_OP_CATEGORIES[OpCode] == EVectorVMOpCategory::Op)
+						{
+							uint16 *RegPtr = (uint16 *)(SerializeState->Bytecode + Ins->OpStart);
+							for (uint32 i = 0; i < SerializeState->NumTempRegisters + SerializeState->NumOutputBuffers; ++i)
+							{
+								if (SerializeState->RegisterTableFlags[i] & VVMSerIns_Float)
+								{
+									float *ThisReg = (float *)(Ins->RegisterTable + SerializeState->NumInstances * i + StartInstance);
+									float *CmpReg  = (float *)(CmpIns->RegisterTable + SerializeState->NumInstances * i + StartInstance);
+									for (uint32 j = 0; j < SerializeState->NumInstances; ++j)
+									{
+										if (ThisReg[j] != CmpReg[j])
+										{
+											SerializeState->MismatchFn(false, (EVectorVMOp)OpCode, InsIdx, i, j);
+										}
+									}
+								}
+								else if (SerializeState->RegisterTableFlags[i] & VVMSerIns_Int)
+								{
+									int *ThisReg = (int *)(Ins->RegisterTable + SerializeState->NumInstances * i + StartInstance);
+									int *CmpReg  = (int *)(CmpIns->RegisterTable + SerializeState->NumInstances * i + StartInstance);
+									for (uint32 j = 0; j < SerializeState->NumInstances; ++j)
+									{
+										if (ThisReg[j] != CmpReg[j])
+										{
+											SerializeState->MismatchFn(true, (EVectorVMOp)OpCode, InsIdx, i, j);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	}
 }
 
-#define VVMSer_initSerializationState(VectorVMState, SerializeState, InitData, Flags) VVMSer_initSerializationState_(VectorVMState, SerializeState, InitData, (uint32)Flags)
+uint32 *VVMSer_getRegPtrTablePtrFromIns(FVectorVMSerializeState *SerializeState, FVectorVMSerializeInstruction *Ins, uint16 RegIdx) {
+	if (RegIdx < SerializeState->NumTempRegisters)
+	{
+		return Ins->RegisterTable + SerializeState->NumInstances * RegIdx;
+	}
+	if (RegIdx >= SerializeState->NumTempRegisters + SerializeState->NumConstBuffers + SerializeState->NumInputBuffers * 2)
+	{
+		return Ins->RegisterTable + SerializeState->NumInstances * (RegIdx - SerializeState->NumConstBuffers - SerializeState->NumInputBuffers * 2);
+	}
+	return nullptr;
+}
 
-static uint32 VVMSer_initSerializationState_(FVectorVMState *VVMState, FVectorVMSerializeState *SerializeState, FVectorVMOptimizeContext *OptimizeContext, FVectorVMExecContext *ExecContext,  uint32 Flags)
+
+uint32 VVMSer_initSerializationState_(FVectorVMSerializeState *SerializeState, FVectorVMExecContext *ExecCtx, const FVectorVMOptimizeContext *OptimizeContext, uint32 Flags)
 {
 	if (SerializeState)
 	{
 		SerializeState->Error.Flags  = 0;
 
 		SerializeState->Flags            = Flags;
-		SerializeState->NumInstances     = ExecContext->NumInstances;
-		SerializeState->NumTempRegisters = VVMState->NumTempRegisters;
-		SerializeState->ConstDataCount   = VVMState->NumConstBuffers;
+		SerializeState->NumInstances     = ExecCtx->NumInstances;
+		SerializeState->NumTempRegisters = ExecCtx->VVMState->NumTempRegisters;
+		SerializeState->NumInputBuffers  = ExecCtx->VVMState->NumInputBuffers;
+		SerializeState->NumOutputBuffers = ExecCtx->VVMState->NumOutputBuffers;
+		SerializeState->NumConstBuffers  = ExecCtx->VVMState->NumConstBuffers;
+		SerializeState->NumRegisterTable = SerializeState->NumTempRegisters + ExecCtx->VVMState->NumOutputBuffers;
+
 		SerializeState->ReallocFn        = VVMDefaultRealloc;
 		SerializeState->FreeFn           = VVMDefaultFree;
 		SerializeState->OptimizeCtx      = OptimizeContext;
+		SerializeState->OptimizerHashId  = ExecCtx->VVMState->OptimizerHashId;
+
 		if (SerializeState->OptimizeCtx) {
 			SerializeState->MaxExtFnRegisters = SerializeState->OptimizeCtx->MaxExtFnRegisters;
 			SerializeState->MaxExtFnUsed = SerializeState->OptimizeCtx->MaxExtFnUsed >= 0 ? (uint32)SerializeState->OptimizeCtx->MaxExtFnUsed : 0;
@@ -252,26 +351,17 @@ static uint32 VVMSer_initSerializationState_(FVectorVMState *VVMState, FVectorVM
 			SerializeState->MaxExtFnUsed = 0;
 		}
 
-		SerializeState->NumTempRegFlags = VVMState->NumTempRegisters;
-		for (int i = 0; i < ExecContext->DataSets.Num(); ++i)
-		{
-			if ((uint32)ExecContext->DataSets[i].InputRegisters.Num() > SerializeState->NumTempRegFlags)
-			{
-				SerializeState->NumTempRegFlags = ExecContext->DataSets[i].InputRegisters.Num();
-			}
-		}
-
-		SerializeState->TempRegFlags = (uint8 *)SerializeState->ReallocFn(nullptr, SerializeState->NumTempRegFlags, __FILE__, __LINE__);
-		if (SerializeState->TempRegFlags == nullptr)
+		SerializeState->RegisterTableFlags = (uint8 *)SerializeState->ReallocFn(nullptr, SerializeState->NumRegisterTable, __FILE__, __LINE__);
+		if (SerializeState->RegisterTableFlags == nullptr)
 		{
 			return VectorVMSerializeSetError(SerializeState, VVMSerErr_OutOfMemory | VVMSerErr_Init | VVMSerErr_Fatal);
 		}
-		for (uint32 i = 0; i < SerializeState->NumTempRegFlags; ++i)
+		for (uint32 i = 0; i < SerializeState->NumRegisterTable; ++i)
 		{
-			SerializeState->TempRegFlags[i] = 0;
+			SerializeState->RegisterTableFlags[i] = 0;
 		}
 
-		SerializeState->NumChunks = ExecContext->Internal.NumBatches * ExecContext->Internal.MaxChunksPerBatch;
+		SerializeState->NumChunks = ExecCtx->Internal.MaxChunksPerBatch;
 		SerializeState->Chunks = (FVectorVMSerializeChunk *)SerializeState->ReallocFn(nullptr, sizeof(FVectorVMSerializeChunk) * SerializeState->NumChunks, __FILE__, __LINE__);
 		if (SerializeState->Chunks == nullptr)
 		{
@@ -279,14 +369,12 @@ static uint32 VVMSer_initSerializationState_(FVectorVMState *VVMState, FVectorVM
 		}
 		FMemory::Memset(SerializeState->Chunks, 0, sizeof(*SerializeState->Chunks) * SerializeState->NumChunks);
 		
-		if (SerializeVectorVMInputDataSets(SerializeState, ExecContext) != 0)
+		if (SerializeVectorVMInputDataSets(SerializeState, ExecCtx) != 0)
 		{
 			return SerializeState->Error.Flags;
 		}
 		
-		
-
-		int NumExternalFunctions = VVMState->NumExtFunctions;
+		int NumExternalFunctions = ExecCtx->VVMState->NumExtFunctions;
 		if (NumExternalFunctions != 0)
 		{
 			SerializeState->ExternalData = (FVectorVMSerializeExternalData *)SerializeState->ReallocFn(nullptr, sizeof(FVectorVMSerializeExternalData) * NumExternalFunctions, __FILE__, __LINE__);
@@ -297,7 +385,7 @@ static uint32 VVMSer_initSerializationState_(FVectorVMState *VVMState, FVectorVM
 			SerializeState->NumExternalData = NumExternalFunctions;
 			for (int i = 0; i < NumExternalFunctions; ++i)
 			{
-				FVectorVMExtFunctionData *f = VVMState->ExtFunctionTable + i;
+				FVectorVMExtFunctionData *f = ExecCtx->VVMState->ExtFunctionTable + i;
 				FVectorVMSerializeExternalData *ExtData = SerializeState->ExternalData + i;
 				ExtData->Name       = nullptr;
 				ExtData->NameLen    = 0;
@@ -311,14 +399,43 @@ static uint32 VVMSer_initSerializationState_(FVectorVMState *VVMState, FVectorVM
 			SerializeState->NumExternalData = 0;
 		}
 
-		SerializeState->Bytecode = (unsigned char *)SerializeState->ReallocFn(nullptr, OptimizeContext->NumBytecodeBytes, __FILE__, __LINE__);
+		SerializeState->Bytecode = (unsigned char *)SerializeState->ReallocFn(nullptr, ExecCtx->VVMState->NumBytecodeBytes, __FILE__, __LINE__);
 		if (SerializeState->Bytecode == nullptr)
 		{
 			return VectorVMSerializeSetError(SerializeState, VVMSerErr_OutOfMemory | VVMSerErr_Init | VVMSerErr_Fatal);
 		}
 
-		FMemory::Memcpy(SerializeState->Bytecode, OptimizeContext->OutputBytecode, OptimizeContext->NumBytecodeBytes);
-		SerializeState->NumBytecodeBytes = OptimizeContext->NumBytecodeBytes;
+		FMemory::Memcpy(SerializeState->Bytecode, ExecCtx->VVMState->Bytecode, ExecCtx->VVMState->NumBytecodeBytes);
+		SerializeState->NumBytecodeBytes = ExecCtx->VVMState->NumBytecodeBytes;
+
+
+		if (SerializeState->NumOutputBuffers > 0) {
+			SerializeState->OutputRemapDataSetIdx = (uint8  *)SerializeState->ReallocFn(nullptr, sizeof(uint8) * ExecCtx->VVMState->NumOutputBuffers, __FILE__, __LINE__);
+			if (SerializeState->OutputRemapDataSetIdx == nullptr)
+			{
+				return VectorVMSerializeSetError(SerializeState, VVMSerErr_OutOfMemory | VVMSerErr_Init | VVMSerErr_Fatal);
+			}
+			SerializeState->OutputRemapDataType = (uint16 *)SerializeState->ReallocFn(nullptr, sizeof(uint16) * ExecCtx->VVMState->NumOutputBuffers, __FILE__, __LINE__);
+			if (SerializeState->OutputRemapDataType == nullptr)
+			{
+				return VectorVMSerializeSetError(SerializeState, VVMSerErr_OutOfMemory | VVMSerErr_Init | VVMSerErr_Fatal);
+			}
+			SerializeState->OutputRemapDst      = (uint16 *)SerializeState->ReallocFn(nullptr, sizeof(uint16) * ExecCtx->VVMState->NumOutputBuffers, __FILE__, __LINE__);
+			if (SerializeState->OutputRemapDst == nullptr)
+			{
+				return VectorVMSerializeSetError(SerializeState, VVMSerErr_OutOfMemory | VVMSerErr_Init | VVMSerErr_Fatal);
+			}
+
+			FMemory::Memcpy(SerializeState->OutputRemapDataSetIdx, ExecCtx->VVMState->OutputRemapDataSetIdx , sizeof(uint8 ) * ExecCtx->VVMState->NumOutputBuffers);
+			FMemory::Memcpy(SerializeState->OutputRemapDataType  , ExecCtx->VVMState->OutputRemapDataType   , sizeof(uint16) * ExecCtx->VVMState->NumOutputBuffers);
+			FMemory::Memcpy(SerializeState->OutputRemapDst       , ExecCtx->VVMState->OutputRemapDst        , sizeof(uint16) * ExecCtx->VVMState->NumOutputBuffers);
+		} else {
+			SerializeState->OutputRemapDataSetIdx = nullptr;
+			SerializeState->OutputRemapDataType   = nullptr;
+			SerializeState->OutputRemapDst        = nullptr;
+		}
+
+		
 	}
 	return 0;
 }
@@ -336,7 +453,6 @@ static uint32 VVMSer_initSerializationState_(FVectorVMState *VVMState, FVectorVM
 #define VVMSer_chunkEndExp(...)
 
 #define VVMSer_insStartExp(...)
-#define VVMSer_insEndDecodeExp(...)
 #define VVMSer_insEndExp(...)
 
 #ifdef VVM_SERIALIZE_NO_WRITE
@@ -349,7 +465,7 @@ static uint32 VVMSer_initSerializationState_(FVectorVMState *VVMState, FVectorVM
 	FVectorVMSerializeChunk *SerializeChunk = nullptr;                      \
 	int VVMSerNumInstructionsThisChunk = 0;                                 \
 	unsigned char *VVMSerStartCtxCode = (unsigned char*)Context.Code;       \
-	if (SerializeState)                                                     \
+	if (SerializeState && SerializeState->Chunks)                           \
 	{                                                                       \
 		SerializeChunk = SerializeState->Chunks + ChunkIdx;                 \
 		SerializeChunk->ChunkIdx = ChunkIdx;                                \
@@ -372,21 +488,19 @@ static uint32 VVMSer_initSerializationState_(FVectorVMState *VVMState, FVectorVM
 	uint64 VVMSerStartCycles = FPlatformTime::Cycles64();					\
 	unsigned char *VVMSerCtxStartInsCode = (unsigned char*)Context.Code;	\
 
-#define VVMSer_insEnd(Context, OpStart, NumOps, ...)																																												\
-	if (SerializeState && Op != EVectorVMOp::done)                                                                                                                                                                                  \
-	{																																												                                                \
-		uint64 VVMSerEndExecCycles = FPlatformTime::Cycles64();																																										\
-		VVMSer_serializeInstruction(SerializeState, Context, VVMSerNumInstructionsThisChunk++, StartInstance, NumInstancesThisChunk, ChunkIdx, OpStart, NumOps, VVMSerStartCycles, VVMSerEndExecCycles, VVMSerEndExecCycles);		\
-		uint64 VVMSerEndSerializeCycles = FPlatformTime::Cycles64();																																								\
-		SerializeState->SerializeDt += VVMSerEndSerializeCycles - VVMSerEndExecCycles;																																				\
-		SerializeChunk->InsExecTime += VVMSerEndSerializeCycles - VVMSerEndExecCycles;																																				\
+#define VVMSer_insEnd(Context, OpStart, NumOps, ...)																																			\
+	if (SerializeState && Op != EVectorVMOp::done)                                                                                                                                              \
+	{																																												            \
+		uint64 VVMSerEndExecCycles = FPlatformTime::Cycles64();																																	\
+		VVMSer_serializeInstruction(SerializeState, Context, StartInstance, NumInstancesThisChunk, NumLoops, OpStart, NumOps, VVMSerStartCycles, VVMSerEndExecCycles, VVMSerEndExecCycles);		\
+		uint64 VVMSerEndSerializeCycles = FPlatformTime::Cycles64();																															\
+		SerializeState->SerializeDt += VVMSerEndSerializeCycles - VVMSerEndExecCycles;																											\
+		SerializeChunk->InsExecTime += VVMSerEndSerializeCycles - VVMSerEndExecCycles;																											\
 	}
 
 
-
-
 static void VVMSer_serializeInstruction(FVectorVMSerializeState *SerializeState, FVectorVMContext &Context, 
-										int InstructionIdx, int StartInstance, int NumInstancesThisChunk, int GlobalChunkIdx, 
+										int StartInstance, int NumInstancesThisChunk, int NumLoops, 
 										int OpStart, int NumOps, uint64 StartInsCycles, uint64 EndDecodeCycles, uint64 EndInsCycles)
 {
 	FVectorVMSerializeInstruction *Ins = VVMSerGetNextInstruction(SerializeState, InstructionIdx, GlobalChunkIdx, OpStart, NumOps, EndInsCycles - StartInsCycles, EndDecodeCycles - StartInsCycles);
@@ -395,7 +509,7 @@ static void VVMSer_serializeInstruction(FVectorVMSerializeState *SerializeState,
 		for (uint32 i = 0; i < SerializeState->NumTempRegisters; ++i)
 		{
 			unsigned char *TempReg = (unsigned char *)Context.GetTempRegister(i);
-			FMemory::Memcpy(Ins->TempRegisters + SerializeState->NumInstances * i + StartInstance, TempReg, sizeof(uint32) * NumInstancesThisChunk);
+			FMemory::Memcpy(Ins->RegisterTable + SerializeState->NumInstances * i + StartInstance, TempReg, sizeof(uint32) * NumInstancesThisChunk);
 		}
 	}
 }
@@ -407,12 +521,12 @@ static void VVMSer_serializeInstruction(FVectorVMSerializeState *SerializeState,
 *** Stuff shared between the new and old VM
 *********************************************************************************************************************************************************************************************************************************/
 
-static FVectorVMSerializeInstruction *VVMSerGetNextInstruction(FVectorVMSerializeState *SerializeState, int InstructionIdx, int GlobalChunkIdx, int OpStart, int NumOps, uint64 Dt, uint64 DtDecode)
+static FVectorVMSerializeInstruction *VVMSerGetNextInstruction(FVectorVMSerializeState *SerializeState, int GlobalChunkIdx, int OpStart, int NumOps, uint64 Dt, uint64 DtDecode)
 {
 	FVectorVMSerializeInstruction *Ins = nullptr;
+	int InstructionIdx = SerializeState->Running.NumInstructionsThisChunk++;
 	if (GlobalChunkIdx == 0)
 	{
-		check(InstructionIdx == SerializeState->NumInstructions);
 		if (SerializeState->NumInstructions + 1 >= SerializeState->NumInstructionsAllocated)
 		{
 			if (SerializeState->NumInstructionsAllocated == 0)
@@ -442,19 +556,20 @@ static FVectorVMSerializeInstruction *VVMSerGetNextInstruction(FVectorVMSerializ
 		Ins->NumOps        = NumOps;
 		Ins->Dt            = Dt;
 		Ins->DtDecode      = DtDecode;
-		Ins->TempRegisters = (uint32 *)SerializeState->ReallocFn(nullptr, sizeof(uint32) * SerializeState->NumInstances * SerializeState->NumTempRegisters, __FILE__, __LINE__); //alloc for *ALL* chunks
-		if (Ins->TempRegisters == nullptr)
+
+		Ins->RegisterTable = (uint32 *)SerializeState->ReallocFn(nullptr, sizeof(uint32) * SerializeState->NumInstances * SerializeState->NumRegisterTable, __FILE__, __LINE__); //alloc for *ALL* chunks
+		if (Ins->RegisterTable == nullptr)
 		{
 			VectorVMSerializeSetError(SerializeState, VVMSerErr_OutOfMemory | VVMSerErr_Instruction | VVMSerErr_Fatal);
 			return nullptr;
 		}
-		Ins->TempRegisterFlags = (unsigned char *)SerializeState->ReallocFn(nullptr, SerializeState->NumTempRegFlags, __FILE__, __LINE__);
-		if (Ins->TempRegisterFlags == nullptr)
+		Ins->RegisterFlags = (unsigned char *)SerializeState->ReallocFn(nullptr, SerializeState->NumRegisterTable, __FILE__, __LINE__);
+		if (Ins->RegisterFlags == nullptr)
 		{
 			VectorVMSerializeSetError(SerializeState, VVMSerErr_OutOfMemory | VVMSerErr_Instruction | VVMSerErr_Fatal);
 			return nullptr;
 		}
-		FMemory::Memset(Ins->TempRegisterFlags, 0, SerializeState->NumTempRegFlags);
+		FMemory::Memset(Ins->RegisterFlags, 0, SerializeState->NumRegisterTable);
 	}
 	else
 	{
@@ -478,10 +593,18 @@ static FVectorVMSerializeInstruction *VVMSerGetNextInstruction(FVectorVMSerializ
 }
 
 #ifndef VVM_SERIALIZE_NO_IO
-VECTORVM_API void SerializeVectorVMWriteToFile(FVectorVMSerializeState *SerializeState, uint8 WhichStateWritten, const wchar_t *Filename)
+void SerializeVectorVMWriteToFile(FVectorVMSerializeState *SerializeState, uint8 WhichStateWritten, const wchar_t *Filename)
 {
 	IPlatformFile &PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 	IFileHandle *File           = PlatformFile.OpenWrite((TCHAR *)Filename);
+	if (SerializeState->OptimizeCtx)
+	{
+		SerializeState->Flags |= VVMSer_IncludeOptContext;
+	}
+	else
+	{
+		SerializeState->Flags &= ~VVMSer_IncludeOptContext;
+	}
 	if (File)
 	{
 		File->Write(&WhichStateWritten, 1);		//1 = Exp, 2 = UE.  OR for both (1|2 = 3)
@@ -490,7 +613,10 @@ VECTORVM_API void SerializeVectorVMWriteToFile(FVectorVMSerializeState *Serializ
 		File->Write((uint8 *)&SerializeState->ExecDt           , sizeof(uint64));
 		File->Write((uint8 *)&SerializeState->SerializeDt      , sizeof(uint64));
 		File->Write((uint8 *)&SerializeState->NumTempRegisters , sizeof(uint32));
-		File->Write((uint8 *)&SerializeState->ConstDataCount    , sizeof(uint32));
+		File->Write((uint8 *)&SerializeState->NumInputBuffers  , sizeof(uint32));
+		File->Write((uint8 *)&SerializeState->NumOutputBuffers , sizeof(uint32));
+		File->Write((uint8 *)&SerializeState->NumConstBuffers  , sizeof(uint32));
+		File->Write((uint8 *)&SerializeState->NumRegisterTable , sizeof(uint32));
 		File->Write((uint8 *)&SerializeState->NumBytecodeBytes , sizeof(uint32));
 		File->Write((uint8 *)&SerializeState->NumInstructions  , sizeof(uint32));
 		File->Write((uint8 *)&SerializeState->NumDataSets      , sizeof(uint32));
@@ -498,6 +624,7 @@ VECTORVM_API void SerializeVectorVMWriteToFile(FVectorVMSerializeState *Serializ
 		File->Write((uint8 *)&SerializeState->NumExternalData  , sizeof(uint32));
 		File->Write((uint8 *)&SerializeState->MaxExtFnRegisters, sizeof(uint32));
 		File->Write((uint8 *)&SerializeState->MaxExtFnUsed     , sizeof(uint32));
+		File->Write((uint8 *)&SerializeState->OptimizerHashId  , sizeof(uint64));
 
 		
 		//write the datasets
@@ -509,9 +636,11 @@ VECTORVM_API void SerializeVectorVMWriteToFile(FVectorVMSerializeState *Serializ
 			File->Write((uint8 *)&DataSet->InputOffset[0]           , sizeof(uint32));
 			File->Write((uint8 *)&DataSet->InputOffset[1]           , sizeof(uint32));
 			File->Write((uint8 *)&DataSet->InputOffset[2]           , sizeof(uint32));
+			File->Write((uint8 *)&DataSet->InputOffset[3]           , sizeof(uint32));
 			File->Write((uint8 *)&DataSet->OutputOffset[0]          , sizeof(uint32));
 			File->Write((uint8 *)&DataSet->OutputOffset[1]          , sizeof(uint32));
 			File->Write((uint8 *)&DataSet->OutputOffset[2]          , sizeof(uint32));
+			File->Write((uint8 *)&DataSet->OutputOffset[3]          , sizeof(uint32));
 
 			File->Write((uint8 *)&DataSet->InputInstanceOffset      , sizeof(int32));
 			File->Write((uint8 *)&DataSet->InputDataSetAccessIndex  , sizeof(int32));
@@ -539,13 +668,17 @@ VECTORVM_API void SerializeVectorVMWriteToFile(FVectorVMSerializeState *Serializ
 			//write input bufers
 			if (DataSet->InputBuffers)
 			{
-				uint32 NumBuffers = DataSet->InputOffset[2];
-				File->Write((uint8 *)DataSet->InputBuffers          , sizeof(uint32) * NumBuffers * TotalNumInstances);
+				uint32 Num32BitBuffers = DataSet->InputOffset[2];
+				uint32 Num16BitBuffers = DataSet->InputOffset[3] - Num32BitBuffers;
+				File->Write((uint8 *)DataSet->InputBuffers                                                       , sizeof(uint32) * Num32BitBuffers * TotalNumInstances);
+				File->Write((uint8 *)DataSet->InputBuffers + sizeof(uint32) * Num32BitBuffers * TotalNumInstances, sizeof(uint16) * Num16BitBuffers * TotalNumInstances);
 			}
 			if (DataSet->OutputBuffers)
 			{
-				uint32 NumBuffers = DataSet->OutputOffset[2];
-				File->Write((uint8 *)DataSet->OutputBuffers         , sizeof(uint32) * NumBuffers * TotalNumInstances);
+				uint32 Num32BitBuffers = DataSet->OutputOffset[2];
+				uint32 Num16BitBuffers = DataSet->OutputOffset[3] - Num32BitBuffers;
+				File->Write((uint8 *)DataSet->OutputBuffers                                                        , sizeof(uint32) * Num32BitBuffers * TotalNumInstances);
+				File->Write((uint8 *)DataSet->OutputBuffers + sizeof(uint32) * Num32BitBuffers * TotalNumInstances , sizeof(uint16) * Num16BitBuffers * TotalNumInstances);
 			}
 			//input tables
 			if (DataSet->InputIDTableNum > 0)
@@ -587,15 +720,22 @@ VECTORVM_API void SerializeVectorVMWriteToFile(FVectorVMSerializeState *Serializ
 			File->Write((uint8 *)&Chunk->StartClock	    , sizeof(uint64));
 			File->Write((uint8 *)&Chunk->EndClock		, sizeof(uint64));
 		}
-
+		
 		{ //write const data
 			int ConstTableSizesInBytes = 0;
-			for (uint32 i = 0; i < SerializeState->ConstDataCount; ++i) {
+			for (uint32 i = 0; i < SerializeState->NumConstBuffers; ++i) {
 				ConstTableSizesInBytes += SerializeState->ConstTableSizesInBytes[i];
 			}
-			File->Write((uint8 *)SerializeState->ConstTableSizesInBytes, sizeof(uint32) * SerializeState->ConstDataCount);
+			File->Write((uint8 *)SerializeState->ConstTableSizesInBytes, sizeof(uint32) * SerializeState->NumConstBuffers);
 			File->Write((uint8 *)SerializeState->PreExecConstData      , ConstTableSizesInBytes);
 			File->Write((uint8 *)SerializeState->PostExecConstData     , ConstTableSizesInBytes);
+		}
+
+		if (SerializeState->NumOutputBuffers)
+		{
+			File->Write((uint8 *)SerializeState->OutputRemapDataSetIdx, sizeof(uint8 ) * SerializeState->NumOutputBuffers);
+			File->Write((uint8 *)SerializeState->OutputRemapDataType  , sizeof(uint16) * SerializeState->NumOutputBuffers);
+			File->Write((uint8 *)SerializeState->OutputRemapDst       , sizeof(uint16) * SerializeState->NumOutputBuffers);
 		}
 
 		//write bytecode
@@ -612,10 +752,10 @@ VECTORVM_API void SerializeVectorVMWriteToFile(FVectorVMSerializeState *Serializ
 			File->Write((uint8 *)&Ins->NumOps       , sizeof(uint32));
 			File->Write((uint8 *)&Ins->Dt           , sizeof(uint64));
 			File->Write((uint8 *)&Ins->DtDecode     , sizeof(uint64));
-			File->Write((uint8 *)Ins->TempRegisters , sizeof(uint32) * SerializeState->NumInstances * SerializeState->NumTempRegisters);
+			File->Write((uint8 *)Ins->RegisterTable , sizeof(uint32) * SerializeState->NumInstances * SerializeState->NumRegisterTable);
 			if (SerializeState->NumBytecodeBytes)
 			{
-				File->Write((uint8 *)Ins->TempRegisterFlags, SerializeState->NumTempRegisters);
+				File->Write((uint8 *)Ins->RegisterFlags, SerializeState->NumRegisterTable);
 			}
 		}
 
@@ -628,13 +768,43 @@ VECTORVM_API void SerializeVectorVMWriteToFile(FVectorVMSerializeState *Serializ
 			File->Write((uint8 *)&ExtData->NumInputs  , sizeof(uint16));
 			File->Write((uint8 *)&ExtData->NumOutputs , sizeof(uint16));
 		}
+#if VECTORVM_SUPPORTS_EXPERIMENTAL
+		//write the optimization context
+		if (SerializeState->Flags & VVMSer_IncludeOptContext) {
+			check(SerializeState->OptimizeCtx);
+			const FVectorVMOptimizeContext *OptCtx = SerializeState->OptimizeCtx;
+			File->Write((uint8 *)&OptCtx->MaxOutputDataSet                  , sizeof(uint32));
+			File->Write((uint8 *)&OptCtx->NumConstsAlloced                  , sizeof(uint16));
+			File->Write((uint8 *)&OptCtx->NumTempRegisters					, sizeof(uint32));
+			File->Write((uint8 *)&OptCtx->NumConstsRemapped					, sizeof(uint16));
+			File->Write((uint8 *)&OptCtx->NumInputsRemapped					, sizeof(uint16));
+			File->Write((uint8 *)&OptCtx->NumOutputsAliasedToTempRegisters	, sizeof(uint16));
+			File->Write((uint8 *)&OptCtx->NumNoAdvanceInputs				, sizeof(uint16));
+			File->Write((uint8 *)&OptCtx->NumInputDataSets					, sizeof(uint16));
+			File->Write((uint8 *)&OptCtx->NumOutputsRemapped				, sizeof(uint16));
+			File->Write((uint8 *)&OptCtx->NumOutputInstructions				, sizeof(uint16));
+			File->Write((uint8 *)&OptCtx->NumExtFns							, sizeof(uint32));
+			File->Write((uint8 *)&OptCtx->MaxExtFnRegisters					, sizeof(uint32));
+			File->Write((uint8 *)&OptCtx->NumDummyRegsReq					, sizeof(uint32));
+			File->Write((uint8 *)&OptCtx->MaxExtFnUsed						, sizeof(int32));
+			File->Write((uint8 *)&OptCtx->Flags								, sizeof(uint32));
+			File->Write((uint8 *)OptCtx->ConstRemap[1]        , sizeof(uint16) * OptCtx->NumConstsRemapped);
+			File->Write((uint8 *)OptCtx->InputRemapTable      , sizeof(uint16) * OptCtx->NumInputsRemapped);
+			File->Write((uint8 *)OptCtx->OutputRemapDataSetIdx, sizeof(uint8)  * OptCtx->NumOutputsRemapped);
+			File->Write((uint8 *)OptCtx->OutputRemapDataType  , sizeof(uint16) * OptCtx->NumOutputsRemapped);
+			File->Write((uint8 *)OptCtx->OutputRemapDst       , sizeof(uint16) * OptCtx->NumOutputsRemapped);
+			if (OptCtx->NumInputDataSets) {
+				File->Write((uint8 *)OptCtx->InputDataSetOffsets      , sizeof(uint16) * 8 * OptCtx->NumInputDataSets);
+			}
+		}
 		delete File;
+#endif //VECTORVM_SUPPORTS_EXPERIMENTAL
 	}
 }
 
 #else
 
-VECTORVM_API void SerializeVectorVMWriteToFile(FVectorVMSerializeState *SerializeState, uint8 WhichStateWritten, const wchar_t *Filename)
+void SerializeVectorVMWriteToFile(FVectorVMSerializeState *SerializeState, uint8 WhichStateWritten, const wchar_t *Filename)
 {
 
 }
@@ -676,7 +846,7 @@ static uint32 SerializeConstData(FVectorVMSerializeState *SerializeState, const 
 	return ConstantTableCount;
 }
 
-VECTORVM_API uint32 SerializeVectorVMInputDataSets(FVectorVMSerializeState *SerializeState, TArrayView<FDataSetMeta> DataSets, const uint8 * const *ConstantTableData, const int *ConstantTableSizes, int32 ConstantTableCount)
+uint32 SerializeVectorVMInputDataSets(FVectorVMSerializeState *SerializeState, TArrayView<FDataSetMeta> DataSets, const uint8 * const *ConstantTableData, const int *ConstantTableSizes, int32 ConstantTableCount)
 {
 	SerializeState->NumDataSets = DataSets.Num();
 	SerializeState->DataSets = (FVectorVMSerializeDataSet *)SerializeState->ReallocFn(nullptr, sizeof(FVectorVMSerializeDataSet) * SerializeState->NumDataSets, __FILE__, __LINE__);
@@ -701,19 +871,26 @@ VECTORVM_API uint32 SerializeVectorVMInputDataSets(FVectorVMSerializeState *Seri
 		uint32 **SrcInputBuffers        = (uint32 **)DsSrc->InputRegisters.GetData();
 		if (SrcInputBuffers)
 		{
-			uint32 TotalNumBuffers = DsSrc->InputRegisterTypeOffsets[2];
-			DsDst->InputBuffers = (uint32 *)SerializeState->ReallocFn(nullptr, sizeof(uint32) * TotalNumBuffers * TotalNumInstances, __FILE__, __LINE__);
+			DsDst->InputOffset[0] = DsSrc->InputRegisterTypeOffsets[0];
+			DsDst->InputOffset[1] = DsSrc->InputRegisterTypeOffsets[1];
+			DsDst->InputOffset[2] = DsSrc->InputRegisterTypeOffsets[2];
+			DsDst->InputOffset[3] = DsSrc->InputRegisters.Num();
+			uint32 TotalNum32BitBuffers = DsDst->InputOffset[2];
+			uint32 TotalNum16BitBuffers = DsDst->InputOffset[3] - TotalNum32BitBuffers;
+			DsDst->InputBuffers = (uint32 *)SerializeState->ReallocFn(nullptr, (sizeof(uint32) * TotalNum32BitBuffers + sizeof(uint16) * TotalNum16BitBuffers) * TotalNumInstances, __FILE__, __LINE__);
 			if (DsDst->InputBuffers == nullptr)
 			{
 				return VectorVMSerializeSetError(SerializeState, VVMSerErr_OutOfMemory | VVMSerErr_InputDataSets | VVMSerErr_Fatal);
 			}
-			for (uint32 j = 0; j < TotalNumBuffers; ++j)
+			for (uint32 j = 0; j < TotalNum32BitBuffers; ++j)
 			{
 				FMemory::Memcpy(DsDst->InputBuffers + j * TotalNumInstances, SrcInputBuffers[j], sizeof(uint32) * TotalNumInstances);
 			}
-			DsDst->InputOffset[0] = DsSrc->InputRegisterTypeOffsets[0];
-			DsDst->InputOffset[1] = DsSrc->InputRegisterTypeOffsets[1];
-			DsDst->InputOffset[2] = DsSrc->InputRegisterTypeOffsets[2];
+			uint16 *InputBuff16 = (uint16 *)(DsDst->InputBuffers + TotalNum32BitBuffers * TotalNumInstances);
+			for (uint32 j = 0; j < TotalNum16BitBuffers; ++j)
+			{
+				FMemory::Memcpy(InputBuff16 + j * TotalNumInstances, SrcInputBuffers[TotalNum32BitBuffers + j], sizeof(uint16) * TotalNumInstances);
+			}
 		}
 		else
 		{
@@ -774,11 +951,11 @@ VECTORVM_API uint32 SerializeVectorVMInputDataSets(FVectorVMSerializeState *Seri
 			DsDst->InputSpawnedIDTableNum = 0;
 		}
 	}
-	SerializeState->ConstDataCount = SerializeConstData(SerializeState, ConstantTableData, ConstantTableSizes, ConstantTableCount, &SerializeState->PreExecConstData, &SerializeState->ConstTableSizesInBytes);
+	SerializeState->NumConstBuffers = SerializeConstData(SerializeState, ConstantTableData, ConstantTableSizes, ConstantTableCount, &SerializeState->PreExecConstData, &SerializeState->ConstTableSizesInBytes);
 	return SerializeState->Error.Flags;
 }
 
-VECTORVM_API uint32 SerializeVectorVMOutputDataSets(FVectorVMSerializeState *SerializeState, TArrayView<FDataSetMeta> DataSets, const uint8 * const *ConstantTableData, const int *ConstantTableSizes, int32 ConstantTableCount)
+uint32 SerializeVectorVMOutputDataSets(FVectorVMSerializeState *SerializeState, TArrayView<FDataSetMeta> DataSets, const uint8 * const *ConstantTableData, const int *ConstantTableSizes, int32 ConstantTableCount)
 {
 	if (SerializeState->NumDataSets == DataSets.Num()) //must have already serialized the input data sets
 	{
@@ -789,6 +966,7 @@ VECTORVM_API uint32 SerializeVectorVMOutputDataSets(FVectorVMSerializeState *Ser
 			DsDst->OutputOffset[0]			= DsSrc->OutputRegisterTypeOffsets[0];
 			DsDst->OutputOffset[1]			= DsSrc->OutputRegisterTypeOffsets[1];
 			DsDst->OutputOffset[2]			= DsSrc->OutputRegisterTypeOffsets[2];
+			DsDst->OutputOffset[3]          = DsSrc->OutputRegisters.Num();
 			DsDst->OutputInstanceOffset		= DsSrc->InstanceOffset;
 			DsDst->OutputDataSetAccessIndex	= DsSrc->DataSetAccessIndex;
 			DsDst->OutputIDAcquireTag		= DsSrc->IDAcquireTag;
@@ -800,15 +978,21 @@ VECTORVM_API uint32 SerializeVectorVMOutputDataSets(FVectorVMSerializeState *Ser
 			uint32 **SrcOutputBuffers = (uint32 **)DsSrc->OutputRegisters.GetData();
 			if (SrcOutputBuffers)
 			{
-				uint32 TotalNumBuffers = DsSrc->OutputRegisterTypeOffsets[2];
-				DsDst->OutputBuffers = (uint32 *)SerializeState->ReallocFn(nullptr, sizeof(uint32) * TotalNumBuffers * TotalNumInstances, __FILE__, __LINE__);
+				uint32 TotalNum32BitBuffers = DsDst->OutputOffset[2];
+				uint32 TotalNum16BitBuffers = DsDst->OutputOffset[3] - TotalNum32BitBuffers;
+				DsDst->OutputBuffers = (uint32 *)SerializeState->ReallocFn(nullptr, (sizeof(uint32) * TotalNum32BitBuffers + sizeof(uint16) * TotalNum16BitBuffers) * TotalNumInstances, __FILE__, __LINE__);
 				if (DsDst->OutputBuffers == nullptr)
 				{
 					return VectorVMSerializeSetError(SerializeState, VVMSerErr_OutOfMemory | VVMSerErr_OutputDataSets | VVMSerErr_Fatal);
 				}
-				for (uint32 j = 0; j < TotalNumBuffers; ++j)
+				for (uint32 j = 0; j < TotalNum32BitBuffers; ++j)
 				{
 					FMemory::Memcpy(DsDst->OutputBuffers + j * TotalNumInstances, SrcOutputBuffers[j], sizeof(uint32) * TotalNumInstances);
+				}
+				uint16 *OutputBuff16 = (uint16 *)(DsDst->OutputBuffers + TotalNum32BitBuffers * TotalNumInstances);
+				for (uint32 j = 0; j < TotalNum16BitBuffers; ++j)
+				{
+					FMemory::Memcpy(OutputBuff16 + j * TotalNumInstances, SrcOutputBuffers[TotalNum32BitBuffers + j], sizeof(uint16) * TotalNumInstances);
 				}
 			}
 			else
@@ -889,24 +1073,24 @@ VECTORVM_API uint32 SerializeVectorVMOutputDataSets(FVectorVMSerializeState *Ser
 	}
 	if (SerializeState->Error.Flags == 0)
 	{
-		SerializeState->ConstDataCount = SerializeConstData(SerializeState, ConstantTableData, ConstantTableSizes, ConstantTableCount, &SerializeState->PostExecConstData, nullptr);
+		SerializeState->NumConstBuffers = SerializeConstData(SerializeState, ConstantTableData, ConstantTableSizes, ConstantTableCount, &SerializeState->PostExecConstData, nullptr);
 	}
 	return SerializeState->Error.Flags;
 }
 
 #if VECTORVM_SUPPORTS_EXPERIMENTAL
-VECTORVM_API uint32 SerializeVectorVMInputDataSets(FVectorVMSerializeState *SerializeState, FVectorVMExecContext *ExecContext)
+uint32 SerializeVectorVMInputDataSets(FVectorVMSerializeState *SerializeState, FVectorVMExecContext *ExecCtx)
 {
-	return SerializeVectorVMInputDataSets(SerializeState, ExecContext->DataSets, ExecContext->ConstantTableData, ExecContext->ConstantTableSizes, ExecContext->ConstantTableCount);
+	return SerializeState ? SerializeVectorVMInputDataSets(SerializeState, ExecCtx->DataSets, ExecCtx->ConstantTableData, ExecCtx->ConstantTableNumBytes, ExecCtx->ConstantTableCount) : 0;
 }
 
-VECTORVM_API uint32 SerializeVectorVMOutputDataSets(FVectorVMSerializeState *SerializeState, FVectorVMExecContext *ExecContext)
+uint32 SerializeVectorVMOutputDataSets(FVectorVMSerializeState *SerializeState, FVectorVMExecContext *ExecCtx)
 {
-	return SerializeVectorVMOutputDataSets(SerializeState, ExecContext->DataSets, ExecContext->ConstantTableData, ExecContext->ConstantTableSizes, ExecContext->ConstantTableCount);
+	return SerializeState ? SerializeVectorVMOutputDataSets(SerializeState, ExecCtx->DataSets, ExecCtx->ConstantTableData, ExecCtx->ConstantTableNumBytes, ExecCtx->ConstantTableCount) : 0;
 }
 #endif // #if VECTORVM_SUPPORTS_EXPERIMENTAL
 
-#else //VVM_INCLUDE_SERIALIZATION
+#else //VECTORVM_SUPPORTS_SERIALIZATION
 
 #define VVMSer_batchStart(...)
 #define VVMSer_batchEnd(...)
@@ -925,36 +1109,43 @@ VECTORVM_API uint32 SerializeVectorVMOutputDataSets(FVectorVMSerializeState *Ser
 #define VVMSer_chunkEndExp(...)
 
 #define VVMSer_insStartExp(...)
-#define VVMSer_insEndDecodeExp(...)
 #define VVMSer_insEndExp(...)
 
 #define VVMSer_instruction(...)
-#define VVMSer_regUsed(...)
 
 #define VVMSer_initSerializationState(...)
-#define FreeVectorVMSerializeState(...)
 
-VECTORVM_API uint64 VVMSer_cmpStates(FVectorVMSerializeState *S0, FVectorVMSerializeState *S1, uint32 Flags)
+uint64 VVMSer_cmpStates(FVectorVMSerializeState *S0, FVectorVMSerializeState *S1, uint32 Flags)
 {
 	return 0;
 }
 
-VECTORVM_API uint32  SerializeVectorVMInputDataSets  (FVectorVMSerializeState *SerializeState, struct FVectorVMExecContext *ExecContext) {
+uint32 SerializeVectorVMInputDataSets  (FVectorVMSerializeState *SerializeState, struct FVectorVMExecContext *ExecContext) {
 	return 0;
 }
 
-VECTORVM_API uint32  SerializeVectorVMOutputDataSets (FVectorVMSerializeState *SerializeState, struct FVectorVMExecContext *ExecContext) {
+uint32 SerializeVectorVMOutputDataSets (FVectorVMSerializeState *SerializeState, struct FVectorVMExecContext *ExecContext) {
 	return 0;
 }
 
-VECTORVM_API uint32 SerializeVectorVMInputDataSets(FVectorVMSerializeState *SerializeState, TArrayView<FDataSetMeta>, const uint8 * const *ConstantTableData, const int *ConstantTableSizes, int32 ConstantTableCount)
+uint32 SerializeVectorVMInputDataSets(FVectorVMSerializeState *SerializeState, TArrayView<FDataSetMeta>, const uint8 * const *ConstantTableData, const int *ConstantTableSizes, int32 ConstantTableCount)
 {
 	return 0;
 }
 
-VECTORVM_API uint32 SerializeVectorVMOutputDataSets(FVectorVMSerializeState *SerializeState, TArrayView<FDataSetMeta>, const uint8 * const *ConstantTableData, const int *ConstantTableSizes, int32 ConstantTableCount)
+uint32 SerializeVectorVMOutputDataSets(FVectorVMSerializeState *SerializeState, TArrayView<FDataSetMeta>, const uint8 * const *ConstantTableData, const int *ConstantTableSizes, int32 ConstantTableCount)
 {
 	return 0;
 }
 
-#endif //VVM_INCLUDE_SERIALIZATION
+void SerializeVectorVMWriteToFile(FVectorVMSerializeState *SerializeState, uint8 WhichStateWritten, const wchar_t *Filename)
+{
+
+}
+
+void FreeVectorVMSerializeState(FVectorVMSerializeState *SerializeState)
+{
+
+}
+
+#endif //VECTORVM_SUPPORTS_SERIALIZATION

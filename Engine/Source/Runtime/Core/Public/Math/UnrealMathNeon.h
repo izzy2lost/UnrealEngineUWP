@@ -2828,6 +2828,7 @@ FORCEINLINE VectorRegister4Int VectorFloatToInt(const VectorRegister4Double& A)
 * @param Ptr	Memory pointer
 */
 #define VectorIntStore( Vec, Ptr )			vst1q_s32( (int32*)(Ptr), Vec )
+#define VectorIntStore_16( Vec, Ptr )		vst1q_s16( (int16*)(Ptr), Vec )
 
 /**
 * Loads 4 int32s from unaligned memory.
@@ -2859,7 +2860,8 @@ FORCEINLINE VectorRegister4Int VectorFloatToInt(const VectorRegister4Double& A)
 * @param Ptr	Unaligned memory pointer to the 4 int32s
 * @return		VectorRegister4Int(*Ptr, *Ptr, *Ptr, *Ptr)
 */
-#define VectorIntLoad1( Ptr )	vld1q_dup_s32((int32*)(Ptr))
+#define VectorIntLoad1( Ptr )	                    vld1q_dup_s32((int32*)(Ptr))
+#define VectorIntLoad1_16(Ptr)                      vld1q_dup_s16((int16*)(Ptr))
 
 #define VectorIntSet1(F)                            vdupq_n_s32(F)
 #define VectorSetZero()                             vdupq_n_s32(0)
@@ -2876,7 +2878,7 @@ FORCEINLINE VectorRegister4Int VectorRoundToIntHalfToEven(const VectorRegister4F
 	return vcvtnq_s32_f32(Vec);
 }
 
-inline VectorRegister4i VectorIntExpandLow16To32(VectorRegister4i V) {
+FORCEINLINE VectorRegister4i VectorIntExpandLow16To32(VectorRegister4i V) {
 	int16x4x2_t res = vzip_s16(vget_low_u16(V), vdup_n_u16(0));
 	return vcombine_s16(res.val[0], res.val[1]);
 }

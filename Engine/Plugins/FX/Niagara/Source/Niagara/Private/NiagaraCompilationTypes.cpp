@@ -163,11 +163,6 @@ bool operator==(const FNiagaraDataSetProperties& Lhs, const FNiagaraDataSetPrope
 		&& Lhs.Variables == Rhs.Variables;
 }
 
-bool operator==(const FVectorVMExternalFunctionContextProxy& Lhs, const FVectorVMExternalFunctionContextProxy& Rhs)
-{
-	return true;
-}
-
 bool operator==(const FNiagaraCompilerTag& Lhs, const FNiagaraCompilerTag& Rhs)
 {
 	return Lhs.Variable == Rhs.Variable
