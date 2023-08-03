@@ -7,6 +7,7 @@
 #include "Chaos/CollisionResolutionTypes.h"
 #include "Chaos/GeometryParticlesfwd.h"
 #include "ChaosStats.h"
+#include "Chaos/PhysicsObject.h"
 
 // Enable through build or just here in code to cause an untracked callback to fail to compile
 // Untracked callbacks will show up a such in profiling sessions and this can help track them down
@@ -38,7 +39,8 @@ enum class ESimCallbackOptions : uint16
 	ParticleRegister		= 1 << 6,
 	ParticleUnregister		= 1 << 7,
 	RunOnFrozenGameThread	= 1 << 8,
-	Rewind					= 1 << 9
+	Rewind					= 1 << 9,
+	PhysicsObjectUnregister	= 1 << 10
 };
 ENUM_CLASS_FLAGS(ESimCallbackOptions)
 
@@ -277,6 +279,12 @@ private:
 	* UniqueIdxs become invalid.
 	*/
 	virtual void OnParticleUnregistered_Internal(TArray<TTuple<Chaos::FUniqueIdx, FSingleParticlePhysicsProxy*>>& UnregisteredProxies)
+	{
+		check(false);
+	}
+
+	/** Called when physics proxies owning FPhysicsObjects unregister */
+	virtual void OnPhysicsObjectUnregistered_Internal(FConstPhysicsObjectHandle PhysicsObject)
 	{
 		check(false);
 	}

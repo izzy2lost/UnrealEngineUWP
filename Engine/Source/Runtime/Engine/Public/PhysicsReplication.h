@@ -90,11 +90,10 @@ struct FPhysicsReplicationAsyncInput : public Chaos::FSimCallbackInput
 
 struct FReplicatedPhysicsTargetAsync
 {
-	FReplicatedPhysicsTargetAsync(Chaos::FConstPhysicsObjectHandle POHandle)
+	FReplicatedPhysicsTargetAsync()
 		: AccumulatedErrorSeconds(0.0f)
 		, ServerFrame(INDEX_NONE)
 		, ReceiveFrame(INDEX_NONE)
-		, PhysicsObject(POHandle)
 	{ }
 
 	/** The target state replicated by server */
@@ -115,9 +114,6 @@ struct FReplicatedPhysicsTargetAsync
 	/** The local client frame when receiving this target from the server */
 	int32 ReceiveFrame;
 
-	/** Index of physics object on component */
-	Chaos::FConstPhysicsObjectHandle PhysicsObject;
-
 	/** The replication mode this PhysicsObject should use */
 	EPhysicsReplicationMode RepMode;
 
@@ -136,10 +132,12 @@ struct FReplicatedPhysicsTargetAsync
 class FPhysicsReplicationAsync : public Chaos::TSimCallbackObject<
 	FPhysicsReplicationAsyncInput,
 	Chaos::FSimCallbackNoOutput,
-	Chaos::ESimCallbackOptions::Presimulate>
+	Chaos::ESimCallbackOptions::Presimulate | Chaos::ESimCallbackOptions::PhysicsObjectUnregister>
 {
 	virtual FName GetFNameForStatId() const override;
 	virtual void OnPreSimulate_Internal() override;
+	virtual void OnPhysicsObjectUnregistered_Internal(Chaos::FConstPhysicsObjectHandle PhysicsObject) override;
+
 	virtual void ApplyTargetStatesAsync(const float DeltaSeconds, const FPhysicsRepErrorCorrectionData& ErrorCorrection, const TArray<FPhysicsRepAsyncInputData>& TargetStates);
 
 	// Replication functions

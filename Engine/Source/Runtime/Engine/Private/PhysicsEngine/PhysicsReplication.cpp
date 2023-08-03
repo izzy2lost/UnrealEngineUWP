@@ -122,7 +122,7 @@ namespace PhysicsReplicationCVars
 		static bool bVelocityBased = true;
 		static FAutoConsoleVariableRef CVarVelocityBased(TEXT("np2.PredictiveInterpolation.VelocityBased"), bVelocityBased, TEXT("When true, predictive interpolation replication mode will only apply linear velocity and angular velocity"));
 	
-		static bool bAlwaysHardSnap = true;
+		static bool bAlwaysHardSnap = false;
 		static FAutoConsoleVariableRef CVarAlwaysHardSnap(TEXT("np2.PredictiveInterpolation.AlwaysHardSnap"), bAlwaysHardSnap, TEXT("When true, predictive interpolation replication mode will always hard snap. Used as a backup measure"));
 
 		static bool bSkipReplication = false;
@@ -207,6 +207,11 @@ void FPhysicsReplication::SetReplicatedTarget(UPrimitiveComponent* Component, FN
 
 void FPhysicsReplication::SetReplicatedTarget(Chaos::FConstPhysicsObjectHandle PhysicsObject, const FRigidBodyState& ReplicatedTarget, int32 ServerFrame, EPhysicsReplicationMode ReplicationMode)
 {
+	if (!PhysicsObject)
+	{
+		return;
+	}
+
 	UWorld* OwningWorld = GetOwningWorld();
 	if (OwningWorld == nullptr)
 	{
@@ -658,6 +663,11 @@ void FPhysicsReplication::PrepareAsyncData_External(const FRigidBodyErrorCorrect
 }
 
 #pragma region AsyncPhysicsReplication
+void FPhysicsReplicationAsync::OnPhysicsObjectUnregistered_Internal(Chaos::FConstPhysicsObjectHandle PhysicsObject)
+{
+	ObjectToTarget.Remove(PhysicsObject);
+}
+
 void FPhysicsReplicationAsync::OnPreSimulate_Internal()
 {
 	if (const FPhysicsReplicationAsyncInput* AsyncInput = GetConsumerInput_Internal())
@@ -742,7 +752,7 @@ void FPhysicsReplicationAsync::UpdateAsyncTarget(const FPhysicsRepAsyncInputData
 		// First time we add a target, set it's previous and correction
 		// positions to the target position to avoid math with uninitialized
 		// memory.
-		Target = &ObjectToTarget.Add(Input.PhysicsObject, FReplicatedPhysicsTargetAsync(Input.PhysicsObject));
+		Target = &ObjectToTarget.Add(Input.PhysicsObject, FReplicatedPhysicsTargetAsync());
 		Target->PrevPos = Input.TargetState.Position;
 		Target->PrevPosTarget = Input.TargetState.Position;
 		Target->PrevRotTarget = Input.TargetState.Quaternion;
@@ -795,39 +805,37 @@ void FPhysicsReplicationAsync::ApplyTargetStatesAsync(const float DeltaSeconds, 
 	{
 		bool bRemoveItr = true; // Remove current cached replication target unless replication logic tells us to store it for next tick
 
-		FReplicatedPhysicsTargetAsync& Target = Itr.Value();
-
-		if (Target.PhysicsObject != nullptr)
+		Chaos::FConstPhysicsObjectHandle POHandle = Itr.Key();
+		Chaos::FWritePhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetWrite();
+		if (FGeometryParticleHandle* Handle = Interface.GetParticle(POHandle))
 		{
-			Chaos::FWritePhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetWrite();
-			if (FGeometryParticleHandle* Handle = Interface.GetParticle(Target.PhysicsObject))
+			FReplicatedPhysicsTargetAsync& Target = Itr.Value();
+
+			if (FPBDRigidParticleHandle* RigidHandle = Handle->CastToRigidParticle())
 			{
-				if (FPBDRigidParticleHandle* RigidHandle = Handle->CastToRigidParticle())
+				EPhysicsReplicationMode RepMode = Target.RepMode;
+
+				// TODO, Remove the resim option from project settings, we only need the physics prediction one now
+				if (!Chaos::FPBDRigidsSolver::IsPhysicsResimulationEnabled() && RepMode == EPhysicsReplicationMode::Resimulation)
 				{
-					EPhysicsReplicationMode RepMode = Target.RepMode;
-
-					// TODO, Remove the resim option from project settings, we only need the physics prediction one now
-					if (!Chaos::FPBDRigidsSolver::IsPhysicsResimulationEnabled() && RepMode == EPhysicsReplicationMode::Resimulation)
-					{
-						RepMode = EPhysicsReplicationMode::Default;
-					}
-
-					switch (RepMode)
-					{
-						case EPhysicsReplicationMode::Default:
-							bRemoveItr = DefaultReplication(RigidHandle, Target, DeltaSeconds);
-							break;
-
-						case EPhysicsReplicationMode::PredictiveInterpolation:
-							bRemoveItr = PredictiveInterpolation(RigidHandle, Target, DeltaSeconds);
-							break;
-
-						case EPhysicsReplicationMode::Resimulation:
-							bRemoveItr = ResimulationReplication(RigidHandle, Target, DeltaSeconds);
-							break;
-					}
-					Target.TickCount++;
+					RepMode = EPhysicsReplicationMode::Default;
 				}
+
+				switch (RepMode)
+				{
+					case EPhysicsReplicationMode::Default:
+						bRemoveItr = DefaultReplication(RigidHandle, Target, DeltaSeconds);
+						break;
+
+					case EPhysicsReplicationMode::PredictiveInterpolation:
+						bRemoveItr = PredictiveInterpolation(RigidHandle, Target, DeltaSeconds);
+						break;
+
+					case EPhysicsReplicationMode::Resimulation:
+						bRemoveItr = ResimulationReplication(RigidHandle, Target, DeltaSeconds);
+						break;
+				}
+				Target.TickCount++;
 			}
 		}
 
@@ -1289,24 +1297,22 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 
 		// Cache data for next replication
 		Target.PrevLinVel = FVector(RepLinVel);
-	}
+		Target.PrevPos = FVector(CurrentState.Position);
 
-	// Cache data for next replication
-	Target.PrevPos = FVector(CurrentState.Position);
+		// --- Target Extrapolation ---
+		if (Target.TickCount < FMath::CeilToInt(ReceiveInterval * PhysicsReplicationCVars::PredictiveInterpolationCVars::ExtrapolationTimeMultiplier))
+		{
+			// Extrapolate target position
+			Target.TargetState.Position = Target.TargetState.Position + Target.TargetState.LinVel * DeltaSeconds;
 
-	// --- Target Extrapolation ---
-	if (Target.TickCount < FMath::CeilToInt(ReceiveInterval * PhysicsReplicationCVars::PredictiveInterpolationCVars::ExtrapolationTimeMultiplier))
-	{
-		// Extrapolate target position
-		Target.TargetState.Position = Target.TargetState.Position + Target.TargetState.LinVel * DeltaSeconds;
-
-		// Extrapolate target rotation
-		float TargetAngVelSize;
-		FVector TargetAngVelAxis;
-		Target.TargetState.AngVel.FVector::ToDirectionAndLength(TargetAngVelAxis, TargetAngVelSize);
-		TargetAngVelSize = FMath::DegreesToRadians(TargetAngVelSize);
-		const FQuat TargetRotExtrapDelta = FQuat(TargetAngVelAxis, TargetAngVelSize * DeltaSeconds);
-		Target.TargetState.Quaternion = TargetRotExtrapDelta * Target.TargetState.Quaternion;
+			// Extrapolate target rotation
+			float TargetAngVelSize;
+			FVector TargetAngVelAxis;
+			Target.TargetState.AngVel.FVector::ToDirectionAndLength(TargetAngVelAxis, TargetAngVelSize);
+			TargetAngVelSize = FMath::DegreesToRadians(TargetAngVelSize);
+			const FQuat TargetRotExtrapDelta = FQuat(TargetAngVelAxis, TargetAngVelSize * DeltaSeconds);
+			Target.TargetState.Quaternion = TargetRotExtrapDelta * Target.TargetState.Quaternion;
+		}
 	}
 	
 	return false;

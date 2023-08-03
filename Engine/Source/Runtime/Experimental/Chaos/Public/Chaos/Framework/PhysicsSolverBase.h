@@ -728,6 +728,7 @@ namespace Chaos
 	TArray<ISimCallbackObject*> ContactModifiers;
 	TArray<ISimCallbackObject*> RegistrationWatchers;
 	TArray<ISimCallbackObject*> UnregistrationWatchers;
+	TArray<ISimCallbackObject*> PhysicsObjectUnregistrationWatchers;
 
 	TUniquePtr<FRewindData> MRewindData;
 	TUniquePtr<IRewindCallback> MRewindCallback;

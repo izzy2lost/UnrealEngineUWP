@@ -1061,6 +1061,15 @@ namespace Chaos
 				continue;
 			}
 
+			// Callback for Unregister PhysicsObject
+			if (PhysicsObjectUnregistrationWatchers.Num() > 0)
+			{
+				for (ISimCallbackObject* Callback : PhysicsObjectUnregistrationWatchers)
+				{
+					Callback->OnPhysicsObjectUnregistered_Internal(Proxy->GetPhysicsObjectHandle());
+				}
+			}
+
 			if (FPBDRigidsEvolutionGBF* Evolution = GetEvolution())
 			{
 				// Remove the cluster union this proxy manages which will in turn also the destroy the necessary particles.
@@ -1092,6 +1101,15 @@ namespace Chaos
 			FPendingDestroyInfo& Info = PendingDestroyPhysicsProxy[Idx];
 			if(Info.DestroyOnStep <= GetCurrentFrame() || IsShuttingDown())
 			{
+				// Callback for Unregister PhysicsObject
+				if (PhysicsObjectUnregistrationWatchers.Num() > 0)
+				{
+					for (ISimCallbackObject* Callback : PhysicsObjectUnregistrationWatchers)
+					{
+						Callback->OnPhysicsObjectUnregistered_Internal(Info.Proxy->GetPhysicsObject());
+					}
+				}
+
 				// finally let's release the unique index
 				GetEvolution()->ReleaseUniqueIdx(Info.UniqueIdx);
 
@@ -1114,6 +1132,19 @@ namespace Chaos
 			GetEvolution()->GetRigidClustering().CleanupInternalClustersForProxies(TArrayView<IPhysicsProxyBase*>{reinterpret_cast<IPhysicsProxyBase**>(&PendingDestroyGeometryCollectionPhysicsProxy[0]), PendingDestroyGeometryCollectionPhysicsProxy.Num() });
 			for (auto Proxy : PendingDestroyGeometryCollectionPhysicsProxy)
 			{
+				// Callback for Unregister PhysicsObject
+				if (PhysicsObjectUnregistrationWatchers.Num() > 0)
+				{
+					TArray<FPhysicsObjectHandle> PhysicsObjects = Proxy->GetAllPhysicsObjects();
+					for (FConstPhysicsObjectHandle PhysicsObject : PhysicsObjects)
+					{
+						for (ISimCallbackObject* Callback : PhysicsObjectUnregistrationWatchers)
+						{
+							Callback->OnPhysicsObjectUnregistered_Internal(PhysicsObject);
+						}
+					}
+				}
+
 				// Removing the geometry collection from the solver a bit delayed. This lets the cluster union do its cleanup first before
 				// the geometry collection if they're all being destroyed at the same time.
 				Proxy->OnRemoveFromSolver(this);
@@ -1633,6 +1664,11 @@ namespace Chaos
 					MRewindCallback->RegisterRewindableSimCallback_Internal(SimCallbackObject);
 				}
 			}
+
+			if (SimCallbackObject->HasOption(ESimCallbackOptions::PhysicsObjectUnregister))
+			{
+				PhysicsObjectUnregistrationWatchers.Add(SimCallbackObject);
+			}
 		}
 
 		//save any pending data for this particular interval
@@ -1706,6 +1742,15 @@ namespace Chaos
 			{
 				//will also be in SimCallbackObjects so we'll delete it in that loop
 				UnregistrationWatchers.RemoveAtSwap(Idx, 1, false);
+			}
+		}
+
+		for (int32 Idx = PhysicsObjectUnregistrationWatchers.Num() - 1; Idx >= 0; --Idx)
+		{
+			if (PhysicsObjectUnregistrationWatchers[Idx]->bPendingDelete)
+			{
+				//will also be in SimCallbackObjects so we'll delete it in that loop
+				PhysicsObjectUnregistrationWatchers.RemoveAtSwap(Idx, 1, false);
 			}
 		}
 
