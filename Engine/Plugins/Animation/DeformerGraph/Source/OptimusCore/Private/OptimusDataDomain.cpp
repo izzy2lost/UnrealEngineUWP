@@ -171,7 +171,7 @@ FString FOptimusDataDomain::GetDisplayName() const
 				Names.Add(DomainLevelName.ToString());
 			}
 			FString DomainName = FString::Join(Names, *FString(UTF8TEXT(" › ")));
-			if (InDataDomain.Multiplier > 1)
+			if (Multiplier > 1)
 			{
 				DomainName += FString::Printf(TEXT(" x %d"), Multiplier);
 			}
