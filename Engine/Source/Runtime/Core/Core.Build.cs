@@ -46,6 +46,12 @@ public class Core : ModuleRules
 			DynamicallyLoadedModuleNames.Add("DirectoryWatcher");
 		}
 
+		if (Target.Platform == UnrealTargetPlatform.Win64)
+		{
+			PrivateDefinitions.Add("PLATFORM_BUILDS_LIBPAS=1");
+			PrivateDependencyModuleNames.Add("libpas");
+		}
+			
 		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
 		{
 			AddEngineThirdPartyPrivateStaticDependencies(Target,
@@ -66,9 +72,6 @@ public class Core : ModuleRules
 				PublicSystemIncludePaths.Add(Path.Combine(Target.UEThirdPartySourceDirectory, "mimalloc/include"));
 				PrivateDefinitions.Add("PLATFORM_BUILDS_MIMALLOC=1");
 			}
-			
-			PrivateDefinitions.Add("PLATFORM_BUILDS_LIBPAS=1");
-			PrivateDependencyModuleNames.Add("libpas");
 			
 			if (Target.WindowsPlatform.bUseBundledDbgHelp)
 			{
