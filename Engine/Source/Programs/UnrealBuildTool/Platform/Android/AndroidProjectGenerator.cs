@@ -72,26 +72,16 @@ namespace UnrealBuildTool
 			yield return UnrealTargetPlatform.Android;
 		}
 
-		/// <summary>
-		/// Whether this build platform has native support for VisualStudio
-		/// </summary>
-		/// <param name="InPlatform">  The UnrealTargetPlatform being built</param>
-		/// <param name="InConfiguration"> The UnrealTargetConfiguration being built</param>
-		/// <param name="ProjectFileFormat"></param>
-		/// <returns>bool    true if native VisualStudio support (or custom VSI) is available</returns>
-		public override bool HasVisualStudioSupport(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, VCProjectFileFormat ProjectFileFormat)
+		/// <inheritdoc/>
+		public override bool HasVisualStudioSupport(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, VCProjectFileFormat ProjectFileFormat, DirectoryReference InProjectDir, UnrealArch? InArch)
 		{
 			// Debugging, etc. are dependent on the TADP being installed
 			return AGDEInstalled;
 		}
 
-		/// <summary>
-		/// Return the VisualStudio platform name for this build platform
-		/// </summary>
-		/// <param name="InPlatform">  The UnrealTargetPlatform being built</param>
-		/// <param name="InConfiguration"> The UnrealTargetConfiguration being built</param>
-		/// <returns>string    The name of the platform that VisualStudio recognizes</returns>
-		public override string GetVisualStudioPlatformName(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration)
+
+		/// <inheritdoc/>
+		public override string GetVisualStudioPlatformName(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, DirectoryReference InProjectDir, UnrealArch? InArch)
 		{
 			string PlatformName = InPlatform.ToString();
 

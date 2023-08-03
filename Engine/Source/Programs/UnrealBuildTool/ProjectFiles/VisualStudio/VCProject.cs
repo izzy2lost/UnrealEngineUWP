@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -161,9 +162,10 @@ namespace UnrealBuildTool
 		/// <param name="SolutionConfiguration">The solution configuration</param>
 		/// <param name="SolutionPlatform">The solution platform</param>
 		/// <param name="PlatformProjectGenerators">Set of platform project generators</param>
+		/// <param name="Architecture">The target architecture</param>
 		/// <param name="Logger">Logger for output</param>
 		/// <returns>Project context matching the given solution context</returns>
-		public abstract MSBuildProjectContext GetMatchingProjectContext(TargetType SolutionTarget, UnrealTargetConfiguration SolutionConfiguration, UnrealTargetPlatform SolutionPlatform, PlatformProjectGeneratorCollection PlatformProjectGenerators, ILogger Logger);
+		public abstract MSBuildProjectContext GetMatchingProjectContext(TargetType SolutionTarget, UnrealTargetConfiguration SolutionConfiguration, UnrealTargetPlatform SolutionPlatform, PlatformProjectGeneratorCollection PlatformProjectGenerators, UnrealArch? Architecture, ILogger Logger);
 
 		/// <summary>
 		/// Checks to see if the specified solution platform and configuration is able to map to this project
@@ -284,7 +286,7 @@ namespace UnrealBuildTool
 		/// This is the platform name that Visual Studio is always guaranteed to support.  We'll use this as
 		/// a platform for any project configurations where our actual platform is not supported by the
 		/// installed version of Visual Studio (e.g, "iOS")
-		public const string DefaultPlatformName = "Win64";
+		public const string DefaultPlatformName = "x64";
 
 		// This is the GUID that Visual Studio uses to identify a C++ project file in the solution
 		public override string ProjectTypeGUID => "{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}";
@@ -309,67 +311,8 @@ namespace UnrealBuildTool
 			this.Settings = Settings;
 		}
 
-		/// <summary>
-		/// Given a target platform and configuration, generates a platform and configuration name string to use in Visual Studio projects.
-		/// Unlike with solution configurations, Visual Studio project configurations only support certain types of platforms, so we'll
-		/// generate a configuration name that has the platform "built in", and use a default platform type
-		/// </summary>
-		/// <param name="Platform">Actual platform</param>
-		/// <param name="Configuration">Actual configuration</param>
-		/// <param name="TargetConfigurationName">The configuration name from the target rules, or null if we don't have one</param>
-		/// <param name="PlatformProjectGenerators">Set of platform project generators</param>
-		/// <param name="Logger"></param>
-		/// <param name="ProjectPlatformName">Name of platform string to use for Visual Studio project</param>
-		/// <param name="ProjectConfigurationName">Name of configuration string to use for Visual Studio project</param>
-		private void MakeProjectPlatformAndConfigurationNames(UnrealTargetPlatform Platform, UnrealTargetConfiguration Configuration, TargetType TargetConfigurationName, PlatformProjectGeneratorCollection PlatformProjectGenerators, ILogger Logger, out string ProjectPlatformName, out string ProjectConfigurationName)
-		{
-			PlatformProjectGenerator? PlatformProjectGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Platform, bInAllowFailure: true);
-
-			// Check to see if this platform is supported directly by Visual Studio projects.
-			bool HasActualVSPlatform = (PlatformProjectGenerator != null) ? PlatformProjectGenerator.HasVisualStudioSupport(Platform, Configuration, ProjectFileFormat) : false;
-
-			if (HasActualVSPlatform)
-			{
-				// Great!  Visual Studio supports this platform natively, so we don't need to make up
-				// a fake project configuration name.
-
-				// Allow the platform to specify the name used in VisualStudio.
-				// Note that the actual name of the platform on the Visual Studio side may be different than what
-				// UnrealBuildTool calls it (e.g. "Win64" -> "x64".) GetVisualStudioPlatformName() will figure this out.
-				ProjectConfigurationName = Configuration.ToString();
-				ProjectPlatformName = PlatformProjectGenerator!.GetVisualStudioPlatformName(Platform, Configuration, BaseDir);
-
-				// The project generator may require a distinct configuration name - typically when two UnrealTargetPlatforms need the same ProjectPlatformName - otherwise the properties overwrite each oter.
-				if (PlatformProjectGenerator!.RequiresDistinctVisualStudioConfigurationName(Platform, Configuration, BaseDir))
-				{
-					ProjectConfigurationName = Platform.ToString() + "_" + Configuration.ToString();
-				}
-			}
-			else
-			{
-				// Visual Studio doesn't natively support this platform, so we fake it by mapping it to
-				// a project configuration that has the platform name in that configuration as a suffix,
-				// and then using "Win32" as the actual VS platform name
-				ProjectConfigurationName = Platform.ToString() + "_" + Configuration.ToString();
-				ProjectPlatformName = DefaultPlatformName;
-			}
-
-			if (!bMakeProjectPerTarget && TargetConfigurationName != TargetType.Game)
-			{
-				ProjectConfigurationName += "_" + TargetConfigurationName.ToString();
-			}
-		}
-
-		/// <summary>
-		/// Get the project context for the given solution context
-		/// </summary>
-		/// <param name="SolutionTarget">The solution target type</param>
-		/// <param name="SolutionConfiguration">The solution configuration</param>
-		/// <param name="SolutionPlatform">The solution platform</param>
-		/// <param name="PlatformProjectGenerators">Set of platform project generations</param>
-		/// <param name="Logger"></param>
-		/// <returns>Project context matching the given solution context</returns>
-		public override MSBuildProjectContext GetMatchingProjectContext(TargetType SolutionTarget, UnrealTargetConfiguration SolutionConfiguration, UnrealTargetPlatform SolutionPlatform, PlatformProjectGeneratorCollection PlatformProjectGenerators, ILogger Logger)
+		/// <inheritdoc/>
+		public override MSBuildProjectContext GetMatchingProjectContext(TargetType SolutionTarget, UnrealTargetConfiguration SolutionConfiguration, UnrealTargetPlatform SolutionPlatform, PlatformProjectGeneratorCollection PlatformProjectGenerators, UnrealArch? Architecture, ILogger Logger)
 		{
 			// Stub projects always build in the same configuration
 			if (IsStubProject)
@@ -470,7 +413,24 @@ namespace UnrealBuildTool
 					}
 					else
 					{
-						MakeProjectPlatformAndConfigurationNames(ProjectPlatform, ProjectConfiguration, TargetConfigurationName, PlatformProjectGenerators, Logger, out ProjectPlatformName, out ProjectConfigurationName);
+						if (ProjectConfigAndTargetCombinations == null)
+						{
+							throw new BuildException("Project config and target combinations has not been populated.");
+						}
+
+						ProjectConfigAndTargetCombination? Combination = ProjectConfigAndTargetCombinations.FirstOrDefault(Combination =>
+							Combination.Platform == ProjectPlatform &&
+							Combination.Configuration == ProjectConfiguration &&
+							Combination.ProjectTarget == MatchingProjectTarget &&
+							Combination.Architecture == Architecture);
+
+						if (Combination == null)
+						{
+							throw new BuildException("Could not find the project config/platform combination in the generated list.");
+						}
+
+						ProjectPlatformName = Combination.ProjectPlatformName;
+						ProjectConfigurationName = Combination.ProjectConfigurationName;
 					}
 
 					// Set whether this project configuration should be built when the user initiates "build solution"
@@ -503,26 +463,28 @@ namespace UnrealBuildTool
 
 		class ProjectConfigAndTargetCombination
 		{
-			public UnrealTargetPlatform? Platform;
-			public UnrealTargetConfiguration Configuration;
-			public string ProjectPlatformName;
-			public string ProjectConfigurationName;
-			public ProjectTarget? ProjectTarget;
+			readonly public UnrealTargetPlatform? Platform;
+			readonly public UnrealTargetConfiguration Configuration;
+			readonly public string ProjectPlatformName;
+			readonly public string ProjectConfigurationName;
+			readonly public ProjectTarget? ProjectTarget;
+			readonly public UnrealArch? Architecture;
 
-			public ProjectConfigAndTargetCombination(UnrealTargetPlatform? InPlatform, UnrealTargetConfiguration InConfiguration, string InProjectPlatformName, string InProjectConfigurationName, ProjectTarget? InProjectTarget)
+			public ProjectConfigAndTargetCombination(UnrealTargetPlatform? InPlatform, UnrealTargetConfiguration InConfiguration, string InProjectPlatformName, string InProjectConfigurationName, ProjectTarget? InProjectTarget, UnrealArch? InArchitecture)
 			{
 				Platform = InPlatform;
 				Configuration = InConfiguration;
 				ProjectPlatformName = InProjectPlatformName;
 				ProjectConfigurationName = InProjectConfigurationName;
 				ProjectTarget = InProjectTarget;
+				Architecture = InArchitecture;
 			}
 
 			public string? ProjectConfigurationAndPlatformName => (ProjectPlatformName == null) ? null : (ProjectConfigurationName + "|" + ProjectPlatformName);
 
 			public override string ToString()
 			{
-				return String.Format("{0} {1} {2}", ProjectTarget, Platform, Configuration);
+				return String.Format("{0} {1} {2}", ProjectTarget, Platform, Configuration, Architecture != null ? " " + Architecture : string.Empty);
 			}
 		}
 
@@ -675,6 +637,7 @@ namespace UnrealBuildTool
 			//no need to do this more than once
 			if (ProjectConfigAndTargetCombinations == null)
 			{
+				HashSet<string> ProjectConfigAndTargets = new();
 				// Build up a list of platforms and configurations this project will support.  In this list, Unknown simply
 				// means that we should use the default "stub" project platform and configuration name.
 
@@ -682,7 +645,7 @@ namespace UnrealBuildTool
 				ProjectConfigAndTargetCombinations = new List<ProjectConfigAndTargetCombination>();
 				if (IsStubProject)
 				{
-					ProjectConfigAndTargetCombination StubCombination = new ProjectConfigAndTargetCombination(UnrealTargetPlatform.Parse(StubProjectPlatformName), UnrealTargetConfiguration.Unknown, StubProjectPlatformName, StubProjectConfigurationName, null);
+					ProjectConfigAndTargetCombination StubCombination = new ProjectConfigAndTargetCombination(UnrealTargetPlatform.Parse(StubProjectPlatformName), UnrealTargetConfiguration.Unknown, StubProjectPlatformName, StubProjectConfigurationName, null, null);
 					ProjectConfigAndTargetCombinations.Add(StubCombination);
 				}
 				else
@@ -712,13 +675,58 @@ namespace UnrealBuildTool
 
 								foreach (ProjectTarget ProjectTarget in ProjectTargets.OfType<ProjectTarget>())
 								{
-									if (IsValidProjectPlatformAndConfiguration(ProjectTarget, Platform, Configuration, Logger))
+									if (!IsValidProjectPlatformAndConfiguration(ProjectTarget, Platform, Configuration, Logger))
 									{
-										string ProjectPlatformName, ProjectConfigurationName;
-										MakeProjectPlatformAndConfigurationNames(Platform, Configuration, ProjectTarget.TargetRules!.Type, PlatformProjectGenerators, Logger, out ProjectPlatformName, out ProjectConfigurationName);
+										continue;
+									}
 
-										ProjectConfigAndTargetCombination Combination = new ProjectConfigAndTargetCombination(Platform, Configuration, ProjectPlatformName, ProjectConfigurationName, ProjectTarget);
-										ProjectConfigAndTargetCombinations.Add(Combination);
+									foreach (UnrealArch? Architecture in VCProjectFileGenerator.GetPlatformArchitectures(BuildPlatform))
+									{
+										PlatformProjectGenerator? PlatformProjectGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Platform, bInAllowFailure: true);
+										string ProjectPlatformName;
+										string ProjectConfigurationName = Configuration.ToString();
+										bool CreateDistinctConfigName = false;
+
+										// Check to see if this platform is supported directly by Visual Studio projects.
+										if (PlatformProjectGenerator != null && PlatformProjectGenerator.HasVisualStudioSupport(Platform, Configuration, ProjectFileFormat, BaseDir, Architecture))
+										{
+											// Allow the platform to specify the name used in VisualStudio.
+											// Note that the actual name of the platform on the Visual Studio side may be different than what
+											// UnrealBuildTool calls it (e.g. "Win64" -> "x64".) GetVisualStudioPlatformName() will figure this out.
+											ProjectPlatformName = PlatformProjectGenerator.GetVisualStudioPlatformName(Platform, Configuration, BaseDir, Architecture);
+
+											// The project generator may require a distinct configuration name - typically when two UnrealTargetPlatforms need the same ProjectPlatformName - otherwise the properties overwrite each oter.
+											if (PlatformProjectGenerator.RequiresDistinctVisualStudioConfigurationName(Platform, Configuration, BaseDir))
+											{
+												CreateDistinctConfigName = true;
+											}
+										}
+										else
+										{
+											// Visual Studio doesn't natively support this platform, so we fake it by mapping it to
+											// a project configuration that has the platform name in that configuration as a suffix,
+											// and then using "x64" as the actual VS platform name
+											CreateDistinctConfigName = true;
+											ProjectPlatformName = DefaultPlatformName;
+										}
+
+										if (CreateDistinctConfigName)
+										{
+											ProjectConfigurationName = string.Format("{0}{1}_{2}", Platform.ToString(), Architecture != null ? "_" + Architecture.ToString() : string.Empty, Configuration.ToString());
+										}
+
+										TargetType TargetConfigurationType = ProjectTarget.TargetRules!.Type;
+										if (!bMakeProjectPerTarget && TargetConfigurationType != TargetType.Game)
+										{
+											ProjectConfigurationName += "_" + TargetConfigurationType.ToString();
+										}
+
+										if (ProjectConfigAndTargetCombinations.Any(Combination => Combination.ProjectPlatformName == ProjectPlatformName && Combination.ProjectConfigurationName == ProjectConfigurationName))
+										{
+											throw new BuildException("'{0}' '{1} is already in the platform/config list. This means a platform generator is not marking that the config needs to be distinct.", ProjectPlatformName, ProjectConfigurationName);
+										}
+
+										ProjectConfigAndTargetCombinations.Add(new ProjectConfigAndTargetCombination(Platform, Configuration, ProjectPlatformName, ProjectConfigurationName, ProjectTarget, Architecture));
 									}
 								}
 							}
@@ -974,7 +982,7 @@ namespace UnrealBuildTool
 				foreach (UnrealTargetPlatform Platform in ProjectPlatforms)
 				{
 					PlatformProjectGenerator? ProjGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Platform, true);
-					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat))
+					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat, BaseDir, null))
 					{
 						ProjGenerator.GetAdditionalVisualStudioPropertyGroups(Platform, ProjectFileFormat, VCProjectFileContent);
 					}
@@ -1003,7 +1011,7 @@ namespace UnrealBuildTool
 				foreach (UnrealTargetPlatform Platform in ProjectPlatforms)
 				{
 					PlatformProjectGenerator? ProjGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Platform, true);
-					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat))
+					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat, BaseDir, null))
 					{
 						ProjGenerator.GetVisualStudioGlobalProperties(Platform, VCProjectFileContent);
 					}
@@ -1628,7 +1636,7 @@ namespace UnrealBuildTool
 				foreach (UnrealTargetPlatform Platform in ProjectPlatforms)
 				{
 					PlatformProjectGenerator? ProjGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Platform, true);
-					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat))
+					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat, BaseDir, null))
 					{
 						// @todo projectfiles: Serious hacks here because we are trying to emit one-time platform-specific sections that need information
 						//    about a target type, but the project file may contain many types of targets!  Some of this logic will need to move into
@@ -1684,7 +1692,7 @@ namespace UnrealBuildTool
 				foreach (UnrealTargetPlatform Platform in ProjectPlatforms)
 				{
 					PlatformProjectGenerator? ProjGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Platform, true);
-					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat))
+					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat, BaseDir, null))
 					{
 						ProjGenerator.GetVisualStudioTargetOverrides(Platform, ProjectFileFormat, VCProjectFileContent);
 					}
@@ -1921,15 +1929,17 @@ namespace UnrealBuildTool
 			private readonly UnrealTargetConfiguration Configuration;
 			private readonly UnrealTargetPlatform Platform;
 			private readonly ProjectTarget ProjectTarget;
+			private readonly UnrealArch? Architecture;
 
 			public BuildCommandBuilder(UnrealTargetConfiguration InConfiguration, UnrealTargetPlatform InPlatform,
-				ProjectTarget InProjectTarget, string InUProjectPath, string? InBuildToolOverride = null)
+				ProjectTarget InProjectTarget, string InUProjectPath, string? InBuildToolOverride = null, UnrealArch? InArchitecture = null)
 			{
 				Configuration = InConfiguration;
 				Platform = InPlatform;
 				ProjectTarget = InProjectTarget;
 				UProjectPath = InUProjectPath;
 				BuildToolOverride = InBuildToolOverride;
+				Architecture = InArchitecture;
 
 				DirectoryReference BatchFilesDirectory = DirectoryReference.Combine(Unreal.EngineDirectory, "Build", "BatchFiles");
 				BuildScript = FileReference.Combine(BatchFilesDirectory, "Build.bat");
@@ -2003,6 +2013,11 @@ namespace UnrealBuildTool
 					BuildArguments.Append(ProjectGenerator.GetExtraBuildArguments(Platform, Configuration));
 				}
 
+				if (Architecture != null)
+				{
+					BuildArguments.AppendFormat(" -architecture={0}", Architecture);
+				}
+
 				return BuildArguments.ToString();
 			}
 		}
@@ -2010,7 +2025,7 @@ namespace UnrealBuildTool
 		private BuildCommandBuilder CreateArgumentsBuilder(ProjectConfigAndTargetCombination Combination, string UProjectPath, PlatformProjectGenerator? ProjGenerator)
 		{
 			BuildCommandBuilder Builder = new BuildCommandBuilder(Combination.Configuration, Combination.Platform!.Value,
-				Combination.ProjectTarget!, UProjectPath, BuildToolOverride)
+				Combination.ProjectTarget!, UProjectPath, BuildToolOverride, Combination.Architecture)
 			{
 				ProjectGenerator = ProjGenerator,
 				bEditorDependsOnShaderCompileWorker = Settings.bEditorDependsOnShaderCompileWorker,
@@ -2346,16 +2361,8 @@ namespace UnrealBuildTool
 			return Info.IsDotNETCoreProject();
 		}
 
-		/// <summary>
-		/// Get the project context for the given solution context
-		/// </summary>
-		/// <param name="SolutionTarget">The solution target type</param>
-		/// <param name="SolutionConfiguration">The solution configuration</param>
-		/// <param name="SolutionPlatform">The solution platform</param>
-		/// <param name="PlatformProjectGenerators">Set of platform project generators</param>
-		/// <param name="Logger"></param>
-		/// <returns>Project context matching the given solution context</returns>
-		public override MSBuildProjectContext GetMatchingProjectContext(TargetType SolutionTarget, UnrealTargetConfiguration SolutionConfiguration, UnrealTargetPlatform SolutionPlatform, PlatformProjectGeneratorCollection PlatformProjectGenerators, ILogger Logger)
+		/// <inheritdoc/>
+		public override MSBuildProjectContext GetMatchingProjectContext(TargetType SolutionTarget, UnrealTargetConfiguration SolutionConfiguration, UnrealTargetPlatform SolutionPlatform, PlatformProjectGeneratorCollection PlatformProjectGenerators, UnrealArch? Architecture, ILogger Logger)
 		{
 			// Find the matching platform name
 			string ProjectPlatformName;

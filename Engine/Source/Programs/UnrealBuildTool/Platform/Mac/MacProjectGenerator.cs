@@ -29,17 +29,8 @@ namespace UnrealBuildTool
 			yield return UnrealTargetPlatform.Mac;
 		}
 
-		///
-		///	VisualStudio project generation functions
-		///	
-		/// <summary>
-		/// Whether this build platform has native support for VisualStudio
-		/// </summary>
-		/// <param name="InPlatform">  The UnrealTargetPlatform being built</param>
-		/// <param name="InConfiguration"> The UnrealTargetConfiguration being built</param>
-		/// <param name="ProjectFileFormat"></param>
-		/// <returns>bool    true if native VisualStudio support (or custom VSI) is available</returns>
-		public override bool HasVisualStudioSupport(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, VCProjectFileFormat ProjectFileFormat)
+		/// <inheritdoc/>
+		public override bool HasVisualStudioSupport(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, VCProjectFileFormat ProjectFileFormat, DirectoryReference InProjectDir, UnrealArch? InArch)
 		{
 			// Mac is not supported in VisualStudio
 			return false;

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text;
 using EpicGames.Core;
@@ -47,32 +48,60 @@ namespace UnrealBuildTool
 			return false;
 		}
 
-		///
-		///	VisualStudio project generation functions
-		///	
+		ConcurrentDictionary<int, bool> FoundVSISupportDict = new();
+
 		/// <summary>
-		/// Whether this build platform has native support for VisualStudio
+		/// Checks the local VS install directories to see if the platform is supported.
 		/// </summary>
 		/// <param name="InPlatform">  The UnrealTargetPlatform being built</param>
 		/// <param name="InConfiguration"> The UnrealTargetConfiguration being built</param>
 		/// <param name="ProjectFileFormat">The visual studio project file format being generated</param>
-		/// <returns>bool    true if native VisualStudio support (or custom VSI) is available</returns>
-		public virtual bool HasVisualStudioSupport(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, VCProjectFileFormat ProjectFileFormat)
+		/// <param name="InProjectDir">  The root directory for the current project</param>
+		/// <param name="InArch">  The architecture of the platform</param>
+		/// <returns>bool true if native VisualStudio support (or custom VSI) is available</returns>
+		public virtual bool HasVisualStudioSupport(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, VCProjectFileFormat ProjectFileFormat, DirectoryReference InProjectDir, UnrealArch? InArch)
 		{
-			// By default, we assume this is true
-			return true;
-		}
+			int HashResult = 691;
+			HashResult *= InPlatform.ToString().GetHashCode();
+			HashResult *= InConfiguration.ToString().GetHashCode();
+			HashResult *= ProjectFileFormat.ToString().GetHashCode();
+			HashResult *= InProjectDir.GetHashCode();
+			HashResult *= InArch != null ? InArch.ToString()!.GetHashCode() : 1;
 
-		/// <summary>
-		/// Return the VisualStudio platform name for this build platform
-		/// </summary>
-		/// <param name="InPlatform">  The UnrealTargetPlatform being built</param>
-		/// <param name="InConfiguration"> The UnrealTargetConfiguration being built</param>
-		/// <returns>string    The name of the platform that VisualStudio recognizes</returns>
-		public virtual string GetVisualStudioPlatformName(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration)
-		{
-			// By default, return the platform string
-			return InPlatform.ToString();
+			return FoundVSISupportDict.GetOrAdd(HashResult, _ =>
+			{
+				WindowsCompiler VSCompiler;
+				string VCVersion;
+
+				switch (ProjectFileFormat)
+				{
+					case VCProjectFileFormat.VisualStudio2019:
+						VSCompiler = WindowsCompiler.VisualStudio2019;
+						VCVersion = "v160";
+						break;
+					case VCProjectFileFormat.VisualStudio2022:
+						VSCompiler = WindowsCompiler.VisualStudio2022;
+						VCVersion = "v170";
+						break;
+					default:
+						// Unknown VS Version
+						return false;
+				}
+
+				IEnumerable<DirectoryReference>? InstallDirs = WindowsPlatform.TryGetVSInstallDirs(VSCompiler, Logger);
+				if (InstallDirs != null)
+				{
+					foreach (DirectoryReference VSInstallDir in InstallDirs)
+					{
+						DirectoryReference PlatformsPath = new DirectoryReference(System.IO.Path.Combine(VSInstallDir.FullName, "MSBuild\\Microsoft\\VC\\", VCVersion, "Platforms", GetVisualStudioPlatformName(InPlatform, InConfiguration, InProjectDir, InArch)));
+						if (DirectoryReference.Exists(PlatformsPath))
+						{
+							return true;
+						}
+					}
+				}
+				return false;
+			});
 		}
 
 		/// <summary>
@@ -81,11 +110,12 @@ namespace UnrealBuildTool
 		/// <param name="InPlatform">  The UnrealTargetPlatform being built</param>
 		/// <param name="InConfiguration"> The UnrealTargetConfiguration being built</param>
 		/// <param name="InProjectDir">  The root directory for the current project</param>
+		/// <param name="InArch">  The architecture of the platform</param>
 		/// <returns>string    The name of the platform that VisualStudio recognizes</returns>
-		public virtual string GetVisualStudioPlatformName(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, DirectoryReference InProjectDir)
+		public virtual string GetVisualStudioPlatformName(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, DirectoryReference InProjectDir, UnrealArch? InArch)
 		{
-			// By default, return the project-independent platform string
-			return GetVisualStudioPlatformName(InPlatform, InConfiguration);
+			// By default, return the platform string
+			return InPlatform.ToString();
 		}
 
 		/// <summary>
