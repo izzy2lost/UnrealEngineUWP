@@ -6411,6 +6411,13 @@ void FSequencer::SynchronizeExternalSelectionWithSequencerSelection()
 
 	GEditor->NoteSelectionChange();
 
+	// Ensure that the (newer) typed element selection broadcasts its changes immediately so we don't get an
+	//   end of frame update which might overwrite a newly created track area selection
+	if (UTypedElementSelectionSet* TypedElements = GEditor->GetSelectedActors()->GetElementSelectionSet())
+	{
+		TypedElements->NotifyPendingChanges();
+	}
+
 	if (SelectedSequencerComponents.Num())
 	{
 		GEditor->GetSelectedComponents()->Modify();
@@ -6424,6 +6431,13 @@ void FSequencer::SynchronizeExternalSelectionWithSequencerSelection()
 		GEditor->GetSelectedComponents()->EndBatchSelectOperation();
 
 		GEditor->NoteSelectionChange();
+
+		// Ensure that the (newer) typed element selection broadcasts its changes immediately so we don't get an
+		//   end of frame update which might overwrite a newly created track area selection
+		if (UTypedElementSelectionSet* TypedElements = GEditor->GetSelectedComponents()->GetElementSelectionSet())
+		{
+			TypedElements->NotifyPendingChanges();
+		}
 	}
 }
 
