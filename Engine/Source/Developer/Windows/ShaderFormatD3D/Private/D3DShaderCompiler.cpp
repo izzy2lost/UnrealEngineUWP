@@ -1163,6 +1163,10 @@ bool PreprocessD3DShader(
 			AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_REAL_TYPES"), 1);
 		}
 	}
+	else
+	{
+		AdditionalDefines.SetDefine(TEXT("COMPILER_FXC"), 1);
+	}
 
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
