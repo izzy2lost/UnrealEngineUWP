@@ -24,9 +24,7 @@ UDataLayerInstance::UDataLayerInstance(const FObjectInitializer& ObjectInitializ
 	, bIsLocked(false)
 #endif
 	, InitialRuntimeState(EDataLayerRuntimeState::Unloaded)
-{
-
-}
+{}
 
 void UDataLayerInstance::PostLoad()
 {
@@ -246,6 +244,11 @@ bool UDataLayerInstance::IsParentDataLayerTypeCompatible(const UDataLayerInstanc
 		return false;
 	}
 
+	if (IsClientOnly() || IsServerOnly())
+	{
+		return false;
+	}
+
 	EDataLayerType ParentDataLayerType = InParent->GetType();
 
 	return GetType() != EDataLayerType::Unknown
@@ -413,17 +416,6 @@ EDataLayerRuntimeState UDataLayerInstance::GetRuntimeState() const
 EDataLayerRuntimeState UDataLayerInstance::GetEffectiveRuntimeState() const
 {
 	return GetOuterWorldDataLayers()->GetDataLayerEffectiveRuntimeStateByName(GetDataLayerFName());
-}
-
-bool UDataLayerInstance::SetRuntimeState(EDataLayerRuntimeState InState, bool bInIsRecursive) const
-{
-	if (GetOuterWorldDataLayers()->HasAuthority())
-	{
-		GetOuterWorldDataLayers()->SetDataLayerRuntimeState(this, InState, bInIsRecursive);
-		return true;
-	}
-	UE_LOG(LogWorldPartition, Error, TEXT("SetDataLayerRuntimeState can only execute on authority"));
-	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

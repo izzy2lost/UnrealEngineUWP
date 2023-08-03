@@ -70,7 +70,7 @@ FAutoConsoleCommand UDataLayerManager::ToggleDataLayerActivation(
 		for (const FWorldContext& Context : GEngine->GetWorldContexts())
 		{
 			UWorld* World = Context.World();
-			if (World && World->IsGameWorld() && !World->IsNetMode(NM_Client))
+			if (World && World->IsGameWorld())
 			{
 				if (UWorldPartitionSubsystem* WorldPartitionSubsystem = World->GetSubsystem<UWorldPartitionSubsystem>())
 				{
@@ -116,7 +116,7 @@ FAutoConsoleCommand UDataLayerManager::SetDataLayerRuntimeStateCommand(
 		for (const FWorldContext& Context : GEngine->GetWorldContexts())
 		{
 			UWorld* World = Context.World();
-			if (World && World->IsGameWorld() && !World->IsNetMode(NM_Client))
+			if (World && World->IsGameWorld())
 			{
 				if (UWorldPartitionSubsystem* WorldPartitionSubsystem = World->GetSubsystem<UWorldPartitionSubsystem>())
 				{
@@ -268,8 +268,13 @@ const UDataLayerInstance* UDataLayerManager::GetDataLayerInstanceFromAssetName(c
 
 bool UDataLayerManager::SetDataLayerInstanceRuntimeState(const UDataLayerInstance* InDataLayerInstance, EDataLayerRuntimeState InState, bool bInIsRecursive)
 {
-	UE_CLOG(!InDataLayerInstance, LogWorldPartition, Error, TEXT("Invalid Data Layer Instance."));
-	return InDataLayerInstance ? InDataLayerInstance->SetRuntimeState(InState, bInIsRecursive) : false;
+	if (InDataLayerInstance)
+	{
+		InDataLayerInstance->GetOuterWorldDataLayers()->SetDataLayerRuntimeState(InDataLayerInstance, InState, bInIsRecursive);
+		return true;
+	}
+	UE_LOG(LogWorldPartition, Error, TEXT("Invalid Data Layer Instance."));
+	return false;
 }
 
 bool UDataLayerManager::SetDataLayerRuntimeState(const UDataLayerAsset* InDataLayerAsset, EDataLayerRuntimeState InState, bool bInIsRecursive)
@@ -296,14 +301,22 @@ void UDataLayerManager::BroadcastOnDataLayerInstanceRuntimeStateChanged(const UD
 
 EDataLayerRuntimeState UDataLayerManager::GetDataLayerInstanceRuntimeState(const UDataLayerInstance* InDataLayerInstance) const
 {
-	UE_CLOG(!InDataLayerInstance, LogWorldPartition, Error, TEXT("Invalid Data Layer Instance."));
-	return InDataLayerInstance ? InDataLayerInstance->GetRuntimeState() : EDataLayerRuntimeState::Unloaded;
+	if (InDataLayerInstance)
+	{
+		return InDataLayerInstance->GetRuntimeState();
+	}
+	UE_LOG(LogWorldPartition, Error, TEXT("Invalid Data Layer Instance."));
+	return EDataLayerRuntimeState::Unloaded;
 }
 
 EDataLayerRuntimeState UDataLayerManager::GetDataLayerInstanceEffectiveRuntimeState(const UDataLayerInstance* InDataLayerInstance) const
 {
-	UE_CLOG(!InDataLayerInstance, LogWorldPartition, Error, TEXT("Invalid Data Layer Instance."));
-	return InDataLayerInstance ? InDataLayerInstance->GetEffectiveRuntimeState() : EDataLayerRuntimeState::Unloaded;
+	if (InDataLayerInstance)
+	{
+		return InDataLayerInstance->GetEffectiveRuntimeState();
+	}
+	UE_LOG(LogWorldPartition, Error, TEXT("Invalid Data Layer Instance."));
+	return EDataLayerRuntimeState::Unloaded;
 }
 
 const TSet<FName>& UDataLayerManager::GetEffectiveActiveDataLayerNames() const
@@ -592,7 +605,6 @@ void UDataLayerManager::ForEachDataLayerInstance(TFunctionRef<bool(UDataLayerIns
  */
 
 #if WITH_EDITOR
-
 TSubclassOf<UDataLayerLoadingPolicy> UDataLayerManager::GetDataLayerLoadingPolicyClass() const
 {
 	// Use UDataLayerManager::DataLayerLoadingPolicyClass
@@ -837,5 +849,4 @@ void FDataLayersEditorBroadcast::StaticOnActorDataLayersEditorLoadingStateChange
 	Get().DataLayerEditorLoadingStateChanged.Broadcast(bIsFromUserChange);
 	IWorldPartitionActorLoaderInterface::RefreshLoadedState(bIsFromUserChange);
 }
-
 #endif

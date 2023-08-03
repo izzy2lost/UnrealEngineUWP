@@ -59,6 +59,11 @@ bool UDataLayerAsset::CanEditChange(const FProperty* InProperty) const
 			// UDataLayerAsset outered to a UDataLayerInstance do not support Runtime type
 			return !IsPrivate();
 		}
+		else if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UDataLayerAsset, LoadFilter))
+		{
+			// Only runtime data layer assets can be set to client only
+			return IsRuntime();
+		}
 	}
 
 	return true;

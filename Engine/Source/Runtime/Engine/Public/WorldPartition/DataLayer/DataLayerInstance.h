@@ -142,6 +142,12 @@ public:
 	virtual bool IsRuntime() const { return false; }
 
 	UFUNCTION(Category = "Data Layer|Runtime", BlueprintCallable)
+	virtual bool IsClientOnly() const { return false; }
+
+	UFUNCTION(Category = "Data Layer|Runtime", BlueprintCallable)
+	virtual bool IsServerOnly() const { return false; }
+
+	UFUNCTION(Category = "Data Layer|Runtime", BlueprintCallable)
 	virtual FColor GetDebugColor() const { return FColor::Black; }
 
 	UFUNCTION(Category = "Data Layer|Runtime", BlueprintCallable)
