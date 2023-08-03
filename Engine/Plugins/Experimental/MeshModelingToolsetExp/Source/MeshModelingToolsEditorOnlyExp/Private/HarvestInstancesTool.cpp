@@ -276,14 +276,17 @@ void UHarvestInstancesTool::UpdateInstanceSets()
 	}
 
 
-	// check that all Components of Source Actors are included in instance set. If not, we cannot delete
-	// the Source Actors
+	// Check that all SceneComponents of Source Actors are included in instance set. 
+	// If not, we cannot delete the Source Actors
 	bool bFoundUnhandledComponent = false;
 	for (AActor* SourceActor : SourceActors)
 	{
 		SourceActor->ForEachComponent(true, [&](UActorComponent* Component) 
 		{
 			if (bFoundUnhandledComponent) return;
+
+			// only going to consider SceneComponents
+			if (Cast<USceneComponent>(Component) == nullptr) return;
 
 			if (UPrimitiveComponent* PrimComponent = Cast<UPrimitiveComponent>(Component))
 			{
@@ -292,7 +295,12 @@ void UHarvestInstancesTool::UpdateInstanceSets()
 					return;
 				}
 			}
-			bFoundUnhandledComponent = true;
+
+			// for now skip editor-only Components as some editor systems (like navigation) apparently attach additional hidden Components to static meshes...
+			if (Component->IsEditorOnly() == false)
+			{
+				bFoundUnhandledComponent = true;
+			}
 		});
 	}
 	OutputSettings->bCanDeleteInputs = (bFoundUnhandledComponent == false);
