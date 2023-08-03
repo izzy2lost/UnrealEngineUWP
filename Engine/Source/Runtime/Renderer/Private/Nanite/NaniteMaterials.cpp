@@ -52,6 +52,15 @@ static FAutoConsoleVariableRef CVarNaniteComputeMaterials(
 	ECVF_RenderThreadSafe
 );
 
+// TODO: Heavily work in progress / experimental - do not use!
+static int32 GNaniteBundleDispatch = 0;
+static FAutoConsoleVariableRef CVarNaniteBundleDispatch(
+	TEXT("r.Nanite.BundleDispatch"),
+	GNaniteBundleDispatch,
+	TEXT("Whether to enable Nanite shader bundle dispatch"),
+	ECVF_RenderThreadSafe
+);
+
 static int32 GNaniteComputeMaterialsSort = 1;
 static FAutoConsoleVariableRef CVarNaniteComputeMaterialsSort(
 	TEXT("r.Nanite.ComputeMaterials.Sort"),
@@ -930,7 +939,7 @@ void BuildShadingCommands(
 	// Create Shader Bundle
 	if (!!GRHISupportsDispatchShaderBundle && ShadingCommands.Commands.Num() > 0)
 	{
-		const bool bEmulated = false;
+		const bool bEmulated = true; // TODO: Hook up cvar to force emulation when real support exists
 		const uint32 NumRecords = ShadingCommands.MaxShadingBin + 1u;
 		ShadingCommands.ShaderBundle = RHICreateShaderBundle(NumRecords, bEmulated);
 		check(ShadingCommands.ShaderBundle != nullptr);
@@ -1385,7 +1394,7 @@ void DispatchBasePass(
 	);
 
 	const bool bSkipBarriers = GNaniteBarrierTest != 0;
-	const bool bDispatchBundle = !!GRHISupportsDispatchShaderBundle && false; // TODO: Disabled by default for now
+	const bool bDispatchBundle = !!GRHISupportsDispatchShaderBundle && GNaniteBundleDispatch != 0;
 
 	auto ShadePassWork = []
 	(
