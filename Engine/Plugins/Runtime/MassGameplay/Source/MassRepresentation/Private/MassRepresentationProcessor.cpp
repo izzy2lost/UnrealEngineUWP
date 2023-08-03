@@ -225,13 +225,13 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(DebugDisplayRepresentation)
 		UWorld* World = CachedEntityManager.GetWorld();
-		UE::Mass::Representation::Debug::DebugDisplayRepresentation(Context, RepresentationList, TransformList, World);
+		UE::Mass::Representation::Debug::DebugDisplayRepresentation(Context, RepresentationLODList, RepresentationList, TransformList, World);
 	}
 	// Optional vislog
 	if (UE::Mass::Representation::Debug::DebugRepresentation >= 2)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(VisLogRepresentation)
-		UE::Mass::Representation::Debug::VisLogRepresentation(Context, RepresentationList, TransformList, RepresentationSubsystem);
+		UE::Mass::Representation::Debug::VisLogRepresentation(Context, RepresentationLODList, RepresentationList, TransformList, RepresentationSubsystem);
 	}
 #endif
 }

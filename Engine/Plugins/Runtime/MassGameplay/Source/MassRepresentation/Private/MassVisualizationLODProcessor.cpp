@@ -118,7 +118,7 @@ void UMassVisualizationLODProcessor::Execute(FMassEntityManager& EntityManager, 
 			FMassVisualizationLODSharedFragment& LODSharedFragment = Context.GetMutableSharedFragment<FMassVisualizationLODSharedFragment>();
 			TConstArrayView<FMassRepresentationLODFragment> RepresentationLODList = Context.GetFragmentView<FMassRepresentationLODFragment>();
 			TConstArrayView<FTransformFragment> TransformList = Context.GetFragmentView<FTransformFragment>();
-			LODSharedFragment.LODCalculator.DebugDisplayLOD(Context, RepresentationLODList, TransformList, World);
+			LODSharedFragment.LODCalculator.DebugDisplaySignificantLOD(Context, RepresentationLODList, TransformList, World, UE::Mass::Representation::Debug::DebugRepresentationLODMaxSignificance);
 		});
 	}
 	// Optional vislog
@@ -130,7 +130,7 @@ void UMassVisualizationLODProcessor::Execute(FMassEntityManager& EntityManager, 
 			FMassVisualizationLODSharedFragment& LODSharedFragment = Context.GetMutableSharedFragment<FMassVisualizationLODSharedFragment>();
 			TConstArrayView<FMassRepresentationLODFragment> RepresentationLODList = Context.GetFragmentView<FMassRepresentationLODFragment>();
 			TConstArrayView<FTransformFragment> TransformList = Context.GetFragmentView<FTransformFragment>();
-			LODSharedFragment.LODCalculator.VisLogLOD(Context, RepresentationLODList, TransformList, this);
+			LODSharedFragment.LODCalculator.VisLogSignificantLOD(Context, RepresentationLODList, TransformList, this, UE::Mass::Representation::Debug::DebugRepresentationLODMaxSignificance);
 		});
 	}
 #endif // WITH_MASSGAMEPLAY_DEBUG
