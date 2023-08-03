@@ -1480,7 +1480,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		public bool bUseUnityBuild
 		{
-			get => bUseUnityBuildOverride ?? IntermediateEnvironment == UnrealIntermediateEnvironment.Default && !bEnableCppModules;
+			get => bUseUnityBuildOverride ?? IntermediateEnvironment.IsUnity() && !bEnableCppModules;
 			set => bUseUnityBuildOverride = value;
 		}
 
@@ -2566,6 +2566,10 @@ namespace UnrealBuildTool
 				if (bIWYU)
 				{
 					IntermediateEnvironment = UnrealIntermediateEnvironment.IWYU;
+				}
+				else if (StaticAnalyzer != StaticAnalyzer.None)
+				{
+					IntermediateEnvironment = UnrealIntermediateEnvironment.Analyze;
 				}
 				else if (!bUseUnityBuild)
 				{
