@@ -268,11 +268,11 @@ namespace UnrealBuildTool
 		public static IList<UnrealArch?> GetPlatformArchitectures(UEBuildPlatform BuildPlatform)
 		{
 			List<UnrealArch?> Architectures = new();
-			if (BuildPlatform.ArchitectureConfig.Mode == UnrealArchitectureMode.OneTargetPerArchitecture)
-			{
-				Architectures.AddRange(BuildPlatform.ArchitectureConfig.AllSupportedArchitectures.Architectures.Cast<UnrealArch?>());
-			}
-			else
+			//if (BuildPlatform.ArchitectureConfig.Mode == UnrealArchitectureMode.OneTargetPerArchitecture)
+			//{
+			//	Architectures.AddRange(BuildPlatform.ArchitectureConfig.AllSupportedArchitectures.Architectures.Cast<UnrealArch?>());
+			//}
+			//else
 			{
 				Architectures.Add(null);
 			}
