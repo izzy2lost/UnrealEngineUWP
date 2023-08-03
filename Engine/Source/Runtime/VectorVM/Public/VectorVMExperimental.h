@@ -3,6 +3,7 @@
 
 #include "VectorVMSerialization.h"
 #include "VectorVMCommon.h"
+#include "Math/RandomStream.h"
 
 #if VECTORVM_SUPPORTS_EXPERIMENTAL
 
