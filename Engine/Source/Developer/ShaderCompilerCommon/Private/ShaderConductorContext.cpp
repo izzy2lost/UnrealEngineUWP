@@ -2,7 +2,7 @@
 
 #include "ShaderConductorContext.h"
 #include "HAL/ExceptionHandling.h"
-#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
+#include "ShaderCompilerDefinitions.h"
 
 #if PLATFORM_MAC || PLATFORM_WINDOWS || PLATFORM_LINUX
 THIRD_PARTY_INCLUDES_START

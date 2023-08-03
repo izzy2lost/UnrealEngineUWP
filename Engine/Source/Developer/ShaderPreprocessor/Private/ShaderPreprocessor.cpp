@@ -6,7 +6,7 @@
 #include "Misc/ScopeLock.h"
 #include "Modules/ModuleManager.h"
 #include "PreprocessorPrivate.h"
-#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
+#include "ShaderCompilerDefinitions.h"
 
 #include "stb_preprocess/preprocessor.h"
 #include "stb_preprocess/stb_alloc.h"

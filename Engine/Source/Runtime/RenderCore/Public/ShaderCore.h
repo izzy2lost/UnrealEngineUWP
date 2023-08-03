@@ -42,7 +42,7 @@
 #include "UniformBuffer.h"
 
 // Temporarily included here until we can fully deprecate access to FShaderCompilerDefinitions in a future version
-#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
+#include "ShaderCompilerDefinitions.h"
 
 class Error;
 class FMemoryImageWriter;

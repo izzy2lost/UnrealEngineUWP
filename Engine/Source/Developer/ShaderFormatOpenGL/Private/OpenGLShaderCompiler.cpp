@@ -8,12 +8,12 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/MemoryWriter.h"
+#include "ShaderCompilerDefinitions.h"
 #include "ShaderFormatOpenGL.h"
 #include "ShaderParameterParser.h"
 #include "SpirvReflectCommon.h"
 #include <algorithm>
 #include <regex>
-#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"

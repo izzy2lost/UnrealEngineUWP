@@ -1,19 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetalDerivedData.h"
-#include "Serialization/MemoryWriter.h"
-#include "RHIDefinitions.h"
-#include "Misc/FileHelper.h"
+
+#include "HlslccHeaderWriter.h"
+#include "MetalShaderFormat.h"
 #include "MetalShaderResources.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/Compression.h"
 #include "Misc/OutputDeviceRedirector.h"
 #include "MetalBackend.h"
+#include "RHIDefinitions.h"
 #include "Serialization/MemoryReader.h"
-#include "HlslccHeaderWriter.h"
-#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
-
-#include "MetalShaderFormat.h"
+#include "Serialization/MemoryWriter.h"
+#include "ShaderCompilerDefinitions.h"
 #include "SpirvReflectCommon.h"
 
 #include <regex>

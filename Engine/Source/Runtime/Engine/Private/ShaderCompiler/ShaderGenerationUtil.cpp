@@ -8,14 +8,14 @@
 
 #include "DataDrivenShaderPlatformInfo.h"
 #include "HAL/PlatformFile.h"
-#include "Interfaces/ITargetPlatform.h"
-#include "Misc/FileHelper.h"
-#include "Interfaces/ITargetPlatformManagerModule.h"
 #include "HAL/PlatformFileManager.h"
+#include "Interfaces/ITargetPlatform.h"
+#include "Interfaces/ITargetPlatformManagerModule.h"
+#include "Misc/FileHelper.h"
 #include "RenderUtils.h"
 #include "SceneManagement.h"
+#include "ShaderCompilerDefinitions.h"
 #include "ShaderMaterial.h"
-#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
 
 static TAutoConsoleVariable<int32> CVarShaderUseGBufferRefactor(
 	TEXT("r.Shaders.UseGBufferRefactor"),

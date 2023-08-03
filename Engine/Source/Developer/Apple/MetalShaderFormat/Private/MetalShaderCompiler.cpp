@@ -1,21 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-// ..
 
 #include "CoreMinimal.h"
-#include "ShaderCore.h"
+#include "HAL/PlatformFileManager.h"
+#include "MetalShaderFormat.h"
 #include "MetalShaderResources.h"
-#include "ShaderCompilerCommon.h"
-#include "ShaderParameterParser.h"
 #include "Misc/ConfigCacheIni.h"
-#include "Serialization/MemoryWriter.h"
-#include "Serialization/MemoryReader.h"
+#include "Misc/EngineVersion.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
-#include "Misc/EngineVersion.h"
-#include "HAL/PlatformFileManager.h"
-#include "Runtime/RenderCore/Internal/ShaderCompilerDefinitions.h"
+#include "ShaderCompilerCommon.h"
+#include "ShaderCompilerDefinitions.h"
+#include "ShaderCore.h"
+#include "ShaderParameterParser.h"
+#include "Serialization/MemoryWriter.h"
+#include "Serialization/MemoryReader.h"
 
-#include "MetalShaderFormat.h"
 
 #if PLATFORM_WINDOWS
 #include "Windows/WindowsHWrapper.h"
