@@ -165,15 +165,17 @@ FString FOptimusDataDomain::GetDisplayName() const
 			{
 				return TEXT("Parameter");
 			}
-			else
+			TArray<FString> Names;
+			for (FName DomainLevelName: DimensionNames)
 			{
-				TArray<FString> Names;
-				for (FName DomainLevelName: DimensionNames)
-				{
-					Names.Add(DomainLevelName.ToString());
-				}
-				return FString::Join(Names, *FString(UTF8TEXT(" › ")));
+				Names.Add(DomainLevelName.ToString());
 			}
+			FString DomainName = FString::Join(Names, *FString(UTF8TEXT(" › ")));
+			if (InDataDomain.Multiplier > 1)
+			{
+				DomainName += FString::Printf(TEXT(" x %d"), Multiplier);
+			}
+			return DomainName;
 		}
 		
 	case EOptimusDataDomainType::Expression:
@@ -181,7 +183,7 @@ FString FOptimusDataDomain::GetDisplayName() const
 		{
 			return TEXT("Undefined");
 		}
-		return Expression.TrimStartAndEnd();
+		return FString::Printf(TEXT("'%s'"), *Expression.TrimStartAndEnd());
 	}
 
 	checkNoEntry();

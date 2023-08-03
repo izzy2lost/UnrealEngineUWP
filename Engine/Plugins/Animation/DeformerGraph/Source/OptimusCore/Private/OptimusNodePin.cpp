@@ -444,6 +444,9 @@ bool UOptimusNodePin::CanCannect(const UOptimusNodePin* InOtherPin, FString* Out
 		return false;
 	}
 	
+	const UOptimusNodePin *OutputPin = Direction == EOptimusNodePinDirection::Output ? this : InOtherPin;
+	const UOptimusNodePin* InputPin = Direction == EOptimusNodePinDirection::Input ? this : InOtherPin;
+
 	// Check for incompatible types.
 	if (!((DataType->ShaderValueType.IsValid() && InOtherPin->DataType->ShaderValueType.IsValid() &&
 		  DataType->ShaderValueType == InOtherPin->DataType->ShaderValueType) ||
@@ -453,14 +456,13 @@ bool UOptimusNodePin::CanCannect(const UOptimusNodePin* InOtherPin, FString* Out
 
 		if (OutReason)
 		{
-			*OutReason = TEXT("Incompatible pin types.");
+			*OutReason = FString::Printf(TEXT("Incompatible pin types (%s vs %s)."),
+				*OutputPin->GetDataType()->DisplayName.ToString(),
+				*InputPin->GetDataType()->DisplayName.ToString());
 		}
 		return false;
 	}
 
-
-	const UOptimusNodePin *OutputPin = Direction == EOptimusNodePinDirection::Output ? this : InOtherPin;
-	const UOptimusNodePin* InputPin = Direction == EOptimusNodePinDirection::Input ? this : InOtherPin;
 
 	return FOptimusDataDomain::AreCompatible(OutputPin->DataDomain, InputPin->DataDomain, OutReason);
 }
