@@ -3,6 +3,7 @@
 
 #include "VectorVMExperimental.h"
 #include "VectorVM.h"
+#include "HAL/ConsoleManager.h"
 
 
 //prototypes for internal functions to the VVM
