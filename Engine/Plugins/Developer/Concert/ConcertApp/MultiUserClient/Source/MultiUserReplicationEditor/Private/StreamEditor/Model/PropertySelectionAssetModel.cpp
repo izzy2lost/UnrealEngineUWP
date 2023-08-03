@@ -3,7 +3,7 @@
 #include "PropertySelectionAssetModel.h"
 
 #include "Replication/PropertyChainUtils.h"
-#include "Settings/DefaultPropertySelection.h"
+#include "Settings/MultiUserDefaultPropertySelection.h"
 #include "Settings/MultiUserReplicationSettings.h"
 
 #include "Algo/AllOf.h"
@@ -121,6 +121,7 @@ namespace UE::MultiUserReplicationEditor
 		Asset->Modify();
 		
 		TSet<UObject*> ObjectsNotAdded;
+		TArray<UObject*> AdditionalObjectsToAdd;
 		for (UObject* Object : Objects)
 		{
 			const FSoftObjectPath ObjectPath = Object;
@@ -128,7 +129,13 @@ namespace UE::MultiUserReplicationEditor
 			{
 				FReplicatedObjectInfo& ObjectInfo = Asset->ReplicationMap.ReplicatedObjects.Add(ObjectPath);
 				ObjectInfo.ClassPath = Object->GetClass();
-				UMultiUserReplicationSettings::Get()->AddDefaultPropertiesFromSettings(ObjectInfo, *Object->GetClass());
+				
+				UMultiUserReplicationSettings* Settings = UMultiUserReplicationSettings::Get();
+				Settings->AddDefaultPropertiesFromSettings(ObjectInfo, *Object->GetClass());
+				Settings->AddAdditionalObjectsFromSettings(*Object, [&AdditionalObjectsToAdd](UObject& FurtherObject)
+				{
+					AdditionalObjectsToAdd.Add(&FurtherObject);
+				});
 			}
 			else
 			{
@@ -153,6 +160,8 @@ namespace UE::MultiUserReplicationEditor
 			}
 			OnObjectsChangedDelegate.Broadcast(Added, {}, EReplicatedObjectChangeReason::ChangedDirectly);
 		}
+
+		AddObjects(AdditionalObjectsToAdd);
 	}
 
 	void FPropertySelectionAssetModel::RemoveObjects(TArrayView<FSoftObjectPath> Objects)

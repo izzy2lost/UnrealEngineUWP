@@ -2,10 +2,11 @@
 
 #pragma once
 
-#include "DefaultPropertySelection.generated.h"
+#include "MultiUserInheritableClassOption.h"
+#include "MultiUserDefaultPropertySelection.generated.h"
 
 USTRUCT()
-struct FDefaultPropertySelection
+struct FMultiUserDefaultPropertySelection : public FMultiUserInheritableClassOption
 {
 	GENERATED_BODY()
 
@@ -16,8 +17,4 @@ struct FDefaultPropertySelection
 	 */
 	UPROPERTY(EditAnywhere, Category = "Config")
 	TArray<FString> DefaultSelectedProperties;
-
-	/** Whether to inherit the properties from the base class (you need not list them in DefaultSelectedProperties). */
-	UPROPERTY(EditAnywhere, Category = "Config")
-	bool bInheritFromBase = true;
 };

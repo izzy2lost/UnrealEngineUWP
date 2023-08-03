@@ -4,13 +4,16 @@
 
 #include "LogMultiUserReplicationEditor.h"
 #include "Replication/PropertyChainUtils.h"
-#include "Settings/DefaultPropertySelection.h"
+#include "Settings/MultiUserDefaultPropertySelection.h"
+#include "Settings/MultiUserDefaultSubobjectSelection.h"
 
 #include "Algo/IndexOf.h"
+#include "Components/ActorComponent.h"
+#include "Internationalization/Regex.h"
 
-namespace UE::MultiUserReplicationEditor::Private
+namespace UE::MultiUserReplicationEditor::DefaultProperties
 {
-	static void ApplyDefaultPropertySelection(FReplicatedObjectInfo& Info, const FDefaultPropertySelection& Selection, UStruct& Class)
+	static void ApplyDefaultPropertySelection(FReplicatedObjectInfo& Info, const FMultiUserDefaultPropertySelection& Selection, UStruct& Class)
 	{
 		// Preparse the the FStrings into paths
 		TArray<TArray<FName>> Paths;
@@ -54,7 +57,7 @@ void UMultiUserReplicationSettings::AddDefaultPropertiesFromSettings(FReplicated
 {
 	// Find the most specialized class properties
 	UClass* Current = &Class;
-	FDefaultPropertySelection* DefaultProperties = nullptr;
+	FMultiUserDefaultPropertySelection* DefaultProperties = nullptr;
 	for (; Current && !DefaultProperties; Current = Current->GetSuperClass())
 	{
 		DefaultProperties = DefaultPropertySelection.Find(Current);
@@ -63,7 +66,7 @@ void UMultiUserReplicationSettings::AddDefaultPropertiesFromSettings(FReplicated
 			continue;
 		}
 			
-		UE::MultiUserReplicationEditor::Private::ApplyDefaultPropertySelection(Info, *DefaultProperties, *Current);
+		UE::MultiUserReplicationEditor::DefaultProperties::ApplyDefaultPropertySelection(Info, *DefaultProperties, *Current);
 		// Recurse super structs
 		if (UClass* Parent = Current->GetSuperClass()
 			; Parent && DefaultProperties->bInheritFromBase)
@@ -71,4 +74,93 @@ void UMultiUserReplicationSettings::AddDefaultPropertiesFromSettings(FReplicated
 			AddDefaultPropertiesFromSettings(Info, *Parent);
 		}
 	}
+}
+
+namespace UE::MultiUserReplicationEditor::DefaultSubobjects
+{
+	static bool MatchesAnyRegex(const FString& Input, const TSet<FString>& AllRegex)
+	{
+		for (const FString& RegexString : AllRegex)
+		{
+			const FRegexPattern Pattern(RegexString);
+			FRegexMatcher Matcher(Pattern, Input);
+			if (Matcher.FindNext())
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+	
+	static void ApplyDefaultSubobjectSelection(UObject& AddedObject, const FMultiUserDefaultSubobjectSelection& Selection, TFunctionRef<void(UObject&)> FurtherObjectsCallback)
+	{
+		// Do not search recursively so FurtherObjectsCallback can decide to call AddAdditionalObjectsFromSettings again on the newly added objects.
+		constexpr bool bIncludeNested = false;
+		ForEachObjectWithOuter(&AddedObject, [&Selection, &FurtherObjectsCallback](UObject* Subobject)
+		{
+			// Has exclusion regex?
+			const bool bShouldExclude = MatchesAnyRegex(Subobject->GetName(), Selection.ExcludeSubobjectRegex);
+			if (bShouldExclude)
+			{
+				return;
+			}
+
+			// Was told to add all UActorComponents?
+			const bool bIncludeAllSubobjects = Selection.IncludeAllOption == EMultiUserIncludeAllSubobjectsType::AllSubobjects;
+			const bool bIncludeDueToComponent = Subobject->IsA(UActorComponent::StaticClass())
+				&& Selection.IncludeAllOption == EMultiUserIncludeAllSubobjectsType::AllComponents;
+			if (bIncludeAllSubobjects || bIncludeDueToComponent)
+			{
+				FurtherObjectsCallback(*Subobject);
+				return;
+			}
+
+			// Has configured class?
+			UClass* CurrentClass = Subobject->GetClass();
+			for (; CurrentClass; CurrentClass = CurrentClass->GetSuperClass())
+			{
+				if (Selection.IncludeClasses.Contains(Subobject->GetClass()))
+				{
+					FurtherObjectsCallback(*Subobject);
+					return;
+				}
+			}
+
+			// Has inclusion regex?
+			const bool bShouldIncludeByRegex = MatchesAnyRegex(Subobject->GetName(), Selection.IncludeSubobjectRegex);
+			if (bShouldIncludeByRegex)
+			{
+				FurtherObjectsCallback(*Subobject);
+			}
+		}, bIncludeNested);
+	}
+
+	static void InternalAddAdditionalObjectsFromSettings(UClass& StartClass, UMultiUserReplicationSettings& Settings, UObject& AddedObject, TFunctionRef<void(UObject&)> FurtherObjectsCallback)
+	{
+		// Find the most specialized class properties
+		UClass* Current = &StartClass;
+		FMultiUserDefaultSubobjectSelection* DefaultSubobjects = nullptr;
+		for (; Current && !DefaultSubobjects; Current = Current->GetSuperClass())
+		{
+			DefaultSubobjects = Settings.DefaultSubobjectSelection.Find(Current);
+			if (!DefaultSubobjects)
+			{
+				continue;
+			}
+			
+			ApplyDefaultSubobjectSelection(AddedObject, *DefaultSubobjects, FurtherObjectsCallback);
+			// Recurse super structs
+			if (UClass* Parent = Current->GetSuperClass()
+				; Parent && DefaultSubobjects->bInheritFromBase)
+			{
+				InternalAddAdditionalObjectsFromSettings(*Parent, Settings, AddedObject, FurtherObjectsCallback);
+			}
+		}
+	}
+}
+
+void UMultiUserReplicationSettings::AddAdditionalObjectsFromSettings(UObject& AddedObject, TFunctionRef<void(UObject&)> FurtherObjectsCallback)
+{
+	UE::MultiUserReplicationEditor::DefaultSubobjects::InternalAddAdditionalObjectsFromSettings(*AddedObject.GetClass(), *this, AddedObject, FurtherObjectsCallback);
 }
