@@ -24,9 +24,7 @@ function setError(message: string) {
 // redirect from external source, where horde stream id, etc are not known by that application
 export const PreflightRedirector: React.FC = () => {
 
-
    const [state, setState] = useState({ preflightQueried: false })
-
    const navigate = useNavigate();
    const query = useQuery();
    const { projectStore } = useBackend();
@@ -36,6 +34,9 @@ export const PreflightRedirector: React.FC = () => {
 
    // whether to autosubmit
    const autosubmit = !query.get("submit") ? "" : query.get("submit")!;
+
+   // whether a template is specified
+   const templateId = !query.get("templateId") ? "" : query.get("templateId")!;
 
    if (!change) {
       setError("No preflight change specified");
@@ -80,6 +81,8 @@ export const PreflightRedirector: React.FC = () => {
 
    if (!state.preflightQueried) {
 
+      console.log(`Redirecting preflight: ${window.location.href}`);
+
       backend.getJobs({ filter: "id", count: 1, preflightChange: cl }).then(result => {
 
          if (result && result.length === 1) {
@@ -90,6 +93,10 @@ export const PreflightRedirector: React.FC = () => {
                url += "&autosubmit=true";
             }
 
+            if (templateId) {
+               url += `&templateId=${templateId}`;
+            }
+
             navigate(url, { replace: true });
             return;
          }
@@ -98,6 +105,10 @@ export const PreflightRedirector: React.FC = () => {
 
          if (autosubmit === "true") {
             url += "&autosubmit=true";
+         }
+
+         if (templateId) {
+            url += `&templateId=${templateId}`;
          }
 
          navigate(url, { replace: true });
