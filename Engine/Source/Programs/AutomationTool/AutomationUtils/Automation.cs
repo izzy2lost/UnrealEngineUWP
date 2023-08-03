@@ -193,6 +193,11 @@ namespace AutomationTool
 					Logger.LogInformation(Ex, "{Message}", Ex.ToString().Replace("\n", "\n  "));
 					Logger.LogDebug(Ex, "{Details}", ExceptionUtils.FormatExceptionDetails(Ex));
 				}
+				else if (Ex.OutputFormat == AutomationExceptionOutputFormat.MinimalError)
+				{
+					Logger.LogError(Ex, "{Message}", Ex.ToString().Replace("\n", "\n  "));
+					Logger.LogDebug(Ex, "{Details}", ExceptionUtils.FormatExceptionDetails(Ex));
+				}
 				else
 				{
 					Log.WriteException(Ex, LogUtils.FinalLogFileName);

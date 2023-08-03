@@ -23,9 +23,9 @@ namespace AutomationTool
 	class UnrealBuildException : AutomationException
 	{
 		public UnrealBuildException(string Message)
-			: base("BUILD FAILED: " + Message)
+			: base(ExitCode.Error_UBTFailure, "BUILD FAILED: " + Message)
 		{
-			OutputFormat = AutomationExceptionOutputFormat.Minimal;
+			OutputFormat = AutomationExceptionOutputFormat.MinimalError;
 		}
 
 		public UnrealBuildException(string Format, params object[] Args)
