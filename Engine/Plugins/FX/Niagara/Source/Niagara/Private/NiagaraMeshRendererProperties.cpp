@@ -245,7 +245,7 @@ UNiagaraMeshRendererProperties::UNiagaraMeshRendererProperties()
 	: bOverrideMaterials(false)
 	, bUseHeterogeneousVolumes(false)
 	, bSortOnlyWhenTranslucent(true)
-	, bSubImageBlend(false)
+	, bSubImageBlend(true)
 	, bLockedAxisEnable(false)
 {
 	// Initialize the array with a single, defaulted entry
@@ -391,9 +391,16 @@ void UNiagaraMeshRendererProperties::Serialize(FArchive& Ar)
 	Ar.UsingCustomVersion(FNiagaraCustomVersion::GUID);
 	const int32 NiagaraVersion = Ar.CustomVer(FNiagaraCustomVersion::GUID);
 
-	if (Ar.IsLoading() && (NiagaraVersion < FNiagaraCustomVersion::DisableSortingByDefault))
+	if (Ar.IsLoading())
 	{
-		SortMode = ENiagaraSortMode::ViewDistance;
+		if (NiagaraVersion < FNiagaraCustomVersion::DisableSortingByDefault)
+		{
+			SortMode = ENiagaraSortMode::ViewDistance;
+		}
+		if (NiagaraVersion < FNiagaraCustomVersion::SubImageBlendEnabledByDefault)
+		{
+			bSubImageBlend = false;
+		}
 	}
 
 	Super::Serialize(Ar);
