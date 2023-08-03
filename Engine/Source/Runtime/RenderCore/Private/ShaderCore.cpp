@@ -3125,6 +3125,7 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 		FMemoryHasherBlake3 Hasher;
 		FShaderTarget Target = Input.Target;
 		Hasher << Target;
+		Hasher << Input.EntryPointName;
 		FShaderCompilerEnvironment MergedEnvironment = Input.Environment;
 		if (Input.SharedEnvironment)
 		{
