@@ -2298,12 +2298,12 @@ FRenderer::FRenderer(
 void FRenderer::AddPass_PrimitiveFilter()
 {
 	LLM_SCOPE_BYTAG(Nanite);
-
+	
 	const uint32 PrimitiveCount = uint32(Scene.Primitives.Num());
 	const uint32 HiddenPrimitiveCount = SceneView.HiddenPrimitives.Num();
 	const uint32 ShowOnlyPrimitiveCount = SceneView.ShowOnlyPrimitives.IsSet() ? SceneView.ShowOnlyPrimitives->Num() : 0u;
 	
-	EFilterFlags HiddenFilterFlags = EFilterFlags::None;
+	EFilterFlags HiddenFilterFlags = Configuration.HiddenFilterFlags;
 	
 	if (!SceneView.Family->EngineShowFlags.StaticMeshes)
 	{

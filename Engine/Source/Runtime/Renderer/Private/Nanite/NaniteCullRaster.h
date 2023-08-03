@@ -3,6 +3,7 @@
 #pragma once
 
 #include "NaniteShared.h"
+#include "NaniteSceneProxy.h"
 
 class FVirtualShadowMapArray;
 class FViewFamilyInfo;
@@ -143,6 +144,7 @@ struct FConfiguration
 	uint32 bGameShowFlag : 1;
 	uint32 bDisableProgrammable : 1;
 	uint32 bExtractStats : 1;
+	EFilterFlags HiddenFilterFlags;
 
 	void SetViewFlags(const FViewInfo& View);
 };

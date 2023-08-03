@@ -857,6 +857,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UStaticMeshCompone
 	Instance.LocalToPrimitive.SetIdentity();
 
 	FilterFlags = EFilterFlags::StaticMesh;
+	FilterFlags |= Component->Mobility == EComponentMobility::Static ? EFilterFlags::StaticMobility : EFilterFlags::NonStaticMobility;
 
 	bReverseCulling = Component->bReverseCulling;
 
@@ -1048,6 +1049,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UInstancedStaticMe
 	EndCullDistance = Component->InstanceEndCullDistance;
 
 	FilterFlags = EFilterFlags::InstancedStaticMesh;
+	FilterFlags |= Component->Mobility == EComponentMobility::Static ? EFilterFlags::StaticMobility : EFilterFlags::NonStaticMobility;
 }
 
 FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UHierarchicalInstancedStaticMeshComponent* Component)
@@ -1068,6 +1070,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UHierarchicalInsta
 		FilterFlags = EFilterFlags::InstancedStaticMesh;
 		break;
 	}
+	FilterFlags |= Component->Mobility == EComponentMobility::Static ? EFilterFlags::StaticMobility : EFilterFlags::NonStaticMobility;
 }
 
 FSceneProxy::~FSceneProxy()

@@ -138,6 +138,9 @@ enum class EFilterFlags : uint8
 	Foliage					= (1u << 2u),
 	Grass					= (1u << 3u),
 	Landscape				= (1u << 4u),
+	StaticMobility			= (1u << 5u),
+	NonStaticMobility		= (1u << 6u),
+	All						= 0xFF
 };
 
 ENUM_CLASS_FLAGS(EFilterFlags)
