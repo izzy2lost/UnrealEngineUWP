@@ -675,7 +675,7 @@ private:
 		FRDGBuilder& GraphBuilder,
 		const FSceneTextures& SceneTextures,
 		const FLumenSceneFrameTemporaries& LumenFrameTemporaries,
-		FRDGTextureRef DynamicBentNormalAOTexture);
+		TArray<FRDGTextureRef>& DynamicBentNormalAOTexture);
 
 	void RenderDeferredReflectionsAndSkyLightingHair(FRDGBuilder& GraphBuilder);
 
@@ -688,7 +688,7 @@ private:
 	void RenderDFAOAsIndirectShadowing(
 		FRDGBuilder& GraphBuilder,
 		const FSceneTextures& SceneTextures,
-		FRDGTextureRef& DynamicBentNormalAO);
+		TArray<FRDGTextureRef>& DynamicBentNormalAOTextures);
 
 	bool ShouldRenderDistanceFieldLighting() const;
 
@@ -697,7 +697,7 @@ private:
 		FRDGBuilder& GraphBuilder,
 		const FSceneTextures& SceneTextures,
 		const class FDistanceFieldAOParameters& Parameters,
-		FRDGTextureRef& OutDynamicBentNormalAO,
+		TArray<FRDGTextureRef>& OutDynamicBentNormalAOTextures,
 		bool bModulateToSceneColor,
 		bool bVisualizeAmbientOcclusion);
 

@@ -3859,7 +3859,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_Lighting);
 			SCOPED_NAMED_EVENT(RenderLighting, FColor::Emerald);
 
-			FRDGTextureRef DynamicBentNormalAOTexture = nullptr;
+			TArray<FRDGTextureRef> DynamicBentNormalAOTextures;
 
 			RenderDiffuseIndirectAndAmbientOcclusion(
 				GraphBuilder,
@@ -3878,7 +3878,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			}
 
 			// These modulate the scene color output from the base pass, which is assumed to be indirect lighting
-			RenderDFAOAsIndirectShadowing(GraphBuilder, SceneTextures, DynamicBentNormalAOTexture);
+			RenderDFAOAsIndirectShadowing(GraphBuilder, SceneTextures, DynamicBentNormalAOTextures);
 
 			// Clear the translucent lighting volumes before we accumulate
 			if ((GbEnableAsyncComputeTranslucencyLightingVolumeClear && GSupportsEfficientAsyncCompute) == false)
@@ -3912,7 +3912,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				AsyncLumenIndirectLightingOutputs);
 
 			// Render diffuse sky lighting and reflections that only operate on opaque pixels
-			RenderDeferredReflectionsAndSkyLighting(GraphBuilder, SceneTextures, LumenFrameTemporaries, DynamicBentNormalAOTexture);
+			RenderDeferredReflectionsAndSkyLighting(GraphBuilder, SceneTextures, LumenFrameTemporaries, DynamicBentNormalAOTextures);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 			// Renders debug visualizations for global illumination plugins
@@ -4291,7 +4291,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 			// Use the skylight's max distance if there is one, to be consistent with DFAO shadowing on the skylight
 			const float OcclusionMaxDistance = Scene->SkyLight && !Scene->SkyLight->bWantsStaticShadowing ? Scene->SkyLight->OcclusionMaxDistance : Scene->DefaultMaxDistanceFieldOcclusionDistance;
-			FRDGTextureRef DummyOutput = nullptr;
+			TArray<FRDGTextureRef> DummyOutput;
 			RenderDistanceFieldLighting(GraphBuilder, SceneTextures, FDistanceFieldAOParameters(OcclusionMaxDistance), DummyOutput, false, ViewFamily.EngineShowFlags.VisualizeDistanceFieldAO);
 		}
 

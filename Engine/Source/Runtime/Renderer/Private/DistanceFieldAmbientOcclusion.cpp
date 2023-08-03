@@ -278,16 +278,14 @@ FDFAOUpsampleParameters DistanceField::SetupAOUpsampleParameters(const FViewInfo
 
 	const FIntPoint AOBufferSize = GetBufferSizeForAO(View);
 	const FIntPoint AOViewSize = View.ViewRect.Size() / GAODownsampleFactor;
-	const FVector4f UVMinMax(
-		0.51 / AOBufferSize.X,
-		0.51 / AOBufferSize.Y,
+	const FVector2f UVMax(
 		(AOViewSize.X - 0.51f) / AOBufferSize.X, // 0.51 - so bilateral gather4 won't sample invalid texels
 		(AOViewSize.Y - 0.51f) / AOBufferSize.Y);
 
 	FDFAOUpsampleParameters ShaderParameters;
 	ShaderParameters.BentNormalAOTexture = DistanceFieldAOBentNormal;
 	ShaderParameters.BentNormalAOSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
-	ShaderParameters.AOBufferBilinearUVMinMax = UVMinMax;
+	ShaderParameters.AOBufferBilinearUVMax = UVMax;
 	ShaderParameters.DistanceFadeScale = DistanceFadeScaleValue;
 	ShaderParameters.AOMaxViewDistance = GetMaxAOViewDistance();
 
@@ -763,13 +761,13 @@ bool FSceneRenderer::ShouldPrepareGlobalDistanceField() const
 void FDeferredShadingSceneRenderer::RenderDFAOAsIndirectShadowing(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
-	FRDGTextureRef& DynamicBentNormalAO)
+	TArray<FRDGTextureRef>& DynamicBentNormalAOTextures)
 {
 	if (GDistanceFieldAOApplyToStaticIndirect && ShouldRenderDistanceFieldAO() && ShouldRenderDistanceFieldLighting())
 	{
 		// Use the skylight's max distance if there is one, to be consistent with DFAO shadowing on the skylight
 		const float OcclusionMaxDistance = Scene->SkyLight && !Scene->SkyLight->bWantsStaticShadowing ? Scene->SkyLight->OcclusionMaxDistance : Scene->DefaultMaxDistanceFieldOcclusionDistance;
-		RenderDistanceFieldLighting(GraphBuilder, SceneTextures, FDistanceFieldAOParameters(OcclusionMaxDistance), DynamicBentNormalAO, true, false);
+		RenderDistanceFieldLighting(GraphBuilder, SceneTextures, FDistanceFieldAOParameters(OcclusionMaxDistance), DynamicBentNormalAOTextures, true, false);
 	}
 }
 
@@ -801,7 +799,7 @@ void FDeferredShadingSceneRenderer::RenderDistanceFieldLighting(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
 	const FDistanceFieldAOParameters& Parameters,
-	FRDGTextureRef& OutDynamicBentNormalAO,
+	TArray<FRDGTextureRef>& OutDynamicBentNormalAOTextures,
 	bool bModulateToSceneColor,
 	bool bVisualizeAmbientOcclusion)
 {
@@ -826,14 +824,7 @@ void FDeferredShadingSceneRenderer::RenderDistanceFieldLighting(
 	}
 	
 	// We only need this texture if we need to copy multiple view outputs to an texture atlas
-	FRDGTextureRef BentNormalOutput = nullptr;
-	 if (Views.Num() > 1)
-	{
-		const FIntPoint BufferSize = GetActiveSceneTexturesConfig().Extent / GAODownsampleFactor;
-		const FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(BufferSize, PF_FloatRGBA, FClearValueBinding::None, GFastVRamConfig.DistanceFieldAOBentNormal | TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV);
-		BentNormalOutput = GraphBuilder.CreateTexture(Desc, TEXT("DistanceFieldBentNormalAO"));
-		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(BentNormalOutput), FLinearColor::Black);
-	}
+	OutDynamicBentNormalAOTextures.Reset();
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
@@ -899,17 +890,8 @@ void FDeferredShadingSceneRenderer::RenderDistanceFieldLighting(
 			UpsampleBentNormalAO(GraphBuilder, View, SceneTextures.UniformBuffer, SceneTextures.Color.Target, PerViewBentNormal, bModulateToSceneColor && !bVisualizeAmbientOcclusion);
 		}
 
-		if (Views.Num() == 1) {
-			OutDynamicBentNormalAO = PerViewBentNormal;
-			return;
-		}
-		else 
-		{
-			AddCopyTexturePass(GraphBuilder, PerViewBentNormal, BentNormalOutput, FIntPoint::ZeroValue, View.ViewRect.Min / GAODownsampleFactor, View.ViewRect.Size() / GAODownsampleFactor);
-		}
+		OutDynamicBentNormalAOTextures.Add(PerViewBentNormal);
 	}
-
-	OutDynamicBentNormalAO = BentNormalOutput;
 }
 
 bool FSceneRenderer::ShouldRenderDistanceFieldAO() const

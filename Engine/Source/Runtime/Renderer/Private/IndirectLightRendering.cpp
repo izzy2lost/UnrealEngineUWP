@@ -374,7 +374,7 @@ class FReflectionEnvironmentSkyLightingPS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Distance field AO parameters.
 		// TODO. FDFAOUpsampleParameters
-		SHADER_PARAMETER(FVector4f, AOBufferBilinearUVMinMax)
+		SHADER_PARAMETER(FVector2f, AOBufferBilinearUVMax)
 		SHADER_PARAMETER(float, DistanceFadeScale)
 		SHADER_PARAMETER(float, AOMaxViewDistance)
 
@@ -1691,13 +1691,11 @@ static void AddSkyReflectionPass(
 		{
 			// The view must sample into the texture atlas correctly with the appropriate clamping
 			const FIntPoint AOBufferSize = GetBufferSizeForAO(View);
-			const FIntRect AOViewRect = View.ViewRect / GAODownsampleFactor;
+			const FIntPoint AOViewSize = View.ViewRect.Size() / GAODownsampleFactor;
 
-			PassParameters->PS.AOBufferBilinearUVMinMax = FVector4f(
-				(AOViewRect.Min.X + 0.51f) / AOBufferSize.X, // 0.51 - so bilateral gather4 won't sample invalid texels
-				(AOViewRect.Min.Y + 0.51f) / AOBufferSize.Y,
-				(AOViewRect.Max.X - 0.51f) / AOBufferSize.X,
-				(AOViewRect.Max.Y - 0.51f) / AOBufferSize.Y);
+			PassParameters->PS.AOBufferBilinearUVMax = FVector2f(
+				(AOViewSize.X - 0.51f) / AOBufferSize.X,
+				(AOViewSize.Y - 0.51f) / AOBufferSize.Y);
 
 			extern float GAOViewFadeDistanceScale;
 			PassParameters->PS.AOMaxViewDistance = GetMaxAOViewDistance();
@@ -1865,7 +1863,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
 	const FLumenSceneFrameTemporaries& LumenFrameTemporaries,
-	FRDGTextureRef DynamicBentNormalAOTexture)
+	TArray<FRDGTextureRef>& DynamicBentNormalAOTextures)
 {
 	extern int32 GLumenVisualizeIndirectDiffuse;
 	if (ViewFamily.EngineShowFlags.VisualizeLightCulling 
@@ -1912,7 +1910,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 		{
 			bApplySkyShadowing = true;
 			FDistanceFieldAOParameters Parameters(Scene->SkyLight->OcclusionMaxDistance, Scene->SkyLight->Contrast);
-			RenderDistanceFieldLighting(GraphBuilder, SceneTextures, Parameters, DynamicBentNormalAOTexture, false, false);
+			RenderDistanceFieldLighting(GraphBuilder, SceneTextures, Parameters, DynamicBentNormalAOTextures, false, false);
 		}
 	}
 
@@ -2107,6 +2105,8 @@ void FDeferredShadingSceneRenderer::RenderDeferredReflectionsAndSkyLighting(
 		if (bRequiresApply)
 		{
 			RDG_GPU_STAT_SCOPE(GraphBuilder, ReflectionEnvironment);
+
+			FRDGTextureRef DynamicBentNormalAOTexture = DynamicBentNormalAOTextures.IsEmpty() ? nullptr : DynamicBentNormalAOTextures[CurrentViewIndex];
 
 			if (Strata::IsStrataEnabled())
 			{
