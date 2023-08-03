@@ -60,7 +60,8 @@ cmake -G "Visual Studio 17 2022" %SOURCE_LOCATION%^
     -DNO_OPENCL=ON^
     -DNO_DX=ON^
     -DNO_GLEW=ON^
-    -DNO_GLFW=ON
+    -DNO_GLFW=ON^
+    -DBUILD_SHARED_LIBS=OFF
 if %errorlevel% neq 0 exit /B %errorlevel%
 
 echo Building OpenSubdiv for Debug...
