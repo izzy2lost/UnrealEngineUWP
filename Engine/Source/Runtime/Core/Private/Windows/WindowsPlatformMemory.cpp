@@ -13,6 +13,7 @@
 #include "HAL/MallocBinned3.h"
 #include "HAL/MallocDoubleFreeFinder.h"
 #include "HAL/MallocMimalloc.h"
+#include "HAL/MallocLibpas.h"
 #include "HAL/MallocStomp.h"
 #include "HAL/MallocStomp2.h"
 #include "HAL/MallocTBB.h"
@@ -163,7 +164,11 @@ FMalloc* FWindowsPlatformMemory::BaseAllocator()
 	// If not shipping, allow overriding with command line options, this happens very early so we need to use windows functions
 	const TCHAR* CommandLine = ::GetCommandLineW();
 
-	if (FCString::Stristr(CommandLine, TEXT("-ansimalloc")))
+	if (FCString::Stristr(CommandLine, TEXT("-libpasmalloc")))
+	{
+		AllocatorToUse = EMemoryAllocatorToUse::Libpas;
+	}
+	else if (FCString::Stristr(CommandLine, TEXT("-ansimalloc")))
 	{
 		// see FPlatformMisc::GetProcessDiagnostics()
 		AllocatorToUse = EMemoryAllocatorToUse::Ansi;
@@ -233,6 +238,11 @@ FMalloc* FWindowsPlatformMemory::BaseAllocator()
 #if MIMALLOC_ENABLED
 	case EMemoryAllocatorToUse::Mimalloc:
 		Instance = new FMallocMimalloc();
+		break;
+#endif
+#if LIBPASMALLOC_ENABLED
+	case EMemoryAllocatorToUse::Libpas:
+		Instance = new FMallocLibpas();
 		break;
 #endif
 	case EMemoryAllocatorToUse::Binned2:

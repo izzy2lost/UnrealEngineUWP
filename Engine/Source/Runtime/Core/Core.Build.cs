@@ -66,7 +66,10 @@ public class Core : ModuleRules
 				PublicSystemIncludePaths.Add(Path.Combine(Target.UEThirdPartySourceDirectory, "mimalloc/include"));
 				PrivateDefinitions.Add("PLATFORM_BUILDS_MIMALLOC=1");
 			}
-
+			
+			PrivateDefinitions.Add("PLATFORM_BUILDS_LIBPAS=1");
+			PrivateDependencyModuleNames.Add("libpas");
+			
 			if (Target.WindowsPlatform.bUseBundledDbgHelp)
 			{
 				PublicDelayLoadDLLs.Add("DBGHELP.DLL");
