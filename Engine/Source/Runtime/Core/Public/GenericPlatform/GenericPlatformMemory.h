@@ -245,7 +245,6 @@ struct FGenericPlatformMemory
 		Binned3, // Newer VM-based binned malloc, 64 bit only
 		Platform, // Custom platform specific allocator
 		Mimalloc, // mimalloc
-		Libpas, // libpas
 	};
 
 	/** Current allocator */
