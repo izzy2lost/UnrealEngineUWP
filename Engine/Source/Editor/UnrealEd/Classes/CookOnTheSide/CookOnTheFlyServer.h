@@ -1482,6 +1482,8 @@ private:
 	bool bIterativeCalculateExe = true;
 	/** If true this will ignore cooking unsolicited packages.  This is only useful if launching the COTF server to only process shader recompile requests. */
 	bool bIgnoreUnsolicitedPackages = false;
+	/** Whether to skip saving packages that are cooked. When true, the cook will only load and process packages but not write them to disk */
+	bool bSkipSave = false;
 	/** Timers for tracking how long we have been busy, to manage retries and warnings of deadlock */
 	double SaveBusyStartTimeSeconds = MAX_flt;
 	double SaveBusyRetryTimeSeconds = MAX_flt;

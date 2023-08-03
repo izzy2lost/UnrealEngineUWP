@@ -5847,7 +5847,14 @@ void UCookOnTheFlyServer::SaveCookedPackage(UE::Cook::FSaveCookedPackageContext&
 				{
 					LLM_SCOPE_BYTAG(Cooker_SavePackage);
 					FScopedActivePackage ScopedActivePackage(*this, Context.PackageData.GetPackageName(), NAME_None);
-					Context.SavePackageResult = GEditor->Save(Package, Context.World, *Context.PlatFilename, SaveArgs);
+					if (bSkipSave)
+					{
+						Context.SavePackageResult = ESavePackageResult::Success;
+					}
+					else
+					{
+						Context.SavePackageResult = GEditor->Save(Package, Context.World, *Context.PlatFilename, SaveArgs);
+					}
 				}
 				catch (std::exception&)
 				{
@@ -6097,10 +6104,15 @@ void FSaveCookedPackageContext::FinishPlatform()
 		}
 		// TODO: Reenable BuildDefinitionList once FCbPackage support for empty FCbObjects is in
 		//Info.Attachments.Add({ "BuildDefinitionList", BuildDefinitionList });
-		Info.WriteOptions = IPackageWriter::EWriteOptions::Write;
-		if (COTFS.IsDirectorCookByTheBook())
+		Info.WriteOptions = IPackageWriter::EWriteOptions::None;
+		if (!COTFS.bSkipSave)
 		{
-			Info.WriteOptions |= IPackageWriter::EWriteOptions::ComputeHash;
+			Info.WriteOptions |= IPackageWriter::EWriteOptions::Write;
+
+			if (COTFS.IsDirectorCookByTheBook())
+			{
+				Info.WriteOptions |= IPackageWriter::EWriteOptions::ComputeHash;
+			}
 		}
 
 		PackageWriter->CommitPackage(MoveTemp(Info));
@@ -6781,6 +6793,7 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 	bIterativeCalculateExe = !bIterativeIgnoreExe || !bConfigSettingSetIterativeIgnoreExe;
 
 	bIgnoreUnsolicitedPackages = FParse::Param(FCommandLine::Get(), TEXT("odsc"));
+	bSkipSave = FParse::Param(FCommandLine::Get(), TEXT("CookSkipSave"));
 }
 
 void UCookOnTheFlyServer::ParseCookFilters()
