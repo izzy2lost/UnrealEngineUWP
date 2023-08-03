@@ -1265,6 +1265,11 @@ struct FRHITextureDesc
 {
 	FRHITextureDesc() = default;
 
+	FRHITextureDesc(const FRHITextureDesc& Other)
+	{
+		*this = Other;
+	}
+
 	FRHITextureDesc(ETextureDimension InDimension)
 		: Dimension(InDimension)
 	{}
