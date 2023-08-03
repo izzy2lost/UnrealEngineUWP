@@ -1412,12 +1412,11 @@ public:
 				CSV_CUSTOM_STAT(FindInBlueprint, IndexedAssetCountThisFrame, 1, ECsvCustomStatOp::Accumulate);
 
 				FSoftObjectPath AssetPath = AssetPathsToIndex[ArrayIdx];
-				FFindInBlueprintSearchManager& FindManager = FFindInBlueprintSearchManager::Get();
-				FSearchData SearchData = FindManager.GetSearchDataForAssetPath(AssetPath);
+				FSearchData SearchData = FFindInBlueprintSearchManager::Get().GetSearchDataForAssetPath(AssetPath);
 				if (SearchData.IsValid() && !SearchData.IsMarkedForDeletion() && !SearchData.IsIndexingCompleted())
 				{
 					// Generate the metadata tag value if it was not previously cached or loaded.
-					if (!SearchData.HasEncodedValue())
+					if (SearchData.Value.Len() == 0)
 					{
 						// This must be done on the main thread, so enqueue it and continue.
 						Controller->AddAssetPathToGatherQueue(AssetPath);
@@ -1427,8 +1426,12 @@ public:
 						if (bEnableFullIndexingPass)
 						{
 							// Unpack the metadata tag and rebuild the index for this asset.
-							if (FindManager.ProcessEncodedValueForUnloadedBlueprint(SearchData))
+							const FString AssetPathAsString = AssetPath.ToString();
+							if (FiBSerializationHelpers::ValidateSearchDataVersionInfo(AssetPathAsString, SearchData.Value, SearchData.VersionInfo))
 							{
+								SearchData.ImaginaryBlueprint = MakeShareable(new FImaginaryBlueprint(FPaths::GetBaseFilename(AssetPathAsString), AssetPathAsString, SearchData.ParentClass, SearchData.Interfaces, SearchData.Value, SearchData.VersionInfo));
+								SearchData.Value.Empty();
+
 								// Build the full index using a BFS traversal.
 								TArray<FImaginaryFiBDataSharedPtr> IndexNodes = { SearchData.ImaginaryBlueprint };
 								while (IndexNodes.Num() > 0)
@@ -1452,7 +1455,7 @@ public:
 							SearchData.StateFlags |= ESearchDataStateFlags::IsIndexed;
 
 							// Update this entry in the search database (thread-safe).
-							FindManager.ApplySearchDataToDatabase(MoveTemp(SearchData));
+							FFindInBlueprintSearchManager::Get().ApplySearchDataToDatabase(MoveTemp(SearchData));
 						}
 
 						// Signal that indexing has been completed for this asset path.
@@ -2162,14 +2165,17 @@ void FFindInBlueprintSearchManager::OnAssetAdded(const FAssetData& InAssetData)
 		return;
 	}
 
-	if (UObject* AssetObject = InAssetData.FastGetAsset(false))
+	if (InAssetData.IsAssetLoaded())
 	{
-		if (ensureMsgf(AssetObject->IsA(AssetClass), TEXT("AssetClass (%s) matched handler, but does not match actual object type (%s) for asset: %s."), *AssetClass->GetName(), *AssetObject->GetClass()->GetName(), *AssetObject->GetPathName()))
+		if (UObject* AssetObject = InAssetData.GetAsset())
 		{
-			UBlueprint* Blueprint = Handler->RetrieveBlueprint(AssetObject);
-			if (Blueprint)
+			if (ensureMsgf(AssetObject->IsA(AssetClass), TEXT("AssetClass (%s) matched handler, but does not match actual object type (%s) for asset: %s."), *AssetClass->GetName(), *AssetObject->GetClass()->GetName(), *AssetObject->GetPathName()))
 			{
-				AddOrUpdateBlueprintSearchMetadata(Blueprint);
+				UBlueprint* Blueprint = Handler->RetrieveBlueprint(AssetObject);
+				if (Blueprint)
+				{
+					AddOrUpdateBlueprintSearchMetadata(Blueprint);
+				}
 			}
 		}
 	}
@@ -2185,23 +2191,14 @@ void FFindInBlueprintSearchManager::AddUnloadedBlueprintSearchMetadata(const FAs
 	FAssetDataTagMapSharedView::FFindTagResult Result = InAssetData.TagsAndValues.FindTag(FBlueprintTags::FindInBlueprintsData);
 	if (Result.IsSet())
 	{
-		if (bDisableImmediateAssetDiscovery)
+		const FString& FiBVersionedSearchData = Result.GetValue();
+		if (FiBVersionedSearchData.Len() == 0)
 		{
-			// If the versioned key is set at all, we assume it is valid and will parse it later
-			ExtractUnloadedFiBData(InAssetData, nullptr, FBlueprintTags::FindInBlueprintsData, EFiBVersion::FIB_VER_NONE);
+			UnindexedAssets.Add(InAssetData.GetSoftObjectPath());
 		}
 		else
 		{
-			// Extract it now
-			FString FiBVersionedSearchData = Result.GetValue();
-			if (FiBVersionedSearchData.Len() == 0)
-			{
-				UnindexedAssets.Add(InAssetData.GetSoftObjectPath());
-			}
-			else
-			{
-				ExtractUnloadedFiBData(InAssetData, &FiBVersionedSearchData, NAME_None, EFiBVersion::FIB_VER_NONE);
-			}
+			ExtractUnloadedFiBData(InAssetData, FiBVersionedSearchData, EFiBVersion::FIB_VER_NONE);
 		}
 	}
 	else
@@ -2210,57 +2207,18 @@ void FFindInBlueprintSearchManager::AddUnloadedBlueprintSearchMetadata(const FAs
 		FAssetDataTagMapSharedView::FFindTagResult ResultLegacy = InAssetData.TagsAndValues.FindTag(FBlueprintTags::UnversionedFindInBlueprintsData);
 		if (ResultLegacy.IsSet())
 		{
-			if (bDisableImmediateAssetDiscovery)
-			{
-				ExtractUnloadedFiBData(InAssetData, nullptr, FBlueprintTags::UnversionedFindInBlueprintsData, EFiBVersion::FIB_VER_BASE);
-			}
-			else
-			{
-				FString FiBUnversionedSearchData = Result.GetValue();
-				ExtractUnloadedFiBData(InAssetData, &FiBUnversionedSearchData, NAME_None, EFiBVersion::FIB_VER_BASE);
-			}
+			ExtractUnloadedFiBData(InAssetData, ResultLegacy.GetValue(), EFiBVersion::FIB_VER_BASE);
 		}
 		// The asset has no FiB data, keep track of it so we can inform the user
 		else
 		{
 			UnindexedAssets.Add(InAssetData.GetSoftObjectPath());
 		}
+
 	}
 }
 
-bool FFindInBlueprintSearchManager::ProcessEncodedValueForUnloadedBlueprint(FSearchData& SearchData)
-{
-	FString TempEncodedString;
-	if (!SearchData.AssetKeyForValue.IsNone() && SearchData.Value.IsEmpty())
-	{
-		// Get the string from the asset registry now
-		FAssetData AssetData;
-		AssetData = AssetRegistryModule->Get().GetAssetByObjectPath(SearchData.AssetPath);
-		if (ensure(AssetData.IsValid()))
-		{
-			FAssetDataTagMapSharedView::FFindTagResult Result = AssetData.TagsAndValues.FindTag(SearchData.AssetKeyForValue);
-			if (Result.IsSet())
-			{
-				// This makes a large string copy because the version in the asset data cannot be treated as an FString
-				TempEncodedString = Result.GetValue();
-			}
-		}
-	}
-	const FString& EncodedString = !TempEncodedString.IsEmpty() ? TempEncodedString : SearchData.Value;
-	const FString AssetPath = SearchData.AssetPath.ToString();
-	if (FiBSerializationHelpers::ValidateSearchDataVersionInfo(AssetPath, EncodedString, SearchData.VersionInfo))
-	{
-		// Parse the data into json and then clear the memory
-		SearchData.ImaginaryBlueprint = MakeShareable(new FImaginaryBlueprint(FPaths::GetBaseFilename(AssetPath), AssetPath, SearchData.ParentClass, SearchData.Interfaces, EncodedString, SearchData.VersionInfo));
-		SearchData.ClearEncodedValue();
-
-		return true;
-	}
-
-	return false;
-}
-
-void FFindInBlueprintSearchManager::ExtractUnloadedFiBData(const FAssetData& InAssetData, FString* InFiBData, FName InKeyForFiBData, EFiBVersion InFiBDataVersion)
+void FFindInBlueprintSearchManager::ExtractUnloadedFiBData(const FAssetData& InAssetData, const FString& InFiBData, EFiBVersion InFiBDataVersion)
 {
 	CSV_SCOPED_TIMING_STAT(FindInBlueprint, ExtractUnloadedFiBData);
 	CSV_CUSTOM_STAT(FindInBlueprint, ExtractUnloadedCountThisFrame, 1, ECsvCustomStatOp::Accumulate);
@@ -2323,22 +2281,13 @@ void FFindInBlueprintSearchManager::ExtractUnloadedFiBData(const FAssetData& InA
 		}
 	}
 
-	if (InFiBData)
-	{
-		NewSearchData.Value = MoveTemp(*InFiBData);
-	}
-	else
-	{
-		NewSearchData.Value.Empty();
-	}
-
-	NewSearchData.AssetKeyForValue = InKeyForFiBData;
+	NewSearchData.Value = InFiBData;
 
 	// This will be set to 'None' if the data is versioned. Deserialization of the actual version from the tag value is deferred until later.
 	NewSearchData.VersionInfo.FiBDataVersion = InFiBDataVersion;
 
 	// In these modes, or if there is no tag data, no additional indexing work is deferred for unloaded assets.
-	if (!bDisableDeferredIndexing && !bDisableThreadedIndexing && NewSearchData.HasEncodedValue())
+	if (!bDisableDeferredIndexing && !bDisableThreadedIndexing && NewSearchData.Value.Len() > 0)
 	{
 		// Add it to the list of assets that require a full index rebuild from the metadata. This work will not block the main thread and is decoupled from the search thread.
 		PendingAssets.Add(NewSearchData.AssetPath);
@@ -2630,7 +2579,7 @@ void FFindInBlueprintSearchManager::AddOrUpdateBlueprintSearchMetadata(UBlueprin
 	if (SearchData.IsValid())
 	{
 		// Clear any previously-gathered data.
-		SearchData.ClearEncodedValue();
+		SearchData.Value.Empty();
 
 		// Update version info stored in database. This indicates which format to use when regenerating the tag value.
 		SearchData.VersionInfo = FSearchDataVersionInfo::Current;
@@ -2868,11 +2817,13 @@ bool FFindInBlueprintSearchManager::ContinueSearchQuery(const FStreamSearch* InS
 			SearchData = GetSearchDataForAssetPath(SearchData.AssetPath);
 
 			// If there is FiB data, parse it into an ImaginaryBlueprint
-			if (SearchData.IsValid() && SearchData.HasEncodedValue())
+			if (SearchData.IsValid() && SearchData.Value.Len() > 0)
 			{
-				if (ProcessEncodedValueForUnloadedBlueprint(SearchData))
+				const FString AssetPath = SearchData.AssetPath.ToString();
+				if (FiBSerializationHelpers::ValidateSearchDataVersionInfo(AssetPath, SearchData.Value, SearchData.VersionInfo))
 				{
-					check(SearchData.ImaginaryBlueprint.IsValid());
+					SearchData.ImaginaryBlueprint = MakeShareable(new FImaginaryBlueprint(FPaths::GetBaseFilename(SearchData.AssetPath.ToString()), SearchData.AssetPath.ToString(), SearchData.ParentClass, SearchData.Interfaces, SearchData.Value, SearchData.VersionInfo));
+					SearchData.Value.Empty();
 
 					// In the case of parallel global searches, two search threads may be looking at the same entry. Thus, we only allow one search thread to be actively parsing JSON nodes.
 					SearchData.ImaginaryBlueprint->EnableInterlockedParsing();
@@ -3487,7 +3438,7 @@ bool FFindInBlueprintSearchManager::IsAsyncSearchQueryInProgress() const
 	return ActiveSearchQueries.Num() > 0;
 }
 
-TSharedPtr< FJsonObject > FFindInBlueprintSearchManager::ConvertJsonStringToObject(FSearchDataVersionInfo InVersionInfo, const FString& InJsonString, TMap<int32, FText>& OutFTextLookupTable)
+TSharedPtr< FJsonObject > FFindInBlueprintSearchManager::ConvertJsonStringToObject(FSearchDataVersionInfo InVersionInfo, FString InJsonString, TMap<int32, FText>& OutFTextLookupTable)
 {
 	/** The searchable data is more complicated than a Json string, the Json being the main searchable body that is parsed. Below is a diagram of the full data:
 	 *  | int32 "Version" | int32 "Size" | TMap "Lookup Table" | Json String |
