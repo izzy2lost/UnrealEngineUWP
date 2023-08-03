@@ -3159,9 +3159,9 @@ public:
 		Dispatcher.QueueSet(Dispatcher.Context.GetReferencingObject(), UE::Core::Private::Unsafe::Decay(*Objects), ETokenlessId::Collector, MayKill());
 	}
 	
-	virtual bool MarkWeakObjectReferenceForClearing(UObject** WeakReference) override
+	virtual bool MarkWeakObjectReferenceForClearing(UObject** WeakReference, UObject* ReferenceOwner) override
 	{
-		Dispatcher.Context.WeakReferences.Add(WeakReference);
+		Dispatcher.Context.WeakReferences.Add({ *WeakReference, WeakReference, ReferenceOwner });
 		return true;
 	}
 };
@@ -3376,9 +3376,9 @@ public:
 		}
 	}
 
-	virtual bool MarkWeakObjectReferenceForClearing(UObject** WeakReference) override
+	virtual bool MarkWeakObjectReferenceForClearing(UObject** WeakReference, UObject* ReferenceOwner) override
 	{
-		Context.WeakReferences.Add(WeakReference);
+		Context.WeakReferences.Add({ *WeakReference, WeakReference, ReferenceOwner });
 		return true;
 	}
 };
@@ -3913,25 +3913,25 @@ private:
 		if (GReachabilityState.IsSuspended())
 		{
 			Context = GReachabilityState.GetContextArray()[0];
+			InitialObjects.Reset();
 		}
 		else
 		{
 			Context = Pool.AllocateFromPool();
-
-			if (!Private::GReachableObjects.IsEmpty())
-			{
-				InitialObjects.Reset();
-				Private::GReachableObjects.PopAllAndEmpty(InitialObjects);
-				UE_LOG(LogGarbage, Log, TEXT("GC restarting reachability due to Reachable Objects list not being empty (%d objects to process)"), InitialObjects.Num());
-				ConditionallyAddBarrierReferencesToHistory(*Context);
-			}
-			else
-			{
-				Context->InitialNativeReferences = GetInitialReferences(Options);
-			}
-
-			Context->SetInitialObjectsUnpadded(InitialObjects);
 		}
+
+		if (!Private::GReachableObjects.IsEmpty())
+		{
+			Private::GReachableObjects.PopAllAndEmpty(InitialObjects);
+			UE_LOG(LogGarbage, Verbose, TEXT("Adding %d object(s) marker by GC barrier to the list of objects to process"), InitialObjects.Num());
+			ConditionallyAddBarrierReferencesToHistory(*Context);
+		}
+		else if (GReachabilityState.GetNumIterations() == 0 || (Stats.bFoundGarbageRef && !GReachabilityState.IsSuspended()))
+		{
+			Context->InitialNativeReferences = GetInitialReferences(Options);
+		}
+
+		Context->SetInitialObjectsUnpadded(InitialObjects);
 
 		PerformReachabilityAnalysisOnObjects(Context, Options);
 
@@ -4576,20 +4576,67 @@ void GatherUnreachableObjects(bool bForceSingleThreaded)
 namespace UE::GC
 {
 
+class FWeakReferenceEliminator final : public TReachabilityCollectorBase<EGCOptions::None>
+{
+
+public:
+	FWeakReferenceEliminator() = default;
+		
+	virtual void HandleObjectReference(UObject*& InObject, const UObject* InReferencingObject, const FProperty* InReferencingProperty) override 
+	{
+		if (InObject && InObject->IsUnreachable())
+		{
+			InObject = nullptr;
+		}
+	}
+	
+	virtual bool MarkWeakObjectReferenceForClearing(UObject** WeakReference, UObject* ReferenceOwner) override
+	{
+		if (WeakReference && *WeakReference && (*WeakReference)->IsUnreachable())
+		{
+			*WeakReference = nullptr;
+		}
+		return true;
+	}
+};
+
+template <bool bGatheredWithIncrementalReachability = true>
 static void ClearWeakReferences(TConstArrayView<TUniquePtr<FWorkerContext>> Contexts)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ClearWeakReferences);
+	TSet<UObject*> ObjectsThatNeedWeakReferenceClearing;
 	for (const TUniquePtr<FWorkerContext>& Context : Contexts)
 	{
-		for (UObject** WeakReference : Context->WeakReferences)
+		for (FWeakReferenceInfo& ReferenceInfo : Context->WeakReferences)
 		{
-			UObject*& ReferencedObject = *WeakReference;
+			UObject* ReferencedObject = ReferenceInfo.ReferencedObject;
 			if (ReferencedObject && ReferencedObject->IsUnreachable())
 			{
-				ReferencedObject = nullptr;
+				if constexpr (bGatheredWithIncrementalReachability)
+				{
+					// When running incremental reachability we can't assume the Reference pointer is still valid
+					// so instead collect all referencing objects and run AddReferencedObjects on them again with
+					// a special collector that will null out references to unrachable objects
+					ObjectsThatNeedWeakReferenceClearing.Add(ReferenceInfo.ReferenceOwner);
+				}
+				else
+				{
+					*ReferenceInfo.Reference = nullptr;
+				}
 			}
 		}
 		Context->WeakReferences.Reset();
+	}
+	if constexpr (bGatheredWithIncrementalReachability)
+	{
+		FWeakReferenceEliminator ReferenceEliminator;
+		for (UObject* Object : ObjectsThatNeedWeakReferenceClearing)
+		{
+			if (Object && !Object->IsUnreachable())
+			{
+				Object->GetClass()->CallAddReferencedObjects(Object, ReferenceEliminator);
+			}
+		}
 	}
 }
 
@@ -4859,7 +4906,14 @@ void PostCollectGarbageImpl(EObjectFlags KeepFlags)
 		GatherUnreachableObjects(!(GetReferenceCollectorOptions(bPerformFullPurge) & EGCOptions::Parallel));
 
 		// This needs to happen after GatherUnreachableObjects since it can mark more objects as unreachable
-		ClearWeakReferences(AllContexts);
+		if (GReachabilityState.GetNumIterations() > 1)
+		{
+			ClearWeakReferences<true>(AllContexts);
+		}
+		else
+		{
+			ClearWeakReferences<false>(AllContexts);
+		}
 
 		if (bPerformFullPurge)
 		{
@@ -5079,6 +5133,11 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysisAndConditionallyPurg
 
 void FReachabilityAnalysisState::PerformReachabilityAnalysis()
 {
+	if (!bIsSuspended)
+	{
+		Init();
+	}
+
 	if (bPerformFullPurge)
 	{
 		UE::GC::CollectGarbageFull(ObjectKeepFlags);
@@ -5087,6 +5146,8 @@ void FReachabilityAnalysisState::PerformReachabilityAnalysis()
 	{
 		UE::GC::CollectGarbageIncremental(ObjectKeepFlags);
 	}
+
+	FinishIteration();
 }
 
 } // namespace UE::GC
@@ -5894,43 +5955,58 @@ ELoot StealWork(FWorkerContext& Context, FReferenceCollector& Collector, FWorkBl
 
 TArrayView<FWorkerContext*> InitializeAsyncProcessingContexts(FWorkerContext& InContext)
 {
-	FContextPoolScope ContextPool;
+	TArrayView<FWorkerContext*> Contexts;
 
-	checkf(InContext.ObjectsToSerialize.IsUnused(), TEXT("Use InitialObjects instead, ObjectsToSerialize.Add() may only be called during reference processing"));
-	check(InContext.Stats.NumObjects == 0 && InContext.Stats.NumReferences == 0 && InContext.Stats.bFoundGarbageRef == false);
+	if (!GReachabilityState.IsSuspended())
+	{
+		FContextPoolScope ContextPool;
+
+		checkf(InContext.ObjectsToSerialize.IsUnused(), TEXT("Use InitialObjects instead, ObjectsToSerialize.Add() may only be called during reference processing"));
+		check(InContext.Stats.NumObjects == 0 && InContext.Stats.NumReferences == 0 && InContext.Stats.bFoundGarbageRef == false);
+
+		const int32 NumTaskgraphWorkers = FTaskGraphInterface::Get().GetNumWorkerThreads();
+		const int32 NumWorkers = FMath::Clamp(NumTaskgraphWorkers, 1, MaxWorkers);
+
+		GReachabilityState.SetupWorkers(NumWorkers);
+
+		// Allocate contexts	
+		checkf(ContextPool.NumAllocated() == 1, TEXT("Other contexts forbidden during parallel reference collection. Work-stealing from all live contexts. "));
+
+		Contexts = MakeArrayView(GReachabilityState.GetContextArray(), GReachabilityState.GetNumWorkers());
+		Contexts[0] = &InContext;
+		for (FWorkerContext*& Context : Contexts.RightChop(1))
+		{
+			Context = ContextPool.AllocateFromPool();
+		}
+
+		GSlowARO.GetPostInit().SetupWorkerQueues(NumWorkers);
+
+		// Setup work-stealing queues
+		for (FWorkerContext* Context : Contexts)
+		{
+			const int32 Idx = Context->GetWorkerIndex();
+			check(Idx >= 0 && Idx < NumWorkers);
+			Context->ObjectsToSerialize.SetAsyncQueue(GWorkstealingManager.Queues[Idx]);
+			checkf(!Context->IncrementalStructs.ContainsBatchData(), TEXT("Reachability analysis is done but worker context holds suspended dispatcher state"));
+		}
+	}
+	else
+	{
+		Contexts = MakeArrayView(GReachabilityState.GetContextArray(), GReachabilityState.GetNumWorkers());
+	}
 
 	TConstArrayView<UObject*> InitialObjects = InContext.GetInitialObjects();
 	TConstArrayView<UObject**> InitialReferences = InContext.InitialNativeReferences;
+	const int32 ObjPerWorker = (InitialObjects.Num() + GReachabilityState.GetNumWorkers() - 1) / GReachabilityState.GetNumWorkers();
+	const int32 RefPerWorker = (InitialReferences.Num() + GReachabilityState.GetNumWorkers() - 1) / GReachabilityState.GetNumWorkers();
 
-	int32 NumTaskgraphWorkers = FTaskGraphInterface::Get().GetNumWorkerThreads();
-	const int32 NumWorkers = FMath::Clamp(NumTaskgraphWorkers, 1, MaxWorkers);
-	const int32 ObjPerWorker = (InitialObjects.Num() + NumWorkers - 1) / NumWorkers;
-	const int32 RefPerWorker = (InitialReferences.Num() + NumWorkers - 1) / NumWorkers;
-
-	GReachabilityState.InitReachabilityAnalysis(NumWorkers);
-
-	// Allocate contexts	
-	checkf(ContextPool.NumAllocated() == 1, TEXT("Other contexts forbidden during parallel reference collection. Work-stealing from all live contexts. "));
-
-	TArrayView<FWorkerContext*> Contexts = MakeArrayView(GReachabilityState.GetContextArray(), GReachabilityState.GetNumWorkers());
-	Contexts[0] = &InContext;
-	for (FWorkerContext*& Context : Contexts.RightChop(1))
-	{
-		Context = ContextPool.AllocateFromPool();
-	}
-
-	GSlowARO.GetPostInit().SetupWorkerQueues(NumWorkers);
-
-	// Setup work-stealing queues and distribute initial workload across worker contexts
+	// Distribute initial workload across worker contexts
 	for (FWorkerContext* Context : Contexts)
 	{
-		int32 Idx = Context->GetWorkerIndex();
-		check(Idx >= 0 && Idx < NumWorkers);
-		Context->ObjectsToSerialize.SetAsyncQueue(GWorkstealingManager.Queues[Idx]);
+		const int32 Idx = Context->GetWorkerIndex();
 		// Initial objects is already padded at the end and its safe to prefetch in the middle too
 		Context->SetInitialObjectsPrepadded(InitialObjects.Mid(Idx * ObjPerWorker, ObjPerWorker));
 		Context->InitialNativeReferences = InitialReferences.Mid(Idx * RefPerWorker, RefPerWorker);
-		checkf(!Context->IncrementalStructs.ContainsBatchData(), TEXT("Reachability analysis is done but worker context holds suspended dispatcher state"));
 	}
 
 	return Contexts;
@@ -5956,27 +6032,19 @@ void ReleaseAsyncProcessingContexts(FWorkerContext& InContext, TArrayView<FWorke
 		ContextPool.ReturnToPool(Context);
 	}
 
-	GReachabilityState.FinishReachabilityAnalysis();
+	GReachabilityState.ResetWorkers();
 }
 
 void ProcessAsync(void (*ProcessSync)(void*, FWorkerContext&), void* Processor, FWorkerContext& InContext)
 {
 	using namespace UE::GC;
 
-	TArrayView<FWorkerContext*> Contexts;
-	if (!GReachabilityState.IsSuspended())
-	{
-		Contexts = InitializeAsyncProcessingContexts(InContext);
-	}
-	else
-	{
-		Contexts = MakeArrayView(GReachabilityState.GetContextArray(), GReachabilityState.GetNumWorkers());
-	}
-	
+	TArrayView<FWorkerContext*> Contexts = InitializeAsyncProcessingContexts(InContext);
+
 	TSharedRef<FWorkCoordinator> WorkCoordinator = MakeShared<FWorkCoordinator>(Contexts, FTaskGraphInterface::Get().GetNumWorkerThreads());
 	for (FWorkerContext* Context : Contexts)
 	{
-		Context->bIsSuspended = false;
+		Context->bDidWork = false;
 		Context->Coordinator = &WorkCoordinator.Get();
 	}
 
@@ -6001,12 +6069,37 @@ void ProcessAsync(void (*ProcessSync)(void*, FWorkerContext&), void* Processor, 
 	// Wait until all work is complete. Current thread can steal and complete everything 
 	// alone if task workers are busy with long-running tasks.
 	WorkCoordinator->SpinUntilAllStopped();
-
-	// Reset initial object sets so that we don't process again them in the next iteration or when we're done processing references
+	
 	for (FWorkerContext* Context : Contexts)
 	{
+		// Reset initial object sets so that we don't process again them in the next iteration or when we're done processing references
 		Context->ResetInitialObjects();
 		Context->InitialNativeReferences = TConstArrayView<UObject**>();
+
+		// Update contexts' suspended state. This is necessary because some context may have their work stolen and never started (resumed) work.
+		if (Context->ObjectsToSerialize.HasWork())
+		{
+			if (!Context->bDidWork)
+			{
+				if (GReachabilityState.IsTimeLimitExceeded())
+				{
+					Context->bIsSuspended = true;
+				}
+				else
+				{
+					// Rare case where this context's work has been completely dropped because incremental reachability does not support context stealing
+					WorkCoordinator->TryStartWorking(Context->GetWorkerIndex());
+					ProcessSync(Processor, *Context);
+					checkf(!Context->ObjectsToSerialize.HasWork(), TEXT("GC Context %d was processed but it stil has unfinished work"), Context->GetWorkerIndex());
+				}
+			}
+			check(GReachabilityState.IsTimeLimitExceeded() || !Context->ObjectsToSerialize.HasWork());
+		}
+		else if (!GReachabilityState.IsTimeLimitExceeded()) // !WithTimeLimit
+		{
+			// This context's work has been stolen by another context so it never had a chance to spin and clear its bIsSuspended flag
+			Context->bIsSuspended = false;
+		}
 	}
 
 	if (!GReachabilityState.CheckIfAnyContextIsSuspended())

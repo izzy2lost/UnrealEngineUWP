@@ -46,6 +46,9 @@ private:
 	/** Total time of the actual reference traversal */
 	double ReferenceProcessingTotalTime = 0.0;
 
+	/** Number of reachability analysis iterations performed during reachability analysis */
+	int32 NumIterations = 0;
+
 	alignas (PLATFORM_CACHE_LINE_SIZE) double IterationStartTime = 0.0;
 	alignas (PLATFORM_CACHE_LINE_SIZE) double IterationTimeLimit = 0.0;
 
@@ -95,8 +98,16 @@ public:
 		return Contexts;
 	}
 
-	/** Initializes internal variables and sets the expected number of worker threads */
-	void InitReachabilityAnalysis(int32 InNumWorkers);
+	FORCEINLINE int32 GetNumIterations() const
+	{
+		return NumIterations;
+	}
+
+	/** Initializes reachability analysis */
+	void Init();
+
+	/** Initializes expected number of worker threads */
+	void SetupWorkers(int32 InNumWorkers);
 
 	/** Main Garbage Collection function executed on Reachability Analysis Thread when StartEvent has been triggered */
 	void PerformReachabilityAnalysis();
@@ -108,7 +119,10 @@ public:
 	bool CheckIfAnyContextIsSuspended();
 
 	/** Resets workers after reachability analysis is fully complete */
-	void FinishReachabilityAnalysis();
+	void ResetWorkers();
+
+	/** Marks the end of reachability iteration */
+	void FinishIteration();
 };
 
 } // namespace UE::GC

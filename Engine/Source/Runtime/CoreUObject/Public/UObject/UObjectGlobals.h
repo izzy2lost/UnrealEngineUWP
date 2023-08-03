@@ -2684,7 +2684,7 @@ public:
 	 * Marks a specific object reference as a weak reference. This does not affect GC but will be freed at a later point
 	 * The default behavior returns false as weak references must be explicitly supported
 	 */
-	virtual bool MarkWeakObjectReferenceForClearing(UObject** WeakReference) { return false; }
+	virtual bool MarkWeakObjectReferenceForClearing(UObject** WeakReference, UObject* ReferenceOwner) { return false; }
 	/**
 	 * Sets whether this collector is currently processing native references or not.
 	 */

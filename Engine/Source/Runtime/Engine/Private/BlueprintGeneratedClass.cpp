@@ -2120,16 +2120,16 @@ class FPersistentFrameCollector final : public FReferenceCollector //-V1052
 	FReferenceCollector& InnerCollector;
 #if UE_CHECK_BLUEPRINT_REFERENCES
 	const uint8* PersistentFrameDataAddr;
-	const UObject* Blueprint;
 #endif
+	UObject* Blueprint;
 
 public:
 	FPersistentFrameCollector(FReferenceCollector& Collector, uint8* Instance, UObject* InBlueprint)
 	: InnerCollector(Collector)
 #if UE_CHECK_BLUEPRINT_REFERENCES
 	, PersistentFrameDataAddr(Instance)
-	, Blueprint(InBlueprint)
 #endif
+	, Blueprint(InBlueprint)
 	{}
 
 
@@ -2204,7 +2204,7 @@ public:
 				if (const FObjectProperty* ObjectProperty = CastField<const FObjectProperty>(ReferencingProperty))
 				{
 					// This was a raw UObject* serialized by FObjectProperty, so just save the address
-					if (InnerCollector.MarkWeakObjectReferenceForClearing(&Object))
+					if (InnerCollector.MarkWeakObjectReferenceForClearing(&Object, Blueprint))
 					{
 						return;
 					}

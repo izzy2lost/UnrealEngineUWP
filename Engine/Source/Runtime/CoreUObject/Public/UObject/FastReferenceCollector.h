@@ -179,7 +179,11 @@ public:
 	void SetWorkerIndex(int32 Idx) { WorkerIndex = Idx; }
 	int32 GetWorkerIndex() const { return WorkerIndex; }
 
-	
+	bool HasWork() const
+	{
+		return PartialNum() != 0;
+	}
+
 private:
 	UObject** WipIt; // Wip->Objects cursor
 	FWorkBlock* Wip;
@@ -262,6 +266,12 @@ struct FSuspendedStructBatch
 	}
 };
 
+struct FWeakReferenceInfo
+{
+	UObject* ReferencedObject = nullptr;
+	UObject** Reference = nullptr;
+	UObject* ReferenceOwner = nullptr;
+};
 
 /** Thread-local context containing initial objects and references to collect */
 struct alignas(PLATFORM_CACHE_LINE_SIZE) FWorkerContext
@@ -282,7 +292,7 @@ public:
 	FWorkBlockifier ObjectsToSerialize;
 	TConstArrayView<UObject**> InitialNativeReferences;
 	FWorkCoordinator* Coordinator = nullptr;
-	TArray<UObject**> WeakReferences;
+	TArray<FWeakReferenceInfo> WeakReferences;
 	FProcessorStats Stats;
 
 #if !UE_BUILD_SHIPPING
@@ -294,6 +304,7 @@ public:
 
 	FSuspendedStructBatch IncrementalStructs;
 	bool bIsSuspended = false;
+	bool bDidWork = false;
 
 	FORCEINLINE UObject* GetReferencingObject()	{ return ReferencingObject;	}
 
@@ -691,6 +702,8 @@ public:
 
 	void ProcessObjectArray(FWorkerContext& Context)
 	{
+		Context.bDidWork = true;
+		Context.bIsSuspended = false;
 		static_assert(!EnumHasAllFlags(Options, EGCOptions::Parallel | EGCOptions::AutogenerateSchemas), "Can't assemble token streams in parallel");
 		
 		CollectorType Collector(Processor, Context);
@@ -720,8 +733,9 @@ StoleContext:
 
 			if (Processor.IsTimeLimitExceeded())
 			{
+				FlushWork(Dispatcher);
 				Dispatcher.Suspend();
-				SuspendWork(Context);				
+				SuspendWork(Context);
 				return;
 			}
 
@@ -736,15 +750,7 @@ StoleContext:
 				}
 
 StoleARO:
-				if constexpr (DispatcherType::bBatching)
-				{
-					if (Dispatcher.FlushToStructBlocks())
-					{
-						ProcessStructs(Dispatcher);
-					}
-					
-					Dispatcher.FlushQueuedReferences();
-				}
+				FlushWork(Dispatcher);
 
 				if (	 Block = RemainingObjects.PopFullBlock<Options>(); Block);
 				else if (Block = RemainingObjects.PopPartialBlock(/* out if successful */ BlockSize); Block);
@@ -768,6 +774,7 @@ StoleARO:
 			CurrentObjects = MakeArrayView(Block->Objects, BlockSize);
 		} // while (true)
 		
+		check(!Context.ObjectsToSerialize.HasWork());
 		Processor.LogDetailedStatsSummary();
 	}
 
@@ -808,6 +815,19 @@ private:
 				Private::VisitMembers(Dispatcher, Schema, CurrentObject);
 				Processor.UpdateDetailedStats(CurrentObject);
 			}
+		}
+	}
+
+	FORCEINLINE_DEBUGGABLE void FlushWork(DispatcherType& Dispatcher)
+	{
+		if constexpr (DispatcherType::bBatching)
+		{
+			if (Dispatcher.FlushToStructBlocks())
+			{
+				ProcessStructs(Dispatcher);
+			}
+
+			Dispatcher.FlushQueuedReferences();
 		}
 	}
 

@@ -306,7 +306,7 @@ namespace UE::ReferenceChainSearch
 			{
 				return false;
 			}
-			virtual bool MarkWeakObjectReferenceForClearing(UObject** WeakReference)
+			virtual bool MarkWeakObjectReferenceForClearing(UObject** WeakReference, UObject* ReferenceOwner)
 			{
 				// To avoid false positives we need to implement this method just like GC does
 				// as these references will be treated as weak and should not be reported

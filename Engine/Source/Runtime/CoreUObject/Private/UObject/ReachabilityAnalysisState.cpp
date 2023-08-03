@@ -13,7 +13,12 @@
 namespace UE::GC
 {
 
-void FReachabilityAnalysisState::InitReachabilityAnalysis(int32 InNumWorkers)
+void FReachabilityAnalysisState::Init()
+{
+	NumIterations = 0;
+}
+
+void FReachabilityAnalysisState::SetupWorkers(int32 InNumWorkers)
 {
 	NumWorkers = InNumWorkers;
 	Stats = {};
@@ -25,9 +30,14 @@ void FReachabilityAnalysisState::UpdateStats(const FProcessorStats& InStats)
 	Stats.AddStats(InStats);
 }
 
-void FReachabilityAnalysisState::FinishReachabilityAnalysis()
+void FReachabilityAnalysisState::ResetWorkers()
 {
 	NumWorkers = 0;
+}
+
+void FReachabilityAnalysisState::FinishIteration()
+{
+	NumIterations++;
 }
 
 bool FReachabilityAnalysisState::CheckIfAnyContextIsSuspended()

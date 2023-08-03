@@ -904,7 +904,7 @@ void UDataRegistrySubsystem::AddReferencedObjects(UObject* InThis, FReferenceCol
 		for (FRegistryMapPair& RegistryPair : This->RegistryMap)
 		{
 			// In editor builds we mark this as a weak reference so it can be deleted properly
-			Collector.MarkWeakObjectReferenceForClearing(reinterpret_cast<UObject**>(&RegistryPair.Value));
+			Collector.MarkWeakObjectReferenceForClearing(reinterpret_cast<UObject**>(&RegistryPair.Value), This);
 		}
 	}
 	else
