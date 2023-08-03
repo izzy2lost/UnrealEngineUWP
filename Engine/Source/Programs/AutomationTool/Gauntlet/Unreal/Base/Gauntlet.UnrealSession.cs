@@ -1067,7 +1067,10 @@ namespace Gauntlet
 
 		public void ReleaseSessionDevices()
 		{
-			UnrealDeviceReservation.ReleaseDevices();
+			if (UnrealDeviceReservation != null)
+			{
+				UnrealDeviceReservation.ReleaseDevices();
+			}
 			if (RolesToInstalls != null)
 			{
 				RolesToInstalls.Clear();
