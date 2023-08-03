@@ -231,7 +231,7 @@ void UMassRepresentationProcessor::UpdateRepresentation(FMassExecutionContext& C
 	if (UE::Mass::Representation::Debug::DebugRepresentation >= 2)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(VisLogRepresentation)
-		UE::Mass::Representation::Debug::VisLogRepresentation(Context, RepresentationList, TransformList, this);
+		UE::Mass::Representation::Debug::VisLogRepresentation(Context, RepresentationList, TransformList, RepresentationSubsystem);
 	}
 #endif
 }
@@ -313,6 +313,7 @@ void UMassVisualizationProcessor::ConfigureQueries()
 {
 	Super::ConfigureQueries();
 	EntityQuery.AddChunkRequirement<FMassVisualizationChunkFragment>(EMassFragmentAccess::ReadWrite);
+	EntityQuery.AddTagRequirement<FMassVisualizationProcessorTag>(EMassFragmentPresence::All);
 }
 
 FMassVisualizationChunkFragment& UMassVisualizationProcessor::UpdateChunkVisibility(FMassExecutionContext& Context) const

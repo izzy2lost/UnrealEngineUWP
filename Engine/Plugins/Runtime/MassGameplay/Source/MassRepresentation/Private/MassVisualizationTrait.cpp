@@ -11,6 +11,7 @@
 #include "MassActorSubsystem.h"
 #include "MassEntityUtils.h"
 #include "MassVisualizationLODProcessor.h"
+#include "MassRepresentationProcessor.h"
 
 
 UMassVisualizationTrait::UMassVisualizationTrait()
@@ -98,6 +99,7 @@ void UMassVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildContext& Bui
 	BuildContext.AddChunkFragment<FMassVisualizationChunkFragment>();
 
 	BuildContext.AddTag<FMassVisualizationLODProcessorTag>();
+	BuildContext.AddTag<FMassVisualizationProcessorTag>();
 }
 
 

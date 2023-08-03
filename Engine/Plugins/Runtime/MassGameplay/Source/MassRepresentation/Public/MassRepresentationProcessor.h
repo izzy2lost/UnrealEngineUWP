@@ -27,6 +27,12 @@ class MASSREPRESENTATION_API UMassRepresentationProcessor : public UMassProcesso
 public:
 	UMassRepresentationProcessor();
 
+	/*
+	 * Update representation type for each entity, must be called within a ForEachEntityChunk
+	 * @param Context of the execution from the entity sub system
+	 */
+	static void UpdateRepresentation(FMassExecutionContext& Context);
+
 protected:
 
 	/** Configure the owned FMassEntityQuery instances to express processor's requirements */
@@ -50,17 +56,22 @@ protected:
 	 * @param bCancelSpawningOnly tell to only cancel the existing spawning request and to not release the associated actor it any.
 	 * @return if the actor was release or the spawning was canceled.
 	 */
-	bool ReleaseActorOrCancelSpawning(UMassRepresentationSubsystem& RepresentationSubsystem, UMassActorSubsystem* MassActorSubsystem
+	static bool ReleaseActorOrCancelSpawning(UMassRepresentationSubsystem& RepresentationSubsystem, UMassActorSubsystem* MassActorSubsystem
 		, const FMassEntityHandle MassAgent, FMassActorFragment& ActorInfo, const int16 TemplateActorIndex, FMassActorSpawnRequestHandle& SpawnRequestHandle
 		, FMassCommandBuffer& CommandBuffer, const bool bCancelSpawningOnly = false);
 
-	/*
-	 * Update representation type for each entity, must be called within a ForEachEntityChunk
-	 * @param Context of the execution from the entity sub system
-	 */
-	void UpdateRepresentation(FMassExecutionContext& Context);
-
 	FMassEntityQuery EntityQuery;
+};
+
+	
+/**
+ * Tag required by Visualization Processor to process given archetype. Removing the tag allows to support temporary
+ * disabling of processing for individual entities of given archetype.
+ */
+USTRUCT()
+struct MASSREPRESENTATION_API FMassVisualizationProcessorTag : public FMassTag
+{
+	GENERATED_BODY();
 };
 
 UCLASS()
