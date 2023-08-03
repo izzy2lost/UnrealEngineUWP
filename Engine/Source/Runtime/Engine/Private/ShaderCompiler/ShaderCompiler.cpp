@@ -7966,6 +7966,21 @@ protected:
 
 namespace
 {
+	void ListAllShaderTypes()
+	{
+		UE_LOG(LogShaderCompilers, Display, TEXT("ShaderTypeName, Filename"));
+		for (TLinkedList<FShaderType*>::TIterator It(FShaderType::GetTypeList()); It; It.Next())
+		{
+			UE_LOG(LogShaderCompilers, Display, TEXT("%s, %s "), (*It)->GetName(), (*It)->GetShaderFilename());
+		}
+
+		UE_LOG(LogShaderCompilers, Display, TEXT("VertexFactoryTypeName, Filename"));
+		for (TLinkedList<FVertexFactoryType*>::TIterator It(FVertexFactoryType::GetTypeList()); It; It.Next())
+		{
+			UE_LOG(LogShaderCompilers, Display, TEXT("%s, %s"), (*It)->GetName(), (*It)->GetShaderFilename());
+		}
+	}
+
 	ODSCRecompileCommand ParseRecompileCommandString(const TCHAR* CmdString, TArray<FString>& OutMaterialsToLoad, FString& OutShaderTypesToLoad)
 	{
 		FString CmdName = FParse::Token(CmdString, 0);
@@ -8028,6 +8043,10 @@ namespace
 			{
 				OutMaterialsToLoad.Add(It->GetPathName());
 			}
+		}
+		else if (FCString::Stricmp(*CmdName, TEXT("listtypes")))
+		{
+			ListAllShaderTypes();
 		}
 		else
 		{
@@ -8183,7 +8202,7 @@ bool RecompileShaders(const TCHAR* Cmd, FOutputDevice& Ar)
 
 #if WITH_EDITOR
 	FString FlagStr(FParse::Token(Cmd, 0));
-	if( FlagStr.Len() > 0 )
+	if (FlagStr.Len() > 0)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(RecompileShaders);
 		GWarn->BeginSlowTask( NSLOCTEXT("ShaderCompilingManager", "BeginRecompilingShadersTask", "Recompiling shaders"), true );
@@ -8192,7 +8211,7 @@ bool RecompileShaders(const TCHAR* Cmd, FOutputDevice& Ar)
 		FlushShaderFileCache();
 		FlushRenderingCommands();
 
-		if( FCString::Stricmp(*FlagStr,TEXT("Changed"))==0)
+		if (FCString::Stricmp(*FlagStr,TEXT("Changed")) == 0)
 		{
 			TArray<const FShaderType*> OutdatedShaderTypes;
 			TArray<const FVertexFactoryType*> OutdatedFactoryTypes;
@@ -8229,12 +8248,12 @@ bool RecompileShaders(const TCHAR* Cmd, FOutputDevice& Ar)
 				UE_LOG(LogShaderCompilers, Warning, TEXT("No Shader changes found."));
 			}
 		}
-		else if( FCString::Stricmp(*FlagStr,TEXT("Global"))==0)
+		else if (FCString::Stricmp(*FlagStr, TEXT("Global")) == 0)
 		{
 			FRecompileShadersTimer TestTimer(TEXT("RecompileShaders Global"));
 			RecompileGlobalShaders();
 		}
-		else if( FCString::Stricmp(*FlagStr,TEXT("Material"))==0)
+		else if (FCString::Stricmp(*FlagStr, TEXT("Material")) == 0)
 		{
 			FString RequestedMaterialName(FParse::Token(Cmd, 0));
 			FRecompileShadersTimer TestTimer(FString::Printf(TEXT("Recompile Material %s"), *RequestedMaterialName));
@@ -8283,7 +8302,7 @@ bool RecompileShaders(const TCHAR* Cmd, FOutputDevice& Ar)
 				UE_LOG(LogShaderCompilers, Warning, TEXT("Couldn't find Material %s!"), *RequestedMaterialName);
 			}
 		}
-		else if( FCString::Stricmp(*FlagStr,TEXT("All"))==0)
+		else if (FCString::Stricmp(*FlagStr, TEXT("All")) == 0)
 		{
 			FRecompileShadersTimer TestTimer(TEXT("RecompileShaders"));
 			RecompileGlobalShaders();
@@ -8303,6 +8322,10 @@ bool RecompileShaders(const TCHAR* Cmd, FOutputDevice& Ar)
 					Material->PostEditChange();
 				}
 			}
+		}
+		else if (FCString::Stricmp(*FlagStr, TEXT("listtypes")) == 0)
+		{
+			ListAllShaderTypes();
 		}
 		else
 		{
@@ -8327,7 +8350,15 @@ bool RecompileShaders(const TCHAR* Cmd, FOutputDevice& Ar)
 		return true;
 	}
 
-	UE_LOG(LogShaderCompilers, Warning, TEXT("Invalid parameter. Options are: \n'Changed', 'Global', 'Material [name]', 'All'."));
+	UE_LOG(LogShaderCompilers, Warning, TEXT("Invalid parameter. \n"
+											 "Options are: \n"
+											 "    'Changed'             Recompile just the shaders that have source file changes.\n"
+											 "    'Global'              Recompile just the global shaders.\n"
+											 "    'Material [name]'     Recompile all the shaders for a single material.\n"
+											 "    'Listtypes'           List all the shader type and vertex factory type class names and their source file path.  Can be used to find shader file names to be used with `recompileshaders [shaderfilename]`.\n"
+											 "    'All'                 Recompile all materials.\n"
+											 "    [shaderfilename]      Compile the single shader associated with a specific filename.\n"
+											 ));
 #endif // WITH_EDITOR
 
 	return true;
