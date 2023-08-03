@@ -433,7 +433,7 @@ FVertexFactoryRayTracingInterpolants VertexFactoryInterpolate(FVertexFactoryRayT
 #if INTERPOLATE_VERTEX_COLOR
 	INTERPOLATE_MEMBER(InterpolantsVSToPS.Color);
 #endif
-#if USE_INSTANCING
+#if	NEEDS_PER_INSTANCE_PARAMS
 	INTERPOLATE_MEMBER(InterpolantsVSToPS.PerInstanceParams);
 #endif
 

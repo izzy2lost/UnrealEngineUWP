@@ -418,6 +418,8 @@ protected:
 	uint32 bEnableExecutionFlow : 1;
 
 	uint32 bUsesCurvature : 1;
+	/** true if PerInstanceFadeAmount expression is used */
+	uint32 bUsesPerInstanceFadeAmount : 1;
 
 	/** Tracks the texture coordinates used by this material. */
 	TBitArray<> AllocatedUserTexCoords;
