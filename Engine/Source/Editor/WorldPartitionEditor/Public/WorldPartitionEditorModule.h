@@ -54,6 +54,12 @@ public:
 	virtual void SetEnableLoadingInEditor(bool bInEnableLoadingInEditor) override;
 
 	/**
+	* Returns if streaming generation log on PIE is enabled or not.
+	*/
+	virtual bool GetEnableStreamingGenerationLogOnPIE() const override;
+	virtual void SetEnableStreamingGenerationLogOnPIE(bool bInEnableLoadingInEditor) override;
+
+	/**
 	 * Returns if pie is disabled or not.
 	 */
 	virtual bool GetDisablePIE() const override;

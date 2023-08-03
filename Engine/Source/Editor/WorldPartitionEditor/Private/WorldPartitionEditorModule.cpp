@@ -297,6 +297,16 @@ void FWorldPartitionEditorModule::SetEnableLoadingInEditor(bool bInEnableLoading
 	GetMutableDefault<UWorldPartitionEditorSettings>()->bEnableLoadingInEditor = bInEnableLoadingInEditor;
 }
 
+bool FWorldPartitionEditorModule::GetEnableStreamingGenerationLogOnPIE() const
+{
+	return GetDefault<UWorldPartitionEditorSettings>()->bEnableStreamingGenerationLogOnPIE;
+}
+
+void FWorldPartitionEditorModule::SetEnableStreamingGenerationLogOnPIE(bool bEnableStreamingGenerationLogOnPIE)
+{
+	GetMutableDefault<UWorldPartitionEditorSettings>()->bEnableStreamingGenerationLogOnPIE = bEnableStreamingGenerationLogOnPIE;
+}
+
 bool FWorldPartitionEditorModule::GetDisablePIE() const
 {
 	return GetDefault<UWorldPartitionEditorSettings>()->bDisablePIE;
@@ -819,6 +829,7 @@ UWorldPartitionEditorSettings::UWorldPartitionEditorSettings()
 	InstancedFoliageGridSize = 25600;
 	MinimapLowQualityWorldUnitsPerPixelThreshold = 12800;
 	bEnableLoadingInEditor = true;
+	bEnableStreamingGenerationLogOnPIE = true;
 	bDisablePIE = false;
 	bDisableBugIt = false;
 	bAdvancedMode = true;

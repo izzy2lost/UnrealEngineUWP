@@ -29,6 +29,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = WorldPartition, Meta = (ToolTip = "Wheter to enable dynamic loading in the editor through loading regions"))
 	bool bEnableLoadingInEditor;
 
+	UPROPERTY(Config, EditAnywhere, Category = WorldPartition, Meta = (ToolTip = "Wheter to enable streaming generation log on PIE"))
+	bool bEnableStreamingGenerationLogOnPIE;
+
 	bool bDisableBugIt;
 	bool bDisablePIE;
 	bool bAdvancedMode;

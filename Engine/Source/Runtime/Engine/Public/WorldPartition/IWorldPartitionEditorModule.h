@@ -39,6 +39,9 @@ public:
 	virtual bool GetEnableLoadingInEditor() const = 0;
 	virtual void SetEnableLoadingInEditor(bool bInEnableLoadingInEditor) = 0;
 
+	virtual bool GetEnableStreamingGenerationLogOnPIE() const = 0;
+	virtual void SetEnableStreamingGenerationLogOnPIE(bool bInEnableLoadingInEditor) = 0;
+
 	virtual bool GetDisablePIE() const = 0;
 	virtual void SetDisablePIE(bool bInDisablePIE) = 0;
 
