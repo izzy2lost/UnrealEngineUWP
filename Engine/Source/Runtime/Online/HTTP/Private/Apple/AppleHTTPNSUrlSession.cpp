@@ -814,16 +814,16 @@ void FAppleHttpNSUrlSessionRequest::Tick(float DeltaSeconds)
 {
 	if (Response.IsValid() && (CompletionStatus == EHttpRequestStatus::Processing || Response->HadError()))
 	{
-		if (OnRequestProgress().IsBound())
+		const uint64 BytesWritten = Response->GetNumBytesWritten();
+		const uint64 BytesRead = Response->GetNumBytesReceived();
+		if (BytesWritten != LastReportedBytesWritten || BytesRead != LastReportedBytesRead)
 		{
-			const int32 BytesWritten = Response->GetNumBytesWritten();
-			const int32 BytesRead = Response->GetNumBytesReceived();
-			if (BytesWritten != LastReportedBytesWritten || BytesRead != LastReportedBytesRead)
-			{
-				OnRequestProgress().ExecuteIfBound(SharedThis(this), BytesWritten, BytesRead);
-				LastReportedBytesWritten = BytesWritten;
-				LastReportedBytesRead = BytesRead;
-			}
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			OnRequestProgress().ExecuteIfBound(SharedThis(this), BytesWritten, BytesRead);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			OnRequestProgress64().ExecuteIfBound(SharedThis(this), BytesWritten, BytesRead);
+			LastReportedBytesWritten = BytesWritten;
+			LastReportedBytesRead = BytesRead;
 		}
 	}
 }

@@ -505,7 +505,7 @@ private:
 			FileProgressRequestsMap.Add(HttpRequest, FPendingFileRequest(FileName));
 
 			HttpRequest->OnProcessRequestComplete().BindRaw(this, &FOnlineTitleFileHttp::ReadFile_HttpRequestComplete);
-			HttpRequest->OnRequestProgress().BindRaw(this, &FOnlineTitleFileHttp::ReadFile_HttpRequestProgress);
+			HttpRequest->OnRequestProgress64().BindRaw(this, &FOnlineTitleFileHttp::ReadFile_HttpRequestProgress);
 			FString RequestUrl;
 			// Grab the file from the specified URL if that was set, otherwise use the old method that hits the game service
 			if (CloudFileHeader != nullptr && !CloudFileHeader->URL.IsEmpty())
@@ -712,7 +712,7 @@ private:
 		FileRequests.Remove(HttpRequest);
 		// remove from progress updates
 		FileProgressRequestsMap.Remove(HttpRequest);
-		HttpRequest->OnRequestProgress().Unbind();
+		HttpRequest->OnRequestProgress64().Unbind();
 
 		// Cloud file being operated on
 		FCloudEntry* CloudFile = GetCloudFile(PendingRequest.FileName, true);
@@ -760,7 +760,7 @@ private:
 	/**
 	* Delegate called as a Http request progresses for reading a cloud file
 	*/
-	void ReadFile_HttpRequestProgress(FHttpRequestPtr HttpRequest, int32 BytesSent, int32 BytesReceived)
+	void ReadFile_HttpRequestProgress(FHttpRequestPtr HttpRequest, uint64 BytesSent, uint64 BytesReceived)
 	{
 		FPendingFileRequest PendingRequest = FileProgressRequestsMap.FindChecked(HttpRequest);
 		// Just forward this to anyone that is listening

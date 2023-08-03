@@ -108,6 +108,15 @@ DECLARE_DELEGATE_ThreeParams(FHttpRequestHeaderReceivedDelegate, FHttpRequestPtr
 DECLARE_DELEGATE_ThreeParams(FHttpRequestProgressDelegate, FHttpRequestPtr /*Request*/, int32 /*BytesSent*/, int32 /*BytesReceived*/);
 
 /**
+ * Delegate called per tick to update an Http request upload or download size progress
+ *
+ * @param Request original Http request that started things
+ * @param BytesSent the number of bytes sent / uploaded in the request so far.
+ * @param BytesReceived the number of bytes received / downloaded in the response so far.
+ */
+DECLARE_DELEGATE_ThreeParams(FHttpRequestProgressDelegate64, FHttpRequestPtr /*Request*/, uint64 /*BytesSent*/, uint64 /*BytesReceived*/);
+
+/**
  * Delegate called when an Http request will be retried in the future
  *
  * @param Request - original Http request that started things
@@ -326,7 +335,13 @@ public:
 	/**
 	 * Delegate called to update the request/response progress. See FHttpRequestProgressDelegate
 	 */
+	UE_DEPRECATED(5.3, "OnRequestProgress has been deprecated, use OnRequestProgress64 instead")
 	virtual FHttpRequestProgressDelegate& OnRequestProgress() = 0;
+
+	/**
+	 * Delegate called to update the request/response progress. See FHttpRequestProgressDelegate64
+	 */
+	virtual FHttpRequestProgressDelegate64& OnRequestProgress64() = 0;
 	
 	/**
 	* Delegate called when the request will be retried

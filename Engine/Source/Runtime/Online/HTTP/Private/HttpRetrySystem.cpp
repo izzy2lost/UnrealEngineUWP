@@ -108,7 +108,7 @@ bool FHttpRetrySystem::FRequest::ProcessRequest()
 		SetUrlFromRetryDomains();
 	}
 
-	HttpRequest->OnRequestProgress().BindThreadSafeSP(RetryRequest, &FHttpRetrySystem::FRequest::HttpOnRequestProgress);
+	HttpRequest->OnRequestProgress64().BindThreadSafeSP(RetryRequest, &FHttpRetrySystem::FRequest::HttpOnRequestProgress);
 
 	return RetryManager.ProcessRequest(RetryRequest);
 }
@@ -142,9 +142,12 @@ void FHttpRetrySystem::FRequest::CancelRequest()
 	RetryManager.CancelRequest(RetryRequest);
 }
 
-void FHttpRetrySystem::FRequest::HttpOnRequestProgress(FHttpRequestPtr InHttpRequest, int32 BytesSent, int32 BytesRcv)
+void FHttpRetrySystem::FRequest::HttpOnRequestProgress(FHttpRequestPtr InHttpRequest, uint64 BytesSent, uint64 BytesRcv)
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	OnRequestProgress().ExecuteIfBound(AsShared(), BytesSent, BytesRcv);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	OnRequestProgress64().ExecuteIfBound(AsShared(), BytesSent, BytesRcv);
 }
 
 FHttpRetrySystem::FManager::FManager(const FRetryLimitCountSetting& InRetryLimitCountDefault, const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsDefault)

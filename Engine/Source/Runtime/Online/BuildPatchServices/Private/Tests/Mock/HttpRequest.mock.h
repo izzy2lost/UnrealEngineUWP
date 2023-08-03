@@ -156,6 +156,11 @@ namespace BuildPatchServices
 			return HttpRequestProgressDelegate;
 		}
 
+		virtual FHttpRequestProgressDelegate64& OnRequestProgress64() override
+		{
+			return HttpRequestProgressDelegate64;
+		}
+
 		virtual FHttpRequestHeaderReceivedDelegate& OnHeaderReceived() override
 		{
 			return HttpHeaderReceivedDelegate;
@@ -202,6 +207,7 @@ namespace BuildPatchServices
 
 	public:
 		FHttpRequestProgressDelegate HttpRequestProgressDelegate;
+		FHttpRequestProgressDelegate64 HttpRequestProgressDelegate64;
 		FHttpRequestCompleteDelegate HttpRequestCompleteDelegate;
 		FHttpRequestHeaderReceivedDelegate HttpHeaderReceivedDelegate;
 		FHttpRequestWillRetryDelegate HttpRequestWillRetryDelegate;

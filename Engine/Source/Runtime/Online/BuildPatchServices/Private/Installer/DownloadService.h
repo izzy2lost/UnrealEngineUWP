@@ -51,7 +51,7 @@ namespace BuildPatchServices
 	 * @param RequestId     The id that was returned by RequestFile(..).
 	 * @param BytesSoFar    The number of bytes received so far.
 	 */
-	DECLARE_DELEGATE_TwoParams(FDownloadProgressDelegate, int32 /* RequestId */, int32 /* BytesSoFar */);
+	DECLARE_DELEGATE_TwoParams(FDownloadProgressDelegate, int32 /* RequestId */, uint64 /* BytesSoFar */);
 
 	/**
 	 * Delegate called for download complete.
@@ -146,7 +146,7 @@ namespace BuildPatchServices
 		 * @param RequestId             The id for the request.
 		 * @param BytesReceived         The bytes received so far.
 		 */
-		virtual void OnDownloadProgress(int32 RequestId, int32 BytesReceived) = 0;
+		virtual void OnDownloadProgress(int32 RequestId, uint64 BytesReceived) = 0;
 
 		/**
 		 * Called for each request completion.

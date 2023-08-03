@@ -24,7 +24,9 @@ public:
 
 	UE_NODISCARD TRequest<PayloadType>& AddHeader(TPair<FString, FString> NewHeader) const;
 	UE_NODISCARD TRequest<PayloadType>& BindCompletionCallback(TFunction<void(FHttpRequestPtr, FHttpResponsePtr, bool)> CompletionCallback);
+	UE_DEPRECATED(5.3, "BindProgressCallback has been deprecated, use BindProgressCallback64 instead")
 	UE_NODISCARD TRequest<PayloadType>& BindProgressCallback(TFunction<void(FHttpRequestPtr, int32 /* BytesSent */, int32 /* BytesReceived */)> ProgressCallback);
+	UE_NODISCARD TRequest<PayloadType>& BindProgressCallback64(TFunction<void(FHttpRequestPtr, uint64 /* BytesSent */, uint64 /* BytesReceived */)> ProgressCallback);
 	UE_NODISCARD TRequest<PayloadType>& BindRetryCallback(TFunction<void(FHttpRequestPtr, FHttpResponsePtr, float /* SecondsToRetry */)> RetryCallback);
 	UE_NODISCARD TRequest<PayloadType>& BindHeaderReceivedCallback(TFunction<void(FHttpRequestPtr, const FString& /* HeaderName */, const FString& /* HeaderValue */)> HeaderReceivedCallback);
 	TRequest<PayloadType>& SetPayloadData(const PayloadType& InPayloadData);
@@ -213,10 +215,19 @@ TRequest<PayloadType>& TRequest<PayloadType>::BindCompletionCallback(TFunction<v
 	return *this;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 template <typename PayloadType>
 TRequest<PayloadType>& TRequest<PayloadType>::BindProgressCallback(TFunction<void(FHttpRequestPtr, int32, int32)> ProgressCallback)
 {
 	InternalRequest->OnRequestProgress().BindLambda(MoveTemp(ProgressCallback));
+	return *this;
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+template <typename PayloadType>
+TRequest<PayloadType>& TRequest<PayloadType>::BindProgressCallback64(TFunction<void(FHttpRequestPtr, uint64, uint64)> ProgressCallback)
+{
+	InternalRequest->OnRequestProgress64().BindLambda(MoveTemp(ProgressCallback));
 	return *this;
 }
 

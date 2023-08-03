@@ -520,7 +520,7 @@ size_t FCurlHttpRequest::ReceiveResponseHeaderCallback(void* Ptr, size_t SizeInB
 			HeaderValue.TrimStartInline();
 			if (!HeaderKey.IsEmpty() && !HeaderValue.IsEmpty() && !bRedirected)
 			{
-				//Store the content length so OnRequestProgress() delegates have something to work with
+				//Store the content length so OnRequestProgress64() delegates have something to work with
 				if (HeaderKey == TEXT("Content-Length"))
 				{
 					Response->ContentLength = FCString::Atoi64(*HeaderValue);
@@ -1122,8 +1122,11 @@ void FCurlHttpRequest::CheckProgressDelegate()
 		{
 			LastReportedBytesRead = CurrentBytesRead;
 		}
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		// Update response progress
 		OnRequestProgress().ExecuteIfBound(SharedThis(this), LastReportedBytesSent, LastReportedBytesRead);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		OnRequestProgress64().ExecuteIfBound(SharedThis(this), LastReportedBytesSent, LastReportedBytesRead);
 	}
 }
 

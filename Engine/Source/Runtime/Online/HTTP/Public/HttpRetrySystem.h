@@ -113,7 +113,7 @@ namespace FHttpRetrySystem
 			const FRetryDomainsPtr& InRetryDomains = FRetryDomainsPtr()
 			);
 
-		void HttpOnRequestProgress(FHttpRequestPtr InHttpRequest, int32 BytesSent, int32 BytesRcv);
+		void HttpOnRequestProgress(FHttpRequestPtr InHttpRequest, uint64 BytesSent, uint64 BytesRcv);
 
 		/** Update our HTTP request's URL's domain from our RetryDomains */
 		void SetUrlFromRetryDomains();

@@ -210,7 +210,7 @@ namespace BuildPatchServices
 		public:
 			FHttpDelegates(FDownloadService& InDownloadService);
 
-			void HttpRequestProgress(FHttpRequestPtr Request, int32 BytesSent, int32 BytesReceived, int32 RequestId);
+			void HttpRequestProgress(FHttpRequestPtr Request, uint64 BytesSent, uint64 BytesReceived, int32 RequestId);
 			void HttpRequestComplete(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bSucceeded, IDownloadServiceStat::FDownloadRecord DownloadRecord);
 
 		private:
@@ -245,9 +245,9 @@ namespace BuildPatchServices
 		void RegisterRequest(int32 RequestId, TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest);
 		void RegisterRequest(int32 RequestId, TUniquePtr<FFileRequest> FileRequest);
 		void UnregisterRequest(int32 RequestId);
-		void HttpRequestProgress(FHttpRequestPtr Request, int32 BytesSent, int32 BytesReceived, int32 RequestId);
+		void HttpRequestProgress(FHttpRequestPtr Request, uint64 BytesSent, uint64 BytesReceived, int32 RequestId);
 		void HttpRequestComplete(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bSuccess, IDownloadServiceStat::FDownloadRecord DownloadRecord);
-		void SetRequestProgress(int32 RequestId, int32 BytesSoFar);
+		void SetRequestProgress(int32 RequestId, uint64 BytesSoFar);
 		void SetFileRequestComplete(int32 RequestId, bool bSuccess, TArray<uint8> FileDataArray, IDownloadServiceStat::FDownloadRecord&& DownloadRecord);
 		void SetHttpRequestComplete(int32 RequestId, bool bSuccess, FHttpResponsePtr Response, IDownloadServiceStat::FDownloadRecord&& DownloadRecord);
 
@@ -278,7 +278,7 @@ namespace BuildPatchServices
 		TMap<int32, TUniquePtr<FFileRequest>> ActiveFileRequests;
 
 		FCriticalSection ProgressUpdatesCS;
-		TMap<int32, int32> ProgressUpdates;
+		TMap<int32, uint64> ProgressUpdates;
 
 		FCriticalSection CompletedRequestsCS;
 		TMap<int32, FDownloadBaseRef> CompletedRequests;
@@ -291,7 +291,7 @@ namespace BuildPatchServices
 	{
 	}
 
-	void FDownloadService::FHttpDelegates::HttpRequestProgress(FHttpRequestPtr Request, int32 BytesSent, int32 BytesReceived, int32 RequestId)
+	void FDownloadService::FHttpDelegates::HttpRequestProgress(FHttpRequestPtr Request, uint64 BytesSent, uint64 BytesReceived, int32 RequestId)
 	{
 		DownloadService.HttpRequestProgress(MoveTemp(Request), BytesSent, BytesReceived, RequestId);
 	}
@@ -341,7 +341,7 @@ namespace BuildPatchServices
 		ActiveRequestsCS.Lock();
 		for (const TPair<int32, TSharedRef<IHttpRequest, ESPMode::ThreadSafe>>& ActiveHttpRequest : ActiveHttpRequests)
 		{
-			ActiveHttpRequest.Value->OnRequestProgress().Unbind();
+			ActiveHttpRequest.Value->OnRequestProgress64().Unbind();
 			ActiveHttpRequest.Value->OnProcessRequestComplete().Unbind();
 			ActiveHttpRequest.Value->CancelRequest();
 		}
@@ -488,7 +488,7 @@ namespace BuildPatchServices
 			{
 				// Kick off http request.
 				TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = HttpManager->CreateRequest();
-				HttpRequest->OnRequestProgress().BindThreadSafeSP(HttpDelegates, &FHttpDelegates::HttpRequestProgress, NewRequest.Key);
+				HttpRequest->OnRequestProgress64().BindThreadSafeSP(HttpDelegates, &FHttpDelegates::HttpRequestProgress, NewRequest.Key);
 				HttpRequest->OnProcessRequestComplete().BindThreadSafeSP(HttpDelegates, &FHttpDelegates::HttpRequestComplete, MakeDownloadRecord(NewRequest.Key, NewRequest.Value));
 				HttpRequest->SetURL(NewRequest.Value);
 				HttpRequest->SetVerb(TEXT("GET"));
@@ -510,14 +510,14 @@ namespace BuildPatchServices
 	void FDownloadService::ProcessProgressUpdates()
 	{
 		// Grab the progress updates for this frame.
-		TMap<int32, int32> FrameProgressUpdates;
+		TMap<int32, uint64> FrameProgressUpdates;
 		ProgressUpdatesCS.Lock();
 		FrameProgressUpdates = MoveTemp(ProgressUpdates);
 		ProgressUpdatesCS.Unlock();
 
 		// Process progress updates.
 		RequestDelegatesCS.Lock();
-		for (const TPair<int32, int32>& FrameProgressUpdate : FrameProgressUpdates)
+		for (const TPair<int32, uint64>& FrameProgressUpdate : FrameProgressUpdates)
 		{
 			if (RequestDelegates.Contains(FrameProgressUpdate.Key))
 			{
@@ -525,7 +525,7 @@ namespace BuildPatchServices
 			}
 		}
 		RequestDelegatesCS.Unlock();
-		for (const TPair<int32, int32>& FrameProgressUpdate : FrameProgressUpdates)
+		for (const TPair<int32, uint64>& FrameProgressUpdate : FrameProgressUpdates)
 		{
 			DownloadServiceStat->OnDownloadProgress(FrameProgressUpdate.Key, FrameProgressUpdate.Value);
 		}
@@ -669,7 +669,7 @@ namespace BuildPatchServices
 		ActiveFileRequests.Remove(RequestId);
 	}
 
-	void FDownloadService::HttpRequestProgress(FHttpRequestPtr Request, int32 BytesSent, int32 BytesReceived, int32 RequestId)
+	void FDownloadService::HttpRequestProgress(FHttpRequestPtr Request, uint64 BytesSent, uint64 BytesReceived, int32 RequestId)
 	{
 		SetRequestProgress(RequestId, BytesReceived);
 	}
@@ -684,7 +684,7 @@ namespace BuildPatchServices
 		SetHttpRequestComplete(DownloadRecord.RequestId, bSuccess, MoveTemp(Response), MoveTemp(DownloadRecord));
 	}
 
-	void FDownloadService::SetRequestProgress(int32 RequestId, int32 BytesSoFar)
+	void FDownloadService::SetRequestProgress(int32 RequestId, uint64 BytesSoFar)
 	{
 		FScopeLock ScopeLock(&ProgressUpdatesCS);
 		ProgressUpdates.Add(RequestId, BytesSoFar);

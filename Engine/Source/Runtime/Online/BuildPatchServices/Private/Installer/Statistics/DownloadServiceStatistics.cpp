@@ -24,7 +24,7 @@ namespace BuildPatchServices
 
 		// IDownloadServiceStat interface begin.
 		virtual void OnDownloadStarted(int32 RequestId, const FString& Uri) override;
-		virtual void OnDownloadProgress(int32 RequestId, int32 BytesReceived) override;
+		virtual void OnDownloadProgress(int32 RequestId, uint64 BytesReceived) override;
 		virtual void OnDownloadComplete(const FDownloadRecord& DownloadRecord) override;
 		// IDownloadServiceStat interface end.
 
@@ -46,7 +46,7 @@ namespace BuildPatchServices
 		FThreadSafeInt32 NumSuccessfulDownloads;
 		FThreadSafeInt32 NumFailedDownloads;
 
-		typedef TTuple<FString, int32> FDownloadTuple;
+		typedef TTuple<FString, uint64> FDownloadTuple;
 		TMap<int32, FDownloadTuple> Downloads;
 		double AccumulatedRequestSpeed;
 		uint32 AverageSpeedSampleCount;
@@ -77,7 +77,7 @@ namespace BuildPatchServices
 		DownloadTuple.Get<1>() = 0;
 	}
 
-	void FDownloadServiceStatistics::OnDownloadProgress(int32 RequestId, int32 BytesReceived)
+	void FDownloadServiceStatistics::OnDownloadProgress(int32 RequestId, uint64 BytesReceived)
 	{
 		checkSlow(IsInGameThread());
 		FDownloadTuple& DownloadTuple = Downloads.FindOrAdd(RequestId);

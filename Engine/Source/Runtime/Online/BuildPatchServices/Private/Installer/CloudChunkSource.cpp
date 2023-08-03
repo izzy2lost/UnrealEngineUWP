@@ -106,7 +106,7 @@ namespace BuildPatchServices
 			FDownloadDelegates(FCloudChunkSource& InCloudChunkSource);
 
 		public:
-			void OnDownloadProgress(int32 RequestId, int32 BytesSoFar);
+			void OnDownloadProgress(int32 RequestId, uint64 BytesSoFar);
 			void OnDownloadComplete(int32 RequestId, const FDownloadRef& Download);
 
 		private:
@@ -155,7 +155,7 @@ namespace BuildPatchServices
 		float GetRetryDelay(int32 RetryNum);
 		EBuildPatchDownloadHealth GetDownloadHealth(bool bIsDisconnected, float ChunkSuccessRate);
 		FGuid GetNextTask(const TMap<FGuid, FTaskInfo>& TaskInfos, const TMap<int32, FGuid>& InFlightDownloads, const TSet<FGuid>& TotalRequiredChunks, const TSet<FGuid>& PriorityRequests, const TSet<FGuid>& FailedDownloads, const TSet<FGuid>& Stored, TArray<FGuid>& DownloadQueue, EBuildPatchDownloadHealth DownloadHealth);
-		void OnDownloadProgress(int32 RequestId, int32 BytesSoFar);
+		void OnDownloadProgress(int32 RequestId, uint64 BytesSoFar);
 		void OnDownloadComplete(int32 RequestId, const FDownloadRef& Download);
 
 	private:
@@ -207,7 +207,7 @@ namespace BuildPatchServices
 	{
 	}
 
-	void FCloudChunkSource::FDownloadDelegates::OnDownloadProgress(int32 RequestId, int32 BytesSoFar)
+	void FCloudChunkSource::FDownloadDelegates::OnDownloadProgress(int32 RequestId, uint64 BytesSoFar)
 	{
 		CloudChunkSource.OnDownloadProgress(RequestId, BytesSoFar);
 	}
@@ -737,7 +737,7 @@ namespace BuildPatchServices
 		Promise.SetValue();
 	}
 
-	void FCloudChunkSource::OnDownloadProgress(int32 RequestId, int32 BytesSoFar)
+	void FCloudChunkSource::OnDownloadProgress(int32 RequestId, uint64 BytesSoFar)
 	{
 		FPlatformAtomics::InterlockedExchange(&CyclesAtLastData, FStatsCollector::GetCycles());
 	}
