@@ -272,9 +272,10 @@ TAutoConsoleVariable<int32> CVarTSRSubpixelIncludeMovingDepth(
 #if !UE_BUILD_OPTIMIZED_SHOWFLAGS
 
 TAutoConsoleVariable<int32> CVarTSRVisualize(
-	TEXT("r.TSR.Visualize"), -1,
-	TEXT("Selects what to display with the VisualizeTSR show flag (opened with the `show VisualizeTSR` command at runtime or Show > Visualize > TSR in editor viewports).\n")
-	TEXT(" -1: Display an overview grid (default);\n")
+	TEXT("r.TSR.Visualize"), -2,
+	TEXT("Selects the TSR internal visualization mode.\n")
+	TEXT(" -2: Display an overview grid based on the VisualizeTSR show flag (default, opened with the `show VisualizeTSR` command at runtime or Show > Visualize > TSR in editor viewports);\n")
+	TEXT(" -1: Display an overview grid based regardless of VisualizeTSR show flag;\n")
 	TEXT("  0: Number of accumulated samples in the history, particularily interesting to tune r.TSR.ShadingRejection.SampleCount and r.TSR.Velocity.WeightClampingSampleCount;\n")
 	TEXT("  1: Parallax disocclusion based of depth and velocity buffers;\n")
 	TEXT("  2: Mask where the history is rejected;\n")
@@ -1102,6 +1103,17 @@ bool NeedTSRMoireLuma(const FViewInfo& View)
 {
 	return GetMainTAAPassConfig(View) == EMainTAAPassConfig::TSR;
 }
+
+bool IsVisualizeTSREnabled(const FViewInfo& View)
+#if UE_BUILD_OPTIMIZED_SHOWFLAGS
+{
+	return false;
+}
+#else
+{
+	return GetMainTAAPassConfig(View) == EMainTAAPassConfig::TSR && (View.Family->EngineShowFlags.VisualizeTSR || CVarTSRVisualize.GetValueOnRenderThread() >= -1);
+}
+#endif
 
 FScreenPassTexture AddTSRComputeMoireLuma(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap, FScreenPassTexture SceneColor)
 {
@@ -2433,7 +2445,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 	}
 
 #if !UE_BUILD_OPTIMIZED_SHOWFLAGS
-	if (View.Family->EngineShowFlags.VisualizeTSR)
+	if (IsVisualizeTSREnabled(View))
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "VisualizeTSR %dx%d", OutputRect.Width(), OutputRect.Height());
 

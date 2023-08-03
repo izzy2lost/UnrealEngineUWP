@@ -176,6 +176,9 @@ extern RENDERER_API FTAAOutputs AddTemporalAAPass(
 /** Returns whether a given view need to measure luminance of the scene color for moire anti-flickering. */
 bool NeedTSRMoireLuma(const FViewInfo& View);
 
+/** Returns whether TSR internal visualization is enabled on the view. */
+bool IsVisualizeTSREnabled(const FViewInfo& View);
+
 /** Measure luminance of the scene color for moire anti-flickering. */
 FScreenPassTexture AddTSRComputeMoireLuma(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap, FScreenPassTexture SceneColor);
 

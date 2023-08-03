@@ -567,7 +567,7 @@ void AddPostProcessingPasses(
 		const bool bDepthOfFieldEnabled = DiaphragmDOF::IsEnabled(View);
 		const bool bVisualizeDepthOfField = bDepthOfFieldEnabled && EngineShowFlags.VisualizeDOF;
 		const bool bVisualizeMotionBlur = IsVisualizeMotionBlurEnabled(View);
-		const bool bVisualizeTSR = TAAConfig == EMainTAAPassConfig::TSR && EngineShowFlags.VisualizeTSR;
+		const bool bVisualizeTSR = IsVisualizeTSREnabled(View);
 
 		const EAutoExposureMethod AutoExposureMethod = GetAutoExposureMethod(View);
 		const EAntiAliasingMethod AntiAliasingMethod = !bVisualizeDepthOfField ? View.AntiAliasingMethod : AAM_None;
