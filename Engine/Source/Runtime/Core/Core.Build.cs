@@ -28,6 +28,7 @@ public class Core : ModuleRules
 
 		PrivateDependencyModuleNames.Add("BLAKE3");
 		PrivateDependencyModuleNames.Add("OodleDataCompression");
+		PrivateDependencyModuleNames.Add("libpas");
 
 		PublicDependencyModuleNames.Add("TraceLog");
 
