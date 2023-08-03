@@ -992,9 +992,8 @@ public:
 
 	virtual void CalcDispatchBufferSizes(uint32& OutDataBufferSize, uint32& OutExecutionBufferSize) const override
 	{
-		checkNoEntry();
-		OutDataBufferSize = 0u;
-		OutExecutionBufferSize = 0u;
+		OutDataBufferSize = 4u;
+		OutExecutionBufferSize = 4u;
 	}
 };
 
