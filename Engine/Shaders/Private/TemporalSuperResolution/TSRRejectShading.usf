@@ -121,13 +121,15 @@ float PerceptionAdd;
 Texture2D<tsr_halfC> InputTexture;
 Texture2D<tsr_half>  InputMoireLumaTexture;
 Texture2D<tsr_half4> InputSceneTranslucencyTexture;
-Texture2D<tsr_halfC> ReprojectedHistoryGuideTexture;
+Texture2D<tsr_half4> ReprojectedHistoryGuideTexture;
+Texture2D<tsr_half>  ReprojectedHistoryGuideMetadataTexture;
 Texture2D<tsr_half4> ReprojectedHistoryMoireTexture;
-Texture2D<tsr_halfC> ResurrectedHistoryGuideTexture;
+Texture2D<tsr_half4> ResurrectedHistoryGuideTexture;
+Texture2D<tsr_half>  ResurrectedHistoryGuideMetadataTexture;
 Texture2D<tsr_half2> DecimateMaskTexture;
 Texture2D<tsr_ushort> IsMovingMaskTexture;
 
-RWTexture2D<tsr_half4> HistoryGuideOutput;
+RWTexture2DArray<tsr_half4> HistoryGuideOutput;
 RWTexture2D<tsr_half4> HistoryMoireOutput;
 RWTexture2D<tsr_half4> HistoryRejectionOutput;
 RWTexture2D<tsr_halfC> InputSceneColorOutput;
@@ -444,6 +446,7 @@ void MainCS(
 		tsr_simd_half4 OriginalTranslucencyInput;
 	#endif
 	tsr_simd_halfC OriginalHistory;
+	tsr_simd_half OriginalHistoryUncertainty;
 	tsr_simd_half VelocityEdge;
 	tsr_simd_bool bIsValid;
 	#if CONFIG_MOIRE_DETECTION
@@ -453,6 +456,7 @@ void MainCS(
 	#endif
 	#if CONFIG_HISTORY_RESURRECTION
 		tsr_simd_halfC OriginalResurrectedHistory;
+		tsr_simd_half OriginalResurrectedHistoryUncertainty;
 	#endif
 	PLATFORM_SPECIFIC_ISOLATE
 	{
@@ -472,12 +476,28 @@ void MainCS(
 			TranslucencyTextureUV = fastClamp(TranslucencyTextureUV, TranslucencyTextureUVMin, TranslucencyTextureUVMax);
 
 			tsr_half2 DecimateMask = DecimateMaskTexture[ClampedFetchPixelPos];
+			tsr_half4 ReprojectedGuide = ReprojectedHistoryGuideTexture[ClampedFetchPixelPos];
+			#if CONFIG_SCENE_COLOR_ALPHA
+				tsr_half ReprojectedGuideMetadata = ReprojectedHistoryGuideMetadataTexture[ClampedFetchPixelPos];
+			#endif
+			#if CONFIG_HISTORY_RESURRECTION
+				tsr_half4 ResurrectedGuide = ResurrectedHistoryGuideTexture[ClampedFetchPixelPos];
+				#if CONFIG_SCENE_COLOR_ALPHA
+					tsr_half ResurrectedGuideMetadata = ReprojectedHistoryGuideMetadataTexture[ClampedFetchPixelPos];
+				#endif
+			#endif
 
 			OriginalOpaqueInput.SetElement(SimdIndex, InputTexture[ClampedFetchPixelPos]);
 			#if CONFIG_COMPOSE_TRANSLUCENCY
 				OriginalTranslucencyInput.SetElement(SimdIndex, InputSceneTranslucencyTexture.SampleLevel(GlobalBilinearClampedSampler, TranslucencyTextureUV, 0));
 			#endif
-			OriginalHistory.SetElement(SimdIndex, ReprojectedHistoryGuideTexture[ClampedFetchPixelPos]);
+			#if CONFIG_SCENE_COLOR_ALPHA
+				OriginalHistory.SetElement(SimdIndex, ReprojectedGuide);
+				OriginalHistoryUncertainty.SetElement(SimdIndex, ReprojectedGuideMetadata);
+			#else
+				OriginalHistory.SetElement(SimdIndex, ReprojectedGuide.rgb);
+				OriginalHistoryUncertainty.SetElement(SimdIndex, ReprojectedGuide.a);
+			#endif
 			VelocityEdge.SetElement(SimdIndex, DecimateMask.g);
 			bIsValid.SetElement(SimdIndex, DecimateMask.r > tsr_half(PARALLAX_REJECTION_MASK_THRESHOLD));
 			#if CONFIG_MOIRE_DETECTION
@@ -486,7 +506,13 @@ void MainCS(
 				bIsStatic.SetElement(SimdIndex, tsr_half(1.0) - tsr_half(IsMovingMaskTexture[ClampedFetchPixelPos]) * rcp(tsr_half(255.0)));
 			#endif
 			#if CONFIG_HISTORY_RESURRECTION
-				OriginalResurrectedHistory.SetElement(SimdIndex, ResurrectedHistoryGuideTexture[ClampedFetchPixelPos]);
+				#if CONFIG_SCENE_COLOR_ALPHA
+					OriginalResurrectedHistory.SetElement(SimdIndex, ResurrectedGuide);
+					OriginalResurrectedHistoryUncertainty.SetElement(SimdIndex, ResurrectedGuideMetadata);
+				#else
+					OriginalResurrectedHistory.SetElement(SimdIndex, ResurrectedGuide.rgb);
+					OriginalResurrectedHistoryUncertainty.SetElement(SimdIndex, ResurrectedGuide.a);
+				#endif
 			#endif
 		}
 	}
@@ -689,6 +715,7 @@ void MainCS(
 				
 				RejectionBlendFinal = select(bResurrectHistory, ResurrectionRejectionBlendFinal, RejectionBlendFinal);
 				RejectionClampBlend = select(bResurrectHistory, ResurrectionRejectionClampBlend, RejectionClampBlend);
+				OriginalHistoryUncertainty = select(bResurrectHistory, OriginalResurrectedHistoryUncertainty, OriginalHistoryUncertainty);
 			}
 		}
 		#endif
@@ -725,11 +752,13 @@ void MainCS(
 		FinalGuide = ExposedInput * tsr_simd_halfC::Vectorize(BlendFinal) - OriginalHistory * tsr_simd_halfC::Vectorize(BlendFinal - 1.0);
 	}
 	
+	tsr_simd_half InputUncertainty = VelocityEdge;
+	
 	// Controls how the history and its validity is clamped.
 	tsr_simd_half DisableHistoryClamp;
 	tsr_simd_half IncreaseValidityMultiplier;
 	{
-		DisableHistoryClamp        = select(and(bIsDisoccluded, not(bResurrectHistory)), tsr_simd_half::Const(0.0), min(RejectionClampBlend, VelocityEdge));
+		DisableHistoryClamp        = select(and(bIsDisoccluded, not(bResurrectHistory)), tsr_simd_half::Const(0.0), min(RejectionClampBlend, min(InputUncertainty, Min3x3(OriginalHistoryUncertainty))));
 		IncreaseValidityMultiplier = select(and(bIsDisoccluded, not(bResurrectHistory)), tsr_simd_half::Const(0.0), RejectionClampBlend);
 	}
 
@@ -780,9 +809,10 @@ void MainCS(
 			#endif
 
 			#if CONFIG_SCENE_COLOR_ALPHA
-				HistoryGuideOutput[OutputPixelPos] = FinalGuideColor;
+				HistoryGuideOutput[tsr_short3(OutputPixelPos, 0)] = FinalGuideColor;
+				HistoryGuideOutput[tsr_short3(OutputPixelPos, 1)] = tsr_half4(InputUncertainty.GetElement(SimdIndex), 0, 0, 0);
 			#else
-				HistoryGuideOutput[OutputPixelPos] = tsr_half4(FinalGuideColor.xyz, tsr_half(1.0));
+				HistoryGuideOutput[tsr_short3(OutputPixelPos, 0)] = tsr_half4(FinalGuideColor.xyz, InputUncertainty.GetElement(SimdIndex));
 			#endif
 			HistoryRejectionOutput[OutputPixelPos] = tsr_half4(
 				RejectionBlendFinal.GetElement(SimdIndex) - tsr_half(0.5 * rcp(256.0)),

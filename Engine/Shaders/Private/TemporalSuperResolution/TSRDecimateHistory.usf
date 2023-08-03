@@ -42,7 +42,7 @@ Texture2D<float> ClosestDepthTexture;
 Texture2D<uint> PrevUseCountTexture;
 Texture2D<uint> PrevClosestDepthTexture;
 
-Texture2DArray<tsr_halfC> PrevHistoryGuide;
+Texture2DArray<tsr_half4> PrevHistoryGuide;
 Texture2DArray<tsr_half4> PrevHistoryMoire;
 Texture2D<float2> PrevVelocityTexture;
 float2 PrevGuideInfo_Extent;
@@ -437,11 +437,13 @@ void MainCS(
 	uint HistoryClosestDeviceZSamples[4];
 	
 	tsr_halfC ReprojectedHistoryGuideColor;
+	tsr_half  ReprojectedHistoryGuideUncertainty;
 	#if CONFIG_MOIRE_REPROJECTION
 		tsr_half4 ReprojectedHistoryMoireColor;
 	#endif
 	#if CONFIG_RESURRECTION_REPROJECTION
 		tsr_halfC ResurrectedHistoryGuideColor;
+		tsr_half  ResurrectedHistoryGuideUncertainty;
 	#endif
 	bool bIsOffScreen;
 
@@ -470,12 +472,30 @@ void MainCS(
 				
 			float2 KernelHistoryBufferUV = ApplyScreenTransform(PrevOutputScreenPos, ScreenPosToPrevHistoryGuideBufferUV);
 
-			ReprojectedHistoryGuideColor = SampleTextureCatrom(
-				PrevHistoryGuide,
-				KernelHistoryBufferUV,
-				PrevFrameIndex,
-				PrevGuideInfo_UVViewportBilinearMin,
-				PrevGuideInfo_UVViewportBilinearMax);
+			#if CONFIG_SCENE_COLOR_ALPHA
+				ReprojectedHistoryGuideColor = SampleTextureCatrom(
+					PrevHistoryGuide,
+					KernelHistoryBufferUV,
+					PrevFrameIndex * 2.0 + 0.0,
+					PrevGuideInfo_UVViewportBilinearMin,
+					PrevGuideInfo_UVViewportBilinearMax);
+					
+				ReprojectedHistoryGuideUncertainty = SampleTextureCatrom(
+					PrevHistoryGuide,
+					KernelHistoryBufferUV,
+					PrevFrameIndex * 2.0 + 1.0,
+					PrevGuideInfo_UVViewportBilinearMin,
+					PrevGuideInfo_UVViewportBilinearMax).r;
+			#else
+				tsr_half4 RawGuide = SampleTextureCatrom(
+					PrevHistoryGuide,
+					KernelHistoryBufferUV,
+					PrevFrameIndex,
+					PrevGuideInfo_UVViewportBilinearMin,
+					PrevGuideInfo_UVViewportBilinearMax);
+				ReprojectedHistoryGuideColor = RawGuide.rgb;
+				ReprojectedHistoryGuideUncertainty = RawGuide.a;
+			#endif
 			ReprojectedHistoryGuideColor = CorrectGuideColorExposure(ReprojectedHistoryGuideColor, HistoryPreExposureCorrection);
 			#if CONFIG_MOIRE_REPROJECTION
 			{
@@ -493,17 +513,15 @@ void MainCS(
 			float2 ResurrectionScreen = ResurrectionClip.xy / ResurrectionClip.w;
 
 			float2 KernelHistoryBufferUV = ApplyScreenTransform(ResurrectionScreen, ScreenPosToResurrectionGuideBufferUV);
+			KernelHistoryBufferUV = fastClamp(KernelHistoryBufferUV, ResurrectionGuideUVViewportBilinearMin, ResurrectionGuideUVViewportBilinearMax);
 
-			#if 1
-				KernelHistoryBufferUV = fastClamp(KernelHistoryBufferUV, ResurrectionGuideUVViewportBilinearMin, ResurrectionGuideUVViewportBilinearMax);
-				ResurrectedHistoryGuideColor = PrevHistoryGuide.SampleLevel(GlobalBilinearClampedSampler, float3(KernelHistoryBufferUV, ResurrectionFrameIndex), 0);
+			#if CONFIG_SCENE_COLOR_ALPHA
+				ResurrectedHistoryGuideColor       = PrevHistoryGuide.SampleLevel(GlobalBilinearClampedSampler, float3(KernelHistoryBufferUV, ResurrectionFrameIndex * 2.0 + 0.0), 0);
+				ResurrectedHistoryGuideUncertainty = PrevHistoryGuide.SampleLevel(GlobalBilinearClampedSampler, float3(KernelHistoryBufferUV, ResurrectionFrameIndex * 2.0 + 1.0), 0).r;
 			#else
-				ResurrectedHistoryGuideColor = SampleTextureCatrom(
-					PrevHistoryGuide,
-					KernelHistoryBufferUV,
-					ResurrectionFrameIndex,
-					ResurrectionGuideUVViewportBilinearMin,
-					ResurrectionGuideUVViewportBilinearMax);
+				tsr_half4 RawGuide                 = PrevHistoryGuide.SampleLevel(GlobalBilinearClampedSampler, float3(KernelHistoryBufferUV, ResurrectionFrameIndex), 0);
+				ResurrectedHistoryGuideColor = RawGuide.rgb;
+				ResurrectedHistoryGuideUncertainty = RawGuide.a;
 			#endif
 			ResurrectedHistoryGuideColor = CorrectGuideColorExposure(ResurrectedHistoryGuideColor, ResurrectionPreExposureCorrection);
 		}
@@ -594,8 +612,9 @@ void MainCS(
 		{
 			#if CONFIG_SCENE_COLOR_ALPHA
 				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 0)] = ReprojectedHistoryGuideColor;
+				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 1)] = tsr_half4(ReprojectedHistoryGuideUncertainty, 0, 0, 0);
 			#else
-				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 0)] = tsr_half4(ReprojectedHistoryGuideColor.xyz, tsr_half(1.0));
+				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 0)] = tsr_half4(ReprojectedHistoryGuideColor.xyz, ReprojectedHistoryGuideUncertainty);
 			#endif
 			#if CONFIG_MOIRE_REPROJECTION
 				ReprojectedHistoryMoireOutput[tsr_short3(OutputPixelPos, 0)] = ReprojectedHistoryMoireColor;
@@ -605,9 +624,10 @@ void MainCS(
 		#if CONFIG_RESURRECTION_REPROJECTION
 		{
 			#if CONFIG_SCENE_COLOR_ALPHA
-				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 1)] = ResurrectedHistoryGuideColor;
+				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 2)] = ResurrectedHistoryGuideColor;
+				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 3)] = tsr_half4(ResurrectedHistoryGuideUncertainty, 0, 0, 0);
 			#else
-				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 1)] = tsr_half4(ResurrectedHistoryGuideColor.xyz, tsr_half(1.0));
+				ReprojectedHistoryGuideOutput[tsr_short3(OutputPixelPos, 1)] = tsr_half4(ResurrectedHistoryGuideColor.xyz, ResurrectedHistoryGuideUncertainty);
 			#endif
 		}
 		#endif
