@@ -68,6 +68,13 @@
 		{
 			"Name": "DeformerGraph",
 			"Enabled": true
-		}
+		},
+        {
+            "Name": "USDImporter",
+			"Enabled": true,
+			"SupportedTargetPlatforms": [
+				"Win64"
+			]
+        }
 	]
 }
