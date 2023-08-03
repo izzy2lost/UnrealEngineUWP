@@ -115,6 +115,7 @@ void FTestRunner::ParseCommandLine(TConstArrayView<const ANSICHAR*> Args)
 		{
 			bExtraArg = true;
 		}
+
 		else if (Arg.StartsWith(ANSITEXTVIEW("--sleep=")))
 		{
 			LexFromString(SleepOnInitSeconds, WriteToString<16>(Arg.RightChop(8)).ToView());
@@ -176,7 +177,6 @@ void FTestRunner::ParseCommandLine(TConstArrayView<const ANSICHAR*> Args)
 			CatchArgs.Add(Arg.GetData());
 		}
 	}
-
 	// Break in the debugger on failed assertions when attached.
 	CatchArgs.Add("--break");
 }
