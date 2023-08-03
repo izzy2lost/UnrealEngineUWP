@@ -1586,6 +1586,18 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "BuildConfiguration", Name = nameof(DefaultWarningLevel))]
 		private WarningLevel DefaultWarningLevelPrivate;
 
+
+		/// <summary>
+		/// Require TObjectPtr for FReferenceCollector API's. (Needed for compatibility with incremental GC.)
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		public bool bRequireObjectPtrForAddReferencedObjects
+		{
+				get { return bRequireObjectPtrForAddReferencedObjectsPrivate ?? true; }
+				set { bRequireObjectPtrForAddReferencedObjectsPrivate = value; }
+		}
+		private bool? bRequireObjectPtrForAddReferencedObjectsPrivate;		
+
 		/// <summary>
 		/// Level to report deprecation warnings as errors
 		/// </summary>

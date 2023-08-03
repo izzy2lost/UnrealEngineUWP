@@ -678,6 +678,11 @@ namespace UnrealBuildTool
 				Rules.GlobalDefinitions.Add("DISABLE_UNVERIFIED_CERTIFICATE_LOADING=1");
 			}
 
+			if (Rules.bRequireObjectPtrForAddReferencedObjects)
+			{
+				Rules.GlobalDefinitions.Add("UE_REFERENCE_COLLECTOR_REQUIRE_OBJECTPTR=1");
+			}
+
 			// if the Target has opted in only some platforms, disable any plugins of other platforms (there may be editor, etc, modules that
 			// will just add themselves, with no other reference to be able to remove them, other than disabling them here)
 			if (Rules.OptedInModulePlatforms != null)
