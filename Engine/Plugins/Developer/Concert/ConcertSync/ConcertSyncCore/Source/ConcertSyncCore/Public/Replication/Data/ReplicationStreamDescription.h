@@ -21,6 +21,8 @@ struct FSharedReplicationStreamDescription
 	/** Identifies the data that this stream will send. */
 	UPROPERTY()
 	FObjectReplicationMap ReplicationMap;
+
+	// TODO: Add override settings to objects, such as override update frequency etc. Do it via TMap<FSoftObjectPath, FObjectReplicationSettings>.
 };
 
 /**

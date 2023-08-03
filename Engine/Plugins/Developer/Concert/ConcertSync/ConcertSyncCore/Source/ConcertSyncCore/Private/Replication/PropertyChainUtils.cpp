@@ -67,7 +67,7 @@ namespace UE::ConcertSyncCore::PropertyChain
 			{
 				// Handle FConcertPropertyChain::InternalContainerPropertyValueName case
 				if (IsPrimitiveProperty(Inner)
-					|| (Inner.IsA(FStructProperty::StaticClass()) && IsNativeStructProperty(Inner)))
+					|| IsNativeStructProperty(Inner))
 				{
 					Chain.PushProperty(&Property, Property.IsEditorOnlyProperty());
 					ON_SCOPE_EXIT{ Chain.PopProperty(&Property, Property.IsEditorOnlyProperty()); };
@@ -180,6 +180,12 @@ namespace UE::ConcertSyncCore::PropertyChain
 		const bool bIsInnerContainerProperty = ParentProperty
 			&& (ParentProperty->IsA(FArrayProperty::StaticClass()) || ParentProperty->IsA(FSetProperty::StaticClass()) || ParentProperty->IsA(FMapProperty::StaticClass()));
 		return bIsInnerContainerProperty;
+	}
+	
+	bool IsPropertyEligibleForMarkingAsInternal(const FProperty& Property)
+	{
+		return IsInnerContainerProperty(Property)
+			&& (IsPrimitiveProperty(Property) || IsNativeStructProperty(Property));
 	}
 
 	bool IsPrimitiveProperty(const FProperty& Property)

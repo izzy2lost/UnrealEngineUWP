@@ -13,6 +13,11 @@ class FConcertSyncServerLiveSession;
 class FConcertSyncServerArchivedSession;
 class FConcertSyncSessionDatabase;
 
+namespace UE::ConcertSyncServer::Replication
+{
+	class FConcertServerReplicationManager;
+}
+
 struct FConcertSessionFilter;
 
 /**
@@ -53,6 +58,9 @@ private:
 
 	void CreateSequencerManager(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
 	void DestroySequencerManager(const TSharedRef<FConcertSyncServerLiveSession>& InLiveSession);
+	
+	void CreateReplicationManager(TSharedRef<IConcertServerSession> InLiveSession);
+	void DestroyReplicationManager(const TSharedRef<IConcertServerSession>& InLiveSession); 
 
 	bool CreateLiveSession(const TSharedRef<IConcertServerSession>& InSession, const FInternalLiveSessionCreationParams& AdditionalParams);
 	void DestroyLiveSession(const TSharedRef<IConcertServerSession>& InSession);
@@ -73,6 +81,9 @@ private:
 
 	/** Map of live session IDs to their associated sequencer managers */
 	TMap<FGuid, TSharedPtr<FConcertServerSequencerManager>> LiveSessionSequencerManagers;
+
+	/** Map of live session IDs to their associated replication managers */
+	TMap<FGuid, TSharedRef<UE::ConcertSyncServer::Replication::FConcertServerReplicationManager>> LiveSessionReplicationManagers;
 
 	/** Map of live session IDs to their associated session data */
 	TMap<FGuid, TSharedPtr<FConcertSyncServerLiveSession>> LiveSessions;

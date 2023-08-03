@@ -32,7 +32,7 @@ namespace UE::MultiUserReplicationEditor::Private
 			const bool bMatches = IndexOfMatches != INDEX_NONE;
 			if (bMatches)
 			{
-				Info.ReplicatedProperties.ReplicatedProperties.Emplace(&Chain, LeafProperty);
+				Info.PropertySelection.ReplicatedProperties.Emplace(&Chain, LeafProperty);
 				Paths.RemoveAtSwap(IndexOfMatches);
 			}
 			return true;

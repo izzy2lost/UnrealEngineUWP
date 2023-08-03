@@ -10,7 +10,7 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"Core",
-					"CoreUObject",
+					"CoreUObject", 
 				}
 			);
 

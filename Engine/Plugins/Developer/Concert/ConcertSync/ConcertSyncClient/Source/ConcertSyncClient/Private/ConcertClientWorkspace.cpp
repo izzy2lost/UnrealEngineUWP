@@ -1,21 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ConcertClientWorkspace.h"
-#include "Algo/AllOf.h"
+
 #include "ConcertClientTransactionManager.h"
 #include "ConcertClientPackageManager.h"
 #include "ConcertClientLockManager.h"
 #include "IConcertClientPackageBridge.h"
 #include "IConcertClient.h"
 #include "IConcertClientWorkspace.h"
-#include "IConcertModule.h"
+#include "IConcertSyncClient.h"
 #include "IConcertSyncClientModule.h"
 
-#include "IConcertSession.h"
-#include "IConcertFileSharingService.h"
 #include "ConcertSyncClientLiveSession.h"
 #include "ConcertSyncSessionDatabase.h"
-#include "ConcertSyncSettings.h"
 #include "ConcertClientSettings.h"
 #include "ConcertSyncClientUtil.h"
 #include "ConcertLogGlobal.h"
@@ -23,28 +20,20 @@
 #include "ConcertWorkspaceMessages.h"
 #include "ConcertClientDataStore.h"
 #include "ConcertClientLiveTransactionAuthors.h"
+#include "IConcertSession.h"
+#include "IConcertFileSharingService.h"
 
-
-#include "Containers/Ticker.h"
+#include "Algo/AllOf.h"
 #include "Containers/ArrayBuilder.h"
-#include "IConcertSyncClient.h"
 #include "UObject/Package.h"
-#include "UObject/Linker.h"
-#include "UObject/LinkerLoad.h"
 #include "UObject/SavePackage.h"
 #include "UObject/StructOnScope.h"
 #include "Misc/PackageName.h"
 #include "HAL/FileManager.h"
-#include "HAL/PlatformFileManager.h"
 #include "HAL/IConsoleManager.h"
-#include "Misc/App.h"
-#include "Misc/Paths.h"
-#include "Misc/FileHelper.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/FeedbackContext.h"
-#include "RenderingThread.h"
-#include "Modules/ModuleManager.h"
 #include "StructDeserializer.h"
 #include "StructSerializer.h"
 #include "Backends/JsonStructDeserializerBackend.h"
@@ -55,13 +44,11 @@
 #include "Engine/Engine.h"
 
 #if WITH_EDITOR
+	#include "Editor.h"
 	#include "UnrealEdGlobals.h"
-	#include "UnrealEdMisc.h"
 	#include "Editor/EditorEngine.h"
 	#include "Editor/UnrealEdEngine.h"
 	#include "Editor/TransBuffer.h"
-	#include "FileHelpers.h"
-	#include "GameMapsSettings.h"
 #endif
 
 LLM_DEFINE_TAG(Concert_ConcertClientWorkspace);
@@ -208,18 +195,14 @@ struct FConcertWorkspaceConsoleCommands
 	FAutoConsoleCommand DisableRemoteVerboseLogging;
 };
 
-FConcertClientWorkspace::FConcertClientWorkspace(TSharedRef<FConcertSyncClientLiveSession> InLiveSession,
-												 IConcertClientPackageBridge* InPackageBridge,
-												 IConcertClientTransactionBridge* InTransactionBridge,
-												 TSharedPtr<IConcertFileSharingService> InFileSharingService,
-												 IConcertSyncClient* InOwnerSyncClient)
-	: OwnerSyncClient(InOwnerSyncClient),
-	  FileSharingService(MoveTemp(InFileSharingService))
+FConcertClientWorkspace::FConcertClientWorkspace(const UE::ConcertSyncClient::FSessionBindArgs& SessionBindArgs, TSharedPtr<IConcertFileSharingService> InFileSharingService, IConcertSyncClient* InOwnerSyncClient)
+	: OwnerSyncClient(InOwnerSyncClient)
+	, FileSharingService(MoveTemp(InFileSharingService))
 {
 	static FConcertWorkspaceConsoleCommands ConsoleCommands;
 
 	check(OwnerSyncClient);
-	BindSession(InLiveSession, InPackageBridge, InTransactionBridge);
+	BindSession(SessionBindArgs);
 }
 
 FConcertClientWorkspace::~FConcertClientWorkspace()
@@ -468,15 +451,13 @@ IConcertClientDataStore& FConcertClientWorkspace::GetDataStore()
 	return *DataStore;
 }
 
-void FConcertClientWorkspace::BindSession(TSharedPtr<FConcertSyncClientLiveSession> InLiveSession, IConcertClientPackageBridge* InPackageBridge, IConcertClientTransactionBridge* InTransactionBridge)
+void FConcertClientWorkspace::BindSession(const UE::ConcertSyncClient::FSessionBindArgs& SessionBindArgs)
 {
-	check(InLiveSession->IsValidSession());
-	check(InPackageBridge);
-	check(InTransactionBridge);
+	check(SessionBindArgs.IsValid());
 
 	UnbindSession();
-	LiveSession = InLiveSession;
-	PackageBridge = InPackageBridge;
+	LiveSession = SessionBindArgs.LiveSession;
+	PackageBridge = SessionBindArgs.Bridges.PackageBridge;
 
 	LoadSessionData();
 
@@ -489,13 +470,13 @@ void FConcertClientWorkspace::BindSession(TSharedPtr<FConcertSyncClientLiveSessi
 	// Create Transaction Manager
 	if (EnumHasAnyFlags(LiveSession->GetSessionFlags(), EConcertSyncSessionFlags::EnableTransactions))
 	{
-		TransactionManager = MakeUnique<FConcertClientTransactionManager>(LiveSession.ToSharedRef(), InTransactionBridge);
+		TransactionManager = MakeUnique<FConcertClientTransactionManager>(LiveSession.ToSharedRef(), SessionBindArgs.Bridges.TransactionBridge);
 	}
 
 	// Create Package Manager
 	if (EnumHasAnyFlags(LiveSession->GetSessionFlags(), EConcertSyncSessionFlags::EnablePackages))
 	{
-		PackageManager = MakeUnique<FConcertClientPackageManager>(LiveSession.ToSharedRef(), InPackageBridge, FileSharingService);
+		PackageManager = MakeUnique<FConcertClientPackageManager>(LiveSession.ToSharedRef(), SessionBindArgs.Bridges.PackageBridge, FileSharingService);
 	}
 
 	// Create Lock Manager

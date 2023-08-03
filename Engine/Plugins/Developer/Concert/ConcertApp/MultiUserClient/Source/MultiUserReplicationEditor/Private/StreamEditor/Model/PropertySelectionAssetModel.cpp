@@ -34,7 +34,7 @@ namespace UE::MultiUserReplicationEditor
 
 		const FReplicatedObjectInfo* AssignedProperties = Asset->ReplicationMap.ReplicatedObjects.Find(Object);
 		return AssignedProperties
-			? AssignedProperties->ReplicatedProperties.ReplicatedProperties.Num()
+			? AssignedProperties->PropertySelection.ReplicatedProperties.Num()
 			: 0;
 	}
 
@@ -66,7 +66,7 @@ namespace UE::MultiUserReplicationEditor
 
 		const FReplicatedObjectInfo* ObjectInfo = Asset->ReplicationMap.ReplicatedObjects.Find(Object);
 		return ObjectInfo
-			&& Algo::AllOf(Properties, [ObjectInfo](const FConcertPropertyChain& Property){ return ObjectInfo->ReplicatedProperties.ReplicatedProperties.Contains(Property); });
+			&& Algo::AllOf(Properties, [ObjectInfo](const FConcertPropertyChain& Property){ return ObjectInfo->PropertySelection.ReplicatedProperties.Contains(Property); });
 	}
 
 	bool FPropertySelectionAssetModel::ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const
@@ -100,14 +100,14 @@ namespace UE::MultiUserReplicationEditor
 			return false;
 		}
 
-		for (const FConcertPropertyChain& ReplicatedPropertyInfo : AssignedProperties->ReplicatedProperties.ReplicatedProperties)
+		for (const FConcertPropertyChain& ReplicatedPropertyInfo : AssignedProperties->PropertySelection.ReplicatedProperties)
 		{
 			if (Delegate(ReplicatedPropertyInfo) == EBreakBehavior::Break)
 			{
 				return true;
 			}
 		}
-		return !AssignedProperties->ReplicatedProperties.ReplicatedProperties.IsEmpty();
+		return !AssignedProperties->PropertySelection.ReplicatedProperties.IsEmpty();
 	}
 
 	void FPropertySelectionAssetModel::AddObjects(TArrayView<UObject*> Objects)
@@ -217,7 +217,7 @@ namespace UE::MultiUserReplicationEditor
 		}
 
 		bool bAddedAtLeastOne = false;
-		TArray<FConcertPropertyChain>& ReplicatedProperties = AssignedProperties->ReplicatedProperties.ReplicatedProperties;
+		TArray<FConcertPropertyChain>& ReplicatedProperties = AssignedProperties->PropertySelection.ReplicatedProperties;
 		ReplicatedProperties.Reserve(ReplicatedProperties.Num() + Properties.Num());
 		for (const FConcertPropertyChain& AddedProperty : Properties)
 		{
@@ -229,7 +229,7 @@ namespace UE::MultiUserReplicationEditor
 			{
 				if (Property.IsParentOf(AddedProperty))
 				{
-					bAddedAtLeastOne |= AssignedProperties->ReplicatedProperties.ReplicatedProperties.AddUnique(Property) != INDEX_NONE;
+					bAddedAtLeastOne |= AssignedProperties->PropertySelection.ReplicatedProperties.AddUnique(Property) != INDEX_NONE;
 				}
 				return EBreakBehavior::Continue;
 			});
@@ -261,7 +261,7 @@ namespace UE::MultiUserReplicationEditor
 		int32 NumRemoved = 0;
 		for (const FConcertPropertyChain& RemovedProperty : Properties)
 		{
-			NumRemoved += AssignedProperties->ReplicatedProperties.ReplicatedProperties.Remove(RemovedProperty);
+			NumRemoved += AssignedProperties->PropertySelection.ReplicatedProperties.Remove(RemovedProperty);
 
 			// Removal should not fail if the class is not available
 			if (!Class)
@@ -275,7 +275,7 @@ namespace UE::MultiUserReplicationEditor
 			{
 				if (Property.IsChildOf(RemovedProperty))
 				{
-					NumRemoved += AssignedProperties->ReplicatedProperties.ReplicatedProperties.Remove(Property);
+					NumRemoved += AssignedProperties->PropertySelection.ReplicatedProperties.Remove(Property);
 				}
 				return EBreakBehavior::Continue;
 			});

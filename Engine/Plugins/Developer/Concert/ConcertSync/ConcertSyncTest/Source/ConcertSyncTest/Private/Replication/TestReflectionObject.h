@@ -38,7 +38,7 @@ struct FTestReplicationStruct
 	GENERATED_BODY()
 
 	UPROPERTY()
-	float Value{};
+	float Value{}; // The name of this property is purposefully equal to FConcertPropertyChain::InternalContainerPropertyValueName.
 	UPROPERTY()
 	FVector Vector = FVector::ZeroVector;
 	UPROPERTY()

@@ -14,7 +14,7 @@ struct FReplicatedObjectInfo
 	FSoftClassPath ClassPath;
 	
 	UPROPERTY()
-	FConcertPropertySelection ReplicatedProperties;
+	FConcertPropertySelection PropertySelection;
 };
 
 /** Maps objects to their replicated properties. */

@@ -24,6 +24,7 @@ namespace UnrealBuildTool.Rules
 					"ConcertSyncCore",
 					"ConcertSyncClient",
 					"ConcertSyncServer",
+					"Engine"
 				}
 			);
 

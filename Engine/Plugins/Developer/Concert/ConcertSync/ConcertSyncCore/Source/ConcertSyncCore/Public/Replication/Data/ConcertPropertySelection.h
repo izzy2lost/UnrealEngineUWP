@@ -7,13 +7,28 @@
 class UStruct;
 struct FArchiveSerializedPropertyChain;
 
-/** Describes the path to a FProperty replicated by Concert.  */
+/**
+ * Describes the path to a FProperty replicated by Concert.
+ * 
+ * See Concert.Replication.Data.ForEachReplicatableConcertProperty for path examples (just CTRL+SHIFT+F or go to ConcertSyncTest/Replication/ConcertPropertyTests.cpp).
+ */
 USTRUCT()
 struct CONCERTSYNCCORE_API FConcertPropertyChain
 {
 	GENERATED_BODY()
 
-	/** The name of inner properties of containers (array, set, map) which are either primitive or native structs. */
+	/**
+	 * The name of inner properties of containers (array, set, map), which are either primitive or native serialized structs.
+	 * 
+	 * Note that inner properties are only included if they are at the end of the path (and only for primitive or native serialized structs!), e.g.
+	 * - ArrayOfStructs.ArrayOfFloats.Value
+	 *	This means there is an array property called ArrayOfStructs containing structs. The contained struct has an array of floats property
+	 *	called ArrayOfFloats. Value corresponds to FArrayProperty::Inner and is called InternalContainerPropertyValueName.
+	 *	
+	 * - but not ArrayOfStructs.Value.ArrayOfFloats.Value.
+	 *	This path would imply a different situation in which ArrayOfStructs contains a struct with a struct property called Value;
+	 *	Value's owning struct property would contain an array of floats called ArrayOfFloats.
+	 */
 	static const FName InternalContainerPropertyValueName;
 
 	/** Constructs a FConcertPropertyChain from a path if it is valid. If you need to create many paths in one go, use PropertyUtils::BulkConstructConcertChainsFromPaths instead. */
@@ -37,6 +52,9 @@ struct CONCERTSYNCCORE_API FConcertPropertyChain
 	bool IsChildOf(const FConcertPropertyChain& ParentToCheck) const;
 	/** @return Whether the leaf property is a direct child of the given property chain. */
 	bool IsDirectChildOf(const FConcertPropertyChain& ParentToCheck) const;
+
+	/** @return Whether OptionalChain and LeafProperty correspond to this path. */
+	bool MatchesExactly(const FArchiveSerializedPropertyChain* OptionalChain, const FProperty& LeafProperty) const;
 
 	const TArray<FName>& GetPathToProperty() const { return PathToProperty; }
 
@@ -79,6 +97,8 @@ private:
 	/**
 	 * Path from root of UObject to leaf property. Includes the leaf property.
 	 * This property is kept private to force the use of the exposed constructors.
+	 *
+	 * See Concert.Replication.Data.ForEachReplicatableConcertProperty for path examples (just CTRL+SHIFT+F or go to ConcertSyncTest/Replication/ConcertPropertyTests.cpp).
 	 *
 	 * Suppose:
 	 * class AFooActor
@@ -125,7 +145,7 @@ private:
 	 *	  the key inner property nor any of its subproperties. Example: If key is FSoftObjectPath, we do not list FSoftObjectPath::AssetPath, etc.
 	 *	  - Value:
 	 *	    - If the inner value property is is ustruct, then it is not listed. The child properties of the inner property are listed.
-	 *	    - If the inner value property is not a ustruct (meaning a primitive float, int, etc.), then the child property is listed and called "Value".
+	 *	    - If the inner value property is not a ustruct (meaning a primitive float, int, etc.), then the child property is listed and called "Value" (see InternalContainerPropertyValueName).
 	 *	      This is needed to differentiate between the cases "serializes only the keys" and "serializes the keys and the values".
 	 *	  - Final word about FConcertPropertySelection:
 	 *		- { "MapOfStructs", "Foo" } means all keys and the Foo property is serialized (nothing is said about Bar - it is replicated if it is also in the property selection).

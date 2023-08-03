@@ -2,7 +2,6 @@
 
 #include "ConcertSyncServer.h"
 
-#include "IConcertModule.h"
 #include "IConcertServer.h"
 #include "IConcertSession.h"
 #include "ConcertServerWorkspace.h"
@@ -11,6 +10,7 @@
 #include "ConcertSyncServerArchivedSession.h"
 #include "ConcertSyncSessionDatabase.h"
 #include "ConcertLogGlobal.h"
+#include "Replication/ConcertServerReplicationManager.h"
 
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
@@ -519,6 +519,17 @@ void FConcertSyncServer::DestroySequencerManager(const TSharedRef<FConcertSyncSe
 	LiveSessionSequencerManagers.Remove(InLiveSession->GetSession().GetId());
 }
 
+void FConcertSyncServer::CreateReplicationManager(TSharedRef<IConcertServerSession> InLiveSession)
+{
+	DestroyReplicationManager(InLiveSession);
+	LiveSessionReplicationManagers.Add(InLiveSession->GetId(), MakeShared<UE::ConcertSyncServer::Replication::FConcertServerReplicationManager>(MoveTemp(InLiveSession)));
+}
+
+void FConcertSyncServer::DestroyReplicationManager(const TSharedRef<IConcertServerSession>& InLiveSession)
+{
+	LiveSessionReplicationManagers.Remove(InLiveSession->GetId());
+}
+
 bool FConcertSyncServer::CreateLiveSession(const TSharedRef<IConcertServerSession>& InSession, const FInternalLiveSessionCreationParams& AdditionalParams)
 {
 	DestroyLiveSession(InSession);
@@ -531,6 +542,12 @@ bool FConcertSyncServer::CreateLiveSession(const TSharedRef<IConcertServerSessio
 		if (EnumHasAnyFlags(SessionFlags, EConcertSyncSessionFlags::EnableSequencer))
 		{
 			CreateSequencerManager(LiveSession.ToSharedRef());
+		}
+
+		// Create Replication Manager
+		if (EnumHasAnyFlags(LiveSession->GetSessionFlags(), EConcertSyncSessionFlags::EnableReplication))
+		{
+			CreateReplicationManager(InSession);
 		}
 
 		// We needn't call OnActivityProduced().Remove(...) because the subscription needs to stay for the lifetime of FConcertSyncServerLiveSession::SessionDatabase
