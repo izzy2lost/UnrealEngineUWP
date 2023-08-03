@@ -10,14 +10,14 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"Core",
-					"CoreUObject", 
+					"CoreUObject",
+					"Concert",
 				}
 			);
 
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
-					"Concert",
 					"ConcertTransport",
 					"Json",
 					"SQLiteCore",

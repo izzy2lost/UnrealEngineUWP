@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ConcertMessageData.h"
 #include "FullObjectReplicationData.generated.h"
 
 /**
