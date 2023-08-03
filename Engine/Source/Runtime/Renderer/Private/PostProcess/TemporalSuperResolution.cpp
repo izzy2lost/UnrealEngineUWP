@@ -147,7 +147,7 @@ TAutoConsoleVariable<int32> CVarTSRShadingTileOverscan(
 	TEXT("However chaining many convlutions in this tiles means that some convolutions on the edge arround are becoming corrupted ")
 	TEXT("and therefor need to overlap the tile by couple of padding to hide it. This controls is controled by default in the ")
 	TEXT(" anti-aliasing scalability settings."),
-	ECVF_Scalability | ECVF_RenderThreadSafe);
+	ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<float> CVarTSRShadingExposureOffset(
 	TEXT("r.TSR.ShadingRejection.ExposureOffset"), 3.0,
@@ -1977,7 +1977,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PermutationVector = FTSRRejectShadingCS::RemapPermutation(PermutationVector);
 
 		const int32 GroupTileSize = 32;
-		const int32 TileOverscan = FMath::Clamp(CVarTSRShadingTileOverscan.GetValueOnRenderThread(), 2, GroupTileSize / 2 - 1);
+		const int32 TileOverscan = FMath::Clamp(CVarTSRShadingTileOverscan.GetValueOnRenderThread(), 3, GroupTileSize / 2 - 1);
 		const int32 TileSize = GroupTileSize - 2 * TileOverscan;
 
 		FTSRRejectShadingCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTSRRejectShadingCS::FParameters>();
