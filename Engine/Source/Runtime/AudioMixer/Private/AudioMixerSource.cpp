@@ -1854,16 +1854,18 @@ namespace Audio
 
 		SetupBusData();
 
-		if (!bSendingAudioToBuses)
+		FActiveSound* ActiveSound = WaveInstance->ActiveSound;
+		check(ActiveSound);
+
+		// Check if the user actively called a function that alters bus sends since the last update
+		bool bHasNewBusSends = ActiveSound->HasNewBusSends();
+
+		if (!bSendingAudioToBuses && !bHasNewBusSends && !DynamicBusSendInfos.Num())
 		{
 			return;
 		}
 
-		//If the user actively called a function that alters bus sends since the last update
-		FActiveSound* ActiveSound = WaveInstance->ActiveSound;
-		check(ActiveSound);
-
-		if (ActiveSound->HasNewBusSends())
+		if (bHasNewBusSends)
 		{
 			TArray<TTuple<EBusSendType, FSoundSourceBusSendInfo>> NewBusSends = ActiveSound->GetNewBusSends();
 			for (TTuple<EBusSendType, FSoundSourceBusSendInfo>& NewSend : NewBusSends)
@@ -1871,11 +1873,13 @@ namespace Audio
 				if (NewSend.Value.SoundSourceBus)
 				{
 					MixerSourceVoice->SetAudioBusSendInfo(NewSend.Key, NewSend.Value.SoundSourceBus->GetUniqueID(), NewSend.Value.SendLevel);
+					bSendingAudioToBuses = true;
 				}
 
 				if (NewSend.Value.AudioBus)
 				{
 					MixerSourceVoice->SetAudioBusSendInfo(NewSend.Key, NewSend.Value.AudioBus->GetUniqueID(), NewSend.Value.SendLevel);
+					bSendingAudioToBuses = true;
 				}
 			}
 

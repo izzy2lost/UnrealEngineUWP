@@ -917,6 +917,17 @@ private:
 	FSharedISourceBufferListenerPtr SourceBufferListener;
 	bool bShouldSourceBufferListenerZeroBuffer = false;
 
+	/** Pending submix and bus sends. */
+	TArray<FSoundSubmixSendInfo> PendingSubmixSends;
+
+	struct FPendingSourceBusSendInfo
+	{
+		EBusSendType BusSendType = EBusSendType::PreEffect;
+		FSoundSourceBusSendInfo BusSendInfo;
+	};
+
+	TArray<FPendingSourceBusSendInfo> PendingBusSends;
+
 protected:
 
 	/** Utility function called by Play and FadeIn to start a sound playing. */
