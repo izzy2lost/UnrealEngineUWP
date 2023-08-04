@@ -508,11 +508,14 @@ protected:
 	/** Terminate all body instances owned by this component. */
 	ENGINE_API void ClearAllInstanceBodies();
 
+	/** Request to navigation system to update for the bounds of the ISM. */
+	ENGINE_API virtual void FullNavigationUpdate();
+
 	/** Request to navigation system to update only part of navmesh occupied by specified instance. */
 	ENGINE_API virtual void PartialNavigationUpdate(int32 InstanceIdx);
 
 	/** Does this component support partial navigation updates */
-	virtual bool SupportsPartialNavigationUpdate() const { return false; }
+	virtual bool SupportsPartialNavigationUpdate() const { return true; }
 
 	/** Internal version of AddInstance */
 	ENGINE_API int32 AddInstanceInternal(int32 InstanceIndex, FInstancedStaticMeshInstanceData* InNewInstanceData, const FTransform& InstanceTransform, bool bWorldSpace);
