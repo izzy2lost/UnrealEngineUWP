@@ -630,7 +630,7 @@ FText SRCPanelExposedEntitiesList::HandleEntityListHeaderLabel() const
 
 void SRCPanelExposedEntitiesList::OnObjectPropertyChange(UObject* InObject, FPropertyChangedEvent& InChangeEvent)
 {
-	EPropertyChangeType::Type TypesNeedingRefresh = EPropertyChangeType::ArrayAdd | EPropertyChangeType::ArrayClear | EPropertyChangeType::ArrayRemove | EPropertyChangeType::ValueSet;
+	EPropertyChangeType::Type TypesNeedingRefresh = EPropertyChangeType::ArrayAdd | EPropertyChangeType::ArrayClear | EPropertyChangeType::ArrayRemove | EPropertyChangeType::ValueSet | EPropertyChangeType::Duplicate;
 	auto IsRelevantProperty = [](FFieldClass* PropertyClass)
 	{
 		return PropertyClass && (PropertyClass == FArrayProperty::StaticClass() || PropertyClass == FSetProperty::StaticClass() || PropertyClass == FMapProperty::StaticClass());
@@ -642,7 +642,15 @@ void SRCPanelExposedEntitiesList::OnObjectPropertyChange(UObject* InObject, FPro
 	{
 		if (TSharedPtr<FRCPanelWidgetRegistry> Registry = WidgetRegistry.Pin())
 		{
-			Registry->Refresh(InObject);
+			if (InChangeEvent.Property)
+			{
+				// Force the refresh only if the property itself pass IsRelevantProperty check
+				Registry->Refresh(InObject, IsRelevantProperty(InChangeEvent.Property->GetClass()));
+			}
+			else
+			{
+				Registry->Refresh(InObject);
+			}
 		}
 
 		if (Preset)
