@@ -74,7 +74,7 @@ struct CHOOSER_API FChooserPropertyBinding
 	TArray<FName> PropertyBindingChain;
 	
 	UPROPERTY()
-	int ContextIndex = -1;
+	int ContextIndex = 0;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
