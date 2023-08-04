@@ -2419,7 +2419,7 @@ FStreamReaderDASH::FStreamHandler::EEmitResult FStreamReaderDASH::FStreamHandler
 		ActiveTrackData.SortedAccessUnitFIFO.Empty();
 	}
 
-	while(ActiveTrackData.AccessUnitFIFO.Num() && !bTerminate && !MKVHasReadBeenAborted())
+	while(ActiveTrackData.AccessUnitFIFO.Num() && !bTerminate && !HasReadBeenAborted())
 	{
 		if (ActiveTrackData.bNeedToRecalculateDurations)
 		{
@@ -2514,7 +2514,7 @@ FStreamReaderDASH::FStreamHandler::EEmitResult FStreamReaderDASH::FStreamHandler
 			ActiveTrackData.AccessUnitFIFO[LastIndex].AU->bIsLastInPeriod = true;
 		}
 
-		while(!bTerminate && !MKVHasReadBeenAborted())
+		while(!bTerminate && !HasReadBeenAborted())
 		{
 			if (Parameters.EventListener->OnFragmentAccessUnitReceived(pNext))
 			{
