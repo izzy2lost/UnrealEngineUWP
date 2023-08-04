@@ -49,10 +49,10 @@ struct FGarbageTraits
 	{
 		return FBuiltInComponentTypes::IsBoundObjectGarbage(InObject);
 	}
-	//FORCEINLINE static bool IsGarbage(FObjectComponent& InComponent)
-	//{
-	//	return FBuiltInComponentTypes::IsBoundObjectGarbage(InComponent.GetObject());
-	//}
+	FORCEINLINE static bool IsGarbage(FObjectComponent& InComponent)
+	{
+		return FBuiltInComponentTypes::IsBoundObjectGarbage(InComponent.GetObject());
+	}
 	
 	template<typename T>
 	FORCEINLINE static void AddReferencedObjects(FReferenceCollector& ReferenceCollector, T* In)
