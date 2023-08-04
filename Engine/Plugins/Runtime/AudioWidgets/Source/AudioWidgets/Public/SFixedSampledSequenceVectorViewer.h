@@ -4,6 +4,8 @@
 
 #include "SampledSequenceDrawingUtils.h"
 #include "SampledSequenceVectorViewerStyle.h"
+#include "Styling/ISlateStyle.h"
+#include "Styling/SlateWidgetStyleAsset.h"
 #include "Widgets/SLeafWidget.h"
 
 
