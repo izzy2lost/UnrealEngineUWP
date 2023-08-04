@@ -177,4 +177,11 @@ public:
 	*/
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
 	static float GetCurrentAperture(const UMovieGraphPipeline* InMovieGraphPipeline);
+
+	/**
+	* Gets the currently active cine camera, or nullptr if one was not found.
+	* @param	InMovieGraphPipeline	- The pipeline to get the camera from.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static UCineCameraComponent* GetCurrentCineCamera(const UMovieGraphPipeline* InMovieGraphPipeline);
 };

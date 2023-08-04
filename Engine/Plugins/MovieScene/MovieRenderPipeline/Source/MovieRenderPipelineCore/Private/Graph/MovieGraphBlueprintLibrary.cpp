@@ -409,3 +409,13 @@ float UMovieGraphBlueprintLibrary::GetCurrentAperture(const UMovieGraphPipeline*
 
 	return 0.f;
 }
+
+UCineCameraComponent* UMovieGraphBlueprintLibrary::GetCurrentCineCamera(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	if (UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+	{
+		return CineCameraComponent;
+	}
+
+	return nullptr;
+}

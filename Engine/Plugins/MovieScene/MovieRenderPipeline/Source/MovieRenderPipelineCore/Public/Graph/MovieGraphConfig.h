@@ -112,10 +112,10 @@ public:
 	UMovieGraphVariable() = default;
 
 	/** Returns true if this variable is a global variable. */
-	bool IsGlobal() const { return bIsGlobal; }
+	bool IsGlobal() const;
 
 	//~ Begin UMovieGraphMember interface
-	virtual bool IsDeletable() const override { return !bIsGlobal; }
+	virtual bool IsDeletable() const override;
 	virtual bool CanRename(const FText& InNewName, FText& OutError) const override;
 	virtual bool SetMemberName(const FString& InNewName) override;
 	//~ End UMovieGraphMember interface
@@ -128,11 +128,67 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	//~ End UObject overrides
 #endif // WITH_EDITOR
+};
 
-private:
-	/** Whether this variable represents a global variable. */
-	UPROPERTY()
-	bool bIsGlobal = false;
+/**
+ * Similar to normal UMovieGraphVariable instances. However, their values are provided by the graph, they cannot be
+ * edited/deleted, and they cannot be overridden at the job level.
+ */
+UCLASS(Abstract)
+class MOVIERENDERPIPELINECORE_API UMovieGraphGlobalVariable : public UMovieGraphVariable
+{
+	GENERATED_BODY()
+
+public:
+	UMovieGraphGlobalVariable();
+
+	/** Update the internal value of the global variable. */
+	virtual void UpdateValue(const FMovieGraphTraversalContext* InTraversalContext, const UMovieGraphPipeline* InPipeline) PURE_VIRTUAL(UMovieGraphGlobalVariable::UpdateValue, );
+
+	//~ Begin UMovieGraphMember interface
+	virtual bool IsDeletable() const override;
+	virtual bool CanRename(const FText& InNewName, FText& OutError) const override;
+	//~ End UMovieGraphMember interface
+};
+
+UCLASS()
+class UMovieGraphGlobalVariable_ShotName final : public UMovieGraphGlobalVariable
+{
+	GENERATED_BODY()
+
+public:
+	UMovieGraphGlobalVariable_ShotName();
+	virtual void UpdateValue(const FMovieGraphTraversalContext* InTraversalContext, const UMovieGraphPipeline* InPipeline) override;
+};
+
+UCLASS()
+class UMovieGraphGlobalVariable_SequenceName final : public UMovieGraphGlobalVariable
+{
+	GENERATED_BODY()
+
+public:
+	UMovieGraphGlobalVariable_SequenceName();
+	virtual void UpdateValue(const FMovieGraphTraversalContext* InTraversalContext, const UMovieGraphPipeline* InPipeline) override;
+};
+
+UCLASS()
+class UMovieGraphGlobalVariable_FrameNumber final : public UMovieGraphGlobalVariable
+{
+	GENERATED_BODY()
+
+public:
+	UMovieGraphGlobalVariable_FrameNumber();
+	virtual void UpdateValue(const FMovieGraphTraversalContext* InTraversalContext, const UMovieGraphPipeline* InPipeline) override;
+};
+
+UCLASS()
+class UMovieGraphGlobalVariable_CameraName final : public UMovieGraphGlobalVariable
+{
+	GENERATED_BODY()
+
+public:
+	UMovieGraphGlobalVariable_CameraName();
+	virtual void UpdateValue(const FMovieGraphTraversalContext* InTraversalContext, const UMovieGraphPipeline* InPipeline) override;
 };
 
 /**
@@ -496,6 +552,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Experimental")
 	TArray<UMovieGraphVariable*> GetVariables(const bool bIncludeGlobal = false) const;
 
+	/** Updates the values of all global variables. */
+	UFUNCTION(BlueprintCallable, Category="Experimental")
+	void UpdateGlobalVariableValues(const UMovieGraphPipeline* InPipeline);
+
 	/** Gets all inputs that have been defined on the graph. */
 	TArray<UMovieGraphInput*> GetInputs() const;
 
@@ -556,13 +616,6 @@ protected:
 	void VisitDownstreamNodes_Recursive(UMovieGraphNode* FromNode, const FVisitNodesCallback& VisitCallback, TSet<UMovieGraphNode*>& VisitedNodes) const;
 
 public:
-	// Names of global variables that are provided by the graph
-	static FName GlobalVariable_ShotName;
-	static FName GlobalVariable_SequenceName;
-	static FName GlobalVariable_FrameNumber;
-	static FName GlobalVariable_CameraName;
-	static FName GlobalVariable_RenderLayerName;
-	
 #if WITH_EDITOR
 	FOnMovieGraphChanged OnGraphChangedDelegate;
 	FOnMovieGraphVariablesChanged OnGraphVariablesChangedDelegate;
@@ -611,20 +664,28 @@ private:
 	/** Remove the specified output member from the graph. */
 	bool DeleteOutputMember(UMovieGraphOutput* OutputMemberToDelete);
 	
-	/** Add a new member of type T to MemberArray, with a unique name that includes BaseName in it. */
-	template<typename T>
-	T* AddMember(TArray<TObjectPtr<T>>& InMemberArray, const FName& InBaseName);
+	/**
+	 * Add a new member of type RetType to MemberArray (ArrType, which RetType must derive from), with a unique name
+	 * that includes BaseName in it.
+	 */
+	template<typename RetType, typename ArrType>
+	RetType* AddMember(TArray<TObjectPtr<ArrType>>& InMemberArray, const FName& InBaseName);
 
-	/** Adds a global variable to the graph with the provided name and value type. */
-	UMovieGraphVariable* AddGlobalVariable(const FName& InName, EMovieGraphValueType ValueType);
+	/** Adds a global variable of type T to the graph. */
+	template<typename T>
+	T* AddGlobalVariable();
 
 	/** Adds members to the graph that should always be available. */
 	void AddDefaultMembers();
 
 private:
-	/** All variables (user and global) which are available for use in the graph. */
+	/** All user (not global) variables which are available for use in the graph. */
 	UPROPERTY()
 	TArray<TObjectPtr<UMovieGraphVariable>> Variables;
+
+	/** All global variables which are available for use in the graph. */
+	UPROPERTY()
+	TArray<TObjectPtr<UMovieGraphGlobalVariable>> GlobalVariables;
 
 	/** All inputs which have been defined on the graph. */
 	UPROPERTY()

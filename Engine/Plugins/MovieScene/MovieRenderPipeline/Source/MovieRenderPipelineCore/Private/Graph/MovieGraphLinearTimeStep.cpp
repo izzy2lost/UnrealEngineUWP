@@ -68,9 +68,13 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 		UE_LOG(LogMovieRenderPipeline, Log, TEXT("MovieGraph Initializing Camera Cut [%d/%d] in [%s] %s."),
 			CurrentShotIndex + 1, ActiveShotList.Num(), *CurrentCameraCut->OuterName, *CurrentCameraCut->InnerName);
 
+		FMovieGraphTraversalContext Context = GetOwningGraph()->GetCurrentTraversalContext();
+		
+		// Update global variables before evaluating the graph
+		Context.RootGraph->UpdateGlobalVariableValues(GetOwningGraph());
+
 		// Evaluate the graph so we can fetch values for this shot.
 		UMovieGraphConfig* Config = GetOwningGraph()->GetRootGraphForShot(CurrentCameraCut);
-		FMovieGraphTraversalContext Context = GetOwningGraph()->GetCurrentTraversalContext();
 		CurrentFrameData.EvaluatedConfig = TStrongObjectPtr<UMovieGraphEvaluatedConfig>(Config->CreateFlattenedGraph(Context));
 		CurrentFrameData.TemporalSampleIndex = 0;
 
@@ -116,6 +120,9 @@ void UMovieGraphLinearTimeStep::TickProducingFrames()
 	if (CurrentCameraCut->ShotInfo.State == EMovieRenderShotState::Rendering)
 	{
 		FMovieGraphTraversalContext Context = GetOwningGraph()->GetCurrentTraversalContext();
+
+		// Update global variables before evaluating the graph
+		Context.RootGraph->UpdateGlobalVariableValues(GetOwningGraph());
 		
 		if (IsFirstTemporalSample())
 		{
