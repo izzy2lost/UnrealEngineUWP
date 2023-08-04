@@ -473,4 +473,35 @@ namespace UE::Tasks
 			ETaskPriority::Default, // doesn't matter
 			EExtendedTaskPriority::Inline);
 	}
+
+	// support for canceling tasks mid-execution
+	// usage:
+	//		FCancellationToken Token;
+	//		Launch(UE_SOURCE_LOCATION, [&Token] { ... if (Token.IsCanceled()) return; ... });
+	//		Token.Cancel();
+	// * it's user's decision and responsibility to manage cancellation token lifetime, to check cancellation token, return early, 
+	//		to do any required cleanup, or to do nothing at all
+	// * no way to cancel a task to skip its execution completely
+	// * waiting for a canceled task is blocking until its prerequisites are completed and the task is executed and completed, 
+	//		basically same as for not canceled tasks except a canceled one can quit execution early
+	// * canceling a task doesn't affect its subsequents (unless they use the same cancellation token instance)
+	class FCancellationToken
+	{
+	public:
+		UE_NONCOPYABLE(FCancellationToken);
+		FCancellationToken() = default;
+
+		void Cancel()
+		{
+			bCanceled = true;
+		}
+
+		bool IsCanceled() const
+		{
+			return bCanceled;
+		}
+
+	private:
+		std::atomic<bool> bCanceled{ false };
+	};
 }

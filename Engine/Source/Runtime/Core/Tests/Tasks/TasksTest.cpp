@@ -1428,6 +1428,31 @@ namespace UE { namespace TasksTests
 			check(Task.GetResult().Int == 42 && Task.GetResult().Str == TEXT("Test"));
 		}
 	}
+
+	TEST_CASE_NAMED(FTasksCancellation, "System::Core::Tasks::Cancellation", "[.][ApplicationContextMask][EngineFilter]")
+	{
+		{
+			FCancellationToken CancellationToken;
+			FTaskEvent BlockExecution{ UE_SOURCE_LOCATION };
+
+			// check that a task sees cancellation request
+			FTask Task1 = Launch(UE_SOURCE_LOCATION,
+				[&CancellationToken, BlockExecution]
+				{
+					BlockExecution.Wait();
+					verify(CancellationToken.IsCanceled());
+				}
+			);
+			// same token can be used with multiple tasks to cancel them all
+			// a task can ignore cancellation request
+			FTask Task2 = Launch(UE_SOURCE_LOCATION, [&CancellationToken] {});
+
+			CancellationToken.Cancel();
+			BlockExecution.Trigger();
+
+			Wait(TArray{ Task1, Task2 });
+		}
+	}
 }}
 
 #endif // WITH_TESTS
