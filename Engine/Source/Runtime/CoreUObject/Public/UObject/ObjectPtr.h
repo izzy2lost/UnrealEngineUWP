@@ -19,7 +19,7 @@
 #endif
 
 #ifndef UE_OBJECT_PTR_GC_BARRIER
-	#define UE_OBJECT_PTR_GC_BARRIER 0
+	#define UE_OBJECT_PTR_GC_BARRIER 1
 #endif
 
 /** 
