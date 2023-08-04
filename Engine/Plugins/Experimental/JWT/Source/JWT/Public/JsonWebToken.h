@@ -100,6 +100,15 @@ public:
 	bool GetAudience(FString& OutValue) const;
 
 	/**
+	 * Get a custom claim by name.
+	 * 
+	 * @param InName The name of the claim.
+	 * @param OutValue The value to output on success.
+	 * @return Whether the claim exists and was successfully outputted.
+	 */
+	bool GetStringClaim(const FString& InName, FString& OutValue) const;
+
+	/**
 	 * Gets a claim by name.
 	 * This method can be used to get custom claims that are not reserved as part of the JWT specification.
 	 *
