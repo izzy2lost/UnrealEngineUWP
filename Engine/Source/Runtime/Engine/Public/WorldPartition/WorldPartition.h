@@ -171,6 +171,7 @@ private:
 	ENGINE_API void SavePerUserSettings();
 		
 	ENGINE_API void OnGCPostReachabilityAnalysis();
+	ENGINE_API void OnObjectsReplaced(const TMap<UObject*, UObject*>& OldToNewObjectMap);
 	ENGINE_API void OnPackageDirtyStateChanged(UPackage* Package);
 
 	// PIE/Game
