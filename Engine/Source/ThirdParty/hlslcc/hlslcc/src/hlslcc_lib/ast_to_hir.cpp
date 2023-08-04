@@ -4680,6 +4680,7 @@ ir_rvalue * ast_switch_body::hir(exec_list *instructions, struct _mesa_glsl_pars
 {
 	if (stmts != NULL)
 	{
+		stmts->sortlabels();
 		stmts->hir(instructions, state);
 	}
 
