@@ -16,7 +16,7 @@ DEFINE_LOG_CATEGORY(LogMassSim);
 namespace UE::MassSimulation
 {
 	int32 bDoEntityCompaction = 1;
-	FAutoConsoleVariableRef CVarEntityCompaction(TEXT("ai.mass.EntityCompaction"), bDoEntityCompaction, TEXT("Maximize the nubmer of entities per chunk"), ECVF_Cheat);
+	FAutoConsoleVariableRef CVarEntityCompaction(TEXT("mass.EntityCompaction"), bDoEntityCompaction, TEXT("Maximize the number of entities per chunk"), ECVF_Cheat);
 }
 
 //----------------------------------------------------------------------//
@@ -178,10 +178,10 @@ void UMassSimulationSubsystem::OnProcessingPhaseStarted(const float DeltaSeconds
 	{
 		case EMassProcessingPhase::PrePhysics:
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(DoEntityCompation);
-				check(EntityManager);
-				if (UE::MassSimulation::bDoEntityCompaction)
+				if (UE::MassSimulation::bDoEntityCompaction && GET_MASSSIMULATION_CONFIG_VALUE(bEntityCompactionEnabled))
 				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(DoEntityCompaction);
+					check(EntityManager);
 					EntityManager->DoEntityCompaction(GET_MASSSIMULATION_CONFIG_VALUE(DesiredEntityCompactionTimeSlicePerTick));
 				}
 			}

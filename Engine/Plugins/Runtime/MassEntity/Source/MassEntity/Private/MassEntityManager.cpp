@@ -358,6 +358,7 @@ void FMassEntityManager::ForEachArchetypeFragmentType(const FMassArchetypeHandle
 
 void FMassEntityManager::DoEntityCompaction(const double TimeAllowed)
 {
+	int32 TotalEntitiesMoved = 0;
 	const double TimeAllowedEnd = FPlatformTime::Seconds() + TimeAllowed;
 
 	bool bReachedTimeLimit = false;
@@ -369,15 +370,17 @@ void FMassEntityManager::DoEntityCompaction(const double TimeAllowed)
 			bReachedTimeLimit = TimeAllowedLeft <= 0.0;
 			if (bReachedTimeLimit)
 			{
-				break;
+ 				break;
 			}
-			ArchetypePtr->CompactEntities(TimeAllowedLeft);
+			TotalEntitiesMoved += ArchetypePtr->CompactEntities(TimeAllowedLeft);
 		}
 		if (bReachedTimeLimit)
 		{
 			break;
 		}
 	}
+
+	UE_CVLOG(TotalEntitiesMoved, GetOwner(), LogMass, Verbose, TEXT("Entity Compaction: moved %d entities"), TotalEntitiesMoved);
 }
 
 FMassEntityHandle FMassEntityManager::CreateEntity(const FMassArchetypeHandle& ArchetypeHandle, const FMassArchetypeSharedFragmentValues& SharedFragmentValues)

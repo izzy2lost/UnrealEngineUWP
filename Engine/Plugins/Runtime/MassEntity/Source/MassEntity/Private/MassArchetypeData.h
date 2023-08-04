@@ -252,8 +252,9 @@ public:
 
 	/**
 	 * Compacts entities to fill up chunks as much as possible
+	 * @return number of entities moved around
 	 */
-	void CompactEntities(const double TimeAllowed);
+	int32 CompactEntities(const double TimeAllowed);
 
 	/**
 	 * Moves the entity from this archetype to another, will only copy all matching fragment types

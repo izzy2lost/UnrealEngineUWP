@@ -503,8 +503,9 @@ void FMassArchetypeData::ExecutionFunctionForChunk(FMassExecutionContext RunCont
 	}
 }
 
-void FMassArchetypeData::CompactEntities(const double TimeAllowed)
+int32 FMassArchetypeData::CompactEntities(const double TimeAllowed)
 {
+	int32 TotalEntitiesMoved = 0;
 	const double TimeAllowedEnd = FPlatformTime::Seconds() + TimeAllowed;
 
 	TMap<uint32, TArray<FMassArchetypeChunk*>> SortedChunksBySharedValues;
@@ -581,8 +582,12 @@ void FMassArchetypeData::CompactEntities(const double TimeAllowed)
 			{
 				EntityMap.FindChecked(ToEntity->Index) = AbsoluteIndex + i;
 			}
+
+			TotalEntitiesMoved += NumberOfEntitiesToMove;
 		}
 	}
+
+	return TotalEntitiesMoved;
 }
 
 void FMassArchetypeData::GetRequirementsFragmentMapping(TConstArrayView<FMassFragmentRequirementDescription> Requirements, FMassFragmentIndicesMapping& OutFragmentIndices) const
