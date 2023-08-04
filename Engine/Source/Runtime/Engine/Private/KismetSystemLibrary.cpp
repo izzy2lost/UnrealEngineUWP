@@ -340,6 +340,11 @@ UObject* UKismetSystemLibrary::Conv_InterfaceToObject(const FScriptInterface& In
 	return Interface.GetObject();
 }
 
+bool UKismetSystemLibrary::IsValidInterface(const FScriptInterface& Interface)
+{
+	return IsValid(Interface.GetObject());
+}
+
 void UKismetSystemLibrary::LogString(const FString& InString, bool bPrintToLog)
 {
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING // Do not Print in Shipping or Test unless explictly enabled.

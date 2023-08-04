@@ -270,6 +270,10 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "To Object (Interface)", CompactNodeTitle = "->", BlueprintAutocast), Category="Utilities")
 	static ENGINE_API UObject* Conv_InterfaceToObject(const FScriptInterface& Interface); 
 
+	/** Checks if the backing object is valid. */
+	UFUNCTION(BlueprintPure, Category="Utilities")
+	static bool IsValidInterface(const FScriptInterface& Interface); 
+
 	/** Builds a Soft Object Path struct from a string that contains a full /folder/packagename.object path */
 	UFUNCTION(BlueprintPure, Category = "Utilities", meta = (Keywords = "construct build", NativeMakeFunc, BlueprintThreadSafe, BlueprintAutocast))
 	static ENGINE_API FSoftObjectPath MakeSoftObjectPath(const FString& PathString);
