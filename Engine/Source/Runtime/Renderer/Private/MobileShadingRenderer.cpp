@@ -1336,7 +1336,10 @@ void FMobileSceneRenderer::RenderForwardSinglePass(FRDGBuilder& GraphBuilder, FM
 		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Translucency));
 		RenderDecals(RHICmdList, View);
 		RenderModulatedShadowProjections(RHICmdList, ViewContext.ViewIndex, View);
-		RenderFog(RHICmdList, View);
+		if (GMaxRHIShaderPlatform != SP_METAL_SIM)
+		{
+			RenderFog(RHICmdList, View);
+		}
 		RenderLocalFogVolumeMobile(RHICmdList, View);
 		// Draw translucency.
 		RenderTranslucency(RHICmdList, View);
