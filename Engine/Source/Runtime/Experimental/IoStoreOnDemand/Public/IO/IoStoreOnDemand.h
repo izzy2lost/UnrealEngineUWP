@@ -35,6 +35,7 @@ enum class EOnDemandTocVersion : uint32
 	Invalid			= 0,
 	Initial			= 1,
 	UTocHash		= 2,
+	BlockHash32		= 3,
 
 	LatestPlusOne,
 	Latest			= (LatestPlusOne - 1)
@@ -86,7 +87,7 @@ struct FOnDemandTocContainerEntry
 	FString EncryptionKeyGuid;
 	TArray<FOnDemandTocEntry> Entries;
 	TArray<uint32> BlockSizes;
-	TArray<FIoHash> BlockHashes;
+	TArray<uint32> BlockHashes;
 	FIoHash UTocHash;
 
 	UE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandTocContainerEntry& ContainerEntry);
@@ -131,6 +132,7 @@ struct FIoStoreUploadResult
 {
 	FIoHash TocHash;
 	FString TocPath;
+	uint64 TocSize = 0;
 };
 
 UE_API TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
