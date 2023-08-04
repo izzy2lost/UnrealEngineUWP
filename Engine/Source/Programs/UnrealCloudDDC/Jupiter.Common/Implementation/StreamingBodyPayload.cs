@@ -103,6 +103,8 @@ namespace Jupiter.Common.Implementation
 		private readonly FileInfo _tempFile;
 		private long _length;
 
+		public FileInfo TempFile => _tempFile;
+
 		private FilesystemBufferedPayload()
 		{
 			_tempFile = new FileInfo(Path.GetTempFileName());
