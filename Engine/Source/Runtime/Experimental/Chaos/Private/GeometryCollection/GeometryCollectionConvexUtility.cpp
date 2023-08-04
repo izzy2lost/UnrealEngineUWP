@@ -3443,4 +3443,70 @@ namespace UE::GeometryCollectionConvexUtility
 		FilterHullPoints(HullPolygons.Vertices, SimplificationDistanceThreshold);
 		*ResultHull = Chaos::FConvex(HullPolygons.Vertices, UpdateHull->GetMargin());
 	}
+
+	bool CHAOS_API GetExistingConvexHullsInSharedSpace(const FManagedArrayCollection* Collection, FConvexHulls& OutConvexHulls, bool bLeafOnly)
+	{
+		if (!Collection->HasAttribute("TransformToConvexIndices", FTransformCollection::TransformGroup) ||
+			!Collection->HasAttribute(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup))
+		{
+			return false;
+		}
+		
+		const TManagedArray<TSet<int32>>& OrigTransformToConvexIndices = Collection->GetAttribute<TSet<int32>>("TransformToConvexIndices", FTransformCollection::TransformGroup);
+		const TManagedArray<Chaos::FConvexPtr>& OrigConvexHulls = Collection->GetAttribute<Chaos::FConvexPtr>(FGeometryCollection::ConvexHullAttribute, FGeometryCollection::ConvexGroup);
+		const TManagedArray<int32>* SimulationType = Collection->FindAttribute<int32>("SimulationType", FTransformCollection::TransformGroup);
+		if (bLeafOnly && !SimulationType)
+		{
+			return false;
+		}
+
+		const int32 NumTransform = OrigTransformToConvexIndices.Num();
+		OutConvexHulls.TransformToHullsIndices.SetNum(NumTransform);
+
+		GeometryCollection::Facades::FCollectionTransformFacade TransformFacade(*Collection);
+		TArray<FTransform> GlobalTransformArray = TransformFacade.ComputeCollectionSpaceTransforms();
+		
+		TArray<int32> NewConvexToTransformIndices;
+		TArray<int32> NewConvexToOrigConvexIndices;
+		NewConvexToTransformIndices.Reserve(OrigConvexHulls.Num());
+		NewConvexToOrigConvexIndices.Reserve(OrigConvexHulls.Num());
+		int32 NumNewConvex = 0;
+		for (int32 TransformIdx = 0; TransformIdx < OrigTransformToConvexIndices.Num(); ++TransformIdx)
+		{
+			if (bLeafOnly && (*SimulationType)[TransformIdx] != FGeometryCollection::ESimulationTypes::FST_Rigid)
+			{
+				continue;
+			}
+			for (int32 OrigConvexIdx : OrigTransformToConvexIndices[TransformIdx])
+			{
+				int32 NewConvexIdx = NumNewConvex++;
+				NewConvexToTransformIndices.Add(TransformIdx);
+				NewConvexToOrigConvexIndices.Add(OrigConvexIdx);
+				checkSlow(NewConvexToTransformIndices.Num() == NumNewConvex);
+				checkSlow(NewConvexToOrigConvexIndices.Num() == NumNewConvex);
+				OutConvexHulls.TransformToHullsIndices[TransformIdx].Add(NewConvexIdx);
+			}
+		}
+
+		OutConvexHulls.Hulls.SetNum(NumNewConvex);
+		OutConvexHulls.OverlapRemovalShrinkPercent = 0;
+		OutConvexHulls.Pivots.Reset(); // Note: No scaling is applied so pivots are not used
+
+		ParallelFor(NewConvexToOrigConvexIndices.Num(), [&](int32 NewConvexIdx)
+		{
+			int32 TransformIdx = NewConvexToTransformIndices[NewConvexIdx];
+			FTransform Transform = GlobalTransformArray[TransformIdx];
+			int32 OrigConvexIdx = NewConvexToOrigConvexIndices[NewConvexIdx];
+			TArray<Chaos::FConvex::FVec3Type> HullPts;
+			HullPts.Reserve(OrigConvexHulls[OrigConvexIdx]->GetVertices().Num());
+			for (const Chaos::FConvex::FVec3Type& P : OrigConvexHulls[OrigConvexIdx]->GetVertices())
+			{
+				FVector PVec(P);
+				HullPts.Add((Chaos::FConvex::FVec3Type)(Transform.TransformPosition(PVec)));
+			}
+			OutConvexHulls.Hulls[NewConvexIdx] = new Chaos::FConvex(HullPts, UE_KINDA_SMALL_NUMBER);
+		});
+
+		return true;
+	}
 }

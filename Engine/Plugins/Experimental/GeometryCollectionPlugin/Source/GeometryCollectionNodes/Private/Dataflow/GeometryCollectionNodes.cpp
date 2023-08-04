@@ -695,10 +695,17 @@ void FProximityDataflowNode::Evaluate(Dataflow::FContext& Context, const FDatafl
 
 			GeomCollection->SetProximityProperties(Properties);
 
+			UE::GeometryCollectionConvexUtility::FConvexHulls TransformedExistingHulls;
+			bool bUseExistingHulls = false;
+			if (!bRecomputeConvexHulls)
+			{
+				bUseExistingHulls = UE::GeometryCollectionConvexUtility::GetExistingConvexHullsInSharedSpace(GeomCollection.Get(), TransformedExistingHulls, true);
+			}
+
 			// Invalidate proximity
 			FGeometryCollectionProximityUtility ProximityUtility(GeomCollection.Get());
 			ProximityUtility.InvalidateProximity();
-			ProximityUtility.UpdateProximity();
+			ProximityUtility.UpdateProximity(bUseExistingHulls ? &TransformedExistingHulls : nullptr);
 
 			SetValue<const FManagedArrayCollection&>(Context, *GeomCollection, &Collection);
 		}

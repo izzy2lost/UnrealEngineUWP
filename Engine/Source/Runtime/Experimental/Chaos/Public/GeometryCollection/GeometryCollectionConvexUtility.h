@@ -75,6 +75,10 @@ namespace UE::GeometryCollectionConvexUtility
 	void CHAOS_API IntersectConvexHulls(::Chaos::FConvex* ResultHull, const ::Chaos::FConvex* ClipHull, float ClipHullOffset, const ::Chaos::FConvex* UpdateHull,
 		const FTransform* ClipHullTransform = nullptr, const FTransform* UpdateHullTransform = nullptr, const FTransform* UpdateToResultTransform = nullptr, double SimplificationDistanceThreshold = 0.0);
 
+	// Get the existing convex hulls from the collection, transformed to the global/shared space of the overall collection
+	// @param bLeafOnly		Only include the convex hulls of leaf (rigid) nodes
+	bool CHAOS_API GetExistingConvexHullsInSharedSpace(const FManagedArrayCollection* Collection, FConvexHulls& OutConvexHulls, bool bLeafOnly = false);
+
 }
 
 class FGeometryCollectionConvexUtility
