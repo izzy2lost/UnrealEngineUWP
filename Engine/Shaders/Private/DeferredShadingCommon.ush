@@ -913,6 +913,12 @@ bool AdjustBaseColorAndSpecularColorForSubsurfaceProfileLighting(inout float3 Ba
 }
 void AdjustBaseColorAndSpecularColorForSubsurfaceProfileLighting(inout float3 BaseColor, inout float3 SpecularColor, inout float Specular, bool bChecker)
 {
+// If this function is called in translucent pass, we should not modify the BaseColor, instead directly read the base color as it is. 
+// The translucent pass is called after the main post process subsurface scattering pass, it will not affect previous logic.
+#if MATERIALBLENDING_TRANSLUCENT
+	return;
+#endif
+
 	const bool bCheckerboardRequired = AdjustBaseColorAndSpecularColorForSubsurfaceProfileLighting(BaseColor, Specular, bChecker);
 	if (bCheckerboardRequired)
 	{
