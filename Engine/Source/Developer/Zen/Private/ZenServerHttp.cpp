@@ -29,6 +29,7 @@
 #include "Containers/StringFwd.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "Memory/CompositeBuffer.h"
+#include "Misc/App.h"
 #include "Serialization/CompactBinary.h"
 #include "Serialization/CompactBinaryPackage.h"
 #include "Serialization/CompactBinaryValidation.h"
