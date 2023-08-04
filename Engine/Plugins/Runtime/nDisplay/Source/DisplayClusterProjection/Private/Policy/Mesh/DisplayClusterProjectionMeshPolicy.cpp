@@ -68,7 +68,7 @@ bool FDisplayClusterProjectionMeshPolicy::CreateWarpMeshInterface(IDisplayCluste
 		{
 			FDisplayClusterWarpInitializer_StaticMesh CreateParameters;
 
-			CreateParameters.OriginComponent = GetOriginComp();
+			CreateParameters.OriginComponent = GetOriginComponent();
 
 			CreateParameters.StaticMeshComponent = WarpCfg.StaticMeshComponent;
 			CreateParameters.StaticMeshComponentLODIndex = WarpCfg.StaticMeshComponentLODIndex;
@@ -82,7 +82,7 @@ bool FDisplayClusterProjectionMeshPolicy::CreateWarpMeshInterface(IDisplayCluste
 		{
 			FDisplayClusterWarpInitializer_ProceduralMesh CreateParameters;
 
-			CreateParameters.OriginComponent = GetOriginComp();
+			CreateParameters.OriginComponent = GetOriginComponent();
 
 			CreateParameters.ProceduralMeshComponent = WarpCfg.ProceduralMeshComponent;
 			CreateParameters.ProceduralMeshComponentSectionIndex = WarpCfg.ProceduralMeshComponentSectionIndex;
@@ -251,18 +251,3 @@ bool FDisplayClusterProjectionMeshPolicy::GetWarpMeshConfiguration(IDisplayClust
 
 	return true;
 }
-
-#if WITH_EDITOR
-UMeshComponent* FDisplayClusterProjectionMeshPolicy::GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent)
-{
-	if (WarpBlendInterface.IsValid())
-		{
-		bOutIsRootActorComponent = true;
-
-		return WarpBlendInterface->GetStaticMeshComponent();
-	}
-
-	return nullptr;
-}
-#endif
-

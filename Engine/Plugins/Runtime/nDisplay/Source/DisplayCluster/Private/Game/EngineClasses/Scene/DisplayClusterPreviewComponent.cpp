@@ -281,6 +281,12 @@ bool UDisplayClusterPreviewComponent::UpdatePreviewMesh()
 
 void UDisplayClusterPreviewComponent::ReleasePreviewMesh()
 {
+	if (!bIsRootActorPreviewMesh && PreviewMesh)
+	{
+		PreviewMesh->UnregisterComponent();
+		PreviewMesh->DestroyComponent();
+	}
+
 	// Forget old mesh with material
 	PreviewMesh = nullptr;
 	CurrentMeshMaterial = nullptr;

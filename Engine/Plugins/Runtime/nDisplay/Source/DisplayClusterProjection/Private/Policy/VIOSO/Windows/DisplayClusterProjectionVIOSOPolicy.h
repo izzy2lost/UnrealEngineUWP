@@ -55,8 +55,6 @@ protected:
 
 	FCriticalSection DllAccessCS;
 
-private:
-#if WITH_EDITOR
 protected:
 	//////////////////////////////////////////////////////////////////////////////////////////////
 	// IDisplayClusterProjectionPolicyPreview
@@ -65,11 +63,6 @@ protected:
 	{
 		return true;
 	}
+
 	virtual class UMeshComponent* GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent) override;
-
-	void ReleasePreviewMeshComponent();
-
-private:
-	FDisplayClusterSceneComponentRef PreviewMeshComponentRef;
-#endif
 };

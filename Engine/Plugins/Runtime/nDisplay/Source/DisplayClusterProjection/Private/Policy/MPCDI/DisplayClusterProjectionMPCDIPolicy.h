@@ -78,20 +78,11 @@ private:
 	bool bInvalidConfiguration = false;
 	bool bIsPreviewMeshEnabled = false;
 
-#if WITH_EDITOR
 protected:
-	//////////////////////////////////////////////////////////////////////////////////////////////
-	// IDisplayClusterProjectionPolicyPreview
-	//////////////////////////////////////////////////////////////////////////////////////////////
 	virtual bool HasPreviewMesh() override
 	{
 		return true;
 	}
+
 	virtual class UMeshComponent* GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent) override;
-
-	void ReleasePreviewMeshComponent();
-
-private:
-	FDisplayClusterSceneComponentRef PreviewMeshComponentRef;
-#endif
 };

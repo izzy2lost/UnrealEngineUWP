@@ -6,6 +6,8 @@
 #include "Containers/DisplayClusterWarpEye.h"
 
 class UMeshComponent;
+class IDisplayClusterViewport;
+
 /**
  * WarpBlend interface for MPCDI and mesh projection policies
  */
@@ -93,6 +95,12 @@ public:
 	/** Get internal warp context data. */
 	virtual const FDisplayClusterWarpData& GetWarpData(const uint32 ContextNum) const = 0;
 
-	/** Get frustum mesh component. */
-	virtual UMeshComponent* GetStaticMeshComponent() const = 0;
+	/** Get a mesh component with the geometry used for the warp blend.
+	* 
+	* @param InViewport - The viewport with the projection policy to which the instance belongs
+	* @param bExistingComponent - true if the component already exists in the DCRA and does not need to be deleted externally.
+	* 
+	* @return - ptr to the mesh component with the geometry, or nullptr in case of failure
+	*/
+	virtual UMeshComponent* GetOrCreateMeshComponent(IDisplayClusterViewport* InViewport, bool& bExistingComponent) const = 0;
 };

@@ -66,6 +66,7 @@ TSharedPtr<FDisplayClusterWarpBlend, ESPMode::ThreadSafe> FDisplayClusterWarpBle
 	TSharedPtr<FDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlend = MakeShared<FDisplayClusterWarpBlend, ESPMode::ThreadSafe>();
 
 	WarpBlend->GeometryContext.GeometryProxy.GeometryType = EDisplayClusterWarpGeometryType::WarpMap;
+	WarpBlend->GeometryContext.GeometryProxy.MPCDIAttributes = MPCDIAttributes;
 
 	// Frustum geometry source
 	switch (MPCDIAttributes.ProfileType)
@@ -81,12 +82,8 @@ TSharedPtr<FDisplayClusterWarpBlend, ESPMode::ThreadSafe> FDisplayClusterWarpBle
 		break;
 	}
 
-	WarpBlend->GeometryContext.GeometryProxy.MPCDIAttributes = MPCDIAttributes;
-
 	FDisplayClusterWarpBlend_GeometryProxy& Proxy = WarpBlend->GeometryContext.GeometryProxy;
-
 	Proxy.WarpMapTexture = WarpMap;
-
 	Proxy.AlphaMapEmbeddedGamma = AlphaMapGammaEmbedded;
 	Proxy.AlphaMapTexture = AlphaMap;
 	Proxy.BetaMapTexture = BetaMap;
@@ -157,17 +154,19 @@ TSharedPtr<IDisplayClusterRender_Texture, ESPMode::ThreadSafe> FDisplayClusterWa
 TSharedPtr<IDisplayClusterRender_Texture, ESPMode::ThreadSafe> FDisplayClusterWarpBlendMPCDIRegionLoader::CreateTextureFromPFMFile(const FString& InPFMFile, float PFMScale, bool bIsUnrealGameSpace)
 {
 	// new resource, initialize once
-	const FString PFMFileFullPath = FDisplayClusterWarpBlendMPCDIFileLoader::GetFullPathToFile(InPFMFile);
-	if (PFMFileFullPath.IsEmpty())
+	const FString FullPath2PFMFile = FDisplayClusterWarpBlendMPCDIFileLoader::GetFullPathToFile(InPFMFile);
+	if (FullPath2PFMFile.IsEmpty())
 	{
 		return nullptr;
 	}
 
-	TSharedPtr<IDisplayClusterRender_Texture, ESPMode::ThreadSafe> Texture = GetOrCreateCachedTextureImpl(PFMFileFullPath);
+	const FString UniqueName = FString::Printf(TEXT("%s=%f"), *FMD5::HashAnsiString(*FullPath2PFMFile.ToLower()), PFMScale);
+
+	TSharedPtr<IDisplayClusterRender_Texture, ESPMode::ThreadSafe> Texture = GetOrCreateCachedTextureImpl(UniqueName);
 	if (Texture && !Texture->IsEnabled())
 	{
 		bool bResult = false;
-		const std::string FileName = TCHAR_TO_ANSI(*PFMFileFullPath);
+		const std::string FileName = TCHAR_TO_ANSI(*FullPath2PFMFile);
 		mpcdi::PFM* PFMData;
 		mpcdi::MPCDI_Error res = mpcdi::PfmIO::Read(FileName, PFMData);
 		if (mpcdi::MPCDI_SUCCESS == res && PFMData)

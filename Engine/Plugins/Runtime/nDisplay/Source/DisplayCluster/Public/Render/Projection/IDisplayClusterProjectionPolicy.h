@@ -52,7 +52,7 @@ public:
 	 * This component is used to convert from the local DCRA space to the local projection policy space,
 	 * which contains the calibrated geometry data used for the warp.
 	 */
-	virtual const USceneComponent* const GetOriginComponent() const
+	virtual USceneComponent* const GetOriginComponent() const
 	{
 		return nullptr;
 	}
@@ -284,7 +284,6 @@ public:
 		return false;
 	}
 
-#if WITH_EDITOR
 	/**
 	* Ask projection policy instance if it has any mesh based preview
 	*
@@ -329,5 +328,4 @@ public:
 	{
 		return nullptr;
 	}
-#endif
 };

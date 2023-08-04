@@ -174,10 +174,6 @@ void FDisplayClusterProjectionMPCDIPolicy::HandleEndScene(IDisplayClusterViewpor
 	check(IsInGameThread());
 
 	ImplRelease();
-
-#if WITH_EDITOR
-	ReleasePreviewMeshComponent();
-#endif
 }
 
 void FDisplayClusterProjectionMPCDIPolicy::ImplRelease()
@@ -242,7 +238,7 @@ bool FDisplayClusterProjectionMPCDIPolicy::CalculateView(IDisplayClusterViewport
 	const float WorldScale = WorldToMeters / 100.f;
 
 	// Get view location in local space
-	const USceneComponent* const OriginComp = GetOriginComp();
+	const USceneComponent* const OriginComp = GetOriginComponent();
 
 	// Initialize frustum
 	TSharedPtr<FDisplayClusterWarpEye, ESPMode::ThreadSafe> WarpEye = MakeShared<FDisplayClusterWarpEye, ESPMode::ThreadSafe>(InViewport->ToSharedPtr(), InContextNum);
@@ -448,91 +444,10 @@ void FDisplayClusterProjectionMPCDIPolicy::ApplyWarpBlend_RenderThread(FRHIComma
 	}
 }
 
-#if WITH_EDITOR
-
-#include "ProceduralMeshComponent.h"
-
-void FDisplayClusterProjectionMPCDIPolicy::ReleasePreviewMeshComponent()
-{
-	USceneComponent* PreviewMeshComp = PreviewMeshComponentRef.GetOrFindSceneComponent();
-	if (PreviewMeshComp != nullptr)
-	{
-		PreviewMeshComp->UnregisterComponent();
-		PreviewMeshComp->DestroyComponent();
-	}
-
-	PreviewMeshComponentRef.ResetSceneComponent();
-}
-
 UMeshComponent* FDisplayClusterProjectionMPCDIPolicy::GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent)
 {
-	check(IsInGameThread());
-
-	if (WarpBlendInterface.IsValid() == false || !bIsPreviewMeshEnabled)
-	{
-		return nullptr;
-	}
-
-	// MPCDI can use a static mesh component instead of a warpmap (2D)
-	if (WarpBlendInterface.IsValid())
-	{
-		if (UMeshComponent* StaticMeshComponentRef = WarpBlendInterface->GetStaticMeshComponent())
-		{
-			bOutIsRootActorComponent = true;
-
-			return StaticMeshComponentRef;
-		}
-	}
-
-	// used created mesh component
-	bOutIsRootActorComponent = false;
-
-	USceneComponent* OriginComp = GetOriginComp();
-
-	// Return Exist mesh component
-	USceneComponent* PreviewMeshComp = PreviewMeshComponentRef.GetOrFindSceneComponent();
-	if (PreviewMeshComp != nullptr)
-	{
-		UProceduralMeshComponent* PreviewMesh = Cast<UProceduralMeshComponent>(PreviewMeshComp);
-		if (PreviewMesh != nullptr)
-		{
-			// update attachment to parent
-			PreviewMesh->AttachToComponent(OriginComp, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
-			return PreviewMesh;
-		}
-	}
-
-	// Downscale preview mesh dimension to max limit
-	const uint32 PreviewGeometryDimLimit = 128;
-
-	// Create new WarpMesh component
-	FDisplayClusterWarpGeometryOBJ MeshData;
-	if (WarpBlendInterface->ExportWarpMapGeometry(MeshData, PreviewGeometryDimLimit))
-	{
-		const FString CompName = FString::Printf(TEXT("MPCDI_%s_impl"), *GetId());
-
-		// Creta new object
-		UProceduralMeshComponent* MeshComp = NewObject<UProceduralMeshComponent>(OriginComp, FName(*CompName), EObjectFlags::RF_DuplicateTransient | RF_Transient | RF_TextExportTransient);
-		if (MeshComp)
-		{
-			MeshComp->RegisterComponent();
-			MeshComp->AttachToComponent(OriginComp, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
-			MeshComp->CreateMeshSection(0, MeshData.Vertices, MeshData.Triangles, MeshData.Normal, MeshData.UV, TArray<FColor>(), TArray<FProcMeshTangent>(), false);
-			MeshComp->SetIsVisualizationComponent(true);
-
-			// Because of "nDisplay.render.show.visualizationcomponents" we need extra flag to exclude this geometry from render
-			MeshComp->SetHiddenInGame(true);
-
-			// Store reference to mesh component
-			PreviewMeshComponentRef.SetSceneComponent(MeshComp);
-			return MeshComp;
-		}
-	}
-
-	return nullptr;
+	return (bIsPreviewMeshEnabled && WarpBlendInterface.IsValid()) ? WarpBlendInterface->GetOrCreateMeshComponent(InViewport, bOutIsRootActorComponent) : nullptr;
 }
-
-#endif
 
 bool FDisplayClusterProjectionMPCDIPolicy::CreateWarpBlendFromConfig(IDisplayClusterViewport* InViewport)
 {

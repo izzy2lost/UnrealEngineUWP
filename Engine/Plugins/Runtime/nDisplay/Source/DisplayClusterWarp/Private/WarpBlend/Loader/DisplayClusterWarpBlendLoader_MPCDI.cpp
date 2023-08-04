@@ -45,6 +45,7 @@ TSharedPtr<FDisplayClusterWarpBlend, ESPMode::ThreadSafe> FDisplayClusterWarpBle
 
 	// Filling all internal data manually:
 	RegionLoader.AlphaMapGammaEmbedded = InConstructParameters.AlphaMapEmbeddedAlpha;
+	RegionLoader.MPCDIAttributes = InConstructParameters.MPCDIAttributes;
 
 	RegionLoader.WarpMap = RegionLoader.CreateTextureFromPFMFile(InConstructParameters.PFMFileName, InConstructParameters.PFMScale, InConstructParameters.bIsUnrealGameSpace);
 	if (RegionLoader.WarpMap.IsValid())
@@ -58,9 +59,6 @@ TSharedPtr<FDisplayClusterWarpBlend, ESPMode::ThreadSafe> FDisplayClusterWarpBle
 		{
 			RegionLoader.BetaMap = RegionLoader.CreateTextureFromFile(InConstructParameters.BetaMapFileName);
 		}
-
-		// Copy MPCDI attributes
-		RegionLoader.MPCDIAttributes = InConstructParameters.MPCDIAttributes;
 
 		// After all internal data are filled in, the warpblend interface is created and initialized.
 		return RegionLoader.CreateWarpBlendInterface();

@@ -82,7 +82,7 @@ public:
 	virtual FDisplayClusterWarpData& GetWarpData(const uint32 ContextNum) override;
 	virtual const FDisplayClusterWarpData& GetWarpData(const uint32 ContextNum) const override;
 
-	virtual UMeshComponent* GetStaticMeshComponent() const override;
+	virtual UMeshComponent* GetOrCreateMeshComponent(IDisplayClusterViewport* InViewport, bool& bExistingComponent) const override;
 
 	//~!IDisplayClusterWarpBlend
 

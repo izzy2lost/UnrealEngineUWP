@@ -130,6 +130,23 @@ IDisplayClusterRender_MeshComponentProxy* FDisplayClusterRender_MeshComponent::G
 	return MeshComponentProxy;
 }
 
+UMeshComponent* FDisplayClusterRender_MeshComponent::GetMeshComponent() const
+{
+	switch (GetGeometrySource())
+	{
+	case EDisplayClusterRender_MeshComponentGeometrySource::StaticMeshComponentRef:
+		return GetStaticMeshComponent();
+
+	case EDisplayClusterRender_MeshComponentGeometrySource::ProceduralMeshComponentRef:
+		return GetProceduralMeshComponent();
+
+	default:
+		break;
+	}
+
+	return nullptr;
+}
+
 UStaticMeshComponent* FDisplayClusterRender_MeshComponent::GetStaticMeshComponent() const
 {
 	check(IsInGameThread());

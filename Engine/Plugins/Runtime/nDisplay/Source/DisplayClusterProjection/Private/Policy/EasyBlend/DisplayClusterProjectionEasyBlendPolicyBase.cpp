@@ -135,7 +135,7 @@ bool FDisplayClusterProjectionEasyBlendPolicyBase::CalculateView(IDisplayCluster
 	const float WorldScale = WorldToMeters / 100.f;
 
 	// Get origin component
-	const USceneComponent* const OriginComp = GetOriginComp();
+	const USceneComponent* const OriginComp = GetOriginComponent();
 	check(OriginComp);
 
 	// Get world-origin matrix

@@ -18,6 +18,8 @@
 #include "Render/Viewport/IDisplayClusterViewport.h"
 #include "Render/Viewport/IDisplayClusterViewportProxy.h"
 
+#include "ProceduralMeshComponent.h"
+
 //////////////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterProjectionVIOSOPolicy
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -76,10 +78,6 @@ void FDisplayClusterProjectionVIOSOPolicy::HandleEndScene(IDisplayClusterViewpor
 	check(IsInGameThread());
 
 	ImplRelease();
-
-#if WITH_EDITOR
-	ReleasePreviewMeshComponent();
-#endif
 }
 
 void FDisplayClusterProjectionVIOSOPolicy::ImplRelease()
@@ -101,7 +99,7 @@ bool FDisplayClusterProjectionVIOSOPolicy::CalculateView(IDisplayClusterViewport
 	}
 
 	// Get view location in local space
-	const USceneComponent* const OriginComp = GetOriginComp();
+	const USceneComponent* const OriginComp = GetOriginComponent();
 	const FTransform& World2LocalTransform = (OriginComp ? OriginComp->GetComponentTransform() : FTransform::Identity);
 
 	// Get our base camera location and view offset in local space (MPCDI space)
@@ -212,21 +210,6 @@ bool FDisplayClusterProjectionVIOSOPolicy::ImplApplyWarpBlend_RenderThread(FRHIC
 	return true;
 }
 
-#if WITH_EDITOR
-#include "ProceduralMeshComponent.h"
-
-void FDisplayClusterProjectionVIOSOPolicy::ReleasePreviewMeshComponent()
-{
-	USceneComponent* PreviewMeshComp = PreviewMeshComponentRef.GetOrFindSceneComponent();
-	if (PreviewMeshComp != nullptr)
-	{
-		PreviewMeshComp->UnregisterComponent();
-		PreviewMeshComp->DestroyComponent();
-	}
-
-	PreviewMeshComponentRef.ResetSceneComponent();
-}
-
 UMeshComponent* FDisplayClusterProjectionVIOSOPolicy::GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent)
 {
 	check(IsInGameThread());
@@ -236,27 +219,13 @@ UMeshComponent* FDisplayClusterProjectionVIOSOPolicy::GetOrCreatePreviewMeshComp
 		return nullptr;
 	}
 
-	// used created mesh component
+	// Create a new DCRA mesh component
 	bOutIsRootActorComponent = false;
 
-	USceneComponent* OriginComp = GetOriginComp();
-
-	// Return Exist mesh component
-	USceneComponent* PreviewMeshComp = PreviewMeshComponentRef.GetOrFindSceneComponent();
-	if (PreviewMeshComp != nullptr)
-	{
-		UProceduralMeshComponent* PreviewMesh = Cast<UProceduralMeshComponent>(PreviewMeshComp);
-		if (PreviewMesh != nullptr)
-		{
-			// update attachment to parent
-			PreviewMesh->AttachToComponent(OriginComp, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
-			return PreviewMesh;
-		}
-	}
-
 	// Get geometry data
+	USceneComponent* OriginComp = GetOriginComponent();
 	TSharedPtr<FDisplayClusterProjectionVIOSOGeometryExportData, ESPMode::ThreadSafe> GeometryExportData = FDisplayClusterProjectionVIOSOGeometryExportData::Create(VIOSOLibrary, ViosoConfigData);
-	if (GeometryExportData.IsValid())
+	if (OriginComp && GeometryExportData.IsValid())
 	{
 		// Create new WarpMesh component
 		const FString CompName = FString::Printf(TEXT("VIOSO_%s_impl"), *GetId());
@@ -268,17 +237,17 @@ UMeshComponent* FDisplayClusterProjectionVIOSOPolicy::GetOrCreatePreviewMeshComp
 			MeshComp->RegisterComponent();
 			MeshComp->AttachToComponent(OriginComp, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
 			MeshComp->CreateMeshSection(0, GeometryExportData->Vertices, GeometryExportData->Triangles, GeometryExportData->Normal, GeometryExportData->UV, TArray<FColor>(), TArray<FProcMeshTangent>(), false);
+
+#if WITH_EDITOR
 			MeshComp->SetIsVisualizationComponent(true);
+#endif
 
 			// Because of "nDisplay.render.show.visualizationcomponents" we need extra flag to exclude this geometry from render
 			MeshComp->SetHiddenInGame(true);
 
-			// Store reference to mesh component
-			PreviewMeshComponentRef.SetSceneComponent(MeshComp);
 			return MeshComp;
 		}
 	}
 
 	return nullptr;
 }
-#endif

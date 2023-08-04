@@ -173,8 +173,12 @@ bool FDisplayClusterWarpBlendLoader::LoadFromPoint(const EDisplayClusterWarpProf
 
 bool FDisplayClusterWarpBlendLoader::LoadFromPFM(const EDisplayClusterWarpProfileType InProfileType, mpcdi::PFM* SourcePFM, float PFMScale, bool bIsUnrealGameSpace)
 {
-	check(SourcePFM);
+	if (InProfileType == EDisplayClusterWarpProfileType::Invalid)
+	{
+		return false;
+	}
 
+	check(SourcePFM);
 	if (!InitializeWarpDataImpl(SourcePFM->GetSizeX(), SourcePFM->GetSizeY()))
 	{
 		return false;

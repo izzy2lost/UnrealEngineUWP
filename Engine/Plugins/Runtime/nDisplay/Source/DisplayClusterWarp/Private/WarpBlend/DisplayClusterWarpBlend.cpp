@@ -4,10 +4,17 @@
 #include "WarpBlend/Math/DisplayClusterWarpBlendMath_Frustum.h"
 
 #include "Render/Containers/IDisplayClusterRender_MeshComponent.h"
+#include "Render/Projection/IDisplayClusterProjectionPolicy.h"
+#include "Render/Viewport/IDisplayClusterViewport.h"
+
+#include "Blueprints/DisplayClusterWarpGeometry.h"
 
 #include "HAL/IConsoleManager.h"
+#include "UObject/UObjectGlobals.h"
+
 #include "ProceduralMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "ProceduralMeshComponent.h"
 
 // Setup frustum projection cache
 static TAutoConsoleVariable<int32> CVarMPCDIFrustumCacheDepth(
@@ -129,22 +136,59 @@ const FDisplayClusterWarpData& FDisplayClusterWarpBlend::GetWarpData(const uint3
 
 }
 
-UMeshComponent* FDisplayClusterWarpBlend::GetStaticMeshComponent() const
+UMeshComponent* FDisplayClusterWarpBlend::GetOrCreateMeshComponent(IDisplayClusterViewport* InViewport, bool& bExistingComponent) const
 {
-	const TSharedPtr<IDisplayClusterRender_MeshComponent, ESPMode::ThreadSafe>& MeshComponent = GeometryContext.GeometryProxy.MeshComponent;
-	if (MeshComponent.IsValid())
+	const TSharedPtr<IDisplayClusterProjectionPolicy, ESPMode::ThreadSafe> ProjectionPolicy = InViewport ? InViewport->GetProjectionPolicy() : nullptr;
+
+	switch(GetWarpGeometryType())
 	{
-		switch (MeshComponent->GetGeometrySource())
+	case EDisplayClusterWarpGeometryType::WarpMesh:
+	case EDisplayClusterWarpGeometryType::WarpProceduralMesh:
+		// use the existing DCRA component
+		bExistingComponent = true;
+
+		return GeometryContext.GeometryProxy.MeshComponent.IsValid() ? GeometryContext.GeometryProxy.MeshComponent->GetMeshComponent() : nullptr;
+
+	case EDisplayClusterWarpGeometryType::WarpMap:
+		if (ProjectionPolicy.IsValid())
 		{
-		case EDisplayClusterRender_MeshComponentGeometrySource::StaticMeshComponentRef:
-			return MeshComponent->GetStaticMeshComponent();
+			// create a new mesh component
+			bExistingComponent = false;
 
-		case EDisplayClusterRender_MeshComponentGeometrySource::ProceduralMeshComponentRef:
-			return MeshComponent->GetProceduralMeshComponent();
+			// Downscale preview mesh dimension to max limit
+			const uint32 PreviewGeometryDimLimit = 128;
 
-		default:
-			break;
+			USceneComponent* OriginComp = ProjectionPolicy->GetOriginComponent();
+
+			// Create new WarpMesh component
+			FDisplayClusterWarpGeometryOBJ MeshData;
+			if (OriginComp && ExportWarpMapGeometry(MeshData, PreviewGeometryDimLimit))
+			{
+				const FString CompName = FString::Printf(TEXT("ExportPFM_%s"), *ProjectionPolicy->GetId());
+
+				// Creta new object
+				UProceduralMeshComponent* MeshComp = NewObject<UProceduralMeshComponent>(OriginComp, FName(*CompName), EObjectFlags::RF_DuplicateTransient | RF_Transient | RF_TextExportTransient);
+				if (MeshComp)
+				{
+					MeshComp->RegisterComponent();
+					MeshComp->AttachToComponent(OriginComp, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
+					MeshComp->CreateMeshSection(0, MeshData.Vertices, MeshData.Triangles, MeshData.Normal, MeshData.UV, TArray<FColor>(), TArray<FProcMeshTangent>(), false);
+#if WITH_EDITOR
+					MeshComp->SetIsVisualizationComponent(true);
+#endif
+
+					// Because of "nDisplay.render.show.visualizationcomponents" we need extra flag to exclude this geometry from render
+					MeshComp->SetHiddenInGame(true);
+
+					return MeshComp;
+				}
+			}
 		}
+
+	break;
+
+	default:
+		break;
 	}
 
 	return nullptr;
@@ -152,8 +196,5 @@ UMeshComponent* FDisplayClusterWarpBlend::GetStaticMeshComponent() const
 
 bool FDisplayClusterWarpBlend::ExportWarpMapGeometry(FDisplayClusterWarpGeometryOBJ& OutMeshData, uint32 InMaxDimension) const
 {
-#if WITH_EDITOR
 	return FDisplayClusterWarpBlendExporter_WarpMap::ExportWarpMap(GeometryContext, OutMeshData, InMaxDimension);
-#endif
-	return false;
 }

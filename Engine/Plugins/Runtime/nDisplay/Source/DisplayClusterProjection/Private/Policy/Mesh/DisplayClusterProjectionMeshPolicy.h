@@ -25,15 +25,6 @@ public:
 	virtual const FString& GetType() const override;
 	virtual bool HandleStartScene(IDisplayClusterViewport* InViewport) override;
 
-#if WITH_EDITOR
-	virtual bool HasPreviewMesh() override
-	{
-		return true;
-	}
-
-	virtual UMeshComponent* GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent) override;
-#endif
-
 public:
 	/** Parse the config data for a mesh id and try to retrieve it from the root actor. */
 	bool CreateWarpMeshInterface(IDisplayClusterViewport* InViewport);

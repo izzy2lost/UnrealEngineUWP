@@ -214,14 +214,10 @@ void FDisplayClusterProjectionSimplePolicy::ReleaseMeshData(IDisplayClusterViewp
 {
 }
 
-#if WITH_EDITOR
 UMeshComponent* FDisplayClusterProjectionSimplePolicy::GetOrCreatePreviewMeshComponent(IDisplayClusterViewport* InViewport, bool& bOutIsRootActorComponent)
 {
 	bOutIsRootActorComponent = true;
-
-	USceneComponent* SceneComponent = ScreenCompRef.GetOrFindSceneComponent();
-
-	if (SceneComponent)
+	if (USceneComponent* SceneComponent = ScreenCompRef.GetOrFindSceneComponent())
 	{
 		UDisplayClusterScreenComponent* ScreenComp = StaticCast<UDisplayClusterScreenComponent*>(SceneComponent);
 		return (ScreenComp == nullptr) ? nullptr : ScreenComp;
@@ -229,4 +225,3 @@ UMeshComponent* FDisplayClusterProjectionSimplePolicy::GetOrCreatePreviewMeshCom
 
 	return nullptr;
 }
-#endif

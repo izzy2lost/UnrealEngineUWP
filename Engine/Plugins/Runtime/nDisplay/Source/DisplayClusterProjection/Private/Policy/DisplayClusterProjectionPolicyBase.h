@@ -25,24 +25,14 @@ public:
 		return PolicyInstanceId;
 	}
 
-	const USceneComponent* const GetOriginComp() const
-	{
-		return PolicyOriginComponentRef.GetOrFindSceneComponent();
-	}
-
-	USceneComponent* GetOriginComp()
-	{
-		return PolicyOriginComponentRef.GetOrFindSceneComponent();
-	}
-
 	void SetOriginComp(USceneComponent* OriginComp)
 	{
 		PolicyOriginComponentRef.SetSceneComponent(OriginComp);
 	}
 
-	virtual const USceneComponent* const GetOriginComponent() const override
+	virtual USceneComponent* const GetOriginComponent() const override
 	{
-		return GetOriginComp();
+		return PolicyOriginComponentRef.GetOrFindSceneComponent();
 	}
 
 	virtual const TMap<FString, FString>& GetParameters() const override
