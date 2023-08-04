@@ -1,4 +1,4 @@
-// Copyright 2023, SweejTech Ltd. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
