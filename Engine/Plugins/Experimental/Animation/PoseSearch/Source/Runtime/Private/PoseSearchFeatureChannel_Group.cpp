@@ -39,15 +39,19 @@ void UPoseSearchFeatureChannel_GroupBase::FillWeights(TArrayView<float> Weights)
 	}
 }
 
-void UPoseSearchFeatureChannel_GroupBase::IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const
+bool UPoseSearchFeatureChannel_GroupBase::IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const
 {
 	for (const TObjectPtr<UPoseSearchFeatureChannel>& SubChannelPtr : GetSubChannels())
 	{
 		if (const UPoseSearchFeatureChannel* SubChannel = SubChannelPtr.Get())
 		{
-			SubChannel->IndexAsset(Indexer);
+			if (!SubChannel->IndexAsset(Indexer))
+			{
+				return false;
+			}
 		}
 	}
+	return true;
 }
 #endif // WITH_EDITOR
 

@@ -41,7 +41,7 @@ namespace UE::PoseSearch
 		return (Values[Num - 1] - Values[Num - 2]) * (Sample - (Num - 1)) + Values[Num - 1];
 	}
 
-	static void CollectBonePositions(TArray<FVector>& BonePositions, FAssetIndexer& Indexer, int8 SchemaBoneIdx)
+	static bool CollectBonePositions(TArray<FVector>& BonePositions, FAssetIndexer& Indexer, int8 SchemaBoneIdx)
 	{
 		const int32 NumSamples = Indexer.GetEndSampleIdx() - Indexer.GetBeginSampleIdx();
 
@@ -50,8 +50,12 @@ namespace UE::PoseSearch
 		BonePositions.AddDefaulted(NumSamples);
 		for (int32 SampleIdx = 0; SampleIdx != NumSamples; ++SampleIdx)
 		{
-			BonePositions[SampleIdx] = Indexer.GetSamplePosition(0.f, 0.f, SampleIdx, SchemaBoneIdx, RootSchemaBoneIdx, EPermutationTimeType::UseSampleTime);
+			if (!Indexer.GetSamplePosition(BonePositions[SampleIdx], 0.f, 0.f, SampleIdx, SchemaBoneIdx, RootSchemaBoneIdx, EPermutationTimeType::UseSampleTime))
+			{
+				return false;
+			}
 		}
+		return true;
 	}
 
 	static void CalculateSignal(const TArray<FVector>& BonePositions, TArray<float>& Signal, int32 offset = 1)
@@ -357,7 +361,7 @@ void UPoseSearchFeatureChannel_Phase::FillWeights(TArrayView<float> Weights) con
 	}
 }
 
-void UPoseSearchFeatureChannel_Phase::IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const
+bool UPoseSearchFeatureChannel_Phase::IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const
 {
 	using namespace UE::PoseSearch;
 
@@ -374,7 +378,10 @@ void UPoseSearchFeatureChannel_Phase::IndexAsset(UE::PoseSearch::FAssetIndexer& 
 	TArray<LocalMinMax> LocalMinMax;
 	TArray<FVector> BonePositions;
 
-	CollectBonePositions(BonePositions, Indexer, SchemaBoneIdx);
+	if (!CollectBonePositions(BonePositions, Indexer, SchemaBoneIdx))
+	{
+		return false;
+	}
 
 	// @todo: have different way of calculating signals, for example: height of the bone transform, acceleration, etc?
 	const int32 BoneSamplingCentralDifferencesOffset = FMath::Max(FMath::CeilToInt(BoneSamplingCentralDifferencesTime * Schema->SampleRate), 1);
@@ -394,6 +401,7 @@ void UPoseSearchFeatureChannel_Phase::IndexAsset(UE::PoseSearch::FAssetIndexer& 
 	{
 		FFeatureVectorHelper::EncodeVector2D(Indexer.GetPoseVector(SampleIdx), ChannelDataOffset, Phases[SampleIdx - Indexer.GetBeginSampleIdx()]);
 	}
+	return true;
 }
 
 FString UPoseSearchFeatureChannel_Phase::GetLabel() const
@@ -409,7 +417,7 @@ FString UPoseSearchFeatureChannel_Phase::GetLabel() const
 
 	const UPoseSearchSchema* Schema = GetSchema();
 	check(Schema);
-	if (!Schema->IsRootBone(SchemaBoneIdx))
+	if (SchemaBoneIdx != RootSchemaBoneIdx)
 	{
 		Label.Append(TEXT("_"));
 		Label.Append(Schema->BoneReferences[SchemaBoneIdx].BoneName.ToString());

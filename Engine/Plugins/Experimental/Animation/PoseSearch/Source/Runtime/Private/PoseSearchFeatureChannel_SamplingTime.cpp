@@ -27,7 +27,7 @@ void UPoseSearchFeatureChannel_SamplingTime::FillWeights(TArrayView<float> Weigh
 	}
 }
 
-void UPoseSearchFeatureChannel_SamplingTime::IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const
+bool UPoseSearchFeatureChannel_SamplingTime::IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const
 {
 	using namespace UE::PoseSearch;
 
@@ -35,6 +35,7 @@ void UPoseSearchFeatureChannel_SamplingTime::IndexAsset(UE::PoseSearch::FAssetIn
 	{
 		FFeatureVectorHelper::EncodeFloat(Indexer.GetPoseVector(SampleIdx), ChannelDataOffset, Indexer.CalculateSampleTime(SampleIdx));
 	}
+	return true;
 }
 
 FString UPoseSearchFeatureChannel_SamplingTime::GetLabel() const

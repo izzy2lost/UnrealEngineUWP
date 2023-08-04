@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Animation/AnimNotifies/AnimNotifyState.h"
-
+#include "BoneContainer.h"
 #include "PoseSearchAnimNotifies.generated.h"
 
 // Base class for pose search anim notify states
@@ -58,4 +58,33 @@ public:
 	// makes the segment less likely to continuing playing
 	UPROPERTY(EditAnywhere, Category = Config, meta = (DisplayName = "Modifier"))
 	float CostAddend = -1.0f;
+};
+
+// UPoseSearchFeatureChannel(s) can use this UAnimNotifyState_PoseSearchSamplingAttribute as animation space position, rotation, and linear velocity provider 
+// during database indexing by specifying their SamplingAttributeId property to match UAnimNotifyState_PoseSearchSamplingAttribute::SamplingAttributeId
+UCLASS(Blueprintable, meta = (DisplayName = "Pose Matching: Sampling Attribute"))
+class POSESEARCH_API UAnimNotifyState_PoseSearchSamplingAttribute : public UAnimNotifyState_PoseSearchBase
+{
+	GENERATED_BODY()
+
+public:
+
+#if WITH_EDITORONLY_DATA
+	
+	UPROPERTY(EditAnywhere, Category = Config, meta = (ClampMin=0))
+	int32 SamplingAttributeId = 0;
+
+	UPROPERTY(EditAnywhere, Category = Config)
+	FBoneReference Bone;
+
+	UPROPERTY(EditAnywhere, Category = Config)
+	FVector Position = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, Category = Config)
+	FQuat Rotation = FQuat::Identity;
+
+	UPROPERTY(EditAnywhere, Category = Config)
+	FVector LinearVelocity = FVector::ZeroVector;
+
+#endif // WITH_EDITORONLY_DATA
 };

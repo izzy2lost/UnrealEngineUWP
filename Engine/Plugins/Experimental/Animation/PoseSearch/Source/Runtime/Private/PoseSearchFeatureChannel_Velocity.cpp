@@ -8,6 +8,12 @@
 #include "PoseSearch/PoseSearchHistory.h"
 #include "PoseSearch/PoseSearchSchema.h"
 #include "PoseSearchFeatureChannel_Position.h"
+#include "Engine/BlueprintGeneratedClass.h"
+
+UPoseSearchFeatureChannel_Velocity::UPoseSearchFeatureChannel_Velocity()
+{
+	bUseBlueprintQueryOverride = Cast<UBlueprintGeneratedClass>(GetClass()) != nullptr;
+}
 
 void UPoseSearchFeatureChannel_Velocity::Finalize(UPoseSearchSchema* Schema)
 {
@@ -30,31 +36,46 @@ void UPoseSearchFeatureChannel_Velocity::BuildQuery(UE::PoseSearch::FSearchConte
 {
 	using namespace UE::PoseSearch;
 
-	const bool bIsCurrentResultValid = SearchContext.GetCurrentResult().IsValid() && SearchContext.GetCurrentResult().Database->Schema == InOutQuery.GetSchema();
-	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bIsCurrentResultValid;
-	const bool bIsRootBone = InOutQuery.GetSchema()->IsRootBone(SchemaBoneIdx);
-	if (bSkip || (!SearchContext.IsHistoryValid() && !bIsRootBone))
+	check(InOutQuery.GetSchema());
+	const bool bIsRootBone = SchemaBoneIdx == RootSchemaBoneIdx;
+	if (bUseBlueprintQueryOverride)
 	{
-		if (bIsCurrentResultValid)
-		{
-			FFeatureVectorHelper::Copy(InOutQuery.EditValues(), ChannelDataOffset, ChannelCardinality, SearchContext.GetCurrentResultPoseVector());
-		}
-		else
-		{
-			// we leave the InOutQuery set to zero since the SearchContext.History is invalid and it'll fail if we continue
-			UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Velocity::BuildQuery - Failed because Pose History Node is missing."));
-		}
-	}
-	else
-	{
-		// calculating the LinearVelocity for the bone indexed by SchemaBoneIdx
-		FVector LinearVelocity = SearchContext.GetSampleVelocity(SampleTimeOffset, 0.f, InOutQuery.GetSchema(), SchemaBoneIdx, RootSchemaBoneIdx, bUseCharacterSpaceVelocities, !bIsRootBone, EPermutationTimeType::UseSampleTime);
+		const FVector LinearVelocityWorld = BP_GetWorldVelocity(SearchContext.GetAnimInstance());
+
+		FVector LinearVelocity = SearchContext.GetSampleVelocity(SampleTimeOffset, 0.f, InOutQuery.GetSchema(), SchemaBoneIdx, RootSchemaBoneIdx, bUseCharacterSpaceVelocities, /*!bIsRootBone*/ true, EPermutationTimeType::UseSampleTime, &LinearVelocityWorld);
 		if (bNormalize)
 		{
 			LinearVelocity = LinearVelocity.GetClampedToMaxSize(1.f);
 		}
-
 		FFeatureVectorHelper::EncodeVector(InOutQuery.EditValues(), ChannelDataOffset, LinearVelocity, ComponentStripping);
+	}
+	else
+	{
+		const bool bIsCurrentResultValid = SearchContext.GetCurrentResult().IsValid() && SearchContext.GetCurrentResult().Database->Schema == InOutQuery.GetSchema();
+		const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bIsCurrentResultValid;
+		if (bSkip || (!SearchContext.IsHistoryValid() && !bIsRootBone))
+		{
+			if (bIsCurrentResultValid)
+			{
+				FFeatureVectorHelper::Copy(InOutQuery.EditValues(), ChannelDataOffset, ChannelCardinality, SearchContext.GetCurrentResultPoseVector());
+			}
+			else
+			{
+				// we leave the InOutQuery set to zero since the SearchContext.History is invalid and it'll fail if we continue
+				UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Velocity::BuildQuery - Failed because Pose History Node is missing."));
+			}
+		}
+		else
+		{
+			// calculating the LinearVelocity for the bone indexed by SchemaBoneIdx
+			FVector LinearVelocity = SearchContext.GetSampleVelocity(SampleTimeOffset, 0.f, InOutQuery.GetSchema(), SchemaBoneIdx, RootSchemaBoneIdx, bUseCharacterSpaceVelocities, !bIsRootBone, EPermutationTimeType::UseSampleTime);
+			if (bNormalize)
+			{
+				LinearVelocity = LinearVelocity.GetClampedToMaxSize(1.f);
+			}
+
+			FFeatureVectorHelper::EncodeVector(InOutQuery.EditValues(), ChannelDataOffset, LinearVelocity, ComponentStripping);
+		}
 	}
 }
 
@@ -68,7 +89,7 @@ void UPoseSearchFeatureChannel_Velocity::DebugDraw(const UE::PoseSearch::FDebugD
 
 	const FVector LinearVelocity = DrawParams.GetRootTransform().TransformVector(FFeatureVectorHelper::DecodeVector(PoseVector, ChannelDataOffset, ComponentStripping));
 	const FVector BoneVelDirection = LinearVelocity.GetSafeNormal();
-	const FVector BonePos = DrawParams.ExtractPosition(PoseVector, SampleTimeOffset, SchemaBoneIdx);
+	const FVector BonePos = DrawParams.ExtractPosition(PoseVector, SampleTimeOffset, SchemaBoneIdx, EPermutationTimeType::UseSampleTime, SamplingAttributeId);
 
 	DrawParams.DrawLine(BonePos, BonePos + LinearVelocity * LinearVelocityScale, Color);
 }
@@ -83,19 +104,27 @@ void UPoseSearchFeatureChannel_Velocity::FillWeights(TArrayView<float> Weights) 
 	}
 }
 
-void UPoseSearchFeatureChannel_Velocity::IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const
+bool UPoseSearchFeatureChannel_Velocity::IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const
 {
 	using namespace UE::PoseSearch;
 
+	FVector LinearVelocity;
 	for (int32 SampleIdx = Indexer.GetBeginSampleIdx(); SampleIdx != Indexer.GetEndSampleIdx(); ++SampleIdx)
 	{
-		FVector LinearVelocity = Indexer.GetSampleVelocity(SampleTimeOffset, 0.f, SampleIdx, SchemaBoneIdx, RootSchemaBoneIdx, bUseCharacterSpaceVelocities, EPermutationTimeType::UseSampleTime);
-		if (bNormalize)
+		if (Indexer.GetSampleVelocity(LinearVelocity, SampleTimeOffset, 0.f, SampleIdx, SchemaBoneIdx, RootSchemaBoneIdx, bUseCharacterSpaceVelocities, EPermutationTimeType::UseSampleTime, SamplingAttributeId))
 		{
-			LinearVelocity = LinearVelocity.GetClampedToMaxSize(1.f);
+			if (bNormalize)
+			{
+				LinearVelocity = LinearVelocity.GetClampedToMaxSize(1.f);
+			}
+			FFeatureVectorHelper::EncodeVector(Indexer.GetPoseVector(SampleIdx), ChannelDataOffset, LinearVelocity, ComponentStripping);
 		}
-		FFeatureVectorHelper::EncodeVector(Indexer.GetPoseVector(SampleIdx), ChannelDataOffset, LinearVelocity, ComponentStripping);
+		else
+		{
+			return false;
+		}
 	}
+	return true;
 }
 
 FString UPoseSearchFeatureChannel_Velocity::GetLabel() const
@@ -124,7 +153,7 @@ FString UPoseSearchFeatureChannel_Velocity::GetLabel() const
 
 	const UPoseSearchSchema* Schema = GetSchema();
 	check(Schema);
-	if (!Schema->IsRootBone(SchemaBoneIdx))
+	if (SchemaBoneIdx != RootSchemaBoneIdx)
 	{
 		Label.Append(TEXT("_"));
 		Label.Append(Schema->BoneReferences[SchemaBoneIdx].BoneName.ToString());

@@ -37,7 +37,7 @@ void UPoseSearchFeatureChannel_PermutationTime::FillWeights(TArrayView<float> We
 	}
 }
 
-void UPoseSearchFeatureChannel_PermutationTime::IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const
+bool UPoseSearchFeatureChannel_PermutationTime::IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const
 {
 	using namespace UE::PoseSearch;
 
@@ -46,6 +46,7 @@ void UPoseSearchFeatureChannel_PermutationTime::IndexAsset(UE::PoseSearch::FAsse
 	{
 		FFeatureVectorHelper::EncodeFloat(Indexer.GetPoseVector(SampleIdx), ChannelDataOffset, PermutationTimeOffset);
 	}
+	return true;
 }
 
 FString UPoseSearchFeatureChannel_PermutationTime::GetLabel() const

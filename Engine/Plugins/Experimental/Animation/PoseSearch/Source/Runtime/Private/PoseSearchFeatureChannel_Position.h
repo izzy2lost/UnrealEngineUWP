@@ -6,7 +6,7 @@
 #include "BoneContainer.h"
 #include "PoseSearchFeatureChannel_Position.generated.h"
 
-UCLASS(EditInlineNew, meta = (DisplayName = "Position Channel"), CollapseCategories)
+UCLASS(EditInlineNew, Blueprintable, meta = (DisplayName = "Position Channel"), CollapseCategories)
 class POSESEARCH_API UPoseSearchFeatureChannel_Position : public UPoseSearchFeatureChannel
 {
 	GENERATED_BODY()
@@ -21,6 +21,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	float Weight = 1.f;
 
+
+	// if SamplingAttributeId >= 0, ALL the animations contained in the pose search database referencing the schema containing this channel are expected to have 
+	// UAnimNotifyState_PoseSearchSamplingAttribute notify state with a matching SamplingAttributeId, and the UAnimNotifyState_PoseSearchSamplingAttribute properties
+	// will be used as source of data instead of this channel "Bone". UAnimNotifyState_PoseSearchSamplingAttribute properties will be then converted into OriginBone space
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	int32 SamplingAttributeId = -1;
+	
 	// the data relative to the sampling time associated to this channel will be offsetted by SampleTimeOffset seconds.
 	// For example, if Bone is the head bone, and SampleTimeOffset is 0.5, this channel will try to match the future position of the character head bone 0.5 seconds ahead
 	UPROPERTY(EditAnywhere, Category = "Settings")
@@ -45,6 +52,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	EPermutationTimeType PermutationTimeType = EPermutationTimeType::UseSampleTime;
 
+	UFUNCTION(BlueprintPure, BlueprintImplementableEvent, meta=(BlueprintThreadSafe, DisplayName = "Get World Position"), Category = "Settings")
+	FVector BP_GetWorldPosition(const UAnimInstance* AnimInstance) const;
+
+	bool bUseBlueprintQueryOverride = false;
+
+	UPoseSearchFeatureChannel_Position();
+
 	// UPoseSearchFeatureChannel interface
 	virtual void Finalize(UPoseSearchSchema* Schema) override;
 	virtual void BuildQuery(UE::PoseSearch::FSearchContext& SearchContext, UE::PoseSearch::FFeatureVectorBuilder& InOutQuery) const override;
@@ -58,7 +72,7 @@ public:
 
 #if WITH_EDITOR
 	virtual void FillWeights(TArrayView<float> Weights) const override;
-	virtual void IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const override;
+	virtual bool IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const override;
 	virtual FString GetLabel() const override;
 #endif
 

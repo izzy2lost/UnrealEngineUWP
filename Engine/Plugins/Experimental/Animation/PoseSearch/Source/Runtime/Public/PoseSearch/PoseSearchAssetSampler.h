@@ -42,6 +42,8 @@ struct POSESEARCH_API FAnimationAssetSampler
 	// Extracts notify states inheriting from UAnimNotifyState_PoseSearchBase present in the sequence at Time.
 	// The function does not empty NotifyStates before adding new notifies!
 	void ExtractPoseSearchNotifyStates(float Time, TArray<UAnimNotifyState_PoseSearchBase*>& NotifyStates) const;
+	
+	TConstArrayView<FAnimNotifyEvent> GetAllAnimNotifyEvents() const;
 
 	const UAnimationAsset* GetAsset() const;
 

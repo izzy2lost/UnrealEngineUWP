@@ -39,23 +39,8 @@ void UPoseSearchSchema::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext
 
 FBoneIndexType UPoseSearchSchema::GetBoneIndexType(int8 SchemaBoneIdx) const
 {
-	if (SchemaBoneIdx < 0)
-	{
-		return RootBoneIndexType;
-	}
 	check(BoneReferences[SchemaBoneIdx].HasValidSetup());
 	return BoneReferences[SchemaBoneIdx].BoneIndex;
-}
-
-bool UPoseSearchSchema::IsRootBone(int8 SchemaBoneIdx) const
-{
-	if (SchemaBoneIdx < 0)
-	{
-		return true;
-	}
-
-	check(BoneReferences[SchemaBoneIdx].HasValidSetup());
-	return BoneReferences[SchemaBoneIdx].BoneIndex == int32(RootBoneIndexType);
 }
 
 int8 UPoseSearchSchema::AddBoneReference(const FBoneReference& BoneReference)

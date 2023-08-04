@@ -17,7 +17,7 @@ enum class EHeadingAxis : uint8
 	Invalid = Num UMETA(Hidden)
 };
 
-UCLASS(EditInlineNew, meta = (DisplayName = "Heading Channel"), CollapseCategories)
+UCLASS(EditInlineNew, Blueprintable, meta = (DisplayName = "Heading Channel"), CollapseCategories)
 class POSESEARCH_API UPoseSearchFeatureChannel_Heading : public UPoseSearchFeatureChannel
 {
 	GENERATED_BODY()
@@ -28,6 +28,12 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	float Weight = 1.f;
+
+	// if SamplingAttributeId >= 0, ALL the animations contained in the pose search database referencing the schema containing this channel are expected to have 
+	// UAnimNotifyState_PoseSearchSamplingAttribute notify state with a matching SamplingAttributeId, and the UAnimNotifyState_PoseSearchSamplingAttribute properties
+	// will be used as source of data instead of this channel "Bone".
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	int32 SamplingAttributeId = -1;
 
 	// the data relative to the sampling time associated to this channel will be offsetted by SampleTimeOffset seconds.
 	// For example, if Bone is the head bone, and SampleTimeOffset is 0.5, this channel will try to match the future heading of the character head bone 0.5 seconds ahead
@@ -56,6 +62,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	EComponentStrippingVector ComponentStripping = EComponentStrippingVector::None;
 
+	UFUNCTION(BlueprintPure, BlueprintImplementableEvent, meta=(BlueprintThreadSafe, DisplayName = "Get World Rotation"), Category = "Settings")
+	FQuat BP_GetWorldRotation(const UAnimInstance* AnimInstance) const;
+
+	bool bUseBlueprintQueryOverride = false;
+
+	UPoseSearchFeatureChannel_Heading();
+
 	// UPoseSearchFeatureChannel interface
 	virtual void Finalize(UPoseSearchSchema* Schema) override;
 	virtual void BuildQuery(UE::PoseSearch::FSearchContext& SearchContext, UE::PoseSearch::FFeatureVectorBuilder& InOutQuery) const override;
@@ -68,7 +81,7 @@ public:
 
 #if WITH_EDITOR
 	virtual void FillWeights(TArrayView<float> Weights) const override;
-	virtual void IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const override;
+	virtual bool IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const override;
 	virtual FString GetLabel() const override;
 #endif
 

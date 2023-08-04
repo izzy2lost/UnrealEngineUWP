@@ -614,6 +614,10 @@ void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TArray<UA
 				}
 			}
 		}
+		else
+		{
+			UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler::ExtractPoseSearchNotifyStates: Unsupported BlendSpace NotifyTriggerMode for '%s'"), *BlendSpace->GetName());
+		}
 	}
 	else if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAsset.Get()))
 	{
@@ -645,6 +649,42 @@ void FAnimationAssetSampler::ExtractPoseSearchNotifyStates(float Time, TArray<UA
 			NotifyStates.Add(PoseSearchAnimNotify);
 		}
 	}
+}
+
+TConstArrayView<FAnimNotifyEvent> FAnimationAssetSampler::GetAllAnimNotifyEvents() const
+{
+	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAsset.Get()))
+	{
+		if (BlendSpace->NotifyTriggerMode == ENotifyTriggerMode::HighestWeightedAnimation)
+		{
+			TArray<FBlendSampleData> BlendSamples;
+			int32 TriangulationIndex = 0;
+			if (BlendSpace->GetSamplesFromBlendInput(BlendParameters, BlendSamples, TriangulationIndex, true))
+			{
+				// Find highest weighted
+				const int32 HighestWeightIndex = GetHighestWeightSample(BlendSamples);
+				const FBlendSampleData& BlendSample = BlendSamples[HighestWeightIndex];
+				if (BlendSample.Animation)
+				{
+					return BlendSample.Animation->Notifies;
+				}
+			}
+		}
+		else
+		{
+			UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler::ExtractPoseSearchNotifyStates: Unsupported BlendSpace NotifyTriggerMode for '%s'"), *BlendSpace->GetName());
+		}
+	}
+	else if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(AnimationAsset.Get()))
+	{
+		return SequenceBase->Notifies;
+	}
+	else
+	{
+		checkNoEntry();
+	}
+
+	return TConstArrayView<FAnimNotifyEvent>(); 
 }
 
 } // namespace UE::PoseSearch

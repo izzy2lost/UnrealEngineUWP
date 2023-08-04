@@ -182,7 +182,6 @@ const UPoseSearchSchema* UPoseSearchFeatureChannel::GetSchema() const
 		}
 		Outer = Outer->GetOuter();
 	}
-	checkNoEntry();
 	return nullptr;
 }
 #endif // WITH_EDITOR
@@ -191,11 +190,15 @@ USkeleton* UPoseSearchFeatureChannel::GetSkeleton(bool& bInvalidSkeletonIsError,
 {
 	bInvalidSkeletonIsError = false;
 #if WITH_EDITOR
-	return GetSchema()->Skeleton;
+	// blueprint generated classes don't have a schema, until they're instanced by the schema
+	if (const UPoseSearchSchema* Schema = GetSchema())
+	{
+		return Schema->Skeleton;
+	}
 #else
 	checkNoEntry();
-	return nullptr;
 #endif
+	return nullptr;
 }
 
 

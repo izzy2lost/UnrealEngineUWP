@@ -149,21 +149,26 @@ void UPoseSearchFeatureChannel_FilterCrashingLegs::FillWeights(TArrayView<float>
 	}
 }
 
-void UPoseSearchFeatureChannel_FilterCrashingLegs::IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const
+bool UPoseSearchFeatureChannel_FilterCrashingLegs::IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const
 {
 	using namespace UE::PoseSearch;
-
+	FVector RightThighPosition, LeftThighPosition, RightFootPosition, LeftFootPosition;
 	for (int32 SampleIdx = Indexer.GetBeginSampleIdx(); SampleIdx != Indexer.GetEndSampleIdx(); ++SampleIdx)
 	{
-		const FVector RightThighPosition = Indexer.GetSamplePosition(0.f, 0.f, SampleIdx, RightThighIdx);
-		const FVector LeftThighPosition = Indexer.GetSamplePosition(0.f, 0.f, SampleIdx, LeftThighIdx);
-		const FVector RightFootPosition = Indexer.GetSamplePosition(0.f, 0.f, SampleIdx, RightFootIdx);
-		const FVector LeftFootPosition = Indexer.GetSamplePosition(0.f, 0.f, SampleIdx, LeftFootIdx);
-
-		const float CrashingLegsValue = ComputeCrashingLegsValue(RightThighPosition, LeftThighPosition, RightFootPosition, LeftFootPosition);
-
-		FFeatureVectorHelper::EncodeFloat(Indexer.GetPoseVector(SampleIdx), ChannelDataOffset, CrashingLegsValue);
+		if (Indexer.GetSamplePosition(RightThighPosition, 0.f, 0.f, SampleIdx, RightThighIdx) &&
+			Indexer.GetSamplePosition(LeftThighPosition, 0.f, 0.f, SampleIdx, LeftThighIdx) &&
+			Indexer.GetSamplePosition(RightFootPosition, 0.f, 0.f, SampleIdx, RightFootIdx) &&
+			Indexer.GetSamplePosition(LeftFootPosition, 0.f, 0.f, SampleIdx, LeftFootIdx))
+		{
+			const float CrashingLegsValue = ComputeCrashingLegsValue(RightThighPosition, LeftThighPosition, RightFootPosition, LeftFootPosition);
+			FFeatureVectorHelper::EncodeFloat(Indexer.GetPoseVector(SampleIdx), ChannelDataOffset, CrashingLegsValue);
+		}
+		else
+		{
+			return false;
+		}
 	}
+	return true;
 }
 
 FString UPoseSearchFeatureChannel_FilterCrashingLegs::GetLabel() const

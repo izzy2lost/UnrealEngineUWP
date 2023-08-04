@@ -64,7 +64,7 @@ public:
 
 #if WITH_EDITOR
 	virtual void FillWeights(TArrayView<float> Weights) const override;
-	virtual void IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const override;
+	virtual bool IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const override;
 	virtual FString GetLabel() const override;
 #endif
 

@@ -33,9 +33,10 @@ void UPoseSearchFeatureChannel_Padding::FillWeights(TArrayView<float> Weights) c
 	}
 }
 
-void UPoseSearchFeatureChannel_Padding::IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const
+bool UPoseSearchFeatureChannel_Padding::IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const
 {
 	UE_LOG(LogPoseSearch, Log, TEXT("UPoseSearchFeatureChannel_Padding::IndexAsset: padding data with '%d' additional floats per pose in UPoseSearchSchema '%s'"), PaddingSize, *GetNameSafe(GetSchema()));
+	return true;
 }
 
 FString UPoseSearchFeatureChannel_Padding::GetLabel() const

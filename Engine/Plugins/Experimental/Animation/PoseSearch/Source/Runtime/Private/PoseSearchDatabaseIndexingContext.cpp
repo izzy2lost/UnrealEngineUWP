@@ -141,6 +141,14 @@ bool FDatabaseIndexingContext::IndexDatabase(FSearchIndexBase& SearchIndexBase, 
 	// Index asset data
 	ParallelFor(Indexers.Num(), [this](int32 AssetIdx) { Indexers[AssetIdx].Process(AssetIdx); }, ParallelForFlags);
 
+	for (const FAssetIndexer& Indexer : Indexers)
+	{
+		if (Indexer.IsProcessFailed())
+		{
+			return false;
+		}
+	}
+
 	if (Owner.IsCanceled())
 	{
 		return false;
