@@ -617,7 +617,8 @@ namespace UnrealBuildTool
 			if (HostPlatform.IsInGroup(UnrealPlatformGroup.Windows))
 			{
 				PlatformProjectGenerator? ProjGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Platform, true);
-				VCProjectFile.BuildCommandBuilder BuildCommandBuilder = new VCProjectFile.BuildCommandBuilder(Configuration, Platform, ProjectTarget, UProjectPath)
+				VCProjectFile.BuildCommandBuilder BuildCommandBuilder = new VCProjectFile.BuildCommandBuilder(
+					new PlatformProjectGenerator.VSSettings(Platform, Configuration, VCProjectFileFormat.Default, null), ProjectTarget, UProjectPath)
 				{
 					ProjectGenerator = ProjGenerator,
 					bIsForeignProject = IsForeignProject

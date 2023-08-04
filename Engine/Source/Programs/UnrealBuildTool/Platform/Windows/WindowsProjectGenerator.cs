@@ -29,25 +29,25 @@ namespace UnrealBuildTool
 		}
 
 		/// <inheritdoc/>
-		public override string GetVisualStudioPlatformName(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, DirectoryReference InProjectDir, UnrealArch? InArch)
+		public override string GetVisualStudioPlatformName(VSSettings InVSSettings)
 		{
-			if (InPlatform == UnrealTargetPlatform.Win64)
+			if (InVSSettings.Platform == UnrealTargetPlatform.Win64)
 			{
-				if (InArch == UnrealArch.Arm64)
+				if (InVSSettings.Architecture == UnrealArch.Arm64)
 				{
 					return "arm64";
 				}
-				else if (InArch == UnrealArch.Arm64ec)
+				else if (InVSSettings.Architecture == UnrealArch.Arm64ec)
 				{
 					return "arm64ec";
 				}
 				return "x64";
 			}
-			return InPlatform.ToString();
+			return InVSSettings.Platform.ToString();
 		}
 
 		/// <inheritdoc/>
-		public override string GetVisualStudioUserFileStrings(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InConditionString, TargetRules InTargetRules, FileReference TargetRulesPath, FileReference ProjectFilePath, string ProjectName, string? ForeignUProjectPath)
+		public override string GetVisualStudioUserFileStrings(VSSettings InVSSettings, string InConditionString, TargetRules InTargetRules, FileReference TargetRulesPath, FileReference ProjectFilePath, string ProjectName, string? ForeignUProjectPath)
 		{
 			StringBuilder VCUserFileContent = new StringBuilder();
 

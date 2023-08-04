@@ -31,7 +31,7 @@ namespace UnrealBuildTool
 		}
 
 		/// <inheritdoc/>
-		public override bool HasVisualStudioSupport(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, VCProjectFileFormat ProjectFileFormat, DirectoryReference InProjectDir, UnrealArch? InArch)
+		public override bool HasVisualStudioSupport(VSSettings InVSSettings)
 		{
 			return false;
 		}

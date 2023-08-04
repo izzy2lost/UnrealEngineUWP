@@ -16,6 +16,8 @@ using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
 using Newtonsoft.Json.Linq;
+using Microsoft.CodeAnalysis;
+using static UnrealBuildTool.PlatformProjectGenerator;
 
 namespace UnrealBuildTool
 {
@@ -449,7 +451,7 @@ namespace UnrealBuildTool
 
 							PlatformProjectGenerator? ProjGen = PlatformProjectGenerators.GetPlatformProjectGenerator(SolutionPlatform, true);
 							if (MatchingProjectTarget.ProjectDeploys ||
-								((ProjGen != null) && (ProjGen.GetVisualStudioDeploymentEnabled(ProjectPlatform, ProjectConfiguration) == true)))
+								((ProjGen != null) && (ProjGen.GetVisualStudioDeploymentEnabled(new VSSettings(ProjectPlatform, ProjectConfiguration, ProjectFileFormat, Architecture)) == true)))
 							{
 								bDeployByDefault = true;
 							}
@@ -687,16 +689,18 @@ namespace UnrealBuildTool
 										string ProjectConfigurationName = Configuration.ToString();
 										bool CreateDistinctConfigName = false;
 
+										VSSettings VSSettings = new(Platform, Configuration, ProjectFileFormat, Architecture);
+
 										// Check to see if this platform is supported directly by Visual Studio projects.
-										if (PlatformProjectGenerator != null && PlatformProjectGenerator.HasVisualStudioSupport(Platform, Configuration, ProjectFileFormat, BaseDir, Architecture))
+										if (PlatformProjectGenerator != null && PlatformProjectGenerator.HasVisualStudioSupport(VSSettings))
 										{
 											// Allow the platform to specify the name used in VisualStudio.
 											// Note that the actual name of the platform on the Visual Studio side may be different than what
 											// UnrealBuildTool calls it (e.g. "Win64" -> "x64".) GetVisualStudioPlatformName() will figure this out.
-											ProjectPlatformName = PlatformProjectGenerator.GetVisualStudioPlatformName(Platform, Configuration, BaseDir, Architecture);
+											ProjectPlatformName = PlatformProjectGenerator.GetVisualStudioPlatformName(VSSettings);
 
 											// The project generator may require a distinct configuration name - typically when two UnrealTargetPlatforms need the same ProjectPlatformName - otherwise the properties overwrite each oter.
-											if (PlatformProjectGenerator.RequiresDistinctVisualStudioConfigurationName(Platform, Configuration, BaseDir))
+											if (PlatformProjectGenerator.RequiresDistinctVisualStudioConfigurationName(VSSettings))
 											{
 												CreateDistinctConfigName = true;
 											}
@@ -982,9 +986,10 @@ namespace UnrealBuildTool
 				foreach (UnrealTargetPlatform Platform in ProjectPlatforms)
 				{
 					PlatformProjectGenerator? ProjGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Platform, true);
-					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat, BaseDir, null))
+					VSSettings VSSettings = new(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat, null);
+					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(VSSettings))
 					{
-						ProjGenerator.GetAdditionalVisualStudioPropertyGroups(Platform, ProjectFileFormat, VCProjectFileContent);
+						ProjGenerator.GetAdditionalVisualStudioPropertyGroups(VSSettings, VCProjectFileContent);
 					}
 				}
 			}
@@ -1010,10 +1015,11 @@ namespace UnrealBuildTool
 			{
 				foreach (UnrealTargetPlatform Platform in ProjectPlatforms)
 				{
+					VSSettings VSSettings = new(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat, null);
 					PlatformProjectGenerator? ProjGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Platform, true);
-					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat, BaseDir, null))
+					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(VSSettings))
 					{
-						ProjGenerator.GetVisualStudioGlobalProperties(Platform, VCProjectFileContent);
+						ProjGenerator.GetVisualStudioGlobalProperties(VSSettings, VCProjectFileContent);
 					}
 				}
 			}
@@ -1087,9 +1093,10 @@ namespace UnrealBuildTool
 						continue;
 					}
 
+					PlatformProjectGenerator.VSSettings VSSettings = new(TargetPlatform, TargetConfiguration, ProjectFileFormat, null);
 					StringBuilder PlatformToolsetString = new StringBuilder();
-					ProjGenerator.GetVisualStudioPlatformToolsetString(TargetPlatform, TargetConfiguration, ProjectFileFormat, PlatformToolsetString);
-					string PlatformConfigurationType = ProjGenerator.GetVisualStudioPlatformConfigurationType(TargetPlatform, ProjectFileFormat);
+					ProjGenerator.GetVisualStudioPlatformToolsetString(VSSettings, PlatformToolsetString);
+					string PlatformConfigurationType = ProjGenerator.GetVisualStudioPlatformConfigurationType(VSSettings);
 
 					// if we are using the defaults set earlier then skip writing this
 					if (PlatformConfigurationType == PlatformProjectGenerator.DefaultPlatformConfigurationType && PlatformToolsetString.Length == 0)
@@ -1635,8 +1642,9 @@ namespace UnrealBuildTool
 			{
 				foreach (UnrealTargetPlatform Platform in ProjectPlatforms)
 				{
+					VSSettings VSSettings = new(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat, null);
 					PlatformProjectGenerator? ProjGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Platform, true);
-					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat, BaseDir, null))
+					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(VSSettings))
 					{
 						// @todo projectfiles: Serious hacks here because we are trying to emit one-time platform-specific sections that need information
 						//    about a target type, but the project file may contain many types of targets!  Some of this logic will need to move into
@@ -1656,7 +1664,7 @@ namespace UnrealBuildTool
 
 						if (HackTargetFilePath != null)
 						{
-							OutputManifestString += ProjGenerator.GetVisualStudioOutputManifestSection(Platform, HackTargetType, HackTargetFilePath, ProjectFilePath, ProjectFileFormat);
+							OutputManifestString += ProjGenerator.GetVisualStudioOutputManifestSection(VSSettings, HackTargetType, HackTargetFilePath, ProjectFilePath);
 						}
 					}
 				}
@@ -1692,9 +1700,10 @@ namespace UnrealBuildTool
 				foreach (UnrealTargetPlatform Platform in ProjectPlatforms)
 				{
 					PlatformProjectGenerator? ProjGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Platform, true);
-					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat, BaseDir, null))
+					VSSettings VSSettings = new(Platform, UnrealTargetConfiguration.Development, ProjectFileFormat, null);
+					if (ProjGenerator != null && ProjGenerator.HasVisualStudioSupport(VSSettings))
 					{
-						ProjGenerator.GetVisualStudioTargetOverrides(Platform, ProjectFileFormat, VCProjectFileContent);
+						ProjGenerator.GetVisualStudioTargetOverrides(VSSettings, VCProjectFileContent);
 					}
 				}
 			}
@@ -1926,20 +1935,15 @@ namespace UnrealBuildTool
 
 			private readonly string UProjectPath;
 
-			private readonly UnrealTargetConfiguration Configuration;
-			private readonly UnrealTargetPlatform Platform;
+			private readonly VSSettings VSSettings;
 			private readonly ProjectTarget ProjectTarget;
-			private readonly UnrealArch? Architecture;
 
-			public BuildCommandBuilder(UnrealTargetConfiguration InConfiguration, UnrealTargetPlatform InPlatform,
-				ProjectTarget InProjectTarget, string InUProjectPath, string? InBuildToolOverride = null, UnrealArch? InArchitecture = null)
+			public BuildCommandBuilder(VSSettings InVSSettings, ProjectTarget InProjectTarget, string InUProjectPath, string? InBuildToolOverride = null)
 			{
-				Configuration = InConfiguration;
-				Platform = InPlatform;
+				VSSettings = InVSSettings;
 				ProjectTarget = InProjectTarget;
 				UProjectPath = InUProjectPath;
 				BuildToolOverride = InBuildToolOverride;
-				Architecture = InArchitecture;
 
 				DirectoryReference BatchFilesDirectory = DirectoryReference.Combine(Unreal.EngineDirectory, "Build", "BatchFiles");
 				BuildScript = FileReference.Combine(BatchFilesDirectory, "Build.bat");
@@ -1954,7 +1958,7 @@ namespace UnrealBuildTool
 
 				StringBuilder BuildArguments = new StringBuilder();
 
-				BuildArguments.AppendFormat("{0} {1} {2}", TargetName, Platform.ToString(), Configuration.ToString());
+				BuildArguments.AppendFormat("{0} {1} {2}", TargetName, VSSettings.Platform.ToString(), VSSettings.Configuration.ToString());
 				if (UProjectPath.Length > 0)
 				{
 					BuildArguments.AppendFormat(" -Project={0}", UProjectPath);
@@ -2010,12 +2014,12 @@ namespace UnrealBuildTool
 
 				if (ProjectGenerator != null)
 				{
-					BuildArguments.Append(ProjectGenerator.GetExtraBuildArguments(Platform, Configuration));
+					BuildArguments.Append(ProjectGenerator.GetExtraBuildArguments(VSSettings));
 				}
 
-				if (Architecture != null)
+				if (VSSettings.Architecture != null)
 				{
-					BuildArguments.AppendFormat(" -architecture={0}", Architecture);
+					BuildArguments.AppendFormat(" -architecture={0}", VSSettings.Architecture);
 				}
 
 				return BuildArguments.ToString();
@@ -2024,8 +2028,8 @@ namespace UnrealBuildTool
 
 		private BuildCommandBuilder CreateArgumentsBuilder(ProjectConfigAndTargetCombination Combination, string UProjectPath, PlatformProjectGenerator? ProjGenerator)
 		{
-			BuildCommandBuilder Builder = new BuildCommandBuilder(Combination.Configuration, Combination.Platform!.Value,
-				Combination.ProjectTarget!, UProjectPath, BuildToolOverride, Combination.Architecture)
+			BuildCommandBuilder Builder = new BuildCommandBuilder(new VSSettings(Combination.Platform!.Value, Combination.Configuration, ProjectFileFormat, Combination.Architecture),
+				Combination.ProjectTarget!, UProjectPath, BuildToolOverride)
 			{
 				ProjectGenerator = ProjGenerator,
 				bEditorDependsOnShaderCompileWorker = Settings.bEditorDependsOnShaderCompileWorker,
@@ -2061,7 +2065,7 @@ namespace UnrealBuildTool
 				if (ProjGenerator != null)
 				{
 					StringBuilder CustomImportGroupInfo = new StringBuilder();
-					ProjGenerator.GetVisualStudioImportGroupProperties(Combination.Platform!.Value, CustomImportGroupInfo);
+					ProjGenerator.GetVisualStudioImportGroupProperties(new(Combination.Platform!.Value, Configuration, ProjectFileFormat, null), CustomImportGroupInfo);
 					if (CustomImportGroupInfo.Length != 0)
 					{
 						VCProjectFileContent.AppendLine("  <ImportGroup {0} Label=\"PropertySheets\">", ConditionString);
@@ -2102,6 +2106,7 @@ namespace UnrealBuildTool
 					string TargetName = TargetFilePath.GetFileNameWithoutAnyExtensions();
 					string UBTPlatformName = Platform.ToString();
 					string UBTConfigurationName = Configuration.ToString();
+					VSSettings VSSettings = new(Platform, Configuration, ProjectFileFormat, null);
 
 					// Setup output path
 					UEBuildPlatform BuildPlatform = UEBuildPlatform.GetBuildPlatform(Platform);
@@ -2170,7 +2175,7 @@ namespace UnrealBuildTool
 					if (ProjGenerator != null)
 					{
 						StringBuilder PathsStringBuilder = new StringBuilder();
-						ProjGenerator.GetVisualStudioPathsEntries(Platform, Configuration, TargetRulesObject.Type, TargetFilePath, ProjectFilePath, NMakePath, ProjectFileFormat, PathsStringBuilder);
+						ProjGenerator.GetVisualStudioPathsEntries(VSSettings, TargetRulesObject.Type, TargetFilePath, ProjectFilePath, NMakePath, PathsStringBuilder);
 						VCProjectFileContent.Append(PathsStringBuilder.ToString());
 					}
 
@@ -2197,7 +2202,7 @@ namespace UnrealBuildTool
 
 					if (ProjGenerator != null)
 					{
-						VCProjectFileContent.Append(ProjGenerator.GetVisualStudioLayoutDirSection(Platform, Configuration, ConditionString, Combination.ProjectTarget.TargetRules!.Type, Combination.ProjectTarget.TargetFilePath, ProjectFilePath, NMakePath, ProjectFileFormat));
+						VCProjectFileContent.Append(ProjGenerator.GetVisualStudioLayoutDirSection(VSSettings, ConditionString, Combination.ProjectTarget.TargetRules!.Type, Combination.ProjectTarget.TargetFilePath, ProjectFilePath, NMakePath));
 					}
 
 					VCProjectFileContent.AppendLine("  <ItemDefinitionGroup {0}>", ConditionString);
@@ -2214,7 +2219,7 @@ namespace UnrealBuildTool
 					if (ProjGenerator != null)
 					{
 						string? ForeignUProjectPath = (IsForeignProject && !String.IsNullOrEmpty(UProjectPath)) ? UProjectPath : null;
-						VCUserFileContent.Append(ProjGenerator.GetVisualStudioUserFileStrings(Combination.Platform!.Value, Configuration, ConditionString, TargetRulesObject, Combination.ProjectTarget.TargetFilePath, ProjectFilePath, ProjectName, ForeignUProjectPath));
+						VCUserFileContent.Append(ProjGenerator.GetVisualStudioUserFileStrings(new(Combination.Platform!.Value, Configuration, ProjectFileFormat, null), ConditionString, TargetRulesObject, Combination.ProjectTarget.TargetFilePath, ProjectFilePath, ProjectName, ForeignUProjectPath));
 					}
 				}
 			}

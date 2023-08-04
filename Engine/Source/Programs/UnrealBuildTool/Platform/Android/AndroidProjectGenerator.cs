@@ -73,7 +73,7 @@ namespace UnrealBuildTool
 		}
 
 		/// <inheritdoc/>
-		public override bool HasVisualStudioSupport(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, VCProjectFileFormat ProjectFileFormat, DirectoryReference InProjectDir, UnrealArch? InArch)
+		public override bool HasVisualStudioSupport(VSSettings InVSSettings)
 		{
 			// Debugging, etc. are dependent on the TADP being installed
 			return AGDEInstalled;
@@ -81,11 +81,11 @@ namespace UnrealBuildTool
 
 
 		/// <inheritdoc/>
-		public override string GetVisualStudioPlatformName(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, DirectoryReference InProjectDir, UnrealArch? InArch)
+		public override string GetVisualStudioPlatformName(VSSettings InVSSettings)
 		{
-			string PlatformName = InPlatform.ToString();
+			string PlatformName = InVSSettings.Platform.ToString();
 
-			if (InPlatform == UnrealTargetPlatform.Android && AGDEInstalled)
+			if (InVSSettings.Platform == UnrealTargetPlatform.Android && AGDEInstalled)
 			{
 				PlatformName = "Android-arm64-v8a";
 			}
@@ -93,34 +93,17 @@ namespace UnrealBuildTool
 			return PlatformName;
 		}
 
-		/// <summary>
-		/// Return any custom property group lines
-		/// </summary>
-		/// <param name="InPlatform">  The UnrealTargetPlatform being built</param>
-		/// <param name="ProjectFileFormat"></param>
-		/// <param name="ProjectFileBuilder">String builder for the project file</param>
-		public override void GetAdditionalVisualStudioPropertyGroups(UnrealTargetPlatform InPlatform, VCProjectFileFormat ProjectFileFormat, StringBuilder ProjectFileBuilder)
+		/// <inheritdoc/>
+		public override void GetAdditionalVisualStudioPropertyGroups(VSSettings InVSSettings, StringBuilder ProjectFileBuilder)
 		{
 			if (AGDEInstalled)
 			{
-				base.GetAdditionalVisualStudioPropertyGroups(InPlatform, ProjectFileFormat, ProjectFileBuilder);
+				base.GetAdditionalVisualStudioPropertyGroups(InVSSettings, ProjectFileBuilder);
 			}
 		}
 
-		/// <summary>
-		/// Return any custom paths for VisualStudio this platform requires
-		/// This include ReferencePath, LibraryPath, LibraryWPath, IncludePath and ExecutablePath.
-		/// </summary>
-		/// <param name="InPlatform">The UnrealTargetPlatform being built</param>
-		/// <param name="InConfiguration">The configuration being built</param>
-		/// <param name="TargetType">The type of target (game or program)</param>
-		/// <param name="TargetRulesPath">Path to the target.cs file</param>
-		/// <param name="ProjectFilePath">Path to the project file</param>
-		/// <param name="NMakeOutputPath"></param>
-		/// <param name="InProjectFileFormat">Format for the generated project files</param>
-		/// <param name="ProjectFileBuilder">String builder for the project file</param>
-		/// <returns>The custom path lines for the project file; Empty string if it doesn't require one</returns>
-		public override void GetVisualStudioPathsEntries(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, TargetType TargetType, FileReference TargetRulesPath, FileReference ProjectFilePath, FileReference NMakeOutputPath, VCProjectFileFormat InProjectFileFormat, StringBuilder ProjectFileBuilder)
+		/// <inheritdoc/>
+		public override void GetVisualStudioPathsEntries(VSSettings InVSSettings, TargetType TargetType, FileReference TargetRulesPath, FileReference ProjectFilePath, FileReference NMakeOutputPath, StringBuilder ProjectFileBuilder)
 		{
 			if (AGDEInstalled)
 			{
@@ -135,21 +118,21 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				base.GetVisualStudioPathsEntries(InPlatform, InConfiguration, TargetType, TargetRulesPath, ProjectFilePath, NMakeOutputPath, InProjectFileFormat, ProjectFileBuilder);
+				base.GetVisualStudioPathsEntries(InVSSettings, TargetType, TargetRulesPath, ProjectFilePath, NMakeOutputPath, ProjectFileBuilder);
 			}
 		}
 
-		public override string GetExtraBuildArguments(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration)
+		public override string GetExtraBuildArguments(VSSettings InVSSettings)
 		{
 			// do not need to check InPlatform since it will always be UnrealTargetPlatform.Android
-			return (AGDEInstalled ? " -Architectures=arm64 -ForceAPKGeneration" : "") + base.GetExtraBuildArguments(InPlatform, InConfiguration);
+			return (AGDEInstalled ? " -Architectures=arm64 -ForceAPKGeneration" : "") + base.GetExtraBuildArguments(InVSSettings);
 		}
 
-		public override string GetVisualStudioUserFileStrings(UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration,
+		public override string GetVisualStudioUserFileStrings(VSSettings InVSSettings,
 			string InConditionString, TargetRules InTargetRules, FileReference TargetRulesPath, FileReference ProjectFilePath)
 		{
 			if (AGDEInstalled
-				&& (InPlatform == UnrealTargetPlatform.Android)
+				&& (InVSSettings.Platform == UnrealTargetPlatform.Android)
 				&& ((InTargetRules.Type == TargetRules.TargetType.Client) || (InTargetRules.Type == TargetRules.TargetType.Game)))
 			{
 				string UserFileEntry = "<PropertyGroup " + InConditionString + ">\n";
@@ -161,7 +144,7 @@ namespace UnrealBuildTool
 				return UserFileEntry;
 			}
 
-			return base.GetVisualStudioUserFileStrings(InPlatform, InConfiguration, InConditionString, InTargetRules, TargetRulesPath, ProjectFilePath);
+			return base.GetVisualStudioUserFileStrings(InVSSettings, InConditionString, InTargetRules, TargetRulesPath, ProjectFilePath);
 		}
 	}
 }
