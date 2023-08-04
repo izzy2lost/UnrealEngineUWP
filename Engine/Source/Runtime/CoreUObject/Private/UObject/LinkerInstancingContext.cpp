@@ -284,11 +284,13 @@ void FLinkerInstancedPackageMap::AddPackageMapping(FName Original, FName Instanc
 	if (InstanceMappingDirection == EInstanceMappingDirection::OriginalToInstanced)
 	{
 		InstancedPackageMapping.Add(Original, Instanced);
+		bIsInstanced |= !Instanced.IsNone();
 	}
 	else
 	{
 		check(InstanceMappingDirection == EInstanceMappingDirection::InstancedToOriginal);
 		InstancedPackageMapping.Add(Instanced, Original);
+		bIsInstanced |= !Original.IsNone();
 	}
 }
 

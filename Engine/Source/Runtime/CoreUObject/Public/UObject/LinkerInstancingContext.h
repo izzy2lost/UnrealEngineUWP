@@ -21,6 +21,7 @@ public:
 
 	explicit FLinkerInstancedPackageMap(EInstanceMappingDirection MappingDirection)
 		: InstanceMappingDirection(MappingDirection)
+		, bIsInstanced(false)
 #if WITH_EDITOR
 		, bEnableNonEditorPath(false)
 #else
@@ -31,7 +32,7 @@ public:
 
 	bool IsInstanced() const
 	{
-		return InstancedPackageMapping.Num() > 0;
+		return bIsInstanced;
 	}
 
 	/** Remap the package name from the import table to its instanced counterpart, otherwise return the name unmodified. */
@@ -72,6 +73,9 @@ private:
 	FString GeneratedPackagesFolder;
 	FString InstancedPackagePrefix;
 	FString InstancedPackageSuffix;
+
+	/** Whether InstancedPackageMapping contains remapping data other that none */
+	bool bIsInstanced;
 
 	/** Allows tests to run non editor path from editor build. */
 	bool bEnableNonEditorPath;
