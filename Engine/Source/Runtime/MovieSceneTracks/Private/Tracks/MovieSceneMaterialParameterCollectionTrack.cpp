@@ -22,7 +22,8 @@ UMovieSceneMaterialParameterCollectionTrack::UMovieSceneMaterialParameterCollect
 
 UMovieSceneSection* UMovieSceneMaterialParameterCollectionTrack::CreateNewSection()
 {
-	UMovieSceneSection* NewSection = Super::CreateNewSection();
+	UMovieSceneSection* NewSection = NewObject<UMovieSceneParameterSection>(this, NAME_None, RF_Transactional);
+	NewSection->SetBlendType(EMovieSceneBlendType::Absolute);
 	NewSection->SetRange(TRange<FFrameNumber>::All());
 	return NewSection;
 }
