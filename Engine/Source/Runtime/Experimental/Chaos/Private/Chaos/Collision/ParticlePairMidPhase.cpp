@@ -1845,7 +1845,9 @@ namespace Chaos
 	void FGenericParticlePairMidPhase::InjectCollisionImpl(const FPBDCollisionConstraint& Constraint, const FCollisionContext& Context)
 	{
 		// @todo(chaos): support rewind/resim here
-		ensure(false);
+#if !UE_BUILD_SHIPPING
+		UE_LOG(LogChaos, Warning, TEXT("Unsupported, handle Rewind/Resim in FGenericParticlePairMidPhase::InjectCollisionImpl"));
+#endif
 	}
 }
 

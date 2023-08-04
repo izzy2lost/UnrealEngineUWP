@@ -10,6 +10,7 @@
 #include "Chaos/PBDRigidsEvolution.h"
 #include "Chaos/PBDRigidsEvolutionGBF.h"
 #include "ChaosStats.h"
+#include "RewindData.h"
 
 namespace Chaos
 {
@@ -336,6 +337,12 @@ namespace Chaos
 				}
 			}
 			PendingClusterIndexOperations.Empty();
+
+			if (FRewindData* RewindData = MEvolution.GetRewindData())
+			{
+				// Temp, since rewind doesn't handle altered cluster unions we tell it to never rewind past this frame for now, only relevant when resimulation is used.
+				RewindData->BlockResim();
+			}
 		}
 
 		HandleDeferredClusterUnionUpdateProperties();

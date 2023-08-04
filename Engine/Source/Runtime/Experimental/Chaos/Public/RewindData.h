@@ -1268,7 +1268,7 @@ public:
 	: Managers(NumFrames+1)	//give 1 extra for saving at head
 	, Solver(InSolver)
 	, CurFrame(InCurrentFrame)
-	, LatestFrame(-1)
+	, LatestFrame(InCurrentFrame)
 	, FramesSaved(0)
 	, DataIdxOffset(0)
 	, bNeedsSave(false)
@@ -1280,6 +1280,7 @@ public:
 	{
 		Solver = InSolver;
 		CurFrame = InCurrentFrame;
+		LatestFrame = InCurrentFrame;
 		bResimOptimization = InResimOptimization;
 		Managers = TCircularBuffer<FFrameManagerInfo>(NumFrames + 1);
 	}
@@ -1450,8 +1451,10 @@ public:
 	int32 GetResimFrame() { return ResimFrame; }
 	void SetResimFrame(int32 Frame) { ResimFrame = Frame; }
 
-private:
+	/** This blocks any future resimulation to rewind back past the frame this is called on */
+	void BlockResim();
 
+private:
 	friend class FPBDRigidsSolver;
 
 	void CHAOS_API AdvanceFrameImp(IResimCacheBase* ResimCache);
@@ -1627,6 +1630,9 @@ private:
 	bool bNeedsSave;	//Indicates that some data is pointing at head and requires saving before a rewind
 	bool bResimOptimization;
 	int32 ResimFrame = INDEX_NONE;
+
+	// Used to block rewinding past a physics change we currently don't handle
+	int32 BlockResimFrame = INDEX_NONE;
 
 	template <typename TObj>
 	bool IsResimAndInSync(const TObj& Handle) const { return IsResim() && Handle.SyncState() == ESyncState::InSync; }

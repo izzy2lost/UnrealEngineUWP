@@ -465,7 +465,6 @@ void FRewindData::FinishFrame()
 		FinishHelper(DirtyJoints);
 	}
 	
-
 	++CurFrame;
 	LatestFrame = FMath::Max(LatestFrame, CurFrame);
 }
@@ -836,25 +835,23 @@ void FRewindData::ExtendHistoryWithFrame(const int32 Frame)
 int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 {
 	int32 ValidFrame = INDEX_NONE;
-	if(RequestedFrame > 0)
+	if (RequestedFrame > BlockResimFrame)
 	{
 		EnsureIsInPhysicsThreadContext();
 
 		// First frame of the history datas
-		const int32 EarliestFrame = FMath::Max(GetEarliestFrame_Internal(), 0);
-	
-		for(ValidFrame = RequestedFrame; ValidFrame >= EarliestFrame; --ValidFrame)
+		const int32 EarliestFrame = FMath::Max(GetEarliestFrame_Internal(), BlockResimFrame);
+
+		for (ValidFrame = RequestedFrame; ValidFrame >= EarliestFrame; --ValidFrame)
 		{
 			bool bHasTargetHistory = true;
 			for (FDirtyParticleInfo& DirtyParticleInfo : DirtyParticles)
 			{
-				FGeometryParticleHandle* PTParticle = DirtyParticleInfo.GetObjectPtr();
 				FGeometryParticleStateBase& History = DirtyParticleInfo.GetHistory();
-
 				const bool bResimAsFollower = DirtyParticleInfo.bResimAsFollower;
 
 				const FFrameAndPhase FrameAndPhase{ ValidFrame, FFrameAndPhase::PostPushData };
-				if(const FParticleDynamicMisc* DynamicMisc = History.DynamicsMisc.Read(FrameAndPhase, PropertiesPool))
+				if (const FParticleDynamicMisc* DynamicMisc = History.DynamicsMisc.Read(FrameAndPhase, PropertiesPool))
 				{
 					if (!DynamicMisc->Disabled() && (DynamicMisc->ObjectState() == EObjectStateType::Dynamic) && !History.TargetPositions.IsEmpty() && !History.TargetVelocities.IsEmpty() && !History.TargetStates.IsEmpty())
 					{
@@ -866,18 +863,18 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 					}
 				}
 			}
-			if(bHasTargetHistory)
+			if (bHasTargetHistory)
 			{
-				for(auto& InputsHistory : InputsHistories)
+				for (auto& InputsHistory : InputsHistories)
 				{
-					if(!InputsHistory.Pin().Get()->HasValidDatas(ValidFrame))
+					if (!InputsHistory.Pin().Get()->HasValidDatas(ValidFrame))
 					{
 						bHasTargetHistory = false;
 						break;
 					}
 				}
 			}
-			if(bHasTargetHistory)
+			if (bHasTargetHistory)
 			{
 				for (auto& StatesHistory : StatesHistories)
 				{
@@ -889,7 +886,7 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 				}
 			}
 
-			if(bHasTargetHistory)
+			if (bHasTargetHistory)
 			{
 				break;
 			}
@@ -981,6 +978,14 @@ void FRewindData::SetTargetStateAtFrame(FGeometryParticleHandle& Handle, const i
 {
 	PushStateAtFrame(Handle, Frame, Phase,
 		Position, Quaternion, LinVelocity, AngVelocity, bShouldSleep);
+}
+
+void FRewindData::BlockResim()
+{
+	if (LatestFrame > BlockResimFrame)
+	{
+		BlockResimFrame = LatestFrame;
+	}
 }
 
 }

@@ -935,6 +935,11 @@ public:
 		MRewindData = RewindData;
 	}
 
+	FRewindData* GetRewindData()
+	{
+		return MRewindData;
+	}
+
 	CHAOS_API void DisableParticleWithRemovalEvent(FGeometryParticleHandle* Particle);
 	const TArray<FRemovalData>& GetAllRemovals() { return MAllRemovals; }
 	void ResetAllRemovals() { MAllRemovals.Reset(); }

@@ -1081,7 +1081,16 @@ namespace Chaos
 		const EObjectStateType InitialState = Particle->ObjectState();
 		Particle->SetSleepType(InSleepType);
 		const EObjectStateType ObjectState = Particle->ObjectState();
-		Particles.SetDynamicParticleSOA(Particle);
+		
+		if (FPBDRigidClusteredParticleHandle* ClusteredParticle = Particle->CastToClustered())
+		{
+			Particles.SetClusteredParticleSOA(ClusteredParticle);
+		}
+		else
+		{
+			Particles.SetDynamicParticleSOA(Particle);
+		}
+
 		if (InitialState != ObjectState)
 		{
 			if(ObjectState != EObjectStateType::Dynamic)
