@@ -6,6 +6,8 @@
 
 #include "OptimusDataDomain.generated.h"
 
+struct FOptimusExecutionDomain;
+
 namespace Optimus::DomainName
 {
 	extern OPTIMUSCORE_API const FName Singleton;
@@ -63,6 +65,8 @@ struct OPTIMUSCORE_API FOptimusDataDomain
 		Type(EOptimusDataDomainType::Expression),
 		Expression(MoveTemp(InExpression))
 	{}
+
+	FOptimusDataDomain(const FOptimusExecutionDomain& InExecutionDomain);
 	
 	UPROPERTY(EditAnywhere, Category = DataDomain)
 	EOptimusDataDomainType Type = EOptimusDataDomainType::Dimensional;

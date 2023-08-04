@@ -1625,7 +1625,7 @@ UOptimusComputeGraph* UOptimusDeformer::CompileNodeGraphToComputeGraph(
 		}
 		else if (const IOptimusComputeKernelProvider* KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
 		{
-			UComputeDataInterface* KernelDataInterface = KernelProvider->GetKernelDataInterface(this);
+			UComputeDataInterface* KernelDataInterface = KernelProvider->MakeKernelDataInterface(this);
 
 			KernelDataInterfaceMap.Add(ConnectedNode.Node, KernelDataInterface);
 			
@@ -1714,6 +1714,7 @@ UOptimusComputeGraph* UOptimusDeformer::CompileNodeGraphToComputeGraph(
 			BoundKernel.KernelNodeIndex = InNodeGraph->Nodes.IndexOfByKey(ConnectedNode.Node);
 			BoundKernel.Kernel = NewObject<UComputeKernel>(this);
 
+			FOptimusKernelConstantContainer& KernelConstantContainer = ConstantContainer.AddContainerForKernel();
 			UComputeDataInterface* KernelDataInterface = KernelDataInterfaceMap[ConnectedNode.Node];
 			
 			FOptimus_ComputeKernelResult KernelSourceResult = KernelProvider->CreateComputeKernel(	
@@ -1722,7 +1723,7 @@ UOptimusComputeGraph* UOptimusDeformer::CompileNodeGraphToComputeGraph(
 				ValueNodes,
 				GraphDataInterface, GraphDataComponentBinding,
 				KernelDataInterface,
-				BoundKernel.InputDataBindings, BoundKernel.OutputDataBindings, ConstantContainer
+				BoundKernel.InputDataBindings, BoundKernel.OutputDataBindings, KernelConstantContainer
 			);
 			if (FText* ErrorMessage = KernelSourceResult.TryGet<FText>())
 			{

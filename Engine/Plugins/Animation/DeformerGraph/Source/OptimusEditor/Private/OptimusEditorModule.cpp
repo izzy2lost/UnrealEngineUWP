@@ -9,7 +9,7 @@
 #include "AssetViewUtils.h"
 #include "EdGraphUtilities.h"
 #include "IAssetTools.h"
-#include "IOptimusExecutionDomainProvider.h"
+#include "OptimusExecutionDomain.h"
 #include "ObjectTools.h"
 #include "OptimusBindingTypes.h"
 #include "OptimusComponentSource.h"

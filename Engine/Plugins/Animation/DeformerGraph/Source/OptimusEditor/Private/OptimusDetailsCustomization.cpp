@@ -27,6 +27,7 @@
 #include "OptimusSource.h"
 #include "OptimusValidatedName.h"
 #include "OptimusValueContainer.h"
+#include "OptimusExecutionDomain.h"
 #include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateIconFinder.h"
@@ -46,6 +47,8 @@
 
 
 #define LOCTEXT_NAMESPACE "OptimusDetailCustomization"
+
+static const FName ExpressionMarkerName = TEXT("~");
 
 TSharedRef<IPropertyTypeCustomization> FOptimusDataTypeRefCustomization::MakeInstance()
 {
@@ -243,8 +246,6 @@ void FOptimusExecutionDomainCustomization::CustomizeHeader(
 	IPropertyTypeCustomizationUtils& InCustomizationUtils
 	)
 {
-	TSharedPtr<IPropertyHandle> ContextNameProperty = InPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FOptimusExecutionDomain, Name));
-
 	TArray<UObject*> OwningObjects;
 	InPropertyHandle->GetOuterObjects(OwningObjects);
 	
@@ -256,35 +257,169 @@ void FOptimusExecutionDomainCustomization::CustomizeHeader(
 	]
 	.ValueContent()
 	[
-		SAssignNew(ComboBox, SComboBox<FName>)
+		SNew(SWidgetSwitcher)
+		.WidgetIndex_Lambda([InPropertyHandle]()
+		{
+			// Show the expression box if the domain is an expression (and all match), otherwise show the domain name drop down.
+			if (TOptional<FOptimusExecutionDomain> DataDomain = TryGetSingleExecutionDomain(InPropertyHandle, DomainType|DomainExpression))
+			{
+				return DataDomain->Type == EOptimusExecutionDomainType::Expression ? 1 : 0;
+			}
+			return 0;
+		})
+		+ SWidgetSwitcher::Slot()
+		[
+			SAssignNew(ComboBox, SComboBox<FName>)
 			.OptionsSource(&ContextNames)
 			.IsEnabled_Lambda([InPropertyHandle]() -> bool
 			{
 				return InPropertyHandle->IsEditable();
 			})
-			.OnGenerateWidget_Lambda([](FName InName)
+			.OnGenerateWidget_Lambda([this](FName InName)
 			{
-				const FText NameText = InName.IsNone() ? LOCTEXT("NoneName", "<None>") : FText::FromName(InName);
 				return SNew(STextBlock)
-					.Text(NameText)
+					.Text(FormatContextName(InName))
 					.Font(IPropertyTypeCustomizationUtils::GetRegularFont());
 			})
-			.OnSelectionChanged_Lambda([ContextNameProperty](FName InName, ESelectInfo::Type)
+			.OnSelectionChanged_Lambda([InPropertyHandle, this](FName InName, ESelectInfo::Type InSelectType)
 			{
-				ContextNameProperty->SetValue(InName);
+				// This is for the initial selection.
+				if (InSelectType == ESelectInfo::Direct)
+				{
+					return;
+				}
+
+				FOptimusExecutionDomain ExecutionDomain;
+				if (InName == ExpressionMarkerName)
+				{
+					if (TOptional<FOptimusExecutionDomain> ExecutionDomainOpt = TryGetSingleExecutionDomain(InPropertyHandle))
+					{
+						ExecutionDomain = *ExecutionDomainOpt;
+						
+						ExecutionDomain.Expression = ExecutionDomain.Name.ToString();
+					}
+					else
+					{
+						ExecutionDomain.Expression = FString();
+					}
+					ExecutionDomain.Type = EOptimusExecutionDomainType::Expression;
+				}
+				else
+				{
+					ExecutionDomain.Type = EOptimusExecutionDomainType::DomainName;
+					ExecutionDomain.Name = InName;
+				}
+
+				SetExecutionDomain(InPropertyHandle, ExecutionDomain);
 			})
 			.OnComboBoxOpening(this, &FOptimusExecutionDomainCustomization::UpdateContextNames)
 			[
 				SNew(STextBlock)
 				.Font(IPropertyTypeCustomizationUtils::GetRegularFont())
-				.Text_Lambda([ContextNameProperty]()
+				.Text_Lambda([InPropertyHandle, this]()
 				{
-					FName Name;
-					ContextNameProperty->GetValue(Name);
-					return Name.IsNone() ? LOCTEXT("NoneName", "<None>") : FText::FromName(Name);
+					if (TOptional<FOptimusExecutionDomain> ExecutionDomain = TryGetSingleExecutionDomain(InPropertyHandle))
+					{
+						return FormatContextName(ExecutionDomain->Name);
+					}
+
+					return LOCTEXT("MultipleValues", "Multiple Values");
 				})
 			]
+		]
+		+ SWidgetSwitcher::Slot()
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.FillWidth(1.0)
+			.VAlign(VAlign_Center)
+			[
+				SAssignNew(ExpressionTextBox, SEditableTextBox)
+				.IsEnabled_Lambda([InPropertyHandle]() -> bool
+				{
+					return InPropertyHandle->IsEditable();
+				})
+				.Font(IPropertyTypeCustomizationUtils::GetRegularFont())
+				.HintText(LOCTEXT("ExpressionHint", "Expression..."))
+				.Text_Lambda([InPropertyHandle, this]() -> FText
+				{
+					if (TOptional<FOptimusExecutionDomain> ExecutionDomain = TryGetSingleExecutionDomain(InPropertyHandle, DomainType|DomainExpression))
+					{
+						return FText::FromString(ExecutionDomain->Expression);
+					}
+					return FText::GetEmpty();
+				})
+				.OnTextChanged_Lambda([this](const FText& InExpressionText)
+				{
+					using namespace Optimus::Expression;
+					
+					// Verify that the expression is correct.
+					const FString Expression = InExpressionText.ToString();
+					if (TOptional<FParseError> ParseError = FEngine().Verify(Expression))
+					{
+						ExpressionTextBox->SetError(ParseError->Message);
+					}
+					else
+					{
+						ExpressionTextBox->SetError(FString());
+					}
+				})
+				.OnTextCommitted_Lambda([InPropertyHandle, this](const FText& InExpressionText, ETextCommit::Type)
+				{
+					using namespace Optimus::Expression;
+					
+					// Only commit the text if the expression parses.
+					const FString Expression = InExpressionText.ToString();
+					if (!FEngine().Verify(Expression).IsSet())
+					{
+						const FOptimusExecutionDomain ExpressionDomain(Expression);
+						SetExecutionDomain(InPropertyHandle, ExpressionDomain, DomainType|DomainExpression);
+					}
+				})
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(5.0, 0.0, 0.0, 0.0)
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Right)
+			[
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+				.ForegroundColor(FAppStyle::GetSlateColor("DefaultForeground"))
+				.ContentPadding(FMargin(2, 2))
+				.OnClicked_Lambda([InPropertyHandle, this]() -> FReply
+				{
+					FOptimusExecutionDomain NamedDomain;
+					NamedDomain.Type = EOptimusExecutionDomainType::DomainName;
+					SetExecutionDomain(InPropertyHandle, NamedDomain, DomainType);
+
+					// Making sure Expression option can be selected again
+					ComboBox->ClearSelection();
+					
+					return FReply::Handled();
+				})
+				.ToolTipText(LOCTEXT("ClearExpression", "Clear Expression"))
+				[
+					SNew(SImage)
+					.Image(FAppStyle::GetBrush(TEXT("Cross")))
+				]
+			]
+		]
 	];
+}
+
+FText FOptimusExecutionDomainCustomization::FormatContextName(FName InName) const
+{
+	if (InName.IsNone())
+	{
+		return LOCTEXT("NoneName", "<None>");
+	}
+	if (InName == ExpressionMarkerName)
+	{
+		return LOCTEXT("ExpressionName", "Expression...");
+	}
+
+	return  FText::FromName(InName);
 }
 
 void FOptimusExecutionDomainCustomization::UpdateContextNames()
@@ -314,9 +449,79 @@ void FOptimusExecutionDomainCustomization::UpdateContextNames()
 	else
 	{
 		ContextNames.Sort(FNameLexicalLess{});
+		ContextNames.Add(ExpressionMarkerName);
 	}
 	
 	ComboBox->RefreshOptions();
+}
+
+void FOptimusExecutionDomainCustomization::SetExecutionDomain(TSharedRef<IPropertyHandle> InPropertyHandle,
+	const FOptimusExecutionDomain& InExecutionDomain, DomainFlags InSetFlags)
+{
+	FScopedTransaction Transaction(LOCTEXT("SetExecutionDomains", "Set Execution Domain"));
+
+	// Ideally we'd like to match up the raw data with the outers, but I'm not
+	// convinced that there's always 1-to-1 relation.
+	TArray<UObject *> OuterObjects;
+	InPropertyHandle->GetOuterObjects(OuterObjects);
+	for (UObject *OuterObject: OuterObjects)
+	{
+		// Notify the object that is has been modified so that undo/redo works.
+		OuterObject->Modify();
+	}
+				
+	InPropertyHandle->NotifyPreChange();
+	TArray<void*> RawDataPtrs;
+	InPropertyHandle->AccessRawData(RawDataPtrs);
+
+	for (void* RawPtr: RawDataPtrs)
+	{
+		FOptimusExecutionDomain* DstExecutionDomain = static_cast<FOptimusExecutionDomain*>(RawPtr);
+		if (InSetFlags & DomainType)		DstExecutionDomain->Type = InExecutionDomain.Type;
+		if (InSetFlags & DomainName)		DstExecutionDomain->Name = InExecutionDomain.Name;
+		if (InSetFlags & DomainExpression)	DstExecutionDomain->Expression = InExecutionDomain.Expression;
+	}
+
+	InPropertyHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
+}
+
+TOptional<FOptimusExecutionDomain> FOptimusExecutionDomainCustomization::TryGetSingleExecutionDomain(
+	TSharedRef<IPropertyHandle> InPropertyHandle, DomainFlags InCompareFlags, bool bInCheckMultiples)
+{
+	TArray<const void *> RawDataPtrs;
+	InPropertyHandle->AccessRawData(RawDataPtrs);
+
+	bool bItemsAreAllSame = false;
+	const FOptimusExecutionDomain* ComparatorExecutionDomain = nullptr;
+	for (const void* RawPtr: RawDataPtrs)
+	{
+		// During drag & reorder, invalid binding can be created temporarily
+		if (const FOptimusExecutionDomain* ExecutionDomain = static_cast<const FOptimusExecutionDomain*>(RawPtr))
+		{
+			if (!ComparatorExecutionDomain)
+			{
+				ComparatorExecutionDomain = ExecutionDomain;
+				bItemsAreAllSame = true;
+			}
+			else 
+			{
+				if (((InCompareFlags & DomainType) && ComparatorExecutionDomain->Type != ExecutionDomain->Type) ||
+					((InCompareFlags & DomainName) && ComparatorExecutionDomain->Name != ExecutionDomain->Name) ||
+					((InCompareFlags & DomainExpression) && ComparatorExecutionDomain->Expression != ExecutionDomain->Expression))
+				{
+					bItemsAreAllSame = false;
+					break;
+				}
+			}
+		}
+	}
+
+	if (ComparatorExecutionDomain && (!bInCheckMultiples || bItemsAreAllSame))
+	{
+		return *ComparatorExecutionDomain;
+	}
+	
+	return {};
 }
 
 
@@ -327,7 +532,7 @@ TSharedRef<IPropertyTypeCustomization> FOptimusDataDomainCustomization::MakeInst
 
 FOptimusDataDomainCustomization::FOptimusDataDomainCustomization() :
 	ParameterMarker(MakeShared<TArray<FName>>()),
-	ExpressionMarker(MakeShared<TArray<FName>>(TArray<FName>{FName("~")}))
+	ExpressionMarker(MakeShared<TArray<FName>>(TArray<FName>{ExpressionMarkerName}))
 {
 }
 
@@ -432,7 +637,7 @@ void FOptimusDataDomainCustomization::CustomizeHeader(
 			+ SHorizontalBox::Slot()
 			.FillWidth(0.9)
 			[
-				SNew(SComboBox<TSharedRef<TArray<FName>>>)
+				SAssignNew(DimensionalComboBox, SComboBox<TSharedRef<TArray<FName>>>)
 				.ToolTipText(DimensionSelectorTooltipText)
 				.OptionsSource(&DomainDimensionNames)
 				.InitiallySelectedItem(InitialDimensionSelection)
@@ -639,6 +844,10 @@ void FOptimusDataDomainCustomization::CustomizeHeader(
 				{
 					const FOptimusDataDomain DimensionalDomain;
 					SetDataDomain(InPropertyHandle, DimensionalDomain, DomainType);
+
+					// Making sure Expression option can be selected again
+					DimensionalComboBox->ClearSelection();
+					
 					return FReply::Handled();
 				})
 				.ToolTipText(LOCTEXT("ClearExpression", "Clear Expression"))

@@ -2,6 +2,7 @@
 
 #include "OptimusDataDomain.h"
 
+#include "OptimusExecutionDomain.h"
 #include "OptimusExpressionEvaluator.h"
 #include "OptimusObjectVersion.h"
 #include "String/ParseTokens.h"
@@ -29,6 +30,24 @@ FString Optimus::FormatDimensionNames(const TArray<FName>& InNames)
 	return FString::Join(NameParts, TEXT(" › "));
 }
 
+
+FOptimusDataDomain::FOptimusDataDomain(const FOptimusExecutionDomain& InExecutionDomain)
+{
+	if (InExecutionDomain.Type == EOptimusExecutionDomainType::DomainName)
+	{
+		Type = EOptimusDataDomainType::Dimensional;
+		DimensionNames = {InExecutionDomain.Name};
+	}
+	else if (InExecutionDomain.Type == EOptimusExecutionDomainType::Expression)
+	{
+		Type = EOptimusDataDomainType::Expression;
+		Expression = InExecutionDomain.Expression;
+	}
+	else
+	{
+		checkNoEntry();
+	}
+}
 
 FString FOptimusDataDomain::ToString() const
 {

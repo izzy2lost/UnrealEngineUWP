@@ -204,9 +204,9 @@ void UOptimusNode_ComputeKernelFunction::ConstructNode()
 }
 
 
-FName UOptimusNode_ComputeKernelFunction::GetExecutionDomain() const
+FOptimusExecutionDomain UOptimusNode_ComputeKernelFunction::GetExecutionDomain() const
 {
-	return GetGeneratorClass()->ExecutionDomain.Name;
+	return GetGeneratorClass()->ExecutionDomain;
 }
 
 

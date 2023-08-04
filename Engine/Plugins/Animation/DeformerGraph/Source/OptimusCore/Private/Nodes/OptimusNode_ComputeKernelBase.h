@@ -5,6 +5,7 @@
 #include "IOptimusComputeKernelProvider.h"
 #include "OptimusDataDomain.h"
 #include "OptimusDataType.h"
+#include "OptimusExecutionDomain.h"
 #include "OptimusNode.h"
 
 #include "OptimusNode_ComputeKernelBase.generated.h"
@@ -42,15 +43,15 @@ public:
 		const TArray<const UOptimusNode*>& InValueNodes,
 		const UComputeDataInterface* InGraphDataInterface,
 		const UOptimusComponentSourceBinding* InGraphDataComponentBinding,
-		const UComputeDataInterface* InKernelDataInterface,
+		UComputeDataInterface* InOutKernelDataInterface,
 		FOptimus_InterfaceBindingMap& OutInputDataBindings,
 		FOptimus_InterfaceBindingMap& OutOutputDataBindings,
-		FOptimusConstantContainer& OutConstantContainer
+		FOptimusKernelConstantContainer& OutKernelConstantContainer
 	) const override;
 
-	FName GetExecutionDomain() const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::GetExecutionDomain, return NAME_None; );
+	FOptimusExecutionDomain GetExecutionDomain() const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::GetExecutionDomain, return {}; );
 	const UOptimusNodePin* GetPrimaryGroupPin() const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::GetPrimaryGroupPin, return {}; );  
-	UComputeDataInterface* GetKernelDataInterface(UObject* InOuter) const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::GetKernelDataInterface, return {}; );
+	UComputeDataInterface* MakeKernelDataInterface(UObject* InOuter) const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::MakeKernelDataInterface, return {}; );
 	
 	// -- UOptimusNode overrides
 	TOptional<FText> ValidateForCompile() const override;
@@ -107,9 +108,10 @@ private:
 
 	void BindKernelDataInterfaceForComputeKernel(
 		const UOptimusComponentSourceBinding* InKernelPrimaryComponentSourceBinding,
-		const UComputeDataInterface* InKernelDataInterface,
+		UComputeDataInterface* InOutKernelDataInterface,
 		UOptimusKernelSource* InKernelSource,
-		FOptimus_InterfaceBindingMap& OutInputDataBindings
+		FOptimus_InterfaceBindingMap& OutInputDataBindings,
+		FOptimusKernelConstantContainer& OutKernelConstantContainer
 		) const;
 };
 

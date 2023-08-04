@@ -2,6 +2,7 @@
 
 #include "OptimusNode_ComputeKernelBase.h"
 
+#include "IOptimusComputeKernelDataInterface.h"
 #include "IOptimusDataInterfaceProvider.h"
 #include "OptimusCoreModule.h"
 #include "OptimusNodeGraph.h"
@@ -15,6 +16,7 @@
 #include "OptimusHelpers.h"
 #include "OptimusKernelSource.h"
 #include "OptimusConstant.h"
+#include "OptimusExecutionDomain.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusNode_ComputeKernelBase)
 
@@ -57,10 +59,10 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 	const TArray<const UOptimusNode *>& InValueNodes,
 	const UComputeDataInterface* InGraphDataInterface,
 	const UOptimusComponentSourceBinding* InGraphDataComponentBinding,
-	const UComputeDataInterface* InKernelDataInterface,
+	UComputeDataInterface* InOutKernelDataInterface,
 	FOptimus_InterfaceBindingMap& OutInputDataBindings,
 	FOptimus_InterfaceBindingMap& OutOutputDataBindings,
-	FOptimusConstantContainer& OutConstantContainer
+	FOptimusKernelConstantContainer& OutKernelConstantContainer
 ) const
 {
 	// Maps friendly name to unique name for each struct type
@@ -143,7 +145,6 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 		return ReturnError(LOCTEXT("ZeroOrMultiplePrimaryBindings", "Primary Group has zero or more than one Component Bindings"));
 	}
 
-	FOptimusKernelConstantContainer& OutKernelConstantContainer = OutConstantContainer.AddContainerForKernel();
 
 	UOptimusKernelSource* KernelSource = NewObject<UOptimusKernelSource>(InKernelSourceOuter);
 
@@ -181,12 +182,14 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 		}
 	}
 
-	if (ensure(InKernelDataInterface))
+	if (ensure(InOutKernelDataInterface))
 	{
 		BindKernelDataInterfaceForComputeKernel(
 			PrimaryBindings.Array()[0],
-			InKernelDataInterface,
-			KernelSource, OutInputDataBindings);
+			InOutKernelDataInterface,
+			KernelSource,
+			OutInputDataBindings,
+			OutKernelConstantContainer);
 	}
 
 	FString CookedSource;
@@ -792,16 +795,32 @@ void UOptimusNode_ComputeKernelBase::ProcessOutputPinForComputeKernel(
 
 void UOptimusNode_ComputeKernelBase::BindKernelDataInterfaceForComputeKernel(
 	const UOptimusComponentSourceBinding* InKernelPrimaryComponentSourceBinding,
-	const UComputeDataInterface* InKernelDataInterface,
+	UComputeDataInterface* InOutKernelDataInterface,
 	UOptimusKernelSource* InKernelSource,
-	FOptimus_InterfaceBindingMap& OutInputDataBindings
+	FOptimus_InterfaceBindingMap& OutInputDataBindings,
+	FOptimusKernelConstantContainer& OutKernelConstantContainer
 	) const
 {
-	check(InKernelDataInterface);
+	check(InOutKernelDataInterface);
 	check(InKernelPrimaryComponentSourceBinding);
+
+	FOptimusConstantIdentifier ExecutionDomainIdentifier(this, NAME_None, TEXT("@ExecutionDomain"));
+	
+	OutKernelConstantContainer.AddToKernelContainer({
+		ExecutionDomainIdentifier,
+		{GetExecutionDomain().AsExpression()},
+		InKernelPrimaryComponentSourceBinding->GetIndex(),
+		EOptimusConstantType::Output});
+	
+	IOptimusComputeKernelDataInterface* KernelDataInterface = Cast<IOptimusComputeKernelDataInterface>(InOutKernelDataInterface);
+	if (ensure(KernelDataInterface))
+	{
+		KernelDataInterface->SetExecutionDomainConstant(ExecutionDomainIdentifier);
+	}
+
 	
 	TArray<FShaderFunctionDefinition> ReadFunctions;
-	InKernelDataInterface->GetSupportedInputs(ReadFunctions);	
+	InOutKernelDataInterface->GetSupportedInputs(ReadFunctions);	
 
 	// Simply grab everything the kernel data interface has to offer
 	for (int32 FuncIndex = 0; FuncIndex < ReadFunctions.Num(); FuncIndex++)
@@ -815,7 +834,7 @@ void UOptimusNode_ComputeKernelBase::BindKernelDataInterfaceForComputeKernel(
 		}
 
 		FOptimus_InterfaceBinding InterfaceBinding;
-		InterfaceBinding.DataInterface = InKernelDataInterface;
+		InterfaceBinding.DataInterface = InOutKernelDataInterface;
 		InterfaceBinding.ComponentBinding = InKernelPrimaryComponentSourceBinding;
 		InterfaceBinding.DataInterfaceBindingIndex = FuncIndex;
 		InterfaceBinding.BindingFunctionName = FuncDef.Name;

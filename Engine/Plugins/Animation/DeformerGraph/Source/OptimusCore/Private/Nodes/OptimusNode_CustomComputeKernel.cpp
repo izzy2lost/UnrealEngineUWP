@@ -98,17 +98,20 @@ FString UOptimusNode_CustomComputeKernel::GetKernelSourceText() const
 	return GetCookedKernelSource(GetPathName(), ShaderSource.ShaderText, KernelName.ToString(), GroupSize);
 }
 
+FOptimusExecutionDomain UOptimusNode_CustomComputeKernel::GetExecutionDomain() const
+{
+	return ExecutionDomain;
+}
+
 const UOptimusNodePin* UOptimusNode_CustomComputeKernel::GetPrimaryGroupPin() const
 {
 	return GetPrimaryGroupPin_Internal();
 }
 
-UComputeDataInterface* UOptimusNode_CustomComputeKernel::GetKernelDataInterface(UObject* InOuter) const
+UComputeDataInterface* UOptimusNode_CustomComputeKernel::MakeKernelDataInterface(UObject* InOuter) const
 {
 	UOptimusCustomComputeKernelDataInterface* KernelDataInterface = NewObject<UOptimusCustomComputeKernelDataInterface>(InOuter);
-	
-	KernelDataInterface->InitFromKernelNode(this);
-	
+
 	return KernelDataInterface;
 }
 
@@ -880,9 +883,13 @@ void UOptimusNode_CustomComputeKernel::PropertyArrayItemAdded(
 		else
 		{
 			// Pick a suitable fallback for output pins.
-			FName DomainName = GetExecutionDomain();
-			if (DomainName.IsNone())
+			if (ExecutionDomain.IsDefined())
 			{
+				InBinding.DataDomain = FOptimusDataDomain(ExecutionDomain);
+			}
+			else
+			{
+				FName DomainName = NAME_None;
 				if (TArray<FName> ExecutionDomains = GetExecutionDomains(); !ExecutionDomains.IsEmpty())
 				{
 					DomainName = ExecutionDomains[0];
@@ -892,8 +899,9 @@ void UOptimusNode_CustomComputeKernel::PropertyArrayItemAdded(
 					// FIXME: There should be a generic mechanism to get the most suitable default. 
 					DomainName = UOptimusSkeletalMeshComponentSource::Domains::Vertex;
 				}
+				
+				InBinding.DataDomain = FOptimusDataDomain(TArray<FName>({DomainName}));
 			}
-			InBinding.DataDomain = FOptimusDataDomain({DomainName});
 		}
 
 		AddPin(InBinding.Name, InDirection, InBinding.DataDomain, InBinding.DataType, InBeforePin, InGroupPin);
@@ -1637,8 +1645,7 @@ UOptimusNodePin* UOptimusNode_CustomComputeKernel::GetPrimaryGroupPin_Internal()
 
 void UOptimusNode_CustomComputeKernel::PostLoadExtractExecutionDomain()
 {
-	ExecutionDomain.Name = NAME_None;
-		
+	ExecutionDomain = {};
 	// Check if there's an execution node connected and grab the domain from it.
 	FOptimusDataTypeHandle IntVector3Type = FOptimusDataTypeRegistry::Get().FindType(Optimus::GetTypeName(TBaseStructure<FIntVector3>::Get()));
 
@@ -1654,7 +1661,7 @@ void UOptimusNode_CustomComputeKernel::PostLoadExtractExecutionDomain()
 					if (const IOptimusDeprecatedExecutionDataInterface* ExecDataInterface = Cast<IOptimusDeprecatedExecutionDataInterface>(DataInterfaceNode->GetDataInterface(GetTransientPackage())))
 					{
 						FName Domain = ExecDataInterface->GetSelectedExecutionDomainName();
-						ExecutionDomain.Name = Domain;
+						ExecutionDomain = {Domain};
 					}
 				}
 			}

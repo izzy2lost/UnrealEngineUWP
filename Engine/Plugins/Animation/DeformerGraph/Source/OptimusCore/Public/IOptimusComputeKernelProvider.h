@@ -15,8 +15,8 @@ class UOptimusKernelSource;
 class UOptimusNode;
 class UOptimusNodePin;
 struct FOptimusPinTraversalContext;
-struct FOptimusConstantContainer;
-
+struct FOptimusKernelConstantContainer;
+struct FOptimusExecutionDomain;
 
 // Maps the data interface's data binding index to the function we would like to have present
 // during kernel compilation to read/write values from/to that data interface's resource.
@@ -81,10 +81,10 @@ public:
 	 * @param InValueNodes
 	 * @param InGraphDataInterface
 	 * @param InGraphDataComponentBinding
-	 * @param InKernelDataInterface
+	 * @param InOutKernelDataInterface
 	 * @param OutInputDataBindings
 	 * @param OutOutputDataBindings
-	 * @param OutConstantContainer
+	 * @param OutKernelConstantContainer
 	 */
 	virtual FOptimus_ComputeKernelResult CreateComputeKernel(
 		UObject* InKernelSourceOuter,
@@ -94,18 +94,18 @@ public:
 		const TArray<const UOptimusNode*>& InValueNodes,
 		const UComputeDataInterface* InGraphDataInterface,
 		const UOptimusComponentSourceBinding* InGraphDataComponentBinding,
-		const UComputeDataInterface* InKernelDataInterface,
+		UComputeDataInterface* InOutKernelDataInterface,
 		FOptimus_InterfaceBindingMap& OutInputDataBindings,
 		FOptimus_InterfaceBindingMap& OutOutputDataBindings,
-		FOptimusConstantContainer& OutConstantContainer
-		) const = 0;
+		FOptimusKernelConstantContainer& OutKernelConstantContainer
+	) const = 0;
 
 	/** Returns the execution domain that this kernel should iterate over */
-	virtual FName GetExecutionDomain() const = 0;
-
+	virtual FOptimusExecutionDomain GetExecutionDomain() const = 0;
+	
 	/** Used for traversing up the graph to identify the component source of the compute kernel */
 	virtual const UOptimusNodePin* GetPrimaryGroupPin() const = 0;
 	
 	/** Each kernel may have its own data interface responsible for passing kernel related data to GPU */
-	virtual UComputeDataInterface* GetKernelDataInterface(UObject* InOuter) const = 0;
+	virtual UComputeDataInterface* MakeKernelDataInterface(UObject* InOuter) const = 0;
 };

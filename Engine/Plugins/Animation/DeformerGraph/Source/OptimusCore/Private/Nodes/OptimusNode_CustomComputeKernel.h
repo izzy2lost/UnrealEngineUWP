@@ -16,7 +16,7 @@
 
 
 enum class EOptimusNodePinDirection : uint8;
-
+struct FOptimusExecutionDomain;
 
 USTRUCT()
 struct FOptimusSecondaryInputBindingsGroup
@@ -59,9 +59,9 @@ public:
 	TArray<TObjectPtr<UComputeSource>> GetAdditionalSources() const override { return AdditionalSources; }
 
 	// IOptimusComputeKernelProvider
-	FName GetExecutionDomain() const override { return ExecutionDomain.Name; } 
+	FOptimusExecutionDomain GetExecutionDomain() const override;
 	const UOptimusNodePin* GetPrimaryGroupPin() const override;
-	UComputeDataInterface* GetKernelDataInterface(UObject* InOuter) const override;
+	UComputeDataInterface* MakeKernelDataInterface(UObject* InOuter) const override;
 
 #if WITH_EDITOR
 	// IOptimusShaderTextProvider overrides

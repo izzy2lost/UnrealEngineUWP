@@ -3,6 +3,7 @@
 #include "OptimusDataInterfaceCustomComputeKernel.h"
 
 #include "OptimusComponentSource.h"
+#include "OptimusDeformerInstance.h"
 #include "OptimusExpressionEvaluator.h"
 #include "ShaderParameterMetadataBuilder.h"
 #include "ComputeFramework/ComputeMetadataBuilder.h"
@@ -14,19 +15,6 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusDataInterfaceCustomComputeKernel)
 
 const FString UOptimusCustomComputeKernelDataInterface::NumThreadsReservedName = TEXT("NumThreads");
-
-void UOptimusCustomComputeKernelDataInterface::InitFromKernelNode(const UOptimusNode_CustomComputeKernel* InKernelNode)
-{
-	NumThreadsExpression = InKernelNode->ExecutionDomain.Name.ToString();
-
-	TSet<UOptimusComponentSourceBinding*> PrimaryBinding = InKernelNode->GetGroupComponentSourceBindings(InKernelNode->GetPrimaryGroupPin());
-
-	// Kernel node's ValidateForCompile() should guaranteed the existence of unique primary binding
-	if (ensure(PrimaryBinding.Num() == 1))
-	{
-		ComponentSourceBinding = PrimaryBinding.Array()[0];
-	}
-}
 
 void UOptimusCustomComputeKernelDataInterface::GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const
 {
@@ -89,6 +77,12 @@ UComputeDataProvider* UOptimusCustomComputeKernelDataInterface::CreateDataProvid
 	return Provider;
 }
 
+void UOptimusCustomComputeKernelDataInterface::SetExecutionDomainConstant(
+	const FOptimusConstantIdentifier& InExecutionDomainConstantIdentifier)
+{
+	ExecutionDomainConstantIdentifier = InExecutionDomainConstantIdentifier;
+}
+
 void UOptimusCustomComputeKernelDataProvider::InitFromDataInterface(const UOptimusCustomComputeKernelDataInterface* InDataInterface, const UObject* InBinding)
 {
 	WeakComponent = Cast<UActorComponent>(InBinding);
@@ -109,7 +103,50 @@ FComputeDataProviderRenderProxy* UOptimusCustomComputeKernelDataProvider::GetRen
 	return Proxy;
 }
 
-bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts(
+void UOptimusCustomComputeKernelDataProvider::SetDeformerInstance(UOptimusDeformerInstance* InInstance)
+{
+	DeformerInstance = InInstance;
+}
+
+UOptimusDeformerInstance* UOptimusCustomComputeKernelDataProvider::GetDeformerInstance() const
+{
+	return DeformerInstance;
+}
+
+bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts(TArray<int32>& OutInvocationThreadCount,
+                                                                        int32& OutTotalThreadCount) const
+{
+	if (!WeakDataInterface.IsValid())
+	{
+		return false;
+	}
+
+	const FOptimusConstantIdentifier& ExecutionDomainIdentifier = WeakDataInterface->ExecutionDomainConstantIdentifier;
+	
+	if (!ExecutionDomainIdentifier.IsValid())
+	{
+		return GetInvocationThreadCounts_DEPRECATED(OutInvocationThreadCount, OutTotalThreadCount);
+	}
+
+	TArray<float> Values = DeformerInstance->GetConstantValuePerInvocation(ExecutionDomainIdentifier);
+
+	// Can happen if the bound component does not have actual data, like when there is no preview mesh
+	if (Values.Num() == 0)
+	{
+		return false;
+	}
+	
+	OutInvocationThreadCount.Reset(Values.Num());
+	for (const float& Value : Values)
+	{
+		OutInvocationThreadCount.Add(static_cast<int32>(Value));
+	}
+
+	return true;
+	
+}
+
+bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts_DEPRECATED(
 	TArray<int32>& OutInvocationThreadCount,
 	int32& OutTotalThreadCount
 	) const
@@ -119,13 +156,15 @@ bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts(
 		return false;
 	}
 
-	if (!WeakDataInterface->ComponentSourceBinding.IsValid())
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (!WeakDataInterface->ComponentSourceBinding_DEPRECATED.IsValid())
 	{
 		return false;
 	}
 	
-	const UOptimusComponentSource* ComponentSource = WeakDataInterface->ComponentSourceBinding->GetComponentSource();
-	const FString& NumThreadsExpression = WeakDataInterface->NumThreadsExpression;
+	const UOptimusComponentSource* ComponentSource = WeakDataInterface->ComponentSourceBinding_DEPRECATED->GetComponentSource();
+	const FString& NumThreadsExpression = WeakDataInterface->NumThreadsExpression_DEPRECATED;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
 	if (!WeakComponent.IsValid() || !ComponentSource)
 	{

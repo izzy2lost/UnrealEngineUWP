@@ -18,8 +18,8 @@ void FOptimusKernelConstantContainer::AddToKernelContainer(const FOptimusConstan
 		InConstant.Type == EOptimusConstantType::Input ?
 			InputConstants :OutputConstants;
 
-	int32 ConstantIndex = Constants.Add(InConstant);
-
+	Constants.Add(InConstant);	
+	
 	GroupNameToBindingIndex.FindOrAdd(InConstant.Identifier.GroupName) = InConstant.ComponentBindingIndex;
 }
 
