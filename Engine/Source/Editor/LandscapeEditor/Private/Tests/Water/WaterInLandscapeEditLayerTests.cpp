@@ -102,7 +102,7 @@ void FWaterInLandscapeEditLayerTestBase::Teardown()
 	{
 		Landscape = LandscapeEdMode->GetLandscape();
 	}
-	if (Landscape)
+	if (Landscape && LandscapeEdMode)
 	{
 		for (ALandscapeBlueprintBrushBase* Brush : LandscapeEdMode->GetBrushList())
 		{
