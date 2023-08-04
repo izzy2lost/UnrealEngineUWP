@@ -1410,6 +1410,8 @@ uint32 FOnDemandIoBackend::Run()
 								{
 									Stats.OnHttpRetry();
 									Stats.OnHttpEnqueue();
+
+									// Note there is no need to trigger TickBackendEvent as this callback will occur within FOnDemandIoBackend::Run
 									return HttpRequests.Enqueue(ChunkRequest); 
 								}
 							}
@@ -1450,9 +1452,15 @@ uint32 FOnDemandIoBackend::Run()
 			}
 
 			{
-				// Keep processing pending connections until all work is complete or a new request if found
+				// Keep processing pending connections until all requests are completed or a new one is issued
 				TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoBackend::TickHttp);
 				while (HttpClient->Tick() && !NextChunkRequest)
+				{
+					NextChunkRequest = HttpRequests.Dequeue();
+				}
+
+				// Tick can cause a new request to be added to HttpRequests, so we should try one last time
+				if (NextChunkRequest == nullptr)
 				{
 					NextChunkRequest = HttpRequests.Dequeue();
 				}
