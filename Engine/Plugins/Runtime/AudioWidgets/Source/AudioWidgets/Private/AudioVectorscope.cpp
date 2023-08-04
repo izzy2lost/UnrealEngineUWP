@@ -15,19 +15,40 @@ namespace AudioWidgets
 		const EAudioPanelLayoutType InPanelLayoutType)
 		: VectorscopePanelStyle(FAudioVectorscopePanelStyle::GetDefault())
 	{
-		// Init audio bus
+		CreateAudioBus(InNumChannels);
+		CreateDataProvider(InWorld, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs);
+		CreateVectorscopeWidget(InPanelLayoutType);
+	}
+
+	void FAudioVectorscope::CreateAudioBus(const uint32 InNumChannels)
+	{
 		AudioBus = TStrongObjectPtr(NewObject<UAudioBus>());
 		AudioBus->AudioBusChannels = AudioBusUtils::ConvertIntToEAudioBusChannels(InNumChannels);
+	}
 
-		// Init data provider
+	void FAudioVectorscope::CreateDataProvider(UWorld* InWorld, const float InTimeWindowMs,	const float InMaxTimeWindowMs, const float InAnalysisPeriodMs)
+	{
+		check(AudioBus);
+
 		AudioSamplesDataProvider = MakeShared<FWaveformAudioSamplesDataProvider>(InWorld, AudioBus.Get(), AudioBus->GetNumChannels(), InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs);
+	}
 
-		// Init widget 
+	void FAudioVectorscope::CreateVectorscopeWidget(const EAudioPanelLayoutType InPanelLayoutType)
+	{
+		check(AudioSamplesDataProvider);
+
 		const FFixedSampledSequenceView SequenceView = AudioSamplesDataProvider->GetDataView();
 
-		VectorscopePanelWidget = SNew(SAudioVectorscopePanelWidget, SequenceView)
-		.PanelLayoutType(InPanelLayoutType)
-		.PanelStyle(&VectorscopePanelStyle);
+		if (!VectorscopePanelWidget.IsValid())
+		{
+			VectorscopePanelWidget = SNew(SAudioVectorscopePanelWidget, SequenceView)
+				.PanelLayoutType(InPanelLayoutType)
+				.PanelStyle(&VectorscopePanelStyle);
+		}
+		else
+		{
+			VectorscopePanelWidget->BuildWidget(SequenceView);
+		}
 
 		// Interconnect data provider and widget
 		AudioSamplesDataProvider->OnDataViewGenerated.AddSP(VectorscopePanelWidget.Get(), &SAudioVectorscopePanelWidget::ReceiveSequenceView);

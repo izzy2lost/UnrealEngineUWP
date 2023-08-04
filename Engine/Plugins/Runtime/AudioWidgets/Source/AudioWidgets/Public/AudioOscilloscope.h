@@ -25,6 +25,16 @@ namespace AudioWidgets
 			const float InAnalysisPeriodMs, 
 			const EAudioPanelLayoutType InPanelLayoutType);
 
+		void CreateAudioBus(const uint32 InNumChannels);
+
+		void CreateDataProvider(UWorld* InWorld,
+			const float InTimeWindowMs,
+			const float InMaxTimeWindowMs,
+			const float InAnalysisPeriodMs,
+			const EAudioPanelLayoutType InPanelLayoutType);
+
+		void CreateOscilloscopeWidget(const uint32 InNumChannels, const EAudioPanelLayoutType InPanelLayoutType);
+
 		void StartProcessing();
 		void StopProcessing();
 

@@ -5,6 +5,9 @@
 #include "Algo/AnyOf.h"
 #include "AudioDevice.h"
 #include "AudioMeterStyle.h"
+#include "AudioOscilloscope.h"
+#include "AudioVectorscope.h"
+#include "AudioWidgetsEnums.h"
 #include "Components/AudioComponent.h"
 #include "DetailLayoutBuilder.h"
 #include "EdGraph/EdGraphNode.h"
@@ -67,6 +70,7 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Layout/SSplitter.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
@@ -677,7 +681,7 @@ namespace Metasound
 
 		TSharedPtr<SWidget> FEditor::BuildAnalyzerWidget() const
 		{
-			if (!OutputMeter.IsValid())
+			if (!OutputMeter.IsValid() || !OutputOscilloscope.IsValid() || !OutputVectorscope.IsValid())
 			{
 				return SNullWidget::NullWidget->AsShared();
 			}
@@ -697,13 +701,28 @@ namespace Metasound
 			]
 			+ SOverlay::Slot()
 			[
-				SNew(SVerticalBox)
-				+ SVerticalBox::Slot()
-				.FillHeight(1.0f)
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Fill)
+				SNew(SSplitter)
+				.Orientation(Orient_Vertical)
+				+ SSplitter::Slot()
+				.Value(0.6f)
 				[
-					OutputMeter->GetWidget()
+					SNew(SVerticalBox)
+					+ SVerticalBox::Slot()
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Fill)
+					[
+						OutputMeter->GetWidget()
+					]
+				]
+				+ SSplitter::Slot()
+				.Value(0.2f)
+				[
+					OutputOscilloscope->GetPanelWidget()
+				]
+				+ SSplitter::Slot()
+				.Value(0.2f)
+				[
+					OutputVectorscope->GetPanelWidget()
 				]
 			];
 		}
@@ -1150,12 +1169,61 @@ namespace Metasound
 					if (ensure(EditorWorld))
 					{
 						OutputMeter->Init(MetaSoundSource->NumChannels, *EditorWorld);
+
+						const uint32 MetaSoundNumChannels = static_cast<uint32>(MetaSoundSource->NumChannels);
+
+						// Init Oscilloscope
+						constexpr float OscilloscopeTimeWindowMs     = 10.0f;
+						constexpr float OscilloscopeMaxTimeWindowMs  = 10.0f;
+						constexpr float OscilloscopeAnalysisPeriodMs = 10.0f;
+						constexpr EAudioPanelLayoutType OscilloscopePanelLayoutType = EAudioPanelLayoutType::Basic;
+
+						if (!OutputOscilloscope.IsValid())
+						{
+							OutputOscilloscope = MakeShared<AudioWidgets::FAudioOscilloscope>(EditorWorld,
+								MetaSoundNumChannels,
+								OscilloscopeTimeWindowMs,
+								OscilloscopeMaxTimeWindowMs,
+								OscilloscopeAnalysisPeriodMs,
+								OscilloscopePanelLayoutType);
+						}
+						else
+						{
+							OutputOscilloscope->CreateAudioBus(MetaSoundNumChannels);
+							OutputOscilloscope->CreateDataProvider(EditorWorld,	OscilloscopeTimeWindowMs, OscilloscopeMaxTimeWindowMs, OscilloscopeAnalysisPeriodMs, OscilloscopePanelLayoutType);
+							OutputOscilloscope->CreateOscilloscopeWidget(MetaSoundNumChannels, EAudioPanelLayoutType::Basic);
+						}
+
+						// Init Vectorscope
+						constexpr float VectorscopeTimeWindowMs     = 30.0f;
+						constexpr float VectorscopeMaxTimeWindowMs  = 30.0f;
+						constexpr float VectorscopeAnalysisPeriodMs = 10.0f;
+						constexpr EAudioPanelLayoutType VectorscopePanelLayoutType = EAudioPanelLayoutType::Basic;
+
+						if (!OutputVectorscope.IsValid())
+						{
+							OutputVectorscope = MakeShared<AudioWidgets::FAudioVectorscope>(EditorWorld,
+								MetaSoundNumChannels,
+								VectorscopeTimeWindowMs,
+								VectorscopeMaxTimeWindowMs,
+								VectorscopeAnalysisPeriodMs,
+								VectorscopePanelLayoutType);
+						}
+						else
+						{
+							OutputVectorscope->CreateAudioBus(MetaSoundNumChannels);
+							OutputVectorscope->CreateDataProvider(EditorWorld, VectorscopeTimeWindowMs, VectorscopeMaxTimeWindowMs, VectorscopeAnalysisPeriodMs);
+							OutputVectorscope->CreateVectorscopeWidget(VectorscopePanelLayoutType);
+						}
+
 					}
 				}
 			}
 			else
 			{
 				OutputMeter.Reset();
+				OutputOscilloscope.Reset();
+				OutputVectorscope.Reset();
 			}
 		}
 
@@ -1165,6 +1233,9 @@ namespace Metasound
 			{
 				OutputMeter->Teardown();
 			}
+
+			OutputOscilloscope->StopProcessing();
+			OutputVectorscope->StopProcessing();
 		}
 
 		void FEditor::ExtendToolbar()
@@ -1545,7 +1616,17 @@ namespace Metasound
 					{
 						PreviewComp->SetAudioBusSendPostEffect(AudioBus, 1.0f);
 					}
-				
+
+					if (UAudioBus* AudioBus = OutputOscilloscope->GetAudioBus())
+					{
+						PreviewComp->SetAudioBusSendPostEffect(AudioBus, 1.0f);
+					}
+
+					if (UAudioBus* AudioBus = OutputVectorscope->GetAudioBus())
+					{
+						PreviewComp->SetAudioBusSendPostEffect(AudioBus, 1.0f);
+					}
+
 					FMetasoundAssetBase* MetasoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(Metasound);
 					check(MetasoundAsset);
 
@@ -1641,6 +1722,16 @@ namespace Metasound
 						);
 						OutputMeterWidget->bIsActiveTimerRegistered = true;
 					}
+				}
+
+				if (OutputOscilloscope.IsValid())
+				{
+					OutputOscilloscope->StartProcessing();
+				}
+
+				if (OutputVectorscope.IsValid())
+				{
+					OutputVectorscope->StartProcessing();
 				}
 			}
 		}

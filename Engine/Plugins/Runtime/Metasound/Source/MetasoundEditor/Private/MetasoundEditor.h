@@ -36,6 +36,12 @@
 
 
 // Forward Declarations
+namespace AudioWidgets
+{
+	class FAudioOscilloscope;
+	class FAudioVectorscope;
+}
+
 class FTabManager;
 class SDockableTab;
 class SGraphEditor;
@@ -419,6 +425,12 @@ namespace Metasound
 
 			/** Meter used in the analyzer tab for auditioning preview output. */
 			TSharedPtr<AudioWidgets::FAudioMeter> OutputMeter;
+
+			/** Oscilloscope used in the analyzer tab for visualizing preview output. */
+			TSharedPtr<AudioWidgets::FAudioOscilloscope> OutputOscilloscope;
+
+			/** Vectorscope used in the analyzer tab for visualizing preview output. */
+			TSharedPtr<AudioWidgets::FAudioVectorscope> OutputVectorscope;
 
 			/** Palette of Node types */
 			TSharedPtr<SMetasoundPalette> Palette;

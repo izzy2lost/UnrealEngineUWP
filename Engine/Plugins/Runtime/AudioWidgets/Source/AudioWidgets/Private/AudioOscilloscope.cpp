@@ -14,20 +14,45 @@ namespace AudioWidgets
 		const EAudioPanelLayoutType InPanelLayoutType)
 		: OscilloscopePanelStyle(FAudioOscilloscopePanelStyle::GetDefault())
 	{
-		// Init audio bus
+		CreateAudioBus(InNumChannels);
+		CreateDataProvider(InWorld, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs, InPanelLayoutType);
+		CreateOscilloscopeWidget(InNumChannels, InPanelLayoutType);
+	}
+
+	void FAudioOscilloscope::CreateAudioBus(const uint32 InNumChannels)
+	{
 		AudioBus = TStrongObjectPtr(NewObject<UAudioBus>());
 		AudioBus->AudioBusChannels = AudioBusUtils::ConvertIntToEAudioBusChannels(InNumChannels);
+	}
 
-		// Init data provider
-		constexpr uint32 NumChannelsToProvide = 1;
+	void FAudioOscilloscope::CreateDataProvider(UWorld* InWorld,
+		const float InTimeWindowMs,
+		const float InMaxTimeWindowMs,
+		const float InAnalysisPeriodMs,
+		const EAudioPanelLayoutType InPanelLayoutType)
+	{
+		check(AudioBus);
+
+		const uint32 NumChannelsToProvide = (InPanelLayoutType == EAudioPanelLayoutType::Advanced) ? 1 : AudioBus->GetNumChannels(); // Advanced mode waveform display is based on channel selection
 		AudioSamplesDataProvider = MakeShared<FWaveformAudioSamplesDataProvider>(InWorld, AudioBus.Get(), NumChannelsToProvide, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs);
+	}
 
-		// Init widget 
+	void FAudioOscilloscope::CreateOscilloscopeWidget(const uint32 InNumChannels, const EAudioPanelLayoutType InPanelLayoutType)
+	{
+		check(AudioSamplesDataProvider);
+
 		const FFixedSampledSequenceView SequenceView = AudioSamplesDataProvider->GetDataView();
 
-		OscilloscopePanelWidget = SNew(SAudioOscilloscopePanelWidget, SequenceView, InNumChannels)
-		.PanelLayoutType(InPanelLayoutType)
-		.PanelStyle(&OscilloscopePanelStyle);
+		if (!OscilloscopePanelWidget.IsValid())
+		{
+			OscilloscopePanelWidget = SNew(SAudioOscilloscopePanelWidget, SequenceView, InNumChannels)
+			.PanelLayoutType(InPanelLayoutType)
+			.PanelStyle(&OscilloscopePanelStyle);
+		}
+		else
+		{
+			OscilloscopePanelWidget->BuildWidget(SequenceView, InNumChannels);
+		}
 
 		// Interconnect data provider and widget
 		AudioSamplesDataProvider->OnDataViewGenerated.AddSP(OscilloscopePanelWidget.Get(), &SAudioOscilloscopePanelWidget::ReceiveSequenceView);

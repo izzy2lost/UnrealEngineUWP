@@ -24,6 +24,10 @@ namespace AudioWidgets
 			const float InAnalysisPeriodMs, 
 			const EAudioPanelLayoutType InPanelLayoutType);
 
+		void CreateAudioBus(const uint32 InNumChannels);
+		void CreateDataProvider(UWorld* InWorld, const float InTimeWindowMs, const float InMaxTimeWindowMs, const float InAnalysisPeriodMs);
+		void CreateVectorscopeWidget(const EAudioPanelLayoutType InPanelLayoutType);
+
 		void StartProcessing();
 		void StopProcessing();
 

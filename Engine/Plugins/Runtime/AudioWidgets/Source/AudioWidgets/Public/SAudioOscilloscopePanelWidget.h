@@ -91,6 +91,8 @@ public:
 
 	void Construct(const FArguments& InArgs, const FFixedSampledSequenceView& InData, const int32 InNumChannels);
 
+	void BuildWidget(const FFixedSampledSequenceView& InData, const int32 InNumChannels);
+
 	// SWidget methods overrides
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
@@ -178,6 +180,8 @@ private:
 
 	EXAxisLabelsUnit SequenceRulerDisplayUnit;
 	EYAxisLabelsUnit ValueGridOverlayDisplayUnit;
+
+	uint32 ValueGridMaxDivisionParameter = 2;
 
 	FFixedSampledSequenceView DataView;
 	SampledSequenceDrawingUtils::FSampledSequenceDrawingParams DrawingParams;

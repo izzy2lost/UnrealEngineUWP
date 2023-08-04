@@ -71,27 +71,33 @@ namespace AudioOscilloscopePanelWidgetPrivate
 
 void SAudioOscilloscopePanelWidget::Construct(const FArguments& InArgs, const FFixedSampledSequenceView& InData, const int32 InNumChannels)
 {
-	NumChannels = InNumChannels;
-
-	DataView = InData;
-
 	PanelLayoutType = InArgs._PanelLayoutType;
 
-	SequenceRulerDisplayUnit    = InArgs._SequenceRulerDisplayUnit;
-	ValueGridOverlayDisplayUnit = InArgs._YAxisLabelsUnit.Get();
-	bHideSequenceRuler          = InArgs._HideSequenceRuler.Get();
-	bHideSequenceGrid           = InArgs._HideSequenceGrid.Get();
-	bHideValueGrid              = InArgs._HideValueGrid.Get();
-	bHideTriggerThresholdLine   = InArgs._HideTriggerThresholdLine.Get();
+	SequenceRulerDisplayUnit      = InArgs._SequenceRulerDisplayUnit;
+	ValueGridOverlayDisplayUnit   = InArgs._YAxisLabelsUnit.Get();
+	ValueGridMaxDivisionParameter = InArgs._ValueGridMaxDivisionParameter;
+	bHideSequenceRuler            = InArgs._HideSequenceRuler.Get();
+	bHideSequenceGrid             = InArgs._HideSequenceGrid.Get();
+	bHideValueGrid                = InArgs._HideValueGrid.Get();
+	bHideTriggerThresholdLine     = InArgs._HideTriggerThresholdLine.Get();
 
 	check(InArgs._PanelStyle);
 	PanelStyle = InArgs._PanelStyle;
+
+	BuildWidget(InData, InNumChannels);
+}
+
+void SAudioOscilloscopePanelWidget::BuildWidget(const FFixedSampledSequenceView& InData, const int32 InNumChannels)
+{
+	NumChannels = InNumChannels;
+
+	DataView = InData;
 
 	CreateGridData(PanelStyle->TimeRulerStyle);
 
 	CreateSequenceRuler(SequenceGridData.ToSharedRef(), PanelStyle->TimeRulerStyle);
 	CreateBackground(PanelStyle->WaveViewerStyle);
-	CreateValueGridOverlay(InArgs._ValueGridMaxDivisionParameter, SampledSequenceValueGridOverlay::EGridDivideMode::MidSplit, ValueGridOverlayDisplayUnit, PanelStyle->ValueGridStyle);
+	CreateValueGridOverlay(ValueGridMaxDivisionParameter, SampledSequenceValueGridOverlay::EGridDivideMode::MidSplit, ValueGridOverlayDisplayUnit, PanelStyle->ValueGridStyle);
 	CreateSequenceViewer(SequenceGridData.ToSharedRef(), DataView, PanelStyle->WaveViewerStyle);
 	CreateTriggerThresholdLine(PanelStyle->TriggerThresholdLineStyle);
 

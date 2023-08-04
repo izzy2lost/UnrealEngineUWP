@@ -45,6 +45,8 @@ public:
 
 	void Construct(const FArguments& InArgs, const FFixedSampledSequenceView& InData);
 
+	void BuildWidget(const FFixedSampledSequenceView& InData);
+
 	// IFixedSampledSequenceViewReceiver Interface
 	virtual void ReceiveSequenceView(const FFixedSampledSequenceView InData, const uint32 FirstSampleIndex) override;
 
@@ -91,6 +93,8 @@ private:
 	TSharedPtr<SAudioRadialSlider> ScaleKnob;
 
 	EAudioPanelLayoutType PanelLayoutType = EAudioPanelLayoutType::Basic;
+
+	uint32 ValueGridMaxDivisionParameter = 2;
 
 	bool bIsInputWidgetTransacting = false;
 
