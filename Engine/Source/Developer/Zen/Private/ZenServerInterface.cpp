@@ -23,7 +23,6 @@
 #include "Misc/PathViews.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/ScopeExit.h"
-#include "Serialization/CompactBinary.h"
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryValidation.h"
 #include "Serialization/JsonReader.h"

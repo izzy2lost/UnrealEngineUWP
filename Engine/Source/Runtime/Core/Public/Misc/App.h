@@ -23,6 +23,8 @@
 #include "Templates/UnrealTemplate.h"
 #include "UObject/NameTypes.h"
 
+class FCbObjectId;
+
 /**
  * Provides information about the application.
  */
@@ -278,6 +280,14 @@ public:
 	{
 		return SessionId;
 	}
+
+	/**
+	 * Gets the identifier of the session that this application is part of as a FCbObject.
+	 *
+	 * @return Session identifier
+	 * @see GetSessionId
+	 */
+	static CORE_API const FCbObjectId& GetSessionObjectId();
 
 	/**
 	 * Gets the name of the session that this application is part of, if any.

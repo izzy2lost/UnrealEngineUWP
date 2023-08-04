@@ -283,8 +283,7 @@ namespace UE::Zen {
 	}
 
 	static const char* GetSessionIdHeader() {
-		static FCbObjectId SessionId = FCbObjectId::NewObjectId();
-
+		static FCbObjectId SessionId = FApp::GetSessionObjectId();
 		static const char* HeaderString = [&] {
 			static TAnsiStringBuilder<64> SessionIdHeader;
 			SessionIdHeader << "UE-Session: " << SessionId;

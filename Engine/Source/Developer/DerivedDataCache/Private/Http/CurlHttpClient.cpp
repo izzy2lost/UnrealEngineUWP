@@ -145,7 +145,7 @@ public:
 	void SetDefaultOptions(CURL* Curl, FCurlHttpHeaders& Headers);
 
 private:
-	const FCbObjectId SessionId = FCbObjectId::NewObjectId();
+	const FCbObjectId SessionId = FApp::GetSessionObjectId();
 	std::atomic<uint32> RequestId = 1;
 	FUtf8StringBuilderBase UserAgent;
 };

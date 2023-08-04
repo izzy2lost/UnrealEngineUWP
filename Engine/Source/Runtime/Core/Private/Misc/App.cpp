@@ -6,6 +6,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
 #include "Runtime/Launch/Resources/Version.h"
+#include "Serialization/CompactBinary.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "BuildSettings.h"
 #include "UObject/DevObjectVersion.h"
@@ -22,7 +23,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogApp, Log, All);
 bool FApp::bIsDebugGame = false;
 #endif
 
-FGuid FApp::SessionId = FGuid::NewGuid();
+FGuid FApp::SessionId = ToGuid(FApp::GetSessionObjectId());
 FString FApp::SessionName = FString();
 FString FApp::SessionOwner = FString();
 FString FApp::GraphicsRHI = FString();
@@ -465,4 +466,10 @@ FGuid FApp::GetInstanceId()
 {
 	static FGuid InstanceId = FGuid::NewGuid();
 	return InstanceId;
+}
+
+const FCbObjectId& FApp::GetSessionObjectId()
+{
+	static const FCbObjectId SessionObjectId = FCbObjectId::NewObjectId();
+	return SessionObjectId;
 }

@@ -535,6 +535,9 @@ inline FCbObjectId::FCbObjectId(const ByteArray& ObjectId)
 	FMemory::Memcpy(Bytes, ObjectId, sizeof(ByteArray));
 }
 
+FGuid			ToGuid(const FCbObjectId& Id);
+FCbObjectId		FromGuid(const FGuid& Id);
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /** A custom compact binary field type with an integer identifier. */
