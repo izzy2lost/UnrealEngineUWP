@@ -69,7 +69,7 @@ FString UDataValidationChangelist::GetPrettyPackageName(const FName& InPackageNa
 	}
 }
 
-EDataValidationResult UDataValidationChangelist::IsDataValid(FDataValidationContext& Context)
+EDataValidationResult UDataValidationChangelist::IsDataValid(FDataValidationContext& Context) const
 {
 	ISourceControlProvider& SourceControlProvider = ISourceControlModule::Get().GetProvider();
 	
