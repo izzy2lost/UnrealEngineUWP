@@ -53,6 +53,7 @@ public:
 	}
 
 	//~ Begin Blueprint interface
+
 	UFUNCTION(BlueprintCallable, Category = DataLayers)
 	ENGINE_API const UDataLayerInstance* GetDataLayerInstanceFromAsset(const UDataLayerAsset* InDataLayerAsset) const;
 
@@ -73,6 +74,7 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FOnDataLayerInstanceRuntimeStateChanged OnDataLayerInstanceRuntimeStateChanged;
+
 	//~ End Blueprint interface
 
 	template<class T>
@@ -94,6 +96,7 @@ public:
 	//~ End Runtime State
 
 private:
+
 	//~ Begin Initialization/Deinitialization
 	ENGINE_API UDataLayerManager();
 	ENGINE_API void Initialize();
@@ -145,6 +148,7 @@ private:
 
 #if WITH_EDITOR
 private:
+
 	//~ Begin Editor Context
 	ENGINE_API void PushActorEditorContext() const;
 	ENGINE_API void PopActorEditorContext() const;
