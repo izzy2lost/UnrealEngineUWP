@@ -179,6 +179,11 @@ void FWorldPartitionLevelHelper::MoveExternalActorsToLevel(const TArray<FWorldPa
 			continue;
 		}
 
+		if (PackageObjectMapping.bIsEditorOnly)
+		{
+			continue;
+		}
+
 		AActor* Actor = FindObject<AActor>(nullptr, *PackageObjectMapping.LoadedPath.ToString());
 		if (Actor)
 		{
@@ -429,13 +434,14 @@ bool FWorldPartitionLevelHelper::LoadActors(UWorld* InOuterWorld, ULevel* InDest
 		}
 		
 		const FName ContainerPackageInstanceName = Context->RemapPackage(PackageObjectMapping.ContainerPackage);
-		if (PackageObjectMapping.ContainerPackage != ContainerPackageInstanceName)
+
+		if (PackageObjectMapping.bIsEditorOnly || PackageObjectMapping.ContainerPackage != ContainerPackageInstanceName)
 		{
 			const FName ActorPackageName = *FPackageName::ObjectPathToPackageName(PackageObjectMapping.Package.ToString());
 			const FName ActorPackageInstanceName = PackageObjectMapping.bIsEditorOnly ? NAME_None : FName(*ULevel::GetExternalActorPackageInstanceName(ContainerPackageInstanceName.ToString(), ActorPackageName.ToString()));
 
 			Context->AddPackageMapping(ActorPackageName, ActorPackageInstanceName);
-		}
+	}
 
 		if (!PackageObjectMapping.bIsEditorOnly)
 		{
